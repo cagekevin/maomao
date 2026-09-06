@@ -3,6 +3,7 @@ import {
   parseSSEChunk,
   buildRequestMessages,
   CANVAS_AGENT_RULES,
+  TABLE_AGENT_RULES,
 } from '../../src/components/agent/runtime/useAgentChat.ts';
 // buildRequestMessages 的 messages 参数为 ChatMessage[]（role 是字面量联合、content 是 string | 内容块数组联合），
 // 测试构造的消息需按该类型标注，避免字面量被宽化成 string。
@@ -70,6 +71,29 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     expect(out[1].role).toBe('system');
     expect(out[1].content).toContain('完全自主');
     expect(out[2]).toMatchObject({ role: 'user', content: 'hi' });
+  });
+
+  it('mode=table 时首条 system 注入 TABLE_AGENT_RULES（替换画布准则，不叠加）', () => {
+    // 第10参 mode='table'：表格工作区展开→表格人格优先，不再注入 CANVAS_AGENT_RULES
+    const out = buildRequestMessages(
+      [{ role: 'user', content: 'hi' }],
+      '',
+      true,
+      [],
+      null,
+      [],
+      0,
+      '',
+      undefined,
+      'table',
+    );
+    expect(out[0].role).toBe('system');
+    expect(out[0].content).toContain(TABLE_AGENT_RULES);
+    expect(out[0].content).not.toContain('猫猫画布助手'); // 不被画布三通道抢占首条
+    // 执行模型分流段（恒 auto）仍紧随
+    expect(out[1].role).toBe('system');
+    expect(out[1].content).toContain('完全自主');
+    expect(out.some((m) => m.role === 'user' && m.content === 'hi')).toBe(true);
   });
 
   it('enhance=false 且无 systemPrompt 时不注入', () => {

@@ -127,6 +127,10 @@ export { MAX_TOOL_ROUNDS, ENABLE_TOOLS_ON_NON_STREAM } from '../agentConfig.ts';
 // 值已收口到 ../agentConfig.js 的 AGENT_PROMPTS.CANVAS_RULES；此处别名 re-export 保 useAgentChat/单测 import 契约。
 export const CANVAS_AGENT_RULES = AGENT_PROMPTS.CANVAS_RULES;
 
+/** 表格协作准则（2026-09-06 新增）：表格工作区展开时替换 CANVAS_AGENT_RULES 作为首条 system，
+ *  让模型以「表格人格」为主、不叠加画布三通道导致摇摆。值收口到 agentConfig.AGENT_PROMPTS.TABLE_RULES。 */
+export const TABLE_AGENT_RULES = AGENT_PROMPTS.TABLE_RULES;
+
 // ── Skill 执行指令（2026-09-05 精简：Skill 仅作理解需求的输入文本，不再引导多步批量编排）──
 // 当对话启用了 Skill 时，把它追加到 system，让 LLM 按 Skill 理解需求并按对话方式自主执行。
 // 值已收口到 ../agentConfig.js 的 AGENT_PROMPTS.SKILL_EXECUTION_RULES；此处别名沿用。
@@ -301,6 +305,9 @@ export function parseGenerationsFromReply(content = '') {
  *                                  - 调用方传 0（默认）→ 行为与旧版完全一致，不破坏既有单测与链路的反推安全。
  *  @param {string} [projectMemoryContext] 可选「记」注入块：调用方用 buildProjectMemoryContextFromStore
  *                                   提取的按 agentKey 全局长期记忆（MMR 排序/限 token）。空串=不注入。
+ *  @param {string} [mode]          可选运行人格：'canvas'（默认，注入画布准则）| 'table'（表格工作区展开，
+ *                                   注入 TABLE_AGENT_RULES 作首条 system，不叠加画布三通道）。
+ *                                  默认 'canvas' → 既有调用/单测零变化。
  *  导出供单测（AI 助手前端逻辑核心：确认发给 LLM 的 messages 组装正确）。 */
 export function buildRequestMessages(
   messages: ChatMessage[],
@@ -312,16 +319,20 @@ export function buildRequestMessages(
   historyTurns: number = 0,
   projectMemoryContext: string = '',
   workMode: WorkMode = RUN_MODE_IDS.AUTO,
+  mode: 'canvas' | 'table' = 'canvas',
 ) {
   const out: ChatMessage[] = [];
   // 工具消息配对：assistant 声明 tool_calls 时登记其 id，后续 tool 消息需命中才保留（防孤儿 tool 消息）
   const pendingToolIds = new Set();
-  // 画布准则（CANVAS_AGENT_RULES）始终注入（enhance 控制），不因历史已含 system 而跳过。
+  // 准则始终注入（enhance 控制），不因历史已含 system 而跳过。
   // 【bug 修复】旧实现 `hasSystem=messages.some(system)` 为真时：既不注入准则（L186 不满足），
   //   又在遍历时 `if(role==='system') continue` 把历史 system 一并丢弃 → 恢复旧对话时 LLM 收到 0 条 system、
   //   画布准则丢失。现改为：准则无条件注入 + 历史 system 在遍历中保留（见下方不再 continue 跳过）。
+  // 【2026-09-06 mode】表格工作区展开（mode='table'）时首条人格换成 TABLE_AGENT_RULES，
+  //   "表格为主、不叠加画布三通道"（避免模型在填表 JSON 与画布工具间摇摆）；默认 canvas 不变。
   if (enhance) {
-    out.push({ role: 'system', content: CANVAS_AGENT_RULES });
+    const baseRules = mode === 'table' ? TABLE_AGENT_RULES : CANVAS_AGENT_RULES;
+    out.push({ role: 'system', content: baseRules });
     if (systemPrompt) out.push({ role: 'system', content: systemPrompt });
   } else if (systemPrompt) {
     out.push({ role: 'system', content: systemPrompt });

@@ -482,7 +482,11 @@ const createNodeTool = {
         properties: { x: { type: 'number' }, y: { type: 'number' } },
         description: '画布坐标（可选，默认视窗中心）',
       },
-      connectFrom: { type: 'string', description: '从该节点拉一条连线到新节点（可选）' },
+      connectFrom: {
+        type: 'string',
+        description:
+          '从该节点拉一条连线到新节点（可选）。⚠️铁律：必须 100% 照抄真实 id（如 promptNode_170123_abc），严禁自创序号；不确定先 list_nodes 查',
+      },
     },
     required: ['type'],
   },
@@ -580,7 +584,13 @@ const deleteNodeTool = {
   parameters: {
     type: 'object',
     additionalProperties: false,
-    properties: { nodeId: { type: 'string', description: '要删除的节点 id' } },
+    properties: {
+      nodeId: {
+        type: 'string',
+        description:
+          '要删除的节点 id。⚠️铁律：必须 100% 照抄真实 id（如 promptNode_170123_abc），严禁自创序号（如 promptNode_1）；不确定先 list_nodes 查',
+      },
+    },
     required: ['nodeId'],
   },
   execute(args, ctx) {
@@ -633,7 +643,11 @@ const updateNodeTool = {
     type: 'object',
     additionalProperties: false,
     properties: {
-      nodeId: { type: 'string', description: '目标节点 id' },
+      nodeId: {
+        type: 'string',
+        description:
+          '目标节点 id。⚠️铁律：必须 100% 照抄 list_nodes / read_canvas / 建节点工具返回的真实 id（如 promptNode_170123_abc），严禁自创序号（如 promptNode_1）；不确定就先 list_nodes 查再引用',
+      },
       prompt: { type: 'string' },
       label: { type: 'string' },
       selectedModel: { type: 'string' },
@@ -679,7 +693,11 @@ const updateNodeRawTool = {
     type: 'object',
     additionalProperties: false,
     properties: {
-      nodeId: { type: 'string' },
+      nodeId: {
+        type: 'string',
+        description:
+          '目标节点 id。⚠️铁律：必须 100% 照抄真实 id（如 promptNode_170123_abc），严禁自创序号；不确定先 list_nodes 查',
+      },
       patch: { type: 'object', description: '要合并进 node.data 的字段' },
     },
     required: ['nodeId', 'patch'],
@@ -972,7 +990,14 @@ const triggerGenerationTool = {
   parameters: {
     type: 'object',
     additionalProperties: false,
-    properties: { nodeId: { type: 'string', minLength: 1, description: '要触发生成的节点 id' } },
+    properties: {
+      nodeId: {
+        type: 'string',
+        minLength: 1,
+        description:
+          '要触发生成的节点 id。⚠️铁律：必须 100% 照抄真实 id（如 promptNode_170123_abc），严禁自创序号（如 promptNode_1）；不确定先 list_nodes/read_canvas 查',
+      },
+    },
     required: ['nodeId'],
   },
   execute: async (args, ctx) => {

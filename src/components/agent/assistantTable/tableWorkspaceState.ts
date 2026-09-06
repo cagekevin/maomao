@@ -29,7 +29,7 @@ import {
   setCurrentGlobalContract,
   markMessageTableResolved,
 } from '../conversation/conversationStore.ts';
-import { mergeRowFromObj, jsonToSb } from './assistantTable.ts';
+import { mergeRowFromObj, jsonToSb, extractRowIndex, ROW_INDEX_KEY } from './assistantTable.ts';
 import type { AssistantTableJson } from './assistantTable.ts';
 
 /** 左面板宽度记忆键（沿用拆分前「左表 | 右对话」分栏键，避免旧数据丢失；STORAGE_KEYS 已登记） */
@@ -151,7 +151,8 @@ export function markTableMessageHandled(messageId: unknown): void {
 
 /**
  * 确认写回（模块化，替代原 AgentPanel confirmTablePreview）：
- *  - 单行（有 rowId 且 AI 只回 1 行）→ mergeRowFromObj 只覆盖该行已有列；
+ *  - 单行（AI 只回 1 行）→ 目标行优先按行对象 _rowIndex 精确定位（1 起，剥为元数据不当列），
+ *    无 _rowIndex 时回退「发起时选中的 rowId」；mergeRowFromObj 只覆盖该行已有列。
  *  - 整表 → jsonToSb 全量替换列+行，globalStyle 同步（保留 visual_positioning / negative）；
  *  - 写回 + markMessageTableResolved('confirmed') + 清 preview（左面板预览卡卸载，消息流留 pv-done 痕迹）。
  */
@@ -161,23 +162,36 @@ export function confirmTablePreview(): void {
   const { json, rowId } = p;
   const rows = Array.isArray(json.rows) ? json.rows : [];
   const current = getCurrentAssistantTable();
-  if (rowId && rows.length === 1 && rows[0] && typeof rows[0] === 'object') {
-    const next = mergeRowFromObj(current, rowId, rows[0] as Record<string, unknown>);
-    if (next !== current) setCurrentAssistantTable(next);
-  } else {
-    const { globalStyle: gs, sb: next } = jsonToSb(json);
-    if (gs) {
-      const cur = getCurrentGlobalContract();
-      if (gs !== (cur?.unified_style_prompt ?? '')) {
-        setCurrentGlobalContract({
-          visual_positioning: String(cur?.visual_positioning ?? '').trim(),
-          unified_style_prompt: gs,
-          unified_negative_prompt: String(cur?.unified_negative_prompt ?? '').trim(),
-        });
-      }
+  // 单行写回（AI 只回 1 行）：优先用行对象里的 _rowIndex 精确定位；无则回退「发起时选中的 rowId」。
+  // _rowIndex 让「未选中行 / 表格已变」场景也能精准 patch 到对应行（内容全改也能对上）。
+  if (rows.length === 1 && rows[0] && typeof rows[0] === 'object') {
+    const rowObj = rows[0] as Record<string, unknown>;
+    const byIndex = ROW_INDEX_KEY in rowObj ? extractRowIndex(rowObj) : null; // 0-based
+    const targetRowId =
+      byIndex !== null && byIndex >= 0 && byIndex < current.rows.length
+        ? current.rows[byIndex].id
+        : rowId || null;
+    if (targetRowId) {
+      const next = mergeRowFromObj(current, targetRowId, rowObj);
+      if (next !== current) setCurrentAssistantTable(next);
+      markMessageTableResolved(p.messageId, 'confirmed');
+      setState({ ...state, preview: null });
+      return;
     }
-    if (next.columns.length > 0) setCurrentAssistantTable(next);
   }
+  // 单行无法定位（无选中行也无 _rowIndex）或 AI 返回多行 → 整表兜底（新建/全量替换）
+  const { globalStyle: gs, sb: next } = jsonToSb(json);
+  if (gs) {
+    const cur = getCurrentGlobalContract();
+    if (gs !== (cur?.unified_style_prompt ?? '')) {
+      setCurrentGlobalContract({
+        visual_positioning: String(cur?.visual_positioning ?? '').trim(),
+        unified_style_prompt: gs,
+        unified_negative_prompt: String(cur?.unified_negative_prompt ?? '').trim(),
+      });
+    }
+  }
+  if (next.columns.length > 0) setCurrentAssistantTable(next);
   markMessageTableResolved(p.messageId, 'confirmed');
   setState({ ...state, preview: null });
 }

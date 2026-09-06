@@ -24,6 +24,7 @@ import {
   MAX_TOOL_ROUNDS,
   ENABLE_TOOLS_ON_NON_STREAM,
   CANVAS_AGENT_RULES,
+  TABLE_AGENT_RULES,
   SKILL_EXECUTION_RULES,
   historyKey,
   loadHistory,
@@ -240,6 +241,7 @@ export {
   MAX_TOOL_ROUNDS,
   ENABLE_TOOLS_ON_NON_STREAM,
   CANVAS_AGENT_RULES,
+  TABLE_AGENT_RULES,
   SKILL_EXECUTION_RULES,
   historyKey,
   loadHistory,
@@ -307,6 +309,7 @@ export function useAgentChat({
   provider = null,
   skills = [],
   onConversationChange = null,
+  tableOpen = false,
 } = {}): UseAgentChatReturn {
   // ── 消息单源（阶段1A）：不再自持 messages state，改为按字段订阅 store 的
   //    conversations[activeId].messages。流式高频更新只重渲染消息订阅者，其余字段不连坐。
@@ -349,6 +352,9 @@ export function useAgentChat({
   // ref 缓存（避免闭包旧值，对齐官方 g.current/h.current）
   const systemRef = useRef(systemPrompt);
   const skillsRef = useRef(skills);
+  // 表格工作区开合：send 是 useCallback 且在工具循环里经 makeContextMessages 实时重建请求，
+  //  故用 ref 同步（仿 systemRef/skillsRef），避免闭包依赖旧值导致表格态切换不生效。
+  const tableOpenRef = useRef(tableOpen);
   const abortRef = useRef(null);
   // 【复合忙判定】对齐大雄 agentIsTaskBusy：发送锁（store.sending）+ 状态机是否运行中。
   // 2026-08-21 消除 sendingRef 双源：异步闭包用 getState().sending 同步读最新（setSending → commit 同步更新 store，
@@ -379,6 +385,9 @@ export function useAgentChat({
   useEffect(() => {
     skillsRef.current = skills;
   }, [skills]);
+  useEffect(() => {
+    tableOpenRef.current = tableOpen;
+  }, [tableOpen]);
 
   /**
    * ── 消息同步辅助（M3 下沉至 agentMessages.js：唯一入口，全部落 store；无第二份可变数组）──
@@ -662,7 +671,11 @@ export function useAgentChat({
         // 【意图预判（docs/76）】本地规则高置信时把结论直接告诉 LLM，省掉它自己推理——
         // 本次故障中模型曾为此在两档之间摇摆 6 轮。tools 照常全量传，本句只作引导，
         // 不限制任何能力（刻意不做「请求体不传 tools」的硬拦，见 agentCore 段落注释）。
-        const intentHint = buildIntentHint(text);
+        // 【2026-09-06 表格态】表格工作区展开时切 table 人格（system 首条由 buildRequestMessages 按 mode 选），
+        //   且【不再注入画布意图预判】——表格态统一由 TABLE_RULES 引导（依据表格现状 + 用户话判断），
+        //   避免"生成/填表"等字眼被画布正则误判成出图而跟表格协作打架。
+        const mode: 'canvas' | 'table' = tableOpenRef.current ? 'table' : 'canvas';
+        const intentHint = mode === 'table' ? '' : buildIntentHint(text);
         for (; round < MAX_TOOL_ROUNDS; round++) {
           // 追加流式 assistant 占位（复刻官方）
           appendMsg({
@@ -688,6 +701,7 @@ export function useAgentChat({
               loadAgentHistoryTurns(),
               buildProjectMemoryContextFromStore(agentKey, '', text),
               getWorkMode(),
+              mode,
             );
             if (intentHint) msgs.push({ role: 'system', content: intentHint });
             return msgs;

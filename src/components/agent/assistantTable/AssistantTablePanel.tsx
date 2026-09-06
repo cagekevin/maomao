@@ -37,6 +37,7 @@ import {
 import type { AssistantTable, TableRow, AssistantTablePreview } from './assistantTable.ts';
 import { showToast } from '@/components/base/core/toastStore.ts';
 import AssistantTablePreviewCard from './AssistantTablePreviewCard.tsx';
+import '../../panels/agent-panel.css';
 
 /** 写全局风格（复用到 memory.global_contract.unified_style_prompt；缺另两字段时补空串对齐 GlobalContractShape） */
 function writeGlobalStyle(style: string): void {
@@ -188,7 +189,7 @@ export default function AssistantTablePanel({
       <div className="ops" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
-          className="op"
+          className="tw-op"
           title="复制该行"
           onClick={() => {
             apply((s) => duplicateRow(s, row.id));
@@ -209,7 +210,7 @@ export default function AssistantTablePanel({
         </button>
         <button
           type="button"
-          className="op"
+          className="tw-op"
           title="上移"
           onClick={() => apply((s) => moveRow(s, row.id, 'up'))}
         >
@@ -226,7 +227,7 @@ export default function AssistantTablePanel({
         </button>
         <button
           type="button"
-          className="op"
+          className="tw-op"
           title="下移"
           onClick={() => apply((s) => moveRow(s, row.id, 'down'))}
         >
@@ -243,7 +244,7 @@ export default function AssistantTablePanel({
         </button>
         <button
           type="button"
-          className="op"
+          className="tw-op"
           title="删除"
           onClick={() => {
             apply((s) => deleteRow(s, row.id));
@@ -267,7 +268,7 @@ export default function AssistantTablePanel({
         </button>
         <button
           type="button"
-          className="op"
+          className="tw-op"
           title="发送到画布去生图"
           onClick={() => {
             const t = rowToText(storyboard, row);
@@ -401,7 +402,7 @@ export default function AssistantTablePanel({
           {hasData && (
             <button
               type="button"
-              className="ib sm"
+              className="tw-op"
               title="新增一行"
               onClick={() => {
                 commit(addRow(storyboard));
@@ -409,8 +410,6 @@ export default function AssistantTablePanel({
               }}
             >
               <svg
-                width="15"
-                height="15"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -502,7 +501,7 @@ export default function AssistantTablePanel({
                     <span className="col-ops">
                       <button
                         type="button"
-                        className="col-x"
+                        className="tw-op"
                         title="在该列右侧插入一列"
                         onClick={() => {
                           commit(insertColumnAfter(storyboard, col.id));
@@ -510,8 +509,6 @@ export default function AssistantTablePanel({
                         }}
                       >
                         <svg
-                          width="11"
-                          height="11"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -525,7 +522,7 @@ export default function AssistantTablePanel({
                       </button>
                       <button
                         type="button"
-                        className="col-x"
+                        className="tw-op"
                         title="删除该列"
                         onClick={() => {
                           commit(deleteColumn(storyboard, col.id));
@@ -533,8 +530,6 @@ export default function AssistantTablePanel({
                         }}
                       >
                         <svg
-                          width="11"
-                          height="11"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"

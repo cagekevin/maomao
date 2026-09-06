@@ -160,6 +160,37 @@ describe('tableWorkspaceState — confirmTablePreview 写回（模块化，替�
     expect(getTableWorkspace().preview).toBeNull();
   });
 
+  it('单行带 _rowIndex（无选中 rowId）→ 精准 patch 到对应行，不当列、不整表替换', () => {
+    // 先建会话 + 表，再覆盖成一张 3 行表：景别/画面（行序：中景-原1 / 特写-原2 / 全景-原3）
+    setupConvWithTable();
+    const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2\n全景\t原3')!;
+    const row2 = sb.rows[1]; // 第 2 行：特写/原2
+    setCurrentAssistantTable(sb);
+    const mid = appendAssistant('{"rows":[{"_rowIndex":2,"画面":"已更新"}]}');
+
+    // 未选中任何行（rowId=null），靠 AI 返回的 _rowIndex:2 定位到第 2 行
+    acceptTablePreview({
+      json: { rows: [{ _rowIndex: 2, 画面: '已更新' }] },
+      messageId: mid,
+      rowId: null,
+    });
+    confirmTablePreview();
+
+    const after = getCurrentAssistantTable();
+    expect(after.rows).toHaveLength(3); // 不整表替换、不新增行
+    const c0 = after.columns[0].id; // 景别
+    const c1 = after.columns[1].id; // 画面
+    expect(after.rows[1].values[c1]).toBe('已更新'); // 第 2 行画面被改
+    expect(after.rows[1].values[c0]).toBe('特写'); // 第 2 行其它列保留
+    expect(after.rows[0].values[c1]).toBe('原1'); // 其它行不动
+    expect(after.rows[2].values[c1]).toBe('原3');
+    expect(after.columns.map((c) => c.label)).toEqual(['景别', '画面']); // _rowIndex 不当列
+    expect(row2.id).toBe(after.rows[1].id); // 写回的是原第 2 行（id 稳定）
+    const msgs = getActiveConv()!.messages as Array<{ tableResolved?: string }>;
+    expect(msgs[msgs.length - 1].tableResolved).toBe('confirmed');
+    expect(getTableWorkspace().preview).toBeNull();
+  });
+
   it('cancelTablePreview → 只打 cancelled，正式表不动，预览清空', () => {
     const sb = setupConvWithTable();
     const rowId = sb.rows[0].id;

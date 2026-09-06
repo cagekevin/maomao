@@ -52,6 +52,23 @@ export interface AssistantTableJson {
   rows: Array<Record<string, unknown>>; // 每行：{ 列名: 值 }
 }
 
+/** 行对象里的可选「行号定位」保留键（1 起，非列名）。
+ *  用于改单行时前端精准 patch 到对应行（即使内容全改也能对上），解析层必须把它当元数据、不当列。 */
+export const ROW_INDEX_KEY = '_rowIndex';
+
+/**
+ * 从某行对象提取行号（1 起）：`{ "_rowIndex": 2, ... }` → 1（0-based index）。无/非法返回 null。
+ * 该键是定位元数据、不是表格列，调用方拿到后应避免让 `_rowIndex` 进入列结构/单元格值。
+ */
+export function extractRowIndex(row: unknown): number | null {
+  if (!row || typeof row !== 'object') return null;
+  const v = (row as Record<string, unknown>)[ROW_INDEX_KEY];
+  if (v === undefined || v === null) return null;
+  const n = Number.parseInt(String(v), 10);
+  if (!Number.isInteger(n) || n < 1) return null;
+  return n - 1; // 1 起 → 0-based
+}
+
 /** 空表（无列无行） */
 export function emptyAssistantTable(): AssistantTable {
   return { columns: [], rows: [] };
@@ -316,7 +333,7 @@ export function jsonToSb(json: AssistantTableJson): { globalStyle: string; sb: A
       ? Object.keys(rows[0] as Record<string, unknown>)
       : [];
   const columns = keys
-    .filter((k) => k.trim() !== '')
+    .filter((k) => k.trim() !== '' && k !== ROW_INDEX_KEY) // _rowIndex 是定位元数据，绝不当列
     .map((label) => ({ id: generateId('col'), label }));
   const sb: AssistantTable = { columns, rows: [] };
   for (const raw of rows) {
@@ -414,29 +431,37 @@ export function buildPreviewModel(
   const globalStyle = String(json?.globalStyle ?? '').trim();
   const rows = Array.isArray(json?.rows) ? json.rows : [];
   const hitRow = rowId ? sb.rows.find((r) => r.id === rowId) : null;
-  // 单行：命中选中行且 AI 只返回 1 行 → 还原成「完整行」（AI 没给的列沿用当前值）
-  if (hitRow && rows.length === 1 && rows[0] && typeof rows[0] === 'object') {
+  // 单行：命中「选中行」或「AI 返回的 _rowIndex 定位行」且 AI 只返回 1 行
+  // → 还原成「完整行」（AI 没给的列沿用当前值）。_rowIndex 用于无选中行时也能精准预览要改第几行。
+  if (rows.length === 1 && rows[0] && typeof rows[0] === 'object') {
     const obj = rows[0] as Record<string, unknown>;
-    const columns = sb.columns.map((c) => c.label);
-    const rec: Record<string, string> = {};
-    for (const col of sb.columns) {
-      rec[col.label] =
-        col.label in obj ? String(obj[col.label] ?? '').trim() : (hitRow.values[col.id] ?? '');
+    const idx =
+      hitRow && !(ROW_INDEX_KEY in obj)
+        ? sb.rows.indexOf(hitRow)
+        : (extractRowIndex(obj) ?? (hitRow ? sb.rows.indexOf(hitRow) : -1));
+    const targetRow = idx >= 0 && idx < sb.rows.length ? sb.rows[idx] : null;
+    if (targetRow) {
+      const columns = sb.columns.map((c) => c.label);
+      const rec: Record<string, string> = {};
+      for (const col of sb.columns) {
+        rec[col.label] =
+          col.label in obj ? String(obj[col.label] ?? '').trim() : (targetRow.values[col.id] ?? '');
+      }
+      return {
+        kind: 'table',
+        globalStyle,
+        columns,
+        rows: [rec],
+        rowIndex: idx + 1,
+      };
     }
-    return {
-      kind: 'table',
-      globalStyle,
-      columns,
-      rows: [rec],
-      rowIndex: sb.rows.indexOf(hitRow) + 1,
-    };
   }
-  // 整表：列 = AI 返回首行键，行 = AI 返回各列值
+  // 整表：列 = AI 返回首行键（_rowIndex 是定位元数据，不当列），行 = AI 返回各列值
   const keys =
     rows.length && rows[0] && typeof rows[0] === 'object'
       ? Object.keys(rows[0] as Record<string, unknown>)
       : [];
-  const columns = keys.map((k) => k.trim()).filter(Boolean);
+  const columns = keys.map((k) => k.trim()).filter((k) => k !== '' && k !== ROW_INDEX_KEY);
   const tableRows = rows
     .map((r) => {
       if (!r || typeof r !== 'object') return null;

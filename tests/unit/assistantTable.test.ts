@@ -19,6 +19,8 @@ import {
   mergeRowFromObj,
   tryParseAssistantTableJson,
   buildPreviewModel,
+  extractRowIndex,
+  ROW_INDEX_KEY,
 } from '../../src/components/agent/assistantTable/assistantTable.ts';
 import type { AssistantTable } from '../../src/components/agent/assistantTable/assistantTable.ts';
 
@@ -229,5 +231,37 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     expect(addColumn(sb).columns.map((c) => c.label)).toEqual(
       insertColumnAfter(sb).columns.map((c) => c.label),
     );
+  });
+
+  it('extractRowIndex：读 _rowIndex（1 起）→ 0-based；无/非法返回 null', () => {
+    expect(extractRowIndex({ [ROW_INDEX_KEY]: 3, 列A: 'x' })).toBe(2);
+    expect(extractRowIndex({ [ROW_INDEX_KEY]: '2' })).toBe(1);
+    expect(extractRowIndex({ 列A: 'x' })).toBeNull(); // 无 _rowIndex
+    expect(extractRowIndex({ [ROW_INDEX_KEY]: 0 })).toBeNull(); // <1 非法
+    expect(extractRowIndex(null)).toBeNull();
+  });
+
+  it('jsonToSb：行对象带 _rowIndex 时不当列（定位元数据剥离），整表仍只建真实列', () => {
+    const { sb } = jsonToSb({
+      globalStyle: 'g',
+      rows: [
+        { [ROW_INDEX_KEY]: 2, 列A: 'a', 列B: 'b' },
+        { 列A: 'c', 列B: 'd' },
+      ],
+    });
+    expect(sb.columns.map((c) => c.label)).toEqual(['列A', '列B']); // 不含 _rowIndex
+    expect(sb.rows).toHaveLength(2);
+    expect(sb.rows[0].values[sb.columns[0].id]).toBe('a');
+    expect(Object.keys(sb.rows[0].values)).not.toContain(ROW_INDEX_KEY);
+  });
+
+  it('buildPreviewModel：无选中行 + 单行带 _rowIndex → 定位该行还原完整行（不整表替换）', () => {
+    const sb = parsePasted('景别\t画面\t对白\n中景\t原画面\t原对白\n特写\t原2\t原3');
+    // 想改第 2 行（_rowIndex:2 → 0-based index 1）但未选中行（rowId=null）
+    const p = buildPreviewModel(sb!, { rows: [{ [ROW_INDEX_KEY]: 2, 画面: '新画面' }] }, null);
+    expect(p.kind).toBe('table');
+    expect(p.rowIndex).toBe(2); // 预览标第 2 行
+    expect(p.rows).toEqual([{ 景别: '特写', 画面: '新画面', 对白: '原3' }]); // 沿用第2行原值
+    expect(p.columns).toEqual(['景别', '画面', '对白']); // 无 _rowIndex 混入
   });
 });

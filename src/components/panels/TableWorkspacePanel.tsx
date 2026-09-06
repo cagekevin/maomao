@@ -36,6 +36,7 @@ import {
 import { subscribe, getState } from '../agent/conversation/conversationState.ts';
 import type { ConversationStoreState } from '../agent/conversation/conversationState.ts';
 import { useStoreSelector, shallowEqual } from '@/hooks/useStoreSelector.ts';
+import './agent-panel.css';
 
 export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWidth: number }) {
   const ws = useTableWorkspace();

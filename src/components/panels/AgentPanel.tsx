@@ -50,11 +50,8 @@ import {
   rowToText,
   tryParseAssistantTableJson,
 } from '../agent/assistantTable/assistantTable.ts';
-import {
-  buildTableModeContext,
-  ASSISTANT_TABLE_FORMAT,
-  buildRefineRowUser,
-} from '../agent/assistantTable/assistantTablePrompt.ts';
+import type { AssistantTable } from '../agent/assistantTable/assistantTable.ts';
+import { buildRefineRowUser } from '../agent/assistantTable/assistantTablePrompt.ts';
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -323,6 +320,7 @@ export default function AgentPanel({
     provider: agentProvider,
     skills: activeSkills,
     onConversationChange: handleConversationChange,
+    tableOpen,
   });
 
   // ── 表格工作区数据（自当前对话会话记忆派生；conversations 订阅时随记忆写回刷新）──
@@ -768,21 +766,17 @@ export default function AgentPanel({
       .filter((a, i, arr) => arr.findIndex((x) => x.url === a.url) === i);
     const text = (typeof overrideText === 'string' ? overrideText : input).trim();
     if ((!text && allImages.length === 0) || (sending && stateAction !== 'steer')) return;
-    // 表格模式：发 AI 前自动注入「表格专注上下文 + 输出格式契约 + 全局风格 + 当前选中行」，
-    // 让 AI 聚焦当前表格/行、并按要求返回可解析的表格 JSON（对齐定稿 §1.3/§1.7/§1.8 与§2.2 输出契约）。
-    // ⚠️ ASSISTANT_TABLE_FORMAT 是"只返回纯 JSON {globalStyle, rows:[{列名:值}]}"的强制格式，
-    //    必须每次都带，否则 AI 可能返回自由文本→预览/写回失效。
+    // 表格协作（2026-09-06 重构）：人格与「输出 JSON 契约」已并入 system 的 TABLE_RULES
+    // （agentCore.buildRequestMessages 按 tableOpen 切 mode='table' 作首条注入），此处不再拼模式介绍/格式契约，
+    // 只把【表格现状 + 用户这句话】随本轮 user 发给模型，由它依据现状判断：空表→新建、有选中行→改该行、
+    // 有内容且话对得上→补行、话与表无关→直接对话（硬性边界在 TABLE_RULES 里，模型按现状自判）。
     let finalText = text;
     if (tableOpen) {
       const parts: string[] = [];
-      const modeCtx = buildTableModeContext(
-        storyboard.columns.map((c) => c.label),
-        globalStyle,
-      );
-      if (modeCtx) parts.push(modeCtx);
-      parts.push(ASSISTANT_TABLE_FORMAT);
+      const currentTable = buildTableSnapshotText(storyboard, globalStyle);
+      if (currentTable) parts.push(currentTable);
       if (selectedRow) {
-        // 有选中行 → 按「改单行」模式：当前行 + 全局风格 + 用户意见，只改该行（跨改面最小）
+        // 有选中行 → 改单行：带当前行原值 + 全局风格 + 用户修改意见（模型要据原值改）
         parts.push(buildRefineRowUser(rowToText(storyboard, selectedRow), globalStyle, text));
       } else if (text) {
         parts.push(text);
@@ -1059,7 +1053,7 @@ export default function AgentPanel({
             </button>
             {chatListOpen && (
               <div className="agent-pop is-conv">
-                <div style={{ maxHeight: '240px', overflowY: 'auto' }} className="custom-scrollbar">
+                <div className="custom-scrollbar agent-mh-240">
                   {conversations.length === 0 ? (
                     <div className="agent-pop-empty">暂无对话</div>
                   ) : (
@@ -1655,10 +1649,7 @@ export default function AgentPanel({
             {/* Skill / 快捷调用下拉：锚定在输入框正下方，向上弹出紧贴 textarea */}
             {skillSlashOpen && (
               <div ref={skillSlashRef} className="relative">
-                <div
-                  className="agent-pop is-slash"
-                  style={{ maxHeight: '240px', overflowY: 'auto' }}
-                >
+                <div className="agent-pop is-slash agent-mh-240">
                   {allSkills.length === 0 ? (
                     <div className="agent-pop-empty">暂无 Skill</div>
                   ) : (
@@ -1673,7 +1664,7 @@ export default function AgentPanel({
                         }}
                         className="agent-row"
                       >
-                        <span style={{ color: 'rgb(var(--mao-text-faint))' }}>/</span>
+                        <span className="agent-slash-mark">/</span>
                         <span className="agent-row-name">{s.name}</span>
                       </button>
                     ))
@@ -1759,8 +1750,7 @@ export default function AgentPanel({
                 </button>
                 {genImgMenuOpen && (
                   <div
-                    className="agent-pop is-gen"
-                    style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}
+                    className="agent-pop is-gen agent-mh-gen"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="agent-gen-group">
@@ -1846,10 +1836,7 @@ export default function AgentPanel({
                     : `Skill·${(activeSkills[0]?.name || '').slice(0, 5)}`}
                 </button>
                 {skillPickOpen && (
-                  <div
-                    className="agent-pop is-slash"
-                    style={{ maxHeight: '280px', overflowY: 'auto' }}
-                  >
+                  <div className="agent-pop is-slash agent-mh-280">
                     {allSkills.length === 0 ? (
                       <div className="agent-pop-empty">暂无 Skill</div>
                     ) : (
@@ -1867,7 +1854,7 @@ export default function AgentPanel({
                             className={`agent-row ${on ? 'is-active' : ''}`}
                           >
                             <span className="agent-row-name">{s.name}</span>
-                            <span className="agent-step-meta" style={{ marginLeft: 0 }}>
+                            <span className="agent-step-meta is-inline">
                               {s.builtin ? '内置' : ''}
                             </span>
                             {on && (
@@ -1962,6 +1949,29 @@ function readTextFile(file: File): Promise<string> {
     reader.onerror = () => reject(new Error('读取失败'));
     reader.readAsText(file, 'utf-8');
   });
+}
+
+/** 生成「当前表格现状」可读文本（发表格协作时随 user 注入，让模型不猜、直接看表是什么样）。
+ *  覆盖列名 + 全局风格 + 各行可读内容；空表明确提示无列无行（→ 模型应判为新建）。
+ *  现状是动态数据，随本轮 user 走（system 无表格数据源，无法静态放 system）。 */
+function buildTableSnapshotText(sb: AssistantTable, globalStyle: string): string {
+  const cols = Array.isArray(sb.columns) && sb.columns.length ? sb.columns.map((c) => c.label) : [];
+  const rows = Array.isArray(sb.rows) ? sb.rows : [];
+  if (!cols.length && !rows.length) {
+    return '【当前表格现状】空表（还没有列和行）。用户接下来提的想法通常是想在这张空表里建立内容。';
+  }
+  const lines: string[] = ['【当前表格现状】'];
+  if (cols.length) lines.push(`列：${cols.join(' | ')}`);
+  if (globalStyle) lines.push(`全局风格：${globalStyle}`);
+  if (rows.length) {
+    for (let i = 0; i < rows.length; i++) {
+      const rowText = rowToText(sb, rows[i]);
+      lines.push(`第${i + 1}行：${rowText || '（空行）'}`);
+    }
+  } else {
+    lines.push('（已设列但还没有数据行）');
+  }
+  return lines.join('\n');
 }
 
 /** 粗略判断某段文本「明显在试图返回表格 JSON」（代码块 / globalStyle / rows / 以 { 开头）。

@@ -3,9 +3,15 @@
  * AI 助手面板 —— 专属样式表（agent-panel.css）
  * ════════════════════════════════════════════════════════════════
  *
- * 【适用范围】只服务 `AgentPanel.tsx` / `AgentMessage.tsx` 两个组件，
- *   全部 `.agent-*` 前缀，不污染全局（本文件在 AgentPanel 里 import，
- *   AgentMessage 复用同一套类名，无需重复 import）。
+ * 【适用范围】服务 AI 助手全家组件：
+ *   - 对话区：`AgentPanel.tsx` / `AgentMessage.tsx` / `ChatMarkdown.tsx`
+ *   - 表格工作区：`TableWorkspacePanel.tsx` / `agent/assistantTable/AssistantTablePanel.tsx`
+ *   前缀分两类，必须对应当前真实 DOM 祖先，改结构务必同步改前缀：
+ *   - 对话区：`.agent-panel` / `.agent-body` / `.agent-*`
+ *   - 表格区：`.tw-panel .*`
+ *   （曾因表格从 `.agent-body` 拆到 `.tw-panel` 时遗留 `.agent-body .xxx` 前缀失效，
+ *    见历史 commit；别再写"假想的祖先前缀"。）
+ *   本文件由上述组件各自显式 import（vite 对同一 css 去重），勿依赖"恰好被某组件全局加载"。
  *
  * 【为什么不写进 index.css】index.css 是全站地基（:root 变量 + 全局类），
  *   AI 助手的视觉是独立演进的局部设计，单独成文件便于整体重构与删除，
@@ -183,6 +189,29 @@
 }
 
 /* ══════════════ 浮层（会话列表 / 更多菜单） ══════════════ */
+/* ═══ 面板级通用小工具类（收敛重复内联，2026-09-06）═══
+   - .agent-mh-*：浮层限高滚动档位（替代散落的内联 maxHeight + overflowY:auto）
+   - .agent-slash-mark：斜杠前缀标记（替代内联硬编码颜色）
+   - .agent-step-meta.is-inline：meta 不右推、紧跟文本（替代内联 marginLeft:0） */
+.agent-mh-240 {
+  max-height: 240px;
+  overflow-y: auto;
+}
+.agent-mh-280 {
+  max-height: 280px;
+  overflow-y: auto;
+}
+.agent-mh-gen {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+.agent-slash-mark {
+  color: rgb(var(--mao-text-faint));
+}
+.agent-step-meta.is-inline {
+  margin-left: 0;
+}
+
 .agent-pop {
   position: absolute;
   z-index: 50;
@@ -1089,19 +1118,21 @@
 }
 
 /* ════════════════════════════════════════════════════════════════
- * AI 助手表格工作区（左栏）—— mockup: mockup/storyboard-workspace-mockup.html
- * 样式令牌一律取 --mao-*；本体在 AgentPanel 的 .agent-body 左右行容器内。
+ * AI 助手表格工作区（吸附 AI 面板左缘，2026-09-06 拆分出 .agent-body）
+ *   —— mockup: mockup/storyboard-workspace-mockup.html
+ * 样式令牌一律取 --mao-*；表格本体现位于 `TableWorkspacePanel`(.tw-panel) 内，
+ * 不再是 .agent-body 的子级 —— 见下方 .tw-panel 前缀规则。
  * ════════════════════════════════════════════════════════════════ */
 
-/* 消息区主容器改左右行：左表格 | 分隔条 | 右对话 */
+/* 对话消息区容器（表格已拆走，这里只放对话流） */
 .agent-body {
   flex: 1;
   min-height: 0;
   display: flex;
 }
 
-/* 表格左栏 → 画布左侧 TableWorkspacePanel 内（2026-09-06 拆分）：
-   原嵌在 .agent-body 内（左表|分隔条|右对话），现独立滑出；.sb 本体填满面板高度 */
+/* 表格工作区面板（TableWorkspacePanel，.tw-panel 祖先）——
+   原嵌在 .agent-body 内，现独立滑出并吸附 AI 面板左缘；.sb 本体填满面板高度 */
 .tw-panel .sb {
   flex: 1;
   min-height: 0;
@@ -1254,13 +1285,9 @@
   margin-right: 2px;
   flex-shrink: 0;
 }
-.tw-panel .sb-bar .ib {
+/* 工具条内操作钮（如「新增一行」）随 .tw-op 统一；此处只保证不被压缩 */
+.tw-panel .sb-bar .tw-op {
   flex-shrink: 0;
-}
-.tw-panel .ib.sm {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
 }
 
 /* 表体：表头吸顶 + 表体滚动 */
@@ -1359,12 +1386,17 @@
 .tw-panel table.sbt th:hover .col-ops {
   opacity: 1;
 }
-.tw-panel table.sbt th .col-x {
-  width: 16px;
-  height: 16px;
-  display: flex;
+/* ══ 表格操作按钮统一规范（2026-09-06 用户裁定）：列头 +/×、每行操作组、顶部「新增一行」共用一套。
+   单个钮：16×16 透明底、faint 色、hover 深底 + 白图标；图标统一 11×11。
+   "组是否随宿主 hover 浮出"由外层容器(.col-ops / .ops)各自控制（见下），不在此定义；
+   按钮自身 hover 高亮一律由此 hover 规则提供。 */
+.tw-panel .tw-op {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
   border: none;
   border-radius: 4px;
   background: transparent;
@@ -1374,9 +1406,13 @@
     background 0.12s,
     color 0.12s;
 }
-.tw-panel table.sbt th .col-x:hover {
+.tw-panel .tw-op:hover {
   background: rgb(var(--mao-surface-hover-strong));
   color: #fff;
+}
+.tw-panel .tw-op svg {
+  width: 11px;
+  height: 11px;
 }
 
 .tw-panel .cell {
@@ -1413,29 +1449,6 @@
 .tw-panel tbody tr:hover .ops,
 .tw-panel tbody tr.sel .ops {
   opacity: 1;
-}
-.tw-panel .op {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border: none;
-  background: transparent;
-  border-radius: 4px;
-  color: rgb(var(--mao-text-faint));
-  cursor: pointer;
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-.agent-body .op:hover {
-  background: rgb(var(--mao-surface-hover-strong));
-  color: #fff;
-}
-.agent-body .op svg {
-  width: 13px;
-  height: 13px;
 }
 
 /* 表格空态 */

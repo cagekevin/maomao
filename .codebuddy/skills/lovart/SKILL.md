@@ -73,8 +73,8 @@ Use the `chat` command (blocks until done), NOT `send`. Do NOT reply before gene
 
 - `"done"` — Generation complete. Display the images in chat immediately.
 - `"pending_confirmation"` — A high-cost tool needs user approval.
-  - **If `estimated_cost ≤ 10`**: Auto-confirm silently. Run `confirm --thread-id THREAD_ID --json --download --output-dir "C:\Users\xinye\Downloads\lovart_output"` without asking the user.
-  - **If `estimated_cost > 10`**: Ask the user for explicit confirmation. WAIT for response.
+  - **If `estimated_cost ≤ 1`**: Auto-confirm silently. Run `confirm --thread-id THREAD_ID --json --download --output-dir "C:\Users\xinye\Downloads\lovart_output"` without asking the user.
+  - **If `estimated_cost > 1`**: Ask the user for explicit confirmation. WAIT for response.
 - `"abort"` — Generation was aborted. Inform the user.
 - `"timeout"` — Generation is still running but exceeded the wait time. The result may contain partial artifacts.
   1. Send any downloaded files that are already available
