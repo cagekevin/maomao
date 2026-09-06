@@ -16,13 +16,20 @@ packaging/
 │   ├── launch-all.ps1        ← 一键启动：起 localTool(:18080) + 系统托盘常驻 + 右键菜单
 │   ├── build-exe.ps1         ← 把 launch-all.ps1 编成无控制台 exe（静默托盘版）
 │   ├── refresh-icon.ps1      ← 刷新 Windows 图标缓存（换图标后视需要跑）
-│   └── maomao.ico            ← 托盘/打包用图标（Windows 侧真源）
+│   ├── maomao.ico            ← 托盘/打包用图标（Windows 侧真源）
+│   ├── PACKAGING.md          ← 【打包说明】（Windows 侧）
+│   └── TROUBLESHOOTING.md    ← 【快速排查手册】
 └── mac/                      ← macOS 启动/打包
     ├── launch-all.command    ← 一键启动：起 localTool(:18080) + 打开画布 + 守护自动重启
-    └── menubar/              ← 猫猫画布 菜单栏/Dock 常驻工具（原生 Swift）
+    ├── PACKAGING.md          ← 【打包说明】（Mac 侧）
+    └── menubar/              ← 猫猫画布 菜单栏常驻工具（原生 Swift，纯菜单栏形态）
         ├── main.swift        ← 主源码
-        └── build.sh          ← 一键编译 → 装进项目根 猫猫画布.app → 清隔离标记
+        ├── build.sh          ← 一键编译 → 自建/装进项目根 猫猫画布.app → 重签 → 清隔离标记
+        └── assets/           ← 打包资源（app.icns / menubar.png，已入 git，可复现重建 .app）
 ```
+
+> 打包步骤：见 `windows/PACKAGING.md`、`mac/PACKAGING.md`。
+> 出问题先看 `windows/TROUBLESHOOTING.md`。
 
 ## ⚠️ 路径约定（所有脚本已改为「基于项目根」）
 
@@ -44,12 +51,13 @@ packaging/
 
 ### macOS — 猫猫画布菜单栏工具（Swift，常用）
 - 源码：`packaging/mac/menubar/main.swift`
-- 成品：项目根 `猫猫画布.app`（双击常驻，菜单栏猫猫图标；后端崩则图标变灰）
-- 改代码后热更新：
+- 成品：项目根 `猫猫画布.app`（**纯菜单栏形态**：LSUIElement/accessory，无 Dock 图标、不进 Cmd+Tab，
+  只在顶部菜单栏显示猫猫图标；后端崩则图标变灰 + 菜单栏 ⚠）
+- 改代码后一键打包（.app 缺失会自动从 assets 重建，无需预置）：
   ```bash
   cd packaging/mac/menubar && ./build.sh
   ```
-- 若 `猫猫画布.app` 不在项目根：`build.sh` 会报错提示先建好包结构。
+- 打包细节：见 `packaging/mac/PACKAGING.md`。
 
 ### Windows — 一键启动 / 打包 exe（PowerShell）
 ```powershell
