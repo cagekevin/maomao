@@ -31,22 +31,22 @@
  * 存储：localStorage 键 `yimao_node_prefs`，结构 { [nodeType]: { ...lastParams } }。
  * 接真系统：可改为后端 KV（app_settings / node_prefs），本模块是纯前端唯一数据源。
  */
-import { useState, useCallback } from 'react'
-import { contentGet, contentSet } from '../core/contentStore.ts'
+import { useState, useCallback } from 'react';
+import { contentGet, contentSet } from '../core/contentStore.ts';
 
-const STORAGE_KEY = 'yimao_node_prefs'
+const STORAGE_KEY = 'yimao_node_prefs';
 
 /** 节点上次参数存储形状：{ [key]: any }（值类型因节点而异，宽松以兼容存量） */
-type NodePrefsMap = Record<string, unknown>
+type NodePrefsMap = Record<string, unknown>;
 /** 节点类型 → data 键名 → 记忆键名 映射 */
-type PrefsFieldMap = Record<string, Record<string, string>>
+type PrefsFieldMap = Record<string, Record<string, string>>;
 
 function loadAll(): NodePrefsMap {
   try {
-    const parsed = contentGet(STORAGE_KEY)
-    return parsed && typeof parsed === 'object' ? parsed as NodePrefsMap : {}
+    const parsed = contentGet(STORAGE_KEY);
+    return parsed && typeof parsed === 'object' ? (parsed as NodePrefsMap) : {};
   } catch {
-    return {}
+    return {};
   }
 }
 
@@ -60,7 +60,7 @@ function loadAll(): NodePrefsMap {
  * @returns {object} 合并后的参数
  */
 export function getNodePrefs(type: string, defaults: NodePrefsMap = {}): NodePrefsMap {
-  return { ...defaults, ...(loadAll()[type] as Record<string, unknown> | undefined) }
+  return { ...defaults, ...(loadAll()[type] as Record<string, unknown> | undefined) };
 }
 
 // data 键名 → 记忆键名 的映射（记忆里存的是官方口径，data 里是节点口径，如 selectedModel←model）
@@ -68,14 +68,19 @@ const PREFS_FIELDS: PrefsFieldMap = {
   promptNode: { selectedModel: 'model', aspectRatio: 'aspectRatio', imageSize: 'imageSize' },
   textNode: { selectedModel: 'model' },
   templateNode: { selectedModel: 'model', aspectRatio: 'aspectRatio' },
-  discountVideoNode: { selectedModel: 'model', size: 'size', resolution: 'resolution', selectedSeconds: 'seconds' },
-}
+  discountVideoNode: {
+    selectedModel: 'model',
+    size: 'size',
+    resolution: 'resolution',
+    selectedSeconds: 'seconds',
+  },
+};
 const PREFS_DEFAULTS: PrefsFieldMap = {
   promptNode: { model: '', aspectRatio: 'Auto', imageSize: '1K' },
   textNode: { model: '' },
   templateNode: { model: '', aspectRatio: '1:1' },
   discountVideoNode: { model: '', size: '16:9', resolution: '1080p', seconds: '10' },
-}
+};
 
 /**
  * 【新建注入 · 纯函数】把「上次参数」记忆填进新节点的 data。
@@ -88,13 +93,13 @@ const PREFS_DEFAULTS: PrefsFieldMap = {
  * @returns {object} 注入后的 data
  */
 export function injectNodePrefs(type: string, data: NodePrefsMap): NodePrefsMap {
-  const fieldMap = PREFS_FIELDS[type]
-  if (!fieldMap) return data
-  const prefs = getNodePrefs(type, PREFS_DEFAULTS[type])
+  const fieldMap = PREFS_FIELDS[type];
+  if (!fieldMap) return data;
+  const prefs = getNodePrefs(type, PREFS_DEFAULTS[type]);
   for (const dataKey of Object.keys(fieldMap)) {
-    if (data[dataKey] === undefined) data[dataKey] = prefs[fieldMap[dataKey]]
+    if (data[dataKey] === undefined) data[dataKey] = prefs[fieldMap[dataKey]];
   }
-  return data
+  return data;
 }
 
 /**
@@ -103,27 +108,32 @@ export function injectNodePrefs(type: string, data: NodePrefsMap): NodePrefsMap 
  * @param {object} defaults 默认参数
  * @returns {{ prefs: object, set: (patch: object) => void }}
  */
-export function useNodePrefs(type: string, defaults: NodePrefsMap = {}): { prefs: NodePrefsMap; set: (patch: NodePrefsMap) => void } {
+export function useNodePrefs(
+  type: string,
+  defaults: NodePrefsMap = {},
+): { prefs: NodePrefsMap; set: (patch: NodePrefsMap) => void } {
   const [prefs, setPrefs] = useState<NodePrefsMap>(() => {
-    const all = loadAll()
-    return { ...defaults, ...(all[type] as Record<string, unknown> | undefined) }
-  })
+    const all = loadAll();
+    return { ...defaults, ...(all[type] as Record<string, unknown> | undefined) };
+  });
 
   const set = useCallback(
     (patch: NodePrefsMap) => {
       setPrefs((prev) => {
-        const next = { ...prev, ...patch }
+        const next = { ...prev, ...patch };
         // 持久化
         try {
-          const all = loadAll()
-          all[type] = next
-          contentSet(STORAGE_KEY, all)
-        } catch { /* ignore */ }
-        return next
-      })
+          const all = loadAll();
+          all[type] = next;
+          contentSet(STORAGE_KEY, all);
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
     },
-    [type]
-  )
+    [type],
+  );
 
-  return { prefs, set }
+  return { prefs, set };
 }

@@ -10,10 +10,7 @@ export {
   validateAuthentication,
   previewModelProtocolResponse,
 } from './validation.js';
-export {
-  renderTemplate,
-  renderTemplateString,
-} from './template.js';
+export { renderTemplate, renderTemplateString } from './template.js';
 export {
   buildModelProtocolRequest,
   buildSameOriginUrl,
@@ -36,10 +33,7 @@ export {
   normalizeBase64Result,
   fetchSameOriginResultUrls,
 } from './http.js';
-export {
-  serializeModelProtocolBody,
-  redactModelProtocolMultipartPreview,
-} from './body.js';
+export { serializeModelProtocolBody, redactModelProtocolMultipartPreview } from './body.js';
 export {
   resolvePoll,
   pollResolvedModelProtocol,

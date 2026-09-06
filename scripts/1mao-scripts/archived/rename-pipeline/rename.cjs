@@ -36,4 +36,6 @@ const walk = (dir, base) => {
   }
 };
 walk(BUNDLE, '');
-console.log(`已生成可读副本 ${n} 个到 readable/（规则 ${rules.length} 条；空规则=等价副本，非构建源）`);
+console.log(
+  `已生成可读副本 ${n} 个到 readable/（规则 ${rules.length} 条；空规则=等价副本，非构建源）`,
+);

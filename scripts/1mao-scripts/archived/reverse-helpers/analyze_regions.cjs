@@ -19,10 +19,22 @@ const declRe = /^(?:async\s+function|function|class|const|let|var)\s+([A-Za-z_$]
 
 const RULES = [
   { region: 'jianying', re: /jianying|剪映/ },
-  { region: 'localEngine', re: /127\.0\.0\.1|localTool|\/api\/status|\/api\/kv|\/api\/files|\/api\/proxy/ },
-  { region: 'nodes', re: /nodeTypes|groupNode|textNode|promptNode|imageBoxNode|imageNode|cropNode|videoNode|audioNode|customNode|ghostTarget|stickyNoteNode|compareNode|gridSplit|gridMerge|textConcat|panoramaNode|director3dNode|rhWebappNode|videoExtractNode|videoToGifNode|imageCompressNode|faceMosaicNode|audioPlayerNode|discountVideoNode|sd2VideoNode|urlToImageNode|fileToUrlNode/ },
-  { region: 'canvas', re: /ReactFlow|useNodes|useEdges|onConnect|addEdge|MiniMap|Background|Controls|xyflow|reactflow/ },
-  { region: 'storage', re: /localforage|chrome\.storage|canvas-state-v1|app_settings|setItem|getItem/ },
+  {
+    region: 'localEngine',
+    re: /127\.0\.0\.1|localTool|\/api\/status|\/api\/kv|\/api\/files|\/api\/proxy/,
+  },
+  {
+    region: 'nodes',
+    re: /nodeTypes|groupNode|textNode|promptNode|imageBoxNode|imageNode|cropNode|videoNode|audioNode|customNode|ghostTarget|stickyNoteNode|compareNode|gridSplit|gridMerge|textConcat|panoramaNode|director3dNode|rhWebappNode|videoExtractNode|videoToGifNode|imageCompressNode|faceMosaicNode|audioPlayerNode|discountVideoNode|sd2VideoNode|urlToImageNode|fileToUrlNode/,
+  },
+  {
+    region: 'canvas',
+    re: /ReactFlow|useNodes|useEdges|onConnect|addEdge|MiniMap|Background|Controls|xyflow|reactflow/,
+  },
+  {
+    region: 'storage',
+    re: /localforage|chrome\.storage|canvas-state-v1|app_settings|setItem|getItem/,
+  },
   { region: 'account', re: /cookie|users|auth|token|login/ },
   { region: 'prompts', re: /promptLibrary|在线提示词库|PromptLibrary/ },
   { region: 'resources', re: /transitResources|素材|资源库/ },
@@ -34,7 +46,12 @@ const RULES = [
 const syms = [];
 for (let i = 0; i < lines.length; i++) {
   const m = lines[i].match(declRe);
-  if (m) syms.push({ name: m[1], line: i + 1, kind: /^(?:async\s+function|function|class)\b/.test(lines[i]) ? 'func' : 'binding' });
+  if (m)
+    syms.push({
+      name: m[1],
+      line: i + 1,
+      kind: /^(?:async\s+function|function|class)\b/.test(lines[i]) ? 'func' : 'binding',
+    });
 }
 const nameSet = new Set(syms.map((s) => s.name));
 const nameRe = new RegExp('\\b(' + [...nameSet].join('|') + ')\\b', 'g');
@@ -110,22 +127,52 @@ for (let i = 0; i < syms.length; i++) {
   else {
     region = 'ui-misc';
     for (const r of RULES) {
-      if (r.re.test(bodies[i])) { region = 'core:' + r.region; break; }
+      if (r.re.test(bodies[i])) {
+        region = 'core:' + r.region;
+        break;
+      }
     }
   }
   if (region.startsWith('panel:') && !RULES.every((r) => !r.re.test(bodies[i]))) {
     for (const r of RULES) {
-      if (r.re.test(bodies[i])) { region = 'core:' + r.region; break; }
+      if (r.re.test(bodies[i])) {
+        region = 'core:' + r.region;
+        break;
+      }
     }
   }
   regionCount[region] = (regionCount[region] || 0) + 1;
-  result.push({ name: s.name, line: s.line, kind: s.kind, region, compRefs: [...compRefs[i]], signals: pickSignals(bodies[i]) });
+  result.push({
+    name: s.name,
+    line: s.line,
+    kind: s.kind,
+    region,
+    compRefs: [...compRefs[i]],
+    signals: pickSignals(bodies[i]),
+  });
 }
 
 function pickSignals(body) {
-  const keys = ['jianying/send', '127.0.0.1', 'localTool', 'nodeTypes', 'ReactFlow',
-    'localforage', 'chrome.storage', 'canvas-state-v1', 'captureVideoFrame', 'cookie',
-    'promptLibrary', 'transitResources', '/api/status', '/api/kv', '/api/files', '/api/proxy', 'share', '分享'];
+  const keys = [
+    'jianying/send',
+    '127.0.0.1',
+    'localTool',
+    'nodeTypes',
+    'ReactFlow',
+    'localforage',
+    'chrome.storage',
+    'canvas-state-v1',
+    'captureVideoFrame',
+    'cookie',
+    'promptLibrary',
+    'transitResources',
+    '/api/status',
+    '/api/kv',
+    '/api/files',
+    '/api/proxy',
+    'share',
+    '分享',
+  ];
   return keys.filter((k) => body.includes(k));
 }
 
@@ -136,4 +183,6 @@ console.log('总顶层符号:', result.length);
 console.log('根面板数:', rootPanels.length);
 console.log('被面板覆盖:', covered.size);
 console.log('\n区域分布(按数量):');
-Object.entries(regionCount).sort((a, b) => b[1] - a[1]).forEach(([k, v]) => console.log(`  ${k}: ${v}`));
+Object.entries(regionCount)
+  .sort((a, b) => b[1] - a[1])
+  .forEach(([k, v]) => console.log(`  ${k}: ${v}`));

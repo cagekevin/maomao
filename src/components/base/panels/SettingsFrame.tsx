@@ -1,9 +1,9 @@
-import React from 'react'
-import { Settings as SettingsIcon, Bot, Sliders, HardDrive, type LucideIcon } from 'lucide-react'
-import ApiSettings from './sections/ApiSettings.tsx'
-import AgentChatSettings from './sections/AgentChatSettings.tsx'
-import OtherSettings from './sections/OtherSettings.tsx'
-import StorageMonitor from './sections/StorageMonitor.tsx'
+import React from 'react';
+import { Settings as SettingsIcon, Bot, Sliders, HardDrive, type LucideIcon } from 'lucide-react';
+import ApiSettings from './sections/ApiSettings.tsx';
+import AgentChatSettings from './sections/AgentChatSettings.tsx';
+import OtherSettings from './sections/OtherSettings.tsx';
+import StorageMonitor from './sections/StorageMonitor.tsx';
 
 /**
  * 设置主框架（侧栏 + 舞台）。
@@ -14,10 +14,10 @@ import StorageMonitor from './sections/StorageMonitor.tsx'
  */
 /** 侧栏导航项（icon 用 lucide 组件，comp 是对应 section 组件名，供 renderSection 分发）。 */
 interface SectionNav {
-  key: string
-  label: string
-  icon: LucideIcon
-  comp: 'ApiSettings' | 'AgentChatSettings' | 'OtherSettings' | 'StorageMonitor'
+  key: string;
+  label: string;
+  icon: LucideIcon;
+  comp: 'ApiSettings' | 'AgentChatSettings' | 'OtherSettings' | 'StorageMonitor';
 }
 
 const SECTIONS: SectionNav[] = [
@@ -28,10 +28,10 @@ const SECTIONS: SectionNav[] = [
   { key: 'other', label: '其他设置', icon: Sliders, comp: 'OtherSettings' },
   // 2026-08-27：存储监控从"更多设置"折叠组移出，独立成项
   { key: 'storage', label: '存储监控', icon: HardDrive, comp: 'StorageMonitor' },
-]
+];
 
 export default function SettingsFrame() {
-  const [active, setActive] = React.useState('agent')
+  const [active, setActive] = React.useState('agent');
 
   return (
     <div className="absolute inset-0 flex bg-canvas overflow-hidden z-float">
@@ -42,7 +42,7 @@ export default function SettingsFrame() {
         </div>
 
         {SECTIONS.map((s) => {
-          const Icon = s.icon
+          const Icon = s.icon;
           return (
             <button
               key={s.key}
@@ -52,31 +52,29 @@ export default function SettingsFrame() {
               <Icon size={16} />
               <span className="flex-1 truncate">{s.label}</span>
             </button>
-          )
+          );
         })}
       </aside>
 
       {/* 内容区 */}
       <main className="flex-1 overflow-y-auto p-6 relative pb-24 custom-scrollbar bg-canvas nowheel nopan nodrag">
-        <div className="max-w-4xl mx-auto flex flex-col gap-4">
-          {renderSection(active)}
-        </div>
+        <div className="max-w-4xl mx-auto flex flex-col gap-4">{renderSection(active)}</div>
       </main>
     </div>
-  )
+  );
 }
 
 function renderSection(key: string) {
   switch (key) {
     case 'api':
-      return <ApiSettings />
+      return <ApiSettings />;
     case 'agent':
-      return <AgentChatSettings />
+      return <AgentChatSettings />;
     case 'other':
-      return <OtherSettings />
+      return <OtherSettings />;
     case 'storage':
-      return <StorageMonitor />
+      return <StorageMonitor />;
     default:
-      return <div className="text-center text-sm text-muted py-16">该设置分区尚未实现</div>
+      return <div className="text-center text-sm text-muted py-16">该设置分区尚未实现</div>;
   }
 }

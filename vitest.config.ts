@@ -1,10 +1,10 @@
-import { defineConfig, defaultExclude } from 'vitest/config'
-import react from '@vitejs/plugin-react'
-import path from 'path'
-import { fileURLToPath } from 'node:url'
+import { defineConfig, defaultExclude } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+import { fileURLToPath } from 'node:url';
 
 // 同 vite.config.ts：不用 CJS 的 __dirname，改标准 ESM 解析，不依赖打包器注入的 define。
-const rootDir = path.dirname(fileURLToPath(import.meta.url))
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
@@ -53,13 +53,20 @@ export default defineConfig({
       reporter: ['text', 'lcov'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
-        'src/components/nodes/**', 'src/components/panels/**', 'src/components/agent/**',
-        'src/components/scriptbox/**', 'src/components/director3d/**',
-        '**/contracts.ts', '**/config.ts',
+        'src/components/nodes/**',
+        'src/components/panels/**',
+        'src/components/agent/**',
+        'src/components/scriptbox/**',
+        'src/components/director3d/**',
+        '**/contracts.ts',
+        '**/config.ts',
         '**/*.tsx', // 纯 UI 组件不计覆盖（含 nodes/panels/scriptbox 的 tsx），避免分母失真
       ],
       thresholds: {
-        lines: 50, functions: 40, statements: 50, branches: 30,
+        lines: 50,
+        functions: 40,
+        statements: 50,
+        branches: 30,
       },
     },
   },
@@ -68,4 +75,4 @@ export default defineConfig({
       '@': path.resolve(rootDir, './src'),
     },
   },
-})
+});

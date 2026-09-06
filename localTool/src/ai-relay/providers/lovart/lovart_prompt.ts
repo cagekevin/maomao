@@ -49,7 +49,10 @@ function warnUnknownModel(modelId: string, phase: string): void {
   );
 }
 
-export function resolvePreferModels(model: string, category: string): Record<string, string[]> | undefined {
+export function resolvePreferModels(
+  model: string,
+  category: string,
+): Record<string, string[]> | undefined {
   if (!model || (category !== 'IMAGE' && category !== 'VIDEO')) return undefined;
   const m = model.toLowerCase().replace(/_/g, '-');
   const rules = category === 'IMAGE' ? LOVART_IMAGE_RULES : LOVART_VIDEO_RULES;
@@ -88,7 +91,8 @@ export function buildLovartPrompt(
   }
   // 可读模型名：查 _PROMPT_MODEL_NAMES（对齐 main.py:1252-1253，key 用 strip().lower()），
   // 未登记则回退 model 原串（对齐 main.py 兜底行为，而非 specs.readableName）。
-  const modelName = LOVART_PROMPT_MODEL_NAMES[(modelId ?? '').trim().toLowerCase()] ?? modelId ?? '';
+  const modelName =
+    LOVART_PROMPT_MODEL_NAMES[(modelId ?? '').trim().toLowerCase()] ?? modelId ?? '';
   // 提示词硬约束：模型名嵌进生成指令句子（对齐 main.py build_gen_prefix:533）。
   const modelClause = modelName ? ` using the ${modelName} model` : '';
 
@@ -111,7 +115,7 @@ export function buildLovartPrompt(
   } else if (category === 'VIDEO') {
     instr = `Generate exactly ONE video${modelClause}.`;
   }
-  const head = prefix && instr ? `${prefix}\n${instr}` : (prefix || instr);
+  const head = prefix && instr ? `${prefix}\n${instr}` : prefix || instr;
 
   // 用户提示词原文用 <user_prompt> 包裹并追加"原样使用"指令（对齐 main.py:1258-1259）：
   // 让上游 Agent 明确知晓这是原文，须严格原样透传，不做改写或润色；gen_prefix 仍在标签之外。

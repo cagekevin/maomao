@@ -14,11 +14,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = path.join(__dirname, '..', 'src');
 const toUrl = (p) => 'file:///' + p.split(path.sep).join('/');
 
-const {
-  pollLovartThread,
-  extractLovartArtifacts,
-  extractLovartText,
-} = await import(toUrl(path.join(src, 'ai-relay/providers/lovart/lovart_task.ts')));
+const { pollLovartThread, extractLovartArtifacts, extractLovartText } = await import(
+  toUrl(path.join(src, 'ai-relay/providers/lovart/lovart_task.ts'))
+);
 
 /** 快速 deps：轮询/复核延迟压到 0，避免真 sleep 拖慢。 */
 const FAST = {
@@ -49,7 +47,10 @@ test('B10 AUTO_CONFIRM：status 先 pending_confirmation → confirm → done �
       return jsonResponse({ code: 0, data: sequence.shift() ?? { status: 'done' } });
     }
     if (opts.path === '/v1/openapi/chat/result') {
-      return jsonResponse({ code: 0, data: { items: [{ type: 'video', artifacts: [{ content: 'http://cdn/v.mp4' }] }] } });
+      return jsonResponse({
+        code: 0,
+        data: { items: [{ type: 'video', artifacts: [{ content: 'http://cdn/v.mp4' }] }] },
+      });
     }
     return jsonResponse({ code: 0, data: {} });
   };
@@ -60,13 +61,22 @@ test('B10 AUTO_CONFIRM：status 先 pending_confirmation → confirm → done �
 
 test('B11 done：多产物归一返回 url 列表', async () => {
   const transport = async (opts) => {
-    if (opts.path === '/v1/openapi/chat/status') return jsonResponse({ code: 0, data: { status: 'done' } });
+    if (opts.path === '/v1/openapi/chat/status')
+      return jsonResponse({ code: 0, data: { status: 'done' } });
     if (opts.path === '/v1/openapi/chat/result') {
-      return jsonResponse({ code: 0, data: { items: [
-        { type: 'image', artifacts: [{ content: 'http://cdn/a.png' }] },
-        { type: 'text', text: '说明文字' },
-        { type: 'image', artifacts: [{ content: 'http://cdn/a.png' }, { content: 'http://cdn/b.png' }] },
-      ] } });
+      return jsonResponse({
+        code: 0,
+        data: {
+          items: [
+            { type: 'image', artifacts: [{ content: 'http://cdn/a.png' }] },
+            { type: 'text', text: '说明文字' },
+            {
+              type: 'image',
+              artifacts: [{ content: 'http://cdn/a.png' }, { content: 'http://cdn/b.png' }],
+            },
+          ],
+        },
+      });
     }
     return jsonResponse({ code: 0, data: {} });
   };
@@ -77,33 +87,52 @@ test('B11 done：多产物归一返回 url 列表', async () => {
 
 test('B11 done 但无产物：extractLovartArtifacts 抛 no_artifact', async () => {
   const transport = async (opts) => {
-    if (opts.path === '/v1/openapi/chat/status') return jsonResponse({ code: 0, data: { status: 'done' } });
-    if (opts.path === '/v1/openapi/chat/result') return jsonResponse({ code: 0, data: { items: [{ type: 'text', text: 'sorry, refused' }] } });
+    if (opts.path === '/v1/openapi/chat/status')
+      return jsonResponse({ code: 0, data: { status: 'done' } });
+    if (opts.path === '/v1/openapi/chat/result')
+      return jsonResponse({ code: 0, data: { items: [{ type: 'text', text: 'sorry, refused' }] } });
     return jsonResponse({ code: 0, data: {} });
   };
   const result = await pollLovartThread({ ...FAST, transport }, 't1');
-  assert.throws(() => extractLovartArtifacts(result), (e) => e.type === 'no_artifact');
+  assert.throws(
+    () => extractLovartArtifacts(result),
+    (e) => e.type === 'no_artifact',
+  );
 });
 
 test('B11 abort：抛 abort', async () => {
   const transport = async (opts) => {
-    if (opts.path === '/v1/openapi/chat/status') return jsonResponse({ code: 0, data: { status: 'abort' } });
+    if (opts.path === '/v1/openapi/chat/status')
+      return jsonResponse({ code: 0, data: { status: 'abort' } });
     return jsonResponse({ code: 0, data: {} });
   };
-  await assert.rejects(() => pollLovartThread({ ...FAST, transport }, 't1'), (e) => e.type === 'abort');
+  await assert.rejects(
+    () => pollLovartThread({ ...FAST, transport }, 't1'),
+    (e) => e.type === 'abort',
+  );
 });
 
 test('B11 result 含 pending_confirmation：auto-confirm 后继续', async () => {
   let confirmRan = false;
   const transport = async (opts) => {
-    if (opts.path === '/v1/openapi/chat/confirm') { confirmRan = true; return jsonResponse({ code: 0, data: {} }); }
+    if (opts.path === '/v1/openapi/chat/confirm') {
+      confirmRan = true;
+      return jsonResponse({ code: 0, data: {} });
+    }
     if (opts.path === '/v1/openapi/chat/status') {
       // 先 done，复核再 done → 拿 result（含 pending_confirmation）→ 触发 confirm → 继续轮询 → done 结束
       return jsonResponse({ code: 0, data: { status: 'done' } });
     }
     if (opts.path === '/v1/openapi/chat/result') {
-      if (!confirmRan) return jsonResponse({ code: 0, data: { pending_confirmation: { tool: 'video' }, items: [] } });
-      return jsonResponse({ code: 0, data: { items: [{ artifacts: [{ content: 'http://cdn/x.mp4' }] }] } });
+      if (!confirmRan)
+        return jsonResponse({
+          code: 0,
+          data: { pending_confirmation: { tool: 'video' }, items: [] },
+        });
+      return jsonResponse({
+        code: 0,
+        data: { items: [{ artifacts: [{ content: 'http://cdn/x.mp4' }] }] },
+      });
     }
     return jsonResponse({ code: 0, data: {} });
   };
@@ -113,6 +142,11 @@ test('B11 result 含 pending_confirmation：auto-confirm 后继续', async () =>
 });
 
 test('extractLovartText：拼接文本回复', () => {
-  const result = { items: [{ type: 'text', text: 'Hello ' }, { type: 'text', text: 'world' }] };
+  const result = {
+    items: [
+      { type: 'text', text: 'Hello ' },
+      { type: 'text', text: 'world' },
+    ],
+  };
   assert.equal(extractLovartText(result), 'Hello world');
 });

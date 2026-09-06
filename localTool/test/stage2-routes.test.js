@@ -41,8 +41,15 @@ function makeRes() {
     headers: {},
     body: null,
     writableEnded: false,
-    on(ev, cb) { if (ev === 'error') r._onError = cb; return r; },
-    writeHead(code, h) { r.status = code; if (h) r.headers = { ...r.headers, ...h }; return r; },
+    on(ev, cb) {
+      if (ev === 'error') r._onError = cb;
+      return r;
+    },
+    writeHead(code, h) {
+      r.status = code;
+      if (h) r.headers = { ...r.headers, ...h };
+      return r;
+    },
     end(data) {
       r.writableEnded = true;
       if (data !== undefined) {
@@ -79,11 +86,14 @@ function captureConsole() {
   const orig = {};
   for (const m of ['log', 'info', 'warn', 'error']) {
     orig[m] = console[m];
-    console[m] = (...a) => logged.push(m + ' ' + a.map((x) => (typeof x === 'string' ? x : String(x))).join(' '));
+    console[m] = (...a) =>
+      logged.push(m + ' ' + a.map((x) => (typeof x === 'string' ? x : String(x))).join(' '));
   }
   return {
     logged,
-    restore() { for (const m of ['log', 'info', 'warn', 'error']) console[m] = orig[m]; },
+    restore() {
+      for (const m of ['log', 'info', 'warn', 'error']) console[m] = orig[m];
+    },
   };
 }
 
@@ -99,20 +109,38 @@ test('[logs] detail 字符串按 level 输出 [level] detail', async () => {
   try {
     await handleLogsPost(makeJsonReq({ level: 'warn', detail: '磁盘快满' }), makeRes());
     // 真实格式：`<method> [frontend][warn]  <iso> 磁盘快满`
-    assert.ok(cap.logged.some((l) => l.includes('[warn]') && l.includes('磁盘快满')), '实际: ' + cap.logged.join(' | '));
-  } finally { cap.restore(); }
+    assert.ok(
+      cap.logged.some((l) => l.includes('[warn]') && l.includes('磁盘快满')),
+      '实际: ' + cap.logged.join(' | '),
+    );
+  } finally {
+    cap.restore();
+  }
 });
 
 test('[logs] detail 对象被 stringify 并带 task/node tag', async () => {
   const cap = captureConsole();
   try {
     await handleLogsPost(
-      makeJsonReq({ level: 'error', detail: { code: 500, msg: 'boom' }, taskId: 't1', nodeId: 'n2' }),
-      makeRes()
+      makeJsonReq({
+        level: 'error',
+        detail: { code: 500, msg: 'boom' },
+        taskId: 't1',
+        nodeId: 'n2',
+      }),
+      makeRes(),
     );
-    assert.ok(cap.logged.some((l) => l.includes('#taskId=t1') && l.includes('#nodeId=n2')), '实际: ' + cap.logged.join(' | '));
-    assert.ok(cap.logged.some((l) => l.includes('"code":500')), '实际: ' + cap.logged.join(' | '));
-  } finally { cap.restore(); }
+    assert.ok(
+      cap.logged.some((l) => l.includes('#taskId=t1') && l.includes('#nodeId=n2')),
+      '实际: ' + cap.logged.join(' | '),
+    );
+    assert.ok(
+      cap.logged.some((l) => l.includes('"code":500')),
+      '实际: ' + cap.logged.join(' | '),
+    );
+  } finally {
+    cap.restore();
+  }
 });
 
 test('[logs] 未知 level 回落 default 分支（info 兜底）', async () => {
@@ -120,14 +148,21 @@ test('[logs] 未知 level 回落 default 分支（info 兜底）', async () => {
   try {
     await handleLogsPost(makeJsonReq({ level: 'weird', detail: 'hi' }), makeRes());
     // level 非 warn/error → default 分支走 console.log
-    assert.ok(cap.logged.some((l) => l.startsWith('log ') && l.includes('hi')), '实际: ' + cap.logged.join(' | '));
-  } finally { cap.restore(); }
+    assert.ok(
+      cap.logged.some((l) => l.startsWith('log ') && l.includes('hi')),
+      '实际: ' + cap.logged.join(' | '),
+    );
+  } finally {
+    cap.restore();
+  }
 });
 
 // ════════════════════════════════════════════════════════════════════════
 // routes/projects.ts
 // ════════════════════════════════════════════════════════════════════════
-const { handleProjectsGet, handleProjectsSave } = await importSrc(path.join('routes', 'projects.ts'));
+const { handleProjectsGet, handleProjectsSave } = await importSrc(
+  path.join('routes', 'projects.ts'),
+);
 
 test('[projects] 空库 GET 返回 {projects:[], lastOpened}', async () => {
   const res = makeRes();
@@ -148,7 +183,10 @@ test('[projects] save 全量 upsert 并标记 isLastOpened / lastOpened 返回�
   const saveBody = parseResBody(res1);
   assert.equal(saveBody.code, 0);
   assert.equal(saveBody.data.ok, true);
-  assert.ok(typeof saveBody.data.version === 'number' && saveBody.data.version > 0, 'save 应返回递增版本号');
+  assert.ok(
+    typeof saveBody.data.version === 'number' && saveBody.data.version > 0,
+    'save 应返回递增版本号',
+  );
 
   const res2 = makeRes();
   await handleProjectsGet(makeJsonReq(undefined), res2);
@@ -165,10 +203,16 @@ test('[projects] save 全量 upsert 并标记 isLastOpened / lastOpened 返回�
 test('[projects] 再次 save 同时传 p1/p2 → 仅更新 p1 名字、p2 保留（增量 upsert）', async () => {
   // 上一测试已写入 p1/p2（p2 isLastOpened=true），这里重新保存全列表，仅改 p1 名字
   const res1 = makeRes();
-  await handleProjectsSave(makeJsonReq({
-    projects: [{ id: 'p1', name: '项目A改' }, { id: 'p2', name: '项目B' }],
-    lastOpened: 'p1',
-  }), res1);
+  await handleProjectsSave(
+    makeJsonReq({
+      projects: [
+        { id: 'p1', name: '项目A改' },
+        { id: 'p2', name: '项目B' },
+      ],
+      lastOpened: 'p1',
+    }),
+    res1,
+  );
   const res2 = makeRes();
   await handleProjectsGet(makeJsonReq(undefined), res2);
   const b2 = parseResBody(res2);
@@ -182,11 +226,17 @@ test('[projects] 再次 save 同时传 p1/p2 → 仅更新 p1 名字、p2 保留
 
 test('[projects] 部分保存 → 不在列表的旧项目被删除', async () => {
   const res1 = makeRes();
-  await handleProjectsSave(makeJsonReq({ projects: [{ id: 'p1', name: '项目A' }], lastOpened: 'p1' }), res1);
+  await handleProjectsSave(
+    makeJsonReq({ projects: [{ id: 'p1', name: '项目A' }], lastOpened: 'p1' }),
+    res1,
+  );
   const res2 = makeRes();
   await handleProjectsGet(makeJsonReq(undefined), res2);
   const b2 = parseResBody(res2);
-  assert.deepEqual(b2.data.projects.map((p) => p.id), ['p1']);
+  assert.deepEqual(
+    b2.data.projects.map((p) => p.id),
+    ['p1'],
+  );
   assert.equal(b2.data.lastOpened, 'p1');
 });
 
@@ -199,16 +249,22 @@ test('[projects] save 缺少 projects 字段 → 400', async () => {
 test('[projects] 旧版本保存 → conflict 拒绝覆盖（防双页面/旧数据覆盖丢新项目）', async () => {
   // 先保存一份，拿到当前 version
   const res0 = makeRes();
-  await handleProjectsSave(makeJsonReq({ projects: [{ id: 'p1', name: 'P1' }], lastOpened: 'p1' }), res0);
+  await handleProjectsSave(
+    makeJsonReq({ projects: [{ id: 'p1', name: 'P1' }], lastOpened: 'p1' }),
+    res0,
+  );
   const currentVersion = parseResBody(res0).data.version;
 
   // 用「更旧版本」再保存（模拟旧页面/旧数据携带落后 version 覆盖）
   const res1 = makeRes();
-  await handleProjectsSave(makeJsonReq({
-    projects: [{ id: 'old-only', name: '旧项目' }],
-    lastOpened: 'old-only',
-    version: currentVersion - 1, // 明确声明旧版本
-  }), res1);
+  await handleProjectsSave(
+    makeJsonReq({
+      projects: [{ id: 'old-only', name: '旧项目' }],
+      lastOpened: 'old-only',
+      version: currentVersion - 1, // 明确声明旧版本
+    }),
+    res1,
+  );
   const conflictBody = parseResBody(res1);
   assert.equal(conflictBody.code, 0);
   assert.equal(conflictBody.data.ok, false);
@@ -221,7 +277,10 @@ test('[projects] 旧版本保存 → conflict 拒绝覆盖（防双页面/旧数
   const b2 = parseResBody(res2);
   const hasOld = b2.data.projects.some((p) => p.id === 'old-only');
   assert.equal(hasOld, false, '旧版本保存不得覆盖掉现有项目');
-  assert.ok(b2.data.projects.some((p) => p.id === 'p1'), '原项目 p1 应保留');
+  assert.ok(
+    b2.data.projects.some((p) => p.id === 'p1'),
+    '原项目 p1 应保留',
+  );
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -241,13 +300,35 @@ test('[fileStore] sanitizeFilename 全非法回退为原样（至少非空）', 
 });
 
 test('[fileStore] normalizeSubfolder 放行登记根 + 合法嵌套（canvas/drop、migrated/人物、director3d）', () => {
-  for (const ok of ['tasks', 'web', 'canvas', 'canvas/drop', 'canvas/video-process', 'migrated', 'migrated/人物', 'migrated/脚本/尾帧变体', 'director3d']) {
+  for (const ok of [
+    'tasks',
+    'web',
+    'canvas',
+    'canvas/drop',
+    'canvas/video-process',
+    'migrated',
+    'migrated/人物',
+    'migrated/脚本/尾帧变体',
+    'director3d',
+  ]) {
     assert.equal(fileStore.normalizeSubfolder(ok), ok, `应放行: ${ok}`);
   }
 });
 
 test('[fileStore] normalizeSubfolder 拒绝目录逃逸 / 未知根 / 绝对路径 / 盘符', () => {
-  for (const bad of ['../etc', 'a/../../b', '..', '', '.', 'img', 'txt', '/etc/passwd', 'C:\\windows', 'uploads', 'assets']) {
+  for (const bad of [
+    '../etc',
+    'a/../../b',
+    '..',
+    '',
+    '.',
+    'img',
+    'txt',
+    '/etc/passwd',
+    'C:\\windows',
+    'uploads',
+    'assets',
+  ]) {
     assert.equal(fileStore.normalizeSubfolder(bad), null, `应拒绝: ${JSON.stringify(bad)}`);
   }
 });
@@ -270,7 +351,10 @@ test('[fileStore] writeUploadBuffer 自动加时间戳前缀去重并返回 urlP
   const buf = Buffer.from('hello-maomao');
   const { savedPath, urlPath } = fileStore.writeUploadBuffer('tasks', 'note.txt', buf);
   assert.ok(fs.existsSync(savedPath), '文件应已落盘');
-  assert.ok(/\d+-note\.txt$/.test(path.basename(savedPath)), '应含时间戳前缀，实际: ' + path.basename(savedPath));
+  assert.ok(
+    /\d+-note\.txt$/.test(path.basename(savedPath)),
+    '应含时间戳前缀，实际: ' + path.basename(savedPath),
+  );
   assert.ok(urlPath.startsWith('/files/tasks/'));
   assert.equal(fs.readFileSync(savedPath, 'utf-8'), 'hello-maomao');
 });
@@ -302,7 +386,10 @@ test('[fileStore] resizeImage 真实缩放（jimp 读图→写图）', async () 
   assert.equal(ok, true);
   assert.ok(fs.existsSync(dst));
   const r = await Jimp.read(dst);
-  assert.ok(r.bitmap.width <= 32 && r.bitmap.height <= 32, '缩放后 <=32，实际 ' + r.bitmap.width + 'x' + r.bitmap.height);
+  assert.ok(
+    r.bitmap.width <= 32 && r.bitmap.height <= 32,
+    '缩放后 <=32，实际 ' + r.bitmap.width + 'x' + r.bitmap.height,
+  );
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -313,14 +400,24 @@ const netProxy = await importSrc(path.join('utils', 'netProxy.ts'));
 test('[netProxy] fetchWithProxy 本地目标直连、且 requiresProxy 命中 Lovart 时尝试代理（行为验证）', async () => {
   // isLocalTarget / requiresProxy / proxyFromEnv 为模块内部函数（未导出），
   // 这里通过 fetchWithProxy 的可观测行为间接覆盖它们的分支逻辑。
-  const prevH = process.env.HTTP_PROXY, prevHs = process.env.HTTPS_PROXY;
-  delete process.env.HTTP_PROXY; delete process.env.HTTPS_PROXY;
+  const prevH = process.env.HTTP_PROXY,
+    prevHs = process.env.HTTPS_PROXY;
+  delete process.env.HTTP_PROXY;
+  delete process.env.HTTPS_PROXY;
   netProxy.resetProxyCache();
 
   // 1) 本地目标 → 仅一次直连 fetch，不经过代理探测
   let localCalls = [];
   let origFetch = global.fetch;
-  global.fetch = async (u) => { localCalls.push(String(u)); return { ok: true, status: 200, headers: new Headers(), arrayBuffer: async () => new Uint8Array() }; };
+  global.fetch = async (u) => {
+    localCalls.push(String(u));
+    return {
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      arrayBuffer: async () => new Uint8Array(),
+    };
+  };
   try {
     await netProxy.fetchWithProxy('http://127.0.0.1:18080/api/status');
     assert.deepEqual(localCalls, ['http://127.0.0.1:18080/api/status']);
@@ -332,7 +429,8 @@ test('[netProxy] fetchWithProxy 本地目标直连、且 requiresProxy 命中 Lo
   // 2) Lovart 目标经 resolveProxy：当存在 env 代理时优先返回 env（无需真实连接）；
   //    当无 env 时回落本机端口探测，返回 string|null（不触发外部请求断言）。
   //    （fetchWithProxy 对代理目标走原生 http 到代理服务器，由集成/手动验证，这里只验证代理选择逻辑。）
-  const prevH2 = process.env.HTTP_PROXY, prevHs2 = process.env.HTTPS_PROXY;
+  const prevH2 = process.env.HTTP_PROXY,
+    prevHs2 = process.env.HTTPS_PROXY;
   process.env.HTTP_PROXY = 'http://env-proxy-test:8899';
   process.env.HTTPS_PROXY = 'http://env-proxy-test:8899';
   netProxy.resetProxyCache();
@@ -340,15 +438,19 @@ test('[netProxy] fetchWithProxy 本地目标直连、且 requiresProxy 命中 Lo
     const r = await netProxy.resolveProxy();
     assert.equal(r, 'http://env-proxy-test:8899', 'resolveProxy 在 env 存在时应优先返回 env 代理');
   } finally {
-    if (prevH2 === undefined) delete process.env.HTTP_PROXY; else process.env.HTTP_PROXY = prevH2;
-    if (prevHs2 === undefined) delete process.env.HTTPS_PROXY; else process.env.HTTPS_PROXY = prevHs2;
+    if (prevH2 === undefined) delete process.env.HTTP_PROXY;
+    else process.env.HTTP_PROXY = prevH2;
+    if (prevHs2 === undefined) delete process.env.HTTPS_PROXY;
+    else process.env.HTTPS_PROXY = prevHs2;
     netProxy.resetProxyCache();
   }
 });
 
 test('[netProxy] 无 env 代理时 resolveProxy 回落探测（返回 string 或 null，不抛错）', async () => {
-  const prevH = process.env.HTTP_PROXY, prevHs = process.env.HTTPS_PROXY;
-  delete process.env.HTTP_PROXY; delete process.env.HTTPS_PROXY;
+  const prevH = process.env.HTTP_PROXY,
+    prevHs = process.env.HTTPS_PROXY;
+  delete process.env.HTTP_PROXY;
+  delete process.env.HTTPS_PROXY;
   netProxy.resetProxyCache();
   try {
     const r = await netProxy.resolveProxy();
@@ -361,7 +463,8 @@ test('[netProxy] 无 env 代理时 resolveProxy 回落探测（返回 string 或
 });
 
 test('[netProxy] resolveProxy 有 env 代理时优先返回（不依赖探测）', async () => {
-  const prevH = process.env.HTTP_PROXY, prevHs = process.env.HTTPS_PROXY;
+  const prevH = process.env.HTTP_PROXY,
+    prevHs = process.env.HTTPS_PROXY;
   process.env.HTTP_PROXY = 'http://env-proxy:8888';
   process.env.HTTPS_PROXY = 'http://env-proxy:8888';
   netProxy.resetProxyCache();
@@ -370,22 +473,38 @@ test('[netProxy] resolveProxy 有 env 代理时优先返回（不依赖探测）
     const r = await netProxy.resolveProxy();
     assert.equal(r, 'http://env-proxy:8888');
   } finally {
-    if (prevH === undefined) delete process.env.HTTP_PROXY; else process.env.HTTP_PROXY = prevH;
-    if (prevHs === undefined) delete process.env.HTTPS_PROXY; else process.env.HTTPS_PROXY = prevHs;
+    if (prevH === undefined) delete process.env.HTTP_PROXY;
+    else process.env.HTTP_PROXY = prevH;
+    if (prevHs === undefined) delete process.env.HTTPS_PROXY;
+    else process.env.HTTPS_PROXY = prevHs;
     netProxy.resetProxyCache();
   }
 });
 
 test('[netProxy] fetchWithProxy 本地目标走直连（stub fetch 验证只调用一次）', async () => {
-  const prevH = process.env.HTTP_PROXY, prevHs = process.env.HTTPS_PROXY;
-  delete process.env.HTTP_PROXY; delete process.env.HTTPS_PROXY;
+  const prevH = process.env.HTTP_PROXY,
+    prevHs = process.env.HTTPS_PROXY;
+  delete process.env.HTTP_PROXY;
+  delete process.env.HTTPS_PROXY;
   netProxy.resetProxyCache();
   const directUrls = [];
   const origFetch = global.fetch;
-  global.fetch = async (u) => { directUrls.push(String(u)); return { ok: true, status: 200, headers: new Headers(), arrayBuffer: async () => new Uint8Array() }; };
+  global.fetch = async (u) => {
+    directUrls.push(String(u));
+    return {
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      arrayBuffer: async () => new Uint8Array(),
+    };
+  };
   try {
     await netProxy.fetchWithProxy('http://127.0.0.1:18080/api/status', { method: 'GET' });
-    assert.deepEqual(directUrls, ['http://127.0.0.1:18080/api/status'], '本地目标应直接 fetch 一次，未走代理探测');
+    assert.deepEqual(
+      directUrls,
+      ['http://127.0.0.1:18080/api/status'],
+      '本地目标应直接 fetch 一次，未走代理探测',
+    );
   } finally {
     global.fetch = origFetch;
     if (prevH !== undefined) process.env.HTTP_PROXY = prevH;
@@ -416,9 +535,19 @@ test('[logWriter] initLogWriter 幂等（多次调用不重复接管 console）'
   const orig = { log: console.log, info: console.info, warn: console.warn, error: console.error };
   try {
     logWriter.initLogWriter();
-    const afterFirst = { log: console.log, info: console.info, warn: console.warn, error: console.error };
+    const afterFirst = {
+      log: console.log,
+      info: console.info,
+      warn: console.warn,
+      error: console.error,
+    };
     logWriter.initLogWriter(); // 第二次
-    const afterSecond = { log: console.log, info: console.info, warn: console.warn, error: console.error };
+    const afterSecond = {
+      log: console.log,
+      info: console.info,
+      warn: console.warn,
+      error: console.error,
+    };
     // 第一次后已被接管（引用变化），第二次调用不应再次改变（引用不变 → 幂等）
     assert.notDeepEqual(afterFirst, orig, '首次 init 应接管 console');
     assert.deepEqual(afterFirst, afterSecond, '二次 init 不应再次改变 console 引用（幂等）');
@@ -437,7 +566,13 @@ const routerSrc = fs.readFileSync(path.join(SRC, 'router.ts'), 'utf-8');
 const indexSrc = fs.readFileSync(path.join(SRC, 'index.ts'), 'utf-8');
 
 test('[index] 关键业务路由均已注册（logs/projects/kv/files/passthrough）', () => {
-  for (const seg of ['/api/logs', '/api/projects', '/api/kv/get', '/api/files/upload', 'handlePassthrough']) {
+  for (const seg of [
+    '/api/logs',
+    '/api/projects',
+    '/api/kv/get',
+    '/api/files/upload',
+    'handlePassthrough',
+  ]) {
     assert.ok(routerSrc.includes(seg), 'router.js 应含 ' + seg);
   }
 });
@@ -455,7 +590,10 @@ test('[index] 画布前端静态托管在 catch-all 之前', () => {
 });
 
 test('[index] 默认端口 18080', () => {
-  assert.ok(/PORT\) \|\| 18080/.test(indexSrc) || indexSrc.includes('|| 18080'), '默认端口应为 18080');
+  assert.ok(
+    /PORT\) \|\| 18080/.test(indexSrc) || indexSrc.includes('|| 18080'),
+    '默认端口应为 18080',
+  );
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -466,7 +604,8 @@ test('[index] 默认端口 18080', () => {
 const { handleUpload } = await importSrc(path.join('routes', 'files.ts'));
 
 // 1x1 透明 PNG（合法 base64）
-const TINY_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+const TINY_PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 const uploadBase = `http://127.0.0.1:${Number(process.env.PORT) || 18080}/files`;
 
 test('[files/dataUri] 合法 dataUri + subfolder → 200 + 落盘 /files/tasks/<hash>.png', async () => {
@@ -484,8 +623,10 @@ test('[files/dataUri] 合法 dataUri + subfolder → 200 + 落盘 /files/tasks/<
 });
 
 test('[files/dataUri] 幂等：同一 dataUri 二次上传返回同一 URL（不重复落盘）', async () => {
-  const a = makeRes(); await handleUpload(makeJsonReq({ dataUri: TINY_PNG, subfolder: 'tasks' }), a);
-  const b = makeRes(); await handleUpload(makeJsonReq({ dataUri: TINY_PNG, subfolder: 'tasks' }), b);
+  const a = makeRes();
+  await handleUpload(makeJsonReq({ dataUri: TINY_PNG, subfolder: 'tasks' }), a);
+  const b = makeRes();
+  await handleUpload(makeJsonReq({ dataUri: TINY_PNG, subfolder: 'tasks' }), b);
   assert.equal(parseResBody(a).data.url, parseResBody(b).data.url, 'sha1 幂等 → 同 URL');
 });
 
@@ -511,13 +652,16 @@ const { handleGenerateSubmit } = await importSrc(path.join('routes', 'generate.t
 test('[generate] chat 同步快路径：不要求 frontTaskId 即进 relayGenerate（未知 provider 快速报错，不触网）', async () => {
   const res = makeRes();
   // __no_such_provider__ 无 defaultBaseUrl → relayGenerate 在 resolveBaseUrl 抛「未配置接口地址」→ code:-1
-  await handleGenerateSubmit(makeJsonReq({
-    capability: 'chat',
-    providerId: '__no_such_provider__',
-    model: 'm1',
-    prompt: 'hi',
-    frontTaskId: 'task_chat_test', // 任务中心 task_id 透传（后端不消费，但接收）
-  }), res);
+  await handleGenerateSubmit(
+    makeJsonReq({
+      capability: 'chat',
+      providerId: '__no_such_provider__',
+      model: 'm1',
+      prompt: 'hi',
+      frontTaskId: 'task_chat_test', // 任务中心 task_id 透传（后端不消费，但接收）
+    }),
+    res,
+  );
   const body = parseResBody(res);
   assert.equal(body.code, -1);
   assert.equal(typeof body.data.error, 'string');
@@ -529,14 +673,19 @@ test('[generate] chat 带 tools 同样不要求 frontTaskId（走 chatWithTools 
   const res = makeRes();
   // 未知 provider → resolveBaseUrl 抛「未配置接口地址」→ relay 返回 code:-1；若非走 chatWithTools 提前 return，
   // 也会被同一样 validate 拦截，关键仍是「不返 400 Missing frontTaskId」（画布 Agent 无任务句柄）。
-  await handleGenerateSubmit(makeJsonReq({
-    capability: 'chat',
-    providerId: '__no_such_provider__',
-    model: 'm1',
-    messages: [{ role: 'user', content: 'hi' }],
-    tools: [{ type: 'function', function: { name: 'execute_plan', description: 'x', parameters: {} } }],
-    tool_choice: 'auto',
-  }), res);
+  await handleGenerateSubmit(
+    makeJsonReq({
+      capability: 'chat',
+      providerId: '__no_such_provider__',
+      model: 'm1',
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [
+        { type: 'function', function: { name: 'execute_plan', description: 'x', parameters: {} } },
+      ],
+      tool_choice: 'auto',
+    }),
+    res,
+  );
   const body = parseResBody(res);
   assert.equal(body.code, -1);
   assert.equal(typeof body.data.error, 'string');
@@ -553,7 +702,10 @@ test('[generate] chat 缺 model → 400 Missing model', async () => {
 
 test('[generate] image/video 缺 frontTaskId → 400 Missing frontTaskId', async () => {
   const res = makeRes();
-  await handleGenerateSubmit(makeJsonReq({ capability: 'image', providerId: 'lovart', model: 'm1' }), res);
+  await handleGenerateSubmit(
+    makeJsonReq({ capability: 'image', providerId: 'lovart', model: 'm1' }),
+    res,
+  );
   const body = parseResBody(res);
   assert.equal(res.status, 400);
   assert.match(body.error, /Missing frontTaskId/);
@@ -562,5 +714,7 @@ test('[generate] image/video 缺 frontTaskId → 400 Missing frontTaskId', async
 // ── 清理临时数据目录（延迟以等待 debouncedSaveDb 异步 flush 完成）──
 after(async () => {
   await new Promise((r) => setTimeout(r, 1500));
-  try { fs.rmSync(TEST_DIR, { recursive: true, force: true }); } catch {}
+  try {
+    fs.rmSync(TEST_DIR, { recursive: true, force: true });
+  } catch {}
 });

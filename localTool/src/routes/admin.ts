@@ -13,19 +13,30 @@ export async function handleAdminStats(_req: IncomingMessage, res: ServerRespons
   const db = await getDb();
 
   // KV
-  const kvRow = queryOne(db, 'SELECT COUNT(*) as cnt, SUM(LENGTH(key) + LENGTH(value)) as est FROM kv') as { cnt: number; est: number | null } | undefined;
+  const kvRow = queryOne(
+    db,
+    'SELECT COUNT(*) as cnt, SUM(LENGTH(key) + LENGTH(value)) as est FROM kv',
+  ) as { cnt: number; est: number | null } | undefined;
   const kv = { count: kvRow?.cnt ?? 0, estimatedBytes: kvRow?.est ?? 0 };
 
   // tasks
-  const taskTotal = queryOne(db, 'SELECT COUNT(*) as cnt FROM tasks') as { cnt: number } | undefined;
-  const taskStatuses = queryAll(db, 'SELECT status, COUNT(*) as cnt FROM tasks WHERE status IS NOT NULL GROUP BY status') as Array<{ status: string; cnt: number }>;
+  const taskTotal = queryOne(db, 'SELECT COUNT(*) as cnt FROM tasks') as
+    { cnt: number } | undefined;
+  const taskStatuses = queryAll(
+    db,
+    'SELECT status, COUNT(*) as cnt FROM tasks WHERE status IS NOT NULL GROUP BY status',
+  ) as Array<{ status: string; cnt: number }>;
   const byStatus: Record<string, number> = {};
   for (const s of taskStatuses) byStatus[s.status] = s.cnt;
   const tasks = { total: taskTotal?.cnt ?? 0, byStatus };
 
   // resources
-  const resTotal = queryOne(db, 'SELECT COUNT(*) as cnt FROM resources') as { cnt: number } | undefined;
-  const resTypes = queryAll(db, 'SELECT type, COUNT(*) as cnt FROM resources GROUP BY type') as Array<{ type: string; cnt: number }>;
+  const resTotal = queryOne(db, 'SELECT COUNT(*) as cnt FROM resources') as
+    { cnt: number } | undefined;
+  const resTypes = queryAll(
+    db,
+    'SELECT type, COUNT(*) as cnt FROM resources GROUP BY type',
+  ) as Array<{ type: string; cnt: number }>;
   const byType: Record<string, number> = {};
   for (const t of resTypes) byType[t.type] = t.cnt;
   const resources = { total: resTotal?.cnt ?? 0, byType };
@@ -33,9 +44,16 @@ export async function handleAdminStats(_req: IncomingMessage, res: ServerRespons
   // disk
   const uploadDir = getUploadDir();
   let diskBytes = 0;
-  try { diskBytes = dirSize(uploadDir); } catch { /* ignore */ }
+  try {
+    diskBytes = dirSize(uploadDir);
+  } catch {
+    /* ignore */
+  }
 
-  return json(res, { code: 0, data: { kv, tasks, resources, disk: { uploadDirBytes: diskBytes } } });
+  return json(res, {
+    code: 0,
+    data: { kv, tasks, resources, disk: { uploadDirBytes: diskBytes } },
+  });
 }
 
 // ── GET /api/admin/kv-list（列出所有 KV 键，供缓存清理脚本精准定位）──
@@ -49,8 +67,15 @@ export async function handleAdminKvList(_req: IncomingMessage, res: ServerRespon
 // 只删缓存类键（img_* 图片缓存、接入点、同步元数据、画布版本标记等），
 // 绝不碰 canvas-state-v1-* 本体 / auth_token / projects / users 等业务数据。
 // body: { confirm: true, prefixes?: string[], exactKeys?: string[] }
-export async function handleAdminClearCache(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const body = (await parseJsonBody(req)) as { confirm?: boolean; prefixes?: string[]; exactKeys?: string[] } | null;
+export async function handleAdminClearCache(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const body = (await parseJsonBody(req)) as {
+    confirm?: boolean;
+    prefixes?: string[];
+    exactKeys?: string[];
+  } | null;
   if (!body?.confirm) return sendError(res, 'Set confirm: true to proceed', 400);
 
   const db = await getDb();
@@ -58,12 +83,12 @@ export async function handleAdminClearCache(req: IncomingMessage, res: ServerRes
   const toDelete: string[] = [];
 
   const prefixes = body.prefixes?.filter(Boolean) ?? [
-    'img_orig_',      // 原始图缓存
-    'img_thumb_',     // 缩略图缓存
+    'img_orig_', // 原始图缓存
+    'img_thumb_', // 缩略图缓存
   ];
   const exactKeys = body.exactKeys?.filter(Boolean) ?? [
-    'active_api_endpoint',  // 接入点选择（曾致登录回环）
-    '_syncMeta',            // 云同步元数据缓存
+    'active_api_endpoint', // 接入点选择（曾致登录回环）
+    '_syncMeta', // 云同步元数据缓存
     '__debug_probe',
     't',
     'lastOpenedProject',
@@ -72,9 +97,15 @@ export async function handleAdminClearCache(req: IncomingMessage, res: ServerRes
   for (const { key } of all) {
     // 画布状态本体、登录 token、项目等业务键绝不删（即使命中前缀）
     if (key === 'auth_token' || key.startsWith('canvas-state-v1-')) continue;
-    if (exactKeys.includes(key)) { toDelete.push(key); continue; }
+    if (exactKeys.includes(key)) {
+      toDelete.push(key);
+      continue;
+    }
     for (const p of prefixes) {
-      if (key.startsWith(p)) { toDelete.push(key); break; }
+      if (key.startsWith(p)) {
+        toDelete.push(key);
+        break;
+      }
     }
   }
 
@@ -84,17 +115,23 @@ export async function handleAdminClearCache(req: IncomingMessage, res: ServerRes
 }
 
 // ── POST /api/admin/cleanup ──
-export async function handleAdminCleanup(_req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleAdminCleanup(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
   // 引用收集统一收敛在 runReferenceGc（orphanGc.ts）：resources 表 url + tasks 表 url + KV 全部 value。
   // 删除入口尾部也会调用同一函数，保证"全库引用"口径唯一（docs/13 §3.5.3）。
   const gc = await runReferenceGc(false);
 
-  return json(res, { code: 0, data: {
-    scanned: gc.scanned,
-    deleted: gc.deleted,
-    referenced: gc.referenced,
-    deletedFiles: gc.deletedFiles,
-  } });
+  return json(res, {
+    code: 0,
+    data: {
+      scanned: gc.scanned,
+      deleted: gc.deleted,
+      referenced: gc.referenced,
+      deletedFiles: gc.deletedFiles,
+    },
+  });
 }
 
 // ── GET /api/admin/export ──
@@ -105,18 +142,24 @@ export async function handleAdminExport(_req: IncomingMessage, res: ServerRespon
   const taskRows = queryAll(db, 'SELECT * FROM tasks');
   const resRows = queryAll(db, 'SELECT * FROM resources');
 
-  return json(res, { code: 0, data: {
-    kv: kvRows,
-    tasks: taskRows,
-    resources: resRows,
-    exportedAt: Date.now(),
-    version: '2.0.0',
-  } });
+  return json(res, {
+    code: 0,
+    data: {
+      kv: kvRows,
+      tasks: taskRows,
+      resources: resRows,
+      exportedAt: Date.now(),
+      version: '2.0.0',
+    },
+  });
 }
 
 // ── POST /api/admin/import ──
 export async function handleAdminImport(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const body = (await parseJsonBody(req)) as { data?: Record<string, unknown>; confirm?: boolean } | null;
+  const body = (await parseJsonBody(req)) as {
+    data?: Record<string, unknown>;
+    confirm?: boolean;
+  } | null;
   if (!body || !body.data) return sendError(res, 'Missing data field', 400);
   if (!body.confirm) return sendError(res, 'Set confirm: true to proceed', 400);
 
@@ -125,7 +168,8 @@ export async function handleAdminImport(req: IncomingMessage, res: ServerRespons
     tasks?: Array<Record<string, unknown>>;
     resources?: Array<Record<string, unknown>>;
   };
-  if (!src.kv || !src.tasks || !src.resources) return sendError(res, 'data must contain kv, tasks, resources arrays', 400);
+  if (!src.kv || !src.tasks || !src.resources)
+    return sendError(res, 'data must contain kv, tasks, resources arrays', 400);
 
   saveDb(); // 先落当前数据
   const db = await getDb();
@@ -133,8 +177,11 @@ export async function handleAdminImport(req: IncomingMessage, res: ServerRespons
   // KV
   run(db, 'DELETE FROM kv');
   for (const row of src.kv) {
-    run(db, 'INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?)',
-      [row.key, row.value, row.updated_at ?? Math.floor(Date.now() / 1000)]);
+    run(db, 'INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?)', [
+      row.key,
+      row.value,
+      row.updated_at ?? Math.floor(Date.now() / 1000),
+    ]);
   }
 
   // tasks
@@ -143,7 +190,11 @@ export async function handleAdminImport(req: IncomingMessage, res: ServerRespons
     const keys = Object.keys(row);
     const vals = Object.values(row);
     const placeholders = keys.map(() => '?').join(', ');
-    try { run(db, `INSERT INTO tasks (${keys.join(', ')}) VALUES (${placeholders})`, vals); } catch { /* skip invalid row */ }
+    try {
+      run(db, `INSERT INTO tasks (${keys.join(', ')}) VALUES (${placeholders})`, vals);
+    } catch {
+      /* skip invalid row */
+    }
   }
 
   // resources
@@ -152,14 +203,21 @@ export async function handleAdminImport(req: IncomingMessage, res: ServerRespons
     const keys = Object.keys(row);
     const vals = Object.values(row);
     const placeholders = keys.map(() => '?').join(', ');
-    try { run(db, `INSERT INTO resources (${keys.join(', ')}) VALUES (${placeholders})`, vals); } catch { /* skip invalid row */ }
+    try {
+      run(db, `INSERT INTO resources (${keys.join(', ')}) VALUES (${placeholders})`, vals);
+    } catch {
+      /* skip invalid row */
+    }
   }
 
   saveDb();
-  return json(res, { code: 0, data: {
-    ok: true,
-    counts: { kv: src.kv.length, tasks: src.tasks.length, resources: src.resources.length },
-  } });
+  return json(res, {
+    code: 0,
+    data: {
+      ok: true,
+      counts: { kv: src.kv.length, tasks: src.tasks.length, resources: src.resources.length },
+    },
+  });
 }
 
 // ── helpers ──
@@ -174,7 +232,8 @@ function dirSize(dir: string): number {
         total += fs.statSync(p).size;
       }
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return total;
 }
-

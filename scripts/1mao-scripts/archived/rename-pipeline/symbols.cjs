@@ -14,8 +14,11 @@ for (const f of fs.readdirSync(BUNDLE)) {
   const src = fs.readFileSync(path.join(BUNDLE, f), 'utf8');
   const names = new Set();
   const re = /(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/g;
-  let m; while ((m = re.exec(src))) names.add(m[1]);
+  let m;
+  while ((m = re.exec(src))) names.add(m[1]);
   syms[f] = [...names].sort();
 }
 fs.writeFileSync(path.join(OUT, 'symbols.json'), JSON.stringify(syms, null, 2));
-console.log('已提取顶层符号到 readable/symbols.json（共 ' + Object.keys(syms).length + ' 个 chunk）');
+console.log(
+  '已提取顶层符号到 readable/symbols.json（共 ' + Object.keys(syms).length + ' 个 chunk）',
+);

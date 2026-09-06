@@ -1,7 +1,7 @@
-import React from 'react'
-import { getBezierPath, Position, type ConnectionLineComponentProps } from '@xyflow/react'
-import CometParticles from '../base/ui/CometParticles.tsx'
-import { useLod } from '../base/canvas/lod.tsx'
+import React from 'react';
+import { getBezierPath, Position, type ConnectionLineComponentProps } from '@xyflow/react';
+import CometParticles from '../base/ui/CometParticles.tsx';
+import { useLod } from '../base/canvas/lod.tsx';
 
 /**
  * 拖拽中的临时连线（复刻原 Pg.jsx）
@@ -12,18 +12,18 @@ import { useLod } from '../base/canvas/lod.tsx'
  * 只保留基础线，节省大画布性能。
  */
 function ConnectionLine({ fromX, fromY, toX, toY }: ConnectionLineComponentProps) {
-  const { lodLevel = 0 } = useLod()
+  const { lodLevel = 0 } = useLod();
   const [path] = getBezierPath({
     sourceX: fromX,
     sourceY: fromY,
     sourcePosition: Position.Right,
     targetX: toX,
     targetY: toY,
-    targetPosition: Position.Left
-  })
+    targetPosition: Position.Left,
+  });
 
-  const mpathId = 'cust-conn-mpath'
-  const enableFx = lodLevel < 2 // 复刻 Pg.jsx：lodLevel < 2 才渲染辉光 + 粒子
+  const mpathId = 'cust-conn-mpath';
+  const enableFx = lodLevel < 2; // 复刻 Pg.jsx：lodLevel < 2 才渲染辉光 + 粒子
 
   return (
     <g fill="none">
@@ -31,10 +31,8 @@ function ConnectionLine({ fromX, fromY, toX, toY }: ConnectionLineComponentProps
       {enableFx && <path d={path} fill="none" className="cust-edge-glow is-active" />}
       <path d={path} fill="none" className="cust-edge-base is-active" />
 
-      {enableFx && (
-        <CometParticles pathId={mpathId} uid="conn" headRadius={3.6} />
-      )}
+      {enableFx && <CometParticles pathId={mpathId} uid="conn" headRadius={3.6} />}
     </g>
-  )
+  );
 }
-export default React.memo(ConnectionLine)
+export default React.memo(ConnectionLine);

@@ -54,8 +54,9 @@ function sanitizeMultipartToken(value: string, fallback: string): string {
 }
 
 function createMultipartBoundary(): string {
-  const randomPart = globalThis.crypto?.randomUUID?.().replace(/-/g, '')
-    ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+  const randomPart =
+    globalThis.crypto?.randomUUID?.().replace(/-/g, '') ??
+    `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
   return `----ai-canvas-${randomPart}`;
 }
 
@@ -78,10 +79,14 @@ function serializeMultipartBody(body: Record<string, unknown>, boundary: string)
     const safeName = sanitizeMultipartToken(name, 'field');
     if (isRecord(value) && Object.hasOwn(value, '$file')) {
       const fileSource = value.$file;
-      if (typeof fileSource !== 'string') throw new Error(`multipart 文件字段 ${name} 的 $file 必须是字符串`);
+      if (typeof fileSource !== 'string')
+        throw new Error(`multipart 文件字段 ${name} 的 $file 必须是字符串`);
       const parsed = parseBase64DataUrl(fileSource);
       const configuredMime = value.contentType;
-      if (configuredMime !== undefined && (typeof configuredMime !== 'string' || !MIME_TYPE_RE.test(configuredMime))) {
+      if (
+        configuredMime !== undefined &&
+        (typeof configuredMime !== 'string' || !MIME_TYPE_RE.test(configuredMime))
+      ) {
         throw new Error(`multipart 文件字段 ${name} 的 contentType 无效`);
       }
       const filename = sanitizeMultipartToken(
@@ -95,9 +100,12 @@ function serializeMultipartBody(body: Record<string, unknown>, boundary: string)
       appendText('\r\n');
       return;
     }
-    const serialized = value && typeof value === 'object'
-      ? JSON.stringify(value)
-      : value === null ? '' : String(value);
+    const serialized =
+      value && typeof value === 'object'
+        ? JSON.stringify(value)
+        : value === null
+          ? ''
+          : String(value);
     appendText(`--${boundary}\r\n`);
     appendText(`Content-Disposition: form-data; name="${safeName}"\r\n\r\n`);
     appendText(`${serialized}\r\n`);

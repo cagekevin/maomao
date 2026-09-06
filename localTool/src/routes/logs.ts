@@ -34,7 +34,8 @@ export async function handleLogsPost(req: IncomingMessage, res: ServerResponse):
   const levelRaw = typeof body.level === 'string' ? body.level.trim().toLowerCase() : '';
   const level = LEVELS.has(levelRaw) ? levelRaw : 'info';
   // source 归一：缺省即前端（向后兼容旧 logger.ts）；限制长度避免异常长串污染日志行
-  let source = typeof body.source === 'string' && body.source.trim() ? body.source.trim() : 'frontend';
+  let source =
+    typeof body.source === 'string' && body.source.trim() ? body.source.trim() : 'frontend';
   if (source.length > 32) source = source.slice(0, 32);
   const category = typeof body.category === 'string' ? body.category : '';
   const action = typeof body.action === 'string' ? body.action : '';
@@ -52,13 +53,14 @@ export async function handleLogsPost(req: IncomingMessage, res: ServerResponse):
   }
 
   // taskId/nodeId 单独带出（#taskId=.../#nodeId=...），便于按任务/节点一键 grep
-  const tags = [
-    taskId ? `#taskId=${taskId}` : '',
-    nodeId ? `#nodeId=${nodeId}` : '',
-  ].filter(Boolean).join(' ');
+  const tags = [taskId ? `#taskId=${taskId}` : '', nodeId ? `#nodeId=${nodeId}` : '']
+    .filter(Boolean)
+    .join(' ');
   const cat = category ? `[${category}]` : '';
   // 前缀 [source]，前端/各后端统一经此归一；logWriter 自动落盘 + SSE 广播
-  console.log(`[${source}][${level}]${cat} ${action} ${timestamp}${tags ? ` ${tags}` : ''}${detailText ? ` ${detailText}` : ''}`);
+  console.log(
+    `[${source}][${level}]${cat} ${action} ${timestamp}${tags ? ` ${tags}` : ''}${detailText ? ` ${detailText}` : ''}`,
+  );
 
   return json(res, { ok: true });
 }
@@ -81,15 +83,21 @@ export async function handleLogsStream(_req: IncomingMessage, res: ServerRespons
 
   // 30s 心跳，避免中间代理因空闲掐断长连接
   const heartbeat = setInterval(() => {
-    try { res.write(': ping\n\n'); } catch { /* ignore */ }
+    try {
+      res.write(': ping\n\n');
+    } catch {
+      /* ignore */
+    }
   }, 30000);
 
   const cleanup = () => {
     clearInterval(heartbeat);
     removeLogClient(res);
-    try { res.end(); } catch { /* ignore */ }
+    try {
+      res.end();
+    } catch {
+      /* ignore */
+    }
   };
   _req.on('close', cleanup);
 }
-
-

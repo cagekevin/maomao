@@ -30,9 +30,10 @@ function stringifyPlugin() {
 // 全局取得业务 chunk（排除第三方/运行时垫片）
 const BUNDLE = path.join(__dirname, '..', '..', '..', 'src', 'bundle').replace(/\\/g, '/');
 const SKIP = /^(vendor-|rolldown-runtime|__vite-browser-external)/;
-const TARGETS = (fs.existsSync(BUNDLE)
-  ? fs.readdirSync(BUNDLE).filter((f) => f.endsWith('.js') && !SKIP.test(f))
-  : []
+const TARGETS = (
+  fs.existsSync(BUNDLE)
+    ? fs.readdirSync(BUNDLE).filter((f) => f.endsWith('.js') && !SKIP.test(f))
+    : []
 ).map((f) => path.join(BUNDLE, f).replace(/\\/g, '/'));
 
 for (const fp of TARGETS) {
@@ -59,6 +60,8 @@ for (const fp of TARGETS) {
   fs.writeFileSync(fp, out);
   const before = (code.match(/`/g) || []).length;
   const after = (out.match(/`/g) || []).length;
-  console.log(`[stringify] ${path.basename(fp)}: 反引号 ${before} -> ${after}；文件大小 ${code.length} -> ${out.length}`);
+  console.log(
+    `[stringify] ${path.basename(fp)}: 反引号 ${before} -> ${after}；文件大小 ${code.length} -> ${out.length}`,
+  );
 }
 console.log('[stringify] 完成。请运行 npm run build 验证可构建。');

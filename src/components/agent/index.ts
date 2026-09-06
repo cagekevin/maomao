@@ -56,9 +56,21 @@
  * 【对外的聚合 re-export】外部（AgentPanel/App）统一从这里 import，不绕深层路径。
  *   新增对外符号 → 在此追加 re-export，勿在外部直接 import 子目录深层路径。
  */
-export { useAgentChat } from './runtime/useAgentChat.ts'
-export type { UseAgentChatReturn } from './runtime/useAgentChat.ts'
-export { setGenParams, getGenParams, getNodeImageUrl, getCreditSwitch, setCreditSwitch } from './canvas/useCanvasAgentTools.ts'
-export { setAgentKey } from './conversation/conversationStore.ts'
+export { useAgentChat } from './runtime/useAgentChat.ts';
+export type { UseAgentChatReturn } from './runtime/useAgentChat.ts';
+export {
+  setGenParams,
+  getGenParams,
+  getNodeImageUrl,
+  getCreditSwitch,
+  setCreditSwitch,
+} from './canvas/useCanvasAgentTools.ts';
+export { setAgentKey } from './conversation/conversationStore.ts';
 // 运行模式注册表透出（docs/65 M8→2026-09-05 精简）：收敛恒 auto（三态已删，保留 get/set 归一封装）
-export { getWorkMode, setWorkMode, RUN_MODE_IDS, DEFAULT_WORK_MODE, WORK_MODE_STORAGE_KEY } from './runtime/runModeRegistry.ts'
+export {
+  getWorkMode,
+  setWorkMode,
+  RUN_MODE_IDS,
+  DEFAULT_WORK_MODE,
+  WORK_MODE_STORAGE_KEY,
+} from './runtime/runModeRegistry.ts';

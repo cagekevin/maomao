@@ -18,4 +18,4 @@ export const PROVIDER_PROTOCOL_LABELS: Record<string, string> = {
   jimeng: '即梦（CLI）',
   codex: 'Codex（CLI）',
   'gemini-cli': 'Gemini CLI',
-}
+};

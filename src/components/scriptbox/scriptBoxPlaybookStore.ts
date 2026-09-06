@@ -15,17 +15,17 @@
  * 【依赖方向】store(scriptbox) → scriptBoxWorkflows(scriptbox) 内置 + contentStore(base)。
  *  下游 resolver(base) → 本 store。依赖单向，无回环。
  */
-import { SCRIPT_BOX_WORKFLOWS, DEFAULT_WORKFLOW } from './scriptBoxWorkflows'
-import { contentGet, contentSet, contentClearCache } from '../base/core/contentStore.ts'
-import { logger } from '../base/core/logger.ts'
-import type { Playbook } from './scriptBoxPlaybookIO'
-import type { WorkflowSpec } from './scriptBoxWorkflows'
+import { SCRIPT_BOX_WORKFLOWS, DEFAULT_WORKFLOW } from './scriptBoxWorkflows';
+import { contentGet, contentSet, contentClearCache } from '../base/core/contentStore.ts';
+import { logger } from '../base/core/logger.ts';
+import type { Playbook } from './scriptBoxPlaybookIO';
+import type { WorkflowSpec } from './scriptBoxWorkflows';
 
 /** normalizeBuiltin 把内置 WorkflowSpec 归一为可存储的 Playbook（补 negative.common，丢弃 constraints.custom）。 */
-type RawWorkflow = WorkflowSpec
+type RawWorkflow = WorkflowSpec;
 
 /** 自定义 playbook 的 localStorage 键（已在 contracts.ts STORAGE_KEYS 登记，domain:'settings'，backend:'local'）。 */
-export const PLAYBOOKS_KEY = 'scriptbox_playbooks'
+export const PLAYBOOKS_KEY = 'scriptbox_playbooks';
 
 /**
  * 清缓存（仅测试用：重置 contentStore 缓存，配合测试的 localStorage.clear() 达到隔离）。
@@ -34,7 +34,7 @@ export const PLAYBOOKS_KEY = 'scriptbox_playbooks'
  * 生产代码不调用（脚本盒读写都即时经 contentGet/contentSet 保持缓存一致）。
  */
 export function __resetCustomCache() {
-  contentClearCache()
+  contentClearCache();
 }
 
 /** 读取内置 playbook 并归一为统一结构（补 builtin / constraints 去 custom / negative 补 common）。 */
@@ -52,28 +52,30 @@ function normalizeBuiltin(id: string, wf: RawWorkflow): Playbook {
     // §4.3 砍 custom：内置 constraints 只暴露 image/video；negative 补 common 位（空默认）。
     constraints: { image: wf.constraints?.image || '', video: wf.constraints?.video || '' },
     negative: { common: '', image: wf.negative?.image || '', video: wf.negative?.video || '' },
-  }
+  };
 }
 
 /** 解析本地自定义 playbook 列表（contentGet 返回解析后对象；坏数据降级为空对象）。
  * contentStore 对 local 键读 sGet（同 yimao: 前缀）+ 自身缓存，语义与旧 sGet 等价。 */
 function loadCustom(): Record<string, Playbook> {
   try {
-    const obj = contentGet(PLAYBOOKS_KEY)
-    return obj && typeof obj === 'object' && !Array.isArray(obj) ? (obj as Record<string, Playbook>) : {}
+    const obj = contentGet(PLAYBOOKS_KEY);
+    return obj && typeof obj === 'object' && !Array.isArray(obj)
+      ? (obj as Record<string, Playbook>)
+      : {};
   } catch (e) {
-    logger.warn('scriptbox', '自定义 playbook 解析失败，降级为空', { error: e?.message })
-    return {}
+    logger.warn('scriptbox', '自定义 playbook 解析失败，降级为空', { error: e?.message });
+    return {};
   }
 }
 
 /** 持久化自定义列表（contentStore 对 local 键自动 JSON.stringify 写 localStorage + 更新缓存）。 */
 function persist(obj) {
   try {
-    contentSet(PLAYBOOKS_KEY, obj)
+    contentSet(PLAYBOOKS_KEY, obj);
   } catch (e) {
     // contentStore/sSet 失败会经 persist:failed 事件上报；此处仅留日志兜底
-    logger.warn('scriptbox', '自定义 playbook 保存失败', { error: e?.message })
+    logger.warn('scriptbox', '自定义 playbook 保存失败', { error: e?.message });
   }
 }
 
@@ -82,9 +84,9 @@ function persist(obj) {
  * @returns {Array<object>} playbook 数组（含 builtin 标志）
  */
 export function getAllPlaybooks(): Playbook[] {
-  const builtin = Object.entries(SCRIPT_BOX_WORKFLOWS).map(([id, wf]) => normalizeBuiltin(id, wf))
-  const custom = Object.values(loadCustom())
-  return builtin.concat(custom)
+  const builtin = Object.entries(SCRIPT_BOX_WORKFLOWS).map(([id, wf]) => normalizeBuiltin(id, wf));
+  const custom = Object.values(loadCustom());
+  return builtin.concat(custom);
 }
 
 /**
@@ -93,19 +95,19 @@ export function getAllPlaybooks(): Playbook[] {
  * @returns {object} playbook；未知 id 返回 DEFAULT_WORKFLOW 且 logger.warn（供悬挂引用显式提示）
  */
 export function getPlaybook(id: string | null | undefined): Playbook {
-  const rid = String(id || '')
-  const custom = loadCustom()
-  if (rid && custom[rid]) return custom[rid]
-  if (rid && SCRIPT_BOX_WORKFLOWS[rid]) return normalizeBuiltin(rid, SCRIPT_BOX_WORKFLOWS[rid])
+  const rid = String(id || '');
+  const custom = loadCustom();
+  if (rid && custom[rid]) return custom[rid];
+  if (rid && SCRIPT_BOX_WORKFLOWS[rid]) return normalizeBuiltin(rid, SCRIPT_BOX_WORKFLOWS[rid]);
   // 悬挂引用：不静默吞掉，留痕警示（UI 侧据此显式展示「缺失」条）
-  if (rid) logger.warn('scriptbox', '剧本盒子工作流不存在，回退默认', { playbookId: rid })
-  const def = SCRIPT_BOX_WORKFLOWS[DEFAULT_WORKFLOW]
-  return normalizeBuiltin(DEFAULT_WORKFLOW, def)
+  if (rid) logger.warn('scriptbox', '剧本盒子工作流不存在，回退默认', { playbookId: rid });
+  const def = SCRIPT_BOX_WORKFLOWS[DEFAULT_WORKFLOW];
+  return normalizeBuiltin(DEFAULT_WORKFLOW, def);
 }
 
 /** 是否内置（内置只读，不可删改，只可「另存为」）。 */
 export function isBuiltin(id: string | null | undefined): boolean {
-  return Boolean(SCRIPT_BOX_WORKFLOWS[String(id || '')])
+  return Boolean(SCRIPT_BOX_WORKFLOWS[String(id || '')]);
 }
 
 /**
@@ -114,12 +116,15 @@ export function isBuiltin(id: string | null | undefined): boolean {
  * @returns {boolean} 是否成功（id 为内置则拒绝）
  */
 export function saveCustomPlaybook(pb: Playbook): boolean {
-  if (!pb || !pb.id) return false
-  if (isBuiltin(pb.id)) { logger.warn('scriptbox', '拒绝覆盖内置 playbook', { id: pb.id }); return false }
-  const list = loadCustom()
-  list[pb.id] = { ...pb, builtin: false }
-  persist(list)
-  return true
+  if (!pb || !pb.id) return false;
+  if (isBuiltin(pb.id)) {
+    logger.warn('scriptbox', '拒绝覆盖内置 playbook', { id: pb.id });
+    return false;
+  }
+  const list = loadCustom();
+  list[pb.id] = { ...pb, builtin: false };
+  persist(list);
+  return true;
 }
 
 /**
@@ -128,12 +133,12 @@ export function saveCustomPlaybook(pb: Playbook): boolean {
  * @returns {boolean}
  */
 export function deleteCustomPlaybook(id: string): boolean {
-  if (isBuiltin(id)) return false
-  const list = loadCustom()
-  if (!(id in list)) return false
-  delete list[id]
-  persist(list)
-  return true
+  if (isBuiltin(id)) return false;
+  const list = loadCustom();
+  if (!(id in list)) return false;
+  delete list[id];
+  persist(list);
+  return true;
 }
 
 /**
@@ -148,17 +153,17 @@ export function createCustomFrom(
   override: Partial<Playbook> = {},
   label?: string,
 ): string {
-  const src = getPlaybook(sourceId)
-  const id = `custom-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+  const src = getPlaybook(sourceId);
+  const id = `custom-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const merged = {
     ...src,
     ...override,
     id,
     label: label || `${src.label} 副本`,
     builtin: false,
-  }
+  };
   // negative.common 若源是旧结构缺位则补空，保证统一结构
-  merged.negative = { common: '', image: '', video: '', ...src.negative, ...override.negative }
-  saveCustomPlaybook(merged)
-  return id
+  merged.negative = { common: '', image: '', video: '', ...src.negative, ...override.negative };
+  saveCustomPlaybook(merged);
+  return id;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react';
 
 /**
  * 节点 data 外部变更 → 本地 state 同步 hook。
@@ -17,21 +17,24 @@ import { useEffect, useRef } from 'react'
  * @param setters    { data字段名: 本地setState } 映射。data 中该字段变化时同步到本地 state。
  */
 export function useSyncNodeData(data, setters) {
-  const prevRef = useRef({})
-  const settersRef = useRef(setters)
-  settersRef.current = setters
+  const prevRef = useRef({});
+  const settersRef = useRef(setters);
+  settersRef.current = setters;
 
   useEffect(() => {
-    const prev = prevRef.current
+    const prev = prevRef.current;
     for (const key of Object.keys(settersRef.current)) {
-      const next = data?.[key]
-      const last = prev[key]
+      const next = data?.[key];
+      const last = prev[key];
       // 跳过首次（首次由 useState 初始化已处理）与未变化
-      if (!(key in prev)) { prev[key] = next; continue }
-      if (next === last) continue
-      prev[key] = next
-      const setter = settersRef.current[key]
-      if (typeof setter === 'function') setter(next)
+      if (!(key in prev)) {
+        prev[key] = next;
+        continue;
+      }
+      if (next === last) continue;
+      prev[key] = next;
+      const setter = settersRef.current[key];
+      if (typeof setter === 'function') setter(next);
     }
-  }, [data])
+  }, [data]);
 }

@@ -14,39 +14,43 @@
  * 【依赖分类】In-process。唯一外部依赖为 logger / toastStore（模块级引用），无 React。
  * 非 UI、可单测。
  */
-import { logger } from './logger.ts'
-import { showToast } from './toastStore.ts'
-import { THROTTLE_MS } from './config.ts'
+import { logger } from './logger.ts';
+import { showToast } from './toastStore.ts';
+import { THROTTLE_MS } from './config.ts';
 
 /** 对象形态入参（或字符串兼容形态：层名 → layer） */
 interface ReportDegradeArgs {
-  layer: string
-  key?: string
-  e?: Error
-  toast?: string
-  throttleMs?: number
+  layer: string;
+  key?: string;
+  e?: Error;
+  toast?: string;
+  throttleMs?: number;
 }
 
-const throttle = { key: '', ts: 0 }
+const throttle = { key: '', ts: 0 };
 
 export function reportDegrade(args: ReportDegradeArgs | string): void {
   const {
-    layer,   // 降级发生的层/模块（如 'kvStore'）
-    key,     // 降级对象标识（如存储键 / 资源 url）
-    e,       // 底层异常（可选，仅用于日志）
-    toast,   // 可选：需要弹 toast 时的文案；不传则只记录日志不明示用户
+    layer, // 降级发生的层/模块（如 'kvStore'）
+    key, // 降级对象标识（如存储键 / 资源 url）
+    e, // 底层异常（可选，仅用于日志）
+    toast, // 可选：需要弹 toast 时的文案；不传则只记录日志不明示用户
     throttleMs = THROTTLE_MS,
-  } = (typeof args === 'string'
-    ? { layer: args, key: '', e: arguments[1] } // 兼容：reportDegrade('layer', err)
-    : args) as ReportDegradeArgs
+  } = (
+    typeof args === 'string'
+      ? // 兼容旧式 reportDegrade('layer', err) 两参重载
+        // eslint-disable-next-line prefer-rest-params
+        { layer: args, key: '', e: arguments[1] } // 兼容：reportDegrade('layer', err)
+      : args
+  ) as ReportDegradeArgs;
 
-  logger.warn(layer, `降级: ${key || ''}`, e?.message || e)
+  logger.warn(layer, `降级: ${key || ''}`, e?.message || e);
 
   if (toast) {
-    const now = Date.now()
-    if (toast === throttle.key && now - throttle.ts < throttleMs) return
-    throttle.key = toast
-    throttle.ts = now
-    showToast(toast, { type: 'warning' })
+    const now = Date.now();
+    if (toast === throttle.key && now - throttle.ts < throttleMs) return;
+    throttle.key = toast;
+    throttle.ts = now;
+    showToast(toast, { type: 'warning' });
   }
 }

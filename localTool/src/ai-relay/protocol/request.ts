@@ -5,10 +5,7 @@
  * 对应 AI-Canvas-tauri 的 modelProtocolRequest.ts。
  */
 
-import {
-  redactModelProtocolMultipartPreview,
-  serializeModelProtocolBody,
-} from './body.js';
+import { redactModelProtocolMultipartPreview, serializeModelProtocolBody } from './body.js';
 import { OMIT_TEMPLATE_VALUE, resolveAuthentication, validateRelativePath } from './shared.js';
 import { renderTemplate, renderTemplateString } from './template.js';
 import { parseModelExecutionProtocol } from './validation.js';
@@ -21,7 +18,11 @@ import type {
   SubmitModelProtocolOptions,
 } from '../types.js';
 
-export function buildSameOriginUrl(baseUrl: string, request: ModelProtocolRequestConfig, context: ProtocolVariables): string {
+export function buildSameOriginUrl(
+  baseUrl: string,
+  request: ModelProtocolRequestConfig,
+  context: ProtocolVariables,
+): string {
   const normalizedBase = baseUrl.trim().replace(/\/+$/, '');
   const parsedBase = new URL(normalizedBase);
   const renderedPath = renderTemplateString(request.path, context);
@@ -30,9 +31,10 @@ export function buildSameOriginUrl(baseUrl: string, request: ModelProtocolReques
   validateRelativePath(renderedPath, '请求 path', errors);
   if (errors.length > 0) throw new Error(errors[0]);
 
-  const url = request.pathMode === 'origin'
-    ? new URL(renderedPath, parsedBase.origin)
-    : new URL(`${normalizedBase}${renderedPath}`);
+  const url =
+    request.pathMode === 'origin'
+      ? new URL(renderedPath, parsedBase.origin)
+      : new URL(`${normalizedBase}${renderedPath}`);
   if (url.origin !== parsedBase.origin) throw new Error('调用协议不能请求连接地址以外的站点');
 
   for (const [key, rawValue] of Object.entries(request.query ?? {})) {
@@ -49,15 +51,27 @@ function assertModelProtocolApiKey(auth: AuthConfig | undefined, apiKey: string 
   throw new Error('该模型所在的连接还没有填写 API Key，请在「设置 → API Key」中补填后重试');
 }
 
-export function applyQueryAuthentication(rawUrl: string, auth: AuthConfig | undefined, apiKey: string | undefined): string {
+export function applyQueryAuthentication(
+  rawUrl: string,
+  auth: AuthConfig | undefined,
+  apiKey: string | undefined,
+): string {
   const resolvedAuth = resolveAuthentication(auth);
   if (resolvedAuth.type !== 'query' || !apiKey) return rawUrl;
   const url = new URL(rawUrl);
-  url.searchParams.set(resolvedAuth.name ?? 'authorization', `${resolvedAuth.prefix ?? ''}${apiKey}`);
+  url.searchParams.set(
+    resolvedAuth.name ?? 'authorization',
+    `${resolvedAuth.prefix ?? ''}${apiKey}`,
+  );
   return url.toString();
 }
 
-export function renderRequestHeaders(request: ModelProtocolRequestConfig, auth: AuthConfig | undefined, apiKey: string | undefined, context: ProtocolVariables): Record<string, string> {
+export function renderRequestHeaders(
+  request: ModelProtocolRequestConfig,
+  auth: AuthConfig | undefined,
+  apiKey: string | undefined,
+  context: ProtocolVariables,
+): Record<string, string> {
   const headers: Record<string, string> = {};
   for (const [name, template] of Object.entries(request.headers ?? {})) {
     const rendered = renderTemplateString(template, context);
@@ -75,7 +89,10 @@ export function renderRequestHeaders(request: ModelProtocolRequestConfig, auth: 
   return headers;
 }
 
-export function renderRequestBody(request: ModelProtocolRequestConfig, context: ProtocolVariables): unknown {
+export function renderRequestBody(
+  request: ModelProtocolRequestConfig,
+  context: ProtocolVariables,
+): unknown {
   if (request.body === undefined) return undefined;
   const rendered = renderTemplate(request.body, context, { conditionalDirectives: true });
   return rendered === OMIT_TEMPLATE_VALUE ? undefined : rendered;
@@ -92,7 +109,11 @@ function serializedBodyByteLength(body: unknown): number {
   throw new Error('调用协议无法计算该请求体的序列化字节数');
 }
 
-export function assertSerializedBodyWithinLimit(request: ModelProtocolRequestConfig, body: unknown, label: string): void {
+export function assertSerializedBodyWithinLimit(
+  request: ModelProtocolRequestConfig,
+  body: unknown,
+  label: string,
+): void {
   if (request.maxBodyBytes === undefined) return;
   const actualBytes = serializedBodyByteLength(body);
   if (actualBytes <= request.maxBodyBytes) return;
@@ -101,12 +122,19 @@ export function assertSerializedBodyWithinLimit(request: ModelProtocolRequestCon
   );
 }
 
-export function buildRequestInit(request: ModelProtocolRequestConfig, auth: AuthConfig | undefined, apiKey: string | undefined, context: ProtocolVariables, signal?: AbortSignal): RequestInit {
+export function buildRequestInit(
+  request: ModelProtocolRequestConfig,
+  auth: AuthConfig | undefined,
+  apiKey: string | undefined,
+  context: ProtocolVariables,
+  signal?: AbortSignal,
+): RequestInit {
   const headers = renderRequestHeaders(request, auth, apiKey, context);
   const body = renderRequestBody(request, context);
-  const serializedBody = request.method === 'GET' || body === undefined
-    ? undefined
-    : serializeModelProtocolBody(body, request.bodyEncoding, headers);
+  const serializedBody =
+    request.method === 'GET' || body === undefined
+      ? undefined
+      : serializeModelProtocolBody(body, request.bodyEncoding, headers);
   if (serializedBody !== undefined) {
     assertSerializedBodyWithinLimit(request, serializedBody, '提交请求体');
   }
@@ -118,7 +146,12 @@ export function buildRequestInit(request: ModelProtocolRequestConfig, auth: Auth
   };
 }
 
-export function buildModelProtocolRequest(options: SubmitModelProtocolOptions): { url: string; init: RequestInit; protocol: ModelProtocol; renderedBody?: unknown } {
+export function buildModelProtocolRequest(options: SubmitModelProtocolOptions): {
+  url: string;
+  init: RequestInit;
+  protocol: ModelProtocol;
+  renderedBody?: unknown;
+} {
   const protocol = parseModelExecutionProtocol(options.protocol);
   assertModelProtocolApiKey(protocol.auth, options.apiKey);
   const context: ProtocolVariables = { ...options.variables };
@@ -132,15 +165,23 @@ export function buildModelProtocolRequest(options: SubmitModelProtocolOptions): 
   };
 }
 
-export function previewModelProtocolRequest(options: PreviewModelProtocolRequestOptions): { method: string; relativeUrl: string; headers: Record<string, string>; body?: unknown } {
+export function previewModelProtocolRequest(options: PreviewModelProtocolRequestOptions): {
+  method: string;
+  relativeUrl: string;
+  headers: Record<string, string>;
+  body?: unknown;
+} {
   const built = buildModelProtocolRequest({ ...options, apiKey: '********' });
   const url = new URL(built.url);
-  const headers: Record<string, string> = { ...(built.init.headers as Record<string, string> | undefined) };
-  const body = built.renderedBody === undefined
-    ? undefined
-    : built.protocol.submit.bodyEncoding === 'multipart'
-      ? redactModelProtocolMultipartPreview(built.renderedBody)
-      : built.renderedBody;
+  const headers: Record<string, string> = {
+    ...(built.init.headers as Record<string, string> | undefined),
+  };
+  const body =
+    built.renderedBody === undefined
+      ? undefined
+      : built.protocol.submit.bodyEncoding === 'multipart'
+        ? redactModelProtocolMultipartPreview(built.renderedBody)
+        : built.renderedBody;
   return {
     method: built.init.method || built.protocol.submit.method,
     relativeUrl: `${url.pathname}${url.search}${url.hash}`,

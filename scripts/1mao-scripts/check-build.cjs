@@ -96,7 +96,7 @@ console.log(
     ? tdz
       ? `  ⚠️  发现可能 TDZ: ${tdz} 处`
       : '  ✅ 无明显死区风险'
-    : '  ℹ️  无 src 入口 ts/tsx，跳过（黑盒在 src/legacy）'
+    : '  ℹ️  无 src 入口 ts/tsx，跳过（黑盒在 src/legacy）',
 );
 
 // 4. localTool（独立子项目，不存在或没 build 则跳过）
@@ -109,4 +109,6 @@ else {
 }
 
 console.log('\n' + '='.repeat(50));
-console.log('🎉 结论: 产物完整（main/vendor 存在），可安全部署！（错误签名/TDZ 为可见性提醒，不阻断）');
+console.log(
+  '🎉 结论: 产物完整（main/vendor 存在），可安全部署！（错误签名/TDZ 为可见性提醒，不阻断）',
+);

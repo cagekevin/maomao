@@ -9,23 +9,23 @@
  * 序列化随画布快照（canvas-state-v1-{projectId}）走，不另立存储键（见 contracts.ts 注释），
  * 防止双写漂移。归一化返回新对象，不改动传入的 raw。
  */
-import type { Shot } from './scriptBoxPrompts'
+import type { Shot } from './scriptBoxPrompts';
 
 /** 剧本盒 data 顶层字段（P0-1 分通道 negative + tailFrameAngleIds 尾帧默认角度） */
 export interface ScriptBoxTop {
-  step: number
-  story: string
-  upstreamStory: string
-  globalStyle: string
-  aspectRatio: string
-  customAspectRatio: string
-  shotCount: string
-  customCount: string
-  tailFrameAngleIds: string[]
+  step: number;
+  story: string;
+  upstreamStory: string;
+  globalStyle: string;
+  aspectRatio: string;
+  customAspectRatio: string;
+  shotCount: string;
+  customCount: string;
+  tailFrameAngleIds: string[];
   /** 当前选用 playbook id（默认漫剧）；提示词配置唯一真相源 = playbook */
-  playbookId: string
+  playbookId: string;
   /** 选中时名称快照（悬挂检测提示用） */
-  playbookLabel: string
+  playbookLabel: string;
 }
 
 /**
@@ -34,34 +34,34 @@ export interface ScriptBoxTop {
  * 这里补充引擎运行时动态写入的布尔/状态字段（Shot 未显式登记，否则经索引签名退化为 unknown）。
  */
 export interface ScriptBoxShot extends Shot {
-  promptLoading?: boolean
-  imgGenLoading?: boolean
-  connImg?: boolean
-  connVid?: boolean
-  usePrevShotVideoTail?: boolean
-  prevShotImageRefUrls?: string[]
-  prevTailFrameVariants?: unknown[]
-  selectedTailFrameVariantId?: string
-  tailFrameVariantsLoading?: boolean
-  tailFrameVariantsError?: string | undefined
+  promptLoading?: boolean;
+  imgGenLoading?: boolean;
+  connImg?: boolean;
+  connVid?: boolean;
+  usePrevShotVideoTail?: boolean;
+  prevShotImageRefUrls?: string[];
+  prevTailFrameVariants?: unknown[];
+  selectedTailFrameVariantId?: string;
+  tailFrameVariantsLoading?: boolean;
+  tailFrameVariantsError?: string | undefined;
 }
 
 /** 单个 asset 子字段（含 P0-3 imageUrl / thumbnailUrl 分离） */
 export interface ScriptBoxAsset {
-  id: string
-  category: string
-  name: string
-  description: string
-  prompt: string
-  imageUrl: string
-  thumbnailUrl: string
-  has: boolean
-  loading: boolean
-  picked: boolean
+  id: string;
+  category: string;
+  name: string;
+  description: string;
+  prompt: string;
+  imageUrl: string;
+  thumbnailUrl: string;
+  has: boolean;
+  loading: boolean;
+  picked: boolean;
   /** 资产参考图上传状态（历史 videoStatus/videoError 在归一化时迁移到此处） */
-  imageStatus: string
-  imageError: string | undefined
-  [key: string]: unknown
+  imageStatus: string;
+  imageError: string | undefined;
+  [key: string]: unknown;
 }
 
 /**
@@ -69,14 +69,14 @@ export interface ScriptBoxAsset {
  * 支持对象 patch（直接合并）与函数式 patch `(latestData) => patch`（并发安全合并）。
  */
 export type ScriptBoxUpdateData = (
-  patch: Record<string, unknown> | ((latest: ScriptBoxData) => Record<string, unknown>)
-) => void
+  patch: Record<string, unknown> | ((latest: ScriptBoxData) => Record<string, unknown>),
+) => void;
 
 /** 剧本盒节点 data 完整形状 */
 export interface ScriptBoxData extends ScriptBoxTop {
-  shots: ScriptBoxShot[]
-  assets: ScriptBoxAsset[]
-  [key: string]: unknown
+  shots: ScriptBoxShot[];
+  assets: ScriptBoxAsset[];
+  [key: string]: unknown;
 }
 
 /**
@@ -85,16 +85,20 @@ export interface ScriptBoxData extends ScriptBoxTop {
  * 索引签名兼容「{ ...d }」透传（d 含 shots/assets 等数据字段）。
  */
 export interface ScriptBoxCallbacks {
-  onGenerateScript?: () => Promise<void> | void
-  onGenerateShotPrompts?: (ids: Array<string | number>) => void
-  onGenerateShotImage?: (shotId: string | number, type: string) => void
-  onConnectShot?: (shotId: string | number, kind: 'image' | 'video') => void
-  onConnectShots?: (ids: Array<string | number>, kind: 'image' | 'video') => void
-  onGenerateMergedVideo?: (ids: Array<string | number>) => Promise<void> | void
-  onReviewShotPrompt?: (shotId: string | number, field: string, msg: string) => Promise<{ ok: boolean; text?: string } | undefined>
-  onGenerateTailFrameVariants?: (shotId: string | number) => void
-  onDisconnectUpstream?: (sourceNodeId: string) => void
-  [key: string]: unknown
+  onGenerateScript?: () => Promise<void> | void;
+  onGenerateShotPrompts?: (ids: Array<string | number>) => void;
+  onGenerateShotImage?: (shotId: string | number, type: string) => void;
+  onConnectShot?: (shotId: string | number, kind: 'image' | 'video') => void;
+  onConnectShots?: (ids: Array<string | number>, kind: 'image' | 'video') => void;
+  onGenerateMergedVideo?: (ids: Array<string | number>) => Promise<void> | void;
+  onReviewShotPrompt?: (
+    shotId: string | number,
+    field: string,
+    msg: string,
+  ) => Promise<{ ok: boolean; text?: string } | undefined>;
+  onGenerateTailFrameVariants?: (shotId: string | number) => void;
+  onDisconnectUpstream?: (sourceNodeId: string) => void;
+  [key: string]: unknown;
 }
 
 /** 顶层字段默认值（含 P0-1 分通道 negative + tailFrameAngleIds 尾帧默认角度）。 */
@@ -113,7 +117,7 @@ export function defaultScriptBoxTop(): ScriptBoxTop {
     // 提示词配置唯一真相源 = playbook（scriptBoxPlaybookStore），node.data 不存任何 customXxx 副本。
     playbookId: 'manga',
     playbookLabel: '',
-  }
+  };
 }
 
 /** 单个 shot 子字段默认值（含 P1-1 连续性 / 尾帧变体全字段）。 */
@@ -140,7 +144,7 @@ export function defaultShotFields(): ScriptBoxShot {
     selectedTailFrameVariantId: 'original',
     tailFrameVariantsLoading: false,
     tailFrameVariantsError: undefined,
-  }
+  };
 }
 
 /** 单个 asset 子字段默认值（含 P0-3 imageUrl / thumbnailUrl 分离）。 */
@@ -159,12 +163,12 @@ export function defaultAssetFields(): ScriptBoxAsset {
     // 资产参考图上传状态（上传的是图片，命名用 image；历史 videoStatus/videoError 在归一化时迁移）
     imageStatus: '',
     imageError: undefined,
-  }
+  };
 }
 
 /** 新建剧本盒节点时的权威空 data（shots/assets 为空数组）。 */
 export function defaultScriptBoxData(): ScriptBoxData {
-  return { ...defaultScriptBoxTop(), shots: [], assets: [] }
+  return { ...defaultScriptBoxTop(), shots: [], assets: [] };
 }
 
 /**
@@ -173,27 +177,30 @@ export function defaultScriptBoxData(): ScriptBoxData {
  * @returns 归一化后的 data（含全量默认 + 存量的覆盖），不就地改 raw
  */
 export function normalizeScriptBoxData(raw: Record<string, unknown> = {}): ScriptBoxData {
-  const base = defaultScriptBoxTop()
-  const d = { ...base, ...raw } as ScriptBoxData
+  const base = defaultScriptBoxTop();
+  const d = { ...base, ...raw } as ScriptBoxData;
 
   // shots 子字段归一化：旧 shot 缺 P1-1 新字段时补默认；非对象项给空 shot 兜底。
   d.shots = (Array.isArray(raw.shots) ? raw.shots : []).map((s) =>
-    s && typeof s === 'object' ? { ...defaultShotFields(), ...s } : { ...defaultShotFields() }
-  )
+    s && typeof s === 'object' ? { ...defaultShotFields(), ...s } : { ...defaultShotFields() },
+  );
 
   // assets 子字段归一化：P0-3 thumbnailUrl 缺省回退 imageUrl（唯一回退点，UI 不再各自处理）。
   d.assets = (Array.isArray(raw.assets) ? raw.assets : []).map((a) => {
-    if (!a || typeof a !== 'object') return { ...defaultAssetFields() }
-    const norm = { ...defaultAssetFields(), ...a } as ScriptBoxAsset & { videoStatus?: string; videoError?: string }
-    if (!norm.thumbnailUrl) norm.thumbnailUrl = norm.imageUrl || ''
+    if (!a || typeof a !== 'object') return { ...defaultAssetFields() };
+    const norm = { ...defaultAssetFields(), ...a } as ScriptBoxAsset & {
+      videoStatus?: string;
+      videoError?: string;
+    };
+    if (!norm.thumbnailUrl) norm.thumbnailUrl = norm.imageUrl || '';
     // 字段改名迁移：旧画布用 videoStatus/videoError（历史命名错误，存的是图片上传状态），
     // 迁移到 imageStatus/imageError，避免老数据丢失上传状态。
     if (norm.imageStatus === '' && (norm.videoStatus || norm.videoStatus === '')) {
-      if (norm.videoStatus !== undefined) norm.imageStatus = norm.videoStatus
-      if (norm.videoError !== undefined) norm.imageError = norm.videoError
+      if (norm.videoStatus !== undefined) norm.imageStatus = norm.videoStatus;
+      if (norm.videoError !== undefined) norm.imageError = norm.videoError;
     }
-    return norm
-  })
+    return norm;
+  });
 
-  return d
+  return d;
 }

@@ -1,15 +1,30 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react'
-import { createPortal } from 'react-dom'
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
-  Pencil, Eraser, Crop, Square, Circle, Minus, MoveUpRight, ListOrdered,
-  Pipette, Type, Undo2, Trash2, ZoomIn, ZoomOut, Maximize, X, Check,
-  Expand
-} from 'lucide-react'
-import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop'
-import 'react-image-crop/dist/ReactCrop.css'
-import { logger } from '../core/logger.ts'
-import { createRafBatch } from '../core/utils.ts'
-import { toastError } from '../core/toastStore.ts'
+  Pencil,
+  Eraser,
+  Crop,
+  Square,
+  Circle,
+  Minus,
+  MoveUpRight,
+  ListOrdered,
+  Pipette,
+  Type,
+  Undo2,
+  Trash2,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+  X,
+  Check,
+  Expand,
+} from 'lucide-react';
+import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
+import { logger } from '../core/logger.ts';
+import { createRafBatch } from '../core/utils.ts';
+import { toastError } from '../core/toastStore.ts';
 
 /**
  * 全屏图片编辑器（复刻官方 _Component129.jsx 图片编辑 / ImageNode 的「裁剪」「标记」入口）。
@@ -47,19 +62,29 @@ import { toastError } from '../core/toastStore.ts'
 /** 全屏图片编辑器 Props。 */
 interface ImageEditorProps {
   /** 要编辑的图片 URL（dataURL / http / blob） */
-  imageUrl: string
+  imageUrl: string;
   /** 初始工具：'crop' 或绘制工具，未知值回退 'pencil' */
-  initialTool?: string
+  initialTool?: string;
   /** 保存回调，入参 { dataUrl, width, height }（width/height 为最终画布真实像素尺寸，供节点按真实比例自适应） */
-  onSave?: (payload: { dataUrl: string; width: number; height: number }) => void
+  onSave?: (payload: { dataUrl: string; width: number; height: number }) => void;
   /** 关闭回调 */
-  onClose?: () => void
+  onClose?: () => void;
 }
 
 // 可绘制/标记工具集合（裁剪在 ReactCrop 层处理，不参与 canvas 绘制）
-const DRAW_TOOLS = ['pencil', 'eraser', 'text', 'line', 'arrow', 'square', 'circle', 'number', 'eyedropper']
+const DRAW_TOOLS = [
+  'pencil',
+  'eraser',
+  'text',
+  'line',
+  'arrow',
+  'square',
+  'circle',
+  'number',
+  'eyedropper',
+];
 // 全部可用工具（含裁剪、扩图）
-const ALL_TOOLS = [...DRAW_TOOLS, 'crop', 'expand']
+const ALL_TOOLS = [...DRAW_TOOLS, 'crop', 'expand'];
 
 // 裁剪比例选项（官方 _Component129:530-535）
 const CROP_RATIOS = [
@@ -69,7 +94,7 @@ const CROP_RATIOS = [
   { label: '1:1', value: 1 },
   { label: '4:3', value: 4 / 3 },
   { label: '3:4', value: 3 / 4 },
-]
+];
 
 /* ── 扩图工具（复刻 AI-Canvas ExpandEditor）──
  * 扩图是独立于裁剪的工具：不选内部区域，而是「原图整体 + 四周白边」。
@@ -80,14 +105,14 @@ const CROP_RATIOS = [
  *  - 原图可在目标画布内拖动（offset 归一化 [-0.5, 0.5]）。
  * 原图始终保持原始分辨率，不拉伸，只放大画布留白。
  * factor 与内部 computeOutpaintTarget 的 zoom 语义相反（zoom = 1/factor）。 */
-const OUTPAINT_FACTOR_MIN = 1
-const OUTPAINT_FACTOR_MAX = Math.SQRT2 // 面积 = factor² 倍 → 最多 2 倍面积
-const OUTPAINT_FACTOR_STEP = 0.01
+const OUTPAINT_FACTOR_MIN = 1;
+const OUTPAINT_FACTOR_MAX = Math.SQRT2; // 面积 = factor² 倍 → 最多 2 倍面积
+const OUTPAINT_FACTOR_STEP = 0.01;
 // 内部 computeOutpaintTarget 的 zoom（= 1/factor）边界：factor∈[1,√2] → zoom∈[1/√2,1]
-const OUTPAINT_ZOOM_MIN = 1 / OUTPAINT_FACTOR_MAX
-const OUTPAINT_ZOOM_MAX = 1 / OUTPAINT_FACTOR_MIN
+const OUTPAINT_ZOOM_MIN = 1 / OUTPAINT_FACTOR_MAX;
+const OUTPAINT_ZOOM_MAX = 1 / OUTPAINT_FACTOR_MIN;
 /** 扩图白边填充色（纯白）。 */
-export const OUTPAINT_FILL = '#ffffff'
+export const OUTPAINT_FILL = '#ffffff';
 
 /** 扩图目标比例选项（AI-Canvas ExpandEditor ASPECT_OPTIONS 同款）。 */
 export const OUTPAINT_RATIOS = [
@@ -96,7 +121,7 @@ export const OUTPAINT_RATIOS = [
   { key: '3:4', label: '3:4', ratio: 3 / 4 },
   { key: '16:9', label: '16:9', ratio: 16 / 9 },
   { key: '9:16', label: '9:16', ratio: 9 / 16 },
-] as const
+] as const;
 
 /**
  * 计算扩图目标画布（纯函数，可单测）。
@@ -113,26 +138,26 @@ export function computeOutpaintTarget(
   ratio: number | undefined,
   zoom: number,
 ): { tw: number; th: number; sw: number; sh: number; maxOffX: number; maxOffY: number } {
-  const sw = Math.max(1, Math.round(srcW))
-  const sh = Math.max(1, Math.round(srcH))
-  const srcRatio = sw / sh
-  const r = ratio && Number.isFinite(ratio) && ratio > 0 ? ratio : srcRatio
+  const sw = Math.max(1, Math.round(srcW));
+  const sh = Math.max(1, Math.round(srcH));
+  const srcRatio = sw / sh;
+  const r = ratio && Number.isFinite(ratio) && ratio > 0 ? ratio : srcRatio;
   // 按目标比例让原图「贴边内接」得 base 画布
-  let baseW: number
-  let baseH: number
+  let baseW: number;
+  let baseH: number;
   if (r >= srcRatio) {
     // 目标更宽 → 高度贴边
-    baseH = sh
-    baseW = Math.round(sh * r)
+    baseH = sh;
+    baseW = Math.round(sh * r);
   } else {
     // 目标更高 → 宽度贴边
-    baseW = sw
-    baseH = Math.round(sw / r)
+    baseW = sw;
+    baseH = Math.round(sw / r);
   }
   // 除以 zoom 放大画布，使原图四周留白
-  const z = Math.max(OUTPAINT_ZOOM_MIN, Math.min(OUTPAINT_ZOOM_MAX, zoom))
-  const tw = Math.round(baseW / z)
-  const th = Math.round(baseH / z)
+  const z = Math.max(OUTPAINT_ZOOM_MIN, Math.min(OUTPAINT_ZOOM_MAX, zoom));
+  const tw = Math.round(baseW / z);
+  const th = Math.round(baseH / z);
   return {
     tw,
     th,
@@ -140,7 +165,7 @@ export function computeOutpaintTarget(
     sh,
     maxOffX: (tw - sw) / 2,
     maxOffY: (th - sh) / 2,
-  }
+  };
 }
 
 /**
@@ -155,57 +180,70 @@ export function computeOutpaintDrawPos(
   return {
     dx: Math.round(maxOffX + Math.max(-0.5, Math.min(0.5, offset.x)) * 2 * maxOffX),
     dy: Math.round(maxOffY + Math.max(-0.5, Math.min(0.5, offset.y)) * 2 * maxOffY),
-  }
+  };
 }
 
-export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, onClose }: ImageEditorProps) {
-  const canvasRef = useRef(null)
-  const viewportRef = useRef(null) // 可滚动画布容器
-  const imgRef = useRef(null) // 原始图（清空/橡皮擦恢复用）
+export default function ImageEditor({
+  imageUrl,
+  initialTool = 'pencil',
+  onSave,
+  onClose,
+}: ImageEditorProps) {
+  const canvasRef = useRef(null);
+  const viewportRef = useRef(null); // 可滚动画布容器
+  const imgRef = useRef(null); // 原始图（清空/橡皮擦恢复用）
 
   // 初始工具：'crop' 或绘制工具都在 ALL_TOOLS 里；未知值回退 'pencil'
-  const [tool, setTool] = useState(ALL_TOOLS.includes(initialTool) ? initialTool : 'pencil')
-  const [color, setColor] = useState('#ff0000')
-  const [lineWidth, setLineWidth] = useState(3)
-  const [drawing, setDrawing] = useState(false)
-  const [history, setHistory] = useState([]) // getImageData 撤销栈
-  const [imgSize, setImgSize] = useState({ w: 0, h: 0 })
-  const [zoom, setZoom] = useState(1)
-  const [panning, setPanning] = useState(false)
-  const [spaceDown, setSpaceDown] = useState(false)
-  const [seq, setSeq] = useState(1)
-  const [textInput, setTextInput] = useState(null)
-  const textInputRef = useRef(null) // 文字输入框 ref：动态出现时显式聚焦（autoFocus 不可靠）
+  const [tool, setTool] = useState(ALL_TOOLS.includes(initialTool) ? initialTool : 'pencil');
+  const [color, setColor] = useState('#ff0000');
+  const [lineWidth, setLineWidth] = useState(3);
+  const [drawing, setDrawing] = useState(false);
+  const [history, setHistory] = useState([]); // getImageData 撤销栈
+  const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [panning, setPanning] = useState(false);
+  const [spaceDown, setSpaceDown] = useState(false);
+  const [seq, setSeq] = useState(1);
+  const [textInput, setTextInput] = useState(null);
+  const textInputRef = useRef(null); // 文字输入框 ref：动态出现时显式聚焦（autoFocus 不可靠）
 
   // 文字输入框出现时显式聚焦并定位光标到末尾（autoFocus 在 mousedown 触发的动态渲染里不可靠，
   // 导致输入框弹出却无焦点、看不到闪烁光标、打不了字）。
   useEffect(() => {
     if (textInput && textInputRef.current) {
-      const el = textInputRef.current
-      el.focus()
-      const len = el.value.length
-      try { el.setSelectionRange(len, len) } catch {}
+      const el = textInputRef.current;
+      el.focus();
+      const len = el.value.length;
+      try {
+        el.setSelectionRange(len, len);
+      } catch {}
     }
-  }, [textInput])
+  }, [textInput]);
 
   // 裁剪态（ReactCrop）
-  const [crop, setCrop] = useState(undefined)
-  const [completedCrop, setCompletedCrop] = useState(undefined)
-  const [cropAspect, setCropAspect] = useState(undefined)
+  const [crop, setCrop] = useState(undefined);
+  const [completedCrop, setCompletedCrop] = useState(undefined);
+  const [cropAspect, setCropAspect] = useState(undefined);
 
   // 扩图态（独立工具）：目标比例 + 画布放大倍数 factor + 原图拖动偏移（归一化 [-0.5,0.5]）
-  const [outpaintRatioKey, setOutpaintRatioKey] = useState('1:1')
-  const [outpaintFactor, setOutpaintFactor] = useState(1) // 默认 1 = 无白边、原图铺满（factor 越大白边越多）
-  const [outpaintOffset, setOutpaintOffset] = useState({ x: 0, y: 0 })
+  const [outpaintRatioKey, setOutpaintRatioKey] = useState('1:1');
+  const [outpaintFactor, setOutpaintFactor] = useState(1); // 默认 1 = 无白边、原图铺满（factor 越大白边越多）
+  const [outpaintOffset, setOutpaintOffset] = useState({ x: 0, y: 0 });
 
-  const scrollRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 })
+  const scrollRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
 
   // 工具切换时给裁剪态初始化默认选区（复刻 To.jsx onLoad 里 centerCrop 80%）
   useEffect(() => {
     if (tool === 'crop' && !crop && imgSize.w && imgSize.h) {
-      setCrop(centerCrop(makeAspectCrop({ unit: '%', width: 80 }, cropAspect || 16 / 9, imgSize.w, imgSize.h), imgSize.w, imgSize.h))
+      setCrop(
+        centerCrop(
+          makeAspectCrop({ unit: '%', width: 80 }, cropAspect || 16 / 9, imgSize.w, imgSize.h),
+          imgSize.w,
+          imgSize.h,
+        ),
+      );
     }
-  }, [tool, crop, cropAspect, imgSize])
+  }, [tool, crop, cropAspect, imgSize]);
 
   // 加载图片 → 铺 canvas 原始尺寸 + 初始缩放适配
   // 【根本原因说明（为什么用 cancelled 而非 cleanup 里清 onload）】
@@ -216,458 +254,553 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
   // 「这次加载已被废弃」，onload 里检查该标记再决定是否画图——既不误清回调，也防止旧图
   // 晚到覆盖新图（imageUrl 变化时）。
   useEffect(() => {
-    const canvas = canvasRef.current
+    const canvas = canvasRef.current;
     // willReadFrequently：本编辑器每画一笔都要 getImageData 存撤销历史（频繁读回），
     // 首次取 context 即声明该优化，消除浏览器的 "Multiple readback operations" 性能警告。
-    const ctx = canvas?.getContext('2d', { willReadFrequently: true })
-    if (!canvas || !ctx || !imageUrl) return
-    let cancelled = false
+    const ctx = canvas?.getContext('2d', { willReadFrequently: true });
+    if (!canvas || !ctx || !imageUrl) return;
+    let cancelled = false;
     // 把图片画进 canvas 的公共函数（onload 调用）
     const drawImg = (im) => {
-      if (cancelled) return
+      if (cancelled) return;
       try {
-        canvas.width = im.naturalWidth
-        canvas.height = im.naturalHeight
-        ctx.drawImage(im, 0, 0)
-        imgRef.current = im
-        setImgSize({ w: im.naturalWidth, h: im.naturalHeight })
-        const vp = viewportRef.current
+        canvas.width = im.naturalWidth;
+        canvas.height = im.naturalHeight;
+        ctx.drawImage(im, 0, 0);
+        imgRef.current = im;
+        setImgSize({ w: im.naturalWidth, h: im.naturalHeight });
+        const vp = viewportRef.current;
         if (vp) {
-          const s = Math.min((vp.clientWidth - 32) / im.naturalWidth, (vp.clientHeight - 32) / im.naturalHeight, 1)
-          setZoom(s > 0 ? s : 1)
+          const s = Math.min(
+            (vp.clientWidth - 32) / im.naturalWidth,
+            (vp.clientHeight - 32) / im.naturalHeight,
+            1,
+          );
+          setZoom(s > 0 ? s : 1);
         }
-        setHistory([ctx.getImageData(0, 0, canvas.width, canvas.height)])
+        setHistory([ctx.getImageData(0, 0, canvas.width, canvas.height)]);
       } catch (err) {
-        logger.warn('ImageEditor', '图片绘制失败（跨域污染？）', err.message)
+        logger.warn('ImageEditor', '图片绘制失败（跨域污染？）', err.message);
       }
-    }
+    };
     // 图片加载：dataURL/blob 无需 crossOrigin；http 跨域图先试 crossOrigin（保证 canvas 不被
     // 污染、保存 toDataURL 可用），onerror 再回退普通加载（牺牲 toDataURL 换取能显示图）。
     const tryLoad = (withCors) => {
-      const im = new Image()
-      if (withCors) im.crossOrigin = 'Anonymous'
-      im.onload = () => drawImg(im)
-      im.onerror = () => { if (withCors) tryLoad(false) }
-      im.src = imageUrl
-      return im
-    }
-    tryLoad(true)
-    return () => { cancelled = true }
-  }, [imageUrl])
+      const im = new Image();
+      if (withCors) im.crossOrigin = 'Anonymous';
+      im.onload = () => drawImg(im);
+      im.onerror = () => {
+        if (withCors) tryLoad(false);
+      };
+      im.src = imageUrl;
+      return im;
+    };
+    tryLoad(true);
+    return () => {
+      cancelled = true;
+    };
+  }, [imageUrl]);
 
-  const clampZoom = useCallback((z) => Math.min(8, Math.max(0.05, z)), [])
-  const zoomIn = useCallback(() => setZoom((z) => clampZoom(z * 1.2)), [clampZoom])
-  const zoomOut = useCallback(() => setZoom((z) => clampZoom(z / 1.2)), [clampZoom])
-  const resetZoom = useCallback(() => setZoom(1), [])
+  const clampZoom = useCallback((z) => Math.min(8, Math.max(0.05, z)), []);
+  const zoomIn = useCallback(() => setZoom((z) => clampZoom(z * 1.2)), [clampZoom]);
+  const zoomOut = useCallback(() => setZoom((z) => clampZoom(z / 1.2)), [clampZoom]);
+  const resetZoom = useCallback(() => setZoom(1), []);
   const fitZoom = useCallback(() => {
-    const vp = viewportRef.current
-    if (!vp || !imgSize.w || !imgSize.h) { setZoom(1); return }
-    setZoom(clampZoom(Math.min((vp.clientWidth - 32) / imgSize.w, (vp.clientHeight - 32) / imgSize.h, 1)))
-  }, [imgSize, clampZoom])
+    const vp = viewportRef.current;
+    if (!vp || !imgSize.w || !imgSize.h) {
+      setZoom(1);
+      return;
+    }
+    setZoom(
+      clampZoom(Math.min((vp.clientWidth - 32) / imgSize.w, (vp.clientHeight - 32) / imgSize.h, 1)),
+    );
+  }, [imgSize, clampZoom]);
 
   // 滚轮缩放（画布区）；P3：高频 → rAF 合并 setZoom（last-args-wins，每帧只按最新 deltaY 缩放一次）。
   // 用原生 addEventListener({ passive: false }) 绑定：React 的 onWheel 是被动监听器，
   // 其 preventDefault() 无效且触发 "Unable to preventDefault inside passive event listener" 告警；
   // 原生非被动监听才能拦截页面滚动、独占画布滚轮缩放。
-  const wheelRaf = useRef(null)
+  const wheelRaf = useRef(null);
   if (wheelRaf.current == null) {
-    wheelRaf.current = createRafBatch((deltaY) => setZoom((z) => clampZoom(z * (deltaY < 0 ? 1.1 : 0.9))))
+    wheelRaf.current = createRafBatch((deltaY) =>
+      setZoom((z) => clampZoom(z * (deltaY < 0 ? 1.1 : 0.9))),
+    );
   }
   useEffect(() => {
-    const vp = viewportRef.current
-    if (!vp) return
+    const vp = viewportRef.current;
+    if (!vp) return;
     const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      wheelRaf.current?.(e.deltaY)
-    }
-    vp.addEventListener('wheel', onWheel, { passive: false })
-    return () => vp.removeEventListener('wheel', onWheel)
-  }, [])
+      e.preventDefault();
+      wheelRaf.current?.(e.deltaY);
+    };
+    vp.addEventListener('wheel', onWheel, { passive: false });
+    return () => vp.removeEventListener('wheel', onWheel);
+  }, []);
 
   // 空格平移
   useEffect(() => {
     const down = (e) => {
-      if (e.code === 'Space' && !textInput) { e.preventDefault(); setSpaceDown(true) }
-    }
-    const up = (e) => { if (e.code === 'Space') { setSpaceDown(false); setPanning(false) } }
-    window.addEventListener('keydown', down)
-    window.addEventListener('keyup', up)
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
-  }, [textInput])
+      if (e.code === 'Space' && !textInput) {
+        e.preventDefault();
+        setSpaceDown(true);
+      }
+    };
+    const up = (e) => {
+      if (e.code === 'Space') {
+        setSpaceDown(false);
+        setPanning(false);
+      }
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+    };
+  }, [textInput]);
 
   const onPanStart = useCallback((e) => {
-    const vp = viewportRef.current
-    if (!vp) return
-    e.preventDefault()
-    setPanning(true)
-    scrollRef.current = { x: e.clientX, y: e.clientY, scrollLeft: vp.scrollLeft, scrollTop: vp.scrollTop }
-  }, [])
+    const vp = viewportRef.current;
+    if (!vp) return;
+    e.preventDefault();
+    setPanning(true);
+    scrollRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: vp.scrollLeft,
+      scrollTop: vp.scrollTop,
+    };
+  }, []);
   useEffect(() => {
-    if (!panning) return
+    if (!panning) return;
     // P3：move 高频 → rAF 合并 scrollLeft/Top 写入（last-args-wins，move 直接用最新坐标算绝对滚动量）
     const batch = createRafBatch((clientX, clientY) => {
-      const vp = viewportRef.current
+      const vp = viewportRef.current;
       if (vp) {
-        vp.scrollLeft = scrollRef.current.scrollLeft - (clientX - scrollRef.current.x)
-        vp.scrollTop = scrollRef.current.scrollTop - (clientY - scrollRef.current.y)
+        vp.scrollLeft = scrollRef.current.scrollLeft - (clientX - scrollRef.current.x);
+        vp.scrollTop = scrollRef.current.scrollTop - (clientY - scrollRef.current.y);
       }
-    })
-    const move = (e) => batch(e.clientX, e.clientY)
+    });
+    const move = (e) => batch(e.clientX, e.clientY);
     const up = () => {
-      batch.flush() // 松手补最后一帧，避免视口差一帧
-      setPanning(false)
-    }
-    window.addEventListener('mousemove', move)
-    window.addEventListener('mouseup', up)
-    return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); batch.cancel() }
-  }, [panning])
+      batch.flush(); // 松手补最后一帧，避免视口差一帧
+      setPanning(false);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    return () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      batch.cancel();
+    };
+  }, [panning]);
 
   // 事件坐标 → canvas 像素坐标（复刻官方 ce()）
   const toCanvasPos = useCallback((e) => {
-    const canvas = canvasRef.current
-    if (!canvas) return { x: 0, y: 0 }
-    const rect = canvas.getBoundingClientRect()
-    const cxp = 'touches' in e ? e.touches[0].clientX : e.clientX
-    const cyp = 'touches' in e ? e.touches[0].clientY : e.clientY
-    return { x: (cxp - rect.left) * (canvas.width / rect.width), y: (cyp - rect.top) * (canvas.height / rect.height) }
-  }, [])
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const cxp = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const cyp = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    return {
+      x: (cxp - rect.left) * (canvas.width / rect.width),
+      y: (cyp - rect.top) * (canvas.height / rect.height),
+    };
+  }, []);
 
   const pushHistory = useCallback(() => {
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
-    if (canvas && ctx) setHistory((h) => [...h, ctx.getImageData(0, 0, canvas.width, canvas.height)])
-  }, [])
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (canvas && ctx)
+      setHistory((h) => [...h, ctx.getImageData(0, 0, canvas.width, canvas.height)]);
+  }, []);
 
   // 文字确认写入：有字 → 落笔并关闭；空字（如误失焦）→ 保留输入框，避免误关。
   // 【为何放这里】onDrawStart 里要引用 commitText（点画布空白=保存文字），而 const 有暂时性
   // 死区，若 commitText 定义在 onDrawStart 之后会报 "Cannot access before initialization"，
   // 故把 commitText 提前到 onDrawStart 之前。
   const commitText = useCallback(() => {
-    if (!textInput) return
-    const text = (textInput.text || '').trim()
-    if (!text) return // 空文本不关闭，让用户继续输入
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
+    if (!textInput) return;
+    const text = (textInput.text || '').trim();
+    if (!text) return; // 空文本不关闭，让用户继续输入
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
     if (canvas && ctx) {
       // canvas 屏幕显示尺寸 = 内部像素 × zoom，故字体用内部像素时需 /zoom，
       // 落笔后屏幕显示大小才与输入框一致（不会"保存后变小"），且随滑块(lineWidth)增减。
-      const fontSize = Math.max(20, lineWidth * 5) / (zoom > 0 ? zoom : 1)
-      pushHistory()
-      ctx.fillStyle = color
-      ctx.font = `bold ${fontSize}px sans-serif`
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'top'
-      ctx.fillText(text, textInput.x, textInput.y + fontSize * 0.1)
+      const fontSize = Math.max(20, lineWidth * 5) / (zoom > 0 ? zoom : 1);
+      pushHistory();
+      ctx.fillStyle = color;
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(text, textInput.x, textInput.y + fontSize * 0.1);
     }
-    setTextInput(null)
-  }, [textInput, color, lineWidth, zoom, pushHistory])
+    setTextInput(null);
+  }, [textInput, color, lineWidth, zoom, pushHistory]);
 
   // 撤销
   const undo = useCallback(() => {
-    if (history.length <= 1) return
-    const next = history.slice(0, -1)
-    setHistory(next)
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
-    if (!canvas || !ctx) return
-    const last = next[next.length - 1]
-    canvas.width = last.width
-    canvas.height = last.height
-    ctx.putImageData(last, 0, 0)
-  }, [history])
+    if (history.length <= 1) return;
+    const next = history.slice(0, -1);
+    setHistory(next);
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    const last = next[next.length - 1];
+    canvas.width = last.width;
+    canvas.height = last.height;
+    ctx.putImageData(last, 0, 0);
+  }, [history]);
 
   // 清空涂鸦（恢复原始图）
   const clearAll = useCallback(() => {
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
-    if (!canvas || !ctx || !imgRef.current) return
-    canvas.width = imgRef.current.naturalWidth
-    canvas.height = imgRef.current.naturalHeight
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.drawImage(imgRef.current, 0, 0)
-    setHistory([ctx.getImageData(0, 0, canvas.width, canvas.height)])
-    setSeq(1)
-  }, [])
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx || !imgRef.current) return;
+    canvas.width = imgRef.current.naturalWidth;
+    canvas.height = imgRef.current.naturalHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(imgRef.current, 0, 0);
+    setHistory([ctx.getImageData(0, 0, canvas.width, canvas.height)]);
+    setSeq(1);
+  }, []);
 
   // 绘制开始
-  const onDrawStart = useCallback((e) => {
-    if (tool === 'crop') return // 裁剪模式由 ReactCrop 处理
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
-    if (!canvas || !ctx) return
-    const { x, y } = toCanvasPos(e)
-    // shape（square/circle/line/arrow）：记录起始点供 onShapePreview 实时重画
-    if (['square', 'circle', 'line', 'arrow'].includes(tool)) lastCropStart.current = { x, y }
-    if (tool === 'eyedropper') {
-      const px = ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data
-      setColor(`#${`000000${(px[0] << 16 | px[1] << 8 | px[2]).toString(16)}`.slice(-6)}`)
-      setTool('pencil')
-      return
-    }
-    if (tool === 'text') {
-      e.preventDefault()
-      // 若已在输入中（textInput 存在），用户点击画布空白 = 确认当前文字并保存（点外部自动保存），不重开。
-      if (textInput) {
-        commitText()
-        return
+  const onDrawStart = useCallback(
+    (e) => {
+      if (tool === 'crop') return; // 裁剪模式由 ReactCrop 处理
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext('2d');
+      if (!canvas || !ctx) return;
+      const { x, y } = toCanvasPos(e);
+      // shape（square/circle/line/arrow）：记录起始点供 onShapePreview 实时重画
+      if (['square', 'circle', 'line', 'arrow'].includes(tool)) lastCropStart.current = { x, y };
+      if (tool === 'eyedropper') {
+        const px = ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data;
+        setColor(`#${`000000${((px[0] << 16) | (px[1] << 8) | px[2]).toString(16)}`.slice(-6)}`);
+        setTool('pencil');
+        return;
       }
-      // 首次点图：在该位置创建文字输入框
-      const vp = viewportRef.current
-      const vpRect = vp?.getBoundingClientRect()
-      const cxp = 'touches' in e ? e.touches[0].clientX : e.clientX
-      const cyp = 'touches' in e ? e.touches[0].clientY : e.clientY
-      setTextInput({
-        x, y,
-        left: vpRect ? cxp - vpRect.left + (vp.scrollLeft || 0) : cxp,
-        top: vpRect ? cyp - vpRect.top + (vp.scrollTop || 0) : cyp,
-        text: '',
-      })
-      return
-    }
-    setDrawing(true)
-    if (tool === 'pencil') {
-      ctx.beginPath()
-      ctx.moveTo(x, y)
-      ctx.strokeStyle = color
-      ctx.lineWidth = lineWidth
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-    } else if (tool === 'eraser') {
-      if (imgRef.current) {
-        ctx.save(); ctx.beginPath(); ctx.arc(x, y, lineWidth * 3, 0, Math.PI * 2); ctx.clip()
-        ctx.drawImage(imgRef.current, 0, 0, canvas.width, canvas.height); ctx.restore()
+      if (tool === 'text') {
+        e.preventDefault();
+        // 若已在输入中（textInput 存在），用户点击画布空白 = 确认当前文字并保存（点外部自动保存），不重开。
+        if (textInput) {
+          commitText();
+          return;
+        }
+        // 首次点图：在该位置创建文字输入框
+        const vp = viewportRef.current;
+        const vpRect = vp?.getBoundingClientRect();
+        const cxp = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const cyp = 'touches' in e ? e.touches[0].clientY : e.clientY;
+        setTextInput({
+          x,
+          y,
+          left: vpRect ? cxp - vpRect.left + (vp.scrollLeft || 0) : cxp,
+          top: vpRect ? cyp - vpRect.top + (vp.scrollTop || 0) : cyp,
+          text: '',
+        });
+        return;
       }
-    } else if (tool === 'number') {
-      pushHistory()
-      ctx.beginPath(); ctx.arc(x, y, Math.max(15, lineWidth * 3), 0, Math.PI * 2)
-      ctx.fillStyle = color; ctx.fill()
-      ctx.fillStyle = '#ffffff'
-      ctx.font = `bold ${Math.max(16, lineWidth * 3)}px sans-serif`
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillText(String(seq), x, y + 1)
-      setSeq((s) => s + 1)
-      setDrawing(false)
-    } else {
-      // shape：画前存历史，便于实时预览回退
-      pushHistory()
-    }
-  }, [tool, color, lineWidth, seq, pushHistory, toCanvasPos, textInput, commitText])
+      setDrawing(true);
+      if (tool === 'pencil') {
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+      } else if (tool === 'eraser') {
+        if (imgRef.current) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(x, y, lineWidth * 3, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.drawImage(imgRef.current, 0, 0, canvas.width, canvas.height);
+          ctx.restore();
+        }
+      } else if (tool === 'number') {
+        pushHistory();
+        ctx.beginPath();
+        ctx.arc(x, y, Math.max(15, lineWidth * 3), 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${Math.max(16, lineWidth * 3)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(seq), x, y + 1);
+        setSeq((s) => s + 1);
+        setDrawing(false);
+      } else {
+        // shape：画前存历史，便于实时预览回退
+        pushHistory();
+      }
+    },
+    [tool, color, lineWidth, seq, pushHistory, toCanvasPos, textInput, commitText],
+  );
 
   // 绘制进行
-  const onDrawMove = useCallback((e) => {
-    if (!drawing) return
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
-    if (!canvas || !ctx) return
-    const { x, y } = toCanvasPos(e)
-    if (tool === 'pencil') {
-      ctx.lineTo(x, y); ctx.stroke()
-    } else if (tool === 'eraser') {
-      if (imgRef.current) {
-        ctx.save(); ctx.beginPath(); ctx.arc(x, y, lineWidth * 3, 0, Math.PI * 2); ctx.clip()
-        ctx.drawImage(imgRef.current, 0, 0, canvas.width, canvas.height); ctx.restore()
+  const onDrawMove = useCallback(
+    (e) => {
+      if (!drawing) return;
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext('2d');
+      if (!canvas || !ctx) return;
+      const { x, y } = toCanvasPos(e);
+      if (tool === 'pencil') {
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      } else if (tool === 'eraser') {
+        if (imgRef.current) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(x, y, lineWidth * 3, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.drawImage(imgRef.current, 0, 0, canvas.width, canvas.height);
+          ctx.restore();
+        }
       }
-    }
-  }, [drawing, tool, lineWidth, toCanvasPos])
+    },
+    [drawing, tool, lineWidth, toCanvasPos],
+  );
 
   // 绘制结束（shape 收尾：从最近历史重画）
   const onDrawEnd = useCallback(() => {
-    if (tool === 'pencil' && drawing) pushHistory()
-    setDrawing(false)
-  }, [tool, drawing, pushHistory])
+    if (tool === 'pencil' && drawing) pushHistory();
+    setDrawing(false);
+  }, [tool, drawing, pushHistory]);
 
   // shape 实时预览：每次 move 从历史快照重画 + 画当前 shape
-  const onShapePreview = useCallback((e) => {
-    if (!drawing) return
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
-    if (!canvas || !ctx) return
-    const { x, y } = toCanvasPos(e)
-    const last = history[history.length - 1]
-    if (!last) return
-    ctx.putImageData(last, 0, 0)
-    const start = lastCropStart.current || { x, y }
-    ctx.beginPath()
-    ctx.strokeStyle = color
-    ctx.lineWidth = lineWidth
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    if (tool === 'square') ctx.rect(start.x, start.y, x - start.x, y - start.y)
-    else if (tool === 'circle') { const r = Math.sqrt((x - start.x) ** 2 + (y - start.y) ** 2); ctx.arc(start.x, start.y, r, 0, Math.PI * 2) }
-    else if (tool === 'line') { ctx.moveTo(start.x, start.y); ctx.lineTo(x, y) }
-    else if (tool === 'arrow') {
-      const head = Math.max(10, lineWidth * 3)
-      const dx = x - start.x, dy = y - start.y, ang = Math.atan2(dy, dx)
-      ctx.moveTo(start.x, start.y); ctx.lineTo(x, y)
-      ctx.moveTo(x, y); ctx.lineTo(x - head * Math.cos(ang - Math.PI / 6), y - head * Math.sin(ang - Math.PI / 6))
-      ctx.moveTo(x, y); ctx.lineTo(x - head * Math.cos(ang + Math.PI / 6), y - head * Math.sin(ang + Math.PI / 6))
-    }
-    ctx.stroke()
-  }, [drawing, tool, color, lineWidth, history, toCanvasPos])
+  const onShapePreview = useCallback(
+    (e) => {
+      if (!drawing) return;
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext('2d');
+      if (!canvas || !ctx) return;
+      const { x, y } = toCanvasPos(e);
+      const last = history[history.length - 1];
+      if (!last) return;
+      ctx.putImageData(last, 0, 0);
+      const start = lastCropStart.current || { x, y };
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      if (tool === 'square') ctx.rect(start.x, start.y, x - start.x, y - start.y);
+      else if (tool === 'circle') {
+        const r = Math.sqrt((x - start.x) ** 2 + (y - start.y) ** 2);
+        ctx.arc(start.x, start.y, r, 0, Math.PI * 2);
+      } else if (tool === 'line') {
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(x, y);
+      } else if (tool === 'arrow') {
+        const head = Math.max(10, lineWidth * 3);
+        const dx = x - start.x,
+          dy = y - start.y,
+          ang = Math.atan2(dy, dx);
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(x, y);
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - head * Math.cos(ang - Math.PI / 6), y - head * Math.sin(ang - Math.PI / 6));
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - head * Math.cos(ang + Math.PI / 6), y - head * Math.sin(ang + Math.PI / 6));
+      }
+      ctx.stroke();
+    },
+    [drawing, tool, color, lineWidth, history, toCanvasPos],
+  );
 
   // canvas 移动统一分发：画笔/橡皮走 onDrawMove（实时连线），其它形状走 onShapePreview（快照重画）。
   // 【修复】此前 onMouseMove 只绑了 onShapePreview，导致 pencil 的 onDrawMove 永远不被调用 → 画笔画不出线。
-  const handleCanvasMove = useCallback((e) => {
-    if (tool === 'pencil' || tool === 'eraser') onDrawMove(e)
-    else onShapePreview(e)
-  }, [tool, onDrawMove, onShapePreview])
+  const handleCanvasMove = useCallback(
+    (e) => {
+      if (tool === 'pencil' || tool === 'eraser') onDrawMove(e);
+      else onShapePreview(e);
+    },
+    [tool, onDrawMove, onShapePreview],
+  );
 
   // 把当前 canvas 的像素作为「新的底图」回填到 imgRef，供后续裁剪/扩图复用。
   // 这是裁剪↔扩图收口的关键：每一步的结果都成为下一步的输入，两者可任意先后、可重复。
   const commitCanvasToImgRef = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas || !canvas.width || !canvas.height) return
-    const img = new Image()
+    const canvas = canvasRef.current;
+    if (!canvas || !canvas.width || !canvas.height) return;
+    const img = new Image();
     img.onload = () => {
-      imgRef.current = img
-    }
-    img.src = canvas.toDataURL('image/png')
-  }, [])
+      imgRef.current = img;
+    };
+    img.src = canvas.toDataURL('image/png');
+  }, []);
 
   // 确认裁剪（复刻官方 537-574）：把 ReactCrop 的 crop 换算成 canvas 像素 → 裁切。
   // 裁剪只往内裁，不做外扩；外扩白边由独立的「扩图」工具承担。
   const applyCrop = useCallback(() => {
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
-    if (!canvas || !ctx || !completedCrop?.width || !completedCrop?.height) return
-    const scaleX = canvas.width / canvas.offsetWidth
-    const scaleY = canvas.height / canvas.offsetHeight
-    const px = Math.round(completedCrop.x * scaleX)
-    const py = Math.round(completedCrop.y * scaleY)
-    const pw = Math.round(completedCrop.width * scaleX)
-    const ph = Math.round(completedCrop.height * scaleY)
-    const sx = Math.max(0, Math.min(px, canvas.width))
-    const sy = Math.max(0, Math.min(py, canvas.height))
-    const sw = Math.max(1, Math.min(pw, canvas.width - sx))
-    const sh = Math.max(1, Math.min(ph, canvas.height - sy))
-    const data = ctx.getImageData(sx, sy, sw, sh)
-    pushHistory()
-    canvas.width = sw
-    canvas.height = sh
-    ctx.putImageData(data, 0, 0)
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx || !completedCrop?.width || !completedCrop?.height) return;
+    const scaleX = canvas.width / canvas.offsetWidth;
+    const scaleY = canvas.height / canvas.offsetHeight;
+    const px = Math.round(completedCrop.x * scaleX);
+    const py = Math.round(completedCrop.y * scaleY);
+    const pw = Math.round(completedCrop.width * scaleX);
+    const ph = Math.round(completedCrop.height * scaleY);
+    const sx = Math.max(0, Math.min(px, canvas.width));
+    const sy = Math.max(0, Math.min(py, canvas.height));
+    const sw = Math.max(1, Math.min(pw, canvas.width - sx));
+    const sh = Math.max(1, Math.min(ph, canvas.height - sy));
+    const data = ctx.getImageData(sx, sy, sw, sh);
+    pushHistory();
+    canvas.width = sw;
+    canvas.height = sh;
+    ctx.putImageData(data, 0, 0);
     // 裁剪结果回填为新的底图（不再置 null），后续扩图/再裁剪均以此为基础
-    commitCanvasToImgRef()
-    setImgSize({ w: sw, h: sh })
-    setCrop(undefined)
-    setCompletedCrop(undefined)
-    setTool('pencil')
-  }, [completedCrop, pushHistory, commitCanvasToImgRef])
+    commitCanvasToImgRef();
+    setImgSize({ w: sw, h: sh });
+    setCrop(undefined);
+    setCompletedCrop(undefined);
+    setTool('pencil');
+  }, [completedCrop, pushHistory, commitCanvasToImgRef]);
 
-  const lastCropStart = useRef({ x: 0, y: 0 })
+  const lastCropStart = useRef({ x: 0, y: 0 });
 
   // ── 扩图工具（独立，复刻 AI-Canvas ExpandEditor）──
   // 用「当前底图」按「目标比例 + 外扩量 + 拖动偏移」实时重画 canvas。
   // 底图来源：优先 imgRef.current（原始图 / 上一步裁剪或扩图回填的结果）；
   // 若异步回填尚未完成则回退 canvasRef.current（当前已绘制内容），保证可重复操作不卡空白。
   const renderOutpaint = useCallback(() => {
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
-    if (!canvas || !ctx) return
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
     // 底图来源：优先 imgRef.current（原始图 / 上一步裁剪或扩图回填的结果）；
     // 若异步回填尚未完成，则在重置 canvas 尺寸前先缓存当前像素到临时 canvas 作兜底源，
     // 避免 self-drawImage 在 width 被重置清空后只画空白（虚假兜底）。
-    const im = imgRef.current
-    const srcW = im ? im.naturalWidth : canvas.width
-    const srcH = im ? im.naturalHeight : canvas.height
-    if (!srcW || !srcH) return
-    const ratio = OUTPAINT_RATIOS.find((r) => r.key === outpaintRatioKey)?.ratio
-    const t = computeOutpaintTarget(srcW, srcH, ratio, 1 / outpaintFactor)
-    const { dx, dy } = computeOutpaintDrawPos(outpaintOffset, t.maxOffX, t.maxOffY)
-    const fallbackCanvas = im ? null : (() => {
-      const c = document.createElement('canvas')
-      c.width = canvas.width
-      c.height = canvas.height
-      c.getContext('2d')?.drawImage(canvas, 0, 0)
-      return c
-    })()
+    const im = imgRef.current;
+    const srcW = im ? im.naturalWidth : canvas.width;
+    const srcH = im ? im.naturalHeight : canvas.height;
+    if (!srcW || !srcH) return;
+    const ratio = OUTPAINT_RATIOS.find((r) => r.key === outpaintRatioKey)?.ratio;
+    const t = computeOutpaintTarget(srcW, srcH, ratio, 1 / outpaintFactor);
+    const { dx, dy } = computeOutpaintDrawPos(outpaintOffset, t.maxOffX, t.maxOffY);
+    const fallbackCanvas = im
+      ? null
+      : (() => {
+          const c = document.createElement('canvas');
+          c.width = canvas.width;
+          c.height = canvas.height;
+          c.getContext('2d')?.drawImage(canvas, 0, 0);
+          return c;
+        })();
     // 预览态不入撤销栈（拖动/调参高频触发）；确认扩图时才 pushHistory 记录最终结果
-    canvas.width = t.tw
-    canvas.height = t.th
-    ctx.fillStyle = OUTPAINT_FILL
-    ctx.fillRect(0, 0, t.tw, t.th)
-    const source = im || fallbackCanvas
-    if (source) ctx.drawImage(source, dx, dy, t.sw, t.sh)
-    setImgSize({ w: t.tw, h: t.th })
-  }, [outpaintRatioKey, outpaintFactor, outpaintOffset])
+    canvas.width = t.tw;
+    canvas.height = t.th;
+    ctx.fillStyle = OUTPAINT_FILL;
+    ctx.fillRect(0, 0, t.tw, t.th);
+    const source = im || fallbackCanvas;
+    if (source) ctx.drawImage(source, dx, dy, t.sw, t.sh);
+    setImgSize({ w: t.tw, h: t.th });
+  }, [outpaintRatioKey, outpaintFactor, outpaintOffset]);
 
   // 确认扩图：把当前「原图+白边」画布作为结果，退出扩图态
   const applyOutpaint = useCallback(() => {
-    renderOutpaint()
-    pushHistory() // 扩图结果入撤销栈
+    renderOutpaint();
+    pushHistory(); // 扩图结果入撤销栈
     // 扩图结果回填为新的底图（不再置 null），后续裁剪/再扩图均以此为基础
-    commitCanvasToImgRef()
-    setCrop(undefined)
-    setCompletedCrop(undefined)
-    setTool('pencil')
-  }, [renderOutpaint, pushHistory, commitCanvasToImgRef])
+    commitCanvasToImgRef();
+    setCrop(undefined);
+    setCompletedCrop(undefined);
+    setTool('pencil');
+  }, [renderOutpaint, pushHistory, commitCanvasToImgRef]);
 
   // 拖动原图重定位：屏幕位移 → 归一化 offset（相对可移动范围）
-  const outpaintDragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null)
-  const onOutpaintPointerDown = useCallback((e: React.PointerEvent) => {
-    if (tool !== 'expand') return
-    e.preventDefault()
-    e.stopPropagation()
-    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-    outpaintDragRef.current = { startX: e.clientX, startY: e.clientY, ox: outpaintOffset.x, oy: outpaintOffset.y }
-  }, [tool, outpaintOffset])
-  const onOutpaintPointerMove = useCallback((e: React.PointerEvent) => {
-    const d = outpaintDragRef.current
-    if (!d || tool !== 'expand') return
-    const canvas = canvasRef.current
-    const im = imgRef.current
-    if (!canvas || !im) return
-    const ratio = OUTPAINT_RATIOS.find((r) => r.key === outpaintRatioKey)?.ratio
-    const t = computeOutpaintTarget(im.naturalWidth, im.naturalHeight, ratio, 1 / outpaintFactor)
-    // 屏幕位移 → 画布内部像素位移（画布内部像素 / 渲染尺寸 ≈ 1，直接按渲染盒比例换算）
-    const scale = canvas.width / canvas.offsetWidth
-    const dxNat = (e.clientX - d.startX) * scale
-    const dyNat = (e.clientY - d.startY) * scale
-    const nx = t.maxOffX > 0 ? d.ox + dxNat / (2 * t.maxOffX) : 0
-    const ny = t.maxOffY > 0 ? d.oy + dyNat / (2 * t.maxOffY) : 0
-    const next = { x: Math.max(-0.5, Math.min(0.5, nx)), y: Math.max(-0.5, Math.min(0.5, ny)) }
-    // 直接按新 offset 重画预览（绕过 state 异步，保证拖动跟手）
-    const ctx = canvas.getContext('2d')
-    if (ctx) {
-      ctx.fillStyle = OUTPAINT_FILL
-      ctx.fillRect(0, 0, t.tw, t.th)
-      const pos = computeOutpaintDrawPos(next, t.maxOffX, t.maxOffY)
-      ctx.drawImage(im, pos.dx, pos.dy, t.sw, t.sh)
-    }
-    setOutpaintOffset(next)
-  }, [tool, outpaintRatioKey, outpaintFactor])
+  const outpaintDragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(
+    null,
+  );
+  const onOutpaintPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (tool !== 'expand') return;
+      e.preventDefault();
+      e.stopPropagation();
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      outpaintDragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        ox: outpaintOffset.x,
+        oy: outpaintOffset.y,
+      };
+    },
+    [tool, outpaintOffset],
+  );
+  const onOutpaintPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      const d = outpaintDragRef.current;
+      if (!d || tool !== 'expand') return;
+      const canvas = canvasRef.current;
+      const im = imgRef.current;
+      if (!canvas || !im) return;
+      const ratio = OUTPAINT_RATIOS.find((r) => r.key === outpaintRatioKey)?.ratio;
+      const t = computeOutpaintTarget(im.naturalWidth, im.naturalHeight, ratio, 1 / outpaintFactor);
+      // 屏幕位移 → 画布内部像素位移（画布内部像素 / 渲染尺寸 ≈ 1，直接按渲染盒比例换算）
+      const scale = canvas.width / canvas.offsetWidth;
+      const dxNat = (e.clientX - d.startX) * scale;
+      const dyNat = (e.clientY - d.startY) * scale;
+      const nx = t.maxOffX > 0 ? d.ox + dxNat / (2 * t.maxOffX) : 0;
+      const ny = t.maxOffY > 0 ? d.oy + dyNat / (2 * t.maxOffY) : 0;
+      const next = { x: Math.max(-0.5, Math.min(0.5, nx)), y: Math.max(-0.5, Math.min(0.5, ny)) };
+      // 直接按新 offset 重画预览（绕过 state 异步，保证拖动跟手）
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = OUTPAINT_FILL;
+        ctx.fillRect(0, 0, t.tw, t.th);
+        const pos = computeOutpaintDrawPos(next, t.maxOffX, t.maxOffY);
+        ctx.drawImage(im, pos.dx, pos.dy, t.sw, t.sh);
+      }
+      setOutpaintOffset(next);
+    },
+    [tool, outpaintRatioKey, outpaintFactor],
+  );
   const onOutpaintPointerUp = useCallback((e: React.PointerEvent) => {
-    outpaintDragRef.current = null
-    ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
-  }, [])
+    outpaintDragRef.current = null;
+    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+  }, []);
 
   // 进入扩图工具 / 比例 / 外扩量变化：渲染预览。拖动偏移由 onOutpaintPointerMove 内手动重画（跟手）。
   useEffect(() => {
-    if (tool !== 'expand') return
-    setOutpaintOffset({ x: 0, y: 0 })
-    renderOutpaint()
+    if (tool !== 'expand') return;
+    setOutpaintOffset({ x: 0, y: 0 });
+    renderOutpaint();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, outpaintRatioKey, outpaintFactor])
+  }, [tool, outpaintRatioKey, outpaintFactor]);
 
   // 保存
   const handleSave = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const canvas = canvasRef.current;
+    if (!canvas) return;
     // 一并回传画布真实像素尺寸：扩图/裁剪后画布尺寸会变，节点据此用 fitByRatio 显式自适应，
     // 不再依赖缩略图端点还原的尺寸（缩略图压到最长边 640 会吞掉等比外扩带来的比例变化）。
-    onSave?.({ dataUrl: canvas.toDataURL('image/jpeg', 0.9), width: canvas.width, height: canvas.height })
-    onClose?.()
-  }, [onSave, onClose])
+    onSave?.({
+      dataUrl: canvas.toDataURL('image/jpeg', 0.9),
+      width: canvas.width,
+      height: canvas.height,
+    });
+    onClose?.();
+  }, [onSave, onClose]);
 
   const toolBtn = (t: string, icon: React.ReactNode, title: string, active: boolean) => (
     <button
       type="button"
       className={`p-2 rounded transition-colors ${active ? 'bg-blue-500 text-white' : 'text-secondary hover:text-white hover:bg-surface-hover-strong'}`}
-      onClick={() => { setTool(t); if (t === 'crop') setCrop(undefined) }}
+      onClick={() => {
+        setTool(t);
+        if (t === 'crop') setCrop(undefined);
+      }}
       title={title}
     >
       {icon}
     </button>
-  )
+  );
 
   return createPortal(
     <div className="fixed inset-0 z-ceiling flex flex-col bg-canvas select-none">
@@ -691,14 +824,38 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
           </div>
           <div className="h-6 w-[1px] bg-surface-3 mx-2" />
           {/* 颜色 + 粗细 */}
-          <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-8 h-8 rounded cursor-pointer bg-transparent border-none p-0" />
-          <input type="range" min="1" max="20" value={lineWidth} onChange={(e) => setLineWidth(parseInt(e.target.value))} className="w-24 accent-blue-500 ml-2" title={`粗细: ${lineWidth}px`} />
+          <input
+            type="color"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            className="w-8 h-8 rounded cursor-pointer bg-transparent border-none p-0"
+          />
+          <input
+            type="range"
+            min="1"
+            max="20"
+            value={lineWidth}
+            onChange={(e) => setLineWidth(parseInt(e.target.value))}
+            className="w-24 accent-blue-500 ml-2"
+            title={`粗细: ${lineWidth}px`}
+          />
           <div className="h-6 w-[1px] bg-surface-3 mx-2" />
           {/* 撤销 + 清空 */}
-          <button type="button" onClick={undo} disabled={history.length <= 1} className={`p-2 rounded text-secondary hover:text-white hover:bg-surface-hover-strong ${history.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''}`} title="撤销">
+          <button
+            type="button"
+            onClick={undo}
+            disabled={history.length <= 1}
+            className={`p-2 rounded text-secondary hover:text-white hover:bg-surface-hover-strong ${history.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+            title="撤销"
+          >
             <Undo2 size={16} />
           </button>
-          <button type="button" onClick={clearAll} className="p-2 rounded text-secondary hover:text-red-400 hover:bg-surface-hover-strong" title="清空涂鸦">
+          <button
+            type="button"
+            onClick={clearAll}
+            className="p-2 rounded text-secondary hover:text-red-400 hover:bg-surface-hover-strong"
+            title="清空涂鸦"
+          >
             <Trash2 size={16} />
           </button>
         </div>
@@ -710,20 +867,37 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
               <select
                 value={cropAspect ?? 'free'}
                 onChange={(e) => {
-                  const v = e.target.value
-                  const ratio = v === 'free' ? undefined : parseFloat(v)
-                  setCropAspect(ratio)
+                  const v = e.target.value;
+                  const ratio = v === 'free' ? undefined : parseFloat(v);
+                  setCropAspect(ratio);
                   if (imgSize.w && imgSize.h) {
-                    setCrop(centerCrop(makeAspectCrop({ unit: '%', width: 80 }, ratio || 16 / 9, imgSize.w, imgSize.h), imgSize.w, imgSize.h))
+                    setCrop(
+                      centerCrop(
+                        makeAspectCrop(
+                          { unit: '%', width: 80 },
+                          ratio || 16 / 9,
+                          imgSize.w,
+                          imgSize.h,
+                        ),
+                        imgSize.w,
+                        imgSize.h,
+                      ),
+                    );
                   }
                 }}
                 className="bg-surface-hover text-xs text-primary px-2 py-1.5 rounded border border-edge-muted focus:outline-none"
               >
                 {CROP_RATIOS.map((r) => (
-                  <option key={r.label} value={r.value ?? 'free'}>{r.label}</option>
+                  <option key={r.label} value={r.value ?? 'free'}>
+                    {r.label}
+                  </option>
                 ))}
               </select>
-              <button type="button" onClick={applyCrop} className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors flex items-center gap-1 text-sm font-medium mr-2">
+              <button
+                type="button"
+                onClick={applyCrop}
+                className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors flex items-center gap-1 text-sm font-medium mr-2"
+              >
                 <Check size={16} /> 确认裁剪
               </button>
             </React.Fragment>
@@ -738,10 +912,15 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
                 title="扩图后整张图的画幅比例"
               >
                 {OUTPAINT_RATIOS.map((r) => (
-                  <option key={r.key} value={r.key}>{r.label}</option>
+                  <option key={r.key} value={r.key}>
+                    {r.label}
+                  </option>
                 ))}
               </select>
-              <label className="flex items-center gap-1.5 bg-surface-hover rounded border border-edge-muted px-2 py-1.5" title="向右拖动放大画布、四周白边越来越多；最多扩展为原图 2 倍面积。原图可拖到白边内任意位置">
+              <label
+                className="flex items-center gap-1.5 bg-surface-hover rounded border border-edge-muted px-2 py-1.5"
+                title="向右拖动放大画布、四周白边越来越多；最多扩展为原图 2 倍面积。原图可拖到白边内任意位置"
+              >
                 <span className="text-xs text-secondary whitespace-nowrap">扩展</span>
                 <input
                   type="range"
@@ -749,21 +928,38 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
                   max={OUTPAINT_FACTOR_MAX}
                   step={OUTPAINT_FACTOR_STEP}
                   value={outpaintFactor}
-                  onChange={(e) => { setOutpaintFactor(parseFloat(e.target.value)); setOutpaintOffset({ x: 0, y: 0 }) }}
+                  onChange={(e) => {
+                    setOutpaintFactor(parseFloat(e.target.value));
+                    setOutpaintOffset({ x: 0, y: 0 });
+                  }}
                   className="w-24 accent-blue-500"
                 />
-                <span className="text-xs text-primary tabular-nums w-12 text-right">+{Math.round((outpaintFactor * outpaintFactor - 1) * 100)}%</span>
+                <span className="text-xs text-primary tabular-nums w-12 text-right">
+                  +{Math.round((outpaintFactor * outpaintFactor - 1) * 100)}%
+                </span>
               </label>
               <span className="text-xs text-secondary whitespace-nowrap">拖动原图定位</span>
-              <button type="button" onClick={applyOutpaint} className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors flex items-center gap-1 text-sm font-medium mr-2">
+              <button
+                type="button"
+                onClick={applyOutpaint}
+                className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors flex items-center gap-1 text-sm font-medium mr-2"
+              >
                 <Check size={16} /> 确认扩图
               </button>
             </React.Fragment>
           )}
-          <button type="button" onClick={onClose} className="px-3 py-1.5 rounded-lg text-body hover:bg-surface-hover-strong transition-colors flex items-center gap-1 text-sm">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg text-body hover:bg-surface-hover-strong transition-colors flex items-center gap-1 text-sm"
+          >
             <X size={16} /> 取消
           </button>
-          <button type="button" onClick={handleSave} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors flex items-center gap-1 text-sm font-medium">
+          <button
+            type="button"
+            onClick={handleSave}
+            className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors flex items-center gap-1 text-sm font-medium"
+          >
             <Check size={16} /> 保存
           </button>
         </div>
@@ -819,8 +1015,11 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
             value={textInput.text}
             onChange={(e) => setTextInput((t) => ({ ...t, text: e.target.value }))}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') commitText()
-              else if (e.key === 'Escape') { e.stopPropagation(); setTextInput(null) } // Esc 取消，不落字
+              if (e.key === 'Enter') commitText();
+              else if (e.key === 'Escape') {
+                e.stopPropagation();
+                setTextInput(null);
+              } // Esc 取消，不落字
             }}
             onBlur={commitText}
             placeholder="输入文字..."
@@ -848,21 +1047,41 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
 
       {/* 底部缩放条（复刻 _Component129:644-659） */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1.5 bg-surface-raised/95 border border-edge rounded-lg shadow-xl backdrop-blur z-modal-action">
-        <button type="button" onClick={zoomOut} className="p-1.5 rounded text-body hover:text-white hover:bg-surface-hover-strong" title="缩小 (滚轮)">
+        <button
+          type="button"
+          onClick={zoomOut}
+          className="p-1.5 rounded text-body hover:text-white hover:bg-surface-hover-strong"
+          title="缩小 (滚轮)"
+        >
           <ZoomOut size={15} />
         </button>
-        <button type="button" onClick={resetZoom} className="px-2 text-caption-sm text-primary tabular-nums min-w-[44px] text-center hover:text-white" title="重置为 100%（空格拖动平移）">
+        <button
+          type="button"
+          onClick={resetZoom}
+          className="px-2 text-caption-sm text-primary tabular-nums min-w-[44px] text-center hover:text-white"
+          title="重置为 100%（空格拖动平移）"
+        >
           {Math.round(zoom * 100)}%
         </button>
-        <button type="button" onClick={zoomIn} className="p-1.5 rounded text-body hover:text-white hover:bg-surface-hover-strong" title="放大 (滚轮)">
+        <button
+          type="button"
+          onClick={zoomIn}
+          className="p-1.5 rounded text-body hover:text-white hover:bg-surface-hover-strong"
+          title="放大 (滚轮)"
+        >
           <ZoomIn size={15} />
         </button>
         <div className="w-[1px] h-4 bg-surface-3 mx-0.5" />
-        <button type="button" onClick={fitZoom} className="p-1.5 rounded text-body hover:text-white hover:bg-surface-hover-strong" title="适应屏幕">
+        <button
+          type="button"
+          onClick={fitZoom}
+          className="p-1.5 rounded text-body hover:text-white hover:bg-surface-hover-strong"
+          title="适应屏幕"
+        >
           <Maximize size={15} />
         </button>
       </div>
     </div>,
-    document.body
-  )
+    document.body,
+  );
 }

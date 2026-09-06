@@ -1,12 +1,12 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'path'
-import { fileURLToPath } from 'node:url'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+import { fileURLToPath } from 'node:url';
 
 // 更新(2026-09-02)：配置随全仓 TS 化，.js→.ts。__dirname 是 CJS 全局，在 ESM 配置里之所以能用，
 // 靠的是 Vite 打包配置时注入的 esbuild define——换个加载器（或直接 node 跑）就会变 undefined。
 // 改用标准 ESM 写法，不依赖任何打包器注入，tsc 也能真校验（此前 .js + checkJs:false = 零检查）。
-const rootDir = path.dirname(fileURLToPath(import.meta.url))
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
@@ -45,22 +45,24 @@ export default defineConfig({
           // 它被所有含动态 import 的 chunk 共享，若被 Rollup 放进大 vendor（实测 vendor-3d），
           // 主 chunk 就为调用它而静态 import 整个 1MB vendor → 按需加载失效。用 includes 匹配
           // （不能用 ===，id 带不可见的前缀）。commonjsHelpers 同理。
-          if (id.includes('vite/preload-helper') || id.includes('commonjsHelpers')) return undefined
+          if (id.includes('vite/preload-helper') || id.includes('commonjsHelpers'))
+            return undefined;
           // 按 node_modules 顶层包名归组，让各库独立成 chunk 并复用共享依赖
           // 顺序很重要：three/@react-three 必须在 react 判断之前匹配，否则含 'react' 的
           // @react-three/fiber 会被误吸进 vendor-react，且 three 体积巨大应独立成 vendor-3d。
           if (id.includes('node_modules')) {
-            if (id.includes('@react-three') || id.includes('/three/') || id.includes('three/build')) return 'vendor-3d'
+            if (id.includes('@react-three') || id.includes('/three/') || id.includes('three/build'))
+              return 'vendor-3d';
             // @xyflow 不再独立成 chunk：它强依赖 react（peerDeps react>=17，模块顶部大量
             // `import { useState } from 'react'`）。若拆成 vendor-flow 独立 chunk，会与
             // vendor-react 形成循环 chunk，导致 vendor-flow 在 vendor-react 初始化完成前执行
             // → 运行时 `reading 'useState'` 但 React 为 undefined 崩溃（2026-08-20 修复）。
             // 让它随 react 归入 vendor-react（同 chunk 保证 React 先定义），消除循环。
-            if (id.includes('mediabunny')) return 'vendor-media'
-            if (id.includes('gifenc')) return 'vendor-media'
-            if (id.includes('lucide-react')) return 'vendor-ui'
-            if (id.includes('dagre')) return 'vendor-layout'
-            if (id.includes('react')) return 'vendor-react'
+            if (id.includes('mediabunny')) return 'vendor-media';
+            if (id.includes('gifenc')) return 'vendor-media';
+            if (id.includes('lucide-react')) return 'vendor-ui';
+            if (id.includes('dagre')) return 'vendor-layout';
+            if (id.includes('react')) return 'vendor-react';
           }
         },
       },
@@ -70,4 +72,4 @@ export default defineConfig({
     port: 5180,
     open: true,
   },
-})
+});

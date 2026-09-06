@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react';
 
 /**
  * 生成中遮罩（复刻官方 Ti.jsx + Di.jsx）。
@@ -31,9 +31,18 @@ const GEN_TIPS = [
   { text: '大部分的大模型都支持图片反推，但支持视频反推的不对，例如Qwen系列', category: 'text' },
   { text: '不要把整章小说丢给AI，按场景发生地切分成小段，剧本生成会更精准', category: 'text' },
   { text: '小说里的心理活动无法直接拍出，让AI将其转化为具体的微表情或肢体动作', category: 'text' },
-  { text: '拆解动作时避免连贯长句，让AI重写为"他拔出剑。他向前冲刺"的短平快句型', category: 'text' },
-  { text: '设定镜头感："请用导演口吻描述剧情，多使用推镜头、特写和全景等专业术语"', category: 'text' },
-  { text: '对于战斗场景，提示AI"增加动词密度，强调力量和速度感，减少修饰性形容词"', category: 'text' },
+  {
+    text: '拆解动作时避免连贯长句，让AI重写为"他拔出剑。他向前冲刺"的短平快句型',
+    category: 'text',
+  },
+  {
+    text: '设定镜头感："请用导演口吻描述剧情，多使用推镜头、特写和全景等专业术语"',
+    category: 'text',
+  },
+  {
+    text: '对于战斗场景，提示AI"增加动词密度，强调力量和速度感，减少修饰性形容词"',
+    category: 'text',
+  },
   { text: '遇到抽象设定（如剑气、威压），让AI具象化为"发光的蓝色半月形能量波"', category: 'text' },
   { text: '剧本分镜编号化：要求AI输出"Shot 1, Shot 2"，在画布中对应独立分支', category: 'text' },
   { text: '如果主角会变身，在小传节点中提前定义好"常态"和"变身态"的两套特征库', category: 'text' },
@@ -49,22 +58,55 @@ const GEN_TIPS = [
   { text: '越具体的穿搭描述，越能避免AI随机生成结构奇怪的衣服款式', category: 'image' },
   { text: '若生成元素过多显得拥挤，加上"极简主义"、"干净的背景"、"留白"', category: 'image' },
   { text: '不要把所有图片都铺满整个画布，不妨试试图片盒子', category: 'image' },
-  { text: '小说转绘本的核心是角色一致性：先跑出完美的主角三视图，作为后续垫图参考', category: 'image' },
+  {
+    text: '小说转绘本的核心是角色一致性：先跑出完美的主角三视图，作为后续垫图参考',
+    category: 'image',
+  },
   { text: '给角色面部打光：加入"伦勃朗光"或"蝴蝶光"，让角色五官更具立体电影感', category: 'image' },
-  { text: '分镜图构图技巧：人物对话多用"过肩镜头（Over-the-shoulder）"，增强互动', category: 'image' },
-  { text: '如果小说场景是宏大奇幻修仙，多用"极远景（Extreme long shot）"和史诗构图', category: 'image' },
+  {
+    text: '分镜图构图技巧：人物对话多用"过肩镜头（Over-the-shoulder）"，增强互动',
+    category: 'image',
+  },
+  {
+    text: '如果小说场景是宏大奇幻修仙，多用"极远景（Extreme long shot）"和史诗构图',
+    category: 'image',
+  },
   { text: '控制画面留白：如果该图后续要配大量旁白字幕，提示词记得加上"负空间"', category: 'image' },
-  { text: '保持画风统一的捷径：在每个生图节点末尾加上同一位特定画师或电影导演的名字', category: 'image' },
-  { text: '对于连贯动作，先生成静止的起步动作，这比直接生成复杂的运动画面更容易', category: 'image' },
-  { text: '突出人物情绪：使用"面部特写"配合"泪水"、"咬牙"、"瞳孔地震"等微表情词', category: 'image' },
-  { text: '场景氛围图不需要太清晰的人脸，强调"轮廓（Silhouette）"和环境光更出效果', category: 'image' },
-  { text: '生成背影或侧脸：有效规避正脸崩坏的风险，同时还能增加画面的故事悬念感', category: 'image' },
+  {
+    text: '保持画风统一的捷径：在每个生图节点末尾加上同一位特定画师或电影导演的名字',
+    category: 'image',
+  },
+  {
+    text: '对于连贯动作，先生成静止的起步动作，这比直接生成复杂的运动画面更容易',
+    category: 'image',
+  },
+  {
+    text: '突出人物情绪：使用"面部特写"配合"泪水"、"咬牙"、"瞳孔地震"等微表情词',
+    category: 'image',
+  },
+  {
+    text: '场景氛围图不需要太清晰的人脸，强调"轮廓（Silhouette）"和环境光更出效果',
+    category: 'image',
+  },
+  {
+    text: '生成背影或侧脸：有效规避正脸崩坏的风险，同时还能增加画面的故事悬念感',
+    category: 'image',
+  },
   { text: '重要武器或道具：单独生成高清大图，在后续剧情中作为局部重绘的参考源', category: 'image' },
   { text: '色彩心理学：回忆情节用"泛黄滤镜/黑白"，战斗高潮用"高饱和度对比色"', category: 'image' },
   { text: '仰拍能让反派显得高大威猛，俯拍（High angle）能表现角色的弱小与无助', category: 'image' },
-  { text: '避免画面太平淡：加入"前景遮挡（Foreground framing）"，如透过树叶看主角', category: 'image' },
-  { text: '整场戏的提示词都带上"蓝绿色调（Teal and orange）"，轻松打造好莱坞大片质感', category: 'image' },
-  { text: '不要每一格都画满人物：适当插入只画背景空镜头的过渡图，让节奏张弛有度', category: 'image' },
+  {
+    text: '避免画面太平淡：加入"前景遮挡（Foreground framing）"，如透过树叶看主角',
+    category: 'image',
+  },
+  {
+    text: '整场戏的提示词都带上"蓝绿色调（Teal and orange）"，轻松打造好莱坞大片质感',
+    category: 'image',
+  },
+  {
+    text: '不要每一格都画满人物：适当插入只画背景空镜头的过渡图，让节奏张弛有度',
+    category: 'image',
+  },
   { text: '生成速度感画面：加上"运动模糊（Motion blur）"和"速度线"视觉效果', category: 'image' },
   { text: '固定一张完美的图作为风格锚点，通过工作流将其作为所有后续生成的参考', category: 'image' },
   { text: '画面写"定格的那一瞬"（举拳/转身/跌倒），比写"正要/开始"的过渡更稳', category: 'image' },
@@ -90,20 +132,47 @@ const GEN_TIPS = [
   { text: '在连续节点中传递相同的角色设定，确保下一秒主角不会突然换衣服', category: 'video' },
   { text: '设定首尾完全相同的画面特征，非常适合制作动态壁纸或网页背景', category: 'video' },
   { text: '生文写分镜，生图做原画，最后一起喂给生视频节点，流程无缝衔接', category: 'video' },
-  { text: '图生视频第一准则：原图必须足够清晰，视频的画质与稳定性上限由原图决定', category: 'video' },
-  { text: '视频提示词要克制：不要重复描述图片里已有的东西，重点描述什么东西怎么动', category: 'video' },
-  { text: '小说里的打斗戏：运镜词使用"快速平移（Fast pan）"或"推拉镜头"增强冲击力', category: 'video' },
-  { text: '人物对话场景：保持摄像机微弱移动（Subtle drift），不要完全静止，增加呼吸感', category: 'video' },
-  { text: '控制动作幅度：廉价模型AI视频动作过大易变形，加上"缓慢移动"能大幅提高成功率', category: 'video' },
+  {
+    text: '图生视频第一准则：原图必须足够清晰，视频的画质与稳定性上限由原图决定',
+    category: 'video',
+  },
+  {
+    text: '视频提示词要克制：不要重复描述图片里已有的东西，重点描述什么东西怎么动',
+    category: 'video',
+  },
+  {
+    text: '小说里的打斗戏：运镜词使用"快速平移（Fast pan）"或"推拉镜头"增强冲击力',
+    category: 'video',
+  },
+  {
+    text: '人物对话场景：保持摄像机微弱移动（Subtle drift），不要完全静止，增加呼吸感',
+    category: 'video',
+  },
+  {
+    text: '控制动作幅度：廉价模型AI视频动作过大易变形，加上"缓慢移动"能大幅提高成功率',
+    category: 'video',
+  },
   { text: '在视频提示词中强调"角色眨眼并看向镜头"，让原画里的纸片人瞬间活过来', category: 'video' },
   { text: '首尾相接控制：动作复刻最后一帧，但是可以换个角度', category: 'video' },
   { text: '小说转场效果：生视频时加入"黑屏过渡"或"白闪"，方便后续节点拼剪', category: 'video' },
-  { text: '处理人物转身：尽量用"切换不同机位"代替"让人物在同一个镜头里转180度"', category: 'video' },
+  {
+    text: '处理人物转身：尽量用"切换不同机位"代替"让人物在同一个镜头里转180度"',
+    category: 'video',
+  },
   { text: '表现时间流逝：输入一张白天场景图，提示词写"从白天变黑夜的延时摄影"', category: 'video' },
-  { text: '头发和衣服的物理效果：加上"随风飘动（Blowing in the wind）"，极大增加生动感', category: 'video' },
+  {
+    text: '头发和衣服的物理效果：加上"随风飘动（Blowing in the wind）"，极大增加生动感',
+    category: 'video',
+  },
   { text: '镜头光晕移动：提示词加"镜头光晕在画面中划过"，科幻与写实摄影感拉满', category: 'video' },
-  { text: '遇到视频生成崩坏：不要硬死磕，回到生图节点换一张构图稍微不同的图片再试', category: 'video' },
-  { text: '制造悬疑感：使用"缓慢向黑暗的走廊尽头推进（Slow dolly in toward darkness）"', category: 'video' },
+  {
+    text: '遇到视频生成崩坏：不要硬死磕，回到生图节点换一张构图稍微不同的图片再试',
+    category: 'video',
+  },
+  {
+    text: '制造悬疑感：使用"缓慢向黑暗的走廊尽头推进（Slow dolly in toward darkness）"',
+    category: 'video',
+  },
   { text: '视频首帧就要出现主角，别让主体迟迟不进画面', category: 'video' },
   { text: '动作写"伸手挡开""一把接住"这类目标动词，比写"他很生气"更有效', category: 'video' },
   { text: '让角色处于已发生状态（半蹲着/正要推门），别写"开始站起来"这类过渡', category: 'video' },
@@ -117,36 +186,52 @@ const GEN_TIPS = [
   { text: '使用快捷键Q / W /E，让你快速添加常用节点', category: 'general' },
   { text: '目前Window支持将资源一键传入剪映，非常高效', category: 'general' },
   { text: '画布太乱？点击"自动整理"功能，让复杂的节点拓扑图瞬间井井有条', category: 'general' },
-  { text: '想在家/在公司资源共享，迁移你的文件的最快方法是把data文件夹搬过去', category: 'general' },
+  {
+    text: '想在家/在公司资源共享，迁移你的文件的最快方法是把data文件夹搬过去',
+    category: 'general',
+  },
   { text: '对于视频生成节点，双击即可在画布悬浮窗中全屏播放，无需下载查看', category: 'general' },
   { text: '你用过Ctrl+D这个快捷键吗，不妨对着节点尝试下，有惊喜', category: 'general' },
-  { text: '云端可以备份你的api/多开/视频模型等信息，你换了设备也可以马上用，而本地资源你需要手动备份', category: 'general' },
-  { text: '别被工具困住：接受适度的随机性，有时AI的"错误"会带来意想不到的绝妙转场', category: 'general' },
+  {
+    text: '云端可以备份你的api/多开/视频模型等信息，你换了设备也可以马上用，而本地资源你需要手动备份',
+    category: 'general',
+  },
+  {
+    text: '别被工具困住：接受适度的随机性，有时AI的"错误"会带来意想不到的绝妙转场',
+    category: 'general',
+  },
   { text: '不会写提示词时，不妨查看提示词库，学习别人的经验', category: 'general' },
   { text: 'AI 返回的格式不对时会明确提示，旧结果不会被覆盖，可直接重试', category: 'general' },
-  { text: '齿轮设置的"工作流"可一键切换整套提示词预设（漫剧/达人种草）', category: 'general' }
-]
+  { text: '齿轮设置的"工作流"可一键切换整套提示词预设（漫剧/达人种草）', category: 'general' },
+];
 
-export default function GeneratingOverlay({ label = '生成中...', backgroundUrl = '', category = 'general' }) {
+export default function GeneratingOverlay({
+  label = '生成中...',
+  backgroundUrl = '',
+  category = 'general',
+}) {
   // 按 category 过滤灵感 tips（image/video 专属 + general 兜底），对齐官方 Di.jsx
   // P8：useMemo 缓存过滤结果，避免 category 不变时每次渲染重跑 133 条 filter
-  const pool = useMemo(() => GEN_TIPS.filter((t) => t.category === category || t.category === 'general'), [category])
-  const [tipIdx, setTipIdx] = useState(() => Math.floor(Math.random() * Math.max(1, pool.length)))
-  const [show, setShow] = useState(true)
+  const pool = useMemo(
+    () => GEN_TIPS.filter((t) => t.category === category || t.category === 'general'),
+    [category],
+  );
+  const [tipIdx, setTipIdx] = useState(() => Math.floor(Math.random() * Math.max(1, pool.length)));
+  const [show, setShow] = useState(true);
 
   useEffect(() => {
-    if (pool.length <= 1) return
+    if (pool.length <= 1) return;
     const timer = window.setInterval(() => {
-      setShow(false)
+      setShow(false);
       window.setTimeout(() => {
-        setTipIdx((i) => (i + 1) % pool.length)
-        setShow(true)
-      }, 320)
-    }, 10000)
-    return () => window.clearInterval(timer)
-  }, [pool.length])
+        setTipIdx((i) => (i + 1) % pool.length);
+        setShow(true);
+      }, 320);
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [pool.length]);
 
-  const tip = pool[tipIdx]?.text ?? ''
+  const tip = pool[tipIdx]?.text ?? '';
 
   return (
     <div className="absolute inset-0 z-10 flex items-center overflow-hidden bg-canvas">
@@ -162,7 +247,10 @@ export default function GeneratingOverlay({ label = '生成中...', backgroundUr
       {/* 扫光条（从左到右） */}
       <div
         className="absolute inset-y-0 w-1/2 pointer-events-none"
-        style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent)', animation: 'npbShimmer 2.2s ease-in-out infinite' }}
+        style={{
+          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent)',
+          animation: 'npbShimmer 2.2s ease-in-out infinite',
+        }}
       />
 
       {/* 右上角状态区：label + 旋转圆环加载器 */}
@@ -172,12 +260,28 @@ export default function GeneratingOverlay({ label = '生成中...', backgroundUr
           {/* 呼吸光晕 */}
           <div
             className="absolute w-8 h-8 rounded-full"
-            style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 70%)', animation: 'npbGlow 1.8s ease-in-out infinite' }}
+            style={{
+              background:
+                'radial-gradient(circle, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 70%)',
+              animation: 'npbGlow 1.8s ease-in-out infinite',
+            }}
           />
           {/* 旋转 SVG 圆环 */}
-          <svg width="24" height="24" viewBox="0 0 36 36" fill="none" className="relative" style={{ animation: 'npbSpin 0.9s linear infinite' }}>
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 36 36"
+            fill="none"
+            className="relative"
+            style={{ animation: 'npbSpin 0.9s linear infinite' }}
+          >
             <circle cx="18" cy="18" r="15" stroke="rgba(255,255,255,0.2)" strokeWidth="2.5" />
-            <path d="M18 3 a15 15 0 0 1 15 15" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
+            <path
+              d="M18 3 a15 15 0 0 1 15 15"
+              stroke="#ffffff"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
           </svg>
         </div>
       </div>
@@ -185,7 +289,12 @@ export default function GeneratingOverlay({ label = '生成中...', backgroundUr
       {/* 左下角灵感 Tips 轮播（对齐官方 Di.jsx） */}
       <div className="relative z-10 max-w-[78%] pl-5 pr-4">
         <div className="flex flex-col items-start text-left">
-          <span className="text-caption-sm tracking-[0.3em] text-white/35 mb-2" style={{ fontFamily: '"Songti SC", "STSong", "SimSun", serif' }}>TIPS</span>
+          <span
+            className="text-caption-sm tracking-[0.3em] text-white/35 mb-2"
+            style={{ fontFamily: '"Songti SC", "STSong", "SimSun", serif' }}
+          >
+            TIPS
+          </span>
           <p
             key={tipIdx}
             className="text-lg leading-[1.7] text-white/85"
@@ -194,7 +303,7 @@ export default function GeneratingOverlay({ label = '生成中...', backgroundUr
               fontWeight: 500,
               animation: show ? 'genTipIn 0.4s ease-out both' : 'none',
               opacity: show ? undefined : 0,
-              transition: 'opacity 0.32s ease'
+              transition: 'opacity 0.32s ease',
             }}
           >
             {tip}
@@ -202,5 +311,5 @@ export default function GeneratingOverlay({ label = '生成中...', backgroundUr
         </div>
       </div>
     </div>
-  )
+  );
 }

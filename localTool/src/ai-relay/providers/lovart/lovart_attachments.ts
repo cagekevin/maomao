@@ -22,23 +22,29 @@ import { LovartError, LOVART_ERR_TYPES } from './lovart_errors.js';
  */
 const B64_MEDIA_MAGIC: Record<string, string> = {
   '/9j/': 'jpg', // JPEG FF D8
-  'iVBOR': 'png', // PNG 89 50 4E 47
-  'R0lGOD': 'gif', // GIF 47 49 46 38
-  'UklGR': 'webp', // WebP 52 49 46 46（RIFF）
-  'Qk02': 'bmp', // BMP 42 4D
-  'SUQz': 'mp3', // MP3 ID3
-  'SU5G': 'm4a', // M4A
-  'AAAA': 'mp4', // MP4/通用（辅助）
-  'GkXf': 'webm', // WebM/Matroska 1A 45 DF A3
-  'Zkxh': 'flac', // FLAC 66 4C 61 43
+  iVBOR: 'png', // PNG 89 50 4E 47
+  R0lGOD: 'gif', // GIF 47 49 46 38
+  UklGR: 'webp', // WebP 52 49 46 46（RIFF）
+  Qk02: 'bmp', // BMP 42 4D
+  SUQz: 'mp3', // MP3 ID3
+  SU5G: 'm4a', // M4A
+  AAAA: 'mp4', // MP4/通用（辅助）
+  GkXf: 'webm', // WebM/Matroska 1A 45 DF A3
+  Zkxh: 'flac', // FLAC 66 4C 61 43
   '/e8/': 'mp3', // MP3 MPEG 帧 FF FB / FF F3
-  'TWFn': 'm4a', // M4A iTunes MP4 音频（ftyp 在 M4A 头）
+  TWFn: 'm4a', // M4A iTunes MP4 音频（ftyp 在 M4A 头）
 };
 
 /** 判断字符串是否可能是裸 base64 媒体数据（无 data: 前缀）。照抄 main.looks_like_base64_media。 */
 function looksLikeBase64Media(s: string): boolean {
   if (!s || s.length < 64) return false;
-  if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:') || s.startsWith('blob:')) return false;
+  if (
+    s.startsWith('http://') ||
+    s.startsWith('https://') ||
+    s.startsWith('data:') ||
+    s.startsWith('blob:')
+  )
+    return false;
   return Object.keys(B64_MEDIA_MAGIC).some((pre) => s.startsWith(pre));
 }
 

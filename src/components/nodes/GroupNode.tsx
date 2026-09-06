@@ -1,8 +1,8 @@
-import React from 'react'
-import { Handle, Position, useReactFlow } from '@xyflow/react'
-import { FoldVertical, ChevronsUpDown, Folder } from 'lucide-react'
-import NodeShell from '../base/ui/NodeShell.tsx'
-import CustomHandle from '../edges/CustomHandle.tsx'
+import React from 'react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { FoldVertical, ChevronsUpDown, Folder } from 'lucide-react';
+import NodeShell from '../base/ui/NodeShell.tsx';
+import CustomHandle from '../edges/CustomHandle.tsx';
 
 /**
  * 群组 / 分组节点。
@@ -17,39 +17,45 @@ import CustomHandle from '../edges/CustomHandle.tsx'
  * 由 React Flow 父子节点机制承载：作为父节点，子节点通过 parentId 挂在其下。
  */
 interface GroupNodeData {
-  collapsed?: boolean
-  name?: string
-  expandedWidth?: number | string
-  expandedHeight?: number | string
-  [key: string]: unknown
+  collapsed?: boolean;
+  name?: string;
+  expandedWidth?: number | string;
+  expandedHeight?: number | string;
+  [key: string]: unknown;
 }
 interface GroupNodeProps {
-  id: string
-  data: GroupNodeData
-  selected?: boolean
+  id: string;
+  data: GroupNodeData;
+  selected?: boolean;
 }
 function GroupNode({ id, data, selected }: GroupNodeProps) {
-  const { setNodes } = useReactFlow()
-  const collapsed = (data?.collapsed as boolean | undefined) || false
-  const name = (data?.name as string | undefined) || '编组'
+  const { setNodes } = useReactFlow();
+  const collapsed = (data?.collapsed as boolean | undefined) || false;
+  const name = (data?.name as string | undefined) || '编组';
 
   // 折叠 / 展开切换（React Flow 官方推荐）：
   //  - 折叠：设 data.collapsed，子节点 hidden:true（原生隐藏），父节点收缩成小胶囊
   //  - 展开：恢复 data.collapsed=false，子节点 hidden:false
   const toggleCollapse = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    const next = !collapsed
+    e.stopPropagation();
+    const next = !collapsed;
     setNodes((ns) =>
       ns.map((n) => {
         if (n.id === id) {
           if (next) {
-            const w = n.style?.width || n.measured?.width || 300
-            const h = n.style?.height || n.measured?.height || 200
+            const w = n.style?.width || n.measured?.width || 300;
+            const h = n.style?.height || n.measured?.height || 200;
             return {
               ...n,
               data: { ...n.data, collapsed: true, expandedWidth: w, expandedHeight: h },
-              style: { ...n.style, width: 'max-content', height: 40, backgroundColor: 'transparent', border: 'none' }
-            }
+              style: {
+                ...n.style,
+                width: 'max-content',
+                height: 40,
+                backgroundColor: 'transparent',
+                border: 'none',
+              },
+            };
           }
           return {
             ...n,
@@ -59,18 +65,18 @@ function GroupNode({ id, data, selected }: GroupNodeProps) {
               width: (n.data?.expandedWidth as number | string | undefined) || 300,
               height: (n.data?.expandedHeight as number | string | undefined) || 200,
               backgroundColor: undefined,
-              border: undefined
-            }
-          }
+              border: undefined,
+            },
+          };
         }
         // 子节点：随折叠状态隐藏/显示（官方推荐 hidden 字段）
         if (n.parentId === id) {
-          return { ...n, hidden: next }
+          return { ...n, hidden: next };
         }
-        return n
-      })
-    )
-  }
+        return n;
+      }),
+    );
+  };
 
   // 折叠态：横向小胶囊（不走 NodeShell，NodeShell 强制 min 160 不适用于 40px 胶囊）
   if (collapsed) {
@@ -79,13 +85,21 @@ function GroupNode({ id, data, selected }: GroupNodeProps) {
         className={`relative flex items-center justify-center bg-surface-raised/80 border border-dashed ${selected ? 'border-edge-strong' : 'border-edge-muted'} rounded-xl px-4 py-2 shadow-lg min-w-[120px] h-[40px] cursor-pointer hover:bg-surface-hover hover:border-edge-strong transition-all duration-300`}
         onClick={toggleCollapse}
       >
-        <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-gray-500 !border-gray-600 !opacity-0" />
+        <Handle
+          type="target"
+          position={Position.Left}
+          className="!w-2 !h-2 !bg-gray-500 !border-gray-600 !opacity-0"
+        />
         <FoldVertical className="w-4 h-4 text-subtle mr-1" />
         <Folder className="w-4 h-4 text-subtle mr-2" />
         <span className="text-body text-sm select-none">{name}</span>
-        <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-gray-500 !border-gray-600 !opacity-0" />
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="!w-2 !h-2 !bg-gray-500 !border-gray-600 !opacity-0"
+        />
       </div>
-    )
+    );
   }
 
   // 展开态：复用统一外壳 NodeShell（标题/背景/边框/阴影/手柄/端口与其它节点一致）
@@ -105,12 +119,7 @@ function GroupNode({ id, data, selected }: GroupNodeProps) {
       syncSize={false}
       showHandles={false}
       titleRight={
-        <button
-          type="button"
-          onClick={toggleCollapse}
-          className="node-btn-settings"
-          title="折叠"
-        >
+        <button type="button" onClick={toggleCollapse} className="node-btn-settings" title="折叠">
           <ChevronsUpDown className="w-4 h-4 text-subtle" />
         </button>
       }
@@ -120,6 +129,6 @@ function GroupNode({ id, data, selected }: GroupNodeProps) {
       {/* 对外出口（右侧 source 端口）：下游连到 group，即自动聚合组内所有子节点产出 */}
       <CustomHandle position="right" variant="small" />
     </NodeShell>
-  )
+  );
 }
-export default React.memo(GroupNode)
+export default React.memo(GroupNode);

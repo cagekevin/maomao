@@ -27,32 +27,32 @@
  * 原因：原裁定导致 pinnedTools 类型卡在 unknown、默认值硬编码在 App.tsx，属设置域 Seam 泄漏（接口宽如实现、
  * 默认值双真源）。注册表现支持 string[] 型项。余下 3 项（node_prefs/provider/account/agentModel）维持不进门。
  */
-import { Zap, Map, Bot, Image, Bug, Pin, type LucideIcon } from 'lucide-react'
+import { Zap, Map, Bot, Image, Bug, Pin, type LucideIcon } from 'lucide-react';
 
 /** 设置项定义（声明式表的一行；icon 为 lucide-react 图标组件）。
  *  type 判别字段：'boolean' 为设置页开关；'string[]' 为功能性数组偏好（无 UI 开关行）。
  *  由 type + key 派生 SettingKey 联合 / 每键值类型 SettingValue，读写口子据此收窄（见 appSettings.ts）。 */
 export type SettingDef =
   | {
-      key: string
-      type: 'boolean'
-      default: boolean
-      ui: boolean
-      group: string
-      icon: LucideIcon
-      title: string
-      desc: string
+      key: string;
+      type: 'boolean';
+      default: boolean;
+      ui: boolean;
+      group: string;
+      icon: LucideIcon;
+      title: string;
+      desc: string;
     }
   | {
-      key: string
-      type: 'string[]'
-      default: string[]
-      ui: boolean
-      group: string
-      icon: LucideIcon
-      title: string
-      desc: string
-    }
+      key: string;
+      type: 'string[]';
+      default: string[];
+      ui: boolean;
+      group: string;
+      icon: LucideIcon;
+      title: string;
+      desc: string;
+    };
 
 /** 全部设置定义（顺序即「其他设置」页展示顺序） */
 export const SETTING_DEFS = [
@@ -116,39 +116,37 @@ export const SETTING_DEFS = [
     title: '固定工具栏',
     desc: '固定到右键菜单第一层的节点集合（图钉管理），持久化到 app_settings.pinnedTools。',
   },
-] as const
+] as const;
 
 /** 元素类型（as-const 字面量联合；含每键的 `key`/`type`/`default` 等细化类型） */
-type SettingDefAny = (typeof SETTING_DEFS)[number]
+type SettingDefAny = (typeof SETTING_DEFS)[number];
 
 /** 合法设置键联合（读写口子据此收窄；拼错键编译期即红） */
-export type SettingKey = SettingDefAny['key']
+export type SettingKey = SettingDefAny['key'];
 
 /** 每键类型映射（key → 具体条目） */
-type SettingDefByKey = { [D in SettingDefAny as D['key']]: D }
+type SettingDefByKey = { [D in SettingDefAny as D['key']]: D };
 
 /** type → 运行时值类型 */
-type SettingValueOf = { boolean: boolean; 'string[]': string[] }
+type SettingValueOf = { boolean: boolean; 'string[]': string[] };
 
 /** 某键的值类型（由注册表 type 字段派生） */
-export type SettingValue<K extends SettingKey> = SettingValueOf[SettingDefByKey[K]['type']]
+export type SettingValue<K extends SettingKey> = SettingValueOf[SettingDefByKey[K]['type']];
 
 /** 全量设置状态（useAppSettings / getSnapshot 返回值） */
-export type SettingState = { [K in SettingKey]: SettingValue<K> }
+export type SettingState = { [K in SettingKey]: SettingValue<K> };
 
 /** 设置页可渲染的行（仅 ui:true 的 boolean 行）。从 as-const 元素类型提取 boolean 子集，
  *  免得 OtherSettings 遍历时行 key 混入 string[]（setSetting 按 key 收窄会类型断裂）。 */
-export type UISettingDef = Extract<SettingDefAny, { type: 'boolean' }>
+export type UISettingDef = Extract<SettingDefAny, { type: 'boolean' }>;
 
 /** 供设置页渲染的行（仅 ui:true） */
-export const UI_SETTING_ROWS: UISettingDef[] = SETTING_DEFS.filter(
-  (s): s is UISettingDef => s.ui
-)
+export const UI_SETTING_ROWS: UISettingDef[] = SETTING_DEFS.filter((s): s is UISettingDef => s.ui);
 
 /** 由注册表派生 DEFAULTS（appSettings.js 用它做默认值）。
  *  用 Record<string,unknown> 桥接逐键赋值，规避 TS 对按 key 推导在联合索引时塌缩成交集的问题。 */
 export function buildDefaults(): SettingState {
-  const d = {} as SettingState
-  for (const s of SETTING_DEFS) (d as Record<string, unknown>)[s.key] = s.default
-  return d
+  const d = {} as SettingState;
+  for (const s of SETTING_DEFS) (d as Record<string, unknown>)[s.key] = s.default;
+  return d;
 }

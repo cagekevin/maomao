@@ -12,37 +12,34 @@
  *   node scripts/check-jsx.mjs                 # 校验全部
  *   node scripts/check-jsx.mjs src/App.tsx     # 校验指定文件
  */
-import { build } from 'esbuild'
-import { readdirSync, statSync } from 'node:fs'
-import { join, resolve, extname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { build } from 'esbuild';
+import { readdirSync, statSync } from 'node:fs';
+import { join, resolve, extname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const root = resolve(__dirname, '..')
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const root = resolve(__dirname, '..');
 
 function collectJsx(dir, acc = []) {
   for (const name of readdirSync(dir)) {
-    const full = join(dir, name)
-    const st = statSync(full)
+    const full = join(dir, name);
+    const st = statSync(full);
     if (st.isDirectory()) {
-      collectJsx(full, acc)
+      collectJsx(full, acc);
     } else if (extname(name) === '.jsx' || extname(name) === '.tsx') {
-      acc.push(full)
+      acc.push(full);
     }
   }
-  return acc
+  return acc;
 }
 
-const args = process.argv.slice(2)
-const targets =
-  args.length > 0
-    ? args.map((a) => resolve(root, a))
-    : collectJsx(join(root, 'src'))
+const args = process.argv.slice(2);
+const targets = args.length > 0 ? args.map((a) => resolve(root, a)) : collectJsx(join(root, 'src'));
 
-let failed = 0
+let failed = 0;
 
 for (const file of targets) {
-  const rel = file.replace(root + '/', '')
+  const rel = file.replace(root + '/', '');
   try {
     await build({
       entryPoints: [file],
@@ -51,17 +48,17 @@ for (const file of targets) {
       format: 'esm',
       loader: { '.jsx': 'jsx' },
       jsx: 'automatic',
-      logLevel: 'silent'
-    })
-    console.log(`  ✔ ${rel}`)
+      logLevel: 'silent',
+    });
+    console.log(`  ✔ ${rel}`);
   } catch (err) {
-    failed++
-    console.error(`  ✖ ${rel}`)
+    failed++;
+    console.error(`  ✖ ${rel}`);
     for (const e of err.errors || []) {
-      console.error(`      ${e.location?.line}:${e.location?.column}  ${e.text}`)
+      console.error(`      ${e.location?.line}:${e.location?.column}  ${e.text}`);
     }
   }
 }
 
-console.log(`\n${failed === 0 ? '全部通过 ✔' : `失败 ${failed} 个文件 ✖`}`)
-process.exit(failed === 0 ? 0 : 1)
+console.log(`\n${failed === 0 ? '全部通过 ✔' : `失败 ${failed} 个文件 ✖`}`);
+process.exit(failed === 0 ? 0 : 1);

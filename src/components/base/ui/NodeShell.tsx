@@ -1,44 +1,44 @@
-import React, { useMemo, type CSSProperties, type Ref, type ReactNode } from 'react'
-import { NodeResizer, useStore } from '@xyflow/react'
-import NodeTitle from './NodeTitle.tsx'
-import CustomHandle from '../../edges/CustomHandle.tsx'
-import { useSizeSync } from '../core/uiHooks.ts'
-import { NODE_AREA_FIXED_BASE_SIZE } from '../core/config.ts'
-import ErrorBoundary from './ErrorBoundary.tsx'
-import { logger } from '../core/logger.ts'
+import React, { useMemo, type CSSProperties, type Ref, type ReactNode } from 'react';
+import { NodeResizer, useStore } from '@xyflow/react';
+import NodeTitle from './NodeTitle.tsx';
+import CustomHandle from '../../edges/CustomHandle.tsx';
+import { useSizeSync } from '../core/uiHooks.ts';
+import { NODE_AREA_FIXED_BASE_SIZE } from '../core/config.ts';
+import ErrorBoundary from './ErrorBoundary.tsx';
+import { logger } from '../core/logger.ts';
 
-type SizeMode = 'width-fixed' | 'area-fixed'
-type HandleVariant = 'large' | 'small'
+type SizeMode = 'width-fixed' | 'area-fixed';
+type HandleVariant = 'large' | 'small';
 
 interface NodeShellProps {
-  id: string
-  label?: string
-  defaultTitle?: string
-  icon?: ReactNode
-  selected?: boolean
-  resizable?: boolean
-  minWidth?: number
-  minHeight?: number
-  keepAspect?: boolean
-  aspectRatio?: string
-  defaultHeight?: number
-  sizeMode?: SizeMode
-  baseSize?: number
-  handleVariant?: HandleVariant
-  showHandles?: boolean
+  id: string;
+  label?: string;
+  defaultTitle?: string;
+  icon?: ReactNode;
+  selected?: boolean;
+  resizable?: boolean;
+  minWidth?: number;
+  minHeight?: number;
+  keepAspect?: boolean;
+  aspectRatio?: string;
+  defaultHeight?: number;
+  sizeMode?: SizeMode;
+  baseSize?: number;
+  handleVariant?: HandleVariant;
+  showHandles?: boolean;
   /** 右侧 source 端口的 handleId。
       默认留空（React Flow 视为 null handle），关闭时不影响既有无 id 连边；
       传 'main-output' 等值可让该节点作为固定契约的连线源头（如「转深度」spawn 写死 sourceHandle 的场景）。 */
-  sourceHandleId?: string
-  showTitle?: boolean
-  titleRight?: ReactNode
-  onRename?: (label: string) => void
-  className?: string
-  style?: CSSProperties
-  wrapperRef?: Ref<HTMLDivElement>
-  overlayHandles?: ReactNode
-  syncSize?: boolean
-  children?: ReactNode
+  sourceHandleId?: string;
+  showTitle?: boolean;
+  titleRight?: ReactNode;
+  onRename?: (label: string) => void;
+  className?: string;
+  style?: CSSProperties;
+  wrapperRef?: Ref<HTMLDivElement>;
+  overlayHandles?: ReactNode;
+  syncSize?: boolean;
+  children?: ReactNode;
 }
 
 // ReactFlow store 选择器：订阅单个节点的当前 width / height。
@@ -56,15 +56,15 @@ interface NodeShellProps {
 // 新实现 s?.nodeLookup?.get(id) 在这三种情况下同样得到 undefined → 行为完全等价。
 function useNodeWidth(id) {
   return useStore((s) => {
-    const n = s?.nodeLookup?.get(id)
-    return n?.width ?? n?.style?.width
-  })
+    const n = s?.nodeLookup?.get(id);
+    return n?.width ?? n?.style?.width;
+  });
 }
 function useNodeHeight(id) {
   return useStore((s) => {
-    const n = s?.nodeLookup?.get(id)
-    return n?.height ?? n?.style?.height
-  })
+    const n = s?.nodeLookup?.get(id);
+    return n?.height ?? n?.style?.height;
+  });
 }
 
 /**
@@ -231,17 +231,19 @@ function NodeShell({
   wrapperRef,
   overlayHandles,
   syncSize = true,
-  children
+  children,
 }: NodeShellProps) {
   // 比例同步：改比例时同步 wrapper 尺寸。
   // syncSize=false（如编组节点）：不强制同步尺寸，尺寸完全由 ReactFlow 节点 style 决定，
   // 否则 useSizeSync 的 Auto 分支会把高度强制设成 defaultHeight，覆盖 group 实际尺寸。
-  const ratio = syncSize ? useSizeSync(id, aspectRatio ?? '', {
+  // 始终调用 hook 以遵守 Hooks 规则；syncSize=false 时传空比例，
+  // useSizeSync 内部对 null 比例直接 no-op，行为不变（不改 group 节点尺寸）。
+  const ratio = useSizeSync(id, syncSize ? aspectRatio ?? '' : '', {
     mode: sizeMode,
     defaultHeight,
-    baseSize
-  }) : null
-  const effectiveKeepAspect = keepAspect || !!ratio
+    baseSize,
+  });
+  const effectiveKeepAspect = keepAspect || !!ratio;
 
   // 主容器背景层（所有节点共同的纯视觉外壳：背景/圆角/边框/阴影/选中边框）。
   // 各节点 children 由它包住，天然获得统一背景，无需各自手写 bg-surface-raised。
@@ -253,27 +255,37 @@ function NodeShell({
   // 主容器背景层：加 drag-handle cursor-move，让节点主体（内容区之外的空白/背景）可拖拽移动。
   // 各节点内容区需去掉整块 nodrag，只给真正的交互控件（按钮/输入/textarea）标 nodrag，
   // 否则内容区撑满主容器会把可拖区域盖住（只剩标题栏可拖）。
-  const mainShellClassName = `relative w-full flex-1 min-h-0 flex flex-col bg-surface-raised rounded-xl border shadow-xl transition-colors duration-200 drag-handle cursor-move ${selected ? 'border-edge-strong' : 'border-edge hover:border-edge-muted'}`
+  const mainShellClassName = `relative w-full flex-1 min-h-0 flex flex-col bg-surface-raised rounded-xl border shadow-xl transition-colors duration-200 drag-handle cursor-move ${selected ? 'border-edge-strong' : 'border-edge hover:border-edge-muted'}`;
 
   // 订阅当前节点尺寸，用于根 div inline style（P0：拆两个原始值 selector，见上方 useNodeWidth/Height）
-  const width = useNodeWidth(id)
-  const height = useNodeHeight(id)
+  const width = useNodeWidth(id);
+  const height = useNodeHeight(id);
   // 尺寸来源：node data（初始渲染时可能还没 width/height，回退到默认值）
   //  - 宽度：width-fixed 用 420，area-fixed 用面积基准（baseSize）
   //  - 高度：用 defaultHeight
-  const fallbackW = useMemo(() => (sizeMode === 'width-fixed' ? 420 : baseSize), [sizeMode, baseSize])
-  const inlineW = width ?? fallbackW
-  const inlineH = height ?? defaultHeight
+  const fallbackW = useMemo(
+    () => (sizeMode === 'width-fixed' ? 420 : baseSize),
+    [sizeMode, baseSize],
+  );
+  const inlineW = width ?? fallbackW;
+  const inlineH = height ?? defaultHeight;
 
   return (
     <div
       ref={wrapperRef}
       className={`relative flex flex-col items-center group/node min-w-[160px] min-h-[160px] ${selected ? 'z-50' : 'z-10'} ${className}`}
-      style={{ width: typeof inlineW === 'number' ? `${inlineW}px` : inlineW, minHeight: typeof inlineH === 'number' ? `${inlineH}px` : inlineH, contain: 'layout style', ...extraStyle }}
+      style={{
+        width: typeof inlineW === 'number' ? `${inlineW}px` : inlineW,
+        minHeight: typeof inlineH === 'number' ? `${inlineH}px` : inlineH,
+        contain: 'layout style',
+        ...extraStyle,
+      }}
     >
       {/* 标题：与所有节点完全一致（NodeTitle mb-1 self-start，宽度只包内容）。
           titleRight 操作组用绝对定位浮在标题右侧，不改变 NodeTitle 的位置/间距 */}
-      {showTitle && <NodeTitle label={label} defaultTitle={defaultTitle} icon={icon} onRename={onRename} />}
+      {showTitle && (
+        <NodeTitle label={label} defaultTitle={defaultTitle} icon={icon} onRename={onRename} />
+      )}
       {titleRight && (
         <div className="absolute right-0 -top-0.5 flex items-center gap-1 nodrag">{titleRight}</div>
       )}
@@ -297,7 +309,12 @@ function NodeShell({
       <div className={mainShellClassName}>
         <ErrorBoundary
           variant="node"
-          onError={(error) => logger.error('error', 'node-render', { nodeId: id, error: error?.message || String(error) })}
+          onError={(error) =>
+            logger.error('error', 'node-render', {
+              nodeId: id,
+              error: error?.message || String(error),
+            })
+          }
         >
           {children}
         </ErrorBoundary>
@@ -320,6 +337,6 @@ function NodeShell({
           的 handleBounds → 指向它的边报 code-008 且不渲染。这里渲染即挂载，无时序问题。 */}
       {overlayHandles}
     </div>
-  )
+  );
 }
-export default React.memo(NodeShell)
+export default React.memo(NodeShell);

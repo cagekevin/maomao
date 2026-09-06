@@ -9,19 +9,19 @@
 
 /** 生图模板条目 { label, sys } */
 export interface ImageGenTemplate {
-  label: string
-  sys: string
+  label: string;
+  sys: string;
 }
 
 /** 正向约束 { image, video }（§4.3 已砍 custom 位） */
 export interface ScriptBoxConstraints {
-  image: string
-  video: string
+  image: string;
+  video: string;
 }
 
 /** 负面词 { common, image, video }（§4.4 新增 common 位） */
 export interface ScriptBoxNegatives {
-  common: string
-  image: string
-  video: string
+  common: string;
+  image: string;
+  video: string;
 }

@@ -1,44 +1,44 @@
-import React, { useRef, useState, useLayoutEffect } from 'react'
-import type { ContextMenuState } from '../../../hooks/useContextMenu.ts'
+import React, { useRef, useState, useLayoutEffect } from 'react';
+import type { ContextMenuState } from '../../../hooks/useContextMenu.ts';
 
 /**
  * 右键菜单项配置（支持 divider / 普通项 / 子菜单 / 分组工具面板，详见下方各接口）。
  */
 
 /** 图标：组件引用（函数/forwardRef）或 React 元素 */
-type MenuIcon = React.ComponentType<{ size?: number; className?: string }> | React.ReactNode
+type MenuIcon = React.ComponentType<{ size?: number; className?: string }> | React.ReactNode;
 
 /** 工具面板叶子节点项（renderToolLeaf 用）：支持 badge / trailing 尾随槽 */
 interface ToolLeafItem {
-  key: string
-  icon?: MenuIcon
-  label: string
-  badge?: { tone: 'new' | 'hot'; text: string }
-  onClick?: (e: React.MouseEvent) => void
+  key: string;
+  icon?: MenuIcon;
+  label: string;
+  badge?: { tone: 'new' | 'hot'; text: string };
+  onClick?: (e: React.MouseEvent) => void;
   /** 尾随插槽：函数则实例化，否则原样渲染 */
-  trailing?: (() => React.ReactNode) | React.ReactNode
-  closeOnClick?: boolean
+  trailing?: (() => React.ReactNode) | React.ReactNode;
+  closeOnClick?: boolean;
 }
 
 /** 分组工具面板的分类块（child 带 items） */
 interface ToolCategoryItem extends ToolLeafItem {
-  items?: ToolLeafItem[]
+  items?: ToolLeafItem[];
 }
 
 /** 普通菜单项（type 为可选判别字段：调用方可不传，默认 undefined = 普通项） */
 interface MenuLeafItem {
-  key: string
-  icon?: MenuIcon
-  label: string
-  shortcut?: string
-  danger?: boolean
-  disabled?: boolean
-  badge?: { tone: 'new' | 'hot'; text: string }
-  onClick?: (e: React.MouseEvent) => void
-  onMouseEnter?: () => void
-  closeOnClick?: boolean
+  key: string;
+  icon?: MenuIcon;
+  label: string;
+  shortcut?: string;
+  danger?: boolean;
+  disabled?: boolean;
+  badge?: { tone: 'new' | 'hot'; text: string };
+  onClick?: (e: React.MouseEvent) => void;
+  onMouseEnter?: () => void;
+  closeOnClick?: boolean;
   /** 判别字段：普通项不传（undefined）或 'item'；与 divider 区分用 */
-  type?: 'item'
+  type?: 'item';
 }
 
 /** 右键菜单项（含 divider / leaf / submenu / 分组工具面板 四种形态） */
@@ -46,20 +46,20 @@ export type ContextMenuItem =
   | { type: 'divider' }
   | (MenuLeafItem & {
       /** 悬停展开的子菜单（同构，支持嵌套） */
-      submenu?: ContextMenuItem[]
+      submenu?: ContextMenuItem[];
       /** 分组工具面板（小工具网格，见 renderItems） */
-      items?: ToolCategoryItem[]
-    })
+      items?: ToolCategoryItem[];
+    });
 
 export interface ContextMenuProps {
   /** 菜单状态（x/y 为相对画布容器坐标），null 时不渲染 */
-  state: ContextMenuState | null
+  state: ContextMenuState | null;
   /** 菜单项：可传数组，或按 state 返回菜单项的函数 */
-  items: ContextMenuItem[] | ((state: ContextMenuState) => ContextMenuItem[])
+  items: ContextMenuItem[] | ((state: ContextMenuState) => ContextMenuItem[]);
   /** 关闭回调 */
-  onClose: () => void
+  onClose: () => void;
   /** 画布容器 ref（坐标基准 + 防溢出基准，需与本组件挂在同一个 relative div） */
-  containerRef: React.RefObject<HTMLDivElement | null>
+  containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 /**
@@ -103,27 +103,27 @@ export interface ContextMenuProps {
  *  - containerRef 画布容器 ref（坐标基准 + 防溢出基准，需与本组件挂在同一个 relative div）
  */
 function ContextMenu({ state, items, onClose, containerRef }: ContextMenuProps) {
-  const menuRef = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
 
   // 见头部「防溢出定位」注释：首次按鼠标点定位，绘制前按实际尺寸往左上收。
   useLayoutEffect(() => {
-    if (!state) return
-    const el = menuRef.current
-    const rect = containerRef?.current?.getBoundingClientRect()
-    let top = state.y
-    let left = state.x
+    if (!state) return;
+    const el = menuRef.current;
+    const rect = containerRef?.current?.getBoundingClientRect();
+    let top = state.y;
+    let left = state.x;
     if (el && rect) {
-      const mw = el.offsetWidth
-      const mh = el.offsetHeight
-      if (top + mh > rect.height) top = Math.max(4, rect.height - mh - 10)
-      if (left + mw > rect.width) left = Math.max(4, rect.width - mw - 10)
+      const mw = el.offsetWidth;
+      const mh = el.offsetHeight;
+      if (top + mh > rect.height) top = Math.max(4, rect.height - mh - 10);
+      if (left + mw > rect.width) left = Math.max(4, rect.width - mw - 10);
     }
-    setPos({ top, left })
-  }, [state, containerRef])
+    setPos({ top, left });
+  }, [state, containerRef]);
 
-  if (!state) return null
-  const menuItems: ContextMenuItem[] = typeof items === 'function' ? items(state) : items
+  if (!state) return null;
+  const menuItems: ContextMenuItem[] = typeof items === 'function' ? items(state) : items;
 
   return (
     <div
@@ -135,19 +135,22 @@ function ContextMenu({ state, items, onClose, containerRef }: ContextMenuProps) 
     >
       {renderItems(menuItems, onClose)}
     </div>
-  )
+  );
 }
 
-export default React.memo(ContextMenu)
+export default React.memo(ContextMenu);
 
 // 统一渲染 icon：支持「组件引用（函数 / forwardRef 对象）」或「React 元素」两种形式
 function renderIcon(icon: MenuIcon | undefined, size = 16, className = '') {
-  if (!icon) return null
+  if (!icon) return null;
   // 已是 React 元素（有 $$typeof）→ 直接渲染
-  if (React.isValidElement(icon)) return icon
+  if (React.isValidElement(icon)) return icon;
   // 否则视为组件引用（函数 或 forwardRef 对象），实例化。
   // 注意：forwardRef 组件 typeof 是 'object' 不是 'function'，必须用 React.createElement(icon) 统一处理。
-  return React.createElement(icon as React.ComponentType<{ size?: number; className?: string }>, { size, className })
+  return React.createElement(icon as React.ComponentType<{ size?: number; className?: string }>, {
+    size,
+    className,
+  });
 }
 
 // 渲染小工具面板里的单个节点项（支持尾随图钉，复刻 H_.jsx:12317-12335）
@@ -160,30 +163,29 @@ function renderToolLeaf(child: ToolLeafItem, onClose: () => void) {
       <button
         className="flex-1 min-w-0 flex items-center rounded-lg px-2.5 py-1.5 text-body-sm text-primary hover:text-white text-left gap-2"
         onClick={(e) => {
-          e.stopPropagation()
-          child.onClick?.(e)
-          if (child.closeOnClick !== false) onClose()
+          e.stopPropagation();
+          child.onClick?.(e);
+          if (child.closeOnClick !== false) onClose();
         }}
       >
         {renderIcon(child.icon, 15, 'text-white shrink-0')}
         <span className="truncate">{child.label}</span>
         {child.badge && (
-          <span className={`rounded px-1 py-0.5 text-2xs font-semibold ${child.badge.tone === 'new' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-fuchsia-500/20 text-fuchsia-300'}`}>
+          <span
+            className={`rounded px-1 py-0.5 text-2xs font-semibold ${child.badge.tone === 'new' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-fuchsia-500/20 text-fuchsia-300'}`}
+          >
             {child.badge.text}
           </span>
         )}
       </button>
       {/* 尾随插槽：官方图钉「固定到右键菜单」/ 其他操作按钮 */}
       {child.trailing && (
-        <span
-          className="shrink-0 flex items-center"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <span className="shrink-0 flex items-center" onClick={(e) => e.stopPropagation()}>
           {typeof child.trailing === 'function' ? child.trailing() : child.trailing}
         </span>
       )}
     </div>
-  )
+  );
 }
 
 // 渲染菜单项（支持 divider / submenu）
@@ -191,7 +193,7 @@ function renderItems(items: ContextMenuItem[], onClose: () => void) {
   return (items || []).map((item, index) => {
     if (item.type === 'divider') {
       // key 用索引保证稳定（divider 没有业务 key）
-      return <div key={`div-${index}`} className="h-[1px] bg-white/[0.04] my-2 mx-1" />
+      return <div key={`div-${index}`} className="h-[1px] bg-white/[0.04] my-2 mx-1" />;
     }
     if (item.submenu && item.submenu.length) {
       return (
@@ -216,7 +218,7 @@ function renderItems(items: ContextMenuItem[], onClose: () => void) {
             {renderItems(item.submenu, onClose)}
           </div>
         </div>
-      )
+      );
     }
     // 分组子菜单（item.items）：渲染为带标题的小工具面板（复刻 H_.jsx:12301-12340 的 vi/_i）
     // items 支持两种形态：
@@ -255,11 +257,11 @@ function renderItems(items: ContextMenuItem[], onClose: () => void) {
                 <div key={child.key} className="grid grid-cols-2 gap-0.5">
                   {child.items ? null : renderToolLeaf(child, onClose)}
                 </div>
-              )
+              ),
             )}
           </div>
         </div>
-      )
+      );
     }
     return (
       <button
@@ -269,9 +271,9 @@ function renderItems(items: ContextMenuItem[], onClose: () => void) {
         // 不传则为 undefined，对既有菜单项零行为变化。
         onMouseEnter={item.onMouseEnter}
         onClick={(e) => {
-          e.stopPropagation()
-          item.onClick?.(e)
-          if (item.closeOnClick !== false) onClose()
+          e.stopPropagation();
+          item.onClick?.(e);
+          if (item.closeOnClick !== false) onClose();
         }}
         className={`w-full text-left px-3.5 py-2 text-sm rounded-xl flex items-center gap-2.5 justify-between transition-colors ${
           item.danger
@@ -283,8 +285,12 @@ function renderItems(items: ContextMenuItem[], onClose: () => void) {
           {renderIcon(item.icon, 16)}
           <span className="truncate">{item.label}</span>
         </span>
-        {item.shortcut && <span className="text-caption-sm text-muted ml-3 font-mono shrink-0">{item.shortcut}</span>}
+        {item.shortcut && (
+          <span className="text-caption-sm text-muted ml-3 font-mono shrink-0">
+            {item.shortcut}
+          </span>
+        )}
       </button>
-    )
-  })
+    );
+  });
 }

@@ -1,17 +1,17 @@
-import React, { ReactNode } from 'react'
-import { Minimize2 } from 'lucide-react'
+import React, { ReactNode } from 'react';
+import { Minimize2 } from 'lucide-react';
 
 interface ScriptBoxModalProps {
-  title?: string
-  onClose: () => void
-  width?: number
-  height?: number
-  children?: ReactNode
-  footer?: ReactNode
-  onOk?: () => void
-  okText?: string
-  cancelText?: string
-  bodyClass?: string
+  title?: string;
+  onClose: () => void;
+  width?: number;
+  height?: number;
+  children?: ReactNode;
+  footer?: ReactNode;
+  onOk?: () => void;
+  okText?: string;
+  cancelText?: string;
+  bodyClass?: string;
 }
 
 /**
@@ -39,9 +39,23 @@ interface ScriptBoxModalProps {
  *  - cancelText 取消按钮文字（默认「取消」）
  *  - bodyClass 内容区追加 class（如内部需要滚动 flex-1）
  */
-export default function ScriptBoxModal({ title, onClose, width = 440, height, children, footer, onOk, okText = '确定', cancelText = '取消', bodyClass = '' }: ScriptBoxModalProps) {
+export default function ScriptBoxModal({
+  title,
+  onClose,
+  width = 440,
+  height,
+  children,
+  footer,
+  onOk,
+  okText = '确定',
+  cancelText = '取消',
+  bodyClass = '',
+}: ScriptBoxModalProps) {
   return (
-    <div className="absolute inset-0 z-modal flex items-center justify-center bg-black/50 nodrag nowheel" onClick={onClose}>
+    <div
+      className="absolute inset-0 z-modal flex items-center justify-center bg-black/50 nodrag nowheel"
+      onClick={onClose}
+    >
       <div
         className="relative bg-surface-menu border border-edge rounded-xl shadow-2xl flex flex-col overflow-hidden nodrag"
         style={{ width, height }}
@@ -61,16 +75,28 @@ export default function ScriptBoxModal({ title, onClose, width = 440, height, ch
             <span className="text-body-xs text-primary font-medium">{title}</span>
           </div>
         )}
-        <div className={`p-5 min-h-0 overflow-visible custom-scrollbar ${bodyClass}`}>{children}</div>
+        <div className={`p-5 min-h-0 overflow-visible custom-scrollbar ${bodyClass}`}>
+          {children}
+        </div>
         {footer !== undefined ? (
           footer
         ) : (
           <div className="flex justify-end gap-2 px-5 pb-4 shrink-0">
-            <button className="px-3 py-1 text-caption-sm text-secondary hover:text-white transition-colors" onClick={onClose}>{cancelText}</button>
-            <button className="px-3 py-1 text-caption-sm bg-surface-hover hover:bg-surface-hover-strong text-primary rounded-md transition-colors" onClick={onOk}>{okText}</button>
+            <button
+              className="px-3 py-1 text-caption-sm text-secondary hover:text-white transition-colors"
+              onClick={onClose}
+            >
+              {cancelText}
+            </button>
+            <button
+              className="px-3 py-1 text-caption-sm bg-surface-hover hover:bg-surface-hover-strong text-primary rounded-md transition-colors"
+              onClick={onOk}
+            >
+              {okText}
+            </button>
           </div>
         )}
       </div>
     </div>
-  )
+  );
 }

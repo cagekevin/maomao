@@ -14,56 +14,62 @@
  * @param {() => string} getProjectId 返回当前项目 id 的函数（App 传 getCurrentProject().id）
  * @returns {{ canvasConflict: boolean, tabIdRef: React.RefObject<string> }}
  */
-import { useEffect, useRef, useState } from 'react'
-import type { MutableRefObject } from 'react'
-import { generateId } from '../components/base/core/idGen.ts'
-import { logger } from '../components/base/core/logger.ts'
+import { useEffect, useRef, useState } from 'react';
+import type { MutableRefObject } from 'react';
+import { generateId } from '../components/base/core/idGen.ts';
+import { logger } from '../components/base/core/logger.ts';
 
 export interface CanvasSyncApi {
   /** 其他窗口保存了同一项目 → true（App 据此显示红色警告条） */
-  canvasConflict: boolean
+  canvasConflict: boolean;
   /** 本窗口唯一 tabId，供广播时带上自身 id（被其他窗口过滤） */
-  tabIdRef: MutableRefObject<string>
+  tabIdRef: MutableRefObject<string>;
 }
 
 export function useCanvasSync(getProjectId: () => string): CanvasSyncApi {
-  const tabIdRef = useRef(generateId('tab'))
-  const [canvasConflict, setCanvasConflict] = useState(false)
+  const tabIdRef = useRef(generateId('tab'));
+  const [canvasConflict, setCanvasConflict] = useState(false);
   // 用 ref 存最新 getProjectId：监听 effect 只在挂载时注册一次（对齐官方），内部实时读当前项目 id
-  const getProjectIdRef = useRef(getProjectId)
-  getProjectIdRef.current = getProjectId
+  const getProjectIdRef = useRef(getProjectId);
+  getProjectIdRef.current = getProjectId;
   // 记录上一次项目 id，用于「切换项目后重置冲突」
-  const prevProjectIdRef = useRef<string | undefined>(undefined)
+  const prevProjectIdRef = useRef<string | undefined>(undefined);
 
   // 监听 BroadcastChannel（只在挂载时注册一次；项目切换不重建 channel）
   useEffect(() => {
-    let channel: BroadcastChannel | undefined
+    let channel: BroadcastChannel | undefined;
     try {
-      channel = new BroadcastChannel('yimao_canvas_sync')
+      channel = new BroadcastChannel('yimao_canvas_sync');
       channel.onmessage = (e: MessageEvent) => {
         if (
           e?.data?.type === 'CANVAS_SAVED' &&
           e.data.projectId === getProjectIdRef.current?.() &&
           e.data.tabId !== tabIdRef.current
         ) {
-          setCanvasConflict(true)
+          setCanvasConflict(true);
         }
-      }
+      };
     } catch (err) {
-      logger.warn('Canvas', 'BroadcastChannel 不可用', err?.message)
+      logger.warn('Canvas', 'BroadcastChannel 不可用', err?.message);
     }
-    return () => { try { channel?.close() } catch { /* ignore */ } }
-  }, [])
+    return () => {
+      try {
+        channel?.close();
+      } catch {
+        /* ignore */
+      }
+    };
+  }, []);
 
   // 切换项目后重置冲突标记（官方在 projectId 变化时不应残留旧项目冲突）。
   // 用 getProjectIdRef 实时读，仅当返回的 id 变化才重置（避免每次渲染都 setState）。
   useEffect(() => {
-    const id = getProjectIdRef.current?.()
+    const id = getProjectIdRef.current?.();
     if (prevProjectIdRef.current !== id) {
-      prevProjectIdRef.current = id
-      setCanvasConflict(false)
+      prevProjectIdRef.current = id;
+      setCanvasConflict(false);
     }
-  })
+  });
 
-  return { canvasConflict, tabIdRef }
+  return { canvasConflict, tabIdRef };
 }

@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react'
-import { createRafBatch } from '../core/utils.ts'
+import React, { useState, useCallback } from 'react';
+import { createRafBatch } from '../core/utils.ts';
 
 /**
  * 右下角「拖拽改尺寸 + 双击全屏」手柄（复刻 _Component23.jsx）。
@@ -36,16 +36,16 @@ import { createRafBatch } from '../core/utils.ts'
 /** 右下角「拖拽改尺寸 + 双击全屏」手柄 Props。 */
 interface ResizeFullscreenHandleProps {
   /** 要改尺寸的 DOM 元素 ref（拖拽时临时改其 inline width/height 即时预览） */
-  targetRef: React.RefObject<HTMLElement>
+  targetRef: React.RefObject<HTMLElement>;
   /** 双击全屏回调（通常打开全屏弹层） */
-  onRequestFullscreen?: () => void
+  onRequestFullscreen?: () => void;
   /** 拖拽结束回调 (width, height)：把最终尺寸交调用方持久化 */
-  onResizeEnd?: (width: number, height: number) => void
-  minWidth?: number
-  maxWidth?: number
-  minHeight?: number
-  maxHeight?: number
-  className?: string
+  onResizeEnd?: (width: number, height: number) => void;
+  minWidth?: number;
+  maxWidth?: number;
+  minHeight?: number;
+  maxHeight?: number;
+  className?: string;
 }
 
 export default function ResizeFullscreenHandle({
@@ -56,50 +56,50 @@ export default function ResizeFullscreenHandle({
   maxWidth = 900,
   minHeight = 60,
   maxHeight = 9999,
-  className = ''
+  className = '',
 }: ResizeFullscreenHandleProps) {
-  const [hovered, setHovered] = useState(false)
+  const [hovered, setHovered] = useState(false);
 
   // 拖拽改尺寸（复刻 _Component23 u 函数）
   const onMouseDown = useCallback(
     (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-      const el = targetRef?.current
-      if (!el) return
+      e.preventDefault();
+      e.stopPropagation();
+      const el = targetRef?.current;
+      if (!el) return;
 
-      const startX = e.clientX
-      const startY = e.clientY
-      const rect = el.getBoundingClientRect() // P3 注意点②：rect 起点缓存一次，move 内不再读
-      const baseW = el.offsetWidth
-      const baseH = el.offsetHeight
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const rect = el.getBoundingClientRect(); // P3 注意点②：rect 起点缓存一次，move 内不再读
+      const baseW = el.offsetWidth;
+      const baseH = el.offsetHeight;
       // ReactFlow 缩放修正：getBoundingClientRect 是屏幕尺寸，需换算回逻辑尺寸
-      const scaleX = baseW ? rect.width / baseW : 1
-      const scaleY = baseH ? rect.height / baseH : 1
+      const scaleX = baseW ? rect.width / baseW : 1;
+      const scaleY = baseH ? rect.height / baseH : 1;
 
       // P3：move 高频 → rAF 合并样式写入（last-args-wins，move 直接用最新坐标算绝对尺寸）；
       // 松手 flush 补最后一帧，避免差一帧。P10：拖拽期挂 will-change 提升合成层，结束移除。
       const batch = createRafBatch((clientX, clientY) => {
-        const dw = (clientX - startX) / (scaleX || 1)
-        const dh = (clientY - startY) / (scaleY || 1)
-        el.style.width = `${Math.max(minWidth, Math.min(maxWidth, baseW + dw))}px`
-        el.style.height = `${Math.max(minHeight, Math.min(maxHeight, baseH + dh))}px`
-      })
-      el.style.willChange = 'width, height'
+        const dw = (clientX - startX) / (scaleX || 1);
+        const dh = (clientY - startY) / (scaleY || 1);
+        el.style.width = `${Math.max(minWidth, Math.min(maxWidth, baseW + dw))}px`;
+        el.style.height = `${Math.max(minHeight, Math.min(maxHeight, baseH + dh))}px`;
+      });
+      el.style.willChange = 'width, height';
 
-      const move = (ev) => batch(ev.clientX, ev.clientY)
+      const move = (ev) => batch(ev.clientX, ev.clientY);
       const up = () => {
-        batch.flush() // 松手补最后一帧，否则位置差一帧
-        window.removeEventListener('mousemove', move)
-        window.removeEventListener('mouseup', up)
-        el.style.willChange = '' // P10：拖拽结束移除 will-change，避免长期挂占内存
-        onResizeEnd?.(el.offsetWidth, el.offsetHeight)
-      }
-      window.addEventListener('mousemove', move)
-      window.addEventListener('mouseup', up)
+        batch.flush(); // 松手补最后一帧，否则位置差一帧
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', up);
+        el.style.willChange = ''; // P10：拖拽结束移除 will-change，避免长期挂占内存
+        onResizeEnd?.(el.offsetWidth, el.offsetHeight);
+      };
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', up);
     },
-    [targetRef, minWidth, maxWidth, minHeight, maxHeight, onResizeEnd]
-  )
+    [targetRef, minWidth, maxWidth, minHeight, maxHeight, onResizeEnd],
+  );
 
   return (
     <div
@@ -109,15 +109,45 @@ export default function ResizeFullscreenHandle({
       onMouseLeave={() => setHovered(false)}
       onMouseDown={onMouseDown}
       onDoubleClick={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        onRequestFullscreen?.()
+        e.preventDefault();
+        e.stopPropagation();
+        onRequestFullscreen?.();
       }}
     >
-      <svg viewBox="0 0 16 16" width="16" height="16" className="block text-secondary hover:text-blue-400 transition-colors pointer-events-none" aria-hidden="true">
-        <line x1="14" y1="6" x2="6" y2="14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-        <line x1="14" y1="9.5" x2="9.5" y2="14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-        <line x1="14" y1="13" x2="13" y2="14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <svg
+        viewBox="0 0 16 16"
+        width="16"
+        height="16"
+        className="block text-secondary hover:text-blue-400 transition-colors pointer-events-none"
+        aria-hidden="true"
+      >
+        <line
+          x1="14"
+          y1="6"
+          x2="6"
+          y2="14"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        />
+        <line
+          x1="14"
+          y1="9.5"
+          x2="9.5"
+          y2="14"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        />
+        <line
+          x1="14"
+          y1="13"
+          x2="13"
+          y2="14"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        />
       </svg>
       {hovered && (
         <span className="absolute top-full right-0 mt-1 whitespace-nowrap px-2 py-1 rounded bg-black/85 text-white text-caption leading-none shadow-lg pointer-events-none z-40">
@@ -125,5 +155,5 @@ export default function ResizeFullscreenHandle({
         </span>
       )}
     </div>
-  )
+  );
 }

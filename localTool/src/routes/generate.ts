@@ -15,16 +15,15 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
-import {
-  submitGenerateTask,
-  getGenerateStatus,
-  cancelGenerateTask,
-} from '../relay-poll.js';
+import { submitGenerateTask, getGenerateStatus, cancelGenerateTask } from '../relay-poll.js';
 import type { RelayCapability } from '../relay-poll.js';
 import { relayGenerate, relayChatStream } from '../generateEngine.js';
 
 /** POST /api/generate —— 统一生成入口：按 capability 分流到聊天/图片/视频数据流。 */
-export async function handleGenerateSubmit(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleGenerateSubmit(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
   const body = (await parseJsonBody(req)) as Record<string, unknown> | null;
   if (!body) return sendError(res, 'Missing body', 400);
 
@@ -48,9 +47,11 @@ export async function handleGenerateSubmit(req: IncomingMessage, res: ServerResp
       await relayChatStream(req, res, {
         providerId,
         model,
-        messages: (Array.isArray(body.messages)
+        messages: Array.isArray(body.messages)
           ? (body.messages as unknown[])
-          : (typeof body.prompt === 'string' ? [{ role: 'user', content: body.prompt }] : [])),
+          : typeof body.prompt === 'string'
+            ? [{ role: 'user', content: body.prompt }]
+            : [],
         tools: hasTools ? tools : undefined,
         baseUrl: typeof body.baseUrl === 'string' ? body.baseUrl : undefined,
       });
@@ -69,7 +70,10 @@ export async function handleGenerateSubmit(req: IncomingMessage, res: ServerResp
       persist: false, // 文本不落盘（聊天数据流）
     });
     if (!out.ok) {
-      return json(res, { code: -1, data: { error: out.error || '聊天失败', providerId, capability } });
+      return json(res, {
+        code: -1,
+        data: { error: out.error || '聊天失败', providerId, capability },
+      });
     }
     return json(res, {
       code: 0,
@@ -104,12 +108,17 @@ export async function handleGenerateSubmit(req: IncomingMessage, res: ServerResp
     duration: body.duration !== undefined ? String(body.duration) : undefined,
     baseUrl: typeof body.baseUrl === 'string' ? body.baseUrl : undefined,
   });
-  if (!out.ok) return json(res, { code: -1, data: { error: out.error || '提交失败', frontTaskId } });
+  if (!out.ok)
+    return json(res, { code: -1, data: { error: out.error || '提交失败', frontTaskId } });
   return json(res, { code: 0, data: { taskId: out.frontTaskId, frontTaskId: out.frontTaskId } });
 }
 
 /** GET /api/generate/:frontTaskId —— attach 查询进度/结果。 */
-export async function handleGenerateGet(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+export async function handleGenerateGet(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<void> {
   const frontTaskId = url.pathname.replace(/^\/api\/generate\//, '');
   if (!frontTaskId || frontTaskId === 'cancel' || frontTaskId.includes('/')) {
     return sendError(res, 'Missing frontTaskId', 400);
@@ -128,7 +137,11 @@ export async function handleGenerateGet(req: IncomingMessage, res: ServerRespons
 }
 
 /** POST /api/generate/:frontTaskId/cancel —— 取消（停句柄 + 置 failed）。 */
-export async function handleGenerateCancel(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+export async function handleGenerateCancel(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<void> {
   const frontTaskId = url.pathname.replace(/^\/api\/generate\//, '').replace(/\/cancel$/, '');
   if (!frontTaskId) return sendError(res, 'Missing frontTaskId', 400);
   const out = await cancelGenerateTask(frontTaskId);

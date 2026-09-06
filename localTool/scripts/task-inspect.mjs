@@ -133,7 +133,9 @@ async function runVacuum(port) {
   // 1. 检查 localTool 是否在运行（写冲突会损坏库）
   const inUse = await checkPortInUse(port);
   if (inUse) {
-    console.error(`[ABORT] localTool 正在运行（端口 ${port} 被占用）。请先停止 localTool 再压缩，避免写冲突损坏数据库。`);
+    console.error(
+      `[ABORT] localTool 正在运行（端口 ${port} 被占用）。请先停止 localTool 再压缩，避免写冲突损坏数据库。`,
+    );
     process.exit(1);
   }
   console.log(`[1] 端口 ${port} 空闲，localTool 未运行 ✓`);
@@ -143,7 +145,9 @@ async function runVacuum(port) {
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const bakPath = path.join(BACKUP_DIR, `localtool.db.${ts}.prevacuum.bak`);
   fs.copyFileSync(DB_PATH, bakPath);
-  console.log(`[2] 已备份 -> ${bakPath} (${(fs.statSync(bakPath).size / 1024 / 1024).toFixed(1)}MB)`);
+  console.log(
+    `[2] 已备份 -> ${bakPath} (${(fs.statSync(bakPath).size / 1024 / 1024).toFixed(1)}MB)`,
+  );
 
   // 3. 打开库 + 完整性检查
   const SQL = await initSqlJs();
@@ -192,9 +196,11 @@ function printResult(execResult, maxColWidth = 60, json = false) {
       return;
     }
     const { columns, values } = execResult[0];
-    const rows = values.map(row => {
+    const rows = values.map((row) => {
       const obj = {};
-      columns.forEach((c, i) => { obj[c] = row[i]; });
+      columns.forEach((c, i) => {
+        obj[c] = row[i];
+      });
       return obj;
     });
     console.log(JSON.stringify(rows));
@@ -232,37 +238,52 @@ function readLogLines() {
     for (const f of fs.readdirSync(LOGS_DIR)) {
       if (f.endsWith('.log')) files.push(path.join(LOGS_DIR, f));
     }
-  } catch { /* 日志目录不存在则空 */ }
+  } catch {
+    /* 日志目录不存在则空 */
+  }
   const lines = [];
   for (const f of files) {
     try {
       const content = fs.readFileSync(f, 'utf8');
       lines.push(...content.split(/\r?\n/).filter(Boolean));
-    } catch { /* 忽略单个文件读取失败 */ }
+    } catch {
+      /* 忽略单个文件读取失败 */
+    }
   }
   return lines;
 }
 
 function runLogs() {
-  const filter = getArg('--logs');            // --logs <关键词> 或 --logs 仅传（此时 filter=undefined）
+  const filter = getArg('--logs'); // --logs <关键词> 或 --logs 仅传（此时 filter=undefined）
   const keyword = typeof filter === 'string' ? filter : null;
   const limit = parseInt(getArg('--limit', '100'), 10) || 100;
   // 预定义日志前缀，方便按类型过滤：--logs download / upload / proxy / error / official / passthrough
-  const prefixMap = { download: 'download', upload: 'upload', proxy: 'proxy', error: 'error', official: 'official', passthrough: 'passthrough' };
+  const prefixMap = {
+    download: 'download',
+    upload: 'upload',
+    proxy: 'proxy',
+    error: 'error',
+    official: 'official',
+    passthrough: 'passthrough',
+  };
   const prefix = prefixMap[keyword] || null;
   let lines = readLogLines();
   // 高亮关键异常，便于一眼看到问题
-  const abnormal = lines.filter(l => /download.*FAIL|upload.*400|\[error\]|Failed to download|ERR|stream error/i.test(l));
+  const abnormal = lines.filter((l) =>
+    /download.*FAIL|upload.*400|\[error\]|Failed to download|ERR|stream error/i.test(l),
+  );
   if (prefix) {
     if (prefix === 'proxy') {
       // proxy 前缀覆盖 [proxy] 与 [proxy:stream]/[proxy:rewrite] 等所有子类型
-      lines = lines.filter(l => /\[proxy(?:\]|:)/.test(l));
+      lines = lines.filter((l) => /\[proxy(?:\]|:)/.test(l));
     } else {
-      lines = lines.filter(l => l.includes(`[${prefix}]`));
+      lines = lines.filter((l) => l.includes(`[${prefix}]`));
     }
-  } else if (keyword) lines = lines.filter(l => l.toLowerCase().includes(keyword.toLowerCase()));
+  } else if (keyword) lines = lines.filter((l) => l.toLowerCase().includes(keyword.toLowerCase()));
   const shown = lines.slice(-limit);
-  console.log(`日志目录: ${LOGS_DIR}（共 ${readLogLines().length} 行，按${keyword ? ` '${keyword}'` : ' 全部'}过滤，显示最近 ${limit} 行）\n`);
+  console.log(
+    `日志目录: ${LOGS_DIR}（共 ${readLogLines().length} 行，按${keyword ? ` '${keyword}'` : ' 全部'}过滤，显示最近 ${limit} 行）\n`,
+  );
   for (const l of shown) console.log(l);
   if (abnormal.length) {
     console.log(`\n⚠️  异常记录（${abnormal.length} 条）:`);
@@ -286,9 +307,18 @@ function probeProxyPort(timeoutMs = 500) {
       const port = ports[i++];
       const sock = net.connect(port, '127.0.0.1');
       sock.setTimeout(timeoutMs);
-      sock.once('connect', () => { sock.destroy(); resolve(port); });
-      sock.once('error', () => { sock.destroy(); tryNext(); });
-      sock.once('timeout', () => { sock.destroy(); tryNext(); });
+      sock.once('connect', () => {
+        sock.destroy();
+        resolve(port);
+      });
+      sock.once('error', () => {
+        sock.destroy();
+        tryNext();
+      });
+      sock.once('timeout', () => {
+        sock.destroy();
+        tryNext();
+      });
     };
     tryNext();
   });
@@ -313,7 +343,11 @@ function lovartGet(host, pathStr, headers, proxyHost, proxyPort) {
             const t = tls.connect({ socket: sock, servername: host }, () => {
               const req = t.request ? t.request({ method: 'GET', path: pathStr, headers }) : null;
               // 用 raw 写 HTTP 请求（兼容 tls socket 无 request 方法）
-              t.write(`GET ${pathStr} HTTP/1.1\r\nHost: ${host}\r\n${Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\r\n')}\r\nConnection: close\r\n\r\n`);
+              t.write(
+                `GET ${pathStr} HTTP/1.1\r\nHost: ${host}\r\n${Object.entries(headers)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join('\r\n')}\r\nConnection: close\r\n\r\n`,
+              );
               readResponse(t, resolve, reject);
             });
             t.on('error', (e) => reject(new Error(`TLS 失败: ${e.message}`)));
@@ -323,7 +357,11 @@ function lovartGet(host, pathStr, headers, proxyHost, proxyPort) {
       } else {
         // 直连
         const t = tls.connect({ host, port: 443, servername: host }, () => {
-          t.write(`GET ${pathStr} HTTP/1.1\r\nHost: ${host}\r\n${Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\r\n')}\r\nConnection: close\r\n\r\n`);
+          t.write(
+            `GET ${pathStr} HTTP/1.1\r\nHost: ${host}\r\n${Object.entries(headers)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join('\r\n')}\r\nConnection: close\r\n\r\n`,
+          );
         });
         t.on('error', (e) => reject(new Error(`直连失败: ${e.message}`)));
         readResponse(t, resolve, reject);
@@ -335,7 +373,9 @@ function lovartGet(host, pathStr, headers, proxyHost, proxyPort) {
 
 function readResponse(stream, resolve, reject) {
   let raw = '';
-  stream.on('data', (c) => { raw += c.toString(); });
+  stream.on('data', (c) => {
+    raw += c.toString();
+  });
   stream.on('end', () => {
     const split = raw.indexOf('\r\n\r\n');
     if (split < 0) return reject(new Error('无效 HTTP 响应'));
@@ -357,7 +397,9 @@ async function runLovartQuery(threadId, endpoint, label) {
   const ak = process.env['LOVART_ACCESS_KEY'] || getArg('--ak', '');
   const sk = process.env['LOVART_SECRET_KEY'] || getArg('--sk', '');
   if (!ak || !sk) {
-    console.error('[ABORT] 缺少 Lovart 凭据。请设置环境变量 LOVART_ACCESS_KEY / LOVART_SECRET_KEY（或 --ak / --sk）。');
+    console.error(
+      '[ABORT] 缺少 Lovart 凭据。请设置环境变量 LOVART_ACCESS_KEY / LOVART_SECRET_KEY（或 --ak / --sk）。',
+    );
     process.exit(1);
   }
   const base = (process.env['LOVART_BASE_URL'] || 'https://lgw.lovart.ai').replace(/\/+$/, '');
@@ -384,10 +426,22 @@ async function runLovartQuery(threadId, endpoint, label) {
 
   // 代理探测：环境变量优先，其次探测本机代理端口
   const envProxy = (() => {
-    for (const k of ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy']) {
+    for (const k of [
+      'HTTPS_PROXY',
+      'https_proxy',
+      'HTTP_PROXY',
+      'http_proxy',
+      'ALL_PROXY',
+      'all_proxy',
+    ]) {
       const v = process.env[k];
       if (v) {
-        try { const u = new URL(v); return { host: u.hostname, port: Number(u.port) || 7890 }; } catch { /* ignore */ }
+        try {
+          const u = new URL(v);
+          return { host: u.hostname, port: Number(u.port) || 7890 };
+        } catch {
+          /* ignore */
+        }
       }
     }
     return null;
@@ -417,10 +471,14 @@ async function runLovartQuery(threadId, endpoint, label) {
   }
 
   let data = null;
-  try { data = JSON.parse(res.body); } catch { /* 非 JSON */ }
+  try {
+    data = JSON.parse(res.body);
+  } catch {
+    /* 非 JSON */
+  }
 
   if (res.status >= 400) {
-    const msg = data && (data.message || data.error) || `HTTP ${res.status}`;
+    const msg = (data && (data.message || data.error)) || `HTTP ${res.status}`;
     console.error(`[ERROR] Lovart 返回 ${res.status}: ${msg}`);
     process.exit(1);
   }
@@ -430,7 +488,7 @@ async function runLovartQuery(threadId, endpoint, label) {
     console.error(`[ERROR] Lovart 业务错误 code=${data.code}: ${data.message || '未知'}`);
     process.exit(1);
   }
-  const payload = (data && typeof data === 'object' && 'data' in data) ? data.data : data;
+  const payload = data && typeof data === 'object' && 'data' in data ? data.data : data;
 
   console.log(`=== Lovart 任务${label} ===`);
   console.log(JSON.stringify(payload, null, 2));
@@ -438,7 +496,8 @@ async function runLovartQuery(threadId, endpoint, label) {
   if (status) console.log(`\n状态: ${status}`);
   // 结果里可能带 artifacts（图片/视频/文本），status 结束时可额外提示
   const items = payload && payload.items;
-  if (items && Array.isArray(items) && items.length) console.log(`\n含 ${items.length} 个结果项（可查看 artifacts 取 URL）`);
+  if (items && Array.isArray(items) && items.length)
+    console.log(`\n含 ${items.length} 个结果项（可查看 artifacts 取 URL）`);
 }
 
 // 查任务状态（是否结束）
@@ -476,7 +535,11 @@ async function runPollStatus(frontTaskId) {
     process.exit(1);
   }
   let data = null;
-  try { data = JSON.parse(body); } catch { /* 非 JSON */ }
+  try {
+    data = JSON.parse(body);
+  } catch {
+    /* 非 JSON */
+  }
   if (!data) {
     console.error(`[ERROR] 非 JSON 响应: ${body.slice(0, 200)}`);
     process.exit(1);
@@ -485,18 +548,26 @@ async function runPollStatus(frontTaskId) {
   console.log(JSON.stringify(data, null, 2));
   const d = data.data || {};
   if (d.status) {
-    console.log(`\n状态: ${d.status}` + (d.url ? ` | 结果URL: ${d.url}` : '') + (d.type ? ` | type: ${d.type}` : ''));
+    console.log(
+      `\n状态: ${d.status}` +
+        (d.url ? ` | 结果URL: ${d.url}` : '') +
+        (d.type ? ` | type: ${d.type}` : ''),
+    );
   }
 }
 
 // ── 同节点任务比对：列出某 node 的所有任务，各条进度/status/结果URL/是否本地 ──
 function runTaskCompare(db, nodeId) {
-  const allow = /^[\w.-]+$/;   // 防注入：node_id 一般是 promptNode-xxx / img_xxx
+  const allow = /^[\w.-]+$/; // 防注入：node_id 一般是 promptNode-xxx / img_xxx
   if (!allow.test(nodeId)) {
     console.error('[ABORT] 非法 node_id 格式');
     process.exit(1);
   }
-  const rows = queryAllLike(db, `SELECT task_id, node_id, status, progress, model_name, custom_output_type, created_at, result_url, error_msg FROM tasks WHERE node_id = ? ORDER BY created_at DESC`, [nodeId]);
+  const rows = queryAllLike(
+    db,
+    `SELECT task_id, node_id, status, progress, model_name, custom_output_type, created_at, result_url, error_msg FROM tasks WHERE node_id = ? ORDER BY created_at DESC`,
+    [nodeId],
+  );
   if (!rows.length) {
     console.log(`(该 node 无任务记录: ${nodeId})`);
     return;
@@ -506,14 +577,27 @@ function runTaskCompare(db, nodeId) {
   console.log('-'.repeat(100));
   for (const r of rows) {
     const url = r.result_url || '';
-    const form = url.startsWith('data:') ? 'base64' : /127\.0\.0\.1:18080\/files/.test(url) ? '本地文件' : /^https?:\/\//.test(url) ? '远程URL⚠️' : url ? '其他' : '(无)';
+    const form = url.startsWith('data:')
+      ? 'base64'
+      : /127\.0\.0\.1:18080\/files/.test(url)
+        ? '本地文件'
+        : /^https?:\/\//.test(url)
+          ? '远程URL⚠️'
+          : url
+            ? '其他'
+            : '(无)';
     const err = (r.error_msg || r.error_message || '').toString().slice(0, 40);
-    console.log(`${r.task_id} | ${r.status} | ${r.progress} | ${r.model_name} | ${r.custom_output_type || '-'} | ${r.created_at} | ${form} | ${err}`);
+    console.log(
+      `${r.task_id} | ${r.status} | ${r.progress} | ${r.model_name} | ${r.custom_output_type || '-'} | ${r.created_at} | ${form} | ${err}`,
+    );
   }
   // 汇总
-  const remoteCount = rows.filter(r => /^https?:\/\//.test(r.result_url || '') && !/127\.0\.0\.1/.test(r.result_url || '')).length;
-  const failCount = rows.filter(r => r.status && r.status !== 'completed').length;
-  if (remoteCount) console.log(`\n⚠️  其中 ${remoteCount} 条结果 URL 是远程（未落本地盘，资源面板可能没有）`);
+  const remoteCount = rows.filter(
+    (r) => /^https?:\/\//.test(r.result_url || '') && !/127\.0\.0\.1/.test(r.result_url || ''),
+  ).length;
+  const failCount = rows.filter((r) => r.status && r.status !== 'completed').length;
+  if (remoteCount)
+    console.log(`\n⚠️  其中 ${remoteCount} 条结果 URL 是远程（未落本地盘，资源面板可能没有）`);
   if (failCount) console.log(`⚠️  其中 ${failCount} 条未完成/失败`);
 }
 
@@ -538,14 +622,25 @@ function runConsistencyCheck(db, projectId) {
     }
   } else {
     const row = listCanvasKeys(db, true);
-    if (!row) { console.log('(无画布快照)'); return; }
+    if (!row) {
+      console.log('(无画布快照)');
+      return;
+    }
     key = row.key;
     console.log(`(未指定 projectId，取最近更新的画布快照: ${key})\n`);
   }
   const row = queryOneLike(db, `SELECT key, value, updated_at FROM kv WHERE key = ?`, [key]);
-  if (!row) { console.log(`(无记录: ${key})`); return; }
+  if (!row) {
+    console.log(`(无记录: ${key})`);
+    return;
+  }
   let state = null;
-  try { state = JSON.parse(row.value); } catch (e) { console.log(`[ERROR] 画布快照 JSON 解析失败: ${e.message}`); return; }
+  try {
+    state = JSON.parse(row.value);
+  } catch (e) {
+    console.log(`[ERROR] 画布快照 JSON 解析失败: ${e.message}`);
+    return;
+  }
   const nodes = Array.isArray(state.nodes) ? state.nodes : [];
 
   console.log(`=== 三层一致性断言（画布 ↔ 任务中心 ↔ 磁盘）===\n`);
@@ -570,14 +665,16 @@ function runConsistencyCheck(db, projectId) {
     }
     if (Array.isArray(d.images)) {
       for (const it of d.images) {
-        const u = typeof it === 'string' ? it : (it && it.url);
+        const u = typeof it === 'string' ? it : it && it.url;
         if (typeof u === 'string' && u) urls.push({ field: 'images[]', url: u });
       }
     }
     return urls;
   };
 
-  let okCount = 0, issueCount = 0, orphanCount = 0;
+  let okCount = 0,
+    issueCount = 0,
+    orphanCount = 0;
   for (const n of nodes) {
     const nodeId = n && n.id;
     const type = (n && n.type) || '(无type)';
@@ -585,9 +682,11 @@ function runConsistencyCheck(db, projectId) {
     if (!urls.length) continue; // 无媒体的节点跳过
 
     // [B] 任务中心：该 nodeId 最近的 completed + result_url
-    const taskRow = queryOneLike(db,
+    const taskRow = queryOneLike(
+      db,
       `SELECT task_id, status, result_url, created_at FROM tasks WHERE node_id = ? AND status = 'completed' AND result_url IS NOT NULL AND result_url <> '' ORDER BY created_at DESC LIMIT 1`,
-      [nodeId]);
+      [nodeId],
+    );
 
     console.log(`\n■ ${type} ${nodeId}`);
     for (const { field, url } of urls) {
@@ -598,13 +697,26 @@ function runConsistencyCheck(db, projectId) {
       const hasTaskUrl = !!(taskRow && taskRow.result_url);
 
       // [A] 画布快照里有该 URL（这里本身就是，恒 true；真正要断的是"是否落本地"）
-      let a = isLocal ? '本地URL' : (url.startsWith('data:') ? 'base64内联' : (url.startsWith('blob:') ? 'blob临时⚠️' : '远程/其他'));
-      let b = hasTaskUrl ? (taskMatches ? `任务中心一致✓` : `任务中心另有URL⚠️`) : `任务中心无记录✗`;
-      let c = diskExists === null ? '非本地(不查磁盘)' : (diskExists ? '磁盘存在✓' : '磁盘缺失✗');
+      let a = isLocal
+        ? '本地URL'
+        : url.startsWith('data:')
+          ? 'base64内联'
+          : url.startsWith('blob:')
+            ? 'blob临时⚠️'
+            : '远程/其他';
+      let b = hasTaskUrl
+        ? taskMatches
+          ? `任务中心一致✓`
+          : `任务中心另有URL⚠️`
+        : `任务中心无记录✗`;
+      let c = diskExists === null ? '非本地(不查磁盘)' : diskExists ? '磁盘存在✓' : '磁盘缺失✗';
 
-      const problematic = !isLocal || url.startsWith('blob:') || (diskExists === false) || (hasTaskUrl && !taskMatches);
-      if (problematic) { issueCount++; if (!hasTaskUrl && !url.startsWith('data:')) orphanCount++; }
-      else okCount++;
+      const problematic =
+        !isLocal || url.startsWith('blob:') || diskExists === false || (hasTaskUrl && !taskMatches);
+      if (problematic) {
+        issueCount++;
+        if (!hasTaskUrl && !url.startsWith('data:')) orphanCount++;
+      } else okCount++;
 
       console.log(`  [${field}] ${String(url).slice(0, 90)}`);
       console.log(`      A=${a} | B=${b} | C=${c}${problematic ? '  ⚠️' : ''}`);
@@ -612,8 +724,12 @@ function runConsistencyCheck(db, projectId) {
   }
 
   console.log(`\n=== 一致性断言结束 ==="`);
-  console.log(`正常节点: ${okCount} 处 | 异常: ${issueCount} 处 | 画布有但任务中心无: ${orphanCount} 处`);
-  console.log(`提示: A=blob临时 → 刷新会失效; B=无记录/不一致 → 任务中心与画布错位; C=磁盘缺失 → 文件未落盘或已删。`);
+  console.log(
+    `正常节点: ${okCount} 处 | 异常: ${issueCount} 处 | 画布有但任务中心无: ${orphanCount} 处`,
+  );
+  console.log(
+    `提示: A=blob临时 → 刷新会失效; B=无记录/不一致 → 任务中心与画布错位; C=磁盘缺失 → 文件未落盘或已删。`,
+  );
 }
 
 // ── 丢图体检：全局比对 tasks/results/磁盘，把"可能丢的图"列出来 ──
@@ -621,18 +737,32 @@ function runLostCheck(db) {
   console.log('=== 丢图体检（tasks ↔ resources ↔ 磁盘 一致性比对）===\n');
 
   // 1) tasks 里结果 URL 为远程的（未落本地盘 → 资源面板不会有）
-  const remoteTasks = queryAllLike(db, `SELECT task_id, node_id, model_name, created_at, result_url FROM tasks WHERE result_url IS NOT NULL AND result_url <> ''`);
-  const remoteOnly = remoteTasks.filter(r => /^https?:\/\//.test(r.result_url) && !/127\.0\.0\.1|localhost/.test(r.result_url));
-  console.log(`[1] tasks 中结果 URL 为远程 CDN 的（未本地化，资源面板无）: ${remoteOnly.length} 条`);
+  const remoteTasks = queryAllLike(
+    db,
+    `SELECT task_id, node_id, model_name, created_at, result_url FROM tasks WHERE result_url IS NOT NULL AND result_url <> ''`,
+  );
+  const remoteOnly = remoteTasks.filter(
+    (r) => /^https?:\/\//.test(r.result_url) && !/127\.0\.0\.1|localhost/.test(r.result_url),
+  );
+  console.log(
+    `[1] tasks 中结果 URL 为远程 CDN 的（未本地化，资源面板无）: ${remoteOnly.length} 条`,
+  );
   for (const r of remoteOnly.slice(0, 20)) {
-    console.log(`    ${r.task_id} | ${r.model_name} | ${r.created_at} | ${String(r.result_url).slice(0, 80)}`);
+    console.log(
+      `    ${r.task_id} | ${r.model_name} | ${r.created_at} | ${String(r.result_url).slice(0, 80)}`,
+    );
   }
 
   // 2) 失败/未完成任务
-  const failed = queryAllLike(db, `SELECT task_id, node_id, status, progress, error_msg, created_at FROM tasks WHERE status IS NOT NULL AND status != 'completed'`);
+  const failed = queryAllLike(
+    db,
+    `SELECT task_id, node_id, status, progress, error_msg, created_at FROM tasks WHERE status IS NOT NULL AND status != 'completed'`,
+  );
   console.log(`\n[2] tasks 中未完成/失败的任务: ${failed.length} 条`);
   for (const r of failed.slice(0, 20)) {
-    console.log(`    ${r.task_id} | status=${r.status} | progress=${r.progress} | ${(r.error_msg || r.error_message || '').toString().slice(0, 50)}`);
+    console.log(
+      `    ${r.task_id} | status=${r.status} | progress=${r.progress} | ${(r.error_msg || r.error_message || '').toString().slice(0, 50)}`,
+    );
   }
 
   // 3) 磁盘 upload/tasks 文件数 vs resources 表 folder=tasks 记录数（应一致）
@@ -640,16 +770,21 @@ function runLostCheck(db) {
   const diskTasksDir = path.join(uploadDir, 'tasks');
   let diskCount = 0;
   try {
-    if (fs.existsSync(diskTasksDir)) diskCount = fs.readdirSync(diskTasksDir).filter(f => !f.startsWith('.')).length;
-  } catch { /* ignore */ }
+    if (fs.existsSync(diskTasksDir))
+      diskCount = fs.readdirSync(diskTasksDir).filter((f) => !f.startsWith('.')).length;
+  } catch {
+    /* ignore */
+  }
   const resRow = queryOneLike(db, `SELECT COUNT(*) AS cnt FROM resources WHERE folder = 'tasks'`);
   const resCount = resRow ? Number(resRow.cnt) : 0;
-  console.log(`\n[3] 磁盘 upload/tasks 文件数=${diskCount} vs resources 表 folder=tasks=${resCount} → ${diskCount === resCount ? '一致 ✓' : `不一致 ✗（差 ${diskCount - resCount}）`}`);
+  console.log(
+    `\n[3] 磁盘 upload/tasks 文件数=${diskCount} vs resources 表 folder=tasks=${resCount} → ${diskCount === resCount ? '一致 ✓' : `不一致 ✗（差 ${diskCount - resCount}）`}`,
+  );
 
   // 4) 最近日志里的下载失败/上传400（需先补留痕，见 daily/2026-08-14）
   const lines = readLogLines();
-  const downloadFail = lines.filter(l => /\[download\].*FAIL/i.test(l));
-  const upload400 = lines.filter(l => /\[upload\] 400/i.test(l));
+  const downloadFail = lines.filter((l) => /\[download\].*FAIL/i.test(l));
+  const upload400 = lines.filter((l) => /\[upload\] 400/i.test(l));
   console.log(`\n[4] 日志中的下载失败/上传400:`);
   console.log(`    下载失败 [download] FAIL: ${downloadFail.length} 条`);
   for (const l of downloadFail.slice(-10)) console.log('    ' + l);
@@ -738,8 +873,9 @@ function runCanvasHealth(db, projectId) {
     }
     if (edgeIdSeen.has(id)) dupEdgeIds.push(id);
     edgeIdSeen.add(id);
-    const s = e.source, t = e.target;
-    if ((typeof s !== 'string' || !nodeIds.has(s)) || (typeof t !== 'string' || !nodeIds.has(t))) {
+    const s = e.source,
+      t = e.target;
+    if (typeof s !== 'string' || !nodeIds.has(s) || typeof t !== 'string' || !nodeIds.has(t)) {
       danglingEdges.push({ id, source: s, target: t });
     }
   }
@@ -749,8 +885,11 @@ function runCanvasHealth(db, projectId) {
     console.log('  ✓ 无问题（全部边都有唯一 id 且两端节点存在）');
   } else {
     if (noIdEdges.length) {
-      console.log(`  ✗ 无 id 边: ${noIdEdges.length} 条（EdgeRenderer 会用 undefined 作 key → 重复 key 警告）`);
-      for (const e of noIdEdges.slice(0, 10)) console.log(`      ${e.source || '?'} → ${e.target || '?'}`);
+      console.log(
+        `  ✗ 无 id 边: ${noIdEdges.length} 条（EdgeRenderer 会用 undefined 作 key → 重复 key 警告）`,
+      );
+      for (const e of noIdEdges.slice(0, 10))
+        console.log(`      ${e.source || '?'} → ${e.target || '?'}`);
     }
     if (dupEdgeIds.length) {
       console.log(`  ✗ 重复 id 边: ${dupEdgeIds.length} 条`);
@@ -758,19 +897,24 @@ function runCanvasHealth(db, projectId) {
     }
     if (danglingEdges.length) {
       console.log(`  ✗ 悬空边（source/target 指向不存在节点）: ${danglingEdges.length} 条`);
-      for (const e of danglingEdges.slice(0, 10)) console.log(`      ${e.id}: ${e.source} → ${e.target}`);
+      for (const e of danglingEdges.slice(0, 10))
+        console.log(`      ${e.id}: ${e.source} → ${e.target}`);
     }
   }
 
-  console.log('\n=== 体检结束。若发现无 id/重复/悬空边，即为数据结构问题；UI 视觉类问题请结合截图/日志排查。 ===');
+  console.log(
+    '\n=== 体检结束。若发现无 id/重复/悬空边，即为数据结构问题；UI 视觉类问题请结合截图/日志排查。 ===',
+  );
 }
 
 // 列出所有 canvas 快照 key（可排除 _version 后缀）；onlyLatest 时返回 updated_at 最大的一条
 function listCanvasKeys(db, onlyLatest = false) {
   const prefix = 'canvas-state-v1-';
-  const rows = queryAllLike(db,
+  const rows = queryAllLike(
+    db,
     `SELECT key, updated_at FROM kv WHERE key LIKE ? AND key NOT LIKE '%_version'`,
-    [`${prefix}%`]);
+    [`${prefix}%`],
+  );
   rows.sort((a, b) => Number(a.updated_at) - Number(b.updated_at));
   if (onlyLatest) return rows.length ? rows[rows.length - 1] : null;
   return rows.map((r) => r.key);
@@ -801,7 +945,11 @@ function runLifecycle(db, id) {
     // 先按 thread_id 转 task_id 精确查（室外 ID 直达）；未命中再按 node_id 查任务列表
     rows = queryAllLike(db, `SELECT * FROM tasks WHERE task_id = ?`, [taskId]);
     if (!rows.length) {
-      rows = queryAllLike(db, `SELECT task_id, node_id, status, progress, model_name, custom_output_type, created_at, result_url, error_msg FROM tasks WHERE node_id = ? ORDER BY created_at DESC`, [id]);
+      rows = queryAllLike(
+        db,
+        `SELECT task_id, node_id, status, progress, model_name, custom_output_type, created_at, result_url, error_msg FROM tasks WHERE node_id = ? ORDER BY created_at DESC`,
+        [id],
+      );
       mode = rows.length ? 'node_id' : 'thread_id';
     }
   }
@@ -814,20 +962,33 @@ function runLifecycle(db, id) {
       console.log('  task_id | status | progress | model | type | created_at | 结果形态 | error');
       for (const r of rows) {
         const url = r.result_url || '';
-        const form = url.startsWith('data:') ? 'base64' : /127\.0\.0\.1:18080\/files/.test(url) ? '本地文件' : /^https?:\/\//.test(url) ? '远程URL⚠️' : url ? '其他' : '(无)';
+        const form = url.startsWith('data:')
+          ? 'base64'
+          : /127\.0\.0\.1:18080\/files/.test(url)
+            ? '本地文件'
+            : /^https?:\/\//.test(url)
+              ? '远程URL⚠️'
+              : url
+                ? '其他'
+                : '(无)';
         const err = (r.error_msg || r.error_message || '').toString().slice(0, 40);
-        console.log(`  ${r.task_id} | ${r.status} | ${r.progress} | ${r.model_name} | ${r.custom_output_type || '-'} | ${r.created_at} | ${form} | ${err}`);
+        console.log(
+          `  ${r.task_id} | ${r.status} | ${r.progress} | ${r.model_name} | ${r.custom_output_type || '-'} | ${r.created_at} | ${form} | ${err}`,
+        );
       }
     } else {
       console.log('[数据库] tasks 完整记录（含全部诊断字段）:');
       for (const [k, v] of Object.entries(rows[0])) {
-        let s = v === null || v === undefined ? 'NULL' : (typeof v === 'string' ? v : JSON.stringify(v));
+        let s =
+          v === null || v === undefined ? 'NULL' : typeof v === 'string' ? v : JSON.stringify(v);
         if (s.length > 500) s = s.slice(0, 500) + `…(+${s.length - 500})`;
         console.log(`  ${k}: ${s}`);
       }
     }
   } else {
-    console.log(mode === 'node_id' ? '[数据库] 该 node 无任务记录' : '[数据库] 该 task_id/thread_id 无记录');
+    console.log(
+      mode === 'node_id' ? '[数据库] 该 node 无任务记录' : '[数据库] 该 task_id/thread_id 无记录',
+    );
   }
 
   // 1.2) relay 轮询上游链路（relay 重构后：thread_id 已弃用，上游改为本地 relay 轮询任务）
@@ -836,12 +997,20 @@ function runLifecycle(db, id) {
     const r0 = rows[0];
     const pollId = r0.poll_task_id || null;
     let relay = null;
-    try { const rd = typeof r0.request_data === 'string' ? JSON.parse(r0.request_data) : r0.request_data; relay = rd && rd._relayPoll; } catch { /* ignore */ }
+    try {
+      const rd =
+        typeof r0.request_data === 'string' ? JSON.parse(r0.request_data) : r0.request_data;
+      relay = rd && rd._relayPoll;
+    } catch {
+      /* ignore */
+    }
     if (pollId || relay) {
       console.log(`\n[上游链路] relay 轮询任务:`);
       if (pollId) console.log(`  poll_task_id(上游ID): ${pollId}`);
       if (relay) {
-        console.log(`  provider: ${relay.providerId || '?'} | capability: ${relay.capability || '?'} | baseUrl: ${relay.baseUrl || '?'}`);
+        console.log(
+          `  provider: ${relay.providerId || '?'} | capability: ${relay.capability || '?'} | baseUrl: ${relay.baseUrl || '?'}`,
+        );
         if (relay.poll && relay.poll.url) console.log(`  poll.url: ${relay.poll.url}`);
       }
       console.log(`  → 实时状态: node scripts/task-inspect.mjs --poll-status ${r0.task_id}`);
@@ -852,15 +1021,21 @@ function runLifecycle(db, id) {
   // 注：completed_at / poll_count 需前端埋点（当前未启用），故仅展示已落库的 submit_ack_at。
   if (mode !== 'node_id' && rows.length) {
     const r = rows[0];
-    const created = r.created_at, ack = r.submit_ack_at;
+    const created = r.created_at,
+      ack = r.submit_ack_at;
     console.log(`\n[诊断] 网关确认耗时（锚点B埋点 submit_ack_at）:`);
-    const fmt = (ms) => ms == null ? 'NULL（前端未落到网关/旧任务）' : `${(ms / 1000).toFixed(1)}s`;
+    const fmt = (ms) =>
+      ms == null ? 'NULL（前端未落到网关/旧任务）' : `${(ms / 1000).toFixed(1)}s`;
     const localToGateway = ack != null && created != null ? ack - created : null; // 前端→网关确认接单
     console.log(`  前端接单(created_at)→网关确认接单(submit_ack_at): ${fmt(localToGateway)}`);
     if (localToGateway != null && localToGateway > 5000) {
-      console.log(`  初步判断: 卡在「前端→网关」段（localTool/代理/VPN 抖？建议查网关日志 poll=${r.poll_task_id || r.thread_id || 'N/A'}）`);
+      console.log(
+        `  初步判断: 卡在「前端→网关」段（localTool/代理/VPN 抖？建议查网关日志 poll=${r.poll_task_id || r.thread_id || 'N/A'}）`,
+      );
     } else if (localToGateway != null) {
-      console.log(`  初步判断: 前端→网关段正常（生图慢/链路卡需 completed_at+poll_count，当前未启用）`);
+      console.log(
+        `  初步判断: 前端→网关段正常（生图慢/链路卡需 completed_at+poll_count，当前未启用）`,
+      );
     } else {
       console.log(`  初步判断: 数据不足（submit_ack_at 为空，非网关异步提交任务或旧任务）`);
     }
@@ -873,7 +1048,7 @@ function runLifecycle(db, id) {
   const lines = readLogLines();
   const hit = lines
     .map((l, i) => ({ i: i + 1, l }))
-    .filter(x => x.l.includes(id) || x.l.includes(taskId));
+    .filter((x) => x.l.includes(id) || x.l.includes(taskId));
   if (!hit.length) {
     console.log('  (日志中无该 task_id/thread_id/node_id 的记录)');
   } else {
@@ -884,13 +1059,19 @@ function runLifecycle(db, id) {
     }
   }
 
-  console.log(`\n=== 生命周期查询完成。若数据库中 request_data/response_data/result_url 为空，且日志无该任务记录，说明任务数据链路中断（未落库/未落日志）。 ===`);
+  console.log(
+    `\n=== 生命周期查询完成。若数据库中 request_data/response_data/result_url 为空，且日志无该任务记录，说明任务数据链路中断（未落库/未落日志）。 ===`,
+  );
 }
 
 // 兼容 sql.js 的带参查询（queryAllLike 处理 ? 占位）
 function queryAllLike(db, sql, params = []) {
   const stmt = db.prepare(sql);
-  try { stmt.bind(params); } catch { /* 无占位符 */ }
+  try {
+    stmt.bind(params);
+  } catch {
+    /* 无占位符 */
+  }
   const columns = [];
   for (let i = 0; i < stmt.getColumnNames().length; i++) columns.push(stmt.getColumnNames()[i]);
   const rows = [];
@@ -925,7 +1106,9 @@ async function main() {
     const isResult = hasArg('--lovart-result');
     const tid = isResult ? getArg('--lovart-result') : getArg('--lovart-status');
     if (!tid) {
-      console.error(`[ABORT] 缺少 thread_id。用法: --lovart-${isResult ? 'result' : 'status'} <thread_id>`);
+      console.error(
+        `[ABORT] 缺少 thread_id。用法: --lovart-${isResult ? 'result' : 'status'} <thread_id>`,
+      );
       process.exit(1);
     }
     if (isResult) await runLovartResult(tid);
@@ -985,8 +1168,10 @@ async function main() {
 
   // 1) 列出所有表及行数
   if (hasArg('--tables')) {
-    const r = db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`);
-    const tables = r.length ? r[0].values.map(v => v[0]) : [];
+    const r = db.exec(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`,
+    );
+    const tables = r.length ? r[0].values.map((v) => v[0]) : [];
     console.log(`表列表（共 ${tables.length} 个）:`);
     for (const t of tables) {
       const cnt = db.exec(`SELECT COUNT(*) FROM "${t}"`);
@@ -1011,7 +1196,7 @@ async function main() {
     const cols = db.exec(`PRAGMA table_info(${table})`);
     console.log(`表 ${table} 列:`);
     if (cols.length) {
-      console.log('  ' + cols[0].values.map(v => v[1]).join(', '));
+      console.log('  ' + cols[0].values.map((v) => v[1]).join(', '));
     }
     console.log('\n前 ' + limit + ' 行:');
     printResult(db.exec(`SELECT * FROM ${table} LIMIT ${limit}`), 60, hasArg('--json'));
@@ -1030,7 +1215,9 @@ async function main() {
     // 安全：禁止写语句
     const forbid = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|VACUUM|ATTACH|DETACH|REPLACE)\b/i;
     if (forbid.test(sql)) {
-      console.error('[ABORT] 只读工具：禁止执行写语句。如需写库请用 localTool 接口或停止服务后操作。');
+      console.error(
+        '[ABORT] 只读工具：禁止执行写语句。如需写库请用 localTool 接口或停止服务后操作。',
+      );
       db.close();
       process.exit(1);
     }
@@ -1045,7 +1232,11 @@ async function main() {
       for (let i = 0; i < stmt.getColumnNames().length; i++) columns.push(stmt.getColumnNames()[i]);
       const rows = [];
       while (stmt.step()) rows.push(stmt.getAsObject());
-      printResult([{ columns, values: rows.map(r => columns.map(c => r[c])) }], 60, hasArg('--json'));
+      printResult(
+        [{ columns, values: rows.map((r) => columns.map((c) => r[c])) }],
+        60,
+        hasArg('--json'),
+      );
       stmt.free();
     } catch (e) {
       console.error('[SQL 执行失败]', e.message);
@@ -1059,7 +1250,9 @@ async function main() {
   if (hasArg('--kv')) {
     const key = getArg('--kv');
     const like = `%${key}%`;
-    const stmt = db.prepare('SELECT key, value, updated_at FROM kv WHERE key LIKE ? ORDER BY updated_at DESC LIMIT 50');
+    const stmt = db.prepare(
+      'SELECT key, value, updated_at FROM kv WHERE key LIKE ? ORDER BY updated_at DESC LIMIT 50',
+    );
     stmt.bind([like]);
     const rows = [];
     while (stmt.step()) rows.push(stmt.getAsObject());
@@ -1086,21 +1279,27 @@ async function main() {
     const results = [];
     // kv
     {
-      const stmt = db.prepare("SELECT 'kv' AS src, key AS id, value AS content, updated_at AS ts FROM kv WHERE key LIKE ? OR value LIKE ? LIMIT 10");
+      const stmt = db.prepare(
+        "SELECT 'kv' AS src, key AS id, value AS content, updated_at AS ts FROM kv WHERE key LIKE ? OR value LIKE ? LIMIT 10",
+      );
       stmt.bind([like, like]);
       while (stmt.step()) results.push(stmt.getAsObject());
       stmt.free();
     }
     // tasks
     {
-      const stmt = db.prepare("SELECT 'tasks' AS src, task_id AS id, prompt AS content, created_at AS ts FROM tasks WHERE prompt LIKE ? OR task_id LIKE ? LIMIT 10");
+      const stmt = db.prepare(
+        "SELECT 'tasks' AS src, task_id AS id, prompt AS content, created_at AS ts FROM tasks WHERE prompt LIKE ? OR task_id LIKE ? LIMIT 10",
+      );
       stmt.bind([like, like]);
       while (stmt.step()) results.push(stmt.getAsObject());
       stmt.free();
     }
     // resources
     {
-      const stmt = db.prepare("SELECT 'resources' AS src, id AS id, COALESCE(name,'') || ' | ' || COALESCE(url,'') AS content, timestamp AS ts FROM resources WHERE name LIKE ? OR url LIKE ? LIMIT 10");
+      const stmt = db.prepare(
+        "SELECT 'resources' AS src, id AS id, COALESCE(name,'') || ' | ' || COALESCE(url,'') AS content, timestamp AS ts FROM resources WHERE name LIKE ? OR url LIKE ? LIMIT 10",
+      );
       stmt.bind([like, like]);
       while (stmt.step()) results.push(stmt.getAsObject());
       stmt.free();

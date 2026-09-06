@@ -44,9 +44,9 @@
  *   4. 「无用大对象」判定需谨慎：本模块 byteLength 只估内容字节，无法区分「在用的关键数据」和
  *      「可删的无用数据」。真正确认可删，要靠业务语义（如过期缓存、已导出的历史快照），别凭大小猜。
  */
-import { isChromeExtension, KEY_PREFIX } from './storageAdapter.ts'
-import { STORAGE_KEYS } from '../core/contracts.ts'
-import { compilePatternRegex } from '../core/utils.ts'
+import { isChromeExtension, KEY_PREFIX } from './storageAdapter.ts';
+import { STORAGE_KEYS } from '../core/contracts.ts';
+import { compilePatternRegex } from '../core/utils.ts';
 
 /**
  * chrome 扩展全局的类型声明（与 storageAdapter.ts 同步的模块级最小声明）。
@@ -55,13 +55,16 @@ import { compilePatternRegex } from '../core/utils.ts'
 declare const chrome: {
   storage: {
     local: {
-      get(keys: string[] | string | Record<string, unknown> | null, callback: (items: Record<string, unknown>) => void): void
-    }
-  }
-}
+      get(
+        keys: string[] | string | Record<string, unknown> | null,
+        callback: (items: Record<string, unknown>) => void,
+      ): void;
+    };
+  };
+};
 
 /** 配额受压预警阈值：用量比例 ≥ 此值时视为「即将用尽」（对齐文档 STORAGE_PRESSURE_RATIO） */
-export const STORAGE_PRESSURE_RATIO = 0.85
+export const STORAGE_PRESSURE_RATIO = 0.85;
 
 /**
  * 【已弃用】AI 会话键级本地存储预算预警。
@@ -72,7 +75,7 @@ export const STORAGE_PRESSURE_RATIO = 0.85
  * @returns {Promise<null>} 恒 null（已弃用）
  */
 export async function analyzeAgentConversationPressure(): Promise<null> {
-  return null
+  return null;
 }
 
 /** domain → 中文标签（仅供 UI 展示，domain 值以 STORAGE_KEYS 登记为准） */
@@ -88,17 +91,21 @@ export const DOMAIN_LABELS: Record<string, string> = {
   clipboard: '剪贴板',
   director3d: '3D 导演台',
   unknown: '未归类',
-}
+};
 
 /**
  * 估算浏览器存储配额（navigator.storage.estimate）。
  * @returns {Promise<{usage:number, quota:number, ratio:number} | null>}
  *   环境不支持（无 navigator.storage.estimate）返回 null。
  */
-export async function estimateBrowserStorage(): Promise<{ usage: number; quota: number; ratio: number } | null> {
-  if (typeof navigator === 'undefined' || !navigator.storage?.estimate) return null
-  const { usage = 0, quota = 0 } = await navigator.storage.estimate()
-  return { usage, quota, ratio: quota > 0 ? usage / quota : 0 }
+export async function estimateBrowserStorage(): Promise<{
+  usage: number;
+  quota: number;
+  ratio: number;
+} | null> {
+  if (typeof navigator === 'undefined' || !navigator.storage?.estimate) return null;
+  const { usage = 0, quota = 0 } = await navigator.storage.estimate();
+  return { usage, quota, ratio: quota > 0 ? usage / quota : 0 };
 }
 
 /**
@@ -107,7 +114,7 @@ export async function estimateBrowserStorage(): Promise<{ usage: number; quota: 
  * @returns {{ underPressure: boolean }}
  */
 export function estimateStoragePressure(ratio: number): { underPressure: boolean } {
-  return { underPressure: typeof ratio === 'number' && ratio >= STORAGE_PRESSURE_RATIO }
+  return { underPressure: typeof ratio === 'number' && ratio >= STORAGE_PRESSURE_RATIO };
 }
 
 /**
@@ -116,11 +123,11 @@ export function estimateStoragePressure(ratio: number): { underPressure: boolean
  * @returns {Promise<{bytes:number, keys:number} | null>} 环境不支持返回 null
  */
 export async function estimateChromeStorage(): Promise<{ bytes: number; keys: number } | null> {
-  const entries = await enumerateLocalEntries()
-  if (!entries) return null
-  let bytes = 0
-  for (const e of entries) bytes += byteLength(e.rawKey) + byteLength(e.value)
-  return { bytes, keys: entries.length }
+  const entries = await enumerateLocalEntries();
+  if (!entries) return null;
+  let bytes = 0;
+  for (const e of entries) bytes += byteLength(e.rawKey) + byteLength(e.value);
+  return { bytes, keys: entries.length };
 }
 
 /**
@@ -128,26 +135,29 @@ export async function estimateChromeStorage(): Promise<{ bytes: number; keys: nu
  * rawKey 带 yimao: 前缀（实际落盘键名），value 为原始值（未解析）。
  * @returns {Promise<Array<{rawKey:string, value:unknown}> | null>} 环境不支持返回 null
  */
-export async function enumerateLocalEntries(): Promise<Array<{ rawKey: string; value: unknown }> | null> {
+export async function enumerateLocalEntries(): Promise<Array<{
+  rawKey: string;
+  value: unknown;
+}> | null> {
   try {
     if (isChromeExtension()) {
       const all = await new Promise<Record<string, unknown>>((resolve) => {
-        chrome.storage.local.get(null, resolve)
-      })
-      if (!all || typeof all !== 'object') return []
-      return Object.entries(all).map(([k, v]) => ({ rawKey: k, value: v }))
+        chrome.storage.local.get(null, resolve);
+      });
+      if (!all || typeof all !== 'object') return [];
+      return Object.entries(all).map(([k, v]) => ({ rawKey: k, value: v }));
     }
     // Web 环境回退 localStorage
-    const out: Array<{ rawKey: string; value: unknown }> = []
+    const out: Array<{ rawKey: string; value: unknown }> = [];
     for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i)
-      if (k == null) continue
-      out.push({ rawKey: k, value: localStorage.getItem(k) })
+      const k = localStorage.key(i);
+      if (k == null) continue;
+      out.push({ rawKey: k, value: localStorage.getItem(k) });
     }
-    return out
+    return out;
   } catch {
     // 存储读取受限（隐私模式/权限）时降级为「不可用」，UI 展示降级文案而非崩
-    return null
+    return null;
   }
 }
 
@@ -158,25 +168,27 @@ export async function enumerateLocalEntries(): Promise<Array<{ rawKey: string; v
  * @returns {string} domain
  */
 export function mapKeyToDomain(key: string): string {
-  const entry = STORAGE_KEYS[key]
-  if (entry) return entry.domain
+  const entry = STORAGE_KEYS[key];
+  if (entry) return entry.domain;
   for (const [k, v] of Object.entries(STORAGE_KEYS)) {
-    if (!v.pattern) continue
+    if (!v.pattern) continue;
     try {
-      if (compilePatternRegex(k).test(key)) return v.domain
-    } catch { /* 忽略无效正则模板 */ }
+      if (compilePatternRegex(k).test(key)) return v.domain;
+    } catch {
+      /* 忽略无效正则模板 */
+    }
   }
-  return 'unknown'
+  return 'unknown';
 }
 
 // pattern 模板 → 正则统一走 utils.compilePatternRegex（2026-08-30 收口，原本地副本已删）
 
 /** 单个 domain 的聚合占用量（analyzeStorageByKeys 内部中间结构，非导出） */
 interface DomainAggregate {
-  domain: string
-  bytes: number
-  keys: number
-  detail: Array<{ key: string; bytes: number }>
+  domain: string;
+  bytes: number;
+  keys: number;
+  detail: Array<{ key: string; bytes: number }>;
 }
 
 /**
@@ -188,40 +200,44 @@ interface DomainAggregate {
  * } | null>} 环境不支持返回 null
  */
 export async function analyzeStorageByKeys(): Promise<{
-  domains: Array<DomainAggregate & { label: string }>
-  totalBytes: number
-  totalKeys: number
+  domains: Array<DomainAggregate & { label: string }>;
+  totalBytes: number;
+  totalKeys: number;
 } | null> {
   // ① 枚举实际落盘键（localStorage / chrome.storage.local），rawKey 带 yimao: 前缀
-  const entries = await enumerateLocalEntries()
-  if (!entries) return null
+  const entries = await enumerateLocalEntries();
+  if (!entries) return null;
   // ② 按 domain 聚合：bytes = 键名长度 + 值序列化长度（键名也占空间，故都计入）
-  const byDomain = new Map<string, DomainAggregate>()
-  let totalBytes = 0
+  const byDomain = new Map<string, DomainAggregate>();
+  let totalBytes = 0;
   for (const e of entries) {
     // 剥 yimao: 前缀 → 逻辑键名（非业务键不带前缀，原样保留）
-    const logical = e.rawKey.startsWith(KEY_PREFIX) ? e.rawKey.slice(KEY_PREFIX.length) : e.rawKey
+    const logical = e.rawKey.startsWith(KEY_PREFIX) ? e.rawKey.slice(KEY_PREFIX.length) : e.rawKey;
     // ③ 逻辑键名 → domain（精确 STORAGE_KEYS 匹配，其次 pattern 动态键，兜底 unknown）
-    const domain = mapKeyToDomain(logical)
-    const bytes = byteLength(e.rawKey) + byteLength(e.value)
-    totalBytes += bytes
+    const domain = mapKeyToDomain(logical);
+    const bytes = byteLength(e.rawKey) + byteLength(e.value);
+    totalBytes += bytes;
     // ④ 累加到对应 domain（首个出现时初始化）
-    if (!byDomain.has(domain)) byDomain.set(domain, { domain, bytes: 0, keys: 0, detail: [] })
-    const g = byDomain.get(domain)!
-    g.bytes += bytes
-    g.keys += 1
-    g.detail.push({ key: logical, bytes })
+    if (!byDomain.has(domain)) byDomain.set(domain, { domain, bytes: 0, keys: 0, detail: [] });
+    const g = byDomain.get(domain)!;
+    g.bytes += bytes;
+    g.keys += 1;
+    g.detail.push({ key: logical, bytes });
   }
   // ⑤ 打中文标签 + 按占用降序（UI 占比条好看）
   const domains = Array.from(byDomain.values())
     .map((g) => ({ ...g, label: DOMAIN_LABELS[g.domain] || g.domain }))
-    .sort((a, b) => b.bytes - a.bytes)
-  return { domains, totalBytes, totalKeys: entries.length }
+    .sort((a, b) => b.bytes - a.bytes);
+  return { domains, totalBytes, totalKeys: entries.length };
 }
 
 /** 估算任意值序列化后的字节数（undefined→0；对象按 JSON 字符串估算） */
 function byteLength(value: unknown): number {
-  if (value === undefined || value === null) return 0
-  if (typeof value === 'string') return value.length
-  try { return JSON.stringify(value).length } catch { return 0 }
+  if (value === undefined || value === null) return 0;
+  if (typeof value === 'string') return value.length;
+  try {
+    return JSON.stringify(value).length;
+  } catch {
+    return 0;
+  }
 }

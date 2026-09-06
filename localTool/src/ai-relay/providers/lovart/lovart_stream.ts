@@ -23,21 +23,33 @@ export function synthesizeLovartChatStream(text: string, signal?: AbortSignal): 
         controller.close();
         return;
       }
-      controller.enqueue(encoder.encode(sseChunk({
-        object: 'chat.completion.chunk',
-        choices: [{ delta: { role: 'assistant' } }],
-      })));
+      controller.enqueue(
+        encoder.encode(
+          sseChunk({
+            object: 'chat.completion.chunk',
+            choices: [{ delta: { role: 'assistant' } }],
+          }),
+        ),
+      );
       for (const seg of segments) {
         if (!seg) continue;
-        controller.enqueue(encoder.encode(sseChunk({
-          object: 'chat.completion.chunk',
-          choices: [{ delta: { content: seg } }],
-        })));
+        controller.enqueue(
+          encoder.encode(
+            sseChunk({
+              object: 'chat.completion.chunk',
+              choices: [{ delta: { content: seg } }],
+            }),
+          ),
+        );
       }
-      controller.enqueue(encoder.encode(sseChunk({
-        object: 'chat.completion.chunk',
-        choices: [{ delta: {}, finish_reason: 'stop' }],
-      })));
+      controller.enqueue(
+        encoder.encode(
+          sseChunk({
+            object: 'chat.completion.chunk',
+            choices: [{ delta: {}, finish_reason: 'stop' }],
+          }),
+        ),
+      );
       controller.enqueue(encoder.encode('data: [DONE]\n\n'));
       controller.close();
     },

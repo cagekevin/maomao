@@ -23,7 +23,10 @@ function rec(scope, kind, text, loc) {
   const bad = kind === 'error' || kind === 'exception' || kind === 'pageerror';
   console.log(`${bad ? '❌' : '·'} [${scope}] ${kind}: ${String(text).slice(0, 300)}`);
 }
-const watchdog = setTimeout(() => { console.error('WATCHDOG: forced exit'); process.exit(9); }, 120000);
+const watchdog = setTimeout(() => {
+  console.error('WATCHDOG: forced exit');
+  process.exit(9);
+}, 120000);
 watchdog.unref();
 
 (async () => {
@@ -33,7 +36,8 @@ watchdog.unref();
 
   // 1) targets
   const { targetInfos } = await bcdp.send('Target.getTargets');
-  let extId = null, swTargetId = null;
+  let extId = null,
+    swTargetId = null;
   for (const t of targetInfos) {
     const m = (t.url || '').match(/chrome-extension:\/\/([a-z]+)\//);
     if (m) {
@@ -45,32 +49,63 @@ watchdog.unref();
 
   // 2) attach SW + Runtime.enable
   if (swTargetId) {
-    const { sessionId } = await bcdp.send('Target.attachToTarget', { targetId: swTargetId, flatten: true });
+    const { sessionId } = await bcdp.send('Target.attachToTarget', {
+      targetId: swTargetId,
+      flatten: true,
+    });
     const swcdp = await browser.newBrowserCDPSession(); // 复用 bcdp 通道
     // flatten 模式下用同一 browser session 发消息，指定 sessionId
     await bcdp.send('Runtime.enable', {}, sessionId);
     bcdp.on('Runtime.exceptionThrown', (params, session) => {
       if (session !== sessionId) return;
       const d = params.exceptionDetails;
-      rec('sw', 'exception', (d.exception && d.exception.description) || d.text || 'sw exception', d.url);
+      rec(
+        'sw',
+        'exception',
+        (d.exception && d.exception.description) || d.text || 'sw exception',
+        d.url,
+      );
     });
     bcdp.on('Runtime.consoleAPICalled', (params, session) => {
       if (session !== sessionId) return;
-      const txt = (params.args || []).map((a) => a.value !== undefined ? a.value : (a.description || '')).join(' ');
+      const txt = (params.args || [])
+        .map((a) => (a.value !== undefined ? a.value : a.description || ''))
+        .join(' ');
       rec('sw', params.type, txt);
     });
   }
 
   // 3) 开页面
   async function openPage(rel) {
-    if (!extId) { rec('page', 'error', 'no extId, skip ' + rel); return; }
+    if (!extId) {
+      rec('page', 'error', 'no extId, skip ' + rel);
+      return;
+    }
     const page = await context.newPage();
-    page.on('console', (msg) => { if (msg.type() === 'error') rec('page', 'error', msg.text()); else rec('page', msg.type(), msg.text()); });
-    page.on('pageerror', (err) => rec('page', 'pageerror', err.message + '\n' + (err.stack || '').split('\n').slice(0, 4).join('\n')));
-    page.on('requestfailed', (req) => rec('page', 'error', 'reqfail ' + req.url() + ' ' + (req.failure() && req.failure().errorText)));
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') rec('page', 'error', msg.text());
+      else rec('page', msg.type(), msg.text());
+    });
+    page.on('pageerror', (err) =>
+      rec(
+        'page',
+        'pageerror',
+        err.message + '\n' + (err.stack || '').split('\n').slice(0, 4).join('\n'),
+      ),
+    );
+    page.on('requestfailed', (req) =>
+      rec(
+        'page',
+        'error',
+        'reqfail ' + req.url() + ' ' + (req.failure() && req.failure().errorText),
+      ),
+    );
     const url = `chrome-extension://${extId}/${rel}`;
-    try { await page.goto(url, { waitUntil: 'load', timeout: 20000 }); }
-    catch (e) { rec('page', 'error', 'goto ' + rel + ': ' + e.message); }
+    try {
+      await page.goto(url, { waitUntil: 'load', timeout: 20000 });
+    } catch (e) {
+      rec('page', 'error', 'goto ' + rel + ': ' + e.message);
+    }
     await sleep(5000);
     await page.close();
   }
@@ -80,11 +115,21 @@ watchdog.unref();
   }
   await sleep(2000);
 
-  const errors = events.filter((e) => e.kind === 'error' || e.kind === 'exception' || e.kind === 'pageerror');
+  const errors = events.filter(
+    (e) => e.kind === 'error' || e.kind === 'exception' || e.kind === 'pageerror',
+  );
   console.log('\n════════ 验收摘要 ════════');
   console.log('total events:', events.length, 'errors:', errors.length);
-  fs.writeFileSync(path.resolve(__dirname, 'report.json'), JSON.stringify({ extId, dist: DIST, events, errorCount: errors.length }, null, 2));
+  fs.writeFileSync(
+    path.resolve(__dirname, 'report.json'),
+    JSON.stringify({ extId, dist: DIST, events, errorCount: errors.length }, null, 2),
+  );
 
-  try { await browser.close(); } catch (e) {}
+  try {
+    await browser.close();
+  } catch (e) {}
   process.exit(errors.length ? 1 : 0);
-})().catch((e) => { console.error('harness crash:', e); process.exit(3); });
+})().catch((e) => {
+  console.error('harness crash:', e);
+  process.exit(3);
+});

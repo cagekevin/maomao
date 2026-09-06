@@ -13,12 +13,12 @@
  * 【诚实边界】仅能驱动「登记过 start 回调」的下游（AI 生图/视频/模板等节点）；本地处理类节点（切图/抽帧）
  *   无 start 注册 → runNodeGeneration 返回 false 静默跳过；且仅覆盖「经任务中心完成」的上游。
  */
-import { useEffect } from 'react'
-import { useReactFlow } from '@xyflow/react'
-import { subscribe } from '../core/eventBus.ts'
-import { runNodeGeneration } from '../store/taskStore.ts'
-import { AUTO_TRIGGER_DOWNSTREAM } from '../core/config.ts'
-import { logger } from '../core/logger.ts'
+import { useEffect } from 'react';
+import { useReactFlow } from '@xyflow/react';
+import { subscribe } from '../core/eventBus.ts';
+import { runNodeGeneration } from '../store/taskStore.ts';
+import { AUTO_TRIGGER_DOWNSTREAM } from '../core/config.ts';
+import { logger } from '../core/logger.ts';
 
 /**
  * 订阅 `upstream:updated`，打开开关时自动触发直接下游。返回取消函数。
@@ -26,33 +26,33 @@ import { logger } from '../core/logger.ts'
  */
 /** `upstream:updated` 事件载荷（eventBus 的 payload 为 unknown，此处按契约收窄） */
 export interface UpstreamUpdatedPayload {
-  sourceNodeId?: string
+  sourceNodeId?: string;
 }
 
 export function useUpstreamAutoTrigger(): void {
-  const { getEdges } = useReactFlow()
+  const { getEdges } = useReactFlow();
   useEffect(() => {
-    if (!AUTO_TRIGGER_DOWNSTREAM) return undefined
+    if (!AUTO_TRIGGER_DOWNSTREAM) return undefined;
     return subscribe('upstream:updated', (payload) => {
-      const { sourceNodeId } = (payload || {}) as UpstreamUpdatedPayload
-      if (!sourceNodeId) return
+      const { sourceNodeId } = (payload || {}) as UpstreamUpdatedPayload;
+      if (!sourceNodeId) return;
       try {
         const targets = (getEdges() || [])
           .filter((e) => e.source === sourceNodeId && e.target)
-          .map((e) => e.target)
+          .map((e) => e.target);
         for (const target of [...new Set(targets)]) {
-          logger.info('拓扑', '[G1] 上游完成 → 触发直接下游', { sourceNodeId, target })
+          logger.info('拓扑', '[G1] 上游完成 → 触发直接下游', { sourceNodeId, target });
           // 【失败可见】下游自动触发失败不得静默吞掉（原 .catch(() => {}) 全吞）：统一 logger 留痕，
           //   供全链路排查（如本地处理类节点无 start 注册被跳过、或生成节点网络失败时可见原因）。
           //   捕获后不上抛、不弹 toast —— 自动触发是后台安全网，失败不该打断主链路。
           runNodeGeneration(target).catch((e) =>
-            logger.warn('拓扑', '[G1] 下游触发失败', { target, error: e?.message })
-          )
+            logger.warn('拓扑', '[G1] 下游触发失败', { target, error: e?.message }),
+          );
         }
       } catch (e) {
-        logger.warn('拓扑', '[G1] 触发直接下游失败', { sourceNodeId, error: e?.message })
+        logger.warn('拓扑', '[G1] 触发直接下游失败', { sourceNodeId, error: e?.message });
       }
-    })
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, []);
 }

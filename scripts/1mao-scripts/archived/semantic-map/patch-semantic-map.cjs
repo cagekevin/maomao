@@ -18,10 +18,16 @@ const map = JSON.parse(fs.readFileSync(MAP, 'utf-8'));
 
 // ── Hooks 数据（按 basename 匹配） ──
 try {
-  const hooksOut = execSync('node scripts/hooks-lookup.cjs --list', { cwd: ROOT, encoding: 'utf-8' });
+  const hooksOut = execSync('node scripts/hooks-lookup.cjs --list', {
+    cwd: ROOT,
+    encoding: 'utf-8',
+  });
   for (const [, name, type] of hooksOut.matchAll(/  (\S+\.jsx)\s+(\S+)/g)) {
     for (const [key] of Object.entries(map)) {
-      if (key.endsWith('/' + name)) { map[key].hooks = type; break; }
+      if (key.endsWith('/' + name)) {
+        map[key].hooks = type;
+        break;
+      }
     }
   }
 } catch {}
@@ -30,7 +36,9 @@ try {
 const T08B_PATH = path.join(ROOT, 'docs', 'agent 批量任务', 'out', 'T08B-export-map.md');
 if (fs.existsSync(T08B_PATH)) {
   const T08B_MD = fs.readFileSync(T08B_PATH, 'utf-8');
-  for (const [, , type, file] of T08B_MD.matchAll(/\| [A-Z]\d+ \| (?:[^(]+\(([^)]+)\)\/)?(\S+\.jsx) \| `[^`]+` \| (\S+)/g)) {
+  for (const [, , type, file] of T08B_MD.matchAll(
+    /\| [A-Z]\d+ \| (?:[^(]+\(([^)]+)\)\/)?(\S+\.jsx) \| `[^`]+` \| (\S+)/g,
+  )) {
     if (!file) continue;
     // 按basename在map里找到对应键
     for (const [key] of Object.entries(map)) {
@@ -47,7 +55,10 @@ if (fs.existsSync(T08B_PATH)) {
 }
 
 // ── T06B 角色描述（为未标注文件补领域） ──
-const T06B = fs.readFileSync(path.join(ROOT, 'docs', 'agent 批量任务', 'out', 'T06B-inv-structure.md'), 'utf-8');
+const T06B = fs.readFileSync(
+  path.join(ROOT, 'docs', 'agent 批量任务', 'out', 'T06B-inv-structure.md'),
+  'utf-8',
+);
 
 // T02B 手动精确映射（per-file 反查）
 const T02B_MANUAL = {
@@ -55,17 +66,77 @@ const T02B_MANUAL = {
   'ShareAppPage-BVCmVrHF.js': { storage: [] }, // 动态模板 workflow-app-license-${appId}
   'endpointConfig-Bt85xi8d.js': { storage: ['active_api_endpoint'] },
   'Xt.jsx': { storage: ['extension-update-dist-path'] },
-  'mr.jsx': { storage: ['apiConfigId_text', 'apiConfigId_image', 'apiConfigId_video', 'apiConfigId_sd2Video', 'apiConfigId_audio', 'apiConfigId_discountVideo', 'localToolBaseUrl'], events: ['mutiwindow-task-completed', 'builtin-panel-switch-schedule', 'mutiwindow-rerun-task', 'import-project', 'export-project'] },
+  'mr.jsx': {
+    storage: [
+      'apiConfigId_text',
+      'apiConfigId_image',
+      'apiConfigId_video',
+      'apiConfigId_sd2Video',
+      'apiConfigId_audio',
+      'apiConfigId_discountVideo',
+      'localToolBaseUrl',
+    ],
+    events: [
+      'mutiwindow-task-completed',
+      'builtin-panel-switch-schedule',
+      'mutiwindow-rerun-task',
+      'import-project',
+      'export-project',
+    ],
+  },
   'bo.jsx': { storage: ['mutiwindow_text_model'], events: ['mutiwindow-open-schedule-settings'] },
-  '_o.jsx': { storage: ['mutiwindow_prompt_aspectRatio', 'mutiwindow_prompt_imageSize', 'mutiwindow_prompt_quality', 'mutiwindow_prompt_model'], events: ['mutiwindow-update-task-meta'] },
-  'Jo.jsx': { storage: ['mutiwindow_video_aspectRatio'], events: ['mutiwindow-open-builtin-settings'] },
-  'Es.jsx': { storage: ['mutiwindow_discountvideo_size', 'mutiwindow_discountvideo_resolution', 'mutiwindow_discountvideo_seconds', 'mutiwindow_discountvideo_model'] },
-  'Zo.jsx': { storage: ['mutiwindow_sd2video_size', 'mutiwindow_sd2video_seconds', 'mutiwindow_sd2video_model'] },
+  '_o.jsx': {
+    storage: [
+      'mutiwindow_prompt_aspectRatio',
+      'mutiwindow_prompt_imageSize',
+      'mutiwindow_prompt_quality',
+      'mutiwindow_prompt_model',
+    ],
+    events: ['mutiwindow-update-task-meta'],
+  },
+  'Jo.jsx': {
+    storage: ['mutiwindow_video_aspectRatio'],
+    events: ['mutiwindow-open-builtin-settings'],
+  },
+  'Es.jsx': {
+    storage: [
+      'mutiwindow_discountvideo_size',
+      'mutiwindow_discountvideo_resolution',
+      'mutiwindow_discountvideo_seconds',
+      'mutiwindow_discountvideo_model',
+    ],
+  },
+  'Zo.jsx': {
+    storage: [
+      'mutiwindow_sd2video_size',
+      'mutiwindow_sd2video_seconds',
+      'mutiwindow_sd2video_model',
+    ],
+  },
   'Ps.jsx': { storage: ['mutiwindow_text_model'] },
-  'i_.jsx': { storage: ['mutiwindow_text_model'], events: ['mutiwindow-open-schedule-settings', 'mutiwindow-open-builtin-settings', 'script-box-connect-shots', 'script-box-connect-shot'] },
-  'R_.jsx': { storage: ['mutiwindow-clipboard'], events: ['canvas-run-workflow-done', 'canvas-force-save-done', 'rhwebapp-run-request', 'open-shortcuts-modal'] },
+  'i_.jsx': {
+    storage: ['mutiwindow_text_model'],
+    events: [
+      'mutiwindow-open-schedule-settings',
+      'mutiwindow-open-builtin-settings',
+      'script-box-connect-shots',
+      'script-box-connect-shot',
+    ],
+  },
+  'R_.jsx': {
+    storage: ['mutiwindow-clipboard'],
+    events: [
+      'canvas-run-workflow-done',
+      'canvas-force-save-done',
+      'rhwebapp-run-request',
+      'open-shortcuts-modal',
+    ],
+  },
   'Xs.jsx': { storage: ['mutiwindow-clipboard'] },
-  '_Component109.jsx': { storage: ['director_ai_model'], events: ['mutiwindow-open-schedule-settings', 'mutiwindow-open-builtin-settings'] },
+  '_Component109.jsx': {
+    storage: ['director_ai_model'],
+    events: ['mutiwindow-open-schedule-settings', 'mutiwindow-open-builtin-settings'],
+  },
   'kn.jsx': { events: ['mutiwindow-update-task-meta', 'script-box-connect-shots'] },
   'Un.jsx': { events: ['canvas-add-resource-request'] },
   'ql.jsx': { events: [] },
@@ -87,8 +158,14 @@ for (const [name, entry] of Object.entries(map)) {
   // T02B 手动数据（按 basename 匹配）
   if (T02B_MANUAL[basename]) {
     const t = T02B_MANUAL[basename];
-    if (t.storage) { entry.storage = t.storage; delete t.storage; }
-    if (t.events) { entry.events = t.events; delete t.events; }
+    if (t.storage) {
+      entry.storage = t.storage;
+      delete t.storage;
+    }
+    if (t.events) {
+      entry.events = t.events;
+      delete t.events;
+    }
     Object.assign(entry, t);
   }
 
@@ -101,7 +178,12 @@ for (const [name, entry] of Object.entries(map)) {
   }
   // httpClient shared.js storage keys
   if (name.includes('httpClient-Bqba_SHR') && name.includes('shared.js')) {
-    const addK = ['modelSchedules', 'remembered_login_credentials', 'auth_token', 'yimao:promptRecent'];
+    const addK = [
+      'modelSchedules',
+      'remembered_login_credentials',
+      'auth_token',
+      'yimao:promptRecent',
+    ];
     const addE = ['modelSchedules:change', 'yimao:openPromptSettings'];
     for (const k of addK) if (!entry.storage.includes(k)) entry.storage.push(k);
     for (const e of addE) if (!entry.events.includes(e)) entry.events.push(e);
@@ -133,7 +215,9 @@ for (const [name, entry] of Object.entries(map)) {
 }
 
 // 尚未分类的 JSX 文件二次分类
-const remaining = Object.entries(map).filter(([, v]) => v.domain === 'infrastructure' && v.role === '');
+const remaining = Object.entries(map).filter(
+  ([, v]) => v.domain === 'infrastructure' && v.role === '',
+);
 console.log(`未分类文件: ${remaining.length}`);
 for (const [name] of remaining.slice(0, 20)) {
   console.log(`  - ${name}`);
@@ -141,9 +225,11 @@ for (const [name] of remaining.slice(0, 20)) {
 
 fs.writeFileSync(MAP, JSON.stringify(map, null, 2));
 const total = Object.keys(map).length;
-const withRole = Object.values(map).filter(v => v.role).length;
-const withStorage = Object.values(map).filter(v => v.storage.length > 0).length;
-const withEvents = Object.values(map).filter(v => v.events.length > 0).length;
-const withHooks = Object.values(map).filter(v => v.hooks).length;
+const withRole = Object.values(map).filter((v) => v.role).length;
+const withStorage = Object.values(map).filter((v) => v.storage.length > 0).length;
+const withEvents = Object.values(map).filter((v) => v.events.length > 0).length;
+const withHooks = Object.values(map).filter((v) => v.hooks).length;
 console.log(`\n✅ 补丁完成: ${total} 条`);
-console.log(`   角色: ${withRole}/${total} | 存储: ${withStorage} | 事件: ${withEvents} | hooks: ${withHooks}`);
+console.log(
+  `   角色: ${withRole}/${total} | 存储: ${withStorage} | 事件: ${withEvents} | hooks: ${withHooks}`,
+);

@@ -1,31 +1,31 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react'
-import { useReactFlow } from '@xyflow/react'
-import { Image as ImageIcon, Plus, ZoomIn, Download } from 'lucide-react'
+import React, { useState, useRef, useCallback, useMemo } from 'react';
+import { useReactFlow } from '@xyflow/react';
+import { Image as ImageIcon, Plus, ZoomIn, Download } from 'lucide-react';
 // ═══ 基座组件（统一入口，禁止手写外壳/端口/背景）═══
-import NodeShell from '../base/ui/NodeShell.tsx'
-import HoverToolbar from '../base/panels/HoverToolbar.tsx'
-import ExpandablePanel from '../base/ui/ExpandablePanel.tsx'
-import GenerateButton from '../base/ui/GenerateButton.tsx'
-import ModelSelect from '../base/ui/ModelSelect.tsx'
-import PromptInput from '../base/prompt/PromptInput.tsx'
-import { resolvePromptChips } from '../base/prompt/promptChips.ts'
-import MaterialStrip from '../base/panels/MaterialStrip.tsx'
-import ResizeFullscreenHandle from '../base/ui/ResizeFullscreenHandle.tsx'
-import FullscreenModal from '../base/panels/FullscreenModal.tsx'
-import FullscreenEditor from '../base/panels/FullscreenEditor.tsx'
-import GeneratingOverlay from '../base/ui/GeneratingOverlay.tsx'
+import NodeShell from '../base/ui/NodeShell.tsx';
+import HoverToolbar from '../base/panels/HoverToolbar.tsx';
+import ExpandablePanel from '../base/ui/ExpandablePanel.tsx';
+import GenerateButton from '../base/ui/GenerateButton.tsx';
+import ModelSelect from '../base/ui/ModelSelect.tsx';
+import PromptInput from '../base/prompt/PromptInput.tsx';
+import { resolvePromptChips } from '../base/prompt/promptChips.ts';
+import MaterialStrip from '../base/panels/MaterialStrip.tsx';
+import ResizeFullscreenHandle from '../base/ui/ResizeFullscreenHandle.tsx';
+import FullscreenModal from '../base/panels/FullscreenModal.tsx';
+import FullscreenEditor from '../base/panels/FullscreenEditor.tsx';
+import GeneratingOverlay from '../base/ui/GeneratingOverlay.tsx';
 // ═══ 基座 hook（统一范式）═══
-import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts'
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
-import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
-import { useGenerateNode } from '../../hooks/useGenerateNode.ts'
-import { useNodePrefs } from '../base/canvas/nodePrefs.ts'
-import { showToast } from '../base/core/toastStore.ts'
-import { generateImage } from '../base/api/index.ts'
-import { toAbsoluteFileUrl } from '../base/api/index.ts'
-import { useRenderImageResolver } from '../base/utils/imageUrl.ts'
-import { debounce, mergeRefImages, buildEffectivePrompt } from '../base/core/utils.ts'
-import { resolveProviderModel } from '../base/utils/providerModels.ts'
+import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts';
+import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
+import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
+import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
+import { useNodePrefs } from '../base/canvas/nodePrefs.ts';
+import { showToast } from '../base/core/toastStore.ts';
+import { generateImage } from '../base/api/index.ts';
+import { toAbsoluteFileUrl } from '../base/api/index.ts';
+import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
+import { debounce, mergeRefImages, buildEffectivePrompt } from '../base/core/utils.ts';
+import { resolveProviderModel } from '../base/utils/providerModels.ts';
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -108,128 +108,148 @@ import { resolveProviderModel } from '../base/utils/providerModels.ts'
 
 /** 参考图素材形态（MaterialStrip / PromptInput / generateImage 共用） */
 interface RefImage {
-  id: string
-  url: string
-  label?: string
-  sourceNodeId?: string
+  id: string;
+  url: string;
+  label?: string;
+  sourceNodeId?: string;
 }
 
 /** 参考文本形态（resolvePromptChips 要求 id/label 必填） */
 interface RefText {
-  id: string
-  label: string
-  text?: string
-  sourceNodeId?: string
+  id: string;
+  label: string;
+  text?: string;
+  sourceNodeId?: string;
 }
 
 /** 模板节点 data 契约（新节点复制本文件后按需增改） */
 interface TemplateNodeData {
-  label?: string
-  prompt?: string
-  imageUrl?: string
-  aspectRatio?: string
-  selectedModel?: string
-  expanded?: boolean
-  inputWidth?: number
-  inputHeight?: number
-  images?: RefImage[]
-  texts?: RefText[]
-  [key: string]: unknown
+  label?: string;
+  prompt?: string;
+  imageUrl?: string;
+  aspectRatio?: string;
+  selectedModel?: string;
+  expanded?: boolean;
+  inputWidth?: number;
+  inputHeight?: number;
+  images?: RefImage[];
+  texts?: RefText[];
+  [key: string]: unknown;
 }
 
 interface TemplateNodeProps {
-  id: string
-  data: TemplateNodeData
-  selected?: boolean
+  id: string;
+  data: TemplateNodeData;
+  selected?: boolean;
 }
 
 function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   // ─── 1. 上游数据 + 性能降级（通用）───
   // useConnectedInputs：读取直接上游节点的产出（图片/文本）作为参考输入；空则渲染空态
-  const connected = useConnectedInputs(id)
+  const connected = useConnectedInputs(id);
   // useMediaDegrade：lodLevel>=2 时隐藏生成结果（大画布性能降级）
-  const { isHidden } = useMediaDegrade()
-  const render = useRenderImageResolver()
-  const hideResult = isHidden('image')
+  const { isHidden } = useMediaDegrade();
+  const render = useRenderImageResolver();
+  const hideResult = isHidden('image');
 
   // 上游合并：图片 + 文本（多个上游节点自动聚合；data.images/texts 额外资产也并入）
   // 注意：connected.images 与 data.images 可能重复进入同一批资产图（同 id/url，如剧本盒 script-asset-xxx），
   // mergeRefImages 按 id 去重，避免渲染 key 重复 / 图显示两份。
-  const refImages = useMemo(() => mergeRefImages(connected.images, data.images), [connected.images, data.images])
-  const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
+  const refImages = useMemo(
+    () => mergeRefImages(connected.images, data.images),
+    [connected.images, data.images],
+  );
+  const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])];
   // 注意：effectivePrompt 依赖下方声明的 prompt state，故计算延后到 prompt 初始化之后
 
   // ─── 2. ReactFlow 数据写回（统一范式）───
-  const { setNodes, setEdges } = useReactFlow()
+  const { setNodes, setEdges } = useReactFlow();
 
   // patchData：改 node.data 的唯一入口（不可变局部更新；Agent read_canvas 能读到最新）
-  const patchData = useCallback((patch: Record<string, unknown>) => {
-    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
-  }, [id, setNodes])
+  const patchData = useCallback(
+    (patch: Record<string, unknown>) => {
+      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
+    },
+    [id, setNodes],
+  );
 
   // ─── 3. 业务 state（用 useState 存 UI；改后 setState + patchData 双写）───
-  const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded)
-  const [prompt, setPrompt] = useState(data.prompt || '')
-  const [imageUrl, setImageUrl] = useState(data.imageUrl || '')
+  const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded);
+  const [prompt, setPrompt] = useState(data.prompt || '');
+  const [imageUrl, setImageUrl] = useState(data.imageUrl || '');
   // 全屏编辑：提示词输入框双击 → 全屏编辑提示词（复刻 TextNode）
-  const [fullscreenPrompt, setFullscreenPrompt] = useState(false)
+  const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
   // 全屏查看：主框双击 → 全屏查看生成结果（替代原 showToast('全屏') 占位）
-  const [fullscreenResult, setFullscreenResult] = useState(false)
+  const [fullscreenResult, setFullscreenResult] = useState(false);
 
   // 参数记忆：记住上次选的模型/比例，新建节点默认沿用（跨节点/跨会话）
   // 【模板】type 换成你的节点 type（如 'textNode'），默认值按需改
-  const { prefs: myPrefs, set: setMyPrefs } = useNodePrefs('templateNode', { model: '', aspectRatio: '1:1' })
+  const { prefs: myPrefs, set: setMyPrefs } = useNodePrefs('templateNode', {
+    model: '',
+    aspectRatio: '1:1',
+  });
   // 记忆只影响新建（见 App.addNode 注入）；存量初始化只读 data，缺字段用纯常量。
-  const [aspectRatio, setAspectRatio] = useState(data.aspectRatio ?? '1:1')
-  const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? '')
+  const [aspectRatio, setAspectRatio] = useState(data.aspectRatio ?? '1:1');
+  const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? '');
   // 有效提示词 = 本地 prompt + 上游文本（多文本节点合并），两者都参与生成；延后到 prompt 初始化后避免 TDZ
-  const effectivePrompt = buildEffectivePrompt(prompt, refTexts)
+  const effectivePrompt = buildEffectivePrompt(prompt, refTexts);
   // 【富文本芯片解析】prompt 里可能含 `@{id:label}` 素材芯片（图片 → 参考图，文本 → 纯文本）。
   // 生成前统一解析：chipResolved.text 是发给 AI 的纯文本；chipResolved.refImages 是用户显式 @ 的参考图。
   const chipResolved = useMemo(
     () => resolvePromptChips(effectivePrompt, refImages, refTexts),
-    [effectivePrompt, refImages, refTexts]
-  )
+    [effectivePrompt, refImages, refTexts],
+  );
 
   // 外部同步：Agent update_node 改 data 时，把变更同步回本地 state ——已收进 useGenerateNode 的 sync 参数。
 
   // 提示词落盘：本地 state + 写回 node.data（支持函数式更新；刷新不丢）
   const setPromptPersist = useCallback((v: React.SetStateAction<string>) => {
-    setPrompt((prev) => (typeof v === 'function' ? v(prev) : v))
-  }, [])
+    setPrompt((prev) => (typeof v === 'function' ? v(prev) : v));
+  }, []);
   // P2：prompt 持续输入走防抖写回（避免每键 setNodes 全图 node 数组重建）；卸载 flush 兜底
-  const debouncedPatch = useRef<{ (patch: Record<string, unknown>): void; flush(): void } | null>(null)
+  const debouncedPatch = useRef<{ (patch: Record<string, unknown>): void; flush(): void } | null>(
+    null,
+  );
   if (debouncedPatch.current == null) {
-    debouncedPatch.current = debounce(patchData, 200)
+    debouncedPatch.current = debounce(patchData, 200);
   }
 
   // 抽屉展开/收起
-  const toggleExpanded = useCallback(() => setExpanded((v) => !v), [])
+  const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
   // 【React 反模式修复】「写回 node.data」不在 setState updater 里做（渲染期间 setNodes → BatchProvider 警告），
   // 改用 useEffect 同步落盘。
-  React.useEffect(() => { debouncedPatch.current({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
-  React.useEffect(() => { patchData({ expanded }) }, [expanded]) // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    debouncedPatch.current({ prompt });
+  }, [prompt]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    patchData({ expanded });
+  }, [expanded]); // eslint-disable-line react-hooks/exhaustive-deps
   // 卸载前 flush 最后一次待提交（避免防抖窗口内丢数据）
-  React.useEffect(() => () => { debouncedPatch.current?.flush() }, [])
+  React.useEffect(
+    () => () => {
+      debouncedPatch.current?.flush();
+    },
+    [],
+  );
 
   // ─── 4. refs + 尺寸写回（通用）───
-  const wrapperRef = useRef<HTMLDivElement | null>(null)      // NodeShell 根 div（供主框手柄拖拽）
-  const promptInputRef = useRef<HTMLDivElement | null>(null)  // 提示词编辑器（PromptInput 暴露 contentEditable div）
-  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null)  // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
+  const wrapperRef = useRef<HTMLDivElement | null>(null); // NodeShell 根 div（供主框手柄拖拽）
+  const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器（PromptInput 暴露 contentEditable div）
+  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
   const insertMention = (asset: unknown) => {
-    if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset)
-  }
-  const fileRef = useRef<HTMLInputElement | null>(null)         // 隐藏 file input
-  const { onMainBoxResize, onInputResize } = useNodeResize(id)  // 主框/输入框尺寸写回 ReactFlow
+    if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset);
+  };
+  const fileRef = useRef<HTMLInputElement | null>(null); // 隐藏 file input
+  const { onMainBoxResize, onInputResize } = useNodeResize(id); // 主框/输入框尺寸写回 ReactFlow
 
   // 断连线：点击素材缩略图红色 ×，删除该素材来源节点 → 本节点的连线（通用）
   const disconnectSource = useCallback(
     (sourceNodeId: string) => {
-      if (!sourceNodeId) return
-      setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)))
+      if (!sourceNodeId) return;
+      setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)));
     },
-    [id, setEdges]
-  )
+    [id, setEdges],
+  );
 
   // ─── 5. 模型下拉 + 生成契约（通用；已统一收进 useGenerateNode）───
   // useGenerateNode 同时收敛：useProviders/models 聚合 + useSyncNodeData 外部同步 +
@@ -238,7 +258,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   const gen = useGenerateNode({
     nodeId: id,
     type: 'image',
-    prompt: chipResolved.text || effectivePrompt,             // 任务上报提示词（解析后，与实发一致）
+    prompt: chipResolved.text || effectivePrompt, // 任务上报提示词（解析后，与实发一致）
     data,
     prefs: myPrefs,
     setPrefs: setMyPrefs,
@@ -246,57 +266,85 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
     setSelectedModel,
     // 【模板】把所有「由 data 初始化的 state」都放进 sync（外部变更同步，直接读 useGenerateNode 文档）
     sync: { prompt: setPrompt, aspectRatio: setAspectRatio, selectedModel: setSelectedModel },
-    resultField: 'imageUrl',                                  // 成功 / 广播恢复自动 patchData({ imageUrl })
+    resultField: 'imageUrl', // 成功 / 广播恢复自动 patchData({ imageUrl })
     recoverable: true,
     // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生图
-    validate: () => ((effectivePrompt?.trim() || chipResolved.refImages.length > 0) ? '' : '请输入提示词'),
+    validate: () =>
+      effectivePrompt?.trim() || chipResolved.refImages.length > 0 ? '' : '请输入提示词',
     // ctx 由 useGenerateNode 注入：{ providers, primary, models, selectedModel, prefs, setPrefs }
     run: async ({ progress, signal, taskId }, { providers, primary }) => {
       // 从「providerId::modelId」解析出实际 provider 和 modelId（跨 provider 选模型）
-      const { provider: useProvider, modelId } = resolveProviderModel(providers, selectedModel, primary)
+      const { provider: useProvider, modelId } = resolveProviderModel(
+        providers,
+        selectedModel,
+        primary,
+      );
       // 参考图 = 用户显式 @ 的芯片图（顺序对应 prompt 里的「图片N」）+ 其余上游图（按 url 去重）。
       // generateImage 只收 URL 数组（GenerateImageOptions.images: string[]）。
-      const chipUrls = chipResolved.refImages.map((im) => im?.url)
-      const upstreamUrls = refImages.map((im) => im?.url)
-      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])].filter((u): u is string => !!u)
-      return generateImage({                                 // 真执行器（换成你的 API）
-        provider: useProvider,
-        // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）
-        prompt: chipResolved.text || effectivePrompt || '',
-        model: modelId,
-        images: refUrls,
-        aspectRatio,
-        taskId, // P0-A 请求级贯穿
-        // 中止信号必须落在第 3 位：generateImage(opts, onProgress?, signal?)
-      }, progress, signal)
+      const chipUrls = chipResolved.refImages.map((im) => im?.url);
+      const upstreamUrls = refImages.map((im) => im?.url);
+      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])].filter((u): u is string => !!u);
+      return generateImage(
+        {
+          // 真执行器（换成你的 API）
+          provider: useProvider,
+          // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）
+          prompt: chipResolved.text || effectivePrompt || '',
+          model: modelId,
+          images: refUrls,
+          aspectRatio,
+          taskId, // P0-A 请求级贯穿
+          // 中止信号必须落在第 3 位：generateImage(opts, onProgress?, signal?)
+        },
+        progress,
+        signal,
+      );
     },
-    onSuccess: (r) => {                                      // 成功：本地 state + 业务记忆；写 node.data 交由 resultField
-      setImageUrl(r.url ?? '')
-      setMyPrefs({ model: selectedModel, aspectRatio })
+    onSuccess: (r) => {
+      // 成功：本地 state + 业务记忆；写 node.data 交由 resultField
+      setImageUrl(r.url ?? '');
+      setMyPrefs({ model: selectedModel, aspectRatio });
     },
     // 【真相源契约·onRecover】任务中心完成广播 → 刷新后结果自动恢复（node.data 回填由 recoverable 自动完成）
     onRecover: ({ resultUrl }) => {
-      setImageUrl(String(resultUrl ?? ''))
+      setImageUrl(String(resultUrl ?? ''));
     },
-  })
+  });
 
   // ─── 7. hover 工具栏按钮（通用；可选）───
   // 【模板】换成你的按钮：{ key, icon, title, show, onClick }
   const toolbarButtons = [
-    { key: 'upload', icon: <Plus size={12} />, title: '上传', onClick: () => fileRef.current?.click() },
-    { key: 'zoom', icon: <ZoomIn size={12} />, title: '放大', show: !!imageUrl, onClick: () => showToast('放大预览') },
-    { key: 'download', icon: <Download size={12} />, title: '下载', show: !!imageUrl, onClick: () => showToast('下载') },
-  ]
+    {
+      key: 'upload',
+      icon: <Plus size={12} />,
+      title: '上传',
+      onClick: () => fileRef.current?.click(),
+    },
+    {
+      key: 'zoom',
+      icon: <ZoomIn size={12} />,
+      title: '放大',
+      show: !!imageUrl,
+      onClick: () => showToast('放大预览'),
+    },
+    {
+      key: 'download',
+      icon: <Download size={12} />,
+      title: '下载',
+      show: !!imageUrl,
+      onClick: () => showToast('下载'),
+    },
+  ];
 
   // ─── 8. 渲染（外壳 + hover 栏 + 主显示框 + 展开面板）───
   return (
     <NodeShell
       id={id}
       label={data.label}
-      defaultTitle="模板节点"               // 【模板】改成你的节点名
-      icon={<ImageIcon size={11} className="text-muted" />}  // 【模板】换成你的图标
+      defaultTitle="模板节点" // 【模板】改成你的节点名
+      icon={<ImageIcon size={11} className="text-muted" />} // 【模板】换成你的图标
       selected={selected}
-      handleVariant="small"                 // 'large'(48) / 'small'(32)
+      handleVariant="small" // 'large'(48) / 'small'(32)
       aspectRatio={aspectRatio}
       defaultHeight={280}
       wrapperRef={wrapperRef}
@@ -313,18 +361,33 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
       <HoverToolbar buttons={toolbarButtons} />
 
       {/* 隐藏文件输入（通用；不需要上传删掉） */}
-      <input type="file" ref={fileRef} accept="image/*" style={{ display: 'none' }} onChange={() => showToast('上传处理')} />
+      <input
+        type="file"
+        ref={fileRef}
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={() => showToast('上传处理')}
+      />
 
       {/* 主显示框（唯一必须 children；用 flex-1 填满，别用 h-full） */}
       <div className="relative flex flex-col w-full flex-1 min-h-0" onClick={toggleExpanded}>
         {hideResult ? (
           // 性能降级：大画布隐藏结果（通用）
-          <div className="flex-1 flex items-center justify-center text-caption text-muted">图片已隐藏</div>
+          <div className="flex-1 flex items-center justify-center text-caption text-muted">
+            图片已隐藏
+          </div>
         ) : imageUrl ? (
           <div className="flex-1 relative overflow-hidden rounded-xl">
-            <img src={render(imageUrl)} alt="" className="w-full h-full object-cover" loading="lazy" />
+            <img
+              src={render(imageUrl)}
+              alt=""
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
             {gen.error && (
-              <div className="absolute inset-x-0 bottom-0 p-2 bg-red-500/80 text-white text-caption"><span className="break-all">{gen.error}</span></div>
+              <div className="absolute inset-x-0 bottom-0 p-2 bg-red-500/80 text-white text-caption">
+                <span className="break-all">{gen.error}</span>
+              </div>
             )}
           </div>
         ) : (
@@ -365,7 +428,9 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
             refImages={refImages}
             refTexts={refTexts}
             onInsert={insertMention}
-            onReady={(fn) => { insertAssetRef.current = fn }}
+            onReady={(fn) => {
+              insertAssetRef.current = fn;
+            }}
             richText
             inputWidth={data.inputWidth}
             inputHeight={data.inputHeight}
@@ -378,17 +443,16 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
               {/* 模型下拉（通用 ModelSelect） */}
               <ModelSelect
                 value={selectedModel}
-                onChange={(m) => { setSelectedModel(m); setMyPrefs({ model: m }) }}
+                onChange={(m) => {
+                  setSelectedModel(m);
+                  setMyPrefs({ model: m });
+                }}
                 models={gen.models}
               />
             </div>
 
             {/* 生成 / 停止（通用 GenerateButton） */}
-            <GenerateButton
-              loading={gen.loading}
-              onGenerate={gen.start}
-              onStop={gen.stop}
-            />
+            <GenerateButton loading={gen.loading} onGenerate={gen.start} onStop={gen.stop} />
           </div>
         </div>
 
@@ -439,7 +503,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
       {/* 生成中遮罩（通用；可选） */}
       {gen.loading && <GeneratingOverlay label="生成中…" />}
     </NodeShell>
-  )
+  );
 }
 
 /**
@@ -538,4 +602,4 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
  *    重复，且旧写法「读滞后的 node.height 做 4px 阈值」会触发 ResizeObserver loop 告警
  *    （已由 hook 内 ref 防抖 + rAF + disconnect-reobserve 根治）。
  */
-export default React.memo(TemplateNode)
+export default React.memo(TemplateNode);

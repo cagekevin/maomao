@@ -19,7 +19,10 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..').replace(/\\/g, '/');
-const SAMPLE = (process.env.SAMPLE || '../一毛AI画布多端合一版本1.4.0/dist/assets').replace(/\\/g, '/');
+const SAMPLE = (process.env.SAMPLE || '../一毛AI画布多端合一版本1.4.0/dist/assets').replace(
+  /\\/g,
+  '/',
+);
 const SAMPLE_DIR = path.resolve(ROOT, SAMPLE).replace(/\\/g, '/');
 const SAMPLE_ROOT = path.resolve(SAMPLE_DIR, '..').replace(/\\/g, '/'); // .../1.4.0/dist
 
@@ -34,9 +37,14 @@ fs.mkdirSync(BUNDLE, { recursive: true });
 fs.mkdirSync(path.join(PUB, 'assets'), { recursive: true });
 
 // 1) 所有 js chunk：glob 取得，绝不以写死 1.3.5 名当默认
-const jsFiles = fs.readdirSync(SAMPLE_DIR).filter((f) => f.endsWith('.js')).sort();
+const jsFiles = fs
+  .readdirSync(SAMPLE_DIR)
+  .filter((f) => f.endsWith('.js'))
+  .sort();
 if (jsFiles.length === 0) {
-  console.error('样本 assets 目录下没有任何 .js chunk，请检查 SAMPLE 指向是否正确（应指向 1.4.0/dist/assets）。');
+  console.error(
+    '样本 assets 目录下没有任何 .js chunk，请检查 SAMPLE 指向是否正确（应指向 1.4.0/dist/assets）。',
+  );
   process.exit(1);
 }
 for (const f of jsFiles) {

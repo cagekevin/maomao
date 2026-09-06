@@ -7,70 +7,74 @@
  *   - onPaneClick / close：关闭（state=null）
  *   - 可编辑目标（input/textarea）右键被忽略（isEditableTarget 守卫）
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
-import type { MouseEvent as ReactMouseEvent } from 'react'
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 
-const { useContextMenu } = await import('../../src/hooks/useContextMenu.ts')
+const { useContextMenu } = await import('../../src/hooks/useContextMenu.ts');
 
 /**
  * 构造右键事件替身。
  * React 合成事件无法直接 new，而 hook 只读取 clientX/clientY 与
  * preventDefault/stopPropagation/target，故拼最小形状后集中断言一次类型。
  */
-function makeEvent({ target, clientX = 5, clientY = 6 }: { target?: EventTarget | null; clientX?: number; clientY?: number } = {}): ReactMouseEvent {
+function makeEvent({
+  target,
+  clientX = 5,
+  clientY = 6,
+}: { target?: EventTarget | null; clientX?: number; clientY?: number } = {}): ReactMouseEvent {
   return {
     clientX,
     clientY,
     preventDefault: vi.fn(),
     stopPropagation: vi.fn(),
     target: target || document.createElement('div'),
-  } as unknown as ReactMouseEvent
+  } as unknown as ReactMouseEvent;
 }
 
 describe('useContextMenu', () => {
-  let hook
+  let hook;
   beforeEach(() => {
-    const r = renderHook(() => useContextMenu())
-    hook = r.result
-  })
+    const r = renderHook(() => useContextMenu());
+    hook = r.result;
+  });
 
   it('初始 state 为 null', () => {
-    expect(hook.current.state).toBeNull()
-  })
+    expect(hook.current.state).toBeNull();
+  });
 
   it('onPaneContextMenu → canvas 菜单 + 阻止默认/冒泡', () => {
-    const e = makeEvent()
-    act(() => hook.current.onPaneContextMenu(e))
-    expect(hook.current.state).not.toBeNull()
-    expect(hook.current.state.type).toBe('canvas')
-    expect(hook.current.state.nodeId).toBeUndefined()
-    expect(e.preventDefault).toHaveBeenCalled()
-    expect(e.stopPropagation).toHaveBeenCalled()
-  })
+    const e = makeEvent();
+    act(() => hook.current.onPaneContextMenu(e));
+    expect(hook.current.state).not.toBeNull();
+    expect(hook.current.state.type).toBe('canvas');
+    expect(hook.current.state.nodeId).toBeUndefined();
+    expect(e.preventDefault).toHaveBeenCalled();
+    expect(e.stopPropagation).toHaveBeenCalled();
+  });
 
   it('onNodeContextMenu → node 菜单带 nodeId', () => {
-    const e = makeEvent()
-    act(() => hook.current.onNodeContextMenu(e, { id: 'n1' }))
-    expect(hook.current.state.type).toBe('node')
-    expect(hook.current.state.nodeId).toBe('n1')
-  })
+    const e = makeEvent();
+    act(() => hook.current.onNodeContextMenu(e, { id: 'n1' }));
+    expect(hook.current.state.type).toBe('node');
+    expect(hook.current.state.nodeId).toBe('n1');
+  });
 
   it('onPaneClick / close → 关闭', () => {
-    const e = makeEvent()
-    act(() => hook.current.onPaneContextMenu(e))
-    expect(hook.current.state).not.toBeNull()
-    act(() => hook.current.onPaneClick())
-    expect(hook.current.state).toBeNull()
-    act(() => hook.current.onPaneContextMenu(e))
-    act(() => hook.current.close())
-    expect(hook.current.state).toBeNull()
-  })
+    const e = makeEvent();
+    act(() => hook.current.onPaneContextMenu(e));
+    expect(hook.current.state).not.toBeNull();
+    act(() => hook.current.onPaneClick());
+    expect(hook.current.state).toBeNull();
+    act(() => hook.current.onPaneContextMenu(e));
+    act(() => hook.current.close());
+    expect(hook.current.state).toBeNull();
+  });
 
   it('可编辑目标（input）右键被忽略', () => {
-    const input = document.createElement('input')
-    const e = makeEvent({ target: input })
-    act(() => hook.current.onPaneContextMenu(e))
-    expect(hook.current.state).toBeNull()
-  })
-})
+    const input = document.createElement('input');
+    const e = makeEvent({ target: input });
+    act(() => hook.current.onPaneContextMenu(e));
+    expect(hook.current.state).toBeNull();
+  });
+});

@@ -40,13 +40,21 @@ function resolveExtPath() {
   // 中文路径：建 junction 到 ASCII 临时目录
   const junc = `C:\\gougou_ext_${Date.now()}`;
   try {
-    try { execSync(`cmd /c rmdir "${junc}"`, { stdio: 'ignore' }); } catch (e) { /* ignore */ }
+    try {
+      execSync(`cmd /c rmdir "${junc}"`, { stdio: 'ignore' });
+    } catch (e) {
+      /* ignore */
+    }
     execSync(`cmd /c mklink /J "${junc}" "${requested}"`, { stdio: 'ignore' });
     console.log('· 检测到中文路径 → 已建 ASCII junction 用于加载:', junc);
     return {
       extPath: junc.replace(/\\/g, '/'),
       cleanup: () => {
-        try { execSync(`cmd /c rmdir "${junc}"`, { stdio: 'ignore' }); } catch (e) { /* ignore */ }
+        try {
+          execSync(`cmd /c rmdir "${junc}"`, { stdio: 'ignore' });
+        } catch (e) {
+          /* ignore */
+        }
       },
     };
   } catch (e) {
@@ -120,7 +128,9 @@ async function findExtId(context, timeoutMs = 15000) {
           if (m) extId = m[1];
         }
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
     if (extId) break;
     await sleep(500);
   }
@@ -143,10 +153,17 @@ async function attachSW(sw, rec) {
     await cdp.send('Runtime.enable');
     cdp.on('Runtime.exceptionThrown', (e) => {
       const d = e.exceptionDetails;
-      rec('sw', 'exception', (d && (d.exception && d.exception.description || d.text)) || 'sw exception', d && d.url);
+      rec(
+        'sw',
+        'exception',
+        (d && ((d.exception && d.exception.description) || d.text)) || 'sw exception',
+        d && d.url,
+      );
     });
     cdp.on('Runtime.consoleAPICalled', (e) => {
-      const txt = (e.args || []).map((a) => (a.value !== undefined ? a.value : (a.description || ''))).join(' ');
+      const txt = (e.args || [])
+        .map((a) => (a.value !== undefined ? a.value : a.description || ''))
+        .join(' ');
       rec('sw', e.type, txt);
     });
   } catch (e) {

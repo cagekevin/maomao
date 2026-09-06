@@ -17,24 +17,24 @@
 
 // 单条 toast 结构：{ id, message, type, duration }
 /** toast 状态档（对应状态色模板 doc39 §3.2：success绿 / error红 / warning黄 / info蓝） */
-export type ToastType = 'success' | 'error' | 'warning' | 'info'
+export type ToastType = 'success' | 'error' | 'warning' | 'info';
 /** 单条 toast 结构（ToastContainer 渲染也用到，故导出） */
 export interface Toast {
-  id: number
-  message: string
-  type: ToastType
-  duration: number
+  id: number;
+  message: string;
+  type: ToastType;
+  duration: number;
 }
 /** showToast 选项 */
 interface ToastOptions {
-  type?: ToastType
-  duration?: number
+  type?: ToastType;
+  duration?: number;
 }
-let toasts: Toast[] = []
-let listeners = new Set<() => void>()
-let seq = 0
+let toasts: Toast[] = [];
+const listeners = new Set<() => void>();
+let seq = 0;
 
-const DURATION = 3000 // 默认 3s 自动消失
+const DURATION = 3000; // 默认 3s 自动消失
 
 // 分级默认时长：失败停留更久，让用户看清；中性 info 最短。
 const DEFAULT_DURATION: Record<ToastType, number> = {
@@ -42,7 +42,7 @@ const DEFAULT_DURATION: Record<ToastType, number> = {
   info: 2500,
   warning: 3500,
   error: 4000,
-}
+};
 
 /**
  * 弹一条提示。
@@ -52,40 +52,43 @@ const DEFAULT_DURATION: Record<ToastType, number> = {
  * @param {number} [opts.duration] 显示时长(ms)；0 = 不自动消失；缺省按分级取 DEFAULT_DURATION
  * @returns {number} toast id（可用于手动关闭）
  */
-export function showToast(message: string, { type = 'info' as ToastType, duration }: ToastOptions = {}): number {
-  const id = ++seq
-  const finalDuration = duration ?? DEFAULT_DURATION[type] ?? DURATION
-  toasts = [...toasts, { id, message: String(message ?? ''), type, duration: finalDuration }]
-  emit()
-  return id
+export function showToast(
+  message: string,
+  { type = 'info' as ToastType, duration }: ToastOptions = {},
+): number {
+  const id = ++seq;
+  const finalDuration = duration ?? DEFAULT_DURATION[type] ?? DURATION;
+  toasts = [...toasts, { id, message: String(message ?? ''), type, duration: finalDuration }];
+  emit();
+  return id;
 }
 
 /** 手动关闭某条 toast */
 export function dismissToast(id: number): void {
-  toasts = toasts.filter((t) => t.id !== id)
-  emit()
+  toasts = toasts.filter((t) => t.id !== id);
+  emit();
 }
 
 /** 关闭所有 toast */
 export function clearToasts(): void {
-  if (toasts.length === 0) return
-  toasts = []
-  emit()
+  if (toasts.length === 0) return;
+  toasts = [];
+  emit();
 }
 
 /** 订阅（返回取消函数）。ToastContainer 用它渲染。 */
 export function subscribe(listener: () => void): () => boolean {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }
 
 /** 读当前快照 */
 export function getToasts(): Toast[] {
-  return toasts
+  return toasts;
 }
 
 function emit(): void {
-  listeners.forEach((l) => l())
+  listeners.forEach((l) => l());
 }
 
 /**
@@ -93,7 +96,11 @@ function emit(): void {
  * 约定：仅当用户「无法直接从界面感知结果」时才弹——后台保存、跨域复制失败、云端推送、
  * 降级有损等；用户一眼能看出的结果（粘贴图片到画布、复制节点）不要弹，属于噪音。
  */
-export const toastSuccess = (message: string, opts?: ToastOptions): number => showToast(message, { ...opts, type: 'success' })
-export const toastError = (message: string, opts?: ToastOptions): number => showToast(message, { ...opts, type: 'error' })
-export const toastWarning = (message: string, opts?: ToastOptions): number => showToast(message, { ...opts, type: 'warning' })
-export const toastInfo = (message: string, opts?: ToastOptions): number => showToast(message, { ...opts, type: 'info' })
+export const toastSuccess = (message: string, opts?: ToastOptions): number =>
+  showToast(message, { ...opts, type: 'success' });
+export const toastError = (message: string, opts?: ToastOptions): number =>
+  showToast(message, { ...opts, type: 'error' });
+export const toastWarning = (message: string, opts?: ToastOptions): number =>
+  showToast(message, { ...opts, type: 'warning' });
+export const toastInfo = (message: string, opts?: ToastOptions): number =>
+  showToast(message, { ...opts, type: 'info' });

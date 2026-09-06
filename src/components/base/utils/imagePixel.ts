@@ -26,8 +26,8 @@ export const RATIO_PIXEL_TABLE: Record<string, Record<string, string>> = {
   '1:2': { '1K': '1024x2048', '2K': '1024x2048', '4K': '1920x3840' },
   '4:3': { '1K': '1024x768', '2K': '2304x1728', '4K': '2880x2160' },
   '3:4': { '1K': '768x1024', '2K': '1728x2304', '4K': '2160x2880' },
-}
-const DEFAULT_PIXEL = '1024x1024'
+};
+const DEFAULT_PIXEL = '1024x1024';
 
 /**
  * 比例 + 档位 → 精确像素（查表，复刻官方）。
@@ -35,7 +35,7 @@ const DEFAULT_PIXEL = '1024x1024'
  *  - 档位查不到 → 回退该比例的 '1K'；比例也查不到 → 兜底 DEFAULT_PIXEL
  */
 export function resolveImagePixel(ratio: string, size: string): string {
-  if (!ratio || ratio === 'Auto' || ratio === 'auto') return ''
-  const byRatio = RATIO_PIXEL_TABLE[ratio] || {}
-  return byRatio[size] || byRatio['1K'] || DEFAULT_PIXEL
+  if (!ratio || ratio === 'Auto' || ratio === 'auto') return '';
+  const byRatio = RATIO_PIXEL_TABLE[ratio] || {};
+  return byRatio[size] || byRatio['1K'] || DEFAULT_PIXEL;
 }

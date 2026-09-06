@@ -1,5 +1,5 @@
-import React from 'react'
-import ToolbarButton from '../ui/ToolbarButton.tsx'
+import React from 'react';
+import ToolbarButton from '../ui/ToolbarButton.tsx';
 
 /**
  * 节点 hover 操作栏（复刻各节点悬浮胶囊操作栏的公共结构）。
@@ -12,26 +12,26 @@ import ToolbarButton from '../ui/ToolbarButton.tsx'
  *  - loadingIcon  loading 图标节点（默认无）
  */
 export interface ToolbarButtonConfig {
-  key: string
-  icon: React.ReactNode
-  title: string
-  hoverClass?: string
-  show?: boolean
-  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
+  key: string;
+  icon: React.ReactNode;
+  title: string;
+  hoverClass?: string;
+  show?: boolean;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
 export interface HoverToolbarProps {
   /** 按钮配置数组（各节点 hover 操作栏声明同一形状） */
-  buttons?: ToolbarButtonConfig[]
+  buttons?: ToolbarButtonConfig[];
   /** 是否显示 loading 图标（可选） */
-  loading?: boolean
+  loading?: boolean;
   /** loading 图标节点（默认无） */
-  loadingIcon?: React.ReactNode
+  loadingIcon?: React.ReactNode;
 }
 
 function HoverToolbar({ buttons = [], loading = false, loadingIcon = null }: HoverToolbarProps) {
-  const visible = buttons.filter((b) => b.show !== false)
-  if (visible.length === 0 && !loading) return null
+  const visible = buttons.filter((b) => b.show !== false);
+  if (visible.length === 0 && !loading) return null;
 
   return (
     <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-20 opacity-0 group-hover/node:opacity-100 transition-opacity pointer-events-none group-hover/node:pointer-events-auto nodrag pb-4">
@@ -48,7 +48,7 @@ function HoverToolbar({ buttons = [], loading = false, loadingIcon = null }: Hov
         ))}
       </div>
     </div>
-  )
+  );
 }
 
-export default React.memo(HoverToolbar)
+export default React.memo(HoverToolbar);

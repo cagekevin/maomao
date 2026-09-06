@@ -58,7 +58,9 @@ traverse(ast, {
         if (exported === 'default')
           facadeExports.add(`export { default } from './${compDirName}/${safeLocal}.jsx';`);
         else
-          facadeExports.add(`export { default as ${exported} } from './${compDirName}/${safeLocal}.jsx';`);
+          facadeExports.add(
+            `export { default as ${exported} } from './${compDirName}/${safeLocal}.jsx';`,
+          );
       } else if (exported !== 'default') {
         facadeExports.add(`export { ${local} as ${exported} } from './${compDirName}/shared.js';`);
       }
@@ -80,7 +82,8 @@ traverse(ast, {
 
 const finalCode =
   `/**\n * Facade Re-export\n * 逻辑已拆分至 /${compDirName}\n */\n` +
-  [...facadeExports].join('\n') + '\n';
+  [...facadeExports].join('\n') +
+  '\n';
 
 fs.writeFileSync(inputFile, finalCode, 'utf-8');
 const kb = (rawCode.length / 1024).toFixed(0);

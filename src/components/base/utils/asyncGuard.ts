@@ -12,22 +12,25 @@
  *  - loadImageWithTimeout(url, ms?, opts?)：图片加载 + 超时 + crossOrigin + 取消，统一图片入口。
  */
 
-import { IMAGE_LOAD_TIMEOUT } from '../core/config.ts'
-import type { ImageLoadOptions } from '@/types'
+import { IMAGE_LOAD_TIMEOUT } from '../core/config.ts';
+import type { ImageLoadOptions } from '@/types';
 
 /** 超时错误（统一类型，便于调用方用 isTimeoutError 区分"超时"与"真实失败"） */
 export class TimeoutError extends Error {
-  isTimeout = true
-  override name = 'TimeoutError'
+  isTimeout = true;
+  override name = 'TimeoutError';
   constructor(message = '操作超时') {
-    super(message)
+    super(message);
   }
 }
 
 /** 判断是否为超时错误 */
 export function isTimeoutError(e: unknown): boolean {
-  const err = e as { isTimeout?: boolean; name?: string } | null
-  return !!(err && (err instanceof TimeoutError || err?.isTimeout === true || err?.name === 'TimeoutError'))
+  const err = e as { isTimeout?: boolean; name?: string } | null;
+  return !!(
+    err &&
+    (err instanceof TimeoutError || err?.isTimeout === true || err?.name === 'TimeoutError')
+  );
 }
 
 /**
@@ -43,26 +46,38 @@ export function withTimeout<T>(
   ms: number,
   message = '操作超时',
   signal?: AbortSignal,
-  onTimeout?: () => void
+  onTimeout?: () => void,
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    if (!(ms > 0)) return resolve(promise)
+    if (!(ms > 0)) return resolve(promise);
     const timer = setTimeout(() => {
-      try { onTimeout?.() } catch { /* 取消回调失败不阻断 */ }
+      try {
+        onTimeout?.();
+      } catch {
+        /* 取消回调失败不阻断 */
+      }
       // 中止底层信号：优先标准 abort()，跨环境（jsdom/老浏览器）用 dispatchEvent fallback
       // 注：AbortSignal 原生无 abort()（AbortController 才有），此分支本为兜底旧实现，故窄化类型后保持运行时语义
-      const sig = signal as (AbortSignal & { abort?: () => void }) | undefined
+      const sig = signal as (AbortSignal & { abort?: () => void }) | undefined;
       try {
-        if (sig?.abort) sig.abort()
-        else sig?.dispatchEvent?.(new Event('abort'))
-      } catch { /* 忽略 */ }
-      reject(new TimeoutError(message))
-    }, ms)
-    const done = () => clearTimeout(timer)
+        if (sig?.abort) sig.abort();
+        else sig?.dispatchEvent?.(new Event('abort'));
+      } catch {
+        /* 忽略 */
+      }
+      reject(new TimeoutError(message));
+    }, ms);
+    const done = () => clearTimeout(timer);
     Promise.resolve(promise)
-      .then((v) => { done(); resolve(v) })
-      .catch((e) => { done(); reject(e) })
-  })
+      .then((v) => {
+        done();
+        resolve(v);
+      })
+      .catch((e) => {
+        done();
+        reject(e);
+      });
+  });
 }
 
 /**
@@ -70,19 +85,28 @@ export function withTimeout<T>(
  * 已替代各模块私有实现：imageCompress / faceMosaic / OverlayEditor / GridMergeNode（原先均无统一超时）。
  * 批量加载请改用 loadImageOrNull（坏图降级 null，不抛错）。
  */
-export function loadImageWithTimeout(url: string, opts: ImageLoadOptions = {}): Promise<HTMLImageElement> {
-  const { timeoutMs = IMAGE_LOAD_TIMEOUT, crossOrigin = 'anonymous' } = opts
+export function loadImageWithTimeout(
+  url: string,
+  opts: ImageLoadOptions = {},
+): Promise<HTMLImageElement> {
+  const { timeoutMs = IMAGE_LOAD_TIMEOUT, crossOrigin = 'anonymous' } = opts;
   return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.crossOrigin = crossOrigin
+    const img = new Image();
+    img.crossOrigin = crossOrigin;
     const timer = setTimeout(() => {
-      img.src = '' // 打断挂起加载
-      reject(new TimeoutError('图片加载超时'))
-    }, timeoutMs)
-    img.onload = () => { clearTimeout(timer); resolve(img) }
-    img.onerror = () => { clearTimeout(timer); reject(new Error('图片加载失败（可能跨域或格式不支持）')) }
-    img.src = String(url || '')
-  })
+      img.src = ''; // 打断挂起加载
+      reject(new TimeoutError('图片加载超时'));
+    }, timeoutMs);
+    img.onload = () => {
+      clearTimeout(timer);
+      resolve(img);
+    };
+    img.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error('图片加载失败（可能跨域或格式不支持）'));
+    };
+    img.src = String(url || '');
+  });
 }
 
 /**
@@ -95,14 +119,19 @@ export function loadImageWithTimeout(url: string, opts: ImageLoadOptions = {}): 
  *   2) 失败则去掉 crossOrigin 再试一次（跨域图无 CORS 头时的兜底，代价是 canvas 被污染）。
  * 两级都受 IMAGE_LOAD_TIMEOUT 保护——原先的私有实现**没有超时**，图片挂起会让导出/合成永久卡死。
  */
-export async function loadImageOrNull(url: string, opts: ImageLoadOptions = {}): Promise<HTMLImageElement | null> {
-  if (!url) return null
+export async function loadImageOrNull(
+  url: string,
+  opts: ImageLoadOptions = {},
+): Promise<HTMLImageElement | null> {
+  if (!url) return null;
   try {
-    return await loadImageWithTimeout(url, opts)
-  } catch { /* 落到无 crossOrigin 重试：跨域图无 CORS 头的兜底 */ }
-  try {
-    return await loadImageWithTimeout(url, { ...opts, crossOrigin: null })
+    return await loadImageWithTimeout(url, opts);
   } catch {
-    return null
+    /* 落到无 crossOrigin 重试：跨域图无 CORS 头的兜底 */
+  }
+  try {
+    return await loadImageWithTimeout(url, { ...opts, crossOrigin: null });
+  } catch {
+    return null;
   }
 }

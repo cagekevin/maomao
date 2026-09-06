@@ -42,7 +42,11 @@ function toDeps(
 function assertCategory(model: string, expected: 'IMAGE' | 'VIDEO' | 'CHAT'): void {
   const spec = LOVART_MODEL_SPECS[model];
   if (!spec || spec.category !== expected) {
-    throw new LovartError(`模型 ${model} 不是${expected === 'IMAGE' ? '图片' : expected === 'VIDEO' ? '视频' : '对话'}模型`, -1, LOVART_ERR_TYPES.UPSTREAM);
+    throw new LovartError(
+      `模型 ${model} 不是${expected === 'IMAGE' ? '图片' : expected === 'VIDEO' ? '视频' : '对话'}模型`,
+      -1,
+      LOVART_ERR_TYPES.UPSTREAM,
+    );
   }
 }
 
@@ -51,7 +55,10 @@ function assertCategory(model: string, expected: 'IMAGE' | 'VIDEO' | 'CHAT'): vo
  * 对齐 apimart-gateway/main.py chat_completions：content 为字符串直接取；为数组时提取 text 块与
  * image_url 块（url 可为 data:base64 / http(s) / 本地 /files/ 路径，后续由 resolveLovartAttachments 上传 CDN）。
  */
-function extractChatTextAndImages(messages?: Array<{ role?: string; content?: unknown }>): { text: string; images: string[] } {
+function extractChatTextAndImages(messages?: Array<{ role?: string; content?: unknown }>): {
+  text: string;
+  images: string[];
+} {
   const textParts: string[] = [];
   const images: string[] = [];
   if (!messages || messages.length === 0) return { text: '', images };
@@ -140,7 +147,9 @@ export async function streamChatLovart(
     // 非 chat 模型走对话不被鼓励，但允许（用可读名兜底）
   }
   await setLovartMode(deps, false);
-  const { text: userText, images } = extractChatTextAndImages(opts.messages as Array<{ role?: string; content?: unknown }>);
+  const { text: userText, images } = extractChatTextAndImages(
+    opts.messages as Array<{ role?: string; content?: unknown }>,
+  );
   const attachments = await resolveLovartAttachments(deps, images.length ? images : undefined);
   const prompt = buildLovartPrompt(opts.model, userText, undefined, !!attachments);
   const toolConfig = buildLovartToolConfig(opts.model);
@@ -157,7 +166,9 @@ export async function chatLovartText(
   opts: { model: string; messages?: unknown[]; signal?: AbortSignal; timeoutMs?: number },
 ): Promise<string> {
   const deps = toDeps(profile, opts.signal, opts.timeoutMs);
-  const { text: userText, images } = extractChatTextAndImages(opts.messages as Array<{ role?: string; content?: unknown }>);
+  const { text: userText, images } = extractChatTextAndImages(
+    opts.messages as Array<{ role?: string; content?: unknown }>,
+  );
   await setLovartMode(deps, false);
   const attachments = await resolveLovartAttachments(deps, images.length ? images : undefined);
   const prompt = buildLovartPrompt(opts.model, userText, undefined, !!attachments);
@@ -205,10 +216,21 @@ export async function submitLovartTask(
   const extraParams = [...(opts.extraParams ?? [])];
   if (opts.capability === 'VIDEO' && opts.size) extraParams.push(`aspect_ratio: ${opts.size}`);
   if (opts.capability === 'VIDEO' && opts.duration) extraParams.push(`duration: ${opts.duration}`);
-  if (opts.capability === 'VIDEO' && opts.resolution) extraParams.push(`resolution: ${String(opts.resolution).trim()}`);
-  const prompt = buildLovartPrompt(opts.model, opts.prompt ?? '', opts.capability === 'IMAGE' ? opts.size : undefined, !!attachments, extraParams);
+  if (opts.capability === 'VIDEO' && opts.resolution)
+    extraParams.push(`resolution: ${String(opts.resolution).trim()}`);
+  const prompt = buildLovartPrompt(
+    opts.model,
+    opts.prompt ?? '',
+    opts.capability === 'IMAGE' ? opts.size : undefined,
+    !!attachments,
+    extraParams,
+  );
   const toolConfig = buildLovartToolConfig(opts.model); // 结构化路选模型（B5）
-  const { threadId, projectId } = await sendLovartChatWithProject(deps, { prompt, attachments, toolConfig });
+  const { threadId, projectId } = await sendLovartChatWithProject(deps, {
+    prompt,
+    attachments,
+    toolConfig,
+  });
   return { threadId, projectId };
 }
 

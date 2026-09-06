@@ -26,7 +26,11 @@ interface JsonChunkDelta {
   role?: string;
   content?: string;
   finish_reason?: string;
-  tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }>;
+  tool_calls?: Array<{
+    index?: number;
+    id?: string;
+    function?: { name?: string; arguments?: string };
+  }>;
 }
 interface JsonChunk {
   object?: string;
@@ -45,7 +49,11 @@ interface JsonMessage {
   error?: { message?: string };
 }
 
-function decodeUtf8Lines(bytes: Uint8Array, prevRemainder: string, decoder: TextDecoder): { lines: string[]; remainder: string } {
+function decodeUtf8Lines(
+  bytes: Uint8Array,
+  prevRemainder: string,
+  decoder: TextDecoder,
+): { lines: string[]; remainder: string } {
   const text = prevRemainder + decoder.decode(bytes, { stream: true });
   const raw = text.split('\n');
   if (text.endsWith('\n')) {
@@ -78,7 +86,11 @@ function mapFinishReason(reason: string): string {
   return 'stop';
 }
 
-function parseOpenAiChunk(json: JsonChunk, requestId: string, modelId: string): AssistantStreamEvent[] {
+function parseOpenAiChunk(
+  json: JsonChunk,
+  requestId: string,
+  modelId: string,
+): AssistantStreamEvent[] {
   const events: AssistantStreamEvent[] = [];
   if (json.object === 'chat.completion.chunk' && json.choices?.[0]?.delta?.role) {
     events.push({ type: 'start', requestId, modelId });
@@ -101,7 +113,10 @@ function parseOpenAiChunk(json: JsonChunk, requestId: string, modelId: string): 
   return events;
 }
 
-export async function parseStream(response: Response, options: ParseStreamOptions): Promise<string> {
+export async function parseStream(
+  response: Response,
+  options: ParseStreamOptions,
+): Promise<string> {
   const { onEvent, signal } = options;
   const requestId = options.requestId || '';
   const modelId = options.modelId || '';
@@ -112,8 +127,15 @@ export async function parseStream(response: Response, options: ParseStreamOption
     try {
       const err = JSON.parse(errorBody) as JsonMessage;
       errorMsg = err.error?.message || errorMsg;
-    } catch { /* ignore */ }
-    onEvent({ type: 'error', code: 'HTTP_ERROR', message: errorMsg, retryable: response.status >= 500 });
+    } catch {
+      /* ignore */
+    }
+    onEvent({
+      type: 'error',
+      code: 'HTTP_ERROR',
+      message: errorMsg,
+      retryable: response.status >= 500,
+    });
     onEvent({ type: 'done', finishReason: 'error' });
     throw new Error(errorMsg);
   }
@@ -145,7 +167,11 @@ export async function parseStream(response: Response, options: ParseStreamOption
       if (delta.function?.name) current.toolId = delta.function.name;
       if (delta.function?.arguments) {
         current.argumentsJson += delta.function.arguments;
-        onEvent({ type: 'tool.call.delta', callId: current.callId, delta: delta.function.arguments });
+        onEvent({
+          type: 'tool.call.delta',
+          callId: current.callId,
+          delta: delta.function.arguments,
+        });
       }
       toolCallBuffer.set(index, current);
     }
@@ -158,7 +184,10 @@ export async function parseStream(response: Response, options: ParseStreamOption
       if (!call.toolId || !call.argumentsJson) continue;
       try {
         const input = JSON.parse(call.argumentsJson);
-        onEvent({ type: 'tool.call.final', call: { callId: call.callId, toolId: call.toolId, input } });
+        onEvent({
+          type: 'tool.call.final',
+          call: { callId: call.callId, toolId: call.toolId, input },
+        });
       } catch {
         // 不完整或非法 JSON 不进入工具执行层
       }
@@ -232,7 +261,10 @@ export async function parseStream(response: Response, options: ParseStreamOption
   return fullContent;
 }
 
-export async function parseNonStream(response: Response, options: ParseStreamOptions): Promise<string> {
+export async function parseNonStream(
+  response: Response,
+  options: ParseStreamOptions,
+): Promise<string> {
   const { onEvent } = options;
 
   if (!response.ok) {
@@ -241,13 +273,20 @@ export async function parseNonStream(response: Response, options: ParseStreamOpt
     try {
       const err = JSON.parse(errorBody) as JsonMessage;
       errorMsg = err.error?.message || errorMsg;
-    } catch { /* ignore */ }
-    onEvent({ type: 'error', code: 'HTTP_ERROR', message: errorMsg, retryable: response.status >= 500 });
+    } catch {
+      /* ignore */
+    }
+    onEvent({
+      type: 'error',
+      code: 'HTTP_ERROR',
+      message: errorMsg,
+      retryable: response.status >= 500,
+    });
     onEvent({ type: 'done', finishReason: 'error' });
     throw new Error(errorMsg);
   }
 
-  const json = await response.json() as JsonMessage;
+  const json = (await response.json()) as JsonMessage;
   const choices = json.choices;
   const content = choices?.[0]?.message?.content || '';
 
@@ -271,7 +310,11 @@ export async function parseNonStream(response: Response, options: ParseStreamOpt
 
   const usage = json.usage;
   if (usage) {
-    onEvent({ type: 'usage', inputTokens: usage.prompt_tokens ?? 0, outputTokens: usage.completion_tokens ?? 0 });
+    onEvent({
+      type: 'usage',
+      inputTokens: usage.prompt_tokens ?? 0,
+      outputTokens: usage.completion_tokens ?? 0,
+    });
   }
 
   onEvent({ type: 'done', finishReason: 'stop' });

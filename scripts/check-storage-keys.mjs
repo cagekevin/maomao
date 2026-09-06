@@ -18,76 +18,93 @@
  *   node scripts/check-storage-keys.mjs                 # 校验全部 components
  *   node scripts/check-storage-keys.mjs src/components/base/contentStore.js  # 指定文件
  */
-import { build } from 'esbuild'
-import { readFileSync } from 'node:fs'
-import { resolve, extname } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { defaultTargets } from './check-targets.mjs'
+import { build } from 'esbuild';
+import { readFileSync } from 'node:fs';
+import { resolve, extname } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { defaultTargets } from './check-targets.mjs';
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const root = resolve(__dirname, '..')
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const root = resolve(__dirname, '..');
 
 // 待校验的存储入口函数名（第一个参数为 key）
 const STORAGE_FNS = new Set([
-  'contentGet', 'contentSet', 'contentDelete', 'contentHas',
-  'contentGetAsync', 'contentSetAsync', 'contentDeleteAsync',
-  'contentSubscribe', 'contentGetKeySnapshot', 'contentGetSnapshot',
-  'sGet', 'sSet', 'sRemove',
-  'storageGet', 'storageSet', 'storageDelete',
-  'kvGet', 'kvSet', 'kvDelete',
-])
+  'contentGet',
+  'contentSet',
+  'contentDelete',
+  'contentHas',
+  'contentGetAsync',
+  'contentSetAsync',
+  'contentDeleteAsync',
+  'contentSubscribe',
+  'contentGetKeySnapshot',
+  'contentGetSnapshot',
+  'sGet',
+  'sSet',
+  'sRemove',
+  'storageGet',
+  'storageSet',
+  'storageDelete',
+  'kvGet',
+  'kvSet',
+  'kvDelete',
+]);
 
 // 易与存储调用混淆、但参数不是 key 的函数（资源路径等），排除
-const EXCLUDE_FNS = new Set(['resolveAsset'])
+const EXCLUDE_FNS = new Set(['resolveAsset']);
 
 // 裸字符串字面量 key 的正则：fn('literal' 或 "literal"，可含 . _ - { }
 const LITERAL_KEY_RE = new RegExp(
   `\\b(${[...STORAGE_FNS].join('|')})\\s*\\(\\s*(['"])([a-zA-Z0-9_.<>{}/-]+)\\2`,
-  'g'
-)
+  'g',
+);
 
 // ── 加载登记表（运行时导入 contracts.js，含 pattern 模板）──
-let STORAGE_KEYS = {}
+let STORAGE_KEYS = {};
 try {
-  const mod = await import(pathToFileURL(resolve(root, 'src/components/base/core/contracts.ts')).href)
-  STORAGE_KEYS = mod.STORAGE_KEYS || {}
+  const mod = await import(
+    pathToFileURL(resolve(root, 'src/components/base/core/contracts.ts')).href
+  );
+  STORAGE_KEYS = mod.STORAGE_KEYS || {};
 } catch (e) {
-  console.error('  ✖ 无法加载 contracts.ts 登记表：', e.message)
-  process.exit(1)
+  console.error('  ✖ 无法加载 contracts.ts 登记表：', e.message);
+  process.exit(1);
 }
 
 function isRegistered(key) {
-  if (key in STORAGE_KEYS) return true
+  if (key in STORAGE_KEYS) return true;
   // pattern 模板匹配：把 {xxx} 当 .+ 动态段
   for (const pattern of Object.keys(STORAGE_KEYS)) {
-    if (!STORAGE_KEYS[pattern].pattern) continue
+    if (!STORAGE_KEYS[pattern].pattern) continue;
     const re = new RegExp(
-      '^' + pattern.split(/\{[^}]+\}/).map((p) => p.replace(/[.+^$()|[\]\\]/g, '\\$&')).join('.+') + '$'
-    )
-    if (re.test(key)) return true
+      '^' +
+        pattern
+          .split(/\{[^}]+\}/)
+          .map((p) => p.replace(/[.+^$()|[\]\\]/g, '\\$&'))
+          .join('.+') +
+        '$',
+    );
+    if (re.test(key)) return true;
   }
-  return false
+  return false;
 }
 
-const args = process.argv.slice(2)
-const targets =
-  args.length > 0
-    ? args.map((a) => resolve(root, a))
-    : defaultTargets(root) // 扫描根见 check-targets.mjs（含 src/hooks，避免收口后形成校验盲区）
+const args = process.argv.slice(2);
+const targets = args.length > 0 ? args.map((a) => resolve(root, a)) : defaultTargets(root); // 扫描根见 check-targets.mjs（含 src/hooks，避免收口后形成校验盲区）
 
-let violations = 0
+let violations = 0;
 
 for (const file of targets) {
-  const rel = file.replace(root + '/', '')
-  let src
+  const rel = file.replace(root + '/', '');
+  let src;
   try {
-    src = readFileSync(file, 'utf8')
+    src = readFileSync(file, 'utf8');
   } catch {
-    continue
+    continue;
   }
   // 跳过合约登记表自身与 contentStore（其定义含 pattern 键，且自身是校验目标）
-  const relNoExt = rel.slice(0, rel.length - extname(rel).length)
-  if (relNoExt.endsWith('contracts') || relNoExt.endsWith('contentStore')) continue
+  const relNoExt = rel.slice(0, rel.length - extname(rel).length);
+  if (relNoExt.endsWith('contracts') || relNoExt.endsWith('contentStore')) continue;
 
   // 语法校验（esbuild，确保 JSX 也能读；失败仅警告不阻断扫描）
   try {
@@ -99,31 +116,35 @@ for (const file of targets) {
       loader: { '.jsx': 'jsx' },
       jsx: 'automatic',
       logLevel: 'silent',
-    })
-  } catch { /* 语法问题交给 check-jsx，本脚本不重复报错 */ }
+    });
+  } catch {
+    /* 语法问题交给 check-jsx，本脚本不重复报错 */
+  }
 
-  const lines = src.split('\n')
+  const lines = src.split('\n');
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    LITERAL_KEY_RE.lastIndex = 0
-    let m
+    const line = lines[i];
+    LITERAL_KEY_RE.lastIndex = 0;
+    let m;
     while ((m = LITERAL_KEY_RE.exec(line)) !== null) {
-      const fn = m[1]
-      const key = m[3]
-      if (EXCLUDE_FNS.has(fn)) continue
+      const fn = m[1];
+      const key = m[3];
+      if (EXCLUDE_FNS.has(fn)) continue;
       if (!isRegistered(key)) {
-        violations++
-        console.error(`  ✖ ${rel}:${i + 1}  裸存储键未登记: ${fn}('${key}')`)
+        violations++;
+        console.error(`  ✖ ${rel}:${i + 1}  裸存储键未登记: ${fn}('${key}')`);
       }
     }
   }
 }
 
 if (violations === 0) {
-  console.log(`\n存储键契约校验通过 ✔（已扫描 ${targets.length} 个文件）`)
-  process.exit(0)
+  console.log(`\n存储键契约校验通过 ✔（已扫描 ${targets.length} 个文件）`);
+  process.exit(0);
 } else {
-  console.error(`\n发现 ${violations} 处未登记裸存储键 ✖`)
-  console.error('请先在 src/components/base/core/contracts.ts 的 STORAGE_KEYS 登记（禁止裸字符串 key）。')
-  process.exit(1)
+  console.error(`\n发现 ${violations} 处未登记裸存储键 ✖`);
+  console.error(
+    '请先在 src/components/base/core/contracts.ts 的 STORAGE_KEYS 登记（禁止裸字符串 key）。',
+  );
+  process.exit(1);
 }

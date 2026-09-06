@@ -34,7 +34,11 @@ async function run() {
   let changes = 0;
 
   function ok(p) {
-    try { return !p.removed && p.node; } catch (e) { return false; }
+    try {
+      return !p.removed && p.node;
+    } catch (e) {
+      return false;
+    }
   }
 
   traverse(ast, {
@@ -42,13 +46,12 @@ async function run() {
     VariableDeclaration(path) {
       try {
         if (path.removed || !path.node || !path.node.declarations) return;
-      } catch (e) { return; }
+      } catch (e) {
+        return;
+      }
       const declCount = path.node.declarations.length;
-      if (
-        declCount > 1 &&
-        (path.parentPath.isBlockStatement() || path.parentPath.isProgram())
-      ) {
-        const nodes = path.node.declarations.map(d => t.variableDeclaration(path.node.kind, [d]));
+      if (declCount > 1 && (path.parentPath.isBlockStatement() || path.parentPath.isProgram())) {
+        const nodes = path.node.declarations.map((d) => t.variableDeclaration(path.node.kind, [d]));
         path.replaceWithMultiple(nodes);
         changes += declCount - 1;
       }
@@ -76,7 +79,10 @@ async function run() {
       if (path.node.operator === '!' && t.isNumericLiteral(path.node.argument)) {
         path.replaceWith(t.booleanLiteral(path.node.argument.value === 0));
         changes++;
-      } else if (path.node.operator === 'void' && t.isNumericLiteral(path.node.argument, { value: 0 })) {
+      } else if (
+        path.node.operator === 'void' &&
+        t.isNumericLiteral(path.node.argument, { value: 0 })
+      ) {
         path.replaceWith(t.identifier('undefined'));
         changes++;
       }
@@ -103,7 +109,7 @@ async function run() {
       if (!path.parentPath.isExpressionStatement() && !path.parentPath.isReturnStatement()) {
         const exprs = path.node.expressions.slice();
         const last = exprs.pop();
-        const stmts = exprs.map(e => t.expressionStatement(e));
+        const stmts = exprs.map((e) => t.expressionStatement(e));
         const stmtParent = path.getStatementParent();
         if (stmtParent && stmts.length > 0) {
           stmtParent.insertBefore(stmts);
@@ -120,7 +126,7 @@ async function run() {
 
       // 4a. a(), b() → a(); b()
       if (t.isSequenceExpression(expr)) {
-        const stmts = expr.expressions.map(e => t.expressionStatement(e));
+        const stmts = expr.expressions.map((e) => t.expressionStatement(e));
         path.replaceWithMultiple(stmts);
         changes++;
         return;
@@ -129,18 +135,20 @@ async function run() {
       // 4b. a && b() → if (a) { b() }
       if (t.isLogicalExpression(expr) && expr.operator === '&&') {
         path.replaceWith(
-          t.ifStatement(expr.left, t.blockStatement([t.expressionStatement(expr.right)]))
+          t.ifStatement(expr.left, t.blockStatement([t.expressionStatement(expr.right)])),
         );
-        changes++; return;
+        changes++;
+        return;
       }
       if (t.isLogicalExpression(expr) && expr.operator === '||') {
         path.replaceWith(
           t.ifStatement(
             t.unaryExpression('!', expr.left),
-            t.blockStatement([t.expressionStatement(expr.right)])
-          )
+            t.blockStatement([t.expressionStatement(expr.right)]),
+          ),
         );
-        changes++; return;
+        changes++;
+        return;
       }
 
       // 4c. a = b ? c : d → if/else
@@ -149,11 +157,16 @@ async function run() {
         path.replaceWith(
           t.ifStatement(
             c.test,
-            t.blockStatement([t.expressionStatement(t.assignmentExpression(expr.operator, expr.left, c.consequent))]),
-            t.blockStatement([t.expressionStatement(t.assignmentExpression(expr.operator, expr.left, c.alternate))])
-          )
+            t.blockStatement([
+              t.expressionStatement(t.assignmentExpression(expr.operator, expr.left, c.consequent)),
+            ]),
+            t.blockStatement([
+              t.expressionStatement(t.assignmentExpression(expr.operator, expr.left, c.alternate)),
+            ]),
+          ),
         );
-        changes++; return;
+        changes++;
+        return;
       }
     },
 
@@ -166,10 +179,11 @@ async function run() {
       if (t.isSequenceExpression(arg)) {
         const exprs = arg.expressions.slice();
         const last = exprs.pop();
-        const stmts = exprs.map(e => t.expressionStatement(e));
+        const stmts = exprs.map((e) => t.expressionStatement(e));
         stmts.push(t.returnStatement(last));
         path.replaceWithMultiple(stmts);
-        changes++; return;
+        changes++;
+        return;
       }
 
       if (t.isConditionalExpression(arg)) {
@@ -177,8 +191,8 @@ async function run() {
           t.ifStatement(
             arg.test,
             t.blockStatement([t.returnStatement(arg.consequent)]),
-            t.blockStatement([t.returnStatement(arg.alternate)])
-          )
+            t.blockStatement([t.returnStatement(arg.alternate)]),
+          ),
         );
         changes++;
       }
@@ -188,16 +202,46 @@ async function run() {
     IfStatement(path) {
       if (!ok(path)) return;
       if (!t.isBlockStatement(path.node.consequent)) {
-        path.node.consequent = t.blockStatement([path.node.consequent]); changes++;
+        path.node.consequent = t.blockStatement([path.node.consequent]);
+        changes++;
       }
-      if (path.node.alternate && !t.isBlockStatement(path.node.alternate) && !t.isIfStatement(path.node.alternate)) {
-        path.node.alternate = t.blockStatement([path.node.alternate]); changes++;
+      if (
+        path.node.alternate &&
+        !t.isBlockStatement(path.node.alternate) &&
+        !t.isIfStatement(path.node.alternate)
+      ) {
+        path.node.alternate = t.blockStatement([path.node.alternate]);
+        changes++;
       }
     },
-    ForStatement(path) { if (!ok(path)) return; if (!t.isBlockStatement(path.node.body)) { path.node.body = t.blockStatement([path.node.body]); changes++; } },
-    WhileStatement(path) { if (!ok(path)) return; if (!t.isBlockStatement(path.node.body)) { path.node.body = t.blockStatement([path.node.body]); changes++; } },
-    ForInStatement(path) { if (!ok(path)) return; if (!t.isBlockStatement(path.node.body)) { path.node.body = t.blockStatement([path.node.body]); changes++; } },
-    ForOfStatement(path) { if (!ok(path)) return; if (!t.isBlockStatement(path.node.body)) { path.node.body = t.blockStatement([path.node.body]); changes++; } },
+    ForStatement(path) {
+      if (!ok(path)) return;
+      if (!t.isBlockStatement(path.node.body)) {
+        path.node.body = t.blockStatement([path.node.body]);
+        changes++;
+      }
+    },
+    WhileStatement(path) {
+      if (!ok(path)) return;
+      if (!t.isBlockStatement(path.node.body)) {
+        path.node.body = t.blockStatement([path.node.body]);
+        changes++;
+      }
+    },
+    ForInStatement(path) {
+      if (!ok(path)) return;
+      if (!t.isBlockStatement(path.node.body)) {
+        path.node.body = t.blockStatement([path.node.body]);
+        changes++;
+      }
+    },
+    ForOfStatement(path) {
+      if (!ok(path)) return;
+      if (!t.isBlockStatement(path.node.body)) {
+        path.node.body = t.blockStatement([path.node.body]);
+        changes++;
+      }
+    },
 
     // ========== 新增：Switch case 块级防护 ==========
     SwitchCase(path) {
@@ -212,7 +256,8 @@ async function run() {
     ArrowFunctionExpression(path) {
       if (!ok(path)) return;
       if (!t.isBlockStatement(path.node.body)) {
-        path.node.body = t.blockStatement([t.returnStatement(path.node.body)]); changes++;
+        path.node.body = t.blockStatement([t.returnStatement(path.node.body)]);
+        changes++;
       }
     },
   });
@@ -221,11 +266,20 @@ async function run() {
   const { code: expandedCode } = generate(ast, { retainLines: false, comments: true });
   console.log('⏳ Prettier 美化...');
   const finalCode = await prettier.format(expandedCode, {
-    parser: 'babel', printWidth: 100, tabWidth: 2, singleQuote: true, trailingComma: 'none', semi: true,
+    parser: 'babel',
+    printWidth: 100,
+    tabWidth: 2,
+    singleQuote: true,
+    trailingComma: 'none',
+    semi: true,
   });
   fs.writeFileSync(outputFile, finalCode, 'utf-8');
   const outSize = (fs.statSync(outputFile).size / 1024).toFixed(0);
   console.log(`✅ 完成: ${inSize}KB → ${outSize}KB (${changes} 处展开)`);
 }
 
-run().catch(e => { console.error('❌', e.message); console.error(e.stack?.split('\n').slice(0,10).join('\n')); process.exit(1); });
+run().catch((e) => {
+  console.error('❌', e.message);
+  console.error(e.stack?.split('\n').slice(0, 10).join('\n'));
+  process.exit(1);
+});

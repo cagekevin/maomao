@@ -28,9 +28,8 @@ const result = babel.transformSync(code, {
         // 还原普通字符串中的 \uXXXX
         StringLiteral(path) {
           const v = path.node.value;
-          const decoded = v.replace(
-            /\\u([0-9a-fA-F]{4})/g,
-            (_, h) => String.fromCharCode(parseInt(h, 16))
+          const decoded = v.replace(/\\u([0-9a-fA-F]{4})/g, (_, h) =>
+            String.fromCharCode(parseInt(h, 16)),
           );
           if (decoded !== v) {
             path.replaceWith(t.stringLiteral(decoded));
@@ -41,9 +40,8 @@ const result = babel.transformSync(code, {
           for (const q of path.node.quasis) {
             const raw = q.value.raw;
             const cooked = q.value.cooked || raw;
-            const decoded = cooked.replace(
-              /\\u([0-9a-fA-F]{4})/g,
-              (_, h) => String.fromCharCode(parseInt(h, 16))
+            const decoded = cooked.replace(/\\u([0-9a-fA-F]{4})/g, (_, h) =>
+              String.fromCharCode(parseInt(h, 16)),
             );
             // 防破坏：模板串 quasi 内若还原出裸反引号(\u0060)，会破坏模板串语法，
             // 此时保持原样（保留 \uXXXX 转义文本），交由后续 esbuild 正常处理。

@@ -1,4 +1,4 @@
-import base from './vitest.config.ts'
+import base from './vitest.config.ts';
 
 // 逻辑层专用运行面（快速定向）：只跑 *.test.ts（纯逻辑 / API / 状态 / hooks），
 // 把需要 jsdom 的 .test.tsx 组件测试（最耗时）挡在门外面。
@@ -18,4 +18,4 @@ export default {
     environment: 'node',
     environmentMatchGlobs: [],
   },
-}
+};

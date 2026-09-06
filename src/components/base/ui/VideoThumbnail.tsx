@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react'
-import { Play } from 'lucide-react'
-import { toAbsoluteFileUrl } from '../utils/imageUrl.ts'
+import React, { useState, useRef } from 'react';
+import { Play } from 'lucide-react';
+import { toAbsoluteFileUrl } from '../utils/imageUrl.ts';
 
 /**
  * 视频缩略图统一组件：静音封面 + 居中悬浮播放按钮。
@@ -21,29 +21,29 @@ import { toAbsoluteFileUrl } from '../utils/imageUrl.ts'
 /** 视频缩略图 Props。 */
 interface VideoThumbnailProps {
   /** 视频源 URL（相对路径经 toAbsoluteFileUrl 补成 file:// 绝对路径） */
-  src: string
+  src: string;
   /** 封面图 URL（可选，留空则靠 preload=metadata 取首帧） */
-  poster?: string
+  poster?: string;
   /** 是否静音（默认 true，便于自动/首屏播放） */
-  muted?: boolean
+  muted?: boolean;
   /** 填充方式：'cover' 裁切铺满 | 'contain' 留白完整 */
-  fit?: 'cover' | 'contain'
+  fit?: 'cover' | 'contain';
   /** 尺寸档：'lg' 大 / 'sm' 小（影响播放按钮与图标大小） */
-  size?: 'lg' | 'sm'
-  className?: string
+  size?: 'lg' | 'sm';
+  className?: string;
   /** 点击播放按钮触发（stopPropagation 后），父组件决定播放/预览 */
-  onActivate?: () => void
+  onActivate?: () => void;
   /** 双击播放按钮触发（如打开大图预览），默认无 */
-  onDoubleClick?: () => void
+  onDoubleClick?: () => void;
   /** 双击容器触发（playable 模式用），默认无 */
-  onContainerDoubleClick?: () => void
+  onContainerDoubleClick?: () => void;
   /** 透传 video 元素 ref */
-  videoRef?: React.Ref<HTMLVideoElement>
+  videoRef?: React.Ref<HTMLVideoElement>;
   /** 透传 video onLoadedMetadata（供父节点按媒体宽高比自适应形状），默认无 */
-  onLoadedMetadata?: (e: React.SyntheticEvent<HTMLVideoElement>) => void
+  onLoadedMetadata?: (e: React.SyntheticEvent<HTMLVideoElement>) => void;
   /** 是否启用「节点内 controls 播放态」（默认 false=缩略图模式）。
       true 时点击播放按钮进入带 controls 的播放器，双击容器触发 onContainerDoubleClick */
-  playable?: boolean
+  playable?: boolean;
 }
 
 function VideoThumbnail({
@@ -58,39 +58,37 @@ function VideoThumbnail({
   onContainerDoubleClick, // 双击容器（playable 模式用）
   videoRef,
   onLoadedMetadata,
-  playable = false
+  playable = false,
 }: VideoThumbnailProps) {
   const btn =
-    size === 'sm'
-      ? { wrap: 'w-7 h-7', icon: 'w-3 h-3' }
-      : { wrap: 'w-12 h-12', icon: 'w-6 h-6' }
+    size === 'sm' ? { wrap: 'w-7 h-7', icon: 'w-3 h-3' } : { wrap: 'w-12 h-12', icon: 'w-6 h-6' };
 
   // 节点内播放态（仅 playable 启用）：false=封面+播放按钮，true=渲染 controls 播放器
-  const [playing, setPlaying] = useState(false)
-  const innerVideoRef = useRef<HTMLVideoElement | null>(null)
-  const effectiveVideoRef = videoRef || innerVideoRef
+  const [playing, setPlaying] = useState(false);
+  const innerVideoRef = useRef<HTMLVideoElement | null>(null);
+  const effectiveVideoRef = videoRef || innerVideoRef;
 
   const enterPlay = () => {
-    setPlaying(true)
+    setPlaying(true);
     // 同一用户手势里显式 play()，绕开 autoplay 政策
     try {
-      const v = (effectiveVideoRef as React.RefObject<HTMLVideoElement | null>)?.current
-      v?.play?.()
+      const v = (effectiveVideoRef as React.RefObject<HTMLVideoElement | null>)?.current;
+      v?.play?.();
     } catch {}
-  }
+  };
 
   // playable 模式：双击容器 → 拦截原生双击全屏 + 开大图
   const handleContainerDoubleClick = (e: React.MouseEvent) => {
-    if (!playable) return
-    e.preventDefault()
-    e.stopPropagation()
+    if (!playable) return;
+    e.preventDefault();
+    e.stopPropagation();
     try {
-      const v = (effectiveVideoRef as React.RefObject<HTMLVideoElement | null>)?.current
-      v?.pause?.()
+      const v = (effectiveVideoRef as React.RefObject<HTMLVideoElement | null>)?.current;
+      v?.pause?.();
     } catch {}
-    setPlaying(false)
-    onContainerDoubleClick?.()
-  }
+    setPlaying(false);
+    onContainerDoubleClick?.();
+  };
 
   return (
     <div
@@ -109,19 +107,21 @@ function VideoThumbnail({
         controls={playable && playing}
         className={`w-full h-full ${fit === 'contain' ? 'object-contain' : 'object-cover'} block`}
         onLoadedMetadata={onLoadedMetadata}
-        onClick={(e) => { if (playable && playing) e.stopPropagation() }}
+        onClick={(e) => {
+          if (playable && playing) e.stopPropagation();
+        }}
       />
       {/* 播放态（playable）不显示悬浮播放按钮；缩略图模式（默认）始终显示 */}
       {!playable && (
         <button
           type="button"
           onClick={(e) => {
-            e.stopPropagation()
-            onActivate?.()
+            e.stopPropagation();
+            onActivate?.();
           }}
           onDoubleClick={(e) => {
-            e.stopPropagation()
-            onDoubleClick?.()
+            e.stopPropagation();
+            onDoubleClick?.();
           }}
           className={`${btn.wrap} absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[1] flex items-center justify-center rounded-full bg-black/50 backdrop-blur-sm opacity-70 group-hover:opacity-100 group-hover:bg-black/70 transition-all`}
           aria-label="播放视频"
@@ -135,8 +135,8 @@ function VideoThumbnail({
         <button
           type="button"
           onClick={(e) => {
-            e.stopPropagation()
-            enterPlay()
+            e.stopPropagation();
+            enterPlay();
           }}
           className={`${btn.wrap} absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[1] flex items-center justify-center rounded-full bg-black/50 backdrop-blur-sm opacity-70 group-hover:opacity-100 group-hover:bg-black/70 transition-all`}
           aria-label="播放视频"
@@ -146,7 +146,7 @@ function VideoThumbnail({
         </button>
       )}
     </div>
-  )
+  );
 }
 
-export default React.memo(VideoThumbnail)
+export default React.memo(VideoThumbnail);

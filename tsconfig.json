@@ -40,9 +40,5 @@
     "playwright.config.ts",
     "tailwind.config.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "dev"
-  ]
+  "exclude": ["node_modules", "dist", "dev"]
 }

@@ -49,10 +49,17 @@ function makeRes() {
       if (ev === 'error') r._onError = cb;
       return r;
     },
-    writeHead(code, h) { r.status = code; if (h) r.headers = { ...r.headers, ...h }; return r; },
+    writeHead(code, h) {
+      r.status = code;
+      if (h) r.headers = { ...r.headers, ...h };
+      return r;
+    },
     end(data) {
       r.writableEnded = true;
-      if (data !== undefined) { const s = Buffer.isBuffer(data) ? data.toString('utf-8') : String(data); r.body = (r.body || '') + s; }
+      if (data !== undefined) {
+        const s = Buffer.isBuffer(data) ? data.toString('utf-8') : String(data);
+        r.body = (r.body || '') + s;
+      }
       return r;
     },
   };
@@ -63,8 +70,12 @@ function makeJsonReq(body, contentType = 'application/json') {
   const data = body === undefined ? Buffer.alloc(0) : Buffer.from(JSON.stringify(body));
   const req = { headers: { 'content-type': contentType }, body: data };
   req.on = (ev, cb) => {
-    if (ev === 'data' && data.length) { cb(data); }
-    if (ev === 'end') { cb(); }
+    if (ev === 'data' && data.length) {
+      cb(data);
+    }
+    if (ev === 'end') {
+      cb();
+    }
     return req;
   };
   return req;
@@ -90,7 +101,8 @@ function fileUrl(url) {
 }
 
 // 构造一个小 PNG（1x1 红点）base64
-const RED_PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const RED_PNG_B64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 const RED_PNG_DATA_URI = `data:image/png;base64,${RED_PNG_B64}`;
 const RED_PNG_BUFFER = Buffer.from(RED_PNG_B64, 'base64');
 
@@ -99,7 +111,11 @@ function makeCanvasState(projectId, extraNodes = []) {
   return {
     nodes: [
       { id: 'node-1', type: 'image', data: { imageUrl: RED_PNG_DATA_URI, name: '原图' } },
-      { id: 'node-2', type: 'text', data: { text: 'hello', imageUrl: 'http://example.com/normal.png' } },
+      {
+        id: 'node-2',
+        type: 'text',
+        data: { text: 'hello', imageUrl: 'http://example.com/normal.png' },
+      },
       ...extraNodes,
     ],
     edges: [],
@@ -133,8 +149,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  try { dbMod.closeDb(); } catch {}
-  try { fs.rmSync(TEST_DIR, { recursive: true, force: true }); } catch {}
+  try {
+    dbMod.closeDb();
+  } catch {}
+  try {
+    fs.rmSync(TEST_DIR, { recursive: true, force: true });
+  } catch {}
 });
 
 // ══════════════════════════════════════════════════════════════
@@ -144,22 +164,36 @@ afterEach(() => {
 test('方案②·KV set 含 base64 的 JSON 画布对象 → value 变为 /files/ URL，原图落盘', async () => {
   const res = makeRes();
   const state = makeCanvasState('proj-test');
-  await kvMod.handleKvSet(makeJsonReq({ key: 'canvas-state-v1-proj-test', value: JSON.stringify(state) }), res);
+  await kvMod.handleKvSet(
+    makeJsonReq({ key: 'canvas-state-v1-proj-test', value: JSON.stringify(state) }),
+    res,
+  );
   assert.equal(res.status, 200, 'set 应 200');
   assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
 
   // 读回：value 里的 base64 应被替换为 /files/ URL
   const getRes = makeRes();
-  await kvMod.handleKvGet(makeGetReq(), getRes, new URL('http://x/api/kv/get?key=canvas-state-v1-proj-test'));
+  await kvMod.handleKvGet(
+    makeGetReq(),
+    getRes,
+    new URL('http://x/api/kv/get?key=canvas-state-v1-proj-test'),
+  );
   const saved = parseResBody(getRes);
-  assert.ok(saved.nodes[0].data.imageUrl.startsWith('http://127.0.0.1:18080/files/canvas/'), `imageUrl 应外置为绝对 /files URL, got=${saved.nodes[0].data.imageUrl}`);
+  assert.ok(
+    saved.nodes[0].data.imageUrl.startsWith('http://127.0.0.1:18080/files/canvas/'),
+    `imageUrl 应外置为绝对 /files URL, got=${saved.nodes[0].data.imageUrl}`,
+  );
   // 无 base64 的字段保持原样
   assert.equal(saved.nodes[1].data.imageUrl, 'http://example.com/normal.png');
   // 文本节点不受影响
   assert.equal(saved.nodes[1].data.text, 'hello');
 
   // 磁盘应存在该文件，且内容与原图一致
-  const diskPath = path.join(TEST_DIR, 'uploads', saved.nodes[0].data.imageUrl.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, ''));
+  const diskPath = path.join(
+    TEST_DIR,
+    'uploads',
+    saved.nodes[0].data.imageUrl.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, ''),
+  );
   assert.ok(fs.existsSync(diskPath), '磁盘应存在外置文件');
   assert.ok(RED_PNG_BUFFER.equals(fs.readFileSync(diskPath)), '落盘内容应与原图一致');
 });
@@ -167,20 +201,38 @@ test('方案②·KV set 含 base64 的 JSON 画布对象 → value 变为 /files
 test('方案②·外置幂等：相同 base64 写两次 → 磁盘只一个文件', async () => {
   // 第一次
   let res = makeRes();
-  await kvMod.handleKvSet(makeJsonReq({ key: 'canvas-state-v1-a', value: JSON.stringify(makeCanvasState('a')) }), res);
+  await kvMod.handleKvSet(
+    makeJsonReq({ key: 'canvas-state-v1-a', value: JSON.stringify(makeCanvasState('a')) }),
+    res,
+  );
   const getRes1 = makeRes();
-  await kvMod.handleKvGet(makeGetReq(), getRes1, new URL('http://x/api/kv/get?key=canvas-state-v1-a'));
+  await kvMod.handleKvGet(
+    makeGetReq(),
+    getRes1,
+    new URL('http://x/api/kv/get?key=canvas-state-v1-a'),
+  );
   const url1 = parseResBody(getRes1).nodes[0].data.imageUrl;
 
   // 第二次（相同 base64 不同项目）
   res = makeRes();
-  await kvMod.handleKvSet(makeJsonReq({ key: 'canvas-state-v1-b', value: JSON.stringify(makeCanvasState('b')) }), res);
+  await kvMod.handleKvSet(
+    makeJsonReq({ key: 'canvas-state-v1-b', value: JSON.stringify(makeCanvasState('b')) }),
+    res,
+  );
   const getRes2 = makeRes();
-  await kvMod.handleKvGet(makeGetReq(), getRes2, new URL('http://x/api/kv/get?key=canvas-state-v1-b'));
+  await kvMod.handleKvGet(
+    makeGetReq(),
+    getRes2,
+    new URL('http://x/api/kv/get?key=canvas-state-v1-b'),
+  );
   const url2 = parseResBody(getRes2).nodes[0].data.imageUrl;
 
   assert.equal(url1, url2, '相同 base64 应映射同一 URL');
-  const diskPath = path.join(TEST_DIR, 'uploads', url1.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, ''));
+  const diskPath = path.join(
+    TEST_DIR,
+    'uploads',
+    url1.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, ''),
+  );
   assert.ok(fs.existsSync(diskPath));
   // 目录下只有 1 个 canvas 文件（幂等不重复落盘）
   const canvasDir = path.join(TEST_DIR, 'uploads', 'canvas');
@@ -194,11 +246,22 @@ test('方案②·裸 base64 形态（img_orig_*）：整串外置为 URL', async
   assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
 
   const getRes = makeRes();
-  await kvMod.handleKvGet(makeGetReq(), getRes, new URL('http://x/api/kv/get?key=img_orig_node1_1'));
+  await kvMod.handleKvGet(
+    makeGetReq(),
+    getRes,
+    new URL('http://x/api/kv/get?key=img_orig_node1_1'),
+  );
   // 裸 base64 读回的是 URL 字符串
   const saved = parseResBody(getRes);
-  assert.ok(typeof saved === 'string' && saved.startsWith('http://127.0.0.1:18080/files/canvas/'), `img_orig_* 应外置为绝对 URL, got=${saved}`);
-  const diskPath = path.join(TEST_DIR, 'uploads', saved.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, ''));
+  assert.ok(
+    typeof saved === 'string' && saved.startsWith('http://127.0.0.1:18080/files/canvas/'),
+    `img_orig_* 应外置为绝对 URL, got=${saved}`,
+  );
+  const diskPath = path.join(
+    TEST_DIR,
+    'uploads',
+    saved.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, ''),
+  );
   assert.ok(fs.existsSync(diskPath));
   assert.ok(RED_PNG_BUFFER.equals(fs.readFileSync(diskPath)));
 });
@@ -207,18 +270,29 @@ test('方案②·失败回退：非法 data URI 保留原值，不破坏 {ok:tru
   const res = makeRes();
   const badObj = { nodes: [{ data: { imageUrl: 'data:image/png;base64,@@@invalid@@@' } }] };
   await kvMod.handleKvSet(makeJsonReq({ key: 'k1', value: JSON.stringify(badObj) }), res);
-  assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } }, 'set 仍应 {code:0,data:{ok:true}}');
+  assert.deepEqual(
+    parseResBody(res),
+    { code: 0, data: { ok: true } },
+    'set 仍应 {code:0,data:{ok:true}}',
+  );
 
   const getRes = makeRes();
   await kvMod.handleKvGet(makeGetReq(), getRes, new URL('http://x/api/kv/get?key=k1'));
   const saved = parseResBody(getRes);
-  assert.equal(saved.nodes[0].data.imageUrl, 'data:image/png;base64,@@@invalid@@@', '非法 base64 应保留原值');
+  assert.equal(
+    saved.nodes[0].data.imageUrl,
+    'data:image/png;base64,@@@invalid@@@',
+    '非法 base64 应保留原值',
+  );
 });
 
 test('方案②·孤儿 GC：cleanup 删除未被引用文件，保留被 KV 引用文件', async () => {
   // 先写入一个含 base64 的 KV → 外置出一个磁盘文件
   const res = makeRes();
-  await kvMod.handleKvSet(makeJsonReq({ key: 'canvas-state-v1-gc', value: JSON.stringify(makeCanvasState('gc')) }), res);
+  await kvMod.handleKvSet(
+    makeJsonReq({ key: 'canvas-state-v1-gc', value: JSON.stringify(makeCanvasState('gc')) }),
+    res,
+  );
 
   // 制造一个孤儿文件（磁盘有、无任何 KV/tasks/resources 引用）
   const orphanDir = path.join(TEST_DIR, 'uploads', 'canvas');
@@ -229,7 +303,10 @@ test('方案②·孤儿 GC：cleanup 删除未被引用文件，保留被 KV 引
   const keptPath = path.join(keptDir, 'kept.png');
   fs.writeFileSync(keptPath, RED_PNG_BUFFER);
   const keptUrl = `http://127.0.0.1:18080/files/tasks/kept.png`;
-  await resourcesMod.handleResourcesSave(makeJsonReq({ id: 'res-kept', url: keptUrl, type: 'image', name: 'kept' }), makeRes());
+  await resourcesMod.handleResourcesSave(
+    makeJsonReq({ id: 'res-kept', url: keptUrl, type: 'image', name: 'kept' }),
+    makeRes(),
+  );
 
   // 执行 cleanup
   const cleanRes = makeRes();
@@ -240,7 +317,9 @@ test('方案②·孤儿 GC：cleanup 删除未被引用文件，保留被 KV 引
   // 孤儿被删
   assert.ok(!fs.existsSync(path.join(orphanDir, 'orphan.png')), '孤儿文件应被删除');
   // 被 KV 引用的 canvas 文件保留
-  const canvasFiles = fs.readdirSync(orphanDir).filter((f) => !f.startsWith('.') && f !== 'orphan.png');
+  const canvasFiles = fs
+    .readdirSync(orphanDir)
+    .filter((f) => !f.startsWith('.') && f !== 'orphan.png');
   assert.ok(canvasFiles.length >= 1, '被 KV 引用的 canvas 文件应保留');
   // 被 resources 引用的文件保留
   assert.ok(fs.existsSync(keptPath), '被 resources 引用的文件应保留');
@@ -260,7 +339,10 @@ test('KV·set/get 非 JSON 字符串值', async () => {
 
 test('KV·set/get JSON 对象值', async () => {
   const res = makeRes();
-  await kvMod.handleKvSet(makeJsonReq({ key: 'obj', value: JSON.stringify({ a: 1, b: [2, 3] }) }), res);
+  await kvMod.handleKvSet(
+    makeJsonReq({ key: 'obj', value: JSON.stringify({ a: 1, b: [2, 3] }) }),
+    res,
+  );
   const getRes = makeRes();
   await kvMod.handleKvGet(makeGetReq(), getRes, new URL('http://x/api/kv/get?key=obj'));
   assert.deepEqual(parseResBody(getRes), { a: 1, b: [2, 3] });
@@ -301,13 +383,20 @@ test('KV·delete 删除后 get 为 null', async () => {
 test('Tasks·save + get（camel/snake 映射、id 回填、JSON 字段）', async () => {
   // save 用 camelCase（前端形态），含 JSON 字段和 UI 字段（应被过滤）
   const res = makeRes();
-  await tasksMod.handleTasksSave(makeJsonReq({
-    taskId: 't1', nodeId: 'n1', prompt: '测试', progress: 50,
-    channelName: 'default', modelName: 'gpt',
-    requestData: { url: 'http://x', headers: {} },
-    mediaMeta: { w: 100 },
-    loading: true, // UI 字段应被过滤
-  }), res);
+  await tasksMod.handleTasksSave(
+    makeJsonReq({
+      taskId: 't1',
+      nodeId: 'n1',
+      prompt: '测试',
+      progress: 50,
+      channelName: 'default',
+      modelName: 'gpt',
+      requestData: { url: 'http://x', headers: {} },
+      mediaMeta: { w: 100 },
+      loading: true, // UI 字段应被过滤
+    }),
+    res,
+  );
   assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
 
   const getRes = makeRes();
@@ -327,7 +416,10 @@ test('Tasks·save + get（camel/snake 映射、id 回填、JSON 字段）', asyn
 test('Tasks·save 用 snake_case 的 task_id（无 taskId/id）→ 400 拒绝', async () => {
   // 真实 API 只接受 camelCase 的 taskId 或 id；仅 snake_case 的 task_id 会被判缺 id 而 400
   const res = makeRes();
-  await tasksMod.handleTasksSave(makeJsonReq({ task_id: 't2', node_id: 'n2', prompt: 'snake', created_at: 123 }), res);
+  await tasksMod.handleTasksSave(
+    makeJsonReq({ task_id: 't2', node_id: 'n2', prompt: 'snake', created_at: 123 }),
+    res,
+  );
   assert.equal(res.status, 400, '缺少 taskId/id 应 400');
   // 确认没写入
   const getRes = makeRes();
@@ -342,8 +434,14 @@ test('Tasks·save 缺少 id → 400', async () => {
 });
 
 test('Tasks·搜索过滤', async () => {
-  await tasksMod.handleTasksSave(makeJsonReq({ taskId: 'a', prompt: '苹果', channelName: 'ch1' }), makeRes());
-  await tasksMod.handleTasksSave(makeJsonReq({ taskId: 'b', prompt: '香蕉', channelName: 'ch2' }), makeRes());
+  await tasksMod.handleTasksSave(
+    makeJsonReq({ taskId: 'a', prompt: '苹果', channelName: 'ch1' }),
+    makeRes(),
+  );
+  await tasksMod.handleTasksSave(
+    makeJsonReq({ taskId: 'b', prompt: '香蕉', channelName: 'ch2' }),
+    makeRes(),
+  );
 
   const getRes = makeRes();
   await tasksMod.handleTasksGet(makeGetReq(), getRes, new URL('http://x/api/tasks?search=苹果'));
@@ -358,16 +456,26 @@ test('Tasks·数组过滤 (channelName IN)', async () => {
   await tasksMod.handleTasksSave(makeJsonReq({ taskId: 'c', channelName: 'ch3' }), makeRes());
 
   const getRes = makeRes();
-  await tasksMod.handleTasksGet(makeGetReq(), getRes, new URL('http://x/api/tasks?filters=' + encodeURIComponent(JSON.stringify({ channelName: ['ch1', 'ch3'] }))));
+  await tasksMod.handleTasksGet(
+    makeGetReq(),
+    getRes,
+    new URL(
+      'http://x/api/tasks?filters=' +
+        encodeURIComponent(JSON.stringify({ channelName: ['ch1', 'ch3'] })),
+    ),
+  );
   const page = data(getRes);
   assert.equal(page.total, 2);
 });
 
 test('Tasks·batch-save 多任务 + 删除 + 批量删除 + clear', async () => {
-  await tasksMod.handleTasksBatchSave(makeJsonReq([
-    { taskId: 't1', prompt: 'p1' },
-    { taskId: 't2', prompt: 'p2' },
-  ]), makeRes());
+  await tasksMod.handleTasksBatchSave(
+    makeJsonReq([
+      { taskId: 't1', prompt: 'p1' },
+      { taskId: 't2', prompt: 'p2' },
+    ]),
+    makeRes(),
+  );
 
   let getRes = makeRes();
   await tasksMod.handleTasksGet(makeGetReq(), getRes, new URL('http://x/api/tasks'));
@@ -375,7 +483,11 @@ test('Tasks·batch-save 多任务 + 删除 + 批量删除 + clear', async () => 
 
   // 删除单条
   const delRes = makeRes();
-  await tasksMod.handleTasksDelete(makeJsonReq(), delRes, new URL('http://x/api/tasks/delete?id=t1'));
+  await tasksMod.handleTasksDelete(
+    makeJsonReq(),
+    delRes,
+    new URL('http://x/api/tasks/delete?id=t1'),
+  );
   assert.deepEqual(parseResBody(delRes), { code: 0, data: { ok: true } });
   getRes = makeRes();
   await tasksMod.handleTasksGet(makeGetReq(), getRes, new URL('http://x/api/tasks'));
@@ -411,10 +523,22 @@ test('Tasks·batch-save 非数组 → 400', async () => {
 
 test('Resources·save + get + 分页', async () => {
   for (let i = 1; i <= 25; i++) {
-    await resourcesMod.handleResourcesSave(makeJsonReq({ id: `r${i}`, url: `http://example.com/${i}.png`, type: 'image', name: `img${i}` }), makeRes());
+    await resourcesMod.handleResourcesSave(
+      makeJsonReq({
+        id: `r${i}`,
+        url: `http://example.com/${i}.png`,
+        type: 'image',
+        name: `img${i}`,
+      }),
+      makeRes(),
+    );
   }
   const getRes = makeRes();
-  await resourcesMod.handleResourcesGet(makeGetReq(), getRes, new URL('http://x/api/resources?page=1&pageSize=20'));
+  await resourcesMod.handleResourcesGet(
+    makeGetReq(),
+    getRes,
+    new URL('http://x/api/resources?page=1&pageSize=20'),
+  );
   const page = data(getRes);
   assert.equal(page.total, 25);
   assert.equal(page.items.length, 20);
@@ -431,20 +555,33 @@ test('Resources·save 缺少 id → 400', async () => {
 
 test('Resources·save dataURL → 自动落盘为文件', async () => {
   const res = makeRes();
-  await resourcesMod.handleResourcesSave(makeJsonReq({ id: 'clip-1', url: RED_PNG_DATA_URI, type: 'image' }), res);
+  await resourcesMod.handleResourcesSave(
+    makeJsonReq({ id: 'clip-1', url: RED_PNG_DATA_URI, type: 'image' }),
+    res,
+  );
   assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
 
   const getRes = makeRes();
   await resourcesMod.handleResourcesGet(makeGetReq(), getRes, new URL('http://x/api/resources'));
   const item = data(getRes).items[0];
-  assert.ok(item.url.startsWith('http://127.0.0.1:18080/files/'), `dataURL 落盘后应转绝对文件 URL, got=${item.url}`);
+  assert.ok(
+    item.url.startsWith('http://127.0.0.1:18080/files/'),
+    `dataURL 落盘后应转绝对文件 URL, got=${item.url}`,
+  );
   assert.match(item.id, /^local-/, 'id 应对齐 rescan 命名');
 });
 
 test('Resources·delete 删除记录', async () => {
-  await resourcesMod.handleResourcesSave(makeJsonReq({ id: 'r1', url: 'http://example.com/1.png', type: 'image' }), makeRes());
+  await resourcesMod.handleResourcesSave(
+    makeJsonReq({ id: 'r1', url: 'http://example.com/1.png', type: 'image' }),
+    makeRes(),
+  );
   const delRes = makeRes();
-  await resourcesMod.handleResourcesDelete(makeJsonReq(), delRes, new URL('http://x/api/resources/delete?id=r1'));
+  await resourcesMod.handleResourcesDelete(
+    makeJsonReq(),
+    delRes,
+    new URL('http://x/api/resources/delete?id=r1'),
+  );
   assert.deepEqual(parseResBody(delRes), { code: 0, data: { ok: true } });
   const getRes = makeRes();
   await resourcesMod.handleResourcesGet(makeGetReq(), getRes, new URL('http://x/api/resources'));
@@ -452,8 +589,14 @@ test('Resources·delete 删除记录', async () => {
 });
 
 test('Resources·clear 全部 + 按 folder 清', async () => {
-  await resourcesMod.handleResourcesSave(makeJsonReq({ id: 'a', url: 'u1', type: 'image', folder: 'f1' }), makeRes());
-  await resourcesMod.handleResourcesSave(makeJsonReq({ id: 'b', url: 'u2', type: 'image', folder: 'f2' }), makeRes());
+  await resourcesMod.handleResourcesSave(
+    makeJsonReq({ id: 'a', url: 'u1', type: 'image', folder: 'f1' }),
+    makeRes(),
+  );
+  await resourcesMod.handleResourcesSave(
+    makeJsonReq({ id: 'b', url: 'u2', type: 'image', folder: 'f2' }),
+    makeRes(),
+  );
 
   // 按 folder 清
   let clearRes = makeRes();
@@ -487,7 +630,11 @@ test('Resources·rescan 扫描 upload 目录', async () => {
   assert.equal(result.count, 2);
 
   const getRes = makeRes();
-  await resourcesMod.handleResourcesGet(makeGetReq(), getRes, new URL('http://x/api/resources?pageSize=50'));
+  await resourcesMod.handleResourcesGet(
+    makeGetReq(),
+    getRes,
+    new URL('http://x/api/resources?pageSize=50'),
+  );
   const page = data(getRes);
   assert.equal(page.total, 2);
   assert.ok(page.items.some((r) => r.name === 'pic.png' && r.type === 'image'));
@@ -538,7 +685,10 @@ test('Admin·export/import 往返', async () => {
 
 test('Admin·import 缺少 confirm → 400', async () => {
   const res = makeRes();
-  await adminMod.handleAdminImport(makeJsonReq({ data: { kv: [], tasks: [], resources: [] } }), res);
+  await adminMod.handleAdminImport(
+    makeJsonReq({ data: { kv: [], tasks: [], resources: [] } }),
+    res,
+  );
   assert.equal(res.status, 400);
 });
 
@@ -567,16 +717,29 @@ test('Files·read 读取文件内容与 MIME', async () => {
   const chunks = [];
   let headers = null;
   const res = new Writable({
-    write(c, _enc, cb) { chunks.push(Buffer.from(c)); cb(); },
-    writev(items, cb) { for (const i of items) chunks.push(Buffer.from(i.chunk)); cb(); },
+    write(c, _enc, cb) {
+      chunks.push(Buffer.from(c));
+      cb();
+    },
+    writev(items, cb) {
+      for (const i of items) chunks.push(Buffer.from(i.chunk));
+      cb();
+    },
   });
   const origWriteHead = res.writeHead;
-  res.writeHead = (code, h) => { headers = h; return res; };
+  res.writeHead = (code, h) => {
+    headers = h;
+    return res;
+  };
   const done = new Promise((resolve, reject) => {
     res.on('finish', resolve);
     res.on('error', reject);
   });
-  await filesMod.handleRead(makeGetReq(), res, new URL(`http://x/api/files/read?path=${encodeURIComponent(absPath)}`));
+  await filesMod.handleRead(
+    makeGetReq(),
+    res,
+    new URL(`http://x/api/files/read?path=${encodeURIComponent(absPath)}`),
+  );
   await done; // 等待 pipe 完成
   // pipe 完成后数据应等于原文件
   assert.match(headers['Content-Type'] || '', /image\/png/);
@@ -595,32 +758,66 @@ test('helpers·parsePagination 默认值与钳制', () => {
   assert.equal(p1.pageSize, 20);
   assert.equal(p1.sortBy, 'a');
 
-  const p2 = helpersMod.parsePagination(new URL('http://x/api?page=0&pageSize=999&sortDir=ASC'), { sortBy: 'a', sortDir: 'DESC' });
+  const p2 = helpersMod.parsePagination(new URL('http://x/api?page=0&pageSize=999&sortDir=ASC'), {
+    sortBy: 'a',
+    sortDir: 'DESC',
+  });
   assert.equal(p2.page, 1, 'page 最小钳制为 1');
   assert.equal(p2.pageSize, 100, 'pageSize 最大钳制为 100');
   assert.equal(p2.sortDir, 'ASC');
 
-  const p3 = helpersMod.parsePagination(new URL('http://x/api?filters=' + encodeURIComponent(JSON.stringify({ isFavorite: true }))), { sortBy: 'a', sortDir: 'DESC' });
+  const p3 = helpersMod.parsePagination(
+    new URL('http://x/api?filters=' + encodeURIComponent(JSON.stringify({ isFavorite: true }))),
+    { sortBy: 'a', sortDir: 'DESC' },
+  );
   assert.deepEqual(p3.filters, { isFavorite: true });
 });
 
 test('helpers·buildPaginatedQuery 搜索/过滤/SQL 安全', () => {
   // 搜索
-  const q = helpersMod.buildPaginatedQuery('tasks', { page: 1, pageSize: 20, sortBy: 'created_at', sortDir: 'DESC', search: 'abc' }, ['prompt', 'task_id']);
+  const q = helpersMod.buildPaginatedQuery(
+    'tasks',
+    { page: 1, pageSize: 20, sortBy: 'created_at', sortDir: 'DESC', search: 'abc' },
+    ['prompt', 'task_id'],
+  );
   assert.match(q.sql, /prompt LIKE \? OR task_id LIKE \?/);
   assert.match(q.sql, /LIMIT \? OFFSET \?/);
   assert.equal(q.values.length, 2 + 2, '2 search + LIMIT/OFFSET');
 
   // 数组过滤
-  const q2 = helpersMod.buildPaginatedQuery('tasks', { page: 1, pageSize: 20, sortBy: 'created_at', sortDir: 'DESC', filters: { channelName: ['a', 'b'] } }, ['created_at']);
+  const q2 = helpersMod.buildPaginatedQuery(
+    'tasks',
+    {
+      page: 1,
+      pageSize: 20,
+      sortBy: 'created_at',
+      sortDir: 'DESC',
+      filters: { channelName: ['a', 'b'] },
+    },
+    ['created_at'],
+  );
   assert.match(q2.sql, /channel_name IN \(\?, \?\)/);
 
   // eqOrPrefix
-  const q3 = helpersMod.buildPaginatedQuery('resources', { page: 1, pageSize: 20, sortBy: 'timestamp', sortDir: 'DESC', filters: { folder: { eqOrPrefix: '人物' } } }, ['timestamp']);
+  const q3 = helpersMod.buildPaginatedQuery(
+    'resources',
+    {
+      page: 1,
+      pageSize: 20,
+      sortBy: 'timestamp',
+      sortDir: 'DESC',
+      filters: { folder: { eqOrPrefix: '人物' } },
+    },
+    ['timestamp'],
+  );
   assert.match(q3.sql, /folder = \? OR folder LIKE \?/);
 
   // sortBy 不在白名单 → 回退 rowid（防注入）
-  const q4 = helpersMod.buildPaginatedQuery('tasks', { page: 1, pageSize: 20, sortBy: 'prompt; DROP TABLE tasks', sortDir: 'DESC' }, ['created_at']);
+  const q4 = helpersMod.buildPaginatedQuery(
+    'tasks',
+    { page: 1, pageSize: 20, sortBy: 'prompt; DROP TABLE tasks', sortDir: 'DESC' },
+    ['created_at'],
+  );
   assert.match(q4.sql, /ORDER BY rowid DESC/);
 });
 
@@ -659,9 +856,16 @@ test('helpers·sendError·B2：传 code 返 {error:{code,message}}，不传仍 {
 test('工具·saveBase64ToFile 返回绝对 URL 且幂等', () => {
   const url1 = b64Mod.saveBase64ToFile(RED_PNG_DATA_URI);
   const url2 = b64Mod.saveBase64ToFile(RED_PNG_DATA_URI);
-  assert.ok(url1 && url1.startsWith('http://127.0.0.1:18080/files/canvas/'), `应返回绝对 URL, got=${url1}`);
+  assert.ok(
+    url1 && url1.startsWith('http://127.0.0.1:18080/files/canvas/'),
+    `应返回绝对 URL, got=${url1}`,
+  );
   assert.equal(url1, url2, '相同内容幂等');
-  const diskPath = path.join(TEST_DIR, 'uploads', url1.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, ''));
+  const diskPath = path.join(
+    TEST_DIR,
+    'uploads',
+    url1.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, ''),
+  );
   assert.ok(fs.existsSync(diskPath));
   assert.ok(RED_PNG_BUFFER.equals(fs.readFileSync(diskPath)));
 });
@@ -684,12 +888,22 @@ test('工具·runOrphanGc dryRun 不删除', () => {
   fs.writeFileSync(path.join(dir, 'keep.png'), RED_PNG_BUFFER);
   fs.writeFileSync(path.join(dir, 'orphan.png'), RED_PNG_BUFFER);
 
-  const res = gcMod.runOrphanGc(['/files/canvas/keep.png'], path.join(TEST_DIR, 'uploads'), new Set(), true);
+  const res = gcMod.runOrphanGc(
+    ['/files/canvas/keep.png'],
+    path.join(TEST_DIR, 'uploads'),
+    new Set(),
+    true,
+  );
   assert.equal(res.deleted, 1, 'dryRun 统计可删除 1 个');
   assert.ok(fs.existsSync(path.join(dir, 'orphan.png')), 'dryRun 不真正删除');
 
   // 真删
-  const res2 = gcMod.runOrphanGc(['/files/canvas/keep.png'], path.join(TEST_DIR, 'uploads'), new Set(), false);
+  const res2 = gcMod.runOrphanGc(
+    ['/files/canvas/keep.png'],
+    path.join(TEST_DIR, 'uploads'),
+    new Set(),
+    false,
+  );
   assert.equal(res2.deleted, 1);
   assert.ok(!fs.existsSync(path.join(dir, 'orphan.png')));
   assert.ok(fs.existsSync(path.join(dir, 'keep.png')));
@@ -707,7 +921,11 @@ test('Platform·plugin manifest 返回版本且无更新', async () => {
 
 test('Platform·workflow-apps by-project 返回 stub null', async () => {
   const res = makeRes();
-  await platformMod.handleWorkflowAppsByProject(makeGetReq(), res, new URL('http://x/api/workflow-apps/by-project/123'));
+  await platformMod.handleWorkflowAppsByProject(
+    makeGetReq(),
+    res,
+    new URL('http://x/api/workflow-apps/by-project/123'),
+  );
   const body = parseResBody(res);
   assert.equal(body.success, true);
   assert.equal(body.data, null);
@@ -746,14 +964,20 @@ test('System·status 返回版本与端口', async () => {
 
 test('System·jianying/send 单文件形态', async () => {
   const res = makeRes();
-  await systemMod.handleJianyingSend(makeJsonReq({ fileUrl: 'http://x/1.mp4', localPath: '/tmp/1.mp4', fileName: '1.mp4' }), res);
+  await systemMod.handleJianyingSend(
+    makeJsonReq({ fileUrl: 'http://x/1.mp4', localPath: '/tmp/1.mp4', fileName: '1.mp4' }),
+    res,
+  );
   const body = parseResBody(res);
   assert.equal(body.status, 'ok');
 });
 
 test('System·jianying/send 批量形态', async () => {
   const res = makeRes();
-  await systemMod.handleJianyingSend(makeJsonReq({ items: [{ fileUrl: 'a' }, { localPath: 'b' }] }), res);
+  await systemMod.handleJianyingSend(
+    makeJsonReq({ items: [{ fileUrl: 'a' }, { localPath: 'b' }] }),
+    res,
+  );
   const body = parseResBody(res);
   assert.equal(body.status, 'ok');
   assert.equal(body.count, 2);
@@ -786,7 +1010,10 @@ test('Database·backupDb 生成整库备份文件', async () => {
 });
 
 test('Database·exportDataJson 导出轻量 JSON', async () => {
-  await tasksMod.handleTasksSave(makeJsonReq({ taskId: 'e1', prompt: 'p', channelName: 'c' }), makeRes());
+  await tasksMod.handleTasksSave(
+    makeJsonReq({ taskId: 'e1', prompt: 'p', channelName: 'c' }),
+    makeRes(),
+  );
   await dbMod.saveDb();
   const filePath = dbMod.exportDataJson(true);
   assert.ok(filePath, '应生成导出文件');
@@ -812,7 +1039,10 @@ test('Database·deleteLocalFile 删除本地文件且引用计数', async () => 
 
   // 再造一个文件 + 引用 → 不删
   fs.writeFileSync(fpath, RED_PNG_BUFFER);
-  await resourcesMod.handleResourcesSave(makeJsonReq({ id: 'ref1', url, type: 'image' }), makeRes());
+  await resourcesMod.handleResourcesSave(
+    makeJsonReq({ id: 'ref1', url, type: 'image' }),
+    makeRes(),
+  );
   ok = dbMod.deleteLocalFile(db, url);
   assert.equal(ok, false, '有引用应跳过');
   assert.ok(fs.existsSync(fpath), '文件应保留');
@@ -831,13 +1061,16 @@ function makeMultipartReq({ filename, fileContent, contentType, fields = {} }) {
   }
   parts.push(
     `--${boundary}\r\n` +
-    `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
-    `Content-Type: ${contentType}\r\n\r\n`
+      `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
+      `Content-Type: ${contentType}\r\n\r\n`,
   );
   const head = Buffer.from(parts.join(''));
   const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
   const data = Buffer.concat([head, fileContent, tail]);
-  const req = { headers: { 'content-type': `multipart/form-data; boundary=${boundary}` }, body: data };
+  const req = {
+    headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+    body: data,
+  };
   req.on = (ev, cb) => {
     if (ev === 'data' && data.length) cb(data);
     if (ev === 'end') cb();
@@ -848,7 +1081,15 @@ function makeMultipartReq({ filename, fileContent, contentType, fields = {} }) {
 
 test('Files·upload multipart 落盘并返回 URL + 缩略图', async () => {
   const res = makeRes();
-  await filesMod.handleUpload(makeMultipartReq({ filename: 'up.png', fileContent: RED_PNG_BUFFER, contentType: 'image/png', fields: { subfolder: 'canvas' } }), res);
+  await filesMod.handleUpload(
+    makeMultipartReq({
+      filename: 'up.png',
+      fileContent: RED_PNG_BUFFER,
+      contentType: 'image/png',
+      fields: { subfolder: 'canvas' },
+    }),
+    res,
+  );
   const body = data(res);
   assert.ok(body.url, '应返回 url');
   assert.match(body.url, /^http:\/\/127\.0\.0\.1:18080\/files\/canvas\//);
@@ -862,9 +1103,18 @@ test('Files·upload multipart 落盘并返回 URL + 缩略图', async () => {
 
 test('Files·upload multipart 缺少文件 → 400', async () => {
   const boundary = '----testboundary123';
-  const data = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="subfolder"\r\n\r\ncanvas\r\n--${boundary}--\r\n`);
-  const req = { headers: { 'content-type': `multipart/form-data; boundary=${boundary}` }, body: data };
-  req.on = (ev, cb) => { if (ev === 'data' && data.length) cb(data); if (ev === 'end') cb(); return req; };
+  const data = Buffer.from(
+    `--${boundary}\r\nContent-Disposition: form-data; name="subfolder"\r\n\r\ncanvas\r\n--${boundary}--\r\n`,
+  );
+  const req = {
+    headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+    body: data,
+  };
+  req.on = (ev, cb) => {
+    if (ev === 'data' && data.length) cb(data);
+    if (ev === 'end') cb();
+    return req;
+  };
   const res = makeRes();
   await filesMod.handleUpload(req, res);
   assert.equal(res.status, 400);
@@ -878,11 +1128,24 @@ async function streamThumb(urlStr) {
   let headers = null;
   let status = 0;
   const res = new Writable({
-    write(c, _enc, cb) { chunks.push(Buffer.from(c)); cb(); },
-    writev(items, cb) { for (const i of items) chunks.push(Buffer.from(i.chunk)); cb(); },
+    write(c, _enc, cb) {
+      chunks.push(Buffer.from(c));
+      cb();
+    },
+    writev(items, cb) {
+      for (const i of items) chunks.push(Buffer.from(i.chunk));
+      cb();
+    },
   });
-  res.writeHead = (code, h) => { status = code; headers = h; return res; };
-  const done = new Promise((resolve, reject) => { res.on('finish', resolve); res.on('error', reject); });
+  res.writeHead = (code, h) => {
+    status = code;
+    headers = h;
+    return res;
+  };
+  const done = new Promise((resolve, reject) => {
+    res.on('finish', resolve);
+    res.on('error', reject);
+  });
   await filesMod.handleThumbnail(makeGetReq(), res, new URL(urlStr));
   await done;
   return { status, headers, body: Buffer.concat(chunks) };
@@ -893,9 +1156,17 @@ test('Files·thumbnail 为文件生成缩略图（直返二进制流）', async 
   const canvasDir = path.join(TEST_DIR, 'uploads', 'canvas');
   fs.mkdirSync(canvasDir, { recursive: true });
   fs.writeFileSync(path.join(canvasDir, 'thumb.png'), RED_PNG_BUFFER);
-  const { status, headers, body } = await streamThumb('http://x/api/files/thumbnail?url=' + encodeURIComponent('/files/canvas/thumb.png') + '&maxDim=100');
+  const { status, headers, body } = await streamThumb(
+    'http://x/api/files/thumbnail?url=' +
+      encodeURIComponent('/files/canvas/thumb.png') +
+      '&maxDim=100',
+  );
   assert.equal(status, 200);
-  assert.match(headers['Content-Type'] || '', /image\/png/, '应返回 PNG 二进制流（非 {thumbnailUrl} JSON）');
+  assert.match(
+    headers['Content-Type'] || '',
+    /image\/png/,
+    '应返回 PNG 二进制流（非 {thumbnailUrl} JSON）',
+  );
   assert.equal(headers['Content-Length'], RED_PNG_BUFFER.length);
   assert.ok(body.length > 0, '应返回缩略图二进制内容');
 });
@@ -908,7 +1179,11 @@ test('Files·thumbnail format 校验：webp 被拒回落源扩展名，白名单
 
   // webp：Jimp 0.22 无编码器 → 必须回落源扩展名 .png，绝不产出假 .webp
   const w = await streamThumb(`http://x/api/files/thumbnail?url=${abs}&maxDim=64&format=webp`);
-  assert.match(w.headers['Content-Type'] || '', /image\/png/, 'webp 应回落源扩展名 png（Content-Type 为 image/png）');
+  assert.match(
+    w.headers['Content-Type'] || '',
+    /image\/png/,
+    'webp 应回落源扩展名 png（Content-Type 为 image/png）',
+  );
   assert.ok(!/webp/.test(w.headers['Content-Type'] || ''), '不得产出 .webp 假文件');
 
   // jpeg：白名单内 → 缩略图 Content-Type 为 image/jpeg
@@ -922,8 +1197,8 @@ test('Files·thumbnail 中文/空格文件名（含双重编码）能命中磁�
   fs.writeFileSync(path.join(dir, '妹妹骷髅 .png'), RED_PNG_BUFFER);
   // 前端对「已编码相对路径」再交给 query → url=%2F…%25E4…（双态）；searchParams.get 解一层后仍是编码态，
   // handleThumbnail 需再 decodeURIComponent 才能真正命中中文目录 + 空格文件名。
-  const rel = encodeURI('/files/migrated/人物/妹妹骷髅 .png');   // 一层编码：%E4%BA…%20
-  const queryUrl = encodeURIComponent(rel);                      // 再编码：%25E4%BA…
+  const rel = encodeURI('/files/migrated/人物/妹妹骷髅 .png'); // 一层编码：%E4%BA…%20
+  const queryUrl = encodeURIComponent(rel); // 再编码：%25E4%BA…
   const r = await streamThumb(`http://x/api/files/thumbnail?maxDim=64&url=${queryUrl}`);
   assert.equal(r.status, 200, '双重编码路径应命中并出图');
   assert.match(r.headers['Content-Type'] || '', /image\/png/, '应返回 PNG');
@@ -952,19 +1227,41 @@ test('docs62·rename 会改写画布 KV / 任务里对旧 url 的引用（原样
   fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'web', '角色.png'), RED_PNG_BUFFER);
   const db = await dbMod.getDb();
   const oldRelRaw = 'web/角色.png';
-  const oldAbsRaw = `http://127.0.0.1:18080/files/${oldRelRaw}`;                 // 原样绝对
-  const oldAbsEnc = `http://127.0.0.1:18080/files/${encodeURI(oldRelRaw)}`;     // 编码绝对（中文必变 %E8…）
-  const newAbsRaw = `http://127.0.0.1:18080/files/web/新名.png`;                // 新：原样
+  const oldAbsRaw = `http://127.0.0.1:18080/files/${oldRelRaw}`; // 原样绝对
+  const oldAbsEnc = `http://127.0.0.1:18080/files/${encodeURI(oldRelRaw)}`; // 编码绝对（中文必变 %E8…）
+  const newAbsRaw = `http://127.0.0.1:18080/files/web/新名.png`; // 新：原样
   const newAbsEnc = `http://127.0.0.1:18080/files/${encodeURI('web/新名.png')}`; // 新：编码
   // 建一个本地文件资源
-  await resourcesMod.handleResourcesSave(makeJsonReq({ id: 'local-web-角色.png', url: oldAbsRaw, type: 'image', source: 'local-tool', folder: 'web', name: '角色.png' }), makeRes());
+  await resourcesMod.handleResourcesSave(
+    makeJsonReq({
+      id: 'local-web-角色.png',
+      url: oldAbsRaw,
+      type: 'image',
+      source: 'local-tool',
+      folder: 'web',
+      name: '角色.png',
+    }),
+    makeRes(),
+  );
   // 画布 KV：节点A 存原样绝对、节点B 存编码绝对（模拟脚本箱参考图存编码形态）
-  dbMod.run(db, `INSERT INTO kv (key, value) VALUES (?, ?)`, ['canvas-state-v1-p1', JSON.stringify({ nodes: [{ data: { url: oldAbsRaw } }, { data: { imageUrl: oldAbsEnc } }] })]);
+  dbMod.run(db, `INSERT INTO kv (key, value) VALUES (?, ?)`, [
+    'canvas-state-v1-p1',
+    JSON.stringify({ nodes: [{ data: { url: oldAbsRaw } }, { data: { imageUrl: oldAbsEnc } }] }),
+  ]);
   // 任务：存编码相对
-  dbMod.run(db, `INSERT INTO tasks (task_id, prompt) VALUES (?, ?)`, ['t1', `ref /files/${encodeURI(oldRelRaw)}`]);
+  dbMod.run(db, `INSERT INTO tasks (task_id, prompt) VALUES (?, ?)`, [
+    't1',
+    `ref /files/${encodeURI(oldRelRaw)}`,
+  ]);
   // 改名 角色.png → 新名.png
   const res = makeRes();
-  await resourcesMod.handleResourcesRename(makeJsonReq(), res, new URL(`http://x/api/resources/rename?id=local-web-角色.png&name=${encodeURIComponent('新名')}`));
+  await resourcesMod.handleResourcesRename(
+    makeJsonReq(),
+    res,
+    new URL(
+      `http://x/api/resources/rename?id=local-web-角色.png&name=${encodeURIComponent('新名')}`,
+    ),
+  );
   assert.ok(parseResBody(res).data?.ok, 'rename 成功');
   const kvt = dbMod.queryOne(db, `SELECT value FROM kv WHERE key='canvas-state-v1-p1'`).value;
   assert.ok(!kvt.includes(oldAbsRaw) && !kvt.includes(oldAbsEnc), 'KV 旧引用（原样+编码）均已改写');
@@ -999,17 +1296,34 @@ test('docs13·删除 task 不删盘：磁盘文件仍在（GC 裁决，不因任
   const url = `http://127.0.0.1:18080/files/${fileRel}`;
 
   // 把该文件登记进 tasks 表
-  await tasksMod.handleTasksSave(makeJsonReq({ taskId: 't1', resultUrl: url, prompt: 'p' }), makeRes());
+  await tasksMod.handleTasksSave(
+    makeJsonReq({ taskId: 't1', resultUrl: url, prompt: 'p' }),
+    makeRes(),
+  );
   // 画布 KV 引用同一文件
-  await kvMod.handleKvSet(makeJsonReq({ key: 'canvas-state-v1-p', value: JSON.stringify({ nodes: [{ id: 'n1', data: { imageUrl: url } }] }) }), makeRes());
+  await kvMod.handleKvSet(
+    makeJsonReq({
+      key: 'canvas-state-v1-p',
+      value: JSON.stringify({ nodes: [{ id: 'n1', data: { imageUrl: url } }] }),
+    }),
+    makeRes(),
+  );
 
   // 删除任务 → 只删记录，不删盘（旧实现会 deleteLocalFile 误删）
-  await tasksMod.handleTasksDelete(makeJsonReq(), makeRes(), new URL('http://x/api/tasks/delete?id=t1'));
+  await tasksMod.handleTasksDelete(
+    makeJsonReq(),
+    makeRes(),
+    new URL('http://x/api/tasks/delete?id=t1'),
+  );
   // 尾部 GC 因画布 KV 仍引用 → 不删文件
   assert.ok(fs.existsSync(absPath), '删除任务后画布引用的文件应保留');
 
   // 再清空画布引用（删除 KV），触发 GC 回收
-  await kvMod.handleKvDelete(makeJsonReq(), makeRes(), new URL('http://x/api/kv/delete?key=canvas-state-v1-p'));
+  await kvMod.handleKvDelete(
+    makeJsonReq(),
+    makeRes(),
+    new URL('http://x/api/kv/delete?key=canvas-state-v1-p'),
+  );
   await gcMod.runReferenceGc(false);
   assert.ok(!fs.existsSync(absPath), '全库无引用后 GC 应回收孤儿文件');
 });
@@ -1024,7 +1338,16 @@ test('docs13·删除 resource 不删盘 + GC 回收真正的孤儿', async () =>
   const keptAbs = path.join(uploadDir, keptRel);
   fs.writeFileSync(keptAbs, RED_PNG_BUFFER);
   const keptUrl = `http://127.0.0.1:18080/files/${keptRel}`;
-  await resourcesMod.handleResourcesSave(makeJsonReq({ id: 'local-migrated-keep.png', url: keptUrl, type: 'image', folder: 'migrated', name: 'keep.png' }), makeRes());
+  await resourcesMod.handleResourcesSave(
+    makeJsonReq({
+      id: 'local-migrated-keep.png',
+      url: keptUrl,
+      type: 'image',
+      folder: 'migrated',
+      name: 'keep.png',
+    }),
+    makeRes(),
+  );
 
   // 一个磁盘有、但全库无引用的孤儿（如 AI 资产落盘后未入库且画布删除）
   const orphanRel = 'migrated/orphan.png';
@@ -1032,7 +1355,11 @@ test('docs13·删除 resource 不删盘 + GC 回收真正的孤儿', async () =>
   fs.writeFileSync(orphanAbs, RED_PNG_BUFFER);
 
   // 删除被引用的 resource → 不删盘
-  await resourcesMod.handleResourcesDelete(makeJsonReq(), makeRes(), new URL('http://x/api/resources/delete?id=local-migrated-keep.png'));
+  await resourcesMod.handleResourcesDelete(
+    makeJsonReq(),
+    makeRes(),
+    new URL('http://x/api/resources/delete?id=local-migrated-keep.png'),
+  );
   // 删除后尾部 GC：keep.png 已无 resources/tasks/KV 引用 → 成为孤儿被回收
   assert.ok(!fs.existsSync(keptAbs), '删除 resource 后该文件成为孤儿，GC 应回收');
   // orphan.png 本无引用 → 也被回收
@@ -1049,8 +1376,23 @@ test('docs13·resources clear 只删记录不 rmSync 整目录', async () => {
   const absPath = path.join(uploadDir, fileRel);
   fs.writeFileSync(absPath, RED_PNG_BUFFER);
   const url = `http://127.0.0.1:18080/files/${fileRel}`;
-  await resourcesMod.handleResourcesSave(makeJsonReq({ id: 'local-migrated-shared.png', url, type: 'image', folder: 'migrated', name: 'shared.png' }), makeRes());
-  await kvMod.handleKvSet(makeJsonReq({ key: 'canvas-state-v1-p', value: JSON.stringify({ nodes: [{ id: 'n1', data: { imageUrl: url } }] }) }), makeRes());
+  await resourcesMod.handleResourcesSave(
+    makeJsonReq({
+      id: 'local-migrated-shared.png',
+      url,
+      type: 'image',
+      folder: 'migrated',
+      name: 'shared.png',
+    }),
+    makeRes(),
+  );
+  await kvMod.handleKvSet(
+    makeJsonReq({
+      key: 'canvas-state-v1-p',
+      value: JSON.stringify({ nodes: [{ id: 'n1', data: { imageUrl: url } }] }),
+    }),
+    makeRes(),
+  );
 
   // clear（deleteFiles=true 旧行为会 rmSync 整目录，画布引用的文件会被连带删除）
   await resourcesMod.handleResourcesClear(makeJsonReq({ deleteFiles: true }), makeRes());
@@ -1073,8 +1415,11 @@ async function moveReq(src, dst) {
 async function renameReq(id, name) {
   const res = makeRes();
   await resourcesMod.handleResourcesRename(
-    makeJsonReq(), res,
-    new URL(`http://x/api/resources/rename?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`)
+    makeJsonReq(),
+    res,
+    new URL(
+      `http://x/api/resources/rename?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`,
+    ),
   );
   return { status: res.status, body: parseResBody(res) };
 }
@@ -1120,10 +1465,18 @@ async function seedResource(rel, { isFavorite = 0 } = {}) {
   const dir = path.dirname(rel);
   const folder = dir === '.' ? '' : dir;
   const url = `http://127.0.0.1:18080/files/${rel}`;
-  await resourcesMod.handleResourcesSave(makeJsonReq({
-    id: `local-${folder ? folder + '-' : ''}${name}`,
-    url, type: 'image', source: 'local-tool', folder, name, is_favorite: isFavorite,
-  }), makeRes());
+  await resourcesMod.handleResourcesSave(
+    makeJsonReq({
+      id: `local-${folder ? folder + '-' : ''}${name}`,
+      url,
+      type: 'image',
+      source: 'local-tool',
+      folder,
+      name,
+      is_favorite: isFavorite,
+    }),
+    makeRes(),
+  );
   return url;
 }
 
@@ -1141,9 +1494,19 @@ async function insertResourceRow(rel, { isFavorite = 0 } = {}) {
   const dir = path.dirname(rel);
   const folder = dir === '.' ? '' : dir;
   const id = `local-${folder ? folder + '-' : ''}${name}`;
-  dbMod.run(db,
+  dbMod.run(
+    db,
     'INSERT INTO resources (id, url, type, source, folder, name, is_favorite, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [id, `http://127.0.0.1:18080/files/${rel}`, 'image', 'local-tool', folder, name, isFavorite, Date.now()]
+    [
+      id,
+      `http://127.0.0.1:18080/files/${rel}`,
+      'image',
+      'local-tool',
+      folder,
+      name,
+      isFavorite,
+      Date.now(),
+    ],
   );
   return id;
 }
@@ -1174,9 +1537,11 @@ test('身份变更·move 同步 resources 表：新行 id/folder/url 正确且�
   assert.equal(
     dbMod.queryOne(db, 'SELECT id FROM resources WHERE id = ?', ['local-migrated-a.png']),
     undefined,
-    '旧行必须删除'
+    '旧行必须删除',
   );
-  const row = dbMod.queryOne(db, 'SELECT * FROM resources WHERE id = ?', ['local-migrated/人物-a.png']);
+  const row = dbMod.queryOne(db, 'SELECT * FROM resources WHERE id = ?', [
+    'local-migrated/人物-a.png',
+  ]);
   assert.ok(row, '新行必须存在（此前移动完全不同步表 → 收藏丢失 + GC 误删窗口）');
   assert.equal(row.folder, 'migrated/人物');
   assert.equal(row.url, 'http://127.0.0.1:18080/files/migrated/人物/a.png');
@@ -1195,9 +1560,14 @@ test('身份变更·move 改写画布 KV / 任务里对旧 url 的引用（原�
   const oldAbsEnc = `http://127.0.0.1:18080/files/${encodeURI(oldRel)}`;
   const newAbsRaw = `http://127.0.0.1:18080/files/${newRel}`;
   const newAbsEnc = `http://127.0.0.1:18080/files/${encodeURI(newRel)}`;
-  dbMod.run(db, `INSERT INTO kv (key, value) VALUES (?, ?)`,
-    ['canvas-state-v1-p1', JSON.stringify({ nodes: [{ data: { url: oldAbsRaw } }, { data: { imageUrl: oldAbsEnc } }] })]);
-  dbMod.run(db, `INSERT INTO tasks (task_id, prompt) VALUES (?, ?)`, ['t1', `ref /files/${encodeURI(oldRel)}`]);
+  dbMod.run(db, `INSERT INTO kv (key, value) VALUES (?, ?)`, [
+    'canvas-state-v1-p1',
+    JSON.stringify({ nodes: [{ data: { url: oldAbsRaw } }, { data: { imageUrl: oldAbsEnc } }] }),
+  ]);
+  dbMod.run(db, `INSERT INTO tasks (task_id, prompt) VALUES (?, ?)`, [
+    't1',
+    `ref /files/${encodeURI(oldRel)}`,
+  ]);
 
   const r = await moveReq(oldRel, newRel);
   assert.equal(r.status, 200);
@@ -1217,8 +1587,10 @@ test('身份变更·move 后不经 closeDb，db 文件已含新 url（验证 deb
   // 用 kv 引用承载「新 url」字符串：使本断言只反映落盘，不依赖 resources 表同步
   // （否则表同步一坏落盘断言也跟着红，两条断言耦合就分不清是谁坏了）
   const db = await dbMod.getDb();
-  dbMod.run(db, 'INSERT INTO kv (key, value) VALUES (?, ?)',
-    ['canvas-state-v1-p1', JSON.stringify({ nodes: [{ data: { url: 'http://127.0.0.1:18080/files/migrated/a.png' } }] })]);
+  dbMod.run(db, 'INSERT INTO kv (key, value) VALUES (?, ?)', [
+    'canvas-state-v1-p1',
+    JSON.stringify({ nodes: [{ data: { url: 'http://127.0.0.1:18080/files/migrated/a.png' } }] }),
+  ]);
   await insertResourceRow('migrated/a.png'); // 不经 handler，避免自身再引入 debounce
   await moveReq('migrated/a.png', 'migrated/人物/a.png');
   const raw = await waitDbFile('http://127.0.0.1:18080/files/migrated/人物/a.png');
@@ -1254,13 +1626,16 @@ test('身份变更·move 表内无行时按 rescan 规则补建，且 rescan 不
   assert.equal(r.status, 200);
 
   const db = await dbMod.getDb();
-  const row = dbMod.queryOne(db, 'SELECT * FROM resources WHERE id = ?', ['local-migrated/人物-a.png']);
+  const row = dbMod.queryOne(db, 'SELECT * FROM resources WHERE id = ?', [
+    'local-migrated/人物-a.png',
+  ]);
   assert.ok(row, '无旧行时必须补建，不留「有文件无行」的不一致窗口');
   assert.equal(row.source, 'local-tool');
 
   // 只统计文件型：rescan 会为目标目录「人物」补一条 type=folder 记录（预期行为，非重复），
   // 本断言要守的是「同一个文件不被重复录入」
-  const countFiles = () => dbMod.queryOne(db, `SELECT COUNT(*) AS c FROM resources WHERE type != 'folder'`).c;
+  const countFiles = () =>
+    dbMod.queryOne(db, `SELECT COUNT(*) AS c FROM resources WHERE type != 'folder'`).c;
   const before = countFiles();
   await resourcesMod.handleResourcesRescan(makeJsonReq(), makeRes());
   const after = countFiles();
@@ -1276,7 +1651,11 @@ test('身份变更·rename 目标已存在 → 409（既有判重不退化）', 
 
   const r = await renameReq('local-migrated-a.png', 'b');
   assert.equal(r.status, 409, '改名目标已存在必须 409');
-  assert.equal(fs.readFileSync(path.join(dir, 'b.png')).toString(), 'B-ORIGINAL', '目标文件内容不得被改写');
+  assert.equal(
+    fs.readFileSync(path.join(dir, 'b.png')).toString(),
+    'B-ORIGINAL',
+    '目标文件内容不得被改写',
+  );
   assert.ok(fs.existsSync(path.join(dir, 'a.png')), '源文件保持原样');
 });
 
@@ -1285,8 +1664,10 @@ test('身份变更·rename 后不经 closeDb，db 文件已含新 url', async ()
   fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'web', 'a.png'), RED_PNG_BUFFER);
   await settleDb(); // 同上：先归零落盘状态，并用 kv 承载验证字符串（与表同步解耦）
   const db = await dbMod.getDb();
-  dbMod.run(db, 'INSERT INTO kv (key, value) VALUES (?, ?)',
-    ['canvas-state-v1-p1', JSON.stringify({ nodes: [{ data: { url: 'http://127.0.0.1:18080/files/web/a.png' } }] })]);
+  dbMod.run(db, 'INSERT INTO kv (key, value) VALUES (?, ?)', [
+    'canvas-state-v1-p1',
+    JSON.stringify({ nodes: [{ data: { url: 'http://127.0.0.1:18080/files/web/a.png' } }] }),
+  ]);
   await insertResourceRow('web/a.png');
 
   await renameReq('local-web-a.png', '新名');

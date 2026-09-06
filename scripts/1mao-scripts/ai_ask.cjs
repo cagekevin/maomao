@@ -51,7 +51,9 @@ function askSymbol(q) {
   const entries = map[q];
   if (!entries) {
     console.log(`\n❌ 未找到符号 "${q}"。`);
-    console.log('   可尝试: npm run ask -- symbol <前几个字符>（不支持模糊，但可查全量文件确认）\n');
+    console.log(
+      '   可尝试: npm run ask -- symbol <前几个字符>（不支持模糊，但可查全量文件确认）\n',
+    );
     return 1;
   }
   console.log(`\n🔍 符号 "${q}" — ${entries.length} 处定义\n`);
@@ -92,7 +94,10 @@ function askContract(q) {
         console.log(`\n🔍 契约 "${id}"（${c.severity}）\n`);
         if (c.desc) console.log(`  📝 ${c.desc}`);
         if (c.scopes) console.log(`  🎯 scope: ${c.scopes.join(', ')}`);
-        if (c.patterns) console.log(`  🔢 模式: ${c.patterns.map(p => p.value || JSON.stringify(p)).join(', ')}`);
+        if (c.patterns)
+          console.log(
+            `  🔢 模式: ${c.patterns.map((p) => p.value || JSON.stringify(p)).join(', ')}`,
+          );
         console.log('\n  ⚠️ 改任何一端引用前，先跑 npm run contracts 确认全端同步。');
         console.log('');
         break;
@@ -119,7 +124,10 @@ function askFile(q) {
   for (const line of lines) {
     if (!line.startsWith('| `') || !line.includes(q)) continue;
     // 解析 `| a | b | c | d | ...` → 拆列
-    const cells = line.split('|').map((s) => s.trim()).filter(Boolean);
+    const cells = line
+      .split('|')
+      .map((s) => s.trim())
+      .filter(Boolean);
     const file = (cells[0] || '').replace(/^`|`$/g, '');
     // 只保留真实源文件（跳过符号索引/契约/目录等非文件行）
     if (!file || !/\.(jsx?|tsx?)$/.test(file)) continue;

@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { useLod } from '../components/base/canvas/lod.tsx'
+import { useMemo } from 'react';
+import { useLod } from '../components/base/canvas/lod.tsx';
 
 /**
  * 性能模式媒体降级 hook（复刻官方横幅"图片视频已隐藏"）。
@@ -18,11 +18,11 @@ import { useLod } from '../components/base/canvas/lod.tsx'
  * 服务后，可把「隐藏占位」改成「换 thumbnailUrl」，本 hook 只负责算降级级别，无需改。
  */
 export function useMediaDegrade() {
-  const { lodLevel = 0 } = useLod()
+  const { lodLevel = 0 } = useLod();
   const hideMedia = useMemo(
     () => (lodLevel >= 3 ? 'image video audio' : lodLevel >= 2 ? 'image' : ''),
-    [lodLevel]
-  )
-  const isHidden = (type) => hideMedia.includes(type)
-  return { lodLevel, hideMedia, isHidden }
+    [lodLevel],
+  );
+  const isHidden = (type) => hideMedia.includes(type);
+  return { lodLevel, hideMedia, isHidden };
 }

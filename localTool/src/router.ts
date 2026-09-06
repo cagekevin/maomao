@@ -23,31 +23,67 @@ import { getBaselinePath } from './paths.js';
 
 import { handleKvGet, handleKvSet, handleKvDelete } from './routes/kv.js';
 import {
-  handleUpload, handleRead, handleThumbnail, handleMkdir, handleMove,
-  handleOpen, handleOpenDir, handleList,
+  handleUpload,
+  handleRead,
+  handleThumbnail,
+  handleMkdir,
+  handleMove,
+  handleOpen,
+  handleOpenDir,
+  handleList,
 } from './routes/files.js';
 import {
-  handleTasksGet, handleTasksSave, handleTasksBatchSave, handleTasksDelete,
-  handleTasksBatchDelete, handleTasksClear,
+  handleTasksGet,
+  handleTasksSave,
+  handleTasksBatchSave,
+  handleTasksDelete,
+  handleTasksBatchDelete,
+  handleTasksClear,
 } from './routes/tasks.js';
 import { handleLogsPost, handleLogsStream } from './routes/logs.js';
 import {
-  handleResourcesGet, handleResourcesSave, handleResourcesBatchSave,
-  handleResourcesDelete, handleResourcesClear, handleResourcesRescan,
+  handleResourcesGet,
+  handleResourcesSave,
+  handleResourcesBatchSave,
+  handleResourcesDelete,
+  handleResourcesClear,
+  handleResourcesRescan,
   handleResourcesRename,
 } from './routes/resources.js';
 import { handleStatus, handleJianyingSend } from './routes/system.js';
 import { handleProjectsGet, handleProjectsSave } from './routes/projects.js';
-import { handlePluginManifest, handleWorkflowAppsByProject, handleBuiltin, handleModels } from './routes/platform.js';
 import {
-  handleAdminStats, handleAdminCleanup, handleAdminExport, handleAdminImport,
-  handleAdminKvList, handleAdminClearCache,
+  handlePluginManifest,
+  handleWorkflowAppsByProject,
+  handleBuiltin,
+  handleModels,
+} from './routes/platform.js';
+import {
+  handleAdminStats,
+  handleAdminCleanup,
+  handleAdminExport,
+  handleAdminImport,
+  handleAdminKvList,
+  handleAdminClearCache,
 } from './routes/admin.js';
-import { handleGenerateSubmit, handleGenerateGet, handleGenerateCancel } from './routes/generate.js';
-import { handleProvidersGet, handleProvidersPut, handleConfigBasePut, handleProviderTest, handleProviderProbeAsync, handleProviderFetchModels } from './routes/providers.js';
+import {
+  handleGenerateSubmit,
+  handleGenerateGet,
+  handleGenerateCancel,
+} from './routes/generate.js';
+import {
+  handleProvidersGet,
+  handleProvidersPut,
+  handleConfigBasePut,
+  handleProviderTest,
+  handleProviderProbeAsync,
+  handleProviderFetchModels,
+} from './routes/providers.js';
 import { handlePassthrough } from './routes/passthrough.js';
 import {
-  handleLocalPatchCrop, handleLocalPatchMerge, handleLocalPatchFingerprint,
+  handleLocalPatchCrop,
+  handleLocalPatchMerge,
+  handleLocalPatchFingerprint,
 } from './routes/localPatch.js';
 
 // handler 第三参统一为 url:URL。无需第三参者少参直接放；需 string id 者闭包提取。
@@ -97,57 +133,61 @@ async function handleSyncDefault(_req: IncomingMessage, res: ServerResponse): Pr
 // ── 路由表（顺序即优先级）──
 export const routes: Route[] = [
   // ── 系统 ──
-  { method: 'GET',  pattern: '/api/status', handler: handleStatus },
-  { method: 'POST', pattern: '/api/logs',   handler: handleLogsPost },
-  { method: 'GET',  pattern: '/api/logs/stream', handler: handleLogsStream },
+  { method: 'GET', pattern: '/api/status', handler: handleStatus },
+  { method: 'POST', pattern: '/api/logs', handler: handleLogsPost },
+  { method: 'GET', pattern: '/api/logs/stream', handler: handleLogsStream },
 
   // ── Generate（统一生成入口：按 capability 分流聊天/图片/视频；submit 即返 taskId + GET attach，
   //   句柄由 relay-poll 常驻轮询。/api/relay 已于 2026-09-03 并入本端点，路由删除）──
   { method: 'POST', pattern: '/api/generate', handler: handleGenerateSubmit },
   { method: 'POST', pattern: /^\/api\/generate\/[^/]+\/cancel$/, handler: handleGenerateCancel },
-  { method: 'GET',  pattern: /^\/api\/generate\/[^/]+$/, handler: handleGenerateGet },
+  { method: 'GET', pattern: /^\/api\/generate\/[^/]+$/, handler: handleGenerateGet },
 
   // ── Providers（配置型：一个平台一个 JSON，读 config/providers/；测连/拉模型委托 ai-relay）──
-  { method: 'GET',  pattern: '/api/providers', handler: handleProvidersGet },
-  { method: 'PUT',  pattern: '/api/providers', handler: handleProvidersPut },
-  { method: 'PUT',  pattern: '/api/config/base', handler: handleConfigBasePut },
+  { method: 'GET', pattern: '/api/providers', handler: handleProvidersGet },
+  { method: 'PUT', pattern: '/api/providers', handler: handleProvidersPut },
+  { method: 'PUT', pattern: '/api/config/base', handler: handleConfigBasePut },
   { method: 'POST', pattern: '/api/providers/test-connection', handler: handleProviderTest },
   { method: 'POST', pattern: '/api/providers/probe-async', handler: handleProviderProbeAsync },
-  { method: 'POST', pattern: /^\/api\/providers\/[^/]+\/fetch-models$/, handler: handleProviderFetchModels },
+  {
+    method: 'POST',
+    pattern: /^\/api\/providers\/[^/]+\/fetch-models$/,
+    handler: handleProviderFetchModels,
+  },
 
   // ── KV ──
-  { method: 'GET',  pattern: '/api/kv/get',    handler: handleKvGet },
-  { method: 'POST', pattern: '/api/kv/set',    handler: handleKvSet },
+  { method: 'GET', pattern: '/api/kv/get', handler: handleKvGet },
+  { method: 'POST', pattern: '/api/kv/set', handler: handleKvSet },
   { method: 'POST', pattern: '/api/kv/delete', handler: handleKvDelete },
 
   // ── 文件操作 ──
-  { method: 'POST', pattern: '/api/files/upload',    handler: handleUpload },
-  { method: 'GET',  pattern: '/api/files/read',      handler: handleRead },
-  { method: 'GET',  pattern: '/api/files/thumbnail', handler: handleThumbnail },
-  { method: 'POST', pattern: '/api/files/mkdir',     handler: handleMkdir },
-  { method: 'POST', pattern: '/api/files/move',      handler: handleMove },
-  { method: 'GET',  pattern: '/api/files/open',      handler: handleOpen },
-  { method: 'GET',  pattern: '/api/files/open-dir',  handler: handleOpenDir },
-  { method: 'GET',  pattern: '/api/files/list',      handler: handleList },
+  { method: 'POST', pattern: '/api/files/upload', handler: handleUpload },
+  { method: 'GET', pattern: '/api/files/read', handler: handleRead },
+  { method: 'GET', pattern: '/api/files/thumbnail', handler: handleThumbnail },
+  { method: 'POST', pattern: '/api/files/mkdir', handler: handleMkdir },
+  { method: 'POST', pattern: '/api/files/move', handler: handleMove },
+  { method: 'GET', pattern: '/api/files/open', handler: handleOpen },
+  { method: 'GET', pattern: '/api/files/open-dir', handler: handleOpenDir },
+  { method: 'GET', pattern: '/api/files/list', handler: handleList },
 
   // ── Tasks ──
-  { method: 'GET',  pattern: '/api/tasks',           handler: handleTasksGet },
-  { method: 'POST', pattern: '/api/tasks/save',      handler: handleTasksSave },
+  { method: 'GET', pattern: '/api/tasks', handler: handleTasksGet },
+  { method: 'POST', pattern: '/api/tasks/save', handler: handleTasksSave },
   { method: 'POST', pattern: '/api/tasks/batch-save', handler: handleTasksBatchSave },
-  { method: 'POST', pattern: '/api/tasks/delete',    handler: handleTasksDelete },
+  { method: 'POST', pattern: '/api/tasks/delete', handler: handleTasksDelete },
   { method: 'POST', pattern: '/api/tasks/batch-delete', handler: handleTasksBatchDelete },
-  { method: 'POST', pattern: '/api/tasks/clear',     handler: handleTasksClear },
+  { method: 'POST', pattern: '/api/tasks/clear', handler: handleTasksClear },
 
   // ── Projects ──
-  { method: 'GET',  pattern: '/api/projects',      handler: handleProjectsGet },
+  { method: 'GET', pattern: '/api/projects', handler: handleProjectsGet },
   { method: 'POST', pattern: '/api/projects/save', handler: handleProjectsSave },
 
   // ── Resources ──
-  { method: 'GET',  pattern: '/api/resources',        handler: handleResourcesGet },
-  { method: 'POST', pattern: '/api/resources/save',   handler: handleResourcesSave },
+  { method: 'GET', pattern: '/api/resources', handler: handleResourcesGet },
+  { method: 'POST', pattern: '/api/resources/save', handler: handleResourcesSave },
   { method: 'POST', pattern: '/api/resources/batch-save', handler: handleResourcesBatchSave },
   { method: 'POST', pattern: '/api/resources/delete', handler: handleResourcesDelete },
-  { method: 'POST', pattern: '/api/resources/clear',  handler: handleResourcesClear },
+  { method: 'POST', pattern: '/api/resources/clear', handler: handleResourcesClear },
   { method: 'POST', pattern: '/api/resources/rescan', handler: handleResourcesRescan },
   { method: 'POST', pattern: '/api/resources/rename', handler: handleResourcesRename },
 
@@ -157,28 +197,32 @@ export const routes: Route[] = [
   // ── 平台 ──
   { method: 'GET', pattern: '/plugin/manifest.json', handler: handlePluginManifest },
   // startsWith 前缀路由：原 pathname.startsWith('/api/workflow-apps/by-project/')
-  { method: 'GET', pattern: /^\/api\/workflow-apps\/by-project\//, handler: handleWorkflowAppsByProject },
+  {
+    method: 'GET',
+    pattern: /^\/api\/workflow-apps\/by-project\//,
+    handler: handleWorkflowAppsByProject,
+  },
   { method: 'GET', pattern: '/api/public/platform/builtin', handler: handleBuiltin },
-  { method: 'GET', pattern: '/api/public/platform/models',  handler: handleModels },
+  { method: 'GET', pattern: '/api/public/platform/models', handler: handleModels },
 
   // ── 管理 ──
-  { method: 'GET',  pattern: '/api/admin/stats',      handler: handleAdminStats },
-  { method: 'GET',  pattern: '/api/admin/kv-list',    handler: handleAdminKvList },
+  { method: 'GET', pattern: '/api/admin/stats', handler: handleAdminStats },
+  { method: 'GET', pattern: '/api/admin/kv-list', handler: handleAdminKvList },
   { method: 'POST', pattern: '/api/admin/clear-cache', handler: handleAdminClearCache },
-  { method: 'POST', pattern: '/api/admin/cleanup',    handler: handleAdminCleanup },
-  { method: 'GET',  pattern: '/api/admin/export',     handler: handleAdminExport },
-  { method: 'POST', pattern: '/api/admin/import',     handler: handleAdminImport },
+  { method: 'POST', pattern: '/api/admin/cleanup', handler: handleAdminCleanup },
+  { method: 'GET', pattern: '/api/admin/export', handler: handleAdminExport },
+  { method: 'POST', pattern: '/api/admin/import', handler: handleAdminImport },
 
   // ── sync/default 本地兜底（A2）──
   { method: 'GET', pattern: '/api/sync/default', handler: handleSyncDefault },
 
   // ── assets/upload 别名（L5）：双路径单 handler，拆两表项 ──
-  { method: 'POST', pattern: '/api/assets/upload',    handler: handleUpload },
+  { method: 'POST', pattern: '/api/assets/upload', handler: handleUpload },
   { method: 'POST', pattern: '/api/upload/app-asset', handler: handleUpload },
 
   // ── 局部提取与图像融合（local-patch）──
-  { method: 'POST', pattern: '/api/local-patch/crop',        handler: handleLocalPatchCrop },
-  { method: 'POST', pattern: '/api/local-patch/merge',       handler: handleLocalPatchMerge },
+  { method: 'POST', pattern: '/api/local-patch/crop', handler: handleLocalPatchCrop },
+  { method: 'POST', pattern: '/api/local-patch/merge', handler: handleLocalPatchMerge },
   { method: 'POST', pattern: '/api/local-patch/fingerprint', handler: handleLocalPatchFingerprint },
 
   // ── catch-all 透传（必须最后，标 catchAll）──
@@ -199,9 +243,9 @@ export function matchRoute(
   const m = method.toUpperCase();
   for (const route of routes) {
     if (route.method !== '*' && route.method !== m) continue;
-    if (route.catchAll) return { route };           // catch-all 永远命中（必须放表末）
+    if (route.catchAll) return { route }; // catch-all 永远命中（必须放表末）
     if (typeof route.pattern === 'string') {
-      if (route.pattern === pathname) return { route };   // 精确全等
+      if (route.pattern === pathname) return { route }; // 精确全等
     } else {
       const matched = pathname.match(route.pattern);
       if (matched) return { route, params: matched };

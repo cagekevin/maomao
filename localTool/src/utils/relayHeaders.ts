@@ -16,10 +16,16 @@
  */
 
 export const HOP_BY_HOP = new Set([
-  'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
-  'te', 'trailer', 'transfer-encoding', 'upgrade',
-  'content-length',  // 由 fetch/undici 按实际 body 重算
-  'host',            // 必须换成目标站的 host，否则部分网关会拒绝
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+  'content-length', // 由 fetch/undici 按实际 body 重算
+  'host', // 必须换成目标站的 host，否则部分网关会拒绝
 ]);
 
 /** Bearer → 前 4 位（日志脱敏用） */
@@ -39,7 +45,10 @@ export function logTs(): string {
  * dir='back'（回传前端）：额外剥 content-encoding（fetch/undici 已自动解压，不能再声明）。
  * dir='forward'（发上游）：仅剥 HOP_BY_HOP（目前无调用方，保留方向语义）。
  */
-export function stripHopByHop(headers: Headers, dir: 'forward' | 'back' = 'back'): Record<string, string> {
+export function stripHopByHop(
+  headers: Headers,
+  dir: 'forward' | 'back' = 'back',
+): Record<string, string> {
   const out: Record<string, string> = {};
   const skip = new Set(dir === 'back' ? [...HOP_BY_HOP, 'content-encoding'] : HOP_BY_HOP);
   headers.forEach((value, key) => {

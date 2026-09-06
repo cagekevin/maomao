@@ -1,6 +1,6 @@
-import React from 'react'
-import { AlertTriangle, RotateCcw } from 'lucide-react'
-import { logger } from '../core/logger.ts'
+import React from 'react';
+import { AlertTriangle, RotateCcw } from 'lucide-react';
+import { logger } from '../core/logger.ts';
 
 /**
  * 崩溃边界（Error Boundary）。
@@ -12,51 +12,55 @@ import { logger } from '../core/logger.ts'
  *  - onError：可选回调（上报后端等），node 粒度默认传 logger。
  */
 /** ErrorBoundary 粒度：'full' 根级全屏崩溃页 / 'node' 节点内局部错误框。 */
-type ErrorBoundaryVariant = 'full' | 'node'
+type ErrorBoundaryVariant = 'full' | 'node';
 
 interface ErrorBoundaryProps {
   /** 降级粒度：'full' 全屏崩溃页（默认） | 'node' 节点内局部错误框 */
-  variant?: ErrorBoundaryVariant
+  variant?: ErrorBoundaryVariant;
   /** 捕获回调（上报后端等）；node 粒度默认传 logger */
-  onError?: (error: Error, errorInfo: React.ErrorInfo) => void
-  children?: React.ReactNode
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+  children?: React.ReactNode;
 }
 
 interface ErrorBoundaryState {
-  hasError: boolean
-  error: Error | null
-  errorInfo: React.ErrorInfo | null
+  hasError: boolean;
+  error: Error | null;
+  errorInfo: React.ErrorInfo | null;
 }
 
 export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
-    super(props)
-    this.state = { hasError: false, error: null, errorInfo: null }
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
-    return { hasError: true, error }
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    this.setState({ errorInfo })
-    this.props.onError?.(error, errorInfo)
+    this.setState({ errorInfo });
+    this.props.onError?.(error, errorInfo);
     // 统一日志上报（TASK-056 2.1）：走 logger 而非裸 console，接 localTool /api/logs 落盘，
     // 崩溃日志与全链路日志同源，便于后端/AI grep 排查（原裸 console.error 绕过统一日志）。
-    logger.error('ErrorBoundary', 'componentDidCatch', { message: error?.message || String(error), error: String(error), stack: errorInfo?.componentStack || '' })
+    logger.error('ErrorBoundary', 'componentDidCatch', {
+      message: error?.message || String(error),
+      error: String(error),
+      stack: errorInfo?.componentStack || '',
+    });
   }
 
   handleReload = () => {
-    this.setState({ hasError: false, error: null, errorInfo: null })
-  }
+    this.setState({ hasError: false, error: null, errorInfo: null });
+  };
 
   handleHardReload = () => {
-    window.location.reload()
-  }
+    window.location.reload();
+  };
 
   render() {
-    if (!this.state.hasError) return this.props.children
-    const err = this.state.error
+    if (!this.state.hasError) return this.props.children;
+    const err = this.state.error;
     // 节点内局部错误框（NodeShell 用）：不破坏节点尺寸/端口定位，只占内容区
     if (this.props.variant === 'node') {
       return (
@@ -71,7 +75,7 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
             重新载入
           </button>
         </div>
-      )
+      );
     }
     // 根级全屏崩溃页（main.jsx 用）
     if (this.state.hasError) {
@@ -86,7 +90,8 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
             <div className="flex flex-col items-center gap-1.5">
               <h2 className="text-lg font-semibold text-white m-0">画面出错了</h2>
               <p className="text-body-xs text-muted m-0 leading-[1.6]">
-                画布遇到了异常，请重新载入。<br />
+                画布遇到了异常，请重新载入。
+                <br />
                 你的画布进度已保存在本地，重新载入不会丢失。
               </p>
             </div>
@@ -118,8 +123,8 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
             </div>
           </div>
         </div>
-      )
+      );
     }
-    return this.props.children
+    return this.props.children;
   }
 }

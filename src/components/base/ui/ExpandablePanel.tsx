@@ -1,4 +1,4 @@
-import React from 'react'
+import React from 'react';
 
 /**
  * 展开面板基座（复刻各节点底部输入面板的公共结构）。
@@ -31,20 +31,20 @@ import React from 'react'
 /** 展开面板基座 Props。 */
 interface ExpandablePanelProps {
   /** 是否展开（展开→opacity-100 可见；收起→opacity-0 隐藏且 h-0） */
-  expanded: boolean
+  expanded: boolean;
   /** 面板最小宽度（px，默认 500） */
-  minWidth?: number
+  minWidth?: number;
   /** 面板内容（提示词输入 + 底部参数区 + 手柄） */
-  children?: React.ReactNode
+  children?: React.ReactNode;
   /** 面板内部点击是否 stopPropagation（默认 true，避免点面板误触画布） */
-  onClickStop?: boolean
+  onClickStop?: boolean;
 }
 
 export default function ExpandablePanel({
   expanded,
   minWidth = 500,
   children,
-  onClickStop = true
+  onClickStop = true,
 }: ExpandablePanelProps) {
   return (
     <div
@@ -56,5 +56,5 @@ export default function ExpandablePanel({
     >
       {expanded && children}
     </div>
-  )
+  );
 }

@@ -10,7 +10,13 @@ Object.entries(m).forEach(([k, v]) => {
 const out = [];
 out.push('# FEATURE_GROUPS · gougou 功能域导航');
 out.push('');
-out.push('> 自动生成自 semantic-map.json | ' + Object.keys(m).length + ' 文件 · ' + Object.keys(d).length + ' 功能域');
+out.push(
+  '> 自动生成自 semantic-map.json | ' +
+    Object.keys(m).length +
+    ' 文件 · ' +
+    Object.keys(d).length +
+    ' 功能域',
+);
 out.push('');
 
 const DESC = {
@@ -23,7 +29,7 @@ const DESC = {
   'ui-subcomponents': '自动命名子组件 _Component* 系列',
   'utility-functions': '普通工具函数族',
   'endpoint-share': '端点配置 / 分享页 / 引导入口',
-  'infrastructure': '入口引导 / shared.js 桶 / 黑盒 / JSON 映射表',
+  infrastructure: '入口引导 / shared.js 桶 / 黑盒 / JSON 映射表',
 };
 
 for (const dom of Object.keys(d).sort((a, b) => d[b].length - d[a].length)) {
@@ -32,19 +38,27 @@ for (const dom of Object.keys(d).sort((a, b) => d[b].length - d[a].length)) {
   out.push('> ' + (DESC[dom] || '') + ' | ' + d[dom].length + ' 文件');
   out.push('');
 
-  const allS = [...new Set(d[dom].flatMap(f => f.storage))].sort();
-  if (allS.length > 0) out.push('**触碰存储键**: ' + allS.map(s => '`' + s + '`').join(', '));
-  const allE = [...new Set(d[dom].flatMap(f => f.events))].sort();
-  if (allE.length > 0) out.push('**触碰事件频道**: ' + allE.map(e => '`' + e + '`').join(', '));
+  const allS = [...new Set(d[dom].flatMap((f) => f.storage))].sort();
+  if (allS.length > 0) out.push('**触碰存储键**: ' + allS.map((s) => '`' + s + '`').join(', '));
+  const allE = [...new Set(d[dom].flatMap((f) => f.events))].sort();
+  if (allE.length > 0) out.push('**触碰事件频道**: ' + allE.map((e) => '`' + e + '`').join(', '));
   out.push('');
 
   out.push('| 文件 | 角色 | 风险 | 存储 | 事件 |');
   out.push('|---|---|---|---|---|');
   for (const f of d[dom]) {
-    const storage = f.storage.length > 0 ? f.storage.slice(0, 3).join(', ') + (f.storage.length > 3 ? '…' : '') : '—';
-    const events = f.events.length > 0 ? f.events.slice(0, 3).join(', ') + (f.events.length > 3 ? '…' : '') : '—';
+    const storage =
+      f.storage.length > 0
+        ? f.storage.slice(0, 3).join(', ') + (f.storage.length > 3 ? '…' : '')
+        : '—';
+    const events =
+      f.events.length > 0
+        ? f.events.slice(0, 3).join(', ') + (f.events.length > 3 ? '…' : '')
+        : '—';
     const risk = { low: '🟢', medium: '🟡', high: '🔴', 'black-box': '⚫' }[f.risk] || f.risk;
-    out.push('| `' + f.file + '` | ' + f.role + ' | ' + risk + ' | ' + storage + ' | ' + events + ' |');
+    out.push(
+      '| `' + f.file + '` | ' + f.role + ' | ' + risk + ' | ' + storage + ' | ' + events + ' |',
+    );
   }
   out.push('');
 }

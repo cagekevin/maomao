@@ -11,7 +11,7 @@
  * （放本模块会与 projectStore→contentStore→storage 形成循环，2026-08-31 实测后撤回）。
  * contracts.ts EVENTS 表的 from/to 按 basename 匹配（check-events），本模块内文件改名不影响。
  */
-export * from './storageAdapter.ts'
-export * from './kvStore.ts'
-export * from './storageQuota.ts'
-export * from './persistFailureBus.ts'
+export * from './storageAdapter.ts';
+export * from './kvStore.ts';
+export * from './storageQuota.ts';
+export * from './persistFailureBus.ts';

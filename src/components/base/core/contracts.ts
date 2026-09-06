@@ -36,11 +36,11 @@
  * 所有消费方一律 import 本常量引用，禁止散写裸字面量。
  */
 /** creditSwitch 全局存储键（localStorage，默认 true = 任何模式真烧积分前先确认） */
-export const CREDIT_SWITCH_KEY = 'agent_credit_switch'
+export const CREDIT_SWITCH_KEY = 'agent_credit_switch';
 /** conversation 会话字段名：creditGate（单一对象 { pending, gens, map }，per-conversation 唯一读写清） */
-export const CREDIT_GATE_FIELD = 'creditGate'
+export const CREDIT_GATE_FIELD = 'creditGate';
 /** credit 确认门禁广播事件名（useCanvasAgentTools 置位/清除 → AgentPanel 刷新确认卡片） */
-export const CREDIT_GATE_EVENT = 'agent:credit-gate'
+export const CREDIT_GATE_EVENT = 'agent:credit-gate';
 
 /**
  * 事件注册表（通信层 eventBus 的单一事实来源）。
@@ -123,7 +123,7 @@ export const EVENTS = {
     payload: '{ key, error }',
     note: '持久化失败广播（sSet/sRemove 失败）。已由 useCanvasEventSubscriptions 全局订阅',
   },
-}
+};
 
 /**
  * 存储键登记区（持久化层单一事实来源）。
@@ -152,27 +152,27 @@ export const EVENTS = {
  * 画布快照 KV 键前缀（P0-1 收口单一来源）。
  * kvStore.js 运行时前缀与下方登记表模板统一引用本常量，消除双写 'canvas-state-v1-'。
  */
-export const CANVAS_STATE_PREFIX = 'canvas-state-v1-'
+export const CANVAS_STATE_PREFIX = 'canvas-state-v1-';
 
 /**
  * 画布快照 schema 版本号（P0-4 跨端对齐）。
  * 写入 saveCanvasState 快照的 schemaVersion 字段；读取端按版本做兼容（旧结构缺字段默认补齐）。
  * 变更快照结构（新增/重命名字段影响旧数据可恢复性）时 → 提升本版本号并补迁移，不宜原地覆盖旧结构。
  */
-export const CANVAS_SCHEMA_VERSION = 1
+export const CANVAS_SCHEMA_VERSION = 1;
 
 /** STORAGE_KEYS 单条登记的元信息形状（存储键登记表唯一类型）。 */
 export interface StorageKeyMeta {
-  domain: string
+  domain: string;
   /** 产出该键的源码文件（尽量不带扩展名，扩展名无关） */
-  store: string
+  store: string;
   /** 后端通道：local（localStorage）/ kv（localTool KV） */
-  backend: 'local' | 'kv' | 'native'
+  backend: 'local' | 'kv' | 'native';
   /** 是否为动态键模板（含 {xxx} 占位，运行时按实际 id 展开） */
-  pattern?: boolean
+  pattern?: boolean;
   /** 旧键迁移映射：`旧键模板 → 新键模板`，存在时表示该键曾由旧键迁移而来 */
-  migration?: string
-  note: string
+  migration?: string;
+  note: string;
 }
 
 export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
@@ -451,20 +451,20 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   //   backupStore 全量导出；cloudSync 用 SYNC_EXCLUDE 显式排除
   //   （lastOpenedProject / yimao_asset_library / agent_draft / mutiwindow-clipboard）。
   // 新增本表 local 键即自动进入备份与同步。
-}
+};
 
 /** 获取所有 localStorage 后端键列表（不含动态键模板、不含已迁移旧键） */
 export function getLocalKeys() {
   return Object.entries(STORAGE_KEYS)
     .filter(([, v]) => v.backend === 'local' && !v.migration && !v.pattern)
-    .map(([k]) => k)
+    .map(([k]) => k);
 }
 
 /** 获取所有 KV 后端键模板列表 */
 export function getKvKeyPatterns() {
   return Object.entries(STORAGE_KEYS)
     .filter(([, v]) => v.backend === 'kv')
-    .map(([k]) => k)
+    .map(([k]) => k);
 }
 
 /**
@@ -473,12 +473,12 @@ export function getKvKeyPatterns() {
  * retryable=true 仅限网络/超时（可自动重试）；业务失败不重试（防封号）。
  */
 export const GEN_ERRORS = {
-  abort:    { label: '已取消',       retryable: false },
-  timeout:  { label: '请求超时',     retryable: true },
-  network:  { label: '网络错误',     retryable: true },
-  http:     { label: '服务错误',     retryable: false },
+  abort: { label: '已取消', retryable: false },
+  timeout: { label: '请求超时', retryable: true },
+  network: { label: '网络错误', retryable: true },
+  http: { label: '服务错误', retryable: false },
   business: { label: '上游业务错误', retryable: false },
-}
+};
 
 /**
  * 节点类型登记区（节点「上次参数」记忆 / 节点创建 的单一事实来源）。
@@ -491,29 +491,29 @@ export const GEN_ERRORS = {
  *   director3dNode 依赖 WebGL 无法 SSR、ghostTarget 为连线占位，均一并登记。
  */
 export const NODE_TYPES = {
-  imageNode:          'imageNode',
-  imageBoxNode:       'imageBoxNode',
-  gridSplitNode:      'gridSplitNode',
-  gridMergeNode:      'gridMergeNode',
-  panoramaNode:       'panoramaNode',
-  director3dNode:     'director3dNode',
-  faceMosaicNode:     'faceMosaicNode',
-  loopNode:           'loopNode',
-  videoExtractNode:   'videoExtractNode',
-  videoProcessNode:   'videoProcessNode',
-  group:              'group',
+  imageNode: 'imageNode',
+  imageBoxNode: 'imageBoxNode',
+  gridSplitNode: 'gridSplitNode',
+  gridMergeNode: 'gridMergeNode',
+  panoramaNode: 'panoramaNode',
+  director3dNode: 'director3dNode',
+  faceMosaicNode: 'faceMosaicNode',
+  loopNode: 'loopNode',
+  videoExtractNode: 'videoExtractNode',
+  videoProcessNode: 'videoProcessNode',
+  group: 'group',
   // ScriptBoxNode.data 全部顶层/子字段属画布快照(canvas-state-v1-{projectId})一部分，
   // 禁止独立持久化（防双写漂移）。字段唯一真相源见 src/components/scriptbox/scriptBoxSchema.ts。
-  scriptBoxNode:      'scriptBoxNode',
-  textNode:           'textNode',
-  promptNode:         'promptNode',
-  templateNode:       'templateNode',
-  discountVideoNode:  'discountVideoNode',
-  ghostTarget:        'ghostTarget',
-}
+  scriptBoxNode: 'scriptBoxNode',
+  textNode: 'textNode',
+  promptNode: 'promptNode',
+  templateNode: 'templateNode',
+  discountVideoNode: 'discountVideoNode',
+  ghostTarget: 'ghostTarget',
+};
 
 /** 节点类型值集合（check-node-types 比对用） */
-export const NODE_TYPE_SET = new Set(Object.values(NODE_TYPES))
+export const NODE_TYPE_SET = new Set(Object.values(NODE_TYPES));
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -537,7 +537,7 @@ export const NODE_TYPE_SET = new Set(Object.values(NODE_TYPES))
  */
 
 /** 分镜端口 handle id 前缀（拼接式：`${SHOT_HANDLE_PREFIX}${shotId}`） */
-export const SHOT_HANDLE_PREFIX = 'shot-'
+export const SHOT_HANDLE_PREFIX = 'shot-';
 
 /**
  * 写侧：分镜 id → handle id。
@@ -545,7 +545,7 @@ export const SHOT_HANDLE_PREFIX = 'shot-'
  * @returns {string} `shot-${shotId}`
  */
 export function shotHandleId(shotId) {
-  return `${SHOT_HANDLE_PREFIX}${shotId}`
+  return `${SHOT_HANDLE_PREFIX}${shotId}`;
 }
 
 /**
@@ -556,9 +556,9 @@ export function shotHandleId(shotId) {
  * @returns {string|null}
  */
 export function parseShotHandle(handle) {
-  if (typeof handle !== 'string' || !handle.startsWith(SHOT_HANDLE_PREFIX)) return null
-  const id = handle.slice(SHOT_HANDLE_PREFIX.length)
-  return id || null
+  if (typeof handle !== 'string' || !handle.startsWith(SHOT_HANDLE_PREFIX)) return null;
+  const id = handle.slice(SHOT_HANDLE_PREFIX.length);
+  return id || null;
 }
 
 /**
@@ -571,7 +571,7 @@ export const API_ENDPOINTS = {
    *   直接返回缩略图二进制（image/*），供 <img src> 直接使用；format 白名单仅 png/jpg/jpeg/gif/bmp/tiff/webp，
    *   Jimp 0.22 无法编码 webp 时后端拒绝回退源扩展名（沿用源扩展名）。 */
   fileThumbnail: '/api/files/thumbnail',
-}
+};
 
 /**
  * localTool 后端路由库存档（P0-4 死路由标注）。
@@ -624,79 +624,419 @@ export const API_ENDPOINTS = {
  */
 export const apiRegistry = {
   /** tasks 域 */
-  fetchTasks:            { fn: 'localToolApi.fetchTasks',            method: 'GET',    path: '/api/tasks',                  envelope: 'code-data', status: 'ACTIVE' },
-  saveTask:              { fn: 'localToolApi.saveTask',              method: 'POST',   path: '/api/tasks/save',             envelope: 'code-data', status: 'ACTIVE' },
-  batchSaveTasks:        { fn: 'localToolApi.batchSaveTasks',        method: 'POST',   path: '/api/tasks/batch-save',       envelope: 'code-data', status: 'ACTIVE' },
-  deleteTask:            { fn: 'localToolApi.deleteTask',            method: 'POST',   path: '/api/tasks/delete',           envelope: 'code-data', status: 'ACTIVE' },
-  batchDeleteTasks:      { fn: 'localToolApi.batchDeleteTasks',      method: 'POST',   path: '/api/tasks/batch-delete',     envelope: 'code-data', status: 'ACTIVE' },
-  clearAllTasksApi:      { fn: 'localToolApi.clearAllTasksApi',      method: 'POST',   path: '/api/tasks/clear',            envelope: 'code-data', status: 'ACTIVE' },
+  fetchTasks: {
+    fn: 'localToolApi.fetchTasks',
+    method: 'GET',
+    path: '/api/tasks',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  saveTask: {
+    fn: 'localToolApi.saveTask',
+    method: 'POST',
+    path: '/api/tasks/save',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  batchSaveTasks: {
+    fn: 'localToolApi.batchSaveTasks',
+    method: 'POST',
+    path: '/api/tasks/batch-save',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  deleteTask: {
+    fn: 'localToolApi.deleteTask',
+    method: 'POST',
+    path: '/api/tasks/delete',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  batchDeleteTasks: {
+    fn: 'localToolApi.batchDeleteTasks',
+    method: 'POST',
+    path: '/api/tasks/batch-delete',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  clearAllTasksApi: {
+    fn: 'localToolApi.clearAllTasksApi',
+    method: 'POST',
+    path: '/api/tasks/clear',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
   /** projects 域 */
-  fetchProjects:         { fn: 'localToolApi.fetchProjects',         method: 'GET',    path: '/api/projects',               envelope: 'code-data', status: 'ACTIVE' },
-  saveProjects:          { fn: 'localToolApi.saveProjects',          method: 'POST',   path: '/api/projects/save',          envelope: 'code-data', status: 'ACTIVE' },
+  fetchProjects: {
+    fn: 'localToolApi.fetchProjects',
+    method: 'GET',
+    path: '/api/projects',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  saveProjects: {
+    fn: 'localToolApi.saveProjects',
+    method: 'POST',
+    path: '/api/projects/save',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
   /** resources 域 */
-  fetchResources:        { fn: 'localToolApi.fetchResources',        method: 'GET',    path: '/api/resources',              envelope: 'code-data', status: 'ACTIVE' },
-  rescanResources:       { fn: 'localToolApi.rescanResources',       method: 'POST',   path: '/api/resources/rescan',       envelope: 'code-data', status: 'ACTIVE' },
-  deleteResource:        { fn: 'localToolApi.deleteResource',        method: 'POST',   path: '/api/resources/delete',       envelope: 'code-data', status: 'ACTIVE' },
-  saveResource:          { fn: 'localToolApi.saveResource',          method: 'POST',   path: '/api/resources/save',         envelope: 'code-data', status: 'ACTIVE' },
-  renameResource:        { fn: 'localToolApi.renameResource',        method: 'POST',   path: '/api/resources/rename',       envelope: 'code-data', status: 'ACTIVE' },
+  fetchResources: {
+    fn: 'localToolApi.fetchResources',
+    method: 'GET',
+    path: '/api/resources',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  rescanResources: {
+    fn: 'localToolApi.rescanResources',
+    method: 'POST',
+    path: '/api/resources/rescan',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  deleteResource: {
+    fn: 'localToolApi.deleteResource',
+    method: 'POST',
+    path: '/api/resources/delete',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  saveResource: {
+    fn: 'localToolApi.saveResource',
+    method: 'POST',
+    path: '/api/resources/save',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  renameResource: {
+    fn: 'localToolApi.renameResource',
+    method: 'POST',
+    path: '/api/resources/rename',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
   /** files 域（stream 豁免 / 组件散落；候选 C 2026-09-04：文件域成员已从 localToolApi 迁往 filesApi，fn 模块名同步） */
-  openLocalFolder:       { fn: 'filesApi.openLocalFolder',            method: 'GET',    path: '/api/files/open',             envelope: 'code-data', status: 'ACTIVE' },
-  openFileDir:           { fn: 'filesApi.openFileDir',                method: 'GET',    path: '/api/files/open-dir',         envelope: 'code-data', status: 'ACTIVE' },
-  uploadFile:            { fn: 'filesApi.uploadFileToLocal',        method: 'POST',   path: '/api/files/upload',           envelope: 'code-data', status: 'ACTIVE' },
-  createFolder:          { fn: 'filesApi.createFolder',              method: 'POST',   path: '/api/files/mkdir',            envelope: 'code-data', status: 'ACTIVE' },
+  openLocalFolder: {
+    fn: 'filesApi.openLocalFolder',
+    method: 'GET',
+    path: '/api/files/open',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  openFileDir: {
+    fn: 'filesApi.openFileDir',
+    method: 'GET',
+    path: '/api/files/open-dir',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  uploadFile: {
+    fn: 'filesApi.uploadFileToLocal',
+    method: 'POST',
+    path: '/api/files/upload',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  createFolder: {
+    fn: 'filesApi.createFolder',
+    method: 'POST',
+    path: '/api/files/mkdir',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
   /** 2026-09-04（103 §4.2）：原登记 filesApi.read 为幽灵（filesApi 无 read 导出，且前端零消费）→ 改 RESERVED */
-  fileRead:              { fn: '(前端零消费·原登记 filesApi.read 幽灵)', method: 'GET',    path: '/api/files/read',             envelope: 'stream',   status: 'RESERVED' },
-  fileThumbnail:         { fn: 'API_ENDPOINTS.fileThumbnail',        method: 'GET',    path: '/api/files/thumbnail',        envelope: 'stream',   status: 'ACTIVE' },
-  filesMove:             { fn: 'filesApi.moveFile',                   method: 'POST',   path: '/api/files/move',             envelope: 'code-data', status: 'ACTIVE' },
-  filesList:             { fn: '(前端零消费·未实现)',                  method: 'GET',    path: '/api/files/list',             envelope: 'code-data', status: 'RESERVED' },
+  fileRead: {
+    fn: '(前端零消费·原登记 filesApi.read 幽灵)',
+    method: 'GET',
+    path: '/api/files/read',
+    envelope: 'stream',
+    status: 'RESERVED',
+  },
+  fileThumbnail: {
+    fn: 'API_ENDPOINTS.fileThumbnail',
+    method: 'GET',
+    path: '/api/files/thumbnail',
+    envelope: 'stream',
+    status: 'ACTIVE',
+  },
+  filesMove: {
+    fn: 'filesApi.moveFile',
+    method: 'POST',
+    path: '/api/files/move',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  filesList: {
+    fn: '(前端零消费·未实现)',
+    method: 'GET',
+    path: '/api/files/list',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
   /** kv 域（raw 豁免：裸 null/裸值） */
-  kvGet:                 { fn: 'localToolApi.kvGet',                 method: 'GET',    path: '/api/kv/get',                 envelope: 'raw',      status: 'ACTIVE' },
-  kvSet:                 { fn: 'localToolApi.kvSet',                 method: 'POST',   path: '/api/kv/set',                 envelope: 'code-data', status: 'ACTIVE' },
-  kvDelete:              { fn: 'localToolApi.kvDelete',              method: 'POST',   path: '/api/kv/delete',              envelope: 'code-data', status: 'ACTIVE' },
+  kvGet: {
+    fn: 'localToolApi.kvGet',
+    method: 'GET',
+    path: '/api/kv/get',
+    envelope: 'raw',
+    status: 'ACTIVE',
+  },
+  kvSet: {
+    fn: 'localToolApi.kvSet',
+    method: 'POST',
+    path: '/api/kv/set',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  kvDelete: {
+    fn: 'localToolApi.kvDelete',
+    method: 'POST',
+    path: '/api/kv/delete',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
   /** providers 域（配置型：每平台一个 JSON，localTool routes/providers.ts + providerConfig.ts） */
-  getProviders:          { fn: 'localToolApi.providerApi.getProviders',      method: 'GET',  path: '/api/providers',                envelope: 'code-data', status: 'ACTIVE' },
-  saveProviders:         { fn: 'localToolApi.providerApi.saveProviders',     method: 'PUT',  path: '/api/providers',                envelope: 'code-data', status: 'ACTIVE' },
-  syncConfigBase:        { fn: 'localToolApi.providerApi.syncConfigBase',    method: 'PUT',  path: '/api/config/base',             envelope: 'code-data', status: 'ACTIVE' },
-  testConnection:        { fn: 'localToolApi.providerApi.testConnection',    method: 'POST', path: '/api/providers/test-connection', envelope: 'probe',    status: 'ACTIVE' },
-  probeAsync:            { fn: 'localToolApi.providerApi.probeAsync',        method: 'POST', path: '/api/providers/probe-async',    envelope: 'probe',    status: 'ACTIVE' },
-  fetchModels:           { fn: 'localToolApi.providerApi.fetchModels',       method: 'POST', path: '/api/providers/{id}/fetch-models', envelope: 'code-data', status: 'ACTIVE' },
+  getProviders: {
+    fn: 'localToolApi.providerApi.getProviders',
+    method: 'GET',
+    path: '/api/providers',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  saveProviders: {
+    fn: 'localToolApi.providerApi.saveProviders',
+    method: 'PUT',
+    path: '/api/providers',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  syncConfigBase: {
+    fn: 'localToolApi.providerApi.syncConfigBase',
+    method: 'PUT',
+    path: '/api/config/base',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  testConnection: {
+    fn: 'localToolApi.providerApi.testConnection',
+    method: 'POST',
+    path: '/api/providers/test-connection',
+    envelope: 'probe',
+    status: 'ACTIVE',
+  },
+  probeAsync: {
+    fn: 'localToolApi.providerApi.probeAsync',
+    method: 'POST',
+    path: '/api/providers/probe-async',
+    envelope: 'probe',
+    status: 'ACTIVE',
+  },
+  fetchModels: {
+    fn: 'localToolApi.providerApi.fetchModels',
+    method: 'POST',
+    path: '/api/providers/{id}/fetch-models',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
   /** 代理 / 网关 / 系统 */
   /** relay 统一生成入口（按 capability 分流：chat 同步 / image|video 异步句柄）。
    *  前端 image/video 走 relayGenerate + chat 走 relayChat，均打 POST /api/generate，2026-09-03 ACTIVE。
    *  （旧 /api/proxy、/api/relay 已退役移除登记；generateGet/cancel 仅 image/video。） */
   /** 2026-09-04（103 §4.4）：新增 consumer 字段登记真实消费门面 generate.*（fn 保持 relayProxy.* 底层原语；
    *  原洞：只验原语导出存在 ≠ 前端仍走 generate.ts 门面，见 base/api/index.ts 不导出 relayProxy） */
-  generateSubmit:        { fn: 'relayProxy.relaySubmit',         consumer: ['generate.generateImage', 'generate.generateVideo', 'generate.chatCompletions', 'generate.chatStream'], method: 'POST',   path: '/api/generate',               envelope: 'code-data', status: 'ACTIVE' },
-  generateGet:           { fn: 'relayProxy.relayPoll',          consumer: ['generate.generateImage', 'generate.generateVideo'], method: 'GET', path: '/api/generate/{frontTaskId}', envelope: 'code-data', status: 'ACTIVE' },
-  generateCancel:        { fn: 'relayProxy.relayCancel',        consumer: ['generate.generateImage', 'generate.generateVideo'], method: 'POST', path: '/api/generate/{frontTaskId}/cancel', envelope: 'code-data', status: 'ACTIVE' },
-  status:                { fn: 'useLocalToolStatus',                  method: 'GET',    path: '/api/status',                 envelope: 'probe',    status: 'ACTIVE' },
-  logs:                  { fn: 'logger.log', note: '统一日志总线：前端/各后端上报，source 区分', method: 'POST', path: '/api/logs', envelope: 'ok', status: 'ACTIVE' },
+  generateSubmit: {
+    fn: 'relayProxy.relaySubmit',
+    consumer: [
+      'generate.generateImage',
+      'generate.generateVideo',
+      'generate.chatCompletions',
+      'generate.chatStream',
+    ],
+    method: 'POST',
+    path: '/api/generate',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  generateGet: {
+    fn: 'relayProxy.relayPoll',
+    consumer: ['generate.generateImage', 'generate.generateVideo'],
+    method: 'GET',
+    path: '/api/generate/{frontTaskId}',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  generateCancel: {
+    fn: 'relayProxy.relayCancel',
+    consumer: ['generate.generateImage', 'generate.generateVideo'],
+    method: 'POST',
+    path: '/api/generate/{frontTaskId}/cancel',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  status: {
+    fn: 'useLocalToolStatus',
+    method: 'GET',
+    path: '/api/status',
+    envelope: 'probe',
+    status: 'ACTIVE',
+  },
+  logs: {
+    fn: 'logger.log',
+    note: '统一日志总线：前端/各后端上报，source 区分',
+    method: 'POST',
+    path: '/api/logs',
+    envelope: 'ok',
+    status: 'ACTIVE',
+  },
   /** 实时日志流（SSE）：backendLogStream.ts 用 EventSource 直连，不走 httpClient（SSE 三件套之外的第二个 SSE 点） */
-  logsStream:            { fn: 'backendLogStream.subscribeBackendLogStream', note: 'EventSource 直连，不走 httpRequest', method: 'GET', path: '/api/logs/stream', envelope: 'sse', status: 'ACTIVE' },
+  logsStream: {
+    fn: 'backendLogStream.subscribeBackendLogStream',
+    note: 'EventSource 直连，不走 httpRequest',
+    method: 'GET',
+    path: '/api/logs/stream',
+    envelope: 'sse',
+    status: 'ACTIVE',
+  },
   /** local-patch 局部重绘（RESERVED：当前前端零消费，端点供编辑器局部裁剪/拼回/指纹比对用） */
-  localPatchCrop:        { fn: '(前端零消费·局部裁剪)',                method: 'POST',   path: '/api/local-patch/crop',        envelope: 'code-data', status: 'RESERVED' },
-  localPatchMerge:       { fn: '(前端零消费·局部拼回)',                method: 'POST',   path: '/api/local-patch/merge',       envelope: 'code-data', status: 'RESERVED' },
-  localPatchFingerprint: { fn: '(前端零消费·指纹比对)',                method: 'POST',   path: '/api/local-patch/fingerprint', envelope: 'code-data', status: 'RESERVED' },
-  jianying:              { fn: '(前端零消费)',                          method: 'POST',   path: '/api/jianying/send',          envelope: 'stub',     status: 'RESERVED' },
+  localPatchCrop: {
+    fn: '(前端零消费·局部裁剪)',
+    method: 'POST',
+    path: '/api/local-patch/crop',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
+  localPatchMerge: {
+    fn: '(前端零消费·局部拼回)',
+    method: 'POST',
+    path: '/api/local-patch/merge',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
+  localPatchFingerprint: {
+    fn: '(前端零消费·指纹比对)',
+    method: 'POST',
+    path: '/api/local-patch/fingerprint',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
+  jianying: {
+    fn: '(前端零消费)',
+    method: 'POST',
+    path: '/api/jianying/send',
+    envelope: 'stub',
+    status: 'RESERVED',
+  },
   /** platform 域（RESERVED：前端零消费——模型源是 providerModels.js 聚合，不走 platform；handler 保留为「自研替换官方」兜底） */
-  pluginManifest:        { fn: '(前端零消费·未实现)',                  method: 'GET',    path: '/plugin/manifest.json',       envelope: 'code-data', status: 'RESERVED' },
-  builtin:               { fn: '(前端零消费·模型走 providerModels.js)', method: 'GET', path: '/api/public/platform/builtin', envelope: 'success-data', status: 'RESERVED' },
-  models:                { fn: '(前端零消费·模型走 providerModels.js)', method: 'GET', path: '/api/public/platform/models', envelope: 'success-data', status: 'RESERVED' },
-  workflowApps:          { fn: '(前端零消费)',                          method: 'GET',    path: '/api/workflow-apps/by-project/{id}', envelope: 'stub', status: 'RESERVED' },
+  pluginManifest: {
+    fn: '(前端零消费·未实现)',
+    method: 'GET',
+    path: '/plugin/manifest.json',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
+  builtin: {
+    fn: '(前端零消费·模型走 providerModels.js)',
+    method: 'GET',
+    path: '/api/public/platform/builtin',
+    envelope: 'success-data',
+    status: 'RESERVED',
+  },
+  models: {
+    fn: '(前端零消费·模型走 providerModels.js)',
+    method: 'GET',
+    path: '/api/public/platform/models',
+    envelope: 'success-data',
+    status: 'RESERVED',
+  },
+  workflowApps: {
+    fn: '(前端零消费)',
+    method: 'GET',
+    path: '/api/workflow-apps/by-project/{id}',
+    envelope: 'stub',
+    status: 'RESERVED',
+  },
   /** admin 域（RESERVED） */
-  adminStats:            { fn: '(前端零消费)',                          method: 'GET',    path: '/api/admin/stats',            envelope: 'code-data', status: 'RESERVED' },
-  adminKvList:           { fn: '(前端零消费)',                          method: 'GET',    path: '/api/admin/kv-list',          envelope: 'code-data', status: 'RESERVED' },
-  adminClearCache:       { fn: '(前端零消费)',                          method: 'POST',   path: '/api/admin/clear-cache',      envelope: 'code-data', status: 'RESERVED' },
-  adminCleanup:          { fn: '(前端零消费)',                          method: 'POST',   path: '/api/admin/cleanup',          envelope: 'code-data', status: 'RESERVED' },
-  adminExport:           { fn: '(前端零消费)',                          method: 'GET',    path: '/api/admin/export',           envelope: 'code-data', status: 'RESERVED' },
-  adminImport:           { fn: '(前端零消费)',                          method: 'POST',   path: '/api/admin/import',           envelope: 'code-data', status: 'RESERVED' },
+  adminStats: {
+    fn: '(前端零消费)',
+    method: 'GET',
+    path: '/api/admin/stats',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
+  adminKvList: {
+    fn: '(前端零消费)',
+    method: 'GET',
+    path: '/api/admin/kv-list',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
+  adminClearCache: {
+    fn: '(前端零消费)',
+    method: 'POST',
+    path: '/api/admin/clear-cache',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
+  adminCleanup: {
+    fn: '(前端零消费)',
+    method: 'POST',
+    path: '/api/admin/cleanup',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
+  adminExport: {
+    fn: '(前端零消费)',
+    method: 'GET',
+    path: '/api/admin/export',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
+  adminImport: {
+    fn: '(前端零消费)',
+    method: 'POST',
+    path: '/api/admin/import',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
   /** 其余 RESERVED */
-  syncDefault:           { fn: '(前端零消费)',                          method: 'GET',    path: '/api/sync/default',           envelope: 'code-data', status: 'RESERVED' },
-  assetsUpload:          { fn: '(别名 handler=handleUpload)',          method: 'POST',   path: '/api/assets/upload',          envelope: 'code-data', status: 'RESERVED' },
-  uploadAppAsset:        { fn: '(别名 handler=handleUpload)',          method: 'POST',   path: '/api/upload/app-asset',       envelope: 'code-data', status: 'RESERVED' },
-  resourcesBatchSave:    { fn: '(前端零消费)',                          method: 'POST',   path: '/api/resources/batch-save',   envelope: 'code-data', status: 'RESERVED' },
-  resourcesClear:        { fn: '(前端零消费)',                          method: 'POST',   path: '/api/resources/clear',        envelope: 'code-data', status: 'RESERVED' },
-}
+  syncDefault: {
+    fn: '(前端零消费)',
+    method: 'GET',
+    path: '/api/sync/default',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
+  assetsUpload: {
+    fn: '(别名 handler=handleUpload)',
+    method: 'POST',
+    path: '/api/assets/upload',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
+  uploadAppAsset: {
+    fn: '(别名 handler=handleUpload)',
+    method: 'POST',
+    path: '/api/upload/app-asset',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
+  resourcesBatchSave: {
+    fn: '(前端零消费)',
+    method: 'POST',
+    path: '/api/resources/batch-save',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
+  resourcesClear: {
+    fn: '(前端零消费)',
+    method: 'POST',
+    path: '/api/resources/clear',
+    envelope: 'code-data',
+    status: 'RESERVED',
+  },
+};
 
 /** apiRegistry 的 path 集合（check-api-contract 与后端 routes 互检用） */
-export const API_REGISTRY_PATHS = Object.values(apiRegistry).map((e) => e.path)
+export const API_REGISTRY_PATHS = Object.values(apiRegistry).map((e) => e.path);

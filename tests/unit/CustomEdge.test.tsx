@@ -11,127 +11,132 @@
  *  - 点击删除按钮 → deleteElements({ edges: [{ id }] })
  *  - markerEnd 字符串透传给主线
  */
-import React from 'react'
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import React from 'react';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 const h = vi.hoisted(() => {
-  const deleteElements = vi.fn()
-  const cometProps = []
-  return { deleteElements, cometProps }
-})
+  const deleteElements = vi.fn();
+  const cometProps = [];
+  return { deleteElements, cometProps };
+});
 
 vi.mock('@xyflow/react', () => ({
   getBezierPath: vi.fn(() => ['M0,0 C10,10 90,10 100,100', 50, 50]),
   Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
   EdgeLabelRenderer: ({ children }) => <div data-testid="edge-label">{children}</div>,
   useReactFlow: () => ({ deleteElements: (...a) => h.deleteElements(...a) }),
-}))
+}));
 
 vi.mock('../../src/components/edges/Comet.tsx', () => ({
   default: (props) => {
-    h.cometProps.push(props)
-    return <g data-testid="comet" />
+    h.cometProps.push(props);
+    return <g data-testid="comet" />;
   },
-}))
+}));
 
-import CustomEdge from '../../src/components/edges/CustomEdge.tsx'
-import type { EdgeProps } from '@xyflow/react'
-import { Position } from '@xyflow/react'
+import CustomEdge from '../../src/components/edges/CustomEdge.tsx';
+import type { EdgeProps } from '@xyflow/react';
+import { Position } from '@xyflow/react';
 
 const BASE_PROPS: EdgeProps = {
   id: 'e1',
   source: 's1',
   target: 't1',
-  sourceX: 0, sourceY: 0, targetX: 100, targetY: 100,
+  sourceX: 0,
+  sourceY: 0,
+  targetX: 100,
+  targetY: 100,
   sourcePosition: Position.Right,
   targetPosition: Position.Left,
   markerEnd: 'url(#arrow)',
   selected: false,
   data: {},
-}
+};
 
 function setup(overrides: Partial<EdgeProps> = {}) {
-  return render(<CustomEdge {...BASE_PROPS} {...overrides} />)
+  return render(<CustomEdge {...BASE_PROPS} {...overrides} />);
 }
 
 describe('CustomEdge — 未激活态', () => {
   beforeEach(() => {
-    h.deleteElements.mockClear()
-    h.cometProps.length = 0
-  })
+    h.deleteElements.mockClear();
+    h.cometProps.length = 0;
+  });
 
   it('渲染透明命中层 + 基础线（无 is-active）', () => {
-    const view = setup()
-    expect(view.container.querySelector('.cust-edge-hit')).toBeTruthy()
-    const base = view.container.querySelector('.cust-edge-base')
-    expect(base).toBeTruthy()
-    expect(base.className).not.toContain('is-active')
-  })
+    const view = setup();
+    expect(view.container.querySelector('.cust-edge-hit')).toBeTruthy();
+    const base = view.container.querySelector('.cust-edge-base');
+    expect(base).toBeTruthy();
+    expect(base.className).not.toContain('is-active');
+  });
 
   it('未激活：无辉光层、无隐藏 mpath、无 Comet、无删除按钮', () => {
-    const view = setup()
-    expect(view.container.querySelector('.cust-edge-glow')).toBeNull()
-    expect(view.container.querySelector('[id^="cust-edge-mpath"]')).toBeNull()
-    expect(h.cometProps).toHaveLength(0)
-    expect(screen.queryByTitle('删除连线')).toBeNull()
-  })
+    const view = setup();
+    expect(view.container.querySelector('.cust-edge-glow')).toBeNull();
+    expect(view.container.querySelector('[id^="cust-edge-mpath"]')).toBeNull();
+    expect(h.cometProps).toHaveLength(0);
+    expect(screen.queryByTitle('删除连线')).toBeNull();
+  });
 
   it('markerEnd 透传给主线 path', () => {
-    const view = setup()
-    expect(view.container.querySelector('.cust-edge-base').getAttribute('marker-end')).toBe('url(#arrow)')
-  })
+    const view = setup();
+    expect(view.container.querySelector('.cust-edge-base').getAttribute('marker-end')).toBe(
+      'url(#arrow)',
+    );
+  });
 
   it('markerEnd 非字符串时不透传', () => {
     // 故意喂错类型：验证组件对脏数据的防御（markerEnd 正常应为 string）
-    const view = setup({ markerEnd: { id: 'obj' } as unknown as string })
-    expect(view.container.querySelector('.cust-edge-base').getAttribute('marker-end')).toBeNull()
-  })
+    const view = setup({ markerEnd: { id: 'obj' } as unknown as string });
+    expect(view.container.querySelector('.cust-edge-base').getAttribute('marker-end')).toBeNull();
+  });
 
   it('bezier path d 透传给各层', () => {
-    const view = setup()
-    const d = 'M0,0 C10,10 90,10 100,100'
-    expect(view.container.querySelector('.cust-edge-hit').getAttribute('d')).toBe(d)
-    expect(view.container.querySelector('.cust-edge-base').getAttribute('d')).toBe(d)
-  })
-})
+    const view = setup();
+    const d = 'M0,0 C10,10 90,10 100,100';
+    expect(view.container.querySelector('.cust-edge-hit').getAttribute('d')).toBe(d);
+    expect(view.container.querySelector('.cust-edge-base').getAttribute('d')).toBe(d);
+  });
+});
 
 describe('CustomEdge — 激活态', () => {
   beforeEach(() => {
-    h.deleteElements.mockClear()
-    h.cometProps.length = 0
-  })
+    h.deleteElements.mockClear();
+    h.cometProps.length = 0;
+  });
 
   it('selected=true：渲染辉光 + 隐藏 mpath + Comet + 删除按钮', () => {
-    const view = setup({ selected: true })
-    expect(view.container.querySelector('.cust-edge-glow.is-active')).toBeTruthy()
-    expect(view.container.querySelector('#cust-edge-mpath-e1')).toBeTruthy()
-    expect(h.cometProps).toHaveLength(1)
-    expect(h.cometProps[0].edgeId).toBe('e1')
-    expect(h.cometProps[0].isActive).toBe(true)
-    expect(h.cometProps[0].pathRef).toBe('cust-edge-mpath-e1')
-    expect(screen.getByTitle('删除连线')).toBeTruthy()
-  })
+    const view = setup({ selected: true });
+    expect(view.container.querySelector('.cust-edge-glow.is-active')).toBeTruthy();
+    expect(view.container.querySelector('#cust-edge-mpath-e1')).toBeTruthy();
+    expect(h.cometProps).toHaveLength(1);
+    expect(h.cometProps[0].edgeId).toBe('e1');
+    expect(h.cometProps[0].isActive).toBe(true);
+    expect(h.cometProps[0].pathRef).toBe('cust-edge-mpath-e1');
+    expect(screen.getByTitle('删除连线')).toBeTruthy();
+  });
 
   it('data.relatedToSelected=true：关联激活（与选中联动）', () => {
-    const view = setup({ data: { relatedToSelected: true } })
-    expect(view.container.querySelector('.cust-edge-base').className).toContain('is-active')
-    expect(view.container.querySelector('.cust-edge-glow.is-active')).toBeTruthy()
-    expect(h.cometProps).toHaveLength(1)
-    expect(screen.getByTitle('删除连线')).toBeTruthy()
-  })
+    const view = setup({ data: { relatedToSelected: true } });
+    expect(view.container.querySelector('.cust-edge-base').className).toContain('is-active');
+    expect(view.container.querySelector('.cust-edge-glow.is-active')).toBeTruthy();
+    expect(h.cometProps).toHaveLength(1);
+    expect(screen.getByTitle('删除连线')).toBeTruthy();
+  });
 
   it('点击删除按钮 → deleteElements({ edges: [{ id }] })', () => {
-    setup({ selected: true })
-    fireEvent.click(screen.getByTitle('删除连线'))
-    expect(h.deleteElements).toHaveBeenCalledTimes(1)
-    expect(h.deleteElements).toHaveBeenCalledWith({ edges: [{ id: 'e1' }] })
-  })
+    setup({ selected: true });
+    fireEvent.click(screen.getByTitle('删除连线'));
+    expect(h.deleteElements).toHaveBeenCalledTimes(1);
+    expect(h.deleteElements).toHaveBeenCalledWith({ edges: [{ id: 'e1' }] });
+  });
 
   it('删除按钮在 EdgeLabelRenderer 内（连线中点浮层）', () => {
-    const view = setup({ selected: true })
-    const label = view.container.querySelector('[data-testid="edge-label"]')
-    expect(label).toBeTruthy()
-    expect(label.querySelector('[title="删除连线"]')).toBeTruthy()
-  })
-})
+    const view = setup({ selected: true });
+    const label = view.container.querySelector('[data-testid="edge-label"]');
+    expect(label).toBeTruthy();
+    expect(label.querySelector('[title="删除连线"]')).toBeTruthy();
+  });
+});

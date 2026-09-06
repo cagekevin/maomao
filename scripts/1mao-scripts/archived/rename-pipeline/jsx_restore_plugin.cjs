@@ -40,16 +40,17 @@ function getJsxCallee(callee) {
 
 function exprToJSXName(node) {
   if (!node) return t.jsxIdentifier('__JSXNAME__');
-  if (node.type === 'TemplateLiteral' && node.quasis.length === 1 && node.expressions.length === 0) {
+  if (
+    node.type === 'TemplateLiteral' &&
+    node.quasis.length === 1 &&
+    node.expressions.length === 0
+  ) {
     return t.jsxIdentifier(node.quasis[0].value.raw);
   }
   if (node.type === 'StringLiteral') return t.jsxIdentifier(node.value);
   if (node.type === 'Identifier') return t.jsxIdentifier(node.name);
   if (node.type === 'MemberExpression' && !node.computed) {
-    return t.jsxMemberExpression(
-      exprToJSXName(node.object),
-      t.jsxIdentifier(node.property.name),
-    );
+    return t.jsxMemberExpression(exprToJSXName(node.object), t.jsxIdentifier(node.property.name));
   }
   return t.jsxIdentifier('__JSXNAME__');
 }
@@ -59,12 +60,7 @@ function getChildren(propsArg) {
     for (const prop of propsArg.properties) {
       if (prop.type === 'ObjectProperty') {
         const k = prop.key;
-        const kn =
-          k.type === 'Identifier'
-            ? k.name
-            : k.type === 'StringLiteral'
-              ? k.value
-              : null;
+        const kn = k.type === 'Identifier' ? k.name : k.type === 'StringLiteral' ? k.value : null;
         if (kn === 'children') return prop.value;
       }
     }
@@ -91,16 +87,12 @@ function attrsFromProps(propsArg, extraKey) {
       if (val.type === 'StringLiteral') {
         attributes.push(t.jsxAttribute(t.jsxIdentifier(name), val));
       } else {
-        attributes.push(
-          t.jsxAttribute(t.jsxIdentifier(name), t.jsxExpressionContainer(val)),
-        );
+        attributes.push(t.jsxAttribute(t.jsxIdentifier(name), t.jsxExpressionContainer(val)));
       }
     }
   }
   if (extraKey) {
-    attributes.push(
-      t.jsxAttribute(t.jsxIdentifier('key'), t.jsxExpressionContainer(extraKey)),
-    );
+    attributes.push(t.jsxAttribute(t.jsxIdentifier('key'), t.jsxExpressionContainer(extraKey)));
   }
   return attributes;
 }

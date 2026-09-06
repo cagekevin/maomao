@@ -30,7 +30,10 @@ export interface LovartModelSpec {
  */
 export const LOVART_IMAGE_RULES: ReadonlyArray<readonly [readonly string[], string]> = [
   [['gpt-image-2-low', 'gpt-image2-low', 'gptimage2low'], 'generate_image_gpt_image_2_low'],
-  [['gpt-image-2-medium', 'gpt-image2-medium', 'gptimage2medium'], 'generate_image_gpt_image_2_medium'],
+  [
+    ['gpt-image-2-medium', 'gpt-image2-medium', 'gptimage2medium'],
+    'generate_image_gpt_image_2_medium',
+  ],
   [['gpt-image-2', 'gpt-image2', 'gptimage2'], 'generate_image_gpt_image_2'],
   [['nano-bn-pro', 'nano bn pro', 'nanobnpro'], 'generate_image_nano_banana_pro'],
   // 顺序修正（相对 main.py 的缺陷修复）：'nano-bn-2' 是 'nano-bn-2-lite' 的前缀子串，
@@ -41,14 +44,32 @@ export const LOVART_IMAGE_RULES: ReadonlyArray<readonly [readonly string[], stri
 ];
 
 export const LOVART_VIDEO_RULES: ReadonlyArray<readonly [readonly string[], string]> = [
-  [['seedance-2.0-fast', 'seedance-v2-0-fast', 'seedance 2.0 fast',
-    'seedance_2_fast', 'seedance-2-fast', 'seedance 2 fast'], 'generate_video_seedance_v2_0_fast'],
+  [
+    [
+      'seedance-2.0-fast',
+      'seedance-v2-0-fast',
+      'seedance 2.0 fast',
+      'seedance_2_fast',
+      'seedance-2-fast',
+      'seedance 2 fast',
+    ],
+    'generate_video_seedance_v2_0_fast',
+  ],
   [['kling-v3-omni', 'kling-3-omni', 'kling 3 omni'], 'generate_video_kling_v3_omni'],
   // 顺序修正（相对 main.py 的缺陷修复）：'seedance-2' 是 'seedance-2.0-mini' 的前缀子串，
   // 若按 main.py 把 'seedance-2' 排在前面，mini 会被误吞成 generate_video_seedance_v2_0，
   // 导致本行空串规则永远不可达。故 mini 必须排在 'seedance-2' 之前。
-  [['seedance-2.0-mini', 'seedance-v2-0-mini', 'seedance 2.0 mini',
-    'seedance_2_mini', 'seedance-2-mini', 'seedance 2 mini'], ''],
+  [
+    [
+      'seedance-2.0-mini',
+      'seedance-v2-0-mini',
+      'seedance 2.0 mini',
+      'seedance_2_mini',
+      'seedance-2-mini',
+      'seedance 2 mini',
+    ],
+    '',
+  ],
   [['seedance-2', 'seedance2', 'seedance-v2', 'seedance 2'], 'generate_video_seedance_v2_0'],
   [['minimax-h3', 'minimax h3', 'hailuo h3'], ''],
 ];

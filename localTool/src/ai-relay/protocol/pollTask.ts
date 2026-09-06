@@ -87,9 +87,10 @@ export async function pollTask<T>(options: PollTaskOptions<T>): Promise<T> {
 
     if (onProgress) {
       const raw = state as { progress?: unknown };
-      const progress = typeof raw?.progress === 'number'
-        ? raw.progress
-        : Math.min(100, Math.round((attempt / maxAttempts) * 100));
+      const progress =
+        typeof raw?.progress === 'number'
+          ? raw.progress
+          : Math.min(100, Math.round((attempt / maxAttempts) * 100));
       onProgress(progress);
     }
   }

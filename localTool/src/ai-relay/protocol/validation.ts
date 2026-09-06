@@ -69,7 +69,12 @@ export function validateRequestHeaders(value: unknown, label: string, errors: st
   }
 }
 
-function validateTemplateVariables(request: unknown, allowSubmit: boolean, label: string, errors: string[]): void {
+function validateTemplateVariables(
+  request: unknown,
+  allowSubmit: boolean,
+  label: string,
+  errors: string[],
+): void {
   visitTemplateStrings(request, (template) => {
     for (const match of template.matchAll(TEMPLATE_RE)) {
       const variable = match[1];
@@ -99,11 +104,13 @@ function validateConditionalTemplateDirectives(
   options: { enabled: boolean; arrayItem?: boolean; forEachEnabled?: boolean },
 ): void {
   if (Array.isArray(value)) {
-    value.forEach((item) => validateConditionalTemplateDirectives(item, label, errors, {
-      enabled: options.enabled,
-      arrayItem: true,
-      forEachEnabled: options.forEachEnabled,
-    }));
+    value.forEach((item) =>
+      validateConditionalTemplateDirectives(item, label, errors, {
+        enabled: options.enabled,
+        arrayItem: true,
+        forEachEnabled: options.forEachEnabled,
+      }),
+    );
     return;
   }
   if (!isRecord(value)) return;
@@ -135,7 +142,9 @@ function validateConditionalTemplateDirectives(
     if (!isRecord(value[CONDITIONAL_VALUE_KEY])) {
       errors.push(`${label}${FOR_EACH_KEY} 的 ${CONDITIONAL_VALUE_KEY} 必须是 JSON 对象`);
     } else if (sourcePath && !usesExactFullTemplate(value[CONDITIONAL_VALUE_KEY], sourcePath)) {
-      errors.push(`${label}${FOR_EACH_KEY} 的 ${CONDITIONAL_VALUE_KEY} 必须使用完整模板 {{${sourcePath}}} 接收当前 URL`);
+      errors.push(
+        `${label}${FOR_EACH_KEY} 的 ${CONDITIONAL_VALUE_KEY} 必须使用完整模板 {{${sourcePath}}} 接收当前 URL`,
+      );
     }
     validateConditionalTemplateDirectives(value[CONDITIONAL_VALUE_KEY], label, errors, {
       enabled: options.enabled,
@@ -164,10 +173,12 @@ function validateConditionalTemplateDirectives(
     return;
   }
 
-  Object.values(value).forEach((item) => validateConditionalTemplateDirectives(item, label, errors, {
-    enabled: options.enabled,
-    forEachEnabled: options.forEachEnabled,
-  }));
+  Object.values(value).forEach((item) =>
+    validateConditionalTemplateDirectives(item, label, errors, {
+      enabled: options.enabled,
+      forEachEnabled: options.forEachEnabled,
+    }),
+  );
 }
 
 export function validateRequest(
@@ -184,32 +195,36 @@ export function validateRequest(
     errors.push(`${label} method 只支持 GET 或 POST`);
   }
   validateRelativePath(request.path as string, `${label} path`, errors);
-  if (request.pathMode !== undefined && request.pathMode !== 'append' && request.pathMode !== 'origin') {
+  if (
+    request.pathMode !== undefined &&
+    request.pathMode !== 'append' &&
+    request.pathMode !== 'origin'
+  ) {
     errors.push(`${label} pathMode 只支持 append 或 origin`);
   }
   if (
-    request.bodyEncoding !== undefined
-    && !['json', 'form-urlencoded', 'multipart'].includes(String(request.bodyEncoding))
+    request.bodyEncoding !== undefined &&
+    !['json', 'form-urlencoded', 'multipart'].includes(String(request.bodyEncoding))
   ) {
     errors.push('请求体编码只支持 json、form-urlencoded 或 multipart');
   }
   if (
-    request.maxBodyBytes !== undefined
-    && (!Number.isSafeInteger(request.maxBodyBytes)
-      || Number(request.maxBodyBytes) <= 0
-      || Number(request.maxBodyBytes) > MAX_MODEL_PROTOCOL_BODY_BYTES)
+    request.maxBodyBytes !== undefined &&
+    (!Number.isSafeInteger(request.maxBodyBytes) ||
+      Number(request.maxBodyBytes) <= 0 ||
+      Number(request.maxBodyBytes) > MAX_MODEL_PROTOCOL_BODY_BYTES)
   ) {
-    errors.push(
-      `${label} maxBodyBytes 必须是 1 到 ${MAX_MODEL_PROTOCOL_BODY_BYTES} 的正整数`,
-    );
+    errors.push(`${label} maxBodyBytes 必须是 1 到 ${MAX_MODEL_PROTOCOL_BODY_BYTES} 的正整数`);
   }
   if (request.maxBodyBytes !== undefined && request.bodyEncoding === 'multipart') {
-    errors.push(`${label}使用 multipart 时不支持 maxBodyBytes，因为无法精确计算 multipart 边界开销`);
+    errors.push(
+      `${label}使用 multipart 时不支持 maxBodyBytes，因为无法精确计算 multipart 边界开销`,
+    );
   }
   if (
-    (request.bodyEncoding === 'form-urlencoded' || request.bodyEncoding === 'multipart')
-    && request.body !== undefined
-    && !isRecord(request.body)
+    (request.bodyEncoding === 'form-urlencoded' || request.bodyEncoding === 'multipart') &&
+    request.body !== undefined &&
+    !isRecord(request.body)
   ) {
     errors.push(`${label}使用 ${request.bodyEncoding} 时请求体必须是 JSON 对象`);
   }
@@ -242,29 +257,33 @@ function validatePollRetryConfig(value: unknown, errors: string[]): void {
     return;
   }
   if (
-    value.httpStatuses !== undefined
-    && (!Array.isArray(value.httpStatuses)
-      || value.httpStatuses.some((status) => !Number.isInteger(status) || status < 100 || status > 599))
+    value.httpStatuses !== undefined &&
+    (!Array.isArray(value.httpStatuses) ||
+      value.httpStatuses.some(
+        (status) => !Number.isInteger(status) || status < 100 || status > 599,
+      ))
   ) {
     errors.push('重试 HTTP 状态码必须是 100 到 599 的整数');
   }
   if (
-    value.maxRetries !== undefined
-    && (!Number.isInteger(value.maxRetries) || Number(value.maxRetries) < 0 || Number(value.maxRetries) > 10)
+    value.maxRetries !== undefined &&
+    (!Number.isInteger(value.maxRetries) ||
+      Number(value.maxRetries) < 0 ||
+      Number(value.maxRetries) > 10)
   ) {
     errors.push('连续错误重试次数必须在 0 到 10 之间');
   }
   if (
-    value.backoff !== undefined
-    && !['fixed', 'linear', 'exponential'].includes(String(value.backoff))
+    value.backoff !== undefined &&
+    !['fixed', 'linear', 'exponential'].includes(String(value.backoff))
   ) {
     errors.push('重试退避策略只支持 fixed、linear 或 exponential');
   }
   if (
-    value.maxDelayMs !== undefined
-    && (!Number.isInteger(value.maxDelayMs)
-      || Number(value.maxDelayMs) < 1000
-      || Number(value.maxDelayMs) > 300000)
+    value.maxDelayMs !== undefined &&
+    (!Number.isInteger(value.maxDelayMs) ||
+      Number(value.maxDelayMs) < 1000 ||
+      Number(value.maxDelayMs) > 300000)
   ) {
     errors.push('最大重试间隔必须在 1000 到 300000 毫秒之间');
   }
@@ -287,14 +306,15 @@ export function upgradeLegacyProtocolValue(value: unknown): unknown {
   upgraded.response = withoutUndefined({
     type: value.responseType ?? 'json',
     taskIdPath: value.mode === 'async' ? value.taskIdPath : undefined,
-    result: value.mode === 'sync'
-      ? withoutUndefined({
-          urlPath: value.resultUrlPath,
-          textPath: value.resultTextPath,
-          base64Path: value.resultBase64Path,
-          mimeType: value.resultMimeType,
-        })
-      : undefined,
+    result:
+      value.mode === 'sync'
+        ? withoutUndefined({
+            urlPath: value.resultUrlPath,
+            textPath: value.resultTextPath,
+            base64Path: value.resultBase64Path,
+            mimeType: value.resultMimeType,
+          })
+        : undefined,
     errorPath: value.errorPath,
   });
   delete upgraded.responseType;
@@ -334,27 +354,53 @@ export function upgradeLegacyProtocolValue(value: unknown): unknown {
   return upgraded;
 }
 
-function validateResultConfig(value: unknown, label: string, requirePath: boolean, errors: string[]): void {
+function validateResultConfig(
+  value: unknown,
+  label: string,
+  requirePath: boolean,
+  errors: string[],
+): void {
   if (!isRecord(value)) {
     errors.push(`${label}配置无效`);
     return;
   }
-  if (requirePath && value.urlPath === undefined && value.textPath === undefined && value.base64Path === undefined) {
+  if (
+    requirePath &&
+    value.urlPath === undefined &&
+    value.textPath === undefined &&
+    value.base64Path === undefined
+  ) {
     errors.push(`${label}必须配置 URL、文本或 Base64 结果路径`);
   }
-  if (value.urlPath !== undefined) validatePathExpression(typeof value.urlPath === 'string' ? value.urlPath : undefined, `${label} URL 路径`, errors);
-  if (value.textPath !== undefined) validatePathExpression(typeof value.textPath === 'string' ? value.textPath : undefined, `${label}文本路径`, errors);
+  if (value.urlPath !== undefined)
+    validatePathExpression(
+      typeof value.urlPath === 'string' ? value.urlPath : undefined,
+      `${label} URL 路径`,
+      errors,
+    );
+  if (value.textPath !== undefined)
+    validatePathExpression(
+      typeof value.textPath === 'string' ? value.textPath : undefined,
+      `${label}文本路径`,
+      errors,
+    );
   if (value.base64Path !== undefined) {
-    validatePathExpression(typeof value.base64Path === 'string' ? value.base64Path : undefined, `${label} Base64 路径`, errors);
+    validatePathExpression(
+      typeof value.base64Path === 'string' ? value.base64Path : undefined,
+      `${label} Base64 路径`,
+      errors,
+    );
     if (typeof value.mimeType !== 'string' || !MIME_TYPE_RE.test(value.mimeType ?? '')) {
-      errors.push(label.startsWith('轮询')
-        ? '轮询 Base64 结果必须配置 MIME 类型'
-        : 'Base64 结果必须配置 MIME 类型');
+      errors.push(
+        label.startsWith('轮询')
+          ? '轮询 Base64 结果必须配置 MIME 类型'
+          : 'Base64 结果必须配置 MIME 类型',
+      );
     }
   }
   if (
-    value.mimeType !== undefined
-    && (typeof value.mimeType !== 'string' || !MIME_TYPE_RE.test(value.mimeType))
+    value.mimeType !== undefined &&
+    (typeof value.mimeType !== 'string' || !MIME_TYPE_RE.test(value.mimeType))
   ) {
     errors.push(label.startsWith('轮询') ? '轮询结果 MIME 类型无效' : '结果 MIME 类型无效');
   }
@@ -394,21 +440,39 @@ export function validateModelExecutionProtocol(value: unknown): string[] {
     return errors;
   }
   if (
-    value.version === 2
-    && ['responseType', 'resultUrlPath', 'resultTextPath', 'resultBase64Path', 'resultMimeType', 'errorPath', 'taskIdPath']
-      .some((key) => Object.hasOwn(value, key))
+    value.version === 2 &&
+    [
+      'responseType',
+      'resultUrlPath',
+      'resultTextPath',
+      'resultBase64Path',
+      'resultMimeType',
+      'errorPath',
+      'taskIdPath',
+    ].some((key) => Object.hasOwn(value, key))
   ) {
     errors.push('version 2 响应字段必须配置在 response 中');
   }
   if (
-    value.version === 2
-    && isRecord(value.poll)
-    && ['statusPath', 'successValues', 'failureValues', 'resultUrlPath', 'resultTextPath', 'resultBase64Path', 'resultMimeType', 'errorPath', 'progressPath']
-      .some((key) => Object.hasOwn(value.poll as object, key))
+    value.version === 2 &&
+    isRecord(value.poll) &&
+    [
+      'statusPath',
+      'successValues',
+      'failureValues',
+      'resultUrlPath',
+      'resultTextPath',
+      'resultBase64Path',
+      'resultMimeType',
+      'errorPath',
+      'progressPath',
+    ].some((key) => Object.hasOwn(value.poll as object, key))
   ) {
     errors.push('version 2 轮询响应字段必须配置在 poll.response 中');
   }
-  const protocol = (value.version === 1 ? upgradeLegacyProtocolValue(value) : value) as ModelProtocol;
+  const protocol = (
+    value.version === 1 ? upgradeLegacyProtocolValue(value) : value
+  ) as ModelProtocol;
   if (protocol.mode !== 'sync' && protocol.mode !== 'async') {
     errors.push('调用协议 mode 只支持 sync 或 async');
   }
@@ -468,26 +532,26 @@ export function validateModelExecutionProtocol(value: unknown): string[] {
         validatePathExpression(pollResponse.progressPath, '轮询进度路径', errors);
       }
       if (
-        protocol.poll.intervalMs !== undefined
-        && (typeof protocol.poll.intervalMs !== 'number'
-          || protocol.poll.intervalMs < 1000
-          || protocol.poll.intervalMs > 60000)
+        protocol.poll.intervalMs !== undefined &&
+        (typeof protocol.poll.intervalMs !== 'number' ||
+          protocol.poll.intervalMs < 1000 ||
+          protocol.poll.intervalMs > 60000)
       ) {
         errors.push('轮询间隔必须在 1000 到 60000 毫秒之间');
       }
       if (
-        protocol.poll.maxAttempts !== undefined
-        && (!Number.isInteger(protocol.poll.maxAttempts)
-          || protocol.poll.maxAttempts < 1
-          || protocol.poll.maxAttempts > 10000)
+        protocol.poll.maxAttempts !== undefined &&
+        (!Number.isInteger(protocol.poll.maxAttempts) ||
+          protocol.poll.maxAttempts < 1 ||
+          protocol.poll.maxAttempts > 10000)
       ) {
         errors.push('最大轮询次数必须在 1 到 10000 之间');
       }
       if (
-        protocol.poll.maxDurationMs !== undefined
-        && (!Number.isInteger(protocol.poll.maxDurationMs)
-          || protocol.poll.maxDurationMs < 1000
-          || protocol.poll.maxDurationMs > 86400000)
+        protocol.poll.maxDurationMs !== undefined &&
+        (!Number.isInteger(protocol.poll.maxDurationMs) ||
+          protocol.poll.maxDurationMs < 1000 ||
+          protocol.poll.maxDurationMs > 86400000)
       ) {
         errors.push('最大轮询时长必须在 1000 到 86400000 毫秒之间');
       }
@@ -500,13 +564,17 @@ export function validateModelExecutionProtocol(value: unknown): string[] {
 export function parseModelExecutionProtocol(value: unknown): ModelProtocol {
   const errors = validateModelExecutionProtocol(value);
   if (errors.length > 0) throw new Error(errors[0]);
-  const normalized = (value as Record<string, unknown>).version === 1
-    ? upgradeLegacyProtocolValue(value)
-    : structuredClone(value);
+  const normalized =
+    (value as Record<string, unknown>).version === 1
+      ? upgradeLegacyProtocolValue(value)
+      : structuredClone(value);
   return normalized as ModelProtocol;
 }
 
-export function previewModelProtocolResponse(protocolValue: unknown, payload: unknown): ModelProtocolResponsePreviewEntry[] {
+export function previewModelProtocolResponse(
+  protocolValue: unknown,
+  payload: unknown,
+): ModelProtocolResponsePreviewEntry[] {
   return previewNormalizedModelProtocolResponse(
     parseModelExecutionProtocol(protocolValue),
     payload,

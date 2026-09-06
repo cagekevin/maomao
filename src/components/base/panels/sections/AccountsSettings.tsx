@@ -1,5 +1,5 @@
-import React from 'react'
-import { showToast } from '../../core/toastStore.ts'
+import React from 'react';
+import { showToast } from '../../core/toastStore.ts';
 import {
   useAccounts,
   isExtensionEnv,
@@ -12,7 +12,7 @@ import {
   clearCookies,
   requestDelete,
   moveEnv,
-} from '../../store/accountsStore.ts'
+} from '../../store/accountsStore.ts';
 
 /**
  * 多开账号管理（整页视图）。
@@ -33,7 +33,16 @@ function EnvMenu({ env, isConfirming, onEdit, onCopy, onClearAll, onDelete }) {
         className="text-secondary hover:text-white p-1 rounded hover:bg-surface-hover-strong cursor-pointer border-none bg-transparent"
         aria-label="环境菜单"
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <circle cx="12" cy="12" r="1" />
           <circle cx="12" cy="5" r="1" />
           <circle cx="12" cy="19" r="1" />
@@ -41,13 +50,25 @@ function EnvMenu({ env, isConfirming, onEdit, onCopy, onClearAll, onDelete }) {
       </button>
       <div className="absolute right-0 top-full pt-1 hidden group-hover/menu:block z-50">
         <div className="bg-surface-active border border-edge rounded-md shadow-xl py-1 w-24">
-          <button type="button" onClick={onEdit} className="w-full text-left px-4 py-2 text-xs text-body hover:bg-surface-hover-strong hover:text-white cursor-pointer border-none bg-transparent">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="w-full text-left px-4 py-2 text-xs text-body hover:bg-surface-hover-strong hover:text-white cursor-pointer border-none bg-transparent"
+          >
             修改
           </button>
-          <button type="button" onClick={onCopy} className="w-full text-left px-4 py-2 text-xs text-body hover:bg-surface-hover-strong hover:text-white cursor-pointer border-none bg-transparent">
+          <button
+            type="button"
+            onClick={onCopy}
+            className="w-full text-left px-4 py-2 text-xs text-body hover:bg-surface-hover-strong hover:text-white cursor-pointer border-none bg-transparent"
+          >
             复制 Cookie
           </button>
-          <button type="button" onClick={onClearAll} className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-surface-hover-strong hover:text-red-300 cursor-pointer border-none bg-transparent">
+          <button
+            type="button"
+            onClick={onClearAll}
+            className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-surface-hover-strong hover:text-red-300 cursor-pointer border-none bg-transparent"
+          >
             清除全部 Cookies
           </button>
           <div className="border-t border-edge my-1" />
@@ -61,75 +82,74 @@ function EnvMenu({ env, isConfirming, onEdit, onCopy, onClearAll, onDelete }) {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export default function AccountsSettings() {
-  const {
-    envs, activeId, formOpen, formEditId, formName, formCookies, saving, confirmDeleteId,
-  } = useAccounts()
-  const isExt = isExtensionEnv()
+  const { envs, activeId, formOpen, formEditId, formName, formCookies, saving, confirmDeleteId } =
+    useAccounts();
+  const isExt = isExtensionEnv();
 
   // 拖拽排序（复刻官方 Da/Oa/ka/Aa：记录源索引，drop 时移动）
-  const dragIndexRef = React.useRef(null)
-  const [dragOverIndex, setDragOverIndex] = React.useState(null)
+  const dragIndexRef = React.useRef(null);
+  const [dragOverIndex, setDragOverIndex] = React.useState(null);
 
   const handleDragStart = (e, idx) => {
-    dragIndexRef.current = idx
-    e.dataTransfer.effectAllowed = 'move'
-  }
+    dragIndexRef.current = idx;
+    e.dataTransfer.effectAllowed = 'move';
+  };
   const handleDragEnd = () => {
-    dragIndexRef.current = null
-    setDragOverIndex(null)
-  }
+    dragIndexRef.current = null;
+    setDragOverIndex(null);
+  };
   const handleDragOver = (e, idx) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    setDragOverIndex(idx)
-  }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(idx);
+  };
   const handleDrop = (e, idx) => {
-    e.preventDefault()
-    setDragOverIndex(null)
-    moveEnv(dragIndexRef.current, idx)
-    dragIndexRef.current = null
-  }
+    e.preventDefault();
+    setDragOverIndex(null);
+    moveEnv(dragIndexRef.current, idx);
+    dragIndexRef.current = null;
+  };
 
   const handleCopy = (env) => {
-    const text = JSON.stringify(env.cookies)
-    navigator.clipboard?.writeText(text)
-    showToast('Cookie 已复制', { type: 'success' })
-  }
+    const text = JSON.stringify(env.cookies);
+    navigator.clipboard?.writeText(text);
+    showToast('Cookie 已复制', { type: 'success' });
+  };
 
   const handleSave = async () => {
-    const r = await saveEnvironment(false)
+    const r = await saveEnvironment(false);
     // 官方 Sa：保存成功只关表单、无 toast；失败用 alert（见 store saveEnvironment）
-    if (!r.ok && r.error) alert(r.error)
-  }
+    if (!r.ok && r.error) alert(r.error);
+  };
 
   // 「保存当前环境」卡片：官方 `Sa(true)` 自动模式（忽略表单，直接抓取/降级 + 新建环境）
   const handleSaveCurrent = async () => {
-    const r = await saveEnvironment(true)
-    if (!r.ok && r.error) alert(r.error)
-  }
+    const r = await saveEnvironment(true);
+    if (!r.ok && r.error) alert(r.error);
+  };
 
   const handleClearAll = async (env) => {
     // 非扩展端：官方 ha L1666 `if(!k){ K.error('仅支持浏览器扩展环境'); return }`
     if (!isExt) {
-      showToast('仅支持浏览器扩展环境', { type: 'error' })
-      return
+      showToast('仅支持浏览器扩展环境', { type: 'error' });
+      return;
     }
-    const r = await clearCookies(env.id, true)
+    const r = await clearCookies(env.id, true);
     if (!r.ok) {
-      if (r.error) alert(r.error)
-      return
+      if (r.error) alert(r.error);
+      return;
     }
     // 官方 K.info/success（toast）：无 cookies → info；成功 → success
     if (r.count === 0) {
-      showToast('当前页面没有可清除的 Cookies', { type: 'info' })
+      showToast('当前页面没有可清除的 Cookies', { type: 'info' });
     } else {
-      showToast(`已清除 ${r.count} 个全部 Cookies`, { type: 'success' })
+      showToast(`已清除 ${r.count} 个全部 Cookies`, { type: 'success' });
     }
-  }
+  };
 
   return (
     <div className="absolute inset-0 flex flex-col bg-canvas overflow-hidden z-float">
@@ -138,8 +158,14 @@ export default function AccountsSettings() {
         <div className="p-3 bg-surface-deep border-b border-edge shadow-sm">
           <div className="bg-surface-active p-3 rounded-lg border border-edge animate-fade-in">
             <div className="flex justify-between items-center mb-2">
-              <div className="text-sm font-bold text-primary">{formEditId ? '修改环境' : '手动添加环境'}</div>
-              <button type="button" onClick={closeForm} className="text-muted hover:text-body cursor-pointer border-none bg-transparent">
+              <div className="text-sm font-bold text-primary">
+                {formEditId ? '修改环境' : '手动添加环境'}
+              </div>
+              <button
+                type="button"
+                onClick={closeForm}
+                className="text-muted hover:text-body cursor-pointer border-none bg-transparent"
+              >
                 ✕
               </button>
             </div>
@@ -169,7 +195,9 @@ export default function AccountsSettings() {
                 className="w-full bg-surface border border-edge rounded px-3 py-1.5 text-caption text-body focus:outline-none focus:border-blue-500 h-16 resize-none font-mono nowheel nopan"
               />
             </div>
-            <div className="text-caption text-muted mt-2">* 默认自动抓取当前标签页 Cookie。若填写上方 Cookie 则优先使用。</div>
+            <div className="text-caption text-muted mt-2">
+              * 默认自动抓取当前标签页 Cookie。若填写上方 Cookie 则优先使用。
+            </div>
           </div>
         </div>
       )}
@@ -194,9 +222,9 @@ export default function AccountsSettings() {
 
           {/* 环境卡片（复刻官方 Component853） */}
           {envs.map((e, idx) => {
-            const isActive = activeId === e.id
-            const isDragOver = dragOverIndex === idx
-            const isConfirming = confirmDeleteId === e.id
+            const isActive = activeId === e.id;
+            const isDragOver = dragOverIndex === idx;
+            const isConfirming = confirmDeleteId === e.id;
             return (
               <div
                 key={e.id}
@@ -217,37 +245,58 @@ export default function AccountsSettings() {
                   className="w-12 h-12 rounded-full bg-canvas object-contain p-0.5 border border-edge mb-3 pointer-events-none"
                   draggable={false}
                   alt={e.name}
-                  onError={(t) => { (t.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${e.name}` }}
+                  onError={(t) => {
+                    (t.target as HTMLImageElement).src =
+                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${e.name}`;
+                  }}
                 />
-                <div className="font-bold text-primary truncate text-sm w-full text-center px-2">{e.name}</div>
+                <div className="font-bold text-primary truncate text-sm w-full text-center px-2">
+                  {e.name}
+                </div>
                 {isActive && (
                   <div className="absolute top-0 left-0 w-0 h-0 border-t-[32px] border-r-[32px] border-t-blue-500 border-r-transparent rounded-tl-xl z-10">
-                    <div className="absolute -top-[28px] left-[6px] text-body-xs text-white font-bold">√</div>
+                    <div className="absolute -top-[28px] left-[6px] text-body-xs text-white font-bold">
+                      √
+                    </div>
                   </div>
                 )}
                 <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                   <EnvMenu
                     env={e}
                     isConfirming={isConfirming}
-                    onEdit={(ev) => { ev.stopPropagation(); openEditForm(e.id) }}
-                    onCopy={(ev) => { ev.stopPropagation(); handleCopy(e) }}
-                    onClearAll={(ev) => { ev.stopPropagation(); handleClearAll(e) }}
-                    onDelete={(ev) => { ev.stopPropagation(); requestDelete(e.id) }}
+                    onEdit={(ev) => {
+                      ev.stopPropagation();
+                      openEditForm(e.id);
+                    }}
+                    onCopy={(ev) => {
+                      ev.stopPropagation();
+                      handleCopy(e);
+                    }}
+                    onClearAll={(ev) => {
+                      ev.stopPropagation();
+                      handleClearAll(e);
+                    }}
+                    onDelete={(ev) => {
+                      ev.stopPropagation();
+                      requestDelete(e.id);
+                    }}
                   />
                 </div>
               </div>
-            )
+            );
           })}
         </div>
 
         {/* 底部：运行端说明（信息） */}
         <div className="mt-6 flex justify-center">
           <span className="text-xs text-muted-2">
-            运行端：{isExt ? 'Chrome 扩展（Cookie 读写生效）' : '浏览器（Cookie 读写需扩展端，当前仅列表管理）'}
+            运行端：
+            {isExt
+              ? 'Chrome 扩展（Cookie 读写生效）'
+              : '浏览器（Cookie 读写需扩展端，当前仅列表管理）'}
           </span>
         </div>
       </div>
-
     </div>
-  )
+  );
 }

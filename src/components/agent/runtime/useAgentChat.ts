@@ -1,11 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from '../canvas/useCanvasAgentTools.ts'
-import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/store/agentModelStore.ts'
-import { logger } from '../../base/core/logger.ts'
-import { withTimeout } from '../../base/utils/asyncGuard.ts'
-import { KV_TIMEOUT } from '../../base/core/config.ts'
-import { InputStateMachine } from './inputStateMachine.ts'
-import { generateId } from '../../base/core/idGen.ts'
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCanvasAgentTools,
+  getGenParams,
+  setCurrentReferenceImages,
+} from '../canvas/useCanvasAgentTools.ts';
+import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/store/agentModelStore.ts';
+import { logger } from '../../base/core/logger.ts';
+import { withTimeout } from '../../base/utils/asyncGuard.ts';
+import { KV_TIMEOUT } from '../../base/core/config.ts';
+import { InputStateMachine } from './inputStateMachine.ts';
+import { generateId } from '../../base/core/idGen.ts';
 
 /**
  * 【过渡方案·2026-08-18 决策注释】回传给 LLM 的「历史纯文字」轮数（由 AI 助手设置控制，不硬编码）。
@@ -34,29 +38,44 @@ import {
   classifyLocalIntent,
   buildIntentHint,
   INTENT_HINT,
-  LOCAL_INTENT_THRESHOLD,
-} from './agentCore.ts'
-import type { ToolCall, ChatMessage, AgentMemory } from './agentCore.ts'
+} from './agentCore.ts';
+import type { ToolCall, ChatMessage, AgentMemory } from './agentCore.ts';
 // 运行时逻辑（依赖注入版本）。hook 内以 const roundTrip 等同名闭包封装调用，
 // 故此处用别名避免与 hook 内的函数名冲突。
-import { roundTrip as agentRuntimeRoundTrip, runToolCalls as agentRuntimeRunToolCalls } from './agentRuntime.ts'
+import {
+  roundTrip as agentRuntimeRoundTrip,
+  runToolCalls as agentRuntimeRunToolCalls,
+} from './agentRuntime.ts';
 // 「记·长期」：按 agentKey 全局长期记忆注入块（照搬参考项目 memoryRetrieval + contextManager），注入 buildRequestMessages
-import { buildProjectMemoryContextFromStore } from './memoryRetrieval.ts'
+import { buildProjectMemoryContextFromStore } from './memoryRetrieval.ts';
 // 「记·长期」持久化：memory_suggest 确认后落库（agentKey 全局）
-import { saveProjectMemory, PROJECT_MEMORY_KIND_LABELS } from './projectMemoryStore.ts'
+import { saveProjectMemory, PROJECT_MEMORY_KIND_LABELS } from './projectMemoryStore.ts';
 // 【刷新恢复去重解析器】pending(messageId 引用) → action/text/attachments（纯函数，见 pendingRecovery.js）
-import { resolvePendingRecovery } from './pendingRecovery.ts'
+import { resolvePendingRecovery } from './pendingRecovery.ts';
 // 「记」：分层压缩历史→memory.summary（照搬参考项目 contextCompressionService），挂 send 收尾触发
-import { compressToSummary, RECENT_KEEP_COUNT } from './contextCompression.ts'
+import { compressToSummary, RECENT_KEEP_COUNT } from './contextCompression.ts';
 // 上下文预算触发压缩（照搬参考项目 contextManager）：决策吃 messages，内部估算 token，75% 预压缩 / 90% 强制压缩
-import { decideContextCompression, resolveInputBudget } from './tokenBudget.ts'
+import { decideContextCompression, resolveInputBudget } from './tokenBudget.ts';
 // 集中配置：AI 助手上下文窗口默认值与输出预算留白比例（无模型 contextWindow 声明时的保守兜底）
-import { AGENT_CONTEXT_WINDOW_DEFAULT, AGENT_CONTEXT_OUTPUT_BUDGET_RATIO } from '../../base/core/config.ts'
+import {
+  AGENT_CONTEXT_WINDOW_DEFAULT,
+  AGENT_CONTEXT_OUTPUT_BUDGET_RATIO,
+} from '../../base/core/config.ts';
 // 工作流状态迁移（M2 收口：steer/起步/awaiting_confirm/终态/队列出队的纯函数，落盘仍走 patchCurrentWorkflow）
-import { wfStart, wfSteer, wfFinish, wfAwaitConfirm, wfNextSteer } from './workflowState.ts'
+import { wfStart, wfSteer, wfFinish, wfAwaitConfirm, wfNextSteer } from './workflowState.ts';
 // 消息构造/落盘 + 附件归一化（M3 下沉：appendMsg/setHistory/updateLastStreaming/endStreaming/stripStreaming → agentMessages；附件/参考图目录 → agentAttachments）
-import { appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming } from './agentMessages.ts'
-import { normalizeAttachmentsForSend, buildRefCatalog, type SendAttachment } from './agentAttachments.ts'
+import {
+  appendMsg,
+  setHistory,
+  updateLastStreaming,
+  endStreaming,
+  stripStreaming,
+} from './agentMessages.ts';
+import {
+  normalizeAttachmentsForSend,
+  buildRefCatalog,
+  type SendAttachment,
+} from './agentAttachments.ts';
 import {
   ensureActiveConversation,
   setAgentKey,
@@ -83,7 +102,8 @@ import {
   getActivePendingGenerations,
   getActivePendingMemorySuggest,
   setActivePendingMemorySuggest,
-  getCreditGate, clearCreditGate,
+  getCreditGate,
+  clearCreditGate,
   getCurrentImageMap,
   getCurrentRunMode,
   setCurrentRunMode,
@@ -91,15 +111,15 @@ import {
   setCurrentGlobalContract,
   getWorkMode,
   waitHydrated,
-} from '../conversation/conversationStore.ts'
+} from '../conversation/conversationStore.ts';
 // 【消息单源 P5 基座】按字段订阅 store 的 messages（含 activeId 从 store 同步读），
 // 避免整包 useConversationStore() 订阅 → 流式高频更新连坐重渲染整个面板。
-import { subscribe, getState } from '../conversation/conversationState.ts'
-import type { ConversationStoreState, Conversation } from '../conversation/conversationState.ts'
-import { useStoreSelector, shallowEqual } from '../../../hooks/useStoreSelector.ts'
+import { subscribe, getState } from '../conversation/conversationState.ts';
+import type { ConversationStoreState, Conversation } from '../conversation/conversationState.ts';
+import { useStoreSelector, shallowEqual } from '../../../hooks/useStoreSelector.ts';
 // UI 渲染层消息形状（extends ChatMessage + 可选 UI 态字段）。hook 返回的 messages 即此形状，
 // 在此 import 类型保证「hook 产出」与「AgentPanel 消费」共用一份定义，消除两端的 `as unknown as`（F3）。
-import type { AgentMessageData } from '../../panels/AgentMessage.tsx'
+import type { AgentMessageData } from '../../panels/AgentMessage.tsx';
 
 // P15 列表 key 收口（收口在 agentMessages.js：appendMsg/setHistory 统一 withMsgId 补稳定唯一 id）
 
@@ -110,16 +130,16 @@ import type { AgentMessageData } from '../../panels/AgentMessage.tsx'
  * id 可选：runDirectBranch 走 setHistory 统一补 id（agentMessages.withMsgId）。
  */
 interface SendUserMessage {
-  id?: string
-  role: 'user'
-  content: string
-  createdAt: number
-  skills: unknown[]
-  mode?: string
-  steer?: boolean
-  statusLabel?: string
-  attachments?: SendAttachment[]
-  refCatalog?: string
+  id?: string;
+  role: 'user';
+  content: string;
+  createdAt: number;
+  skills: unknown[];
+  mode?: string;
+  steer?: boolean;
+  statusLabel?: string;
+  attachments?: SendAttachment[];
+  refCatalog?: string;
 }
 
 /**
@@ -233,8 +253,7 @@ export {
   classifyLocalIntent,
   buildIntentHint,
   INTENT_HINT,
-  LOCAL_INTENT_THRESHOLD,
-}
+};
 
 /**
  * 主 hook。
@@ -253,78 +272,115 @@ export {
  * 定义（经 agent/index.ts 透出），杜绝消费端单方 `as unknown as` 声明形状、hook 改字段即静默失效（F3）。
  */
 export interface UseAgentChatReturn {
-  messages: AgentMessageData[]
-  sending: boolean
-  error: string | null
-  model: string
-  setModel: (model: string) => void
-  send: (text: string, attachments?: unknown[]) => Promise<void>
-  stop: () => void
-  clear: () => void
-  stateAction: string
-  conversations: Conversation[]
-  activeConversationId: string
-  newChat: () => void
-  switchChat: (id: string) => void
-  deleteChat: (id: string) => void
-  updateMessageByContent: (content: string, patch?: Record<string, unknown>) => void
-  sendContentToCanvas: (msg: unknown) => void
-  confirmPendingMemorySuggest: () => Promise<{ ok?: boolean; error?: string }>
-  getActivePendingMemorySuggest: () => unknown
-  cancelPendingConfirm: (assistantContent?: unknown) => void
-  runExistingConfirm: () => Promise<{ ok: boolean; error: unknown; data: unknown }>
-  getCreditGate: () => { pending?: boolean; gens?: unknown[] } | null
-  clearCreditGate: () => void
-  setCurrentSnapshot: (patch: Record<string, unknown>) => void
-  setAwaitingConfirm: (v: boolean) => void
-  setCurrentAssistantTable: typeof setCurrentAssistantTable
-  setCurrentGlobalContract: typeof setCurrentGlobalContract
-  getCurrentRunMode: () => string
-  setCurrentRunMode: (mode: string) => void
+  messages: AgentMessageData[];
+  sending: boolean;
+  error: string | null;
+  model: string;
+  setModel: (model: string) => void;
+  send: (text: string, attachments?: unknown[]) => Promise<void>;
+  stop: () => void;
+  clear: () => void;
+  stateAction: string;
+  conversations: Conversation[];
+  activeConversationId: string;
+  newChat: () => void;
+  switchChat: (id: string) => void;
+  deleteChat: (id: string) => void;
+  updateMessageByContent: (content: string, patch?: Record<string, unknown>) => void;
+  sendContentToCanvas: (msg: unknown) => void;
+  confirmPendingMemorySuggest: () => Promise<{ ok?: boolean; error?: string }>;
+  getActivePendingMemorySuggest: () => unknown;
+  cancelPendingConfirm: (assistantContent?: unknown) => void;
+  runExistingConfirm: () => Promise<{ ok: boolean; error: unknown; data: unknown }>;
+  getCreditGate: () => { pending?: boolean; gens?: unknown[] } | null;
+  clearCreditGate: () => void;
+  setCurrentSnapshot: (patch: Record<string, unknown>) => void;
+  setAwaitingConfirm: (v: boolean) => void;
+  setCurrentAssistantTable: typeof setCurrentAssistantTable;
+  setCurrentGlobalContract: typeof setCurrentGlobalContract;
+  getCurrentRunMode: () => string;
+  setCurrentRunMode: (mode: string) => void;
 }
 
-export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '', defaultModel = '', provider = null, skills = [], onConversationChange = null } = {}): UseAgentChatReturn {
+export function useAgentChat({
+  agentKey = 'canvas-assistant',
+  systemPrompt = '',
+  defaultModel = '',
+  provider = null,
+  skills = [],
+  onConversationChange = null,
+} = {}): UseAgentChatReturn {
   // ── 消息单源（阶段1A）：不再自持 messages state，改为按字段订阅 store 的
   //    conversations[activeId].messages。流式高频更新只重渲染消息订阅者，其余字段不连坐。
-  const messages = useStoreSelector<ConversationStoreState, AgentMessageData[]>(subscribe, getState, (s) => {
-    const cur = (s.conversations || []).find((c) => c.id === s.activeId)
-    // 存储侧消息为宽松 ConversationMessage[]（含流式中间态），此处收窄为 UI 渲染形状 AgentMessageData[]
-    return (cur?.messages ?? []) as AgentMessageData[]
-  }, shallowEqual)
+  const messages = useStoreSelector<ConversationStoreState, AgentMessageData[]>(
+    subscribe,
+    getState,
+    (s) => {
+      const cur = (s.conversations || []).find((c) => c.id === s.activeId);
+      // 存储侧消息为宽松 ConversationMessage[]（含流式中间态），此处收窄为 UI 渲染形状 AgentMessageData[]
+      return (cur?.messages ?? []) as AgentMessageData[];
+    },
+    shallowEqual,
+  );
   // ── 阶段1D·薄壳化：sending / activeConversationId / conversations 改为 store 字段订阅（非本地 useState）──
-  const sending = useStoreSelector<ConversationStoreState, boolean>(subscribe, getState, (s) => !!s.sending, shallowEqual)
-  const [error, setError] = useState(null)
-  const [model, setModel] = useState(defaultModel)
+  const sending = useStoreSelector<ConversationStoreState, boolean>(
+    subscribe,
+    getState,
+    (s) => !!s.sending,
+    shallowEqual,
+  );
+  const [error, setError] = useState(null);
+  const [model, setModel] = useState(defaultModel);
   // ── 会话隔离（#9）：当前对话 id + 对话列表由 store 字段订阅（薄壳化，删本地 state + refreshConversations）──
-  const activeConversationId = useStoreSelector<ConversationStoreState, string>(subscribe, getState, (s) => s.activeId || '', shallowEqual)
-  const conversations = useStoreSelector<ConversationStoreState, Conversation[]>(subscribe, getState, (s) => s.conversations || [], shallowEqual)
+  const activeConversationId = useStoreSelector<ConversationStoreState, string>(
+    subscribe,
+    getState,
+    (s) => s.activeId || '',
+    shallowEqual,
+  );
+  const conversations = useStoreSelector<ConversationStoreState, Conversation[]>(
+    subscribe,
+    getState,
+    (s) => s.conversations || [],
+    shallowEqual,
+  );
 
   // 工具层（替代官方 lr()）
-  const { toolSchemas, callTool } = useCanvasAgentTools()
+  const { toolSchemas, callTool } = useCanvasAgentTools();
 
   // ref 缓存（避免闭包旧值，对齐官方 g.current/h.current）
-  const systemRef = useRef(systemPrompt)
-  const skillsRef = useRef(skills)
-  const abortRef = useRef(null)
+  const systemRef = useRef(systemPrompt);
+  const skillsRef = useRef(skills);
+  const abortRef = useRef(null);
   // 【复合忙判定】对齐大雄 agentIsTaskBusy：发送锁（store.sending）+ 状态机是否运行中。
   // 2026-08-21 消除 sendingRef 双源：异步闭包用 getState().sending 同步读最新（setSending → commit 同步更新 store，
   // 无需依赖渲染；与旧 sendingRef 的"同步读防并发"语义等价，单一真相收口到 store）。
   // 注意：store.sending 是 per-agentKey（跨实例可见）——当前 AgentPanel 单实例无差，多实例时更严格防并发。
   const isAgentBusy = useCallback(() => {
-    return !!getState().sending || !!stateMachineRef.current?.isRunning?.()
-  }, [])
+    return !!getState().sending || !!stateMachineRef.current?.isRunning?.();
+  }, []);
   // 输入状态机（#7）：推导 send/stop/steer/retry/idle；每次状态变化回写 action
-  const stateMachineRef = useRef(new InputStateMachine({ onChange: (snap, action) => {
-    setStateAction(action)
-  } }))
+  const stateMachineRef = useRef(
+    new InputStateMachine({
+      onChange: (snap, action) => {
+        setStateAction(action);
+      },
+    }),
+  );
   // 状态机推导的当前可用动作（send/stop/steer/retry/idle/stopping）
-  const [stateAction, setStateAction] = useState('idle')
+  const [stateAction, setStateAction] = useState('idle');
   // 切换对话回调（把目标对话的 skills/draft 交给 UI 层，如 AgentPanel 恢复 activeSkills 与输入框草稿）
-  const onConversationChangeRef = useRef(onConversationChange)
-  useEffect(() => { onConversationChangeRef.current = onConversationChange }, [onConversationChange])
+  const onConversationChangeRef = useRef(onConversationChange);
+  useEffect(() => {
+    onConversationChangeRef.current = onConversationChange;
+  }, [onConversationChange]);
 
-  useEffect(() => { systemRef.current = systemPrompt }, [systemPrompt])
-  useEffect(() => { skillsRef.current = skills }, [skills])
+  useEffect(() => {
+    systemRef.current = systemPrompt;
+  }, [systemPrompt]);
+  useEffect(() => {
+    skillsRef.current = skills;
+  }, [skills]);
 
   /**
    * ── 消息同步辅助（M3 下沉至 agentMessages.js：唯一入口，全部落 store；无第二份可变数组）──
@@ -336,55 +392,72 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   // 注：会话键已迁 KV（见 AI助手会话存储迁移-KV收口事实记录.md §2.5），水化为异步——
   //    恢复前必须先等水化完成，否则会在空壳上读取/建空对话，导致刷新后聊天记录丢失。
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
     // 0) 先把 conversationStore 的 currentAgentKey 同步到本 hook 的 agentKey 并触发异步水化。
     //    根因（保留原注释）：store 的 currentAgentKey 由 App 的 syncAgentKey effect 异步设置，而本 effect 同步执行；
     //    若 agentKey 在挂载期变化（如 activeProjectId 首帧 undefined → 真实 id），二者可能错位。
-    setAgentKey(agentKey)
+    setAgentKey(agentKey);
 
     // 1) 等异步水化完成（带兜底超时，避免首屏因 KV 未就绪而卡死）：完成后才能读到真实会话数据
     withTimeout(waitHydrated(agentKey), KV_TIMEOUT, '会话水化等待超时')
       .catch((e) => {
         // 超时/失败：按「无存量」继续（数据会由后续触发补迁），失败可见不静默
-        logger.warn('AI助手', '等待会话水化超时/失败，按当前状态恢复', { agentKey, error: e?.message || String(e) })
+        logger.warn('AI助手', '等待会话水化超时/失败，按当前状态恢复', {
+          agentKey,
+          error: e?.message || String(e),
+        });
       })
       .then(() => {
-        if (cancelled) return
+        if (cancelled) return;
         // 2) 确保至少一个对话
-        const activeId = ensureActiveConversation()
+        const activeId = ensureActiveConversation();
         // 3) 旧单会话数据迁移：conversations 为空且存在旧历史时，迁成一个对话
-        const hist = loadHistory(agentKey)
-        const migrated = hist.length > 0 ? importLegacy({ messages: hist, skills: skillsRef.current }) : null
-        const snap = migrated || applyConversation(activeId)
+        const hist = loadHistory(agentKey);
+        const migrated =
+          hist.length > 0 ? importLegacy({ messages: hist, skills: skillsRef.current }) : null;
+        const snap = migrated || applyConversation(activeId);
         // 4) 同步内存态：activeId / conversations 由 store 字段订阅（阶段1D 薄壳化，无需本地 state）
-        setHistory(snap.messages)
+        setHistory(snap.messages);
         // 5) 把当前对话的 skills/draft/attachments 交给 UI 层（AgentPanel 据此恢复 activeSkills、输入框草稿与参考图）
-        if (snap.skills?.length || snap.draft || snap.attachments?.length) onConversationChangeRef.current?.(snap)
+        if (snap.skills?.length || snap.draft || snap.attachments?.length)
+          onConversationChangeRef.current?.(snap);
         // 6) 状态机按当前对话加载
-        stateMachineRef.current.load(getActiveConversationId())
+        stateMachineRef.current.load(getActiveConversationId());
         // 7) pending 恢复（对齐大雄"刷新恢复上次操作"）：刷新前有未完成任务 → 自动重发
         //   【P1a 去重】解析逻辑收敛到 resolvePendingRecovery（纯函数可单测）：按 messageId 找回正文、
         //   优先原始 attachments、dangling-safe（消息被裁剪/未建成）则不空转。
         const rec = resolvePendingRecovery({
           pending: getCurrentPending() as Parameters<typeof resolvePendingRecovery>[0]['pending'],
-          messages: getCurrentSnapshot().messages as Parameters<typeof resolvePendingRecovery>[0]['messages'],
+          messages: getCurrentSnapshot().messages as Parameters<
+            typeof resolvePendingRecovery
+          >[0]['messages'],
           activeConversationId: getActiveConversationId(),
-        })
+        });
         if (rec.action === 'send') {
           queueMicrotask(() => {
             // 在对话里插入一条"恢复中"占位提示（对齐大雄占位）
-            appendMsg({ role: 'assistant', content: '正在恢复上次未完成的操作…', createdAt: Date.now() })
-            sendRef.current?.(rec.text, rec.attachments || [])
-          })
+            appendMsg({
+              role: 'assistant',
+              content: '正在恢复上次未完成的操作…',
+              createdAt: Date.now(),
+            });
+            sendRef.current?.(rec.text, rec.attachments || []);
+          });
         } else if (rec.action === 'drop') {
           // dangling-safe：被引用用户消息已被 AGENT_MSG_MAX 裁剪或尚未建成（崩溃窗口）→ 清 pending 提示重发
-          setCurrentPending(null)
-          appendMsg({ role: 'assistant', content: '上一段长任务已中断，该段内容因过长被收口清理或尚未保存，请重新输入后发送。', createdAt: Date.now() })
+          setCurrentPending(null);
+          appendMsg({
+            role: 'assistant',
+            content: '上一段长任务已中断，该段内容因过长被收口清理或尚未保存，请重新输入后发送。',
+            createdAt: Date.now(),
+          });
         }
-      })
-    return () => { cancelled = true }
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentKey])
+  }, [agentKey]);
 
   // 【阶段1B】切 agentKey：中断旧 key 进行中的流（与卸载 abort 分离——卸载不 abort，切页/卸载不断流）。
   // 背景：原实现用「依赖 [agentKey] 的 cleanup abort」，cleanup 在"组件卸载"与"agentKey 变化"都会触发，
@@ -392,15 +465,15 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   //  - 卸载：不 abort（本 effect 无 cleanup，组件卸载静默结束，异步流继续跑最终落 store）；
   //  - 切 key：用 prevRef 对比只在「agentKey 真正变化」时显式中止旧流，防两个项目流串台。
   // stop()/clear() 的显式 abort 不受影响；send 内 AbortController 生命周期不变。
-  const prevAgentKeyRef = useRef(agentKey)
+  const prevAgentKeyRef = useRef(agentKey);
   useEffect(() => {
     if (prevAgentKeyRef.current !== agentKey) {
-      abortRef.current?.abort()
-      abortRef.current = null
+      abortRef.current?.abort();
+      abortRef.current = null;
     }
-    prevAgentKeyRef.current = agentKey
+    prevAgentKeyRef.current = agentKey;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentKey])
+  }, [agentKey]);
 
   /** 单次 SSE 请求，返回 { role:'assistant', content, reasoning?, tool_calls? }（复刻官方 dr:2579-2778 的 v）。
    *  支持流式（stream:true + SSE）与非流式（stream:false + 普通 JSON）两种模型：
@@ -413,15 +486,22 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     async (requestMessages, signal, onStream) => {
       return agentRuntimeRoundTrip(
         {
-          model, toolSchemas, provider, logger,
-          loadAgentChatModel, parseAgentError, parseSSEChunk,
+          model,
+          toolSchemas,
+          provider,
+          logger,
+          loadAgentChatModel,
+          parseAgentError,
+          parseSSEChunk,
           ENABLE_TOOLS_ON_NON_STREAM,
         },
-        requestMessages, signal, onStream
-      )
+        requestMessages,
+        signal,
+        onStream,
+      );
     },
-    [model, toolSchemas, provider]
-  )
+    [model, toolSchemas, provider],
+  );
 
   /** 执行一批工具调用并回填 tool 消息。
    *  tools: [{ name, args, callId? }] → 逐个 callTool，把 tool 消息 append 到历史。
@@ -430,99 +510,151 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
    *  回填 LLM `{ok:false,error:undefined}` → 误判失败 → 撞 MAX_TOOL_ROUNDS 死循环 + 重复建节点。
    *  改为 async + 逐个 await，确保回填真实结果（await 普通对象/值也安全，不改变行为）。
    *  【职责模块化】逻辑已下沉到 agentRuntime.runToolCalls（依赖注入），此处只构造 ctx 转发。 */
-  const runToolCalls = useCallback(async (tools: ToolCall[], callIdFor: (tc: ToolCall) => string = () => '') => {
-    return agentRuntimeRunToolCalls(
-      { callTool, appendMsg, model, logger, getActivePendingGenerations },
-      tools,
-      callIdFor
-    )
-  }, [callTool, appendMsg, model])
+  const runToolCalls = useCallback(
+    async (tools: ToolCall[], callIdFor: (tc: ToolCall) => string = () => '') => {
+      return agentRuntimeRunToolCalls(
+        { callTool, appendMsg, model, logger, getActivePendingGenerations },
+        tools,
+        callIdFor,
+      );
+    },
+    [callTool, appendMsg, model],
+  );
 
   // ── 「记」：分层压缩历史→memory.summary（照搬参考项目，fire-and-forget，不阻塞主流程）──
   // 节流：同一次会话中短间隔不重复压缩；门槛：历史消息足够多才有压缩价值。
   // 失败/超时只记日志（保留旧摘要），绝不静默吞错也绝不打断发送链路。
-  const lastSummaryCompressTsRef = useRef(0)
-  const COMPRESS_THROTTLE_MS = 60_000
+  const lastSummaryCompressTsRef = useRef(0);
+  const COMPRESS_THROTTLE_MS = 60_000;
   const maybeCompressSummary = useCallback(() => {
-    const messages = (getCurrentSnapshot().messages || []) as Parameters<typeof compressToSummary>[0]['messages']
-    const now = Date.now()
-    if (messages.length <= RECENT_KEEP_COUNT) return
-    if (now - lastSummaryCompressTsRef.current < COMPRESS_THROTTLE_MS) return
-    lastSummaryCompressTsRef.current = now
-    const prevSummary = getCurrentMemory()?.summary || ''
-    const conversationId = getActiveConversationId()
+    const messages = (getCurrentSnapshot().messages || []) as Parameters<
+      typeof compressToSummary
+    >[0]['messages'];
+    const now = Date.now();
+    if (messages.length <= RECENT_KEEP_COUNT) return;
+    if (now - lastSummaryCompressTsRef.current < COMPRESS_THROTTLE_MS) return;
+    lastSummaryCompressTsRef.current = now;
+    const prevSummary = getCurrentMemory()?.summary || '';
+    const conversationId = getActiveConversationId();
     compressToSummary({ provider, model, messages, previousSummary: prevSummary })
       .then((summary) => {
-        if (!summary) return
+        if (!summary) return;
         // 只写回本对话（防竞态：若用户已切走对话则不覆盖别人的 summary）
-        if (getActiveConversationId() !== conversationId) return
-        setCurrentMemory({ ...getCurrentMemory(), summary })
+        if (getActiveConversationId() !== conversationId) return;
+        setCurrentMemory({ ...getCurrentMemory(), summary });
       })
-      .catch((e) => logger.error('AI助手', '[记] 摘要写回失败', { err: e?.message }))
-  }, [provider, model])
+      .catch((e) => logger.error('AI助手', '[记] 摘要写回失败', { err: e?.message }));
+  }, [provider, model]);
 
   /** 发送（复刻官方 dr:2786-2895 的 send：SSE + 多轮工具循环） */
   const send = useCallback(
     async (text, attachments = []) => {
       // ── 保护：空内容直接返回 ──
-      if (!text.trim() && (!attachments || attachments.length === 0)) return
+      if (!text.trim() && (!attachments || attachments.length === 0)) return;
 
       // 【B层】发送入口：原文摘要 + 附件数 + 模型/供应商——定位一次 send 的完整入参
-      logger.debug('AI助手', '[发送] 入口', { text: String(text).slice(0, 100), attachCount: (attachments || []).length, model, provider: provider?.id || '', busy: isAgentBusy() }, { module: 'agent' })
+      logger.debug(
+        'AI助手',
+        '[发送] 入口',
+        {
+          text: String(text).slice(0, 100),
+          attachCount: (attachments || []).length,
+          model,
+          provider: provider?.id || '',
+          busy: isAgentBusy(),
+        },
+        { module: 'agent' },
+      );
 
       // ── steer（补充指令，#7）：任务进行中再发送 → 排入当前对话 workflow.steerQueue（per-conversation），
       //    不打断当前任务，结束后自动执行。队列挂在 workflow 上，切换对话不串台（对齐大雄）。──
       //    忙判定用复合 isAgentBusy()（store.sending 发送锁 + 状态机 running），防发送未收尾时并发双发。
       if (isAgentBusy()) {
-        patchCurrentWorkflow(wfSteer(text, attachments))
-        appendMsg({ role: 'user', content: text, createdAt: Date.now(), steer: true, statusLabel: '已排队' })
-        try { captureActiveConversation() } catch (e) { logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) }) } // 落盘队列，切对话不丢
-        return
+        patchCurrentWorkflow(wfSteer(text, attachments));
+        appendMsg({
+          role: 'user',
+          content: text,
+          createdAt: Date.now(),
+          steer: true,
+          statusLabel: '已排队',
+        });
+        try {
+          captureActiveConversation();
+        } catch (e) {
+          logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) });
+        } // 落盘队列，切对话不丢
+        return;
       }
 
       // ── 准备：锁定发送（store.sending 同步置位，防附件 await 期间并发双发）、置 planning、写 pending ──
-      setSending(true)
-      setError(null)
-      stateMachineRef.current.start({ status: 'planning' })
-      setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '', attachments: [] })
-      patchCurrentWorkflow(wfStart())
+      setSending(true);
+      setError(null);
+      stateMachineRef.current.start({ status: 'planning' });
+      setCurrentSnapshot({
+        messages: getCurrentSnapshot().messages,
+        skills: skillsRef.current,
+        draft: '',
+        attachments: [],
+      });
+      patchCurrentWorkflow(wfStart());
 
       // 构造 user 消息（附件归一化：blob→data、相对→绝对；只认 base64 的 provider 转 base64）
       // 显式补稳定 id：供 setCurrentPending 以 messageId 引用；恢复时按 id 从 messages 找回正文（去重，不再在 pending 存 text 副本）
-      const userMsg: SendUserMessage = { id: generateId('msg'), role: 'user', content: text, createdAt: Date.now(), skills: skillsRef.current.slice() }
+      const userMsg: SendUserMessage = {
+        id: generateId('msg'),
+        role: 'user',
+        content: text,
+        createdAt: Date.now(),
+        skills: skillsRef.current.slice(),
+      };
       if (attachments && attachments.length > 0) {
         // 发送统一出口守卫：附件图必经归一（含缩略图端点自动还原原图），禁止发 render 小图。见 agentAttachments.js
-        userMsg.attachments = await normalizeAttachmentsForSend(attachments, { preferBase64: provider?.refFormat === 'base64' })
+        userMsg.attachments = await normalizeAttachmentsForSend(attachments, {
+          preferBase64: provider?.refFormat === 'base64',
+        });
         // 【参考图编号目录】对齐大雄：给 AI 参考图顺序编号（按输入框从左到右），
         // AI 才能在 generations 里用 attachment_indices 精确引用「第几张图」（0-based）。
         // 只对「图片附件」编号（含来自画布选中节点的图）；nodeId 记录来源便于执行器定位。
-        const imgAtts = userMsg.attachments.filter((a) => a.type !== 'node')
+        const imgAtts = userMsg.attachments.filter((a) => a.type !== 'node');
         if (imgAtts.length > 0) {
-          userMsg.refCatalog = buildRefCatalog(imgAtts)
+          userMsg.refCatalog = buildRefCatalog(imgAtts);
         }
         // 参考图 URL 池写入模块级：execute_plan 工具按 AI 的 attachment_indices 精确取用（对齐大雄）
-        setCurrentReferenceImages(imgAtts.map((a) => a.url).filter(Boolean))
+        setCurrentReferenceImages(imgAtts.map((a) => a.url).filter(Boolean));
       }
-      setHistory([...getCurrentSnapshot().messages, userMsg])
+      setHistory([...getCurrentSnapshot().messages, userMsg]);
       // 【P1a 去重】pending 不再存 text 副本，改引用 userMsg.id；保留【原始】attachments（恢复重发经 send 归一化一次，
       //   避免对已归一 base64/绝对 URL 二次压缩）。正文/路径契约见 makePendingRef/normalizePending/pendingRecovery。
-      setCurrentPending(makePendingRef({ conversationId: getActiveConversationId(), messageId: userMsg.id, attachments }))
+      setCurrentPending(
+        makePendingRef({
+          conversationId: getActiveConversationId(),
+          messageId: userMsg.id,
+          attachments,
+        }),
+      );
 
       // 【链路日志】AI 助手发送：内容摘要 + 附件（图片）数，供排查发送环节
-      logger.info('AI助手', '发送', { text: String(text).slice(0, 80), attachCount: (userMsg.attachments || []).length, skillCount: (userMsg.skills || []).length })
+      logger.info('AI助手', '发送', {
+        text: String(text).slice(0, 80),
+        attachCount: (userMsg.attachments || []).length,
+        skillCount: (userMsg.skills || []).length,
+      });
 
-      const controller = new AbortController()
-      abortRef.current = controller
-      let ok = true // 标记本次发送是否成功（finally 据此写 workflow.status）
-      let aborted = false // 标记是否被用户停止（区分 stopped/failed）
-      let pausedForConfirm = false // 三阶段门禁：show_plan_for_confirm 后是否暂停等用户确认（需在 try 外声明，finally 才可访问且避免 TDZ）
-      let round = 0 // 工具循环轮数（提升到 try 外：异常提前 return 时 finally 的 debug 也安全，否则 TDZ）
+      const controller = new AbortController();
+      abortRef.current = controller;
+      let ok = true; // 标记本次发送是否成功（finally 据此写 workflow.status）
+      let aborted = false; // 标记是否被用户停止（区分 stopped/failed）
+      let pausedForConfirm = false; // 三阶段门禁：show_plan_for_confirm 后是否暂停等用户确认（需在 try 外声明，finally 才可访问且避免 TDZ）
+      let round = 0; // 工具循环轮数（提升到 try 外：异常提前 return 时 finally 的 debug 也安全，否则 TDZ）
       try {
         // ── 真实模式：多轮工具循环（≤ MAX_TOOL_ROUNDS）──
-        let assistant // 提升到循环外：供循环结束后判断是否「走满上限仍不收敛」（否则访问 for 块级变量会 ReferenceError）
-        let forcedCompressed = false // 本轮 send 是否已做「请求前强制压缩」（只允许一次，避免工具循环里反复压缩）
+        let assistant; // 提升到循环外：供循环结束后判断是否「走满上限仍不收敛」（否则访问 for 块级变量会 ReferenceError）
+        let forcedCompressed = false; // 本轮 send 是否已做「请求前强制压缩」（只允许一次，避免工具循环里反复压缩）
         // 上下文预算：输入预算 = 窗口 × (1 − 输出留白比例)。用于估算当前请求是否接近模型上限。
-        const budgetInput = resolveInputBudget({ contextWindow: AGENT_CONTEXT_WINDOW_DEFAULT, outputBudgetRatio: AGENT_CONTEXT_OUTPUT_BUDGET_RATIO })
+        const budgetInput = resolveInputBudget({
+          contextWindow: AGENT_CONTEXT_WINDOW_DEFAULT,
+          outputBudgetRatio: AGENT_CONTEXT_OUTPUT_BUDGET_RATIO,
+        });
         // 【2026-09-05 精简】执行模型仅存 auto：AI 完全自主，show_plan_for_confirm 仅作展示、不进 awaiting 确认态，
         // LLM 直接 continue execute_plan。需暂停等确认的只剩 credit 积分闸（execute_plan 命中 credit）。
         // 是否进入 awaiting 由 useCanvasAgentTools 的 show_plan_for_confirm 判定（auto 下 needConfirm 恒 false）。
@@ -531,75 +663,109 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         // 【意图预判（docs/76）】本地规则高置信时把结论直接告诉 LLM，省掉它自己推理——
         // 本次故障中模型曾为此在两档之间摇摆 6 轮。tools 照常全量传，本句只作引导，
         // 不限制任何能力（刻意不做「请求体不传 tools」的硬拦，见 agentCore 段落注释）。
-        const intentHint = buildIntentHint(text)
+        const intentHint = buildIntentHint(text);
         for (; round < MAX_TOOL_ROUNDS; round++) {
           // 追加流式 assistant 占位（复刻官方）
-          appendMsg({ role: 'assistant', content: '', model, streaming: true, createdAt: Date.now() })
+          appendMsg({
+            role: 'assistant',
+            content: '',
+            model,
+            streaming: true,
+            createdAt: Date.now(),
+          });
 
           // 【过渡方案·2026-08-18】historyTurns 实时读取（AI 助手设置可配）：
           // 0=不回传、1=只上一轮、N=最近 N 轮纯文字历史（图片仍编号化 imageCatalog 图N，不内联，不破坏
           // 「反推图一却全反推」安全底线）。见文件顶部注释 + agentCore.js buildRequestMessages 头注释。
           // 意图预判提示随每轮重建（msgs 每轮都是新数组，不会跨轮重复累积）
           const makeContextMessages = () => {
-            const msgs = buildRequestMessages(getCurrentSnapshot().messages as ChatMessage[], systemRef.current, true, skillsRef.current, getCurrentMemory() as AgentMemory, getCurrentImageMap(), loadAgentHistoryTurns(), buildProjectMemoryContextFromStore(agentKey, '', text), getWorkMode())
-            if (intentHint) msgs.push({ role: 'system', content: intentHint })
-            return msgs
-          }
+            const msgs = buildRequestMessages(
+              getCurrentSnapshot().messages as ChatMessage[],
+              systemRef.current,
+              true,
+              skillsRef.current,
+              getCurrentMemory() as AgentMemory,
+              getCurrentImageMap(),
+              loadAgentHistoryTurns(),
+              buildProjectMemoryContextFromStore(agentKey, '', text),
+              getWorkMode(),
+            );
+            if (intentHint) msgs.push({ role: 'system', content: intentHint });
+            return msgs;
+          };
           // ── 上下文预算触发压缩（照搬 contextManager）：估算当前请求，按 inputBudget 决定预/强制压缩 ──
           //  force  → 请求前强制压缩：await 压缩写回 summary 后用新摘要重新组装（压缩失败只记日志，不发超限请求前先尝试）；
           //  precompress → 后台预压缩（复用 maybeCompressSummary 节流），不阻塞本次请求；
           //  none  → 直接发送。goal：长对话避免请求逼近/超过模型输入预算导致失败。
-          let contextMessages = makeContextMessages()
+          let contextMessages = makeContextMessages();
           // 估算 + 决策一步到位；force→请求前强制压缩（await 压缩写回后用新摘要重装一次，防反复压缩），
           //         precompress→后台预压缩（复用 maybeCompressSummary 节流，不阻塞），none→直发。
-          const action = decideContextCompression({ messages: contextMessages, inputBudget: budgetInput })
+          const action = decideContextCompression({
+            messages: contextMessages,
+            inputBudget: budgetInput,
+          });
           if (action === 'force' && !forcedCompressed) {
-            forcedCompressed = true
-            logger.info('AI助手', '[预算] 触发强制压缩', { round })
-            const summary = await compressToSummary({ provider, model, messages: getCurrentSnapshot().messages as Parameters<typeof compressToSummary>[0]['messages'], previousSummary: getCurrentMemory()?.summary || '' })
+            forcedCompressed = true;
+            logger.info('AI助手', '[预算] 触发强制压缩', { round });
+            const summary = await compressToSummary({
+              provider,
+              model,
+              messages: getCurrentSnapshot().messages as Parameters<
+                typeof compressToSummary
+              >[0]['messages'],
+              previousSummary: getCurrentMemory()?.summary || '',
+            });
             if (summary) {
-              setCurrentMemory({ ...getCurrentMemory(), summary })
-              lastSummaryCompressTsRef.current = Date.now() // 刚压缩过，压制收尾节流的重复压缩
-              contextMessages = makeContextMessages() // 用新摘要重新组装（更小）
+              setCurrentMemory({ ...getCurrentMemory(), summary });
+              lastSummaryCompressTsRef.current = Date.now(); // 刚压缩过，压制收尾节流的重复压缩
+              contextMessages = makeContextMessages(); // 用新摘要重新组装（更小）
             }
           } else if (action === 'precompress' && !forcedCompressed) {
-            logger.debug('AI助手', '[预算] 触发后台预压缩', { round }, { module: 'agent' })
-            maybeCompressSummary()
+            logger.debug('AI助手', '[预算] 触发后台预压缩', { round }, { module: 'agent' });
+            maybeCompressSummary();
           }
-          assistant = await roundTrip(
-            contextMessages,
-            controller.signal,
-            (delta) => updateLastStreaming(delta)
-          )
+          assistant = await roundTrip(contextMessages, controller.signal, (delta) =>
+            updateLastStreaming(delta),
+          );
           // 结束流式（把占位替换为完整 assistant）
-          endStreaming(assistant)
+          endStreaming(assistant);
           // ── [debug] 非流式链路 · 跳④：roundTrip 返回（定位"前端拿到什么"） ──
-          logger.debug('AI助手', '[非流式] 跳④返回', {
-            contentLen: (assistant?.content || '').length,
-            hasToolCalls: Array.isArray(assistant?.tool_calls) && assistant.tool_calls.length > 0,
-            toolNames: (assistant?.tool_calls || []).map((t) => t.function?.name),
-            round,
-            roundTripOk: true,
-          }, { module: 'agent' })
+          logger.debug(
+            'AI助手',
+            '[非流式] 跳④返回',
+            {
+              contentLen: (assistant?.content || '').length,
+              hasToolCalls: Array.isArray(assistant?.tool_calls) && assistant.tool_calls.length > 0,
+              toolNames: (assistant?.tool_calls || []).map((t) => t.function?.name),
+              round,
+              roundTripOk: true,
+            },
+            { module: 'agent' },
+          );
 
           // 【对齐大雄】阶段1 的 generations 主通道：从 LLM 回复正文解析并暂存（不走工具参数超大 JSON）。
           // 若正文含 plan+generations JSON，解析后写入 per-conversation 暂存，供阶段3 execute_plan 从内存读。
-          const { generations: replyGens } = parseGenerationsFromReply(assistant.content)
+          const { generations: replyGens } = parseGenerationsFromReply(assistant.content);
           if (Array.isArray(replyGens) && replyGens.length > 0) {
-            setActivePendingGenerations(replyGens)
+            setActivePendingGenerations(replyGens);
           }
 
           // 无工具调用 → 结束
-          logger.debug('AI助手', '[非流式] 跳④循环判定', {
-            toolCallsCount: assistant?.tool_calls?.length ?? 0,
-            willBreak: !assistant.tool_calls || assistant.tool_calls.length === 0,
-            round,
-          }, { module: 'agent' })
-          if (!assistant.tool_calls || assistant.tool_calls.length === 0) break
+          logger.debug(
+            'AI助手',
+            '[非流式] 跳④循环判定',
+            {
+              toolCallsCount: assistant?.tool_calls?.length ?? 0,
+              willBreak: !assistant.tool_calls || assistant.tool_calls.length === 0,
+              round,
+            },
+            { module: 'agent' },
+          );
+          if (!assistant.tool_calls || assistant.tool_calls.length === 0) break;
 
           // 执行工具并回填结果（TASK-006 #1：await 异步工具，确保回填真实结果而非 Promise）。
           // 返回 creditHeld：本轮是否「execute_plan 命中积分闸」（awaited:'credit'）。
-          const { creditHeld } = await runToolCalls(assistant.tool_calls, (tc) => tc.id)
+          const { creditHeld } = await runToolCalls(assistant.tool_calls, (tc) => tc.id);
 
           // 门禁停循环（仅两类「本轮真走到待确认临界点」才停）——
           //   ① 分步确认（show_plan_for_confirm）→ awaitingConfirm=true。
@@ -608,191 +774,335 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           // 会让后续「与本轮无关」的工具循环（list_nodes/get_node_details/create_node 等）在第一个工具后就误停。
           // 积分闸只拦「点生成那一下」，绝不打断其它任何工具（用户裁定）。见 agentRuntime.runToolCalls creditHeld。
           if (getAwaitingConfirm() || creditHeld) {
-            pausedForConfirm = true
-            break
+            pausedForConfirm = true;
+            break;
           }
         }
         // 多轮工具循环走满上限仍未收敛（LLM 反复调工具不自收敛）→ 提示用户，避免"停住但无说明"
         if (round === MAX_TOOL_ROUNDS && assistant.tool_calls && assistant.tool_calls.length > 0) {
-          appendMsg({ role: 'assistant', content: `已连续执行 ${MAX_TOOL_ROUNDS} 轮工具调用仍未完成，已自动停止（避免死循环）。你可以告诉我下一步，或继续补充指令。`, model, createdAt: Date.now() })
+          appendMsg({
+            role: 'assistant',
+            content: `已连续执行 ${MAX_TOOL_ROUNDS} 轮工具调用仍未完成，已自动停止（避免死循环）。你可以告诉我下一步，或继续补充指令。`,
+            model,
+            createdAt: Date.now(),
+          });
         }
       } catch (e) {
-        ok = false
+        ok = false;
         if (e?.name === 'AbortError') {
-          aborted = true
-          setError('已停止')
-          stateMachineRef.current.setStatus('idle')
+          aborted = true;
+          setError('已停止');
+          stateMachineRef.current.setStatus('idle');
         } else {
-          setError(e?.message || '发送失败')
-          stateMachineRef.current.setStatus('failed') // #7 失败态 → 可重试（retry）
+          setError(e?.message || '发送失败');
+          stateMachineRef.current.setStatus('failed'); // #7 失败态 → 可重试（retry）
         }
         // 清理所有 streaming 残留占位（不只最后一个）：循环中途出错可能残留多轮 streaming:true 占位
-        stripStreaming()
+        stripStreaming();
       } finally {
         // 无论成功/失败/中止都落盘当前对话（对齐大雄：capture 快照到 conversations，per-conversation 持久化）
-        setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
+        setCurrentSnapshot({
+          messages: getCurrentSnapshot().messages,
+          skills: skillsRef.current,
+          draft: '',
+        });
         // 更新 workflow 终态（completed/failed/stopped）；清除 pending（任务已有结果，不再需要刷新恢复）
-        const wfStatus = !ok ? (aborted ? 'stopped' : 'failed') : 'completed'
+        const wfStatus = !ok ? (aborted ? 'stopped' : 'failed') : 'completed';
         // 【三阶段门禁】展示策划后暂停：workflow 置 awaiting_confirm，状态机同步，等待用户确认按钮。
         // 不清空 pending（用户确认后 send('已确认，请按策划执行') 会重建），也不再自动执行 steer 队列。
         if (pausedForConfirm) {
-          patchCurrentWorkflow(wfAwaitConfirm())
-          try { captureActiveConversation() } catch (e) { logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) }) }
-          stateMachineRef.current.setStatus('awaiting_confirm')
-          setSending(false)
-          abortRef.current = null
+          patchCurrentWorkflow(wfAwaitConfirm());
+          try {
+            captureActiveConversation();
+          } catch (e) {
+            logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) });
+          }
+          stateMachineRef.current.setStatus('awaiting_confirm');
+          setSending(false);
+          abortRef.current = null;
           // 注意：不再在 finally 里 return（会触发 no-unsafe-finally 并吞掉未处理异常）。
           // 改用 if/else 结构，awaiting_confirm 分支自然跳过下方通用收尾（steer/压缩），
           // 与原先「finally 里 return 中断收尾」语义完全等价，但消除了 unsafe-finally。
         } else {
-          patchCurrentWorkflow(wfFinish(ok, aborted))
-          logger.debug('AI助手', '[发送] 终态', { status: wfStatus, rounds: round, pausedForConfirm, steerQueueLen: (getCurrentWorkflow()?.steerQueue || []).length }, { module: 'agent' })
-          setCurrentPending(null)
-          try { captureActiveConversation() } catch (e) { logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) }) }
-          stateMachineRef.current.setStatus(ok ? 'idle' : 'failed')
-          setSending(false)
-          abortRef.current = null
+          patchCurrentWorkflow(wfFinish(ok, aborted));
+          logger.debug(
+            'AI助手',
+            '[发送] 终态',
+            {
+              status: wfStatus,
+              rounds: round,
+              pausedForConfirm,
+              steerQueueLen: (getCurrentWorkflow()?.steerQueue || []).length,
+            },
+            { module: 'agent' },
+          );
+          setCurrentPending(null);
+          try {
+            captureActiveConversation();
+          } catch (e) {
+            logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) });
+          }
+          stateMachineRef.current.setStatus(ok ? 'idle' : 'failed');
+          setSending(false);
+          abortRef.current = null;
           // ── 「记」：本轮对话收尾后异步压缩历史→memory.summary（失败/超时只记日志，不影响主流程）──
-          maybeCompressSummary()
+          maybeCompressSummary();
           // ── steer 队列：当前任务结束，自动执行下一条补充指令（per-conversation workflow.steerQueue）──
-          const { next, patch: wfNextCtx } = wfNextSteer(wfStatus)
-          patchCurrentWorkflow(wfNextCtx)
-          try { captureActiveConversation() } catch (e) { logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) }) }
-          if (next) sendRef.current?.(next.text, next.attachments)
+          const { next, patch: wfNextCtx } = wfNextSteer(wfStatus);
+          patchCurrentWorkflow(wfNextCtx);
+          try {
+            captureActiveConversation();
+          } catch (e) {
+            logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) });
+          }
+          if (next) sendRef.current?.(next.text, next.attachments);
         }
       }
     },
     // 依赖：roundTrip 闭包了 model/provider/toolSchemas；sendRef 用于 steer 续跑（下方 useRef 保持最新）
-    [sending, model, roundTrip, callTool, runToolCalls, appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming, agentKey, provider, isAgentBusy, maybeCompressSummary]
-  )
+    [
+      sending,
+      model,
+      roundTrip,
+      callTool,
+      runToolCalls,
+      appendMsg,
+      setHistory,
+      updateLastStreaming,
+      endStreaming,
+      stripStreaming,
+      agentKey,
+      provider,
+      isAgentBusy,
+      maybeCompressSummary,
+    ],
+  );
 
   /** 保存 send 引用，供 finally 里自动处理 steer 队列（useCallback 无法自调用） */
-  const sendRef = useRef(send)
-  sendRef.current = send
+  const sendRef = useRef(send);
+  sendRef.current = send;
 
   /** 停止（复刻官方 stop）：状态机置 stopping，中止当前请求 */
   const stop = useCallback(() => {
-    stateMachineRef.current.setStatus('stopping')
-    abortRef.current?.abort()
-  }, [])
+    stateMachineRef.current.setStatus('stopping');
+    abortRef.current?.abort();
+  }, []);
 
   /** 清空当前对话（#9：只清当前对话，其他对话不受影响；workflow/pending/memory 一并重置，对齐大雄 clear） */
   const clear = useCallback(() => {
-    abortRef.current?.abort()
-    abortRef.current = null
-    setHistory([])
-    setError(null)
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setHistory([]);
+    setError(null);
     // 【TASK-006 #6】清空时一并重置 awaitingConfirm + pendingGenerations，否则 clear 后 execute_plan 永久被拒（策划未确认残留）
-    setAwaitingConfirm(false)
+    setAwaitingConfirm(false);
     // 【积分闸】清空对话时一并清除 creditGate（含映射），防残留"待点生成"永久拒（对齐 awaitingConfirm 同清理）
-    clearCreditGate()
+    clearCreditGate();
     // 落盘当前对话为空（messages/attachments/workflow/pending/memory 一并清空）
-    setCurrentSnapshot({ messages: [], skills: skillsRef.current, draft: '', attachments: [], workflow: null, pending: null, memory: { summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [], global_contract: null, artifacts: null, assistantTable: null }, pendingGenerations: null, awaitingConfirm: false })
-    try { captureActiveConversation() } catch { /* ignore */ }
-    stateMachineRef.current.setStatus('idle')
-  }, [agentKey, setHistory, setAwaitingConfirm, clearCreditGate])
+    setCurrentSnapshot({
+      messages: [],
+      skills: skillsRef.current,
+      draft: '',
+      attachments: [],
+      workflow: null,
+      pending: null,
+      memory: {
+        summary: '',
+        facts: [],
+        lastPlan: null,
+        lastSharedStyle: '',
+        notes: [],
+        global_contract: null,
+        artifacts: null,
+        assistantTable: null,
+      },
+      pendingGenerations: null,
+      awaitingConfirm: false,
+    });
+    try {
+      captureActiveConversation();
+    } catch {
+      /* ignore */
+    }
+    stateMachineRef.current.setStatus('idle');
+  }, [agentKey, setHistory, setAwaitingConfirm, clearCreditGate]);
 
   /** 确认「记」长期记忆：memory_suggest 门禁卡片点确认后落库（agentKey 全局，不分项目）。
    *  从会话暂存读建议 → saveProjectMemory 落库 → 清暂存 + 关确认门禁。
    *  @returns {Promise<{ok:boolean, error?:string}>} ok=true 表示已确认并落库（UI 应停止原策划确认动作）
    */
   const confirmPendingMemorySuggest = useCallback(async () => {
-    const suggest = getActivePendingMemorySuggest()
-    if (!suggest || typeof suggest !== 'object') return { ok: false, error: '没有待确认的项目记忆建议' }
+    const suggest = getActivePendingMemorySuggest();
+    if (!suggest || typeof suggest !== 'object')
+      return { ok: false, error: '没有待确认的项目记忆建议' };
     const saved = await saveProjectMemory(agentKey, {
       kind: suggest.kind as Parameters<typeof saveProjectMemory>[1]['kind'],
       content: String(suggest.content || ''),
       source: { conversationId: getActiveConversationId() },
-    })
-    setActivePendingMemorySuggest(null)
-    setAwaitingConfirm(false)
-    const label = (PROJECT_MEMORY_KIND_LABELS[saved.kind] || saved.kind) || ''
-    appendMsg({ role: 'assistant', content: `已保存长期记忆：[${label}] ${saved.content}`, model, createdAt: Date.now() })
-    try { captureActiveConversation() } catch { /* ignore */ }
-    logger.info('AI助手', '[记] 确认落库', { kind: saved.kind, contentLen: (saved.content || '').length })
-    return { ok: true }
-  }, [agentKey, model, appendMsg])
+    });
+    setActivePendingMemorySuggest(null);
+    setAwaitingConfirm(false);
+    const label = PROJECT_MEMORY_KIND_LABELS[saved.kind] || saved.kind || '';
+    appendMsg({
+      role: 'assistant',
+      content: `已保存长期记忆：[${label}] ${saved.content}`,
+      model,
+      createdAt: Date.now(),
+    });
+    try {
+      captureActiveConversation();
+    } catch {
+      /* ignore */
+    }
+    logger.info('AI助手', '[记] 确认落库', {
+      kind: saved.kind,
+      contentLen: (saved.content || '').length,
+    });
+    return { ok: true };
+  }, [agentKey, model, appendMsg]);
 
   // 对话切换公共流程（#9）：capture 当前 → 经 store 得到新对话 → 重置 error，重载状态机
   //（load 隔离各对话状态），通知 UI 层恢复 skills/草稿。
   //【阶段1D·薄壳化】activeId / conversations 改由 store 字段订阅（newChat/switchChat/deleteChat 内部 commit
   // 已更新 store.activeId + conversations），不再需要本地 state 同步 → 移除 setActiveConversationId / refreshConversations。
   // 注意：切换前只 setCurrentSnapshot（暂存），与 switchConversation 内部的落盘逻辑配合，勿额外 captureActiveConversation。
-  const applyConversationState = useCallback((targetId, snapshot) => {
-    setHistory(snapshot.messages)
-    setError(null)
-    stateMachineRef.current.load(targetId)
-    onConversationChangeRef.current?.(snapshot)
-  }, [setHistory])
+  const applyConversationState = useCallback(
+    (targetId, snapshot) => {
+      setHistory(snapshot.messages);
+      setError(null);
+      stateMachineRef.current.load(targetId);
+      onConversationChangeRef.current?.(snapshot);
+    },
+    [setHistory],
+  );
 
   /** 新建对话（#9）：capture 当前 → 建空对话并切换；通知 UI 层更新 skills/草稿 */
   const newChat = useCallback(() => {
-    if (getState().sending) return
-    setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
-    const { id, snapshot } = newConversation()
-    applyConversationState(id, snapshot)
-  }, [applyConversationState])
+    if (getState().sending) return;
+    setCurrentSnapshot({
+      messages: getCurrentSnapshot().messages,
+      skills: skillsRef.current,
+      draft: '',
+    });
+    const { id, snapshot } = newConversation();
+    applyConversationState(id, snapshot);
+  }, [applyConversationState]);
 
   /** 切换对话（#9） */
-  const switchChat = useCallback((id) => {
-    if (getState().sending || !id || id === getActiveConversationId()) return
-    setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
-    const snapshot = switchConversation(id)
-    applyConversationState(id, snapshot)
-  }, [applyConversationState])
+  const switchChat = useCallback(
+    (id) => {
+      if (getState().sending || !id || id === getActiveConversationId()) return;
+      setCurrentSnapshot({
+        messages: getCurrentSnapshot().messages,
+        skills: skillsRef.current,
+        draft: '',
+      });
+      const snapshot = switchConversation(id);
+      applyConversationState(id, snapshot);
+    },
+    [applyConversationState],
+  );
 
   /** 删除对话（#9）：删除后自动切到下一个；若全删空则建新对话 */
-  const deleteChat = useCallback((id) => {
-    if (getState().sending) return
-    setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
-    const { activeId, snapshot } = deleteConversation(id)
-    applyConversationState(activeId, snapshot)
-  }, [applyConversationState])
+  const deleteChat = useCallback(
+    (id) => {
+      if (getState().sending) return;
+      setCurrentSnapshot({
+        messages: getCurrentSnapshot().messages,
+        skills: skillsRef.current,
+        draft: '',
+      });
+      const { activeId, snapshot } = deleteConversation(id);
+      applyConversationState(activeId, snapshot);
+    },
+    [applyConversationState],
+  );
 
   // 更新某条 assistant 消息的字段（按内容弱定位），同步 state + ref + 落盘。
   // 现仅用于 cancelPendingConfirm 清除 awaiting_confirm。
-  const updateMessageByContent = useCallback((assistantContent, patch) => {
-    if (!assistantContent) return
-    const next = getCurrentSnapshot().messages.map((m) =>
-      (m.role === 'assistant' && m.content === assistantContent) ? { ...m, ...patch } : m
-    )
-    setHistory(next)
-    setCurrentSnapshot({ messages: next, skills: skillsRef.current, draft: '' })
-    try { captureActiveConversation() } catch { /* ignore */ }
-  }, [setHistory])
+  const updateMessageByContent = useCallback(
+    (assistantContent, patch) => {
+      if (!assistantContent) return;
+      const next = getCurrentSnapshot().messages.map((m) =>
+        m.role === 'assistant' && m.content === assistantContent ? { ...m, ...patch } : m,
+      );
+      setHistory(next);
+      setCurrentSnapshot({ messages: next, skills: skillsRef.current, draft: '' });
+      try {
+        captureActiveConversation();
+      } catch {
+        /* ignore */
+      }
+    },
+    [setHistory],
+  );
 
   // 【补跑唯一入口（D8）】对「节点已建好、待点生成」的积分确认态真正触发生成。
   // 只走 runExistingPlanTool（由 run_existing_plan 工具分发，ctx 由 useCanvasAgentTools 持有）。
   // 供 AgentPanel「确认生成」按钮 / runDirectBranch(直连) 确认回调共用，禁止手写 setNodes/逐节点触发。
   // @returns {Promise<{ok, error?, data?}>}
   const runExistingConfirm = useCallback(async () => {
-    const res = await callTool('run_existing_plan', {})
-    const ok = res && (res.ok === true || (res.ok === undefined && !res.error))
-    return { ok, error: res?.error || '', data: res?.data || null }
-  }, [callTool])
+    const res = await callTool('run_existing_plan', {});
+    const ok = res && (res.ok === true || (res.ok === undefined && !res.error));
+    return { ok, error: res?.error || '', data: res?.data || null };
+  }, [callTool]);
 
   // 【统一确认卡 · 取消】放弃当前待确认（策划/记忆共用）：清记忆暂存 + 翻转 awaitingConfirm 门禁，
   // 并把对应 assistant 消息的 awaiting_confirm 清掉（收起确认卡 + 落盘持久），
   // 避免取消后 execute_plan 被永久拒、也避免残留 pendingMemorySuggest 导致下次确认误判成「记忆确认」。
   // 不通知 LLM（用户放弃本次策划/记忆，可重新输入指令）。
-  const cancelPendingConfirm = useCallback((assistantContent) => {
-    setActivePendingMemorySuggest(null)
-    setAwaitingConfirm(false)
-    if (assistantContent) updateMessageByContent(assistantContent, { awaiting_confirm: false })
-  }, [setActivePendingMemorySuggest, setAwaitingConfirm, updateMessageByContent])
+  const cancelPendingConfirm = useCallback(
+    (assistantContent) => {
+      setActivePendingMemorySuggest(null);
+      setAwaitingConfirm(false);
+      if (assistantContent) updateMessageByContent(assistantContent, { awaiting_confirm: false });
+    },
+    [setActivePendingMemorySuggest, setAwaitingConfirm, updateMessageByContent],
+  );
 
   // 【发到画布】把一段文本内容建成 textNode（内容落生成区 data.text，抽屉收起）。
   // 复用 AI 操作画布的现成工具链路（create_node → canvasHost），而非裸写 setNodes。
   // 供 AgentPanel「回复右下角箭头」按钮调用；空文本直接忽略。
-  const sendContentToCanvas = useCallback((content) => {
-    const text = String(content ?? '').trim()
-    if (!text) return { ok: false, error: '内容为空' }
-    return callTool('create_node', { type: 'textNode', text })
-  }, [callTool])
+  const sendContentToCanvas = useCallback(
+    (content) => {
+      const text = String(content ?? '').trim();
+      if (!text) return { ok: false, error: '内容为空' };
+      return callTool('create_node', { type: 'textNode', text });
+    },
+    [callTool],
+  );
 
-  return { messages, sending, error, model, setModel, send, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate, clearCreditGate,
+  return {
+    messages,
+    sending,
+    error,
+    model,
+    setModel,
+    send,
+    stop,
+    clear,
+    stateAction,
+    conversations,
+    activeConversationId,
+    newChat,
+    switchChat,
+    deleteChat,
+    updateMessageByContent,
+    sendContentToCanvas,
+    confirmPendingMemorySuggest,
+    getActivePendingMemorySuggest,
+    cancelPendingConfirm,
+    runExistingConfirm,
+    getCreditGate,
+    clearCreditGate,
     // 【展示→编排轴薄适配（收口 AgentPanel 的 store 穿透）】回传 UI 会用到的 store 原子能力，
     // 使 AgentPanel 不再直接 import conversationStore（唯一入口收敛到本 hook）。这些是 store 的稳定
     // 模块级函数（透传引用，非拷贝），消息单源下已满足"UI 不直连持久层"的一步；未来如需可再 action 化。
-    setCurrentSnapshot, setAwaitingConfirm, setCurrentAssistantTable, setCurrentGlobalContract, getCurrentRunMode, setCurrentRunMode }
+    setCurrentSnapshot,
+    setAwaitingConfirm,
+    setCurrentAssistantTable,
+    setCurrentGlobalContract,
+    getCurrentRunMode,
+    setCurrentRunMode,
+  };
 }

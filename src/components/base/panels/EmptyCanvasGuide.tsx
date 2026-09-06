@@ -1,5 +1,5 @@
-import React from 'react'
-import { FileText, Image as ImageIcon, Clapperboard } from 'lucide-react'
+import React from 'react';
+import { FileText, Image as ImageIcon, Clapperboard } from 'lucide-react';
 
 /**
  * 画布空状态引导 —— 完整复刻官方 H_.jsx L12622-12682「右键自由生成你的想象」。
@@ -21,7 +21,7 @@ import { FileText, Image as ImageIcon, Clapperboard } from 'lucide-react'
  */
 export interface EmptyCanvasGuideProps {
   /** 新建节点回调（App 传 addNode，落点在画布中央），type 为三种生成入口的节点类型 */
-  onAdd: (type: 'textNode' | 'promptNode' | 'discountVideoNode') => void
+  onAdd: (type: 'textNode' | 'promptNode' | 'discountVideoNode') => void;
 }
 
 export default function EmptyCanvasGuide({ onAdd }: EmptyCanvasGuideProps) {
@@ -30,11 +30,23 @@ export default function EmptyCanvasGuide({ onAdd }: EmptyCanvasGuideProps) {
       <div className="flex flex-col items-center pointer-events-auto transform -translate-y-10">
         {/* 标题胶囊：图表图标 + 文案 */}
         <div className="bg-surface-raised rounded-full px-5 py-2.5 flex items-center gap-3 mb-10 border border-edge shadow-lg">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-body">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-body"
+          >
             <path d="M3 3v18h18" />
             <path d="m19 9-5 5-4-4-3 3" />
           </svg>
-          <span className="text-base font-medium text-primary tracking-wide">右键自由生成你的想象</span>
+          <span className="text-base font-medium text-primary tracking-wide">
+            右键自由生成你的想象
+          </span>
         </div>
 
         {/* 三个生成入口 */}
@@ -66,5 +78,5 @@ export default function EmptyCanvasGuide({ onAdd }: EmptyCanvasGuideProps) {
         </div>
       </div>
     </div>
-  )
+  );
 }

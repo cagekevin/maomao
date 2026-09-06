@@ -28,11 +28,20 @@
  *     打印未解析样例——避免正则失配时静默输出「0 错」，把人骗过去（血泪：曾误判全绿）。
  *   - 正则刻意不加行尾 `$` 锚定：TS 错误消息可能含 `(`、换行等，宽松匹配更稳。
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, statSync, cpSync } from 'node:fs'
-import { resolve, join, relative, basename } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { spawnSync } from 'node:child_process'
-import { parseArgs } from 'node:util'
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  mkdirSync,
+  rmSync,
+  readdirSync,
+  statSync,
+  cpSync,
+} from 'node:fs';
+import { resolve, join, relative, basename } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+import { parseArgs } from 'node:util';
 
 const { positionals: filters, values } = parseArgs({
   options: {
@@ -42,105 +51,121 @@ const { positionals: filters, values } = parseArgs({
     tsconfig: { type: 'string' },
   },
   allowPositionals: true,
-})
+});
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const root = resolve(__dirname, '..')
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const root = resolve(__dirname, '..');
 
 /** 解析用户传入的相对/绝对路径为绝对路径（相对仓库根） */
 function resolveArg(arg) {
-  return resolve(arg.startsWith('/') || /^[A-Za-z]:[\\/]/.test(arg) ? arg : resolve(root, arg))
+  return resolve(arg.startsWith('/') || /^[A-Za-z]:[\\/]/.test(arg) ? arg : resolve(root, arg));
 }
 
 /**
  * 项目根（含 tsconfig.json 的目录）：
  *   --project 指定 → 该目录；否则回退到旧行为（扫描 tests/unit）。
  */
-const hasProject = Boolean(values.project)
-const projectRoot = hasProject ? resolveArg(values.project) : root
-const projectRel = (hasProject ? relative(root, projectRoot) : 'tests/unit').replace(/\\/g, '/')
-const TMP_NAME = hasProject ? basename(projectRoot) : 'unit'
-const SRC = hasProject ? projectRoot : resolve(root, 'tests', 'unit')
-const TMP = resolve(root, 'tmp', TMP_NAME)
-let TMP_TSCONFIG = resolve(root, 'tmp', `tsconfig.${TMP_NAME}.json`)
+const hasProject = Boolean(values.project);
+const projectRoot = hasProject ? resolveArg(values.project) : root;
+const projectRel = (hasProject ? relative(root, projectRoot) : 'tests/unit').replace(/\\/g, '/');
+const TMP_NAME = hasProject ? basename(projectRoot) : 'unit';
+const SRC = hasProject ? projectRoot : resolve(root, 'tests', 'unit');
+const TMP = resolve(root, 'tmp', TMP_NAME);
+let TMP_TSCONFIG = resolve(root, 'tmp', `tsconfig.${TMP_NAME}.json`);
 
-const wantAll = values.all || filters.length === 0
-const wantSrc = Boolean(values.src)
+const wantAll = values.all || filters.length === 0;
+const wantSrc = Boolean(values.src);
 
 /** 递归收集 .ts/.tsx */
 function walkDir(dir, fileList = []) {
-  if (!existsSync(dir)) return fileList
+  if (!existsSync(dir)) return fileList;
   for (const file of readdirSync(dir)) {
-    const abs = join(dir, file)
-    if (statSync(abs).isDirectory()) walkDir(abs, fileList)
-    else if (abs.endsWith('.ts') || abs.endsWith('.tsx')) fileList.push(abs)
+    const abs = join(dir, file);
+    if (statSync(abs).isDirectory()) walkDir(abs, fileList);
+    else if (abs.endsWith('.ts') || abs.endsWith('.tsx')) fileList.push(abs);
   }
-  return fileList
+  return fileList;
 }
 
 /** 剥离顶部的 @ts-nocheck（保留 @vitest-environment 注解，踩坑记录 #4） */
 function stripTsNoCheck(src) {
-  const lines = src.split('\n')
+  const lines = src.split('\n');
   for (let i = 0; i < Math.min(lines.length, 3); i++) {
-    if (/^\s*\/\/\s*@ts-nocheck\s*$/.test(lines[i])) { lines.splice(i, 1); break }
+    if (/^\s*\/\/\s*@ts-nocheck\s*$/.test(lines[i])) {
+      lines.splice(i, 1);
+      break;
+    }
   }
-  return lines.join('\n')
+  return lines.join('\n');
 }
 
 /** tmp/<name>/xxx → <projectRel>/xxx，便于对照工作区真实路径 */
 function normPath(p) {
-  const clean = p.trim().replace(/\\/g, '/')
-  const prefix = 'tmp/' + TMP_NAME + '/'
-  const dotPrefix = './' + prefix
-  if (clean.startsWith(prefix)) return projectRel + '/' + clean.slice(prefix.length)
-  if (clean.startsWith(dotPrefix)) return projectRel + '/' + clean.slice(dotPrefix.length)
-  if (clean.startsWith('./src/')) return clean.slice(2)
-  return clean
+  const clean = p.trim().replace(/\\/g, '/');
+  const prefix = 'tmp/' + TMP_NAME + '/';
+  const dotPrefix = './' + prefix;
+  if (clean.startsWith(prefix)) return projectRel + '/' + clean.slice(prefix.length);
+  if (clean.startsWith(dotPrefix)) return projectRel + '/' + clean.slice(dotPrefix.length);
+  if (clean.startsWith('./src/')) return clean.slice(2);
+  return clean;
 }
 
 // ── 1. 重建副本 + 剥 nocheck ──
-rmSync(TMP, { recursive: true, force: true })
-mkdirSync(TMP, { recursive: true })
+rmSync(TMP, { recursive: true, force: true });
+mkdirSync(TMP, { recursive: true });
 // 子项目模式跳过 node_modules/dist（复制即浪费且可能干扰）
 cpSync(SRC, TMP, {
   recursive: true,
   filter: (src) => !/(^|[/\\])(node_modules|dist)([/\\]|$)/.test(src),
-})
-for (const f of walkDir(TMP)) writeFileSync(f, stripTsNoCheck(readFileSync(f, 'utf8')), 'utf8')
+});
+for (const f of walkDir(TMP)) writeFileSync(f, stripTsNoCheck(readFileSync(f, 'utf8')), 'utf8');
 
 // ── 2. 临时 tsconfig ──
 if (hasProject) {
   // 原样复制子项目的 tsconfig 进副本：结构镜像（tmp/<name> 与原项目同深度），
   // 故原 include/paths 等相对解析依旧正确，避免跨目录 extends 解析失败（TS5083）。
-  const origTs = values.tsconfig ? resolveArg(values.tsconfig) : resolve(projectRoot, 'tsconfig.json')
-  TMP_TSCONFIG = join(TMP, 'tsconfig.json')
-  if (existsSync(origTs)) cpSync(origTs, TMP_TSCONFIG)
+  const origTs = values.tsconfig
+    ? resolveArg(values.tsconfig)
+    : resolve(projectRoot, 'tsconfig.json');
+  TMP_TSCONFIG = join(TMP, 'tsconfig.json');
+  if (existsSync(origTs)) cpSync(origTs, TMP_TSCONFIG);
 } else {
   // 旧 tests 模式：玩具 tsconfig（vitest 环境 + 宽松）
-  writeFileSync(TMP_TSCONFIG, JSON.stringify({
-    compilerOptions: {
-      target: 'ES2022',
-      lib: ['ES2022', 'DOM', 'DOM.Iterable'],
-      module: 'ESNext',
-      moduleResolution: 'bundler',
-      jsx: 'react-jsx',
-      resolveJsonModule: true,
-      esModuleInterop: true,
-      forceConsistentCasingInFileNames: true,
-      skipLibCheck: true,
-      noEmit: true,
-      allowImportingTsExtensions: true,
-      allowJs: true,
-      checkJs: false,
-      strict: false,
-      noImplicitAny: false,
-      strictNullChecks: false,
-      types: ['node', 'vite/client', 'vitest/globals'],
-      baseUrl: root,
-      paths: { '@/*': ['./src/*'] },
-    },
-    include: [join(root, 'tmp', 'unit', '**', '*.ts'), join(root, 'tmp', 'unit', '**', '*.tsx')],
-  }, null, 2), 'utf8')
+  writeFileSync(
+    TMP_TSCONFIG,
+    JSON.stringify(
+      {
+        compilerOptions: {
+          target: 'ES2022',
+          lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+          module: 'ESNext',
+          moduleResolution: 'bundler',
+          jsx: 'react-jsx',
+          resolveJsonModule: true,
+          esModuleInterop: true,
+          forceConsistentCasingInFileNames: true,
+          skipLibCheck: true,
+          noEmit: true,
+          allowImportingTsExtensions: true,
+          allowJs: true,
+          checkJs: false,
+          strict: false,
+          noImplicitAny: false,
+          strictNullChecks: false,
+          types: ['node', 'vite/client', 'vitest/globals'],
+          baseUrl: root,
+          paths: { '@/*': ['./src/*'] },
+        },
+        include: [
+          join(root, 'tmp', 'unit', '**', '*.ts'),
+          join(root, 'tmp', 'unit', '**', '*.tsx'),
+        ],
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
 }
 
 // ── 3. 跑 tsc（只读，扫副本）──
@@ -149,77 +174,101 @@ const res = spawnSync('npx', ['tsc', '--noEmit', '-p', TMP_TSCONFIG], {
   encoding: 'utf8',
   shell: true,
   maxBuffer: 64 * 1024 * 1024,
-})
+});
 const allOut = ((res.stdout || '') + '\n' + (res.stderr || ''))
-  .replace(/\x1b\[[0-9;]*m/g, '')   // 去 ANSI 色码
-  .replace(/\r\n/g, '\n').replace(/\r/g, '\n')  // 统一换行：CRLF 会让行尾锚点失配
+  .replace(/\x1b\[[0-9;]*m/g, '') // 去 ANSI 色码
+  .replace(/\r\n/g, '\n')
+  .replace(/\r/g, '\n'); // 统一换行：CRLF 会让行尾锚点失配
 
 // ── 4. 解析 ──
-const ERR_RE = /^([^(]+)\((\d+),(\d+)\): error (TS\d+):\s*(.*)/  // 刻意不加 $：错误信息可能含 ( 或换行
-const errs = []
-const unresolved = []
-const lines = allOut.split('\n')
-let errLineCount = 0
+const ERR_RE = /^([^(]+)\((\d+),(\d+)\): error (TS\d+):\s*(.*)/; // 刻意不加 $：错误信息可能含 ( 或换行
+const errs = [];
+const unresolved = [];
+const lines = allOut.split('\n');
+let errLineCount = 0;
 
 for (const line of lines) {
-  if (!line.includes('error TS')) continue
-  errLineCount++
-  const m = line.match(ERR_RE)
-  if (!m) { unresolved.push(line); continue }
-  const file = normPath(m[1])
-  errs.push({ file, line: Number(m[2]), col: Number(m[3]), code: m[4], msg: m[5].trim() })
+  if (!line.includes('error TS')) continue;
+  errLineCount++;
+  const m = line.match(ERR_RE);
+  if (!m) {
+    unresolved.push(line);
+    continue;
+  }
+  const file = normPath(m[1]);
+  errs.push({ file, line: Number(m[2]), col: Number(m[3]), code: m[4], msg: m[5].trim() });
 }
 
-rmSync(TMP, { recursive: true, force: true })
-rmSync(TMP_TSCONFIG, { recursive: true, force: true })
+rmSync(TMP, { recursive: true, force: true });
+rmSync(TMP_TSCONFIG, { recursive: true, force: true });
 
 // ── 5. 解析率自检：正则失配时静默「0 错」会把人骗过去，必须显式暴露 ──
-console.log(`[自检] tsc exit=${res.status}　含 error TS 的行=${errLineCount}　成功解析=${errs.length}`)
+console.log(
+  `[自检] tsc exit=${res.status}　含 error TS 的行=${errLineCount}　成功解析=${errs.length}`,
+);
 if (errLineCount > 0 && errs.length < errLineCount) {
-  console.error(`⚠ 有 ${errLineCount - errs.length} 行未被解析（正则可能失配），样例：`)
-  unresolved.slice(0, 5).forEach((l) => console.error('   ' + l.trim().slice(0, 160)))
+  console.error(`⚠ 有 ${errLineCount - errs.length} 行未被解析（正则可能失配），样例：`);
+  unresolved.slice(0, 5).forEach((l) => console.error('   ' + l.trim().slice(0, 160)));
 }
 if (errLineCount === 0) {
-  console.log(res.status === 0 ? '✔ tsc 通过，0 类型错误。' : '✖ tsc 未产出错误行但退出码非 0，请检查环境。')
-  process.exit(res.status === 0 ? 0 : 1)
+  console.log(
+    res.status === 0 ? '✔ tsc 通过，0 类型错误。' : '✖ tsc 未产出错误行但退出码非 0，请检查环境。',
+  );
+  process.exit(res.status === 0 ? 0 : 1);
 }
 
 // ── 6. 过滤 ──
-const needles = filters.map((f) => f.toLowerCase())
+const needles = filters.map((f) => f.toLowerCase());
 const matched = errs.filter((e) => {
-  if (!wantAll && !needles.some((n) => e.file.toLowerCase().includes(n))) return false
-  if (!wantSrc && !e.file.startsWith(projectRel + '/')) return false
-  return true
-})
+  if (!wantAll && !needles.some((n) => e.file.toLowerCase().includes(n))) return false;
+  if (!wantSrc && !e.file.startsWith(projectRel + '/')) return false;
+  return true;
+});
 
 if (matched.length === 0) {
-  console.log(`\nℹ 无匹配错误。过滤条件：${wantAll ? '(全部)' : needles.join(', ')}`)
-  console.log('  当前有错的文件（文件 × 错误数）：')
+  console.log(`\nℹ 无匹配错误。过滤条件：${wantAll ? '(全部)' : needles.join(', ')}`);
+  console.log('  当前有错的文件（文件 × 错误数）：');
   /** @type {Record<string, number>} */
-  const cnt = {}
-  errs.forEach((e) => { cnt[e.file] = (cnt[e.file] || 0) + 1 })
+  const cnt = {};
+  errs.forEach((e) => {
+    cnt[e.file] = (cnt[e.file] || 0) + 1;
+  });
   /** @type {{ file: string, n: number }[]} */
-  const cntRows = Object.entries(cnt).map(([file, n]) => ({ file, n: /** @type {number} */ (n) }))
-  cntRows.sort((a, b) => b.n - a.n).forEach(({ file, n }) => console.log(`   ${String(n).padStart(3)}  ${file}`))
-  process.exit(0)
+  const cntRows = Object.entries(cnt).map(([file, n]) => ({ file, n: /** @type {number} */ (n) }));
+  cntRows
+    .sort((a, b) => b.n - a.n)
+    .forEach(({ file, n }) => console.log(`   ${String(n).padStart(3)}  ${file}`));
+  process.exit(0);
 }
 
 // ── 7. 输出明细 ──
-matched.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)
-let cur = ''
+matched.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
+let cur = '';
 for (const e of matched) {
-  if (e.file !== cur) { cur = e.file; console.log(`\n════ ${cur} ════`) }
-  console.log(`  ${String(e.line).padStart(4)}:${String(e.col).padStart(3)}  ${e.code}  ${e.msg.slice(0, 220)}`)
+  if (e.file !== cur) {
+    cur = e.file;
+    console.log(`\n════ ${cur} ════`);
+  }
+  console.log(
+    `  ${String(e.line).padStart(4)}:${String(e.col).padStart(3)}  ${e.code}  ${e.msg.slice(0, 220)}`,
+  );
 }
 
 /** @type {Record<string, number>} */
-const byCode = {}
-matched.forEach((e) => { byCode[e.code] = (byCode[e.code] || 0) + 1 })
+const byCode = {};
+matched.forEach((e) => {
+  byCode[e.code] = (byCode[e.code] || 0) + 1;
+});
 /** @type {Record<string, number>} */
-const byFile = {}
-matched.forEach((e) => { byFile[e.file] = (byFile[e.file] || 0) + 1 })
+const byFile = {};
+matched.forEach((e) => {
+  byFile[e.file] = (byFile[e.file] || 0) + 1;
+});
 
-console.log(`\n──── 明细 ${matched.length} 条，涉及 ${Object.keys(byFile).length} 个文件`)
-const byCodeRows = Object.entries(byCode).map(([code, n]) => ({ code, n: /** @type {number} */ (n) }))
-byCodeRows.sort((a, b) => b.n - a.n)
-console.log('错误码：' + byCodeRows.map(({ code, n }) => `${code}×${n}`).join('  '))
+console.log(`\n──── 明细 ${matched.length} 条，涉及 ${Object.keys(byFile).length} 个文件`);
+const byCodeRows = Object.entries(byCode).map(([code, n]) => ({
+  code,
+  n: /** @type {number} */ (n),
+}));
+byCodeRows.sort((a, b) => b.n - a.n);
+console.log('错误码：' + byCodeRows.map(({ code, n }) => `${code}×${n}`).join('  '));

@@ -8,12 +8,12 @@
  * 修复：引入 backdropStartRef，仅当「本次 mousedown 起点也落在遮罩空白上」时，click 落在遮罩才关闭。
  * 从面板内容按下（拖选）→ 即使在遮罩上松开也不关闭。
  */
-import React from 'react'
-import { describe, it, expect, vi } from 'vitest'
-import { render, fireEvent, act } from '@testing-library/react'
-import FullscreenModal from '../../src/components/base/panels/FullscreenModal.tsx'
+import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, fireEvent, act } from '@testing-library/react';
+import FullscreenModal from '../../src/components/base/panels/FullscreenModal.tsx';
 
-const BACKDROP_SEL = '.input-panel-fullscreen-root'
+const BACKDROP_SEL = '.input-panel-fullscreen-root';
 
 function renderModal(onClose: () => void) {
   render(
@@ -21,41 +21,41 @@ function renderModal(onClose: () => void) {
       <div contentEditable suppressContentEditableWarning>
         这是一段可以从右往左框选的文字内容。
       </div>
-    </FullscreenModal>
-  )
-  const backdrop = document.querySelector(BACKDROP_SEL) as HTMLElement
-  const content = backdrop?.querySelector('[contenteditable="true"]') as HTMLElement
-  return { backdrop, content }
+    </FullscreenModal>,
+  );
+  const backdrop = document.querySelector(BACKDROP_SEL) as HTMLElement;
+  const content = backdrop?.querySelector('[contenteditable="true"]') as HTMLElement;
+  return { backdrop, content };
 }
 
 describe('FullscreenModal 遮罩点击关闭', () => {
   it('真·点遮罩空白（按下与点击都在遮罩）→ 关闭', () => {
-    const onClose = vi.fn()
-    const { backdrop } = renderModal(onClose)
+    const onClose = vi.fn();
+    const { backdrop } = renderModal(onClose);
     act(() => {
-      fireEvent.mouseDown(backdrop)
-      fireEvent.click(backdrop)
-    })
-    expect(onClose).toHaveBeenCalledTimes(1)
-  })
+      fireEvent.mouseDown(backdrop);
+      fireEvent.click(backdrop);
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 
   it('从面板内容按下、到遮罩松开（拖选结束在框外）→ 不关闭', () => {
-    const onClose = vi.fn()
-    const { backdrop, content } = renderModal(onClose)
+    const onClose = vi.fn();
+    const { backdrop, content } = renderModal(onClose);
     act(() => {
-      fireEvent.mouseDown(content) // 起点在内容区：从右往左框选开始
-      fireEvent.click(backdrop)    // mouseup 落在遮罩，click target 落到遮罩
-    })
-    expect(onClose).not.toHaveBeenCalled()
-  })
+      fireEvent.mouseDown(content); // 起点在内容区：从右往左框选开始
+      fireEvent.click(backdrop); // mouseup 落在遮罩，click target 落到遮罩
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
 
   it('按下与点击都在面板内部 → 不关闭', () => {
-    const onClose = vi.fn()
-    const { content } = renderModal(onClose)
+    const onClose = vi.fn();
+    const { content } = renderModal(onClose);
     act(() => {
-      fireEvent.mouseDown(content)
-      fireEvent.click(content)
-    })
-    expect(onClose).not.toHaveBeenCalled()
-  })
-})
+      fireEvent.mouseDown(content);
+      fireEvent.click(content);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});

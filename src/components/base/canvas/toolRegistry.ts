@@ -24,17 +24,17 @@
  * ════════════════════════════════════════════════════════════════
  */
 /** 工具执行上下文（由 buildCanvasAgentTools 注入） */
-export type ToolExecuteCtx = Record<string, unknown>
+export type ToolExecuteCtx = Record<string, unknown>;
 
 /** 工具定义（docs/25 · 阶段2） */
 export interface ToolDef {
-  name: string
-  description?: string
-  parameters?: unknown
+  name: string;
+  description?: string;
+  parameters?: unknown;
   /** mutating=true → 调用前统一压 AI 撤销栈，使 undo_ai 能整体撤回 */
-  mutating?: boolean
-  execute: (ctx: ToolExecuteCtx, args?: Record<string, unknown>) => unknown | Promise<unknown>
-  [key: string]: unknown
+  mutating?: boolean;
+  execute: (ctx: ToolExecuteCtx, args?: Record<string, unknown>) => unknown | Promise<unknown>;
+  [key: string]: unknown;
 }
 
 /** 工具执行返回的统一信封（全项目工具统一返回该形状）：
@@ -44,26 +44,26 @@ export interface ToolDef {
  *  直接访问 .data/.error 不 narrow，判别联合会让这些既有 src 报错、把已绿的 src 弄红（见 75 陷阱1）。
  *  这也正符合本类型「信封」语义——调用方按需读 data/error，不必强约束二选一。 */
 export type ToolResult = {
-  ok: boolean
+  ok: boolean;
   /** 工具执行返回值（任意 JSON 值）。 */
-  data?: any
-  error?: unknown
-}
+  data?: any;
+  error?: unknown;
+};
 
-const tools: ToolDef[] = []
+const tools: ToolDef[] = [];
 
 /** 追加一个工具定义，返回 def（便于链式/赋值）。重复 name 允许（注册表按注册序排列）。 */
 export function registerTool<T extends ToolDef>(def: T): T {
-  if (def && typeof def === 'object' && def.name) tools.push(def)
-  return def
+  if (def && typeof def === 'object' && def.name) tools.push(def);
+  return def;
 }
 
 /** 返回注册表数组（live 引用；顺序 = 注册序 = 模型选择优先级）。 */
 export function getTools(): ToolDef[] {
-  return tools
+  return tools;
 }
 
 /** 清空注册表（测试隔离用；生产不要调用）。 */
 export function resetTools(): void {
-  tools.length = 0
+  tools.length = 0;
 }

@@ -8,28 +8,28 @@
  * 命名/导出不变，消费方无感知。
  * ════════════════════════════════════════════════════════════════
  */
-import { getActiveConv } from './conversationState.ts'
-import { getCurrentSnapshot } from './conversationSnapshot.ts'
+import { getActiveConv } from './conversationState.ts';
+import { getCurrentSnapshot } from './conversationSnapshot.ts';
 
 /** 图编号映射条目：num=「图N」编号（1-based），source=来源（gen=上一轮生成图 / att=当前附件） */
 export interface ImageMapEntry {
-  num: number
-  url: string
-  name: string
-  source: 'gen' | 'att'
+  num: number;
+  url: string;
+  name: string;
+  source: 'gen' | 'att';
 }
 
 /** 向前找当前对话里最近一条带图 user 消息，返回其参考图 url 数组（对齐大雄 agentLastUserAttachments）。 */
 export function getLastUserReferenceImages(): string[] {
-  const conv = getActiveConv()
-  const msgs = conv?.messages || []
+  const conv = getActiveConv();
+  const msgs = conv?.messages || [];
   for (let i = msgs.length - 1; i >= 0; i--) {
-    const m = msgs[i]
-    if (m?.role !== 'user') continue
-    const imgs = Array.isArray(m.attachments) ? m.attachments.filter((a) => a && a.url) : []
-    if (imgs.length > 0) return imgs.map((a) => a.url).filter(Boolean)
+    const m = msgs[i];
+    if (m?.role !== 'user') continue;
+    const imgs = Array.isArray(m.attachments) ? m.attachments.filter((a) => a && a.url) : [];
+    if (imgs.length > 0) return imgs.map((a) => a.url).filter(Boolean);
   }
-  return []
+  return [];
 }
 
 /** 【对齐大雄 agentLastResults】向前找当前对话里最近一条带生成结果图的 assistant 消息，返回其结果图数组。
@@ -38,15 +38,15 @@ export function getLastUserReferenceImages(): string[] {
  *  调用它自动挂历史生成图**——对齐大雄 use_last_outputs=false「跨轮 lastResults 彻底关闭」，只有 LLM
  *  用 direct_refs 显式引用历史图时才用。图本体不进 LLM 上下文，执行层反查原图 url。 */
 export function getLastGeneratedImages(): unknown[] {
-  const conv = getActiveConv()
-  const msgs = conv?.messages || []
+  const conv = getActiveConv();
+  const msgs = conv?.messages || [];
   for (let i = msgs.length - 1; i >= 0; i--) {
-    const m = msgs[i]
-    if (m?.role !== 'assistant') continue
-    const lr = Array.isArray(m.lastResults) ? m.lastResults.filter((r) => r && r.url) : []
-    if (lr.length > 0) return lr
+    const m = msgs[i];
+    if (m?.role !== 'assistant') continue;
+    const lr = Array.isArray(m.lastResults) ? m.lastResults.filter((r) => r && r.url) : [];
+    if (lr.length > 0) return lr;
   }
-  return []
+  return [];
 }
 
 /** 【对齐大雄 agentCurrentImageMap】统一编号映射：上一轮生成图(图1~图M) + 当前附件(图M+1~图M+N)。
@@ -57,20 +57,30 @@ export function getLastGeneratedImages(): unknown[] {
  *  数据源：上一轮生成图来自 getLastGeneratedImages()（assistant 消息的 lastResults，由 useAgentChat 在
  *  execute_plan 成功后回填）；当前附件来自 getCurrentSnapshot().attachments。 */
 export function getCurrentImageMap(): ImageMapEntry[] {
-  const genResults = getLastGeneratedImages()
-  const attachments = getCurrentSnapshot().attachments || []
+  const genResults = getLastGeneratedImages();
+  const attachments = getCurrentSnapshot().attachments || [];
   /** @type {ImageMapEntry[]} */
-  const map = []
+  const map = [];
   genResults.forEach((r, i) => {
-    const item = r as Record<string, unknown>
-    map.push({ num: i + 1, url: String(item.url || ''), name: String(item.name || `图${i + 1}`), source: 'gen' })
-  })
-  const offset = genResults.length
+    const item = r as Record<string, unknown>;
+    map.push({
+      num: i + 1,
+      url: String(item.url || ''),
+      name: String(item.name || `图${i + 1}`),
+      source: 'gen',
+    });
+  });
+  const offset = genResults.length;
   attachments
     .filter((a) => !!a && !!(a as Record<string, unknown>).url)
     .forEach((a, i) => {
-      const att = a as Record<string, unknown>
-      map.push({ num: offset + i + 1, url: String(att.url || ''), name: String(att.name || att.label || `图${offset + i + 1}`), source: 'att' })
-    })
-  return map
+      const att = a as Record<string, unknown>;
+      map.push({
+        num: offset + i + 1,
+        url: String(att.url || ''),
+        name: String(att.name || att.label || `图${offset + i + 1}`),
+        source: 'att',
+      });
+    });
+  return map;
 }

@@ -1,0 +1,336 @@
+/**
+ * ════════════════════════════════════════════════════════════════
+ * 面板通用样式层（panel-kit.css）
+ * ════════════════════════════════════════════════════════════════
+ *
+ * 【为什么有这个文件】此前每个面板各写各的 tailwind 原子类，同一个「图标按钮 /
+ *   浮层 / pill / 顶栏」在不同面板里尺寸、圆角、hover 态都不一致，样式越改越乱。
+ *   本文件把**面板外壳级**的通用件收成唯一真相，供左侧栏（LeftPanel + 任务/生成/
+ *   素材/提示词）与 AI 助手（agent-panel.css）共用同一套尺度与语义。
+ *
+ * 【适用范围】只放「多个面板共用」的外壳件：
+ *   顶栏 / 分段控件 / 副工具条 / pill 组 / 图标按钮 / 浮层 / 统计行。
+ *   **面板私有视觉**（任务卡片、素材网格、提示词卡片、AI 消息气泡等）不进这里，
+ *   仍由各面板自行实现。
+ *
+ * 【色值纪律】一律取 `:root` 的 `--mao-*` 语义令牌（tailwind.config.ts 为唯一真相，
+ *   禁裸色值）。仅「强调色」两枚是本层私有（Tailwind 无对应令牌，与 agent-panel.css
+ *   的 --agent-accent / --agent-on 同值），集中在下面局部变量里，改色只改这一处。
+ *
+ * 【语义色约定】（与 AI 助手一致，勿混用）
+ *   · 中性高亮（surface-hover-strong + edge）  = 当前选中项 / 当前 tab
+ *   · 蓝（--pk-accent）                        = 某开关已启用（如筛选展开、钉住）
+ *   · 绿（--pk-on）                            = 保护/确认闸已开启
+ *
+ * 【迁移状态】左侧栏 4 tab 已全量使用本层；AI 助手当前仅复用本文件的**尺度变量**
+ *   （见 agent-panel.css 头部注释），类名后续渐进迁入，避免一次性改动导致视觉回归。
+ */
+
+:root {
+  /* ── 面板通用尺度（改这里，所有面板一起呼吸） ── */
+  --pk-head-h: 48px; /* 面板顶栏（对齐 AI 助手 agent-header） */
+  --pk-sub-h: 38px; /* 顶栏下的副工具条 */
+  --pk-icon: 30px; /* 图标按钮 · 标准档（顶栏） */
+  --pk-icon-sm: 26px; /* 图标按钮 · 紧凑档（副条 / 卡片操作） */
+  --pk-icon-xs: 20px; /* 图标按钮 · 极紧凑档 */
+  --pk-radius-btn: 8px; /* 图标按钮 / 文字按钮 */
+  --pk-radius-pop: 12px; /* 浮层 */
+  --pk-radius-pill: 7px; /* pill / 分段控件子项 */
+  --pk-radius-seg: 11px; /* 分段控件外壳 */
+  --pk-pad-x: 10px; /* 顶栏左右留白 */
+
+  /* ── 本层私有的强调色（两枚，与 agent-panel.css 同值） ── */
+  --pk-accent: #60a5fa; /* 蓝：某开关已启用 */
+  --pk-accent-bg: rgb(59 130 246 / 0.12);
+  --pk-on: #34d399; /* 绿：确认/保护闸已开启 */
+}
+
+/* ══════════════ 顶栏 ══════════════ */
+.pk-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: var(--pk-head-h);
+  padding: 0 6px 0 var(--pk-pad-x);
+  border-bottom: 1px solid rgb(var(--mao-edge-subtle));
+}
+.pk-head-spacer {
+  flex: 1;
+}
+
+/* ══════════════ 分段控件（tab 切换）══════════════
+   窄面板（330px）下的解法：未激活只留图标，激活项展开文字（max-width 过渡）。 */
+.pk-seg {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  height: 34px;
+  padding: 3px;
+  background: rgb(var(--mao-surface-2));
+  border: 1px solid rgb(var(--mao-edge-subtle));
+  border-radius: var(--pk-radius-seg);
+}
+.pk-seg-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--pk-radius-pill);
+  background: transparent;
+  color: rgb(var(--mao-text-muted));
+  cursor: pointer;
+  transition:
+    background 0.16s,
+    color 0.16s,
+    padding 0.16s;
+}
+.pk-seg-item:hover {
+  background: rgb(var(--mao-surface-hover-2));
+  color: rgb(var(--mao-text-primary));
+}
+/* 激活 = 中性高亮（语义对齐 AI 助手会话列表「当前项」，不用蓝） */
+.pk-seg-item[aria-selected='true'] {
+  padding: 0 9px 0 7px;
+  background: rgb(var(--mao-surface-hover-strong));
+  box-shadow: inset 0 0 0 1px rgb(var(--mao-edge));
+  color: rgb(var(--mao-text-strong));
+}
+.pk-seg-item[aria-selected='true']:hover {
+  background: rgb(var(--mao-surface-hover-strong));
+  color: rgb(var(--mao-text-strong));
+}
+.pk-seg-item svg {
+  flex-shrink: 0;
+}
+.pk-seg-label {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1;
+  transition:
+    max-width 0.18s ease,
+    margin-left 0.18s ease;
+}
+.pk-seg-item[aria-selected='true'] .pk-seg-label {
+  max-width: 56px;
+  margin-left: 5px;
+}
+
+/* 角标（tab 上的计数）：红=要你看（失败/进行中），绿=全部完成 */
+.pk-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: rgb(239 68 68);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+}
+.pk-badge.is-ok {
+  background: rgb(34 197 94);
+}
+
+/* ══════════════ 副工具条（顶栏下的一行操作区）═════════════ */
+.pk-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: var(--pk-sub-h);
+  padding: 0 8px;
+  border-bottom: 1px solid rgb(var(--mao-edge-subtle));
+}
+/* 统计文字（副条左侧；省略号防溢出） */
+.pk-stat {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: rgb(var(--mao-text-faint));
+  font-size: 11px;
+}
+.pk-stat b {
+  color: rgb(var(--mao-text-secondary));
+  font-weight: 500;
+}
+
+/* ══════════════ pill 组（可横滚，供类型/目录/来源筛选）═════════════ */
+.pk-pills {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.pk-pills::-webkit-scrollbar {
+  display: none;
+}
+.pk-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: var(--pk-radius-pill);
+  background: rgb(var(--mao-surface-2));
+  color: rgb(var(--mao-text-muted));
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+.pk-pill:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-primary));
+}
+/* 选中 = 中性高亮（不用白底硬编码，避免与「开关已启用」的蓝混淆） */
+.pk-pill[aria-pressed='true'] {
+  background: rgb(var(--mao-surface-hover-strong));
+  border-color: rgb(var(--mao-edge-strong));
+  color: rgb(var(--mao-text-strong));
+}
+
+/* ══════════════ 图标按钮（顶栏 / 副条 / 卡片 三档）═════════════ */
+.pk-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--pk-icon);
+  height: var(--pk-icon);
+  border: none;
+  border-radius: var(--pk-radius-btn);
+  background: transparent;
+  color: rgb(var(--mao-text-muted));
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.pk-icon-btn:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-strong));
+}
+.pk-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.pk-icon-btn:disabled:hover {
+  background: transparent;
+  color: rgb(var(--mao-text-muted));
+}
+.pk-icon-btn.is-sm {
+  width: var(--pk-icon-sm);
+  height: var(--pk-icon-sm);
+}
+.pk-icon-btn.is-xs {
+  width: var(--pk-icon-xs);
+  height: var(--pk-icon-xs);
+  border-radius: 6px;
+}
+/* 语义态：is-on=蓝（某开关已启用）；is-ok=绿（确认/保护闸已开） */
+.pk-icon-btn.is-on {
+  color: var(--pk-accent);
+  background: var(--pk-accent-bg);
+}
+.pk-icon-btn.is-on:hover {
+  color: var(--pk-accent);
+  background: var(--pk-accent-bg);
+}
+.pk-icon-btn.is-ok {
+  color: var(--pk-on);
+}
+.pk-icon-btn.is-ok:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: var(--pk-on);
+}
+
+/* ══════════════ 浮层（⋯ 菜单等）═════════════ */
+.pk-pop {
+  position: absolute;
+  z-index: 40;
+  padding: 6px;
+  background: rgb(var(--mao-surface-1));
+  border: 1px solid rgb(var(--mao-edge));
+  border-radius: var(--pk-radius-pop);
+  box-shadow: 0 20px 60px -10px rgb(0 0 0 / 0.85);
+}
+/* 默认锚在「⋯」按钮下方、右对齐（各面板可覆写 left/right/top） */
+.pk-pop.is-more {
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  min-width: 160px;
+}
+.pk-pop-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(var(--mao-text-body));
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.pk-pop-row:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-strong));
+}
+.pk-pop-row:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.pk-pop-row:disabled:hover {
+  background: transparent;
+  color: rgb(var(--mao-text-body));
+}
+.pk-pop-row.is-danger {
+  color: rgb(248 113 113);
+}
+.pk-pop-row.is-danger:hover {
+  background: rgb(239 68 68 / 0.1);
+  color: rgb(248 113 113);
+}
+.pk-pop-div {
+  height: 1px;
+  margin: 5px 4px;
+  background: rgb(var(--mao-edge-subtle));
+}
+
+/* ══════════════ 列表底部统计（生成/素材/提示词 共用）═════════════ */
+.pk-list-foot {
+  padding: 10px 0 4px;
+  color: rgb(var(--mao-text-faint));
+  font-size: 10.5px;
+  text-align: center;
+}

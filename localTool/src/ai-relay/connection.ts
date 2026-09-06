@@ -16,7 +16,11 @@ function connectionError(err: unknown): { status: number; warning: string } {
   return { status, warning };
 }
 
-export async function testConnection(providerId: string, config: ConnectionConfig, signal?: AbortSignal): Promise<ConnectionTestResult> {
+export async function testConnection(
+  providerId: string,
+  config: ConnectionConfig,
+  signal?: AbortSignal,
+): Promise<ConnectionTestResult> {
   const definition: ProviderDefinition | undefined = getProviderDefinition(providerId, config);
   const baseUrl = config.baseUrl || definition?.defaultBaseUrl || '';
   // 纯配置文件厂商（无内置目录定义，如魔搭 modelscope）但有显式 base_url：
@@ -25,8 +29,13 @@ export async function testConnection(providerId: string, config: ConnectionConfi
     if (!baseUrl) return { ok: false, status: 0, warning: '未知厂商目录（未配置接口地址）' };
     try {
       const { response, resolvedBaseUrl } = await stableRequest({
-        method: 'GET', path: '/models', baseUrl,
-        candidates: baseUrlCandidates(baseUrl), apiKey: config.apiKey, signal, maxRetries: 1,
+        method: 'GET',
+        path: '/models',
+        baseUrl,
+        candidates: baseUrlCandidates(baseUrl),
+        apiKey: config.apiKey,
+        signal,
+        maxRetries: 1,
       });
       return { ok: response.status < 400, status: response.status, resolvedBaseUrl };
     } catch (err) {
@@ -127,7 +136,8 @@ function readErrorMessage(payload: unknown): string | undefined {
   if (typeof payload.message === 'string') return payload.message;
   if (typeof payload.errorMessage === 'string') return payload.errorMessage;
   if (typeof payload.error === 'string') return payload.error;
-  if (isRecord(payload.error) && typeof payload.error.message === 'string') return payload.error.message;
+  if (isRecord(payload.error) && typeof payload.error.message === 'string')
+    return payload.error.message;
   return undefined;
 }
 
@@ -149,7 +159,10 @@ export async function fetchBalance(
 }
 
 /** RunningHUB 独立余额端点（原仓库 testRunninghubModel）。 */
-async function fetchRunninghubBalance(apiKey: string | undefined, signal?: AbortSignal): Promise<BalanceResult> {
+async function fetchRunninghubBalance(
+  apiKey: string | undefined,
+  signal?: AbortSignal,
+): Promise<BalanceResult> {
   if (!apiKey) return { error: '缺少 API Key，无法查询余额' };
   try {
     const res = await stableRequest({

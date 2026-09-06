@@ -45,16 +45,18 @@ export async function readJsonResponse(
     } catch {
       payload = null;
     }
-    const configuredMessage = errorPath && (isRecord(payload) || Array.isArray(payload))
-      ? readModelProtocolFirstScalar(payload, errorPath)
-      : undefined;
-    const message = configuredMessage !== undefined && configuredMessage !== null
-      ? String(configuredMessage)
-      : isRecord(payload) && isRecord(payload.error) && typeof payload.error.message === 'string'
-        ? payload.error.message
-        : isRecord(payload) && typeof payload.message === 'string'
-          ? payload.message
-          : rawText.trim() || `${label} (${response.status})`;
+    const configuredMessage =
+      errorPath && (isRecord(payload) || Array.isArray(payload))
+        ? readModelProtocolFirstScalar(payload, errorPath)
+        : undefined;
+    const message =
+      configuredMessage !== undefined && configuredMessage !== null
+        ? String(configuredMessage)
+        : isRecord(payload) && isRecord(payload.error) && typeof payload.error.message === 'string'
+          ? payload.error.message
+          : isRecord(payload) && typeof payload.message === 'string'
+            ? payload.message
+            : rawText.trim() || `${label} (${response.status})`;
     // 上游显示啥，我们就显示啥——不翻译、不重写（含 429 等状态码）
     throw new ModelProtocolHttpError(
       response.status,
@@ -69,7 +71,11 @@ export async function readJsonResponse(
   return payload;
 }
 
-export async function ensureSuccessfulRawResponse(response: Response, label: string, errorPath?: string): Promise<Response> {
+export async function ensureSuccessfulRawResponse(
+  response: Response,
+  label: string,
+  errorPath?: string,
+): Promise<Response> {
   if (response.ok) return response;
   await readJsonResponse(response, label, errorPath);
   return response;
@@ -84,9 +90,7 @@ export function encodeBytesBase64(bytes: Uint8Array): string {
 }
 
 function decodeBase64Bytes(value: string): Uint8Array {
-  const encoded = /^data:[^;,]+;base64,/i.test(value)
-    ? value.slice(value.indexOf(',') + 1)
-    : value;
+  const encoded = /^data:[^;,]+;base64,/i.test(value) ? value.slice(value.indexOf(',') + 1) : value;
   const normalized = encoded.replace(/\s/g, '');
   try {
     const binary = atob(normalized);
@@ -143,7 +147,10 @@ export function normalizeBase64Result(
   return `data:${mimeType};base64,${encodeBytesBase64(decodeBase64Bytes(value))}`;
 }
 
-function buildResultAuthenticationHeaders(auth: AuthConfig | undefined, apiKey?: string): Record<string, string> {
+function buildResultAuthenticationHeaders(
+  auth: AuthConfig | undefined,
+  apiKey?: string,
+): Record<string, string> {
   if (!apiKey) return {};
   const resolvedAuth = resolveAuthentication(auth);
   if (resolvedAuth.type === 'bearer') {
@@ -164,22 +171,26 @@ export async function fetchSameOriginResultUrls(
   signal?: AbortSignal,
 ): Promise<string[]> {
   const allowedOrigin = new URL(baseUrl).origin;
-  return Promise.all(urls.map(async (rawUrl) => {
-    const url = new URL(rawUrl);
-    if (url.origin !== allowedOrigin) {
-      throw new Error('模型结果下载地址与厂商连接地址不同源');
-    }
-    const response = await corsSafeFetch(
-      applyQueryAuthentication(url.toString(), auth, apiKey),
-      { method: 'GET', headers: buildResultAuthenticationHeaders(auth, apiKey), signal },
-    );
-    await ensureSuccessfulRawResponse(response, '模型结果下载失败');
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength === 0) throw new Error('模型结果下载内容为空');
-    const responseMimeType = response.headers.get('Content-Type')?.split(';')[0]?.trim();
-    const mimeType = responseMimeType && MIME_TYPE_RE.test(responseMimeType)
-      ? responseMimeType
-      : fallbackMimeType ?? 'application/octet-stream';
-    return `data:${mimeType};base64,${encodeBytesBase64(bytes)}`;
-  }));
+  return Promise.all(
+    urls.map(async (rawUrl) => {
+      const url = new URL(rawUrl);
+      if (url.origin !== allowedOrigin) {
+        throw new Error('模型结果下载地址与厂商连接地址不同源');
+      }
+      const response = await corsSafeFetch(applyQueryAuthentication(url.toString(), auth, apiKey), {
+        method: 'GET',
+        headers: buildResultAuthenticationHeaders(auth, apiKey),
+        signal,
+      });
+      await ensureSuccessfulRawResponse(response, '模型结果下载失败');
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (bytes.byteLength === 0) throw new Error('模型结果下载内容为空');
+      const responseMimeType = response.headers.get('Content-Type')?.split(';')[0]?.trim();
+      const mimeType =
+        responseMimeType && MIME_TYPE_RE.test(responseMimeType)
+          ? responseMimeType
+          : (fallbackMimeType ?? 'application/octet-stream');
+      return `data:${mimeType};base64,${encodeBytesBase64(bytes)}`;
+    }),
+  );
 }

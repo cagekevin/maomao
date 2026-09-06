@@ -1,4 +1,4 @@
-import type { Config } from 'tailwindcss'
+import type { Config } from 'tailwindcss';
 
 /**
  * 样式令牌唯一真相源（CLAUDE.md §七.1 指定；禁裸色值，勿再引用已删的 tailwind-tokens.md）。
@@ -129,6 +129,6 @@ const config: Config = {
     },
   },
   plugins: [],
-}
+};
 
-export default config
+export default config;

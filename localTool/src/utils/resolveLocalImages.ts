@@ -110,10 +110,14 @@ export async function resolveLocalImages(value: unknown): Promise<unknown> {
       }
       const inlined = await p;
       if (inlined) {
-        console.log(`[resolve:inline-img] ${v.slice(0, 80)} -> data:image (${(inlined.length / 1024).toFixed(0)}KB)`);
+        console.log(
+          `[resolve:inline-img] ${v.slice(0, 80)} -> data:image (${(inlined.length / 1024).toFixed(0)}KB)`,
+        );
         return inlined;
       }
-      console.error(`[resolve:inline-img] 读文件失败，保留原 URL（上游将显性失败）: ${v.slice(0, 120)}`);
+      console.error(
+        `[resolve:inline-img] 读文件失败，保留原 URL（上游将显性失败）: ${v.slice(0, 120)}`,
+      );
       return v;
     }
     if (Array.isArray(v)) {
@@ -121,7 +125,9 @@ export async function resolveLocalImages(value: unknown): Promise<unknown> {
     }
     if (v && typeof v === 'object') {
       const entries = Object.entries(v as Record<string, unknown>);
-      const resolved = await Promise.all(entries.map(([k, val]) => walk(val).then((nv) => [k, nv] as const)));
+      const resolved = await Promise.all(
+        entries.map(([k, val]) => walk(val).then((nv) => [k, nv] as const)),
+      );
       return Object.fromEntries(resolved);
     }
     return v;
@@ -172,7 +178,10 @@ function localPortOf(): number {
  *                         lovart adapter 自取（resolveLovartAttachments 下载回环→传 CDN）。
  * @returns 转换后的新值（原对象不变）。
  */
-export async function resolveImagesForEgress(value: unknown, refFormat: RefFormat): Promise<unknown> {
+export async function resolveImagesForEgress(
+  value: unknown,
+  refFormat: RefFormat,
+): Promise<unknown> {
   if (refFormat === 'base64') return resolveLocalImages(value);
   // cdn：遍历字符串，仅把本机 /files/ 替换为回环 URL；data:/公网/其它原样。
   async function walkCdn(v: unknown): Promise<unknown> {
@@ -188,7 +197,9 @@ export async function resolveImagesForEgress(value: unknown, refFormat: RefForma
     if (Array.isArray(v)) return Promise.all(v.map((item) => walkCdn(item)));
     if (v && typeof v === 'object') {
       const entries = Object.entries(v as Record<string, unknown>);
-      const resolved = await Promise.all(entries.map(([k, val]) => walkCdn(val).then((nv) => [k, nv] as const)));
+      const resolved = await Promise.all(
+        entries.map(([k, val]) => walkCdn(val).then((nv) => [k, nv] as const)),
+      );
       return Object.fromEntries(resolved);
     }
     return v;

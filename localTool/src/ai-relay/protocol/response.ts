@@ -45,8 +45,9 @@ export function readModelProtocolPathValues(value: unknown, path: string | undef
 }
 
 export function readModelProtocolFirstScalar(value: unknown, path: string | undefined): unknown {
-  const match = readModelProtocolPathValues(value, path).find((item) =>
-    item === null || ['string', 'number', 'boolean'].includes(typeof item));
+  const match = readModelProtocolPathValues(value, path).find(
+    (item) => item === null || ['string', 'number', 'boolean'].includes(typeof item),
+  );
   return match;
 }
 
@@ -58,30 +59,34 @@ export function readModelProtocolUrls(value: unknown, path: string | undefined):
 
 function formatResponsePreviewValue(value: unknown, redactBase64: boolean): string {
   if (redactBase64 && typeof value === 'string') {
-    const base64Value = value.includes(',') && /^data:/i.test(value)
-      ? value.slice(value.indexOf(',') + 1)
-      : value;
+    const base64Value =
+      value.includes(',') && /^data:/i.test(value) ? value.slice(value.indexOf(',') + 1) : value;
     return `[Base64 ${base64Value.replace(/\s/g, '').length} 字符]`;
   }
-  const serialized = typeof value === 'string'
-    ? value
-    : value === undefined ? '' : JSON.stringify(value);
+  const serialized =
+    typeof value === 'string' ? value : value === undefined ? '' : JSON.stringify(value);
   return serialized.length > 240 ? `${serialized.slice(0, 240)}...` : serialized;
 }
 
-export function previewNormalizedModelProtocolResponse(protocol: ModelProtocol, payload: unknown): ModelProtocolResponsePreviewEntry[] {
+export function previewNormalizedModelProtocolResponse(
+  protocol: ModelProtocol,
+  payload: unknown,
+): ModelProtocolResponsePreviewEntry[] {
   const entries: ModelProtocolResponsePreviewEntry[] = [];
   const addEntry = (id: string, label: string, path: string | undefined, redactBase64 = false) => {
     if (!path) return;
-    const matches = readModelProtocolPathValues(payload, path)
-      .flatMap((value) => (Array.isArray(value) ? value : [value]));
-    entries.push(new ModelProtocolResponsePreviewEntry(
-      id,
-      label,
-      path,
-      matches.length,
-      matches.map((value) => formatResponsePreviewValue(value, redactBase64)),
-    ));
+    const matches = readModelProtocolPathValues(payload, path).flatMap((value) =>
+      Array.isArray(value) ? value : [value],
+    );
+    entries.push(
+      new ModelProtocolResponsePreviewEntry(
+        id,
+        label,
+        path,
+        matches.length,
+        matches.map((value) => formatResponsePreviewValue(value, redactBase64)),
+      ),
+    );
   };
 
   if (protocol.mode === 'sync') {

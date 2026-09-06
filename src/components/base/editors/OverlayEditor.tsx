@@ -1,11 +1,22 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { useDebouncedEffect, createRafBatch } from '../core/utils.ts'
-import { createPortal } from 'react-dom'
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useDebouncedEffect, createRafBatch } from '../core/utils.ts';
+import { createPortal } from 'react-dom';
 import {
-  Box, Eye, EyeOff, Lock, Unlock, Brush, Trash2,
-  ChevronsUp, ChevronUp, ChevronDown, ChevronsDown, Maximize, X
-} from 'lucide-react'
-import { toAbsoluteFileUrl } from '../api/filesApi.ts'
+  Box,
+  Eye,
+  EyeOff,
+  Lock,
+  Unlock,
+  Brush,
+  Trash2,
+  ChevronsUp,
+  ChevronUp,
+  ChevronDown,
+  ChevronsDown,
+  Maximize,
+  X,
+} from 'lucide-react';
+import { toAbsoluteFileUrl } from '../api/filesApi.ts';
 
 /* ════════════════════════════════════════════════════════════════
  * 叠加图层编辑器（复刻官方 Uo.jsx，图片拼图 overlay 模式）
@@ -23,118 +34,118 @@ import { toAbsoluteFileUrl } from '../api/filesApi.ts'
  * 能力：图层导入/排序/显隐/锁定/删除/涂抹擦除恢复、画布尺寸、全屏聚焦、属性面板
  * ════════════════════════════════════════════════════════════════ */
 
-import { generateId } from '../core/idGen.ts'
+import { generateId } from '../core/idGen.ts';
 // 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
 // 替代本文件原有的无超时私有实现（图片挂起会让整层渲染/导出永久卡住）。
-import { loadImageOrNull } from '../utils/asyncGuard.ts'
-const genId = () => generateId('ov')
+import { loadImageOrNull } from '../utils/asyncGuard.ts';
+const genId = () => generateId('ov');
 
 // 单层渲染 canvas（复刻 Bo_1.jsx：drawImage + mask destination-in）
 const renderLayerCanvas = async (layer) => {
-  const img = await loadImageOrNull(layer.imageUrl)
-  if (!img) return null
-  const w = img.naturalWidth || img.width
-  const h = img.naturalHeight || img.height
-  const canvas = document.createElement('canvas')
-  canvas.width = w
-  canvas.height = h
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
-  ctx.drawImage(img, 0, 0, w, h)
+  const img = await loadImageOrNull(layer.imageUrl);
+  if (!img) return null;
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.drawImage(img, 0, 0, w, h);
   if (layer.maskUrl) {
-    const mask = await loadImageOrNull(layer.maskUrl)
+    const mask = await loadImageOrNull(layer.maskUrl);
     if (mask) {
-      ctx.globalCompositeOperation = 'destination-in'
-      ctx.drawImage(mask, 0, 0, w, h)
-      ctx.globalCompositeOperation = 'source-over'
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.drawImage(mask, 0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
     }
   }
-  return canvas
-}
+  return canvas;
+};
 
 // overlay 合成（复刻 Vo.jsx：背景 + 按 zIndex 绘制，返回 dataURL）
 export const renderOverlayCanvas = async ({ layers, canvasWidth, canvasHeight, bgColor }) => {
-  if (canvasWidth <= 0 || canvasHeight <= 0) return null
-  const canvas = document.createElement('canvas')
-  canvas.width = canvasWidth
-  canvas.height = canvasHeight
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
-  const bg = bgColor ?? '#000000'
+  if (canvasWidth <= 0 || canvasHeight <= 0) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const bg = bgColor ?? '#000000';
   if (bg !== 'transparent') {
-    ctx.fillStyle = bg
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
   }
-  const sorted = [...layers].filter((l) => l.visible !== false).sort((a, b) => a.zIndex - b.zIndex)
+  const sorted = [...layers].filter((l) => l.visible !== false).sort((a, b) => a.zIndex - b.zIndex);
   for (const l of sorted) {
-    const t = await renderLayerCanvas(l)
-    if (!t) continue
-    ctx.save()
-    ctx.globalAlpha = l.opacity
-    const cx = l.x + (t.width * l.scale) / 2
-    const cy = l.y + (t.height * l.scale) / 2
-    ctx.translate(cx, cy)
-    ctx.rotate((l.rotation * Math.PI) / 180)
-    ctx.translate(-cx, -cy)
-    ctx.drawImage(t, l.x, l.y, t.width * l.scale, t.height * l.scale)
-    ctx.restore()
+    const t = await renderLayerCanvas(l);
+    if (!t) continue;
+    ctx.save();
+    ctx.globalAlpha = l.opacity;
+    const cx = l.x + (t.width * l.scale) / 2;
+    const cy = l.y + (t.height * l.scale) / 2;
+    ctx.translate(cx, cy);
+    ctx.rotate((l.rotation * Math.PI) / 180);
+    ctx.translate(-cx, -cy);
+    ctx.drawImage(t, l.x, l.y, t.width * l.scale, t.height * l.scale);
+    ctx.restore();
   }
-  return canvas.toDataURL('image/png')
-}
+  return canvas.toDataURL('image/png');
+};
 
 export default function OverlayEditor({ state, onChange, upstreamUrls }) {
-  const { layers, canvasWidth, canvasHeight } = state
+  const { layers, canvasWidth, canvasHeight } = state;
 
-  const [selectedId, setSelectedId] = useState(null)
-  const [paintLayerId, setPaintLayerId] = useState(null)
-  const [brushSize, setBrushSize] = useState(40)
-  const [brushMode, setBrushMode] = useState('erase')
-  const [menu, setMenu] = useState(null)
-  const [fullscreen, setFullscreen] = useState(false)
+  const [selectedId, setSelectedId] = useState(null);
+  const [paintLayerId, setPaintLayerId] = useState(null);
+  const [brushSize, setBrushSize] = useState(40);
+  const [brushMode, setBrushMode] = useState('erase');
+  const [menu, setMenu] = useState(null);
+  const [fullscreen, setFullscreen] = useState(false);
 
-  const boardRef = useRef(null)
-  const paintCanvasRef = useRef(null)
-  const overlayCanvasRef = useRef(null)
-  const strokeRef = useRef([])
-  const historyRef = useRef([])
-  const dragRef = useRef(null)
-  const pointerRef = useRef(null)
+  const boardRef = useRef(null);
+  const paintCanvasRef = useRef(null);
+  const overlayCanvasRef = useRef(null);
+  const strokeRef = useRef([]);
+  const historyRef = useRef([]);
+  const dragRef = useRef(null);
+  const pointerRef = useRef(null);
 
-  const selectedLayer = layers.find((l) => l.id === selectedId) || null
+  const selectedLayer = layers.find((l) => l.id === selectedId) || null;
 
   // 显示尺寸（复刻 Uo.jsx R）
   const display = useMemo(() => {
-    const maxW = fullscreen ? Math.min(window.innerWidth - 80, 1600) : 320
-    const maxH = fullscreen ? Math.min(window.innerHeight - 200, 1000) : 360
-    const ratio = canvasWidth / canvasHeight
-    let w = maxW
-    let h = maxW / ratio
+    const maxW = fullscreen ? Math.min(window.innerWidth - 80, 1600) : 320;
+    const maxH = fullscreen ? Math.min(window.innerHeight - 200, 1000) : 360;
+    const ratio = canvasWidth / canvasHeight;
+    let w = maxW;
+    let h = maxW / ratio;
     if (h > maxH) {
-      h = maxH
-      w = h * ratio
+      h = maxH;
+      w = h * ratio;
     }
-    return { displayW: w, displayH: h, scale: w / canvasWidth }
-  }, [canvasWidth, canvasHeight, fullscreen])
+    return { displayW: w, displayH: h, scale: w / canvasWidth };
+  }, [canvasWidth, canvasHeight, fullscreen]);
 
   // 上游图片变化 → 同步 layers（复刻 Uo.jsx useEffect[upstreamUrls]）
   useEffect(() => {
-    let cancelled = false
-    const set = new Set(upstreamUrls)
-    const cur = new Set(layers.map((l) => l.imageUrl))
-    const toAdd = upstreamUrls.filter((u) => !cur.has(u))
-    const toRemove = layers.filter((l) => !set.has(l.imageUrl))
-    if (toAdd.length === 0 && toRemove.length === 0) return
-    ;(async () => {
-      const added = []
-      let maxZ = layers.reduce((m, l) => Math.max(m, l.zIndex), 0)
+    let cancelled = false;
+    const set = new Set(upstreamUrls);
+    const cur = new Set(layers.map((l) => l.imageUrl));
+    const toAdd = upstreamUrls.filter((u) => !cur.has(u));
+    const toRemove = layers.filter((l) => !set.has(l.imageUrl));
+    if (toAdd.length === 0 && toRemove.length === 0) return;
+    (async () => {
+      const added = [];
+      let maxZ = layers.reduce((m, l) => Math.max(m, l.zIndex), 0);
       for (const url of toAdd) {
-        const img = await loadImageOrNull(url)
-        if (cancelled) return
-        if (!img) continue
-        const w = img.naturalWidth || img.width
-        const h = img.naturalHeight || img.height
-        const s = Math.min(canvasWidth / w, canvasHeight / h, 1)
-        maxZ += 1
+        const img = await loadImageOrNull(url);
+        if (cancelled) return;
+        if (!img) continue;
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+        const s = Math.min(canvasWidth / w, canvasHeight / h, 1);
+        maxZ += 1;
         added.push({
           id: genId(),
           imageUrl: url,
@@ -147,112 +158,118 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
           visible: true,
           locked: false,
           naturalWidth: w,
-          naturalHeight: h
-        })
+          naturalHeight: h,
+        });
       }
-      if (cancelled) return
-      const removeIds = new Set(toRemove.map((l) => l.id))
-      onChange({ ...state, layers: [...layers.filter((l) => !removeIds.has(l.id)), ...added] })
-    })()
+      if (cancelled) return;
+      const removeIds = new Set(toRemove.map((l) => l.id));
+      onChange({ ...state, layers: [...layers.filter((l) => !removeIds.has(l.id)), ...added] });
+    })();
     return () => {
-      cancelled = true
-    }
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [upstreamUrls.join('|'), canvasWidth, canvasHeight])
+  }, [upstreamUrls.join('|'), canvasWidth, canvasHeight]);
 
   // 合成预览（复刻 Uo.jsx useEffect[E]：debounce）
-  const [preview, setPreview] = useState(null)
+  const [preview, setPreview] = useState(null);
   useDebouncedEffect(
-    async () => { const url = await renderOverlayCanvas(state); setPreview(url) },
+    async () => {
+      const url = await renderOverlayCanvas(state);
+      setPreview(url);
+    },
     [layers, canvasWidth, canvasHeight, state.bgColor, paintLayerId],
-    paintLayerId ? 60 : 200
-  )
+    paintLayerId ? 60 : 200,
+  );
 
   // Esc 退出全屏
   useEffect(() => {
-    if (!fullscreen) return
+    if (!fullscreen) return;
     const onKey = (e) => {
-      if (e.key === 'Escape') setFullscreen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [fullscreen])
+      if (e.key === 'Escape') setFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fullscreen]);
 
   // 关闭菜单
   useEffect(() => {
-    if (!menu) return
-    const close = () => setMenu(null)
-    window.addEventListener('click', close)
-    window.addEventListener('contextmenu', close)
+    if (!menu) return;
+    const close = () => setMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('contextmenu', close);
     return () => {
-      window.removeEventListener('click', close)
-      window.removeEventListener('contextmenu', close)
-    }
-  }, [menu])
+      window.removeEventListener('click', close);
+      window.removeEventListener('contextmenu', close);
+    };
+  }, [menu]);
 
   // 更新单个图层（复刻 te）
   const updateLayer = useCallback(
     (layerId, patch) => {
-      onChange({ ...state, layers: layers.map((l) => (l.id === layerId ? { ...l, ...patch } : l)) })
+      onChange({
+        ...state,
+        layers: layers.map((l) => (l.id === layerId ? { ...l, ...patch } : l)),
+      });
     },
-    [layers, state, onChange]
-  )
+    [layers, state, onChange],
+  );
 
   // 删除图层（复刻 z）
   const removeLayer = useCallback(
     (layerId) => {
-      onChange({ ...state, layers: layers.filter((l) => l.id !== layerId) })
-      if (selectedId === layerId) setSelectedId(null)
+      onChange({ ...state, layers: layers.filter((l) => l.id !== layerId) });
+      if (selectedId === layerId) setSelectedId(null);
     },
-    [layers, state, onChange, selectedId]
-  )
+    [layers, state, onChange, selectedId],
+  );
 
   // 图层排序（复刻 ee）
   const reorderLayer = useCallback(
     (layerId, dir) => {
-      const sorted = [...layers].sort((a, b) => b.zIndex - a.zIndex)
-      const from = sorted.findIndex((l) => l.id === layerId)
-      if (from < 0) return
-      let to = from
-      if (dir === 'top') to = 0
-      else if (dir === 'bottom') to = sorted.length - 1
-      else if (dir === 'up') to = Math.max(0, from - 1)
-      else if (dir === 'down') to = Math.min(sorted.length - 1, from + 1)
-      if (to === from) return
-      const arr = sorted.slice()
-      const [moved] = arr.splice(from, 1)
-      arr.splice(to, 0, moved)
-      const len = arr.length
-      onChange({ ...state, layers: arr.map((l, i) => ({ ...l, zIndex: len - i })) })
+      const sorted = [...layers].sort((a, b) => b.zIndex - a.zIndex);
+      const from = sorted.findIndex((l) => l.id === layerId);
+      if (from < 0) return;
+      let to = from;
+      if (dir === 'top') to = 0;
+      else if (dir === 'bottom') to = sorted.length - 1;
+      else if (dir === 'up') to = Math.max(0, from - 1);
+      else if (dir === 'down') to = Math.min(sorted.length - 1, from + 1);
+      if (to === from) return;
+      const arr = sorted.slice();
+      const [moved] = arr.splice(from, 1);
+      arr.splice(to, 0, moved);
+      const len = arr.length;
+      onChange({ ...state, layers: arr.map((l, i) => ({ ...l, zIndex: len - i })) });
     },
-    [layers, state, onChange]
-  )
+    [layers, state, onChange],
+  );
 
-  const [dragLayerId, setDragLayerId] = useState(null)
-  const [overLayerId, setOverLayerId] = useState(null)
+  const [dragLayerId, setDragLayerId] = useState(null);
+  const [overLayerId, setOverLayerId] = useState(null);
   const handleDropReorder = useCallback(
     (fromId, toId) => {
-      if (fromId === toId) return
-      const sorted = [...layers].sort((a, b) => b.zIndex - a.zIndex)
-      const from = sorted.findIndex((l) => l.id === fromId)
-      const to = sorted.findIndex((l) => l.id === toId)
-      if (from < 0 || to < 0) return
-      const arr = sorted.slice()
-      const [moved] = arr.splice(from, 1)
-      arr.splice(to, 0, moved)
-      const len = arr.length
-      onChange({ ...state, layers: arr.map((l, i) => ({ ...l, zIndex: len - i })) })
+      if (fromId === toId) return;
+      const sorted = [...layers].sort((a, b) => b.zIndex - a.zIndex);
+      const from = sorted.findIndex((l) => l.id === fromId);
+      const to = sorted.findIndex((l) => l.id === toId);
+      if (from < 0 || to < 0) return;
+      const arr = sorted.slice();
+      const [moved] = arr.splice(from, 1);
+      arr.splice(to, 0, moved);
+      const len = arr.length;
+      onChange({ ...state, layers: arr.map((l, i) => ({ ...l, zIndex: len - i })) });
     },
-    [layers, state, onChange]
-  )
+    [layers, state, onChange],
+  );
 
   // 开始拖拽（复刻 ne）
   const beginDrag = useCallback(
     (e, layer, mode) => {
-      if (layer.locked || paintLayerId) return
-      e.stopPropagation()
-      e.preventDefault()
-      setSelectedId(layer.id)
+      if (layer.locked || paintLayerId) return;
+      e.stopPropagation();
+      e.preventDefault();
+      setSelectedId(layer.id);
       dragRef.current = {
         mode,
         layerId: layer.id,
@@ -264,293 +281,328 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
         origY: layer.y,
         origScale: layer.scale,
         origRotation: layer.rotation,
-        origCenterX: layer.x + (layer.naturalWidth || 0) * layer.scale / 2,
-        origCenterY: layer.y + (layer.naturalHeight || 0) * layer.scale / 2,
+        origCenterX: layer.x + ((layer.naturalWidth || 0) * layer.scale) / 2,
+        origCenterY: layer.y + ((layer.naturalHeight || 0) * layer.scale) / 2,
         width: layer.naturalWidth || 0,
-        height: layer.naturalHeight || 0
-      }
+        height: layer.naturalHeight || 0,
+      };
     },
-    [paintLayerId]
-  )
+    [paintLayerId],
+  );
 
   // 拖拽移动/缩放/旋转（复刻 Uo.jsx useEffect[v]）
   useEffect(() => {
-    if (!dragRef.current) return
+    if (!dragRef.current) return;
     // P3：move 高频 → rAF 合并（last-args-wins，move 直接用最新坐标算绝对值）；
     // rotate 的 rect 已在 beginDrag（pointerdown）缓存，move 内不再 getBoundingClientRect。
     const batch = createRafBatch((clientX, clientY) => {
-      const d = dragRef.current
-      const dx = (clientX - d.startX) / display.scale
-      const dy = (clientY - d.startY) / display.scale
+      const d = dragRef.current;
+      const dx = (clientX - d.startX) / display.scale;
+      const dy = (clientY - d.startY) / display.scale;
       if (d.mode === 'move') {
-        updateLayer(d.layerId, { x: d.origX + dx, y: d.origY + dy })
+        updateLayer(d.layerId, { x: d.origX + dx, y: d.origY + dy });
       } else if (d.mode === 'scale') {
-        const right = d.origX + d.width * d.origScale + dx
-        const scale = Math.max(0.05, (right - d.origX) / d.width)
-        updateLayer(d.layerId, { scale })
+        const right = d.origX + d.width * d.origScale + dx;
+        const scale = Math.max(0.05, (right - d.origX) / d.width);
+        updateLayer(d.layerId, { scale });
       } else if (d.mode === 'rotate') {
-        const rect = d.rect
-        if (!rect) return
-        const px = (clientX - rect.left) / display.scale
-        const py = (clientY - rect.top) / display.scale
-        const deg = (Math.atan2(py - d.origCenterY, px - d.origCenterX) * 180) / Math.PI + 90
-        updateLayer(d.layerId, { rotation: deg })
+        const rect = d.rect;
+        if (!rect) return;
+        const px = (clientX - rect.left) / display.scale;
+        const py = (clientY - rect.top) / display.scale;
+        const deg = (Math.atan2(py - d.origCenterY, px - d.origCenterX) * 180) / Math.PI + 90;
+        updateLayer(d.layerId, { rotation: deg });
       }
-    })
-    const onMove = (e) => batch(e.clientX, e.clientY)
+    });
+    const onMove = (e) => batch(e.clientX, e.clientY);
     const onUp = () => {
-      batch.flush() // 松手补最后一帧，避免位置差一帧
-      dragRef.current = null
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+      batch.flush(); // 松手补最后一帧，避免位置差一帧
+      dragRef.current = null;
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
     return () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      batch.cancel()
-    }
-  }, [display.scale, updateLayer])
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      batch.cancel();
+    };
+  }, [display.scale, updateLayer]);
 
   // ---- 涂抹 ----
   useEffect(() => {
     if (!paintLayerId) {
-      strokeRef.current = []
-      historyRef.current = []
-      return
+      strokeRef.current = [];
+      historyRef.current = [];
+      return;
     }
-    const layer = layers.find((l) => l.id === paintLayerId)
-    if (!layer) return
-    const w = layer.naturalWidth || 0
-    const h = layer.naturalHeight || 0
-    if (w <= 0 || h <= 0) return
-    let cancelled = false
-    ;(async () => {
-      await new Promise<void>((r) => requestAnimationFrame(() => r(undefined as void)))
-      if (cancelled) return
-      const canvas = paintCanvasRef.current
-      if (!canvas) return
-      canvas.width = w
-      canvas.height = h
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-      ctx.clearRect(0, 0, w, h)
+    const layer = layers.find((l) => l.id === paintLayerId);
+    if (!layer) return;
+    const w = layer.naturalWidth || 0;
+    const h = layer.naturalHeight || 0;
+    if (w <= 0 || h <= 0) return;
+    let cancelled = false;
+    (async () => {
+      await new Promise<void>((r) => requestAnimationFrame(() => r(undefined as void)));
+      if (cancelled) return;
+      const canvas = paintCanvasRef.current;
+      if (!canvas) return;
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, w, h);
       if (layer.maskUrl) {
-        const mask = await loadImageOrNull(layer.maskUrl)
-        if (!cancelled && mask) ctx.drawImage(mask, 0, 0, w, h)
+        const mask = await loadImageOrNull(layer.maskUrl);
+        if (!cancelled && mask) ctx.drawImage(mask, 0, 0, w, h);
       } else {
-        ctx.fillStyle = '#fff'
-        ctx.fillRect(0, 0, w, h)
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, w, h);
       }
-      historyRef.current = [ctx.getImageData(0, 0, w, h)]
-    })()
+      historyRef.current = [ctx.getImageData(0, 0, w, h)];
+    })();
     return () => {
-      cancelled = true
-    }
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paintLayerId])
+  }, [paintLayerId]);
 
   const saveHistory = useCallback(() => {
-    const canvas = paintCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    const snap = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    historyRef.current.push(snap)
-    if (historyRef.current.length > 20) historyRef.current.shift()
-  }, [])
+    const canvas = paintCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const snap = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    historyRef.current.push(snap);
+    if (historyRef.current.length > 20) historyRef.current.shift();
+  }, []);
 
   const undoPaint = useCallback(() => {
-    const canvas = paintCanvasRef.current
-    if (!canvas || historyRef.current.length <= 1) return
-    historyRef.current.pop()
-    const last = historyRef.current[historyRef.current.length - 1]
-    const ctx = canvas.getContext('2d')
-    if (ctx) ctx.putImageData(last, 0, 0)
-  }, [])
+    const canvas = paintCanvasRef.current;
+    if (!canvas || historyRef.current.length <= 1) return;
+    historyRef.current.pop();
+    const last = historyRef.current[historyRef.current.length - 1];
+    const ctx = canvas.getContext('2d');
+    if (ctx) ctx.putImageData(last, 0, 0);
+  }, []);
 
   const applyMask = useCallback(() => {
-    const canvas = paintCanvasRef.current
-    if (!canvas) return
-    updateLayer(paintLayerId, { maskUrl: canvas.toDataURL('image/png') })
-  }, [paintLayerId, updateLayer])
+    const canvas = paintCanvasRef.current;
+    if (!canvas) return;
+    updateLayer(paintLayerId, { maskUrl: canvas.toDataURL('image/png') });
+  }, [paintLayerId, updateLayer]);
 
   const finishPaint = useCallback(() => {
-    applyMask()
-    setPaintLayerId(null)
-  }, [applyMask])
+    applyMask();
+    setPaintLayerId(null);
+  }, [applyMask]);
 
   const toCanvasPos = useCallback(
     (clientX, clientY, layer) => {
-      const rect = boardRef.current?.getBoundingClientRect()
-      if (!rect || rect.width <= 0) return null
-      const sx = (clientX - rect.left) * (canvasWidth / rect.width)
-      const sy = (clientY - rect.top) * (canvasHeight / rect.height)
-      const cx = layer.x + (layer.naturalWidth || 0) * layer.scale / 2
-      const cy = layer.y + (layer.naturalHeight || 0) * layer.scale / 2
-      const rad = (-(layer.rotation * Math.PI) / 180)
-      const fx = sx - cx
-      const fy = sy - cy
-      const mx = fx * Math.cos(rad) - fy * Math.sin(rad) + cx
-      const my = fx * Math.sin(rad) + fy * Math.cos(rad) + cy
-      return { x: (mx - layer.x) / layer.scale, y: (my - layer.y) / layer.scale }
+      const rect = boardRef.current?.getBoundingClientRect();
+      if (!rect || rect.width <= 0) return null;
+      const sx = (clientX - rect.left) * (canvasWidth / rect.width);
+      const sy = (clientY - rect.top) * (canvasHeight / rect.height);
+      const cx = layer.x + ((layer.naturalWidth || 0) * layer.scale) / 2;
+      const cy = layer.y + ((layer.naturalHeight || 0) * layer.scale) / 2;
+      const rad = -(layer.rotation * Math.PI) / 180;
+      const fx = sx - cx;
+      const fy = sy - cy;
+      const mx = fx * Math.cos(rad) - fy * Math.sin(rad) + cx;
+      const my = fx * Math.sin(rad) + fy * Math.cos(rad) + cy;
+      return { x: (mx - layer.x) / layer.scale, y: (my - layer.y) / layer.scale };
     },
-    [canvasWidth, canvasHeight]
-  )
+    [canvasWidth, canvasHeight],
+  );
 
   const drawStroke = useCallback(
     (x0, y0, x1, y1) => {
-      const canvas = overlayCanvasRef.current
-      if (!canvas) return
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-      ctx.lineWidth = brushSize
-      ctx.globalCompositeOperation = 'source-over'
-      ctx.strokeStyle = brushMode === 'erase' ? 'rgba(250,204,21,0.85)' : 'rgba(96,165,250,0.85)'
-      ctx.beginPath()
-      ctx.moveTo(x0, y0)
-      ctx.lineTo(x1, y1)
-      ctx.stroke()
-      strokeRef.current.push({ x0, y0, x1, y1 })
+      const canvas = overlayCanvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = brushSize;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = brushMode === 'erase' ? 'rgba(250,204,21,0.85)' : 'rgba(96,165,250,0.85)';
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+      strokeRef.current.push({ x0, y0, x1, y1 });
     },
-    [brushSize, brushMode]
-  )
+    [brushSize, brushMode],
+  );
 
   const commitStroke = useCallback(() => {
-    const strokes = strokeRef.current
-    strokeRef.current = []
+    const strokes = strokeRef.current;
+    strokeRef.current = [];
     if (overlayCanvasRef.current) {
-      overlayCanvasRef.current.getContext('2d')?.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height)
+      overlayCanvasRef.current
+        .getContext('2d')
+        ?.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
     }
-    if (strokes.length === 0) return
-    const canvas = paintCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.save()
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    ctx.lineWidth = brushSize
+    if (strokes.length === 0) return;
+    const canvas = paintCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = brushSize;
     if (brushMode === 'erase') {
-      ctx.globalCompositeOperation = 'destination-out'
-      ctx.strokeStyle = 'rgba(0,0,0,1)'
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
     } else {
-      ctx.globalCompositeOperation = 'source-over'
-      ctx.strokeStyle = 'rgba(255,255,255,1)'
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = 'rgba(255,255,255,1)';
     }
-    ctx.beginPath()
+    ctx.beginPath();
     for (const s of strokes) {
-      ctx.moveTo(s.x0, s.y0)
-      ctx.lineTo(s.x1, s.y1)
+      ctx.moveTo(s.x0, s.y0);
+      ctx.lineTo(s.x1, s.y1);
     }
-    ctx.stroke()
-    ctx.restore()
-  }, [brushSize, brushMode])
+    ctx.stroke();
+    ctx.restore();
+  }, [brushSize, brushMode]);
 
   useEffect(() => {
-    if (!paintLayerId) return
-    const layer = layers.find((l) => l.id === paintLayerId)
-    if (!layer) return
-    const board = boardRef.current
-    if (!board) return
-    let pending = null
-    let raf = null
-    let pointerDown = false
+    if (!paintLayerId) return;
+    const layer = layers.find((l) => l.id === paintLayerId);
+    if (!layer) return;
+    const board = boardRef.current;
+    if (!board) return;
+    let pending = null;
+    let raf = null;
+    let pointerDown = false;
 
     const flush = () => {
-      raf = null
+      raf = null;
       if (pointerDown && pointerRef.current) {
-        drawStroke(pointerRef.current.x, pointerRef.current.y, pointerRef.current.x, pointerRef.current.y)
-        pointerRef.current = null
+        drawStroke(
+          pointerRef.current.x,
+          pointerRef.current.y,
+          pointerRef.current.x,
+          pointerRef.current.y,
+        );
+        pointerRef.current = null;
       }
-    }
+    };
     const onDown = (e) => {
-      const pos = toCanvasPos(e.clientX, e.clientY, layer)
-      if (!pos) return
-      if (pos.x < -50 || pos.y < -50 || pos.x > (layer.naturalWidth || 0) + 50 || pos.y > (layer.naturalHeight || 0) + 50) return
-      e.preventDefault()
-      e.stopPropagation()
-      board.setPointerCapture?.(e.pointerId)
-      pointerDown = true
-      pointerRef.current = { x: pos.x, y: pos.y }
-      drawStroke(pos.x, pos.y, pos.x, pos.y)
-    }
+      const pos = toCanvasPos(e.clientX, e.clientY, layer);
+      if (!pos) return;
+      if (
+        pos.x < -50 ||
+        pos.y < -50 ||
+        pos.x > (layer.naturalWidth || 0) + 50 ||
+        pos.y > (layer.naturalHeight || 0) + 50
+      )
+        return;
+      e.preventDefault();
+      e.stopPropagation();
+      board.setPointerCapture?.(e.pointerId);
+      pointerDown = true;
+      pointerRef.current = { x: pos.x, y: pos.y };
+      drawStroke(pos.x, pos.y, pos.x, pos.y);
+    };
     const onMove = (e) => {
-      const pos = toCanvasPos(e.clientX, e.clientY, layer)
-      if (!pos) return
-      if (!pointerDown) return
-      pending = pos
+      const pos = toCanvasPos(e.clientX, e.clientY, layer);
+      if (!pos) return;
+      if (!pointerDown) return;
+      pending = pos;
       raf ??= requestAnimationFrame(() => {
-        raf = null
-        const p = pending
+        raf = null;
+        const p = pending;
         if (pointerRef.current) {
-          drawStroke(pointerRef.current.x, pointerRef.current.y, p.x, p.y)
+          drawStroke(pointerRef.current.x, pointerRef.current.y, p.x, p.y);
         }
-        pointerRef.current = p
-      })
-    }
+        pointerRef.current = p;
+      });
+    };
     const onUp = (e) => {
       if (pointerDown) {
-        flush()
-        pointerDown = false
-        commitStroke()
-        saveHistory()
-        applyMask()
+        flush();
+        pointerDown = false;
+        commitStroke();
+        saveHistory();
+        applyMask();
       }
       try {
-        board.releasePointerCapture?.(e.pointerId)
+        board.releasePointerCapture?.(e.pointerId);
       } catch {}
-    }
-    board.addEventListener('pointerdown', onDown)
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-    window.addEventListener('pointercancel', onUp)
+    };
+    board.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
     return () => {
-      if (raf != null) cancelAnimationFrame(raf)
-      board.removeEventListener('pointerdown', onDown)
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('pointercancel', onUp)
-    }
-  }, [paintLayerId, layers, brushSize, brushMode, drawStroke, commitStroke, saveHistory, applyMask, toCanvasPos])
+      if (raf != null) cancelAnimationFrame(raf);
+      board.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [
+    paintLayerId,
+    layers,
+    brushSize,
+    brushMode,
+    drawStroke,
+    commitStroke,
+    saveHistory,
+    applyMask,
+    toCanvasPos,
+  ]);
 
   useEffect(() => {
-    if (!selectedId && !paintLayerId) return
+    if (!selectedId && !paintLayerId) return;
     const onKey = (e) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return
-      const t = e.target
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       if (paintLayerId) {
-        e.stopPropagation()
-        e.preventDefault()
-        return
+        e.stopPropagation();
+        e.preventDefault();
+        return;
       }
       if (selectedId) {
-        e.stopPropagation()
-        e.preventDefault()
-        removeLayer(selectedId)
+        e.stopPropagation();
+        e.preventDefault();
+        removeLayer(selectedId);
       }
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [selectedId, paintLayerId, removeLayer])
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [selectedId, paintLayerId, removeLayer]);
 
-  const sortedLayers = useMemo(() => [...layers].sort((a, b) => b.zIndex - a.zIndex), [layers])
+  const sortedLayers = useMemo(() => [...layers].sort((a, b) => b.zIndex - a.zIndex), [layers]);
 
-  const menuLayer = menu ? layers.find((l) => l.id === menu.id) : null
-  const menuIndex = menuLayer ? sortedLayers.findIndex((l) => l.id === menuLayer.id) : -1
-  const isTop = menuIndex === 0
-  const isBottom = menuIndex === sortedLayers.length - 1
+  const menuLayer = menu ? layers.find((l) => l.id === menu.id) : null;
+  const menuIndex = menuLayer ? sortedLayers.findIndex((l) => l.id === menuLayer.id) : -1;
+  const isTop = menuIndex === 0;
+  const isBottom = menuIndex === sortedLayers.length - 1;
 
-  const MenuItem = ({ icon, label, disabled, onClick, danger }: { icon?: React.ReactNode; label?: string; disabled?: boolean; onClick?: () => void; danger?: boolean }) => (
+  const MenuItem = ({
+    icon,
+    label,
+    disabled,
+    onClick,
+    danger,
+  }: {
+    icon?: React.ReactNode;
+    label?: string;
+    disabled?: boolean;
+    onClick?: () => void;
+    danger?: boolean;
+  }) => (
     <button
       disabled={disabled}
       onClick={(e) => {
-        e.stopPropagation()
+        e.stopPropagation();
         if (!disabled) {
-          onClick()
-          setMenu(null)
+          onClick();
+          setMenu(null);
         }
       }}
       className={`w-full flex items-center gap-2 px-2 py-1 text-caption-sm text-left rounded transition-colors ${disabled ? 'opacity-40 cursor-not-allowed' : danger ? 'text-red-300 hover:bg-red-500/15' : 'text-primary hover:bg-blue-500/15'} cursor-pointer`}
@@ -558,7 +610,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
       {icon}
       <span>{label}</span>
     </button>
-  )
+  );
 
   return (
     <div className="space-y-2">
@@ -566,23 +618,47 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
       <div className="flex items-center gap-1.5 text-caption text-secondary nodrag flex-wrap">
         <span>画布</span>
         <input
-          type="number" min={64} max={4096}
+          type="number"
+          min={64}
+          max={4096}
           value={canvasWidth}
-          onChange={(e) => onChange({ ...state, canvasWidth: Math.max(64, Math.min(4096, parseInt(e.target.value || '0', 10) || canvasWidth)) })}
+          onChange={(e) =>
+            onChange({
+              ...state,
+              canvasWidth: Math.max(
+                64,
+                Math.min(4096, parseInt(e.target.value || '0', 10) || canvasWidth),
+              ),
+            })
+          }
           className="w-16 bg-surface-hover text-primary rounded px-1.5 py-0.5 border border-edge outline-none"
         />
         <span>×</span>
         <input
-          type="number" min={64} max={4096}
+          type="number"
+          min={64}
+          max={4096}
           value={canvasHeight}
-          onChange={(e) => onChange({ ...state, canvasHeight: Math.max(64, Math.min(4096, parseInt(e.target.value || '0', 10) || canvasHeight)) })}
+          onChange={(e) =>
+            onChange({
+              ...state,
+              canvasHeight: Math.max(
+                64,
+                Math.min(4096, parseInt(e.target.value || '0', 10) || canvasHeight),
+              ),
+            })
+          }
           className="w-16 bg-surface-hover text-primary rounded px-1.5 py-0.5 border border-edge outline-none"
         />
       </div>
 
       {/* 画布（只显示合成预览图 + 透明图层选择框，对齐官方 Component568） */}
       <div
-        className={fullscreen ? 'fixed inset-0 z-modal bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-6 nodrag nowheel' : 'flex justify-center bg-surface-sunken-2 rounded border border-edge p-2 nodrag'}
+        className={
+          fullscreen
+            ? 'fixed inset-0 z-modal bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-6 nodrag nowheel'
+            : 'flex justify-center bg-surface-sunken-2 rounded border border-edge p-2 nodrag'
+        }
         onClick={fullscreen ? (e) => e.stopPropagation() : undefined}
         onWheel={fullscreen ? (e) => e.stopPropagation() : undefined}
       >
@@ -604,28 +680,35 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
             cursor: paintLayerId ? 'crosshair' : 'default',
             touchAction: paintLayerId ? 'none' : 'auto',
             backgroundColor: 'rgb(var(--mao-surface))',
-            backgroundImage: 'linear-gradient(45deg, #2a2a2a 25%, transparent 25%), linear-gradient(-45deg, #2a2a2a 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2a2a2a 75%), linear-gradient(-45deg, transparent 75%, #2a2a2a 75%)',
+            backgroundImage:
+              'linear-gradient(45deg, #2a2a2a 25%, transparent 25%), linear-gradient(-45deg, #2a2a2a 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2a2a2a 75%), linear-gradient(-45deg, transparent 75%, #2a2a2a 75%)',
             backgroundSize: '12px 12px',
-            backgroundPosition: '0 0, 0 6px, 6px -6px, -6px 0'
+            backgroundPosition: '0 0, 0 6px, 6px -6px, -6px 0',
           }}
           onMouseDown={(e) => {
-            e.stopPropagation()
-            if (!paintLayerId) setSelectedId(null)
+            e.stopPropagation();
+            if (!paintLayerId) setSelectedId(null);
           }}
         >
           {/* 合成预览图（object-fill 铺满画布） */}
-          {preview && <img src={toAbsoluteFileUrl(preview)} alt="Preview" className="absolute inset-0 w-full h-full object-fill pointer-events-none" />}
+          {preview && (
+            <img
+              src={toAbsoluteFileUrl(preview)}
+              alt="Preview"
+              className="absolute inset-0 w-full h-full object-fill pointer-events-none"
+            />
+          )}
 
           {/* 透明图层选择框（平时透明，选中时蓝色；不承载图片，只做选中/拖动/手柄） */}
           {!paintLayerId &&
             layers
               .filter((l) => l.visible !== false)
               .map((layer) => {
-                const isSel = layer.id === selectedId
-                const w = (layer.naturalWidth || 0) * layer.scale * display.scale
-                const h = (layer.naturalHeight || 0) * layer.scale * display.scale
-                const left = layer.x * display.scale
-                const top = layer.y * display.scale
+                const isSel = layer.id === selectedId;
+                const w = (layer.naturalWidth || 0) * layer.scale * display.scale;
+                const h = (layer.naturalHeight || 0) * layer.scale * display.scale;
+                const left = layer.x * display.scale;
+                const top = layer.y * display.scale;
                 return (
                   <div
                     key={layer.id}
@@ -636,36 +719,42 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
                       width: w,
                       height: h,
                       transform: `rotate(${layer.rotation}deg)`,
-                      transformOrigin: 'center center'
+                      transformOrigin: 'center center',
                     }}
                     onMouseDown={(e) => beginDrag(e, layer, 'move')}
                     onContextMenu={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setSelectedId(layer.id)
-                      const x = e.clientX
-                      const y = e.clientY
-                      setTimeout(() => setMenu({ id: layer.id, x, y }), 0)
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setSelectedId(layer.id);
+                      const x = e.clientX;
+                      const y = e.clientY;
+                      setTimeout(() => setMenu({ id: layer.id, x, y }), 0);
                     }}
                   >
                     {isSel && !layer.locked && (
                       <>
-                        <div className="absolute -right-1.5 -bottom-1.5 w-3 h-3 bg-blue-400 border border-white rounded-sm cursor-se-resize" onMouseDown={(e) => beginDrag(e, layer, 'scale')} />
-                        <div className="absolute left-1/2 -translate-x-1/2 -top-5 w-2 h-2 bg-blue-400 border border-white rounded-full cursor-grab" onMouseDown={(e) => beginDrag(e, layer, 'rotate')} />
+                        <div
+                          className="absolute -right-1.5 -bottom-1.5 w-3 h-3 bg-blue-400 border border-white rounded-sm cursor-se-resize"
+                          onMouseDown={(e) => beginDrag(e, layer, 'scale')}
+                        />
+                        <div
+                          className="absolute left-1/2 -translate-x-1/2 -top-5 w-2 h-2 bg-blue-400 border border-white rounded-full cursor-grab"
+                          onMouseDown={(e) => beginDrag(e, layer, 'rotate')}
+                        />
                       </>
                     )}
                   </div>
-                )
+                );
               })}
 
           {/* 涂抹编辑中的图层画布 */}
           {paintLayerId &&
             (() => {
-              const layer = layers.find((l) => l.id === paintLayerId)
-              if (!layer) return null
-              const scale = display.scale
-              const w = (layer.naturalWidth || 0) * layer.scale * scale
-              const h = (layer.naturalHeight || 0) * layer.scale * scale
+              const layer = layers.find((l) => l.id === paintLayerId);
+              if (!layer) return null;
+              const scale = display.scale;
+              const w = (layer.naturalWidth || 0) * layer.scale * scale;
+              const h = (layer.naturalHeight || 0) * layer.scale * scale;
               return (
                 <div
                   className="absolute outline outline-2 outline-orange-400/80 pointer-events-none"
@@ -675,13 +764,22 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
                     width: w,
                     height: h,
                     transform: `rotate(${layer.rotation}deg)`,
-                    transformOrigin: 'center center'
+                    transformOrigin: 'center center',
                   }}
                 >
-                  <canvas ref={paintCanvasRef} className="w-full h-full block" style={{ visibility: 'hidden' }} />
-                  <canvas ref={overlayCanvasRef} className="absolute inset-0 w-full h-full block" width={layer.naturalWidth || 0} height={layer.naturalHeight || 0} />
+                  <canvas
+                    ref={paintCanvasRef}
+                    className="w-full h-full block"
+                    style={{ visibility: 'hidden' }}
+                  />
+                  <canvas
+                    ref={overlayCanvasRef}
+                    className="absolute inset-0 w-full h-full block"
+                    width={layer.naturalWidth || 0}
+                    height={layer.naturalHeight || 0}
+                  />
                 </div>
-              )
+              );
             })()}
         </div>
       </div>
@@ -689,15 +787,53 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
       {/* 涂抹工具栏 */}
       {paintLayerId && (
         <div className="flex flex-wrap items-center gap-1.5 text-caption text-body bg-surface-raised border border-orange-500/40 rounded p-1.5 nodrag">
-          <button className={`px-1.5 py-0.5 rounded border cursor-pointer ${brushMode === 'erase' ? 'bg-orange-500/15 border-orange-500/60 text-orange-300' : 'bg-surface-hover border-edge text-body'}`} onClick={() => setBrushMode('erase')}>擦除</button>
-          <button className={`px-1.5 py-0.5 rounded border cursor-pointer ${brushMode === 'restore' ? 'bg-orange-500/15 border-orange-500/60 text-orange-300' : 'bg-surface-hover border-edge text-body'}`} onClick={() => setBrushMode('restore')}>恢复</button>
+          <button
+            className={`px-1.5 py-0.5 rounded border cursor-pointer ${brushMode === 'erase' ? 'bg-orange-500/15 border-orange-500/60 text-orange-300' : 'bg-surface-hover border-edge text-body'}`}
+            onClick={() => setBrushMode('erase')}
+          >
+            擦除
+          </button>
+          <button
+            className={`px-1.5 py-0.5 rounded border cursor-pointer ${brushMode === 'restore' ? 'bg-orange-500/15 border-orange-500/60 text-orange-300' : 'bg-surface-hover border-edge text-body'}`}
+            onClick={() => setBrushMode('restore')}
+          >
+            恢复
+          </button>
           <span className="ml-1">笔刷</span>
-          <input type="range" min={4} max={200} value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value, 10))} className="w-20 accent-orange-400" />
+          <input
+            type="range"
+            min={4}
+            max={200}
+            value={brushSize}
+            onChange={(e) => setBrushSize(parseInt(e.target.value, 10))}
+            className="w-20 accent-orange-400"
+          />
           <span className="text-secondary">{brushSize}px</span>
-          <button className="ml-auto px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-body hover:text-white cursor-pointer" onClick={() => setFullscreen(true)} title="全屏涂抹"><Maximize size={11} /></button>
-          <button className="px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-body hover:text-white cursor-pointer" onClick={undoPaint}>撤销</button>
-          <button className="px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-body hover:text-white cursor-pointer" onClick={() => setPaintLayerId(null)}>取消</button>
-          <button className="px-1.5 py-0.5 rounded border bg-orange-500/15 border-orange-500/60 text-orange-200 cursor-pointer" onClick={finishPaint}>完成</button>
+          <button
+            className="ml-auto px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-body hover:text-white cursor-pointer"
+            onClick={() => setFullscreen(true)}
+            title="全屏涂抹"
+          >
+            <Maximize size={11} />
+          </button>
+          <button
+            className="px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-body hover:text-white cursor-pointer"
+            onClick={undoPaint}
+          >
+            撤销
+          </button>
+          <button
+            className="px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-body hover:text-white cursor-pointer"
+            onClick={() => setPaintLayerId(null)}
+          >
+            取消
+          </button>
+          <button
+            className="px-1.5 py-0.5 rounded border bg-orange-500/15 border-orange-500/60 text-orange-200 cursor-pointer"
+            onClick={finishPaint}
+          >
+            完成
+          </button>
         </div>
       )}
 
@@ -711,53 +847,54 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
           <div className="text-caption text-muted py-2 text-center">连线一张图即作为新图层导入</div>
         ) : (
           sortedLayers.map((layer) => {
-            const isDragging = dragLayerId === layer.id
-            const isOver = overLayerId === layer.id && dragLayerId !== layer.id
+            const isDragging = dragLayerId === layer.id;
+            const isOver = overLayerId === layer.id && dragLayerId !== layer.id;
             return (
               <div
                 key={layer.id}
                 draggable
                 onDragStart={(e) => {
-                  e.stopPropagation()
-                  setDragLayerId(layer.id)
-                  e.dataTransfer.effectAllowed = 'move'
-                  e.dataTransfer.setData('application/x-yimao-layer', layer.id)
-                  const ghost = document.createElement('div')
-                  ghost.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;'
-                  document.body.appendChild(ghost)
-                  e.dataTransfer.setDragImage(ghost, 0, 0)
-                  setTimeout(() => document.body.removeChild(ghost), 0)
+                  e.stopPropagation();
+                  setDragLayerId(layer.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('application/x-yimao-layer', layer.id);
+                  const ghost = document.createElement('div');
+                  ghost.style.cssText =
+                    'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;';
+                  document.body.appendChild(ghost);
+                  e.dataTransfer.setDragImage(ghost, 0, 0);
+                  setTimeout(() => document.body.removeChild(ghost), 0);
                 }}
                 onDragEnter={(e) => {
                   if (dragLayerId !== null) {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    setOverLayerId(layer.id)
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setOverLayerId(layer.id);
                   }
                 }}
                 onDragOver={(e) => {
                   if (dragLayerId !== null) {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    e.dataTransfer.dropEffect = 'move'
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = 'move';
                   }
                 }}
                 onDragLeave={(e) => {
-                  e.stopPropagation()
-                  setOverLayerId((cur) => (cur === layer.id ? null : cur))
+                  e.stopPropagation();
+                  setOverLayerId((cur) => (cur === layer.id ? null : cur));
                 }}
                 onDrop={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  const from = e.dataTransfer.getData('application/x-yimao-layer') || dragLayerId
-                  if (from && from !== layer.id) handleDropReorder(from, layer.id)
-                  setDragLayerId(null)
-                  setOverLayerId(null)
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const from = e.dataTransfer.getData('application/x-yimao-layer') || dragLayerId;
+                  if (from && from !== layer.id) handleDropReorder(from, layer.id);
+                  setDragLayerId(null);
+                  setOverLayerId(null);
                 }}
                 onDragEnd={(e) => {
-                  e.stopPropagation()
-                  setDragLayerId(null)
-                  setOverLayerId(null)
+                  e.stopPropagation();
+                  setDragLayerId(null);
+                  setOverLayerId(null);
                 }}
                 className={`flex items-center gap-1 px-1 py-0.5 rounded text-caption cursor-grab active:cursor-grabbing transition-colors
                   ${selectedId === layer.id ? 'bg-blue-500/15' : 'hover:bg-white/5'}
@@ -766,30 +903,67 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
                 `}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
-                  e.stopPropagation()
-                  setSelectedId(layer.id)
+                  e.stopPropagation();
+                  setSelectedId(layer.id);
                 }}
                 onContextMenu={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setSelectedId(layer.id)
-                  const x = e.clientX
-                  const y = e.clientY
-                  setTimeout(() => setMenu({ id: layer.id, x, y }), 0)
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSelectedId(layer.id);
+                  const x = e.clientX;
+                  const y = e.clientY;
+                  setTimeout(() => setMenu({ id: layer.id, x, y }), 0);
                 }}
               >
-                <button className="text-secondary hover:text-white cursor-pointer" onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { visible: layer.visible === false }) }} title="显隐">
+                <button
+                  className="text-secondary hover:text-white cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateLayer(layer.id, { visible: layer.visible === false });
+                  }}
+                  title="显隐"
+                >
                   {layer.visible === false ? <EyeOff size={11} /> : <Eye size={11} />}
                 </button>
-                <button className="text-secondary hover:text-white cursor-pointer" onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { locked: !layer.locked }) }} title="锁定">
+                <button
+                  className="text-secondary hover:text-white cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateLayer(layer.id, { locked: !layer.locked });
+                  }}
+                  title="锁定"
+                >
                   {layer.locked ? <Lock size={11} /> : <Unlock size={11} />}
                 </button>
-                <img src={toAbsoluteFileUrl(layer.imageUrl)} alt="" className="w-6 h-6 object-cover rounded pointer-events-none" />
+                <img
+                  src={toAbsoluteFileUrl(layer.imageUrl)}
+                  alt=""
+                  className="w-6 h-6 object-cover rounded pointer-events-none"
+                />
                 <span className="flex-1 truncate text-body">图层 {layer.zIndex}</span>
-                <button className="text-secondary hover:text-orange-300 cursor-pointer" onClick={(e) => { e.stopPropagation(); setPaintLayerId(layer.id); setSelectedId(layer.id) }} title="涂抹擦除"><Brush size={11} /></button>
-                <button className="text-secondary hover:text-red-300 cursor-pointer" onClick={(e) => { e.stopPropagation(); removeLayer(layer.id) }} title="删除"><Trash2 size={11} /></button>
+                <button
+                  className="text-secondary hover:text-orange-300 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPaintLayerId(layer.id);
+                    setSelectedId(layer.id);
+                  }}
+                  title="涂抹擦除"
+                >
+                  <Brush size={11} />
+                </button>
+                <button
+                  className="text-secondary hover:text-red-300 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeLayer(layer.id);
+                  }}
+                  title="删除"
+                >
+                  <Trash2 size={11} />
+                </button>
               </div>
-            )
+            );
           })
         )}
       </div>
@@ -798,33 +972,98 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
       {selectedLayer && !paintLayerId && (
         <div className="flex items-center gap-1.5 text-caption text-secondary nodrag">
           <span>不透明</span>
-          <input type="range" min={0} max={100} value={Math.round(selectedLayer.opacity * 100)} onChange={(e) => updateLayer(selectedLayer.id, { opacity: parseInt(e.target.value, 10) / 100 })} className="w-20 accent-blue-400" />
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={Math.round(selectedLayer.opacity * 100)}
+            onChange={(e) =>
+              updateLayer(selectedLayer.id, { opacity: parseInt(e.target.value, 10) / 100 })
+            }
+            className="w-20 accent-blue-400"
+          />
           <span>{Math.round(selectedLayer.opacity * 100)}%</span>
           <span className="ml-2">缩放</span>
-          <input type="number" min={0.05} max={10} step={0.05} value={Number(selectedLayer.scale.toFixed(2))} onChange={(e) => updateLayer(selectedLayer.id, { scale: Math.max(0.05, parseFloat(e.target.value) || selectedLayer.scale) })} className="w-14 bg-surface-hover text-primary rounded px-1 py-0.5 border border-edge outline-none" />
+          <input
+            type="number"
+            min={0.05}
+            max={10}
+            step={0.05}
+            value={Number(selectedLayer.scale.toFixed(2))}
+            onChange={(e) =>
+              updateLayer(selectedLayer.id, {
+                scale: Math.max(0.05, parseFloat(e.target.value) || selectedLayer.scale),
+              })
+            }
+            className="w-14 bg-surface-hover text-primary rounded px-1 py-0.5 border border-edge outline-none"
+          />
           <span className="ml-2">旋转</span>
-          <input type="number" min={-360} max={360} step={1} value={Math.round(selectedLayer.rotation)} onChange={(e) => updateLayer(selectedLayer.id, { rotation: parseFloat(e.target.value) || 0 })} className="w-14 bg-surface-hover text-primary rounded px-1 py-0.5 border border-edge outline-none" />
+          <input
+            type="number"
+            min={-360}
+            max={360}
+            step={1}
+            value={Math.round(selectedLayer.rotation)}
+            onChange={(e) =>
+              updateLayer(selectedLayer.id, { rotation: parseFloat(e.target.value) || 0 })
+            }
+            className="w-14 bg-surface-hover text-primary rounded px-1 py-0.5 border border-edge outline-none"
+          />
         </div>
       )}
 
       {/* 右键菜单 */}
-      {menu && menuLayer && createPortal(
-        <div
-          className="fixed z-modal-raise min-w-[140px] bg-surface-raised border border-edge rounded-md shadow-2xl p-1"
-          style={{ top: menu.y, left: menu.x }}
-          onClick={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <MenuItem icon={<ChevronsUp size={12} />} label="移到顶部" disabled={isTop} onClick={() => reorderLayer(menuLayer.id, 'top')} />
-          <MenuItem icon={<ChevronUp size={12} />} label="上移一层" disabled={isTop} onClick={() => reorderLayer(menuLayer.id, 'up')} />
-          <MenuItem icon={<ChevronDown size={12} />} label="下移一层" disabled={isBottom} onClick={() => reorderLayer(menuLayer.id, 'down')} />
-          <MenuItem icon={<ChevronsDown size={12} />} label="移到底部" disabled={isBottom} onClick={() => reorderLayer(menuLayer.id, 'bottom')} />
-          <div className="h-px my-1 bg-surface-hover-strong" />
-          <MenuItem icon={<Brush size={12} />} label="涂抹擦除" onClick={() => { setPaintLayerId(menuLayer.id); setSelectedId(menuLayer.id) }} />
-          <MenuItem icon={<Trash2 size={12} />} label="删除图层" onClick={() => removeLayer(menuLayer.id)} danger />
-        </div>,
-        document.body
-      )}
+      {menu &&
+        menuLayer &&
+        createPortal(
+          <div
+            className="fixed z-modal-raise min-w-[140px] bg-surface-raised border border-edge rounded-md shadow-2xl p-1"
+            style={{ top: menu.y, left: menu.x }}
+            onClick={(e) => e.stopPropagation()}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <MenuItem
+              icon={<ChevronsUp size={12} />}
+              label="移到顶部"
+              disabled={isTop}
+              onClick={() => reorderLayer(menuLayer.id, 'top')}
+            />
+            <MenuItem
+              icon={<ChevronUp size={12} />}
+              label="上移一层"
+              disabled={isTop}
+              onClick={() => reorderLayer(menuLayer.id, 'up')}
+            />
+            <MenuItem
+              icon={<ChevronDown size={12} />}
+              label="下移一层"
+              disabled={isBottom}
+              onClick={() => reorderLayer(menuLayer.id, 'down')}
+            />
+            <MenuItem
+              icon={<ChevronsDown size={12} />}
+              label="移到底部"
+              disabled={isBottom}
+              onClick={() => reorderLayer(menuLayer.id, 'bottom')}
+            />
+            <div className="h-px my-1 bg-surface-hover-strong" />
+            <MenuItem
+              icon={<Brush size={12} />}
+              label="涂抹擦除"
+              onClick={() => {
+                setPaintLayerId(menuLayer.id);
+                setSelectedId(menuLayer.id);
+              }}
+            />
+            <MenuItem
+              icon={<Trash2 size={12} />}
+              label="删除图层"
+              onClick={() => removeLayer(menuLayer.id)}
+              danger
+            />
+          </div>,
+          document.body,
+        )}
     </div>
-  )
+  );
 }

@@ -7,7 +7,7 @@
  * 【约束】组件 Props 就近定义在组件文件（保持内聚），不进这里；
  *        仅「跨模块复用的通用形状」才下沉到本目录。
  */
-export * from './errors'
-export * from './media'
-export * from './provider'
-export * from './refToken'
+export * from './errors';
+export * from './media';
+export * from './provider';
+export * from './refToken';

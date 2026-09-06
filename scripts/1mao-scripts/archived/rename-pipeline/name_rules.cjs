@@ -13,15 +13,55 @@ const path = require('path');
 const RULES_FILE = path.join(__dirname, 'name_rules_140.json');
 
 const RESERVED = new Set([
-  'true', 'false', 'null', 'undefined', 'this', 'var', 'let', 'const', 'function',
-  'return', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'break',
-  'continue', 'new', 'class', 'extends', 'super', 'import', 'export', 'from', 'typeof',
-  'instanceof', 'in', 'of', 'void', 'delete', 'throw', 'try', 'catch', 'finally', 'yield',
-  'await', 'async', 'static', 'get', 'set',
+  'true',
+  'false',
+  'null',
+  'undefined',
+  'this',
+  'var',
+  'let',
+  'const',
+  'function',
+  'return',
+  'if',
+  'else',
+  'for',
+  'while',
+  'do',
+  'switch',
+  'case',
+  'default',
+  'break',
+  'continue',
+  'new',
+  'class',
+  'extends',
+  'super',
+  'import',
+  'export',
+  'from',
+  'typeof',
+  'instanceof',
+  'in',
+  'of',
+  'void',
+  'delete',
+  'throw',
+  'try',
+  'catch',
+  'finally',
+  'yield',
+  'await',
+  'async',
+  'static',
+  'get',
+  'set',
 ]);
 
 function sanitizeName(s) {
-  let v = String(s).replace(/::/g, '_').replace(/[^A-Za-z0-9_$]/g, '');
+  let v = String(s)
+    .replace(/::/g, '_')
+    .replace(/[^A-Za-z0-9_$]/g, '');
   if (!v) return null;
   if (!/^[A-Za-z_$]/.test(v)) v = '_' + v;
   if (RESERVED.has(v)) return null;
@@ -39,12 +79,16 @@ function getRules() {
         const target = sanitizeName(to);
         if (target && !RESERVED.has(target) && !merged[from]) merged[from] = target;
       }
-      console.log(`[name_rules] 已从 ${path.basename(RULES_FILE)} 载入 ${Object.keys(merged).length} 条 1.4.0 规则`);
+      console.log(
+        `[name_rules] 已从 ${path.basename(RULES_FILE)} 载入 ${Object.keys(merged).length} 条 1.4.0 规则`,
+      );
     } catch (e) {
       console.warn('[name_rules] 规则表解析失败，返回空规则：', e.message);
     }
   } else {
-    console.log('[name_rules] 未找到 1.4.0 专属规则表（name_rules_140.json），返回空规则（安全空跑）。');
+    console.log(
+      '[name_rules] 未找到 1.4.0 专属规则表（name_rules_140.json），返回空规则（安全空跑）。',
+    );
   }
   _cache = merged;
   return merged;

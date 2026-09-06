@@ -40,7 +40,9 @@ export async function readOfficialBase(req: IncomingMessage): Promise<string | u
       const base = extractBaseFromEndpointValue(row.value);
       if (base && !isSelfBase(base)) return base;
     }
-  } catch { /* 读 KV 失败回退默认 */ }
+  } catch {
+    /* 读 KV 失败回退默认 */
+  }
 
   // 优先级 3：无硬编码默认 —— base 必须由 x-official-base 头或 KV active_api_endpoint 显式提供。
   return undefined;
@@ -62,10 +64,17 @@ function extractBaseFromEndpointValue(value: string): string {
 
   try {
     const obj = JSON.parse(raw);
-    if (obj && typeof obj === 'object' && typeof obj.base_url === 'string' && /^https?:\/\//i.test(obj.base_url)) {
+    if (
+      obj &&
+      typeof obj === 'object' &&
+      typeof obj.base_url === 'string' &&
+      /^https?:\/\//i.test(obj.base_url)
+    ) {
       return obj.base_url.replace(/\/$/, '');
     }
-  } catch { /* 非 JSON，忽略 */ }
+  } catch {
+    /* 非 JSON，忽略 */
+  }
 
   return '';
 }
@@ -78,7 +87,9 @@ function isSelfBase(base: string): boolean {
   try {
     const u = new URL(base);
     const host = u.hostname.toLowerCase();
-    return (host === '127.0.0.1' || host === 'localhost' || host === '::1') && String(u.port) === '18080';
+    return (
+      (host === '127.0.0.1' || host === 'localhost' || host === '::1') && String(u.port) === '18080'
+    );
   } catch {
     return false;
   }

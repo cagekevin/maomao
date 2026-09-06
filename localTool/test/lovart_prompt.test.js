@@ -14,9 +14,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = path.join(__dirname, '..', 'src');
 const toUrl = (p) => 'file:///' + p.split(path.sep).join('/');
 
-const { buildLovartPrompt, buildLovartToolConfig } = await import(toUrl(path.join(src, 'ai-relay/providers/lovart/lovart_prompt.ts')));
-const { LOVART_MODEL_SPECS } = await import(toUrl(path.join(src, 'ai-relay/providers/lovart/lovart_config.ts')));
-const { LOVART_MODEL_MANIFEST } = await import(toUrl(path.join(src, 'ai-relay/manifests/lovartModelManifest.ts')));
+const { buildLovartPrompt, buildLovartToolConfig } = await import(
+  toUrl(path.join(src, 'ai-relay/providers/lovart/lovart_prompt.ts'))
+);
+const { LOVART_MODEL_SPECS } = await import(
+  toUrl(path.join(src, 'ai-relay/providers/lovart/lovart_config.ts'))
+);
+const { LOVART_MODEL_MANIFEST } = await import(
+  toUrl(path.join(src, 'ai-relay/manifests/lovartModelManifest.ts'))
+);
 
 test('B6 自然语言路：prompt 句子内嵌模型硬约束（对齐 main.build_gen_prefix）', () => {
   const p = buildLovartPrompt('gpt-image-2-low', 'a red dog');
@@ -41,7 +47,10 @@ test('C3 尺寸归一：size 参数写进 prompt（对齐 main：target_size 而
 
 test('参考图声明（对齐 main.build_gen_prefix）：IMAGE 带参考图写 Reference attached + Generate ONE', () => {
   const withRef = buildLovartPrompt('gpt-image-2-low', 'a red dog', '1024x1024', true);
-  assert.match(withRef, /Reference image attached\. Generate exactly ONE image using the gpt-image-2-low model\./);
+  assert.match(
+    withRef,
+    /Reference image attached\. Generate exactly ONE image using the gpt-image-2-low model\./,
+  );
   assert.match(withRef, /<user_prompt>\na red dog\n<\/user_prompt>/, '用户原文包裹');
 });
 
@@ -79,7 +88,11 @@ test('回归：别名前缀不误吞——nano-bn-2 与 nano-bn-2-lite 各自命
     ['generate_image_nano_banana_2'],
     'nano-bn-2 命中 _nano_banana_2',
   );
-  assert.equal(buildLovartToolConfig('nano-bn-2-lite'), undefined, 'lite 命中空串规则 → 不下发（promptOnly）');
+  assert.equal(
+    buildLovartToolConfig('nano-bn-2-lite'),
+    undefined,
+    'lite 命中空串规则 → 不下发（promptOnly）',
+  );
 });
 
 test('回归：别名前缀不误吞——seedance-2 与 seedance-2.0-mini 各自命中', () => {
@@ -88,7 +101,11 @@ test('回归：别名前缀不误吞——seedance-2 与 seedance-2.0-mini 各�
     ['generate_video_seedance_v2_0'],
     'seedance-2 命中 v2_0',
   );
-  assert.equal(buildLovartToolConfig('seedance-2.0-mini'), undefined, 'mini 命中空串规则 → 不下发（promptOnly）');
+  assert.equal(
+    buildLovartToolConfig('seedance-2.0-mini'),
+    undefined,
+    'mini 命中空串规则 → 不下发（promptOnly）',
+  );
   assert.deepEqual(
     buildLovartToolConfig('kling-v3-omni').prefer_tool_categories.VIDEO,
     ['generate_video_kling_v3_omni'],
@@ -98,9 +115,13 @@ test('回归：别名前缀不误吞——seedance-2 与 seedance-2.0-mini 各�
 
 test('别名容错：归一化 + 模糊匹配（对齐 main.resolve_prefer_models）', () => {
   // 归一化：大写 + 下划线 → 小写连字符
-  assert.deepEqual(buildLovartToolConfig('GPT_Image_2_Low').prefer_tool_categories.IMAGE, ['generate_image_gpt_image_2_low']);
+  assert.deepEqual(buildLovartToolConfig('GPT_Image_2_Low').prefer_tool_categories.IMAGE, [
+    'generate_image_gpt_image_2_low',
+  ]);
   // 别名：'seedance2' 命中 seedance-2 规则
-  assert.deepEqual(buildLovartToolConfig('seedance2').prefer_tool_categories.VIDEO, ['generate_video_seedance_v2_0']);
+  assert.deepEqual(buildLovartToolConfig('seedance2').prefer_tool_categories.VIDEO, [
+    'generate_video_seedance_v2_0',
+  ]);
 });
 
 test('A4 模型规格表分组：image 6 / video 5 / chat 1', () => {

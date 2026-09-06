@@ -1,15 +1,19 @@
-import { useCallback } from 'react'
-import type { DragEvent as ReactDragEvent } from 'react'
-import { httpRequest } from '../components/base/api/index.ts'
-import { LOCAL_TOOL_PING_TIMEOUT } from '../components/base/core/config.ts'
-import { useAssetMoveToFolder } from './useAssetMoveToFolder.ts'
-import type { AssetMoveItem, AssetMoveToFolderOptions, AssetDragSourceProps } from './useAssetMoveToFolder.ts'
+import { useCallback } from 'react';
+import type { DragEvent as ReactDragEvent } from 'react';
+import { httpRequest } from '../components/base/api/index.ts';
+import { LOCAL_TOOL_PING_TIMEOUT } from '../components/base/core/config.ts';
+import { useAssetMoveToFolder } from './useAssetMoveToFolder.ts';
+import type {
+  AssetMoveItem,
+  AssetMoveToFolderOptions,
+  AssetDragSourceProps,
+} from './useAssetMoveToFolder.ts';
 
 /** 素材最小形状（拖到画布建节点所需字段） */
 export interface CanvasAssetLike {
-  url?: string
-  name?: string
-  type?: string
+  url?: string;
+  name?: string;
+  type?: string;
 }
 
 /**
@@ -34,21 +38,21 @@ export interface CanvasAssetLike {
  */
 
 // 文字素材内容缓存（模块级，面板间共享）：url → text。避免每次拖拽都重新 fetch。
-const textCache = new Map<string, string>()
+const textCache = new Map<string, string>();
 function fetchText(url: string): Promise<string> {
-  if (textCache.has(url)) return Promise.resolve(textCache.get(url))
+  if (textCache.has(url)) return Promise.resolve(textCache.get(url));
   return httpRequest(url, { timeoutMs: LOCAL_TOOL_PING_TIMEOUT, retries: 0, parseJson: false })
     .then((r) => (r.ok ? r.text() : ''))
     .then((t) => {
-      textCache.set(url, t)
-      return t
+      textCache.set(url, t);
+      return t;
     })
-    .catch(() => '')
+    .catch(() => '');
 }
 
 /** 素材的完整拖拽格式（统一信封） */
 function assetPayload(asset: CanvasAssetLike, text?: string): string {
-  return JSON.stringify({ url: asset.url, name: asset.name, type: asset.type, text })
+  return JSON.stringify({ url: asset.url, name: asset.name, type: asset.type, text });
 }
 
 /**
@@ -57,28 +61,31 @@ function assetPayload(asset: CanvasAssetLike, text?: string): string {
  * @param {{disable?:boolean}} [opts] opts.disable 为 true 时不启用拖拽（如文件夹）
  * @returns {{ draggable:boolean, onDragStart:(e)=>void }}
  */
-export function makeAssetDragProps(asset: CanvasAssetLike, opts: { disable?: boolean } = {}): AssetDragSourceProps {
-  const dragEnabled = !opts.disable && asset && asset.url
+export function makeAssetDragProps(
+  asset: CanvasAssetLike,
+  opts: { disable?: boolean } = {},
+): AssetDragSourceProps {
+  const dragEnabled = !opts.disable && asset && asset.url;
   return {
     draggable: dragEnabled,
     onDragStart: (e: ReactDragEvent) => {
-      if (!dragEnabled) return
-      const text = textCache.get(asset.url)
-      e.dataTransfer.setData('application/x-yimao-asset', assetPayload(asset, text))
-      e.dataTransfer.effectAllowed = 'copy'
+      if (!dragEnabled) return;
+      const text = textCache.get(asset.url);
+      e.dataTransfer.setData('application/x-yimao-asset', assetPayload(asset, text));
+      e.dataTransfer.effectAllowed = 'copy';
       // 文字内容异步补全（dataTransfer 在拖拽期间可多次 setData）
       if (asset.type === 'text' && !text) {
         fetchText(asset.url).then((t) => {
-          if (t) e.dataTransfer.setData('application/x-yimao-asset', assetPayload(asset, t))
-        })
+          if (t) e.dataTransfer.setData('application/x-yimao-asset', assetPayload(asset, t));
+        });
       }
     },
-  }
+  };
 }
 
 /** hook 版：与 makeAssetDragProps 等价，供 React 组件内取引用一致的版本 */
 export function useAssetDragToCanvas(): { assetDragProps: typeof makeAssetDragProps } {
-  return { assetDragProps: makeAssetDragProps }
+  return { assetDragProps: makeAssetDragProps };
 }
 
 /**
@@ -88,7 +95,7 @@ export function useAssetDragToCanvas(): { assetDragProps: typeof makeAssetDragPr
  * React 对 draggable 一律渲染成 "true"/"false"，DOM 产物与收窄前完全一致，零行为变化。
  */
 export function toImgDragProps(props: AssetDragSourceProps) {
-  return { ...props, draggable: Boolean(props.draggable) }
+  return { ...props, draggable: Boolean(props.draggable) };
 }
 
 /**
@@ -108,28 +115,28 @@ export function toImgDragProps(props: AssetDragSourceProps) {
  * @returns {{ cardDragProps: (item) => object }}
  */
 export function useAssetCardDragProps(opts: AssetMoveToFolderOptions) {
-  const { assetDragProps } = useAssetDragToCanvas()
-  const { sourceDragProps, folderDropProps } = useAssetMoveToFolder(opts)
+  const { assetDragProps } = useAssetDragToCanvas();
+  const { sourceDragProps, folderDropProps } = useAssetMoveToFolder(opts);
   const cardDragProps = useCallback(
     (item: AssetMoveItem) => {
       // 文件夹卡片是「移动落点」，不是拖拽源
-      if (item.type === 'folder') return folderDropProps(item)
-      if (!item.url) return {}
-      const move = sourceDragProps(item)
-      const toCanvas = assetDragProps(item)
+      if (item.type === 'folder') return folderDropProps(item);
+      if (!item.url) return {};
+      const move = sourceDragProps(item);
+      const toCanvas = assetDragProps(item);
       return {
         draggable: true,
         onDragStart: (e: ReactDragEvent) => {
-          move.onDragStart?.(e)
-          toCanvas.onDragStart?.(e)
+          move.onDragStart?.(e);
+          toCanvas.onDragStart?.(e);
         },
-      }
+      };
     },
-    [sourceDragProps, folderDropProps, assetDragProps]
-  )
-  return { cardDragProps, sourceDragProps, folderDropProps, assetDragProps }
+    [sourceDragProps, folderDropProps, assetDragProps],
+  );
+  return { cardDragProps, sourceDragProps, folderDropProps, assetDragProps };
 }
 
 // 供非 hook 场景（如纯函数封装）复用；面板一律走 useAssetDragToCanvas()/makeAssetDragProps()
 // fetchText/textCache 从本模块统一导出，替代各面板各自的副本（AssetLibrary/GeneratedView）
-export { textCache, fetchText }
+export { textCache, fetchText };

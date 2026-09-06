@@ -24,16 +24,21 @@ const WORK = path.join(OUTPUT, '.work');
 const PROJECT = path.join(OUTPUT, 'project');
 
 // 输入源
-const SRC = path.join(INPUT, 'chunks');           // 业务混淆 chunks（glob 提取）
-const STATIC = path.join(INPUT, 'static');         // public + html + config
+const SRC = path.join(INPUT, 'chunks'); // 业务混淆 chunks（glob 提取）
+const STATIC = path.join(INPUT, 'static'); // public + html + config
 
 // 版本无关：从 step0_raw/chunks/ 自动读取，不再写死白名单。
 // DEEP = 走完整 webcrack→展开→拆分 的核心业务文件（由文件名模式判定）
 // OTHER = 其余业务 chunk（只拷贝，不拆分）
-if (!fs.existsSync(SRC)) { console.error(`❌ 输入缺失: ${SRC}（先跑 extract_input.cjs）`); process.exit(1); }
+if (!fs.existsSync(SRC)) {
+  console.error(`❌ 输入缺失: ${SRC}（先跑 extract_input.cjs）`);
+  process.exit(1);
+}
 const ALL_CHUNKS = fs.readdirSync(SRC).filter((f) => f.endsWith('.js'));
 // DEEP 模式：App- / httpClient- / src-（核心业务）视为需深度还原
-function isDeep(name) { return /^(App|httpClient|src)-/.test(name); }
+function isDeep(name) {
+  return /^(App|httpClient|src)-/.test(name);
+}
 const DEEP = ALL_CHUNKS.filter(isDeep);
 const OTHER = ALL_CHUNKS.filter((f) => !isDeep(f));
 console.log(`📦 自动识别 chunks: DEEP(${DEEP.length}) = ${DEEP.join(', ')}`);
@@ -41,21 +46,32 @@ console.log(`             OTHER(${OTHER.length}) = ${OTHER.join(', ')}`);
 
 function run(cmd, label) {
   console.log(`\n🔹 ${label}`);
-  try { execSync(cmd, { stdio: 'inherit' }); }
-  catch (e) { console.error(`❌ ${label} 失败: ${e.message}`); process.exit(1); }
+  try {
+    execSync(cmd, { stdio: 'inherit' });
+  } catch (e) {
+    console.error(`❌ ${label} 失败: ${e.message}`);
+    process.exit(1);
+  }
 }
 
 function cp(src, dest) {
-  if (!fs.existsSync(src)) { console.log(`   ⚠️ 跳过(源不存在): ${path.relative(UNPACKED, src)}`); return; }
+  if (!fs.existsSync(src)) {
+    console.log(`   ⚠️ 跳过(源不存在): ${path.relative(UNPACKED, src)}`);
+    return;
+  }
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.copyFileSync(src, dest);
 }
 
 function cpDir(src, dest) {
-  if (!fs.existsSync(src)) { console.log(`   ⚠️ 跳过(源不存在): ${path.relative(UNPACKED, src)}`); return; }
+  if (!fs.existsSync(src)) {
+    console.log(`   ⚠️ 跳过(源不存在): ${path.relative(UNPACKED, src)}`);
+    return;
+  }
   fs.mkdirSync(dest, { recursive: true });
   for (const e of fs.readdirSync(src, { withFileTypes: true })) {
-    const s = path.join(src, e.name), d = path.join(dest, e.name);
+    const s = path.join(src, e.name),
+      d = path.join(dest, e.name);
     e.isDirectory() ? cpDir(s, d) : fs.copyFileSync(s, d);
   }
 }
@@ -87,11 +103,15 @@ const RUNTIME = collectRuntimeChunks();
 OTHER.push(...RUNTIME);
 
 console.log('\n📦 拷贝源文件...');
-for (const f of [...DEEP, ...RUNTIME, ...OTHER.filter(f => !RUNTIME.includes(f))]) {
+for (const f of [...DEEP, ...RUNTIME, ...OTHER.filter((f) => !RUNTIME.includes(f))]) {
   const s = path.join(SRC, f);
   const srcFrom = fs.existsSync(s) ? s : path.join(UNPACKED, 'dist', 'assets', f);
-  if (fs.existsSync(srcFrom)) { cp(srcFrom, path.join(WORK, 'src', 'bundle', f)); console.log(`   ✅ ${f}`); }
-  else { console.log(`   ⚠️ 缺失: ${f}`); }
+  if (fs.existsSync(srcFrom)) {
+    cp(srcFrom, path.join(WORK, 'src', 'bundle', f));
+    console.log(`   ✅ ${f}`);
+  } else {
+    console.log(`   ⚠️ 缺失: ${f}`);
+  }
 }
 
 // 第 0 步: Webcrack JSX 还原
@@ -165,14 +185,18 @@ function walkJs(dir, cb) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) {
       if (e.name.includes('_components'))
-        for (const f2 of fs.readdirSync(p).filter(x => /\.(js|jsx)$/.test(x))) cb(path.join(p, f2));
+        for (const f2 of fs.readdirSync(p).filter((x) => /\.(js|jsx)$/.test(x)))
+          cb(path.join(p, f2));
       else walkJs(p, cb);
     } else if (/\.(js|jsx)$/.test(e.name)) cb(p);
   }
 }
 walkJs(path.join(WORK, 'src', 'bundle'), (fp) => {
-  try { execSync(`node "${path.join(SCRIPTS, '04_unicode.cjs')}" "${fp}"`, { stdio: 'inherit' }); }
-  catch (e) { console.log(`   ⚠️ 跳过: ${path.basename(fp)}`); }
+  try {
+    execSync(`node "${path.join(SCRIPTS, '04_unicode.cjs')}" "${fp}"`, { stdio: 'inherit' });
+  } catch (e) {
+    console.log(`   ⚠️ 跳过: ${path.basename(fp)}`);
+  }
 });
 
 // 第 5 步: 组装工程
@@ -182,7 +206,9 @@ console.log('\n══════ ⑤ 组装工程 ══════');
 // §5：改写集合改为「bundle 根所有 .js」，覆盖业务 chunk 与运行时 chunk（vendor/rolldown/__vite-browser-external），
 // 这样 _components/ 内对它们的 './X.js' 一律改写为 '../X.js'（原 fix_components_imports.cjs 逻辑固化）。
 const bundleRoot = path.join(WORK, 'src', 'bundle');
-const rootChunkNames = new Set(fs.existsSync(bundleRoot) ? fs.readdirSync(bundleRoot).filter((f) => f.endsWith('.js')) : []);
+const rootChunkNames = new Set(
+  fs.existsSync(bundleRoot) ? fs.readdirSync(bundleRoot).filter((f) => f.endsWith('.js')) : [],
+);
 function walkFixImports(dir) {
   if (!fs.existsSync(dir)) return;
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -213,22 +239,27 @@ function fixHtmlRefs(rel) {
   const fp = path.join(PROJECT, rel);
   if (!fs.existsSync(fp)) return;
   let h = fs.readFileSync(fp, 'utf8');
-  h = h.replace(/(src|href)="(\.\.?\/)assets\/([^"]+\.js)"/g,
-    (m, attr, dot, name) => `${attr}="${dot}src/bundle/${name}"`);
-  h = h.replace(/(href)="(\.\.?\/)assets\/([^"]+\.css)"/g,
-    (m, attr, dot, name) => `${attr}="${dot}src/bundle/assets/${name}"`);
+  h = h.replace(
+    /(src|href)="(\.\.?\/)assets\/([^"]+\.js)"/g,
+    (m, attr, dot, name) => `${attr}="${dot}src/bundle/${name}"`,
+  );
+  h = h.replace(
+    /(href)="(\.\.?\/)assets\/([^"]+\.css)"/g,
+    (m, attr, dot, name) => `${attr}="${dot}src/bundle/assets/${name}"`,
+  );
   fs.writeFileSync(fp, h);
 }
 fixHtmlRefs('index.html');
 fixHtmlRefs('share/index.html');
 
 // 写入 vite.config.ts
-  // 单 React 实例 shim：把 'react' 指向 vendor 内联 React(Rr)，与入口 react-dom(Ir) 同一实例，
-  // 杜绝 Invalid hook call / 多实例（AI01~AI11 全员翻车的真凶）。jsx 运行时也指向 vendor Fr。
-  // 动态解析 vendor / rolldown-runtime 真实文件名（随官方版本变，勿写死旧 hash，如 1.4.2 的 vendor-Z-adA07W.js / rolldown-runtime-aKtaBQYM.js）
-  const vendorFile = RUNTIME.find((f) => f.startsWith('vendor-')) || 'vendor-Z-adA07W.js';
-  const runtimeFile = RUNTIME.find((f) => f.startsWith('rolldown-runtime-')) || 'rolldown-runtime-aKtaBQYM.js';
-  const REACT_SHIM_SRC = `import { Rr as __Rr } from './${vendorFile}';
+// 单 React 实例 shim：把 'react' 指向 vendor 内联 React(Rr)，与入口 react-dom(Ir) 同一实例，
+// 杜绝 Invalid hook call / 多实例（AI01~AI11 全员翻车的真凶）。jsx 运行时也指向 vendor Fr。
+// 动态解析 vendor / rolldown-runtime 真实文件名（随官方版本变，勿写死旧 hash，如 1.4.2 的 vendor-Z-adA07W.js / rolldown-runtime-aKtaBQYM.js）
+const vendorFile = RUNTIME.find((f) => f.startsWith('vendor-')) || 'vendor-Z-adA07W.js';
+const runtimeFile =
+  RUNTIME.find((f) => f.startsWith('rolldown-runtime-')) || 'rolldown-runtime-aKtaBQYM.js';
+const REACT_SHIM_SRC = `import { Rr as __Rr } from './${vendorFile}';
 import { i as __e } from './${runtimeFile}';
 const React = __e(__Rr(), 1);
 export default React;
@@ -272,13 +303,13 @@ export const flushSync = React.flushSync;
 export const unstable_batchedUpdates = React.unstable_batchedUpdates;
 export const version = React.version;
 `;
-  const JSX_RUNTIME_SRC = `import { Fr as __Fr } from './${vendorFile}';
+const JSX_RUNTIME_SRC = `import { Fr as __Fr } from './${vendorFile}';
 const __rt = __Fr();
 export const jsx = __rt.jsx;
 export const jsxs = __rt.jsxs;
 export const Fragment = __rt.Fragment;
 `;
-  const viteConfig = `import { defineConfig } from 'vite';
+const viteConfig = `import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { transformWithEsbuild } from 'vite';
 import fs from 'fs';
@@ -375,10 +406,25 @@ export default defineConfig({
 fs.writeFileSync(path.join(PROJECT, 'vite.config.ts'), viteConfig);
 // §2：tsconfig / tailwind 模板兜底。原生 dist 不产出这两个文件，
 // 若 step0_raw/static 也没有，则用内置模板生成，避免 cp 缺失 + 工程缺配置。
-const TS_TEMPLATE = JSON.stringify({
-  compilerOptions: { target: 'ESNext', module: 'ESNext', moduleResolution: 'Bundler', jsx: 'react-jsx', strict: false, esModuleInterop: true, skipLibCheck: true, allowJs: true, lib: ['ESNext', 'DOM', 'DOM.Iterable'], types: ['chrome', 'react', 'react-dom'] },
-  include: ['src'],
-}, null, 2);
+const TS_TEMPLATE = JSON.stringify(
+  {
+    compilerOptions: {
+      target: 'ESNext',
+      module: 'ESNext',
+      moduleResolution: 'Bundler',
+      jsx: 'react-jsx',
+      strict: false,
+      esModuleInterop: true,
+      skipLibCheck: true,
+      allowJs: true,
+      lib: ['ESNext', 'DOM', 'DOM.Iterable'],
+      types: ['chrome', 'react', 'react-dom'],
+    },
+    include: ['src'],
+  },
+  null,
+  2,
+);
 const TAILWIND_TEMPLATE = `/** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './share/index.html', './src/**/*.{js,jsx,ts,tsx}'],
@@ -390,7 +436,11 @@ function ensureTemplate(srcRel, destRel, template) {
   const src = path.join(STATIC, srcRel);
   const dest = path.join(PROJECT, destRel);
   if (fs.existsSync(src)) cp(src, dest);
-  else { fs.mkdirSync(path.dirname(dest), { recursive: true }); fs.writeFileSync(dest, template, 'utf8'); console.log(`   📄 内置模板生成: ${destRel}`); }
+  else {
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, template, 'utf8');
+    console.log(`   📄 内置模板生成: ${destRel}`);
+  }
 }
 ensureTemplate('tsconfig.json', 'tsconfig.json', TS_TEMPLATE);
 ensureTemplate('tailwind.config.js', 'tailwind.config.js', TAILWIND_TEMPLATE);
@@ -401,7 +451,10 @@ fs.writeFileSync(path.join(PROJECT, 'src', 'bundle', '_react_shim.js'), REACT_SH
 fs.writeFileSync(path.join(PROJECT, 'src', 'bundle', '_jsx_runtime.js'), JSX_RUNTIME_SRC, 'utf8');
 // 终检：对组装后的工程递归清理 webcrack 伪迹（function X(){[native code]}），确保 Vite 能正常解析
 console.log('   🧼 终检伪迹清理...');
-run(`node "${path.join(SCRIPTS, 'clean_project.cjs')}" "${path.join(PROJECT, 'src', 'bundle')}"`, 'clean');
+run(
+  `node "${path.join(SCRIPTS, 'clean_project.cjs')}" "${path.join(PROJECT, 'src', 'bundle')}"`,
+  'clean',
+);
 console.log('   ✅ 配置 / public / 源码');
 
 // CSS 占位文件（消除 Vite 警告 + 保证真实样式不丢失）
@@ -412,25 +465,47 @@ const DIST_ASSETS = path.join(UNPACKED, 'dist', 'assets');
 fs.mkdirSync(cssDir, { recursive: true });
 // 动态识别「原始 dist/assets/」的真实 CSS 名（随官方版本变化，勿写死旧版名，如 1.4.2 的 src-BsO0T5Vc.css / src-DoQUrSOl.css、1.4.3 的 src-DQ-1CVtg.css）。
 // 优先从原始 dist 拷真实样式，缺失才写空占位兜底（绝不能把已存在的真实 CSS 覆盖成空占位 → 界面错乱）。
-const realCssList = fs.existsSync(DIST_ASSETS) ? fs.readdirSync(DIST_ASSETS).filter(f => f.endsWith('.css')) : [];
-const cssNames = realCssList.length > 0 ? realCssList : ['src-BsO0T5Vc.css', 'vendor-Qkhkn02K.css', 'src-DoQUrSOl.css', 'httpClient-DFxwm5B3.css'];
-cssNames.forEach(css => {
+const realCssList = fs.existsSync(DIST_ASSETS)
+  ? fs.readdirSync(DIST_ASSETS).filter((f) => f.endsWith('.css'))
+  : [];
+const cssNames =
+  realCssList.length > 0
+    ? realCssList
+    : ['src-BsO0T5Vc.css', 'vendor-Qkhkn02K.css', 'src-DoQUrSOl.css', 'httpClient-DFxwm5B3.css'];
+cssNames.forEach((css) => {
   const p = path.join(cssDir, css);
   const real = path.join(DIST_ASSETS, css);
   if (!fs.existsSync(p)) {
-    if (fs.existsSync(real)) cp(real, p); // 用原始真实样式
+    if (fs.existsSync(real))
+      cp(real, p); // 用原始真实样式
     else fs.writeFileSync(p, '/* 逆向还原自动生成 */'); // 仅兜底占位
   }
 });
 
 // package.json (含 react 依赖)
-fs.writeFileSync(path.join(PROJECT, 'package.json'), JSON.stringify({
-  name: 'yimao-ai-canvas', private: true, version: '1.0.0',
-  description: '一毛AI画布 深度逆向还原', type: 'module',
-  scripts: { dev: 'vite', build: 'vite build' },
-  dependencies: { react: '^19.0.0', 'react-dom': '^19.0.0' },
-  devDependencies: { '@types/chrome': '^0.0.279', '@types/react': '^19.0.0', '@types/react-dom': '^19.0.0', typescript: '^5.6.3', vite: '^5.4.11' },
-}, null, 2));
+fs.writeFileSync(
+  path.join(PROJECT, 'package.json'),
+  JSON.stringify(
+    {
+      name: 'yimao-ai-canvas',
+      private: true,
+      version: '1.0.0',
+      description: '一毛AI画布 深度逆向还原',
+      type: 'module',
+      scripts: { dev: 'vite', build: 'vite build' },
+      dependencies: { react: '^19.0.0', 'react-dom': '^19.0.0' },
+      devDependencies: {
+        '@types/chrome': '^0.0.279',
+        '@types/react': '^19.0.0',
+        '@types/react-dom': '^19.0.0',
+        typescript: '^5.6.3',
+        vite: '^5.4.11',
+      },
+    },
+    null,
+    2,
+  ),
+);
 
 // ⑤ 修正产物 dist/index.html 的样式引用
 // 逆向 JS 用 mapDeps 懒加载 CSS（非静态 import），Vite 构建时无法静态分析，
@@ -441,7 +516,7 @@ fs.writeFileSync(path.join(PROJECT, 'package.json'), JSON.stringify({
   const distHtml = path.join(PROJECT, 'dist', 'index.html');
   if (!fs.existsSync(origHtml) || !fs.existsSync(distHtml)) return;
   const orig = fs.readFileSync(origHtml, 'utf8');
-  const cssLinks = [...orig.matchAll(/<link[^>]+rel="stylesheet"[^>]*>/g)].map(m => m[0]);
+  const cssLinks = [...orig.matchAll(/<link[^>]+rel="stylesheet"[^>]*>/g)].map((m) => m[0]);
   if (!cssLinks.length) return;
   let html = fs.readFileSync(distHtml, 'utf8');
   // 移除产物中已有的 stylesheet（避免重复/空引用），再统一插入原始真实引用
@@ -466,11 +541,18 @@ fs.writeFileSync(path.join(PROJECT, 'package.json'), JSON.stringify({
   for (const f of targets) {
     if (!fs.existsSync(f)) continue;
     let html = fs.readFileSync(f, 'utf8');
-    const stripped = html.replace(/<link[^>]+rel="modulepreload"[^>]+href="data:text\/javascript[^"]*"[^>]*>\s*/g, '');
+    const stripped = html.replace(
+      /<link[^>]+rel="modulepreload"[^>]+href="data:text\/javascript[^"]*"[^>]*>\s*/g,
+      '',
+    );
     if (stripped !== html) {
       fs.writeFileSync(f, stripped);
-      const n = (html.match(/data:text\/javascript/g) || []).length - (stripped.match(/data:text\/javascript/g) || []).length;
-      console.log(`   🛡️ 已剥离 ${f.split(PROJECT)[1]} 中 ${n} 个 data: modulepreload（消除 CSP 报错）`);
+      const n =
+        (html.match(/data:text\/javascript/g) || []).length -
+        (stripped.match(/data:text\/javascript/g) || []).length;
+      console.log(
+        `   🛡️ 已剥离 ${f.split(PROJECT)[1]} 中 ${n} 个 data: modulepreload（消除 CSP 报错）`,
+      );
     }
   }
 })();

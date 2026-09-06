@@ -13,26 +13,26 @@
  *    兼容字段随 direct 移除后不再产出 image 值）。
  * ════════════════════════════════════════════════════════════════
  */
-import { contentGet, contentSet } from '../../base/core/contentStore.ts'
+import { contentGet, contentSet } from '../../base/core/contentStore.ts';
 
-export const WORK_MODE_STORAGE_KEY = 'agent_work_mode'
-export const INPUT_MODE_STORAGE_KEY = 'agent_input_mode'
+export const WORK_MODE_STORAGE_KEY = 'agent_work_mode';
+export const INPUT_MODE_STORAGE_KEY = 'agent_input_mode';
 
 export const RUN_MODE_IDS = Object.freeze({
   AUTO: 'auto',
-})
+});
 
 /** 合法 workMode：恒 'auto'（2026-09-05 去三态，仅剩完全自主） */
-export type WorkMode = typeof RUN_MODE_IDS[keyof typeof RUN_MODE_IDS]
+export type WorkMode = (typeof RUN_MODE_IDS)[keyof typeof RUN_MODE_IDS];
 
-export const DEFAULT_WORK_MODE = RUN_MODE_IDS.AUTO
+export const DEFAULT_WORK_MODE = RUN_MODE_IDS.AUTO;
 
 /** 模式定义表条目 */
 export interface WorkModeDef {
-  id: WorkMode
-  label: string
+  id: WorkMode;
+  label: string;
   /** 注入 LLM 的执行指令片段（恒为 auto 定义） */
-  systemPrompt: string
+  systemPrompt: string;
 }
 
 /** 唯一模式定义：auto（完全自主）。direct/step-confirm 已随执行模型精简删除 */
@@ -41,29 +41,29 @@ export const WORK_MODE_DEFS: Record<WorkMode, WorkModeDef> = Object.freeze({
     id: RUN_MODE_IDS.AUTO,
     label: '完全自主',
     systemPrompt:
-      '【生图执行粒度：完全自主】你完全自主地建节点/生成/操作画布；可用 show_plan_for_confirm 展示规划（仅供展示，不阻塞），然后直接执行，无需用户确认。需要烧积分时有积分确认闸在必要处拦一下。',
+      '【生图执行粒度：完全自主】你完全自主地建节点/生成/操作画布，直接执行，无需用户确认。需要烧积分时有积分确认闸在必要处拦一下。',
   },
-})
+});
 
 /* ── 纯函数（可单测，无副作用）────────────────────────────── */
 
 /** 归一化任意入参 → 恒 'auto'（去三态后无其它合法值） */
 export function normalizeWorkMode(_raw: unknown): WorkMode {
-  return RUN_MODE_IDS.AUTO
+  return RUN_MODE_IDS.AUTO;
 }
 
 export function resolveWorkMode(_raw: unknown): WorkMode {
-  return RUN_MODE_IDS.AUTO
+  return RUN_MODE_IDS.AUTO;
 }
 
 /** workMode → 注入 LLM 的执行指令片段（恒为 auto 定义） */
 export function getSystemPromptForWorkMode(_wm: unknown): string {
-  return WORK_MODE_DEFS[RUN_MODE_IDS.AUTO].systemPrompt
+  return WORK_MODE_DEFS[RUN_MODE_IDS.AUTO].systemPrompt;
 }
 
 /** workMode → 兼容字段 runMode：恒 'auto'（setWorkMode 原子同步用，direct/step-confirm 已删） */
 export function resolveConvRunMode(_wm: unknown): WorkMode {
-  return RUN_MODE_IDS.AUTO
+  return RUN_MODE_IDS.AUTO;
 }
 
 /* ── 读写层────────────────────────────────────────────────
@@ -73,30 +73,30 @@ export function resolveConvRunMode(_wm: unknown): WorkMode {
  */
 
 /** 注册「读当前会话 runMode」钩子（兼容保留；去三态后 getWorkMode 恒 auto，不再读取） */
-let legacyRunModeReader: (() => unknown) | null = null
+let legacyRunModeReader: (() => unknown) | null = null;
 export function registerLegacyRunModeReader(fn: unknown): void {
-  legacyRunModeReader = typeof fn === 'function' ? (fn as () => unknown) : null
+  legacyRunModeReader = typeof fn === 'function' ? (fn as () => unknown) : null;
 }
 
 /** 注册「写当前会话 runMode」钩子，setWorkMode 原子写时同步 per-conversation runMode（恒 auto） */
-let runModeSyncHook: ((mode: WorkMode) => void) | null = null
+let runModeSyncHook: ((mode: WorkMode) => void) | null = null;
 export function registerRunModeSync(fn: unknown): void {
-  runModeSyncHook = typeof fn === 'function' ? (fn as (mode: WorkMode) => void) : null
+  runModeSyncHook = typeof fn === 'function' ? (fn as (mode: WorkMode) => void) : null;
 }
 
 function safeContentGet(key: string): unknown {
   try {
-    const v = contentGet(key)
-    if (v === undefined || v === null || v === '') return null
-    return v
+    const v = contentGet(key);
+    if (v === undefined || v === null || v === '') return null;
+    return v;
   } catch {
-    return null
+    return null;
   }
 }
 
 function safeContentSet(key: string, value: unknown): void {
   try {
-    contentSet(key, value)
+    contentSet(key, value);
   } catch {
     /* 持久化失败不阻断写入（非关键路径） */
   }
@@ -104,23 +104,23 @@ function safeContentSet(key: string, value: unknown): void {
 
 /** 读当前 workMode：恒 'auto'；历史旧值（direct/step-confirm 三态遗产）幂等回写为 auto */
 export function getWorkMode(): WorkMode {
-  const stored = safeContentGet(WORK_MODE_STORAGE_KEY)
+  const stored = safeContentGet(WORK_MODE_STORAGE_KEY);
   if (stored !== null && String(stored) !== RUN_MODE_IDS.AUTO) {
-    safeContentSet(WORK_MODE_STORAGE_KEY, RUN_MODE_IDS.AUTO)
+    safeContentSet(WORK_MODE_STORAGE_KEY, RUN_MODE_IDS.AUTO);
   }
-  return RUN_MODE_IDS.AUTO
+  return RUN_MODE_IDS.AUTO;
 }
 
 /** 写 workMode：恒 auto（忽略入参）；同步当前会话 runMode 归 auto，返回归一后的 workMode */
 export function setWorkMode(raw: unknown): WorkMode {
-  void raw // 恒 auto，忽略入参（兼容旧三态调用方）
-  safeContentSet(WORK_MODE_STORAGE_KEY, RUN_MODE_IDS.AUTO)
+  void raw; // 恒 auto，忽略入参（兼容旧三态调用方）
+  safeContentSet(WORK_MODE_STORAGE_KEY, RUN_MODE_IDS.AUTO);
   if (runModeSyncHook) {
     try {
-      runModeSyncHook(resolveConvRunMode(RUN_MODE_IDS.AUTO))
+      runModeSyncHook(resolveConvRunMode(RUN_MODE_IDS.AUTO));
     } catch {
       /* 会话同步失败不阻断写入 */
     }
   }
-  return RUN_MODE_IDS.AUTO
+  return RUN_MODE_IDS.AUTO;
 }

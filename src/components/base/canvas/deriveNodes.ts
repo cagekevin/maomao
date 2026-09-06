@@ -1,5 +1,5 @@
-import { generateId } from '../core/idGen.ts'
-import type { Node, Edge } from '@xyflow/react'
+import { generateId } from '../core/idGen.ts';
+import type { Node, Edge } from '@xyflow/react';
 
 /**
  * 节点派生统一契约 —— 「建子节点 + 自动连线」的原子快照构造器。
@@ -18,36 +18,42 @@ import type { Node, Edge } from '@xyflow/react'
  * 否则 undo 会丢新增节点（见 useCanvasHistory 的 record 语义）。该顺序已固化在 spawnAndCommit 内。
  */
 
-export interface CanvasXY { x: number; y: number }
+export interface CanvasXY {
+  x: number;
+  y: number;
+}
 
 /** 子节点规格（buildSpawnNodes 入参；position 缺省时基于父节点偏移） */
 export interface SpawnChildSpec {
-  id?: string
-  type: string
-  data?: Record<string, unknown>
-  position?: CanvasXY
-  style?: object
-  label?: string
+  id?: string;
+  type: string;
+  data?: Record<string, unknown>;
+  position?: CanvasXY;
+  style?: object;
+  label?: string;
 }
 
 /** 边的附加选项（默认 source=父, target=子） */
 export interface SpawnEdgeOpts {
-  id?: string
-  sourceHandle?: string
-  targetHandle?: string
-  type?: string
-  animated?: boolean
+  id?: string;
+  sourceHandle?: string;
+  targetHandle?: string;
+  type?: string;
+  animated?: boolean;
 }
 
 /** buildSpawnNodes 的产物（待提交的新节点与边，不含旧状态） */
-export interface SpawnResult { childNodes: Node[]; edges: Edge[] }
+export interface SpawnResult {
+  childNodes: Node[];
+  edges: Edge[];
+}
 
 /**
  * 生成一个子节点的 id（保留语义前缀 + 唯一后缀）。
  * @param prefix 语义前缀（如 'text-split'/'box'/'split'）
  */
 export function makeChildId(prefix: string): string {
-  return `${prefix}-${generateId('n')}`
+  return `${prefix}-${generateId('n')}`;
 }
 
 /**
@@ -56,10 +62,10 @@ export function makeChildId(prefix: string): string {
 export function buildSpawnNodes(
   parentNode: { id?: string; position?: CanvasXY } | null | undefined,
   childSpecs: SpawnChildSpec[],
-  edgeOpts: SpawnEdgeOpts = {}
+  edgeOpts: SpawnEdgeOpts = {},
 ): SpawnResult {
-  const parentId = parentNode?.id
-  const base = parentNode?.position || { x: 0, y: 0 }
+  const parentId = parentNode?.id;
+  const base = parentNode?.position || { x: 0, y: 0 };
 
   const childNodes: Node[] = childSpecs.map((spec, i) => ({
     id: spec.id || makeChildId('derived'),
@@ -67,7 +73,7 @@ export function buildSpawnNodes(
     position: spec.position || { x: base.x + 40, y: base.y + i * 200 + 40 },
     data: spec.data || {},
     ...(spec.style ? { style: spec.style } : {}),
-  }))
+  }));
 
   const edges: Edge[] = childNodes.map((c) => ({
     id: edgeOpts.id ? `${edgeOpts.id}-${c.id}` : `e-${parentId}-${c.id}`,
@@ -77,9 +83,9 @@ export function buildSpawnNodes(
     ...(edgeOpts.targetHandle !== undefined ? { targetHandle: edgeOpts.targetHandle } : {}),
     ...(edgeOpts.type ? { type: edgeOpts.type } : {}),
     ...(edgeOpts.animated !== undefined ? { animated: edgeOpts.animated } : {}),
-  }))
+  }));
 
-  return { childNodes, edges }
+  return { childNodes, edges };
 }
 
 /**
@@ -88,12 +94,12 @@ export function buildSpawnNodes(
 export function applySpawnSnapshot(
   currentNodes: Node[],
   currentEdges: Edge[],
-  spawned: SpawnResult
+  spawned: SpawnResult,
 ): { nodes: Node[]; edges: Edge[] } {
   return {
     nodes: currentNodes.concat(spawned.childNodes),
     edges: currentEdges.concat(spawned.edges),
-  }
+  };
 }
 
 /**
@@ -107,18 +113,18 @@ export function applySpawnSnapshot(
  * @returns spawned.childNodes（供调用方需拿新建节点 id 时用，如 GridSplit）
  */
 export interface CanvasCommitHandles {
-  getNodes(): Node[]
-  getEdges(): Edge[]
-  setNodes(fn: (ns: Node[]) => Node[]): void
-  setEdges(fn: (es: Edge[]) => Edge[]): void
+  getNodes(): Node[];
+  getEdges(): Edge[];
+  setNodes(fn: (ns: Node[]) => Node[]): void;
+  setEdges(fn: (es: Edge[]) => Edge[]): void;
   /** useCanvasHistory 实例（可选，缺则跳过 record） */
-  history?: { record(snapshot: { nodes: Node[]; edges: Edge[] }): void }
+  history?: { record(snapshot: { nodes: Node[]; edges: Edge[] }): void };
 }
 
 export function spawnAndCommit(spawned: SpawnResult, handles: CanvasCommitHandles): Node[] {
-  const snapshot = applySpawnSnapshot(handles.getNodes(), handles.getEdges(), spawned)
-  handles.setNodes((ns) => ns.concat(spawned.childNodes))
-  handles.setEdges((es) => es.concat(spawned.edges))
-  handles.history?.record(snapshot)
-  return spawned.childNodes
+  const snapshot = applySpawnSnapshot(handles.getNodes(), handles.getEdges(), spawned);
+  handles.setNodes((ns) => ns.concat(spawned.childNodes));
+  handles.setEdges((es) => es.concat(spawned.edges));
+  handles.history?.record(snapshot);
+  return spawned.childNodes;
 }

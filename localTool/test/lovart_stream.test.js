@@ -13,7 +13,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = path.join(__dirname, '..', 'src');
 const toUrl = (p) => 'file:///' + p.split(path.sep).join('/');
 
-const { synthesizeLovartChatStream } = await import(toUrl(path.join(src, 'ai-relay/providers/lovart/lovart_stream.ts')));
+const { synthesizeLovartChatStream } = await import(
+  toUrl(path.join(src, 'ai-relay/providers/lovart/lovart_stream.ts'))
+);
 
 /** 读完整 SSE 文本，拆出每行 JSON chunk（去掉 [DONE]）。 */
 async function readSseChunks(response) {
@@ -29,7 +31,11 @@ async function readSseChunks(response) {
 
 test('B12 合法 OpenAI chunk：首块 role=assistant、有 content、末块 finish_reason', async () => {
   const resp = synthesizeLovartChatStream('Hello world');
-  assert.equal(resp.headers.get('content-type').startsWith('text/event-stream'), true, 'SSE Content-Type');
+  assert.equal(
+    resp.headers.get('content-type').startsWith('text/event-stream'),
+    true,
+    'SSE Content-Type',
+  );
   const chunks = await readSseChunks(resp);
   assert.ok(chunks.length >= 3);
   // 首块角色
@@ -37,7 +43,11 @@ test('B12 合法 OpenAI chunk：首块 role=assistant、有 content、末块 fin
   assert.equal(chunks[0].choices[0].delta.role, 'assistant');
   // 拼接 content
   const text = chunks.map((c) => c.choices?.[0]?.delta?.content || '').join('');
-  assert.equal(text.replace(/\s+/g, ' ').trim(), 'Hello world'.replace(/\s+/g, ' ').trim(), '内容拼接一致');
+  assert.equal(
+    text.replace(/\s+/g, ' ').trim(),
+    'Hello world'.replace(/\s+/g, ' ').trim(),
+    '内容拼接一致',
+  );
   // 末块 finish_reason
   const last = chunks[chunks.length - 1];
   assert.ok(last.choices[0].finish_reason, '末块应有 finish_reason');

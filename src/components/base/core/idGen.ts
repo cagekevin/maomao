@@ -9,6 +9,6 @@
  *  - 禁止自己写 `Date.now() + Math.random()` 拼接
  */
 export function generateId(prefix: string = 'id'): string {
-  const safe = String(prefix ?? '').replace(/[^a-zA-Z0-9_-]/g, '_') || 'id'
-  return `${safe}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  const safe = String(prefix ?? '').replace(/[^a-zA-Z0-9_-]/g, '_') || 'id';
+  return `${safe}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }

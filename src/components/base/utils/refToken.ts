@@ -20,20 +20,20 @@
  * 我们（对齐后）：本文件实现 token 编解码；历史图仍不进 LLM 上下文，跨轮用图靠 execute_plan
  *   （useCanvasAgentTools.ts）经 getCurrentImageMap / getLastGeneratedImages 反查。
  */
-import type { RefImageAttrs, RefTokenNode, RefKnownImage } from '@/types'
+import type { RefImageAttrs, RefTokenNode, RefKnownImage } from '@/types';
 
 /** 编码一张参考图成 token 文本（对齐大雄 agentEncodeRefToken）。
  *  url 为空返回 '' */
 export function encodeRefToken(att: RefImageAttrs = {}): string {
-  const url = String(att.url || '').trim()
-  if (!url) return ''
-  const name = String(att.name || att.label || 'image').trim() || 'image'
-  const nodeId = String(att.nodeId || '')
-  const x = Number(att.x) || 0
-  const y = Number(att.y) || 0
-  const idx = Number(att.refIndex) || 0
-  const enc = (s: string) => encodeURIComponent(String(s ?? ''))
-  return `[参考图${idx || 1}:${name}]{{agent-ref url="${enc(url)}" name="${enc(name)}" node="${enc(nodeId)}" x="${x}" y="${y}"}}`
+  const url = String(att.url || '').trim();
+  if (!url) return '';
+  const name = String(att.name || att.label || 'image').trim() || 'image';
+  const nodeId = String(att.nodeId || '');
+  const x = Number(att.x) || 0;
+  const y = Number(att.y) || 0;
+  const idx = Number(att.refIndex) || 0;
+  const enc = (s: string) => encodeURIComponent(String(s ?? ''));
+  return `[参考图${idx || 1}:${name}]{{agent-ref url="${enc(url)}" name="${enc(name)}" node="${enc(nodeId)}" x="${x}" y="${y}"}}`;
 }
 
 /**
@@ -42,16 +42,20 @@ export function encodeRefToken(att: RefImageAttrs = {}): string {
  * 则需结合 knownRefCatalog（收集历史已知图）反查 url。这里只负责纯 token 解析，
  * 反查历史 catalog 由调用方传入 knownImages 完成（保持纯函数、可单测）。
  */
-export function parseRefTokensFromText(text = '', knownImages: RefKnownImage[] = []): RefTokenNode[] {
-  const raw = String(text || '')
-  if (!raw) return []
-  const nodes = []
+export function parseRefTokensFromText(
+  text = '',
+  knownImages: RefKnownImage[] = [],
+): RefTokenNode[] {
+  const raw = String(text || '');
+  if (!raw) return [];
+  const nodes = [];
   // 1) 新格式： [参考图1:name]{{agent-ref url="..." name="..." node="..." x=".." y=".."}}
-  const re = /\[参考图\s*(\d+)\s*:\s*([^\]]*)\]\{\{agent-ref\s+url="([^"]*)"\s+name="([^"]*)"\s+node="([^"]*)"\s+x="([^"]*)"\s+y="([^"]*)"\}\}/g
-  let last = 0
-  let m
+  const re =
+    /\[参考图\s*(\d+)\s*:\s*([^\]]*)\]\{\{agent-ref\s+url="([^"]*)"\s+name="([^"]*)"\s+node="([^"]*)"\s+x="([^"]*)"\s+y="([^"]*)"\}\}/g;
+  let last = 0;
+  let m;
   while ((m = re.exec(raw)) !== null) {
-    if (m.index > last) nodes.push({ type: 'text', text: raw.slice(last, m.index) })
+    if (m.index > last) nodes.push({ type: 'text', text: raw.slice(last, m.index) });
     nodes.push({
       type: 'image',
       url: decodeURIComponent(m[3] || ''),
@@ -60,18 +64,19 @@ export function parseRefTokensFromText(text = '', knownImages: RefKnownImage[] =
       x: Number(m[6]) || 0,
       y: Number(m[7]) || 0,
       refIndex: Number(m[1]) || 0,
-    })
-    last = m.index + m[0].length
+    });
+    last = m.index + m[0].length;
   }
   if (last > 0) {
-    if (last < raw.length) nodes.push({ type: 'text', text: raw.slice(last) })
-    return nodes
+    if (last < raw.length) nodes.push({ type: 'text', text: raw.slice(last) });
+    return nodes;
   }
   // 2) 仅 token：{{agent-ref ...}}
-  const re2 = /\{\{agent-ref\s+url="([^"]*)"\s+name="([^"]*)"\s+node="([^"]*)"\s+x="([^"]*)"\s+y="([^"]*)"\}\}/g
-  last = 0
+  const re2 =
+    /\{\{agent-ref\s+url="([^"]*)"\s+name="([^"]*)"\s+node="([^"]*)"\s+x="([^"]*)"\s+y="([^"]*)"\}\}/g;
+  last = 0;
   while ((m = re2.exec(raw)) !== null) {
-    if (m.index > last) nodes.push({ type: 'text', text: raw.slice(last, m.index) })
+    if (m.index > last) nodes.push({ type: 'text', text: raw.slice(last, m.index) });
     nodes.push({
       type: 'image',
       url: decodeURIComponent(m[1] || ''),
@@ -79,32 +84,41 @@ export function parseRefTokensFromText(text = '', knownImages: RefKnownImage[] =
       nodeId: decodeURIComponent(m[3] || ''),
       x: Number(m[4]) || 0,
       y: Number(m[5]) || 0,
-    })
-    last = m.index + m[0].length
+    });
+    last = m.index + m[0].length;
   }
   if (last > 0) {
-    if (last < raw.length) nodes.push({ type: 'text', text: raw.slice(last) })
-    return nodes
+    if (last < raw.length) nodes.push({ type: 'text', text: raw.slice(last) });
+    return nodes;
   }
   // 3) 旧格式 [参考图1:name]：结合 knownImages 反查 url
   if (/\[参考图\s*\d+\s*:/.test(raw) && Array.isArray(knownImages) && knownImages.length) {
-    last = 0
-    const re3 = /\[参考图\s*(\d+)\s*:\s*([^\]]*)\]/g
+    last = 0;
+    const re3 = /\[参考图\s*(\d+)\s*:\s*([^\]]*)\]/g;
     while ((m = re3.exec(raw)) !== null) {
-      if (m.index > last) nodes.push({ type: 'text', text: raw.slice(last, m.index) })
-      const idx = Number(m[1]) || 0
-      const name = String(m[2] || '').trim() || 'image'
-      const hit = knownImages.find((c) => Number(c.refIndex) === idx)
-        || knownImages.find((c) => c.name === name)
+      if (m.index > last) nodes.push({ type: 'text', text: raw.slice(last, m.index) });
+      const idx = Number(m[1]) || 0;
+      const name = String(m[2] || '').trim() || 'image';
+      const hit =
+        knownImages.find((c) => Number(c.refIndex) === idx) ||
+        knownImages.find((c) => c.name === name);
       if (hit?.url) {
-        nodes.push({ type: 'image', url: hit.url, name: hit.name || name, nodeId: hit.nodeId || '', x: Number(hit.x) || 0, y: Number(hit.y) || 0, refIndex: idx })
+        nodes.push({
+          type: 'image',
+          url: hit.url,
+          name: hit.name || name,
+          nodeId: hit.nodeId || '',
+          x: Number(hit.x) || 0,
+          y: Number(hit.y) || 0,
+          refIndex: idx,
+        });
       } else {
-        nodes.push({ type: 'text', text: m[0] })
+        nodes.push({ type: 'text', text: m[0] });
       }
-      last = m.index + m[0].length
+      last = m.index + m[0].length;
     }
-    if (last < raw.length) nodes.push({ type: 'text', text: raw.slice(last) })
-    if (nodes.some((n) => n.type === 'image')) return nodes
+    if (last < raw.length) nodes.push({ type: 'text', text: raw.slice(last) });
+    if (nodes.some((n) => n.type === 'image')) return nodes;
   }
-  return []
+  return [];
 }

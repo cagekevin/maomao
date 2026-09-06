@@ -5,8 +5,24 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getDb, getUploadDir, queryAll, queryOne, run, debouncedSaveDb, rewriteUrlReferences } from '../db/database.js';
-import { json, parseJsonBody, sendError, HttpStatusError, parsePagination, buildPaginatedQuery, paginatedResult } from '../utils/helpers.js';
+import {
+  getDb,
+  getUploadDir,
+  queryAll,
+  queryOne,
+  run,
+  debouncedSaveDb,
+  rewriteUrlReferences,
+} from '../db/database.js';
+import {
+  json,
+  parseJsonBody,
+  sendError,
+  HttpStatusError,
+  parsePagination,
+  buildPaginatedQuery,
+  paginatedResult,
+} from '../utils/helpers.js';
 import { writeUploadBuffer, ensureDir, resolveUploadFile } from '../utils/fileStore.js';
 import { runReferenceGc } from '../utils/orphanGc.js';
 import { localToolBaseUrl } from '../utils/localToolBaseUrl.js';
@@ -14,13 +30,31 @@ import { localToolBaseUrl } from '../utils/localToolBaseUrl.js';
 // ── rescan：扫描 upload 目录，把磁盘文件/文件夹元数据同步进 resources 表 ──
 const RESCAN_FILE_TYPE: Record<string, string> = {
   // 图片
-  '.png': 'image', '.jpg': 'image', '.jpeg': 'image', '.webp': 'image', '.gif': 'image', '.bmp': 'image', '.svg': 'image',
+  '.png': 'image',
+  '.jpg': 'image',
+  '.jpeg': 'image',
+  '.webp': 'image',
+  '.gif': 'image',
+  '.bmp': 'image',
+  '.svg': 'image',
   // 视频
-  '.mp4': 'video', '.webm': 'video', '.mov': 'video', '.avi': 'video', '.mkv': 'video', '.flv': 'video', '.m4v': 'video',
+  '.mp4': 'video',
+  '.webm': 'video',
+  '.mov': 'video',
+  '.avi': 'video',
+  '.mkv': 'video',
+  '.flv': 'video',
+  '.m4v': 'video',
   // 音频
-  '.mp3': 'audio', '.wav': 'audio', '.flac': 'audio', '.ogg': 'audio', '.m4a': 'audio',
+  '.mp3': 'audio',
+  '.wav': 'audio',
+  '.flac': 'audio',
+  '.ogg': 'audio',
+  '.m4a': 'audio',
   // 文本（md / txt 等统一归为 text，前端有文本渲染分支）
-  '.md': 'text', '.markdown': 'text', '.txt': 'text',
+  '.md': 'text',
+  '.markdown': 'text',
+  '.txt': 'text',
 };
 
 function extToFileType(ext: string): string | null {
@@ -29,11 +63,26 @@ function extToFileType(ext: string): string | null {
 
 // MIME → 扩展名（dataURL 落盘时需要）。不在表内的兜底用 .bin。
 const MIME_TO_EXT: Record<string, string> = {
-  'image/png': '.png', 'image/jpeg': '.jpg', 'image/jpg': '.jpg', 'image/webp': '.webp',
-  'image/gif': '.gif', 'image/bmp': '.bmp', 'image/svg+xml': '.svg',
-  'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.mov', 'video/x-msvideo': '.avi', 'video/x-matroska': '.mkv',
-  'audio/mpeg': '.mp3', 'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/flac': '.flac', 'audio/ogg': '.ogg', 'audio/x-m4a': '.m4a',
-  'text/markdown': '.md', 'text/plain': '.txt',
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'image/bmp': '.bmp',
+  'image/svg+xml': '.svg',
+  'video/mp4': '.mp4',
+  'video/webm': '.webm',
+  'video/quicktime': '.mov',
+  'video/x-msvideo': '.avi',
+  'video/x-matroska': '.mkv',
+  'audio/mpeg': '.mp3',
+  'audio/wav': '.wav',
+  'audio/x-wav': '.wav',
+  'audio/flac': '.flac',
+  'audio/ogg': '.ogg',
+  'audio/x-m4a': '.m4a',
+  'text/markdown': '.md',
+  'text/plain': '.txt',
 };
 
 /**
@@ -82,7 +131,10 @@ export function resourceIdOf(relPath: string): string {
   return folder ? `local-${folder}-${name}` : `local-${name}`;
 }
 
-export async function handleResourcesRescan(_req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleResourcesRescan(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
   const uploadDir = getUploadDir();
   const db = await getDb();
 
@@ -93,7 +145,8 @@ export async function handleResourcesRescan(_req: IncomingMessage, res: ServerRe
   // 遍历 upload 子目录（tasks / migrated / 其它）
   let subfolders: string[] = [];
   try {
-    subfolders = fs.readdirSync(uploadDir, { withFileTypes: true })
+    subfolders = fs
+      .readdirSync(uploadDir, { withFileTypes: true })
       .filter((e) => e.isDirectory() && e.name !== '.thumbnails')
       .map((e) => e.name);
   } catch {
@@ -186,7 +239,10 @@ export async function handleResourcesRescan(_req: IncomingMessage, res: ServerRe
   // 孤儿清理：库中 source='local-tool' 但磁盘上对应路径已不存在的记录删除。
   // 否则本地删了文件夹/文件后，rescan 只新增不删除，前端仍显示陈旧条目。
   let orphanDeleted = 0;
-  const localRows = queryAll(db, `SELECT id, folder, name, type FROM resources WHERE source = 'local-tool'`) as Array<{ id: string; folder: string; name: string; type: string }>;
+  const localRows = queryAll(
+    db,
+    `SELECT id, folder, name, type FROM resources WHERE source = 'local-tool'`,
+  ) as Array<{ id: string; folder: string; name: string; type: string }>;
   for (const row of localRows) {
     const diskPath = path.join(uploadDir, row.folder, row.name);
     if (!fs.existsSync(diskPath)) {
@@ -196,12 +252,23 @@ export async function handleResourcesRescan(_req: IncomingMessage, res: ServerRe
   }
 
   debouncedSaveDb();
-  return json(res, { code: 0, data: { ok: true, count: added, scanned, added, skipped, orphanDeleted } });
+  return json(res, {
+    code: 0,
+    data: { ok: true, count: added, scanned, added, skipped, orphanDeleted },
+  });
 }
 
 const SNAKE_TO_CAMEL: Record<string, string> = {
-  id: 'id', url: 'url', type: 'type', source: 'source', folder: 'folder', name: 'name',
-  page_url: 'pageUrl', page_title: 'pageTitle', is_favorite: 'isFavorite', timestamp: 'timestamp',
+  id: 'id',
+  url: 'url',
+  type: 'type',
+  source: 'source',
+  folder: 'folder',
+  name: 'name',
+  page_url: 'pageUrl',
+  page_title: 'pageTitle',
+  is_favorite: 'isFavorite',
+  timestamp: 'timestamp',
 };
 const CAMEL_TO_SNAKE: Record<string, string> = {};
 for (const [k, v] of Object.entries(SNAKE_TO_CAMEL)) CAMEL_TO_SNAKE[v] = k;
@@ -232,20 +299,44 @@ function upsertResource(db: any, row: Record<string, unknown>) {
   run(db, `INSERT INTO resources (${keys.join(', ')}) VALUES (${placeholders})`, vals);
 }
 
-export async function handleResourcesGet(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+export async function handleResourcesGet(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<void> {
   const params = parsePagination(url, { sortBy: 'timestamp', sortDir: 'DESC' });
-  const searchColumns = ['id', 'url', 'type', 'source', 'folder', 'name', 'page_url', 'page_title', 'timestamp'];
-  const { sql, countSql, values, countValues } = buildPaginatedQuery('resources', params, searchColumns);
+  const searchColumns = [
+    'id',
+    'url',
+    'type',
+    'source',
+    'folder',
+    'name',
+    'page_url',
+    'page_title',
+    'timestamp',
+  ];
+  const { sql, countSql, values, countValues } = buildPaginatedQuery(
+    'resources',
+    params,
+    searchColumns,
+  );
 
   const db = await getDb();
   const rows = queryAll(db, sql, values);
   const countRow = queryOne(db, countSql, countValues);
   const total = countRow ? (countRow.total as number) : 0;
 
-  return json(res, { code: 0, data: paginatedResult(rows.map(rowToResource), total, params.page, params.pageSize) });
+  return json(res, {
+    code: 0,
+    data: paginatedResult(rows.map(rowToResource), total, params.page, params.pageSize),
+  });
 }
 
-export async function handleResourcesSave(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleResourcesSave(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
   const body = (await parseJsonBody(req)) as Record<string, unknown> | null;
   if (!body || !body.id) return sendError(res, 'Missing id field', 400);
 
@@ -279,7 +370,10 @@ export async function handleResourcesSave(req: IncomingMessage, res: ServerRespo
   return json(res, { code: 0, data: { ok: true } });
 }
 
-export async function handleResourcesBatchSave(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleResourcesBatchSave(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
   const body = (await parseJsonBody(req)) as Record<string, unknown>[] | null;
   if (!body || !Array.isArray(body)) return sendError(res, 'Body must be an array', 400);
 
@@ -292,7 +386,11 @@ export async function handleResourcesBatchSave(req: IncomingMessage, res: Server
   return json(res, { code: 0, data: { ok: true } });
 }
 
-export async function handleResourcesDelete(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+export async function handleResourcesDelete(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<void> {
   const id = url.searchParams.get('id');
   if (!id) return sendError(res, 'Missing id parameter', 400);
 
@@ -305,7 +403,10 @@ export async function handleResourcesDelete(req: IncomingMessage, res: ServerRes
   return json(res, { code: 0, data: { ok: true } });
 }
 
-export async function handleResourcesClear(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleResourcesClear(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
   const body = (await parseJsonBody(req)) as { folder?: string; deleteFiles?: boolean } | null;
   const db = await getDb();
 
@@ -397,9 +498,11 @@ export async function applyResourceIdentityChange(opts: {
 
   // 旧行：优先按 url 定位（rescan / rename 都写绝对 url），兜底按 id
   const oldUrl = toAbsoluteFileUrl(`/files/${oldRel}`);
-  let oldRow = queryOne(db, 'SELECT * FROM resources WHERE url = ?', [oldUrl]) as Record<string, unknown> | undefined;
+  let oldRow = queryOne(db, 'SELECT * FROM resources WHERE url = ?', [oldUrl]) as
+    Record<string, unknown> | undefined;
   if (!oldRow) {
-    oldRow = queryOne(db, 'SELECT * FROM resources WHERE id = ?', [resourceIdOf(oldRel)]) as Record<string, unknown> | undefined;
+    oldRow = queryOne(db, 'SELECT * FROM resources WHERE id = ?', [resourceIdOf(oldRel)]) as
+      Record<string, unknown> | undefined;
   }
   const hadRow = !!oldRow;
 
@@ -442,15 +545,21 @@ export async function applyResourceIdentityChange(opts: {
  * 仅支持 source='local-tool' 的本地文件型资源；保留原扩展名，只改文件名主体。
  * 用法：POST /api/resources/rename?id=<id>&name=<新名>
  */
-export async function handleResourcesRename(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+export async function handleResourcesRename(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<void> {
   const id = url.searchParams.get('id');
   const rawName = url.searchParams.get('name');
   if (!id || !rawName) return sendError(res, 'Missing id or name', 400);
 
   const db = await getDb();
-  const row = queryOne(db, 'SELECT * FROM resources WHERE id = ?', [id]) as Record<string, unknown> | undefined;
+  const row = queryOne(db, 'SELECT * FROM resources WHERE id = ?', [id]) as
+    Record<string, unknown> | undefined;
   if (!row) return sendError(res, 'Resource not found', 404);
-  if (row.source !== 'local-tool' || row.type === 'folder') return sendError(res, '仅支持重命名本地文件', 400);
+  if (row.source !== 'local-tool' || row.type === 'folder')
+    return sendError(res, '仅支持重命名本地文件', 400);
 
   const folder = (row.folder as string) || '';
   const oldName = row.name as string;
@@ -463,7 +572,8 @@ export async function handleResourcesRename(req: IncomingMessage, res: ServerRes
     base = base.slice(0, base.length - path.extname(base).length);
   }
   const newFileName = `${base}${ext}`;
-  if (!newFileName || newFileName === oldName) return json(res, { code: 0, data: { ok: true, id, url: row.url, name: oldName } });
+  if (!newFileName || newFileName === oldName)
+    return json(res, { code: 0, data: { ok: true, id, url: row.url, name: oldName } });
 
   const oldRel = folder ? `${folder}/${oldName}` : oldName;
   const newRel = folder ? `${folder}/${newFileName}` : newFileName;

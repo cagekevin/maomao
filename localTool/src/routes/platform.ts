@@ -17,7 +17,10 @@ import { json } from '../utils/helpers.js';
 import { VERSION } from '../version.js';
 
 // ── GET /plugin/manifest.json ──
-export async function handlePluginManifest(_req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handlePluginManifest(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
   // 本地模式返回当前版本，不触发更新提示
   return json(res, { code: 0, data: { version: VERSION, hasUpdate: false } });
 }
@@ -42,26 +45,20 @@ export async function handleWorkflowAppsByProject(
 
 const BUILTIN_MODELS = {
   // 文生图模型（来自 main.py _IMAGE_RULES）
-  image: [
-    'gpt-image-2-low', 'gpt-image-2-medium',
-    'gpt-image-2', 
-    'nano-bn-pro', 'nano-bn-2',
-  ],
+  image: ['gpt-image-2-low', 'gpt-image-2-medium', 'gpt-image-2', 'nano-bn-pro', 'nano-bn-2'],
   // 文生视频模型（来自 main.py _VIDEO_RULES，共 16 项）
   // 注：kling 与 kling-v3 在网关侧均映射到 generate_video_kling_v3，
   // 但两者都是官方别名，字段契约需保留，不能去重。
-  video: [
-    'seedance-2.0-fast', 'seedance-2', 
-    'kling-v3-omni', 
-  ],
+  video: ['seedance-2.0-fast', 'seedance-2', 'kling-v3-omni'],
   // 特惠视频与普通视频共享同一套 Lovart 模型
-  discountVideo: [
-    'seedance-2.0-fast', 'seedance-2', 
-    'kling-v3-omni', 
-  ],
+  discountVideo: ['seedance-2.0-fast', 'seedance-2', 'kling-v3-omni'],
   text: [],
   discountVideoSpecs: {} as Record<string, unknown>,
-  power: {}, unit: {}, currency: {}, recommended: {}, descriptions: {},
+  power: {},
+  unit: {},
+  currency: {},
+  recommended: {},
+  descriptions: {},
 };
 
 const BUILTIN_MODEL_SERIES: Array<{ name: string; seriesKey: string; seriesLabel: string }> = [

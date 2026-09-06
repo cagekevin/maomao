@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { useSyncExternalStore } from 'react';
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -26,31 +26,31 @@ import { useSyncExternalStore } from 'react'
  * 【幂等】set 整对象替换，非原地 mutate，天然幂等。
  */
 export interface NodeRuntimeState {
-  loading: boolean
-  error: string
-  progress: number
+  loading: boolean;
+  error: string;
+  progress: number;
 }
 
 /** 缺省瞬态（未初始化条目也返回此形状，避免上层读 undefined） */
-const DEFAULT_STATE: Readonly<NodeRuntimeState> = { loading: false, error: '', progress: 0 }
+const DEFAULT_STATE: Readonly<NodeRuntimeState> = { loading: false, error: '', progress: 0 };
 
-const stateMap = new Map<string, NodeRuntimeState>()
-const listeners = new Set<() => void>()
+const stateMap = new Map<string, NodeRuntimeState>();
+const listeners = new Set<() => void>();
 
 function notify(): void {
-  listeners.forEach((l) => l())
+  listeners.forEach((l) => l());
 }
 
 function subscribe(cb: () => void): () => void {
-  listeners.add(cb)
+  listeners.add(cb);
   return () => {
-    listeners.delete(cb)
-  }
+    listeners.delete(cb);
+  };
 }
 
 /** 非 React 环境读取某节点瞬态（供脚本 / 模块级逻辑用）。 */
 export function getNodeRuntime(nodeId: string): NodeRuntimeState {
-  return stateMap.get(nodeId) ?? DEFAULT_STATE
+  return stateMap.get(nodeId) ?? DEFAULT_STATE;
 }
 
 /**
@@ -58,14 +58,14 @@ export function getNodeRuntime(nodeId: string): NodeRuntimeState {
  * 任何新增瞬态字段在此扩展 NodeRuntimeState 即可，调用方按需传 patch。
  */
 export function updateNodeRuntime(nodeId: string, patch: Partial<NodeRuntimeState>): void {
-  stateMap.set(nodeId, { ...getNodeRuntime(nodeId), ...patch })
-  notify()
+  stateMap.set(nodeId, { ...getNodeRuntime(nodeId), ...patch });
+  notify();
 }
 
 /** 节点卸载 / 删除时清理其瞬态条目，防内存残留。 */
 export function clearNodeRuntime(nodeId: string): void {
-  if (!stateMap.delete(nodeId)) return
-  notify()
+  if (!stateMap.delete(nodeId)) return;
+  notify();
 }
 
 /**
@@ -73,6 +73,6 @@ export function clearNodeRuntime(nodeId: string): void {
  * 用 useSyncExternalStore，任何字段变更都会触发重渲（瞬态高频，量小可接受）。
  */
 export function useNodeRuntime(nodeId: string): NodeRuntimeState {
-  const getSnapshot = () => getNodeRuntime(nodeId)
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  const getSnapshot = () => getNodeRuntime(nodeId);
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

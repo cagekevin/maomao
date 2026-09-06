@@ -1,7 +1,7 @@
-import React from 'react'
-import { useAppSettings, setSetting } from '../../store/appSettings.ts'
-import { UI_SETTING_ROWS } from '../../store/settingRegistry.ts'
-import { Toggle } from '../../ui/Toggle.tsx'
+import React from 'react';
+import { useAppSettings, setSetting } from '../../store/appSettings.ts';
+import { UI_SETTING_ROWS } from '../../store/settingRegistry.ts';
+import { Toggle } from '../../ui/Toggle.tsx';
 
 /** 单项设置行：标题 + 说明 + 右侧开关 */
 function SettingRow({ icon: Icon, title, desc, checked, onChange }) {
@@ -16,7 +16,7 @@ function SettingRow({ icon: Icon, title, desc, checked, onChange }) {
       </div>
       <Toggle checked={checked} onChange={onChange} />
     </div>
-  )
+  );
 }
 
 /**
@@ -26,14 +26,17 @@ function SettingRow({ icon: Icon, title, desc, checked, onChange }) {
  * 这里自动渲染。切换经 appSettings 持久化，且 app_settings 整键随云端同步（见 contracts.ts）。
  */
 export default function OtherSettings() {
-  const settings = useAppSettings()
+  const settings = useAppSettings();
 
   // 按 group 分组渲染（注册表顺序即组内顺序）
-  const groups = []
+  const groups = [];
   for (const row of UI_SETTING_ROWS) {
-    let g = groups.find((x) => x.name === row.group)
-    if (!g) { g = { name: row.group, rows: [] }; groups.push(g) }
-    g.rows.push(row)
+    let g = groups.find((x) => x.name === row.group);
+    if (!g) {
+      g = { name: row.group, rows: [] };
+      groups.push(g);
+    }
+    g.rows.push(row);
   }
 
   return (
@@ -44,9 +47,10 @@ export default function OtherSettings() {
             <div className="text-xs font-medium text-secondary mb-1">{g.name}</div>
             <div className="divide-y divide-edge-subtle/60">
               {g.rows.map((row) => {
-                const checked = settings[row.key] !== undefined
-                  ? Boolean(settings[row.key])
-                  : Boolean(row.default)
+                const checked =
+                  settings[row.key] !== undefined
+                    ? Boolean(settings[row.key])
+                    : Boolean(row.default);
                 return (
                   <SettingRow
                     key={row.key}
@@ -56,12 +60,12 @@ export default function OtherSettings() {
                     checked={checked}
                     onChange={(v) => setSetting(row.key, v)}
                   />
-                )
+                );
               })}
             </div>
           </div>
         ))}
       </div>
     </section>
-  )
+  );
 }

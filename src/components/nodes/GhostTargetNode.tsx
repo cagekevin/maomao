@@ -1,5 +1,5 @@
-import React from 'react'
-import { Handle, Position } from '@xyflow/react'
+import React from 'react';
+import { Handle, Position } from '@xyflow/react';
 
 /**
  * 幽灵目标节点（复刻官方 ghostTarget）：不可见占位节点。
@@ -28,9 +28,9 @@ function GhostTargetNode() {
         background: 'transparent',
         border: 0,
         opacity: 0,
-        pointerEvents: 'none'
+        pointerEvents: 'none',
       }}
     />
-  )
+  );
 }
-export default React.memo(GhostTargetNode)
+export default React.memo(GhostTargetNode);

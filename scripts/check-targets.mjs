@@ -18,12 +18,12 @@
  *  - 只列【应受契约校验】的源码目录；third-party / 生成物 / 测试夹具不在内。
  *  - 目录不存在时静默跳过（本地分支可能尚未创建该目录），保持脚本可用。
  */
-import { readdirSync, statSync, existsSync, readFileSync } from 'node:fs'
-import { join, extname } from 'node:path'
-import { createRequire } from 'node:module'
+import { readdirSync, statSync, existsSync, readFileSync } from 'node:fs';
+import { join, extname } from 'node:path';
+import { createRequire } from 'node:module';
 
 // 扩展名无关解析 + 永久豁免清单 + JSX 探测的唯一事实来源（CJS，供 .cjs/.mjs 共用）
-const require = createRequire(import.meta.url)
+const require = createRequire(import.meta.url);
 const {
   SOURCE_EXTS,
   TS_EXEMPT_DIRS,
@@ -33,16 +33,25 @@ const {
   hasJsx,
   hasJsxHintRaw,
   detectExt,
-} = require('./ts-exts.cjs')
+} = require('./ts-exts.cjs');
 
 /** 受契约校验的源码目录（相对仓库根） */
-export const SCAN_DIRS = ['src/components', 'src/hooks']
+export const SCAN_DIRS = ['src/components', 'src/hooks'];
 
 /** 受校验的源码扩展名 */
-export const SCAN_EXTS = SOURCE_EXTS
+export const SCAN_EXTS = SOURCE_EXTS;
 
 /** 转出口：ESM 脚本（mv-sync-refs / extract-tailwind / check-node-types / check-storage-keys）从这里取，避免各写一份 */
-export { SOURCE_EXTS, TS_EXEMPT_DIRS, TS_EXEMPT_FILES, isExempt, resolveSourceFile, hasJsx, hasJsxHintRaw, detectExt }
+export {
+  SOURCE_EXTS,
+  TS_EXEMPT_DIRS,
+  TS_EXEMPT_FILES,
+  isExempt,
+  resolveSourceFile,
+  hasJsx,
+  hasJsxHintRaw,
+  detectExt,
+};
 
 /**
  * 读取源码文件内容（扩展名无关）。
@@ -59,24 +68,24 @@ export { SOURCE_EXTS, TS_EXEMPT_DIRS, TS_EXEMPT_FILES, isExempt, resolveSourceFi
  * @returns {string} 文件内容
  */
 export function readSourceFile(abs) {
-  const hit = resolveSourceFile(abs)
-  if (!hit) throw new Error(`[check-targets] 源码文件未找到（扩展名无关解析失败）: ${abs}`)
-  return readFileSync(hit, 'utf8')
+  const hit = resolveSourceFile(abs);
+  if (!hit) throw new Error(`[check-targets] 源码文件未找到（扩展名无关解析失败）: ${abs}`);
+  return readFileSync(hit, 'utf8');
 }
 
 /** 递归收集 dir 下的源码文件绝对路径 */
 export function collectSources(dir, acc = []) {
-  if (!existsSync(dir)) return acc // 目录不存在 → 静默跳过
+  if (!existsSync(dir)) return acc; // 目录不存在 → 静默跳过
   for (const name of readdirSync(dir)) {
-    const full = join(dir, name)
-    const st = statSync(full)
+    const full = join(dir, name);
+    const st = statSync(full);
     if (st.isDirectory()) {
-      collectSources(full, acc)
+      collectSources(full, acc);
     } else if (SCAN_EXTS.includes(extname(name))) {
-      acc.push(full)
+      acc.push(full);
     }
   }
-  return acc
+  return acc;
 }
 
 /**
@@ -85,7 +94,7 @@ export function collectSources(dir, acc = []) {
  * @returns {string[]} 文件绝对路径数组
  */
 export function defaultTargets(root) {
-  const out = []
-  for (const d of SCAN_DIRS) collectSources(join(root, d), out)
-  return out
+  const out = [];
+  for (const d of SCAN_DIRS) collectSources(join(root, d), out);
+  return out;
 }

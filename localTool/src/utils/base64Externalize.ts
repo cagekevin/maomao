@@ -91,18 +91,30 @@ function toAbsoluteFileUrl(relativePath: string): string {
 function extFromMime(mime: string): string {
   const m = mime.split('/')[1]?.toLowerCase() ?? '';
   switch (m) {
-    case 'jpeg': return '.jpg';
-    case 'png': return '.png';
-    case 'webp': return '.webp';
-    case 'gif': return '.gif';
-    case 'svg+xml': return '.svg';
-    case 'bmp': return '.bmp';
-    case 'mp4': return '.mp4';
-    case 'webm': return '.webm';
-    case 'mp3': return '.mp3';
-    case 'wav': return '.wav';
-    case 'json': return '.json';
-    default: return m ? `.${m}` : '.bin';
+    case 'jpeg':
+      return '.jpg';
+    case 'png':
+      return '.png';
+    case 'webp':
+      return '.webp';
+    case 'gif':
+      return '.gif';
+    case 'svg+xml':
+      return '.svg';
+    case 'bmp':
+      return '.bmp';
+    case 'mp4':
+      return '.mp4';
+    case 'webm':
+      return '.webm';
+    case 'mp3':
+      return '.mp3';
+    case 'wav':
+      return '.wav';
+    case 'json':
+      return '.json';
+    default:
+      return m ? `.${m}` : '.bin';
   }
 }
 
@@ -128,7 +140,9 @@ function externalizeObject(obj: unknown, warnKey: string): void {
         if (url) {
           (obj as Record<string, unknown>)[key] = url;
         } else {
-          console.warn(`[base64Externalize] 外置失败，保留原 base64: ${warnKey}.${key} (len=${val.length})`);
+          console.warn(
+            `[base64Externalize] 外置失败，保留原 base64: ${warnKey}.${key} (len=${val.length})`,
+          );
         }
       }
     } else if (Array.isArray(val) || (val && typeof val === 'object')) {

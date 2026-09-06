@@ -14,10 +14,17 @@ const path = require('path');
 const { resolveExtPath, launchExtContext, findExtId } = require('./verify-common.cjs');
 
 const EXPECTED = [
-  'model-config', 'video-config', 'prompt-management',
-  'media-processing', 'utility-functions', 'task-scheduler',
-  'canvas-editor', 'endpoint-share',
-  'ui-app', 'ui-http', 'ui-src',
+  'model-config',
+  'video-config',
+  'prompt-management',
+  'media-processing',
+  'utility-functions',
+  'task-scheduler',
+  'canvas-editor',
+  'endpoint-share',
+  'ui-app',
+  'ui-http',
+  'ui-src',
 ];
 
 async function main() {
@@ -75,7 +82,7 @@ async function main() {
     const total = EXPECTED.length;
     const ok = present.length;
     const fail = missing.length;
-    const extra = Object.keys(features).filter(k => !EXPECTED.includes(k));
+    const extra = Object.keys(features).filter((k) => !EXPECTED.includes(k));
 
     console.log(`\n════════ 摘要 ════════`);
     console.log(`  域标记: ${ok}/${total} true, ${fail} 未置位`);

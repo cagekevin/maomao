@@ -7,26 +7,28 @@
  *   - 非法输入（缺宽高/比例非正）→ 不写
  * 通过 mock @xyflow/react 捕获 setNodes 验证。
  */
-import { describe, it, expect, vi } from 'vitest'
-import { renderHook } from '@testing-library/react'
-import type { SyntheticEvent } from 'react'
+import { describe, it, expect, vi } from 'vitest';
+import { renderHook } from '@testing-library/react';
+import type { SyntheticEvent } from 'react';
 
-const setNodes = vi.fn()
-const getNodes = vi.fn(() => [{ id: 'n1', width: 400, height: 100, style: { width: 400, height: 100 } }])
+const setNodes = vi.fn();
+const getNodes = vi.fn(() => [
+  { id: 'n1', width: 400, height: 100, style: { width: 400, height: 100 } },
+]);
 // P7：useFitNodeRatio 改为 getNode(id) 实时读（替 getNodes().find），测试 mock 需同步提供
-const getNode = vi.fn((id) => getNodes().find((n) => n.id === id))
-const updateNodeInternals = vi.fn()
+const getNode = vi.fn((id) => getNodes().find((n) => n.id === id));
+const updateNodeInternals = vi.fn();
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({ getNodes, getNode, setNodes, screenToFlowPosition: (p) => p }),
   useUpdateNodeInternals: () => updateNodeInternals,
-}))
+}));
 
-const { useFitNodeRatio } = await import('../../src/hooks/useFitNodeRatio.ts')
+const { useFitNodeRatio } = await import('../../src/hooks/useFitNodeRatio.ts');
 
 function lastSetNodesUpdate() {
-  const updater = setNodes.mock.calls[setNodes.mock.calls.length - 1][0]
-  return updater([{ id: 'n1', data: {}, style: {} }])[0]
+  const updater = setNodes.mock.calls[setNodes.mock.calls.length - 1][0];
+  return updater([{ id: 'n1', data: {}, style: {} }])[0];
 }
 
 /**
@@ -34,48 +36,56 @@ function lastSetNodesUpdate() {
  * React 合成事件无法直接 new，而 hook 只读取 e.currentTarget 的宽高属性，
  * 故用真实 DOM 元素（naturalWidth/videoWidth 是只读属性，只能 defineProperty 注入）拼最小形状。
  */
-function mediaEvent<T extends Element>(tag: 'img' | 'video', dims: Record<string, number>): SyntheticEvent<T> {
-  const el = document.createElement(tag)
-  for (const [k, v] of Object.entries(dims)) Object.defineProperty(el, k, { value: v, configurable: true })
-  return { currentTarget: el } as unknown as SyntheticEvent<T>
+function mediaEvent<T extends Element>(
+  tag: 'img' | 'video',
+  dims: Record<string, number>,
+): SyntheticEvent<T> {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(dims))
+    Object.defineProperty(el, k, { value: v, configurable: true });
+  return { currentTarget: el } as unknown as SyntheticEvent<T>;
 }
 
 describe('useFitNodeRatio', () => {
   it('宽高比 2 → 高度 = 宽/2 = 200，写回 width 保持、height=200', () => {
-    const { result } = renderHook(() => useFitNodeRatio('n1'))
-    setNodes.mockClear()
-    result.current.fitByRatio(2000, 1000)
-    const node = lastSetNodesUpdate()
-    expect(node.width).toBe(400)
-    expect(node.height).toBe(200)
-    expect(node.style).toMatchObject({ width: 400, height: 200 })
-  })
+    const { result } = renderHook(() => useFitNodeRatio('n1'));
+    setNodes.mockClear();
+    result.current.fitByRatio(2000, 1000);
+    const node = lastSetNodesUpdate();
+    expect(node.width).toBe(400);
+    expect(node.height).toBe(200);
+    expect(node.style).toMatchObject({ width: 400, height: 200 });
+  });
 
   it('极端宽高比（1000x50 → ratio20 → h=20 <80 → clamp 到 80）', () => {
-    const { result } = renderHook(() => useFitNodeRatio('n1'))
-    setNodes.mockClear()
-    result.current.fitByRatio(1000, 50)
-    const node = lastSetNodesUpdate()
-    expect(node.height).toBe(80)
-  })
+    const { result } = renderHook(() => useFitNodeRatio('n1'));
+    setNodes.mockClear();
+    result.current.fitByRatio(1000, 50);
+    const node = lastSetNodesUpdate();
+    expect(node.height).toBe(80);
+  });
 
   it('非法输入（缺宽/高或比例<=0）→ 不写 setNodes', () => {
-    const { result } = renderHook(() => useFitNodeRatio('n1'))
-    setNodes.mockClear()
-    result.current.fitByRatio(0, 0)
-    result.current.fitByRatio(100, 0)
-    result.current.fitByRatio(100, -5)
-    expect(setNodes).not.toHaveBeenCalled()
-  })
+    const { result } = renderHook(() => useFitNodeRatio('n1'));
+    setNodes.mockClear();
+    result.current.fitByRatio(0, 0);
+    result.current.fitByRatio(100, 0);
+    result.current.fitByRatio(100, -5);
+    expect(setNodes).not.toHaveBeenCalled();
+  });
 
   it('fitFromImage / fitFromVideo 透传到 fitByRatio（读取节点尺寸）', () => {
-    const { result } = renderHook(() => useFitNodeRatio('n1'))
-    getNode.mockClear()
-    result.current.fitFromImage(mediaEvent<HTMLImageElement>('img', { naturalWidth: 800, naturalHeight: 400 }))
+    const { result } = renderHook(() => useFitNodeRatio('n1'));
+    getNode.mockClear();
+    result.current.fitFromImage(
+      mediaEvent<HTMLImageElement>('img', { naturalWidth: 800, naturalHeight: 400 }),
+    );
     // handler 透传 media 尺寸 → fitByRatio 读取当前节点尺寸
-    expect(getNode).toHaveBeenCalled()
-    getNode.mockClear()
-    result.current.fitFromVideo(mediaEvent<HTMLVideoElement>('video', { videoWidth: 1600, videoHeight: 400 }))
-    expect(getNode).toHaveBeenCalled()
-  })
-})
+    expect(getNode).toHaveBeenCalled();
+    getNode.mockClear();
+    result.current.fitFromVideo(
+      mediaEvent<HTMLVideoElement>('video', { videoWidth: 1600, videoHeight: 400 }),
+    );
+    expect(getNode).toHaveBeenCalled();
+  });
+});

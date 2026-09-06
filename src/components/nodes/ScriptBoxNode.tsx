@@ -1,39 +1,39 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Clapperboard, Settings, Maximize2, Loader2 } from 'lucide-react'
-import { Handle, Position, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
-import NodeShell from '../base/ui/NodeShell.tsx'
-import CustomHandle from '../edges/CustomHandle.tsx'
-import { useScriptBoxEngine } from '../../hooks/useScriptBoxEngine.ts'
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
-import { useOutsideClick, useContentHeightSync } from '../base/core/uiHooks.ts'
-import { shotHandleId } from '../base/core/contracts.ts'
-import StepShots from '../scriptbox/StepShots.tsx'
-import StepAssets from '../scriptbox/StepAssets.tsx'
-import StepPrompt from '../scriptbox/StepPrompt.tsx'
-import StepNav from '../scriptbox/StepNav.tsx'
-import ScriptBoxFullscreen from '../scriptbox/ScriptBoxFullscreen.tsx'
-import GearSettings from '../scriptbox/GearSettings.tsx'
-import type { ScriptBoxData, ScriptBoxCallbacks } from '../scriptbox/scriptBoxSchema.ts'
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Clapperboard, Settings, Maximize2, Loader2 } from 'lucide-react';
+import { Handle, Position, useReactFlow, useUpdateNodeInternals } from '@xyflow/react';
+import NodeShell from '../base/ui/NodeShell.tsx';
+import CustomHandle from '../edges/CustomHandle.tsx';
+import { useScriptBoxEngine } from '../../hooks/useScriptBoxEngine.ts';
+import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
+import { useOutsideClick, useContentHeightSync } from '../base/core/uiHooks.ts';
+import { shotHandleId } from '../base/core/contracts.ts';
+import StepShots from '../scriptbox/StepShots.tsx';
+import StepAssets from '../scriptbox/StepAssets.tsx';
+import StepPrompt from '../scriptbox/StepPrompt.tsx';
+import StepNav from '../scriptbox/StepNav.tsx';
+import ScriptBoxFullscreen from '../scriptbox/ScriptBoxFullscreen.tsx';
+import GearSettings from '../scriptbox/GearSettings.tsx';
+import type { ScriptBoxData, ScriptBoxCallbacks } from '../scriptbox/scriptBoxSchema.ts';
 
 /** 剧本盒子 data 契约（字段极多且动态，统一以宽松接口 + 索引签名兜底） */
 interface ScriptBoxNodeData {
-  label?: string
-  projectName?: string
-  step?: number
-  shots?: Array<{ id: string; [k: string]: unknown }>
-  assets?: unknown
-  genMask?: boolean
-  genChars?: number
-  upstreamStory?: string
-  upstreamImages?: Array<{ id?: string; url?: string; label?: string; sourceNodeId?: string }>
-  upstreamTexts?: Array<{ id?: string; label?: string; text?: unknown; sourceNodeId?: string }>
-  [key: string]: unknown
+  label?: string;
+  projectName?: string;
+  step?: number;
+  shots?: Array<{ id: string; [k: string]: unknown }>;
+  assets?: unknown;
+  genMask?: boolean;
+  genChars?: number;
+  upstreamStory?: string;
+  upstreamImages?: Array<{ id?: string; url?: string; label?: string; sourceNodeId?: string }>;
+  upstreamTexts?: Array<{ id?: string; label?: string; text?: unknown; sourceNodeId?: string }>;
+  [key: string]: unknown;
 }
 
 interface ScriptBoxNodeProps {
-  id: string
-  data: ScriptBoxNodeData
-  selected?: boolean
+  id: string;
+  data: ScriptBoxNodeData;
+  selected?: boolean;
 }
 
 /**
@@ -51,9 +51,9 @@ interface ScriptBoxNodeProps {
 function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
   // 引擎：创建并注入 node.data.onXxx（含连线，能建下游），并返回统一写回通道 updateData。
   // 写回经 updateData（对象或函数式 patch，并发安全）；生成/连线只调 d.onXxx?.(...)，本组件不做引擎。
-  const { updateData } = useScriptBoxEngine(id, data)
+  const { updateData } = useScriptBoxEngine(id, data);
 
-  const d: ScriptBoxNodeData = data
+  const d: ScriptBoxNodeData = data;
 
   // —— 上游输入接入（与文本节点一致：接受上游文本节点 + 图片节点） ——
   // 用 useConnectedInputs 读取「直接连到本剧本盒子」的上游文本/图片，
@@ -61,54 +61,79 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
   // 图片写入 data.upstreamImages，均不覆盖用户手动输入的 data.story。
   // 展示交给第 1 步的 StepShots（剧情上方只读素材区）；生成剧本时引擎把上游内容一起交给编剧模型
   //（见 engine.onGenerateScript），让 AI 能「知道我产品外观」从而写出准确剧本。
-  const { setEdges } = useReactFlow()
-  const connected = useConnectedInputs(id)
-  const upstreamTexts = (connected.texts || []).map((t) => String(t.text ?? '').trim()).filter(Boolean).join('\n\n')
+  const { setEdges } = useReactFlow();
+  const connected = useConnectedInputs(id);
+  const upstreamTexts = (connected.texts || [])
+    .map((t) => String(t.text ?? '').trim())
+    .filter(Boolean)
+    .join('\n\n');
   useEffect(() => {
     // 上游文本/图片变化时同步到 data（断线后按空清理，避免旧内容一直混入生成）。
-    const patch: Record<string, unknown> = {}
-    const curText = d.upstreamStory || ''
-    if (upstreamTexts && upstreamTexts !== curText) patch.upstreamStory = upstreamTexts
-    else if (!upstreamTexts && curText) patch.upstreamStory = ''
+    const patch: Record<string, unknown> = {};
+    const curText = d.upstreamStory || '';
+    if (upstreamTexts && upstreamTexts !== curText) patch.upstreamStory = upstreamTexts;
+    else if (!upstreamTexts && curText) patch.upstreamStory = '';
     const imgList = (connected.images || [])
-      .map((im, i) => (im && im.url ? { id: im.id || `up-img-${i}`, url: im.url, label: im.label || '', sourceNodeId: im.sourceNodeId } : null))
-      .filter(Boolean)
-    const curImgs = d.upstreamImages || []
-    const sameImgs = imgList.length === curImgs.length && imgList.every((im, i) => curImgs[i] && curImgs[i].url === im.url)
-    if (!sameImgs) patch.upstreamImages = imgList
+      .map((im, i) =>
+        im && im.url
+          ? {
+              id: im.id || `up-img-${i}`,
+              url: im.url,
+              label: im.label || '',
+              sourceNodeId: im.sourceNodeId,
+            }
+          : null,
+      )
+      .filter(Boolean);
+    const curImgs = d.upstreamImages || [];
+    const sameImgs =
+      imgList.length === curImgs.length &&
+      imgList.every((im, i) => curImgs[i] && curImgs[i].url === im.url);
+    if (!sameImgs) patch.upstreamImages = imgList;
     const txtList = (connected.texts || [])
-      .map((t, i) => (t && t.text ? { id: t.id || `up-txt-${i}`, label: t.label || '', text: t.text, sourceNodeId: t.sourceNodeId } : null))
-      .filter(Boolean)
-    const curTxts = d.upstreamTexts || []
-    const sameTxts = txtList.length === curTxts.length && txtList.every((t, i) => curTxts[i] && curTxts[i].text === t.text)
-    if (!sameTxts) patch.upstreamTexts = txtList
-    if (Object.keys(patch).length) updateData(patch)
-  }, [upstreamTexts, d.upstreamStory, d.upstreamImages, d.upstreamTexts, connected, updateData])
+      .map((t, i) =>
+        t && t.text
+          ? {
+              id: t.id || `up-txt-${i}`,
+              label: t.label || '',
+              text: t.text,
+              sourceNodeId: t.sourceNodeId,
+            }
+          : null,
+      )
+      .filter(Boolean);
+    const curTxts = d.upstreamTexts || [];
+    const sameTxts =
+      txtList.length === curTxts.length &&
+      txtList.every((t, i) => curTxts[i] && curTxts[i].text === t.text);
+    if (!sameTxts) patch.upstreamTexts = txtList;
+    if (Object.keys(patch).length) updateData(patch);
+  }, [upstreamTexts, d.upstreamStory, d.upstreamImages, d.upstreamTexts, connected, updateData]);
 
   // 断开连线：点击只读素材区红色 × → 删除该来源节点 → 本节点的连线（对齐文本节点）。
   const disconnectSource = useCallback(
     (sourceNodeId) => {
-      if (!sourceNodeId) return
-      setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)))
+      if (!sourceNodeId) return;
+      setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)));
     },
-    [id, setEdges]
-  )
+    [id, setEdges],
+  );
 
   // —— UI 状态（非数据，放组件本地） ——
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [fullscreen, setFullscreen] = useState(false)
-  const settingsRef = useRef(null)
-  useOutsideClick(settingsRef, settingsOpen, () => setSettingsOpen(false))
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const settingsRef = useRef(null);
+  useOutsideClick(settingsRef, settingsOpen, () => setSettingsOpen(false));
 
   // —— 外框自适应（无限画布：内容撑开时，节点高度跟随，外框不溢出） ——
   // 为什么：这是无限画布，剧本盒子内容（镜头/资产）多时不能在一个固定高度里滚动（用户否了滚动方案），
   // 而要「内容自然撑开 → 节点高度跟随 → 外框贴合内容」。用 ResizeObserver 监听主容器高度变化，
   // 写回 node.height + updateNodeInternals，让 ReactFlow 节点 wrapper（含端口定位）也跟随。
   // 注意：必须去掉固定 height（只留 minHeight），否则根 div 高度被锁死、内容溢出到框外。
-  const contentRef = useRef(null)
+  const contentRef = useRef(null);
   // NodeShell 根 div ref：useContentHeightSync 需测「含标题栏的完整节点」而非仅内容区，
   // 否则写回的 node.height 偏矮（漏标题栏），节点框高度与端口定位基准不一致。
-  const wrapperRef = useRef(null)
+  const wrapperRef = useRef(null);
   // 输入端口经 NodeShell 的 overlayHandles 插槽挂在「整个节点」上（定位基准含标题栏），
   // 使其相对整个节点定位在 50% 中点，而不是相对内容区（contentRef）。内容区高度随三步
   // （StepShots/StepAssets/StepPrompt）变化，若相对内容区 top:50% 会导致端口在不同步骤
@@ -120,26 +145,31 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
   // code-008「Couldn't create edge for source handle」且不渲染。这里在「镜头 id 列表」
   // 变化时显式 updateNodeInternals 强制重测；key 用 id 列表而非 shots 数组，
   // 避免镜头任意字段（提示词/图片）变动都触发重测。
-  const updateNodeInternals = useUpdateNodeInternals()
-  const shotsKey = (d.shots || []).map((s) => String(s.id)).join(',')
+  const updateNodeInternals = useUpdateNodeInternals();
+  const shotsKey = (d.shots || []).map((s) => String(s.id)).join(',');
   useEffect(() => {
-    if (shotsKey) updateNodeInternals(id)
-  }, [shotsKey, id, updateNodeInternals])
+    if (shotsKey) updateNodeInternals(id);
+  }, [shotsKey, id, updateNodeInternals]);
   // 外框自适应收口到 useContentHeightSync（ref 防抖 + rAF 打破 ResizeObserver 同帧循环告警）
-  useContentHeightSync(contentRef, id, { minHeight: 600, fallbackWidth: 900, syncWidth: true, wrapperRef })
+  useContentHeightSync(contentRef, id, {
+    minHeight: 600,
+    fallbackWidth: 900,
+    syncWidth: true,
+    wrapperRef,
+  });
 
   // 生成遮罩计时
-  const genMask = !!d.genMask
-  const [genSecs, setGenSecs] = useState(0)
+  const genMask = !!d.genMask;
+  const [genSecs, setGenSecs] = useState(0);
   useEffect(() => {
-    if (!genMask) return
-    setGenSecs(0)
-    const t = setInterval(() => setGenSecs((s) => s + 1), 1000)
-    return () => clearInterval(t)
-  }, [genMask])
+    if (!genMask) return;
+    setGenSecs(0);
+    const t = setInterval(() => setGenSecs((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [genMask]);
 
-  const step = d.step || 1
-  const setStep = (n) => updateData({ step: n })
+  const step = d.step || 1;
+  const setStep = (n) => updateData({ step: n });
 
   // 三步组件只调 d.onXxx?.(...)（引擎回调，由 useScriptBoxEngine 注入 node.data.onXxx）。
   // callbacks 追加断线回调（onDisconnectUpstream），供第 1 步 StepShots 的上游只读素材区断线用。
@@ -148,7 +178,7 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
     data: d as ScriptBoxData,
     updateData,
     callbacks: { ...d, onDisconnectUpstream: disconnectSource } as ScriptBoxCallbacks,
-  }
+  };
 
   return (
     <NodeShell
@@ -190,19 +220,41 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
             </span>
           )}
           <div className="flex-1" />
-          <button className="p-1 text-secondary hover:text-white hover:bg-surface-hover rounded-md" title="总体提示词设置" onClick={(e) => { e.stopPropagation(); setSettingsOpen(true) }}>
+          <button
+            className="p-1 text-secondary hover:text-white hover:bg-surface-hover rounded-md"
+            title="总体提示词设置"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSettingsOpen(true);
+            }}
+          >
             <Settings size={13} />
           </button>
-          <button className="p-1 text-secondary hover:text-white hover:bg-surface-hover rounded-md" title="全屏显示" onClick={(e) => { e.stopPropagation(); setFullscreen(true) }}>
+          <button
+            className="p-1 text-secondary hover:text-white hover:bg-surface-hover rounded-md"
+            title="全屏显示"
+            onClick={(e) => {
+              e.stopPropagation();
+              setFullscreen(true);
+            }}
+          >
             <Maximize2 size={13} />
           </button>
         </div>
 
         {/* 三步导航 */}
-        <StepNav step={step} setStep={setStep} shots={d.shots as ScriptBoxData['shots']} assets={d.assets as ScriptBoxData['assets']} />
+        <StepNav
+          step={step}
+          setStep={setStep}
+          shots={d.shots as ScriptBoxData['shots']}
+          assets={d.assets as ScriptBoxData['assets']}
+        />
 
         {/* 三步内容：不裁剪不滚动（无限画布），让内容自然撑开，节点高度自适应内容 */}
-        <div className="relative px-4 pb-4 min-h-0 overflow-visible" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="relative px-4 pb-4 min-h-0 overflow-visible"
+          onClick={(e) => e.stopPropagation()}
+        >
           {step === 1 && <StepShots {...stepProps} />}
           {step === 2 && <StepAssets {...stepProps} />}
           {step === 3 && <StepPrompt {...stepProps} />}
@@ -231,7 +283,11 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
       {/* 齿轮设置弹窗 */}
       {settingsOpen && (
         <div ref={settingsRef}>
-          <GearSettings data={d as ScriptBoxData} updateData={updateData} onClose={() => setSettingsOpen(false)} />
+          <GearSettings
+            data={d as ScriptBoxData}
+            updateData={updateData}
+            onClose={() => setSettingsOpen(false)}
+          />
         </div>
       )}
 
@@ -245,7 +301,7 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
         onClose={() => setFullscreen(false)}
       />
     </NodeShell>
-  )
+  );
 }
 
-export default React.memo(ScriptBoxNode)
+export default React.memo(ScriptBoxNode);

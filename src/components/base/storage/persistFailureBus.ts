@@ -17,20 +17,20 @@
  *   onLog:  (key,error,suppressed) => void  每次事件的日志回调
  * @returns {(payload: {key?:string, error?:string}) => void}
  */
-import { THROTTLE_MS } from '../core/config.ts'
+import { THROTTLE_MS } from '../core/config.ts';
 
 /** 工厂入参（可注入时间源与回调） */
 interface ThrottledPersistOptions {
-  now?: () => number
-  throttleMs?: number
-  onToast?: (key: string, error: string) => void
-  onLog?: (key: string, error: string, suppressed: boolean) => void
+  now?: () => number;
+  throttleMs?: number;
+  onToast?: (key: string, error: string) => void;
+  onLog?: (key: string, error: string, suppressed: boolean) => void;
 }
 
 /** persist:failed 事件载荷（键可缺省 → 兜底 '(未知键)'） */
 interface PersistFailPayload {
-  key?: string
-  error?: string
+  key?: string;
+  error?: string;
 }
 
 export function createThrottledPersistHandler({
@@ -39,16 +39,16 @@ export function createThrottledPersistHandler({
   onToast,
   onLog,
 }: ThrottledPersistOptions = {}): (payload: PersistFailPayload | null | undefined) => void {
-  const lastByKey = new Map<string, number>()
+  const lastByKey = new Map<string, number>();
   return (payload) => {
-    const key = payload?.key ?? '(未知键)'
-    const error = payload?.error ?? ''
-    const t = now()
-    const last = lastByKey.get(key)
-    const suppressed = last !== undefined && t - last < throttleMs
-    if (onLog) onLog(key, error, suppressed)
-    if (suppressed) return
-    lastByKey.set(key, t)
-    if (onToast) onToast(key, error)
-  }
+    const key = payload?.key ?? '(未知键)';
+    const error = payload?.error ?? '';
+    const t = now();
+    const last = lastByKey.get(key);
+    const suppressed = last !== undefined && t - last < throttleMs;
+    if (onLog) onLog(key, error, suppressed);
+    if (suppressed) return;
+    lastByKey.set(key, t);
+    if (onToast) onToast(key, error);
+  };
 }

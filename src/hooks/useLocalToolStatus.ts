@@ -16,14 +16,18 @@
  * disableLocalTool：官方来自 context `Vl.disableLocalTool || window.__CANVAS_RUNTIME__.disableLocalTool`，
  * 原型无此开关，默认 false（即始终启用连接检测）。
  */
-import { useCallback, useEffect, useSyncExternalStore } from 'react'
-import { logger } from '../components/base/core/logger.ts'
-import { httpRequest } from '../components/base/api/index.ts'
-import { API_BASE, LOCAL_TOOL_PORT, LOCAL_TOOL_PING_TIMEOUT } from '../components/base/core/config.ts'
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { logger } from '../components/base/core/logger.ts';
+import { httpRequest } from '../components/base/api/index.ts';
+import {
+  API_BASE,
+  LOCAL_TOOL_PORT,
+  LOCAL_TOOL_PING_TIMEOUT,
+} from '../components/base/core/config.ts';
 
-const DEFAULT_PORT = LOCAL_TOOL_PORT
-const POLL_CONNECTED_MS = 15000 // 已连接：15s 轮询一次（官方 Wl）
-const POLL_DISCONNECTED_MS = 5000 // 未连接：5s 轮询一次（官方 Ul）
+const DEFAULT_PORT = LOCAL_TOOL_PORT;
+const POLL_CONNECTED_MS = 15000; // 已连接：15s 轮询一次（官方 Wl）
+const POLL_DISCONNECTED_MS = 5000; // 未连接：5s 轮询一次（官方 Ul）
 
 /**
  * 单例共享状态：多个组件调用 useLocalToolStatus() 时复用同一份轮询，
@@ -31,31 +35,36 @@ const POLL_DISCONNECTED_MS = 5000 // 未连接：5s 轮询一次（官方 Ul）
  */
 /** localTool 连接状态快照（多组件共享同一份） */
 export interface LocalToolStatus {
-  isConnected: boolean
-  port: number
-  version: string
-  message: string
+  isConnected: boolean;
+  port: number;
+  version: string;
+  message: string;
 }
 
-let sharedStatus: LocalToolStatus = { isConnected: false, port: DEFAULT_PORT, version: '', message: '' }
-const listeners = new Set<() => void>()
-let pollTimer: ReturnType<typeof setInterval> | null = null
+let sharedStatus: LocalToolStatus = {
+  isConnected: false,
+  port: DEFAULT_PORT,
+  version: '',
+  message: '',
+};
+const listeners = new Set<() => void>();
+let pollTimer: ReturnType<typeof setInterval> | null = null;
 // 当前生效的轮询间隔（0 = 未启动）。兼作「是否已在跑」的判据，
 // 替代原先的 pollRunning 布尔标志（标志需靠别处记得复位，漏复位会让轮询永久停摆，见 ensurePoll 注释）。
-let pollIntervalMs = 0
-const disableLocalTool = false // 原型无该开关，恒 false
+let pollIntervalMs = 0;
+const disableLocalTool = false; // 原型无该开关，恒 false
 
 function emit(): void {
-  for (const l of listeners) l()
+  for (const l of listeners) l();
 }
 
 async function runCheck(): Promise<void> {
   if (disableLocalTool) {
     if (sharedStatus.isConnected) {
-      sharedStatus = { ...sharedStatus, isConnected: false }
-      emit()
+      sharedStatus = { ...sharedStatus, isConnected: false };
+      emit();
     }
-    return
+    return;
   }
   try {
     const data = await httpRequest(`${API_BASE}/api/status`, {
@@ -63,8 +72,8 @@ async function runCheck(): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
       timeoutMs: LOCAL_TOOL_PING_TIMEOUT,
       retries: 0,
-    })
-    logger.debug('useLocalToolStatus', '/api/status 响应', data?.status)
+    });
+    logger.debug('useLocalToolStatus', '/api/status 响应', data?.status);
     if (data?.status === 'ok') {
       if (
         !sharedStatus.isConnected ||
@@ -76,19 +85,19 @@ async function runCheck(): Promise<void> {
           isConnected: true,
           version: data.version || '',
           message: data.message || '',
-        }
-        emit()
+        };
+        emit();
       }
-      return
+      return;
     }
     if (sharedStatus.isConnected) {
-      sharedStatus = { ...sharedStatus, isConnected: false }
-      emit()
+      sharedStatus = { ...sharedStatus, isConnected: false };
+      emit();
     }
   } catch {
     if (sharedStatus.isConnected) {
-      sharedStatus = { ...sharedStatus, isConnected: false }
-      emit()
+      sharedStatus = { ...sharedStatus, isConnected: false };
+      emit();
     }
   }
 }
@@ -105,39 +114,45 @@ async function runCheck(): Promise<void> {
  * 结构性避免了这类漏复位 bug。副作用：顺带消除首次挂载重复 ping（原实现共发 3 次 /api/status）。
  */
 function ensurePoll(): void {
-  if (disableLocalTool) return
-  const interval = sharedStatus.isConnected ? POLL_CONNECTED_MS : POLL_DISCONNECTED_MS
-  if (pollTimer && pollIntervalMs === interval) return
-  if (pollTimer) clearInterval(pollTimer)
-  pollIntervalMs = interval
-  logger.info('useLocalToolStatus', '检测间隔', { interval, isConnected: sharedStatus.isConnected })
-  runCheck()
-  pollTimer = setInterval(runCheck, interval)
+  if (disableLocalTool) return;
+  const interval = sharedStatus.isConnected ? POLL_CONNECTED_MS : POLL_DISCONNECTED_MS;
+  if (pollTimer && pollIntervalMs === interval) return;
+  if (pollTimer) clearInterval(pollTimer);
+  pollIntervalMs = interval;
+  logger.info('useLocalToolStatus', '检测间隔', {
+    interval,
+    isConnected: sharedStatus.isConnected,
+  });
+  runCheck();
+  pollTimer = setInterval(runCheck, interval);
 }
 
-export function useLocalToolStatus(): { status: LocalToolStatus; checkConnection: () => Promise<void> } {
+export function useLocalToolStatus(): {
+  status: LocalToolStatus;
+  checkConnection: () => Promise<void>;
+} {
   const subscribe = useCallback((cb: () => void) => {
-    listeners.add(cb)
+    listeners.add(cb);
     // 首个订阅者启动轮询（ensurePoll 幂等，内部已含首次 runCheck，此处不再单独 ping）
-    if (listeners.size === 1) ensurePoll()
+    if (listeners.size === 1) ensurePoll();
     return () => {
-      listeners.delete(cb)
+      listeners.delete(cb);
       if (listeners.size === 0 && pollTimer) {
-        clearInterval(pollTimer)
-        pollTimer = null
-        pollIntervalMs = 0
+        clearInterval(pollTimer);
+        pollTimer = null;
+        pollIntervalMs = 0;
       }
-    }
-  }, [])
+    };
+  }, []);
 
-  const getSnapshot = useCallback(() => sharedStatus, [])
+  const getSnapshot = useCallback(() => sharedStatus, []);
 
-  const status = useSyncExternalStore(subscribe, getSnapshot)
+  const status = useSyncExternalStore(subscribe, getSnapshot);
 
   // 连接状态变化时调整轮询频率（间隔未变则 ensurePoll 幂等跳过，不重复起 timer）
   useEffect(() => {
-    ensurePoll()
-  }, [status.isConnected])
+    ensurePoll();
+  }, [status.isConnected]);
 
-  return { status, checkConnection: runCheck }
+  return { status, checkConnection: runCheck };
 }

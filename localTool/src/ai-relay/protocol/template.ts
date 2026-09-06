@@ -42,7 +42,11 @@ export function renderTemplateString(template: string, context: ProtocolVariable
   });
 }
 
-function renderForEachDirective(directive: Record<string, unknown>, context: ProtocolVariables, options: RenderTemplateOptions): unknown[] {
+function renderForEachDirective(
+  directive: Record<string, unknown>,
+  context: ProtocolVariables,
+  options: RenderTemplateOptions,
+): unknown[] {
   if (!options.conditionalDirectives) {
     throw new Error('调用协议数组展开项只能用于请求体数组元素');
   }
@@ -67,9 +71,13 @@ function renderForEachDirective(directive: Record<string, unknown>, context: Pro
     if (typeof item !== 'string' || !item.trim()) {
       throw new Error(`调用协议数组展开变量 ${sourcePath} 只能包含非空字符串`);
     }
-    const rendered = renderTemplate(template, { ...context, [sourcePath]: item }, {
-      conditionalDirectives: true,
-    });
+    const rendered = renderTemplate(
+      template,
+      { ...context, [sourcePath]: item },
+      {
+        conditionalDirectives: true,
+      },
+    );
     if (rendered === OMIT_TEMPLATE_VALUE) return [];
     if (!rendered || typeof rendered !== 'object' || Array.isArray(rendered)) {
       throw new Error('调用协议数组展开项必须渲染为 JSON 对象');
@@ -78,7 +86,11 @@ function renderForEachDirective(directive: Record<string, unknown>, context: Pro
   });
 }
 
-export function renderTemplate(value: unknown, context: ProtocolVariables, options: RenderTemplateOptions = {}): unknown {
+export function renderTemplate(
+  value: unknown,
+  context: ProtocolVariables,
+  options: RenderTemplateOptions = {},
+): unknown {
   if (typeof value === 'string') return renderTemplateString(value, context);
   if (Array.isArray(value)) {
     return value.flatMap((item) => {
@@ -96,15 +108,19 @@ export function renderTemplate(value: unknown, context: ProtocolVariables, optio
     if (Object.hasOwn(value, FOR_EACH_KEY)) {
       throw new Error('调用协议数组展开项只能用于请求体数组元素');
     }
-    if (isRecord(value) && (Object.hasOwn(value, WHEN_PRESENT_KEY) || Object.hasOwn(value, CONDITIONAL_VALUE_KEY))) {
+    if (
+      isRecord(value) &&
+      (Object.hasOwn(value, WHEN_PRESENT_KEY) || Object.hasOwn(value, CONDITIONAL_VALUE_KEY))
+    ) {
       if (!options.conditionalDirectives || !options.arrayItem) {
         throw new Error('调用协议条件项只能用于请求体数组元素');
       }
       const condition = renderTemplateString(String(value[WHEN_PRESENT_KEY]), context);
-      const isMissing = condition === OMIT_TEMPLATE_VALUE
-        || condition === null
-        || (typeof condition === 'string' && !condition.trim())
-        || (Array.isArray(condition) && condition.length === 0);
+      const isMissing =
+        condition === OMIT_TEMPLATE_VALUE ||
+        condition === null ||
+        (typeof condition === 'string' && !condition.trim()) ||
+        (Array.isArray(condition) && condition.length === 0);
       if (isMissing) return OMIT_TEMPLATE_VALUE;
       return renderTemplate(value[CONDITIONAL_VALUE_KEY], context, {
         conditionalDirectives: true,

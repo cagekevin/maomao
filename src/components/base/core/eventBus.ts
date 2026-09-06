@@ -31,47 +31,58 @@
  *   const off = subscribe('agent:task-completed', (payload) => {...})
  *   publish('agent:task-completed', { taskId, nodeId, resultUrl })
  */
-import { logger } from './logger.ts'
+import { logger } from './logger.ts';
 
 /** 订阅者载荷类型（事件载荷无固定结构，各事件按 EVENTS 登记表约定；此处宽松为 unknown 以兼容所有事件） */
-type EventPayload = unknown
+type EventPayload = unknown;
 /** 事件订阅回调类型 */
-type EventHandler = (payload: EventPayload) => void
+type EventHandler = (payload: EventPayload) => void;
 /** 取消订阅函数类型 */
-type Unsubscribe = () => void
+type Unsubscribe = () => void;
 
-const listeners = new Map<string, Set<EventHandler>>() // event -> Set<fn>
+const listeners = new Map<string, Set<EventHandler>>(); // event -> Set<fn>
 
 /** 订阅事件，返回取消函数 */
 export function subscribe(event: string, fn: EventHandler): Unsubscribe {
-  if (!event || typeof fn !== 'function') return () => {}
-  if (!listeners.has(event)) listeners.set(event, new Set<EventHandler>())
-  listeners.get(event)!.add(fn)
+  if (!event || typeof fn !== 'function') return () => {};
+  if (!listeners.has(event)) listeners.set(event, new Set<EventHandler>());
+  listeners.get(event)!.add(fn);
   return () => {
-    const set = listeners.get(event)
-    if (set) { set.delete(fn); if (set.size === 0) listeners.delete(event) }
-  }
+    const set = listeners.get(event);
+    if (set) {
+      set.delete(fn);
+      if (set.size === 0) listeners.delete(event);
+    }
+  };
 }
 
 /** 发布事件（同步调用所有订阅者） */
 export function publish(event: string, payload?: EventPayload): void {
-  const set = listeners.get(event)
-  if (!set) return
+  const set = listeners.get(event);
+  if (!set) return;
   set.forEach((fn) => {
-    try { fn(payload) } catch (e) { logger.warn('eventBus', `${event} 订阅者异常`, (e as { message?: unknown } | null)?.message || String(e)) }
-  })
+    try {
+      fn(payload);
+    } catch (e) {
+      logger.warn(
+        'eventBus',
+        `${event} 订阅者异常`,
+        (e as { message?: unknown } | null)?.message || String(e),
+      );
+    }
+  });
 }
 
 /** 订阅事件一次后自动取消 */
 export function subscribeOnce(event: string, fn: EventHandler): Unsubscribe {
   const off = subscribe(event, (payload) => {
-    off()
-    fn(payload)
-  })
-  return off
+    off();
+    fn(payload);
+  });
+  return off;
 }
 
 /** 清空某事件的所有订阅（测试/重置用） */
 export function clearEvent(event: string): void {
-  listeners.delete(event)
+  listeners.delete(event);
 }

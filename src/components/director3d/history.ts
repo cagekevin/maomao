@@ -6,9 +6,9 @@
 // 本模块所有函数均为纯操作，无副作用调用（定时器由调用方传入处理），可直接单测。
 
 /** 撤销栈长度上限 */
-export const HISTORY_LIMIT = 50
+export const HISTORY_LIMIT = 50;
 /** 自动入栈防抖（合并连续拖拽/滑动）毫秒数 */
-export const HISTORY_DEBOUNCE_MS = 280
+export const HISTORY_DEBOUNCE_MS = 280;
 
 /**
  * 创建一份初始历史状态。
@@ -21,7 +21,7 @@ export const HISTORY_DEBOUNCE_MS = 280
  *  - timer:   防抖定时器句柄（由调用方管理，仅存值）
  */
 export function createHistoryState() {
-  return { past: [], future: [], last: null, restoring: false, deferCount: 0, timer: null }
+  return { past: [], future: [], last: null, restoring: false, deferCount: 0, timer: null };
 }
 
 /**
@@ -31,24 +31,24 @@ export function createHistoryState() {
  */
 export function consumeDefer(state, latest) {
   if (state.deferCount > 0) {
-    state.deferCount -= 1
-    state.last = latest
-    return true
+    state.deferCount -= 1;
+    state.last = latest;
+    return true;
   }
-  return false
+  return false;
 }
 
 /** 程序内部写：仅推进基线，不计历史。 */
 export function settleBaseline(state, latest) {
-  state.last = latest
+  state.last = latest;
 }
 
 /** 入栈一条历史（自动清空 future 分支，超出上限裁剪最旧）。 */
 export function recordChange(state, previous, latest) {
-  state.past.push(previous)
-  if (state.past.length > HISTORY_LIMIT) state.past.shift()
-  state.last = latest
-  state.future = []
+  state.past.push(previous);
+  if (state.past.length > HISTORY_LIMIT) state.past.shift();
+  state.last = latest;
+  state.future = [];
 }
 
 /**
@@ -58,10 +58,10 @@ export function recordChange(state, previous, latest) {
  */
 export function flushChange(state, latest) {
   if (state.last && latest && latest !== state.last) {
-    recordChange(state, state.last, latest)
-    return true
+    recordChange(state, state.last, latest);
+    return true;
   }
-  return false
+  return false;
 }
 
 /**
@@ -69,22 +69,22 @@ export function flushChange(state, latest) {
  * 同时将当前基线压入 future（可重做）。
  */
 export function undoPeek(state) {
-  const previous = state.past.pop()
-  if (!previous) return null
-  state.future.push(state.last)
-  state.last = previous
-  state.restoring = true
-  return previous
+  const previous = state.past.pop();
+  if (!previous) return null;
+  state.future.push(state.last);
+  state.last = previous;
+  state.restoring = true;
+  return previous;
 }
 
 /** 弹出一条可重做快照。无可用历史时返回 null。 */
 export function redoPeek(state) {
-  const next = state.future.pop()
-  if (!next) return null
-  state.past.push(state.last)
-  state.last = next
-  state.restoring = true
-  return next
+  const next = state.future.pop();
+  if (!next) return null;
+  state.past.push(state.last);
+  state.last = next;
+  state.restoring = true;
+  return next;
 }
 
 /**
@@ -94,11 +94,11 @@ export function redoPeek(state) {
  * timer 为此次重置前残留的防抖句柄，一并清理。
  */
 export function resetHistory(state, clearTimer) {
-  if (clearTimer && state.timer) clearTimer(state.timer)
-  state.past = []
-  state.future = []
-  state.last = null
-  state.restoring = false
-  state.deferCount = 0
-  state.timer = null
+  if (clearTimer && state.timer) clearTimer(state.timer);
+  state.past = [];
+  state.future = [];
+  state.last = null;
+  state.restoring = false;
+  state.deferCount = 0;
+  state.timer = null;
 }

@@ -65,10 +65,17 @@ function buildModuleIndex() {
   const byName = new Map();
   const bySymbol = new Map();
   const seed = (relFile) => {
-    const base = relFile.split('/').pop().replace(/\.(ts|tsx)$/, '');
+    const base = relFile
+      .split('/')
+      .pop()
+      .replace(/\.(ts|tsx)$/, '');
     if (!byName.has(base)) byName.set(base, relFile);
     let src;
-    try { src = fs.readFileSync(path.join(ROOT, relFile), 'utf8'); } catch { return; }
+    try {
+      src = fs.readFileSync(path.join(ROOT, relFile), 'utf8');
+    } catch {
+      return;
+    }
     for (const m of src.matchAll(EXPORT_RE)) {
       const sym = m[1] || m[2];
       if (sym && !bySymbol.has(sym)) bySymbol.set(sym, relFile);
@@ -143,7 +150,8 @@ function extractConstObjectKeys(src, name) {
 // 读取缓存（模块索引建过 + 单条校验各读一次 → 去重，防大文件重复 IO）
 const fileCache = new Map();
 function readFileCached(relFile) {
-  if (!fileCache.has(relFile)) fileCache.set(relFile, fs.readFileSync(path.join(ROOT, relFile), 'utf8'));
+  if (!fileCache.has(relFile))
+    fileCache.set(relFile, fs.readFileSync(path.join(ROOT, relFile), 'utf8'));
   return fileCache.get(relFile);
 }
 
@@ -160,7 +168,10 @@ function checkFnExists(entry, key) {
   if (!FN_CHAIN_RE.test(fn)) {
     // 【4.2】ACTIVE 的 fn 夹描述/占位 = 豁免洞 → 升级为 error；描述应放 registry 的 note 字段
     if (entry.status === 'ACTIVE') {
-      add('error', `fn 形态非法: ${key} fn='${fn}'（ACTIVE 必须为 模块.符号[.符号]，描述请放 note 字段）`);
+      add(
+        'error',
+        `fn 形态非法: ${key} fn='${fn}'（ACTIVE 必须为 模块.符号[.符号]，描述请放 note 字段）`,
+      );
     }
     return;
   }
@@ -209,9 +220,17 @@ function checkFnExists(entry, key) {
     }
     const cp = c.split('.');
     const cFile = resolveModuleFile(cp[0]);
-    if (!cFile) { add('info', `consumer 模块未映射: ${key} consumer=${c}`); continue; }
+    if (!cFile) {
+      add('info', `consumer 模块未映射: ${key} consumer=${c}`);
+      continue;
+    }
     let cSrc;
-    try { cSrc = readFileCached(cFile); } catch { add('info', `consumer 模块读取失败: ${key} consumer=${c}`); continue; }
+    try {
+      cSrc = readFileCached(cFile);
+    } catch {
+      add('info', `consumer 模块读取失败: ${key} consumer=${c}`);
+      continue;
+    }
     const cExp = collectExports(cSrc);
     const cSym = cp.length === 1 ? cp[0] : cp[1];
     if (!cExp.has(cSym)) {
@@ -230,11 +249,12 @@ function patternToTemplate(raw) {
   if (t[0] === "'") return t.slice(1, -1); // 精确字符串
   if (t[0] === '/') {
     // RegExp 字面量：取出首尾 / 之间的源文本并翻译成模板
-    const body = t.slice(1, t.lastIndexOf('/'))
-      .replace(/\\\//g, '/')          // 转义斜杠还原
-      .replace(/^\^/, '')             // 去 ^ 锚
-      .replace(/\$$/, '')             // 去 $ 锚
-      .replace(/\([^)]*\)/g, '{x}')   // 捕获/非捕获组 → 通配段
+    const body = t
+      .slice(1, t.lastIndexOf('/'))
+      .replace(/\\\//g, '/') // 转义斜杠还原
+      .replace(/^\^/, '') // 去 ^ 锚
+      .replace(/\$$/, '') // 去 $ 锚
+      .replace(/\([^)]*\)/g, '{x}') // 捕获/非捕获组 → 通配段
       .replace(/\[[^\]]*\]/g, '{x}'); // 字符类 [^/]+ → 通配段
     return body;
   }
@@ -297,8 +317,8 @@ function findHandlerSource(handlerName, texts) {
   for (const [full, src] of texts) {
     const re = new RegExp(
       `(?:function\\s+${handlerName}\\s*\\(` +
-      `|const\\s+${handlerName}\\s*(?::\\s*[A-Za-z_$][\\w$<>, ]*)?\\s*=\\s*(?:\\(|async)` +
-      `|\\b${handlerName}\\s*=\\s*(?:\\(|async))`,
+        `|const\\s+${handlerName}\\s*(?::\\s*[A-Za-z_$][\\w$<>, ]*)?\\s*=\\s*(?:\\(|async)` +
+        `|\\b${handlerName}\\s*=\\s*(?:\\(|async))`,
     );
     if (re.test(src)) return full;
   }
@@ -315,7 +335,10 @@ function extractFunctionBody(src, name) {
   const open = m.index + m[0].length - 1;
   for (let i = open; i < src.length; i++) {
     if (src[i] === '{') depth++;
-    else if (src[i] === '}') { depth--; if (depth === 0) return src.slice(open, i + 1); }
+    else if (src[i] === '}') {
+      depth--;
+      if (depth === 0) return src.slice(open, i + 1);
+    }
   }
   return null;
 }
@@ -335,10 +358,10 @@ function detectShapes(src, name) {
 
 // expectShape：按登记 envelope 判定「命中形状集合里是否存在接受形态」
 const ACCEPT_SHAPE_OF_ENVELOPE = {
-  'ok':            ['ok'],
-  'code-data':     ['code-data'],
-  'items':         ['items'],
-  'success-data':  ['success-data'],
+  ok: ['ok'],
+  'code-data': ['code-data'],
+  items: ['items'],
+  'success-data': ['success-data'],
 };
 
 function checkEnvelope(entry, found, texts) {
@@ -346,14 +369,23 @@ function checkEnvelope(entry, found, texts) {
   const accept = ACCEPT_SHAPE_OF_ENVELOPE[entry.envelope];
   if (!accept) return; // 非法 envelope 已在上游报错
   const srcFile = findHandlerSource(found.handler, texts);
-  if (!srcFile) { add('info', `信封形态待核对: ${entry.fn}（未定位 handler ${found.handler}）`); return; }
+  if (!srcFile) {
+    add('info', `信封形态待核对: ${entry.fn}（未定位 handler ${found.handler}）`);
+    return;
+  }
   const shapes = detectShapes(texts.get(srcFile), found.handler);
   if (shapes.has('unknown')) {
-    add('info', `信封形态无法静态判定(交由测试兜底): ${entry.fn} @ ${path.relative(ROOT, srcFile)}`);
+    add(
+      'info',
+      `信封形态无法静态判定(交由测试兜底): ${entry.fn} @ ${path.relative(ROOT, srcFile)}`,
+    );
     return;
   }
   if (![...shapes].some((s) => accept.includes(s))) {
-    add('error', `信封标注不符: ${entry.fn} 标=${entry.envelope}，后端 ${found.handler} 检测=[${[...shapes].join(',')}]`);
+    add(
+      'error',
+      `信封标注不符: ${entry.fn} 标=${entry.envelope}，后端 ${found.handler} 检测=[${[...shapes].join(',')}]`,
+    );
   }
 }
 
@@ -392,7 +424,11 @@ function scanFrontendCallSites(registry) {
   for (const f of files) {
     const src = fs.readFileSync(f, 'utf8');
     for (const m of src.matchAll(CALL_RE)) {
-      const callFn = /\bhttpPost\b/.test(m[0]) ? 'httpPost' : /\bhttpRequestLogged\b/.test(m[0]) ? 'httpRequestLogged' : 'httpRequest';
+      const callFn = /\bhttpPost\b/.test(m[0])
+        ? 'httpPost'
+        : /\bhttpRequestLogged\b/.test(m[0])
+          ? 'httpRequestLogged'
+          : 'httpRequest';
       // 模板归一：${...}（含 encodeURIComponent(x)）→ {x}
       const t = m[1].replace(/\$\{[^}]*\}/g, '{x}');
       const rel = path.relative(ROOT, f);
@@ -400,7 +436,10 @@ function scanFrontendCallSites(registry) {
       if (!t.startsWith('{x}/')) {
         if (t.startsWith('{x}{') || t === '{x}') {
           stat.unresolved++;
-          add('info', `调用点路径变量化无法静态解析: ${callFn} 于 ${rel}（模板 ${JSON.stringify(t)}，若为业务端点请登记）`);
+          add(
+            'info',
+            `调用点路径变量化无法静态解析: ${callFn} 于 ${rel}（模板 ${JSON.stringify(t)}，若为业务端点请登记）`,
+          );
         } else {
           stat.exempt++; // 任意 URL 下载（非 API_BASE 前缀）
         }
@@ -411,10 +450,19 @@ function scanFrontendCallSites(registry) {
       if (qi >= 0) p = p.slice(0, qi); // 剥 query（登记表不含 query）
       p = p.replace(/\/+$/, '');
       // 非 /api/ 前缀（/files/ 等资源服务）→ 豁免
-      if (!p.startsWith('/api/')) { stat.exempt++; continue; }
-      if (paths.has(patternKey(p))) { stat.matched++; continue; }
+      if (!p.startsWith('/api/')) {
+        stat.exempt++;
+        continue;
+      }
+      if (paths.has(patternKey(p))) {
+        stat.matched++;
+        continue;
+      }
       // 真漂移：源码真实调用但未登记 → error
-      add('error', `源码调用点未登记: ${callFn} ${p}（${rel}）——新端点须在 contracts.ts apiRegistry 登记`);
+      add(
+        'error',
+        `源码调用点未登记: ${callFn} ${p}（${rel}）——新端点须在 contracts.ts apiRegistry 登记`,
+      );
     }
   }
   return stat;
@@ -460,7 +508,10 @@ async function main() {
       matchedBackend.add(found);
       if (methodMismatch) {
         const backendMethods = [...new Set(samePath.map((r) => r.method))].join('/');
-        add('error', `方法不一致: ${key} ${entry.path} 前端=${entry.method}，后端仅=${backendMethods}`);
+        add(
+          'error',
+          `方法不一致: ${key} ${entry.path} 前端=${entry.method}，后端仅=${backendMethods}`,
+        );
       }
       checkEnvelope(entry, found, texts);
     }
@@ -479,8 +530,12 @@ async function main() {
 
   // 4) 输出
   const pad = (s, n) => s.toUpperCase().padEnd(n);
-  console.log(`\napiRegistry 登记 ${Object.keys(registry).length} 条；解析后端路由 ${backendRoutes.length} 条（catch-all ${backendRoutes.length - concrete.length} 条豁免）`);
-  console.log(`[reverse] 源码调用点扫描：${reverse.matched} 命中登记 / ${reverse.exempt} 豁免(任意URL/非业务) / ${reverse.unresolved} 无法静态解析 / ${reverse.matched + reverse.exempt + reverse.unresolved} 处字面量调用`);
+  console.log(
+    `\napiRegistry 登记 ${Object.keys(registry).length} 条；解析后端路由 ${backendRoutes.length} 条（catch-all ${backendRoutes.length - concrete.length} 条豁免）`,
+  );
+  console.log(
+    `[reverse] 源码调用点扫描：${reverse.matched} 命中登记 / ${reverse.exempt} 豁免(任意URL/非业务) / ${reverse.unresolved} 无法静态解析 / ${reverse.matched + reverse.exempt + reverse.unresolved} 处字面量调用`,
+  );
   for (const level of ['error', 'warn', 'info']) {
     if (RESULT[level].length) {
       console.log(`\n[${level}] ${RESULT[level].length} 项`);
@@ -489,7 +544,9 @@ async function main() {
   }
   const fail = RESULT.error.length + RESULT.warn.length;
   if (fail > 0) {
-    console.error(`\nAPI 契约校验未通过：error ${RESULT.error.length} / warn ${RESULT.warn.length} / info ${RESULT.info.length} ✖`);
+    console.error(
+      `\nAPI 契约校验未通过：error ${RESULT.error.length} / warn ${RESULT.warn.length} / info ${RESULT.info.length} ✖`,
+    );
     process.exit(1);
   }
   console.log(`\nAPI 契约校验通过 ✔（error 0 / warn 0 / info ${RESULT.info.length}）`);

@@ -1,16 +1,24 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { createPortal } from 'react-dom'
-import { Sparkles, X, Search, Plus, Check, Pencil, Trash2, List, Clock } from 'lucide-react'
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Sparkles, X, Search, Plus, Check, Pencil, Trash2, List, Clock } from 'lucide-react';
 import {
-  loadPresets, saveAndNotify, createPreset,
-  getRecent, recordRecent, getRecentCards, searchCards, mapToLibraryCards,
-  TYPE_LABEL, TYPE_TAG_CLASS, CATEGORY_OPTIONS
-} from './promptManager.ts'
-import type { Preset, LibraryCard } from './promptManager.ts'
-import { showToast } from '../core/toastStore.ts'
-import { subscribe } from '../core/eventBus.ts'
-import { createImeInput } from '../core/utils.ts'
-import type { ImeInput } from '../core/utils.ts'
+  loadPresets,
+  saveAndNotify,
+  createPreset,
+  getRecent,
+  recordRecent,
+  getRecentCards,
+  searchCards,
+  mapToLibraryCards,
+  TYPE_LABEL,
+  TYPE_TAG_CLASS,
+  CATEGORY_OPTIONS,
+} from './promptManager.ts';
+import type { Preset, LibraryCard } from './promptManager.ts';
+import { showToast } from '../core/toastStore.ts';
+import { subscribe } from '../core/eventBus.ts';
+import { createImeInput } from '../core/utils.ts';
+import type { ImeInput } from '../core/utils.ts';
 
 /**
  * 提示词库大弹窗（复刻 maomao/src/components/prompts/PromptLibrary.jsx）。
@@ -21,140 +29,171 @@ import type { ImeInput } from '../core/utils.ts'
  */
 export interface PromptLibraryProps {
   /** 是否打开 */
-  open: boolean
+  open: boolean;
   /** 关闭回调 */
-  onClose: () => void
+  onClose: () => void;
   /** 使用回调（content 为预设 prompt）→ 新增文本节点 */
-  onUse?: (content: string) => void
+  onUse?: (content: string) => void;
   /** 追加回调（content 为预设 prompt）→ 追加到当前节点提示词（可选） */
-  onAppend?: (content: string) => void
+  onAppend?: (content: string) => void;
   /** 默认分类（image/video/text/''） */
-  defaultCategory?: string
+  defaultCategory?: string;
   /** 可选的预设数组覆盖（不传则从本地读） */
-  presetPrompts?: Preset[]
+  presetPrompts?: Preset[];
 }
 
 interface PresetFormData {
-  title: string
-  type: string
-  prompt: string
+  title: string;
+  type: string;
+  prompt: string;
 }
 
-function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', presetPrompts }: PromptLibraryProps) {
-  const [activeTab, setActiveTab] = useState<'mine' | 'recent'>('mine')
-  const [searchKeyword, setSearchKeyword] = useState('')
-  const [debouncedKeyword, setDebouncedKeyword] = useState('') // P2：过滤用防抖值（输入即时、过滤停顿后触发）
-  const [selectedCategory, setSelectedCategory] = useState(defaultCategory)
-  const [editingIndex, setEditingIndex] = useState(-1)
-  const [showNewForm, setShowNewForm] = useState(false)
-  const [formData, setFormData] = useState<PresetFormData>({ title: '', type: 'all', prompt: '' })
+function PromptLibrary({
+  open,
+  onClose,
+  onUse,
+  onAppend,
+  defaultCategory = '',
+  presetPrompts,
+}: PromptLibraryProps) {
+  const [activeTab, setActiveTab] = useState<'mine' | 'recent'>('mine');
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [debouncedKeyword, setDebouncedKeyword] = useState(''); // P2：过滤用防抖值（输入即时、过滤停顿后触发）
+  const [selectedCategory, setSelectedCategory] = useState(defaultCategory);
+  const [editingIndex, setEditingIndex] = useState(-1);
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [formData, setFormData] = useState<PresetFormData>({ title: '', type: 'all', prompt: '' });
 
   // P2/P12：搜索 IME 感知防抖提交（组字中不触发过滤，组字结束补提交一次）
-  const searchIme = useRef<ImeInput | null>(null)
+  const searchIme = useRef<ImeInput | null>(null);
   if (searchIme.current == null) {
-    searchIme.current = createImeInput((v) => setDebouncedKeyword(v), 200)
+    searchIme.current = createImeInput((v) => setDebouncedKeyword(v), 200);
   }
 
   // 预设列表：外部传入优先，否则本地读
-  const [localPresets, setLocalPresets] = useState(() => loadPresets())
-  const presets = presetPrompts || localPresets
+  const [localPresets, setLocalPresets] = useState(() => loadPresets());
+  const presets = presetPrompts || localPresets;
 
   // 监听外部 presets-changed 广播（经 eventBus），保持同步
   useEffect(() => {
-    const onChanged = (presets?: Preset[] | null) => setLocalPresets(presets || loadPresets())
-    return subscribe('presets-changed', onChanged)
-  }, [])
+    const onChanged = (presets?: Preset[] | null) => setLocalPresets(presets || loadPresets());
+    return subscribe('presets-changed', onChanged);
+  }, []);
 
   // 打开时重置状态
   useEffect(() => {
     if (open) {
-      setSelectedCategory(defaultCategory)
-      setSearchKeyword('')
-      setDebouncedKeyword('')
-      searchIme.current?.cancel()
-      setActiveTab('mine')
-      setEditingIndex(-1)
-      setShowNewForm(false)
+      setSelectedCategory(defaultCategory);
+      setSearchKeyword('');
+      setDebouncedKeyword('');
+      searchIme.current?.cancel();
+      setActiveTab('mine');
+      setEditingIndex(-1);
+      setShowNewForm(false);
     }
-  }, [open, defaultCategory])
+  }, [open, defaultCategory]);
 
-  const cards = useMemo(() => mapToLibraryCards(presets), [presets])
-  const recentIds = useMemo(() => getRecent(), [open])
-  const recentCards = useMemo(() => getRecentCards(cards, recentIds), [cards, recentIds])
+  const cards = useMemo(() => mapToLibraryCards(presets), [presets]);
+  const recentIds = useMemo(() => getRecent(), [open]);
+  const recentCards = useMemo(() => getRecentCards(cards, recentIds), [cards, recentIds]);
 
   const displayCards = useMemo(() => {
-    let list = activeTab === 'recent' ? recentCards : cards
-    if (selectedCategory) list = list.filter((c) => c.category === selectedCategory)
-    return searchCards(list, debouncedKeyword)
-  }, [activeTab, recentCards, cards, selectedCategory, debouncedKeyword])
+    let list = activeTab === 'recent' ? recentCards : cards;
+    if (selectedCategory) list = list.filter((c) => c.category === selectedCategory);
+    return searchCards(list, debouncedKeyword);
+  }, [activeTab, recentCards, cards, selectedCategory, debouncedKeyword]);
 
   // 点「新建节点」→ 把预设提示词新建为文本节点
   const handleNewNode = (card: LibraryCard) => {
-    recordRecent(card.id)
+    recordRecent(card.id);
     if (onUse) {
-      onUse(card.content)
-      onClose()
+      onUse(card.content);
+      onClose();
     } else {
-      showToast('已复制到剪贴板')
-      try { navigator.clipboard.writeText(card.content) } catch { /* ignore */ }
+      showToast('已复制到剪贴板');
+      try {
+        navigator.clipboard.writeText(card.content);
+      } catch {
+        /* ignore */
+      }
     }
-  }
+  };
 
   // 点「添加到提示词」→ 把预设提示词追加到当前节点提示词
   const handleAppend = (card: LibraryCard) => {
-    recordRecent(card.id)
+    recordRecent(card.id);
     if (onAppend) {
-      onAppend(card.content)
-      onClose()
+      onAppend(card.content);
+      onClose();
     }
-  }
+  };
 
   const startEdit = (presetIndex: number) => {
-    const p = presets[presetIndex]
-    if (!p) return
-    setEditingIndex(presetIndex)
-    setFormData({ title: p.title || '', type: p.type || 'all', prompt: p.prompt || '' })
-  }
+    const p = presets[presetIndex];
+    if (!p) return;
+    setEditingIndex(presetIndex);
+    setFormData({ title: p.title || '', type: p.type || 'all', prompt: p.prompt || '' });
+  };
 
   const saveEdit = () => {
-    if (!formData.title.trim()) { showToast('请输入标题', { type: 'warning' }); return }
-    const next = presets.slice()
-    next[editingIndex] = { ...next[editingIndex], title: formData.title, type: formData.type, prompt: formData.prompt }
-    saveAndNotify(next)
-    if (!presetPrompts) setLocalPresets(next)
-    setEditingIndex(-1)
-    showToast('已保存', { type: 'success' })
-  }
+    if (!formData.title.trim()) {
+      showToast('请输入标题', { type: 'warning' });
+      return;
+    }
+    const next = presets.slice();
+    next[editingIndex] = {
+      ...next[editingIndex],
+      title: formData.title,
+      type: formData.type,
+      prompt: formData.prompt,
+    };
+    saveAndNotify(next);
+    if (!presetPrompts) setLocalPresets(next);
+    setEditingIndex(-1);
+    showToast('已保存', { type: 'success' });
+  };
 
   const handleDelete = (presetIndex: number) => {
-    const next = presets.filter((_, i) => i !== presetIndex)
-    saveAndNotify(next)
-    if (!presetPrompts) setLocalPresets(next)
-    if (editingIndex === presetIndex) setEditingIndex(-1)
-    showToast('已删除', { type: 'success' })
-  }
+    const next = presets.filter((_, i) => i !== presetIndex);
+    saveAndNotify(next);
+    if (!presetPrompts) setLocalPresets(next);
+    if (editingIndex === presetIndex) setEditingIndex(-1);
+    showToast('已删除', { type: 'success' });
+  };
 
   const startNew = () => {
-    setShowNewForm(true)
-    setFormData({ title: '', type: selectedCategory || 'all', prompt: '' })
-  }
+    setShowNewForm(true);
+    setFormData({ title: '', type: selectedCategory || 'all', prompt: '' });
+  };
 
   const saveNew = () => {
-    if (!formData.title.trim()) { showToast('请输入标题', { type: 'warning' }); return }
-    const next = [...presets, { ...createPreset(), title: formData.title, type: formData.type, prompt: formData.prompt }]
-    saveAndNotify(next)
-    if (!presetPrompts) setLocalPresets(next)
-    setShowNewForm(false)
-    showToast('已添加', { type: 'success' })
-  }
+    if (!formData.title.trim()) {
+      showToast('请输入标题', { type: 'warning' });
+      return;
+    }
+    const next = [
+      ...presets,
+      { ...createPreset(), title: formData.title, type: formData.type, prompt: formData.prompt },
+    ];
+    saveAndNotify(next);
+    if (!presetPrompts) setLocalPresets(next);
+    setShowNewForm(false);
+    showToast('已添加', { type: 'success' });
+  };
 
-  const isModalOpen = editingIndex >= 0 || showNewForm
+  const isModalOpen = editingIndex >= 0 || showNewForm;
 
-  if (!open) return null
+  if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-modal bg-black/75 backdrop-blur-sm flex items-center justify-center p-6 nowheel nopan nodrag" onClick={onClose}>
-      <div className="w-[88vw] h-[84vh] max-w-[1400px] bg-input border border-edge-faint rounded-[18px] shadow-2xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-modal bg-black/75 backdrop-blur-sm flex items-center justify-center p-6 nowheel nopan nodrag"
+      onClick={onClose}
+    >
+      <div
+        className="w-[88vw] h-[84vh] max-w-[1400px] bg-input border border-edge-faint rounded-[18px] shadow-2xl flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header：品牌 + 搜索 + 关闭 */}
         <div className="h-[60px] border-b border-edge-subtle flex items-center px-5 gap-4 flex-shrink-0">
           <div className="flex items-center gap-2 pr-4 border-r border-edge-faint">
@@ -166,16 +205,25 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
             <input
               value={searchKeyword}
               onChange={(e) => {
-                setSearchKeyword(e.target.value)
-                searchIme.current?.onChange(e.target.value, (e.nativeEvent as InputEvent).isComposing)
+                setSearchKeyword(e.target.value);
+                searchIme.current?.onChange(
+                  e.target.value,
+                  (e.nativeEvent as InputEvent).isComposing,
+                );
               }}
-              onCompositionEnd={(e) => searchIme.current?.onCompositionEnd((e.target as HTMLInputElement).value)}
+              onCompositionEnd={(e) =>
+                searchIme.current?.onCompositionEnd((e.target as HTMLInputElement).value)
+              }
               onBlur={() => searchIme.current?.cancel()}
               placeholder="搜索标题或提示词内容"
               className="w-full h-[34px] bg-surface border border-edge rounded-[10px] pl-9 pr-3 text-body text-body-sm outline-none focus:border-edge-strong box-border"
             />
           </div>
-          <button className="w-8 h-8 flex items-center justify-center bg-transparent hover:bg-surface-hover rounded-lg text-muted hover:text-white cursor-pointer" onClick={onClose} title="关闭">
+          <button
+            className="w-8 h-8 flex items-center justify-center bg-transparent hover:bg-surface-hover rounded-lg text-muted hover:text-white cursor-pointer"
+            onClick={onClose}
+            title="关闭"
+          >
             <X size={18} />
           </button>
         </div>
@@ -236,36 +284,63 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
                       onClick={() => handleNewNode(card)}
                     >
                       <div className="flex items-start justify-between gap-2.5">
-                        <div className="text-sm font-semibold text-white leading-[1.4] truncate flex-1" title={card.title}>{card.title || '(未命名)'}</div>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ display: 'flex' }}>
+                        <div
+                          className="text-sm font-semibold text-white leading-[1.4] truncate flex-1"
+                          title={card.title}
+                        >
+                          {card.title || '(未命名)'}
+                        </div>
+                        <div
+                          className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          style={{ display: 'flex' }}
+                        >
                           <button
                             className="w-[26px] h-[26px] flex items-center justify-center rounded-md bg-transparent hover:bg-surface-hover text-muted hover:text-white cursor-pointer border-none"
                             title="编辑"
-                            onClick={(evt) => { evt.stopPropagation(); startEdit(card.presetIndex) }}
+                            onClick={(evt) => {
+                              evt.stopPropagation();
+                              startEdit(card.presetIndex);
+                            }}
                           >
                             <Pencil size={14} />
                           </button>
                           <button
                             className="w-[26px] h-[26px] flex items-center justify-center rounded-md bg-transparent hover:bg-red-500/10 text-muted hover:text-red-400 cursor-pointer border-none"
                             title="删除"
-                            onClick={(evt) => { evt.stopPropagation(); handleDelete(card.presetIndex) }}
+                            onClick={(evt) => {
+                              evt.stopPropagation();
+                              handleDelete(card.presetIndex);
+                            }}
                           >
                             <Trash2 size={14} />
                           </button>
                         </div>
                       </div>
-                      <p className="text-xs text-muted leading-[1.6] m-0" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      <p
+                        className="text-xs text-muted leading-[1.6] m-0"
+                        style={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}
+                      >
                         {card.content || '(空)'}
                       </p>
                       <div className="flex items-center justify-between mt-1">
-                        <span className={`px-2 py-0.5 rounded-md text-caption-sm font-medium ${TYPE_TAG_CLASS[card.category] || 'bg-white/10 text-secondary'}`}>
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-caption-sm font-medium ${TYPE_TAG_CLASS[card.category] || 'bg-white/10 text-secondary'}`}
+                        >
                           {card.category ? TYPE_LABEL[card.category] : '通用'}
                         </span>
                         <div className="flex items-center gap-1.5">
                           <button
                             className="node-btn-primary"
                             title="将所选提示词新建为文本节点"
-                            onClick={(evt) => { evt.stopPropagation(); handleNewNode(card) }}
+                            onClick={(evt) => {
+                              evt.stopPropagation();
+                              handleNewNode(card);
+                            }}
                           >
                             新建节点
                           </button>
@@ -273,7 +348,10 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
                             <button
                               className="node-btn-primary"
                               title="将所选提示词追加到当前节点提示词"
-                              onClick={(evt) => { evt.stopPropagation(); handleAppend(card) }}
+                              onClick={(evt) => {
+                                evt.stopPropagation();
+                                handleAppend(card);
+                              }}
                             >
                               添加到提示词
                             </button>
@@ -290,56 +368,95 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
       </div>
 
       {/* 编辑/新建弹窗 */}
-      {isModalOpen && createPortal(
-        <div className="fixed inset-0 z-modal-raise bg-black/60 flex items-center justify-center" onClick={() => { setEditingIndex(-1); setShowNewForm(false) }}>
-          <div className="w-[520px] bg-surface border border-edge rounded-2xl p-6 flex flex-col gap-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base-sm font-semibold text-white m-0">{showNewForm ? '新建提示词' : '编辑提示词'}</h3>
-            <div className="flex gap-2.5">
-              <div className="flex flex-col gap-1.5 flex-[2]">
-                <label className="text-xs text-muted">标题</label>
-                <input
-                  placeholder="标题"
-                  value={formData.title}
-                  onChange={(e) => setFormData((d) => ({ ...d, title: e.target.value }))}
-                  className="bg-surface-strong border border-edge rounded-[10px] px-3 py-2.5 text-body text-body-sm outline-none focus:border-edge-strong box-border"
+      {isModalOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-modal-raise bg-black/60 flex items-center justify-center"
+            onClick={() => {
+              setEditingIndex(-1);
+              setShowNewForm(false);
+            }}
+          >
+            <div
+              className="w-[520px] bg-surface border border-edge rounded-2xl p-6 flex flex-col gap-4 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-base-sm font-semibold text-white m-0">
+                {showNewForm ? '新建提示词' : '编辑提示词'}
+              </h3>
+              <div className="flex gap-2.5">
+                <div className="flex flex-col gap-1.5 flex-[2]">
+                  <label className="text-xs text-muted">标题</label>
+                  <input
+                    placeholder="标题"
+                    value={formData.title}
+                    onChange={(e) => setFormData((d) => ({ ...d, title: e.target.value }))}
+                    className="bg-surface-strong border border-edge rounded-[10px] px-3 py-2.5 text-body text-body-sm outline-none focus:border-edge-strong box-border"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5 flex-1">
+                  <label className="text-xs text-muted">类型</label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData((d) => ({ ...d, type: e.target.value }))}
+                    className="bg-surface-strong border border-edge rounded-[10px] px-3 py-2.5 text-body text-body-sm outline-none focus:border-edge-strong box-border"
+                  >
+                    {CATEGORY_OPTIONS.map((o) => (
+                      <option key={o.value || 'all'} value={o.value}>
+                        {o.value ? o.label : '通用'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-muted">提示词内容</label>
+                <textarea
+                  placeholder="提示词内容"
+                  value={formData.prompt}
+                  onChange={(e) => setFormData((d) => ({ ...d, prompt: e.target.value }))}
+                  className="bg-input border border-edge rounded-[10px] px-3 py-2.5 text-body text-body-sm outline-none focus:border-edge-strong resize-none h-[160px] leading-[1.6] box-border"
                 />
               </div>
-              <div className="flex flex-col gap-1.5 flex-1">
-                <label className="text-xs text-muted">类型</label>
-                <select
-                  value={formData.type}
-                  onChange={(e) => setFormData((d) => ({ ...d, type: e.target.value }))}
-                  className="bg-surface-strong border border-edge rounded-[10px] px-3 py-2.5 text-body text-body-sm outline-none focus:border-edge-strong box-border"
-                >
-                  {CATEGORY_OPTIONS.map((o) => <option key={o.value || 'all'} value={o.value}>{o.value ? o.label : '通用'}</option>)}
-                </select>
+              <div className="flex items-center justify-between mt-1">
+                {!showNewForm ? (
+                  <button
+                    className="px-3 py-2 rounded-[10px] text-xs text-red-400 bg-transparent hover:bg-red-500/10 cursor-pointer border-none"
+                    onClick={() => {
+                      handleDelete(editingIndex);
+                      setEditingIndex(-1);
+                    }}
+                  >
+                    删除
+                  </button>
+                ) : (
+                  <span />
+                )}
+                <div className="flex gap-2.5">
+                  <button
+                    className="px-4 py-2 rounded-[10px] text-xs bg-surface-hover text-body hover:bg-surface-hover-strong cursor-pointer border-none"
+                    onClick={() => {
+                      setEditingIndex(-1);
+                      setShowNewForm(false);
+                    }}
+                  >
+                    取消
+                  </button>
+                  <button
+                    className="px-4 py-2 rounded-[10px] text-xs bg-blue-600 hover:bg-blue-500 text-white cursor-pointer border-none"
+                    onClick={showNewForm ? saveNew : saveEdit}
+                  >
+                    {showNewForm ? '添加' : '保存'}
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-muted">提示词内容</label>
-              <textarea
-                placeholder="提示词内容"
-                value={formData.prompt}
-                onChange={(e) => setFormData((d) => ({ ...d, prompt: e.target.value }))}
-                className="bg-input border border-edge rounded-[10px] px-3 py-2.5 text-body text-body-sm outline-none focus:border-edge-strong resize-none h-[160px] leading-[1.6] box-border"
-              />
-            </div>
-            <div className="flex items-center justify-between mt-1">
-              {!showNewForm ? (
-                <button className="px-3 py-2 rounded-[10px] text-xs text-red-400 bg-transparent hover:bg-red-500/10 cursor-pointer border-none" onClick={() => { handleDelete(editingIndex); setEditingIndex(-1) }}>删除</button>
-              ) : <span />}
-              <div className="flex gap-2.5">
-                <button className="px-4 py-2 rounded-[10px] text-xs bg-surface-hover text-body hover:bg-surface-hover-strong cursor-pointer border-none" onClick={() => { setEditingIndex(-1); setShowNewForm(false) }}>取消</button>
-                <button className="px-4 py-2 rounded-[10px] text-xs bg-blue-600 hover:bg-blue-500 text-white cursor-pointer border-none" onClick={showNewForm ? saveNew : saveEdit}>{showNewForm ? '添加' : '保存'}</button>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body,
+        )}
     </div>,
-    document.body
-  )
+    document.body,
+  );
 }
 
-export default React.memo(PromptLibrary)
+export default React.memo(PromptLibrary);

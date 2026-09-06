@@ -1,20 +1,20 @@
-import { useState, useRef, useCallback } from 'react'
-import type { Edge, Node } from '@xyflow/react'
-import { HistoryStack } from '../components/base/canvas/historyStack.ts'
+import { useState, useRef, useCallback } from 'react';
+import type { Edge, Node } from '@xyflow/react';
+import { HistoryStack } from '../components/base/canvas/historyStack.ts';
 
 /** 一次画布快照：节点 + 连线 */
 export interface CanvasSnapshot {
-  nodes: Node[]
-  edges: Edge[]
+  nodes: Node[];
+  edges: Edge[];
 }
 
 export interface CanvasHistoryApi {
-  canUndo: boolean
-  canRedo: boolean
-  record: (snapshot?: CanvasSnapshot | null) => void
-  undo: () => void
-  redo: () => void
-  clear: () => void
+  canUndo: boolean;
+  canRedo: boolean;
+  record: (snapshot?: CanvasSnapshot | null) => void;
+  undo: () => void;
+  redo: () => void;
+  clear: () => void;
 }
 
 /**
@@ -30,14 +30,14 @@ export interface CanvasHistoryApi {
  */
 export function useCanvasHistory(
   getSnapshot: () => CanvasSnapshot,
-  apply: (snapshot: CanvasSnapshot) => void
+  apply: (snapshot: CanvasSnapshot) => void,
 ): CanvasHistoryApi {
   // React state 镜像（供渲染 canUndo/canRedo 与 record 闭包用）
-  const [version, setVersion] = useState(0)
+  const [version, setVersion] = useState(0);
   // 纯类实例：真实历史栈（不随渲染重建）
-  const stackRef = useRef(new HistoryStack<CanvasSnapshot>())
-  const suppressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const stack = stackRef.current
+  const stackRef = useRef(new HistoryStack<CanvasSnapshot>());
+  const suppressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stack = stackRef.current;
 
   // 记录一次画布变化（复刻 H_.jsx:881-897）。
   // snapshot：可显式传入本次操作后的最新 { nodes, edges }。
@@ -46,44 +46,44 @@ export function useCanvasHistory(
   // 必须显式传快照，否则 record 会拿到旧的 nodes 导致 undo 丢失新增节点。
   const record = useCallback(
     (snapshot?: CanvasSnapshot | null) => {
-      stack.push(snapshot || getSnapshot())
-      setVersion((v) => v + 1)
+      stack.push(snapshot || getSnapshot());
+      setVersion((v) => v + 1);
     },
-    [stack, getSnapshot]
-  )
+    [stack, getSnapshot],
+  );
 
   // undo/redo 结束后启动 600ms 抑制窗口（复刻源码 setTimeout）
   const scheduleRelease = useCallback(() => {
-    if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current)
-    suppressTimerRef.current = setTimeout(() => stack.releaseSuppress(), 600)
-  }, [stack])
+    if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current);
+    suppressTimerRef.current = setTimeout(() => stack.releaseSuppress(), 600);
+  }, [stack]);
 
   // 撤销（复刻 Gn）
   const undo = useCallback(() => {
-    const snap = stack.undo()
+    const snap = stack.undo();
     if (snap) {
-      apply(snap)
-      setVersion((v) => v + 1)
-      scheduleRelease()
+      apply(snap);
+      setVersion((v) => v + 1);
+      scheduleRelease();
     }
-  }, [stack, apply, scheduleRelease])
+  }, [stack, apply, scheduleRelease]);
 
   // 重做（复刻 Kn）
   const redo = useCallback(() => {
-    const snap = stack.redo()
+    const snap = stack.redo();
     if (snap) {
-      apply(snap)
-      setVersion((v) => v + 1)
-      scheduleRelease()
+      apply(snap);
+      setVersion((v) => v + 1);
+      scheduleRelease();
     }
-  }, [stack, apply, scheduleRelease])
+  }, [stack, apply, scheduleRelease]);
 
   // 清空历史（切换/新建项目时调用，避免跨项目残留撤销栈）
   const clear = useCallback(() => {
-    if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current)
-    stack.clear()
-    setVersion((v) => v + 1)
-  }, [stack])
+    if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current);
+    stack.clear();
+    setVersion((v) => v + 1);
+  }, [stack]);
 
-  return { canUndo: stack.canUndo, canRedo: stack.canRedo, record, undo, redo, clear }
+  return { canUndo: stack.canUndo, canRedo: stack.canRedo, record, undo, redo, clear };
 }

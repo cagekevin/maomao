@@ -49,19 +49,30 @@ const baseline = JSON.parse(fs.readFileSync(SNAPSHOT, 'utf-8'));
 const current = scanDist();
 
 const allKeys = new Set([...Object.keys(baseline.chunks), ...Object.keys(current)]);
-let pass = 0, fail = 0, added = 0, removed = 0;
+let pass = 0,
+  fail = 0,
+  added = 0,
+  removed = 0;
 
 for (const k of allKeys) {
   const prev = baseline.chunks[k];
   const now = current[k];
-  if (!prev) { console.log(`  ➕ 新增: ${k} (${(now / 1024).toFixed(1)} KB)`); added++; }
-  else if (!now) { console.log(`  ➖ 移除: ${k}`); removed++; }
-  else if (prev !== now) {
+  if (!prev) {
+    console.log(`  ➕ 新增: ${k} (${(now / 1024).toFixed(1)} KB)`);
+    added++;
+  } else if (!now) {
+    console.log(`  ➖ 移除: ${k}`);
+    removed++;
+  } else if (prev !== now) {
     const delta = now - prev;
     const sign = delta > 0 ? '+' : '';
-    console.log(`  🔶 变化: ${k}  ${(prev / 1024).toFixed(1)} → ${(now / 1024).toFixed(1)} KB  (${sign}${(delta / 1024).toFixed(1)} KB)`);
+    console.log(
+      `  🔶 变化: ${k}  ${(prev / 1024).toFixed(1)} → ${(now / 1024).toFixed(1)} KB  (${sign}${(delta / 1024).toFixed(1)} KB)`,
+    );
     fail++;
-  } else { pass++; }
+  } else {
+    pass++;
+  }
 }
 
 console.log(`\n📊 结果: ${pass} 不变 / ${fail} 变化 / ${added} 新增 / ${removed} 移除`);

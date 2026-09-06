@@ -47,7 +47,9 @@ if (!fs.existsSync(DB_PATH)) {
 // ── 1. 检查 localTool 是否在运行 ──
 const inUse = await checkPortInUse(LOCALTOOL_PORT);
 if (inUse) {
-  console.error(`[ABORT] localTool 正在运行（端口 ${LOCALTOOL_PORT} 被占用）。请先停止 localTool 再执行，避免写冲突损坏数据库。`);
+  console.error(
+    `[ABORT] localTool 正在运行（端口 ${LOCALTOOL_PORT} 被占用）。请先停止 localTool 再执行，避免写冲突损坏数据库。`,
+  );
   process.exit(1);
 }
 console.log(`[1] 端口 ${LOCALTOOL_PORT} 空闲，localTool 未运行 ✓`);

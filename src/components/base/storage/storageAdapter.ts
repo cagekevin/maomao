@@ -11,30 +11,33 @@
  * 【R1 系统性根因治理】写入失败不再静默吞掉：sSet/sRemove 任一持久化失败都发布
  * `persist:failed` 事件（含 key），由全局监听器节流上报 toast。调用方无需逐个改。
  */
-import { publish } from '../core/eventBus.ts'
-import { logger } from '../core/logger.ts'
+import { publish } from '../core/eventBus.ts';
+import { logger } from '../core/logger.ts';
 
 /** Chrome 扩展全局（宿主注入，本层仅用到 runtime/storage.local 最小子集）。type-check 需显式声明。 */
 declare const chrome: {
   runtime: {
-    id?: string
-    lastError?: { message: string }
-  }
+    id?: string;
+    lastError?: { message: string };
+  };
   storage: {
     local: {
-      get(keys: string[] | string | Record<string, unknown> | null, callback: (items: Record<string, unknown>) => void): void
-      set(items: Record<string, unknown>, callback?: () => void): void
-      remove(keys: string | string[], callback?: () => void): void
-    }
-  }
-}
+      get(
+        keys: string[] | string | Record<string, unknown> | null,
+        callback: (items: Record<string, unknown>) => void,
+      ): void;
+      set(items: Record<string, unknown>, callback?: () => void): void;
+      remove(keys: string | string[], callback?: () => void): void;
+    };
+  };
+};
 
 /** 是否运行在 Chrome 扩展环境 */
 export function isChromeExtension(): boolean {
   try {
-    return typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id
+    return typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id;
   } catch {
-    return false
+    return false;
   }
 }
 
@@ -48,50 +51,52 @@ export function isChromeExtension(): boolean {
  */
 export function hasLocalStorage(): boolean {
   try {
-    return typeof localStorage !== 'undefined'
+    return typeof localStorage !== 'undefined';
   } catch {
-    return false
+    return false;
   }
 }
 
 /** 内存兜底缓存：仅当 localStorage 不可用时启用，保证 SSR/Node 下读写零抛错。 */
-const memFallback = new Map<string, string>()
+const memFallback = new Map<string, string>();
 
 /** 写入失败上报（统一事件，全局监听器节流 toast；测试可替换全局 publish）。
  * 【P0·M3 观测】失败落日志（warn），供离线 grep 探明根因（key + error.message），
  * 不改变事件链路——事件照常 publish，logger 仅旁路记录。 */
 function reportPersistFailure(key: string, error: unknown) {
   try {
-    const message = (error as { message?: unknown } | null)?.message || String(error || '')
-    publish('persist:failed', { key, error: message })
-    logger.warn('存储', '持久化失败', { key, error: message })
-  } catch { /* 事件上报本身失败不阻断写入流程 */ }
+    const message = (error as { message?: unknown } | null)?.message || String(error || '');
+    publish('persist:failed', { key, error: message });
+    logger.warn('存储', '持久化失败', { key, error: message });
+  } catch {
+    /* 事件上报本身失败不阻断写入流程 */
+  }
 }
 
 /** 存储键统一前缀（对外导出：storageQuota 统计实际键剥前缀用，避免第二处硬编码 'yimao:'）。
  * 数据流：sGet/sSet/sRemove 读写 localStorage/chrome.storage 时自动拼此前缀；
  * storageQuota.enumerateLocalEntries 枚举到的是带此前缀的 rawKey，剥掉后才映射回 STORAGE_KEYS 逻辑键名。 */
-export const KEY_PREFIX: string = 'yimao:'
-const cache = new Map<string, unknown>()
-let loaded = false
+export const KEY_PREFIX: string = 'yimao:';
+const cache = new Map<string, unknown>();
+let loaded = false;
 
 /** 初始化：插件环境从 chrome.storage.local 批量加载到内存缓存（仅需调用一次） */
 export function initStorage(): void {
   if (loaded || !isChromeExtension()) {
-    loaded = true
-    return
+    loaded = true;
+    return;
   }
   try {
     chrome.storage.local.get(null, (all) => {
       if (all && typeof all === 'object') {
         for (const k of Object.keys(all)) {
-          if (k.startsWith(KEY_PREFIX)) cache.set(k.slice(KEY_PREFIX.length), all[k])
+          if (k.startsWith(KEY_PREFIX)) cache.set(k.slice(KEY_PREFIX.length), all[k]);
         }
       }
-      loaded = true
-    })
+      loaded = true;
+    });
   } catch {
-    loaded = true
+    loaded = true;
   }
 }
 
@@ -99,51 +104,73 @@ export function initStorage(): void {
 export function sGet(key: string): string | null {
   if (!isChromeExtension()) {
     // 【SSR/Node 兜底】localStorage 不可用时走内存，零抛错、不 warn
-    if (!hasLocalStorage()) return memFallback.get(KEY_PREFIX + key) ?? null
-    try { return localStorage.getItem(KEY_PREFIX + key) } catch { return null }
+    if (!hasLocalStorage()) return memFallback.get(KEY_PREFIX + key) ?? null;
+    try {
+      return localStorage.getItem(KEY_PREFIX + key);
+    } catch {
+      return null;
+    }
   }
-  const v = cache.get(key)
-  return v === undefined ? null : (typeof v === 'string' ? v : JSON.stringify(v))
+  const v = cache.get(key);
+  return v === undefined ? null : typeof v === 'string' ? v : JSON.stringify(v);
 }
 
 /** 同步写（插件环境同步更新内存 + 异步持久化） */
 export function sSet(key: string, value: unknown): void {
-  const fullKey = KEY_PREFIX + key
+  const fullKey = KEY_PREFIX + key;
   if (!isChromeExtension()) {
     // 【SSR/Node 兜底】localStorage 不可用时写内存，不触发 persist:failed
-    if (!hasLocalStorage()) { memFallback.set(fullKey, value as string); return }
-    try { localStorage.setItem(fullKey, value as string) } catch (e) { reportPersistFailure(key, e) }
-    return
+    if (!hasLocalStorage()) {
+      memFallback.set(fullKey, value as string);
+      return;
+    }
+    try {
+      localStorage.setItem(fullKey, value as string);
+    } catch (e) {
+      reportPersistFailure(key, e);
+    }
+    return;
   }
-  cache.set(key, value)
+  cache.set(key, value);
   try {
     // 【R1】接 chrome.storage.local.set 的 callback，异步失败也能感知（原裸 try/catch 覆盖不到异步错误）
     chrome.storage.local.set({ [fullKey]: value }, () => {
-      if (chrome?.runtime?.lastError) reportPersistFailure(key, new Error(chrome.runtime.lastError.message))
-    })
+      if (chrome?.runtime?.lastError)
+        reportPersistFailure(key, new Error(chrome.runtime.lastError.message));
+    });
   } catch (e) {
     // 同步抛错：先尝试回退 localStorage，回退成功（数据未丢）则不报失败
     try {
-      localStorage.setItem(fullKey, value as string)
+      localStorage.setItem(fullKey, value as string);
     } catch {
-      reportPersistFailure(key, e)
+      reportPersistFailure(key, e);
     }
   }
 }
 
 /** 同步删（插件环境同步删内存 + 异步删存储） */
 export function sRemove(key: string): void {
-  const fullKey = KEY_PREFIX + key
+  const fullKey = KEY_PREFIX + key;
   if (!isChromeExtension()) {
     // 【SSR/Node 兜底】localStorage 不可用时从内存删，不触发 persist:failed
-    if (!hasLocalStorage()) { memFallback.delete(fullKey); return }
-    try { localStorage.removeItem(fullKey) } catch (e) { reportPersistFailure(key, e) }
-    return
+    if (!hasLocalStorage()) {
+      memFallback.delete(fullKey);
+      return;
+    }
+    try {
+      localStorage.removeItem(fullKey);
+    } catch (e) {
+      reportPersistFailure(key, e);
+    }
+    return;
   }
-  cache.delete(key)
+  cache.delete(key);
   try {
     chrome.storage.local.remove(fullKey, () => {
-      if (chrome?.runtime?.lastError) reportPersistFailure(key, new Error(chrome.runtime.lastError.message))
-    })
-  } catch (e) { reportPersistFailure(key, e) }
+      if (chrome?.runtime?.lastError)
+        reportPersistFailure(key, new Error(chrome.runtime.lastError.message));
+    });
+  } catch (e) {
+    reportPersistFailure(key, e);
+  }
 }

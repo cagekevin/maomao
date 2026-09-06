@@ -16,11 +16,11 @@
  *  - POST /api/kv/set {key,value} → { ok: true }
  *  - POST /api/kv/delete?key=<key> → { ok: true }（删不存在也 ok）
  */
-import { CANVAS_STATE_PREFIX } from '../core/contracts.ts' // 单一来源：画布 KV 前缀统一在契约层
+import { CANVAS_STATE_PREFIX } from '../core/contracts.ts'; // 单一来源：画布 KV 前缀统一在契约层
 
 // 画布类 key 前缀（对齐官方 Ar.CANVAS_STATE_PREFIX，localTool KV 侧会带此前缀）
 // re-export 兼容既有 `import { CANVAS_STATE_PREFIX } from './kvStore.js'`（如 projectStore）
-export { CANVAS_STATE_PREFIX }
+export { CANVAS_STATE_PREFIX };
 
 // kvGet / kvSet / kvDelete 底层转发收口到 localToolApi.ts（深模块），此处 re-export 兼容既有引用
-export { kvGet, kvSet, kvDelete } from '../api/localToolApi.ts'
+export { kvGet, kvSet, kvDelete } from '../api/localToolApi.ts';

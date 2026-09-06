@@ -1,4 +1,4 @@
-import { defineConfig, devices } from '@playwright/test'
+import { defineConfig, devices } from '@playwright/test';
 
 // L4 画布 E2E —— 真实浏览器回归（见 docs/REGRESSION-PLAN.md §3.3 第4步）
 // 启动本地 dev server（vite, 端口 5180）后跑。CI 默认跳过，本地手动 `npm run test:e2e`。
@@ -15,9 +15,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-  ],
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   // 自动拉起 dev server；若已在跑则复用
   webServer: {
     command: 'npm run dev',
@@ -25,4 +23,4 @@ export default defineConfig({
     reuseExistingServer: true,
     timeout: 120000,
   },
-})
+});

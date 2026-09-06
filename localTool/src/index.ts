@@ -10,7 +10,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { createServer } from 'node:net';
-import { getDb, closeDb, getUploadDir, getDataDir, backupDb, startBackupSchedule } from './db/database.js';
+import {
+  getDb,
+  closeDb,
+  getUploadDir,
+  getDataDir,
+  backupDb,
+  startBackupSchedule,
+} from './db/database.js';
 import { getEnvFile, getFrontendDistDir, getDepthVideoDir } from './paths.js';
 import { VERSION } from './version.js';
 import { sendError } from './utils/helpers.js';
@@ -34,7 +41,10 @@ function loadDotEnv(): void {
       if (!m) continue;
       const key = m[1];
       let val = m[2].trim();
-      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
         val = val.slice(1, -1);
       }
       if (!(key in process.env)) process.env[key] = val;
@@ -101,33 +111,33 @@ function sendFileWithRange(
   filePath: string,
   stat: fs.Stats,
   contentType: string,
-  cacheControl: string
+  cacheControl: string,
 ): void {
-  const total = stat.size
-  const range = (req.headers.range || '').trim()
-  let status = 200
-  let start = 0
-  let end = total - 1
-  const extra: Record<string, string> = {}
+  const total = stat.size;
+  const range = (req.headers.range || '').trim();
+  let status = 200;
+  let start = 0;
+  let end = total - 1;
+  const extra: Record<string, string> = {};
 
   if (range) {
-    const m = /^bytes=(\d*)-(\d*)$/.exec(range)
-    let satisfiable = false
+    const m = /^bytes=(\d*)-(\d*)$/.exec(range);
+    let satisfiable = false;
     if (m && total > 0) {
       if (m[1] === '' && m[2] !== '') {
         // bytes=-N：最后 N 字节
-        const suffix = parseInt(m[2], 10)
+        const suffix = parseInt(m[2], 10);
         if (suffix > 0) {
-          start = Math.max(0, total - suffix)
-          satisfiable = true
+          start = Math.max(0, total - suffix);
+          satisfiable = true;
         }
       } else if (m[1] !== '') {
-        const s = parseInt(m[1], 10)
-        const e = m[2] === '' ? total - 1 : parseInt(m[2], 10)
+        const s = parseInt(m[1], 10);
+        const e = m[2] === '' ? total - 1 : parseInt(m[2], 10);
         if (s <= e && s < total) {
-          start = s
-          end = Math.min(e, total - 1)
-          satisfiable = true
+          start = s;
+          end = Math.min(e, total - 1);
+          satisfiable = true;
         }
       }
     }
@@ -136,14 +146,14 @@ function sendFileWithRange(
         'Content-Type': contentType,
         'Content-Range': `bytes */${total}`,
         'Access-Control-Allow-Origin': '*',
-      })
-      res.end()
-      return
+      });
+      res.end();
+      return;
     }
-    status = 206
-    extra['Content-Range'] = `bytes ${start}-${end}/${total}`
+    status = 206;
+    extra['Content-Range'] = `bytes ${start}-${end}/${total}`;
   }
-  extra['Accept-Ranges'] = 'bytes'
+  extra['Accept-Ranges'] = 'bytes';
 
   res.writeHead(status, {
     'Content-Type': contentType,
@@ -151,12 +161,16 @@ function sendFileWithRange(
     'Cache-Control': cacheControl,
     'Access-Control-Allow-Origin': '*',
     ...extra,
-  })
-  fs.createReadStream(filePath, status === 206 ? { start, end } : undefined).pipe(res)
+  });
+  fs.createReadStream(filePath, status === 206 ? { start, end } : undefined).pipe(res);
 }
 
 // ── 静态文件服务（/files/* 路径映射到磁盘）──
-function handleStaticFile(req: http.IncomingMessage, res: http.ServerResponse, urlPath: string): boolean {
+function handleStaticFile(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  urlPath: string,
+): boolean {
   if (!urlPath.startsWith('/files/')) return false;
 
   const uploadDir = getUploadDir();
@@ -251,7 +265,7 @@ function handleDepthResource(res: http.ServerResponse, urlPath: string): boolean
   const mimeMap: Record<string, string> = {
     '.js': 'application/javascript',
     '.mjs': 'application/javascript',
-    '.wasm': 'application/wasm',       // onnxruntime wasm，跨源 import 需正确类型
+    '.wasm': 'application/wasm', // onnxruntime wasm，跨源 import 需正确类型
     '.json': 'application/json',
     '.config': 'application/json',
     '.php': 'text/plain',
@@ -282,13 +296,21 @@ function handleDepthResource(res: http.ServerResponse, urlPath: string): boolean
 // ── 画布前端页面托管（dist/ 静态资源）──
 const DIST_DIR = getFrontendDistDir();
 const FRONTEND_MIME: Record<string, string> = {
-  '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp', '.svg': 'image/svg+xml', '.json': 'application/json',
-  '.woff2': 'font/woff2', '.ico': 'image/x-icon',
+  '.html': 'text/html',
+  '.js': 'application/javascript',
+  '.css': 'text/css',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.json': 'application/json',
+  '.woff2': 'font/woff2',
+  '.ico': 'image/x-icon',
 };
 function handleFrontendPage(res: http.ServerResponse, urlPath: string): boolean {
-  const fileName = (urlPath === '/' || urlPath === '/index.html') ? 'index.html' : urlPath.replace(/^\//, '');
+  const fileName =
+    urlPath === '/' || urlPath === '/index.html' ? 'index.html' : urlPath.replace(/^\//, '');
   const filePath = path.join(DIST_DIR, fileName);
   if (!fs.existsSync(filePath)) return false;
   const ext = path.extname(filePath).toLowerCase();
@@ -348,7 +370,12 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
 
     // ── 阶段 3：画布前端页面托管（兜底 GET，须在 catch-all 之前）──
-    if (method === 'GET' && !pathname.startsWith('/api/') && !pathname.startsWith('/plugin/') && !pathname.startsWith('/files/')) {
+    if (
+      method === 'GET' &&
+      !pathname.startsWith('/api/') &&
+      !pathname.startsWith('/plugin/') &&
+      !pathname.startsWith('/files/')
+    ) {
       if (handleFrontendPage(res, pathname)) return;
     }
 
@@ -363,8 +390,8 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     // localTool 由此从「白名单路由服务」升级为「唯一出口网关」。
     // 相关文档：docs/21 §六（执行前置）、docs/01 §〇（长期目标总纲）
     if (matched?.route.catchAll) {
-      if (await handlePassthrough(req, res, url)) return;   // 成功透传才 return
-      sendError(res, 'Not Found', 404);                     // 失败才 404（原 index.ts:456）
+      if (await handlePassthrough(req, res, url)) return; // 成功透传才 return
+      sendError(res, 'Not Found', 404); // 失败才 404（原 index.ts:456）
       return;
     }
 
@@ -395,7 +422,12 @@ async function main(): Promise<void> {
   const ak = process.env.LOVART_ACCESS_KEY || '';
   const sk = process.env.LOVART_SECRET_KEY || '';
   if (ak && sk) {
-    if (ak.includes('xxxx') || ak.includes('REPLACE') || sk.includes('xxxx') || sk.includes('REPLACE')) {
+    if (
+      ak.includes('xxxx') ||
+      ak.includes('REPLACE') ||
+      sk.includes('xxxx') ||
+      sk.includes('REPLACE')
+    ) {
       console.log('');
       console.log('  ⚠️  ═══════════════════════════════════════════');
       console.log('  ⚠️  LOVART 凭据为占位符！生图/对话将不会真正生效。');
@@ -405,7 +437,9 @@ async function main(): Promise<void> {
     }
   } else {
     console.log('');
-    console.log('  ℹ️  未检测到 LOVART 凭据（localTool/.env 无 LOVART_ACCESS_KEY / LOVART_SECRET_KEY）。');
+    console.log(
+      '  ℹ️  未检测到 LOVART 凭据（localTool/.env 无 LOVART_ACCESS_KEY / LOVART_SECRET_KEY）。',
+    );
     console.log('     如需生图/对话功能，请在 localTool/.env 配置真实 LOVART 凭据。');
     console.log('');
   }
@@ -438,7 +472,9 @@ async function main(): Promise<void> {
     console.log('    剪映:   /api/jianying/send');
     console.log('    平台:   /plugin/manifest.json  /api/workflow-apps/by-project/:id');
     console.log('    内置:   /public/platform/builtin  /public/platform/models');
-    console.log('    供应:   /api/providers  /api/providers/test-connection  /api/providers/:id/fetch-models');
+    console.log(
+      '    供应:   /api/providers  /api/providers/test-connection  /api/providers/:id/fetch-models',
+    );
     console.log('    画布:   /  (dist/ 静态托管)');
     console.log('    兜底:   其余请求 → 透传官方（catch-all，日志前缀 [passthrough]）');
     console.log('');
@@ -461,9 +497,16 @@ async function main(): Promise<void> {
     // 自动打开浏览器
     const pageUrl = `http://127.0.0.1:${PORT}`;
     try {
-      const openCmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+      const openCmd =
+        process.platform === 'darwin'
+          ? 'open'
+          : process.platform === 'win32'
+            ? 'start'
+            : 'xdg-open';
       execSync(`${openCmd} "${pageUrl}"`, { timeout: 3000 });
-    } catch { /* 打开失败不阻塞服务 */ }
+    } catch {
+      /* 打开失败不阻塞服务 */
+    }
   });
 
   // 优雅退出

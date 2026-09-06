@@ -1,12 +1,12 @@
-import { useState, useCallback, useRef } from 'react'
-import type { RefObject, MouseEvent as ReactMouseEvent } from 'react'
-import type { Connection, Node } from '@xyflow/react'
-import { isEditableTarget } from '../components/base/core/uiHooks.ts'
+import { useState, useCallback, useRef } from 'react';
+import type { RefObject, MouseEvent as ReactMouseEvent } from 'react';
+import type { Connection, Node } from '@xyflow/react';
+import { isEditableTarget } from '../components/base/core/uiHooks.ts';
 
 /** 菜单定位用的容器相对坐标（top/left 直接取值） */
 export interface ContextMenuPos {
-  x: number
-  y: number
+  x: number;
+  y: number;
 }
 
 /**
@@ -15,22 +15,22 @@ export interface ContextMenuPos {
  * - connection：仅「从端口拖出到空白」的菜单携带，菜单项据此决定是否自动连线
  */
 export interface ContextMenuState extends ContextMenuPos {
-  type: string
-  nodeId?: string | null
-  client?: ContextMenuPos
-  connection?: Connection | null
+  type: string;
+  nodeId?: string | null;
+  client?: ContextMenuPos;
+  connection?: Connection | null;
 }
 
 export interface ContextMenuApi {
-  state: ContextMenuState | null
-  containerRef: RefObject<HTMLDivElement | null>
-  onPaneContextMenu: (e: ReactMouseEvent) => void
-  onNodeContextMenu: (e: ReactMouseEvent, node: Node) => void
-  onSelectionContextMenu: (e: ReactMouseEvent, nodes: Node[]) => void
-  onSelectionEnd: (e: ReactMouseEvent, nodes?: Node[]) => void
-  onPaneClick: () => void
-  openConnection: (connection: Connection, clientX: number, clientY: number) => void
-  close: () => void
+  state: ContextMenuState | null;
+  containerRef: RefObject<HTMLDivElement | null>;
+  onPaneContextMenu: (e: ReactMouseEvent) => void;
+  onNodeContextMenu: (e: ReactMouseEvent, node: Node) => void;
+  onSelectionContextMenu: (e: ReactMouseEvent, nodes: Node[]) => void;
+  onSelectionEnd: (e: ReactMouseEvent, nodes?: Node[]) => void;
+  onPaneClick: () => void;
+  openConnection: (connection: Connection, clientX: number, clientY: number) => void;
+  close: () => void;
 }
 
 /**
@@ -53,60 +53,66 @@ export interface ContextMenuApi {
  * 注意：containerRef 必须和 ContextMenu 挂在同一个 relative div 上，否则坐标系错位。
  */
 export function useContextMenu(): ContextMenuApi {
-  const [state, setState] = useState<ContextMenuState | null>(null)
-  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [state, setState] = useState<ContextMenuState | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const toContainerPos = useCallback((clientX: number, clientY: number): ContextMenuPos => {
-    const rect = containerRef.current?.getBoundingClientRect()
-    if (!rect) return { x: clientX, y: clientY }
-    return { x: clientX - rect.left, y: clientY - rect.top }
-  }, [])
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return { x: clientX, y: clientY };
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }, []);
 
   const open = useCallback(
     (type: string, nodeId: string | null, e: ReactMouseEvent) => {
-      if (isEditableTarget(e)) return
-      e.preventDefault()
-      e.stopPropagation()
-      const { x, y } = toContainerPos(e.clientX, e.clientY)
+      if (isEditableTarget(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const { x, y } = toContainerPos(e.clientX, e.clientY);
       // client 存原始屏幕坐标（视口坐标系），供建节点时用 screenToFlowPosition 换算出正确落点
-      const client = { x: e.clientX, y: e.clientY }
-      setState(nodeId ? { x, y, type, nodeId, client } : { x, y, type, client })
+      const client = { x: e.clientX, y: e.clientY };
+      setState(nodeId ? { x, y, type, nodeId, client } : { x, y, type, client });
     },
-    [toContainerPos]
-  )
+    [toContainerPos],
+  );
 
   // 打开「连接」菜单：从端口拖出到空白，弹菜单选下游节点类型（复刻官方 onConnectEnd Oi）
   // 单一数据源：直接复用空白处（canvas）同一套菜单，不另起 connection 菜单。
   // 仅把这次拖拽的源信息（connection）挂进 state，菜单项据此决定是否自动连线。
   const openConnection = useCallback(
     (connection: Connection, clientX: number, clientY: number) => {
-      const { x, y } = toContainerPos(clientX, clientY)
-      setState({ x, y, type: 'canvas', connection })
+      const { x, y } = toContainerPos(clientX, clientY);
+      setState({ x, y, type: 'canvas', connection });
     },
-    [toContainerPos]
-  )
+    [toContainerPos],
+  );
 
   // 空白处右键
-  const onPaneContextMenu = useCallback((e: ReactMouseEvent) => open('canvas', null, e), [open])
+  const onPaneContextMenu = useCallback((e: ReactMouseEvent) => open('canvas', null, e), [open]);
   // 节点右键
-  const onNodeContextMenu = useCallback((e: ReactMouseEvent, node: Node) => open('node', node.id, e), [open])
+  const onNodeContextMenu = useCallback(
+    (e: ReactMouseEvent, node: Node) => open('node', node.id, e),
+    [open],
+  );
   // 多选框右键
-  const onSelectionContextMenu = useCallback((e: ReactMouseEvent, nodes: Node[]) => open('selection', null, e), [open])
+  const onSelectionContextMenu = useCallback(
+    (e: ReactMouseEvent, nodes: Node[]) => open('selection', null, e),
+    [open],
+  );
   // 拖拽框结束且选中>1 时弹出（复刻 er：延迟 50ms 判断选中数）
   const onSelectionEnd = useCallback(
     (e: ReactMouseEvent, nodes?: Node[]) => {
       setTimeout(() => {
-        const n = nodes || []
-        if (n.length > 1) open('selection', null, e)
-      }, 50)
+        const n = nodes || [];
+        if (n.length > 1) open('selection', null, e);
+      }, 50);
     },
-    [open]
-  )
+    [open],
+  );
 
   // 点击空白关闭（复刻 nr）
-  const onPaneClick = useCallback(() => setState(null), [])
+  const onPaneClick = useCallback(() => setState(null), []);
 
-  const close = useCallback(() => setState(null), [])
+  const close = useCallback(() => setState(null), []);
 
   return {
     state,
@@ -117,6 +123,6 @@ export function useContextMenu(): ContextMenuApi {
     onSelectionEnd,
     onPaneClick,
     openConnection,
-    close
-  }
+    close,
+  };
 }

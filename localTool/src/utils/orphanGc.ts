@@ -39,9 +39,16 @@ export function runOrphanGc(
   kvValues: string[],
   uploadDir: string,
   extraRefs: ReadonlySet<string> = new Set(),
-  dryRun = false
+  dryRun = false,
 ): GcResult {
-  const result: GcResult = { scanned: 0, deleted: 0, skipped: 0, referenced: 0, dryRun, deletedFiles: [] };
+  const result: GcResult = {
+    scanned: 0,
+    deleted: 0,
+    skipped: 0,
+    referenced: 0,
+    dryRun,
+    deletedFiles: [],
+  };
 
   // 1. 收集所有被引用的 /files/ 相对路径（KV value + 额外来源）
   const referenced = new Set<string>();
@@ -132,14 +139,19 @@ export async function runReferenceGc(dryRun = false): Promise<GcResult> {
   const refUrls = new Set<string>();
   const resUrls = queryAll(db, 'SELECT url FROM resources') as Array<{ url: string }>;
   for (const r of resUrls) if (r.url) refUrls.add(r.url);
-  const taskUrls = queryAll(db, 'SELECT result_url, thumbnail_url FROM tasks') as Array<{ result_url?: string; thumbnail_url?: string }>;
+  const taskUrls = queryAll(db, 'SELECT result_url, thumbnail_url FROM tasks') as Array<{
+    result_url?: string;
+    thumbnail_url?: string;
+  }>;
   for (const t of taskUrls) {
     if (t.result_url) refUrls.add(t.result_url);
     if (t.thumbnail_url) refUrls.add(t.thumbnail_url);
   }
 
   const kvValues = queryAll(db, 'SELECT value FROM kv') as Array<{ value: string }>;
-  const kvValueStrings = kvValues.map((r) => r.value).filter((v): v is string => typeof v === 'string');
+  const kvValueStrings = kvValues
+    .map((r) => r.value)
+    .filter((v): v is string => typeof v === 'string');
 
   return runOrphanGc(kvValueStrings, uploadDir, refUrls, dryRun);
 }

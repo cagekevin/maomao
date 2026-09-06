@@ -17,7 +17,16 @@
  *    全量覆盖：删除旧行 + 按传入列表重建，并把 lastOpened 对应行标 is_last_opened=1。
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { getDb, queryAll, queryOne, run, debouncedSaveDb, beginTx, commitTx, rollbackTx } from '../db/database.js';
+import {
+  getDb,
+  queryAll,
+  queryOne,
+  run,
+  debouncedSaveDb,
+  beginTx,
+  commitTx,
+  rollbackTx,
+} from '../db/database.js';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
 
 /** 读取项目列表整体版本号（project_meta 表，不存在返回 0） */
@@ -28,7 +37,10 @@ function getProjectVersion(db: any): number {
 
 export async function handleProjectsGet(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   const db = await getDb();
-  const rows = queryAll(db, 'SELECT id, name, is_last_opened, created_at FROM projects ORDER BY created_at ASC');
+  const rows = queryAll(
+    db,
+    'SELECT id, name, is_last_opened, created_at FROM projects ORDER BY created_at ASC',
+  );
   const projects = rows.map((r: any) => ({
     id: r.id,
     name: r.name,
@@ -36,14 +48,18 @@ export async function handleProjectsGet(_req: IncomingMessage, res: ServerRespon
     isLastOpened: !!r.is_last_opened,
   }));
   const lastOpenedRow = rows.find((r: any) => r.is_last_opened === 1);
-  const lastOpened = lastOpenedRow ? String(lastOpenedRow.id) : (projects[0]?.id || 'default');
+  const lastOpened = lastOpenedRow ? String(lastOpenedRow.id) : projects[0]?.id || 'default';
   // version：项目列表整体版本号，供前端并发覆盖保护（旧版本保存被拒，防双页面覆盖丢项目）
   const version = getProjectVersion(db);
   return json(res, { code: 0, data: { projects, lastOpened, version } });
 }
 
 export async function handleProjectsSave(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const body = (await parseJsonBody(req)) as { projects?: unknown; lastOpened?: string; version?: number } | null;
+  const body = (await parseJsonBody(req)) as {
+    projects?: unknown;
+    lastOpened?: string;
+    version?: number;
+  } | null;
   if (!body || !Array.isArray(body.projects)) {
     return sendError(res, 'Invalid body: projects[] required', 400);
   }
@@ -74,9 +90,18 @@ export async function handleProjectsSave(req: IncomingMessage, res: ServerRespon
       // 替代旧的「DELETE 全部 + 重建」，避免项目多时每次全量删插的低效与 id 重建。
       const existing = queryOne(db, 'SELECT id FROM projects WHERE id = ?', [id]);
       if (existing) {
-        run(db, 'UPDATE projects SET name = ?, is_last_opened = ? WHERE id = ?', [name, isLast, id]);
+        run(db, 'UPDATE projects SET name = ?, is_last_opened = ? WHERE id = ?', [
+          name,
+          isLast,
+          id,
+        ]);
       } else {
-        run(db, 'INSERT INTO projects (id, name, is_last_opened, created_at) VALUES (?, ?, ?, ?)', [id, name, isLast, now]);
+        run(db, 'INSERT INTO projects (id, name, is_last_opened, created_at) VALUES (?, ?, ?, ?)', [
+          id,
+          name,
+          isLast,
+          now,
+        ]);
       }
     }
     // 删除不在传入列表里的旧项目（处理前端删除项目场景）

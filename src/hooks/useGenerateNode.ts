@@ -1,60 +1,63 @@
-import { useEffect, useMemo, useRef } from 'react'
-import type { GenerationResult } from '@/types'
-import type { Provider } from '../components/base/store/providerStore.ts'
-import type { ModelOption } from '../components/base/utils/providerModels.ts'
-import { useProviders } from '../components/base/store/providerStore.ts'
-import { buildAllModels } from '../components/base/utils/providerModels.ts'
-import { useSyncNodeData } from './useSyncNodeData.ts'
-import { useNodeGeneration } from './useNodeGeneration.ts'
-import type { NodeGenerationRunArgs } from './useNodeGeneration.ts'
+import { useEffect, useMemo, useRef } from 'react';
+import type { GenerationResult } from '@/types';
+import type { Provider } from '../components/base/store/providerStore.ts';
+import type { ModelOption } from '../components/base/utils/providerModels.ts';
+import { useProviders } from '../components/base/store/providerStore.ts';
+import { buildAllModels } from '../components/base/utils/providerModels.ts';
+import { useSyncNodeData } from './useSyncNodeData.ts';
+import { useNodeGeneration } from './useNodeGeneration.ts';
+import type { NodeGenerationRunArgs } from './useNodeGeneration.ts';
 
 /** 生成回调注入的进度/中断参数（直接复用 useNodeGeneration 契约，避免两处各定义一份） */
-export type GenerateRunArgs = NodeGenerationRunArgs
+export type GenerateRunArgs = NodeGenerationRunArgs;
 
 /**
  * 注入给节点回调的 provider 管理态。
  * 节点自有生成参数（imageSize/aspectRatio/…）仍走节点闭包，不进 ctx。
  */
 export interface GenerateNodeCtx {
-  providers: Provider[]
-  primary: Provider | null
-  models: ModelOption[]
-  selectedModel: string | undefined
-  prefs: Record<string, unknown> | undefined
-  setPrefs: (patch: Record<string, unknown>) => void
+  providers: Provider[];
+  primary: Provider | null;
+  models: ModelOption[];
+  selectedModel: string | undefined;
+  prefs: Record<string, unknown> | undefined;
+  setPrefs: (patch: Record<string, unknown>) => void;
 }
 
 /** validate(ctx) → 错误文案或空串 */
-export type GenerateValidate = (ctx: GenerateNodeCtx) => string | undefined | null
+export type GenerateValidate = (ctx: GenerateNodeCtx) => string | undefined | null;
 /** run({progress,signal}, ctx) → 结果信封 */
-export type GenerateRun = (args: GenerateRunArgs, ctx: GenerateNodeCtx) => Promise<GenerationResult>
-export type GenerateSuccess = (result: GenerationResult, ctx: GenerateNodeCtx) => void
-export type GenerateRecover = (data: Record<string, unknown>, ctx: GenerateNodeCtx) => void
+export type GenerateRun = (
+  args: GenerateRunArgs,
+  ctx: GenerateNodeCtx,
+) => Promise<GenerationResult>;
+export type GenerateSuccess = (result: GenerationResult, ctx: GenerateNodeCtx) => void;
+export type GenerateRecover = (data: Record<string, unknown>, ctx: GenerateNodeCtx) => void;
 
 export interface UseGenerateNodeOptions {
-  nodeId: string
+  nodeId: string;
   /** 模型域：'image' | 'chat' | 'video'（buildAllModels 用） */
-  type: string
+  type: string;
   /** 任务上报用的节点类型（与模型域不一致时用，缺省 = type） */
-  reportType?: string
+  reportType?: string;
   /** 任务上报用的有效提示词（节点的 effectivePrompt） */
-  prompt?: string
+  prompt?: string;
   /** 节点当前 data（供 useSyncNodeData 与默认模型守卫） */
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>;
   /** 节点 useNodePrefs().prefs */
-  prefs?: Record<string, unknown>
-  setPrefs: (patch: Record<string, unknown>) => void
-  selectedModel?: string
-  setSelectedModel: (model: string) => void
+  prefs?: Record<string, unknown>;
+  setPrefs: (patch: Record<string, unknown>) => void;
+  selectedModel?: string;
+  setSelectedModel: (model: string) => void;
   /** { data字段: setState } → 收编 useSyncNodeData */
-  sync?: Record<string, (value: unknown) => void>
+  sync?: Record<string, (value: unknown) => void>;
   /** 成功/广播自动写回的 data 字段（如 'imageUrl'/'videoUrl'） */
-  resultField?: string
-  recoverable?: boolean
-  validate?: GenerateValidate
-  run?: GenerateRun
-  onSuccess?: GenerateSuccess
-  onRecover?: GenerateRecover
+  resultField?: string;
+  recoverable?: boolean;
+  validate?: GenerateValidate;
+  run?: GenerateRun;
+  onSuccess?: GenerateSuccess;
+  onRecover?: GenerateRecover;
 }
 
 /**
@@ -90,17 +93,17 @@ export interface UseGenerateNodeOptions {
  */
 export function useGenerateNode({
   nodeId,
-  type,          // 'image' | 'chat' | 'video'（buildAllModels 模型域）
-  reportType,    // 任务上报用的节点类型（type 与上报类型不一致时用，缺省 = type）
-                 // 例：TextNode 模型域是 'chat'，但上报 type 是 'text'，故 reportType:'text'。
-  prompt,        // 任务上报用的有效提示词（节点的 effectivePrompt）
-  data,          // 节点当前 data（供 useSyncNodeData 与默认模型守卫）
-  prefs,         // 节点 useNodePrefs().prefs
-  setPrefs,      // 节点 useNodePrefs().set
+  type, // 'image' | 'chat' | 'video'（buildAllModels 模型域）
+  reportType, // 任务上报用的节点类型（type 与上报类型不一致时用，缺省 = type）
+  // 例：TextNode 模型域是 'chat'，但上报 type 是 'text'，故 reportType:'text'。
+  prompt, // 任务上报用的有效提示词（节点的 effectivePrompt）
+  data, // 节点当前 data（供 useSyncNodeData 与默认模型守卫）
+  prefs, // 节点 useNodePrefs().prefs
+  setPrefs, // 节点 useNodePrefs().set
   selectedModel, // 节点 selectedModel state
   setSelectedModel,
-  sync = {},     // { data字段: setState } → 收编 useSyncNodeData（第71行）
-  resultField,   // 成功/广播自动写回的 data 字段（如 'imageUrl'/'videoUrl'）；文本节点不传
+  sync = {}, // { data字段: setState } → 收编 useSyncNodeData（第71行）
+  resultField, // 成功/广播自动写回的 data 字段（如 'imageUrl'/'videoUrl'）；文本节点不传
   recoverable = false,
   validate,
   run,
@@ -108,35 +111,39 @@ export function useGenerateNode({
   onRecover,
 }: UseGenerateNodeOptions) {
   // ── 供应商/模型（统一选 provider / 模型下拉数据）──
-  const { providers } = useProviders()
-  const primary = providers?.find((p) => p.primary) || providers?.[0] || null
-  const models = buildAllModels(providers, type)
+  const { providers } = useProviders();
+  const primary = providers?.find((p) => p.primary) || providers?.[0] || null;
+  const models = buildAllModels(providers, type);
 
   // ── 收编 useSyncNodeData（第71行）：外部 data 变更 → 本地 state ──
-  useSyncNodeData(data, sync)
+  useSyncNodeData(data, sync);
 
   // ── providers 加载后默认模型回填（记忆空 + 节点未显式指定 → 取第一个并记忆）──
-  const defaultFromProvider = models[0]?.id
+  const defaultFromProvider = models[0]?.id;
   useEffect(() => {
-    if (!defaultFromProvider) return
-    if (prefs?.model) return // 已有记忆，不覆盖
-    if (data?.selectedModel) return // 节点显式指定，不覆盖
-    setSelectedModel(defaultFromProvider)
-    setPrefs({ model: defaultFromProvider })
+    if (!defaultFromProvider) return;
+    if (prefs?.model) return; // 已有记忆，不覆盖
+    if (data?.selectedModel) return; // 节点显式指定，不覆盖
+    setSelectedModel(defaultFromProvider);
+    setPrefs({ model: defaultFromProvider });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultFromProvider])
+  }, [defaultFromProvider]);
 
   // ── ctx：注入给 submit/生成回调的 provider 管理态 ──
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const ctx = useMemo<GenerateNodeCtx>(
     () => ({ providers, primary, models, selectedModel, prefs, setPrefs }),
-    [providers, primary, models, selectedModel, prefs, setPrefs]
-  )
+    [providers, primary, models, selectedModel, prefs, setPrefs],
+  );
   // 用 ref 存回调，确保 useNodeGeneration 内部恒调用最新版并带上最新 ctx
-  const validateRef = useRef<GenerateValidate | undefined>(validate); validateRef.current = validate
-  const runRef = useRef<GenerateRun | undefined>(run); runRef.current = run
-  const onSuccessRef = useRef<GenerateSuccess | undefined>(onSuccess); onSuccessRef.current = onSuccess
-  const onRecoverRef = useRef<GenerateRecover | undefined>(onRecover); onRecoverRef.current = onRecover
+  const validateRef = useRef<GenerateValidate | undefined>(validate);
+  validateRef.current = validate;
+  const runRef = useRef<GenerateRun | undefined>(run);
+  runRef.current = run;
+  const onSuccessRef = useRef<GenerateSuccess | undefined>(onSuccess);
+  onSuccessRef.current = onSuccess;
+  const onRecoverRef = useRef<GenerateRecover | undefined>(onRecover);
+  onRecoverRef.current = onRecover;
 
   // ── 委托底层契约：resultKey 自动写回 + recoverable 自动回填 ──
   const gen = useNodeGeneration({
@@ -148,7 +155,7 @@ export function useGenerateNode({
     onRecover: (d: Record<string, unknown>) => onRecoverRef.current?.(d, ctx),
     resultKey: resultField,
     recoverable,
-  })
+  });
 
-  return { providers, primary, models, ...gen }
+  return { providers, primary, models, ...gen };
 }

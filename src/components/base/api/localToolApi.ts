@@ -18,8 +18,8 @@
  * 【传输】一律经 httpClient.httpRequest，继承超时 / 取消 / 错误分类 / 受限重试。
  *  非 2xx 抛 HttpError，本模块不吞错误、不改写 message（CONTEXT 错误透传铁律）。
  */
-import { httpRequest, httpPost } from './httpClient.ts'
-import { API_BASE } from '../core/config.ts'
+import { httpRequest, httpPost } from './httpClient.ts';
+import { API_BASE } from '../core/config.ts';
 
 /**
  * GET /api/resources 返回的单条资源（后端报文，字段一律可选）。
@@ -27,61 +27,67 @@ import { API_BASE } from '../core/config.ts'
  * 结构上可赋值给拖拽用的 AssetMoveItem（useAssetMoveToFolder）。
  */
 export interface ResourceItem {
-  id: string
-  name?: string
-  url?: string
-  type?: string
-  folder?: string
-  source?: string
+  id: string;
+  name?: string;
+  url?: string;
+  type?: string;
+  folder?: string;
+  source?: string;
 }
 
 // ── 后端报文返回类型（基于各端点注释里记录的结构，收窄 Promise<any>）──
 /** 统一信封：localTool 端点响应均包在 { data } 层（顶层另有 code/ok 等状态字段）。 */
 export interface ApiEnvelope<T> {
-  data: T
-  code?: number
-  ok?: boolean
+  data: T;
+  code?: number;
+  ok?: boolean;
 }
 /** 分页列表内层（tasks/resources 共用形状）。items 元素结构由调用方按需断言。 */
 export interface PagedResult<T> {
-  items: T[]
-  total: number
-  page?: number
-  pageSize?: number
-  totalPages?: number
-  folder?: string
+  items: T[];
+  total: number;
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
+  folder?: string;
 }
 /** { ok:true } 类简单确认响应（save/delete/rename/rescan 等，顶层 ok）。 */
 export interface OkResult {
-  ok: boolean
-  version?: number
-  conflict?: boolean
+  ok: boolean;
+  version?: number;
+  conflict?: boolean;
 }
 /** { deleted:n } 类删除计数响应。 */
 export interface DeletedResult {
-  deleted: number
+  deleted: number;
 }
 /** GET /api/projects 响应内层（字段对齐 projectStore.ProjectBackendData）。 */
 export interface ProjectsData {
-  projects: { id: string; name: string }[]
-  lastOpened: string | null
-  version?: number
+  projects: { id: string; name: string }[];
+  lastOpened: string | null;
+  version?: number;
 }
 /** fetchTasks 列表项（Task 子集，供 PromptNode 等读 nodeId/status/resultUrl）。 */
 export interface TaskListItem {
-  id?: string
-  nodeId?: string
-  status?: string
-  resultUrl?: string
-  [key: string]: unknown
+  id?: string;
+  nodeId?: string;
+  status?: string;
+  resultUrl?: string;
+  [key: string]: unknown;
 }
 /** 候选 C：文件域类型 OpenPathData/FileOpResult 已随文件域成员一并迁至 filesApi.ts（文件域单点）。 */
 // ─────────────────────────── tasks ───────────────────────────
 // GET /api/tasks?page&pageSize&keyword → { items, total }
-export async function fetchTasks({ page = 1, pageSize = 200, keyword = '' }: { page?: number; pageSize?: number; keyword?: string } = {}): Promise<ApiEnvelope<PagedResult<TaskListItem>>> {
-  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
-  if (keyword) params.set('keyword', keyword)
-  return httpRequest(`${API_BASE}/api/tasks?${params}`, { label: 'fetchTasks' })
+export async function fetchTasks({
+  page = 1,
+  pageSize = 200,
+  keyword = '',
+}: { page?: number; pageSize?: number; keyword?: string } = {}): Promise<
+  ApiEnvelope<PagedResult<TaskListItem>>
+> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (keyword) params.set('keyword', keyword);
+  return httpRequest(`${API_BASE}/api/tasks?${params}`, { label: 'fetchTasks' });
 }
 
 // POST /api/tasks/save { task } → { ok:true }（单条 upsert）
@@ -94,79 +100,98 @@ export async function saveTask(task: unknown): Promise<OkResult> {
     body: JSON.stringify(task),
     label: 'saveTask',
     silentSuccess: true,
-  })
+  });
 }
 
 // POST /api/tasks/batch-save [ task, ... ] → { ok:true }；空数组短路
 export async function batchSaveTasks(tasks: unknown[]): Promise<OkResult> {
-  if (!tasks || tasks.length === 0) return { ok: true }
+  if (!tasks || tasks.length === 0) return { ok: true };
   return httpRequest(`${API_BASE}/api/tasks/batch-save`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(tasks),
     label: 'batchSaveTasks',
     silentSuccess: true,
-  })
+  });
 }
 
 // POST /api/tasks/delete?id=... → { ok:true }
 export async function deleteTask(id: string): Promise<OkResult> {
-  return httpPost(`${API_BASE}/api/tasks/delete?id=${encodeURIComponent(id)}`, null, { label: 'deleteTask' })
+  return httpPost(`${API_BASE}/api/tasks/delete?id=${encodeURIComponent(id)}`, null, {
+    label: 'deleteTask',
+  });
 }
 
 // POST /api/tasks/batch-delete { ids:[...] } → { deleted:n }；空数组短路
 export async function batchDeleteTasks(ids: unknown[]): Promise<DeletedResult> {
-  if (!ids || ids.length === 0) return { deleted: 0 }
+  if (!ids || ids.length === 0) return { deleted: 0 };
   return httpRequest(`${API_BASE}/api/tasks/batch-delete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids }),
     label: 'batchDeleteTasks',
-  })
+  });
 }
 
 // POST /api/tasks/clear → { deleted:n }
 export async function clearAllTasksApi(): Promise<DeletedResult> {
-  return httpPost(`${API_BASE}/api/tasks/clear`, null, { label: 'clearTasks' })
+  return httpPost(`${API_BASE}/api/tasks/clear`, null, { label: 'clearTasks' });
 }
 
 // ─────────────────────────── projects ───────────────────────────
 // GET /api/projects → { projects, lastOpened }
 export async function fetchProjects(): Promise<ApiEnvelope<ProjectsData>> {
-  return httpRequest(`${API_BASE}/api/projects`, { label: 'fetchProjects' })
+  return httpRequest(`${API_BASE}/api/projects`, { label: 'fetchProjects' });
 }
 
 // POST /api/projects/save { projects, lastOpened, version } → { ok:true, version }（全量覆盖 + 并发版本保护）
 // version：前端声明的项目列表版本号。后端检测 body.version < 库内最新 version → 拒绝（conflict:true），
 // 防双页面/旧数据覆盖丢新项目。旧前端不传 version → 后端不拦截（向后兼容）。
-export async function saveProjects(projects: unknown, lastOpened: unknown, version?: number): Promise<ApiEnvelope<{ conflict?: boolean; version?: number }>> {
+export async function saveProjects(
+  projects: unknown,
+  lastOpened: unknown,
+  version?: number,
+): Promise<ApiEnvelope<{ conflict?: boolean; version?: number }>> {
   return httpRequest(`${API_BASE}/api/projects/save`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ projects, lastOpened, version: typeof version === 'number' ? version : undefined }),
+    body: JSON.stringify({
+      projects,
+      lastOpened,
+      version: typeof version === 'number' ? version : undefined,
+    }),
     label: 'saveProjects',
-  })
+  });
 }
 
 // ─────────────────────────── resources ───────────────────────────
 // GET /api/resources?page&pageSize&filters=JSON → 分页资源列表
-export async function fetchResources({ folder, page = 1, pageSize = 60, type }: { folder?: string; page?: number; pageSize?: number; type?: string } = {}): Promise<ApiEnvelope<PagedResult<ResourceItem>>> {
-  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
-  const filters: Record<string, string> = {}
-  if (folder) filters.folder = folder // 精确等值匹配当前层级
-  if (type) filters.type = type
-  if (Object.keys(filters).length) params.set('filters', JSON.stringify(filters))
-  return httpRequest(`${API_BASE}/api/resources?${params.toString()}`, { label: 'fetchResources' }) // { items, total, page, pageSize, totalPages }
+export async function fetchResources({
+  folder,
+  page = 1,
+  pageSize = 60,
+  type,
+}: { folder?: string; page?: number; pageSize?: number; type?: string } = {}): Promise<
+  ApiEnvelope<PagedResult<ResourceItem>>
+> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  const filters: Record<string, string> = {};
+  if (folder) filters.folder = folder; // 精确等值匹配当前层级
+  if (type) filters.type = type;
+  if (Object.keys(filters).length) params.set('filters', JSON.stringify(filters));
+  return httpRequest(`${API_BASE}/api/resources?${params.toString()}`, { label: 'fetchResources' }); // { items, total, page, pageSize, totalPages }
 }
 
 // POST /api/resources/rescan → 同步磁盘 upload 目录进 resources 表
 export async function rescanResources(): Promise<ApiEnvelope<{ scanned: number }>> {
-  return httpPost(`${API_BASE}/api/resources/rescan`, null, { label: 'rescanResources' })
+  return httpPost(`${API_BASE}/api/resources/rescan`, null, { label: 'rescanResources' });
 }
 
 // POST /api/resources/delete?id=... → { ok:true }
 export async function deleteResource(id: string): Promise<ApiEnvelope<OkResult>> {
-  return httpPost(`${API_BASE}/api/resources/delete?id=${encodeURIComponent(id)}`, null, { label: 'deleteResource' })
+  return httpPost(`${API_BASE}/api/resources/delete?id=${encodeURIComponent(id)}`, null, {
+    label: 'deleteResource',
+  });
 }
 
 // POST /api/resources/save body 资源对象 → { ok:true }（upsert，含 isFavorite）
@@ -176,33 +201,76 @@ export async function saveResource(resource: unknown): Promise<ApiEnvelope<OkRes
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(resource),
     label: 'saveResource',
-  })
+  });
 }
 
 // GET /api/resources/rename?id=...&name=... → { data:{ id,url,name } }（重命名后回写资源）
 export async function renameResource(id: string, name: string): Promise<ApiEnvelope<ResourceItem>> {
-  return httpPost(`${API_BASE}/api/resources/rename?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`, null, { label: 'renameResource' })
+  return httpPost(
+    `${API_BASE}/api/resources/rename?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`,
+    null,
+    { label: 'renameResource' },
+  );
 }
 
 // ─────────────────────────── providers（供应商管理）───────────────────────────
 // 保持对象式 Interface（providerStore / cloudSync 共 6 处调用零改造）
-interface ProviderRequestOpts { method?: string; body?: unknown; label?: string }
-const request = <T = unknown>(path: string, { method = 'GET', body, label }: ProviderRequestOpts = {}): Promise<T> =>
+interface ProviderRequestOpts {
+  method?: string;
+  body?: unknown;
+  label?: string;
+}
+const request = <T = unknown>(
+  path: string,
+  { method = 'GET', body, label }: ProviderRequestOpts = {},
+): Promise<T> =>
   httpRequest(`${API_BASE}${path}`, {
     method,
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
     label,
-  }) as Promise<T>
+  }) as Promise<T>;
 
 export const providerApi = {
-  getProviders: () => request<ApiEnvelope<{ providers: unknown[] }>>('/api/providers', { label: 'getProviders' }),
-  saveProviders: (providers: unknown) => request<ApiEnvelope<{ providers: unknown[] }>>('/api/providers', { method: 'PUT', body: { providers }, label: 'saveProviders' }),
-  testConnection: (payload: unknown) => request<OkResult & Record<string, unknown>>('/api/providers/test-connection', { method: 'POST', body: payload, label: 'testConnection' }),
-  probeAsync: (payload: unknown) => request<OkResult & Record<string, unknown>>('/api/providers/probe-async', { method: 'POST', body: payload, label: 'probeAsync' }),
-  fetchModels: (id: string) => request<ApiEnvelope<{ image_models: unknown[]; chat_models: unknown[]; video_models: unknown[]; warning?: string }>>(`/api/providers/${encodeURIComponent(id)}/fetch-models`, { method: 'POST', label: 'fetchModels' }),
-  syncConfigBase: (providers: unknown) => request<ApiEnvelope<OkResult>>('/api/config/base', { method: 'PUT', body: { providers }, label: 'syncConfigBase' }),
-}
+  getProviders: () =>
+    request<ApiEnvelope<{ providers: unknown[] }>>('/api/providers', { label: 'getProviders' }),
+  saveProviders: (providers: unknown) =>
+    request<ApiEnvelope<{ providers: unknown[] }>>('/api/providers', {
+      method: 'PUT',
+      body: { providers },
+      label: 'saveProviders',
+    }),
+  testConnection: (payload: unknown) =>
+    request<OkResult & Record<string, unknown>>('/api/providers/test-connection', {
+      method: 'POST',
+      body: payload,
+      label: 'testConnection',
+    }),
+  probeAsync: (payload: unknown) =>
+    request<OkResult & Record<string, unknown>>('/api/providers/probe-async', {
+      method: 'POST',
+      body: payload,
+      label: 'probeAsync',
+    }),
+  fetchModels: (id: string) =>
+    request<
+      ApiEnvelope<{
+        image_models: unknown[];
+        chat_models: unknown[];
+        video_models: unknown[];
+        warning?: string;
+      }>
+    >(`/api/providers/${encodeURIComponent(id)}/fetch-models`, {
+      method: 'POST',
+      label: 'fetchModels',
+    }),
+  syncConfigBase: (providers: unknown) =>
+    request<ApiEnvelope<OkResult>>('/api/config/base', {
+      method: 'PUT',
+      body: { providers },
+      label: 'syncConfigBase',
+    }),
+};
 
 // ─────────────────────────── kv 底层（localTool KV，非 localStorage 分流）───────────────────────────
 // GET /api/kv/get?key=... → 解析后的值或 null（key 不存在）
@@ -210,8 +278,11 @@ export async function kvGet<T = unknown>(key: string): Promise<T | null> {
   // 诚实标注（防假收窄）：泛型 T 由【调用方】单方面声明，本函数不对 T 做运行时校验——服务端已做 JSON.parse，
   // 返回的是「真实 JSON 原样」。若调用侧 T 与实际 JSON 形状不符会静默错位（读到 undefined）。
   // 需要强形状保证的 key：请在调用侧 normalize（形如 localStorage 读取处的 normalizeXxx），勿假定 kvGet 自证。
-  const value: unknown = await httpRequest(`${API_BASE}/api/kv/get?key=${encodeURIComponent(key)}`, { label: 'kvGet' })
-  return value == null ? null : (value as T)
+  const value: unknown = await httpRequest(
+    `${API_BASE}/api/kv/get?key=${encodeURIComponent(key)}`,
+    { label: 'kvGet' },
+  );
+  return value == null ? null : (value as T);
 }
 
 // POST /api/kv/set { key, value } → { ok:true }
@@ -221,12 +292,15 @@ export async function kvSet(key: string, value: unknown): Promise<OkResult> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, value }),
     label: 'kvSet',
-  })
+  });
 }
 
 // POST /api/kv/delete?key=... → { ok:true }（删不存在也 ok）
 export async function kvDelete(key: string): Promise<OkResult> {
-  return httpRequest(`${API_BASE}/api/kv/delete?key=${encodeURIComponent(key)}`, { method: 'POST', label: 'kvDelete' })
+  return httpRequest(`${API_BASE}/api/kv/delete?key=${encodeURIComponent(key)}`, {
+    method: 'POST',
+    label: 'kvDelete',
+  });
 }
 
 // ─────────────────────────── files 域（候选 C 已移出 → filesApi）───────────────────────────

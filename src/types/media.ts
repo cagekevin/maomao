@@ -4,11 +4,11 @@
  */
 
 /** 媒体类型判定结果（mediaType.detectMediaType/detectFileType；对齐官方 xi.jsx / ImageNode 类型约定） */
-export type MediaType = 'image' | 'video' | 'audio' | 'text' | 'other' | 'empty'
+export type MediaType = 'image' | 'video' | 'audio' | 'text' | 'other' | 'empty';
 
 /** 图片加载选项（asyncGuard.loadImageWithTimeout / loadImageOrNull） */
 export interface ImageLoadOptions {
-  timeoutMs?: number
+  timeoutMs?: number;
   /** null = 去掉 crossOrigin（跨域图无 CORS 头时的兜底，canvas 会被污染） */
-  crossOrigin?: string | null
+  crossOrigin?: string | null;
 }

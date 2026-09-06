@@ -17,9 +17,9 @@
 
 /** 芯片 token 的素材元信息（renderPromptToNodes 的 metaMap 值形态） */
 interface ChipMeta {
-  kind?: string
-  url?: string
-  label?: string
+  kind?: string;
+  url?: string;
+  label?: string;
 }
 
 /**
@@ -30,17 +30,21 @@ interface ChipMeta {
  *   - group3 = 可选缩略图 URL（已 encodeURIComponent，防止 `}` 等字符破坏解析）
  * 旧数据 `@{id:label}`（无 `|`）也能正确匹配，向后兼容不崩。
  */
-export const PROMPT_CHIP_RE: RegExp = /@\{([^:]+):([^|}]*)(?:\|([^}]+))?\}/g
+export const PROMPT_CHIP_RE: RegExp = /@\{([^:]+):([^|}]*)(?:\|([^}]+))?\}/g;
 
 /** 零宽空格：芯片前后光标落点占位 */
-export const ZWSP: string = '\u200B'
+export const ZWSP: string = '\u200B';
 
 /** 缩略图 URL ↔ 字符串片段的编解码（集中处理，避免散落 try/catch） */
-const encodeThumb = (url: string): string => (url ? encodeURIComponent(url) : '')
+const encodeThumb = (url: string): string => (url ? encodeURIComponent(url) : '');
 const decodeThumb = (s: string): string => {
-  if (!s) return ''
-  try { return decodeURIComponent(s) } catch { return s }
-}
+  if (!s) return '';
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+};
 
 /**
  * 判断节点是否为「芯片元素」（携带 data-ref-id 的 span）。
@@ -48,9 +52,9 @@ const decodeThumb = (s: string): string => {
  * @returns {boolean}
  */
 export function isChipEl(node: Node | null): boolean {
-  return !!node
-    && node.nodeType === Node.ELEMENT_NODE
-    && (node as Element).hasAttribute('data-ref-id')
+  return (
+    !!node && node.nodeType === Node.ELEMENT_NODE && (node as Element).hasAttribute('data-ref-id')
+  );
 }
 
 /**
@@ -59,9 +63,7 @@ export function isChipEl(node: Node | null): boolean {
  * @returns {boolean}
  */
 export function isBrEl(node: Node | null): boolean {
-  return !!node
-    && node.nodeType === Node.ELEMENT_NODE
-    && (node as Element).tagName === 'BR'
+  return !!node && node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName === 'BR';
 }
 
 /**
@@ -73,11 +75,11 @@ export function isBrEl(node: Node | null): boolean {
  * @param {Node} chip 芯片元素
  */
 export function ensureCaretSlotBeforeChip(chip: Node): void {
-  const previous = chip.previousSibling
+  const previous = chip.previousSibling;
   if (!previous || isBrEl(previous)) {
-    chip.parentNode?.insertBefore(document.createTextNode(ZWSP), chip)
+    chip.parentNode?.insertBefore(document.createTextNode(ZWSP), chip);
   } else if (previous.nodeType === Node.TEXT_NODE && !previous.textContent) {
-    previous.textContent = ZWSP
+    previous.textContent = ZWSP;
   }
 }
 
@@ -86,8 +88,8 @@ export function ensureCaretSlotBeforeChip(chip: Node): void {
  * @param {HTMLElement} root
  */
 export function normalizeChipSlots(root: HTMLElement): void {
-  const chips = root.querySelectorAll('[data-ref-id]')
-  for (const chip of Array.from(chips)) ensureCaretSlotBeforeChip(chip)
+  const chips = root.querySelectorAll('[data-ref-id]');
+  for (const chip of Array.from(chips)) ensureCaretSlotBeforeChip(chip);
 }
 
 /**
@@ -98,32 +100,30 @@ export function normalizeChipSlots(root: HTMLElement): void {
  * @returns {string}
  */
 export function serializeDOM(root: HTMLElement): string {
-  let result = ''
+  let result = '';
   const walk = (node: Node): void => {
     if (node.nodeType === Node.TEXT_NODE) {
-      result += node.textContent || ''
-      return
+      result += node.textContent || '';
+      return;
     }
-    if (node.nodeType !== Node.ELEMENT_NODE) return
-    const el = node as Element
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const el = node as Element;
     if (el.hasAttribute('data-ref-id')) {
-      const id = el.getAttribute('data-ref-id')
-      const label = el.getAttribute('data-ref-label') || ''
-      const thumb = el.getAttribute('data-ref-thumb')
+      const id = el.getAttribute('data-ref-id');
+      const label = el.getAttribute('data-ref-label') || '';
+      const thumb = el.getAttribute('data-ref-thumb');
       // 缩略图 URL 编码进字符串，刷新/重建后可自恢复；无 thumb 时回落旧格式（向后兼容）
-      result += thumb
-        ? `@{${id}:${label}|${encodeThumb(thumb)}}`
-        : `@{${id}:${label}}`
-      return
+      result += thumb ? `@{${id}:${label}|${encodeThumb(thumb)}}` : `@{${id}:${label}}`;
+      return;
     }
     if (el.tagName === 'BR') {
-      result += '\n'
-      return
+      result += '\n';
+      return;
     }
-    for (const child of Array.from(node.childNodes)) walk(child)
-  }
-  for (const child of Array.from(root.childNodes)) walk(child)
-  return result.split(ZWSP).join('').replace(/\n+$/, '')
+    for (const child of Array.from(node.childNodes)) walk(child);
+  };
+  for (const child of Array.from(root.childNodes)) walk(child);
+  return result.split(ZWSP).join('').replace(/\n+$/, '');
 }
 
 /**
@@ -137,35 +137,40 @@ export function serializeDOM(root: HTMLElement): string {
  * @param {string} [thumbnailUrl] 图片缩略图 URL（仅 kind='image' 时用）
  * @returns {HTMLSpanElement}
  */
-export function buildChipEl(id: string, label: string, kind: 'image' | 'text' = 'text', thumbnailUrl?: string): HTMLSpanElement {
-  const span = document.createElement('span')
-  span.className = 'prompt-chip'
-  span.contentEditable = 'false'
-  span.setAttribute('data-ref-id', id)
-  span.setAttribute('data-ref-label', label)
-  if (thumbnailUrl) span.setAttribute('data-ref-thumb', thumbnailUrl)
-  span.title = label
+export function buildChipEl(
+  id: string,
+  label: string,
+  kind: 'image' | 'text' = 'text',
+  thumbnailUrl?: string,
+): HTMLSpanElement {
+  const span = document.createElement('span');
+  span.className = 'prompt-chip';
+  span.contentEditable = 'false';
+  span.setAttribute('data-ref-id', id);
+  span.setAttribute('data-ref-label', label);
+  if (thumbnailUrl) span.setAttribute('data-ref-thumb', thumbnailUrl);
+  span.title = label;
 
-  const icon = document.createElement('span')
-  icon.className = 'prompt-chip-icon'
-  icon.setAttribute('aria-hidden', 'true')
+  const icon = document.createElement('span');
+  icon.className = 'prompt-chip-icon';
+  icon.setAttribute('aria-hidden', 'true');
   if (kind === 'image' && thumbnailUrl) {
-    icon.classList.add('has-thumbnail')
-    const img = document.createElement('img')
-    img.src = thumbnailUrl
-    img.className = 'prompt-chip-thumb'
-    img.alt = ''
-    icon.appendChild(img)
+    icon.classList.add('has-thumbnail');
+    const img = document.createElement('img');
+    img.src = thumbnailUrl;
+    img.className = 'prompt-chip-thumb';
+    img.alt = '';
+    icon.appendChild(img);
   } else {
-    icon.textContent = kind === 'image' ? '🖼' : '@'
+    icon.textContent = kind === 'image' ? '🖼' : '@';
   }
-  span.appendChild(icon)
+  span.appendChild(icon);
 
-  const labelEl = document.createElement('span')
-  labelEl.className = 'prompt-chip-label'
-  labelEl.textContent = label.length > 16 ? `${label.slice(0, 14)}…` : label
-  span.appendChild(labelEl)
-  return span
+  const labelEl = document.createElement('span');
+  labelEl.className = 'prompt-chip-label';
+  labelEl.textContent = label.length > 16 ? `${label.slice(0, 14)}…` : label;
+  span.appendChild(labelEl);
+  return span;
 }
 
 /**
@@ -178,36 +183,37 @@ export function buildChipEl(id: string, label: string, kind: 'image' | 'text' = 
  * @returns {Node[]}
  */
 export function renderPromptToNodes(text: string, metaMap?: Map<string, ChipMeta> | null): Node[] {
-  const nodes: Node[] = []
+  const nodes: Node[] = [];
   const pushChip = (chip: Node): void => {
-    const previous = nodes[nodes.length - 1]
-    if (!previous || isBrEl(previous) || isChipEl(previous)) nodes.push(document.createTextNode(ZWSP))
-    nodes.push(chip)
-  }
+    const previous = nodes[nodes.length - 1];
+    if (!previous || isBrEl(previous) || isChipEl(previous))
+      nodes.push(document.createTextNode(ZWSP));
+    nodes.push(chip);
+  };
   const pushTextWithBreaks = (text): void => {
-    if (!text) return
+    if (!text) return;
     text.split('\n').forEach((line: string, index: number) => {
-      if (index > 0) nodes.push(document.createElement('br'))
-      if (line) nodes.push(document.createTextNode(line))
-    })
-  }
+      if (index > 0) nodes.push(document.createElement('br'));
+      if (line) nodes.push(document.createTextNode(line));
+    });
+  };
 
-  let lastIndex = 0
-  let match: RegExpExecArray | null
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
   while ((match = PROMPT_CHIP_RE.exec(text)) !== null) {
-    pushTextWithBreaks(text.slice(lastIndex, match.index))
-    const id = match[1]
-    const meta = metaMap ? metaMap.get(id) : undefined
+    pushTextWithBreaks(text.slice(lastIndex, match.index));
+    const id = match[1];
+    const meta = metaMap ? metaMap.get(id) : undefined;
     // label：优先 metaMap 的当前名（上游改名后字符串里是旧名，metaMap 是新的）
-    const label = (meta && meta.label && String(meta.label).trim()) || match[2]
+    const label = (meta && meta.label && String(meta.label).trim()) || match[2];
     // kind：字符串自带缩略图 → 必为图片；否则以 metaMap 为准，再回落文本
-    const url = match[3] ? decodeThumb(match[3]) : (meta?.url || '')
-    const kind = url ? 'image' : (meta?.kind || 'text')
-    pushChip(buildChipEl(id, label, kind as 'image' | 'text', url))
-    lastIndex = PROMPT_CHIP_RE.lastIndex
+    const url = match[3] ? decodeThumb(match[3]) : meta?.url || '';
+    const kind = url ? 'image' : meta?.kind || 'text';
+    pushChip(buildChipEl(id, label, kind as 'image' | 'text', url));
+    lastIndex = PROMPT_CHIP_RE.lastIndex;
   }
-  pushTextWithBreaks(text.slice(lastIndex))
-  return nodes
+  pushTextWithBreaks(text.slice(lastIndex));
+  return nodes;
 }
 
 /**
@@ -226,33 +232,36 @@ export function resolvePromptChips(
   refImages: Array<{ id?: string; url?: string }> = [],
   refTexts: Array<{ id?: string; label?: string }> = [],
 ): { text: string; refImages: Array<{ id: string; url: string }> } {
-  const imgById = new Map<string, string>()
-  for (const im of refImages) if (im && im.id && im.url) imgById.set(im.id, im.url)
-  const textById = new Map<string, string>()
-  for (const t of refTexts) if (t && t.id && t.label) textById.set(t.id, t.label)
+  const imgById = new Map<string, string>();
+  for (const im of refImages) if (im && im.id && im.url) imgById.set(im.id, im.url);
+  const textById = new Map<string, string>();
+  for (const t of refTexts) if (t && t.id && t.label) textById.set(t.id, t.label);
 
-  const imageKeyToIndex = new Map<string, number>() // 图引用去重：id → [img=图片N]
-  const resolvedRefImages: Array<{ id: string; url: string }> = []
+  const imageKeyToIndex = new Map<string, number>(); // 图引用去重：id → [img=图片N]
+  const resolvedRefImages: Array<{ id: string; url: string }> = [];
 
-  const text = String(rawPrompt || '').replace(PROMPT_CHIP_RE, (_match: string, id: string, label: string) => {
-    const imgUrl = imgById.get(id)
-    if (imgUrl) {
-      let idx = imageKeyToIndex.get(id)
-      if (idx === undefined) {
-        idx = imageKeyToIndex.size + 1
-        imageKeyToIndex.set(id, idx)
-        resolvedRefImages.push({ id, url: imgUrl })
+  const text = String(rawPrompt || '').replace(
+    PROMPT_CHIP_RE,
+    (_match: string, id: string, label: string) => {
+      const imgUrl = imgById.get(id);
+      if (imgUrl) {
+        let idx = imageKeyToIndex.get(id);
+        if (idx === undefined) {
+          idx = imageKeyToIndex.size + 1;
+          imageKeyToIndex.set(id, idx);
+          resolvedRefImages.push({ id, url: imgUrl });
+        }
+        // seedance 富文本垫图语法：显式 `[img=图片N]` 声明垫图引用，而非裸词「图片N」，
+        // 避免模型把「图片1」当成画面描述词汇而忽略垫图 / 凭空重画。
+        return `[img=图片${idx}]`;
       }
-      // seedance 富文本垫图语法：显式 `[img=图片N]` 声明垫图引用，而非裸词「图片N」，
-      // 避免模型把「图片1」当成画面描述词汇而忽略垫图 / 凭空重画。
-      return `[img=图片${idx}]`
-    }
-    const textLabel = textById.get(id)
-    if (textLabel) return textLabel
-    return ''
-  })
+      const textLabel = textById.get(id);
+      if (textLabel) return textLabel;
+      return '';
+    },
+  );
 
-  return { text: text.trim(), refImages: resolvedRefImages }
+  return { text: text.trim(), refImages: resolvedRefImages };
 }
 
 /**
@@ -274,21 +283,24 @@ export function autoLinkAssetsByName(
   text: string,
   assets: Array<{ id: string; label: string; url?: string; kind?: string }> = [],
 ): string {
-  if (!text || assets.length === 0) return text
+  if (!text || assets.length === 0) return text;
   // 建 label→asset 全等映射（多同名取首个：先出现者优先，同 Map.set 语义）
-  const byName = new Map<string, { id: string; label: string; url?: string; kind?: string }>()
+  const byName = new Map<string, { id: string; label: string; url?: string; kind?: string }>();
   for (const a of assets) {
-    if (a && a.id && a.label && !byName.has(a.label)) byName.set(a.label, a)
+    if (a && a.id && a.label && !byName.has(a.label)) byName.set(a.label, a);
   }
-  if (byName.size === 0) return text
+  if (byName.size === 0) return text;
   // 长名优先排序，避免「@猫A」被「猫」前缀抢先命中（全等匹配下仍需保证最长命中先替换）
-  const names = [...byName.keys()].sort((a, b) => b.length - a.length)
-  const re = new RegExp(`@(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g')
+  const names = [...byName.keys()].sort((a, b) => b.length - a.length);
+  const re = new RegExp(
+    `@(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
+    'g',
+  );
   return text.replace(re, (_m: string, name: string) => {
-    const a = byName.get(name)
+    const a = byName.get(name);
     // 全等命中后才替换；未命中（理论上不会，因正则按名字构造）保留原样
-    if (!a) return _m
-    const thumb = a.url ? `|${encodeThumb(a.url)}` : ''
-    return `@{${a.id}:${a.label}${thumb}}`
-  })
+    if (!a) return _m;
+    const thumb = a.url ? `|${encodeThumb(a.url)}` : '';
+    return `@{${a.id}:${a.label}${thumb}}`;
+  });
 }

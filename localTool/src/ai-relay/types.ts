@@ -208,11 +208,7 @@ export interface ModelProtocol {
   poll?: ModelProtocolPollConfig;
 }
 
-export type ModelProtocolPresetName =
-  | 'openai-chat'
-  | 'openai-image'
-  | 'agnes-video'
-  | 'custom'; // custom = per-provider 自定义协议（relay-poll 按 provider 读取 model_protocols，见 providerConfigStore）
+export type ModelProtocolPresetName = 'openai-chat' | 'openai-image' | 'agnes-video' | 'custom'; // custom = per-provider 自定义协议（relay-poll 按 provider 读取 model_protocols，见 providerConfigStore）
 
 export interface ModelProtocolProfile {
   preset: ModelProtocolPresetName;

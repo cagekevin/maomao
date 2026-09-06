@@ -35,7 +35,9 @@ module.exports = function scopeRenamePlugin() {
             for (const binding of all) {
               const isFuncDecl =
                 binding.kind === 'function' ||
-                (binding.path && binding.path.isFunctionDeclaration && binding.path.isFunctionDeclaration());
+                (binding.path &&
+                  binding.path.isFunctionDeclaration &&
+                  binding.path.isFunctionDeclaration());
               if (!isFuncDecl && all.length !== 1) continue;
               const defScope = binding.scope;
               const target = defScope.getBinding(neu);

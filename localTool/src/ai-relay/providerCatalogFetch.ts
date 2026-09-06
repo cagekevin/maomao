@@ -23,7 +23,8 @@ type CatalogConfig = CatalogFetchOptions['config'];
 function inferModelCategory(modelId: string): ModelCategory {
   const id = modelId.toLowerCase();
   if (/tts|speech|audio|music|voice|whisper|transcri/.test(id)) return 'audio';
-  if (/video|seedance|sora|veo|kling|hailuo|wan\d|skyreels|vidu|minimax[-\s_.]?h3/.test(id)) return 'video';
+  if (/video|seedance|sora|veo|kling|hailuo|wan\d|skyreels|vidu|minimax[-\s_.]?h3/.test(id))
+    return 'video';
   if (/image|seedream|imagen|flux|banana|midjourney|recraft|dall-e/.test(id)) return 'image';
   return 'text';
 }
@@ -66,7 +67,9 @@ function normalizeModels(models: CatalogModel[], providerId: string): CatalogMod
     if (!id || unique.has(id)) continue;
     unique.set(id, { ...model, id, name: model.name?.trim() || id, provider: providerId });
   }
-  return [...unique.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN', { sensitivity: 'base' }));
+  return [...unique.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, 'zh-CN', { sensitivity: 'base' }),
+  );
 }
 
 function safeCatalogError(error: unknown): string {
@@ -74,7 +77,13 @@ function safeCatalogError(error: unknown): string {
   return '无法连接模型目录，请检查接口地址、网络和 API Key';
 }
 
-async function fetchAt(baseUrl: string, definition: ProviderDefinition, providerId: string, config: CatalogConfig, signal?: AbortSignal): Promise<CatalogModel[]> {
+async function fetchAt(
+  baseUrl: string,
+  definition: ProviderDefinition,
+  providerId: string,
+  config: CatalogConfig,
+  signal?: AbortSignal,
+): Promise<CatalogModel[]> {
   const { response } = await stableRequest({
     method: 'GET',
     path: definition.modelsPath || '/models',
@@ -87,15 +96,27 @@ async function fetchAt(baseUrl: string, definition: ProviderDefinition, provider
   if (!response.ok) throw new Error(`模型列表拉取失败 (HTTP ${response.status})`);
   const text = await readCapped(response);
   let payload: unknown;
-  try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = null;
+  }
   const models = readCatalogItems(payload)
     .map((item) => parseCatalogItem(item, providerId))
-    .filter((item): item is CatalogModel => item !== null && isProviderModelVisible(definition.id, item.id));
+    .filter(
+      (item): item is CatalogModel =>
+        item !== null && isProviderModelVisible(definition.id, item.id),
+    );
   if (models.length === 0) throw new Error('模型列表拉取失败 (HTTP 200)');
   return normalizeModels(models, providerId);
 }
 
-async function fetchOpenAiCompatible(definition: ProviderDefinition, providerId: string, config: CatalogConfig, signal?: AbortSignal): Promise<{ models: CatalogModel[]; baseUrl: string }> {
+async function fetchOpenAiCompatible(
+  definition: ProviderDefinition,
+  providerId: string,
+  config: CatalogConfig,
+  signal?: AbortSignal,
+): Promise<{ models: CatalogModel[]; baseUrl: string }> {
   const candidates = baseUrlCandidates(config.baseUrl || definition.defaultBaseUrl || '');
   if (candidates.length === 0) throw new Error('请填写接口地址');
   let lastError: unknown;
@@ -110,7 +131,9 @@ async function fetchOpenAiCompatible(definition: ProviderDefinition, providerId:
   throw lastError instanceof Error ? lastError : new Error('模型列表拉取失败');
 }
 
-export async function fetchProviderModelCatalog(options: CatalogFetchOptions): Promise<CatalogFetchResult> {
+export async function fetchProviderModelCatalog(
+  options: CatalogFetchOptions,
+): Promise<CatalogFetchResult> {
   const { providerId, config, fallbackModels = [], signal } = options;
   if (signal?.aborted) throw new Error('模型列表拉取已取消');
   const definition = getProviderDefinition(providerId, config);
@@ -124,7 +147,13 @@ export async function fetchProviderModelCatalog(options: CatalogFetchOptions): P
     let lastError: unknown;
     for (const baseUrl of candidates) {
       try {
-        const models = await fetchAt(baseUrl, { id: providerId, modelsPath: '/models' } as ProviderDefinition, providerId, config, signal);
+        const models = await fetchAt(
+          baseUrl,
+          { id: providerId, modelsPath: '/models' } as ProviderDefinition,
+          providerId,
+          config,
+          signal,
+        );
         return { models, source: 'remote', resolvedBaseUrl: baseUrl };
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') throw error;
@@ -138,8 +167,9 @@ export async function fetchProviderModelCatalog(options: CatalogFetchOptions): P
     throw new Error(warning, { cause: lastError });
   }
 
-  const normalizedFallback = normalizeModels(fallbackModels, providerId)
-    .filter((model) => isProviderModelVisible(definition.id, model.id));
+  const normalizedFallback = normalizeModels(fallbackModels, providerId).filter((model) =>
+    isProviderModelVisible(definition.id, model.id),
+  );
 
   if (definition.catalogAdapter === 'local-manifest') {
     return { models: normalizedFallback, source: 'local-manifest' };

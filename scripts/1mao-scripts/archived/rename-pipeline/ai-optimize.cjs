@@ -39,15 +39,22 @@ function aiPlugin({ types: t }) {
       UnaryExpression(p) {
         const { operator, argument } = p.node;
         if (operator === '!' && argument.type === 'NumericLiteral') {
-          if (argument.value === 0) { p.replaceWith(t.booleanLiteral(true)); stats.bool++; }
-          else if (argument.value === 1) { p.replaceWith(t.booleanLiteral(false)); stats.bool++; }
+          if (argument.value === 0) {
+            p.replaceWith(t.booleanLiteral(true));
+            stats.bool++;
+          } else if (argument.value === 1) {
+            p.replaceWith(t.booleanLiteral(false));
+            stats.bool++;
+          }
         }
       },
       // 2) 合并变量声明拆开：仅块级或模块顶层（非 export 包裹），for 循环 init 除外（parent 是 ForStatement）
       VariableDeclaration(p) {
         const parent = p.parentPath;
         if (p.node.declarations.length > 1 && (parent.isBlockStatement() || parent.isProgram())) {
-          const news = p.node.declarations.map((decl) => t.variableDeclaration(p.node.kind, [decl]));
+          const news = p.node.declarations.map((decl) =>
+            t.variableDeclaration(p.node.kind, [decl]),
+          );
           p.replaceWithMultiple(news);
           stats.varSplit += news.length - 1;
         }
@@ -85,13 +92,20 @@ function aiPlugin({ types: t }) {
 }
 
 (async () => {
-  const files = fs.readdirSync(BUNDLE).filter((f) => f.endsWith('.js')).sort();
+  const files = fs
+    .readdirSync(BUNDLE)
+    .filter((f) => f.endsWith('.js'))
+    .sort();
   if (files.length === 0) {
     console.error('src/bundle 下没有 .js chunk，请先运行 scripts/beautify.cjs');
     process.exit(1);
   }
   let prettier;
-  try { prettier = require('prettier'); } catch { prettier = null; }
+  try {
+    prettier = require('prettier');
+  } catch {
+    prettier = null;
+  }
 
   for (const f of files) {
     const fp = path.join(BUNDLE, f).replace(/\\/g, '/');
@@ -124,7 +138,12 @@ function aiPlugin({ types: t }) {
         });
       } catch (e) {
         stats.prettierFail++;
-        console.warn('  [prettier 失败，用 babel 生成结果]', f, '-', String(e.message).split('\n')[0]);
+        console.warn(
+          '  [prettier 失败，用 babel 生成结果]',
+          f,
+          '-',
+          String(e.message).split('\n')[0],
+        );
       }
     }
     fs.writeFileSync(path.join(OUT, f).replace(/\\/g, '/'), finalCode);

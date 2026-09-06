@@ -38,7 +38,8 @@ export function isRetryableHttpStatus(status: number): boolean {
 const DEFAULT_MAX_RETRY_DELAY_MS = 60_000;
 const DEFAULT_BASE_DELAY_MS = 800;
 
-const SENSITIVE_KEY_RE = /(?:authorization|api[-_]?key|access[-_]?key|token|secret|password|credential|signature|cookie)/i;
+const SENSITIVE_KEY_RE =
+  /(?:authorization|api[-_]?key|access[-_]?key|token|secret|password|credential|signature|cookie)/i;
 
 export class RelayHttpError extends Error {
   status: number;
@@ -61,7 +62,10 @@ function parseRetryAfterMs(value: string | null): number | undefined {
 }
 
 /** 鉴权头：bearer / header / oauth（即梦走 token 而非 Bearer key）。 */
-export function buildAuthHeaders(auth: AuthConfig | undefined, apiKey?: string): Record<string, string> {
+export function buildAuthHeaders(
+  auth: AuthConfig | undefined,
+  apiKey?: string,
+): Record<string, string> {
   const resolved = auth ?? { type: 'bearer' };
   if (resolved.type === 'oauth') {
     return resolved.token ? { Authorization: resolved.token } : {};
@@ -85,7 +89,9 @@ export function buildHmacAuthHeaders(
 ): Record<string, string> {
   const ts = Math.floor(Date.now() / 1000).toString();
   const raw = `${method}\n${path}\n${ts}`;
-  const sig = createHmac('sha256', auth.secretKey ?? '').update(raw).digest('hex');
+  const sig = createHmac('sha256', auth.secretKey ?? '')
+    .update(raw)
+    .digest('hex');
   return {
     'X-Access-Key': auth.accessKey ?? '',
     'X-Timestamp': ts,
@@ -141,7 +147,8 @@ function withTimeout(
   if (ms !== undefined) {
     timer = setTimeout(() => controller.abort(new RelayHttpError(0, '请求超时', undefined)), ms);
   }
-  const onAbort = () => controller.abort(signal.reason ?? new RelayHttpError(0, '请求已取消', undefined));
+  const onAbort = () =>
+    controller.abort(signal.reason ?? new RelayHttpError(0, '请求已取消', undefined));
   signal.addEventListener('abort', onAbort, { once: true });
   const inner = controller.signal;
   return {
@@ -158,19 +165,24 @@ function withTimeout(
  * 不翻译、不重写。
  */
 export async function stableRequest(opts: StableRequestOptions): Promise<StableRequestResult> {
-  const candidates = opts.candidates && opts.candidates.length
-    ? opts.candidates
-    : baseUrlCandidates(opts.baseUrl ?? '');
+  const candidates =
+    opts.candidates && opts.candidates.length
+      ? opts.candidates
+      : baseUrlCandidates(opts.baseUrl ?? '');
   if (candidates.length === 0) throw new RelayHttpError(0, '请填写接口地址', undefined);
 
   const method = (opts.method || 'GET').toUpperCase();
-  const isPlainJsonBody = opts.body !== undefined && opts.body !== null
-    && typeof opts.body !== 'string' && !isBodyInit(opts.body);
-  const bodyStr: string | undefined = typeof opts.body === 'string'
-    ? opts.body
-    : isPlainJsonBody
-      ? JSON.stringify(opts.body)
-      : undefined;
+  const isPlainJsonBody =
+    opts.body !== undefined &&
+    opts.body !== null &&
+    typeof opts.body !== 'string' &&
+    !isBodyInit(opts.body);
+  const bodyStr: string | undefined =
+    typeof opts.body === 'string'
+      ? opts.body
+      : isPlainJsonBody
+        ? JSON.stringify(opts.body)
+        : undefined;
   const extraHeaders: Record<string, string> = isPlainJsonBody
     ? { 'Content-Type': 'application/json' }
     : {};
@@ -181,21 +193,29 @@ export async function stableRequest(opts: StableRequestOptions): Promise<StableR
   let lastError: unknown;
   for (const candidate of candidates) {
     const url = new URL(candidate + (opts.path || ''));
-    const qs = mergeSearchParams(url, opts.query as Record<string, string | number | boolean | null | undefined> | undefined, opts.requestQuery);
+    const qs = mergeSearchParams(
+      url,
+      opts.query as Record<string, string | number | boolean | null | undefined> | undefined,
+      opts.requestQuery,
+    );
     url.search = qs;
     const finalUrl = url.toString();
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const timeout = withTimeout(opts.signal, opts.timeoutMs);
       try {
-        const authHeaders = opts.auth?.type === 'hmac'
-          ? buildHmacAuthHeaders(opts.auth, method, opts.path ?? '')
-          : buildAuthHeaders(opts.auth, opts.apiKey);
+        const authHeaders =
+          opts.auth?.type === 'hmac'
+            ? buildHmacAuthHeaders(opts.auth, method, opts.path ?? '')
+            : buildAuthHeaders(opts.auth, opts.apiKey);
         const requestHeaders: Record<string, string> = { ...authHeaders, ...extraHeaders };
         if (opts.headers) Object.assign(requestHeaders, opts.headers);
-        const fetchBody: BodyInit | undefined = bodyStr !== undefined
-          ? bodyStr
-          : (opts.body !== undefined && opts.body !== null ? (opts.body as BodyInit) : undefined);
+        const fetchBody: BodyInit | undefined =
+          bodyStr !== undefined
+            ? bodyStr
+            : opts.body !== undefined && opts.body !== null
+              ? (opts.body as BodyInit)
+              : undefined;
         const fetchImpl: typeof fetch = opts.fetchImpl ?? fetch;
         const response = await fetchImpl(finalUrl, {
           method,
@@ -217,10 +237,15 @@ export async function stableRequest(opts: StableRequestOptions): Promise<StableR
         const text = await response.text().catch(() => '');
         const retryAfter = parseRetryAfterMs(response.headers.get('retry-after'));
         const message = text.slice(0, 300) || `${method} ${finalUrl} (${response.status})`;
-        if (DEFAULT_RETRY_STATUSES.has(response.status) && attempt < maxRetries && !opts.signal?.aborted) {
-          const delay = retryAfter && retryAfter > 0
-            ? retryAfter
-            : Math.min(DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_BASE_DELAY_MS * 2 ** attempt);
+        if (
+          DEFAULT_RETRY_STATUSES.has(response.status) &&
+          attempt < maxRetries &&
+          !opts.signal?.aborted
+        ) {
+          const delay =
+            retryAfter && retryAfter > 0
+              ? retryAfter
+              : Math.min(DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_BASE_DELAY_MS * 2 ** attempt);
           lastError = new RelayHttpError(response.status, message, retryAfter ?? undefined);
           await sleep(delay);
           continue;
@@ -229,10 +254,15 @@ export async function stableRequest(opts: StableRequestOptions): Promise<StableR
       } catch (err) {
         if (err instanceof RelayHttpError) {
           lastError = err;
-          if (DEFAULT_RETRY_STATUSES.has(err.status) && attempt < maxRetries && !opts.signal?.aborted) {
-            const delay = err.retryAfterMs && err.retryAfterMs > 0
-              ? err.retryAfterMs
-              : Math.min(DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_BASE_DELAY_MS * 2 ** attempt);
+          if (
+            DEFAULT_RETRY_STATUSES.has(err.status) &&
+            attempt < maxRetries &&
+            !opts.signal?.aborted
+          ) {
+            const delay =
+              err.retryAfterMs && err.retryAfterMs > 0
+                ? err.retryAfterMs
+                : Math.min(DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_BASE_DELAY_MS * 2 ** attempt);
             await sleep(delay);
             continue;
           }
@@ -254,7 +284,10 @@ export async function stableRequest(opts: StableRequestOptions): Promise<StableR
 }
 
 /** 读取响应体并强制 64MB 上限（分块累加，避免一次性吃满内存）。 */
-export async function readCapped(response: Response, maxBytes: number = DEFAULT_MAX_BYTES): Promise<string> {
+export async function readCapped(
+  response: Response,
+  maxBytes: number = DEFAULT_MAX_BYTES,
+): Promise<string> {
   const reader = response.body?.getReader();
   if (!reader) return response.text();
   let total = 0;
@@ -297,7 +330,9 @@ export async function corsSafeFetch(
 }
 
 /** 脱敏：把日志里的敏感头/本地路径抹掉（来自 httpTransport.ts）。 */
-export function sanitizeHeadersForLog(headers: HeadersInit | Record<string, string>): Record<string, string> {
+export function sanitizeHeadersForLog(
+  headers: HeadersInit | Record<string, string>,
+): Record<string, string> {
   const out: Record<string, string> = {};
   const norm = new Headers(headers as HeadersInit);
   norm.forEach((value, name) => {

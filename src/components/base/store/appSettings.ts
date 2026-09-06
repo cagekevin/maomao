@@ -6,71 +6,83 @@
  *
  * 本模块提供统一的 read/write + React hook，App 层用它初始化各 state 并在变化时写回。
  */
-import { useSyncExternalStore } from 'react'
-import { contentGet, contentSet } from '../core/contentStore.ts'
-import { buildDefaults, type SettingKey, type SettingState, type SettingValue } from './settingRegistry.ts'
+import { useSyncExternalStore } from 'react';
+import { contentGet, contentSet } from '../core/contentStore.ts';
+import {
+  buildDefaults,
+  type SettingKey,
+  type SettingState,
+  type SettingValue,
+} from './settingRegistry.ts';
 
-const KEY: string = 'app_settings'
+const KEY: string = 'app_settings';
 
 // 默认应用设置：单一事实来源在 settings/settingRegistry.js（新增开关只改注册表）
-const DEFAULTS: SettingState = buildDefaults()
+const DEFAULTS: SettingState = buildDefaults();
 
-let settings: SettingState = load()
+let settings: SettingState = load();
 
 function load(): SettingState {
   try {
-    const parsed = contentGet(KEY)
-    return { ...DEFAULTS, ...(parsed && typeof parsed === 'object' ? (parsed as Partial<SettingState>) : {}) }
+    const parsed = contentGet(KEY);
+    return {
+      ...DEFAULTS,
+      ...(parsed && typeof parsed === 'object' ? (parsed as Partial<SettingState>) : {}),
+    };
   } catch {
-    return { ...DEFAULTS }
+    return { ...DEFAULTS };
   }
 }
 
 // 订阅（供 useAppSettings）
-const listeners = new Set<() => void>()
+const listeners = new Set<() => void>();
 function save(): void {
-  try { contentSet(KEY, settings) } catch { /* ignore */ }
+  try {
+    contentSet(KEY, settings);
+  } catch {
+    /* ignore */
+  }
 }
 function notify(): void {
-  listeners.forEach((l) => l())
+  listeners.forEach((l) => l());
 }
 function subscribe(cb: () => void): () => void {
-  listeners.add(cb)
-  return () => listeners.delete(cb)
+  listeners.add(cb);
+  return () => listeners.delete(cb);
 }
 function getSnapshot(): SettingState {
-  return settings
+  return settings;
 }
 
 /** 读取某个设置（默认值兜底）。key 受 SettingKey 约束，值类型由注册表 type 派生；拼错键编译期即红 */
 export function getSetting<K extends SettingKey>(key: K): SettingValue<K> {
   // 注：TS 泛型索引 settingState[K] 无法直接塌缩为 SettingValue<K>（联合索引交集问题），此处显式收窄，诚实反映形状
-  return (settings[key] !== undefined ? settings[key] : DEFAULTS[key]) as SettingValue<K>
+  return (settings[key] !== undefined ? settings[key] : DEFAULTS[key]) as SettingValue<K>;
 }
 
 /** 写入一个设置（更新内存 + 持久化 + 通知）。value 类型随 key 收窄 */
 export function setSetting<K extends SettingKey>(key: K, value: SettingValue<K>): void {
-  settings = { ...settings, [key]: value } as SettingState
-  save()
-  notify()
+  settings = { ...settings, [key]: value } as SettingState;
+  save();
+  notify();
   // 调试总开关桥接：同步写 window.__DEBUG_ALL，让 isDebugModuleOn（config.js）实时读到并全开 debug。
   // 这样用户在「其他设置→调试模式」一键开/关，不依赖 AI 敲 window.__DEBUG_*。
-  if (key === 'debugOn') syncDebugAll(!!value)
+  if (key === 'debugOn') syncDebugAll(!!value);
 }
 
 /** 扩展 window 上的调试总开关（config.js isDebugModuleOn 运行时读取源；非标准窗口属性需显式声明） */
-type DebugWindow = Window & { __DEBUG_ALL: boolean }
+type DebugWindow = Window & { __DEBUG_ALL: boolean };
 
 /** 把调试总开关状态同步到 window.__DEBUG_ALL（isDebugModuleOn 的实时读取源） */
 function syncDebugAll(v: boolean): void {
-  if (typeof window !== 'undefined') (window as unknown as DebugWindow).__DEBUG_ALL = !!v
+  if (typeof window !== 'undefined') (window as unknown as DebugWindow).__DEBUG_ALL = !!v;
 }
 
 // 应用加载初始化：若已持久化的调试总开关为开（云同步/刷新恢复），启动即同步 window.__DEBUG_ALL，
 // 否则刷新后 debug 会因 window 为新的而丢失开启状态。
-syncDebugAll(!!getSetting('debugOn'))
+syncDebugAll(!!getSetting('debugOn'));
 
 /** React hook：订阅 app_settings */
 export function useAppSettings(): SettingState {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest'
-import { classifyLocalIntent, buildIntentHint } from '../../src/components/agent/runtime/useAgentChat.ts'
+import { describe, it, expect } from 'vitest';
+import {
+  classifyLocalIntent,
+  buildIntentHint,
+} from '../../src/components/agent/runtime/useAgentChat.ts';
 
 /**
  * 意图本地判定（docs/76 · L1 层）
@@ -29,6 +32,8 @@ describe('意图本地判定 classifyLocalIntent（docs/76 L1）', () => {
     ['根据这张图生成', 'generate'],
     ['把这张图改成黑白', 'generate'],
     ['生成一只赛博朋克猫', 'generate'],
+    // 「把这段改成英文」无图对象 → 不再误判 generate（2026-09-06 修正边界，宁漏勿误）
+    ['把这段文案改成英文', 'null'],
     // ── chat：短问候 ──
     ['你好', 'chat'],
     ['谢谢', 'chat'],
@@ -40,39 +45,39 @@ describe('意图本地判定 classifyLocalIntent（docs/76 L1）', () => {
     // 「画一只猫」本地判不出（GENERATE_RE 未收单字「画」，避免误伤「画风」类描述词），
     // 交 LLM 正常出图——漏判不产生错误行为，符合「宁可漏判不可误判」。
     ['画一只猫', 'null'],
-  ]
+  ];
   it.each(cases)('%s → %s', (text, expected) => {
-    const got = classifyLocalIntent(text)
-    expect(got.intent ?? 'null').toBe(expected)
-  })
+    const got = classifyLocalIntent(text);
+    expect(got.intent ?? 'null').toBe(expected);
+  });
 
-  it('判不出时返回 intent:null + confidence:0（下游不注入任何提示）', () => {
-    expect(classifyLocalIntent('帮我把这些节点连起来')).toEqual({ intent: null, confidence: 0 })
-  })
+  it('判不出时返回 intent:null（下游不注入任何提示）', () => {
+    expect(classifyLocalIntent('帮我把这些节点连起来')).toEqual({ intent: null });
+  });
 
   it('空输入 / 纯空白不判定', () => {
-    expect(classifyLocalIntent('').intent).toBeNull()
-    expect(classifyLocalIntent('   ').intent).toBeNull()
-  })
-})
+    expect(classifyLocalIntent('').intent).toBeNull();
+    expect(classifyLocalIntent('   ').intent).toBeNull();
+  });
+});
 
 describe('buildIntentHint（注入给 LLM 的预判提示）', () => {
   it('content 命中时提示「不需要调用画布工具」——本次故障回归用例', () => {
-    const hint = buildIntentHint('反推图像提示词')
-    expect(hint).toContain('内容理解/产出文字')
-    expect(hint).toContain('不需要调用任何画布工具')
-  })
+    const hint = buildIntentHint('反推图像提示词');
+    expect(hint).toContain('内容理解/产出文字');
+    expect(hint).toContain('不需要调用任何画布工具');
+  });
 
   it('chat 命中时提示只做文字回应', () => {
-    expect(buildIntentHint('你好')).toContain('纯聊天')
-  })
+    expect(buildIntentHint('你好')).toContain('纯聊天');
+  });
 
   it('generate 命中时提示按生成流程执行（不引导成不用工具）', () => {
-    expect(buildIntentHint('生成一只赛博朋克猫')).toContain('生成/改图')
-  })
+    expect(buildIntentHint('生成一只赛博朋克猫')).toContain('生成/改图');
+  });
 
   it('判不出时返回空串 —— 调用方据此跳过注入，行为与改动前完全一致', () => {
-    expect(buildIntentHint('帮我把这些节点连起来')).toBe('')
-    expect(buildIntentHint('')).toBe('')
-  })
-})
+    expect(buildIntentHint('帮我把这些节点连起来')).toBe('');
+    expect(buildIntentHint('')).toBe('');
+  });
+});

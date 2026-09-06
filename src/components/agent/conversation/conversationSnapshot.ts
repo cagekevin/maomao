@@ -10,12 +10,24 @@
  * ════════════════════════════════════════════════════════════════
  */
 import {
-  getActiveConv, commit, getState, normalizeWorkflow, normalizePending, normalizeMemory,
-  emptyMemory, AGENT_MSG_MAX,
-} from './conversationState.ts'
-import type { ConversationMessage, WorkflowState, PendingRefState, ConversationMemory, Conversation } from './conversationState.ts'
+  getActiveConv,
+  commit,
+  getState,
+  normalizeWorkflow,
+  normalizePending,
+  normalizeMemory,
+  emptyMemory,
+  AGENT_MSG_MAX,
+} from './conversationState.ts';
+import type {
+  ConversationMessage,
+  WorkflowState,
+  PendingRefState,
+  ConversationMemory,
+  Conversation,
+} from './conversationState.ts';
 // 【P1b L1 静态上限】写入口统一限容：lastResults 去重限条 + memory 限条，防止整包体积无界增长（见 volumePolicy.js）
-import { sanitizeMessages, capConversationMemory } from '../../base/utils/volumePolicy.ts'
+import { sanitizeMessages, capConversationMemory } from '../../base/utils/volumePolicy.ts';
 
 /**
  * 当前对话快照（对外读形状）。
@@ -23,32 +35,36 @@ import { sanitizeMessages, capConversationMemory } from '../../base/utils/volume
  * 此处以「结构 + 逐字段可空」为准，不改变运行时行为。
  */
 export interface ConversationSnapshot {
-  messages: ConversationMessage[]
-  skills: unknown[]
-  attachments: unknown[]
-  draft: string
+  messages: ConversationMessage[];
+  skills: unknown[];
+  attachments: unknown[];
+  draft: string;
   /** 工作流运行时状态（无则 null，见 workflowState.WorkflowStatus） */
-  workflow: WorkflowState | null
+  workflow: WorkflowState | null;
   /** 刷新恢复用的 pending 引用（无则 null） */
-  pending: PendingRefState | null
-  memory: ConversationMemory
+  pending: PendingRefState | null;
+  memory: ConversationMemory;
 }
 
 /** setCurrentSnapshot 入参：只覆盖传入字段，其余保留 */
-export type SnapshotPatch = Partial<ConversationSnapshot> & Record<string, unknown>
+export type SnapshotPatch = Partial<ConversationSnapshot> & Record<string, unknown>;
 
 /** 读当前对话的快照副本（对外） */
 export function getCurrentSnapshot(): ConversationSnapshot {
-  const conv = getActiveConv()
+  const conv = getActiveConv();
   return {
     messages: conv ? [...conv.messages] : [],
     skills: conv ? [...conv.skills] : [],
     attachments: conv ? [...conv.attachments] : [],
     draft: conv?.draft || '',
-    workflow: conv?.workflow ? { ...conv.workflow, steerQueue: [...(conv.workflow.steerQueue || [])] } : null,
-    pending: conv?.pending ? { ...conv.pending, attachments: [...(conv.pending.attachments || [])] } : null,
+    workflow: conv?.workflow
+      ? { ...conv.workflow, steerQueue: [...(conv.workflow.steerQueue || [])] }
+      : null,
+    pending: conv?.pending
+      ? { ...conv.pending, attachments: [...(conv.pending.attachments || [])] }
+      : null,
     memory: conv?.memory ? normalizeMemory(conv.memory) : emptyMemory(),
-  }
+  };
 }
 
 /**
@@ -56,26 +72,34 @@ export function getCurrentSnapshot(): ConversationSnapshot {
  * 重构后这是唯一写入口之一：更新 active 对话并自动落盘。
  */
 export function setCurrentSnapshot(snap?: SnapshotPatch | null): void {
-  const conv = getActiveConv()
-  if (!conv) return
-  const rawMessages = Array.isArray(snap?.messages) ? snap.messages.slice(-AGENT_MSG_MAX) : conv.messages
-  const rawMemory = snap?.memory ? normalizeMemory(snap.memory) : conv.memory
+  const conv = getActiveConv();
+  if (!conv) return;
+  const rawMessages = Array.isArray(snap?.messages)
+    ? snap.messages.slice(-AGENT_MSG_MAX)
+    : conv.messages;
+  const rawMemory = snap?.memory ? normalizeMemory(snap.memory) : conv.memory;
   const next = {
     ...conv,
     // 【P1b L1】写入口统一限容：lastResults 去重限条 + memory 限条
-    messages: sanitizeMessages(rawMessages as Parameters<typeof sanitizeMessages>[0]) as ConversationMessage[],
-    skills: Array.isArray(snap?.skills) ? snap.skills.map((s) => ({ ...s as Record<string, unknown> })) : conv.skills,
-    attachments: Array.isArray(snap?.attachments) ? snap.attachments.map((a) => ({ ...a as Record<string, unknown> })) : conv.attachments,
+    messages: sanitizeMessages(
+      rawMessages as Parameters<typeof sanitizeMessages>[0],
+    ) as ConversationMessage[],
+    skills: Array.isArray(snap?.skills)
+      ? snap.skills.map((s) => ({ ...(s as Record<string, unknown>) }))
+      : conv.skills,
+    attachments: Array.isArray(snap?.attachments)
+      ? snap.attachments.map((a) => ({ ...(a as Record<string, unknown>) }))
+      : conv.attachments,
     draft: typeof snap?.draft === 'string' ? snap.draft : conv.draft,
     workflow: snap?.workflow ? normalizeWorkflow(snap.workflow) : conv.workflow,
     pending: snap?.pending !== undefined ? normalizePending(snap.pending) : conv.pending,
     memory: capConversationMemory(rawMemory),
     updatedAt: Date.now(),
-  }
+  };
   commit({
     ...getState(),
     conversations: getState().conversations.map((c) => (c.id === conv.id ? next : c)),
-  })
+  });
 }
 
 /**
@@ -87,61 +111,86 @@ export function setCurrentSnapshot(snap?: SnapshotPatch | null): void {
  *   读取到的就是最新消息（保证 send finally 同步读到完整 assistant 而非空 streaming 占位）。
  */
 export function patchCurrentMessages(messages?: ConversationMessage[] | null): void {
-  const conv = getActiveConv()
-  if (!conv) return
-  commit({
-    ...getState(),
-    conversations: getState().conversations.map((c) =>
-      c.id === conv.id ? { ...c, messages: Array.isArray(messages) ? messages.slice(-AGENT_MSG_MAX) : c.messages, updatedAt: Date.now() } : c
-    ),
-  }, { persist: false })
+  const conv = getActiveConv();
+  if (!conv) return;
+  commit(
+    {
+      ...getState(),
+      conversations: getState().conversations.map((c) =>
+        c.id === conv.id
+          ? {
+              ...c,
+              messages: Array.isArray(messages) ? messages.slice(-AGENT_MSG_MAX) : c.messages,
+              updatedAt: Date.now(),
+            }
+          : c,
+      ),
+    },
+    { persist: false },
+  );
 }
 
 /** 读当前对话的 workflow（副本；无则 null） */
 export function getCurrentWorkflow(): WorkflowState | null {
-  return getActiveConv()?.workflow ? { ...getActiveConv().workflow, steerQueue: [...(getActiveConv().workflow.steerQueue || [])] } : null
+  return getActiveConv()?.workflow
+    ? { ...getActiveConv().workflow, steerQueue: [...(getActiveConv().workflow.steerQueue || [])] }
+    : null;
 }
 
 /** 原地补丁当前对话的 workflow（运行时状态；更新后落盘） */
 export function patchCurrentWorkflow(patch: Record<string, unknown> = {}): WorkflowState | null {
-  const conv = getActiveConv()
-  if (!conv) return null
-  const wf = conv.workflow ? { ...conv.workflow } : { status: 'planning', nodeIds: [], steerQueue: [] }
-  const nextWf = normalizeWorkflow({ ...wf, ...patch, steerQueue: Array.isArray(patch?.steerQueue) ? patch.steerQueue : (wf.steerQueue || []) })
+  const conv = getActiveConv();
+  if (!conv) return null;
+  const wf = conv.workflow
+    ? { ...conv.workflow }
+    : { status: 'planning', nodeIds: [], steerQueue: [] };
+  const nextWf = normalizeWorkflow({
+    ...wf,
+    ...patch,
+    steerQueue: Array.isArray(patch?.steerQueue) ? patch.steerQueue : wf.steerQueue || [],
+  });
   commit({
     ...getState(),
-    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, workflow: nextWf, updatedAt: Date.now() } : c)),
-  })
-  return nextWf
+    conversations: getState().conversations.map((c) =>
+      c.id === conv.id ? { ...c, workflow: nextWf, updatedAt: Date.now() } : c,
+    ),
+  });
+  return nextWf;
 }
 
 /** 读当前对话的 pending（副本；无则 null） */
 export function getCurrentPending(): PendingRefState | null {
-  const p = getActiveConv()?.pending
-  return p ? { ...p, attachments: [...(p.attachments || [])] } : null
+  const p = getActiveConv()?.pending;
+  return p ? { ...p, attachments: [...(p.attachments || [])] } : null;
 }
 
 /** 设置/清除当前对话的 pending（刷新后据此恢复任务） */
 export function setCurrentPending(p: unknown): void {
-  const conv = getActiveConv()
-  if (!conv) return
+  const conv = getActiveConv();
+  if (!conv) return;
   commit({
     ...getState(),
-    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, pending: normalizePending(p), updatedAt: Date.now() } : c)),
-  })
+    conversations: getState().conversations.map((c) =>
+      c.id === conv.id ? { ...c, pending: normalizePending(p), updatedAt: Date.now() } : c,
+    ),
+  });
 }
 
 /** 读当前对话的 memory（副本；无则空记忆） */
 export function getCurrentMemory(): ConversationMemory {
-  return getActiveConv()?.memory ? normalizeMemory(getActiveConv().memory) : emptyMemory()
+  return getActiveConv()?.memory ? normalizeMemory(getActiveConv().memory) : emptyMemory();
 }
 
 /** 更新当前对话的 memory（提炼 lastPlan 等；【P1b】facts/artifacts 限容） */
 export function setCurrentMemory(m: unknown): void {
-  const conv = getActiveConv()
-  if (!conv) return
+  const conv = getActiveConv();
+  if (!conv) return;
   commit({
     ...getState(),
-    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, memory: capConversationMemory(normalizeMemory(m)), updatedAt: Date.now() } : c)),
-  })
+    conversations: getState().conversations.map((c) =>
+      c.id === conv.id
+        ? { ...c, memory: capConversationMemory(normalizeMemory(m)), updatedAt: Date.now() }
+        : c,
+    ),
+  });
 }

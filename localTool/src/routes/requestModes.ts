@@ -11,12 +11,14 @@
  * 实现一变必红"的契约。
  */
 
-export type ImageRequestMode =
-  | 'openai' | 'openai-json' | 'openai-video-proxy' | 'openai-responses';
+export type ImageRequestMode = 'openai' | 'openai-json' | 'openai-video-proxy' | 'openai-responses';
 
 /** 生图形态白名单（与前端 ProviderForm REQUEST_MODES / SUPPORTED 保持一致）。 */
 export const SUPPORTED_IMAGE_REQUEST_MODES: ImageRequestMode[] = [
-  'openai', 'openai-json', 'openai-video-proxy', 'openai-responses',
+  'openai',
+  'openai-json',
+  'openai-video-proxy',
+  'openai-responses',
 ];
 
 /** 聊天形态：chat/completions（默认）vs responses。 */
@@ -34,11 +36,14 @@ export const REQUIRES_RESPONSES_MODEL = /gpt-5\.6|gpt-5-6/;
  */
 export function imageModePath(mode?: string | null): string {
   switch (mode) {
-    case 'openai-responses': return 'responses';
-    case 'openai-video-proxy': return 'videos';
+    case 'openai-responses':
+      return 'responses';
+    case 'openai-video-proxy':
+      return 'videos';
     case 'openai-json':
     case 'openai':
-    default: return 'images/generations';
+    default:
+      return 'images/generations';
   }
 }
 
@@ -52,10 +57,14 @@ export function isResponsesMode(mode?: string | null): boolean {
  * @param prompt 文本提示
  * @param images 参考图 url 数组（不含则只发文本）
  */
-export function buildResponsesInput(prompt: string, images: string[] = []): Array<Record<string, unknown>> {
+export function buildResponsesInput(
+  prompt: string,
+  images: string[] = [],
+): Array<Record<string, unknown>> {
   const input: Array<Record<string, unknown>> = [{ type: 'input_text', text: prompt }];
   for (const img of images) {
-    if (typeof img === 'string' && img.trim()) input.push({ type: 'input_image', image_url: img.trim() });
+    if (typeof img === 'string' && img.trim())
+      input.push({ type: 'input_image', image_url: img.trim() });
   }
   return input;
 }
@@ -88,8 +97,12 @@ export function buildResponsesImageBody(opts: {
 export function parseResponsesImage(data: unknown): string | undefined {
   const output = Array.isArray((data as any)?.output) ? (data as any).output : [];
   for (const item of output) {
-    if (item?.type === 'image_generation_call' && item?.status === 'completed'
-      && typeof item?.result === 'string' && item.result.trim()) {
+    if (
+      item?.type === 'image_generation_call' &&
+      item?.status === 'completed' &&
+      typeof item?.result === 'string' &&
+      item.result.trim()
+    ) {
       return item.result.trim();
     }
   }
@@ -132,24 +145,43 @@ export function parseResponsesJson(data: unknown): string | undefined {
  *   responses:        output[] = [{ type:'function_call', name, arguments, call_id }]
  * 统一输出：{ id, type:'function', function:{ name, arguments } }, 供现有 agent 工具循环消费。
  */
-export function normalizeToolCalls(source: unknown): Array<{ id?: string; type: string; function: { name: string; arguments?: string } }> {
+export function normalizeToolCalls(
+  source: unknown,
+): Array<{ id?: string; type: string; function: { name: string; arguments?: string } }> {
   if (Array.isArray(source)) {
     // chat/completions 分片（SSE delta.tool_calls 也可能是一段片段，这里假定完整结构）
-    const out: Array<{ id?: string; type: string; function: { name: string; arguments?: string } }> = [];
+    const out: Array<{
+      id?: string;
+      type: string;
+      function: { name: string; arguments?: string };
+    }> = [];
     for (const tc of source) {
       if (tc?.function && typeof tc.function.name === 'string') {
-        out.push({ id: tc.id, type: 'function', function: { name: tc.function.name, arguments: tc.function.arguments } });
+        out.push({
+          id: tc.id,
+          type: 'function',
+          function: { name: tc.function.name, arguments: tc.function.arguments },
+        });
       } else if (tc?.type === 'function_call' && typeof tc?.name === 'string') {
-        out.push({ id: tc.call_id, type: 'function', function: { name: tc.name, arguments: tc.arguments } });
+        out.push({
+          id: tc.call_id,
+          type: 'function',
+          function: { name: tc.name, arguments: tc.arguments },
+        });
       }
     }
     return out;
   }
   const output = Array.isArray((source as any)?.output) ? (source as any).output : [];
-  const out: Array<{ id?: string; type: string; function: { name: string; arguments?: string } }> = [];
+  const out: Array<{ id?: string; type: string; function: { name: string; arguments?: string } }> =
+    [];
   for (const item of output) {
     if (item?.type === 'function_call' && typeof item?.name === 'string') {
-      out.push({ id: item.call_id, type: 'function', function: { name: item.name, arguments: item.arguments } });
+      out.push({
+        id: item.call_id,
+        type: 'function',
+        function: { name: item.name, arguments: item.arguments },
+      });
     }
   }
   return out;
@@ -188,7 +220,10 @@ export function buildResponsesChatBody(opts: {
       input.push({
         type: 'function_call_output',
         call_id: (m as any)?.tool_call_id || '',
-        output: typeof (m as any)?.content === 'string' ? (m as any).content : JSON.stringify((m as any)?.content ?? ''),
+        output:
+          typeof (m as any)?.content === 'string'
+            ? (m as any).content
+            : JSON.stringify((m as any)?.content ?? ''),
       });
       continue;
     }
@@ -199,13 +234,22 @@ export function buildResponsesChatBody(opts: {
     const isAssistant = (m as any)?.role === 'assistant';
     const items = Array.isArray((m as any)?.content)
       ? (m as any).content
-      : [{ type: isAssistant ? 'output_text' : 'input_text', text: typeof (m as any)?.content === 'string' ? (m as any).content : String((m as any)?.content ?? '') }];
+      : [
+          {
+            type: isAssistant ? 'output_text' : 'input_text',
+            text:
+              typeof (m as any)?.content === 'string'
+                ? (m as any).content
+                : String((m as any)?.content ?? ''),
+          },
+        ];
     const mapped = (items || []).map((c: any) => {
       if (c?.type === 'image_url') {
         const raw = c?.image_url?.url || c?.image_url;
         return { type: 'input_image', image_url: raw, detail: c?.image_url?.detail };
       }
-      if (c?.type === 'text') return { type: isAssistant ? 'output_text' : 'input_text', text: c.text };
+      if (c?.type === 'text')
+        return { type: isAssistant ? 'output_text' : 'input_text', text: c.text };
       // 保留显式给出的 output_text（assistant 历史回传），其余原样透传
       return c;
     });
@@ -242,9 +286,16 @@ export function buildResponsesChatBody(opts: {
  * responses 聊天响应解析（非流式，M2-2/M2-4）：
  *   output[] 的 message → content[].text 拼 content；function_call → 归一 tool_calls。
  */
-export function parseResponsesChatJson(json: unknown): { content: string; toolCalls: Array<{ id?: string; type: string; function: { name: string; arguments?: string } }> } {
+export function parseResponsesChatJson(json: unknown): {
+  content: string;
+  toolCalls: Array<{ id?: string; type: string; function: { name: string; arguments?: string } }>;
+} {
   const content: string[] = [];
-  const toolCalls: Array<{ id?: string; type: string; function: { name: string; arguments?: string } }> = [];
+  const toolCalls: Array<{
+    id?: string;
+    type: string;
+    function: { name: string; arguments?: string };
+  }> = [];
   const output = Array.isArray((json as any)?.output) ? (json as any).output : [];
   for (const item of output) {
     if (item?.type === 'message' && Array.isArray(item?.content)) {
@@ -252,7 +303,11 @@ export function parseResponsesChatJson(json: unknown): { content: string; toolCa
         if (c?.type === 'output_text' && typeof c?.text === 'string') content.push(c.text);
       }
     } else if (item?.type === 'function_call' && typeof item?.name === 'string') {
-      toolCalls.push({ id: item.call_id || '', type: 'function', function: { name: item.name, arguments: item.arguments || '' } });
+      toolCalls.push({
+        id: item.call_id || '',
+        type: 'function',
+        function: { name: item.name, arguments: item.arguments || '' },
+      });
     }
   }
   return { content: content.join(''), toolCalls };
@@ -265,7 +320,11 @@ export function parseResponsesChatJson(json: unknown): { content: string; toolCa
  */
 function parseResponsesSSEDataLine(
   line: string,
-  acc: { content: string; reasoning: string; toolCalls: Array<{ id?: string; type: string; function: { name: string; arguments: string } }> },
+  acc: {
+    content: string;
+    reasoning: string;
+    toolCalls: Array<{ id?: string; type: string; function: { name: string; arguments: string } }>;
+  },
 ): void {
   const payload = line.slice(5).trim();
   if (!payload || payload === '[DONE]') return;
@@ -276,24 +335,39 @@ function parseResponsesSSEDataLine(
     //（function_call_arguments.delta/done 里没有 name，只有 arguments）。
     if (type === 'response.output_item.added' && evt?.item?.type === 'function_call') {
       acc.toolCalls[0] ||= { id: '', type: 'function', function: { name: '', arguments: '' } };
-      if (typeof evt.item.call_id === 'string' && !acc.toolCalls[0].id) acc.toolCalls[0].id = evt.item.call_id;
-      if (typeof evt.item.name === 'string' && !acc.toolCalls[0].function.name) acc.toolCalls[0].function.name = evt.item.name;
-    } else if (type === 'response.output_text.delta' && typeof evt?.delta === 'string') acc.content += evt.delta;
-    else if (type === 'response.reasoning_summary_text.delta' && typeof evt?.delta === 'string') acc.reasoning += evt.delta;
+      if (typeof evt.item.call_id === 'string' && !acc.toolCalls[0].id)
+        acc.toolCalls[0].id = evt.item.call_id;
+      if (typeof evt.item.name === 'string' && !acc.toolCalls[0].function.name)
+        acc.toolCalls[0].function.name = evt.item.name;
+    } else if (type === 'response.output_text.delta' && typeof evt?.delta === 'string')
+      acc.content += evt.delta;
+    else if (type === 'response.reasoning_summary_text.delta' && typeof evt?.delta === 'string')
+      acc.reasoning += evt.delta;
     else if (type === 'response.response.delta' && Array.isArray(evt?.delta?.output_text)) {
       for (const o of evt.delta.output_text) if (typeof o?.text === 'string') acc.content += o.text;
-    } else if (type === 'response.function_call_arguments.delta' && typeof evt?.delta === 'string') {
+    } else if (
+      type === 'response.function_call_arguments.delta' &&
+      typeof evt?.delta === 'string'
+    ) {
       acc.toolCalls[0] ||= { id: '', type: 'function', function: { name: '', arguments: '' } };
       if (typeof evt?.name === 'string') acc.toolCalls[0].function.name += evt.name;
-      if (typeof evt?.call_id === 'string' && !acc.toolCalls[0].id) acc.toolCalls[0].id = evt.call_id;
+      if (typeof evt?.call_id === 'string' && !acc.toolCalls[0].id)
+        acc.toolCalls[0].id = evt.call_id;
       acc.toolCalls[0].function.arguments += evt.delta;
     } else if (type === 'response.function_call_arguments.done') {
-      acc.toolCalls[0] ||= { id: '', type: 'function', function: { name: evt?.name || '', arguments: evt?.arguments || '' } };
+      acc.toolCalls[0] ||= {
+        id: '',
+        type: 'function',
+        function: { name: evt?.name || '', arguments: evt?.arguments || '' },
+      };
       if (typeof evt?.call_id === 'string') acc.toolCalls[0].id = evt.call_id;
-      if (typeof evt?.name === 'string' && !acc.toolCalls[0].function.name) acc.toolCalls[0].function.name = evt.name;
+      if (typeof evt?.name === 'string' && !acc.toolCalls[0].function.name)
+        acc.toolCalls[0].function.name = evt.name;
       if (typeof evt?.arguments === 'string') acc.toolCalls[0].function.arguments = evt.arguments;
     }
-  } catch { /* 忽略单条解析失败 */ }
+  } catch {
+    /* 忽略单条解析失败 */
+  }
 }
 
 /**
@@ -307,7 +381,11 @@ function parseResponsesSSEDataLine(
  */
 export function parseResponsesSSEChunk(
   line: string,
-  acc: { content: string; reasoning: string; toolCalls: Array<{ id?: string; type: string; function: { name: string; arguments: string } }> },
+  acc: {
+    content: string;
+    reasoning: string;
+    toolCalls: Array<{ id?: string; type: string; function: { name: string; arguments: string } }>;
+  },
 ): void {
   if (!line) return;
   for (const l of line.split('\n')) {

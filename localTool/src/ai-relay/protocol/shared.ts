@@ -51,12 +51,21 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function validateRelativePath(path: string, label: string, errors: string[]): void {
-  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || path.includes('\\')) {
+  if (
+    typeof path !== 'string' ||
+    !path.startsWith('/') ||
+    path.startsWith('//') ||
+    path.includes('\\')
+  ) {
     errors.push(`${label}必须是以 / 开头的同源相对路径`);
   }
 }
 
-export function validatePathExpression(path: string | undefined, label: string, errors: string[]): void {
+export function validatePathExpression(
+  path: string | undefined,
+  label: string,
+  errors: string[],
+): void {
   if (typeof path !== 'string' || !path.trim()) {
     errors.push(`${label}不能为空`);
     return;

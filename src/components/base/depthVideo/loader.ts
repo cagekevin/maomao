@@ -11,40 +11,40 @@
  *    经 hooks.onStatus 如实告知（不静默切换）。推理中途 GPU 掉线的降级不在此模块做（见组件层，显式上报）。
  */
 
-import { clampInt } from './engine.ts'
-import type { RuntimeModelPaths } from './depthUrls.ts'
-import { logger } from '../core/logger.ts'
+import { clampInt } from './engine.ts';
+import type { RuntimeModelPaths } from './depthUrls.ts';
+import { logger } from '../core/logger.ts';
 
 /** 注入的 transformers.js 运行时（组件层动态 import 后传入） */
 export interface DepthRuntimeModule {
-  env: any
-  pipeline: any
-  RawImage: any
+  env: any;
+  pipeline: any;
+  RawImage: any;
 }
 
 export interface ModelOptions {
-  model: string
-  device: 'webgpu' | 'wasm'
+  model: string;
+  device: 'webgpu' | 'wasm';
 }
 
 export interface LoadHooks {
-  onProgress?: (pct: number) => void
-  onStatus?: (text: string) => void
+  onProgress?: (pct: number) => void;
+  onStatus?: (text: string) => void;
 }
 
 /** 加载完成后持有的推理句柄 */
 export interface LoadedModel {
-  pipe: { run?: (input: any) => Promise<any> } | null
-  RawImage: any
-  device: 'webgpu' | 'wasm'
+  pipe: { run?: (input: any) => Promise<any> } | null;
+  RawImage: any;
+  device: 'webgpu' | 'wasm';
 }
 
 // 模块级缓存：同一 model::device::dtype 幂等复用（同 id 已 load 不重复 load）；disposeModel 统一清空。
-let pipe: any = null
-let RawImage: any = null
-let loadedModelKey = ''
+let pipe: any = null;
+let RawImage: any = null;
+let loadedModelKey = '';
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * 运行时注入 import map（静态宿主必需，对齐 depth-video-converter/index.html）：
@@ -57,36 +57,36 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
  * 浏览器对随后发起的动态 import() 实时读当前 import map，即可解析 transformers 内部裸导入。
  * URL 由 path.ts 基于 API_BASE 派生，不硬编码。
  */
-let _importMapInjected = false
+let _importMapInjected = false;
 export function ensureRuntimeImportMap(paths: RuntimeModelPaths): void {
-  if (_importMapInjected || typeof document === 'undefined') return
-  let el = document.querySelector<HTMLScriptElement>('script[data-depth-importmap]')
+  if (_importMapInjected || typeof document === 'undefined') return;
+  let el = document.querySelector<HTMLScriptElement>('script[data-depth-importmap]');
   if (!el) {
-    el = document.createElement('script')
-    el.type = 'importmap'
-    el.setAttribute('data-depth-importmap', '1')
-    document.head.appendChild(el)
+    el = document.createElement('script');
+    el.type = 'importmap';
+    el.setAttribute('data-depth-importmap', '1');
+    document.head.appendChild(el);
   }
   el.textContent = JSON.stringify({
     imports: {
       'onnxruntime-web/webgpu': paths.ortWebgpuBundle,
       'onnxruntime-common': paths.ortWebgpuBundle,
     },
-  })
-  _importMapInjected = true
+  });
+  _importMapInjected = true;
 }
 
 /** 配置 transformers env（注入 runtime，改其本地模型/vendor 路径）。纯函数，便于测试。 */
 export function configureEnv(runtime: DepthRuntimeModule, paths: RuntimeModelPaths): void {
-  runtime.env.allowLocalModels = true
-  runtime.env.allowRemoteModels = false
-  runtime.env.localModelPath = paths.modelRoot
+  runtime.env.allowLocalModels = true;
+  runtime.env.allowRemoteModels = false;
+  runtime.env.localModelPath = paths.modelRoot;
   if (runtime.env.backends?.onnx?.wasm) {
-    runtime.env.backends.onnx.wasm.wasmPaths = { ...paths.wasmPaths }
+    runtime.env.backends.onnx.wasm.wasmPaths = { ...paths.wasmPaths };
   }
   if (runtime.env.backends?.onnx?.webgpu) {
-    runtime.env.backends.onnx.webgpu.powerPreference = 'high-performance'
-    runtime.env.backends.onnx.webgpu.forceFallbackAdapter = false
+    runtime.env.backends.onnx.webgpu.powerPreference = 'high-performance';
+    runtime.env.backends.onnx.webgpu.forceFallbackAdapter = false;
   }
 }
 
@@ -94,23 +94,29 @@ export function configureEnv(runtime: DepthRuntimeModule, paths: RuntimeModelPat
  * WebGPU 高性能适配器预取失败则返回 false，调用方降级到 wasm（仅影响「初始加载走哪一档」）。
  * 失败仍然可见：hooks.onStatus 会说明未拿到高性能显卡。
  */
-async function prepareHighPerformanceGpu(runtime: DepthRuntimeModule, hooks: LoadHooks): Promise<boolean> {
-  const webgpu = runtime.env?.backends?.onnx?.webgpu
-  const gpu = (typeof navigator !== 'undefined' ? (navigator as any).gpu : null) as
-    | { requestAdapter(opts?: Record<string, unknown>): Promise<any> }
-    | null
-  if (!gpu || !webgpu) return false
+async function prepareHighPerformanceGpu(
+  runtime: DepthRuntimeModule,
+  hooks: LoadHooks,
+): Promise<boolean> {
+  const webgpu = runtime.env?.backends?.onnx?.webgpu;
+  const gpu = (typeof navigator !== 'undefined' ? (navigator as any).gpu : null) as {
+    requestAdapter(opts?: Record<string, unknown>): Promise<any>;
+  } | null;
+  if (!gpu || !webgpu) return false;
   try {
-    hooks.onStatus?.('正在请求高性能显卡。')
-    const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance', forceFallbackAdapter: false })
-    if (!adapter || adapter.isFallbackAdapter) return false
-    webgpu.adapter = adapter
-    webgpu.powerPreference = 'high-performance'
-    webgpu.forceFallbackAdapter = false
-    return true
+    hooks.onStatus?.('正在请求高性能显卡。');
+    const adapter = await gpu.requestAdapter({
+      powerPreference: 'high-performance',
+      forceFallbackAdapter: false,
+    });
+    if (!adapter || adapter.isFallbackAdapter) return false;
+    webgpu.adapter = adapter;
+    webgpu.powerPreference = 'high-performance';
+    webgpu.forceFallbackAdapter = false;
+    return true;
   } catch {
-    hooks.onStatus?.('未拿到高性能显卡，准备改用 CPU。')
-    return false
+    hooks.onStatus?.('未拿到高性能显卡，准备改用 CPU。');
+    return false;
   }
 }
 
@@ -122,45 +128,45 @@ export async function ensureModel(
   runtime: DepthRuntimeModule,
   options: ModelOptions,
   paths: RuntimeModelPaths,
-  hooks: LoadHooks = {}
+  hooks: LoadHooks = {},
 ): Promise<LoadedModel> {
-  configureEnv(runtime, paths)
-  RawImage = runtime.RawImage
+  configureEnv(runtime, paths);
+  RawImage = runtime.RawImage;
 
-  let preferredDevice: 'webgpu' | 'wasm' = options.device === 'webgpu' ? 'webgpu' : 'wasm'
+  let preferredDevice: 'webgpu' | 'wasm' = options.device === 'webgpu' ? 'webgpu' : 'wasm';
   if (preferredDevice === 'webgpu') {
-    const gpu = (typeof navigator !== 'undefined' ? (navigator as any).gpu : null)
+    const gpu = typeof navigator !== 'undefined' ? (navigator as any).gpu : null;
     if (!gpu) {
-      hooks.onStatus?.('这个浏览器没有打开 GPU 通道，改用 CPU。')
-      preferredDevice = 'wasm'
+      hooks.onStatus?.('这个浏览器没有打开 GPU 通道，改用 CPU。');
+      preferredDevice = 'wasm';
     } else {
-      const ok = await prepareHighPerformanceGpu(runtime, hooks)
-      if (!ok) preferredDevice = 'wasm'
+      const ok = await prepareHighPerformanceGpu(runtime, hooks);
+      if (!ok) preferredDevice = 'wasm';
     }
   }
 
   const loadForDevice = async (device: 'webgpu' | 'wasm', dtype: string): Promise<void> => {
-    const key = `${options.model}::${device}::${dtype}`
-    if (pipe && key === loadedModelKey) return
-    hooks.onStatus?.(`正在准备内置 AI 模型（${device === 'webgpu' ? 'GPU' : 'CPU'}）。`)
-    hooks.onProgress?.(2)
+    const key = `${options.model}::${device}::${dtype}`;
+    if (pipe && key === loadedModelKey) return;
+    hooks.onStatus?.(`正在准备内置 AI 模型（${device === 'webgpu' ? 'GPU' : 'CPU'}）。`);
+    hooks.onProgress?.(2);
     const nextPipe = await runtime.pipeline('depth-estimation', options.model, {
       local_files_only: true,
       device,
       dtype,
       progress_callback: (progress: any) => {
         if (progress?.status === 'progress') {
-          const pct = progress.total ? (progress.loaded / progress.total) * 45 : 8
-          hooks.onProgress?.(clampInt(3 + pct, 3, 48))
+          const pct = progress.total ? (progress.loaded / progress.total) * 45 : 8;
+          hooks.onProgress?.(clampInt(3 + pct, 3, 48));
         } else if (progress?.status) {
-          hooks.onStatus?.(`正在准备 AI 模型：${progress.status}`)
+          hooks.onStatus?.(`正在准备 AI 模型：${progress.status}`);
         }
       },
-    })
-    pipe = nextPipe
-    RawImage = runtime.RawImage
-    loadedModelKey = key
-  }
+    });
+    pipe = nextPipe;
+    RawImage = runtime.RawImage;
+    loadedModelKey = key;
+  };
 
   const attempts: Array<{ device: 'webgpu' | 'wasm'; dtype: string }> =
     preferredDevice === 'webgpu'
@@ -169,48 +175,52 @@ export async function ensureModel(
           { device: 'webgpu', dtype: 'q8' },
           { device: 'wasm', dtype: 'q8' },
         ]
-      : [{ device: 'wasm', dtype: 'q8' }]
+      : [{ device: 'wasm', dtype: 'q8' }];
 
-  let lastError: unknown = null
-  let latest: 'webgpu' | 'wasm' = 'wasm'
+  let lastError: unknown = null;
+  let latest: 'webgpu' | 'wasm' = 'wasm';
   for (const attempt of attempts) {
     try {
-      await loadForDevice(attempt.device, attempt.dtype)
-      latest = attempt.device
-      break
+      await loadForDevice(attempt.device, attempt.dtype);
+      latest = attempt.device;
+      break;
     } catch (error) {
-      lastError = error
-      pipe = null
-      RawImage = runtime.RawImage
-      loadedModelKey = ''
+      lastError = error;
+      pipe = null;
+      RawImage = runtime.RawImage;
+      loadedModelKey = '';
       // 排障埋点（debug 级别，非 info）：暴露每个 attempt 的失败（device/dtype）+ 原始 stack，
       // 便于定位 transformers/onnxruntime 动态子模块的真实来源。受 DEBUG_MODULES 'depth' 位 / 总开关控制，
       // 默认安静、不上报后端（属排查噪音）。真正错误仍通过 hooks.onStatus + 组件层状态条如实告知用户。
       logger.debug(
         '深度转视频',
         '模型加载失败',
-        { attempt: `${attempt.device}/${attempt.dtype}`, message: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined },
-        { module: 'depth' }
-      )
+        {
+          attempt: `${attempt.device}/${attempt.dtype}`,
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        },
+        { module: 'depth' },
+      );
       if (attempt.device === 'webgpu') {
-        hooks.onStatus?.('GPU 方式没有跑起来，正在尝试备用方式。')
-        await sleep(250)
+        hooks.onStatus?.('GPU 方式没有跑起来，正在尝试备用方式。');
+        await sleep(250);
       }
     }
   }
 
-  if (!pipe) throw lastError instanceof Error ? lastError : new Error('AI 模型加载失败。')
+  if (!pipe) throw lastError instanceof Error ? lastError : new Error('AI 模型加载失败。');
   if (latest === 'wasm' && options.device === 'webgpu') {
-    hooks.onStatus?.('GPU 不可用，已用 CPU（wasm）加载模型。')
+    hooks.onStatus?.('GPU 不可用，已用 CPU（wasm）加载模型。');
   } else {
-    hooks.onStatus?.(`AI 模型已准备好（${latest === 'webgpu' ? 'GPU' : 'CPU'}）。`)
+    hooks.onStatus?.(`AI 模型已准备好（${latest === 'webgpu' ? 'GPU' : 'CPU'}）。`);
   }
-  return { pipe, RawImage, device: latest }
+  return { pipe, RawImage, device: latest };
 }
 
 /** 释放模型运行时（G3）：切换 fast / 转换结束 / 弹窗关闭时调用，并 revoke 可回收句柄。 */
 export function disposeModel(): void {
-  pipe = null
-  RawImage = null
-  loadedModelKey = ''
+  pipe = null;
+  RawImage = null;
+  loadedModelKey = '';
 }

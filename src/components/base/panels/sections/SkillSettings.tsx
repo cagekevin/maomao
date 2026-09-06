@@ -1,230 +1,269 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react'
-import { Search, Plus, Bot, Sparkles, Upload, Download, Pencil, MoreHorizontal, X, Trash2 } from 'lucide-react'
-import { getAllSkills, readCustomSkills, upsertCustomSkill, deleteCustomSkill, isSkillEnabled, setSkillEnabled, getAllEnabledMap } from '../../store/skillStore.ts'
-import { showToast } from '../../core/toastStore.ts'
-import { askConfirm } from '../../core/confirmStore.ts'
-import { downloadBlob } from '../../utils/clipboard.ts'
-import { createImeInput } from '../../core/utils.ts'
-import { Toggle } from '../../ui/Toggle.tsx'
+import React, { useMemo, useRef, useState, useEffect } from 'react';
+import {
+  Search,
+  Plus,
+  Bot,
+  Sparkles,
+  Upload,
+  Download,
+  Pencil,
+  MoreHorizontal,
+  X,
+  Trash2,
+} from 'lucide-react';
+import {
+  getAllSkills,
+  readCustomSkills,
+  upsertCustomSkill,
+  deleteCustomSkill,
+  isSkillEnabled,
+  setSkillEnabled,
+  getAllEnabledMap,
+} from '../../store/skillStore.ts';
+import { showToast } from '../../core/toastStore.ts';
+import { askConfirm } from '../../core/confirmStore.ts';
+import { downloadBlob } from '../../utils/clipboard.ts';
+import { createImeInput } from '../../core/utils.ts';
+import { Toggle } from '../../ui/Toggle.tsx';
 
 const inputCls =
-  'w-full bg-canvas border border-edge text-body text-sm px-3 py-2.5 rounded-xl outline-none placeholder:text-muted focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 transition disabled:opacity-50'
+  'w-full bg-canvas border border-edge text-body text-sm px-3 py-2.5 rounded-xl outline-none placeholder:text-muted focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 transition disabled:opacity-50';
 
 function emptyForm() {
-  return { id: '', name: '', description: '', content: '' }
+  return { id: '', name: '', description: '', content: '' };
 }
 
 export default function SkillSettings() {
-  const [allSkills, setAllSkills] = useState(() => getAllSkills())
+  const [allSkills, setAllSkills] = useState(() => getAllSkills());
   // 【数据损坏可见】读取失败/损坏时透传原因并展示错误态。
   // 注意：不禁用保存——否则用户既不能修也不能导，会被困死；改为提供逃生舱（见下方错误条）。
-  const [loadError, setLoadError] = useState(() => readCustomSkills().error || '')
-  const [selectedId, setSelectedId] = useState('')
-  const [keyword, setKeyword] = useState('')
-  const [debouncedKeyword, setDebouncedKeyword] = useState('')
-  const [form, setForm] = useState(emptyForm())
-  const [isNew, setIsNew] = useState(false)
-  const [editing, setEditing] = useState(false) // 详情页内的编辑态
-  const [enabledMap, setEnabledMap] = useState(() => getAllEnabledMap())
-  const [moreOpen, setMoreOpen] = useState(false)
-  const moreRef = useRef(null)
-  const mdFileRef = useRef(null)
+  const [loadError, setLoadError] = useState(() => readCustomSkills().error || '');
+  const [selectedId, setSelectedId] = useState('');
+  const [keyword, setKeyword] = useState('');
+  const [debouncedKeyword, setDebouncedKeyword] = useState('');
+  const [form, setForm] = useState(emptyForm());
+  const [isNew, setIsNew] = useState(false);
+  const [editing, setEditing] = useState(false); // 详情页内的编辑态
+  const [enabledMap, setEnabledMap] = useState(() => getAllEnabledMap());
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef(null);
+  const mdFileRef = useRef(null);
 
   /** 刷新列表并同步「损坏/失败」状态（每次写后都调，保证错误态不残留、不谎报） */
   const refreshAll = () => {
-    const res = readCustomSkills()
-    setLoadError(res.error || '')
-    setAllSkills(getAllSkills())
-    return res
-  }
+    const res = readCustomSkills();
+    setLoadError(res.error || '');
+    setAllSkills(getAllSkills());
+    return res;
+  };
 
   // 搜索 IME 感知防抖
-  const searchIme = useRef(null)
+  const searchIme = useRef(null);
   if (searchIme.current == null) {
-    searchIme.current = createImeInput((v) => setDebouncedKeyword(v), 200)
+    searchIme.current = createImeInput((v) => setDebouncedKeyword(v), 200);
   }
 
-  const refreshEnabled = () => setEnabledMap(getAllEnabledMap())
+  const refreshEnabled = () => setEnabledMap(getAllEnabledMap());
 
   // 点击更多菜单外部关闭
   useEffect(() => {
-    if (!moreOpen) return
+    if (!moreOpen) return;
     const close = (e) => {
-      if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false)
-    }
-    document.addEventListener('mousedown', close, true)
-    return () => document.removeEventListener('mousedown', close, true)
-  }, [moreOpen])
+      if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false);
+    };
+    document.addEventListener('mousedown', close, true);
+    return () => document.removeEventListener('mousedown', close, true);
+  }, [moreOpen]);
 
   // 分组：个人（自定义） / 官方（内置）
   const { personalSkills, officialSkills } = useMemo(() => {
-    let list = allSkills
+    let list = allSkills;
     if (debouncedKeyword.trim()) {
-      const k = debouncedKeyword.toLowerCase()
+      const k = debouncedKeyword.toLowerCase();
       list = list.filter(
         (s) => s.name?.toLowerCase().includes(k) || s.description?.toLowerCase().includes(k),
-      )
+      );
     }
     return {
       personalSkills: list.filter((s) => !s.builtin),
       officialSkills: list.filter((s) => s.builtin),
-    }
-  }, [allSkills, debouncedKeyword])
+    };
+  }, [allSkills, debouncedKeyword]);
 
-  const selected = allSkills.find((s) => s.id === selectedId) || null
-  const readonly = !!(selected && selected.builtin && !isNew && !editing)
+  const selected = allSkills.find((s) => s.id === selectedId) || null;
+  const readonly = !!(selected && selected.builtin && !isNew && !editing);
 
   const getEnabled = (id) => {
-    if (id in enabledMap) return !!enabledMap[id]
-    return true
-  }
+    if (id in enabledMap) return !!enabledMap[id];
+    return true;
+  };
 
   const handleToggle = (id, enabled) => {
-    setSkillEnabled(id, enabled)
-    refreshEnabled()
-  }
+    setSkillEnabled(id, enabled);
+    refreshEnabled();
+  };
 
   const handleSelect = (skill) => {
-    setSelectedId(skill.id)
-    setIsNew(false)
-    setEditing(false)
+    setSelectedId(skill.id);
+    setIsNew(false);
+    setEditing(false);
     setForm({
       id: skill.id,
       name: skill.name || '',
       description: skill.description || '',
       content: skill.content || '',
-    })
-  }
+    });
+  };
 
   const handleNew = () => {
-    setSelectedId('')
-    setIsNew(true)
-    setEditing(true)
-    setForm(emptyForm())
-  }
+    setSelectedId('');
+    setIsNew(true);
+    setEditing(true);
+    setForm(emptyForm());
+  };
 
   const handleStartEdit = () => {
-    if (!selected || selected.builtin) return
-    setEditing(true)
+    if (!selected || selected.builtin) return;
+    setEditing(true);
     setForm({
       id: selected.id,
       name: selected.name || '',
       description: selected.description || '',
       content: selected.content || '',
-    })
-  }
+    });
+  };
 
   const handleSave = () => {
-    const name = form.name.trim()
-    const content = form.content.trim()
-    if (!name) return showToast('请填写 Skill 名称', { type: 'warning' })
-    if (!content) return showToast('请填写 Skill 内容', { type: 'warning' })
+    const name = form.name.trim();
+    const content = form.content.trim();
+    if (!name) return showToast('请填写 Skill 名称', { type: 'warning' });
+    if (!content) return showToast('请填写 Skill 内容', { type: 'warning' });
     const saved = upsertCustomSkill({
       id: form.id || undefined,
       name,
       description: form.description.trim(),
       content,
-    })
+    });
     // 【禁止谎报成功】upsertCustomSkill 在「缺 name/content」与「写失败」两种情况下都返回 null。
     // 此处必须区分：写失败要透传错误，不可弹「已保存」误导用户（否则用户以为存上了，实际丢了）。
     if (!saved) {
-      const res = readCustomSkills()
-      showToast(res.ok ? 'Skill 保存失败：请检查名称与内容是否填写完整' : `Skill 保存失败：${res.error}`, { type: 'error' })
-      return
+      const res = readCustomSkills();
+      showToast(
+        res.ok ? 'Skill 保存失败：请检查名称与内容是否填写完整' : `Skill 保存失败：${res.error}`,
+        { type: 'error' },
+      );
+      return;
     }
-    refreshAll()
-    setSelectedId(saved.id)
-    setIsNew(false)
-    setEditing(false)
-    setForm({ id: saved.id, name: saved.name, description: saved.description, content: saved.content })
-    showToast('Skill 已保存', { type: 'success' })
-  }
+    refreshAll();
+    setSelectedId(saved.id);
+    setIsNew(false);
+    setEditing(false);
+    setForm({
+      id: saved.id,
+      name: saved.name,
+      description: saved.description,
+      content: saved.content,
+    });
+    showToast('Skill 已保存', { type: 'success' });
+  };
 
   // 确认统一走 confirmStore（D8 横切收敛：替代 window.confirm）
   const handleDelete = async () => {
-    if (!selected || selected.builtin) return
-    const ok = await askConfirm({ title: `删除 Skill「${selected.name}」？`, confirmText: '删除', danger: true })
-    if (!ok) return
-    const res = deleteCustomSkill(selected.id)
+    if (!selected || selected.builtin) return;
+    const ok = await askConfirm({
+      title: `删除 Skill「${selected.name}」？`,
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
+    const res = deleteCustomSkill(selected.id);
     if (!res.ok) {
-      showToast(`Skill 删除失败：${res.error}`, { type: 'error' })
-      return
+      showToast(`Skill 删除失败：${res.error}`, { type: 'error' });
+      return;
     }
-    refreshAll()
-    setSelectedId('')
-    setIsNew(false)
-    setEditing(false)
-    setForm(emptyForm())
-    showToast('Skill 已删除', { type: 'success' })
-  }
+    refreshAll();
+    setSelectedId('');
+    setIsNew(false);
+    setEditing(false);
+    setForm(emptyForm());
+    showToast('Skill 已删除', { type: 'success' });
+  };
 
   const handleClose = () => {
-    setSelectedId('')
-    setIsNew(false)
-    setEditing(false)
-    setForm(emptyForm())
-  }
+    setSelectedId('');
+    setIsNew(false);
+    setEditing(false);
+    setForm(emptyForm());
+  };
 
   const cancel = () => {
     if (isNew) {
-      handleClose()
+      handleClose();
     } else {
-      setEditing(false)
+      setEditing(false);
       if (selected) {
         setForm({
           id: selected.id,
           name: selected.name || '',
           description: selected.description || '',
           content: selected.content || '',
-        })
+        });
       }
     }
-  }
+  };
 
   // .md 导入
   const handleMdImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     try {
       Array.from(files).forEach((f) => {
-        if (!/\.(md|markdown|txt)$/i.test(f.name)) return
-        const reader = new FileReader()
+        if (!/\.(md|markdown|txt)$/i.test(f.name)) return;
+        const reader = new FileReader();
         reader.onload = () => {
-          const text = String(reader.result || '')
-          const name = f.name.replace(/\.(md|markdown|txt)$/i, '')
-          const saved = upsertCustomSkill({ name, description: '', content: text })
+          const text = String(reader.result || '');
+          const name = f.name.replace(/\.(md|markdown|txt)$/i, '');
+          const saved = upsertCustomSkill({ name, description: '', content: text });
           if (saved) {
-            refreshAll()
-            setSelectedId(saved.id)
-            setIsNew(false)
-            setEditing(false)
-            setForm({ id: saved.id, name: saved.name, description: saved.description, content: saved.content })
-            showToast(`已导入 Skill「${saved.name}」`, { type: 'success' })
+            refreshAll();
+            setSelectedId(saved.id);
+            setIsNew(false);
+            setEditing(false);
+            setForm({
+              id: saved.id,
+              name: saved.name,
+              description: saved.description,
+              content: saved.content,
+            });
+            showToast(`已导入 Skill「${saved.name}」`, { type: 'success' });
           } else {
             // 区分「内容不完整」与「写入失败」：后者须透传底层原因，不可笼统归咎用户
-            const res = readCustomSkills()
-            showToast(res.ok ? `导入失败：${name} 缺少名称或内容` : `导入失败：${res.error}`, { type: 'error' })
+            const res = readCustomSkills();
+            showToast(res.ok ? `导入失败：${name} 缺少名称或内容` : `导入失败：${res.error}`, {
+              type: 'error',
+            });
           }
-        }
-        reader.onerror = () => showToast(`读取失败：${f.name}`, { type: 'error' })
-        reader.readAsText(f, 'utf-8')
-      })
+        };
+        reader.onerror = () => showToast(`读取失败：${f.name}`, { type: 'error' });
+        reader.readAsText(f, 'utf-8');
+      });
     } finally {
-      e.target.value = ''
+      e.target.value = '';
     }
-  }
+  };
 
   // .md 导出
   const handleMdExport = () => {
-    const target = selected || (isNew && form.name ? form : null)
-    if (!target || !target.content) return showToast('请先选择一个有内容的 Skill', { type: 'warning' })
-    const blob = new Blob([target.content], { type: 'text/markdown;charset=utf-8' })
-    const filename = `${target.name || 'skill'}.md`
-    downloadBlob(blob, filename)
-    showToast(`已导出 ${filename}`, { type: 'success' })
-  }
+    const target = selected || (isNew && form.name ? form : null);
+    if (!target || !target.content)
+      return showToast('请先选择一个有内容的 Skill', { type: 'warning' });
+    const blob = new Blob([target.content], { type: 'text/markdown;charset=utf-8' });
+    const filename = `${target.name || 'skill'}.md`;
+    downloadBlob(blob, filename);
+    showToast(`已导出 ${filename}`, { type: 'success' });
+  };
 
-  const showDetail = selected || isNew
+  const showDetail = selected || isNew;
 
   return (
     <section className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
@@ -252,10 +291,15 @@ export default function SkillSettings() {
               <input
                 value={keyword}
                 onChange={(e) => {
-                  setKeyword(e.target.value)
-                  searchIme.current?.onChange(e.target.value, (e.nativeEvent as InputEvent).isComposing)
+                  setKeyword(e.target.value);
+                  searchIme.current?.onChange(
+                    e.target.value,
+                    (e.nativeEvent as InputEvent).isComposing,
+                  );
                 }}
-                onCompositionEnd={(e) => searchIme.current?.onCompositionEnd((e.target as HTMLInputElement).value)}
+                onCompositionEnd={(e) =>
+                  searchIme.current?.onCompositionEnd((e.target as HTMLInputElement).value)
+                }
                 onBlur={() => searchIme.current?.cancel()}
                 placeholder="搜索技能"
                 className="w-full h-9 bg-canvas border border-edge rounded-xl pl-9 pr-3 text-xs text-body outline-none focus:border-blue-500/50"
@@ -288,14 +332,16 @@ export default function SkillSettings() {
             ) : null}
             {/* 个人（自定义） */}
             <div>
-              <div className="px-2 pb-1.5 text-[11px] text-muted uppercase tracking-wider">个人</div>
+              <div className="px-2 pb-1.5 text-[11px] text-muted uppercase tracking-wider">
+                个人
+              </div>
               <div className="space-y-0.5">
                 {personalSkills.length === 0 ? (
                   <div className="px-3 py-2 text-xs text-muted">暂无自定义技能</div>
                 ) : (
                   personalSkills.map((skill) => {
-                    const active = skill.id === selectedId && !isNew
-                    const enabled = getEnabled(skill.id)
+                    const active = skill.id === selectedId && !isNew;
+                    const enabled = getEnabled(skill.id);
                     return (
                       <div
                         key={skill.id}
@@ -305,12 +351,9 @@ export default function SkillSettings() {
                       >
                         <Bot size={14} className="shrink-0 text-secondary" />
                         <span className="flex-1 text-sm text-body truncate">{skill.name}</span>
-                        <Toggle
-                          checked={enabled}
-                          onChange={(v) => handleToggle(skill.id, v)}
-                        />
+                        <Toggle checked={enabled} onChange={(v) => handleToggle(skill.id, v)} />
                       </div>
-                    )
+                    );
                   })
                 )}
               </div>
@@ -318,14 +361,16 @@ export default function SkillSettings() {
 
             {/* 官方（内置） */}
             <div>
-              <div className="px-2 pb-1.5 text-[11px] text-muted uppercase tracking-wider">官方</div>
+              <div className="px-2 pb-1.5 text-[11px] text-muted uppercase tracking-wider">
+                官方
+              </div>
               <div className="space-y-0.5">
                 {officialSkills.length === 0 ? (
                   <div className="px-3 py-2 text-xs text-muted">暂无内置技能</div>
                 ) : (
                   officialSkills.map((skill) => {
-                    const active = skill.id === selectedId && !isNew
-                    const enabled = getEnabled(skill.id)
+                    const active = skill.id === selectedId && !isNew;
+                    const enabled = getEnabled(skill.id);
                     return (
                       <div
                         key={skill.id}
@@ -335,12 +380,9 @@ export default function SkillSettings() {
                       >
                         <Bot size={14} className="shrink-0 text-secondary" />
                         <span className="flex-1 text-sm text-body truncate">{skill.name}</span>
-                        <Toggle
-                          checked={enabled}
-                          onChange={(v) => handleToggle(skill.id, v)}
-                        />
+                        <Toggle checked={enabled} onChange={(v) => handleToggle(skill.id, v)} />
                       </div>
-                    )
+                    );
                   })
                 )}
               </div>
@@ -349,7 +391,14 @@ export default function SkillSettings() {
 
           {/* 底部导入/导出 */}
           <div className="p-3 border-t border-edge-subtle flex gap-2">
-            <input ref={mdFileRef} type="file" accept=".md,.markdown,.txt" multiple onChange={handleMdImport} className="hidden" />
+            <input
+              ref={mdFileRef}
+              type="file"
+              accept=".md,.markdown,.txt"
+              multiple
+              onChange={handleMdImport}
+              className="hidden"
+            />
             <button
               onClick={() => mdFileRef.current?.click()}
               className="flex-1 h-8 rounded-lg bg-surface-1 text-xs text-body flex items-center justify-center gap-1.5 hover:bg-surface-hover transition cursor-pointer border-none"
@@ -430,7 +479,9 @@ export default function SkillSettings() {
                         placeholder="输入 AI 助手需要长期遵循的行为规则..."
                         className="w-full min-h-[340px] bg-canvas border border-edge rounded-xl p-3 text-sm text-body placeholder:text-muted outline-none resize-none focus:border-blue-500/50 transition"
                       />
-                      <span className="absolute right-3 bottom-3 text-[10px] text-muted">Skill Prompt</span>
+                      <span className="absolute right-3 bottom-3 text-[10px] text-muted">
+                        Skill Prompt
+                      </span>
                     </div>
                   </label>
                 </div>
@@ -443,11 +494,13 @@ export default function SkillSettings() {
                   <div className="min-w-0">
                     <h2 className="text-lg text-strong font-medium truncate">{selected?.name}</h2>
                     <div className="mt-1.5 flex items-center gap-2">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                        selected?.builtin
-                          ? 'bg-blue-500/10 text-blue-400'
-                          : 'bg-purple-500/10 text-purple-400'
-                      }`}>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full ${
+                          selected?.builtin
+                            ? 'bg-blue-500/10 text-blue-400'
+                            : 'bg-purple-500/10 text-purple-400'
+                        }`}
+                      >
                         {selected?.builtin ? '官方内置' : '自定义'}
                       </span>
                       <span className="text-[11px] text-muted">
@@ -482,8 +535,8 @@ export default function SkillSettings() {
                         <div className="absolute right-0 top-full mt-1.5 w-[140px] bg-surface border border-edge rounded-xl shadow-2xl py-1 z-20 overflow-hidden">
                           <button
                             onClick={() => {
-                              handleMdExport()
-                              setMoreOpen(false)
+                              handleMdExport();
+                              setMoreOpen(false);
                             }}
                             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-hover hover:text-strong transition cursor-pointer border-none text-left"
                           >
@@ -492,8 +545,8 @@ export default function SkillSettings() {
                           {!selected?.builtin && (
                             <button
                               onClick={() => {
-                                handleDelete()
-                                setMoreOpen(false)
+                                handleDelete();
+                                setMoreOpen(false);
                               }}
                               className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 transition cursor-pointer border-none text-left"
                             >
@@ -568,5 +621,5 @@ export default function SkillSettings() {
         </main>
       </div>
     </section>
-  )
+  );
 }

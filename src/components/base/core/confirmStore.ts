@@ -23,35 +23,35 @@
 /** askConfirm 选项 */
 export interface ConfirmOptions {
   /** 标题（一句话说清要做什么决定） */
-  title: string
+  title: string;
   /** 补充说明（可选，如时间、影响范围） */
-  message?: string
+  message?: string;
   /** 受影响的条目清单（可选，如「将被覆盖的项目」）——原生 confirm 无法表达，是本 store 的核心价值 */
-  items?: string[]
+  items?: string[];
   /** 确认按钮文案，默认「确定」 */
-  confirmText?: string
+  confirmText?: string;
   /** 取消按钮文案，默认「取消」 */
-  cancelText?: string
+  cancelText?: string;
   /** 危险操作（删除/覆盖）→ 确认按钮转红色，默认 false */
-  danger?: boolean
+  danger?: boolean;
 }
 
 /** 一条待确认请求（渲染端消费的形态：选项已套默认值 + 自增 id） */
 export interface ConfirmRequest extends ConfirmOptions {
-  id: number
-  title: string
-  confirmText: string
-  cancelText: string
-  danger: boolean
+  id: number;
+  title: string;
+  confirmText: string;
+  cancelText: string;
+  danger: boolean;
 }
 
-const DEFAULT_CONFIRM_TEXT = '确定'
-const DEFAULT_CANCEL_TEXT = '取消'
+const DEFAULT_CONFIRM_TEXT = '确定';
+const DEFAULT_CANCEL_TEXT = '取消';
 
 /** 当前待确认请求 + 其 resolver（成对持有，避免异步回调作用域丢失） */
-let pending: { request: ConfirmRequest; resolve: (ok: boolean) => void } | null = null
-let listeners = new Set<() => void>()
-let seq = 0
+let pending: { request: ConfirmRequest; resolve: (ok: boolean) => void } | null = null;
+const listeners = new Set<() => void>();
+let seq = 0;
 
 /**
  * 弹出确认框，等用户选择。
@@ -62,7 +62,7 @@ let seq = 0
  */
 export function askConfirm(opts: ConfirmOptions): Promise<boolean> {
   // 旧弹窗未决 → 先以取消结算，保证每个 askConfirm 的 Promise 都会 settle
-  if (pending) settle(pending, false)
+  if (pending) settle(pending, false);
   return new Promise<boolean>((resolve) => {
     const request: ConfirmRequest = {
       ...opts,
@@ -70,10 +70,10 @@ export function askConfirm(opts: ConfirmOptions): Promise<boolean> {
       confirmText: opts.confirmText || DEFAULT_CONFIRM_TEXT,
       cancelText: opts.cancelText || DEFAULT_CANCEL_TEXT,
       danger: !!opts.danger,
-    }
-    pending = { request, resolve }
-    emit()
-  })
+    };
+    pending = { request, resolve };
+    emit();
+  });
 }
 
 /**
@@ -81,27 +81,27 @@ export function askConfirm(opts: ConfirmOptions): Promise<boolean> {
  * @param ok true = 用户确认；false = 用户取消
  */
 export function resolveConfirm(ok: boolean): void {
-  if (pending) settle(pending, !!ok)
+  if (pending) settle(pending, !!ok);
 }
 
 /** 订阅（返回取消函数）。ConfirmContainer 用它渲染。 */
 export function subscribeConfirm(listener: () => void): () => boolean {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }
 
 /** 读当前待确认请求（无则 null） */
 export function getConfirm(): ConfirmRequest | null {
-  return pending?.request ?? null
+  return pending?.request ?? null;
 }
 
 /** 结算并清理：先摘 pending 再 resolve，防止 resolve 回调里又触发新弹窗时被覆盖 */
 function settle(item: { resolve: (ok: boolean) => void }, ok: boolean): void {
-  if (pending && pending.resolve === item.resolve) pending = null
-  emit()
-  item.resolve(ok)
+  if (pending && pending.resolve === item.resolve) pending = null;
+  emit();
+  item.resolve(ok);
 }
 
 function emit(): void {
-  listeners.forEach((l) => l())
+  listeners.forEach((l) => l());
 }

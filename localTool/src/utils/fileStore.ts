@@ -24,7 +24,10 @@ export function ensureDir(dir: string): void {
 const CONTROL_CHARS_RE = new RegExp(`[${String.fromCharCode(0)}-${String.fromCharCode(31)}]`);
 
 export function sanitizeFilename(name: string): string {
-  return name.replace(/[<>:"/\\|?*]/g, '_').replace(CONTROL_CHARS_RE, '_').replace(/\s+/g, '_');
+  return name
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(CONTROL_CHARS_RE, '_')
+    .replace(/\s+/g, '_');
 }
 
 /**
@@ -62,7 +65,7 @@ export function normalizeSubfolder(subfolder: unknown): string | null {
  */
 export function resolveUploadTarget(
   subfolder: string,
-  filename: string
+  filename: string,
 ): { dir: string; savedPath: string; urlPath: string } {
   const safeSub = normalizeSubfolder(subfolder) ?? 'canvas'; // 非法子目录回退默认根，杜绝越根写
   const dir = path.join(getUploadDir(), safeSub);
@@ -110,7 +113,7 @@ export function resolveUploadFile(rel: unknown): string | null {
 export function writeUploadBuffer(
   subfolder: string,
   filename: string,
-  data: Buffer
+  data: Buffer,
 ): { savedPath: string; urlPath: string } {
   const { dir, savedPath, urlPath } = resolveUploadTarget(subfolder, `${Date.now()}-${filename}`);
   ensureDir(dir);
@@ -122,7 +125,7 @@ export function writeUploadBuffer(
 export function writeUploadBufferAt(
   subfolder: string,
   stableName: string,
-  data: Buffer
+  data: Buffer,
 ): { savedPath: string; urlPath: string } {
   const { dir, savedPath, urlPath } = resolveUploadTarget(subfolder, stableName);
   ensureDir(dir);
@@ -136,7 +139,7 @@ export function writeUploadBufferAt(
  */
 export function ensureThumbnailTarget(
   filePath: string,
-  suffix = ''
+  suffix = '',
 ): { thumbDir: string; thumbPath: string; thumbUrl: string } {
   const thumbDir = path.join(path.dirname(filePath), '.thumbnails');
   ensureDir(thumbDir);
@@ -154,7 +157,7 @@ export function ensureThumbnailTarget(
 export async function resizeImage(
   src: string,
   dst: string,
-  { maxDim, quality }: { maxDim: number; quality: number }
+  { maxDim, quality }: { maxDim: number; quality: number },
 ): Promise<boolean> {
   try {
     const img = await Jimp.read(src);

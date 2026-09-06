@@ -1,10 +1,38 @@
-import React from 'react'
-import { Check, Star, Server, RefreshCw, CircleDot, AlertCircle, Image, MessagesSquare, Video, Plus, Trash2 } from 'lucide-react'
-import { showToast } from '../../core/toastStore.ts'
-import { PROVIDER_PROTOCOL_LABELS } from '../../utils/providerUrlAdapters.ts'
-import { useProviders, load, select, setPrimary, test, fetchModels, applyFetchedModels, closeFetchedModels, save, enabledProviders, candidateProviders, toggleProviderEnabled, addModel, removeModel, updateProviderField } from '../../store/providerStore.ts'
-import FetchModelsModal from './FetchModelsModal.tsx'
-import type { RawModel } from '../../utils/providerModels.ts'
+import React from 'react';
+import {
+  Check,
+  Star,
+  Server,
+  RefreshCw,
+  CircleDot,
+  AlertCircle,
+  Image,
+  MessagesSquare,
+  Video,
+  Plus,
+  Trash2,
+} from 'lucide-react';
+import { showToast } from '../../core/toastStore.ts';
+import { PROVIDER_PROTOCOL_LABELS } from '../../utils/providerUrlAdapters.ts';
+import {
+  useProviders,
+  load,
+  select,
+  setPrimary,
+  test,
+  fetchModels,
+  applyFetchedModels,
+  closeFetchedModels,
+  save,
+  enabledProviders,
+  candidateProviders,
+  toggleProviderEnabled,
+  addModel,
+  removeModel,
+  updateProviderField,
+} from '../../store/providerStore.ts';
+import FetchModelsModal from './FetchModelsModal.tsx';
+import type { RawModel } from '../../utils/providerModels.ts';
 
 /**
  * 设置分区 · 服务商配置（新时代「切哪个用哪个」，docs/96、docs/101）。
@@ -17,58 +45,77 @@ import type { RawModel } from '../../utils/providerModels.ts'
  *  - 模型增删 = 用户配置层：每能力清单可增（手动输入 id/名）删（单项移除）；也可「拉取模型→勾选」。
  */
 function protocolBadgeCls(protocol: string): string {
-  if (protocol === 'openai') return 'text-emerald-400 bg-emerald-500/10'
-  if (protocol === 'apimart') return 'text-sky-400 bg-sky-500/10'
-  return 'text-secondary bg-surface-1'
+  if (protocol === 'openai') return 'text-emerald-400 bg-emerald-500/10';
+  if (protocol === 'apimart') return 'text-sky-400 bg-sky-500/10';
+  return 'text-secondary bg-surface-1';
 }
 
 export default function ApiSettings() {
-  const { providers, selectedId, loading, dirty, saving, testingId, fetchingId, fetchedModels, testResult } = useProviders()
+  const {
+    providers,
+    selectedId,
+    loading,
+    dirty,
+    saving,
+    testingId,
+    fetchingId,
+    fetchedModels,
+    testResult,
+  } = useProviders();
 
   React.useEffect(() => {
-    let cancelled = false
-    load().catch((e) => { if (!cancelled) showToast('加载服务商失败', { type: 'error' }) })
-    return () => { cancelled = true }
-  }, [])
+    let cancelled = false;
+    load().catch((e) => {
+      if (!cancelled) showToast('加载服务商失败', { type: 'error' });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 已用（enabled）厂商作展示，未启用作「增加厂商」候选；selected 只在已用里选（全局过滤）
-  const usedProviders = React.useMemo(() => enabledProviders(providers), [providers])
-  const candidate = React.useMemo(() => candidateProviders(providers), [providers])
+  const usedProviders = React.useMemo(() => enabledProviders(providers), [providers]);
+  const candidate = React.useMemo(() => candidateProviders(providers), [providers]);
   const selected = React.useMemo(
     () => usedProviders.find((p) => p.id === selectedId) || usedProviders[0] || null,
-    [usedProviders, selectedId]
-  )
-  const isPrimary = !!selected?.primary
+    [usedProviders, selectedId],
+  );
+  const isPrimary = !!selected?.primary;
 
   const handleSave = async () => {
-    const r = await save()
-    showToast(r.ok ? '已保存当前服务商' : '保存失败：' + r.error, { type: r.ok ? 'success' : 'error' })
-  }
+    const r = await save();
+    showToast(r.ok ? '已保存当前服务商' : '保存失败：' + r.error, {
+      type: r.ok ? 'success' : 'error',
+    });
+  };
   const handleSetPrimary = async () => {
-    if (!selected) return
-    setPrimary(selected.id)
-    showToast('已设为当前使用（记得保存）', { type: 'success' })
-  }
+    if (!selected) return;
+    setPrimary(selected.id);
+    showToast('已设为当前使用（记得保存）', { type: 'success' });
+  };
   const handleFetch = async () => {
-    if (!selected) return
-    const r = await fetchModels(selected.id)
-    if (r.error) showToast('拉取模型失败：' + r.error, { type: 'error' })
-    else if (r.warning) showToast(r.warning, { type: 'warning' })
-    else if (r.pending) showToast(`已拉取 ${r.total ?? 0} 个模型，请勾选要写入的`, { type: 'success' })
-    else showToast(`已拉取 ${r.total ?? 0} 个模型`, { type: 'success' })
-  }
-  const [showAddModal, setShowAddModal] = React.useState(false)
+    if (!selected) return;
+    const r = await fetchModels(selected.id);
+    if (r.error) showToast('拉取模型失败：' + r.error, { type: 'error' });
+    else if (r.warning) showToast(r.warning, { type: 'warning' });
+    else if (r.pending)
+      showToast(`已拉取 ${r.total ?? 0} 个模型，请勾选要写入的`, { type: 'success' });
+    else showToast(`已拉取 ${r.total ?? 0} 个模型`, { type: 'success' });
+  };
+  const [showAddModal, setShowAddModal] = React.useState(false);
   const handleAddCandidate = (id: string) => {
-    toggleProviderEnabled(id, true)
-    select(id)
-    setShowAddModal(false)
-    showToast('已加入「' + (providers.find((p) => p.id === id)?.name || id) + '」— 记得保存', { type: 'success' })
-  }
+    toggleProviderEnabled(id, true);
+    select(id);
+    setShowAddModal(false);
+    showToast('已加入「' + (providers.find((p) => p.id === id)?.name || id) + '」— 记得保存', {
+      type: 'success',
+    });
+  };
   const handleRemove = () => {
-    if (!selected) return
-    toggleProviderEnabled(selected.id, false)
-    showToast('已移出「' + (selected.name || selected.id) + '」— 记得保存', { type: 'success' })
-  }
+    if (!selected) return;
+    toggleProviderEnabled(selected.id, false);
+    showToast('已移出「' + (selected.name || selected.id) + '」— 记得保存', { type: 'success' });
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -78,7 +125,9 @@ export default function ApiSettings() {
           <h2 className="settings-page-title flex items-center gap-2">
             <Server size={17} className="text-secondary" /> 服务商配置
           </h2>
-          <p className="text-xs text-muted mt-1">切换当前想用的服务商；节点仍可各自独立选择任意厂商模型</p>
+          <p className="text-xs text-muted mt-1">
+            切换当前想用的服务商；节点仍可各自独立选择任意厂商模型
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {dirty && <span className="text-xs text-red-400">有未保存的修改</span>}
@@ -107,14 +156,18 @@ export default function ApiSettings() {
           <div className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
             <div className="px-4 py-3.5 border-b border-edge-subtle flex items-center justify-between">
               <span className="text-sm text-body">已用服务商</span>
-              <span className="text-xs text-muted bg-surface-1 px-2 py-0.5 rounded-full">{usedProviders.length}</span>
+              <span className="text-xs text-muted bg-surface-1 px-2 py-0.5 rounded-full">
+                {usedProviders.length}
+              </span>
             </div>
             <div className="p-2 space-y-1">
               {loading ? (
                 <div className="text-center text-xs text-muted py-6">加载中…</div>
               ) : usedProviders.length === 0 ? (
                 <div className="text-center text-xs text-muted py-6 border border-dashed border-edge rounded-lg">
-                  暂无已用服务商<br />点「增加厂商」启用一个
+                  暂无已用服务商
+                  <br />
+                  点「增加厂商」启用一个
                 </div>
               ) : (
                 usedProviders.map((p) => (
@@ -129,32 +182,50 @@ export default function ApiSettings() {
             </div>
           </div>
           <p className="text-[11px] leading-relaxed text-muted px-1">
-            已用服务商与其模型由后端 config JSON 管理；增加/移出厂商、增删模型后点右上「保存更改」写回后端。
+            已用服务商与其模型由后端 config JSON
+            管理；增加/移出厂商、增删模型后点右上「保存更改」写回后端。
           </p>
         </aside>
 
         {/* 右：详情 */}
         <main className="flex-1 min-w-0">
           {!selected ? (
-            <div className="bg-surface border border-dashed border-edge rounded-xl py-16 text-center text-sm text-muted">请选择一个服务商查看</div>
+            <div className="bg-surface border border-dashed border-edge rounded-xl py-16 text-center text-sm text-muted">
+              请选择一个服务商查看
+            </div>
           ) : (
             <div className="flex flex-col gap-4">
               {/* header */}
               <div className="bg-surface border border-edge-subtle rounded-xl px-6 py-5 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base text-strong font-medium truncate">{selected.name || selected.id}</h3>
-                    {selected.primary && <Star size={14} className="text-secondary fill-secondary" />}
-                    {selected.readonly && <span className="text-[10px] text-muted bg-surface-1 px-1.5 py-0.5 rounded-md">内置</span>}
+                    <h3 className="text-base text-strong font-medium truncate">
+                      {selected.name || selected.id}
+                    </h3>
+                    {selected.primary && (
+                      <Star size={14} className="text-secondary fill-secondary" />
+                    )}
+                    {selected.readonly && (
+                      <span className="text-[10px] text-muted bg-surface-1 px-1.5 py-0.5 rounded-md">
+                        内置
+                      </span>
+                    )}
                   </div>
                   <input
-                    value={selected.base_url || (selected._relay && (selected._relay as { defaultBaseUrl?: string })?.defaultBaseUrl) || ''}
+                    value={
+                      selected.base_url ||
+                      (selected._relay &&
+                        (selected._relay as { defaultBaseUrl?: string })?.defaultBaseUrl) ||
+                      ''
+                    }
                     onChange={(e) => updateProviderField(selected.id, 'base_url', e.target.value)}
                     placeholder="请求地址（如 http://127.0.0.1:18080）"
                     className="w-full mt-1 h-8 text-xs bg-surface-1 border border-edge rounded-lg px-3 text-body outline-none focus:border-secondary placeholder:text-muted"
                   />
                 </div>
-                <span className={`text-xs px-2.5 py-1 rounded-full ${protocolBadgeCls(selected.protocol || '')}`}>
+                <span
+                  className={`text-xs px-2.5 py-1 rounded-full ${protocolBadgeCls(selected.protocol || '')}`}
+                >
                   {PROVIDER_PROTOCOL_LABELS[selected.protocol || ''] || selected.protocol || '未知'}
                 </span>
               </div>
@@ -162,77 +233,165 @@ export default function ApiSettings() {
               {/* 动作栏 */}
               <div className="bg-surface border border-edge-subtle rounded-xl px-6 py-4 flex items-center gap-3 flex-wrap">
                 {!isPrimary && (
-                  <button type="button" onClick={handleSetPrimary} className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl text-yellow-300 hover:bg-yellow-500/10 border border-yellow-500/40 transition-colors cursor-pointer">
+                  <button
+                    type="button"
+                    onClick={handleSetPrimary}
+                    className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl text-yellow-300 hover:bg-yellow-500/10 border border-yellow-500/40 transition-colors cursor-pointer"
+                  >
                     <Star size={14} /> 设为当前使用
                   </button>
                 )}
                 {isPrimary && (
-                  <span className="inline-flex items-center gap-1.5 text-xs text-secondary"><Star size={14} className="fill-secondary" /> 当前使用</span>
+                  <span className="inline-flex items-center gap-1.5 text-xs text-secondary">
+                    <Star size={14} className="fill-secondary" /> 当前使用
+                  </span>
                 )}
-                <button type="button" onClick={() => test(selected.id)} disabled={testingId === selected.id} className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl bg-surface-1 text-body hover:bg-surface-hover hover:text-blue-400 transition-colors cursor-pointer border-none disabled:opacity-50">
-                  <RefreshCw size={14} className={testingId === selected.id ? 'animate-spin' : ''} /> {testingId === selected.id ? '测试中…' : '测试连接'}
+                <button
+                  type="button"
+                  onClick={() => test(selected.id)}
+                  disabled={testingId === selected.id}
+                  className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl bg-surface-1 text-body hover:bg-surface-hover hover:text-blue-400 transition-colors cursor-pointer border-none disabled:opacity-50"
+                >
+                  <RefreshCw
+                    size={14}
+                    className={testingId === selected.id ? 'animate-spin' : ''}
+                  />{' '}
+                  {testingId === selected.id ? '测试中…' : '测试连接'}
                 </button>
-                <button type="button" onClick={handleFetch} disabled={fetchingId === selected.id} className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl bg-surface-1 text-body hover:bg-surface-hover hover:text-blue-400 transition-colors cursor-pointer border-none disabled:opacity-50">
-                  <CircleDot size={14} className={fetchingId === selected.id ? 'animate-spin' : ''} /> {fetchingId === selected.id ? '拉取中…' : '拉取模型'}
+                <button
+                  type="button"
+                  onClick={handleFetch}
+                  disabled={fetchingId === selected.id}
+                  className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl bg-surface-1 text-body hover:bg-surface-hover hover:text-blue-400 transition-colors cursor-pointer border-none disabled:opacity-50"
+                >
+                  <CircleDot
+                    size={14}
+                    className={fetchingId === selected.id ? 'animate-spin' : ''}
+                  />{' '}
+                  {fetchingId === selected.id ? '拉取中…' : '拉取模型'}
                 </button>
-                <button type="button" onClick={handleRemove} className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors cursor-pointer border-none">
+                <button
+                  type="button"
+                  onClick={handleRemove}
+                  className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors cursor-pointer border-none"
+                >
                   <Trash2 size={14} /> 移出服务商
                 </button>
                 {testResult && selectedId === selected.id && (
-                  <div className={`flex flex-col gap-1 text-xs px-3 py-2 rounded-xl ${testResult.ok ? 'bg-emerald-500/10 text-emerald-300' : 'bg-red-500/10 text-red-300'}`}>
+                  <div
+                    className={`flex flex-col gap-1 text-xs px-3 py-2 rounded-xl ${testResult.ok ? 'bg-emerald-500/10 text-emerald-300' : 'bg-red-500/10 text-red-300'}`}
+                  >
                     <div className="flex items-center gap-2">
                       {testResult.ok ? <AlertCircle size={14} /> : <AlertCircle size={14} />}
-                      {testResult.ok ? `连接成功（${testResult.status ?? ''}${testResult.stage ? ' · ' + testResult.stage : ''}）` : `连接失败：${testResult.error || testResult.status || '未知'}`}
+                      {testResult.ok
+                        ? `连接成功（${testResult.status ?? ''}${testResult.stage ? ' · ' + testResult.stage : ''}）`
+                        : `连接失败：${testResult.error || testResult.status || '未知'}`}
                     </div>
                   </div>
                 )}
               </div>
 
               {/* 模型清单（可编辑：每项可删 + 每能力可手输新增；也走「拉取模型→勾选」） */}
-              <CapabilityModels title="图片模型" icon={<Image size={14} />} models={selected.image_models || []} providerId={selected.id} cap="image_models" />
-              <CapabilityModels title="聊天模型" icon={<MessagesSquare size={14} />} models={selected.chat_models || []} providerId={selected.id} cap="chat_models" />
-              <CapabilityModels title="视频模型" icon={<Video size={14} />} models={selected.video_models || []} providerId={selected.id} cap="video_models" />
+              <CapabilityModels
+                title="图片模型"
+                icon={<Image size={14} />}
+                models={selected.image_models || []}
+                providerId={selected.id}
+                cap="image_models"
+              />
+              <CapabilityModels
+                title="聊天模型"
+                icon={<MessagesSquare size={14} />}
+                models={selected.chat_models || []}
+                providerId={selected.id}
+                cap="chat_models"
+              />
+              <CapabilityModels
+                title="视频模型"
+                icon={<Video size={14} />}
+                models={selected.video_models || []}
+                providerId={selected.id}
+                cap="video_models"
+              />
 
               <FetchModelsModal
                 open={!!fetchedModels}
-                fetched={fetchedModels ? { image_models: fetchedModels.image_models, chat_models: fetchedModels.chat_models, video_models: fetchedModels.video_models } : null}
-                existing={selected ? { image_models: selected.image_models, chat_models: selected.chat_models, video_models: selected.video_models } : null}
+                fetched={
+                  fetchedModels
+                    ? {
+                        image_models: fetchedModels.image_models,
+                        chat_models: fetchedModels.chat_models,
+                        video_models: fetchedModels.video_models,
+                      }
+                    : null
+                }
+                existing={
+                  selected
+                    ? {
+                        image_models: selected.image_models,
+                        chat_models: selected.chat_models,
+                        video_models: selected.video_models,
+                      }
+                    : null
+                }
                 fetching={fetchingId === selected?.id}
                 onClose={() => closeFetchedModels()}
                 onConfirm={(selectedModels) => {
                   if (fetchedModels) {
-                    applyFetchedModels(fetchedModels.id, selectedModels)
-                    const total = (selectedModels.image_models?.length || 0) + (selectedModels.chat_models?.length || 0) + (selectedModels.video_models?.length || 0)
-                    showToast(`已写入 ${total} 个模型（记得点「保存更改」）`, { type: 'success' })
+                    applyFetchedModels(fetchedModels.id, selectedModels);
+                    const total =
+                      (selectedModels.image_models?.length || 0) +
+                      (selectedModels.chat_models?.length || 0) +
+                      (selectedModels.video_models?.length || 0);
+                    showToast(`已写入 ${total} 个模型（记得点「保存更改」）`, { type: 'success' });
                   }
                 }}
               />
 
               {/* 增加厂商：从候选（未启用）选一个启用 */}
               {showAddModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowAddModal(false)}>
-                  <div className="bg-surface border border-edge-subtle rounded-2xl w-[420px] max-h-[70vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+                  onClick={() => setShowAddModal(false)}
+                >
+                  <div
+                    className="bg-surface border border-edge-subtle rounded-2xl w-[420px] max-h-[70vh] flex flex-col overflow-hidden"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="px-5 py-4 border-b border-edge-subtle flex items-center justify-between">
                       <h3 className="text-sm font-medium text-strong">增加厂商</h3>
-                      <button type="button" onClick={() => setShowAddModal(false)} className="text-muted hover:text-body text-lg leading-none cursor-pointer">×</button>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddModal(false)}
+                        className="text-muted hover:text-body text-lg leading-none cursor-pointer"
+                      >
+                        ×
+                      </button>
                     </div>
                     <div className="p-3 space-y-1 overflow-y-auto">
                       {candidate.length === 0 ? (
-                        <div className="text-center text-xs text-muted py-8">没有可增加的厂商（都已启用）</div>
-                      ) : candidate.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => handleAddCandidate(p.id)}
-                          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-left hover:bg-surface-hover cursor-pointer border-none bg-transparent"
-                        >
-                          <Plus size={14} className="text-secondary shrink-0" />
-                          <span className="flex-1 text-sm text-body truncate">{p.name || p.id}</span>
-                          <span className="text-[10px] text-muted">
-                            图{(p.image_models || []).length} 文{(p.chat_models || []).length} 视{(p.video_models || []).length}
-                          </span>
-                        </button>
-                      ))}
+                        <div className="text-center text-xs text-muted py-8">
+                          没有可增加的厂商（都已启用）
+                        </div>
+                      ) : (
+                        candidate.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => handleAddCandidate(p.id)}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-left hover:bg-surface-hover cursor-pointer border-none bg-transparent"
+                          >
+                            <Plus size={14} className="text-secondary shrink-0" />
+                            <span className="flex-1 text-sm text-body truncate">
+                              {p.name || p.id}
+                            </span>
+                            <span className="text-[10px] text-muted">
+                              图{(p.image_models || []).length} 文{(p.chat_models || []).length} 视
+                              {(p.video_models || []).length}
+                            </span>
+                          </button>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
@@ -242,44 +401,80 @@ export default function ApiSettings() {
         </main>
       </div>
     </div>
-  )
+  );
 }
 
-function ProviderListItem({ p, active, onSelect }: { p: { id: string; name?: string; protocol?: string; primary?: boolean; image_models?: RawModel[]; chat_models?: RawModel[]; video_models?: RawModel[] }; active: boolean; onSelect: () => void }) {
-  const cap = (arr?: RawModel[]) => arr?.length || 0
+function ProviderListItem({
+  p,
+  active,
+  onSelect,
+}: {
+  p: {
+    id: string;
+    name?: string;
+    protocol?: string;
+    primary?: boolean;
+    image_models?: RawModel[];
+    chat_models?: RawModel[];
+    video_models?: RawModel[];
+  };
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const cap = (arr?: RawModel[]) => arr?.length || 0;
   return (
     <div
       className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-colors border ${active ? 'bg-surface-active border-edge' : 'border-transparent hover:bg-surface-hover'}`}
       onClick={onSelect}
     >
-      <span className={`flex-1 truncate text-sm ${active ? 'text-strong' : 'text-body'}`}>{p.name || p.id}</span>
-      <span className="hidden sm:flex text-[10px] text-muted shrink-0">
-        <span className="px-1">图{cap(p.image_models)}</span><span className="px-1">文{cap(p.chat_models)}</span><span className="px-1">视{cap(p.video_models)}</span>
+      <span className={`flex-1 truncate text-sm ${active ? 'text-strong' : 'text-body'}`}>
+        {p.name || p.id}
       </span>
-      <span className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${protocolBadgeCls(p.protocol || '')}`}>
+      <span className="hidden sm:flex text-[10px] text-muted shrink-0">
+        <span className="px-1">图{cap(p.image_models)}</span>
+        <span className="px-1">文{cap(p.chat_models)}</span>
+        <span className="px-1">视{cap(p.video_models)}</span>
+      </span>
+      <span
+        className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${protocolBadgeCls(p.protocol || '')}`}
+      >
         {PROVIDER_PROTOCOL_LABELS[p.protocol || ''] || p.protocol || '——'}
       </span>
       {p.primary && <Star size={12} className="text-secondary fill-secondary" />}
     </div>
-  )
+  );
 }
 
-function CapabilityModels({ title, icon, models, providerId, cap }: { title: string; icon: React.ReactNode; models: RawModel[]; providerId: string; cap: 'image_models' | 'chat_models' | 'video_models' }) {
-  const [adding, setAdding] = React.useState(false)
-  const [draft, setDraft] = React.useState('')
+function CapabilityModels({
+  title,
+  icon,
+  models,
+  providerId,
+  cap,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  models: RawModel[];
+  providerId: string;
+  cap: 'image_models' | 'chat_models' | 'video_models';
+}) {
+  const [adding, setAdding] = React.useState(false);
+  const [draft, setDraft] = React.useState('');
   const submitAdd = () => {
-    const v = draft.trim()
-    if (!v) return
-    addModel(providerId, cap, { id: v, label: v }) // 只输 id 时 label 同 id；后续可拉取补全
-    setDraft('')
-    setAdding(false)
-  }
+    const v = draft.trim();
+    if (!v) return;
+    addModel(providerId, cap, { id: v, label: v }); // 只输 id 时 label 同 id；后续可拉取补全
+    setDraft('');
+    setAdding(false);
+  };
   return (
     <section className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
       <div className="px-6 py-3.5 border-b border-edge-subtle flex items-center gap-2">
         <span className="text-secondary">{icon}</span>
         <h3 className="text-sm text-body">{title}</h3>
-        <span className="text-xs text-muted bg-surface-1 px-2 py-0.5 rounded-full">{models.length}</span>
+        <span className="text-xs text-muted bg-surface-1 px-2 py-0.5 rounded-full">
+          {models.length}
+        </span>
         <button
           type="button"
           onClick={() => setAdding((v) => !v)}
@@ -295,20 +490,33 @@ function CapabilityModels({ title, icon, models, providerId, cap }: { title: str
             autoFocus
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') submitAdd() }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitAdd();
+            }}
             placeholder="输入模型 id 或名称，回车新增"
             className="flex-1 h-8 text-xs bg-surface-1 border border-edge rounded-lg px-3 text-body outline-none focus:border-secondary"
           />
-          <button type="button" onClick={submitAdd} className="inline-flex items-center px-3 h-8 text-xs rounded-lg bg-white text-black font-medium cursor-pointer border-none hover:bg-gray-200">添加</button>
+          <button
+            type="button"
+            onClick={submitAdd}
+            className="inline-flex items-center px-3 h-8 text-xs rounded-lg bg-white text-black font-medium cursor-pointer border-none hover:bg-gray-200"
+          >
+            添加
+          </button>
         </div>
       )}
 
       {models.length === 0 ? (
-        <div className="px-6 py-4 text-xs text-muted">该服务商暂无此能力模型，可点「新增」手输或「拉取模型」批量勾选</div>
+        <div className="px-6 py-4 text-xs text-muted">
+          该服务商暂无此能力模型，可点「新增」手输或「拉取模型」批量勾选
+        </div>
       ) : (
         <div className="px-6 py-4 grid grid-cols-2 gap-x-6 gap-y-1">
           {models.map((m, i) => (
-            <div key={`${m.id || ''}-${i}`} className="group flex items-center gap-1.5 text-xs text-body truncate">
+            <div
+              key={`${m.id || ''}-${i}`}
+              className="group flex items-center gap-1.5 text-xs text-body truncate"
+            >
               <span className="w-1 h-1 rounded-full bg-secondary shrink-0" />
               <span className="truncate">{m.label || m.id}</span>
               <button
@@ -324,5 +532,5 @@ function CapabilityModels({ title, icon, models, providerId, cap }: { title: str
         </div>
       )}
     </section>
-  )
+  );
 }

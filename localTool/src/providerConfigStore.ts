@@ -33,9 +33,21 @@ function providerFilePath(id: string): string {
 
 /** 平台「配置文件」里存的前端 Provider 契约字段白名单（能落盘/回读的字段） */
 const PERSIST_FIELDS = new Set([
-  'id', 'name', 'base_url', 'protocol', 'image_request_mode', 'image_mode',
-  'chat_request_mode', 'enabled', 'primary', 'readonly',
-  'image_models', 'chat_models', 'video_models', 'model_names', 'model_protocols',
+  'id',
+  'name',
+  'base_url',
+  'protocol',
+  'image_request_mode',
+  'image_mode',
+  'chat_request_mode',
+  'enabled',
+  'primary',
+  'readonly',
+  'image_models',
+  'chat_models',
+  'video_models',
+  'model_names',
+  'model_protocols',
 ]);
 
 /** 读取某平台配置文件（不存在返回 null）。 */
@@ -55,7 +67,8 @@ export function listProviderConfigFiles(): string[] {
   try {
     const dir = getProviderConfigDir();
     if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir)
+    return fs
+      .readdirSync(dir)
       .filter((f) => f.endsWith('.json'))
       .map((f) => f.replace(/\.json$/, ''));
   } catch {
@@ -153,11 +166,7 @@ export function readAllProviders(): Array<Record<string, unknown>> {
     seen.add(id);
     const file = readProviderConfigFile(id);
     const def = getProviderDefinition(id);
-    const base = file && typeof file === 'object'
-      ? file
-      : def
-        ? definitionToProvider(def)
-        : null;
+    const base = file && typeof file === 'object' ? file : def ? definitionToProvider(def) : null;
     if (!base) return;
     // 用内置定义补 relay 连接元数据（仅当文件缺或为出厂兜底）
     if (def) {

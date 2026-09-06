@@ -7,7 +7,11 @@ import { getDb, queryOne, run, debouncedSaveDb } from '../db/database.js';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
 import { externalizeBase64InValue } from '../utils/base64Externalize.js';
 
-export async function handleKvGet(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+export async function handleKvGet(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<void> {
   const key = url.searchParams.get('key');
   if (!key) return sendError(res, 'Missing key parameter', 400);
 
@@ -16,8 +20,11 @@ export async function handleKvGet(req: IncomingMessage, res: ServerResponse, url
 
   if (!row) return json(res, null);
 
-  try { return json(res, JSON.parse(row.value)); }
-  catch { return json(res, row.value); }
+  try {
+    return json(res, JSON.parse(row.value));
+  } catch {
+    return json(res, row.value);
+  }
 }
 
 export async function handleKvSet(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -34,13 +41,20 @@ export async function handleKvSet(req: IncomingMessage, res: ServerResponse): Pr
 
   // sql.js 不支持 ON CONFLICT，用 DELETE + INSERT 模拟
   run(db, 'DELETE FROM kv WHERE key = ?', [body.key]);
-  run(db, 'INSERT INTO kv (key, value, updated_at) VALUES (?, ?, unixepoch())', [body.key, finalValue]);
+  run(db, 'INSERT INTO kv (key, value, updated_at) VALUES (?, ?, unixepoch())', [
+    body.key,
+    finalValue,
+  ]);
 
   debouncedSaveDb();
   return json(res, { code: 0, data: { ok: true } });
 }
 
-export async function handleKvDelete(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+export async function handleKvDelete(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<void> {
   const key = url.searchParams.get('key');
   if (!key) return sendError(res, 'Missing key parameter', 400);
 

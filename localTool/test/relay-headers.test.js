@@ -65,9 +65,5 @@ test('stripHopByHop(forward)：保留 content-encoding，仅剥 hop-by-hop', () 
     ['upgrade', 'websocket'],
   ]);
   const out = stripHopByHop(h, 'forward');
-  assert.deepEqual(Object.keys(out).sort(), [
-    'authorization',
-    'content-encoding',
-    'content-type',
-  ]);
+  assert.deepEqual(Object.keys(out).sort(), ['authorization', 'content-encoding', 'content-type']);
 });

@@ -1,40 +1,50 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react'
-import { useReactFlow } from '@xyflow/react'
+import React, { useState, useRef, useCallback, useMemo } from 'react';
+import { useReactFlow } from '@xyflow/react';
 import {
-  Clapperboard, Plus, Expand, Download, Trash2, Play,
-  AlertCircle, Settings, Link as LinkIcon, RefreshCw, Coins, Layers
-} from 'lucide-react'
-import NodeShell from '../base/ui/NodeShell.tsx'
-import HoverToolbar from '../base/panels/HoverToolbar.tsx'
-import ExpandablePanel from '../base/ui/ExpandablePanel.tsx'
-import GenerateButton from '../base/ui/GenerateButton.tsx'
-import ModelSelect from '../base/ui/ModelSelect.tsx'
-import ResizeFullscreenHandle from '../base/ui/ResizeFullscreenHandle.tsx'
-import FullscreenEditor from '../base/panels/FullscreenEditor.tsx'
-import GeneratingOverlay from '../base/ui/GeneratingOverlay.tsx'
-import { NODE_AREA_FIXED_BASE_SIZE } from '../base/core/config.ts'
-import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx'
-import { DepthVideoModal } from '../base/depthVideo/DepthVideoModal.tsx'
-import { spawnDepthVideoNode } from '../base/depthVideo/spawn.ts'
-import { downloadUrl, resolveDownloadFilename } from '../base/utils/clipboard.ts'
-import PromptLibraryButton from '../base/prompt/PromptLibraryButton.tsx'
-import JianyingIcon from '../base/ui/JianyingIcon.tsx'
-import MaterialStrip from '../base/panels/MaterialStrip.tsx'
-import PromptInput from '../base/prompt/PromptInput.tsx'
-import { resolvePromptChips } from '../base/prompt/promptChips.ts'
-import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts'
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
-import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
-import { useVideoPoster } from '../../hooks/useVideoPoster.ts'
-import LazyImage from '../base/ui/LazyImage.tsx'
-import VideoThumbnail from '../base/ui/VideoThumbnail.tsx'
-import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx'
-import { useGenerateNode } from '../../hooks/useGenerateNode.ts'
-import { generateVideo } from '../base/api/index.ts'
-import { useNodePrefs } from '../base/canvas/nodePrefs.ts'
-import { logger } from '../base/core/logger.ts'
-import { resolveProviderModel } from '../base/utils/providerModels.ts'
-import { debounce, buildEffectivePrompt, clampSeconds } from '../base/core/utils.ts'
+  Clapperboard,
+  Plus,
+  Expand,
+  Download,
+  Trash2,
+  Play,
+  AlertCircle,
+  Settings,
+  Link as LinkIcon,
+  RefreshCw,
+  Coins,
+  Layers,
+} from 'lucide-react';
+import NodeShell from '../base/ui/NodeShell.tsx';
+import HoverToolbar from '../base/panels/HoverToolbar.tsx';
+import ExpandablePanel from '../base/ui/ExpandablePanel.tsx';
+import GenerateButton from '../base/ui/GenerateButton.tsx';
+import ModelSelect from '../base/ui/ModelSelect.tsx';
+import ResizeFullscreenHandle from '../base/ui/ResizeFullscreenHandle.tsx';
+import FullscreenEditor from '../base/panels/FullscreenEditor.tsx';
+import GeneratingOverlay from '../base/ui/GeneratingOverlay.tsx';
+import { NODE_AREA_FIXED_BASE_SIZE } from '../base/core/config.ts';
+import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
+import { DepthVideoModal } from '../base/depthVideo/DepthVideoModal.tsx';
+import { spawnDepthVideoNode } from '../base/depthVideo/spawn.ts';
+import { downloadUrl, resolveDownloadFilename } from '../base/utils/clipboard.ts';
+import PromptLibraryButton from '../base/prompt/PromptLibraryButton.tsx';
+import JianyingIcon from '../base/ui/JianyingIcon.tsx';
+import MaterialStrip from '../base/panels/MaterialStrip.tsx';
+import PromptInput from '../base/prompt/PromptInput.tsx';
+import { resolvePromptChips } from '../base/prompt/promptChips.ts';
+import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts';
+import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
+import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
+import { useVideoPoster } from '../../hooks/useVideoPoster.ts';
+import LazyImage from '../base/ui/LazyImage.tsx';
+import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
+import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
+import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
+import { generateVideo } from '../base/api/index.ts';
+import { useNodePrefs } from '../base/canvas/nodePrefs.ts';
+import { logger } from '../base/core/logger.ts';
+import { resolveProviderModel } from '../base/utils/providerModels.ts';
+import { debounce, buildEffectivePrompt, clampSeconds } from '../base/core/utils.ts';
 
 /**
  * 视频生成节点（复刻原 As.jsx / discountVideoNode）
@@ -44,170 +54,196 @@ import { debounce, buildEffectivePrompt, clampSeconds } from '../base/core/utils
  */
 /** 参考图素材形态（MaterialStrip / PromptInput 共用） */
 interface RefImage {
-  id: string
-  url: string
-  label?: string
-  sourceNodeId?: string
+  id: string;
+  url: string;
+  label?: string;
+  sourceNodeId?: string;
 }
 
 /** 参考文本形态（resolvePromptChips 要求 id/label 必填） */
 interface RefText {
-  id: string
-  label: string
-  text?: string
-  sourceNodeId?: string
+  id: string;
+  label: string;
+  text?: string;
+  sourceNodeId?: string;
 }
 
 /** 视频生成节点 data 契约 */
 interface DiscountVideoNodeData {
-  label?: string
-  prompt?: string
-  videoUrl?: string
-  poster?: string
-  size?: string
-  resolution?: string
-  selectedSeconds?: string | number
-  selectedModel?: string
-  expanded?: boolean
-  inputWidth?: number
-  inputHeight?: number
-  texts?: RefText[]
-  [key: string]: unknown
+  label?: string;
+  prompt?: string;
+  videoUrl?: string;
+  poster?: string;
+  size?: string;
+  resolution?: string;
+  selectedSeconds?: string | number;
+  selectedModel?: string;
+  expanded?: boolean;
+  inputWidth?: number;
+  inputHeight?: number;
+  texts?: RefText[];
+  [key: string]: unknown;
 }
 
 interface DiscountVideoNodeProps {
-  id: string
-  data: DiscountVideoNodeData
-  selected?: boolean
+  id: string;
+  data: DiscountVideoNodeData;
+  selected?: boolean;
 }
 
 function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
   // 性能模式媒体降级（通用 hook）：hideVideo = isHidden('video')，即 lodLevel>=3
-  const { isHidden } = useMediaDegrade()
-  const hideVideo = isHidden('video')
+  const { isHidden } = useMediaDegrade();
+  const hideVideo = isHidden('video');
 
   // 通用连线数据传递：读取直接上游节点的图片/文本作为参考素材
-  const connected = useConnectedInputs(id)
+  const connected = useConnectedInputs(id);
   // 上游文本合并（多个文本节点自动聚合；data.texts 额外资产也并入），作为提示词的一部分
-  const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
-  const { setEdges, setNodes, getNode, getNodes, getEdges } = useReactFlow()
+  const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])];
+  const { setEdges, setNodes, getNode, getNodes, getEdges } = useReactFlow();
   // 画布历史（undo）：与 VideoProcessNode 的 spawn 语义一致，供 spawnDepthVideoNode 原子提交
-  const history = useCanvasEdges()
+  const history = useCanvasEdges();
   // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
-  const rename = useCallback((name: string) => {
-    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)))
-  }, [id, setNodes])
+  const rename = useCallback(
+    (name: string) => {
+      setNodes((ns) =>
+        ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)),
+      );
+    },
+    [id, setNodes],
+  );
   // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）
   const disconnectSource = useCallback(
     (sourceNodeId: string) => {
-      if (!sourceNodeId) return
-      setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)))
+      if (!sourceNodeId) return;
+      setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)));
     },
-    [id, setEdges]
-  )
-  const [prompt, setPrompt] = useState(data.prompt || '')
+    [id, setEdges],
+  );
+  const [prompt, setPrompt] = useState(data.prompt || '');
   // 有效提示词 = 本地 prompt + 上游文本，两者都参与生成
-  const effectivePrompt = buildEffectivePrompt(prompt, refTexts)
+  const effectivePrompt = buildEffectivePrompt(prompt, refTexts);
   // 【富文本芯片解析】prompt 里可能含 `@{id:label}` 素材芯片（图片 → 参考图，文本 → 纯文本）。
   // 生成前统一解析：chipResolved.text 是发给 AI 的纯文本；chipResolved.refImages 是用户显式 @ 的参考图。
-  const connectedImages = connected.images || []
+  const connectedImages = connected.images || [];
   const chipResolved = useMemo(
     () => resolvePromptChips(effectivePrompt, connectedImages, refTexts),
-    [effectivePrompt, connectedImages, refTexts]
-  )
+    [effectivePrompt, connectedImages, refTexts],
+  );
   // 提示词输入框双击全屏编辑（复刻 TextNode 的交互：ResizeFullscreenHandle 双击 → 弹层）
-  const [fullscreenPrompt, setFullscreenPrompt] = useState(false)
+  const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
   // 提示词落盘：本地 state + 写回 node.data（支持函数式更新）。
   // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave）→ 手动输入的提示词刷新不丢。
   const patchData = useCallback(
     (patch: Record<string, unknown>) => {
-      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
+      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
     },
-    [id, setNodes]
-  )
-  const setPromptPersist = useCallback(
-    (v: React.SetStateAction<string>) => {
-      setPrompt((prev) => (typeof v === 'function' ? v(prev) : v))
-    },
-    []
-  )
+    [id, setNodes],
+  );
+  const setPromptPersist = useCallback((v: React.SetStateAction<string>) => {
+    setPrompt((prev) => (typeof v === 'function' ? v(prev) : v));
+  }, []);
   // P2：prompt 持续输入走防抖写回（避免每键 setNodes 全图 node 数组重建）；卸载 flush 兜底
-  const debouncedPatch = useRef<{ (patch: Record<string, unknown>): void; flush(): void } | null>(null)
+  const debouncedPatch = useRef<{ (patch: Record<string, unknown>): void; flush(): void } | null>(
+    null,
+  );
   if (debouncedPatch.current == null) {
-    debouncedPatch.current = debounce(patchData, 200)
+    debouncedPatch.current = debounce(patchData, 200);
   }
   // 记住上次选择的模型/比例/分辨率/时长（跨节点/跨会话，与 PromptNode 一致）
-  const { prefs: vidPrefs, set: setVidPrefs } = useNodePrefs('discountVideoNode', { model: '', size: '16:9', resolution: '1080p', seconds: '10' })
+  const { prefs: vidPrefs, set: setVidPrefs } = useNodePrefs('discountVideoNode', {
+    model: '',
+    size: '16:9',
+    resolution: '1080p',
+    seconds: '10',
+  });
   // 记忆只影响新建（见 App.addNode 注入）；存量初始化只读 data，缺字段用纯常量。
-  const [ratio, setRatio] = useState(data.size ?? '16:9')
-  const [resolution, setResolution] = useState(data.resolution ?? '1080p')
-  const [seconds, setSeconds] = useState(data.selectedSeconds ?? '10')
-  const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? '')
-  const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded)
+  const [ratio, setRatio] = useState(data.size ?? '16:9');
+  const [resolution, setResolution] = useState(data.resolution ?? '1080p');
+  const [seconds, setSeconds] = useState(data.selectedSeconds ?? '10');
+  const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? '');
+  const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded);
   // 抽屉展开/收起
-  const toggleExpanded = useCallback(() => setExpanded((v) => !v), [])
+  const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
   // 【React 反模式修复】「写回 node.data」不在 setState updater 里做（渲染期间 setNodes → BatchProvider 警告），
   // 改用 useEffect 同步落盘。
-  React.useEffect(() => { debouncedPatch.current({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
-  React.useEffect(() => { patchData({ expanded }) }, [expanded]) // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    debouncedPatch.current({ prompt });
+  }, [prompt]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    patchData({ expanded });
+  }, [expanded]); // eslint-disable-line react-hooks/exhaustive-deps
   // 全局快捷键（Tab）折叠/展开：外部 data.expanded 变化时同步回本地 state
   React.useEffect(() => {
-    if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded)
-  }, [data.expanded]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded);
+  }, [data.expanded]); // eslint-disable-line react-hooks/exhaustive-deps
   // 卸载前 flush 最后一次待提交（避免防抖窗口内丢数据）
-  React.useEffect(() => () => { debouncedPatch.current?.flush() }, [])
-  const [videoUrl, setVideoUrl] = useState(data.videoUrl || '')
-  const [depthOpen, setDepthOpen] = useState(false)
-  const [showRatioMenu, setShowRatioMenu] = useState(false)
+  React.useEffect(
+    () => () => {
+      debouncedPatch.current?.flush();
+    },
+    [],
+  );
+  const [videoUrl, setVideoUrl] = useState(data.videoUrl || '');
+  const [depthOpen, setDepthOpen] = useState(false);
+  const [showRatioMenu, setShowRatioMenu] = useState(false);
 
   // 视频首帧封面（复刻官方 xi.jsx poster 机制）：未播放时只显示首帧封面、不加载视频本体，点击才加载播放
   // 注意：必须在 videoUrl state 定义之后调用，否则触发 TDZ「Cannot access before initialization」
   // enabled 必传：原调用漏传第二参 → enabled 恒为 undefined → 首帧封面永不生成（poster 静默失效），
   // 节点只能显示 <video> 本体（未播放时黑块）。本节点无播放态跟踪，有 videoUrl 即抓封面。
-  const posterUrl = useVideoPoster(videoUrl, !!videoUrl)
-  const fileRef = useRef<HTMLInputElement | null>(null)
-  const videoRef = useRef<HTMLVideoElement | null>(null) // 主视频元素（点击播放按钮用）
-  const promptInputRef = useRef<HTMLDivElement | null>(null) // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
-  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null) // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
+  const posterUrl = useVideoPoster(videoUrl, !!videoUrl);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null); // 主视频元素（点击播放按钮用）
+  const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
+  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
   const insertMention = (asset: unknown) => {
-    if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset)
-  }
+    if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset);
+  };
   // 双击视频查看大图（原生 <dialog> + 原生 <video> 播放器）
-  const [zoomUrl, setZoomUrl] = useState('')
-  const zoomRef = useRef<HTMLDialogElement | null>(null)
+  const [zoomUrl, setZoomUrl] = useState('');
+  const zoomRef = useRef<HTMLDialogElement | null>(null);
   const openVideoZoom = useCallback((url: string) => {
-    if (!url) return
-    setZoomUrl(url)
-    requestAnimationFrame(() => zoomRef.current?.showModal())
-  }, [])
+    if (!url) return;
+    setZoomUrl(url);
+    requestAnimationFrame(() => zoomRef.current?.showModal());
+  }, []);
   // 单击/双击区分：单击立即切抽屉、双击看大图。
   // 用两次 click 时间间隔识别双击：双击时第一次 click 已 toggle，第二次 click 拦截不 toggle，
   // 再由 dblclick 补一次 toggle 抵消，抽屉回到原位并打开大图。单击则只 toggle 一次，无延迟。
-  const lastClickTime = useRef(0)
-  const doubleClickPending = useRef(false)
-  const ratioMenuRef = useRef<HTMLDivElement | null>(null) // 比例/分辨率/时长菜单容器（点击外部关闭）
-  useOutsideClick(ratioMenuRef, showRatioMenu, () => setShowRatioMenu(false))
+  const lastClickTime = useRef(0);
+  const doubleClickPending = useRef(false);
+  const ratioMenuRef = useRef<HTMLDivElement | null>(null); // 比例/分辨率/时长菜单容器（点击外部关闭）
+  useOutsideClick(ratioMenuRef, showRatioMenu, () => setShowRatioMenu(false));
 
   // 输入框尺寸写回 node.data（基座 useNodeResize，复刻官方 inputWidth/inputHeight）
-  const { onInputResize } = useNodeResize(id)
+  const { onInputResize } = useNodeResize(id);
 
   const ratioOptions = [
     { value: '16:9', label: '16:9' },
     { value: '9:16', label: '9:16' },
     { value: '1:1', label: '1:1' },
     { value: '4:3', label: '4:3' },
-    { value: '3:4', label: '3:4' }
-  ]
-  const resOptions = ['480p', '720p', '1080p']
+    { value: '3:4', label: '3:4' },
+  ];
+  const resOptions = ['480p', '720p', '1080p'];
   // 时长改为滑块（4~15s 自由选择，替代原来写死的 6 个预设按钮）。
   // 说明：视频 API 的 duration 原样透传不设上限，模型超过 4s 即可生成；合并生成视频时
   // 滑块初始值 = 选中镜头时长累加（selectedSeconds）。滑块值取整秒，超出预设直接可滑。
-  const MIN_SECONDS = 4
-  const MAX_SECONDS = 15
+  const MIN_SECONDS = 4;
+  const MAX_SECONDS = 15;
 
   // 供应商/模型 + 默认模型回填 + useNodeGeneration(统一契约) 收进 useGenerateNode（P0-2 收口）。
   // prefs/selectedModel 由本节点持有并传入（无死锁）；外部 data.videoUrl 变更同步也收进 sync。
-  const { providers, primary, models, loading, error, stop: onStop, start: handleGenerate } = useGenerateNode({
+  const {
+    providers,
+    primary,
+    models,
+    loading,
+    error,
+    stop: onStop,
+    start: handleGenerate,
+  } = useGenerateNode({
     nodeId: id,
     type: 'video',
     // 上报用解析后的纯文本（芯片已替换为可读内容），与实发 chipResolved.text 一致
@@ -222,50 +258,67 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
     resultField: 'videoUrl',
     recoverable: true,
     // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生成
-    validate: () => ((effectivePrompt?.trim() || chipResolved.refImages.length > 0) ? '' : '请输入提示词'),
+    validate: () =>
+      effectivePrompt?.trim() || chipResolved.refImages.length > 0 ? '' : '请输入提示词',
     run: async ({ progress, signal, taskId }) => {
       // 从「providerId::modelId」解析出实际 provider 和 modelId（跨 provider 选模型）
-      const { provider: useProvider, modelId } = resolveProviderModel(providers, selectedModel, primary)
+      const { provider: useProvider, modelId } = resolveProviderModel(
+        providers,
+        selectedModel,
+        primary,
+      );
       // 参考图 = 用户显式 @ 的芯片图（顺序对应 prompt 里的「图片N」）+ 其余连线上游图（去重）
-      const chipUrls = chipResolved.refImages.map((im) => im.url)
-      const upstreamUrls = connectedImages.map((img) => img.url)
-      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])]
+      const chipUrls = chipResolved.refImages.map((im) => im.url);
+      const upstreamUrls = connectedImages.map((img) => img.url);
+      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])];
       // signal 支持真取消（Step C）
-      return generateVideo({
-        provider: useProvider,
-        // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）
-        prompt: chipResolved.text || effectivePrompt || '',
-        model: modelId,
-        size: ratio,
-        resolution,
-        seconds: Number(seconds) || 10,
-        images: refUrls,
-        taskId, // P0-A 请求级贯穿
-      }, (pct, stage) => progress(Math.max(10, Math.min(98, Math.round(pct))), stage), signal)
+      return generateVideo(
+        {
+          provider: useProvider,
+          // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）
+          prompt: chipResolved.text || effectivePrompt || '',
+          model: modelId,
+          size: ratio,
+          resolution,
+          seconds: Number(seconds) || 10,
+          images: refUrls,
+          taskId, // P0-A 请求级贯穿
+        },
+        (pct, stage) => progress(Math.max(10, Math.min(98, Math.round(pct))), stage),
+        signal,
+      );
     },
     onSuccess: (r) => {
-      setVideoUrl(r.url)
+      setVideoUrl(r.url);
       // 【真相源契约】data.videoUrl 写回由声明式 resultField:'videoUrl' 自动完成（经 useNodeData，随画布快照落盘）。
       // 此回调只负责本地 state 同步与业务记忆。
-      setVidPrefs({ model: selectedModel, size: ratio, resolution, seconds })
+      setVidPrefs({ model: selectedModel, size: ratio, resolution, seconds });
     },
     // 【精准节点回填】异步视频任务刷新后恢复轮询完成的广播 → 节点卡片自动恢复显示（data 回填由 recoverable 自动，此处同步本地 state 供渲染/下载）。
     onRecover: ({ resultUrl }) => {
-      setVideoUrl(String(resultUrl ?? ''))
+      setVideoUrl(String(resultUrl ?? ''));
     },
-  })
+  });
 
-  const onUpload = () => fileRef.current?.click()
+  const onUpload = () => fileRef.current?.click();
 
   // 下载当前视频（<a download> 触发浏览器保存；文件名推导走统一 resolveDownloadFilename，label 缺扩展名补 .mp4）
   const handleDownload = () => {
-    if (!videoUrl) return
-    downloadUrl(videoUrl, resolveDownloadFilename(data.label, videoUrl, { ext: 'mp4', fallback: 'video.mp4' }))
-  }
+    if (!videoUrl) return;
+    downloadUrl(
+      videoUrl,
+      resolveDownloadFilename(data.label, videoUrl, { ext: 'mp4', fallback: 'video.mp4' }),
+    );
+  };
 
   // hover 操作栏按钮
   const toolbarButtons = [
-    { key: 'upload', icon: <Plus size={14} />, title: '上传图片、视频或音频素材', onClick: onUpload },
+    {
+      key: 'upload',
+      icon: <Plus size={14} />,
+      title: '上传图片、视频或音频素材',
+      onClick: onUpload,
+    },
     ...(videoUrl
       ? [
           { key: 'fullscreen', icon: <Expand size={14} />, title: '全屏播放' },
@@ -275,19 +328,25 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
             icon: <Layers size={14} />,
             title: '转深度视频',
             hoverClass: 'hover:text-sky-400',
-            onClick: () => setDepthOpen(true)
+            onClick: () => setDepthOpen(true),
           },
           {
             key: 'jianying',
             icon: <JianyingIcon size={14} />,
             title: '发送到剪映素材库',
             hoverClass: 'hover:text-emerald-400',
-            onClick: () => logger.info('DiscountVideoNode', '发送到剪映素材库')
+            onClick: () => logger.info('DiscountVideoNode', '发送到剪映素材库'),
           },
-          { key: 'delete', icon: <Trash2 size={14} />, title: '删除', hoverClass: 'hover:text-red-500', onClick: () => setVideoUrl('') }
+          {
+            key: 'delete',
+            icon: <Trash2 size={14} />,
+            title: '删除',
+            hoverClass: 'hover:text-red-500',
+            onClick: () => setVideoUrl(''),
+          },
         ]
-      : [])
-  ]
+      : []),
+  ];
 
   return (
     <NodeShell
@@ -309,7 +368,12 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
       {/* hover 操作栏（loading 时隐藏） */}
       {!loading && <HoverToolbar buttons={toolbarButtons} loading={false} />}
 
-      <input type="file" ref={fileRef} style={{ display: 'none' }} accept="image/*,video/*,audio/*" />
+      <input
+        type="file"
+        ref={fileRef}
+        style={{ display: 'none' }}
+        accept="image/*,video/*,audio/*"
+      />
 
       {/* 主显示区：flex-1 填满 wrapper，wrapper 宽高由 useSizeSync(area-fixed) 按比例同步，
           主框宽=wrapper宽，高=wrapper高 → 自然成比例，端口不跑偏，无需主框自己定 ratio。
@@ -317,29 +381,31 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
       <div
         className="relative cursor-pointer group/display flex flex-col w-full flex-1 min-h-0"
         onClick={() => {
-          const now = Date.now()
+          const now = Date.now();
           // 两次 click 间隔很短 → 是双击的第二次 click，拦截（不 toggle，交给 dblclick 补偿）
           if (now - lastClickTime.current < 300) {
-            doubleClickPending.current = true
-            lastClickTime.current = now
-            return
+            doubleClickPending.current = true;
+            lastClickTime.current = now;
+            return;
           }
-          lastClickTime.current = now
-          doubleClickPending.current = false
-          toggleExpanded()
+          lastClickTime.current = now;
+          doubleClickPending.current = false;
+          toggleExpanded();
         }}
         onDoubleClick={(e) => {
-          e.stopPropagation()
+          e.stopPropagation();
           // 双击：第一次 click 已 toggle 一次，这里补一次 toggle 抵消 → 抽屉回到原位，再打开大图
           if (doubleClickPending.current) {
-            toggleExpanded()
-            doubleClickPending.current = false
+            toggleExpanded();
+            doubleClickPending.current = false;
           }
           // 有视频才打开大图预览（系统原生 <video> 播放器）
-          if (videoUrl) openVideoZoom(videoUrl)
+          if (videoUrl) openVideoZoom(videoUrl);
         }}
       >
-        <div className={`flex items-center justify-center absolute inset-0 rounded-xl overflow-hidden ${videoUrl ? '' : 'bg-surface-muted'}`}>
+        <div
+          className={`flex items-center justify-center absolute inset-0 rounded-xl overflow-hidden ${videoUrl ? '' : 'bg-surface-muted'}`}
+        >
           {/* 性能模式媒体降级：缩小时隐藏视频（复刻官方"图片视频已隐藏"） */}
           {videoUrl && !loading && !error && hideVideo && (
             <div className="flex flex-col items-center justify-center gap-1 absolute inset-0 bg-surface-muted">
@@ -381,7 +447,12 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
       <ExpandablePanel expanded={expanded} minWidth={500}>
         <div className="space-y-3">
           {/* 素材缩略图区（通用组件 MaterialStrip，以生图节点为标准） */}
-          <MaterialStrip images={connected.images} texts={connected.texts} onInsert={insertMention} onDisconnect={disconnectSource} />
+          <MaterialStrip
+            images={connected.images}
+            texts={connected.texts}
+            onInsert={insertMention}
+            onDisconnect={disconnectSource}
+          />
 
           {/* 提示词输入（基座 PromptInput，富文本芯片） */}
           <PromptInput
@@ -392,7 +463,9 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
             refImages={connected.images}
             refTexts={connected.texts}
             onInsert={insertMention}
-            onReady={(fn) => { insertAssetRef.current = fn }}
+            onReady={(fn) => {
+              insertAssetRef.current = fn;
+            }}
             richText
             inputWidth={data.inputWidth}
             inputHeight={data.inputHeight}
@@ -405,19 +478,36 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
               <div ref={ratioMenuRef} className="relative nodrag flex items-center">
                 <button
                   className="flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer"
-                  onClick={(e) => { e.stopPropagation(); setShowRatioMenu((v) => !v) }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowRatioMenu((v) => !v);
+                  }}
                   title="选择比例和时长"
                 >
                   <Settings size={12} className="opacity-70" />
-                  <span className="whitespace-nowrap">{ratio} · {resolution} · {seconds}s</span>
+                  <span className="whitespace-nowrap">
+                    {ratio} · {resolution} · {seconds}s
+                  </span>
                 </button>
                 {showRatioMenu && (
-                  <div className="absolute bottom-full left-0 mb-1 w-72 bg-surface-1 border border-edge rounded-lg shadow-popover p-3 z-dropdown flex flex-col gap-3 max-h-none overflow-visible nopan nodrag" onClick={(e) => e.stopPropagation()}>
+                  <div
+                    className="absolute bottom-full left-0 mb-1 w-72 bg-surface-1 border border-edge rounded-lg shadow-popover p-3 z-dropdown flex flex-col gap-3 max-h-none overflow-visible nopan nodrag"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div>
                       <div className="text-caption text-muted mb-2 px-1">比例</div>
                       <div className="flex flex-wrap gap-1.5 mb-2">
                         {ratioOptions.map((o) => (
-                          <button key={o.value} className={`px-3 py-1.5 text-caption-sm rounded-md transition-colors ${ratio === o.value ? 'bg-surface-3 text-white' : 'bg-surface-raised text-secondary hover:bg-surface-hover hover:text-primary'}`} onClick={() => { setRatio(o.value); setVidPrefs({ size: o.value }) }}>{o.label}</button>
+                          <button
+                            key={o.value}
+                            className={`px-3 py-1.5 text-caption-sm rounded-md transition-colors ${ratio === o.value ? 'bg-surface-3 text-white' : 'bg-surface-raised text-secondary hover:bg-surface-hover hover:text-primary'}`}
+                            onClick={() => {
+                              setRatio(o.value);
+                              setVidPrefs({ size: o.value });
+                            }}
+                          >
+                            {o.label}
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -425,25 +515,44 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
                       <div className="text-caption text-muted mb-2 px-1">分辨率</div>
                       <div className="flex flex-wrap gap-1.5 mb-3">
                         {resOptions.map((r) => (
-                          <button key={r} className={`px-3 py-1.5 text-caption-sm rounded-md transition-colors ${resolution === r ? 'bg-surface-3 text-white' : 'bg-surface-raised text-secondary hover:bg-surface-hover hover:text-primary'}`} onClick={() => { setResolution(r); setVidPrefs({ resolution: r }) }}>{r}</button>
+                          <button
+                            key={r}
+                            className={`px-3 py-1.5 text-caption-sm rounded-md transition-colors ${resolution === r ? 'bg-surface-3 text-white' : 'bg-surface-raised text-secondary hover:bg-surface-hover hover:text-primary'}`}
+                            onClick={() => {
+                              setResolution(r);
+                              setVidPrefs({ resolution: r });
+                            }}
+                          >
+                            {r}
+                          </button>
                         ))}
                       </div>
                     </div>
                     <div>
                       <div className="text-caption text-muted mb-2 px-1">时长 (秒)</div>
                       <div className="flex items-center gap-2 px-1">
-                        <span className="text-caption-sm text-white font-medium tabular-nums shrink-0 text-center bg-surface-3 rounded px-2 py-0.5">{seconds}s</span>
-                        <span className="text-caption-sm text-muted tabular-nums shrink-0">{MIN_SECONDS}s</span>
+                        <span className="text-caption-sm text-white font-medium tabular-nums shrink-0 text-center bg-surface-3 rounded px-2 py-0.5">
+                          {seconds}s
+                        </span>
+                        <span className="text-caption-sm text-muted tabular-nums shrink-0">
+                          {MIN_SECONDS}s
+                        </span>
                         <input
                           type="range"
                           min={MIN_SECONDS}
                           max={MAX_SECONDS}
                           step={1}
                           value={clampSeconds(seconds, MIN_SECONDS, MAX_SECONDS)}
-                          onChange={(e) => { const v = String(e.target.value); setSeconds(v); setVidPrefs({ seconds: v }) }}
+                          onChange={(e) => {
+                            const v = String(e.target.value);
+                            setSeconds(v);
+                            setVidPrefs({ seconds: v });
+                          }}
                           className="nodrag accent-blue-500 w-32 shrink-0"
                         />
-                        <span className="text-caption-sm text-muted tabular-nums shrink-0">{MAX_SECONDS}s</span>
+                        <span className="text-caption-sm text-muted tabular-nums shrink-0">
+                          {MAX_SECONDS}s
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -511,12 +620,19 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
           name={data.label || videoUrl.split('/').pop() || '视频'}
           onClose={() => setDepthOpen(false)}
           onSave={(url, outName) => {
-            spawnDepthVideoNode(id, url, outName, { getNode, getNodes, getEdges, setNodes, setEdges, history })
-            setDepthOpen(false)
+            spawnDepthVideoNode(id, url, outName, {
+              getNode,
+              getNodes,
+              getEdges,
+              setNodes,
+              setEdges,
+              history,
+            });
+            setDepthOpen(false);
           }}
         />
       )}
     </NodeShell>
-  )
+  );
 }
-export default React.memo(DiscountVideoNode)
+export default React.memo(DiscountVideoNode);

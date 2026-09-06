@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
-import { AlertTriangle } from 'lucide-react'
-import { subscribeConfirm, getConfirm, resolveConfirm } from '../core/confirmStore.ts'
-import type { ConfirmRequest } from '../core/confirmStore.ts'
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { AlertTriangle } from 'lucide-react';
+import { subscribeConfirm, getConfirm, resolveConfirm } from '../core/confirmStore.ts';
+import type { ConfirmRequest } from '../core/confirmStore.ts';
 
 /**
  * 统一确认弹窗渲染容器（配合 confirmStore 使用）。
@@ -20,37 +20,42 @@ import type { ConfirmRequest } from '../core/confirmStore.ts'
  *  - 确认按钮 → resolve(true)；danger 时转红色，提示这是不可逆的覆盖/删除。
  */
 function ConfirmContainer() {
-  const [request, setRequest] = useState<ConfirmRequest | null>(getConfirm())
-  const confirmBtnRef = useRef<HTMLButtonElement | null>(null)
+  const [request, setRequest] = useState<ConfirmRequest | null>(getConfirm());
+  const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
 
   // 订阅 store 变化（组件卸载时退订，避免订阅者集合滞留）
   useEffect(() => {
-    const unsubscribe = subscribeConfirm(() => setRequest(getConfirm()))
-    return () => { unsubscribe() }
-  }, [])
+    const unsubscribe = subscribeConfirm(() => setRequest(getConfirm()));
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   // Esc = 取消（与遮罩点击同义，避免键盘用户被困在弹窗里）
   useEffect(() => {
-    if (!request) return undefined
+    if (!request) return undefined;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.stopPropagation(); resolveConfirm(false) }
-    }
-    window.addEventListener('keydown', onKeyDown, true)
-    return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [request])
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        resolveConfirm(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [request]);
 
   // 弹出后聚焦确认按钮（空格/回车即可确认，键盘可达）
   useEffect(() => {
-    if (request) confirmBtnRef.current?.focus()
-  }, [request])
+    if (request) confirmBtnRef.current?.focus();
+  }, [request]);
 
-  const onCancel = useCallback(() => resolveConfirm(false), [])
-  const onConfirm = useCallback(() => resolveConfirm(true), [])
+  const onCancel = useCallback(() => resolveConfirm(false), []);
+  const onConfirm = useCallback(() => resolveConfirm(true), []);
 
-  if (typeof document === 'undefined') return null
-  if (!request) return null
+  if (typeof document === 'undefined') return null;
+  if (!request) return null;
 
-  const items = Array.isArray(request.items) ? request.items.filter(Boolean) : []
+  const items = Array.isArray(request.items) ? request.items.filter(Boolean) : [];
 
   return createPortal(
     <div
@@ -72,14 +77,19 @@ function ConfirmContainer() {
         </div>
 
         {request.message && (
-          <div className="px-4 pb-2 text-secondary text-caption leading-relaxed">{request.message}</div>
+          <div className="px-4 pb-2 text-secondary text-caption leading-relaxed">
+            {request.message}
+          </div>
         )}
 
         {/* 受影响条目清单：覆盖类操作必须让用户看见「到底动了哪些」 */}
         {items.length > 0 && (
           <ul className="mx-4 mb-2 px-2 py-1.5 rounded-lg bg-surface border border-edge max-h-40 overflow-y-auto">
             {items.map((label) => (
-              <li key={label} className="text-secondary text-caption leading-relaxed py-0.5 flex items-center gap-1.5">
+              <li
+                key={label}
+                className="text-secondary text-caption leading-relaxed py-0.5 flex items-center gap-1.5"
+              >
                 <span className="w-1 h-1 rounded-full bg-edge-strong shrink-0" />
                 <span className="truncate">{label}</span>
               </li>
@@ -111,8 +121,8 @@ function ConfirmContainer() {
         </div>
       </div>
     </div>,
-    document.body
-  )
+    document.body,
+  );
 }
 
-export default React.memo(ConfirmContainer)
+export default React.memo(ConfirmContainer);

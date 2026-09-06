@@ -11,62 +11,67 @@
  *
  * 名称注释：from/to 登记见 contracts.ts 的 EVENTS 表，届时 subscribe 位置更新须同步 from 基线。
  */
-import { useEffect } from 'react'
-import type { Node } from '@xyflow/react'
-import { subscribe } from '../core/eventBus.ts'
-import { buildUrlRewritePairs, replaceUrlDeep } from '../utils/imageUrl.ts'
-import { createThrottledPersistHandler } from '../storage'
-import { showToast } from '../core/toastStore.ts'
-import { logger } from '../core/logger.ts'
-import { importAll, exportAll, backupToBlob } from '../store/backupStore.ts'
-import { downloadBlob } from '../utils/clipboard.ts'
+import { useEffect } from 'react';
+import type { Node } from '@xyflow/react';
+import { subscribe } from '../core/eventBus.ts';
+import { buildUrlRewritePairs, replaceUrlDeep } from '../utils/imageUrl.ts';
+import { createThrottledPersistHandler } from '../storage';
+import { showToast } from '../core/toastStore.ts';
+import { logger } from '../core/logger.ts';
+import { importAll, exportAll, backupToBlob } from '../store/backupStore.ts';
+import { downloadBlob } from '../utils/clipboard.ts';
 
 /** setNodes 窄接口：只允许直接写回，不暴露 Dispatch 细节（useNodesState 的 setNodes 是其超集，可传入） */
-type SetNodesValue = (next: Node[]) => void
+type SetNodesValue = (next: Node[]) => void;
 
 /** 完整工作流备份导入导出（对齐官方 yimao 工作流备份）：承接 project:import / project:export 事件 */
 export function useProjectBackupIO(): void {
   useEffect(() => {
     const handleExport = async (): Promise<void> => {
       try {
-        const backup = await exportAll()
-        const blob = backupToBlob(backup)
-        const filename = `yimao-workflow-backup-${new Date().toISOString().split('T')[0]}.json`
-        await downloadBlob(blob, filename)
-        showToast('工作流备份导出成功', { type: 'success' })
+        const backup = await exportAll();
+        const blob = backupToBlob(backup);
+        const filename = `yimao-workflow-backup-${new Date().toISOString().split('T')[0]}.json`;
+        await downloadBlob(blob, filename);
+        showToast('工作流备份导出成功', { type: 'success' });
       } catch (e) {
-        logger.error('App', '导出失败', e)
-        showToast('导出失败：' + ((e as Error)?.message || '未知错误'), { type: 'error' })
+        logger.error('App', '导出失败', e);
+        showToast('导出失败：' + ((e as Error)?.message || '未知错误'), { type: 'error' });
       }
-    }
+    };
     const handleImport = (): void => {
-      const input = document.createElement('input')
-      input.type = 'file'
-      input.accept = '.json,application/json'
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json,application/json';
       input.onchange = async (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0]
-        if (!file) return
-        const reader = new FileReader()
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
         reader.onload = async (ev) => {
           try {
-            const backup = JSON.parse(String(ev.target?.result))
-            const res = await importAll(backup)
-            if (!res.ok) throw new Error(res.error || '导入失败')
-            showToast(`导入成功（${res.ls} 配置 + ${res.canvas} 画布），即将刷新应用`, { type: 'success' })
-            setTimeout(() => window.location.reload(), 1500)
+            const backup = JSON.parse(String(ev.target?.result));
+            const res = await importAll(backup);
+            if (!res.ok) throw new Error(res.error || '导入失败');
+            showToast(`导入成功（${res.ls} 配置 + ${res.canvas} 画布），即将刷新应用`, {
+              type: 'success',
+            });
+            setTimeout(() => window.location.reload(), 1500);
           } catch (err) {
-            logger.error('App', '导入失败', err)
-            showToast('导入失败：文件格式不正确', { type: 'error' })
+            logger.error('App', '导入失败', err);
+            showToast('导入失败：文件格式不正确', { type: 'error' });
           }
-        }
-        reader.readAsText(file)
-      }
-      input.click()
-    }
-    const offImport = subscribe('project:import', handleImport)
-    const offExport = subscribe('project:export', handleExport)
-    return () => { offImport(); offExport() }
-  }, [])
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    };
+    const offImport = subscribe('project:import', handleImport);
+    const offExport = subscribe('project:export', handleExport);
+    return () => {
+      offImport();
+      offExport();
+    };
+  }, []);
 }
 
 /**
@@ -77,32 +82,47 @@ export function useProjectBackupIO(): void {
 export function useAssetUrlRewrite(getNodes: () => Node[], setNodes: SetNodesValue): void {
   useEffect(() => {
     const off = subscribe('resource:renamed', ({ oldUrl, newUrl }) => {
-      if (!oldUrl || !newUrl || oldUrl === newUrl) return
-      const pairs = buildUrlRewritePairs(oldUrl, newUrl) // 原样/编码 × 绝对/相对，与后端一致
-      const nodes = getNodes()
-      let changed = false
+      if (!oldUrl || !newUrl || oldUrl === newUrl) return;
+      const pairs = buildUrlRewritePairs(oldUrl, newUrl); // 原样/编码 × 绝对/相对，与后端一致
+      const nodes = getNodes();
+      let changed = false;
       const next = nodes.map((n) => {
-        let data: Record<string, unknown> = (n.data ?? ({} as Record<string, unknown>))
+        let data: Record<string, unknown> = n.data ?? ({} as Record<string, unknown>);
         for (const [from, to] of pairs) {
-          const d = replaceUrlDeep(data, from, to)
-          if (d !== data) { data = d as Record<string, unknown>; changed = true }
+          const d = replaceUrlDeep(data, from, to);
+          if (d !== data) {
+            data = d as Record<string, unknown>;
+            changed = true;
+          }
         }
-        return data === n.data ? n : { ...n, data }
-      })
-      if (changed) setNodes(next) // setNodes → [nodes] 自动保存 effect 落盘
-    })
-    return off
-  }, [getNodes, setNodes])
+        return data === n.data ? n : { ...n, data };
+      });
+      if (changed) setNodes(next); // setNodes → [nodes] 自动保存 effect 落盘
+    });
+    return off;
+  }, [getNodes, setNodes]);
 }
 
 /** 持久化失败统一上报：storageAdapter 的 sSet/sRemove 失败会 publish('persist:failed')，逐 key 原样透传提示 */
 export function usePersistFailureToast(): void {
   useEffect(() => {
     // 节流/透传逻辑收敛到 persistFailureBus 工厂（可单测）；这里只注入 showToast 与 logger。
-    const off = subscribe('persist:failed', createThrottledPersistHandler({
-      onLog: (key, error, suppressed) => logger.warn('存储', 'persist:failed', { key, error: error || '', toastSuppressed: suppressed }),
-      onToast: (key, error) => showToast(`数据保存失败 [${key}]${error ? `：${error}` : ''}，请检查浏览器存储空间/权限`, { type: 'error' }),
-    }))
-    return off
-  }, [])
+    const off = subscribe(
+      'persist:failed',
+      createThrottledPersistHandler({
+        onLog: (key, error, suppressed) =>
+          logger.warn('存储', 'persist:failed', {
+            key,
+            error: error || '',
+            toastSuppressed: suppressed,
+          }),
+        onToast: (key, error) =>
+          showToast(
+            `数据保存失败 [${key}]${error ? `：${error}` : ''}，请检查浏览器存储空间/权限`,
+            { type: 'error' },
+          ),
+      }),
+    );
+    return off;
+  }, []);
 }

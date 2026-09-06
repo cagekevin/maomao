@@ -21,10 +21,7 @@
  *    poll_task_id = 上游 task_id；result_url 终态落 /files/。
  */
 
-import {
-  protocol,
-  getProviderDefinition,
-} from './ai-relay/index.js';
+import { protocol, getProviderDefinition } from './ai-relay/index.js';
 import type {
   ModelProtocol,
   ModelProtocolSubmitResult,
@@ -32,13 +29,13 @@ import type {
   AuthConfig,
   ModelProtocolProfile,
 } from './ai-relay/types.js';
-import {
-  submitLovartTask,
-  pollLovartTaskOnce,
-} from './ai-relay/providers/lovart/index.js';
+import { submitLovartTask, pollLovartTaskOnce } from './ai-relay/providers/lovart/index.js';
 import { stableRequest } from './ai-relay/httpTransport.js';
 import { LOVART_DIRECT_BASE_URL } from './ai-relay/providerEndpoints.js';
-import type { LovartDirectProfile, LovartTransport } from './ai-relay/providers/lovart/lovart_contract.js';
+import type {
+  LovartDirectProfile,
+  LovartTransport,
+} from './ai-relay/providers/lovart/lovart_contract.js';
 import { fetchWithProxy } from './utils/netProxy.js';
 import { resolveLocalImages, resolveImagesForEgress } from './utils/resolveLocalImages.js';
 import { saveRemoteUrl } from './routes/files.js';
@@ -93,10 +90,13 @@ function resolveProviderAsyncProtocol(
   const protocols = (file as { model_protocols?: unknown } | null)?.model_protocols;
   if (!protocols || typeof protocols !== 'object' || Array.isArray(protocols)) return null;
   const entry = (protocols as Record<string, unknown>)[capability];
-  if (entry == null || (typeof entry !== 'object')) return null;
+  if (entry == null || typeof entry !== 'object') return null;
   // 兼容两种落盘形态：完整 ModelProtocolProfile（含 preset）或裸 ModelProtocol（按 custom 封装）
   const profile: ModelProtocolProfile =
-    typeof entry === 'object' && entry !== null && 'preset' in entry && (entry as ModelProtocolProfile).preset
+    typeof entry === 'object' &&
+    entry !== null &&
+    'preset' in entry &&
+    (entry as ModelProtocolProfile).preset
       ? (entry as ModelProtocolProfile)
       : { preset: 'custom', protocol: entry as ModelProtocol };
   return protocol.resolveModelExecutionProfile(profile);
@@ -108,10 +108,11 @@ function resolveBaseUrl(providerId: string, override?: string): string {
   // 唯一出站地址真源 = 用户配置文件 base_url（modelscope/apimart 等在内置目录无 defaultBaseUrl 的厂商）。
   // 只读内置目录会忽略用户配置 → 报「未配置接口地址」（2026-09-03 修复，与 relay.ts 对齐）。
   const file = readProviderConfigFile(providerId);
-  const fileBase = typeof (file as { base_url?: unknown } | null)?.base_url === 'string'
-    && (file as { base_url?: string }).base_url!.trim()
-    ? (file as { base_url: string }).base_url
-    : '';
+  const fileBase =
+    typeof (file as { base_url?: unknown } | null)?.base_url === 'string' &&
+    (file as { base_url?: string }).base_url!.trim()
+      ? (file as { base_url: string }).base_url
+      : '';
   if (fileBase) return fileBase.replace(/\/+$/, '');
   const def = getProviderDefinition(providerId);
   const baseUrl = (def?.defaultBaseUrl || '').replace(/\/+$/, '');
@@ -144,18 +145,30 @@ function lovartProxyTransport(): LovartTransport {
  * 仅驻内存，不入 DB。
  * transport：注入走代理的 stableRequest（lovart.ai 域名必须经代理，见 netProxy.ts）。
  */
-function lovartDirectProfile(baseUrl: string, signal?: AbortSignal, timeoutMs?: number): LovartDirectProfile {
+function lovartDirectProfile(
+  baseUrl: string,
+  signal?: AbortSignal,
+  timeoutMs?: number,
+): LovartDirectProfile {
   const accessKey = process.env.LOVART_ACCESS_KEY || '';
   const secretKey = process.env.LOVART_SECRET_KEY || '';
   if (!accessKey || !secretKey) {
-    throw new Error('lovart 需要 LOVART_ACCESS_KEY 与 LOVART_SECRET_KEY（请在 localTool/.env 配置）');
+    throw new Error(
+      'lovart 需要 LOVART_ACCESS_KEY 与 LOVART_SECRET_KEY（请在 localTool/.env 配置）',
+    );
   }
   const auth: AuthConfig = { type: 'hmac', accessKey, secretKey };
-  return { baseUrl: baseUrl || LOVART_DIRECT_BASE_URL, auth, signal, timeoutMs, transport: lovartProxyTransport() };
+  return {
+    baseUrl: baseUrl || LOVART_DIRECT_BASE_URL,
+    auth,
+    signal,
+    timeoutMs,
+    transport: lovartProxyTransport(),
+  };
 }
 
 // ── 轮询时序默认值（对齐前端 config.ts GEN_TIMEOUT/VIDEO_TIMEOUT 语义）──
-const DEFAULT_POLL_INTERVAL_MS = 3000;   // 单轮间隔（异步任务轮询默认）
+const DEFAULT_POLL_INTERVAL_MS = 3000; // 单轮间隔（异步任务轮询默认）
 const DEFAULT_TOTAL_TIMEOUT_MS = 10 * 60 * 1000; // 总超时兜底，防无限挂（对齐 relay.ts 10min）
 /** direct(lovart) 单次出站请求超时兜底（后台补提交/轮询的底层单请求上限，防无限挂，对齐 ai-relay 180s）。
  *  注：只兜「连不上/单步卡死」，绝不替代总超时 DEFAULT_TOTAL_TIMEOUT_MS（生成本身可远超此值）。 */
@@ -189,9 +202,9 @@ export interface DirectSubmitInput {
 /** 内存句柄（key 不入库） */
 interface PollHandle {
   frontTaskId: string;
-  taskId: string;        // 上游 task_id（异步网关=网关 task_id；lovart=thread_id）；direct 待提交阶段为空串
+  taskId: string; // 上游 task_id（异步网关=网关 task_id；lovart=thread_id）；direct 待提交阶段为空串
   poll: ResolvedPollConfig | null; // 自包含、可 JSON 快照；不含 key。direct 任务为 null
-  apiKey: string;        // 驻内存；重启重建时按 providerId 重读（direct 任务可为空串）
+  apiKey: string; // 驻内存；重启重建时按 providerId 重读（direct 任务可为空串）
   providerId: string;
   capability: RelayCapability;
   model: string;
@@ -203,7 +216,7 @@ interface PollHandle {
   pendingDirectSubmit?: DirectSubmitInput | null;
   startedAt: number;
   timer: ReturnType<typeof setInterval> | null;
-  running: boolean;      // 单轮执行中防重入
+  running: boolean; // 单轮执行中防重入
   stopped: boolean;
   lastError?: string;
   /** 连续单轮异常计数：达到阈值立即 failed 透传，避免未知持续异常静默挂起至总超时 */
@@ -216,21 +229,24 @@ const handles = new Map<string, PollHandle>();
 function stopHandle(h: PollHandle): void {
   if (h.stopped) return;
   h.stopped = true;
-  if (h.timer) { clearInterval(h.timer); h.timer = null; }
+  if (h.timer) {
+    clearInterval(h.timer);
+    h.timer = null;
+  }
   if (handles.get(h.frontTaskId) === h) handles.delete(h.frontTaskId);
 }
 
 /** request_data 里内嵌的 relay 轮询快照（可 JSON 序列化，key 不入库） */
 interface RelayPollSnapshot {
   _relayPoll: {
-    taskId: string;                 // 上游 task_id（direct=thread_id）
+    taskId: string; // 上游 task_id（direct=thread_id）
     poll: ResolvedPollConfig | null; // 自包含轮询配置；direct 任务为 null
     providerId: string;
     capability: RelayCapability;
     model: string;
     type: string;
     baseUrl: string;
-    direct?: boolean;               // true = lovart 原生直连
+    direct?: boolean; // true = lovart 原生直连
     /** direct 待提交入参快照（重启后重建句柄续跑提交用）；提交完成后清除。非 direct 无此字段 */
     pendingSubmit?: DirectSubmitInput;
     startedAt: number;
@@ -241,7 +257,9 @@ interface RelayPollSnapshot {
  * 提交一个异步任务：经 kit submitModelProtocol 拿上游 task_id + 自包含轮询配置，
  * 落库在途行(status=running) → 注册句柄 → 返回 frontTaskId（不等终态）。
  */
-export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok: boolean; frontTaskId: string; error?: string }> {
+export async function submitGenerateTask(
+  input: RelaySubmitInput,
+): Promise<{ ok: boolean; frontTaskId: string; error?: string }> {
   const { frontTaskId } = input;
   const timeoutMs = input.timeoutMs ?? DEFAULT_TOTAL_TIMEOUT_MS;
   try {
@@ -293,24 +311,28 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
         } satisfies RelayPollSnapshot),
       });
       debouncedSaveDb();
-      registerHandle(frontTaskId, {
+      registerHandle(
         frontTaskId,
-        taskId: '',
-        poll: null,
-        apiKey: '',
-        providerId,
-        capability,
-        model: input.model,
-        type: input.type || capability,
-        baseUrl,
-        direct: true,
-        pendingDirectSubmit: pending,
-        startedAt: Date.now(),
-        timer: null,
-        running: false,
-        stopped: false,
-        consecutiveErrors: 0,
-      }, timeoutMs);
+        {
+          frontTaskId,
+          taskId: '',
+          poll: null,
+          apiKey: '',
+          providerId,
+          capability,
+          model: input.model,
+          type: input.type || capability,
+          baseUrl,
+          direct: true,
+          pendingDirectSubmit: pending,
+          startedAt: Date.now(),
+          timer: null,
+          running: false,
+          stopped: false,
+          consecutiveErrors: 0,
+        },
+        timeoutMs,
+      );
       return { ok: true, frontTaskId };
     }
 
@@ -329,21 +351,35 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
 
     // video 附参（resolution/duration）非模板字段：引擎对顶层 body 缺变量的模板字符串会抛错，
     // 故此处按「input 有值才把字面量补进 submit.body」，无值则不发（不污染通用 preset）。
-    if (capability === 'video' && protocolDef.submit?.body && typeof protocolDef.submit.body === 'object' && !Array.isArray(protocolDef.submit.body)) {
-      if (input.resolution) (protocolDef.submit.body as Record<string, unknown>).resolution = input.resolution;
-      if (input.duration) (protocolDef.submit.body as Record<string, unknown>).duration = String(input.duration);
+    if (
+      capability === 'video' &&
+      protocolDef.submit?.body &&
+      typeof protocolDef.submit.body === 'object' &&
+      !Array.isArray(protocolDef.submit.body)
+    ) {
+      if (input.resolution)
+        (protocolDef.submit.body as Record<string, unknown>).resolution = input.resolution;
+      if (input.duration)
+        (protocolDef.submit.body as Record<string, unknown>).duration = String(input.duration);
     }
 
     // 参考图归一：/files/ 磁盘图 → data:base64（唯一出站口纪律，跨平台通用——外部平台无法访问 localTool 本机地址）
-    const images = input.images && input.images.length > 0
-      ? ((await resolveLocalImages(input.images)) as string[])
-      : undefined;
+    const images =
+      input.images && input.images.length > 0
+        ? ((await resolveLocalImages(input.images)) as string[])
+        : undefined;
 
     // 【图文/图生视频修复 · 2026-09-03】image/video preset body 缺 image_url 字段，参考图只进
     // variables.imageUrls 会被引擎忽略（preset 不消费）→ 上游收不到图 → 退化文生图/文生视频。
     // 统一把 data:base64 补进 body.image_urls（所有 OpenAI 兼容平台普遍认的形态），与 chat 同一归一机制。
-    if ((capability === 'image' || capability === 'video') && images && images.length > 0
-        && protocolDef.submit?.body && typeof protocolDef.submit.body === 'object' && !Array.isArray(protocolDef.submit.body)) {
+    if (
+      (capability === 'image' || capability === 'video') &&
+      images &&
+      images.length > 0 &&
+      protocolDef.submit?.body &&
+      typeof protocolDef.submit.body === 'object' &&
+      !Array.isArray(protocolDef.submit.body)
+    ) {
       (protocolDef.submit.body as Record<string, unknown>).image_urls = images;
     }
 
@@ -351,7 +387,14 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
     if (input.prompt !== undefined) variables.prompt = input.prompt;
     if (input.size !== undefined) variables.size = input.size;
     if (input.messages !== undefined) variables.messages = input.messages;
-    if (images !== undefined && !((capability === 'image' || capability === 'video') && protocolDef.submit?.body && (protocolDef.submit.body as Record<string, unknown>).image_urls)) {
+    if (
+      images !== undefined &&
+      !(
+        (capability === 'image' || capability === 'video') &&
+        protocolDef.submit?.body &&
+        (protocolDef.submit.body as Record<string, unknown>).image_urls
+      )
+    ) {
       variables.imageUrls = images; // 兼容仍需 imageUrls 变量的 preset（参考图已由 body.image_urls 携带）
     }
 
@@ -391,22 +434,26 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
     });
     debouncedSaveDb();
 
-    registerHandle(frontTaskId, {
+    registerHandle(
       frontTaskId,
-      taskId,
-      poll,
-      apiKey,
-      providerId,
-      capability,
-      model: input.model,
-      type: input.type || capability,
-      baseUrl,
-      startedAt: Date.now(),
-      timer: null,
-      running: false,
-      stopped: false,
-      consecutiveErrors: 0,
-    }, timeoutMs);
+      {
+        frontTaskId,
+        taskId,
+        poll,
+        apiKey,
+        providerId,
+        capability,
+        model: input.model,
+        type: input.type || capability,
+        baseUrl,
+        startedAt: Date.now(),
+        timer: null,
+        running: false,
+        stopped: false,
+        consecutiveErrors: 0,
+      },
+      timeoutMs,
+    );
     return { ok: true, frontTaskId };
   } catch (e) {
     const err = e instanceof Error ? e.message : String(e);
@@ -427,9 +474,10 @@ async function runDirectSubmit(handle: PollHandle): Promise<boolean> {
     const profile = lovartDirectProfile(handle.baseUrl, undefined, DIRECT_SUBMIT_TIMEOUT_MS);
     // 参考图形态按 lovart 直连（cdn）：不预压 base64，转回环可下载 URL 交给 adapter
     // resolveLovartAttachments 自取（下载→传 CDN），省掉 encode→decode 两遍。见 resolveLocalImages.ts 头。
-    const images = p.images && p.images.length > 0
-      ? ((await resolveImagesForEgress(p.images, 'cdn')) as string[])
-      : undefined;
+    const images =
+      p.images && p.images.length > 0
+        ? ((await resolveImagesForEgress(p.images, 'cdn')) as string[])
+        : undefined;
     const out = await submitLovartTask(profile, {
       model: p.model,
       prompt: p.prompt,
@@ -474,9 +522,10 @@ async function runDirectSubmit(handle: PollHandle): Promise<boolean> {
 /** 注册句柄并启动定时器驱动单轮。 */
 function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: number): void {
   handles.set(frontTaskId, handle);
-  const interval = Math.max(500, handle.direct
-    ? DEFAULT_POLL_INTERVAL_MS
-    : (handle.poll?.intervalMs || DEFAULT_POLL_INTERVAL_MS));
+  const interval = Math.max(
+    500,
+    handle.direct ? DEFAULT_POLL_INTERVAL_MS : handle.poll?.intervalMs || DEFAULT_POLL_INTERVAL_MS,
+  );
   const runOnce = async (): Promise<void> => {
     if (handle.stopped) return;
     if (handle.running) return; // 单轮进行中，跳过本轮防重入
@@ -497,7 +546,9 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
           if (!okSubmit || handle.stopped) return;
         }
         const profile = lovartDirectProfile(handle.baseUrl, undefined, DIRECT_SUBMIT_TIMEOUT_MS);
-        const r = await pollLovartTaskOnce(profile, { handle: { threadId: handle.taskId, projectId: '' } });
+        const r = await pollLovartTaskOnce(profile, {
+          handle: { threadId: handle.taskId, projectId: '' },
+        });
         handle.consecutiveErrors = 0; // 本轮有响应（未抛异常）→ 重置连续失败计数
         if (handle.stopped) return;
         if (r.status === 'completed') {
@@ -511,7 +562,12 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
         }
         return;
       }
-      const r = await protocol.pollModelProtocolOnce(handle.poll!, handle.apiKey, undefined, handle.baseUrl);
+      const r = await protocol.pollModelProtocolOnce(
+        handle.poll!,
+        handle.apiKey,
+        undefined,
+        handle.baseUrl,
+      );
       handle.consecutiveErrors = 0; // 本轮有响应（未抛异常）→ 重置连续失败计数
       if (handle.stopped) return;
       if (r.status === 'completed') {
@@ -532,7 +588,10 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
       // 连续异常达阈值：实时失败透传，不再静默挂起至总超时（失败可见，不掩盖）
       if (handle.consecutiveErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
         stopHandle(handle);
-        await upsertFailed(handle, `轮询持续异常（${handle.consecutiveErrors} 次）：${handle.lastError}`);
+        await upsertFailed(
+          handle,
+          `轮询持续异常（${handle.consecutiveErrors} 次）：${handle.lastError}`,
+        );
         return;
       }
       await updateProgress(handle, undefined, handle.lastError);
@@ -540,7 +599,9 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
       handle.running = false;
     }
   };
-  handle.timer = setInterval(() => { void runOnce(); }, interval);
+  handle.timer = setInterval(() => {
+    void runOnce();
+  }, interval);
   // 立即跑首轮
   void runOnce();
 }
@@ -584,8 +645,13 @@ async function upsertFailed(handle: PollHandle, error: string): Promise<void> {
 }
 
 /** 写进度（进行中）。 */
-async function updateProgress(handle: PollHandle, progress?: number, stageError?: string): Promise<void> {
-  const p = typeof progress === 'number' && progress >= 0 ? Math.min(100, Math.round(progress)) : undefined;
+async function updateProgress(
+  handle: PollHandle,
+  progress?: number,
+  stageError?: string,
+): Promise<void> {
+  const p =
+    typeof progress === 'number' && progress >= 0 ? Math.min(100, Math.round(progress)) : undefined;
   const patch: Record<string, unknown> = { status: 'running' };
   if (p !== undefined) patch.progress = p;
   if (stageError) patch.error_msg = stageError;
@@ -601,18 +667,27 @@ export async function getGenerateStatus(frontTaskId: string): Promise<RelayTaskS
   const h = handles.get(frontTaskId);
   if (h) {
     const db = await getDb();
-    const row = queryAll(db, 'SELECT status, progress, result_url FROM tasks WHERE task_id = ?', [frontTaskId])[0];
+    const row = queryAll(db, 'SELECT status, progress, result_url FROM tasks WHERE task_id = ?', [
+      frontTaskId,
+    ])[0];
     if (row && row.status === 'completed' && row.result_url) {
       return { status: 'completed', url: row.result_url, type: h.type };
     }
     if (row && row.status === 'failed') {
       return { status: 'failed', error: row.error_msg || '生成失败' };
     }
-    return { status: 'running', progress: typeof row?.progress === 'number' ? row.progress : undefined };
+    return {
+      status: 'running',
+      progress: typeof row?.progress === 'number' ? row.progress : undefined,
+    };
   }
   // 句柄不在内存：回库判断（可能是历史已完成/失败，或重启后尚未被扫描接管）
   const db = await getDb();
-  const row = queryAll(db, 'SELECT status, progress, result_url, error_msg, poll_task_id FROM tasks WHERE task_id = ?', [frontTaskId])[0];
+  const row = queryAll(
+    db,
+    'SELECT status, progress, result_url, error_msg, poll_task_id FROM tasks WHERE task_id = ?',
+    [frontTaskId],
+  )[0];
   if (!row) return { status: 'not-found' };
   if (row.status === 'completed' && row.result_url) {
     return { status: 'completed', url: row.result_url, type: row.type || '' };
@@ -620,9 +695,15 @@ export async function getGenerateStatus(frontTaskId: string): Promise<RelayTaskS
   if (row.status === 'failed') return { status: 'failed', error: row.error_msg || '生成失败' };
   if (row.status === 'running' && row.poll_task_id) {
     // 在途且句柄不在内存 → 交给扫描（若启动扫描还没跑则提示 running）
-    return { status: 'running', progress: typeof row.progress === 'number' ? row.progress : undefined };
+    return {
+      status: 'running',
+      progress: typeof row.progress === 'number' ? row.progress : undefined,
+    };
   }
-  return { status: 'running', progress: typeof row.progress === 'number' ? row.progress : undefined };
+  return {
+    status: 'running',
+    progress: typeof row.progress === 'number' ? row.progress : undefined,
+  };
 }
 
 /** cancel：停句柄 → 置 failed（供前端取消，不静默）。 */
@@ -648,61 +729,76 @@ export async function initRelayPoller(opts: { timeoutMs?: number } = {}): Promis
     // 在途 relay 任务 = 有 poll_task_id（存量/新近已提交）或 request_data 内含 _relayPoll 快照的行
     // （普通前端 running 任务既无 poll_task_id 也不含此键，天然排除）。
     // 兼容待提交任务（poll_task_id 为空但快照含 _relayPoll.pendingSubmit，提交即返回后未及出站即重启）→ 一并纳入。
-    const rows = queryAll(db,
+    const rows = queryAll(
+      db,
       `SELECT task_id, status, poll_task_id, request_data FROM tasks WHERE status IN ('running','pending')
-        AND ( (poll_task_id IS NOT NULL AND poll_task_id != '') OR request_data LIKE '%_relayPoll%' )`);
+        AND ( (poll_task_id IS NOT NULL AND poll_task_id != '') OR request_data LIKE '%_relayPoll%' )`,
+    );
     for (const row of rows) {
       const frontTaskId = row.task_id as string;
       if (handles.has(frontTaskId)) continue;
       let snap: RelayPollSnapshot | undefined;
-      try { snap = typeof row.request_data === 'string' ? JSON.parse(row.request_data) : row.request_data; } catch { snap = undefined; }
+      try {
+        snap =
+          typeof row.request_data === 'string' ? JSON.parse(row.request_data) : row.request_data;
+      } catch {
+        snap = undefined;
+      }
       const core = snap?._relayPoll;
       if (!core) continue; // 无 relay 快照，跳过
       const remaining = Math.max(0, timeoutMs - (Date.now() - core.startedAt));
       // 【根治·2026-09-04】待提交任务（direct 提交即返回后重启、尚未出站拿到 thread_id）：
       // 重建「待提交」句柄，首轮 runOnce 会补执行 runDirectSubmit 续跑提交，不丢任务。
       if (core.direct && !core.taskId && core.pendingSubmit) {
-        registerHandle(frontTaskId, {
+        registerHandle(
           frontTaskId,
-          taskId: '',
-          poll: null,
-          apiKey: '',
-          providerId: core.providerId,
-          capability: core.capability,
-          model: core.model,
-          type: core.type,
-          baseUrl: core.baseUrl,
-          direct: true,
-          pendingDirectSubmit: core.pendingSubmit,
-          startedAt: core.startedAt,
-          timer: null,
-          running: false,
-          stopped: false,
-          consecutiveErrors: 0,
-        }, Math.max(1000, remaining));
+          {
+            frontTaskId,
+            taskId: '',
+            poll: null,
+            apiKey: '',
+            providerId: core.providerId,
+            capability: core.capability,
+            model: core.model,
+            type: core.type,
+            baseUrl: core.baseUrl,
+            direct: true,
+            pendingDirectSubmit: core.pendingSubmit,
+            startedAt: core.startedAt,
+            timer: null,
+            running: false,
+            stopped: false,
+            consecutiveErrors: 0,
+          },
+          Math.max(1000, remaining),
+        );
         continue;
       }
       // 已提交任务：需 thread_id(=taskId) 才能续轮询
       if (!core.taskId) continue; // 无 taskId（脏数据），跳过
       if (!core.poll && !core.direct) continue; // 非 direct 但缺 poll → 旧/脏数据，跳过
       const apiKey = resolveApiKey(core.providerId);
-      registerHandle(frontTaskId, {
+      registerHandle(
         frontTaskId,
-        taskId: core.taskId,
-        poll: core.poll ?? null,
-        apiKey,
-        providerId: core.providerId,
-        capability: core.capability,
-        model: core.model,
-        type: core.type,
-        baseUrl: core.baseUrl,
-        direct: !!core.direct,
-        startedAt: core.startedAt,
-        timer: null,
-        running: false,
-        stopped: false,
-        consecutiveErrors: 0,
-      }, Math.max(1000, remaining));
+        {
+          frontTaskId,
+          taskId: core.taskId,
+          poll: core.poll ?? null,
+          apiKey,
+          providerId: core.providerId,
+          capability: core.capability,
+          model: core.model,
+          type: core.type,
+          baseUrl: core.baseUrl,
+          direct: !!core.direct,
+          startedAt: core.startedAt,
+          timer: null,
+          running: false,
+          stopped: false,
+          consecutiveErrors: 0,
+        },
+        Math.max(1000, remaining),
+      );
     }
   } catch (e) {
     // 恢复扫描失败不阻塞服务；日志可见（失败可见，不静默）

@@ -28,7 +28,9 @@ const BACKUP = path.join(__dirname, 'extract-range-backup');
 const args = process.argv.slice(2);
 const mode = args[0];
 if (!['--preview', '--delete', '--check'].includes(mode)) {
-  console.error('用法: node scripts/extract-range.cjs [--preview|--delete|--check] <file> <startMarker> [endMarker] [--whole-line]');
+  console.error(
+    '用法: node scripts/extract-range.cjs [--preview|--delete|--check] <file> <startMarker> [endMarker] [--whole-line]',
+  );
   process.exit(1);
 }
 let i = 1;
@@ -50,7 +52,12 @@ function lineOf(content, idx) {
   return content.slice(0, idx).split('\n').length;
 }
 function syntaxOk(js) {
-  try { new Function(js); return true; } catch { return false; }
+  try {
+    new Function(js);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 const content = fs.readFileSync(filePath, 'utf-8');
@@ -73,7 +80,8 @@ if (endMarker) {
   eEnd = sIdx + startMarker.length;
 }
 
-let delStart = sIdx, delEnd = eEnd;
+let delStart = sIdx,
+  delEnd = eEnd;
 if (wholeLine) {
   // 起始标记所在行的行首
   delStart = content.lastIndexOf('\n', sIdx) + 1;
@@ -84,7 +92,9 @@ if (wholeLine) {
 const removed = content.slice(delStart, delEnd);
 const lineStart = lineOf(content, delStart);
 const lineEnd = lineOf(content, Math.min(delEnd, content.length - 1));
-console.log(`📍 区间: L${lineStart}-L${lineEnd} (${removed.split('\n').length} 行, ${removed.length} 字符)`);
+console.log(
+  `📍 区间: L${lineStart}-L${lineEnd} (${removed.split('\n').length} 行, ${removed.length} 字符)`,
+);
 console.log(`   --- 起始行: ${content.slice(delStart, delStart + 60).split('\n')[0]}`);
 if (endMarker) console.log(`   --- 结束行: ${removed.trimEnd().split('\n').pop()}`);
 if (mode === '--preview') {
@@ -95,13 +105,19 @@ if (mode === '--preview') {
 if (mode === '--check') {
   const result = content.slice(0, delStart) + content.slice(delEnd);
   const ok = syntaxOk(result);
-  console.log(ok ? '✅ 区间存在，删除后语法 OK' : '🔶 区间存在，但删除后语法会破坏（请勿 --delete）');
+  console.log(
+    ok ? '✅ 区间存在，删除后语法 OK' : '🔶 区间存在，但删除后语法会破坏（请勿 --delete）',
+  );
   process.exit(ok ? 0 : 1);
 }
 
 // --delete
 if (!fs.existsSync(BACKUP)) fs.mkdirSync(BACKUP, { recursive: true });
-const hash = require('crypto').createHash('sha1').update(fileArg + '@' + Date.now()).digest('hex').slice(0, 10);
+const hash = require('crypto')
+  .createHash('sha1')
+  .update(fileArg + '@' + Date.now())
+  .digest('hex')
+  .slice(0, 10);
 const bakPath = path.join(BACKUP, `${path.basename(filePath)}-${hash}.bak`);
 fs.copyFileSync(filePath, bakPath);
 console.log(`💾 已备份原文件 → ${bakPath}`);

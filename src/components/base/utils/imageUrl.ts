@@ -22,14 +22,14 @@
  *
  * 收敛原则：任何新增节点/面板要显示或发送图片，一律用这里，不各写各的 URL 处理。
  */
-import { useCallback } from 'react'
-import { logger } from '../core/logger.ts'
-import { httpRequest } from '../api/httpClient.ts'
-import { API_BASE } from '../core/config.ts'
-import { IMAGE_FETCH_TIMEOUT } from '../core/config.ts'
-import { API_ENDPOINTS } from '../core/contracts.ts'
-import { useAppSettings } from '../store/appSettings.ts'
-import { compressImage } from './imageCompress.ts'
+import { useCallback } from 'react';
+import { logger } from '../core/logger.ts';
+import { httpRequest } from '../api/httpClient.ts';
+import { API_BASE } from '../core/config.ts';
+import { IMAGE_FETCH_TIMEOUT } from '../core/config.ts';
+import { API_ENDPOINTS } from '../core/contracts.ts';
+import { useAppSettings } from '../store/appSettings.ts';
+import { compressImage } from './imageCompress.ts';
 
 /**
  * 图片 URL 解析统一选项（resolveImageUrl / useRenderImageResolver 共用）。
@@ -38,16 +38,16 @@ import { compressImage } from './imageCompress.ts'
  * - maxDim / format 仅 render 按需出图透传（format 非白名单不产出）。
  */
 export interface ImageResolveOptions {
-  scope?: 'render' | 'send'
-  maxDim?: number
-  format?: string
+  scope?: 'render' | 'send';
+  maxDim?: number;
+  format?: string;
   /** 显示缩略图（仅 render 生效；false 时回原图绝对地址） */
-  thumbnail?: boolean
+  thumbnail?: boolean;
 }
 
 /** 发送归一化选项（normalizeImageUrlForSend / normalizeImageUrlsForSend 共用） */
 export interface ImageSendOptions {
-  preferBase64?: boolean
+  preferBase64?: boolean;
 }
 
 /**
@@ -55,15 +55,15 @@ export interface ImageSendOptions {
  * 契约双写：localTool 出站回读 resolveLocalImages 也用 1920（localTool/src/utils/resolveLocalImages.ts），
  * 改此处必须同步改 localTool，否则两端压缩口径漂移（前端压 blob/data + preferBase64，localTool 压 /files/）。
  */
-export const MAX_SEND_DIM = 1920
+export const MAX_SEND_DIM = 1920;
 
 /**
  * 相对 /files/ 路径 → 完整可访问 URL（对齐后端 resources.ts / base64Externalize 惯例）。
  */
 export function toAbsoluteFileUrl(url: string | null | undefined): string {
-  if (!url || typeof url !== 'string') return url
-  if (url.startsWith('/files/')) return `${API_BASE}${url}`
-  return url
+  if (!url || typeof url !== 'string') return url;
+  if (url.startsWith('/files/')) return `${API_BASE}${url}`;
+  return url;
 }
 
 /**
@@ -76,12 +76,12 @@ export function toAbsoluteFileUrl(url: string | null | undefined): string {
  * @returns {boolean}
  */
 export function isLocalFileUrl(u: string): boolean {
-  if (!u || typeof u !== 'string') return false
-  return u.startsWith('/files/') || u.startsWith(`${API_BASE}/files/`)
+  if (!u || typeof u !== 'string') return false;
+  return u.startsWith('/files/') || u.startsWith(`${API_BASE}/files/`);
 }
 
 /** thumbnail format 白名单（与后端 SUPPORTED_THUMB_FORMATS 一致）：仅 Jimp 可编码格式，禁 webp。 */
-const SUPPORTED_THUMB_FORMATS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff'])
+const SUPPORTED_THUMB_FORMATS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff']);
 
 /**
  * 绝对本地文件 URL（含 API_BASE 前缀）→ 相对 /files/ 路径；非本地返回 null。
@@ -91,10 +91,10 @@ const SUPPORTED_THUMB_FORMATS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'ti
  * @returns {string|null}
  */
 export function toRelativeFileUrl(u: string | null | undefined): string | null {
-  if (!u || typeof u !== 'string') return null
-  if (u.startsWith('/files/')) return u
-  const m = /^https?:\/\/[^/]+(\/files\/.*)$/.exec(u)
-  return m ? m[1] : null
+  if (!u || typeof u !== 'string') return null;
+  if (u.startsWith('/files/')) return u;
+  const m = /^https?:\/\/[^/]+(\/files\/.*)$/.exec(u);
+  return m ? m[1] : null;
 }
 
 /**
@@ -115,15 +115,15 @@ export function toRelativeFileUrl(u: string | null | undefined): string | null {
  * @returns {string} 原图绝对地址；无法还原返回 ''
  */
 function thumbnailToOriginal(u: string): string {
-  if (typeof u !== 'string' || !u) return ''
-  const qIndex = u.indexOf('?')
-  if (qIndex === -1) return ''
+  if (typeof u !== 'string' || !u) return '';
+  const qIndex = u.indexOf('?');
+  if (qIndex === -1) return '';
   // 仅当确实命中缩略图端点路径才处理（避免误拆普通带 query 的原图 URL）。
-  const path = u.slice(0, qIndex)
-  if (!path.endsWith('/files/thumbnail')) return ''
-  const rel = new URLSearchParams(u.slice(qIndex + 1)).get('url')
-  if (!rel) return ''
-  return toAbsoluteFileUrl(rel)
+  const path = u.slice(0, qIndex);
+  if (!path.endsWith('/files/thumbnail')) return '';
+  const rel = new URLSearchParams(u.slice(qIndex + 1)).get('url');
+  if (!rel) return '';
+  return toAbsoluteFileUrl(rel);
 }
 
 /**
@@ -136,17 +136,20 @@ function thumbnailToOriginal(u: string): string {
  * @param {{ maxDim?: number, format?: string }} [opts]
  * @returns {string}
  */
-export function buildThumbnailUrl(url: string, opts: { maxDim?: number; format?: string } = {}): string {
-  const rel = toRelativeFileUrl(url)
-  if (!rel) return toAbsoluteFileUrl(url) // 非本地文件，出图端点无法服务，回原图绝对地址
-  const q = new URLSearchParams()
-  q.set('url', rel)
-  q.set('maxDim', String(opts.maxDim || 640))
+export function buildThumbnailUrl(
+  url: string,
+  opts: { maxDim?: number; format?: string } = {},
+): string {
+  const rel = toRelativeFileUrl(url);
+  if (!rel) return toAbsoluteFileUrl(url); // 非本地文件，出图端点无法服务，回原图绝对地址
+  const q = new URLSearchParams();
+  q.set('url', rel);
+  q.set('maxDim', String(opts.maxDim || 640));
   // 仅白名单格式才透传，webp 等 Jimp 无法编码的格式一律不传（防后端假 webp），由后端回退源扩展名
   if (opts.format && SUPPORTED_THUMB_FORMATS.has(opts.format.toLowerCase())) {
-    q.set('format', opts.format.toLowerCase())
+    q.set('format', opts.format.toLowerCase());
   }
-  return `${API_BASE}${API_ENDPOINTS.fileThumbnail}?${q.toString()}`
+  return `${API_BASE}${API_ENDPOINTS.fileThumbnail}?${q.toString()}`;
 }
 
 /**
@@ -166,13 +169,13 @@ export function buildThumbnailUrl(url: string, opts: { maxDim?: number; format?:
  * @returns {string}
  */
 export function resolveImageUrl(url: string, opts: ImageResolveOptions = {}): string {
-  if (!url || typeof url !== 'string') return url
-  const scope = opts.scope || 'render'
+  if (!url || typeof url !== 'string') return url;
+  const scope = opts.scope || 'render';
   // thumbnail:false（设置里关掉「显示缩略图」）→ render 也回原图绝对地址，不按需出图
   if (scope === 'render' && opts.thumbnail !== false && toRelativeFileUrl(url)) {
-    return buildThumbnailUrl(url, { maxDim: opts.maxDim, format: opts.format })
+    return buildThumbnailUrl(url, { maxDim: opts.maxDim, format: opts.format });
   }
-  return toAbsoluteFileUrl(url)
+  return toAbsoluteFileUrl(url);
 }
 
 /**
@@ -181,12 +184,13 @@ export function resolveImageUrl(url: string, opts: ImageResolveOptions = {}): st
  * 在渲染内/循环内（如网格格元）直接调用 resolve(u) 即可，避免 hook 进循环。
  */
 export function useRenderImageResolver(): (u: string, extra?: ImageResolveOptions) => string {
-  const settings = useAppSettings()
-  const thumbnail = settings.thumbnailOn !== false
+  const settings = useAppSettings();
+  const thumbnail = settings.thumbnailOn !== false;
   return useCallback(
-    (u: string, extra?: ImageResolveOptions) => resolveImageUrl(u, { scope: 'render', thumbnail, ...extra }),
-    [thumbnail]
-  )
+    (u: string, extra?: ImageResolveOptions) =>
+      resolveImageUrl(u, { scope: 'render', thumbnail, ...extra }),
+    [thumbnail],
+  );
 }
 
 /**
@@ -197,7 +201,7 @@ export function useRenderImageResolver(): (u: string, extra?: ImageResolveOption
  * @returns {string}
  */
 export function normalizeImageUrl(url: string | null | undefined): string {
-  return toAbsoluteFileUrl(url)
+  return toAbsoluteFileUrl(url);
 }
 
 /**
@@ -209,11 +213,11 @@ export function normalizeImageUrl(url: string | null | undefined): string {
  */
 export function fileToDataUrl(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
-    const fr = new FileReader()
-    fr.onload = () => resolve(String(fr.result || ''))
-    fr.onerror = () => reject(new Error('FileReader failed'))
-    fr.readAsDataURL(file)
-  })
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result || ''));
+    fr.onerror = () => reject(new Error('FileReader failed'));
+    fr.readAsDataURL(file);
+  });
 }
 
 /**
@@ -224,17 +228,21 @@ export function fileToDataUrl(file: Blob): Promise<string> {
  */
 async function blobToDataUrl(u: string): Promise<string> {
   try {
-    const res = await httpRequest(u, { timeoutMs: IMAGE_FETCH_TIMEOUT, retries: 0, parseJson: false })
-    const blob = await res.blob()
+    const res = await httpRequest(u, {
+      timeoutMs: IMAGE_FETCH_TIMEOUT,
+      retries: 0,
+      parseJson: false,
+    });
+    const blob = await res.blob();
     return await new Promise((resolve, reject) => {
-      const fr = new FileReader()
-      fr.onload = () => resolve(String(fr.result))
-      fr.onerror = () => reject(new Error('FileReader failed'))
-      fr.readAsDataURL(blob)
-    })
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result));
+      fr.onerror = () => reject(new Error('FileReader failed'));
+      fr.readAsDataURL(blob);
+    });
   } catch (e) {
-    logger.warn('imageUrl', 'blob 转 dataURL 失败', e.message)
-    return ''
+    logger.warn('imageUrl', 'blob 转 dataURL 失败', e.message);
+    return '';
   }
 }
 
@@ -246,21 +254,25 @@ async function blobToDataUrl(u: string): Promise<string> {
  * @returns {Promise<string>} data:image/...;base64,xxx 或空字符串
  */
 async function urlToDataUrl(u: string): Promise<string> {
-  if (typeof u !== 'string' || !u) return ''
-  if (u.startsWith('data:')) return u // 已是 base64，直接返回
-  const absolute = toAbsoluteFileUrl(u) // 相对 /files/ 先补全
+  if (typeof u !== 'string' || !u) return '';
+  if (u.startsWith('data:')) return u; // 已是 base64，直接返回
+  const absolute = toAbsoluteFileUrl(u); // 相对 /files/ 先补全
   try {
-    const res = await httpRequest(absolute, { timeoutMs: IMAGE_FETCH_TIMEOUT, retries: 0, parseJson: false })
-    const blob = await res.blob()
+    const res = await httpRequest(absolute, {
+      timeoutMs: IMAGE_FETCH_TIMEOUT,
+      retries: 0,
+      parseJson: false,
+    });
+    const blob = await res.blob();
     return await new Promise((resolve, reject) => {
-      const fr = new FileReader()
-      fr.onload = () => resolve(String(fr.result))
-      fr.onerror = () => reject(new Error('FileReader failed'))
-      fr.readAsDataURL(blob)
-    })
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result));
+      fr.onerror = () => reject(new Error('FileReader failed'));
+      fr.readAsDataURL(blob);
+    });
   } catch (e) {
-    logger.warn('imageUrl', 'URL 转 base64 失败', e.message)
-    return ''
+    logger.warn('imageUrl', 'URL 转 base64 失败', e.message);
+    return '';
   }
 }
 
@@ -285,43 +297,56 @@ async function urlToDataUrl(u: string): Promise<string> {
  * @param {{ preferBase64?: boolean }} [opts]
  * @returns {Promise<string>}
  */
-export async function normalizeImageUrlForSend(u: string, opts: ImageSendOptions = {}): Promise<string> {
-  if (typeof u !== 'string') return ''
+export async function normalizeImageUrlForSend(
+  u: string,
+  opts: ImageSendOptions = {},
+): Promise<string> {
+  if (typeof u !== 'string') return '';
   // 发送侧硬契约：禁止发送缩略图端点 URL。若误入 render 结果，先还原回原图再走后续归一。
-  const original = thumbnailToOriginal(u)
-  if (original) u = original
+  const original = thumbnailToOriginal(u);
+  if (original) u = original;
 
   // 判定「本地可压缩图」：/files/ 相对、blob:、data:、以及绝对 http 但指向本地文件（可还原为 /files/，如缩略图还原结果）。
   // 其余绝对 http(s) = 公网图（AI 可直接访问，且受 CORS 限制压缩不可靠 → 不压缩）。
-  const isLocal = u.startsWith('/files/') || u.startsWith('blob:') || u.startsWith('data:') || !!toRelativeFileUrl(u)
+  const isLocal =
+    u.startsWith('/files/') ||
+    u.startsWith('blob:') ||
+    u.startsWith('data:') ||
+    !!toRelativeFileUrl(u);
   if (!isLocal) {
     // 公网图：不压缩。按 preferBase64 决定是否转 base64（保持原尺寸）。
-    if (opts.preferBase64) return urlToDataUrl(u)
-    return u
+    if (opts.preferBase64) return urlToDataUrl(u);
+    return u;
   }
 
   // 【E 方案 · docs/72】URL 模式（preferBase64=false）下 /files/ 保持相对路径（绝对本地归一为相对）。
   // 由 localTool 出站统一读 uploads/ → 压缩≤1920 → base64；前端不再压缩/转码 → 会话只存 KB 级 /files/。
   if (!opts.preferBase64) {
-    const rel = toRelativeFileUrl(u)
-    if (rel) return rel
+    const rel = toRelativeFileUrl(u);
+    if (rel) return rel;
   }
 
   // 本地图：压缩到 ≤1920 保持原格式 → base64（仅 preferBase64 的 provider / blob: / data: 走到这）。
   // 压缩结果即 dataUrl，无论 preferBase64 与否都返回 base64。
-  const compressable = u.startsWith('/files/') ? toAbsoluteFileUrl(u) : u
+  const compressable = u.startsWith('/files/') ? toAbsoluteFileUrl(u) : u;
   try {
-    const { dataUrl } = await compressImage(compressable, { maxSize: MAX_SEND_DIM, keepOriginalFormat: true })
-    if (dataUrl) return dataUrl
+    const { dataUrl } = await compressImage(compressable, {
+      maxSize: MAX_SEND_DIM,
+      keepOriginalFormat: true,
+    });
+    if (dataUrl) return dataUrl;
   } catch (e) {
-    logger.warn('imageUrl', '发送前压缩失败，回退原样发送', { url: String(u).slice(0, 80), error: e?.message })
+    logger.warn('imageUrl', '发送前压缩失败，回退原样发送', {
+      url: String(u).slice(0, 80),
+      error: e?.message,
+    });
   }
 
   // 压缩失败 / 无结果 → 回退原逻辑（/files/ 补全绝对、blob 转 base64、data 原样）。
-  if (u.startsWith('/files/')) return toAbsoluteFileUrl(u)
-  if (u.startsWith('blob:')) return blobToDataUrl(u)
-  if (u.startsWith('data:') || opts.preferBase64) return urlToDataUrl(u)
-  return u
+  if (u.startsWith('/files/')) return toAbsoluteFileUrl(u);
+  if (u.startsWith('blob:')) return blobToDataUrl(u);
+  if (u.startsWith('data:') || opts.preferBase64) return urlToDataUrl(u);
+  return u;
 }
 
 /**
@@ -330,16 +355,19 @@ export async function normalizeImageUrlForSend(u: string, opts: ImageSendOptions
  * @param {{ preferBase64?: boolean }} [opts]
  * @returns {Promise<string[]>}
  */
-export async function normalizeImageUrlsForSend(images: string[] | null | undefined, opts: ImageSendOptions = {}): Promise<string[]> {
-  const urls = (images || []).filter((u) => typeof u === 'string' && u)
+export async function normalizeImageUrlsForSend(
+  images: string[] | null | undefined,
+  opts: ImageSendOptions = {},
+): Promise<string[]> {
+  const urls = (images || []).filter((u) => typeof u === 'string' && u);
   // 【带图可观测】发送前记录本次带了几张图、每张是 URL 还是 Base64（基于原始输入，不携带图片内容）。
   // 统一收口在发送归一化出口：覆盖生图/文本/视频/AI 聊天全部带图发送路径，一处埋点全链路可 grep。
   if (urls.length > 0) {
-    logger.info('imageUrl', '发送图片', { ...summarizeImages(urls), total: urls.length })
+    logger.info('imageUrl', '发送图片', { ...summarizeImages(urls), total: urls.length });
   }
   // 多图并行压缩/归一化（Promise.all），避免多张图串行累积等待（本地图压缩耗时集中在 canvas 解码）。
-  const results = await Promise.all(urls.map((u) => normalizeImageUrlForSend(u, opts)))
-  return results.filter(Boolean)
+  const results = await Promise.all(urls.map((u) => normalizeImageUrlForSend(u, opts)));
+  return results.filter(Boolean);
 }
 
 /**
@@ -348,8 +376,10 @@ export async function normalizeImageUrlsForSend(images: string[] | null | undefi
  * 用于聊天消息让 AI 看图反推提示词。
  * @param {string[]} urls 已 normalize 的网关可用 URL
  */
-export function toImageContentBlocks(urls: string[] | null | undefined): Array<{ type: 'image_url'; image_url: { url: string } }> {
-  return (urls || []).map((url) => ({ type: 'image_url', image_url: { url } }))
+export function toImageContentBlocks(
+  urls: string[] | null | undefined,
+): Array<{ type: 'image_url'; image_url: { url: string } }> {
+  return (urls || []).map((url) => ({ type: 'image_url', image_url: { url } }));
 }
 
 /**
@@ -361,7 +391,7 @@ export function toImageContentBlocks(urls: string[] | null | undefined): Array<{
  * @returns {'url'|'base64'}
  */
 export function classifyImageType(url: string): 'url' | 'base64' {
-  return typeof url === 'string' && url.startsWith('data:') ? 'base64' : 'url'
+  return typeof url === 'string' && url.startsWith('data:') ? 'base64' : 'url';
 }
 
 /**
@@ -370,15 +400,19 @@ export function classifyImageType(url: string): 'url' | 'base64' {
  * @param {Array<string>} images 原始图片 URL 数组
  * @returns {{ count:number, urls:number, base64s:number }}
  */
-export function summarizeImages(images: string[] | null | undefined): { count: number; urls: number; base64s: number } {
-  const list = (images || []).filter((u) => typeof u === 'string' && u)
-  let urls = 0
-  let base64s = 0
+export function summarizeImages(images: string[] | null | undefined): {
+  count: number;
+  urls: number;
+  base64s: number;
+} {
+  const list = (images || []).filter((u) => typeof u === 'string' && u);
+  let urls = 0;
+  let base64s = 0;
   for (const u of list) {
-    if (classifyImageType(u) === 'base64') base64s++
-    else urls++
+    if (classifyImageType(u) === 'base64') base64s++;
+    else urls++;
   }
-  return { count: list.length, urls, base64s }
+  return { count: list.length, urls, base64s };
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -390,22 +424,22 @@ export function summarizeImages(images: string[] | null | undefined): { count: n
  * 无变化返回**原引用**，便于调用方用 `!==` 判脏、避免无谓重渲染与落盘。
  */
 export function replaceUrlDeep(value: unknown, from: string, to: string): unknown {
-  if (typeof value === 'string') return value.includes(from) ? value.split(from).join(to) : value
+  if (typeof value === 'string') return value.includes(from) ? value.split(from).join(to) : value;
   if (Array.isArray(value)) {
-    const next = value.map((v) => replaceUrlDeep(v, from, to))
-    return next.every((n, i) => n === value[i]) ? value : next
+    const next = value.map((v) => replaceUrlDeep(v, from, to));
+    return next.every((n, i) => n === value[i]) ? value : next;
   }
   if (value && typeof value === 'object') {
-    let changed = false
-    const out = {}
+    let changed = false;
+    const out = {};
     for (const k of Object.keys(value)) {
-      const nv = replaceUrlDeep(value[k], from, to)
-      if (nv !== value[k]) changed = true
-      out[k] = nv
+      const nv = replaceUrlDeep(value[k], from, to);
+      if (nv !== value[k]) changed = true;
+      out[k] = nv;
     }
-    return changed ? out : value
+    return changed ? out : value;
   }
-  return value
+  return value;
 }
 
 /**
@@ -420,16 +454,16 @@ export function replaceUrlDeep(value: unknown, from: string, to: string): unknow
  * 禁止任一处另写一份——各写一份正是"改名只改一半"的根源（清单 #8）。
  */
 export function buildUrlRewritePairs(oldAbs: string, newAbs: string): string[][] {
-  const toRel = (abs = '') => (/^https?:\/\/[^/]+(\/files\/.*)$/.exec(abs) || [])[1]
-  const oldRel = toRel(oldAbs)
-  const newRel = toRel(newAbs)
-  const pairs = [[oldAbs, newAbs]] // 原样绝对
+  const toRel = (abs = '') => (/^https?:\/\/[^/]+(\/files\/.*)$/.exec(abs) || [])[1];
+  const oldRel = toRel(oldAbs);
+  const newRel = toRel(newAbs);
+  const pairs = [[oldAbs, newAbs]]; // 原样绝对
   if (oldRel && newRel) {
-    const hostOld = oldAbs.slice(0, oldAbs.indexOf('/files/'))
-    const hostNew = newAbs.slice(0, newAbs.indexOf('/files/'))
-    pairs.push([oldRel, newRel]) // 原样相对
-    pairs.push([`${hostOld}${encodeURI(oldRel)}`, `${hostNew}${encodeURI(newRel)}`]) // 编码绝对
-    pairs.push([encodeURI(oldRel), encodeURI(newRel)]) // 编码相对
+    const hostOld = oldAbs.slice(0, oldAbs.indexOf('/files/'));
+    const hostNew = newAbs.slice(0, newAbs.indexOf('/files/'));
+    pairs.push([oldRel, newRel]); // 原样相对
+    pairs.push([`${hostOld}${encodeURI(oldRel)}`, `${hostNew}${encodeURI(newRel)}`]); // 编码绝对
+    pairs.push([encodeURI(oldRel), encodeURI(newRel)]); // 编码相对
   }
-  return pairs
+  return pairs;
 }

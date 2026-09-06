@@ -141,7 +141,7 @@ function proxyRequest(proxyUrl: string, targetUrl: string, init?: RequestInit): 
 
     const method = (init?.method || 'GET').toUpperCase();
     const proxyHost = pu.hostname;
-    const proxyPort = pu.port ? Number(pu.port) : (pu.protocol === 'https:' ? 443 : 80);
+    const proxyPort = pu.port ? Number(pu.port) : pu.protocol === 'https:' ? 443 : 80;
 
     // 先与代理建立 TCP 连接
     const socket = net.connect({ host: proxyHost, port: proxyPort });
@@ -157,8 +157,9 @@ function proxyRequest(proxyUrl: string, targetUrl: string, init?: RequestInit): 
 
     socket.once('connect', () => {
       // 发送 CONNECT 建立隧道
-      const connectReq = `${method === 'CONNECT' ? method : 'CONNECT'} ${tu.host}:${(tu.port || (tu.protocol === 'https:' ? 443 : 80))} HTTP/1.1\r\n` +
-        `Host: ${tu.host}:${(tu.port || (tu.protocol === 'https:' ? 443 : 80))}\r\n` +
+      const connectReq =
+        `${method === 'CONNECT' ? method : 'CONNECT'} ${tu.host}:${tu.port || (tu.protocol === 'https:' ? 443 : 80)} HTTP/1.1\r\n` +
+        `Host: ${tu.host}:${tu.port || (tu.protocol === 'https:' ? 443 : 80)}\r\n` +
         `Proxy-Connection: keep-alive\r\n\r\n`;
       socket.write(connectReq);
     });
@@ -255,13 +256,27 @@ function proxyResponse(status: number, headers: Headers, body: Buffer): Response
     headers,
     body: Readable.from(body) as unknown as ReadableStream,
     bodyUsed: false,
-    clone() { return self as unknown as Response; },
-    arrayBuffer() { return Promise.resolve(body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength)); },
-    blob() { return Promise.resolve(new Blob([new Uint8Array(body)])); },
-    json() { return Promise.resolve(JSON.parse(body.toString('utf8'))); },
-    text() { return Promise.resolve(body.toString('utf8')); },
-    formData() { return Promise.reject(new Error('Not implemented')); },
-    bytes() { return Promise.resolve(new Uint8Array(body)); },
+    clone() {
+      return self as unknown as Response;
+    },
+    arrayBuffer() {
+      return Promise.resolve(body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength));
+    },
+    blob() {
+      return Promise.resolve(new Blob([new Uint8Array(body)]));
+    },
+    json() {
+      return Promise.resolve(JSON.parse(body.toString('utf8')));
+    },
+    text() {
+      return Promise.resolve(body.toString('utf8'));
+    },
+    formData() {
+      return Promise.reject(new Error('Not implemented'));
+    },
+    bytes() {
+      return Promise.resolve(new Uint8Array(body));
+    },
   };
   return self as unknown as Response;
 }

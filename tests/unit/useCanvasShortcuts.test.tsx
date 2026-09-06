@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import React from 'react'
-import { render, act } from '@testing-library/react'
-import { useCanvasShortcuts } from '../../src/hooks/useCanvasShortcuts.ts'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import React from 'react';
+import { render, act } from '@testing-library/react';
+import { useCanvasShortcuts } from '../../src/hooks/useCanvasShortcuts.ts';
 
 /**
  * 这些回归测试锁定 useCanvasShortcuts 的「守卫」行为，
@@ -13,109 +13,109 @@ import { useCanvasShortcuts } from '../../src/hooks/useCanvasShortcuts.ts'
 
 // 挂载 hook 的测试组件
 function Harness({ handlers }) {
-  useCanvasShortcuts(handlers)
-  return null
+  useCanvasShortcuts(handlers);
+  return null;
 }
 
 function fireKeyDown(init) {
-  const e = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
+  const e = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
   act(() => {
-    window.dispatchEvent(e)
-  })
-  return e
+    window.dispatchEvent(e);
+  });
+  return e;
 }
 
 // jsdom 的 Selection 无法直接构造；hook 只调用 toString()，故用最小替身
 function stubSelection(text: string): Selection {
-  return { toString: () => text } as unknown as Selection
+  return { toString: () => text } as unknown as Selection;
 }
 
 // 可控的 window.getSelection（保留 vi.fn 以便被 restoreAllMocks 统一回收）
 function setSelectionText(text: string) {
-  window.getSelection = vi.fn(() => stubSelection(text))
+  window.getSelection = vi.fn(() => stubSelection(text));
 }
 
 beforeEach(() => {
-  window.getSelection = vi.fn(() => stubSelection(''))
-  localStorage.clear()
-})
+  window.getSelection = vi.fn(() => stubSelection(''));
+  localStorage.clear();
+});
 
 afterEach(() => {
-  vi.restoreAllMocks()
-})
+  vi.restoreAllMocks();
+});
 
 describe('useCanvasShortcuts 守卫（防回退）', () => {
   it('无选中文本时按 Q 应触发 onAdd(textNode)', () => {
-    const onAdd = vi.fn()
-    render(<Harness handlers={{ onAdd }} />)
-    setSelectionText('')
-    fireKeyDown({ key: 'q' })
-    expect(onAdd).toHaveBeenCalledWith('textNode')
-  })
+    const onAdd = vi.fn();
+    render(<Harness handlers={{ onAdd }} />);
+    setSelectionText('');
+    fireKeyDown({ key: 'q' });
+    expect(onAdd).toHaveBeenCalledWith('textNode');
+  });
 
   it('【回归点】选中文本时按 Q 不应触发 onAdd（守卫必须拦截）', () => {
-    const onAdd = vi.fn()
-    render(<Harness handlers={{ onAdd }} />)
-    setSelectionText('hello')
-    fireKeyDown({ key: 'q' })
-    expect(onAdd).not.toHaveBeenCalled()
-  })
+    const onAdd = vi.fn();
+    render(<Harness handlers={{ onAdd }} />);
+    setSelectionText('hello');
+    fireKeyDown({ key: 'q' });
+    expect(onAdd).not.toHaveBeenCalled();
+  });
 
   it('【回归点】选中文本时按 W/E 同样不应触发快速添加', () => {
-    const onAdd = vi.fn()
-    render(<Harness handlers={{ onAdd }} />)
-    setSelectionText('selected')
-    fireKeyDown({ key: 'w' })
-    fireKeyDown({ key: 'e' })
-    expect(onAdd).not.toHaveBeenCalled()
-  })
+    const onAdd = vi.fn();
+    render(<Harness handlers={{ onAdd }} />);
+    setSelectionText('selected');
+    fireKeyDown({ key: 'w' });
+    fireKeyDown({ key: 'e' });
+    expect(onAdd).not.toHaveBeenCalled();
+  });
 
   it('选中文本时 Ctrl+Z 仍应触发 onUndo（守卫只挡无修饰键）', () => {
-    const onUndo = vi.fn()
-    const onAdd = vi.fn()
-    render(<Harness handlers={{ onUndo, onAdd }} />)
-    setSelectionText('selected')
-    fireKeyDown({ key: 'z', ctrlKey: true })
-    expect(onUndo).toHaveBeenCalledTimes(1)
-    expect(onAdd).not.toHaveBeenCalled()
-  })
+    const onUndo = vi.fn();
+    const onAdd = vi.fn();
+    render(<Harness handlers={{ onUndo, onAdd }} />);
+    setSelectionText('selected');
+    fireKeyDown({ key: 'z', ctrlKey: true });
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(onAdd).not.toHaveBeenCalled();
+  });
 
   it('选中文本时 Ctrl+A 应被守卫跳过（不触发 onSelectAll）', () => {
-    const onSelectAll = vi.fn()
-    render(<Harness handlers={{ onSelectAll }} />)
-    setSelectionText('selected')
-    fireKeyDown({ key: 'a', ctrlKey: true })
-    expect(onSelectAll).not.toHaveBeenCalled()
-  })
+    const onSelectAll = vi.fn();
+    render(<Harness handlers={{ onSelectAll }} />);
+    setSelectionText('selected');
+    fireKeyDown({ key: 'a', ctrlKey: true });
+    expect(onSelectAll).not.toHaveBeenCalled();
+  });
 
   it('输入框内的无修饰 Q 不应触发 onAdd', () => {
-    const onAdd = vi.fn()
-    render(<Harness handlers={{ onAdd }} />)
-    setSelectionText('')
-    const input = document.createElement('input')
-    document.body.appendChild(input)
-    const e = new KeyboardEvent('keydown', { key: 'q', bubbles: true, cancelable: true })
-    Object.defineProperty(e, 'target', { value: input })
+    const onAdd = vi.fn();
+    render(<Harness handlers={{ onAdd }} />);
+    setSelectionText('');
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    const e = new KeyboardEvent('keydown', { key: 'q', bubbles: true, cancelable: true });
+    Object.defineProperty(e, 'target', { value: input });
     act(() => {
-      window.dispatchEvent(e)
-    })
-    expect(onAdd).not.toHaveBeenCalled()
-    document.body.removeChild(input)
-  })
+      window.dispatchEvent(e);
+    });
+    expect(onAdd).not.toHaveBeenCalled();
+    document.body.removeChild(input);
+  });
 
   it('Ctrl+Z 撤销应触发 onUndo', () => {
-    const onUndo = vi.fn()
-    render(<Harness handlers={{ onUndo }} />)
-    setSelectionText('')
-    fireKeyDown({ key: 'z', ctrlKey: true })
-    expect(onUndo).toHaveBeenCalledTimes(1)
-  })
+    const onUndo = vi.fn();
+    render(<Harness handlers={{ onUndo }} />);
+    setSelectionText('');
+    fireKeyDown({ key: 'z', ctrlKey: true });
+    expect(onUndo).toHaveBeenCalledTimes(1);
+  });
 
   it('Ctrl+G 编组应触发 onGroup（任意时刻，不因选中文本跳过）', () => {
-    const onGroup = vi.fn()
-    render(<Harness handlers={{ onGroup }} />)
-    setSelectionText('selected')
-    fireKeyDown({ key: 'g', ctrlKey: true })
-    expect(onGroup).toHaveBeenCalledTimes(1)
-  })
-})
+    const onGroup = vi.fn();
+    render(<Harness handlers={{ onGroup }} />);
+    setSelectionText('selected');
+    fireKeyDown({ key: 'g', ctrlKey: true });
+    expect(onGroup).toHaveBeenCalledTimes(1);
+  });
+});

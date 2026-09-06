@@ -30,9 +30,18 @@ if (!fs.existsSync(DIST)) {
 }
 
 // ---- 可选依赖 ----
-let babel = null, prettier = null;
-try { babel = require('@babel/core'); } catch { /* noop */ }
-try { prettier = require('prettier'); } catch { /* noop */ }
+let babel = null,
+  prettier = null;
+try {
+  babel = require('@babel/core');
+} catch {
+  /* noop */
+}
+try {
+  prettier = require('prettier');
+} catch {
+  /* noop */
+}
 
 // ==================== 步骤 1：排版（esbuild + babel 结构展开 + prettier） ====================
 
@@ -50,7 +59,9 @@ function aiPlugin({ types: t }) {
       VariableDeclaration(p) {
         const parent = p.parentPath;
         if (p.node.declarations.length > 1 && (parent.isBlockStatement() || parent.isProgram())) {
-          const news = p.node.declarations.map((decl) => t.variableDeclaration(p.node.kind, [decl]));
+          const news = p.node.declarations.map((decl) =>
+            t.variableDeclaration(p.node.kind, [decl]),
+          );
           p.replaceWithMultiple(news);
         }
       },
@@ -86,7 +97,9 @@ async function aiOptimize(code) {
       parserOpts: { sourceType: 'module', plugins: ['jsx'] },
       plugins: [aiPlugin],
       generatorOpts: { compact: false, retainLines: false },
-      babelrc: false, configFile: false, comments: true,
+      babelrc: false,
+      configFile: false,
+      comments: true,
     });
     generated = res.code;
   } catch (e) {
@@ -97,13 +110,21 @@ async function aiOptimize(code) {
     try {
       if (typeof prettier.formatSync === 'function') {
         return prettier.formatSync(generated, {
-          parser: 'babel', printWidth: 120, tabWidth: 2,
-          singleQuote: true, semi: true, trailingComma: 'none',
+          parser: 'babel',
+          printWidth: 120,
+          tabWidth: 2,
+          singleQuote: true,
+          semi: true,
+          trailingComma: 'none',
         });
       }
       return await prettier.format(generated, {
-        parser: 'babel', printWidth: 120, tabWidth: 2,
-        singleQuote: true, semi: true, trailingComma: 'none',
+        parser: 'babel',
+        printWidth: 120,
+        tabWidth: 2,
+        singleQuote: true,
+        semi: true,
+        trailingComma: 'none',
       });
     } catch (e) {
       console.warn('  [prettier 失败，用 babel 结果]', String(e.message).split('\n')[0]);
@@ -199,8 +220,11 @@ function addChunkHeaders(assetsDir) {
     let src = fs.readFileSync(fp, 'utf8');
 
     // 匹配 header pattern（按前缀匹配，因为哈希名会变）
-    const matchKey = Object.keys(HEADER_PATTERNS).find(k => f.startsWith(k));
-    if (!matchKey) { console.log('  [注释头] 跳过未识别 chunk：', f); continue; }
+    const matchKey = Object.keys(HEADER_PATTERNS).find((k) => f.startsWith(k));
+    if (!matchKey) {
+      console.log('  [注释头] 跳过未识别 chunk：', f);
+      continue;
+    }
 
     const meta = HEADER_PATTERNS[matchKey];
     const block = [
@@ -255,8 +279,11 @@ function stringifyAllJs(assetsDir) {
     const code = fs.readFileSync(fp, 'utf8');
     try {
       const res = babel.transformSync(code, {
-        filename: fp, babelrc: false, configFile: false,
-        sourceType: 'module', plugins: [stringifyPlugin],
+        filename: fp,
+        babelrc: false,
+        configFile: false,
+        sourceType: 'module',
+        plugins: [stringifyPlugin],
       });
       const out = res.code || code;
       if (out !== code) {
@@ -280,14 +307,14 @@ function extractSymbols(assetsDir) {
     const src = fs.readFileSync(path.join(assetsDir, f), 'utf8');
     const names = new Set();
     const re = /(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/g;
-    let m; while ((m = re.exec(src))) names.add(m[1]);
+    let m;
+    while ((m = re.exec(src))) names.add(m[1]);
     syms[f] = [...names].sort();
   }
-  fs.writeFileSync(
-    path.join(assetsDir, 'symbols.json'),
-    JSON.stringify(syms, null, 2)
+  fs.writeFileSync(path.join(assetsDir, 'symbols.json'), JSON.stringify(syms, null, 2));
+  console.log(
+    '  [symbols] -> dist/assets/symbols.json（共 ' + Object.keys(syms).length + ' 个 chunk）',
   );
-  console.log('  [symbols] -> dist/assets/symbols.json（共 ' + Object.keys(syms).length + ' 个 chunk）');
 }
 
 // ==================== 工具函数 ====================
@@ -322,7 +349,8 @@ if (!fs.existsSync(assetsDir)) {
   process.exit(1);
 }
 
-let jsCount = 0, cssCount = 0;
+let jsCount = 0,
+  cssCount = 0;
 
 async function main() {
   // ---- 步骤 1：排版 ----
@@ -333,7 +361,10 @@ async function main() {
       let out = code;
       try {
         out = esbuild.transformSync(code, {
-          loader: 'js', target: 'esnext', format: 'esm', legalComments: 'none',
+          loader: 'js',
+          target: 'esnext',
+          format: 'esm',
+          legalComments: 'none',
         }).code;
       } catch (e) {
         console.warn('  [esbuild 失败]', f, '-', e.message);

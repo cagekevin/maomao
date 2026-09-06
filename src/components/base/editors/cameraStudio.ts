@@ -88,7 +88,7 @@ export const LIGHT_PRESETS: LightPreset[] = [
 ];
 
 export function normalizeCameraYaw(value: number): number {
-  const normalized = ((value + 180) % 360 + 360) % 360 - 180;
+  const normalized = ((((value + 180) % 360) + 360) % 360) - 180;
   return Object.is(normalized, -0) ? 0 : normalized;
 }
 
@@ -161,7 +161,8 @@ export function buildCameraPrompt(camera: CameraStudioCameraState): string {
     describeCameraLens(camera.lens),
   ];
   if (Math.abs(camera.roll) >= 1) terms.push(`${Math.round(camera.roll)} degree dutch angle`);
-  if (camera.promptEnhance) terms.push('cinematic composition, coherent subject identity, high detail');
+  if (camera.promptEnhance)
+    terms.push('cinematic composition, coherent subject identity, high detail');
   return terms.join(', ');
 }
 

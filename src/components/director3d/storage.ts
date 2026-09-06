@@ -9,8 +9,8 @@
 //     业务侧调用点签名不变（writeJson 仍同步返回，写是异步 fire-and-forget，内存态为权威）。
 //   - 姿势库键（director3d-custom-poses）→ 仍只走同步 localStorage（量小频繁，不进 KV，避免无关键污染）。
 // 读取仍同步（localStorage 种子），KV 覆盖交给 App 挂载后的 hydrateProject（读异步化见 App.jsx）。
-import { log } from './log.ts'
-import * as d3dPersistence from './d3dPersistence.ts'
+import { log } from './log.ts';
+import * as d3dPersistence from './d3dPersistence.ts';
 
 /**
  * 读取并 JSON 解析。key 不存在 / 解析失败均返回 fallback（默认 null）。
@@ -19,12 +19,12 @@ import * as d3dPersistence from './d3dPersistence.ts'
  */
 export function readJson(key, fallback = null) {
   try {
-    const raw = localStorage.getItem(key)
-    if (raw == null) return fallback
-    return JSON.parse(raw)
+    const raw = localStorage.getItem(key);
+    if (raw == null) return fallback;
+    return JSON.parse(raw);
   } catch (error) {
-    log.error('localStorage 读取/解析失败', { key }, error)
-    return fallback
+    log.error('localStorage 读取/解析失败', { key }, error);
+    return fallback;
   }
 }
 
@@ -39,18 +39,18 @@ export function writeJson(key, value) {
   if (!d3dPersistence.isProjectPersistenceKey(key)) {
     // 非工程键（如 director3d-custom-poses）保持同步 localStorage
     try {
-      localStorage.setItem(key, JSON.stringify(value))
-      return true
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
     } catch (error) {
-      log.error('localStorage 写入失败', { key }, error)
-      return false
+      log.error('localStorage 写入失败', { key }, error);
+      return false;
     }
   }
   // 工程键：引擎/KV 收口，异步落盘（失败内部降级 localStorage 或记录错误，不在此抛）
-  d3dPersistence.writeProject(key, value).catch(error => {
-    log.error('director3d 工程写 KV 失败', { key }, error)
-  })
-  return true
+  d3dPersistence.writeProject(key, value).catch((error) => {
+    log.error('director3d 工程写 KV 失败', { key }, error);
+  });
+  return true;
 }
 
 /**
@@ -59,10 +59,10 @@ export function writeJson(key, value) {
  */
 export function removeKey(key) {
   try {
-    localStorage.removeItem(key)
-    return true
+    localStorage.removeItem(key);
+    return true;
   } catch (error) {
-    log.error('localStorage 删除失败', { key }, error)
-    return false
+    log.error('localStorage 删除失败', { key }, error);
+    return false;
   }
 }

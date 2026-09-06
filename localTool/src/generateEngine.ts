@@ -20,7 +20,10 @@ import { getProviderDefinition, chatWithTools, chat } from './ai-relay/index.js'
 import { chatLovartText } from './ai-relay/providers/lovart/index.js';
 import { stableRequest } from './ai-relay/httpTransport.js';
 import { LOVART_DIRECT_BASE_URL } from './ai-relay/providerEndpoints.js';
-import type { LovartDirectProfile, LovartTransport } from './ai-relay/providers/lovart/lovart_contract.js';
+import type {
+  LovartDirectProfile,
+  LovartTransport,
+} from './ai-relay/providers/lovart/lovart_contract.js';
 import type { AuthConfig } from './ai-relay/types.js';
 import { resolveLocalImages, resolveImagesForEgress } from './utils/resolveLocalImages.js';
 import { fetchWithProxy } from './utils/netProxy.js';
@@ -85,10 +88,11 @@ function resolveBaseUrl(providerId: string, override?: string): string {
   // 1) 唯一出站地址真源 = 用户配置文件 base_url（modelscope 等内置无 defaultBaseUrl、靠配置地址）。
   //    只读内置目录会忽略用户配置 → 报「未配置接口地址」（2026-09-03 modelscope 回归修复）。
   const file = readProviderConfigFile(providerId);
-  const fileBase = typeof (file as { base_url?: unknown } | null)?.base_url === 'string'
-    && (file as { base_url?: string }).base_url!.trim()
-    ? (file as { base_url: string }).base_url
-    : '';
+  const fileBase =
+    typeof (file as { base_url?: unknown } | null)?.base_url === 'string' &&
+    (file as { base_url?: string }).base_url!.trim()
+      ? (file as { base_url: string }).base_url
+      : '';
   if (fileBase) return fileBase.replace(/\/+$/, '');
   // 2) 兜底内置目录 defaultBaseUrl
   const def = getProviderDefinition(providerId);
@@ -98,9 +102,15 @@ function resolveBaseUrl(providerId: string, override?: string): string {
 }
 
 /** 携带超时的 abort 信号（到点抛 AbortError，由 relayGenerate 捕获转 error）。 */
-function makeTimeoutSignal(timeoutMs: number, external?: AbortSignal): { signal: AbortSignal; cleanup: () => void } {
+function makeTimeoutSignal(
+  timeoutMs: number,
+  external?: AbortSignal,
+): { signal: AbortSignal; cleanup: () => void } {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error(`生成超时（${Math.round(timeoutMs / 1000)}s）`)), timeoutMs);
+  const timer = setTimeout(
+    () => controller.abort(new Error(`生成超时（${Math.round(timeoutMs / 1000)}s）`)),
+    timeoutMs,
+  );
   const onExternalAbort = () => controller.abort(external!.reason ?? new Error('请求已取消'));
   external?.addEventListener('abort', onExternalAbort, { once: true });
   return {
@@ -129,18 +139,19 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
   try {
     const baseUrl = resolveBaseUrl(providerId, input.baseUrl);
     // key 只进 .env（localTool 启动 loadDotEnv 注入 process.env），调用方显式传时优先。
-    const apiKey = input.apiKey ?? process.env[`API_PROVIDER_${providerId.toUpperCase()}_KEY`] ?? '';
+    const apiKey =
+      input.apiKey ?? process.env[`API_PROVIDER_${providerId.toUpperCase()}_KEY`] ?? '';
 
     // 参考图归一：/files/ 磁盘图 → data: base64（唯一出站口纪律）。
     // chat 参考图在前端经 imageUrl.normalizeImageUrlsForSend + toImageContentBlocks 塞进 messages
     // 的 image_url 内容块（URL 形态，base64s:0）；顶层 images 前端不传。故对 messages 也做 resolveLocalImages
     // （深遍历就地 inline 内嵌的所有 /files/ URL），否则上游读不到本机图、链路失效。data:/公网幂等透传。
-    const resolvedImages = input.images && input.images.length > 0
-      ? ((await resolveLocalImages(input.images)) as string[])
-      : undefined;
-    const resolvedMessages = input.messages !== undefined
-      ? (await resolveLocalImages(input.messages))
-      : undefined;
+    const resolvedImages =
+      input.images && input.images.length > 0
+        ? ((await resolveLocalImages(input.images)) as string[])
+        : undefined;
+    const resolvedMessages =
+      input.messages !== undefined ? await resolveLocalImages(input.messages) : undefined;
     // 【排障埋点 · 2026-09-03 chat 参考图排查】已确认参考图正常，埋点随 2026-09-04 清理移除；
     // 若再排查 /files/ 内联成 base64 是否命中，比对 resolvedMessages（inline 后）即可，勿回填 console.log。
 
@@ -189,13 +200,21 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
         if (!ak || !sk) throw new Error('lovart 需要 LOVART_ACCESS_KEY 与 LOVART_SECRET_KEY');
         const auth: AuthConfig = { type: 'hmac', accessKey: ak, secretKey: sk };
         // lovart.ai 必须经代理访问：transport = stableRequest + 代理 fetch
-        const proxyTransport: LovartTransport = (opts) => stableRequest({ ...opts, fetchImpl: fetchWithProxy as typeof fetch });
-        const profile: LovartDirectProfile = { baseUrl: baseUrl || LOVART_DIRECT_BASE_URL, auth, timeoutMs, transport: proxyTransport };
+        const proxyTransport: LovartTransport = (opts) =>
+          stableRequest({ ...opts, fetchImpl: fetchWithProxy as typeof fetch });
+        const profile: LovartDirectProfile = {
+          baseUrl: baseUrl || LOVART_DIRECT_BASE_URL,
+          auth,
+          timeoutMs,
+          transport: proxyTransport,
+        };
         // 参考图形态按 lovart 直连（cdn）：不把 messages 里 /files/ 预压 base64，而是保留
         // 回环可下载 URL 交给 adapter 自取（resolveLovartAttachments 下载→传 CDN），省 encode→decode。
         // resolvedMessages 是通用 base64 形态（给非直连通用分支用），此分支不复用它，用原消息按 cdn 归一。
-        const cdnMessages =
-          (await resolveImagesForEgress(input.messages, 'cdn')) as { role: string; content?: string }[];
+        const cdnMessages = (await resolveImagesForEgress(input.messages, 'cdn')) as {
+          role: string;
+          content?: string;
+        }[];
         const text = await chatLovartText(profile, {
           model,
           messages: cdnMessages,
@@ -272,9 +291,8 @@ export async function relayChatStream(
 ): Promise<void> {
   try {
     const baseUrl = resolveBaseUrl(input.providerId, input.baseUrl);
-    const apiKey = input.apiKey
-      ?? process.env[`API_PROVIDER_${input.providerId.toUpperCase()}_KEY`]
-      ?? '';
+    const apiKey =
+      input.apiKey ?? process.env[`API_PROVIDER_${input.providerId.toUpperCase()}_KEY`] ?? '';
     // 参考图统一内联 base64（唯一出站口纪律；魔搭读得到本机图）
     const msgs = (await resolveLocalImages(input.messages)) as unknown[];
 
@@ -339,10 +357,15 @@ export async function relayChatStream(
       let text = '';
       const body = upstream.body as ReadableStream<Uint8Array> | null;
       if (body) {
-        for await (const chunk of body as AsyncIterable<Uint8Array>) text += new TextDecoder().decode(chunk);
+        for await (const chunk of body as AsyncIterable<Uint8Array>)
+          text += new TextDecoder().decode(chunk);
       }
       let line: string;
-      try { line = JSON.stringify(JSON.parse(text)); } catch { line = text.replace(/\r?\n/g, '\\n'); }
+      try {
+        line = JSON.stringify(JSON.parse(text));
+      } catch {
+        line = text.replace(/\r?\n/g, '\\n');
+      }
       if (!res.writableEnded) {
         res.write(`data: ${line}\n\n`);
         res.write('data: [DONE]\n\n');

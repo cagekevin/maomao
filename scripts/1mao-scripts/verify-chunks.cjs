@@ -17,7 +17,10 @@ const { resolveExtPath, isNoise, launchExtContext, findExtId } = require('./veri
 
 const PROFILE = path.join(os.tmpdir(), 'gougou-chunks-profile');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const watchdog = setTimeout(() => { console.error('WATCHDOG: forced exit'); process.exit(9); }, 180000);
+const watchdog = setTimeout(() => {
+  console.error('WATCHDOG: forced exit');
+  process.exit(9);
+}, 180000);
 watchdog.unref();
 
 const events = [];
@@ -35,7 +38,9 @@ function rec(scope, kind, text) {
   try {
     const extId = await findExtId(context);
     if (!extId) {
-      console.error('❌ 扩展未加载（extId=null）。请先 npm run build 生成 dist/，再确认 manifest 正常。');
+      console.error(
+        '❌ 扩展未加载（extId=null）。请先 npm run build 生成 dist/，再确认 manifest 正常。',
+      );
       await context.close();
       cleanup();
       process.exit(2);
@@ -43,15 +48,23 @@ function rec(scope, kind, text) {
     console.log('extension id:', extId);
 
     const assetsDir = path.resolve(__dirname, '..', 'dist', 'assets');
-    if (!fs.existsSync(assetsDir)) { console.error('❌ 找不到 dist/assets'); await context.close(); cleanup(); process.exit(2); }
+    if (!fs.existsSync(assetsDir)) {
+      console.error('❌ 找不到 dist/assets');
+      await context.close();
+      cleanup();
+      process.exit(2);
+    }
     const chunks = fs.readdirSync(assetsDir).filter((f) => f.endsWith('.js'));
     console.log(`🔍 发现 ${chunks.length} 个 chunk`);
 
     // 先打一个同源页面（import() 需要同源 chrome-extension:// 上下文）
     const page = await context.newPage();
     page.on('pageerror', (e) => rec('page', 'pageerror', e.message));
-    page.on('console', (m) => { if (m.type() === 'error') rec('page', 'error', m.text()); });
-    await page.goto(`chrome-extension://${extId}/index.html`, { waitUntil: 'load', timeout: 20000 })
+    page.on('console', (m) => {
+      if (m.type() === 'error') rec('page', 'error', m.text());
+    });
+    await page
+      .goto(`chrome-extension://${extId}/index.html`, { waitUntil: 'load', timeout: 20000 })
       .catch((e) => rec('page', 'error', 'goto index.html: ' + e.message));
     await sleep(2000);
 
@@ -59,10 +72,16 @@ function rec(scope, kind, text) {
     for (const c of chunks) {
       const url = `chrome-extension://${extId}/assets/${c}`;
       // eslint-disable-next-line no-await-in-loop
-      const r = await page.evaluate(async (u) => {
-        try { await import(u); return { ok: true }; }
-        catch (e) { return { ok: false, msg: (e && e.message) || String(e) }; }
-      }, url).catch((e) => ({ ok: false, msg: 'evaluate fail: ' + e.message }));
+      const r = await page
+        .evaluate(async (u) => {
+          try {
+            await import(u);
+            return { ok: true };
+          } catch (e) {
+            return { ok: false, msg: (e && e.message) || String(e) };
+          }
+        }, url)
+        .catch((e) => ({ ok: false, msg: 'evaluate fail: ' + e.message }));
       const ok = r.ok && !isNoise(r.msg || '');
       if (!ok) rec('chunk', 'error', `${c}: ${r.msg}`);
       console.log(`${ok ? 'OK  ' : 'FAIL'} ${c}${r.ok ? '' : '  -> ' + (r.msg || '')}`);
@@ -71,11 +90,29 @@ function rec(scope, kind, text) {
     await page.close();
 
     const failed = results.filter((r) => !r.ok);
-    const realErrors = events.filter((e) => (e.kind === 'error' || e.kind === 'pageerror') && !e.noise);
+    const realErrors = events.filter(
+      (e) => (e.kind === 'error' || e.kind === 'pageerror') && !e.noise,
+    );
     console.log(`\n════════ chunk 验收摘要 ════════`);
-    console.log(`chunks: ${chunks.length} | 失败: ${failed.length} | 应用级错误: ${realErrors.length}`);
+    console.log(
+      `chunks: ${chunks.length} | 失败: ${failed.length} | 应用级错误: ${realErrors.length}`,
+    );
     const out = path.resolve(__dirname, 'report-chunks.json');
-    fs.writeFileSync(out, JSON.stringify({ extId, total: chunks.length, failed: failed.length, realErrorCount: realErrors.length, results, events }, null, 2));
+    fs.writeFileSync(
+      out,
+      JSON.stringify(
+        {
+          extId,
+          total: chunks.length,
+          failed: failed.length,
+          realErrorCount: realErrors.length,
+          results,
+          events,
+        },
+        null,
+        2,
+      ),
+    );
     console.log('report →', out);
 
     await context.close();

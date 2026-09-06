@@ -1,5 +1,5 @@
-import React, { type ReactNode } from 'react'
-import { LayoutGrid, Map, Maximize, RefreshCw, Zap } from 'lucide-react'
+import React, { type ReactNode } from 'react';
+import { LayoutGrid, Map, Maximize, RefreshCw, Zap } from 'lucide-react';
 
 /**
  * 左下角工具栏（复刻 H_.jsx:12013-12094 bottom-left 工具栏）。
@@ -37,21 +37,21 @@ import { LayoutGrid, Map, Maximize, RefreshCw, Zap } from 'lucide-react'
  */
 export interface CanvasToolbarProps {
   /** 小地图开关（激活白高亮） */
-  minimapOn: boolean
-  onToggleMinimap: () => void
+  minimapOn: boolean;
+  onToggleMinimap: () => void;
   /** 整理画布（dagre 自动排版） */
-  onArrange: () => void
+  onArrange: () => void;
   /** 适合视图（fitView） */
-  onFitView: () => void
+  onFitView: () => void;
   /** 缩放百分比显示（叶子组件插槽，P0-C C3：宿主注入自订阅 store 的 ZoomPercent） */
-  zoomPercentNode: ReactNode
+  zoomPercentNode: ReactNode;
   /** 缩放性能模式开关（激活黄高亮） */
-  performanceMode: boolean
-  onTogglePerformance: () => void
+  performanceMode: boolean;
+  onTogglePerformance: () => void;
   /** 清理缓存（App 传入：释放节点内大 dataURL 资源） */
-  onClearCache?: () => void
+  onClearCache?: () => void;
   /** 本地引擎是否连接（左上角第一个对号/断开按钮） */
-  localToolConnected?: boolean
+  localToolConnected?: boolean;
 }
 
 function CanvasToolbar({
@@ -67,8 +67,8 @@ function CanvasToolbar({
 }: CanvasToolbarProps) {
   // 框整体紧凑化（用户要求不占大面积）：容器 padding 收窄、按钮 p 减小、分隔线间距减小，图标尺寸不变。
   const baseBtn =
-    'p-1.5 rounded-full transition-colors flex items-center justify-center text-secondary hover:text-white hover:bg-surface-hover-strong'
-  const divider = <span className="w-[1px] h-3.5 bg-surface-3 mx-1" />
+    'p-1.5 rounded-full transition-colors flex items-center justify-center text-secondary hover:text-white hover:bg-surface-hover-strong';
+  const divider = <span className="w-[1px] h-3.5 bg-surface-3 mx-1" />;
 
   return (
     <div className="flex items-center gap-2">
@@ -81,11 +81,29 @@ function CanvasToolbar({
           title={localToolConnected ? '本地引擎已连接' : '本地引擎未连接'}
         >
           {localToolConnected ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <polyline points="20 6 9 17 4 12" />
             </svg>
           ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -132,7 +150,7 @@ function CanvasToolbar({
         </button>
       </div>
     </div>
-  )
+  );
 }
 
-export default React.memo(CanvasToolbar)
+export default React.memo(CanvasToolbar);

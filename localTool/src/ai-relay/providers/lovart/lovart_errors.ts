@@ -17,7 +17,11 @@ export class LovartError extends Error {
   /** 与 LOVART_ERR_TYPES 对应的失败类型 */
   type: string;
 
-  constructor(message: string, code: number | string = -1, type: string = LOVART_ERR_TYPES.UPSTREAM) {
+  constructor(
+    message: string,
+    code: number | string = -1,
+    type: string = LOVART_ERR_TYPES.UPSTREAM,
+  ) {
     super(message);
     this.name = 'LovartError';
     this.code = code;

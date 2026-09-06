@@ -13,17 +13,17 @@
 
 export interface RuntimeModelPaths {
   /** 资源根（无尾斜杠）：http://127.0.0.1:18080/depth-video */
-  root: string
+  root: string;
   /** transformers.js 浏览器端入口（ESM），供运行时动态 import */
-  transformers: string
+  transformers: string;
   /** 模型权重根（尾斜杠），env.localModelPath 指向 */
-  modelRoot: string
+  modelRoot: string;
   /** onnxruntime wasmPaths（mjs + wasm），env.backends.onnx.wasm.wasmPaths 指向 */
-  wasmPaths: { mjs: string; wasm: string }
+  wasmPaths: { mjs: string; wasm: string };
   /** onnxruntime webgpu bundle（ESM 单文件，自包含 onnxruntime-common API）。
    *  用于运行时注入 import map：把 transformers 内部的裸说明符
    *  `onnxruntime-web/webgpu` / `onnxruntime-common` 映射到本地（对齐 depth-video-converter/index.html）。 */
-  ortWebgpuBundle: string
+  ortWebgpuBundle: string;
 }
 
 /**
@@ -37,7 +37,7 @@ export interface RuntimeModelPaths {
  * 恰由 localTool 18080 同源托管，故天然同源。apiBase 仅保留以兼容既有调用方，不再参与拼装。
  */
 export function buildRuntimeModels(_apiBase: string): RuntimeModelPaths {
-  const root = '/depth-video'
+  const root = '/depth-video';
   return {
     root,
     transformers: `${root}/vendor/transformers/transformers.web.min.js`,
@@ -47,8 +47,8 @@ export function buildRuntimeModels(_apiBase: string): RuntimeModelPaths {
       wasm: `${root}/vendor/onnxruntime/ort-wasm-simd-threaded.asyncify.wasm`,
     },
     ortWebgpuBundle: `${root}/vendor/onnxruntime/ort.webgpu.bundle.min.mjs`,
-  }
+  };
 }
 
 /** 默认资源路径（同源根相对，页面 origin 即资源 origin） */
-export const RUNTIME_MODELS: RuntimeModelPaths = buildRuntimeModels('')
+export const RUNTIME_MODELS: RuntimeModelPaths = buildRuntimeModels('');

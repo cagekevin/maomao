@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { useStore } from '@xyflow/react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { useStore } from '@xyflow/react';
 
 /**
  * LOD（Level of Detail）性能降级深模块（合并原 LodProvider / useLod / LodListener 三碎片）。
@@ -22,7 +22,7 @@ import { useStore } from '@xyflow/react'
  */
 
 // 阈值集中为命名常量（CONTEXT §一.C 配置集中，消除裸数字 60/50）
-const LOD_LIMITS = { handleFollow: 60, edgeFx: 50 }
+const LOD_LIMITS = { handleFollow: 60, edgeFx: 50 };
 
 const DEFAULT_LOD = {
   lodLevel: 0,
@@ -31,16 +31,16 @@ const DEFAULT_LOD = {
   handleFollowLimit: LOD_LIMITS.handleFollow,
   edgeFxLimit: LOD_LIMITS.edgeFx,
   useThumbnail: false,
-}
+};
 
-export const LodContext = createContext(DEFAULT_LOD)
+export const LodContext = createContext(DEFAULT_LOD);
 
 /**
  * 消费端 hook：读取当前 LOD 值。
  * 用法：const { lodLevel } = useLod()
  */
 export function useLod() {
-  return useContext(LodContext)
+  return useContext(LodContext);
 }
 
 /**
@@ -53,40 +53,40 @@ export function useLod() {
  */
 export default function LodProvider({ enablePerformanceMode = true, nodeCount = 0, children }) {
   // 监听 viewport.transform[2]（缩放值）的变化
-  const zoom = useStore((s) => s.transform?.[2] ?? 1)
-  const [lodLevel, setLodLevel] = useState(0)
-  const rafRef = useRef(0)
-  const lastRef = useRef(0)
+  const zoom = useStore((s) => s.transform?.[2] ?? 1);
+  const [lodLevel, setLodLevel] = useState(0);
+  const rafRef = useRef(0);
+  const lastRef = useRef(0);
 
   useEffect(() => {
-    const container = document.querySelector('.react-flow')
+    const container = document.querySelector('.react-flow');
 
     if (!enablePerformanceMode) {
       if (lastRef.current !== 0) {
-        lastRef.current = 0
-        setLodLevel(0)
-        container?.classList.remove('lod-1', 'lod-2', 'lod-3', 'zoomed-out-lod')
+        lastRef.current = 0;
+        setLodLevel(0);
+        container?.classList.remove('lod-1', 'lod-2', 'lod-3', 'zoomed-out-lod');
       }
-      return
+      return;
     }
 
     // 计算 lodLevel（复刻 H_.jsx:11548）：zoom<=0.2→3，<=0.3→2，<=0.5→1，否则 0
-    const level = zoom <= 0.2 ? 3 : zoom <= 0.3 ? 2 : zoom <= 0.5 ? 1 : 0
-    if (level === lastRef.current) return
+    const level = zoom <= 0.2 ? 3 : zoom <= 0.3 ? 2 : zoom <= 0.5 ? 1 : 0;
+    if (level === lastRef.current) return;
 
-    cancelAnimationFrame(rafRef.current)
+    cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
-      container?.classList.remove('lod-1', 'lod-2', 'lod-3', 'zoomed-out-lod')
-      if (level >= 1) container?.classList.add('lod-1')
-      if (level >= 2) container?.classList.add('lod-2')
+      container?.classList.remove('lod-1', 'lod-2', 'lod-3', 'zoomed-out-lod');
+      if (level >= 1) container?.classList.add('lod-1');
+      if (level >= 2) container?.classList.add('lod-2');
       if (level >= 3) {
-        container?.classList.add('lod-3')
-        container?.classList.add('zoomed-out-lod')
+        container?.classList.add('lod-3');
+        container?.classList.add('zoomed-out-lod');
       }
-      lastRef.current = level
-      setLodLevel(level)
-    })
-  }, [zoom, enablePerformanceMode])
+      lastRef.current = level;
+      setLodLevel(level);
+    });
+  }, [zoom, enablePerformanceMode]);
 
   const v = {
     lodLevel,
@@ -95,10 +95,10 @@ export default function LodProvider({ enablePerformanceMode = true, nodeCount = 
     handleFollowLimit: LOD_LIMITS.handleFollow,
     edgeFxLimit: LOD_LIMITS.edgeFx,
     useThumbnail: false,
-  }
+  };
   const memoValue = React.useMemo(
     () => v,
-    [v.lodLevel, v.viewportMoving, v.nodeCount, v.handleFollowLimit, v.edgeFxLimit, v.useThumbnail]
-  )
-  return <LodContext.Provider value={memoValue}>{children}</LodContext.Provider>
+    [v.lodLevel, v.viewportMoving, v.nodeCount, v.handleFollowLimit, v.edgeFxLimit, v.useThumbnail],
+  );
+  return <LodContext.Provider value={memoValue}>{children}</LodContext.Provider>;
 }

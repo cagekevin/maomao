@@ -35,8 +35,10 @@ for (const f of icons) {
   const s = path.join(SRC_DIR, f);
   if (fs.existsSync(s)) cpFile(s, path.join(DST, f));
 }
-if (fs.existsSync(path.join(SRC_DIR, 'mediapipe'))) cpDir(path.join(SRC_DIR, 'mediapipe'), path.join(DST, 'mediapipe'));
-if (fs.existsSync(path.join(SRC_DIR, 'models'))) cpDir(path.join(SRC_DIR, 'models'), path.join(DST, 'models'));
+if (fs.existsSync(path.join(SRC_DIR, 'mediapipe')))
+  cpDir(path.join(SRC_DIR, 'mediapipe'), path.join(DST, 'mediapipe'));
+if (fs.existsSync(path.join(SRC_DIR, 'models')))
+  cpDir(path.join(SRC_DIR, 'models'), path.join(DST, 'models'));
 
 // 净化 manifest：移除 Chrome 不识别的 changelog / localToolChanged；保留 CSP 的 wasm-unsafe-eval
 const m = JSON.parse(fs.readFileSync(path.join(SRC_DIR, 'manifest.json'), 'utf8'));

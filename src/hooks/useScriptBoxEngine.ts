@@ -1,14 +1,17 @@
-import { useEffect, useRef, useCallback } from 'react'
-import { useReactFlow, type Node } from '@xyflow/react'
-import { createScriptBoxEngine } from '../components/scriptbox/scriptBoxEngine.ts'
-import { normalizeScriptBoxData, type ScriptBoxData } from '../components/scriptbox/scriptBoxSchema.ts'
-import { injectNodePrefs } from '../components/base/canvas/nodePrefs.ts'
-import { useProvidersList, load as loadProviders } from '../components/base/store/providerStore.ts'
-import { logger } from '../components/base/core/logger.ts'
+import { useEffect, useRef, useCallback } from 'react';
+import { useReactFlow, type Node } from '@xyflow/react';
+import { createScriptBoxEngine } from '../components/scriptbox/scriptBoxEngine.ts';
+import {
+  normalizeScriptBoxData,
+  type ScriptBoxData,
+} from '../components/scriptbox/scriptBoxSchema.ts';
+import { injectNodePrefs } from '../components/base/canvas/nodePrefs.ts';
+import { useProvidersList, load as loadProviders } from '../components/base/store/providerStore.ts';
+import { logger } from '../components/base/core/logger.ts';
 
 // 写回通道契约收口在 scriptBoxSchema（引擎与 hook 共用同一份，避免两处漂移）
-import type { ScriptBoxUpdateData } from '../components/scriptbox/scriptBoxSchema.ts'
-export type { ScriptBoxUpdateData }
+import type { ScriptBoxUpdateData } from '../components/scriptbox/scriptBoxSchema.ts';
+export type { ScriptBoxUpdateData };
 
 /**
  * 剧本盒子 —— 引擎回调注入 hook（对应官方 H_.jsx 的注入机制 A/B）。
@@ -30,42 +33,48 @@ export type { ScriptBoxUpdateData }
  * @param nodeId  剧本盒子节点 id
  * @param data    节点当前 data（仅兜底；引擎主要经 getNodes 实时读最新 data）
  */
-export function useScriptBoxEngine(nodeId: string, data?: Record<string, unknown>): { updateData: ScriptBoxUpdateData } {
-  const { getNodes, getNode, setNodes, setEdges, addNodes, screenToFlowPosition } = useReactFlow()
+export function useScriptBoxEngine(
+  nodeId: string,
+  data?: Record<string, unknown>,
+): { updateData: ScriptBoxUpdateData } {
+  const { getNodes, getNode, setNodes, setEdges, addNodes, screenToFlowPosition } = useReactFlow();
 
   // 供应商（多 provider，接真系统）：引擎经 getProviderState 实时读 providers + 主供应商，
   // 生成/生图时按模型 value（providerId::modelId）解析到对应 provider，再经统一生成入口 /api/generate 转发（旧 /api/proxy 出站已随 2026-09-03 收口退役）。
   // P5 原子订阅：只订阅 providers 列表，不随 providerStore 的 dirty/loading/testResult 连坐重渲染。
-  const providers = useProvidersList()
+  const providers = useProvidersList();
   // 首次挂载确保供应商已加载（生成/生图前必须有 provider，否则解析不到模型）
   useEffect(() => {
-    if (!providers || providers.length === 0) loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
+    if (!providers || providers.length === 0)
+      loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, []);
 
   // providers 实时镜像到 ref：引擎实例经 useRef 只创建一次（跨 render 稳定），
   // 若 getProviderState 直接闭包捕获「首次 render 的 providers」（此时异步加载未完成 → 空数组），
   // 之后 providers 加载完成也不会更新闭包 → 引擎永远读到空供应商 → 生成一直报「请先配置模型」。
   // 故用 providersRef 在每次 render 同步最新值，getProviderState 读 ref.current，打破闭包过期。
-  const providersRef = useRef(providers)
-  providersRef.current = providers
+  const providersRef = useRef(providers);
+  providersRef.current = providers;
 
   // 书写回通道（统一收口，ScriptBoxNode / Step 组件共用）：
   // 支持对象 patch 与函数式 patch `(latestData)=>patch`（并发安全合并，避免读到旧引用导致状态互相覆盖）。
   // 用 useCallback 保证跨 render 稳定（ScriptBoxNode 是 React.memo，稳定引用可减少无谓重渲染）。
   const updateData = useCallback<ScriptBoxUpdateData>(
     (patch) =>
-      setNodes((ns) => ns.map((n) => {
-        if (n.id !== nodeId) return n
-        const latest = n.data || {}
-        const resolved = typeof patch === 'function' ? patch(latest as ScriptBoxData) : patch
-        return { ...n, data: { ...latest, ...resolved } }
-      })),
-    [nodeId, setNodes]
-  )
+      setNodes((ns) =>
+        ns.map((n) => {
+          if (n.id !== nodeId) return n;
+          const latest = n.data || {};
+          const resolved = typeof patch === 'function' ? patch(latest as ScriptBoxData) : patch;
+          return { ...n, data: { ...latest, ...resolved } };
+        }),
+      ),
+    [nodeId, setNodes],
+  );
 
   // 引擎实例用 ref 缓存，跨 render 稳定（不因 data 变化重建导致子组件重渲染）
-  const engineRef = useRef(null)
+  const engineRef = useRef(null);
   if (!engineRef.current) {
     engineRef.current = createScriptBoxEngine({
       // 读最新 data：经 useReactFlow().getNode 实时取（O(1) hash 查，替 getNodes().find），避免闭包捕获旧值。
@@ -81,8 +90,8 @@ export function useScriptBoxEngine(nodeId: string, data?: Record<string, unknown
       // 供应商解析（接真系统）：返回 { providers, primary }，供引擎选模型/转发
       // 注意：读 providersRef.current 而非闭包捕获的 providers，避免闭包过期读到空数组。
       getProviderState: () => {
-        const list = providersRef.current || []
-        return { providers: list, primary: list.find((p) => p.primary) || list[0] || null }
+        const list = providersRef.current || [];
+        return { providers: list, primary: list.find((p) => p.primary) || list[0] || null };
       },
       // 连线：经 addNodes 建下游节点，位置用 screenToFlowPosition 算落点基准。
       // 【复用系统新建入口的模型记忆】剧本盒子建节点不走 App.addNode，故在此补 injectNodePrefs，
@@ -90,33 +99,37 @@ export function useScriptBoxEngine(nodeId: string, data?: Record<string, unknown
       // 且 useGenerateNode 的「自动选第一个模型」兜底被 prefs.model 守卫挡掉，永远补不回来。
       // injectNodePrefs 仅补 data 里未显式传的字段，剧本盒已预填的 aspectRatio/size/selectedSeconds/label 不受影响。
       addNodes: (nodes) => {
-        if (!addNodes) return
-        const base = screenToFlowPosition?.({ x: 0, y: 0 }) ?? { x: 0, y: 0 }
-        addNodes(nodes.map((raw) => {
-          const nd = raw as Node
-          const data = { ...nd.data }
-          injectNodePrefs(nd.type, data)
-          return {
-            ...nd,
-            data,
-            position: {
-              x: (nd.position?.x ?? 0) + base.x + 100,
-              y: (nd.position?.y ?? 0) + base.y
-            }
-          }
-        }))
-      }
-    })
+        if (!addNodes) return;
+        const base = screenToFlowPosition?.({ x: 0, y: 0 }) ?? { x: 0, y: 0 };
+        addNodes(
+          nodes.map((raw) => {
+            const nd = raw as Node;
+            const data = { ...nd.data };
+            injectNodePrefs(nd.type, data);
+            return {
+              ...nd,
+              data,
+              position: {
+                x: (nd.position?.x ?? 0) + base.x + 100,
+                y: (nd.position?.y ?? 0) + base.y,
+              },
+            };
+          }),
+        );
+      },
+    });
   }
 
-  const callbacks = engineRef.current
+  const callbacks = engineRef.current;
 
   // 把引擎全部回调写回 node.data.onXxx（官方注入点语义，含 P1-2 尾帧变体），保证复制/分享后回调仍在
   useEffect(() => {
-    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...callbacks } } : n)))
+    setNodes((ns) =>
+      ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...callbacks } } : n)),
+    );
     // 仅挂载时注入一次；nodeId 变化时重新注入
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodeId])
+  }, [nodeId]);
 
-  return { updateData }
+  return { updateData };
 }

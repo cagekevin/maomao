@@ -18,9 +18,10 @@ const { getRules } = require('./name_rules.cjs');
 const RULES = getRules();
 const BUNDLE = path.join(__dirname, '..', '..', '..', 'src', 'bundle').replace(/\\/g, '/');
 const SKIP = /^(vendor-|rolldown-runtime|__vite-browser-external)/;
-const TARGETS = (fs.existsSync(BUNDLE)
-  ? fs.readdirSync(BUNDLE).filter((f) => f.endsWith('.js') && !SKIP.test(f))
-  : []
+const TARGETS = (
+  fs.existsSync(BUNDLE)
+    ? fs.readdirSync(BUNDLE).filter((f) => f.endsWith('.js') && !SKIP.test(f))
+    : []
 ).map((f) => path.join(BUNDLE, f).replace(/\\/g, '/'));
 
 console.log(`[apply_rename] 载入规则数: ${Object.keys(RULES).length}`);
@@ -61,7 +62,7 @@ for (const fp of TARGETS) {
   const afterOld = countOccurrences(out, Object.keys(RULES));
   const afterNew = countOccurrences(out, Object.values(RULES));
   console.log(
-    `[apply_rename] ${path.basename(fp)}: 原压缩名出现 ${beforeOld} -> ${afterOld}；语义名出现 ${afterNew}；文件大小 ${code.length} -> ${out.length}`
+    `[apply_rename] ${path.basename(fp)}: 原压缩名出现 ${beforeOld} -> ${afterOld}；语义名出现 ${afterNew}；文件大小 ${code.length} -> ${out.length}`,
   );
 }
 console.log('[apply_rename] 完成。请运行 npm run build 验证可构建。');

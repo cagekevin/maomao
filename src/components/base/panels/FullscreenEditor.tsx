@@ -1,33 +1,33 @@
-import React from 'react'
-import { Minimize2 } from 'lucide-react'
-import FullscreenModal from './FullscreenModal'
-import MaterialStrip from './MaterialStrip.tsx'
-import PromptInput from '../prompt/PromptInput.tsx'
+import React from 'react';
+import { Minimize2 } from 'lucide-react';
+import FullscreenModal from './FullscreenModal';
+import MaterialStrip from './MaterialStrip.tsx';
+import PromptInput from '../prompt/PromptInput.tsx';
 
 /** 上游连入的素材形状（图片 / 文本），与 MaterialStrip / PromptInput 对齐。 */
 interface RefAsset {
-  id?: string
-  label?: string
-  url?: string
-  kind?: string
-  sourceNodeId?: string
-  text?: string
+  id?: string;
+  label?: string;
+  url?: string;
+  kind?: string;
+  sourceNodeId?: string;
+  text?: string;
 }
 
 interface FullscreenEditorProps {
-  open: boolean
-  onClose: () => void
-  variant?: 'prompt' | 'text'
-  value?: string
-  onChange?: (v: string) => void
-  placeholder?: string
-  refImages?: RefAsset[]
-  refTexts?: RefAsset[]
-  onInsert?: (label: string) => void
-  onDisconnect?: (sourceNodeId: string) => void
-  maxWidth?: number
-  widthRatio?: number
-  richText?: boolean
+  open: boolean;
+  onClose: () => void;
+  variant?: 'prompt' | 'text';
+  value?: string;
+  onChange?: (v: string) => void;
+  placeholder?: string;
+  refImages?: RefAsset[];
+  refTexts?: RefAsset[];
+  onInsert?: (label: string) => void;
+  onDisconnect?: (sourceNodeId: string) => void;
+  maxWidth?: number;
+  widthRatio?: number;
+  richText?: boolean;
 }
 
 /**
@@ -64,21 +64,29 @@ export default function FullscreenEditor({
   onDisconnect,
   maxWidth = 1200,
   widthRatio = 0.9,
-  richText = false
+  richText = false,
 }: FullscreenEditorProps) {
-  const showMaterials = variant === 'prompt'
+  const showMaterials = variant === 'prompt';
   // 富文本模式：MaterialStrip 插入走 PromptInput 上抛的能力；否则兼容旧回调（提取 label 字符串）
-  const insertAssetRef = React.useRef<((asset: unknown) => void) | null>(null)
+  const insertAssetRef = React.useRef<((asset: unknown) => void) | null>(null);
   const handleInsert = (asset: unknown) => {
     if (richText && typeof insertAssetRef.current === 'function') {
-      insertAssetRef.current(asset)
+      insertAssetRef.current(asset);
     } else {
-      const label = typeof asset === 'string' ? asset : ((asset as { label?: string } | null)?.label) || ''
-      onInsert?.(label)
+      const label =
+        typeof asset === 'string' ? asset : (asset as { label?: string } | null)?.label || '';
+      onInsert?.(label);
     }
-  }
+  };
   return (
-    <FullscreenModal open={open} onClose={onClose} showHeader={false} autoHeight maxWidth={maxWidth} widthRatio={widthRatio}>
+    <FullscreenModal
+      open={open}
+      onClose={onClose}
+      showHeader={false}
+      autoHeight
+      maxWidth={maxWidth}
+      widthRatio={widthRatio}
+    >
       {/* 右上角「缩小」按钮：点击即关闭 */}
       <button
         className="absolute top-3 right-3 z-10 p-1.5 text-secondary hover:text-white hover:bg-white/10 rounded transition-colors"
@@ -90,7 +98,12 @@ export default function FullscreenEditor({
 
       <div className="flex flex-col gap-2">
         {showMaterials && (
-          <MaterialStrip images={refImages} texts={refTexts} onInsert={handleInsert} onDisconnect={onDisconnect} />
+          <MaterialStrip
+            images={refImages}
+            texts={refTexts}
+            onInsert={handleInsert}
+            onDisconnect={onDisconnect}
+          />
         )}
         {richText ? (
           <PromptInput
@@ -100,7 +113,9 @@ export default function FullscreenEditor({
             refImages={refImages}
             refTexts={refTexts}
             onInsert={(item) => onInsert?.(item?.label ?? '')}
-            onReady={(fn) => { insertAssetRef.current = fn }}
+            onReady={(fn) => {
+              insertAssetRef.current = fn;
+            }}
             inputHeight={538}
             richText
             autoFocus
@@ -118,5 +133,5 @@ export default function FullscreenEditor({
         )}
       </div>
     </FullscreenModal>
-  )
+  );
 }

@@ -9,8 +9,23 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getUploadDir } from '../db/database.js';
-import { ensureDir, sanitizeFilename, resolveUploadTarget, writeUploadBuffer, writeUploadBufferAt, ensureThumbnailTarget, resizeImage, normalizeSubfolder } from '../utils/fileStore.js';
-import { json, parseMultipart, parseJsonBody, sendError, HttpStatusError } from '../utils/helpers.js';
+import {
+  ensureDir,
+  sanitizeFilename,
+  resolveUploadTarget,
+  writeUploadBuffer,
+  writeUploadBufferAt,
+  ensureThumbnailTarget,
+  resizeImage,
+  normalizeSubfolder,
+} from '../utils/fileStore.js';
+import {
+  json,
+  parseMultipart,
+  parseJsonBody,
+  sendError,
+  HttpStatusError,
+} from '../utils/helpers.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
 import { logTs } from '../utils/relayHeaders.js';
 import { localToolBaseUrl } from '../utils/localToolBaseUrl.js';
@@ -133,7 +148,12 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
 }
 
 async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const body = (await parseJsonBody(req)) as { fileUrl?: string; dataUri?: string; subfolder?: string; filename?: string } | null;
+  const body = (await parseJsonBody(req)) as {
+    fileUrl?: string;
+    dataUri?: string;
+    subfolder?: string;
+    filename?: string;
+  } | null;
   if (!body) {
     uploadLog(400, 'missing body in JSON');
     return sendError(res, 'Missing body', 400);
@@ -185,7 +205,11 @@ async function saveFile(data: Buffer, subfolder: string, filename: string): Prom
  *
  * 去重键 = subfolder + fileUrl（不含 filename）：filename 只影响落盘命名，不影响"是否同一份下载"。
  */
-export async function saveRemoteUrl(subfolder: string, fileUrl: string, filename?: string): Promise<SaveRemoteResult> {
+export async function saveRemoteUrl(
+  subfolder: string,
+  fileUrl: string,
+  filename?: string,
+): Promise<SaveRemoteResult> {
   const dedupeKey = `${subfolder}\u0000${fileUrl}`;
   const inFlight = inflightDownloads.get(dedupeKey);
   if (inFlight) {
@@ -215,7 +239,11 @@ export async function saveRemoteUrl(subfolder: string, fileUrl: string, filename
  * - 单次成功调用产出【1 原图 + 1 缩略图】两个文件(缩略图在 .thumbnails/ 下),这是正常设计,不是"重复下载"。
  * 调用方(polling ii→Zr / gateway / 迁移)下载失败表现为 POST /api/files/upload 返回 400,由 Zr 打 WARN 暴露。
  */
-async function doSaveRemoteUrl(subfolder: string, fileUrl: string, filename?: string): Promise<SaveRemoteResult> {
+async function doSaveRemoteUrl(
+  subfolder: string,
+  fileUrl: string,
+  filename?: string,
+): Promise<SaveRemoteResult> {
   const urlHash = crypto.createHash('sha1').update(fileUrl).digest('hex').slice(0, 16);
   const base = filename || path.basename(new URL(fileUrl).pathname) || 'download';
   const stableName = sanitizeFilename(`${urlHash}_${base}`);
@@ -230,7 +258,11 @@ async function doSaveRemoteUrl(subfolder: string, fileUrl: string, filename?: st
     if (fs.existsSync(savedPath)) {
       console.log(`[download] ${ts()} | SKIP(已存在) | ${fileUrl} -> ${urlPath}`);
       const thumbnailUrl = await tryGenerateThumbnail(savedPath, urlPath);
-      return { url: `${BASE_URL}${urlPath}`, path: savedPath, thumbnailUrl: thumbnailUrl ? `${BASE_URL}${thumbnailUrl}` : undefined };
+      return {
+        url: `${BASE_URL}${urlPath}`,
+        path: savedPath,
+        thumbnailUrl: thumbnailUrl ? `${BASE_URL}${thumbnailUrl}` : undefined,
+      };
     }
   }
 
@@ -264,11 +296,17 @@ async function doSaveRemoteUrl(subfolder: string, fileUrl: string, filename?: st
     console.log(`[download] ${ts()} | SKIP(已存在) | ${fileUrl} -> ${urlPath}`);
   } else {
     writeUploadBufferAt(subfolder, finalName, data);
-    console.log(`[download] ${ts()} | OK  | ${fileUrl} -> ${urlPath} | ${(data.length / 1024).toFixed(0)}KB`);
+    console.log(
+      `[download] ${ts()} | OK  | ${fileUrl} -> ${urlPath} | ${(data.length / 1024).toFixed(0)}KB`,
+    );
   }
 
   const thumbnailUrl = await tryGenerateThumbnail(savedPath, urlPath);
-  return { url: `${BASE_URL}${urlPath}`, path: savedPath, thumbnailUrl: thumbnailUrl ? `${BASE_URL}${thumbnailUrl}` : undefined };
+  return {
+    url: `${BASE_URL}${urlPath}`,
+    path: savedPath,
+    thumbnailUrl: thumbnailUrl ? `${BASE_URL}${thumbnailUrl}` : undefined,
+  };
 }
 
 async function tryGenerateThumbnail(filePath: string, _urlPath: string): Promise<string | null> {
@@ -290,7 +328,11 @@ async function tryGenerateThumbnail(filePath: string, _urlPath: string): Promise
 }
 
 // ── read ──
-export async function handleRead(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+export async function handleRead(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<void> {
   const filePath = url.searchParams.get('path');
   if (!filePath) {
     return sendError(res, 'Missing path parameter', 400);
@@ -334,7 +376,11 @@ export async function handleRead(req: IncomingMessage, res: ServerResponse, url:
   fs.createReadStream(filePath).pipe(res);
 }
 
-async function handleReadProxy(req: IncomingMessage, res: ServerResponse, proxyUrl: string): Promise<void> {
+async function handleReadProxy(
+  req: IncomingMessage,
+  res: ServerResponse,
+  proxyUrl: string,
+): Promise<void> {
   const proxyMethod = (req.headers['x-proxy-method'] as string) || 'GET';
   const proxyHeadersRaw = req.headers['x-proxy-headers'] as string | undefined;
   const proxyCookie = req.headers['x-proxy-cookie'] as string | undefined;
@@ -370,7 +416,11 @@ async function handleReadProxy(req: IncomingMessage, res: ServerResponse, proxyU
 }
 
 // ── thumbnail ──
-export async function handleThumbnail(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+export async function handleThumbnail(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<void> {
   const sourceUrl = url.searchParams.get('url');
   if (!sourceUrl) {
     return sendError(res, 'Missing url parameter', 400);
@@ -399,12 +449,14 @@ export async function handleThumbnail(req: IncomingMessage, res: ServerResponse,
 
   // 目标扩展名：仅接受白名单内 format（否则沿用源扩展名），杜绝假 webp/未知编码。
   const srcExt = path.extname(filePath).toLowerCase().replace(/^\./, '') || 'png';
-  const outExt = SUPPORTED_THUMB_FORMATS.has(formatParam.toLowerCase()) ? formatParam.toLowerCase() : srcExt;
+  const outExt = SUPPORTED_THUMB_FORMATS.has(formatParam.toLowerCase())
+    ? formatParam.toLowerCase()
+    : srcExt;
 
   // 缩略图缓存路径：复用 ensureThumbnailTarget 解析的缩略图目录，文件名显式含后缀与扩展名，
   // 使同源同 maxDim/quality/format 只渲染一次（幂等缓存，与 tryGenerateThumbnail 共用缓存目录）。
   const { thumbDir } = ensureThumbnailTarget(filePath, `${maxDim}x${quality}_`);
-  const stemName = (path.basename(filePath).replace(/\.[a-z0-9]+$/i, '')) || `thumb_${Date.now()}`;
+  const stemName = path.basename(filePath).replace(/\.[a-z0-9]+$/i, '') || `thumb_${Date.now()}`;
   const thumbName = `thumb_${maxDim}x${quality}_${outExt}_${stemName}.${outExt}`;
   const thumbPath = path.join(thumbDir, thumbName);
 
@@ -420,8 +472,13 @@ export async function handleThumbnail(req: IncomingMessage, res: ServerResponse,
     return sendError(res, 'Thumbnail not found', 404);
   }
   const mimeMap: Record<string, string> = {
-    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-    gif: 'image/gif', bmp: 'image/bmp', tiff: 'image/tiff', webp: 'image/webp',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    bmp: 'image/bmp',
+    tiff: 'image/tiff',
+    webp: 'image/webp',
   };
   const stat = fs.statSync(thumbPath);
   res.writeHead(200, {
@@ -474,7 +531,11 @@ export async function handleMove(req: IncomingMessage, res: ServerResponse): Pro
 }
 
 // ── open ──
-export async function handleOpen(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+export async function handleOpen(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<void> {
   const subfolder = normalizeSubfolder(url.searchParams.get('subfolder')) ?? 'canvas';
   const uploadDir = getUploadDir();
   const dirPath = path.join(uploadDir, subfolder);
@@ -492,7 +553,11 @@ export async function handleOpen(req: IncomingMessage, res: ServerResponse, url:
 }
 
 // ── open-dir ──
-export async function handleOpenDir(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+export async function handleOpenDir(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<void> {
   const filepath = url.searchParams.get('filepath');
   if (!filepath) {
     return sendError(res, 'Missing filepath parameter', 400);
@@ -520,10 +585,16 @@ export async function handleOpenDir(req: IncomingMessage, res: ServerResponse, u
 }
 
 // ── list ──
-export async function handleList(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+export async function handleList(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<void> {
   const subfolder = url.searchParams.get('subfolder') || '';
   const uploadDir = getUploadDir();
-  const targetDir = subfolder ? path.join(uploadDir, normalizeSubfolder(subfolder) ?? '') : uploadDir;
+  const targetDir = subfolder
+    ? path.join(uploadDir, normalizeSubfolder(subfolder) ?? '')
+    : uploadDir;
 
   if (!fs.existsSync(targetDir)) {
     return json(res, { code: 0, data: { files: [], folders: [] } });

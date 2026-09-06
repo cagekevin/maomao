@@ -18,10 +18,18 @@ const PROJECT = process.argv[2]
 const DIST = path.join(PROJECT, 'dist');
 
 const problems = [];
-function expect(cond, msg) { if (!cond) { problems.push(msg); console.log('❌ ' + msg); } else console.log('✅ ' + msg); }
+function expect(cond, msg) {
+  if (!cond) {
+    problems.push(msg);
+    console.log('❌ ' + msg);
+  } else console.log('✅ ' + msg);
+}
 
 console.log('════════ 构建静态质量门 ════════');
-if (!fs.existsSync(PROJECT)) { console.error('工程不存在:', PROJECT); process.exit(2); }
+if (!fs.existsSync(PROJECT)) {
+  console.error('工程不存在:', PROJECT);
+  process.exit(2);
+}
 
 // 1) dist 存在
 expect(fs.existsSync(DIST), 'dist/ 已生成');
@@ -30,8 +38,12 @@ expect(fs.existsSync(DIST), 'dist/ 已生成');
 const manifestPath = path.join(DIST, 'manifest.json');
 let manifest = null;
 if (fs.existsSync(manifestPath)) {
-  try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); expect(true, 'manifest.json 可解析'); }
-  catch (e) { expect(false, 'manifest.json 解析失败: ' + e.message); }
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    expect(true, 'manifest.json 可解析');
+  } catch (e) {
+    expect(false, 'manifest.json 解析失败: ' + e.message);
+  }
   if (manifest) {
     expect(manifest.manifest_version === 3, 'manifest_version === 3');
     expect(!!manifest.action || !!manifest.background, '含 action 或 background 入口');
@@ -42,8 +54,15 @@ if (fs.existsSync(manifestPath)) {
 //     manifest 的 icons / action.default_icon 可能写成字符串或 {size: path} 对象
 function collectIconRefs(manifest) {
   const refs = new Set();
-  const add = (v) => { if (typeof v === 'string') refs.add(v); else if (v && typeof v === 'object') Object.values(v).forEach((p) => typeof p === 'string' && refs.add(p)); };
-  if (manifest) { add(manifest.icons); add(manifest.action && manifest.action.default_icon); }
+  const add = (v) => {
+    if (typeof v === 'string') refs.add(v);
+    else if (v && typeof v === 'object')
+      Object.values(v).forEach((p) => typeof p === 'string' && refs.add(p));
+  };
+  if (manifest) {
+    add(manifest.icons);
+    add(manifest.action && manifest.action.default_icon);
+  }
   return [...refs];
 }
 if (manifest) {
@@ -63,7 +82,9 @@ const EXPECTED_CSS = (() => {
   try {
     const css = fs.readdirSync(pub).filter((f) => f.endsWith('.css'));
     if (css.length > 0) return css;
-  } catch (_) { /* public 缺失则回退写死清单 */ }
+  } catch (_) {
+    /* public 缺失则回退写死清单 */
+  }
   return ['src-DoQUrSOl.css', 'vendor-Qkhkn02K.css'];
 })();
 for (const html of ['index.html', path.join('share', 'index.html')]) {
@@ -73,7 +94,9 @@ for (const html of ['index.html', path.join('share', 'index.html')]) {
     const t = fs.readFileSync(p, 'utf8');
     expect(/<script[^>]+src=/.test(t), `dist/${html} 含 <script src>`);
     // 样式引用完整性：HTML 必须含真实样式 link，且被引用的 css 文件非空
-    const cssLinks = [...t.matchAll(/<link[^>]+rel=["']stylesheet["'][^>]*href=["']([^"']+)["']/g)].map((m) => m[1]);
+    const cssLinks = [
+      ...t.matchAll(/<link[^>]+rel=["']stylesheet["'][^>]*href=["']([^"']+)["']/g),
+    ].map((m) => m[1]);
     expect(cssLinks.length > 0, `dist/${html} 含 <link rel=stylesheet>`);
     for (const href of cssLinks) {
       // 按 HTML 所在目录解析相对路径（支持 ./assets/ 与 ../assets/）
@@ -116,6 +139,9 @@ if (fs.existsSync(assetsDir)) {
 if (problems.length) console.log('❌ 发现悬空引用相关项见上');
 
 console.log('\n════════ 结果 ════════');
-if (problems.length) { console.log(`不通过（${problems.length} 项）`); process.exit(1); }
+if (problems.length) {
+  console.log(`不通过（${problems.length} 项）`);
+  process.exit(1);
+}
 console.log('通过 ✅ 可进入真机验收。');
 process.exit(0);

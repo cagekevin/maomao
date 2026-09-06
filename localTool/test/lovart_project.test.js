@@ -22,8 +22,13 @@ const toUrl = (p) => 'file:///' + p.split(path.sep).join('/');
 
 const mod = await import(toUrl(path.join(src, 'ai-relay/providers/lovart/lovart_project.ts')));
 
-const tmp = () => path.join(os.tmpdir(), `lovart_proj_${Date.now()}_${Math.random().toString(16).slice(2)}.json`);
-const depsOf = (ak, cacheFile) => ({ auth: { type: 'hmac', accessKey: ak, secretKey: 'sk' }, baseUrl: 'https://fake', projectCacheFile: cacheFile });
+const tmp = () =>
+  path.join(os.tmpdir(), `lovart_proj_${Date.now()}_${Math.random().toString(16).slice(2)}.json`);
+const depsOf = (ak, cacheFile) => ({
+  auth: { type: 'hmac', accessKey: ak, secretKey: 'sk' },
+  baseUrl: 'https://fake',
+  projectCacheFile: cacheFile,
+});
 
 /** 用唯一临时文件 + 唯一 AK 隔离，避免模块级单例/跨测试污染。 */
 function freshDeps(ak) {
@@ -40,7 +45,12 @@ function makeStateTransport({ createProjectIds = ['proj-1'] } = {}) {
     if (opts.path === '/v1/openapi/project/save') {
       const pid = createProjectIds[Math.min(createCount, createProjectIds.length - 1)];
       createCount += 1;
-      return { response: new Response(JSON.stringify({ code: 0, data: { project_id: pid } }), { status: 200 }), resolvedBaseUrl: 'x' };
+      return {
+        response: new Response(JSON.stringify({ code: 0, data: { project_id: pid } }), {
+          status: 200,
+        }),
+        resolvedBaseUrl: 'x',
+      };
     }
     if (opts.path === '/v1/openapi/project/validate') {
       // main.py 没有该端点：若仍被调用即视为对齐失败
@@ -50,17 +60,31 @@ function makeStateTransport({ createProjectIds = ['proj-1'] } = {}) {
       if (sendError) {
         const msg = sendError;
         sendError = null; // 只失败一次，便于验证「重试一次」后成功
-        return { response: new Response(JSON.stringify({ code: 404, message: msg }), { status: 200 }), resolvedBaseUrl: 'x' };
+        return {
+          response: new Response(JSON.stringify({ code: 404, message: msg }), { status: 200 }),
+          resolvedBaseUrl: 'x',
+        };
       }
-      return { response: new Response(JSON.stringify({ code: 0, data: { thread_id: 't-' + createCount } }), { status: 200 }), resolvedBaseUrl: 'x' };
+      return {
+        response: new Response(
+          JSON.stringify({ code: 0, data: { thread_id: 't-' + createCount } }),
+          { status: 200 },
+        ),
+        resolvedBaseUrl: 'x',
+      };
     }
-    return { response: new Response(JSON.stringify({ code: 0, data: {} }), { status: 200 }), resolvedBaseUrl: 'x' };
+    return {
+      response: new Response(JSON.stringify({ code: 0, data: {} }), { status: 200 }),
+      resolvedBaseUrl: 'x',
+    };
   };
   return {
     transport,
     calls,
     getCreateCount: () => createCount,
-    setSendError: (msg) => { sendError = msg; },
+    setSendError: (msg) => {
+      sendError = msg;
+    },
   };
 }
 
@@ -74,7 +98,10 @@ test('单例：同 accessKey 连续两次 ensure 只 create 一次，且命中�
   assert.equal(first, 'proj-1');
   assert.equal(second, 'proj-1');
   assert.equal(s.getCreateCount(), 1, '同 accessKey 只建 1 次');
-  assert.ok(!s.calls.some((c) => c.path.includes('validate')), 'ensure 命中不做 /project/validate 往返（对齐 main.py）');
+  assert.ok(
+    !s.calls.some((c) => c.path.includes('validate')),
+    'ensure 命中不做 /project/validate 往返（对齐 main.py）',
+  );
 });
 
 test('持久化：ensure 后写回缓存文件，新进程加载可复用不重建', async () => {
@@ -97,7 +124,10 @@ test('失效自愈（send 时）：project not found → clear → 重建新 pro
   const s = makeStateTransport({ createProjectIds: ['proj-invalid-1', 'proj-rebuilt-2'] });
   s.setSendError('project not found');
 
-  const r = await mod.sendLovartChatWithProject({ ...deps, transport: s.transport }, { prompt: 'a cat' });
+  const r = await mod.sendLovartChatWithProject(
+    { ...deps, transport: s.transport },
+    { prompt: 'a cat' },
+  );
   // 首次 send 因 project 失效失败 → 重建（第二次 create 返回 proj-rebuilt-2）→ 用新 project 重试成功
   assert.equal(s.getCreateCount(), 2, '失效后应重建一次（共 2 次 create）');
   assert.equal(r.projectId, 'proj-rebuilt-2', '重试使用重建后的新 project');

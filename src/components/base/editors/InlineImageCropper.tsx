@@ -1,9 +1,9 @@
-import React, { useState, useRef, useCallback } from 'react'
-import ReactCrop from 'react-image-crop'
-import 'react-image-crop/dist/ReactCrop.css'
-import { toastError } from '../core/toastStore.ts'
-import { loadImageWithTimeout } from '../utils/asyncGuard.ts'
-import { compressImage } from '../utils/imageCompress.ts'
+import React, { useState, useRef, useCallback } from 'react';
+import ReactCrop from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
+import { toastError } from '../core/toastStore.ts';
+import { loadImageWithTimeout } from '../utils/asyncGuard.ts';
+import { compressImage } from '../utils/imageCompress.ts';
 
 /**
  * 就地裁剪浮层（极简，只做裁剪）。
@@ -39,11 +39,11 @@ import { compressImage } from '../utils/imageCompress.ts'
 /** 就地裁剪浮层 Props。 */
 interface InlineImageCropperProps {
   /** 要裁剪的图片 URL */
-  imageUrl: string
+  imageUrl: string;
   /** 保存回调，入参 { dataUrl } */
-  onSave?: (payload: { dataUrl: string }) => void
+  onSave?: (payload: { dataUrl: string }) => void;
   /** 关闭回调 */
-  onClose?: () => void
+  onClose?: () => void;
 }
 
 /**
@@ -62,94 +62,104 @@ interface InlineImageCropperProps {
  * @returns {{sx:number,sy:number,sw:number,sh:number} | null}
  */
 export function cropRectFromSelection({ sel, renderW, renderH, natW, natH }) {
-  if (!sel || !sel.width || !sel.height) return null
-  let sx, sy, sw, sh
+  if (!sel || !sel.width || !sel.height) return null;
+  let sx, sy, sw, sh;
   if (sel.unit === '%') {
-    sx = Math.max(0, Math.round((sel.x / 100) * natW))
-    sy = Math.max(0, Math.round((sel.y / 100) * natH))
-    sw = Math.max(1, Math.min(natW - sx, Math.round((sel.width / 100) * natW)))
-    sh = Math.max(1, Math.min(natH - sy, Math.round((sel.height / 100) * natH)))
+    sx = Math.max(0, Math.round((sel.x / 100) * natW));
+    sy = Math.max(0, Math.round((sel.y / 100) * natH));
+    sw = Math.max(1, Math.min(natW - sx, Math.round((sel.width / 100) * natW)));
+    sh = Math.max(1, Math.min(natH - sy, Math.round((sel.height / 100) * natH)));
   } else {
-    const iw = renderW || natW || 1
-    const ih = renderH || natH || 1
-    const scaleX = natW / iw
-    const scaleY = natH / ih
-    sx = Math.max(0, Math.round(sel.x * scaleX))
-    sy = Math.max(0, Math.round(sel.y * scaleY))
-    sw = Math.max(1, Math.min(natW - sx, Math.round(sel.width * scaleX)))
-    sh = Math.max(1, Math.min(natH - sy, Math.round(sel.height * scaleY)))
+    const iw = renderW || natW || 1;
+    const ih = renderH || natH || 1;
+    const scaleX = natW / iw;
+    const scaleY = natH / ih;
+    sx = Math.max(0, Math.round(sel.x * scaleX));
+    sy = Math.max(0, Math.round(sel.y * scaleY));
+    sw = Math.max(1, Math.min(natW - sx, Math.round(sel.width * scaleX)));
+    sh = Math.max(1, Math.min(natH - sy, Math.round(sel.height * scaleY)));
   }
-  return { sx, sy, sw, sh }
+  return { sx, sy, sw, sh };
 }
 
 export default function InlineImageCropper({ imageUrl, onSave, onClose }: InlineImageCropperProps) {
-  const imgRef = useRef(null)
-  const [crop, setCrop] = useState(undefined)
+  const imgRef = useRef(null);
+  const [crop, setCrop] = useState(undefined);
   // 百分比选区：保存用它（相对图片本身，布局无关，最稳）；onChange 第二个参数即 PercentCrop
-  const [percentCrop, setPercentCrop] = useState(undefined)
+  const [percentCrop, setPercentCrop] = useState(undefined);
 
   // 图片加载 → 默认整图选区（100%），即初始尺寸 = 图片尺寸
   const onImageLoad = useCallback((e) => {
-    imgRef.current = e.currentTarget
-    const full = { unit: '%', x: 0, y: 0, width: 100, height: 100 }
-    setCrop(full)
-    setPercentCrop(full)
-  }, [])
+    imgRef.current = e.currentTarget;
+    const full = { unit: '%', x: 0, y: 0, width: 100, height: 100 };
+    setCrop(full);
+    setPercentCrop(full);
+  }, []);
 
   // 确认裁剪：把选区换算成原图像素 → 用干净绘制源 canvas 裁切 → 回传 dataURL。
   // 绘制源统一走 compressImage（keepOriginalFormat）拿「原尺寸 + 同源 dataURL + 原图格式」，
   // 不手动 new Image / 不回退渲染 <img>，从根上避免跨域污染与绘制源不一致。
   const handleSave = useCallback(async () => {
-    if (!percentCrop || !percentCrop.width || !percentCrop.height) { onClose?.(); return }
+    if (!percentCrop || !percentCrop.width || !percentCrop.height) {
+      onClose?.();
+      return;
+    }
     try {
       // 1) 干净原图 + 原图格式（compressImage 内部已补 /files/ 相对路径、带超时、
       //    keepOriginalFormat 推断 MIME：透明图回退 PNG、JPEG 白底填充、跨域抛明确错误）
-      const clean = await compressImage(imageUrl, { keepOriginalFormat: true })
+      const clean = await compressImage(imageUrl, { keepOriginalFormat: true });
       // 2) 同源 dataURL 再加载成绘制源（100% 干净，canvas 永不污染）
-      const drawImg = await loadImageWithTimeout(clean.dataUrl)
+      const drawImg = await loadImageWithTimeout(clean.dataUrl);
       // 2.5) ReactCrop 的 % 相对「img 元素盒子」（=容器）。img 用 object-contain 撑满容器，
       //      盒子含四周留白（letterbox），% 不是相对可见图 → 需先换算到可见图内容框。
       //      用渲染 <img>（imgRef.current，盒子=容器）的自然/客户尺寸算 contain 内容框偏移。
-      const renderImg = imgRef.current
-      const boxW = renderImg?.clientWidth || drawImg.naturalWidth
-      const boxH = renderImg?.clientHeight || drawImg.naturalHeight
-      const natW = drawImg.naturalWidth
-      const natH = drawImg.naturalHeight
-      const containScale = Math.min(boxW / natW, boxH / natH)
-      const contentW = natW * containScale
-      const contentH = natH * containScale
-      const offsetX = (boxW - contentW) / 2   // 左右留白宽
-      const offsetY = (boxH - contentH) / 2   // 上下留白高
+      const renderImg = imgRef.current;
+      const boxW = renderImg?.clientWidth || drawImg.naturalWidth;
+      const boxH = renderImg?.clientHeight || drawImg.naturalHeight;
+      const natW = drawImg.naturalWidth;
+      const natH = drawImg.naturalHeight;
+      const containScale = Math.min(boxW / natW, boxH / natH);
+      const contentW = natW * containScale;
+      const contentH = natH * containScale;
+      const offsetX = (boxW - contentW) / 2; // 左右留白宽
+      const offsetY = (boxH - contentH) / 2; // 上下留白高
       // %（相对盒子）→ 内容框内像素（相对可见图）→ 再映射到自然像素
-      const toNat = (pct, box, content, offset, nat) => Math.round((pct / 100 * box - offset) / content * nat)
+      const toNat = (pct, box, content, offset, nat) =>
+        Math.round((((pct / 100) * box - offset) / content) * nat);
       const rect = {
         sx: toNat(percentCrop.x, boxW, contentW, offsetX, natW),
         sy: toNat(percentCrop.y, boxH, contentH, offsetY, natH),
         sw: toNat(percentCrop.width, boxW, contentW, offsetX, natW),
         sh: toNat(percentCrop.height, boxH, contentH, offsetY, natH),
-      }
+      };
       // 收敛到自然像素边界，杜绝越界/负值
-      rect.sx = Math.max(0, rect.sx)
-      rect.sy = Math.max(0, rect.sy)
-      rect.sw = Math.max(1, Math.min(natW - rect.sx, rect.sw))
-      rect.sh = Math.max(1, Math.min(natH - rect.sy, rect.sh))
-      if (!rect.sw || !rect.sh) { onClose?.(); return }
-      const { sx, sy, sw, sh } = rect
+      rect.sx = Math.max(0, rect.sx);
+      rect.sy = Math.max(0, rect.sy);
+      rect.sw = Math.max(1, Math.min(natW - rect.sx, rect.sw));
+      rect.sh = Math.max(1, Math.min(natH - rect.sy, rect.sh));
+      if (!rect.sw || !rect.sh) {
+        onClose?.();
+        return;
+      }
+      const { sx, sy, sw, sh } = rect;
       // 3) 按选区裁切；输出格式跟随原图（从 dataURL header 推断），透明图不转 JPEG 变黑底
-      const canvas = document.createElement('canvas')
-      canvas.width = sw
-      canvas.height = sh
-      const ctx = canvas.getContext('2d')
-      if (!ctx) { toastError('裁剪失败：无法创建画布'); return }
-      ctx.drawImage(drawImg, sx, sy, sw, sh, 0, 0, sw, sh)
-      const m = /^data:([^;,]+)/.exec(clean.dataUrl)
-      const outFormat = m && m[1] === 'image/jpeg' ? 'image/jpeg' : 'image/png'
-      onSave?.({ dataUrl: canvas.toDataURL(outFormat, 0.9) })
-      onClose?.()
+      const canvas = document.createElement('canvas');
+      canvas.width = sw;
+      canvas.height = sh;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        toastError('裁剪失败：无法创建画布');
+        return;
+      }
+      ctx.drawImage(drawImg, sx, sy, sw, sh, 0, 0, sw, sh);
+      const m = /^data:([^;,]+)/.exec(clean.dataUrl);
+      const outFormat = m && m[1] === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+      onSave?.({ dataUrl: canvas.toDataURL(outFormat, 0.9) });
+      onClose?.();
     } catch (e) {
-      toastError(`裁剪保存失败：${e?.message || '图片加载失败'}`)
+      toastError(`裁剪保存失败：${e?.message || '图片加载失败'}`);
     }
-  }, [imageUrl, percentCrop, onSave, onClose])
+  }, [imageUrl, percentCrop, onSave, onClose]);
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col bg-black/70 nodrag">
@@ -159,7 +169,10 @@ export default function InlineImageCropper({ imageUrl, onSave, onClose }: Inline
       <div className="flex-1 relative overflow-hidden">
         <ReactCrop
           crop={crop}
-          onChange={(_, pc) => { setCrop(pc); setPercentCrop(pc) }}
+          onChange={(_, pc) => {
+            setCrop(pc);
+            setPercentCrop(pc);
+          }}
           className="w-full h-full"
           style={{ width: '100%', height: '100%', display: 'block' }}
         >
@@ -191,5 +204,5 @@ export default function InlineImageCropper({ imageUrl, onSave, onClose }: Inline
         </button>
       </div>
     </div>
-  )
+  );
 }

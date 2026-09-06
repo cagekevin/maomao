@@ -21,17 +21,17 @@ import type {
   GenerateAudioOptions,
   ModelProtocolProfile,
 } from './types.js';
-import {
-  executeModelProtocol,
-  resolveModelExecutionProfile,
-} from './protocol/engine.js';
+import { executeModelProtocol, resolveModelExecutionProfile } from './protocol/engine.js';
 import { getModelProtocolPreset } from './protocol/presets.js';
 
 function chatUrl(baseUrl: string | undefined): string {
   return `${(baseUrl || '').replace(/\/+$/, '')}/chat/completions`;
 }
 
-function bearerHeaders(apiKey: string | undefined, extra: Record<string, string> = {}): Record<string, string> {
+function bearerHeaders(
+  apiKey: string | undefined,
+  extra: Record<string, string> = {},
+): Record<string, string> {
   return {
     'Content-Type': 'application/json',
     ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
@@ -40,23 +40,40 @@ function bearerHeaders(apiKey: string | undefined, extra: Record<string, string>
 }
 
 /** OpenAI 兼容文本生成（非流式），返回完整文本。 */
-export async function chat({ apiKey, baseUrl, model, messages, signal, tools, toolChoice, timeoutMs }: ChatOptions): Promise<string> {
-  const response = await corsSafeFetch(chatUrl(baseUrl), {
-    method: 'POST',
-    headers: bearerHeaders(apiKey),
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: false,
-      ...(tools ? { tools } : {}),
-      ...(toolChoice ? { tool_choice: toolChoice } : {}),
-    }),
-    signal,
-  }, { timeoutMs });
+export async function chat({
+  apiKey,
+  baseUrl,
+  model,
+  messages,
+  signal,
+  tools,
+  toolChoice,
+  timeoutMs,
+}: ChatOptions): Promise<string> {
+  const response = await corsSafeFetch(
+    chatUrl(baseUrl),
+    {
+      method: 'POST',
+      headers: bearerHeaders(apiKey),
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: false,
+        ...(tools ? { tools } : {}),
+        ...(toolChoice ? { tool_choice: toolChoice } : {}),
+      }),
+      signal,
+    },
+    { timeoutMs },
+  );
   if (!response.ok) {
     const text = await response.text().catch(() => '');
     let msg = `API 请求失败 (${response.status})`;
-    try { msg = JSON.parse(text)?.error?.message || msg; } catch { if (text) msg += `: ${text.slice(0, 200)}`; }
+    try {
+      msg = JSON.parse(text)?.error?.message || msg;
+    } catch {
+      if (text) msg += `: ${text.slice(0, 200)}`;
+    }
     throw new Error(msg);
   }
   const json = await response.json();
@@ -71,23 +88,40 @@ export async function chat({ apiKey, baseUrl, model, messages, signal, tools, to
  * 一次返回完整 tool_calls，是画布 Agent 唯一可用的工具出站。relay chat 按 provider 分流：
  * 带 tools → 走本函数；普通文本 → 走 executeModelProtocol(LOVART preset)。非流式，打字机留后补。
  */
-export async function chatWithTools({ apiKey, baseUrl, model, messages, signal, tools, toolChoice, timeoutMs }: ChatOptions): Promise<ChatWithToolsResult> {
-  const response = await corsSafeFetch(chatUrl(baseUrl), {
-    method: 'POST',
-    headers: bearerHeaders(apiKey),
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: false,
-      ...(tools ? { tools } : {}),
-      ...(toolChoice ? { tool_choice: toolChoice } : {}),
-    }),
-    signal,
-  }, { timeoutMs });
+export async function chatWithTools({
+  apiKey,
+  baseUrl,
+  model,
+  messages,
+  signal,
+  tools,
+  toolChoice,
+  timeoutMs,
+}: ChatOptions): Promise<ChatWithToolsResult> {
+  const response = await corsSafeFetch(
+    chatUrl(baseUrl),
+    {
+      method: 'POST',
+      headers: bearerHeaders(apiKey),
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: false,
+        ...(tools ? { tools } : {}),
+        ...(toolChoice ? { tool_choice: toolChoice } : {}),
+      }),
+      signal,
+    },
+    { timeoutMs },
+  );
   if (!response.ok) {
     const text = await response.text().catch(() => '');
     let msg = `API 请求失败 (${response.status})`;
-    try { msg = JSON.parse(text)?.error?.message || msg; } catch { if (text) msg += `: ${text.slice(0, 200)}`; }
+    try {
+      msg = JSON.parse(text)?.error?.message || msg;
+    } catch {
+      if (text) msg += `: ${text.slice(0, 200)}`;
+    }
     throw new Error(msg);
   }
   const json = await response.json();
@@ -100,19 +134,41 @@ export async function chatWithTools({ apiKey, baseUrl, model, messages, signal, 
 }
 
 /** 流式文本生成：逐 token 通过 onEvent 回调，返回拼接后的完整文本。 */
-export async function streamChat({ apiKey, baseUrl, model, messages, signal, onEvent, timeoutMs }: StreamChatOptions): Promise<string> {
-  const response = await corsSafeFetch(chatUrl(baseUrl), {
-    method: 'POST',
-    headers: bearerHeaders(apiKey),
-    body: JSON.stringify({ model, messages, stream: true }),
-    signal,
-  }, { timeoutMs });
+export async function streamChat({
+  apiKey,
+  baseUrl,
+  model,
+  messages,
+  signal,
+  onEvent,
+  timeoutMs,
+}: StreamChatOptions): Promise<string> {
+  const response = await corsSafeFetch(
+    chatUrl(baseUrl),
+    {
+      method: 'POST',
+      headers: bearerHeaders(apiKey),
+      body: JSON.stringify({ model, messages, stream: true }),
+      signal,
+    },
+    { timeoutMs },
+  );
   return parseStream(response, { requestId: '', modelId: model, onEvent, signal });
 }
 
 /** 图片生成。protocol 省略时走 OpenAI 兼容 /images/generations 预设。 */
 export async function generateImage({
-  apiKey, baseUrl, model, prompt, size, width, height, imageUrls, n = 1, protocol, signal,
+  apiKey,
+  baseUrl,
+  model,
+  prompt,
+  size,
+  width,
+  height,
+  imageUrls,
+  n = 1,
+  protocol,
+  signal,
 }: GenerateImageOptions): Promise<string[]> {
   const profile: ModelProtocolProfile = protocol
     ? { preset: 'custom', protocol }
@@ -141,10 +197,17 @@ export async function generateImage({
 
 /** 视频生成（异步任务）。视频接口无跨厂商标准端点，必须提供 protocol（自定义协议）。 */
 export async function generateVideo({
-  apiKey, baseUrl, model, variables, protocol, signal,
+  apiKey,
+  baseUrl,
+  model,
+  variables,
+  protocol,
+  signal,
 }: GenerateVideoOptions): Promise<{ url: string }> {
   if (!protocol) {
-    throw new Error('视频生成必须提供自定义调用协议（protocol），系统不会猜测 /videos/generations 等端点');
+    throw new Error(
+      '视频生成必须提供自定义调用协议（protocol），系统不会猜测 /videos/generations 等端点',
+    );
   }
   const resolved = resolveModelExecutionProfile({ preset: 'custom', protocol });
   if (!resolved) throw new Error('视频协议解析失败');
@@ -162,7 +225,12 @@ export async function generateVideo({
 
 /** 音频生成（异步任务）。必须提供 protocol（自定义协议）。 */
 export async function generateAudio({
-  apiKey, baseUrl, model, variables, protocol, signal,
+  apiKey,
+  baseUrl,
+  model,
+  variables,
+  protocol,
+  signal,
 }: GenerateAudioOptions): Promise<{ url: string }> {
   if (!protocol) {
     throw new Error('音频生成必须提供自定义调用协议（protocol）');

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo } from 'react'
-import { useReactFlow } from '@xyflow/react'
-import type { Node } from '@xyflow/react'
-import { debounce } from '../components/base/core/utils.ts'
-import { NODE_PATCH_DEBOUNCE_MS } from '../components/base/core/config.ts'
+import { useCallback, useEffect, useMemo } from 'react';
+import { useReactFlow } from '@xyflow/react';
+import type { Node } from '@xyflow/react';
+import { debounce } from '../components/base/core/utils.ts';
+import { NODE_PATCH_DEBOUNCE_MS } from '../components/base/core/config.ts';
 
 /**
  * 节点 data 不可变写回纯函数（节点写回唯一入口，useNodeData.patchData 与宿主通用写回共用）。
@@ -15,18 +15,18 @@ export function patchNodeDataById(
   id: string,
   patch: Record<string, unknown>,
 ): void {
-  if (!setNodes || !id || !patch) return
-  setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
+  if (!setNodes || !id || !patch) return;
+  setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
 }
 
 /** patch 载荷（节点 data 局部字段合并对象） */
-type Patch = Record<string, unknown>
+type Patch = Record<string, unknown>;
 /** useNodeData.patchDebounced 返回形态（utils.debounce 的结构化子集，仅本模块用，就地定义） */
 type PatchDebouncedFn = {
-  (patch: Patch): void
-  cancel(): void
-  flush(): void
-}
+  (patch: Patch): void;
+  cancel(): void;
+  flush(): void;
+};
 
 /**
  * 节点 data 统一写回 hook（P0-2 收口）。
@@ -50,15 +50,15 @@ type PatchDebouncedFn = {
  *  - 纯逻辑不写 UI，可覆盖单测（patchData 不可变更新 / patchDebounced 防抖 + flush）。
  */
 export function useNodeData(id: string): {
-  patchData: (patch: Patch) => void
-  patchDebounced: PatchDebouncedFn
+  patchData: (patch: Patch) => void;
+  patchDebounced: PatchDebouncedFn;
 } {
-  const { setNodes } = useReactFlow()
+  const { setNodes } = useReactFlow();
   const patchData = useCallback<(patch: Patch) => void>(
     (patch) => patchNodeDataById(setNodes, id, patch),
-    [id, setNodes]
-  )
-  const patchDebounced = useMemo(() => debounce(patchData, NODE_PATCH_DEBOUNCE_MS), [patchData])
-  useEffect(() => () => patchDebounced.flush(), [patchDebounced])
-  return { patchData, patchDebounced }
+    [id, setNodes],
+  );
+  const patchDebounced = useMemo(() => debounce(patchData, NODE_PATCH_DEBOUNCE_MS), [patchData]);
+  useEffect(() => () => patchDebounced.flush(), [patchDebounced]);
+  return { patchData, patchDebounced };
 }

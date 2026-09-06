@@ -23,13 +23,13 @@
  *    例如 kvSet: vi.fn(async (k,v) => { kv.memKV.set(k,v); return { ok:true } })。
  *    共享桩对象用顶层 const kv = createKvMem() 声明即可（工厂懒执行时已初始化）。
  */
-import { vi } from 'vitest'
+import { vi } from 'vitest';
 
 /** JSON 假响应：同时暴露 ok/status、json() 与 text()，避免意外触达真实网络路径。
  *  部分调用方走 res.json()（imageApi/chatApi），部分走 res.text()+JSON.parse（cloudSync callGateway），
  *  两者语义等价（text 即 json 的序列化），故一个工厂通用。 */
 export function jsonResp(obj, ok = true, status = 200) {
-  return { ok, status, json: async () => obj, text: async () => JSON.stringify(obj) }
+  return { ok, status, json: async () => obj, text: async () => JSON.stringify(obj) };
 }
 
 /**
@@ -37,29 +37,29 @@ export function jsonResp(obj, ok = true, status = 200) {
  * （fetch mock 需返回带 body.getReader().read() 的响应）。
  */
 export function sseResp(lines) {
-  let i = 0
-  const chunks = lines.map((l) => new TextEncoder().encode(l + '\n'))
+  let i = 0;
+  const chunks = lines.map((l) => new TextEncoder().encode(l + '\n'));
   return {
     ok: true,
     body: {
       getReader() {
         return {
           async read() {
-            if (i < chunks.length) return { done: false, value: chunks[i++] }
-            return { done: true, value: undefined }
+            if (i < chunks.length) return { done: false, value: chunks[i++] };
+            return { done: true, value: undefined };
           },
           releaseLock() {},
-        }
+        };
       },
     },
-  }
+  };
 }
 
 /** 等微任务/事件循环落定：同步触发异步操作（initProjects/initStorage/set → 链上 .then/fetch）
  *  后，用一次 setTimeout(0) 让这些回调全部跑完再断言。此前多处重复 `await new Promise((r)=>setTimeout(r,0))`，
  *  语义不显、写法散落，故抽成具名 helper。 */
 export function flushAsync() {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 /**
@@ -77,7 +77,9 @@ export function flushAsync() {
 export function fastPollTimers() {
   // 放行返回值差异：setTimeout 契约是返回 Timeout 句柄，这里刻意返回 Promise（把轮询间隔变成
   // 立即微任务）。测试要的是「回调被调度」，无人断言句柄；收紧成 Timeout 反而要伪造句柄对象。
-  return vi.spyOn(global, 'setTimeout').mockImplementation(/** @type {any} */ ((fn) => Promise.resolve().then(fn)))
+  return vi
+    .spyOn(global, 'setTimeout')
+    .mockImplementation(/** @type {any} */ ((fn) => Promise.resolve().then(fn)));
 }
 
 /**
@@ -87,11 +89,17 @@ export function fastPollTimers() {
  * 走真实 KV 读写路径，避免「缺 kvGet→写读都降级到本地副本」的误导链。
  */
 export function createKvMem() {
-  const memKV = new Map()
+  const memKV = new Map();
   return {
     memKV,
     kvGet: async (key) => (memKV.has(key) ? memKV.get(key) : null),
-    kvSet: async (key, value) => { memKV.set(key, value); return { ok: true } },
-    kvDelete: async (key) => { memKV.delete(key); return { ok: true } },
-  }
+    kvSet: async (key, value) => {
+      memKV.set(key, value);
+      return { ok: true };
+    },
+    kvDelete: async (key) => {
+      memKV.delete(key);
+      return { ok: true };
+    },
+  };
 }

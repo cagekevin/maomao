@@ -58,10 +58,13 @@ function broadcastLog(line: string, level: string): void {
   const order: Record<string, number> = { debug: 0, info: 1, log: 1, warn: 2, error: 3 };
   if ((order[level] ?? 1) < broadcastMinLevel()) return; // 低于阈值：不推前端（仅落盘 + 服务端终端）
   for (const res of _sseClients) {
-    try { res.write(`data: ${line}\n\n`); } catch { /* 单客户端写入失败忽略，不影响其他 */ }
+    try {
+      res.write(`data: ${line}\n\n`);
+    } catch {
+      /* 单客户端写入失败忽略，不影响其他 */
+    }
   }
 }
-
 
 let _stream: fs.WriteStream | null = null;
 let _currentDate = '';
@@ -84,10 +87,18 @@ function ensureStream(): fs.WriteStream {
   if (_stream && _currentDate === today) return _stream;
   // 关闭旧流（若跨天）
   if (_stream) {
-    try { _stream.end(); } catch { /* ignore */ }
+    try {
+      _stream.end();
+    } catch {
+      /* ignore */
+    }
     _stream = null;
   }
-  try { fs.mkdirSync(LOGS_DIR, { recursive: true }); } catch { /* ignore */ }
+  try {
+    fs.mkdirSync(LOGS_DIR, { recursive: true });
+  } catch {
+    /* ignore */
+  }
   const file = path.join(LOGS_DIR, `${BASE_NAME}_${today}.log`);
   _stream = fs.createWriteStream(file, { flags: 'a' });
   _currentDate = today;
@@ -105,25 +116,51 @@ function cleanupOldLogs(): void {
       if (!m) continue;
       const ts = new Date(`${m[1]}T00:00:00`).getTime();
       if (Number.isFinite(ts) && ts < cutoff) {
-        try { fs.unlinkSync(path.join(LOGS_DIR, f)); } catch { /* 删除失败不阻断 */ }
+        try {
+          fs.unlinkSync(path.join(LOGS_DIR, f));
+        } catch {
+          /* 删除失败不阻断 */
+        }
       }
     }
-  } catch { /* logs 目录不存在则跳过 */ }
+  } catch {
+    /* logs 目录不存在则跳过 */
+  }
 }
 
 function write(level: string, args: unknown[]): void {
   const ts = new Date().toISOString();
-  const msg = args.map((a) =>
-    typeof a === 'string' ? a : (() => { try { return JSON.stringify(a); } catch { return String(a); } })()
-  ).join(' ');
+  const msg = args
+    .map((a) =>
+      typeof a === 'string'
+        ? a
+        : (() => {
+            try {
+              return JSON.stringify(a);
+            } catch {
+              return String(a);
+            }
+          })(),
+    )
+    .join(' ');
   const line = `${ts} [${level}] ${msg}\n`;
-  try { ensureStream().write(line); } catch { /* 日志写失败不阻断业务 */ }
+  try {
+    ensureStream().write(line);
+  } catch {
+    /* 日志写失败不阻断业务 */
+  }
   // 实时广播给前端日志面板（SSE）；低于阈值的噪音不推前端（仅落盘 + 服务端终端）。
   // client 为空时 broadcastLog 内部直接返回，零开销。
   broadcastLog(line, level);
   // 同步到原始 console（前台/启动脚本可见）
-  const orig = (console as unknown as Record<string, (...a: unknown[]) => void>)[`_orig_${level}`] || console[level as 'log'];
-  try { orig.call(console, ...args); } catch { /* ignore */ }
+  const orig =
+    (console as unknown as Record<string, (...a: unknown[]) => void>)[`_orig_${level}`] ||
+    console[level as 'log'];
+  try {
+    orig.call(console, ...args);
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
@@ -143,5 +180,7 @@ export function initLogWriter(): void {
     (console as unknown as Record<string, unknown>)[`_orig_${m}`] = orig;
     console[m] = ((...args: unknown[]) => write(m, args)) as typeof console.log;
   }
-  console.log(`[logWriter] 日志接管：${LOGS_DIR}/${BASE_NAME}_YYYY-MM-DD.log（保留 ${getKeepDays()} 天，自动轮转+清理）`);
+  console.log(
+    `[logWriter] 日志接管：${LOGS_DIR}/${BASE_NAME}_YYYY-MM-DD.log（保留 ${getKeepDays()} 天，自动轮转+清理）`,
+  );
 }

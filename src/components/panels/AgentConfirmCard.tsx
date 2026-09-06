@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from 'react'
+import { memo, type ReactNode } from 'react';
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -17,24 +17,33 @@ import { memo, type ReactNode } from 'react'
  */
 interface AgentConfirmCardProps {
   /** 标题行图标（SVG） */
-  icon?: ReactNode
+  icon?: ReactNode;
   /** 卡片标题 */
-  title: string
+  title: string;
   /** 说明文案 */
-  desc?: string
+  desc?: string;
   /** 主按钮文案（默认「确认」） */
-  confirmText?: string
+  confirmText?: string;
   /** 副按钮文案（默认「取消」） */
-  cancelText?: string
+  cancelText?: string;
   /** 确认回调 */
-  onConfirm?: () => void
+  onConfirm?: () => void;
   /** 取消回调（不传则不显示取消按钮） */
-  onCancel?: () => void
+  onCancel?: () => void;
   /** 确认按钮禁用 */
-  disabled?: boolean
+  disabled?: boolean;
 }
 
-function AgentConfirmCard({ icon, title, desc, confirmText = '确认', cancelText = '取消', onConfirm, onCancel, disabled = false }: AgentConfirmCardProps) {
+function AgentConfirmCard({
+  icon,
+  title,
+  desc,
+  confirmText = '确认',
+  cancelText = '取消',
+  onConfirm,
+  onCancel,
+  disabled = false,
+}: AgentConfirmCardProps) {
   return (
     <div className="mt-2 border border-edge-faint rounded-md bg-surface-sunken">
       <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-caption-sm text-body">
@@ -42,7 +51,11 @@ function AgentConfirmCard({ icon, title, desc, confirmText = '确认', cancelTex
         <span className="font-medium truncate">{title}</span>
       </div>
       <div className="px-2.5 pb-2 border-t border-edge-subtle">
-        {desc && <div className="pt-1.5 text-caption text-muted whitespace-pre-wrap break-words leading-snug">{desc}</div>}
+        {desc && (
+          <div className="pt-1.5 text-caption text-muted whitespace-pre-wrap break-words leading-snug">
+            {desc}
+          </div>
+        )}
         <div className="flex items-center gap-1.5 mt-2">
           <button
             type="button"
@@ -50,7 +63,16 @@ function AgentConfirmCard({ icon, title, desc, confirmText = '确认', cancelTex
             disabled={disabled || !onConfirm}
             className="inline-flex items-center gap-1 px-3 py-1 text-caption-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-md transition-colors cursor-pointer disabled:opacity-50"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <polyline points="20 6 9 17 4 12" />
             </svg>
             {confirmText}
@@ -67,7 +89,7 @@ function AgentConfirmCard({ icon, title, desc, confirmText = '确认', cancelTex
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default memo(AgentConfirmCard)
+export default memo(AgentConfirmCard);

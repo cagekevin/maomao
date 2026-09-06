@@ -1,4 +1,4 @@
-import { useEffect, type DependencyList } from 'react'
+import { useEffect, type DependencyList } from 'react';
 
 /**
  * 通用工具集中实现 —— 唯一入口，禁止散落手写替代。
@@ -10,13 +10,24 @@ import { useEffect, type DependencyList } from 'react'
  */
 
 /** 防抖/节流的包装函数返回形态（带 cancel/flush） */
-type DebouncedFn<T extends (...args: any[]) => void> = { (...args: Parameters<T>): void; cancel(): void; flush(): void }
-type ThrottledFn<T extends (...args: any[]) => void> = { (...args: Parameters<T>): void; cancel(): void }
-type RafBatchFn<T extends (...args: any[]) => void> = { (...args: Parameters<T>): void; flush(): void; cancel(): void }
+type DebouncedFn<T extends (...args: any[]) => void> = {
+  (...args: Parameters<T>): void;
+  cancel(): void;
+  flush(): void;
+};
+type ThrottledFn<T extends (...args: any[]) => void> = {
+  (...args: Parameters<T>): void;
+  cancel(): void;
+};
+type RafBatchFn<T extends (...args: any[]) => void> = {
+  (...args: Parameters<T>): void;
+  flush(): void;
+  cancel(): void;
+};
 
 /** JSON 深拷贝（通用业务对象；含函数/Date/循环引用者请勿用） */
 export function deepClone<T>(value: T): T {
-  return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
 /** data: URL → Blob（base64 编码）。缺省 MIME 从 data: meta 段解析（失败回退 octet-stream）。
@@ -26,15 +37,15 @@ export function deepClone<T>(value: T): T {
  * @param mime 可选 MIME 覆盖（调用方已知目标类型时传，如 'image/png'）
  */
 export function dataUrlToBlob(dataUrl: string, mime?: string): Blob {
-  const idx = dataUrl.indexOf(',')
-  const meta = dataUrl.slice(0, idx)
-  const raw = dataUrl.slice(idx + 1)
-  const type = mime || meta.match(/^data:([^;]+)/)?.[1] || 'application/octet-stream'
-  const bin = atob(raw)
-  const len = bin.length
-  const bytes = new Uint8Array(len)
-  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i)
-  return new Blob([bytes], { type })
+  const idx = dataUrl.indexOf(',');
+  const meta = dataUrl.slice(0, idx);
+  const raw = dataUrl.slice(idx + 1);
+  const type = mime || meta.match(/^data:([^;]+)/)?.[1] || 'application/octet-stream';
+  const bin = atob(raw);
+  const len = bin.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type });
 }
 
 /** 多路图片源合并去重（PromptNode/TemplateNode refImages 公共实现）：
@@ -43,17 +54,17 @@ export function dataUrlToBlob(dataUrl: string, mime?: string): Blob {
 export function mergeRefImages<T extends { id?: string; url?: string }>(
   ...groups: Array<Array<T> | T | null | undefined>
 ): T[] {
-  const seen = new Set<string>()
-  const merged: T[] = []
+  const seen = new Set<string>();
+  const merged: T[] = [];
   groups.forEach((g) => {
-    ;(Array.isArray(g) ? g : []).forEach((im) => {
-      const key = im && (im.id ?? im.url)
-      if (!key || seen.has(key)) return
-      seen.add(key)
-      merged.push(im)
-    })
-  })
-  return merged
+    (Array.isArray(g) ? g : []).forEach((im) => {
+      const key = im && (im.id ?? im.url);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      merged.push(im);
+    });
+  });
+  return merged;
 }
 
 /** 从素材取显示名（统一兼容 MaterialStrip 的 onInsert 两种形态）：
@@ -61,30 +72,33 @@ export function mergeRefImages<T extends { id?: string; url?: string }>(
  *  - 字符串 name（旧式纯文本插入回调）→ 原样返回
  * 供未升级节点的 onInsert 字符串拼接回调复用，避免把对象拼成 [object Object]。 */
 export function assetLabel(asset: string | { label?: string } | null | undefined): string {
-  if (typeof asset === 'string') return asset
-  return (asset && asset.label) || ''
+  if (typeof asset === 'string') return asset;
+  return (asset && asset.label) || '';
 }
 
 /** 有效提示词 = 本地 prompt + 上游文本合并（PromptNode/TextNode/TemplateNode/DiscountVideoNode 公共实现）：
  *  本地主提示词在前，上游文本（refTexts）去空后追加在后，一起参与生成。返回 '' 表示空。 */
-export function buildEffectivePrompt(localPrompt: unknown, refTexts?: Array<{ text?: string }>): string {
+export function buildEffectivePrompt(
+  localPrompt: unknown,
+  refTexts?: Array<{ text?: string }>,
+): string {
   const upstream = (refTexts || [])
     .map((t) => (t.text || '').trim())
     .filter(Boolean)
-    .join('\n')
-  return [String(localPrompt ?? '').trim(), upstream].filter(Boolean).join('\n') || ''
+    .join('\n');
+  return [String(localPrompt ?? '').trim(), upstream].filter(Boolean).join('\n') || '';
 }
 
 /** 通用数值钳制：把 v 钳到 [lo, hi]（lo/hi 可缺省）。收口：各节点不得各写 Math.max/min 样板。 */
 export function clamp(v: number, lo?: number | null, hi?: number | null): number {
-  const lower = lo == null ? -Infinity : lo
-  const upper = hi == null ? Infinity : hi
-  return Math.max(lower, Math.min(upper, v))
+  const lower = lo == null ? -Infinity : lo;
+  const upper = hi == null ? Infinity : hi;
+  return Math.max(lower, Math.min(upper, v));
 }
 
 /** 视频时长钳制（DiscountVideoNode 滑块公共实现）：非法/0 → 下界兜底；越界钳到 [min,max]。 */
 export function clampSeconds(value: unknown, min = 4, max = 15): number {
-  return clamp(Number(value) || min, min, max)
+  return clamp(Number(value) || min, min, max);
 }
 
 /** 文件名安全化（磁盘文件名 base）：trim → 非法字符替换为 sep → 可选去尾部扩展名 → 空白替换为 sep。
@@ -92,13 +106,16 @@ export function clampSeconds(value: unknown, min = 4, max = 15): number {
  * 不再各写 replace 样板。处理顺序与 assetStore.safeAssetBase 逐字节一致（其行为有单测钉住）。
  * @param name 名字
  * @param o - sep 非法字符/空白替换成的字符，默认 '_'；stripExt 是否去掉尾部 `.ext`，默认 false；fallback 为空时回退名，默认 '' */
-export function safeFileName(name: unknown, o: { sep?: string; stripExt?: boolean; fallback?: string } = {}): string {
-  const { sep = '_', stripExt = false, fallback = '' } = o
-  let b = String(name ?? '').trim()
-  b = b.replace(/[\\/:*?"<>|]/g, sep)
-  if (stripExt) b = b.replace(/\.[a-z0-9]{2,5}$/i, '')
-  b = b.replace(/\s+/g, sep)
-  return b || fallback
+export function safeFileName(
+  name: unknown,
+  o: { sep?: string; stripExt?: boolean; fallback?: string } = {},
+): string {
+  const { sep = '_', stripExt = false, fallback = '' } = o;
+  let b = String(name ?? '').trim();
+  b = b.replace(/[\\/:*?"<>|]/g, sep);
+  if (stripExt) b = b.replace(/\.[a-z0-9]{2,5}$/i, '');
+  b = b.replace(/\s+/g, sep);
+  return b || fallback;
 }
 
 /**
@@ -108,16 +125,16 @@ export function safeFileName(name: unknown, o: { sep?: string; stripExt?: boolea
  * `^canvas-state-v1-.+$`；模板数量有限（契约层登记量级），按模板 lazy 编译一次缓存，天然防无限膨胀。
  * @param template 含 {占位} 的模板
  */
-const patternRegexCache = new Map<string, RegExp>()
+const patternRegexCache = new Map<string, RegExp>();
 export function compilePatternRegex(template: string): RegExp {
-  let re = patternRegexCache.get(template)
+  let re = patternRegexCache.get(template);
   if (!re) {
-    const parts = template.split(/\{[^}]+\}/)
-    const escaped = parts.map((p) => p.replace(/[.+^$()|[\]\\]/g, '\\$&')).join('.+')
-    re = new RegExp('^' + escaped + '$')
-    patternRegexCache.set(template, re)
+    const parts = template.split(/\{[^}]+\}/);
+    const escaped = parts.map((p) => p.replace(/[.+^$()|[\]\\]/g, '\\$&')).join('.+');
+    re = new RegExp('^' + escaped + '$');
+    patternRegexCache.set(template, re);
   }
-  return re
+  return re;
 }
 
 /**
@@ -132,12 +149,12 @@ export function compilePatternRegex(template: string): RegExp {
  * @returns 键序稳定的字符串；同内容必得同串
  */
 export function stableStringify(value: unknown): string {
-  if (value === undefined) return 'null'
-  if (value === null || typeof value !== 'object') return JSON.stringify(value)
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
-  const obj = value as Record<string, unknown>
-  const keys = Object.keys(obj).sort()
-  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(',')}}`
+  if (value === undefined) return 'null';
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(',')}}`;
 }
 
 /**
@@ -147,12 +164,12 @@ export function stableStringify(value: unknown): string {
  * @param input 待哈希字符串（应先经 stableStringify 稳定化）
  */
 export function hashString(input: string): string {
-  let hash = 2166136261
+  let hash = 2166136261;
   for (let i = 0; i < input.length; i += 1) {
-    hash ^= input.charCodeAt(i)
-    hash = Math.imul(hash, 16777619)
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
   }
-  return `${input.length}:${(hash >>> 0).toString(36)}`
+  return `${input.length}:${(hash >>> 0).toString(36)}`;
 }
 
 /**
@@ -160,7 +177,7 @@ export function hashString(input: string): string {
  * 同内容必得同指纹；内容任一处变化指纹必变（弱碰撞概率忽略）。
  */
 export function contentFingerprint(value: unknown): string {
-  return hashString(stableStringify(value))
+  return hashString(stableStringify(value));
 }
 
 /**
@@ -169,18 +186,25 @@ export function contentFingerprint(value: unknown): string {
  *  - `{ mode: 'time' }` → HH:mm:ss（logger）
  *  - `{ mode: 'file' }` → yyyymmdd_HHmmss，落盘文件名时间戳（filesApi）
  */
-export function formatTime(ts: number | string | Date = Date.now(), opts: { mode?: 'file' | 'time' } = {}): string {
-  const d = typeof ts === 'number' || typeof ts === 'string' ? new Date(ts) : ts
-  if (Number.isNaN(d.getTime())) return ''
+export function formatTime(
+  ts: number | string | Date = Date.now(),
+  opts: { mode?: 'file' | 'time' } = {},
+): string {
+  const d = typeof ts === 'number' || typeof ts === 'string' ? new Date(ts) : ts;
+  if (Number.isNaN(d.getTime())) return '';
   if (opts.mode === 'file') {
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
   }
   if (opts.mode === 'time') {
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
-  try { return d.toLocaleString('zh-CN', { hour12: false }) } catch { return '' }
+  try {
+    return d.toLocaleString('zh-CN', { hour12: false });
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -189,31 +213,42 @@ export function formatTime(ts: number | string | Date = Date.now(), opts: { mode
  * 并做非法值兜底（负数/NaN → '0 B'）。存储占用口径统一走本函数，禁止散落手写。
  */
 export function formatBytes(bytes: number): string {
-  const n = Number(bytes)
-  if (!Number.isFinite(n) || n <= 0) return '0 B'
-  if (n < 1024) return `${n} B`
-  if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`
-  if (n < 1073741824) return `${(n / 1048576).toFixed(2)} MB`
-  return `${(n / 1073741824).toFixed(2)} GB`
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return '0 B';
+  if (n < 1024) return `${n} B`;
+  if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1073741824) return `${(n / 1048576).toFixed(2)} MB`;
+  return `${(n / 1073741824).toFixed(2)} GB`;
 }
 
 /** 防抖（返回包装函数 + cancel + flush） */
 export function debounce<T extends (...args: any[]) => void>(fn: T, ms: number): DebouncedFn<T> {
-  let timer: ReturnType<typeof setTimeout> | null = null
-  let lastArgs: Parameters<T> | null = null
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let lastArgs: Parameters<T> | null = null;
   const wrapped = (...args: Parameters<T>) => {
-    lastArgs = args
-    if (timer) clearTimeout(timer)
-    timer = setTimeout(() => { timer = null; fn(...args) }, ms)
-  }
-  wrapped.cancel = () => { if (timer) { clearTimeout(timer); timer = null } }
+    lastArgs = args;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      fn(...args);
+    }, ms);
+  };
+  wrapped.cancel = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
   // flush：立即执行最后一次待提交（失焦/卸载落盘兜底，避免防抖窗口内丢数据）
   wrapped.flush = () => {
-    if (timer) { clearTimeout(timer); timer = null }
-    if (lastArgs) fn(...lastArgs)
-    lastArgs = null
-  }
-  return wrapped
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (lastArgs) fn(...lastArgs);
+    lastArgs = null;
+  };
+  return wrapped;
 }
 
 /**
@@ -239,50 +274,62 @@ export function debounce<T extends (...args: any[]) => void>(fn: T, ms: number):
  *  - cancel()：取消未执行的提交（卸载/重置兜底）。
  */
 export function createImeInput(submit: (value: string) => void, ms = 200) {
-  const d = debounce(submit, ms)
-  let latest = ''
+  const d = debounce(submit, ms);
+  let latest = '';
   return {
     onChange(value: string, composing = false): void {
-      latest = value
+      latest = value;
       if (composing) {
-        d.cancel() // 组字中：取消可能存在的待提交（避免拼音中间态触发）
-        return
+        d.cancel(); // 组字中：取消可能存在的待提交（避免拼音中间态触发）
+        return;
       }
-      d(latest)
+      d(latest);
     },
     onCompositionEnd(value: string): void {
-      latest = value
-      d.cancel()
-      submit(latest) // 组字结束立即提交一次
+      latest = value;
+      d.cancel();
+      submit(latest); // 组字结束立即提交一次
     },
     cancel(): void {
-      d.cancel()
-    }
-  }
+      d.cancel();
+    },
+  };
 }
 
 /** createImeInput 的句柄类型（供 useRef 标注，避免退化成 any） */
-export type ImeInput = ReturnType<typeof createImeInput>
+export type ImeInput = ReturnType<typeof createImeInput>;
 
 /** 节流（返回包装函数 + cancel） */
 export function throttle<T extends (...args: any[]) => void>(fn: T, ms: number): ThrottledFn<T> {
-  let last = 0
-  let timer: ReturnType<typeof setTimeout> | null = null
-  let lastArgs: Parameters<T> | null = null
+  let last = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let lastArgs: Parameters<T> | null = null;
   const wrapped = (...args: Parameters<T>) => {
-    const now = Date.now()
-    const remain = ms - (now - last)
-    lastArgs = args
+    const now = Date.now();
+    const remain = ms - (now - last);
+    lastArgs = args;
     if (remain <= 0) {
-      if (timer) { clearTimeout(timer); timer = null }
-      last = now
-      fn(...args)
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      last = now;
+      fn(...args);
     } else if (!timer) {
-      timer = setTimeout(() => { timer = null; last = Date.now(); if (lastArgs) fn(...lastArgs) }, remain)
+      timer = setTimeout(() => {
+        timer = null;
+        last = Date.now();
+        if (lastArgs) fn(...lastArgs);
+      }, remain);
     }
-  }
-  wrapped.cancel = () => { if (timer) { clearTimeout(timer); timer = null } }
-  return wrapped
+  };
+  wrapped.cancel = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+  return wrapped;
 }
 
 /**
@@ -298,29 +345,35 @@ export function throttle<T extends (...args: any[]) => void>(fn: T, ms: number):
  *  - end/卸载前必须 flush() 最后一次状态，否则松手位置差一帧；真正结束用 cancel() 丢弃待执行帧。
  */
 export function createRafBatch<T extends (...args: any[]) => void>(fn: T): RafBatchFn<T> {
-  let rafId: number | null = null
-  let lastArgs: Parameters<T> | null = null
+  let rafId: number | null = null;
+  let lastArgs: Parameters<T> | null = null;
   const wrapped = (...args: Parameters<T>) => {
-    lastArgs = args
-    if (rafId != null) return
+    lastArgs = args;
+    if (rafId != null) return;
     rafId = requestAnimationFrame(() => {
-      rafId = null
-      const a = lastArgs
-      lastArgs = null
-      if (a) fn(...a)
-    })
-  }
+      rafId = null;
+      const a = lastArgs;
+      lastArgs = null;
+      if (a) fn(...a);
+    });
+  };
   wrapped.flush = () => {
-    if (rafId != null) { cancelAnimationFrame(rafId); rafId = null }
-    const a = lastArgs
-    lastArgs = null
-    if (a) fn(...a)
-  }
+    if (rafId != null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    const a = lastArgs;
+    lastArgs = null;
+    if (a) fn(...a);
+  };
   wrapped.cancel = () => {
-    if (rafId != null) { cancelAnimationFrame(rafId); rafId = null }
-    lastArgs = null
-  }
-  return wrapped
+    if (rafId != null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    lastArgs = null;
+  };
+  return wrapped;
 }
 
 /**
@@ -328,11 +381,16 @@ export function createRafBatch<T extends (...args: any[]) => void>(fn: T): RafBa
  * 等价于手写 `useEffect(() => { const t = setTimeout(fn, ms); return () => clearTimeout(t) }, deps)`。
  * condition=false 时跳过（不设定时器），等价于手写 effect 里提前 `if (cond) return`。
  */
-export function useDebouncedEffect(fn: () => void, deps: DependencyList, delay: number, condition = true): void {
+export function useDebouncedEffect(
+  fn: () => void,
+  deps: DependencyList,
+  delay: number,
+  condition = true,
+): void {
   useEffect(() => {
-    if (!condition) return undefined
-    const timer = setTimeout(fn, delay)
-    return () => clearTimeout(timer)
+    if (!condition) return undefined;
+    const timer = setTimeout(fn, delay);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps)
+  }, deps);
 }

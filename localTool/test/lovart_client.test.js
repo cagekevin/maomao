@@ -15,8 +15,13 @@ const src = path.join(__dirname, '..', 'src');
 const toUrl = (p) => 'file:///' + p.split(path.sep).join('/');
 
 const {
-  createLovartProject, validateLovartProject, setLovartMode,
-  sendLovartChat, getLovartStatus, getLovartResult, confirmLovartThread,
+  createLovartProject,
+  validateLovartProject,
+  setLovartMode,
+  sendLovartChat,
+  getLovartStatus,
+  getLovartResult,
+  confirmLovartThread,
 } = await import(toUrl(path.join(src, 'ai-relay/providers/lovart/lovart_client.ts')));
 
 /** 造一个 fake transport：按路径返回预设 JSON，记录每次出站 opts。 */
@@ -25,26 +30,39 @@ function makeFakeTransport(routeByPath) {
   const transport = async (opts) => {
     calls.push(opts);
     const body = routeByPath[opts.path] || routeByPath.default || { code: 0, data: {} };
-    return { response: new Response(JSON.stringify(body), { status: 200 }), resolvedBaseUrl: 'http://fake' };
+    return {
+      response: new Response(JSON.stringify(body), { status: 200 }),
+      resolvedBaseUrl: 'http://fake',
+    };
   };
   return { transport, calls };
 }
 
-const BASE = { auth: { type: 'hmac', accessKey: 'ak', secretKey: 'sk' }, baseUrl: 'https://lgw.lovart.ai' };
+const BASE = {
+  auth: { type: 'hmac', accessKey: 'ak', secretKey: 'sk' },
+  baseUrl: 'https://lgw.lovart.ai',
+};
 
 test('B13 信封剥离：code=0 取 data', async () => {
-  const { transport, calls } = makeFakeTransport({ '/v1/openapi/project/save': { code: 0, data: { project_id: 'p1' } } });
+  const { transport, calls } = makeFakeTransport({
+    '/v1/openapi/project/save': { code: 0, data: { project_id: 'p1' } },
+  });
   const pid = await createLovartProject({ ...BASE, transport });
   assert.equal(pid, 'p1');
   assert.ok(calls.length === 1);
 });
 
 test('B13 错误透传：code≠0 抛 LovartError 且 message=上游原话（不翻译）', async () => {
-  const { transport } = makeFakeTransport({ '/v1/openapi/project/save': { code: 400, message: '上游说: project invalid' } });
-  await assert.rejects(() => createLovartProject({ ...BASE, transport }), (e) => {
-    assert.equal(e.message, '上游说: project invalid');
-    return true;
+  const { transport } = makeFakeTransport({
+    '/v1/openapi/project/save': { code: 400, message: '上游说: project invalid' },
   });
+  await assert.rejects(
+    () => createLovartProject({ ...BASE, transport }),
+    (e) => {
+      assert.equal(e.message, '上游说: project invalid');
+      return true;
+    },
+  );
 });
 
 test('B4 setLovartMode 下发 unlimited=false', async () => {
@@ -55,17 +73,26 @@ test('B4 setLovartMode 下发 unlimited=false', async () => {
 });
 
 test('B5+B6 send：请求体含 tool_config 且 prompt 含可读模型名', async () => {
-  const { transport, calls } = makeFakeTransport({ '/v1/openapi/chat': { code: 0, data: { thread_id: 't1' } } });
-  const tid = await sendLovartChat({ ...BASE, transport }, {
-    prompt: '[model: GPT Image 2 Low]\na dog',
-    projectId: 'p1',
-    toolConfig: { prefer_tool_categories: { IMAGE: ['generate_image_gpt_image_2'] } },
+  const { transport, calls } = makeFakeTransport({
+    '/v1/openapi/chat': { code: 0, data: { thread_id: 't1' } },
   });
+  const tid = await sendLovartChat(
+    { ...BASE, transport },
+    {
+      prompt: '[model: GPT Image 2 Low]\na dog',
+      projectId: 'p1',
+      toolConfig: { prefer_tool_categories: { IMAGE: ['generate_image_gpt_image_2'] } },
+    },
+  );
   assert.equal(tid, 't1');
   const chatCall = calls.find((c) => c.path === '/v1/openapi/chat');
   assert.ok(chatCall, '应有 /chat 出站');
   assert.equal(chatCall.body.project_id, 'p1', 'projectId → project_id 字段别名');
-  assert.deepEqual(chatCall.body.tool_config.prefer_tool_categories.IMAGE, ['generate_image_gpt_image_2'], 'B5 结构化路');
+  assert.deepEqual(
+    chatCall.body.tool_config.prefer_tool_categories.IMAGE,
+    ['generate_image_gpt_image_2'],
+    'B5 结构化路',
+  );
   assert.match(chatCall.body.prompt, /\[model: GPT Image 2 Low\]/, 'B6 自然语言路冗余');
 });
 

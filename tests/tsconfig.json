@@ -31,12 +31,6 @@
   //     注：三者只依赖 vitest/react，不 import src/，故不会把 src 拉进本 tsconfig 的程序图。
   // 注：unit 走 vitest globals、e2e 从 @playwright/test 具名导入 test/expect，两者不冲突
   // （playwright 不声明全局，e2e 不做裸 test() 调用）。
-  "include": [
-    "./unit/**/*.ts",
-    "./unit/**/*.tsx",
-    "./e2e/**/*.ts",
-    "./setup.mjs",
-    "./unit/_*.mjs"
-  ],
+  "include": ["./unit/**/*.ts", "./unit/**/*.tsx", "./e2e/**/*.ts", "./setup.mjs", "./unit/_*.mjs"],
   "exclude": ["./e2e/results.json"]
 }

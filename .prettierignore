@@ -1,0 +1,12 @@
+node_modules
+dist
+dev
+build
+coverage
+*.min.js
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+public/**
+mockup/**
+*.md

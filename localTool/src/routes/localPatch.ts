@@ -76,10 +76,20 @@ function sourceUrlToPath(sourceUrl: string): string {
   return filePath;
 }
 
-interface CropSelection { x: number; y: number; w: number; h: number; source_width?: number; source_height?: number }
+interface CropSelection {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  source_width?: number;
+  source_height?: number;
+}
 
 /** POST /api/local-patch/crop —— 提取选区局部图。 */
-export async function handleLocalPatchCrop(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleLocalPatchCrop(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
   try {
     const body = (await parseJsonBody(req)) as {
       source_url?: string;
@@ -95,14 +105,22 @@ export async function handleLocalPatchCrop(req: IncomingMessage, res: ServerResp
       throw new LocalPatchError('请选择有效裁剪区域', 400);
     }
     const filePath = sourceUrlToPath(body.source_url);
-    const { img, cropContext } = await cropLocalPatch(filePath, { x: sel.x, y: sel.y, w: sel.w, h: sel.h }, {
-      paddingRatio: body.padding_ratio ?? 0.1,
-      cropNodeId: body.crop_node_id,
-      sourceUrl: body.source_url,
-    });
+    const { img, cropContext } = await cropLocalPatch(
+      filePath,
+      { x: sel.x, y: sel.y, w: sel.w, h: sel.h },
+      {
+        paddingRatio: body.padding_ratio ?? 0.1,
+        cropNodeId: body.crop_node_id,
+        sourceUrl: body.source_url,
+      },
+    );
 
     const buf = await img.getBufferAsync(Jimp.MIME_PNG);
-    const { urlPath } = writeUploadBufferAt(OUTPUT_SUBFOLDER, `local_crop_${cropContext.contextId}.png`, buf);
+    const { urlPath } = writeUploadBufferAt(
+      OUTPUT_SUBFOLDER,
+      `local_crop_${cropContext.contextId}.png`,
+      buf,
+    );
     patchLog(200, `crop ${body.source_url} -> ${urlPath} rect=${sel.w}x${sel.h}`);
 
     return json(res, {
@@ -134,7 +152,10 @@ interface MergePatchBody {
 }
 
 /** POST /api/local-patch/merge —— 局部图拼回原图。单/多图均可。 */
-export async function handleLocalPatchMerge(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleLocalPatchMerge(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
   try {
     const body = (await parseJsonBody(req)) as {
       original_url?: string;
@@ -160,9 +181,14 @@ export async function handleLocalPatchMerge(req: IncomingMessage, res: ServerRes
     }
 
     const originalPath = sourceUrlToPath(body.original_url);
-    const mapped = patches.map((p) => ({ patchPath: sourceUrlToPath(p.patch_url), cropContext: p.crop_context }));
+    const mapped = patches.map((p) => ({
+      patchPath: sourceUrlToPath(p.patch_url),
+      cropContext: p.crop_context,
+    }));
 
-    const merged = await mergeLocalPatches(originalPath, mapped, { colorMatch: body.color_match ?? true });
+    const merged = await mergeLocalPatches(originalPath, mapped, {
+      colorMatch: body.color_match ?? true,
+    });
 
     const buf = await merged.getBufferAsync(Jimp.MIME_PNG);
     const hex = crypto.randomBytes(8).toString('hex');
@@ -193,7 +219,10 @@ export async function handleLocalPatchMerge(req: IncomingMessage, res: ServerRes
 }
 
 /** POST /api/local-patch/fingerprint —— 源图指纹 + 字节数。 */
-export async function handleLocalPatchFingerprint(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleLocalPatchFingerprint(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
   try {
     const body = (await parseJsonBody(req)) as { source_url?: string } | null;
     if (!body || !body.source_url) {

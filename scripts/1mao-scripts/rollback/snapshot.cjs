@@ -9,7 +9,8 @@ const DST = path.join(__dirname, 'snapshot-' + ts).replace(/\\/g, '/');
 function cpDir(s, d) {
   fs.mkdirSync(d, { recursive: true });
   for (const e of fs.readdirSync(s, { withFileTypes: true })) {
-    const ss = path.join(s, e.name), dd = path.join(d, e.name);
+    const ss = path.join(s, e.name),
+      dd = path.join(d, e.name);
     if (e.isDirectory()) cpDir(ss, dd);
     else fs.copyFileSync(ss, dd);
   }

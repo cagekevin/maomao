@@ -21,16 +21,18 @@ import {
   spawnAndCommit,
   makeChildId,
   type CanvasCommitHandles,
-} from '../canvas/deriveNodes.ts'
-import type { Node } from '@xyflow/react'
-import { buildDepthChildSpec } from './engine.ts'
+} from '../canvas/deriveNodes.ts';
+import type { Node } from '@xyflow/react';
+import { buildDepthChildSpec } from './engine.ts';
 
 /** spawn 所需句柄：除提交句柄外，还需 getNode 读取源节点位置/尺寸用于右缘排布 */
 export interface DepthSpawnHandles extends CanvasCommitHandles {
   /** 读取源节点（需 position 与 measured.width 计算右缘坐标） */
-  getNode(id: string): { id?: string; position?: { x: number; y: number }; measured?: { width?: number } } | null
+  getNode(
+    id: string,
+  ): { id?: string; position?: { x: number; y: number }; measured?: { width?: number } } | null;
   /** 语义前缀 id（对齐 VideoProcessNode 的 `video-${id}-${generateId(...)}` 惯例） */
-  makeId?: (prefix: string) => string
+  makeId?: (prefix: string) => string;
 }
 
 /**
@@ -44,13 +46,13 @@ export function spawnDepthVideoNode(
   sourceId: string,
   url: string,
   name: string,
-  handles: DepthSpawnHandles
+  handles: DepthSpawnHandles,
 ): Node[] {
-  const me = getMe(handles.getNode(sourceId))
-  const baseX = me.x + me.width + 60
-  const baseY = me.y
-  const nid = handles.makeId ? handles.makeId('depth-video') : makeChildId('depth-video')
-  const spec = buildDepthChildSpec(url, name)
+  const me = getMe(handles.getNode(sourceId));
+  const baseX = me.x + me.width + 60;
+  const baseY = me.y;
+  const nid = handles.makeId ? handles.makeId('depth-video') : makeChildId('depth-video');
+  const spec = buildDepthChildSpec(url, name);
   const spawned = buildSpawnNodes(
     { id: sourceId, position: { x: baseX, y: baseY } },
     [
@@ -62,20 +64,22 @@ export function spawnDepthVideoNode(
         style: { width: 420, height: 380 },
       },
     ],
-    { sourceHandle: 'main-output' }
-  )
-  return spawnAndCommit(spawned, handles)
+    { sourceHandle: 'main-output' },
+  );
+  return spawnAndCommit(spawned, handles);
 }
 
 /** 源节点位置/宽度归一（缺省回退，与 spawnVideoNode 的 `?? 100` / `?? 540` 对齐） */
-function getMe(node: { position?: { x: number; y: number }; measured?: { width?: number } } | null): {
-  x: number
-  y: number
-  width: number
+function getMe(
+  node: { position?: { x: number; y: number }; measured?: { width?: number } } | null,
+): {
+  x: number;
+  y: number;
+  width: number;
 } {
   return {
     x: node?.position?.x ?? 100,
     y: node?.position?.y ?? 100,
     width: node?.measured?.width ?? 540,
-  }
+  };
 }

@@ -7,21 +7,21 @@
 
 /** 前端 provider 对象子集（出站组 body / refFormat 判定用）。完整契约见 localTool ApiProvider */
 export interface GenerationProvider {
-  id?: string
-  name?: string
-  base_url?: string
+  id?: string;
+  name?: string;
+  base_url?: string;
   /** 协议身份（openai/apimart/gemini/cli...）；发请求走 localTool 分派，前端只透传 */
-  protocol?: string
+  protocol?: string;
   /** 图片请求形态（openai/openai-json/openai-video-proxy/openai-responses） */
-  image_request_mode?: string
+  image_request_mode?: string;
   /** 聊天请求形态（chat/completions vs responses） */
-  chat_request_mode?: 'chat' | 'responses' | string
+  chat_request_mode?: 'chat' | 'responses' | string;
   /** 生图同步/异步（sync=SSE 同步 / async=提交后轮询） */
-  image_mode?: 'sync' | 'async' | string
+  image_mode?: 'sync' | 'async' | string;
   /** 参考图发送编码偏好（'base64'=只认 base64 的后端；缺省=URL） */
-  refFormat?: 'url' | 'base64' | string
+  refFormat?: 'url' | 'base64' | string;
   /** 其余未显式建模字段透传（兼容 providerStore 扩展字段） */
-  [key: string]: unknown
+  [key: string]: unknown;
 }
 
 /**
@@ -32,9 +32,9 @@ export interface GenerationProvider {
  * 均为本类型别名（`export type X = GenerationResult`），禁止再另立 interface（check-arch 规则 3 拦截）。
  */
 export interface GenerationResult {
-  ok: boolean
-  url?: string
-  content?: string
-  error?: string
-  aborted?: boolean
+  ok: boolean;
+  url?: string;
+  content?: string;
+  error?: string;
+  aborted?: boolean;
 }

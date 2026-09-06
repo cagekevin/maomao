@@ -18,19 +18,27 @@
  * ════════════════════════════════════════════════════════════════
  */
 import {
-  getState, commit, uid, getActiveConv, markHydrated,
-  normalizeConversation, normalizeWorkflow, normalizePending, normalizeMemory,
-  emptyMemory, AGENT_MSG_MAX,
-} from './conversationState.ts'
-import type { Conversation } from './conversationState.ts'
-import { getCurrentSnapshot } from './conversationSnapshot.ts'
-import type { ConversationSnapshot } from './conversationSnapshot.ts'
+  getState,
+  commit,
+  uid,
+  getActiveConv,
+  markHydrated,
+  normalizeConversation,
+  normalizeWorkflow,
+  normalizePending,
+  normalizeMemory,
+  emptyMemory,
+  AGENT_MSG_MAX,
+} from './conversationState.ts';
+import type { Conversation } from './conversationState.ts';
+import { getCurrentSnapshot } from './conversationSnapshot.ts';
+import type { ConversationSnapshot } from './conversationSnapshot.ts';
 
 /* ── 会话核心 CRUD（A 类：对话增删切换读写）────────────────── */
 
 /** 读当前对话 id */
 export function getActiveConversationId(): string {
-  return getState().activeId || ''
+  return getState().activeId || '';
 }
 
 /** 全量对话列表（浅拷贝，供 UI 渲染对话列表用） */
@@ -43,21 +51,27 @@ export function getConversations(): Conversation[] {
     workflow: normalizeWorkflow(c.workflow),
     pending: normalizePending(c.pending),
     memory: normalizeMemory(c.memory),
-  }))
+  }));
 }
 
 /** 确保至少有一个对话；没有则建一个空的，并设为当前。返回当前对话 id */
 export function ensureActiveConversation(): string {
-  const st = getState()
-  let { conversations, activeId } = st
-  if (activeId && conversations.some((c) => c.id === activeId)) return activeId
+  const st = getState();
+  const { conversations, activeId } = st;
+  if (activeId && conversations.some((c) => c.id === activeId)) return activeId;
   if (conversations.length > 0) {
-    commit({ ...st, activeId: conversations[0].id })
-    return conversations[0].id
+    commit({ ...st, activeId: conversations[0].id });
+    return conversations[0].id;
   }
-  const conv = normalizeConversation({ id: uid('ac'), title: '对话', messages: [], skills: [], draft: '' })
-  commit({ conversations: [conv], activeId: conv.id })
-  return conv.id
+  const conv = normalizeConversation({
+    id: uid('ac'),
+    title: '对话',
+    messages: [],
+    skills: [],
+    draft: '',
+  });
+  commit({ conversations: [conv], activeId: conv.id });
+  return conv.id;
 }
 
 /**
@@ -67,89 +81,118 @@ export function ensureActiveConversation(): string {
 export function captureActiveConversation(): Conversation | null {
   // 无额外动作：setCurrentSnapshot 已把 active 对话写回并落盘。
   // 保留导出仅兼容旧调用方；若 activeId 无效则返回 null。
-  if (!getActiveConv()) return null
-  return getActiveConv()
+  if (!getActiveConv()) return null;
+  return getActiveConv();
 }
 
 /** 把某对话加载进当前（恢复/切换），hydrated 置 true，返回快照 */
 export function applyConversation(id: string): ConversationSnapshot {
-  const st = getState()
-  let conv = st.conversations.find((c) => c.id === id)
+  const st = getState();
+  let conv = st.conversations.find((c) => c.id === id);
   // 目标不存在 → 回退当前；当前也没有 → 建空对话兜底
   if (!conv) {
-    const active = st.conversations.find((c) => c.id === st.activeId)
-    conv = active || null
+    const active = st.conversations.find((c) => c.id === st.activeId);
+    conv = active || null;
   }
   if (!conv) {
-    conv = normalizeConversation({ id: uid('ac'), title: '对话', messages: [], skills: [], draft: '' })
-    commit({ conversations: [conv], activeId: conv.id })
+    conv = normalizeConversation({
+      id: uid('ac'),
+      title: '对话',
+      messages: [],
+      skills: [],
+      draft: '',
+    });
+    commit({ conversations: [conv], activeId: conv.id });
   }
-  markHydrated() // 已从存储恢复，此后允许落盘
-  commit({ ...st, activeId: conv.id })
-  return getCurrentSnapshot()
+  markHydrated(); // 已从存储恢复，此后允许落盘
+  commit({ ...st, activeId: conv.id });
+  return getCurrentSnapshot();
 }
 
 /** 新建对话：把当前对话先落盘，再建空对话并设为当前，返回新对话 id 与快照 */
 export function newConversation(): { id: string; snapshot: ConversationSnapshot } {
-  const st = getState()
-  const conv = normalizeConversation({ id: uid('ac'), title: '新对话', messages: [], skills: [], draft: '' })
-  commit({ conversations: [conv, ...st.conversations], activeId: conv.id })
-  return { id: conv.id, snapshot: getCurrentSnapshot() }
+  const st = getState();
+  const conv = normalizeConversation({
+    id: uid('ac'),
+    title: '新对话',
+    messages: [],
+    skills: [],
+    draft: '',
+  });
+  commit({ conversations: [conv, ...st.conversations], activeId: conv.id });
+  return { id: conv.id, snapshot: getCurrentSnapshot() };
 }
 
 /** 切换对话：apply 目标，返回目标快照 */
 export function switchConversation(id: string): ConversationSnapshot {
-  if (!id || id === getState().activeId) return getCurrentSnapshot()
-  return applyConversation(id)
+  if (!id || id === getState().activeId) return getCurrentSnapshot();
+  return applyConversation(id);
 }
 
 /** 删除对话：删空则建新对话。返回 { activeId, snapshot } */
-export function deleteConversation(id: string): { activeId: string; snapshot: ConversationSnapshot } {
-  const st = getState()
-  const remaining = st.conversations.filter((c) => c.id !== id)
+export function deleteConversation(id: string): {
+  activeId: string;
+  snapshot: ConversationSnapshot;
+} {
+  const st = getState();
+  const remaining = st.conversations.filter((c) => c.id !== id);
   if (remaining.length > 0) {
-    commit({ conversations: remaining, activeId: remaining[0].id })
-    return { activeId: remaining[0].id, snapshot: getCurrentSnapshot() }
+    commit({ conversations: remaining, activeId: remaining[0].id });
+    return { activeId: remaining[0].id, snapshot: getCurrentSnapshot() };
   }
-  const conv = normalizeConversation({ id: uid('ac'), title: '新对话', messages: [], skills: [], draft: '' })
-  commit({ conversations: [conv], activeId: conv.id })
-  return { activeId: conv.id, snapshot: getCurrentSnapshot() }
+  const conv = normalizeConversation({
+    id: uid('ac'),
+    title: '新对话',
+    messages: [],
+    skills: [],
+    draft: '',
+  });
+  commit({ conversations: [conv], activeId: conv.id });
+  return { activeId: conv.id, snapshot: getCurrentSnapshot() };
 }
 
 /** 重命名当前对话标题（UI 可选） */
 export function renameActiveConversation(title: string): void {
-  const conv = getActiveConv()
-  if (!conv) return
+  const conv = getActiveConv();
+  if (!conv) return;
   commit({
     ...getState(),
     conversations: getState().conversations.map((c) =>
-      c.id === conv.id ? { ...c, title: (String(title || '').slice(0, 30) || c.title), updatedAt: Date.now() } : c
+      c.id === conv.id
+        ? { ...c, title: String(title || '').slice(0, 30) || c.title, updatedAt: Date.now() }
+        : c,
     ),
-  })
+  });
 }
 
 /** 从旧单会话数据迁移：conversations 为空且有旧 messages/skills 时，迁成一个对话 */
-export function importLegacy(
-  { messages, skills }: { messages?: unknown[]; skills?: unknown[] }
-): ConversationSnapshot | null {
-  if (!Array.isArray(messages) || messages.length === 0) return null
-  if (getState().conversations.length > 0) return null // 已有对话，不迁移
-  const msgs = messages as Record<string, unknown>[]
-  const firstUser = msgs.find((m) => m.role === 'user' && m.content)
+export function importLegacy({
+  messages,
+  skills,
+}: {
+  messages?: unknown[];
+  skills?: unknown[];
+}): ConversationSnapshot | null {
+  if (!Array.isArray(messages) || messages.length === 0) return null;
+  if (getState().conversations.length > 0) return null; // 已有对话，不迁移
+  const msgs = messages as Record<string, unknown>[];
+  const firstUser = msgs.find((m) => m.role === 'user' && m.content);
   const conv = normalizeConversation({
     id: uid('ac'),
-    title: (firstUser?.content ? String(firstUser.content).slice(0, 30) : '对话'),
+    title: firstUser?.content ? String(firstUser.content).slice(0, 30) : '对话',
     messages: msgs.slice(-AGENT_MSG_MAX),
-    skills: Array.isArray(skills) ? (skills as Record<string, unknown>[]).map((s) => ({ ...s })) : [],
+    skills: Array.isArray(skills)
+      ? (skills as Record<string, unknown>[]).map((s) => ({ ...s }))
+      : [],
     attachments: [],
     draft: '',
     workflow: null,
     pending: null,
     memory: emptyMemory(),
-  })
-  markHydrated()
-  commit({ conversations: [conv], activeId: conv.id })
-  return getCurrentSnapshot()
+  });
+  markHydrated();
+  commit({ conversations: [conv], activeId: conv.id });
+  return getCurrentSnapshot();
 }
 
 /* ── 聚合 re-export（保持原 conversationStore 全公开导出面，消费方零改动）── */
@@ -157,31 +200,63 @@ export function importLegacy(
 // conversationState：底座公开 API（useConversationStore / setAgentKey / flushPersist /
 // resetConversationCache + 归一化 normalizeConversation / normalizeWorkflow / normalizePending / normalizeMemory）
 export {
-  useConversationStore, setAgentKey, setSending, flushPersist, resetConversationCache,
+  useConversationStore,
+  setAgentKey,
+  setSending,
+  flushPersist,
+  resetConversationCache,
   waitHydrated,
-  normalizeConversation, normalizeWorkflow, normalizePending, normalizeMemory, makePendingRef,
-} from './conversationState.ts'
+  normalizeConversation,
+  normalizeWorkflow,
+  normalizePending,
+  normalizeMemory,
+  makePendingRef,
+} from './conversationState.ts';
 // conversationSnapshot：当前对话快照（D 类）
 export {
-  getCurrentSnapshot, setCurrentSnapshot, patchCurrentMessages, getCurrentWorkflow, patchCurrentWorkflow,
-  getCurrentPending, setCurrentPending, getCurrentMemory, setCurrentMemory,
-} from './conversationSnapshot.ts'
+  getCurrentSnapshot,
+  setCurrentSnapshot,
+  patchCurrentMessages,
+  getCurrentWorkflow,
+  patchCurrentWorkflow,
+  getCurrentPending,
+  setCurrentPending,
+  getCurrentMemory,
+  setCurrentMemory,
+} from './conversationSnapshot.ts';
 // conversationAiState：AI 编排状态（F 类）
 export {
-  getCurrentRunMode, setCurrentRunMode, getCurrentGlobalContract, setCurrentGlobalContract,
-  getCurrentAssistantTable, setCurrentAssistantTable,
-  getCurrentArtifacts, setCurrentArtifacts, getActiveAiUndoStack, pushActiveAiUndo, popActiveAiUndo,
-  getCurrentRefImages, setCurrentRefImages,
-} from './conversationAiState.ts'
+  getCurrentRunMode,
+  setCurrentRunMode,
+  getCurrentGlobalContract,
+  setCurrentGlobalContract,
+  getCurrentAssistantTable,
+  setCurrentAssistantTable,
+  getCurrentArtifacts,
+  setCurrentArtifacts,
+  getActiveAiUndoStack,
+  pushActiveAiUndo,
+  popActiveAiUndo,
+  getCurrentRefImages,
+  setCurrentRefImages,
+} from './conversationAiState.ts';
 // runModeRegistry：workMode 读写（三态单一真源，docs/65 M4 透出）
-export { getWorkMode, setWorkMode } from '../runtime/runModeRegistry.ts'
+export { getWorkMode, setWorkMode } from '../runtime/runModeRegistry.ts';
 // conversationSkillState：Skill 三阶段门禁状态（阶段3 编排轴子域化）
 export {
-  getActivePendingGenerations, setActivePendingGenerations, getAwaitingConfirm, setAwaitingConfirm,
-  getActivePendingMemorySuggest, setActivePendingMemorySuggest,
-  getCreditGate, setCreditGate, clearCreditGate,
-} from './conversationSkillState.ts'
+  getActivePendingGenerations,
+  setActivePendingGenerations,
+  getAwaitingConfirm,
+  setAwaitingConfirm,
+  getActivePendingMemorySuggest,
+  setActivePendingMemorySuggest,
+  getCreditGate,
+  setCreditGate,
+  clearCreditGate,
+} from './conversationSkillState.ts';
 // conversationImageMap：跨轮图数据源（E 类）
 export {
-  getLastUserReferenceImages, getLastGeneratedImages, getCurrentImageMap,
-} from './conversationImageMap.ts'
+  getLastUserReferenceImages,
+  getLastGeneratedImages,
+  getCurrentImageMap,
+} from './conversationImageMap.ts';

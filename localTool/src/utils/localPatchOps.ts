@@ -43,7 +43,12 @@ export class LocalPatchError extends Error {
   }
 }
 
-export interface Rect { x: number; y: number; w: number; h: number }
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 /** cropContext 契约（前端 localPatchContext.js 与之对齐，C1.1）。 */
 export interface CropContext {
@@ -76,7 +81,7 @@ export function fileFingerprint(filePath: string): Promise<string> {
  */
 export async function loadOrientedRgba(
   filePath: string,
-  maxPixels: number = DEFAULT_MAX_PIXELS
+  maxPixels: number = DEFAULT_MAX_PIXELS,
 ): Promise<{ img: Jimp; width: number; height: number }> {
   const img = await Jimp.read(filePath);
   // jimp 0.22 已在 Jimp.read 内自动应用 EXIF orientation（parseBitmap → exifRotate），
@@ -111,13 +116,17 @@ export function computePaddedRect(rect: Rect, imageW: number, imageH: number, ra
 
 /** 取图像某区域的 RGB 均值（仅用于颜色匹配的环带/整块均值偏差，非精确统计）。 */
 export function computeMeanRgb(img: Jimp): { r: number; g: number; b: number } {
-  let r = 0, g = 0, b = 0;
+  let r = 0,
+    g = 0,
+    b = 0;
   const w = img.getWidth();
   const h = img.getHeight();
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const { r: R, g: G, b: B } = Jimp.intToRGBA(img.getPixelColor(x, y));
-      r += R; g += G; b += B;
+      r += R;
+      g += G;
+      b += B;
     }
   }
   const n = Math.max(1, w * h);
@@ -131,7 +140,7 @@ export function computeMeanRgb(img: Jimp): { r: number; g: number; b: number } {
 export function applyLimitedColorMatch(
   patch: Jimp,
   origRegion: Jimp,
-  limit: number = COLOR_MATCH_LIMIT
+  limit: number = COLOR_MATCH_LIMIT,
 ): void {
   const mPatch = computeMeanRgb(patch);
   const mOrig = computeMeanRgb(origRegion);
@@ -148,7 +157,7 @@ export function applyLimitedColorMatch(
       patch.setPixelColor(
         Jimp.rgbaToInt(clampToInt(r + off.r), clampToInt(g + off.g), clampToInt(b + off.b), a),
         x,
-        y
+        y,
       );
     }
   }
@@ -167,7 +176,10 @@ export function buildFeatherMask(width: number, height: number, interior: Rect):
   const mask = new Jimp(width, height);
   const featherAlpha = (x: number, y: number): number => {
     const inside =
-      x >= interior.x && x < interior.x + interior.w && y >= interior.y && y < interior.y + interior.h;
+      x >= interior.x &&
+      x < interior.x + interior.w &&
+      y >= interior.y &&
+      y < interior.y + interior.h;
     if (inside) return 255;
     const dx = Math.max(0, interior.x - x, x - (interior.x + interior.w - 1));
     const dy = Math.max(0, interior.y - y, y - (interior.y + interior.h - 1));
@@ -176,7 +188,7 @@ export function buildFeatherMask(width: number, height: number, interior: Rect):
       interior.x,
       width - (interior.x + interior.w),
       interior.y,
-      height - (interior.y + interior.h)
+      height - (interior.y + interior.h),
     );
     const t = ring > 0 ? Math.min(1, d / ring) : 1;
     const s = t * t * (3 - 2 * t); // smoothstep 0→1
@@ -199,11 +211,7 @@ export function applyFeather(patch: Jimp, mask: Jimp): void {
     for (let x = 0; x < w; x++) {
       const mAlpha = Jimp.intToRGBA(mask.getPixelColor(x, y)).a;
       const { r, g, b, a } = Jimp.intToRGBA(patch.getPixelColor(x, y));
-      patch.setPixelColor(
-        Jimp.rgbaToInt(r, g, b, clampToInt((a * mAlpha) / 255)),
-        x,
-        y
-      );
+      patch.setPixelColor(Jimp.rgbaToInt(r, g, b, clampToInt((a * mAlpha) / 255)), x, y);
     }
   }
 }
@@ -219,7 +227,7 @@ export const CROP_CONTEXT_VERSION = 2;
 export async function cropLocalPatch(
   filePath: string,
   rect: Rect,
-  opts: { paddingRatio?: number; maxPixels?: number; cropNodeId?: string; sourceUrl?: string } = {}
+  opts: { paddingRatio?: number; maxPixels?: number; cropNodeId?: string; sourceUrl?: string } = {},
 ): Promise<{ img: Jimp; cropContext: CropContext }> {
   const { paddingRatio = 0.1, maxPixels = DEFAULT_MAX_PIXELS, cropNodeId, sourceUrl } = opts;
   if (!rect || rect.w <= 0 || rect.h <= 0) {
@@ -228,7 +236,11 @@ export async function cropLocalPatch(
   if (Math.min(rect.w, rect.h) < MIN_SELECTION_SIDE) {
     throw new LocalPatchError(`选区过小（最小边 ${MIN_SELECTION_SIDE}px）`, 400);
   }
-  const { img: origImg, width: imageW, height: imageH } = await loadOrientedRgba(filePath, maxPixels);
+  const {
+    img: origImg,
+    width: imageW,
+    height: imageH,
+  } = await loadOrientedRgba(filePath, maxPixels);
   if (rect.x < 0 || rect.y < 0 || rect.x + rect.w > imageW || rect.y + rect.h > imageH) {
     throw new LocalPatchError('选区超出原图边界', 400);
   }
@@ -266,7 +278,10 @@ interface MergePatchArg {
 export async function mergeLocalPatches(
   originalPath: string,
   patches: MergePatchArg[],
-  { colorMatch = true, maxPixels = DEFAULT_MAX_PIXELS }: { colorMatch?: boolean; maxPixels?: number }
+  {
+    colorMatch = true,
+    maxPixels = DEFAULT_MAX_PIXELS,
+  }: { colorMatch?: boolean; maxPixels?: number },
 ): Promise<Jimp> {
   if (patches.length === 0) throw new LocalPatchError('缺少局部图（patches 为空）', 400);
   if (patches.length > MAX_MERGE_PATCHES) {

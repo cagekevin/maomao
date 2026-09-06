@@ -11,13 +11,16 @@
  * 依赖单向指向 conversationState 底座，命名/导出不变，消费方无感知。
  * ════════════════════════════════════════════════════════════════
  */
-import { getActiveConv, commit, getState, normalizeMemory } from './conversationState.ts'
-import { normalizeAssistantTable } from '../assistantTable/assistantTable.ts'
-import type { AssistantTable } from '../assistantTable/assistantTable.ts'
+import { getActiveConv, commit, getState, normalizeMemory } from './conversationState.ts';
+import { normalizeAssistantTable } from '../assistantTable/assistantTable.ts';
+import type { AssistantTable } from '../assistantTable/assistantTable.ts';
 import {
-  getWorkMode, setWorkMode, resolveConvRunMode,
-  registerLegacyRunModeReader, registerRunModeSync,
-} from '../runtime/runModeRegistry.ts'
+  getWorkMode,
+  setWorkMode,
+  resolveConvRunMode,
+  registerLegacyRunModeReader,
+  registerRunModeSync,
+} from '../runtime/runModeRegistry.ts';
 
 /**
  * runMode（执行分级）2026-09-05 精简收敛恒 auto（direct/step-confirm 已删）：
@@ -26,57 +29,70 @@ import {
  * 首占钩子：legacyRunModeReader 已不再参与推导（getWorkMode 恒 auto）；
  *           runModeSync 使 setWorkMode 同步写当前会话 conv.runMode 归 auto（兼容历史持久化）。
  */
-registerLegacyRunModeReader(() => String(getActiveConv()?.runMode || 'auto').toLowerCase())
+registerLegacyRunModeReader(() => String(getActiveConv()?.runMode || 'auto').toLowerCase());
 registerRunModeSync((_runMode) => {
-  const conv = getActiveConv()
-  if (!conv) return // 会话未就绪不写（读取侧以 workMode 为真源，不受影响）
+  const conv = getActiveConv();
+  if (!conv) return; // 会话未就绪不写（读取侧以 workMode 为真源，不受影响）
   // 2026-09-05 精简：执行模型恒 auto，runMode 兼容字段一律归 auto
   commit({
     ...getState(),
-    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, runMode: 'auto', updatedAt: Date.now() } : c)),
-  })
-})
+    conversations: getState().conversations.map((c) =>
+      c.id === conv.id ? { ...c, runMode: 'auto', updatedAt: Date.now() } : c,
+    ),
+  });
+});
 
 /** 执行分级（workMode 的派生态）：2026-09-05 精简后运行时恒 'auto'；保留 'step-confirm' 供读历史持久化数据 */
-export type RunMode = 'step-confirm' | 'auto'
+export type RunMode = 'step-confirm' | 'auto';
 
 /** 【对齐大雄 agentGetRunMode】读当前执行分级：由 workMode 派生，恒 auto（direct/step-confirm 已删） */
 export function getCurrentRunMode(): RunMode {
-  return resolveConvRunMode(getWorkMode()) as RunMode
+  return resolveConvRunMode(getWorkMode()) as RunMode;
 }
 
 /** 【对齐大雄 agentSetRunMode】写执行分级：收敛为 setWorkMode。2026-09-05 精简后恒映射 auto。 */
 export function setCurrentRunMode(_mode: unknown): void {
   // 2026-09-05 精简：执行模型收敛恒 auto（direct/step-confirm 已删），任何入参一律归 'auto'
-  setWorkMode('auto')
+  setWorkMode('auto');
 }
 
 /* ── 统一风格契约 global_contract + 跨步成果 artifact（对齐大雄，per-conversation）── */
 
 // 统一风格契约 / 跨步成果资产的权威形状定义在底座 conversationState（避免两处漂移），此处仅别名导出。
-import type { GlobalContractShape, ArtifactShape } from './conversationState.ts'
-export type GlobalContract = GlobalContractShape
+import type { GlobalContractShape, ArtifactShape } from './conversationState.ts';
+export type GlobalContract = GlobalContractShape;
 
 /** 读当前对话的统一风格契约（无则 null） */
 export function getCurrentGlobalContract(): GlobalContract | null {
-  return getActiveConv()?.memory?.global_contract || null
+  return getActiveConv()?.memory?.global_contract || null;
 }
 
 /** 写当前对话的统一风格契约（阶段1 产出，逐字锁定每步） */
 export function setCurrentGlobalContract(c: GlobalContract | null): void {
-  const conv = getActiveConv()
-  if (!conv) return
+  const conv = getActiveConv();
+  if (!conv) return;
   commit({
     ...getState(),
-    conversations: getState().conversations.map((x) => (x.id === conv.id ? { ...x, memory: normalizeMemory({
-      ...x.memory,
-      global_contract: c || null,
-      // 【对齐大雄 agentCaptureActiveConversation】统一风格契约写入时同步 lastSharedStyle：
-      // 大雄从最后 assistant 消息的 shared_style 提炼 memory.lastSharedStyle，续轮 fresh-task 时注入。
-      // 我们统一风格走 global_contract，故在此映射，保证 memory.lastSharedStyle 有承载。
-      lastSharedStyle: (c && (c.unified_style_prompt || c.visual_positioning)) ? String(c.unified_style_prompt || c.visual_positioning || '').trim() : x.memory.lastSharedStyle,
-    }), updatedAt: Date.now() } : x)),
-  })
+    conversations: getState().conversations.map((x) =>
+      x.id === conv.id
+        ? {
+            ...x,
+            memory: normalizeMemory({
+              ...x.memory,
+              global_contract: c || null,
+              // 【对齐大雄 agentCaptureActiveConversation】统一风格契约写入时同步 lastSharedStyle：
+              // 大雄从最后 assistant 消息的 shared_style 提炼 memory.lastSharedStyle，续轮 fresh-task 时注入。
+              // 我们统一风格走 global_contract，故在此映射，保证 memory.lastSharedStyle 有承载。
+              lastSharedStyle:
+                c && (c.unified_style_prompt || c.visual_positioning)
+                  ? String(c.unified_style_prompt || c.visual_positioning || '').trim()
+                  : x.memory.lastSharedStyle,
+            }),
+            updatedAt: Date.now(),
+          }
+        : x,
+    ),
+  });
 }
 
 /* ── AI 助手表格工作区（per-conversation，挂会话记忆 memory.assistantTable）──
@@ -85,84 +101,109 @@ export function setCurrentGlobalContract(c: GlobalContract | null): void {
 
 /** 读当前对话的表格（归一兜底空表；无则空表） */
 export function getCurrentAssistantTable(): AssistantTable {
-  const raw = getActiveConv()?.memory?.assistantTable
-  return normalizeAssistantTable(raw ?? null)
+  const raw = getActiveConv()?.memory?.assistantTable;
+  return normalizeAssistantTable(raw ?? null);
 }
 
 /** 写当前对话的表格（归一后落 memory.assistantTable + commit 自动落盘） */
 export function setCurrentAssistantTable(sb: AssistantTable): void {
-  const conv = getActiveConv()
-  if (!conv) return
+  const conv = getActiveConv();
+  if (!conv) return;
   commit({
     ...getState(),
-    conversations: getState().conversations.map((x) => (x.id === conv.id ? { ...x, memory: normalizeMemory({ ...x.memory, assistantTable: normalizeAssistantTable(sb) }), updatedAt: Date.now() } : x)),
-  })
+    conversations: getState().conversations.map((x) =>
+      x.id === conv.id
+        ? {
+            ...x,
+            memory: normalizeMemory({ ...x.memory, assistantTable: normalizeAssistantTable(sb) }),
+            updatedAt: Date.now(),
+          }
+        : x,
+    ),
+  });
 }
 
 /** 读当前对话的跨步成果资产（无则 null） */
 /** 跨步成果资产条目（底座 ArtifactShape 的别名；字段由写入方约定，故全部可选） */
-export type Artifact = ArtifactShape
+export type Artifact = ArtifactShape;
 
 export function getCurrentArtifacts(): Artifact[] | null {
-  return getActiveConv()?.memory?.artifacts || null
+  return getActiveConv()?.memory?.artifacts || null;
 }
 
 /** 写当前对话的跨步成果资产（[{id,type,title,description,nodeId?,url?}]） */
 export function setCurrentArtifacts(arr: Artifact[] | null): void {
-  const conv = getActiveConv()
-  if (!conv) return
+  const conv = getActiveConv();
+  if (!conv) return;
   commit({
     ...getState(),
-    conversations: getState().conversations.map((x) => (x.id === conv.id ? { ...x, memory: normalizeMemory({ ...x.memory, artifacts: Array.isArray(arr) && arr.length ? arr : null }), updatedAt: Date.now() } : x)),
-  })
+    conversations: getState().conversations.map((x) =>
+      x.id === conv.id
+        ? {
+            ...x,
+            memory: normalizeMemory({
+              ...x.memory,
+              artifacts: Array.isArray(arr) && arr.length ? arr : null,
+            }),
+            updatedAt: Date.now(),
+          }
+        : x,
+    ),
+  });
 }
 
 /* ── 工作流运行时状态（per-conversation，Step D；替代模块级 aiUndoStack/pendingGenerations）── */
 
 /** 读当前对话的 AI 撤销栈（副本） */
 export function getActiveAiUndoStack(): unknown[] {
-  return [...(getActiveConv()?.aiUndoStack || [])]
+  return [...(getActiveConv()?.aiUndoStack || [])];
 }
 
 /** 压入 AI 撤销快照（上限 20） */
 export function pushActiveAiUndo(snapshot: Record<string, unknown>): void {
-  const conv = getActiveConv()
-  if (!conv) return
-  const stack = [...(conv.aiUndoStack || []), snapshot]
-  if (stack.length > 20) stack.shift()
+  const conv = getActiveConv();
+  if (!conv) return;
+  const stack = [...(conv.aiUndoStack || []), snapshot];
+  if (stack.length > 20) stack.shift();
   commit({
     ...getState(),
-    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, aiUndoStack: stack, updatedAt: Date.now() } : c)),
-  })
+    conversations: getState().conversations.map((c) =>
+      c.id === conv.id ? { ...c, aiUndoStack: stack, updatedAt: Date.now() } : c,
+    ),
+  });
 }
 
 /** 弹出最近 AI 撤销快照 */
 export function popActiveAiUndo(): Record<string, unknown> | undefined {
-  const conv = getActiveConv()
-  if (!conv || !(conv.aiUndoStack || []).length) return null
-  const stack = [...conv.aiUndoStack]
-  const popped = stack.pop() as Record<string, unknown> | undefined
+  const conv = getActiveConv();
+  if (!conv || !(conv.aiUndoStack || []).length) return null;
+  const stack = [...conv.aiUndoStack];
+  const popped = stack.pop() as Record<string, unknown> | undefined;
   commit({
     ...getState(),
-    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, aiUndoStack: stack, updatedAt: Date.now() } : c)),
-  })
-  return popped
+    conversations: getState().conversations.map((c) =>
+      c.id === conv.id ? { ...c, aiUndoStack: stack, updatedAt: Date.now() } : c,
+    ),
+  });
+  return popped;
 }
 
 /* ── 参考图引用（per-conversation，防跨对话泄漏）── */
 
 /** 读当前对话「本轮用户引用的参考图」URL 数组（per-conversation，TASK-006 #7 防跨对话泄漏） */
 export function getCurrentRefImages(): string[] {
-  return getActiveConv()?.referenceImages || []
+  return getActiveConv()?.referenceImages || [];
 }
 
 /** 写当前对话「本轮用户引用的参考图」URL 数组 */
 export function setCurrentRefImages(urls: unknown[] = []): void {
-  const conv = getActiveConv()
-  if (!conv) return
-  const next: string[] = Array.isArray(urls) ? (urls.filter(Boolean) as string[]) : []
+  const conv = getActiveConv();
+  if (!conv) return;
+  const next: string[] = Array.isArray(urls) ? (urls.filter(Boolean) as string[]) : [];
   commit({
     ...getState(),
-    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, referenceImages: next, updatedAt: Date.now() } : c)),
-  })
+    conversations: getState().conversations.map((c) =>
+      c.id === conv.id ? { ...c, referenceImages: next, updatedAt: Date.now() } : c,
+    ),
+  });
 }

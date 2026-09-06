@@ -1,9 +1,9 @@
-import React, { useState } from 'react'
-import { Sparkles } from 'lucide-react'
-import { useReactFlow } from '@xyflow/react'
-import { useNodePosition } from '../core/uiHooks.ts'
-import PromptLibrary from './PromptLibrary.tsx'
-import { generateId } from '../core/idGen.ts'
+import React, { useState } from 'react';
+import { Sparkles } from 'lucide-react';
+import { useReactFlow } from '@xyflow/react';
+import { useNodePosition } from '../core/uiHooks.ts';
+import PromptLibrary from './PromptLibrary.tsx';
+import { generateId } from '../core/idGen.ts';
 
 /**
  * 预设提示词按钮（复刻各节点底部「预设」入口 → 打开提示词库弹窗）。
@@ -21,14 +21,14 @@ import { generateId } from '../core/idGen.ts'
  *              传入后卡片上会显示「添加到提示词」按钮。
  */
 export default function PromptLibraryButton({ category = 'text', onAppend }) {
-  const [open, setOpen] = useState(false)
-  const { addNodes } = useReactFlow()
-  const { posAtCenter } = useNodePosition()
+  const [open, setOpen] = useState(false);
+  const { addNodes } = useReactFlow();
+  const { posAtCenter } = useNodePosition();
 
   // 点「使用」→ 新建文本节点（内容 = 预设 prompt）
   const handleUse = (prompt) => {
     // 落点：统一视图中央（走公共 base，与 Q/W/E 等一致）
-    const position = posAtCenter()
+    const position = posAtCenter();
     const newNode = {
       id: generateId('textNode'),
       type: 'textNode',
@@ -38,11 +38,11 @@ export default function PromptLibraryButton({ category = 'text', onAppend }) {
         text: prompt,
         prompt: '',
         selectedModel: 'gpt-4o-mini',
-        expanded: false // 输入框默认收起
-      }
-    }
-    addNodes([newNode])
-  }
+        expanded: false, // 输入框默认收起
+      },
+    };
+    addNodes([newNode]);
+  };
 
   return (
     <>
@@ -50,12 +50,21 @@ export default function PromptLibraryButton({ category = 'text', onAppend }) {
       <button
         className="flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer"
         title="预设提示词"
-        onClick={(e) => { e.stopPropagation(); setOpen(true) }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+        }}
       >
         <Sparkles size={10} className="text-blue-400" />
         <span>预设</span>
       </button>
-      <PromptLibrary open={open} onClose={() => setOpen(false)} onUse={handleUse} onAppend={onAppend} defaultCategory={category} />
+      <PromptLibrary
+        open={open}
+        onClose={() => setOpen(false)}
+        onUse={handleUse}
+        onAppend={onAppend}
+        defaultCategory={category}
+      />
     </>
-  )
+  );
 }

@@ -30,11 +30,19 @@ test('B2 签名向量：X-Signature = hmac_sha256(SK, "METHOD\\npath\\nts") 且�
   assert.ok(headers['X-Timestamp']);
   const raw = `${METHOD}\n${P}\n${headers['X-Timestamp']}`;
   const expected = createHmac('sha256', SK).update(raw).digest('hex');
-  assert.equal(headers['X-Signature'], expected, '签名 = hmac_sha256(secret, "METHOD\\npath\\nts")');
+  assert.equal(
+    headers['X-Signature'],
+    expected,
+    '签名 = hmac_sha256(secret, "METHOD\\npath\\nts")',
+  );
 });
 
 test('B2 签名是 64 位 sha256 hex（排除随机 salt / 非算法混淆）', () => {
-  const h1 = buildHmacAuthHeaders({ type: 'hmac', accessKey: AK, secretKey: SK }, 'GET', '/v1/openapi/project/validate');
+  const h1 = buildHmacAuthHeaders(
+    { type: 'hmac', accessKey: AK, secretKey: SK },
+    'GET',
+    '/v1/openapi/project/validate',
+  );
   assert.match(h1['X-Signature'], /^[0-9a-f]{64}$/, 'X-Signature 应为 sha256 hexdigest (64 位)');
   assert.equal(h1['X-Signed-Path'], '/v1/openapi/project/validate');
 });

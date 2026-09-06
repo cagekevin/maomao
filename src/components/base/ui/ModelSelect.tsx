@@ -1,6 +1,6 @@
-import React, { useState, useRef, type ReactNode } from 'react'
-import { Coins, LayoutGrid } from 'lucide-react'
-import { useOutsideClick } from '../core/uiHooks.ts'
+import React, { useState, useRef, type ReactNode } from 'react';
+import { Coins, LayoutGrid } from 'lucide-react';
+import { useOutsideClick } from '../core/uiHooks.ts';
 
 /**
  * 模型 badge 元信息：
@@ -9,12 +9,12 @@ import { useOutsideClick } from '../core/uiHooks.ts'
  */
 /** 单个模型项形状。跨厂商聚合时由 buildAllModels 产出：id=`providerId::modelId`、badge=厂商名。 */
 interface ModelItem {
-  id: string
-  label?: string
+  id: string;
+  label?: string;
   /** 'builtin' | 'third' | 'scheduled' | 其它字符串直接作标签；多 provider 聚合时为 provider 名 */
-  badge?: string
-  cost?: number
-  providerId?: string
+  badge?: string;
+  cost?: number;
+  providerId?: string;
 }
 
 /**
@@ -26,34 +26,35 @@ interface ModelItem {
  */
 
 function badgeMeta(badge: string): { label: string; className: string } {
-  if (badge === 'scheduled') return { label: '调度', className: 'border-blue-400 text-blue-300' }
-  if (badge === 'third') return { label: '三方', className: 'border-edge-raised text-body' }
-  if (badge && badge !== 'builtin') return { label: badge, className: 'border-white/30 text-white/90' }
-  return { label: '内置', className: 'border-white/30 text-white/90' }
+  if (badge === 'scheduled') return { label: '调度', className: 'border-blue-400 text-blue-300' };
+  if (badge === 'third') return { label: '三方', className: 'border-edge-raised text-body' };
+  if (badge && badge !== 'builtin')
+    return { label: badge, className: 'border-white/30 text-white/90' };
+  return { label: '内置', className: 'border-white/30 text-white/90' };
 }
 
 /** 模型选择下拉 Props */
 interface ModelSelectProps {
-  value?: string
-  onChange: (id: string) => void
-  models?: ModelItem[]
-  placeholder?: string
-  costMap?: Record<string, number>
-  popupTo?: 'up' | 'down'
-  showDivider?: boolean
-  labelMaxWidth?: string
+  value?: string;
+  onChange: (id: string) => void;
+  models?: ModelItem[];
+  placeholder?: string;
+  costMap?: Record<string, number>;
+  popupTo?: 'up' | 'down';
+  showDivider?: boolean;
+  labelMaxWidth?: string;
   /**
    * 图标化触发器：只渲染一个图标按钮，不显示模型名与厂商 badge。
    * 供窄容器（如 AI 助手底部工具栏去文字化）使用；默认 false，保持原有带文字形态，
    * 其余调用方（节点模型选择等）视觉零变化。
    */
-  iconOnly?: boolean
+  iconOnly?: boolean;
   /** iconOnly 时的自定义图标（不传则用默认 cpu 图标） */
-  icon?: ReactNode
+  icon?: ReactNode;
   /** iconOnly 时触发器按钮的 title（模型名放这里，避免占用横向空间） */
-  triggerTitle?: string
+  triggerTitle?: string;
   /** iconOnly 时触发器是否呈激活高亮（如「已选非默认模型」） */
-  active?: boolean
+  active?: boolean;
 }
 
 function ModelSelect({
@@ -68,41 +69,50 @@ function ModelSelect({
   iconOnly = false,
   icon,
   triggerTitle,
-  active = false
+  active = false,
 }: ModelSelectProps) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-  useOutsideClick(ref, open, () => setOpen(false))
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useOutsideClick(ref, open, () => setOpen(false));
 
-  const badge = (id: string) => models.find((m) => m.id === id)?.badge || 'builtin'
-  const selectedItem = models.find((m) => m.id === value)
-  const selectedBadge = badgeMeta(badge(value))
+  const badge = (id: string) => models.find((m) => m.id === id)?.badge || 'builtin';
+  const selectedItem = models.find((m) => m.id === value);
+  const selectedBadge = badgeMeta(badge(value));
 
-  const choose = (m: ModelItem) => { onChange(m.id); setOpen(false) }
+  const choose = (m: ModelItem) => {
+    onChange(m.id);
+    setOpen(false);
+  };
 
   const renderModelRow = (m: ModelItem) => {
-    const selected = value === m.id
-    const itemBadge = badgeMeta(m.badge || 'builtin')
-    const cost = costMap[m.id]
+    const selected = value === m.id;
+    const itemBadge = badgeMeta(m.badge || 'builtin');
+    const cost = costMap[m.id];
     return (
       <div
         key={m.id}
         role="button"
         className={`flex items-center gap-1.5 mb-1 last:mb-0 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors cursor-pointer ${selected ? 'bg-surface-hover-strong text-white' : 'text-secondary hover:bg-surface-hover hover:text-primary'}`}
-        onMouseDown={(e) => { e.preventDefault(); choose(m) }}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          choose(m);
+        }}
       >
-        <span className={`shrink-0 px-1 rounded text-meta leading-[14px] border bg-white/10 ${itemBadge.className}`}>
+        <span
+          className={`shrink-0 px-1 rounded text-meta leading-[14px] border bg-white/10 ${itemBadge.className}`}
+        >
           {itemBadge.label}
         </span>
         <span className="flex-1 whitespace-nowrap">{m.label || m.id}</span>
         {cost != null && (
           <span className="shrink-0 inline-flex items-center gap-0.5 text-caption text-orange-400 tabular-nums">
-            <Coins className="w-2.5 h-2.5" strokeWidth={2.5} />{cost}
+            <Coins className="w-2.5 h-2.5" strokeWidth={2.5} />
+            {cost}
           </span>
         )}
       </div>
-    )
-  }
+    );
+  };
 
   return (
     <div className="relative nodrag flex items-center min-w-0" ref={ref}>
@@ -111,10 +121,20 @@ function ModelSelect({
         <button
           type="button"
           className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors cursor-pointer ${
-            active ? 'text-[#60a5fa] bg-[#3b82f6]/10' : 'text-muted hover:text-primary hover:bg-surface-hover'
+            active
+              ? 'text-[#60a5fa] bg-[#3b82f6]/10'
+              : 'text-muted hover:text-primary hover:bg-surface-hover'
           }`}
-          onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
-          title={triggerTitle || (value ? `生图模型：${selectedItem?.label || value}（${selectedBadge.label}）` : '选择生图模型')}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((v) => !v);
+          }}
+          title={
+            triggerTitle ||
+            (value
+              ? `生图模型：${selectedItem?.label || value}（${selectedBadge.label}）`
+              : '选择生图模型')
+          }
         >
           {/* 图标：LayoutGrid（四宫格，更贴合"图像模型/图集"语义，替代 CPU 芯片） */}
           {icon || <LayoutGrid className="w-4 h-4" strokeWidth={1.8} />}
@@ -123,13 +143,23 @@ function ModelSelect({
         <button
           type="button"
           className="flex items-center gap-1 h-6 px-2 min-w-0 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer"
-          onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((v) => !v);
+          }}
           title={value ? `${value}（${selectedBadge.label}）` : '选择模型'}
         >
-          <span className={`shrink-0 px-1 rounded text-meta leading-[14px] border bg-white/10 ${selectedBadge.className}`}>
+          <span
+            className={`shrink-0 px-1 rounded text-meta leading-[14px] border bg-white/10 ${selectedBadge.className}`}
+          >
             {selectedBadge.label}
           </span>
-          <span className={`whitespace-nowrap overflow-hidden text-ellipsis ${labelMaxWidth ? 'min-w-0' : ''}`} style={labelMaxWidth ? { maxWidth: labelMaxWidth } : undefined}>{selectedItem?.label || value || placeholder}</span>
+          <span
+            className={`whitespace-nowrap overflow-hidden text-ellipsis ${labelMaxWidth ? 'min-w-0' : ''}`}
+            style={labelMaxWidth ? { maxWidth: labelMaxWidth } : undefined}
+          >
+            {selectedItem?.label || value || placeholder}
+          </span>
         </button>
       )}
 
@@ -139,14 +169,16 @@ function ModelSelect({
           onClick={(e) => e.stopPropagation()}
         >
           {models.length === 0 ? (
-            <div className="px-2 py-1 text-caption-sm text-muted whitespace-nowrap">无可用模型（请在服务商设置中配置）</div>
+            <div className="px-2 py-1 text-caption-sm text-muted whitespace-nowrap">
+              无可用模型（请在服务商设置中配置）
+            </div>
           ) : (
             models.map(renderModelRow)
           )}
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default React.memo(ModelSelect)
+export default React.memo(ModelSelect);

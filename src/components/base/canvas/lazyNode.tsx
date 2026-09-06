@@ -1,6 +1,6 @@
-import React, { Suspense } from 'react'
-import ErrorBoundary from '../ui/ErrorBoundary.tsx'
-import { logger } from '../core/logger.ts'
+import React, { Suspense } from 'react';
+import ErrorBoundary from '../ui/ErrorBoundary.tsx';
+import { logger } from '../core/logger.ts';
 
 /**
  * 重依赖节点的「按需加载」包装（3D 引擎 / 视频处理等）。
@@ -28,7 +28,7 @@ function NodeLoading({ label }: { label?: string }) {
       <div className="w-5 h-5 rounded-full border-2 border-edge border-t-transparent animate-spin" />
       <span className="text-caption-sm text-faint">{label ? `加载${label}…` : '加载中…'}</span>
     </div>
-  )
+  );
 }
 
 /**
@@ -36,14 +36,17 @@ function NodeLoading({ label }: { label?: string }) {
  * @param loader 动态 import（必须字面量，供 Vite 静态分析），返回 { default: ComponentType }
  * @param opts.label 用于占位文案与错误日志
  */
-export function lazyNode(loader: () => Promise<{ default: React.ComponentType }>, { label }: { label?: string } = {}) {
+export function lazyNode(
+  loader: () => Promise<{ default: React.ComponentType }>,
+  { label }: { label?: string } = {},
+) {
   const Lazy = React.lazy(() =>
     loader().catch((e) => {
       // 失败必须可见：记日志后继续抛，交给下方 ErrorBoundary 降级（不静默吞错）
-      logger.error('lazyNode', '节点 chunk 加载失败', { label, error: e?.message || String(e) })
-      throw e
-    })
-  )
+      logger.error('lazyNode', '节点 chunk 加载失败', { label, error: e?.message || String(e) });
+      throw e;
+    }),
+  );
 
   const LazyNode = (props: Record<string, unknown>) => (
     <ErrorBoundary variant="node">
@@ -51,9 +54,9 @@ export function lazyNode(loader: () => Promise<{ default: React.ComponentType }>
         <Lazy {...(props as object)} />
       </Suspense>
     </ErrorBoundary>
-  )
-  LazyNode.displayName = `LazyNode(${label || 'unknown'})`
-  return React.memo(LazyNode)
+  );
+  LazyNode.displayName = `LazyNode(${label || 'unknown'})`;
+  return React.memo(LazyNode);
 }
 
 /**
@@ -66,7 +69,7 @@ export const HEAVY_NODE_LOADERS = {
   director3dNode: () => import('../../nodes/Director3DNode.tsx'),
   panoramaNode: () => import('../../nodes/PanoramaNode.tsx'),
   videoProcessNode: () => import('../../nodes/VideoProcessNode.tsx'),
-}
+};
 
 /**
  * 预取某个重依赖节点（悬停 palette 项 / 展开分类 / 打开含该类型的画布时调用），
@@ -74,7 +77,7 @@ export const HEAVY_NODE_LOADERS = {
  * 预取失败无需处理：真正渲染时会走 ErrorBoundary 可见降级。
  */
 export function prefetchHeavyNode(type: keyof typeof HEAVY_NODE_LOADERS) {
-  const load = HEAVY_NODE_LOADERS[type]
-  if (!load) return
-  load().catch(() => {})
+  const load = HEAVY_NODE_LOADERS[type];
+  if (!load) return;
+  load().catch(() => {});
 }

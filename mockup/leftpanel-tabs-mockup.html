@@ -493,7 +493,7 @@
     <span class="tag">收起态 rail</span><b>4 图标 + 角标</b>
     <div class="note">
       <span class="keep">结构不变</span>，只收口：36px 圆角方钮、角标贴边、底部加分隔线放「收起」<br/>
-      <span class="new">+角标区分语义</span>：红=有失败/生成中（要你看），绿=全部完成
+      <span class="new">+角标区分语义</span>：<b>红</b>=有失败（需处理）、<b>绿</b>=无失败（仅生成中/待跑）；全部完成则无角标
     </div>
   </div>
 </div>
@@ -521,22 +521,9 @@
     </div>
 
     <div class="sub">
-      <div class="pills">
-        <button class="pill is-on">全部 12</button>
-        <button class="pill">生成中 3</button>
-        <button class="pill">已完成 8</button>
-        <button class="pill">失败 1</button>
-      </div>
-      <button class="ib sm" data-filter title="搜索与筛选"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/></svg></button>
-      <button class="ib sm" data-more title="更多"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
-    </div>
-
-    <div class="flt is-hidden">
-      <div class="fld"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.7" y2="16.7"/></svg><input placeholder="搜索提示词或渠道…"/></div>
-      <div class="flt-row">
-        <div class="fld sel">所有类型<svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></div>
-        <div class="fld sel">所有时间<svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></div>
-      </div>
+      <span class="st"><b>3</b> 生成中 · <b>1</b> 失败</span>
+      <span class="head-spacer"></span>
+      <button class="ib sm" data-more title="清理任务"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
     </div>
 
     <div class="body">
@@ -591,11 +578,11 @@
     </div>
   </div>
   <div class="stage-cap" style="width:330px;">
-    <span class="tag main">新 · 任务</span><b>48px 顶栏 + 38px 状态 pill</b>
+    <span class="tag main">新 · 任务</span><b>48px 顶栏 + 38px 统计条（无 pill / 无搜索）</b>
     <div class="note">
       顶栏：<span class="new">分段控件替代 4 个平分按钮</span> —— 未激活只图标，激活展开文字（窄栏不挤）<br/>
-      <span class="new">状态筛选上提为 pill</span>（带计数），<span class="cut">去掉「过滤」按钮 + 下拉弹层</span><br/>
-      右侧：<span class="new">漏斗</span>=低频筛选（关键词/类型/时间，内嵌展开）、<span class="keep">⋯=清理</span>（对齐 agent-pop）
+      <span class="cut">-去掉原「过滤」按钮 + 状态下拉弹层 + 搜索</span>；<span class="cut">不要 pill</span><br/>
+      副条只留<span class="keep">统计</span>（N 生成中 · N 失败）+ 右侧<span class="keep">⋯=清理</span>（对齐 agent-pop）
     </div>
   </div>
 </div>
@@ -621,12 +608,7 @@
         <button class="pill">视频</button>
         <button class="pill">文本</button>
       </div>
-      <button class="ib sm" data-filter title="搜索名称"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.7" y2="16.7"/></svg></button>
       <button class="ib sm" data-more title="更多"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
-    </div>
-
-    <div class="flt is-hidden">
-      <div class="fld"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.7" y2="16.7"/></svg><input placeholder="搜索生成结果名称…"/></div>
     </div>
 
     <div class="body">
@@ -652,10 +634,10 @@
     </div>
   </div>
   <div class="stage-cap" style="width:330px;">
-    <span class="tag main">新 · 生成</span><b>同构：pill + 漏斗 + ⋯</b>
+    <span class="tag main">新 · 生成</span><b>同构：pill + ⋯（无搜索）</b>
     <div class="note">
       <span class="keep">✓ 3 列网格 / 分页底栏不变</span>，只把类型 pill 放进统一 38px 条<br/>
-      <span class="new">+漏斗=按名称搜索</span>（原无搜索）；进入子目录时「返回上级」作为 pill 首位<br/>
+      进入子目录时「返回上级」作为 pill 首位；<span class="cut">无搜索 / 无漏斗</span><br/>
       <span class="cut">-⋮ 现在是浮层菜单</span>（对齐 agent-pop：surface-1 + edge + radius 12）
     </div>
   </div>
@@ -682,13 +664,9 @@
         <button class="pill">场景</button>
         <button class="pill">道具</button>
       </div>
-      <button class="ib sm" data-filter title="搜索素材"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.7" y2="16.7"/></svg></button>
       <button class="ib sm" data-more title="更多"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
     </div>
 
-    <div class="flt is-hidden">
-      <div class="fld"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.7" y2="16.7"/></svg><input placeholder="搜索素材名…"/></div>
-    </div>
 
     <div class="body">
       <button class="upload" data-demo="选择文件上传（或拖入面板）">
@@ -716,7 +694,7 @@
     <span class="tag main">新 · 素材</span><b>上传条移到内容区顶部</b>
     <div class="note">
       目录 pill 进统一工具条；<span class="new">上传区从「工具条下独立块」变成内容区首行</span>，滚动时跟着滚，不再常驻占位<br/>
-      <span class="new">+漏斗=搜索素材名</span>（原无搜索）；<span class="keep">✓ 无限滚动 + 「已全部加载」保留</span><br/>
+      <span class="cut">无搜索 / 无漏斗</span>；<span class="keep">✓ 无限滚动 + 「已全部加载」保留</span><br/>
       ⚠️ 现状目录 pill 里「全部」与「素材库」指向同一目录会同时高亮，重做时建议去掉重复项
     </div>
   </div>
@@ -743,13 +721,9 @@
         <button class="pill">我的</button>
         <button class="pill">收藏</button>
       </div>
-      <button class="ib sm" data-filter title="搜索提示词"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.7" y2="16.7"/></svg></button>
       <button class="ib sm" data-more title="更多"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
     </div>
 
-    <div class="flt is-hidden">
-      <div class="fld"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.7" y2="16.7"/></svg><input placeholder="搜索提示词…"/></div>
-    </div>
 
     <div class="body">
       <div class="grid">
@@ -770,144 +744,24 @@
     </div>
   </div>
   <div class="stage-cap" style="width:330px;">
-    <span class="tag main">新 · 提示词</span><b>来源上提为 pill，搜索收进漏斗</b>
+    <span class="tag main">新 · 提示词</span><b>来源上提为 pill，无搜索</b>
     <div class="note">
-      <span class="cut">-原来的「来源 pill 行 + 搜索框 + 统计行」三行</span> → 压成 38px 一行（pill）+ 按需展开的漏斗<br/>
+      <span class="cut">-原来的「来源 pill 行 + 搜索框 + 统计行」三行</span> → 压成 38px 一行（pill + ⋯）<br/>
       <span class="keep">✓ 卡片网格不变</span>（分类角标 + 名称渐变底）<br/>
-      统计数字统一放<b>内容底部</b>（与素材/生成一致的「共 N 条」）
+      统计数字统一放<b>内容底部</b>（与素材/生成一致的「共 N 条」）；<span class="cut">无搜索</span>
     </div>
   </div>
 </div>
 </div>
 
-<!-- ══════════════ 细化态：筛选展开 / 空态 / 菜单 ══════════════ -->
-<div class="row">
-
-<!-- 任务 · 筛选展开 -->
-<div class="stage">
-  <div class="lp" style="height:520px;">
-    <div class="lp-head">
-      <div class="seg">
-        <button class="seg-i is-on" data-tab="任务" title="任务"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg><span class="lb">任务</span><span class="bdg">4</span></button>
-        <button class="seg-i" data-tab="生成" title="生成"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9l-4.7 1.3L12 15l-1.8-4.7L5.5 9l4.7-1.3z"/></svg><span class="lb">生成</span></button>
-        <button class="seg-i" data-tab="素材" title="素材"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="lb">素材</span></button>
-        <button class="seg-i" data-tab="提示词" title="提示词"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span class="lb">提示词</span></button>
-      </div>
-      <span class="head-spacer"></span>
-      <button class="ib" data-pin title="钉住面板"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.8V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v5.8l1.4 2.6a2 2 0 0 1-1.8 2.9H9.4a2 2 0 0 1-1.8-2.9z"/></svg></button>
-    </div>
-
-    <div class="sub">
-      <div class="pills">
-        <button class="pill is-on">全部 12</button>
-        <button class="pill">生成中 3</button>
-        <button class="pill">已完成 8</button>
-        <button class="pill">失败 1</button>
-      </div>
-      <button class="ib sm is-on" data-filter title="收起筛选"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/></svg></button>
-      <button class="ib sm" data-more title="更多"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
-    </div>
-
-    <div class="flt">
-      <div class="fld"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.7" y2="16.7"/></svg><input placeholder="搜索提示词或渠道…" value="赛博"/></div>
-      <div class="flt-row">
-        <div class="fld sel">生图<svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></div>
-        <div class="fld sel">今天<svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></div>
-      </div>
-    </div>
-
-    <div class="body">
-      <div class="tk">
-        <div class="tk-1">
-          <span class="dot ok"></span><span class="tk-st ok">已完成</span>
-          <span style="font-size:11px;color:var(--t-subtle)">·</span>
-          <span class="tk-meta"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>生图</span>
-          <span class="tk-ops"><button class="ib sm"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="ib sm"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></span>
-        </div>
-        <p class="tk-p">赛博朋克街道，霓虹倒影，雨夜，广角</p>
-        <div class="tk-time">13:47</div>
-        <div class="thumb"><img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='150'><rect width='300' height='150' fill='%232a2036'/><rect y='90' width='300' height='60' fill='%231a1424'/><circle cx='80' cy='60' r='26' fill='%23e05a8a' opacity='.7'/><circle cx='210' cy='52' r='20' fill='%235aa9e0' opacity='.6'/></svg>" alt=""/></div>
-      </div>
-    </div>
-
-    <div class="pop is-more is-hidden">
-      <button class="pop-row" data-demo="清理失败任务"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>清理失败任务 (1)</button>
-      <div class="pop-div"></div>
-      <button class="pop-row is-danger" data-demo="清理全部任务"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>清理全部任务 (12)</button>
-    </div>
-  </div>
-  <div class="stage-cap" style="width:330px;">
-    <span class="tag">细化态</span><b>任务 · 漏斗展开（内嵌，非弹层）</b>
-    <div class="note">
-      <span class="new">漏斗激活变蓝</span>，筛选区<b>内嵌展开</b>（surface-panel 底），不遮挡列表、不另开弹层<br/>
-      高频筛选（状态）留在 pill，<span class="keep">低频（关键词/类型/时间）收进漏斗</span><br/>
-      与 AI 助手一致：激活态用<b>中性高亮</b>，只有「某开关已启用」才用蓝
-    </div>
-  </div>
-</div>
-
-<!-- 提示词 · 空态 + 菜单 -->
-<div class="stage">
-  <div class="lp" style="height:520px;">
-    <div class="lp-head">
-      <div class="seg">
-        <button class="seg-i" data-tab="任务" title="任务"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg><span class="lb">任务</span><span class="bdg">4</span></button>
-        <button class="seg-i" data-tab="生成" title="生成"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9l-4.7 1.3L12 15l-1.8-4.7L5.5 9l4.7-1.3z"/></svg><span class="lb">生成</span></button>
-        <button class="seg-i" data-tab="素材" title="素材"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="lb">素材</span></button>
-        <button class="seg-i is-on" data-tab="提示词" title="提示词"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span class="lb">提示词</span></button>
-      </div>
-      <span class="head-spacer"></span>
-      <button class="ib is-on" data-pin title="已钉住（点击取消）"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.8V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v5.8l1.4 2.6a2 2 0 0 1-1.8 2.9H9.4a2 2 0 0 1-1.8-2.9z"/><line x1="3" y1="3" x2="21" y2="21"/></svg></button>
-    </div>
-
-    <div class="sub">
-      <div class="pills">
-        <button class="pill is-on">全部</button>
-        <button class="pill">官方</button>
-        <button class="pill">我的</button>
-        <button class="pill">收藏</button>
-      </div>
-      <button class="ib sm" data-filter title="搜索提示词"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.7" y2="16.7"/></svg></button>
-      <button class="ib sm is-on" data-more title="更多"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
-    </div>
-
-    <div class="flt is-hidden">
-      <div class="fld"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.7" y2="16.7"/></svg><input placeholder="搜索提示词…"/></div>
-    </div>
-
-    <div class="body">
-      <div class="empty">
-        <div class="mk">🔍</div>
-        <h4>没有找到匹配的提示词</h4>
-        <p>换个关键词或来源试试</p>
-      </div>
-    </div>
-
-    <div class="pop is-more">
-      <button class="pop-row" data-demo="刷新提示词库"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>刷新</button>
-      <div class="pop-div"></div>
-      <button class="pop-row" data-demo="打开提示词库目录"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>打开本地目录</button>
-    </div>
-  </div>
-  <div class="stage-cap" style="width:330px;">
-    <span class="tag">细化态</span><b>空态 / 菜单 / 钉住态</b>
-    <div class="note">
-      空态统一：图标 + 一句原因 + 一句建议（<span class="cut">去掉 emoji 大图标 + 大小写混排</span>）<br/>
-      菜单 = 对齐 <code>agent-pop</code>（surface-1 + edge + radius 12 + 8px 圆角行），删除项红字<br/>
-      钉住态：<span class="new">图标变蓝 + 划掉样式</span>；<span class="keep">✓ 行为不变</span>（点外部不收起）
-    </div>
-  </div>
-</div>
-</div>
-
-<!-- ══════════════ 待定问题 ══════════════ -->
+<!-- ══════════════ 定稿说明（mockup 已按口头裁定收敛） ══════════════ -->
 <div class="open-q">
-  <h2>要落到代码前，需要你拍板的 4 件事</h2>
+  <h2>已拍板（mockup 据此定稿）</h2>
   <ol>
-    <li><b>任务 tab 的 pill 会不会太多？</b> 现状「全部/生成中/已完成/失败」4 个 pill + 漏斗 + ⋯ 在 330px 下刚好排满。若以后加「已取消/已归档」，建议 pill 改成<b>可横滚</b>（生成/素材的 pill 已经能滚）。</li>
-    <li><b>素材的上传区放内容区顶部还是留在工具条下？</b> 现在 mockup 放内容区首行（滚动时跟着滚，省 44px 常驻）。代价：滚到下面想上传要滚回顶部 —— <b>或者顶栏加一个常驻「上传」图标</b>（推荐，与「漏斗/⋯」同排）。</li>
-    <li><b>提示词 tab 的搜索收进漏斗，等于多点一次。</b> 提示词的搜索是高频操作，若你认同「高频值得常驻」，可以让提示词 tab 的副条<b>例外保留搜索框</b>（pill 让位给搜索）。</li>
-    <li><b>生成/素材的「⋯」菜单项要不要合并。</b> 两者现在都是「打开本地目录 + 新建文件夹」，可抽成 <code>PanelMoreMenu</code> 共用组件（顺带修掉素材里「全部/素材库」两个 pill 指向同一目录、会同时高亮的问题）。</li>
+    <li><b>4 个 tab 都不要搜索</b> —— 去掉搜索框 / 漏斗 / 内嵌筛选展开区，副条右侧只剩「⋯」菜单。</li>
+    <li><b>任务中心不要 pill</b> —— 任务 tab 副条只放统计（N 生成中 · N 失败）+ 右侧 ⋯ 清理菜单。</li>
+    <li><b>生成/素材/提示词保留各自筛选 pill</b>（类型 / 目录 / 来源），只配 ⋯，无搜索图标。</li>
+    <li><b>「⋯」菜单合并</b>：生成/素材抽成同一份「打开本地目录 + 新建文件夹」（顺带修掉素材里「全部/素材库」指向同一目录、会同时高亮的问题）；落地为共享 <code>PanelMoreMenu</code>。</li>
   </ol>
 </div>
 

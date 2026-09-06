@@ -38,7 +38,11 @@ export async function pollLovartThread(deps: LovartClientDeps, threadId: string)
         await confirmLovartThread(deps, threadId);
         continue;
       }
-      throw new LovartError('任务需人工确认（pending_confirmation）', -1, LOVART_ERR_TYPES.PENDING_CONFIRMATION);
+      throw new LovartError(
+        '任务需人工确认（pending_confirmation）',
+        -1,
+        LOVART_ERR_TYPES.PENDING_CONFIRMATION,
+      );
     }
     if (st === 'done') {
       // 复核，防子 agent 未起跑误判 done（延迟可注入，生产 5s / 测试 0）
@@ -52,7 +56,11 @@ export async function pollLovartThread(deps: LovartClientDeps, threadId: string)
             await confirmLovartThread(deps, threadId);
             continue;
           }
-          throw new LovartError('任务需人工确认（pending_confirmation）', -1, LOVART_ERR_TYPES.PENDING_CONFIRMATION);
+          throw new LovartError(
+            '任务需人工确认（pending_confirmation）',
+            -1,
+            LOVART_ERR_TYPES.PENDING_CONFIRMATION,
+          );
         }
         return result;
       }

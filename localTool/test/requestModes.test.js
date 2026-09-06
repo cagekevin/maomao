@@ -31,7 +31,10 @@ test('isResponsesMode：仅认 responses 系（单一真相，不嗅探）', () 
 
 test('buildResponsesImageBody：带 tools + input_text/input_image，size 进 tool（M2-1/M2-3/E7）', () => {
   const body = mod.buildResponsesImageBody({
-    model: 'gpt-5.6', prompt: '画一只猫', images: ['data:image/png;base64,xxx'], size: '1024x1024',
+    model: 'gpt-5.6',
+    prompt: '画一只猫',
+    images: ['data:image/png;base64,xxx'],
+    size: '1024x1024',
   });
   assert.equal(body.model, 'gpt-5.6');
   assert.deepEqual(body.tools, [{ type: 'image_generation', size: '1024x1024' }]);
@@ -57,13 +60,22 @@ test('parseResponsesImage：从 output[].image_generation_call 取 result（M2-1
   };
   assert.equal(mod.parseResponsesImage(data), 'https://cdn/x.png');
   // 非 completed / 无 result → undefined
-  assert.equal(mod.parseResponsesImage({ output: [{ type: 'image_generation_call', status: 'in_progress' }] }), undefined);
+  assert.equal(
+    mod.parseResponsesImage({ output: [{ type: 'image_generation_call', status: 'in_progress' }] }),
+    undefined,
+  );
   assert.equal(mod.parseResponsesImage({ output: [] }), undefined);
 });
 
 test('extractMarkdownImage：markdown 优先，裸 URL 兜底（H2）', () => {
-  assert.equal(mod.extractMarkdownImage('看！![图](https://cdn/gh/a.png) 结束'), 'https://cdn/gh/a.png');
-  assert.equal(mod.extractMarkdownImage('https://cdn.abc.com/b.png 后续'), 'https://cdn.abc.com/b.png');
+  assert.equal(
+    mod.extractMarkdownImage('看！![图](https://cdn/gh/a.png) 结束'),
+    'https://cdn/gh/a.png',
+  );
+  assert.equal(
+    mod.extractMarkdownImage('https://cdn.abc.com/b.png 后续'),
+    'https://cdn.abc.com/b.png',
+  );
   assert.equal(mod.extractMarkdownImage('没有图片'), undefined);
 });
 
@@ -71,12 +83,17 @@ test('parseResponsesJson：无 image_generation_call 时从 output_text 兜底 m
   const data = { output: [{ type: 'output_text', text: '生成结果：\n![img](https://cdn/f.png)' }] };
   assert.equal(mod.parseResponsesJson(data), 'https://cdn/f.png');
   // markdown 兜底失败也返回 undefined（不抛错）
-  assert.equal(mod.parseResponsesJson({ output: [{ type: 'output_text', text: '没有图' }] }), undefined);
+  assert.equal(
+    mod.parseResponsesJson({ output: [{ type: 'output_text', text: '没有图' }] }),
+    undefined,
+  );
 });
 
 test('normalizeToolCalls：responses function_call 归一成统一 tool_calls（M2-4）', () => {
   const unified = mod.normalizeToolCalls({
-    output: [{ type: 'function_call', name: 'create_node', arguments: '{"x":1}', call_id: 'call_1' }],
+    output: [
+      { type: 'function_call', name: 'create_node', arguments: '{"x":1}', call_id: 'call_1' },
+    ],
   });
   assert.equal(unified.length, 1);
   assert.equal(unified[0].id, 'call_1');
@@ -112,7 +129,10 @@ test('friendlyRequestError：错误原样透传，不做中文改写或翻译（
 });
 
 test('SUPPORTED_IMAGE_REQUEST_MODES 含四形态（与 ProviderForm 一致）', () => {
-  assert.deepEqual([...mod.SUPPORTED_IMAGE_REQUEST_MODES].sort(), ['openai', 'openai-json', 'openai-responses', 'openai-video-proxy'].sort());
+  assert.deepEqual(
+    [...mod.SUPPORTED_IMAGE_REQUEST_MODES].sort(),
+    ['openai', 'openai-json', 'openai-responses', 'openai-video-proxy'].sort(),
+  );
 });
 
 test('resolveChatMode：默认 chat，responses 系归 responses，gpt-5.6 自动归 responses（M2-2/M2-5）', () => {
@@ -137,16 +157,32 @@ test('buildResponsesChatBody：messages 映射 input + tool name 顶层（M2-2 �
       { role: 'user', content: [{ type: 'text', text: 'hi' }] },
       { role: 'tool', tool_call_id: 'c1', content: '{"ok":true}' },
     ],
-    toolSchemas: [{ function: { name: 'create_node', description: '建节点', parameters: { type: 'object' } } }],
+    toolSchemas: [
+      { function: { name: 'create_node', description: '建节点', parameters: { type: 'object' } } },
+    ],
     temperature: 0.6,
   });
   assert.equal(body.model, 'gpt-5.6');
   assert.equal(body.tool_choice, 'auto');
   // tools 顶层 name（不许 function 嵌套）
-  assert.deepEqual(body.tools, [{ type: 'function', name: 'create_node', description: '建节点', parameters: { type: 'object' } }]);
-  assert.deepEqual(body.input[0], { role: 'system', content: [{ type: 'input_text', text: '你是助手' }] });
+  assert.deepEqual(body.tools, [
+    {
+      type: 'function',
+      name: 'create_node',
+      description: '建节点',
+      parameters: { type: 'object' },
+    },
+  ]);
+  assert.deepEqual(body.input[0], {
+    role: 'system',
+    content: [{ type: 'input_text', text: '你是助手' }],
+  });
   assert.deepEqual(body.input[1], { role: 'user', content: [{ type: 'input_text', text: 'hi' }] });
-  assert.deepEqual(body.input[2], { type: 'function_call_output', call_id: 'c1', output: '{"ok":true}' });
+  assert.deepEqual(body.input[2], {
+    type: 'function_call_output',
+    call_id: 'c1',
+    output: '{"ok":true}',
+  });
 });
 
 test('buildResponsesChatBody：assistant 历史 tool_calls → function_call 项（M2-4）', () => {
@@ -154,10 +190,19 @@ test('buildResponsesChatBody：assistant 历史 tool_calls → function_call 项
     model: 'm',
     messages: [
       { role: 'user', content: '看图' },
-      { role: 'assistant', content: '', tool_calls: [{ id: 'c_1', type: 'function', function: { name: 'create_node', arguments: '{"x":1}' } }] },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          { id: 'c_1', type: 'function', function: { name: 'create_node', arguments: '{"x":1}' } },
+        ],
+      },
     ],
   });
-  assert.deepEqual(body.input.find((i) => i.type === 'function_call'), { type: 'function_call', call_id: 'c_1', name: 'create_node', arguments: '{"x":1}' });
+  assert.deepEqual(
+    body.input.find((i) => i.type === 'function_call'),
+    { type: 'function_call', call_id: 'c_1', name: 'create_node', arguments: '{"x":1}' },
+  );
 });
 
 test('parseResponsesChatJson：output[] 拼 content + 归一 tool_calls（M2-2/M2-4）', () => {
@@ -176,8 +221,14 @@ test('parseResponsesChatJson：output[] 拼 content + 归一 tool_calls（M2-2/M
 test('parseResponsesSSEChunk：流式事件并入 acc（M2-3）', () => {
   const acc = { content: '', reasoning: '', toolCalls: [] };
   mod.parseResponsesSSEChunk('data: {"type":"response.output_text.delta","delta":"你好"}', acc);
-  mod.parseResponsesSSEChunk('data: {"type":"response.function_call_arguments.delta","name":"create_node","call_id":"c7","delta":"{\\"x\\""}', acc);
-  mod.parseResponsesSSEChunk('data: {"type":"response.function_call_arguments.delta","delta":":1}"}', acc);
+  mod.parseResponsesSSEChunk(
+    'data: {"type":"response.function_call_arguments.delta","name":"create_node","call_id":"c7","delta":"{\\"x\\""}',
+    acc,
+  );
+  mod.parseResponsesSSEChunk(
+    'data: {"type":"response.function_call_arguments.delta","delta":":1}"}',
+    acc,
+  );
   assert.equal(acc.content, '你好');
   assert.equal(acc.toolCalls[0].id, 'c7');
   assert.equal(acc.toolCalls[0].function.name, 'create_node');

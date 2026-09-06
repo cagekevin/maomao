@@ -1,6 +1,6 @@
-import React, { memo, useRef, useState, useEffect } from 'react'
-import { useRenderImageResolver } from '../utils/imageUrl.ts'
-import { ImageOff } from 'lucide-react'
+import React, { memo, useRef, useState, useEffect } from 'react';
+import { useRenderImageResolver } from '../utils/imageUrl.ts';
+import { ImageOff } from 'lucide-react';
 
 /**
  * 懒加载图片（复刻官方 Lg.jsx）
@@ -20,39 +20,45 @@ import { ImageOff } from 'lucide-react'
  *  - imgClassName：img 内部类名（默认 w-full h-full object-cover）
  */
 interface LazyImageProps {
-  src?: string
-  alt?: string
-  className?: string
-  onDoubleClick?: () => void
-  imgClassName?: string
+  src?: string;
+  alt?: string;
+  className?: string;
+  onDoubleClick?: () => void;
+  imgClassName?: string;
 }
 
-function LazyImage({ src, alt = '', className, onDoubleClick, imgClassName = 'w-full h-full object-cover' }: LazyImageProps) {
-  const resolve = useRenderImageResolver()
-  const resolvedSrc = resolve(src || '')
-  const ref = useRef(null)
-  const [visible, setVisible] = useState(false)
-  const [failed, setFailed] = useState(false)
+function LazyImage({
+  src,
+  alt = '',
+  className,
+  onDoubleClick,
+  imgClassName = 'w-full h-full object-cover',
+}: LazyImageProps) {
+  const resolve = useRenderImageResolver();
+  const resolvedSrc = resolve(src || '');
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    const el = ref.current
-    if (!el || visible) return
+    const el = ref.current;
+    if (!el || visible) return;
     if (typeof IntersectionObserver === 'undefined') {
-      setVisible(true) // 降级：无 IO 直接显示
-      return
+      setVisible(true); // 降级：无 IO 直接显示
+      return;
     }
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) {
-          setVisible(true)
-          io.disconnect()
+          setVisible(true);
+          io.disconnect();
         }
       },
-      { rootMargin: '120px' }
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [visible])
+      { rootMargin: '120px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visible]);
 
   return (
     <div ref={ref} className={className} onDoubleClick={onDoubleClick}>
@@ -74,8 +80,7 @@ function LazyImage({ src, alt = '', className, onDoubleClick, imgClassName = 'w-
         </div>
       ) : null}
     </div>
-  )
+  );
 }
 
-export default memo(LazyImage)
-
+export default memo(LazyImage);

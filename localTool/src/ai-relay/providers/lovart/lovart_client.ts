@@ -36,11 +36,23 @@ export interface LovartClientDeps {
 
 /** 剥 {code,data} 信封并做 code≠0 检。 */
 async function parseEnvelope(json: any): Promise<any> {
-  if (json && typeof json === 'object' && 'code' in json && json.code !== 0 && json.code !== undefined) {
+  if (
+    json &&
+    typeof json === 'object' &&
+    'code' in json &&
+    json.code !== 0 &&
+    json.code !== undefined
+  ) {
     // 原样透传上游文案（B13：禁翻译/静默）
-    throw new LovartError(String(json.message ?? 'Lovart request failed'), json.code, LOVART_ERR_TYPES.UPSTREAM);
+    throw new LovartError(
+      String(json.message ?? 'Lovart request failed'),
+      json.code,
+      LOVART_ERR_TYPES.UPSTREAM,
+    );
   }
-  return json && typeof json === 'object' && 'data' in json && json.data !== undefined ? json.data : json;
+  return json && typeof json === 'object' && 'data' in json && json.data !== undefined
+    ? json.data
+    : json;
 }
 
 /** 经注入 transport 发请求并剥信封。 */
@@ -88,7 +100,10 @@ export async function setLovartMode(deps: LovartClientDeps, unlimited = false): 
 
 // ── Chat (submit) ────────────────────────────────────────────────────
 
-export async function sendLovartChat(deps: LovartClientDeps, input: LovartSendInput): Promise<string> {
+export async function sendLovartChat(
+  deps: LovartClientDeps,
+  input: LovartSendInput,
+): Promise<string> {
   const body = normalizeLovartSendBody(input); // 字段别名 projectId→project_id
   const data = await lovartRequest(deps, 'POST', '/chat', body);
   const threadId = String(data?.thread_id ?? '');
@@ -121,7 +136,11 @@ export async function uploadLovartFile(
   const boundary = `----lovartform${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
   const head = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: application/octet-stream\r\n\r\n`;
   const tail = `\r\n--${boundary}--\r\n`;
-  const payload = Buffer.concat([Buffer.from(head, 'utf8'), Buffer.from(bytes), Buffer.from(tail, 'utf8')]);
+  const payload = Buffer.concat([
+    Buffer.from(head, 'utf8'),
+    Buffer.from(bytes),
+    Buffer.from(tail, 'utf8'),
+  ]);
   const transport: LovartTransport = deps.transport ?? stableRequest;
   const data = await transport({
     method: 'POST',
@@ -133,8 +152,18 @@ export async function uploadLovartFile(
     signal: deps.signal,
     timeoutMs: deps.timeoutMs,
   }).then((r) => r.response.json());
-  if (data && typeof data === 'object' && 'code' in data && data.code !== 0 && data.code !== undefined) {
-    throw new LovartError(String(data.message ?? '上传失败'), data.code, LOVART_ERR_TYPES.UPLOAD_FAILED);
+  if (
+    data &&
+    typeof data === 'object' &&
+    'code' in data &&
+    data.code !== 0 &&
+    data.code !== undefined
+  ) {
+    throw new LovartError(
+      String(data.message ?? '上传失败'),
+      data.code,
+      LOVART_ERR_TYPES.UPLOAD_FAILED,
+    );
   }
   const out = (data && typeof data === 'object' && 'data' in data ? data.data : data) as any;
   const url = out?.url;

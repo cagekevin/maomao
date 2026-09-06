@@ -16,60 +16,73 @@
  *
  * 【脱敏】写入前统一脱敏密钥/凭据/绝对路径并截断，禁止文件全文/网页全文/临时结果进入长期记忆。
  */
-import { contentGetAsync, contentSetAsync, contentDeleteAsync } from '../../base/core/contentStore.ts'
-import { withTimeout } from '../../base/utils/asyncGuard.ts'
-import { generateId } from '../../base/core/idGen.ts'
-import { logger } from '../../base/core/logger.ts'
-import { KV_TIMEOUT } from '../../base/core/config.ts'
+import {
+  contentGetAsync,
+  contentSetAsync,
+  contentDeleteAsync,
+} from '../../base/core/contentStore.ts';
+import { withTimeout } from '../../base/utils/asyncGuard.ts';
+import { generateId } from '../../base/core/idGen.ts';
+import { logger } from '../../base/core/logger.ts';
+import { KV_TIMEOUT } from '../../base/core/config.ts';
 
 /** 单条记忆正文长度上限 */
-export const PROJECT_MEMORY_CONTENT_LIMIT = 500
+export const PROJECT_MEMORY_CONTENT_LIMIT = 500;
 /** 单个 agentKey 的记忆条数上限，超出淘汰最旧 */
-export const PROJECT_MEMORY_LIMIT = 60
+export const PROJECT_MEMORY_LIMIT = 60;
 /** 记忆类别枚举（对齐参考项目 ProjectMemoryKind） */
-export const PROJECT_MEMORY_KINDS = ['preference', 'fact', 'constraint', 'decision']
+export const PROJECT_MEMORY_KINDS = ['preference', 'fact', 'constraint', 'decision'];
 /** 类别中文标签 */
 export const PROJECT_MEMORY_KIND_LABELS: Record<ProjectMemoryKind, string> = {
   preference: '偏好',
   fact: '事实',
   constraint: '约束',
   decision: '决定',
-}
+};
 
 /** 记忆类别（对齐参考项目 ProjectMemoryKind） */
-export type ProjectMemoryKind = 'preference' | 'fact' | 'constraint' | 'decision'
+export type ProjectMemoryKind = 'preference' | 'fact' | 'constraint' | 'decision';
 
 /** 单条长期记忆（权威定义；memoryRetrieval 的 ProjectMemoryLike 为其消费视图） */
 export interface ProjectMemory {
-  id: string
-  kind: ProjectMemoryKind
-  content: string
-  enabled: boolean
-  createdAt: number
-  updatedAt: number
+  id: string;
+  kind: ProjectMemoryKind;
+  content: string;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
   /** 来源快照（memory_suggest 写入时可选带） */
-  source?: Record<string, unknown>
+  source?: Record<string, unknown>;
 }
 
 /** 保存记忆的入参（id 缺省则新建） */
-export type ProjectMemoryInput = Partial<ProjectMemory> & { content?: string }
+export type ProjectMemoryInput = Partial<ProjectMemory> & { content?: string };
 
 /** 记忆归属全局（不分项目），key 仅按 agentKey 区分 */
-const memoryKey = (agentKey: string) => `agent_project_memory_v1_${agentKey}`
+const memoryKey = (agentKey: string) => `agent_project_memory_v1_${agentKey}`;
 
 /** 模块级缓存：{ [agentKey]: ProjectMemory[] }，同步注入读取；写后同步更新。 */
-const cache = new Map<string, ProjectMemory[]>()
+const cache = new Map<string, ProjectMemory[]>();
 // 并发写锁：同一 key 的 read-modify-write 串行化，防并发覆盖丢数据。
-const locks = new Map<string, Promise<unknown>>()
+const locks = new Map<string, Promise<unknown>>();
 function withLock(key: string, fn: () => Promise<unknown>): Promise<unknown> {
-  const prev = locks.get(key) || Promise.resolve()
-  const next = prev.then(fn, fn)
-  locks.set(key, next.catch(() => {}))
-  try { next.finally(() => { if (locks.get(key) === next) locks.delete(key) }) } catch { /* 忽略 finally 隐患 */ }
-  return next
+  const prev = locks.get(key) || Promise.resolve();
+  const next = prev.then(fn, fn);
+  locks.set(
+    key,
+    next.catch(() => {}),
+  );
+  try {
+    next.finally(() => {
+      if (locks.get(key) === next) locks.delete(key);
+    });
+  } catch {
+    /* 忽略 finally 隐患 */
+  }
+  return next;
 }
 
-const cacheKey = (agentKey: string) => agentKey
+const cacheKey = (agentKey: string) => agentKey;
 
 /**
  * 脱敏记忆正文：移除密钥/凭据/本地绝对路径，压缩空白并截断到上限（纯函数）。
@@ -84,7 +97,7 @@ export function sanitizeMemoryContent(value: string): string {
     .replace(/\/(?:Users|home|private|Volumes|tmp|var)\/[^\s"'`]+/g, '[本地路径]')
     .replace(/[\t\r\n ]+/g, ' ')
     .trim()
-    .slice(0, PROJECT_MEMORY_CONTENT_LIMIT)
+    .slice(0, PROJECT_MEMORY_CONTENT_LIMIT);
 }
 
 /**
@@ -93,33 +106,36 @@ export function sanitizeMemoryContent(value: string): string {
  * @param {string} [_projectId] 已弃用（不分项目），仅为兼容旧调用方保留
  * @returns {Promise<Array>} [{ id, kind, content, enabled, createdAt, updatedAt }]
  */
-export async function loadProjectMemories(agentKey: string, _projectId?: string): Promise<ProjectMemory[]> {
-  const key = memoryKey(agentKey)
+export async function loadProjectMemories(
+  agentKey: string,
+  _projectId?: string,
+): Promise<ProjectMemory[]> {
+  const key = memoryKey(agentKey);
   if (!cache.has(cacheKey(agentKey))) {
     try {
-      const raw = await withTimeout(contentGetAsync(key), KV_TIMEOUT, '读取项目记忆超时')
+      const raw = await withTimeout(contentGetAsync(key), KV_TIMEOUT, '读取项目记忆超时');
       const list: ProjectMemory[] = Array.isArray(raw)
         ? raw.filter((m) => m && typeof m === 'object' && typeof m.id === 'string')
-        : []
-      list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-      cache.set(cacheKey(agentKey), list)
+        : [];
+      list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      cache.set(cacheKey(agentKey), list);
     } catch (e) {
-      logger.error('AI助手', '[记忆] 读取失败', { err: e?.message })
-      return []
+      logger.error('AI助手', '[记忆] 读取失败', { err: e?.message });
+      return [];
     }
   }
-  return (cache.get(cacheKey(agentKey)) || []).slice()
+  return (cache.get(cacheKey(agentKey)) || []).slice();
 }
 
 /** 同步读缓存（供上下文组装，不触发 IO；未加载或为空返回 []）。 */
 export function getCachedProjectMemories(agentKey: string, _projectId?: string): ProjectMemory[] {
-  return (cache.get(cacheKey(agentKey)) || []).slice()
+  return (cache.get(cacheKey(agentKey)) || []).slice();
 }
 
 /** 同步写缓存（工具写入/删除后更新内存，保证后续注入立刻可见）。 */
 function writeCache(agentKey: string, list: ProjectMemory[]): void {
-  const sorted = list.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-  cache.set(cacheKey(agentKey), sorted)
+  const sorted = list.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  cache.set(cacheKey(agentKey), sorted);
 }
 
 /**
@@ -129,8 +145,11 @@ function writeCache(agentKey: string, list: ProjectMemory[]): void {
  * @param {object} memory { id?, kind, content, enabled?, createdAt?, updatedAt?, source? }
  * @returns {Promise<object>} 保存后的记忆记录
  */
-export async function saveProjectMemory(agentKey: string, memory: ProjectMemoryInput): Promise<ProjectMemory> {
-  const key = memoryKey(agentKey)
+export async function saveProjectMemory(
+  agentKey: string,
+  memory: ProjectMemoryInput,
+): Promise<ProjectMemory> {
+  const key = memoryKey(agentKey);
   const record: ProjectMemory = {
     id: memory?.id || generateId('mem'),
     kind: PROJECT_MEMORY_KINDS.includes(memory?.kind) ? memory.kind : 'fact',
@@ -138,40 +157,46 @@ export async function saveProjectMemory(agentKey: string, memory: ProjectMemoryI
     enabled: memory?.enabled !== false,
     createdAt: memory?.createdAt || Date.now(),
     updatedAt: memory?.updatedAt || Date.now(),
-  }
-  if (memory?.source && typeof memory.source === 'object') record.source = memory.source
+  };
+  if (memory?.source && typeof memory.source === 'object') record.source = memory.source;
   await withLock(cacheKey(agentKey), async () => {
-    const list = await loadProjectMemories(agentKey)
-    const idx = list.findIndex((m) => m.id === record.id)
-    let next = list
-    if (idx >= 0) next = list.map((m) => (m.id === record.id ? { ...m, ...record } : m))
-    else next = [record, ...list]
+    const list = await loadProjectMemories(agentKey);
+    const idx = list.findIndex((m) => m.id === record.id);
+    let next = list;
+    if (idx >= 0) next = list.map((m) => (m.id === record.id ? { ...m, ...record } : m));
+    else next = [record, ...list];
     // 超出上限 → 淘汰最旧（updatedAt 最早，已在数组末尾）
-    if (next.length > PROJECT_MEMORY_LIMIT) next = next.slice(0, PROJECT_MEMORY_LIMIT)
-    await withTimeout(contentSetAsync(key, next), KV_TIMEOUT, '保存项目记忆超时')
-    writeCache(agentKey, next)
-  })
-  return record
+    if (next.length > PROJECT_MEMORY_LIMIT) next = next.slice(0, PROJECT_MEMORY_LIMIT);
+    await withTimeout(contentSetAsync(key, next), KV_TIMEOUT, '保存项目记忆超时');
+    writeCache(agentKey, next);
+  });
+  return record;
 }
 
 /** 删除一条记忆（同步更新缓存；不存在幂等返回）。 */
-export async function removeProjectMemory(agentKey: string, _projectId: string | undefined, id: string): Promise<void> {
+export async function removeProjectMemory(
+  agentKey: string,
+  _projectId: string | undefined,
+  id: string,
+): Promise<void> {
   await withLock(cacheKey(agentKey), async () => {
-    const list = await loadProjectMemories(agentKey)
-    const remain = list.filter((m) => m.id !== id)
-    if (remain.length === list.length) return
-    await withTimeout(contentSetAsync(memoryKey(agentKey), remain), KV_TIMEOUT, '删除项目记忆超时')
-    writeCache(agentKey, remain)
-  })
+    const list = await loadProjectMemories(agentKey);
+    const remain = list.filter((m) => m.id !== id);
+    if (remain.length === list.length) return;
+    await withTimeout(contentSetAsync(memoryKey(agentKey), remain), KV_TIMEOUT, '删除项目记忆超时');
+    writeCache(agentKey, remain);
+  });
 }
 
 /** 测试隔离：清空缓存 */
 export function __resetProjectMemoryCacheForTest(): void {
-  cache.clear()
+  cache.clear();
 }
 
 /** 备用：清空某 agentKey 的全部记忆（供清理用；本模块未直接使用，保留导出以便未来接入） */
 export async function deleteProjectMemories(agentKey: string, _projectId?: string): Promise<void> {
-  await contentDeleteAsync(memoryKey(agentKey)).catch((e) => logger.warn('AI助手', '[记忆] 批量删除失败', { err: e?.message }))
-  cache.delete(cacheKey(agentKey))
+  await contentDeleteAsync(memoryKey(agentKey)).catch((e) =>
+    logger.warn('AI助手', '[记忆] 批量删除失败', { err: e?.message }),
+  );
+  cache.delete(cacheKey(agentKey));
 }

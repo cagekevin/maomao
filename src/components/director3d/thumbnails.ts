@@ -11,21 +11,27 @@
  * @returns {string} 缩略图 dataURL；无效时 ''
  */
 export function thumbnailFromCanvas(source) {
-  if (!source?.width || !source?.height) return ''
+  if (!source?.width || !source?.height) return '';
   try {
-    const canvas = document.createElement('canvas')
-    canvas.width = 240
-    canvas.height = 135
-    const context = canvas.getContext('2d')
-    context.fillStyle = '#11110f'
-    context.fillRect(0, 0, canvas.width, canvas.height)
-    const scale = Math.min(canvas.width / source.width, canvas.height / source.height)
-    const width = source.width * scale
-    const height = source.height * scale
-    context.drawImage(source, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height)
-    return canvas.toDataURL('image/jpeg', 0.74)
+    const canvas = document.createElement('canvas');
+    canvas.width = 240;
+    canvas.height = 135;
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#11110f';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const scale = Math.min(canvas.width / source.width, canvas.height / source.height);
+    const width = source.width * scale;
+    const height = source.height * scale;
+    context.drawImage(
+      source,
+      (canvas.width - width) / 2,
+      (canvas.height - height) / 2,
+      width,
+      height,
+    );
+    return canvas.toDataURL('image/jpeg', 0.74);
   } catch {
-    return ''
+    return '';
   }
 }
 
@@ -36,5 +42,5 @@ export function thumbnailFromCanvas(source) {
  * @returns {string} 缩略图 dataURL；画布未就绪时 ''
  */
 export function thumbnailFromMonitorRef(monitorCanvasRef) {
-  return thumbnailFromCanvas(monitorCanvasRef.current)
+  return thumbnailFromCanvas(monitorCanvasRef.current);
 }

@@ -26,7 +26,12 @@ const MODE = process.argv.includes('--frontend')
 function findVitestBin() {
   const candidates = [
     path.join(ROOT, 'node_modules', 'vitest', 'vitest.mjs'),
-    path.join(ROOT, 'node_modules', '.bin', 'vitest' + (process.platform === 'win32' ? '.cmd' : '')),
+    path.join(
+      ROOT,
+      'node_modules',
+      '.bin',
+      'vitest' + (process.platform === 'win32' ? '.cmd' : ''),
+    ),
   ];
   return candidates.find((p) => fs.existsSync(p)) || 'vitest';
 }
@@ -56,14 +61,26 @@ function localToolTestSuite() {
   const files = listLocalToolTests();
   const missing = [tsxLoader, tscBin].filter((p) => !fs.existsSync(p));
   if (missing.length || files.length === 0) {
-    return [{
-      name: 'localTool 类型检查 + 单元测试',
-      skip: `localTool 依赖缺失或未找到用例，请先执行: cd localTool && npm install（缺少: ${missing.length ? missing.map((p) => path.basename(p)).join(', ') : '无'}）`,
-    }];
+    return [
+      {
+        name: 'localTool 类型检查 + 单元测试',
+        skip: `localTool 依赖缺失或未找到用例，请先执行: cd localTool && npm install（缺少: ${missing.length ? missing.map((p) => path.basename(p)).join(', ') : '无'}）`,
+      },
+    ];
   }
   return [
-    { name: 'localTool 类型检查 (tsc --noEmit)', cmd: process.execPath, args: [tscBin, '--noEmit'], cwd: LOCALTOOL },
-    { name: 'localTool 单元测试 (node:test + tsx)', cmd: process.execPath, args: ['--import', pathToFileURL(tsxLoader).href, '--test', ...files], cwd: LOCALTOOL },
+    {
+      name: 'localTool 类型检查 (tsc --noEmit)',
+      cmd: process.execPath,
+      args: [tscBin, '--noEmit'],
+      cwd: LOCALTOOL,
+    },
+    {
+      name: 'localTool 单元测试 (node:test + tsx)',
+      cmd: process.execPath,
+      args: ['--import', pathToFileURL(tsxLoader).href, '--test', ...files],
+      cwd: LOCALTOOL,
+    },
   ];
 }
 
@@ -87,7 +104,9 @@ if (MODE === 'localtool' || MODE === 'all') {
 }
 
 let allPass = true;
-const MODE_LABEL = { frontend: '前端', localtool: 'localtool', all: '全量（前端 + localtool）' }[MODE];
+const MODE_LABEL = { frontend: '前端', localtool: 'localtool', all: '全量（前端 + localtool）' }[
+  MODE
+];
 console.log('================================================');
 console.log(`  统一测试门禁 · ${MODE_LABEL}`);
 console.log('================================================');

@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test'
-import type { Page, Locator } from '@playwright/test'
+import { test, expect } from '@playwright/test';
+import type { Page, Locator } from '@playwright/test';
 
 // L4 共用 helper：画布节点工厂、面板断言、清理
 // 选择器基于真实 DOM（src/App.tsx + 节点组件）：
@@ -15,32 +15,32 @@ import type { Page, Locator } from '@playwright/test'
 // 而常驻 DOM 里节点添加项仅存在于右键上下文菜单）。
 export async function addNodeByPalette(page: Page, label: string): Promise<void> {
   // 在画布中心右键打开上下文菜单（对齐 ReactFlow onPaneContextMenu）
-  const pane = page.locator('.react-flow__pane').first()
-  await pane.click({ button: 'right' })
+  const pane = page.locator('.react-flow__pane').first();
+  await pane.click({ button: 'right' });
   // 菜单项以 button 渲染，文本即 label（文本/图片/视频/剧本盒子…）
-  const item = page.getByRole('button', { name: label, exact: true }).first()
-  await expect(item).toBeVisible({ timeout: 5000 })
-  await item.click()
-  await page.waitForSelector('.react-flow__node', { timeout: 5000 })
+  const item = page.getByRole('button', { name: label, exact: true }).first();
+  await expect(item).toBeVisible({ timeout: 5000 });
+  await item.click();
+  await page.waitForSelector('.react-flow__node', { timeout: 5000 });
 }
 
 // 新增节点并返回最后一个节点句柄
 export async function lastNode(page: Page): Promise<Locator> {
-  const nodes = page.locator('.react-flow__node')
-  await expect(nodes.first()).toBeVisible()
-  return nodes.last()
+  const nodes = page.locator('.react-flow__node');
+  await expect(nodes.first()).toBeVisible();
+  return nodes.last();
 }
 
 // 断言画布存在 N 个节点
 export async function expectNodeCount(page: Page, n: number): Promise<void> {
-  await expect(page.locator('.react-flow__node')).toHaveCount(n)
+  await expect(page.locator('.react-flow__node')).toHaveCount(n);
 }
 
 // 清空画布（选中全部 + Delete）—— 走键盘捷径，对齐 App 全局操作
 export async function clearCanvas(page: Page): Promise<void> {
-  await page.keyboard.press('Control+A')
-  await page.keyboard.press('Delete')
-  await page.waitForTimeout(150)
+  await page.keyboard.press('Control+A');
+  await page.keyboard.press('Delete');
+  await page.waitForTimeout(150);
 }
 
-export { test, expect }
+export { test, expect };

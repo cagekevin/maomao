@@ -16,11 +16,20 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { resolveExtPath, isNoise, launchExtContext, findExtId, attachSW } = require('./verify-common.cjs');
+const {
+  resolveExtPath,
+  isNoise,
+  launchExtContext,
+  findExtId,
+  attachSW,
+} = require('./verify-common.cjs');
 
 const PROFILE = path.join(os.tmpdir(), 'gougou-verify-profile');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const watchdog = setTimeout(() => { console.error('WATCHDOG: forced exit'); process.exit(9); }, 120000);
+const watchdog = setTimeout(() => {
+  console.error('WATCHDOG: forced exit');
+  process.exit(9);
+}, 120000);
 watchdog.unref();
 
 const events = [];
@@ -42,19 +51,43 @@ function rec(scope, kind, text, loc) {
     // 监听已注册的 SW
     let swAttached = false;
     for (const sw of context.serviceWorkers()) {
-      if (!swAttached) { await attachSW(sw, rec); swAttached = true; }
+      if (!swAttached) {
+        await attachSW(sw, rec);
+        swAttached = true;
+      }
     }
     context.on('serviceworker', (sw) => attachSW(sw, rec));
 
     async function openPage(rel) {
-      if (!extId) { rec('page', 'error', 'no extId, skip ' + rel); return; }
+      if (!extId) {
+        rec('page', 'error', 'no extId, skip ' + rel);
+        return;
+      }
       const page = await context.newPage();
-      page.on('console', (msg) => { if (msg.type() === 'error') rec('page', 'error', msg.text()); else rec('page', msg.type(), msg.text()); });
-      page.on('pageerror', (err) => rec('page', 'pageerror', err.message + '\n' + (err.stack || '').split('\n').slice(0, 4).join('\n')));
-      page.on('requestfailed', (req) => rec('page', 'error', 'reqfail ' + req.url() + ' ' + (req.failure() && req.failure().errorText)));
+      page.on('console', (msg) => {
+        if (msg.type() === 'error') rec('page', 'error', msg.text());
+        else rec('page', msg.type(), msg.text());
+      });
+      page.on('pageerror', (err) =>
+        rec(
+          'page',
+          'pageerror',
+          err.message + '\n' + (err.stack || '').split('\n').slice(0, 4).join('\n'),
+        ),
+      );
+      page.on('requestfailed', (req) =>
+        rec(
+          'page',
+          'error',
+          'reqfail ' + req.url() + ' ' + (req.failure() && req.failure().errorText),
+        ),
+      );
       const url = `chrome-extension://${extId}/${rel}`;
-      try { await page.goto(url, { waitUntil: 'load', timeout: 20000 }); }
-      catch (e) { rec('page', 'error', 'goto ' + rel + ': ' + e.message); }
+      try {
+        await page.goto(url, { waitUntil: 'load', timeout: 20000 });
+      } catch (e) {
+        rec('page', 'error', 'goto ' + rel + ': ' + e.message);
+      }
       await sleep(5000); // 等 React 渲染 / 副作用执行
 
       // ── UI 元素断言 ──
@@ -71,14 +104,29 @@ function rec(scope, kind, text, loc) {
     await openPage('share/index.html');
     await sleep(2000);
 
-    const allErrs = events.filter((e) => e.kind === 'error' || e.kind === 'exception' || e.kind === 'pageerror' || e.text?.includes('页面无内容'));
+    const allErrs = events.filter(
+      (e) =>
+        e.kind === 'error' ||
+        e.kind === 'exception' ||
+        e.kind === 'pageerror' ||
+        e.text?.includes('页面无内容'),
+    );
     const realErrors = allErrs.filter((e) => !e.noise);
     const noiseErrors = allErrs.filter((e) => e.noise);
 
     console.log('\n════════ 真机验收摘要 ════════');
-    console.log(`total events: ${events.length} | 应用级错误: ${realErrors.length} | 噪声(忽略): ${noiseErrors.length}`);
+    console.log(
+      `total events: ${events.length} | 应用级错误: ${realErrors.length} | 噪声(忽略): ${noiseErrors.length}`,
+    );
     const out = path.resolve(__dirname, 'report.json');
-    fs.writeFileSync(out, JSON.stringify({ extId, realErrorCount: realErrors.length, noiseCount: noiseErrors.length, events }, null, 2));
+    fs.writeFileSync(
+      out,
+      JSON.stringify(
+        { extId, realErrorCount: realErrors.length, noiseCount: noiseErrors.length, events },
+        null,
+        2,
+      ),
+    );
     console.log('report →', out);
 
     await context.close();

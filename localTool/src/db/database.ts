@@ -29,8 +29,8 @@ export const LOCAL_FILE_BASE = 'http://127.0.0.1:18080/files/';
 let _db: SqlJsDatabase | null = null;
 
 // ── 备份 / 导出 配置 ──
-const BACKUP_KEEP = 7;                 // 保留最近 N 份 db 备份，自动清理更旧的
-const BACKUP_EXPORT_KEEP = 7;          // 保留最近 N 份 JSON 导出
+const BACKUP_KEEP = 7; // 保留最近 N 份 db 备份，自动清理更旧的
+const BACKUP_EXPORT_KEEP = 7; // 保留最近 N 份 JSON 导出
 const DAILY_BACKUP_INTERVAL = 24 * 60 * 60 * 1000; // 每日自动备份间隔（24h）
 let _backupTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -134,7 +134,9 @@ export function cleanupTempFiles(): void {
       fs.unlinkSync(tmpPath);
       console.log('  🧹 已清理残留的数据库临时文件 localtool.db.tmp');
     }
-  } catch { /* 忽略清理失败 */ }
+  } catch {
+    /* 忽略清理失败 */
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -160,14 +162,21 @@ function fmtStamp(d = new Date()): string {
 function pruneByPrefix(dir: string, prefix: string, keep: number): void {
   try {
     if (!fs.existsSync(dir)) return;
-    const files = fs.readdirSync(dir)
-      .filter(f => f.startsWith(prefix))
+    const files = fs
+      .readdirSync(dir)
+      .filter((f) => f.startsWith(prefix))
       .sort(); // 文件名带日期时间戳，字典序即时间序
     while (files.length > keep) {
       const oldest = files.shift()!;
-      try { fs.unlinkSync(path.join(dir, oldest)); } catch { /* 忽略 */ }
+      try {
+        fs.unlinkSync(path.join(dir, oldest));
+      } catch {
+        /* 忽略 */
+      }
     }
-  } catch { /* 忽略 */ }
+  } catch {
+    /* 忽略 */
+  }
 }
 
 /** 备份当前 db 文件到 backups/（日期去重：同一天只备份一份；仅备份健康库） */
@@ -184,12 +193,12 @@ export function backupDb(force = false): string | null {
     // 日期去重：今天已有备份则跳过（除非 force 强制再备一份），避免频繁重启刷 IO/占盘
     const today = fmtDay();
     if (!force && fs.existsSync(backupDir)) {
-      const hasToday = fs.readdirSync(backupDir).some(f => f.startsWith(`localtool.db.${today}`));
+      const hasToday = fs.readdirSync(backupDir).some((f) => f.startsWith(`localtool.db.${today}`));
       if (hasToday) return null;
     }
 
     // 冒烟：主库必须健康才备份，否则备份无意义
-    _db.exec("SELECT count(*) FROM sqlite_master");
+    _db.exec('SELECT count(*) FROM sqlite_master');
 
     const backupPath = path.join(backupDir, `localtool.db.${fmtStamp()}.bak`);
     fs.copyFileSync(dbPath, backupPath);
@@ -212,13 +221,19 @@ export function exportDataJson(force = false): string | null {
     // 日期去重：今天已导出则跳过（除非 force）
     const today = fmtDay();
     if (!force && fs.existsSync(backupDir)) {
-      const hasToday = fs.readdirSync(backupDir).some(f => f.startsWith(`data.export.${today}`));
+      const hasToday = fs.readdirSync(backupDir).some((f) => f.startsWith(`data.export.${today}`));
       if (hasToday) return null;
     }
 
     // 只导关键字段；prompt/result_url/created_at 等轻量列，不导出大的 JSON 响应字段
-    const tasks = queryAll(_db, `SELECT task_id, node_id, prompt, result_url, thumbnail_url, model_name, channel_name, custom_output_type, progress, created_at, error_msg FROM tasks ORDER BY created_at DESC`);
-    const resources = queryAll(_db, `SELECT id, url, type, source, folder, name, page_url, page_title, is_favorite, timestamp FROM resources ORDER BY timestamp DESC`);
+    const tasks = queryAll(
+      _db,
+      `SELECT task_id, node_id, prompt, result_url, thumbnail_url, model_name, channel_name, custom_output_type, progress, created_at, error_msg FROM tasks ORDER BY created_at DESC`,
+    );
+    const resources = queryAll(
+      _db,
+      `SELECT id, url, type, source, folder, name, page_url, page_title, is_favorite, timestamp FROM resources ORDER BY timestamp DESC`,
+    );
 
     const payload = {
       exportedAt: new Date().toISOString(),
@@ -230,7 +245,9 @@ export function exportDataJson(force = false): string | null {
     const filePath = path.join(backupDir, `data.export.${fmtStamp()}.json`);
     fs.writeFileSync(filePath, JSON.stringify(payload), 'utf-8');
     pruneByPrefix(backupDir, 'data.export.', BACKUP_EXPORT_KEEP);
-    console.log(`  📄 已导出结构化数据 → ${filePath} (tasks=${tasks.length}, resources=${resources.length})`);
+    console.log(
+      `  📄 已导出结构化数据 → ${filePath} (tasks=${tasks.length}, resources=${resources.length})`,
+    );
     return filePath;
   } catch (err) {
     console.error(`  ⚠️ 结构化导出失败：${(err as Error).message}`);
@@ -242,8 +259,16 @@ export function exportDataJson(force = false): string | null {
 export function startBackupSchedule(): void {
   if (_backupTimer) return;
   _backupTimer = setInterval(() => {
-    try { backupDb(); } catch { /* 忽略 */ }
-    try { exportDataJson(); } catch { /* 忽略 */ }
+    try {
+      backupDb();
+    } catch {
+      /* 忽略 */
+    }
+    try {
+      exportDataJson();
+    } catch {
+      /* 忽略 */
+    }
   }, DAILY_BACKUP_INTERVAL);
   if (typeof _backupTimer.unref === 'function') _backupTimer.unref();
 }
@@ -264,14 +289,13 @@ export function deleteLocalFile(db: any, dbUrl: string): boolean {
   if (!fs.existsSync(diskPath)) return false;
 
   // 检查是否有其他 task 或 resource 仍引用此 URL
-  const taskRefs = queryOne(db,
+  const taskRefs = queryOne(
+    db,
     'SELECT COUNT(*) as cnt FROM tasks WHERE result_url = ? OR thumbnail_url = ?',
-    [dbUrl, dbUrl]
+    [dbUrl, dbUrl],
   ) as { cnt: number } | undefined;
-  const resRefs = queryOne(db,
-    'SELECT COUNT(*) as cnt FROM resources WHERE url = ?',
-    [dbUrl]
-  ) as { cnt: number } | undefined;
+  const resRefs = queryOne(db, 'SELECT COUNT(*) as cnt FROM resources WHERE url = ?', [dbUrl]) as
+    { cnt: number } | undefined;
   if ((taskRefs?.cnt ?? 0) > 0 || (resRefs?.cnt ?? 0) > 0) return false;
 
   fs.unlinkSync(diskPath);
@@ -314,7 +338,10 @@ export function rewriteUrlReferences(db: any, fromRel: string, toRel: string): n
     let v: string | null = k.value;
     let dirty = false;
     for (const [from, to] of pairs) {
-      if (v && v.includes(from)) { v = v.split(from).join(to); dirty = true; }
+      if (v && v.includes(from)) {
+        v = v.split(from).join(to);
+        dirty = true;
+      }
     }
     if (dirty && v != null) {
       run(db, 'UPDATE kv SET value = ? WHERE key = ?', [v, k.key]);
@@ -323,8 +350,18 @@ export function rewriteUrlReferences(db: any, fromRel: string, toRel: string): n
   }
 
   // ── tasks 的 url 承载列（结果/缩略图/请求响应等可能嵌入引用了素材的 url）──
-  const taskCols = ['result_url', 'thumbnail_url', 'request_data', 'response_data',
-    'custom_result_data', 'custom_raw_response', 'error_msg', 'extra_fields', 'media_meta', 'prompt'];
+  const taskCols = [
+    'result_url',
+    'thumbnail_url',
+    'request_data',
+    'response_data',
+    'custom_result_data',
+    'custom_raw_response',
+    'error_msg',
+    'extra_fields',
+    'media_meta',
+    'prompt',
+  ];
   for (const col of taskCols) {
     const rows = queryAll(db, `SELECT task_id, ${col} AS v FROM tasks`);
     for (const r of rows) {
@@ -332,7 +369,10 @@ export function rewriteUrlReferences(db: any, fromRel: string, toRel: string): n
       let v: string = r.v;
       let dirty = false;
       for (const [from, to] of pairs) {
-        if (v.includes(from)) { v = v.split(from).join(to); dirty = true; }
+        if (v.includes(from)) {
+          v = v.split(from).join(to);
+          dirty = true;
+        }
       }
       if (dirty) {
         run(db, `UPDATE tasks SET ${col} = ? WHERE task_id = ?`, [v, r.task_id]);
@@ -353,13 +393,23 @@ export function debouncedSaveDb(): void {
 }
 
 function initTables(db: any): void {
-  db.run(`CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL DEFAULT (unixepoch()))`);
-  db.run(`CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, node_id TEXT, prompt TEXT, result_url TEXT, thumbnail_url TEXT, error_msg TEXT, custom_output_type TEXT, channel_name TEXT, model_name TEXT, progress INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, not_found_count INTEGER NOT NULL DEFAULT 0, custom_result_data TEXT, custom_raw_response TEXT, request_data TEXT, response_data TEXT, media_meta TEXT, extra_fields TEXT, thread_id TEXT, submit_ack_at INTEGER, completed_at INTEGER, poll_count INTEGER NOT NULL DEFAULT 0)`);
-  db.run(`CREATE TABLE IF NOT EXISTS resources (id TEXT PRIMARY KEY, url TEXT NOT NULL, type TEXT NOT NULL, source TEXT, folder TEXT, name TEXT, page_url TEXT, page_title TEXT, is_favorite INTEGER NOT NULL DEFAULT 0, timestamp INTEGER NOT NULL DEFAULT 0)`);
-  db.run(`CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, is_last_opened INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0)`);
+  db.run(
+    `CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL DEFAULT (unixepoch()))`,
+  );
+  db.run(
+    `CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, node_id TEXT, prompt TEXT, result_url TEXT, thumbnail_url TEXT, error_msg TEXT, custom_output_type TEXT, channel_name TEXT, model_name TEXT, progress INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, not_found_count INTEGER NOT NULL DEFAULT 0, custom_result_data TEXT, custom_raw_response TEXT, request_data TEXT, response_data TEXT, media_meta TEXT, extra_fields TEXT, thread_id TEXT, submit_ack_at INTEGER, completed_at INTEGER, poll_count INTEGER NOT NULL DEFAULT 0)`,
+  );
+  db.run(
+    `CREATE TABLE IF NOT EXISTS resources (id TEXT PRIMARY KEY, url TEXT NOT NULL, type TEXT NOT NULL, source TEXT, folder TEXT, name TEXT, page_url TEXT, page_title TEXT, is_favorite INTEGER NOT NULL DEFAULT 0, timestamp INTEGER NOT NULL DEFAULT 0)`,
+  );
+  db.run(
+    `CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, is_last_opened INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0)`,
+  );
   // 项目列表整体版本号（并发覆盖保护，对齐画布快照 canvas-state-v1-{projectId}_version 思路）。
   // 单行 k='version'。双页面/旧数据保存时，若 body.version < 库内 version → 拒绝覆盖，防旧数据冲掉新项目。
-  db.run(`CREATE TABLE IF NOT EXISTS project_meta (k TEXT PRIMARY KEY, v INTEGER NOT NULL DEFAULT 0)`);
+  db.run(
+    `CREATE TABLE IF NOT EXISTS project_meta (k TEXT PRIMARY KEY, v INTEGER NOT NULL DEFAULT 0)`,
+  );
   // 初始化版本号行（0 = 从未保存，首次 save 时置 Date.now()）
   db.run(`INSERT OR IGNORE INTO project_meta (k, v) VALUES ('version', 0)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at)`);
@@ -370,18 +420,50 @@ function initTables(db: any): void {
   db.run(`CREATE INDEX IF NOT EXISTS idx_resources_is_favorite ON resources(is_favorite)`);
 
   // 迁移：旧数据库可能缺列（前端 task 对象带这些字段时会 INSERT 报错）
-  try { db.run(`ALTER TABLE tasks ADD COLUMN type TEXT`); } catch { /* 列已存在 */ }
-  try { db.run(`ALTER TABLE tasks ADD COLUMN status TEXT`); } catch { /* 列已存在 */ }
-  try { db.run(`ALTER TABLE tasks ADD COLUMN error_message TEXT`); } catch { /* 列已存在 */ }
-  try { db.run(`ALTER TABLE tasks ADD COLUMN thread_id TEXT`); } catch { /* 列已存在 */ }
+  try {
+    db.run(`ALTER TABLE tasks ADD COLUMN type TEXT`);
+  } catch {
+    /* 列已存在 */
+  }
+  try {
+    db.run(`ALTER TABLE tasks ADD COLUMN status TEXT`);
+  } catch {
+    /* 列已存在 */
+  }
+  try {
+    db.run(`ALTER TABLE tasks ADD COLUMN error_message TEXT`);
+  } catch {
+    /* 列已存在 */
+  }
+  try {
+    db.run(`ALTER TABLE tasks ADD COLUMN thread_id TEXT`);
+  } catch {
+    /* 列已存在 */
+  }
   // poll_task_id：前端异步任务（生图/视频）提交后从上游拿到的「可轮询查询 task_id」。
   // 【取舍】只对异步任务存它：刷新网页后前端能靠 GET /api/generate/:id attach 恢复任务状态。
   // 文本/生图 sync 是同步阻塞、无 task_id，故不存（刷新断即断，官方同此），存了也查不了。
-  try { db.run(`ALTER TABLE tasks ADD COLUMN poll_task_id TEXT`); } catch { /* 列已存在 */ }
+  try {
+    db.run(`ALTER TABLE tasks ADD COLUMN poll_task_id TEXT`);
+  } catch {
+    /* 列已存在 */
+  }
   // 90 号 relay 轮询后端化（relay-poll.ts）用到的异步任务时间轴列；旧库缺时补（幂等，重复跑无害）
-  try { db.run(`ALTER TABLE tasks ADD COLUMN submit_ack_at INTEGER`); } catch { /* 列已存在 */ }
-  try { db.run(`ALTER TABLE tasks ADD COLUMN completed_at INTEGER`); } catch { /* 列已存在 */ }
-  try { db.run(`ALTER TABLE tasks ADD COLUMN poll_count INTEGER NOT NULL DEFAULT 0`); } catch { /* 列已存在 */ }
+  try {
+    db.run(`ALTER TABLE tasks ADD COLUMN submit_ack_at INTEGER`);
+  } catch {
+    /* 列已存在 */
+  }
+  try {
+    db.run(`ALTER TABLE tasks ADD COLUMN completed_at INTEGER`);
+  } catch {
+    /* 列已存在 */
+  }
+  try {
+    db.run(`ALTER TABLE tasks ADD COLUMN poll_count INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    /* 列已存在 */
+  }
 }
 
 export function closeDb(): void {

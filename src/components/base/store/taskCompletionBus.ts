@@ -8,15 +8,15 @@
  * 消费方不变（useNodeGeneration 精准回填过滤 nodeId===本节点）。
  */
 
-import { publish } from '../core/eventBus.ts'
+import { publish } from '../core/eventBus.ts';
 
 /** 任务完成事件入参（与 agent:task-completed 载荷一致） */
 export interface TaskCompletedArg {
-  taskId: string
-  nodeId: string
-  resultUrl: string
-  type: string
-  status: string
+  taskId: string;
+  nodeId: string;
+  resultUrl: string;
+  type: string;
+  status: string;
 }
 
 /**
@@ -24,13 +24,19 @@ export interface TaskCompletedArg {
  * @param {{taskId:string, nodeId:string, resultUrl:string, type:string, status:string}} arg
  * @returns {boolean} 是否实际发布（false=校验未通过/未发布）
  */
-export function publishTaskCompleted({ taskId, nodeId, resultUrl, type, status }: TaskCompletedArg): boolean {
-  if (status !== 'completed') return false
-  if (typeof resultUrl !== 'string' || !resultUrl) return false
-  publish('agent:task-completed', { taskId, nodeId, resultUrl, type, status: 'completed' })
+export function publishTaskCompleted({
+  taskId,
+  nodeId,
+  resultUrl,
+  type,
+  status,
+}: TaskCompletedArg): boolean {
+  if (status !== 'completed') return false;
+  if (typeof resultUrl !== 'string' || !resultUrl) return false;
+  publish('agent:task-completed', { taskId, nodeId, resultUrl, type, status: 'completed' });
   // P2-G 安全网：上游节点完成 → 通知直接下游（useUpstreamAutoTrigger 消费；开关 AUTO_TRIGGER_DOWNSTREAM 默认关）。
   if (typeof nodeId === 'string' && nodeId) {
-    publish('upstream:updated', { sourceNodeId: nodeId })
+    publish('upstream:updated', { sourceNodeId: nodeId });
   }
-  return true
+  return true;
 }

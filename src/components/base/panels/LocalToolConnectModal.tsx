@@ -1,5 +1,5 @@
-import React from 'react'
-import { AlertTriangle, RefreshCw, Loader2 } from 'lucide-react'
+import React from 'react';
+import { AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
 
 /**
  * 本地引擎未连接全屏提醒 —— 完整复刻官方 Tr.jsx（App-BX6o9fW5_components/Tr.jsx）。
@@ -18,16 +18,20 @@ import { AlertTriangle, RefreshCw, Loader2 } from 'lucide-react'
  */
 export interface LocalToolConnectModalProps {
   /** 是否显示（官方 `e`） */
-  isVisible: boolean
+  isVisible: boolean;
   /** 点「稍后再说」（父层还需同时标记「用户已关闭」避免再次自动弹） */
-  onClose: () => void
+  onClose: () => void;
   /** 点「重试连接」（父层传 checkConnection） */
-  onRetry: () => void
+  onRetry: () => void;
 }
 
-export default function LocalToolConnectModal({ isVisible, onClose, onRetry }: LocalToolConnectModalProps) {
-  const [retrying, setRetrying] = React.useState(false)
-  if (!isVisible) return null
+export default function LocalToolConnectModal({
+  isVisible,
+  onClose,
+  onRetry,
+}: LocalToolConnectModalProps) {
+  const [retrying, setRetrying] = React.useState(false);
+  if (!isVisible) return null;
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-modal">
@@ -45,13 +49,17 @@ export default function LocalToolConnectModal({ isVisible, onClose, onRetry }: L
 
         {/* 步骤说明 */}
         <div className="bg-canvas rounded-lg p-4 mb-4">
-          <p className="text-sm text-body mb-3">为了保证系统的完整功能和数据安全，请按照以下步骤操作：</p>
+          <p className="text-sm text-body mb-3">
+            为了保证系统的完整功能和数据安全，请按照以下步骤操作：
+          </p>
           <ol className="text-sm text-secondary space-y-2 list-decimal list-inside">
             <li>
-              确保已安装 <span className="text-white font-medium">local-companion</span> 本地伴侣工具
+              确保已安装 <span className="text-white font-medium">local-companion</span>{' '}
+              本地伴侣工具
             </li>
             <li>
-              启动 local-companion 服务（默认端口 <span className="text-white font-medium">18080</span>）
+              启动 local-companion 服务（默认端口{' '}
+              <span className="text-white font-medium">18080</span>）
             </li>
             <li>点击下方重试按钮重新检测连接</li>
           </ol>
@@ -67,9 +75,9 @@ export default function LocalToolConnectModal({ isVisible, onClose, onRetry }: L
           </button>
           <button
             onClick={() => {
-              setRetrying(true)
-              onRetry()
-              setTimeout(() => setRetrying(false), 2000)
+              setRetrying(true);
+              onRetry();
+              setTimeout(() => setRetrying(false), 2000);
             }}
             disabled={retrying}
             className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
@@ -91,5 +99,5 @@ export default function LocalToolConnectModal({ isVisible, onClose, onRetry }: L
         <p className="text-xs text-muted mt-4 text-center">当前状态：未检测到 localTool 连接</p>
       </div>
     </div>
-  )
+  );
 }

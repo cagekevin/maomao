@@ -17,34 +17,38 @@
  */
 /** pending 引用形态（刷新恢复用；text 为迁移期旧字段，正文优先按 messageId 找回） */
 export interface PendingRef {
-  conversationId?: string
-  messageId?: string
-  text?: string
-  attachments?: unknown[]
-  [key: string]: unknown
+  conversationId?: string;
+  messageId?: string;
+  text?: string;
+  attachments?: unknown[];
+  [key: string]: unknown;
 }
 
 /** 恢复决策：none=不碰 / send=重发 / drop=悬空丢弃 */
 export interface PendingRecoveryResult {
-  action: 'none' | 'send' | 'drop'
-  text?: string
-  attachments?: unknown[]
+  action: 'none' | 'send' | 'drop';
+  text?: string;
+  attachments?: unknown[];
 }
 
-export function resolvePendingRecovery(
-  { pending, messages = [], activeConversationId }: {
-    pending?: PendingRef | null
-    messages?: Array<Record<string, unknown>>
-    activeConversationId?: string
-  }
-): PendingRecoveryResult {
-  if (!pending || pending.conversationId !== activeConversationId) return { action: 'none' }
-  const byId = pending.messageId ? messages.find((m) => m && m.id === pending.messageId) : null
-  const text = String(byId?.content || pending.text || '')
+export function resolvePendingRecovery({
+  pending,
+  messages = [],
+  activeConversationId,
+}: {
+  pending?: PendingRef | null;
+  messages?: Array<Record<string, unknown>>;
+  activeConversationId?: string;
+}): PendingRecoveryResult {
+  if (!pending || pending.conversationId !== activeConversationId) return { action: 'none' };
+  const byId = pending.messageId ? messages.find((m) => m && m.id === pending.messageId) : null;
+  const text = String(byId?.content || pending.text || '');
   const attachments: unknown[] =
     Array.isArray(pending.attachments) && pending.attachments.length
       ? pending.attachments
-      : (Array.isArray(byId?.attachments) ? byId.attachments as unknown[] : [])
-  if (!text && (!attachments || attachments.length === 0)) return { action: 'drop' }
-  return { action: 'send', text, attachments }
+      : Array.isArray(byId?.attachments)
+        ? (byId.attachments as unknown[])
+        : [];
+  if (!text && (!attachments || attachments.length === 0)) return { action: 'drop' };
+  return { action: 'send', text, attachments };
 }

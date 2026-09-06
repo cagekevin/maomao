@@ -38,7 +38,12 @@ import type {
   ResolvedPollConfig,
 } from '../types.js';
 
-export function resolvePoll(baseUrl: string, poll: ModelProtocolPollConfig, auth: AuthConfig | undefined, context: ProtocolVariables): ResolvedPollConfig {
+export function resolvePoll(
+  baseUrl: string,
+  poll: ModelProtocolPollConfig,
+  auth: AuthConfig | undefined,
+  context: ProtocolVariables,
+): ResolvedPollConfig {
   if (poll.bodyEncoding === 'multipart') {
     throw new Error('异步轮询请求不支持 multipart 请求体');
   }
@@ -97,7 +102,13 @@ function normalizeStatus(value: unknown): string {
 export type ModelPollOnceResult =
   | { status: 'completed'; urls: string[]; text?: string; taskId?: string; progress?: number }
   | { status: 'failed'; error: string; taskId?: string; progress?: number }
-  | { status: 'processing'; progress?: number; taskId?: string; error?: string; retryable?: boolean };
+  | {
+      status: 'processing';
+      progress?: number;
+      taskId?: string;
+      error?: string;
+      retryable?: boolean;
+    };
 
 /** 单轮打点：跑一次状态查询并分类。调用方以 poll.intervalMs 节奏驱动。 */
 export async function pollModelProtocolOnce(
@@ -110,15 +121,16 @@ export async function pollModelProtocolOnce(
   const failureValues = new Set(poll.failureValues.map(normalizeStatus));
   let payload: unknown;
   try {
-    const response = await corsSafeFetch(
-      applyQueryAuthentication(poll.url, poll.auth, apiKey),
-      { ...buildResolvedRequestInit(poll, apiKey), signal },
-    );
+    const response = await corsSafeFetch(applyQueryAuthentication(poll.url, poll.auth, apiKey), {
+      ...buildResolvedRequestInit(poll, apiKey),
+      signal,
+    });
     payload = await readJsonResponse(response, '模型任务查询失败', poll.errorPath);
   } catch (error) {
-    const retryable = error instanceof ModelProtocolHttpError
-      ? DEFAULT_RETRY_HTTP_STATUSES.includes(error.status) // 408/429/5xx 可重试；硬 4xx 确定性失败
-      : isTransientNetworkError(error);
+    const retryable =
+      error instanceof ModelProtocolHttpError
+        ? DEFAULT_RETRY_HTTP_STATUSES.includes(error.status) // 408/429/5xx 可重试；硬 4xx 确定性失败
+        : isTransientNetworkError(error);
     return {
       status: retryable ? 'processing' : 'failed', // 确定性硬失败立即 failed 透传，避免静默挂起
       error: error instanceof Error ? error.message : String(error),
@@ -137,7 +149,8 @@ export async function pollModelProtocolOnce(
     const urls = poll.resultUrlPath ? readModelProtocolUrls(payload, poll.resultUrlPath) : [];
     const base64Urls = poll.resultBase64Path
       ? readModelProtocolUrls(payload, poll.resultBase64Path).map((value) =>
-          normalizeBase64Result(value, poll.resultMimeType, poll.resultBase64Transform))
+          normalizeBase64Result(value, poll.resultMimeType, poll.resultBase64Transform),
+        )
       : [];
     const textValue = poll.resultTextPath
       ? readModelProtocolFirstScalar(payload, poll.resultTextPath)
@@ -148,7 +161,9 @@ export async function pollModelProtocolOnce(
     return { status: 'completed', urls: mediaUrls, ...(text ? { text } : {}), progress };
   }
   if (failureValues.has(status)) {
-    const detail = poll.errorPath ? readModelProtocolFirstScalar(payload, poll.errorPath) : undefined;
+    const detail = poll.errorPath
+      ? readModelProtocolFirstScalar(payload, poll.errorPath)
+      : undefined;
     return { status: 'failed', error: `模型任务失败：${detail || status}`, progress };
   }
   return { status: 'processing', progress };
@@ -165,7 +180,9 @@ export function getDefaultModelProtocolPollRetryConfig(): ModelProtocolRetryConf
   };
 }
 
-function resolvePollRetryConfig(value: ModelProtocolRetryConfig | undefined): ModelProtocolRetryConfig {
+function resolvePollRetryConfig(
+  value: ModelProtocolRetryConfig | undefined,
+): ModelProtocolRetryConfig {
   const defaults = getDefaultModelProtocolPollRetryConfig();
   return {
     ...defaults,
@@ -177,27 +194,39 @@ function resolvePollRetryConfig(value: ModelProtocolRetryConfig | undefined): Mo
 function isTransientNetworkError(error: unknown): boolean {
   if (error instanceof TypeError) return true;
   if (
-    typeof DOMException !== 'undefined'
-    && error instanceof DOMException
-    && ['NetworkError', 'TimeoutError'].includes(error.name)
+    typeof DOMException !== 'undefined' &&
+    error instanceof DOMException &&
+    ['NetworkError', 'TimeoutError'].includes(error.name)
   ) {
     return true;
   }
-  return error instanceof Error
-    && /failed to fetch|network error|connection (?:closed|reset)|timed? out/i.test(error.message);
+  return (
+    error instanceof Error &&
+    /failed to fetch|network error|connection (?:closed|reset)|timed? out/i.test(error.message)
+  );
 }
 
-function calculateRetryDelayMs(intervalMs: number, retryCount: number, retry: ModelProtocolRetryConfig, retryAfterMs?: number): number {
-  const multiplier = retry.backoff === 'exponential'
-    ? 2 ** Math.max(0, retryCount - 1)
-    : retry.backoff === 'linear'
-      ? retryCount
-      : 1;
+function calculateRetryDelayMs(
+  intervalMs: number,
+  retryCount: number,
+  retry: ModelProtocolRetryConfig,
+  retryAfterMs?: number,
+): number {
+  const multiplier =
+    retry.backoff === 'exponential'
+      ? 2 ** Math.max(0, retryCount - 1)
+      : retry.backoff === 'linear'
+        ? retryCount
+        : 1;
   const backoffDelay = intervalMs * multiplier;
-  const requestedDelay = retry.honorRetryAfter && retryAfterMs !== undefined
-    ? Math.max(backoffDelay, retryAfterMs)
-    : backoffDelay;
-  return Math.max(intervalMs, Math.min(retry.maxDelayMs ?? DEFAULT_MAX_RETRY_DELAY_MS, requestedDelay));
+  const requestedDelay =
+    retry.honorRetryAfter && retryAfterMs !== undefined
+      ? Math.max(backoffDelay, retryAfterMs)
+      : backoffDelay;
+  return Math.max(
+    intervalMs,
+    Math.min(retry.maxDelayMs ?? DEFAULT_MAX_RETRY_DELAY_MS, requestedDelay),
+  );
 }
 
 async function waitForRetryDelay(delayMs: number, signal?: AbortSignal): Promise<void> {
@@ -218,7 +247,10 @@ async function waitForRetryDelay(delayMs: number, signal?: AbortSignal): Promise
   });
 }
 
-function buildResolvedRequestInit(poll: ResolvedPollConfig, apiKey: string | undefined): RequestInit {
+function buildResolvedRequestInit(
+  poll: ResolvedPollConfig,
+  apiKey: string | undefined,
+): RequestInit {
   const errors: string[] = [];
   validateAuthentication(poll.auth, errors);
   const headers: Record<string, string> = {};
@@ -234,9 +266,10 @@ function buildResolvedRequestInit(poll: ResolvedPollConfig, apiKey: string | und
   } else if (apiKey && auth.type === 'header') {
     headers[auth.name ?? 'Authorization'] = `${auth.prefix ?? ''}${apiKey}`;
   }
-  const body = poll.method === 'GET' || poll.body === undefined
-    ? undefined
-    : serializeModelProtocolBody(poll.body, poll.bodyEncoding, headers);
+  const body =
+    poll.method === 'GET' || poll.body === undefined
+      ? undefined
+      : serializeModelProtocolBody(poll.body, poll.bodyEncoding, headers);
   return {
     method: poll.method,
     headers,
@@ -244,7 +277,12 @@ function buildResolvedRequestInit(poll: ResolvedPollConfig, apiKey: string | und
   };
 }
 
-export async function pollResolvedModelProtocol(poll: ResolvedPollConfig, apiKey: string | undefined, signal?: AbortSignal, allowedBaseUrl?: string): Promise<ModelProtocolExecuteResult> {
+export async function pollResolvedModelProtocol(
+  poll: ResolvedPollConfig,
+  apiKey: string | undefined,
+  signal?: AbortSignal,
+  allowedBaseUrl?: string,
+): Promise<ModelProtocolExecuteResult> {
   if (allowedBaseUrl) {
     const pollUrl = new URL(poll.url);
     const baseUrl = new URL(allowedBaseUrl);
@@ -282,13 +320,18 @@ export async function pollResolvedModelProtocol(poll: ResolvedPollConfig, apiKey
         consecutiveErrors = 0;
         return payload;
       } catch (error) {
-        const retryAfterMs = error instanceof ModelProtocolHttpError ? error.retryAfterMs : undefined;
-        const retryableHttpError = error instanceof ModelProtocolHttpError
-          && retryHttpStatuses.has(error.status);
-        const retryableNetworkError = retry.retryNetworkErrors
-          && !(error instanceof ModelProtocolHttpError)
-          && isTransientNetworkError(error);
-        if ((retryableHttpError || retryableNetworkError) && consecutiveErrors < (retry.maxRetries ?? DEFAULT_MAX_QUERY_RETRIES)) {
+        const retryAfterMs =
+          error instanceof ModelProtocolHttpError ? error.retryAfterMs : undefined;
+        const retryableHttpError =
+          error instanceof ModelProtocolHttpError && retryHttpStatuses.has(error.status);
+        const retryableNetworkError =
+          retry.retryNetworkErrors &&
+          !(error instanceof ModelProtocolHttpError) &&
+          isTransientNetworkError(error);
+        if (
+          (retryableHttpError || retryableNetworkError) &&
+          consecutiveErrors < (retry.maxRetries ?? DEFAULT_MAX_QUERY_RETRIES)
+        ) {
           consecutiveErrors += 1;
           const retryDelayMs = calculateRetryDelayMs(
             poll.intervalMs,
@@ -308,7 +351,8 @@ export async function pollResolvedModelProtocol(poll: ResolvedPollConfig, apiKey
       const urls = poll.resultUrlPath ? readModelProtocolUrls(payload, poll.resultUrlPath) : [];
       const base64Urls = poll.resultBase64Path
         ? readModelProtocolUrls(payload, poll.resultBase64Path).map((value) =>
-            normalizeBase64Result(value, poll.resultMimeType, poll.resultBase64Transform))
+            normalizeBase64Result(value, poll.resultMimeType, poll.resultBase64Transform),
+          )
         : [];
       const textValue = poll.resultTextPath
         ? readModelProtocolFirstScalar(payload, poll.resultTextPath)
@@ -324,7 +368,9 @@ export async function pollResolvedModelProtocol(poll: ResolvedPollConfig, apiKey
     isFailed: (payload) => {
       const status = normalizeStatus(readModelProtocolFirstScalar(payload, poll.statusPath));
       if (!failureValues.has(status)) return null;
-      const detail = poll.errorPath ? readModelProtocolFirstScalar(payload, poll.errorPath) : undefined;
+      const detail = poll.errorPath
+        ? readModelProtocolFirstScalar(payload, poll.errorPath)
+        : undefined;
       return `模型任务失败：${detail || status}`;
     },
     interval: poll.intervalMs,

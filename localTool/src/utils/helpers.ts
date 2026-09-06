@@ -78,7 +78,10 @@ export function readRawBody(req: IncomingMessage): Promise<Buffer> {
  */
 export function parseMultipart(
   req: IncomingMessage,
-): Promise<{ fields: Record<string, string>; files: Record<string, { filename: string; data: Buffer; mimeType: string }> }> {
+): Promise<{
+  fields: Record<string, string>;
+  files: Record<string, { filename: string; data: Buffer; mimeType: string }>;
+}> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     req.on('data', (c: Buffer) => chunks.push(c));
@@ -158,11 +161,18 @@ export interface PaginationParams {
   filters?: Record<string, unknown>;
 }
 
-export function parsePagination(url: URL, defaults: { sortBy: string; sortDir: 'ASC' | 'DESC' }): PaginationParams {
+export function parsePagination(
+  url: URL,
+  defaults: { sortBy: string; sortDir: 'ASC' | 'DESC' },
+): PaginationParams {
   const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1);
-  const pageSize = Math.min(100, Math.max(1, parseInt(url.searchParams.get('pageSize') || '20', 10) || 20));
+  const pageSize = Math.min(
+    100,
+    Math.max(1, parseInt(url.searchParams.get('pageSize') || '20', 10) || 20),
+  );
   const sortBy = url.searchParams.get('sortBy') || defaults.sortBy;
-  const sortDir = (url.searchParams.get('sortDir')?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC') as 'ASC' | 'DESC';
+  const sortDir = (url.searchParams.get('sortDir')?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC') as
+    'ASC' | 'DESC';
   const search = url.searchParams.get('search') || undefined;
 
   let filters: Record<string, unknown> | undefined;
@@ -229,7 +239,10 @@ export function buildPaginatedQuery(
           values.push(v);
           countValues.push(v);
         }
-      } else if (typeof rawVal === 'object' && 'eqOrPrefix' in (rawVal as Record<string, unknown>)) {
+      } else if (
+        typeof rawVal === 'object' &&
+        'eqOrPrefix' in (rawVal as Record<string, unknown>)
+      ) {
         // {eqOrPrefix: x} → 精确匹配 + 前缀匹配（文件夹或其子目录）
         const prefix = String((rawVal as Record<string, unknown>).eqOrPrefix);
         conditions.push(`(${column} = ? OR ${column} LIKE ?)`);

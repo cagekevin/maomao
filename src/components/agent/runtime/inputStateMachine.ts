@@ -37,46 +37,59 @@
  * 与 workflowRuntime 的 status 全集、workflowState.WorkflowStatus 保持一致。
  */
 export type InputStatus =
-  | 'idle' | 'planning' | 'creating_nodes' | 'ready'
-  | 'running' | 'stopping' | 'failed' | 'completed' | 'awaiting_confirm'
+  | 'idle'
+  | 'planning'
+  | 'creating_nodes'
+  | 'ready'
+  | 'running'
+  | 'stopping'
+  | 'failed'
+  | 'completed'
+  | 'awaiting_confirm';
 
 /** action() 推导出的按钮语义 */
-export type InputAction = 'send' | 'stop' | 'steer' | 'retry' | 'idle' | 'stopping'
+export type InputAction = 'send' | 'stop' | 'steer' | 'retry' | 'idle' | 'stopping';
 
 /** 状态快照（不含内部 submitLocked） */
 export interface InputSnapshot {
-  status: InputStatus
-  draft: string
-  attachments: unknown[]
-  workflow: unknown
+  status: InputStatus;
+  draft: string;
+  attachments: unknown[];
+  workflow: unknown;
 }
 
 /** 运行中状态集合（RUNNING，对齐大雄） */
-const RUNNING = new Set<InputStatus>(['planning', 'creating_nodes', 'ready', 'running'])
+const RUNNING = new Set<InputStatus>(['planning', 'creating_nodes', 'ready', 'running']);
 
 export class InputStateMachine {
-  conversationId: string
-  state: InputSnapshot & { submitLocked: boolean }
-  onChange: ((snapshot: InputSnapshot, action: InputAction) => void) | null
+  conversationId: string;
+  state: InputSnapshot & { submitLocked: boolean };
+  onChange: ((snapshot: InputSnapshot, action: InputAction) => void) | null;
 
   constructor(options: { onChange?: (snapshot: InputSnapshot, action: InputAction) => void } = {}) {
-    this.conversationId = ''
-    this.state = { status: 'idle', draft: '', attachments: [], workflow: null, submitLocked: false }
+    this.conversationId = '';
+    this.state = {
+      status: 'idle',
+      draft: '',
+      attachments: [],
+      workflow: null,
+      submitLocked: false,
+    };
     // 状态变化回调：onChange(snapshot, action)（对齐大雄 options.onChange）
-    this.onChange = typeof options.onChange === 'function' ? options.onChange : null
+    this.onChange = typeof options.onChange === 'function' ? options.onChange : null;
   }
 
   /** 按对话加载状态（切换对话时调用，隔离各对话状态） */
   load(conversationId: string, saved: Partial<InputSnapshot> = {}): InputSnapshot {
-    this.conversationId = conversationId || 'default'
+    this.conversationId = conversationId || 'default';
     this.state = {
       status: saved.status || 'idle',
       draft: String(saved.draft || ''),
       attachments: Array.isArray(saved.attachments) ? saved.attachments.slice() : [],
       workflow: saved.workflow || null,
       submitLocked: false,
-    }
-    return this.snapshot()
+    };
+    return this.snapshot();
   }
 
   /** 当前状态快照 */
@@ -86,64 +99,64 @@ export class InputStateMachine {
       draft: this.state.draft,
       attachments: this.state.attachments.slice(),
       workflow: this.state.workflow,
-    }
+    };
   }
 
   /** 是否运行中 */
   isRunning(): boolean {
-    return RUNNING.has(this.state.status)
+    return RUNNING.has(this.state.status);
   }
 
   /** 输入框是否有内容（草稿或附件） */
   hasContent(): boolean {
-    return Boolean(this.state.draft.trim() || this.state.attachments.length)
+    return Boolean(this.state.draft.trim() || this.state.attachments.length);
   }
 
   /** 推导用户当前该按什么按钮（send/stop/steer/retry/idle/stopping） */
   action(): InputAction {
-    if (this.state.status === 'stopping') return 'stopping'
-    if (this.state.status === 'failed') return this.hasContent() ? 'retry' : 'idle'
-    if (this.isRunning()) return this.hasContent() ? 'steer' : 'stop'
-    return this.hasContent() ? 'send' : 'idle'
+    if (this.state.status === 'stopping') return 'stopping';
+    if (this.state.status === 'failed') return this.hasContent() ? 'retry' : 'idle';
+    if (this.isRunning()) return this.hasContent() ? 'steer' : 'stop';
+    return this.hasContent() ? 'send' : 'idle';
   }
 
   /** 更新草稿 */
   setDraft(value: string): void {
-    this.state.draft = String(value || '')
-    this.emit()
+    this.state.draft = String(value || '');
+    this.emit();
   }
 
   /** 更新附件 */
   setAttachments(items: unknown[]): void {
-    this.state.attachments = Array.isArray(items) ? items.slice() : []
-    this.emit()
+    this.state.attachments = Array.isArray(items) ? items.slice() : [];
+    this.emit();
   }
 
   /** 任务开始（状态置为 planning 或给定 status） */
   start(workflow?: { status?: InputStatus } | null): void {
-    this.state.workflow = workflow || this.state.workflow
-    this.state.status = workflow?.status || 'planning'
-    this.emit()
+    this.state.workflow = workflow || this.state.workflow;
+    this.state.status = workflow?.status || 'planning';
+    this.emit();
   }
 
   /** 设置状态；completed/stopped 归一为 idle（对齐大雄 setStatus） */
   setStatus(status: InputStatus): void {
-    this.state.status = status || 'idle'
-    if (['completed', 'stopped'].includes(status)) this.state.status = 'idle'
-    this.emit()
+    this.state.status = status || 'idle';
+    if (['completed', 'stopped'].includes(status)) this.state.status = 'idle';
+    this.emit();
   }
 
   /** 发送后清空草稿和附件，返回 { text, attachments } 供调用方使用 */
   consume(): { text: string; attachments: unknown[] } {
-    const payload = { text: this.state.draft.trim(), attachments: this.state.attachments.slice() }
-    this.state.draft = ''
-    this.state.attachments = []
-    this.emit()
-    return payload
+    const payload = { text: this.state.draft.trim(), attachments: this.state.attachments.slice() };
+    this.state.draft = '';
+    this.state.attachments = [];
+    this.emit();
+    return payload;
   }
 
   /** 触发 onChange(snapshot, action)，驱动 UI 更新 */
   emit(): void {
-    if (typeof this.onChange === 'function') this.onChange(this.snapshot(), this.action())
+    if (typeof this.onChange === 'function') this.onChange(this.snapshot(), this.action());
   }
 }

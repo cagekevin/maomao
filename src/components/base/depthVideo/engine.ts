@@ -11,47 +11,50 @@
 
 /** 数值夹取 [min,max] */
 export function clampInt(value: number, min = 0, max = 255): number {
-  return Math.max(min, Math.min(max, value))
+  return Math.max(min, Math.min(max, value));
 }
 
 /** 深度值对比度/反色调整（port 自 app.js adjustDepthValue） */
-export function adjustDepthValue(value: number, options: { contrast: number; invert: boolean }): number {
-  const contrast = Number.isFinite(options.contrast) ? options.contrast : 1
-  const contrasted = (value - 128) * contrast + 128
-  const adjusted = options.invert ? 255 - contrasted : contrasted
-  return clampInt(Math.round(adjusted), 0, 255)
+export function adjustDepthValue(
+  value: number,
+  options: { contrast: number; invert: boolean },
+): number {
+  const contrast = Number.isFinite(options.contrast) ? options.contrast : 1;
+  const contrasted = (value - 128) * contrast + 128;
+  const adjusted = options.invert ? 255 - contrasted : contrasted;
+  return clampInt(Math.round(adjusted), 0, 255);
 }
 
 /** 单个像素 → 灰度值（RGB 三通道平均；通道不足则复用首通道） */
 function grayOfPixel(data: ArrayLike<number>, i: number, channels: number): number {
-  const r = data[i] ?? 0
-  const g = channels > 1 ? data[i + 1] : r
-  const b = channels > 2 ? data[i + 2] : r
-  return (r + g + b) / 3
+  const r = data[i] ?? 0;
+  const g = channels > 1 ? data[i + 1] : r;
+  const b = channels > 2 ? data[i + 2] : r;
+  return (r + g + b) / 3;
 }
 
 /** 归一化 float tensor（{data, dims}）→ 每像素 0..255 灰度（min-max 归一化；全等不除零） */
 export function grayFromTensor(
   data: ArrayLike<number>,
   dims: number[],
-  options: { contrast: number; invert: boolean }
+  options: { contrast: number; invert: boolean },
 ): Float32Array {
-  let min = Infinity
-  let max = -Infinity
+  let min = Infinity;
+  let max = -Infinity;
   for (let i = 0; i < data.length; i += 1) {
-    const v = data[i]
+    const v = data[i];
     if (Number.isFinite(v)) {
-      if (v < min) min = v
-      if (v > max) max = v
+      if (v < min) min = v;
+      if (v > max) max = v;
     }
   }
-  const scale = max > min ? 255 / (max - min) : 1
-  const out = new Float32Array(data.length)
+  const scale = max > min ? 255 / (max - min) : 1;
+  const out = new Float32Array(data.length);
   for (let i = 0; i < data.length; i += 1) {
-    const normalized = ((data[i] as number) - (Number.isFinite(min) ? min : 0)) * scale
-    out[i] = adjustDepthValue(normalized, options)
+    const normalized = ((data[i] as number) - (Number.isFinite(min) ? min : 0)) * scale;
+    out[i] = adjustDepthValue(normalized, options);
   }
-  return out
+  return out;
 }
 
 /**
@@ -60,14 +63,14 @@ export function grayFromTensor(
  */
 export function grayFromRaw(
   raw: { data: ArrayLike<number>; width: number; height: number; channels?: number },
-  options: { contrast: number; invert: boolean }
+  options: { contrast: number; invert: boolean },
 ): Float32Array {
-  const channels = raw.channels || 4
-  const out = new Float32Array(raw.width * raw.height)
+  const channels = raw.channels || 4;
+  const out = new Float32Array(raw.width * raw.height);
   for (let i = 0, p = 0; i < raw.data.length; i += channels, p += 1) {
-    out[p] = adjustDepthValue(grayOfPixel(raw.data, i, channels), options)
+    out[p] = adjustDepthValue(grayOfPixel(raw.data, i, channels), options);
   }
-  return out
+  return out;
 }
 
 /**
@@ -78,28 +81,28 @@ export function fastDepthFromSource(
   rgba: ArrayLike<number>,
   width: number,
   height: number,
-  options: { contrast: number; invert: boolean }
+  options: { contrast: number; invert: boolean },
 ): Float32Array {
-  const n = width * height
-  const lum = new Float32Array(n)
+  const n = width * height;
+  const lum = new Float32Array(n);
   for (let i = 0, p = 0; i < rgba.length; i += 4, p += 1) {
-    lum[p] = rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114
+    lum[p] = rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114;
   }
-  const out = new Float32Array(n)
+  const out = new Float32Array(n);
   for (let y = 0; y < height; y += 1) {
-    const yBias = y / Math.max(1, height - 1)
+    const yBias = y / Math.max(1, height - 1);
     for (let x = 0; x < width; x += 1) {
-      const idx = y * width + x
-      const left = lum[y * width + Math.max(0, x - 1)]
-      const right = lum[y * width + Math.min(width - 1, x + 1)]
-      const up = lum[Math.max(0, y - 1) * width + x]
-      const down = lum[Math.min(height - 1, y + 1) * width + x]
-      const edge = Math.min(255, Math.abs(right - left) + Math.abs(down - up))
-      const lumaDepth = 255 - lum[idx]
-      out[idx] = adjustDepthValue(lumaDepth * 0.45 + yBias * 120 + edge * 0.35, options)
+      const idx = y * width + x;
+      const left = lum[y * width + Math.max(0, x - 1)];
+      const right = lum[y * width + Math.min(width - 1, x + 1)];
+      const up = lum[Math.max(0, y - 1) * width + x];
+      const down = lum[Math.min(height - 1, y + 1) * width + x];
+      const edge = Math.min(255, Math.abs(right - left) + Math.abs(down - up));
+      const lumaDepth = 255 - lum[idx];
+      out[idx] = adjustDepthValue(lumaDepth * 0.45 + yBias * 120 + edge * 0.35, options);
     }
   }
-  return out
+  return out;
 }
 
 /**
@@ -110,22 +113,22 @@ export function blendFrames(
   prev: ArrayLike<number>,
   curr: ArrayLike<number>,
   length: number,
-  smooth: number
+  smooth: number,
 ): Uint8ClampedArray {
-  const blend = clampInt(smooth, 0, 1)
-  const out = new Uint8ClampedArray(length)
+  const blend = clampInt(smooth, 0, 1);
+  const out = new Uint8ClampedArray(length);
   for (let i = 0; i < length; i += 1) {
-    out[i] = Math.round((curr[i] ?? 0) * (1 - blend) + (prev[i] ?? 0) * blend)
+    out[i] = Math.round((curr[i] ?? 0) * (1 - blend) + (prev[i] ?? 0) * blend);
   }
-  return out
+  return out;
 }
 
 /** 录制格式探测结果 */
 export interface RecordingFormat {
-  mimeType: string
-  extension: 'mp4' | 'webm'
+  mimeType: string;
+  extension: 'mp4' | 'webm';
   /** 显式 mp4 但浏览器不支持，回退 webm 时置 true */
-  fellBackToWebm: boolean
+  fellBackToWebm: boolean;
 }
 
 /**
@@ -134,37 +137,37 @@ export interface RecordingFormat {
  */
 export function pickRecordingFormat(
   preferred: 'auto' | 'mp4' | 'webm',
-  isTypeSupported: (mime: string) => boolean
+  isTypeSupported: (mime: string) => boolean,
 ): RecordingFormat {
   const mp4Types = [
     'video/mp4;codecs=avc1.42E01E',
     'video/mp4;codecs=avc1.64001F',
     'video/mp4;codecs=h264',
     'video/mp4',
-  ]
-  const webmTypes = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
+  ];
+  const webmTypes = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
 
   if (preferred === 'webm') {
-    const mime = webmTypes.find((t) => isTypeSupported(t))
-    if (!mime) throw new Error('当前浏览器不支持导出视频，请换 Chrome 或 Edge。')
-    return { mimeType: mime, extension: 'webm', fellBackToWebm: false }
+    const mime = webmTypes.find((t) => isTypeSupported(t));
+    if (!mime) throw new Error('当前浏览器不支持导出视频，请换 Chrome 或 Edge。');
+    return { mimeType: mime, extension: 'webm', fellBackToWebm: false };
   }
 
-  const candidates = [...mp4Types, ...webmTypes]
-  const mime = candidates.find((t) => isTypeSupported(t))
-  if (!mime) throw new Error('当前浏览器不支持导出视频，请换 Chrome 或 Edge。')
-  const extension = mime.includes('mp4') ? 'mp4' : 'webm'
-  return { mimeType: mime, extension, fellBackToWebm: preferred === 'mp4' && extension === 'webm' }
+  const candidates = [...mp4Types, ...webmTypes];
+  const mime = candidates.find((t) => isTypeSupported(t));
+  if (!mime) throw new Error('当前浏览器不支持导出视频，请换 Chrome 或 Edge。');
+  const extension = mime.includes('mp4') ? 'mp4' : 'webm';
+  return { mimeType: mime, extension, fellBackToWebm: preferred === 'mp4' && extension === 'webm' };
 }
 
 /** 文件名去扩展名（port 自 VideoProcessNode 局部 stripExt） */
 export function stripExtOf(name: string): string {
-  return (name || '').replace(/\.[^.]+$/, '') || 'video'
+  return (name || '').replace(/\.[^.]+$/, '') || 'video';
 }
 
 /** 产出深度视频输出文件名：`${去扩展名源名}_depth.${ext}`（不覆盖源名，对应设计稿 R7） */
 export function depthOutputName(sourceName: string, extension: string): string {
-  return `${stripExtOf(sourceName)}_depth.${extension}`
+  return `${stripExtOf(sourceName)}_depth.${extension}`;
 }
 
 /**
@@ -172,12 +175,15 @@ export function depthOutputName(sourceName: string, extension: string): string {
  * 只定「节点类型 + data 契约」；position 由 spawn 侧的右缘排布（getNode + measured.width）计算，
  * 不放这里（避免与 spawnVideoNode 的右缘语义冲突）。被 depthVideo/spawn.ts 的 spawnDepthVideoNode 复用。
  */
-export function buildDepthChildSpec(outputUrl: string, name: string): {
-  type: string
-  data: Record<string, unknown>
+export function buildDepthChildSpec(
+  outputUrl: string,
+  name: string,
+): {
+  type: string;
+  data: Record<string, unknown>;
 } {
   return {
     type: 'imageNode',
     data: { imageUrl: outputUrl, mediaType: 'video', label: name, expanded: true },
-  }
+  };
 }

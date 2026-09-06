@@ -144,7 +144,9 @@ export async function handlePassthrough(
   // 转发目标：复用 official.ts 的三级优先级，保证「转发给谁」只有一个决策点
   const base = await readOfficialBase(req);
   if (!base) {
-    console.warn(`[passthrough] ${logTs()} | ${method} ${pathname} | 无可用官方 base（未配置 x-official-base / active_api_endpoint），跳过转发`);
+    console.warn(
+      `[passthrough] ${logTs()} | ${method} ${pathname} | 无可用官方 base（未配置 x-official-base / active_api_endpoint），跳过转发`,
+    );
     return false;
   }
   let targetUrl: URL;

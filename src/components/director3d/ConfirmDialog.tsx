@@ -7,9 +7,9 @@
 //   const { ask, renderConfirm } = useConfirm()
 //   const ok = await ask(`删除“xxx”？`, { confirmText: '删除', danger: true })
 //   ... // 在 JSX 末尾渲染 {renderConfirm}
-import { useCallback, useState } from 'react'
+import { useCallback, useState } from 'react';
 
-const DEFAULT_OPTS = { confirmText: '确定', cancelText: '取消', danger: false }
+const DEFAULT_OPTS = { confirmText: '确定', cancelText: '取消', danger: false };
 
 /**
  * 命令式确认框。返回：
@@ -18,33 +18,41 @@ const DEFAULT_OPTS = { confirmText: '确定', cancelText: '取消', danger: fals
  */
 export function useConfirm() {
   // state: null 表示无弹窗；否则 { message, confirmText, cancelText, danger }
-  const [state, setState] = useState(null)
+  const [state, setState] = useState(null);
   // 持有当前弹窗的 resolver，避免 setState 异步回调作用域丢失
-  const resolverRef = useState({ cur: null })[0]
+  const resolverRef = useState({ cur: null })[0];
 
-  const ask = useCallback((message, opts) => {
-    const { confirmText, cancelText, danger } = { ...DEFAULT_OPTS, ...opts }
-    return new Promise(resolve => {
-      // 若已有弹窗未决，先以取消关闭旧弹窗，避免状态覆盖
-      if (resolverRef.cur) resolverRef.cur(false)
-      resolverRef.cur = resolve
-      setState({ message, confirmText, cancelText, danger })
-    })
-  }, [resolverRef])
+  const ask = useCallback(
+    (message, opts) => {
+      const { confirmText, cancelText, danger } = { ...DEFAULT_OPTS, ...opts };
+      return new Promise((resolve) => {
+        // 若已有弹窗未决，先以取消关闭旧弹窗，避免状态覆盖
+        if (resolverRef.cur) resolverRef.cur(false);
+        resolverRef.cur = resolve;
+        setState({ message, confirmText, cancelText, danger });
+      });
+    },
+    [resolverRef],
+  );
 
-  const settle = useCallback(result => {
-    const resolve = resolverRef.cur
-    resolverRef.cur = null
-    setState(null)
-    if (resolve) resolve(result)
-  }, [resolverRef])
+  const settle = useCallback(
+    (result) => {
+      const resolve = resolverRef.cur;
+      resolverRef.cur = null;
+      setState(null);
+      if (resolve) resolve(result);
+    },
+    [resolverRef],
+  );
 
   const renderConfirm = state ? (
     <div className="confirm-overlay" role="dialog" aria-modal="true">
       <div className="confirm-dialog">
         <div className="confirm-message">{state.message}</div>
         <div className="confirm-actions">
-          <button type="button" className="confirm-btn" onClick={() => settle(false)}>{state.cancelText}</button>
+          <button type="button" className="confirm-btn" onClick={() => settle(false)}>
+            {state.cancelText}
+          </button>
           <button
             type="button"
             className={state.danger ? 'confirm-btn is-danger' : 'confirm-btn is-primary'}
@@ -55,7 +63,7 @@ export function useConfirm() {
         </div>
       </div>
     </div>
-  ) : null
+  ) : null;
 
-  return { ask, renderConfirm }
+  return { ask, renderConfirm };
 }

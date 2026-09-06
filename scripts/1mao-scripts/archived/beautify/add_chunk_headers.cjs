@@ -95,22 +95,27 @@ const HEADERS = {
 // 每个 chunk 的「功能分区 / 区域」速览（供接手 AI 看注释即知要不要读此文件，不必先翻 MODULE_MAP）。
 // App 含全部 6 大区域；其余 chunk 标注各自职责范围。依据见 scripts/region_labels.json。
 const REGION_NOTES = {
-  'main-1TOrc0Z5.js':          '引导层：侧边栏 bootstrap / 接入点引导 / RootErrorBoundary（不含业务区域）',
-  'App-D5SRQxl_.js':           '含全部 6 大区域：core:account(账号) / core:localEngine(本地引擎) / core:storage(存储) / panel:mr(主面板·8 子组件) / shared(共享·18) / ui-misc(UI·41) —— 详见 MODULE_MAP §3',
-  'share-CymbjOw4.js':         '分享页入口：独立页面，disableLocalTool=true，不含侧边栏业务区域',
-  'ShareAppPage-BVCmVrHF.js':  '分享页主程序：只读渲染，对应 panel:mr 的只读子集',
-  'endpointConfig-Bt85xi8d.js':'接入点配置层：host 重写 / 端口 18080 / 存储键（对应 core:localEngine 的端点侧）',
-  'httpClient-Bqba_SHR.js':    '网络层：localTool(/api/*) + apimart-gateway(/v1/*) 全路由封装（被各业务区域调用）',
-  'src--1UFFpRm.js':           '共享业务依赖层（被 App 的多个区域引用）',
-  'src-CzHn9cDd.js':           '运行时节（modulepreload polyfill，无业务区域）',
+  'main-1TOrc0Z5.js': '引导层：侧边栏 bootstrap / 接入点引导 / RootErrorBoundary（不含业务区域）',
+  'App-D5SRQxl_.js':
+    '含全部 6 大区域：core:account(账号) / core:localEngine(本地引擎) / core:storage(存储) / panel:mr(主面板·8 子组件) / shared(共享·18) / ui-misc(UI·41) —— 详见 MODULE_MAP §3',
+  'share-CymbjOw4.js': '分享页入口：独立页面，disableLocalTool=true，不含侧边栏业务区域',
+  'ShareAppPage-BVCmVrHF.js': '分享页主程序：只读渲染，对应 panel:mr 的只读子集',
+  'endpointConfig-Bt85xi8d.js':
+    '接入点配置层：host 重写 / 端口 18080 / 存储键（对应 core:localEngine 的端点侧）',
+  'httpClient-Bqba_SHR.js':
+    '网络层：localTool(/api/*) + apimart-gateway(/v1/*) 全路由封装（被各业务区域调用）',
+  'src--1UFFpRm.js': '共享业务依赖层（被 App 的多个区域引用）',
+  'src-CzHn9cDd.js': '运行时节（modulepreload polyfill，无业务区域）',
   'mediabunny-mp3-encoder-1kfWdaog.js': '第三方音频编码（原样携带）',
-  'vendor-Z-adA07W.js':        '第三方依赖层（React/@xyflow/localforage 等，无业务区域）',
+  'vendor-Z-adA07W.js': '第三方依赖层（React/@xyflow/localforage 等，无业务区域）',
   'rolldown-runtime-aKtaBQYM.js': '运行时节（无业务区域）',
   '__vite-browser-external-JD6iV1p1.js': '运行时节（无业务区域）',
 };
 
 const MARKER = '[A22 chunk header]';
-let added = 0, skipped = 0, upgraded = 0;
+let added = 0,
+  skipped = 0,
+  upgraded = 0;
 
 // 去除已存在的本工程注释块（幂等升级：旧注释缺「本文件功能分区」行时重建）
 function stripHeader(src) {
@@ -131,7 +136,9 @@ for (const f of fs.readdirSync(BUNDLE)) {
   if (hadHeader) src = stripHeader(src); // 先剥旧注释，下面统一重加（含新行）
   const meta = HEADERS[f];
   if (!meta) {
-    if (hadHeader) { fs.writeFileSync(file, src); } // 还原（极少见：已登记丢失）
+    if (hadHeader) {
+      fs.writeFileSync(file, src);
+    } // 还原（极少见：已登记丢失）
     console.warn('跳过未登记 chunk（无角色信息）：', f);
     continue;
   }
@@ -148,8 +155,15 @@ for (const f of fs.readdirSync(BUNDLE)) {
     '',
   ].join('\n');
   fs.writeFileSync(file, block + src);
-  if (hadHeader) { upgraded++; console.log('已升级注释：', f); }
-  else { added++; console.log('已加注释：', f); }
+  if (hadHeader) {
+    upgraded++;
+    console.log('已升级注释：', f);
+  } else {
+    added++;
+    console.log('已加注释：', f);
+  }
 }
 
-console.log(`\n完成：新增 ${added} 个，升级(旧注释重加) ${upgraded} 个，跳过(未登记) ${skipped} 个。`);
+console.log(
+  `\n完成：新增 ${added} 个，升级(旧注释重加) ${upgraded} 个，跳过(未登记) ${skipped} 个。`,
+);

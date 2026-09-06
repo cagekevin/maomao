@@ -1,11 +1,11 @@
-import { useState, useCallback } from 'react'
-import { Crop, Pencil, Maximize2, Minimize2 } from 'lucide-react'
-import ImageEditor from '../base/editors/ImageEditor.tsx'
-import InlineImageCropper from '../base/editors/InlineImageCropper.tsx'
-import { compressImage } from '../base/utils/imageCompress.ts'
-import { upscaleImage } from '../base/utils/imageUpscale.ts'
-import { saveInlineToLocal } from '../base/api/filesApi.ts'
-import { showToast, toastError } from '../base/core/toastStore.ts'
+import { useState, useCallback } from 'react';
+import { Crop, Pencil, Maximize2, Minimize2 } from 'lucide-react';
+import ImageEditor from '../base/editors/ImageEditor.tsx';
+import InlineImageCropper from '../base/editors/InlineImageCropper.tsx';
+import { compressImage } from '../base/utils/imageCompress.ts';
+import { upscaleImage } from '../base/utils/imageUpscale.ts';
+import { saveInlineToLocal } from '../base/api/filesApi.ts';
+import { showToast, toastError } from '../base/core/toastStore.ts';
 
 /**
  * 图片类节点 hover 操作栏「行为 + 按钮」统一机制。
@@ -42,79 +42,87 @@ import { showToast, toastError } from '../base/core/toastStore.ts'
  */
 interface UseImageHoverActionsArgs {
   /** 节点 id（裁剪/压缩/放大请求定位用） */
-  id: string
+  id: string;
   /** 当前图片 URL（裁剪/压缩/放大源） */
-  url: string
+  url: string;
   /** 是否已有图片（控制 crop/edit/compress 显示） */
-  hasImage: boolean
+  hasImage: boolean;
   /** 节点 label（发送素材库命名用） */
-  label: string
+  label: string;
   /** 新图写回回调（裁剪保存 / 压缩覆盖都走它），入参 (dataUrl, dims?)；dims={width,height} 为可选画布真实尺寸，供节点按真实比例自适应 */
-  onImageReplaced: (dataUrl: string, dims?: { width: number; height: number }) => void
+  onImageReplaced: (dataUrl: string, dims?: { width: number; height: number }) => void;
 }
 
-export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced }: UseImageHoverActionsArgs) {
-  const [editor, setEditor] = useState(null) // 全屏 ImageEditor（重编辑入口，保留）
-  const [cropping, setCropping] = useState(false) // 就地裁剪浮层
-  const [compressing, setCompressing] = useState(false)
-  const [upscaling, setUpscaling] = useState(false)
+export function useImageHoverActions({
+  id,
+  url,
+  hasImage,
+  label,
+  onImageReplaced,
+}: UseImageHoverActionsArgs) {
+  const [editor, setEditor] = useState(null); // 全屏 ImageEditor（重编辑入口，保留）
+  const [cropping, setCropping] = useState(false); // 就地裁剪浮层
+  const [compressing, setCompressing] = useState(false);
+  const [upscaling, setUpscaling] = useState(false);
 
   // 编辑器保存（裁剪/标记/扩图）→ 写回节点图片，并透传画布真实尺寸让节点自适应。失败透传 toastError，不静默。
   const handleEditorSave = useCallback(
     ({ dataUrl, width, height }) => {
-      if (!dataUrl) return
-      onImageReplaced?.(dataUrl, width && height ? { width, height } : undefined)
-      setEditor(null)
+      if (!dataUrl) return;
+      onImageReplaced?.(dataUrl, width && height ? { width, height } : undefined);
+      setEditor(null);
     },
-    [onImageReplaced]
-  )
+    [onImageReplaced],
+  );
 
   // 就地裁剪保存 → 写回节点图片，关闭裁剪浮层。
   const handleCropSave = useCallback(
     ({ dataUrl }) => {
-      if (!dataUrl) return
-      onImageReplaced?.(dataUrl)
-      setCropping(false)
+      if (!dataUrl) return;
+      onImageReplaced?.(dataUrl);
+      setCropping(false);
     },
-    [onImageReplaced]
-  )
+    [onImageReplaced],
+  );
 
   // 压缩：压缩后原位覆盖（先写回立即生效，再异步落盘换持久 URL）。
   const handleCompress = useCallback(async () => {
-    if (!url || compressing) return
-    setCompressing(true)
+    if (!url || compressing) return;
+    setCompressing(true);
     try {
-      const { dataUrl, size, originalSize } = await compressImage(url, { quality: 0.8 })
-      if (!dataUrl) throw new Error('压缩失败')
-      onImageReplaced?.(dataUrl) // 立即覆盖显示
-      const saved = await saveInlineToLocal(dataUrl, 'canvas')
-      if (saved && saved !== dataUrl) onImageReplaced?.(saved) // 落盘后换持久 URL
-      const kb = (n) => `${(n / 1024).toFixed(0)}KB`
-      showToast(`已压缩：${originalSize ? kb(originalSize) : '?'} → ${size ? kb(size) : '?'}`, { type: 'success' })
+      const { dataUrl, size, originalSize } = await compressImage(url, { quality: 0.8 });
+      if (!dataUrl) throw new Error('压缩失败');
+      onImageReplaced?.(dataUrl); // 立即覆盖显示
+      const saved = await saveInlineToLocal(dataUrl, 'canvas');
+      if (saved && saved !== dataUrl) onImageReplaced?.(saved); // 落盘后换持久 URL
+      const kb = (n) => `${(n / 1024).toFixed(0)}KB`;
+      showToast(`已压缩：${originalSize ? kb(originalSize) : '?'} → ${size ? kb(size) : '?'}`, {
+        type: 'success',
+      });
     } catch (e) {
-      toastError(e?.message || '压缩失败')
+      toastError(e?.message || '压缩失败');
     } finally {
-      setCompressing(false)
+      setCompressing(false);
     }
-  }, [url, compressing, onImageReplaced])
+  }, [url, compressing, onImageReplaced]);
 
   // 放大：浏览器 canvas 最高插值质量 ×2 放大（轻量，零模型），写回机制与压缩一致。
   const handleUpscale = useCallback(async () => {
-    if (!url || upscaling) return
-    setUpscaling(true)
+    if (!url || upscaling) return;
+    setUpscaling(true);
     try {
-      const { dataUrl } = await upscaleImage(url, { scale: 2 })
-      if (!dataUrl) throw new Error('放大失败')
-      onImageReplaced?.(dataUrl) // 立即覆盖显示
-      const saved = await saveInlineToLocal(dataUrl, 'canvas')
-      if (saved && saved !== dataUrl) onImageReplaced?.(saved) // 落盘后换持久 URL
-      showToast('已放大 2 倍', { type: 'success' })
+      const { dataUrl } = await upscaleImage(url, { scale: 2 });
+      if (!dataUrl) throw new Error('放大失败');
+      onImageReplaced?.(dataUrl); // 立即覆盖显示
+      const saved = await saveInlineToLocal(dataUrl, 'canvas');
+      if (saved && saved !== dataUrl) onImageReplaced?.(saved); // 落盘后换持久 URL
+      showToast('已放大 2 倍', { type: 'success' });
     } catch (e) {
-      toastError(e?.message || '放大失败')
+      toastError(e?.message || '放大失败');
     } finally {
-      setUpscaling(false)
+      setUpscaling(false);
     }
-  }, [url, upscaling, onImageReplaced])
+  }, [url, upscaling, onImageReplaced]);
 
   // 共享图片 hover 按钮：裁剪（就地）/ 放大 / 压缩（图片编辑核心能力）。
   // 仅 hasImage 时显示（无图不显示死按钮）。发送/下载由各节点按自身语义保留。
@@ -147,7 +155,7 @@ export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced
       onClick: handleCompress,
       show: hasImage && !!url,
     },
-  ]
+  ];
 
   // 渲染编辑器（调用方在节点末尾 render，全屏重编辑入口，保留未删）
   const renderEditor = () =>
@@ -158,7 +166,7 @@ export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced
         onSave={handleEditorSave}
         onClose={() => setEditor(null)}
       />
-    ) : null
+    ) : null;
 
   // 渲染就地裁剪浮层（调用方放在图片区 relative 容器内）
   const renderInlineCropper = () =>
@@ -168,7 +176,7 @@ export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced
         onSave={handleCropSave}
         onClose={() => setCropping(false)}
       />
-    ) : null
+    ) : null;
 
   return {
     editor,
@@ -184,7 +192,7 @@ export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced
     imageButtons,
     renderEditor,
     renderInlineCropper,
-  }
+  };
 }
 
-export default useImageHoverActions
+export default useImageHoverActions;

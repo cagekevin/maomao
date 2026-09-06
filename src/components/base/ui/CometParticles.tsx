@@ -1,4 +1,4 @@
-import React from 'react'
+import React from 'react';
 
 /**
  * 边粒子流光公共组件（彗星拖尾 + 辉光 + 发光头）。
@@ -17,24 +17,24 @@ import React from 'react'
  */
 interface CometParticlesProps {
   /** 粒子沿其运动的隐藏 <path id={pathId}> 的 id */
-  pathId: string
+  pathId: string;
   /** 唯一标识（生成 filter id 用，避免多实例冲突） */
-  uid: string
-  headRadius?: number
+  uid: string;
+  headRadius?: number;
 }
 
 export default function CometParticles({ pathId, uid, headRadius = 3.4 }: CometParticlesProps) {
-  const dur = '1.8s'
-  const filterId = `cust-particles-filter-${uid}`
+  const dur = '1.8s';
+  const filterId = `cust-particles-filter-${uid}`;
 
   // 16 个拖尾点：[半径, 透明度, begin(ms)]；半径 4.6→0.6，透明度 1→0.05，begin 逐点错开 18ms
-  const dots: Array<[number, number, number]> = []
+  const dots: Array<[number, number, number]> = [];
   for (let e = 0; e < 16; e++) {
-    const t = e / 15
-    const r = 4.6 - t * 4
-    const op = Math.max(0.05, 1 - t * 1.05)
-    const begin = e * 18
-    dots.push([r, op, begin])
+    const t = e / 15;
+    const r = 4.6 - t * 4;
+    const op = Math.max(0.05, 1 - t * 1.05);
+    const begin = e * 18;
+    dots.push([r, op, begin]);
   }
 
   return (
@@ -64,7 +64,7 @@ export default function CometParticles({ pathId, uid, headRadius = 3.4 }: CometP
         opacity={1}
         style={{
           filter:
-            'drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 14px rgba(180,210,255,0.7))'
+            'drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 14px rgba(180,210,255,0.7))',
         }}
       >
         <animateMotion dur={dur} repeatCount="indefinite" rotate="auto" begin="0s">
@@ -72,5 +72,5 @@ export default function CometParticles({ pathId, uid, headRadius = 3.4 }: CometP
         </animateMotion>
       </circle>
     </g>
-  )
+  );
 }

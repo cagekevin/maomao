@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { Loader2, Image as ImageIcon } from 'lucide-react'
-import { fetchResources, rescanResources } from '../base/api/index.ts'
-import { toAbsoluteFileUrl } from '../base/utils/imageUrl.ts'
-import type { ResourceItem } from '../base/api/localToolApi.ts'
-import { useLocalToolStatus } from '../../hooks/useLocalToolStatus.ts'
-import { logger } from '../base/core/logger.ts'
-import ScriptBoxModal from './ScriptBoxModal.tsx'
+import React, { useState, useEffect, useCallback } from 'react';
+import { Loader2, Image as ImageIcon } from 'lucide-react';
+import { fetchResources, rescanResources } from '../base/api/index.ts';
+import { toAbsoluteFileUrl } from '../base/utils/imageUrl.ts';
+import type { ResourceItem } from '../base/api/localToolApi.ts';
+import { useLocalToolStatus } from '../../hooks/useLocalToolStatus.ts';
+import { logger } from '../base/core/logger.ts';
+import ScriptBoxModal from './ScriptBoxModal.tsx';
 
-const PAGE_SIZE = 60
+const PAGE_SIZE = 60;
 
 /**
  * 剧本盒子 —— 「从素材库选择」图片选择器。
@@ -19,45 +19,52 @@ const PAGE_SIZE = 60
  *  - onClose 关闭回调
  *  - onPick(url)  选中图片回调（把该图 URL 设为资产参考图）
  */
-export default function ScriptBoxAssetPicker({ folder, onClose, onPick }: {
-  folder: string
-  onClose: () => void
-  onPick: (url: string) => void
+export default function ScriptBoxAssetPicker({
+  folder,
+  onClose,
+  onPick,
+}: {
+  folder: string;
+  onClose: () => void;
+  onPick: (url: string) => void;
 }) {
-  const { status } = useLocalToolStatus()
-  const connected = status.isConnected
-  const [items, setItems] = useState<ResourceItem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [err, setErr] = useState('')
+  const { status } = useLocalToolStatus();
+  const connected = status.isConnected;
+  const [items, setItems] = useState<ResourceItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
 
   // 目录变化 → 重新拉取该目录图片
-  const load = useCallback(async (rescan = false) => {
-    if (!connected) return
-    setLoading(true)
-    setErr('')
-    try {
-      if (rescan) {
-        await rescanResources()
+  const load = useCallback(
+    async (rescan = false) => {
+      if (!connected) return;
+      setLoading(true);
+      setErr('');
+      try {
+        if (rescan) {
+          await rescanResources();
+        }
+        const data = await fetchResources({ folder, page: 1, pageSize: PAGE_SIZE, type: 'image' });
+        // fetchResources 返回 unknown：先 Array.isArray 判「确实是数组」再按 ResourceItem[] 收窄（F13）
+        const list = Array.isArray(data?.data?.items) ? (data.data.items as ResourceItem[]) : [];
+        setItems(list);
+      } catch (e) {
+        // UI 红字已提示；再补 logger 便于排查本地引擎/后端问题
+        const errMsg = (e as { message?: string }).message || String(e);
+        logger.warn('scriptBox', '素材库加载失败', { folder, error: errMsg });
+        setErr(e?.message || '素材库加载失败');
+      } finally {
+        setLoading(false);
       }
-      const data = await fetchResources({ folder, page: 1, pageSize: PAGE_SIZE, type: 'image' })
-      // fetchResources 返回 unknown：先 Array.isArray 判「确实是数组」再按 ResourceItem[] 收窄（F13）
-      const list = Array.isArray(data?.data?.items) ? (data.data.items as ResourceItem[]) : []
-      setItems(list)
-    } catch (e) {
-      // UI 红字已提示；再补 logger 便于排查本地引擎/后端问题
-      const errMsg = (e as { message?: string }).message || String(e)
-      logger.warn('scriptBox', '素材库加载失败', { folder, error: errMsg })
-      setErr(e?.message || '素材库加载失败')
-    } finally {
-      setLoading(false)
-    }
-  }, [connected, folder])
+    },
+    [connected, folder],
+  );
 
   useEffect(() => {
-    load(true)
-  }, [load])
+    load(true);
+  }, [load]);
 
-  const folderLabel = (folder || '').split('/').pop() || '素材库'
+  const folderLabel = (folder || '').split('/').pop() || '素材库';
 
   return (
     <ScriptBoxModal
@@ -68,11 +75,18 @@ export default function ScriptBoxAssetPicker({ folder, onClose, onPick }: {
       bodyClass="p-3 flex flex-col min-h-0 flex-1"
     >
       {!connected ? (
-        <div className="flex-1 flex items-center justify-center text-faint text-caption-sm">请先连接本地引擎</div>
+        <div className="flex-1 flex items-center justify-center text-faint text-caption-sm">
+          请先连接本地引擎
+        </div>
       ) : loading ? (
-        <div className="flex-1 flex items-center justify-center text-faint text-caption-sm"><Loader2 size={14} className="animate-spin mr-2" />加载中…</div>
+        <div className="flex-1 flex items-center justify-center text-faint text-caption-sm">
+          <Loader2 size={14} className="animate-spin mr-2" />
+          加载中…
+        </div>
       ) : err ? (
-        <div className="flex-1 flex items-center justify-center text-red-400 text-caption-sm">{err}</div>
+        <div className="flex-1 flex items-center justify-center text-red-400 text-caption-sm">
+          {err}
+        </div>
       ) : items.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-faint text-caption-sm gap-1">
           <ImageIcon size={20} className="opacity-40" />
@@ -106,5 +120,5 @@ export default function ScriptBoxAssetPicker({ folder, onClose, onPick }: {
         </div>
       )}
     </ScriptBoxModal>
-  )
+  );
 }

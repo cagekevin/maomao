@@ -15,30 +15,93 @@ const panels = JSON.parse(fs.readFileSync(path.join(__dirname, 'panels.json'), '
 
 // 1.4.0 chunk 角色元数据（与 add_chunk_headers.cjs 同源，均为合法 1.4.0 名）
 const CHUNK_META = {
-  'main-1TOrc0Z5.js':          { role: '引导/RootErrorBoundary/接入点引导/bootstrap', cat: '业务', entry: '✅ 侧边栏入口', edit: '可改（业务）' },
-  'App-D5SRQxl_.js':           { role: '主程序：节点画布 / 资源库 / 多账号 / 提示词库', cat: '业务（default 导出 mr）', entry: '动态 import', edit: '可改（业务）' },
-  'share-CymbjOw4.js':         { role: '分享页入口（动态 import ShareAppPage）', cat: '业务', entry: '✅ 分享页入口', edit: '可改（业务）' },
-  'ShareAppPage-BVCmVrHF.js':  { role: '分享页主程序', cat: '业务（default 导出 C）', entry: '动态 import', edit: '可改（业务）' },
-  'endpointConfig-Bt85xi8d.js':{ role: '接入点配置（含存储键/端口 18080/默认端点）', cat: '业务（导出 a/c/i/n/o/r/s/t）', entry: '被 main 引用', edit: '可改，但字符串契约勿动' },
-  'httpClient-Bqba_SHR.js':    { role: 'HTTP 客户端（/api/* 全路由 + 剪映/本地引擎/代理）', cat: '业务', entry: '被各业务引用', edit: '可改（业务）' },
-  'src--1UFFpRm.js':           { role: '共享业务 chunk（公共依赖）', cat: '业务', entry: '共享', edit: '可改（业务）' },
-  'src-CzHn9cDd.js':           { role: 'Vite modulepreload polyfill（纯副作用，无导出）', cat: '运行时垫片', entry: '共享（副作用）', edit: '勿改' },
-  'mediabunny-mp3-encoder-1kfWdaog.js': { role: '音频编码（导出 registerMp3Encoder）', cat: '第三方包装', entry: '被业务引用', edit: '原样携带' },
-  'vendor-Z-adA07W.js':        { role: '第三方依赖（React / @xyflow/react / localforage / lucide 等）', cat: '第三方', entry: '被全部引用', edit: '勿反编译/勿改导出别名' },
-  'rolldown-runtime-aKtaBQYM.js': { role: 'rolldown 运行时垫片（导出 i/n/r/t 等内部符号）', cat: '运行时', entry: '被全部引用', edit: '勿改' },
-  '__vite-browser-external-JD6iV1p1.js': { role: 'Vite 浏览器外置垫片', cat: '运行时垫片', entry: '被业务引用', edit: '原样携带' },
+  'main-1TOrc0Z5.js': {
+    role: '引导/RootErrorBoundary/接入点引导/bootstrap',
+    cat: '业务',
+    entry: '✅ 侧边栏入口',
+    edit: '可改（业务）',
+  },
+  'App-D5SRQxl_.js': {
+    role: '主程序：节点画布 / 资源库 / 多账号 / 提示词库',
+    cat: '业务（default 导出 mr）',
+    entry: '动态 import',
+    edit: '可改（业务）',
+  },
+  'share-CymbjOw4.js': {
+    role: '分享页入口（动态 import ShareAppPage）',
+    cat: '业务',
+    entry: '✅ 分享页入口',
+    edit: '可改（业务）',
+  },
+  'ShareAppPage-BVCmVrHF.js': {
+    role: '分享页主程序',
+    cat: '业务（default 导出 C）',
+    entry: '动态 import',
+    edit: '可改（业务）',
+  },
+  'endpointConfig-Bt85xi8d.js': {
+    role: '接入点配置（含存储键/端口 18080/默认端点）',
+    cat: '业务（导出 a/c/i/n/o/r/s/t）',
+    entry: '被 main 引用',
+    edit: '可改，但字符串契约勿动',
+  },
+  'httpClient-Bqba_SHR.js': {
+    role: 'HTTP 客户端（/api/* 全路由 + 剪映/本地引擎/代理）',
+    cat: '业务',
+    entry: '被各业务引用',
+    edit: '可改（业务）',
+  },
+  'src--1UFFpRm.js': {
+    role: '共享业务 chunk（公共依赖）',
+    cat: '业务',
+    entry: '共享',
+    edit: '可改（业务）',
+  },
+  'src-CzHn9cDd.js': {
+    role: 'Vite modulepreload polyfill（纯副作用，无导出）',
+    cat: '运行时垫片',
+    entry: '共享（副作用）',
+    edit: '勿改',
+  },
+  'mediabunny-mp3-encoder-1kfWdaog.js': {
+    role: '音频编码（导出 registerMp3Encoder）',
+    cat: '第三方包装',
+    entry: '被业务引用',
+    edit: '原样携带',
+  },
+  'vendor-Z-adA07W.js': {
+    role: '第三方依赖（React / @xyflow/react / localforage / lucide 等）',
+    cat: '第三方',
+    entry: '被全部引用',
+    edit: '勿反编译/勿改导出别名',
+  },
+  'rolldown-runtime-aKtaBQYM.js': {
+    role: 'rolldown 运行时垫片（导出 i/n/r/t 等内部符号）',
+    cat: '运行时',
+    entry: '被全部引用',
+    edit: '勿改',
+  },
+  '__vite-browser-external-JD6iV1p1.js': {
+    role: 'Vite 浏览器外置垫片',
+    cat: '运行时垫片',
+    entry: '被业务引用',
+    edit: '原样携带',
+  },
 };
 
-const present = fs.readdirSync(BUNDLE).filter(f => f.endsWith('.js'));
+const present = fs.readdirSync(BUNDLE).filter((f) => f.endsWith('.js'));
 
 // §1 表格
 const rows = [];
 for (const f of Object.keys(CHUNK_META)) {
-  if (!present.includes(f)) { console.warn('regions 元数据引用但未在 src/bundle 找到：', f); continue; }
+  if (!present.includes(f)) {
+    console.warn('regions 元数据引用但未在 src/bundle 找到：', f);
+    continue;
+  }
   const m = CHUNK_META[f];
   rows.push(`| \`${f}\` | ${m.role} | ${m.cat} | ${m.entry} | ${m.edit} |`);
 }
-const missing = present.filter(f => !CHUNK_META[f]);
+const missing = present.filter((f) => !CHUNK_META[f]);
 for (const f of missing) rows.push(`| \`${f}\` | （未在元数据登记） | - | - | - |`);
 
 const chunkTable = [
@@ -54,33 +117,41 @@ const chunkTable = [
 const total = regions.length;
 const regionCount = {};
 for (const s of regions) regionCount[s.region] = (regionCount[s.region] || 0) + 1;
-const labels = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'rename-pipeline', 'region_labels.json'), 'utf8'));
-const regionLines = Object.keys(regionCount).sort().map(r => {
-  const info = labels.regions[r] || {};
-  const human = info.label ? ` —— **${info.label}**` : '';
-  const what = info.what ? `：${info.what}` : '';
-  return `- \`${r}\`（${regionCount[r]} 个）${human}${what}`;
-});
+const labels = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '..', 'rename-pipeline', 'region_labels.json'), 'utf8'),
+);
+const regionLines = Object.keys(regionCount)
+  .sort()
+  .map((r) => {
+    const info = labels.regions[r] || {};
+    const human = info.label ? ` —— **${info.label}**` : '';
+    const what = info.what ? `：${info.what}` : '';
+    return `- \`${r}\`（${regionCount[r]} 个）${human}${what}`;
+  });
 const rootPanels = (panels.rootPanels || []).join('、') || '无';
 const panelSize = panels.panelSize || {};
-const panelSizeLines = Object.keys(panelSize).map(p => `- \`${p}\`（${panelSize[p]} 个子组件）`);
+const panelSizeLines = Object.keys(panelSize).map((p) => `- \`${p}\`（${panelSize[p]} 个子组件）`);
 
 // 关键符号人话标签（仅列出在 regions.json 中存在且已标注的）
 const symRows = [];
 for (const name of Object.keys(labels.symbols)) {
-  const s = regions.find(x => x.name === name);
+  const s = regions.find((x) => x.name === name);
   if (!s) continue;
   const info = labels.symbols[name];
-  symRows.push(`| \`${name}\` | ${s.line} | ${s.region} | ${info.label}${info.note ? '（' + info.note + '）' : ''} |`);
+  symRows.push(
+    `| \`${name}\` | ${s.line} | ${s.region} | ${info.label}${info.note ? '（' + info.note + '）' : ''} |`,
+  );
 }
-const symTable = symRows.length ? [
-  '### 3.1 关键符号人话标签（静态推断，供快速定位；改代码以实际代码为准）',
-  '',
-  '| 符号 | 行 | 区域 | 人话标签 |',
-  '|---|---|---|---|',
-  ...symRows,
-  '',
-] : [];
+const symTable = symRows.length
+  ? [
+      '### 3.1 关键符号人话标签（静态推断，供快速定位；改代码以实际代码为准）',
+      '',
+      '| 符号 | 行 | 区域 | 人话标签 |',
+      '|---|---|---|---|',
+      ...symRows,
+      '',
+    ]
+  : [];
 
 const panelTree = [
   '## 3. 主程序面板树（来自 `scripts/regions.json` + `scripts/region_labels.json`）',
@@ -152,9 +223,13 @@ function exportsOf(src) {
   const re1 = /export\s*\{([^}]*)\}/g;
   let m;
   while ((m = re1.exec(src))) {
-    m[1].split(',').forEach((p) => { const t = p.trim(); if (t) names.push(t.trim()); });
+    m[1].split(',').forEach((p) => {
+      const t = p.trim();
+      if (t) names.push(t.trim());
+    });
   }
-  const re2 = /export\s+(?:async\s+)?(?:default\s+)?(?:const|let|var|function|class)\s+([A-Za-z0-9_$]+)/g;
+  const re2 =
+    /export\s+(?:async\s+)?(?:default\s+)?(?:const|let|var|function|class)\s+([A-Za-z0-9_$]+)/g;
   while ((m = re2.exec(src))) names.push(m[1]);
   if (/export\s+default\s+/.test(src) && !names.some((n) => n === 'default')) names.push('default');
   return names;
@@ -167,23 +242,51 @@ const exportsByChunk = {};
 allFiles.forEach((f) => (exportsByChunk[f] = exportsOf(srcOf[f])));
 
 const CONTRACT = {
-  '持久化键': ['active_api_endpoint', 'transitResources', 'users', 'api_configs', 'canvas-state-v1'],
-  '端口/主机': ['18080', '127.0.0.1', 'localhost', 'https://www.1mao.cc', 'https://1mao.16iai.com', 'http://154.219.102.152:3012'],
-  'API路径(localTool)': ['/api/kv/get', '/api/kv/set', '/api/proxy', '/api/files/upload', '/api/files/read', '/api/jianying/send', '/api/status', '/api/workflow-app', '/plugin/manifest.json'],
-  'API路径(apimart网关)': ['/v1/chat/completions', '/v1/images/generations', '/v1/videos/generations', '/v1/music/generations', '/v1/tasks/', '/v1/uploads/images', '/v1/balance', '/v1/audio/generations'],
-  '消息action名': ['resourceAdded'],
-  '资源路径': ['mediapipe/wasm', 'models/ue-mannequin'],
-  '分享页标记': ['__CANVAS_RUNTIME__'],
+  持久化键: ['active_api_endpoint', 'transitResources', 'users', 'api_configs', 'canvas-state-v1'],
+  '端口/主机': [
+    '18080',
+    '127.0.0.1',
+    'localhost',
+    'https://www.1mao.cc',
+    'https://1mao.16iai.com',
+    'http://154.219.102.152:3012',
+  ],
+  'API路径(localTool)': [
+    '/api/kv/get',
+    '/api/kv/set',
+    '/api/proxy',
+    '/api/files/upload',
+    '/api/files/read',
+    '/api/jianying/send',
+    '/api/status',
+    '/api/workflow-app',
+    '/plugin/manifest.json',
+  ],
+  'API路径(apimart网关)': [
+    '/v1/chat/completions',
+    '/v1/images/generations',
+    '/v1/videos/generations',
+    '/v1/music/generations',
+    '/v1/tasks/',
+    '/v1/uploads/images',
+    '/v1/balance',
+    '/v1/audio/generations',
+  ],
+  消息action名: ['resourceAdded'],
+  资源路径: ['mediapipe/wasm', 'models/ue-mannequin'],
+  分享页标记: ['__CANVAS_RUNTIME__'],
 };
 const foundContract = {};
-for (const [cat, list] of Object.entries(CONTRACT)) foundContract[cat] = list.filter((s) => allSrc.includes(s));
+for (const [cat, list] of Object.entries(CONTRACT))
+  foundContract[cat] = list.filter((s) => allSrc.includes(s));
 const contractHit = Object.values(foundContract).reduce((a, b) => a + b.length, 0);
 
 // 全量分区分组（供 §7）
 const groups = {};
 for (const r of regions) (groups[r.region] = groups[r.region] || []).push(r);
 const REGION_HUMAN = {};
-for (const [k, v] of Object.entries(labels.regions || {})) REGION_HUMAN[k] = v.label ? v.label + (v.what ? '：' + v.what : '') : '';
+for (const [k, v] of Object.entries(labels.regions || {}))
+  REGION_HUMAN[k] = v.label ? v.label + (v.what ? '：' + v.what : '') : '';
 
 const static_4 = [
   '## 4. 运行时绑定字符串清单（**一个字都不能改**）',
@@ -247,7 +350,9 @@ const dyn2 = [
   '',
   ...allFiles.sort().map((f) => {
     const ex = exportsByChunk[f] || [];
-    return '- `' + f + '`：' + (ex.length ? '`export{ ' + ex.join(', ') + ' }`' : '（无静态 export）');
+    return (
+      '- `' + f + '`：' + (ex.length ? '`export{ ' + ex.join(', ') + ' }`' : '（无静态 export）')
+    );
   }),
   '',
 ].join('\n');
@@ -256,9 +361,15 @@ const dyn2 = [
 const s7 = [];
 s7.push('## 7. 自动分区明细（来自 `scripts/regions.json` + `region_labels.json`）');
 s7.push('');
-s7.push('> 全部 ' + total + ' 个符号按 region 自动分组（完整覆盖，非抽样）。符号级人话标签来自 region_labels.json，标注「推断」者未经运行期验证。');
+s7.push(
+  '> 全部 ' +
+    total +
+    ' 个符号按 region 自动分组（完整覆盖，非抽样）。符号级人话标签来自 region_labels.json，标注「推断」者未经运行期验证。',
+);
 s7.push('');
-const coreRegions = Object.keys(groups).filter((k) => k.startsWith('core:')).sort();
+const coreRegions = Object.keys(groups)
+  .filter((k) => k.startsWith('core:'))
+  .sort();
 for (const k of coreRegions) {
   const human = REGION_HUMAN[k] ? ' —— **' + REGION_HUMAN[k] + '**' : '';
   s7.push('### ' + k + human);
@@ -268,7 +379,19 @@ for (const k of coreRegions) {
   for (const r of groups[k]) {
     const hl = labels.symbols[r.name];
     const label = hl ? hl.label + (hl.note ? '（' + hl.note + '）' : '') : '-';
-    s7.push('| `' + r.name + '` | L' + r.line + ' | ' + r.kind + ' | ' + ((r.signals || []).join(', ') || '-') + ' | ' + label + ' |');
+    s7.push(
+      '| `' +
+        r.name +
+        '` | L' +
+        r.line +
+        ' | ' +
+        r.kind +
+        ' | ' +
+        ((r.signals || []).join(', ') || '-') +
+        ' | ' +
+        label +
+        ' |',
+    );
   }
   s7.push('');
 }
@@ -279,7 +402,17 @@ for (const k of panelRegions) {
   const rootLine = (regions.find((i) => i.name === root) || {}).line;
   s7.push('### ' + k + (REGION_HUMAN[k] ? ' —— **' + REGION_HUMAN[k] + '**' : ''));
   s7.push('');
-  s7.push('根组件：`' + root + '`(L' + rootLine + ')；子组件：' + items.filter((i) => i.name !== root).map((i) => '`' + i.name + '`(L' + i.line + ')').join(', '));
+  s7.push(
+    '根组件：`' +
+      root +
+      '`(L' +
+      rootLine +
+      ')；子组件：' +
+      items
+        .filter((i) => i.name !== root)
+        .map((i) => '`' + i.name + '`(L' + i.line + ')')
+        .join(', '),
+  );
   s7.push('');
 }
 if (groups['shared']) {
@@ -287,7 +420,8 @@ if (groups['shared']) {
   s7.push('');
   s7.push('| 符号 | 行 | 类型 |');
   s7.push('|---|---|---|');
-  for (const r of groups['shared']) s7.push('| `' + r.name + '` | L' + r.line + ' | ' + r.kind + ' |');
+  for (const r of groups['shared'])
+    s7.push('| `' + r.name + '` | L' + r.line + ' | ' + r.kind + ' |');
   s7.push('');
 }
 if (groups['ui-misc']) {
@@ -295,7 +429,8 @@ if (groups['ui-misc']) {
   s7.push('');
   s7.push('| 符号 | 行 | 类型 |');
   s7.push('|---|---|---|');
-  for (const r of groups['ui-misc']) s7.push('| `' + r.name + '` | L' + r.line + ' | ' + r.kind + ' |');
+  for (const r of groups['ui-misc'])
+    s7.push('| `' + r.name + '` | L' + r.line + ' | ' + r.kind + ' |');
   s7.push('');
 }
 const section7 = s7.join('\n');
@@ -317,4 +452,12 @@ const out = [
 ].join('\n');
 
 fs.writeFileSync(path.join(ROOT, 'MODULE_MAP.md'), out);
-console.log('已重建 MODULE_MAP.md（chunk 表 ' + rows.length + ' 行，App 符号 ' + total + ' 个，根面板 ' + rootPanels + '）');
+console.log(
+  '已重建 MODULE_MAP.md（chunk 表 ' +
+    rows.length +
+    ' 行，App 符号 ' +
+    total +
+    ' 个，根面板 ' +
+    rootPanels +
+    '）',
+);

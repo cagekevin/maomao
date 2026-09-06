@@ -16,19 +16,19 @@
  * 路由路径以 contracts.ts apiRegistry 登记为准（/api/kv/get|set|delete，非 docs 方案里的 /api/kv）。
  */
 
-import { kvGet, kvSet } from '../base/api/localToolApi.ts'
-import { withTimeout } from '../base/utils/asyncGuard.ts'
-import { saveInlineToLocal } from '../base/api/filesApi.ts'
-import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts'
-import { logger } from '../base/core/logger.ts'
-import { showToast } from '../base/core/toastStore.ts'
-import { KV_TIMEOUT } from '../base/core/config.ts'
+import { kvGet, kvSet } from '../base/api/localToolApi.ts';
+import { withTimeout } from '../base/utils/asyncGuard.ts';
+import { saveInlineToLocal } from '../base/api/filesApi.ts';
+import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
+import { logger } from '../base/core/logger.ts';
+import { showToast } from '../base/core/toastStore.ts';
+import { KV_TIMEOUT } from '../base/core/config.ts';
 // 【降级落点统一】本地降级副本走 storageAdapter（sGet/sSet，自动 yimao: 前缀），
 // 与 kvStore.storageGet 的降级回读一致，避免「裸 key vs 带前缀」两套副本互不可见（收口缺口）。
-import { sGet, sSet } from '../base/storage/index.ts'
+import { sGet, sSet } from '../base/storage/index.ts';
 
 /** 工程存储默认键（无 nodeId 独立运行场景，与 director3d/project.ts 一致） */
-export const PROJECT_KEY_DEFAULT = 'director3d-project'
+export const PROJECT_KEY_DEFAULT = 'director3d-project';
 
 /**
  * ── 多开 / 并发覆盖的可见警示（docs/45 R6，非锁，只把"静默覆盖"变成可见）──
@@ -38,20 +38,20 @@ export const PROJECT_KEY_DEFAULT = 'director3d-project'
  * 下一次本窗口保存前提示"可能覆盖其他窗口最新内容"（仅提示一次，防刷屏）。真实锁会侵入
  * director3d 编辑流程，doc 明确不用锁，故最小化到这个"失败可见"层面。
  */
-const SAVE_CHANNEL = 'yimao_director3d_kv'
-const tabId = (typeof crypto !== 'undefined' && crypto?.randomUUID?.()) || `d3d-${Date.now()}`
+const SAVE_CHANNEL = 'yimao_director3d_kv';
+const tabId = (typeof crypto !== 'undefined' && crypto?.randomUUID?.()) || `d3d-${Date.now()}`;
 /** 跨窗口广播的消息体 */
 interface D3dSavedMessage {
-  type: 'D3D_SAVED'
-  key: string
-  tabId: string
-  at: number
+  type: 'D3D_SAVED';
+  key: string;
+  tabId: string;
+  at: number;
 }
 
 /** key → 本窗口最近一次成功写 KV 的时间戳（用于判断远端保存是否"更新"） */
-const myLastWriteAt = new Map<string, number>()
+const myLastWriteAt = new Map<string, number>();
 /** key → 最近一次他窗口更晚保存的时间戳（触发冲突提示后清掉，避免每次保存刷屏） */
-const remoteConflictAt = new Map<string, number>()
+const remoteConflictAt = new Map<string, number>();
 /**
  * 【疑似历史 bug · 迁移保持行为不变，仅如实标注，勿顺手修】
  * 初始值设计为 null，守卫却写 `!== undefined` → 首次调用即命中 return，下方创建逻辑
@@ -59,30 +59,34 @@ const remoteConflictAt = new Map<string, number>()
  * 类型上保留 undefined 分支，正是为了让这处恒真比较合法地原样留存；修复需改 `!== null`
  * 并补测试，属行为变更，不在迁移范围内。
  */
-const channelRef: { value: BroadcastChannel | null | undefined } = { value: null }
+const channelRef: { value: BroadcastChannel | null | undefined } = { value: null };
 
 function getChannel(): BroadcastChannel | null {
-  if (channelRef.value !== undefined) return channelRef.value as BroadcastChannel | null
+  if (channelRef.value !== undefined) return channelRef.value as BroadcastChannel | null;
   try {
-    channelRef.value = new BroadcastChannel(SAVE_CHANNEL)
+    channelRef.value = new BroadcastChannel(SAVE_CHANNEL);
     channelRef.value.onmessage = (event: MessageEvent) => {
-      const message = event?.data as D3dSavedMessage | undefined
-      if (!message || message.type !== 'D3D_SAVED' || message.tabId === tabId) return
+      const message = event?.data as D3dSavedMessage | undefined;
+      if (!message || message.type !== 'D3D_SAVED' || message.tabId === tabId) return;
       // 只有"他窗口保存且比本窗口最近一次保存更新"才算落后冲突
       if (message.at > (myLastWriteAt.get(message.key) || 0)) {
-        remoteConflictAt.set(message.key, message.at)
+        remoteConflictAt.set(message.key, message.at);
       }
-    }
+    };
   } catch {
-    channelRef.value = null // BroadcastChannel 不可用（如部分受限环境）→ 退化为无冲突提示，不影响主流程
+    channelRef.value = null; // BroadcastChannel 不可用（如部分受限环境）→ 退化为无冲突提示，不影响主流程
   }
-  return channelRef.value
+  return channelRef.value;
 }
 
 function announceSaved(key: string): void {
-  const channel = getChannel()
-  if (!channel) return
-  try { channel.postMessage({ type: 'D3D_SAVED', key, tabId, at: Date.now() }) } catch { /* 广播失败忽略，不影响保存 */ }
+  const channel = getChannel();
+  if (!channel) return;
+  try {
+    channel.postMessage({ type: 'D3D_SAVED', key, tabId, at: Date.now() });
+  } catch {
+    /* 广播失败忽略，不影响保存 */
+  }
 }
 
 /**
@@ -92,7 +96,7 @@ function announceSaved(key: string): void {
  * @returns {string} KV 键
  */
 export function projectKvKey(storageKey?: string): string {
-  return storageKey ?? PROJECT_KEY_DEFAULT
+  return storageKey ?? PROJECT_KEY_DEFAULT;
 }
 
 /**
@@ -105,9 +109,11 @@ export function projectKvKey(storageKey?: string): string {
  * @returns {boolean} 是否放行
  */
 export function isProjectImageUrl(url: unknown): boolean {
-  return typeof url === 'string' &&
+  return (
+    typeof url === 'string' &&
     url.length > 0 &&
     (url.startsWith('data:image/') || /\/files\//.test(url))
+  );
 }
 
 /**
@@ -118,7 +124,7 @@ export function isProjectImageUrl(url: unknown): boolean {
  * @returns {boolean} 是否进入 KV 工程通道
  */
 export function isProjectPersistenceKey(key: unknown): boolean {
-  return typeof key === 'string' && key.startsWith('director3d-project')
+  return typeof key === 'string' && key.startsWith('director3d-project');
 }
 
 /**
@@ -126,35 +132,35 @@ export function isProjectPersistenceKey(key: unknown): boolean {
  * externalizeProjectImages 会遍历 reference.image 与 shots[].thumbnail 做 base64 外部化。
  */
 export interface D3dProject {
-  reference?: { image?: string; [key: string]: unknown }
-  shots?: Array<{ thumbnail?: string; [key: string]: unknown }>
-  [key: string]: unknown
+  reference?: { image?: string; [key: string]: unknown };
+  shots?: Array<{ thumbnail?: string; [key: string]: unknown }>;
+  [key: string]: unknown;
 }
 
 /** base64 → 本地文件 URL 的落盘函数（默认 filesApi.saveInlineToLocal） */
-export type SaveInlineFn = (dataUrl: string, dir?: string) => Promise<string | null>
+export type SaveInlineFn = (dataUrl: string, dir?: string) => Promise<string | null>;
 
 /** 本地降级副本同步读取 + JSON 解析（走 sGet 统一 yimao: 前缀；读失败/脏数据返回 null，不抛） */
 function readLocalJson(key: string): D3dProject | null {
   try {
-    const raw = sGet(key)
-    if (raw == null) return null
-    const parsed: unknown = JSON.parse(raw)
+    const raw = sGet(key);
+    if (raw == null) return null;
+    const parsed: unknown = JSON.parse(raw);
     // JSON.parse 产物为纯数据；D3dProject 含 [key:string]:unknown 索引签名是宽松形状，
     // 仅需「确实是非空对象」守卫即可诚实收窄，避免把 null/基础值谎报成工程对象（F6）。
-    return parsed && typeof parsed === 'object' ? (parsed as D3dProject) : null
+    return parsed && typeof parsed === 'object' ? (parsed as D3dProject) : null;
   } catch {
-    return null
+    return null;
   }
 }
 
 /** 本地降级副本同步写入 JSON（走 sSet 统一 yimao: 前缀；成功 true；失败 false 不抛） */
 function writeLocalJson(key: string, value: D3dProject): boolean {
   try {
-    sSet(key, JSON.stringify(value))
-    return true
+    sSet(key, JSON.stringify(value));
+    return true;
   } catch {
-    return false
+    return false;
   }
 }
 
@@ -169,30 +175,33 @@ function writeLocalJson(key: string, value: D3dProject): boolean {
  */
 export async function externalizeProjectImages(
   project: D3dProject,
-  saveInline: SaveInlineFn = saveInlineToLocal
+  saveInline: SaveInlineFn = saveInlineToLocal,
 ): Promise<{ project: D3dProject; droppedCount: number }> {
-  const out = structuredClone(project)
-  let droppedCount = 0
+  const out = structuredClone(project);
+  let droppedCount = 0;
 
   // 单字段外部化：非 data: 原样返回（已是文件URL/外链不动）；落盘失败或返回原值 → 保留原 base64
   const maybeReplace = async (src: string): Promise<string> => {
-    if (typeof src !== 'string' || !src.startsWith('data:')) return src
-    const url = await saveInline(src, UPLOAD_DIRS.director3d)
-    if (url && url !== src) { droppedCount += 1; return url }
-    return src // 落盘失败 → 保留原 base64
-  }
+    if (typeof src !== 'string' || !src.startsWith('data:')) return src;
+    const url = await saveInline(src, UPLOAD_DIRS.director3d);
+    if (url && url !== src) {
+      droppedCount += 1;
+      return url;
+    }
+    return src; // 落盘失败 → 保留原 base64
+  };
 
   if (out?.reference && isProjectImageUrl(out.reference.image)) {
-    out.reference.image = await maybeReplace(out.reference.image)
+    out.reference.image = await maybeReplace(out.reference.image);
   }
   if (Array.isArray(out?.shots)) {
     for (const shot of out.shots) {
       if (shot && isProjectImageUrl(shot.thumbnail)) {
-        shot.thumbnail = await maybeReplace(shot.thumbnail)
+        shot.thumbnail = await maybeReplace(shot.thumbnail);
       }
     }
   }
-  return { project: out, droppedCount }
+  return { project: out, droppedCount };
 }
 
 /**
@@ -205,11 +214,11 @@ export async function externalizeProjectImages(
  */
 export function pickProjectSource(
   kvValue: D3dProject | null,
-  lsValue: D3dProject | null
+  lsValue: D3dProject | null,
 ): { project: D3dProject | null; from: 'kv' | 'local'; migrateToKv: boolean } {
-  if (kvValue != null) return { project: kvValue, from: 'kv', migrateToKv: false }
-  if (lsValue != null) return { project: lsValue, from: 'local', migrateToKv: true }
-  return { project: null, from: 'local', migrateToKv: false }
+  if (kvValue != null) return { project: kvValue, from: 'kv', migrateToKv: false };
+  if (lsValue != null) return { project: lsValue, from: 'local', migrateToKv: true };
+  return { project: null, from: 'local', migrateToKv: false };
 }
 
 /**
@@ -219,47 +228,55 @@ export function pickProjectSource(
  * @param {object} project 工程对象
  * @returns {Promise<'kv'|'local'>} 实际落点
  */
-export async function writeProject(storageKey: string | undefined, project: D3dProject): Promise<'kv' | 'local'> {
-  const key = projectKvKey(storageKey)
+export async function writeProject(
+  storageKey: string | undefined,
+  project: D3dProject,
+): Promise<'kv' | 'local'> {
+  const key = projectKvKey(storageKey);
 
   // 并发可见警示：他窗口在此前更晚保存过 → 本次写可能覆盖其较新内容（提示一次后清掉）
-  const conflictAt = remoteConflictAt.get(key)
+  const conflictAt = remoteConflictAt.get(key);
   if (conflictAt != null) {
-    logger.warn('d3dPersistence', '检测到其他窗口已更新该工程，本次保存可能覆盖较新内容', { key, remoteAt: conflictAt })
+    logger.warn('d3dPersistence', '检测到其他窗口已更新该工程，本次保存可能覆盖较新内容', {
+      key,
+      remoteAt: conflictAt,
+    });
     // 【签名对齐 + 修实效 bug】showToast 第二参现为 ToastOptions 对象；原传字符串 'error'
     // 会被解构成 `{ type: undefined }` 而降级为默认 'info'，红色错误提示实际从未生效。
-    showToast('另一窗口已编辑该导演台工程，本次保存可能覆盖最新内容', { type: 'error' })
+    showToast('另一窗口已编辑该导演台工程，本次保存可能覆盖最新内容', { type: 'error' });
   }
 
-  const ext = await externalizeProjectImages(project)
+  const ext = await externalizeProjectImages(project);
 
   // 主通道：写 localTool KV（带总超时，防挂起）
   try {
-    await withTimeout(
-      kvSet(key, ext.project),
-      KV_TIMEOUT,
-      `director3d KV 写入超时（key=${key}）`,
-    )
-    logger.debug('d3dPersistence', '工程已写 KV', { key }, {})
-    remoteConflictAt.delete(key)   // 已消费冲突信号
-    myLastWriteAt.set(key, Date.now()) // 记录本窗口写时间，供他窗口判断"更晚"
-    announceSaved(key)              // 广播，让其他窗口感知
-    return 'kv'
+    await withTimeout(kvSet(key, ext.project), KV_TIMEOUT, `director3d KV 写入超时（key=${key}）`);
+    logger.debug('d3dPersistence', '工程已写 KV', { key }, {});
+    remoteConflictAt.delete(key); // 已消费冲突信号
+    myLastWriteAt.set(key, Date.now()); // 记录本窗口写时间，供他窗口判断"更晚"
+    announceSaved(key); // 广播，让其他窗口感知
+    return 'kv';
   } catch (err) {
-    logger.warn('d3dPersistence', 'KV 不可达，降级 localStorage', { key, reason: err?.message || err })
+    logger.warn('d3dPersistence', 'KV 不可达，降级 localStorage', {
+      key,
+      reason: err?.message || err,
+    });
   }
 
   // 降级通道：直写 localStorage（后端不可达时保住一份，宁慢勿丢）
   if (writeLocalJson(key, ext.project)) {
     // 【签名对齐】logger.warn 只接 (category, action, detail?) 三参；原第 4 参 {} 运行时本就被忽略，删除等价
-    logger.warn('d3dPersistence', '工程已降级写 localStorage', { key })
-    return 'local'
+    logger.warn('d3dPersistence', '工程已降级写 localStorage', { key });
+    return 'local';
   }
 
   // 双通道都失败：不吞错，明确记录（内存态为权威，编辑不阻塞）
   // 【签名对齐】logger.error 同只接三参；原第 4 参 new Error(...) 运行时被忽略，改并入 detail 以保留信息
-  logger.error('d3dPersistence', '工程写入失败：KV 与 localStorage 均不可用', { key, reason: '双通道写失败' })
-  return 'local'
+  logger.error('d3dPersistence', '工程写入失败：KV 与 localStorage 均不可用', {
+    key,
+    reason: '双通道写失败',
+  });
+  return 'local';
 }
 
 /**
@@ -269,26 +286,28 @@ export async function writeProject(storageKey: string | undefined, project: D3dP
  * @returns {Promise<object|null>} 工程对象（未归一化，由调用方 applyProjectSnapshot 归一化）；无则 null
  */
 export async function hydrateProject(storageKey?: string): Promise<D3dProject | null> {
-  const key = projectKvKey(storageKey)
-  const ls = readLocalJson(key)
+  const key = projectKvKey(storageKey);
+  const ls = readLocalJson(key);
 
-  let kv: D3dProject | null = null
+  let kv: D3dProject | null = null;
   try {
-    kv = await withTimeout(kvGet(key), KV_TIMEOUT, `director3d KV 读取超时（key=${key}）`)
+    kv = await withTimeout(kvGet(key), KV_TIMEOUT, `director3d KV 读取超时（key=${key}）`);
   } catch (err) {
-    logger.warn('d3dPersistence', 'KV 读取不可达，走本地', { key, reason: err?.message || err })
+    logger.warn('d3dPersistence', 'KV 读取不可达，走本地', { key, reason: err?.message || err });
   }
 
-  const pick = pickProjectSource(kv, ls)
+  const pick = pickProjectSource(kv, ls);
 
   // 迁移：KV 空 + 本地有 → 写回 KV（外部化后持久化），此后 KV 命中不再触发（天然幂等）
   if (pick.migrateToKv && pick.project) {
     try {
-      await writeProject(key, pick.project)
+      await writeProject(key, pick.project);
     } catch (err) {
-      logger.warn('d3dPersistence', '本地→KV 迁移写回失败（不影响读），', { reason: err?.message || err })
+      logger.warn('d3dPersistence', '本地→KV 迁移写回失败（不影响读），', {
+        reason: err?.message || err,
+      });
     }
   }
 
-  return pick.project
+  return pick.project;
 }

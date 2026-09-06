@@ -48,9 +48,21 @@ function classify(keys) {
     const business =
       k === 'auth_token' ||
       k.startsWith('canvas-state-v1-') ||
-      ['projects', 'users', 'api_configs', 'app_settings', 'membership', 'video_model',
-       'cloud_storage_config', 'customNodeTemplates', 'local_templates', 'presetPrompts',
-       'modelSchedules', 'resources_seeded_to_sqlite', 'projects'].includes(k);
+      [
+        'projects',
+        'users',
+        'api_configs',
+        'app_settings',
+        'membership',
+        'video_model',
+        'cloud_storage_config',
+        'customNodeTemplates',
+        'local_templates',
+        'presetPrompts',
+        'modelSchedules',
+        'resources_seeded_to_sqlite',
+        'projects',
+      ].includes(k);
     return { key: k, business };
   });
   return rows;
@@ -90,11 +102,11 @@ async function main() {
   if (kvArg) {
     const key = kvArg.slice('--kv='.length);
     const r = await api('POST', '/api/admin/clear-cache', {
-      confirm: true, exactKeys: [key], prefixes: [],
+      confirm: true,
+      exactKeys: [key],
+      prefixes: [],
     });
-    console.log(r.deleted?.includes(key)
-      ? `  ✅ 已删除: ${key}`
-      : `  ℹ️  未找到/已不存在: ${key}`);
+    console.log(r.deleted?.includes(key) ? `  ✅ 已删除: ${key}` : `  ℹ️  未找到/已不存在: ${key}`);
     return;
   }
 

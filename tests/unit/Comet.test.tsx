@@ -10,69 +10,69 @@
  *  - headRadius 固定 3.4（与选中 comet 视觉一致）
  *  - uid 唯一标识避免多实例 filter 冲突
  */
-import React from 'react'
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render } from '@testing-library/react'
+import React from 'react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render } from '@testing-library/react';
 
 const h = vi.hoisted(() => {
-  const calls = []
+  const calls = [];
   return {
     calls,
     CometParticlesMock: (props) => {
-      h.calls.push(props)
-      return <g data-testid="comet-particles" />
+      h.calls.push(props);
+      return <g data-testid="comet-particles" />;
     },
-  }
-})
+  };
+});
 
 vi.mock('../../src/components/base/ui/CometParticles.tsx', () => ({
   default: (props) => h.CometParticlesMock(props),
-}))
+}));
 
-import Comet from '../../src/components/edges/Comet.tsx'
+import Comet from '../../src/components/edges/Comet.tsx';
 
 describe('Comet', () => {
   afterEach(() => {
-    h.calls.length = 0
-  })
+    h.calls.length = 0;
+  });
 
   function setup(props) {
-    const view = render(<Comet {...props} />)
-    const g = view.container.querySelector('g')
-    return { view, g }
+    const view = render(<Comet {...props} />);
+    const g = view.container.querySelector('g');
+    return { view, g };
   }
 
   it('isActive=true 时外层 g 带 is-active（粒子流显示）', () => {
-    const { g } = setup({ edgeId: 'e1', isActive: true })
-    expect(g.className).toContain('cust-edge-comet')
-    expect(g.className).toContain('is-active')
-  })
+    const { g } = setup({ edgeId: 'e1', isActive: true });
+    expect(g.className).toContain('cust-edge-comet');
+    expect(g.className).toContain('is-active');
+  });
 
   it('isActive=false 时无 is-active（粒子流隐藏）', () => {
-    const { g } = setup({ edgeId: 'e1', isActive: false })
-    expect(g.className).toContain('cust-edge-comet')
-    expect(g.className).not.toContain('is-active')
-  })
+    const { g } = setup({ edgeId: 'e1', isActive: false });
+    expect(g.className).toContain('cust-edge-comet');
+    expect(g.className).not.toContain('is-active');
+  });
 
   it('默认按 edgeId 生成 mpath 引用（cust-edge-mpath-{edgeId}）', () => {
-    setup({ edgeId: 'e-42', isActive: true })
-    expect(h.calls).toHaveLength(1)
-    expect(h.calls[0].pathId).toBe('cust-edge-mpath-e-42')
-    expect(h.calls[0].headRadius).toBe(3.4)
-  })
+    setup({ edgeId: 'e-42', isActive: true });
+    expect(h.calls).toHaveLength(1);
+    expect(h.calls[0].pathId).toBe('cust-edge-mpath-e-42');
+    expect(h.calls[0].headRadius).toBe(3.4);
+  });
 
   it('传入 pathRef 时优先使用外部 path 引用', () => {
-    setup({ edgeId: 'e1', pathRef: 'cust-conn-mpath', isActive: true })
-    expect(h.calls[0].pathId).toBe('cust-conn-mpath')
-  })
+    setup({ edgeId: 'e1', pathRef: 'cust-conn-mpath', isActive: true });
+    expect(h.calls[0].pathId).toBe('cust-conn-mpath');
+  });
 
   it('uid 用 comet-{edgeId}，避免多实例 filter 冲突', () => {
-    setup({ edgeId: 'e-7', isActive: true })
-    expect(h.calls[0].uid).toBe('comet-e-7')
-  })
+    setup({ edgeId: 'e-7', isActive: true });
+    expect(h.calls[0].uid).toBe('comet-e-7');
+  });
 
   it('渲染 CometParticles 粒子内容', () => {
-    const { view } = setup({ edgeId: 'e1', isActive: true })
-    expect(view.container.querySelector('[data-testid="comet-particles"]')).toBeTruthy()
-  })
-})
+    const { view } = setup({ edgeId: 'e1', isActive: true });
+    expect(view.container.querySelector('[data-testid="comet-particles"]')).toBeTruthy();
+  });
+});

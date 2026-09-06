@@ -43,9 +43,7 @@ const read = (p) => {
 
 // 从 @xyflow/react（v12，主包已内置 NodeResizer 等）的 export 行提取导出的 API 名集合
 function getReactFlowExports(ROOT) {
-  const sources = [
-    path.join(ROOT, 'node_modules/@xyflow/react/dist/esm/index.js'),
-  ];
+  const sources = [path.join(ROOT, 'node_modules/@xyflow/react/dist/esm/index.js')];
   const set = new Set();
   for (const src of sources) {
     const content = read(src);
@@ -88,7 +86,7 @@ function checkJsxSyntax(ROOT) {
       const loc = e.errors?.[0]?.location;
       const msg = e.errors?.[0]?.text || e.message || 'unknown';
       details.push(
-        `  ✖ ${path.relative(ROOT, f)}${loc ? `  ${loc.line}:${loc.column}` : ''}: ${msg}`
+        `  ✖ ${path.relative(ROOT, f)}${loc ? `  ${loc.line}:${loc.column}` : ''}: ${msg}`,
       );
     }
   }
@@ -120,22 +118,44 @@ function checkReactFlowApis(ROOT) {
         if (!fn) continue;
         // useReactFlow() 官方返回：setNodes/getNodes/setEdges/getEdges/... 但 updateNodeInternals 不在其中
         const allowedFromUseReactFlow = new Set([
-          'getNodes', 'setNodes', 'getNode', 'addNodes', 'setNodes',
-          'getEdges', 'setEdges', 'addEdges', 'deleteElements',
-          'getViewport', 'setViewport',
-          'fitView', 'fitBounds', 'zoomIn', 'zoomOut', 'getZoom', 'setCenter',
-          'getIntersectingNodes', 'isNodeIntersecting', 'screenToFlowPosition',
-          'flowToScreenPoint', 'getTransformInstance', 'project', 'getViewport'
+          'getNodes',
+          'setNodes',
+          'getNode',
+          'addNodes',
+          'setNodes',
+          'getEdges',
+          'setEdges',
+          'addEdges',
+          'deleteElements',
+          'getViewport',
+          'setViewport',
+          'fitView',
+          'fitBounds',
+          'zoomIn',
+          'zoomOut',
+          'getZoom',
+          'setCenter',
+          'getIntersectingNodes',
+          'isNodeIntersecting',
+          'screenToFlowPosition',
+          'flowToScreenPoint',
+          'getTransformInstance',
+          'project',
+          'getViewport',
         ]);
         if (allowedFromUseReactFlow.has(fn)) continue;
         if (fn === 'updateNodeInternals') {
           pass = false;
-          details.push(`  ✖ ${path.relative(ROOT, f)}: useReactFlow() 解构出 '${fn}' —— 应改用 useUpdateNodeInternals() hook`);
+          details.push(
+            `  ✖ ${path.relative(ROOT, f)}: useReactFlow() 解构出 '${fn}' —— 应改用 useUpdateNodeInternals() hook`,
+          );
           continue;
         }
         if (!exported.has(fn)) {
           // 可能是本文件定义或从别处导入，跳过误报；只对明显的 reactflow 内部函数提示
-          details.push(`  ? ${path.relative(ROOT, f)}: useReactFlow() 解构出 '${fn}'（不在 useReactFlow 返回值白名单）`);
+          details.push(
+            `  ? ${path.relative(ROOT, f)}: useReactFlow() 解构出 '${fn}'（不在 useReactFlow 返回值白名单）`,
+          );
         }
       }
     }
@@ -158,7 +178,9 @@ function checkReactFlowApis(ROOT) {
         if (!api) continue;
         if (!exported.has(api)) {
           pass = false;
-          details.push(`  ✖ ${path.relative(ROOT, f)}: import { ${api} } from '@xyflow/react' 不存在`);
+          details.push(
+            `  ✖ ${path.relative(ROOT, f)}: import { ${api} } from '@xyflow/react' 不存在`,
+          );
         }
       }
     }
@@ -181,22 +203,32 @@ function resolveCompFile(ROOT, comp) {
   return flat || path.join(ROOT, 'src/components/nodes', comp + '.jsx');
 }
 function checkNodeTypes(ROOT) {
-  const palette = read(resolveSourceFile(path.join(ROOT, 'src/components/base/canvas/NodePalette')) || '');
+  const palette = read(
+    resolveSourceFile(path.join(ROOT, 'src/components/base/canvas/NodePalette')) || '',
+  );
   // 常规 component 字段：裸组件标识符（`component: ImageNode`）。排除 lazyNode(...) 函数调用包装：
   // `component: lazyNode(HEAVY_NODE_LOADERS.panoramaNode, ...)` 会被 \w+Node 误抓成 lazyNode
   // （存量 bug：lazyNode.jsx 无 default 导出导致冒烟误红），用 (?!\s*\() 负向前瞻跳过调用形态。
   const comps = [...palette.matchAll(/component:\s*(\w+Node)(?!\s*\()/g)].map((x) => x[1]);
   // 重依赖懒加载节点：lazyNode 只是动态 import 包装，底层仍是必存在的节点组件（防漏校验）。
   // 从 lazyNode.jsx 的 HEAVY_NODE_LOADERS 动态 import 路径抽取真实文件名，随常规组件一并校验。
-  const lazySrc = read(resolveSourceFile(path.join(ROOT, 'src/components/base/canvas/lazyNode')) || '');
+  const lazySrc = read(
+    resolveSourceFile(path.join(ROOT, 'src/components/base/canvas/lazyNode')) || '',
+  );
   // 扩展名无关：动态 import 的后缀可能是 .jsx 也可能是 .tsx
-  const lazyComps = [...lazySrc.matchAll(/import\(['"]\.\.?\.?\/nodes\/(\w+Node)\.(?:jsx|tsx|js|ts)['"]\)/g)].map((x) => x[1]);
+  const lazyComps = [
+    ...lazySrc.matchAll(/import\(['"]\.\.?\.?\/nodes\/(\w+Node)\.(?:jsx|tsx|js|ts)['"]\)/g),
+  ].map((x) => x[1]);
   const compsAll = [...new Set([...comps, ...lazyComps])];
   let pass = true;
   const details = [];
 
   if (compsAll.length === 0) {
-    return { name: 'nodeTypes 注册', pass: false, details: ['  NodePalette 未找到 component 字段'] };
+    return {
+      name: 'nodeTypes 注册',
+      pass: false,
+      details: ['  NodePalette 未找到 component 字段'],
+    };
   }
 
   // 1) 派生源：NodePalette component 字段 → 组件文件校验
@@ -217,7 +249,10 @@ function checkNodeTypes(ROOT) {
 
   // 2) 例外（App 派生后补充的 director3dNode/ghostTarget）
   const app = read(resolveSourceFile(path.join(ROOT, 'src/App')) || '');
-  const extras = [...app.matchAll(/(director3dNode|ghostTarget)\s*:\s*(\w+Node)/g)].map((x) => [x[1], x[2]]);
+  const extras = [...app.matchAll(/(director3dNode|ghostTarget)\s*:\s*(\w+Node)/g)].map((x) => [
+    x[1],
+    x[2],
+  ]);
   for (const [type, comp] of extras) {
     const compFile = resolveCompFile(ROOT, comp);
     if (!fs.existsSync(compFile) || !/export\s+default/.test(read(compFile))) {
@@ -236,7 +271,9 @@ function checkDeps(ROOT) {
   const pkg = JSON.parse(read(path.join(ROOT, 'package.json')) || '{}');
   const needed = ['@xyflow/react', 'lucide-react'];
   const pass = needed.every((d) => (pkg.dependencies || {})[d] || (pkg.devDependencies || {})[d]);
-  const details = needed.map((d) => `  ${(pkg.dependencies || {})[d] || (pkg.devDependencies || {})[d] ? '✔' : '✖'} ${d}`);
+  const details = needed.map(
+    (d) => `  ${(pkg.dependencies || {})[d] || (pkg.devDependencies || {})[d] ? '✔' : '✖'} ${d}`,
+  );
   return { name: '关键依赖', pass, details };
 }
 

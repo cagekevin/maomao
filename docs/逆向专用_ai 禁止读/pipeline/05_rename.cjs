@@ -23,7 +23,10 @@ const babel = require('@babel/core');
 const BUNDLE_DIR = process.argv[2]
   ? path.resolve(process.argv[2])
   : path.join(__dirname, '..', 'output', 'project', 'src', 'bundle');
-if (!fs.existsSync(BUNDLE_DIR)) { console.error('❌ bundle 目录不存在:', BUNDLE_DIR); process.exit(1); }
+if (!fs.existsSync(BUNDLE_DIR)) {
+  console.error('❌ bundle 目录不存在:', BUNDLE_DIR);
+  process.exit(1);
+}
 
 // 第三方 chunk 原样保留
 const SKIP_FILES = /vendor-|rolldown-runtime-/;
@@ -31,14 +34,54 @@ const SKIP_FILES = /vendor-|rolldown-runtime-/;
 // ---- 可选映射表（位于 bundle 目录上层）----
 const ROOT = path.resolve(BUNDLE_DIR, '..', '..');
 const RESERVED = new Set([
-  'true', 'false', 'null', 'undefined', 'this', 'var', 'let', 'const', 'function',
-  'return', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'break',
-  'continue', 'new', 'class', 'extends', 'super', 'import', 'export', 'from', 'typeof',
-  'instanceof', 'in', 'of', 'void', 'delete', 'throw', 'try', 'catch', 'finally', 'yield',
-  'await', 'async', 'static', 'get', 'set',
+  'true',
+  'false',
+  'null',
+  'undefined',
+  'this',
+  'var',
+  'let',
+  'const',
+  'function',
+  'return',
+  'if',
+  'else',
+  'for',
+  'while',
+  'do',
+  'switch',
+  'case',
+  'default',
+  'break',
+  'continue',
+  'new',
+  'class',
+  'extends',
+  'super',
+  'import',
+  'export',
+  'from',
+  'typeof',
+  'instanceof',
+  'in',
+  'of',
+  'void',
+  'delete',
+  'throw',
+  'try',
+  'catch',
+  'finally',
+  'yield',
+  'await',
+  'async',
+  'static',
+  'get',
+  'set',
 ]);
 function sanitizeName(s) {
-  let v = String(s).replace(/::/g, '_').replace(/[^A-Za-z0-9_$]/g, '');
+  let v = String(s)
+    .replace(/::/g, '_')
+    .replace(/[^A-Za-z0-9_$]/g, '');
   if (!v) return null;
   if (!/^[A-Za-z_$]/.test(v)) v = '_' + v;
   if (RESERVED.has(v)) return null;
@@ -85,9 +128,15 @@ function getRules() {
     }
   }
   const core = {
-    X: 'JSX_RUNTIME', Y: 'REACT_HOOKS', Wn: 'LOCAL_ENGINE_PORT',
-    lg: 'NODE_REGISTRY', Gn: 'sendToJianyingSingle', qn: 'sendToJianyingBatch',
-    Jn: 'JianyingIcon', Yn: 'JianyingSendButton', Kn: 'getClipFileName',
+    X: 'JSX_RUNTIME',
+    Y: 'REACT_HOOKS',
+    Wn: 'LOCAL_ENGINE_PORT',
+    lg: 'NODE_REGISTRY',
+    Gn: 'sendToJianyingSingle',
+    qn: 'sendToJianyingBatch',
+    Jn: 'JianyingIcon',
+    Yn: 'JianyingSendButton',
+    Kn: 'getClipFileName',
   };
   for (const [k, v] of Object.entries(core)) if (!merged[k]) merged[k] = v;
   return merged;
@@ -113,12 +162,19 @@ function makeRenamePlugin(skipNames) {
             collectBindings(programScope, orig, all);
             if (all.length === 0) continue;
             for (const binding of all) {
-              const isFuncDecl = binding.kind === 'function' ||
-                (binding.path && binding.path.isFunctionDeclaration && binding.path.isFunctionDeclaration());
+              const isFuncDecl =
+                binding.kind === 'function' ||
+                (binding.path &&
+                  binding.path.isFunctionDeclaration &&
+                  binding.path.isFunctionDeclaration());
               if (!isFuncDecl && all.length !== 1) continue;
               const target = binding.scope.getBinding(RULES[orig]);
               if (target && target !== binding) continue;
-              try { binding.scope.rename(orig, RULES[orig]); } catch (e) { /* ignore */ }
+              try {
+                binding.scope.rename(orig, RULES[orig]);
+              } catch (e) {
+                /* ignore */
+              }
             }
           }
         },
@@ -135,7 +191,9 @@ function collectExportedNames(code) {
       const d = p.node.declaration;
       if (d) {
         if (d.id) exported.add(d.id.name);
-        else if (d.declarations) for (const decl of d.declarations) if (decl.id && decl.id.name) exported.add(decl.id.name);
+        else if (d.declarations)
+          for (const decl of d.declarations)
+            if (decl.id && decl.id.name) exported.add(decl.id.name);
       }
     },
     ExportDefaultDeclaration(p) {
@@ -147,8 +205,15 @@ function collectExportedNames(code) {
 }
 
 // 自动收所有 bundle js（排除第三方）
-const targets = fs.readdirSync(BUNDLE_DIR)
-  .filter((f) => f.endsWith('.js') && !SKIP_FILES.test(f) && !f.startsWith('_react_shim') && !f.startsWith('_jsx_runtime'));
+const targets = fs
+  .readdirSync(BUNDLE_DIR)
+  .filter(
+    (f) =>
+      f.endsWith('.js') &&
+      !SKIP_FILES.test(f) &&
+      !f.startsWith('_react_shim') &&
+      !f.startsWith('_jsx_runtime'),
+  );
 
 let total = 0;
 for (const f of targets) {
@@ -159,11 +224,16 @@ for (const f of targets) {
     parserOpts: { sourceType: 'module', plugins: ['jsx'] },
     generatorOpts: { retainLines: true, comments: true, compact: false, concise: false },
     plugins: [makeRenamePlugin(exported)],
-    configFile: false, babelrc: false,
+    configFile: false,
+    babelrc: false,
   });
   fs.writeFileSync(fp, result.code);
   console.log('  已点亮:', f, '| 受保护导出名:', exported.size ? [...exported].join(',') : '无');
   total++;
 }
-console.log(`\n✅ 语义化重命名完成（${total} 个文件），规则 ${Object.keys(RULES).length} 条（含内置保底 9 条）。`);
-console.log('   若需要更多可读名，在 output/project/ 下放 vendor-mapping/func-mapping/var-mapping.txt 后重跑。');
+console.log(
+  `\n✅ 语义化重命名完成（${total} 个文件），规则 ${Object.keys(RULES).length} 条（含内置保底 9 条）。`,
+);
+console.log(
+  '   若需要更多可读名，在 output/project/ 下放 vendor-mapping/func-mapping/var-mapping.txt 后重跑。',
+);

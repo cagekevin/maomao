@@ -15,20 +15,33 @@
  * 依赖方向（单向）：useAgentChat → workflowState → conversationStore。（无环）
  */
 
-import { getCurrentWorkflow } from '../conversation/conversationStore.ts'
+import { getCurrentWorkflow } from '../conversation/conversationStore.ts';
 
 /** workflow.status 合法取值（normalizeWorkflow 未硬校验，此处登记供迁移判断复用） */
 export type WorkflowStatus =
-  | 'planning' | 'running' | 'awaiting_confirm' | 'stopped'
-  | 'completed' | 'failed' | 'completed_with_errors'
+  | 'planning'
+  | 'running'
+  | 'awaiting_confirm'
+  | 'stopped'
+  | 'completed'
+  | 'failed'
+  | 'completed_with_errors';
 
 /** workflow.status 合法取值全集（normalizeWorkflow 未硬校验，此处登记供迁移判断复用） */
-export const WORKFLOW_STATUS: WorkflowStatus[] = ['planning', 'running', 'awaiting_confirm', 'stopped', 'completed', 'failed', 'completed_with_errors']
+export const WORKFLOW_STATUS: WorkflowStatus[] = [
+  'planning',
+  'running',
+  'awaiting_confirm',
+  'stopped',
+  'completed',
+  'failed',
+  'completed_with_errors',
+];
 
 /** steerQueue 里的一条补充指令 */
 export interface SteerItem {
-  text: string
-  attachments: unknown[]
+  text: string;
+  attachments: unknown[];
 }
 
 /**
@@ -37,7 +50,7 @@ export interface SteerItem {
  * @param {object} [patch] 额外覆盖字段（如 { status: 'running' }）
  */
 export function wfStart(patch: Record<string, unknown> = {}): Record<string, unknown> {
-  return { status: 'planning', startedAt: Date.now(), ...patch }
+  return { status: 'planning', startedAt: Date.now(), ...patch };
 }
 
 /**
@@ -48,11 +61,11 @@ export function wfStart(patch: Record<string, unknown> = {}): Record<string, unk
  * @param {Array}  attachments 附带附件（默认 []）
  */
 export function wfSteer(text: string, attachments?: unknown[]): Record<string, unknown> {
-  const wf = getCurrentWorkflow()
+  const wf = getCurrentWorkflow();
   return {
     steerQueue: [...((wf && wf.steerQueue) || []), { text, attachments: attachments || [] }],
     ...(wf ? {} : { status: 'running' }),
-  }
+  };
 }
 
 /**
@@ -62,7 +75,7 @@ export function wfSteer(text: string, attachments?: unknown[]): Record<string, u
  * @returns {{ status: 'completed'|'failed'|'stopped' }}
  */
 export function wfFinish(ok: boolean, aborted?: boolean): { status: WorkflowStatus } {
-  return { status: !ok ? (aborted ? 'stopped' : 'failed') : 'completed' }
+  return { status: !ok ? (aborted ? 'stopped' : 'failed') : 'completed' };
 }
 
 /**
@@ -70,7 +83,7 @@ export function wfFinish(ok: boolean, aborted?: boolean): { status: WorkflowStat
  * （awaitingConfirm 顶层字段的翻转不在此，走 setAwaitingConfirm）
  */
 export function wfAwaitConfirm(): { status: WorkflowStatus } {
-  return { status: 'awaiting_confirm' }
+  return { status: 'awaiting_confirm' };
 }
 
 /**
@@ -79,21 +92,26 @@ export function wfAwaitConfirm(): { status: WorkflowStatus } {
  * @returns {{ next: {text:string, attachments:Array}|undefined, patch: object }}
  *          next 有值 → patch.status 置 planning（续跑），否则维持 terminalStatus。
  */
-export function wfNextSteer(terminalStatus?: WorkflowStatus):
-  { next: SteerItem | undefined; patch: { steerQueue: SteerItem[]; status: WorkflowStatus | undefined } } {
-  const wf = getCurrentWorkflow()
+export function wfNextSteer(terminalStatus?: WorkflowStatus): {
+  next: SteerItem | undefined;
+  patch: { steerQueue: SteerItem[]; status: WorkflowStatus | undefined };
+} {
+  const wf = getCurrentWorkflow();
   // steerQueue 在持久化中元素类型为 unknown（WorkflowState.steerQueue: unknown[]）。
   // 逐条校验成 SteerItem 才算诚实窄化（F18）——不要整体 `as SteerItem[]` 后 shift 出假形状。
-  const rawQueue: unknown[] = Array.isArray(wf?.steerQueue) ? wf.steerQueue : []
-  const steerQ: SteerItem[] = []
+  const rawQueue: unknown[] = Array.isArray(wf?.steerQueue) ? wf.steerQueue : [];
+  const steerQ: SteerItem[] = [];
   for (const v of rawQueue) {
     if (v && typeof v === 'object') {
-      const o = v as Record<string, unknown>
+      const o = v as Record<string, unknown>;
       if (typeof o.text === 'string') {
-        steerQ.push({ text: o.text, attachments: Array.isArray(o.attachments) ? o.attachments : [] })
+        steerQ.push({
+          text: o.text,
+          attachments: Array.isArray(o.attachments) ? o.attachments : [],
+        });
       }
     }
   }
-  const next = steerQ.shift()
-  return { next, patch: { steerQueue: steerQ, status: next ? 'planning' : terminalStatus } }
+  const next = steerQ.shift();
+  return { next, patch: { steerQueue: steerQ, status: next ? 'planning' : terminalStatus } };
 }

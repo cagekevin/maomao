@@ -1,9 +1,14 @@
-const BONE_PREFIX = 'mixamorig'
+const BONE_PREFIX = 'mixamorig';
 
-const bone = (name, label, group) => ({ id: `${BONE_PREFIX}${name}`, label, group })
-const fingerBones = (side, sideLabel, finger, fingerLabel) => (
-  Array.from({ length: 4 }, (_, index) => bone(`${side}Hand${finger}${index + 1}`, `${sideLabel}${fingerLabel} ${index + 1}`, `${sideLabel}手指`))
-)
+const bone = (name, label, group) => ({ id: `${BONE_PREFIX}${name}`, label, group });
+const fingerBones = (side, sideLabel, finger, fingerLabel) =>
+  Array.from({ length: 4 }, (_, index) =>
+    bone(
+      `${side}Hand${finger}${index + 1}`,
+      `${sideLabel}${fingerLabel} ${index + 1}`,
+      `${sideLabel}手指`,
+    ),
+  );
 
 export const JOINT_DEFINITIONS = [
   bone('Hips', '骨盆', '躯干与头部'),
@@ -46,12 +51,14 @@ export const JOINT_DEFINITIONS = [
   ...fingerBones('Right', '右', 'Middle', '中指'),
   ...fingerBones('Right', '右', 'Ring', '无名指'),
   ...fingerBones('Right', '右', 'Pinky', '小指'),
-]
+];
 
-export const JOINT_GROUPS = [...new Set(JOINT_DEFINITIONS.map(joint => joint.group))].map(label => ({
-  label,
-  joints: JOINT_DEFINITIONS.filter(joint => joint.group === label),
-}))
+export const JOINT_GROUPS = [...new Set(JOINT_DEFINITIONS.map((joint) => joint.group))].map(
+  (label) => ({
+    label,
+    joints: JOINT_DEFINITIONS.filter((joint) => joint.group === label),
+  }),
+);
 
 // These clips are embedded in the official Three.js X-Bot GLB. No hand-authored
 // Euler poses or skeleton retargeting are involved.
@@ -67,7 +74,7 @@ const HALF_SQUAT_JOINTS = {
   mixamorigLeftLeg: [-0.5026470079344459, -0.07883219504212054, 0.19778112801005593],
   mixamorigRightUpLeg: [-0.0762500839830151, 0.0008858648924058381, 0.0046341416750831504],
   mixamorigRightLeg: [-0.06990935634120955, 0.0465205178623685, -0.2503830334239903],
-}
+};
 
 // `squat_full` preserves the user's manually posed joint offsets on top of the
 // recorded squat clip so the authored silhouette is identical on every device.
@@ -85,7 +92,7 @@ const FULL_SQUAT_JOINTS = {
   mixamorigLeftLeg: [0.7483905093630452, 0.32854657832623013, 1.126905022770306],
   mixamorigRightUpLeg: [-2.1438662983548937, -1.1045539560490456, 0.062262357881979986],
   mixamorigRightLeg: [0.6397601162120418, -0.22522846126351503, -0.9402899567027515],
-}
+};
 
 export const RIG_PRESETS = {
   idle: { clip: 'idle', phase: 0.08, duration: 2.5, loopable: true, label: '自然站立' },
@@ -102,91 +109,191 @@ export const RIG_PRESETS = {
   run_push_b: { clip: 'run', phase: 0.55, label: '跑步蹬地 B' },
   run_air_b: { clip: 'run', phase: 0.78, label: '跑步腾空 B' },
   sad_pose: { clip: 'sad_pose', phase: 1, label: '低头含胸（仅身体）' },
-  agree: { clip: 'agree', phase: 0.48, duration: 1.8333333730697632, loopable: true, label: '点头动作（头颈）' },
+  agree: {
+    clip: 'agree',
+    phase: 0.48,
+    duration: 1.8333333730697632,
+    loopable: true,
+    label: '点头动作（头颈）',
+  },
   nod_down: { clip: 'agree', phase: 0.36, label: '点头低位' },
   nod_up: { clip: 'agree', phase: 0.72, label: '点头回正' },
-  headShake: { clip: 'headShake', phase: 0.48, duration: 2.566666603088379, loopable: true, label: '摇头动作（头颈）' },
+  headShake: {
+    clip: 'headShake',
+    phase: 0.48,
+    duration: 2.566666603088379,
+    loopable: true,
+    label: '摇头动作（头颈）',
+  },
   shake_left: { clip: 'headShake', phase: 0.26, label: '摇头左侧' },
   shake_right: { clip: 'headShake', phase: 0.74, label: '摇头右侧' },
   crouch: { clip: 'squat', phase: 0.35, label: '半蹲', joints: HALF_SQUAT_JOINTS },
-  squat_full: { clip: 'squat', phase: 0.23, label: '全蹲', root: [0, 0.14062522694349022, 0], joints: FULL_SQUAT_JOINTS },
+  squat_full: {
+    clip: 'squat',
+    phase: 0.23,
+    label: '全蹲',
+    root: [0, 0.14062522694349022, 0],
+    joints: FULL_SQUAT_JOINTS,
+  },
   sit_prepare: { clip: 'sit', phase: 0.2, label: '坐下准备' },
   sit_low: { clip: 'sit', phase: 0.62, label: '半坐' },
   sit: { clip: 'sit', phase: 1, label: '自然坐姿（需配椅子）' },
   wave: { clip: 'wave', phase: 0.48, duration: 1.8333333730697632, loopable: true, label: '招手' },
   tpose: { clip: null, phase: 0, label: 'T 型绑定姿态（官方骨架）' },
-}
+};
 
 const LEGACY_PRESET_MAP = {
   crouch_half: 'crouch',
-  wave_raise: 'wave', wave_hold: 'wave', thumbs_up: 'idle',
-  relax: 'stand_relaxed', sit: 'sit', kneel: 'crouch', stretch: 'idle', lie: 'idle', sneak_pose: 'crouch',
-  fight: 'idle', punch: 'run', kick: 'run', pull: 'idle', push: 'idle', crouch: 'crouch',
-  sprint: 'run', jump: 'run', jumpAir: 'run', lunge: 'idle', balance: 'idle', landing: 'idle',
-  vault: 'run', handstand: 'tpose', onehand: 'tpose', roll: 'idle', crawl: 'idle',
-  plank: 'tpose', hang: 'tpose', reach: 'idle', wave: 'wave', custom: 'idle',
-}
+  wave_raise: 'wave',
+  wave_hold: 'wave',
+  thumbs_up: 'idle',
+  relax: 'stand_relaxed',
+  sit: 'sit',
+  kneel: 'crouch',
+  stretch: 'idle',
+  lie: 'idle',
+  sneak_pose: 'crouch',
+  fight: 'idle',
+  punch: 'run',
+  kick: 'run',
+  pull: 'idle',
+  push: 'idle',
+  crouch: 'crouch',
+  sprint: 'run',
+  jump: 'run',
+  jumpAir: 'run',
+  lunge: 'idle',
+  balance: 'idle',
+  landing: 'idle',
+  vault: 'run',
+  handstand: 'tpose',
+  onehand: 'tpose',
+  roll: 'idle',
+  crawl: 'idle',
+  plank: 'tpose',
+  hang: 'tpose',
+  reach: 'idle',
+  wave: 'wave',
+  custom: 'idle',
+};
 
 export function normalizePoseId(pose = 'idle') {
-  return RIG_PRESETS[pose] ? pose : (LEGACY_PRESET_MAP[pose] || 'idle')
+  return RIG_PRESETS[pose] ? pose : LEGACY_PRESET_MAP[pose] || 'idle';
 }
 
 export function presetDefinition(pose = 'idle') {
-  return RIG_PRESETS[normalizePoseId(pose)]
+  return RIG_PRESETS[normalizePoseId(pose)];
 }
 
 export function presetPhase(pose = 'idle') {
-  return presetDefinition(pose).phase
+  return presetDefinition(pose).phase;
 }
 
 export function poseCanLoop(pose = 'idle') {
-  const preset = presetDefinition(pose)
-  return Boolean(preset.loopable && preset.duration > 0)
+  const preset = presetDefinition(pose);
+  return Boolean(preset.loopable && preset.duration > 0);
 }
 
-export const RIG_PRESET_OPTIONS = Object.entries(RIG_PRESETS).map(([id, preset]) => [id, preset.label])
+export const RIG_PRESET_OPTIONS = Object.entries(RIG_PRESETS).map(([id, preset]) => [
+  id,
+  preset.label,
+]);
 
 export const RIG_PRESET_GROUPS = [
-  { label: '基础', poses: [['idle', '自然站立'], ['stand_relaxed', '放松站姿'], ['idle_shift', '重心变化'], ['tpose', 'T 型'], ['sad_pose', '低头含胸']] },
-  { label: '日常姿势', poses: [['crouch', '半蹲'], ['squat_full', '全蹲'], ['sit_prepare', '坐下准备'], ['sit_low', '半坐'], ['sit', '自然坐姿'], ['wave', '招手循环']] },
-  { label: '持续动作', poses: [['walk', '行走循环'], ['run', '奔跑循环'], ['agree', '点头循环'], ['headShake', '摇头循环']] },
-  { label: '行走定格', poses: [['walk_contact_a', '接触步 A'], ['walk_pass_a', '跨步 A'], ['walk_contact_b', '接触步 B'], ['walk_pass_b', '跨步 B']] },
-  { label: '跑步定格', poses: [['run_push_a', '蹬地 A'], ['run_air_a', '腾空 A'], ['run_push_b', '蹬地 B'], ['run_air_b', '腾空 B']] },
-  { label: '头部定格', poses: [['nod_down', '点头低位'], ['nod_up', '点头回正'], ['shake_left', '摇头左侧'], ['shake_right', '摇头右侧']] },
-]
+  {
+    label: '基础',
+    poses: [
+      ['idle', '自然站立'],
+      ['stand_relaxed', '放松站姿'],
+      ['idle_shift', '重心变化'],
+      ['tpose', 'T 型'],
+      ['sad_pose', '低头含胸'],
+    ],
+  },
+  {
+    label: '日常姿势',
+    poses: [
+      ['crouch', '半蹲'],
+      ['squat_full', '全蹲'],
+      ['sit_prepare', '坐下准备'],
+      ['sit_low', '半坐'],
+      ['sit', '自然坐姿'],
+      ['wave', '招手循环'],
+    ],
+  },
+  {
+    label: '持续动作',
+    poses: [
+      ['walk', '行走循环'],
+      ['run', '奔跑循环'],
+      ['agree', '点头循环'],
+      ['headShake', '摇头循环'],
+    ],
+  },
+  {
+    label: '行走定格',
+    poses: [
+      ['walk_contact_a', '接触步 A'],
+      ['walk_pass_a', '跨步 A'],
+      ['walk_contact_b', '接触步 B'],
+      ['walk_pass_b', '跨步 B'],
+    ],
+  },
+  {
+    label: '跑步定格',
+    poses: [
+      ['run_push_a', '蹬地 A'],
+      ['run_air_a', '腾空 A'],
+      ['run_push_b', '蹬地 B'],
+      ['run_air_b', '腾空 B'],
+    ],
+  },
+  {
+    label: '头部定格',
+    poses: [
+      ['nod_down', '点头低位'],
+      ['nod_up', '点头回正'],
+      ['shake_left', '摇头左侧'],
+      ['shake_right', '摇头右侧'],
+    ],
+  },
+];
 
-const emptyPose = () => Object.fromEntries(JOINT_DEFINITIONS.map(joint => [joint.id, [0, 0, 0]]))
+const emptyPose = () => Object.fromEntries(JOINT_DEFINITIONS.map((joint) => [joint.id, [0, 0, 0]]));
 
 export function cloneJointPose(joints) {
-  const result = emptyPose()
+  const result = emptyPose();
   for (const { id } of JOINT_DEFINITIONS) {
-    const rotation = joints?.[id]
-    if (Array.isArray(rotation) && rotation.length >= 3) result[id] = rotation.slice(0, 3).map(value => Number(value) || 0)
+    const rotation = joints?.[id];
+    if (Array.isArray(rotation) && rotation.length >= 3)
+      result[id] = rotation.slice(0, 3).map((value) => Number(value) || 0);
   }
-  return result
+  return result;
 }
 
 export function poseForObject(object) {
   return {
     root: Array.isArray(object?.rigRoot) ? object.rigRoot.slice(0, 3) : [0, 0, 0],
     joints: cloneJointPose(object?.joints),
-  }
+  };
 }
 
 export function presetJoints(pose = 'idle') {
-  return cloneJointPose(presetDefinition(pose).joints)
+  return cloneJointPose(presetDefinition(pose).joints);
 }
 
 export function presetRoot(pose = 'idle') {
-  const root = presetDefinition(pose).root
-  return Array.isArray(root) ? root.slice(0, 3).map(value => Number(value) || 0) : [0, 0, 0]
+  const root = presetDefinition(pose).root;
+  return Array.isArray(root) ? root.slice(0, 3).map((value) => Number(value) || 0) : [0, 0, 0];
 }
 
 export function interpolateJointPose(left, right, amount) {
-  const leftPose = cloneJointPose(left)
-  const rightPose = cloneJointPose(right)
-  return Object.fromEntries(JOINT_DEFINITIONS.map(({ id }) => [
-    id,
-    leftPose[id].map((value, index) => value + (rightPose[id][index] - value) * amount),
-  ]))
+  const leftPose = cloneJointPose(left);
+  const rightPose = cloneJointPose(right);
+  return Object.fromEntries(
+    JOINT_DEFINITIONS.map(({ id }) => [
+      id,
+      leftPose[id].map((value, index) => value + (rightPose[id][index] - value) * amount),
+    ]),
+  );
 }

@@ -30,80 +30,80 @@
  *   node scripts/check-events.mjs                 # 校验全部 components
  *   node scripts/check-events.mjs src/App.jsx     # 指定文件
  */
-import { build } from 'esbuild'
-import { readdirSync, statSync, readFileSync } from 'node:fs'
-import { join, resolve, extname } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { defaultTargets, SCAN_EXTS } from './check-targets.mjs'
+import { build } from 'esbuild';
+import { readdirSync, statSync, readFileSync } from 'node:fs';
+import { join, resolve, extname } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { defaultTargets, SCAN_EXTS } from './check-targets.mjs';
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const root = resolve(__dirname, '..')
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const root = resolve(__dirname, '..');
 
 // 事件总线入口函数名（第一个参数为事件名）
-const EVENT_FNS = new Set(['publish', 'subscribe', 'subscribeOnce'])
+const EVENT_FNS = new Set(['publish', 'subscribe', 'subscribeOnce']);
 
 // 字面量事件名正则：fn('name' 或 "name"，可含冒号/_/-（领域:动作 命名）
 const LITERAL_EVENT_RE = new RegExp(
   `\\b(${[...EVENT_FNS].join('|')})\\s*\\(\\s*(['"])([a-zA-Z0-9:_-]+)\\2`,
-  'g'
-)
-
-
+  'g',
+);
 
 // ── 加载事件登记表 ──
-let EVENTS = {}
+let EVENTS = {};
 try {
-  const mod = await import(pathToFileURL(resolve(root, 'src/components/base/core/contracts.ts')).href)
-  EVENTS = mod.EVENTS || {}
+  const mod = await import(
+    pathToFileURL(resolve(root, 'src/components/base/core/contracts.ts')).href
+  );
+  EVENTS = mod.EVENTS || {};
 } catch (e) {
-  console.error('  ✖ 无法加载 contracts.ts 事件登记表：', e.message)
-  process.exit(1)
+  console.error('  ✖ 无法加载 contracts.ts 事件登记表：', e.message);
+  process.exit(1);
 }
 
 function isRegistered(name) {
-  return name in EVENTS
+  return name in EVENTS;
 }
 
-const args = process.argv.slice(2)
+const args = process.argv.slice(2);
 const targets =
   args.length > 0
     ? args.map((a) => resolve(root, a))
     : (() => {
         // 默认扫 components + hooks（扫描根见 check-targets.mjs），并补扫 src 根目录的关键组件
         // （如 App.jsx 不在 components 下，却含事件总线订阅，漏扫会导致反向校验误报）
-        const base = defaultTargets(root)
-        const rootSrc = join(root, 'src')
+        const base = defaultTargets(root);
+        const rootSrc = join(root, 'src');
         for (const name of readdirSync(rootSrc)) {
-          const full = join(rootSrc, name)
+          const full = join(rootSrc, name);
           if (statSync(full).isFile() && SCAN_EXTS.includes(extname(name))) {
-            base.push(full)
+            base.push(full);
           }
         }
-        return base
-      })()
+        return base;
+      })();
 
-let violations = 0
+let violations = 0;
 
 // 反向校验所需：实测每个事件名在代码中的 publish / subscribe 位置
-const actualPublish = new Map() // eventName -> ['rel:line', ...]
-const actualSubscribe = new Map() // eventName -> ['rel:line', ...]
+const actualPublish = new Map(); // eventName -> ['rel:line', ...]
+const actualSubscribe = new Map(); // eventName -> ['rel:line', ...]
 const pushLoc = (map, name, loc) => {
-  if (!map.has(name)) map.set(name, [])
-  map.get(name).push(loc)
-}
+  if (!map.has(name)) map.set(name, []);
+  map.get(name).push(loc);
+};
 
 for (const file of targets) {
-  const rel = file.replace(root + '/', '')
-  let src
+  const rel = file.replace(root + '/', '');
+  let src;
   try {
-    src = readFileSync(file, 'utf8')
+    src = readFileSync(file, 'utf8');
   } catch {
-    continue
+    continue;
   }
   // 跳过登记表自身与 eventBus 定义（其含文档示例，且自身是校验目标）
   // 扩展名无关：contracts.ts / eventBus.ts 均可能改后缀，故按不含扩展名的 basename 判断
-  const relNoExt = rel.slice(0, rel.length - extname(rel).length)
-  if (relNoExt.endsWith('contracts') || relNoExt.endsWith('eventBus')) continue
+  const relNoExt = rel.slice(0, rel.length - extname(rel).length);
+  if (relNoExt.endsWith('contracts') || relNoExt.endsWith('eventBus')) continue;
 
   // 语法校验（esbuild，确保 JSX .jsx 也能读；失败仅警告不阻断扫描）
   try {
@@ -115,32 +115,35 @@ for (const file of targets) {
       loader: { '.jsx': 'jsx' },
       jsx: 'automatic',
       logLevel: 'silent',
-    })
-  } catch { /* 语法问题交给 check-jsx，本脚本不重复报错 */ }
+    });
+  } catch {
+    /* 语法问题交给 check-jsx，本脚本不重复报错 */
+  }
 
-  const lines = src.split('\n')
+  const lines = src.split('\n');
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    const lineNo = i + 1
+    const line = lines[i];
+    const lineNo = i + 1;
     // 跳过纯注释行：静态门禁只针对可执行代码里的裸字面量，
     // 登记表/文档/代码内示例引用因可能滞后于登记表，不应触发红建。
-    const t = line.trim()
-    if (t.startsWith('//') || t.startsWith('/*') || t.startsWith('*') || t.startsWith('*/')) continue
+    const t = line.trim();
+    if (t.startsWith('//') || t.startsWith('/*') || t.startsWith('*') || t.startsWith('*/'))
+      continue;
 
-    LITERAL_EVENT_RE.lastIndex = 0
-    let m
+    LITERAL_EVENT_RE.lastIndex = 0;
+    let m;
     while ((m = LITERAL_EVENT_RE.exec(line)) !== null) {
-      const fn = m[1]
-      const name = m[3]
-      const loc = `${rel}:${lineNo}`
+      const fn = m[1];
+      const name = m[3];
+      const loc = `${rel}:${lineNo}`;
       if (!isRegistered(name)) {
-        violations++
-        console.error(`  ✖ ${loc}  裸事件名未登记: ${fn}('${name}')`)
-        continue
+        violations++;
+        console.error(`  ✖ ${loc}  裸事件名未登记: ${fn}('${name}')`);
+        continue;
       }
       // 收集实测位置，供下方反向校验
-      if (fn === 'publish') pushLoc(actualPublish, name, loc)
-      else pushLoc(actualSubscribe, name, loc) // subscribe / subscribeOnce
+      if (fn === 'publish') pushLoc(actualPublish, name, loc);
+      else pushLoc(actualSubscribe, name, loc); // subscribe / subscribeOnce
     }
   }
 }
@@ -150,25 +153,25 @@ for (const file of targets) {
 // 或相对路径。实际调用位置 actual* 已是 'relPath:line'（相对 src/components）。
 // 匹配策略：用实际位置的 basename 与表 filename 比对，行号若表给定则比对。
 function parseRefs(ref) {
-  if (ref == null) return []
-  const arr = Array.isArray(ref) ? ref : [ref]
+  if (ref == null) return [];
+  const arr = Array.isArray(ref) ? ref : [ref];
   return arr
     .map((s) => String(s).trim())
     .filter(Boolean)
     .map((s) => {
-      const idx = s.lastIndexOf(':')
+      const idx = s.lastIndexOf(':');
       // 支持两种写法：'file:NN'（含行号）或 'file'（仅文件名，省略行号）
-      if (idx === -1) return { file: s, line: null }
-      const file = s.slice(0, idx)
-      const line = s.slice(idx + 1)
-      return { file, line: line === '' || isNaN(Number(line)) ? null : Number(line) }
-    })
+      if (idx === -1) return { file: s, line: null };
+      const file = s.slice(0, idx);
+      const line = s.slice(idx + 1);
+      return { file, line: line === '' || isNaN(Number(line)) ? null : Number(line) };
+    });
 }
 
 // 取 relPath 的 basename（兼容 Windows 反斜杠）
 function basename(p) {
-  const norm = p.replace(/\\/g, '/')
-  return norm.slice(norm.lastIndexOf('/') + 1)
+  const norm = p.replace(/\\/g, '/');
+  return norm.slice(norm.lastIndexOf('/') + 1);
 }
 
 // 判断一个实测位置 'rel:line' 是否落在 ref 指向的文件内（事件名已由外层按 name 过滤）。
@@ -178,59 +181,61 @@ function basename(p) {
 //   改为只要求「该事件在 ref 指向的文件内存在（任意行）」即视为登记命中；只有当目标文件内
 //   完全找不到该事件的 publish/subscribe 时才判 stale —— 那才是真正的登记失效（订阅被删/文件改名）。
 function matchesRef(loc, ref) {
-  const idx = loc.lastIndexOf(':')
-  const file = loc.slice(0, idx)
-  return basename(file) === ref.file
+  const idx = loc.lastIndexOf(':');
+  const file = loc.slice(0, idx);
+  return basename(file) === ref.file;
 }
 
 for (const [name, entry] of Object.entries(EVENTS)) {
-  if (typeof entry !== 'object' || entry === null) continue
+  if (typeof entry !== 'object' || entry === null) continue;
 
   // from 对应 publish
-  const fromRefs = parseRefs(entry.from)
-  const realPublish = actualPublish.get(name) || []
+  const fromRefs = parseRefs(entry.from);
+  const realPublish = actualPublish.get(name) || [];
   if (fromRefs.length === 0 && realPublish.length > 0) {
-    violations++
+    violations++;
     console.error(
-      `  ✖ EVENTS['${name}'].from 滞后于代码：表中无 from，但代码实测有 publish -> ${realPublish.join(', ')}`
-    )
+      `  ✖ EVENTS['${name}'].from 滞后于代码：表中无 from，但代码实测有 publish -> ${realPublish.join(', ')}`,
+    );
   }
   for (const ref of fromRefs) {
-    const hit = realPublish.some((loc) => matchesRef(loc, ref))
+    const hit = realPublish.some((loc) => matchesRef(loc, ref));
     if (!hit) {
-      violations++
+      violations++;
       console.error(
-        `  ✖ EVENTS['${name}'].from 指向 stale/漂移: 表中 ${ref.file}${ref.line != null ? ':' + ref.line : ''} 未匹配到 publish('${name}')（实测: ${realPublish.join(', ') || '无'}）`
-      )
+        `  ✖ EVENTS['${name}'].from 指向 stale/漂移: 表中 ${ref.file}${ref.line != null ? ':' + ref.line : ''} 未匹配到 publish('${name}')（实测: ${realPublish.join(', ') || '无'}）`,
+      );
     }
   }
 
   // to 对应 subscribe / subscribeOnce
-  const toRefs = parseRefs(entry.to)
-  const realSubscribe = actualSubscribe.get(name) || []
+  const toRefs = parseRefs(entry.to);
+  const realSubscribe = actualSubscribe.get(name) || [];
   if (toRefs.length === 0 && realSubscribe.length > 0) {
-    violations++
+    violations++;
     console.error(
-      `  ✖ EVENTS['${name}'].to 滞后于代码：表中 to:[] 但代码实测有 subscribe -> ${realSubscribe.join(', ')}（历史误判根因：表标无订阅方、实际已被订阅）`
-    )
+      `  ✖ EVENTS['${name}'].to 滞后于代码：表中 to:[] 但代码实测有 subscribe -> ${realSubscribe.join(', ')}（历史误判根因：表标无订阅方、实际已被订阅）`,
+    );
   }
   for (const ref of toRefs) {
-    const hit = realSubscribe.some((loc) => matchesRef(loc, ref))
+    const hit = realSubscribe.some((loc) => matchesRef(loc, ref));
     if (!hit) {
-      violations++
+      violations++;
       console.error(
-        `  ✖ EVENTS['${name}'].to 指向 stale/漂移: 表中 ${ref.file}${ref.line != null ? ':' + ref.line : ''} 未匹配到 subscribe('${name}')（实测: ${realSubscribe.join(', ') || '无'}）`
-      )
+        `  ✖ EVENTS['${name}'].to 指向 stale/漂移: 表中 ${ref.file}${ref.line != null ? ':' + ref.line : ''} 未匹配到 subscribe('${name}')（实测: ${realSubscribe.join(', ') || '无'}）`,
+      );
     }
   }
 }
 
 if (violations === 0) {
-  console.log(`\n事件契约校验通过 ✔（已扫描 ${targets.length} 个文件，登记表与代码双向自洽）`)
-  process.exit(0)
+  console.log(`\n事件契约校验通过 ✔（已扫描 ${targets.length} 个文件，登记表与代码双向自洽）`);
+  process.exit(0);
 } else {
-  console.error(`\n发现 ${violations} 处事件契约问题 ✖`)
-  console.error('① 裸事件名未登记 或 ② 登记表 to/from 与代码实测不一致（滞后/漂移/stale）。')
-  console.error('请同步更新 src/components/base/core/contracts.ts 的 EVENTS（禁止仅凭表内 to:[] 判定死事件）。')
-  process.exit(1)
+  console.error(`\n发现 ${violations} 处事件契约问题 ✖`);
+  console.error('① 裸事件名未登记 或 ② 登记表 to/from 与代码实测不一致（滞后/漂移/stale）。');
+  console.error(
+    '请同步更新 src/components/base/core/contracts.ts 的 EVENTS（禁止仅凭表内 to:[] 判定死事件）。',
+  );
+  process.exit(1);
 }

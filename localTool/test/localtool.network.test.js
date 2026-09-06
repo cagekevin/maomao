@@ -19,7 +19,9 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let TEST_DIR = '';
 const src = path.join(__dirname, '..', 'src');
-function toFileUrl(p) { return 'file:///' + p.split(path.sep).join('/'); }
+function toFileUrl(p) {
+  return 'file:///' + p.split(path.sep).join('/');
+}
 
 // 模块在顶层 import（network 模块内 fetch 为运行时全局查找，替换 globalThis.fetch 有效）
 const officialMod = await import(toFileUrl(path.join(src, 'routes', 'official.ts')));
@@ -32,25 +34,55 @@ const { resetProxyCache } = await import(toFileUrl(path.join(src, 'utils', 'netP
 
 function makeRes() {
   const r = {
-    status: 0, headers: {}, body: null, headersSent: false, writableEnded: false,
-    writeHead(code, h) { r.status = code; if (h) r.headers = { ...r.headers, ...h }; r.headersSent = true; return r; },
-    end(data) { r.writableEnded = true; if (data !== undefined) { const s = Buffer.isBuffer(data) ? data.toString('utf-8') : String(data); r.body = (r.body || '') + s; } return r; },
-    write(data) { const s = Buffer.isBuffer(data) ? data.toString('utf-8') : String(data); r.body = (r.body || '') + s; return true; },
-    destroy() { r.writableEnded = true; return r; },
+    status: 0,
+    headers: {},
+    body: null,
+    headersSent: false,
+    writableEnded: false,
+    writeHead(code, h) {
+      r.status = code;
+      if (h) r.headers = { ...r.headers, ...h };
+      r.headersSent = true;
+      return r;
+    },
+    end(data) {
+      r.writableEnded = true;
+      if (data !== undefined) {
+        const s = Buffer.isBuffer(data) ? data.toString('utf-8') : String(data);
+        r.body = (r.body || '') + s;
+      }
+      return r;
+    },
+    write(data) {
+      const s = Buffer.isBuffer(data) ? data.toString('utf-8') : String(data);
+      r.body = (r.body || '') + s;
+      return true;
+    },
+    destroy() {
+      r.writableEnded = true;
+      return r;
+    },
   };
   return r;
 }
-function parseResBody(res) { return res.body ? JSON.parse(res.body) : null; }
+function parseResBody(res) {
+  return res.body ? JSON.parse(res.body) : null;
+}
 
 function makeJsonReq(body) {
   const raw = body === undefined ? '' : JSON.stringify(body);
   const d = Buffer.from(raw);
   const req = { headers: { 'content-type': 'application/json' }, body: d };
-  req.on = (ev, cb) => { if (ev === 'data' && d.length) cb(d); if (ev === 'end') cb(); return req; };
+  req.on = (ev, cb) => {
+    if (ev === 'data' && d.length) cb(d);
+    if (ev === 'end') cb();
+    return req;
+  };
   return req;
 }
 
-const RED_PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const RED_PNG_B64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 const RED_PNG_BUFFER = Buffer.from(RED_PNG_B64, 'base64');
 
 // ── mock fetch 工具 ──
@@ -67,11 +99,17 @@ function mockFetchOnce(handler) {
   };
 }
 function restoreFetch() {
-  if (realFetch) { globalThis.fetch = realFetch; realFetch = null; }
+  if (realFetch) {
+    globalThis.fetch = realFetch;
+    realFetch = null;
+  }
   fetchLog.length = 0;
 }
 function jsonResponse(data, status = 200, headers = {}) {
-  return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', ...headers } });
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'content-type': 'application/json', ...headers },
+  });
 }
 
 beforeEach(() => {
@@ -84,8 +122,12 @@ afterEach(() => {
   restoreFetch();
   // AI_CANVAS_SYSTEM_PROMPT_FILE 变量须逐用例清理，防止泄漏到其它用例
   delete process.env.AI_CANVAS_SYSTEM_PROMPT_FILE;
-  try { dbMod.closeDb(); } catch {}
-  try { fs.rmSync(TEST_DIR, { recursive: true, force: true }); } catch {}
+  try {
+    dbMod.closeDb();
+  } catch {}
+  try {
+    fs.rmSync(TEST_DIR, { recursive: true, force: true });
+  } catch {}
 });
 
 // ══════════════════════════════════════════════════════════════
@@ -105,13 +147,19 @@ test('official·readOfficialBase x-official-base 头优先', async () => {
 });
 
 test('official·readOfficialBase KV active_api_endpoint（非自指）', async () => {
-  await kvMod.handleKvSet(makeJsonReq({ key: 'active_api_endpoint', value: 'https://alt.example.com/' }), makeRes());
+  await kvMod.handleKvSet(
+    makeJsonReq({ key: 'active_api_endpoint', value: 'https://alt.example.com/' }),
+    makeRes(),
+  );
   const base = await officialMod.readOfficialBase(makeJsonReq());
   assert.equal(base, 'https://alt.example.com');
 });
 
 test('official·readOfficialBase 过滤自指 KV（127.0.0.1:18080）→ 无默认（返回 undefined）', async () => {
-  await kvMod.handleKvSet(makeJsonReq({ key: 'active_api_endpoint', value: 'http://127.0.0.1:18080' }), makeRes());
+  await kvMod.handleKvSet(
+    makeJsonReq({ key: 'active_api_endpoint', value: 'http://127.0.0.1:18080' }),
+    makeRes(),
+  );
   const base = await officialMod.readOfficialBase(makeJsonReq());
   assert.equal(base, undefined, '自指值应被过滤，且无硬编码默认');
 });
@@ -128,7 +176,11 @@ test('passthrough·isLocalOnlyPath 识别本地路径', () => {
 
 test('passthrough·本地路径不转发，返回 false', async () => {
   const res = makeRes();
-  const handled = await passthroughMod.handlePassthrough(makeJsonReq(), res, new URL('http://x/files/img.png'));
+  const handled = await passthroughMod.handlePassthrough(
+    makeJsonReq(),
+    res,
+    new URL('http://x/files/img.png'),
+  );
   assert.equal(handled, false);
   assert.equal(res.body, null, '不应写响应');
 });
@@ -137,16 +189,35 @@ test('passthrough·转发 GET 并流式回传（mock fetch）', async () => {
   const body = JSON.stringify({ ok: true, msg: '透传' });
   mockFetchOnce((url) => {
     assert.match(url, /^https:\/\/backup\.example\.com\/api\/hello/);
-    return new Response(body, { status: 200, headers: { 'content-type': 'application/json', 'x-custom': '1' } });
+    return new Response(body, {
+      status: 200,
+      headers: { 'content-type': 'application/json', 'x-custom': '1' },
+    });
   });
   const req = makeJsonReq();
   req.method = 'GET';
   req.headers['x-official-base'] = 'https://backup.example.com';
   const { Writable } = await import('node:stream');
   const chunks = [];
-  const res = new Writable({ write(c, e, cb) { chunks.push(Buffer.from(c)); cb(); }, writev(items, cb) { items.forEach((i) => chunks.push(Buffer.from(i.chunk))); cb(); } });
-  res.headers = {}; res.status = 0; res.headersSent = false;
-  res.writeHead = (code, h) => { res.status = code; res.headers = { ...res.headers, ...h }; res.headersSent = true; return res; };
+  const res = new Writable({
+    write(c, e, cb) {
+      chunks.push(Buffer.from(c));
+      cb();
+    },
+    writev(items, cb) {
+      items.forEach((i) => chunks.push(Buffer.from(i.chunk)));
+      cb();
+    },
+  });
+  res.headers = {};
+  res.status = 0;
+  res.headersSent = false;
+  res.writeHead = (code, h) => {
+    res.status = code;
+    res.headers = { ...res.headers, ...h };
+    res.headersSent = true;
+    return res;
+  };
 
   const handled = await passthroughMod.handlePassthrough(req, res, new URL('http://x/api/hello'));
   assert.equal(handled, true);
@@ -161,10 +232,16 @@ test('passthrough·转发 GET 并流式回传（mock fetch）', async () => {
 test('files·upload JSON fileUrl 下载落盘（幂等）', async () => {
   mockFetchOnce(async (url) => {
     assert.match(url, /https:\/\/cdn\.example\.com\/img\.png/);
-    return new Response(new Uint8Array(RED_PNG_BUFFER), { status: 200, headers: { 'content-type': 'image/png' } });
+    return new Response(new Uint8Array(RED_PNG_BUFFER), {
+      status: 200,
+      headers: { 'content-type': 'image/png' },
+    });
   });
   const res = makeRes();
-  await filesMod.handleUpload(makeJsonReq({ fileUrl: 'https://cdn.example.com/img.png', subfolder: 'canvas' }), res);
+  await filesMod.handleUpload(
+    makeJsonReq({ fileUrl: 'https://cdn.example.com/img.png', subfolder: 'canvas' }),
+    res,
+  );
   const body = parseResBody(res);
   assert.ok(body.data.url, '应返回 url');
   assert.match(body.data.url, /^http:\/\/127\.0\.0\.1:18080\/files\/canvas\//);
@@ -177,10 +254,16 @@ test('files·upload JSON fileUrl 下载落盘（幂等）', async () => {
 test('files·upload JSON fileUrl（URL 无后缀）→ 按响应 Content-Type 补扩展名落盘', async () => {
   mockFetchOnce(async (url) => {
     assert.match(url, /\/download$/); // 无后缀的 CDN 端点
-    return new Response(new Uint8Array(RED_PNG_BUFFER), { status: 200, headers: { 'content-type': 'image/jpeg' } });
+    return new Response(new Uint8Array(RED_PNG_BUFFER), {
+      status: 200,
+      headers: { 'content-type': 'image/jpeg' },
+    });
   });
   const res = makeRes();
-  await filesMod.handleUpload(makeJsonReq({ fileUrl: 'https://cdn.example.com/download', subfolder: 'web' }), res);
+  await filesMod.handleUpload(
+    makeJsonReq({ fileUrl: 'https://cdn.example.com/download', subfolder: 'web' }),
+    res,
+  );
   const body = parseResBody(res);
   assert.ok(body.data.url, '应返回 url');
   // 无后缀 URL + Content-Type image/jpeg → 落盘文件名应带 .jpg 后缀
@@ -192,9 +275,18 @@ test('files·upload JSON fileUrl（URL 无后缀）→ 按响应 Content-Type �
 });
 
 test('files·upload JSON fileUrl（无后缀 + Content-Type 不可识别）→ 保持无后缀落盘', async () => {
-  mockFetchOnce(async () => new Response(new Uint8Array(RED_PNG_BUFFER), { status: 200, headers: { 'content-type': 'application/octet-stream' } }));
+  mockFetchOnce(
+    async () =>
+      new Response(new Uint8Array(RED_PNG_BUFFER), {
+        status: 200,
+        headers: { 'content-type': 'application/octet-stream' },
+      }),
+  );
   const res = makeRes();
-  await filesMod.handleUpload(makeJsonReq({ fileUrl: 'https://cdn.example.com/download', subfolder: 'web' }), res);
+  await filesMod.handleUpload(
+    makeJsonReq({ fileUrl: 'https://cdn.example.com/download', subfolder: 'web' }),
+    res,
+  );
   const body = parseResBody(res);
   // 不可识别 MIME → 不补后缀（同旧行为）
   assert.match(body.data.url, /\/files\/web\/[0-9a-f]{16}_download$/);
@@ -202,11 +294,23 @@ test('files·upload JSON fileUrl（无后缀 + Content-Type 不可识别）→ �
 
 test('files·upload JSON fileUrl（无后缀）重复下载 → 幂等，带后缀最终名只落一份', async () => {
   let calls = 0;
-  mockFetchOnce(async () => { calls++; return new Response(new Uint8Array(RED_PNG_BUFFER), { status: 200, headers: { 'content-type': 'image/png' } }); });
+  mockFetchOnce(async () => {
+    calls++;
+    return new Response(new Uint8Array(RED_PNG_BUFFER), {
+      status: 200,
+      headers: { 'content-type': 'image/png' },
+    });
+  });
   const res1 = makeRes();
-  await filesMod.handleUpload(makeJsonReq({ fileUrl: 'https://cdn.example.com/ep5579504', subfolder: 'web' }), res1);
+  await filesMod.handleUpload(
+    makeJsonReq({ fileUrl: 'https://cdn.example.com/ep5579504', subfolder: 'web' }),
+    res1,
+  );
   const res2 = makeRes();
-  await filesMod.handleUpload(makeJsonReq({ fileUrl: 'https://cdn.example.com/ep5579504', subfolder: 'web' }), res2);
+  await filesMod.handleUpload(
+    makeJsonReq({ fileUrl: 'https://cdn.example.com/ep5579504', subfolder: 'web' }),
+    res2,
+  );
   const b1 = parseResBody(res1);
   const b2 = parseResBody(res2);
   // 已知取舍：无后缀 URL 每次都要下载拿 Content-Type 定最终名，但只落一份（幂等）
@@ -228,7 +332,10 @@ test('files·saveRemoteUrl 并发两请求同 URL → 底层 fetch 只调 1 次�
     // 下载在途(挂起)，确保第二个并发请求到达时第一个还没释放锁 → 命中 in-flight
     await sleep(30);
     assert.match(url, /\/img\.png$/);
-    return new Response(new Uint8Array(RED_PNG_BUFFER), { status: 200, headers: { 'content-type': 'image/png' } });
+    return new Response(new Uint8Array(RED_PNG_BUFFER), {
+      status: 200,
+      headers: { 'content-type': 'image/png' },
+    });
   });
   const opts = { fileUrl: 'https://cdn.example.com/img.png', subfolder: 'canvas' };
   // 并发发出：不 await 第一个就发第二个（结果写入各自 res）
@@ -243,7 +350,10 @@ test('files·saveRemoteUrl 并发两请求同 URL → 底层 fetch 只调 1 次�
   assert.equal(calls, 1, '并发同 URL 应只触发一次底层下载(fetch)，第二个复用 in-flight');
   assert.equal(b1.code, 0);
   assert.equal(b2.code, 0);
-  assert.ok(b1.data.url && b1.data.url.startsWith('http://127.0.0.1:18080/files/canvas/'), '应返回落盘 URL');
+  assert.ok(
+    b1.data.url && b1.data.url.startsWith('http://127.0.0.1:18080/files/canvas/'),
+    '应返回落盘 URL',
+  );
   assert.equal(b1.data.url, b2.data.url, '两并发请求应返回同一最终 URL');
   const rel = b1.data.url.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, '');
   const diskPath = path.join(TEST_DIR, 'uploads', rel);
@@ -256,7 +366,14 @@ test('files·saveRemoteUrl 并发两请求同 URL → 底层 fetch 只调 1 次�
 
 test('files·saveRemoteUrl 顺序两请求(无后缀 URL) → 锁不缓存，仍下两次 calls=2（回归既有行为）', async () => {
   let calls = 0;
-  mockFetchOnce(async () => { calls++; await sleep(5); return new Response(new Uint8Array(RED_PNG_BUFFER), { status: 200, headers: { 'content-type': 'image/png' } }); });
+  mockFetchOnce(async () => {
+    calls++;
+    await sleep(5);
+    return new Response(new Uint8Array(RED_PNG_BUFFER), {
+      status: 200,
+      headers: { 'content-type': 'image/png' },
+    });
+  });
   const opts = { fileUrl: 'https://cdn.example.com/ep5579504', subfolder: 'web' };
   const r1 = makeRes();
   await filesMod.handleUpload(makeJsonReq(opts), r1);
@@ -291,5 +408,9 @@ test('files·saveRemoteUrl 并发同 URL 且首次下载失败 → 两请求都�
   const e2 = parseResBody(res2);
   assert.ok(e1?.error, '第一个请求应有失败原因');
   assert.ok(e2?.error, '第二个请求应有失败原因');
-  assert.match(String(e1?.error), /Failed to download|HTTP|boom/i, '应返回真实失败原因，非泛化成功');
+  assert.match(
+    String(e1?.error),
+    /Failed to download|HTTP|boom/i,
+    '应返回真实失败原因，非泛化成功',
+  );
 });

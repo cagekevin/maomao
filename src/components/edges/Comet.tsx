@@ -1,10 +1,10 @@
-import React from 'react'
-import CometParticles from '../base/ui/CometParticles.tsx'
+import React from 'react';
+import CometParticles from '../base/ui/CometParticles.tsx';
 
 interface CometProps {
-  pathRef?: string
-  edgeId: string
-  isActive?: boolean
+  pathRef?: string;
+  edgeId: string;
+  isActive?: boolean;
 }
 
 /**
@@ -16,13 +16,13 @@ interface CometProps {
  *  - 指定 mpath 指向的隐藏 path id
  */
 function Comet({ pathRef, edgeId, isActive }: CometProps) {
-  const mpathId = `cust-edge-mpath-${edgeId}`
-  const pathTarget = pathRef || mpathId
+  const mpathId = `cust-edge-mpath-${edgeId}`;
+  const pathTarget = pathRef || mpathId;
 
   return (
     <g className={`cust-edge-comet ${isActive ? 'is-active' : ''}`}>
       <CometParticles pathId={pathTarget} uid={`comet-${edgeId}`} headRadius={3.4} />
     </g>
-  )
+  );
 }
-export default React.memo(Comet)
+export default React.memo(Comet);

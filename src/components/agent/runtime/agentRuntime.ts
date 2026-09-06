@@ -25,16 +25,16 @@
 
 // 【出口收口 L3b】出站统一走前端生成门面 chatStream（不再裸拼 provider URL / 直连 /api/agent）。
 // 旧 /api/proxy 已退役；providerUrlAdapters 的 URL 拼装链与 requestModes（responses 形态）随知识退场删除。
-import { chatStream } from '@/components/base/api/index.ts'
-import { withTimeout } from '../../base/utils/asyncGuard.ts'
-import { CHAT_TIMEOUT } from '../../base/core/config.ts'
+import { chatStream } from '@/components/base/api/index.ts';
+import { withTimeout } from '../../base/utils/asyncGuard.ts';
+import { CHAT_TIMEOUT } from '../../base/core/config.ts';
 // 复用 agentCore 的权威消息/工具调用类型（同 runtime 目录，避免重定义漂移）
-import type { ChatMessage, ToolCall } from './agentCore.ts'
+import type { ChatMessage, ToolCall } from './agentCore.ts';
 
 /** roundTrip 返回的 assistant 消息：在 ChatMessage 基础上携带运行期必填字段。 */
 interface RuntimeAssistantMessage extends ChatMessage {
-  model: string
-  createdAt: number
+  model: string;
+  createdAt: number;
 }
 
 /** ══════════════════════════════════════════════════════════════════════════════
@@ -58,36 +58,71 @@ interface RuntimeAssistantMessage extends ChatMessage {
  *  @returns {Promise<{ role, content, reasoning?, tool_calls? }>}
  */
 export async function roundTrip(ctx, requestMessages, signal, onStream) {
-  const { model, toolSchemas, provider, logger, loadAgentChatModel, parseAgentError, parseSSEChunk, ENABLE_TOOLS_ON_NON_STREAM } = ctx
+  const {
+    model,
+    toolSchemas,
+    provider,
+    logger,
+    loadAgentChatModel,
+    parseAgentError,
+    parseSSEChunk,
+    ENABLE_TOOLS_ON_NON_STREAM,
+  } = ctx;
   // 读取 AI 助手聊天模型配置：判断是否非流式（non-stream 模型不支持工具，仅对话）
-  const streamMode = loadAgentChatModel()?.streamMode || 'stream'
-  const isNonStream = streamMode === 'non-stream'
+  const streamMode = loadAgentChatModel()?.streamMode || 'stream';
+  const isNonStream = streamMode === 'non-stream';
   // 非流式默认不传 tools；开启 ENABLE_TOOLS_ON_NON_STREAM 开关后两者都传（保持工具调用能力）。
-  const withTools = !isNonStream || ENABLE_TOOLS_ON_NON_STREAM
+  const withTools = !isNonStream || ENABLE_TOOLS_ON_NON_STREAM;
   // 【工具门禁】一次请求的关键判定日志：便于诊断「AI 是否拿到工具、为何不用」。
   //  - toolSchemaCount=0            → toolSchemas 空（工具注册表问题，见 useCanvasAgentTools AGENT_TOOLS）
   //  - withTools=false              → 模型被配成非流式 且 未开 ENABLE_TOOLS_ON_NON_STREAM（工具被主动关闭）
   //  - withTools=true 且 count>0 但 AI 仍不调工具 → 属 LLM/网关侧行为（继续看下方「流式结果」的 toolCallCount）
   // 仅 debug 模式输出（logger.debug + { module:'agent' }，见 config.js DEBUG_MODULES/前端调试模式开关）
-  logger.debug('AI助手', '[工具门禁]', {
-    streamMode, isNonStream, withTools,
-    toolSchemaCount: Array.isArray(toolSchemas) ? toolSchemas.length : 0,
-    toolNames: Array.isArray(toolSchemas) ? toolSchemas.map((t) => t?.function?.name).filter(Boolean).slice(0, 20) : [],
-    model,
-  }, { module: 'agent' })
+  logger.debug(
+    'AI助手',
+    '[工具门禁]',
+    {
+      streamMode,
+      isNonStream,
+      withTools,
+      toolSchemaCount: Array.isArray(toolSchemas) ? toolSchemas.length : 0,
+      toolNames: Array.isArray(toolSchemas)
+        ? toolSchemas
+            .map((t) => t?.function?.name)
+            .filter(Boolean)
+            .slice(0, 20)
+        : [],
+      model,
+    },
+    { module: 'agent' },
+  );
   // 【链路日志】请求到统一生成入口 relay：模型、流式模式、消息数、是否带工具
-  logger.info('AI助手', '请求', { via: 'relay', provider: provider?.id || '', model, stream: !isNonStream, msgCount: requestMessages.length, tools: withTools ? (toolSchemas || []).length : 0 })
+  logger.info('AI助手', '请求', {
+    via: 'relay',
+    provider: provider?.id || '',
+    model,
+    stream: !isNonStream,
+    msgCount: requestMessages.length,
+    tools: withTools ? (toolSchemas || []).length : 0,
+  });
   // 【B层】发往 LLM 的 messages 明细：每条约化（role + 是否有图 + content 长度 + 工具数）——定位发给模型的内容
-  logger.debug('AI助手', '[请求] messages', {
-    count: requestMessages.length,
-    roles: requestMessages.map((m) => m.role),
-    firstContentHead: requestMessages.find((m) => m.role === 'user')?.content ? String(requestMessages.find((m) => m.role === 'user').content).slice(0, 120) : '',
-  }, { module: 'agent' })
+  logger.debug(
+    'AI助手',
+    '[请求] messages',
+    {
+      count: requestMessages.length,
+      roles: requestMessages.map((m) => m.role),
+      firstContentHead: requestMessages.find((m) => m.role === 'user')?.content
+        ? String(requestMessages.find((m) => m.role === 'user').content).slice(0, 120)
+        : '',
+    },
+    { module: 'agent' },
+  );
   // 【出口收口·修正 5】出站统一入口：chatStream 负责发送 + HttpError 错误归一（统一文案，不再退化成裸 HttpError.message）。
   // 返回未消费 body 的原始 Response（SSE 或 JSON），解析交给下方 resolveBody。
   // 【L3b】只走统一生成入口 POST /api/generate（capability=chat，后端 relayChatStream 透传 SSE / 同步 JSON）；
   // 旧 /api/agent/:id/chat 直连分支已退役（未配 provider 由 AgentPanel 禁用输入引导，不再回退直连）。
-  let res
+  let res;
   try {
     res = await chatStream({
       provider,
@@ -97,23 +132,36 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
       stream: !isNonStream,
       signal,
       parseAgentError,
-    })
+    });
   } catch (e) {
-    logger.error('AI助手', '请求失败', { via: 'relay', error: e?.message, model })
-    throw e
+    logger.error('AI助手', '请求失败', { via: 'relay', error: e?.message, model });
+    throw e;
   }
   // 【链路日志】到网关成功拿到响应头（HTTP 状态；非 2xx 已在 chatStream 归一抛错，能到这即 2xx）
-  logger.info('AI助手', '响应', { status: res.status, stream: !isNonStream })
+  logger.info('AI助手', '响应', { status: res.status, stream: !isNonStream });
 
   // 【总超时】流式/非流式 body 读取+解析整体兜底：内层 relayChatStream 不掐点（timeoutMs:0），
   // 卡在响应体读取会被这里中断，超时 abort 底层响应流并抛 TimeoutError，绝不无限挂起（对齐失败可见/异步总超时）。
   return withTimeout(
-    resolveBody(res, { isNonStream, model, logger, parseSSEChunk, ENABLE_TOOLS_ON_NON_STREAM, onStream }),
+    resolveBody(res, {
+      isNonStream,
+      model,
+      logger,
+      parseSSEChunk,
+      ENABLE_TOOLS_ON_NON_STREAM,
+      onStream,
+    }),
     CHAT_TIMEOUT + 60_000,
     'AI助手响应超时',
     signal,
-    () => { try { res?.body?.cancel?.() } catch { /* 中断响应流 */ } }
-  )
+    () => {
+      try {
+        res?.body?.cancel?.();
+      } catch {
+        /* 中断响应流 */
+      }
+    },
+  );
 }
 
 /**
@@ -121,61 +169,107 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
  * 覆盖非流式（普通 JSON）与流式（SSE 逐块）两种形态（chat/completions）；
  * responses 形态已随 requestModes 退役（L3b 知识退场）。语义与先前内联完全一致，仅被 withTimeout 包一层。
  */
-async function resolveBody(res, { isNonStream, model, logger, parseSSEChunk, ENABLE_TOOLS_ON_NON_STREAM, onStream }): Promise<RuntimeAssistantMessage> {
-
+async function resolveBody(
+  res,
+  { isNonStream, model, logger, parseSSEChunk, ENABLE_TOOLS_ON_NON_STREAM, onStream },
+): Promise<RuntimeAssistantMessage> {
   // ── 非流式：普通 JSON 响应 ──
   // 【加固】非流式一次性读取整个响应体，遇网关/代理缓冲断流、content-length 不符等会截断 JSON。
   // 原 `res.json().catch(()=>({}))` 会把截断的非法 JSON 静默吞成 {} → content 变 '' →
   // 文字与图片 URL 全丢且无任何提示（偶发、难定位）。改为：先读 text → 容错解析，解析失败
   // 兜底为原始文本（渲染层仍能从文本抽 URL 出图），并打 ERROR 日志，绝不静默丢内容。
   if (isNonStream) {
-    const rawText = await res.text().catch(() => '')
-    const json = safeParseNonStreamJSON(rawText, logger)
+    const rawText = await res.text().catch(() => '');
+    const json = safeParseNonStreamJSON(rawText, logger);
     // ── [debug] 非流式链路 · 跳③：响应体读取 + 解析结果（定位"收不到回复"） ──
-    logger.debug('AI助手', '[非流式] 跳③响应体', {
-      rawLen: rawText.length,
-      jsonParsed: !!json,
-      rawHead: rawText.slice(0, 200),
-    }, { module: 'agent' })
-    const msg = json?.choices?.[0]?.message || {}
-    logger.debug('AI助手', '[非流式] 跳③ chat解析', {
-      jsonKeys: json ? Object.keys(json) : [],
-      choicesLen: json?.choices?.length ?? 0,
-      msgKeys: Object.keys(msg),
-      msgContentType: typeof msg?.content,
-      msgContentLen: typeof msg?.content === 'string' ? msg.content.length : (msg?.content == null ? 0 : 'non-string'),
-      msgHasToolCalls: Array.isArray(msg?.tool_calls),
-    }, { module: 'agent' })
+    logger.debug(
+      'AI助手',
+      '[非流式] 跳③响应体',
+      {
+        rawLen: rawText.length,
+        jsonParsed: !!json,
+        rawHead: rawText.slice(0, 200),
+      },
+      { module: 'agent' },
+    );
+    const msg = json?.choices?.[0]?.message || {};
+    logger.debug(
+      'AI助手',
+      '[非流式] 跳③ chat解析',
+      {
+        jsonKeys: json ? Object.keys(json) : [],
+        choicesLen: json?.choices?.length ?? 0,
+        msgKeys: Object.keys(msg),
+        msgContentType: typeof msg?.content,
+        msgContentLen:
+          typeof msg?.content === 'string'
+            ? msg.content.length
+            : msg?.content == null
+              ? 0
+              : 'non-string',
+        msgHasToolCalls: Array.isArray(msg?.tool_calls),
+      },
+      { module: 'agent' },
+    );
     // 【兜底】解析失败（被截断/非 JSON）时，把原始文本当 content 保留，避免整条回复消失。
     // 渲染层 extractImageSpans 仍能从纯文本里抽 URL 渲染图片。
-    const content = (msg?.content != null && String(msg.content).length > 0)
-      ? String(msg.content)
-      // 【统一收口】AI 助手非流式走 /api/generate 同步，后端返回 relay 信封 {code,data:{status:'completed',text}}，
-      // 非 OpenAI choices 结构 —— 需兼容 data.text，否则拿不到文本（非流式"不生效"根因）。
-      : (typeof json?.data?.text === 'string' && json.data.text ? String(json.data.text)
-      : (rawText && !json ? rawText : ''))
-    const assistant: RuntimeAssistantMessage = { role: 'assistant', content, model, createdAt: Date.now() }
+    const content =
+      msg?.content != null && String(msg.content).length > 0
+        ? String(msg.content)
+        : // 【统一收口】AI 助手非流式走 /api/generate 同步，后端返回 relay 信封 {code,data:{status:'completed',text}}，
+          // 非 OpenAI choices 结构 —— 需兼容 data.text，否则拿不到文本（非流式"不生效"根因）。
+          typeof json?.data?.text === 'string' && json.data.text
+          ? String(json.data.text)
+          : rawText && !json
+            ? rawText
+            : '';
+    const assistant: RuntimeAssistantMessage = {
+      role: 'assistant',
+      content,
+      model,
+      createdAt: Date.now(),
+    };
     // 【非流式工具】若开启 ENABLE_TOOLS_ON_NON_STREAM，响应里可能带 tool_calls（OpenAI 兼容
     //   格式：message.tool_calls: [{ id, type, function:{ name, arguments } }]）。解析后放进
     //   assistant，send 主循环即按工具调用处理（过滤空 name、多轮循环收敛）。
     if (ENABLE_TOOLS_ON_NON_STREAM && Array.isArray(msg.tool_calls)) {
       const calls = msg.tool_calls
-        .map((tc) => tc?.function?.name ? { id: tc.id || '', type: tc.type || 'function', function: { name: tc.function.name, arguments: tc.function.arguments || '' } } : null)
-        .filter(Boolean)
-      if (calls.length > 0) assistant.tool_calls = calls
+        .map((tc) =>
+          tc?.function?.name
+            ? {
+                id: tc.id || '',
+                type: tc.type || 'function',
+                function: { name: tc.function.name, arguments: tc.function.arguments || '' },
+              }
+            : null,
+        )
+        .filter(Boolean);
+      if (calls.length > 0) assistant.tool_calls = calls;
     }
     // 【链路日志】截断告警：原始文本非空但未能解析出正常 message，提示可能丢内容。
-    if (rawText && !json) logger.error('AI助手', '非流式解析失败(可能截断)', { rawLen: rawText.length, head: rawText.slice(0, 120) })
-    onStream?.({ content: assistant.content, reasoning: '', toolCalls: assistant.tool_calls || [] })
-    logger.info('AI助手', '非流式结果', { contentLen: assistant.content.length, rawLen: rawText.length, toolCallCount: (assistant.tool_calls || []).length })
-    return assistant
+    if (rawText && !json)
+      logger.error('AI助手', '非流式解析失败(可能截断)', {
+        rawLen: rawText.length,
+        head: rawText.slice(0, 120),
+      });
+    onStream?.({
+      content: assistant.content,
+      reasoning: '',
+      toolCalls: assistant.tool_calls || [],
+    });
+    logger.info('AI助手', '非流式结果', {
+      contentLen: assistant.content.length,
+      rawLen: rawText.length,
+      toolCallCount: (assistant.tool_calls || []).length,
+    });
+    return assistant;
   }
 
   // ── 流式：SSE 逐块解析 ──
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder('utf-8')
-  let buffer = ''
-  const acc = { content: '', reasoning: '', toolCalls: [] }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  const acc = { content: '', reasoning: '', toolCalls: [] };
 
   // 【吞输出兜底】部分模型/网关在 streamMode='stream' 时仍返回「普通 JSON 非流式响应」
   //（choices[0].message.content，而非 choices[0].delta 的 SSE）。parseSSEChunk 只认 data: 前缀，
@@ -183,17 +277,17 @@ async function resolveBody(res, { isNonStream, model, logger, parseSSEChunk, ENA
   //  这里在 acc 尚无内容时，尝试把「合法完整 JSON 对象」按非流式结构解析出 content/tool_calls，
   //  避免输出被静默吞掉。命中返回 true；不命中（真 SSE / 非法 JSON / 已有内容）返回 false，不影响主链路。
   const tryParseNonStreamJsonFallback = (text: string): boolean => {
-    if (acc.content || acc.reasoning || acc.toolCalls.length) return false
-    const t = String(text || '').trim()
-    if (!t.startsWith('{')) return false
+    if (acc.content || acc.reasoning || acc.toolCalls.length) return false;
+    const t = String(text || '').trim();
+    if (!t.startsWith('{')) return false;
     try {
-      const json = JSON.parse(t)
-      const msg = json?.choices?.[0]?.message
-      if (!msg || typeof msg !== 'object') return false
-      let hit = false
+      const json = JSON.parse(t);
+      const msg = json?.choices?.[0]?.message;
+      if (!msg || typeof msg !== 'object') return false;
+      let hit = false;
       if (typeof msg.content === 'string' && msg.content) {
-        acc.content += msg.content
-        hit = true
+        acc.content += msg.content;
+        hit = true;
       }
       if (Array.isArray(msg.tool_calls)) {
         for (const tc of msg.tool_calls) {
@@ -202,8 +296,8 @@ async function resolveBody(res, { isNonStream, model, logger, parseSSEChunk, ENA
               id: tc.id || '',
               type: 'function',
               function: { name: tc.function.name, arguments: tc.function.arguments || '' },
-            })
-            hit = true
+            });
+            hit = true;
           }
         }
       }
@@ -211,75 +305,95 @@ async function resolveBody(res, { isNonStream, model, logger, parseSSEChunk, ENA
         logger.warn('AI助手', '流式收到非流式JSON响应，已兜底解析（避免吞输出）', {
           contentLen: (msg.content || '').length,
           toolCallCount: Array.isArray(msg.tool_calls) ? msg.tool_calls.length : 0,
-        })
+        });
       }
-      return hit
+      return hit;
     } catch {
-      return false
+      return false;
     }
-  }
+  };
 
   // 流式回调（节流 50ms，复刻官方 v）
-  let lastFlush = 0
-  let pendingFlush = false
+  let lastFlush = 0;
+  let pendingFlush = false;
   const flush = () => {
-    lastFlush = Date.now()
-    pendingFlush = false
+    lastFlush = Date.now();
+    pendingFlush = false;
     onStream?.({
       content: acc.content,
       reasoning: acc.reasoning,
-      toolCalls: [...acc.toolCalls]
-    })
-  }
+      toolCalls: [...acc.toolCalls],
+    });
+  };
   const scheduleFlush = () => {
-    const now = Date.now()
-    if (now - lastFlush >= 50) flush()
+    const now = Date.now();
+    if (now - lastFlush >= 50) flush();
     else if (!pendingFlush) {
-      pendingFlush = true
-      setTimeout(flush, 50 - (now - lastFlush))
+      pendingFlush = true;
+      setTimeout(flush, 50 - (now - lastFlush));
     }
-  }
+  };
 
-  let _totalBytes = 0 // 【B层】累计收到的 SSE 字节数（定位流式是否被缓冲/断流）
+  let _totalBytes = 0; // 【B层】累计收到的 SSE 字节数（定位流式是否被缓冲/断流）
   while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    if (value && value.byteLength) _totalBytes += value.byteLength
-    buffer += decoder.decode(value, { stream: true })
-    const parts = buffer.split('\n\n')
-    buffer = parts.pop() || ''
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value && value.byteLength) _totalBytes += value.byteLength;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() || '';
     for (const chunk of parts) {
-      const before = acc.content.length + acc.reasoning.length + acc.toolCalls.length
+      const before = acc.content.length + acc.reasoning.length + acc.toolCalls.length;
       // chat/completions SSE 逐块解析；responses 形态已随 requestModes 退役（L3b 知识退场）
       if (!parseSSEChunk(chunk, acc)) {
         // parseSSEChunk 返回 false（非 data: 前缀）→ 尝试非流式 JSON 兜底，防吞输出
-        tryParseNonStreamJsonFallback(chunk)
-        scheduleFlush()
-        continue
+        tryParseNonStreamJsonFallback(chunk);
+        scheduleFlush();
+        continue;
       }
-      if (acc.content.length + acc.reasoning.length + acc.toolCalls.length > before) scheduleFlush()
+      if (acc.content.length + acc.reasoning.length + acc.toolCalls.length > before)
+        scheduleFlush();
     }
   }
-  buffer += decoder.decode()
+  buffer += decoder.decode();
   if (buffer.trim()) {
     // 末尾残余：先走 SSE、非 data: 再尝试非流式 JSON 兜底（单行 JSON 落这里）
-    if (!parseSSEChunk(buffer, acc)) tryParseNonStreamJsonFallback(buffer)
+    if (!parseSSEChunk(buffer, acc)) tryParseNonStreamJsonFallback(buffer);
   }
-  flush()
+  flush();
 
-  const assistant: RuntimeAssistantMessage = { role: 'assistant', content: acc.content || '', model, createdAt: Date.now() }
-  if (acc.reasoning) assistant.reasoning = acc.reasoning
+  const assistant: RuntimeAssistantMessage = {
+    role: 'assistant',
+    content: acc.content || '',
+    model,
+    createdAt: Date.now(),
+  };
+  if (acc.reasoning) assistant.reasoning = acc.reasoning;
   // 【根因修复】必须基于「过滤后的真实 tool_calls」判断，而非 acc.toolCalls.length。
   // parseSSEChunk 会为每段 tool_calls 创建占位（name 可能为空），若流里 tool_calls 的 name
   // 未拼全/为空，acc.toolCalls 有占位但 filter 后为空 → 旧代码 `if(acc.toolCalls.length>0)`
   // 仍设 `tool_calls:[]`（空数组）→ 存进历史 → 下次发给 LLM 报 Empty tool_calls。
   // 改为：filter 后非空才设，空则完全不设，杜绝空数组。
-  const realCalls = acc.toolCalls.filter((t) => t.function?.name)
-  if (realCalls.length > 0) assistant.tool_calls = realCalls
+  const realCalls = acc.toolCalls.filter((t) => t.function?.name);
+  if (realCalls.length > 0) assistant.tool_calls = realCalls;
   // 【链路日志】流式响应完成：内容长度 + 触发的工具调用
-  logger.info('AI助手', '流式结果', { contentLen: assistant.content.length, toolCallCount: realCalls.length, toolNames: realCalls.map((t) => t.function?.name) })
-  logger.debug('AI助手', '[流式] 完成', { bytes: _totalBytes, contentLen: assistant.content.length, reasoningLen: (assistant.reasoning || '').length, toolNames: realCalls.map((t) => t.function?.name) }, { module: 'agent' })
-  return assistant
+  logger.info('AI助手', '流式结果', {
+    contentLen: assistant.content.length,
+    toolCallCount: realCalls.length,
+    toolNames: realCalls.map((t) => t.function?.name),
+  });
+  logger.debug(
+    'AI助手',
+    '[流式] 完成',
+    {
+      bytes: _totalBytes,
+      contentLen: assistant.content.length,
+      reasoningLen: (assistant.reasoning || '').length,
+      toolNames: realCalls.map((t) => t.function?.name),
+    },
+    { module: 'agent' },
+  );
+  return assistant;
 }
 
 /** ══════════════════════════════════════════════════════════════════════════════
@@ -296,35 +410,55 @@ async function resolveBody(res, { isNonStream, model, logger, parseSSEChunk, ENA
  *  @returns {object|null}   解析后的对象，或 null（表示需回退到原始文本）
  */
 function safeParseNonStreamJSON(rawText, logger) {
-  if (!rawText || !rawText.trim()) return null
-  const candidate = (s) => { try { return JSON.parse(s) } catch { return undefined } }
-  // 1) 直接解析
-  let obj = candidate(rawText)
-  if (obj && typeof obj === 'object') return obj
-  // 2) 去 markdown 代码围栏（```json / ```）
-  const fenced = rawText.replace(/^[\s\S]*?```(?:json)?\s*/i, '').replace(/```[\s\S]*$/, '').trim()
-  obj = candidate(fenced)
-  if (obj && typeof obj === 'object') return obj
-  // 3) 抽取首个完整 {…} 对象（括号配平，抵抗前后多余文本 / 尾部截断）
-  const start = rawText.indexOf('{')
-  if (start >= 0) {
-    let depth = 0, inStr = false, esc = false
-    for (let i = start; i < rawText.length; i++) {
-      const ch = rawText[i]
-      if (inStr) {
-        if (esc) esc = false
-        else if (ch === '\\') esc = true
-        else if (ch === '"') inStr = false
-        continue
-      }
-      if (ch === '"') inStr = true
-      else if (ch === '{') depth++
-      else if (ch === '}') { depth--; if (depth === 0) { obj = candidate(rawText.slice(start, i + 1)); break } }
+  if (!rawText || !rawText.trim()) return null;
+  const candidate = (s) => {
+    try {
+      return JSON.parse(s);
+    } catch {
+      return undefined;
     }
-    if (obj && typeof obj === 'object') return obj
+  };
+  // 1) 直接解析
+  let obj = candidate(rawText);
+  if (obj && typeof obj === 'object') return obj;
+  // 2) 去 markdown 代码围栏（```json / ```）
+  const fenced = rawText
+    .replace(/^[\s\S]*?```(?:json)?\s*/i, '')
+    .replace(/```[\s\S]*$/, '')
+    .trim();
+  obj = candidate(fenced);
+  if (obj && typeof obj === 'object') return obj;
+  // 3) 抽取首个完整 {…} 对象（括号配平，抵抗前后多余文本 / 尾部截断）
+  const start = rawText.indexOf('{');
+  if (start >= 0) {
+    let depth = 0,
+      inStr = false,
+      esc = false;
+    for (let i = start; i < rawText.length; i++) {
+      const ch = rawText[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === '\\') esc = true;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') inStr = true;
+      else if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          obj = candidate(rawText.slice(start, i + 1));
+          break;
+        }
+      }
+    }
+    if (obj && typeof obj === 'object') return obj;
   }
-  logger?.warn?.('AI助手', '非流式 JSON 容错解析失败', { rawLen: rawText.length, head: rawText.slice(0, 120) })
-  return null
+  logger?.warn?.('AI助手', '非流式 JSON 容错解析失败', {
+    rawLen: rawText.length,
+    head: rawText.slice(0, 120),
+  });
+  return null;
 }
 
 /** ══════════════════════════════════════════════════════════════════════════════
@@ -346,86 +480,137 @@ function safeParseNonStreamJSON(rawText, logger) {
  */
 /** 【B层日志辅助】工具参数摘要：截断超长（如 generations 超大 JSON），防 debug 刷屏 */
 function safeSummarizeArgs(args) {
-  if (args == null) return ''
+  if (args == null) return '';
   try {
-    const s = JSON.stringify(args)
-    return s && s.length > 300 ? `${s.slice(0, 300)}…(${s.length}字符)` : (s || '')
+    const s = JSON.stringify(args);
+    return s && s.length > 300 ? `${s.slice(0, 300)}…(${s.length}字符)` : s || '';
   } catch {
-    return String(args).slice(0, 150)
+    return String(args).slice(0, 150);
   }
 }
 
 export async function runToolCalls(ctx, tools, callIdFor: (tc: ToolCall) => string = () => '') {
-  const { callTool, appendMsg, model, logger, getActivePendingGenerations } = ctx
+  const { callTool, appendMsg, model, logger, getActivePendingGenerations } = ctx;
   // 【积分闸停点语义修正】creditHeld：本轮是否「execute_plan 命中积分闸（返回 awaited:'credit'）」。
   // 只有它才触发工具循环暂停等用户点生成；积分闸不影响任何其它工具/建节点/读节点（用户裁定）。
-  let creditHeld = false
+  let creditHeld = false;
   for (const tc of tools) {
-    let args = {}
+    let args = {};
     if (tc.function?.arguments) {
-      try { args = JSON.parse(tc.function.arguments) } catch (e) { logger.warn('Agent', '工具参数 JSON.parse 失败', { name: tc.function?.name, arguments: tc.function?.arguments, error: e }) }
+      try {
+        args = JSON.parse(tc.function.arguments);
+      } catch (e) {
+        logger.warn('Agent', '工具参数 JSON.parse 失败', {
+          name: tc.function?.name,
+          arguments: tc.function?.arguments,
+          error: e,
+        });
+      }
     }
-    logger.debug('AI助手', '[工具] 入参', { name: tc.function?.name, args: safeSummarizeArgs(args) }, { module: 'agent' })
-    const result = await callTool(tc.function?.name, args)
+    logger.debug(
+      'AI助手',
+      '[工具] 入参',
+      { name: tc.function?.name, args: safeSummarizeArgs(args) },
+      { module: 'agent' },
+    );
+    const result = await callTool(tc.function?.name, args);
     // 【链路日志】工具执行结果：工具名 + 成功/失败（失败带 error），供排查 AI 调工具环节
-    if (result?.ok) logger.info('AI助手', '工具', { name: tc.function?.name, ok: true })
-    else logger.error('AI助手', '工具失败', { name: tc.function?.name, error: result?.error || '' })
+    if (result?.ok) logger.info('AI助手', '工具', { name: tc.function?.name, ok: true });
+    else
+      logger.error('AI助手', '工具失败', { name: tc.function?.name, error: result?.error || '' });
     appendMsg({
       role: 'tool',
       // 失败时也携带 result.nodeId（若工具失败返回了），供对话侧「重试此步骤」定位节点（对齐大雄）
-      content: result?.ok ? JSON.stringify({ ok: true, ...result.data }) : JSON.stringify({ ok: false, error: result?.error, ...(result?.nodeId ? { nodeId: result.nodeId } : {}) }),
+      content: result?.ok
+        ? JSON.stringify({ ok: true, ...result.data })
+        : JSON.stringify({
+            ok: false,
+            error: result?.error,
+            ...(result?.nodeId ? { nodeId: result.nodeId } : {}),
+          }),
       tool_call_id: callIdFor(tc),
-      createdAt: Date.now()
-    })
+      createdAt: Date.now(),
+    });
     // Skill 三阶段阶段1：show_plan_for_confirm 把策划展示给用户（作为一条 assistant 消息，可见规划）
     // 门禁只依赖工具成功（result?.ok），与 plan_text/generations 传输彻底解耦（对齐大雄：门禁由前端本地构造）。
     if (tc.function?.name === 'show_plan_for_confirm' && result?.ok) {
-      const planText = result.data?.plan_text || '（策划已生成，请确认）'
+      const planText = result.data?.plan_text || '（策划已生成，请确认）';
       // 【对齐大雄】generations 挂到确认消息上，供前端渲染步骤卡片（agentGenCardHtml 等价物）。
       // 来源优先级：回复正文解析暂存（主） > 工具参数传入。都来自 per-conversation pendingGenerations。
-      const confirmGens = Array.isArray(result.data?.generations) && result.data.generations.length
-        ? result.data.generations
-        : (getActivePendingGenerations() || [])
-      appendMsg({ role: 'assistant', content: `生成策划：\n${planText}`, generations: confirmGens, model, createdAt: Date.now(), awaiting_confirm: true })
+      const confirmGens =
+        Array.isArray(result.data?.generations) && result.data.generations.length
+          ? result.data.generations
+          : getActivePendingGenerations() || [];
+      appendMsg({
+        role: 'assistant',
+        content: `生成策划：\n${planText}`,
+        generations: confirmGens,
+        model,
+        createdAt: Date.now(),
+        awaiting_confirm: true,
+      });
     }
     // 【记】memory_suggest：把"待确认记忆"展示给用户（作为一条 assistant 消息，含确认按钮）。
     // 复用 awaiting_confirm 门禁卡片；确认按钮文案由 AgentMessage 按 memory_suggest 语义渲染。
     // 用户确认动作由 UI 侧（AgentPanel.handleConfirmPlan → 确认记忆逻辑）落库。
     if (tc.function?.name === 'memory_suggest' && result?.ok) {
-      const kind = result.data?.kind || ''
-      const content = result.data?.content || ''
-      const kindLabel = ({ preference: '偏好', fact: '事实', constraint: '约束', decision: '决定' })[kind] || kind
+      const kind = result.data?.kind || '';
+      const content = result.data?.content || '';
+      const kindLabel =
+        { preference: '偏好', fact: '事实', constraint: '约束', decision: '决定' }[kind] || kind;
       appendMsg({
         role: 'assistant',
         content: `建议保存一条长期记忆：\n[${kindLabel}] ${content}\n\n确认后该记忆将写入项目（之后每轮对话都会延续这一偏好/事实/约束/决定）。`,
-        model, createdAt: Date.now(), awaiting_confirm: true, memory_suggest: { kind, content }
-      })
+        model,
+        createdAt: Date.now(),
+        awaiting_confirm: true,
+        memory_suggest: { kind, content },
+      });
     }
     // 【TASK-009 执行摘要】execute_plan 返回 logs → 渲染一条带逐步进度的「执行摘要」消息（对齐大雄折叠面板）
     // 修复 #1 后 result 是真对象，此判断才真正生效
     if (tc.function?.name === 'execute_plan' && result?.ok) {
       // 【积分闸停点】execute_plan 命中积分闸（awaited:'credit'）→ 本轮已走到「点生成烧积分」临界点，
       // 置 creditHeld，send 循环据此暂停等用户确认；与全局残留 creditGate.pending 无关（见 send 停点注释）。
-      if (result.data?.awaited === 'credit') creditHeld = true
-      const logsArr = Array.isArray(result.data?.logs) ? result.data.logs : []
+      if (result.data?.awaited === 'credit') creditHeld = true;
+      const logsArr = Array.isArray(result.data?.logs) ? result.data.logs : [];
       // 【对齐大雄 agentLastResults】把本轮生成结果图 url 存到 assistant 消息的 lastResults，
       //   供后续轮「改上一张生成图」时执行层跨轮取最近生成图（图不进 LLM 上下文，执行层反查原图）。
-      const entriesArr = Array.isArray(result.data?.entries) ? result.data.entries : []
+      const entriesArr = Array.isArray(result.data?.entries) ? result.data.entries : [];
       const lastResults = entriesArr
         .filter((e) => e && e.status === 'completed' && e.resultUrl)
-        .map((e) => ({ url: e.resultUrl, name: e.stepId || e.id || `图${(e.stepId || e.id || '').toString().slice(0, 12)}`, nodeId: e.nodeId || '' }))
+        .map((e) => ({
+          url: e.resultUrl,
+          name: e.stepId || e.id || `图${(e.stepId || e.id || '').toString().slice(0, 12)}`,
+          nodeId: e.nodeId || '',
+        }));
       if (logsArr.length > 0) {
         const lines = logsArr.map((l) => {
-          const mark = l.level === 'error' ? '❌' : l.level === 'warn' ? '⚠️' : l.level === 'ok' ? '✅' : '·'
-          return `${mark} ${l.message}`
-        })
-        appendMsg({ role: 'assistant', content: `执行摘要：\n${lines.join('\n')}`, model, createdAt: Date.now(), execution_summary: true, lastResults })
+          const mark =
+            l.level === 'error' ? '❌' : l.level === 'warn' ? '⚠️' : l.level === 'ok' ? '✅' : '·';
+          return `${mark} ${l.message}`;
+        });
+        appendMsg({
+          role: 'assistant',
+          content: `执行摘要：\n${lines.join('\n')}`,
+          model,
+          createdAt: Date.now(),
+          execution_summary: true,
+          lastResults,
+        });
       } else if (lastResults.length > 0) {
         // 无日志但有结果图：也记录 lastResults，避免跨轮引用丢数据源
-        appendMsg({ role: 'assistant', content: `已完成 ${lastResults.length} 张图。`, model, createdAt: Date.now(), execution_summary: true, lastResults })
+        appendMsg({
+          role: 'assistant',
+          content: `已完成 ${lastResults.length} 张图。`,
+          model,
+          createdAt: Date.now(),
+          execution_summary: true,
+          lastResults,
+        });
       }
     }
   }
   // 返回本轮是否「execute_plan 命中积分闸」→ send 工具循环据此决定是否暂停等用户点生成
-  return { creditHeld }
+  return { creditHeld };
 }

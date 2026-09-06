@@ -55,9 +55,13 @@ function scanLegacy(dir = LEGACY, prefix = '') {
     if (e.name.endsWith('.json')) {
       const key = prefix + e.name;
       result[key] = {
-        chunk: e.name.includes('App') ? 'App-D5SRQxl__components' :
-               e.name.includes('httpClient') ? 'httpClient-Bqba_SHR_components' :
-               e.name.includes('src') ? 'src--1UFFpRm_components' : 'root-entry',
+        chunk: e.name.includes('App')
+          ? 'App-D5SRQxl__components'
+          : e.name.includes('httpClient')
+            ? 'httpClient-Bqba_SHR_components'
+            : e.name.includes('src')
+              ? 'src--1UFFpRm_components'
+              : 'root-entry',
         role: '混淆名→原名映射表',
         domain: 'infrastructure',
         risk: 'low',
@@ -98,7 +102,9 @@ function parseT02B() {
     for (const [, file, keys] of sec.matchAll(/\*\*([^*]+?)\*\*.*?([^•]+)/g)) {
       const name = file.split('/').pop().replace('.jsx', '').replace('.js', '');
       // 提取存储键
-      const storageKeys = [...keys.matchAll(/`([^`]+)`/g)].map(m => m[1]).filter(k => !k.startsWith('http'));
+      const storageKeys = [...keys.matchAll(/`([^`]+)`/g)]
+        .map((m) => m[1])
+        .filter((k) => !k.startsWith('http'));
       if (!map[name]) map[name] = { storage: [], events: [], api: [] };
       map[name].storage.push(...storageKeys);
     }
@@ -106,7 +112,7 @@ function parseT02B() {
 
   // 汇总表（§1.1）
   for (const [, key, fileExpr] of md.matchAll(/\| `([^`]+)` \| \w+ \| \d+ \| (.+?) \|/g)) {
-    const files = [...fileExpr.matchAll(/(\w+\.jsx?):/g)].map(m => m[1]);
+    const files = [...fileExpr.matchAll(/(\w+\.jsx?):/g)].map((m) => m[1]);
     for (const f of files) {
       const name = f.replace('.jsx', '').replace('.js', '');
       if (!map[name]) map[name] = { storage: [], events: [], api: [] };
@@ -117,9 +123,11 @@ function parseT02B() {
   // 事件（§2.1）
   const evtTable = md.match(/### 2\.1 汇总表[\s\S]*?### 2\.2/);
   if (evtTable) {
-    for (const [, evt, , , fileExpr] of evtTable[0].matchAll(/\| `([^`]+)` \| (\d+) \| (\S+) \| (.+?) \|/g)) {
+    for (const [, evt, , , fileExpr] of evtTable[0].matchAll(
+      /\| `([^`]+)` \| (\d+) \| (\S+) \| (.+?) \|/g,
+    )) {
       if (['change', 'input', 'resize'].includes(evt)) continue;
-      const files = [...fileExpr.matchAll(/(\w+\.jsx?|\w+\/shared\.js):/g)].map(m => m[1]);
+      const files = [...fileExpr.matchAll(/(\w+\.jsx?|\w+\/shared\.js):/g)].map((m) => m[1]);
       for (const f of files) {
         const name = f.replace('.jsx', '').replace('.js', '').split('/').pop();
         if (!map[name]) map[name] = { storage: [], events: [], api: [] };
@@ -135,11 +143,13 @@ function parseT02B() {
       // 回查 §2.2 的 per-file 找关联文件
       const p2 = md.match(/### 2\.2 per-file 明细[\s\S]*?(?=### 3\.|## 3\.)/);
       if (p2) {
-        for (const [, file] of p2[0].matchAll(new RegExp(`\`${val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\``, 'g'))) {
+        for (const [, file] of p2[0].matchAll(
+          new RegExp(`\`${val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\``, 'g'),
+        )) {
           // 找所在行
-          const ctx = p2[0].split('\n').find(l => l.includes(val));
+          const ctx = p2[0].split('\n').find((l) => l.includes(val));
           if (ctx) {
-            const files = [...ctx.matchAll(/(\w+\.jsx?):/g)].map(m => m[1]);
+            const files = [...ctx.matchAll(/(\w+\.jsx?):/g)].map((m) => m[1]);
             for (const f of files) {
               const name = f.replace('.jsx', '').replace('.js', '');
               if (!map[name]) map[name] = { storage: [], events: [], api: [] };
@@ -158,7 +168,9 @@ function parseT02B() {
 function parseT08B() {
   const md = fs.readFileSync(T08B, 'utf-8');
   const map = {};
-  for (const [, file, , type] of md.matchAll(/\| [A-Z]\d+ \| [^(]+\(([^)]+)\)\/([^.]+\.jsx) \| `[^`]+` \| (\S+)/g)) {
+  for (const [, file, , type] of md.matchAll(
+    /\| [A-Z]\d+ \| [^(]+\(([^)]+)\)\/([^.]+\.jsx) \| `[^`]+` \| (\S+)/g,
+  )) {
     const name = file;
     const isAsync = type.includes('async');
     const isClass = type.includes('类');
@@ -194,7 +206,11 @@ function parseHooks() {
 // ── 6. 已知语义映射（从 T06B 角色 + T02B 触碰反推） ──
 const KNOWN_ROLES = {
   // App 组件
-  'mr.jsx': { role: '核心任务列表/调度主面板（4050行上帝组件）', domain: 'task-scheduler', risk: 'high' },
+  'mr.jsx': {
+    role: '核心任务列表/调度主面板（4050行上帝组件）',
+    domain: 'task-scheduler',
+    risk: 'high',
+  },
   'kn.jsx': { role: '任务元信息更新面板', domain: 'task-scheduler', risk: 'medium' },
   'Fn.jsx': { role: '任务列表/筛选视图', domain: 'task-scheduler', risk: 'medium' },
   'Qt.jsx': { role: '节点画布子面板', domain: 'canvas-editor', risk: 'medium' },
@@ -204,7 +220,11 @@ const KNOWN_ROLES = {
   'Qn.jsx': { role: '端点配置 UI 展示', domain: 'endpoint-share', risk: 'low' },
   // httpClient 组件
   'bo.jsx': { role: '多窗口文本模型选择面板（memoized）', domain: 'model-config', risk: 'low' },
-  '_o.jsx': { role: '提示词模型/质量/尺寸配置面板（hub）', domain: 'prompt-management', risk: 'low' },
+  '_o.jsx': {
+    role: '提示词模型/质量/尺寸配置面板（hub）',
+    domain: 'prompt-management',
+    risk: 'low',
+  },
   'Es.jsx': { role: '特惠视频全量配置面板', domain: 'video-config', risk: 'low' },
   'Zo.jsx': { role: 'SD2 视频模型配置面板', domain: 'video-config', risk: 'low' },
   'Jo.jsx': { role: '视频宽高比配置面板', domain: 'video-config', risk: 'low' },
@@ -240,7 +260,11 @@ const KNOWN_ROLES = {
   'No.jsx': { role: 'async 响应处理', domain: 'media-processing', risk: 'low' },
   'Ro.jsx': { role: 'async 响应处理', domain: 'media-processing', risk: 'low' },
   'Lo.jsx': { role: 'async 响应处理', domain: 'media-processing', risk: 'low' },
-  'Tr.jsx': { role: 'async 后端处理（被 Component101-104 链调用）', domain: 'media-processing', risk: 'low' },
+  'Tr.jsx': {
+    role: 'async 后端处理（被 Component101-104 链调用）',
+    domain: 'media-processing',
+    risk: 'low',
+  },
   'Al.jsx': { role: 'async 响应处理', domain: 'media-processing', risk: 'low' },
 };
 
@@ -294,21 +318,72 @@ for (const [name, entry] of Object.entries(files)) {
   }
 
   // 入口文件
-  if (basename === 'main-1TOrc0Z5.js') { entry.role = 'side_panel 引导入口（接入点解析+RootErrorBoundary+bootstrap）'; entry.domain = 'infrastructure'; entry.risk = 'high'; }
-  if (basename === 'share-CymbjOw4.js') { entry.role = '分享页引导入口'; entry.domain = 'infrastructure'; entry.risk = 'high'; }
-  if (basename === 'App-D5SRQxl_.js') { entry.role = 'App chunk 入口（动态 import 子组件）'; entry.domain = 'infrastructure'; }
-  if (basename === 'ShareAppPage-BVCmVrHF.js') { entry.role = '分享页独立入口'; entry.domain = 'endpoint-share'; }
-  if (basename === 'httpClient-Bqba_SHR.js') { entry.role = 'httpClient facade 门面（67 双重命名导出）'; entry.domain = 'infrastructure'; }
-  if (basename === 'endpointConfig-Bt85xi8d.js') { entry.role = '端点配置（18080/active_api_endpoint）'; entry.domain = 'endpoint-share'; entry.risk = 'high'; }
-  if (basename === 'src--1UFFpRm.js') { entry.role = '共享逻辑兜底 chunk'; entry.domain = 'infrastructure'; }
-  if (basename === 'src-CzHn9cDd.js') { entry.role = '引导依赖占位'; entry.domain = 'infrastructure'; }
+  if (basename === 'main-1TOrc0Z5.js') {
+    entry.role = 'side_panel 引导入口（接入点解析+RootErrorBoundary+bootstrap）';
+    entry.domain = 'infrastructure';
+    entry.risk = 'high';
+  }
+  if (basename === 'share-CymbjOw4.js') {
+    entry.role = '分享页引导入口';
+    entry.domain = 'infrastructure';
+    entry.risk = 'high';
+  }
+  if (basename === 'App-D5SRQxl_.js') {
+    entry.role = 'App chunk 入口（动态 import 子组件）';
+    entry.domain = 'infrastructure';
+  }
+  if (basename === 'ShareAppPage-BVCmVrHF.js') {
+    entry.role = '分享页独立入口';
+    entry.domain = 'endpoint-share';
+  }
+  if (basename === 'httpClient-Bqba_SHR.js') {
+    entry.role = 'httpClient facade 门面（67 双重命名导出）';
+    entry.domain = 'infrastructure';
+  }
+  if (basename === 'endpointConfig-Bt85xi8d.js') {
+    entry.role = '端点配置（18080/active_api_endpoint）';
+    entry.domain = 'endpoint-share';
+    entry.risk = 'high';
+  }
+  if (basename === 'src--1UFFpRm.js') {
+    entry.role = '共享逻辑兜底 chunk';
+    entry.domain = 'infrastructure';
+  }
+  if (basename === 'src-CzHn9cDd.js') {
+    entry.role = '引导依赖占位';
+    entry.domain = 'infrastructure';
+  }
   // 黑盒
-  if (basename.includes('vendor-Z')) { entry.role = 'React+第三方运行时库（黑盒）'; entry.domain = 'infrastructure'; entry.risk = 'black-box'; }
-  if (basename.includes('rolldown-runtime')) { entry.role = 'rolldown 运行时垫片（黑盒）'; entry.domain = 'infrastructure'; entry.risk = 'black-box'; }
-  if (basename === '_react_shim.js') { entry.role = 'React 单例门面（黑盒）'; entry.domain = 'infrastructure'; entry.risk = 'black-box'; }
-  if (basename === '_jsx_runtime.js') { entry.role = 'JSX 运行时（黑盒）'; entry.domain = 'infrastructure'; entry.risk = 'black-box'; }
-  if (basename.includes('__vite-browser-external')) { entry.role = 'vite 浏览器 external 垫片（黑盒）'; entry.domain = 'infrastructure'; entry.risk = 'black-box'; }
-  if (basename.includes('mediabunny')) { entry.role = '第三方音频编码库（黑盒）'; entry.domain = 'infrastructure'; entry.risk = 'black-box'; }
+  if (basename.includes('vendor-Z')) {
+    entry.role = 'React+第三方运行时库（黑盒）';
+    entry.domain = 'infrastructure';
+    entry.risk = 'black-box';
+  }
+  if (basename.includes('rolldown-runtime')) {
+    entry.role = 'rolldown 运行时垫片（黑盒）';
+    entry.domain = 'infrastructure';
+    entry.risk = 'black-box';
+  }
+  if (basename === '_react_shim.js') {
+    entry.role = 'React 单例门面（黑盒）';
+    entry.domain = 'infrastructure';
+    entry.risk = 'black-box';
+  }
+  if (basename === '_jsx_runtime.js') {
+    entry.role = 'JSX 运行时（黑盒）';
+    entry.domain = 'infrastructure';
+    entry.risk = 'black-box';
+  }
+  if (basename.includes('__vite-browser-external')) {
+    entry.role = 'vite 浏览器 external 垫片（黑盒）';
+    entry.domain = 'infrastructure';
+    entry.risk = 'black-box';
+  }
+  if (basename.includes('mediabunny')) {
+    entry.role = '第三方音频编码库（黑盒）';
+    entry.domain = 'infrastructure';
+    entry.risk = 'black-box';
+  }
 }
 
 // ── 8. T02B 补全遗漏的 storage/event ──
@@ -326,5 +401,5 @@ for (const [base, info] of Object.entries(t02b)) {
 // ── 9. 写文件 ──
 fs.writeFileSync(OUT, JSON.stringify(files, null, 2));
 const total = Object.keys(files).length;
-const withRole = Object.values(files).filter(v => v.role).length;
+const withRole = Object.values(files).filter((v) => v.role).length;
 console.log(`✅ semantic-map.json 已生成: ${total} 条 (${withRole}/${total} 已标注角色)`);

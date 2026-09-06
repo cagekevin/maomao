@@ -120,10 +120,10 @@ export function getModelProtocolPreset(preset: ModelProtocolPresetName): ModelPr
   return cloneProtocol(OPENAI_IMAGE_PROTOCOL);
 }
 
-export function getModelProtocolPresetVideoCapability(profile: ModelProtocolProfile | undefined): Record<string, unknown> | undefined {
-  return profile?.preset === 'agnes-video'
-    ? structuredClone(AGNES_VIDEO_CAPABILITY)
-    : undefined;
+export function getModelProtocolPresetVideoCapability(
+  profile: ModelProtocolProfile | undefined,
+): Record<string, unknown> | undefined {
+  return profile?.preset === 'agnes-video' ? structuredClone(AGNES_VIDEO_CAPABILITY) : undefined;
 }
 
 export function normalizeFrames8n1(value: number): number {

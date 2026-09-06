@@ -16,7 +16,7 @@
 
 /** 注入依赖：save 返回落盘后的 URL；返回 null（或原值）表示失败，保留原 base64。 */
 interface ExternalizeDeps {
-  save: (dataUrl: string) => Promise<string | null>
+  save: (dataUrl: string) => Promise<string | null>;
 }
 
 /**
@@ -28,39 +28,39 @@ interface ExternalizeDeps {
  */
 export async function externalizeInlineData(
   nodeData: Record<string, unknown>,
-  { save }: ExternalizeDeps
+  { save }: ExternalizeDeps,
 ): Promise<{ data: Record<string, unknown>; converted: number; failed: number }> {
   if (!save || typeof save !== 'function') {
-    throw new Error('externalizeInlineData: 缺少注入的 save 依赖')
+    throw new Error('externalizeInlineData: 缺少注入的 save 依赖');
   }
-  let converted = 0
-  let failed = 0
+  let converted = 0;
+  let failed = 0;
 
   const walk = async (obj: unknown): Promise<unknown> => {
     if (Array.isArray(obj)) {
-      return Promise.all(obj.map((it) => (it && typeof it === 'object' ? walk(it) : it)))
+      return Promise.all(obj.map((it) => (it && typeof it === 'object' ? walk(it) : it)));
     }
-    if (!obj || typeof obj !== 'object') return obj
-    const out: Record<string, unknown> = {}
+    if (!obj || typeof obj !== 'object') return obj;
+    const out: Record<string, unknown> = {};
     for (const key of Object.keys(obj)) {
-      const val = (obj as Record<string, unknown>)[key]
+      const val = (obj as Record<string, unknown>)[key];
       if (typeof val === 'string' && val.startsWith('data:')) {
-        const url = await save(val)
+        const url = await save(val);
         if (url && url !== val) {
-          out[key] = url
-          converted++
+          out[key] = url;
+          converted++;
         } else {
-          out[key] = val // 落盘失败保留原图，不丢
-          failed++
+          out[key] = val; // 落盘失败保留原图，不丢
+          failed++;
         }
       } else if (val && typeof val === 'object') {
-        out[key] = await walk(val)
+        out[key] = await walk(val);
       } else {
-        out[key] = val
+        out[key] = val;
       }
     }
-    return out
-  }
+    return out;
+  };
 
-  return { data: (await walk(nodeData)) as Record<string, unknown>, converted, failed }
+  return { data: (await walk(nodeData)) as Record<string, unknown>, converted, failed };
 }

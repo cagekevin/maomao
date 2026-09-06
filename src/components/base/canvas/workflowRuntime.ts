@@ -27,16 +27,16 @@
  *   wf.rollback(ctx)  // 清理本次建的节点
  * ════════════════════════════════════════════════════════════════
  */
-import { generateId } from '../core/idGen.ts'
+import { generateId } from '../core/idGen.ts';
 
 /** 运行中状态集合（对齐 InputStateMachine RUNNING） */
-const RUNNING = new Set(['planning', 'creating_nodes', 'ready', 'running'])
+const RUNNING = new Set(['planning', 'creating_nodes', 'ready', 'running']);
 
 /** 创建 AbortError */
 function abortError() {
-  const e = new Error('Aborted')
-  e.name = 'AbortError'
-  return e
+  const e = new Error('Aborted');
+  e.name = 'AbortError';
+  return e;
 }
 
 /**
@@ -49,182 +49,208 @@ export function createWorkflow({
   conversationId = '',
   onStatusChange = null,
 }: {
-  conversationId?: string
-  onStatusChange?: (status: string) => void
+  conversationId?: string;
+  onStatusChange?: (status: string) => void;
 } = {}) {
-  let status: string = 'idle'
-  let awaitingConfirm = false
-  const nodeIds: string[] = []
-  const steerQueue: { text: string; attachments: unknown[]; ts: number }[] = []
-  const aiUndoStack: unknown[] = []
-  const cancelTokens = new Set<AbortController>()
-  const listeners = new Set<(s: string) => void>()
+  let status: string = 'idle';
+  let awaitingConfirm = false;
+  const nodeIds: string[] = [];
+  const steerQueue: { text: string; attachments: unknown[]; ts: number }[] = [];
+  const aiUndoStack: unknown[] = [];
+  const cancelTokens = new Set<AbortController>();
+  const listeners = new Set<(s: string) => void>();
 
   function setStatus(next) {
-    if (status === next) return
-    status = next
-    onStatusChange?.(status)
-    listeners.forEach((l) => l(status))
+    if (status === next) return;
+    status = next;
+    onStatusChange?.(status);
+    listeners.forEach((l) => l(status));
   }
 
   const wf = {
     id: '', // 占位，随后 generateId('wf') 赋值（保持对象字面量含 id 字段以匹配 TS 类型）
     conversationId,
-    get status() { return status },
-    get isRunning() { return RUNNING.has(status) },
-    get awaitingConfirm() { return awaitingConfirm },
-    get nodeIds() { return [...nodeIds] },
-    get steerQueue() { return [...steerQueue] },
-    get aiUndoStack() { return [...aiUndoStack] },
+    get status() {
+      return status;
+    },
+    get isRunning() {
+      return RUNNING.has(status);
+    },
+    get awaitingConfirm() {
+      return awaitingConfirm;
+    },
+    get nodeIds() {
+      return [...nodeIds];
+    },
+    get steerQueue() {
+      return [...steerQueue];
+    },
+    get aiUndoStack() {
+      return [...aiUndoStack];
+    },
 
     subscribe(fn) {
-      listeners.add(fn)
-      return () => listeners.delete(fn)
+      listeners.add(fn);
+      return () => listeners.delete(fn);
     },
 
     /** 开始：置 planning/running */
     start(initStatus = 'planning') {
-      setStatus(initStatus)
-      return wf
+      setStatus(initStatus);
+      return wf;
     },
 
     /** 停止请求：置 stopping（真正取消由 cancel() 做） */
     requestStop() {
-      setStatus('stopping')
-      wf.cancel()
-      return wf
+      setStatus('stopping');
+      wf.cancel();
+      return wf;
     },
 
     /** 真取消所有运行中任务（abort 每个 AbortController） */
     cancel() {
-      cancelTokens.forEach((ctl) => ctl.abort())
-      cancelTokens.clear()
-      return wf
+      cancelTokens.forEach((ctl) => ctl.abort());
+      cancelTokens.clear();
+      return wf;
     },
 
     /** 结束：completed / failed */
     finish(ok = true) {
-      wf.cancel()
-      setStatus(ok ? 'completed' : 'failed')
-      return wf
+      wf.cancel();
+      setStatus(ok ? 'completed' : 'failed');
+      return wf;
     },
 
     /** Skill 阶段2：进入确认态 */
     requestConfirm() {
-      awaitingConfirm = true
-      setStatus('awaiting_confirm')
-      return wf
+      awaitingConfirm = true;
+      setStatus('awaiting_confirm');
+      return wf;
     },
 
     /** 用户确认：退出确认态（仅此翻转；不做语义消息识别） */
     confirm() {
-      awaitingConfirm = false
-      setStatus('planning') // 确认后回到可执行态
-      return wf
+      awaitingConfirm = false;
+      setStatus('planning'); // 确认后回到可执行态
+      return wf;
     },
 
     /** 补充指令入队（不打断主任务） */
     steer(text, attachments = []) {
-      steerQueue.push({ text, attachments, ts: Date.now() })
-      return wf
+      steerQueue.push({ text, attachments, ts: Date.now() });
+      return wf;
     },
 
     /** 取下一条待执行补充指令 */
     nextSteer() {
-      return steerQueue.shift() || null
+      return steerQueue.shift() || null;
     },
 
     /** 记录本次工作流建的节点（rollback 用） */
     addNode(id) {
-      if (id) nodeIds.push(id)
-      return wf
+      if (id) nodeIds.push(id);
+      return wf;
     },
 
     /** 创建并注册一个可取消任务。返回 { signal, cancel } */
     createTask() {
-      const ctl = new AbortController()
-      cancelTokens.add(ctl)
+      const ctl = new AbortController();
+      cancelTokens.add(ctl);
       return {
         signal: ctl.signal,
-        cancel: () => { ctl.abort(); cancelTokens.delete(ctl) },
-      }
+        cancel: () => {
+          ctl.abort();
+          cancelTokens.delete(ctl);
+        },
+      };
     },
 
     /** 移除一个运行中任务（不 abort，仅注销；供任务正常完成时调用） */
     releaseTask(signal) {
       for (const ctl of cancelTokens) {
-        if (ctl.signal === signal) { cancelTokens.delete(ctl); break }
+        if (ctl.signal === signal) {
+          cancelTokens.delete(ctl);
+          break;
+        }
       }
-      return wf
+      return wf;
     },
 
     /** 真 await 一个生成任务：runFn(signal) 返回结果；workflow 停止时任务被取消。 */
     async awaitNode(runFn, onAbort = null) {
-      const task = wf.createTask()
+      const task = wf.createTask();
       try {
-        return await runFn(task.signal)
+        return await runFn(task.signal);
       } catch (e) {
         if (e?.name === 'AbortError') {
-          onAbort?.()
-          throw abortError()
+          onAbort?.();
+          throw abortError();
         }
-        throw e
+        throw e;
       } finally {
-        task.cancel() // cancel 内部已把 controller 从 cancelTokens 移除
+        task.cancel(); // cancel 内部已把 controller 从 cancelTokens 移除
       }
     },
 
     /** 并发执行：runParallel(items, fn) —— fn(item, signal) 并发跑，支持整体取消。 */
     async runParallel(items, fn, { concurrency = items.length, onAbort = null } = {}) {
-      const list = Array.isArray(items) ? items : []
-      if (list.length === 0) return []
-      const results = new Array(list.length)
-      let aborted = false
-      let i = 0
+      const list = Array.isArray(items) ? items : [];
+      if (list.length === 0) return [];
+      const results = new Array(list.length);
+      let aborted = false;
+      let i = 0;
       const next = async () => {
         while (i < list.length) {
-          const idx = i++
-          const task = wf.createTask()
+          const idx = i++;
+          const task = wf.createTask();
           try {
-            results[idx] = await fn(list[idx], task.signal, idx)
+            results[idx] = await fn(list[idx], task.signal, idx);
           } catch (e) {
-            if (e?.name === 'AbortError') { aborted = true; onAbort?.(list[idx], idx) }
-            else results[idx] = { ok: false, error: e?.message || '执行异常' }
+            if (e?.name === 'AbortError') {
+              aborted = true;
+              onAbort?.(list[idx], idx);
+            } else results[idx] = { ok: false, error: e?.message || '执行异常' };
           } finally {
-            task.cancel()
+            task.cancel();
           }
         }
-      }
-      const workers = []
-      for (let w = 0; w < Math.min(concurrency, list.length); w++) workers.push(next())
-      await Promise.all(workers)
-      if (aborted) throw abortError()
-      return results
+      };
+      const workers = [];
+      for (let w = 0; w < Math.min(concurrency, list.length); w++) workers.push(next());
+      await Promise.all(workers);
+      if (aborted) throw abortError();
+      return results;
     },
 
     /** 回滚：清理本次工作流建的节点（注入画布 ctx.deleteNode 等） */
     rollback(ctx) {
-      if (!ctx?.deleteNode && !ctx?.setNodes) return wf
+      if (!ctx?.deleteNode && !ctx?.setNodes) return wf;
       if (ctx.deleteNode) {
-        nodeIds.slice().forEach((id) => { try { ctx.deleteNode(id) } catch { /* 忽略 */ } })
+        nodeIds.slice().forEach((id) => {
+          try {
+            ctx.deleteNode(id);
+          } catch {
+            /* 忽略 */
+          }
+        });
       } else {
-        const remaining = (ctx.getNodes?.() || []).filter((n) => !nodeIds.includes(n.id))
-        ctx.setNodes(remaining)
+        const remaining = (ctx.getNodes?.() || []).filter((n) => !nodeIds.includes(n.id));
+        ctx.setNodes(remaining);
       }
-      nodeIds.length = 0
-      return wf
+      nodeIds.length = 0;
+      return wf;
     },
 
     /** 压入 AI 撤销快照（绑定本工作流，多对话不串话） */
     pushUndo(snapshot) {
-      aiUndoStack.push(snapshot)
-      if (aiUndoStack.length > 20) aiUndoStack.shift() // 上限 20（对齐 MAX_AI_UNDO）
-      return wf
+      aiUndoStack.push(snapshot);
+      if (aiUndoStack.length > 20) aiUndoStack.shift(); // 上限 20（对齐 MAX_AI_UNDO）
+      return wf;
     },
 
     /** 弹出最近 AI 撤销快照 */
     popUndo() {
-      return aiUndoStack.pop() || null
+      return aiUndoStack.pop() || null;
     },
 
     /** 序列化（供持久化到 conversation） */
@@ -237,12 +263,12 @@ export function createWorkflow({
         nodeIds: [...nodeIds],
         steerQueue: [...steerQueue],
         aiUndoStack: [...aiUndoStack],
-      }
+      };
     },
-  }
+  };
 
   // 唯一 id
-  wf.id = generateId('wf')
+  wf.id = generateId('wf');
 
-  return wf
+  return wf;
 }

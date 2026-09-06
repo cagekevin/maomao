@@ -1,16 +1,16 @@
-import type { LucideIcon } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { Box, ChevronRight, CircleDot, Grid3X3, Import, Layers, UserRound } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Box, ChevronRight, CircleDot, Grid3X3, Import, Layers, UserRound } from 'lucide-react';
 
 /** 资源库菜单节点：叶子节点带 kind（person/primitive/import），非叶子带 children 递归展开 */
 interface AssetNode {
-  label: string
-  icon?: LucideIcon
-  subtitle?: string
-  kind?: 'person' | 'primitive' | 'import'
-  value?: string
-  leaf?: boolean
-  children?: AssetNode[]
+  label: string;
+  icon?: LucideIcon;
+  subtitle?: string;
+  kind?: 'person' | 'primitive' | 'import';
+  value?: string;
+  leaf?: boolean;
+  children?: AssetNode[];
 }
 
 // 资源库菜单：层级完全自适应数据本身，有几层就渲染几列，不写死级数。
@@ -64,71 +64,78 @@ const ASSET_TREE: AssetNode[] = [
     leaf: true,
     kind: 'import',
   },
-]
+];
 
-const PRIMITIVE_ICON = { box: Box, sphere: CircleDot, cylinder: CircleDot, plane: Grid3X3 }
+const PRIMITIVE_ICON = { box: Box, sphere: CircleDot, cylinder: CircleDot, plane: Grid3X3 };
 
 function isLeaf(node: AssetNode) {
-  return node.leaf || !node.children || node.children.length === 0
+  return node.leaf || !node.children || node.children.length === 0;
 }
 
 export function AssetMenu({ onAddPerson, onAddPrimitive, onImport }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false);
   // path 记录当前展开路径，例如 [2] 表示展开了"场景粗模"那一列。列数 = path.length + 1，自适应数据深度。
-  const [path, setPath] = useState([])
-  const rootRef = useRef(null)
-  const fileRef = useRef(null)
+  const [path, setPath] = useState([]);
+  const rootRef = useRef(null);
+  const fileRef = useRef(null);
 
   useEffect(() => {
-    if (!open) return
-    const onDocClick = event => {
-      if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false)
-    }
-    const onKey = event => { if (event.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', onDocClick)
-    document.addEventListener('keydown', onKey)
+    if (!open) return;
+    const onDocClick = (event) => {
+      if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false);
+    };
+    const onKey = (event) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
     return () => {
-      document.removeEventListener('mousedown', onDocClick)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
-  const close = () => { setOpen(false); setPath([]) }
+  const close = () => {
+    setOpen(false);
+    setPath([]);
+  };
 
-  const pick = node => {
-    if (node.kind === 'person') onAddPerson(node.value)
-    else if (node.kind === 'primitive') onAddPrimitive(node.value)
-    else if (node.kind === 'import') fileRef.current?.click()
-    close()
-  }
+  const pick = (node) => {
+    if (node.kind === 'person') onAddPerson(node.value);
+    else if (node.kind === 'primitive') onAddPrimitive(node.value);
+    else if (node.kind === 'import') fileRef.current?.click();
+    close();
+  };
 
   // 根据 path 逐级取出每一列要渲染的节点列表
-  const columns: AssetNode[][] = [ASSET_TREE]
-  let cursor: AssetNode[] = ASSET_TREE
+  const columns: AssetNode[][] = [ASSET_TREE];
+  let cursor: AssetNode[] = ASSET_TREE;
   for (const idx of path) {
-    const next = cursor[idx]?.children
-    if (!next) break
-    columns.push(next)
-    cursor = next
+    const next = cursor[idx]?.children;
+    if (!next) break;
+    columns.push(next);
+    cursor = next;
   }
 
   const enterColumn = (depth, index) => {
     // depth 为当前列的层级（0 起），点击后展开/收起对应下一列
-    const base = path.slice(0, depth)
+    const base = path.slice(0, depth);
     if (path[depth] === index) {
       // 再次 hover 同一项不重复；点击有子项的项则展开到这一级
-      setPath([...base, index])
+      setPath([...base, index]);
     } else {
-      setPath([...base, index])
+      setPath([...base, index]);
     }
-  }
+  };
 
   return (
     <div className="asset-menu-root" ref={rootRef}>
       <button
         type="button"
         className={`asset-menu-trigger ${open ? 'is-open' : ''}`}
-        onClick={() => { open ? close() : setOpen(true) }}
+        onClick={() => {
+          open ? close() : setOpen(true);
+        }}
         aria-haspopup="menu"
         aria-expanded={open}
       >
@@ -139,26 +146,34 @@ export function AssetMenu({ onAddPerson, onAddPrimitive, onImport }) {
           {columns.map((col, depth) => (
             <ul className="asset-menu-col" key={depth}>
               {col.map((node, i) => {
-                const selected = path[depth] === i
-                const leaf = isLeaf(node)
+                const selected = path[depth] === i;
+                const leaf = isLeaf(node);
                 return (
                   <li
                     key={node.label}
                     className={`asset-menu-item ${selected ? 'is-active' : ''} ${leaf ? 'is-leaf' : ''}`}
-                    onMouseEnter={() => { if (!leaf) enterColumn(depth, i) }}
-                    onClick={() => leaf ? pick(node) : enterColumn(depth, i)}
+                    onMouseEnter={() => {
+                      if (!leaf) enterColumn(depth, i);
+                    }}
+                    onClick={() => (leaf ? pick(node) : enterColumn(depth, i))}
                   >
                     {node.icon && depth === 0 && <node.icon size={15} strokeWidth={1.4} />}
                     <span>{node.label}</span>
                     {!leaf && <ChevronRight size={13} className="asset-menu-caret" />}
                   </li>
-                )
+                );
               })}
             </ul>
           ))}
         </div>
       )}
-      <input ref={fileRef} className="visually-hidden" type="file" accept=".glb,.gltf" onChange={onImport} />
+      <input
+        ref={fileRef}
+        className="visually-hidden"
+        type="file"
+        accept=".glb,.gltf"
+        onChange={onImport}
+      />
     </div>
-  )
+  );
 }

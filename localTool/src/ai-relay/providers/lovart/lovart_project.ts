@@ -162,13 +162,21 @@ export function isLovartProjectInvalid(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const msg = String((err as { message?: unknown }).message ?? '').toLowerCase();
   const hints = [
-    'not found', 'not exist', 'does not exist', 'invalid', 'expired',
-    'deleted', 'missing', 'unknown project', '项目不存在', '已删除', '失效', '不存在',
+    'not found',
+    'not exist',
+    'does not exist',
+    'invalid',
+    'expired',
+    'deleted',
+    'missing',
+    'unknown project',
+    '项目不存在',
+    '已删除',
+    '失效',
+    '不存在',
   ];
   if (hints.some((h) => msg.includes(h))) return true;
-  const status =
-    (err as { status?: unknown }).status ??
-    (err as { code?: unknown }).code;
+  const status = (err as { status?: unknown }).status ?? (err as { code?: unknown }).code;
   const n = typeof status === 'number' ? status : Number(status);
   if ((n === 400 || n === 404 || n === 409) && msg.includes('project')) return true;
   return false;

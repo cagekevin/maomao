@@ -188,9 +188,7 @@ for (const dep of found) {
 // 「未装 / 待施工」本就无依赖目录；「已归档 / 已销毁」是主动删的——都不是幽灵
 const ghosts = ledger.filter(
   (e) =>
-    !matched.has(e.path) &&
-    !/未装|待施工|^-+$/.test(e.size) &&
-    !/已归档|已销毁/.test(e.status)
+    !matched.has(e.path) && !/未装|待施工|^-+$/.test(e.size) && !/已归档|已销毁/.test(e.status),
 );
 
 // ---------------- 输出 ----------------
@@ -206,7 +204,9 @@ line(`【① 漏记 —— 磁盘已装，台账没有】 ${missing.length} 项`
 if (!missing.length) line('  ✅ 无');
 for (const d of missing) {
   line(`  ⚠️  ${d.path}`);
-  line(`      ${d.marker} · ${d.sizeMB} MB · 最后改动 ${fmtDate(d.mtime)}（${age_days(d.mtime)} 天前）`);
+  line(
+    `      ${d.marker} · ${d.sizeMB} MB · 最后改动 ${fmtDate(d.mtime)}（${age_days(d.mtime)} 天前）`,
+  );
 }
 line();
 
@@ -224,7 +224,9 @@ line(`【④ 该归档 —— ≥ ${STALE_DAYS} 天未动】 ${stale.length} 项
 if (!stale.length) line('  ✅ 无');
 for (const s of stale) {
   line(`  📦 ${s.dep.path}`);
-  line(`      ${s.dep.sizeMB} MB · 最后改动 ${fmtDate(s.dep.mtime)}（${age_days(s.dep.mtime)} 天前）· 归属 ${s.owner ? s.owner.name : '未登记'}`);
+  line(
+    `      ${s.dep.sizeMB} MB · 最后改动 ${fmtDate(s.dep.mtime)}（${age_days(s.dep.mtime)} 天前）· 归属 ${s.owner ? s.owner.name : '未登记'}`,
+  );
 }
 line();
 

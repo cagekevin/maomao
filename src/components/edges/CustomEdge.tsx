@@ -1,6 +1,12 @@
-import React from 'react'
-import { getBezierPath, EdgeLabelRenderer, Position, useReactFlow, type EdgeProps } from '@xyflow/react'
-import Comet from './Comet.tsx'
+import React from 'react';
+import {
+  getBezierPath,
+  EdgeLabelRenderer,
+  Position,
+  useReactFlow,
+  type EdgeProps,
+} from '@xyflow/react';
+import Comet from './Comet.tsx';
 
 /**
  * 自定义连线（复刻原 Mg.jsx）
@@ -16,27 +22,27 @@ function CustomEdge({
   targetY,
   markerEnd,
   selected,
-  data
+  data,
 }: EdgeProps) {
-  const relatedToSelected = !!data?.relatedToSelected
+  const relatedToSelected = !!data?.relatedToSelected;
   const [path, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
     sourcePosition: Position.Right,
     targetX,
     targetY,
-    targetPosition: Position.Left
-  })
+    targetPosition: Position.Left,
+  });
 
-  const { deleteElements } = useReactFlow()
+  const { deleteElements } = useReactFlow();
   const removeEdge = (evt) => {
-    evt.stopPropagation()
+    evt.stopPropagation();
     // 用 ReactFlow 官方 deleteElements 删边（比自定义事件更可靠）
-    deleteElements({ edges: [{ id }] })
-  }
+    deleteElements({ edges: [{ id }] });
+  };
 
-  const active = !!selected || !!relatedToSelected // 触发特效（comet + 加亮）
-  const mpathId = `cust-edge-mpath-${id}`
+  const active = !!selected || !!relatedToSelected; // 触发特效（comet + 加亮）
+  const mpathId = `cust-edge-mpath-${id}`;
 
   return (
     <>
@@ -72,7 +78,7 @@ function CustomEdge({
               pointerEvents: 'all',
               opacity: 1,
               zIndex: 1000,
-              transition: 'opacity 0.2s'
+              transition: 'opacity 0.2s',
             }}
             className="nodrag nopan group/edge hover:opacity-100"
             onPointerDown={(e) => e.stopPropagation()} // 阻止画布拖拽/选中接管，确保点击可靠
@@ -90,6 +96,6 @@ function CustomEdge({
         </EdgeLabelRenderer>
       )}
     </>
-  )
+  );
 }
-export default React.memo(CustomEdge)
+export default React.memo(CustomEdge);

@@ -1,17 +1,17 @@
-import { useCallback } from 'react'
-import type { SyntheticEvent } from 'react'
-import { useReactFlow } from '@xyflow/react'
-import { useNodeResize } from '../components/base/core/uiHooks.ts'
+import { useCallback } from 'react';
+import type { SyntheticEvent } from 'react';
+import { useReactFlow } from '@xyflow/react';
+import { useNodeResize } from '../components/base/core/uiHooks.ts';
 
 /** 媒体真实宽高 → 按比例调整节点形状（宽保持，高 = 宽 / 比例） */
-export type FitByRatio = (naturalW: number, naturalH: number) => void
+export type FitByRatio = (naturalW: number, naturalH: number) => void;
 
 export interface FitNodeRatioApi {
-  fitByRatio: FitByRatio
+  fitByRatio: FitByRatio;
   /** 供 <img onLoad={fitFromImage}> 直接透传 */
-  fitFromImage: (e: SyntheticEvent<HTMLImageElement>) => void
+  fitFromImage: (e: SyntheticEvent<HTMLImageElement>) => void;
   /** 供 <video onLoadedMetadata={fitFromVideo}> 直接透传 */
-  fitFromVideo: (e: SyntheticEvent<HTMLVideoElement>) => void
+  fitFromVideo: (e: SyntheticEvent<HTMLVideoElement>) => void;
 }
 
 /**
@@ -28,35 +28,37 @@ export interface FitNodeRatioApi {
  * @returns {Function} fitByRatio(naturalW, naturalH) 传入媒体真实宽高即调整节点形状
  */
 export function useFitNodeRatio(id: string): FitNodeRatioApi {
-  const { getNode } = useReactFlow()
-  const { onMainBoxResize } = useNodeResize(id)
+  const { getNode } = useReactFlow();
+  const { onMainBoxResize } = useNodeResize(id);
 
   const fitByRatio = useCallback<FitByRatio>(
     (naturalW, naturalH) => {
-      if (!naturalW || !naturalH) return
-      const ratio = naturalW / naturalH
-      if (!isFinite(ratio) || ratio <= 0) return
-      const curNode = getNode(id)
+      if (!naturalW || !naturalH) return;
+      const ratio = naturalW / naturalH;
+      if (!isFinite(ratio) || ratio <= 0) return;
+      const curNode = getNode(id);
       // style.width/height 在 ReactFlow 里可能是字符串（'260px'），统一 Number 化保证后续算术合法
-      const curW = Number(curNode?.width ?? curNode?.style?.width ?? 260)
-      const h = Math.round(curW / ratio)
-      const clamped = Math.min(900, Math.max(80, h))
-      const curH = Number(curNode?.height ?? curNode?.style?.height ?? 0)
-      if (Math.abs(clamped - curH) < 4) return
-      onMainBoxResize(Math.round(curW), clamped)
+      const curW = Number(curNode?.width ?? curNode?.style?.width ?? 260);
+      const h = Math.round(curW / ratio);
+      const clamped = Math.min(900, Math.max(80, h));
+      const curH = Number(curNode?.height ?? curNode?.style?.height ?? 0);
+      if (Math.abs(clamped - curH) < 4) return;
+      onMainBoxResize(Math.round(curW), clamped);
     },
-    [id, getNode, onMainBoxResize]
-  )
+    [id, getNode, onMainBoxResize],
+  );
 
   // 便捷绑定：图片 img.onLoad / 视频 video.onLoadedMetadata 直接透传
   const fitFromImage = useCallback(
-    (e: SyntheticEvent<HTMLImageElement>) => fitByRatio(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight),
-    [fitByRatio]
-  )
+    (e: SyntheticEvent<HTMLImageElement>) =>
+      fitByRatio(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight),
+    [fitByRatio],
+  );
   const fitFromVideo = useCallback(
-    (e: SyntheticEvent<HTMLVideoElement>) => fitByRatio(e.currentTarget.videoWidth, e.currentTarget.videoHeight),
-    [fitByRatio]
-  )
+    (e: SyntheticEvent<HTMLVideoElement>) =>
+      fitByRatio(e.currentTarget.videoWidth, e.currentTarget.videoHeight),
+    [fitByRatio],
+  );
 
-  return { fitByRatio, fitFromImage, fitFromVideo }
+  return { fitByRatio, fitFromImage, fitFromVideo };
 }

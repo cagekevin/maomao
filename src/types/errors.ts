@@ -4,4 +4,4 @@
  */
 
 /** 错误分类枚举（genErrors.classifyError 的可决策类型；与 contracts.ts GEN_ERRORS 键对齐） */
-export type ErrorKind = 'abort' | 'timeout' | 'network' | 'http' | 'business'
+export type ErrorKind = 'abort' | 'timeout' | 'network' | 'http' | 'business';

@@ -22,11 +22,19 @@ import { fetchProviderModelCatalog } from './providerCatalogFetch.js';
 import { testConnection } from './connection.js';
 import * as protocol from './protocol/index.js';
 import {
-  chat, streamChat, chatWithTools, generateImage, generateVideo, generateAudio, getModelProtocolPreset,
+  chat,
+  streamChat,
+  chatWithTools,
+  generateImage,
+  generateVideo,
+  generateAudio,
+  getModelProtocolPreset,
 } from './generate.js';
 import { parseStream } from './assistantStream.js';
 import {
-  generateImageLovart, generateVideoLovart, streamChatLovart,
+  generateImageLovart,
+  generateVideoLovart,
+  streamChatLovart,
 } from './providers/lovart/index.js';
 import { LOVART_DIRECT_BASE_URL } from './providerEndpoints.js';
 import type {
@@ -45,10 +53,20 @@ import type {
 import type { LovartDirectProfile } from './providers/lovart/lovart_contract.js';
 
 export { baseUrlCandidates, normalizeBaseUrl } from './providerBaseUrl.js';
-export { stableRequest, readCapped, buildAuthHeaders, RelayHttpError, DEFAULT_MAX_BYTES } from './httpTransport.js';
 export {
-  getProviderDefinitions, getProviderDefinition, isProviderModelVisible, isWebSearchProviderId,
-  WEB_SEARCH_PROVIDER_IDS, BUILT_IN_PROVIDER_DEFINITIONS,
+  stableRequest,
+  readCapped,
+  buildAuthHeaders,
+  RelayHttpError,
+  DEFAULT_MAX_BYTES,
+} from './httpTransport.js';
+export {
+  getProviderDefinitions,
+  getProviderDefinition,
+  isProviderModelVisible,
+  isWebSearchProviderId,
+  WEB_SEARCH_PROVIDER_IDS,
+  BUILT_IN_PROVIDER_DEFINITIONS,
 } from './providerCatalog.js';
 export { fetchProviderModelCatalog } from './providerCatalogFetch.js';
 export { testConnection } from './connection.js';
@@ -56,7 +74,15 @@ export { testConnection } from './connection.js';
 /** 声明式调用协议引擎（请求体序列化 / 模板渲染 / 同步·异步执行 / 轮询重试 / 结果抽取）。 */
 export { protocol };
 /** 各模态「配套支持」入口：文本（流式/非流式/带工具）、图片、视频、音频。 */
-export { chat, streamChat, chatWithTools, generateImage, generateVideo, generateAudio, getModelProtocolPreset };
+export {
+  chat,
+  streamChat,
+  chatWithTools,
+  generateImage,
+  generateVideo,
+  generateAudio,
+  getModelProtocolPreset,
+};
 
 export function listProviders() {
   return getProviderDefinitions();
@@ -79,11 +105,13 @@ export function createRelay(config: CreateRelayConfig) {
   const definition = getProviderDefinition(config.providerId, config);
   if (!definition) throw new Error(`未知厂商目录：${config.providerId}`);
 
-  const effectiveBaseUrl = definition.allowCustomBaseUrl || !definition.defaultBaseUrl
-    ? (config.baseUrl || definition.defaultBaseUrl)
-    : definition.defaultBaseUrl;
+  const effectiveBaseUrl =
+    definition.allowCustomBaseUrl || !definition.defaultBaseUrl
+      ? config.baseUrl || definition.defaultBaseUrl
+      : definition.defaultBaseUrl;
   const candidates = baseUrlCandidates(effectiveBaseUrl ?? '');
-  const auth = config.auth ?? (definition.authType === 'oauth' ? { type: 'oauth' } : { type: 'bearer' });
+  const auth =
+    config.auth ?? (definition.authType === 'oauth' ? { type: 'oauth' } : { type: 'bearer' });
 
   const relay = {
     providerId: config.providerId,
@@ -99,7 +127,11 @@ export function createRelay(config: CreateRelayConfig) {
     },
     /** 测试连接是否可用。 */
     testConnection(signal: AbortSignal | undefined) {
-      return testConnection(config.providerId, { apiKey: config.apiKey, baseUrl: effectiveBaseUrl, catalogId: config.catalogId }, signal);
+      return testConnection(
+        config.providerId,
+        { apiKey: config.apiKey, baseUrl: effectiveBaseUrl, catalogId: config.catalogId },
+        signal,
+      );
     },
     /**
      * 发起一次稳定请求。path 相对 baseUrl；自动套用 baseUrl 候选、requestQuery、鉴权、重试。
@@ -139,8 +171,10 @@ export function createRelay(config: CreateRelayConfig) {
 
   // ── 分流：lovart（原生直连）走 providers/lovart 命令式 adapter（HMAC 原生协议）──
   if (config.providerId === 'lovart') {
-    const accessKey = config.accessKey ?? (config.auth?.type === 'hmac' ? config.auth.accessKey : undefined);
-    const secretKey = config.secretKey ?? (config.auth?.type === 'hmac' ? config.auth.secretKey : undefined);
+    const accessKey =
+      config.accessKey ?? (config.auth?.type === 'hmac' ? config.auth.accessKey : undefined);
+    const secretKey =
+      config.secretKey ?? (config.auth?.type === 'hmac' ? config.auth.secretKey : undefined);
     if (!accessKey || !secretKey) {
       throw new Error('lovart 需要 accessKey 与 secretKey（HMAC 鉴权）');
     }
@@ -154,14 +188,28 @@ export function createRelay(config: CreateRelayConfig) {
       ...relay,
       providerId: 'lovart',
       generateImage(opts: GenerateImageOptions) {
-        return generateImageLovart({ ...profile, signal: opts.signal, timeoutMs: opts.timeoutMs ?? profile.timeoutMs }, opts);
+        return generateImageLovart(
+          { ...profile, signal: opts.signal, timeoutMs: opts.timeoutMs ?? profile.timeoutMs },
+          opts,
+        );
       },
       generateVideo(opts: GenerateVideoOptions) {
-        return generateVideoLovart({ ...profile, signal: opts.signal, timeoutMs: opts.timeoutMs ?? profile.timeoutMs }, opts);
+        return generateVideoLovart(
+          { ...profile, signal: opts.signal, timeoutMs: opts.timeoutMs ?? profile.timeoutMs },
+          opts,
+        );
       },
       async streamChat(opts: StreamChatOptions) {
-        const response = await streamChatLovart({ ...profile, signal: opts.signal, timeoutMs: opts.timeoutMs ?? profile.timeoutMs }, opts);
-        return parseStream(response, { requestId: '', modelId: opts.model, onEvent: opts.onEvent, signal: opts.signal });
+        const response = await streamChatLovart(
+          { ...profile, signal: opts.signal, timeoutMs: opts.timeoutMs ?? profile.timeoutMs },
+          opts,
+        );
+        return parseStream(response, {
+          requestId: '',
+          modelId: opts.model,
+          onEvent: opts.onEvent,
+          signal: opts.signal,
+        });
       },
     };
   }

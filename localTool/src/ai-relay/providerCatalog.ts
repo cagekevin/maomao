@@ -7,9 +7,18 @@
  * 下游的「稳定连接」完全基于这张表驱动。
  */
 import {
-  APIMART_BASE_URL, BOCHA_SEARCH_BASE_URL, EXA_SEARCH_BASE_URL, GRSAI_BASE_URL,
-  RUNNINGHUB_MODEL_BASE_URL, TAVILY_BASE_URL, VOLCENGINE_BASE_URL, ZHIPU_SEARCH_BASE_URL,
-  SORA2U_BASE_URL, SORA2U_REQUEST_QUERY, XAI_BASE_URL, GOOGLE_GEMINI_BASE_URL,
+  APIMART_BASE_URL,
+  BOCHA_SEARCH_BASE_URL,
+  EXA_SEARCH_BASE_URL,
+  GRSAI_BASE_URL,
+  RUNNINGHUB_MODEL_BASE_URL,
+  TAVILY_BASE_URL,
+  VOLCENGINE_BASE_URL,
+  ZHIPU_SEARCH_BASE_URL,
+  SORA2U_BASE_URL,
+  SORA2U_REQUEST_QUERY,
+  XAI_BASE_URL,
+  GOOGLE_GEMINI_BASE_URL,
   LOVART_DIRECT_BASE_URL,
 } from './providerEndpoints.js';
 import { XAI_MODEL_MANIFEST } from './manifests/xaiModelManifest.js';
@@ -19,7 +28,12 @@ import { RUNNINGHUB_MODEL_MANIFEST } from './manifests/runninghubModelManifest.j
 import { LOVART_MODEL_MANIFEST } from './manifests/lovartModelManifest.js';
 import type { ProviderDefinition } from './types.js';
 
-const API_KEY_FIELD: ProviderDefinition['credentials'][number] = { key: 'apiKey', label: 'API Key', required: true, secret: true };
+const API_KEY_FIELD: ProviderDefinition['credentials'][number] = {
+  key: 'apiKey',
+  label: 'API Key',
+  required: true,
+  secret: true,
+};
 
 export const WEB_SEARCH_PROVIDER_IDS = ['tavily', 'bocha', 'zhipu-search', 'exa'];
 
@@ -34,7 +48,10 @@ export const BUILT_IN_PROVIDER_DEFINITIONS: ProviderDefinition[] = [
     defaultBaseUrl: APIMART_BASE_URL,
     modelsPath: '/models',
     allowCustomBaseUrl: false,
-    credentials: [API_KEY_FIELD, { key: 'baseUrl', label: '接口地址', required: false, placeholder: APIMART_BASE_URL }],
+    credentials: [
+      API_KEY_FIELD,
+      { key: 'baseUrl', label: '接口地址', required: false, placeholder: APIMART_BASE_URL },
+    ],
   },
   {
     id: 'xai',
@@ -84,7 +101,10 @@ export const BUILT_IN_PROVIDER_DEFINITIONS: ProviderDefinition[] = [
     defaultBaseUrl: VOLCENGINE_BASE_URL,
     modelsPath: '/models',
     allowCustomBaseUrl: false,
-    credentials: [API_KEY_FIELD, { key: 'baseUrl', label: '接口地址', required: false, placeholder: VOLCENGINE_BASE_URL }],
+    credentials: [
+      API_KEY_FIELD,
+      { key: 'baseUrl', label: '接口地址', required: false, placeholder: VOLCENGINE_BASE_URL },
+    ],
   },
   {
     id: 'runninghub-model',
@@ -94,7 +114,13 @@ export const BUILT_IN_PROVIDER_DEFINITIONS: ProviderDefinition[] = [
     authType: 'api-key',
     catalogAdapter: 'local-manifest',
     defaultBaseUrl: RUNNINGHUB_MODEL_BASE_URL,
-    credentials: [{ ...API_KEY_FIELD, label: '企业级-共享 API Key', placeholder: '用于 RunningHub 标准模型 API' }],
+    credentials: [
+      {
+        ...API_KEY_FIELD,
+        label: '企业级-共享 API Key',
+        placeholder: '用于 RunningHub 标准模型 API',
+      },
+    ],
     models: RUNNINGHUB_MODEL_MANIFEST,
   },
   {
@@ -106,7 +132,10 @@ export const BUILT_IN_PROVIDER_DEFINITIONS: ProviderDefinition[] = [
     catalogAdapter: 'local-manifest',
     defaultBaseUrl: GRSAI_BASE_URL,
     allowCustomBaseUrl: false,
-    credentials: [API_KEY_FIELD, { key: 'baseUrl', label: '接口地址', required: false, placeholder: GRSAI_BASE_URL }],
+    credentials: [
+      API_KEY_FIELD,
+      { key: 'baseUrl', label: '接口地址', required: false, placeholder: GRSAI_BASE_URL },
+    ],
     // GRSAI 原工程未内置模型清单：连接层返回空，由用户填模型 ID 或远程拉取补充。
     models: [],
   },
@@ -201,7 +230,10 @@ export function getProviderDefinitions(): ProviderDefinition[] {
   return BUILT_IN_PROVIDER_DEFINITIONS;
 }
 
-export function getProviderDefinition(providerId: string, config?: string | { catalogId?: string } | null): ProviderDefinition | undefined {
+export function getProviderDefinition(
+  providerId: string,
+  config?: string | { catalogId?: string } | null,
+): ProviderDefinition | undefined {
   const catalogId = config && typeof config === 'object' ? config.catalogId : config;
   return PROVIDER_DEFINITION_MAP.get(catalogId || providerId);
 }

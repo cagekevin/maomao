@@ -10,11 +10,15 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = process.argv[2];
-if (!ROOT) { console.error('用法: node fix_cmp_imported.cjs <工程根目录>'); process.exit(1); }
+if (!ROOT) {
+  console.error('用法: node fix_cmp_imported.cjs <工程根目录>');
+  process.exit(1);
+}
 
 function walk(dir, cb) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (e.name === 'node_modules' || e.name === 'dist' || e.name === '.vite' || e.name === '.git') continue;
+    if (e.name === 'node_modules' || e.name === 'dist' || e.name === '.vite' || e.name === '.git')
+      continue;
     const p = path.join(dir, e.name);
     if (e.isDirectory()) walk(p, cb);
     else if (/\.(jsx?|mjs|cjs)$/.test(e.name)) cb(p);
@@ -24,7 +28,8 @@ function walk(dir, cb) {
 // 匹配整条 import { ... } from '...';
 const IMPORT_RE = /import\s*\{([^}]*)\}\s*from\s*(['"])([^'"]+)\2\s*;?/g;
 
-let fileCount = 0, fixCount = 0;
+let fileCount = 0,
+  fixCount = 0;
 walk(ROOT, (fp) => {
   const src = fs.readFileSync(fp, 'utf8');
   if (!src.includes('_cmp_')) return;
@@ -36,14 +41,19 @@ walk(ROOT, (fp) => {
     // 这里针对 ../vendor-*.js / ../src-*.js 这类外部 chunk
     if (!/^\.\.\//.test(source)) return whole;
 
-    const newBody = body.replace(
-      /(^|,)(\s*)_cmp_([A-Za-z_$][\w$]*)(\s+as\s+)/g,
-      (m, lead, sp, name, asPart) => { localFix++; return `${lead}${sp}${name}${asPart}`; }
-    ).replace(
-      // 无 as 的裸形式: { _cmp_X }
-      /(^|,)(\s*)_cmp_([A-Za-z_$][\w$]*)(\s*)(?=,|$)/g,
-      (m, lead, sp, name, tail) => { localFix++; return `${lead}${sp}${name} as _cmp_${name}${tail}`; }
-    );
+    const newBody = body
+      .replace(/(^|,)(\s*)_cmp_([A-Za-z_$][\w$]*)(\s+as\s+)/g, (m, lead, sp, name, asPart) => {
+        localFix++;
+        return `${lead}${sp}${name}${asPart}`;
+      })
+      .replace(
+        // 无 as 的裸形式: { _cmp_X }
+        /(^|,)(\s*)_cmp_([A-Za-z_$][\w$]*)(\s*)(?=,|$)/g,
+        (m, lead, sp, name, tail) => {
+          localFix++;
+          return `${lead}${sp}${name} as _cmp_${name}${tail}`;
+        },
+      );
     return whole.replace(body, newBody);
   });
 

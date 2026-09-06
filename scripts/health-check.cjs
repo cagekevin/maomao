@@ -24,7 +24,8 @@ const ROOT = path.resolve(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 const SNAPSHOT = path.join(__dirname, 'dist-snapshot.json');
 
-let errors = 0, warns = 0;
+let errors = 0,
+  warns = 0;
 const check = (label, ok, detail = '') => {
   console.log(`  ${ok ? '✅' : '❌'} ${label}${detail ? '  ' + detail : ''}`);
   if (!ok) errors++;
@@ -84,7 +85,7 @@ for (const [f, name] of files) {
 console.log('\n🔧 npm scripts');
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
 ['dev', 'build', 'test:smoke', 'test:regression', 'test:tools', 'test:all'].forEach((s) =>
-  check(`scripts.${s}`, !!pkg.scripts[s], `package.json 缺 scripts.${s}`)
+  check(`scripts.${s}`, !!pkg.scripts[s], `package.json 缺 scripts.${s}`),
 );
 
 // ── 3. 构建 ──
@@ -144,7 +145,10 @@ let tdzHits = 0;
   if (!fs.existsSync(d)) return;
   for (const e of fs.readdirSync(d, { withFileTypes: true })) {
     const p = path.join(d, e.name);
-    if (e.isDirectory()) { walkDir(p); continue; }
+    if (e.isDirectory()) {
+      walkDir(p);
+      continue;
+    }
     if (!/\.(jsx|js|ts|tsx)$/.test(e.name)) continue;
     const code = fs.readFileSync(p, 'utf-8');
     // 逐行扫描并跳过注释（2026-09-04 修误报）：源码注释常引用报错文案（如 "xxx is not a function"）
@@ -214,9 +218,16 @@ if (!fs.existsSync(SNAPSHOT)) {
   for (const k of allKeys) {
     const a = prevFlat[k];
     const b = curFlat[k];
-    if (a === undefined) { console.log(`  ⚠️ 新增: ${k}`); diffs++; }
-    else if (b === undefined) { console.log(`  ⚠️ 删除: ${k}`); diffs++; }
-    else if (Math.abs(a - b) > a * 0.1 + 1024) { console.log(`  ⚠️ 体积变化: ${k} ${a}B → ${b}B`); diffs++; }
+    if (a === undefined) {
+      console.log(`  ⚠️ 新增: ${k}`);
+      diffs++;
+    } else if (b === undefined) {
+      console.log(`  ⚠️ 删除: ${k}`);
+      diffs++;
+    } else if (Math.abs(a - b) > a * 0.1 + 1024) {
+      console.log(`  ⚠️ 体积变化: ${k} ${a}B → ${b}B`);
+      diffs++;
+    }
   }
   if (diffs === 0) console.log('  ✅ dist 与基线一致（无新增/删除/显著体积变化）');
   else warn('dist 基线', false, `${diffs} 处差异（dist 已更新后请重新生成基线）`);
@@ -236,15 +247,25 @@ function flatten(obj, p = '', out = {}) {
 // 若出现 ADR 文件 → error 阻断；若决策铁律被误删 → error 阻断。不靠 AI 自觉，靠门禁拦截。
 console.log('\n🔒 决策渠道门禁');
 const adrDir = path.join(ROOT, 'docs/adr');
-const adrFiles = fs.existsSync(adrDir)
-  ? fs.readdirSync(adrDir).filter((f) => /\.md$/.test(f))
-  : [];
-check('docs/adr/ 无 ADR 文件（决策渠道 = CONTEXT + 代码注释）', adrFiles.length === 0, adrFiles.length ? `发现: ${adrFiles.join(', ')}` : '');
+const adrFiles = fs.existsSync(adrDir) ? fs.readdirSync(adrDir).filter((f) => /\.md$/.test(f)) : [];
+check(
+  'docs/adr/ 无 ADR 文件（决策渠道 = CONTEXT + 代码注释）',
+  adrFiles.length === 0,
+  adrFiles.length ? `发现: ${adrFiles.join(', ')}` : '',
+);
 
-const claude = fs.existsSync(path.join(ROOT, 'CLAUDE.md')) ? fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf-8') : '';
-check('CLAUDE.md 含「决策记录铁律」', /决策记录铁律/.test(claude), '铁律被删除会破坏决策渠道一致性');
+const claude = fs.existsSync(path.join(ROOT, 'CLAUDE.md'))
+  ? fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf-8')
+  : '';
+check(
+  'CLAUDE.md 含「决策记录铁律」',
+  /决策记录铁律/.test(claude),
+  '铁律被删除会破坏决策渠道一致性',
+);
 
 console.log('\n═'.repeat(54));
-console.log(`  结论: ${errors ? `❌ ${errors} 处错误` : '✅ 无错误'}${warns ? `，⚠️ ${warns} 处警告` : ''}`);
+console.log(
+  `  结论: ${errors ? `❌ ${errors} 处错误` : '✅ 无错误'}${warns ? `，⚠️ ${warns} 处警告` : ''}`,
+);
 console.log('═'.repeat(54));
 process.exit(errors ? 1 : 0);
