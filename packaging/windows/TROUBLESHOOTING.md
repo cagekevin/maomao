@@ -125,6 +125,25 @@ tasklist | findstr node               # 所有 node 进程
 
 ---
 
+## 5.5 退出会不会留孤儿 node？（Windows 已安全，别照搬 Mac 的修法）
+
+**背景**：2026-09-06 在 Mac 上发现一个真 bug——Mac 菜单栏工具退出时只杀了 `npm`，没杀它拉起的 `node` 孙进程，导致 node 变孤儿继续占 18080。
+**结论：Windows 没有这个问题，机制更安全，无需照 Mac 改。**
+
+Windows 为何安全（三重保障）：
+1. **无 npm 中间层**：`Start-LocalTool` 用 `Start-Process node dist\index.js` **直接跑 node**，
+   `LocalToolPid` 就是真正的后端进程，不是 npm。
+2. **正常退出清整树**：`Stop-ProcessTree` = `taskkill /PID <pid> /T /F`，`/T` 连带杀整棵子进程树，
+   等价于 Mac 后来加的 `killProcessTree`，Windows 本来就内置。
+3. **崩溃/强杀内核兜底**：node 加入 **Job Object**（`KILL_ON_JOB_CLOSE`）——托盘 exe 无论怎么死
+   （正常/崩溃/被任务管理器结束），Windows 内核都会自动回收 Job 内所有 node。这是 Mac 没有的。
+
+**所以 Windows 上：点「退出」会清干净；托盘 exe 被强杀，node 也会被系统回收。不用处理。**
+
+**明天要留意/可复核的点**：若哪天发现 18080 仍被占，按 §4.1 用 `netstat` 查；清理用 §5 的命令。
+
+---
+
 ## 6. 如果我改坏了脚本 / 想还原
 
 所有改动集中在 **`packaging/windows/launch-all.ps1`**，其余文件（build-exe/refresh-icon/ico）基本没动。
@@ -145,9 +164,15 @@ tasklist | findstr node               # 所有 node 进程
 - **单实例改成 flock 文件锁**（`/tmp/maomao_launcher.lock`，原子互斥，崩溃自动释放），替换旧的 PID 探测。
 - **菜单栏图标旁有状态文字**：编译中/失败✗/后端崩溃⚠，不再只靠系统通知。
 - **「查看日志」** 改为优先打开有内容的 `localtool_18080.log`（旧版打开空 err.log 会没反应）。
+- **退出孤儿进程修复（重点，2026-09-06）**：原 `stopBackend` 只杀 npm（`launcher→npm→node` 中间层），
+  node 孙进程会变孤儿继续占 18080（实测父进程变 launchd）。已新增 `killProcessTree`（用 `pgrep -P`
+  递归收后代、先杀叶再杀根），应用到 `stopBackend`/`restartBackend`/`killPort`。修复后点退出实测
+  launcher/npm/node 全清、18080 完全释放。**注意：Mac 没有 Windows 的 Job Object 内核兜底，launcher
+  被 `kill -9`/崩溃时 node 仍可能残留，靠下次启动前 `killPort` 自愈（不堆积）。**
 - 排查 Mac 后端：`localTool/localtool_18080.log`；菜单栏工具构建日志：`.maomao_frontend_build.log`、`.maomao_backend_build.log`（项目根/隐藏文件）。
 - Mac 通知被"勿扰/专注模式"抑制是系统行为，非代码 bug（系统日志 `outcome: suppressed; reason: mode configuration type`），关专注模式即可。
 
 ---
 
-*本手册 2026-09-06 生成。排查顺序建议：日志（launcher.log / build_*.log）→ 端口（netstat）→ 进程（tasklist）→ 本文各节。*
+*本手册 2026-09-06 生成（同日补充 §5.5 退出孤儿清理说明、§7 Mac 进程树修复记录）。
+排查顺序建议：日志（launcher.log / build_*.log）→ 端口（netstat）→ 进程（tasklist）→ 本文各节。*
