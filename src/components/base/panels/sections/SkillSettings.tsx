@@ -18,6 +18,7 @@ import {
   deleteCustomSkill,
   setSkillEnabled,
   getAllEnabledMap,
+  type Skill,
 } from '../../store/skillStore.ts';
 import { showToast } from '../../core/toastStore.ts';
 import { askConfirm } from '../../core/confirmStore.ts';
@@ -67,7 +68,7 @@ export default function SkillSettings() {
   // 点击更多菜单外部关闭
   useEffect(() => {
     if (!moreOpen) return;
-    const close = (e) => {
+    const close = (e: Event) => {
       if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false);
     };
     document.addEventListener('mousedown', close, true);
@@ -91,17 +92,17 @@ export default function SkillSettings() {
 
   const selected = allSkills.find((s) => s.id === selectedId) || null;
 
-  const getEnabled = (id) => {
+  const getEnabled = (id: string) => {
     if (id in enabledMap) return !!enabledMap[id];
     return true;
   };
 
-  const handleToggle = (id, enabled) => {
+  const handleToggle = (id: string, enabled: boolean) => {
     setSkillEnabled(id, enabled);
     refreshEnabled();
   };
 
-  const handleSelect = (skill) => {
+  const handleSelect = (skill: Skill) => {
     setSelectedId(skill.id);
     setIsNew(false);
     setEditing(false);
@@ -388,7 +389,7 @@ export default function SkillSettings() {
           </div>
 
           {/* 底部导入/导出 */}
-          <div className="p-3 border-t border-edge-subtle flex gap-2">
+          <div className="px-3 py-4 border-t border-edge-subtle flex gap-2">
             <input
               ref={mdFileRef}
               type="file"
@@ -399,7 +400,7 @@ export default function SkillSettings() {
             />
             <button
               onClick={() => mdFileRef.current?.click()}
-              className="flex-1 h-8 rounded-lg bg-surface-1 text-xs text-body flex items-center justify-center gap-1.5 hover:bg-surface-hover transition cursor-pointer border-none"
+              className="flex-1 h-9 rounded-lg bg-surface-1 text-xs text-body flex items-center justify-center gap-1.5 hover:bg-surface-hover transition cursor-pointer border-none"
               title="导入 .md 为自定义 Skill"
             >
               <Upload size={13} /> 导入
@@ -583,36 +584,38 @@ export default function SkillSettings() {
             )}
           </div>
 
-          {/* footer */}
+          {/* footer：内容与上方编辑表单同列（max-w-3xl mx-auto）对齐，分隔线也画在该列上，避免横线/按钮比表单伸出 */}
           {showDetail && (editing || isNew) ? (
-            <div className="px-6 py-4 border-t border-edge-subtle flex items-center justify-between">
-              {selected && !selected.builtin && !isNew ? (
-                <button
-                  onClick={handleDelete}
-                  className="text-xs text-red-400 hover:text-red-300 transition cursor-pointer border-none bg-transparent"
-                >
-                  删除 Skill
-                </button>
-              ) : (
-                <span />
-              )}
-              <div className="flex gap-2">
-                <button
-                  onClick={cancel}
-                  className="px-4 h-9 rounded-xl text-xs text-body bg-surface-1 hover:bg-surface-hover transition cursor-pointer border-none"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleSave}
-                  className="px-5 h-9 rounded-xl text-xs font-medium bg-white text-black hover:bg-zinc-200 transition cursor-pointer border-none"
-                >
-                  {isNew ? '创建 Skill' : '保存修改'}
-                </button>
+            <div className="py-4 border-t border-edge-subtle">
+              <div className="px-6 max-w-3xl mx-auto flex items-center justify-between">
+                {selected && !selected.builtin && !isNew ? (
+                  <button
+                    onClick={handleDelete}
+                    className="text-xs text-red-400 hover:text-red-300 transition cursor-pointer border-none bg-transparent"
+                  >
+                    删除 Skill
+                  </button>
+                ) : (
+                  <span />
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={cancel}
+                    className="px-4 h-9 rounded-xl text-xs text-body bg-surface-1 hover:bg-surface-hover transition cursor-pointer border-none"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    className="px-5 h-9 rounded-xl text-xs font-medium bg-white text-black hover:bg-zinc-200 transition cursor-pointer border-none"
+                  >
+                    {isNew ? '创建 Skill' : '保存修改'}
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
-            <div className="px-6 py-3 border-t border-edge-subtle">
+            <div className="px-6 py-4 border-t border-edge-subtle">
               {/* 详情态底部留空，保持视觉平衡 */}
             </div>
           )}
