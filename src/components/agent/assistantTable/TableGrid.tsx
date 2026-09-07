@@ -112,11 +112,11 @@ export default function TableGrid({
         <td
           key={col.id}
           className={tdClass}
-          // mousedown 先于 click：仍设选区起点（Shift 扩选）。不阻止默认，但 cell div 不聚焦，故点一下不进入编辑。
+          /* 【业界铁律·cell 交互分工，勿互换】单击 = 选中整格（focusedCell，可复制）；双击 = 编辑（editingCell）。
+             二者不可合并到单击（否则退回旧「点即编辑、无法只选整格」的 textarea 病态）。
+             mousedown 仍先设选区起点（Shift 扩选），且不阻止默认 —— 但选中态 cell 是 div（不聚焦），点一下不落光标。 */
           onMouseDown={(e) => onCellPointerDown(e, row.id, col.id)}
-          // 单击 = 聚焦整格（业界"当前格"）；若正在编辑别的格，先把它提交退出（切格即提交）
           onClick={() => onFocusCell(row.id, col.id)}
-          // 双击 = 进入编辑态
           onDoubleClick={() => onEditCell(row.id, col.id)}
         >
           <CellEditor

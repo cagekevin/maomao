@@ -183,21 +183,28 @@ export default function AssistantTablePanel({
     setTableEditingCell(null);
   };
 
-  /** 单击格：若正在编辑另一格先提交它；再聚焦该格为「当前格」（不进入编辑），并清行多选（互斥） */
+  /**
+   * 【业界铁律·行选 vs 单格互斥（spec interaction-model §1.3/§3.1）】selectedRowIds（行）与 focusedCell（单格）
+   * 不可并存。必须**双向**清理，只做一边就会出「行也选了、单格还亮着」的脏叠加（2026-09-08 实测踩坑）：
+   *   - 点普通格聚焦 → 清行多选（本函数下方）；
+   *   - 点行号格选行 → 清 focusedCell/editingCell（见 onClickRow，勿漏）。
+   */
+  /** 单击格：若正在编辑另一格先提交它；再聚焦该格为「当前格」（不进入编辑），并清行多选（互斥右半） */
   const handleFocusCell = (rowId: string, colId: string) => {
     if (editingCell && !(editingCell.rowId === rowId && editingCell.colId === colId)) {
       commitEditingCellIfAny();
     }
     setTableFocusedCell({ rowId, colId });
-    if (selectedRowIds.length) setTableWorkspaceRows([]); // 普通格聚焦与行多选互斥
+    if (selectedRowIds.length) setTableWorkspaceRows([]); // 互斥：聚焦普通格即清行多选
   };
 
-  /** 双击格：先提交正在编辑的其它格，再进入编辑态（该格同时成为当前格） */
+  /** 双击格：先提交正在编辑的其它格，再进入编辑态（该格同时成为当前格），同样清行多选（互斥） */
   const handleEditCell = (rowId: string, colId: string) => {
     if (editingCell && !(editingCell.rowId === rowId && editingCell.colId === colId)) {
       commitEditingCellIfAny();
     }
     setTableFocusedCell({ rowId, colId });
+    if (selectedRowIds.length) setTableWorkspaceRows([]); // 双击进入编辑也属聚焦普通格，须清行多选
     setTableEditingCell({ rowId, colId });
   };
 
@@ -408,8 +415,8 @@ export default function AssistantTablePanel({
       next = selectedRowIds.length === 1 && selectedRowIds[0] === row.id ? [] : [row.id];
     }
     setTableWorkspaceRows(next);
-    // 行选中与单格聚焦互斥（spec interaction-model §3.1）：一旦有选中行，就清掉「当前格/编辑格」，
-    // 否则会出现「行也选了、单格还亮着」的脏叠加（用户 2026-09-08 反馈）。取消全部行选时不强制清。
+    // 【业界铁律·互斥左半】行选中与单格聚焦互斥：一旦有选中行，就清掉「当前格/编辑格」（否则出现
+    // 「行也选了、单格还亮着」脏叠加，2026-09-08 踩坑）。与 handleFocusCell 清行选成对 —— 双向缺一不可。
     if (next.length) {
       setTableFocusedCell(null);
       setTableEditingCell(null);
@@ -434,10 +441,10 @@ export default function AssistantTablePanel({
         if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
         return;
       }
-      // 非编辑态接管条件：事件目标在面板内，**或** 面板内已有聚焦格（focusedCell 非空）。
-      // ⚠️ 业界模型下选中格是只读 div（不聚焦），单击后 DOM 焦点常落在 body/别处 → keydown 的
-      //   e.target 不在面板内，原「contains 才接管」会把 Ctrl+C/V 整个拦掉（连 toast 都不弹）。
-      //   放宽为「已选中格就接管」，既不抢全局（无选中格且焦点在面板外 → return），又让复制粘贴可用。
+      // 【业界铁律·勿改回严格 contains 版】选中格是只读 div（不聚焦），单击后 DOM 焦点常落在 body →
+      //   keydown 的 e.target 不在面板内。若写成「仅 when panelRef.contains(t) 才接管」，Ctrl+C/V 会被
+      //   整个拦掉（连 toast 都不弹，2026-09-08 实测）。正确语义：已选中格（focusedCell）即接管复制粘贴；
+      //   仅在「无选中格 且 焦点在面板外」时才放行给全局，避免抢全局 Ctrl+C。
       const inPanel = !!panelRef.current?.contains(t);
       if (!inPanel && !focusedCell) return;
       const mod = e.metaKey || e.ctrlKey;
