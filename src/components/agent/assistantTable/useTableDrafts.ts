@@ -79,6 +79,13 @@ export function useTableDrafts(
     setColRenameDraft({});
   }, [activeConversationId]);
 
+  /** 清空全部本地草稿（撤销/重做/切 tab 后，表格已变，旧草稿指向过期行/列，必须清） */
+  const resetAllDrafts = () => {
+    setEdits({});
+    setColRenameDraft({});
+    setStyleDraft(globalStyle);
+  };
+
   return {
     cellValue,
     setCellDraft,
@@ -88,5 +95,6 @@ export function useTableDrafts(
     commitColRename,
     styleDraft,
     setStyleDraft,
+    resetAllDrafts,
   };
 }

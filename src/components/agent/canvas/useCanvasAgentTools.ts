@@ -27,8 +27,9 @@ import {
   setCreditGate,
   clearCreditGate,
   getCurrentAssistantTable,
+  getCurrentAssistantTabs,
 } from '../conversation/conversationStore.ts';
-import { rowToObj } from '../assistantTable/assistantTable.ts';
+import { rowToObj, getActiveTab } from '../assistantTable/assistantTable.ts';
 // ═══ 补充 import（拆行放置，避免挤爆单行）═══
 import { setActivePendingMemorySuggest } from '../conversation/conversationStore.ts';
 // 「记」项目记忆：记忆类别枚举 + 脱敏函数（memory_suggest 工具校验/脱敏用）
@@ -933,7 +934,7 @@ const readCanvasTool = {
 const readTableTool = {
   name: 'read_table',
   description:
-    '只读当前对话的「AI 助手表格」（左栏表格工作区）：无参返回整表（列结构 + 各行含列名/值 + 全局风格），传 rowId 只返回带列名的那一行。仅当需要查看「当前选中行以外的表格内容」（其它行 / 整表结构）时才调用；一般场景上下文已含当前选中行的内容，无需调用本工具。只读、无副作用，不会修改表格、不落盘。',
+    '只读当前对话「AI 助手表格」（左栏表格工作区）**当前标签页**的那张表：无参返回整表（列结构 + 各行含列名/值 + 全局风格），传 rowId 只返回带列名的那一行。表格是多标签页的，**其它标签页的表你看不到也读不到**（想让 AI 看哪张，用户需先切到那张）。仅当需要查看「当前选中行以外的表格内容」（其它行 / 整表结构）时才调用；一般场景上下文已含当前选中行的内容，无需调用本工具。只读、无副作用，不会修改表格、不落盘。',
   parameters: {
     type: 'object',
     additionalProperties: false,
@@ -953,7 +954,9 @@ const readTableTool = {
       args && typeof args === 'object' && typeof (args as { rowId?: unknown }).rowId === 'string'
         ? (args as { rowId: string }).rowId.trim()
         : '';
-    const globalStyle = getCurrentGlobalContract()?.unified_style_prompt || '';
+    // ⚠️ 表格全局风格已改为「每 tab 独立」（spec 1.1/3.8），不再存 global_contract：
+    // 这里若继续读 global_contract，AI 读到的会恒为空（新数据）或已废弃的旧值（老数据），属静默换源。
+    const globalStyle = getActiveTab(getCurrentAssistantTabs())?.globalStyle || '';
     if (rowId) {
       const row = sb.rows.find((r) => r.id === rowId);
       if (!row)

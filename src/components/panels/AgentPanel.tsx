@@ -61,9 +61,12 @@ import {
   markTableMessageHandled,
   resetTableWorkspace,
 } from '../agent/assistantTable/tableWorkspaceState.ts';
+import { clearHistory } from '../agent/assistantTable/tableHistory.ts';
 import TableWorkspacePanel from './TableWorkspacePanel.tsx';
 import {
-  normalizeAssistantTable,
+  normalizeAssistantTabs,
+  getActiveTab,
+  emptyAssistantTable,
   rowToText,
   tryParseAssistantTableJson,
   stripAssistantTableJson,
@@ -372,18 +375,33 @@ export default function AgentPanel({
     tableOpen,
   });
 
-  // ── 表格工作区数据（自当前对话会话记忆派生；conversations 订阅时随记忆写回刷新）──
+  // ── 表格工作区数据（自当前对话会话记忆派生；conversations 订阅时随记忆写回刷新）。
+  // 多标签页（spec 1.1）：真源 memory.assistantTables，注入只发「当前活动 tab」，其余 tab 对 AI 完全不可见 ──
   const activeConv = (conversations || []).find((c) => c.id === activeConversationId);
-  const tableData = useMemo(
-    () => normalizeAssistantTable(activeConv?.memory?.assistantTable ?? null),
+  const tableTabs = useMemo(
+    () =>
+      normalizeAssistantTabs(activeConv?.memory?.assistantTables ?? null, {
+        assistantTable: activeConv?.memory?.assistantTable ?? null,
+        globalStyle:
+          activeConv?.memory?.global_contract &&
+          typeof activeConv.memory.global_contract === 'object'
+            ? String(
+                (activeConv.memory.global_contract as { unified_style_prompt?: string })
+                  .unified_style_prompt ?? '',
+              ).trim()
+            : '',
+      }),
     [activeConv],
   );
-  const globalStyle = useMemo(() => {
-    const gc = activeConv?.memory?.global_contract;
-    return gc
-      ? String((gc as { unified_style_prompt?: string }).unified_style_prompt ?? '').trim()
-      : '';
-  }, [activeConv]);
+  const activeTab = getActiveTab(tableTabs);
+  const tableData = useMemo(
+    () =>
+      activeTab ? { columns: activeTab.columns, rows: activeTab.rows } : emptyAssistantTable(),
+    [activeTab],
+  );
+  // globalStyle 每 tab 独立（隔离决策，不再读 global_contract）
+  const globalStyle = activeTab ? activeTab.globalStyle : '';
+  const activeTableName = activeTab ? activeTab.name : '';
   const selectedRows = tableData.rows.filter((r) => selectedRowIds.includes(r.id));
   // 输入框 ctx-chip 用：首选中行行号 + 首列内容简写 + 选中行数
   const selCtx = selectedRows.length
@@ -445,9 +463,11 @@ export default function AgentPanel({
       });
     }
   }, [messages, tableData]);
-  // 切对话 → 清共享态选中行/预览/游标（防止串到别的对话；保留 open/width，spec §4.5.1）
+  // 切对话 → 清共享态选中行/预览/游标/选区（防止串到别的对话；保留 open/width，spec §4.5.1）
+  // ⚠️ 同时必须清表格撤销栈：快照是整份 tabs，跨对话复用会把 A 对话的表写进 B 对话并落盘。
   useEffect(() => {
     resetTableWorkspace();
+    clearHistory();
   }, [activeConversationId, resetTableWorkspace]);
   // 联动（用户裁定）：表格吸附在 AI 面板左缘，AI 面板收起 → 表格一起收（开合一体，非各管各的）。
   // 注：挂载即执行（open=false 时幂等：表格默认未开，close 无副作用）。
@@ -827,7 +847,7 @@ export default function AgentPanel({
     let finalText = text;
     if (tableOpen) {
       const parts: string[] = [];
-      const currentTable = buildTableSnapshotText(tableData, globalStyle);
+      const currentTable = buildTableSnapshotText(tableData, globalStyle, activeTableName);
       if (currentTable) parts.push(currentTable);
       if (selectedRows.length > 0) {
         // 有选中行（含多选）→ 改行：带每行行号 + 原值，要求按选中行逐一返回（buildRefineRowsUser）
@@ -1860,16 +1880,24 @@ function readTextFile(file: File): Promise<string> {
 }
 
 /** 生成「当前表格现状」可读文本（发表格协作时随 user 注入，让模型不猜、直接看表是什么样）。
+ *  只发「当前活动 tab」（tableName 标明当前表，其余 tab 零注入——spec 3.8 选中即授权）。
  *  覆盖列名 + 全局风格 + 各行可读内容；空表明确提示无列无行（→ 模型应判为新建）。
  *  现状是动态数据，随本轮 user 走（system 无表格数据源，无法静态放 system）。 */
-function buildTableSnapshotText(sb: AssistantTable, globalStyle: string): string {
+function buildTableSnapshotText(
+  sb: AssistantTable,
+  globalStyle: string,
+  tableName?: string,
+): string {
   const cols = Array.isArray(sb.columns) && sb.columns.length ? sb.columns.map((c) => c.label) : [];
   const rows = Array.isArray(sb.rows) ? sb.rows : [];
+  const name = tableName && String(tableName).trim() ? String(tableName).trim() : '';
+  // spec §4 注入样例：【表格工作区 · 当前表 = 表1（12 行）】（带表名 + 行数，AI 才知道自己在改哪张、多大）
+  const head = name ? `【表格工作区 · 当前表 = ${name}（${rows.length} 行）】` : '【表格工作区】';
   if (!cols.length && !rows.length) {
-    return '【当前表格现状】空表（还没有列和行）。用户接下来提的想法通常是想在这张空表里建立内容。';
+    return `${head} 空表（还没有列和行）。用户接下来提的想法通常是想在这张空表里建立内容。`;
   }
-  const lines: string[] = ['【当前表格现状】'];
-  if (cols.length) lines.push(`列：${cols.join(' | ')}`);
+  const lines: string[] = [head];
+  if (cols.length) lines.push(`列：${cols.join(' / ')}`);
   if (globalStyle) lines.push(`全局风格：${globalStyle}`);
   if (rows.length) {
     for (let i = 0; i < rows.length; i++) {

@@ -241,6 +241,18 @@ export function duplicateRow(sb: AssistantTable, rowId: string): AssistantTable 
   return { ...sb, rows };
 }
 
+/** 在指定行之后插入一个空行（列对齐 columns；rowId 不存在或缺省 → 追加末尾）。行尾 ⋯「插入空行（下方）」用 */
+export function insertRowAfter(sb: AssistantTable, rowId?: string): AssistantTable {
+  const values: Record<string, string> = {};
+  for (const col of sb.columns) values[col.id] = '';
+  const row: TableRow = { id: generateId('row'), values };
+  const rows = sb.rows.slice();
+  const idx = rowId ? rows.findIndex((r) => r.id === rowId) : -1;
+  if (idx >= 0) rows.splice(idx + 1, 0, row);
+  else rows.push(row);
+  return { ...sb, rows };
+}
+
 /** 写单个单元格（不可变；值相同返回原表避免空 commit） */
 export function setCell(
   sb: AssistantTable,
@@ -357,16 +369,27 @@ export function rowToObj(sb: AssistantTable, row: TableRow): Record<string, stri
  * 行 → 一段可读文本（每列一行「列名：值」），供「发送到画布」/ 上下文拼装。
  * @param globalStyle 可选；传入则作为前缀（全局样式）拼到行内容之前，形如「全局样式\n\n列名：值…」。
  *   仅「发送到画布」路径传它；AI 上下文拼装由调用方单独注入 globalStyle，传空即可避免重复。
+ * @param tableName 可选；传入则文本首行加「表名：{tableName}」（spec 3.7，仅落画布路径传；
+ *   AI 注入路径不传，避免污染模型上下文）。多表期用表名区分来源。
  */
-export function rowToText(sb: AssistantTable, row: TableRow, globalStyle?: string): string {
+export function rowToText(
+  sb: AssistantTable,
+  row: TableRow,
+  globalStyle?: string,
+  tableName?: string,
+): string {
   const parts: string[] = [];
+  const head: string[] = [];
+  if (tableName && String(tableName).trim()) head.push(`表名：${String(tableName).trim()}`);
   for (const col of sb.columns) {
     const v = row.values[col.id] ?? '';
     if (v) parts.push(`${col.label}：${v}`);
   }
   const body = parts.join('\n');
   const gs = globalStyle && globalStyle.trim() ? globalStyle.trim() : '';
-  return gs ? `${gs}\n\n${body}` : body;
+  const seg = gs ? `${gs}\n\n${body}` : body;
+  const h = head.join('\n');
+  return h ? `${h}\n${seg}`.replace(/\n+$/g, '') : seg;
 }
 
 /**
@@ -610,5 +633,431 @@ export function buildPreviewResult(
     updatedCount,
     appendedCount,
     changedRowIds: [...changed],
+  };
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 多标签页（一对话多表）—— tab 数据模型 + 纯函数层（spec/AI-ASSISTANT-TABLE-TABS.md §1）
+ * ════════════════════════════════════════════════════════════════
+ * 真源 = 会话记忆 memory.assistantTables = AssistantTableTabs；memory.assistantTable 只读兼容（老数据水合）。
+ * globalStyle【本轮隔离决策】每 tab 独立（不再走 global_contract）。
+ * 行/列既有纯函数签名不动，统一由 updateTab(tabs, tabId, fn) 套用到当前 tab 的表上。
+ */
+
+/** 一个标签页 = 一张独立的、隔离的表 */
+export interface TableTab {
+  id: string;
+  name: string;
+  columns: TableColumn[];
+  rows: TableRow[];
+  globalStyle: string; // 【本轮隔离决策】本表独立，不进 global_contract
+}
+
+/** 一个对话的多标签页集合（会话记忆内聚字段，单一数据源） */
+export interface AssistantTableTabs {
+  tabs: TableTab[];
+  activeTabId: string;
+}
+
+/** 反序列化宽松形态（供 normalizeAssistantTabs 归一，兼容历史/脏数据） */
+export interface RawAssistantTableTabs {
+  tabs?: unknown[];
+  activeTabId?: unknown;
+  [key: string]: unknown;
+}
+
+/** 空 tab 集合 = 恒 ≥1 空表（不做「零 tab」态，防空指针分支） */
+export function emptyAssistantTabs(): AssistantTableTabs {
+  const tab: TableTab = {
+    id: generateId('tab'),
+    name: '表1',
+    columns: [],
+    rows: [],
+    globalStyle: '',
+  };
+  return { tabs: [tab], activeTabId: tab.id };
+}
+
+/** 单个 tab 归一（id/name/globalStyle 补缺省；表格 columns/rows 复用 normalizeAssistantTable） */
+function normalizeTab(raw: unknown, index: number): TableTab | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const t = raw as Record<string, unknown>;
+  const table = normalizeAssistantTable(t);
+  return {
+    id: String(t.id ?? '') || generateId('tab'),
+    name: String(t.name ?? '').trim() || `表${index + 1}`,
+    columns: table.columns,
+    rows: table.rows,
+    globalStyle: typeof t.globalStyle === 'string' ? t.globalStyle.trim() : '',
+  };
+}
+
+/**
+ * 归一多标签页集合（spec §1.2）：
+ *  ① raw.assistantTables 存在且合法 → 直接归一（补 id/name/globalStyle 缺省）；
+ *  ② 否则老数据 assistantTable 有列/行 → 升为单 tab「表1」，globalStyle 一次性从 legacy.globalStyle 水合；
+ *  ③ 都没有 → emptyAssistantTabs()。
+ *  activeTabId 缺失/指向不存在 tab → 回退第一个 tab。
+ * @param raw        memory.assistantTables 原始值
+ * @param legacy     老数据水合源 { assistantTable, globalStyle }（来自 memory.assistantTable / global_contract）
+ */
+export function normalizeAssistantTabs(
+  raw: unknown,
+  legacy?: { assistantTable?: unknown; globalStyle?: string },
+): AssistantTableTabs {
+  if (raw && typeof raw === 'object') {
+    const r = raw as RawAssistantTableTabs;
+    if (Array.isArray(r.tabs) && r.tabs.length > 0) {
+      const tabs = r.tabs
+        .map(normalizeTab as (t: unknown, i: number) => TableTab | null)
+        .filter((t): t is TableTab => t !== null);
+      if (tabs.length > 0) {
+        let active = String(r.activeTabId ?? '');
+        if (!tabs.some((t) => t.id === active)) active = tabs[0].id;
+        return { tabs, activeTabId: active };
+      }
+    }
+  }
+  // 老数据水合：memory.assistantTable 有列/行 → 升为单 tab（globalStyle 从 legacy 水合，老数据不丢风格）
+  const legacyTable = normalizeAssistantTable(legacy?.assistantTable ?? null);
+  if (legacyTable.columns.length > 0 || legacyTable.rows.length > 0) {
+    const tab: TableTab = {
+      id: generateId('tab'),
+      name: '表1',
+      columns: legacyTable.columns,
+      rows: legacyTable.rows,
+      globalStyle: String(legacy?.globalStyle ?? '').trim(),
+    };
+    return { tabs: [tab], activeTabId: tab.id };
+  }
+  return emptyAssistantTabs();
+}
+
+/** 取某 tab；不存在返回 null（幂等） */
+export function getTab(tabs: AssistantTableTabs, tabId: string): TableTab | null {
+  if (!tabs || !Array.isArray(tabs.tabs)) return null;
+  return tabs.tabs.find((t) => t.id === tabId) ?? null;
+}
+
+/** 取当前活动 tab；无/异常回退第一个；再空 → null */
+export function getActiveTab(tabs: AssistantTableTabs): TableTab | null {
+  if (!tabs || !Array.isArray(tabs.tabs) || tabs.tabs.length === 0) return null;
+  return getTab(tabs, tabs.activeTabId) ?? tabs.tabs[0];
+}
+
+/**
+ * 把 fn 套用到某 tab 的表上并返回新 tabs（列/行纯函数统一经过这里，签名不动）。
+ * fn 返回新 { columns, rows }；tab 的 id/name/globalStyle 保留。
+ */
+export function updateTab(
+  tabs: AssistantTableTabs,
+  tabId: string,
+  fn: (sb: AssistantTable) => AssistantTable,
+): AssistantTableTabs {
+  if (!tabs || !Array.isArray(tabs.tabs)) return tabs;
+  return {
+    ...tabs,
+    tabs: tabs.tabs.map((t) => {
+      if (t.id !== tabId) return t;
+      const next = fn({ columns: t.columns, rows: t.rows });
+      return { ...t, columns: next.columns, rows: next.rows };
+    }),
+  };
+}
+
+/** 整表替换某 tab（预览确认写回用；保留了 tab id/name/globalStyle） */
+export function setTabTable(
+  tabs: AssistantTableTabs,
+  tabId: string,
+  sb: { columns: TableColumn[]; rows: TableRow[] },
+): AssistantTableTabs {
+  return updateTab(tabs, tabId, () => ({ columns: sb.columns, rows: sb.rows }));
+}
+
+/** 写某 tab 的 globalStyle（隔离决策：本表独立，不进 global_contract） */
+export function setTabGlobalStyle(
+  tabs: AssistantTableTabs,
+  tabId: string,
+  style: string,
+): AssistantTableTabs {
+  const gs = String(style ?? '').trim();
+  return {
+    ...tabs,
+    tabs: tabs.tabs.map((t) => (t.id === tabId ? { ...t, globalStyle: gs } : t)),
+  };
+}
+
+/** 设置活动 tab；tabId 不存在回退第一个（保持恒有活动 tab） */
+export function setActiveTabId(tabs: AssistantTableTabs, tabId: string): AssistantTableTabs {
+  if (!tabs || !Array.isArray(tabs.tabs) || tabs.tabs.length === 0) return tabs;
+  const active = tabs.tabs.some((t) => t.id === tabId) ? tabId : tabs.tabs[0].id;
+  return { ...tabs, activeTabId: active };
+}
+
+/** 追加一个新空 tab（name 缺省「表N」，N = 当前数+1），返回新 tabs（不自动切 active，调用方按需 setActiveTabId） */
+export function addTab(tabs: AssistantTableTabs, name?: string): AssistantTableTabs {
+  const tab: TableTab = {
+    id: generateId('tab'),
+    name: String(name ?? '').trim() || `表${tabs.tabs.length + 1}`,
+    columns: [],
+    rows: [],
+    globalStyle: '',
+  };
+  return { ...tabs, tabs: [...tabs.tabs, tab] };
+}
+
+/** 重命名 tab（空名/相同幂等返回原 tabs） */
+export function renameTab(
+  tabs: AssistantTableTabs,
+  tabId: string,
+  name: string,
+): AssistantTableTabs {
+  const trimmed = String(name ?? '').trim();
+  if (!trimmed) return tabs;
+  return {
+    ...tabs,
+    tabs: tabs.tabs.map((t) =>
+      t.id === tabId && t.name !== trimmed ? { ...t, name: trimmed } : t,
+    ),
+  };
+}
+
+/**
+ * 移除某 tab。最后一个 tab 不允许移除（UI 禁用；此处防御：仅剩 1 个时不删，保持恒 ≥1）。
+ * 若删的是 active，active 回退到同位置的下一个（末尾则回退到新的最后一个）。
+ */
+export function removeTab(tabs: AssistantTableTabs, tabId: string): AssistantTableTabs {
+  if (!tabs || !Array.isArray(tabs.tabs)) return tabs;
+  if (tabs.tabs.length <= 1) return tabs; // 恒 ≥1 空表，防「零 tab」分支
+  const idx = tabs.tabs.findIndex((t) => t.id === tabId);
+  if (idx < 0) return tabs;
+  const next = tabs.tabs.filter((t) => t.id !== tabId);
+  let active = tabs.activeTabId;
+  if (active === tabId || !next.some((t) => t.id === active)) {
+    const fallbackIdx = Math.min(idx, next.length - 1);
+    active = next[fallbackIdx].id;
+  }
+  return { tabs: next, activeTabId: active };
+}
+
+/** 复制某 tab 为新表（新 id/新空间；原名「表X 副本」或自动 `表N`；不自动切 active） */
+export function copyTab(tabs: AssistantTableTabs, tabId: string): AssistantTableTabs {
+  const src = getTab(tabs, tabId);
+  if (!src) return tabs;
+  const tab: TableTab = {
+    id: generateId('tab'),
+    name: `表${tabs.tabs.length + 1}`,
+    columns: src.columns.map((c) => ({ ...c, id: generateId('col') })),
+    rows: src.rows.map((r) => ({ id: generateId('row'), values: { ...r.values } })),
+    globalStyle: src.globalStyle,
+  };
+  return { ...tabs, tabs: [...tabs.tabs, tab] };
+}
+
+/** 移动 tab 位置（拖拽排序；fromIdx/toIdx 越界/clamp；返回新 tabs） */
+export function moveTab(
+  tabs: AssistantTableTabs,
+  fromIdx: number,
+  toIdx: number,
+): AssistantTableTabs {
+  if (!tabs || !Array.isArray(tabs.tabs)) return tabs;
+  const arr = tabs.tabs.slice();
+  if (fromIdx < 0 || fromIdx >= arr.length) return tabs;
+  const [moved] = arr.splice(fromIdx, 1);
+  const target = Math.max(0, Math.min(toIdx, arr.length));
+  arr.splice(target, 0, moved);
+  return { ...tabs, tabs: arr };
+}
+
+/* ═ 批量 / 选区 / 跨表纯函数（spec §3.6）═ */
+
+/**
+ * 单元格矩形选区（spec 3.6）：**起点 + 终点用 rowId/colId 锚定**，不用 index ——
+ * 增删行/列后 index 会串位（A-005 类静默错值），id 锚定则选区始终跟着原单元格。
+ */
+export interface CellRange {
+  r0: string;
+  c0: string;
+  r1: string;
+  c1: string;
+}
+
+/** 选区 → 二维 cells（按表内行列顺序归一化成矩形；任一锚点失效返回 []） */
+export function rangeToCells(sb: AssistantTable, range: CellRange): string[][] {
+  if (!sb || !range) return [];
+  const idx = (arr: Array<{ id: string }>, id: string) => arr.findIndex((x) => x.id === id);
+  const a = idx(sb.rows, range.r0);
+  const b = idx(sb.rows, range.r1);
+  const c = idx(sb.columns, range.c0);
+  const d = idx(sb.columns, range.c1);
+  if (a < 0 || b < 0 || c < 0 || d < 0) return [];
+  const [r0, r1] = [Math.min(a, b), Math.max(a, b)];
+  const [c0, c1] = [Math.min(c, d), Math.max(c, d)];
+  const out: string[][] = [];
+  for (let i = r0; i <= r1; i++) {
+    const line: string[] = [];
+    for (let j = c0; j <= c1; j++) line.push(String(sb.rows[i].values?.[sb.columns[j].id] ?? ''));
+    out.push(line);
+  }
+  return out;
+}
+
+/** 选区 → TSV（制表符分隔，可直接粘进 Excel/Sheets；spec §5 要求新增） */
+export function rangeToTsv(sb: AssistantTable, range: CellRange): string {
+  return rangeToCells(sb, range)
+    .map((line) => line.join('\t'))
+    .join('\n');
+}
+
+/**
+ * 把二维 cells 从锚点格起按矩形铺开写入（spec 3.6）。
+ * ⚠️ 越界**只裁剪、绝不静默扩列/加行**：超出列数/行数的内容丢弃（复制时已 toast 提示），
+ * 避免"粘一下表结构被撑变形"。返回新表；锚点失效返回原表。
+ */
+export function pasteCells(
+  sb: AssistantTable,
+  anchor: { rowId: string; colId: string },
+  cells: string[][],
+): AssistantTable {
+  if (!sb || !cells.length || !cells[0].length) return sb;
+  const r0 = sb.rows.findIndex((r) => r.id === anchor.rowId);
+  const c0 = sb.columns.findIndex((c) => c.id === anchor.colId);
+  if (r0 < 0 || c0 < 0) return sb;
+  const rows = sb.rows.map((r) => ({ ...r, values: { ...r.values } }));
+  for (let i = 0; i < cells.length; i++) {
+    const ri = r0 + i;
+    if (ri >= rows.length) break;
+    for (let j = 0; j < cells[i].length; j++) {
+      const ci = c0 + j;
+      if (ci >= sb.columns.length) break;
+      rows[ri].values[sb.columns[ci].id] = String(cells[i][j] ?? '');
+    }
+  }
+  return { ...sb, rows };
+}
+
+/**
+ * 批量删除多行（rowIds 中不存在的 id 忽略；返回新表）。
+ * 用于行尾 ⋯「删除选中行」/ Delete/Backspace。
+ */
+export function deleteRows(sb: AssistantTable, rowIds: string[]): AssistantTable {
+  const set = new Set(rowIds || []);
+  if (!set.size) return sb;
+  return { ...sb, rows: sb.rows.filter((r) => !set.has(r.id)) };
+}
+
+/**
+ * 提取多行副本（供内部剪贴板「复制行」；深拷贝 values）。
+ * 只返回选中行的数据（不含引用），粘贴时按列名归一重塑。
+ */
+export function copyRows(sb: AssistantTable, rowIds: string[]): TableRow[] {
+  const set = new Set(rowIds || []);
+  return sb.rows
+    .filter((r) => set.has(r.id))
+    .map((r) => ({ id: generateId('row'), values: { ...r.values } }));
+}
+
+/**
+ * 粘贴行到 sb：在 anchorRowId 之后插入 copied 行；无 anchor → 追加末尾。
+ * 列按名归一命中（复用 buildPreviewResult 的 normalizeLabel 语义），未命中列放空值、绝不丢值（防 A-005 回潮）。
+ * copied 行的 values 以「源列 label→文本」存；本函数按目标表列结构重塑。
+ */
+export function pasteRows(
+  sb: AssistantTable,
+  copied: TableRow[],
+  anchorRowId?: string,
+): AssistantTable {
+  if (!Array.isArray(copied) || copied.length === 0) return sb;
+  // 先把 copied 转成「目标列 label → 文本」（源 values 的键是源列 id，需带回源列名；这里约定 copyRows 之后
+  // 由调用方在目标上下文对齐——为稳妥，本函数从 copied 行内嵌的 label 映射还原，见 buildPreviewResult 归一）。
+  const labelToCol = new Map<string, TableColumn>();
+  for (const c of sb.columns) labelToCol.set(normalizeLabel(c.label), c);
+  const restructured = copied.map((r) => {
+    const rawMap: Record<string, string> = {};
+    for (const [k, v] of Object.entries(r.values ?? {})) rawMap[k] = v ?? '';
+    const values: Record<string, string> = {};
+    for (const col of sb.columns) {
+      // 键可能是源列 id 或源列 label；先后按 label 精确、再按归一兜底
+      const hit = rawMap[col.label] ?? rawMap[col.id];
+      const norm = normalizeLabel(col.label);
+      let v = hit;
+      if (v === undefined) {
+        for (const [k, val] of Object.entries(rawMap)) {
+          if (normalizeLabel(k) === norm) {
+            v = val;
+            break;
+          }
+        }
+      }
+      values[col.id] = v !== undefined ? String(v) : '';
+    }
+    return { id: generateId('row'), values };
+  });
+  const rows = sb.rows.slice();
+  const anchorIdx = anchorRowId ? rows.findIndex((r) => r.id === anchorRowId) : -1;
+  if (anchorIdx >= 0) rows.splice(anchorIdx + 1, 0, ...restructured);
+  else rows.push(...restructured);
+  return { ...sb, rows };
+}
+
+/**
+ * 跨表复制：把 srcTab 的若干行复制到 destTab 末尾（列按名归一命中，未命中列留空）。
+ * 复用 buildPreviewResult 的归一匹配思路；destTab 无列时按 src 列重建（新建表场景）。
+ * ROI 判定用 updateTab。
+ */
+export function copyRowsToTab(
+  tabs: AssistantTableTabs,
+  srcTabId: string,
+  destTabId: string,
+  rowIds: string[],
+): AssistantTableTabs {
+  const src = getTab(tabs, srcTabId);
+  const dst = getTab(tabs, destTabId);
+  if (!src || !dst) return tabs;
+  const set = new Set(rowIds);
+  // 目标列 = 现有列 + src 里命中不到目标列的列（跨表归一：src 列 label 未在 dst 出现 → 追加）
+  const labelToCol = new Map<string, TableColumn>();
+  for (const c of dst.columns) labelToCol.set(normalizeLabel(c.label), c);
+  const resultCols = [...dst.columns];
+  for (const c of src.columns) {
+    if (!labelToCol.has(normalizeLabel(c.label))) {
+      const col: TableColumn = { id: generateId('col'), label: c.label };
+      labelToCol.set(normalizeLabel(c.label), col);
+      resultCols.push(col);
+    }
+  }
+  // src 中被选行 → label→text 值映射（跨表复制以列 label 为归一键，复用 buildPreviewResult 同款匹配）
+  const srcRowsLabel: Array<Record<string, string>> = src.rows
+    .filter((r) => set.has(r.id))
+    .map((r) => {
+      const map: Record<string, string> = {};
+      for (const c of src.columns) map[c.label] = (r.values[c.id] ?? '') as string;
+      return map;
+    });
+  // 重塑进目标表列结构（未命中列留空、绝不静默丢值）
+  const newRows: TableRow[] = srcRowsLabel.map((map) => {
+    const values: Record<string, string> = {};
+    for (const col of resultCols) {
+      const direct = map[col.label];
+      const norm = normalizeLabel(col.label);
+      let v = direct;
+      if (v === undefined) {
+        for (const [k, val] of Object.entries(map)) {
+          if (normalizeLabel(k) === norm) {
+            v = val;
+            break;
+          }
+        }
+      }
+      values[col.id] = v !== undefined ? String(v) : '';
+    }
+    return { id: generateId('row'), values };
+  });
+  return {
+    ...tabs,
+    tabs: tabs.tabs.map((t) => {
+      if (t.id !== destTabId) return t;
+      return { ...t, columns: resultCols, rows: [...t.rows, ...newRows] };
+    }),
   };
 }

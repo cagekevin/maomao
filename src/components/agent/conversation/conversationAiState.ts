@@ -12,8 +12,23 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { getActiveConv, commit, getState, normalizeMemory } from './conversationState.ts';
-import { normalizeAssistantTable } from '../assistantTable/assistantTable.ts';
+import { normalizeAssistantTable, emptyAssistantTable } from '../assistantTable/assistantTable.ts';
 import type { AssistantTable } from '../assistantTable/assistantTable.ts';
+import {
+  normalizeAssistantTabs,
+  getActiveTab,
+  getTab,
+  updateTab,
+  setActiveTabId,
+  setTabGlobalStyle,
+  setTabTable,
+} from '../assistantTable/assistantTable.ts';
+import type {
+  AssistantTableTabs,
+  TableTab,
+  TableColumn,
+  TableRow,
+} from '../assistantTable/assistantTable.ts';
 import {
   getWorkMode,
   setWorkMode,
@@ -95,18 +110,29 @@ export function setCurrentGlobalContract(c: GlobalContract | null): void {
   });
 }
 
-/* ── AI 助手表格工作区（per-conversation，挂会话记忆 memory.assistantTable）──
-   一个对话绑定一份表格；新建对话 = 新空表，回看旧对话 = 那张表还在。
-   不与画布节点/其它存储耦合，随既有「按 agentKey 隔离 + 会话记忆落盘」链路走。 */
+/* ── AI 助手表格工作区（per-conversation，挂会话记忆。一对话多标签页，spec/AI-ASSISTANT-TABLE-TABS.md）
+   真源 = memory.assistantTables（{tabs,activeTabId}）；memory.assistantTable 只读兼容（老数据水合，不再写）。
+   新建对话 = 新空表；回看旧对话 = 那张表还在。不与画布节点/其它存储耦合，随既有「按 agentKey 隔离 + 会话记忆落盘」链路走。 */
 
-/** 读当前对话的表格（归一兜底空表；无则空表） */
-export function getCurrentAssistantTable(): AssistantTable {
-  const raw = getActiveConv()?.memory?.assistantTable;
-  return normalizeAssistantTable(raw ?? null);
+/** 读当前对话的多标签页集合（归一兜底：真源不存在则从老 assistantTable+global_contract 水合成单 tab） */
+export function getCurrentAssistantTabs(): AssistantTableTabs {
+  const mem = getActiveConv()?.memory ?? null;
+  const rawTabs = mem?.assistantTables;
+  const legacyTable = mem?.assistantTable;
+  const legacyStyle =
+    mem && mem.global_contract && typeof mem.global_contract === 'object'
+      ? String(
+          (mem.global_contract as { unified_style_prompt?: unknown }).unified_style_prompt ?? '',
+        ).trim()
+      : '';
+  return normalizeAssistantTabs(rawTabs ?? null, {
+    assistantTable: legacyTable ?? null,
+    globalStyle: legacyStyle,
+  });
 }
 
-/** 写当前对话的表格（归一后落 memory.assistantTable + commit 自动落盘） */
-export function setCurrentAssistantTable(sb: AssistantTable): void {
+/** 写当前对话的多标签页集合（归一后落 memory.assistantTables + commit 自动落盘；不再写 assistantTable） */
+export function setCurrentAssistantTabs(tabs: AssistantTableTabs): void {
   const conv = getActiveConv();
   if (!conv) return;
   commit({
@@ -115,12 +141,48 @@ export function setCurrentAssistantTable(sb: AssistantTable): void {
       x.id === conv.id
         ? {
             ...x,
-            memory: normalizeMemory({ ...x.memory, assistantTable: normalizeAssistantTable(sb) }),
+            // 深拷贝后落盘，避免内存态 tabs 引用被后续 setState 污染
+            memory: normalizeMemory({ ...x.memory, assistantTables: normalizeAssistantTabs(tabs) }),
             updatedAt: Date.now(),
           }
         : x,
     ),
   });
+}
+
+/** 【兼容语义收窄】读当前对话「当前活动 tab」的表（内部走 tabs；既有调用点签名不变） */
+export function getCurrentAssistantTable(): AssistantTable {
+  const tab = getActiveTab(getCurrentAssistantTabs());
+  return tab ? { columns: tab.columns, rows: tab.rows } : emptyAssistantTable();
+}
+
+/** 【兼容语义收窄】写当前对话「当前活动 tab」的表（内部走 tabs；既有调用点签名不变） */
+export function setCurrentAssistantTable(sb: AssistantTable): void {
+  const tabs = getCurrentAssistantTabs();
+  const normalized = normalizeAssistantTable(sb);
+  setCurrentAssistantTabs(updateTab(tabs, tabs.activeTabId, () => normalized));
+}
+
+/** 设置当前对话的活动 tab（读写真源 tabs；运行态「切 tab 重置协作现场」由调用方 tableWorkspaceState 处理） */
+export function setActiveTableTab(tabId: string): void {
+  setCurrentAssistantTabs(setActiveTabId(getCurrentAssistantTabs(), tabId));
+}
+
+/** 写当前活动 tab 的 globalStyle（隔离决策：每 tab 独立，不进 global_contract） */
+export function setCurrentTableGlobalStyle(style: string): void {
+  const tabs = getCurrentAssistantTabs();
+  setCurrentAssistantTabs(setTabGlobalStyle(tabs, tabs.activeTabId, style));
+}
+
+/** 读某 tab；不存在返回 null */
+export function getTableTab(tabId: string): TableTab | null {
+  return getTab(getCurrentAssistantTabs(), tabId);
+}
+
+/** 整表替换某 tab（预览确认写回目标表用；源表不动） */
+export function setTableTab(tabId: string, sb: { columns: TableColumn[]; rows: TableRow[] }): void {
+  const tabs = getCurrentAssistantTabs();
+  setCurrentAssistantTabs(setTabTable(tabs, tabId, sb));
 }
 
 /** 给某条消息打「表格预览处理态」标记（confirmed=已写入 / cancelled=已取消），随消息落盘。

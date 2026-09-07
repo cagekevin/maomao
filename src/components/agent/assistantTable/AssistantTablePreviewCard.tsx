@@ -3,51 +3,66 @@
  *
  * 只显示「AI 这次发来的新内容」（整表或单行），不做旧→新内联 diff：
  * 用户左表 = 当前/旧态、右卡 = AI 新内容，天然左右对比（用户裁定，勿回退成 diff）。
- * 仅渲染 + 回调；确认/取消由上层（AgentPanel）执行真正的写回（预览与正式表两份状态）。
+ * 仅渲染 + 回调；确认/取消由上层执行真正的写回（预览与正式表两份状态）。
+ * 多标签页（spec 3.3）：头的「写入到」下拉 = 所有 tab + 「＋ 新建标签页」，切换目标表下拉重算预览；
+ * 卡片顶部 6px grip 可拖高（spec 3.2）。
  */
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import type { AssistantTablePreview } from './assistantTable.ts';
 import Icon from './icons.tsx';
+import TabTargetMenu from './TabTargetMenu.tsx';
 
-export interface AssistantTablePreviewCardProps {
-  preview: AssistantTablePreview;
+export interface AssistantTablePreviewCardProps extends AssistantTablePreview {
   sending?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  /** 目标表名（预览要写入的表）；title 里标「（当前）」用 */
+  targetTabName: string;
+  /** 目标表列表（所有 tab，含「＋ 新建标签页」由 onNewTarget 承接） */
+  targetTabs: Array<{ id: string; name: string }>;
+  onSelectTarget: (tabId: string) => void;
+  onNewTarget: () => void;
+  /** 预览卡当前高度（px，null=CSS 默认 clamp） */
+  previewHeight: number | null;
+  onGripPointerDown: (e: React.PointerEvent, cardEl: HTMLElement | null) => void;
 }
 
 /** 折叠摘要文案：某行未在本次写回中被改动 → 收起，聚焦改动行 */
-export default function AssistantTablePreviewCard({
-  preview,
-  sending = false,
-  onConfirm,
-  onCancel,
-}: AssistantTablePreviewCardProps) {
+export default function AssistantTablePreviewCard(props: AssistantTablePreviewCardProps) {
+  const {
+    sending = false,
+    onConfirm,
+    onCancel,
+    targetTabName,
+    targetTabs,
+    onSelectTarget,
+    onNewTarget,
+    previewHeight,
+    onGripPointerDown,
+  } = props;
+  const cardRef = useRef<HTMLDivElement>(null);
   // 本次「确认后会写回变化」的行（下标集合）；空/缺省 → 不做折叠，全部展开
-  const changedIndexes = preview.changedIndexes ?? [];
+  const changedIndexes = props.changedIndexes ?? [];
   const changedSet = new Set(changedIndexes);
-  const foldable = changedIndexes.length > 0 && changedIndexes.length < preview.rows.length;
-  // 折叠态：默认把「未改动行」收起，只展开改动行（点击摘要可展开看全部）
+  const foldable = changedIndexes.length > 0 && changedIndexes.length < props.rows.length;
   const [folded, setFolded] = useState(true);
-  // 操作类别文案（预览=确认：卡内展示的就是确认要写回的结果）
   const opLabel =
-    preview.opKind === 'update'
-      ? preview.updatedCount && preview.updatedCount > 0
-        ? `更新 ${preview.updatedCount} 行`
+    props.opKind === 'update'
+      ? props.updatedCount && props.updatedCount > 0
+        ? `更新 ${props.updatedCount} 行`
         : '更新选中行'
-      : preview.opKind === 'append'
-        ? `追加 ${preview.appendedCount ?? preview.rows.length} 行`
+      : props.opKind === 'append'
+        ? `追加 ${props.appendedCount ?? props.rows.length} 行`
         : '重建表格';
   const confirmLabel =
-    preview.opKind === 'update'
+    props.opKind === 'update'
       ? '确认更新选中行'
-      : preview.opKind === 'append'
+      : props.opKind === 'append'
         ? '确认追加'
         : '确认写入表格';
 
-  // 表体行渲染：折叠时把「本次未被改动的行」合成一条摘要（点击展开），只完整展开改动行。
   const cellOf = (r: Record<string, string>) =>
-    preview.columns.map((c, ci) => <td key={ci}>{r[c] ?? ''}</td>);
+    props.columns.map((c, ci) => <td key={ci}>{r[c] ?? ''}</td>);
   const rowOf = (r: Record<string, string>, ri: number) => (
     <tr key={ri} className={changedSet.has(ri) ? 'atw-pv-ai' : undefined}>
       {cellOf(r)}
@@ -55,26 +70,21 @@ export default function AssistantTablePreviewCard({
   );
   const foldSummary = (count: number, key: string) => (
     <tr key={key} className="atw-pv-fold" onClick={() => setFolded(false)}>
-      <td colSpan={preview.columns.length || 1}>
+      <td colSpan={props.columns.length || 1}>
         <span className="atw-pv-fold-hint">其余 {count} 行未改动 · 点击展开查看全部</span>
       </td>
     </tr>
   );
   function renderRows(): ReactNode {
-    const total = preview.rows.length;
-    if (!foldable || !folded) {
-      // 无折叠价值（changed 空/全量）或已展开 → 全展开；仍给改动行高亮
-      return preview.rows.map((r, ri) => rowOf(r, ri));
-    }
-    // 折叠态：改动行完整展开，未改动行按连续段折叠成摘要（保相对顺序）
+    const total = props.rows.length;
+    if (!foldable || !folded) return props.rows.map((r, ri) => rowOf(r, ri));
     const nodes: ReactNode[] = [];
     let i = 0;
     while (i < total) {
       if (changedSet.has(i)) {
-        nodes.push(rowOf(preview.rows[i], i));
+        nodes.push(rowOf(props.rows[i], i));
         i += 1;
       } else {
-        // 一段连续的「未改动行」
         let j = i;
         while (j < total && !changedSet.has(j)) j += 1;
         nodes.push(foldSummary(j - i, `fold-${i}`));
@@ -84,34 +94,54 @@ export default function AssistantTablePreviewCard({
     return nodes;
   }
 
+  // ⚠️ 运行态高度必须同时把 CSS 的 max-height 顶掉：.atw-pv 自带 clamp(150px,28vh,300px)，
+  // 只给 height 会被它反向截断（拖到 400px 实际只渲染 300px，且回读存进去的是截断值）。
+  const cardStyle =
+    previewHeight != null ? { height: `${previewHeight}px`, maxHeight: 'none' } : undefined;
+
   return (
-    <div className="atw-pv">
+    <div ref={cardRef} className="atw-pv" style={cardStyle}>
+      {/* 拖动拉高手柄（spec 3.2）：顶部 6px 横向 grip */}
+      <div
+        className="atw-pv-grip"
+        title="拖动调整预览高度"
+        onPointerDown={(e) => onGripPointerDown(e, cardRef.current)}
+      />
       <div className="atw-pv-hd">
         <span className="badge">
-          {preview.rowIndex != null ? `第 ${preview.rowIndex} 行` : opLabel}
+          {props.rowIndex != null ? `第 ${props.rowIndex} 行` : opLabel}
         </span>
         <span>AI 生成 · 未写入</span>
         <span className="spacer" />
+        {/* 写入到哪张表下拉（spec 3.3；与行尾「复制到：」共用 TabTargetMenu） */}
+        <TabTargetMenu
+          tabs={targetTabs}
+          currentName={targetTabName}
+          label="写入到："
+          title="预览确认后将写入该表"
+          onPick={onSelectTarget}
+          onNew={onNewTarget}
+        />
         <span className="rows">
-          {preview.rowIndex != null
+          {props.rowIndex != null
             ? '单行'
             : foldable
-              ? `改动 ${changedIndexes.length} 行 · 其余 ${preview.rows.length - changedIndexes.length} 行已折叠`
-              : `共 ${preview.rows.length} 行`}
+              ? `改动 ${changedIndexes.length} 行 · 其余 ${props.rows.length - changedIndexes.length} 行已折叠`
+              : `共 ${props.rows.length} 行`}
         </span>
       </div>
-      {preview.globalStyle && (
+      {props.globalStyle && (
         <div className="atw-style-line">
           <b>全局：</b>
-          <span>{preview.globalStyle}</span>
+          <span>{props.globalStyle}</span>
         </div>
       )}
       <div className="atw-pv-body">
         <table>
-          {preview.columns.length > 0 && (
+          {props.columns.length > 0 && (
             <thead>
               <tr>
-                {preview.columns.map((c, i) => (
+                {props.columns.map((c, i) => (
                   <th key={i}>{c}</th>
                 ))}
               </tr>
@@ -123,7 +153,7 @@ export default function AssistantTablePreviewCard({
       <div className="atw-pv-ft">
         <button type="button" className="btn btn-ok" onClick={onConfirm} disabled={sending}>
           <Icon name="check" size={12} strokeWidth={2.5} />
-          {preview.rowIndex != null ? `确认写回第 ${preview.rowIndex} 行` : confirmLabel}
+          {props.rowIndex != null ? `确认写回第 ${props.rowIndex} 行` : confirmLabel}
         </button>
         <button type="button" className="btn btn-ghost" onClick={onCancel}>
           取消

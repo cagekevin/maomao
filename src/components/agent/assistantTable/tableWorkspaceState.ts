@@ -27,14 +27,24 @@ import { useSyncExternalStore } from 'react';
 import { contentGet, contentSet } from '../../base/core/contentStore.ts';
 import { logger } from '../../base/core/logger.ts';
 import {
-  getCurrentAssistantTable,
-  setCurrentAssistantTable,
-  getCurrentGlobalContract,
-  setCurrentGlobalContract,
+  getCurrentAssistantTabs,
+  setCurrentAssistantTabs,
+  setActiveTableTab,
   markMessageTableResolved,
 } from '../conversation/conversationStore.ts';
-import { buildPreviewResult } from './assistantTable.ts';
-import type { AssistantTableJson, TableColumn, TableRow } from './assistantTable.ts';
+import {
+  buildPreviewResult,
+  getActiveTab,
+  getTab,
+  setTabGlobalStyle,
+  setTabTable,
+} from './assistantTable.ts';
+import type { AssistantTableJson, CellRange, TableColumn, TableRow } from './assistantTable.ts';
+
+/** 选区类型由模型层（assistantTable.ts）定义并拥有，此处转出供 UI 层直接用 */
+export type { CellRange };
+import { pushHistory } from './tableHistory.ts';
+import { showToast } from '../../base/core/toastStore.ts';
 
 /** 左面板宽度记忆键（沿用拆分前「左表 | 右对话」分栏键，避免旧数据丢失；STORAGE_KEYS 已登记） */
 const WIDTH_KEY = 'agent_split_width';
@@ -51,6 +61,8 @@ export interface TableWorkspacePreview {
   messageId: unknown;
   /** 发消息/探测那一刻冻结的选中（含多选）；仅留痕，写回不依赖它 */
   selectedRowIds: string[];
+  /** 预览要写入的目标 tab id（spec 3.3；默认 = 探测时的活动 tab；确认只原样写回该表） */
+  targetTabId: string;
   /** 操作后「最终的全部行」（= 确认结果） */
   resultRows: TableRow[];
   /** 操作后列（保留原列 id/宽度，新增列才追加） */
@@ -64,6 +76,15 @@ export interface TableWorkspacePreview {
   changedRowIds: string[];
 }
 
+/**
+ * 内部剪贴板（spec 3.6）：**仅内存、不落盘、不依赖系统剪贴板权限**。
+ * - `rows`：整行复制（按列 id 存值），粘贴时插到锚点行之后；
+ * - `range`：矩形区域复制（二维 cells），粘贴时从锚点格按矩形铺开，越界裁剪不扩列。
+ */
+export type TableClipboard =
+  | { kind: 'rows'; colIds: string[]; rows: Array<Record<string, string>> }
+  | { kind: 'range'; cells: string[][] };
+
 /** 共享「表格工作区运行态」形状（spec §四.5.1 + §1.5） */
 export interface TableWorkspaceState {
   /** 表格工作区开合（左面板滑出 = 表格协作激活） */
@@ -76,6 +97,12 @@ export interface TableWorkspaceState {
   preview: TableWorkspacePreview | null;
   /** 探测游标（原 AgentPanel tbPreviewHandledRef：最后一条已处理过的消息 id） */
   handledMessageId: unknown;
+  /** 预览卡高度（px，仅内存、不落盘；null = 用 CSS 默认 clamp）spec 3.2 */
+  previewHeight: number | null;
+  /** 内部剪贴板（仅内存，spec 3.6） */
+  clipboard: TableClipboard | null;
+  /** 单元格矩形选区（仅内存，spec 3.6；null = 无选区） */
+  range: CellRange | null;
 }
 
 /** 读宽度记忆（clamp 到合法范围；异常回退默认值，不阻断） */
@@ -96,6 +123,9 @@ let state: TableWorkspaceState = {
   selectedRowIds: [],
   preview: null,
   handledMessageId: null,
+  previewHeight: null,
+  clipboard: null,
+  range: null,
 };
 
 const listeners = new Set<() => void>();
@@ -138,7 +168,14 @@ export function toggleTableWorkspace(): void {
 
 /** 关面板 = 关协作：open=false + 清选中行/待确认预览/探测游标（spec §4.5.1） */
 export function closeTableWorkspace(): void {
-  setState({ ...state, open: false, selectedRowIds: [], preview: null, handledMessageId: null });
+  setState({
+    ...state,
+    open: false,
+    selectedRowIds: [],
+    preview: null,
+    handledMessageId: null,
+    range: null,
+  });
 }
 
 /** 左面板宽度（px）：clamp 360~1080 + 写 agent_split_width 记忆 */
@@ -162,22 +199,40 @@ export function setTableWorkspaceRows(rowIds: string[]): void {
   setState({ ...state, selectedRowIds: rowIds || [] });
 }
 
+/** 写内部剪贴板（spec 3.6；仅内存，复制动作由 useTableSelection 触发） */
+export function setTableClipboard(cb: TableClipboard | null): void {
+  setState({ ...state, clipboard: cb });
+}
+
+/** 设置/取消单元格矩形选区（spec 3.6；切 tab、切对话、关面板都要清） */
+export function setTableRange(range: CellRange | null): void {
+  setState({ ...state, range });
+}
+
 /**
- * 探测命中：AI 返回表格 JSON → 用【实时表 + 实时选中】调 buildPreviewResult 一次性算好
- * 「操作后最终表格」存入 preview（预览=确认，C5）。确认/取消才写回正式表。
+ * 探测命中：AI 返回表格 JSON → 用【当前活动 tab 的表 + 实时选中】调 buildPreviewResult 一次性算好
+ * 「操作后最终表格」存入 preview（预览=确认，C5）。targetTabId 默认 = 当下活动 tab（spec 3.3）。
+ * 确认/取消才写回正式表。
  */
 export function acceptTablePreview(p: {
   json: AssistantTableJson;
   messageId: unknown;
   selectedRowIds: string[];
 }): void {
-  const r = buildPreviewResult(getCurrentAssistantTable(), p.json, p.selectedRowIds);
+  const tabs = getCurrentAssistantTabs();
+  const activeTab = getActiveTab(tabs);
+  const targetTabId = activeTab ? activeTab.id : '';
+  const sb = activeTab
+    ? { columns: activeTab.columns, rows: activeTab.rows }
+    : { columns: [], rows: [] };
+  const r = buildPreviewResult(sb, p.json, p.selectedRowIds);
   setState({
     ...state,
     preview: {
       json: p.json,
       messageId: p.messageId,
       selectedRowIds: p.selectedRowIds || [],
+      targetTabId,
       resultRows: r.resultRows,
       resultCols: r.resultCols,
       opKind: r.opKind,
@@ -188,32 +243,67 @@ export function acceptTablePreview(p: {
   });
 }
 
+/** 预览目标表切换（spec 3.3）：用目标表重算，保持「预览=确认」；
+ *  选中行不参与定位（rowId 属原表），只认 AI 行的 _rowIndex；目标无列 → 自然 replace 建表。 */
+export function setPreviewTargetTab(tabId: string): void {
+  const p = state.preview;
+  if (!p) return;
+  const tabs = getCurrentAssistantTabs();
+  const target = getTab(tabs, tabId);
+  const tb = target ? { columns: target.columns, rows: target.rows } : { columns: [], rows: [] };
+  const r = buildPreviewResult(tb, p.json, []);
+  setState({
+    ...state,
+    preview: {
+      ...p,
+      targetTabId: tabId,
+      resultRows: r.resultRows,
+      resultCols: r.resultCols,
+      opKind: r.opKind,
+      updatedCount: r.updatedCount,
+      appendedCount: r.appendedCount,
+      changedRowIds: r.changedRowIds,
+    },
+  });
+}
+
+/** 预览卡高度（px，仅内存、不落盘；null 回退 CSS 默认）。调用方负责 clamp（usePreviewResize）。 */
+export function setPreviewHeight(px: number): void {
+  setState({ ...state, previewHeight: Number.isFinite(px) ? px : null });
+}
+
+/**
+ * 切 tab（spec 2）：写 activeTabId 到会话记忆 + 重置协作现场（选中/预览/游标）。
+ * rowId 属原表，跨表无意义 → 清空；防止破坏 C1「选中即唯一意图信号」。
+ */
+export function switchTableTab(tabId: string): void {
+  setActiveTableTab(tabId);
+  setState({
+    ...state,
+    selectedRowIds: [],
+    preview: null,
+    handledMessageId: null,
+    range: null,
+  });
+}
+
 /** 探测游标推进：该消息已处理过（表格回复/普通回复/已确认取消），刷新/重渲不重弹 */
 export function markTableMessageHandled(messageId: unknown): void {
   setState({ ...state, handledMessageId: messageId });
 }
 
 /**
- * 确认写回（预览=确认，C5）：把 acceptTablePreview 算好的 resultCols/resultRows **原样写回**，
+ * 确认写回（预览=确认，C5）：把 acceptTablePreview 算好的 resultCols/resultRows **原样写回目标 tab**，
  * 零二次推导（不再 _rowIndex/mergeRowFromObj/jsonToSb 重算——B-003 结构消解）。
- * globalStyle 同步（保留 visual_positioning / negative）；
- * 写回 + markMessageTableResolved('confirmed') + 清 preview（左面板预览卡卸载，消息流留 pv-done 痕迹）。
+ * globalStyle 写目标 tab 的 globalStyle（隔离决策：不再写 global_contract）。
+ * 确认后自动切到目标表（spec 3.3，用户才能看到写回结果）；
+ * 写回 + markMessageTableResolved('confirmed') + 清 preview + 入撤销栈。
  * @returns { ok, mode }；结果无列（异常）时 logger.warn + 不落表 + ok:false（A-001/A-004：绝不静默）。
  */
-export function confirmTablePreview(): { ok: boolean; mode?: string } {
+export function confirmTablePreview(recordHistory = true): { ok: boolean; mode?: string } {
   const p = state.preview;
   if (!p) return { ok: false };
   const gs = String(p.json?.globalStyle ?? '').trim();
-  if (gs) {
-    const cur = getCurrentGlobalContract();
-    if (gs !== (cur?.unified_style_prompt ?? '')) {
-      setCurrentGlobalContract({
-        visual_positioning: String(cur?.visual_positioning ?? '').trim(),
-        unified_style_prompt: gs,
-        unified_negative_prompt: String(cur?.unified_negative_prompt ?? '').trim(),
-      });
-    }
-  }
   if (p.resultCols.length === 0) {
     // 探测时已拦空 rows；此处兜底：结果无列 = 推导异常，显式失败不静默落表（A-001/A-004）
     logger.warn('AI助手', '表格确认写回失败：结果无列，已中断', { messageId: p.messageId });
@@ -221,9 +311,24 @@ export function confirmTablePreview(): { ok: boolean; mode?: string } {
     setState({ ...state, preview: null });
     return { ok: false, mode: p.opKind };
   }
-  setCurrentAssistantTable({ columns: p.resultCols, rows: p.resultRows });
+  const tabs0 = getCurrentAssistantTabs();
+  const targetTabId = p.targetTabId || getActiveTab(tabs0)?.id || '';
+  if (!targetTabId) {
+    logger.warn('AI助手', '表格确认写回失败：目标 tab 不存在', { messageId: p.messageId });
+    markMessageTableResolved(p.messageId, 'confirmed');
+    setState({ ...state, preview: null });
+    return { ok: false, mode: p.opKind };
+  }
+  const targetName = getTab(tabs0, targetTabId)?.name || '当前表';
+  let tabs1 = setTabTable(tabs0, targetTabId, { columns: p.resultCols, rows: p.resultRows });
+  if (gs) tabs1 = setTabGlobalStyle(tabs1, targetTabId, gs);
+  if (recordHistory) pushHistory(tabs0);
+  setCurrentAssistantTabs(tabs1);
   markMessageTableResolved(p.messageId, 'confirmed');
-  setState({ ...state, preview: null });
+  // 确认后自动切到目标表 + toast（spec 3.3 / §8-3 拍板）：走 switchTableTab（而非只改 activeTabId）
+  // 才能把协作现场（选中行/预览/游标/选区）一并清掉 —— 旧选中行 id 属原表，留着会跨表残留。
+  switchTableTab(targetTabId);
+  showToast?.(`已写入「${targetName}」`, { type: 'success' });
   return { ok: true, mode: p.opKind };
 }
 
@@ -235,7 +340,15 @@ export function cancelTablePreview(): void {
   setState({ ...state, preview: null });
 }
 
-/** 切对话：清选中行/待确认预览/探测游标（防串到别的对话），保留 open/width */
+/** 切对话：清选中行/待确认预览/探测游标/选区（防串到别的对话），保留 open/width。
+ *  ⚠️ 撤销栈不在这里清 —— 由 AgentPanel 切对话时显式调 clearHistory()（快照是整份 tabs，
+ *  跨对话复用会把 A 对话的 tabs 写进 B 对话并落盘）。 */
 export function resetTableWorkspace(): void {
-  setState({ ...state, selectedRowIds: [], preview: null, handledMessageId: null });
+  setState({
+    ...state,
+    selectedRowIds: [],
+    preview: null,
+    handledMessageId: null,
+    range: null,
+  });
 }

@@ -7,6 +7,10 @@
  * 图标均用 feather 语义（viewBox=24、fill=none、stroke=currentColor、round 端点）。
  * 尺寸/线宽经 props 传入：在 `.atw-icobtn`（表格操作钮）上下文由 CSS 统一锁定 11×11；
  * 非 icobtn 处（全局标签 / 空态 mark / 预览卡确认钮）显式传 size/strokeWidth 对齐原观感。
+ *
+ * ⚠️ 撤销/重做已**移出本表**（2026-09-07）：原 undo/redo 是手改过坐标的 feather `rotate-ccw/cw`
+ * （弧线端点被挪到与箭头直角重合，比例失真、观感别扭）。现统一用 lucide-react 的 `Undo2`/`Redo2`
+ * —— 与全站（含 director3d）一致，后续新增图标也优先取 lucide，别再手写 path。
  */
 import type { ReactNode } from 'react';
 
@@ -22,7 +26,9 @@ export type IconName =
   | 'plus'
   | 'x'
   | 'table'
-  | 'check';
+  | 'check'
+  | 'more'
+  | 'target';
 
 /** name → 图形子节点（feather 24 viewBox，不含外层 <svg> 公共属性） */
 const ICON_PATHS: Record<IconName, ReactNode> = {
@@ -88,6 +94,23 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   check: <polyline points="20 6 9 17 4 12" />,
+  more: (
+    <>
+      <circle cx="12" cy="5" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="12" cy="19" r="1.6" />
+    </>
+  ),
+  target: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="4" />
+      <line x1="12" y1="2" x2="12" y2="6" />
+      <line x1="12" y1="18" x2="12" y2="22" />
+      <line x1="2" y1="12" x2="6" y2="12" />
+      <line x1="18" y1="12" x2="22" y2="12" />
+    </>
+  ),
 };
 
 /** 统一图标：size=宽高（px，icobtn 场景由 CSS 覆盖为 11），strokeWidth=线宽 */

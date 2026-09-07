@@ -9,12 +9,18 @@ import {
 import {
   getCurrentAssistantTable,
   setCurrentAssistantTable,
+  getCurrentAssistantTabs,
+  setCurrentAssistantTabs,
+  setActiveTableTab,
   getCurrentGlobalContract,
   markMessageTableResolved,
 } from '../../src/components/agent/conversation/conversationStore.ts';
 import { getActiveConv } from '../../src/components/agent/conversation/conversationState.ts';
 import { appendMsg } from '../../src/components/agent/runtime/agentMessages.ts';
-import { parsePasted } from '../../src/components/agent/assistantTable/assistantTable.ts';
+import {
+  parsePasted,
+  getActiveTab,
+} from '../../src/components/agent/assistantTable/assistantTable.ts';
 import {
   getTableWorkspace,
   toggleTableWorkspace,
@@ -22,6 +28,7 @@ import {
   setTableWorkspaceWidth,
   setTableWorkspaceRows,
   acceptTablePreview,
+  setPreviewTargetTab,
   markTableMessageHandled,
   confirmTablePreview,
   cancelTablePreview,
@@ -254,7 +261,10 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     expect(after.columns.map((c) => c.label)).toEqual(['新列A', '新列B']);
     expect(after.rows).toHaveLength(1);
     expect(after.rows[0].values[after.columns[0].id]).toBe('a1');
-    expect(getCurrentGlobalContract()?.unified_style_prompt).toBe('写实电影感');
+    // 隔离决策（spec 1.1/2.1）：globalStyle 写当前活动 tab 的 globalStyle，不再写 global_contract
+    const tabs = getCurrentAssistantTabs();
+    expect(getActiveTab(tabs)!.globalStyle).toBe('写实电影感');
+    expect(getCurrentGlobalContract()?.unified_style_prompt).toBeUndefined();
     expect(getTableWorkspace().preview).toBeNull();
   });
 
@@ -328,5 +338,71 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     expect(() => confirmTablePreview()).not.toThrow();
     expect(() => cancelTablePreview()).not.toThrow();
     expect(confirmTablePreview()).toEqual({ ok: false });
+  });
+});
+
+describe('多标签页（spec 1.1/3.3：tabs 真源 + 预览目标表 + 隔离）', () => {
+  it('setCurrentAssistantTabs 落真源；setCurrentAssistantTable 收窄为活动 tab 且隔离', () => {
+    ensureActiveConversation();
+    setCurrentAssistantTabs({
+      tabs: [
+        { id: 't1', name: '表A', columns: [], rows: [], globalStyle: '风格A' },
+        { id: 't2', name: '表B', columns: [], rows: [], globalStyle: '风格B' },
+      ],
+      activeTabId: 't1',
+    });
+
+    const tabs = getCurrentAssistantTabs();
+    expect(tabs.tabs).toHaveLength(2);
+    expect(tabs.activeTabId).toBe('t1');
+    expect(getActiveTab(tabs)!.name).toBe('表A');
+    expect(getActiveTab(tabs)!.globalStyle).toBe('风格A');
+
+    // 切活动 tab → setCurrentAssistantTable 只改该 tab，其它表隔离
+    setActiveTableTab('t2');
+    setCurrentAssistantTable({ columns: [], rows: [{ id: 'rx', values: { a: 'x' } }] });
+    const tabs2 = getCurrentAssistantTabs();
+    const act2 = getActiveTab(tabs2)!;
+    expect(act2.name).toBe('表B');
+    expect(act2.rows).toHaveLength(1);
+    const tabA = tabs2.tabs.find((t) => t.id === 't1')!;
+    expect(tabA.rows).toHaveLength(0); // 表A 不受影响
+    expect(tabA.globalStyle).toBe('风格A'); // globalStyle 每 tab 独立
+  });
+
+  it('预览目标默认活动 tab；切目标重算；确认写目标表（源表不动）且自动切到目标', () => {
+    const setup = () => {
+      ensureActiveConversation();
+      applyConversation(getActiveConv()!.id);
+      setCurrentAssistantTabs({
+        tabs: [
+          { id: 'tabA', name: '表A', columns: [], rows: [], globalStyle: '' },
+          { id: 'tabB', name: '表B', columns: [], rows: [], globalStyle: '' },
+        ],
+        activeTabId: 'tabA',
+      });
+      setCurrentAssistantTable({ columns: [], rows: [] });
+    };
+    setup();
+    const mid = appendAssistant('{"rows":[{"新列A":"a1"}]}');
+
+    // 当前活动 tab = tabA
+    acceptTablePreview({ json: { rows: [{ 新列A: 'a1' }] }, messageId: mid, selectedRowIds: [] });
+    expect(getTableWorkspace().preview!.targetTabId).toBe('tabA');
+    // 切目标到 tabB → 重算（目标空表 → replace）
+    setPreviewTargetTab('tabB');
+    const p = getTableWorkspace().preview!;
+    expect(p.targetTabId).toBe('tabB');
+    expect(p.opKind).toBe('replace');
+    confirmTablePreview();
+
+    // 写进 tabB，tabA 不动
+    const tabs = getCurrentAssistantTabs();
+    const a = tabs.tabs.find((t) => t.id === 'tabA')!;
+    const b = tabs.tabs.find((t) => t.id === 'tabB')!;
+    expect(a.columns).toHaveLength(0); // 源表不动
+    expect(b.columns.map((c) => c.label)).toEqual(['新列A']);
+    // 自动切到目标表（spec 3.3）
+    expect(getActiveTab(tabs)!.id).toBe('tabB');
   });
 });

@@ -916,6 +916,7 @@ export function useAgentChat({
         global_contract: null,
         artifacts: null,
         assistantTable: null,
+        assistantTables: null,
       },
       pendingGenerations: null,
       awaitingConfirm: false,

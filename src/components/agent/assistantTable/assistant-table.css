@@ -129,13 +129,8 @@
   color: rgb(var(--mao-text-subtle));
 }
 
-/* ── 工具条：行数 & 内容按钮（新增一行 / 复制 / 清空） ── */
-.atw-toolbar .cnt {
-  font-size: 11px;
-  color: rgb(var(--mao-text-faint));
-  margin-right: 2px;
-  flex-shrink: 0;
-}
+/* ── 工具条：内容按钮（新增一行 / 复制 / 清空）──
+   2026-09-07：删掉原「N 行」计数 —— tab 上已带行数，同一屏出现两次属冗余（用户裁定）。 */
 .atw-toolbar .atw-icobtn {
   flex-shrink: 0;
 }
@@ -180,7 +175,7 @@
      导致表格超出左栏、压进右侧对话区/面板外。min-width:0 允许表体收窄到父宽，
      超宽内容改由 .atw-body 横向滚动。 */
   min-width: 0;
-  min-height: 0;
+  min-height: 160px; /* spec 3.2：预览卡拖高时上方正式表格至少留 160px，不被压没 */
   overflow: auto;
   padding: 0 12px 12px;
 }
@@ -228,9 +223,10 @@
 }
 
 /* 行交互：hover 高亮 + 选中态（.sel 蓝底 + 首列左竖条） */
+/* 行本身不再整体可点（spec §0-7：只有行号格 = 选行入口），故不给整行 pointer 暗示 */
 .atw-grid tbody tr {
   transition: background 0.12s;
-  cursor: pointer;
+  cursor: default;
 }
 .atw-grid tbody tr:hover {
   background: rgb(var(--mao-surface-hover));
@@ -245,6 +241,17 @@
   color: rgb(var(--mao-text-faint));
   font-size: 11px;
   width: 30px;
+  /* 行号格 = 唯一的「选行」入口（spec §0-7 裁定），给个可点暗示 */
+  cursor: pointer;
+}
+.atw-grid td.idx:hover {
+  color: rgb(var(--mao-accent-strong));
+  background: rgb(var(--mao-surface-hover));
+}
+/* 矩形选区（spec 3.6）：淡蓝底 + 内描边，与行选中 .sel 同族但更轻（选区是临时态） */
+.atw-grid td.in-range {
+  background: rgb(var(--mao-accent) / 0.12);
+  box-shadow: inset 0 0 0 1px rgb(var(--mao-accent) / 0.35);
 }
 .atw-grid tr.sel td.idx {
   color: rgb(var(--mao-accent-strong));
@@ -261,11 +268,15 @@
   padding: 0 26px 0 2px;
   font: inherit;
   line-height: 1.4;
-  border-radius: 3px;
+  border-radius: 0;
+}
+/* 列名编辑态与单元格同款：底色/描边上移到 th，输入框全透明（不再"灰块套蓝框"） */
+.atw-grid th:has(> .col-head:focus) {
+  background: rgb(var(--mao-surface) / 0.7);
+  box-shadow: inset 0 0 0 1px rgb(var(--mao-accent));
 }
 .atw-grid th .col-head:focus {
-  background: rgb(var(--mao-surface));
-  box-shadow: inset 0 0 0 1px rgb(var(--mao-accent));
+  background: transparent;
   color: rgb(var(--mao-text-strong));
 }
 
@@ -361,7 +372,7 @@
   border: none;
   background: transparent;
   color: inherit;
-  border-radius: 4px;
+  border-radius: 0;
   padding: 2px;
   font-size: 12px;
   font-family: inherit;
@@ -372,9 +383,20 @@
   vertical-align: top;
   word-break: break-word;
 }
-.atw-grid .cell:focus {
-  background: rgb(var(--mao-surface));
+/* ══ 单元格编辑态（2026-09-07 重做观感）══
+   原先把「灰底 + 蓝描边 + 4px 圆角」画在 textarea 自身，而 td 又自带 padding（4px 7px），
+   textarea 比 td 小一圈 → 「格子底色 / 一圈露底 / 灰块 / 蓝框 / 文字」四层叠在一起，像个脏补丁
+   （选中行上更明显：行选中淡蓝底 + 灰块两层颜色互脏）。
+   现在底色与描边都上移到 td（:has(> .cell:focus)），textarea 自身完全透明：
+   线贴着格子边界，文字与线之间隔着 td 的 padding —— 与 Notion/Airtable 的单元格编辑态同款。
+   ⚠️ 必须用 :has 而非 td:focus-within：操作列里的按钮聚焦也会触发 focus-within，
+   会给「⋯ 按钮」套一圈蓝框。 */
+.atw-grid td:has(> .cell:focus) {
+  background: rgb(var(--mao-surface) / 0.7); /* 半透明：行选中淡蓝底可微透，不突兀 */
   box-shadow: inset 0 0 0 1px rgb(var(--mao-accent));
+}
+.atw-grid .cell:focus {
+  background: transparent;
   color: rgb(var(--mao-text-strong));
 }
 .atw-grid .ops {
@@ -451,7 +473,10 @@
   border: 1px solid rgb(var(--mao-edge-faint));
   border-radius: 8px;
   background: rgb(var(--mao-surface-sunken));
-  overflow: hidden;
+  /* ⚠️ 不能是 overflow:hidden（2026-09-07）：头部的「写入到」下拉是 absolute 浮层，
+     会被祖先的 hidden 纵向裁掉（与 tab 条 ⋯ 菜单同款坑，表现为「点了没反应」）。
+     表体 .atw-pv-body 自带 overflow:auto 且位于卡中部，不接触四角圆角，放开后无视觉副作用。 */
+  overflow: visible;
   /* 窄容器可收缩、不把祖先/屏幕撑破 */
   min-width: 0;
   max-width: 100%;
@@ -610,4 +635,414 @@
   margin-left: auto;
   font-size: 10.5px;
   color: rgb(var(--mao-text-subtle));
+}
+
+/* ════════════════════════ 多标签页（spec 3.1；2026-09-07 视觉对齐面板群）════════════════════════
+
+   tab 条 = `.atw` 最顶部第一行，在全局风格条（.atw-head）之上，高 40px 与 AI 助手顶栏（.agent-header）齐平。
+
+   【视觉真源 = panel-kit.css】2026-09-07 改：原先条底用 --mao-surface-sunken（#0b0b0a，代码块色，
+   比面板本体还黑）+ 选中态用 accent 蓝底蓝竖条，与全站语言打架（观感"格格不入"）。
+   现统一到面板群约定：条底透明（吃面板 --mao-surface-deep）、tab 走 pill 形态、
+   选中 = **中性高亮**（surface-hover-strong + 内描边 + 文字最亮）；蓝留给"某开关已启用"。
+   尺度变量直接引用 --pk-*（与左侧栏面板同源，改一处全库呼吸）。 */
+.atw-tabsbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 40px; /* 与 AI 助手顶栏 .agent-header 齐平（用户裁定） */
+  padding: 0 6px 0 var(--pk-pad-x, 10px);
+  border-bottom: 1px solid rgb(var(--mao-edge-subtle));
+}
+.atw-tabs-scroll {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden; /* ⚠️ 浮层禁止挂在里面：会被纵向裁掉（⋯ 菜单曾因此"点了没反应"） */
+  scrollbar-width: none;
+}
+.atw-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+/* 条尾：＋ / ⋯ 固定在滚动区外，不随 tab 横滚，浮层也不受裁剪 */
+.atw-tabs-tail {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.atw-tab {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 4px 0 9px;
+  border-radius: var(--pk-radius-pill, 7px);
+  background: transparent;
+  color: rgb(var(--mao-text-muted));
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    box-shadow 0.15s;
+}
+.atw-tab:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-primary));
+}
+/* 选中 = 中性高亮（同 .pk-seg-item[aria-selected] / .pk-pill[aria-pressed]） */
+.atw-tab.is-active,
+.atw-tab.is-active:hover {
+  background: rgb(var(--mao-surface-hover-strong));
+  box-shadow: inset 0 0 0 1px rgb(var(--mao-edge));
+  color: rgb(var(--mao-text-strong));
+}
+.atw-tab.is-dragging {
+  background: rgb(var(--mao-surface-hover-strong));
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.45);
+  color: rgb(var(--mao-text-strong));
+  z-index: 5;
+  cursor: grabbing;
+  opacity: 0.92;
+}
+/* 落点指示：拖拽中 DOM 不重排，用 2px 竖线标出将插到目标 tab 的哪一侧 */
+.atw-tab.is-drop-before::after,
+.atw-tab.is-drop-after::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 2px;
+  border-radius: 2px;
+  background: rgb(var(--mao-accent));
+}
+.atw-tab.is-drop-before::after {
+  left: -3px;
+}
+.atw-tab.is-drop-after::after {
+  right: -3px;
+}
+.atw-tab-name {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.atw-tab-meta {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: rgb(var(--mao-surface-2));
+  color: rgb(var(--mao-text-faint));
+  font-size: 10px;
+  line-height: 1.5;
+}
+.atw-tab-rename {
+  flex-shrink: 0;
+  width: 96px;
+  height: 24px;
+  outline: none;
+  border: 1px solid rgb(var(--mao-accent));
+  border-radius: 6px;
+  background: rgb(var(--mao-input));
+  color: rgb(var(--mao-text-strong));
+  font-size: 12px;
+  font-family: inherit;
+  padding: 0 6px;
+}
+.atw-tab-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.55;
+  transition:
+    opacity 0.12s,
+    background 0.12s,
+    color 0.12s;
+}
+.atw-tab:hover .atw-tab-x,
+.atw-tab.is-active .atw-tab-x {
+  opacity: 0.8;
+}
+.atw-tab .atw-tab-x:hover {
+  opacity: 1;
+  background: rgb(var(--mao-surface-active-2));
+  color: rgb(var(--mao-text-strong));
+}
+/* ＋ / ⋯：与 .pk-icon-btn.is-sm 同档（26px） */
+.atw-tab-add,
+.atw-tab-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--pk-icon-sm, 26px);
+  height: var(--pk-icon-sm, 26px);
+  border: none;
+  border-radius: var(--pk-radius-btn, 8px);
+  background: transparent;
+  color: rgb(var(--mao-text-muted));
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.atw-tab-add:hover,
+.atw-tab-more:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-strong));
+}
+.atw-tab-more.is-on {
+  color: var(--pk-accent, #60a5fa);
+  background: var(--pk-accent-bg, rgb(59 130 246 / 0.12));
+}
+/* tab ⋯ 菜单（对齐 .pk-pop：surface-1 + edge + radius 12 + 大投影） */
+.atw-tab-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 40;
+  min-width: 160px;
+  margin-top: 6px;
+  padding: 6px;
+  border-radius: var(--pk-radius-pop, 12px);
+  background: rgb(var(--mao-surface-1));
+  border: 1px solid rgb(var(--mao-edge));
+  box-shadow: 0 20px 60px -10px rgb(0 0 0 / 0.85);
+}
+.atw-tab-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(var(--mao-text-body));
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.atw-tab-menu-item:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-strong));
+}
+.atw-tab-menu-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.atw-tab-menu-item:disabled:hover {
+  background: transparent;
+  color: rgb(var(--mao-text-body));
+}
+.atw-tab-menu-item.is-danger {
+  color: rgb(248 113 113);
+}
+.atw-tab-menu-item.is-danger:hover {
+  background: rgb(239 68 68 / 0.1);
+  color: rgb(248 113 113);
+}
+.atw-tab-menu-sep {
+  height: 1px;
+  margin: 5px 4px;
+  background: rgb(var(--mao-edge-subtle));
+}
+.atw-toolbar .atw-icobtn.is-danger {
+  color: rgb(248 113 113);
+}
+
+/* ══ 行尾 ⋯ 菜单（spec 3.5/3.6）══ */
+.rowops {
+  position: relative;
+}
+.atw-row-ops-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: rgb(var(--mao-text-faint));
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.atw-row-ops-btn:hover {
+  background: rgb(var(--mao-surface-hover-strong));
+  color: #fff;
+}
+.atw-rowmenu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 40;
+  min-width: 168px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgb(var(--mao-surface));
+  border: 1px solid rgb(var(--mao-edge));
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.3);
+}
+.atw-rowmenu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 6px 9px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: rgb(var(--mao-text-secondary));
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.atw-rowmenu-item:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-strong));
+}
+.atw-rowmenu-item.is-danger {
+  color: rgb(248 113 113);
+}
+.atw-rowmenu-item.is-danger:hover {
+  background: rgb(248 113 113 / 0.12);
+}
+.atw-rowmenu-item.is-accent {
+  color: rgb(var(--mao-accent-strong));
+}
+.atw-rowmenu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: rgb(var(--mao-edge-subtle));
+}
+/* ══ 预览卡：顶拖手柄（spec 3.2）；「写入到」下拉样式见上方 .atw-target-* 一套 ══ */
+.atw-pv-grip {
+  flex-shrink: 0;
+  height: 6px;
+  cursor: row-resize;
+  background: transparent;
+  position: relative;
+}
+.atw-pv-grip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  transform: translateX(-50%);
+  width: 42px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgb(var(--mao-edge));
+  opacity: 0.6;
+}
+.atw-pv-grip:hover::after {
+  background: rgb(var(--mao-accent));
+  opacity: 1;
+}
+/* ══ 目标标签页下拉（TabTargetMenu：预览卡「写入到」+ 行尾「复制到」共用唯一实现）══
+   2026-09-07：原先两处各写一份（.atw-pv-target-* / .atw-rowmenu-target-*），值差 20px 且与
+   全站浮层（.pk-pop）不一致，合并为此一套。 */
+.atw-target-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.atw-pv-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid rgb(var(--mao-edge));
+  border-radius: 6px;
+  background: rgb(var(--mao-surface));
+  color: rgb(var(--mao-accent-strong));
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.atw-pv-target:hover {
+  background: rgb(var(--mao-surface-hover));
+}
+/* 行菜单内的触发器：撑满一行、左对齐，与 .atw-rowmenu-item 同观感 */
+.atw-rowmenu-trigger {
+  justify-content: flex-start;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: rgb(var(--mao-text-secondary));
+  font-size: 12px;
+  padding: 6px 9px;
+  gap: 7px;
+}
+.atw-rowmenu-trigger:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-strong));
+}
+.atw-target-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 42;
+  min-width: 150px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: var(--pk-radius-pop, 12px);
+  background: rgb(var(--mao-surface-1));
+  border: 1px solid rgb(var(--mao-edge));
+  box-shadow: 0 20px 60px -10px rgb(0 0 0 / 0.85);
+}
+.atw-target-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(var(--mao-text-body));
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.atw-target-item:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-strong));
+}
+.atw-target-item.is-add {
+  color: rgb(var(--mao-accent-strong));
+}
+.atw-target-empty {
+  padding: 6px 9px;
+  color: rgb(var(--mao-text-faint));
+  font-size: 11px;
 }

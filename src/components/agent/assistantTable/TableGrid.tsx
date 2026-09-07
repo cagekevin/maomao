@@ -8,13 +8,17 @@
 import type { RefObject } from 'react';
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type { ReactNode } from 'react';
-import type { AssistantTable, TableRow } from './assistantTable.ts';
+import type { AssistantTable, CellRange, TableRow } from './assistantTable.ts';
 import CellEditor from './CellEditor.tsx';
 import Icon from './icons.tsx';
 
 export interface TableGridProps {
   table: AssistantTable;
   selectedRowIds: string[];
+  /** 单元格矩形选区（spec 3.6；null = 无） */
+  range: CellRange | null;
+  /** 点格子：Shift 扩选区，否则重设起点（选区与行多选互斥） */
+  onCellPointerDown: (e: { shiftKey: boolean }, rowId: string, colId: string) => void;
   /** 列 id → 当前显示宽（px，估算/手动锁定混合） */
   colWidths: Record<string, number>;
   /** hook 提供的 <col> ref（拖拽中直改 DOM 不重渲） */
@@ -40,6 +44,8 @@ export interface TableGridProps {
 export default function TableGrid({
   table,
   selectedRowIds,
+  range,
+  onCellPointerDown,
   colWidths,
   colElsRef,
   resizeTick,
@@ -55,12 +61,35 @@ export default function TableGrid({
   onStartResize,
   renderRowOps,
 }: TableGridProps) {
+  /** 选区矩形（按 index 归一）；任一锚点已不存在 → 视为无选区，不渲染高亮 */
+  const rowIdx = (id: string) => table.rows.findIndex((r) => r.id === id);
+  const colIdx = (id: string) => table.columns.findIndex((c) => c.id === id);
+  const sel =
+    range &&
+    rowIdx(range.r0) >= 0 &&
+    rowIdx(range.r1) >= 0 &&
+    colIdx(range.c0) >= 0 &&
+    colIdx(range.c1) >= 0
+      ? {
+          r0: Math.min(rowIdx(range.r0), rowIdx(range.r1)),
+          r1: Math.max(rowIdx(range.r0), rowIdx(range.r1)),
+          c0: Math.min(colIdx(range.c0), colIdx(range.c1)),
+          c1: Math.max(colIdx(range.c0), colIdx(range.c1)),
+        }
+      : null;
+
   /** 单元格：草稿优先，blur 提交 */
-  const cells = (row: TableRow) =>
-    table.columns.map((col) => {
+  const cells = (row: TableRow) => {
+    const ri = rowIdx(row.id);
+    return table.columns.map((col, ci) => {
       const value = cellValue(row.id, col.id, row.values[col.id] ?? '');
+      const inRange = !!sel && ri >= sel.r0 && ri <= sel.r1 && ci >= sel.c0 && ci <= sel.c1;
       return (
-        <td key={col.id}>
+        <td
+          key={col.id}
+          className={inRange ? 'in-range' : undefined}
+          onMouseDown={(e) => onCellPointerDown(e, row.id, col.id)}
+        >
           <CellEditor
             value={value}
             resizeTick={resizeTick}
@@ -70,6 +99,7 @@ export default function TableGrid({
         </td>
       );
     });
+  };
 
   return (
     <div className="atw-body">
@@ -85,7 +115,7 @@ export default function TableGrid({
               style={{ width: colWidths[col.id] ?? colWidths[ci] }}
             />
           ))}
-          <col style={{ width: 88 }} />
+          <col style={{ width: 32 }} />
         </colgroup>
         <thead>
           <tr>
@@ -135,12 +165,16 @@ export default function TableGrid({
         </thead>
         <tbody>
           {table.rows.map((row, i) => (
-            <tr
-              key={row.id}
-              className={selectedRowIds.includes(row.id) ? 'sel' : ''}
-              onClick={(e) => onRowClick(e, row)}
-            >
-              <td className="idx">{i + 1}</td>
+            // ⚠️ 行选择只挂在**行号格**（spec §0 第 7 条裁定）：点普通格子是设选区起点，
+            // 若整行都可选行，两者会打架（点一下既选行又动选区）。
+            <tr key={row.id} className={selectedRowIds.includes(row.id) ? 'sel' : ''}>
+              <td
+                className="idx"
+                title="点击选中该行（Cmd/Ctrl 加选，Shift 选区间）"
+                onClick={(e) => onRowClick(e, row)}
+              >
+                {i + 1}
+              </td>
               {cells(row)}
               <td>{renderRowOps(row)}</td>
             </tr>

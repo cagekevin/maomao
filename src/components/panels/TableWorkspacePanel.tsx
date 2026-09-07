@@ -20,7 +20,7 @@
  * 开合联动：AI 面板收起时 AgentPanel 调 closeTableWorkspace() 一起收（见 AgentPanel）。
  * 本组件无独立头部（贴近旧 UI 的左栏表格），关闭入口 = AI 助手顶栏「表格」图标。
  */
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import {
   useTableWorkspace,
   setTableWorkspaceWidth,
@@ -29,7 +29,6 @@ import {
 } from '../agent/assistantTable/tableWorkspaceState.ts';
 import { useCanvasAgentTools } from '../agent/canvas/useCanvasAgentTools.ts';
 import AssistantTablePanel from '../agent/assistantTable/AssistantTablePanel.tsx';
-import type { AssistantTablePreview } from '../agent/assistantTable/assistantTable.ts';
 import { subscribe, getState } from '../agent/conversation/conversationState.ts';
 import type { ConversationStoreState } from '../agent/conversation/conversationState.ts';
 import { useStoreSelector, shallowEqual } from '@/hooks/useStoreSelector.ts';
@@ -39,44 +38,13 @@ export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWid
   const ws = useTableWorkspace();
   const { callTool } = useCanvasAgentTools();
 
-  // ── 会话表格数据（与 AssistantTablePanel 同款原子订阅；切对话自动跟随）──
+  // ── 会话发送态（与 AssistantTablePanel 同款原子订阅；切对话自动跟随）──
   const sending = useStoreSelector<ConversationStoreState, boolean>(
     subscribe,
     getState,
     (s) => !!s.sending,
     shallowEqual,
   );
-
-  // 待确认预览显示模型：共享态 preview 已存「操作后最终表格」（acceptTablePreview 时算好，预览=确认），
-  // 这里只做形状格式化（resultCols/resultRows → 列名/行对象），不重推数据。
-  const preview: AssistantTablePreview | null = useMemo(() => {
-    const p = ws.preview;
-    if (!p) return null;
-    const columns = p.resultCols.map((c) => c.label);
-    const rows = p.resultRows.map((r) => {
-      const rec: Record<string, string> = {};
-      for (const col of p.resultCols) rec[col.label] = r.values[col.id] ?? '';
-      return rec;
-    });
-    // 把「确认后会写回变化」的行 id → 其在 rows 里的 0 基下标（预览卡据此展开变化行、折叠未变行）。
-    // 非 replace 才有折叠价值：replace（空表建表）全为新行无「未变行」，不传即全展开。
-    const changedIdSet = new Set<string>(p.changedRowIds || []);
-    const changedIndexes =
-      p.opKind === 'replace'
-        ? undefined
-        : rows.map((_, i) => (changedIdSet.has(p.resultRows[i].id) ? i : -1)).filter((i) => i >= 0);
-    return {
-      kind: 'table',
-      globalStyle: String(p.json?.globalStyle ?? '').trim(),
-      columns,
-      rows,
-      rowIndex: null,
-      opKind: p.opKind,
-      updatedCount: p.updatedCount,
-      appendedCount: p.appendedCount,
-      changedIndexes,
-    };
-  }, [ws.preview]);
 
   // 发送到画布：复用 AI 操作画布的现成工具链路（create_node → textNode），不裸写 setNodes
   const onSendToCanvas = useCallback(
@@ -115,7 +83,6 @@ export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWid
         width={ws.width}
         previewing={!!ws.preview}
         onSendToCanvas={onSendToCanvas}
-        preview={preview}
         sending={sending}
         onConfirmPreview={confirmTablePreview}
         onCancelPreview={cancelTablePreview}

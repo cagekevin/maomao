@@ -1,64 +1,73 @@
 /**
- * AI 助手表格 —— 左栏表格工作区组件（UI 薄壳 + 组合子组件，2026-09-06 拆分）。
+ * AI 助手表格 —— 左栏表格工作区组件（多标签页版，UI 薄壳 + 组合子组件，spec/AI-ASSISTANT-TABLE-TABS.md）。
  *
- * 形态：普通 HTML 表格，活在 AI 面板左栏，与画布完全解耦。数据真相源 = 会话记忆 memory.assistantTable；
- * globalStyle 复用 memory.global_contract.unified_style_prompt。自读自写（conversationStore 原子订阅 + setCurrent* 写回）。
+ * 形态：普通 HTML 表格，活在 AI 面板左栏，与画布完全解耦。数据真相源 = 会话记忆 memory.assistantTables（多标签页，
+ * {tabs,activeTabId}）；memory.assistantTable/global_contract 只读兼容（老数据水合，不再写）。globalStyle 每 tab 独立。
+ * 自读自写（conversationStore 原子订阅 + setCurrent* 写回）。
  *
- * 【拆分结构】（从原 777 行"上帝组件"拆出，各层单一职责，见 spec/AI-ASSISTANT-TABLE-UI-FOUNDATION.md）：
- *   - 本文件：薄壳 —— 数据订阅 + 剪贴板/清空/落画布 + 空态 + 工具条 + 预览卡装配；
- *   - TableGrid.tsx：表格主体纯渲染（表头/行/格/行号/操作列），cells()/ops() 随迁；
- *   - CellEditor.tsx：单格 textarea（自动撑高）；
- *   - useColumnResize.ts：列宽估算 + 拖拽 hook（命令式改 DOM、松手 commit，保留性能设计）；
- *   - useTableDrafts.ts：edits/colRenameDraft/styleDraft 三份散落 state 收口；
- *   - icons.tsx：统一图标表（消灭重复 inline SVG）；
- *   - assistant-table.css：表格域样式自持（.atw* 语义类名，不依赖祖先 .tw-panel）。
+ * 【多标签页装配】（spec 3.1/3.2/3.3/3.4/3.5/3.6）：
+ *  - .atw 顶部渲染 TableTabsBar（高 40px 与 AI 助手顶栏齐平），选中=当前=发给 AI（activeTabId）；
+ *  - 工具条加 ⟲/⟳（撤销/重做，仅按钮不绑快捷键）；批量删除选中行；
+ *  - globalStyle 写当前活动 tab（setCurrentTableGlobalStyle），不再写 global_contract；
+ *  - 行尾 ⋯ 菜单（RowOpsMenu，含跨表复制「复制行到…」）；
+ *  - 预览卡：边距下好「写入到」目标表下拉（含「＋ 新建标签页」）+ 拖动拉高。
  *
- * 关键交互（定稿 §1.3/§1.4 + 实施 §1.5）：
- *  - 点选行：选中态全库只存共享态 selectedRowIds（C1）；普通点击=单选/取消，Cmd/Ctrl=多选；删除行同步移除。
- *  - 复制整表=TSV+HTML 双格式；清空走 askConfirm；行「发送到画布」→ rowToText → onSendToCanvas。
- *  - AI 生成整表/改行/追加：watch 消息解析「表格 JSON」→ 顶部渲染预览卡；确认才写回（预览=确认），取消不动。
+ * 其余（拆分结构）：
+ *  - TableGrid.tsx：表格主体纯渲染（表头/行/格/行号/操作列）；
+ *  - CellEditor.tsx：单格 textarea（自动撑高）；
+ *  - useColumnResize.ts：列宽估算 + 拖拽 hook（命令式改 DOM、松手 commit）；
+ *  - useTableDrafts.ts：edits/colRenameDraft/styleDraft 草稿收口；
+ *  - tableHistory.ts：撤销/重做栈（纯运行态、不落盘）；
+ *  - icons.tsx / assistant-table.css 同款。
  */
-
-import { useCallback, type MouseEvent as ReactMouseEvent } from 'react';
+import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
+import { Undo2, Redo2 } from 'lucide-react';
 import {
   setCurrentAssistantTable,
-  getCurrentGlobalContract,
-  setCurrentGlobalContract,
+  setCurrentAssistantTabs,
+  getCurrentAssistantTabs,
+  setCurrentTableGlobalStyle,
 } from '../conversation/conversationStore.ts';
 import {
   parsePasted,
   addRow,
   deleteRow,
+  deleteRows,
   moveRow,
-  duplicateRow,
+  insertRowAfter,
   rowToText,
   insertColumnAfter,
   deleteColumn,
+  renameTab,
+  addTab,
+  removeTab,
+  copyTab,
+  moveTab,
+  setActiveTabId,
+  copyRowsToTab,
 } from './assistantTable.ts';
-import type { AssistantTable, TableRow, AssistantTablePreview } from './assistantTable.ts';
+import { normalizeAssistantTable } from './assistantTable.ts';
+import { useTableSelection } from './useTableSelection.ts';
+import type { AssistantTable, TableRow, TableTab } from './assistantTable.ts';
 import { showToast } from '@/components/base/core/toastStore.ts';
 import { askConfirm } from '@/components/base/core/confirmStore.ts';
-import { useTableWorkspace, setTableWorkspaceRows } from './tableWorkspaceState.ts';
+import {
+  useTableWorkspace,
+  setTableWorkspaceRows,
+  switchTableTab,
+  setPreviewTargetTab,
+} from './tableWorkspaceState.ts';
 import { useActiveAssistantTable } from './useActiveAssistantTable.ts';
 import { useTableDrafts } from './useTableDrafts.ts';
 import { useColumnResize } from './useColumnResize.ts';
+import { usePreviewResize } from './usePreviewResize.ts';
+import { pushHistory, useTableHistory, undoTable, redoTable } from './tableHistory.ts';
 import TableGrid from './TableGrid.tsx';
+import TableTabsBar from './TableTabsBar.tsx';
+import RowOpsMenu from './RowOpsMenu.tsx';
 import Icon from './icons.tsx';
 import AssistantTablePreviewCard from './AssistantTablePreviewCard.tsx';
 import './assistant-table.css';
-
-/** 写全局风格（复用到 memory.global_contract.unified_style_prompt；缺另两字段时补空串对齐 GlobalContractShape） */
-function writeGlobalStyle(style: string): void {
-  const cur = getCurrentGlobalContract();
-  const next = cur
-    ? { ...cur, unified_style_prompt: style }
-    : {
-        visual_positioning: '',
-        unified_style_prompt: style,
-        unified_negative_prompt: '',
-      };
-  setCurrentGlobalContract(next);
-}
 
 /** 面板外部注入：回调与左栏宽度 */
 export interface AssistantTablePanelProps {
@@ -68,13 +77,9 @@ export interface AssistantTablePanelProps {
   previewing?: boolean;
   /** 某行 → 发送到画布（AgentPanel 传 sendContentToCanvas，内部 rowToText 拼好文字） */
   onSendToCanvas?: (text: string) => void;
-  /** 【待确认预览卡（收进左栏表格下方）】AI 返回表格 JSON → AgentPanel 解析出的「待确认预览模型」。 */
-  preview?: AssistantTablePreview | null;
   /** 是否正在发送（发送中禁用确认按钮） */
   sending?: boolean;
-  /** 确认：AgentPanel 把 AI 新内容写回正式表格（整表 replace / 单行 merge） */
   onConfirmPreview?: () => void;
-  /** 取消：放弃本次预览，正式表格不动 */
   onCancelPreview?: () => void;
 }
 
@@ -82,23 +87,56 @@ export default function AssistantTablePanel({
   width = 460,
   previewing = false,
   onSendToCanvas,
-  preview = null,
   sending = false,
   onConfirmPreview,
   onCancelPreview,
 }: AssistantTablePanelProps) {
-  // 选中态唯一信号（C1）：普通点击=单选/取消，Cmd/Ctrl=多选 toggle
-  const { selectedRowIds } = useTableWorkspace();
+  const { selectedRowIds, preview, previewHeight } = useTableWorkspace();
+  // ── 多标签页数据源（真源 = memory.assistantTables；返回 tabs + 当前活动 tab）──
+  const {
+    activeConversationId,
+    tabs,
+    activeTabId,
+    table: tableData,
+    globalStyle,
+  } = useActiveAssistantTable();
+  const { canUndo, canRedo } = useTableHistory();
+  const { onGripPointerDown } = usePreviewResize();
 
-  // ── 响应式读 store（会话表格 + 全局风格，订阅逻辑收口于 hook） ──
-  const { activeConversationId, table: tableData, globalStyle } = useActiveAssistantTable();
-
-  /** 唯一写回入口 */
+  /** 唯一写回入口（当前活动 tab）：commit 前快照入撤销栈 */
   const commit = (sb: AssistantTable) => {
-    setCurrentAssistantTable(sb);
+    if (sb === tableData) return;
+    pushHistory(getCurrentAssistantTabs());
+    const normalized = normalizeAssistantTable(sb);
+    setCurrentAssistantTable(normalized);
   };
 
-  // 列宽策略/拖拽 + 本地编辑草稿（两处散落逻辑已收口为可测 hook）
+  // 选区 + 内部剪贴板（spec 3.6；依赖 commit，故必须在其后声明）
+  const { range, onCellPointerDown, clearRange, copy, paste } = useTableSelection({
+    table: tableData,
+    selectedRowIds,
+    commit,
+  });
+
+  // ── 撤销/重做（仅工具条按钮，spec 3.4；不绑 Ctrl/Cmd+Z）──
+  const handleUndo = () => {
+    const prev = undoTable(getCurrentAssistantTabs());
+    if (prev) {
+      setCurrentAssistantTabs(prev);
+      resetAllDrafts();
+      showToast?.('已撤销', { type: 'success' });
+    }
+  };
+  const handleRedo = () => {
+    const next = redoTable(getCurrentAssistantTabs());
+    if (next) {
+      setCurrentAssistantTabs(next);
+      resetAllDrafts();
+      showToast?.('已重做', { type: 'success' });
+    }
+  };
+
+  // 列宽策略/拖拽 + 本地编辑草稿
   const { colWidths, colElsRef, startResize, resizeTick } = useColumnResize(tableData, commit);
   const {
     cellValue,
@@ -109,7 +147,13 @@ export default function AssistantTablePanel({
     commitColRename,
     styleDraft,
     setStyleDraft,
+    resetAllDrafts,
   } = useTableDrafts(tableData, globalStyle, activeConversationId, commit);
+
+  // 切 tab → 清本地草稿（行属原表，跨表无意义）
+  useEffect(() => {
+    resetAllDrafts();
+  }, [activeTabId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePaste = async () => {
     let text = '';
@@ -203,98 +247,255 @@ export default function AssistantTablePanel({
     if (!ok) return;
     commit({ columns: [], rows: [] });
     showToast?.('已清空表格', { type: 'success' });
-  }, [commit]);
+  }, [commit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStyleCommit = () => {
     const next = styleDraft.trim();
-    if (next !== globalStyle) writeGlobalStyle(next);
+    if (next === globalStyle) return;
+    // 风格属 commit（spec §2.1「行/列/风格/表名/顺序 任一 commit」），不入栈会让一次 ⟲ 吞掉多步
+    pushHistory(getCurrentAssistantTabs());
+    setCurrentTableGlobalStyle(next);
   };
 
-  /** 行操作组（复制/上移/下移/删除/发送到画布）——闭包沿用原逻辑，随 renderRowOps 传给 TableGrid */
-  const ops = (row: TableRow) => {
+  /** 批量删除选中行（Delete/Backspace 或 ⋯「删除选中行」），一次入撤销栈 */
+  const handleDeleteSelected = () => {
+    if (!selectedRowIds.length) return;
+    const next = deleteRows(tableData, selectedRowIds);
+    if (next !== tableData) {
+      commit(next);
+      setTableWorkspaceRows([]);
+      showToast?.(`已删除 ${selectedRowIds.length} 行`, { type: 'success' });
+    }
+  };
+
+  /** 每行 ⋯ 菜单回调集（spec 3.5/3.6）：套用当前活动 tab 的行级纯函数 */
+  const rowOps = (row: TableRow) => {
     const apply = (fn: (sb_: AssistantTable) => AssistantTable) => {
       const next = fn(tableData);
       if (next !== tableData) commit(next);
     };
+    const hasMulti = selectedRowIds.length > 1;
+    const opsRowIds = hasMulti ? selectedRowIds : [row.id];
     return (
-      <div className="ops" onClick={(e) => e.stopPropagation()}>
-        <button
-          type="button"
-          className="atw-icobtn"
-          title="复制该行"
-          onClick={() => {
-            apply((s) => duplicateRow(s, row.id));
-            showToast?.('已复制到下一行');
-          }}
-        >
-          <Icon name="copy" />
-        </button>
-        <button
-          type="button"
-          className="atw-icobtn"
-          title="上移"
-          onClick={() => apply((s) => moveRow(s, row.id, 'up'))}
-        >
-          <Icon name="chevron-up" />
-        </button>
-        <button
-          type="button"
-          className="atw-icobtn"
-          title="下移"
-          onClick={() => apply((s) => moveRow(s, row.id, 'down'))}
-        >
-          <Icon name="chevron-down" />
-        </button>
-        <button
-          type="button"
-          className="atw-icobtn"
-          title="删除"
-          onClick={() => {
-            apply((s) => deleteRow(s, row.id));
-            if (selectedRowIds.includes(row.id)) {
-              setTableWorkspaceRows(selectedRowIds.filter((id) => id !== row.id));
-            }
-          }}
-        >
-          <Icon name="trash" />
-        </button>
-        <button
-          type="button"
-          className="atw-icobtn"
-          title="发送到画布去生图"
-          onClick={() => {
-            const t = rowToText(tableData, row, globalStyle);
-            onSendToCanvas?.(t);
-            showToast?.('已发送到画布（建成文本节点）');
-          }}
-        >
-          <Icon name="send" />
-        </button>
-      </div>
+      <RowOpsMenu
+        disabled={false}
+        hasMultiSelect={hasMulti}
+        onMoveUp={() => apply((s) => moveRow(s, row.id, 'up'))}
+        onMoveDown={() => apply((s) => moveRow(s, row.id, 'down'))}
+        onInsertAfter={() => {
+          apply((s) => insertRowAfter(s, row.id));
+          showToast?.('已插入空行');
+        }}
+        onDelete={() => {
+          apply((s) => deleteRows(s, opsRowIds));
+          if (selectedRowIds.length) setTableWorkspaceRows([]);
+          showToast?.(`已删除 ${opsRowIds.length} 行`, { type: 'success' });
+        }}
+        onSendToCanvas={() => {
+          const t = rowToText(tableData, row, globalStyle, activeTabName(tabs, activeTabId));
+          onSendToCanvas?.(t);
+          showToast?.('已发送到画布（建成文本节点）');
+        }}
+        onCopyToTab={(destTabId) => copyRowsToTarget(destTabId, opsRowIds)}
+        onCopyToNewTab={() => {
+          // 「＋ 新建标签页」：先建空 tab 再复制过去（与预览卡同款路径）
+          const cur = getCurrentAssistantTabs();
+          const next = addTab(cur);
+          const newTabId = next.tabs[next.tabs.length - 1].id;
+          pushHistory(cur);
+          setCurrentAssistantTabs(next);
+          copyRowsToTarget(newTabId, opsRowIds);
+        }}
+        tabs={tabs.tabs}
+        currentTabId={activeTabId}
+        currentTabName={activeTabName(tabs, activeTabId)}
+      />
     );
+
+    /** 跨表复制唯一实现：源=当前活动 tab，目标=destTabId，复制到目标末尾 + 入栈 + 切过去 */
+    function copyRowsToTarget(destTabId: string, rowIds: string[]) {
+      const cur = getCurrentAssistantTabs();
+      const nextTabs = copyRowsToTab(cur, activeTabId, destTabId, rowIds);
+      if (nextTabs === cur) return;
+      pushHistory(cur);
+      setCurrentAssistantTabs(nextTabs);
+      switchTableTab(destTabId);
+      showToast?.('已复制行到目标表', { type: 'success' });
+    }
   };
 
-  /** 点选行（唯一意图信号，C1）：普通点击=单选/再点取消；Cmd/Ctrl+点击=累加/取消多选 */
+  /** 点选行（C1）：普通点击=单选/再点取消；Cmd/Ctrl=累加/取消多选；Shift=区间选（从锚点行起选一片）。
+   *  ⚠️ 选行 = 与选区互斥的另一套信号：一旦选行就清掉矩形选区（spec §3.6 —— 选区与行多选互斥，
+   *  否则行选中后之前的选区蓝框还挂着，视觉像脏残留）。 */
   const onClickRow = (e: ReactMouseEvent, row: TableRow) => {
+    if (range) clearRange();
     const multi = e.metaKey || e.ctrlKey;
     let next: string[];
     if (multi) {
       next = selectedRowIds.includes(row.id)
         ? selectedRowIds.filter((id) => id !== row.id)
         : [...selectedRowIds, row.id];
+    } else if (e.shiftKey && selectedRowIds.length > 0) {
+      // Shift+点：从已有选中行的「锚点」（首个或最后一个）到本行全选
+      const anchors = tableData.rows
+        .map((r, i) => ({ i, id: r.id }))
+        .filter((x) => selectedRowIds.includes(x.id))
+        .sort((a, b) => a.i - b.i);
+      if (anchors.length) {
+        const cur = tableData.rows.findIndex((r) => r.id === row.id);
+        const a0 = anchors[0].i;
+        const a1 = anchors[anchors.length - 1].i;
+        const from = Math.min(a0, a1, cur);
+        const to = Math.max(a0, a1, cur);
+        next = tableData.rows.slice(from, to + 1).map((r) => r.id);
+      } else {
+        next = [row.id];
+      }
     } else {
       next = selectedRowIds.length === 1 && selectedRowIds[0] === row.id ? [] : [row.id];
     }
     setTableWorkspaceRows(next);
   };
 
+  /**
+   * 面板内快捷键（焦点必须在 .atw 面板内；spec 3.6）：
+   *  - Delete/Backspace = 批量删除选中行；
+   *  - Ctrl/Cmd+C = 复制到**内部**剪贴板（有多选行复制行，否则复制选区）；
+   *  - Ctrl/Cmd+V = 从内部剪贴板粘贴；
+   *  - Esc = 取消选区。
+   * ⚠️ 绝不绑 Ctrl/Cmd+Z（spec 3.4：与画布 undo / 单元格原生 undo 三方抢键，撤销只走工具条按钮）。
+   * ⚠️ 编辑态（INPUT/TEXTAREA）一律不拦，交给浏览器原生（含原生复制粘贴）。
+   */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      if (!panelRef.current?.contains(t)) return;
+      const mod = e.metaKey || e.ctrlKey;
+      const k = e.key.toLowerCase();
+      if (mod && k === 'c') {
+        const msg = copy();
+        if (msg) {
+          e.preventDefault();
+          showToast?.(msg, { type: 'success' });
+        }
+        return;
+      }
+      if (mod && k === 'v') {
+        const msg = paste();
+        if (msg) {
+          e.preventDefault();
+          showToast?.(msg, { type: 'success' });
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        clearRange();
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedRowIds.length) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleDeleteSelected();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [selectedRowIds, tableData, copy, paste, clearRange]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const hasData = tableData.columns.length > 0;
+  /** 面板根节点（快捷键只在面板内生效，防抢全局/画布快捷键） */
+  const panelRef = useRef<HTMLElement>(null);
+
+  // 预览卡：目标表名（来自运行态 preview.targetTabId）与目标表列表
+  const previewTargetTabName = preview
+    ? tabs.tabs.find((t) => t.id === preview.targetTabId)?.name || ''
+    : '';
+  const targetTabs: Array<{ id: string; name: string }> = tabs.tabs.map((t) => ({
+    id: t.id,
+    name: t.name,
+  }));
 
   return (
-    <section className="atw" style={{ width }}>
+    <section className="atw" style={{ width }} ref={panelRef}>
+      {/* tab 条（高 40px，与 AI 助手顶栏齐平；spec 3.1） */}
+      <TableTabsBar
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onSelect={switchTableTab}
+        onAdd={() => {
+          const next = addTab(getCurrentAssistantTabs());
+          pushHistory(getCurrentAssistantTabs());
+          setCurrentAssistantTabs(next);
+          switchTableTab(next.tabs[next.tabs.length - 1].id);
+          showToast?.('已新建标签页');
+        }}
+        onRename={(tabId, name) => {
+          const next = renameTab(getCurrentAssistantTabs(), tabId, name);
+          if (next !== getCurrentAssistantTabs()) pushHistory(getCurrentAssistantTabs());
+          setCurrentAssistantTabs(next);
+        }}
+        onClose={async (tabId) => {
+          const cur = getCurrentAssistantTabs();
+          const next = removeTab(cur, tabId);
+          if (next !== cur) {
+            pushHistory(cur);
+            setCurrentAssistantTabs(next);
+            setTableWorkspaceRows([]);
+          }
+        }}
+        onCopyAsNew={(tabId) => {
+          const cur = getCurrentAssistantTabs();
+          const next = copyTab(cur, tabId);
+          pushHistory(cur);
+          setCurrentAssistantTabs(next);
+          switchTableTab(next.tabs[next.tabs.length - 1].id);
+          showToast?.('已复制为新表');
+        }}
+        onReorder={(from, to) => {
+          const cur = getCurrentAssistantTabs();
+          const next = moveTab(cur, from, to);
+          if (next !== cur) {
+            pushHistory(cur);
+            setCurrentAssistantTabs(next);
+          }
+        }}
+      />
+
       <div className="atw-head">
-        {/* 顶部单行：全局风格 +（正式页）行数 / 新增一行；粘贴入口仅见于空态下方 */}
+        {/* 顶部单行：撤销/重做 + 全局风格 +（正式页）行数 / 新增一行；粘贴入口仅见于空态下方 */}
         <div className="atw-toolbar">
+          {/* ⟲/⟳ 是撤销的**唯一入口**（spec 3.4），故不受 hasData 限制：
+              清空表格/删完列后若跟着 hasData 一起隐藏，清空就再也撤不回来了。 */}
+          <button
+            type="button"
+            className="atw-icobtn"
+            title="撤销"
+            disabled={!canUndo}
+            onClick={handleUndo}
+          >
+            <Undo2 size={12} strokeWidth={2} />
+          </button>
+          <button
+            type="button"
+            className="atw-icobtn"
+            title="重做"
+            disabled={!canRedo}
+            onClick={handleRedo}
+          >
+            <Redo2 size={12} strokeWidth={2} />
+          </button>
+          {selectedRowIds.length > 1 && (
+            <button
+              type="button"
+              className="atw-icobtn is-danger"
+              title={`删除选中的 ${selectedRowIds.length} 行`}
+              onClick={handleDeleteSelected}
+            >
+              <Icon name="trash" size={12} strokeWidth={2} />
+            </button>
+          )}
+
           <div className="atw-style">
             <span className="atw-style-label">
               <Icon name="globe" size={11} />
@@ -316,7 +517,6 @@ export default function AssistantTablePanel({
             <Icon className="pen" name="edit" size={12} />
           </div>
 
-          {hasData && <span className="cnt">{tableData.rows.length} 行</span>}
           {hasData && (
             <>
               <button
@@ -374,6 +574,8 @@ export default function AssistantTablePanel({
         <TableGrid
           table={tableData}
           selectedRowIds={selectedRowIds}
+          range={range}
+          onCellPointerDown={onCellPointerDown}
           colWidths={colWidths}
           colElsRef={colElsRef}
           resizeTick={resizeTick}
@@ -393,23 +595,61 @@ export default function AssistantTablePanel({
             showToast?.('已删除列');
           }}
           onStartResize={startResize}
-          renderRowOps={ops}
+          renderRowOps={rowOps}
         />
       )}
 
-      {/* 【待确认预览卡 · 正式表格下方】AI 返回表格 JSON → 解析成预览模型后，在左栏正式表格
-          下方渲染预览卡（与正式表格同宽、上下贴邻）。确认/取消由上层 AgentPanel 真正写回；
-          确认/取消后本块卸载、消息流原位显示 pv-done 历史痕迹。 */}
+      {/* 【待确认预览卡 · 正式表格下方】AI 返回表格 JSON → 探测成预览后，在左栏渲染预览卡
+          （共格式 tab 共享态 preview）。确认/取消由 tableWorkspaceState.confirmTablePreview/cancelTablePreview
+          真正写回（写目标表）+ 清 preview；确认/取消后本块卸载、消息流原位显示 pv-done 痕迹。 */}
       {preview && (
         <div className="atw-preview">
           <AssistantTablePreviewCard
-            preview={preview}
+            kind="table"
+            globalStyle={String(preview.json?.globalStyle ?? '').trim()}
+            columns={preview.resultCols.map((c) => c.label)}
+            rows={preview.resultRows.map((r) => {
+              const rec: Record<string, string> = {};
+              for (const col of preview.resultCols) rec[col.label] = r.values[col.id] ?? '';
+              return rec;
+            })}
+            rowIndex={null}
+            opKind={preview.opKind}
+            updatedCount={preview.updatedCount}
+            appendedCount={preview.appendedCount}
+            changedIndexes={
+              (preview.changedRowIds || []).length
+                ? preview.resultRows
+                    .map((r, i) => ((preview.changedRowIds || []).includes(r.id) ? i : -1))
+                    .filter((i) => i >= 0)
+                : undefined
+            }
             sending={sending}
             onConfirm={onConfirmPreview ?? (() => {})}
             onCancel={onCancelPreview ?? (() => {})}
+            targetTabName={previewTargetTabName}
+            targetTabs={targetTabs}
+            onSelectTarget={setPreviewTargetTab}
+            onNewTarget={() => {
+              // 「＋ 新建标签页」：先建空 tab，再按 replace 重算预览（spec 3.3）
+              const cur = getCurrentAssistantTabs();
+              const next = addTab(cur);
+              const newTabId = next.tabs[next.tabs.length - 1].id;
+              pushHistory(cur); // 建 tab 是结构变更，应可 ⟲ 撤销
+              setCurrentAssistantTabs(next);
+              setPreviewTargetTab(newTabId);
+              showToast?.('已新建空标签页作为写入目标');
+            }}
+            previewHeight={previewHeight}
+            onGripPointerDown={onGripPointerDown}
           />
         </div>
       )}
     </section>
   );
+}
+
+/** 取某 tab 名（sendToCanvas 文本首行「表名：xxx」用；spec 3.7） */
+function activeTabName(tabs: { tabs: TableTab[] }, activeTabId: string): string {
+  return tabs.tabs.find((t) => t.id === activeTabId)?.name || '';
 }

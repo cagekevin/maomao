@@ -22,6 +22,24 @@ import {
   ROW_INDEX_KEY,
   estimateColumnWidth,
   setColumnWidth,
+  normalizeAssistantTabs,
+  emptyAssistantTabs,
+  addTab,
+  removeTab,
+  copyTab,
+  moveTab,
+  renameTab,
+  getTab,
+  getActiveTab,
+  setActiveTabId,
+  updateTab,
+  setTabGlobalStyle,
+  deleteRows,
+  copyRowsToTab,
+  insertRowAfter,
+  rangeToCells,
+  rangeToTsv,
+  pasteCells,
 } from '../../src/components/agent/assistantTable/assistantTable.ts';
 import type { AssistantTable } from '../../src/components/agent/assistantTable/assistantTable.ts';
 
@@ -437,6 +455,188 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
       expect(r.opKind).toBe('replace');
       expect(r.changedRowIds).toHaveLength(r.resultRows.length);
       expect(r.resultRows.every((row) => r.changedRowIds.includes(row.id))).toBe(true);
+    });
+  });
+
+  describe('多标签页模型（spec 1）', () => {
+    /** 造一个含数据的两 tab 集合（表A 有内容，表B 空） */
+    function tabsFixture() {
+      const sb = parsePasted('景别\t画面\n中景\t原1')!;
+      return {
+        tabs: [
+          { id: 'A', name: '表A', columns: sb.columns, rows: sb.rows, globalStyle: '沙丘' },
+          { id: 'B', name: '表B', columns: [], rows: [], globalStyle: '' },
+        ],
+        activeTabId: 'A',
+      };
+    }
+
+    it('normalizeAssistantTabs：老数据水合（assistantTable + globalStyle → 单 tab，风格不丢）——验收 1', () => {
+      const sb = parsePasted('景别\t画面\n中景\t原1')!;
+      const tabs = normalizeAssistantTabs(null, {
+        assistantTable: sb,
+        globalStyle: '写实电影感',
+      });
+      expect(tabs.tabs).toHaveLength(1);
+      const t = tabs.tabs[0];
+      expect(t.name).toBe('表1');
+      expect(t.globalStyle).toBe('写实电影感');
+      expect(t.columns.map((c) => c.label)).toEqual(['景别', '画面']);
+      expect(t.rows).toHaveLength(1);
+    });
+
+    it('normalizeAssistantTabs：assistantTables 合法 → 直接归一（补 id/name/globalStyle 缺省）', () => {
+      const tabs = normalizeAssistantTabs({
+        tabs: [
+          { columns: [], rows: [] },
+          { name: '表X', columns: [], rows: [], globalStyle: 'g' },
+        ],
+        activeTabId: 'nonexistent',
+      });
+      expect(tabs.tabs).toHaveLength(2);
+      expect(tabs.activeTabId).toBe(tabs.tabs[0].id); // 无效 active → 回退第一个
+      expect(tabs.tabs[0].name).toBe('表1'); // 缺省名
+      expect(tabs.tabs[1].name).toBe('表X');
+      expect(tabs.tabs[1].globalStyle).toBe('g');
+    });
+
+    it('emptyAssistantTabs 恒 1 个空表；removeTab 不允许删最后一个', () => {
+      const e = emptyAssistantTabs();
+      expect(e.tabs).toHaveLength(1);
+      expect(getActiveTab(e)!.id).toBe(e.tabs[0].id);
+      expect(removeTab(e, e.tabs[0].id).tabs).toHaveLength(1); // 仅剩 1 → 不删
+    });
+
+    it('get/setActiveTabId/updateTab/setTabGlobalStyle/renameTab 隔离且不改其它 tab', () => {
+      const f = tabsFixture();
+      // 改格走 updateTab 套到表A
+      const r1 = f.tabs[0].rows[0].id;
+      const c1 = f.tabs[0].columns[1].id;
+      const next = updateTab(f, 'A', (sb) => setCell(sb as AssistantTable, r1, c1, '已改'));
+      expect(getTab(next, 'A')!.rows[0].values[c1]).toBe('已改');
+      expect(getTab(next, 'B')).toBeDefined(); // B 仍在
+      // globalStyle per-tab
+      const g2 = setTabGlobalStyle(next, 'B', '风格B');
+      expect(getTab(g2, 'A')!.globalStyle).toBe('沙丘'); // A 不受影响
+      expect(getTab(g2, 'B')!.globalStyle).toBe('风格B');
+      // rename
+      expect(getTab(renameTab(g2, 'A', '新名')!, 'A')!.name).toBe('新名');
+      expect(getTab(renameTab(g2, 'A', ''), 'A')!.name).toBe('表A'); // 空名幂等
+    });
+
+    it('addTab/moveTab/copyTab/deleteRows/copyRowsToTab 行为符合预期', () => {
+      const f = tabsFixture();
+      // addTab
+      const added = addTab(f, '表C');
+      expect(added.tabs).toHaveLength(3);
+      // copyTab 复制表A为新表（新 id）
+      const copied = copyTab(added, 'A');
+      const newTab = copied.tabs[copied.tabs.length - 1];
+      expect(newTab.columns).toHaveLength(2);
+      expect(newTab.rows).toHaveLength(1);
+      expect(newTab.id).not.toBe('A');
+      // moveTab 换位
+      const moved = moveTab(added, 0, 2);
+      expect(moved.tabs.map((t) => t.name)).toEqual(['表B', '表C', '表A']);
+      // deleteRows 批量删
+      const rowId = f.tabs[0].rows[0].id;
+      const del = deleteRows({ columns: f.tabs[0].columns, rows: f.tabs[0].rows }, [rowId]);
+      expect(del.rows).toHaveLength(0);
+      // copyRowsToTab：把表A的行复制到表B（跨表，列按名归一）
+      const cross = copyRowsToTab(f, 'A', 'B', [rowId]);
+      const dst = getTab(cross, 'B')!;
+      expect(dst.rows).toHaveLength(1);
+      const dstCol0 = dst.columns[0];
+      expect(dst.rows[0].values[dstCol0.id]).toBe('中景'); // 值不丢
+    });
+
+    it('rowToText 带 tableName → 首行「表名：xxx」（spec 3.7）', () => {
+      const sb = parsePasted('景别\t画面\n中景\t原1')!;
+      const text = rowToText(sb, sb.rows[0], '', '表A');
+      expect(text.startsWith('表名：表A')).toBe(true);
+      expect(text).toContain('景别：中景');
+    });
+
+    it('insertRowAfter 在指定行后插空行', () => {
+      const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2')!;
+      const next = insertRowAfter(sb, sb.rows[0].id);
+      expect(next.rows).toHaveLength(3);
+      expect(next.rows[1].values[next.columns[0].id]).toBe('');
+    });
+  });
+
+  describe('选区纯函数（spec 3.6）', () => {
+    const sb = () => parsePasted('景别\t画面\t台词\n中景\t原1\t甲\n特写\t原2\t乙\n远景\t原3\t丙')!;
+
+    it('rangeToCells：按 rowId/colId 锚定取矩形，与锚点顺序无关', () => {
+      const t = sb();
+      const [r0, r1, r2] = t.rows.map((r) => r.id);
+      const [c0, c1] = t.columns.map((c) => c.id);
+      const a = rangeToCells(t, { r0: r0, c0: c0, r1: r1, c1: c1 });
+      const b = rangeToCells(t, { r0: r1, c0: c1, r1: r0, c1: c0 }); // 反向拖
+      expect(a).toEqual(b);
+      expect(a).toEqual([
+        ['中景', '原1'],
+        ['特写', '原2'],
+      ]);
+    });
+
+    it('rangeToCells：增删行后按 id 锚定不串位（A-005 防线）', () => {
+      const t = sb();
+      const anchor = {
+        r0: t.rows[2].id,
+        c0: t.columns[0].id,
+        r1: t.rows[2].id,
+        c1: t.columns[0].id,
+      };
+      expect(rangeToCells(t, anchor)).toEqual([['远景']]);
+      // 在开头插入一行后，同一锚点仍指向「远景」那一行（index 已变，id 没变）
+      const mutated = insertRowAfter(t, t.rows[2].id); // 尾部插，远景 index 不变
+      expect(rangeToCells(mutated, anchor)).toEqual([['远景']]);
+    });
+
+    it('rangeToCells：锚点失效返回 []（不抛、不静默给错值）', () => {
+      const t = sb();
+      expect(rangeToCells(t, { r0: 'nope', c0: 'x', r1: 'y', c1: 'z' })).toEqual([]);
+    });
+
+    it('rangeToTsv：制表符分隔，可直接粘进 Excel', () => {
+      const t = sb();
+      const tsv = rangeToTsv(t, {
+        r0: t.rows[0].id,
+        c0: t.columns[0].id,
+        r1: t.rows[1].id,
+        c1: t.columns[2].id,
+      });
+      expect(tsv).toBe('中景\t原1\t甲\n特写\t原2\t乙');
+    });
+
+    it('pasteCells：从锚点格按矩形铺开覆盖', () => {
+      const t = sb();
+      const next = pasteCells(t, { rowId: t.rows[1].id, colId: t.columns[1].id }, [
+        ['X', 'Y'],
+        ['Z', 'W'],
+      ]);
+      expect(next.rows[1].values[t.columns[1].id]).toBe('X');
+      expect(next.rows[1].values[t.columns[2].id]).toBe('Y');
+      expect(next.rows[2].values[t.columns[1].id]).toBe('Z');
+      expect(next.rows[0].values[t.columns[1].id]).toBe('原1'); // 锚点之前不受影响
+    });
+
+    it('pasteCells：越界只裁剪，绝不静默扩列/加行', () => {
+      const t = sb();
+      const next = pasteCells(t, { rowId: t.rows[2].id, colId: t.columns[2].id }, [
+        ['A', 'B', 'C'],
+        ['D', 'E', 'F'],
+      ]);
+      expect(next.columns).toHaveLength(3); // 没扩列
+      expect(next.rows).toHaveLength(3); // 没加行
+      expect(next.rows[2].values[t.columns[2].id]).toBe('A');
+    });
+
+    it('pasteCells：锚点失效返回原表引用（不入撤销栈）', () => {
+      const t = sb();
+      expect(pasteCells(t, { rowId: 'nope', colId: 'x' }, [['A']])).toBe(t);
     });
   });
 });

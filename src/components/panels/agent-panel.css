@@ -72,9 +72,10 @@
 }
 
 /* ══════════════ 顶栏 ══════════════ */
+/* 顶栏高度 48→40（2026-09-07 用户要求：缩短 AI 助手顶部导航占高，压缩消息区留白） */
 .agent-header {
   flex-shrink: 0;
-  height: 48px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;

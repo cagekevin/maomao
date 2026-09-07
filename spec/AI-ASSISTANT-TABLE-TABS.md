@@ -1,6 +1,7 @@
 # AI 助手表格 —— 多标签页与表格编辑增强（2026-09-07 需求定稿）
 
-> **状态：需求定稿（2026-09-07，用户逐条拍板）**。本文是「多标签页 + 配套编辑增强」这一期改造的**需求与契约真源**。
+> **状态：需求定稿（2026-09-07 用户逐条拍板）**。本文是「多标签页 + 配套编辑增强」这一期改造的**需求与契约真源**。
+> **执行态（2026-09-07 追加 §2.1「数据流与可执行契约」）**：§8 全部待确认项已拍板，数据流/契约已对着既有源码签名定死，可据此施工。
 > 上游权威（不改）：`docs/分镜协作-AI助手内嵌工作区-2026-09-05.md`（产品定稿）、`spec/AI-ASSISTANT-TABLE-IMPLEMENTATION.md`（AI 逻辑层契约 C1~C9，**本次不动**）、`spec/AI-ASSISTANT-TABLE-PROMPT-DESIGN.md`（提示词人格，**改注入文本时必读**）、`spec/AI-ASSISTANT-TABLE-UI-FOUNDATION.md`（UI 分层蓝图）。
 > 本文只新增/修订：① 表格从「一对话一张表」→「一对话多标签页」（tab 置顶、单选即选中、可拖拽排序）；② 预览卡拖动拉高；③ 预览可指定写入哪个标签页；④ 表格层撤销/重做（仅按钮）；⑤ 行尾 ⋯ 菜单；⑥ 批量复制/删除 + 跨表复制 + 区域选择；⑦ 落画布带表名。
 
@@ -17,7 +18,7 @@
 | 4 | 落画布 `rowToText` | ✅ **带表名**（可选参数，仅落画布路径传） |
 | 5 | 表格层**撤销/重做** | ✅ 做功能，**但只走工具条 ⟲/⟳ 按钮**；❌ **不绑 Ctrl/Cmd+Z 快捷键**（规避与画布/单元格的三方冲突，见 §3.4） |
 | 6 | 行操作 | ✅ 行尾 **⋯（三点竖）菜单**；❌ **不做右键菜单**；保留上移/下移（**行**拖拽排序不做） |
-| 7 | 行多选 | ⏸ **已支持**（Cmd/Ctrl 点行），但是要修改，因为他现在选中每一个格子都是选行，那么会和我们的选tab冲突，改成通用的选最左边第一列的格子才是选行 |
+| 7 | 行多选 | ✅ **已改造**（2026-09-07 落地）：**只有点最左边行号格 `#` 才是选行**（Cmd/Ctrl 加选、Shift 选区间）；点普通格子 = 设选区起点。原先点整行任意格都选行，与 §3.6「点格设选区」直接打架 |
 | 8 | 批量复制 / 批量删除 / **跨表复制** / **区域选择** | ✅ 做（"那就变成真正表格了"） |
 | 9 | **tab 拖拽排序** | ✅ **做**（本轮改口要）；❌ 行/列拖拽排序仍不做 |
 | 9b | 隐藏列、冻结首列、双击列宽自适应 | ❌ 不做（非必备） |
@@ -104,6 +105,45 @@ export interface RawAssistantTableTabs {
 `setActiveTab(tabId)` → 写 `activeTabId` 到会话记忆 + `setState({ ...state, selectedRowIds: [], preview: null, handledMessageId: null })`。
 理由：选中行的 rowId 属于原表，跨表无意义；保留会直接破坏 C1「选中即唯一意图信号」。
 
+### 2.1 数据流与可执行契约（2026-09-07 整理，对着既有源码签名定死）
+
+> 现状签名已核对（`assistantTable.ts` / `tableWorkspaceState.ts` / `conversationAiState.ts`）：
+> - `buildPreviewResult(sb, json, selectedRowIds = [])` 第 3 参即**选中行 id 集合** → §3.3 换目标表时传 `[]`（选中行不参与定位，与决策一致，无需新参数）✅；
+> - `rowToText(sb, row, globalStyle?)` 现返回 `string` → 追加可选第 4 参 `tableName?` 可行；
+> - `confirmTablePreview()` 现返回 `{ ok, mode? }`，当前把 globalStyle 写入 `global_contract` → 本次改写到**目标 tab 的 `globalStyle`**（迁移 read 侧灰色）。
+
+**单一数据源**：`memory.assistantTables`（`AssistantTableTabs`，§1.1）为表格真源；`memory.assistantTable` 只读兼容（老数据水合，不再写）。读写一律经 `conversationStore` 唯一入口。
+
+**写入链路（唯一入口 `setCurrentAssistantTabs`，commit 自动落盘）**
+1. 表格/行/列/风格/表名/顺序 任一 commit → `updateTab(tabs, tabId, fn)` → `setCurrentAssistantTabs(nextTabs)`。
+2. 预览探测 `acceptTablePreview({ json, messageId, selectedRowIds })`：目标 = 当前活动 tab；
+   `buildPreviewResult(getTab(tabs, activeTabId).table, json, [])` 算好存入 `preview`（含 `targetTabId=activeTabId`）。
+3. 切目标 `setPreviewTargetTab(tabId)`：`buildPreviewResult(getTab(tabs, tabId).table, preview.json, [])` 重算，更新 `preview.targetTabId`（保持「预览=确认」：确认只原样写回）。
+4. 确认 `confirmTablePreview()`：① `setTabTable(tabs, targetTabId, { columns: resultCols, rows: resultRows })`（**源表不动**）；② globalStyle 写目标 tab 的 `globalStyle`（**不再写 `global_contract`**）；③ `markMessageTableResolved(messageId, 'confirmed')` + 清 preview；④ `setActiveTabId(tabs, targetTabId)`（**确认后自动切到目标表**）+ toast「已写入「表X」」；⑤ 结果无列 → `logger.warn` + 不落表 + `{ok:false}`（沿用 C6，不静默）。**每次确认写回入撤销栈。**
+
+**读链路（AI 注入，只发当前选中表）**
+- `AgentPanel` send：`buildTableSnapshotText(getTab(tabs, activeTabId).table, globalStyle, tableName = 当前表名)` → 首行「当前表 = 表X」+ 该表全量；**其余 tab 零注入**（连表名都不给）。
+- `buildRefineRowsUser` 永远来自当前表；`read_table` 工具签名不变，仍只读当前选中表（仅 description 补「当前标签页」措辞）。
+
+**切表重置（§2）**
+- `setActiveTab(tabId)`：写 `activeTabId`（随会话落盘）+ 运行态 `setState({ ...state, selectedRowIds: [], preview: null, handledMessageId: null })`。
+
+**批量/选区/跨表（§3.6）**
+- 运行态新增 `clipboard: { kind: 'rows' | 'range', payload }`（仅内存，不落盘）。
+- `copyRowsToTab(tabs, srcTabId, destTabId, rowIds)`：列按 `normalizeLabel` 归一命中（**复用 `buildPreviewResult` 那套归一**，禁新写一套匹配逻辑，防 A-005 静默丢值），未命中列留空、绝不丢值；复制到目标表**末尾**。
+
+**撤销/重做（§3.4）**
+- `tableHistory.push(tabs 引用)`（commit 后）→ `undo()/redo()` = `setCurrentAssistantTabs(snapshot)` + 清本地草稿；栈上限 **50**。UI 仅工具条 ⟲/⟳。
+
+**新增/改造契约签名（对齐既有风格）**
+- `normalizeAssistantTabs(raw): AssistantTableTabs`；`emptyAssistantTabs(): AssistantTableTabs`（恒 ≥1 空 tab，不做零 tab 态）。
+- `updateTab(tabs, tabId, fn: (sb) => AssistantTable): AssistantTableTabs`。
+- tab 级读写：`getCurrentAssistantTabs(): AssistantTableTabs` / `setCurrentAssistantTabs(t): void` / `getTab(tabs, tabId): TableTab | null` / `setTabTable(tabs, tabId, { columns, rows }): AssistantTableTabs` / `setTabGlobalStyle(tabs, tabId, style): AssistantTableTabs` / `setActiveTabId(tabs, tabId): AssistantTableTabs`。
+- **`getCurrentAssistantTable() / setCurrentAssistantTable(sb)` 签名不变**，语义收窄为「当前活动 tab 的表」（内部走 tabs），既有调用点（`read_table` / `buildTableSnapshotText` / `buildPreviewResult` 探测）零改动。
+- `rowToText(sb, row, globalStyle?, tableName?)`：`tableName` 传入则文本首行加 `表名：{tableName}`（§3.7，仅落画布路径传）。
+- `buildTableSnapshotText(sb, globalStyle, tableName?)`：多带当前表名前缀（多表不新增注入逻辑）。
+- 模型层既有行/列纯函数（`addRow/deleteRow/moveRow/duplicateRow/setCell/insertColumnAfter/deleteColumn/renameColumn/setColumnWidth/...`）**签名全不动**，统一由 `updateTab` 套用 → 既有单测（测试即护栏）不红。
+
 ---
 
 ## 3. 功能规格
@@ -129,7 +169,12 @@ export interface RawAssistantTableTabs {
 **选中态（唯一状态，单选）**
 
 - 选中 = 当前正在看/编辑的那张表 = **发给 AI 的那张表**（`activeTabId`，三者同一）。
-- 视觉沿用项目既有的「选中」语言（与表格行 `.sel`、预览卡改动行同族）：**accent 淡蓝底 + 左侧 2px 竖条 + 文字最亮**；未选中 = 默认灰底、文字次级色。
+- ~~视觉沿用项目既有的「选中」语言：accent 淡蓝底 + 左侧 2px 竖条 + 文字最亮~~
+  **更新(2026-09-07 落地修正)**：改用**中性高亮**（`surface-hover-strong` + 内描边 `edge` + 文字最亮），
+  **不用蓝**。原因：蓝在本项目语义是「某开关已启用」（`panel-kit.css` 头部「语义色约定」），
+  「当前项」全站统一为中性高亮（`.pk-seg-item[aria-selected]` / `.pk-pill[aria-pressed]` 同款）；
+  原蓝底蓝竖条方案实测与全站观感冲突（用户反馈"格格不入"）。
+  ⚠️ 表格行 `.sel` / 预览卡改动行仍保留 accent 蓝（那是"数据选中"，与本处"当前项"语义不同层，不动）。
 - **tab 条上不设任何开关控件**（无勾、无高亮态）；点 tab 主体 = 选中它。
 - ❌ 不做 tab 多选（无 Ctrl/Cmd 多选、无批量选中集合）。
 
@@ -140,8 +185,17 @@ export interface RawAssistantTableTabs {
 - 双击表名 → 就地重命名（Enter 提交 / Esc 取消，空名回退原名）；
 - `×` 关闭 → 走 `askConfirm`（danger）：「关闭「表2」？表内 N 行将被删除且无法恢复」；最后一个 tab **不允许关闭**（禁用 `×`）；
 - [C 类基础操作] **复制为新表** → tab 条尾部 `⋯` 菜单：{ 复制为新表 / 重命名 / 关闭 }（无右键菜单）。
+  **落地约束(2026-09-07)**：`⋯` 与 `＋` 必须挂在**滚动容器外**的条尾（`.atw-tabs-tail`）——
+  `.atw-tabs-scroll` 是 `overflow-x:auto/overflow-y:hidden`，浮层挂在其内部会被纵向裁掉，
+  表现为「点了三个点没反应」（菜单其实开了，只是看不见）。菜单作用于**当前选中表**，
+  点外部关闭走 `useOutsideClick`（全站 ⋯ 菜单同一套）。
 - **tab 拖拽排序（本轮要）**：
-  - 用 **pointer 事件手写**（`pointerdown/move/up` + `setPointerCapture`），**禁止 HTML5 `draggable`**（历史踩坑、用户点名不用：各浏览器 drag 行为差异大，易出诡异 bug）。
+  - 用 **pointer 事件手写**（`pointerdown` + **window 级** `pointermove/up/cancel/keydown`），**禁止 HTML5 `draggable`**（历史踩坑、用户点名不用：各浏览器 drag 行为差异大，易出诡异 bug）。
+    ⚠️ **禁用 `setPointerCapture`（2026-09-07 踩坑）**：指针捕获会把随后的 mouseup / **click 一并重定向到捕获元素**，
+    导致 tab 内的「切表」click 与 `×`／`⋯` 按钮全部收不到事件（「点了没反应」）。替代方案：
+    监听挂 window + `consumeDrag()` 在 `onClickCapture` 阶段吞掉拖拽尾随的那次 click。
+  - 拖拽中 **DOM 顺序不变**（只改 `transform:translateX` + 在落点 tab 上画 2px 插入指示线）。
+    若按视觉序重渲整条，`children` 序号就不再是数据序号，命中判定会混用两套 index 算错落点。
   - 起拖阈值：按下后位移 **>4px** 才进入拖拽态，否则按"点击"处理（选中 tab）—— 避免"想点一下却把 tab 拖走"。
   - 拖拽中**只做视觉**：被拖 tab `transform: translateX` 跟随 + 目标位占位，**不重渲整条、不写 store**；松手才一次性 commit 新顺序到会话记忆（沿用 `useColumnResize` 的性能范式）。
   - `pointercancel` / Esc → 取消并回原位；拖到条外松手 → 回原位（不删除、不移动）。
@@ -161,7 +215,7 @@ export interface RawAssistantTableTabs {
 
 ### 3.3 预览指定写入哪个标签页（下拉）
 
-- 预览卡头（`atw-pv-hd`）加下拉：**「写入到：表1（当前）▾」**，选项 = 所有 tab + **「＋ 新建标签页」**（默认含，省掉"先建表再发"两步 —— 见 §6 待确认）。
+- 预览卡头（`atw-pv-hd`）加下拉：**「写入到：表1（当前）▾」**，选项 = 所有 tab + **「＋ 新建标签页」**（✅ 2026-09-07 确认：下拉末尾放一个「新建标签页」选项即可，省掉"先建表再发"两步）。
 - **切换目标 = 用目标表重算**（保持 C5「预览 = 确认」，仍是一次性算好、确认只写回）：
   `setPreviewTargetTab(tabId)` → `buildPreviewResult(targetTab.sb, preview.json, [])`。
   - **选中行不参与定位**（rowId 属原表）：此时只认 AI 行里的 `_rowIndex`；
@@ -171,7 +225,7 @@ export interface RawAssistantTableTabs {
   1. 写 `setTabTable(targetTabId, { resultCols, resultRows })`（**源表不动**）；
   2. `globalStyle` 写到**目标 tab 的 `globalStyle`**（隔离决策），不再写 `global_contract`；
   3. `markMessageTableResolved(messageId,'confirmed')` + 清 preview；
-  4. **默认自动切到目标 tab + toast「已写入「表2」」**（否则用户看不到写回结果 —— 见 §6 待确认）；
+  4. **✅ 自动切到目标 tab + toast「已写入「表2」」**（2026-09-07 已确认，否则用户看不到写回结果）；
   5. 结果无列 → `logger.warn` + 不落表 + `{ok:false}`（沿用 C6，不静默）。
 - 每次确认写回**入撤销栈**（见 3.4）。
 
@@ -181,6 +235,11 @@ export interface RawAssistantTableTabs {
 - 入栈时机（只在 **commit** 后进，草稿逐键不入）：改格提交、加/删/移/复制行、列增删改名、列宽落点、粘贴、清空、**AI 确认写回**、关闭 tab、批量删除/粘贴/跨表复制、重命名 tab。
 - 撤销/重做 = `setCurrentAssistantTabs(snapshot)` + 清本地草稿；跨 tab 也成立（快照是整份 tabs）。
 - **UI（唯一入口）**：工具条加 ⟲ / ⟳ 两个图标按钮，`disabled` 由 `canUndo/canRedo` 驱动，`title` = 「撤销 / 重做」。
+  ⚠️ **这两个按钮绝不能跟着 `hasData` 一起隐藏**（2026-09-07 修）：清空表格/删完列后 `hasData=false`，
+  若按钮随之消失，"清空"这一步就再也撤不回来了 —— 而 ⟲ 是 spec 规定的**唯一**撤销入口。
+  图标用 lucide-react 的 `Undo2`/`Redo2`（全站统一；手写 feather path 比例失真已废弃）。
+- ⚠️ **切对话必须 `clearHistory()`**（2026-09-07 补）：快照是整份 `AssistantTableTabs`，
+  跨对话复用会把 A 对话的 tabs 写进 B 对话并落盘。挂在 `AgentPanel` 切对话 effect（与 `resetTableWorkspace` 同一处）。
 - ❌ **不绑 Ctrl/Cmd+Z 快捷键**（本轮用户裁定："有风险的话可以不做"）。
   **风险所在**：画布已有全局 `useCanvasShortcuts`（Ctrl+Z = 画布 undo），单元格 textarea 还有浏览器原生 undo —— 三方抢同一个键，一旦误伤画布撤销，是**静默且难定位**的回归。故本期只给按钮，零冲突零风险。
 - **若将来仍要快捷键**（本期不实现，方案留档）：需**先给画布快捷键补"可让位"的契约与测试**，再按焦点域分流 ——
@@ -191,7 +250,9 @@ export interface RawAssistantTableTabs {
 ### 3.5 行尾 ⋯ 三点菜单（替代右侧 5 连图标）
 
 - `TableGrid` 每行行尾由「复制/上移/下移/删除/发送」5 个图标 → **一个 `⋯`（三点竖）按钮**，点击弹菜单（对齐 `agent-pop` 浮层样式：`surface-1 + edge + radius 12`）。
-- 菜单项（顺序）：复制到下一行 / 上移 / 下移 / 插入空行（下方）/ 复制行到…（跨表，见 3.6）/ 删除行 / 发送到画布去生图（danger 项仅"删除行"标红）。
+- 菜单项（顺序）：上移 / 下移 / 插入空行（下方）/ 复制行到…（跨表，见 3.6）/ 删除行 / 发送到画布（danger 项仅"删除行"标红）。
+  **2026-09-07 用户裁定**：删掉「复制到下一行」—— 与「复制行到…」是同一功能的两个入口（后者更强、可跨表），只留一个；
+  「发送到画布去生图」→「发送到画布」（原文案过长）。
 - ❌ 不做右键菜单（用户明确）；❌ 不做行首拖拽排序（保留上移/下移作为唯一排序手段）。
 - 操作列宽度可由 88px 收到 ~32px，给内容列让宽（顺带缓解"窄栏挤"的老问题）。
 
@@ -221,7 +282,7 @@ export interface CellRange { r0: string; c0: string; r1: string; c1: string }
 
 ### 3.7 落画布带表名
 
-- `rowToText(sb, row, globalStyle, tableName?)`：新增可选第 4 参，传了就在文本首行加 `表名：xxx`（或 `# xxx`，落地时定）。
+- `rowToText(sb, row, globalStyle, tableName?)`：新增可选第 4 参，传了就在文本首行加 **`表名：xxx`**（✅ 2026-09-07 定稿格式）。
 - **仅落画布路径传**（`AssistantTablePanel` 的「发送到画布」/ 行尾 ⋯「发送到画布」）；AI 注入路径**不传**（避免污染模型上下文）。
 
 ### 3.8 发给 AI 的唯一信号 = 选中的那张表
@@ -285,7 +346,8 @@ export interface CellRange { r0: string; c0: string; r1: string; c1: string }
 | 新建 | `agent/assistantTable/TableTabsBar.tsx` | 标签条（**选中态样式** / 重命名 / × / ⋯ / 行数 / 横向滚动 / **pointer 拖拽排序**） |
 | 新建 | `agent/assistantTable/useTabDragSort.ts` | tab 拖拽排序 hook（pointer 手写、**禁 HTML5 DnD**，起拖阈值 4px，松手才 commit） |
 | 新建 | `agent/assistantTable/RowOpsMenu.tsx` | 行尾 ⋯ 菜单（含"复制行到…"） |
-| 新建 | `agent/assistantTable/useTableSelection.ts` | 行多选（已有）+ 区域选区 + 内部剪贴板 |
+| 新建 | `agent/assistantTable/useTableSelection.ts` | 行多选（已有）+ 区域选区 + 内部剪贴板（2026-09-07 已落地） |
+| 新建 | `agent/assistantTable/TabTargetMenu.tsx` | 目标表下拉**唯一实现**（预览卡「写入到」+ 行尾「复制到」共用；含「＋ 新建标签页」+ 点外部关闭。2026-09-07 抽，原先两处各写一份） |
 | 新建 | `agent/assistantTable/tableHistory.ts` + `useTableHistory.ts` | 撤销栈（纯函数 + hook） |
 | 新建 | `agent/assistantTable/usePreviewResize.ts` | 预览卡高度拖拽（同 `useColumnResize` 范式） |
 
@@ -337,12 +399,14 @@ export interface CellRange { r0: string; c0: string; r1: string; c1: string }
 
 ---
 
-## 8. 待确认（3 条，按默认值施工，确认前勿推翻）
+## 8. 待确认（2026-09-07 已全部拍板 ✅）
 
-1. ✅ **已确认（2026-09-07）**：多标签页 + 每对话一套、随对话隔离（不推翻定稿决策 15）；`globalStyle` per-tab；**状态只留「选中态」** —— 选中 = 当前 = 发给 AI（点亮开关 / tab 多选已取消）；tab 归属非全局共享。
-2. **下拉是否含「＋ 新建标签页」** —— 默认**含**（省掉"先建表再发"两步）。
-3. **确认后是否自动跳到目标表** —— 默认**自动切 + toast「已写入「表X」」**（否则看不到结果）。
-4. **tab 条 `⋯` 菜单 vs 双击重命名** —— 默认两者都有：双击重命名（快）、`⋯` 里放「复制为新表 / 重命名 / 关闭」。
+1. ✅ **多标签页 + 每对话一套、随对话隔离**（不推翻定稿决策 15）；`globalStyle` per-tab；**状态只留「选中态」** —— 选中 = 当前 = 发给 AI（点亮开关 / tab 多选已取消）；tab 归属非全局共享。
+2. ✅ **预览「写入到」下拉**：末尾**含「＋ 新建标签页」选项**。
+3. ✅ **确认写回后**：**自动切到目标 tab + toast「已写入「表X」」**。
+4. ✅ **tab 操作入口**：**双击重命名（快捷）+ tab 条 `⋯` 菜单放「复制为新表 / 重命名 / 关闭」**，两者并存。
+5. ✅ **落画布表名格式**：文本首行 **`表名：xxx`**。
+6. **tab 拖拽自动横向滚动**（§3.1）：可选，按可行性补；实现佐证不足可省（非必需）。
 
 ---
 

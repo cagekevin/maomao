@@ -62,6 +62,9 @@ export interface ConversationMemory {
   /** AI 助手左栏表格工作区（assistantTable：{columns,rows}）。不走精确类型（保持底座轻 + 避免
    *  底座反向依赖 assistantTable 模块）；读写由 get/setCurrentAssistantTable 经 normalizeAssistantTable 归一。 */
   assistantTable: unknown;
+  /** AI 助手左栏表格工作区【多标签页真源】（assistantTables:{tabs,activeTabId}，spec 1.1）。
+   *  读写由 get/setCurrentAssistantTabs 经 normalizeAssistantTabs 归一；assistantTable 只读兼容（老数据水合，不再写）。 */
+  assistantTables: unknown;
   // 索引签名：①落盘数据可能携带历史遗留字段；②使本类型可赋值给 volumePolicy 的宽松
   // ConversationMemory（TS 的 interface 无隐式索引签名，缺此会在跨层调用处报 TS2345）。
   [key: string]: unknown;
@@ -77,6 +80,7 @@ export interface RawMemory {
   global_contract?: unknown;
   artifacts?: unknown;
   assistantTable?: unknown;
+  assistantTables?: unknown;
   [key: string]: unknown;
 }
 
@@ -244,6 +248,7 @@ export function emptyMemory() {
     global_contract: null, // 统一风格契约 {visual_positioning, unified_style_prompt, unified_negative_prompt}（对齐大雄 global_contract）
     artifacts: null, // 跨步成果资产 [{id,type,title,description,nodeId?,url?}]（对齐大雄 plan.artifacts）
     assistantTable: null, // AI 助手表格工作区（{columns,rows}；读写见 get/setCurrentAssistantTable）
+    assistantTables: null, // AI 助手表格工作区多标签页真源（{tabs,activeTabId}；读写见 get/setCurrentAssistantTabs）
   };
 }
 
@@ -724,6 +729,8 @@ export function normalizeMemory(raw: unknown): ConversationMemory {
       : null,
     assistantTable:
       m.assistantTable !== undefined && m.assistantTable !== null ? m.assistantTable : null,
+    assistantTables:
+      m.assistantTables !== undefined && m.assistantTables !== null ? m.assistantTables : null,
   };
 }
 
