@@ -37,6 +37,7 @@ function makeCtx(over: Partial<MenuActionCtx> = {}): MenuActionCtx {
     duplicateSelected: vi.fn(),
     copyNodeImage: vi.fn(),
     deleteNode: vi.fn(),
+    renameNode: vi.fn(),
     applyUngroup: vi.fn(),
     applyGroup: vi.fn(),
     applyDeleteSelected: vi.fn(),
@@ -90,6 +91,24 @@ describe('buildCanvasMenuItems（空白右键）', () => {
 });
 
 describe('buildNodeMenuItems（单选节点右键）', () => {
+  it('所有节点菜单含「重命名」首项，点击携带被右键节点 id', () => {
+    const renameNode = vi.fn();
+    const items = buildNodeMenuItems(
+      makeCtx({
+        nodeById: () => ({ type: 'textNode', id: 'n1' }) as never,
+        renameNode,
+      }),
+      'n1',
+    );
+    expect(labels(items)[0]).toBe('重命名');
+    const renameItem = items.find((i) => 'key' in i && i.key === 'rename') as {
+      onClick?: () => void;
+    };
+    expect(renameItem).toBeTruthy();
+    renameItem.onClick?.();
+    expect(renameNode).toHaveBeenCalledWith('n1');
+  });
+
   it('图片类节点（promptNode）有「复制图片」', () => {
     const items = buildNodeMenuItems(
       makeCtx({ nodeById: () => ({ type: 'promptNode' }) as never }),

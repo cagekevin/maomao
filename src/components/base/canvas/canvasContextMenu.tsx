@@ -28,6 +28,7 @@ import {
   Trash2,
   Copy,
   Upload,
+  Pen,
 } from 'lucide-react';
 import { getNodesByCategory, getPaletteNode, paletteCategories } from './NodePalette.ts';
 import './lazyNode.tsx';
@@ -58,6 +59,8 @@ export interface MenuActionCtx {
   copyNodeImage: (nodeId: string) => void;
   /** 删除节点（级联删子孙） */
   deleteNode: (id: string) => void;
+  /** 打开「重命名」输入弹窗（App 内：预填当前名 → 提交后统一写回 data + history） */
+  renameNode: (id: string) => void;
   /** 取消指定 group 编组（App 内 ungroupNodes+setNodes+history） */
   applyUngroup: (groupId: string) => void;
   /** 编组当前选中节点（App 内 createGroupFromNodes+setNodes+history+toast） */
@@ -190,7 +193,7 @@ export function buildCanvasMenuItems(ctx: MenuActionCtx): ContextMenuItem[] {
   ];
 }
 
-/** 单选节点菜单：复制 / [复制图片] / 删除（复刻 H_.jsx:12573-12617） */
+/** 单选节点菜单：重命名 / 复制 / [复制图片] / [取消编组] / 删除（2026-09-07 增「重命名」，docs/108） */
 export function buildNodeMenuItems(
   ctx: MenuActionCtx,
   nodeId: string | null | undefined,
@@ -201,6 +204,12 @@ export function buildNodeMenuItems(
   const isImageLike = node.type === 'imageNode' || node.type === 'promptNode';
   const isGroup = node.type === 'group';
   const items: ContextMenuItem[] = [
+    {
+      key: 'rename',
+      icon: <Pen size={16} className="text-body" />,
+      label: '重命名',
+      onClick: () => ctx.renameNode(node.id),
+    },
     {
       key: 'duplicate',
       icon: <Copy size={16} className="text-body" />,

@@ -13,7 +13,15 @@
  *   { id, label, url?, kind: 'image' | 'text', sourceNodeId? }
  *
  * 注意：本文件只做纯转换，不做文件系统/网络访问；缩略图 URL 一律由调用方经 token.url 提供。
+ *
+ * 更新(2026-09-07，docs/PromptInput-@名自动转缩略图 §8.5)：
+ *  - autoLinkAssetsByName 重构为复用 findAutoLinkOccurrences（最长优先、非重叠），
+ *    使「批量全量重建」与「运行期就地提交」共用同一匹配源，根治两套规则分叉；
+ *  - 新增 extendable（@名 是否可扩展为更长素材名）、isTerminatedByBreak（BREAK 集
+ *    单一真源在 promptMention.ts）、commitOccurrencesInRun（就地 DOM 手术转换）。
  */
+
+import { BREAK } from './promptMention.ts';
 
 /** 芯片 token 的素材元信息（renderPromptToNodes 的 metaMap 值形态） */
 interface ChipMeta {
@@ -265,16 +273,89 @@ export function resolvePromptChips(
 }
 
 /**
+ * 名字匹配统一命中源：找出 text 里所有「@素材名」命中（最长优先、非重叠）。
+ * autoLinkAssetsByName（批量全量重建）与 commitOccurrencesInRun（运行期就地提交）
+ * 共用本函数，根治两套匹配规则分叉（docs/PromptInput-@名自动转缩略图 §8.5-1）。
+ *
+ * 规则与 autoLinkAssetsByName 完全一致：
+ *  - 只做全等匹配（候选素材 label 完全相等才命中），带 @ 前缀才触发；
+ *  - 多素材同名取第一个命中项；长名优先（@猫A 不被 @猫 抢先命中）；
+ *  - 素材无 url / 无 id / 无 label 不参与匹配。
+ * @param {string} text 待扫描文本（序列化前的纯文本）
+ * @param {Array<{id:string,label:string,url?:string,kind?:string}>} assets 候选素材
+ * @returns {Array<{start:number,end:number,name:string,asset:object}>} 命中（相对 text 的 [start,end)，end 不含 @）
+ */
+export interface AutoLinkOccurrence {
+  start: number;
+  end: number;
+  name: string;
+  asset: { id: string; label: string; url?: string; kind?: string };
+}
+
+export function findAutoLinkOccurrences(
+  text: string,
+  assets: Array<{ id: string; label: string; url?: string; kind?: string }> = [],
+): AutoLinkOccurrence[] {
+  if (!text || assets.length === 0) return [];
+  // 建 label→asset 全等映射（多同名取首个：先出现者优先，同 Map.set 语义）
+  const byName = new Map<string, { id: string; label: string; url?: string; kind?: string }>();
+  for (const a of assets) {
+    if (a && a.id && a.label && !byName.has(a.label)) byName.set(a.label, a);
+  }
+  if (byName.size === 0) return [];
+  // 长名优先排序，避免「@猫A」被「猫」前缀抢先命中（全等匹配下仍需保证最长命中先替换）
+  const names = [...byName.keys()].sort((a, b) => b.length - a.length);
+  const re = new RegExp(
+    `@(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
+    'g',
+  );
+  const out: AutoLinkOccurrence[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const name = m[1];
+    const asset = byName.get(name);
+    if (asset) {
+      out.push({ start: m.index, end: m.index + m[0].length, name, asset });
+      // 非重叠：跳过已消费的文本，避免命中区域被重复匹配
+      re.lastIndex = m.index + m[0].length;
+    }
+  }
+  return out;
+}
+
+/**
+ * 判定 name 是否「可扩展」为更长素材名：∃ 素材 label ≠ name 且 label.startsWith(name)。
+ * 用于「end == frontier 是否延迟提交」——可扩展说明用户可能继续补打（@猫 → @猫A），
+ * 此刻立即转会把还在编辑的名锁死（docs/PromptInput-@名自动转缩略图 §8.2）。
+ * @param {string} name 已命中的 @名
+ * @param {Array<{id:string,label:string}>} assets 候选素材
+ * @returns {boolean}
+ */
+export function extendable(
+  name: string,
+  assets: Array<{ id: string; label: string; url?: string; kind?: string }> = [],
+): boolean {
+  const n = String(name || '');
+  if (!n) return false;
+  return assets.some((a) => !!a && !!a.label && a.label !== n && a.label.startsWith(n));
+}
+
+/**
+ * 判定字符是否为「终结字符」（空格/标点/换行等，BREAK 集合）。
+ * BREAK 集单一真源在 promptMention.ts（detectMentionQuery 与自动转换共用边界）。
+ * 注(2026-09-07)：组件接线当前未直接调用本函数——「终结字符」场景已被 commitOccurrencesInRun
+ * 的 `end < frontier` 规则天然覆盖（打空格/标点 → 光标越过命中 → 自动封口提交）。
+ * 保留本函数作为 BREAK 集的公共语义出口（供未来 query 关闭类判定/测试复用），勿因「无调用」删除。
+ * @param {string} ch 单个字符
+ * @returns {boolean}
+ */
+export function isTerminatedByBreak(ch: string): boolean {
+  return BREAK.has(ch);
+}
+
+/**
  * 名字匹配唯一入口：把 prompt 里 `@素材名`（全等命中候选素材）替换成 `@{id:label|thumb}` 芯片字符串。
- *
- * 规则（避免误伤普通描述文本）：
- *  - 只做**全等匹配**：候选素材 `label` 完全相等才替换，不部分/模糊匹配；
- *  - **必须带 `@` 前缀**才触发：`@猫` 命中「猫」，裸词「猫」不触发；
- *  - 只命中传入的 `assets`（候选素材列表，即 PromptInput 的 `all`），不引入更大范围；
- *  - 多素材同名：取第一个命中项（与候选列表 `filtered` 语义一致）；
- *  - 素材无 url（文本素材/无图）时不注入 thumb 段，只转 `@{id:label}`（文本语义）。
- *
- * 唯一入口：禁止在组件里手写 `lastIndexOf('@')` / 匹配正则散落各处。
+ * 语义与 findAutoLinkOccurrences 完全一致（由它驱动，行为无分叉）。
  * @param {string} text 待转换的 prompt 字符串（序列化前）
  * @param {Array<{id:string,label:string,url?:string,kind?:string}>} assets 候选素材
  * @returns {string} 转换后的字符串（含 `@{id:label|thumb}`）
@@ -283,24 +364,111 @@ export function autoLinkAssetsByName(
   text: string,
   assets: Array<{ id: string; label: string; url?: string; kind?: string }> = [],
 ): string {
-  if (!text || assets.length === 0) return text;
-  // 建 label→asset 全等映射（多同名取首个：先出现者优先，同 Map.set 语义）
-  const byName = new Map<string, { id: string; label: string; url?: string; kind?: string }>();
-  for (const a of assets) {
-    if (a && a.id && a.label && !byName.has(a.label)) byName.set(a.label, a);
-  }
-  if (byName.size === 0) return text;
-  // 长名优先排序，避免「@猫A」被「猫」前缀抢先命中（全等匹配下仍需保证最长命中先替换）
-  const names = [...byName.keys()].sort((a, b) => b.length - a.length);
-  const re = new RegExp(
-    `@(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
-    'g',
-  );
-  return text.replace(re, (_m: string, name: string) => {
-    const a = byName.get(name);
-    // 全等命中后才替换；未命中（理论上不会，因正则按名字构造）保留原样
-    if (!a) return _m;
+  const occs = findAutoLinkOccurrences(text, assets);
+  if (occs.length === 0) return text;
+  let result = '';
+  let last = 0;
+  for (const occ of occs) {
+    result += text.slice(last, occ.start);
+    const a = occ.asset;
     const thumb = a.url ? `|${encodeThumb(a.url)}` : '';
-    return `@{${a.id}:${a.label}${thumb}}`;
-  });
+    result += `@{${a.id}:${a.label}${thumb}}`;
+    last = occ.end;
+  }
+  result += text.slice(last);
+  return result;
+}
+
+/** commitOccurrencesInRun 的选项 */
+export interface AutoLinkCommitOptions {
+  /** 前沿：光标（打字）或粘贴片段末尾（粘贴）在该 run 文本中的偏移 */
+  frontierOffset: number;
+  /**
+   * end == frontier 时的提交判定（组件传：!extendable && 弹层无其它候选）；
+   * 缺省 = 仅提交 end < frontier 的命中（已被后续输入封口）。
+   */
+  atFrontier?: (occ: AutoLinkOccurrence) => boolean;
+}
+
+/**
+ * 就地转换一个文本 run 内已封口的 @名（DOM 手术，不整段 innerHTML 重建）。
+ * 运行期自动转换的提交引擎（docs/PromptInput-@名自动转缩略图 §8.4）：
+ *  - 判定（§8.2）：end < frontier → 提交；end == frontier → 走 atFrontier；
+ *    end > frontier → 延迟（还在编辑/可扩展的名不动）；
+ *  - 手术：把 run 重建为 [前文文本][chip…][后文文本] 兄弟流（buildChipEl 替入），
+ *    光标原本在 run 内时映射到新流末尾（可提交命中均满足 end <= frontier）；
+ *  - 收尾（normalizeChipSlots / emitDOM）由组件层负责，此处不动整棵 root。
+ * @param {Text} run 光标所在的文本节点（contentEditable 内）
+ * @param {Array<{id:string,label:string,url?:string,kind?:string}>} assets 候选素材
+ * @param {{frontierOffset:number, atFrontier?:(occ)=>boolean}} opts 提交判定选项
+ * @returns {boolean} 是否发生转换
+ */
+export function commitOccurrencesInRun(
+  run: Text,
+  assets: Array<{ id: string; label: string; url?: string; kind?: string }> = [],
+  opts: AutoLinkCommitOptions,
+): boolean {
+  const text = run.textContent || '';
+  if (!text.includes('@') || assets.length === 0) return false;
+  const occs = findAutoLinkOccurrences(text, assets);
+  const toCommit = occs.filter((occ) =>
+    occ.end < opts.frontierOffset
+      ? true
+      : occ.end === opts.frontierOffset
+        ? opts.atFrontier
+          ? opts.atFrontier(occ)
+          : false
+        : false,
+  );
+  if (toCommit.length === 0) return false;
+
+  const parent = run.parentNode;
+  if (!parent) return false;
+  const sel = window.getSelection();
+  const range = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+  const caretOffset = range && range.startContainer === run ? range.startOffset : -1;
+
+  // 组装新流（升序）：[前文文本][chip…][后文文本]
+  const newNodes: Node[] = [];
+  let last = 0;
+  for (const occ of toCommit) {
+    if (occ.start > last) newNodes.push(document.createTextNode(text.slice(last, occ.start)));
+    const a = occ.asset;
+    newNodes.push(buildChipEl(a.id, a.label, (a.kind as 'image' | 'text') || 'text', a.url));
+    last = occ.end;
+  }
+  if (last < text.length) newNodes.push(document.createTextNode(text.slice(last)));
+  if (newNodes.length === 0) return false;
+
+  for (const n of newNodes) parent.insertBefore(n, run);
+  parent.removeChild(run);
+
+  // 光标映射：可提交命中均 end <= caretOffset → 光标必在最后命中之后。
+  // 若 run 末段仍是非芯片文本（如被延迟的 open query），落点 = 该文本内相对偏移。
+  if (caretOffset >= 0) {
+    const lastOcc = toCommit[toCommit.length - 1];
+    const rel = caretOffset - lastOcc.end;
+    const parentEl = parent as HTMLElement;
+    const chips = parentEl.querySelectorAll('[data-ref-id]');
+    const lastChip = chips[chips.length - 1];
+    const r = document.createRange();
+    if (!lastChip) {
+      r.selectNodeContents(parentEl);
+    } else if (rel > 0) {
+      const afterNode = lastChip.nextSibling;
+      if (afterNode && afterNode.nodeType === Node.TEXT_NODE) {
+        r.setStart(afterNode, Math.min(rel, (afterNode.textContent || '').length));
+      } else {
+        r.setStartAfter(lastChip);
+      }
+    } else {
+      r.setStartAfter(lastChip);
+    }
+    r.collapse(true);
+    if (sel) {
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+  }
+  return true;
 }

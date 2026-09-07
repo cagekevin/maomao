@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -52,6 +52,7 @@ import { defaultNodeData, buildNodeTypeComponents } from './components/base/canv
 import LodProvider, { useLod } from './components/base/canvas/lod.tsx';
 import ToastContainer from './components/base/ui/ToastContainer.tsx';
 import ConfirmContainer from './components/base/ui/ConfirmContainer.tsx';
+import RenameDialog from './components/base/ui/RenameDialog.tsx';
 import SettingsFrame from './components/base/panels/SettingsFrame.tsx';
 import AccountsSettings from './components/base/panels/sections/AccountsSettings.tsx';
 import TopNav from './components/base/panels/TopNav.tsx';
@@ -623,6 +624,38 @@ function Canvas() {
     [setNodes, setEdges, history],
   );
 
+  // 右键菜单「重命名」弹窗的目标节点（open 时驱动 RenameDialog；null = 关闭）。
+  // 用 App state 承载（最小侵入），不引全局 store；如后续需供非 React 模块调用再升级 renameStore。
+  const [renameTarget, setRenameTarget] = useState<{ id: string; label: string } | null>(null);
+
+  // 打开重命名弹窗：按节点类型取当前显示名预填（group 用 data.name，其余 data.label；空则留空+placeholder）
+  const openRenameDialog = useCallback((id: string) => {
+    const node = nodesRef.current.find((n) => n.id === id);
+    if (!node) return;
+    const label =
+      node.type === 'group' ? String(node.data?.name ?? '') : String(node.data?.label ?? '');
+    setRenameTarget({ id, label });
+  }, []);
+
+  // 统一改名写回（docs/108 §4.2）：普通节点写 data.label，group 写 data.name；空值/未变 = 忽略；进撤销栈。
+  // 不依赖节点组件内部 onRename（一次覆盖全部节点/编组）；已接 onRename 节点的双击链路保留不动（避免双写）。
+  const commitRename = useCallback(
+    (id: string, name: string) => {
+      const next = String(name || '').trim();
+      const cur = nodesRef.current.find((n) => n.id === id);
+      if (!cur) return;
+      const field = cur.type === 'group' ? 'name' : 'label';
+      if (!next || String(cur.data?.[field] ?? '') === next) return;
+      // P0-B 红线：setNodes 不可变更新（见 NodeShell.tsx 头注释 / docs/106），禁止原地 mutation
+      const nextNodes = nodesRef.current.map((n) =>
+        n.id === id ? { ...n, data: { ...n.data, [field]: next } } : n,
+      );
+      setNodes(nextNodes);
+      history.record({ nodes: nextNodes, edges: edgesRef.current });
+    },
+    [setNodes, history],
+  );
+
   // 全选
   const selectAll = useCallback(() => {
     setNodes((ns) => ns.map((n) => ({ ...n, selected: true })));
@@ -955,6 +988,7 @@ function Canvas() {
     duplicateSelected: (onlyId?) => copySelectedNodes(onlyId),
     copyNodeImage: (nodeId) => copyNodeImage(nodeId),
     deleteNode: (id) => deleteNode(id),
+    renameNode: (id) => openRenameDialog(id),
     applyUngroup: (groupId) => {
       const res = ungroupNodes(nodesRef.current, groupId);
       if (res.ok) {
@@ -1427,6 +1461,17 @@ function Canvas() {
                 items={(state) => menuForState(state, menuCtx)}
                 onClose={menu.close}
                 containerRef={menu.containerRef}
+              />
+
+              {/* 右键菜单「重命名」轻量输入弹窗（docs/108 §4.3；open 由 renameTarget 驱动） */}
+              <RenameDialog
+                open={!!renameTarget}
+                initial={renameTarget?.label}
+                onCancel={() => setRenameTarget(null)}
+                onSubmit={(name) => {
+                  if (renameTarget) commitRename(renameTarget.id, name);
+                  setRenameTarget(null);
+                }}
               />
 
               {/* 右键菜单「上传」隐藏文件输入（复刻官方 Re，选中文件建素材节点） */}

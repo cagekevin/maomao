@@ -10,6 +10,8 @@ import {
   buildChipEl,
   renderPromptToNodes,
   autoLinkAssetsByName,
+  commitOccurrencesInRun,
+  extendable,
 } from './promptChips.ts';
 import { detectMentionQuery, computeMentionPlacement, MENTION_PANEL_W } from './promptMention.ts';
 
@@ -27,6 +29,11 @@ import { detectMentionQuery, computeMentionPlacement, MENTION_PANEL_W } from './
  *  - portal 到 body + fixed + z-popover（默认），跳出节点层叠上下文 → 不被相邻节点盖住、
  *    不随画布缩放；全屏编辑器内传 portalTarget={null} 走内联 absolute（弹窗本身已是最顶层）。
  *  - 方向键上下切换高亮、Enter 选中、Esc 关闭（同一 @ 不再重弹）、失焦/点外部关闭、IME 组字中不判定。
+ *
+ * @运行期自动转换（2026-09-07，docs/PromptInput-@名自动转缩略图 §8.3）：
+ *  - 打字/粘贴/blur 后经 maybeAutoLinkAtCaret → commitOccurrencesInRun 就地转已封口的 @名；
+ *  - 判定规则（§8.2 frontier/extendable/弹层候选）与 effect 全量重建（autoLinkAssetsByName）
+ *    共用同一匹配源，行为无分叉；IME 组字中不判，共享 value 的其它实例经 el.contains 守卫不抢转。
  */
 interface PromptInputProps {
   value?: string;
@@ -173,6 +180,42 @@ const PromptInput = forwardRef(function PromptInput(
     if (!el || syncingRef.current) return;
     onChange?.(serializeDOM(el));
   }, [onChange]);
+
+  // 运行期自动转换（docs/PromptInput-@名自动转缩略图 §8.3）：打字/粘贴/终结字符/blur 后，
+  // 把光标所在 run 里「已封口」的 @名 就地转芯片（commitOccurrencesInRun，DOM 手术不整段重建）。
+  // 判定（§8.2）：end<frontier 必转；end==frontier 且「不可扩展且弹层无其它候选」即时转。
+  // 守卫：IME 组字中不判（onInput 先行 return）；光标不在本实例不判（共享 value 的面板实例）。
+  const maybeAutoLinkAtCaret = useCallback(() => {
+    const el = editorRef.current;
+    if (!el || all.length === 0) return;
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const node = range.startContainer;
+    if (!el.contains(node)) return; // 共享 value 的面板实例守卫：焦点不在本实例不抢转
+    if (!(node instanceof Text)) return; // 光标落在芯片/BR/元素边界时无文本可转
+    const offset = range.startOffset;
+    // 弹层其它候选判定用同步 query（detectMentionQuery 纯函数），避免 setState 异步读到旧 filtered
+    const before = (node.textContent || '').slice(0, offset);
+    const q = detectMentionQuery(before);
+    const changed = commitOccurrencesInRun(node, all, {
+      frontierOffset: offset,
+      atFrontier: (occ) => {
+        if (extendable(occ.name, all)) return false;
+        const cands = q.active
+          ? all.filter((m) => m.label.toLowerCase().includes(q.query.trim().toLowerCase()))
+          : all;
+        return !cands.some((m) => m.label !== occ.name);
+      },
+    });
+    if (changed) {
+      normalizeChipSlots(el);
+      // 转 chip = 替用户按了回车（§8.2 语义）→ 弹层同步关闭，避免 chip 已生成弹层还飘着
+      setShowMention(false);
+      setMentionQuery('');
+      emitDOM();
+    }
+  }, [all, emitDOM]);
 
   // refImages/refTexts → metaMap（id → {kind,url,label}），作为缩略图恢复 + 最新名的兜底来源。
   // 序列化的字符串已自带缩略图 URL 与 label，此处仅在字符串缺缩略图（旧数据/刚插入）或
@@ -532,17 +575,32 @@ const PromptInput = forwardRef(function PromptInput(
     (e) => {
       e.preventDefault();
       const plain = e.clipboardData.getData('text/plain');
+      const el = editorRef.current;
       const sel = window.getSelection();
       if (!sel || !sel.rangeCount) return;
       const range = sel.getRangeAt(0);
       range.deleteContents();
-      range.insertNode(document.createTextNode(plain));
+      const textNode = document.createTextNode(plain);
+      range.insertNode(textNode);
       range.collapse(false);
       sel.removeAllRanges();
       sel.addRange(range);
+      // 粘贴即转（§8.3）：对插入的 textNode 提交；最末命中若 extendable 延迟
+      //（防「贴 @猫 再手补 A 成 @猫A」被提前转死）。
+      if (el && all.length > 0) {
+        const changed = commitOccurrencesInRun(textNode, all, {
+          frontierOffset: plain.length,
+          atFrontier: (occ) => !extendable(occ.name, all),
+        });
+        if (changed) {
+          normalizeChipSlots(el);
+          setShowMention(false);
+          setMentionQuery('');
+        }
+      }
       emitDOM();
     },
-    [emitDOM],
+    [all, emitDOM],
   );
 
   const renderMentionPopup = () => {
@@ -620,12 +678,17 @@ const PromptInput = forwardRef(function PromptInput(
             emitDOM();
             if (composingRef.current || e.nativeEvent.isComposing) return; // 组字中不判定
             detectMention();
+            // 打字即转（§8.3）：end<frontier 的 @名 已被封口，就地转芯片（含打空格/标点终结场景）
+            maybeAutoLinkAtCaret();
           }}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           onBlur={() => {
             emitDOM();
             setShowMention(false);
+            // 光标离开（§8.3）：残留尾巴按 §8.2 判一次；仅在光标仍在本实例内时生效
+            //（el.contains 守卫：blur 时 selection 通常还在编辑器内；焦点已在别处实例则跳过）
+            maybeAutoLinkAtCaret();
           }}
           onCompositionStart={() => {
             composingRef.current = true;

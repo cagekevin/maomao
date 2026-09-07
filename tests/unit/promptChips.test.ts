@@ -7,6 +7,10 @@ import {
   resolvePromptChips,
   isChipEl,
   autoLinkAssetsByName,
+  findAutoLinkOccurrences,
+  extendable,
+  isTerminatedByBreak,
+  commitOccurrencesInRun,
 } from '../../src/components/base/prompt/promptChips.ts';
 
 /** 把 renderPromptToNodes 的 Node[] append 到一个根 div */
@@ -227,5 +231,176 @@ describe('autoLinkAssetsByName（@名 自动转芯片，唯一入口）', () => 
   it('名字含正则特殊字符不误伤（转义）', () => {
     const special = [{ id: 's', label: '猫.狗', url: 'u' }];
     expect(autoLinkAssetsByName('@猫.狗', special)).toBe('@{s:猫.狗|u}');
+  });
+});
+
+describe('findAutoLinkOccurrences（统一命中源，§8.5）', () => {
+  const assets = [
+    { id: 'img-1', label: '猫', url: 'http://x/cat.png', kind: 'image' },
+    { id: 'img-2', label: '狗', url: 'http://x/dog.png', kind: 'image' },
+  ];
+  const shape = (occs) => occs.map((o) => ({ start: o.start, end: o.end, name: o.name }));
+
+  it('单个命中：返回相对文本的 [start,end)（end 不含 @）', () => {
+    const occs = findAutoLinkOccurrences('一只@猫在跑', assets);
+    expect(shape(occs)).toEqual([{ start: 2, end: 4, name: '猫' }]);
+    expect(occs[0].asset.id).toBe('img-1');
+  });
+
+  it('多个命中：非重叠、各自返回', () => {
+    expect(shape(findAutoLinkOccurrences('@猫和@狗打架', assets))).toEqual([
+      { start: 0, end: 2, name: '猫' },
+      { start: 3, end: 5, name: '狗' },
+    ]);
+  });
+
+  it('长名优先：@猫A 命中「猫A」而非前缀「猫」', () => {
+    const both = [
+      { id: 'a', label: '猫', url: 'u' },
+      { id: 'b', label: '猫A', url: 'u' },
+    ];
+    expect(shape(findAutoLinkOccurrences('@猫A', both))).toEqual([
+      { start: 0, end: 3, name: '猫A' },
+    ]);
+  });
+
+  it('非重叠：@猫猫 只命中第一段（不重叠重复消费）', () => {
+    expect(shape(findAutoLinkOccurrences('@猫猫', assets))).toEqual([
+      { start: 0, end: 2, name: '猫' },
+    ]);
+  });
+
+  it('未命中 / 空输入 / 空素材 → 空数组', () => {
+    expect(findAutoLinkOccurrences('@鸟在飞', assets)).toEqual([]);
+    expect(findAutoLinkOccurrences('', assets)).toEqual([]);
+    expect(findAutoLinkOccurrences('@猫', [])).toEqual([]);
+  });
+
+  it('名字含正则特殊字符正确命中（转义）', () => {
+    const special = [{ id: 's', label: '猫.狗', url: 'u' }];
+    expect(shape(findAutoLinkOccurrences('@猫.狗', special))).toEqual([
+      { start: 0, end: 4, name: '猫.狗' },
+    ]);
+  });
+});
+
+describe('extendable（@名 是否可扩展为更长素材名，§8.2）', () => {
+  it('猫 之于 [猫, 猫A] → 可扩展（用户可能补打 A）', () => {
+    expect(
+      extendable('猫', [
+        { id: 'a', label: '猫' },
+        { id: 'b', label: '猫A' },
+      ]),
+    ).toBe(true);
+  });
+
+  it('猫A 之于 [猫, 猫A] → 不可扩展（无更长名以它为前缀）', () => {
+    expect(
+      extendable('猫A', [
+        { id: 'a', label: '猫' },
+        { id: 'b', label: '猫A' },
+      ]),
+    ).toBe(false);
+  });
+
+  it('猫 之于 [猫, 花猫] → 不可扩展（花猫不以 猫 开头；需靠弹层候选判定）', () => {
+    expect(
+      extendable('猫', [
+        { id: 'a', label: '猫' },
+        { id: 'c', label: '花猫' },
+      ]),
+    ).toBe(false);
+  });
+
+  it('无素材 / 空名 → false', () => {
+    expect(extendable('猫', [])).toBe(false);
+    expect(extendable('', [{ id: 'a', label: '猫' }])).toBe(false);
+  });
+});
+
+describe('isTerminatedByBreak（终结字符，BREAK 集单一真源）', () => {
+  it('空格/英文逗号/中文句号 → true', () => {
+    expect(isTerminatedByBreak(' ')).toBe(true);
+    expect(isTerminatedByBreak(',')).toBe(true);
+    expect(isTerminatedByBreak('。')).toBe(true);
+  });
+
+  it('普通字符 / @ → false', () => {
+    expect(isTerminatedByBreak('猫')).toBe(false);
+    expect(isTerminatedByBreak('@')).toBe(false);
+    expect(isTerminatedByBreak('A')).toBe(false);
+  });
+});
+
+describe('commitOccurrencesInRun（就地 DOM 手术，§8.4）', () => {
+  const assets = [{ id: 'img-1', label: '猫', url: 'http://x/cat.png', kind: 'image' }];
+
+  /** 建一个含单个文本节点 run 的根 div（挂到 body，jsdom 的 Selection.addRange 对未连接文档的节点静默丢弃），可选把光标放到 run 内 offset */
+  function setup(text, caretOffset) {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const run = document.createTextNode(text);
+    root.appendChild(run);
+    if (caretOffset != null) {
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.setStart(run, caretOffset);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    return { root, run };
+  }
+
+  it('end < frontier → 提交（已封口），chip 替入、后文保留', () => {
+    const { root, run } = setup('参考@猫 生成', 7);
+    expect(commitOccurrencesInRun(run, assets, { frontierOffset: 7 })).toBe(true);
+    expect(root.querySelector('[data-ref-id="img-1"]')).toBeTruthy();
+    expect(serializeDOM(root)).toBe('参考@{img-1:猫|http%3A%2F%2Fx%2Fcat.png} 生成');
+  });
+
+  it('end == frontier 且 atFrontier 通过 → 即时转（手输唯一名）', () => {
+    const { root, run } = setup('@猫', 2);
+    expect(commitOccurrencesInRun(run, assets, { frontierOffset: 2, atFrontier: () => true })).toBe(
+      true,
+    );
+    expect(root.querySelector('[data-ref-id="img-1"]')).toBeTruthy();
+  });
+
+  it('end == frontier 且 atFrontier 拒绝 → 延迟不转（猫 vs 猫A 歧义）', () => {
+    const both = [
+      { id: 'a', label: '猫', url: 'u' },
+      { id: 'b', label: '猫A', url: 'u' },
+    ];
+    const { root, run } = setup('@猫', 2);
+    expect(commitOccurrencesInRun(run, both, { frontierOffset: 2, atFrontier: () => false })).toBe(
+      false,
+    );
+    expect(root.querySelector('[data-ref-id]')).toBeNull();
+  });
+
+  it('end > frontier → 延迟（光标还在名内，不转）', () => {
+    const { root, run } = setup('@猫尾巴', 1);
+    expect(commitOccurrencesInRun(run, assets, { frontierOffset: 1 })).toBe(false);
+    expect(root.querySelector('[data-ref-id]')).toBeNull();
+  });
+
+  it('无 @ / 空素材 → 快速返回 false', () => {
+    const { root, run } = setup('普通文本', 4);
+    expect(commitOccurrencesInRun(run, assets, { frontierOffset: 4 })).toBe(false);
+    expect(commitOccurrencesInRun(run, [], { frontierOffset: 4 })).toBe(false);
+  });
+
+  it('光标映射：手术后光标落到 run 转换流末尾（chip 后）', () => {
+    const { root, run } = setup('参考@猫 生成', 7);
+    commitOccurrencesInRun(run, assets, { frontierOffset: 7 });
+    const sel = window.getSelection();
+    const range = sel.getRangeAt(0);
+    const chip = root.querySelector('[data-ref-id="img-1"]');
+    // 光标在 chip 之后的剩余文本「 生成」内：相对原末尾 7 - end 4 = 3（after 文本长 3，落点即其末尾）
+    expect(chip).toBeTruthy();
+    expect(range.startContainer.nodeType).toBe(Node.TEXT_NODE);
+    expect(range.startContainer.textContent).toBe(' 生成');
+    expect(range.startOffset).toBe(3);
   });
 });

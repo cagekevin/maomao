@@ -10,8 +10,9 @@ export const MENTION_PANEL_W: number = 280;
 export const MENTION_PANEL_MAX_H: number = 300;
 export const MENTION_FLIP_MIN_H: number = 160; // 上方空间不足此值 → 翻转到下方
 
-/** query 内出现即终止（含全角空格/常见中文标点/英文点，URL 邮箱天然被拦） */
-const BREAK: Set<string> = new Set([
+/** query 内出现即终止（含全角空格/常见中文标点/英文点，URL 邮箱天然被拦）。
+ *  export：promptChips 的 isTerminatedByBreak 复用同一集合，边界单一真源（见 docs/PromptInput-@名自动转缩略图 §8.5）。 */
+export const BREAK: Set<string> = new Set([
   ' ',
   '\n',
   '\t',
