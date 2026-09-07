@@ -382,24 +382,24 @@ export function describeUploadConflict(
     if (d.kind === 'both-changed') {
       return {
         title: '云端和本地都有更新',
-        message: `云端内容更新于 ${time}，你本地在同步之后也改过。上传会用本地内容覆盖云端的新内容。`,
-        confirmText: '下载云端',
+        message: `云端内容更新于 ${time}，你本地在同步之后也改过。点「上传本地」会用本地内容覆盖云端的新内容。`,
+        confirmText: '上传本地',
         danger: true,
       };
     }
     if (d.kind === 'cloud-newer') {
       return {
         title: '云端有更新',
-        message: `云端内容更新于 ${time}，而你本地没有可上传的改动。上传会用本地内容覆盖云端的更新。`,
-        confirmText: '下载云端',
+        message: `云端内容更新于 ${time}，而你本地没有可上传的改动。点「上传本地」会用本地内容覆盖云端的更新。`,
+        confirmText: '上传本地',
         danger: true,
       };
     }
     // cloud-unknown
     return {
       title: '无法确认云端是否有更新',
-      message: '读取云端版本失败，上传有可能覆盖云端的新内容。',
-      confirmText: '下载云端',
+      message: '读取云端版本失败，点「上传本地」有可能覆盖云端的新内容。',
+      confirmText: '上传本地',
       danger: true,
     };
   }

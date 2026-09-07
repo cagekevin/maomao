@@ -187,7 +187,7 @@ function TopNav({
             {/* 同步设置区块：推送到云端 / 从云端拉取 */}
             <div className="p-2 border-b border-edge">
               <div className="px-2 py-1 text-xs text-muted font-bold">同步设置</div>
-              {/* 【推送到云端】核心业务数据（画布）推送到云端 */}
+              {/* 【推送到云端】核心业务数据（画布）推送到云端（向上箭头图标） */}
               <button
                 type="button"
                 onClick={handlePushToCloud}
@@ -204,12 +204,12 @@ function TopNav({
                   strokeLinejoin="round"
                 >
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
                 推送到云端
               </button>
-              {/* 【从云端拉取】从云端拉取并覆盖当前画布/配置 */}
+              {/* 【从云端拉取】从云端拉取并覆盖当前画布/配置（向下箭头图标） */}
               <button
                 type="button"
                 onClick={handlePullFromCloud}
@@ -226,8 +226,8 @@ function TopNav({
                   strokeLinejoin="round"
                 >
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
                 从云端拉取
               </button>

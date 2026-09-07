@@ -114,8 +114,8 @@ const autoResolveConflict: AutoConflictHandler = async (copy, decision) => {
   if (typeof document !== 'undefined' && document.hidden) return 'cancel';
   // 网络抖动（cloud-unknown）：GAS 抽风不打扰（不计退避）——旧稿 A-7c
   if (decision.kind === 'cloud-unknown') return 'cancel';
-  // 三选一：confirmText 已由 describeUploadConflict('auto') 置为「下载云端」语义的确认按钮文案，
-  // 但真正三态按钮由这里补 cancelText='稍后' + downloadText='下载云端' 驱动渲染端。
+  // 三选一：主按钮 confirmText 由 describeUploadConflict('auto') 置为「上传本地」（= 继续 push 覆盖云端），
+  // 这里补 cancelText='稍后' + downloadText='下载云端' 驱动渲染端，三者文案互斥、语义清晰。
   const c = await askChoice({ ...copy, cancelText: '稍后', downloadText: '下载云端' });
   if (c === 'download') return 'download';
   if (c === 'confirm') return 'upload';
