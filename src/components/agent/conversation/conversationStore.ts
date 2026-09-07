@@ -243,6 +243,7 @@ export {
   setCurrentAssistantTable,
   getCurrentAssistantTabs,
   setCurrentAssistantTabs,
+  materializeAssistantTabs,
   setActiveTableTab,
   getTableTab,
   setTableTab,

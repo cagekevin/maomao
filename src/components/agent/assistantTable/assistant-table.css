@@ -675,7 +675,8 @@
   align-items: center;
   gap: 2px;
   height: 40px; /* 与 AI 助手顶栏 .agent-header 齐平（用户裁定） */
-  padding: 0 6px 0 var(--pk-pad-x, 10px);
+  /* 外层统一一个对称 padding（左右同值），内部元素不再各自加各种稀奇古怪的边距 */
+  padding: 0 var(--pk-pad-x, 10px);
   border-bottom: 1px solid rgb(var(--mao-edge-subtle));
 }
 .atw-tabs-scroll {
@@ -707,7 +708,8 @@
   align-items: center;
   gap: 4px;
   height: 26px;
-  padding: 0 4px 0 9px;
+  /* 对称 padding：左=右，避免「无行时只剩名称」看着左右不均（原 0 4px 0 9px 是非对称） */
+  padding: 0 8px;
   border-radius: var(--pk-radius-pill, 7px);
   background: transparent;
   color: rgb(var(--mao-text-muted));

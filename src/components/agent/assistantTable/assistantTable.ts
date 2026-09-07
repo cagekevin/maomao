@@ -670,7 +670,7 @@ export interface RawAssistantTableTabs {
 export function emptyAssistantTabs(): AssistantTableTabs {
   const tab: TableTab = {
     id: generateId('tab'),
-    name: '表1',
+    name: '标签页1',
     columns: [],
     rows: [],
     globalStyle: '',
@@ -685,7 +685,7 @@ function normalizeTab(raw: unknown, index: number): TableTab | null {
   const table = normalizeAssistantTable(t);
   return {
     id: String(t.id ?? '') || generateId('tab'),
-    name: String(t.name ?? '').trim() || `表${index + 1}`,
+    name: String(t.name ?? '').trim() || `标签页${index + 1}`,
     columns: table.columns,
     rows: table.rows,
     globalStyle: typeof t.globalStyle === 'string' ? t.globalStyle.trim() : '',
@@ -723,7 +723,7 @@ export function normalizeAssistantTabs(
   if (legacyTable.columns.length > 0 || legacyTable.rows.length > 0) {
     const tab: TableTab = {
       id: generateId('tab'),
-      name: '表1',
+      name: '标签页1',
       columns: legacyTable.columns,
       rows: legacyTable.rows,
       globalStyle: String(legacy?.globalStyle ?? '').trim(),
@@ -798,7 +798,7 @@ export function setActiveTabId(tabs: AssistantTableTabs, tabId: string): Assista
 export function addTab(tabs: AssistantTableTabs, name?: string): AssistantTableTabs {
   const tab: TableTab = {
     id: generateId('tab'),
-    name: String(name ?? '').trim() || `表${tabs.tabs.length + 1}`,
+    name: String(name ?? '').trim() || `标签页${tabs.tabs.length + 1}`,
     columns: [],
     rows: [],
     globalStyle: '',
@@ -846,7 +846,7 @@ export function copyTab(tabs: AssistantTableTabs, tabId: string): AssistantTable
   if (!src) return tabs;
   const tab: TableTab = {
     id: generateId('tab'),
-    name: `表${tabs.tabs.length + 1}`,
+    name: `标签页${tabs.tabs.length + 1}`,
     columns: src.columns.map((c) => ({ ...c, id: generateId('col') })),
     rows: src.rows.map((r) => ({ id: generateId('row'), values: { ...r.values } })),
     globalStyle: src.globalStyle,

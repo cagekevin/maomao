@@ -56,6 +56,7 @@ import {
   setTableWorkspaceRows,
   switchTableTab,
   setPreviewTargetTab,
+  discardPreviewForMissingTarget,
 } from './tableWorkspaceState.ts';
 import { useActiveAssistantTable } from './useActiveAssistantTable.ts';
 import { useTableDrafts } from './useTableDrafts.ts';
@@ -442,6 +443,8 @@ export default function AssistantTablePanel({
             pushHistory(cur);
             setCurrentAssistantTabs(next);
             setTableWorkspaceRows([]);
+            // 若被删的恰是待确认预览的目标 tab → 作废预览（防确认时写悬空 id 假成功）
+            discardPreviewForMissingTarget(next);
           }
         }}
         onCopyAsNew={(tabId) => {

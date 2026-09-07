@@ -19,6 +19,13 @@
  * 预览=确认（C5）：acceptTablePreview 用【实时表 + 实时选中】调 buildPreviewResult 一次性算好
  * 「操作后最终表格」存入 preview；confirmTablePreview 只原样写回，零二次推导（B-003 结构消解）。
  *
+ * 根治·假成功（2026-09-07）：不变量「preview.targetTabId 恒指向存在的 tab」。确认写回前先用 getTab
+ * 证明目标存在，否则显式失败（error toast、清 preview、不落盘）——「已写入」= 真实落到目标表，
+ * 绝不因「流程走到末尾」就假报成功。悬空引用在源头被抹掉：删 tab 时若恰是预览目标 → 作废 preview。
+ * 根治·非幂等读（2026-09-07 深化）：空/老数据对话的 tab id 每次读都是新的（getCurrentAssistantTabs
+ * 纯读不落盘），accept 捕获 targetTabId 后 confirm 重读会对不上 → 误报「目标不存在」。故 accept 捕获目标前
+ * 先 materializeAssistantTabs() 落成稳定基线，保证「捕获的 id == 确认读回的 id」。
+ *
  * 语义要点：
  *  - 关面板 = 关协作：closeTableWorkspace 同时清 selectedRowIds/preview/handledMessageId；
  *  - 切对话（resetTableWorkspace）清选中/预览/游标，但保留 open/width（表格面板不因切对话收起）。
@@ -31,6 +38,7 @@ import {
   setCurrentAssistantTabs,
   setActiveTableTab,
   markMessageTableResolved,
+  materializeAssistantTabs,
 } from '../conversation/conversationStore.ts';
 import {
   buildPreviewResult,
@@ -39,7 +47,13 @@ import {
   setTabGlobalStyle,
   setTabTable,
 } from './assistantTable.ts';
-import type { AssistantTableJson, CellRange, TableColumn, TableRow } from './assistantTable.ts';
+import type {
+  AssistantTableJson,
+  AssistantTableTabs,
+  CellRange,
+  TableColumn,
+  TableRow,
+} from './assistantTable.ts';
 
 /** 选区类型由模型层（assistantTable.ts）定义并拥有，此处转出供 UI 层直接用 */
 export type { CellRange };
@@ -219,6 +233,11 @@ export function acceptTablePreview(p: {
   messageId: unknown;
   selectedRowIds: string[];
 }): void {
+  // 【根治·非幂等读-2026-09-07】捕获预览目标前先把 tabs 落成稳定基线：
+  // 空/老数据对话的 tab id 每次读都是新的（getCurrentAssistantTabs 纯读不落盘），
+  // 若不在此定住，accept 存的 targetTabId 到 confirm 重读就对不上 → 误报「目标不存在」。
+  // materialize 幂等，已落盘则零开销。
+  materializeAssistantTabs();
   const tabs = getCurrentAssistantTabs();
   const activeTab = getActiveTab(tabs);
   const targetTabId = activeTab ? activeTab.id : '';
@@ -313,13 +332,22 @@ export function confirmTablePreview(recordHistory = true): { ok: boolean; mode?:
   }
   const tabs0 = getCurrentAssistantTabs();
   const targetTabId = p.targetTabId || getActiveTab(tabs0)?.id || '';
-  if (!targetTabId) {
-    logger.warn('AI助手', '表格确认写回失败：目标 tab 不存在', { messageId: p.messageId });
+  // 【根治·假成功-2026-09-07】「已写入」必须 = 目标 tab 真实存在、写真实落到它上面，而不是流程走到末尾。
+  // 预览生成后目标 tab 可能已被删/重建（onClose 已同步清 preview，此处兜底）→ targetTabId 悬空，
+  // 旧代码 setTabTable→updateTab 会原样返回 tabs0（静默 no-op）却仍旧弹「已写入」——正是「提示成功但表空」的根。
+  // 故先证明目标存在：不存在 → 显式失败（error toast、清 preview、不落盘），绝不假报成功。
+  const target = getTab(tabs0, targetTabId);
+  if (!target) {
+    logger.warn('AI助手', '表格确认写回失败：目标 tab 已不存在（预览过期）', {
+      targetTabId,
+      messageId: p.messageId,
+    });
     markMessageTableResolved(p.messageId, 'confirmed');
     setState({ ...state, preview: null });
+    showToast?.('写入失败：目标表格已不存在，请重新生成', { type: 'error' });
     return { ok: false, mode: p.opKind };
   }
-  const targetName = getTab(tabs0, targetTabId)?.name || '当前表';
+  const targetName = target.name;
   let tabs1 = setTabTable(tabs0, targetTabId, { columns: p.resultCols, rows: p.resultRows });
   if (gs) tabs1 = setTabGlobalStyle(tabs1, targetTabId, gs);
   if (recordHistory) pushHistory(tabs0);
@@ -330,6 +358,18 @@ export function confirmTablePreview(recordHistory = true): { ok: boolean; mode?:
   switchTableTab(targetTabId);
   showToast?.(`已写入「${targetName}」`, { type: 'success' });
   return { ok: true, mode: p.opKind };
+}
+
+/** 【根治·悬空引用-2026-09-07】tab 集合变更后维持不变量「preview.targetTabId 恒指向存在的 tab」：
+ *  删除/重建 tab 后，若当前待确认预览的目标 tab 已不在 tabs 中，立即作废 preview（防确认时写悬空 id 假成功）。
+ *  由 UI 所有改动 tab 集合的手柄（如 onClose 删 tab）调用；confirmTablePreview 内另有一道存在性兜底。 */
+export function discardPreviewForMissingTarget(tabs: AssistantTableTabs | null): void {
+  const p = state.preview;
+  if (!p || !tabs) return;
+  if (!getTab(tabs, p.targetTabId)) {
+    logger.warn('AI助手', '预览目标 tab 已被删除，预览作废', { targetTabId: p.targetTabId });
+    setState({ ...state, preview: null });
+  }
 }
 
 /** 取消写回：只打「已取消」处理态 + 清 preview，正式表不动 */

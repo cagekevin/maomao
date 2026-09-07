@@ -131,6 +131,19 @@ export function getCurrentAssistantTabs(): AssistantTableTabs {
   });
 }
 
+/** 【根治·非幂等读-2026-09-07】把当前对话 tables 落成「稳定基线」：仅当 memory.assistantTables 尚未落盘时，
+ *  把 getCurrentAssistantTabs 的归一结果（空表水合或老数据升级）写回一次。
+ *  背景：normalizeAssistantTabs 在真源缺失时每次调用都会 generateId 造新 tab id，
+ *  而 getCurrentAssistantTabs 是纯读从不落盘 → 空/老数据对话的 tab id 只活在「那一次读」里。
+ *  被别处捕获后（如 acceptTablePreview 存的 preview.targetTabId）再重读就对不上，confirm 误判「目标不存在」。
+ *  落一次后真源存在 → 后续读全部返回同一批稳定 id。幂等：已落盘则直接返回。 */
+export function materializeAssistantTabs(): void {
+  const conv = getActiveConv();
+  if (!conv) return;
+  if (conv.memory?.assistantTables) return; // 已落盘 → id 已稳定
+  setCurrentAssistantTabs(getCurrentAssistantTabs());
+}
+
 /** 写当前对话的多标签页集合（归一后落 memory.assistantTables + commit 自动落盘；不再写 assistantTable） */
 export function setCurrentAssistantTabs(tabs: AssistantTableTabs): void {
   const conv = getActiveConv();

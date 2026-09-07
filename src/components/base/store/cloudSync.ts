@@ -818,6 +818,9 @@ export function isCloudSyncReady(): boolean {
  *  - lastOpenedProject / agent_draft：本机/临时偏好（不同步）
  *  - yimao_asset_library：本地 URL 引用，跨设备无意义（不同步）
  *  - mutiwindow-clipboard：跨窗口临时剪贴板（不同步）
+ *  - agent_panel_width / agent_split_width：AI 助手面板/表格分栏宽度（本机 UI 偏好，跨设备无意义，不同步）
+ *  - agent_input_mode / agent_work_mode：9-05 模式精简后的历史遗留死键（input_mode 不再产出、work_mode 恒 auto 且读时强制归 auto），同步无意义（不同步）
+ *  - canvasAgentGenParams：AI 生图默认参数（本机 UI 偏好，跨设备无意义，不同步）
  *  AI 会话键（agent_conversations_*）含隐私，本就为 pattern 键不在 getLocalKeys() 内。
  * 账号（yimao_accounts）为 KV 后端，本就不在 getLocalKeys()，由 S4 领域开关在 collect/restore 单独处理。
  * 同步台账（yimao_cloud_sync_ledger）：本机基线，随备份走但**绝不能进云端**（每台机器基线不同，
@@ -827,6 +830,12 @@ const SYNC_EXCLUDE = new Set([
   'yimao_asset_library',
   'agent_draft',
   'mutiwindow-clipboard',
+  'agent_panel_width',
+  'agent_split_width',
+  'agent_input_mode',
+  'agent_work_mode',
+  'canvasAgentGenParams',
+  'agent_skill_usage',
   LEDGER_KEY,
 ]);
 const LS_KEYS = getLocalKeys().filter((k) => !SYNC_EXCLUDE.has(k));

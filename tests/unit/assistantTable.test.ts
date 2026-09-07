@@ -479,7 +479,7 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
       });
       expect(tabs.tabs).toHaveLength(1);
       const t = tabs.tabs[0];
-      expect(t.name).toBe('表1');
+      expect(t.name).toBe('标签页1');
       expect(t.globalStyle).toBe('写实电影感');
       expect(t.columns.map((c) => c.label)).toEqual(['景别', '画面']);
       expect(t.rows).toHaveLength(1);
@@ -495,7 +495,7 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
       });
       expect(tabs.tabs).toHaveLength(2);
       expect(tabs.activeTabId).toBe(tabs.tabs[0].id); // 无效 active → 回退第一个
-      expect(tabs.tabs[0].name).toBe('表1'); // 缺省名
+      expect(tabs.tabs[0].name).toBe('标签页1'); // 缺省名
       expect(tabs.tabs[1].name).toBe('表X');
       expect(tabs.tabs[1].globalStyle).toBe('g');
     });

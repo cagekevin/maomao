@@ -186,10 +186,15 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
 
   it('同步清单由 contracts.ts getLocalKeys() 生成：真实设置进云，排除本机/临时/本地引用键', async () => {
     const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
-    // 真实设置（此前未进手写清单，收口后应同步）
+    // 真实设置（收口后应同步）
+    contentSet('app_settings', { theme: 'dark' });
+    // 不同步清单：本机偏好 / 9-05 模式精简后的历史遗留死键 / 本地 URL 素材 / 临时草稿 / 跨窗口剪贴板
     contentSet('agent_panel_width', '320');
+    contentSet('agent_split_width', '420');
     contentSet('agent_input_mode', 'agent');
-    // 不同步清单：本机偏好 / 本地 URL 素材 / 临时草稿 / 跨窗口剪贴板
+    contentSet('agent_work_mode', 'auto');
+    contentSet('canvasAgentGenParams', { steps: 30 });
+    contentSet('agent_skill_usage', { foo: 1 });
     contentSet('lastOpenedProject', 'p1');
     contentSet('yimao_asset_library', [{ id: 'a' }]);
     contentSet('agent_draft', '草稿');
@@ -198,8 +203,14 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     const res = await uploadConfig(() => {});
     expect(res.ok).toBe(true);
     const ls = pushLs(); // push 请求体里 cloud.data 才是 ls 清单
-    expect(ls.agent_panel_width).toBe('320');
-    expect(ls.agent_input_mode).toBe('agent');
+    expect(ls.app_settings).toEqual({ theme: 'dark' }); // 真实设置仍上传
+    // 本机 UI 偏好 / 历史遗留死键：不进云端
+    expect(ls.agent_panel_width).toBeUndefined();
+    expect(ls.agent_split_width).toBeUndefined();
+    expect(ls.agent_input_mode).toBeUndefined();
+    expect(ls.agent_work_mode).toBeUndefined();
+    expect(ls.canvasAgentGenParams).toBeUndefined();
+    expect(ls.agent_skill_usage).toBeUndefined();
     expect(ls.lastOpenedProject).toBeUndefined();
     expect(ls.yimao_asset_library).toBeUndefined();
     expect(ls.agent_draft).toBeUndefined();
