@@ -27,7 +27,7 @@
  * 原因：原裁定导致 pinnedTools 类型卡在 unknown、默认值硬编码在 App.tsx，属设置域 Seam 泄漏（接口宽如实现、
  * 默认值双真源）。注册表现支持 string[] 型项。余下 3 项（node_prefs/provider/account/agentModel）维持不进门。
  */
-import { Zap, Map, Bot, Image, Bug, Pin, type LucideIcon } from 'lucide-react';
+import { Zap, Map, Bot, Image, Bug, Pin, Cloud, type LucideIcon } from 'lucide-react';
 
 /** 设置项定义（声明式表的一行；icon 为 lucide-react 图标组件）。
  *  type 判别字段：'boolean' 为设置页开关；'string[]' 为功能性数组偏好（无 UI 开关行）。
@@ -115,6 +115,16 @@ export const SETTING_DEFS = [
     icon: Pin,
     title: '固定工具栏',
     desc: '固定到右键菜单第一层的节点集合（图钉管理），持久化到 app_settings.pinnedTools。',
+  },
+  {
+    key: 'autoSyncEnabled',
+    type: 'boolean',
+    default: true, // 默认开：内容一致跳过 + 冲突必问，双保险，不会误覆盖
+    ui: true,
+    group: '云同步',
+    icon: Cloud,
+    title: '自动同步到云端',
+    desc: '开＝每 30 分钟自动把本地配置推送到云端（无改动不推、不打扰）；云端有更新时弹窗让你三选一，绝不静默覆盖。',
   },
 ] as const;
 

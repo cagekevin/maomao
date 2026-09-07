@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle } from 'lucide-react';
-import { subscribeConfirm, getConfirm, resolveConfirm } from '../core/confirmStore.ts';
+import {
+  subscribeConfirm,
+  getConfirm,
+  resolveConfirm,
+  resolveChoice,
+} from '../core/confirmStore.ts';
 import type { ConfirmRequest } from '../core/confirmStore.ts';
 
 /**
@@ -51,6 +56,9 @@ function ConfirmContainer() {
 
   const onCancel = useCallback(() => resolveConfirm(false), []);
   const onConfirm = useCallback(() => resolveConfirm(true), []);
+  const onDownload = useCallback(() => resolveChoice('download'), []);
+  // 【三态】仅当请求带 downloadText 时渲染第三个按钮（下载）→ 语义 = 三选一
+  const hasDownload = typeof request.downloadText === 'string' && request.downloadText.length > 0;
 
   if (typeof document === 'undefined') return null;
   if (!request) return null;
@@ -106,6 +114,15 @@ function ConfirmContainer() {
           >
             {request.cancelText}
           </button>
+          {hasDownload && (
+            <button
+              type="button"
+              onClick={onDownload}
+              className="px-3 py-1.5 rounded-lg text-caption font-medium transition-colors cursor-pointer border bg-white/10 border-white/20 text-white hover:bg-white/20"
+            >
+              {request.downloadText}
+            </button>
+          )}
           <button
             ref={confirmBtnRef}
             type="button"

@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
 import dagre from 'dagre';
 import type { Edge, Node } from '@xyflow/react';
+import { INPUT_PANEL_NODE_TYPES } from '../components/base/canvas/nodeDefaults';
+import { packComponents } from '../components/base/utils/arrangePack';
 
 /** 一次排版的结果：新布局的 nodes + 原样透传的 edges */
 export interface ArrangeResult {
@@ -13,6 +15,10 @@ export interface ArrangeOptions {
   nodes: Node[];
   /** 当前边快照 */
   edges: Edge[];
+  /** 画布视窗尺寸（按视窗择优换行用）；缺省 packComponents 退化 1600×900 */
+  viewport?: { width: number; height: number };
+  /** fitView 允许的最大缩放（默认 1，对齐 fitViewOptions.maxZoom） */
+  maxZoom?: number;
   /** 写回回调，入参 { nodes, edges }（调用方 setNodes） */
   onArrange?: (result: ArrangeResult) => void;
   /** 写回后回调（如 fitView） */
@@ -44,6 +50,12 @@ export interface ArrangeOptions {
  * - 写回仍走 `setNodes`（真引擎的 updateNodeData/setNodes 通道一致，见 ARCHITECTURE §四）。
  * 唯一要注意：真引擎可能给节点带 `measured.width/height`（已渲染实测），本 hook 已优先读它。
  *
+ * 【清爽总览语义（2026-09-07 方案）】
+ * - 间距档位：nodesep/ranksep/GAP_X/GAP_Y = 80/180/180/120（面板收起后纯视觉呼吸，不再给悬浮面板让位）；
+ * - 按视窗择优换行：各连通分量包围盒经 `packComponents` 打包，让整体边界框贴近视窗比例，fitView 后节点最大；
+ * - `expanded:false` 只作用于 `INPUT_PANEL_NODE_TYPES`（有输入面板的节点），其它节点 data 原样透传 ——
+ *   Tab 折叠与 Ctrl+L 整理共用同一范围，避免不对称。
+ *
  * @returns {arrange: Function} 传入当前节点/边快照与可选回调，执行 dagre 布局并写回。
  */
 export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) => ArrangeResult } {
@@ -51,23 +63,34 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
    * @param {Object} opts
    * @param {Array} opts.nodes           当前节点快照（含 measured/style/position/data/parentId）
    * @param {Array} opts.edges           当前边快照
+   * @param {Object} [opts.viewport]     画布视窗尺寸 {width,height}（按视窗择优换行）
+   * @param {number} [opts.maxZoom]      fitView 最大缩放（默认 1）
    * @param {Function} opts.onArrange    写回回调，入参 { nodes, edges }（调用方 setNodes）
    * @param {Function} [opts.onComplete] 写回后回调（如 fitView）
    * @returns {Object} 返回 { nodes, edges } 以便调用方入历史栈 / 显示确认弹窗
    */
   const arrange = useCallback(
-    ({ nodes, edges, onArrange, onComplete }: Partial<ArrangeOptions> = {}): ArrangeResult => {
+    ({
+      nodes,
+      edges,
+      viewport,
+      maxZoom,
+      onArrange,
+      onComplete,
+    }: Partial<ArrangeOptions> = {}): ArrangeResult => {
       // 空画布直接跳过布局，仍调 onComplete（让 fitView 等收尾回调能跑）
       if (!nodes || !Array.isArray(nodes) || nodes.length === 0) {
         onComplete?.();
         return { nodes, edges };
       }
 
-      // 统一留白常量（优化③：基于尺寸的相对留白，避免魔数散落）
-      const GAP_X = 300; // 分量横向间距
-      const GAP_Y = 400; // 换列纵向间距
-      const COL_MAX_W = 2500; // 单列累计宽度阈值，超宽换列
+      // 统一留白常量（2026-09-07 清爽档：面板收起后纯视觉呼吸，不再给悬浮面板让位）
+      const GAP_X = 180; // 分量横向间距（对齐 dagre ranksep）
+      const GAP_Y = 120; // 换列纵向间距（收起后无需再留 340px 面板高）
       const GROUP_PAD = 40; // group 外接矩形四周留白，对齐 groupNodes.createGroupFromNodes
+
+      // 有输入面板的节点类型集合：整理时只对这些类型写 expanded:false（Tab 与 Ctrl+L 同范围）
+      const collapseTypes = new Set<string>(INPUT_PANEL_NODE_TYPES);
 
       // 取节点真实尺寸（抉择：三选一优先序）
       // measured=已渲染实测最准 → 其次显式 width/height → 再 style → 最后兜底 320×80。
@@ -111,7 +134,7 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
 
       const graph = new dagre.graphlib.Graph({ compound: true });
       graph.setDefaultEdgeLabel(() => ({}));
-      graph.setGraph({ rankdir: 'LR', nodesep: 300, ranksep: 300, align: 'UL' });
+      graph.setGraph({ rankdir: 'LR', nodesep: 80, ranksep: 180, align: 'UL' });
 
       // 只把【顶层节点】放进 dagre 布局：普通节点 + group 框。
       // ⚠️ 子节点不进 dagre、也不 setParent —— 这样 dagre 不会重排子节点坐标，
@@ -171,13 +194,11 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
         components.push(comp);
       });
 
-      let colX = 0; // 当前列的原点 X
-      let colY = 0; // 当前列的原点 Y
-      let colH = 0; // 当前列已累积的高度（用于换列判定）
-      const laid = []; // 最终写回的新节点数组（顶层节点先按 0,0 起算的初稿坐标）
-
+      // 先算每个连通分量的包围盒与摆放（2026-09-07：按视窗比例择优换行）。
+      // 用 packComponents 打包：不用固定 COL_MAX_W 换列启发式，而是遍历 perRow=1..n
+      // 试排，取 fitView 后真实缩放最大的行列分布 → 宽屏自动更扁、窄屏更竖，节点最大化。
+      const compBoxes = [];
       components.forEach((comp) => {
-        // 分量包围盒（相对 dagre 输出的节点中心坐标，仅顶层节点参与）
         let minX = Infinity,
           minY = Infinity,
           maxX = -Infinity,
@@ -191,29 +212,48 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
             maxY = Math.max(maxY, pos.y + pos.height / 2);
           }
         });
-        const w = maxX - minX;
-        const h = maxY - minY;
+        compBoxes.push({ width: maxX - minX, height: maxY - minY });
+      });
+      const packed = packComponents(compBoxes, {
+        gapX: GAP_X,
+        gapY: GAP_Y,
+        viewport,
+        maxZoom,
+      });
 
-        // 超宽换列（优化③）：单列总宽累计超阈值就换下一列，避免一排无限拉长
-        if (colX + w > COL_MAX_W && colX > 0) {
-          colX = 0;
-          colY += colH + GAP_Y;
-          colH = 0;
-        }
+      const laid = []; // 最终写回的新节点数组（顶层节点先按 0,0 起算的初稿坐标）
+      components.forEach((comp, ci) => {
+        // 分量左上角原点 = packComponents 算出的占位（对单个分量即 0,0）
+        const originX = packed.placements[ci]?.x ?? 0;
+        const originY = packed.placements[ci]?.y ?? 0;
+        // 若本分量只有 1 个顶层节点，直接以盒尺寸中心当原点（保持视觉居中）
+        let minX = Infinity,
+          minY = Infinity,
+          maxX = -Infinity,
+          maxY = -Infinity;
+        comp.forEach((node) => {
+          const pos = graph.node(node.id);
+          if (pos) {
+            minX = Math.min(minX, pos.x - pos.width / 2);
+            minY = Math.min(minY, pos.y - pos.height / 2);
+            maxX = Math.max(maxX, pos.x + pos.width / 2);
+            maxY = Math.max(maxY, pos.y + pos.height / 2);
+          }
+        });
 
         comp.forEach((node) => {
           const pos = graph.node(node.id);
           if (!pos) return;
-          // 顶层节点：相对分量左上角摆位，加上列原点
+          // 顶层节点：相对分量左上角摆位，加上（pack 按视窗择优后的）原点
           const relX = pos.x - pos.width / 2 - minX;
           const relY = pos.y - pos.height / 2 - minY;
-          const x = colX + relX;
-          const y = colY + relY;
+          const x = originX + relX;
+          const y = originY + relY;
           laid.push({
             ...node,
             position: { x, y },
-            // 整理后统一收起配置面板（官方行为：排版后节点折叠，画布清爽）
-            data: { ...node.data, expanded: false },
+            // 只对有输入面板的节点收起配置面板（Tab 与 Ctrl+L 同范围）；其余 data 原样透传
+            data: collapseTypes.has(node.type) ? { ...node.data, expanded: false } : node.data,
             // group 节点写回真实尺寸（外接矩形，否则框大小对不上内部子节点）
             style:
               node.type === 'group'
@@ -229,12 +269,9 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
             laid.push({
               ...node,
               position: { ...node.position },
-              data: { ...node.data, expanded: false },
+              data: collapseTypes.has(node.type) ? { ...node.data, expanded: false } : node.data,
             });
           });
-
-        colX += w + GAP_X;
-        colH = Math.max(colH, h);
       });
 
       // 【优化②：不跳变】以第一个顶层节点的原始位置为锚，算整体平移偏移，

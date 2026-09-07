@@ -10,6 +10,7 @@ import {
   useEdgesState,
   useReactFlow,
   useStore,
+  useStoreApi,
 } from '@xyflow/react';
 import type { Node, Edge, Connection } from '@xyflow/react';
 import { Zap, RefreshCw } from 'lucide-react';
@@ -59,6 +60,7 @@ import { askConfirm } from './components/base/core/confirmStore.ts';
 import { setSetting, useAppSettings } from './components/base/store/appSettings.ts';
 import { setAgentKey } from './components/agent/index.ts';
 import { uploadConfig, downloadConfig } from './components/base/store/cloudSync.ts';
+import { startAutoSync, stopAutoSync } from './components/base/store/autoSync.ts';
 import { useLocalToolStatus } from './hooks/useLocalToolStatus.ts';
 import { useUpstreamAutoTrigger } from './components/base/canvas/upstreamLink.ts';
 import LocalToolConnectModal from './components/base/panels/LocalToolConnectModal.tsx';
@@ -76,7 +78,10 @@ import { saveInlineToLocal } from './components/base/api/index.ts';
 import { generateId } from './components/base/core/idGen.ts';
 import { resolveDragGrouping } from './components/base/canvas/groupNodes.ts';
 import { buildNodesFromClipboard } from './components/base/utils/clipboard.ts';
-import { applyNodeTypeDefaults } from './components/base/canvas/nodeDefaults.ts';
+import {
+  applyNodeTypeDefaults,
+  INPUT_PANEL_NODE_TYPES,
+} from './components/base/canvas/nodeDefaults.ts';
 import { injectNodePrefs } from './components/base/canvas/nodePrefs.ts';
 import { useCanvasSync } from './hooks/useCanvasSync.ts';
 import { parseShotHandle } from './components/base/core/contracts.ts';
@@ -136,8 +141,7 @@ function Canvas() {
    * 【区 2】状态区
    * nodes / edges + ref 同步（供能力区取最新快照，避免闭包旧值）
    * ==================================================================== */
-  // 项目系统（对齐官方 Vr.jsx）：画布状态按当前项目初始化/持久化。
-  // 对齐官方：初始画布为空（官方 H_.jsx 空画布时显示「右键自由生成你的想象」引导）。
+  // 项目系统：画布状态按当前项目初始化/持久化。
   // 画布快照走 localTool KV（异步）：挂载后从 KV 读当前项目快照，有值（含空画布）则覆盖；
   // 无快照（首次）保持空画布 → 触发 EmptyCanvasGuide 空状态引导（完整复刻官方）。
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -170,25 +174,12 @@ function Canvas() {
           // 兜底：历史快照里各节点类型可能缺 width/style/className/data.name 等结构字段
           // （如早期「右键新建 group」未补 style/className），加载时统一补默认，与新建路径保持一致。
           const rawNodes = saved.nodes.map((n) => applyNodeTypeDefaults(n));
-          // 兜底：折叠/展开 group 的子节点 hidden 必须与父 group 的 collapsed 状态对齐，
-          // 避免存量快照里「子节点残留 hidden:true 但父已展开」或「父折叠但子却可见」导致
-          // 子节点永久隐藏/误显（visibleNodes 只会在折叠时加 hidden，不会在展开时清除 hidden）。
-          const collapsedById = new Set(
-            rawNodes
-              .filter((n) => n.type === 'group' && (n.data as Record<string, unknown>)?.collapsed)
-              .map((n) => n.id),
-          );
-          const loadedNodes = rawNodes.map((n) =>
-            n.parentId && collapsedById.has(n.parentId)
-              ? { ...n, hidden: true }
-              : n.parentId && collapsedById.size
-                ? { ...n, hidden: false }
-                : n,
-          );
-          setNodes(loadedNodes);
+          // 2026-09-07：编组折叠状态整体下线，加载时不再做 collapsed ↔ hidden 对齐兜底。
+          // 存量快照里「group data.collapsed + 子节点 hidden:true」不做迁移（见方案 D4/S3 决策）。
+          setNodes(rawNodes);
           // 预取重依赖节点 chunk：画布里若含 3D/视频处理节点，立即预热（不阻塞渲染），
           // 让节点真正渲染时 chunk 已在模块缓存里，骨架屏一闪而过甚至不出现。
-          for (const n of loadedNodes)
+          for (const n of rawNodes)
             prefetchHeavyNode(n.type as Parameters<typeof prefetchHeavyNode>[0]);
           // 兜底：历史快照里可能有旧 onConnect 建的「无 id」边 → 补唯一 id，
           // 否则 EdgeRenderer 用 undefined 作 key 触发重复 key 警告。
@@ -197,7 +188,7 @@ function Canvas() {
           // null/undefined 会触发 React Flow 的 "Couldn't create edge for target handle id: null"。
           // 这里统一把 target 是 scriptBoxNode 的边 targetHandle 补成 'in'，让存量边立即生效。
           const targetIsScriptBox = new Set(
-            loadedNodes.filter((n) => n.type === 'scriptBoxNode').map((n) => n.id),
+            rawNodes.filter((n) => n.type === 'scriptBoxNode').map((n) => n.id),
           );
           const loadedEdges = (saved.edges || []).map((e, _i) => ({
             ...e,
@@ -236,13 +227,12 @@ function Canvas() {
   }, [activeProjectId]);
 
   /* ====================================================================
-   * 多窗口画布同步检测（复刻官方 H_.jsx:480-492 + 870-880）——收拢到 useCanvasSync hook。
+   * 多窗口画布同步检测——收拢到 useCanvasSync hook。
    *  - 每窗口唯一 tabId；BroadcastChannel('yimao_canvas_sync') 监听：收到「其他窗口」
    *    保存的同一项目 CANVAS_SAVED → 置 canvasConflict（App 显示红色警告条）。
    *
-   * ═══ 官方其他 BroadcastChannel/mutiwindow 事件，我们为什么不做 ═══
    * 1) mutiwindow-task-completed / mutiwindow-rerun-task：
-   *    已在官方 H_.jsx 核实：它们其实是【窗口内】CustomEvent（window.addEventListener /
+   *    核实：它们其实是【窗口内】CustomEvent（window.addEventListener /
    *    dispatchEvent），并非跨窗口 BroadcastChannel；且全项目【只有监听、从未 dispatch】，
    *    属于预留钩子/死代码，当前业务流程根本不触发 → 无脑复刻没有意义。
    *    任务完成本就走 taskStore + /api/tasks 轮询刷新，结果落盘即更新，不依赖该事件。
@@ -264,6 +254,9 @@ function Canvas() {
     getNodes,
     getEdges: _getEdges,
   } = useReactFlow();
+  // 视窗尺寸只读通道（引用稳定）：arrangeCanvas 读 width/height 传给按视窗择优换行。
+  // 用 useStoreApi 而非 useStore，避免 App 因视窗尺寸变化重渲染（P0-C 性能红线，同 ZoomPercent）。
+  const store = useStoreApi();
   // 始终指向最新 viewport（onViewportChange 更新），persistCanvas 保存时无需实时 useReactFlow 查询
   const viewportRef = React.useRef(null);
   // 视窗拖拽/缩放结束后 600ms 防抖保存（P20），与 autoSave 节奏一致，避免高频移动反复写 KV
@@ -273,26 +266,26 @@ function Canvas() {
   // 默认值/类型由 settingRegistry.ts 单一真源派生；写统一走 setSetting（内存+持久化+通知），不再用 useState+useEffect 镜像回写。
   const { agentOpen, minimapOn, performanceMode, pinnedTools } = useAppSettings();
 
-  // 视图切换：canvas（画布）/ accounts（多开整页，复刻官方 V='accounts'）/ settings（独立设置框架：侧栏 + 舞台）
+  // 视图切换：canvas（画布）/ accounts（多开整页）/ settings（独立设置框架：侧栏 + 舞台）
   const [view, setView] = React.useState<'canvas' | 'accounts' | 'settings'>('canvas');
 
-  // 小地图开关（复刻 H_.jsx:474 un/dn，默认关——用户要求默认不显示，点工具栏 Map 图标再开）。
-  // 仅当开启且节点数 <100 时显示 MiniMap（官方 De.length<100）。持久化到 app_settings。值由 useAppSettings 订阅提供（见上）。
+  // 小地图开关（默认关——用户要求默认不显示，点工具栏 Map 图标再开）。
+  // 仅当开启且节点数 <100 时显示 MiniMap。持久化到 app_settings。值由 useAppSettings 订阅提供（见上）。
 
   // P20 视窗恢复竞态修复：加载时若快照带视窗，则初始不 fitView（否则 <ReactFlow fitView>
   // 会在 setNodes 后下一帧自动 fitView，把你恢复的 setViewport 位置覆盖成全图适配的固定位置）。
   // 默认 true（首次/旧快照无 viewport 时走 fitView 全图）；有视窗快照时置 false，精确恢复上次视角。
   const [initialFitView, setInitialFitView] = React.useState(true);
 
-  // 缩放性能模式开关（复刻 H_.jsx:79 ge，官方默认 true：性能模式默认开启）。
-  // 从 app_settings 读入（对齐官方 Vr.jsx ei 从 app_settings 读），持久化刷新不丢。值由 useAppSettings 订阅提供（见上）。
+  // 缩放性能模式开关（默认 true：性能模式默认开启）。
+  // 从 app_settings 读入（从 app_settings 读），持久化刷新不丢。值由 useAppSettings 订阅提供（见上）。
 
-  // ── localTool 连接检测 + 全屏提醒（完整复刻官方 Vr.jsx L35/L95-106/L3274-3280）──
+  // ── localTool 连接检测 + 全屏提醒 ──
   const { status: localTool, checkConnection } = useLocalToolStatus();
-  // 全屏提醒开关（对齐官方 rt）与「用户已关闭」标记（对齐官方 st，关闭后不再自动弹，直到重连）
+  // 全屏提醒开关（对齐官方 rt）与「用户已关闭」标记（关闭后不再自动弹，直到重连）
   const [connectWarn, setConnectWarn] = React.useState(false);
   const [warnDismissed, setWarnDismissed] = React.useState(false);
-  // 官方 3s 延迟后判定是否弹提醒：未连接且用户未主动关闭 → 弹；已连接 → 关
+  // 3s 延迟后判定是否弹提醒：未连接且用户未主动关闭 → 弹；已连接 → 关
   React.useEffect(() => {
     const timer = setTimeout(() => {
       if (!localTool.isConnected && !warnDismissed) {
@@ -304,14 +297,14 @@ function Canvas() {
     return () => clearTimeout(timer);
   }, [localTool.isConnected, warnDismissed]);
 
-  // 整理后「是否保留」快照（复刻 H_.jsx:134 tt/nt，null = 无弹窗）。
+  // 整理后「是否保留」快照。
   // 存「排列前」的 nodes/edges 快照，「还原」= 整体写回（见 revertArrange）。
   const [arrangeSnapshot, setArrangeSnapshot] = React.useState<{
     nodes: Node[];
     edges: Edge[];
   } | null>(null);
 
-  // 自动排版（复刻 H_.jsx:10985 Ui / Ctrl+L）。本 hook 只做纯布局计算，快照/历史/确认弹窗由
+  // 自动排版（Ctrl+L）。本 hook 只做纯布局计算，快照/历史/确认弹窗由
   // arrangeCanvas 在此统一编排（见能力区）。
   const { arrange } = useArrangeCanvas();
 
@@ -358,7 +351,7 @@ function Canvas() {
     },
   );
 
-  // 保存画布并广播到其他窗口（复刻官方 H_.jsx:870-880：保存后 postMessage CANVAS_SAVED）
+  // 保存画布并广播到其他窗口
   const persistCanvas = React.useCallback(
     (projectId) => {
       // P20：顺带把视窗状态（缩放/平移）存进快照，刷新/切项目后回到上次视角
@@ -501,7 +494,7 @@ function Canvas() {
     [pinnedTools],
   );
 
-  // 后端化初始化：任务中心从 /api/tasks 加载历史任务；项目系统从 /api/projects 加载项目（对齐官方）
+  // 后端化初始化：任务中心从 /api/tasks 加载历史任务；项目系统从 /api/projects 加载项目
   React.useEffect(() => {
     initTasks();
     initProjects();
@@ -525,7 +518,7 @@ function Canvas() {
   // 注意：applyNodeTypeDefaults 为模块级纯函数，引用稳定，addNode/加载 effect 直接复用，
   // 与快照加载还原路径共用同一单源，避免「新建/右键」与「历史还原」字段不一致。
 
-  // 新增节点（复刻源码 di(type, position, data, connection)）
+  // 新增节点
   // connection?: { source, sourceHandle, dropPosition } —— 从端口拖出到空白时，
   // 在 dropPosition 建节点并自动创建 source→新节点 的边；scriptBox 的 shot- 端口预填宽高比/时长。
   const addNode = useCallback(
@@ -542,7 +535,7 @@ function Canvas() {
       const id = generateId(type);
       const nodeData: Record<string, unknown> = { label: '', ...data };
 
-      // scriptBoxNode 的 `shot-${id}` 端口 → promptNode/discountVideoNode 时预填（复刻 di:8667-8687）
+      // scriptBoxNode 的 `shot-${id}` 端口 → promptNode/discountVideoNode 时预填
       // handle 名解析走 contracts.parseShotHandle，与写侧 shotHandleId 成对（前缀唯一事实来源）。
       if (connection) {
         const src = nodesRef.current.find((n) => n.id === connection.source);
@@ -630,7 +623,7 @@ function Canvas() {
     [setNodes, setEdges, history],
   );
 
-  // 全选（复刻 H_.jsx:11493-11513）
+  // 全选
   const selectAll = useCallback(() => {
     setNodes((ns) => ns.map((n) => ({ ...n, selected: true })));
     setEdges((eds) => eds.map((e) => ({ ...e, selected: true })));
@@ -685,18 +678,18 @@ function Canvas() {
     }
   }, [setNodes, history]);
 
-  // 复制选中节点组到系统剪贴板（对齐官方 Ci，H_.jsx:9966-10024）。
+  // 复制选中节点组到系统剪贴板。
   // 格式 {type:'mutiwindow-nodes', nodes, edges, originalIds}，data 去掉函数与运行时字段，
   // 粘贴时（onPaste）解析 JSON 重建节点组（含连线），与官方完全一致。
   const copySelectedNodes = useCallback(async (onlyId?: string) => {
     let t = nodesRef.current.filter((n) => n.selected);
-    // 若右键的是某个 node 且不在选中集合内，则只复制该节点（对齐官方 Ci:9971）
+    // 若右键的是某个 node 且不在选中集合内，则只复制该节点
     if (onlyId && !t.some((n) => n.id === onlyId)) {
       const single = nodesRef.current.find((n) => n.id === onlyId);
       if (single) t = [single];
     }
     if (t.length === 0) return;
-    // 只复制「选中节点之间互连」的边（对齐官方 Ci:9982-9988）
+    // 只复制「选中节点之间互连」的边
     const innerEdges = edgesRef.current.filter(
       (e) => t.some((n) => n.id === e.source) && t.some((n) => n.id === e.target),
     );
@@ -726,7 +719,7 @@ function Canvas() {
     }
   }, []);
 
-  // 复制节点图片本身到剪贴板（对齐官方 Ei，H_.jsx:10044）：与「复制节点」不同，
+  // 复制节点图片本身到剪贴板：与「复制节点」不同，
   // 这是把图片以 image/png 写进剪贴板，可粘到微信/PS 等其它软件。复用公共 clipboard.copyImageToClipboard。
   const copyNodeImage = useCallback(async (nodeId) => {
     const node = nodesRef.current.find((n) => n.id === nodeId);
@@ -739,7 +732,7 @@ function Canvas() {
     showToast(res.msg, { type: res.ok ? 'success' : 'error' });
   }, []);
 
-  // 粘贴节点组（对齐官方 xi，H_.jsx:9635-9789）：解析 mutiwindow-nodes 重建节点+边，
+  // 粘贴节点组解析 mutiwindow-nodes 重建节点+边，
   // 以粘贴点 pos 为中心整体落下。返回是否处理了 mutiwindow-nodes。
   // 解析+重建纯逻辑已收拢到 clipboard.buildNodesFromClipboard，这里只做编排（写回/历史/toast）。
   const pasteNodeGroup = useCallback(
@@ -761,9 +754,9 @@ function Canvas() {
     [setNodes, setEdges, history],
   );
 
-  // 整理画布（复刻 H_.jsx:10985 Ui / Ctrl+L）：
+  // 整理画布
   // 先存排列前快照 → dagre 布局写回 → 弹「是否保留整理结果」确认。
-  // 整理画布（复刻 H_.jsx:10985 Ui / Ctrl+L）。
+  // 整理画布
   // 编排顺序（抉择）：
   //   1. 先存「排列前快照」before → 供「还原」用（不污染全局撤销栈，见 ArrangeConfirm 注释）；
   //   2. 调 useArrangeCanvas.arrange 算新布局并写回（onArrange 走 setNodes/setEdges）；
@@ -774,9 +767,15 @@ function Canvas() {
   // 其余编排不变。
   const arrangeCanvas = useCallback(() => {
     const before = { nodes: nodesRef.current, edges: edgesRef.current };
+    // 视窗尺寸来源：读 ReactFlow store（引用稳定，不触发 App 重渲）。缺省由 packComponents 退化 1600×900。
+    const vs = store.getState();
+    const vw = vs?.width || 0;
+    const vh = vs?.height || 0;
     const result = arrange({
       nodes: nodesRef.current,
       edges: edgesRef.current,
+      viewport: vw && vh ? { width: vw, height: vh } : undefined,
+      maxZoom: 1,
       onArrange: ({ nodes: ns, edges: es }) => {
         setNodes(ns);
         setEdges(es);
@@ -790,10 +789,9 @@ function Canvas() {
     // 弹确认：存排列前快照，还原时写回
     setArrangeSnapshot(before);
     history.record({ nodes: result.nodes, edges: result.edges });
-  }, [arrange, setNodes, setEdges, fitView, history]);
+  }, [arrange, setNodes, setEdges, fitView, history, store]);
 
-  // 还原整理：写回排列前快照 + 关闭弹窗 + fitView（复刻 H_.jsx:11996-12006）
-  // 抉择：直接用快照整体 setNodes/setEdges，比逆向 dagre 更简单可靠。
+  // 还原整理：写回排列前快照 + 关闭弹窗 + fitView
   const revertArrange = useCallback(() => {
     if (!arrangeSnapshot) return;
     setNodes(arrangeSnapshot.nodes);
@@ -804,13 +802,12 @@ function Canvas() {
     }, 100);
   }, [arrangeSnapshot, setNodes, setEdges, fitView]);
 
-  // 保留整理：仅关闭弹窗（复刻 H_.jsx:12008-12010），整理结果已写回、无需再动
+  // 保留整理：仅关闭弹窗，整理结果已写回、无需再动
   const keepArrange = useCallback(() => {
     setArrangeSnapshot(null);
   }, []);
 
-  // 清理缓存（复刻官方 Ki 语义）：把画布内联 base64 资源真正转为本地 /files/ URL，而非删除。
-  // 对齐官方后端 base64Externalize 的做法：
+  // 清理缓存：把画布内联 base64 资源真正转为本地 /files/ URL，而非删除。
   //  1) 深度遍历节点 data，把所有 data:image/video/audio;base64 字段（含 imageBoxNode 的 images 数组、
   //     imageUrl / videoUrl / thumbnailUrl / poster 等）逐个落盘为 /files/ URL（sha1 幂等去重）；
   //  2) 落盘成功的字段用 URL 替换；失败字段保留原 base64（绝不删图，图片不丢）；
@@ -861,7 +858,7 @@ function Canvas() {
   }, [localTool.isConnected, setNodes, history]);
 
   /* ====================================================================
-   * 素材拖入 / 粘贴（复刻 H_.jsx:10201-10350 onDragOver ki / onDrop Ai + handlePaste）
+   * 素材拖入 / 粘贴
    * 统一收敛到 useAssetDropPaste hook：App 只挂事件，具体建节点逻辑在 hook 里。
    * ==================================================================== */
   const { onDragOver, onDrop, onPaste, createNodeFromFile } = useAssetDropPaste({
@@ -874,7 +871,7 @@ function Canvas() {
     patchNodeData: (id, patch) => patchNodeDataById(setNodes, id, patch),
   });
 
-  // 右键菜单「上传」隐藏文件输入（复刻官方 Re.current）：选中文件 → 复用 createNodeFromFile 建素材节点
+  // 右键菜单「上传」隐藏文件输入：选中文件 → 复用 createNodeFromFile 建素材节点
   const uploadRef = useRef<HTMLInputElement | null>(null);
   const handleUploadFile = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -992,10 +989,11 @@ function Canvas() {
    * 快捷键 / 连线 / 删边监听 / 选中节点→边关联联动
    * ==================================================================== */
 
-  // 一键折叠/展开 text/prompt/discountVideo 节点的 input 面板（Tab 键触发）。
+  // 一键折叠/展开有输入面板节点的配置面板（Tab 键触发）。
   // 不在撤销栈里（expanded 是 UI 偏好，与节点内部 patchData 一致：只落盘不进 history）。
+  // 范围与 Ctrl+L 整理共用 INPUT_PANEL_NODE_TYPES（避免不对称：TemplateNode 也能展回）。
   const toggleInputPanels = useCallback(() => {
-    const targetTypes = new Set(['textNode', 'promptNode', 'discountVideoNode']);
+    const targetTypes = new Set<string>(INPUT_PANEL_NODE_TYPES);
     const matching = nodesRef.current.filter((n) => targetTypes.has(n.type as string));
     if (matching.length === 0) return;
     // 只要有一个展开 → 全部折叠；否则全部展开（一键整理全局）
@@ -1033,7 +1031,7 @@ function Canvas() {
   // 连线：连到真实节点时建边（isValid 连接）
   // ⚠️ params 是 Connection 类型（只有 source/target/sourceHandle/targetHandle，无 id）。
   // 直接 { ...params } 塞进 edges 会让边【没有 id】→ EdgeRenderer 用 undefined 作 key →
-  // 多条边 key 重复 → React key 警告。必须补唯一 id（对齐官方 addEdge 的 xy-edge__ 前缀）。
+  // 多条边 key 重复 → React key 警告。必须补唯一 id。
   const onConnect = useCallback(
     (params) => {
       const baseId = `xy-edge__${params.source}_${params.target}`;
@@ -1047,7 +1045,7 @@ function Canvas() {
     [setEdges, history],
   );
 
-  // 从端口拖出到空白：建 ghost-target + ghost-edge + 弹「连接」菜单（复刻官方 onConnectEnd Oi:H_.jsx:10143）
+  // 从端口拖出到空白：建 ghost-target + ghost-edge + 弹「连接」菜单
   // ReactFlow 的 onConnectEnd 第二参数是 connectionState（含 isValid/fromNode/fromHandle）。
   const onConnectEnd = useCallback(
     (event, connectionState) => {
@@ -1088,7 +1086,7 @@ function Canvas() {
             type: 'default',
           }),
       );
-      // 弹「连接」菜单（官方 setTimeout 50ms，确保 ghost 渲染完成）
+      // 弹「连接」菜单（setTimeout 50ms，确保 ghost 渲染完成）
       setTimeout(() => {
         menu.openConnection(
           {
@@ -1217,19 +1215,6 @@ function Canvas() {
   const stableNodeTypes = useMemo(() => nodeTypes, []);
   const stableEdgeTypes = useMemo(() => edgeTypes, []);
 
-  // 折叠 group 时隐藏其子节点（React Flow 官方推荐用 hidden 字段，替代自研 opacity 方案）。
-  // hidden:true 让 React Flow 原生不渲染、不交互、不占布局；展开时自动恢复。
-  // GroupNode.toggleCollapse 折叠时已设子节点 hidden，这里对「加载快照即折叠」的 group 兜底处理。
-  const visibleNodes = useMemo(() => {
-    const collapsedGroups = new Set(
-      nodes.filter((n) => n.type === 'group' && n.data?.collapsed).map((n) => n.id),
-    );
-    if (collapsedGroups.size === 0) return nodes;
-    return nodes.map((n) =>
-      n.parentId && collapsedGroups.has(n.parentId) ? { ...n, hidden: true } : n,
-    );
-  }, [nodes]);
-
   // 拖拽节点结束（onNodeDragStop）：
   // 1) 拖入成组：节点落入某 group 范围内 → 设为该 group 子节点（parentId + 相对坐标）
   // 2) 拖出离组：原 group 子节点拖出其父边界 → 解除 parentId（转绝对坐标），group 保留
@@ -1269,14 +1254,14 @@ function Canvas() {
    * ==================================================================== */
   return (
     <LodProvider enablePerformanceMode={performanceMode} nodeCount={nodes.length}>
-      {/* 顶层：flex 纵向布局（复刻官方 Vr.jsx L3274 flex h-screen flex-col） */}
+      {/* 顶层：flex 纵向布局*/}
       <div className="flex flex-col h-screen bg-canvas font-sans text-primary">
-        {/* 本地引擎未连接全屏提醒（完整复刻官方 Vr.jsx L3274-3280 挂载 _cmp_Tr） */}
+        {/* 本地引擎未连接全屏提醒 */}
         <LocalToolConnectModal
           isVisible={connectWarn}
           onClose={() => {
             setConnectWarn(false);
-            setWarnDismissed(true); // 对齐官方 ct(true)：用户关闭后不再自动弹，直到重连
+            setWarnDismissed(true); // 用户关闭后不再自动弹，直到重连
           }}
           onRetry={checkConnection}
         />
@@ -1307,12 +1292,12 @@ function Canvas() {
           className="relative flex-1 min-h-0"
           onMouseDown={handleCanvasMouseDown}
         >
-          {/* key=activeProjectId 对齐官方 Vr.jsx L3683 key={Z}：项目切换时强制重挂载整个画布，
+          {/* key=activeProjectId：项目切换时强制重挂载整个画布，
             保证每个项目的画布状态完全隔离（清空旧节点 + 加载对应项目），修复「新项目加载到旧内容」 */}
           <CanvasEdgesProvider history={history}>
             <ReactFlow
               key={activeProjectId}
-              nodes={visibleNodes}
+              nodes={nodes}
               edges={edges}
               onNodesChange={onNodesChangeForEdges}
               onEdgesChange={onEdgesChange}
@@ -1341,7 +1326,7 @@ function Canvas() {
               fitViewOptions={{ padding: 0.2, maxZoom: 1, minZoom: 0.05 }}
               onViewportChange={onViewportChange}
               onMoveEnd={handleViewportMoveEnd}
-              /* ===== 画布性能优化（复刻 H_.jsx:11958-11964）===== */
+              /* ===== 画布性能优化===== */
               /* 注意：elevateNodesOnSelect 必须保持 true ——
              选中节点需要自动置顶，否则会被数组顺序靠后的节点遮挡（用户反馈）。
              该选项仅在选中状态变化时给节点加高 z-index，无持续性能开销，
@@ -1356,7 +1341,7 @@ function Canvas() {
               panOnDrag
               className={nodes.length > 100 ? 'performance-large-canvas' : undefined}
             >
-              {/* 点阵网格：gap=20 / size=1.5 / color=#333（复刻 H_.jsx:12100，点略放大更易辨识） */}
+              {/* 点阵网格：gap=20 / size=1.5 / color=#333（点略放大更易辨识） */}
               <Background
                 variant={BackgroundVariant.Dots}
                 gap={20}
@@ -1364,7 +1349,7 @@ function Canvas() {
                 color="#333"
                 bgColor="#0d0c0c"
               />
-              {/* 小地图（复刻 H_.jsx:12095-12098，仅当开启且节点数 <100 时显示） */}
+              {/* 小地图（仅当开启且节点数 <100 时显示） */}
               {/* 抉择：定位在左下角工具栏上方（bottom-16），样式令牌 #222/#333/nodeColor#444 对齐 docs/39 */}
               {minimapOn && nodes.length < 100 && (
                 <div className="absolute left-4 bottom-16 z-canvas-tools flex flex-col items-start gap-2 pointer-events-none">
@@ -1377,10 +1362,10 @@ function Canvas() {
                   />
                 </div>
               )}
-              {/* 性能模式横幅（复刻 H_.jsx:11966-11971：ge 开 且 lodLevel>=2 时顶部黄条） */}
+              {/* 性能模式横幅（ge 开 且 lodLevel>=2 时顶部黄条） */}
               {/* lodLevel 由 LodProvider 内部监听缩放自动算（缩放越小 level 越高）：>=2 缩到 ≤0.3，>=3 缩到 ≤0.2 */}
               <LodPerformanceBanner performanceMode={performanceMode} />
-              {/* 画布在其他窗口被修改警告条（复刻官方 H_.jsx:11984-11991：Sn 时红色横幅，点击刷新页面） */}
+              {/* 画布在其他窗口被修改警告条（Sn 时红色横幅，点击刷新页面） */}
               {canvasConflict && (
                 <Panel position="top-center" className="mt-16 pointer-events-none">
                   <div
@@ -1411,7 +1396,7 @@ function Canvas() {
               {/* 左侧滑出面板：任务中心 + 素材库（fixed 覆盖层，不依赖画布容器） */}
               <LeftPanel />
 
-              {/* 左下角工具栏（复刻 H_.jsx:12013 bottom-left） */}
+              {/* 左下角工具栏 */}
               {/* 抉择：工具栏 + 确认弹窗叠在一个 absolute 容器（left-3 bottom-3），弹窗 absolute bottom-full 挂在工具栏上方 */}
               <div className="absolute left-3 bottom-3 z-canvas-tools pointer-events-auto">
                 <div className="relative">
@@ -1455,7 +1440,7 @@ function Canvas() {
             </>
           )}
 
-          {/* 画布 AI 助手面板（复刻官方 _Component40）——【阶段1C】任意视图常驻挂载，open 控制 CSS 显隐
+          {/* 画布 AI 助手面板——【阶段1C】任意视图常驻挂载，open 控制 CSS 显隐
             （AgentPanel 内部已改 CSS hidden，不再条件卸载）。运行态（useAgentChat 流式/状态机）不因
             收起/切页断流（配合阶段1B 卸载不 abort）。settings/accounts 用 z-float(100) 覆盖其 z-30，
             切设置/多开页会被正确盖住不遮挡。agentKey 按项目派生 + key=projectId 强制重挂载：
@@ -1469,9 +1454,9 @@ function Canvas() {
             selectedImageNodes={selectedImageNodes}
           />
 
-          {/* 多开整页：覆盖画布（复刻官方 V='accounts'，含新建表单+环境网格+⋮菜单） */}
+          {/* 多开整页：覆盖画布 */}
           {view === 'accounts' && <AccountsSettings />}
-          {/* 设置层：覆盖画布（官方 Vr.jsx 形态），右上角齿轮常驻可切换 */}
+          {/* 设置层：覆盖画布，右上角齿轮常驻可切换 */}
           {view === 'settings' && <SettingsFrame />}
         </div>
       </div>
@@ -1479,7 +1464,7 @@ function Canvas() {
   );
 }
 
-// 性能模式黄条（复刻 H_.jsx:11966-11971）：性能模式开且 lodLevel>=2 时顶部黄条。
+// 性能模式黄条：性能模式开且 lodLevel>=2 时顶部黄条。
 // 抽为子组件是因为 lodLevel 已收进 LodProvider 内部，需在 Provider 内用 useLod() 读，
 // 而非在 Canvas 外层读已删除的 App 级 state。
 function LodPerformanceBanner({ performanceMode }) {
@@ -1496,6 +1481,13 @@ function LodPerformanceBanner({ performanceMode }) {
 }
 
 export default function App() {
+  // 应用生命周期 = 自动云同步可持续期：挂载即启动调度，卸载即停（started 守卫去重 StrictMode 双挂载）。
+  // 开关/退避全程在 autoSync.ts 模块内自持，App 只负责拉起/关闭，不反向读应用状态。
+  useEffect(() => {
+    startAutoSync();
+    return stopAutoSync;
+  }, []);
+
   return (
     <>
       <ReactFlowProvider>

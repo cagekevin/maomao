@@ -18,6 +18,17 @@ interface NodeTypeDefault {
   className?: string;
 }
 
+/**
+ * 有输入面板（ExpandablePanel）的节点类型：Tab 折叠 / Ctrl+L 整理共用同一范围。
+ * 收口「哪些节点有可收起的配置面板」为单一真源，杜绝 Tab 与 arrange 范围不对称。
+ */
+export const INPUT_PANEL_NODE_TYPES = [
+  'textNode',
+  'promptNode',
+  'discountVideoNode',
+  'templateNode',
+] as const;
+
 /** 各节点类型结构默认值（对齐官方 + 历史修复） */
 export const NODE_TYPE_DEFAULTS: Record<string, NodeTypeDefault> = {
   promptNode: { width: 420, height: 420, style: { width: 420, height: 420 } },

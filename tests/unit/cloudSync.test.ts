@@ -44,6 +44,7 @@ const {
   describeUploadConflict,
   describeDownloadConflict,
 } = await import('../../src/components/base/store/cloudSync.ts');
+import type { AutoConflictHandler } from '../../src/components/base/store/cloudSync.ts';
 
 /**
  * 定位发往 GAS 的指定 action 请求（pull_data / push_data）。
@@ -300,8 +301,15 @@ describe('cloudSync — 防覆盖保护：上传冲突判定（纯函数）', ()
     expect(decideUpload({ ...base, cloudRev: 1, ledger, localHash: 'hash-v3' }).kind).toBe('none');
   });
 
-  it('无台账（首次同步，无基线可比）→ none', () => {
-    expect(decideUpload({ ...base, ledger: null, localHash: 'hash-x' }).kind).toBe('none');
+  it('【A-2】云端有数据但本机无台账 → cloud-newer（关系未知，必须问一次，不可盲推覆盖）', () => {
+    const d = decideUpload({ ...base, ledger: null, localHash: 'hash-x' });
+    expect(d.kind).toBe('cloud-newer');
+  });
+
+  it('云端为空 + 无台账 → none（首次上传，云端本就为空，安全）', () => {
+    expect(
+      decideUpload({ ...base, cloudExists: false, ledger: null, localHash: 'hash-x' }).kind,
+    ).toBe('none');
   });
 
   it('云端为空 → none（首次上传）', () => {
@@ -314,6 +322,32 @@ describe('cloudSync — 防覆盖保护：上传冲突判定（纯函数）', ()
     expect(decideUpload({ ...base, cloudReadable: false, ledger, localHash: 'hash-v3' }).kind).toBe(
       'cloud-unknown',
     );
+  });
+
+  it('【A-1】内容一致（cloudHash===localHash）+ 云端 rev 更大 → none + inSync:true（A-1 回归锁）', () => {
+    const d = decideUpload({ ...base, ledger, localHash: 'same-hash', cloudHash: 'same-hash' });
+    expect(d.kind).toBe('none');
+    expect(d.inSync).toBe(true);
+  });
+
+  it('【A-1】内容一致 + 无台账 → none + inSync:true（rev 空转也不打扰）', () => {
+    const d = decideUpload({
+      ...base,
+      ledger: null,
+      localHash: 'same-hash',
+      cloudHash: 'same-hash',
+    });
+    expect(d.kind).toBe('none');
+    expect(d.inSync).toBe(true);
+  });
+
+  it('不传 cloudHash（向后兼容锁）→ inSync:false，行为与旧版逐条一致', () => {
+    // 旧版「云端有数据 + 有台账 + rev 不更大」→ none
+    expect(decideUpload({ ...base, cloudRev: 2, ledger, localHash: 'hash-v3' }).inSync).toBe(false);
+    // 旧版「云端有数据 + 无台账」→ 兼容起见此处改为 cloud-newer（A-2 契约变更已在上方单独立用例）
+    const d = decideUpload({ ...base, ledger: null, localHash: 'hash-x' });
+    expect(d.kind).toBe('cloud-newer');
+    expect(d.inSync).toBe(false);
   });
 
   it('无台账时保守视为「本地改过」，宁可多问不可静默覆盖', () => {
@@ -359,6 +393,7 @@ describe('cloudSync — 防覆盖保护：弹窗文案', () => {
       cloudUpdatedAt: 111,
       ledgerRev: 2,
       localDirty: true,
+      inSync: false,
     });
     expect(both.title).toContain('云端和本地都有更新');
     expect(both.danger).toBe(true);
@@ -368,6 +403,7 @@ describe('cloudSync — 防覆盖保护：弹窗文案', () => {
       cloudUpdatedAt: 111,
       ledgerRev: 2,
       localDirty: false,
+      inSync: false,
     });
     expect(newer.title).toContain('云端内容比你本地新');
     expect(newer.message).toContain('从云端拉取'); // 引导用户往正确方向走
@@ -377,6 +413,7 @@ describe('cloudSync — 防覆盖保护：弹窗文案', () => {
       cloudUpdatedAt: 0,
       ledgerRev: 2,
       localDirty: true,
+      inSync: false,
     });
     expect(unknown.title).toContain('无法确认');
     expect(unknown.danger).toBe(true);
@@ -531,5 +568,84 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
     const res = await uploadConfig(() => {}, { onConfirm });
     expect(res.ok).toBe(true);
     expect(onConfirm, '基线已跟上，不应再弹确认').not.toHaveBeenCalled();
+  });
+});
+
+describe('cloudSync — autoSync 链路（uploadConfig 三态 onAutoConflict + inSync 跳过）', () => {
+  // 造「云端有数据 + 台账 rev 落后 + 本地有改动」→ both-changed 冲突
+  async function seedConflict() {
+    const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
+    contentSet('app_settings', { theme: 'dark' });
+    contentSet('yimao_cloud_sync_ledger', { rev: 1, syncedAt: 1, localHash: 'stale-hash' });
+    fetchMock.mockResolvedValue(
+      jsonResp({
+        data: {
+          type: 'cloud_config',
+          version: 5,
+          rev: 9,
+          updatedAt: Date.now(),
+          data: { app_settings: { theme: 'light' } },
+        },
+      }),
+    );
+  }
+
+  it('onAutoConflict 返回 download → action:download-needed 且未发起 push', async () => {
+    await seedConflict();
+    const handler = vi.fn<AutoConflictHandler>(async () => 'download');
+    const res = await uploadConfig(() => {}, { onAutoConflict: handler });
+    expect(res.action).toBe('download-needed');
+    expect(res.ok).toBe(false);
+    expect(gasCalls('push_data').length, '转下载后不应发起 push').toBe(0);
+    expect(handler).toHaveBeenCalledTimes(1);
+    // 自动文案：三态标题精炼且 confirmText 语义为「下载云端」
+    const copy = handler.mock.calls[0][0];
+    expect(copy.title).toContain('云端和本地都有更新');
+    expect(copy.danger).toBe(true);
+  });
+
+  it('onAutoConflict 返回 cancel → cancelled:true 且未发起 push', async () => {
+    await seedConflict();
+    const res = await uploadConfig(() => {}, {
+      onAutoConflict: async () => 'cancel',
+    });
+    expect(res.cancelled).toBe(true);
+    expect(res.ok).toBe(false);
+    expect(gasCalls('push_data').length, '取消后不应发起 push').toBe(0);
+  });
+
+  it('onAutoConflict 返回 upload → 正常推送（rev = 云端 rev + 1）', async () => {
+    await seedConflict();
+    const res = await uploadConfig(() => {}, {
+      onAutoConflict: async () => 'upload',
+    });
+    expect(res.ok).toBe(true);
+    const pushed = gasCalls('push_data');
+    expect(pushed.length).toBe(1);
+    expect(JSON.parse(pushed[0][1].body).data.rev).toBe(10); // 云端 9 → 本次 10
+  });
+
+  it('decision.inSync → ok:true + skipped:true 且未发起 push（内容一致零副作用）', async () => {
+    const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
+    contentSet('app_settings', { theme: 'dark' });
+    // 台账 rev 落后（1 < 3）但云端内容与本地一致 → 仅 rev 空转，必须跳过
+    contentSet('yimao_cloud_sync_ledger', { rev: 1, syncedAt: 1, localHash: 'anything' });
+    fetchMock.mockResolvedValue(
+      jsonResp({
+        data: {
+          type: 'cloud_config',
+          version: 5,
+          rev: 3,
+          updatedAt: Date.now(),
+          data: { app_settings: { theme: 'dark' } }, // 与本地内容一致
+        },
+      }),
+    );
+    const onAutoConflict = vi.fn<AutoConflictHandler>(async () => 'upload');
+    const res = await uploadConfig(() => {}, { onAutoConflict });
+    expect(res.skipped).toBe(true);
+    expect(res.ok).toBe(true);
+    expect(gasCalls('push_data').length, '内容一致不应发起 push').toBe(0);
+    expect(onAutoConflict, '内容一致不应弹冲突').not.toHaveBeenCalled();
   });
 });

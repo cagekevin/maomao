@@ -45,7 +45,7 @@
 | 能力 | 文件 | 一句话 | 用法 |
 |------|------|--------|------|
 | **左下角工具栏** | `CanvasToolbar.jsx` | 运行/整理/小地图/清理/适合视图/性能/缩放% | App 已接入；加按钮在此组件加 |
-| **整理画布（dagre 自动排版）** | `useArrangeCanvas.js` | 按连线拓扑自动排列节点（Ctrl+L） | `const { arrange } = useArrangeCanvas(); arrange({nodes,edges,onArrange,onComplete})` |
+| **整理画布（dagre 自动排版）** | `useArrangeCanvas.js` | 按连线拓扑自动排列节点，按视窗比例择优换行，仅收输入面板类节点的面板（Ctrl+L / Tab 同范围） | `const { arrange } = useArrangeCanvas(); arrange({nodes,edges,viewport,maxZoom,onArrange,onComplete})` |
 | **整理确认弹窗** | `ArrangeConfirm.jsx` | 「是否保留整理结果」还原/保留 | App 已接；别处要确认弹窗可直接复用 |
 | **性能模式 LOD 降级** | `useMediaDegrade.js` | 缩小时隐藏图片/视频/音频（lodLevel≥2 藏图、≥3 藏视频） | `const { isHidden } = useMediaDegrade(); {!isHidden('image') && <img/>}` |
 | **节点按媒体比例自适应** | `useFitNodeRatio.js` | 图片/视频按真实宽高比调节点形状 | `const { fitFromImage, fitFromVideo } = useFitNodeRatio(id)` |

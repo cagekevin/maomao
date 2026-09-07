@@ -24,7 +24,7 @@ describe('useArrangeCanvas', () => {
     expect(onArrange).not.toHaveBeenCalled();
   });
 
-  it('多节点连线 → 重排后收到 position 且 data.expanded=false、边原样', () => {
+  it('多节点连线 → 重排后收到 position、边原样；仅输入面板类节点收面板', () => {
     const { result } = renderHook(() => useArrangeCanvas());
     const nodes = [
       {
@@ -59,9 +59,9 @@ describe('useArrangeCanvas', () => {
     expect(typeof b.position.y).toBe('number');
     // b 与 a 通过边保持左右相对关系（rankdir=LR，a 在左 b 在右）
     expect(b.position.x).toBeGreaterThan(a.position.x);
-    // 折叠面板
+    // 2026-09-07：仅 INPUT_PANEL_NODE_TYPES 收面板（promptNode 收起、imageNode 不受影响）
     expect(a.data.expanded).toBe(false);
-    expect(b.data.expanded).toBe(false);
+    expect(b.data.expanded).toBe(true);
     // 边原样回传
     expect(res.edges).toBe(edges);
     // onArrange 收到新布局
@@ -197,5 +197,44 @@ describe('useArrangeCanvas', () => {
     // 另一个节点随整体平移，仍与 a 保持合理相对关系（未放到原点附近）
     const b = res.nodes.find((n) => n.id === 'b');
     expect(b.position.x).toBeGreaterThan(4000);
+  });
+
+  it('viewport 生效：宽视窗下 3 个独立分量排成一行（间距 180），窄视窗则纵向堆叠', () => {
+    const { result } = renderHook(() => useArrangeCanvas());
+    const mk = (id, x) => ({
+      id,
+      type: 'promptNode',
+      position: { x, y: 0 },
+      data: {},
+      width: 420,
+      height: 420,
+    });
+    const nodes = [mk('p1', 0), mk('p2', 1000), mk('p3', 2000)];
+    // 无连线 → 3 个独立连通分量；宽视窗下 packComponents 选 perRow=3 排一行
+    const wide = result.current.arrange({
+      nodes,
+      edges: [],
+      viewport: { width: 1600, height: 900 },
+      maxZoom: 1,
+    });
+    const byId = (id) => wide.nodes.find((n) => n.id === id);
+    // 三者在同一行（y 相等），横向按 420+180 递增
+    expect(byId('p2').position.y).toBe(byId('p1').position.y);
+    expect(byId('p3').position.y).toBe(byId('p1').position.y);
+    expect(byId('p2').position.x - byId('p1').position.x).toBe(420 + 180);
+    expect(byId('p3').position.x - byId('p2').position.x).toBe(420 + 180);
+
+    // 极窄视窗（竖屏）→ packComponents 选 perRow=1 纵向堆叠（x 相等、y 递增）
+    const narrow = result.current.arrange({
+      nodes,
+      edges: [],
+      viewport: { width: 50, height: 2000 },
+      maxZoom: 1,
+    });
+    const nBy = (id) => narrow.nodes.find((n) => n.id === id);
+    expect(nBy('p2').position.x).toBe(nBy('p1').position.x);
+    expect(nBy('p3').position.x).toBe(nBy('p1').position.x);
+    expect(nBy('p2').position.y - nBy('p1').position.y).toBe(420 + 120);
+    expect(nBy('p3').position.y - nBy('p2').position.y).toBe(420 + 120);
   });
 });

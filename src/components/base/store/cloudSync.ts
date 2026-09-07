@@ -163,6 +163,8 @@ export interface UploadDecision {
   ledgerRev: number | null;
   /** 本地自上次同步后是否有改动 */
   localDirty: boolean;
+  /** 云端内容指纹 == 本地内容指纹 → 双方数据完全一致（与 rev 无关）：不推、不弹 */
+  inSync: boolean;
 }
 
 /** 单条键级差异 */
@@ -203,6 +205,33 @@ export type UploadConfirmHandler = (
 ) => Promise<boolean>;
 /** 下载覆盖确认回调。返回 false = 用户取消 → 不写回任何数据。 */
 export type DownloadConfirmHandler = (copy: ConfirmCopy, diff: SyncDiff) => Promise<boolean>;
+
+/** uploadConfig 的返回结构（显式声明，避免推断联合在调用方分支收窄时塌缩成 never）。 */
+export interface UploadResult {
+  ok: boolean;
+  count: number;
+  /** 手动/自动链路冲突取消（未 push）；自动链路「稍后」亦为 cancelled */
+  cancelled?: boolean;
+  error?: string;
+  /** 自动链路冲突选择「下载云端」→ 本函数未 push，交调用方转 downloadConfig */
+  action?: 'download-needed';
+  /** 内容一致零副作用跳过（未 push、rev 未变） */
+  skipped?: boolean;
+}
+
+/** 自动同步冲突三选一的用户抉择。 */
+export type ConflictResolution = 'upload' | 'download' | 'cancel';
+/**
+ * 自动同步冲突处理回调（AutoConflictHandler）。
+ * 与 UploadConfirmHandler（二态 boolean）不同，自动链路需要三选一：
+ *  'upload'   → 用户选「上传本地」→ uploadConfig 继续 push；
+ *  'download' → 用户选「下载云端」→ uploadConfig 返回 action:'download-needed'，由调用方转 downloadConfig；
+ *  'cancel'   → 用户选「稍后」/后台不打扰 → 中止本轮 push。
+ */
+export type AutoConflictHandler = (
+  copy: ConfirmCopy,
+  decision: UploadDecision,
+) => Promise<ConflictResolution>;
 
 /** 修订号：非法/缺省 → 0（表示「云端无版本信息」） */
 function toRev(v: unknown): number {
@@ -264,8 +293,10 @@ function writeLedger(next: SyncLedger): void {
  * @param input.cloudReadable 云端能否读到（false → 'cloud-unknown'）
  * @param input.cloudExists  云端是否有数据（false → 'none'，首次上传）
  * @param input.cloudRev     云端修订号
- * @param input.ledger       本地台账（null → 'none'，无基线无从判断，静默上传）
+ * @param input.ledger       本地台账（null → 无台账；云端有数据则 → 'cloud-newer' 必须问一次，见 A-2）
  * @param input.localHash    当前本地数据指纹
+ * @param input.cloudHash    云端内容指纹（'' = 云端空/读不到；与 localHash 同由 contentFingerprint 产出，可直接比）
+ *       可选 → 老调用方（含现有单测）不传时行为与旧版完全一致（inSync=false），增量安全。
  */
 export function decideUpload(input: {
   cloudReadable: boolean;
@@ -274,20 +305,28 @@ export function decideUpload(input: {
   cloudUpdatedAt: number;
   ledger: SyncLedger | null;
   localHash: string;
+  cloudHash?: string;
 }): UploadDecision {
   // 无台账 → 无从判断本地是否改过，保守视为「脏」（宁可多问一次，不可静默覆盖）
   const localDirty = !input.ledger || input.ledger.localHash !== input.localHash;
+  // 【A-1】内容维度：指纹一致即视为「完全一致」（双机 rev 空转时内容相同 → 不打扰、不推）
+  const inSync = !!input.cloudHash && input.cloudHash === input.localHash;
   const base: UploadDecision = {
     kind: 'none',
     cloudRev: input.cloudRev,
     cloudUpdatedAt: input.cloudUpdatedAt,
     ledgerRev: input.ledger?.rev ?? null,
     localDirty,
+    inSync,
   };
   // 读不到云端：不硬阻断（否则一次网络抖动就无法上传），但把风险告知用户由其决定
   if (!input.cloudReadable) return { ...base, kind: 'cloud-unknown' };
-  // 云端空 / 无台账（首次）→ 无基线可比，静默上传
-  if (!input.cloudExists || !input.ledger) return base;
+  // 【A-1】内容完全一致 → 无论 rev 谁大都不打扰、不推（否则双机 rev 空转会无限弹假冲突）
+  if (inSync) return base;
+  // 云端空 → 首次上传，静默
+  if (!input.cloudExists) return base;
+  // 【A-2】云端有数据但本机无台账 → 关系未知，必须问一次，不可盲推覆盖
+  if (!input.ledger) return { ...base, kind: 'cloud-newer' };
   // 云端 rev 更大 = 云端自上次同步后被别人改过。
   // 注：云端 rev 倒退（被无 rev 的旧版客户端覆盖成 0）时不告警——此时本地更新，上传是正确方向。
   if (input.cloudRev > input.ledger.rev) {
@@ -328,9 +367,43 @@ export function diffWithLocal(
   return { conflicts, cloudOnly, localOnly };
 }
 
-/** 上传冲突 → 弹窗文案（含云端更新时间，让用户判断「该上传还是该先下载」） */
-export function describeUploadConflict(d: UploadDecision): ConfirmCopy {
+/**
+ * 上传冲突 → 弹窗文案（含云端更新时间，让用户判断「该上传还是该先下载」）。
+ * @param mode 'manual' = TopNav 手动链路的二态文案（维持现状一字不改）；
+ *             'auto'   = 自动同步链路的文案：标题更精炼（按钮由 autoSync 补 downloadText/cancelText 三选一）。
+ * 三态（auto）都 danger:true，突出覆盖/下载都是不可逆的动作。
+ */
+export function describeUploadConflict(
+  d: UploadDecision,
+  mode: 'manual' | 'auto' = 'manual',
+): ConfirmCopy {
   const time = d.cloudUpdatedAt ? formatTime(d.cloudUpdatedAt) : '未知时间';
+  if (mode === 'auto') {
+    if (d.kind === 'both-changed') {
+      return {
+        title: '云端和本地都有更新',
+        message: `云端内容更新于 ${time}，你本地在同步之后也改过。上传会用本地内容覆盖云端的新内容。`,
+        confirmText: '下载云端',
+        danger: true,
+      };
+    }
+    if (d.kind === 'cloud-newer') {
+      return {
+        title: '云端有更新',
+        message: `云端内容更新于 ${time}，而你本地没有可上传的改动。上传会用本地内容覆盖云端的更新。`,
+        confirmText: '下载云端',
+        danger: true,
+      };
+    }
+    // cloud-unknown
+    return {
+      title: '无法确认云端是否有更新',
+      message: '读取云端版本失败，上传有可能覆盖云端的新内容。',
+      confirmText: '下载云端',
+      danger: true,
+    };
+  }
+  // ---- manual：与改造前逐字一致（TopNav 手动链路零回归） ----
   if (d.kind === 'both-changed') {
     return {
       title: '云端和本地都有更新，上传会覆盖云端',
@@ -529,12 +602,23 @@ async function restoreLocal(cloud) {
  * @param {Function} [onProgress] 进度回调（showToast 用）
  * @param {object} [opts]
  * @param {UploadConfirmHandler} [opts.onConfirm]
- *        冲突确认回调：返回 false = 用户取消 → 中止上传（返回 { cancelled: true }，不发起 push）。
+ *        冲突确认回调（手动链路）：返回 false = 用户取消 → 中止上传（返回 { cancelled: true }，不发起 push）。
  *        不传则沿用旧行为直接上传（无头/测试场景），并在日志留痕。
- * @returns {Promise<{ ok:boolean, count:number, cancelled?:boolean, error?:string }>}
+ * @param {AutoConflictHandler} [opts.onAutoConflict]
+ *        冲突处理回调（自动链路）：三选一（upload/download/cancel）。
+ *        download → 返回 { action:'download-needed' } 且不发起 push，交调用方转 downloadConfig；
+ *        cancel   → 返回 { cancelled:true } 且不发起 push。
+ *        onAutoConflict 优先于 onConfirm（自动链路传的是前者）。
+ * @returns {Promise<{ ok:boolean, count:number, cancelled?:boolean, error?:string,
+ *        action?:'download-needed', skipped?:boolean }>}
+ *        action:'download-needed' = 冲突处理器要求转下载（本函数未 push）；
+ *        skipped:true            = 内容一致，零副作用跳过（未 push、未弹窗、rev 未变）。
  */
-export async function uploadConfig(onProgress, opts: { onConfirm?: UploadConfirmHandler } = {}) {
-  const { onConfirm } = opts;
+export async function uploadConfig(
+  onProgress,
+  opts: { onConfirm?: UploadConfirmHandler; onAutoConflict?: AutoConflictHandler } = {},
+): Promise<UploadResult> {
+  const { onConfirm, onAutoConflict } = opts;
   const ls = await collectLocalData();
   if (Object.keys(ls).length === 0) {
     logger.debug('同步', '[上传] 无可同步数据', {}, { module: 'project' });
@@ -561,6 +645,8 @@ export async function uploadConfig(onProgress, opts: { onConfirm?: UploadConfirm
   }
 
   // 2) 判冲突 → 需要提示就问用户（取消则到此为止，绝不发起 push）
+  // 云端内容指纹：与 localHash 同由 contentFingerprint(纯数据) 产出，可直比（A-1 内容维度判定）。
+  const cloudHash = cloud ? contentFingerprint(cloud.data) : '';
   const decision = decideUpload({
     cloudReadable,
     cloudExists: !!cloud,
@@ -568,6 +654,7 @@ export async function uploadConfig(onProgress, opts: { onConfirm?: UploadConfirm
     cloudUpdatedAt: cloud?.updatedAt ?? 0,
     ledger,
     localHash,
+    cloudHash,
   });
   if (decision.kind !== 'none') {
     logger.debug('同步', '[上传] 检测到冲突', {
@@ -576,14 +663,32 @@ export async function uploadConfig(onProgress, opts: { onConfirm?: UploadConfirm
       ledgerRev: decision.ledgerRev,
       localDirty: decision.localDirty,
     });
-    if (!onConfirm) {
-      logger.warn('同步', '[上传] 有冲突但未提供 onConfirm，按旧行为直接上传', {
+    if (onAutoConflict) {
+      // 自动链路：三选一（downloadText/cancelText 由弹窗渲染端读 request.downloadText 显示）
+      const r = await onAutoConflict(describeUploadConflict(decision, 'auto'), decision);
+      if (r === 'cancel') {
+        logger.debug('同步', '[上传] 自动同步取消本轮', { kind: decision.kind });
+        return { ok: false, count: 0, cancelled: true };
+      }
+      if (r === 'download') {
+        logger.debug('同步', '[上传] 自动同步要求转下载', { kind: decision.kind });
+        return { ok: false, count: 0, action: 'download-needed' as const };
+      }
+      // 'upload' → 落到下面 push
+    } else if (onConfirm) {
+      if (!(await onConfirm(describeUploadConflict(decision), decision))) {
+        logger.debug('同步', '[上传] 用户取消', { kind: decision.kind }, { module: 'project' });
+        return { ok: false, count: 0, cancelled: true };
+      }
+    } else {
+      logger.warn('同步', '[上传] 有冲突但未提供确认回调，按旧行为直接上传', {
         kind: decision.kind,
       });
-    } else if (!(await onConfirm(describeUploadConflict(decision), decision))) {
-      logger.debug('同步', '[上传] 用户取消', { kind: decision.kind }, { module: 'project' });
-      return { ok: false, count: 0, cancelled: true };
     }
+  } else if (decision.inSync) {
+    // 【A-1】内容一致 → 零副作用跳过（不 push、不 +rev、不弹窗）。地基：双机 rev 空转不产生假冲突。
+    logger.debug('同步', '[上传] 内容一致，跳过', {}, { module: 'project' });
+    return { ok: true, count: 0, skipped: true };
   }
 
   // 3) 打包推送（rev = 云端 rev + 1，单调递增）
@@ -697,6 +802,16 @@ export async function downloadConfig(
 
 // 保留引擎导出（供需要直接调用引擎的调用方用），但日常同步请走 uploadConfig/downloadConfig。
 export { CloudSyncEngine };
+
+/**
+ * 云同步是否可用：GAS URL 已配置（非占位）且当前无同步在跑。
+ * 自动调度（autoSync.ts）与手动按钮共用的唯一就绪判定——统一到一个入口，避免两边对
+ * 「是否可同步」给出矛盾答案（旧稿曾各自判断，漏一种状态就会调度/按钮行为不一致）。
+ */
+export function isCloudSyncReady(): boolean {
+  const url = CloudSyncEngine.config.gasUrl;
+  return !!url && !url.includes('填入') && !CloudSyncEngine.isSyncing;
+}
 
 /* ── localStorage 同步清单：由 contracts.ts STORAGE_KEYS 权威登记生成（getLocalKeys()），
  * 显式排除不适合跨设备同步的键（与文件头【不同步】原则一致）：

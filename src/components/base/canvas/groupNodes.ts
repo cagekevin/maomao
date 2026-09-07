@@ -220,9 +220,10 @@ export function resolveDragGrouping(draggedNode: Node, nodes: Node[]): Node[] | 
     x: draggedNode.position.x + (draggedNode.parentId ? absPosOf(draggedNode.parentId).x : 0),
     y: draggedNode.position.y + (draggedNode.parentId ? absPosOf(draggedNode.parentId).y : 0),
   };
-  // 候选 group：非折叠、不包含被拖节点自身；按面积小→大（优先最内层）
+  // 候选 group：不包含被拖节点自身；按面积小→大（优先最内层）。
+  // 2026-09-07：编组折叠态下线，不再按 collapsed 过滤候选。
   const groups = cur
-    .filter((n) => n.type === 'group' && !n.data?.collapsed && n.id !== draggedNode.id)
+    .filter((n) => n.type === 'group' && n.id !== draggedNode.id)
     .sort((a, b) => {
       const sa = dragGroupSize(a);
       const sb = dragGroupSize(b);

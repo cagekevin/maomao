@@ -443,23 +443,4 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
     const moved = r.find((n) => n.id === 'd');
     expect(moved.parentId).toBe('inner');
   });
-
-  it('折叠的 group 不作为候选（collapsed）', () => {
-    const folded = {
-      id: 'folded',
-      type: 'group',
-      data: { collapsed: true },
-      position: { x: 0, y: 0 },
-      style: { width: 500, height: 500 },
-    };
-    const dragged = {
-      id: 'd',
-      type: 'imageNode',
-      data: {},
-      position: { x: 50, y: 50 },
-      measured: { width: 100, height: 100 },
-    };
-    const r = resolveDragGrouping(dragged, [folded, dragged]);
-    expect(r).toBeNull(); // 折叠组不接收
-  });
 });
