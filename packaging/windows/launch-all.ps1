@@ -37,6 +37,9 @@ $script:AppMutex  = $null
 $script:LocalToolPid   = 0    # 当前 node 进程 PID，退出时按【进程树】清理
 $script:FailCount      = 0    # 连续启动失败次数（成功一次即归零）
 $script:MaxAutoRestart = 3    # 连续失败上限
+# ── 🚦 重启/崩溃状态（对齐 Mac main.swift 的 intentionalStop / isRestarting / isHealthy）──
+$script:IsRestarting   = $false # 是否正在「因后端构建成功而重启」：期间健康巡检跳过，避免误杀新进程
+$script:Crashed        = $false # 后端是否处于崩溃/掉线未恢复：true 时托盘图标灰 + 气泡提示
 
 # ── 🧷 Job Object：进程清理的兜底保障 ──
 $script:JobHandle = [IntPtr]::Zero
@@ -101,10 +104,27 @@ function Release-SingleInstance {
 
 # ── 🌲 按进程树结束（/T 连带子进程）──
 # node 可能经由 npm/tsx 等包装层拉起子进程，只杀主进程会留下孤儿。
+# 对齐 Mac：Mac 的 stopBackend 先 graceful TERM（p.terminate + 等 1s）再递归 SIGKILL。
+# Windows 侧没有 SIGTERM，用 taskkill 先「不带 /F」发 WM_CLOSE/控制台 Ctrl+C 式优雅退出并短暂等待，
+# 若进程仍在再 /F 强杀。kill() 分两阶段：taskkill /T（不带 /F，优雅）→ 等 1s → taskkill /T /F（兜底强杀）。
 function Stop-ProcessTree {
     param([int]$ProcessId)
     if ($ProcessId -le 0) { return }
-    try { $null = & taskkill.exe /PID $ProcessId /T /F 2>&1 } catch { }
+    try {
+        # 第一阶段：优雅关闭整棵进程树（不 /F）
+        $null = & taskkill.exe /PID $ProcessId /T 2>&1
+        # 短暂等待优雅退出完成（对齐 Mac 等 1s）
+        $deadline = (Get-Date).AddSeconds(1)
+        while ((Get-Date) -lt $deadline -and (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) {
+            Start-Sleep -Milliseconds 50
+        }
+        # 第二阶段：仍在则强杀兜底
+        if (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue) {
+            $null = & taskkill.exe /PID $ProcessId /T /F 2>&1
+        }
+    } catch {
+        try { $null = & taskkill.exe /PID $ProcessId /T /F 2>&1 } catch { }
+    }
 }
 
 # ── 🧷 Windows Job Object（进程清理的兜底保障）──
@@ -443,6 +463,13 @@ function Invoke-SilentBuild {
         if ($script:NotifyIcon) { $script:NotifyIcon.Text = "猫猫画布 — 正在构建$titleKey..." }
 
         Write-Log "  🛠️ 开始静默构建 $titleKey (node npm run ...)。完成后气泡提示。日志：$logFile" "Info"
+        # 对齐 Mac：构建开始也通知用户（Mac 在 buildIn 里 notify「开始编译 <label>」）
+        if ($script:NotifyIcon) {
+            try {
+                $script:NotifyIcon.Text = "猫猫画布 — 正在构建$titleKey..."
+                $script:NotifyIcon.ShowBalloonTip(3000, "猫猫画布", "开始构建 $titleKey ...", [System.Windows.Forms.ToolTipIcon]::Info)
+            } catch { }
+        }
         Start-BuildPollTimer
     } catch {
         $script:BuildBusy = $false
@@ -476,10 +503,21 @@ function Start-BuildPollTimer {
                 if ($script:NotifyIcon) {
                     $script:NotifyIcon.ShowBalloonTip(4000, "猫猫画布", "构建 $key 成功", [System.Windows.Forms.ToolTipIcon]::Info)
                 }
-                # 后端构建成功 → 自动重启服务以加载新代码
+                # 后端构建成功 → 自动重启服务以加载新代码。
+                # ⚠️ 对齐 Mac：重启必须在【后台线程】执行（Mac 用 DispatchQueue.global.async 调 restartBackend），
+                #    若在本 tick（WinForms UI 线程）同步执行 Start-LocalTool（内含 Wait-PortReady≤25s、甚至 npm
+                #    install/build≤10min），会冻结托盘 UI，异常抛在 UI 线程可令 exe 崩溃退出。
+                #    用 [System.Threading.ThreadPool]::QueueUserWorkItem 派发到线程池，主线程立即返回不阻塞。
                 if ($key -eq "后端") {
-                    Write-Log "  🔄 后端已重新编译，正在自动重启服务..." "Info"
-                    Start-RestartServiceSilently
+                    Write-Log "  🔄 后端已重新编译，正在后台自动重启服务..." "Info"
+                    if ($script:NotifyIcon) { $script:NotifyIcon.Text = "猫猫画布 — 后端重启中..." }
+                    [System.Threading.ThreadPool]::QueueUserWorkItem({
+                        try {
+                            Start-RestartServiceSilently
+                        } catch {
+                            Write-Log "  ❌ 后台重启后端失败：$($_.Exception.Message)" "Error"
+                        }
+                    }) | Out-Null
                 }
             } else {
                 Write-Log "  ❌ 构建 $key 失败。日志：$logFile" "Error"
@@ -493,26 +531,43 @@ function Start-BuildPollTimer {
     $t.Start()
 }
 
-# 静默重启服务（构建后端成功后自动调用）——复用已有逻辑但减少刷屏。
+# 静默重启服务（构建后端成功后由后台线程调用）——复用已有逻辑但减少刷屏。
+# 对齐 Mac restartBackend()：
+#   - 置 $script:IsRestarting=true 防重入 + 防健康巡检误杀（tick 期间不做崩溃判定/不抢拉第二个 node）；
+#   - 杀旧进程树 → 清端口 → 启动新代码；
+#   - finally 复位 IsRestarting=false。若启动失败，把崩溃状态亮出（灰图标 + 气泡），与 Mac「重启失败」提示一致。
 function Start-RestartServiceSilently {
+    # 防重入：已有重启在进行则忽略（对齐 Mac `if isRestarting { return }`）
+    if ($script:IsRestarting) {
+        Write-Log "  ⏳ 已有重启在进行，忽略重复重启请求。" "Warn"
+        return
+    }
+    $script:IsRestarting = $true
     try {
         if ($script:LocalToolPid -gt 0) { Stop-ProcessTree -ProcessId $script:LocalToolPid }
         $script:LocalToolPid = 0
         Clear-Port -Port $Config.LocalTool.Port
         if (Start-LocalTool) {
             $script:FailCount = 0
+            $script:Crashed    = $false
             if ($script:HealthTimer) { $script:HealthTimer.Start() }
             if ($script:NotifyIcon) {
                 $script:NotifyIcon.Text = "猫猫画布 — 运行中 (:18080)"
-                $script:NotifyIcon.ShowBalloonTip(3000, "猫猫画布", "服务已重启", [System.Windows.Forms.ToolTipIcon]::Info)
+                $script:NotifyIcon.ShowBalloonTip(3000, "猫猫画布", "服务已重启，新代码已生效", [System.Windows.Forms.ToolTipIcon]::Info)
             }
         } else {
+            # 重启失败：亮出崩溃态（对齐 Mac「启动失败/重启失败」提示）
+            $script:Crashed = $true
             if ($script:NotifyIcon) {
-                $script:NotifyIcon.ShowBalloonTip(6000, "猫猫画布", "重启失败，请打开日志目录排查。", [System.Windows.Forms.ToolTipIcon]::Error)
+                $script:NotifyIcon.Text = "猫猫画布 — 后端重启失败"
+                $script:NotifyIcon.ShowBalloonTip(6000, "猫猫画布", "后端重启失败，请打开日志目录排查。", [System.Windows.Forms.ToolTipIcon]::Error)
             }
         }
     } catch {
+        $script:Crashed = $true
         Write-Log "  ❌ 自动重启服务失败：$($_.Exception.Message)" "Error"
+    } finally {
+        $script:IsRestarting = $false
     }
 }
 
@@ -558,8 +613,23 @@ function Start-LocalTool {
     # 日志改由 localTool 进程内接管（logWriter.ts 按天轮转 + 自动删 7 天前），
     # 不再用 Start-Process 重定向 stdout/err，避免双写单文件。
     # PassThru：记住 PID，退出时才能 taskkill /T 杀掉整棵进程树而不留孤儿。
-    $proc = Start-Process -FilePath "node" -ArgumentList (Join-Path $dir "dist\index.js") `
-        -WindowStyle Hidden -WorkingDirectory $dir -PassThru
+    # NO_OPEN_BROWSER=1：对齐 Mac（main.swift 注入 extraEnv），让后端 index.ts 不自开普通浏览器标签，
+    #                 改由本工具在启动/重启后统一 Open-Canvas 打开画布，避免每次重启都弹一个标签。
+    # 注意：Start-Process 的 -Environment 仅 PS 7+ 支持，这里用 .NET ProcessStartInfo 注入（兼容 Windows PowerShell 5.1）。
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "node"
+    $psi.Arguments = '"' + (Join-Path $dir "dist\index.js") + '"'
+    $psi.WorkingDirectory = $dir
+    $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    if (-not $psi.Environment.ContainsKey("NO_OPEN_BROWSER")) { $psi.Environment.Add("NO_OPEN_BROWSER", "1") }
+    $proc = New-Object System.Diagnostics.Process
+    $proc.StartInfo = $psi
+    try { $null = $proc.Start() } catch {
+        Write-Log "  ❌ 无法启动 LocalTool node 进程：$($_.Exception.Message)" "Error"
+        return $false
+    }
     $script:LocalToolPid = $proc.Id
 
     # 加入 Job Object：本进程无论正常退出 / 崩溃 / 被强杀，node 及其子进程都会被系统回收
@@ -665,23 +735,37 @@ function Start-TrayDaemon {
 
     $miRestart = New-Object System.Windows.Forms.ToolStripMenuItem("重启服务")
     $miRestart.Add_Click({
+        # 防重入：已有重启/构建后重启在进行则忽略（对齐 Mac `if isRestarting { return }`）
+        if ($script:IsRestarting) {
+            Write-Log "  ⏳ 已有重启在进行，忽略手动重启请求。" "Warn"
+            if ($script:NotifyIcon) { $script:NotifyIcon.ShowBalloonTip(3000, "猫猫画布", "正在重启中，请稍候。", [System.Windows.Forms.ToolTipIcon]::Info) }
+            return
+        }
         Write-Log "🔄 手动重启服务..." "Warn"
-        Stop-ProcessTree -ProcessId $script:LocalToolPid
-        $script:LocalToolPid = 0
-        Clear-Port -Port $Config.LocalTool.Port
+        $script:IsRestarting = $true
+        try {
+            Stop-ProcessTree -ProcessId $script:LocalToolPid
+            $script:LocalToolPid = 0
+            Clear-Port -Port $Config.LocalTool.Port
 
-        if (Start-LocalTool) {
-            # 手动重启成功：恢复自动巡检（此前可能因连续失败被停掉）
-            $script:FailCount = 0
-            if ($script:HealthTimer) { $script:HealthTimer.Start() }
-            if ($script:NotifyIcon) {
-                $script:NotifyIcon.Text = "猫猫AI画布 — 运行中 (:18080)"
-                $script:NotifyIcon.ShowBalloonTip(3000, "猫猫AI画布", "服务已重启", [System.Windows.Forms.ToolTipIcon]::Info)
+            if (Start-LocalTool) {
+                # 手动重启成功：恢复自动巡检（此前可能因失败被停掉）+ 复位崩溃态
+                $script:FailCount = 0
+                $script:Crashed    = $false
+                if ($script:HealthTimer) { $script:HealthTimer.Start() }
+                if ($script:NotifyIcon) {
+                    $script:NotifyIcon.Text = "猫猫画布 — 运行中 (:18080)"
+                    $script:NotifyIcon.ShowBalloonTip(3000, "猫猫画布", "服务已重启", [System.Windows.Forms.ToolTipIcon]::Info)
+                }
+            } else {
+                $script:Crashed = $true
+                if ($script:NotifyIcon) {
+                    $script:NotifyIcon.Text = "猫猫画布 — 重启失败"
+                    $script:NotifyIcon.ShowBalloonTip(6000, "猫猫画布", "重启失败，请打开日志目录排查。", [System.Windows.Forms.ToolTipIcon]::Error)
+                }
             }
-        } else {
-            if ($script:NotifyIcon) {
-                $script:NotifyIcon.ShowBalloonTip(6000, "猫猫AI画布", "重启失败，请打开日志目录排查。", [System.Windows.Forms.ToolTipIcon]::Error)
-            }
+        } finally {
+            $script:IsRestarting = $false
         }
     })
     $null = $menu.Items.Add($miRestart)
@@ -738,26 +822,44 @@ function Start-TrayDaemon {
     $script:NotifyIcon  = $notify
     $script:HealthTimer = $timer = New-Object System.Windows.Forms.Timer
 
-    # ── 健康检查 + 掉线自动重启（带退避上限）──
-    # 定时器替代 while 循环，避免阻塞 UI 线程。
-    # 连续失败达上限即停止重试并报警：node 若因编译/配置错误根本起不来，
-    # 无限重试只会每 5 秒刷日志、反复 spawn 僵尸进程，而你毫无感知。
+    # ── 健康检查（对齐 Mac 崩溃策略：通知 + 不无限自动重启，用户手动恢复）──
+    # Mac 逻辑：后端进程非正常退出 → setCrashed()（灰图标+⚠+系统通知「后端已停止，点菜单重启服务恢复」），
+    #          不自动重启，等用户手动「重启服务」。
+    # Windows 对齐：用「端口掉线」替代「进程退出回调」做崩溃探测。掉线时：
+    #   1) 若正处在构建后重启（IsRestarting）则跳过，避免抢拉第二个 node（对齐 Mac isRestarting 守卫）；
+    #   2) 首次掉线自动重试一次（缓解偶发抖动，等效 Mac 由用户重启，但这里更省心）；
+    #   3) 重试失败 → 亮灰图标 + 错误气泡「后端已停止」+ 停止自动重试（对齐 Mac 通知用户），
+    #      之后不再无限刷重启，改由用户右键「重启服务」手动恢复。
+    # 说明：Windows 图标无法像 Mac 那样渲染灰/⚠ 两态，用 NotifyIcon.Text 文字前缀区分运行中/已停止。
     $timer.Interval = 5000
     $timer.Add_Tick({
+        # 重启进行中：跳过巡检，避免空窗期误判为崩溃（对齐 Mac `if !isRestarting` 守卫）
+        if ($script:IsRestarting) { return }
+
         if (-not (Test-PortStatus -Port $Config.LocalTool.Port -Name $Config.LocalTool.Name -Quiet)) {
+            if ($script:Crashed) {
+                # 已处于崩溃态且巡检仍掉线：不再刷重启，仅保持灰态提示（Mac 亦不自动恢复）
+                return
+            }
             $script:FailCount++
             Write-Log "  ⚠️ $(Get-Date -Format 'HH:mm:ss') 本地工具掉线，正在重启（连续失败 $($script:FailCount)/$($script:MaxAutoRestart)）..." "Warn"
 
             if (Start-LocalTool) {
-                $script:FailCount = 0        # 恢复即归零，偶发抖动可无限次自愈
+                $script:FailCount = 0        # 恢复即归零，偶发抖动可自动自愈
+                $script:Crashed    = $false
                 Write-Log "  ✅ 服务已恢复" "Success"
-            } elseif ($script:FailCount -ge $script:MaxAutoRestart) {
-                $script:HealthTimer.Stop()
-                Write-Log "  🛑 连续 $($script:MaxAutoRestart) 次启动失败，已停止自动重试。请排查后右键图标→重启服务。" "Error"
                 if ($script:NotifyIcon) {
-                    $script:NotifyIcon.Text = "猫猫AI画布 — 服务异常，已停止自动重启"
-                    $script:NotifyIcon.ShowBalloonTip(10000, "猫猫AI画布",
-                        "服务连续启动失败，已停止自动重启。请右键图标→打开日志目录排查，或→重启服务。",
+                    $script:NotifyIcon.Text = "猫猫画布 — 运行中 (:18080)"
+                }
+            } elseif ($script:FailCount -ge $script:MaxAutoRestart) {
+                # 连败达上限：停止自动重试并报警（对齐 Mac「后端已停止，点菜单重启服务恢复」）
+                $script:Crashed = $true
+                $script:HealthTimer.Stop()
+                Write-Log "  🛑 后端已停止。已停止自动重试，请右键图标→重启服务 或 打开日志目录排查。" "Error"
+                if ($script:NotifyIcon) {
+                    $script:NotifyIcon.Text = "猫猫画布 — 后端已停止（灰）"
+                    $script:NotifyIcon.ShowBalloonTip(10000, "猫猫画布",
+                        "后端已停止。请右键图标→重启服务恢复，或→打开日志目录排查。",
                         [System.Windows.Forms.ToolTipIcon]::Error)
                 }
             }
