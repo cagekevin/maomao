@@ -19,7 +19,14 @@
 
 $ErrorActionPreference = "Continue"
 # 脚本已收拢到 packaging/windows/；项目根 = 脚本目录上两级（本目录不持项目内容）。
-$ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { $PWD.Path }
+# ps2exe 编译的 exe 不提供 $PSScriptRoot；此时优先取 exe 自身所在目录，
+# 避免因启动工作目录不同（快捷方式/脚本调用/资源管理器以外的双击场景）把项目根算错。
+if ($PSScriptRoot) {
+    $ScriptDir = $PSScriptRoot
+} else {
+    try { $ScriptDir = Split-Path -Parent ([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName) } catch { }
+    if (-not $ScriptDir) { $ScriptDir = $PWD.Path }
+}
 $ProjectRoot = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "..\.."))
 Set-Location -Path $ProjectRoot
 
@@ -46,10 +53,10 @@ $script:JobHandle = [IntPtr]::Zero
 $script:JobReady  = $false
 
 # ── 🔧 静默构建状态（供构建 Timer 回调跨作用域读取）──
+# 注意：不再有 BuildOutBuf/BuildErrBuf——构建输出由子进程用 cmd 重定向直接写日志文件，
+#       避免 ps2exe 下 Process 异步读管道事件（线程池无 runspace 上下文）崩溃进程。
 $script:BuildBusy    = $false  # 是否有构建在进行
 $script:BuildProc    = $null   # 后台构建进程
-$script:BuildOutBuf  = $null   # stdout 累积
-$script:BuildErrBuf  = $null   # stderr 累积
 $script:BuildLogFile = $null   # 本次构建日志路径
 $script:BuildKey     = $null   # "前端" / "后端"
 $script:BuildAsyncTimer = $null
@@ -269,11 +276,16 @@ function Wait-PortReady {
     return $false
 }
 
-# ── 🔇 静默执行 npm（无控制台窗口）──
-# 关键：在 ps2exe 的 -noConsole GUI 进程里直接调用 `npm`(npm.cmd) 时，
-# Windows 会为 .cmd 批处理强制分配一个 cmd 控制台窗口 → 启动时闪黑框。
-# 解法：用 `node` 直接执行 npm 的 JS 入口 (npm-cli.js)，绕过 cmd.exe，彻底不弹窗。
-# 同时把输出捕获到内存变量，返回退出码，便于判断成败并写入日志。
+# ── 🔇 无窗口执行 node/npm ──
+# 目标：任何情况下都绝不出现 PowerShell/cmd 黑框。
+# 做法：不直接调 npm.cmd（批处理会触发控制台窗口）；由 cmd.exe 仅当“重定向壳”，
+#       把 node 的 stdout/stderr 直接写进日志文件；子进程全程 CreateNoWindow，
+#       物理上不可能弹出任何窗口。
+# ⚠️ ps2exe 崩溃根因（2026-09-07 修复）：绝不能再对 Process 使用
+#    RedirectStandardOutput + BeginOutputReadLine + scriptblock 事件读管道——
+#    OutputDataReceived 回调跑在 .NET 线程池线程上，ps2exe 编译的 exe 里这些线程
+#    没有 PowerShell runspace 上下文，node 一打印输出即抛 PSInvalidOperationException，
+#    整个托盘进程直接退出（事件日志可证实）。因此输出一律落文件、不接管管道。
 function Get-NpmCliPath {
     # 优先从 PATH 里的 npm.cmd / npm.ps1 反推同目录 node_modules\npm\bin\npm-cli.js
     try {
@@ -289,6 +301,38 @@ function Get-NpmCliPath {
     return $null
 }
 
+# ── 🔧 启动 node(npm-cli.js)，stdout+stderr 一并重定向到日志文件，返回进程对象 ──
+function Start-NodeToLogFile {
+    param(
+        [string]$CliPath,     # npm-cli.js 绝对路径
+        [string]$NpmArgs,     # 例如 "install" / "run build"
+        [string]$WorkingDir,
+        [string]$LogFile      # 输出落点（覆盖旧内容）
+    )
+    try {
+        # 命令：node "<cli>" <args> > "<log>" 2>&1
+        # cmd 的 /d /s /c：/s 会剥掉最外层一对引号，因此整体再包一层引号，
+        # 内部含空格/中文的路径也能正确解析；cmd 退出码即 node 的退出码。
+        $inner = 'node "' + $CliPath + '" ' + $NpmArgs + ' > "' + $LogFile + '" 2>&1'
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = Join-Path $env:SystemRoot "System32\cmd.exe"
+        $psi.Arguments = '/d /s /c "' + $inner + '"'
+        $psi.WorkingDirectory = $WorkingDir
+        # 关键：不创建控制台窗口（配合 noConsole exe，任何情况下都不闪黑框）
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow  = $true
+        $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+        $p = New-Object System.Diagnostics.Process
+        $p.StartInfo = $psi
+        if (-not $p.Start()) { return $null }
+        return $p
+    } catch {
+        Write-Log "  ❌ 无法启动 node 进程：$($_.Exception.Message)" "Error"
+        return $null
+    }
+}
+
+# ── 📦 同步执行 npm（启动流程用：install / 启动前增量 build），输出落临时日志 ──
 function Invoke-Npm {
     param(
         [string]$Arguments,          # 例如 "install" / "run build"
@@ -299,40 +343,30 @@ function Invoke-Npm {
         Write-Log "  ❌ 无法定位 npm-cli.js，请确认 Node.js/npm 已安装并在 PATH。" "Error"
         return 1
     }
-    $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = "node"
-    $psi.Arguments = "`"$cli`" $Arguments"
-    $psi.WorkingDirectory = $WorkingDir
-    # 关键：完全隐藏窗口 + 不创建控制台
-    $psi.UseShellExecute = $false
-    $psi.CreateNoWindow  = $true
-    $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
-    $psi.RedirectStandardOutput = $true
-    $psi.RedirectStandardError  = $true
+    $tmpLog = Join-Path $env:TEMP ("maomao-npm-" + [guid]::NewGuid().ToString("N") + ".log")
+    $p = Start-NodeToLogFile -CliPath $cli -NpmArgs $Arguments -WorkingDir $WorkingDir -LogFile $tmpLog
+    if ($null -eq $p) {
+        try { Remove-Item $tmpLog -Force -ErrorAction SilentlyContinue } catch { }
+        return 1
+    }
     try {
-        $p = New-Object System.Diagnostics.Process
-        $p.StartInfo = $psi
-        $sb = New-Object System.Text.StringBuilder
-        # 异步行读取：避免 stdout/stderr 任一管道写满导致同步 ReadToEnd 死锁
-        $p.add_OutputDataReceived({ if ($_.Data) { $null = $sb.AppendLine($_.Data) } })
-        $p.add_ErrorDataReceived({ if ($_.Data) { $null = $sb.AppendLine($_.Data) } })
-        if (-not $p.Start()) { Write-Log "  ❌ 无法启动 node 进程执行 npm。" "Error"; return 1 }
-        $p.BeginOutputReadLine()
-        $p.BeginErrorReadLine()
         # 最多等 10 分钟，防止 install 极慢时无限卡死
         if (-not $p.WaitForExit(600000)) {
             Write-Log "  ⚠️ npm 执行超过 10 分钟，强制结束。" "Error"
-            try { $p.Kill() } catch { }
+            try { $null = & taskkill.exe /PID $p.Id /T /F 2>&1 } catch { }
             return 1
         }
         $code = $p.ExitCode
         if ($code -ne 0) {
-            Write-Log "  stderr: $($sb.ToString())" "Error"
+            # 失败时带上输出尾部，方便直接在 launcher.log 定位原因
+            try {
+                $tail = Get-Content -Path $tmpLog -Tail 30 -ErrorAction SilentlyContinue
+                Write-Log "  ⚠️ npm 执行失败 (exit=$code)，输出尾部：$($tail -join ' | ')" "Error"
+            } catch { }
         }
         return $code
-    } catch {
-        Write-Log "  ❌ 执行 node npm 失败：$($_.Exception.Message)" "Error"
-        return 1
+    } finally {
+        try { Remove-Item $tmpLog -Force -ErrorAction SilentlyContinue } catch { }
     }
 }
 
@@ -394,12 +428,11 @@ function Open-Canvas {
 }
 
 # ── 🛠️ 静默后台构建（菜单项：构建前端 / 构建后端(localTool)）──
-# 不弹任何 cmd 窗口：用 node 直接执行 npm-cli.js（绕过 npm.cmd 触发的控制台创建），
-# 日志写入 logs\build_<key>.log，完成后回 UI 线程用托盘气泡报告成功/失败（与 Mac 一致）。
+# 不弹任何窗口：node 在 cmd“重定向壳”中运行（CreateNoWindow），输出直写 logs\build_<key>.log，
+# 完成后回到 UI 线程（托盘主线程）用气泡报告成功/失败（与 Mac 一致）。
 # 构建后端成功后会自动重启服务以加载新代码。
-# 可靠性设计：所有跨事件回调的状态都放 $script: 级，避免 PowerShell Add_Tick/异步 IO
-# 事件闭包捕获不到局部变量的坑。
-# BuildPollTicks     累计的轮询计数（构建超时/诊断用，保留占位）
+# 可靠性设计：所有跨事件回调的状态都放 $script: 级；绝不用 Process 异步管道事件
+# （ps2exe 下回调跑在线程池、无 runspace 上下文会崩进程，详见 Start-NodeToLogFile 注释）。
 function Invoke-SilentBuild {
     param(
         [string]$titleKey,   # 用于文件名/提示，如 前端 / 后端
@@ -422,47 +455,39 @@ function Invoke-SilentBuild {
             return
         }
 
-        # 日志文件：logs\build_<key>.log（覆盖旧内容）
+        # 日志文件：logs\build_<key>.log（cmd 重定向会覆盖旧内容）
         $logDir = Join-Path $ProjectRoot "logs"
         if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null }
         $logFile = Join-Path $logDir "build_$titleKey.log"
 
-        # 用异步 IO 启动 node 构建进程（不创建控制台 → 不弹窗）
-        $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName = "node"
-        $psi.Arguments = "`"$cli`" $NpmArgs"
-        $psi.WorkingDirectory = $WorkDir
-        $psi.UseShellExecute = $false
-        $psi.CreateNoWindow = $true
-        $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
-        $psi.RedirectStandardOutput = $true
-        $psi.RedirectStandardError = $true
-
-        $proc = New-Object System.Diagnostics.Process
-        $proc.StartInfo = $psi
-        # 先把缓冲与元数据放进 script 级，供下面的事件 handler / Timer 回调可靠访问
-        $script:BuildOutBuf = New-Object System.Text.StringBuilder
-        $script:BuildErrBuf = New-Object System.Text.StringBuilder
-        $script:BuildLogFile = $logFile
-        $script:BuildKey    = $titleKey
-        # 事件 handler 在异步 IO 线程触发，统一访问 $script: 级缓冲，避免闭包取不到局部变量
-        $proc.add_OutputDataReceived({ if ($_.Data) { $null = $script:BuildOutBuf.AppendLine($_.Data) } })
-        $proc.add_ErrorDataReceived({ if ($_.Data) { $null = $script:BuildErrBuf.AppendLine($_.Data) } })
-
-        if (-not $proc.Start()) {
+        # ⚠️ 关键（ps2exe 崩溃修复）：这里绝不能再用 Process 的
+        #   RedirectStandardOutput + BeginOutputReadLine + scriptblock 事件读管道——
+        #   事件回调跑在 .NET 线程池线程上，ps2exe 编译的 exe 里这些线程没有 PowerShell
+        #   runspace 上下文，node 一打印输出就抛 PSInvalidOperationException，托盘进程直接退出。
+        # 改由 Start-NodeToLogFile 用 cmd 重定向把输出直写 logFile（全程 CreateNoWindow，不弹窗）。
+        $proc = Start-NodeToLogFile -CliPath $cli -NpmArgs $NpmArgs -WorkingDir $WorkDir -LogFile $logFile
+        if ($null -eq $proc) {
             Write-Log "  ❌ 构建 $titleKey 无法启动 node 进程。" "Error"
+            if ($script:NotifyIcon) {
+                $script:NotifyIcon.ShowBalloonTip(6000, "猫猫画布", "构建 $titleKey 启动失败，请查看 logs\launcher.log", [System.Windows.Forms.ToolTipIcon]::Error)
+            }
             $script:BuildBusy = $false
             return
         }
-        $proc.BeginOutputReadLine()
-        $proc.BeginErrorReadLine()
 
-        $script:BuildProc   = $proc
-        $script:BuildBusy   = $true
+        $script:BuildLogFile = $logFile
+        $script:BuildKey     = $titleKey
+        $script:BuildProc    = $proc
+        $script:BuildBusy    = $true
         $script:BuildAsyncTimer = $null
-        if ($script:NotifyIcon) { $script:NotifyIcon.Text = "猫猫画布 — 正在构建$titleKey..." }
 
-        Write-Log "  🛠️ 开始静默构建 $titleKey (node npm run ...)。完成后气泡提示。日志：$logFile" "Info"
+        # 构建进程也纳入 Job Object：托盘退出/被强杀时由内核自动回收，不留孤儿 node
+        $hJob = Ensure-JobObject
+        if ($hJob -ne [IntPtr]::Zero) {
+            try { $null = [MaomaoJobObject]::AssignProcessToJobObject($hJob, $proc.Handle) } catch { }
+        }
+
+        Write-Log "  🛠️ 开始静默构建 $titleKey (node npm run ...)。输出直写日志，完成后气泡提示。日志：$logFile" "Info"
         # 对齐 Mac：构建开始也通知用户（Mac 在 buildIn 里 notify「开始编译 <label>」）
         if ($script:NotifyIcon) {
             try {
@@ -483,55 +508,53 @@ function Start-BuildPollTimer {
     $t.Interval = 500
     # Add_Tick 的事件块在独立作用域执行，只能通过 $script: 访问状态。
     # 注意：回调内绝不能引用局部变量 $t（事件作用域里取不到），统一用 $script:BuildAsyncTimer。
+    # 该回调运行在【托盘主线程】（有 runspace 上下文），可安全执行；但仍整体套 try/catch，
+    # 避免任何意外异常拖垮整个托盘。
     $t.Add_Tick({
-        $p = $script:BuildProc
-        if ($null -ne $p -and $p.HasExited) {
-            $self = $script:BuildAsyncTimer
-            if ($null -ne $self) { $self.Stop(); $self.Dispose() }
-            $script:BuildAsyncTimer = $null
-            $code = $p.ExitCode
-            $out = $script:BuildOutBuf.ToString()
-            $err = $script:BuildErrBuf.ToString()
-            $logFile = $script:BuildLogFile
-            $key = $script:BuildKey
-            try { [System.IO.File]::WriteAllText($logFile, ($out + $err), [System.Text.Encoding]::UTF8) } catch { }
-            $script:BuildProc = $null
-            $script:BuildBusy = $false
-            if ($script:NotifyIcon) { $script:NotifyIcon.Text = "猫猫画布 — 运行中 (:18080)" }
-            if ($code -eq 0) {
-                Write-Log "  ✅ 构建 $key 成功。日志：$logFile" "Success"
-                if ($script:NotifyIcon) {
-                    $script:NotifyIcon.ShowBalloonTip(4000, "猫猫画布", "构建 $key 成功", [System.Windows.Forms.ToolTipIcon]::Info)
-                }
-                # 后端构建成功 → 自动重启服务以加载新代码。
-                # ⚠️ 对齐 Mac：重启必须在【后台线程】执行（Mac 用 DispatchQueue.global.async 调 restartBackend），
-                #    若在本 tick（WinForms UI 线程）同步执行 Start-LocalTool（内含 Wait-PortReady≤25s、甚至 npm
-                #    install/build≤10min），会冻结托盘 UI，异常抛在 UI 线程可令 exe 崩溃退出。
-                #    用 [System.Threading.ThreadPool]::QueueUserWorkItem 派发到线程池，主线程立即返回不阻塞。
-                if ($key -eq "后端") {
-                    Write-Log "  🔄 后端已重新编译，正在后台自动重启服务..." "Info"
-                    if ($script:NotifyIcon) { $script:NotifyIcon.Text = "猫猫画布 — 后端重启中..." }
-                    [System.Threading.ThreadPool]::QueueUserWorkItem({
-                        try {
-                            Start-RestartServiceSilently
-                        } catch {
-                            Write-Log "  ❌ 后台重启后端失败：$($_.Exception.Message)" "Error"
-                        }
-                    }) | Out-Null
-                }
-            } else {
-                Write-Log "  ❌ 构建 $key 失败。日志：$logFile" "Error"
-                if ($script:NotifyIcon) {
-                    $script:NotifyIcon.ShowBalloonTip(8000, "猫猫画布", "构建 $key 失败，请打开日志目录查看 $logFile", [System.Windows.Forms.ToolTipIcon]::Error)
+        try {
+            $p = $script:BuildProc
+            if ($null -ne $p -and $p.HasExited) {
+                $self = $script:BuildAsyncTimer
+                if ($null -ne $self) { $self.Stop(); $self.Dispose() }
+                $script:BuildAsyncTimer = $null
+                $code = $p.ExitCode
+                $logFile = $script:BuildLogFile
+                $key = $script:BuildKey
+                $script:BuildProc = $null
+                $script:BuildBusy = $false
+                if ($script:NotifyIcon) { $script:NotifyIcon.Text = "猫猫画布 — 运行中 (:18080)" }
+                if ($code -eq 0) {
+                    Write-Log "  ✅ 构建 $key 成功。日志：$logFile" "Success"
+                    if ($script:NotifyIcon) {
+                        $script:NotifyIcon.ShowBalloonTip(4000, "猫猫画布", "构建 $key 成功", [System.Windows.Forms.ToolTipIcon]::Info)
+                    }
+                    # 后端构建成功 → 自动重启服务以加载新代码。
+                    # ⚠️ ps2exe 崩溃修复：不能再用 [ThreadPool]::QueueUserWorkItem({...}) 派发脚本块——
+                    #     线程池线程无 runspace 上下文，脚本块一执行就抛 PSInvalidOperationException 崩掉托盘。
+                    # 因此改为在本 tick（托盘主线程）同步执行重启。刚构建完 dist 是新的、node_modules 也在，
+                    # Start-LocalTool 不会触发 install/重编译，通常 1~3 秒完成，不会明显冻结托盘。
+                    if ($key -eq "后端") {
+                        Write-Log "  🔄 后端已重新编译，正在重启服务以加载新代码..." "Info"
+                        if ($script:NotifyIcon) { $script:NotifyIcon.Text = "猫猫画布 — 后端重启中..." }
+                        Start-RestartServiceSilently
+                    }
+                } else {
+                    Write-Log "  ❌ 构建 $key 失败。日志：$logFile" "Error"
+                    if ($script:NotifyIcon) {
+                        $script:NotifyIcon.ShowBalloonTip(8000, "猫猫画布", "构建 $key 失败，请打开日志目录查看 $logFile", [System.Windows.Forms.ToolTipIcon]::Error)
+                    }
                 }
             }
+        } catch {
+            $script:BuildBusy = $false
+            Write-Log "  ❌ 构建收尾处理异常：$($_.Exception.Message)" "Error"
         }
     })
     $script:BuildAsyncTimer = $t
     $t.Start()
 }
 
-# 静默重启服务（构建后端成功后由后台线程调用）——复用已有逻辑但减少刷屏。
+# 静默重启服务（构建后端成功后由托盘主线程调用）——复用已有逻辑但减少刷屏。
 # 对齐 Mac restartBackend()：
 #   - 置 $script:IsRestarting=true 防重入 + 防健康巡检误杀（tick 期间不做崩溃判定/不抢拉第二个 node）；
 #   - 杀旧进程树 → 清端口 → 启动新代码；
@@ -770,10 +793,7 @@ function Start-TrayDaemon {
     })
     $null = $menu.Items.Add($miRestart)
 
-    # ── 🛠️ 构建子菜单：构建前端 / 构建后端（静默后台构建，完成气泡提示，不弹 cmd 窗口）──
-    $miBuild = New-Object System.Windows.Forms.ToolStripMenuItem("构建")
-    $miBuild.Font = New-Object System.Drawing.Font($miBuild.Font, [System.Drawing.FontStyle]::Bold)
-
+    # ── 🛠️ 构建前端 / 构建后端（静默后台构建，完成气泡提示，不弹 cmd 窗口；命令不多，直接放顶层）──
     $miBuildFe = New-Object System.Windows.Forms.ToolStripMenuItem("构建前端")
     $miBuildFe.Add_Click({
         if ($script:BuildBusy) {
@@ -782,7 +802,7 @@ function Start-TrayDaemon {
         }
         Invoke-SilentBuild -titleKey "前端" -WorkDir $ProjectRoot -NpmArgs "run build"
     })
-    $null = $miBuild.DropDownItems.Add($miBuildFe)
+    $null = $menu.Items.Add($miBuildFe)
 
     $miBuildTool = New-Object System.Windows.Forms.ToolStripMenuItem("构建后端 (localTool)")
     $miBuildTool.Add_Click({
@@ -793,9 +813,7 @@ function Start-TrayDaemon {
         # 构建后端：完成后需重启服务才能加载新代码
         Invoke-SilentBuild -titleKey "后端" -WorkDir (Join-Path $ProjectRoot $Config.LocalTool.Dir) -NpmArgs "run build"
     })
-    $null = $miBuild.DropDownItems.Add($miBuildTool)
-
-    $null = $menu.Items.Add($miBuild)
+    $null = $menu.Items.Add($miBuildTool)
 
     $miLog = New-Object System.Windows.Forms.ToolStripMenuItem("打开日志目录")
     $miLog.Add_Click({

@@ -73,6 +73,14 @@ powershell -ExecutionPolicy Bypass -File .\build-exe.ps1
 
 流程：点菜单 → `Invoke-SilentBuild` → 起 node 后台跑 `npm run build` → 写 `logs\build_<key>.log` → 完成气泡。
 
+> ⚠️ 2026-09-07 修复「点构建前端/后端，整个托盘 exe 直接退出」：根因是 ps2exe 编译的 exe 里，
+> 对构建进程用 `RedirectStandardOutput + BeginOutputReadLine + scriptblock` 异步读输出——
+> `OutputDataReceived` 回调跑在 .NET 线程池线程上，没有 PowerShell runspace 上下文，
+> node 一打印输出即抛 `PSInvalidOperationException`，整个进程终止（事件查看器「.NET Runtime」可证）。
+> 现构建输出由子进程（cmd 仅作重定向壳、全程 CreateNoWindow，不弹窗）**直接写**日志文件，
+> 托盘不再接管输出管道；后端构建成功后的自动重启也改回托盘主线程同步执行。
+> 若再遇托盘异常退出：`事件查看器 → Windows 日志 → 应用程序 → 来源 .NET Runtime` 定位。
+
 | 现象 | 查哪里 |
 |------|--------|
 | 点了没反应、托盘无变化 | `logs\launcher.log` 看是否 `BuildBusy` 卡住（上次构建没结束） |

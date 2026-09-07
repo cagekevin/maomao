@@ -57,11 +57,11 @@ function ConfirmContainer() {
   const onCancel = useCallback(() => resolveConfirm(false), []);
   const onConfirm = useCallback(() => resolveConfirm(true), []);
   const onDownload = useCallback(() => resolveChoice('download'), []);
-  // 【三态】仅当请求带 downloadText 时渲染第三个按钮（下载）→ 语义 = 三选一
-  const hasDownload = typeof request.downloadText === 'string' && request.downloadText.length > 0;
-
+  // 空态 / SSR 提前返回，避免下方读 request 字段时 request 为 null 抛错
   if (typeof document === 'undefined') return null;
   if (!request) return null;
+  // 【三态】仅当请求带 downloadText 时渲染第三个按钮（下载）→ 语义 = 三选一
+  const hasDownload = typeof request.downloadText === 'string' && request.downloadText.length > 0;
 
   const items = Array.isArray(request.items) ? request.items.filter(Boolean) : [];
 
