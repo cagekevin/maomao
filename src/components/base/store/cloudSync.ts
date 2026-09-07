@@ -712,7 +712,7 @@ export async function uploadConfig(
     // 4) 成功 → 记台账：本次上传的这一版 = 新基线
     writeLedger({ rev: nextRev, syncedAt: payload.updatedAt, localHash });
     // 【P0 埋点】云同步上传成功（排查「同步失败无痕」：确认上传发生且带条目数/修订号）
-    logger.debug('同步', '[上传] 成功', { count: n, rev: nextRev }, { module: 'project' });
+    logger.info('同步', '[上传] 成功', { count: n, rev: nextRev });
     return { ok: true, count: n };
   } catch (e) {
     logger.warn('同步', '[上传] 异常', { error: e?.message || '同步失败' });
@@ -792,7 +792,7 @@ export async function downloadConfig(
       localHash: contentFingerprint(await collectLocalData()),
     });
     // 【P0 埋点】云同步下载成功（排查「拉取后数据没恢复」：确认恢复条目数/修订号）
-    logger.debug('同步', '[下载] 成功', { count, rev: cloud.rev }, { module: 'project' });
+    logger.info('同步', '[下载] 成功', { count, rev: cloud.rev });
     return { ok: true, count, hasCloud: true };
   } catch (e) {
     logger.warn('同步', '[下载] 解析失败', { error: e?.message || '云端数据解析失败' });
