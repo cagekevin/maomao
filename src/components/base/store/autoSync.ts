@@ -26,8 +26,8 @@ import { askChoice, askConfirm } from '../core/confirmStore.ts';
 import { showToast } from '../core/toastStore.ts';
 import { logger } from '../core/logger.ts';
 
-/** 两轮自动同步之间隔（固定 30 分钟；间隔可调留二期，见 docs 方案 §8） */
-const INTERVAL_MS = 30 * 60_000;
+/** 两轮自动同步之间隔（固定 45 分钟；间隔可调留二期，见 docs 方案 §8） */
+const INTERVAL_MS = 45 * 60_000;
 /** 首次启动延迟：让应用先初始化完（localTool/网关等），避免启动即同步空数据 */
 const FIRST_DELAY_MS = 30_000;
 /** 连续「稍后」次数达到该值 → 当日退避（次日 00:00 前不再弹） */

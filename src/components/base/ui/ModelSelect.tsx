@@ -122,7 +122,7 @@ function ModelSelect({
           type="button"
           className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors cursor-pointer ${
             active
-              ? 'text-[#60a5fa] bg-[#3b82f6]/10'
+              ? 'text-white bg-white/10'
               : 'text-muted hover:text-primary hover:bg-surface-hover'
           }`}
           onClick={(e) => {
