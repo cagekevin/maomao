@@ -222,20 +222,39 @@
   border-right: none;
 }
 
-/* 行交互：hover 高亮 + 选中态（.sel 蓝底 + 首列左竖条） */
-/* 行本身不再整体可点（spec §0-7：只有行号格 = 选行入口），故不给整行 pointer 暗示 */
+/* ════ 表格「选中/编辑/选区」视觉 — 唯一规范（2026-09-07 系统统一）════
+   目标：消除观感里的"脏/怪"。此前四种状态各自写一套 accent 蓝 + 灰，alpha/粗细互不相同，
+   同一格又可能同时命中多态 → 颜色打架。现收敛成**两条铁律**：
+
+   ① 【蓝只分三档，全局同源，禁止散落 alpha】
+        focus(当前编辑格/选区锚点)   = accent 实底 /0.14  + 实蓝 1px 描边   ← 最亮
+        range(选区其余格)            = accent 实底 /0.10  + 实蓝 /0.6 描边   ← 次亮
+        sel(整行选中)                = accent 实底 /0.08                     ← 最淡（不抢格）
+      —— 一律直接 rgb(var(--mao-accent))，只用 alpha 分档，杜绝第二套色。
+   ② 【优先：让"真正被点、正在用"的那层赢】
+        编辑格 td:has(> .cell:focus) 的声明**最靠后**，压过选区/行选中；选区格压过行选中整行。
+        逻辑上三者已互斥（选行清选区 / 设选区清选行），不会整行 + 整块选区同时亮，
+        但同一 td 上「选区内 + 点进编辑」会共存 —— 靠声明顺序决定只显示编辑态那层。
+   ③ hover 一律用中性灰（surface-hover），绝不用蓝 —— 蓝只表达"已选中"。
+   ④ 行选中只给整行 + 行号左竖条，不给格框（格框留给选区/编辑）。
+
+   ⚠️ 编辑格不再自带背景（上一轮已去灰）：它透出下面那层，只靠"实蓝描边 + 更高档底"表达，
+   不跟选区底"叠色"（叠了就会混出脏蓝）。 */
 .atw-grid tbody tr {
   transition: background 0.12s;
   cursor: default;
 }
+/* hover：中性灰，不代表"已选中" */
 .atw-grid tbody tr:hover {
   background: rgb(var(--mao-surface-hover));
 }
+/* ── 行选中：最淡的蓝底 + 行号左竖条（第 0 档）── */
 .atw-grid tbody tr.sel {
-  background: rgb(var(--mao-accent) / 0.1);
+  background: rgb(var(--mao-accent) / 0.08);
 }
-.atw-grid tr.sel td:first-child {
+.atw-grid tr.sel td.idx {
   box-shadow: inset 2px 0 0 rgb(var(--mao-accent));
+  color: rgb(var(--mao-accent-strong));
 }
 .atw-grid td.idx {
   color: rgb(var(--mao-text-faint));
@@ -248,13 +267,24 @@
   color: rgb(var(--mao-accent-strong));
   background: rgb(var(--mao-surface-hover));
 }
-/* 矩形选区（spec 3.6）：淡蓝底 + 内描边，与行选中 .sel 同族但更轻（选区是临时态） */
-.atw-grid td.in-range {
-  background: rgb(var(--mao-accent) / 0.12);
-  box-shadow: inset 0 0 0 1px rgb(var(--mao-accent) / 0.35);
+/* ── 矩形选区：参与格次亮蓝底 + 细描边（spec 3.6；第 1 档，高于行选中）── */
+.atw-grid tbody tr.sel td.in-range {
+  background: rgb(var(--mao-accent) / 0.1);
 }
-.atw-grid tr.sel td.idx {
-  color: rgb(var(--mao-accent-strong));
+.atw-grid td.in-range {
+  background: rgb(var(--mao-accent) / 0.1);
+  box-shadow: inset 0 0 0 1px rgb(var(--mao-accent) / 0.6);
+}
+/* ── 单元格编辑态：最亮档，声明放最后 → 压过选区/行选中（第 2 档）
+   只给实蓝描边 + 提一档底（半透明微蓝，让编辑格在深底上也能辨出）；
+   ⚠️ 此档声明顺序必须在 .in-range / tr.sel 之后，否则同 td 会错层。 */
+.atw-grid td:has(> .cell:focus) {
+  background: rgb(var(--mao-accent) / 0.14);
+  box-shadow: inset 0 0 0 1px rgb(var(--mao-accent));
+}
+.atw-grid .cell:focus {
+  background: transparent;
+  color: rgb(var(--mao-text-strong));
 }
 
 /* 表头列名可编辑（点列名直接改，回车/失焦提交） */
@@ -383,20 +413,13 @@
   vertical-align: top;
   word-break: break-word;
 }
-/* ══ 单元格编辑态（2026-09-07 重做观感）══
-   原先把「灰底 + 蓝描边 + 4px 圆角」画在 textarea 自身，而 td 又自带 padding（4px 7px），
-   textarea 比 td 小一圈 → 「格子底色 / 一圈露底 / 灰块 / 蓝框 / 文字」四层叠在一起，像个脏补丁
-   （选中行上更明显：行选中淡蓝底 + 灰块两层颜色互脏）。
-   现在底色与描边都上移到 td（:has(> .cell:focus)），textarea 自身完全透明：
-   线贴着格子边界，文字与线之间隔着 td 的 padding —— 与 Notion/Airtable 的单元格编辑态同款。
-   ⚠️ 必须用 :has 而非 td:focus-within：操作列里的按钮聚焦也会触发 focus-within，
-   会给「⋯ 按钮」套一圈蓝框。 */
-.atw-grid td:has(> .cell:focus) {
-  background: rgb(var(--mao-surface) / 0.7); /* 半透明：行选中淡蓝底可微透，不突兀 */
-  box-shadow: inset 0 0 0 1px rgb(var(--mao-accent));
-}
-.atw-grid .cell:focus {
-  background: transparent;
+/* ══ 表格内文本选区（2026-09-07 系统统一 ══）
+   让「选中一段文字」的高亮与「选中格子」用**同一套 accent 蓝**：
+   浏览器默认文字选区是 UA 的系统蓝（底色 highlight、文字反白），与格子描边 #3b82f6 不是一套色值。
+   这里只覆盖表格域。注意它跟格子选中是**两种正交操作**（一段文字 vs 一个单元格），
+   底都用 accent 但档位不同是允许的 —— 观感统一在"都是同一种蓝"上。 */
+.atw-grid ::selection {
+  background: rgb(var(--mao-accent) / 0.35);
   color: rgb(var(--mao-text-strong));
 }
 .atw-grid .ops {
