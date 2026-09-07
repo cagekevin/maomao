@@ -1061,3 +1061,132 @@ export function copyRowsToTab(
     }),
   };
 }
+
+/* ═ 跨标签页「查找替换」（spec：查找替换面板；纯文本、不区分大小写、不支持正则）═
+ * 仅替换【单元格文本】（row.values[colId]），不动列名 / 表结构 / globalStyle（防崩边界）。
+ * 用 indexOf 循环（不用正则，规避 `.`/`*` 等元字符被当正则语法崩坏）。 */
+
+/**
+ * 单单元格替换底层。
+ *  - matchCount：匹配命中次数（面板「找到 M 处」用，与 replace 无关）；
+ *  - changeCount：值真正变化的次数（replaceTextInTabs 的 count / toast「已替换 M 处」用；
+ *    replace===find 等 no-op 匹配记为 0，避免谎报）。
+ * 防无限循环：replace 串若含 find 子串，i 从 idx+flen 推进，不会回退重匹配。
+ */
+function replaceInCell(
+  text: string,
+  find: string,
+  replace: string,
+): { text: string; matchCount: number; changeCount: number } {
+  if (!find) return { text, matchCount: 0, changeCount: 0 };
+  const lower = text.toLowerCase();
+  const f = find.toLowerCase();
+  const flen = f.length;
+  let i = 0;
+  let out = '';
+  let matchCount = 0;
+  let changeCount = 0;
+  while (true) {
+    const idx = lower.indexOf(f, i);
+    if (idx < 0) {
+      out += text.slice(i);
+      break;
+    }
+    const original = text.slice(idx, idx + flen);
+    out += text.slice(i, idx) + replace;
+    matchCount += 1;
+    if (original !== replace) changeCount += 1;
+    i = idx + flen;
+  }
+  return { text: out, matchCount, changeCount };
+}
+
+/**
+ * 跨所有标签页替换单元格文本（全量一次性不可变更新；原子、无中间态）。
+ * find 空 或 无任何变化 → 返回【原 tabs 引用】（幂等，不入新对象、不污染撤销栈）。
+ * @returns { tabs, count } —— count = changeCount（实际改变处数，供 toast）。
+ */
+export function replaceTextInTabs(
+  tabs: AssistantTableTabs,
+  find: string,
+  replace: string,
+): { tabs: AssistantTableTabs; count: number } {
+  if (!find) return { tabs, count: 0 };
+  let total = 0;
+  let anyChanged = false;
+  const nextTabs: AssistantTableTabs = {
+    ...tabs,
+    tabs: tabs.tabs.map((t) => {
+      let tabChanged = false;
+      const rows = t.rows.map((r) => {
+        const values = { ...r.values };
+        for (const colId of Object.keys(values)) {
+          const res = replaceInCell(values[colId], find, replace);
+          if (res.text !== values[colId]) {
+            values[colId] = res.text;
+            total += res.changeCount;
+            tabChanged = true;
+          }
+        }
+        return tabChanged ? { ...r, values } : r; // 未变行保留原引用（不可变纪律）
+      });
+      if (!tabChanged) return t; // 未变 tab 保留原引用
+      anyChanged = true;
+      return { ...t, rows };
+    }),
+  };
+  if (!anyChanged) return { tabs, count: 0 }; // 原样返回（幂等）
+  return { tabs: nextTabs, count: total };
+}
+
+/**
+ * 跨所有标签页实时统计 find 匹配次数（面板预览「找到 M 处」用；与 replace 无关，纯读数）。
+ * find 空 → 0。
+ */
+export function countMatchesInTabs(tabs: AssistantTableTabs, find: string): number {
+  if (!find) return 0;
+  let total = 0;
+  for (const t of tabs.tabs) {
+    for (const r of t.rows) {
+      for (const colId of Object.keys(r.values)) {
+        total += replaceInCell(r.values[colId], find, find).matchCount;
+      }
+    }
+  }
+  return total;
+}
+
+/* ═ 系统剪贴板单元格粘贴解析（spec interaction-model §1.4）═
+ * 把「外部复制来的文本」解析成可在表内按矩形铺开的二维 cells。
+ * 与 parsePasted 的区别：parsePasted 把首行当表头（用于整体建表）；本函数只做"粘贴进已有格的矩形数据"，
+ * 首行就是数据、非表头。返回 null 表示纯单值（无 \t 无换行），由调用方走单格覆盖。 */
+
+/**
+ * 解析系统剪贴板文本 → 判定是否"网格粘贴"。
+ * @returns { cells } 非空返回二维 cells（含制表符或换行 → 网格）；单值/空 → null（调用方按单格覆盖处理）。
+ *   - 按 \n 分行、\t 分格（与 rangeToTsv 对称）；\r 剥掉；
+ *   - 行不要求等长（粘贴时越界自动裁剪，绝不扩列/加行，对齐 pasteCells 语义）；
+ *   - 全空文本返回 null。
+ */
+export function parseClipboardGrid(text: string): string[][] | null {
+  const s = String(text ?? '');
+  if (!s.trim()) return null;
+  // 仅含单个换行（内部允许 \n 作"内容换行"，此时仍算单值）——业界：纯多行且无 \t 才按列。
+  if (!s.includes('\t')) {
+    // 无制表符：若是单行值（多行文本里也无 \t）→ 视为单格（保留内嵌换行原样）
+    return null;
+  }
+  const grid = s
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.split('\t'));
+  if (!grid.length) return null;
+  return grid;
+}
+
+/**
+ * 读某格当前文本（含草稿回退 backing；供系统剪贴板单格复制）。业务由 UI 层提供值，本函数仅归一。
+ */
+export function cellCopyText(value: string): string {
+  return String(value ?? '');
+}

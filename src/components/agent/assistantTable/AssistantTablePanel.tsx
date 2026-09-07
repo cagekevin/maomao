@@ -20,7 +20,13 @@
  *  - tableHistory.ts：撤销/重做栈（纯运行态、不落盘）；
  *  - icons.tsx / assistant-table.css 同款。
  */
-import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 import { Undo2, Redo2 } from 'lucide-react';
 import {
   setCurrentAssistantTable,
@@ -46,7 +52,7 @@ import {
   setActiveTabId,
   copyRowsToTab,
 } from './assistantTable.ts';
-import { normalizeAssistantTable } from './assistantTable.ts';
+import { normalizeAssistantTable, replaceTextInTabs } from './assistantTable.ts';
 import { useTableSelection } from './useTableSelection.ts';
 import type { AssistantTable, TableRow, TableTab } from './assistantTable.ts';
 import { showToast } from '@/components/base/core/toastStore.ts';
@@ -54,6 +60,8 @@ import { askConfirm } from '@/components/base/core/confirmStore.ts';
 import {
   useTableWorkspace,
   setTableWorkspaceRows,
+  setTableFocusedCell,
+  setTableEditingCell,
   switchTableTab,
   setPreviewTargetTab,
   discardPreviewForMissingTarget,
@@ -65,6 +73,7 @@ import { usePreviewResize } from './usePreviewResize.ts';
 import { pushHistory, useTableHistory, undoTable, redoTable } from './tableHistory.ts';
 import TableGrid from './TableGrid.tsx';
 import TableTabsBar from './TableTabsBar.tsx';
+import FindReplaceDialog from './FindReplaceDialog.tsx';
 import RowOpsMenu from './RowOpsMenu.tsx';
 import Icon from './icons.tsx';
 import AssistantTablePreviewCard from './AssistantTablePreviewCard.tsx';
@@ -92,7 +101,7 @@ export default function AssistantTablePanel({
   onConfirmPreview,
   onCancelPreview,
 }: AssistantTablePanelProps) {
-  const { selectedRowIds, preview, previewHeight } = useTableWorkspace();
+  const { selectedRowIds, preview, previewHeight, focusedCell, editingCell } = useTableWorkspace();
   // ── 多标签页数据源（真源 = memory.assistantTables；返回 tabs + 当前活动 tab）──
   const {
     activeConversationId,
@@ -103,6 +112,8 @@ export default function AssistantTablePanel({
   } = useActiveAssistantTable();
   const { canUndo, canRedo } = useTableHistory();
   const { onGripPointerDown } = usePreviewResize();
+  // 查找替换弹窗开关（⋯ 菜单「查找替换」打开；Esc/取消/替换完成关闭）
+  const [findReplaceOpen, setFindReplaceOpen] = useState(false);
 
   /** 唯一写回入口（当前活动 tab）：commit 前快照入撤销栈 */
   const commit = (sb: AssistantTable) => {
@@ -112,7 +123,7 @@ export default function AssistantTablePanel({
     setCurrentAssistantTable(normalized);
   };
 
-  // 选区 + 内部剪贴板（spec 3.6；依赖 commit，故必须在其后声明）
+  // 选区 + 系统/内部剪贴板（spec 3.6 + interaction-model；依赖 commit，故必须在其后声明）
   const { range, onCellPointerDown, clearRange, copy, paste } = useTableSelection({
     table: tableData,
     selectedRowIds,
@@ -155,6 +166,46 @@ export default function AssistantTablePanel({
   useEffect(() => {
     resetAllDrafts();
   }, [activeTabId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── 业界模型单元格交互（spec interaction-model §3）：单击=聚焦整格、双击=编辑、切格=先提交当前编辑 ──
+  /** 提交当前正在编辑的格（若在编辑）并退出编辑态；无编辑则 no-op。
+   *  触发场景：用户单击另一个格/行号/工具栏（点了不可聚焦的 div，原生 blur 不会自己触发，须显式提交）。 */
+  const commitEditingCellIfAny = () => {
+    const ec = editingCell;
+    if (!ec) return;
+    const row = tableData.rows.find((r) => r.id === ec.rowId);
+    if (!row) {
+      setTableEditingCell(null); // 行已不存在 → 直接退出
+      return;
+    }
+    const backing = row.values[ec.colId] ?? '';
+    commitCell(ec.rowId, ec.colId, cellValue(ec.rowId, ec.colId, backing));
+    setTableEditingCell(null);
+  };
+
+  /** 单击格：若正在编辑另一格先提交它；再聚焦该格为「当前格」（不进入编辑），并清行多选（互斥） */
+  const handleFocusCell = (rowId: string, colId: string) => {
+    if (editingCell && !(editingCell.rowId === rowId && editingCell.colId === colId)) {
+      commitEditingCellIfAny();
+    }
+    setTableFocusedCell({ rowId, colId });
+    if (selectedRowIds.length) setTableWorkspaceRows([]); // 普通格聚焦与行多选互斥
+  };
+
+  /** 双击格：先提交正在编辑的其它格，再进入编辑态（该格同时成为当前格） */
+  const handleEditCell = (rowId: string, colId: string) => {
+    if (editingCell && !(editingCell.rowId === rowId && editingCell.colId === colId)) {
+      commitEditingCellIfAny();
+    }
+    setTableFocusedCell({ rowId, colId });
+    setTableEditingCell({ rowId, colId });
+  };
+
+  /** 编辑态 textarea blur 提交（业界：失焦即提交 + 退出编辑回选中态） */
+  const handleCellCommit = (rowId: string, colId: string, value: string) => {
+    commitCell(rowId, colId, value);
+    setTableEditingCell(null);
+  };
 
   const handlePaste = async () => {
     let text = '';
@@ -329,6 +380,7 @@ export default function AssistantTablePanel({
    *  ⚠️ 选行 = 与选区互斥的另一套信号：一旦选行就清掉矩形选区（spec §3.6 —— 选区与行多选互斥，
    *  否则行选中后之前的选区蓝框还挂着，视觉像脏残留）。 */
   const onClickRow = (e: ReactMouseEvent, row: TableRow) => {
+    if (editingCell) commitEditingCellIfAny(); // 点行号格（非聚焦元素，无原生 blur）→ 显式提交正在编辑的格
     if (range) clearRange();
     const multi = e.metaKey || e.ctrlKey;
     let next: string[];
@@ -356,42 +408,61 @@ export default function AssistantTablePanel({
       next = selectedRowIds.length === 1 && selectedRowIds[0] === row.id ? [] : [row.id];
     }
     setTableWorkspaceRows(next);
+    // 行选中与单格聚焦互斥（spec interaction-model §3.1）：一旦有选中行，就清掉「当前格/编辑格」，
+    // 否则会出现「行也选了、单格还亮着」的脏叠加（用户 2026-09-08 反馈）。取消全部行选时不强制清。
+    if (next.length) {
+      setTableFocusedCell(null);
+      setTableEditingCell(null);
+    }
   };
 
   /**
-   * 面板内快捷键（焦点必须在 .atw 面板内；spec 3.6）：
+   * 面板内快捷键（焦点必须在 .atw 面板内；spec 3.6 + interaction-model §3.3）：
    *  - Delete/Backspace = 批量删除选中行；
-   *  - Ctrl/Cmd+C = 复制到**内部**剪贴板（有多选行复制行，否则复制选区）；
-   *  - Ctrl/Cmd+V = 从内部剪贴板粘贴；
-   *  - Esc = 取消选区。
+   *  - Ctrl/Cmd+C = 复制（**行 > 矩形选区 > 聚焦单格**）到系统剪贴板 + 内部；编辑态（textarea）走浏览器原生；
+   *  - Ctrl/Cmd+V = 从系统剪贴板粘贴（回退内部剪贴板）；编辑态走浏览器原生；
+   *  - Esc = 退出编辑态；无编辑则取消选区。
    * ⚠️ 绝不绑 Ctrl/Cmd+Z（spec 3.4：与画布 undo / 单元格原生 undo 三方抢键，撤销只走工具条按钮）。
-   * ⚠️ 编辑态（INPUT/TEXTAREA）一律不拦，交给浏览器原生（含原生复制粘贴）。
+   * ⚠️ 判定「是否编辑中」而非看标签：编辑中（editingCell 非空）→ 放行给 textarea 原生文字复制粘贴；
+   *    非编辑 → 表格接管系统剪贴板（修「复制粘不出来」根因：焦点在格内 textarea 时原 handler 直接短路给原生）。
    */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
-      if (!panelRef.current?.contains(t)) return;
+      // 编辑态：用户在改格内文字 → Ctrl/Cmd+C/V 走 textarea 原生（业界），不拦
+      if (editingCell) {
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+        return;
+      }
+      // 非编辑态接管条件：事件目标在面板内，**或** 面板内已有聚焦格（focusedCell 非空）。
+      // ⚠️ 业界模型下选中格是只读 div（不聚焦），单击后 DOM 焦点常落在 body/别处 → keydown 的
+      //   e.target 不在面板内，原「contains 才接管」会把 Ctrl+C/V 整个拦掉（连 toast 都不弹）。
+      //   放宽为「已选中格就接管」，既不抢全局（无选中格且焦点在面板外 → return），又让复制粘贴可用。
+      const inPanel = !!panelRef.current?.contains(t);
+      if (!inPanel && !focusedCell) return;
       const mod = e.metaKey || e.ctrlKey;
       const k = e.key.toLowerCase();
       if (mod && k === 'c') {
-        const msg = copy();
-        if (msg) {
-          e.preventDefault();
-          showToast?.(msg, { type: 'success' });
-        }
+        e.preventDefault();
+        void copy(focusedCell).then((msg) => {
+          if (msg) showToast?.(msg, { type: 'success' });
+        });
         return;
       }
       if (mod && k === 'v') {
-        const msg = paste();
-        if (msg) {
-          e.preventDefault();
-          showToast?.(msg, { type: 'success' });
-        }
+        e.preventDefault();
+        void paste(focusedCell).then((msg) => {
+          if (msg) showToast?.(msg, { type: 'success' });
+        });
         return;
       }
       if (e.key === 'Escape') {
-        clearRange();
+        if (editingCell) {
+          e.preventDefault();
+          commitEditingCellIfAny();
+        } else {
+          clearRange();
+        }
         return;
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedRowIds.length) {
@@ -402,7 +473,8 @@ export default function AssistantTablePanel({
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [selectedRowIds, tableData, copy, paste, clearRange]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRowIds, tableData, copy, paste, clearRange, focusedCell, editingCell]);
 
   const hasData = tableData.columns.length > 0;
   /** 面板根节点（快捷键只在面板内生效，防抢全局/画布快捷键） */
@@ -455,6 +527,7 @@ export default function AssistantTablePanel({
           switchTableTab(next.tabs[next.tabs.length - 1].id);
           showToast?.('已复制为新表');
         }}
+        onFindReplace={() => setFindReplaceOpen(true)}
         onReorder={(from, to) => {
           const cur = getCurrentAssistantTabs();
           const next = moveTab(cur, from, to);
@@ -579,12 +652,16 @@ export default function AssistantTablePanel({
           selectedRowIds={selectedRowIds}
           range={range}
           onCellPointerDown={onCellPointerDown}
+          editingCell={editingCell}
+          focusedCell={focusedCell}
+          onFocusCell={handleFocusCell}
+          onEditCell={handleEditCell}
           colWidths={colWidths}
           colElsRef={colElsRef}
           resizeTick={resizeTick}
           cellValue={cellValue}
           onCellChange={setCellDraft}
-          onCellCommit={commitCell}
+          onCellCommit={handleCellCommit}
           onRowClick={onClickRow}
           colRename={colRename}
           onColRenameChange={setColRename}
@@ -648,6 +725,25 @@ export default function AssistantTablePanel({
           />
         </div>
       )}
+
+      {/* 查找替换面板（⋯ 菜单「查找替换」打开）：本面板只管输入+实时计数，onReplace 走下面唯一全量替换入口 */}
+      <FindReplaceDialog
+        open={findReplaceOpen}
+        tabs={tabs}
+        onCancel={() => setFindReplaceOpen(false)}
+        onReplace={(find, replace) => {
+          const cur = getCurrentAssistantTabs();
+          const result = replaceTextInTabs(cur, find, replace);
+          if (result.tabs !== cur) {
+            pushHistory(cur); // commit 前快照入撤销栈，改错可一键 ⟲ 还原
+            setCurrentAssistantTabs(result.tabs);
+            showToast?.(`已在所有标签页替换 ${result.count} 处`, { type: 'success' });
+          } else {
+            showToast?.('没有找到匹配内容', { type: 'info' });
+          }
+          setFindReplaceOpen(false);
+        }}
+      />
     </section>
   );
 }

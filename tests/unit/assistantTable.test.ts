@@ -40,8 +40,15 @@ import {
   rangeToCells,
   rangeToTsv,
   pasteCells,
+  replaceTextInTabs,
+  countMatchesInTabs,
+  parseClipboardGrid,
 } from '../../src/components/agent/assistantTable/assistantTable.ts';
-import type { AssistantTable } from '../../src/components/agent/assistantTable/assistantTable.ts';
+import type {
+  AssistantTable,
+  AssistantTableTabs,
+  TableTab,
+} from '../../src/components/agent/assistantTable/assistantTable.ts';
 
 describe('AI 助手表格模型（assistantTable 纯函数）', () => {
   it('parsePasted(TSV)：首行为表头，其余为数据行；全空数据行跳过', () => {
@@ -638,5 +645,156 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
       const t = sb();
       expect(pasteCells(t, { rowId: 'nope', colId: 'x' }, [['A']])).toBe(t);
     });
+  });
+});
+
+describe('跨标签页查找替换（replaceTextInTabs / countMatchesInTabs）', () => {
+  /**
+   * 3 标签页夹具：tab1 各格含「卧室」，tab2 含「Bedroom/bedroom」大小写变体，
+   * tab3 列名含「卧室」但行值不含；覆盖 跨 tab / 大小写 / 列名与值边界。
+   */
+  const fixture = (): AssistantTableTabs => {
+    const t1 = normalizeAssistantTable(parsePasted('地点\t动作\n卧室\t走进卧室\n厨房\t无')!);
+    const t2 = normalizeAssistantTable(
+      parsePasted('地点\t备注\nBedroom 内\t住 bedroom\n客厅\tBEDROOM')!,
+    );
+    const t3 = normalizeAssistantTable(parsePasted('卧室描述\t备注\n阳台\n阁楼')!);
+    const t1Tab: TableTab = { id: 'tab1', name: '表1', ...t1, globalStyle: '' };
+    const t2Tab: TableTab = { id: 'tab2', name: '表2', ...t2, globalStyle: '' };
+    const t3Tab: TableTab = { id: 'tab3', name: '表3', ...t3, globalStyle: '' };
+    return { tabs: [t1Tab, t2Tab, t3Tab], activeTabId: 'tab1' };
+  };
+
+  /** 扁平收集所有 tab 所有单元格文本 */
+  const allCells = (tabs: AssistantTableTabs): string[] =>
+    tabs.tabs.flatMap((t) => t.rows.flatMap((r) => Object.values(r.values)));
+
+  it('全量跨 tab 替换：3 个 tab 含「卧室」全改成「厨房」，无残留', () => {
+    const tabs = fixture();
+    const res = replaceTextInTabs(tabs, '卧室', '厨房');
+    expect(res.count).toBe(2); // t1 两格各含 1 处卧室（t3 值不含）
+    expect(res.tabs.tabs[0].rows[0].values[res.tabs.tabs[0].columns[0].id]).toBe('厨房');
+    expect(res.tabs.tabs[0].rows[0].values[res.tabs.tabs[0].columns[1].id]).toBe('走进厨房');
+    // t3 值无卧室，仅列名有 → 行值不动
+    expect(res.tabs.tabs[2].rows[0].values[res.tabs.tabs[2].columns[0].id]).toBe('阳台');
+    // 全表无残留「卧室」值（列名允许含）
+    expect(allCells(res.tabs).join('')).not.toContain('卧室');
+  });
+
+  it('不区分大小写：Bedroom/bedroom/BEDROOM 全命中，非匹配部分保留', () => {
+    const tabs = fixture();
+    const res = replaceTextInTabs(tabs, 'bedroom', '厕所');
+    expect(res.count).toBe(3);
+    const cells = allCells(res.tabs);
+    expect(cells).toContain('厕所 内');
+    expect(cells).toContain('住 厕所');
+    expect(cells).toContain('厕所');
+    // 替换词按用户输入原样（不继承 find 的大小写）
+    const t2v0 = res.tabs.tabs[1].rows[0].values[res.tabs.tabs[1].columns[0].id];
+    expect(t2v0).toBe('厕所 内');
+  });
+
+  it('列名不动（防崩边界）：列名含「卧室」不被替换，仅单元格值改', () => {
+    const tabs = fixture();
+    const res = replaceTextInTabs(tabs, '卧室', '厨房');
+    expect(res.tabs.tabs[2].columns[0].label).toBe('卧室描述'); // 列名原样
+  });
+
+  it('结构不动 + 不可变：原 tabs 未被 mutate，行/列数不变', () => {
+    const tabs = fixture();
+    const res = replaceTextInTabs(tabs, '卧室', '厨房');
+    // 原 tabs 引用不变、内容未被就地改（t3 第二列「备注」为空串，计入扁平序列）
+    expect(allCells(tabs)).toEqual([
+      '卧室',
+      '走进卧室',
+      '厨房',
+      '无',
+      'Bedroom 内',
+      '住 bedroom',
+      '客厅',
+      'BEDROOM',
+      '阳台',
+      '',
+      '阁楼',
+      '',
+    ]);
+    // 行/列数不变
+    expect(res.tabs.tabs.map((t) => t.rows.length)).toEqual(tabs.tabs.map((t) => t.rows.length));
+    expect(res.tabs.tabs.map((t) => t.columns.length)).toEqual(
+      tabs.tabs.map((t) => t.columns.length),
+    );
+    // 未变的 t3 tab 保留原引用（不可变纪律：未变 tab 不入新对象）
+    expect(res.tabs.tabs[2]).toBe(tabs.tabs[2]);
+  });
+
+  it('find 为空：原样返回原引用、count 0、不抛不崩', () => {
+    const tabs = fixture();
+    const res = replaceTextInTabs(tabs, '', '厨房');
+    expect(res.tabs).toBe(tabs);
+    expect(res.count).toBe(0);
+  });
+
+  it('replace 为空（删除词）：「在卧室里」→「在里」', () => {
+    const t = normalizeAssistantTable(parsePasted('地点\n在卧室里')!);
+    const base: AssistantTableTabs = {
+      tabs: [{ id: 'tab1', name: '表1', columns: t.columns, rows: t.rows, globalStyle: '' }],
+      activeTabId: 'tab1',
+    };
+    const res = replaceTextInTabs(base, '卧室', '');
+    expect(res.count).toBe(1);
+    expect(allCells(res.tabs)[0]).toBe('在里');
+  });
+
+  it('replace == find（no-op）：原引用 + count 0（与实际改变一致，不谎报）', () => {
+    const tabs = fixture();
+    const res = replaceTextInTabs(tabs, '卧室', '卧室');
+    expect(res.tabs).toBe(tabs); // 无实际变化 → 原引用
+    expect(res.count).toBe(0);
+  });
+
+  it('不碰 globalStyle：tab.globalStyle 含词不被替换', () => {
+    const tabs = fixture();
+    const withStyle: AssistantTableTabs = {
+      ...tabs,
+      tabs: tabs.tabs.map((t, i) => (i === 0 ? { ...t, globalStyle: '整体是卧室的暖色调' } : t)),
+    };
+    const res = replaceTextInTabs(withStyle, '卧室', '厨房');
+    expect(res.tabs.tabs[0].globalStyle).toBe('整体是卧室的暖色调');
+  });
+
+  it('countMatchesInTabs：与 replace 无关的实时计数，find 空返回 0', () => {
+    const tabs = fixture();
+    expect(countMatchesInTabs(tabs, '卧室')).toBe(2); // t1 两格
+    expect(countMatchesInTabs(tabs, 'bedroom')).toBe(3); // 大小写不敏感
+    expect(countMatchesInTabs(tabs, '')).toBe(0);
+    expect(countMatchesInTabs(tabs, '不存在')).toBe(0);
+  });
+});
+
+describe('系统剪贴板网格解析（parseClipboardGrid，spec interaction-model §1.4）', () => {
+  it('含制表符的多行 → 网格（\t 分格、\n 分行、\r 剥掉）', () => {
+    const g = parseClipboardGrid('a1\tb1\na2\tb2');
+    expect(g).toEqual([
+      ['a1', 'b1'],
+      ['a2', 'b2'],
+    ]);
+  });
+
+  it('纯文本单值（无制表符，含单行多行换行）→ null（调用方按单格覆盖处理）', () => {
+    expect(parseClipboardGrid('单格文本')).toBeNull();
+    expect(parseClipboardGrid('多行\n文本（无 tab 也算单值）')).toBeNull(); // 无 \t → 不判网格
+  });
+
+  it('空/纯空白 → null', () => {
+    expect(parseClipboardGrid('')).toBeNull();
+    expect(parseClipboardGrid('   \n ')).toBeNull();
+  });
+
+  it('行不要求等长（粘贴时越界裁剪，对齐 pasteCells），\r\n 归一为 \n', () => {
+    const g = parseClipboardGrid('a\tb\rc\td\te');
+    expect(g).toEqual([
+      ['a', 'b'],
+      ['c', 'd', 'e'],
+    ]);
   });
 });

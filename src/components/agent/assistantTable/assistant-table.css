@@ -413,6 +413,19 @@
   vertical-align: top;
   word-break: break-word;
 }
+/* ── 选中态 cell（业界模型：普通 div 只读展示，非 textarea）──
+   textarea 天然 pre-wrap 换行；div 需显式 pre-wrap 才不把换行压成空格。不参与 tab 序（不聚焦抢键），
+   单击 = 选中整格由 td 事件抛上层，本元素不可被点进编辑。 */
+.atw-grid .cell.cell-view {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere; /* 长词/URL 在格内换行，避免撑破列宽（对齐预览卡 .atw-pv td） */
+  user-select: none; /* 业界：点格=选中整格，不误选中文字（要选字进入编辑态） */
+  cursor: default;
+}
+/* ── 聚焦单格（单击选中整格，业界"当前格"）：淡蓝描边框表达"此格被选中"，非编辑态可见 ── */
+.atw-grid td.is-focused {
+  box-shadow: inset 0 0 0 1px rgb(var(--mao-accent) / 0.8);
+}
 /* ══ 表格内文本选区（2026-09-07 系统统一 ══）
    让「选中一段文字」的高亮与「选中格子」用**同一套 accent 蓝**：
    浏览器默认文字选区是 UA 的系统蓝（底色 highlight、文字反白），与格子描边 #3b82f6 不是一套色值。

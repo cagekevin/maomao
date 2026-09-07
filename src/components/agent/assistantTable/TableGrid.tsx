@@ -19,6 +19,14 @@ export interface TableGridProps {
   range: CellRange | null;
   /** 点格子：Shift 扩选区，否则重设起点（选区与行多选互斥） */
   onCellPointerDown: (e: { shiftKey: boolean }, rowId: string, colId: string) => void;
+  /** 正在编辑的格（业界模型；整表唯一）。其上的格子渲染 textarea，其余渲染只读 div */
+  editingCell: { rowId: string; colId: string } | null;
+  /** 当前聚焦的单格（单击选中整格；渲染高亮框，复制/粘贴默认锚点） */
+  focusedCell: { rowId: string; colId: string } | null;
+  /** 单击格：聚焦为当前格（选中整格，不进入编辑） */
+  onFocusCell: (rowId: string, colId: string) => void;
+  /** 双击格：进入编辑态 */
+  onEditCell: (rowId: string, colId: string) => void;
   /** 列 id → 当前显示宽（px，估算/手动锁定混合） */
   colWidths: Record<string, number>;
   /** hook 提供的 <col> ref（拖拽中直改 DOM 不重渲） */
@@ -46,6 +54,10 @@ export default function TableGrid({
   selectedRowIds,
   range,
   onCellPointerDown,
+  editingCell,
+  focusedCell,
+  onFocusCell,
+  onEditCell,
   colWidths,
   colElsRef,
   resizeTick,
@@ -78,20 +90,38 @@ export default function TableGrid({
         }
       : null;
 
-  /** 单元格：草稿优先，blur 提交 */
+  /** 单元格：编辑态格渲染 textarea，其余渲染只读 div；草稿优先，blur 提交 */
   const cells = (row: TableRow) => {
     const ri = rowIdx(row.id);
     return table.columns.map((col, ci) => {
       const value = cellValue(row.id, col.id, row.values[col.id] ?? '');
       const inRange = !!sel && ri >= sel.r0 && ri <= sel.r1 && ci >= sel.c0 && ci <= sel.c1;
+      const isEditing =
+        editingCell != null && editingCell.rowId === row.id && editingCell.colId === col.id;
+      const isFocused =
+        !isEditing &&
+        focusedCell != null &&
+        focusedCell.rowId === row.id &&
+        focusedCell.colId === col.id;
+      const tdClass =
+        [inRange ? 'in-range' : '', isFocused ? 'is-focused' : '']
+          .filter(Boolean)
+          .join(' ')
+          .trim() || undefined;
       return (
         <td
           key={col.id}
-          className={inRange ? 'in-range' : undefined}
+          className={tdClass}
+          // mousedown 先于 click：仍设选区起点（Shift 扩选）。不阻止默认，但 cell div 不聚焦，故点一下不进入编辑。
           onMouseDown={(e) => onCellPointerDown(e, row.id, col.id)}
+          // 单击 = 聚焦整格（业界"当前格"）；若正在编辑别的格，先把它提交退出（切格即提交）
+          onClick={() => onFocusCell(row.id, col.id)}
+          // 双击 = 进入编辑态
+          onDoubleClick={() => onEditCell(row.id, col.id)}
         >
           <CellEditor
             value={value}
+            editing={isEditing}
             resizeTick={resizeTick}
             onChange={(v) => onCellChange(row.id, col.id, v)}
             onCommit={() => onCellCommit(row.id, col.id, value)}

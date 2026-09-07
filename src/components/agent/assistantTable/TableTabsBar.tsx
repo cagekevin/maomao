@@ -35,6 +35,7 @@ export interface TableTabsBarProps {
   onClose: (tabId: string) => void;
   onCopyAsNew: (tabId: string) => void;
   onReorder: (from: number, to: number) => void;
+  onFindReplace: () => void;
 }
 
 export default function TableTabsBar({
@@ -46,6 +47,7 @@ export default function TableTabsBar({
   onClose,
   onCopyAsNew,
   onReorder,
+  onFindReplace,
 }: TableTabsBarProps) {
   const list = tabs.tabs || [];
   const { draggingId, onPointerDown, consumeDrag } = useTabDragSort(list.length, onReorder);
@@ -179,6 +181,17 @@ export default function TableTabsBar({
             >
               <Icon name="copy" size={13} strokeWidth={2} />
               复制为新表
+            </button>
+            <button
+              type="button"
+              className="atw-tab-menu-item"
+              onClick={() => {
+                onFindReplace();
+                setMenuOpen(false);
+              }}
+            >
+              <Icon name="search" size={13} strokeWidth={2} />
+              查找替换
             </button>
             <button
               type="button"

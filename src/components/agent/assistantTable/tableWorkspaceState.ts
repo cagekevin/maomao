@@ -91,13 +91,15 @@ export interface TableWorkspacePreview {
 }
 
 /**
- * 内部剪贴板（spec 3.6）：**仅内存、不落盘、不依赖系统剪贴板权限**。
+ * 内部剪贴板（spec 3.6 + interaction-model §1.4）：**仅内存、不落盘**，供系统剪贴板不可用/表格内语义回退。
  * - `rows`：整行复制（按列 id 存值），粘贴时插到锚点行之后；
- * - `range`：矩形区域复制（二维 cells），粘贴时从锚点格按矩形铺开，越界裁剪不扩列。
+ * - `range`：矩形区域复制（二维 cells），粘贴时从锚点格按矩形铺开，越界裁剪不扩列；
+ * - `cell`：单格文本（业界单格复制），粘贴时覆盖锚点格。
  */
 export type TableClipboard =
   | { kind: 'rows'; colIds: string[]; rows: Array<Record<string, string>> }
-  | { kind: 'range'; cells: string[][] };
+  | { kind: 'range'; cells: string[][] }
+  | { kind: 'cell'; text: string };
 
 /** 共享「表格工作区运行态」形状（spec §四.5.1 + §1.5） */
 export interface TableWorkspaceState {
@@ -117,6 +119,10 @@ export interface TableWorkspaceState {
   clipboard: TableClipboard | null;
   /** 单元格矩形选区（仅内存，spec 3.6；null = 无选区） */
   range: CellRange | null;
+  /** 当前聚焦的单格（业界"当前格"，spec interaction-model §3.1）。单击格设置，方向键移动的载体、复制/粘贴默认锚点 */
+  focusedCell: { rowId: string; colId: string } | null;
+  /** 当前正在编辑的格（整表唯一，业界模型）。双击格设置；提交/取消/Esc 清空；null = 全表选中态 */
+  editingCell: { rowId: string; colId: string } | null;
 }
 
 /** 读宽度记忆（clamp 到合法范围；异常回退默认值，不阻断） */
@@ -140,6 +146,8 @@ let state: TableWorkspaceState = {
   previewHeight: null,
   clipboard: null,
   range: null,
+  focusedCell: null,
+  editingCell: null,
 };
 
 const listeners = new Set<() => void>();
@@ -180,7 +188,7 @@ export function toggleTableWorkspace(): void {
   }
 }
 
-/** 关面板 = 关协作：open=false + 清选中行/待确认预览/探测游标（spec §4.5.1） */
+/** 关面板 = 关协作：open=false + 清选中行/待确认预览/探测游标/单格与编辑态（spec §4.5.1） */
 export function closeTableWorkspace(): void {
   setState({
     ...state,
@@ -189,7 +197,19 @@ export function closeTableWorkspace(): void {
     preview: null,
     handledMessageId: null,
     range: null,
+    focusedCell: null,
+    editingCell: null,
   });
+}
+
+/** 设当前聚焦单格（单击格；null = 清）。调用方负责互斥（聚焦普通格即清行多选） */
+export function setTableFocusedCell(cell: { rowId: string; colId: string } | null): void {
+  setState({ ...state, focusedCell: cell });
+}
+
+/** 设正在编辑的格（双击格；null = 退出编辑回选中态）。整表唯一编辑源 */
+export function setTableEditingCell(cell: { rowId: string; colId: string } | null): void {
+  setState({ ...state, editingCell: cell });
 }
 
 /** 左面板宽度（px）：clamp 360~1080 + 写 agent_split_width 记忆 */
@@ -303,6 +323,8 @@ export function switchTableTab(tabId: string): void {
     preview: null,
     handledMessageId: null,
     range: null,
+    focusedCell: null,
+    editingCell: null,
   });
 }
 
@@ -390,5 +412,7 @@ export function resetTableWorkspace(): void {
     preview: null,
     handledMessageId: null,
     range: null,
+    focusedCell: null,
+    editingCell: null,
   });
 }

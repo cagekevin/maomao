@@ -27,6 +27,9 @@ import {
   closeTableWorkspace,
   setTableWorkspaceWidth,
   setTableWorkspaceRows,
+  setTableFocusedCell,
+  setTableEditingCell,
+  switchTableTab,
   acceptTablePreview,
   setPreviewTargetTab,
   markTableMessageHandled,
@@ -404,5 +407,56 @@ describe('多标签页（spec 1.1/3.3：tabs 真源 + 预览目标表 + 隔离�
     expect(b.columns.map((c) => c.label)).toEqual(['新列A']);
     // 自动切到目标表（spec 3.3）
     expect(getActiveTab(tabs)!.id).toBe('tabB');
+  });
+});
+
+describe('业界模型运行态（spec interaction-model §3：focusedCell/editingCell）', () => {
+  it('初始无聚焦/无编辑格', () => {
+    expect(getTableWorkspace().focusedCell).toBeNull();
+    expect(getTableWorkspace().editingCell).toBeNull();
+  });
+
+  it('setTableFocusedCell / setTableEditingCell 可设可清', () => {
+    setTableFocusedCell({ rowId: 'r1', colId: 'c1' });
+    expect(getTableWorkspace().focusedCell).toEqual({ rowId: 'r1', colId: 'c1' });
+    setTableEditingCell({ rowId: 'r1', colId: 'c1' });
+    expect(getTableWorkspace().editingCell).toEqual({ rowId: 'r1', colId: 'c1' });
+    setTableFocusedCell(null);
+    setTableEditingCell(null);
+    expect(getTableWorkspace().focusedCell).toBeNull();
+    expect(getTableWorkspace().editingCell).toBeNull();
+  });
+
+  it('resetTableWorkspace（切对话）清 focusedCell/editingCell', () => {
+    setTableFocusedCell({ rowId: 'r1', colId: 'c1' });
+    setTableEditingCell({ rowId: 'r1', colId: 'c1' });
+    resetTableWorkspace();
+    expect(getTableWorkspace().focusedCell).toBeNull();
+    expect(getTableWorkspace().editingCell).toBeNull();
+  });
+
+  it('closeTableWorkspace（关面板）清 focusedCell/editingCell', () => {
+    toggleTableWorkspace();
+    setTableFocusedCell({ rowId: 'r1', colId: 'c1' });
+    setTableEditingCell({ rowId: 'r1', colId: 'c1' });
+    closeTableWorkspace();
+    expect(getTableWorkspace().focusedCell).toBeNull();
+    expect(getTableWorkspace().editingCell).toBeNull();
+  });
+
+  it('switchTableTab（切表，id 属原表跨表失效）清 focusedCell/editingCell', () => {
+    ensureActiveConversation();
+    setCurrentAssistantTabs({
+      tabs: [
+        { id: 't1', name: '表A', columns: [], rows: [], globalStyle: '' },
+        { id: 't2', name: '表B', columns: [], rows: [], globalStyle: '' },
+      ],
+      activeTabId: 't1',
+    });
+    setTableFocusedCell({ rowId: 'r1', colId: 'c1' });
+    setTableEditingCell({ rowId: 'r1', colId: 'c1' });
+    switchTableTab('t2');
+    expect(getTableWorkspace().focusedCell).toBeNull();
+    expect(getTableWorkspace().editingCell).toBeNull();
   });
 });

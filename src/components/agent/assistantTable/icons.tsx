@@ -28,7 +28,8 @@ export type IconName =
   | 'table'
   | 'check'
   | 'more'
-  | 'target';
+  | 'target'
+  | 'search';
 
 /** name → 图形子节点（feather 24 viewBox，不含外层 <svg> 公共属性） */
 const ICON_PATHS: Record<IconName, ReactNode> = {
@@ -109,6 +110,12 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
       <line x1="12" y1="18" x2="12" y2="22" />
       <line x1="2" y1="12" x2="6" y2="12" />
       <line x1="18" y1="12" x2="22" y2="12" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
     </>
   ),
 };
