@@ -373,7 +373,12 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
       key: 'lock',
       icon: inputLocked ? <Lock size={12} /> : <LockOpen size={12} />,
       title: inputLocked ? '输入已锁定,点击解锁' : '输入已解锁,点击锁定',
-      onClick: () => setInputLocked((v) => !v),
+      onClick: () => {
+        const next = !inputLocked;
+        setInputLocked(next);
+        // 加锁 = 合上抽屉：已展开的输入面板要一并收起
+        if (next) setExpanded(false);
+      },
     },
   ];
 
