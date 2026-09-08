@@ -291,7 +291,7 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
         </div>
       )}
 
-      {/* 全屏工作台视图（脚本盒子自包含，真全屏 100vw×100vh，三步都在内） */}
+      {/* 全屏工作台视图（剧本盒子自包含，真全屏 100vw×100vh，三步都在内） */}
       <ScriptBoxFullscreen
         open={fullscreen}
         title={d.projectName || '剧本盒子'}
