@@ -1,6 +1,16 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import { FileText, Plus, Copy, ChevronDown, ChevronUp, Loader2, AlertCircle } from 'lucide-react';
+import {
+  FileText,
+  Plus,
+  Copy,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  AlertCircle,
+  Lock,
+  LockOpen,
+} from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import ExpandablePanel from '../base/ui/ExpandablePanel.tsx';
@@ -39,6 +49,7 @@ interface TextGenerateData {
   text?: string;
   autoSplit?: boolean;
   expanded?: boolean;
+  inputLocked?: boolean;
   selectedModel?: string;
   images?: string[];
   inputWidth?: number;
@@ -103,8 +114,19 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     setAutoSplit(v);
   }, []);
   const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded);
+  // 输入锁定：默认加锁（锁着时不许展开，防误点）。解锁后恢复自由展开/收起。
+  const [inputLocked, setInputLocked] = useState(
+    data.inputLocked === undefined ? true : data.inputLocked,
+  );
   // 抽屉展开/收起
-  const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
+  const toggleExpanded = useCallback(() => {
+    // 锁着时只许收起，禁止展开（防误点展开）
+    if (inputLocked) {
+      setExpanded(false);
+      return;
+    }
+    setExpanded((v) => !v);
+  }, [inputLocked]);
   // 【React 反模式修复】「写回 node.data」不再在 setState updater 里做（那会在渲染期间 setNodes → BatchProvider 警告）。
   // 改为监听本地 state 变化，用 useEffect 同步落盘（effect 内 setState 合法，不在渲染期）。
   useEffect(() => {
@@ -119,6 +141,9 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   useEffect(() => {
     patchData({ expanded });
   }, [expanded]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    patchData({ inputLocked });
+  }, [inputLocked]); // eslint-disable-line react-hooks/exhaustive-deps
   // 全局快捷键（Tab）折叠/展开：外部 data.expanded 变化时同步回本地 state
   useEffect(() => {
     if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded);
@@ -161,6 +186,12 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     [effectivePrompt, refImages, refTexts],
   );
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
+  // 进入文字编辑（集中入口）：锁住时单击、解锁时双击都走这里，便于统一回退。
+  const enterEditing = useCallback(() => {
+    if (editingText) return;
+    setEditingText(true);
+    setTimeout(() => textAreaRef.current?.focus(), 0);
+  }, [editingText]);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
   const wrapperRef = useRef<HTMLDivElement | null>(null); // NodeShell 根 div ref（主框手柄拖拽改整体尺寸）
@@ -339,10 +370,10 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
       },
     },
     {
-      key: 'toggle',
-      icon: expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />,
-      title: expanded ? '收起输入' : '展开输入',
-      onClick: toggleExpanded,
+      key: 'lock',
+      icon: inputLocked ? <Lock size={12} /> : <LockOpen size={12} />,
+      title: inputLocked ? '输入已锁定,点击解锁' : '输入已解锁,点击锁定',
+      onClick: () => setInputLocked((v) => !v),
     },
   ];
 
@@ -376,15 +407,15 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
       <div
         className="relative flex flex-col w-full flex-1 min-h-0"
         onClick={(e) => {
-          // 点击节点主体切换抽屉（新建默认收起、初始默认展开，都可点开/收起）。
-          // 排除按钮/输入框避免误触；textarea 非编辑时只读（readOnly），单击可切换抽屉，
-          // 编辑靠双击触发（onDoubleClick 进 editingText），互不冲突。
-          if (
-            !editingText &&
-            !(e.target instanceof HTMLButtonElement) &&
-            !(e.target instanceof HTMLInputElement)
-          ) {
-            toggleExpanded();
+          // 排除按钮/输入框避免误触
+          if (!(e.target instanceof HTMLButtonElement) && !(e.target instanceof HTMLInputElement)) {
+            // 锁住时：单击直接进编辑（省去双击），不切抽屉——满足"锁住时只想安静改字"
+            if (inputLocked) {
+              if (!editingText) enterEditing();
+              return;
+            }
+            // 解锁时：单击切抽屉（双击进编辑，见 onDoubleClick），维持原有习惯
+            if (!editingText) toggleExpanded();
           }
         }}
       >
@@ -398,10 +429,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
           className={`flex flex-col flex-1 min-h-0 p-3 overflow-hidden bg-surface relative rounded-xl ${editingText ? 'nopan nowheel nodrag' : 'drag-handle cursor-move'}`}
           onWheel={(e) => e.stopPropagation()}
           onDoubleClick={() => {
-            if (!editingText) {
-              setEditingText(true);
-              setTimeout(() => textAreaRef.current?.focus(), 0);
-            }
+            enterEditing();
           }}
         >
           {loading && <GeneratingOverlay label="生成中..." category="text" />}
