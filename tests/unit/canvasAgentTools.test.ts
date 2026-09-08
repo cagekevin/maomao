@@ -187,39 +187,45 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(ctx.getEdges()).toHaveLength(1);
   });
 
-  it('create_node promptNode 默认 420×420', () => {
+  it('create_node imageGenerateNode 默认 420×420', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = t.create_node({ type: 'promptNode' });
+    const r = t.create_node({ type: 'imageGenerateNode' });
     const node = ctx.getNodes().find((n) => n.id === r.data.id);
     expect(node.width).toBe(420);
   });
 
-  it('create_node promptNode 应用 aspectRatio + resolution（9:16 + 1080p→1K）', () => {
+  it('create_node imageGenerateNode 应用 aspectRatio + resolution（9:16 + 1080p→1K）', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = t.create_node({
-      type: 'promptNode',
+      type: 'imageGenerateNode',
       prompt: '奥特曼打怪兽',
       aspectRatio: '9:16',
       resolution: '1080p',
     });
     expect(r.ok).toBe(true);
     const node = ctx.getNodes().find((n) => n.id === r.data.id);
-    // 比例写入 data.aspectRatio（PromptNode 组件读取）
+    // 比例写入 data.aspectRatio（ImageGenerate 组件读取）
     expect(node.data.aspectRatio).toBe('9:16');
     // 分辨率 1080p 映射到 data.imageSize=1K（组件读取 imageSize 而非 resolution）
     expect(node.data.imageSize).toBe('1K');
     expect(node.data.resolution).toBeUndefined();
   });
 
-  it('create_node promptNode resolution=4K 映射到 imageSize=4K；1440p→2K', () => {
+  it('create_node imageGenerateNode resolution=4K 映射到 imageSize=4K；1440p→2K', () => {
     // 每次用独立 ctx（节点 id 用 Date.now()，同毫秒并发会撞 id，故分开断言）
     const c1 = makeCtx();
-    const r4 = buildCanvasAgentTools(c1).create_node({ type: 'promptNode', resolution: '4K' });
+    const r4 = buildCanvasAgentTools(c1).create_node({
+      type: 'imageGenerateNode',
+      resolution: '4K',
+    });
     expect(c1.getNodes().find((n) => n.id === r4.data.id).data.imageSize).toBe('4K');
     const c2 = makeCtx();
-    const r2 = buildCanvasAgentTools(c2).create_node({ type: 'promptNode', resolution: '1440p' });
+    const r2 = buildCanvasAgentTools(c2).create_node({
+      type: 'imageGenerateNode',
+      resolution: '1440p',
+    });
     expect(c2.getNodes().find((n) => n.id === r2.data.id).data.imageSize).toBe('2K');
   });
 
@@ -242,7 +248,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx([
       {
         id: 'sel',
-        type: 'promptNode',
+        type: 'imageGenerateNode',
         selected: true,
         position: { x: 200, y: 300 },
         width: 420,
@@ -250,7 +256,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       },
     ]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.create_node({ type: 'promptNode', prompt: '新图' });
+    const r = t.create_node({ type: 'imageGenerateNode', prompt: '新图' });
     expect(r.ok).toBe(true);
     const node = ctx.getNodes().find((n) => n.id === r.data.id);
     expect(node.position.x).toBe(200 + 420 + 100);
@@ -261,7 +267,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx([
       {
         id: 'a',
-        type: 'promptNode',
+        type: 'imageGenerateNode',
         selected: true,
         position: { x: 0, y: 100 },
         width: 400,
@@ -269,7 +275,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       },
       {
         id: 'b',
-        type: 'promptNode',
+        type: 'imageGenerateNode',
         selected: true,
         position: { x: 300, y: 50 },
         width: 300,
@@ -277,7 +283,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       }, // 最右：300+300=600
     ]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.create_node({ type: 'promptNode' });
+    const r = t.create_node({ type: 'imageGenerateNode' });
     const node = ctx.getNodes().find((n) => n.id === r.data.id);
     expect(node.position.x).toBe(300 + 300 + 100); // 最右边界 600 + 100
     expect(node.position.y).toBe(50); // 最小顶部
@@ -287,7 +293,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx([
       {
         id: 'sel',
-        type: 'promptNode',
+        type: 'imageGenerateNode',
         selected: true,
         position: { x: 200, y: 300 },
         width: 420,
@@ -295,7 +301,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       },
     ]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.create_node({ type: 'promptNode', position: { x: 999, y: 888 } });
+    const r = t.create_node({ type: 'imageGenerateNode', position: { x: 999, y: 888 } });
     const node = ctx.getNodes().find((n) => n.id === r.data.id);
     expect(node.position.x).toBe(999);
     expect(node.position.y).toBe(888);
@@ -304,7 +310,9 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('batch_create_nodes 批量建', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = t.batch_create_nodes({ nodes: [{ type: 'textNode' }, { type: 'promptNode' }] });
+    const r = t.batch_create_nodes({
+      nodes: [{ type: 'textNode' }, { type: 'imageGenerateNode' }],
+    });
     expect(r.ok).toBe(true);
     expect(r.data.ids).toHaveLength(2);
   });
@@ -313,7 +321,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = t.batch_create_nodes({
-      nodes: [{ type: 'textNode' }, { type: 'promptNode' }, { type: 'imageNode' }],
+      nodes: [{ type: 'textNode' }, { type: 'imageGenerateNode' }, { type: 'imageNode' }],
     });
     expect(r.ok).toBe(true);
     expect(ctx.getNodes()).toHaveLength(3);
@@ -451,7 +459,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('update_node_any_field 合并任意字段', () => {
-    const ctx = makeCtx([{ id: 'a', type: 'promptNode', data: {}, position: {} }]);
+    const ctx = makeCtx([{ id: 'a', type: 'imageGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
     const r = t.update_node_any_field({ nodeId: 'a', patch: { custom: 1, imageUrl: '/f.png' } });
     expect(r.ok).toBe(true);
@@ -562,14 +570,16 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('get_node_details 读详情', () => {
-    const ctx = makeCtx([{ id: 'a', type: 'promptNode', data: { prompt: 'P' }, position: {} }]);
+    const ctx = makeCtx([
+      { id: 'a', type: 'imageGenerateNode', data: { prompt: 'P' }, position: {} },
+    ]);
     const t = buildCanvasAgentTools(ctx);
     expect(t.get_node_details({ nodeId: 'a' }).data.data.prompt).toBe('P');
     expect(t.get_node_details({ nodeId: 'z' }).ok).toBe(false);
   });
 
   it('generate_node 拿到 resultUrl → 返回已完成收敛信号（completed:true，不再重复）', async () => {
-    const ctx = makeCtx([{ id: 'a', type: 'promptNode', data: {}, position: {} }]);
+    const ctx = makeCtx([{ id: 'a', type: 'imageGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
     const r = await t.generate_node({ nodeId: 'a' });
     expect(r.ok).toBe(true);
@@ -582,7 +592,7 @@ describe('画布 Agent 工具层 §2.5', () => {
 
   it('generate_node resultUrl 为空 → 返回提交中信号（submitted:true, completed:false），提示勿重复触发', async () => {
     vi.mocked(taskStore.runNodeGeneration).mockResolvedValueOnce({ ok: true, resultUrl: '' });
-    const ctx = makeCtx([{ id: 'a', type: 'promptNode', data: {}, position: {} }]);
+    const ctx = makeCtx([{ id: 'a', type: 'imageGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
     const r = await t.generate_node({ nodeId: 'a' });
     expect(r.ok).toBe(true);
@@ -593,7 +603,7 @@ describe('画布 Agent 工具层 §2.5', () => {
 
   it('generate_node 失败：返回带 nodeId（供对话侧「重试此步骤」定位节点）', async () => {
     vi.mocked(taskStore.runNodeGeneration).mockResolvedValueOnce({ ok: false, error: '模型超时' });
-    const ctx = makeCtx([{ id: 'a', type: 'promptNode', data: {}, position: {} }]);
+    const ctx = makeCtx([{ id: 'a', type: 'imageGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
     const r = await t.generate_node({ nodeId: 'a' });
     expect(r.ok).toBe(false);
@@ -601,19 +611,19 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.error).toBe('模型超时');
   });
 
-  it('generate_node 节点不存在 → 回填可用 id 引导自愈（防 LLM 自猜 promptNode_1）', async () => {
+  it('generate_node 节点不存在 → 回填可用 id 引导自愈（防 LLM 自猜 imageGenerateNode_1）', async () => {
     const ctx = makeCtx([
-      { id: 'promptNode_real_a', type: 'promptNode', data: {}, position: {} },
-      { id: 'promptNode_real_b', type: 'promptNode', data: {}, position: {} },
+      { id: 'imageGenerateNode_real_a', type: 'imageGenerateNode', data: {}, position: {} },
+      { id: 'imageGenerateNode_real_b', type: 'imageGenerateNode', data: {}, position: {} },
       { id: 'text_x', type: 'textNode', data: {}, position: {} },
     ]);
     const t = buildCanvasAgentTools(ctx);
-    const r = await t.generate_node({ nodeId: 'promptNode_1' }); // 模型自猜的假 id
+    const r = await t.generate_node({ nodeId: 'imageGenerateNode_1' }); // 模型自猜的假 id
     expect(r.ok).toBe(false);
-    expect(r.error).toContain('节点不存在：promptNode_1');
+    expect(r.error).toContain('节点不存在：imageGenerateNode_1');
     // 兜底引导：回填画布上真实可用的生图节点 id（而非只报错让模型卡死/重复建节点）
-    expect(r.error).toContain('promptNode_real_a');
-    expect(r.error).toContain('promptNode_real_b');
+    expect(r.error).toContain('imageGenerateNode_real_a');
+    expect(r.error).toContain('imageGenerateNode_real_b');
   });
 
   it('execute_plan 未确认被拒', async () => {

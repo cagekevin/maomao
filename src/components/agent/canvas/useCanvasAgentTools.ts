@@ -348,7 +348,7 @@ function getFigNumRegex(num) {
 }
 
 /**
- * 分辨率 → 画质档位（imageSize）映射。PromptNode 的画质档是 1K/2K/4K，
+ * 分辨率 → 画质档位（imageSize）映射。ImageGenerate 的画质档是 1K/2K/4K，
  * LLM 可能传 720p/1080p/1440p/2K/4K，这里统一归一：1080p→1K、1440p/2K→2K、4K→4K，
  * 兜底 1K。未知/空值返回 null（调用方不设置）。
  */
@@ -392,7 +392,13 @@ function buildCreateNode(args, ctx, currentNodes) {
   const type = str(args.type);
   // agent 可创建的节点类型白名单（不含剧本盒等复合节点）。
   // 用白名单而非 getPaletteNode：即使调色板里新增了剧本盒等类型，agent 也不会被允许创建。
-  const ALLOWED_TYPES = ['textNode', 'promptNode', 'imageNode', 'videoGenerateNode', 'group'];
+  const ALLOWED_TYPES = [
+    'textNode',
+    'imageGenerateNode',
+    'imageNode',
+    'videoGenerateNode',
+    'group',
+  ];
   if (!type || !ALLOWED_TYPES.includes(type))
     return { error: `未知节点类型：${type}。可选：${ALLOWED_TYPES.join('、')}` };
   // 节点 data 是各节点类型自有的自由字段集（defaultNodeData 按 type 返回不同形状），
@@ -407,9 +413,9 @@ function buildCreateNode(args, ctx, currentNodes) {
   if (type === 'textNode' && args.text !== undefined && args.text !== null) {
     data.text = String(args.text);
   }
-  // 生图类节点：把 AI 传的 aspectRatio / resolution 写进 data（PromptNode 读 data.aspectRatio / data.imageSize）。
+  // 生图类节点：把 AI 传的 aspectRatio / resolution 写进 data（ImageGenerate 读 data.aspectRatio / data.imageSize）。
   // 之前这两个参数被忽略，导致「让 AI 建 9:16 节点」比例不生效。
-  if (['promptNode', 'videoGenerateNode'].includes(type)) {
+  if (['imageGenerateNode', 'videoGenerateNode'].includes(type)) {
     if (args.aspectRatio) data.aspectRatio = str(args.aspectRatio);
     if (args.resolution) data.imageSize = normalizeResolution(str(args.resolution));
   }
@@ -424,7 +430,7 @@ function buildCreateNode(args, ctx, currentNodes) {
   const id = generateId(type);
   const newNode = { id, type, position: { ...position }, data };
   // 生图节点默认 420×420（对齐 App.jsx addNode，避免端口跑偏）
-  if (type === 'promptNode')
+  if (type === 'imageGenerateNode')
     Object.assign(newNode, { width: 420, height: 420, style: { width: 420, height: 420 } });
 
   let edges = [];
@@ -448,7 +454,7 @@ function buildCreateNode(args, ctx, currentNodes) {
 
 /**
  * 建节点工具（复刻官方 create_node + batch_create_nodes）。
- * type 从白名单取（textNode/promptNode/imageNode/videoGenerateNode/group），默认给默认 data；prompt/label 可覆盖。
+ * type 从白名单取（textNode/imageGenerateNode/imageNode/videoGenerateNode/group），默认给默认 data；prompt/label 可覆盖。
  * 返回新建节点 id 列表，供后续连线/改节点用。
  */
 const createNodeTool = {
@@ -461,9 +467,9 @@ const createNodeTool = {
     properties: {
       type: {
         type: 'string',
-        enum: ['textNode', 'promptNode', 'imageNode', 'videoGenerateNode', 'group'],
+        enum: ['textNode', 'imageGenerateNode', 'imageNode', 'videoGenerateNode', 'group'],
         description:
-          '节点类型：textNode=文本(text=内容落生成区/prompt=内容落抽屉)/promptNode=生图(prompt=画面提示词)/imageNode=图片(label=说明)/videoGenerateNode=视频(prompt=视频提示词)/group=编组',
+          '节点类型：textNode=文本(text=内容落生成区/prompt=内容落抽屉)/imageGenerateNode=生图(prompt=画面提示词)/imageNode=图片(label=说明)/videoGenerateNode=视频(prompt=视频提示词)/group=编组',
       },
       prompt: { type: 'string', description: '提示词/内容（textNode 时落提示词抽屉）' },
       text: { type: 'string', description: '文本内容（仅 textNode：落文本生成区，优先于 prompt）' },
@@ -471,12 +477,12 @@ const createNodeTool = {
       aspectRatio: {
         type: 'string',
         description:
-          '生图比例，如 9:16 / 16:9 / 1:1 / 3:4 / 4:3（仅 promptNode/videoGenerateNode 生效，可选）',
+          '生图比例，如 9:16 / 16:9 / 1:1 / 3:4 / 4:3（仅 imageGenerateNode/videoGenerateNode 生效，可选）',
       },
       resolution: {
         type: 'string',
         description:
-          '生图画质档位：720p/1080p/1440p/2K/4K，会映射到 1K/2K/4K（仅 promptNode/videoGenerateNode 生效，可选）',
+          '生图画质档位：720p/1080p/1440p/2K/4K，会映射到 1K/2K/4K（仅 imageGenerateNode/videoGenerateNode 生效，可选）',
       },
       position: {
         type: 'object',
@@ -486,7 +492,7 @@ const createNodeTool = {
       connectFrom: {
         type: 'string',
         description:
-          '从该节点拉一条连线到新节点（可选）。⚠️铁律：必须 100% 照抄真实 id（如 promptNode_170123_abc），严禁自创序号；不确定先 list_nodes 查',
+          '从该节点拉一条连线到新节点（可选）。⚠️铁律：必须 100% 照抄真实 id（如 imageGenerateNode_170123_abc），严禁自创序号；不确定先 list_nodes 查',
       },
     },
     required: ['type'],
@@ -524,7 +530,7 @@ const batchCreateNodesTool = {
           properties: {
             type: {
               type: 'string',
-              enum: ['textNode', 'promptNode', 'imageNode', 'videoGenerateNode', 'group'],
+              enum: ['textNode', 'imageGenerateNode', 'imageNode', 'videoGenerateNode', 'group'],
             },
             prompt: { type: 'string' },
             text: { type: 'string' },
@@ -589,7 +595,7 @@ const deleteNodeTool = {
       nodeId: {
         type: 'string',
         description:
-          '要删除的节点 id。⚠️铁律：必须 100% 照抄真实 id（如 promptNode_170123_abc），严禁自创序号（如 promptNode_1）；不确定先 list_nodes 查',
+          '要删除的节点 id。⚠️铁律：必须 100% 照抄真实 id（如 imageGenerateNode_170123_abc），严禁自创序号（如 imageGenerateNode_1）；不确定先 list_nodes 查',
       },
     },
     required: ['nodeId'],
@@ -647,7 +653,7 @@ const updateNodeTool = {
       nodeId: {
         type: 'string',
         description:
-          '目标节点 id。⚠️铁律：必须 100% 照抄 list_nodes / read_canvas / 建节点工具返回的真实 id（如 promptNode_170123_abc），严禁自创序号（如 promptNode_1）；不确定就先 list_nodes 查再引用',
+          '目标节点 id。⚠️铁律：必须 100% 照抄 list_nodes / read_canvas / 建节点工具返回的真实 id（如 imageGenerateNode_170123_abc），严禁自创序号（如 imageGenerateNode_1）；不确定就先 list_nodes 查再引用',
       },
       prompt: { type: 'string' },
       label: { type: 'string' },
@@ -697,7 +703,7 @@ const updateNodeRawTool = {
       nodeId: {
         type: 'string',
         description:
-          '目标节点 id。⚠️铁律：必须 100% 照抄真实 id（如 promptNode_170123_abc），严禁自创序号；不确定先 list_nodes 查',
+          '目标节点 id。⚠️铁律：必须 100% 照抄真实 id（如 imageGenerateNode_170123_abc），严禁自创序号；不确定先 list_nodes 查',
       },
       patch: { type: 'object', description: '要合并进 node.data 的字段' },
     },
@@ -998,7 +1004,7 @@ const triggerGenerationTool = {
         type: 'string',
         minLength: 1,
         description:
-          '要触发生成的节点 id。⚠️铁律：必须 100% 照抄真实 id（如 promptNode_170123_abc），严禁自创序号（如 promptNode_1）；不确定先 list_nodes/read_canvas 查',
+          '要触发生成的节点 id。⚠️铁律：必须 100% 照抄真实 id（如 imageGenerateNode_170123_abc），严禁自创序号（如 imageGenerateNode_1）；不确定先 list_nodes/read_canvas 查',
       },
     },
     required: ['nodeId'],
@@ -1007,11 +1013,13 @@ const triggerGenerationTool = {
     const id = str(args.nodeId);
     const node = ctx.getNodes().find((n) => n.id === id);
     if (!node) {
-      // 兜底自愈（2026-08-21）：LLM 可能自猜节点 id（如 promptNode_1）导致不存在。
+      // 兜底自愈（2026-08-21）：LLM 可能自猜节点 id（如 imageGenerateNode_1）导致不存在。
       // 回填「当前可用节点 id」列表引导模型用真实 id，而非只报错让模型卡死/重复建节点。
       const all = ctx.getNodes();
       const candidates = (
-        all.some((n) => n.type === 'promptNode') ? all.filter((n) => n.type === 'promptNode') : all
+        all.some((n) => n.type === 'imageGenerateNode')
+          ? all.filter((n) => n.type === 'imageGenerateNode')
+          : all
       ).map((n) => n.id);
       const hint = candidates.length ? `。当前可用节点 id：${candidates.join('、')}` : '';
       return {

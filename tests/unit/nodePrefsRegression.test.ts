@@ -12,7 +12,7 @@ const root = resolve(__dirname, '../../src/components/nodes');
 // 只写节点名（不带扩展名）：TS 规范化迁移期同一节点可能是 .jsx 或 .tsx，
 // 由 resolveNodeFile 探测，避免每次改名都要改本测试。
 const TARGETS = {
-  PromptNode: ['imgPrefs'],
+  ImageGenerate: ['imgPrefs'],
   TextNode: ['textPrefs'],
   TemplateNode: ['myPrefs'],
   VideoGenerate: ['vidPrefs'],

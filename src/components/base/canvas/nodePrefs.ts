@@ -65,7 +65,7 @@ export function getNodePrefs(type: string, defaults: NodePrefsMap = {}): NodePre
 
 // data 键名 → 记忆键名 的映射（记忆里存的是官方口径，data 里是节点口径，如 selectedModel←model）
 const PREFS_FIELDS: PrefsFieldMap = {
-  promptNode: { selectedModel: 'model', aspectRatio: 'aspectRatio', imageSize: 'imageSize' },
+  imageGenerateNode: { selectedModel: 'model', aspectRatio: 'aspectRatio', imageSize: 'imageSize' },
   textNode: { selectedModel: 'model' },
   templateNode: { selectedModel: 'model', aspectRatio: 'aspectRatio' },
   videoGenerateNode: {
@@ -76,7 +76,7 @@ const PREFS_FIELDS: PrefsFieldMap = {
   },
 };
 const PREFS_DEFAULTS: PrefsFieldMap = {
-  promptNode: { model: '', aspectRatio: 'Auto', imageSize: '1K' },
+  imageGenerateNode: { model: '', aspectRatio: 'Auto', imageSize: '1K' },
   textNode: { model: '' },
   templateNode: { model: '', aspectRatio: '1:1' },
   videoGenerateNode: { model: '', size: '16:9', resolution: '1080p', seconds: '10' },
@@ -104,7 +104,7 @@ export function injectNodePrefs(type: string, data: NodePrefsMap): NodePrefsMap 
 
 /**
  * 读取某节点类型的上次参数（合并默认值）。
- * @param {string} type 节点类型，如 'textNode' / 'promptNode' / 'videoGenerateNode'
+ * @param {string} type 节点类型，如 'textNode' / 'imageGenerateNode' / 'videoGenerateNode'
  * @param {object} defaults 默认参数
  * @returns {{ prefs: object, set: (patch: object) => void }}
  */

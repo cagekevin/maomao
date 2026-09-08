@@ -135,14 +135,14 @@ describe('useScriptBoxEngine', () => {
   });
 
   it('addNodes 注入节点模型记忆（复用 App.addNode 的新建口径）', () => {
-    prefsStore = { promptNode: { model: 'p1::gpt-image-1' } };
+    prefsStore = { imageGenerateNode: { model: 'p1::gpt-image-1' } };
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
     const cfg = createScriptBoxEngine.mock.calls[0][0];
     // 剧本盒已预填 aspectRatio → 不被记忆覆盖；selectedModel 缺失 → 由记忆补上
     cfg.addNodes([
       {
         id: 'x',
-        type: 'promptNode',
+        type: 'imageGenerateNode',
         position: { x: 10, y: 20 },
         data: { prompt: 'p', aspectRatio: '16:9' },
       },

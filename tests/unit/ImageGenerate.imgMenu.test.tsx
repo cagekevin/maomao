@@ -1,5 +1,5 @@
 /**
- * PromptNode（图片生成节点）交互测试。
+ * ImageGenerate（图片生成节点）交互测试。
  * 覆盖：比例/画质/渲染质量菜单、批量数量菜单、模型选择、刷新恢复、生成成功回填、异步恢复。
  *
  * 逆向自 1mao（bo.jsx）。屏蔽重型子组件 / ReactFlow hooks，只验证节点内部交互与 patchData 行为。
@@ -165,10 +165,10 @@ beforeEach(() => {
   }
 });
 
-import PromptNode from '../../src/components/nodes/PromptNode.tsx';
+import ImageGenerate from '../../src/components/nodes/ImageGenerate.tsx';
 
 function setup(data = {}) {
-  return render(<PromptNode id="n1" data={data} selected={false} />);
+  return render(<ImageGenerate id="n1" data={data} selected={false} />);
 }
 
 /** 触发节点内某次 patchData 后，取出 updater 并执行，返回合并后的 data */
@@ -187,7 +187,7 @@ function lastPatchData(initialData = {}) {
 
 const mainMenuBtn = () => screen.getByText('Auto · 1K · 自动');
 
-describe('PromptNode 比例/画质/渲染质量菜单', () => {
+describe('ImageGenerate 比例/画质/渲染质量菜单', () => {
   it('点击主菜单按钮可打开菜单，看到比例选项', () => {
     setup({});
     expect(screen.queryByText('1:1')).toBeNull();
@@ -251,7 +251,7 @@ describe('PromptNode 比例/画质/渲染质量菜单', () => {
   });
 });
 
-describe('PromptNode 批量数量菜单', () => {
+describe('ImageGenerate 批量数量菜单', () => {
   it('点击数量按钮打开菜单，选择 x3 后菜单关闭且主按钮显示 x3', () => {
     setup({});
     expect(screen.queryByText('x5')).toBeNull();
@@ -266,7 +266,7 @@ describe('PromptNode 批量数量菜单', () => {
   });
 });
 
-describe('PromptNode 模型选择', () => {
+describe('ImageGenerate 模型选择', () => {
   it('点击模型选择后 patchData 写入 selectedModel', async () => {
     setup({});
     fireEvent.click(screen.getByTestId('model-select'));
@@ -276,7 +276,7 @@ describe('PromptNode 模型选择', () => {
   });
 });
 
-describe('PromptNode 刷新恢复（restoreFromServer）', () => {
+describe('ImageGenerate 刷新恢复（restoreFromServer）', () => {
   it('节点无图时，从任务中心恢复最近完成结果并写回 data.imageUrl', async () => {
     mockFetchTasks.mockResolvedValue({
       data: {
@@ -304,7 +304,7 @@ describe('PromptNode 刷新恢复（restoreFromServer）', () => {
   });
 });
 
-describe('PromptNode 生成成功回填（onSuccess）', () => {
+describe('ImageGenerate 生成成功回填（onSuccess）', () => {
   it('点击生成后，结果 url 落盘写回 data.imageUrl', async () => {
     mockGenerateImage.mockResolvedValue({ url: 'http://gen.local/result.png' });
     setup({});
@@ -317,7 +317,7 @@ describe('PromptNode 生成成功回填（onSuccess）', () => {
   });
 });
 
-describe('PromptNode 异步任务恢复（onRecover）', () => {
+describe('ImageGenerate 异步任务恢复（onRecover）', () => {
   it('节点仍在画布时，轮询完成的广播结果写回本节点 data.imageUrl', () => {
     mockGetNodes.mockReturnValue([{ id: 'n1' }]);
     setup({});
@@ -339,7 +339,7 @@ describe('PromptNode 异步任务恢复（onRecover）', () => {
     expect(mockAddNodes).toHaveBeenCalled();
     const added = mockAddNodes.mock.calls[0][0][0];
     expect(added.id).toBe('n1');
-    expect(added.type).toBe('promptNode');
+    expect(added.type).toBe('imageGenerateNode');
     expect(added.data.imageUrl).toBe('http://poll.local/rebuild.png');
   });
 });

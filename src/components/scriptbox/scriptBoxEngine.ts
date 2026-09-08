@@ -137,7 +137,7 @@ export function useJsonObject(modelId?: string): boolean {
  *  - onUploadAllAssetImages()        上传全部资产素材
  *  - onUploadAssetImage(id, file)    上传本地图片设为资产参考图
  *  - onPickAssetImage(id, url)       从素材库选一张现成图片设为资产参考图
- *  - onConnectShot(id, target)       单镜头连下游（建 promptNode/videoGenerateNode）
+ *  - onConnectShot(id, target)       单镜头连下游（建 imageGenerateNode/videoGenerateNode）
  *  - onConnectShots(ids, target)     批量连下游
  *  - onGenerateTailFrameVariants(id) 抽上一镜尾帧→多角度生图→写回变体（P1-2）
  *
@@ -1381,7 +1381,7 @@ export function createScriptBoxEngine({
       isImage
         ? {
             id: nodeId2,
-            type: 'promptNode',
+            type: 'imageGenerateNode',
             position: pos,
             data: { ...baseData, label: `镜头${shot.index}图`, prompt: shot.prompt },
           }
@@ -1441,7 +1441,7 @@ export function createScriptBoxEngine({
         isImage
           ? {
               id: nodeId2,
-              type: 'promptNode',
+              type: 'imageGenerateNode',
               position: pos,
               data: { ...baseData, label: `镜头${shot.index}图`, prompt: shot.prompt },
             }

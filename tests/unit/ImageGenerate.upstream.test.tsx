@@ -1,5 +1,5 @@
 /**
- * PromptNode 上游合并测试（本次修复核心逻辑）。
+ * ImageGenerate 上游合并测试（本次修复核心逻辑）。
  * 覆盖：上游文本节点/图片节点连线后，文字与图片合并进生图请求；
  * 本地 prompt 与上游文本结合；多上游节点合并；上游有内容时校验通过。
  */
@@ -133,13 +133,13 @@ beforeEach(() => {
   }
 });
 
-import PromptNode from '../../src/components/nodes/PromptNode.tsx';
+import ImageGenerate from '../../src/components/nodes/ImageGenerate.tsx';
 
 function setup(data = {}) {
-  return render(<PromptNode id="n1" data={data} selected={false} />);
+  return render(<ImageGenerate id="n1" data={data} selected={false} />);
 }
 
-describe('PromptNode 上游文本/图片合并（修复点）', () => {
+describe('ImageGenerate 上游文本/图片合并（修复点）', () => {
   it('上游文本节点连入时，文字合并进生图 prompt（本地 prompt + 上游文本）', async () => {
     connectedInputs = {
       images: [],
@@ -209,7 +209,7 @@ describe('PromptNode 上游文本/图片合并（修复点）', () => {
       images?: unknown;
     };
     expect(call.prompt).toContain('转成水墨');
-    // 注意 PromptNode 把 refImages 转成 url 数组后以 images 字段传下（图生图参考图）
+    // 注意 ImageGenerate 把 refImages 转成 url 数组后以 images 字段传下（图生图参考图）
     expect(call.images).toEqual(['http://up/a.png', 'http://up/b.png']);
   });
 

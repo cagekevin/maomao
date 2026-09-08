@@ -107,7 +107,7 @@ function promptPreview(p: string | undefined): string {
  *   解析 provider → reportGenerate → taskCtl.progress → 调 API
  *   → 成功写 node.data + taskCtl.done / 失败 setError + taskCtl.fail
  *   → registerTaskRetry 注册「再来一次」
- * PromptNode / TextNode / VideoGenerate 各重复约 40 行，
+ * ImageGenerate / TextNode / VideoGenerate 各重复约 40 行，
  * 且 Agent 的 generate_node 工具是死桩（没接真实生成）。
  * 未来 28 个节点逐个接真引擎时，若没有统一契约，每个节点都要重复踩一遍坑，
  * 还容易「任务中心有结果、节点卡片没结果」或反之的不一致。
@@ -120,7 +120,7 @@ function promptPreview(p: string | undefined): string {
  * 【真相源契约（节点必守，P0）】任务中心为结果权威源，node.data 为渲染缓存副本：
  *  1. onSuccess 必须把结果写回 node.data（如 patchData({ imageUrl: r.url })），
  *     否则刷新后节点因 data 无持久 URL 而丢结果（结果只在任务中心）。
- *     对照样板：PromptNode / VideoGenerate.onSuccess 写 data.imageUrl / data.videoUrl。
+ *     对照样板：ImageGenerate / VideoGenerate.onSuccess 写 data.imageUrl / data.videoUrl。
  *  2. 异步可恢复的节点必须声明 onRecover（见下），收到 agent:task-completed 广播
  *     把持久 resultUrl 写回 node.data，刷新后自动恢复显示。
  *  3. 文本类节点（结果本体在 data.text、任务中心 resultUrl 为空）不适用 onRecover，

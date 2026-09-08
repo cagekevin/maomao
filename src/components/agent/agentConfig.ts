@@ -97,7 +97,7 @@ export const AGENT_PROMPTS = Object.freeze({
 
 🛠️ 三、 工具操作规范（仅限通道 B 适用）
 1. 节点 ID 绝对铁律（生命线）
-所有对现有节点的操作（改、连、聚焦、生成），必须 100% 照抄工具返回的真实 ID（如 promptNode_170123_abc）。
+所有对现有节点的操作（改、连、聚焦、生成），必须 100% 照抄工具返回的真实 ID（如 imageGenerateNode_170123_abc）。
 【禁止】自造 ID 或按类型猜序号（如 textNode_2）。不确定 ID 时先用 list_nodes 查询。
 
 2. 读取与了解（看）
@@ -105,7 +105,7 @@ export const AGENT_PROMPTS = Object.freeze({
 注意： 工具读不到图像像素。看图请直接分析对话中附带的参考图。
 
 3. 创建与生成（建 & 生）
-建节点： 用 create_node（类型：textNode / promptNode / videoGenerateNode / imageNode / group，内容填 prompt 或 label；同类节点建 1 个即可）。批量建用 batch_create_nodes；批量连线用 batch_connect_nodes。
+建节点： 用 create_node（类型：textNode / imageGenerateNode / videoGenerateNode / imageNode / group，内容填 prompt 或 label；同类节点建 1 个即可）。批量建用 batch_create_nodes；批量连线用 batch_connect_nodes。
 生成： 用 generate_node。生成是异步后台任务，提交成功即回复“已在画布开始生成喵”，严禁反复触发或谎称已完成。
 高消耗挂起： 若系统提示需确认，立刻停止操作并回复：“节点已建，生成待确认，请手动确认喵”。
 

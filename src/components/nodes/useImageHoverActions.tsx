@@ -10,7 +10,7 @@ import { showToast, toastError } from '../base/core/toastStore.ts';
 /**
  * 图片类节点 hover 操作栏「行为 + 按钮」统一机制。
  *
- * 【为什么抽出来】图片节点(ImageNode)与生图节点(PromptNode)的 hover 栏都含
+ * 【为什么抽出来】图片节点(ImageNode)与生图节点(ImageGenerate)的 hover 栏都含
  * 「裁剪 / 标记 / 压缩 / 发送到素材库 / 下载」这套图片行为能力。此前两节点各写一份，
  * 生图节点的 crop/edit 甚至漏写 onClick 成了死按钮（功能漂移）。抽出统一 hook，
  * 两节点只声明差异项（上传语义不同），共享能力一处维护、一处修复。

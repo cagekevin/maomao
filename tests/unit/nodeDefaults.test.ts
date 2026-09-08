@@ -9,10 +9,10 @@ import {
 } from '../../src/components/base/canvas/nodeDefaults.ts';
 
 describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
-  it('promptNode 缺宽高/style → 补 420×420', () => {
+  it('imageGenerateNode 缺宽高/style → 补 420×420', () => {
     const r = applyNodeTypeDefaults({
       id: 'x',
-      type: 'promptNode',
+      type: 'imageGenerateNode',
       position: { x: 0, y: 0 },
       data: {},
     });
@@ -36,7 +36,7 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
   it('已有字段不覆盖', () => {
     const r = applyNodeTypeDefaults({
       id: 'x',
-      type: 'promptNode',
+      type: 'imageGenerateNode',
       position: { x: 0, y: 0 },
       width: 999,
       height: 888,
@@ -87,7 +87,7 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
   });
 
   it('NODE_TYPE_DEFAULTS 覆盖关键类型', () => {
-    expect(NODE_TYPE_DEFAULTS).toHaveProperty('promptNode');
+    expect(NODE_TYPE_DEFAULTS).toHaveProperty('imageGenerateNode');
     expect(NODE_TYPE_DEFAULTS).toHaveProperty('group');
     expect(NODE_TYPE_DEFAULTS).toHaveProperty('videoProcessNode');
   });

@@ -399,14 +399,14 @@ describe('scriptBoxEngine · 引擎编排', () => {
     expect(true).toBe(true); // 能安全中止即达标
   });
 
-  it('onConnectShot 建下游 promptNode 并自动连线', async () => {
+  it('onConnectShot 建下游 imageGenerateNode 并自动连线', async () => {
     const { engine, store, addNodes } = makeEngine({
       shots: [{ id: 's1', index: 1, prompt: 'p', videoPrompt: 'v' }],
     });
     engine.onConnectShot('s1', 'image');
     expect(addNodes).toHaveBeenCalledTimes(1);
     const node = addNodes.mock.calls[0][0][0];
-    expect(node.type).toBe('promptNode');
+    expect(node.type).toBe('imageGenerateNode');
     expect(node.data.prompt).toBe('p');
     expect(store._edges.length).toBe(1);
     expect(store._edges[0].source).toBe('node-1');
@@ -423,7 +423,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     // 生图下游
     engine.onConnectShot('s1', 'image');
     const imgNode = addNodes.mock.calls[0][0][0];
-    expect(imgNode.type).toBe('promptNode');
+    expect(imgNode.type).toBe('imageGenerateNode');
     // 资产名带出为 label，供下游 PromptInput @名 匹配（docs/70）
     expect(imgNode.data.images).toMatchObject([
       {
@@ -462,7 +462,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
 
     // 之后用户生成城堡图（imageUrl 补上）→ node.data.images 这份快照字段仍是空（不可变快照）。
     // ⚠️ 但这不是"永不补"：onConnectShot 同时建了 scriptBoxNode 的 shot- 边，
-    //    下游 PromptNode 的 refImages = mergeRefImages(connected.images(实时), data.images(快照))，
+    //    下游 ImageGenerate 的 refImages = mergeRefImages(connected.images(实时), data.images(快照))，
     //    connected.images 走 useConnectedInputs 实时从 scriptBoxNode.data.assets 重新 collectAssets ——
     //    资产生成后被实时链路自动补上，无需重连。（engine 单测无法触达 hook，故仅断言快照字段不变）
     store.assets = [{ id: 'asset-城堡', name: '城堡', imageUrl: '/files/x.png' }];
@@ -494,7 +494,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     });
     engine.onConnectShots(['s1']);
     expect(addNodes).toHaveBeenCalledTimes(1);
-    expect(addNodes.mock.calls[0][0][0].type).toBe('promptNode');
+    expect(addNodes.mock.calls[0][0][0].type).toBe('imageGenerateNode');
   });
 
   it('onConnectShots 未传/空数组 → 全部镜头（与批量生成逻辑一致）', async () => {
@@ -508,7 +508,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     engine.onConnectShots([], 'image');
     let allNodes = addNodes.mock.calls.flatMap((c) => c[0]);
     expect(allNodes).toHaveLength(2);
-    expect(allNodes.every((n) => n.type === 'promptNode')).toBe(true);
+    expect(allNodes.every((n) => n.type === 'imageGenerateNode')).toBe(true);
     // 不传 → 全部
     addNodes.mockClear();
     engine.onConnectShots(undefined, 'video');

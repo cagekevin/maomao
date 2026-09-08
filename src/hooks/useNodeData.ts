@@ -34,7 +34,7 @@ type PatchDebouncedFn = {
  * 【为什么要有它】此前每个节点手写同一份「不可变局部更新 node.data」样板
  *   const patchData = useCallback((patch) => setNodes(ns => ns.map(n => n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)), [id])
  *   + 同款 debouncedPatch（debounce(patchData, 200)）。实测 6+ 处逐字重复
- *   （TextNode / VideoGenerate / PromptNode / TemplateNode / LoopNode / ImageBoxNode）。
+ *   （TextNode / VideoGenerate / ImageGenerate / TemplateNode / LoopNode / ImageBoxNode）。
  * 本 hook 统一收口，节点只需 `const { patchData, patchDebounced } = useNodeData(id)`。
  *
  * 【用法】

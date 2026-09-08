@@ -29,7 +29,7 @@ describe('useArrangeCanvas', () => {
     const nodes = [
       {
         id: 'a',
-        type: 'promptNode',
+        type: 'imageGenerateNode',
         position: { x: 999, y: 888 },
         data: {},
         width: 420,
@@ -59,7 +59,7 @@ describe('useArrangeCanvas', () => {
     expect(typeof b.position.y).toBe('number');
     // b 与 a 通过边保持左右相对关系（rankdir=LR，a 在左 b 在右）
     expect(b.position.x).toBeGreaterThan(a.position.x);
-    // 2026-09-07：仅 INPUT_PANEL_NODE_TYPES 收面板（promptNode 收起、imageNode 不受影响）
+    // 2026-09-07：仅 INPUT_PANEL_NODE_TYPES 收面板（imageGenerateNode 收起、imageNode 不受影响）
     expect(a.data.expanded).toBe(false);
     expect(b.data.expanded).toBe(true);
     // 边原样回传
@@ -74,7 +74,7 @@ describe('useArrangeCanvas', () => {
     const nodes = [
       {
         id: 'n',
-        type: 'promptNode',
+        type: 'imageGenerateNode',
         position: { x: 5000, y: 5000 },
         data: {},
         width: 420,
@@ -117,7 +117,7 @@ describe('useArrangeCanvas', () => {
       // 独立于编组的普通节点（无连线），作为不跳变锚点
       {
         id: 'n',
-        type: 'promptNode',
+        type: 'imageGenerateNode',
         position: { x: 5000, y: 5000 },
         data: {},
         width: 420,
@@ -172,7 +172,7 @@ describe('useArrangeCanvas', () => {
     const { result } = renderHook(() => useArrangeCanvas());
     const origTop = {
       id: 'a',
-      type: 'promptNode',
+      type: 'imageGenerateNode',
       position: { x: 4321, y: 8765 },
       data: {},
       width: 420,
@@ -203,7 +203,7 @@ describe('useArrangeCanvas', () => {
     const { result } = renderHook(() => useArrangeCanvas());
     const mk = (id, x) => ({
       id,
-      type: 'promptNode',
+      type: 'imageGenerateNode',
       position: { x, y: 0 },
       data: {},
       width: 420,

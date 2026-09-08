@@ -142,7 +142,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   if (debouncedPatch.current == null) {
     debouncedPatch.current = debounce(patchData, 200);
   }
-  // 记住上次选择的模型/比例/分辨率/时长（跨节点/跨会话，与 PromptNode 一致）
+  // 记住上次选择的模型/比例/分辨率/时长（跨节点/跨会话，与 ImageGenerate 一致）
   const { prefs: vidPrefs, set: setVidPrefs } = useNodePrefs('videoGenerateNode', {
     model: '',
     size: '16:9',

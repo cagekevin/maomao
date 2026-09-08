@@ -4,7 +4,7 @@
  * 覆盖（纯函数 → 输入 ctx/state → 断言 items 结构）：
  *  - buildCanvasMenuItems：默认四项（文本/图片/视频/剧本盒子）+ 上传；pinnedTools 固定后
  *    该项升入一级，且二级「仍保留」（图钉是取消固定唯一把手，禁止删二级固定项 —— 防回归）。
- *  - buildNodeMenuItems：imageNode/promptNode 有「复制图片」，group 有「取消编组」，普通节点无。
+ *  - buildNodeMenuItems：imageNode/imageGenerateNode 有「复制图片」，group 有「取消编组」，普通节点无。
  *  - buildSelectionMenuItems：选中 <2 无「编组」，≥2 有「编组」+ 复制 + 删除。
  *  - menuForState：按 state.type 正确分发到三态 builder。
  */
@@ -109,9 +109,9 @@ describe('buildNodeMenuItems（单选节点右键）', () => {
     expect(renameNode).toHaveBeenCalledWith('n1');
   });
 
-  it('图片类节点（promptNode）有「复制图片」', () => {
+  it('图片类节点（imageGenerateNode）有「复制图片」', () => {
     const items = buildNodeMenuItems(
-      makeCtx({ nodeById: () => ({ type: 'promptNode' }) as never }),
+      makeCtx({ nodeById: () => ({ type: 'imageGenerateNode' }) as never }),
       'node-id',
     );
     const ls = labels(items);
@@ -160,7 +160,7 @@ describe('buildSelectionMenuItems（多选右键）', () => {
 });
 
 describe('menuForState（分发）', () => {
-  const base = makeCtx({ nodeById: () => makeNode('promptNode'), selectedCount: () => 2 });
+  const base = makeCtx({ nodeById: () => makeNode('imageGenerateNode'), selectedCount: () => 2 });
 
   it('type=node → 单选菜单（复制图片）', () => {
     const ls = labels(menuForState({ x: 0, y: 0, type: 'node', nodeId: 'n1' }, base));

@@ -17,7 +17,7 @@ export interface CanvasShortcutHandlers {
   onUngroup?: () => void;
   /** Ctrl+L 自动排版（dagre） */
   onArrange?: () => void;
-  /** Q/W/E 快速添加节点，入参为节点类型（textNode/promptNode/videoGenerateNode） */
+  /** Q/W/E 快速添加节点，入参为节点类型（textNode/imageGenerateNode/videoGenerateNode） */
   onAdd?: (nodeType: string) => void;
   /** Tab 一键折叠/展开 text/prompt/discountVideo 节点的 input 面板 */
   onToggleInputPanels?: () => void;
@@ -84,7 +84,7 @@ export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
         }
         if (key === 'w') {
           e.preventDefault();
-          onAdd?.('promptNode');
+          onAdd?.('imageGenerateNode');
           return;
         }
         if (key === 'e') {

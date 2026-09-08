@@ -123,7 +123,7 @@ function useNodeHeight(id) {
  * ════════════════════════════════════════════════════════════════
  *
  * 一句话：外壳用 NodeShell，节点只写「业务专属内容」，绝不手写外壳/端口/背景/尺寸。
- * 参考节点（从简到繁）：TextNode / PromptNode → ImageBoxNode / GridSplitNode → ScriptBoxNode（复合）。
+ * 参考节点（从简到繁）：TextNode / ImageGenerate → ImageBoxNode / GridSplitNode → ScriptBoxNode（复合）。
  *
  * ── 0. 标准节点骨架（照抄）──
  *   return (
@@ -168,7 +168,7 @@ function useNodeHeight(id) {
  *   · hover 按钮统一 HoverToolbar + ToolbarButton，别手写胶囊栏（ImageBoxNode 手写是历史遗留，别模仿）。
  *
  * ── 5. 数据状态（通读全部节点后的统一范式，先想清楚）──
- *   统一范式（TextNode/PromptNode/DiscountVideo/GridSplit/GridMerge 全部一致）：
+ *   统一范式（TextNode/ImageGenerate/DiscountVideo/GridSplit/GridMerge 全部一致）：
  *   · **useState 存 UI 状态**：所有节点都用 `useState(data.xxx)` 初始化（prompt/text/rows/cols/ratio…）。
  *   · **setNodes 不可变更新写回 data**：改状态时 `setNodes(ns => ns.map(n => n.id===id
  *     ? {...n, data:{...n.data,...patch}} : n))`，非目标节点 : n 原样返回。
@@ -238,7 +238,7 @@ function NodeShell({
   // 否则 useSizeSync 的 Auto 分支会把高度强制设成 defaultHeight，覆盖 group 实际尺寸。
   // 始终调用 hook 以遵守 Hooks 规则；syncSize=false 时传空比例，
   // useSizeSync 内部对 null 比例直接 no-op，行为不变（不改 group 节点尺寸）。
-  const ratio = useSizeSync(id, syncSize ? aspectRatio ?? '' : '', {
+  const ratio = useSizeSync(id, syncSize ? (aspectRatio ?? '') : '', {
     mode: sizeMode,
     defaultHeight,
     baseSize,

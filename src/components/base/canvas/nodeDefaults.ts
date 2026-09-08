@@ -24,14 +24,14 @@ interface NodeTypeDefault {
  */
 export const INPUT_PANEL_NODE_TYPES = [
   'textNode',
-  'promptNode',
+  'imageGenerateNode',
   'videoGenerateNode',
   'templateNode',
 ] as const;
 
 /** 各节点类型结构默认值（对齐官方 + 历史修复） */
 export const NODE_TYPE_DEFAULTS: Record<string, NodeTypeDefault> = {
-  promptNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
+  imageGenerateNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
   gridSplitNode: { width: 280, style: { width: 280 } },
   videoProcessNode: { width: 520, height: 620, style: { width: 520, height: 620 } },
   panoramaNode: { width: 640, height: 360, style: { width: 640, height: 360 } },

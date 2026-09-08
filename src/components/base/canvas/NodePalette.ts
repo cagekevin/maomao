@@ -18,7 +18,7 @@ import {
 import TextNode from '../../nodes/TextNode.tsx';
 import ImageNode from '../../nodes/ImageNode.tsx';
 import LoopNode from '../../nodes/LoopNode.tsx';
-import PromptNode from '../../nodes/PromptNode.tsx';
+import ImageGenerate from '../../nodes/ImageGenerate.tsx';
 import VideoGenerate from '../../nodes/VideoGenerate.tsx';
 import VideoExtractNode from '../../nodes/VideoExtractNode.tsx';
 import ImageBoxNode from '../../nodes/ImageBoxNode.tsx';
@@ -64,7 +64,7 @@ export const paletteNodes = [
   // textNode（文本）与顶部 Q 快捷重复，子分类不再列出（由顶部快捷 + 节点面板添加）
 
   // --- 图片工具 ---
-  // promptNode（图片/生图）与顶部 W 快捷重复，子分类不再列出
+  // imageGenerateNode（图片/生图）与顶部 W 快捷重复，子分类不再列出
   {
     type: 'imageNode',
     label: '图片视频素材节点',
@@ -218,7 +218,13 @@ export const paletteNodes = [
 /** 顶部快捷（Q/W/E）专属、不进入子分类展示、但仍可创建的内置节点 */
 const HIDDEN_TOP_LEVEL_NODES = [
   { type: 'textNode', label: '文本', cat: 'text', component: TextNode, data: { text: '' } },
-  { type: 'promptNode', label: '图片', cat: 'image', component: PromptNode, data: { prompt: '' } },
+  {
+    type: 'imageGenerateNode',
+    label: '图片',
+    cat: 'image',
+    component: ImageGenerate,
+    data: { prompt: '' },
+  },
   {
     type: 'videoGenerateNode',
     label: '视频生成',
@@ -229,7 +235,7 @@ const HIDDEN_TOP_LEVEL_NODES = [
 ];
 
 // 便捷：按 type 查目录项
-// 注意：顶部 QWE 快捷创建的 textNode/promptNode/videoGenerateNode 已从子分类展示移出，
+// 注意：顶部 QWE 快捷创建的 textNode/imageGenerateNode/videoGenerateNode 已从子分类展示移出，
 // 但仍是合法可创建节点（AI 工具 create_node 校验、defaultNodeData 兜底依赖这里），故单独补一份。
 export const getPaletteNode = (type) =>
   paletteNodes.find((n) => n.type === type) || HIDDEN_TOP_LEVEL_NODES.find((n) => n.type === type);
@@ -253,7 +259,7 @@ export const builtinNodeTypes = paletteNodes.filter((n) => n.builtin).map((n) =>
  *
  * 注意：
  *  - 遍历「全部」palette 项（含无 builtin 标记的项），不能只取 builtin；
- *  - 顶部快捷 HIDDEN（textNode/promptNode/videoGenerateNode）必须并入，否则画布渲染崩；
+ *  - 顶部快捷 HIDDEN（textNode/imageGenerateNode/videoGenerateNode）必须并入，否则画布渲染崩；
  *  - 无 component 字段的项会被跳过（目前仅 ghostTarget：连线占位，非真实节点）；
  *  - 重依赖节点的 component 是 lazyNode 包装的懒加载组件，派生进 nodeTypes 后自动按需加载；
  *  - ghostTarget 由 App.jsx 在派生结果后补充。

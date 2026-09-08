@@ -128,7 +128,7 @@ export function useSizeSync(
   useEffect(() => {
     // Auto / 无比例（ratio=null）：不干预节点尺寸。
     // 【为什么不再重置为默认方框】Auto 意味着「节点尺寸由实际媒体/编辑决定」——
-    // PromptNode 裁剪/扩图后用 fitByRatio 跟随图片真实比例，ImageNode 用 <img onLoad> 自动跟随。
+    // ImageGenerate 裁剪/扩图后用 fitByRatio 跟随图片真实比例，ImageNode 用 <img onLoad> 自动跟随。
     // 若 Auto 仍把高度强制设成 defaultHeight，会覆盖这些媒体自适应结果（表现成「框被锁定」）。
     // 各节点初始显示仍有 NodeShell 的 useNodeSize + fallback 兜底，不会塌陷（见 NodeShell L242-248）。
     // GroupNode 已用 syncSize={false} 手动关掉本行为，印证 Auto 强制重置是已知副作用。

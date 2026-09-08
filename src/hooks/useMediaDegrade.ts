@@ -5,7 +5,7 @@ import { useLod } from '../components/base/canvas/lod.tsx';
 
  *
  * 【为什么抽成 hook】
- * ImageNode / VideoGenerate / PromptNode 都要在缩小时隐藏重型媒体，逻辑相同：
+ * ImageNode / VideoGenerate / ImageGenerate 都要在缩小时隐藏重型媒体，逻辑相同：
  *  - lodLevel>=2（缩到 ≤0.3）→ 隐藏图片内容
  *  - lodLevel>=3（缩到 ≤0.2）→ 连视频/音频也隐藏
  * 统一收敛，新增节点要响应性能降级时直接用它，别各自写字符串判断。

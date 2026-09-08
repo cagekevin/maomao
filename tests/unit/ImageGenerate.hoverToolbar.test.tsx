@@ -1,5 +1,5 @@
 /**
- * PromptNode hover 工具栏回归测试（State 2 契约细化）。
+ * ImageGenerate hover 工具栏回归测试（State 2 契约细化）。
  * 核心验证：生图节点的「裁剪」按钮此前是死按钮（无 onClick），
  * 迁入共享机制 useImageHoverActions 后必须可点击并打开 ImageEditor。
  */
@@ -104,7 +104,7 @@ vi.mock('../../src/components/base/editors/InlineImageCropper.tsx', () => ({
   },
 }));
 
-import PromptNode from '../../src/components/nodes/PromptNode.tsx';
+import ImageGenerate from '../../src/components/nodes/ImageGenerate.tsx';
 
 beforeEach(() => {
   mockSetNodes.mockClear();
@@ -129,10 +129,10 @@ beforeEach(() => {
   }
 });
 
-describe('PromptNode hover 工具栏 — 共享图片能力', () => {
+describe('ImageGenerate hover 工具栏 — 共享图片能力', () => {
   it('有生图结果时，hover 栏出现「裁剪」按钮且可点击打开就地裁剪浮层', async () => {
     render(
-      <PromptNode
+      <ImageGenerate
         id="pn1"
         data={{ imageUrl: 'http://x/result.png', label: '生图' }}
         selected={false}
@@ -148,7 +148,7 @@ describe('PromptNode hover 工具栏 — 共享图片能力', () => {
 
   it('有生图结果时，「标记」按钮可点击打开全屏 ImageEditor', async () => {
     render(
-      <PromptNode
+      <ImageGenerate
         id="pn1"
         data={{ imageUrl: 'http://x/result.png', label: '生图' }}
         selected={false}
@@ -160,13 +160,13 @@ describe('PromptNode hover 工具栏 — 共享图片能力', () => {
   });
 
   it('有生图结果时，hover 栏出现「标记」「压缩图片（80%）」按钮', () => {
-    render(<PromptNode id="pn1" data={{ imageUrl: 'http://x/result.png' }} selected={false} />);
+    render(<ImageGenerate id="pn1" data={{ imageUrl: 'http://x/result.png' }} selected={false} />);
     expect(screen.getByTitle('标记')).toBeTruthy();
     expect(screen.getByTitle('压缩图片（80%）')).toBeTruthy();
   });
 
   it('有生图结果时仍保留生图节点专属按钮（放大/发送到剪映素材库）', () => {
-    render(<PromptNode id="pn1" data={{ imageUrl: 'http://x/result.png' }} selected={false} />);
+    render(<ImageGenerate id="pn1" data={{ imageUrl: 'http://x/result.png' }} selected={false} />);
     expect(screen.getByTitle('放大')).toBeTruthy();
     expect(screen.getByTitle('发送到剪映素材库')).toBeTruthy();
   });

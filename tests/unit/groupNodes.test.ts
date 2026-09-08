@@ -19,7 +19,7 @@ describe('编组算法 §2.2', () => {
     },
     {
       id: 'b',
-      type: 'promptNode',
+      type: 'imageGenerateNode',
       data: {},
       position: { x: 200, y: 0 },
       style: { width: 100, height: 100 },
@@ -101,7 +101,7 @@ describe('R4 groupId 无碰撞（crypto.randomUUID 替代 Date.now）', () => {
     },
     {
       id: 'b',
-      type: 'promptNode',
+      type: 'imageGenerateNode',
       data: {},
       position: { x: 200, y: 0 },
       style: { width: 100, height: 100 },

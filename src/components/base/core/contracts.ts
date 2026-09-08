@@ -506,7 +506,7 @@ export const NODE_TYPES = {
   // 禁止独立持久化（防双写漂移）。字段唯一真相源见 src/components/scriptbox/scriptBoxSchema.ts。
   scriptBoxNode: 'scriptBoxNode',
   textNode: 'textNode',
-  promptNode: 'promptNode',
+  imageGenerateNode: 'imageGenerateNode',
   templateNode: 'templateNode',
   videoGenerateNode: 'videoGenerateNode',
   ghostTarget: 'ghostTarget',

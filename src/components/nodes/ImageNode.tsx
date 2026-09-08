@@ -87,7 +87,7 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
   const { hideMedia } = useMediaDegrade();
 
   // 节点按媒体真实宽高比自适应：area-fixed 模式下，媒体加载/裁剪后把比例交给 useSizeSync
-  // 锁定面积（与 PromptNode / VideoGenerate 统一的面积恒定模型），形状跟随媒体比例。
+  // 锁定面积（与 ImageGenerate / VideoGenerate 统一的面积恒定模型），形状跟随媒体比例。
   const [mediaRatio, setMediaRatio] = useState<string | null>(null);
   const applyMediaRatio = useCallback((w: number, h: number) => {
     if (w && h) setMediaRatio(`${w}:${h}`);
@@ -162,7 +162,7 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
     [id, setNodes],
   );
 
-  // 摄影棚生成回调：创建新 PromptNode，用户手动触发生成
+  // 摄影棚生成回调：创建新 ImageGenerate，用户手动触发生成
   const handleCameraStudioGenerate = useCallback(
     (result: CameraStudioResult) => {
       const sourceNode = getNodes().find((n) => n.id === id);
@@ -180,21 +180,21 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
       };
 
       // 【同步默认参数】摄像机新建节点绕过 App.addNode，需手动注入上次记忆的参数
-      // （模型/比例/尺寸），否则新 promptNode 会落到纯常量默认（Auto/1K/空模型），
+      // （模型/比例/尺寸），否则新 imageGenerateNode 会落到纯常量默认（Auto/1K/空模型），
       // 与手动新建的生图节点默认不一致（记忆只影响新建，不污染存量）。
       const nodeData: Record<string, unknown> = {
-        type: 'promptNode',
+        type: 'imageGenerateNode',
         label: modeLabel,
         prompt: prompt,
         role: 'generator',
         status: 'idle',
         promptState: 'completed',
       };
-      injectNodePrefs('promptNode', nodeData);
+      injectNodePrefs('imageGenerateNode', nodeData);
 
       const newNode = {
         id: newNodeId,
-        type: 'promptNode',
+        type: 'imageGenerateNode',
         position: newPos,
         data: nodeData,
         width: 420,

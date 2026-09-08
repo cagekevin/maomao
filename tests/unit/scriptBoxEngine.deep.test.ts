@@ -315,7 +315,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
   });
 
   // ── onConnectShot：连线建下游节点 + refImages 匹配 ──
-  it('onConnectShot：建 promptNode 下游 + 自动连线，且带入 @资产参考图', () => {
+  it('onConnectShot：建 imageGenerateNode 下游 + 自动连线，且带入 @资产参考图', () => {
     data = {
       shots: [
         { id: 's1', index: 1, prompt: '猫的图', videoPrompt: '', description: '@小红帽 出现' },
@@ -326,7 +326,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     eng.onConnectShot('s1', 'image');
     expect(addNodes).toHaveLength(1);
     const node = addNodes[0][0];
-    expect(node.type).toBe('promptNode');
+    expect(node.type).toBe('imageGenerateNode');
     expect(node.data.label).toBe('镜头1图');
     expect(node.data.prompt).toBe('猫的图');
     // 参考图来自镜头里 @小红帽 匹配到的有图资产（注入前统一补绝对原图，见 scriptBoxEngine 收口）

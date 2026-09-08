@@ -77,8 +77,8 @@ import { resolveProviderModel } from '../base/utils/providerModels.ts';
  * │ 视频首帧封面               │ ImageNode/TextNode   │ base/useVideoPoster             │
  * │ 宽高比自适应               │ ImageNode            │ base/useFitNodeRatio            │
  * │ 双击编辑 + AI生成 + 全屏编辑 │ TextNode            │ editingText + useNodeGeneration  │
- * │ 画质/比例/渲染质量菜单       │ PromptNode           │ trigger + absolute bottom-full  │
- * │ 批量张数 xN                │ PromptNode           │ count 下拉 + 循环生成            │
+ * │ 画质/比例/渲染质量菜单       │ ImageGenerate           │ trigger + absolute bottom-full  │
+ * │ 批量张数 xN                │ ImageGenerate           │ count 下拉 + 循环生成            │
  * │ 多图容器(图片盒子)          │ ImageBoxNode         │ data.images 直读 + 多选/全选     │
  * │ 自定义多端口               │ ImageBox/GridSplit    │ showHandles=false + CustomHandle │
  * │ 批量 spawn 下游多图         │ GridSplitNode        │ addNodes 网格排列 + addEdges     │
@@ -228,7 +228,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   React.useEffect(() => {
     patchData({ expanded });
   }, [expanded]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 全局快捷键（Tab）折叠/展开：外部 data.expanded 变化时同步回本地 state（对齐 TextNode/PromptNode/VideoGenerate）
+  // 全局快捷键（Tab）折叠/展开：外部 data.expanded 变化时同步回本地 state（对齐 TextNode/ImageGenerate/VideoGenerate）
   React.useEffect(() => {
     if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded);
   }, [data.expanded]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -447,7 +447,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
           {/* 底部控制条（通用：参数 + 模型 + 生成按钮） */}
           <div className="flex items-center justify-between pt-2 border-t border-edge-faint nodrag">
             <div className="flex items-center gap-1.5 overflow-visible z-dropdown">
-              {/* 【模板】参数快捷入口（比例/尺寸下拉等），照 PromptNode 画质菜单形态 */}
+              {/* 【模板】参数快捷入口（比例/尺寸下拉等），照 ImageGenerate 画质菜单形态 */}
               {/* 模型下拉（通用 ModelSelect） */}
               <ModelSelect
                 value={selectedModel}
@@ -560,7 +560,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
  *     const ts = Date.now()
  *     const newNodes = items.map((item, i) => ({
  *       id: `out-${id}-${i}-${ts}-${Math.random().toString(36).slice(2, 6)}`,
- *       type: 'promptNode',                          // 下游节点类型（或 imageNode）
+ *       type: 'imageGenerateNode',                          // 下游节点类型（或 imageNode）
  *       position: { x: baseX, y: baseY + i * 750 },  // 纵向排列，避免重叠
  *       data: { prompt: item },                      // 填好下游的 data
  *       width: 420, height: 420,

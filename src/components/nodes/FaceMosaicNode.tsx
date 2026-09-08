@@ -34,7 +34,7 @@ import { dataUrlToBlob } from '../base/core/utils.ts';
  * 人脸打码节点（完整复刻官方 Cl.jsx / faceMosaicNode）。
  *
  * 功能：
- *  - 输入：上传图片 或 连接上游含图片的节点（imageNode/promptNode/imageBoxNode 等，经 useConnectedInputs 收集）
+ *  - 输入：上传图片 或 连接上游含图片的节点（imageNode/imageGenerateNode/imageBoxNode 等，经 useConnectedInputs 收集）
  *  - 模式：马赛克 / 黑条 / 网格 / 模糊（MOSAIC_MODES）
  *  - AI打码：MediaPipe 人脸检测 → 按模式打码 → 结果网格 → spawn imageNode 输出
  *  - 手动：打开 FaceMosaicEditor 全屏编辑器，拖拽框选 + 自动识别人脸

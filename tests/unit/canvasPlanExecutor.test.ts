@@ -91,7 +91,7 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
       ],
     });
     expect(ctx.nodes()).toHaveLength(2);
-    expect(ctx.nodes().every((n) => n.type === 'promptNode')).toBe(true);
+    expect(ctx.nodes().every((n) => n.type === 'imageGenerateNode')).toBe(true);
     // 比例归一：square→1:1，story→9:16
     expect(ctx.nodes()[0].data.aspectRatio).toBe('1:1');
     expect(ctx.nodes()[1].data.aspectRatio).toBe('9:16');

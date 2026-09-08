@@ -264,7 +264,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
   const connected = useConnectedInputs(id);
   const upstreamImages = useCallback(() => {
     const list = [];
-    // 直接上游 imageUrl（imageNode / promptNode 等）
+    // 直接上游 imageUrl（imageNode / imageGenerateNode 等）
     connected.images.forEach((img) => {
       if (
         typeof img.url === 'string' &&

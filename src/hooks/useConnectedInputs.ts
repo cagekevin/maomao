@@ -22,7 +22,7 @@ import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.t
  *  2. 每个上游节点产出它的「生成物」或「外部传入的素材」（见 getNodeOutput）：
  *       textNode        → 文本（data.text）
  *       imageNode       → 图片/视频/音频（data.imageUrl，按 mime/扩展名分类）
- *       promptNode      → 图片（data.imageUrl）
+ *       imageGenerateNode      → 图片（data.imageUrl）
  *       videoGenerateNode → 视频（data.videoUrl）
  *       scriptBoxNode   → 按 sourceHandle=`shot-${id}` 的镜头，用 @资产名 匹配有图资产（images）
  *                          （端口前缀走 contracts.SHOT_HANDLE_PREFIX，禁止裸拼字符串）
@@ -142,7 +142,7 @@ function genericOutput(d: Record<string, unknown>, id: string): NodeOutputGroup 
   for (const { url, mediaType } of candidates) {
     const kind = resolveMediaType(url, mediaType);
     // label 统一带上 d.label（图片/视频/音频都带，供下游候选列表显示 / 未来 @名 匹配视频）。
-    // 单图/单视频节点（imageNode/promptNode/panorama/discountVideo/...）双击标题改的名即 d.label。
+    // 单图/单视频节点（imageNode/imageGenerateNode/panorama/discountVideo/...）双击标题改的名即 d.label。
     const item: NodeOutputItem = { id, url, label: str(d.label) };
     if (kind === 'video') return { ...empty, videos: [item] };
     if (kind === 'audio') return { ...empty, audios: [item] };
@@ -383,7 +383,7 @@ if (import.meta.env.DEV) {
   const genericOutputOk = new Set([
     // 单输出由 genericOutput 兜底（imageUrl/videoUrl/resultUrl）
     'imageNode',
-    'promptNode',
+    'imageGenerateNode',
     'videoGenerateNode',
     'panoramaNode',
     'templateNode',

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 /**
- * PromptNode 裁剪/扩图保存「节点框跟随实际图片比例」端到端契约测试。
+ * ImageGenerate 裁剪/扩图保存「节点框跟随实际图片比例」端到端契约测试。
  *
  * 用户反馈根因：保存出口已把 dims（裁剪/扩图后画布真实尺寸）传给 onImageReplaced，
- * 但 PromptNode 此前忽略 dims → 节点框比例不跟随（ImageNode 正常、PromptNode 异常）。
+ * 但 ImageGenerate 此前忽略 dims → 节点框比例不跟随（ImageNode 正常、ImageGenerate 异常）。
  * 契约：onImageReplaced(dataUrl, dims) 后，aspectRatio 写回 'W:H'，真实 NodeShell.useSizeSync
  *       把节点框重算为 dims 比例。
  */
@@ -131,7 +131,7 @@ vi.mock('../../src/components/base/editors/InlineImageCropper.tsx', () => ({
   default: () => null,
 }));
 
-import PromptNode from '../../src/components/nodes/PromptNode.tsx';
+import ImageGenerate from '../../src/components/nodes/ImageGenerate.tsx';
 
 beforeEach(() => {
   node = {
@@ -161,10 +161,10 @@ beforeEach(() => {
   }
 });
 
-describe('PromptNode 保存后节点框跟随图片比例（aspectRatio 回 Auto 不污染生图）', () => {
+describe('ImageGenerate 保存后节点框跟随图片比例（aspectRatio 回 Auto 不污染生图）', () => {
   it('裁剪保存（dims 4:3）→ fitByRatio 让节点框为 4:3，aspectRatio 回 Auto', async () => {
     render(
-      <PromptNode
+      <ImageGenerate
         id="pn1"
         data={{ imageUrl: 'http://x/result.png', aspectRatio: '1:1', label: '生图' }}
         selected={false}
@@ -183,7 +183,7 @@ describe('PromptNode 保存后节点框跟随图片比例（aspectRatio 回 Auto
 
   it('扩图保存（dims 16:9）→ fitByRatio 让节点框为 16:9，aspectRatio 回 Auto', async () => {
     render(
-      <PromptNode
+      <ImageGenerate
         id="pn1"
         data={{ imageUrl: 'http://x/result.png', aspectRatio: '1:1', label: '生图' }}
         selected={false}

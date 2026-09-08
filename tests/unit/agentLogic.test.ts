@@ -36,12 +36,12 @@ describe('AI 助手 parseSSEChunk（SSE 解析）§2.15', () => {
       acc,
     );
     parseSSEChunk(
-      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"pe\\":\\"promptNode\\"}"}}]}}]}',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"pe\\":\\"imageGenerateNode\\"}"}}]}}]}',
       acc,
     );
     expect(acc.toolCalls[0].id).toBe('call1');
     expect(acc.toolCalls[0].function.name).toBe('create');
-    expect(acc.toolCalls[0].function.arguments).toBe('{"type":"promptNode"}');
+    expect(acc.toolCalls[0].function.arguments).toBe('{"type":"imageGenerateNode"}');
   });
 
   it('忽略非 data: 前缀 / [DONE] / 空', () => {

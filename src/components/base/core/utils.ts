@@ -48,7 +48,7 @@ export function dataUrlToBlob(dataUrl: string, mime?: string): Blob {
   return new Blob([bytes], { type });
 }
 
-/** 多路图片源合并去重（PromptNode/TemplateNode refImages 公共实现）：
+/** 多路图片源合并去重（ImageGenerate/TemplateNode refImages 公共实现）：
  *  按 id（缺省回退 url）去重，保留首次出现；无 key（id/url 皆空）的项丢弃。
  *  解决同一批资产图经「连线上游 + data.images」双路进入导致渲染 key 重复 / 图显示两份。 */
 export function mergeRefImages<T extends { id?: string; url?: string }>(
@@ -76,7 +76,7 @@ export function assetLabel(asset: string | { label?: string } | null | undefined
   return (asset && asset.label) || '';
 }
 
-/** 有效提示词 = 本地 prompt + 上游文本合并（PromptNode/TextNode/TemplateNode/VideoGenerate 公共实现）：
+/** 有效提示词 = 本地 prompt + 上游文本合并（ImageGenerate/TextNode/TemplateNode/VideoGenerate 公共实现）：
  *  本地主提示词在前，上游文本（refTexts）去空后追加在后，一起参与生成。返回 '' 表示空。 */
 export function buildEffectivePrompt(
   localPrompt: unknown,

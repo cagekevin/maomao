@@ -11,33 +11,33 @@ beforeEach(() => {
 
 describe('getNodePrefs', () => {
   it('无记忆时返回默认值', () => {
-    expect(getNodePrefs('promptNode', { model: '', aspectRatio: 'Auto', imageSize: '1K' })).toEqual(
-      {
-        model: '',
-        aspectRatio: 'Auto',
-        imageSize: '1K',
-      },
-    );
+    expect(
+      getNodePrefs('imageGenerateNode', { model: '', aspectRatio: 'Auto', imageSize: '1K' }),
+    ).toEqual({
+      model: '',
+      aspectRatio: 'Auto',
+      imageSize: '1K',
+    });
   });
 
   it('有记忆时合并覆盖', () => {
-    contentSet('yimao_node_prefs', { promptNode: { aspectRatio: '16:9', imageSize: '2K' } });
-    expect(getNodePrefs('promptNode', { model: '', aspectRatio: 'Auto', imageSize: '1K' })).toEqual(
-      {
-        model: '',
-        aspectRatio: '16:9',
-        imageSize: '2K',
-      },
-    );
+    contentSet('yimao_node_prefs', { imageGenerateNode: { aspectRatio: '16:9', imageSize: '2K' } });
+    expect(
+      getNodePrefs('imageGenerateNode', { model: '', aspectRatio: 'Auto', imageSize: '1K' }),
+    ).toEqual({
+      model: '',
+      aspectRatio: '16:9',
+      imageSize: '2K',
+    });
   });
 });
 
 describe('injectNodePrefs（新建注入，不污染存量）', () => {
   it('新建节点：data 缺字段时注入记忆值', () => {
     contentSet('yimao_node_prefs', {
-      promptNode: { model: 'm1', aspectRatio: '16:9', imageSize: '2K' },
+      imageGenerateNode: { model: 'm1', aspectRatio: '16:9', imageSize: '2K' },
     });
-    const data = injectNodePrefs('promptNode', {});
+    const data = injectNodePrefs('imageGenerateNode', {});
     // 新建节点沿用上次参数
     expect(data.selectedModel).toBe('m1');
     expect(data.aspectRatio).toBe('16:9');
@@ -45,8 +45,8 @@ describe('injectNodePrefs（新建注入，不污染存量）', () => {
   });
 
   it('传入优先于记忆：已显式传的字段不被记忆覆盖', () => {
-    contentSet('yimao_node_prefs', { promptNode: { aspectRatio: '16:9', imageSize: '2K' } });
-    const data = injectNodePrefs('promptNode', { aspectRatio: '1:1' });
+    contentSet('yimao_node_prefs', { imageGenerateNode: { aspectRatio: '16:9', imageSize: '2K' } });
+    const data = injectNodePrefs('imageGenerateNode', { aspectRatio: '1:1' });
     // 显式传入的 1:1 保留；未传的 imageSize 用记忆
     expect(data.aspectRatio).toBe('1:1');
     expect(data.imageSize).toBe('2K');
@@ -59,7 +59,7 @@ describe('injectNodePrefs（新建注入，不污染存量）', () => {
   });
 
   it('记忆为空时回退纯常量默认', () => {
-    const data = injectNodePrefs('promptNode', {});
+    const data = injectNodePrefs('imageGenerateNode', {});
     expect(data.aspectRatio).toBe('Auto');
     expect(data.imageSize).toBe('1K');
     expect(data.selectedModel).toBe('');

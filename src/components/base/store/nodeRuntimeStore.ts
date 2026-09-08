@@ -7,7 +7,7 @@ import { useSyncExternalStore } from 'react';
  *
  * 【为什么有它（节点动画控制收口 · 阶段二）】
  * 此前同一语义「loading/processing」两种存法：
- *   - 生成节点（PromptNode/TextNode/…）loading = 组件内 useState
+ *   - 生成节点（ImageGenerate/TextNode/…）loading = 组件内 useState
  *   - VideoProcessNode loading = node.data.loading
  * 复制带 data.loading 的节点时，半个「进行中标记」被复制走，造成「复制后互相干扰」。
  * 收口本质：给这些「持续渲染 / 需互斥的瞬态」一个统一的、可被复制安全隔离的拥有者。

@@ -48,7 +48,7 @@ import { generateId } from '../base/core/idGen.ts';
 import type { CameraStudioResult } from '../base/editors/cameraStudio.ts';
 
 /**
- * 生图节点（复刻原 bo.jsx / promptNode）
+ * 生图节点（复刻原 bo.jsx / imageGenerateNode）
  * 已迁移到基座：NodeShell + HoverToolbar + ExpandablePanel + PromptInput + GenerateButton + ModelSelect。
  * 保留差异化：主图片框、素材缩略图区、画质/比例/渲染质量菜单、请求格式、批量 xN。
  * 性能降级用通用 useMediaDegrade：lodLevel>=2 藏生图结果（与官方横幅"图片已隐藏"一致）。
@@ -70,7 +70,7 @@ interface RefText {
 }
 
 /** 生图节点 data 契约 */
-interface PromptNodeData {
+interface ImageGenerateData {
   label?: string;
   prompt?: string;
   imageUrl?: string;
@@ -90,13 +90,13 @@ interface PromptNodeData {
 /** 上游产出（来自 useConnectedInputs）的共享返回类型真相源：src/hooks/useConnectedInputs.ts NodeOutputGroup。
  *  不在此处重复声明 ConnectedOutput，避免与 hook 返回类型漂移（防假收窄）。 */
 
-interface PromptNodeProps {
+interface ImageGenerateProps {
   id: string;
-  data: PromptNodeData;
+  data: ImageGenerateData;
   selected?: boolean;
 }
 
-function PromptNode({ id, data, selected }: PromptNodeProps) {
+function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   const render = useRenderImageResolver();
   // 性能模式媒体降级（通用 hook）：hideResult = isHidden('image')，即 lodLevel>=2
   const { isHidden } = useMediaDegrade();
@@ -141,7 +141,7 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
   // 提示词输入框双击全屏编辑（复刻 TextNode 的交互：ResizeFullscreenHandle 双击 → 弹层）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
   // 记住上次选择的比例/尺寸/模型（跨节点/跨会话）；初始用记忆值，无记忆回退默认
-  const { prefs: imgPrefs, set: setImgPrefs } = useNodePrefs('promptNode', {
+  const { prefs: imgPrefs, set: setImgPrefs } = useNodePrefs('imageGenerateNode', {
     model: '',
     aspectRatio: 'Auto',
     imageSize: '1K',
@@ -373,7 +373,7 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
         addNodes([
           {
             id,
-            type: 'promptNode',
+            type: 'imageGenerateNode',
             position: { x: 100, y: 100 },
             data: {
               ...(data?.label ? { label: data.label } : {}),
@@ -459,18 +459,18 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
       // （模型/比例/尺寸），否则组件只能落到纯常量默认（Auto/1K/空模型），
       // 与手动新建的生图节点默认不一致（记忆只影响新建，不污染存量）。
       const nodeData: Record<string, unknown> = {
-        type: 'promptNode',
+        type: 'imageGenerateNode',
         label: modeLabel,
         prompt: prompt,
         role: 'generator',
         status: 'idle',
         promptState: 'completed',
       };
-      injectNodePrefs('promptNode', nodeData);
+      injectNodePrefs('imageGenerateNode', nodeData);
 
       const newNode = {
         id: newNodeId,
-        type: 'promptNode',
+        type: 'imageGenerateNode',
         position: newPos,
         data: nodeData,
         width: 420,
@@ -880,4 +880,4 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
     </>
   );
 }
-export default React.memo(PromptNode);
+export default React.memo(ImageGenerate);

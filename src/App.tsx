@@ -536,7 +536,7 @@ function Canvas() {
       const id = generateId(type);
       const nodeData: Record<string, unknown> = { label: '', ...data };
 
-      // scriptBoxNode 的 `shot-${id}` 端口 → promptNode/videoGenerateNode 时预填
+      // scriptBoxNode 的 `shot-${id}` 端口 → imageGenerateNode/videoGenerateNode 时预填
       // handle 名解析走 contracts.parseShotHandle，与写侧 shotHandleId 成对（前缀唯一事实来源）。
       if (connection) {
         const src = nodesRef.current.find((n) => n.id === connection.source);
@@ -548,7 +548,7 @@ function Canvas() {
         if (shot) {
           const ar = String(src.data?.aspectRatio || '16:9');
           const o = ar === 'custom' ? String(src.data?.customAspectRatio || '16:9') : ar;
-          if (type === 'promptNode') {
+          if (type === 'imageGenerateNode') {
             nodeData.aspectRatio = o === '4:4' ? '1:1' : o;
           } else if (type === 'videoGenerateNode') {
             nodeData.size = o === '4:4' ? '1:1' : o;

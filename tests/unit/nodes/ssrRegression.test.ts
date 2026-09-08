@@ -20,7 +20,7 @@ import { describe, test, expect } from 'vitest';
 
 import ImageNode from '@/components/nodes/ImageNode';
 import TextNode from '@/components/nodes/TextNode';
-import PromptNode from '@/components/nodes/PromptNode';
+import ImageGenerate from '@/components/nodes/ImageGenerate';
 import VideoGenerate from '@/components/nodes/VideoGenerate';
 import VideoExtractNode from '@/components/nodes/VideoExtractNode';
 import ImageBoxNode from '@/components/nodes/ImageBoxNode';
@@ -65,9 +65,9 @@ const cases = [
     ],
   },
   {
-    name: '生图 PromptNode',
-    Comp: PromptNode,
-    type: 'promptNode',
+    name: '生图 ImageGenerate',
+    Comp: ImageGenerate,
+    type: 'imageGenerateNode',
     expect: [
       'group/node',
       'bg-surface-raised',

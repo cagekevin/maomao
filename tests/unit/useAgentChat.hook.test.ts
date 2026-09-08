@@ -303,7 +303,7 @@ afterEach(() => {
 const toolStream = (
   id = 'call_1',
   name = 'create_node',
-  args = '{"type":"promptNode","label":"生图节点"}',
+  args = '{"type":"imageGenerateNode","label":"生图节点"}',
 ) =>
   makeStreamResponse(
     sseChunks([
@@ -352,7 +352,10 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
     });
 
     expect(callTool).toHaveBeenCalledTimes(1);
-    expect(callTool).toHaveBeenCalledWith('create_node', { type: 'promptNode', label: '生图节点' });
+    expect(callTool).toHaveBeenCalledWith('create_node', {
+      type: 'imageGenerateNode',
+      label: '生图节点',
+    });
 
     const roles = result.current.messages.map((m) => m.role);
     expect(roles).toEqual(['user', 'assistant', 'tool', 'assistant']);
@@ -439,7 +442,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
     });
     fetchMock
       .mockResolvedValueOnce(
-        toolStream('call_1', 'create_node', '{"type":"promptNode","label":"生图节点"}'),
+        toolStream('call_1', 'create_node', '{"type":"imageGenerateNode","label":"生图节点"}'),
       )
       .mockResolvedValueOnce(textStream('已创建。'));
     const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat());
@@ -447,7 +450,10 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
       await result.current.send('创建一个生图节点');
     });
     // 关键：残留 creditGate.pending 不打断 → create_node 执行 + 第二轮 LLM 收敛
-    expect(callTool).toHaveBeenCalledWith('create_node', { type: 'promptNode', label: '生图节点' });
+    expect(callTool).toHaveBeenCalledWith('create_node', {
+      type: 'imageGenerateNode',
+      label: '生图节点',
+    });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(result.current.messages.at(-1).content).toBe('已创建。');
     expect(vi.mocked(convStore.patchCurrentWorkflow)).not.toHaveBeenCalledWith(
@@ -508,7 +514,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
   it('超过 MAX_TOOL_ROUNDS 仍不收敛 → 自动停止提示（防死循环）', async () => {
     // 注意：每次必须返回「新」的 Response/Stream 实例，否则复用的 stream 第二次读已 done
     fetchMock.mockImplementation(() =>
-      toolStream('call_loop', 'create_node', '{"type":"promptNode"}'),
+      toolStream('call_loop', 'create_node', '{"type":"imageGenerateNode"}'),
     );
     const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat());
     await act(async () => {
@@ -563,7 +569,7 @@ describe('useAgentChat · steer 排队（任务进行中补充指令）', () => 
       n += 1;
       return Promise.resolve(
         n % 2 === 1
-          ? toolStream(`call_${n}`, 'create_node', '{"type":"promptNode"}')
+          ? toolStream(`call_${n}`, 'create_node', '{"type":"imageGenerateNode"}')
           : textStream(`完成${n}`),
       );
     });
@@ -1064,13 +1070,13 @@ describe('useAgentChat · parseSSEChunk 深度（SSE 增量解析）', () => {
     );
     // 第 3 段：index 0，拼 arguments
     parseSSEChunk(
-      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"type\\":\\"promptNode\\"}"}}]}}]}',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"type\\":\\"imageGenerateNode\\"}"}}]}}]}',
       acc,
     );
     expect(acc.toolCalls).toHaveLength(1);
     expect(acc.toolCalls[0].id).toBe('call_1');
     expect(acc.toolCalls[0].function.name).toBe('create_node');
-    expect(acc.toolCalls[0].function.arguments).toBe('{"type":"promptNode"}');
+    expect(acc.toolCalls[0].function.arguments).toBe('{"type":"imageGenerateNode"}');
   });
 
   it('多个并行 tool_calls（不同 index）分别归并，不串台', () => {

@@ -67,7 +67,7 @@ export interface ProjectsData {
   lastOpened: string | null;
   version?: number;
 }
-/** fetchTasks 列表项（Task 子集，供 PromptNode 等读 nodeId/status/resultUrl）。 */
+/** fetchTasks 列表项（Task 子集，供 ImageGenerate 等读 nodeId/status/resultUrl）。 */
 export interface TaskListItem {
   id?: string;
   nodeId?: string;

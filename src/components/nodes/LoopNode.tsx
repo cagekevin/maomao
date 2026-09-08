@@ -39,7 +39,7 @@ const SPAWN_DEFAULTS = { aspectRatio: '1:1', imageSize: '1K' }; // 生成节点�
  * 【数据模型】
  *  - splitMethod: string             拆分方式（newline/number/ordinal/semicolon/json）
  *
- * 【运行行为】点「运行」→ 为上游 N 段文案，每段自动创建一个生图节点(promptNode)：
+ * 【运行行为】点「运行」→ 为上游 N 段文案，每段自动创建一个生图节点(imageGenerateNode)：
  *  - 该段文案填入生图节点 prompt；
  *  - 统一参考图（循环节点自己的上游图）塞进每个生图节点 data.images；
  *  - 自动连线：循环节点 → 生图节点（下游 useConnectedInputs 能读到上游依赖）。
@@ -212,7 +212,7 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
       .trim();
   };
 
-  // 运行：为上游 N 段文案，每段自动创建一个生图节点(promptNode)，自动填好该段提示词、
+  // 运行：为上游 N 段文案，每段自动创建一个生图节点(imageGenerateNode)，自动填好该段提示词、
   // 连好统一参考图（可选）、并自动连到循环节点。一个提示词对应一个生图节点。
   // 图由用户在那些下游生图节点里自己点「生成」（对齐 maomao 生图节点接上游文本/图片的机制）。
   const handleGenerate = () => {
@@ -246,7 +246,7 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
         if (!prompt) return;
         specs.push({
           id: `loop-out-${id}-${i}-${generateId('o')}`,
-          type: 'promptNode',
+          type: 'imageGenerateNode',
           position: { x: baseX, y: baseY + i * SPAWN_ROW_GAP },
           data: {
             prompt, // 该段文案填进生图节点提示词

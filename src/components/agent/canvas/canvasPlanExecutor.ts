@@ -3,7 +3,7 @@
  *
  * 【它解决什么】把「generations」计划（多张图/多步骤，含前序依赖）转成画布节点流程并执行：
  *   1. 按 depends_on_previous 分「独立批(Wave1) + 依赖批(Wave2)」（对齐大雄 plan-executor）
- *   2. Wave1：并行建 promptNode + 触发 + await 拿 resultUrl，写回 data.imageUrl
+ *   2. Wave1：并行建 imageGenerateNode + 触发 + await 拿 resultUrl，写回 data.imageUrl
  *   3. Wave2：依赖批仅当独立批全部成功才执行，用「前序节点连线」让下游自动拿到前序图当参考图
  *   4. autoRun=false 时只建节点不触发生成（ready 态，供用户确认后手动跑）
  *
@@ -424,7 +424,7 @@ export async function executePlan({
       });
     };
 
-    // 建一个 promptNode 并设参数。
+    // 建一个 imageGenerateNode 并设参数。
     // 参数优先级对齐大雄 resolveFinalGenParams：generations 每步显式字段 > 面板 defaults（model/ratio/resolution）。
     const createGenNode = async (step, index, anchor) => {
       const nodeId = `plan-${step.id || `step_${index + 1}`}-${generateId('p')}`;
@@ -451,7 +451,7 @@ export async function executePlan({
         imageSize: resolution,
         quality,
         ...(finalModel ? { selectedModel: finalModel } : {}),
-        // 参考图（对齐大雄图像模式 attachment_indices → 图生图）：写进节点 data.images，PromptNode 生图时自动作参考。
+        // 参考图（对齐大雄图像模式 attachment_indices → 图生图）：写进节点 data.images，ImageGenerate 生图时自动作参考。
         // 优先用该步自己的 referenceImages（execute_plan 按 attachment_indices 解析后的），否则用整批共享的。
         // 【TASK-012 缺口 1】use_attachments === false（product_reference 步）时：不写任何用户参考图到 data.images，
         // 只靠 Wave2 连线读产品定稿，避免"用户上传图 + 产品定稿"两张混喂（对齐大雄 L10213）。
@@ -473,7 +473,7 @@ export async function executePlan({
       };
       host.appendNode({
         id: nodeId,
-        type: 'promptNode',
+        type: 'imageGenerateNode',
         position: anchor,
         data,
         width: 420,
@@ -497,7 +497,7 @@ export async function executePlan({
     };
 
     // 等待节点渲染 + useNodeGeneration effect 注册 start（最多 5s）。直接 addNodes 后 React 异步渲染，
-    // PromptNode 挂载时才 registerTaskRetry；不等就直接 runNodeGeneration 会因找不到回调返回 false。
+    // ImageGenerate 挂载时才 registerTaskRetry；不等就直接 runNodeGeneration 会因找不到回调返回 false。
     const waitForNodeReady = (nodeId, timeout = 5000) =>
       new Promise((resolve) => {
         const start = Date.now();

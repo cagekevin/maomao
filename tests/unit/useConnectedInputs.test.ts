@@ -42,7 +42,7 @@ describe('分镜端口 handle 契约', () => {
 // §2.4 管线契约：getNodeOutput 是「连线上游→下游参考」的核心纯函数
 describe('管线契约 getNodeOutput', () => {
   it('只接一层：返回四类聚合空对象当无产出', () => {
-    const r = getNodeOutput({ id: 'x', type: 'promptNode', data: {} });
+    const r = getNodeOutput({ id: 'x', type: 'imageGenerateNode', data: {} });
     expect(r).toEqual({ images: [], texts: [], videos: [], audios: [] });
   });
 
@@ -99,7 +99,11 @@ describe('管线契约 getNodeOutput', () => {
   });
 
   it('通用兜底 imageUrl → images', () => {
-    const r = getNodeOutput({ id: 'p1', type: 'promptNode', data: { imageUrl: 'http://x/y.png' } });
+    const r = getNodeOutput({
+      id: 'p1',
+      type: 'imageGenerateNode',
+      data: { imageUrl: 'http://x/y.png' },
+    });
     expect(r.images).toHaveLength(1);
     expect(r.images[0].url).toBe('http://x/y.png');
   });
@@ -107,14 +111,18 @@ describe('管线契约 getNodeOutput', () => {
   it('通用兜底图片产出带 label（改名流向下游候选）', () => {
     const r = getNodeOutput({
       id: 'p1',
-      type: 'promptNode',
+      type: 'imageGenerateNode',
       data: { imageUrl: 'http://x/y.png', label: '猫' },
     });
     expect(r.images[0].label).toBe('猫');
   });
 
   it('通用兜底图片无 label → 不注入（下游兜底 图片N）', () => {
-    const r = getNodeOutput({ id: 'p1', type: 'promptNode', data: { imageUrl: 'http://x/y.png' } });
+    const r = getNodeOutput({
+      id: 'p1',
+      type: 'imageGenerateNode',
+      data: { imageUrl: 'http://x/y.png' },
+    });
     expect(r.images[0].label).toBeUndefined();
   });
 
@@ -141,7 +149,7 @@ describe('管线契约 getNodeOutput', () => {
   it('imageUrl > videoUrl > resultUrl 优先级', () => {
     const r = getNodeOutput({
       id: 'p1',
-      type: 'promptNode',
+      type: 'imageGenerateNode',
       data: { imageUrl: 'http://x/i.png', videoUrl: 'http://x/v.mp4' },
     });
     expect(r.images).toHaveLength(1);
@@ -275,8 +283,8 @@ describe('P0-B ① 入边索引（incomingOf 引用缓存，edges 引用变才�
 
 describe('P0-B ② 上游收集与判等（collectUpstream / upstreamEqual）', () => {
   it('上游改 data（引用变化）→ upstreamEqual 判不等 → 重算', () => {
-    const before = mkNode('u1', 'promptNode', { imageUrl: 'http://a.png' });
-    const after = mkNode('u1', 'promptNode', { imageUrl: 'http://b.png' }); // 重新生成 → 新 data 引用
+    const before = mkNode('u1', 'imageGenerateNode', { imageUrl: 'http://a.png' });
+    const after = mkNode('u1', 'imageGenerateNode', { imageUrl: 'http://b.png' }); // 重新生成 → 新 data 引用
     const upA = [{ node: before, sourceHandle: undefined }];
     const upB = [{ node: after, sourceHandle: undefined }];
     expect(upstreamEqual(upA, upB)).toBe(false);
@@ -284,13 +292,13 @@ describe('P0-B ② 上游收集与判等（collectUpstream / upstreamEqual）', 
 
   it('上游被拖拽只改 position（node 引用变、data 引用不变）→ 判等 → 下游不重渲', () => {
     const data = { imageUrl: 'http://a.png' };
-    const still1 = mkNode('u1', 'promptNode', data, { position: { x: 0, y: 0 } });
-    const moved = mkNode('u1', 'promptNode', data, { position: { x: 10, y: 10 } }); // 新 node 引用，data 同引用
+    const still1 = mkNode('u1', 'imageGenerateNode', data, { position: { x: 0, y: 0 } });
+    const moved = mkNode('u1', 'imageGenerateNode', data, { position: { x: 10, y: 10 } }); // 新 node 引用，data 同引用
     expect(upstreamEqual([{ node: still1 }], [{ node: moved }])).toBe(true);
   });
 
   it('同引用 / 同内容 → 判等（不重渲）', () => {
-    const n = mkNode('u1', 'promptNode', { imageUrl: 'http://a.png' });
+    const n = mkNode('u1', 'imageGenerateNode', { imageUrl: 'http://a.png' });
     expect(upstreamEqual([{ node: n, sourceHandle: 'o' }], [{ node: n, sourceHandle: 'o' }])).toBe(
       true,
     );
@@ -299,8 +307,8 @@ describe('P0-B ② 上游收集与判等（collectUpstream / upstreamEqual）', 
   });
 
   it('长度 / 来源 id / handle / 类型 任一变化 → 判不等', () => {
-    const n1 = mkNode('u1', 'promptNode', { imageUrl: 'http://a.png' });
-    const n2 = mkNode('u2', 'promptNode', { imageUrl: 'http://a.png' });
+    const n1 = mkNode('u1', 'imageGenerateNode', { imageUrl: 'http://a.png' });
+    const n2 = mkNode('u2', 'imageGenerateNode', { imageUrl: 'http://a.png' });
     expect(upstreamEqual([{ node: n1 }], [])).toBe(false); // 删连线 → 上游变短
     expect(upstreamEqual([{ node: n1 }], [{ node: n1 }, { node: n2 }])).toBe(false); // 增连线
     expect(
@@ -311,7 +319,9 @@ describe('P0-B ② 上游收集与判等（collectUpstream / upstreamEqual）', 
   });
 
   it('上游节点被删除 → 从 lookup 消失 → 上游收缩（判不等）', () => {
-    const lookup = new Map([['u1', mkNode('u1', 'promptNode', { imageUrl: 'http://a.png' })]]);
+    const lookup = new Map([
+      ['u1', mkNode('u1', 'imageGenerateNode', { imageUrl: 'http://a.png' })],
+    ]);
     const incoming = [{ source: 'u1', sourceHandle: undefined }];
     const up = collectUpstream({ nodeLookup: lookup }, incoming);
     expect(up).toHaveLength(1);
@@ -322,7 +332,7 @@ describe('P0-B ② 上游收集与判等（collectUpstream / upstreamEqual）', 
 
 describe('P0-B ③ 聚合（aggregateUpstream 与旧 useMemo 体语义等价）', () => {
   it('非编组上游：聚合产出 + 补 sourceNodeId', () => {
-    const src = mkNode('u1', 'promptNode', { imageUrl: 'http://a.png' });
+    const src = mkNode('u1', 'imageGenerateNode', { imageUrl: 'http://a.png' });
     const out = aggregateUpstream([{ node: src, sourceHandle: undefined }]);
     expect(out.images).toHaveLength(1);
     expect(out.images[0].url).toBe('http://a.png');
@@ -337,7 +347,7 @@ describe('P0-B ③ 聚合（aggregateUpstream 与旧 useMemo 体语义等价）'
   });
 
   it('相对 /files/ URL 兜底为绝对 URL（刷新不破图）', () => {
-    const src = mkNode('u1', 'promptNode', { imageUrl: '/files/a.png' });
+    const src = mkNode('u1', 'imageGenerateNode', { imageUrl: '/files/a.png' });
     const out = aggregateUpstream([{ node: src, sourceHandle: undefined }]);
     expect(out.images[0].url).toContain('/files/a.png');
     expect(out.images[0].url.startsWith('http')).toBe(true);
