@@ -8,7 +8,7 @@
  * 分文件依赖方向（无环）：conversationState(底座) ← { conversationSnapshot, conversationAiState }
  *   ← { conversationImageMap, conversationStore(聚合入口) }。
  *
- * 【本文件职责 = 审计文档 §1.6 的"共享 state 层"】states/hydratedSet/currentAgentKey/listeners
+ * 【本文件职责 = 审计文档 §1.6 的"共享 state 层"】states/hydration/hydrated/currentAgentKey/listeners
  * 等模块级可变状态、persistDebounced 落盘、subscribe/getSnapshot 订阅、initState/getState/commit
  * 读写、uid/emptyMemory 与 normalize 归一化。必须全局唯一，否则多文件各持 state 状态隔离断裂。
  *
@@ -98,7 +98,6 @@ export function emptyMemory() {
  * sending = 运行态标志（是否正在发送/流式）。仅存内存、不落盘（persist 只序列化 conversations + activeId）。
  */
 const states: Record<string, ConversationStoreState> = {}; // { [agentKey]: { conversations, activeId, sending } }
-const hydratedSet: Record<string, boolean> = {}; // { [agentKey]: boolean } 该 key 是否已恢复过当前对话
 let currentAgentKey: string = AGENT_KEY_PREFIX; // 当前生效的 agentKey（由 setAgentKey 设置）
 
 // P4 落盘节流：commit 每次变更全量 stringify + 落盘是热路径（流式/轮询/记忆提炼高频触发），
@@ -106,7 +105,7 @@ let currentAgentKey: string = AGENT_KEY_PREFIX; // 当前生效的 agentKey（�
 // write 是「读当前最新 state」的 thunk——flush 时才执行，天然合并窗口内多次 commit 的最终态。
 // 兜底：createDebouncedPersist 自动注册 pagehide flush，极端刷新/关闭不丢最后变更。
 const persistDebounced = createDebouncedPersist(() => {
-  if (!hydratedSet[currentAgentKey]) return; // 未恢复不落盘（防挂载覆盖）
+  if (!hydrated.has(currentAgentKey)) return; // 未水化不落盘（空壳会覆盖 KV 真数据）
   const next = states[currentAgentKey];
   if (!next) return;
   // 【P1c L3 整包预算安全网】序列化前对归一化副本做投影降级：整包超预算时先剥离瞬时字段、
@@ -190,44 +189,51 @@ export function useConversationStore() {
  * contracts.ts 登记为 `backend:'kv'`。因此读取不能再走同步 `contentGet`（KV 键缓存未命中返回 undefined），
  * 水化改为异步 `contentGetAsync`，并把 localStorage 里的存量会话【幂等】一次性迁入 KV。
  *
- * 交叉/黑盒处理（2026-08-28，防竞态与静默失败）：
- *  - C1/C2 竞态：hydratedSet[k] 在水化完成前恒 false → persistDebounced 落盘是 no-op；
- *    先放空壳保 UI 可读，异步水化把 states[k] 写全后才 markHydrated，从时序上排除「未水化空写／迁移与正常写并发」。
- *  - B1 失败可见：迁移写 KV 用 contentSetAsync（await）+ logger 记录成败；读/写都走 withTimeout 兜超时。
- *  - C3 不做「迁完删 local」：KV 失败降级仍写 local 副本（storageGet 兜底可回读），local 键保留语义不破坏。
+ * 空窗期（setAgentKey → 水化落地）内 states[k] 只是空壳：同步读不会崩，但读不到真数据。
+ * 防竞态只有两条机制（其余都是注释）：
+ *  - ① 每 key 只水化一次：`hydration` 缓存 Promise，重复调用拿同一个（缓存即幂等，无需 InFlight/Waiters 两套账）；
+ *  - ② 水化未完成不落盘：`hydrated` 是同步闸，防「空壳覆盖 KV 真数据」（唯一真正要防的竞态，见 commit/persist）。
+ * 其余既定取舍（2026-08-28）：迁移写 KV 用 contentSetAsync（await）+ logger 记录成败；读/写都走 withTimeout 兜超时；
+ * C3 不做「迁完删 local」：KV 失败降级仍写 local 副本（storageGet 兜底可回读），local 键保留语义不破坏。
  */
 
-/** 正在异步水化的 agentKey 集合（防重复触发一次以上水化） */
-const hydrationInFlight = new Set<string>();
+/** 每个 agentKey 的水化任务：在途/已完成都只此一份（Map 缓存 = 幂等 = 去重 + 等待者，一套账） */
+const hydration = new Map<string, Promise<void>>();
 
-/** 等待某 agentKey 水化完成的 resolve 集合：agentKey → Set<resolve>（支持多调用方同时等待） */
-const hydrationWaiters = new Map<string, Set<() => void>>();
+/** 已完成水化的 agentKey（同步判定闸：未完成时 commit 不排期落盘、persist 直接 no-op） */
+const hydrated = new Set<string>();
 
 /**
- * 返回「某 agentKey 已水化完成」的 Promise（已水化则立即 resolve）。
+ * 取（必要时发起）某 agentKey 的水化 Promise；同 key 永远返回同一个（幂等）。
+ * 【永不 reject】读失败按「无存量」继续并照常置 hydrated —— 否则等待者永久悬挂、落盘闸永远打不开
+ * （后续写入全部静默丢失，比「读到空态」更糟）。失败经 logger 可见（不静默）。
+ */
+function hydrate(k: string): Promise<void> {
+  const cached = hydration.get(k);
+  if (cached) return cached;
+  const p = hydrateAsync(k)
+    .catch((e) =>
+      logger.warn('AI助手', '会话水化失败，按空态继续（下次进入会重新读取）', {
+        key: convKey(k),
+        error: e?.message || String(e),
+      }),
+    )
+    .finally(() => {
+      hydrated.add(k); // 无论成败：水化尝试结束即放行落盘（空态也是确定态，不该让后续写入丢）
+    });
+  hydration.set(k, p);
+  return p;
+}
+
+/**
+ * 等到某 agentKey 水化完成（未发起则先发起）。永不 reject，可直接 await。
  * 会话键迁 KV 后水化为异步，调用方（如 useAgentChat 恢复 effect）须先 await 本 Promise，
  * 才能读到真实数据而非空壳（见 AI助手会话存储迁移-KV收口事实记录.md §2.5）。
- * @param {string} k agentKey
+ * @param {string} [k] agentKey，缺省为当前 agentKey
  * @returns {Promise<void>}
  */
 export function waitHydrated(k?: string): Promise<void> {
-  const key = k || AGENT_KEY_PREFIX;
-  if (hydratedSet[key]) return Promise.resolve();
-  if (!hydrationWaiters.has(key)) hydrationWaiters.set(key, new Set());
-  const waiters = hydrationWaiters.get(key)!;
-  return new Promise<void>((resolve) => {
-    waiters.add(resolve);
-  });
-}
-
-/** 标记某 agentKey 水化完成并放行所有等待者 */
-function resolveHydration(k: string): void {
-  hydratedSet[k] = true;
-  const resolvers = hydrationWaiters.get(k);
-  if (resolvers) {
-    for (const r of resolvers) r();
-    hydrationWaiters.delete(k);
-  }
+  return hydrate(k || currentAgentKey);
 }
 
 /** 解析「可能已是 JSON 字符串」的原始值；失败原样返回（对齐 contentStore.tryParse 语义） */
@@ -256,7 +262,7 @@ export function shouldMigrateLocalToKV(
 
 /**
  * 设置当前 agentKey（项目切换/新建时调用）。首次出现的 key 立即放空壳（保 UI 同步可读），
- * 并异步水化真实数据（读 KV → 必要时迁存量 → 写全 states[k] → markHydrated）。
+ * 并异步水化真实数据（读 KV → 必要时迁存量 → 写全 states[k] → 置 hydrated 放行落盘）。
  */
 export function setAgentKey(key?: string): void {
   const k = key || AGENT_KEY_PREFIX;
@@ -268,53 +274,39 @@ export function setAgentKey(key?: string): void {
   if (!same) listeners.forEach((l) => l());
 }
 
-/** 确保某 agentKey 有 state：无则放空壳并触发异步水化（幂等：每个 key 最多一次水化） */
+/** 确保某 agentKey 有 state：无则放空壳保同步读不崩，并发起（幂等的）异步水化 */
 function ensureState(k: string): void {
   if (!states[k]) {
     // 空壳：让同步 getState/订阅立即有对象可读，不阻塞 UI
     states[k] = { conversations: [], activeId: '', sending: false };
   }
-  if (hydrationInFlight.has(k)) return;
-  // 已水化则无需重来；未水化（含此前水化失败）则（重）触发
-  if (hydratedSet[k]) return;
-  hydrationInFlight.add(k);
-  hydrateAsync(k)
-    .catch((e) =>
-      logger.warn('AI助手', '会话水化失败（数据保留内存或由下次触发补迁）', {
-        key: k,
-        error: e?.message || String(e),
-      }),
-    )
-    .finally(() => hydrationInFlight.delete(k));
+  void hydrate(k); // 幂等：已在途/已完成则直接返回同一个 Promise
 }
 
 /**
- * 异步水化一个 agentKey：读 KV（新后端）→ 必要时把 localStorage 存量一次性迁入 KV（幂等）→ 写 states[k] → 标记 hydrated。
- * 时序：本函数把 states[k] 写全、hydratedSet[k] 置 true 之前，persistDebounced 对落盘是 no-op（见 commit 守卫）。
+ * 异步水化一个 agentKey：读 KV（新后端）→ 必要时把 localStorage 存量一次性迁入 KV（幂等）→ 写全 states[k]。
+ * 只由 hydrate() 调用，故每个 key 最多跑一次（resetConversationCache 后再跑 = 新的一次水化）。
  */
 async function hydrateAsync(k: string): Promise<void> {
-  if (hydratedSet[k]) return;
-  // ① 读 KV（会话 + 活跃 id）；读失败视为无 KV 数据并走存量兜底，失败经 logger 可见（不静默）
+  // ① 并行读 KV（会话 + 活跃 id，最坏耗时减半）；读失败视为无 KV 数据并走存量兜底，失败经 logger 可见（不静默）
+  const convP = withTimeout(contentGetAsync(convKey(k)), KV_TIMEOUT, `读取会话水化超时(${k})`);
+  const activeP = withTimeout(
+    contentGetAsync(activeKey(k)),
+    KV_TIMEOUT,
+    `读取活跃会话 id 超时(${k})`,
+  );
   let kvConversations: unknown = null;
-  let kvActiveId = '';
   try {
-    kvConversations = await withTimeout(
-      contentGetAsync(convKey(k)),
-      KV_TIMEOUT,
-      `读取会话水化超时(${k})`,
-    );
+    kvConversations = await convP;
   } catch (e) {
     logger.warn('AI助手', '水化读会话 KV 失败，回退本地存量', {
       key: convKey(k),
       error: e?.message || String(e),
     });
   }
+  let kvActiveId = '';
   try {
-    const id = await withTimeout(
-      contentGetAsync(activeKey(k)),
-      KV_TIMEOUT,
-      `读取活跃会话 id 超时(${k})`,
-    );
+    const id = await activeP;
     if (typeof id === 'string' && id) kvActiveId = id;
   } catch (e) {
     logger.warn('AI助手', '水化读活跃会话 id 失败', {
@@ -397,9 +389,9 @@ async function hydrateAsync(k: string): Promise<void> {
     }
   }
 
-  // ④ 写全内存态 + 标记 hydrated（此后允许落盘）+ 放行等待者 + 通知订阅者
+  // ④ 写全内存态 + 通知订阅者；hydrated 由 hydrate() 在本 Promise settle 时统一置上（此后允许落盘）。
+  //    注：此处整体覆盖 states[k] —— 空窗期的写入会被真数据取代（既定语义），故写入方须先 await waitHydrated。
   states[k] = { conversations, activeId, sending: false };
-  resolveHydration(k);
   listeners.forEach((l) => l());
 }
 
@@ -438,7 +430,7 @@ export function commit(next: ConversationStorePatch, opts: { persist?: boolean }
   const { persist = true } = opts;
   states[currentAgentKey] = next as ConversationStoreState;
   listeners.forEach((l) => l());
-  if (hydratedSet[currentAgentKey] && persist) persistDebounced.schedule();
+  if (hydrated.has(currentAgentKey) && persist) persistDebounced.schedule();
 }
 
 /**
@@ -491,7 +483,7 @@ export function requireActiveConv(op: string): Conversation | null {
 /** 标记当前 agentKey 已从存储恢复（hydrated=true，此后 commit 允许落盘）。
  *  由 applyConversation / importLegacy（conversationStore 聚合层）在恢复/切换成功后调用。 */
 export function markHydrated(): void {
-  resolveHydration(currentAgentKey);
+  hydrated.add(currentAgentKey);
 }
 
 /** 保证一个对话的结构完整（数组字段缺省补齐、workflow/pending/memory 归一） */
@@ -615,11 +607,8 @@ export function normalizeMemory(raw: unknown): ConversationMemory {
 /** 重置 store 内存缓存（测试/硬重置用）：清空所有 agentKey 的缓存、等待者与在途水化 */
 export function resetConversationCache(): void {
   for (const k of Object.keys(states)) delete states[k];
-  for (const k of Object.keys(hydratedSet)) delete hydratedSet[k];
-  // 放行悬挂的 waitHydrated（防止测试隔离/硬重置后等待者永久悬挂）
-  for (const resolvers of hydrationWaiters.values()) for (const r of resolvers) r();
-  hydrationWaiters.clear();
-  // 清空在途水化：硬重置后应允许对最新 KV 重新水化（否则旧在途水化读到旧值会压制新水化）
-  hydrationInFlight.clear();
+  // 清空水化记录：硬重置后允许对最新 KV 重新水化（旧在途水化仍会 settle，但只写自己的那一次）
+  hydrated.clear();
+  hydration.clear();
   listeners.forEach((l) => l());
 }
