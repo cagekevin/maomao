@@ -78,24 +78,14 @@ export function setCurrentGlobalContract(c: GlobalContract | null): void {
 }
 
 /* ── AI 助手表格工作区（per-conversation，挂会话记忆。一对话多标签页，spec/AI-ASSISTANT-TABLE-TABS.md）
-   真源 = memory.assistantTables（{tabs,activeTabId}）；memory.assistantTable 只读兼容（老数据水合，不再写）。
+   真源 = memory.assistantTables（{tabs,activeTabId}）。
    新建对话 = 新空表；回看旧对话 = 那张表还在。不与画布节点/其它存储耦合，随既有「按 agentKey 隔离 + 会话记忆落盘」链路走。 */
 
-/** 读当前对话的多标签页集合（归一兜底：真源不存在则从老 assistantTable+global_contract 水合成单 tab） */
+/** 读当前对话的多标签页集合（归一兜底：真源缺失则归一为空表） */
 export function getCurrentAssistantTabs(): AssistantTableTabs {
   const mem = getActiveConv()?.memory ?? null;
   const rawTabs = mem?.assistantTables;
-  const legacyTable = mem?.assistantTable;
-  const legacyStyle =
-    mem && mem.global_contract && typeof mem.global_contract === 'object'
-      ? String(
-          (mem.global_contract as { unified_style_prompt?: unknown }).unified_style_prompt ?? '',
-        ).trim()
-      : '';
-  return normalizeAssistantTabs(rawTabs ?? null, {
-    assistantTable: legacyTable ?? null,
-    globalStyle: legacyStyle,
-  });
+  return normalizeAssistantTabs(rawTabs ?? null);
 }
 
 /** 【根治·非幂等读-2026-09-07】把当前对话 tables 落成「稳定基线」：仅当 memory.assistantTables 尚未落盘时，
@@ -111,7 +101,7 @@ export function materializeAssistantTabs(): void {
   setCurrentAssistantTabs(getCurrentAssistantTabs());
 }
 
-/** 写当前对话的多标签页集合（归一后落 memory.assistantTables + commit 自动落盘；不再写 assistantTable）
+/** 写当前对话的多标签页集合（归一后落 memory.assistantTables + commit 自动落盘）
  *  P2 运行时校验 2026-09-08：落盘前跑 validateTabs，dev 下对硬约束（error）告警——
  *  让 copyTab 式「引用脱节」在写代码当下的运行时就被抓住，而非只靠单测。 */
 export function setCurrentAssistantTabs(tabs: AssistantTableTabs): void {
@@ -179,7 +169,7 @@ export function setTableTab(tabId: string, sb: { columns: TableColumn[]; rows: T
 
 /** 给某条消息打「表格预览处理态」标记（confirmed=已写入 / cancelled=已取消），随消息落盘。
  *  背景（2026-09-06 持久化修复）：AI 返回表格 JSON 会被 AgentPanel 变成「待确认表格预览」；
- *  用户确认/取消后，表格数据已写回 memory.assistantTable（持久），但「这条消息已被处理」这个
+ *  用户确认/取消后，表格数据已写回 memory.assistantTables（持久），但「这条消息已被处理」这个
  *  事实若只留在内存 UI 态（tbPreview state），刷新后 AgentPanel 的探测 effect 会把历史表格消息
  *  误判成「新的待确认预览」再次弹卡（左侧表格其实已写入）。把处理态写回消息自身，即可让刷新后
  *  自动恢复消息流里的 pv-done 痕迹、且不再重复弹待确认卡。 */

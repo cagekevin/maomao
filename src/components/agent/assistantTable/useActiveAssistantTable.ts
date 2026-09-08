@@ -2,8 +2,8 @@
  * AI 助手表格 —— 活动会话「多标签页 + 当前活动 tab」响应式订阅（panel 内数据源单一入口）。
  *
  * 多标签页（spec/AI-ASSISTANT-TABLE-TABS.md）：
- *  - 真源 = memory.assistantTables（{tabs,activeTabId}）；memory.assistantTable/global_contract 只读兼容（老数据水合，不再写）。
- *  - 归一化 normalizeAssistantTabs 只在 raw（含老数据回退）变化时重算（useMemo）。
+ *  - 真源 = memory.assistantTables（{tabs,activeTabId}）。
+ *  - 归一化 normalizeAssistantTabs 只在 raw 变化时重算（useMemo）。
  *  - globalStyle 每 tab 独立（隔离决策）：返回「当前活动 tab」的 globalStyle，不再读 global_contract。
  *  - 返回 { activeConversationId, tabs, activeTabId, table(当前 tab 的表), globalStyle(当前 tab 的风格), activeTab }。
  * 运行态（open/width/选中/预览/游标）由 tableWorkspaceState 单独提供（本 hook 不碰）。
@@ -47,23 +47,6 @@ export function useActiveAssistantTable(): ActiveAssistantTable {
     },
     shallowEqual,
   );
-  const legacy = useStoreSelector(
-    subscribe,
-    getState,
-    (s) => {
-      const c = (s.conversations || []).find((x) => x.id === s.activeId);
-      if (!c) return null;
-      const style =
-        c.memory?.global_contract && typeof c.memory.global_contract === 'object'
-          ? String(
-              (c.memory.global_contract as { unified_style_prompt?: unknown })
-                .unified_style_prompt ?? '',
-            ).trim()
-          : '';
-      return { assistantTable: c.memory?.assistantTable ?? null, globalStyle: style };
-    },
-    shallowEqual,
-  );
   const tabs = useMemo<AssistantTableTabs>(() => {
     // 【P1-D 可见性 · SSOT-7 旁证 2026-09-08】rawTabs 为 null = 真源尚未落盘，本次 read 只能靠
     // normalizeAssistantTabs 惰性造 id（读时才造 id 的惰性真源）→ 每次读都可能拿到新 id，
@@ -74,12 +57,9 @@ export function useActiveAssistantTable(): ActiveAssistantTable {
         activeConversationId,
       });
     }
-    return normalizeAssistantTabs(rawTabs ?? null, {
-      assistantTable: (legacy as { assistantTable?: unknown } | null)?.assistantTable ?? null,
-      globalStyle: (legacy as { globalStyle?: string } | null)?.globalStyle ?? '',
-    });
+    return normalizeAssistantTabs(rawTabs ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawTabs, legacy]);
+  }, [rawTabs]);
   const activeTab = getActiveTab(tabs)!;
   const table = useMemo<AssistantTable>(
     () =>

@@ -2,7 +2,7 @@
  * AI 助手表格 —— 左栏表格工作区组件（多标签页版，UI 薄壳 + 组合子组件，spec/AI-ASSISTANT-TABLE-TABS.md）。
  *
  * 形态：普通 HTML 表格，活在 AI 面板左栏，与画布完全解耦。数据真相源 = 会话记忆 memory.assistantTables（多标签页，
- * {tabs,activeTabId}）；memory.assistantTable/global_contract 只读兼容（老数据水合，不再写）。globalStyle 每 tab 独立。
+ * {tabs,activeTabId}）。globalStyle 每 tab 独立。
  * 自读自写（conversationStore 原子订阅 + setCurrent* 写回）。
  *
  * 【多标签页装配】（spec 3.1/3.2/3.3/3.4/3.5/3.6）：

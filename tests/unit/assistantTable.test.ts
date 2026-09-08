@@ -493,20 +493,6 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
       };
     }
 
-    it('normalizeAssistantTabs：老数据水合（assistantTable + globalStyle → 单 tab，风格不丢）——验收 1', () => {
-      const sb = parsePasted('景别\t画面\n中景\t原1')!;
-      const tabs = normalizeAssistantTabs(null, {
-        assistantTable: sb,
-        globalStyle: '写实电影感',
-      });
-      expect(tabs.tabs).toHaveLength(1);
-      const t = tabs.tabs[0];
-      expect(t.name).toBe('标签页1');
-      expect(t.globalStyle).toBe('写实电影感');
-      expect(t.columns.map((c) => c.label)).toEqual(['景别', '画面']);
-      expect(t.rows).toHaveLength(1);
-    });
-
     it('normalizeAssistantTabs：assistantTables 合法 → 直接归一（补 id/name/globalStyle 缺省）', () => {
       const tabs = normalizeAssistantTabs({
         tabs: [

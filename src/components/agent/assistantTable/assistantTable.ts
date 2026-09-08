@@ -671,8 +671,8 @@ export function buildPreviewResult(
 /* ════════════════════════════════════════════════════════════════
  * 多标签页（一对话多表）—— tab 数据模型 + 纯函数层（spec/AI-ASSISTANT-TABLE-TABS.md §1）
  * ════════════════════════════════════════════════════════════════
- * 真源 = 会话记忆 memory.assistantTables = AssistantTableTabs；memory.assistantTable 只读兼容（老数据水合）。
- * globalStyle【本轮隔离决策】每 tab 独立（不再走 global_contract）。
+ * 真源 = 会话记忆 memory.assistantTables = AssistantTableTabs。
+ * globalStyle 每 tab 独立（不进 global_contract）。
  * 行/列既有纯函数签名不动，统一由 updateTab(tabs, tabId, fn) 套用到当前 tab 的表上。
  */
 
@@ -727,16 +727,11 @@ function normalizeTab(raw: unknown, index: number): TableTab | null {
 /**
  * 归一多标签页集合（spec §1.2）：
  *  ① raw.assistantTables 存在且合法 → 直接归一（补 id/name/globalStyle 缺省）；
- *  ② 否则老数据 assistantTable 有列/行 → 升为单 tab「表1」，globalStyle 一次性从 legacy.globalStyle 水合；
- *  ③ 都没有 → emptyAssistantTabs()。
+ *  ② 否则 → emptyAssistantTabs()（恒 ≥1 空表，防空指针分支）。
  *  activeTabId 缺失/指向不存在 tab → 回退第一个 tab。
  * @param raw        memory.assistantTables 原始值
- * @param legacy     老数据水合源 { assistantTable, globalStyle }（来自 memory.assistantTable / global_contract）
  */
-export function normalizeAssistantTabs(
-  raw: unknown,
-  legacy?: { assistantTable?: unknown; globalStyle?: string },
-): AssistantTableTabs {
+export function normalizeAssistantTabs(raw: unknown): AssistantTableTabs {
   if (raw && typeof raw === 'object') {
     const r = raw as RawAssistantTableTabs;
     if (Array.isArray(r.tabs) && r.tabs.length > 0) {
@@ -749,18 +744,6 @@ export function normalizeAssistantTabs(
         return { tabs, activeTabId: active };
       }
     }
-  }
-  // 老数据水合：memory.assistantTable 有列/行 → 升为单 tab（globalStyle 从 legacy 水合，老数据不丢风格）
-  const legacyTable = normalizeAssistantTable(legacy?.assistantTable ?? null);
-  if (legacyTable.columns.length > 0 || legacyTable.rows.length > 0) {
-    const tab: TableTab = {
-      id: newTabId(),
-      name: '标签页1',
-      columns: legacyTable.columns,
-      rows: legacyTable.rows,
-      globalStyle: String(legacy?.globalStyle ?? '').trim(),
-    };
-    return { tabs: [tab], activeTabId: tab.id };
   }
   return emptyAssistantTabs();
 }

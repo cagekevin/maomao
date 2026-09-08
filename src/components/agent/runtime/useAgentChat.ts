@@ -909,7 +909,6 @@ export function useAgentChat({
         notes: [],
         global_contract: null,
         artifacts: null,
-        assistantTable: null,
         assistantTables: null,
       },
       pendingGenerations: null,

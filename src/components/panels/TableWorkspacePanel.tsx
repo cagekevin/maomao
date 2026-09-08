@@ -8,7 +8,7 @@
  * 真正的表格 UI / 编辑 / 预览卡由 AssistantTablePanel 承载（零改动复用）。
  *
  * 职责（spec §4.5.2「左侧 TableWorkspacePanel」）：
- *  - 订阅 useTableWorkspace() + conversationState（memory.assistantTable / sending）；
+ *  - 订阅 useTableWorkspace() + conversationState（memory.assistantTables / sending）；
  *  - 把 AssistantTablePanel 的 props 接到共享态：width / previewing / onSendToCanvas /
  *    preview(由共享态 preview.resultCols/resultRows 派生显示模型，预览=确认) /
  *    sending / onConfirmPreview / onCancelPreview；选中态由 AssistantTablePanel 直读共享态（C1）。

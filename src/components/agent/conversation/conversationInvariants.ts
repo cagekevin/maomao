@@ -4,12 +4,12 @@
  * 把会话状态「应当恒真」的约束收敛成可单测的校验函数，接在纯函数用例末尾跑一次，
  * 防「activeId 悬空 / message id 撞号 / 终态残留 streaming / creditGate 形状坏」等长期静默。
  *
- * 与表格域 `tableInvariants.ts` 共享 `Violation[]` 范式：
+ * 与表格域 `tableInvariants.ts` 经中立 `agentTypes.ts` 共享 `Violation[]` 范式：
  *   - level=error：硬约束，违反必须修；
  *   - level=warn：可疑（可能是合法中间态 / 兜底场景），记录即可。
  *
- * 【依赖方向（刻意零环）】本文件只 type-only 依赖 conversationState（Conversation / Memory /
- *   Workflow / StoreState），避免 conversationState（批2 要反向 import 本文件做写前校验）运行时成环。
+ * 【依赖方向（刻意零环）】本文件只 type-only 依赖中立 `conversationTypes.ts`（Conversation / Memory /
+ *   Workflow / StoreState），不直接依赖 conversationState，避免 conversationState（批2 要反向 import 本文件做写前校验）运行时成环。
  *   因此 AGENT_MSG_MAX / KNOWN_WORKFLOW_STATUS 为本地镜像，测试里断言与真源一致防漂移。
  *
  * 用法（对齐 spec §九）：
@@ -22,9 +22,9 @@ import type {
   ConversationMemory,
   ConversationStoreState,
   WorkflowState,
-} from './conversationState.ts';
+} from './conversationTypes.ts';
 import { CREDIT_GATE_FIELD } from '../../base/core/contracts.ts';
-import type { Violation } from '../assistantTable/tableInvariants.ts';
+import type { Violation } from '../agentTypes.ts';
 
 /** 单会话消息上限（镜像 conversationState.AGENT_MSG_MAX=60，反向 import 会成环；测试断言二者随变） */
 export const CONV_MSG_MAX = 60;
