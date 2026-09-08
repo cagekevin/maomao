@@ -58,7 +58,7 @@ export default function StepAssets({ data, updateData, callbacks }: StepAssetsPr
   const [zoomUrl, setZoomUrl] = useState('');
   // 「从素材库选择」：picking 记录正在选图的资产 id（非空时弹出素材库选择器）
   const [picking, setPicking] = useState<number | null>(null);
-  // 缩略图显示复用系统统一按需出图出口（与 ImageNode 一致），不再各自落盘独立缩略图文件
+  // 缩略图显示复用系统统一按需出图出口（与 AssetNode 一致），不再各自落盘独立缩略图文件
   const render = useRenderImageResolver();
 
   const CATS = [

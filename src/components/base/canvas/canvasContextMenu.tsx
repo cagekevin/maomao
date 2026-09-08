@@ -201,7 +201,7 @@ export function buildNodeMenuItems(
   if (!nodeId) return [];
   const node = ctx.nodeById(nodeId);
   if (!node) return [];
-  const isImageLike = node.type === 'imageNode' || node.type === 'imageGenerateNode';
+  const isImageLike = node.type === 'assetNode' || node.type === 'imageGenerateNode';
   const isGroup = node.type === 'group';
   const items: ContextMenuItem[] = [
     {
@@ -217,7 +217,7 @@ export function buildNodeMenuItems(
       onClick: () => ctx.duplicateSelected(node.id),
     },
   ];
-  // 「复制图片」仅图片类节点（imageNode/imageGenerateNode）有：把图片本身复制到剪贴板（对齐官方 Ei）
+  // 「复制图片」仅图片类节点（assetNode/imageGenerateNode）有：把图片本身复制到剪贴板（对齐官方 Ei）
   if (isImageLike) {
     items.push({
       key: 'copyImage',

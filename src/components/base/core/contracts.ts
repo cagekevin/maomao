@@ -491,7 +491,7 @@ export const GEN_ERRORS = {
  *   director3dNode 依赖 WebGL 无法 SSR、ghostTarget 为连线占位，均一并登记。
  */
 export const NODE_TYPES = {
-  imageNode: 'imageNode',
+  assetNode: 'assetNode',
   imageBoxNode: 'imageBoxNode',
   gridSplitNode: 'gridSplitNode',
   gridMergeNode: 'gridMergeNode',

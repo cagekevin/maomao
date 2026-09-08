@@ -39,8 +39,8 @@ import { createRafBatch, clamp } from '../base/core/utils.ts';
  * 核心链路：
  *  - 上游图片（imageUrl，从 target「in」连线或 ImageBoxNode 取）
  *  - 预切图：加载源图 → 按 cells 区域 canvas 裁切 → 写 data.extractedImages
- *  - 单块切出：点击 cell → 生成 imageNode + 自动连线
- *  - 批量切分：全部块 → 生成多个 imageNode 网格 + 自动连线（或推送图片盒子）
+ *  - 单块切出：点击 cell → 生成 assetNode + 自动连线
+ *  - 批量切分：全部块 → 生成多个 assetNode 网格 + 自动连线（或推送图片盒子）
  *
  * 端口：target「in」接图；source「batch」批量输出；source「cell-N」单块输出
  * ════════════════════════════════════════════════════════════════ */
@@ -640,7 +640,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
     setActiveLasso(null);
   }, []);
 
-  // ---- 生成图片节点（复刻 H_.jsx lr/cr：创建 imageNode + 自动连线）----
+  // ---- 生成图片节点（复刻 H_.jsx lr/cr：创建 assetNode + 自动连线）----
   const spawnImageNodes = useCallback(
     (list) => {
       if (!list || list.length === 0) return;
@@ -655,7 +655,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
           const c = n % colsCount;
           return {
             id: `split-${id}-${n}-${generateId('s')}`,
-            type: 'imageNode',
+            type: 'assetNode',
             position: { x: baseX + c * 330, y: baseY + r * 330 },
             data: { imageUrl: item.url, label: item.label, expanded: false },
             style: { width: 320, height: 320 },
@@ -678,7 +678,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
       toastWarning('没有可用的切片，请先连接图片');
       return;
     }
-    // sendToImageBox：推送已有图片盒子，没有则新建一个（简化：统一生成 imageNode 网格）
+    // sendToImageBox：推送已有图片盒子，没有则新建一个（简化：统一生成 assetNode 网格）
     const items = valid.map((url, i) => ({
       url,
       label: titlePattern.replace('{num}', String(i + 1)),

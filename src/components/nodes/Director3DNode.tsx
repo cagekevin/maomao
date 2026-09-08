@@ -149,7 +149,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
     [id, getNodes, getEdges, setNodes, setEdges, history],
   );
 
-  // 视频回写到 ImageNode（图片视频素材节点）：落盘 /files/*.mp4 → 写 imageUrl + mediaType:'video'
+  // 视频回写到 AssetNode（图片视频素材节点）：落盘 /files/*.mp4 → 写 imageUrl + mediaType:'video'
   interface CaptureVideo {
     blob?: Blob;
     fileName?: string;
@@ -157,7 +157,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
   const onVideoToImageNode = useCallback(
     async (videos: CaptureVideo[]) => {
       if (!videos || videos.length === 0) return;
-      // 落盘全部视频，取最后一个作为 ImageNode 展示（ImageNode 单媒体）
+      // 落盘全部视频，取最后一个作为 AssetNode 展示（AssetNode 单媒体）
       let lastUrl = null;
       let lastFile = null;
       for (const v of videos) {
@@ -176,9 +176,9 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
       const targets = getEdges()
         .filter((e) => e.source === id)
         .map((e) => e.target)
-        .filter((tid) => getNode(tid)?.type === 'imageNode');
+        .filter((tid) => getNode(tid)?.type === 'assetNode');
       if (targets.length > 0) {
-        // 已有下游 ImageNode：写最近导出视频
+        // 已有下游 AssetNode：写最近导出视频
         const targetId = targets[0];
         setNodes((ns) =>
           ns.map((n) =>
@@ -188,9 +188,9 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
           ),
         );
       } else {
-        // 无下游 ImageNode：新建并连线
+        // 无下游 AssetNode：新建并连线
         const me = getNode(id);
-        const imageId = generateId('imageNode');
+        const imageId = generateId('assetNode');
         const spawned = buildSpawnNodes(
           {
             id,
@@ -202,7 +202,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
           [
             {
               id: imageId,
-              type: 'imageNode',
+              type: 'assetNode',
               position: {
                 x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60,
                 y: (me?.position.y ?? 100) + 320,
@@ -229,7 +229,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
   );
 
   // 退出导演台：缩略图落盘 /files/ 写节点 imageUrl，彻底删除旧 directorProject；
-  // 图片截图 → 图片盒子，视频 → ImageNode（有则写，无则新建并连线）
+  // 图片截图 → 图片盒子，视频 → AssetNode（有则写，无则新建并连线）
   interface Director3DCapture {
     type: 'image' | 'video';
     blob?: Blob;
@@ -273,7 +273,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
           return { ...n, data: next };
         }),
       );
-      // 分类回写：图片 → 图片盒子；视频 → ImageNode
+      // 分类回写：图片 → 图片盒子；视频 → AssetNode
       if (captures && captures.length > 0) {
         const imageCaptures = captures.filter((c) => c.type === 'image');
         const videoCaptures = captures.filter((c) => c.type === 'video');

@@ -33,7 +33,7 @@ import { loadImageOrNull } from '../base/utils/asyncGuard.ts';
  * 核心链路：
  *  - 上游取图（imageBoxNode.images selectedIds优先/全部 → extractedImages → imageUrl）
  *  - 渲染：canvas 排布（grid cell / longImage 方向拼接）→ 预览 + 导出
- *  - 导出：renderToCanvas(true) / renderOverlayCanvas → 生成 imageNode 节点
+ *  - 导出：renderToCanvas(true) / renderOverlayCanvas → 生成 assetNode 节点
  *
  * 端口：target default（按序填充）+ target cell-N（指定格子）；source merged-output / batch-output
  * ════════════════════════════════════════════════════════════════ */
@@ -459,7 +459,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
         [
           {
             id: nid,
-            type: 'imageNode',
+            type: 'assetNode',
             position: { x: baseX, y: baseY },
             data: { imageUrl: url, label: `合并结果`, expanded: false },
             style: { width: 320, height: 320 },

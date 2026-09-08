@@ -183,7 +183,7 @@ export function buildDepthChildSpec(
   data: Record<string, unknown>;
 } {
   return {
-    type: 'imageNode',
+    type: 'assetNode',
     data: { imageUrl: outputUrl, mediaType: 'video', label: name, expanded: true },
   };
 }

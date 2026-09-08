@@ -19,7 +19,7 @@ import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
  *  - 主显示区：显示【完整的等距全景图】（2:1 完整图，像普通图片完整显示），
  *    用户导入后能看到整张全景，而不是球心的局部视野。
  *  - 全屏漫游：进入球体视图，从球心用 OrbitControls 旋转查看 360° 全景。
- *  - 截图：在全屏球体里选视角，输出该视角的局部截图（当前 / 四大 / 12大视角）→ spawn imageNode。
+ *  - 截图：在全屏球体里选视角，输出该视角的局部截图（当前 / 四大 / 12大视角）→ spawn assetNode。
  *
  * 需 React 19 + @react-three/fiber@9 + @react-three/drei@10 + three。
  */

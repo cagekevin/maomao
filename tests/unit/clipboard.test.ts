@@ -208,7 +208,7 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
     nodes: [
       {
         id: 'a',
-        type: 'imageNode',
+        type: 'assetNode',
         data: { label: 'x' },
         position: { x: 0, y: 0 },
         measured: { width: 100, height: 100 },
@@ -247,7 +247,7 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
     const newIds = r.nodes.map((n) => n.id);
     expect(newIds).not.toContain('a');
     expect(newIds).not.toContain('b');
-    expect(newIds[0].startsWith('imageNode-')).toBe(true);
+    expect(newIds[0].startsWith('assetNode-')).toBe(true);
     // 新节点 selected:true
     expect(r.nodes.every((n) => n.selected)).toBe(true);
     // 边 id 用新 source/target 重映射
@@ -262,7 +262,7 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
     // 原包围盒 x: 0..200(0+100?) 实际 0..100 / y:0..100 → 中心 (50,50)
     // 节点 a 绝对 x:0..100、b x:200..300 → 整体 x 范围 0..300，中心 150
     const r = buildNodesFromClipboard(clipboardJson, { x: 1000, y: 800 });
-    const nodeA = r.nodes.find((n) => n.type === 'imageNode');
+    const nodeA = r.nodes.find((n) => n.type === 'assetNode');
     // a 原始 position.x=0，平移后 = pos.x + (0 - centerX) = 1000 + (0 - 150) = 850
     expect(nodeA.position.x).toBe(850);
   });
@@ -270,7 +270,7 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
   it('data 字段深拷贝（修改结果不改原 JSON 对象）', () => {
     const src = {
       type: 'mutiwindow-nodes',
-      nodes: [{ id: 'a', type: 'imageNode', data: { label: 'L' }, position: { x: 0, y: 0 } }],
+      nodes: [{ id: 'a', type: 'assetNode', data: { label: 'L' }, position: { x: 0, y: 0 } }],
     };
     const r = buildNodesFromClipboard(JSON.stringify(src), { x: 0, y: 0 });
     r.nodes[0].data.label = 'MUTATED';

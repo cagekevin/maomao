@@ -3,7 +3,7 @@
  * ImageGenerate 裁剪/扩图保存「节点框跟随实际图片比例」端到端契约测试。
  *
  * 用户反馈根因：保存出口已把 dims（裁剪/扩图后画布真实尺寸）传给 onImageReplaced，
- * 但 ImageGenerate 此前忽略 dims → 节点框比例不跟随（ImageNode 正常、ImageGenerate 异常）。
+ * 但 ImageGenerate 此前忽略 dims → 节点框比例不跟随（AssetNode 正常、ImageGenerate 异常）。
  * 契约：onImageReplaced(dataUrl, dims) 后，aspectRatio 写回 'W:H'，真实 NodeShell.useSizeSync
  *       把节点框重算为 dims 比例。
  */

@@ -37,7 +37,7 @@ import { generateId } from '../base/core/idGen.ts';
 import type { CameraStudioResult } from '../base/editors/cameraStudio.ts';
 
 /**
- * 图片节点（复刻原 xi.jsx / imageNode）
+ * 图片节点（复刻原 xi.jsx / assetNode）
  * 支持 image / video / audio / text / empty 五种内容态（类型用 detectMediaType 统一判断）。
  * 已迁移到 NodeShell 基座（外壳 + 端口 + 尺寸管理统一）。
  *
@@ -49,7 +49,7 @@ import type { CameraStudioResult } from '../base/editors/cameraStudio.ts';
  * 通用能力抽到 base/：useMediaDegrade（性能降级），宽高比自适应走 NodeShell 的 useSizeSync（area-fixed），
  * useVideoPoster（视频首帧封面）、detectMediaType（类型判断）。
  */
-interface ImageNodeData {
+interface AssetNodeData {
   label?: string;
   imageUrl?: string;
   url?: string;
@@ -59,12 +59,12 @@ interface ImageNodeData {
   text?: string;
   [key: string]: unknown;
 }
-interface ImageNodeProps {
+interface AssetNodeProps {
   id: string;
-  data: ImageNodeData;
+  data: AssetNodeData;
   selected?: boolean;
 }
-function ImageNode({ id, data, selected }: ImageNodeProps) {
+function AssetNode({ id, data, selected }: AssetNodeProps) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   // 读取端兜底：相对 /files/ 路径统一补全为绝对 URL，刷新不破图
   const url = toAbsoluteFileUrl(data.imageUrl || data.url || '') || '';
@@ -496,4 +496,4 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
     </>
   );
 }
-export default React.memo(ImageNode);
+export default React.memo(AssetNode);

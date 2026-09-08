@@ -395,7 +395,7 @@ function buildCreateNode(args, ctx, currentNodes) {
   const ALLOWED_TYPES = [
     'textGenerateNode',
     'imageGenerateNode',
-    'imageNode',
+    'assetNode',
     'videoGenerateNode',
     'group',
   ];
@@ -454,7 +454,7 @@ function buildCreateNode(args, ctx, currentNodes) {
 
 /**
  * 建节点工具（复刻官方 create_node + batch_create_nodes）。
- * type 从白名单取（textGenerateNode/imageGenerateNode/imageNode/videoGenerateNode/group），默认给默认 data；prompt/label 可覆盖。
+ * type 从白名单取（textGenerateNode/imageGenerateNode/assetNode/videoGenerateNode/group），默认给默认 data；prompt/label 可覆盖。
  * 返回新建节点 id 列表，供后续连线/改节点用。
  */
 const createNodeTool = {
@@ -467,9 +467,9 @@ const createNodeTool = {
     properties: {
       type: {
         type: 'string',
-        enum: ['textGenerateNode', 'imageGenerateNode', 'imageNode', 'videoGenerateNode', 'group'],
+        enum: ['textGenerateNode', 'imageGenerateNode', 'assetNode', 'videoGenerateNode', 'group'],
         description:
-          '节点类型：textGenerateNode=文本(text=内容落生成区/prompt=内容落抽屉)/imageGenerateNode=生图(prompt=画面提示词)/imageNode=图片(label=说明)/videoGenerateNode=视频(prompt=视频提示词)/group=编组',
+          '节点类型：textGenerateNode=文本(text=内容落生成区/prompt=内容落抽屉)/imageGenerateNode=生图(prompt=画面提示词)/assetNode=图片(label=说明)/videoGenerateNode=视频(prompt=视频提示词)/group=编组',
       },
       prompt: { type: 'string', description: '提示词/内容（textGenerateNode 时落提示词抽屉）' },
       text: {
@@ -536,7 +536,7 @@ const batchCreateNodesTool = {
               enum: [
                 'textGenerateNode',
                 'imageGenerateNode',
-                'imageNode',
+                'assetNode',
                 'videoGenerateNode',
                 'group',
               ],

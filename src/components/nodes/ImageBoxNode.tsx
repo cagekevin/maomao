@@ -101,7 +101,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
   const selectedIds = useMemo(() => data.selectedIds || [], [data.selectedIds]);
   const current = images[activeIndex];
 
-  // ---- data 写回（统一用 setNodes 不可变更新，与 ImageNode 一致）----
+  // ---- data 写回（统一用 setNodes 不可变更新，与 AssetNode 一致）----
   const updateData = useCallback(
     (patch: Partial<ImageBoxNodeData>) => {
       setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
@@ -264,7 +264,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
   const connected = useConnectedInputs(id);
   const upstreamImages = useCallback(() => {
     const list = [];
-    // 直接上游 imageUrl（imageNode / imageGenerateNode 等）
+    // 直接上游 imageUrl（assetNode / imageGenerateNode 等）
     connected.images.forEach((img) => {
       if (
         typeof img.url === 'string' &&

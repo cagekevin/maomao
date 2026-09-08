@@ -26,7 +26,7 @@ describe('编组算法 §2.2', () => {
     },
     {
       id: 'c',
-      type: 'imageNode',
+      type: 'assetNode',
       data: {},
       position: { x: 0, y: 200 },
       style: { width: 100, height: 100 },
@@ -135,7 +135,7 @@ describe('R3 deleteNodesWithCascade 级联删除（删 group 不留孤儿）', (
       position: { x: 0, y: 0 },
       style: { width: 500, height: 500 },
     },
-    { id: 'child1', type: 'imageNode', data: {}, position: { x: 40, y: 40 }, parentId: 'g' },
+    { id: 'child1', type: 'assetNode', data: {}, position: { x: 40, y: 40 }, parentId: 'g' },
     { id: 'child2', type: 'textGenerateNode', data: {}, position: { x: 60, y: 60 }, parentId: 'g' },
     { id: 'outer', type: 'textGenerateNode', data: {}, position: { x: 500, y: 500 } },
   ];
@@ -176,7 +176,7 @@ describe('R3 duplicateSelectedWithEdges 克隆子图（保留组关系 + 连线�
       position: { x: 0, y: 0 },
       style: { width: 500, height: 500 },
     },
-    { id: 'c1', type: 'imageNode', data: {}, position: { x: 40, y: 40 }, parentId: 'g' },
+    { id: 'c1', type: 'assetNode', data: {}, position: { x: 40, y: 40 }, parentId: 'g' },
     { id: 'c2', type: 'textGenerateNode', data: {}, position: { x: 60, y: 60 }, parentId: 'g' },
     { id: 'outer', type: 'textGenerateNode', data: {}, position: { x: 500, y: 500 } },
   ];
@@ -193,7 +193,7 @@ describe('R3 duplicateSelectedWithEdges 克隆子图（保留组关系 + 连线�
     expect(r.nodes).toHaveLength(7);
     // 克隆的 c1/c2 有新的 parentId（指向克隆的 group），不指向原 group
     const newIds = [...ids].filter((id) => !['g', 'c1', 'c2', 'outer'].includes(id));
-    const cloneC1 = r.nodes.find((n) => newIds.includes(n.id) && n.type === 'imageNode');
+    const cloneC1 = r.nodes.find((n) => newIds.includes(n.id) && n.type === 'assetNode');
     const cloneC2 = r.nodes.find((n) => newIds.includes(n.id) && n.type === 'textGenerateNode');
     const cloneG = r.nodes.find((n) => newIds.includes(n.id) && n.type === 'group');
     expect(cloneC1.parentId).toBe(cloneG.id);
@@ -253,14 +253,14 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
   const nodes = [
     {
       id: 'a',
-      type: 'imageNode',
+      type: 'assetNode',
       position: { x: 200, y: 200 },
       style: { width: 300, height: 200 },
       data: {},
     },
     {
       id: 'b',
-      type: 'imageNode',
+      type: 'assetNode',
       position: { x: 600, y: 250 },
       style: { width: 300, height: 200 },
       data: {},
@@ -357,7 +357,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
   };
   const child = {
     id: 'c',
-    type: 'imageNode',
+    type: 'assetNode',
     data: {},
     position: { x: 40, y: 40 },
     parentId: 'g',
@@ -379,7 +379,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
   it('拖入组内（重叠≥50%）→ 设 parentId + 相对坐标', () => {
     const dragged = {
       id: 'd',
-      type: 'imageNode',
+      type: 'assetNode',
       data: {},
       position: { x: 200, y: 200 },
       measured: { width: 100, height: 100 },
@@ -395,7 +395,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
   it('完全在组外 → null（无组归属变化）', () => {
     const dragged = {
       id: 'd',
-      type: 'imageNode',
+      type: 'assetNode',
       data: {},
       position: { x: 800, y: 800 },
       measured: { width: 100, height: 100 },
@@ -407,7 +407,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
   it('拖出原组 → 解除 parentId + 转绝对坐标', () => {
     const dragged = {
       id: 'd',
-      type: 'imageNode',
+      type: 'assetNode',
       data: {},
       position: { x: 700, y: 700 },
       parentId: 'g',
@@ -433,7 +433,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
     // 节点落在 inner(0-200) 内，也落在 g(0-500) 内 → 应归 inner（面积更小）
     const dragged = {
       id: 'd',
-      type: 'imageNode',
+      type: 'assetNode',
       data: {},
       position: { x: 50, y: 50 },
       measured: { width: 100, height: 100 },

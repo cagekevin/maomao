@@ -2,10 +2,10 @@
  * 媒体类型判断工具（复刻官方 xi.jsx:30-48 的类型判定 / H_.jsx onDrop 的文件类型判定）。
  *
  * 【为什么抽成工具】
- * 图片节点（ImageNode 判断内容态）、画布拖入/粘贴（App.createNodeFromFile 判断文件类型）
+ * 图片节点（AssetNode 判断内容态）、画布拖入/粘贴（App.createNodeFromFile 判断文件类型）
  * 各自写了一套正则，容易漏扩展名、改一处漏一处。统一收敛到此，新增媒体格式只改这里。
  *
- * 类型约定（对齐官方 xi.jsx / ImageNode）：
+ * 类型约定（对齐官方 xi.jsx / AssetNode）：
  *  - image / video / audio / text / other / empty
  *  - other：非以上类型的文件（如压缩包）；empty：无 URL/文件
  */
@@ -46,7 +46,7 @@ export function detectFileType(file: File | null | undefined): MediaType {
 
 /**
  * 判断一个 URL 是否「可作图片源显示」：dataURL / http(s) / blob。
- * 用于拖入 URL 文本时决定建 imageNode 还是 textGenerateNode。
+ * 用于拖入 URL 文本时决定建 assetNode 还是 textGenerateNode。
  */
 export function isAssetUrl(url: unknown): url is string {
   return (

@@ -37,7 +37,7 @@ describe('useArrangeCanvas', () => {
       },
       {
         id: 'b',
-        type: 'imageNode',
+        type: 'assetNode',
         position: { x: 1, y: 2 },
         data: { expanded: true },
         width: 200,
@@ -59,7 +59,7 @@ describe('useArrangeCanvas', () => {
     expect(typeof b.position.y).toBe('number');
     // b 与 a 通过边保持左右相对关系（rankdir=LR，a 在左 b 在右）
     expect(b.position.x).toBeGreaterThan(a.position.x);
-    // 2026-09-07：仅 INPUT_PANEL_NODE_TYPES 收面板（imageGenerateNode 收起、imageNode 不受影响）
+    // 2026-09-07：仅 INPUT_PANEL_NODE_TYPES 收面板（imageGenerateNode 收起、assetNode 不受影响）
     expect(a.data.expanded).toBe(false);
     expect(b.data.expanded).toBe(true);
     // 边原样回传
@@ -144,7 +144,7 @@ describe('useArrangeCanvas', () => {
       },
       {
         id: 'c2',
-        type: 'imageNode',
+        type: 'assetNode',
         position: { x: 233, y: 175 },
         data: {},
         width: 120,

@@ -968,9 +968,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         [
           {
             id: nid,
-            type: 'imageNode',
+            type: 'assetNode',
             position: { x: baseX, y: baseY },
-            // mediaType:'video'：blob 视频 URL 无扩展名/前缀，靠显式类型让 imageNode 正确渲染视频
+            // mediaType:'video'：blob 视频 URL 无扩展名/前缀，靠显式类型让 assetNode 正确渲染视频
             data: { imageUrl: url, mediaType: 'video', label: name, expanded: true },
             style: { width: 420, height: 380 },
           },
@@ -993,9 +993,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         [
           {
             id: nid,
-            type: 'imageNode',
+            type: 'assetNode',
             position: { x: baseX, y: baseY },
-            // mediaType:'audio'：blob 音频 URL 无扩展名/前缀，靠显式类型让 imageNode 正确渲染音频
+            // mediaType:'audio'：blob 音频 URL 无扩展名/前缀，靠显式类型让 assetNode 正确渲染音频
             data: { imageUrl: url, mediaType: 'audio', label: name, expanded: false },
             style: { width: 320, height: 200 },
           },
@@ -1019,7 +1019,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         [
           {
             id: nid,
-            type: 'imageNode',
+            type: 'assetNode',
             position: { x: baseX, y: baseY },
             data: { imageUrl: url, mediaType: 'image', label: name, expanded: false },
             style: { width: 360, height: 260 },

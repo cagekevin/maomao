@@ -150,7 +150,7 @@ describe('AgentMessage — assistant 消息（思考/工具/步骤卡片）', ()
             {
               function: {
                 name: 'generate_node',
-                arguments: '{"nodeType":"imageNode","prompt":"猫"}',
+                arguments: '{"nodeType":"assetNode","prompt":"猫"}',
               },
             },
           ],
@@ -160,7 +160,7 @@ describe('AgentMessage — assistant 消息（思考/工具/步骤卡片）', ()
     // 注意：getByText 命中的是内层文本 span，title 在外层 .agent-toolchip 上（closest 需带自身选择器）
     const chip = screen.getByText('generate_node').closest('.agent-toolchip');
     expect(chip).toBeTruthy();
-    expect(chip.getAttribute('title')).toContain('nodeType=imageNode');
+    expect(chip.getAttribute('title')).toContain('nodeType=assetNode');
     expect(chip.getAttribute('title')).toContain('prompt=猫');
   });
 

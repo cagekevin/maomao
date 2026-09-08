@@ -9,11 +9,11 @@
  * ⚠️ 出口契约（勿删）：sourceHandle 固定 'main-output'。因此所有「转深度」入口源节点
  * 必须注册一个 id='main-output' 的右侧 source 口，否则 React Flow 找不到句柄会抛
  * code-008 "Couldn't create edge for source handle 'main-output'"。
- * 入口源含：VideoProcessNode、ImageNode、VideoGenerate ——
+ * 入口源含：VideoProcessNode、AssetNode、VideoGenerate ——
  * 后两者通过 NodeShell 的 sourceHandleId="main-output" 关闭默认空端口、改用 main-output。
  * 若未来新增入口节点，务必照此约定补上 main-output 输出口。
  *
- * 链式：下游是 imageNode(mediaType:'video')，其 hover 同样有「转深度」→ 可继续转深度。
+ * 链式：下游是 assetNode(mediaType:'video')，其 hover 同样有「转深度」→ 可继续转深度。
  */
 
 import {

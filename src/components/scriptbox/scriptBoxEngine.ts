@@ -545,7 +545,7 @@ export function createScriptBoxEngine({
             // P2-1/P2-2：生图成功后把结果本地化落盘到素材库目录（migrated/{人物|场景|道具}），
             // 彻底替换旧的「上游 https 直链」式临时/外部 URL，让下游生图/生视频引用持久 /files/ 地址。
             // 缩略图机制统一：不再自产落盘独立 _thumb 文件，thumbnailUrl 回退原图，
-            // 显示时由系统按需出图端点（buildThumbnailUrl）出小图（与画布 ImageNode 一致）。
+            // 显示时由系统按需出图端点（buildThumbnailUrl）出小图（与画布 AssetNode 一致）。
             let imageUrl = r.url;
             try {
               const localized = await localizeAndStoreToLibrary(r.url, {

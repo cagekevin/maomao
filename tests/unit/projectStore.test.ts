@@ -201,7 +201,7 @@ describe('项目系统 §2.8', () => {
     };
     const child = {
       id: 'a',
-      type: 'imageNode',
+      type: 'assetNode',
       position: { x: 40, y: 40 },
       parentId: 'g1',
       style: { width: 300, height: 200 },
@@ -236,7 +236,7 @@ describe('项目系统 §2.8', () => {
     mem.set('canvas-state-v1-default_version', String(Date.now() + 100000));
     const r = await saveCanvasState(
       'default',
-      [{ id: 'n2', type: 'imageNode', data: {}, position: {} }],
+      [{ id: 'n2', type: 'assetNode', data: {}, position: {} }],
       [],
     );
     expect(r.success).toBe(false);

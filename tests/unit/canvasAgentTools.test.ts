@@ -321,7 +321,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = t.batch_create_nodes({
-      nodes: [{ type: 'textGenerateNode' }, { type: 'imageGenerateNode' }, { type: 'imageNode' }],
+      nodes: [{ type: 'textGenerateNode' }, { type: 'imageGenerateNode' }, { type: 'assetNode' }],
     });
     expect(r.ok).toBe(true);
     expect(ctx.getNodes()).toHaveLength(3);

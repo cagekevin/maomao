@@ -84,7 +84,7 @@ const useConnectedInputs = () => connectedInputsState;
 const setConnectedInputs = (v) => {
   connectedInputsState = v;
 };
-// ImageNode 用 useMediaDegrade().hideMedia 直接做 includes 判断（'' / [] 等"不隐藏"空值）；
+// AssetNode 用 useMediaDegrade().hideMedia 直接做 includes 判断（'' / [] 等"不隐藏"空值）；
 // GridSplit/GridMerge 等用 isHidden()。两者都 stub，掩盖两种调用形态。
 const useMediaDegrade = () => ({ hideMedia: [], isHidden: () => false });
 const useNodeResize = () => ({ onInputResize: () => {} });

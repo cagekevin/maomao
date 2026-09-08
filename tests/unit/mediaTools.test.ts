@@ -180,23 +180,23 @@ describe('nodePrefs —— 节点上次参数记忆', () => {
 
   it('不同 type 参数互不干扰', () => {
     const a = renderHook(() => useNodePrefs('textGenerateNode', { model: 'a' }));
-    const b = renderHook(() => useNodePrefs('imageNode', { model: 'img' }));
+    const b = renderHook(() => useNodePrefs('assetNode', { model: 'img' }));
     act(() => {
       a.result.current.set({ model: 'a2' });
     });
-    // 修改 textGenerateNode 不影响 imageNode 的内存状态
+    // 修改 textGenerateNode 不影响 assetNode 的内存状态
     expect(b.result.current.prefs.model).toBe('img');
     // 持久化时仅写入各自 type 的 key（set 才落盘，默认值不单独落盘）
     const stored = JSON.parse(prefsMem.get('yimao_node_prefs'));
     expect(stored.textGenerateNode.model).toBe('a2');
-    expect(stored.imageNode).toBeUndefined();
-    // 再次 set imageNode 后两个 key 共存且互不覆盖
+    expect(stored.assetNode).toBeUndefined();
+    // 再次 set assetNode 后两个 key 共存且互不覆盖
     act(() => {
       b.result.current.set({ model: 'img2' });
     });
     const stored2 = JSON.parse(prefsMem.get('yimao_node_prefs'));
     expect(stored2.textGenerateNode.model).toBe('a2');
-    expect(stored2.imageNode.model).toBe('img2');
+    expect(stored2.assetNode.model).toBe('img2');
   });
 
   it('loadAll 容错：损坏 JSON 返回 {}（初始化退回纯 defaults）', () => {

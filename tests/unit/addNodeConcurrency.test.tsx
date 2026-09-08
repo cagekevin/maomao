@@ -26,7 +26,7 @@ let counter = 0;
 function makeNode(): TestNode {
   counter += 1;
   const id = `n${counter}`;
-  return { id, type: 'imageNode', position: { x: id, y: 0 }, data: {} };
+  return { id, type: 'assetNode', position: { x: id, y: 0 }, data: {} };
 }
 
 /**
@@ -45,7 +45,7 @@ function Harness({
   holder?: { addNode?: () => void };
 }) {
   const [nodes, setNodes] = useState<TestNode[]>([
-    { id: 'base', type: 'imageNode', position: { x: 0, y: 0 }, data: {} },
+    { id: 'base', type: 'assetNode', position: { x: 0, y: 0 }, data: {} },
   ]);
   const nodesRef = useRef(nodes);
   useEffect(() => {

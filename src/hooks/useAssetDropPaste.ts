@@ -72,7 +72,7 @@ export interface AssetDropPasteApi {
  *    - 主路径用「同步 getData('text/plain')」优先（paste 事件不回收），getAsString 仅补充；
  *    - 同步 getData 二次补充；
  *    - navigator.clipboard.read() 极端兜底；全部失败必须 showToast 提示，不静默。
- * 6. 图片：file / text/html 里的 <img> / read() 的 image blob，都要能建 imageNode。
+ * 6. 图片：file / text/html 里的 <img> / read() 的 image blob，都要能建 assetNode。
  *
  * 注意：sanitizePastedText 是用户明确要的方向，见 ./clipboard.js。若再被改成 normalize/
  * 保留格式，是背离需求的错误改动。
@@ -90,9 +90,9 @@ export interface AssetDropPasteApi {
  *  - 其它画布宿主（脚本盒编辑器等）要支持拖入/粘贴，复用即可。
  *
  * 【映射规则（对齐官方）】
- *  - image / video / audio 文件 → imageNode（ImageNode 内部按 URL 判断类型展示；官方同此）
+ *  - image / video / audio 文件 → assetNode（AssetNode 内部按 URL 判断类型展示；官方同此）
  *  - text 文件 / 纯文本 → textGenerateNode
- *  - 拖入 URL 文本：图片类 URL → imageNode，否则 → textGenerateNode
+ *  - 拖入 URL 文本：图片类 URL → assetNode，否则 → textGenerateNode
  * 原型无后端，文件用 FileReader 读 dataURL 写入节点 data（官方走 localTool hi() 上传 /files/）。
  *
  * @param {Object} opts
@@ -133,7 +133,7 @@ export function useAssetDropPaste({
     e.dataTransfer.dropEffect = 'copy';
   }, []);
 
-  // 文件 → 建素材节点（图片/视频/音频→imageNode，文本→textGenerateNode）
+  // 文件 → 建素材节点（图片/视频/音频→assetNode，文本→textGenerateNode）
   const createNodeFromFile = useCallback(
     (file: File, pos: FlowPosition) => {
       const type = detectFileType(file);
@@ -153,7 +153,7 @@ export function useAssetDropPaste({
       (async () => {
         const url = await uploadFileToLocal(file, UPLOAD_DIRS.canvasDrop);
         if (url) {
-          addNode('imageNode', pos, { imageUrl: url, label: file.name });
+          addNode('assetNode', pos, { imageUrl: url, label: file.name });
           showToast(
             `已导入${type === 'image' ? '图片' : type === 'video' ? '视频' : '音频'}「${file.name}」`,
           );
@@ -163,7 +163,7 @@ export function useAssetDropPaste({
         // 读取失败（非正常文件）→ 返回 null，保持原"静默不建节点"语义（上传已失败，读又失败则放弃）。
         const dataUrl = await fileToDataUrl(file).catch(() => null);
         if (!dataUrl) return;
-        addNode('imageNode', pos, { imageUrl: dataUrl, label: file.name });
+        addNode('assetNode', pos, { imageUrl: dataUrl, label: file.name });
         showToast(
           `已导入${type === 'image' ? '图片' : type === 'video' ? '视频' : '音频'}「${file.name}」`,
         );
@@ -172,14 +172,14 @@ export function useAssetDropPaste({
     [addNode],
   );
 
-  // 拖入网络图片 URL → 先用原 URL 同步建 imageNode（立即显示，能显示就显示，防盗链破图不阻塞导入）。
+  // 拖入网络图片 URL → 先用原 URL 同步建 assetNode（立即显示，能显示就显示，防盗链破图不阻塞导入）。
   // 后台本地化（先显示后替换）：复用后端 fileUrl 下载（服务端 + 7897 代理，绕 CORS）落盘专用 web 目录，
   // 成功把节点 imageUrl 替换为本地 /files/ URL（发送/图生图/压缩/裁剪都能用）；失败保持原 URL，不打扰、日志留痕。
   // 不加 label：与 onPaste 的 html <img> 建图路径一致，节点 data 保持最简 { imageUrl }。
   const addImageNodeFromUrl = useCallback(
     (pos: FlowPosition, url: string) => {
       if (!url) return;
-      const id = addNode('imageNode', pos, { imageUrl: url });
+      const id = addNode('assetNode', pos, { imageUrl: url });
       // 未注入 patchNodeData 则跳过本地化（纯显示模式）；非 http(s) 由 downloadRemoteToLocal 内部拦截（返回 null 不替换）
       if (id && typeof patchNodeData === 'function') {
         downloadRemoteToLocal(url, { folder: WEB_DROP_SUBFOLDER })
@@ -209,7 +209,7 @@ export function useAssetDropPaste({
             name?: string;
           };
           if (asset?.url) {
-            // 文字素材 → textGenerateNode（把 data:text 内容解码成文本）；图片/视频/音频 → imageNode
+            // 文字素材 → textGenerateNode（把 data:text 内容解码成文本）；图片/视频/音频 → assetNode
             if (asset.type === 'text') {
               let content = asset.text || '';
               if (!content && asset.url.startsWith('data:text')) {
@@ -222,7 +222,7 @@ export function useAssetDropPaste({
               addNode('textGenerateNode', pos, { text: content, label: asset.name || '文字素材' });
               showToast(`已添加文字素材「${asset.name || '文字素材'}」`);
             } else {
-              addNode('imageNode', pos, { imageUrl: asset.url, label: asset.name || '素材' });
+              addNode('assetNode', pos, { imageUrl: asset.url, label: asset.name || '素材' });
               showToast(`已添加素材「${asset.name || '素材'}」`);
             }
             return;
@@ -234,7 +234,7 @@ export function useAssetDropPaste({
 
       const files = e.dataTransfer?.files;
       if (!files || files.length === 0) {
-        // 拖入 URL 文本（非文件）：图片类 URL → imageNode，其它 → textGenerateNode。
+        // 拖入 URL 文本（非文件）：图片类 URL → assetNode，其它 → textGenerateNode。
         // 从网页拖图时 URL 通常不在 text/plain，而在 text/uri-list（拖拽 URL 的标准 MIME），
         // 故两者都读，取第一个非空 URL 候选（uri-list 可能多行，取首行 URL）。
         const uriList = e.dataTransfer?.getData('text/uri-list') || '';
@@ -242,7 +242,7 @@ export function useAssetDropPaste({
         const candidate = (uriList.trim() || text.trim()).split(/\r?\n/)[0]?.trim() || '';
         if (candidate) {
           if (isAssetUrl(candidate)) {
-            // 网页图 URL → 直接用原 URL 建 imageNode（方案C：能显示就显示，防盗链破图不阻塞导入；不做本地化）
+            // 网页图 URL → 直接用原 URL 建 assetNode（方案C：能显示就显示，防盗链破图不阻塞导入；不做本地化）
             addImageNodeFromUrl(pos, candidate);
           } else {
             addNode('textGenerateNode', pos, { text: candidate, expanded: false });
@@ -283,7 +283,7 @@ export function useAssetDropPaste({
             const col = i % 6;
             const row = Math.floor(i / 6);
             addNode(
-              'imageNode',
+              'assetNode',
               { x: pos.x + col * 150, y: pos.y + row * 150 },
               { imageUrl: img, label: `提取帧 ${i + 1}` },
             );
@@ -429,7 +429,7 @@ export function useAssetDropPaste({
         const src = extractImgFromHtml(html);
         if (src) {
           e.preventDefault();
-          if (isAssetUrl(src)) addNode('imageNode', pos, { imageUrl: src });
+          if (isAssetUrl(src)) addNode('assetNode', pos, { imageUrl: src });
           else addNode('textGenerateNode', pos, { text: src, expanded: false });
           return;
         }
@@ -471,7 +471,7 @@ export function useAssetDropPaste({
                 const html = await readClipText(item, 'text/html');
                 const src = extractImgFromHtml(html);
                 if (src) {
-                  if (isAssetUrl(src)) addNode('imageNode', pos, { imageUrl: src });
+                  if (isAssetUrl(src)) addNode('assetNode', pos, { imageUrl: src });
                   else addNode('textGenerateNode', pos, { text: src, expanded: false });
                   return;
                 }

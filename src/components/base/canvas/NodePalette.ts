@@ -16,7 +16,7 @@ import {
 // 画布渲染组件引用（component 字段用于 App.jsx 派生 nodeTypes，避免双维护平行表）。
 // 注意：节点组件均不反向 import 本文件，故无循环依赖（已验证）。
 import TextGenerate from '../../nodes/TextGenerate.tsx';
-import ImageNode from '../../nodes/ImageNode.tsx';
+import AssetNode from '../../nodes/AssetNode.tsx';
 import LoopNode from '../../nodes/LoopNode.tsx';
 import ImageGenerate from '../../nodes/ImageGenerate.tsx';
 import VideoGenerate from '../../nodes/VideoGenerate.tsx';
@@ -66,11 +66,11 @@ export const paletteNodes = [
   // --- 图片工具 ---
   // imageGenerateNode（图片/生图）与顶部 W 快捷重复，子分类不再列出
   {
-    type: 'imageNode',
+    type: 'assetNode',
     label: '图片视频素材节点',
     icon: ImageIcon,
     cat: 'image',
-    component: ImageNode,
+    component: AssetNode,
     data: { images: [] },
     builtin: true,
   },

@@ -3,13 +3,13 @@
  *
  * FaceMosaicNode 是图片链路节点（近 200 次提交改动 8 次，此前只有「挂载不崩」冒烟）。
  * 交互面：模式切换/强度/颜色 → useEffect 写回节点 data；上传/连接图 → AI打码/手动打码 →
- * applyMosaic + uploadFileToLocal → spawn imageNode（setNodes 追加）+ 结果信息展示。
+ * applyMosaic + uploadFileToLocal → spawn assetNode（setNodes 追加）+ 结果信息展示。
  *
  * 本文件断言真实行为：
  *  - 模式/强度/颜色 → 节点 data 的精确变化（setNodes updater 被捕获执行）
- *  - AI打码成功 → 输出 imageNode、显示结果张数与识别人脸数
+ *  - AI打码成功 → 输出 assetNode、显示结果张数与识别人脸数
  *  - AI打码全部失败 → toastError + 错误提示展示
- *  - 手动打码 → 打开编辑器、保存后输出 imageNode
+ *  - 手动打码 → 打开编辑器、保存后输出 assetNode
  *  - 无图时 AI/手动按钮禁用（契约：不能空打码）
  */
 import React from 'react';
@@ -113,7 +113,7 @@ function lastData() {
   return h.state.nodes.find((n) => n.id === nodeId)?.data;
 }
 function spawnedNodes() {
-  return h.state.nodes.filter((n) => n.type === 'imageNode');
+  return h.state.nodes.filter((n) => n.type === 'assetNode');
 }
 
 describe('FaceMosaicNode — 空态与图片源', () => {
@@ -173,7 +173,7 @@ describe('FaceMosaicNode — 模式/强度/颜色写回 data', () => {
 });
 
 describe('FaceMosaicNode — AI打码', () => {
-  it('有图 → 打码成功输出 imageNode + 结果信息', async () => {
+  it('有图 → 打码成功输出 assetNode + 结果信息', async () => {
     h.applyMosaicMock.mockResolvedValue({ dataUrl: 'data:image/png;base64,AAAA', faceCount: 2 });
     setup({}, { images: [{ url: 'http://x/in1.png' }] });
 
@@ -223,7 +223,7 @@ describe('FaceMosaicNode — AI打码', () => {
 });
 
 describe('FaceMosaicNode — 手动打码', () => {
-  it('有图 → 点击手动打开编辑器，保存后输出 imageNode', async () => {
+  it('有图 → 点击手动打开编辑器，保存后输出 assetNode', async () => {
     setup({}, { images: [{ url: 'http://x/in1.png' }] });
     fireEvent.click(screen.getByTitle('手动打码'));
     expect(screen.getByTestId('mosaic-editor')).toBeTruthy();

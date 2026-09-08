@@ -34,11 +34,11 @@ import { dataUrlToBlob } from '../base/core/utils.ts';
  * 人脸打码节点（完整复刻官方 Cl.jsx / faceMosaicNode）。
  *
  * 功能：
- *  - 输入：上传图片 或 连接上游含图片的节点（imageNode/imageGenerateNode/imageBoxNode 等，经 useConnectedInputs 收集）
+ *  - 输入：上传图片 或 连接上游含图片的节点（assetNode/imageGenerateNode/imageBoxNode 等，经 useConnectedInputs 收集）
  *  - 模式：马赛克 / 黑条 / 网格 / 模糊（MOSAIC_MODES）
- *  - AI打码：MediaPipe 人脸检测 → 按模式打码 → 结果网格 → spawn imageNode 输出
+ *  - AI打码：MediaPipe 人脸检测 → 按模式打码 → 结果网格 → spawn assetNode 输出
  *  - 手动：打开 FaceMosaicEditor 全屏编辑器，拖拽框选 + 自动识别人脸
- *  - 结果：成功输出 imageNode（与官方 onSpawnImageNode 对齐）
+ *  - 结果：成功输出 assetNode（与官方 onSpawnImageNode 对齐）
  */
 interface FaceMosaicResultInfo {
   count: number;
@@ -136,7 +136,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
     e.target.value = '';
   };
 
-  // 输出结果（复刻官方 y）：spawn imageNode（原型无 imageBox 直连，统一 spawn）
+  // 输出结果（复刻官方 y）：spawn assetNode（原型无 imageBox 直连，统一 spawn）
   const outputResults = useCallback(
     (items: Array<{ url: string; label: string }>) => {
       const me = getNode(id);
@@ -144,7 +144,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
       const baseY = me?.position?.y ?? 100;
       const list = items.map((it, i) => ({
         id: `face-mosaic-${id}-${i}-${generateId('fm')}`,
-        type: 'imageNode',
+        type: 'assetNode',
         position: { x: baseX, y: baseY + i * 260 },
         data: { imageUrl: it.url, label: it.label },
         style: { width: 360, height: 260 },

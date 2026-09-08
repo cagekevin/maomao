@@ -54,7 +54,7 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
   // 生成中状态直接派生自 data.genMask（引擎发起请求时同步置位、结束时复位），不用本地 state：
   // 切步骤/关全屏导致组件卸载后回来不会丢状态，也就不会重复发起第二次生成。
   const scriptLoading = !!d.genMask;
-  // 缩略图显示复用系统统一按需出图出口（与资产卡/ImageNode 一致）
+  // 缩略图显示复用系统统一按需出图出口（与资产卡/AssetNode 一致）
   const render = useRenderImageResolver();
 
   const setStory = (story) => updateData({ story });

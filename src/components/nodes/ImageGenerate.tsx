@@ -181,7 +181,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     [id, setNodes],
   );
 
-  // 节点框按媒体真实宽高比自适应（类似 ImageNode）：
+  // 节点框按媒体真实宽高比自适应（类似 AssetNode）：
   //  - Auto 比例下，<img onLoad={fitFromImage}> 让节点框跟随图片真实比例；
   //  - 裁剪/扩图保存后 onImageReplaced 用 fitByRatio(dims) 让节点框跟随编辑后真实画布。
   // 配合 useSizeSync 的「Auto 不干预」改动，编辑/生成后节点框不再被旧比例锁定（见 docs/78 复盘）。
@@ -203,7 +203,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aspectRatio]);
 
-  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随（与 ImageNode 一致）
+  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随（与 AssetNode 一致）
   const rename = useCallback(
     (name: string) => {
       setNodes((ns) =>
@@ -512,7 +512,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         const h = Math.round(dims.height);
         if (w > 0 && h > 0) {
           editedRatioRef.current = true; // 标记：本次置 Auto 由编辑保存触发，跳过「切 Auto 读图」effect
-          fitByRatio(w, h); // 直接改 node 尺寸跟随图片，等价 ImageNode 消费 dims 的落点
+          fitByRatio(w, h); // 直接改 node 尺寸跟随图片，等价 AssetNode 消费 dims 的落点
           setAspectRatio('Auto');
           patchData({ imageUrl: dataUrl, aspectRatio: 'Auto' });
           return;

@@ -209,7 +209,7 @@ body,
  * 只保留 NodeShell 的灰色 border-edge-strong 边框，与其它节点一致。
  *
  * 【可能原因（仅推测，未完全确认）】只有编组节点出现选中蓝边，其它节点（type 为
- * textGenerateNode / imageNode 等自定义类型）没有，推测是 React Flow 默认主题给
+ * textGenerateNode / assetNode 等自定义类型）没有，推测是 React Flow 默认主题给
  * `.react-flow__node-group.selectable.selected` 套了一层 `box-shadow`
  * （--xy-node-boxshadow-selected，默认 `0 0 0 0.5px #999`），在深色画布上
  * 放大/与背景叠加后看起来偏蓝/偏亮；而其它节点类型不匹配该选择器，故不受影响。

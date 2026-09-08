@@ -139,7 +139,7 @@ describe('管线契约 getNodeOutput', () => {
   it('通用兜底：resultUrl 兜底、mediaType=audio 优先，且带 label（预留）', () => {
     const r = getNodeOutput({
       id: 'a1',
-      type: 'imageNode',
+      type: 'assetNode',
       data: { resultUrl: 'blob:x', mediaType: 'audio', label: 'BGM' },
     });
     expect(r.audios).toHaveLength(1);
@@ -314,7 +314,7 @@ describe('P0-B ② 上游收集与判等（collectUpstream / upstreamEqual）', 
     expect(
       upstreamEqual([{ node: n1, sourceHandle: 'a' }], [{ node: n1, sourceHandle: 'b' }]),
     ).toBe(false);
-    const renamed = { ...n1, type: 'imageNode' };
+    const renamed = { ...n1, type: 'assetNode' };
     expect(upstreamEqual([{ node: n1 }], [{ node: renamed }])).toBe(false); // 类型变化
   });
 
@@ -360,8 +360,8 @@ describe('P0-B ③ 聚合（aggregateUpstream 与旧 useMemo 体语义等价）'
 
 describe('P0-B 编组出口（parentLookup 展开，行为与旧 nodes.filter 等价）', () => {
   const group = mkNode('g1', 'group', {});
-  const child1 = mkNode('c1', 'imageNode', { imageUrl: 'http://c1.png' });
-  const childHidden = mkNode('c2', 'imageNode', { imageUrl: 'http://c2.png' }, { hidden: true });
+  const child1 = mkNode('c1', 'assetNode', { imageUrl: 'http://c1.png' });
+  const childHidden = mkNode('c2', 'assetNode', { imageUrl: 'http://c2.png' }, { hidden: true });
 
   it('group 上游展开为非 hidden 子节点（hidden 被排除）', () => {
     const lookup = new Map([
@@ -394,7 +394,7 @@ describe('P0-B 编组出口（parentLookup 展开，行为与旧 nodes.filter �
   });
 
   it('组内子节点 data 变化 → upstreamEqual 判不等（折叠/增删子节点同理走长度/元素变化）', () => {
-    const childNew = mkNode('c1', 'imageNode', { imageUrl: 'http://c1-new.png' });
+    const childNew = mkNode('c1', 'assetNode', { imageUrl: 'http://c1-new.png' });
     expect(
       upstreamEqual(
         [{ node: child1, sourceHandle: undefined, fromGroup: true }],

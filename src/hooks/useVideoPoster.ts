@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
  * 【为什么抽成 hook】
  * 视频节点未播放时要显示「封面」而非破图。官方用 localTool 生成 _frame1.jpg 首帧图；
  * 原型无后端，改为前端本地抓帧：加载视频 → seek 到首帧 → 画到 canvas → 得 dataURL 作封面。
- * 这是独立能力，抽出来供任何视频节点复用（ImageNode / 未来的视频节点）。
+ * 这是独立能力，抽出来供任何视频节点复用（AssetNode / 未来的视频节点）。
  *
  * 【跨域注意】
  * 对无 CORS 头的跨域视频，canvas.toDataURL 会抛「Tainted canvases」→ 抓帧失败，此时

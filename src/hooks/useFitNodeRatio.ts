@@ -18,7 +18,7 @@ export interface FitNodeRatioApi {
  * 让节点按「媒体真实宽高比」自适应形状的 hook。
  *
  * 【为什么抽成 hook】
- * ImageNode 的图片（fitToImageRatio，用 img.naturalWidth/Height）和视频
+ * AssetNode 的图片（fitToImageRatio，用 img.naturalWidth/Height）和视频
  * （fitToVideoRatio，用 video.videoWidth/Height）逻辑几乎一样，只差数据源。
  * 统一成 `fitByRatio(w, h)`，图片/视频/任何媒体都能用，新增节点不再写两遍。
  *

@@ -605,7 +605,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
       {/* 双击视频查看大图：原生 <dialog> + 系统原生 <video> 播放器 */}
       <ImageZoomDialog ref={zoomRef} url={zoomUrl} kind="video" />
 
-      {/* 转深度视频弹窗（无 iframe）：源 = 当前节点 videoUrl；onSave → spawn 下游 imageNode(mediaType:'video') 使链式可再转 */}
+      {/* 转深度视频弹窗（无 iframe）：源 = 当前节点 videoUrl；onSave → spawn 下游 assetNode(mediaType:'video') 使链式可再转 */}
       {depthOpen && videoUrl && (
         <DepthVideoModal
           videoUrl={videoUrl}

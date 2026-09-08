@@ -18,7 +18,7 @@ import { renderToString } from 'react-dom/server';
 import { ReactFlowProvider } from '@xyflow/react';
 import { describe, test, expect } from 'vitest';
 
-import ImageNode from '@/components/nodes/ImageNode';
+import AssetNode from '@/components/nodes/AssetNode';
 import TextGenerate from '@/components/nodes/TextGenerate';
 import ImageGenerate from '@/components/nodes/ImageGenerate';
 import VideoGenerate from '@/components/nodes/VideoGenerate';
@@ -39,9 +39,9 @@ import { defaultNodeData } from '@/components/base/canvas/NodePalette';
 //     group / scriptBoxNode 作为容器/动态端口节点，shots=[] 时无 react-flow__handle，故不强制。
 const cases = [
   {
-    name: '图片视频素材 ImageNode',
-    Comp: ImageNode,
-    type: 'imageNode',
+    name: '图片视频素材 AssetNode',
+    Comp: AssetNode,
+    type: 'assetNode',
     expect: [
       'group/node',
       'bg-surface-raised',

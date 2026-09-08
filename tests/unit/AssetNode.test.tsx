@@ -1,5 +1,5 @@
 /**
- * ImageNode 深度测试（修复审计 P1"偏薄"）。
+ * AssetNode 深度测试（修复审计 P1"偏薄"）。
  * 覆盖 content type 判定的多种内容态：empty / image / audio / text / video。
  * detectMediaType 为真实实现；mediaType 显式标注时优先（blob/无扩展名产出场景）。
  */
@@ -32,13 +32,13 @@ vi.mock('../../src/components/base/utils/imageCompress.ts', () => ({
   compressImage: mocks.compressImage,
 }));
 
-import ImageNode from '../../src/components/nodes/ImageNode.tsx';
+import AssetNode from '../../src/components/nodes/AssetNode.tsx';
 beforeEach(() => {
   mocks.resetNodeMockState();
 });
-const setup = (props = {}) => render(<ImageNode id="im1" data={{}} selected={false} {...props} />);
+const setup = (props = {}) => render(<AssetNode id="im1" data={{}} selected={false} {...props} />);
 
-describe('ImageNode — 内容态', () => {
+describe('AssetNode — 内容态', () => {
   it('无内容 → 空态（无 img、无内容文本）', () => {
     setup();
     expect(document.querySelector('img[alt="Content"]')).toBeNull();

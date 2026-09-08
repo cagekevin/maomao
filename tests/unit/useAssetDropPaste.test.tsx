@@ -98,7 +98,7 @@ afterEach(() => {
 
 describe('useAssetDropPaste — onPaste（万全之策）', () => {
   // ── A. 图片：实时 read() 读 image/png Blob ──────────────────────────
-  it('read() 返回 image/png Blob → 建 imageNode（不依赖事件快照）', async () => {
+  it('read() 返回 image/png Blob → 建 assetNode（不依赖事件快照）', async () => {
     installClipboard({ read: vi.fn().mockResolvedValue([imageBlobItem()]) });
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
@@ -113,13 +113,13 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     });
     // 补充路径（read() 异步）不依赖 e.preventDefault（异步期调用无效），只需验证节点被正确建立
     expect(uploadMock).toHaveBeenCalled();
-    expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), {
+    expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
       imageUrl: 'http://local/png',
       label: 'png',
     });
   });
 
-  it('read() 返回 text/html（含 <img>）→ 提取图片建 imageNode', async () => {
+  it('read() 返回 text/html（含 <img>）→ 提取图片建 assetNode', async () => {
     installClipboard({ read: vi.fn().mockResolvedValue([htmlImageItem('http://ext/cat.png')]) });
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
@@ -131,7 +131,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     await act(async () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
-    expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), {
+    expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
       imageUrl: 'http://ext/cat.png',
     });
   });
@@ -189,18 +189,18 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     await act(async () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
-    expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), {
+    expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
       imageUrl: 'http://x/1.png',
       label: '提取帧 1',
     });
-    expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), {
+    expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
       imageUrl: 'http://x/2.png',
       label: '提取帧 2',
     });
   });
 
   // ── 修复 2：contenteditable 内粘贴图片 → 放行建节点（不被 insertText 吞） ──
-  it('焦点在 contenteditable 内、剪贴板是图片 → 仍建 imageNode（不进 insertText）', async () => {
+  it('焦点在 contenteditable 内、剪贴板是图片 → 仍建 assetNode（不进 insertText）', async () => {
     installClipboard({ read: vi.fn().mockResolvedValue([imageBlobItem()]) });
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
@@ -210,7 +210,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     await act(async () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
-    expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), {
+    expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
       imageUrl: 'http://local/png',
       label: 'png',
     });
@@ -249,7 +249,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     });
   });
 
-  it('read() 抛错 → 退回 paste 事件同步 files（图片）建 imageNode', async () => {
+  it('read() 抛错 → 退回 paste 事件同步 files（图片）建 assetNode', async () => {
     installClipboard({ read: vi.fn().mockRejectedValue(new Error('permission')) });
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
@@ -267,14 +267,14 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
     expect(uploadMock).toHaveBeenCalledWith(file, 'canvas/drop');
-    expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), {
+    expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
       imageUrl: 'http://local/fb.png',
       label: 'fb.png',
     });
   });
 
   // ── 修复 3（旧路径兼容）：paste 事件本身带 file items（无 read 能力，如 file://）──
-  it('无 clipboard.read 能力、paste 事件带 file items → 建 imageNode', async () => {
+  it('无 clipboard.read 能力、paste 事件带 file items → 建 assetNode', async () => {
     installClipboard({ read: undefined }); // 模拟 navigator.clipboard.read 不存在
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
@@ -291,7 +291,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     await act(async () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
-    expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), {
+    expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
       imageUrl: 'http://local/ev.png',
       label: 'ev.png',
     });
@@ -395,7 +395,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     await act(async () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
-    expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), {
+    expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
       imageUrl: 'http://x/1.png',
       label: '提取帧 1',
     });
@@ -477,7 +477,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
   });
 
   // ── onDrop 拖拽：从网页拖图（URL 在 text/uri-list，非 File）→ 直接用原 URL 建节点 ──
-  it('拖入图片：URL 在 text/uri-list（拖网页图的 Chrome 标准 MIME）→ 用原 URL 建 imageNode', () => {
+  it('拖入图片：URL 在 text/uri-list（拖网页图的 Chrome 标准 MIME）→ 用原 URL 建 assetNode', () => {
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
     const e = {
@@ -491,7 +491,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     result.current.onDrop(e as unknown as ReactDragEvent);
     // 直接用原网络 URL 建节点（不做下载/本地化，保持简单；不加 label）
     expect(opts.addNode).toHaveBeenCalledWith(
-      'imageNode',
+      'assetNode',
       { x: 0, y: 0 },
       { imageUrl: 'https://www.qq.com/img/cat.png' },
     );
@@ -515,7 +515,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     });
   });
 
-  it('拖入链接：text/uri-list 为空、text/plain 是图片 URL → 用原 URL 建 imageNode', () => {
+  it('拖入链接：text/uri-list 为空、text/plain 是图片 URL → 用原 URL 建 assetNode', () => {
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
     const e = {
@@ -528,7 +528,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     };
     result.current.onDrop(e as unknown as ReactDragEvent);
     expect(opts.addNode).toHaveBeenCalledWith(
-      'imageNode',
+      'assetNode',
       { x: 0, y: 0 },
       { imageUrl: 'https://cdn/x/1.jpg' },
     );
@@ -569,7 +569,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
     result.current.onDrop(e as unknown as ReactDragEvent);
     // 立即用原 URL 建节点（无 label）
     expect(opts.addNode).toHaveBeenCalledWith(
-      'imageNode',
+      'assetNode',
       { x: 0, y: 0 },
       { imageUrl: 'https://x/cat.png' },
     );
@@ -598,7 +598,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
     await act(async () => {});
     expect(patchNodeData).not.toHaveBeenCalled();
     expect(opts.addNode).toHaveBeenCalledWith(
-      'imageNode',
+      'assetNode',
       { x: 0, y: 0 },
       { imageUrl: 'https://x/cat.png' },
     );
@@ -633,7 +633,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
     };
     result.current.onDrop(e as unknown as ReactDragEvent);
     expect(opts.addNode).toHaveBeenCalledWith(
-      'imageNode',
+      'assetNode',
       { x: 0, y: 0 },
       { imageUrl: 'https://x/cat.png' },
     );

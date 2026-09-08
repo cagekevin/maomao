@@ -72,10 +72,10 @@ import { resolveProviderModel } from '../base/utils/providerModels.ts';
  * 需要时按表去对应节点复制对应代码块，改到你的节点里即可：
  *
  * ┌─ 能力 ────────────────────┬─ 抄哪 ────────────────┬─ 备注 ───────────────────────┐
- * │ 多内容类型(图/视频/音频/文)  │ ImageNode           │ detectMediaType + data.mediaType│
- * │ 全屏编辑器(裁剪/涂鸦/压缩)   │ ImageNode           │ ImageEditor + FullscreenModal    │
- * │ 视频首帧封面               │ ImageNode/TextGenerate   │ base/useVideoPoster             │
- * │ 宽高比自适应               │ ImageNode            │ base/useFitNodeRatio            │
+ * │ 多内容类型(图/视频/音频/文)  │ AssetNode           │ detectMediaType + data.mediaType│
+ * │ 全屏编辑器(裁剪/涂鸦/压缩)   │ AssetNode           │ ImageEditor + FullscreenModal    │
+ * │ 视频首帧封面               │ AssetNode/TextGenerate   │ base/useVideoPoster             │
+ * │ 宽高比自适应               │ AssetNode            │ base/useFitNodeRatio            │
  * │ 双击编辑 + AI生成 + 全屏编辑 │ TextGenerate            │ editingText + useNodeGeneration  │
  * │ 画质/比例/渲染质量菜单       │ ImageGenerate           │ trigger + absolute bottom-full  │
  * │ 批量张数 xN                │ ImageGenerate           │ count 下拉 + 循环生成            │
@@ -560,7 +560,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
  *     const ts = Date.now()
  *     const newNodes = items.map((item, i) => ({
  *       id: `out-${id}-${i}-${ts}-${Math.random().toString(36).slice(2, 6)}`,
- *       type: 'imageGenerateNode',                          // 下游节点类型（或 imageNode）
+ *       type: 'imageGenerateNode',                          // 下游节点类型（或 assetNode）
  *       position: { x: baseX, y: baseY + i * 750 },  // 纵向排列，避免重叠
  *       data: { prompt: item },                      // 填好下游的 data
  *       width: 420, height: 420,
@@ -572,7 +572,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
  *
  *   · 数组型产出要在 useConnectedInputs.js 的 NODE_OUTPUTS 登记（见【上/下游数据】）。
  *   · spawn 视频/音频：参考 VideoProcessNode.spawnVideoNode/spawnAudioNode，
- *     下游用 type:'imageNode' + data.mediaType:'video'/'audio'（blob URL 无扩展名，靠显式类型）。
+ *     下游用 type:'assetNode' + data.mediaType:'video'/'audio'（blob URL 无扩展名，靠显式类型）。
  */
 
 /**

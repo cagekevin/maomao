@@ -60,7 +60,7 @@ describe('NodePalette.buildNodeTypeComponents（nodeTypes 单源化）', () => {
     // 与改动前 App.jsx 手写 nodeTypes 的 type 集合逐项对齐
     const baseline = [
       'textGenerateNode',
-      'imageNode',
+      'assetNode',
       'loopNode',
       'imageGenerateNode',
       'videoGenerateNode',
