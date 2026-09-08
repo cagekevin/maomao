@@ -92,23 +92,19 @@ export function validateTabs(tabs: AssistantTableTabs | null): Violation[] {
       else normLabel.set(norm, c.label);
     });
     // I3：行 id 唯一
-    const colIds = new Set(t.columns.map((c) => c.id));
     const rowSeen = new Map<string, number>();
     t.rows.forEach((r, i) => {
       const n = rowSeen.get(r.id) ?? 0;
       rowSeen.set(r.id, n + 1);
       if (n > 0) out.push(err('I3', `表「${t.name}」row id「${r.id}」重复于 index ${i}`));
-      // I4：每行 values.key 集合 == 本表 columns.id 集合（既不缺也不多）
-      const rowKeys = Object.keys(r.values ?? {});
-      for (const cid of colIds) {
-        if (!(cid in (r.values ?? {}))) {
-          out.push(err('I4', `表「${t.name}」行「${r.id}」缺列键「${cid}」（渲染会空白）`));
-        }
-      }
-      for (const k of rowKeys) {
-        if (!colIds.has(k)) {
-          out.push(err('I4', `表「${t.name}」行「${r.id}」含孤儿列键「${k}」（静默膨胀）`));
-        }
+      // L1（2026-09-08 重构替代 I4「values 键对齐」）：cells 长度恒等 = 列数（O(1) 可查，违反即代码 bug）
+      if (r.cells.length !== t.columns.length) {
+        out.push(
+          err(
+            'L1',
+            `表「${t.name}」行「${r.id}」cells 长度 ${r.cells.length} ≠ 列数 ${t.columns.length}`,
+          ),
+        );
       }
     });
   });
@@ -116,7 +112,9 @@ export function validateTabs(tabs: AssistantTableTabs | null): Violation[] {
 }
 
 /** 取当前活动 tab 的表（供 validateWorkspace 核对运行态引用；无活动 tab 返回 null） */
-function getActiveTable(tabs: AssistantTableTabs): { columns: Array<{ id: string }>; rows: Array<{ id: string }>; tabId: string } | null {
+function getActiveTable(
+  tabs: AssistantTableTabs,
+): { columns: Array<{ id: string }>; rows: Array<{ id: string }>; tabId: string } | null {
   const t = tabs.tabs.find((x) => x.id === tabs.activeTabId);
   if (!t) return null;
   return { columns: t.columns, rows: t.rows, tabId: t.id };
@@ -127,15 +125,13 @@ function getActiveTable(tabs: AssistantTableTabs): { columns: Array<{ id: string
  * 硬约束（error）：P1 preview.targetTabId 指向存在的 tab。
  * 警告（warn）：W1 selectedRowIds 越界、W4 focusedCell/editingCell 指向不存在行/列、W2 行选与单格并存、P3 changedRowIds 越界。
  */
-export function validateWorkspace(
-  ws: TableWorkspaceState,
-  tabs: AssistantTableTabs,
-): Violation[] {
+export function validateWorkspace(ws: TableWorkspaceState, tabs: AssistantTableTabs): Violation[] {
   const out: Violation[] = [];
   if (!ws) return out;
   const active = getActiveTable(tabs);
   if (!active) {
-    if (ws.preview?.targetTabId) out.push(err('P1', `preview.targetTabId「${ws.preview.targetTabId}」但无活动 tab`));
+    if (ws.preview?.targetTabId)
+      out.push(err('P1', `preview.targetTabId「${ws.preview.targetTabId}」但无活动 tab`));
     return out;
   }
   const rowIds = new Set(active.rows.map((r) => r.id));
@@ -143,7 +139,12 @@ export function validateWorkspace(
   const tabExists = tabs.tabs.some((t) => t.id === ws.preview?.targetTabId);
   // P1：preview.targetTabId 必须是存在的 tab
   if (ws.preview && !tabExists) {
-    out.push(err('P1', `preview.targetTabId「${ws.preview.targetTabId}」不指向存在的 tab（确认会写悬空→假成功）`));
+    out.push(
+      err(
+        'P1',
+        `preview.targetTabId「${ws.preview.targetTabId}」不指向存在的 tab（确认会写悬空→假成功）`,
+      ),
+    );
   }
   // W1：selectedRowIds ⊆ 当前活动表 rows
   for (const id of ws.selectedRowIds ?? []) {

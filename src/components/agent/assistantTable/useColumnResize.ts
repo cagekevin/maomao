@@ -42,7 +42,8 @@ export function useColumnResize(sb: AssistantTable, commit: (sb: AssistantTable)
   const colWidths = useMemo(() => {
     if (colSigRef.current !== colSig) {
       const next: Record<string, number> = {};
-      for (const col of sb.columns) {
+      for (let ci = 0; ci < sb.columns.length; ci++) {
+        const col = sb.columns[ci];
         if (col.width != null && Number.isFinite(col.width)) {
           // 已手动锁定 → 用锁定值（clamp 合法范围）
           next[col.id] = Math.max(COL_W_MIN, Math.min(COL_W_MAX, col.width));
@@ -50,8 +51,8 @@ export function useColumnResize(sb: AssistantTable, commit: (sb: AssistantTable)
           // 已有估算记忆 → 沿用（防「插入新列」时旧列跳变抖动）
           next[col.id] = colWidthMapRef.current[col.id];
         } else {
-          // 新列 → 按内容估算一次
-          next[col.id] = estimateColumnWidth(col.label, sb.rows, col.id);
+          // 新列 → 按内容估算一次（D-6：取值按下标）
+          next[col.id] = estimateColumnWidth(col.label, sb.rows, ci);
         }
       }
       colWidthMapRef.current = next;

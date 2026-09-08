@@ -94,7 +94,7 @@ export default function TableGrid({
   const cells = (row: TableRow) => {
     const ri = rowIdx(row.id);
     return table.columns.map((col, ci) => {
-      const value = cellValue(row.id, col.id, row.values[col.id] ?? '');
+      const value = cellValue(row.id, col.id, row.cells[ci] ?? '');
       const inRange = !!sel && ri >= sel.r0 && ri <= sel.r1 && ci >= sel.c0 && ci <= sel.c1;
       const isEditing =
         editingCell != null && editingCell.rowId === row.id && editingCell.colId === col.id;

@@ -388,7 +388,7 @@ export default function AgentPanel({
         const first = selectedRows[0];
         const idx = tableData.rows.findIndex((r) => r.id === first.id) + 1;
         const firstCell =
-          tableData.columns.map((c) => first.values[c.id] || '').find((v) => !!v) || '';
+          tableData.columns.map((_, ci) => first.cells[ci] || '').find((v) => !!v) || '';
         return { idx, first: firstCell, count: selectedRows.length };
       })()
     : null;

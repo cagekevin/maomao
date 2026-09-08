@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, forwardRef, ForwardedRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useOutsideClick } from '../core/uiHooks.ts';
 import LazyImage from '../ui/LazyImage.tsx';
@@ -50,22 +50,21 @@ interface PromptInputProps {
   richText?: boolean;
 }
 
-const PromptInput = forwardRef(function PromptInput(
-  {
-    value,
-    onChange,
-    placeholder = '',
-    refImages = [],
-    refTexts = [],
-    onInsert,
-    onReady, // 可选（富文本模式）：挂载后把「光标处插入素材」的函数上抛给父级
-    inputWidth,
-    inputHeight,
-    autoFocus = false, // 挂载后自动聚焦并把光标放到末尾（仅全屏弹窗等主动打开的场景传 true）
-    portalTarget = document.body, // null → 全屏弹窗内保持内联；默认 portal 到 body
-  }: PromptInputProps,
-  ref: ForwardedRef<HTMLDivElement>,
-) {
+/** React 19：ref 作普通 prop 直接解构（替代已废弃的 forwardRef）。 */
+function PromptInput({
+  ref,
+  value,
+  onChange,
+  placeholder = '',
+  refImages = [],
+  refTexts = [],
+  onInsert,
+  onReady, // 可选（富文本模式）：挂载后把「光标处插入素材」的函数上抛给父级
+  inputWidth,
+  inputHeight,
+  autoFocus = false, // 挂载后自动聚焦并把光标放到末尾（仅全屏弹窗等主动打开的场景传 true）
+  portalTarget = document.body, // null → 全屏弹窗内保持内联；默认 portal 到 body
+}: PromptInputProps & { ref?: React.Ref<HTMLDivElement> }) {
   // 素材候选统一形态
   const all = [
     ...refImages.map((i, idx) => ({
@@ -711,6 +710,6 @@ const PromptInput = forwardRef(function PromptInput(
       </div>
     </div>
   );
-});
+}
 
 export default PromptInput;

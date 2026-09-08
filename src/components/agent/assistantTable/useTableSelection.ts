@@ -119,8 +119,9 @@ export function useTableSelection({
   const cellTextAt = useCallback(
     (rowId: string, colId: string): string => {
       const row = table.rows.find((r) => r.id === rowId);
-      if (!row || !table.columns.some((c) => c.id === colId)) return '';
-      return row.values[colId] ?? '';
+      const colIdx = table.columns.findIndex((c) => c.id === colId);
+      if (!row || colIdx < 0) return '';
+      return row.cells[colIdx] ?? '';
     },
     [table],
   );
@@ -132,12 +133,12 @@ export function useTableSelection({
       let internal: TableClipboard | null = null;
       let toast = '';
       if (selectedRowIds.length) {
-        const rows = copyRows(table, selectedRowIds).map((r) => r.values);
-        if (!rows.length) return '';
-        // 系统剪贴板：所选行 → TSV（每行列值，制表符分隔；行间换行）
-        sysText = rows.map((r) => table.columns.map((c) => r[c.id] ?? '').join('\t')).join('\n');
-        internal = { kind: 'rows', colIds: table.columns.map((c) => c.id), rows };
-        toast = `已复制 ${rows.length} 行`;
+        const copied = copyRows(table, selectedRowIds);
+        if (!copied.length) return '';
+        // 系统剪贴板：所选行 → TSV（按 cells 下标对齐当前列序，制表符分隔）
+        sysText = copied.map((r) => r.cells.map((c) => c ?? '').join('\t')).join('\n');
+        internal = { kind: 'rows', rows: copied.map((r) => r.cells) };
+        toast = `已复制 ${copied.length} 行`;
       } else if (range) {
         const cells = rangeToCells(table, range);
         if (!cells.length || !cells[0].length) return '';
@@ -193,14 +194,17 @@ export function useTableSelection({
         }
         // 纯文本单值 → 覆盖锚点格
         const rowIdx = table.rows.findIndex((r) => r.id === anchor.rowId);
-        const col = table.columns.find((c) => c.id === anchor.colId);
-        if (rowIdx < 0 || !col) return '';
+        const colIdx = table.columns.findIndex((c) => c.id === anchor.colId);
+        if (rowIdx < 0 || colIdx < 0) return '';
         const val = sys;
         const cellNext = {
           ...table,
-          rows: table.rows.map((r, i) =>
-            i === rowIdx ? { ...r, values: { ...r.values, [col.id]: val } } : r,
-          ),
+          rows: table.rows.map((r, i) => {
+            if (i !== rowIdx) return r;
+            const cells = [...r.cells];
+            cells[colIdx] = val;
+            return { ...r, cells };
+          }),
         };
         if (cellNext === table) return '';
         commit(cellNext);
@@ -215,7 +219,7 @@ export function useTableSelection({
           : undefined;
         const next = pasteRows(
           table,
-          clipboard.rows.map((values) => ({ id: '', values })),
+          clipboard.rows.map((cells) => ({ id: '', cells })),
           anchorRowId,
         );
         if (next === table) return '';
@@ -230,13 +234,16 @@ export function useTableSelection({
       }
       if (clipboard.kind === 'cell') {
         const rowIdx = table.rows.findIndex((r) => r.id === anchor.rowId);
-        const col = table.columns.find((c) => c.id === anchor.colId);
-        if (rowIdx < 0 || !col) return '';
+        const colIdx = table.columns.findIndex((c) => c.id === anchor.colId);
+        if (rowIdx < 0 || colIdx < 0) return '';
         const next = {
           ...table,
-          rows: table.rows.map((r, i) =>
-            i === rowIdx ? { ...r, values: { ...r.values, [col.id]: clipboard.text } } : r,
-          ),
+          rows: table.rows.map((r, i) => {
+            if (i !== rowIdx) return r;
+            const cells = [...r.cells];
+            cells[colIdx] = clipboard.text;
+            return { ...r, cells };
+          }),
         };
         if (next === table) return '';
         commit(next);

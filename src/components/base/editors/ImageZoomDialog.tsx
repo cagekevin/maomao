@@ -16,7 +16,7 @@
  *  <ImageZoomDialog ref={zoomRef} url={zoomUrl} />
  *  打开：zoomRef.current?.showModal()
  */
-import { forwardRef, ForwardedRef, useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { toAbsoluteFileUrl } from '../utils/imageUrl.ts';
 import {
   copyImageToClipboard,
@@ -33,10 +33,13 @@ interface ImageZoomDialogProps {
   onClose?: () => void;
 }
 
-const ImageZoomDialog = forwardRef(function ImageZoomDialog(
-  { url, kind = 'image', onClose }: ImageZoomDialogProps,
-  ref: ForwardedRef<HTMLDialogElement>,
-) {
+/** React 19：ref 作普通 prop 直接解构（替代已废弃的 forwardRef）。 */
+function ImageZoomDialog({
+  url,
+  kind = 'image',
+  onClose,
+  ref,
+}: ImageZoomDialogProps & { ref?: React.Ref<HTMLDialogElement> }) {
   const isVideo = kind === 'video';
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -368,6 +371,6 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog(
       )}
     </dialog>
   );
-});
+}
 
 export default ImageZoomDialog;

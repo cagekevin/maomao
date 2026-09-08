@@ -15,7 +15,10 @@
  *
  * 数据形态（与 mockup `ROWS`/`OPS` 及会话记忆 assistantTable 字段一致）：
  *   AssistantTable = { columns: TableColumn[], rows: TableRow[] }
- *   单元格值以「列 id → 文本」映射存 row.values[columnId]（列增删不毁行）。
+ *   单元格值以「下标」存 row.cells[colIndex]（下标 == columns 下标，消灭外键，2026-09-08 重构）。
+ *   核心不变量：row.cells.length === columns.length（所有行恒等；O(1) 可查，违反即代码 bug）。
+ *   定位/锚点（focusedCell/editingCell/range/选区）仍用 col.id（D-4/D-6：列删除后明确失效）；
+ *   取值/写值一律按下标。老格式 row.values[colId] 由 normalizeAssistantTable 按 columns 顺序转换（阶段2 兼容）。
  *   globalStyle 不在本表存（复用会话 memory.global_contract.unified_style_prompt），
  *   由上层经 rowToObj/rowToText 序列化注入；AI 返回经 buildPreviewResult 统一推导
  *   （预览=确认的唯一数据源，替代旧 jsonToSb / mergeRowFromObj / buildPreviewModel）。
@@ -33,10 +36,10 @@ export interface TableColumn {
   width?: number;
 }
 
-/** 一行：id 稳定唯一；各列值以 [columnId]: text 映射 */
+/** 一行：id 稳定唯一；cells 下标 == columns 下标（恒等长度，消灭外键，2026-09-08） */
 export interface TableRow {
   id: string;
-  values: Record<string, CellValue>;
+  cells: string[];
 }
 
 /** AI 助手表格模型（会话记忆内聚字段，单一数据源） */
@@ -76,9 +79,9 @@ export function extractRowIndex(row: unknown): number | null {
 }
 
 /** 空行判定（B-006 单一实现，parsePasted / buildPreviewResult 共用）：所有单元格 trim 后均为空串 → 空行 */
-export function rowHasText(values: Record<string, unknown>): boolean {
-  for (const v of Object.values(values)) {
-    if (String(v ?? '').trim() !== '') return true;
+export function rowHasText(cells: string[]): boolean {
+  for (const c of cells) {
+    if (String(c ?? '').trim() !== '') return true;
   }
   return false;
 }
@@ -86,6 +89,11 @@ export function rowHasText(values: Record<string, unknown>): boolean {
 /** 空表（无列无行） */
 export function emptyAssistantTable(): AssistantTable {
   return { columns: [], rows: [] };
+}
+
+/** 生成对齐 columns 的一行空 cells（下标即列序；增行/插行共用，保证长度恒等） */
+function emptyCells(columns: TableColumn[]): string[] {
+  return columns.map(() => '');
 }
 
 /**
@@ -113,21 +121,27 @@ export function normalizeAssistantTable(raw: unknown): AssistantTable {
       });
     }
   }
-  // 行归一：values 只保留已声明列的字符串值；extra 忽略
+  // 行归一：cells 长度对齐 columns；老格式 values 按 columns 顺序转（阶段2 兼容）。extra 忽略
   const rows: TableRow[] = [];
   if (Array.isArray(r.rows)) {
     for (const row of r.rows as unknown[]) {
       if (!row || typeof row !== 'object') continue;
       const rw = row as Record<string, unknown>;
       const rowId = String(rw.id ?? '') || newRowId();
-      const values: Record<string, string> = {};
       const v =
         rw.values && typeof rw.values === 'object' ? (rw.values as Record<string, unknown>) : {};
-      for (const col of columns) {
-        const cell = v[col.id];
-        values[col.id] = typeof cell === 'string' ? cell : '';
-      }
-      rows.push({ id: rowId, values });
+      const rawCells = Array.isArray(rw.cells) ? (rw.cells as unknown[]) : null;
+      // cells：优先新格式按下标取；老格式 values 按 columns 顺序查值。
+      // 对齐不变量（D-5：保底对齐、不丢列前缀内容；显式告警交由不变量校验层，本函数保持纯）
+      const cellOf = (col: TableColumn, ci: number): string =>
+        rawCells
+          ? typeof rawCells[ci] === 'string'
+            ? (rawCells[ci] as string)
+            : ''
+          : typeof v[col.id] === 'string'
+            ? (v[col.id] as string)
+            : '';
+      rows.push({ id: rowId, cells: columns.map(cellOf) });
     }
   }
   return { columns, rows };
@@ -155,13 +169,11 @@ export function parsePasted(rawText: string, htmlText?: string): AssistantTable 
   const columns = header.map((label) => ({ id: newColId(), label }));
   const rows: TableRow[] = [];
   for (let i = 1; i < grid.length; i++) {
-    const cells = grid[i];
-    const values: Record<string, string> = {};
-    for (let ci = 0; ci < columns.length; ci++) {
-      values[columns[ci].id] = String(cells[ci] ?? '').trim();
-    }
-    if (!rowHasText(values)) continue; // 跳过全空数据行（B-006 统一实现）
-    rows.push({ id: newRowId(), values });
+    const cellsArr = grid[i];
+    // 按下标对 column 顺序取；格子数不足补空，多余裁剪（与 normalize 同一对齐语义）
+    const cells = columns.map((_, ci) => String(cellsArr[ci] ?? '').trim());
+    if (!rowHasText(cells)) continue; // 跳过全空数据行（B-006 统一实现）
+    rows.push({ id: newRowId(), cells });
   }
   return { columns, rows };
 }
@@ -208,9 +220,7 @@ function stripTags(html: string): string {
 
 /** 新增一行（空值，列对齐 columns） */
 export function addRow(sb: AssistantTable): AssistantTable {
-  const values: Record<string, string> = {};
-  for (const col of sb.columns) values[col.id] = '';
-  return { ...sb, rows: [...sb.rows, { id: newRowId(), values }] };
+  return { ...sb, rows: [...sb.rows, { id: newRowId(), cells: emptyCells(sb.columns) }] };
 }
 
 /** 删除一行；不存在返回原表（幂等） */
@@ -236,7 +246,7 @@ export function duplicateRow(sb: AssistantTable, rowId: string): AssistantTable 
   const idx = sb.rows.findIndex((r) => r.id === rowId);
   if (idx < 0) return sb;
   const src = sb.rows[idx];
-  const copy: TableRow = { id: newRowId(), values: { ...src.values } };
+  const copy: TableRow = { id: newRowId(), cells: [...src.cells] };
   const rows = sb.rows.slice();
   rows.splice(idx + 1, 0, copy);
   return { ...sb, rows };
@@ -244,9 +254,7 @@ export function duplicateRow(sb: AssistantTable, rowId: string): AssistantTable 
 
 /** 在指定行之后插入一个空行（列对齐 columns；rowId 不存在或缺省 → 追加末尾）。行尾 ⋯「插入空行（下方）」用 */
 export function insertRowAfter(sb: AssistantTable, rowId?: string): AssistantTable {
-  const values: Record<string, string> = {};
-  for (const col of sb.columns) values[col.id] = '';
-  const row: TableRow = { id: newRowId(), values };
+  const row: TableRow = { id: newRowId(), cells: emptyCells(sb.columns) };
   const rows = sb.rows.slice();
   const idx = rowId ? rows.findIndex((r) => r.id === rowId) : -1;
   if (idx >= 0) rows.splice(idx + 1, 0, row);
@@ -254,21 +262,22 @@ export function insertRowAfter(sb: AssistantTable, rowId?: string): AssistantTab
   return { ...sb, rows };
 }
 
-/** 写单个单元格（不可变；值相同返回原表避免空 commit） */
+/** 写单个单元格（不可变；值相同返回原表避免空 commit）。colIndex = 列下标（D-6 值按下标） */
 export function setCell(
   sb: AssistantTable,
   rowId: string,
-  colId: string,
+  colIndex: number,
   text: string,
 ): AssistantTable {
   const idx = sb.rows.findIndex((r) => r.id === rowId);
   if (idx < 0) return sb; // 行不存在，幂等
-  if (!sb.columns.some((c) => c.id === colId)) return sb; // 未知列忽略
+  if (!Number.isInteger(colIndex) || colIndex < 0 || colIndex >= sb.columns.length) return sb; // 越界忽略
   const row = sb.rows[idx];
   const value = String(text ?? '');
-  if (((row.values[colId] ?? '') as string) === value) return sb; // 原值相同（含 undefined===''）→ 幂等
-  const values = { ...row.values, [colId]: value };
-  return { ...sb, rows: sb.rows.map((r, i) => (i === idx ? { ...r, values } : r)) };
+  if ((row.cells[colIndex] ?? '') === value) return sb; // 原值相同（含 undefined===''）→ 幂等
+  const cells = row.cells.slice();
+  cells[colIndex] = value;
+  return { ...sb, rows: sb.rows.map((r, i) => (i === idx ? { ...r, cells } : r)) };
 }
 
 /** 改列名（不可变；行 values 以 col.id 为键，改 label 不影响行数据）。label 空/相同返回原表（幂等）。 */
@@ -286,7 +295,7 @@ export function renameColumn(sb: AssistantTable, colId: string, label: string): 
  * 单列「表头 + 该列最长内容」的舒适估算宽度（px）。仅用于未手动锁定列宽时的首帧/结构变化估算，
  * 非实时 DOM 测量（中文按 2 字宽）。clamp 在 90~240，避免极窄/极宽。纯函数无副作用，便于单测。
  */
-export function estimateColumnWidth(label: string, rows: TableRow[], colId: string): number {
+export function estimateColumnWidth(label: string, rows: TableRow[], colIndex: number): number {
   const per = 13; // 每字约 px（12px 字号）
   const pad = 24; // 左右内边距 + 富余
   const min = 90;
@@ -299,7 +308,7 @@ export function estimateColumnWidth(label: string, rows: TableRow[], colId: stri
   };
   let longest = charW(label);
   for (const row of rows) {
-    const v = row.values[colId] ?? '';
+    const v = row.cells[colIndex] ?? '';
     if (!v) continue;
     const len = charW(v);
     if (len > longest) longest = len;
@@ -342,19 +351,24 @@ export function insertColumnAfter(
   const idx = colId ? sb.columns.findIndex((c) => c.id === colId) : -1;
   const at = idx >= 0 ? idx + 1 : sb.columns.length;
   const columns = [...sb.columns.slice(0, at), col, ...sb.columns.slice(at)];
-  const rows = sb.rows.map((r) => ({ ...r, values: { ...r.values, [col.id]: '' } }));
+  // 已有行在同一 at 下标插入空单元格（保持 cells.length === columns.length）
+  const rows = sb.rows.map((r) => {
+    const cells = r.cells.slice();
+    cells.splice(at, 0, '');
+    return { ...r, cells };
+  });
   return { ...sb, columns, rows };
 }
 
-/** 删除一列（不可变；同时清理所有行里该列的键，不留孤儿数据）。列不存在返回原表（幂等）。 */
+/** 删除一列（不可变；同时删除所有行该下标的单元格，不留孤儿数据）。列不存在返回原表（幂等）。 */
 export function deleteColumn(sb: AssistantTable, colId: string): AssistantTable {
-  if (!sb.columns.some((c) => c.id === colId)) return sb;
+  const idx = sb.columns.findIndex((c) => c.id === colId);
+  if (idx < 0) return sb;
   const columns = sb.columns.filter((c) => c.id !== colId);
   const rows = sb.rows.map((r) => {
-    if (!(colId in r.values)) return r;
-    const values = { ...r.values };
-    delete values[colId];
-    return { ...r, values };
+    const cells = r.cells.slice();
+    cells.splice(idx, 1); // 删列即删除该下标，保持长度恒等
+    return { ...r, cells };
   });
   return { ...sb, columns, rows };
 }
@@ -362,7 +376,9 @@ export function deleteColumn(sb: AssistantTable, colId: string): AssistantTable 
 /** 行 → { 列名: 值 }（按 columns 顺序；发给 AI / 序列化都用它，保证每值带列名） */
 export function rowToObj(sb: AssistantTable, row: TableRow): Record<string, string> {
   const obj: Record<string, string> = {};
-  for (const col of sb.columns) obj[col.label] = row.values[col.id] ?? '';
+  for (let ci = 0; ci < sb.columns.length; ci++) {
+    obj[sb.columns[ci].label] = row.cells[ci] ?? '';
+  }
   return obj;
 }
 
@@ -382,9 +398,9 @@ export function rowToText(
   const parts: string[] = [];
   const head: string[] = [];
   if (tableName && String(tableName).trim()) head.push(`表名：${String(tableName).trim()}`);
-  for (const col of sb.columns) {
-    const v = row.values[col.id] ?? '';
-    if (v) parts.push(`${col.label}：${v}`);
+  for (let ci = 0; ci < sb.columns.length; ci++) {
+    const v = row.cells[ci] ?? '';
+    if (v) parts.push(`${sb.columns[ci].label}：${v}`);
   }
   const body = parts.join('\n');
   const gs = globalStyle && globalStyle.trim() ? globalStyle.trim() : '';
@@ -531,10 +547,9 @@ export function buildPreviewResult(
     for (const raw of rawRows) {
       if (!raw || typeof raw !== 'object') continue;
       const obj = raw as Record<string, unknown>;
-      const values: Record<string, string> = {};
-      for (const col of resultCols) values[col.id] = String(obj[col.label] ?? '').trim();
-      if (!rowHasText(values)) continue;
-      resultRows.push({ id: newRowId(), values });
+      const cells = resultCols.map((col) => String(obj[col.label] ?? '').trim());
+      if (!rowHasText(cells)) continue;
+      resultRows.push({ id: newRowId(), cells });
     }
     return {
       opKind: 'replace',
@@ -568,13 +583,19 @@ export function buildPreviewResult(
   };
   /** 按当前列结构把 AI 行物化成新 TableRow（未提及列补空串） */
   const materialize = (obj: Record<string, unknown>): TableRow => {
-    const values: Record<string, string> = {};
-    for (const col of resultCols) {
+    const cells = resultCols.map((col) => {
       const v = colValue(obj, col);
-      values[col.id] = v !== undefined ? v : '';
-    }
-    return { id: newRowId(), values };
+      return v !== undefined ? v : '';
+    });
+    return { id: newRowId(), cells };
   };
+
+  /**
+   * 把一行 cells 补齐到 resultColumns 长度（AI 新增列后现存行需同步补空，保长度恒等；
+   * 返回新数组，不可变）。长度已够则原样返回。
+   */
+  const padCells = (cells: string[], len: number): string[] =>
+    cells.length < len ? [...cells, ...new Array(len - cells.length).fill('')] : cells;
 
   // ── 逐行定目标：_rowIndex（1 起）优先按行号；无则第 i 个 AI 行 → 第 i 个选中行；再无 → 追加 ──
   const selIds = (selectedRowIds || []).filter((id) => current.rows.some((r) => r.id === id));
@@ -596,7 +617,11 @@ export function buildPreviewResult(
     return {
       opKind: 'append',
       resultCols,
-      resultRows: [...current.rows, ...added],
+      // AI 带来新列时，现有行 cells 同步补齐到 resultCols.length（保长度恒等，否则 validateTabs L1 红）
+      resultRows: [
+        ...current.rows.map((r) => ({ ...r, cells: padCells(r.cells, resultCols.length) })),
+        ...added,
+      ],
       updatedCount: 0,
       appendedCount: added.length,
       // 追加：仅末尾新增行是「写回变化」，原有行不在内
@@ -605,7 +630,11 @@ export function buildPreviewResult(
   }
 
   // ── update：命中目标的行按 AI 覆盖提及列，未提及列保留原值；未命中目标的 AI 行追加末尾 ──
-  const nextRows = current.rows.map((r) => ({ id: r.id, values: { ...r.values } }));
+  // 所有现有行 cells 先对齐 resultCols（AI 新增列同步补空，保长度恒等）；命中行再覆盖提及列
+  const nextRows = current.rows.map((r) => ({
+    id: r.id,
+    cells: padCells(r.cells, resultCols.length),
+  }));
   const changed = new Set<string>();
   let updatedCount = 0;
   let appendedCount = 0;
@@ -615,9 +644,10 @@ export function buildPreviewResult(
     const ti = targets[i];
     if (ti !== null) {
       const obj = raw as Record<string, unknown>;
-      for (const col of resultCols) {
-        const v = colValue(obj, col);
-        if (v !== undefined) nextRows[ti].values[col.id] = v; // 只覆盖提及列，未提及保留原值
+      const cells = nextRows[ti].cells;
+      for (let ci = 0; ci < resultCols.length; ci++) {
+        const v = colValue(obj, resultCols[ci]);
+        if (v !== undefined) cells[ci] = v; // 只覆盖提及列，未提及保留原值
       }
       changed.add(nextRows[ti].id); // 被 AI 覆盖的目标行 = 写回变化
       updatedCount++;
@@ -846,24 +876,10 @@ export function removeTab(tabs: AssistantTableTabs, tabId: string): AssistantTab
 export function copyTab(tabs: AssistantTableTabs, tabId: string): AssistantTableTabs {
   const src = getTab(tabs, tabId);
   if (!src) return tabs;
-  // 副本要有独立的列 id 空间（不与源表共用，避免跨表粘贴/合并时串味）；
-  // 但行的 values 是以 colId 为 key 的，必须按同一份映射同步换 key ——
-  // 否则「新列 id + 旧 key」对不上，副本渲染出来是一张空表（历史 bug，2026-09-08 修）。
-  const idMap = new Map<string, string>();
-  const columns: TableColumn[] = src.columns.map((c) => {
-    const nextId = newColId();
-    idMap.set(c.id, nextId);
-    return { ...c, id: nextId };
-  });
-  // 按 columns 顺序重建 values（未声明列的孤儿 key 随归一语义丢弃）
-  const rows: TableRow[] = src.rows.map((r) => {
-    const values: Record<string, CellValue> = {};
-    for (const c of src.columns) {
-      const to = idMap.get(c.id);
-      if (to) values[to] = r.values?.[c.id] ?? '';
-    }
-    return { id: newRowId(), values };
-  });
+  // 副本需独立列 id 空间（不与源表共用，避免跨表粘贴/合并时串味撞车 I6）；
+  // cells 按数组直接复制，无需 key 重映射（2026-09-08 重构消灭了「新列id+旧key」错位这类 bug）
+  const columns: TableColumn[] = src.columns.map((c) => ({ ...c, id: newColId() }));
+  const rows: TableRow[] = src.rows.map((r) => ({ id: newRowId(), cells: [...r.cells] }));
   const tab: TableTab = {
     id: newTabId(),
     name: `标签页${tabs.tabs.length + 1}`,
@@ -916,7 +932,7 @@ export function rangeToCells(sb: AssistantTable, range: CellRange): string[][] {
   const out: string[][] = [];
   for (let i = r0; i <= r1; i++) {
     const line: string[] = [];
-    for (let j = c0; j <= c1; j++) line.push(String(sb.rows[i].values?.[sb.columns[j].id] ?? ''));
+    for (let j = c0; j <= c1; j++) line.push(String(sb.rows[i].cells[j] ?? ''));
     out.push(line);
   }
   return out;
@@ -943,14 +959,14 @@ export function pasteCells(
   const r0 = sb.rows.findIndex((r) => r.id === anchor.rowId);
   const c0 = sb.columns.findIndex((c) => c.id === anchor.colId);
   if (r0 < 0 || c0 < 0) return sb;
-  const rows = sb.rows.map((r) => ({ ...r, values: { ...r.values } }));
+  const rows = sb.rows.map((r) => ({ ...r, cells: [...r.cells] }));
   for (let i = 0; i < cells.length; i++) {
     const ri = r0 + i;
     if (ri >= rows.length) break;
     for (let j = 0; j < cells[i].length; j++) {
       const ci = c0 + j;
       if (ci >= sb.columns.length) break;
-      rows[ri].values[sb.columns[ci].id] = String(cells[i][j] ?? '');
+      rows[ri].cells[ci] = String(cells[i][j] ?? '');
     }
   }
   return { ...sb, rows };
@@ -967,20 +983,18 @@ export function deleteRows(sb: AssistantTable, rowIds: string[]): AssistantTable
 }
 
 /**
- * 提取多行副本（供内部剪贴板「复制行」；深拷贝 values）。
- * 只返回选中行的数据（不含引用），粘贴时按列名归一重塑。
+ * 提取多行副本（供内部剪贴板「复制行」；深拷贝 cells）。
+ * 只返回选中行的数据（不含引用），粘贴时按下标重塑（同表语义；跨表用 copyRowsToTab）。
  */
 export function copyRows(sb: AssistantTable, rowIds: string[]): TableRow[] {
   const set = new Set(rowIds || []);
-  return sb.rows
-    .filter((r) => set.has(r.id))
-    .map((r) => ({ id: newRowId(), values: { ...r.values } }));
+  return sb.rows.filter((r) => set.has(r.id)).map((r) => ({ id: newRowId(), cells: [...r.cells] }));
 }
 
 /**
  * 粘贴行到 sb：在 anchorRowId 之后插入 copied 行；无 anchor → 追加末尾。
- * 列按名归一命中（复用 buildPreviewResult 的 normalizeLabel 语义），未命中列放空值、绝不丢值（防 A-005 回潮）。
- * copied 行的 values 以「源列 label→文本」存；本函数按目标表列结构重塑。
+ * 同表内部剪贴板粘贴：按下标等长写入（越界补空/裁剪，对齐 pasteCells 语义）。
+ * 跨表（列序/列集不同）走 copyRowsToTab（label 归一）；本函数不做 label 匹配。
  */
 export function pasteRows(
   sb: AssistantTable,
@@ -988,30 +1002,10 @@ export function pasteRows(
   anchorRowId?: string,
 ): AssistantTable {
   if (!Array.isArray(copied) || copied.length === 0) return sb;
-  // 先把 copied 转成「目标列 label → 文本」（源 values 的键是源列 id，需带回源列名；这里约定 copyRows 之后
-  // 由调用方在目标上下文对齐——为稳妥，本函数从 copied 行内嵌的 label 映射还原，见 buildPreviewResult 归一）。
-  const labelToCol = new Map<string, TableColumn>();
-  for (const c of sb.columns) labelToCol.set(normalizeLabel(c.label), c);
   const restructured = copied.map((r) => {
-    const rawMap: Record<string, string> = {};
-    for (const [k, v] of Object.entries(r.values ?? {})) rawMap[k] = v ?? '';
-    const values: Record<string, string> = {};
-    for (const col of sb.columns) {
-      // 键可能是源列 id 或源列 label；先后按 label 精确、再按归一兜底
-      const hit = rawMap[col.label] ?? rawMap[col.id];
-      const norm = normalizeLabel(col.label);
-      let v = hit;
-      if (v === undefined) {
-        for (const [k, val] of Object.entries(rawMap)) {
-          if (normalizeLabel(k) === norm) {
-            v = val;
-            break;
-          }
-        }
-      }
-      values[col.id] = v !== undefined ? String(v) : '';
-    }
-    return { id: newRowId(), values };
+    const cells: string[] = [];
+    for (let ci = 0; ci < sb.columns.length; ci++) cells[ci] = String(r.cells?.[ci] ?? '');
+    return { id: newRowId(), cells };
   });
   const rows = sb.rows.slice();
   const anchorIdx = anchorRowId ? rows.findIndex((r) => r.id === anchorRowId) : -1;
@@ -1051,13 +1045,16 @@ export function copyRowsToTab(
     .filter((r) => set.has(r.id))
     .map((r) => {
       const map: Record<string, string> = {};
-      for (const c of src.columns) map[c.label] = (r.values[c.id] ?? '') as string;
+      for (let ci = 0; ci < src.columns.length; ci++) {
+        map[src.columns[ci].label] = r.cells[ci] ?? '';
+      }
       return map;
     });
   // 重塑进目标表列结构（未命中列留空、绝不静默丢值）
   const newRows: TableRow[] = srcRowsLabel.map((map) => {
-    const values: Record<string, string> = {};
-    for (const col of resultCols) {
+    const cells: string[] = [];
+    for (let ci = 0; ci < resultCols.length; ci++) {
+      const col = resultCols[ci];
       const direct = map[col.label];
       const norm = normalizeLabel(col.label);
       let v = direct;
@@ -1069,9 +1066,9 @@ export function copyRowsToTab(
           }
         }
       }
-      values[col.id] = v !== undefined ? String(v) : '';
+      cells[ci] = v !== undefined ? String(v) : '';
     }
-    return { id: newRowId(), values };
+    return { id: newRowId(), cells };
   });
   return {
     ...tabs,
@@ -1139,16 +1136,16 @@ export function replaceTextInTabs(
     tabs: tabs.tabs.map((t) => {
       let tabChanged = false;
       const rows = t.rows.map((r) => {
-        const values = { ...r.values };
-        for (const colId of Object.keys(values)) {
-          const res = replaceInCell(values[colId], find, replace);
-          if (res.text !== values[colId]) {
-            values[colId] = res.text;
+        const cells = [...r.cells];
+        for (let ci = 0; ci < cells.length; ci++) {
+          const res = replaceInCell(cells[ci], find, replace);
+          if (res.text !== cells[ci]) {
+            cells[ci] = res.text;
             total += res.changeCount;
             tabChanged = true;
           }
         }
-        return tabChanged ? { ...r, values } : r; // 未变行保留原引用（不可变纪律）
+        return tabChanged ? { ...r, cells } : r; // 未变行保留原引用（不可变纪律）
       });
       if (!tabChanged) return t; // 未变 tab 保留原引用
       anyChanged = true;
@@ -1168,8 +1165,8 @@ export function countMatchesInTabs(tabs: AssistantTableTabs, find: string): numb
   let total = 0;
   for (const t of tabs.tabs) {
     for (const r of t.rows) {
-      for (const colId of Object.keys(r.values)) {
-        total += replaceInCell(r.values[colId], find, find).matchCount;
+      for (const cell of r.cells) {
+        total += replaceInCell(cell, find, find).matchCount;
       }
     }
   }

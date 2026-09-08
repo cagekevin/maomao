@@ -150,10 +150,9 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     confirmTablePreview();
 
     const after = getCurrentAssistantTable();
-    const c0 = after.columns[0].id; // 景别
-    const c1 = after.columns[1].id; // 画面
-    expect(after.rows[0].values[c0]).toBe('特写');
-    expect(after.rows[0].values[c1]).toBe('新画面');
+    // 景别=列 0，画面=列 1（cells 按下标取值）
+    expect(after.rows[0].cells[0]).toBe('特写');
+    expect(after.rows[0].cells[1]).toBe('新画面');
     expect(after.rows).toHaveLength(1); // 不新增行
     expect(getTableWorkspace().preview).toBeNull();
     const msgs = getActiveConv()!.messages as Array<{ tableResolved?: string }>;
@@ -178,10 +177,10 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     confirmTablePreview();
 
     const after = getCurrentAssistantTable();
-    const c1 = after.columns[1].id; // 画面
-    expect(after.rows[0].values[c1]).toBe('新1');
-    expect(after.rows[1].values[c1]).toBe('原2'); // 未选中行不受影响
-    expect(after.rows[2].values[c1]).toBe('新3');
+    // 画面=列 1
+    expect(after.rows[0].cells[1]).toBe('新1');
+    expect(after.rows[1].cells[1]).toBe('原2'); // 未选中行不受影响
+    expect(after.rows[2].cells[1]).toBe('新3');
     expect(after.rows).toHaveLength(3);
   });
 
@@ -205,8 +204,8 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
 
     const after = getCurrentAssistantTable();
     expect(after.rows).toHaveLength(3); // 原 2 行 + 追加 1 行
-    expect(after.rows[2].values[after.columns[0].id]).toBe('全景');
-    expect(after.rows[0].values[after.columns[0].id]).toBe('中景'); // 原行不动
+    expect(after.rows[2].cells[0]).toBe('全景');
+    expect(after.rows[0].cells[0]).toBe('中景'); // 原行不动
   });
 
   it('单行带 _rowIndex（无选中）→ 精准 patch 到对应行，不当列、不整表替换', () => {
@@ -230,12 +229,11 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
 
     const after = getCurrentAssistantTable();
     expect(after.rows).toHaveLength(3); // 不整表替换、不新增行
-    const c0 = after.columns[0].id; // 景别
-    const c1 = after.columns[1].id; // 画面
-    expect(after.rows[1].values[c1]).toBe('已更新'); // 第 2 行画面被改
-    expect(after.rows[1].values[c0]).toBe('特写'); // 第 2 行其它列保留
-    expect(after.rows[0].values[c1]).toBe('原1'); // 其它行不动
-    expect(after.rows[2].values[c1]).toBe('原3');
+    // 景别=列 0，画面=列 1
+    expect(after.rows[1].cells[1]).toBe('已更新'); // 第 2 行画面被改
+    expect(after.rows[1].cells[0]).toBe('特写'); // 第 2 行其它列保留
+    expect(after.rows[0].cells[1]).toBe('原1'); // 其它行不动
+    expect(after.rows[2].cells[1]).toBe('原3');
     expect(after.columns.map((c) => c.label)).toEqual(['景别', '画面']); // _rowIndex 不当列
     expect(row2.id).toBe(after.rows[1].id); // 写回的是原第 2 行（id 稳定）
     const msgs = getActiveConv()!.messages as Array<{ tableResolved?: string }>;
@@ -263,7 +261,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     const after = getCurrentAssistantTable();
     expect(after.columns.map((c) => c.label)).toEqual(['新列A', '新列B']);
     expect(after.rows).toHaveLength(1);
-    expect(after.rows[0].values[after.columns[0].id]).toBe('a1');
+    expect(after.rows[0].cells[0]).toBe('a1');
     // 隔离决策（spec 1.1/2.1）：globalStyle 写当前活动 tab 的 globalStyle，不再写 global_contract
     const tabs = getCurrentAssistantTabs();
     expect(getActiveTab(tabs)!.globalStyle).toBe('写实电影感');
@@ -289,7 +287,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
 
     const after = getCurrentAssistantTable();
     expect(after.columns.map((c) => c.label)).toEqual(['景别', '画面', '备注']);
-    expect(after.rows[0].values[after.columns[2].id]).toBe('新列值');
+    expect(after.rows[0].cells[2]).toBe('新列值'); // 备注=列 2
   });
 
   it('预览=确认：preview 冻结结果，确认原样写回（不再二次推导）', () => {
@@ -312,7 +310,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
 
     const after = getCurrentAssistantTable();
     expect(after.columns.map((c) => c.label)).toEqual(['景别', '画面']);
-    expect(after.rows[0].values[after.columns[1].id]).toBe('新画面');
+    expect(after.rows[0].cells[1]).toBe('新画面');
     expect(getTableWorkspace().preview).toBeNull();
   });
 
@@ -331,7 +329,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
 
     // 表格没变
     const after = getCurrentAssistantTable();
-    expect(after.rows[0].values[after.columns[0].id]).toBe('中景');
+    expect(after.rows[0].cells[0]).toBe('中景');
     expect(getTableWorkspace().preview).toBeNull();
     const msgs = getActiveConv()!.messages as Array<{ tableResolved?: string }>;
     expect(msgs[msgs.length - 1].tableResolved).toBe('cancelled');
@@ -363,7 +361,7 @@ describe('多标签页（spec 1.1/3.3：tabs 真源 + 预览目标表 + 隔离�
 
     // 切活动 tab → setCurrentAssistantTable 只改该 tab，其它表隔离
     setActiveTableTab('t2');
-    setCurrentAssistantTable({ columns: [], rows: [{ id: 'rx', values: { a: 'x' } }] });
+    setCurrentAssistantTable({ columns: [], rows: [{ id: 'rx', cells: [] }] });
     const tabs2 = getCurrentAssistantTabs();
     const act2 = getActiveTab(tabs2)!;
     expect(act2.name).toBe('表B');

@@ -41,7 +41,9 @@ export function useTableDrafts(
   };
   /** blur 提交：写回数据层 + 清该格草稿 */
   const commitCell = (rowId: string, colId: string, value: string) => {
-    const next = setCell(table, rowId, colId, value);
+    // D-6：草稿键保留 colId（定位）；setCell 收下标，越界 → setCell 幂等返回原表
+    const colIndex = table.columns.findIndex((c) => c.id === colId);
+    const next = setCell(table, rowId, colIndex, value);
     if (next !== table) commit(next);
     const k = draftKey(rowId, colId);
     setEdits((prev) => {

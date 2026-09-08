@@ -92,12 +92,13 @@ export interface TableWorkspacePreview {
 
 /**
  * 内部剪贴板（spec 3.6 + interaction-model §1.4）：**仅内存、不落盘**，供系统剪贴板不可用/表格内语义回退。
- * - `rows`：整行复制（按列 id 存值），粘贴时插到锚点行之后；
+ * - `rows`：整行复制（cells 数组，按下标对齐当前列序），粘贴时从锚点行之后等长写入；
  * - `range`：矩形区域复制（二维 cells），粘贴时从锚点格按矩形铺开，越界裁剪不扩列；
  * - `cell`：单格文本（业界单格复制），粘贴时覆盖锚点格。
+ * （2026-09-08 重构：rows 由「列 id → 值」对象改为 cells 数组，消灭外键；colIds 已删，无消费。）
  */
 export type TableClipboard =
-  | { kind: 'rows'; colIds: string[]; rows: Array<Record<string, string>> }
+  | { kind: 'rows'; rows: string[][] }
   | { kind: 'range'; cells: string[][] }
   | { kind: 'cell'; text: string };
 

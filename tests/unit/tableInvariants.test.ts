@@ -23,7 +23,7 @@ import type { TableWorkspaceState } from '../../src/components/agent/assistantTa
 const errors = (v: Violation[]) => v.filter((x) => x.level === 'error');
 const onlyErrors = (tabs: AssistantTableTabs) => errors(validateTabs(tabs));
 
-/** 造一张合法表（含 1 行真实数据，保证 I4 键对齐），包成单 tab 集合 */
+/** 造一张合法表（含 1 行真实数据，保证 L1 cells 长度对齐），包成单 tab 集合 */
 function validTabs(): AssistantTableTabs {
   const sb = parsePasted('景别\t画面\n中景\t原画面')!;
   const tab: TableTab = {
@@ -48,16 +48,16 @@ describe('validateTabs 不变量校验（spec §七.L4）', () => {
     expect(onlyErrors(two)).toEqual([]);
   });
 
-  it('copyTab 后 I4 成立（历史 copyTab 空表事故的回归护栏）', () => {
+  it('copyTab 后 L1 约束成立（历史 copyTab 空表事故的回归护栏）', () => {
     const tabs = validTabs();
     const copied = copyTab(tabs, 'A');
-    expect(onlyErrors(copied)).toEqual([]); // 新列 id + 同步换 key，绝不能渲染空表
+    expect(onlyErrors(copied)).toEqual([]); // 列 id 新生成 + cells 按下标复制，绝不能渲染空表
   });
 
-  it('deleteColumn 走 updateTab 套用后仍健康（I4 键对齐不破坏）', () => {
+  it('deleteColumn 走 updateTab 套用后仍健康（L1 长度对齐不破坏）', () => {
     const tabs = validTabs();
     const t = tabs.tabs[0];
-    // 在活动表的列上删「画面」列 → 行孤儿键随 deleteColumn 清理
+    // 在活动表的列上删「画面」列 → 行该下标的格子随 deleteColumn 清理
     const delCol = deleteColumn({ columns: t.columns, rows: t.rows }, t.columns[1].id);
     const next: AssistantTableTabs = {
       ...tabs,
@@ -66,20 +66,17 @@ describe('validateTabs 不变量校验（spec §七.L4）', () => {
     expect(onlyErrors(next)).toEqual([]);
   });
 
-  it('错误注入·I4 缺列键 与 I4 孤儿键：都报 error（证明校验真能抓空表/静默膨胀）', () => {
-    // 缺列键：行 values 少一个列
+  it('错误注入·L1 缺 cells 与 L1 多 cells：都报 error（证明校验真能抓长度不齐/静默膨胀）', () => {
+    // 缺 cells：cells 长度 0 ≠ 列数 2
     const t = validTabs().tabs[0];
-    const missing: TableRow = { id: t.rows[0].id, values: {} }; // 一个列键都没有
+    const missing: TableRow = { id: t.rows[0].id, cells: [] }; // 长度 0 ≠ 2 列
     const tabsMissing: AssistantTableTabs = { ...validTabs(), tabs: [{ ...t, rows: [missing] }] };
-    expect(onlyErrors(tabsMissing).some((v) => v.code === 'I4')).toBe(true);
+    expect(onlyErrors(tabsMissing).some((v) => v.code === 'L1')).toBe(true);
 
-    // 孤儿键：行 values 多出不存在列
-    const extra: TableRow = {
-      id: t.rows[0].id,
-      values: { [t.columns[0].id]: 'x', ghost: 'y' },
-    };
+    // 多 cells：cells 长度 3 ≠ 列数 2
+    const extra: TableRow = { id: t.rows[0].id, cells: ['x', 'y', 'z'] };
     const tabsExtra: AssistantTableTabs = { ...validTabs(), tabs: [{ ...t, rows: [extra] }] };
-    expect(onlyErrors(tabsExtra).some((v) => v.code === 'I4')).toBe(true);
+    expect(onlyErrors(tabsExtra).some((v) => v.code === 'L1')).toBe(true);
   });
 
   it('错误注入·I2/I3 列或行 id 重复：报 error', () => {
@@ -132,14 +129,14 @@ describe('validateTabs 不变量校验（spec §七.L4）', () => {
     expect(w.some((v) => v.level === 'warn' && v.code === 'S2')).toBe(true);
     expect(errors(w)).toEqual([]);
 
-    // I6：两表复用同一 col id（表B 声明与表A 相同的 col id，行键也自洽 → 只报 I6 warn、无 I4/无 I1 error）
+    // I6：两表复用同一 col id（表B 声明与表A 相同的 col id，行 cells 也自洽 → 只报 I6 warn、无 L1/无 I1 error）
     const base = validTabs();
     const sharedCol = base.tabs[0].columns[0].id; // 取 base 真实列 id（避免跨 validTabs 两套随机 id）
     const reuseTab: TableTab = {
       id: 'B',
       name: '表B',
       columns: [{ id: sharedCol, label: '列' }],
-      rows: [{ id: 'rb1', values: { [sharedCol]: '跨表复用' } }],
+      rows: [{ id: 'rb1', cells: ['跨表复用'] }],
       globalStyle: '',
     };
     const reused: AssistantTableTabs = { ...base, tabs: [...base.tabs, reuseTab] };
@@ -251,9 +248,11 @@ describe('validateWorkspace 运行态校验（W/P 类）', () => {
 });
 
 describe('validateTabs 接入真实变更链路（通用断言落地）', () => {
-  it('addColumn 后行补空键，I4 键对齐保持（缺键会被校验抓）', () => {
+  it('addColumn 后行补空串，L1 长度对齐保持（缺格会被校验抓）', () => {
     const t = validTabs().tabs[0];
     const next = addColumn({ columns: t.columns, rows: t.rows }, '新列');
-    expect(validateTabs({ tabs: [{ ...t, columns: next.columns, rows: next.rows }], activeTabId: 'A' })).toEqual([]);
+    expect(
+      validateTabs({ tabs: [{ ...t, columns: next.columns, rows: next.rows }], activeTabId: 'A' }),
+    ).toEqual([]);
   });
 });

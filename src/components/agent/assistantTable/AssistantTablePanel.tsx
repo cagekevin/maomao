@@ -178,7 +178,7 @@ export default function AssistantTablePanel({
       setTableEditingCell(null); // 行已不存在 → 直接退出
       return;
     }
-    const backing = row.values[ec.colId] ?? '';
+    const backing = row.cells[tableData.columns.findIndex((c) => c.id === ec.colId)] ?? '';
     commitCell(ec.rowId, ec.colId, cellValue(ec.rowId, ec.colId, backing));
     setTableEditingCell(null);
   };
@@ -258,7 +258,7 @@ export default function AssistantTablePanel({
     const cols = tableData.columns;
     const header = cols.map((c) => c.label).join('\t');
     const bodyRows = tableData.rows
-      .map((r) => cols.map((c) => (r.values[c.id] ?? '').replace(/\t/g, ' ')).join('\t'))
+      .map((r) => cols.map((_, ci) => (r.cells[ci] ?? '').replace(/\t/g, ' ')).join('\t'))
       .join('\n');
     const tsv = bodyRows ? `${header}\n${bodyRows}` : header;
     const html =
@@ -268,7 +268,7 @@ export default function AssistantTablePanel({
       tableData.rows
         .map(
           (r) =>
-            '<tr>' + cols.map((c) => `<td>${esc(r.values[c.id] ?? '')}</td>`).join('') + '</tr>',
+            '<tr>' + cols.map((_, ci) => `<td>${esc(r.cells[ci] ?? '')}</td>`).join('') + '</tr>',
         )
         .join('') +
       '</tbody></table>';
@@ -697,7 +697,9 @@ export default function AssistantTablePanel({
             columns={preview.resultCols.map((c) => c.label)}
             rows={preview.resultRows.map((r) => {
               const rec: Record<string, string> = {};
-              for (const col of preview.resultCols) rec[col.label] = r.values[col.id] ?? '';
+              for (let ci = 0; ci < preview.resultCols.length; ci++) {
+                rec[preview.resultCols[ci].label] = r.cells[ci] ?? '';
+              }
               return rec;
             })}
             rowIndex={null}
