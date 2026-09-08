@@ -264,5 +264,3 @@ export function GlobalSettingsPanel({
 }
 
 const cloneDefaultLighting = { ...DEFAULT_LIGHTING };
-
-export default GlobalSettingsPanel;

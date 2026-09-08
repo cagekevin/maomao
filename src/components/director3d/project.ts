@@ -137,7 +137,6 @@ export const DEFAULT_LIGHTING = {
 };
 export const FPS_OPTIONS = [24, 25, 30];
 export const FOCAL_LENGTH_PRESETS = [18, 24, 35, 50, 85, 120];
-export const BRAND_MARK_URL = `${import.meta.env.BASE_URL}branding/director3d-mark.png`;
 export const ASPECT_RATIOS = [
   { value: '16:9', label: '16 : 9 · 横屏视频', ratio: 16 / 9 },
   { value: '9:16', label: '9 : 16 · 竖屏短视频', ratio: 9 / 16 },
@@ -149,7 +148,6 @@ export const ASPECT_RATIOS = [
   { value: '2.39:1', label: '2.39 : 1 · 电影宽银幕', ratio: 2.39 },
   { value: 'custom', label: '自定义画幅' },
 ];
-export const COMMON_ASPECT_RATIOS = ['16:9', '9:16', '4:3', '3:4'];
 export const CUSTOM_ASPECT_PATTERN = /^custom:([0-9]+(?:\.[0-9]+)?):([0-9]+(?:\.[0-9]+)?)$/;
 export const DEFAULT_CAMERA_POSITION = [7.4, 4.6, 8.2];
 export const LEGACY_DEFAULT_CAMERA_TARGET = [0.2, 1.2, 0];
@@ -1637,10 +1635,6 @@ export function visualCenterForObject(object) {
   const localCenter = [root[0] * scale[0], (root[1] + bodyHeight) * scale[1], root[2] * scale[2]];
   const offset = rotateVectorXYZ(localCenter, object.rotation);
   return position.map((value, index) => value + offset[index]);
-}
-
-export function fallbackCharacterKeyframes() {
-  return {};
 }
 
 export function referenceImageFromFile(file: File): Promise<string> {

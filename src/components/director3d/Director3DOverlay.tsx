@@ -110,5 +110,3 @@ export function Director3DOverlay({ nodeId, onExit }) {
     document.body,
   );
 }
-
-export default Director3DOverlay;

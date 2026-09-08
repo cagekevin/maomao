@@ -1053,6 +1053,12 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
         event.stopImmediatePropagation();
         redo();
       }
+      // 粘贴关键帧（配合 Timeline 的「复制关键帧」）：无剪贴板内容时 pasteKeyframe 自行 return
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        pasteKeyframe();
+      }
       // 标准视角快捷键：与右下角 3D 轴立方体共用同一 jumpTo，F1 回到默认自由视角
       if (event.key === 'F1') {
         event.preventDefault();
@@ -1655,11 +1661,13 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setKeyframeClipboard({ kind: selectedKeyframeInfo.kind, key: JSON.parse(JSON.stringify(key)) });
     setToast('关键帧已复制');
   };
-  () => {
+  // 粘贴关键帧（Ctrl+V）：与 Timeline 的「复制关键帧」形成闭环。
+  // 2026-09-09：原实现在 TS 迁移（3aff4b7）时丢了绑定变成悬空箭头，现恢复并接上快捷键。
+  const pasteKeyframe = () => {
     if (!keyframeClipboard) return;
     const next = { ...JSON.parse(JSON.stringify(keyframeClipboard.key)), frame: currentFrame };
     if (keyframeClipboard.kind === 'camera') {
-      // 粘贴整快照 key → 拆进相机 transform/lens 通道（tracks.js）
+      // 粘贴整快照 key → 拆进相机 transform/lens 通道（tracks.ts）
       setKeyframes((channels) => upsertCameraSnapshot(channels, next));
       setSelectedKeyframe({ kind: 'camera', frame: currentFrame, trackId: null });
     } else {
@@ -1667,7 +1675,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
         setToast('请先选择要粘贴关键帧的物体');
         return;
       }
-      // 粘贴整快照 key → 按目标物体实体类型拆进对应通道（粘贴允许跨实体，以目标类型为准，tracks.js）
+      // 粘贴整快照 key → 按目标物体实体类型拆进对应通道（粘贴允许跨实体，以目标类型为准）
       setCharacterKeyframes((tracks) =>
         upsertObjectSnapshot(tracks, activeObject.id, activeObject.type, next),
       );
@@ -1906,7 +1914,12 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     reader.readAsText(file);
     event.target.value = '';
   };
-  () => {
+  /**
+   * 初始化：把工程恢复到初始状态（清空全部镜头/物体/关键帧，回到初始相机 + 一个空镜头）。
+   * ⚠️ 会 resetHistory 清空历史栈 —— 本操作**不可撤销**，故 UI 侧必须经 ask() 二次确认。
+   * 2026-09-09：原实现（旧名 resetProject）在 TS 迁移 3aff4b7 时丢了绑定变成悬空箭头，现恢复并接到顶栏按钮。
+   */
+  const initializeProject = () => {
     const resetObjects = cloneProjectValue(initialObjects);
     const resetCamera = cloneProjectValue(initialCamera);
     setSettings({ ...DEFAULT_PROJECT_SETTINGS });
@@ -1939,11 +1952,10 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     currentFrameRef.current = 0;
     setPlaying(false);
     setSelectedId('actor-lead');
-    setToast('已新建空关键帧工程 · 可在时间轴右侧设置时长');
-    // P1-A：重置工程后同样重置历史栈，避免撤销退回旧工程
+    setToast('已初始化工程 · 可在时间轴右侧设置时长');
+    // P1-A：重置工程后同样重置历史栈，避免撤销退回旧工程（代价：本操作本身不可撤销）
     resetHistory(historyRef.current, clearTimeout);
   };
-
   return (
     <main className="app-shell" aria-busy={exporting || capturingImage}>
       <header className="topbar">
@@ -1959,6 +1971,20 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
           </button>
           <button onClick={() => saveProject()}>
             <Save size={14} /> 保存
+          </button>
+          {/* 初始化：破坏性操作（清空工程 + 重置历史栈，不可撤销）→ 必须二次确认 */}
+          <button
+            type="button"
+            onClick={async () => {
+              const ok = await ask('初始化会清空当前所有镜头、物体与关键帧，且不可撤销。继续？', {
+                confirmText: '初始化',
+                danger: true,
+              });
+              if (ok) initializeProject();
+            }}
+            title="把工程恢复到初始状态"
+          >
+            <RotateCw size={14} /> 初始化
           </button>
           <input
             ref={loadRef}
@@ -2534,5 +2560,3 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     </main>
   );
 }
-
-export default Director3DApp;

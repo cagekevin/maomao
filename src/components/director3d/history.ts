@@ -38,11 +38,6 @@ export function consumeDefer(state, latest) {
   return false;
 }
 
-/** 程序内部写：仅推进基线，不计历史。 */
-export function settleBaseline(state, latest) {
-  state.last = latest;
-}
-
 /** 入栈一条历史（自动清空 future 分支，超出上限裁剪最旧）。 */
 export function recordChange(state, previous, latest) {
   state.past.push(previous);
