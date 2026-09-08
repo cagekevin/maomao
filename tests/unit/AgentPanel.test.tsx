@@ -192,6 +192,13 @@ vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   contentGet: () => null,
   contentSet: vi.fn(),
   contentSubscribe: h.contentSubscribe,
+  // AgentPanel 改用 useActiveAssistantTable 后间接依赖 conversationState，其模块级
+  // persistDebounced 由 createDebouncedPersist 构造；mock 缺此项会整套件加载失败。
+  createDebouncedPersist: () => ({
+    schedule: vi.fn(),
+    flush: vi.fn(),
+    cancel: vi.fn(),
+  }),
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: (u) => u }));
 vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({

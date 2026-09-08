@@ -79,6 +79,33 @@ export function useTableDrafts(
     setColRenameDraft({});
   }, [activeConversationId]);
 
+  // 【SSOT-6 · 孤儿草稿清理 2026-09-08】删行/删列后，table 的 rows/columns 缩小，
+  // 必须清掉 edits 里指向已删行/列的 `${rowId}:${colId}` key、colRenameDraft 里指向已删列的 key，
+  // 否则孤儿草稿堆积；将来若 id 复用会串值。
+  // 只在「草稿 key 参考不到现有行/列」时裁剪；正常输入时 table 引用不变，effect 不触发，不会误吞输入中草稿。
+  useEffect(() => {
+    const rowIds = new Set(table.rows.map((r) => r.id));
+    const colIds = new Set(table.columns.map((c) => c.id));
+    setEdits((prev) => {
+      const next: Record<string, string> = {};
+      let changed = false;
+      for (const [k, v] of Object.entries(prev)) {
+        const idx = k.indexOf(':');
+        const rowId = idx >= 0 ? k.slice(0, idx) : k;
+        const colId = idx >= 0 ? k.slice(idx + 1) : '';
+        if (rowIds.has(rowId) && colIds.has(colId)) next[k] = v;
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+    setColRenameDraft((prev) => {
+      if (Object.keys(prev).every((cid) => colIds.has(cid))) return prev;
+      const next: Record<string, string> = {};
+      for (const [cid, v] of Object.entries(prev)) if (colIds.has(cid)) next[cid] = v;
+      return next;
+    });
+  }, [table]);
+
   /** 清空全部本地草稿（撤销/重做/切 tab 后，表格已变，旧草稿指向过期行/列，必须清） */
   const resetAllDrafts = () => {
     setEdits({});

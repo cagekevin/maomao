@@ -14,6 +14,8 @@ import {
   getCurrentGlobalContract,
   setCurrentGlobalContract,
   markMessageTableResolved,
+  getCurrentAssistantTabs,
+  materializeAssistantTabs,
 } from '../../src/components/agent/conversation/conversationStore.ts';
 import { getActiveConv } from '../../src/components/agent/conversation/conversationState.ts';
 import { appendMsg } from '../../src/components/agent/runtime/agentMessages.ts';
@@ -65,6 +67,23 @@ describe('assistantTable 会话记忆字段', () => {
     applyConversation(id);
     setCurrentAssistantTable({ columns: [], rows: [] });
     expect(getCurrentAssistantTable().rows).toHaveLength(0);
+  });
+
+  it('SSOT-7 真源必须已落盘：materialize 后两次读同一批稳定 id（native normalize 惰性造 id 是根因）', () => {
+    const id = ensureActiveConversation();
+    applyConversation(id);
+    // 未落盘（新对话/老数据）：normalizeAssistantTabs 每次纯读都 generateId 造新 tab id，
+    // 只活在「那一次读」里 → accept 捕获的 targetTabId 到 confirm 重读会对不上（2026-09-07 根）。
+    // materializeAssistantTabs 把归一结果落成稳定基线后，无论读多少次 id 都同批。
+    materializeAssistantTabs();
+    const a = getCurrentAssistantTabs();
+    const b = getCurrentAssistantTabs();
+    expect(a.tabs[0].id).toBe(b.tabs[0].id);
+    expect(a.activeTabId).toBe(b.activeTabId);
+    // 已落盘 → materialize 幂等（零开销），再读仍同批
+    materializeAssistantTabs();
+    const c = getCurrentAssistantTabs();
+    expect(c.tabs[0].id).toBe(a.tabs[0].id);
   });
 
   it('globalStyle 复用 global_contract.unified_style_prompt：写全局风格可读回', () => {

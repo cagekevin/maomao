@@ -14,6 +14,7 @@ import type { ConversationStoreState } from '../conversation/conversationState.t
 import { useStoreSelector, shallowEqual } from '@/hooks/useStoreSelector.ts';
 import { normalizeAssistantTabs, getActiveTab } from './assistantTable.ts';
 import type { AssistantTableTabs, TableTab, AssistantTable } from './assistantTable.ts';
+import { logger } from '../../base/core/logger.ts';
 
 export interface ActiveAssistantTable {
   activeConversationId: string;
@@ -63,15 +64,22 @@ export function useActiveAssistantTable(): ActiveAssistantTable {
     },
     shallowEqual,
   );
-  const tabs = useMemo<AssistantTableTabs>(
-    () =>
-      normalizeAssistantTabs(rawTabs ?? null, {
-        assistantTable: (legacy as { assistantTable?: unknown } | null)?.assistantTable ?? null,
-        globalStyle: (legacy as { globalStyle?: string } | null)?.globalStyle ?? '',
-      }),
+  const tabs = useMemo<AssistantTableTabs>(() => {
+    // 【P1-D 可见性 · SSOT-7 旁证 2026-09-08】rawTabs 为 null = 真源尚未落盘，本次 read 只能靠
+    // normalizeAssistantTabs 惰性造 id（读时才造 id 的惰性真源）→ 每次读都可能拿到新 id，
+    // 多消费方各自归一就会造出两套 id 空间。正确做法是「会话激活时已由 conversationStore
+    // materializeAssistantTabs 落成稳定基线」；若这里还告警，说明某个新入口没走激活路径，需补。
+    if (rawTabs == null) {
+      logger.warn('AI助手', '表格真源未落盘即被读取（将惰性造 id），请确认走会话激活路径', {
+        activeConversationId,
+      });
+    }
+    return normalizeAssistantTabs(rawTabs ?? null, {
+      assistantTable: (legacy as { assistantTable?: unknown } | null)?.assistantTable ?? null,
+      globalStyle: (legacy as { globalStyle?: string } | null)?.globalStyle ?? '',
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rawTabs, legacy],
-  );
+  }, [rawTabs, legacy]);
   const activeTab = getActiveTab(tabs)!;
   const table = useMemo<AssistantTable>(
     () =>

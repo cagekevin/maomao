@@ -542,6 +542,13 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
       expect(newTab.columns).toHaveLength(2);
       expect(newTab.rows).toHaveLength(1);
       expect(newTab.id).not.toBe('A');
+      // 【2026-09-08 修 bug】副本 values 的 key 必须跟着新列 id 重映射：
+      // 否则「新列 id + 旧 key」对不上，副本渲染成空表。只断言列数/行数发现不了，必须比对值。
+      const srcA = getTab(added, 'A')!;
+      srcA.columns.forEach((c, ci) => {
+        expect(newTab.columns[ci].label).toBe(c.label);
+        expect(newTab.rows[0].values[newTab.columns[ci].id]).toBe(srcA.rows[0].values[c.id]);
+      });
       // moveTab 换位
       const moved = moveTab(added, 0, 2);
       expect(moved.tabs.map((t) => t.name)).toEqual(['表B', '表C', '表A']);

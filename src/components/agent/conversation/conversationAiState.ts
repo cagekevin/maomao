@@ -23,6 +23,8 @@ import {
   setTabGlobalStyle,
   setTabTable,
 } from '../assistantTable/assistantTable.ts';
+import { validateTabs } from '../assistantTable/tableInvariants.ts';
+import { logger } from '../../base/core/logger.ts';
 import type {
   AssistantTableTabs,
   TableTab,
@@ -144,10 +146,22 @@ export function materializeAssistantTabs(): void {
   setCurrentAssistantTabs(getCurrentAssistantTabs());
 }
 
-/** 写当前对话的多标签页集合（归一后落 memory.assistantTables + commit 自动落盘；不再写 assistantTable） */
+/** 写当前对话的多标签页集合（归一后落 memory.assistantTables + commit 自动落盘；不再写 assistantTable）
+ *  P2 运行时校验 2026-09-08：落盘前跑 validateTabs，dev 下对硬约束（error）告警——
+ *  让 copyTab 式「引用脱节」在写代码当下的运行时就被抓住，而非只靠单测。 */
 export function setCurrentAssistantTabs(tabs: AssistantTableTabs): void {
   const conv = getActiveConv();
   if (!conv) return;
+  const normalized = normalizeAssistantTabs(tabs);
+  if (import.meta.env.DEV !== false) {
+    const violations = validateTabs(normalized).filter((v) => v.level === 'error');
+    if (violations.length) {
+      logger.warn('AI助手', '表格落盘前不变量校验失败', {
+        conversationId: conv.id,
+        violations,
+      });
+    }
+  }
   commit({
     ...getState(),
     conversations: getState().conversations.map((x) =>
@@ -155,7 +169,7 @@ export function setCurrentAssistantTabs(tabs: AssistantTableTabs): void {
         ? {
             ...x,
             // 深拷贝后落盘，避免内存态 tabs 引用被后续 setState 污染
-            memory: normalizeMemory({ ...x.memory, assistantTables: normalizeAssistantTabs(tabs) }),
+            memory: normalizeMemory({ ...x.memory, assistantTables: normalized }),
             updatedAt: Date.now(),
           }
         : x,

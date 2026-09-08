@@ -64,14 +64,12 @@ import {
 import { clearHistory } from '../agent/assistantTable/tableHistory.ts';
 import TableWorkspacePanel from './TableWorkspacePanel.tsx';
 import {
-  normalizeAssistantTabs,
-  getActiveTab,
-  emptyAssistantTable,
   rowToText,
   tryParseAssistantTableJson,
   stripAssistantTableJson,
 } from '../agent/assistantTable/assistantTable.ts';
 import type { AssistantTable } from '../agent/assistantTable/assistantTable.ts';
+import { useActiveAssistantTable } from '../agent/assistantTable/useActiveAssistantTable.ts';
 import { buildRefineRowsUser } from '../agent/assistantTable/assistantTablePrompt.ts';
 
 /**
@@ -375,32 +373,13 @@ export default function AgentPanel({
     tableOpen,
   });
 
-  // ── 表格工作区数据（自当前对话会话记忆派生；conversations 订阅时随记忆写回刷新）。
+  // ── 表格工作区数据（单一入口 useActiveAssistantTable：normalizeAssistantTabs 只在这一处归一一次）──
+  // SSOT-3 2026-09-08 根治：本面板原就地 normalizeAssistantTabs 再造一份 tableTabs/tableData —— 未落盘对话
+  // 每次调用都会 generateId 造新 id，与左面板 useActiveAssistantTable 各持一套 id 空间（两套 id 对不上，
+  // 2026-09-07「AI 预览后不知道往哪个表填」的结构性根因）。统一走同一 hook，发送侧引用 = 显示侧引用。
   // 多标签页（spec 1.1）：真源 memory.assistantTables，注入只发「当前活动 tab」，其余 tab 对 AI 完全不可见 ──
-  const activeConv = (conversations || []).find((c) => c.id === activeConversationId);
-  const tableTabs = useMemo(
-    () =>
-      normalizeAssistantTabs(activeConv?.memory?.assistantTables ?? null, {
-        assistantTable: activeConv?.memory?.assistantTable ?? null,
-        globalStyle:
-          activeConv?.memory?.global_contract &&
-          typeof activeConv.memory.global_contract === 'object'
-            ? String(
-                (activeConv.memory.global_contract as { unified_style_prompt?: string })
-                  .unified_style_prompt ?? '',
-              ).trim()
-            : '',
-      }),
-    [activeConv],
-  );
-  const activeTab = getActiveTab(tableTabs);
-  const tableData = useMemo(
-    () =>
-      activeTab ? { columns: activeTab.columns, rows: activeTab.rows } : emptyAssistantTable(),
-    [activeTab],
-  );
+  const { table: tableData, globalStyle, activeTab } = useActiveAssistantTable();
   // globalStyle 每 tab 独立（隔离决策，不再读 global_contract）
-  const globalStyle = activeTab ? activeTab.globalStyle : '';
   const activeTableName = activeTab ? activeTab.name : '';
   const selectedRows = tableData.rows.filter((r) => selectedRowIds.includes(r.id));
   // 输入框 ctx-chip 用：首选中行行号 + 首列内容简写 + 选中行数

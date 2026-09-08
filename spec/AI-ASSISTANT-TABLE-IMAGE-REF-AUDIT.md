@@ -119,3 +119,80 @@ for (const col of resultCols) {
 3. **顺手修**：第三节行号 / 路径偏差、第四节措辞。
 
 > 不修 L1 / L2，按文档落地会出现"AI 看错图 / 同一张图发两次"。
+
+---
+
+# 第二轮审计（2026-09-08 复核 · 逐条回读真源）
+
+> 复核方式：对前次每条 L/U 结论重新回读代码，并补充核对 `PromptInput` / `agentConfig` / `package.json` scripts / `safeFileName` / `tests/unit` 布局。
+> **总结论：前次 L1 不成立（前提被证伪），L2 结论对但给的解法过重，L3/L4 已有明确落点，U1/U3 可关闭；新发现 7 条（N1~N7），其中 N1 是真正的"落地即错"。**
+> 可执行方案已单独成文：`spec/AI-ASSISTANT-TABLE-IMAGE-REF-IMPL.md`。
+
+## A. 对前次结论的处置
+
+| 前次 | 处置 | 依据 |
+| --- | --- | --- |
+| **L1** text 不解析 → 两套表示 | ❌ **撤销** | `AgentPanel` 输入框是 `<textarea>`（`AgentPanel.tsx:1553`），**不是 `PromptInput`**。全仓 `resolvePromptChips` 调用点只有 4 个画布节点（`ImageGenerate`/`TextGenerate`/`VideoGenerate`/`TemplateNode`）。AgentPanel 链路**根本不产生芯片串**，text 段不解析是唯一正确行为。审计把"画布节点语义"误植到了 AI 面板 |
+| **L2** 按 id 跨源去重不可行 | ✅ 成立，但**解法过重** | id 命名空间不同属实（`Asset.id` vs `nodeId`）。但无需把 `handleSend` 改成异步归一化再去重。正解：导出**同步** `canonicalImageKey(url)`（内部复用已存在的 `thumbnailToOriginal` + `toRelativeFileUrl`），去重 key 换掉即可，不动异步流程 |
+| **L3** 渲染复用与否 | ✅ **定论** | 表格渲染**不查 metaMap**，一律用芯片串自带 `thumb`。理由：`renderPromptToNodes:218` 是 `match[3] ? decodeThumb : meta?.url`，串自带即优先；表格是用户显式存的数据，不该被当前素材列表改写 |
+| **L4** D4 落点/触发过宽 | ✅ **定论** | 落点 = `buildPreviewResult` update 循环（`assistantTable.ts:616-619`）。判定 = `parseChips(prev).length>0 && parseChips(v).length===0 → continue` |
+| **U1** 频次口径 | ✅ **关闭** | 不需要"频次"概念。改用**懒分配 + 先解析选中行**——选中行的图天然先占号，其余按首次出现顺序，超限者只留 label |
+| **U3** 新文件门禁 | ✅ **关闭** | ① `package.json` scripts **没有** `check:arch`，该门禁不存在；② `src/components/agent/assistantTable/assistantTablePrompt.ts` **已存在**（纯函数层，1.87KB），落点天然合法 |
+
+## B. 新发现（第二轮）
+
+### N1. 编号错位 / 空洞 —— 最严重，按原文档落地必错 🔴
+
+原文档 §6.3 只写"图片追加进 `allImages`"。但若表格引用的素材**已在 `allImages` 里**（画布节点恰好引用了同一素材），正确行为是**复用它的编号**（文本写「参考图1」且不重复发图）；若实施者按字面理解"先追加、再靠 url 去重"，会出现：文本写「参考图4」而目录里它是「参考图1」→ **AI 认错图**，且去重后数组下标前移造成编号空洞。
+
+**解**：resolver 构造时预置 `existing`（已有图的 key→编号），命中即复用编号且不产出新图。见 IMPL §3。
+
+### N2. `PROMPT_CHIP_RE` 是模块级 `/g` 正则，`lastIndex` 跨调用共享
+
+`promptChips.ts:41` 导出的是**同一个 RegExp 对象**。`String.replace(re, fn)` 会自动重置 `lastIndex`（安全）；但实施者为做自定义替换很可能写 `while ((m = PROMPT_CHIP_RE.exec(t)))` —— 一旦别处（如 `renderPromptToNodes:211` 的循环）残留 `lastIndex`，解析结果会**静默丢芯片**。
+
+**解**：新增的 `parseChips()` 内部用 `new RegExp(PROMPT_CHIP_RE.source, 'g')` 建本地副本，并在文件注释里钉死这条。
+
+### N3. `promptChips.ts` 缺「字符串 → 芯片列表」的纯解析出口
+
+铁律 1 禁止手写正则，但表格渲染（React，最好无 `document` 依赖）、resolver、D4 判定**全都需要这个能力**；现有唯一的反序列化出口 `renderPromptToNodes` 返回 `Node[]` 且强依赖 `document`。
+
+**解**：新增 `parseChips(text): ParsedChip[]`（纯、无 DOM），并让 `renderPromptToNodes` 改用它（顺带消除"两处各写一遍 exec 循环"的分叉）。
+
+### N4. label 未净化 `}` / `{` / `@`，会截断芯片
+
+`safeFileName`（`utils.ts:115`）净化的字符集是 `[\\/:*?"<>|]`，**不含 `}`、`{`、`@`**。素材名含 `}`（macOS 允许）→ `@{id:猫}女|url}` 被正则截成 `@{id:猫`… 解析错乱；含 `@{` → 文本里出现伪芯片。
+
+**解**：新增 `buildChipString(id,label,thumb)` 出口，内部对 id/label 额外 `.replace(/[{}|]/g,'_')`；禁止任何地方字符串模板裸拼芯片。
+
+### N5. 表格图若 push 进 `attachments` 会污染会话快照
+
+`attachments` 有 `setCurrentSnapshot`（`:509`）落盘 + `releaseAttachmentUrls`（`:877`）释放。表格图是**每轮按当前表动态算出**的，不属于会话附件。
+
+**解**：只入本轮局部数组（`allImages` 的拷贝），**不 setState**。
+
+### N6. 发送侧 404 未被覆盖（§5.5 只管显示）
+
+素材删除后芯片里的 url 仍会被当图发出。**裁定 D5**：保持 resolver 纯函数、不查 `useAssets()`，照发自带 url；理由——删除是低频、UI 侧已有占位提示、纯函数可单测。风险登记入 R2。
+
+### N7. §5.2 方案 B 与 §5.5 自相矛盾，会静默删用户数据
+
+方案 B 要在浮层里放 `PromptInput`，而 `PromptInput` 有**素材消失清理**（`:281` `refIdsSignature`）——某素材 id 从 `refImages` 消失就删掉对应芯片。这恰恰是 §5.5 声明"表格不适用"的行为，但用了 PromptInput 它就会生效。
+
+**解**：给 `PromptInput` 加 `preserveMissingRefs?: boolean`（默认 `false` 保现状），表格浮层传 `true` 跳过清理。
+
+## C. 事实勘误（第二轮补）
+
+| 项 | 前次/原文 | 实际 |
+| --- | --- | --- |
+| `normalizeImageUrlForSend` 行号 | 文档写 `:358`，前次说"实际 `:300`" | 两个都在：`:300` 单图版、`:358` **数组版** `normalizeImageUrlsForSend`。文档应写 `:300` |
+| §6.4 成本模型 | "前端开销 ≈ N 次 normalize（压到 1920，可能转 base64）" | `/files/` 在 `preferBase64=false`（默认）下**不压缩**，保持相对路径（`:324-327`），压缩在 localTool 出站。前端开销远小于描述 |
+| `check:arch` 门禁 | 前次 U3 担心 | 不存在（package.json 无此 script） |
+| `PromptInput` 能力 | §5.2 说"几乎零改动" | `refImages` 需 `{id,label,url}`；`portalTarget` 默认 `document.body`（浮层场景合适）；`onChange` 吐的是 `serializeDOM` 芯片串，可直接写回单元格 ✔ |
+
+## D. 修订后的落地优先级
+
+1. **必做（不做必错）**：N1（编号复用）、N2（正则副本）、N3（`parseChips` 出口）、N4（label 净化）。
+2. **必做（功能本体）**：IMPL 步骤 3~7。
+3. **定稿项**：N5（不入 attachments）、N6（D5 照发）、N7（`preserveMissingRefs`）、L3/L4 落点。
+4. **顺手修**：行号、§6.4 措辞、§4「缩略图 URL」→「素材原始 url」。

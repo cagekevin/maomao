@@ -33,6 +33,17 @@ import {
 import type { Conversation } from './conversationState.ts';
 import { getCurrentSnapshot } from './conversationSnapshot.ts';
 import type { ConversationSnapshot } from './conversationSnapshot.ts';
+// 【SSOT-7 根治 / P1-B 2026-09-08】依赖方向单向无环：store(本文件) → aiState → state。
+// materializeAssistantTabs 在「会话激活」时即落成稳定基线（memory.assistantTables），
+// 保证任何组件在读取前真源已落盘、id 已固化 —— 不再靠「读时才造 id」的惰性真源。
+//
+// 【铁律】本文件任何「切换 activeId」的 commit 之后，必须紧跟 materializeAssistantTabs()：
+//   漏一处 → 该会话真源未落盘 → 各消费方各自 normalizeAssistantTabs 惰性造 id → 两套 id 空间
+//   （2026-09-07「AI 预览后不知道往哪个表填」的结构性根因）。
+//   该函数幂等（已落盘直接 return），多调无害，漏调才致命。
+//   ⚠️ 新增任何切换 activeId 的入口时照此办理；注意早退分支（activeId 本就有效）也要覆盖——
+//     它才是最常见的路径。消费侧 useActiveAssistantTable 对「未落盘即读」有 warn 兜底。
+import { materializeAssistantTabs } from './conversationAiState.ts';
 
 /* ── 会话核心 CRUD（A 类：对话增删切换读写）────────────────── */
 
@@ -58,9 +69,14 @@ export function getConversations(): Conversation[] {
 export function ensureActiveConversation(): string {
   const st = getState();
   const { conversations, activeId } = st;
-  if (activeId && conversations.some((c) => c.id === activeId)) return activeId;
+  if (activeId && conversations.some((c) => c.id === activeId)) {
+    // 最常见路径（activeId 本就有效，如正常启动）；幂等，已落盘直接 return，但绝不能漏。
+    materializeAssistantTabs();
+    return activeId;
+  }
   if (conversations.length > 0) {
     commit({ ...st, activeId: conversations[0].id });
+    materializeAssistantTabs(); // SSOT-7：切到既有会话即固化表格 id，防跨侧读造两套 id
     return conversations[0].id;
   }
   const conv = normalizeConversation({
@@ -71,6 +87,7 @@ export function ensureActiveConversation(): string {
     draft: '',
   });
   commit({ conversations: [conv], activeId: conv.id });
+  materializeAssistantTabs(); // SSOT-7：新会话即落空表基线，杜绝「读时才造 id」
   return conv.id;
 }
 
@@ -106,6 +123,7 @@ export function applyConversation(id: string): ConversationSnapshot {
   }
   markHydrated(); // 已从存储恢复，此后允许落盘
   commit({ ...st, activeId: conv.id });
+  materializeAssistantTabs(); // SSOT-7：加载/切换会话即固化表格 id，任何组件读取前真源已落盘
   return getCurrentSnapshot();
 }
 
@@ -120,6 +138,7 @@ export function newConversation(): { id: string; snapshot: ConversationSnapshot 
     draft: '',
   });
   commit({ conversations: [conv, ...st.conversations], activeId: conv.id });
+  materializeAssistantTabs(); // SSOT-7：新对话即落空表基线，杜绝「读时才造 id」
   return { id: conv.id, snapshot: getCurrentSnapshot() };
 }
 
@@ -138,6 +157,7 @@ export function deleteConversation(id: string): {
   const remaining = st.conversations.filter((c) => c.id !== id);
   if (remaining.length > 0) {
     commit({ conversations: remaining, activeId: remaining[0].id });
+    materializeAssistantTabs(); // SSOT-7：删后切到剩余会话，同样要固化表格 id
     return { activeId: remaining[0].id, snapshot: getCurrentSnapshot() };
   }
   const conv = normalizeConversation({
@@ -148,6 +168,7 @@ export function deleteConversation(id: string): {
     draft: '',
   });
   commit({ conversations: [conv], activeId: conv.id });
+  materializeAssistantTabs(); // SSOT-7：删空后新建的会话，新建必未落盘
   return { activeId: conv.id, snapshot: getCurrentSnapshot() };
 }
 
@@ -201,6 +222,7 @@ export function importLegacy({
   });
   markHydrated();
   commit({ conversations: [conv], activeId: conv.id });
+  materializeAssistantTabs(); // SSOT-7：旧数据迁移新建的会话，新建必未落盘
   return getCurrentSnapshot();
 }
 

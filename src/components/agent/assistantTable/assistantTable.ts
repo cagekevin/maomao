@@ -8,7 +8,8 @@
  * 铁律（对齐 scriptBoxPrompts 的纯函数层）：
  *  - 本文件 IMPORT 无任何 React / store / 事件 / 存储，便于单元测试。
  *  - 所有"增删改行/列"返回【新对象/新数组】，绝不 mutate 入参 sb。
- *  - id 生成唯一走 generateId（集中 ID 工具），禁 Date.now()/index 当行键。
+ *  - id 生成唯一走 tableIds.ts（newTabId/newColId/newRowId，前缀 atab/acol/arow；2026-09-08 收口），
+ *    禁 Date.now()/index 当行键、禁散落 generateId('col'|'row'|'tab')。
  *  - 入参命名 `sb` 沿袭 scriptBox 时代（sb≈storyboard 表/脚本盒）；2026-09-06 决策：
  *    改名 sb→table 风险>收益（导出函数名已固定、测试即护栏），暂不改，读代码把 sb 当 table 即可。
  *
@@ -19,7 +20,7 @@
  *   由上层经 rowToObj/rowToText 序列化注入；AI 返回经 buildPreviewResult 统一推导
  *   （预览=确认的唯一数据源，替代旧 jsonToSb / mergeRowFromObj / buildPreviewModel）。
  */
-import { generateId } from '@/components/base/core/idGen.ts';
+import { newTabId, newColId, newRowId } from './tableIds.ts';
 
 /** 单元格值：数据层固定字符串；编辑态由 UI 层持有 */
 export type CellValue = string;
@@ -106,7 +107,7 @@ export function normalizeAssistantTable(raw: unknown): AssistantTable {
       const width =
         typeof col.width === 'number' && Number.isFinite(col.width) ? col.width : undefined;
       columns.push({
-        id: String(col.id ?? '') || generateId('col'),
+        id: String(col.id ?? '') || newColId(),
         label,
         ...(width !== undefined ? { width } : {}),
       });
@@ -118,7 +119,7 @@ export function normalizeAssistantTable(raw: unknown): AssistantTable {
     for (const row of r.rows as unknown[]) {
       if (!row || typeof row !== 'object') continue;
       const rw = row as Record<string, unknown>;
-      const rowId = String(rw.id ?? '') || generateId('row');
+      const rowId = String(rw.id ?? '') || newRowId();
       const values: Record<string, string> = {};
       const v =
         rw.values && typeof rw.values === 'object' ? (rw.values as Record<string, unknown>) : {};
@@ -151,7 +152,7 @@ export function parsePasted(rawText: string, htmlText?: string): AssistantTable 
   // 首行 = 列名（去空）；空表头返回 null
   const header = (grid[0] || []).map((c) => String(c ?? '').trim()).filter((c) => c !== '');
   if (!header.length) return null;
-  const columns = header.map((label) => ({ id: generateId('col'), label }));
+  const columns = header.map((label) => ({ id: newColId(), label }));
   const rows: TableRow[] = [];
   for (let i = 1; i < grid.length; i++) {
     const cells = grid[i];
@@ -160,7 +161,7 @@ export function parsePasted(rawText: string, htmlText?: string): AssistantTable 
       values[columns[ci].id] = String(cells[ci] ?? '').trim();
     }
     if (!rowHasText(values)) continue; // 跳过全空数据行（B-006 统一实现）
-    rows.push({ id: generateId('row'), values });
+    rows.push({ id: newRowId(), values });
   }
   return { columns, rows };
 }
@@ -209,7 +210,7 @@ function stripTags(html: string): string {
 export function addRow(sb: AssistantTable): AssistantTable {
   const values: Record<string, string> = {};
   for (const col of sb.columns) values[col.id] = '';
-  return { ...sb, rows: [...sb.rows, { id: generateId('row'), values }] };
+  return { ...sb, rows: [...sb.rows, { id: newRowId(), values }] };
 }
 
 /** 删除一行；不存在返回原表（幂等） */
@@ -235,7 +236,7 @@ export function duplicateRow(sb: AssistantTable, rowId: string): AssistantTable 
   const idx = sb.rows.findIndex((r) => r.id === rowId);
   if (idx < 0) return sb;
   const src = sb.rows[idx];
-  const copy: TableRow = { id: generateId('row'), values: { ...src.values } };
+  const copy: TableRow = { id: newRowId(), values: { ...src.values } };
   const rows = sb.rows.slice();
   rows.splice(idx + 1, 0, copy);
   return { ...sb, rows };
@@ -245,7 +246,7 @@ export function duplicateRow(sb: AssistantTable, rowId: string): AssistantTable 
 export function insertRowAfter(sb: AssistantTable, rowId?: string): AssistantTable {
   const values: Record<string, string> = {};
   for (const col of sb.columns) values[col.id] = '';
-  const row: TableRow = { id: generateId('row'), values };
+  const row: TableRow = { id: newRowId(), values };
   const rows = sb.rows.slice();
   const idx = rowId ? rows.findIndex((r) => r.id === rowId) : -1;
   if (idx >= 0) rows.splice(idx + 1, 0, row);
@@ -337,7 +338,7 @@ export function insertColumnAfter(
 ): AssistantTable {
   const l = String(label ?? '').trim();
   const name = l || `新列${sb.columns.length + 1}`;
-  const col: TableColumn = { id: generateId('col'), label: name };
+  const col: TableColumn = { id: newColId(), label: name };
   const idx = colId ? sb.columns.findIndex((c) => c.id === colId) : -1;
   const at = idx >= 0 ? idx + 1 : sb.columns.length;
   const columns = [...sb.columns.slice(0, at), col, ...sb.columns.slice(at)];
@@ -483,8 +484,9 @@ export interface TablePreviewResult {
   changedRowIds: string[];
 }
 
-/** 列名归一：trim + 折叠多余空白，供「AI 键名 ↔ 现有列」模糊匹配（A-005，C3） */
-function normalizeLabel(label: string): string {
+/** 列名归一：trim + 折叠多余空白，供「AI 键名 ↔ 现有列」模糊匹配（A-005，C3）。
+ * 导出供 tableInvariants.ts 复用做「同名列」判定（S2，同一套归一口径，禁止裸 ===）。 */
+export function normalizeLabel(label: string): string {
   return String(label ?? '')
     .trim()
     .replace(/\s+/g, ' ');
@@ -524,7 +526,7 @@ export function buildPreviewResult(
 
   // ── replace：当前表无列 → 按 AI 建表（建表丢全空行，C4）──
   if (current.columns.length === 0) {
-    const resultCols: TableColumn[] = keys.map((label) => ({ id: generateId('col'), label }));
+    const resultCols: TableColumn[] = keys.map((label) => ({ id: newColId(), label }));
     const resultRows: TableRow[] = [];
     for (const raw of rawRows) {
       if (!raw || typeof raw !== 'object') continue;
@@ -532,7 +534,7 @@ export function buildPreviewResult(
       const values: Record<string, string> = {};
       for (const col of resultCols) values[col.id] = String(obj[col.label] ?? '').trim();
       if (!rowHasText(values)) continue;
-      resultRows.push({ id: generateId('row'), values });
+      resultRows.push({ id: newRowId(), values });
     }
     return {
       opKind: 'replace',
@@ -551,7 +553,7 @@ export function buildPreviewResult(
   const resultCols = [...current.columns];
   for (const k of keys) {
     if (!labelToCol.has(normalizeLabel(k))) {
-      const col: TableColumn = { id: generateId('col'), label: k };
+      const col: TableColumn = { id: newColId(), label: k };
       labelToCol.set(normalizeLabel(k), col);
       resultCols.push(col);
     }
@@ -571,7 +573,7 @@ export function buildPreviewResult(
       const v = colValue(obj, col);
       values[col.id] = v !== undefined ? v : '';
     }
-    return { id: generateId('row'), values };
+    return { id: newRowId(), values };
   };
 
   // ── 逐行定目标：_rowIndex（1 起）优先按行号；无则第 i 个 AI 行 → 第 i 个选中行；再无 → 追加 ──
@@ -669,7 +671,7 @@ export interface RawAssistantTableTabs {
 /** 空 tab 集合 = 恒 ≥1 空表（不做「零 tab」态，防空指针分支） */
 export function emptyAssistantTabs(): AssistantTableTabs {
   const tab: TableTab = {
-    id: generateId('tab'),
+    id: newTabId(),
     name: '标签页1',
     columns: [],
     rows: [],
@@ -684,7 +686,7 @@ function normalizeTab(raw: unknown, index: number): TableTab | null {
   const t = raw as Record<string, unknown>;
   const table = normalizeAssistantTable(t);
   return {
-    id: String(t.id ?? '') || generateId('tab'),
+    id: String(t.id ?? '') || newTabId(),
     name: String(t.name ?? '').trim() || `标签页${index + 1}`,
     columns: table.columns,
     rows: table.rows,
@@ -722,7 +724,7 @@ export function normalizeAssistantTabs(
   const legacyTable = normalizeAssistantTable(legacy?.assistantTable ?? null);
   if (legacyTable.columns.length > 0 || legacyTable.rows.length > 0) {
     const tab: TableTab = {
-      id: generateId('tab'),
+      id: newTabId(),
       name: '标签页1',
       columns: legacyTable.columns,
       rows: legacyTable.rows,
@@ -797,7 +799,7 @@ export function setActiveTabId(tabs: AssistantTableTabs, tabId: string): Assista
 /** 追加一个新空 tab（name 缺省「表N」，N = 当前数+1），返回新 tabs（不自动切 active，调用方按需 setActiveTabId） */
 export function addTab(tabs: AssistantTableTabs, name?: string): AssistantTableTabs {
   const tab: TableTab = {
-    id: generateId('tab'),
+    id: newTabId(),
     name: String(name ?? '').trim() || `标签页${tabs.tabs.length + 1}`,
     columns: [],
     rows: [],
@@ -844,11 +846,29 @@ export function removeTab(tabs: AssistantTableTabs, tabId: string): AssistantTab
 export function copyTab(tabs: AssistantTableTabs, tabId: string): AssistantTableTabs {
   const src = getTab(tabs, tabId);
   if (!src) return tabs;
+  // 副本要有独立的列 id 空间（不与源表共用，避免跨表粘贴/合并时串味）；
+  // 但行的 values 是以 colId 为 key 的，必须按同一份映射同步换 key ——
+  // 否则「新列 id + 旧 key」对不上，副本渲染出来是一张空表（历史 bug，2026-09-08 修）。
+  const idMap = new Map<string, string>();
+  const columns: TableColumn[] = src.columns.map((c) => {
+    const nextId = newColId();
+    idMap.set(c.id, nextId);
+    return { ...c, id: nextId };
+  });
+  // 按 columns 顺序重建 values（未声明列的孤儿 key 随归一语义丢弃）
+  const rows: TableRow[] = src.rows.map((r) => {
+    const values: Record<string, CellValue> = {};
+    for (const c of src.columns) {
+      const to = idMap.get(c.id);
+      if (to) values[to] = r.values?.[c.id] ?? '';
+    }
+    return { id: newRowId(), values };
+  });
   const tab: TableTab = {
-    id: generateId('tab'),
+    id: newTabId(),
     name: `标签页${tabs.tabs.length + 1}`,
-    columns: src.columns.map((c) => ({ ...c, id: generateId('col') })),
-    rows: src.rows.map((r) => ({ id: generateId('row'), values: { ...r.values } })),
+    columns,
+    rows,
     globalStyle: src.globalStyle,
   };
   return { ...tabs, tabs: [...tabs.tabs, tab] };
@@ -954,7 +974,7 @@ export function copyRows(sb: AssistantTable, rowIds: string[]): TableRow[] {
   const set = new Set(rowIds || []);
   return sb.rows
     .filter((r) => set.has(r.id))
-    .map((r) => ({ id: generateId('row'), values: { ...r.values } }));
+    .map((r) => ({ id: newRowId(), values: { ...r.values } }));
 }
 
 /**
@@ -991,7 +1011,7 @@ export function pasteRows(
       }
       values[col.id] = v !== undefined ? String(v) : '';
     }
-    return { id: generateId('row'), values };
+    return { id: newRowId(), values };
   });
   const rows = sb.rows.slice();
   const anchorIdx = anchorRowId ? rows.findIndex((r) => r.id === anchorRowId) : -1;
@@ -1021,7 +1041,7 @@ export function copyRowsToTab(
   const resultCols = [...dst.columns];
   for (const c of src.columns) {
     if (!labelToCol.has(normalizeLabel(c.label))) {
-      const col: TableColumn = { id: generateId('col'), label: c.label };
+      const col: TableColumn = { id: newColId(), label: c.label };
       labelToCol.set(normalizeLabel(c.label), col);
       resultCols.push(col);
     }
@@ -1051,7 +1071,7 @@ export function copyRowsToTab(
       }
       values[col.id] = v !== undefined ? String(v) : '';
     }
-    return { id: generateId('row'), values };
+    return { id: newRowId(), values };
   });
   return {
     ...tabs,
