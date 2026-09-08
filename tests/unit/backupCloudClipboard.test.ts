@@ -263,7 +263,10 @@ describe('cloudSync.ts', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url, opts) => {
-        sent = JSON.parse(opts.body);
+        // 只抓云端网关包（body 带 data 字段）；忽略 logger 把日志投递到 localTool /api/logs 的 fetch，
+        // 否则 sent 会被日志包（action='[上传] 成功' 等）覆盖，导致断言读到错误 body。
+        const b = JSON.parse(opts.body);
+        if (b && Object.prototype.hasOwnProperty.call(b, 'data')) sent = b;
         return { ok: true, text: async () => JSON.stringify({ ok: true, msg: 'ok' }) };
       }),
     );

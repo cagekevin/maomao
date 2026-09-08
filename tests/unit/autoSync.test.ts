@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const FIRST_MS = 30_000;
-const INTERVAL_MS = 30 * 60_000;
+const INTERVAL_MS = 45 * 60_000;
 
 const mocks = vi.hoisted(() => {
   const uploadConfig = vi.fn(
