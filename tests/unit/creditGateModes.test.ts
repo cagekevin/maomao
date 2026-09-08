@@ -8,11 +8,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  *   仅保留「完全自主 auto」× 开关两态：creditHit = getCreditSwitch()（与执行模型正交，只拦真生成那下）。
  *
  * 核心判定（收敛到 execute_plan 唯一入口，useCanvasAgentTools.ts executePlanTool）：
- *   creditHit = getCreditSwitch()   // 2026-08-27 简化：全局总闸，与 runMode/模式正交
+ *   creditHit = getCreditSwitch()   // 2026-08-27 简化：全局总闸，与执行模型正交
  *   · 命中（开关开）→ 强制 autoRun=false（只建节点、不烧积分），置 per-conv creditGate，返回 awaited:'credit'
  *   · 未命中（开关关）→ 按原 autoRun 放行（真烧积分）
  *
- * 通过控制 creditSwitch 与 runMode 断言 autoRun 传参、creditGate 置位、返回语义。
+ * 通过控制 creditSwitch 断言 autoRun 传参、creditGate 置位、返回语义。
  */
 // 可控 creditSwitch：getX 读 __credit，setX 写 __credit（contentStore 的 contentGet/contentSet 也被 mock 到同一状态）
 let __creditState;
@@ -61,9 +61,6 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   setCurrentRefImages: vi.fn(),
   getLastUserReferenceImages: vi.fn(() => []),
   getCurrentImageMap: vi.fn(() => []),
-  getCurrentRunMode: vi.fn(() => 'auto'),
-  setCurrentRunMode: vi.fn(),
-  getWorkMode: vi.fn(() => 'auto'),
   getCurrentSnapshot: vi.fn(() => ({ skills: [] })),
 }));
 vi.mock('../../src/components/base/store/taskStore.ts', () => ({
@@ -93,7 +90,6 @@ import { buildCanvasAgentTools } from '../../src/components/agent/canvas/useCanv
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts';
 import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts';
 import type { CreditGate } from '../../src/components/agent/conversation/conversationSkillState.ts';
-import type { RunMode } from '../../src/components/agent/conversation/conversationAiState.ts';
 
 // vi.mock 工厂已把 executePlan 替换为 vi.fn，vi.mocked() 可恢复其 mock 类型（含 .mock.calls），零 any
 const mockExecutePlan = vi.mocked(executePlan);
@@ -101,7 +97,7 @@ const mockExecutePlan = vi.mocked(executePlan);
 // 连坐同一作用域 vi/expect 变不可调用（canvasAgentTools.test.ts 探针实测）。
 // 合并本地 __state 字段类型（替代原 any 别名），保留规避意图且零 any。
 type ConvMock = typeof convStore & {
-  __state: { awaiting: boolean; creditGate: CreditGate | null; runMode: RunMode };
+  __state: { awaiting: boolean; creditGate: CreditGate | null };
 };
 const convMock = convStore as unknown as ConvMock;
 
@@ -132,7 +128,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   __creditState = true; // 默认开（安全）
   // 配对状态
-  convMock.__state = { awaiting: false, creditGate: null, runMode: 'auto' };
+  convMock.__state = { awaiting: false, creditGate: null };
   vi.mocked(convStore.getAwaitingConfirm).mockImplementation(() => convMock.__state.awaiting);
   vi.mocked(convStore.setAwaitingConfirm).mockImplementation((v) => {
     convMock.__state.awaiting = !!v;
@@ -147,20 +143,15 @@ beforeEach(() => {
   vi.mocked(convStore.clearCreditGate).mockImplementation(() => {
     convMock.__state.creditGate = null;
   });
-  vi.mocked(convStore.getCurrentRunMode).mockImplementation(() => convMock.__state.runMode);
-  vi.mocked(convStore.setCurrentRunMode).mockImplementation((m) => {
-    convMock.__state.runMode = m as RunMode;
-  });
 });
 
 function buildTool() {
   return buildCanvasAgentTools(makeCtx());
 }
 
-describe('三种模式 × 积分开关 × execute_plan 唯一入口', () => {
-  describe('完全自主（runMode=auto）', () => {
+describe('完全自主 × 积分开关 × execute_plan 唯一入口', () => {
+  describe('完全自主', () => {
     it('开关开【拦截】→ 强制 autoRun=false、建节点、置 creditGate、返回 awaited:credit，不烧积分', async () => {
-      convMock.__state.runMode = 'auto';
       __creditState = true;
       const t = buildTool();
       const r = await t.execute_plan({ generations: GENS, auto_run: true });
@@ -177,7 +168,6 @@ describe('三种模式 × 积分开关 × execute_plan 唯一入口', () => {
     });
 
     it('开关关【放行】→ 按 auto_run 直接烧积分、不置 creditGate', async () => {
-      convMock.__state.runMode = 'auto';
       __creditState = false;
       const t = buildTool();
       const r = await t.execute_plan({ generations: GENS, auto_run: true });

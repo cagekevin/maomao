@@ -192,7 +192,6 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     contentSet('agent_panel_width', '320');
     contentSet('agent_split_width', '420');
     contentSet('agent_input_mode', 'agent');
-    contentSet('agent_work_mode', 'auto');
     contentSet('canvasAgentGenParams', { steps: 30 });
     contentSet('agent_skill_usage', { foo: 1 });
     contentSet('lastOpenedProject', 'p1');
@@ -208,7 +207,6 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     expect(ls.agent_panel_width).toBeUndefined();
     expect(ls.agent_split_width).toBeUndefined();
     expect(ls.agent_input_mode).toBeUndefined();
-    expect(ls.agent_work_mode).toBeUndefined();
     expect(ls.canvasAgentGenParams).toBeUndefined();
     expect(ls.agent_skill_usage).toBeUndefined();
     expect(ls.lastOpenedProject).toBeUndefined();

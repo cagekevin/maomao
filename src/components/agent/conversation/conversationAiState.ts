@@ -5,13 +5,19 @@
  *
  * 【拆分契约 · 2026-08-21】从 conversationStore.js 拆出的 F 类职能：
  * 统一风格契约 global_contract / 跨步成果 artifact / AI 撤销栈 /
- * 参考图 refImages / 执行分级 runMode。全部 per-conversation。
+ * 参考图 refImages。全部 per-conversation。
  * 【阶段3 · 2026-08-21】Skill 三阶段状态（pendingGenerations/awaitingConfirm）已抽至
  * conversationSkillState.js（编排轴子域化）。本文件不再包含 Skill 门禁状态。
  * 依赖单向指向 conversationState 底座，命名/导出不变，消费方无感知。
  * ════════════════════════════════════════════════════════════════
  */
-import { getActiveConv, commit, getState, normalizeMemory } from './conversationState.ts';
+import {
+  getActiveConv,
+  requireActiveConv,
+  commit,
+  getState,
+  normalizeMemory,
+} from './conversationState.ts';
 import { normalizeAssistantTable, emptyAssistantTable } from '../assistantTable/assistantTable.ts';
 import type { AssistantTable } from '../assistantTable/assistantTable.ts';
 import {
@@ -31,47 +37,6 @@ import type {
   TableColumn,
   TableRow,
 } from '../assistantTable/assistantTable.ts';
-import {
-  getWorkMode,
-  setWorkMode,
-  resolveConvRunMode,
-  registerLegacyRunModeReader,
-  registerRunModeSync,
-} from '../runtime/runModeRegistry.ts';
-
-/**
- * runMode（执行分级）2026-09-05 精简收敛恒 auto（direct/step-confirm 已删）：
- *  - 读：getCurrentRunMode 由 workMode 派生，恒 auto
- *  - 写：setCurrentRunMode 收敛为 setWorkMode，恒映射 auto
- * 首占钩子：legacyRunModeReader 已不再参与推导（getWorkMode 恒 auto）；
- *           runModeSync 使 setWorkMode 同步写当前会话 conv.runMode 归 auto（兼容历史持久化）。
- */
-registerLegacyRunModeReader(() => String(getActiveConv()?.runMode || 'auto').toLowerCase());
-registerRunModeSync((_runMode) => {
-  const conv = getActiveConv();
-  if (!conv) return; // 会话未就绪不写（读取侧以 workMode 为真源，不受影响）
-  // 2026-09-05 精简：执行模型恒 auto，runMode 兼容字段一律归 auto
-  commit({
-    ...getState(),
-    conversations: getState().conversations.map((c) =>
-      c.id === conv.id ? { ...c, runMode: 'auto', updatedAt: Date.now() } : c,
-    ),
-  });
-});
-
-/** 执行分级（workMode 的派生态）：2026-09-05 精简后运行时恒 'auto'；保留 'step-confirm' 供读历史持久化数据 */
-export type RunMode = 'step-confirm' | 'auto';
-
-/** 【对齐大雄 agentGetRunMode】读当前执行分级：由 workMode 派生，恒 auto（direct/step-confirm 已删） */
-export function getCurrentRunMode(): RunMode {
-  return resolveConvRunMode(getWorkMode()) as RunMode;
-}
-
-/** 【对齐大雄 agentSetRunMode】写执行分级：收敛为 setWorkMode。2026-09-05 精简后恒映射 auto。 */
-export function setCurrentRunMode(_mode: unknown): void {
-  // 2026-09-05 精简：执行模型收敛恒 auto（direct/step-confirm 已删），任何入参一律归 'auto'
-  setWorkMode('auto');
-}
 
 /* ── 统一风格契约 global_contract + 跨步成果 artifact（对齐大雄，per-conversation）── */
 
@@ -86,7 +51,7 @@ export function getCurrentGlobalContract(): GlobalContract | null {
 
 /** 写当前对话的统一风格契约（阶段1 产出，逐字锁定每步） */
 export function setCurrentGlobalContract(c: GlobalContract | null): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('setCurrentGlobalContract');
   if (!conv) return;
   commit({
     ...getState(),
@@ -140,7 +105,7 @@ export function getCurrentAssistantTabs(): AssistantTableTabs {
  *  被别处捕获后（如 acceptTablePreview 存的 preview.targetTabId）再重读就对不上，confirm 误判「目标不存在」。
  *  落一次后真源存在 → 后续读全部返回同一批稳定 id。幂等：已落盘则直接返回。 */
 export function materializeAssistantTabs(): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('materializeAssistantTabs');
   if (!conv) return;
   if (conv.memory?.assistantTables) return; // 已落盘 → id 已稳定
   setCurrentAssistantTabs(getCurrentAssistantTabs());
@@ -150,7 +115,7 @@ export function materializeAssistantTabs(): void {
  *  P2 运行时校验 2026-09-08：落盘前跑 validateTabs，dev 下对硬约束（error）告警——
  *  让 copyTab 式「引用脱节」在写代码当下的运行时就被抓住，而非只靠单测。 */
 export function setCurrentAssistantTabs(tabs: AssistantTableTabs): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('setCurrentAssistantTabs');
   if (!conv) return;
   const normalized = normalizeAssistantTabs(tabs);
   if (import.meta.env.DEV !== false) {
@@ -222,7 +187,7 @@ export function markMessageTableResolved(
   messageId: unknown,
   resolved: 'confirmed' | 'cancelled',
 ): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('markMessageTableResolved');
   if (!conv || messageId == null) return;
   commit({
     ...getState(),
@@ -250,7 +215,7 @@ export function getCurrentArtifacts(): Artifact[] | null {
 
 /** 写当前对话的跨步成果资产（[{id,type,title,description,nodeId?,url?}]） */
 export function setCurrentArtifacts(arr: Artifact[] | null): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('setCurrentArtifacts');
   if (!conv) return;
   commit({
     ...getState(),
@@ -278,7 +243,7 @@ export function getActiveAiUndoStack(): unknown[] {
 
 /** 压入 AI 撤销快照（上限 20） */
 export function pushActiveAiUndo(snapshot: Record<string, unknown>): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('pushActiveAiUndo');
   if (!conv) return;
   const stack = [...(conv.aiUndoStack || []), snapshot];
   if (stack.length > 20) stack.shift();
@@ -292,7 +257,7 @@ export function pushActiveAiUndo(snapshot: Record<string, unknown>): void {
 
 /** 弹出最近 AI 撤销快照 */
 export function popActiveAiUndo(): Record<string, unknown> | undefined {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('popActiveAiUndo');
   if (!conv || !(conv.aiUndoStack || []).length) return null;
   const stack = [...conv.aiUndoStack];
   const popped = stack.pop() as Record<string, unknown> | undefined;
@@ -314,7 +279,7 @@ export function getCurrentRefImages(): string[] {
 
 /** 写当前对话「本轮用户引用的参考图」URL 数组 */
 export function setCurrentRefImages(urls: unknown[] = []): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('setCurrentRefImages');
   if (!conv) return;
   const next: string[] = Array.isArray(urls) ? (urls.filter(Boolean) as string[]) : [];
   commit({

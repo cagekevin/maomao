@@ -11,6 +11,7 @@
  */
 import {
   getActiveConv,
+  requireActiveConv,
   commit,
   getState,
   normalizeWorkflow,
@@ -71,7 +72,7 @@ export function getCurrentSnapshot(): ConversationSnapshot {
  * 重构后这是唯一写入口之一：更新 active 对话并自动落盘。
  */
 export function setCurrentSnapshot(snap?: SnapshotPatch | null): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('setCurrentSnapshot');
   if (!conv) return;
   const rawMessages = Array.isArray(snap?.messages)
     ? snap.messages.slice(-AGENT_MSG_MAX)
@@ -110,7 +111,7 @@ export function setCurrentSnapshot(snap?: SnapshotPatch | null): void {
  *   读取到的就是最新消息（保证 send finally 同步读到完整 assistant 而非空 streaming 占位）。
  */
 export function patchCurrentMessages(messages?: ConversationMessage[] | null): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('patchCurrentMessages');
   if (!conv) return;
   commit(
     {
@@ -138,7 +139,7 @@ export function getCurrentWorkflow(): WorkflowState | null {
 
 /** 原地补丁当前对话的 workflow（运行时状态；更新后落盘） */
 export function patchCurrentWorkflow(patch: Record<string, unknown> = {}): WorkflowState | null {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('patchCurrentWorkflow');
   if (!conv) return null;
   const wf = conv.workflow
     ? { ...conv.workflow }
@@ -165,7 +166,7 @@ export function getCurrentPending(): PendingRefState | null {
 
 /** 设置/清除当前对话的 pending（刷新后据此恢复任务） */
 export function setCurrentPending(p: unknown): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('setCurrentPending');
   if (!conv) return;
   commit({
     ...getState(),
@@ -182,7 +183,7 @@ export function getCurrentMemory(): ConversationMemory {
 
 /** 更新当前对话的 memory（提炼 lastPlan 等；【P1b】facts/artifacts 限容） */
 export function setCurrentMemory(m: unknown): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('setCurrentMemory');
   if (!conv) return;
   commit({
     ...getState(),

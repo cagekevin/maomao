@@ -33,7 +33,6 @@ const h = vi.hoisted(() => {
     model: 'gpt-4o',
     conversations: [],
     activeConversationId: 'c1',
-    runMode: 'auto',
   };
   // Skill 列表
   let skills = [];
@@ -62,9 +61,7 @@ const h = vi.hoisted(() => {
   const markSkillUsed = vi.fn();
   const showToast = vi.fn();
   const setCurrentSnapshot = vi.fn((s) => snapshotSetter(s));
-  const setCurrentRunMode = vi.fn();
   const setAwaitingConfirm = vi.fn();
-  const getCurrentRunMode = vi.fn(() => agentState.runMode || 'auto');
   // 收口 store 穿透（2026-08-21）：AgentPanel 从 useAgentChat 解构这 4 个 handler，不再直连 conversationStore
   const useAgentChat = vi.fn(() => ({
     ...agentState,
@@ -116,9 +113,7 @@ const h = vi.hoisted(() => {
     markSkillUsed,
     showToast,
     setCurrentSnapshot,
-    setCurrentRunMode,
     setAwaitingConfirm,
-    getCurrentRunMode,
     contentSubscribe,
     subscribeCbs,
     AGENT_CHAT_MODEL_KEY,
@@ -204,8 +199,6 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl:
 vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   setCurrentSnapshot: h.setCurrentSnapshot,
   setAwaitingConfirm: vi.fn(),
-  getCurrentRunMode: () => 'auto',
-  setCurrentRunMode: h.setCurrentRunMode,
   markMessageTableResolved: vi.fn(),
 }));
 vi.mock('../../src/components/base/store/taskStore.ts', () => ({ runNodeGeneration: vi.fn() }));

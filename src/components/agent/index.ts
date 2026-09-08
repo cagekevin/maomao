@@ -13,7 +13,6 @@
  *     ├─ useAgentChat.ts         对话 hook：send/stop/clear 编排骨架
  *     ├─ agentCore.ts            纯函数：buildRequestMessages / parseSSEChunk / 意图分流
  *     ├─ agentRuntime.ts         运行时：roundTrip（LLM 通信）/ runToolCalls（工具执行，依赖注入版）
- *     ├─ runModeRegistry.ts      执行模型（2026-09-05 收敛恒 auto 完全自主 + credit 积分闸）
  *     ├─ agentConfig.ts          system prompt + 运行时常量（值收口）
  *     ├─ inputStateMachine.ts    输入状态机：idle/planning/running/steer/retry
  *     ├─ workflowState.ts        M2 工作流状态迁移纯函数（wfStart/wfSteer/wfFinish/…）
@@ -32,7 +31,7 @@
  *   conversation/                —— 会话状态（单一数据源）
  *     ├─ conversationState.ts    底座：模块级 state + 落盘/订阅/归一
  *     ├─ conversationSnapshot.ts 当前对话快照（workflow/pending/memory）
- *     ├─ conversationAiState.ts  AI 编排态（global_contract/artifacts/undo/refImages/runMode）
+ *     ├─ conversationAiState.ts  AI 编排态（global_contract/artifacts/undo/refImages）
  *     ├─ conversationImageMap.ts 跨轮图记忆（图1~图N 编号）
  *     ├─ conversationSkillState.ts Skill 三阶段态
  *     └─ conversationStore.ts    聚合 re-export（外部统一从这 import）
@@ -40,7 +39,7 @@
  * 【改 X 看哪（快速定位）】
  *   - 加工具        → canvas/useCanvasAgentTools.ts（注册 name/description/parameters/execute）
  *   - 改发送/循环    → runtime/useAgentChat.ts
- *   - 改执行模型     → runtime/runModeRegistry.ts（2026-09-05 收敛恒 auto）
+ *   - 改执行模型     → runtime/agentCore.ts（AUTO_MODE_SYSTEM_PROMPT 注入）/ canvas/useCanvasAgentTools.ts（credit 积分闸）；执行模型已收敛恒 auto
  *   - 改会话状态     → conversation/conversationState.ts（底座）/ conversationStore.ts（聚合）
  *   - 改批量出图     → canvas/canvasPlanExecutor.ts
  *   - 改画布操作     → canvas/canvasHost.ts（写操作必须走它，禁裸 useReactFlow）
@@ -66,11 +65,3 @@ export {
   setCreditSwitch,
 } from './canvas/useCanvasAgentTools.ts';
 export { setAgentKey } from './conversation/conversationStore.ts';
-// 运行模式注册表透出（docs/65 M8→2026-09-05 精简）：收敛恒 auto（三态已删，保留 get/set 归一封装）
-export {
-  getWorkMode,
-  setWorkMode,
-  RUN_MODE_IDS,
-  DEFAULT_WORK_MODE,
-  WORK_MODE_STORAGE_KEY,
-} from './runtime/runModeRegistry.ts';

@@ -100,7 +100,7 @@ function TopNav({
   };
 
   return (
-    <header className="bg-canvas flex items-center justify-between px-4 relative z-topnav flex-shrink-0 h-16 pt-2 pb-2">
+    <header className="bg-canvas flex items-center justify-between px-4 relative z-topnav flex-shrink-0 h-14 py-2">
       {/* 左侧：Logo */}
       <div className="flex items-center gap-6">
         <div
@@ -164,7 +164,7 @@ function TopNav({
             />
           </button>
           {/* hover 用户菜单（复刻官方 Component797，含「同步设置」区块） */}
-          <div className="fixed right-2 top-16 w-64 bg-surface border border-edge rounded-xl shadow-2xl opacity-0 invisible group-hover/avatar:opacity-100 group-hover/avatar:visible transition-all duration-200 z-float overflow-hidden flex flex-col">
+          <div className="fixed right-2 top-14 w-64 bg-surface border border-edge rounded-xl shadow-2xl opacity-0 invisible group-hover/avatar:opacity-100 group-hover/avatar:visible transition-all duration-200 z-float overflow-hidden flex flex-col">
             {/* 头部：头像 + 昵称 */}
             <div className="p-4 border-b border-edge flex items-center gap-3">
               <img

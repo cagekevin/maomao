@@ -204,9 +204,6 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => {
     })),
     setCurrentMemory: vi.fn(),
     getCurrentImageMap: vi.fn(() => []),
-    getCurrentRunMode: vi.fn(() => 'auto'),
-    setCurrentRunMode: vi.fn(),
-    getWorkMode: vi.fn(() => 'auto'),
     getActivePendingMemorySuggest: vi.fn(() => null),
     setActivePendingMemorySuggest: vi.fn(),
     newConversation: vi.fn(() => {
@@ -238,10 +235,7 @@ import {
   parseGenerationsFromReply,
   CANVAS_AGENT_RULES,
 } from '../../src/components/agent/runtime/useAgentChat.ts';
-import {
-  resolveSkillExecutionRules,
-  ChatMessage,
-} from '../../src/components/agent/runtime/agentCore.ts';
+import { ChatMessage } from '../../src/components/agent/runtime/agentCore.ts';
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts';
 
 // 【类型消化】src 侧 useAgentChat().messages 已是 ChatMessage[]，但测试 fixture 会在消息上挂
@@ -289,8 +283,6 @@ beforeEach(() => {
     vi.mocked(convStore.getAwaitingConfirm).mockReturnValue(v === true);
   });
   vi.mocked(convStore.getAwaitingConfirm).mockReturnValue(false);
-  // 2026-09-05 精简：执行模型恒 auto（direct/step-confirm 已删），始终 mock 为 auto
-  vi.mocked(convStore.getWorkMode).mockReturnValue('auto');
   fetchMock = vi.fn();
   vi.stubGlobal('fetch', fetchMock);
 });
@@ -994,14 +986,8 @@ describe('useAgentChat · 执行模型提示词注入（恒 auto）', () => {
 
   const systemTexts = (out) => out.filter((m) => m.role === 'system').map((m) => m.content);
 
-  it('resolveSkillExecutionRules：恒返回单阶段 Skill 指令（不再三阶段/无「阶段2 等待确认」）', () => {
-    expect(resolveSkillExecutionRules('auto')).toContain('Skill 是你的参考');
-    expect(resolveSkillExecutionRules('auto')).not.toContain('阶段2 · 等待确认');
-    expect(resolveSkillExecutionRules('auto')).not.toContain('作废');
-  });
-
   it('auto：注入「完全自主」分流段，引导 plan 可调且不卡确认（R2）', () => {
-    const out = buildRequestMessages(base, '', true, [], null, [], 0, '', 'auto') as AssembledMsg[];
+    const out = buildRequestMessages(base, '', true, [], null, [], 0, '') as AssembledMsg[];
     const joined = systemTexts(out).join('\n');
     expect(joined).toContain('完全自主');
     expect(joined).toContain('完全自主');
@@ -1009,17 +995,7 @@ describe('useAgentChat · 执行模型提示词注入（恒 auto）', () => {
   });
 
   it('skill × auto：Skill 只作理解参考注入，执行模型仍恒 auto（无分步确认）', () => {
-    const out = buildRequestMessages(
-      base,
-      '',
-      true,
-      skill(),
-      null,
-      [],
-      0,
-      '',
-      'auto',
-    ) as AssembledMsg[];
+    const out = buildRequestMessages(base, '', true, skill(), null, [], 0, '') as AssembledMsg[];
     const texts = systemTexts(out);
     const skillSys = texts.find((t) => t.includes('Skill 文档'));
     expect(skillSys).toContain('Skill 是你的参考'); // 单阶段 Skill 指令
@@ -1319,13 +1295,11 @@ describe('useAgentChat · 阶段1D 薄壳化（sending/activeId 订阅 store）'
     expect(result.current.activeConversationId).toBe('c9');
   });
 
-  it('收口穿透：回传 AgentPanel 所需的 4 个 store 原子 handler（指向聚合层，非新造）', () => {
+  it('收口穿透：回传 AgentPanel 所需的 store 原子 handler（指向聚合层，非新造）', () => {
     const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat());
     // 若将来用 hook 时忘回传、或改成局部新造，此断言即红（保证 AgentPanel 不直连 store 仍可用）
     expect(result.current.setCurrentSnapshot).toBe(convStore.setCurrentSnapshot);
     expect(result.current.setAwaitingConfirm).toBe(convStore.setAwaitingConfirm);
-    expect(result.current.getCurrentRunMode).toBe(convStore.getCurrentRunMode);
-    expect(result.current.setCurrentRunMode).toBe(convStore.setCurrentRunMode);
   });
 
   it('发送锁单一真相：send 一开始即同步置位 store.sending（不再依赖独立 sendingRef）', async () => {

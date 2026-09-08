@@ -103,12 +103,9 @@ import {
   getCreditGate,
   clearCreditGate,
   getCurrentImageMap,
-  getCurrentRunMode,
-  setCurrentRunMode,
   setCurrentAssistantTable,
   setCurrentGlobalContract,
   markMessageTableResolved,
-  getWorkMode,
   waitHydrated,
 } from '../conversation/conversationStore.ts';
 // 【消息单源 P5 基座】按字段订阅 store 的 messages（含 activeId 从 store 同步读），
@@ -300,8 +297,6 @@ export interface UseAgentChatReturn {
   setCurrentAssistantTable: typeof setCurrentAssistantTable;
   setCurrentGlobalContract: typeof setCurrentGlobalContract;
   markMessageTableResolved: typeof markMessageTableResolved;
-  getCurrentRunMode: () => string;
-  setCurrentRunMode: (mode: string) => void;
 }
 
 export function useAgentChat({
@@ -702,7 +697,6 @@ export function useAgentChat({
               getCurrentImageMap(),
               loadAgentHistoryTurns(),
               buildProjectMemoryContextFromStore(agentKey, '', text),
-              getWorkMode(),
               mode,
             );
             if (intentHint) msgs.push({ role: 'system', content: intentHint });
@@ -1114,7 +1108,5 @@ export function useAgentChat({
     setCurrentAssistantTable,
     setCurrentGlobalContract,
     markMessageTableResolved,
-    getCurrentRunMode,
-    setCurrentRunMode,
   };
 }

@@ -74,7 +74,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   });
 
   it('mode=table 时首条 system 注入 TABLE_AGENT_RULES（替换画布准则，不叠加）', () => {
-    // 第10参 mode='table'：表格工作区展开→表格人格优先，不再注入 CANVAS_AGENT_RULES
+    // 末参 mode='table'：表格工作区展开→表格人格优先，不再注入 CANVAS_AGENT_RULES
     const out = buildRequestMessages(
       [{ role: 'user', content: 'hi' }],
       '',
@@ -84,7 +84,6 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       [],
       0,
       '',
-      undefined,
       'table',
     );
     expect(out[0].role).toBe('system');

@@ -39,11 +39,9 @@
  *   无法操作画布，代价不对称。本层只判消歧收益最高的三类，其余一律交 LLM。
  * ════════════════════════════════════════════════════════════════
  */
-import type { WorkMode } from './runModeRegistry.ts';
 import { contentGet } from '../../base/core/contentStore.ts';
 import { logger } from '../../base/core/logger.ts';
 import { toImageContentBlocks } from '../../base/utils/imageUrl.ts';
-import { getSystemPromptForWorkMode, RUN_MODE_IDS } from './runModeRegistry.ts';
 import { AGENT_PROMPTS } from '../agentConfig.ts';
 import type { ImageMapEntry } from '../conversation/conversationImageMap.ts';
 
@@ -136,13 +134,9 @@ export const TABLE_AGENT_RULES = AGENT_PROMPTS.TABLE_RULES;
 // 值已收口到 ../agentConfig.js 的 AGENT_PROMPTS.SKILL_EXECUTION_RULES；此处别名沿用。
 export const SKILL_EXECUTION_RULES = AGENT_PROMPTS.SKILL_EXECUTION_RULES;
 
-/**
- * Skill 注入指令解析。2026-09-05 执行模型精简后恒返回 SKILL_EXECUTION_RULES（单阶段「Skill=理解需求的输入」），
- * 不再按执行模式追加确认粒度（direct/step-confirm 已删，执行模型恒 auto）。
- */
-export function resolveSkillExecutionRules(_workMode: WorkMode): string {
-  return SKILL_EXECUTION_RULES;
-}
+/** auto 执行模型系统提示词（2026-09-05 执行模型精简恒 auto；原 runModeRegistry WORK_MODE_DEFS.AUTO.systemPrompt 提升为常量） */
+export const AUTO_MODE_SYSTEM_PROMPT =
+  '【生图执行粒度：完全自主】你完全自主地建节点/生成/操作画布，直接执行，无需用户确认。需要烧积分时有积分确认闸在必要处拦一下。';
 // 【已禁用·Gap E·2026-08-21】count 富字段指令暂不开放给模型：执行器 schema 虽声明了 count/type/role 等，
 // 但执行链路未兑现（一次只出一张、角色/类型未实际驱动行为），开放会诱导模型输出执行器不理解/不消费的字段。
 // 待想清楚「同构图多张」的确切语义后，把下面这行加回 CANVAS_AGENT_RULES 模板即可（勿加回 schema 促成模型空口承诺）：
@@ -318,7 +312,6 @@ export function buildRequestMessages(
   imageCatalog: ImageRef[] = [],
   historyTurns: number = 0,
   projectMemoryContext: string = '',
-  workMode: WorkMode = RUN_MODE_IDS.AUTO,
   mode: 'canvas' | 'table' = 'canvas',
 ) {
   const out: ChatMessage[] = [];
@@ -349,15 +342,15 @@ export function buildRequestMessages(
     // Skill 注入指令：让 LLM 按 Skill 理解需求并按对话方式自主执行（2026-09-05 精简为单阶段）
     out.push({
       role: 'system',
-      content: `${skillTexts.join('\n\n')}\n\n${resolveSkillExecutionRules(workMode)}`,
+      content: `${skillTexts.join('\n\n')}\n\n${SKILL_EXECUTION_RULES}`,
     });
   }
   // 执行模型指令段（2026-09-05 精简恒 auto）：注入引导 show_plan_for_confirm 可调性——
   // 修复根因：无 Skill 常规任务下 LLM 无 plan 使用指引 → plan 调不了。direct/step-confirm 已删，
-  // getSystemPromptForWorkMode 恒返回 auto 定义。enhance=false（最小请求）时不注入，
+  // 恒注入 AUTO_MODE_SYSTEM_PROMPT（原 getSystemPromptForWorkMode 恒 auto 定义，已 inline）。enhance=false（最小请求）时不注入，
   // 保持「完全不注入 system」的契约不变。
   if (enhance) {
-    const runModePrompt = getSystemPromptForWorkMode(workMode);
+    const runModePrompt = AUTO_MODE_SYSTEM_PROMPT;
     if (runModePrompt) out.push({ role: 'system', content: runModePrompt });
   }
   // memory 注入（对齐大雄 agentMemoryPromptBlock）：让 LLM 记住本对话历史与记忆，而不靠原始消息回传。

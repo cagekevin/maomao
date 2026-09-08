@@ -39,6 +39,8 @@ import {
   estimateConversationsBytes,
   SAFE_BUDGET_BYTES,
 } from '../../base/utils/volumePolicy.ts';
+// 【批2 · 落盘前写前校验】validateConversationState 仅 type 依赖本文件，不形成运行时环
+import { validateConversationState } from './conversationInvariants.ts';
 
 /**
  * 存储键按 agentKey 隔离（每项目一个 agentKey → 每项目一套会话）。
@@ -59,8 +61,8 @@ export interface ConversationMemory {
   notes: unknown[];
   global_contract: GlobalContractShape | null;
   artifacts: ArtifactShape[] | null;
-  /** AI 助手左栏表格工作区（assistantTable：{columns,rows}）。不走精确类型（保持底座轻 + 避免
-   *  底座反向依赖 assistantTable 模块）；读写由 get/setCurrentAssistantTable 经 normalizeAssistantTable 归一。 */
+  /** @deprecated 只读（SSOT-2 兼容层）：AI 助手左栏表格工作区单表（{columns,rows}），仅老数据水合读取，绝不写；
+   *  真源已迁到 assistantTables（多标签页），写入一律走 setCurrentAssistantTabs。读写归一由 assistantTable 模块保证。 */
   assistantTable: unknown;
   /** AI 助手左栏表格工作区【多标签页真源】（assistantTables:{tabs,activeTabId}，spec 1.1）。
    *  读写由 get/setCurrentAssistantTabs 经 normalizeAssistantTabs 归一；assistantTable 只读兼容（老数据水合，不再写）。 */
@@ -167,6 +169,12 @@ export interface ConversationMessage {
 /**
  * 单条会话。字段由 normalizeConversation 保证齐全；
  * 索引签名保留，因为落盘数据可能携带历史遗留字段（creditGate 等也经 CREDIT_GATE_FIELD 动态键访问）。
+ *
+ * 【新增会被序列化的字段 × 三联动（改这里必须同步，漏一处是隐患）】
+ *  ① normalizeConversation 补默认值/归一（本文件同名函数）；
+ *  ② volumePolicy 限容（sanitizeMessages / capConversationMemory / applyConversationBudget，见 base/utils/volumePolicy.ts）；
+ *  ③ conversationInvariants 单测网（会让 integrity 被破坏的改动提前变红，见 tests/unit/conversationState.invariants.test.ts）。
+ *  纯运行态字段（不落盘，如 streaming 占位）无需走 ①③，但请随手确认不被 setCurrentSnapshot 序列化。
  */
 export interface Conversation {
   id: string;
@@ -187,7 +195,6 @@ export interface Conversation {
   awaitingConfirm: boolean;
   pendingMemorySuggest: Record<string, unknown> | null;
   referenceImages: string[];
-  runMode: 'auto' | 'step-confirm';
   [key: string]: unknown;
 }
 
@@ -210,7 +217,6 @@ export interface RawConversation {
   awaitingConfirm?: unknown;
   pendingMemorySuggest?: Record<string, unknown> | null;
   referenceImages?: string[];
-  runMode?: unknown;
   [key: string]: unknown;
 }
 
@@ -273,6 +279,22 @@ const persistDebounced = createDebouncedPersist(() => {
   // 再截断最大字符串，保证落盘字符串恒 < SAFE_BUDGET_BYTES（规避 QuotaExceededError）。
   // 只作用于落盘投影副本，绝不动 states 本体（内存态完整，撤销/上下文/恢复读取不受影响）。
   const normalized = next.conversations.map(normalizeConversation);
+  // 【批2 · 落盘前写前校验】dev 下对硬约束（error）违规告警——把「假成功」在写时就抓住，不等用户踩。
+  // 只作用于内存归一副本，与落盘投影降级互不影响；P1 体积仍由下方 applyConversationBudget 强制。
+  if (import.meta.env.DEV !== false) {
+    const violations = validateConversationState({
+      conversations: normalized,
+      activeId: next.activeId,
+      sending: false,
+    }).filter((v) => v.level === 'error');
+    if (violations.length) {
+      logger.warn('AI助手', '会话落盘前不变量校验失败', {
+        key: convKey(currentAgentKey),
+        count: violations.length,
+        violations,
+      });
+    }
+  }
   // volumePolicy 的 ChatMessage.content 是 string 窄类型；真实消息 content 可为数组，这里只在
   // 落盘降级投影这一边界做一次断言（运行时 shape 兼容），避免把整套消息类型都收窄到 string。
   const { conversations: toStore, downgraded } = applyConversationBudget(
@@ -605,6 +627,33 @@ export function getActiveConv(): Conversation | null {
   return getState().conversations.find((c) => c.id === getState().activeId) || null;
 }
 
+/**
+ * 写入口守卫（spec/AI-ASSISTANT-STATE-INVARIANTS-SSOT.md 批0）：返回当前对话；无则
+ * logger.warn 记录「写未生效」并返回 null。把「假成功」转「可见错误」——写没生效不再静默吞掉。
+ * 用于所有 `if (!conv) return` 的写入口（setCurrentXxx / push/pop / markXxx 等）。
+ *
+ * 【限噪】水化竞态窗（hydrate 前空壳 + 某 effect 抢先做写）会连续命中同一 op，瞬时刷日志淹没真实告警。
+ * 故按 op 做分钟级限频：同 op 在窗口内只 warn 一次，避免噪音，又不掩盖「确实悬空」这一事实。
+ */
+const warnWindowMs = 5000;
+const lastWarnByOp = new Map<string, number>();
+function throttledWarnClick(op: string): boolean {
+  const now = Date.now();
+  const last = lastWarnByOp.get(op);
+  lastWarnByOp.set(op, now);
+  if (last === undefined || now - last >= warnWindowMs) return true;
+  return false;
+}
+export function requireActiveConv(op: string): Conversation | null {
+  const conv = getActiveConv();
+  if (!conv && throttledWarnClick(op)) {
+    logger.warn('AI助手', `写「${op}」未生效：当前无有效对话（activeId 悬空）`, {
+      activeId: getState().activeId,
+    });
+  }
+  return conv;
+}
+
 /** 标记当前 agentKey 已从存储恢复（hydrated=true，此后 commit 允许落盘）。
  *  由 applyConversation / importLegacy（conversationStore 聚合层）在恢复/切换成功后调用。 */
 export function markHydrated(): void {
@@ -649,9 +698,6 @@ export function normalizeConversation(raw: unknown): Conversation | null {
   // 【积分闸】creditGate：单一对象 { pending, gens, map(stepId→nodeId) }，含媒体生成待确认态 + 步骤映射
   if (c[CREDIT_GATE_FIELD] === undefined) c[CREDIT_GATE_FIELD] = null;
   if (!Array.isArray(c.referenceImages)) c.referenceImages = []; // 本轮用户引用的参考图 URL（per-conversation，防跨对话泄漏）
-  // 【2026-09-05 精简】执行模型收敛恒 auto：runMode 兼容字段一律归 auto（历史旧值 direct/step-confirm/semi 归一丢弃；
-  // 运行时断言以 workMode 真源 getWorkMode()=auto 为准，本字段仅历史持久化兼容，写入侧 registerRunModeSync 恒写 auto）。
-  c.runMode = 'auto';
   return c as Conversation;
 }
 

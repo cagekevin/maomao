@@ -6,7 +6,7 @@
  * 【拆分契约 · 2026-08-21】原"上帝文件"(674 行 / 44 导出)按关注点拆成 5 个实现文件 + 本聚合入口：
  *   - conversationState(共享 state/落盘/归一化底座)
  *   - conversationSnapshot(D：当前对话快照 workflow/pending/memory)
- *   - conversationAiState(F：contract/artifact/undo/refImages/runMode)
+ *   - conversationAiState(F：contract/artifact/undo/refImages)
  *   - conversationSkillState(F·阶段3：Skill 三阶段 pendingGenerations/awaitingConfirm)
  *   - conversationImageMap(E：跨轮图数据源)
  *   - conversationStore(本文件)：保留核心会话 CRUD(A 类) 并作为 re-export 聚合层。
@@ -22,6 +22,7 @@ import {
   commit,
   uid,
   getActiveConv,
+  requireActiveConv,
   markHydrated,
   normalizeConversation,
   normalizeWorkflow,
@@ -33,6 +34,7 @@ import {
 import type { Conversation } from './conversationState.ts';
 import { getCurrentSnapshot } from './conversationSnapshot.ts';
 import type { ConversationSnapshot } from './conversationSnapshot.ts';
+import { logger } from '../../base/core/logger.ts';
 // 【SSOT-7 根治 / P1-B 2026-09-08】依赖方向单向无环：store(本文件) → aiState → state。
 // materializeAssistantTabs 在「会话激活」时即落成稳定基线（memory.assistantTables），
 // 保证任何组件在读取前真源已落盘、id 已固化 —— 不再靠「读时才造 id」的惰性真源。
@@ -75,6 +77,16 @@ export function ensureActiveConversation(): string {
     return activeId;
   }
   if (conversations.length > 0) {
+    // 静默回退出声：activeId 失效 → 回退 conversations[0]（兜底不能崩，但要让用户/AI 可见）
+    logger.warn(
+      'AI助手',
+      'ensureActiveConversation：activeId 不指向存在的对话，已回退到 conversations[0]',
+      {
+        invalidActiveId: activeId,
+        fallbackId: conversations[0].id,
+        count: conversations.length,
+      },
+    );
     commit({ ...st, activeId: conversations[0].id });
     materializeAssistantTabs(); // SSOT-7：切到既有会话即固化表格 id，防跨侧读造两套 id
     return conversations[0].id;
@@ -109,6 +121,11 @@ export function applyConversation(id: string): ConversationSnapshot {
   // 目标不存在 → 回退当前；当前也没有 → 建空对话兜底
   if (!conv) {
     const active = st.conversations.find((c) => c.id === st.activeId);
+    // 静默回退出声：目标 id 不存在 → 回退当前（兜底不崩，但要可见）
+    logger.warn('AI助手', 'applyConversation：目标对话不存在，已回退当前对话', {
+      targetId: id,
+      fallbackId: active?.id ?? '（无）',
+    });
     conv = active || null;
   }
   if (!conv) {
@@ -190,7 +207,7 @@ export function renameConversation(id: string, title: string): void {
 
 /** 重命名当前（active）会话标题（旧兼容入口，委托通用 renameConversation） */
 export function renameActiveConversation(title: string): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('renameActiveConversation');
   if (!conv) return;
   renameConversation(conv.id, title);
 }
@@ -257,8 +274,6 @@ export {
 } from './conversationSnapshot.ts';
 // conversationAiState：AI 编排状态（F 类）
 export {
-  getCurrentRunMode,
-  setCurrentRunMode,
   getCurrentGlobalContract,
   setCurrentGlobalContract,
   getCurrentAssistantTable,
@@ -279,8 +294,7 @@ export {
   getCurrentRefImages,
   setCurrentRefImages,
 } from './conversationAiState.ts';
-// runModeRegistry：workMode 读写（三态单一真源，docs/65 M4 透出）
-export { getWorkMode, setWorkMode } from '../runtime/runModeRegistry.ts';
+// （conversationScore/pin 等从 conversationAiState 继续导出，见上文 F 类块；runModeRegistry 的 workMode 读写已随执行模型精简删除）
 // conversationSkillState：Skill 三阶段门禁状态（阶段3 编排轴子域化）
 export {
   getActivePendingGenerations,

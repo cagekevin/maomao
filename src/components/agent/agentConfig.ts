@@ -11,7 +11,7 @@
  *       MAX_TOOL_ROUNDS / ENABLE_TOOLS_ON_NON_STREAM / AGENT_TEMPERATURE
  *   - B 内置 system prompt（占位，P1 迁入）——CANVAS_AGENT_RULES / SKILL_EXECUTION_RULES
  *   - C env 重导出——来自 base/config.ts（env 读取仍归 config.ts，这里只 re-export 不重复定义）
- *   - D 用户持久化偏好透传（占位，后续聚合）——agentModelStore / runModeRegistry
+ *   - D 用户持久化偏好透传（占位，后续聚合）——agentModelStore
  *
  * 【不变量】（docs/66 §7）本文件只挪「常量位置」，不触碰 buildRequestMessages /
  *   roundTrip 逻辑，行为零差异。backend env（localTool/.env）进程隔离，不并入此处，
@@ -143,7 +143,7 @@ Prompt 规则： 只写“修改意图 + 保持不变部分”，不写“参考
 撤回： 听到“撤回 AI 刚才的操作”，调用 undo_ai（只撤回 AI 动作）。`,
 
   /** Skill 注入指令（2026-09-05 精简：Skill 仅作「让 AI 理解需求的输入文本」，不再引导三阶段批量）
-   *  resolveSkillExecutionRules（agentCore）现恒返回本值（执行模型恒 auto，无确认粒度分支）。 */
+   *  agentCore 直接引用本值注入（执行模型恒 auto） */
   SKILL_EXECUTION_RULES: `【Skill 是你的参考，不是批量命令】
 Skill 原文是「让你理解用户需求」的输入，不是强制的生成脚本。你要按 Skill 里的角色定位、页面结构、文案规则等约束来理解用户的意图，再按对话方式自主执行用户当前请求。
 - 需要生成图时，按对话方式直接产出并执行（一次聚焦用户当前要的那一张/那件事），【不要】规划一整批 generations 批量执行。

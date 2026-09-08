@@ -840,8 +840,7 @@ export default function AgentPanel({
       }
       finalText = parts.filter(Boolean).join('\n\n');
     }
-    // 【单入口 · docs/65 M7/M8】一律调 send；direct 由 send 内部第一行分流到直连生图
-    //（不再由 UI 分 inputMode 调 send/sendImageMode，发送分支只存在于 send）。
+    // 【单入口 · docs/65 M7/M8】一律调 send（direct 已删、执行模型恒 auto，无 inputMode 发送分支）。
     const attach =
       allImages.length > 0
         ? allImages.map(({ url, nodeId, label, x, y }) => ({

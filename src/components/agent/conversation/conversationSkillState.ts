@@ -5,13 +5,13 @@
  *
  * 【拆分契约 · 2026-08-21】从 conversationAiState.js 抽出的 Skill 专属域：
  *  Skill 三阶段门禁的运行时状态：
- *    - 阶段1 策划暂存 pendingGenerations（show_plan_for_confirm 产出，等用户/runMode 决定执行）
+ *    - 阶段1 策划暂存 pendingGenerations（show_plan_for_confirm 产出，等用户确认后执行）
  *    - 阶段2 确认态 awaitingConfirm（半自动/Skill 需用户确认才进入阶段3）
  * 全部 per-conversation，只依赖 conversationState 底座（无环）。命名/导出不变，消费方无感知
  * （经 conversationStore 聚合 re-export）。
  * ════════════════════════════════════════════════════════════════
  */
-import { getActiveConv, commit, getState } from './conversationState.ts';
+import { getActiveConv, requireActiveConv, commit, getState } from './conversationState.ts';
 import { CREDIT_GATE_FIELD } from '../../base/core/contracts.ts';
 
 /**
@@ -32,7 +32,7 @@ export function getActivePendingGenerations(): unknown[] | null {
 
 /** 设置/清除当前对话的 Skill 策划暂存 */
 export function setActivePendingGenerations(gens: unknown[] | null): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('setActivePendingGenerations');
   if (!conv) return;
   commit({
     ...getState(),
@@ -55,7 +55,7 @@ export function getAwaitingConfirm(): boolean {
 
 /** 设置当前对话的 Skill 确认态（仅前端确认按钮翻转） */
 export function setAwaitingConfirm(v: boolean): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('setAwaitingConfirm');
   if (!conv) return;
   commit({
     ...getState(),
@@ -72,7 +72,7 @@ export function getActivePendingMemorySuggest(): Record<string, unknown> | null 
 
 /** 设置/清除当前对话的「记」项目记忆建议暂存 */
 export function setActivePendingMemorySuggest(suggest: Record<string, unknown> | null): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('setActivePendingMemorySuggest');
   if (!conv) return;
   commit({
     ...getState(),
@@ -115,7 +115,7 @@ export function getCreditGate(): CreditGate | null {
  * 置位（pending=true）+ 清除（null）配对使用：补跑成功清、失败保留待重试。
  */
 export function setCreditGate(gate: (Partial<CreditGate> & Record<string, unknown>) | null): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('setCreditGate');
   if (!conv) return;
   const valid =
     gate &&
@@ -136,7 +136,7 @@ export function setCreditGate(gate: (Partial<CreditGate> & Record<string, unknow
 
 /** 清除当前对话的积分确认门禁（补跑成功/取消后调用；不保留待确认态） */
 export function clearCreditGate(): void {
-  const conv = getActiveConv();
+  const conv = requireActiveConv('clearCreditGate');
   if (!conv) return;
   commit({
     ...getState(),

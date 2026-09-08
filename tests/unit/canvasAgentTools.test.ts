@@ -36,8 +36,6 @@ vi.mock(
       setCurrentRefImages: vi.fn((_u: unknown[]) => {}),
       getLastUserReferenceImages: vi.fn(() => []),
       getCurrentImageMap: vi.fn(() => []),
-      getCurrentRunMode: vi.fn(() => 'auto'),
-      getWorkMode: vi.fn(() => 'auto'),
       getCurrentSnapshot: vi.fn(() => ({ skills: [] })),
     }) as unknown as typeof import('../../src/components/agent/conversation/conversationStore.ts'),
 );
@@ -663,8 +661,7 @@ describe('画布 Agent 工具层 §2.5', () => {
 
   it('【T4】execute_plan credit 命中（creditSwitch 默认开）→ 只建节点待确认，不真生成', async () => {
     convMock.__state.awaiting = false;
-    // 2026-08-27 简化：credit = creditSwitch（全局总闸，与 runMode 正交）。开关默认开即命中。
-    vi.mocked(convStore.getWorkMode).mockReturnValue('auto'); // 保持上下文，表明与 runMode 无关
+    // 2026-08-27 简化：credit = creditSwitch（全局总闸）。开关默认开即命中。
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = await t.execute_plan({ generations: [{ id: 'g1', prompt: '猫' }] });
@@ -685,8 +682,8 @@ describe('画布 Agent 工具层 §2.5', () => {
 
   it('【T5】execute_plan credit 未命中（creditSwitch=关）→ 行为与改动前一致（autoRun 按入参放行）', async () => {
     convMock.__state.awaiting = false;
-    // 2026-08-27 简化：credit = creditSwitch（全局总闸，与 runMode 正交）。
-    // 未命中只由「开关关」决定，runMode 已不再是判定输入。
+    // 2026-08-27 简化：credit = creditSwitch（全局总闸）。
+    // 未命中只由「开关关」决定。
     setCreditSwitch(false);
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
