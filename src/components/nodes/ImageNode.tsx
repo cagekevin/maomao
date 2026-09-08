@@ -18,7 +18,7 @@ import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
 import { detectMediaType } from '../base/utils/mediaType.ts';
 import type { MediaType } from '@/types';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
-import { useFitNodeRatio } from '../../hooks/useFitNodeRatio.ts';
+import { NODE_AREA_FIXED_BASE_SIZE } from '../base/core/config.ts';
 import { useVideoPoster } from '../../hooks/useVideoPoster.ts';
 import { toAbsoluteFileUrl, uploadFileToLocal } from '../base/api/index.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
@@ -46,7 +46,7 @@ import type { CameraStudioResult } from '../base/editors/cameraStudio.ts';
  *  - 编辑 = initialTool='pencil'
  * 保存后把 canvas dataURL 写回 data.imageUrl（useReactFlow setNodes 不可变更新）。
  *
- * 通用能力抽到 base/：useMediaDegrade（性能降级）、useFitNodeRatio（宽高比自适应）、
+ * 通用能力抽到 base/：useMediaDegrade（性能降级），宽高比自适应走 NodeShell 的 useSizeSync（area-fixed），
  * useVideoPoster（视频首帧封面）、detectMediaType（类型判断）。
  */
 interface ImageNodeData {
@@ -86,8 +86,12 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
   // 性能模式媒体降级（hideMedia：'image' / 'image video audio' / ''，见 useMediaDegrade）
   const { hideMedia } = useMediaDegrade();
 
-  // 节点按媒体宽高比自适应（图片 img / 视频 video 共用）
-  const { fitFromImage, fitFromVideo, fitByRatio } = useFitNodeRatio(id);
+  // 节点按媒体真实宽高比自适应：area-fixed 模式下，媒体加载/裁剪后把比例交给 useSizeSync
+  // 锁定面积（与 PromptNode / DiscountVideoNode 统一的面积恒定模型），形状跟随媒体比例。
+  const [mediaRatio, setMediaRatio] = useState<string | null>(null);
+  const applyMediaRatio = useCallback((w: number, h: number) => {
+    if (w && h) setMediaRatio(`${w}:${h}`);
+  }, []);
 
   // 视频首帧封面（未播放时显示首帧，避免视频 URL 当 img 破图）
   const posterUrl = useVideoPoster(url, type === 'video');
@@ -103,9 +107,9 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
           n.id === id ? { ...n, data: { ...n.data, imageUrl: dataUrl, url: dataUrl } } : n,
         ),
       );
-      if (dims?.width && dims?.height) fitByRatio(dims.width, dims.height);
+      if (dims?.width && dims?.height) setMediaRatio(`${dims.width}:${dims.height}`);
     },
-    [id, setNodes, fitByRatio],
+    [id, setNodes],
   );
 
   // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 replaceImage
@@ -343,8 +347,12 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
         selected={selected}
         handleVariant="small"
         sourceHandleId="main-output"
-        aspectRatio={null}
+        aspectRatio={mediaRatio}
+        sizeMode="area-fixed"
+        baseSize={NODE_AREA_FIXED_BASE_SIZE}
         onRename={rename}
+        minWidth={120}
+        minHeight={80}
         className="min-w-[120px] min-h-[80px]"
       >
         <HoverToolbar buttons={toolbarButtons} />
@@ -383,7 +391,9 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
                 alt="Content"
                 loading="lazy"
                 decoding="async"
-                onLoad={fitFromImage}
+                onLoad={(e) =>
+                  applyMediaRatio(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)
+                }
                 onDoubleClick={(e) => {
                   e.stopPropagation();
                   dialogRef.current?.showModal();
@@ -394,7 +404,7 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
             )}
             {/* 视频：统一 VideoThumbnail 组件（与视频生成节点一致）。
               封面用抓取的 posterUrl（首帧 dataURL）；playable 开启节点内 controls 播放态；
-              onLoadedMetadata 按视频宽高自适应节点形状（useFitNodeRatio）；
+              onLoadedMetadata 按视频宽高自适应节点形状（area-fixed 锁面积）；
               双击容器打开自定义大图弹窗（含截屏/下载当前帧按钮）。 */}
             {type === 'video' && !hideMedia.includes('video') && (
               <VideoThumbnail
@@ -403,7 +413,9 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
                 fit="cover"
                 size="lg"
                 playable
-                onLoadedMetadata={fitFromVideo}
+                onLoadedMetadata={(e) =>
+                  applyMediaRatio(e.currentTarget.videoWidth, e.currentTarget.videoHeight)
+                }
                 onContainerDoubleClick={() => dialogRef.current?.showModal()}
               />
             )}
