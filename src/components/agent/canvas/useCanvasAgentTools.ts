@@ -392,7 +392,7 @@ function buildCreateNode(args, ctx, currentNodes) {
   const type = str(args.type);
   // agent 可创建的节点类型白名单（不含剧本盒等复合节点）。
   // 用白名单而非 getPaletteNode：即使调色板里新增了剧本盒等类型，agent 也不会被允许创建。
-  const ALLOWED_TYPES = ['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'group'];
+  const ALLOWED_TYPES = ['textNode', 'promptNode', 'imageNode', 'videoGenerateNode', 'group'];
   if (!type || !ALLOWED_TYPES.includes(type))
     return { error: `未知节点类型：${type}。可选：${ALLOWED_TYPES.join('、')}` };
   // 节点 data 是各节点类型自有的自由字段集（defaultNodeData 按 type 返回不同形状），
@@ -409,7 +409,7 @@ function buildCreateNode(args, ctx, currentNodes) {
   }
   // 生图类节点：把 AI 传的 aspectRatio / resolution 写进 data（PromptNode 读 data.aspectRatio / data.imageSize）。
   // 之前这两个参数被忽略，导致「让 AI 建 9:16 节点」比例不生效。
-  if (['promptNode', 'discountVideoNode'].includes(type)) {
+  if (['promptNode', 'videoGenerateNode'].includes(type)) {
     if (args.aspectRatio) data.aspectRatio = str(args.aspectRatio);
     if (args.resolution) data.imageSize = normalizeResolution(str(args.resolution));
   }
@@ -448,7 +448,7 @@ function buildCreateNode(args, ctx, currentNodes) {
 
 /**
  * 建节点工具（复刻官方 create_node + batch_create_nodes）。
- * type 从白名单取（textNode/promptNode/imageNode/discountVideoNode/group），默认给默认 data；prompt/label 可覆盖。
+ * type 从白名单取（textNode/promptNode/imageNode/videoGenerateNode/group），默认给默认 data；prompt/label 可覆盖。
  * 返回新建节点 id 列表，供后续连线/改节点用。
  */
 const createNodeTool = {
@@ -461,9 +461,9 @@ const createNodeTool = {
     properties: {
       type: {
         type: 'string',
-        enum: ['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'group'],
+        enum: ['textNode', 'promptNode', 'imageNode', 'videoGenerateNode', 'group'],
         description:
-          '节点类型：textNode=文本(text=内容落生成区/prompt=内容落抽屉)/promptNode=生图(prompt=画面提示词)/imageNode=图片(label=说明)/discountVideoNode=视频(prompt=视频提示词)/group=编组',
+          '节点类型：textNode=文本(text=内容落生成区/prompt=内容落抽屉)/promptNode=生图(prompt=画面提示词)/imageNode=图片(label=说明)/videoGenerateNode=视频(prompt=视频提示词)/group=编组',
       },
       prompt: { type: 'string', description: '提示词/内容（textNode 时落提示词抽屉）' },
       text: { type: 'string', description: '文本内容（仅 textNode：落文本生成区，优先于 prompt）' },
@@ -471,12 +471,12 @@ const createNodeTool = {
       aspectRatio: {
         type: 'string',
         description:
-          '生图比例，如 9:16 / 16:9 / 1:1 / 3:4 / 4:3（仅 promptNode/discountVideoNode 生效，可选）',
+          '生图比例，如 9:16 / 16:9 / 1:1 / 3:4 / 4:3（仅 promptNode/videoGenerateNode 生效，可选）',
       },
       resolution: {
         type: 'string',
         description:
-          '生图画质档位：720p/1080p/1440p/2K/4K，会映射到 1K/2K/4K（仅 promptNode/discountVideoNode 生效，可选）',
+          '生图画质档位：720p/1080p/1440p/2K/4K，会映射到 1K/2K/4K（仅 promptNode/videoGenerateNode 生效，可选）',
       },
       position: {
         type: 'object',
@@ -524,7 +524,7 @@ const batchCreateNodesTool = {
           properties: {
             type: {
               type: 'string',
-              enum: ['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'group'],
+              enum: ['textNode', 'promptNode', 'imageNode', 'videoGenerateNode', 'group'],
             },
             prompt: { type: 'string' },
             text: { type: 'string' },

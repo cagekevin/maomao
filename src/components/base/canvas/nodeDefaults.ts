@@ -25,7 +25,7 @@ interface NodeTypeDefault {
 export const INPUT_PANEL_NODE_TYPES = [
   'textNode',
   'promptNode',
-  'discountVideoNode',
+  'videoGenerateNode',
   'templateNode',
 ] as const;
 

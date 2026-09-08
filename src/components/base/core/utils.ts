@@ -76,7 +76,7 @@ export function assetLabel(asset: string | { label?: string } | null | undefined
   return (asset && asset.label) || '';
 }
 
-/** 有效提示词 = 本地 prompt + 上游文本合并（PromptNode/TextNode/TemplateNode/DiscountVideoNode 公共实现）：
+/** 有效提示词 = 本地 prompt + 上游文本合并（PromptNode/TextNode/TemplateNode/VideoGenerate 公共实现）：
  *  本地主提示词在前，上游文本（refTexts）去空后追加在后，一起参与生成。返回 '' 表示空。 */
 export function buildEffectivePrompt(
   localPrompt: unknown,
@@ -96,7 +96,7 @@ export function clamp(v: number, lo?: number | null, hi?: number | null): number
   return Math.max(lower, Math.min(upper, v));
 }
 
-/** 视频时长钳制（DiscountVideoNode 滑块公共实现）：非法/0 → 下界兜底；越界钳到 [min,max]。 */
+/** 视频时长钳制（VideoGenerate 滑块公共实现）：非法/0 → 下界兜底；越界钳到 [min,max]。 */
 export function clampSeconds(value: unknown, min = 4, max = 15): number {
   return clamp(Number(value) || min, min, max);
 }

@@ -15,7 +15,7 @@ const TARGETS = {
   PromptNode: ['imgPrefs'],
   TextNode: ['textPrefs'],
   TemplateNode: ['myPrefs'],
-  DiscountVideoNode: ['vidPrefs'],
+  VideoGenerate: ['vidPrefs'],
 };
 
 /** 按 .jsx → .tsx 顺序探测节点文件（迁移期两者皆可能存在） */

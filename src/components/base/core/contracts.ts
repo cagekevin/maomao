@@ -508,7 +508,7 @@ export const NODE_TYPES = {
   textNode: 'textNode',
   promptNode: 'promptNode',
   templateNode: 'templateNode',
-  discountVideoNode: 'discountVideoNode',
+  videoGenerateNode: 'videoGenerateNode',
   ghostTarget: 'ghostTarget',
 };
 

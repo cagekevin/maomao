@@ -88,7 +88,7 @@ import { resolveProviderModel } from '../base/utils/providerModels.ts';
  * │ 拆分多段→spawn 多个生图节点  │ LoopNode             │ 文案切段 + 每段 addNodes         │
  * │ 全屏 3D/球体漫游 portal     │ Panorama/Director3D   │ createPortal + z-modal          │
  * │ 人脸打码全屏编辑器          │ FaceMosaicNode        │ FaceMosaicEditor + FullscreenModal│
- * │ area-fixed 面积固定尺寸     │ DiscountVideoNode     │ NodeShell sizeMode='area-fixed'  │
+ * │ area-fixed 面积固定尺寸     │ VideoGenerate     │ NodeShell sizeMode='area-fixed'  │
  * │ 原生 select 表单控件        │ GridMergeNode         │ §二 原生 select 形态            │
  * └───────────────────────────┴──────────────────────┴────────────────────────────────┘
  *
@@ -228,7 +228,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   React.useEffect(() => {
     patchData({ expanded });
   }, [expanded]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 全局快捷键（Tab）折叠/展开：外部 data.expanded 变化时同步回本地 state（对齐 TextNode/PromptNode/DiscountVideoNode）
+  // 全局快捷键（Tab）折叠/展开：外部 data.expanded 变化时同步回本地 state（对齐 TextNode/PromptNode/VideoGenerate）
   React.useEffect(() => {
     if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded);
   }, [data.expanded]); // eslint-disable-line react-hooks/exhaustive-deps

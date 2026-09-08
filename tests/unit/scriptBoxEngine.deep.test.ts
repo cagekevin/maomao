@@ -338,14 +338,14 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     expect(ctx().setEdges).toBeDefined();
   });
 
-  it('onConnectShot：target=video → 建 discountVideoNode', () => {
+  it('onConnectShot：target=video → 建 videoGenerateNode', () => {
     data = {
       shots: [{ id: 's1', index: 2, prompt: '', videoPrompt: '猫的视频', description: '' }],
     };
     const eng = createScriptBoxEngine(ctx());
     eng.onConnectShot('s1', 'video');
     const node = addNodes[0][0];
-    expect(node.type).toBe('discountVideoNode');
+    expect(node.type).toBe('videoGenerateNode');
     expect(node.data.prompt).toBe('猫的视频');
   });
 
@@ -481,7 +481,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     };
     const nodes = [
       { id: 'sb-1', type: 'scriptBoxNode', data, position: { x: 0, y: 0 }, width: 900 },
-      { type: 'discountVideoNode', data: { upstreamShotId: 's1', videoUrl: '/files/prev.mp4' } },
+      { type: 'videoGenerateNode', data: { upstreamShotId: 's1', videoUrl: '/files/prev.mp4' } },
     ];
     const eng = createScriptBoxEngine({ ...ctx(), getNodes: () => nodes, captureVideoFrame: cf });
     await eng.onGenerateTailFrameVariants('s2');

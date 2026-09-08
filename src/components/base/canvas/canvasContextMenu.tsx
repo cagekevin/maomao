@@ -159,7 +159,7 @@ export function buildCanvasMenuItems(ctx: MenuActionCtx): ContextMenuItem[] {
       icon: <Clapperboard size={16} className="text-yellow-500" />,
       label: '视频',
       shortcut: 'E',
-      onClick: () => ctx.addNodeFromMenu('discountVideoNode'),
+      onClick: () => ctx.addNodeFromMenu('videoGenerateNode'),
     },
     {
       key: 'scriptBox',

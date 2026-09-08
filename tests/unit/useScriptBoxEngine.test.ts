@@ -157,7 +157,7 @@ describe('useScriptBoxEngine', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
     const cfg = createScriptBoxEngine.mock.calls[0][0];
     cfg.addNodes([
-      { id: 'x', type: 'discountVideoNode', position: { x: 0, y: 0 }, data: { prompt: 'v' } },
+      { id: 'x', type: 'videoGenerateNode', position: { x: 0, y: 0 }, data: { prompt: 'v' } },
     ]);
     const out = addNodes.mock.calls[0][0][0];
     // 记忆为空 → 注入默认 ''，与系统新建一致；节点侧 useGenerateNode 的兜底仍会生效

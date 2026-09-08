@@ -4,7 +4,7 @@ import { toAbsoluteFileUrl } from '../utils/imageUrl.ts';
 
 /**
  * 视频缩略图统一组件：静音封面 + 居中悬浮播放按钮。
- * 用于 DiscountVideoNode（节点主体，点击真正播放）、
+ * 用于 VideoGenerate（节点主体，点击真正播放）、
  * TaskCenter / GeneratedView（结果/资源的视频缩略图）、
  * ImageNode（节点内视频预览，开启 playable 后可进入带 controls 的播放态）。
  *

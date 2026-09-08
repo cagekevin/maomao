@@ -1,7 +1,7 @@
 /**
  * PromptInput「两个实例共用同一个 value」回归测试（全屏大窗光标被抢）。
  *
- * 场景（TextNode / DiscountVideoNode / PromptNode / TemplateNode 均如此）：
+ * 场景（TextNode / VideoGenerate / PromptNode / TemplateNode 均如此）：
  * 节点面板里的 PromptInput 与全屏弹窗里的 PromptInput 同时挂载、共用同一个 value。
  * 在弹窗里每敲一个字 → value 变 → 面板那个实例也走「外部 value 变化 → 重建 DOM」分支。
  * 若它无差别 restoreCursor，就会把全局 selection 抢到自己内部，光标瞬间跳出弹窗，

@@ -1,7 +1,7 @@
 /**
- * DiscountVideoNode 补充深度测试（非 upstream 部分）。
+ * VideoGenerate 补充深度测试（非 upstream 部分）。
  *
- * upstream 测试（DiscountVideoNode.upstream.test.jsx）已覆盖「上游文本/图片合并」。
+ * upstream 测试（VideoGenerate.upstream.test.jsx）已覆盖「上游文本/图片合并」。
  * 本文件补充其余高频交互，防止比例/分辨率/时长菜单、素材插入/断线、提示词落盘、
  * 展开收起、下载、删除视频等逻辑回归：
  *  - 空态/有视频态渲染（VideoThumbnail / 占位图标 / 工具栏按钮）
@@ -223,7 +223,7 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
   },
 }));
 
-import DiscountVideoNode from '../../src/components/nodes/DiscountVideoNode.tsx';
+import VideoGenerate from '../../src/components/nodes/VideoGenerate.tsx';
 
 const nodeId = 'n1';
 function setup(data = {}) {
@@ -236,13 +236,13 @@ function setup(data = {}) {
   h.loggerInfo.mockClear();
   genConfig = null;
   genLoading = false;
-  return render(<DiscountVideoNode id={nodeId} data={{ ...data }} selected={false} />);
+  return render(<VideoGenerate id={nodeId} data={{ ...data }} selected={false} />);
 }
 function nodeData() {
   return h.state.nodes.find((n) => n.id === nodeId)?.data;
 }
 
-describe('DiscountVideoNode — 渲染', () => {
+describe('VideoGenerate — 渲染', () => {
   it('空态：无视频时显示占位图标，无工具栏视频按钮', () => {
     setup();
     // 工具栏只保留「上传」按钮
@@ -272,7 +272,7 @@ describe('DiscountVideoNode — 渲染', () => {
   });
 });
 
-describe('DiscountVideoNode — 比例/分辨率/时长菜单', () => {
+describe('VideoGenerate — 比例/分辨率/时长菜单', () => {
   it('点击摘要按钮展开菜单，显示三组选项', () => {
     setup();
     fireEvent.click(screen.getByTitle('选择比例和时长'));
@@ -308,7 +308,7 @@ describe('DiscountVideoNode — 比例/分辨率/时长菜单', () => {
   });
 });
 
-describe('DiscountVideoNode — 提示词与素材', () => {
+describe('VideoGenerate — 提示词与素材', () => {
   it('输入提示词写回 node.data.prompt（落盘）', () => {
     setup();
     const ta = screen.getByPlaceholderText(
@@ -346,7 +346,7 @@ describe('DiscountVideoNode — 提示词与素材', () => {
   });
 });
 
-describe('DiscountVideoNode — 下载 / 删除 / 展开', () => {
+describe('VideoGenerate — 下载 / 删除 / 展开', () => {
   it('下载视频：label 无扩展名时自动补 .mp4 并调 downloadUrl', () => {
     setup({ videoUrl: 'http://gen.local/v.mp4', label: '特效视频' });
     fireEvent.click(screen.getByTitle('下载'));
@@ -381,7 +381,7 @@ describe('DiscountVideoNode — 下载 / 删除 / 展开', () => {
   });
 });
 
-describe('DiscountVideoNode — 生成成功回填 node.data（真相源契约）', () => {
+describe('VideoGenerate — 生成成功回填 node.data（真相源契约）', () => {
   it('onSuccess 把生成结果写回 data.videoUrl（刷新不丢：节点持有结果副本）', async () => {
     setup();
     // 点生成 → mock start 走 run → onSuccess({url})；断言结果写回 node.data

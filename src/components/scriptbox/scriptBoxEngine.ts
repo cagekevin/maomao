@@ -137,7 +137,7 @@ export function useJsonObject(modelId?: string): boolean {
  *  - onUploadAllAssetImages()        上传全部资产素材
  *  - onUploadAssetImage(id, file)    上传本地图片设为资产参考图
  *  - onPickAssetImage(id, url)       从素材库选一张现成图片设为资产参考图
- *  - onConnectShot(id, target)       单镜头连下游（建 promptNode/discountVideoNode）
+ *  - onConnectShot(id, target)       单镜头连下游（建 promptNode/videoGenerateNode）
  *  - onConnectShots(ids, target)     批量连下游
  *  - onGenerateTailFrameVariants(id) 抽上一镜尾帧→多角度生图→写回变体（P1-2）
  *
@@ -1387,7 +1387,7 @@ export function createScriptBoxEngine({
           }
         : {
             id: nodeId2,
-            type: 'discountVideoNode',
+            type: 'videoGenerateNode',
             position: pos,
             data: {
               ...baseData,
@@ -1447,7 +1447,7 @@ export function createScriptBoxEngine({
             }
           : {
               id: nodeId2,
-              type: 'discountVideoNode',
+              type: 'videoGenerateNode',
               position: pos,
               data: {
                 ...baseData,
@@ -1477,7 +1477,7 @@ export function createScriptBoxEngine({
   // 合并生成视频（多个分镜 → 一个视频生成节点）
   // ═══════════════════════════════════════════════════════════════
   // 思路A：勾选多个镜头 → 调 AI 把各镜资料合并生成「一条序号连贯的合并视频提示词」
-  // （"第一个画面…第N个画面"一路排到底，避免直接拼装导致序号重复），再新建 discountVideoNode。
+  // （"第一个画面…第N个画面"一路排到底，避免直接拼装导致序号重复），再新建 videoGenerateNode。
   // 参考图合并、时长累加（各镜 duration 之和，预选视频节点时长选项）；剧本数据完全不变。
   const onGenerateMergedVideo = (shotIds: string[] | undefined, _target: string = 'video') => {
     if (!addNodes) return;
@@ -1546,7 +1546,7 @@ export function createScriptBoxEngine({
         addNodes([
           {
             id: nodeId2,
-            type: 'discountVideoNode',
+            type: 'videoGenerateNode',
             position: pos,
             data: {
               label,
@@ -1593,13 +1593,13 @@ export function createScriptBoxEngine({
   // ═══════════════════════════════════════════════════════════════
   // P1-2 尾帧变体生成（对齐官方 Qr）：抽上一镜视频尾帧 → 本地化 → 按角度生图 → 写回变体数组。
   // 输入：当前 shotId（仅第 2 镜及以后可用）。输出走 shots[] 子字段（P1-1）。
-  // 依赖：上一镜连出的 discountVideoNode（data.upstreamShotId === 上一镜 id）的 videoUrl（已持久化）。
+  // 依赖：上一镜连出的 videoGenerateNode（data.upstreamShotId === 上一镜 id）的 videoUrl（已持久化）。
   // ═══════════════════════════════════════════════════════════════
-  /** 读取上一镜连出的 discountVideoNode 视频结果 URL（P1-0 已验证持久化）。 */
+  /** 读取上一镜连出的 videoGenerateNode 视频结果 URL（P1-0 已验证持久化）。 */
   const findPrevShotVideoUrl = (prevShotId?: string): string => {
     if (!getNodes || !prevShotId) return '';
     const found = getNodes().find(
-      (x) => x.type === 'discountVideoNode' && x.data?.upstreamShotId === prevShotId,
+      (x) => x.type === 'videoGenerateNode' && x.data?.upstreamShotId === prevShotId,
     );
     return String(found?.data?.videoUrl || '');
   };
@@ -2115,7 +2115,7 @@ export function assembleShotUser(
 /**
  * 抽视频尾帧 → JPEG dataURL（P1-2）。复用 VideoExtractNode 的 canvas.drawImage 抽帧思路，
  * 独立成模块顶层函数（纯浏览器实现）便于单测注入 mock；非浏览器环境直接抛错，由调用方降级/提示。
- * @param {string} src  视频 URL（DiscountVideoNode.data.videoUrl，已持久化 /files/...）
+ * @param {string} src  视频 URL（VideoGenerate.data.videoUrl，已持久化 /files/...）
  * @param {number} [atFraction=1]  抽帧时刻（1 = 尾帧；0~1 按时长比例）
  * @returns {Promise<string>} dataURL
  */

@@ -312,7 +312,7 @@ export async function downloadUrl(url: string, filename?: string): Promise<ClipR
 }
 
 /**
- * 下载文件名推导（PromptNode / DiscountVideoNode handleDownload 公共实现）：
+ * 下载文件名推导（PromptNode / VideoGenerate handleDownload 公共实现）：
  *  - 优先用 label（已带扩展名则原样）；
  *  - 无 label → 用 URL 末尾文件名（仅 http/blob 以外/公网 URL，blob/data 不算）；
  *  - 仍无扩展名 → 补默认扩展名 ext；全空 → fallback。

@@ -121,7 +121,7 @@ describe('管线契约 getNodeOutput', () => {
   it('通用兜底 videoUrl（data:video）→ videos，尊重 mediaType，且带 label（预留）', () => {
     const r = getNodeOutput({
       id: 'p1',
-      type: 'discountVideoNode',
+      type: 'videoGenerateNode',
       data: { videoUrl: 'data:video/mp4;base64,xxx', label: '参考' },
     });
     expect(r.videos).toHaveLength(1);

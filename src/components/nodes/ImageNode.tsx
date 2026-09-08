@@ -70,7 +70,7 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
   const url = toAbsoluteFileUrl(data.imageUrl || data.url || '') || '';
   const { setNodes, getNodes, getNode, getEdges, setEdges, addNodes, addEdges } = useReactFlow();
   const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false);
-  // 深度转视频弹窗开关 + 画布历史（undo）：供 spawnDepthVideoNode 原子提交，复用 DiscountVideoNode 范式
+  // 深度转视频弹窗开关 + 画布历史（undo）：供 spawnDepthVideoNode 原子提交，复用 VideoGenerate 范式
   const [depthOpen, setDepthOpen] = useState(false);
   const history = useCanvasEdges();
   // 订阅「画布显示缩略图」设置：显示地址实时随开关（见 docs/18）
@@ -87,7 +87,7 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
   const { hideMedia } = useMediaDegrade();
 
   // 节点按媒体真实宽高比自适应：area-fixed 模式下，媒体加载/裁剪后把比例交给 useSizeSync
-  // 锁定面积（与 PromptNode / DiscountVideoNode 统一的面积恒定模型），形状跟随媒体比例。
+  // 锁定面积（与 PromptNode / VideoGenerate 统一的面积恒定模型），形状跟随媒体比例。
   const [mediaRatio, setMediaRatio] = useState<string | null>(null);
   const applyMediaRatio = useCallback((w: number, h: number) => {
     if (w && h) setMediaRatio(`${w}:${h}`);

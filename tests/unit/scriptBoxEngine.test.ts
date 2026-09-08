@@ -437,7 +437,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     addNodes.mockClear();
     engine.onConnectShot('s1', 'video');
     const vidNode = addNodes.mock.calls[0][0][0];
-    expect(vidNode.type).toBe('discountVideoNode');
+    expect(vidNode.type).toBe('videoGenerateNode');
     expect(vidNode.data.images).toMatchObject([
       {
         id: 'script-asset-asset-城堡',
@@ -470,7 +470,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   });
 
   // ── P0-①：onConnectShots 支持 target，批量建对应下游类型 ──
-  it('onConnectShots(ids, "video") 批量建 discountVideoNode', async () => {
+  it('onConnectShots(ids, "video") 批量建 videoGenerateNode', async () => {
     const { engine, addNodes } = makeEngine({
       shots: [
         { id: 's1', index: 1, description: '@城堡', prompt: 'p1', videoPrompt: 'v1' },
@@ -485,7 +485,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     engine.onConnectShots(['s1', 's2'], 'video');
     const allNodes = addNodes.mock.calls.flatMap((c) => c[0]);
     expect(allNodes).toHaveLength(2);
-    expect(allNodes.every((n) => n.type === 'discountVideoNode')).toBe(true);
+    expect(allNodes.every((n) => n.type === 'videoGenerateNode')).toBe(true);
   });
 
   it('onConnectShots 缺省 target 默认 "image"（兼容旧调用）', async () => {
@@ -514,7 +514,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     engine.onConnectShots(undefined, 'video');
     allNodes = addNodes.mock.calls.flatMap((c) => c[0]);
     expect(allNodes).toHaveLength(2);
-    expect(allNodes.every((n) => n.type === 'discountVideoNode')).toBe(true);
+    expect(allNodes.every((n) => n.type === 'videoGenerateNode')).toBe(true);
   });
 
   // ── 从素材库选择图片设为资产参考图（onPickAssetImage）──

@@ -131,7 +131,7 @@ if (typeof globalThis.fetch === 'function' || globalThis.fetch === undefined) {
 // requestAnimationFrame / cancelAnimationFrame 统一垫片：jsdom 默认 rAF 不保证触发时效，
 // 组件里用 rAF 做动画/自适应测量时（node 环境无 rAF，jsdom 的 rAF 又常滞后）回调可能永不执行。
 // 统一用 setTimeout(cb,0) 可靠地立即触发，并回传时间戳。此前散落在 6 个 .jsx 测试文件里
-// 重复手写同一份覆盖（TextNode/PromptNode/TemplateNode/DiscountVideoNode.upstream 等），现收口于此。
+// 重复手写同一份覆盖（TextNode/PromptNode/TemplateNode/VideoGenerate.upstream 等），现收口于此。
 // shim：rAF 契约是「返回 number 句柄」，Node 的 setTimeout 返回 Timeout 对象。测试只做
 //「注册→触发→取消」，无一处断言句柄类型，故放行返回值差异（cancelAnimationFrame 同侧消费）。
 globalThis.requestAnimationFrame = shim((cb) => setTimeout(() => cb(Date.now()), 0));

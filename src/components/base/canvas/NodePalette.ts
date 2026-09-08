@@ -19,7 +19,7 @@ import TextNode from '../../nodes/TextNode.tsx';
 import ImageNode from '../../nodes/ImageNode.tsx';
 import LoopNode from '../../nodes/LoopNode.tsx';
 import PromptNode from '../../nodes/PromptNode.tsx';
-import DiscountVideoNode from '../../nodes/DiscountVideoNode.tsx';
+import VideoGenerate from '../../nodes/VideoGenerate.tsx';
 import VideoExtractNode from '../../nodes/VideoExtractNode.tsx';
 import ImageBoxNode from '../../nodes/ImageBoxNode.tsx';
 import GridSplitNode from '../../nodes/GridSplitNode.tsx';
@@ -164,7 +164,7 @@ export const paletteNodes = [
   },
 
   // --- 视频工具 ---
-  // discountVideoNode（视频生成）与顶部 E 快捷重复，子分类不再列出
+  // videoGenerateNode（视频生成）与顶部 E 快捷重复，子分类不再列出
   {
     type: 'videoExtractNode',
     label: '视频抽帧',
@@ -220,16 +220,16 @@ const HIDDEN_TOP_LEVEL_NODES = [
   { type: 'textNode', label: '文本', cat: 'text', component: TextNode, data: { text: '' } },
   { type: 'promptNode', label: '图片', cat: 'image', component: PromptNode, data: { prompt: '' } },
   {
-    type: 'discountVideoNode',
+    type: 'videoGenerateNode',
     label: '视频生成',
     cat: 'video',
-    component: DiscountVideoNode,
+    component: VideoGenerate,
     data: { prompt: '' },
   },
 ];
 
 // 便捷：按 type 查目录项
-// 注意：顶部 QWE 快捷创建的 textNode/promptNode/discountVideoNode 已从子分类展示移出，
+// 注意：顶部 QWE 快捷创建的 textNode/promptNode/videoGenerateNode 已从子分类展示移出，
 // 但仍是合法可创建节点（AI 工具 create_node 校验、defaultNodeData 兜底依赖这里），故单独补一份。
 export const getPaletteNode = (type) =>
   paletteNodes.find((n) => n.type === type) || HIDDEN_TOP_LEVEL_NODES.find((n) => n.type === type);
@@ -253,7 +253,7 @@ export const builtinNodeTypes = paletteNodes.filter((n) => n.builtin).map((n) =>
  *
  * 注意：
  *  - 遍历「全部」palette 项（含无 builtin 标记的项），不能只取 builtin；
- *  - 顶部快捷 HIDDEN（textNode/promptNode/discountVideoNode）必须并入，否则画布渲染崩；
+ *  - 顶部快捷 HIDDEN（textNode/promptNode/videoGenerateNode）必须并入，否则画布渲染崩；
  *  - 无 component 字段的项会被跳过（目前仅 ghostTarget：连线占位，非真实节点）；
  *  - 重依赖节点的 component 是 lazyNode 包装的懒加载组件，派生进 nodeTypes 后自动按需加载；
  *  - ghostTarget 由 App.jsx 在派生结果后补充。

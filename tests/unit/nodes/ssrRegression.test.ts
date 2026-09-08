@@ -21,7 +21,7 @@ import { describe, test, expect } from 'vitest';
 import ImageNode from '@/components/nodes/ImageNode';
 import TextNode from '@/components/nodes/TextNode';
 import PromptNode from '@/components/nodes/PromptNode';
-import DiscountVideoNode from '@/components/nodes/DiscountVideoNode';
+import VideoGenerate from '@/components/nodes/VideoGenerate';
 import VideoExtractNode from '@/components/nodes/VideoExtractNode';
 import ImageBoxNode from '@/components/nodes/ImageBoxNode';
 import GridSplitNode from '@/components/nodes/GridSplitNode';
@@ -79,9 +79,9 @@ const cases = [
   },
   // 标题断言跟随 NodePalette 的 label（'特惠视频' 已改名 '视频生成'）。
   {
-    name: '视频生成 DiscountVideoNode',
-    Comp: DiscountVideoNode,
-    type: 'discountVideoNode',
+    name: '视频生成 VideoGenerate',
+    Comp: VideoGenerate,
+    type: 'videoGenerateNode',
     expect: [
       'group/node',
       'bg-surface-raised',

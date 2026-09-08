@@ -43,7 +43,7 @@ import { resolveProviderModel } from '../base/utils/providerModels.ts';
 import { debounce, buildEffectivePrompt, clampSeconds } from '../base/core/utils.ts';
 
 /**
- * 视频生成节点（复刻原 As.jsx / discountVideoNode）
+ * 视频生成节点（复刻原 As.jsx / videoGenerateNode）
  * 已迁移到基座：NodeShell + HoverToolbar + ExpandablePanel + GenerateButton + ModelSelect。
  * 保留差异化：主显示区、比例/分辨率/时长菜单、素材区、提示词输入。
  * 性能降级用通用 useMediaDegrade：lodLevel>=3 藏视频（与官方横幅 yt===3 一致）。
@@ -57,7 +57,7 @@ interface RefText {
 }
 
 /** 视频生成节点 data 契约 */
-interface DiscountVideoNodeData {
+interface VideoGenerateData {
   label?: string;
   prompt?: string;
   videoUrl?: string;
@@ -73,13 +73,13 @@ interface DiscountVideoNodeData {
   [key: string]: unknown;
 }
 
-interface DiscountVideoNodeProps {
+interface VideoGenerateProps {
   id: string;
-  data: DiscountVideoNodeData;
+  data: VideoGenerateData;
   selected?: boolean;
 }
 
-function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
+function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   // 性能模式媒体降级（通用 hook）：hideVideo = isHidden('video')，即 lodLevel>=3
   const { isHidden } = useMediaDegrade();
   const hideVideo = isHidden('video');
@@ -143,7 +143,7 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
     debouncedPatch.current = debounce(patchData, 200);
   }
   // 记住上次选择的模型/比例/分辨率/时长（跨节点/跨会话，与 PromptNode 一致）
-  const { prefs: vidPrefs, set: setVidPrefs } = useNodePrefs('discountVideoNode', {
+  const { prefs: vidPrefs, set: setVidPrefs } = useNodePrefs('videoGenerateNode', {
     model: '',
     size: '16:9',
     resolution: '1080p',
@@ -327,7 +327,7 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
             icon: <JianyingIcon size={14} />,
             title: '发送到剪映素材库',
             hoverClass: 'hover:text-emerald-400',
-            onClick: () => logger.info('DiscountVideoNode', '发送到剪映素材库'),
+            onClick: () => logger.info('VideoGenerate', '发送到剪映素材库'),
           },
           {
             key: 'delete',
@@ -627,4 +627,4 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
     </NodeShell>
   );
 }
-export default React.memo(DiscountVideoNode);
+export default React.memo(VideoGenerate);

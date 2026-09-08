@@ -23,7 +23,7 @@ import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.t
  *       textNode        → 文本（data.text）
  *       imageNode       → 图片/视频/音频（data.imageUrl，按 mime/扩展名分类）
  *       promptNode      → 图片（data.imageUrl）
- *       discountVideoNode → 视频（data.videoUrl）
+ *       videoGenerateNode → 视频（data.videoUrl）
  *       scriptBoxNode   → 按 sourceHandle=`shot-${id}` 的镜头，用 @资产名 匹配有图资产（images）
  *                          （端口前缀走 contracts.SHOT_HANDLE_PREFIX，禁止裸拼字符串）
  *  3. 下游在「生成时」读取本 hook 结果，作为参考图/参考文本。
@@ -384,7 +384,7 @@ if (import.meta.env.DEV) {
     // 单输出由 genericOutput 兜底（imageUrl/videoUrl/resultUrl）
     'imageNode',
     'promptNode',
-    'discountVideoNode',
+    'videoGenerateNode',
     'panoramaNode',
     'templateNode',
     'faceMosaicNode',

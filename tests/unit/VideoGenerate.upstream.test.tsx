@@ -1,5 +1,5 @@
 /**
- * DiscountVideoNode 上游合并测试（本次修复核心逻辑）。
+ * VideoGenerate 上游合并测试（本次修复核心逻辑）。
  * 覆盖：上游文本节点连线后文字合并进生视频 prompt；多上游文本/图片合并；
  * 上游有文本但本地 prompt 为空时校验通过。
  */
@@ -109,13 +109,13 @@ beforeEach(() => {
   connectedInputs = { images: [], texts: [] };
 });
 
-import DiscountVideoNode from '../../src/components/nodes/DiscountVideoNode.tsx';
+import VideoGenerate from '../../src/components/nodes/VideoGenerate.tsx';
 
 function setup(data = {}) {
-  return render(<DiscountVideoNode id="n1" data={data} selected={false} />);
+  return render(<VideoGenerate id="n1" data={data} selected={false} />);
 }
 
-describe('DiscountVideoNode 上游文本/图片合并（修复点）', () => {
+describe('VideoGenerate 上游文本/图片合并（修复点）', () => {
   it('上游文本节点连入时，文字合并进生视频 prompt', async () => {
     connectedInputs = {
       images: [],
