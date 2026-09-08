@@ -23,7 +23,7 @@ interface NodeTypeDefault {
  * 收口「哪些节点有可收起的配置面板」为单一真源，杜绝 Tab 与 arrange 范围不对称。
  */
 export const INPUT_PANEL_NODE_TYPES = [
-  'textNode',
+  'textGenerateNode',
   'imageGenerateNode',
   'videoGenerateNode',
   'templateNode',

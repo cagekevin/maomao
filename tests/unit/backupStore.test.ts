@@ -53,7 +53,7 @@ describe('backupStore — 导出 exportAll', () => {
   it('收集 LS_KEYS 清单里存在的值并打包', async () => {
     contentSet('projects', [{ id: 'p1', name: 'P1' }]);
     contentSet('app_settings', { theme: 'dark' });
-    contentSet('yimao_node_prefs', { textNode: { model: 'x' } });
+    contentSet('yimao_node_prefs', { textGenerateNode: { model: 'x' } });
     canvasStore.set('p1', { nodes: [{ id: 'n1' }], edges: [] });
 
     const backup = await exportAll();
@@ -61,7 +61,7 @@ describe('backupStore — 导出 exportAll', () => {
     expect(backup.type).toBe('yimao-backup');
     expect(backup.ls.projects).toEqual([{ id: 'p1', name: 'P1' }]);
     expect(backup.ls.app_settings).toEqual({ theme: 'dark' });
-    expect(backup.ls.yimao_node_prefs).toEqual({ textNode: { model: 'x' } });
+    expect(backup.ls.yimao_node_prefs).toEqual({ textGenerateNode: { model: 'x' } });
     expect(backup.canvas.p1).toEqual({ nodes: [{ id: 'n1' }], edges: [] });
     expect(typeof backup.exportedAt).toBe('string');
   });

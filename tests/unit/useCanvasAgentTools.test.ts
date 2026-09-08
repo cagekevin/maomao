@@ -101,9 +101,13 @@ describe('buildCanvasAgentTools', () => {
   it('create_node 用合法 type → setNodes 追加节点并返回新 id', () => {
     const ctx = makeCtx();
     const tools = buildCanvasAgentTools(ctx);
-    const res = tools.create_node({ type: 'textNode', prompt: '你好', position: { x: 1, y: 2 } });
+    const res = tools.create_node({
+      type: 'textGenerateNode',
+      prompt: '你好',
+      position: { x: 1, y: 2 },
+    });
     expect(res.ok).toBe(true);
-    expect(res.data.id).toMatch(/^textNode_/);
+    expect(res.data.id).toMatch(/^textGenerateNode_/);
     expect(ctx.setNodes).toHaveBeenCalled();
     // 断言「写」的行为而非 setNodes 的实现形式（host 走函数式更新）：传入当前节点数组，
     // 应追加正确 data 的新节点、且不影响既有节点。
@@ -120,11 +124,11 @@ describe('buildCanvasAgentTools', () => {
     expect(result.some((n) => n.id === 'existing')).toBe(true);
   });
 
-  it('create_node 对 textNode 传 text → 内容落生成区 data.text（而非抽屉 data.prompt）', () => {
+  it('create_node 对 textGenerateNode 传 text → 内容落生成区 data.text（而非抽屉 data.prompt）', () => {
     const ctx = makeCtx();
     const tools = buildCanvasAgentTools(ctx);
     const res = tools.create_node({
-      type: 'textNode',
+      type: 'textGenerateNode',
       text: 'AI 回复内容',
       position: { x: 1, y: 2 },
     });
@@ -138,11 +142,11 @@ describe('buildCanvasAgentTools', () => {
     expect((created.data as Record<string, unknown>).prompt).toBeUndefined();
   });
 
-  it('create_node 对 textNode 仅传 prompt → 内容落抽屉区 data.prompt（AI 既有行为不变）', () => {
+  it('create_node 对 textGenerateNode 仅传 prompt → 内容落抽屉区 data.prompt（AI 既有行为不变）', () => {
     const ctx = makeCtx();
     const tools = buildCanvasAgentTools(ctx);
     const res = tools.create_node({
-      type: 'textNode',
+      type: 'textGenerateNode',
       prompt: '抽屉提示词',
       position: { x: 1, y: 2 },
     });

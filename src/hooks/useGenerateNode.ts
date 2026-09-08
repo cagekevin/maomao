@@ -95,7 +95,7 @@ export function useGenerateNode({
   nodeId,
   type, // 'image' | 'chat' | 'video'（buildAllModels 模型域）
   reportType, // 任务上报用的节点类型（type 与上报类型不一致时用，缺省 = type）
-  // 例：TextNode 模型域是 'chat'，但上报 type 是 'text'，故 reportType:'text'。
+  // 例：TextGenerate 模型域是 'chat'，但上报 type 是 'text'，故 reportType:'text'。
   prompt, // 任务上报用的有效提示词（节点的 effectivePrompt）
   data, // 节点当前 data（供 useSyncNodeData 与默认模型守卫）
   prefs, // 节点 useNodePrefs().prefs

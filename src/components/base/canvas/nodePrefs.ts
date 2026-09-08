@@ -24,7 +24,7 @@
  * 不是本窗口触发时 setPrefs 覆盖，注意用 e.newValue 且避免覆盖用户正在编辑的项。
  *
  * 用法（各节点通用）：
- *   const prefs = useNodePrefs('textNode', { model: 'lovart-chat' })  // 读上次 + 注入默认
+ *   const prefs = useNodePrefs('textGenerateNode', { model: 'lovart-chat' })  // 读上次 + 注入默认
  *   prefs.set({ model })                                              // 保存本次选择
  *   onChange={(model) => { setSelectedModel(model); prefs.set({ model }) }}
  *
@@ -66,7 +66,7 @@ export function getNodePrefs(type: string, defaults: NodePrefsMap = {}): NodePre
 // data 键名 → 记忆键名 的映射（记忆里存的是官方口径，data 里是节点口径，如 selectedModel←model）
 const PREFS_FIELDS: PrefsFieldMap = {
   imageGenerateNode: { selectedModel: 'model', aspectRatio: 'aspectRatio', imageSize: 'imageSize' },
-  textNode: { selectedModel: 'model' },
+  textGenerateNode: { selectedModel: 'model' },
   templateNode: { selectedModel: 'model', aspectRatio: 'aspectRatio' },
   videoGenerateNode: {
     selectedModel: 'model',
@@ -77,7 +77,7 @@ const PREFS_FIELDS: PrefsFieldMap = {
 };
 const PREFS_DEFAULTS: PrefsFieldMap = {
   imageGenerateNode: { model: '', aspectRatio: 'Auto', imageSize: '1K' },
-  textNode: { model: '' },
+  textGenerateNode: { model: '' },
   templateNode: { model: '', aspectRatio: '1:1' },
   videoGenerateNode: { model: '', size: '16:9', resolution: '1080p', seconds: '10' },
 };
@@ -104,7 +104,7 @@ export function injectNodePrefs(type: string, data: NodePrefsMap): NodePrefsMap 
 
 /**
  * 读取某节点类型的上次参数（合并默认值）。
- * @param {string} type 节点类型，如 'textNode' / 'imageGenerateNode' / 'videoGenerateNode'
+ * @param {string} type 节点类型，如 'textGenerateNode' / 'imageGenerateNode' / 'videoGenerateNode'
  * @param {object} defaults 默认参数
  * @returns {{ prefs: object, set: (patch: object) => void }}
  */

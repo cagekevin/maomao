@@ -4,7 +4,7 @@ import type { Node, Edge } from '@xyflow/react';
 /**
  * 节点派生统一契约 —— 「建子节点 + 自动连线」的原子快照构造器。
  *
- * 背景：画布上多个节点（TextNode/VideoProcessNode/GridSplitNode 等）都需要「新建子节点并自动连一条
+ * 背景：画布上多个节点（TextGenerate/VideoProcessNode/GridSplitNode 等）都需要「新建子节点并自动连一条
  * 边」。此前各节点用裸 setNodes/setEdges 拼接，且均未进 undo 栈（useCanvasHistory 未 record）。
  * 本工具把「读当前快照 → 构造 nextNodes/nextEdges」这层同构骨架收敛为纯函数，可单测；子节点的
  * data 构造（每处业务不同）由调用方提供 childSpecs。

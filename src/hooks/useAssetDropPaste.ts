@@ -60,9 +60,9 @@ export interface AssetDropPasteApi {
  * 2. 「粘贴文字就是要清洗」——用户明确要求粘贴到画布的文字必须经过彻底清洗
  *    （sanitizePastedText）：压缩连续空格/空行、去行首行尾空格、统一换行、去不可见脏字符。
  *    核心目的：粘贴表格/富文本时，绝不能被当成图片或带样式贴进来，必须压成干净纯文本。
- *    所以 textNode 内容用 sanitizePastedText 处理，不要改成"保留格式"（那是错误方向）。
+ *    所以 textGenerateNode 内容用 sanitizePastedText 处理，不要改成"保留格式"（那是错误方向）。
  * 3. 复制「文本节点」有两种语义，都要可靠：
- *    A. 工具栏「复制文本」→ 复制节点里的文字（纯文本）→ 粘贴到画布建 textNode（经清洗）。
+ *    A. 工具栏「复制文本」→ 复制节点里的文字（纯文本）→ 粘贴到画布建 textGenerateNode（经清洗）。
  *    B. 右键「复制」→ 复制整个节点（mutiwindow-nodes JSON）→ 粘贴到画布重建节点组。
  * 4. 焦点在可编辑元素（contenteditable / input / textarea）内时：
  *    - 纯文本 → 走浏览器原生插入（不建节点、不拦截）；
@@ -91,8 +91,8 @@ export interface AssetDropPasteApi {
  *
  * 【映射规则（对齐官方）】
  *  - image / video / audio 文件 → imageNode（ImageNode 内部按 URL 判断类型展示；官方同此）
- *  - text 文件 / 纯文本 → textNode
- *  - 拖入 URL 文本：图片类 URL → imageNode，否则 → textNode
+ *  - text 文件 / 纯文本 → textGenerateNode
+ *  - 拖入 URL 文本：图片类 URL → imageNode，否则 → textGenerateNode
  * 原型无后端，文件用 FileReader 读 dataURL 写入节点 data（官方走 localTool hi() 上传 /files/）。
  *
  * @param {Object} opts
@@ -133,15 +133,15 @@ export function useAssetDropPaste({
     e.dataTransfer.dropEffect = 'copy';
   }, []);
 
-  // 文件 → 建素材节点（图片/视频/音频→imageNode，文本→textNode）
+  // 文件 → 建素材节点（图片/视频/音频→imageNode，文本→textGenerateNode）
   const createNodeFromFile = useCallback(
     (file: File, pos: FlowPosition) => {
       const type = detectFileType(file);
-      // 文本：读文本 → textNode
+      // 文本：读文本 → textGenerateNode
       if (type === 'text') {
         const fr = new FileReader();
         fr.onload = () => {
-          addNode('textNode', pos, { text: fr.result, label: file.name });
+          addNode('textGenerateNode', pos, { text: fr.result, label: file.name });
           showToast(`已导入文本「${file.name}」`);
         };
         fr.readAsText(file);
@@ -209,7 +209,7 @@ export function useAssetDropPaste({
             name?: string;
           };
           if (asset?.url) {
-            // 文字素材 → textNode（把 data:text 内容解码成文本）；图片/视频/音频 → imageNode
+            // 文字素材 → textGenerateNode（把 data:text 内容解码成文本）；图片/视频/音频 → imageNode
             if (asset.type === 'text') {
               let content = asset.text || '';
               if (!content && asset.url.startsWith('data:text')) {
@@ -219,7 +219,7 @@ export function useAssetDropPaste({
                   content = asset.name || '';
                 }
               }
-              addNode('textNode', pos, { text: content, label: asset.name || '文字素材' });
+              addNode('textGenerateNode', pos, { text: content, label: asset.name || '文字素材' });
               showToast(`已添加文字素材「${asset.name || '文字素材'}」`);
             } else {
               addNode('imageNode', pos, { imageUrl: asset.url, label: asset.name || '素材' });
@@ -234,7 +234,7 @@ export function useAssetDropPaste({
 
       const files = e.dataTransfer?.files;
       if (!files || files.length === 0) {
-        // 拖入 URL 文本（非文件）：图片类 URL → imageNode，其它 → textNode。
+        // 拖入 URL 文本（非文件）：图片类 URL → imageNode，其它 → textGenerateNode。
         // 从网页拖图时 URL 通常不在 text/plain，而在 text/uri-list（拖拽 URL 的标准 MIME），
         // 故两者都读，取第一个非空 URL 候选（uri-list 可能多行，取首行 URL）。
         const uriList = e.dataTransfer?.getData('text/uri-list') || '';
@@ -245,7 +245,7 @@ export function useAssetDropPaste({
             // 网页图 URL → 直接用原 URL 建 imageNode（方案C：能显示就显示，防盗链破图不阻塞导入；不做本地化）
             addImageNodeFromUrl(pos, candidate);
           } else {
-            addNode('textNode', pos, { text: candidate, expanded: false });
+            addNode('textGenerateNode', pos, { text: candidate, expanded: false });
             showToast('已导入文本');
           }
         }
@@ -258,7 +258,7 @@ export function useAssetDropPaste({
     [screenToFlowPosition, addNode, createNodeFromFile, addImageNodeFromUrl],
   );
 
-  // 建 textNode（普通文本，经 sanitize 清洗；内部 mutiwindow-* JSON 用原始 text 解析，不在此清洗）
+  // 建 textGenerateNode（普通文本，经 sanitize 清洗；内部 mutiwindow-* JSON 用原始 text 解析，不在此清洗）
   const handleTextPaste = useCallback(
     (rawText: string, pos: FlowPosition) => {
       if (!rawText || !rawText.trim()) return;
@@ -292,11 +292,11 @@ export function useAssetDropPaste({
           return;
         }
       } catch {}
-      // 普通文本 → textNode：经 sanitizePastedText 彻底清洗（压缩连续空格/空行、去行首行尾空格、
+      // 普通文本 → textGenerateNode：经 sanitizePastedText 彻底清洗（压缩连续空格/空行、去行首行尾空格、
       // 统一换行、去不可见脏字符）。用户核心诉求：粘贴表格/富文本时绝不能被当成图片或带样式贴进来，
       // 必须压成干净纯文本，这里按用户要求更强清洗。
       const cleanText = sanitizePastedText(rawText);
-      if (cleanText) addNode('textNode', pos, { text: cleanText, expanded: false });
+      if (cleanText) addNode('textGenerateNode', pos, { text: cleanText, expanded: false });
     },
     [addNode, onPasteNodeGroup],
   );
@@ -430,7 +430,7 @@ export function useAssetDropPaste({
         if (src) {
           e.preventDefault();
           if (isAssetUrl(src)) addNode('imageNode', pos, { imageUrl: src });
-          else addNode('textNode', pos, { text: src, expanded: false });
+          else addNode('textGenerateNode', pos, { text: src, expanded: false });
           return;
         }
       }
@@ -472,7 +472,7 @@ export function useAssetDropPaste({
                 const src = extractImgFromHtml(html);
                 if (src) {
                   if (isAssetUrl(src)) addNode('imageNode', pos, { imageUrl: src });
-                  else addNode('textNode', pos, { text: src, expanded: false });
+                  else addNode('textGenerateNode', pos, { text: src, expanded: false });
                   return;
                 }
               }

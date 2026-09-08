@@ -1,5 +1,5 @@
 /**
- * TextNode 上游合并测试（本次修复核心逻辑）。
+ * TextGenerate 上游合并测试（本次修复核心逻辑）。
  * 覆盖：上游文本节点连线后文字合并进文本生成消息；多上游文本/图片合并；
  * 上游有文本但本地为空时校验通过。
  */
@@ -109,13 +109,13 @@ beforeEach(() => {
   connectedInputs = { images: [], texts: [] };
 });
 
-import TextNode from '../../src/components/nodes/TextNode.tsx';
+import TextGenerate from '../../src/components/nodes/TextGenerate.tsx';
 
 function setup(data = {}) {
-  return render(<TextNode id="n1" data={data} selected={false} />);
+  return render(<TextGenerate id="n1" data={data} selected={false} />);
 }
 
-describe('TextNode 上游文本/图片合并（修复点）', () => {
+describe('TextGenerate 上游文本/图片合并（修复点）', () => {
   it('上游文本节点连入时，文字合并进生成消息', async () => {
     connectedInputs = {
       images: [],

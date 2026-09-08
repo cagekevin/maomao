@@ -138,7 +138,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     () => resolvePromptChips(effectivePrompt, refImages, refTexts),
     [effectivePrompt, refImages, refTexts],
   );
-  // 提示词输入框双击全屏编辑（复刻 TextNode 的交互：ResizeFullscreenHandle 双击 → 弹层）
+  // 提示词输入框双击全屏编辑（复刻 TextGenerate 的交互：ResizeFullscreenHandle 双击 → 弹层）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
   // 记住上次选择的比例/尺寸/模型（跨节点/跨会话）；初始用记忆值，无记忆回退默认
   const { prefs: imgPrefs, set: setImgPrefs } = useNodePrefs('imageGenerateNode', {

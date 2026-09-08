@@ -107,7 +107,7 @@ function promptPreview(p: string | undefined): string {
  *   解析 provider → reportGenerate → taskCtl.progress → 调 API
  *   → 成功写 node.data + taskCtl.done / 失败 setError + taskCtl.fail
  *   → registerTaskRetry 注册「再来一次」
- * ImageGenerate / TextNode / VideoGenerate 各重复约 40 行，
+ * ImageGenerate / TextGenerate / VideoGenerate 各重复约 40 行，
  * 且 Agent 的 generate_node 工具是死桩（没接真实生成）。
  * 未来 28 个节点逐个接真引擎时，若没有统一契约，每个节点都要重复踩一遍坑，
  * 还容易「任务中心有结果、节点卡片没结果」或反之的不一致。

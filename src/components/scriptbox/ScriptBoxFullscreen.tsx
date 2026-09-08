@@ -22,7 +22,7 @@ interface ScriptBoxFullscreenProps {
  * 剧本盒子 —— 全屏工作台视图（自包含，替代通用 base/FullscreenModal 的浮窗卡片）。
  *
  * 背景：用户要求「点全屏后整个应用变成一个全屏网页，三步都在里面」。通用 FullscreenModal
- * 是浮窗（可缩放卡片、只占屏 80%、无导航），被 TextNode/ImageGenerate 等共用，不能改它。
+ * 是浮窗（可缩放卡片、只占屏 80%、无导航），被 TextGenerate/ImageGenerate 等共用，不能改它。
  * 故剧本盒子专属全屏视图收口在本组件：
  *  - createPortal 挂到 body，`fixed inset-0` 铺满 100vw×100vh（真全屏，无边框/无缩放手柄）
  *  - 顶部标题栏 + StepNav 三步导航 + 三步内容（StepShots/StepAssets/StepPrompt）

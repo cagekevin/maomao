@@ -46,12 +46,12 @@ export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWid
     shallowEqual,
   );
 
-  // 发送到画布：复用 AI 操作画布的现成工具链路（create_node → textNode），不裸写 setNodes
+  // 发送到画布：复用 AI 操作画布的现成工具链路（create_node → textGenerateNode），不裸写 setNodes
   const onSendToCanvas = useCallback(
     (text: string) => {
       const t = String(text ?? '').trim();
       if (!t) return;
-      callTool('create_node', { type: 'textNode', text: t });
+      callTool('create_node', { type: 'textGenerateNode', text: t });
     },
     [callTool],
   );

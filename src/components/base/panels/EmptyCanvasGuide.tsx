@@ -13,7 +13,7 @@ import { FileText, Image as ImageIcon, Clapperboard } from 'lucide-react';
  *
  * 结构（对齐官方）：
  *  - 标题胶囊（bg-surface-raised rounded-full ... border-edge shadow-lg）：图表图标 + 「右键自由生成你的想象」
- *  - 三个按钮：文字生成(textNode) / 图片生成(imageGenerateNode) / 视频生成(videoGenerateNode)，
+ *  - 三个按钮：文字生成(textGenerateNode) / 图片生成(imageGenerateNode) / 视频生成(videoGenerateNode)，
  *    点击在画布中央新建对应节点。
  *
  * @param {object} props
@@ -21,7 +21,7 @@ import { FileText, Image as ImageIcon, Clapperboard } from 'lucide-react';
  */
 export interface EmptyCanvasGuideProps {
   /** 新建节点回调（App 传 addNode，落点在画布中央），type 为三种生成入口的节点类型 */
-  onAdd: (type: 'textNode' | 'imageGenerateNode' | 'videoGenerateNode') => void;
+  onAdd: (type: 'textGenerateNode' | 'imageGenerateNode' | 'videoGenerateNode') => void;
 }
 
 export default function EmptyCanvasGuide({ onAdd }: EmptyCanvasGuideProps) {
@@ -53,7 +53,7 @@ export default function EmptyCanvasGuide({ onAdd }: EmptyCanvasGuideProps) {
         <div className="flex items-center gap-4">
           <button
             type="button"
-            onClick={() => onAdd('textNode')}
+            onClick={() => onAdd('textGenerateNode')}
             className="flex items-center gap-2 px-6 py-3.5 bg-transparent hover:bg-surface-1 border border-edge hover:border-edge-strong rounded-2xl transition-all text-secondary hover:text-primary"
           >
             <FileText size={18} className="text-muted" />

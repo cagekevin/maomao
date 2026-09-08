@@ -122,7 +122,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
     () => resolvePromptChips(effectivePrompt, connectedImages, refTexts),
     [effectivePrompt, connectedImages, refTexts],
   );
-  // 提示词输入框双击全屏编辑（复刻 TextNode 的交互：ResizeFullscreenHandle 双击 → 弹层）
+  // 提示词输入框双击全屏编辑（复刻 TextGenerate 的交互：ResizeFullscreenHandle 双击 → 弹层）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
   // 提示词落盘：本地 state + 写回 node.data（支持函数式更新）。
   // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave）→ 手动输入的提示词刷新不丢。

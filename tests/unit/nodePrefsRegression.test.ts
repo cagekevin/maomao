@@ -13,7 +13,7 @@ const root = resolve(__dirname, '../../src/components/nodes');
 // 由 resolveNodeFile 探测，避免每次改名都要改本测试。
 const TARGETS = {
   ImageGenerate: ['imgPrefs'],
-  TextNode: ['textPrefs'],
+  TextGenerate: ['textPrefs'],
   TemplateNode: ['myPrefs'],
   VideoGenerate: ['vidPrefs'],
 };

@@ -20,7 +20,7 @@ import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.t
  *     · 为什么只接一层：下游只需直接依赖它的上游产出；隔了多层的间接数据
  *       不应自动混入（否则依赖关系不可控、数据爆炸）。
  *  2. 每个上游节点产出它的「生成物」或「外部传入的素材」（见 getNodeOutput）：
- *       textNode        → 文本（data.text）
+ *       textGenerateNode        → 文本（data.text）
  *       imageNode       → 图片/视频/音频（data.imageUrl，按 mime/扩展名分类）
  *       imageGenerateNode      → 图片（data.imageUrl）
  *       videoGenerateNode → 视频（data.videoUrl）
@@ -198,7 +198,7 @@ export function getNodeOutput(
   // 2. 文本节点：输出 data.text（统一为 {id,label,text} 对象，供 PromptInput/@弹层显示）。
   // 保留特判而非入表：它读的是 node.id（节点身份）而非纯 data 派生，与 NODE_OUTPUTS
   // 「data → 产出」的声明语义不符；且它不引入任何业务模块依赖，无架构债。
-  if (type === 'textNode' && d.text && typeof d.text === 'string') {
+  if (type === 'textGenerateNode' && d.text && typeof d.text === 'string') {
     return { ...empty, texts: [{ id, label: str(d.label) || '参考文本', text: d.text }] };
   }
 
@@ -378,7 +378,7 @@ export function useConnectedInputs(nodeId?: string): NodeOutputGroup {
 // 通用单输出兜底或无产出集合 → dev 加载期给可读 warning，避免新增产出节点漏声明被静默 genericOutput
 // 吞掉（进而被下游当错类型/漏传给上游，甚至外部硬编码 t.data[0].url）。仅 DEV 触发，生产零开销。
 if (import.meta.env.DEV) {
-  const specialHandled = new Set(['textNode']); // getNodeOutput 保留特判（读 node.id，非 data 派生）
+  const specialHandled = new Set(['textGenerateNode']); // getNodeOutput 保留特判（读 node.id，非 data 派生）
   const declaredOutputs = new Set(Object.keys(NODE_OUTPUTS)); // 显式产出声明（剧本盒多端口 / 多图 / 数组 / 自带 mediaType）
   const genericOutputOk = new Set([
     // 单输出由 genericOutput 兜底（imageUrl/videoUrl/resultUrl）

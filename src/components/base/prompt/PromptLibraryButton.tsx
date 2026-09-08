@@ -30,8 +30,8 @@ export default function PromptLibraryButton({ category = 'text', onAppend }) {
     // 落点：统一视图中央（走公共 base，与 Q/W/E 等一致）
     const position = posAtCenter();
     const newNode = {
-      id: generateId('textNode'),
-      type: 'textNode',
+      id: generateId('textGenerateNode'),
+      type: 'textGenerateNode',
       position,
       data: {
         label: '',

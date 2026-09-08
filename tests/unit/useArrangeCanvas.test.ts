@@ -91,7 +91,7 @@ describe('useArrangeCanvas', () => {
       },
       {
         id: 'c',
-        type: 'textNode',
+        type: 'textGenerateNode',
         position: { x: 10, y: 10 },
         data: {},
         width: 120,
@@ -135,7 +135,7 @@ describe('useArrangeCanvas', () => {
       },
       {
         id: 'c1',
-        type: 'textNode',
+        type: 'textGenerateNode',
         position: { x: 10, y: 40 },
         data: {},
         width: 120,
@@ -182,7 +182,7 @@ describe('useArrangeCanvas', () => {
       origTop,
       {
         id: 'b',
-        type: 'textNode',
+        type: 'textGenerateNode',
         position: { x: 4000, y: 9000 },
         data: {},
         width: 120,

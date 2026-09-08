@@ -6,7 +6,7 @@
  * 而是优先 navigator.clipboard.read() 实时读系统剪贴板；read 失败/不可用时退回 paste 事件
  * 的「同步 getData」作为 fallback。四类内容全部有归宿：
  *   A. 图片（file / text/html 里的 <img>）
- *   B. 纯文本 → textNode
+ *   B. 纯文本 → textGenerateNode
  *   C. 节点组（mutiwindow-nodes JSON）→ 重建节点+边
  *   D. 提取帧（mutiwindow-images JSON）→ 图片网格
  *
@@ -137,7 +137,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
   });
 
   // ── B. 纯文本 ─────────────────────────────────────────────────────
-  it('read() 返回纯文本 → sanitize 后建 textNode（清洗压缩）', async () => {
+  it('read() 返回纯文本 → sanitize 后建 textGenerateNode（清洗压缩）', async () => {
     installClipboard({ read: vi.fn().mockResolvedValue([textItem('  hello   world  ')]) });
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
@@ -149,7 +149,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     await act(async () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
-    expect(opts.addNode).toHaveBeenCalledWith('textNode', expect.any(Object), {
+    expect(opts.addNode).toHaveBeenCalledWith('textGenerateNode', expect.any(Object), {
       text: 'hello world',
       expanded: false,
     });
@@ -230,7 +230,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
   });
 
   // ── 修复 3：read() 失败 → 退回 paste 事件「同步 getData」 fallback ──
-  it('read() 抛错 → 退回 paste 事件同步 getData（text/plain）建 textNode', async () => {
+  it('read() 抛错 → 退回 paste 事件同步 getData（text/plain）建 textGenerateNode', async () => {
     installClipboard({ read: vi.fn().mockRejectedValue(new Error('permission')) });
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
@@ -243,7 +243,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     await act(async () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
-    expect(opts.addNode).toHaveBeenCalledWith('textNode', expect.any(Object), {
+    expect(opts.addNode).toHaveBeenCalledWith('textGenerateNode', expect.any(Object), {
       text: 'fallback text',
       expanded: false,
     });
@@ -405,7 +405,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
   // 文本节点两种复制语义（用户高频痛点）：
   //   A. 工具栏「复制文本」→ writeText(节点里的文字) = 纯文本
   //   B. 右键「复制」→ writeText(mutiwindow-nodes JSON) = 整个节点
-  // 要求：A 粘贴到画布建 textNode 且内容经 sanitize「彻底清洗」成干净纯文本
+  // 要求：A 粘贴到画布建 textGenerateNode 且内容经 sanitize「彻底清洗」成干净纯文本
   //       （用户核心诉求：粘贴表格/富文本时绝不当图片/带样式贴进来，必须清晰纯文本）；
   //       A 粘贴到 textarea 走原生插入；B 无论焦点在哪都放行建节点组。
   // ════════════════════════════════════════════════════════════════
@@ -420,7 +420,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     } as unknown as ReactClipboardEvent;
   }
 
-  it('复制文本节点里的文字 → 粘贴到画布：建 textNode 且内容被 sanitize 清洗（去缩进/空行）', async () => {
+  it('复制文本节点里的文字 → 粘贴到画布：建 textGenerateNode 且内容被 sanitize 清洗（去缩进/空行）', async () => {
     const original = '第一行\n    缩进的行\n\n\n结尾';
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
@@ -428,7 +428,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       await result.current.onPaste(plainEvent(original, document.createElement('div')));
     });
     // sanitize 清洗：压缩连续空格/空行、去行首尾空格、trim
-    expect(opts.addNode).toHaveBeenCalledWith('textNode', expect.any(Object), {
+    expect(opts.addNode).toHaveBeenCalledWith('textGenerateNode', expect.any(Object), {
       text: '第一行\n缩进的行\n\n结尾',
       expanded: false,
     });
@@ -443,14 +443,14 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     expect(opts.addNode).not.toHaveBeenCalled();
   });
 
-  it('复制文本节点里的文字（普通 JSON 但不含 mutiwindow 标记）→ 粘贴到画布：建 textNode 且被清洗', async () => {
+  it('复制文本节点里的文字（普通 JSON 但不含 mutiwindow 标记）→ 粘贴到画布：建 textGenerateNode 且被清洗', async () => {
     const original = '{"a": 1, "b": [1,   2]}'; // 合法 JSON 但非 mutiwindow → 当普通文本
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
     await act(async () => {
       await result.current.onPaste(plainEvent(original, document.createElement('div')));
     });
-    expect(opts.addNode).toHaveBeenCalledWith('textNode', expect.any(Object), {
+    expect(opts.addNode).toHaveBeenCalledWith('textGenerateNode', expect.any(Object), {
       text: '{"a": 1, "b": [1, 2]}',
       expanded: false,
     });
@@ -498,7 +498,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     expect(e.preventDefault).toHaveBeenCalled();
   });
 
-  it('拖入文本：text/uri-list 是纯文本（非图片 URL）→ 建 textNode', () => {
+  it('拖入文本：text/uri-list 是纯文本（非图片 URL）→ 建 textGenerateNode', () => {
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
     const e = {
@@ -509,7 +509,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       },
     };
     result.current.onDrop(e as unknown as ReactDragEvent);
-    expect(opts.addNode).toHaveBeenCalledWith('textNode', expect.any(Object), {
+    expect(opts.addNode).toHaveBeenCalledWith('textGenerateNode', expect.any(Object), {
       text: 'hello world',
       expanded: false,
     });

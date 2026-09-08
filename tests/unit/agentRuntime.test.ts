@@ -248,7 +248,7 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
               {
                 id: 'c1',
                 type: 'function',
-                function: { name: 'create_node', arguments: '{"nodeType":"textNode"}' },
+                function: { name: 'create_node', arguments: '{"nodeType":"textGenerateNode"}' },
               },
             ],
           },
@@ -288,6 +288,6 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
     );
     expect(Array.isArray(r.tool_calls)).toBe(true);
     expect(r.tool_calls[0].function.name).toBe('create_node');
-    expect(r.tool_calls[0].function.arguments).toBe('{"nodeType":"textNode"}');
+    expect(r.tool_calls[0].function.arguments).toBe('{"nodeType":"textGenerateNode"}');
   });
 });

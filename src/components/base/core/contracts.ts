@@ -505,7 +505,7 @@ export const NODE_TYPES = {
   // ScriptBoxNode.data 全部顶层/子字段属画布快照(canvas-state-v1-{projectId})一部分，
   // 禁止独立持久化（防双写漂移）。字段唯一真相源见 src/components/scriptbox/scriptBoxSchema.ts。
   scriptBoxNode: 'scriptBoxNode',
-  textNode: 'textNode',
+  textGenerateNode: 'textGenerateNode',
   imageGenerateNode: 'imageGenerateNode',
   templateNode: 'templateNode',
   videoGenerateNode: 'videoGenerateNode',

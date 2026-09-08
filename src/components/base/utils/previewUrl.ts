@@ -1,7 +1,7 @@
 /**
  * 统一「本地预览 URL 生命周期」管理器 —— 预览 Blob 的 create / 引用计数 / revoke 唯一入口。
  *
- * 背景：此前 `URL.createObjectURL` 散落各节点（TextNode / FaceMosaic / VideoExtract / VideoProcess /
+ * 背景：此前 `URL.createObjectURL` 散落各节点（TextGenerate / FaceMosaic / VideoExtract / VideoProcess /
  * AgentPanel 等 ≥10 处），且多数只 create 不 revoke（配对率仅 40%），长期运行内存泄漏。
  *
  * 本模块收口「纯预览」语义：

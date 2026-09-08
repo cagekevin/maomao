@@ -215,7 +215,7 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
       },
       {
         id: 'b',
-        type: 'textNode',
+        type: 'textGenerateNode',
         data: {},
         position: { x: 200, y: 0 },
         measured: { width: 100, height: 100 },

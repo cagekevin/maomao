@@ -136,31 +136,37 @@ describe('nodePrefs —— 节点上次参数记忆', () => {
   });
 
   it('初始化 = {...defaults, ...(上次存的该 type 参数)}（无存储时仅 defaults）', () => {
-    const { result } = renderHook(() => useNodePrefs('textNode', { model: 'a', size: '1K' }));
+    const { result } = renderHook(() =>
+      useNodePrefs('textGenerateNode', { model: 'a', size: '1K' }),
+    );
     expect(result.current.prefs).toEqual({ model: 'a', size: '1K' });
   });
 
   it('初始化合并上次存储的参数（存储覆盖默认值）', () => {
     prefsMem.set(
       'yimao_node_prefs',
-      JSON.stringify({ textNode: { model: 'saved', ratio: '16:9' } }),
+      JSON.stringify({ textGenerateNode: { model: 'saved', ratio: '16:9' } }),
     );
-    const { result } = renderHook(() => useNodePrefs('textNode', { model: 'default', size: '1K' }));
+    const { result } = renderHook(() =>
+      useNodePrefs('textGenerateNode', { model: 'default', size: '1K' }),
+    );
     expect(result.current.prefs).toEqual({ model: 'saved', size: '1K', ratio: '16:9' });
   });
 
   it('set(patch) 合并并写回 localStorage', () => {
-    const { result } = renderHook(() => useNodePrefs('textNode', { model: 'a', size: '1K' }));
+    const { result } = renderHook(() =>
+      useNodePrefs('textGenerateNode', { model: 'a', size: '1K' }),
+    );
     act(() => {
       result.current.set({ model: 'b' });
     });
     expect(result.current.prefs).toEqual({ model: 'b', size: '1K' });
     const stored = JSON.parse(prefsMem.get('yimao_node_prefs'));
-    expect(stored.textNode).toEqual({ model: 'b', size: '1K' });
+    expect(stored.textGenerateNode).toEqual({ model: 'b', size: '1K' });
   });
 
   it('set 多次累计合并', () => {
-    const { result } = renderHook(() => useNodePrefs('textNode', { model: 'a' }));
+    const { result } = renderHook(() => useNodePrefs('textGenerateNode', { model: 'a' }));
     act(() => {
       result.current.set({ ratio: '16:9' });
     });
@@ -169,33 +175,33 @@ describe('nodePrefs —— 节点上次参数记忆', () => {
     });
     expect(result.current.prefs).toEqual({ model: 'a', ratio: '16:9', size: '2K' });
     const stored = JSON.parse(prefsMem.get('yimao_node_prefs'));
-    expect(stored.textNode.size).toBe('2K');
+    expect(stored.textGenerateNode.size).toBe('2K');
   });
 
   it('不同 type 参数互不干扰', () => {
-    const a = renderHook(() => useNodePrefs('textNode', { model: 'a' }));
+    const a = renderHook(() => useNodePrefs('textGenerateNode', { model: 'a' }));
     const b = renderHook(() => useNodePrefs('imageNode', { model: 'img' }));
     act(() => {
       a.result.current.set({ model: 'a2' });
     });
-    // 修改 textNode 不影响 imageNode 的内存状态
+    // 修改 textGenerateNode 不影响 imageNode 的内存状态
     expect(b.result.current.prefs.model).toBe('img');
     // 持久化时仅写入各自 type 的 key（set 才落盘，默认值不单独落盘）
     const stored = JSON.parse(prefsMem.get('yimao_node_prefs'));
-    expect(stored.textNode.model).toBe('a2');
+    expect(stored.textGenerateNode.model).toBe('a2');
     expect(stored.imageNode).toBeUndefined();
     // 再次 set imageNode 后两个 key 共存且互不覆盖
     act(() => {
       b.result.current.set({ model: 'img2' });
     });
     const stored2 = JSON.parse(prefsMem.get('yimao_node_prefs'));
-    expect(stored2.textNode.model).toBe('a2');
+    expect(stored2.textGenerateNode.model).toBe('a2');
     expect(stored2.imageNode.model).toBe('img2');
   });
 
   it('loadAll 容错：损坏 JSON 返回 {}（初始化退回纯 defaults）', () => {
     prefsMem.set('yimao_node_prefs', '{ broken json');
-    const { result } = renderHook(() => useNodePrefs('textNode', { model: 'a' }));
+    const { result } = renderHook(() => useNodePrefs('textGenerateNode', { model: 'a' }));
     // 损坏 JSON 不应抛错，应退回纯默认值
     expect(result.current.prefs).toEqual({ model: 'a' });
   });

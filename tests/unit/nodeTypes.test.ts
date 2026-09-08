@@ -38,10 +38,10 @@ describe('NodePalette.buildNodeTypeComponents（nodeTypes 单源化）', () => {
     }
   });
 
-  it('含顶部快捷 HIDDEN 节点（textNode/imageGenerateNode/videoGenerateNode）', () => {
+  it('含顶部快捷 HIDDEN 节点（textGenerateNode/imageGenerateNode/videoGenerateNode）', () => {
     // src 侧 `const map = {}` 推断为 {} （①类偏宽）；测试侧按实际用法收敛为索引签名类型
     const map = buildNodeTypeComponents() as Record<string, unknown>;
-    expect(isReactComponent(map.textNode), 'textNode 非合法组件类型').toBe(true);
+    expect(isReactComponent(map.textGenerateNode), 'textGenerateNode 非合法组件类型').toBe(true);
     expect(isReactComponent(map.imageGenerateNode), 'imageGenerateNode 非合法组件类型').toBe(true);
     expect(isReactComponent(map.videoGenerateNode), 'videoGenerateNode 非合法组件类型').toBe(true);
   });
@@ -59,7 +59,7 @@ describe('NodePalette.buildNodeTypeComponents（nodeTypes 单源化）', () => {
   it('派生结果 + App.jsx 补充 = baseline 16 类（防遗漏/防多余）', () => {
     // 与改动前 App.jsx 手写 nodeTypes 的 type 集合逐项对齐
     const baseline = [
-      'textNode',
+      'textGenerateNode',
       'imageNode',
       'loopNode',
       'imageGenerateNode',

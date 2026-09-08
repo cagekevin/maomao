@@ -45,12 +45,12 @@ afterEach(() => {
 });
 
 describe('useCanvasShortcuts 守卫（防回退）', () => {
-  it('无选中文本时按 Q 应触发 onAdd(textNode)', () => {
+  it('无选中文本时按 Q 应触发 onAdd(textGenerateNode)', () => {
     const onAdd = vi.fn();
     render(<Harness handlers={{ onAdd }} />);
     setSelectionText('');
     fireKeyDown({ key: 'q' });
-    expect(onAdd).toHaveBeenCalledWith('textNode');
+    expect(onAdd).toHaveBeenCalledWith('textGenerateNode');
   });
 
   it('【回归点】选中文本时按 Q 不应触发 onAdd（守卫必须拦截）', () => {

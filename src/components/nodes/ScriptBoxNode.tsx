@@ -197,7 +197,7 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
       wrapperRef={wrapperRef}
       // 输入端口（左侧 target，handleId='in'）：接收上游文本节点 + 图片节点接入。
       // showHandles={false} 已关闭 NodeShell 默认端口，这里显式补一个可连的输入口，
-      // 让 textNode 等文本/图片类上游能拖线连入剧本盒子，作为编剧参考（第 1 步展示、传给 AI）。
+      // 让 textGenerateNode 等文本/图片类上游能拖线连入剧本盒子，作为编剧参考（第 1 步展示、传给 AI）。
       // ⚠️ 必须走 overlayHandles（挂 NodeShell 根 div）而不是 createPortal 延迟挂载：
       // 延迟挂载时端口在首帧后才进 DOM，而 React Flow 只在节点尺寸/type/位置变化时重测
       // handleBounds → 'in' 永远进不了 handleBounds → 指向它的边每次渲染都报

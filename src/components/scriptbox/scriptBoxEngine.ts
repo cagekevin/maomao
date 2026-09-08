@@ -293,7 +293,7 @@ export function createScriptBoxEngine({
   const onGenerateScript = async () => {
     const d = getData();
     // 剧情 = 用户手动输入 story + 连线上游文本节点接入的剧情（data.upstreamStory）。
-    // 上游文本是「智能接受文本节点接入剧情」的通道：textNode 连入剧本盒子后，其文本
+    // 上游文本是「智能接受文本节点接入剧情」的通道：textGenerateNode 连入剧本盒子后，其文本
     // 作为剧情来源之一，与手填 story 合并后一起交给编剧模型生成分镜。
     const userStory = (d.story || '').trim();
     const upstreamStory = (d.upstreamStory || '').trim();

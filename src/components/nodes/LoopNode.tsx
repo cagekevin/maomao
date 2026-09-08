@@ -130,7 +130,7 @@ export function splitByMethod(text: unknown, method: string) {
 }
 
 function LoopNode({ id, data, selected }: LoopNodeProps) {
-  // 上游连线：读取直接上游节点的文本（textNode 产出 data.text）
+  // 上游连线：读取直接上游节点的文本（textGenerateNode 产出 data.text）
   const connected = useConnectedInputs(id);
   const { setNodes, setEdges, getNodes, getEdges } = useReactFlow();
   const history = useCanvasEdges();

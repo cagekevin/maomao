@@ -12,7 +12,7 @@ describe('编组算法 §2.2', () => {
   const nodes = [
     {
       id: 'a',
-      type: 'textNode',
+      type: 'textGenerateNode',
       data: {},
       position: { x: 0, y: 0 },
       style: { width: 100, height: 100 },
@@ -94,7 +94,7 @@ describe('R4 groupId 无碰撞（crypto.randomUUID 替代 Date.now）', () => {
   const twoNodes = [
     {
       id: 'a',
-      type: 'textNode',
+      type: 'textGenerateNode',
       data: {},
       position: { x: 0, y: 0 },
       style: { width: 100, height: 100 },
@@ -136,8 +136,8 @@ describe('R3 deleteNodesWithCascade 级联删除（删 group 不留孤儿）', (
       style: { width: 500, height: 500 },
     },
     { id: 'child1', type: 'imageNode', data: {}, position: { x: 40, y: 40 }, parentId: 'g' },
-    { id: 'child2', type: 'textNode', data: {}, position: { x: 60, y: 60 }, parentId: 'g' },
-    { id: 'outer', type: 'textNode', data: {}, position: { x: 500, y: 500 } },
+    { id: 'child2', type: 'textGenerateNode', data: {}, position: { x: 60, y: 60 }, parentId: 'g' },
+    { id: 'outer', type: 'textGenerateNode', data: {}, position: { x: 500, y: 500 } },
   ];
   const edges = [
     { id: 'e1', source: 'g', target: 'child1' },
@@ -177,8 +177,8 @@ describe('R3 duplicateSelectedWithEdges 克隆子图（保留组关系 + 连线�
       style: { width: 500, height: 500 },
     },
     { id: 'c1', type: 'imageNode', data: {}, position: { x: 40, y: 40 }, parentId: 'g' },
-    { id: 'c2', type: 'textNode', data: {}, position: { x: 60, y: 60 }, parentId: 'g' },
-    { id: 'outer', type: 'textNode', data: {}, position: { x: 500, y: 500 } },
+    { id: 'c2', type: 'textGenerateNode', data: {}, position: { x: 60, y: 60 }, parentId: 'g' },
+    { id: 'outer', type: 'textGenerateNode', data: {}, position: { x: 500, y: 500 } },
   ];
   const edges = [
     { id: 'e1', source: 'g', target: 'c1' },
@@ -194,7 +194,7 @@ describe('R3 duplicateSelectedWithEdges 克隆子图（保留组关系 + 连线�
     // 克隆的 c1/c2 有新的 parentId（指向克隆的 group），不指向原 group
     const newIds = [...ids].filter((id) => !['g', 'c1', 'c2', 'outer'].includes(id));
     const cloneC1 = r.nodes.find((n) => newIds.includes(n.id) && n.type === 'imageNode');
-    const cloneC2 = r.nodes.find((n) => newIds.includes(n.id) && n.type === 'textNode');
+    const cloneC2 = r.nodes.find((n) => newIds.includes(n.id) && n.type === 'textGenerateNode');
     const cloneG = r.nodes.find((n) => newIds.includes(n.id) && n.type === 'group');
     expect(cloneC1.parentId).toBe(cloneG.id);
     expect(cloneC2.parentId).toBe(cloneG.id);
@@ -267,7 +267,7 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
     },
     {
       id: 'c',
-      type: 'textNode',
+      type: 'textGenerateNode',
       position: { x: 250, y: 500 },
       style: { width: 250, height: 150 },
       data: {},
@@ -365,7 +365,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
   };
   const outer = {
     id: 'o',
-    type: 'textNode',
+    type: 'textGenerateNode',
     data: {},
     position: { x: 800, y: 800 },
     style: { width: 100, height: 100 },

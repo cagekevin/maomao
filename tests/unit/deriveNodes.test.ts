@@ -11,7 +11,7 @@ describe('buildSpawnNodes', () => {
   it('生成子节点并自动连线（source=父,target=子，默认 id 前缀）', () => {
     const { childNodes, edges } = buildSpawnNodes(parent, [
       { type: 'imageNode', data: { label: 'a' } },
-      { type: 'textNode', data: { label: 'b' } },
+      { type: 'textGenerateNode', data: { label: 'b' } },
     ]);
     expect(childNodes).toHaveLength(2);
     expect(edges).toHaveLength(2);
@@ -59,7 +59,7 @@ describe('applySpawnSnapshot', () => {
     const parent = { id: 'p1', position: { x: 0, y: 0 } };
     const spawned = buildSpawnNodes(parent, [{ id: 'c1', type: 'imageNode', data: {} }]);
     const snap = applySpawnSnapshot(
-      [{ id: 'existing', type: 'textNode', position: { x: 0, y: 0 }, data: {} }],
+      [{ id: 'existing', type: 'textGenerateNode', position: { x: 0, y: 0 }, data: {} }],
       [{ id: 'e0', source: 'a', target: 'b' }],
       spawned,
     );

@@ -74,9 +74,9 @@ import { resolveProviderModel } from '../base/utils/providerModels.ts';
  * ┌─ 能力 ────────────────────┬─ 抄哪 ────────────────┬─ 备注 ───────────────────────┐
  * │ 多内容类型(图/视频/音频/文)  │ ImageNode           │ detectMediaType + data.mediaType│
  * │ 全屏编辑器(裁剪/涂鸦/压缩)   │ ImageNode           │ ImageEditor + FullscreenModal    │
- * │ 视频首帧封面               │ ImageNode/TextNode   │ base/useVideoPoster             │
+ * │ 视频首帧封面               │ ImageNode/TextGenerate   │ base/useVideoPoster             │
  * │ 宽高比自适应               │ ImageNode            │ base/useFitNodeRatio            │
- * │ 双击编辑 + AI生成 + 全屏编辑 │ TextNode            │ editingText + useNodeGeneration  │
+ * │ 双击编辑 + AI生成 + 全屏编辑 │ TextGenerate            │ editingText + useNodeGeneration  │
  * │ 画质/比例/渲染质量菜单       │ ImageGenerate           │ trigger + absolute bottom-full  │
  * │ 批量张数 xN                │ ImageGenerate           │ count 下拉 + 循环生成            │
  * │ 多图容器(图片盒子)          │ ImageBoxNode         │ data.images 直读 + 多选/全选     │
@@ -181,13 +181,13 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded);
   const [prompt, setPrompt] = useState(data.prompt || '');
   const [imageUrl, setImageUrl] = useState(data.imageUrl || '');
-  // 全屏编辑：提示词输入框双击 → 全屏编辑提示词（复刻 TextNode）
+  // 全屏编辑：提示词输入框双击 → 全屏编辑提示词（复刻 TextGenerate）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
   // 全屏查看：主框双击 → 全屏查看生成结果（替代原 showToast('全屏') 占位）
   const [fullscreenResult, setFullscreenResult] = useState(false);
 
   // 参数记忆：记住上次选的模型/比例，新建节点默认沿用（跨节点/跨会话）
-  // 【模板】type 换成你的节点 type（如 'textNode'），默认值按需改
+  // 【模板】type 换成你的节点 type（如 'textGenerateNode'），默认值按需改
   const { prefs: myPrefs, set: setMyPrefs } = useNodePrefs('templateNode', {
     model: '',
     aspectRatio: '1:1',
@@ -228,7 +228,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   React.useEffect(() => {
     patchData({ expanded });
   }, [expanded]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 全局快捷键（Tab）折叠/展开：外部 data.expanded 变化时同步回本地 state（对齐 TextNode/ImageGenerate/VideoGenerate）
+  // 全局快捷键（Tab）折叠/展开：外部 data.expanded 变化时同步回本地 state（对齐 TextGenerate/ImageGenerate/VideoGenerate）
   React.useEffect(() => {
     if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded);
   }, [data.expanded]); // eslint-disable-line react-hooks/exhaustive-deps

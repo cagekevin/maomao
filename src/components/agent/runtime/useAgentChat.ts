@@ -1070,14 +1070,14 @@ export function useAgentChat({
     [updateMessageByContent],
   );
 
-  // 【发到画布】把一段文本内容建成 textNode（内容落生成区 data.text，抽屉收起）。
+  // 【发到画布】把一段文本内容建成 textGenerateNode（内容落生成区 data.text，抽屉收起）。
   // 复用 AI 操作画布的现成工具链路（create_node → canvasHost），而非裸写 setNodes。
   // 供 AgentPanel「回复右下角箭头」按钮调用；空文本直接忽略。
   const sendContentToCanvas = useCallback(
     (content) => {
       const text = String(content ?? '').trim();
       if (!text) return { ok: false, error: '内容为空' };
-      return callTool('create_node', { type: 'textNode', text });
+      return callTool('create_node', { type: 'textGenerateNode', text });
     },
     [callTool],
   );

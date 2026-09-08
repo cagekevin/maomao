@@ -145,7 +145,7 @@ export function buildCanvasMenuItems(ctx: MenuActionCtx): ContextMenuItem[] {
       icon: <Type size={16} className="text-green-500" />,
       label: '文本',
       shortcut: 'Q',
-      onClick: () => ctx.addNodeFromMenu('textNode'),
+      onClick: () => ctx.addNodeFromMenu('textGenerateNode'),
     },
     {
       key: 'image',

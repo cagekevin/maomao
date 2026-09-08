@@ -76,7 +76,7 @@ export function assetLabel(asset: string | { label?: string } | null | undefined
   return (asset && asset.label) || '';
 }
 
-/** 有效提示词 = 本地 prompt + 上游文本合并（ImageGenerate/TextNode/TemplateNode/VideoGenerate 公共实现）：
+/** 有效提示词 = 本地 prompt + 上游文本合并（ImageGenerate/TextGenerate/TemplateNode/VideoGenerate 公共实现）：
  *  本地主提示词在前，上游文本（refTexts）去空后追加在后，一起参与生成。返回 '' 表示空。 */
 export function buildEffectivePrompt(
   localPrompt: unknown,

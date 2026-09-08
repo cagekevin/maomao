@@ -148,7 +148,7 @@ describe('项目系统 §2.8', () => {
     const nodes = [
       {
         id: 'n1',
-        type: 'textNode',
+        type: 'textGenerateNode',
         data: { text: 'hi' },
         position: { x: 1, y: 2 },
         selected: true,
@@ -172,7 +172,7 @@ describe('项目系统 §2.8', () => {
   });
 
   it('saveCanvasState 传入 viewport 后 loadCanvasState 可恢复视窗（P20）', async () => {
-    const nodes = [{ id: 'n1', type: 'textNode', data: {}, position: { x: 0, y: 0 } }];
+    const nodes = [{ id: 'n1', type: 'textGenerateNode', data: {}, position: { x: 0, y: 0 } }];
     const r = await saveCanvasState('default', nodes, [], { x: 120, y: -50, zoom: 1.5 });
     expect(r.success).toBe(true);
     const loaded = await loadCanvasState('default');
@@ -180,7 +180,7 @@ describe('项目系统 §2.8', () => {
   });
 
   it('saveCanvasState 不传 viewport → 快照无 viewport 字段，loadCanvasState 返回 null（P20 兼容旧快照）', async () => {
-    const nodes = [{ id: 'n1', type: 'textNode', data: {}, position: { x: 0, y: 0 } }];
+    const nodes = [{ id: 'n1', type: 'textGenerateNode', data: {}, position: { x: 0, y: 0 } }];
     await saveCanvasState('default', nodes, []);
     const loaded = await loadCanvasState('default');
     expect(loaded.viewport).toBeNull();
@@ -227,7 +227,11 @@ describe('项目系统 §2.8', () => {
   });
 
   it('saveCanvasState 版本冲突：远程版本更高拒绝覆盖', async () => {
-    await saveCanvasState('default', [{ id: 'n1', type: 'textNode', data: {}, position: {} }], []);
+    await saveCanvasState(
+      'default',
+      [{ id: 'n1', type: 'textGenerateNode', data: {}, position: {} }],
+      [],
+    );
     // 模拟远程已有更高版本
     mem.set('canvas-state-v1-default_version', String(Date.now() + 100000));
     const r = await saveCanvasState(
@@ -240,7 +244,7 @@ describe('项目系统 §2.8', () => {
   });
 
   it('saveCanvasState 版本号单调递增（TASK-053②）', async () => {
-    const n = [{ id: 'n1', type: 'textNode', data: {}, position: {} }];
+    const n = [{ id: 'n1', type: 'textGenerateNode', data: {}, position: {} }];
     await saveCanvasState('default', n, []);
     const v1 = Number(mem.get('canvas-state-v1-default_version'));
     await saveCanvasState('default', n, []);
@@ -254,7 +258,7 @@ describe('项目系统 §2.8', () => {
   });
 
   it('saveCanvasState 与远程同版本号时自增不误判冲突', async () => {
-    const n = [{ id: 'n1', type: 'textNode', data: {}, position: {} }];
+    const n = [{ id: 'n1', type: 'textGenerateNode', data: {}, position: {} }];
     await saveCanvasState('default', n, []);
     const v1 = Number(mem.get('canvas-state-v1-default_version'));
     // 远程版本与本地相同（同毫秒碰撞场景）：应自增写入，而非误判冲突

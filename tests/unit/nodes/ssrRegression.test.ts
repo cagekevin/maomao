@@ -19,7 +19,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { describe, test, expect } from 'vitest';
 
 import ImageNode from '@/components/nodes/ImageNode';
-import TextNode from '@/components/nodes/TextNode';
+import TextGenerate from '@/components/nodes/TextGenerate';
 import ImageGenerate from '@/components/nodes/ImageGenerate';
 import VideoGenerate from '@/components/nodes/VideoGenerate';
 import VideoExtractNode from '@/components/nodes/VideoExtractNode';
@@ -52,9 +52,9 @@ const cases = [
     ],
   },
   {
-    name: '文本 TextNode',
-    Comp: TextNode,
-    type: 'textNode',
+    name: '文本 TextGenerate',
+    Comp: TextGenerate,
+    type: 'textGenerateNode',
     expect: [
       'group/node',
       'bg-surface-raised',

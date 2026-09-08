@@ -393,7 +393,7 @@ function buildCreateNode(args, ctx, currentNodes) {
   // agent 可创建的节点类型白名单（不含剧本盒等复合节点）。
   // 用白名单而非 getPaletteNode：即使调色板里新增了剧本盒等类型，agent 也不会被允许创建。
   const ALLOWED_TYPES = [
-    'textNode',
+    'textGenerateNode',
     'imageGenerateNode',
     'imageNode',
     'videoGenerateNode',
@@ -408,9 +408,9 @@ function buildCreateNode(args, ctx, currentNodes) {
     ...(args.label ? { label: args.label } : {}),
     ...(args.prompt ? { prompt: args.prompt } : {}),
   };
-  // textNode 内容落「生成区」（data.text，TextNode 主容器/AI 生成结果显示处），而非抽屉区（data.prompt）。
+  // textGenerateNode 内容落「生成区」（data.text，TextGenerate 主容器/AI 生成结果显示处），而非抽屉区（data.prompt）。
   // 显式传 text（按钮「发到画布」等）时写 data.text；AI 走 prompt（抽屉区）的历史行为保持不变。
-  if (type === 'textNode' && args.text !== undefined && args.text !== null) {
+  if (type === 'textGenerateNode' && args.text !== undefined && args.text !== null) {
     data.text = String(args.text);
   }
   // 生图类节点：把 AI 传的 aspectRatio / resolution 写进 data（ImageGenerate 读 data.aspectRatio / data.imageSize）。
@@ -454,25 +454,28 @@ function buildCreateNode(args, ctx, currentNodes) {
 
 /**
  * 建节点工具（复刻官方 create_node + batch_create_nodes）。
- * type 从白名单取（textNode/imageGenerateNode/imageNode/videoGenerateNode/group），默认给默认 data；prompt/label 可覆盖。
+ * type 从白名单取（textGenerateNode/imageGenerateNode/imageNode/videoGenerateNode/group），默认给默认 data；prompt/label 可覆盖。
  * 返回新建节点 id 列表，供后续连线/改节点用。
  */
 const createNodeTool = {
   name: 'create_node',
   description:
-    '创建单个节点。type 指定节点类型（可选值见 type 参数说明），prompt 填该类型对应的内容，可选 text（仅 textNode：内容落文本生成区）、label、position、connectFrom、aspectRatio、resolution。返回新节点 id。只按用户明确要求建对应类型的节点，不擅自批量建同类节点。',
+    '创建单个节点。type 指定节点类型（可选值见 type 参数说明），prompt 填该类型对应的内容，可选 text（仅 textGenerateNode：内容落文本生成区）、label、position、connectFrom、aspectRatio、resolution。返回新节点 id。只按用户明确要求建对应类型的节点，不擅自批量建同类节点。',
   parameters: {
     type: 'object',
     additionalProperties: false,
     properties: {
       type: {
         type: 'string',
-        enum: ['textNode', 'imageGenerateNode', 'imageNode', 'videoGenerateNode', 'group'],
+        enum: ['textGenerateNode', 'imageGenerateNode', 'imageNode', 'videoGenerateNode', 'group'],
         description:
-          '节点类型：textNode=文本(text=内容落生成区/prompt=内容落抽屉)/imageGenerateNode=生图(prompt=画面提示词)/imageNode=图片(label=说明)/videoGenerateNode=视频(prompt=视频提示词)/group=编组',
+          '节点类型：textGenerateNode=文本(text=内容落生成区/prompt=内容落抽屉)/imageGenerateNode=生图(prompt=画面提示词)/imageNode=图片(label=说明)/videoGenerateNode=视频(prompt=视频提示词)/group=编组',
       },
-      prompt: { type: 'string', description: '提示词/内容（textNode 时落提示词抽屉）' },
-      text: { type: 'string', description: '文本内容（仅 textNode：落文本生成区，优先于 prompt）' },
+      prompt: { type: 'string', description: '提示词/内容（textGenerateNode 时落提示词抽屉）' },
+      text: {
+        type: 'string',
+        description: '文本内容（仅 textGenerateNode：落文本生成区，优先于 prompt）',
+      },
       label: { type: 'string', description: '节点标题（可选）' },
       aspectRatio: {
         type: 'string',
@@ -530,7 +533,13 @@ const batchCreateNodesTool = {
           properties: {
             type: {
               type: 'string',
-              enum: ['textNode', 'imageGenerateNode', 'imageNode', 'videoGenerateNode', 'group'],
+              enum: [
+                'textGenerateNode',
+                'imageGenerateNode',
+                'imageNode',
+                'videoGenerateNode',
+                'group',
+              ],
             },
             prompt: { type: 'string' },
             text: { type: 'string' },

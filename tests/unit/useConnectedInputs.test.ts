@@ -46,18 +46,18 @@ describe('管线契约 getNodeOutput', () => {
     expect(r).toEqual({ images: [], texts: [], videos: [], audios: [] });
   });
 
-  it('textNode → texts（{id,label,text}）', () => {
+  it('textGenerateNode → texts（{id,label,text}）', () => {
     const r = getNodeOutput({
       id: 't1',
-      type: 'textNode',
+      type: 'textGenerateNode',
       data: { text: '你好世界', label: '标题' },
     });
     expect(r.texts).toHaveLength(1);
     expect(r.texts[0]).toMatchObject({ id: 't1', label: '标题', text: '你好世界' });
   });
 
-  it('textNode 空文本不产出', () => {
-    const r = getNodeOutput({ id: 't1', type: 'textNode', data: { text: '' } });
+  it('textGenerateNode 空文本不产出', () => {
+    const r = getNodeOutput({ id: 't1', type: 'textGenerateNode', data: { text: '' } });
     expect(r.texts).toHaveLength(0);
   });
 
@@ -206,8 +206,8 @@ describe('管线契约 getNodeOutput', () => {
     // 断言实现一变必红：若有人把 scriptBoxNode 挪回 getNodeOutput 的 if 特判，
     // 本表查不到该键 → 走 genericOutput 兜底 → 分镜资产静默丢失且 dev 校验器失声。
     expect(Object.keys(NODE_OUTPUTS)).toContain('scriptBoxNode');
-    // textNode 刻意保留特判（读 node.id 非 data 派生），不应出现在声明表里
-    expect(Object.keys(NODE_OUTPUTS)).not.toContain('textNode');
+    // textGenerateNode 刻意保留特判（读 node.id 非 data 派生），不应出现在声明表里
+    expect(Object.keys(NODE_OUTPUTS)).not.toContain('textGenerateNode');
   });
 });
 
@@ -339,8 +339,8 @@ describe('P0-B ③ 聚合（aggregateUpstream 与旧 useMemo 体语义等价）'
     expect(out.images[0].sourceNodeId).toBe('u1');
   });
 
-  it('textNode 上游 → texts 通道带 sourceNodeId', () => {
-    const src = mkNode('t1', 'textNode', { text: '你好' });
+  it('textGenerateNode 上游 → texts 通道带 sourceNodeId', () => {
+    const src = mkNode('t1', 'textGenerateNode', { text: '你好' });
     const out = aggregateUpstream([{ node: src, sourceHandle: undefined }]);
     expect(out.texts[0].text).toBe('你好');
     expect(out.texts[0].sourceNodeId).toBe('t1');

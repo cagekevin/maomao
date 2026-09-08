@@ -95,7 +95,7 @@ describe('buildNodeMenuItems（单选节点右键）', () => {
     const renameNode = vi.fn();
     const items = buildNodeMenuItems(
       makeCtx({
-        nodeById: () => ({ type: 'textNode', id: 'n1' }) as never,
+        nodeById: () => ({ type: 'textGenerateNode', id: 'n1' }) as never,
         renameNode,
       }),
       'n1',
@@ -133,7 +133,10 @@ describe('buildNodeMenuItems（单选节点右键）', () => {
     );
     expect(groupLs).toContain('取消编组');
     const plainLs = labels(
-      buildNodeMenuItems(makeCtx({ nodeById: () => ({ type: 'textNode' }) as never }), 'node-id'),
+      buildNodeMenuItems(
+        makeCtx({ nodeById: () => ({ type: 'textGenerateNode' }) as never }),
+        'node-id',
+      ),
     );
     expect(plainLs).not.toContain('复制图片');
     expect(plainLs).not.toContain('取消编组');

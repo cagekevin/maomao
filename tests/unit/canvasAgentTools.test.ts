@@ -160,7 +160,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = t.create_node({
-      type: 'textNode',
+      type: 'textGenerateNode',
       label: '测试',
       prompt: '你好',
       position: { x: 10, y: 20 },
@@ -180,9 +180,9 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('create_node connectFrom 自动连线', () => {
-    const ctx = makeCtx([{ id: 'a', type: 'textNode', data: {}, position: {} }]);
+    const ctx = makeCtx([{ id: 'a', type: 'textGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.create_node({ type: 'textNode', connectFrom: 'a' });
+    const r = t.create_node({ type: 'textGenerateNode', connectFrom: 'a' });
     expect(r.data.connected).toBe(true);
     expect(ctx.getEdges()).toHaveLength(1);
   });
@@ -233,7 +233,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = t.create_node({
-      type: 'textNode',
+      type: 'textGenerateNode',
       prompt: 'x',
       aspectRatio: '9:16',
       resolution: '1080p',
@@ -311,7 +311,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = t.batch_create_nodes({
-      nodes: [{ type: 'textNode' }, { type: 'imageGenerateNode' }],
+      nodes: [{ type: 'textGenerateNode' }, { type: 'imageGenerateNode' }],
     });
     expect(r.ok).toBe(true);
     expect(r.data.ids).toHaveLength(2);
@@ -321,7 +321,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = t.batch_create_nodes({
-      nodes: [{ type: 'textNode' }, { type: 'imageGenerateNode' }, { type: 'imageNode' }],
+      nodes: [{ type: 'textGenerateNode' }, { type: 'imageGenerateNode' }, { type: 'imageNode' }],
     });
     expect(r.ok).toBe(true);
     expect(ctx.getNodes()).toHaveLength(3);
@@ -330,12 +330,12 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('P11 batch_create_nodes connectFrom 边合并为单次 setEdges', () => {
-    const ctx = makeCtx([{ id: 'a', type: 'textNode', data: {}, position: {} }]);
+    const ctx = makeCtx([{ id: 'a', type: 'textGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
     const r = t.batch_create_nodes({
       nodes: [
-        { type: 'textNode', connectFrom: 'a' },
-        { type: 'textNode', connectFrom: 'a' },
+        { type: 'textGenerateNode', connectFrom: 'a' },
+        { type: 'textGenerateNode', connectFrom: 'a' },
       ],
     });
     expect(r.ok).toBe(true);
@@ -349,7 +349,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const c1 = makeCtx([
       {
         id: 'sel',
-        type: 'textNode',
+        type: 'textGenerateNode',
         selected: true,
         position: { x: 0, y: 0 },
         width: 300,
@@ -358,14 +358,14 @@ describe('画布 Agent 工具层 §2.5', () => {
     ]);
     const t1 = buildCanvasAgentTools(c1);
     const seqPos = [
-      t1.create_node({ type: 'textNode' }).data.position,
-      t1.create_node({ type: 'textNode' }).data.position,
+      t1.create_node({ type: 'textGenerateNode' }).data.position,
+      t1.create_node({ type: 'textGenerateNode' }).data.position,
     ];
     // P11：批量建（合并为单次写）
     const c2 = makeCtx([
       {
         id: 'sel',
-        type: 'textNode',
+        type: 'textGenerateNode',
         selected: true,
         position: { x: 0, y: 0 },
         width: 300,
@@ -373,7 +373,9 @@ describe('画布 Agent 工具层 §2.5', () => {
       },
     ]);
     const t2 = buildCanvasAgentTools(c2);
-    const b = t2.batch_create_nodes({ nodes: [{ type: 'textNode' }, { type: 'textNode' }] });
+    const b = t2.batch_create_nodes({
+      nodes: [{ type: 'textGenerateNode' }, { type: 'textGenerateNode' }],
+    });
     const batchPos = b.data.ids.map((id) => c2.getNodes().find((n) => n.id === id).position);
     expect(batchPos).toEqual(seqPos);
     expect(c2.setNodes).toHaveBeenCalledTimes(1);
@@ -382,7 +384,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('P11 batch_create_nodes 含非法类型：合法照建、非法跳过并保留错误', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = t.batch_create_nodes({ nodes: [{ type: 'textNode' }, { type: 'nope' }] });
+    const r = t.batch_create_nodes({ nodes: [{ type: 'textGenerateNode' }, { type: 'nope' }] });
     expect(r.ok).toBe(true); // 有合法节点仍成功
     expect(r.data.ids).toHaveLength(1);
     expect(ctx.getNodes()).toHaveLength(1);
@@ -392,8 +394,8 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('delete_node 连带删边', () => {
     const ctx = makeCtx(
       [
-        { id: 'a', type: 'textNode', data: {}, position: {} },
-        { id: 'b', type: 'textNode', data: {}, position: {} },
+        { id: 'a', type: 'textGenerateNode', data: {}, position: {} },
+        { id: 'b', type: 'textGenerateNode', data: {}, position: {} },
       ],
       [{ id: 'e', source: 'a', target: 'b' }],
     );
@@ -437,7 +439,7 @@ describe('画布 Agent 工具层 §2.5', () => {
 
   it('update_node 白名单 + 不可变局部更新', () => {
     const ctx = makeCtx([
-      { id: 'a', type: 'textNode', data: { label: '旧', prompt: 'keep' }, position: {} },
+      { id: 'a', type: 'textGenerateNode', data: { label: '旧', prompt: 'keep' }, position: {} },
     ]);
     const t = buildCanvasAgentTools(ctx);
     const before = ctx.getNodes()[0];
@@ -450,7 +452,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('update_node 非白名单字段被忽略', () => {
-    const ctx = makeCtx([{ id: 'a', type: 'textNode', data: {}, position: {} }]);
+    const ctx = makeCtx([{ id: 'a', type: 'textGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
     const r = t.update_node({ nodeId: 'a', prompt: 'P', evilField: 'x' });
     expect(r.ok).toBe(true);
@@ -555,7 +557,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       [
         {
           id: 'a',
-          type: 'textNode',
+          type: 'textGenerateNode',
           data: { label: 'X', imageUrl: '/f.png' },
           position: { x: 1, y: 2 },
         },
@@ -615,7 +617,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx([
       { id: 'imageGenerateNode_real_a', type: 'imageGenerateNode', data: {}, position: {} },
       { id: 'imageGenerateNode_real_b', type: 'imageGenerateNode', data: {}, position: {} },
-      { id: 'text_x', type: 'textNode', data: {}, position: {} },
+      { id: 'text_x', type: 'textGenerateNode', data: {}, position: {} },
     ]);
     const t = buildCanvasAgentTools(ctx);
     const r = await t.generate_node({ nodeId: 'imageGenerateNode_1' }); // 模型自猜的假 id
@@ -636,7 +638,9 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('focus_node 居中聚焦视图 API', () => {
-    const ctx = makeCtx([{ id: 'a', type: 'textNode', data: {}, position: { x: 5, y: 5 } }]);
+    const ctx = makeCtx([
+      { id: 'a', type: 'textGenerateNode', data: {}, position: { x: 5, y: 5 } },
+    ]);
     const t = buildCanvasAgentTools(ctx);
     expect(t.focus_node({ nodeId: 'a' }).ok).toBe(true);
     expect(ctx.setCenter).toHaveBeenCalled();

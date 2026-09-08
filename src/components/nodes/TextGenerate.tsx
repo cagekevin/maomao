@@ -28,12 +28,12 @@ import { reportDegrade } from '../base/core/degrade.ts';
 import previewUrls from '../base/utils/previewUrl.ts';
 
 /**
- * 文本节点（复刻原 Co.jsx / textNode）
+ * 文本节点（复刻原 Co.jsx / textGenerateNode）
  * 已迁移到基座：NodeShell + HoverToolbar + ExpandablePanel + ModelSelect + GenerateButton + PromptInput。
  * 保留差异化：文本编辑区（双击编辑）、自动拆分、预设菜单。
  */
 /** 文本节点 data 契约 */
-interface TextNodeData {
+interface TextGenerateData {
   label?: string;
   prompt?: string;
   text?: string;
@@ -46,13 +46,13 @@ interface TextNodeData {
   [key: string]: unknown;
 }
 
-interface TextNodeProps {
+interface TextGenerateProps {
   id: string;
-  data: TextNodeData;
+  data: TextGenerateData;
   selected?: boolean;
 }
 
-function TextNode({ id, data, selected }: TextNodeProps) {
+function TextGenerate({ id, data, selected }: TextGenerateProps) {
   // 通用连线数据传递：读取直接上游节点的文本/图片作为参考输入
   const connected = useConnectedInputs(id);
   const { setEdges, getEdges, getNodes, getNode, setNodes } = useReactFlow();
@@ -132,7 +132,7 @@ function TextNode({ id, data, selected }: TextNodeProps) {
   );
   const [editingText, setEditingText] = useState(false);
   // 记住上次选择的模型（跨节点/跨会话）；初始用记忆值，无记忆回退 gpt-4o-mini
-  const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs('textNode', { model: '' });
+  const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs('textGenerateNode', { model: '' });
   // 记忆只影响新建（见 App.addNode 注入）；存量初始化只读 data，缺字段用纯常量。
   const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? 'gpt-4o-mini');
   const [images, setImages] = useState(data.images || []);
@@ -239,7 +239,7 @@ function TextNode({ id, data, selected }: TextNodeProps) {
     },
     onSuccess: (r) => {
       // 勾选「自动拆分」：解析 AI 返回的严格 JSON {items:[{title,content}]}，每个 item 生成一个文本节点
-      // 并自动连线（对齐官方 H_.jsx Lr 6326-6380：strip ```json → JSON.parse → items → 新建 textNode 网格 + 连线）。
+      // 并自动连线（对齐官方 H_.jsx Lr 6326-6380：strip ```json → JSON.parse → items → 新建 textGenerateNode 网格 + 连线）。
       // 解析失败则降级为普通文本（不阻断）。
       if (autoSplit && typeof r.content === 'string') {
         let items = [];
@@ -251,7 +251,7 @@ function TextNode({ id, data, selected }: TextNodeProps) {
           const parsed = JSON.parse(clean);
           items = parsed.items || parsed;
         } catch (e) {
-          logger.warn('TextNode', '自动拆分 JSON 解析失败，降级为普通文本', e);
+          logger.warn('TextGenerate', '自动拆分 JSON 解析失败，降级为普通文本', e);
           items = [];
         }
         if (Array.isArray(items) && items.length > 0) {
@@ -262,7 +262,7 @@ function TextNode({ id, data, selected }: TextNodeProps) {
             { id, position: { x: baseX, y: baseY } },
             items.map((it, n) => ({
               id: makeChildId('text-split'),
-              type: 'textNode',
+              type: 'textGenerateNode',
               position: { x: baseX, y: baseY + n * 250 },
               data: {
                 text: typeof it === 'string' ? it : it.content,
@@ -278,7 +278,7 @@ function TextNode({ id, data, selected }: TextNodeProps) {
       }
       // 【debug】确认 AI 生成结果 content 的实际内容/长度（排查"文字选中却复制空"）
       logger.debug(
-        'TextNode',
+        'TextGenerate',
         'onSuccess content',
         {
           type: typeof r.content,
@@ -292,7 +292,7 @@ function TextNode({ id, data, selected }: TextNodeProps) {
       // P1-3：统一经 reportDegrade 记录，避免只 catch 不提示（内网/权限问题时用户感知保存降级）
       if (typeof r.content === 'string' && r.content.trim()) {
         saveTextToTasks(r.content, 'text').catch((e) => {
-          reportDegrade({ layer: 'TextNode', key: 'saveTextToTasks', e });
+          reportDegrade({ layer: 'TextGenerate', key: 'saveTextToTasks', e });
         });
       }
     },
@@ -326,7 +326,7 @@ function TextNode({ id, data, selected }: TextNodeProps) {
       onClick: () => {
         // 【debug】复制按钮点击时确认 text state 的实际值（排查复制空）
         logger.debug(
-          'TextNode',
+          'TextGenerate',
           'copy button',
           {
             textType: typeof text,
@@ -433,7 +433,7 @@ function TextNode({ id, data, selected }: TextNodeProps) {
                   try {
                     const sel = window.getSelection();
                     logger.debug(
-                      'TextNode',
+                      'TextGenerate',
                       'copy on textarea',
                       {
                         selectionText: sel ? sel.toString() : '(no sel)',
@@ -444,7 +444,7 @@ function TextNode({ id, data, selected }: TextNodeProps) {
                     );
                   } catch (e) {
                     logger.debug(
-                      'TextNode',
+                      'TextGenerate',
                       'copy selection read fail',
                       { error: e?.message },
                       { module: 'text' },
@@ -583,4 +583,4 @@ function TextNode({ id, data, selected }: TextNodeProps) {
     </NodeShell>
   );
 }
-export default React.memo(TextNode);
+export default React.memo(TextGenerate);

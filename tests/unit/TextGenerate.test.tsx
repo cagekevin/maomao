@@ -67,13 +67,14 @@ vi.mock('../../src/components/base/api/generate.ts', () => ({
   chatCompletions: mocks.chatCompletions,
 }));
 
-import TextNode from '../../src/components/nodes/TextNode.tsx';
+import TextGenerate from '../../src/components/nodes/TextGenerate.tsx';
 beforeEach(() => {
   mocks.resetNodeMockState();
 });
-const setup = (props = {}) => render(<TextNode id="txt1" data={{}} selected={false} {...props} />);
+const setup = (props = {}) =>
+  render(<TextGenerate id="txt1" data={{}} selected={false} {...props} />);
 
-describe('TextNode', () => {
+describe('TextGenerate', () => {
   it('点击「生成」调用 chatCompletions', async () => {
     setup({ data: { prompt: '写一句诗', name: '文案' } });
     fireEvent.click(screen.getByText('生成'));

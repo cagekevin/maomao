@@ -46,7 +46,7 @@ export function detectFileType(file: File | null | undefined): MediaType {
 
 /**
  * 判断一个 URL 是否「可作图片源显示」：dataURL / http(s) / blob。
- * 用于拖入 URL 文本时决定建 imageNode 还是 textNode。
+ * 用于拖入 URL 文本时决定建 imageNode 还是 textGenerateNode。
  */
 export function isAssetUrl(url: unknown): url is string {
   return (
