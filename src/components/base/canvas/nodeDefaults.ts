@@ -77,7 +77,7 @@ export function applyNodeTypeDefaults(node: Record<string, unknown>): Record<str
     }
   }
   next.style = next.style
-    ? { ...(d.style || {}), ...(next.style as Record<string, unknown>) }
+    ? { ...d.style, ...(next.style as Record<string, unknown>) }
     : d.style || next.style;
   // group 的 data.name 缺失兜底
   if (type === 'group') {

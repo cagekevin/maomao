@@ -71,7 +71,8 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
     },
     [id, setNodes],
   );
-  const { hideMedia } = useMediaDegrade();
+  // hideMedia 当前无消费方（降级隐藏图片未在本节点落地），保留 hook 调用；下划线前缀表示有意不使用
+  const { hideMedia: _hideMedia } = useMediaDegrade();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   // 模式与参数（复刻官方 o/c/u）
@@ -232,7 +233,6 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
   );
 
   const count = imageUrls().length;
-  hideMedia && hideMedia.includes('image');
 
   const toolbarButtons = [
     {

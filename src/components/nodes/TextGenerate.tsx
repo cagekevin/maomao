@@ -1,16 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import {
-  FileText,
-  Plus,
-  Copy,
-  ChevronDown,
-  ChevronUp,
-  Loader2,
-  AlertCircle,
-  Lock,
-  LockOpen,
-} from 'lucide-react';
+import { FileText, Plus, Copy, Loader2, AlertCircle, Lock, LockOpen } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import ExpandablePanel from '../base/ui/ExpandablePanel.tsx';

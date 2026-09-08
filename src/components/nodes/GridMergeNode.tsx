@@ -496,9 +496,72 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
     });
   }, []);
 
+  /**
+   * 拖拽交换的事件组（grid 格 / longImage 项共用，消除两处 JSX 逐字复制的 DnD 逻辑）。
+   * @param t      当前格/项下标
+   * @param canDrag 是否可拖（grid 空格不可拖）
+   * @param onSwap  落点回调（grid→swapCells / longImage→swapLong）
+   */
+  const dragSwapHandlers = (
+    t: number,
+    canDrag: boolean,
+    onSwap: (from: number, to: number) => void,
+  ) => ({
+    onDragStart: (e: React.DragEvent<HTMLDivElement>) => {
+      if (!canDrag) return;
+      e.stopPropagation();
+      setDragFrom(t);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('application/x-yimao-puzzle', String(t));
+      const ghost = document.createElement('div');
+      ghost.style.cssText =
+        'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;';
+      document.body.appendChild(ghost);
+      e.dataTransfer.setDragImage(ghost, 0, 0);
+      setTimeout(() => {
+        try {
+          document.body.removeChild(ghost);
+        } catch {}
+      }, 0);
+    },
+    onDragEnter: (e: React.DragEvent<HTMLDivElement>) => {
+      if (dragFrom !== null) {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragTo(t);
+      }
+    },
+    onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
+      if (dragFrom !== null) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+        if (dragTo !== t) setDragTo(t);
+      }
+    },
+    onDrop: (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const fromRaw = e.dataTransfer.getData('application/x-yimao-puzzle');
+      const from = fromRaw ? parseInt(fromRaw, 10) : (dragFrom ?? -1);
+      if (from < 0 || from === t || Number.isNaN(from)) {
+        setDragFrom(null);
+        setDragTo(null);
+        return;
+      }
+      onSwap(from, t);
+      setDragFrom(null);
+      setDragTo(null);
+    },
+    onDragEnd: (e: React.DragEvent<HTMLDivElement>) => {
+      e.stopPropagation();
+      setDragFrom(null);
+      setDragTo(null);
+    },
+  });
+
   const titleIcon = <Layers size={11} className="text-muted" />;
   const totalCells = rows * cols;
-  mergeMode === 'longImage' ? Math.max(1, longList.length || 3) : totalCells;
 
   const modeBtn = (mode: string, label: string, icon: React.ReactNode, title: string) => (
     <button
@@ -571,57 +634,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
                       <div
                         key={t}
                         draggable={!!n}
-                        onDragStart={(e) => {
-                          if (!n) return;
-                          e.stopPropagation();
-                          setDragFrom(t);
-                          e.dataTransfer.effectAllowed = 'move';
-                          e.dataTransfer.setData('application/x-yimao-puzzle', String(t));
-                          const ghost = document.createElement('div');
-                          ghost.style.cssText =
-                            'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;';
-                          document.body.appendChild(ghost);
-                          e.dataTransfer.setDragImage(ghost, 0, 0);
-                          setTimeout(() => {
-                            try {
-                              document.body.removeChild(ghost);
-                            } catch {}
-                          }, 0);
-                        }}
-                        onDragEnter={(e) => {
-                          if (dragFrom !== null) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setDragTo(t);
-                          }
-                        }}
-                        onDragOver={(e) => {
-                          if (dragFrom !== null) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            e.dataTransfer.dropEffect = 'move';
-                            if (dragTo !== t) setDragTo(t);
-                          }
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          const fromRaw = e.dataTransfer.getData('application/x-yimao-puzzle');
-                          const from = fromRaw ? parseInt(fromRaw, 10) : (dragFrom ?? -1);
-                          if (from < 0 || from === t || Number.isNaN(from)) {
-                            setDragFrom(null);
-                            setDragTo(null);
-                            return;
-                          }
-                          swapCells(from, t);
-                          setDragFrom(null);
-                          setDragTo(null);
-                        }}
-                        onDragEnd={(e) => {
-                          e.stopPropagation();
-                          setDragFrom(null);
-                          setDragTo(null);
-                        }}
+                        {...dragSwapHandlers(t, !!n, swapCells)}
                         title={n ? `第 ${t + 1} 格：拖到其它格子可交换位置` : ''}
                         className={`relative rounded-[2px] transition-all ${n ? 'cursor-grab active:cursor-grabbing' : ''} ${isDragFrom ? 'opacity-30 ring-2 ring-blue-300' : ''} ${isDragTo ? 'ring-2 ring-blue-400 bg-blue-400/15' : ''}`}
                       >
@@ -656,56 +669,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
                       <div
                         key={t}
                         draggable
-                        onDragStart={(e) => {
-                          e.stopPropagation();
-                          setDragFrom(t);
-                          e.dataTransfer.effectAllowed = 'move';
-                          e.dataTransfer.setData('application/x-yimao-puzzle', String(t));
-                          const ghost = document.createElement('div');
-                          ghost.style.cssText =
-                            'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;';
-                          document.body.appendChild(ghost);
-                          e.dataTransfer.setDragImage(ghost, 0, 0);
-                          setTimeout(() => {
-                            try {
-                              document.body.removeChild(ghost);
-                            } catch {}
-                          }, 0);
-                        }}
-                        onDragEnter={(e) => {
-                          if (dragFrom !== null) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setDragTo(t);
-                          }
-                        }}
-                        onDragOver={(e) => {
-                          if (dragFrom !== null) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            e.dataTransfer.dropEffect = 'move';
-                            if (dragTo !== t) setDragTo(t);
-                          }
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          const fromRaw = e.dataTransfer.getData('application/x-yimao-puzzle');
-                          const from = fromRaw ? parseInt(fromRaw, 10) : (dragFrom ?? -1);
-                          if (from < 0 || from === t || Number.isNaN(from)) {
-                            setDragFrom(null);
-                            setDragTo(null);
-                            return;
-                          }
-                          swapLong(from, t);
-                          setDragFrom(null);
-                          setDragTo(null);
-                        }}
-                        onDragEnd={(e) => {
-                          e.stopPropagation();
-                          setDragFrom(null);
-                          setDragTo(null);
-                        }}
+                        {...dragSwapHandlers(t, true, swapLong)}
                         title={`第 ${t + 1} 张：拖到其它项可交换顺序`}
                         className={`relative rounded-[2px] overflow-hidden transition-all flex-1 cursor-grab active:cursor-grabbing ${isDragFrom ? 'opacity-30 ring-2 ring-blue-300' : ''} ${isDragTo ? 'ring-2 ring-blue-400 bg-blue-400/15' : ''}`}
                         style={{

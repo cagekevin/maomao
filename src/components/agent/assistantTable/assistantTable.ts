@@ -25,9 +25,6 @@
  */
 import { newTabId, newColId, newRowId } from './tableIds.ts';
 
-/** 单元格值：数据层固定字符串；编辑态由 UI 层持有 */
-export type CellValue = string;
-
 /** 一列：id 稳定唯一，label 即显示列名（粘贴首行 / AI 设计），顺序即显示顺序 */
 export interface TableColumn {
   id: string;
@@ -595,7 +592,9 @@ export function buildPreviewResult(
    * 返回新数组，不可变）。长度已够则原样返回。
    */
   const padCells = (cells: string[], len: number): string[] =>
-    cells.length < len ? [...cells, ...new Array(len - cells.length).fill('')] : cells;
+    cells.length < len
+      ? [...cells, ...Array.from({ length: len - cells.length }, () => '')]
+      : cells;
 
   // ── 逐行定目标：_rowIndex（1 起）优先按行号；无则第 i 个 AI 行 → 第 i 个选中行；再无 → 追加 ──
   const selIds = (selectedRowIds || []).filter((id) => current.rows.some((r) => r.id === id));
@@ -1182,11 +1181,4 @@ export function parseClipboardGrid(text: string): string[][] | null {
     .map((line) => line.split('\t'));
   if (!grid.length) return null;
   return grid;
-}
-
-/**
- * 读某格当前文本（含草稿回退 backing；供系统剪贴板单格复制）。业务由 UI 层提供值，本函数仅归一。
- */
-export function cellCopyText(value: string): string {
-  return String(value ?? '');
 }

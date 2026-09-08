@@ -1349,12 +1349,17 @@ export function createScriptBoxEngine({
     };
   };
 
-  const onConnectShot = (shotId: string, target: string = 'image') => {
-    if (!addNodes) return;
-    const d = getData();
-    const shot = d.shots.find((s) => s.id === shotId);
-    if (!shot) return;
-    const isImage = target !== 'video';
+  /**
+   * 单个镜头 → 建下游生成节点 + 连边（单个 onConnectShot / 批量 onConnectShots 共用，消除重复）。
+   * alloc 由调用方给定：单个每次新建（只占一格）；批量共享一个（批内每镜各占一格、互不重叠）。
+   */
+  const connectShotNode = (
+    shot: ScriptBoxShot,
+    shotId: string | number,
+    isImage: boolean,
+    alloc: ReturnType<typeof createSlotAllocator>,
+    d: ScriptBoxData,
+  ) => {
     const nodeId2 = `script-${isImage ? 'prompt' : 'video'}-${shotId}-${Date.now()}`;
     // 资产自动匹配：按该镜头里的 @资产名 收集「有图资产」作为参考图（复刻官方 Ra）。
     // 参考图字段统一命名为 images（P0-②）：生图/生视频下游都用 images，与 useConnectedInputs 产出命名一致。
@@ -1363,12 +1368,11 @@ export function createScriptBoxEngine({
       im && im.url ? { ...im, url: toAbsoluteFileUrl(im.url) } : im,
     );
     // 确定性落点：单个/批量统一「镜头 N 固定格子」，互不重叠（见下游网格排布说明）
-    const shotsCount = (d.shots || []).length;
     const shotOrder = Math.max(
       0,
       (d.shots || []).findIndex((s) => s.id === shotId),
     );
-    const slot = createSlotAllocator(shotsCount)({ shotOrder, isVideo: !isImage });
+    const slot = alloc({ shotOrder, isVideo: !isImage });
     const pos = positionOf(slot);
     const prefill = shotPrefill(shot, isImage ? 'image' : 'video');
     const baseData = {
@@ -1411,6 +1415,20 @@ export function createScriptBoxEngine({
       ]);
     }
   };
+
+  const onConnectShot = (shotId: string, target: string = 'image') => {
+    if (!addNodes) return;
+    const d = getData();
+    const shot = (d.shots || []).find((s) => s.id === shotId);
+    if (!shot) return;
+    connectShotNode(
+      shot,
+      shotId,
+      target !== 'video',
+      createSlotAllocator((d.shots || []).length),
+      d,
+    );
+  };
   // 批量连下游（对齐官方 Ir 的「未选则全部」语义，与 onGenerateShotPrompts / onGenerateAllAssetImages 一致）：
   // 未传 / 空数组 → 全部镜头；传入选中 id 数组 → 只连选中的镜头。整批共享一个分配器，
   // 确保批内每镜各占一格（镜头序互异 → 期望格互异），单个点也同一定位逻辑。
@@ -1422,54 +1440,7 @@ export function createScriptBoxEngine({
     ids.forEach((id) => {
       const shot = shots.find((s) => s.id === id);
       if (!shot) return;
-      const isImage = target !== 'video';
-      const nodeId2 = `script-${isImage ? 'prompt' : 'video'}-${id}-${Date.now()}`;
-      const refImages = collectAssets(shot, d.assets).map((im) =>
-        im && im.url ? { ...im, url: toAbsoluteFileUrl(im.url) } : im,
-      );
-      const shotOrder = shots.findIndex((s) => s.id === id);
-      const slot = alloc({ shotOrder, isVideo: !isImage });
-      const pos = positionOf(slot);
-      const prefill = shotPrefill(shot, isImage ? 'image' : 'video');
-      const baseData = {
-        ...prefill,
-        images: refImages,
-        scriptboxParent: nodeId,
-        scriptboxSlot: slot,
-      };
-      addNodes([
-        isImage
-          ? {
-              id: nodeId2,
-              type: 'imageGenerateNode',
-              position: pos,
-              data: { ...baseData, label: `镜头${shot.index}图`, prompt: shot.prompt },
-            }
-          : {
-              id: nodeId2,
-              type: 'videoGenerateNode',
-              position: pos,
-              data: {
-                ...baseData,
-                label: `镜头${shot.index}视频`,
-                prompt: shot.videoPrompt,
-                upstreamShotId: shot.id,
-              },
-            },
-      ]);
-      if (setEdges && nodeId) {
-        setEdges((es) => [
-          ...es,
-          {
-            id: `e-${nodeId}-${nodeId2}`,
-            source: nodeId,
-            sourceHandle: shotHandleId(id),
-            target: nodeId2,
-            type: 'default',
-            animated: false,
-          },
-        ]);
-      }
+      connectShotNode(shot, id, target !== 'video', alloc, d);
     });
   };
 

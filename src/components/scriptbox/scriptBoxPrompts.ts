@@ -581,7 +581,6 @@ export function buildShotPrompts(shot: Shot): Shot {
 /** 候选下拉项（表格用） */
 export const SHOT_TYPES = ['特写', '近景', '中景', '全景', '大远景'];
 export const LIGHTS = ['自然光', '暖光', '冷光', '逆光', '烛光', '夜光', '电影感'];
-export const SOUNDS = ['环境音', '动作音', '鸟鸣', '风声', '翻页声', '雨声', '水声'];
 export const MOTIONS = ['固定', '缓慢推进', '推', '拉', '横摇跟随', '跟随', '环绕'];
 
 /** 分镜模板（buildShots 循环取用） */

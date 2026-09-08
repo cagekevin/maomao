@@ -30,8 +30,8 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const root = resolve(__dirname, '..');
 const SRC = join(root, 'src');
 const EXTS = ['.js', '.jsx', '.ts', '.tsx'];
-// director3d 外部开源库（CLAUDE.md §二 边界：不扫描、不整改）
-const SKIP_DIR = 'src/components/director3d';
+// 更新(2026-09-09)：director3d 已解除豁免（spec/CONTEXT.md §五·五：可改、可收口），
+//   原「跳过 src/components/director3d」逻辑一并移除，纳入全量架构校验。
 
 let errors = 0;
 const fail = (msg) => {
@@ -39,12 +39,10 @@ const fail = (msg) => {
   errors++;
 };
 
-// ── 收集源码文件（排除 director3d）──
+// ── 收集源码文件 ──
 function collectFiles(dir, acc = []) {
   for (const name of readdirSync(dir)) {
     const full = join(dir, name);
-    const rel = full.slice(root.length + 1);
-    if (rel.startsWith(SKIP_DIR + '/') || rel === SKIP_DIR) continue;
     let st;
     try {
       st = statSync(full);

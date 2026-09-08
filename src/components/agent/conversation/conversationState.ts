@@ -38,6 +38,7 @@ import {
   applyConversationBudget,
   estimateConversationsBytes,
   SAFE_BUDGET_BYTES,
+  STEER_QUEUE_MAX,
 } from '../../base/utils/volumePolicy.ts';
 // 【批2 · 落盘前写前校验】validateConversationState 仅 type 依赖本文件，不形成运行时环
 import { validateConversationState } from './conversationInvariants.ts';
@@ -54,13 +55,10 @@ export const activeKey = (k: string) => `agent_active_conversation_id_${k}`;
  * global_contract 为统一风格契约；artifacts 为跨步成果资产。
  */
 import type {
-  ArtifactShape,
   Conversation,
   ConversationMemory,
-  ConversationMessage,
   ConversationStorePatch,
   ConversationStoreState,
-  GlobalContractShape,
   PendingRefState,
   RawConversation,
   RawMemory,
@@ -535,6 +533,9 @@ export function normalizeWorkflow(raw: unknown): WorkflowState | null {
   if (!w.status) w.status = 'planning';
   if (!Array.isArray(w.nodeIds)) w.nodeIds = [];
   if (!Array.isArray(w.steerQueue)) w.steerQueue = [];
+  // L1 静态上限：防补充指令队列无限膨胀（保最近 STEER_QUEUE_MAX 条，水位定义见 volumePolicy）
+  else if (w.steerQueue.length > STEER_QUEUE_MAX)
+    w.steerQueue = w.steerQueue.slice(-STEER_QUEUE_MAX);
   if (!w.startedAt) w.startedAt = Date.now();
   if (!w.updatedAt) w.updatedAt = Date.now();
   return w as WorkflowState;

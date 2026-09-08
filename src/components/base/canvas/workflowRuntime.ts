@@ -196,7 +196,7 @@ export function createWorkflow({
     async runParallel(items, fn, { concurrency = items.length, onAbort = null } = {}) {
       const list = Array.isArray(items) ? items : [];
       if (list.length === 0) return [];
-      const results = new Array(list.length);
+      const results = Array.from({ length: list.length });
       let aborted = false;
       let i = 0;
       const next = async () => {

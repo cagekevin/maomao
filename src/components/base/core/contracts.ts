@@ -1030,6 +1030,3 @@ export const apiRegistry = {
     status: 'RESERVED',
   },
 };
-
-/** apiRegistry 的 path 集合（check-api-contract 与后端 routes 互检用） */
-export const API_REGISTRY_PATHS = Object.values(apiRegistry).map((e) => e.path);

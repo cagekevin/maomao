@@ -121,9 +121,12 @@ scripts/report-chunks.json
 Temp/
 tmp/
 
-# ── 本地代码审计工具沙盒（oxlint/depcruise/madge/knip/jscpd，自带 node_modules 与 out/ 报告）──
-# 独立沙盒、不进主工程 package.json 依赖；产物可随时重建，不入库（见 download/package.json）。
-download/
+# ── 代码审计工具箱 audit/（oxlint/depcruise/madge/knip/jscpd/ast-grep）──
+# 更新(2026-09-09)：原 `download/` 语义误导（像浏览器下载目录）且整体被忽略，导致工具规则配置
+#   无法入库共享 —— 已重构为 audit/：外层放「规则资产」（scripts + 配置 + 文档，入库），
+#   内层 audit/download/ 放「依赖沙盒 + 产物」（node_modules / out / ai-relay，不入库）。
+# 依赖装在内层沙盒：cd audit/download && npm install（不进主工程 package.json 依赖）。
+audit/download/
 
 # ── 外部学习仓库 / 第三方工具（他人仓库与嵌套 git 仓库，仅本地参考用，不入库）──
 infinite-canvas别人仓库学习专用/

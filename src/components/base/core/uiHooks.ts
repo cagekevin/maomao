@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Dispatch, SetStateAction, RefObject } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
+import { RefObject } from 'react';
 import { useReactFlow, useUpdateNodeInternals } from '@xyflow/react';
 import { NODE_AREA_FIXED_BASE_SIZE } from './config.ts';
 
@@ -62,22 +62,6 @@ export function useOutsideClick(
     document.addEventListener('mousedown', close, true);
     return () => document.removeEventListener('mousedown', close, true);
   }, [ref, visible, onClose]);
-}
-
-/**
- * 展开/收起控制 hook。
- * 所有带「下方输入面板」的节点共用同一套展开语义：
- *  - 点击主显示框切换
- *  - 面板用 opacity/scale/h-0 过渡
- */
-export function useNodeExpanded(initial = true): {
-  expanded: boolean;
-  setExpanded: Dispatch<SetStateAction<boolean>>;
-  toggle: () => void;
-} {
-  const [expanded, setExpanded] = useState(initial);
-  const toggle = useCallback(() => setExpanded((v) => !v), []);
-  return { expanded, setExpanded, toggle };
 }
 
 /**

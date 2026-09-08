@@ -1,0 +1,8 @@
+{
+  "entry": ["localTool/src/index.ts"],
+  "project": ["localTool/src/**/*.ts"],
+  "ignore": ["localTool/dist/**", "localTool/test/**", "localTool/scripts/**"],
+  "ignoreDependencies": [],
+  "ignoreBinaries": [],
+  "exclude": ["duplicates"]
+}

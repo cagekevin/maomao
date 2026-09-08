@@ -445,7 +445,8 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
       // G3：释放模型运行时与录像流句柄
       disposeModel();
       try {
-        rec?.recorder.state === 'recording' && rec.recorder.stop();
+        // 原为 `a && b()` 惯用短路语句（结果本就被丢弃，oxlint no-unused-expressions 误报），改 if 更直白
+        if (rec?.recorder.state === 'recording') rec.recorder.stop();
       } catch {
         /* 忽略 */
       }

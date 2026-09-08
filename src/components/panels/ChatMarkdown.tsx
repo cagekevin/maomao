@@ -228,7 +228,7 @@ function isTableDivider(value: string): boolean {
 function isBlockStart(lines: string[], index: number): boolean {
   const line = lines[index] ?? '';
   if (!line.trim()) return true;
-  if (/^```/.test(line) || /^#{1,6}\s+/.test(line) || /^>\s?/.test(line)) return true;
+  if (line.startsWith('```') || /^#{1,6}\s+/.test(line) || /^>\s?/.test(line)) return true;
   if (/^\s*(?:[-+*]|\d+\.)\s+/.test(line) || /^\s*(?:-{3,}|\*{3,})\s*$/.test(line)) return true;
   return index + 1 < lines.length && line.includes('|') && isTableDivider(lines[index + 1]);
 }

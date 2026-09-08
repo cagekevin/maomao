@@ -218,7 +218,7 @@ export function parseGenerationsFromReply(content = '') {
   let parsed = null;
   try {
     parsed = JSON.parse(jsonStr);
-  } catch (e) {
+  } catch {
     // 3) 解析失败：剥离 markdown 围栏再试
     try {
       parsed = JSON.parse(
@@ -227,7 +227,7 @@ export function parseGenerationsFromReply(content = '') {
           .replace(/```$/m, '')
           .trim(),
       );
-    } catch (e2) {
+    } catch {
       return { plan: null, generations: [] };
     }
   }

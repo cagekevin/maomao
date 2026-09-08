@@ -132,7 +132,9 @@ export function AssetMenu({ onAddPerson, onAddPrimitive, onImport }) {
         type="button"
         className={`asset-menu-trigger ${open ? 'is-open' : ''}`}
         onClick={() => {
-          open ? close() : setOpen(true);
+          // 原为 `open ? close() : setOpen(true)` 三元语句（结果本就被丢弃，oxlint 误报），改 if/else 更直白
+          if (open) close();
+          else setOpen(true);
         }}
         aria-haspopup="menu"
         aria-expanded={open}

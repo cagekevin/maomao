@@ -315,8 +315,10 @@ describe('MyNode', () => {
   3. **批 3** 业务 hook：已落地 `useNodeGeneration` `useCanvasAgentTools`（实测有 `tests/unit/useNodeGeneration.test.js` / `canvasAgentTools.test.js`）；其余待补：`nodePrefs`（从批 1 移入）`useArrangeCanvas` `useAssetDragToCanvas` `useAssetDropPaste` `useContextMenu` `useVideoPoster` `useLocalToolStatus` `useFitNodeRatio` `useMediaDegrade` `useScriptBoxData` `useScriptBoxEngine`
   4. ✅ **批 4 已完成（2026-08-18）**：`ImageBoxNode` `AgentMessage` `AgentPanel` `Comet` `ConnectionLine` `CustomEdge` `CustomHandle` `DiscountVideoNode` `GhostTargetNode` `JianyingIcon` `NodeTitle` `ScriptBoxNode` —— 待补的 9 个节点已全部补齐（见下方阶段二续记录）。
   5. ✅ **批 5 已完成（2026-08-18）**：`TaskCenter`（`ContextMenu` `AssetLibrary` `CanvasToolbar` `GeneratedView` `ImageEditor` `OverlayEditor` `TopNav` `PromptInput` `ModelSelect` `NodePalette` `ProjectSelector` 等仍待补）
-  6. ~~**批 6** director3d 逻辑层/store（0→全）~~ —— **已取消：不开测**。`director3d/` 是**外部下载的开源仓库**（storyai-3d-director-desk），非本仓库自有代码，不纳入测试维护（见 CLAUDE.md §二）。原列表（`directorStore` `cameraGeometry` `panoramaMath` `exportProjectJson` 等）不再作为待办。
+  6. ~~**批 6** director3d 逻辑层/store（0→全）~~ —— **已取消：不开测**。原列表（`directorStore` `cameraGeometry` `panoramaMath` `exportProjectJson` 等）不再作为待办。
   7. ~~**批 7** director3d React 组件 + E2E 收口~~ —— **已取消：不开测**（同上）。`generation.flow` / `director3d` E2E 不新增。
+
+  > 更新(2026-09-09)：批 6/7「不开测」**仅限测试维护层面的取舍，不是禁改**——`director3d/` 已于 2026-09-01 解除豁免（可改、可收口），现行边界见 **`spec/CONTEXT.md` §五·五**（原「见 CLAUDE.md §二」引用已失效，§二 无对应条目）。
 
 > ⚠️ §八 属历史批次记录，含会过期的具体数字/待办。**保鲜机制下不再主动维护**（见 §九）；现状以「跑 `npm run test:unit` 的结果」为准。
 

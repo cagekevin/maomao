@@ -37,7 +37,6 @@ import {
 import {
   parsePasted,
   addRow,
-  deleteRow,
   deleteRows,
   moveRow,
   insertRowAfter,
@@ -49,7 +48,6 @@ import {
   removeTab,
   copyTab,
   moveTab,
-  setActiveTabId,
   copyRowsToTab,
 } from './assistantTable.ts';
 import { normalizeAssistantTable, replaceTextInTabs } from './assistantTable.ts';

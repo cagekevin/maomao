@@ -609,7 +609,9 @@ export default function AgentPanel({
 
   const [modelOpen, setModelOpen] = useState(false);
   const modelRef = useRef(null);
-  useRef(null);
+  // 上传 input 的 ref：上传 UI 当前被注释（见下方「图片上传：暂时隐藏」块），取消注释即可恢复
+  // eslint-disable-next-line no-unused-vars -- fileRef 仅在被注释的上传 UI 中引用
+  const fileRef = useRef(null);
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
   // 「回到底部」按钮：atBottom 驱动显隐；atBottomRef 供滚动副作用同步读取最新值（避免闭包读到过期 state）
@@ -917,13 +919,9 @@ export default function AgentPanel({
     [messages, send, scrollToBottom],
   );
 
-  // 快捷建议发送
-  (text) => {
-    setInput(text);
-    handleSend(text);
-  };
-
-  async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 图片上传（对应 UI 已被注释，见下方「图片上传：暂时隐藏」块；保留实现以便取消注释即恢复）
+  // eslint-disable-next-line no-unused-vars -- handleFiles 仅在被注释的上传 UI 中引用
+  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setUploading(true);

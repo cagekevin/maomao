@@ -152,7 +152,9 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 2. **定契约**：输入/输出/边界是什么？状态归哪、走哪个唯一入口（见 `spec/CONTEXT.md`）？
 3. **构思测试 = 细化契约**：能写出「输入→输出」具体断言，契约才算定清。逻辑能抽纯函数则放 `base/utils/`（或 `base/core/` 通用工具），边写边锁单测；组件只补关键交互+防崩。断言须"源码一变必红"，自证式断言无效。
 
-> 分层：纯逻辑 `base/utils/`（或 `base/core/`）→ 补单测；hook → mock 锁返回值；组件 → 只补关键交互。SOP 见 `spec/TEST-GUIDE.md` §〇+§六。director3d 除外（见 §二）。
+> 分层：纯逻辑 `base/utils/`（或 `base/core/`）→ 补单测；hook → mock 锁返回值；组件 → 只补关键交互。SOP 见 `spec/TEST-GUIDE.md` §〇+§六。
+>
+> 更新(2026-09-09)：`src/components/director3d/` **已解除豁免，可以改、可以收口**（源出外部开源仓库 storyai-3d-director-desk，按用户指示当自家仓库维护）。原句「director3d 除外（见 §二）」已过时删除——§二 本就无对应条目，且它与 `spec/CONTEXT.md` §五·五（2026-09-01 已解除豁免）冲突。现行边界见 `spec/CONTEXT.md` §五·五：**不是不能改，是要克制、有目的地改**；改它**不强制补单测**，但 `type-check` 与五门禁照跑。
 
 ### 3.1 改动流程（通用，所有 `src/` 改动都走）
 

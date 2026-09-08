@@ -60,11 +60,7 @@ const WIDTH_MIN = 360;
 const WIDTH_MAX = 1080;
 const WIDTH_DEFAULT = 600;
 
-import type {
-  TableClipboard,
-  TableWorkspacePreview,
-  TableWorkspaceState,
-} from './tableWorkspaceTypes.ts';
+import type { TableClipboard, TableWorkspaceState } from './tableWorkspaceTypes.ts';
 
 /** 工作区运行态类型（定义见 ./tableWorkspaceTypes.ts，此处 re-export 维持对外兼容） */
 export type {

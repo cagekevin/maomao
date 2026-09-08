@@ -9,8 +9,7 @@
  *  引擎 scriptBoxEngine(scriptbox) → 本层；scriptBoxPrompts(scriptbox) 的具名纯函数 → 本层。
  *  更新(2026-08-31)：本文件自 base/ 迁入 scriptbox/（解 base⇄scriptbox 循环，见 download/REPORT）。
  */
-import { getPlaybook, getAllPlaybooks } from '../scriptbox/scriptBoxPlaybookStore';
-import type { Playbook } from '../scriptbox/scriptBoxPlaybookIO';
+import { getPlaybook } from '../scriptbox/scriptBoxPlaybookStore';
 // 共享类型自 scriptBoxTypes 取（解 resolver⇄workflows/IO 纯类型环，见该文件头注释）；re-export 保持对外 API 不变。
 import type { ImageGenTemplate, ScriptBoxConstraints, ScriptBoxNegatives } from './scriptBoxTypes';
 export type { ImageGenTemplate, ScriptBoxConstraints, ScriptBoxNegatives };
@@ -61,9 +60,4 @@ export function resolveNegatives(playbookId: string): ScriptBoxNegatives {
     image: pb.negative?.image || '',
     video: pb.negative?.video || '',
   };
-}
-
-/** 所有 playbook（供管理面板/下拉）。 */
-export function resolveAll(): Playbook[] {
-  return getAllPlaybooks();
 }

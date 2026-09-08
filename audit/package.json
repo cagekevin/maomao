@@ -1,0 +1,17 @@
+{
+  "name": "maomao-audit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI 向代码审计工具箱（oxlint / depcruise / madge / knip / jscpd / ast-grep）。本层只有 scripts 与规则配置，**入库**；工具依赖与产物在 download/ 沙盒内，不入库。所有 script 先 cd 到主工程根再跑，产物统一落 audit/download/out/",
+  "scripts": {
+    "lint:bug": "cd .. && ./audit/download/node_modules/.bin/oxlint src --format=json > audit/download/out/oxlint.json",
+    "arch:cycles": "cd .. && ./audit/download/node_modules/.bin/depcruise src --config audit/.dependency-cruiser.cjs --output-type err",
+    "arch:json": "cd .. && ./audit/download/node_modules/.bin/depcruise src --config audit/.dependency-cruiser.cjs --output-type json --output-to audit/download/out/deps.json",
+    "arch:dot": "cd .. && ./audit/download/node_modules/.bin/depcruise src --config audit/.dependency-cruiser.cjs --output-type dot --output-to audit/download/out/deps.dot",
+    "cycles:madge": "cd .. && ./audit/download/node_modules/.bin/madge src --extensions js,jsx,ts,tsx --json --warning > audit/download/out/madge.json",
+    "dead:code": "cd .. && ./audit/download/node_modules/.bin/knip --config audit/knip.json --reporter json --no-exit-code",
+    "dup:code": "cd .. && ./audit/download/node_modules/.bin/jscpd src --reporters json --output audit/download/out",
+    "sg": "./download/node_modules/.bin/ast-grep"
+  }
+}

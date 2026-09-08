@@ -166,11 +166,6 @@ export function defaultAssetFields(): ScriptBoxAsset {
   };
 }
 
-/** 新建剧本盒节点时的权威空 data（shots/assets 为空数组）。 */
-export function defaultScriptBoxData(): ScriptBoxData {
-  return { ...defaultScriptBoxTop(), shots: [], assets: [] };
-}
-
 /**
  * 读取旧数据时补齐缺省字段（向后兼容迁移）。所有读取 node.data 前必经此函数。
  * @param [raw] 原始 node.data（可能来自旧画布快照，缺新字段）

@@ -9,6 +9,9 @@ import {
   LAST_RESULTS_MAX,
   FACTS_MAX,
   ARTIFACTS_MAX,
+  MSG_CONTENT_MAX,
+  TOOL_CONTENT_MAX,
+  SUMMARY_MAX,
 } from '../../src/components/base/utils/volumePolicy.ts';
 
 describe('volumePolicy · truncateTo', () => {
@@ -131,6 +134,31 @@ describe('volumePolicy · 整包预算', () => {
     // 原对象内容与 streaming 均保持不变
     expect(convs[0].messages[0].content).toBe(huge);
     expect(convs[0].messages[0].streaming).toBe(true);
+  });
+  it('超预算时正文截到 MSG_CONTENT_MAX（目标可预测，非盲砍半）', () => {
+    const content = 'x'.repeat(MSG_CONTENT_MAX + 5000);
+    const convs = [{ id: 'c1', messages: [{ id: 'm1', role: 'user', content }] }];
+    const r = applyConversationBudget(convs, MSG_CONTENT_MAX + 1000);
+    expect(r.downgraded).toBe(true);
+    expect(r.conversations[0].messages[0].content.length).toBe(MSG_CONTENT_MAX);
+  });
+  it('tool 结果走更宽的 TOOL_CONTENT_MAX 水位', () => {
+    const content = 'x'.repeat(TOOL_CONTENT_MAX + 3000);
+    const convs = [{ id: 'c1', messages: [{ id: 'm1', role: 'tool', content }] }];
+    const r = applyConversationBudget(convs, TOOL_CONTENT_MAX + 1000);
+    expect(r.conversations[0].messages[0].content.length).toBe(TOOL_CONTENT_MAX);
+  });
+  it('memory.summary 截到 SUMMARY_MAX', () => {
+    const convs = [{ id: 'c1', memory: { summary: 'y'.repeat(SUMMARY_MAX + 2000) } }];
+    const r = applyConversationBudget(convs, SUMMARY_MAX + 500);
+    expect(r.conversations[0].memory.summary.length).toBe(SUMMARY_MAX);
+  });
+  it('未超预算时即使正文超水位也不截断（不白丢数据）', () => {
+    const content = 'z'.repeat(MSG_CONTENT_MAX + 5000);
+    const convs = [{ id: 'c1', messages: [{ id: 'm1', role: 'user', content }] }];
+    const r = applyConversationBudget(convs, 100000);
+    expect(r.downgraded).toBe(false);
+    expect(r.conversations[0].messages[0].content).toBe(content);
   });
   it('lastResults 去重降级', () => {
     const convs = [

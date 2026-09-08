@@ -14,9 +14,6 @@ import { contentGet, contentSet } from '../core/contentStore.ts';
 import { publish } from '../core/eventBus.ts';
 import { generateId } from '../core/idGen.ts';
 
-/** 预设分类（对齐下方 TYPE_LABEL 键与前端 PromptLibrary 分组） */
-export type PresetType = 'text' | 'image' | 'video' | 'all';
-
 /** 提示词预设（本地存储形状，id 可能缺失由 ensureIds 补齐） */
 export interface Preset {
   id?: string;

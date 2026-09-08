@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/knip/schema-jsonc.json",
+  "entry": [
+    "src/main.tsx",
+    "tests/setup.mjs",
+    "tests/**/*.test.ts",
+    "tests/**/*.test.tsx",
+    "tests/**/_testUtils.mjs",
+    "tests/e2e/**/*.ts"
+  ],
+  "project": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "tests/**/*.mjs"],
+  "ignore": [
+    "reference-1mao/**",
+    "public/**",
+    "Temp/**",
+    "dist/**",
+    "localTool/**",
+    "scripts/**",
+    "docs/**",
+    ".codebuddy/**",
+    "download/**",
+    "mockup/**",
+    "packaging/**",
+    "logs/**",
+    "tmp/**",
+    "test-results/**",
+    "**/archived/**"
+  ],
+  "ignoreDependencies": ["three-stdlib", "zustand"],
+  "ignoreBinaries": [],
+  "exclude": ["duplicates"]
+}

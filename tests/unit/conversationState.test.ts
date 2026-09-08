@@ -1,8 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as contentStore from '../../src/components/base/core/contentStore.ts';
-import { SAFE_BUDGET_BYTES } from '../../src/components/base/utils/volumePolicy.ts';
+import {
+  SAFE_BUDGET_BYTES,
+  STEER_QUEUE_MAX,
+} from '../../src/components/base/utils/volumePolicy.ts';
 const { contentClearCache } = contentStore;
-import { subscribe, getState } from '../../src/components/agent/conversation/conversationState.ts';
+import {
+  subscribe,
+  getState,
+  normalizeWorkflow,
+} from '../../src/components/agent/conversation/conversationState.ts';
 import {
   resetConversationCache,
   ensureActiveConversation,
@@ -159,5 +166,27 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     // 兼容旧形态：遗留 text 仍保留（迁移期可恢复）
     setCurrentPending({ conversationId: id, text: 'legacy' });
     expect(getCurrentPending().text).toBe('legacy');
+  });
+});
+
+describe('conversationState · normalizeWorkflow 的 L1 限容', () => {
+  const base = { id: 'wf1', status: 'running', nodeIds: [], startedAt: 1, updatedAt: 2 };
+
+  it('steerQueue 超上限保最近 STEER_QUEUE_MAX 条', () => {
+    const total = STEER_QUEUE_MAX + 5;
+    const w = normalizeWorkflow({
+      ...base,
+      steerQueue: Array.from({ length: total }, (_, i) => ({ text: `t${i}` })),
+    });
+    expect(w.steerQueue.length).toBe(STEER_QUEUE_MAX);
+    // 保最近：末位是最新的那条；最早的 5 条被挤掉
+    expect(w.steerQueue[w.steerQueue.length - 1]).toEqual({ text: `t${total - 1}` });
+    expect(w.steerQueue[0]).toEqual({ text: `t${total - STEER_QUEUE_MAX}` });
+  });
+
+  it('未超上限原样保留', () => {
+    const q = [{ text: 'a' }, { text: 'b' }];
+    const w = normalizeWorkflow({ ...base, steerQueue: q });
+    expect(w.steerQueue).toEqual(q);
   });
 });
