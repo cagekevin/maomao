@@ -112,6 +112,13 @@ describe('扩图常量', () => {
   });
 
   it('目标比例选项覆盖常用画幅', () => {
-    expect(OUTPAINT_RATIOS.map((r) => r.key)).toEqual(['1:1', '4:3', '3:4', '16:9', '9:16']);
+    expect(OUTPAINT_RATIOS.map((r) => r.key)).toEqual([
+      'original',
+      '1:1',
+      '4:3',
+      '3:4',
+      '16:9',
+      '9:16',
+    ]);
   });
 });
