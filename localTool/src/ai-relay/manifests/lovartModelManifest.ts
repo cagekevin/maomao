@@ -48,6 +48,34 @@ export const LOVART_MODEL_MANIFEST: import('../types.js').CatalogModel[] = [
     provider: 'lovart',
     description: 'Lovart Nano Banana 2 Lite（仅自然语言选模型）',
   },
+  {
+    id: 'gpt-image-2.5-sunburst-low',
+    name: 'GPT Image 2.5 Sunburst Low',
+    category: 'image',
+    provider: 'lovart',
+    description: 'Lovart GPT Image 2.5 Sunburst Low',
+  },
+  {
+    id: 'gpt-image-2.5-sunburst-medium',
+    name: 'GPT Image 2.5 Sunburst Medium',
+    category: 'image',
+    provider: 'lovart',
+    description: 'Lovart GPT Image 2.5 Sunburst Medium',
+  },
+  {
+    id: 'gpt-image-2.5-flare-low',
+    name: 'GPT Image 2.5 Flare Low',
+    category: 'image',
+    provider: 'lovart',
+    description: 'Lovart GPT Image 2.5 Flare Low',
+  },
+  {
+    id: 'gpt-image-2.5-flare-medium',
+    name: 'GPT Image 2.5 Flare Medium',
+    category: 'image',
+    provider: 'lovart',
+    description: 'Lovart GPT Image 2.5 Flare Medium',
+  },
   // 文本（走 lovart-chat）
   {
     id: 'lovart-chat',

@@ -3,7 +3,7 @@
  * ------------------------------------------------------------
  * 运行：node --test test/*.test.js（由 scripts/run_all_tests.cjs 门禁收编）
  * 覆盖：prompt 含可读模型名（B6）、prompt_only 模型无 tool_config 但自然语言路仍在（B7）、
- *       尺寸标识进 prompt（C3）、模型规格表分组计数 image 6 / video 5 / chat 1（A4）。
+ *       尺寸标识进 prompt（C3）、模型规格表分组计数 image 10 / video 5 / chat 1（A4）。
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -124,23 +124,23 @@ test('别名容错：归一化 + 模糊匹配（对齐 main.resolve_prefer_model
   ]);
 });
 
-test('A4 模型规格表分组：image 6 / video 5 / chat 1', () => {
+test('A4 模型规格表分组：image 10 / video 5 / chat 1', () => {
   const byCat = {};
   for (const id of Object.keys(LOVART_MODEL_SPECS)) {
     const cat = LOVART_MODEL_SPECS[id].category;
     byCat[cat] = (byCat[cat] || 0) + 1;
   }
-  assert.equal(byCat.IMAGE, 6);
+  assert.equal(byCat.IMAGE, 10);
   assert.equal(byCat.VIDEO, 5);
   assert.equal(byCat.CHAT, 1);
 });
 
-test('A4 manifest 与规格表一致：image 6 / video 5 / text 1，且每 id 都有规格', () => {
+test('A4 manifest 与规格表一致：image 10 / video 5 / text 1，且每 id 都有规格', () => {
   const byCat = {};
   for (const m of LOVART_MODEL_MANIFEST) {
     byCat[m.category] = (byCat[m.category] || 0) + 1;
   }
-  assert.equal(byCat.image, 6);
+  assert.equal(byCat.image, 10);
   assert.equal(byCat.video, 5);
   assert.equal(byCat.text, 1);
   for (const m of LOVART_MODEL_MANIFEST) {

@@ -34,6 +34,45 @@ export const LOVART_IMAGE_RULES: ReadonlyArray<readonly [readonly string[], stri
     ['gpt-image-2-medium', 'gpt-image2-medium', 'gptimage2medium'],
     'generate_image_gpt_image_2_medium',
   ],
+  // 必须在 'gpt-image-2' 之前：'gpt-image-2.5-*' 含 'gpt-image-2' 子串，
+  // 若排在后面会被 'gpt-image-2' 误吞成 generate_image_gpt_image_2。
+  // 仅 low / medium（用户明确不要 high）。工具名带质量后缀：上游无此工具但 Agent 会按名自行对应调整。
+  [
+    [
+      'gpt-image-2.5-sunburst-low',
+      'gpt-image2-5-sunburst-low',
+      'gptimage2-5sunburstlow',
+      'gpt image 2.5 sunburst low',
+    ],
+    'generate_image_gpt_image_2_5_sunburst_low',
+  ],
+  [
+    [
+      'gpt-image-2.5-sunburst-medium',
+      'gpt-image2-5-sunburst-medium',
+      'gptimage2-5sunburstmedium',
+      'gpt image 2.5 sunburst medium',
+    ],
+    'generate_image_gpt_image_2_5_sunburst_medium',
+  ],
+  [
+    [
+      'gpt-image-2.5-flare-low',
+      'gpt-image2-5-flare-low',
+      'gptimage2-5flarelow',
+      'gpt image 2.5 flare low',
+    ],
+    'generate_image_gpt_image_2_5_flare_low',
+  ],
+  [
+    [
+      'gpt-image-2.5-flare-medium',
+      'gpt-image2-5-flare-medium',
+      'gptimage2-5flaremedium',
+      'gpt image 2.5 flare medium',
+    ],
+    'generate_image_gpt_image_2_5_flare_medium',
+  ],
   [['gpt-image-2', 'gpt-image2', 'gptimage2'], 'generate_image_gpt_image_2'],
   [['nano-bn-pro', 'nano bn pro', 'nanobnpro'], 'generate_image_nano_banana_pro'],
   // 顺序修正（相对 main.py 的缺陷修复）：'nano-bn-2' 是 'nano-bn-2-lite' 的前缀子串，
@@ -85,6 +124,10 @@ export const LOVART_PROMPT_MODEL_NAMES: Record<string, string> = {
   'nano-bn-2-lite': 'Nano Banana 2 Lite',
   'seedance-2.0-mini': 'Seedance 2.0 mini',
   'minimax-h3': 'MiniMax H3',
+  'gpt-image-2.5-sunburst-low': 'GPT Image 2.5 Sunburst Low',
+  'gpt-image-2.5-sunburst-medium': 'GPT Image 2.5 Sunburst Medium',
+  'gpt-image-2.5-flare-low': 'GPT Image 2.5 Flare Low',
+  'gpt-image-2.5-flare-medium': 'GPT Image 2.5 Flare Medium',
 };
 
 /**
@@ -98,6 +141,13 @@ export const LOVART_MODEL_SPECS: Record<string, LovartModelSpec> = {
   'nano-bn-pro': { category: 'IMAGE', readableName: 'Nano Banana Pro' },
   'nano-bn-2': { category: 'IMAGE', readableName: 'Nano Banana 2' },
   'nano-bn-2-lite': { category: 'IMAGE', readableName: 'Nano Banana 2 Lite' },
+  'gpt-image-2.5-sunburst-low': { category: 'IMAGE', readableName: 'GPT Image 2.5 Sunburst Low' },
+  'gpt-image-2.5-sunburst-medium': {
+    category: 'IMAGE',
+    readableName: 'GPT Image 2.5 Sunburst Medium',
+  },
+  'gpt-image-2.5-flare-low': { category: 'IMAGE', readableName: 'GPT Image 2.5 Flare Low' },
+  'gpt-image-2.5-flare-medium': { category: 'IMAGE', readableName: 'GPT Image 2.5 Flare Medium' },
   'lovart-chat': { category: 'CHAT', tool: 'lovart-chat', readableName: 'Lovart Chat' },
   'seedance-2.0-fast': { category: 'VIDEO', readableName: 'Seedance 2.0 Fast' },
   'seedance-2': { category: 'VIDEO', readableName: 'Seedance 2' },
