@@ -9,7 +9,7 @@ import { compressImage } from '../utils/imageCompress.ts';
  * 就地裁剪浮层（极简，只做裁剪）。
  *
  * 要求（来自需求）：
- *  1. 无菜单、无顶部按钮栏——只有图片 + 底部「取消 / 裁剪」两个按钮。
+ *  1. 无菜单、无顶部按钮栏——只有图片 + 「取消 / 裁剪」两个按钮，按钮浮在节点下方居中。
  *  2. 默认按图片原始尺寸铺满：选区初始 = 整图（100%），ReactCrop 按图片比例铺满节点图片区；
  *     保存时换算回原始像素，不缩放失真。
  *  3. 选完选区后，点「裁剪」按钮确认保存写回。
@@ -29,6 +29,10 @@ import { compressImage } from '../utils/imageCompress.ts';
  *  - 跨域/加载失败 → compressImage 抛明确错误，toast 透传真实原因，不静默吞错。
  *
  * 挂载：由调用方放在图片区 `relative` 容器内，本组件 `absolute inset-0` 覆盖。
+ * 【溢出约束】按钮栏用 `top-full` 浮到节点外，因此**父级链（含图片区容器、节点主容器）
+ * 不可加 overflow-hidden**。NodeShell 主容器已明确不加 overflow-hidden（见其注释），
+ * 各节点（ImageGenerate / AssetNode）挂载点的直接父容器也均无 overflow-hidden——
+ * overflow-hidden 只出现在更内层的兄弟 div 上，不影响本组件溢出。
  *
  * @param {Object} props
  * @param {string} props.imageUrl 要裁剪的图片 URL
@@ -162,11 +166,13 @@ export default function InlineImageCropper({ imageUrl, onSave, onClose }: Inline
   }, [imageUrl, percentCrop, onSave, onClose]);
 
   return (
-    <div className="absolute inset-0 z-30 flex flex-col bg-black/70 nodrag">
+    // 外层遮罩不再用 flex flex-col 分栏：图片区独占整个节点，按钮栏浮到节点外下方。
+    <div className="absolute inset-0 z-30 bg-black/70 nodrag">
       {/* 图片区：ReactCrop 撑满容器、图片 object-contain 完整显示。
           关键：必须让 ReactCrop 盒子 = 容器（无留白），选区手柄才能拖到最边边。
-          原实现 flex 居中 + p-2 使图片盒子 < 容器，选区到图片边缘即停，四周留白处拖不到。 */}
-      <div className="flex-1 relative overflow-hidden">
+          原实现 flex 居中 + p-2 使图片盒子 < 容器，选区到图片边缘即停，四周留白处拖不到。
+          absolute inset-0（原 flex-1）：图片区占满整个节点，不再被按钮栏压掉一块高度。 */}
+      <div className="absolute inset-0">
         <ReactCrop
           crop={crop}
           onChange={(_, pc) => {
@@ -186,19 +192,24 @@ export default function InlineImageCropper({ imageUrl, onSave, onClose }: Inline
         </ReactCrop>
       </div>
 
-      {/* 底部仅两个按钮：取消 / 裁剪 */}
-      <div className="flex items-center justify-end gap-2 px-3 py-2 bg-surface-raised border-t border-edge">
+      {/* 取消 / 裁剪：absolute top-full 浮到节点下方居中，不再占据节点内高度。
+          胶囊容器沿用 HoverToolbar 同一套（bg-surface-raised/90 backdrop-blur-md
+          border border-edge rounded-full shadow-lg），按钮尺寸/配色对齐节点内 ToolbarButton。
+          【依赖】父级链不可加 overflow-hidden，否则节点外按钮栏会被裁掉——
+          NodeShell 主容器注释明确「不加 overflow-hidden」，正是为了让 HoverToolbar
+          这类 top-full / -top-12 的节点外元素能溢出显示。 */}
+      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 flex items-center gap-1 px-3 py-2 bg-surface-raised/90 backdrop-blur-md border border-edge rounded-full shadow-lg">
         <button
           type="button"
           onClick={onClose}
-          className="px-3 py-1.5 rounded-lg text-body hover:bg-surface-hover-strong text-sm transition-colors"
+          className="px-2.5 py-1 rounded-md text-caption-sm text-secondary hover:text-primary hover:bg-surface-hover transition-colors"
         >
           取消
         </button>
         <button
           type="button"
           onClick={handleSave}
-          className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors"
+          className="px-2.5 py-1 rounded-md text-caption-sm text-primary bg-surface-hover-strong hover:bg-surface-hover-strong/80 font-medium transition-colors"
         >
           裁剪
         </button>

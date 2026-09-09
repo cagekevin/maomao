@@ -470,10 +470,16 @@ function throttledWarnClick(op: string): boolean {
 }
 export function requireActiveConv(op: string): Conversation | null {
   const conv = getActiveConv();
-  if (!conv && throttledWarnClick(op)) {
-    logger.warn('AI助手', `写「${op}」未生效：当前无有效对话（activeId 悬空）`, {
-      activeId: getState().activeId,
-    });
+  if (!conv) {
+    // 【壳期静默】空壳期（hydrate 异步未完成）写未生效是预期，直接跳过告警；写仍被拦下（返回 null），
+    // 绝不因「静默」而用空数据覆盖 KV 真数据。水化失败也会在 hydrate().finally 里 hydrated.add，
+    // 故「真悬空」仍会告警，安全网不撤。
+    if (!hydrated.has(currentAgentKey)) return null;
+    if (throttledWarnClick(op)) {
+      logger.warn('AI助手', `写「${op}」未生效：当前无有效对话（activeId 悬空）`, {
+        activeId: getState().activeId,
+      });
+    }
   }
   return conv;
 }

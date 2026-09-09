@@ -52,7 +52,9 @@ export function useActiveAssistantTable(): ActiveAssistantTable {
     // normalizeAssistantTabs 惰性造 id（读时才造 id 的惰性真源）→ 每次读都可能拿到新 id，
     // 多消费方各自归一就会造出两套 id 空间。正确做法是「会话激活时已由 conversationStore
     // materializeAssistantTabs 落成稳定基线」；若这里还告警，说明某个新入口没走激活路径，需补。
-    if (rawTabs == null) {
+    // 壳期（activeId 仍为空 = 水化未完成 / 空壳）读不到真源是预期，静默返回；
+    // 仅在「已有有效对话（activeId 非空）却仍读不到真源」时告警 —— 那才是真缺陷（某入口没走激活路径）。
+    if (rawTabs == null && activeConversationId !== '') {
       logger.warn('AI助手', '表格真源未落盘即被读取（将惰性造 id），请确认走会话激活路径', {
         activeConversationId,
       });
