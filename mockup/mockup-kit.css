@@ -372,7 +372,8 @@ button,input,select{font-family:inherit;}
   transition:background .15s,color .15s;
 }
 .row-card:hover{background:var(--surface-hover);color:#fff;}
-.row-card.used{opacity:.45;}
+.row-card.used{opacity:.55;}
+.row-card.used .n{color:var(--t-muted);}
 .row-card img{width:28px;height:28px;border-radius:5px;object-fit:cover;flex-shrink:0;background:#000;}
 .row-card .meta{display:flex;flex-direction:column;gap:1px;min-width:0;}
 .row-card .n{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:118px;}
@@ -395,7 +396,11 @@ button,input,select{font-family:inherit;}
 }
 .layer-item:hover{background:var(--surface-hover);}
 .layer-item.on{background:var(--accent-soft);border-color:var(--accent-line);}
-.layer-item .thumb{width:24px;height:24px;border-radius:5px;flex-shrink:0;background:#000;overflow:hidden;}
+.layer-item .thumb{width:24px;height:24px;border-radius:5px;flex-shrink:0;background:#101010;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;}
+/* 缩略图内容按 16:9 居中，避免方形硬裁（文字层等用字符占位） */
+.layer-item .thumb .ti{width:22px;height:14px;border-radius:2px;flex-shrink:0;}
+.layer-item .thumb .tt{font-size:9px;color:var(--t-secondary);}
 .layer-item .nm{
   flex:1;min-width:0;font-size:11px;color:var(--t-body);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -439,11 +444,6 @@ button,input,select{font-family:inherit;}
   position:absolute;left:50%;top:-24px;transform:translateX(-50%);
   width:14px;height:14px;border:1px solid var(--accent);background:#fff;border-radius:50%;
 }
-
-/* 吸附参考线（紫） */
-.guide{position:absolute;background:var(--purple);opacity:.85;}
-.guide.v{width:1px;top:-40px;bottom:-40px;}
-.guide.h{height:1px;left:-40px;right:-40px;}
 
 /* ───────── H. 下拉菜单（工具条上的二级菜单） ───────── */
 
@@ -517,6 +517,75 @@ button,input,select{font-family:inherit;}
 .hatch{
   background-image:repeating-linear-gradient(45deg,
     rgba(255,255,255,.92) 0 8px, rgba(226,232,240,.92) 8px 16px);
+}
+
+/* ───────── K. 对象面板 / 折叠区 / 画布直接操作 ───────── */
+
+/* K1 左栏两段：上=图层（导航，常驻）下=素材来源（可滚）
+   导航必须不随选中变化，且不能被滚走——否则切一次图层要滚两趟 */
+.cleft.split{overflow:hidden;}
+.cleft.split .pane-top{
+  flex:0 0 auto;max-height:44%;overflow-y:auto;
+  border-bottom:1px solid var(--edge-muted);
+}
+.cleft.split .pane-bot{flex:1 1 auto;min-height:0;overflow-y:auto;}
+
+/* K2 图层区底部：层序 + 新增（层序是「改这个图层」，必须挨着列表） */
+.layer-tools{display:flex;align-items:center;gap:6px;margin-top:8px;}
+.layer-tools .seg{flex:1;}
+.layer-tools .seg button{flex:1;min-width:0;}
+
+/* K3 变换框上的就近操作：选中后手不用离开画布 */
+.tr-act{
+  position:absolute;right:-1px;top:-31px;display:flex;gap:2px;padding:2px;pointer-events:auto;
+  border-radius:var(--r-sm);background:rgba(28,28,28,.92);border:1px solid var(--edge);
+}
+.tr-act button{
+  width:20px;height:20px;display:flex;align-items:center;justify-content:center;
+  border:none;background:transparent;border-radius:4px;color:var(--t-muted);cursor:pointer;
+}
+.tr-act button:hover{background:var(--surface-hover);color:#fff;}
+.tr-act button.del:hover{color:var(--danger);}
+
+/* K4 边中手柄（补足 8 柄：只有角柄时无法单向拉伸） */
+.tr .h.tm{left:50%;top:-5px;margin-left:-4px;}
+.tr .h.bm{left:50%;bottom:-5px;margin-left:-4px;}
+.tr .h.ml{left:-5px;top:50%;margin-top:-4px;}
+.tr .h.mr{right:-5px;top:50%;margin-top:-4px;}
+
+/* K5 比例锁 / 行内小图标按钮 */
+.numlock{
+  width:22px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  border:none;background:transparent;border-radius:5px;color:var(--t-faint);cursor:pointer;
+  transition:background .15s,color .15s;
+}
+.numlock:hover{background:var(--surface-hover);color:#fff;}
+.numlock.on{color:var(--accent-text);}
+.lockrow{display:flex;align-items:center;gap:5px;margin:-2px 0 8px;}
+.lockrow span{font-size:10px;color:var(--t-faint);}
+
+/* K6 可折叠分区：标题行即摘要（低频区收起，把首屏让给高频区） */
+.sect-sum{
+  display:flex;align-items:center;gap:6px;width:100%;padding:0;
+  border:none;background:transparent;color:var(--t-secondary);font-size:11px;cursor:pointer;
+}
+.sect-sum:hover{color:#fff;}
+.sect-sum .caret{color:var(--t-subtle);display:flex;}
+.sect-sum .txt{color:var(--t-faint);font-variant-numeric:tabular-nums;margin-left:auto;}
+
+/* K7 透明画布：棋盘格（「透明 PNG」是这个工具的核心卖点，必须看得见） */
+.board.transparent{
+  background-color:transparent;
+  background-image:
+    linear-gradient(45deg,#1e1e1e 25%,transparent 25%,transparent 75%,#1e1e1e 75%),
+    linear-gradient(45deg,#1e1e1e 25%,transparent 25%,transparent 75%,#1e1e1e 75%);
+  background-size:16px 16px;background-position:0 0,8px 8px;
+}
+
+/* K8 画板标签（贴在画板上方，不占用画板内部） */
+.board-tag{
+  position:absolute;left:-1px;top:-20px;font-size:10px;color:var(--t-subtle);
+  font-variant-numeric:tabular-nums;white-space:nowrap;
 }
 
 /* __APPEND_MARK__ */

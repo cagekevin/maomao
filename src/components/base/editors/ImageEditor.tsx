@@ -1289,14 +1289,6 @@ export default function ImageEditor({
       {/* ── 底部状态条 ── */}
       {tab === 'draw' && (
         <StatusBar>
-          <span>画幅</span>
-          <b>
-            {docSize.w} × {docSize.h}
-          </b>
-          <span>·</span>
-          <span>缩放</span>
-          <b>{Math.round(zoom * 100)}%</b>
-          <span>·</span>
           <span>涂鸦层</span>
           <b className="text-green-400">{strokeCount} 笔</b>
           <span>·</span>
@@ -1309,19 +1301,7 @@ export default function ImageEditor({
       )}
       {tab === 'crop' && (
         <StatusBar>
-          <span>原图</span>
-          <b>
-            {docSize.w} × {docSize.h}
-          </b>
-          <span>·</span>
-          <span>裁剪后</span>
-          <b>{curCropSizeLabelOnly(crop, docSize)}</b>
-          <span>·</span>
-          <span>缩放</span>
-          <b>{Math.round(zoom * 100)}%</b>
-          <div className="ml-auto">
-            <span>应用后回到涂鸦 Tab，结果成为新底图</span>
-          </div>
+          <span>应用后回到涂鸦 Tab，结果成为新底图</span>
         </StatusBar>
       )}
       {tab === 'expand' && (
@@ -1453,18 +1433,6 @@ function curCropSizeLabel(
   );
 }
 
-function curCropSizeLabelOnly(
-  c: { x: number; y: number; width: number; height: number } | undefined,
-  size: { w: number; h: number },
-) {
-  if (!c || !c.width || !c.height || !size.w || !size.h) return <b>—</b>;
-  return (
-    <b>
-      {Math.round((c.width / 100) * size.w)} × {Math.round((c.height / 100) * size.h)}
-    </b>
-  );
-}
-
 /* 扩图状态条 */
 function ExpandStatusBar({
   docSize,
@@ -1477,19 +1445,8 @@ function ExpandStatusBar({
 }) {
   return (
     <div className="flex items-center gap-3.5 h-[34px] shrink-0 px-3.5 border-t border-edge-faint bg-surface-deep text-caption-sm text-faint">
-      <span>原图</span>
-      <b>
-        {docSize.w} × {docSize.h}
-      </b>
-      <span>·</span>
       <span>扩图后</span>
       <b>{expandGoalLabel(docSize, ratioKey, factor)}</b>
-      <span>·</span>
-      <span>面积</span>
-      <b>+{Math.round((factor * factor - 1) * 100)}%</b>
-      <span>·</span>
-      <span>填充</span>
-      <b>纯白 #FFFFFF</b>
       <div className="ml-auto">
         <span>只输出一张图 · 是否送 AI 补全由用户决定</span>
       </div>
