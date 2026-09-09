@@ -65,6 +65,8 @@ import {
   handleAdminImport,
   handleAdminKvList,
   handleAdminClearCache,
+  handleAdminStorageHealth,
+  handleAdminDeleteFile,
 } from './routes/admin.js';
 import {
   handleGenerateSubmit,
@@ -210,6 +212,8 @@ export const routes: Route[] = [
   { method: 'GET', pattern: '/api/admin/kv-list', handler: handleAdminKvList },
   { method: 'POST', pattern: '/api/admin/clear-cache', handler: handleAdminClearCache },
   { method: 'POST', pattern: '/api/admin/cleanup', handler: handleAdminCleanup },
+  { method: 'GET', pattern: '/api/admin/storage-health', handler: handleAdminStorageHealth },
+  { method: 'POST', pattern: '/api/admin/delete-file', handler: handleAdminDeleteFile },
   { method: 'GET', pattern: '/api/admin/export', handler: handleAdminExport },
   { method: 'POST', pattern: '/api/admin/import', handler: handleAdminImport },
 

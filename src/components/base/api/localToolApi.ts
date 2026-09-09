@@ -213,6 +213,58 @@ export async function renameResource(id: string, name: string): Promise<ApiEnvel
   );
 }
 
+// ─────────────────────────── 存储健康（管理端报表 + 安全删除）───────────────────────────
+/**
+ * GET /api/admin/storage-health — 存储健康总报表（只读）。
+ * 返回 code-data 信封：{ totalBytes, fileCount, byCategory, projects[], orphans[], duplicates[], orphanBytes, reclaimableBytes, scannedAt }。
+ * byCategory{ 图片/视频/音频/文本/其他:{count,size} }；projects{ projectId,projectName,kvBytes,fileBytes,fileCount }；
+ * orphans{ path,name,size,category }；duplicates{ name,size,count,files[]{path,size,referenced},reclaimable }。
+ */
+export async function fetchStorageHealth(): Promise<
+  ApiEnvelope<{
+    totalBytes: number;
+    fileCount: number;
+    byCategory: Record<string, { count: number; size: number }>;
+    projects: Array<{
+      projectId: string;
+      projectName: string;
+      kvBytes: number;
+      fileBytes: number;
+      fileCount: number;
+    }>;
+    orphans: Array<{ path: string; name: string; size: number; category: string }>;
+    duplicates: Array<{
+      name: string;
+      size: number;
+      count: number;
+      files: Array<{ path: string; size: number; referenced: boolean }>;
+      reclaimable: number;
+    }>;
+    orphanBytes: number;
+    reclaimableBytes: number;
+    scannedAt: number;
+  }>
+> {
+  return httpRequest(`${API_BASE}/api/admin/storage-health`, { label: 'fetchStorageHealth' });
+}
+
+/**
+ * POST /api/admin/delete-file — 安全删除单个 uploads 文件（孤儿/重复副本共用）。
+ * body { path: 相对 uploads 的路径 }。后端仅删全库无引用文件；被引用 → { ok:false, skipped:'referenced' }。
+ */
+export async function deleteStorageFile(
+  path: string,
+): Promise<
+  ApiEnvelope<{ ok: boolean; path?: string; skipped?: 'referenced' | 'protected' | 'missing' }>
+> {
+  return httpRequest(`${API_BASE}/api/admin/delete-file`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+    label: 'deleteStorageFile',
+  });
+}
+
 // ─────────────────────────── providers（供应商管理）───────────────────────────
 // 保持对象式 Interface（providerStore / cloudSync 共 6 处调用零改造）
 interface ProviderRequestOpts {

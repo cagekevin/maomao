@@ -979,6 +979,20 @@ export const apiRegistry = {
     envelope: 'code-data',
     status: 'RESERVED',
   },
+  adminStorageHealth: {
+    fn: 'localToolApi.fetchStorageHealth',
+    method: 'GET',
+    path: '/api/admin/storage-health',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
+  adminDeleteFile: {
+    fn: 'localToolApi.deleteStorageFile',
+    method: 'POST',
+    path: '/api/admin/delete-file',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+  },
   adminExport: {
     fn: '(前端零消费)',
     method: 'GET',

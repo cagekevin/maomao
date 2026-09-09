@@ -119,6 +119,55 @@ export function runOrphanGc(
 }
 
 /**
+ * 收集全库「被引用的 uploads 相对路径」集合（只读，不删）。
+ *
+ * 引用来源必须覆盖三类，缺一不可（与 runReferenceGc 完全同口径，存储健康报表 / 重复文件
+ * 安全删除都要用它判断"哪个文件在用"）：
+ *   - resources 表 url：存进素材库但没放画布的图只在此表；
+ *   - tasks 表 result_url / thumbnail_url：AI 任务结果；
+ *   - KV 表全部 value（含 canvas-state-*）：画布节点引用。
+ *
+ * 返回形如 "canvas/xxx.png" 的 uploads 相对路径集合。未引用的文件 = 可安全删除。
+ */
+export async function collectReferencedRelPaths(): Promise<Set<string>> {
+  const db = await getDb();
+  const referenced = new Set<string>();
+
+  // ① resources + tasks 的完整 /files/ URL（画布外引用）
+  const refUrls = new Set<string>();
+  const resUrls = queryAll(db, 'SELECT url FROM resources') as Array<{ url: string }>;
+  for (const r of resUrls) if (r.url) refUrls.add(r.url);
+  const taskUrls = queryAll(db, 'SELECT result_url, thumbnail_url FROM tasks') as Array<{
+    result_url?: string;
+    thumbnail_url?: string;
+  }>;
+  for (const t of taskUrls) {
+    if (t.result_url) refUrls.add(t.result_url);
+    if (t.thumbnail_url) refUrls.add(t.thumbnail_url);
+  }
+  for (const url of refUrls) {
+    const m = url.match(/\/files\/(.+)$/);
+    if (m) {
+      try {
+        referenced.add(decodeURIComponent(m[1]));
+      } catch {
+        referenced.add(m[1]);
+      }
+    }
+  }
+
+  // ② KV 全部 value 里内嵌的 /files/ 相对路径（画布引用）
+  const kvValues = queryAll(db, 'SELECT value FROM kv') as Array<{ value: string }>;
+  for (const r of kvValues) {
+    if (typeof r.value === 'string' && r.value) {
+      for (const rel of extractFilesUrls(r.value)) referenced.add(rel);
+    }
+  }
+
+  return referenced;
+}
+
+/**
  * 引用感知 GC 的统一入口：收集全库引用（resources 表 url + tasks 表 url + KV 全部 value）后执行孤儿回收。
  *
  * 设计背景（docs/13 §3.5）：删除接口「只删记录、绝不删盘」，删盘统一交给本函数裁决。

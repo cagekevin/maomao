@@ -1,0 +1,522 @@
+/* ============================================================
+ * mockup-kit.css — 所有 mockup 的共享样式底座
+ *
+ * 【为什么单独一个文件】
+ *   画布上每加一个新工具（多图编辑 / 局部重绘 / 批量超分 …）都要配一个 mockup，
+ *   如果每个 html 各写一份 <style>，样式必然漂移。这里把所有 mockup 共用的东西
+ *   收口成一份：设计 token、页面骨架、通用控件、编辑器骨架。
+ *   新 mockup 只写「这一屏独有的布局」，其余一律复用本文件的类。
+ *
+ * 【真相来源】
+ *   颜色/字号/圆角/状态色 全部对齐 docs/NODE-DESIGN-SPEC.md §〇（画布视觉 DNA）
+ *   与 tailwind.config.ts 的语义 token。禁止在 html 里写裸色值 / 裸字号。
+ *
+ * 【用法】
+ *   <link rel="stylesheet" href="./mockup-kit.css" />
+ *
+ * 【命名约定】
+ *   .mk-*  页面级骨架（head / stage / note …）
+ *   其余短名（.btn .ib .seg .editor …）为控件级，与既有 mockup 保持同名，便于迁移
+ * ============================================================ */
+
+/* ───────── A. 设计 token（NODE-DESIGN-SPEC §〇） ───────── */
+:root{
+  /* 底色：主容器 → 内层面板 → 输入 → 内容区最深 */
+  --canvas:#0d0c0c;
+  --surface-raised:#1c1c1c;
+  --surface-deep:#151414;
+  --surface:#1a1a1a;
+  --surface-1:#222222;
+  --surface-hover:#2a2a2a;
+  --surface-hover-strong:#333333;
+  --surface-sunken:#121212;
+  --input:#141414;
+
+  /* 边框：常态 → hover → 选中 → 最弱分隔 */
+  --edge:#333333;
+  --edge-strong:#555555;
+  --edge-muted:#2a2a2a;
+  --edge-faint:#262626;
+
+  /* 文字：强 → 弱 → 最弱（节点 UI 几乎全用小字号） */
+  --t-strong:#ffffff;
+  --t-primary:#dddddd;
+  --t-body:#cccccc;
+  --t-secondary:#aaaaaa;
+  --t-muted:#888888;
+  --t-faint:#666666;
+  --t-subtle:#555555;
+
+  /* 状态色 */
+  --accent:#3b82f6;                    /* 蓝：主操作 / 选中 / 链接 */
+  --accent-soft:rgba(59,130,246,.15);
+  --accent-line:rgba(59,130,246,.6);
+  --accent-text:#93c5fd;
+  --ok:#22c55e;                        /* 绿：成功 */
+  --danger:#ef4444;                    /* 红：危险 / 删除 */
+  --warn:#eab308;                      /* 黄：警告 */
+  --purple:#d946ef;                    /* 紫：特殊标记 */
+  --purple-soft:rgba(217,70,239,.15);
+  --purple-line:rgba(217,70,239,.6);
+  --purple-text:#f0abfc;
+
+  /* 圆角 / 阴影（token 化，不写裸值） */
+  --r-card:16px;      /* 主容器 rounded-xl */
+  --r-ctl:8px;        /* 按钮 / 输入 rounded-lg */
+  --r-sm:6px;         /* 小控件 rounded-md */
+  --r-pill:999px;     /* 胶囊 */
+  --sh-card:0 30px 70px rgba(0,0,0,.6);
+  --sh-pop:0 12px 32px rgba(0,0,0,.5);
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{min-height:100%;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  background:#0a0a0a;color:var(--t-primary);
+  padding:26px 28px 80px;
+  display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start;
+}
+button,input,select{font-family:inherit;}
+
+/* ───────── B. 页面骨架 ───────── */
+
+/* 抬头：标题 + 一句「这次改了什么」 */
+.mk-head{width:100%;display:flex;flex-direction:column;gap:6px;margin-bottom:-14px;}
+.mk-head h1{font-size:16px;font-weight:600;color:var(--t-strong);}
+.mk-head p{font-size:12px;color:var(--t-muted);line-height:1.85;max-width:1240px;}
+.mk-head b{color:var(--t-primary);font-weight:600;}
+.mk-head .hl{color:var(--accent-text);}
+
+/* 一屏 = 标题 + 舞台 + 图注 */
+.mk-stage{display:flex;flex-direction:column;gap:10px;}
+.mk-cap{font-size:12px;line-height:1.85;color:var(--t-muted);max-width:1240px;}
+.mk-cap b{color:var(--t-primary);font-weight:600;}
+.mk-cap .hl{color:var(--accent-text);}
+
+/* 变更标签：新增 / 保留 / 提醒 */
+.tag{
+  display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;
+  background:#1f1f1f;border:1px solid #2c2c2c;color:#8a8a8a;margin-right:6px;
+}
+.tag.new{color:#7ab8ff;border-color:#2a3a52;}
+.tag.keep{color:#6ee7b7;border-color:#24463a;}
+.tag.warn{color:#fcd34d;border-color:#4a3c1c;}
+.tag.cut{color:#f87171;border-color:#4a2626;}
+
+/* 底部说明（写清取舍与落地口径，别让看图的人猜） */
+.mk-note{
+  border-top:1px dashed #242424;padding-top:9px;margin-top:2px;
+  font-size:11px;line-height:1.95;color:var(--t-muted);max-width:1240px;
+}
+.mk-note b{color:#9a9a9a;font-weight:600;}
+.mk-note code{
+  background:#1d1d1d;border:1px solid #292929;border-radius:5px;
+  padding:1px 4px;font-size:11px;color:#c9c9c9;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+
+/* 通用图例（列点说明） */
+.mk-legend{display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--t-muted);line-height:1.75;}
+.mk-legend b{color:var(--t-body);font-weight:500;}
+.mk-legend .k{color:#7ab8ff;}
+.mk-legend .c{color:#f87171;}
+
+/* ───────── C. 通用控件（规范 §二 7 种形态的 HTML 实现） ───────── */
+
+/* C1 文字按钮：default / primary / danger */
+.btn{
+  display:inline-flex;align-items:center;gap:5px;
+  height:30px;padding:0 12px;border-radius:var(--r-ctl);font-size:12px;
+  border:1px solid var(--edge-muted);background:transparent;color:var(--t-body);cursor:pointer;
+  transition:background .15s,color .15s,border-color .15s;
+}
+.btn:hover{background:var(--surface-hover);color:#fff;}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500;}
+.btn.primary:hover{background:#2f6fdc;border-color:#2f6fdc;}
+.btn.danger{color:var(--danger);}
+.btn.danger:hover{background:rgba(239,68,68,.12);color:var(--danger);}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn:disabled:hover{background:transparent;color:var(--t-body);}
+
+/* C2 图标按钮（28 方形，header / 面板通用） */
+.ib{
+  width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  border:none;background:transparent;border-radius:7px;color:var(--t-muted);cursor:pointer;
+  transition:background .15s,color .15s;
+}
+.ib:hover{background:var(--surface-hover);color:var(--t-strong);}
+.ib.on{color:var(--accent-text);background:var(--accent-soft);}
+.ib.dis{opacity:.4;cursor:not-allowed;}
+.ib.dis:hover{background:transparent;color:var(--t-muted);}
+.ib.danger:hover{color:var(--danger);background:var(--surface-hover);}
+
+/* 小图标按钮（20，图层行内用） */
+.ic{
+  width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  border:none;background:transparent;border-radius:5px;color:var(--t-faint);cursor:pointer;font-size:10px;
+  transition:background .15s,color .15s;
+}
+.ic:hover{background:var(--surface-hover);color:#fff;}
+.ic.on{color:var(--accent-text);}
+.ic.danger:hover{color:var(--danger);}
+
+.vline{width:1px;height:20px;background:var(--edge-muted);flex-shrink:0;}
+.vline.sm{height:14px;}
+
+/* C3 分段按钮（2~4 个互斥选项；选中=蓝底蓝边蓝字） */
+.seg{display:flex;gap:3px;flex-wrap:wrap;}
+.seg button{
+  min-width:26px;height:24px;padding:0 7px;border-radius:var(--r-sm);
+  background:var(--surface-hover);border:1px solid var(--edge-muted);color:var(--t-secondary);
+  font-size:11px;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  transition:background .15s,color .15s,border-color .15s;
+}
+.seg button:hover{color:#fff;border-color:var(--edge);}
+.seg button.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
+/* 分段里的取色槽：当作「第 N 个预设」，与按钮等高，不再单独起一行 */
+.seg .color-inp{width:28px;height:24px;border-radius:var(--r-sm);}
+
+/* Tab 级分段（header 里的大号分段，带图标） */
+.seg.tabs{display:flex;align-items:center;gap:4px;padding:3px;border-radius:9px;
+          background:var(--input);border:1px solid var(--edge-muted);}
+.seg.tabs button{
+  height:auto;padding:4px 13px;border-radius:7px;border-color:transparent;background:transparent;
+  font-size:11px;line-height:1.45;
+}
+.seg.tabs button:hover{background:var(--surface-hover);color:#fff;}
+.seg.tabs button.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
+.seg.tabs .badge{
+  font-size:9px;padding:0 4px;border-radius:4px;background:var(--surface-hover-strong);color:var(--t-faint);
+}
+.seg.tabs button.on .badge{background:rgba(59,130,246,.25);color:#bfdbfe;}
+
+/* C4 工具胶囊（仿 HoverToolbar / 编辑器工具条） */
+.pill{display:flex;align-items:center;gap:2px;padding:3px;border-radius:var(--r-pill);
+      background:var(--surface-1);border:1px solid var(--edge-muted);}
+.pill button{
+  width:28px;height:26px;display:flex;align-items:center;justify-content:center;
+  border:none;background:transparent;border-radius:var(--r-pill);color:var(--t-muted);cursor:pointer;
+  transition:background .15s,color .15s;
+}
+.pill button:hover{background:var(--surface-hover);color:#fff;}
+.pill button.on{background:var(--accent);color:#fff;}
+.pill button.on:hover{background:#2f6fdc;color:#fff;}
+
+/* C5 数值输入 */
+.num{
+  width:100%;height:24px;padding:0 6px;border-radius:var(--r-sm);
+  background:var(--input);border:1px solid var(--edge-muted);color:var(--t-body);
+  font-size:11px;font-variant-numeric:tabular-nums;
+}
+.num:focus{outline:none;border-color:var(--accent-line);}
+
+/* C6 下拉选择 */
+.sel{
+  width:100%;height:24px;padding:0 4px;border-radius:var(--r-sm);
+  background:var(--input);border:1px solid var(--edge-muted);color:var(--t-body);font-size:11px;
+}
+.sel:focus{outline:none;border-color:var(--accent-line);}
+
+/* C7 滑杆 + 颜色选择 */
+.range{width:100%;accent-color:var(--accent);}
+.swatch{width:22px;height:22px;border-radius:var(--r-sm);border:1px solid var(--edge-strong);
+        padding:0;background:#ff3b30;cursor:pointer;flex-shrink:0;}
+.swatches{display:flex;align-items:center;gap:4px;}
+.sw{width:16px;height:16px;border-radius:50%;border:1px solid rgba(255,255,255,.18);cursor:pointer;}
+.sw.on{box-shadow:0 0 0 2px var(--accent);}
+
+/* 一行表单：label + 控件 */
+.fld{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.fld > span{width:38px;flex-shrink:0;font-size:11px;color:var(--t-faint);}
+.fld .range{flex:1;}
+.fld .val{font-size:11px;color:var(--t-body);font-variant-numeric:tabular-nums;min-width:34px;text-align:right;}
+
+/* 两列数值网格 */
+.numgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;}
+.numgrid .nwrap{display:flex;align-items:center;gap:4px;}
+.numgrid .nwrap i{font-style:normal;font-size:10px;color:var(--t-faint);width:14px;flex-shrink:0;}
+
+/* ───────── D. 全屏编辑器骨架 ───────── */
+
+.editor{
+  width:1280px;height:780px;
+  background:var(--surface-raised);border:1px solid var(--edge-muted);
+  border-radius:var(--r-card);display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:var(--sh-card);
+}
+.editor.w1080{width:1080px;}
+.editor.h700{height:700px;}
+
+/* D1 header：标题 + 中间插槽（Tab/工具）+ 右侧动作 */
+.eh{
+  height:52px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+  padding:0 12px 0 14px;border-bottom:1px solid var(--edge-muted);
+}
+.eh-left{display:flex;align-items:center;gap:12px;}
+.eh-right{display:flex;align-items:center;gap:8px;}
+.eh-title{font-size:13px;font-weight:600;color:var(--t-strong);display:flex;align-items:center;gap:7px;}
+.eh-title span{font-size:11px;color:var(--t-faint);font-weight:400;}
+
+/* D2 上下文工具条（随 Tab 切换的那一条） */
+.bar{
+  height:46px;flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 14px;
+  background:var(--surface-deep);border-bottom:1px solid var(--edge-faint);
+}
+.bar .lbl{font-size:11px;color:var(--t-faint);}
+.bar .val{font-size:11px;color:var(--t-body);font-variant-numeric:tabular-nums;}
+.spacer{flex:1;}
+
+/* D3 内容三栏：左素材 / 中画布 / 右属性 */
+.cbody{flex:1;min-height:0;display:flex;}
+.cleft,.cright{
+  background:var(--surface-deep);display:flex;flex-direction:column;overflow:auto;flex-shrink:0;
+}
+.cleft{width:196px;border-right:1px solid var(--edge-faint);}
+.cright{width:252px;border-left:1px solid var(--edge-faint);}
+.cmid{
+  flex:1;min-width:0;position:relative;background:var(--surface-sunken);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+}
+
+/* D4 画布区：棋盘底（透明感）+ 中央画板 */
+.checker{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(45deg,#171717 25%,transparent 25%,transparent 75%,#171717 75%),
+    linear-gradient(45deg,#171717 25%,transparent 25%,transparent 75%,#171717 75%);
+  background-size:16px 16px;background-position:0 0,8px 8px;
+}
+.board{
+  position:relative;background:var(--surface-1);
+  box-shadow:0 0 0 1px var(--edge),0 24px 60px rgba(0,0,0,.55);
+}
+.board.empty{background:transparent;box-shadow:0 0 0 1px rgba(85,85,85,.5);}
+
+/* D5 底部状态条 */
+.status{
+  height:34px;flex-shrink:0;display:flex;align-items:center;gap:14px;padding:0 14px;
+  border-top:1px solid var(--edge-faint);background:var(--surface-deep);
+  font-size:11px;color:var(--t-faint);
+}
+.status b{color:var(--t-body);font-weight:500;font-variant-numeric:tabular-nums;}
+.status .ok{color:var(--ok);}
+.zoom-ctl{display:flex;align-items:center;gap:6px;margin-left:auto;}
+.zbtn{width:22px;height:22px;display:flex;align-items:center;justify-content:center;
+      border:none;background:transparent;border-radius:var(--r-sm);color:var(--t-muted);cursor:pointer;}
+.zbtn:hover{background:var(--surface-hover);color:#fff;}
+
+/* 画布上的浮动件：缩放控件 / 提示 */
+.float{
+  position:absolute;display:flex;align-items:center;gap:2px;padding:3px;border-radius:var(--r-pill);
+  background:rgba(28,28,28,.92);border:1px solid var(--edge);backdrop-filter:blur(6px);
+}
+.float button{
+  width:24px;height:22px;display:flex;align-items:center;justify-content:center;
+  border:none;background:transparent;border-radius:var(--r-pill);color:var(--t-muted);cursor:pointer;
+}
+.float button:hover{background:var(--surface-hover);color:#fff;}
+.float .pct{padding:0 8px;font-size:11px;color:var(--t-body);font-variant-numeric:tabular-nums;}
+.float-tip{
+  position:absolute;font-size:10px;color:var(--t-subtle);
+  background:rgba(20,20,20,.85);border:1px solid var(--edge-faint);border-radius:var(--r-sm);padding:4px 8px;
+}
+
+/* ───────── E. 节点与 hover 工具条 ───────── */
+
+.mini{display:flex;gap:24px;flex-wrap:wrap;}
+.mini-card{
+  background:var(--surface-raised);border:1px solid var(--edge-muted);border-radius:14px;
+  padding:14px;display:flex;flex-direction:column;gap:10px;
+}
+.mini-title{font-size:11px;color:var(--t-faint);letter-spacing:.04em;}
+
+/* hover 胶囊栏（复刻 HoverToolbar：bg-surface-raised/90 + backdrop-blur + rounded-full） */
+.hoverbar{
+  display:inline-flex;align-items:center;gap:2px;padding:4px;border-radius:var(--r-pill);
+  background:rgba(28,28,28,.92);border:1px solid var(--edge);box-shadow:0 8px 24px rgba(0,0,0,.5);
+}
+.hoverbar button,.hoverbar .slot{
+  width:26px;height:24px;display:flex;align-items:center;justify-content:center;
+  border:none;background:transparent;border-radius:var(--r-pill);color:var(--t-secondary);cursor:pointer;
+}
+.hoverbar button:hover{background:var(--surface-hover);color:#fff;}
+.hoverbar .v{width:1px;height:14px;background:var(--edge);margin:0 3px;}
+
+/* hover 栏里的「带文字的新按钮」——新增工具统一用这个样式，一眼可辨 */
+.hoverbar button.newbtn{
+  width:auto;padding:0 9px;gap:5px;font-size:11px;
+  background:var(--accent-soft);border:1px solid var(--accent-line);color:var(--accent-text);
+}
+.hoverbar button.newbtn:hover{background:rgba(59,130,246,.26);color:#fff;}
+
+/* ───────── F. 面板分区（左/右栏通用） ───────── */
+
+.sect{padding:10px 10px 12px;border-bottom:1px solid var(--edge-faint);}
+.sect-t{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:10px;color:var(--t-faint);letter-spacing:.05em;margin-bottom:8px;
+}
+.sect-t em{font-style:normal;color:var(--t-subtle);}
+.sect-t .minibt{
+  border:none;background:transparent;color:var(--accent-text);font-size:10px;cursor:pointer;padding:0;
+}
+.sect-t .minibt:hover{color:#fff;}
+
+/* 一行素材/文件卡（左栏：点击即加入图层） */
+.row-card{
+  display:flex;align-items:center;gap:8px;width:100%;
+  padding:5px;border-radius:var(--r-sm);border:1px solid transparent;background:transparent;
+  color:var(--t-body);font-size:11px;cursor:pointer;text-align:left;
+  transition:background .15s,color .15s;
+}
+.row-card:hover{background:var(--surface-hover);color:#fff;}
+.row-card.used{opacity:.45;}
+.row-card img{width:28px;height:28px;border-radius:5px;object-fit:cover;flex-shrink:0;background:#000;}
+.row-card .meta{display:flex;flex-direction:column;gap:1px;min-width:0;}
+.row-card .n{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:118px;}
+.row-card .d{font-size:10px;color:var(--t-faint);}
+.row-card .tail{margin-left:auto;color:var(--t-faint);flex-shrink:0;display:flex;align-items:center;}
+.row-card:hover .tail{color:var(--accent-text);}
+
+/* 虚线「上传/添加」按钮（左栏底部） */
+.dashbtn{
+  display:flex;align-items:center;justify-content:center;gap:6px;width:100%;
+  height:30px;border-radius:var(--r-ctl);border:1px dashed var(--edge);background:transparent;
+  color:var(--t-muted);font-size:11px;cursor:pointer;transition:border-color .15s,color .15s,background .15s;
+}
+.dashbtn:hover{border-color:var(--accent-line);color:var(--accent-text);background:var(--accent-soft);}
+
+/* 图层行（右栏图层列表） */
+.layer-item{
+  display:flex;align-items:center;gap:6px;padding:4px 5px;border-radius:7px;
+  border:1px solid transparent;cursor:pointer;transition:background .15s;
+}
+.layer-item:hover{background:var(--surface-hover);}
+.layer-item.on{background:var(--accent-soft);border-color:var(--accent-line);}
+.layer-item .thumb{width:24px;height:24px;border-radius:5px;flex-shrink:0;background:#000;overflow:hidden;}
+.layer-item .nm{
+  flex:1;min-width:0;font-size:11px;color:var(--t-body);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.layer-item.on .nm{color:#fff;}
+
+/* 空态 */
+.empty-tip{font-size:11px;color:var(--t-subtle);padding:6px 2px;}
+
+/* ───────── G. 画布内的示意素材（用渐变模拟照片） ───────── */
+
+.photo{
+  background:
+    radial-gradient(120% 90% at 20% 15%, #4b5563 0%, transparent 55%),
+    linear-gradient(160deg,#1f2937 0%,#111827 45%,#0b1220 100%);
+}
+.photo2{
+  background:
+    radial-gradient(90% 80% at 70% 25%, #7c5c3a 0%, transparent 60%),
+    linear-gradient(200deg,#3b2f22 0%,#171208 100%);
+}
+.photo3{
+  background:
+    radial-gradient(80% 70% at 30% 70%, #2f5d50 0%, transparent 60%),
+    linear-gradient(150deg,#0f2420 0%,#071412 100%);
+}
+.photo4{
+  background:
+    radial-gradient(90% 80% at 40% 30%, #4a3a5c 0%, transparent 60%),
+    linear-gradient(170deg,#221a2e 0%,#0d0a14 100%);
+}
+
+/* 变换框（选中图层时的 8 手柄 + 旋转柄） */
+.tr{position:absolute;pointer-events:none;}
+.tr .box{position:absolute;inset:0;border:1px solid var(--accent);}
+.tr .h{position:absolute;width:9px;height:9px;background:#fff;border:1px solid var(--accent);border-radius:2px;}
+.tr .h.tl{left:-5px;top:-5px;}   .tr .h.tr{right:-5px;top:-5px;}
+.tr .h.bl{left:-5px;bottom:-5px;} .tr .h.br{right:-5px;bottom:-5px;}
+.tr .stick{position:absolute;left:50%;top:-12px;width:1px;height:12px;background:var(--accent);}
+.tr .rot{
+  position:absolute;left:50%;top:-24px;transform:translateX(-50%);
+  width:14px;height:14px;border:1px solid var(--accent);background:#fff;border-radius:50%;
+}
+
+/* 吸附参考线（紫） */
+.guide{position:absolute;background:var(--purple);opacity:.85;}
+.guide.v{width:1px;top:-40px;bottom:-40px;}
+.guide.h{height:1px;left:-40px;right:-40px;}
+
+/* ───────── H. 下拉菜单（工具条上的二级菜单） ───────── */
+
+.dd{position:relative;display:inline-flex;}
+/* 菜单默认向上弹（工具条在顶部时），.down 改为向下 */
+.menu{
+  position:absolute;bottom:calc(100% + 8px);left:0;z-index:30;
+  min-width:180px;max-height:320px;overflow-y:auto;padding:6px;
+  background:var(--surface-raised);border:1px solid var(--edge);
+  border-radius:10px;box-shadow:var(--sh-pop);
+}
+.dd .menu.down{top:calc(100% + 8px);bottom:auto;}
+.menu-item{
+  display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;
+  border:none;border-radius:7px;background:transparent;color:var(--t-body);
+  font-size:11px;cursor:pointer;text-align:left;
+}
+.menu-item:hover{background:var(--surface-hover);color:#fff;}
+.menu-item.on{color:var(--accent-text);background:var(--accent-soft);}
+.menu-item img{width:32px;height:32px;object-fit:cover;border-radius:4px;flex-shrink:0;}
+.menu-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.menu-sep{height:1px;background:var(--edge-faint);margin:6px 0;}
+.menu-empty{padding:10px;font-size:11px;color:var(--t-subtle);text-align:center;}
+/* 菜单里的自定义行（颜色 / 滑杆） */
+.menu-custom{
+  display:flex;align-items:center;gap:6px;padding:7px 8px;
+  border-top:1px solid var(--edge-faint);margin-top:6px;font-size:11px;color:var(--t-faint);
+}
+.menu-custom .range{flex:1;}
+.color-inp{
+  width:32px;height:24px;padding:0;flex-shrink:0;
+  border:1px solid var(--edge);border-radius:6px;background:transparent;cursor:pointer;
+}
+
+/* ───────── I. 状态标记（有意不做 / 挪位置 的能力） ───────── */
+.na{
+  position:relative;opacity:.45;
+}
+.na::after{
+  content:"";position:absolute;left:-3px;right:-3px;top:50%;height:1px;
+  background:var(--danger);transform:rotate(-12deg);
+}
+
+/* ───────── J. 裁剪 / 扩图 画布件 ───────── */
+
+/* 裁剪：四周遮罩 + 选区框 + 三分线 */
+.crop-mask{position:absolute;background:rgba(0,0,0,.55);}
+.crop-box{position:absolute;border:1px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5);}
+.third{position:absolute;background:rgba(255,255,255,.28);}
+/* 裁剪：8 手柄 */
+.ch{position:absolute;width:10px;height:10px;background:#fff;border:1px solid #111;border-radius:2px;}
+
+/* 画布上的浮动尺寸标签 */
+.size-tag{
+  position:absolute;padding:3px 8px;border-radius:var(--r-sm);font-size:11px;
+  background:rgba(10,10,10,.9);border:1px solid var(--edge);color:var(--t-primary);
+  font-variant-numeric:tabular-nums;white-space:nowrap;z-index:5;
+}
+
+/* 钢笔（贝塞尔）裁剪：锚点 / 控制柄 / 连线 */
+.pen-path{position:absolute;inset:0;pointer-events:none;}
+.pen-dot{
+  position:absolute;width:9px;height:9px;border-radius:50%;
+  background:#fff;border:1.5px solid var(--accent);
+}
+.pen-dot.on{background:var(--accent);}
+.pen-ctrl{position:absolute;width:7px;height:7px;border-radius:50%;background:var(--accent);opacity:.85;}
+.pen-line{position:absolute;height:1px;background:var(--accent);opacity:.6;transform-origin:0 50%;}
+
+/* 扩图白边（斜线纹，与实际白色填充对应） */
+.hatch{
+  background-image:repeating-linear-gradient(45deg,
+    rgba(255,255,255,.92) 0 8px, rgba(226,232,240,.92) 8px 16px);
+}
+
+/* __APPEND_MARK__ */

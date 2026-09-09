@@ -10,7 +10,7 @@
  *    都发现一致 → 都跳过，零副作用；最坏情况多推一次 rev+2 → 下一轮一致跳过。Leader 选举
  *    反而引入「后台标签当家 → 全天不轮询」的新故障模式（旧稿 A-5）。
  *  - inSync 短路是地基：双机 rev 空转时若无「内容指纹一致即跳过」，会无限弹假冲突（A-1）。
- *  - 间隔固定 30 分钟（v1 常量）；隐私/网络抖动（cloud-unknown）静默跳过，不计退避。
+ *  - 间隔固定 45 分钟（v1 常量）；隐私/网络抖动（cloud-unknown）静默跳过，不计退避。
  *
  * 【数据流】autoSync → uploadConfig/downloadConfig → CloudSyncEngine，单向；弹窗经 confirmStore 中转。
  * 每轮 = 1 次只读探测（pull_data）；仅判定「本地有改动且云端不新」才再发 1 次 push。

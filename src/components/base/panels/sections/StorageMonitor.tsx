@@ -1,66 +1,90 @@
 import React from 'react';
-import { RefreshCw, HardDrive, Database, CircleAlert, Boxes } from 'lucide-react';
+import { RefreshCw, HardDrive, Database, CircleAlert, Boxes, CopyX } from 'lucide-react';
 import { formatBytes } from '../../core/utils.ts';
-import { isChromeExtension } from '@/components/base/storage/index.ts';
+import { showToast } from '../../core/toastStore.ts';
 import {
   estimateBrowserStorage,
-  estimateChromeStorage,
   estimateStoragePressure,
-  analyzeStorageByKeys,
 } from '@/components/base/storage/index.ts';
+import { fetchStorageHealth, deleteStorageFile } from '@/components/base/api/localToolApi.ts';
 
 /**
- * 设置分区 · 存储监控（「更多设置」折叠组内）。
+ * 设置分区 · 存储健康（对齐外部 StorageHealthCenter 的操作模式）。
  *
  * ── 数据流（下个 AI 改这前必读）──
- *  挂载 → runScan() 三路并行（Promise.all，互不阻断）：
- *   ├─ estimateBrowserStorage() → navigator.storage.estimate()  → browser state（IndexedDB/Cache 配额）
- *   ├─ estimateChromeStorage()  → enumerateLocalEntries() 估算  → chrome state（已存内容总字节/键数）
- *   └─ analyzeStorageByKeys()   → 按键画像                    → domains state（各功能域占用条）
- *  三个 state 任一为 null 都各自降级展示降级文案，不互相阻断。
- *  数据源实现在 src/components/base/storageQuota.ts，本文件只做渲染与交互。
+ *  挂载 → runScan() 并行两路：
+ *   ├─ estimateBrowserStorage() → navigator.storage.estimate() → browser state（保留的浏览器配额卡）
+ *   └─ fetchStorageHealth()     → localTool /api/admin/storage-health → report state
+ *  report 是后端一次聚合成形的存储健康总报表（数据源在 localTool/src/routes/admin.ts）：
+ *   ├─ byCategory  按文件类别（图片/视频/音频/文本/其他）占用 → 总览圆环图 DonutChart
+ *   ├─ projects[]  各项目占用（画布 KV + 该画布引用的磁盘文件）→ 条状图 StackedBar + 项目卡片
+ *   ├─ orphans[]   磁盘有、全库无引用的孤儿文件 → 可清理
+ *   └─ duplicates[] 同 size+name 的重复文件组 → 仅未引用副本可清理
+ *  可释放空间 reclaimableBytes = 孤儿 + 重复未引用副本。只读展示；删除走 deleteStorageFile。
  *
- * 【一期】两个独立维度展示（maomao 为 Chrome 扩展，无 Tauri 磁盘扫描，只做这两类浏览器存储）：
- *   1. 浏览器存储配额（navigator.storage）—— IndexedDB + Cache Storage 用量。
- *   2. 已存占用估算（chrome.storage.local 扩展 / localStorage Web）—— 项目画布/设置等业务数据落盘占用。
- *   两者是「两笔账」，口径不同（navigator.storage 是浏览器分配；chrome.storage 是扩展存储已用内容估算），分开展示。
+ * ── 为什么对齐后端而非浏览器存储 ──
+ *  真实数据全在 localTool KV + uploads/ 磁盘（画布/任务/素材），Chrome 扩展存储非压力源。
+ *  因此「已存占用估算 / 按功能分类画像」两张浏览器存储卡已被本健康报表取代；浏览器配额卡仅作完整性展示。
  *
- * 【为何 IndexedDB 卡可能显示 0】maomao 业务数据全存 chrome.storage.local / localStorage（storageAdapter 的
- *   yimao: 前缀键），不写 IndexedDB，故 navigator.storage.estimate().usage 通常为 0、quota 为浏览器默认(如 10GB)。
- *   对用户而言真实压力在下方「已存占用」卡，IndexedDB 卡仅作完整性展示，文案已说明这一点。
+ * ── 操作模式（照搬外部 StorageHealthCenter）──
+ *  清理 = 按问题分类，不做整项目删除：孤儿 / 重复两个 tab 内「单条删除」+「全部清理」。
+ *  重复组里标「在用」的副本（被画布/任务/素材引用）不提供删除，绝不误删。
  *
- * 【环境感知】用 isChromeExtension() 区分：扩展环境 → 展示 chrome.storage.local；Web 环境（npm run dev）
- *   → 展示 localStorage。标签随环境切换，避免「浏览器打开却显示扩展存储」的误导。
- *
- * 【预警】浏览器配额 ratio ≥ STORAGE_PRESSURE_RATIO(0.85) 时卡片变琥珀色并提示「自动保存可能失败」。
- *
- * 【二期】扩展存储占用画像（按 STORAGE_KEYS 各 domain 统计实际存储键占用）走 analyzeStorageByKeys()，
- *   纯只读展示各功能域占用条 + 键数；不含清理（清理留后续）。
- *
- * 【红线】本面板只读存储；若后续做清理，必须走 contentStore 唯一入口 + 二次确认，
- *   只删缓存/可重建类键（详见 storageQuota.ts 文件头的「清理建议」）。
+ * ── 红线 ──
+ *  前端不直接碰磁盘；只调 /api/admin/delete-file（后端把关路径穿越 + 全库引用），
+ *  删除后 runScan() 重扫刷新。清理是破坏性操作，前端在逻辑上已排除「在用」文件，但仍以
+ *  后端 skipped:'referenced' 兜底 + showToast 二次可见。
  */
+/* ── 后端 /api/admin/storage-health 报表形状（对齐 localToolApi.fetchStorageHealth 返回）── */
+interface StorageHealthReportData {
+  totalBytes: number;
+  fileCount: number;
+  byCategory: Record<string, { count: number; size: number }>;
+  projects: Array<{
+    projectId: string;
+    projectName: string;
+    kvBytes: number;
+    fileBytes: number;
+    fileCount: number;
+  }>;
+  orphans: Array<{ path: string; name: string; size: number; category: string }>;
+  duplicates: Array<{
+    name: string;
+    size: number;
+    count: number;
+    files: Array<{ path: string; size: number; referenced: boolean }>;
+    reclaimable: number;
+  }>;
+  orphanBytes: number;
+  reclaimableBytes: number;
+  scannedAt: number;
+}
+
 export default function StorageMonitor() {
-  const [browser, setBrowser] = React.useState(null); // { usage, quota, ratio } | null
-  const [chrome, setChrome] = React.useState(null); // { bytes, keys } | null
-  const [domains, setDomains] = React.useState(null); // analyzeStorageByKeys 结果 | null
-  const [scanning, setScanning] = React.useState(true); // 首次自动扫描中
-  // 环境感知：扩展环境读 chrome.storage.local；Web（npm run dev）读 localStorage
-  const isExt = isChromeExtension();
+  const [browser, setBrowser] = React.useState<{
+    usage: number;
+    quota: number;
+    ratio: number;
+  } | null>(null);
+  const [report, setReport] = React.useState<StorageHealthReportData | null>(null); // fetchStorageHealth().data
+  const [scanning, setScanning] = React.useState(true);
+  const [activeSection, setActiveSection] = React.useState('overview');
+  const [deleting, setDeleting] = React.useState<Set<string>>(new Set()); // 正在删除的相对路径集
 
   const runScan = React.useCallback(async () => {
     setScanning(true);
-    // 三路独立并行；任一路失败/不可用都各自降级为 null，不互相阻断（失败可见：UI 展示降级文案而非静默）
-    // 注：AI 会话键已迁 KV（见 docs/AI助手会话存储迁移-KV收口事实记录.md），不再占本地存储，故移除其键级预警。
-    const [b, c, d] = await Promise.all([
-      estimateBrowserStorage(),
-      estimateChromeStorage(),
-      analyzeStorageByKeys(),
-    ]);
-    setBrowser(b);
-    setChrome(c);
-    setDomains(d);
-    setScanning(false);
+    try {
+      const [b, r] = await Promise.all([
+        estimateBrowserStorage(),
+        fetchStorageHealth().then((res) => res?.data ?? null),
+      ]);
+      setBrowser(b);
+      setReport(r);
+    } catch (e) {
+      showToast('存储扫描失败：' + (e?.message || '未知错误'), { type: 'error' });
+    } finally {
+      setScanning(false);
+    }
   }, []);
 
   React.useEffect(() => {
@@ -68,7 +92,77 @@ export default function StorageMonitor() {
   }, [runScan]);
 
   const pressure = browser ? estimateStoragePressure(browser.ratio) : null;
-  const storeLabel = isExt ? '扩展存储（chrome.storage.local）' : '浏览器本地存储（localStorage）';
+
+  // ── 单文件删除（孤儿 / 重复副本共用）──
+  const handleDeleteFile = React.useCallback(
+    async (path: string, name: string) => {
+      setDeleting((prev) => new Set(prev).add(path));
+      try {
+        const res = await deleteStorageFile(path);
+        const d = res?.data;
+        if (d?.ok) {
+          showToast(`已删除：${name}`, { type: 'success' });
+          await runScan();
+        } else if (d?.skipped === 'referenced') {
+          showToast(`${name} 正在使用，无法删除`, { type: 'warning' });
+        } else {
+          showToast('删除失败', { type: 'error' });
+        }
+      } catch (e) {
+        showToast('删除失败：' + (e?.message || '未知错误'), { type: 'error' });
+      } finally {
+        setDeleting((prev) => {
+          const next = new Set(prev);
+          next.delete(path);
+          return next;
+        });
+      }
+    },
+    [runScan],
+  );
+
+  // ── 全部清理孤儿（逐个安全删除，后端逐一裁决引用）──
+  const handleDeleteAllOrphans = React.useCallback(async () => {
+    if (!report || report.orphans.length === 0) return;
+    setScanning(true);
+    try {
+      let ok = 0;
+      for (const o of report.orphans) {
+        const d = (await deleteStorageFile(o.path))?.data;
+        if (d?.ok) ok++;
+      }
+      await runScan();
+      showToast(`已清理 ${ok} 个孤儿文件`, { type: 'success' });
+    } catch {
+      showToast('清理失败', { type: 'error' });
+    } finally {
+      setScanning(false);
+    }
+  }, [report, runScan]);
+
+  // ── 全部清理重复（只清未引用副本）──
+  const handleDeleteAllDuplicates = React.useCallback(async () => {
+    if (!report) return;
+    const targets = report.duplicates.flatMap((g) => g.files).filter((f) => !f.referenced);
+    if (targets.length === 0) return;
+    setScanning(true);
+    try {
+      let ok = 0;
+      for (const f of targets) {
+        const d = (await deleteStorageFile(f.path))?.data;
+        if (d?.ok) ok++;
+      }
+      await runScan();
+      showToast(`已清理 ${ok} 个重复文件`, { type: 'success' });
+    } catch {
+      showToast('清理失败', { type: 'error' });
+    } finally {
+      setScanning(false);
+    }
+  }, [report, runScan]);
+
+  const d = report; // 后端总报表（data）
+  const hasReport = !!d;
 
   return (
     <div className="flex flex-col gap-4">
@@ -76,10 +170,10 @@ export default function StorageMonitor() {
       <div className="bg-surface border border-edge-subtle rounded-xl px-6 py-5 flex items-center justify-between">
         <div>
           <h2 className="settings-page-title flex items-center gap-2">
-            <HardDrive size={17} className="text-secondary" /> 存储监控
+            <HardDrive size={17} className="text-secondary" /> 存储健康中心
           </h2>
           <p className="text-xs text-muted mt-1">
-            查看浏览器与{isExt ? '扩展' : '本地'}存储占用，配额用尽会导致自动保存失败
+            检测各项目的存储占用与可优化空间（localTool 本地引擎）
           </p>
         </div>
         <button
@@ -93,74 +187,608 @@ export default function StorageMonitor() {
         </button>
       </div>
 
-      {/* 浏览器存储配额卡片 */}
-      <BrowserQuotaCard data={browser} pressure={pressure} storeLabel={storeLabel} />
+      {/* 浏览器存储配额卡片（保留作完整性展示） */}
+      <BrowserQuotaCard data={browser} pressure={pressure} />
 
-      {/* 已存占用估算卡片 */}
+      {/* 扫描中骨架 */}
+      {scanning && !report && (
+        <div className="bg-surface border border-edge-subtle rounded-xl p-6 flex flex-col items-center justify-center py-10 gap-3 text-muted">
+          <RefreshCw size={24} className="animate-spin text-secondary" />
+          <span className="text-xs text-muted">正在分析存储状况…</span>
+        </div>
+      )}
+
+      {/* 报表主体 */}
+      {hasReport && d && (
+        <ReportView
+          report={d}
+          activeSection={activeSection}
+          setActiveSection={setActiveSection}
+          deleting={deleting}
+          onDeleteFile={handleDeleteFile}
+          onDeleteAllOrphans={handleDeleteAllOrphans}
+          onDeleteAllDuplicates={handleDeleteAllDuplicates}
+        />
+      )}
+
+      {/* 后端不可用降级 */}
+      {!scanning && !hasReport && (
+        <div className="bg-surface border border-edge-subtle rounded-xl p-6 text-center text-muted text-xs">
+          无法连接本地引擎存储（localTool 未启动或 /api/admin/storage-health 不可用）
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────
+   报表主体：总览圆环图 + 项目条状图 + 孤儿/重复两个清理 tab
+   ──────────────────────────────────────────────────────────────── */
+
+const CATEGORY_COLORS = {
+  图片: '#34d399',
+  视频: '#60a5fa',
+  音频: '#fbbf24',
+  文本: '#a78bfa',
+  其他: '#94a3b8',
+};
+const PROJECT_COLORS = [
+  '#6366f1',
+  '#22d3ee',
+  '#34d399',
+  '#f472b6',
+  '#fbbf24',
+  '#a78bfa',
+  '#fb923c',
+  '#38bdf8',
+  '#4ade80',
+  '#facc15',
+];
+
+function formatShortPath(filePath: string, maxLen = 40): string {
+  if (filePath.length <= maxLen) return filePath;
+  const parts = filePath.replace(/\\/g, '/').split('/');
+  if (parts.length <= 2) return filePath;
+  return `${parts.slice(0, 1).join('/')}/.../${parts[parts.length - 1]}`;
+}
+
+function ReportView({
+  report,
+  activeSection,
+  setActiveSection,
+  deleting,
+  onDeleteFile,
+  onDeleteAllOrphans,
+  onDeleteAllDuplicates,
+}: {
+  report: StorageHealthReportData;
+  activeSection: string;
+  setActiveSection: (v: string) => void;
+  deleting: Set<string>;
+  onDeleteFile: (path: string, name: string) => void;
+  onDeleteAllOrphans: () => void;
+  onDeleteAllDuplicates: () => void;
+}) {
+  const categorySegments = Object.entries(report.byCategory || {})
+    .map(([label, info]) => ({
+      label,
+      value: info.size,
+      color: CATEGORY_COLORS[label] || '#94a3b8',
+    }))
+    .sort((a, b) => b.value - a.value);
+
+  const projectSizes = (report.projects || []).map((p) => ({
+    projectId: p.projectId,
+    projectName: p.projectName,
+    kvBytes: p.kvBytes || 0,
+    fileBytes: p.fileBytes || 0,
+    fileCount: p.fileCount || 0,
+    total: (p.fileBytes || 0) + (p.kvBytes || 0),
+  }));
+  // 项目条状图只统计「画布引用」的磁盘文件，而总占用含素材库/任务产物等未归属文件。
+  // 补一个「素材库/未归属」段，让条状图总和 = 总占用，与圆环图/总占用口径一致，避免对不上。
+  const projFileTotal = projectSizes.reduce((s, p) => s + p.fileBytes, 0);
+  const sharedBytes = Math.max(0, (report.totalBytes || 0) - projFileTotal);
+  const barItems = [
+    ...projectSizes.map((p, i) => ({
+      label: p.projectName,
+      value: p.fileBytes,
+      color: PROJECT_COLORS[i % PROJECT_COLORS.length],
+    })),
+    ...(sharedBytes > 0
+      ? [{ label: '素材库 / 未归属', value: sharedBytes, color: '#64748b' }]
+      : []),
+  ].sort((a, b) => b.value - a.value);
+
+  const issues = [
+    {
+      id: 'orphans',
+      label: '孤儿文件',
+      count: (report.orphans || []).length,
+      size: report.orphanBytes || 0,
+      color: '#f472b6',
+    },
+    {
+      id: 'duplicates',
+      label: '重复文件',
+      count: (report.duplicates || []).length,
+      size: (report.duplicates || []).reduce((s, g) => s + (g.reclaimable || 0), 0),
+      color: '#fb923c',
+    },
+  ].filter((s) => s.count > 0);
+
+  const totalProjects = (report.projects || []).length;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* 总览卡：总占用 / 可释放 / 项目·文件数 + 问题标签 */}
       <div className="bg-surface border border-edge-subtle rounded-xl p-5">
-        <div className="flex items-center gap-2">
-          <Database size={16} className="text-secondary" />
-          <span className="text-sm text-body">已存占用（业务数据落盘）</span>
+        <div className="flex items-center gap-6 flex-wrap">
+          <DonutChart segments={categorySegments} total={report.totalBytes || 0} size={150} />
+          <div className="flex-1 min-w-[180px] space-y-2">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <Stat label="总占用空间" value={formatBytes(report.totalBytes || 0)} big />
+              <Stat
+                label="可释放空间"
+                value={formatBytes(report.reclaimableBytes || 0)}
+                big
+                accent={report.reclaimableBytes > 0}
+              />
+              <Stat label="文件数量" value={`${report.fileCount || 0} 个文件`} />
+              <Stat label="项目数量" value={`${totalProjects} 个项目`} />
+            </div>
+            {issues.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {issues.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setActiveSection(s.id)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-surface-1 text-body hover:text-primary transition-colors"
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ backgroundColor: s.color }}
+                    />
+                    {s.label}
+                    <span className="text-muted">{s.count}</span>
+                  </button>
+                ))}
+                {report.reclaimableBytes > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] text-emerald-400 bg-emerald-400/10">
+                    <CircleAlert size={11} /> 可清理 {formatBytes(report.reclaimableBytes)}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-        <p className="text-xs text-muted mt-1">
-          maomao 项目/设置/素材等数据存放在 {storeLabel}，这是实际占用与压力来源
-        </p>
-        <div className="mt-4 flex items-end gap-2">
-          {scanning ? (
-            <span className="text-2xl text-muted">…</span>
-          ) : chrome ? (
-            <>
-              <span className="text-2xl text-strong">{formatBytes(chrome.bytes)}</span>
-              <span className="text-xs text-muted mb-1">共 {chrome.keys} 个存储键</span>
-            </>
-          ) : (
-            <span className="text-sm text-muted">存储读取不可用（隐私模式/权限受限）</span>
-          )}
-        </div>
-        {/* 注：AI 会话键已迁 KV，不再是本地存储配额压力源；原「AI 会话接近体积预算」预警随迁 KV 一并移除
-             （见 docs/AI助手会话存储迁移-KV收口事实记录.md）。会话体积仍有 L3 预算降级兜底，与本地配额无关。 */}
       </div>
 
-      {/* 按功能分类的存储画像 */}
+      {/* 各项目占用：条状图 */}
       <div className="bg-surface border border-edge-subtle rounded-xl p-5">
-        <div className="flex items-center gap-2">
-          <Boxes size={16} className="text-secondary" />
-          <span className="text-sm text-body">按功能分类的存储画像</span>
-          {scanning && (
-            <span className="text-[10px] text-muted bg-surface-1 px-1.5 py-0.5 rounded-md">
-              扫描中
-            </span>
+        <h3 className="text-sm text-body font-medium mb-3 flex items-center gap-2">
+          <Boxes size={15} className="text-secondary" /> 各项目占用空间
+        </h3>
+        {projectSizes.length === 0 ? (
+          <div className="py-4 text-center text-xs text-muted">暂无项目数据</div>
+        ) : (
+          <StackedBar items={barItems} />
+        )}
+      </div>
+
+      {/* 详情 tab 切换 */}
+      <div className="flex gap-1.5 border-b border-edge-subtle pb-1">
+        {[
+          { id: 'overview', label: '概览' },
+          {
+            id: 'orphans',
+            label: `孤儿文件${(report.orphans || []).length ? ` (${report.orphans.length})` : ''}`,
+          },
+          {
+            id: 'duplicates',
+            label: `重复文件${(report.duplicates || []).length ? ` (${report.duplicates.length})` : ''}`,
+          },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+              activeSection === tab.id
+                ? 'bg-surface-1 text-primary font-medium'
+                : 'text-secondary hover:text-body hover:bg-surface-1/60'
+            }`}
+            onClick={() => setActiveSection(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* === 概览：项目明细 === */}
+      {activeSection === 'overview' && (
+        <div className="space-y-2">
+          {projectSizes.map((p) => (
+            <div
+              key={p.projectId}
+              className="bg-surface-1 border border-edge-subtle rounded-lg px-3 py-2"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-body font-medium">{p.projectName}</span>
+                <span className="text-[11px] tabular-nums text-secondary">
+                  {formatBytes(p.total)}
+                </span>
+              </div>
+              <div className="text-[10px] text-muted mt-0.5">
+                磁盘文件 {p.fileCount} 个 · {formatBytes(p.fileBytes)} · 画布数据{' '}
+                {formatBytes(p.kvBytes)}
+              </div>
+            </div>
+          ))}
+          {projectSizes.length === 0 && (
+            <div className="text-center text-xs text-muted py-4">暂无项目</div>
           )}
         </div>
-        <p className="text-xs text-muted mt-1">按功能域统计实际存储键的占用（只读，不含清理）</p>
-        {scanning ? (
-          <div className="mt-3 text-xs text-muted bg-surface-1 rounded-lg px-3 py-2.5">扫描中…</div>
-        ) : domains && domains.domains.length > 0 ? (
-          <>
-            <div className="mt-3 flex items-end gap-2">
-              <span className="text-xl text-strong">{formatBytes(domains.totalBytes)}</span>
-              <span className="text-xs text-muted mb-1">共 {domains.totalKeys} 个存储键</span>
+      )}
+
+      {/* === 孤儿文件 tab === */}
+      {activeSection === 'orphans' && (
+        <div className="space-y-2">
+          {(report.orphans || []).length === 0 ? (
+            <div className="text-center py-5 text-xs text-muted">
+              没有孤儿文件，所有文件均有引用
             </div>
-            <div className="mt-4 space-y-3">
-              {domains.domains.map((g) => (
-                <DomainRow key={g.domain} g={g} totalBytes={domains.totalBytes} />
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="mt-3 text-xs text-muted bg-surface-1 rounded-lg px-3 py-2.5">
-            存储读取不可用（隐私模式/权限受限）
-          </div>
-        )}
+          ) : (
+            <>
+              <div className="flex items-center justify-between text-[11px] text-muted">
+                <span>
+                  共 {(report.orphans || []).length} 个孤儿文件，可释放{' '}
+                  {formatBytes(report.orphanBytes || 0)}
+                </span>
+                <button
+                  type="button"
+                  onClick={onDeleteAllOrphans}
+                  className="text-xs text-red-400 hover:text-red-300 px-2 py-0.5 rounded hover:bg-red-400/10 transition-colors"
+                >
+                  全部清理
+                </button>
+              </div>
+              <div className="max-h-[280px] overflow-y-auto space-y-1.5">
+                {(report.orphans || []).map((o) => (
+                  <div
+                    key={o.path}
+                    className="flex items-center justify-between bg-surface-1 border border-edge-subtle rounded-lg px-3 py-2 group"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] text-body truncate" title={o.path}>
+                        {o.name}
+                      </div>
+                      <div className="text-[10px] text-muted mt-0.5">
+                        {formatShortPath(o.path)} · {formatBytes(o.size)}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteFile(o.path, o.name)}
+                      disabled={deleting.has(o.path)}
+                      className="shrink-0 ml-2 text-[11px] text-secondary hover:text-red-400 px-2 py-1 rounded hover:bg-red-400/10 transition-colors disabled:opacity-40"
+                    >
+                      {deleting.has(o.path) ? '…' : '删除'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* === 重复文件 tab === */}
+      {activeSection === 'duplicates' && (
+        <div className="space-y-2">
+          {(report.duplicates || []).length === 0 ? (
+            <div className="text-center py-5 text-xs text-muted">没有重复文件</div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between text-[11px] text-muted">
+                <span>
+                  重复文件共可释放{' '}
+                  {formatBytes(
+                    (report.duplicates || []).reduce((s, g) => s + (g.reclaimable || 0), 0),
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={onDeleteAllDuplicates}
+                  className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 px-2 py-0.5 rounded hover:bg-red-400/10 transition-colors"
+                >
+                  <CopyX size={12} /> 全部清理
+                </button>
+              </div>
+              <div className="max-h-[320px] overflow-y-auto space-y-2">
+                {(report.duplicates || []).map((g, gi) => (
+                  <div
+                    key={`${g.name}-${gi}`}
+                    className="bg-surface-1 border border-edge-subtle rounded-lg p-3"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div
+                        className="text-[11px] text-body font-medium truncate max-w-[240px]"
+                        title={g.name}
+                      >
+                        {g.name}
+                      </div>
+                      <span className="text-[10px] text-orange-400 shrink-0 ml-2">
+                        {g.count} 份 · 可释放 {formatBytes(g.reclaimable || 0)}
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {g.files.map((f) => (
+                        <div
+                          key={f.path}
+                          className="flex items-center justify-between text-[10px] pl-2 border-l-2 border-edge-subtle"
+                        >
+                          <span className="text-secondary truncate min-w-0 flex-1" title={f.path}>
+                            {formatShortPath(f.path)}
+                            {f.referenced && <span className="ml-1.5 text-emerald-400">在用</span>}
+                          </span>
+                          <span className="text-muted shrink-0 ml-2 tabular-nums">
+                            {formatBytes(f.size)}
+                          </span>
+                          {!f.referenced ? (
+                            <button
+                              type="button"
+                              onClick={() => onDeleteFile(f.path, g.name)}
+                              disabled={deleting.has(f.path)}
+                              className="shrink-0 ml-2 text-[10px] text-secondary hover:text-red-400 px-1.5 py-0.5 rounded hover:bg-red-400/10 transition-colors disabled:opacity-40"
+                            >
+                              {deleting.has(f.path) ? '…' : '删除'}
+                            </button>
+                          ) : (
+                            <span className="shrink-0 ml-2 text-[10px] text-muted opacity-60">
+                              在用作废
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── 统计项 ── */
+function Stat({ label, value, big = false, accent = false }) {
+  return (
+    <div>
+      <div className="text-[11px] text-muted mb-0.5">{label}</div>
+      <div
+        className={`${big ? 'text-lg' : 'text-sm'} font-medium tabular-nums ${accent ? 'text-emerald-400' : 'text-strong'}`}
+      >
+        {value}
       </div>
     </div>
   );
 }
 
-/** 浏览器存储配额卡片：进度条 + 预警（IndexedDB/Cache 维度） */
-function BrowserQuotaCard({ data, pressure, storeLabel }) {
+/* ── ECharts 风格 SVG 圆环图（对外部 StorageHealthCenter 的 DonutChart 视觉对齐）── */
+function polarToCartesian(cx, cy, r, angleDeg) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+function buildDonutPath(cx, cy, innerR, outerR, startAngle, endAngle, cr, gapDeg) {
+  const sa = startAngle + gapDeg / 2;
+  const ea = endAngle - gapDeg / 2;
+  const sweep = ea - sa;
+  if (sweep <= 0) return '';
+  const largeArc = sweep > 180 ? 1 : 0;
+  const rad = sweep * (Math.PI / 180);
+  const cornerR = Math.min(cr, (outerR - innerR) / 2, (innerR * rad) / 2);
+  const outDeg = (cornerR / outerR) * (180 / Math.PI);
+  const inDeg = (cornerR / innerR) * (180 / Math.PI);
+  const oStart = polarToCartesian(cx, cy, outerR, sa + outDeg);
+  const oEnd = polarToCartesian(cx, cy, outerR, ea - outDeg);
+  const oEndCorner = polarToCartesian(cx, cy, outerR, ea);
+  const oEndSide = polarToCartesian(cx, cy, outerR - cornerR, ea);
+  const iEndSide = polarToCartesian(cx, cy, innerR + cornerR, ea);
+  const iEndCorner = polarToCartesian(cx, cy, innerR, ea);
+  const iEnd = polarToCartesian(cx, cy, innerR, ea - inDeg);
+  const iStart = polarToCartesian(cx, cy, innerR, sa + inDeg);
+  const iStartCorner = polarToCartesian(cx, cy, innerR, sa);
+  const iStartSide = polarToCartesian(cx, cy, innerR + cornerR, sa);
+  const oStartSide = polarToCartesian(cx, cy, outerR - cornerR, sa);
+  const oStartCorner = polarToCartesian(cx, cy, outerR, sa);
+  return [
+    `M ${oStart.x} ${oStart.y}`,
+    `A ${outerR} ${outerR} 0 ${largeArc} 1 ${oEnd.x} ${oEnd.y}`,
+    `Q ${oEndCorner.x} ${oEndCorner.y} ${oEndSide.x} ${oEndSide.y}`,
+    `L ${iEndSide.x} ${iEndSide.y}`,
+    `Q ${iEndCorner.x} ${iEndCorner.y} ${iEnd.x} ${iEnd.y}`,
+    `A ${innerR} ${innerR} 0 ${largeArc} 0 ${iStart.x} ${iStart.y}`,
+    `Q ${iStartCorner.x} ${iStartCorner.y} ${iStartSide.x} ${iStartSide.y}`,
+    `L ${oStartSide.x} ${oStartSide.y}`,
+    `Q ${oStartCorner.x} ${oStartCorner.y} ${oStart.x} ${oStart.y}`,
+    'Z',
+  ].join(' ');
+}
+function DonutChart({ segments, total, size = 150 }) {
+  const cx = size / 2;
+  const cy = size / 2;
+  const innerR = size * 0.28;
+  const outerR = size * 0.46;
+  const [hoverIdx, setHoverIdx] = React.useState(null);
+  if (!segments || segments.length === 0 || !total) {
+    return (
+      <div className="flex flex-col items-center gap-2">
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle
+            cx={cx}
+            cy={cy}
+            r={outerR}
+            fill="none"
+            stroke="#1a1a26"
+            strokeWidth={outerR - innerR}
+          />
+          <text
+            x={cx}
+            y={cy}
+            textAnchor="middle"
+            className="fill-current text-strong"
+            fontSize="13"
+            fontWeight="600"
+          >
+            0 B
+          </text>
+        </svg>
+      </div>
+    );
+  }
+  let cursor = 0;
+  const slices = segments.map((seg) => {
+    const sweep = (seg.value / total) * 360;
+    const s = { ...seg, start: cursor, sweep, pct: (seg.value / total) * 100 };
+    cursor += sweep;
+    return s;
+  });
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 max-w-[220px]">
+        {slices.map((s, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-1.5 text-[11px] cursor-default text-secondary"
+            onMouseEnter={() => setHoverIdx(i)}
+            onMouseLeave={() => setHoverIdx(null)}
+          >
+            <span
+              className="w-2.5 h-2.5 rounded-sm shrink-0"
+              style={{ backgroundColor: s.color }}
+            />
+            {s.label}
+          </div>
+        ))}
+      </div>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {slices.map((s, i) => (
+          <path
+            key={i}
+            d={buildDonutPath(cx, cy, innerR, outerR, s.start, s.start + s.sweep, size * 0.02, 2)}
+            fill={s.color}
+            onMouseEnter={() => setHoverIdx(i)}
+            onMouseLeave={() => setHoverIdx(null)}
+            style={{
+              cursor: 'pointer',
+              opacity: hoverIdx === null || hoverIdx === i ? 0.92 : 0.4,
+              transition: 'opacity .2s ease',
+            }}
+          />
+        ))}
+        {hoverIdx !== null ? (
+          <>
+            <text
+              x={cx}
+              y={cy - 10}
+              textAnchor="middle"
+              className="fill-current text-strong"
+              fontSize="18"
+              fontWeight="bold"
+            >
+              {slices[hoverIdx].pct.toFixed(0)}%
+            </text>
+            <text
+              x={cx}
+              y={cy + 9}
+              textAnchor="middle"
+              className="fill-current text-secondary"
+              fontSize="12"
+              fontWeight="600"
+            >
+              {formatBytes(slices[hoverIdx].value)}
+            </text>
+          </>
+        ) : (
+          <>
+            <text
+              x={cx}
+              y={cy - 3}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="fill-current text-strong"
+              fontSize="14"
+              fontWeight="600"
+            >
+              {formatBytes(total).split(' ')[0]}
+            </text>
+            <text
+              x={cx}
+              y={cy + 14}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="fill-current text-muted"
+              fontSize="11"
+            >
+              / {formatBytes(total).split(' ')[1] || 'B'}
+            </text>
+          </>
+        )}
+      </svg>
+    </div>
+  );
+}
+
+/* ── SVG 条状图（各项目占用，对外部 StackedBar 对齐）── */
+function StackedBar({ items }) {
+  const total = items.reduce((s, i) => s + i.value, 0);
+  if (items.length === 0 || !total) {
+    return <div className="py-4 text-center text-xs text-muted">暂无数据</div>;
+  }
+  const segments = items.map((item) => ({ ...item, pct: (item.value / total) * 100 }));
+  return (
+    <div className="space-y-2.5">
+      <div className="flex h-6 rounded-lg overflow-hidden bg-surface-1 border border-edge-subtle">
+        {segments.map((seg, i) => (
+          <div
+            key={i}
+            className="h-full transition-[width] duration-500 ease-out relative group min-w-[3px]"
+            style={{
+              width: `${seg.pct}%`,
+              backgroundColor: seg.color,
+              opacity: 0.88,
+              borderRadius:
+                i === 0 ? '6px 0 0 6px' : i === segments.length - 1 ? '0 6px 6px 0' : undefined,
+            }}
+            title={`${seg.label}: ${formatBytes(seg.value)} (${seg.pct.toFixed(1)}%)`}
+          />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+        {segments.map((seg, i) => (
+          <div key={i} className="flex items-center gap-1.5 text-[11px]">
+            <span
+              className="w-2.5 h-2.5 rounded-sm shrink-0"
+              style={{ backgroundColor: seg.color }}
+            />
+            <span className="text-secondary truncate max-w-[110px]" title={seg.label}>
+              {seg.label}
+            </span>
+            <span className="text-muted tabular-nums">{seg.pct.toFixed(0)}%</span>
+            <span className="text-muted tabular-nums">{formatBytes(seg.value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── 浏览器存储配额卡片（保留）：IndexedDB/Cache 配额 + 受压预警 ── */
+function BrowserQuotaCard({ data, pressure }) {
   const under = pressure?.underPressure;
-  // maomao 数据存于 chrome.storage.local / localStorage，不写 IndexedDB → usage 为 0 是正常的
   const idleIndexedDb = !!data && data.usage === 0;
   return (
     <div
@@ -172,19 +800,14 @@ function BrowserQuotaCard({ data, pressure, storeLabel }) {
         {under && <CircleAlert size={14} className="text-amber-400" />}
       </div>
       <p className="text-xs text-muted mt-1">
-        {under ? (
-          '配额即将用尽，自动保存可能失败，建议清理下方无用数据或导出并删除旧项目'
-        ) : (
-          <>
-            IndexedDB / Cache 的浏览器分配配额。maomao 数据存于下方 {storeLabel}，不使用
-            IndexedDB，故此处占用通常为 0
-          </>
-        )}
+        {under
+          ? '配额即将用尽，自动保存可能失败，建议清理下方可释放空间'
+          : 'IndexedDB / Cache 的浏览器分配配额；maomao 业务数据存在 localTool，不使用 IndexedDB，故此处占用通常为 0'}
       </p>
       {data ? (
         <>
-          <div className="mt-4 flex items-end gap-2">
-            <span className="text-2xl text-strong">{formatBytes(data.usage)}</span>
+          <div className="mt-3 flex items-end gap-2">
+            <span className="text-2xl text-strong tabular-nums">{formatBytes(data.usage)}</span>
             <span className="text-xs text-muted mb-1">
               / {formatBytes(data.quota)}（{(data.ratio * 100).toFixed(1)}%）
             </span>
@@ -197,34 +820,13 @@ function BrowserQuotaCard({ data, pressure, storeLabel }) {
           </div>
           {idleIndexedDb && (
             <p className="text-xs text-muted mt-2">
-              当前未使用 IndexedDB，占用为 0 属正常；真正占用看下方 {storeLabel}
+              当前未使用 IndexedDB，占用为 0 属正常；真正占用看上方存储健康报表
             </p>
           )}
         </>
       ) : (
         <div className="mt-4 text-sm text-muted">浏览器未暴露存储统计（无法读取配额）</div>
       )}
-    </div>
-  );
-}
-
-/** 单个功能域的占用行：标签 + 占用 + 占比条 + 键数 */
-function DomainRow({ g, totalBytes }) {
-  const ratio = totalBytes > 0 ? g.bytes / totalBytes : 0;
-  return (
-    <div>
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-body">{g.label}</span>
-        <span className="text-muted">
-          {formatBytes(g.bytes)} · {g.keys} 键
-        </span>
-      </div>
-      <div className="mt-1.5 h-1.5 rounded-full bg-surface-1 overflow-hidden">
-        <div
-          className="h-full bg-cyan-400/70 transition-all"
-          style={{ width: `${Math.min(100, ratio * 100)}%` }}
-        />
-      </div>
     </div>
   );
 }

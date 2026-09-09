@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>多图编辑（ImageComposer）· 与本仓库匹配的 Mockup</title>
+<link rel="stylesheet" href="./mockup-kit.css" />
+</head>
+<body>
+
+<div class="mk-head">
+  <h1>多图编辑（ImageComposer）· 与本仓库匹配的 Mockup</h1>
+  <p>
+    参考 <b>ai-canvas-composer</b>（AI-Canvas-tauri v0.9.5 抽取包：图像节点 hover 栏 compose 按钮 → 全屏多图层合成器），
+    按本仓库的 <b>NODE-DESIGN-SPEC §〇</b> 视觉 DNA、<b>useImageHoverActions</b> 入口机制、
+    <b>连线 / 图片盒子</b>数据流重做外形。
+    落点：<span class="hl">hover 栏加一个「多图编辑」按钮</span> → 打开全屏多图层编辑器 → 合成为透明 PNG →
+    <span class="hl">spawn 新 imageNode 并自动连线</span>（规范 §3.2「生成新内容」）。
+  </p>
+</div>
+
+<!-- ══════════ 舞台 1：hover 工具条入口 ══════════ -->
+<div class="mk-stage">
+  <div class="mini">
+
+    <!-- 现状：图片节点（AssetNode） -->
+    <div class="mini-card">
+      <div class="mini-title">现状 · 图片节点 AssetNode</div>
+      <div class="hoverbar">
+        <!-- Upload -->
+        <button title="上传/替换"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></button>
+        <!-- Crop -->
+        <button title="裁剪"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6h13"/></svg></button>
+        <!-- Pencil 标记 -->
+        <button title="标记"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg></button>
+        <!-- Maximize2 超分 -->
+        <button title="超分放大（AI 2x）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button>
+        <!-- Minimize2 压缩 -->
+        <button title="压缩图片（80%）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M14 10l7-7"/><path d="M3 21l7-7"/></svg></button>
+        <div class="v"></div>
+        <!-- Send -->
+        <button title="发送到素材库"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg></button>
+        <!-- Download -->
+        <button title="下载"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/></svg></button>
+      </div>
+      <div class="mk-legend" style="max-width:330px">
+        <div>前 5 个来自 <code>useImageHoverActions.imageButtons</code>；后 2 个是 AssetNode 自己的。</div>
+      </div>
+    </div>
+
+    <!-- 改后：图片节点 -->
+    <div class="mini-card" style="border-color:var(--accent-line)">
+      <div class="mini-title" style="color:var(--accent-text)">改后 · 图片节点 AssetNode <span class="tag new">NEW</span></div>
+      <div class="hoverbar">
+        <button title="上传/替换"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></button>
+        <button title="裁剪"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6h13"/></svg></button>
+        <button title="标记"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg></button>
+        <!-- ★ 新增：多图编辑 —— 紧跟「标记」，二者同属「打开全屏编辑器」 -->
+        <button title="多图编辑（合成 / 拼图）" style="color:var(--accent-text);background:var(--accent-soft)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
+        </button>
+        <button title="超分放大（AI 2x）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button>
+        <button title="压缩图片（80%）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M14 10l7-7"/><path d="M3 21l7-7"/></svg></button>
+        <div class="v"></div>
+        <button title="发送到素材库"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg></button>
+        <button title="下载"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/></svg></button>
+      </div>
+      <div class="mk-legend" style="max-width:330px">
+        <div class="k">★ 新增 1 个图标按钮</div>
+        <div>改在 <code>useImageHoverActions</code> 一处 → <b>AssetNode 与 ImageGenerate 同时生效</b>（这正是该 hook 存在的原因）。</div>
+      </div>
+    </div>
+
+    <!-- 改后：生图节点 -->
+    <div class="mini-card" style="border-color:var(--accent-line)">
+      <div class="mini-title" style="color:var(--accent-text)">改后 · 生图节点 ImageGenerate <span class="tag new">NEW</span></div>
+      <div class="hoverbar">
+        <button title="放大"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></svg></button>
+        <button title="摄影棚"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/></svg></button>
+        <button title="裁剪"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6h13"/></svg></button>
+        <button title="标记"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg></button>
+        <button title="多图编辑（合成 / 拼图）" style="color:var(--accent-text);background:var(--accent-soft)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
+        </button>
+        <div class="v"></div>
+        <button title="发送到素材库"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg></button>
+        <button title="下载"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/></svg></button>
+      </div>
+      <div class="mk-legend" style="max-width:330px">
+        <div>只加 1 个图标，<b>零新增代码</b>（共享 hook 已覆盖）。</div>
+      </div>
+    </div>
+
+    <!-- 改后：图片盒子 -->
+    <div class="mini-card" style="border-color:var(--accent-line)">
+      <div class="mini-title" style="color:var(--accent-text)">改后 · 图片盒子 ImageBoxNode <span class="tag new">NEW</span></div>
+      <div class="hoverbar">
+        <button title="从连线图一键导入"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
+        <button title="添加本地图片"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+        <div class="v"></div>
+        <button title="多图编辑（把盒内 3 张送入合成器）" style="color:var(--accent-text);background:var(--accent-soft)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
+        </button>
+        <button title="放大"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></svg></button>
+        <button title="复制当前图片到剪贴板"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
+        <button title="下载当前图片"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/></svg></button>
+      </div>
+      <div class="mk-legend" style="max-width:330px">
+        <div class="k">★ 盒子是天然的多图入口</div>
+        <div>展开态下：<b>已选 N 张 → 直接作为 N 个图层</b>；未选则全部送入。</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="mk-note">
+    <b>入口定在哪：</b>图标用 lucide <code>Layers</code>，<b>紧跟「标记」</b>——两者都是「打开全屏编辑器」的重操作，同类相邻；
+    而压缩/超分是一键完成的结果型操作，放后面。<br />
+    <b>为什么不动按钮形态：</b>hover 栏是 <code>rounded-full</code> 胶囊 + 26×24 图标位（规范 §〇）。新增按钮必须同尺寸同形态，
+    不能为了「突出新功能」塞一个带文字的宽按钮进去——那会让这一栏从「一排图标」变成「不整齐的一排」。<br />
+    <b>可发现性怎么解决：</b>首次上线可在图标右上角加一个 <code>--accent</code> 小圆点（3px），点过一次后落 localStorage 消失；
+    <span class="tag warn">不做</span>强制性的「新功能」气泡提示。
+  </div>
+</div>
+
+<!-- ══════════ 舞台 2：全屏多图编辑器（主体） ══════════ -->
+<div class="mk-stage">
+  <div class="editor">
+
+    <!-- ── header：标题 + 撤销重做 + 取消/合成 ── -->
+    <div class="eh">
+      <div class="eh-left">
+        <div class="eh-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-text)"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
+          多图编辑 <span>3 图层 · 1920 × 1080 · 透明 PNG</span>
+        </div>
+      </div>
+      <div class="eh-right">
+        <button class="ib" title="撤销 (⌘Z)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg></button>
+        <button class="ib" title="重做 (⇧⌘Z)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg></button>
+        <div class="vline"></div>
+        <button class="ib" title="关闭 (Esc)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        <button class="btn">取消</button>
+        <button class="btn primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 3 3 8-8"/></svg>
+          合成
+        </button>
+      </div>
+    </div>
+
+    <!-- ── 上下文工具条（对位外部包的 ComposerToolbar，但放顶部，与本仓库 ImageEditor 同构） ── -->
+    <div class="bar">
+      <div class="pill">
+        <button class="on" title="选择 (V)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
+        <button title="画笔 (B)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg></button>
+        <button title="橡皮 (E)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg></button>
+      </div>
+      <div class="vline"></div>
+      <!-- 添加图层三兄弟：上传 / 文字 / 形状，同一族放一起 -->
+      <button class="ib" title="上传图片为图层"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></button>
+      <div class="dd">
+        <button class="ib" title="文字"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16"/><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/><path d="M9 20h6"/></svg></button>
+      </div>
+      <div class="dd">
+        <button class="ib" title="形状（矩形 / 椭圆 / 直线 / 箭头）"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="10" width="11" height="11" rx="1"/><circle cx="15.5" cy="7.5" r="4.5"/></svg></button>
+      </div>
+      <div class="spacer"></div>
+      <button class="ib" title="适配画布 (⌘0)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+    </div>
+
+    <!-- ── 三栏主体 ── -->
+    <div class="cbody">
+
+      <!-- 左：素材来源（★ 本仓库特有，外部包没有） -->
+      <div class="cleft">
+
+        <div class="sect">
+          <div class="sect-t"><span>当前节点</span><em>已在画布</em></div>
+          <div class="row-card used">
+            <img class="photo" alt="" />
+            <div class="meta"><div class="n">产品主图</div><div class="d">1920×1080</div></div>
+            <div class="tail"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+          </div>
+        </div>
+
+        <div class="sect">
+          <div class="sect-t"><span>上游连线</span><em>useConnectedInputs</em></div>
+          <div class="row-card used">
+            <img class="photo2" alt="" />
+            <div class="meta"><div class="n">背景合成图</div><div class="d">生图节点 · 1024×1024</div></div>
+            <div class="tail"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+          </div>
+          <div class="row-card">
+            <img class="photo3" alt="" />
+            <div class="meta"><div class="n">抽帧 · 第 12 帧</div><div class="d">视频节点 · 1280×720</div></div>
+            <div class="tail"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></div>
+          </div>
+          <div class="row-card">
+            <img class="photo4" alt="" />
+            <div class="meta"><div class="n">参考人物</div><div class="d">素材 · 896×1152</div></div>
+            <div class="tail"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></div>
+          </div>
+        </div>
+
+        <div class="sect">
+          <div class="sect-t"><span>图片盒子</span><em>ImageBoxNode</em></div>
+          <div class="row-card">
+            <img class="photo3" alt="" />
+            <div class="meta"><div class="n">图片盒子 · 已选 2 张</div><div class="d">点右侧 + 全部加入</div></div>
+            <div class="tail"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></div>
+          </div>
+        </div>
+
+        <div class="sect" style="border-bottom:none">
+          <div class="sect-t"><span>本地</span></div>
+          <button class="dashbtn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+            上传图片
+          </button>
+        </div>
+
+      </div>
+
+      <!-- 中：画布 -->
+      <div class="cmid">
+        <div class="checker"></div>
+
+        <div class="board" style="width:660px;height:372px">
+          <div class="board-tag">画布 1920 × 1080 · 透明</div>
+
+          <!-- 图层 1（底）：背景 -->
+          <div class="lyr photo2" style="left:0;top:0;width:660px;height:372px"></div>
+
+          <!-- 图层 3（顶）：文字 -->
+          <div class="lyr" style="left:388px;top:34px;width:250px;height:60px">
+            <div class="txtlayer" style="inset:0;font-size:26px;letter-spacing:2px">SUMMER DROP</div>
+          </div>
+
+          <!-- 图层 2：选中态产品图（带变换框） -->
+          <div class="lyr photo" style="left:96px;top:86px;width:300px;height:200px"></div>
+          <div class="tr" style="left:96px;top:86px;width:300px;height:200px">
+            <div class="box"></div>
+            <div class="h tl"></div><div class="h tr"></div><div class="h bl"></div><div class="h br"></div>
+            <div class="stick"></div><div class="rot"></div>
+          </div>
+
+          <!-- 吸附参考线（紫）：画布垂直中线 + 图层水平中线 -->
+          <div class="guide v" style="left:330px"></div>
+          <div class="guide h" style="top:186px"></div>
+        </div>
+
+        <!-- 画布浮层 -->
+        <div class="float" style="left:14px;bottom:14px">
+          <button title="缩小"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg></button>
+          <span class="pct">68%</span>
+          <button title="放大"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+          <button title="适配画布"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+        </div>
+        <div class="float-tip" style="right:14px;bottom:14px">拖拽移动 · 角柄缩放 · ⌘ 拖旋转 · 靠近中线自动吸附</div>
+      </div>
+
+      <!-- 右：属性面板 -->
+      <div class="cright">
+
+        <!-- 画布：比例 + 尺寸 + 背景 属于同一族，整块放最顶（先定画布，再摆图层） -->
+        <div class="sect">
+          <div class="sect-t"><span>画布</span><button class="minibt">跟随主图</button></div>
+          <div class="fld"><span>比例</span>
+            <div class="seg"><button>1:1</button><button class="on">16:9</button><button>9:16</button><button>4:3</button></div>
+            <div class="dd">
+              <button class="ic" title="更多比例（共 14 种）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+            </div>
+          </div>
+          <div class="numgrid">
+            <div class="nwrap"><i>宽</i><input class="num" value="1920" /></div>
+            <div class="nwrap"><i>高</i><input class="num" value="1080" /></div>
+          </div>
+          <div class="fld"><span>背景</span>
+            <div class="seg">
+              <button class="on">透明</button><button>白</button><button>黑</button>
+              <input type="color" class="color-inp" value="#1c1c1c" title="自定义背景色" />
+            </div>
+          </div>
+          <div class="empty-tip" style="padding:2px 2px 0">
+            默认 = 主图原始分辨率（不放大不缩小）；改比例时<b>长边像素守恒</b>；长边超 4096 会提示。
+          </div>
+        </div>
+
+        <div class="sect">
+          <div class="sect-t"><span>图层</span><em>顶层在上</em></div>
+          <div class="layer-item">
+            <div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;background:var(--surface-hover)">T</div>
+            <div class="nm">文字 · SUMMER DROP</div>
+            <button class="ic" title="显示/隐藏">👁</button>
+            <button class="ic" title="锁定">🔓</button>
+            <button class="ic danger" title="删除图层">✕</button>
+          </div>
+          <div class="layer-item on">
+            <div class="thumb photo"></div>
+            <div class="nm">产品主图</div>
+            <button class="ic" title="显示/隐藏">👁</button>
+            <button class="ic" title="锁定">🔓</button>
+            <button class="ic danger" title="删除图层">✕</button>
+          </div>
+          <div class="layer-item">
+            <div class="thumb photo2"></div>
+            <div class="nm">背景合成图</div>
+            <button class="ic" title="显示/隐藏">👁</button>
+            <button class="ic" title="锁定">🔓</button>
+            <button class="ic danger" title="删除图层">✕</button>
+          </div>
+          <!-- 顺序 + 增删：作用的是「图层在栈里的位置」，紧挨列表放 -->
+          <div class="seg" style="margin-top:8px">
+            <button style="flex:1" title="置底">⤓</button>
+            <button style="flex:1" title="下移 ⌘[">▽</button>
+            <button style="flex:1" title="上移 ⌘]">△</button>
+            <button style="flex:1" title="置顶">⤒</button>
+          </div>
+          <div class="seg" style="margin-top:6px">
+            <button style="flex:1">复制图层</button>
+            <button style="flex:1;color:var(--danger)">删除图层</button>
+          </div>
+        </div>
+
+        <div class="sect">
+          <div class="sect-t"><span>变换</span><em>仅位置尺寸</em></div>
+          <div class="numgrid">
+            <div class="nwrap"><i>X</i><input class="num" value="96" /></div>
+            <div class="nwrap"><i>Y</i><input class="num" value="86" /></div>
+            <div class="nwrap"><i>宽</i><input class="num" value="873" /></div>
+            <div class="nwrap"><i>高</i><input class="num" value="582" /></div>
+            <div class="nwrap"><i>旋转</i><input class="num" value="0" /></div>
+          </div>
+          <div class="fld"><span>翻转</span>
+            <div class="seg"><button title="水平翻转">⇋</button><button title="垂直翻转">⇵</button><button title="重置变换">↺</button></div>
+          </div>
+          <div class="fld"><span>对齐</span>
+            <div class="seg"><button>⇤</button><button>⇔</button><button>⇥</button><button>⤒</button><button>⇕</button><button>⤓</button></div>
+          </div>
+          <div class="seg" style="margin-top:8px">
+            <button style="flex:1">适配画布</button><button style="flex:1">铺满画布</button>
+          </div>
+        </div>
+
+        <!-- 外观：只放「所有图层共有」的属性；类型专属的另起区，避免常驻一堆用不上的控件 -->
+        <div class="sect">
+          <div class="sect-t"><span>外观</span><em>图片图层</em></div>
+          <div class="fld"><span>透明</span><input class="range" type="range" value="100" /><span class="val">100%</span></div>
+          <div class="fld"><span>混合</span>
+            <select class="sel"><option>正常</option><option>正片叠底</option><option>滤色</option><option>叠加</option><option>柔光</option><option>差值</option></select>
+          </div>
+        </div>
+
+        <!-- 调整：图片图层专属。6 滑杆保留；外包的一键效果（黑白/怀旧/反相）砍掉 -->
+        <div class="sect" style="border-bottom:none">
+          <div class="sect-t"><span>调整</span><button class="minibt">复位</button></div>
+          <div class="fld"><span>亮度</span><input class="range" type="range" value="50" /><span class="val">0</span></div>
+          <div class="fld"><span>对比</span><input class="range" type="range" value="50" /><span class="val">0</span></div>
+          <div class="fld"><span>饱和</span><input class="range" type="range" value="58" /><span class="val">+8</span></div>
+          <div class="fld"><span>色相</span><input class="range" type="range" value="50" /><span class="val">0°</span></div>
+          <div class="fld"><span>明度</span><input class="range" type="range" value="50" /><span class="val">0</span></div>
+          <div class="fld"><span>模糊</span><input class="range" type="range" value="50" /><span class="val">0</span></div>
+        </div>
+
+
+      </div>
+
+    </div><!-- /cbody -->
+
+    <!-- ── 底部状态条 ── -->
+    <div class="status">
+      <span>图层 <b>3</b></span>
+      <span>画布 <b>1920 × 1080</b> <span style="color:var(--t-subtle)">· 长边上限 4096</span></span>
+      <span>背景 <b>透明</b></span>
+      <span>撤销栈 <b>12</b> 步</span>
+      <span class="ok">● 显存 84 / 256 MiB</span>
+      <div class="zoom-ctl">
+        <span>空格拖动画布 · Delete 删除图层 · ⌘D 复制 · Esc 取消选择</span>
+      </div>
+    </div>
+
+  </div><!-- /editor -->
+
+  <div class="mk-note">
+    <b>★ 画布尺寸不给「画质档位」（外包有 720p/1K/2K/4K，本仓库砍掉）：</b>
+    那个档位在外包里只做一件事——决定画布长边像素数。它存在的前提是「合成结果要送进生图模型，尺寸得和模型输入对齐」，
+    本仓库没这个环节。而且它把视频单位（720p）和图片单位（1K/2K/4K）混在一个枚举里，本身就不自洽。<br />
+    改为：画布尺寸 <b>默认 = 主图原始分辨率</b>（第一张进来的图，不放大也不缩小，避免 512 的图被吹成 2K 假高清、
+    或 4096 的图被压到 2K 掉细节）；<b>改比例时保持长边像素守恒</b>；想要精确尺寸直接手填右下角宽高；
+    长边超 4096 由状态条提示——<b>上限是系统保护，不是用户选项</b>。<br />
+    <br />
+    <b>★ 画布属性全在一处：</b>比例、宽高、背景是同一个东西的三个面，合成一块放在右栏<b>最顶</b>——
+    先定画布再摆图层，且不用滚到底才找到。外包把「比例+画质」放底部命令栏、「宽高+背景」放右栏末尾，
+    同一个属性拆成两处，改个画布要两头看。<br />
+    <br />
+    <b>布局为什么是这样：</b>外部包是「中央画布 + 底部命令栏 + 右侧属性面板」。
+    本仓库 ImageEditor 重构后统一为 <code>header(Tab/标题) → 上下文工具条 → 画布 → 底部状态条</code>，
+    所以这里把外部包的底部命令栏<b>上提为工具条</b>，与「涂鸦/裁剪/扩图」编辑器完全同构，不再出现第二套骨架。<br />
+    <b>★ 左栏是本仓库特有的适配：</b>外部包把「取图」塞在底部工具栏的下拉里（画布上所有 <code>ai-image</code> 节点）。
+    但本项目的数据流是 <span class="hl">连线 + 图片盒子</span>（<code>useConnectedInputs</code> / <code>ImageBoxNode.images</code>），
+    取图是高频动作，值得占一条常驻左栏；同时它也是「多图编辑」这个名字的由来——<b>图从哪来，是这个功能的入口，不是附属功能</b>。<br />
+    <b>不做的部分：</b>外部包的「识别主体（抠图）」依赖 Tauri + ONNX（<code>subjectMatting / rmbg-1.4.onnx</code>），
+    本仓库没有这套服务，<span class="tag cut">P2</span> 暂不接入；右栏「调整（调色）」为 P1，可随首版一起但非阻塞。<br />
+    <b>砍掉「黑白 / 怀旧 / 反相」三个一键效果：</b>它们是手机修图 App 的滤镜，在这里是冗余自由度——
+    黑白用<b>饱和度拉到 -2</b> 即可，色调由<b>色相</b>滑杆负责，怀旧在 AI 生图流程里几乎无人用。
+    留着只是给面板加一行永远不会点的按钮。
+  </div>
+</div>
+
+<!-- ══════════ 舞台 2.5：弹层 + 图层类型差异 ══════════ -->
+<div class="mk-stage">
+  <div class="mini">
+
+    <!-- A. 工具条展开态 -->
+    <div class="mini-card" style="min-height:262px">
+      <div class="mini-title">A · 工具条弹层展开态</div>
+      <div class="bar" style="width:1196px;border:1px solid var(--edge-faint);border-radius:10px">
+        <div class="pill">
+          <button title="选择 (V)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
+          <button class="on" title="画笔 (B)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg></button>
+          <button title="橡皮 (E)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg></button>
+        </div>
+        <div class="vline"></div>
+        <!-- ★ 选中画笔后参数就地展开（本仓库 ImageEditor 涂鸦 Tab 的既有习惯） -->
+        <span class="lbl">笔刷</span>
+        <input type="color" class="color-inp" value="#ffffff" />
+        <input class="range" type="range" style="width:92px" value="12" />
+        <span class="val">12px</span>
+        <div class="vline"></div>
+        <div class="dd">
+          <button class="ib" title="形状"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="10" width="11" height="11" rx="1"/><circle cx="15.5" cy="7.5" r="4.5"/></svg></button>
+          <div class="menu down">
+            <button class="menu-item">矩形</button>
+            <button class="menu-item">椭圆</button>
+            <button class="menu-item">直线</button>
+            <button class="menu-item">箭头</button>
+          </div>
+        </div>
+        <div class="spacer"></div>
+        <span class="lbl">展开态仅为示意，实际为 hover/click 触发</span>
+      </div>
+      <div class="mk-legend" style="max-width:1196px">
+        <div class="k">★ 与外包的差异：外部包把笔刷参数藏在「再点一次画笔才弹出」的二级菜单里——用户根本不知道要点第二下。</div>
+        <div>本仓库 <code>ImageEditor</code> 涂鸦 Tab 的做法是<b>选中工具后参数就地出现在工具条上</b>，这里沿用同一习惯。</div>
+        <div>形状、更多比例这类「一次性的多选一」才用下拉（规范 §二「下拉菜单」形态）。</div>
+      </div>
+    </div>
+
+    <!-- B. 选中「文字层」时的右栏 -->
+    <div class="mini-card">
+      <div class="mini-title">B · 选中文字层 → 多出「文字」区</div>
+      <div class="cright" style="width:252px;height:520px;border:1px solid var(--edge-faint);border-radius:10px">
+        <div class="sect">
+          <div class="sect-t"><span>外观</span><em>文字图层</em></div>
+          <div class="fld"><span>透明</span><input class="range" type="range" value="100" /><span class="val">100%</span></div>
+          <div class="fld"><span>混合</span><select class="sel"><option>正常</option></select></div>
+        </div>
+        <div class="sect">
+          <div class="sect-t"><span>文字</span><button class="minibt">编辑内容</button></div>
+          <div class="fld"><span>字体</span>
+            <select class="sel"><option>无衬线</option><option>苹方 / 雅黑</option><option>宋体</option></select>
+          </div>
+          <div class="numgrid">
+            <div class="nwrap"><i>字号</i><input class="num" value="77" /></div>
+            <div class="nwrap"><i>行高</i><input class="num" value="1.2" /></div>
+            <div class="nwrap"><i>字距</i><input class="num" value="2" /></div>
+            <div class="nwrap"><i>框宽</i><input class="num" value="1152" /></div>
+          </div>
+          <div class="fld"><span>颜色</span><input type="color" class="color-inp" value="#ffffff" /><span class="val">#FFFFFF</span></div>
+          <div class="fld"><span>样式</span>
+            <div class="seg"><button class="on"><b>B</b></button><button><i>I</i></button><button title="投影">◍</button></div>
+          </div>
+          <div class="fld"><span>对齐</span>
+            <div class="seg"><button>左</button><button class="on">中</button><button>右</button></div>
+          </div>
+        </div>
+        <div class="sect" style="border-bottom:none">
+          <div class="sect-t"><span>描边</span></div>
+          <div class="fld"><span>颜色</span><input type="color" class="color-inp" value="#000000" /><span class="val">#000000</span></div>
+          <div class="fld"><span>宽度</span><input class="range" type="range" value="0" /><span class="val">0</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- C. 选中「矩形层」时的右栏 -->
+    <div class="mini-card">
+      <div class="mini-title">C · 选中形状层 → 换成「形状」区</div>
+      <div class="cright" style="width:252px;height:520px;border:1px solid var(--edge-faint);border-radius:10px">
+        <div class="sect">
+          <div class="sect-t"><span>外观</span><em>矩形图层</em></div>
+          <div class="fld"><span>透明</span><input class="range" type="range" value="100" /><span class="val">100%</span></div>
+          <div class="fld"><span>混合</span><select class="sel"><option>正常</option></select></div>
+        </div>
+        <div class="sect" style="border-bottom:none">
+          <div class="sect-t"><span>形状</span><em>仅矩形有圆角</em></div>
+          <div class="fld"><span>填充</span><input type="color" class="color-inp" value="#6366f1" /><span class="val">#6366F1</span></div>
+          <div class="fld"><span>描边色</span><input type="color" class="color-inp" value="#ffffff" /><span class="val">#FFFFFF</span></div>
+          <div class="fld"><span>描边宽</span><input class="range" type="range" value="0" /><span class="val">0</span></div>
+          <div class="fld"><span>圆角</span><input class="range" type="range" value="12" /><span class="val">12</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- D. 画布上的两个交互态 -->
+    <div class="mini-card">
+      <div class="mini-title">D · 画布交互态</div>
+      <div style="display:flex;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="board" style="width:250px;height:150px">
+            <div class="lyr photo2" style="inset:0"></div>
+            <div style="position:absolute;left:26px;top:44px;width:198px;height:46px;border:1px solid var(--accent);
+                        background:rgba(0,0,0,.35);display:flex;align-items:center;padding:0 6px;
+                        color:#fff;font-size:19px;font-weight:700">SUMMER DROP▌</div>
+          </div>
+          <div class="mk-legend"><div>双击文字层 → <b>画布上就地编辑</b>（不是回到右栏改）</div></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="board" style="width:250px;height:150px">
+            <div class="lyr photo2" style="inset:0;opacity:.5"></div>
+            <div style="position:absolute;inset:10px;border:2px dashed var(--accent);border-radius:10px;
+                        background:var(--accent-soft);display:flex;align-items:center;justify-content:center;
+                        color:var(--accent-text);font-size:12px">松手加入图层</div>
+          </div>
+          <div class="mk-legend"><div>拖拽图片进画布 → <b>整块高亮提示</b></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="mk-note">
+    <b>为什么右栏要按图层类型变：</b>外部包把「文字属性 / 形状填充 / 描边 / 圆角」全部写在 <code>selectedLayer</code> 的
+    各个分支里——代码上是对的，但<b>面板上必须条件渲染</b>：选中图片时不该看到「字号」，选中矩形时才出现「圆角」。<br />
+    <b>我修正了自己一处错放：</b>第一版把「圆角」塞进了常驻的变换数值网格，它在选中图片时是死控件——已移进「形状」区。<br />
+    <b>画布上的两个交互（外包有、我第一版漏了）：</b>文字<b>双击就地编辑</b>、图片<b>拖入即加图层</b>。
+    这两个都是「作用在画布上」而不是「作用在面板上」，必须在画布区展示，不能塞进右栏。<br />
+    <b>图层行补的三件事：</b>删除 ✕（原只有显隐/锁定）、双击改名、拖拽换序——外部包都有，属于图层列表的标配操作。
+  </div>
+</div>
+
+<!-- ══════════ 舞台 3：合成之后去哪 ══════════ -->
+<div class="mk-stage">
+  <div class="mini">
+    <div class="mini-card">
+      <div class="mini-title">结果去向（规范 §3.2）</div>
+      <div style="display:flex;align-items:center;gap:14px;padding:6px 2px">
+        <div style="width:96px;height:60px;border-radius:8px;background:var(--surface-hover);border:1px solid var(--edge)"
+             class="photo"></div>
+        <div style="font-size:11px;color:var(--t-faint)">原节点<br />保持不变</div>
+        <div style="color:var(--accent);font-size:18px">→</div>
+        <div style="width:96px;height:60px;border-radius:8px;border:1px solid var(--accent-line);background:var(--accent-soft);
+                    display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--accent-text)">合成结果</div>
+        <div style="font-size:11px;color:var(--t-faint)">新 imageNode<br />自动连线</div>
+      </div>
+      <div class="mk-legend" style="max-width:430px">
+        <div>点「合成」→ 画布导出透明 PNG → <b>spawn 新 imageNode + 自动连线</b>（与切片/合并/抽帧同一套）。</div>
+        <div class="c">不覆盖原节点</div>
+        <div>——原图是素材，合成是产物，二者都要留着可回溯。</div>
+    </div>
+
+    <div class="mini-card">
+      <div class="mini-title">外部包 → 本仓库 落地映射</div>
+      <div class="mk-legend" style="max-width:560px">
+        <div><b>入口</b>：hover 栏 compose 按钮 → <code>useImageHoverActions.imageButtons</code> 加 1 项（AssetNode / ImageGenerate 同时生效）</div>
+        <div><b>取图</b>：画布上所有 <code>ai-image</code> 节点下拉 → <code>useConnectedInputs</code> + <code>ImageBoxNode.images</code> + 上传</div>
+        <div><b>保存</b>：<code>saveDataUrlToProjectData</code>(Tauri) → <code>saveInlineToLocal</code>(本仓库 filesApi)</div>
+        <div><b>结果</b>：loading 节点回填 → spawn 新 imageNode + 自动连线</div>
+        <div><b>状态</b>：<code>useAppStore</code>(zustand) → 编辑器内部自持（不进全局 store，关闭即销毁）</div>
+        <div class="c"><b>依赖风险</b>：外部包基于 <code>konva / react-konva</code>，本仓库无此依赖</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-note">
+    <b>渲染层怎么选（这是唯一需要拍板的）：</b><br />
+    <b>方案 A · 引入 konva + react-konva</b>：能力最全（自由变换、滤镜缓存、吸附、Transformer 全白送），外部包改造量最小；
+    代价是新增约 <code>150KB</code> 运行时依赖，且 Konva 的图层模型要在本仓库节点体系里再包一层。<br />
+    <b>方案 B · 沿用本仓库既有 canvas 直写</b>：<code>ImageEditor</code> / <code>OverlayEditor</code> 已经是原生 canvas + DOM 图层，
+    「多图编辑」本质就是<b>把 OverlayEditor 的单图层扩成多图层</b>——变换框、拖拽、层级、导出都可复用，
+    新增的只有「多图层列表 + 吸附 + 图层变换矩阵」。<span class="tag keep">推荐</span>先按 B 出 MVP（多图摆放/缩放/层级/透明底导出），
+    若后续要做实时调色滤镜与大量图层再评估 A。<br />
+    <b>不做的事：</b>不新增全局 store slice、不接 ONNX 抠图、不提供「覆盖原节点」选项（规范 §3.2 已定死：生成新内容 = 新建节点）。
+  </div>
+</div>
+</body>
+</html>

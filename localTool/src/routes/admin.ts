@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getDb, getUploadDir, saveDb, queryAll, queryOne, run } from '../db/database.js';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
-import { runReferenceGc } from '../utils/orphanGc.js';
+import { runReferenceGc, collectReferencedRelPaths } from '../utils/orphanGc.js';
+import { extractFilesUrls } from '../utils/base64Externalize.js';
 
 // ── GET /api/admin/stats ──
 export async function handleAdminStats(_req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -218,6 +219,221 @@ export async function handleAdminImport(req: IncomingMessage, res: ServerRespons
       counts: { kv: src.kv.length, tasks: src.tasks.length, resources: src.resources.length },
     },
   });
+}
+
+// ── 存储健康 · 文件分类（对齐外部 StorageHealthCenter CATEGORY_LABELS 口径）──
+const CATEGORY_BY_EXT: Record<string, string> = {
+  '.png': '图片',
+  '.jpg': '图片',
+  '.jpeg': '图片',
+  '.gif': '图片',
+  '.webp': '图片',
+  '.svg': '图片',
+  '.bmp': '图片',
+  '.ico': '图片',
+  '.mp4': '视频',
+  '.webm': '视频',
+  '.mov': '视频',
+  '.avi': '视频',
+  '.mkv': '视频',
+  '.flv': '视频',
+  '.wmv': '视频',
+  '.m4v': '视频',
+  '.mp3': '音频',
+  '.wav': '音频',
+  '.ogg': '音频',
+  '.aac': '音频',
+  '.flac': '音频',
+  '.opus': '音频',
+  '.txt': '文本',
+  '.md': '文本',
+  '.json': '文本',
+  '.csv': '文本',
+  '.xml': '文本',
+  '.html': '文本',
+  '.css': '文本',
+  '.log': '文本',
+};
+function categoryOf(name: string): string {
+  const ext = `.${(name.split('.').pop() || '').toLowerCase()}`;
+  return CATEGORY_BY_EXT[ext] || '其他';
+}
+
+/** 递归扫描 uploads 目录（跳过 .thumbnails/ 与隐藏文件），返回相对路径+绝对路径+大小。 */
+function walkUploadFiles(
+  uploadsDir: string,
+): Array<{ rel: string; abs: string; size: number; name: string }> {
+  const out: Array<{ rel: string; abs: string; size: number; name: string }> = [];
+  const walk = (dir: string): void => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name.startsWith('.') || entry.name === '.thumbnails') continue;
+        walk(abs);
+      } else if (entry.isFile() && !entry.name.startsWith('.')) {
+        try {
+          const s = fs.statSync(abs);
+          out.push({
+            rel: path.relative(uploadsDir, abs).replace(/\\/g, '/'),
+            abs,
+            size: s.size,
+            name: entry.name,
+          });
+        } catch {
+          /* skip 无法 stat */
+        }
+      }
+    }
+  };
+  walk(uploadsDir);
+  return out;
+}
+
+/**
+ * GET /api/admin/storage-health — 存储健康总报表（对齐外部 StorageHealthCenter 一份报表驱动总览+明细）。
+ * 返回：按文件类别占用、各项目占用（画布 KV + 该画布引用的磁盘文件）、孤儿文件清单、重复文件组、可释放空间。
+ * 只读不删；重复/孤儿能否删由 referenced 集合（canvas/tasks/resources 全库引用）裁决。
+ * 信封形态：code-data。
+ */
+export async function handleAdminStorageHealth(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const db = await getDb();
+  const uploadDir = getUploadDir();
+  const files = walkUploadFiles(uploadDir);
+  const referenced = await collectReferencedRelPaths();
+
+  // ── ① 按文件类别总占用（文件只算一次）──
+  const byCategory: Record<string, { count: number; size: number }> = {};
+  let totalBytes = 0;
+  for (const f of files) {
+    const c = categoryOf(f.name);
+    if (!byCategory[c]) byCategory[c] = { count: 0, size: 0 };
+    byCategory[c].count++;
+    byCategory[c].size += f.size;
+    totalBytes += f.size;
+  }
+
+  // ── ② 各项目占用：画布 KV 字节 + 该画布引用的磁盘文件 ──
+  const sizeByRel = new Map(files.map((f) => [f.rel, f.size]));
+  const projRows = queryAll(db, 'SELECT id, name FROM projects ORDER BY created_at ASC') as Array<{
+    id: string;
+    name: string;
+  }>;
+  const projects = projRows.map((p) => {
+    const key = `canvas-state-v1-${p.id}`;
+    const kvRow = queryOne(db, 'SELECT value FROM kv WHERE key = ?', [key]) as
+      { value: string } | undefined;
+    const kvBytes = kvRow && typeof kvRow.value === 'string' ? kvRow.value.length : 0;
+    let fileBytes = 0;
+    let fileCount = 0;
+    if (kvRow && typeof kvRow.value === 'string') {
+      for (const rel of extractFilesUrls(kvRow.value)) {
+        const s = sizeByRel.get(rel);
+        if (s !== undefined) {
+          fileBytes += s;
+          fileCount++;
+        }
+      }
+    }
+    return { projectId: p.id, projectName: p.name, kvBytes, fileBytes, fileCount };
+  });
+
+  // ── ③ 孤儿文件（磁盘有、全库无引用）──
+  const orphans = files
+    .filter((f) => !referenced.has(f.rel))
+    .map((f) => ({ path: f.rel, name: f.name, size: f.size, category: categoryOf(f.name) }));
+  const orphanBytes = orphans.reduce((s, o) => s + o.size, 0);
+
+  // ── ④ 重复文件组（size+name 分组，count>=2；仅「未引用」副本可释放）──
+  const groups = new Map<string, typeof files>();
+  for (const f of files) {
+    const key = `${f.size}|${f.name}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(f);
+  }
+  const duplicates = Array.from(groups.values())
+    .filter((g) => g.length >= 2)
+    .map((g) => {
+      const members = g.map((f) => ({
+        path: f.rel,
+        name: f.name,
+        size: f.size,
+        referenced: referenced.has(f.rel),
+      }));
+      // 只统计未引用副本的可释放量（被画布/任务/素材引用的副本绝不能删）
+      const reclaimable = members.filter((m) => !m.referenced).reduce((s, m) => s + m.size, 0);
+      return { name: g[0].name, size: g[0].size, count: g.length, files: members, reclaimable };
+    });
+
+  const reclaimableBytes = orphanBytes + duplicates.reduce((s, d) => s + d.reclaimable, 0);
+
+  return json(res, {
+    code: 0,
+    data: {
+      totalBytes,
+      fileCount: files.length,
+      byCategory,
+      projects,
+      orphans,
+      duplicates,
+      orphanBytes,
+      reclaimableBytes,
+      scannedAt: Date.now(),
+    },
+  });
+}
+
+/**
+ * POST /api/admin/delete-file — 安全删除单个 uploads 文件（孤儿/重复副本共用）。
+ * body: { path: "相对 uploads 的路径" }。
+ * 安全红线：仅删「全库无引用」的文件；被画布/任务/素材引用 → 返回 skipped:'referenced' 不删。
+ * 路径必须在 uploadDir 内且跳过 .thumbnails/ 与隐藏文件，防穿越/误删系统文件。
+ * 二次确认由前端把关。
+ */
+export async function handleAdminDeleteFile(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const body = (await parseJsonBody(req)) as { path?: unknown } | null;
+  const relPath = body?.path;
+  if (typeof relPath !== 'string' || !relPath) return sendError(res, 'Missing path', 400);
+
+  const uploadsDir = path.normalize(getUploadDir());
+  const relSlashes = relPath.replace(/\\/g, '/');
+  if (
+    relSlashes.startsWith('/') ||
+    relSlashes.split('/').some((s) => s === '..' || s.startsWith('.'))
+  ) {
+    return json(res, { code: 0, data: { ok: false, skipped: 'protected' } });
+  }
+
+  const abs = path.normalize(path.join(uploadsDir, relSlashes));
+  if (!abs.startsWith(uploadsDir + path.sep)) {
+    return json(res, { code: 0, data: { ok: false, skipped: 'protected' } });
+  }
+  if (!fs.existsSync(abs)) {
+    return json(res, { code: 0, data: { ok: false, skipped: 'missing' } });
+  }
+
+  const referenced = await collectReferencedRelPaths();
+  if (referenced.has(relSlashes)) {
+    return json(res, { code: 0, data: { ok: false, skipped: 'referenced' } });
+  }
+
+  try {
+    fs.unlinkSync(abs);
+    return json(res, { code: 0, data: { ok: true, path: relSlashes } });
+  } catch {
+    return sendError(res, 'delete failed', 500);
+  }
 }
 
 // ── helpers ──
