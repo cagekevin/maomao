@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>图片编辑器重构 · 涂鸦 / 裁剪 / 扩图 三 Tab —— 外观 Mockup</title>
+<style>
+  :root{
+    /* 对齐 NODE-DESIGN-SPEC §〇 与 tailwind 语义 token */
+    --canvas:#0d0c0c;
+    --surface-raised:#1c1c1c;
+    --surface-deep:#151414;
+    --surface:#1a1a1a;
+    --surface-1:#222222;
+    --surface-hover:#2a2a2a;
+    --surface-hover-strong:#333333;
+    --surface-sunken:#121212;
+    --input:#141414;
+    --edge:#333333;
+    --edge-strong:#555555;
+    --edge-muted:#2a2a2a;
+    --edge-faint:#262626;
+    --t-strong:#ffffff;
+    --t-primary:#dddddd;
+    --t-body:#cccccc;
+    --t-secondary:#aaaaaa;
+    --t-muted:#888888;
+    --t-faint:#666666;
+    --t-subtle:#555555;
+    --accent:#3b82f6;
+    --accent-soft:rgba(59,130,246,.15);
+    --accent-line:rgba(59,130,246,.6);
+    --accent-text:#93c5fd;
+    --ok:#22c55e;
+    --danger:#ef4444;
+    --warn:#eab308;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{min-height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:#0a0a0a;color:var(--t-primary);
+    padding:26px 28px 70px;
+    display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start;
+  }
+
+  /* ── 页面抬头 ── */
+  .page-head{width:100%;display:flex;flex-direction:column;gap:6px;margin-bottom:-8px;}
+  .page-head h1{font-size:16px;font-weight:600;color:var(--t-strong);}
+  .page-head p{font-size:12px;color:var(--t-muted);line-height:1.8;max-width:1120px;}
+  .page-head b{color:var(--t-primary);font-weight:600;}
+  .page-head .hl{color:var(--accent-text);}
+
+  /* ── 舞台（面板 + 说明） ── */
+  .stage{display:flex;flex-direction:column;gap:10px;}
+  .stage-cap{font-size:12px;line-height:1.85;color:var(--t-muted);max-width:1080px;}
+  .stage-cap b{color:var(--t-primary);font-weight:600;}
+  .tag{
+    display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;
+    background:#1f1f1f;border:1px solid #2c2c2c;color:#8a8a8a;margin-right:6px;
+  }
+  .tag.new{color:#7ab8ff;border-color:#2a3a52;}
+  .tag.cut{color:#f87171;border-color:#4a2626;}
+  .tag.keep{color:#6ee7b7;border-color:#24463a;}
+  .note{border-top:1px dashed #242424;padding-top:8px;margin-top:8px;font-size:11px;line-height:1.9;max-width:1080px;}
+  .note b{color:#9a9a9a;font-weight:600;}
+  .note code{
+    background:#1d1d1d;border:1px solid #292929;border-radius:5px;
+    padding:1px 4px;font-size:11px;color:#c9c9c9;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+
+  /* ═════════ 编辑器主容器 ═════════ */
+  .editor{
+    width:1080px;height:700px;
+    background:var(--surface-raised);
+    border:1px solid var(--edge-muted);
+    border-radius:16px;
+    display:flex;flex-direction:column;overflow:hidden;
+    box-shadow:0 30px 70px rgba(0,0,0,.6);
+  }
+
+  /* ── header：标题 + 三 Tab + 右侧动作 ── */
+  .eh{
+    height:52px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 12px 0 14px;
+    border-bottom:1px solid var(--edge-muted);
+  }
+  .eh-left{display:flex;align-items:center;gap:14px;}
+  .eh-title{font-size:13px;font-weight:600;color:var(--t-strong);}
+  .eh-title span{font-size:11px;color:var(--t-faint);font-weight:400;margin-left:6px;}
+
+  /* 分段按钮（规范 §二 形态 1） */
+  .seg{display:flex;align-items:center;gap:4px;padding:3px;border-radius:9px;
+       background:var(--input);border:1px solid var(--edge-muted);}
+  .seg button{
+    display:inline-flex;align-items:center;gap:5px;
+    padding:4px 13px;border-radius:7px;
+    font-size:11px;line-height:1.45;font-family:inherit;
+    border:1px solid transparent;background:transparent;color:var(--t-muted);
+    cursor:pointer;transition:background .15s,color .15s,border-color .15s;
+  }
+  .seg button:hover{color:#fff;background:var(--surface-hover);}
+  .seg button.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
+  .seg button.on:hover{background:rgba(59,130,246,.22);}
+  .seg .badge{
+    font-size:9px;padding:0 4px;border-radius:4px;
+    background:var(--surface-hover-strong);color:var(--t-faint);
+  }
+  .seg button.on .badge{background:rgba(59,130,246,.25);color:#bfdbfe;}
+
+  .eh-right{display:flex;align-items:center;gap:8px;}
+  .ib{
+    width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    border:none;background:transparent;border-radius:7px;color:var(--t-muted);cursor:pointer;
+    transition:background .15s,color .15s;
+  }
+  .ib:hover{background:var(--surface-hover);color:var(--t-strong);}
+  .ib.dis{opacity:.4;cursor:not-allowed;}
+  .ib.dis:hover{background:transparent;color:var(--t-muted);}
+  .ib.danger:hover{color:var(--danger);background:var(--surface-hover);}
+  .vline{width:1px;height:20px;background:var(--edge-muted);}
+  .btn{
+    display:inline-flex;align-items:center;gap:5px;
+    height:30px;padding:0 12px;border-radius:8px;font-size:12px;font-family:inherit;
+    border:1px solid var(--edge-muted);background:transparent;color:var(--t-body);cursor:pointer;
+    transition:background .15s,color .15s,border-color .15s;
+  }
+  .btn:hover{background:var(--surface-hover);color:#fff;}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500;}
+  .btn.primary:hover{background:#2f6fdc;border-color:#2f6fdc;}
+
+  /* ── 上下文工具条（随 Tab 切换） ── */
+  .bar{
+    height:46px;flex-shrink:0;
+    display:flex;align-items:center;gap:10px;
+    padding:0 14px;
+    background:var(--surface-deep);
+    border-bottom:1px solid var(--edge-faint);
+  }
+  /* 工具胶囊（仿 HoverToolbar） */
+  .pill{display:flex;align-items:center;gap:2px;padding:3px;border-radius:999px;
+        background:var(--surface-1);border:1px solid var(--edge-muted);}
+  .pill button{
+    width:28px;height:26px;display:flex;align-items:center;justify-content:center;
+    border:none;background:transparent;border-radius:999px;color:var(--t-muted);cursor:pointer;
+    transition:background .15s,color .15s;
+  }
+  .pill button:hover{background:var(--surface-hover);color:#fff;}
+  .pill button.on{background:var(--accent);color:#fff;}
+  .pill button.on:hover{background:#2f6fdc;color:#fff;}
+
+  /* 比例胶囊 */
+  .ratios{display:flex;align-items:center;gap:4px;}
+  .ratio{
+    padding:3px 10px;border-radius:999px;font-size:11px;font-family:inherit;
+    background:var(--surface-hover);border:1px solid var(--edge-muted);color:var(--t-secondary);
+    cursor:pointer;transition:background .15s,color .15s,border-color .15s;
+  }
+  .ratio:hover{color:#fff;border-color:var(--edge);}
+  .ratio.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
+
+  .bar .lbl{font-size:11px;color:var(--t-faint);}
+  .bar .val{font-size:11px;color:var(--t-body);font-variant-numeric:tabular-nums;}
+  .swatch{width:22px;height:22px;border-radius:6px;border:1px solid var(--edge-strong);padding:0;
+          background:#ff3b30;cursor:pointer;}
+  .swatches{display:flex;align-items:center;gap:4px;}
+  .sw{width:16px;height:16px;border-radius:50%;border:1px solid rgba(255,255,255,.18);cursor:pointer;}
+  .sw.on{box-shadow:0 0 0 2px var(--accent);}
+  .range{width:96px;accent-color:var(--accent);}
+  .spacer{flex:1;}
+
+  /* ── 画布区 ── */
+  .stage-area{
+    flex:1;min-height:0;position:relative;
+    background:var(--surface-sunken);
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+  }
+  /* 棋盘底（透明感） */
+  .checker{
+    position:absolute;inset:0;
+    background-image:
+      linear-gradient(45deg,#171717 25%,transparent 25%,transparent 75%,#171717 75%),
+      linear-gradient(45deg,#171717 25%,transparent 25%,transparent 75%,#171717 75%);
+    background-size:16px 16px;background-position:0 0,8px 8px;
+  }
+  .canvas-wrap{position:relative;display:flex;align-items:center;justify-content:center;}
+
+  /* 斜线纹（留给 AI 填充的白边） */
+  .hatch{
+    background-image:repeating-linear-gradient(45deg,
+      rgba(255,255,255,.92) 0 8px, rgba(226,232,240,.92) 8px 16px);
+  }
+
+  /* 图片本体（用渐变模拟照片） */
+  .photo{
+    background:
+      radial-gradient(120% 90% at 20% 15%, #4b5563 0%, transparent 55%),
+      linear-gradient(160deg,#1f2937 0%,#111827 45%,#0b1220 100%);
+    position:relative;overflow:hidden;
+  }
+  .photo::after{
+    content:"";position:absolute;inset:0;
+    background:
+      radial-gradient(38% 30% at 68% 72%, rgba(251,191,36,.28) 0%, transparent 60%),
+      linear-gradient(200deg, rgba(59,130,246,.16) 0%, transparent 50%);
+  }
+
+  /* 裁剪：遮罩 + 选区 */
+  .crop-mask{position:absolute;background:rgba(0,0,0,.55);}
+  .crop-box{position:absolute;border:1px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5);}
+  .third{position:absolute;background:rgba(255,255,255,.28);}
+  .handle{
+    position:absolute;width:10px;height:10px;background:#fff;border:1px solid #111;
+    border-radius:2px;
+  }
+
+  /* 画幅（扩图/裁剪统一）：外框可拖 */
+  .frame{position:relative;}
+  .frame .edge-handle{position:absolute;background:transparent;}
+  .frame .corner{position:absolute;width:12px;height:12px;background:var(--accent);
+                 border:1px solid #fff;border-radius:3px;}
+  .frame .edge{position:absolute;background:var(--accent);opacity:.55;border-radius:2px;}
+
+  .size-tag{
+    position:absolute;padding:3px 8px;border-radius:6px;font-size:11px;
+    background:rgba(10,10,10,.9);border:1px solid var(--edge);color:var(--t-primary);
+    font-variant-numeric:tabular-nums;white-space:nowrap;
+  }
+
+  /* 底部状态条 */
+  .status{
+    height:34px;flex-shrink:0;display:flex;align-items:center;gap:14px;padding:0 14px;
+    border-top:1px solid var(--edge-faint);background:var(--surface-deep);
+    font-size:11px;color:var(--t-faint);
+  }
+  .status b{color:var(--t-body);font-weight:500;font-variant-numeric:tabular-nums;}
+  .status .ok{color:var(--ok);}
+  .zoom-ctl{display:flex;align-items:center;gap:6px;margin-left:auto;}
+  .zbtn{width:22px;height:22px;display:flex;align-items:center;justify-content:center;
+        border:none;background:transparent;border-radius:6px;color:var(--t-muted);cursor:pointer;}
+  .zbtn:hover{background:var(--surface-hover);color:#fff;}
+
+  /* 画布上的涂鸦示意 */
+  .doodle{position:absolute;inset:0;pointer-events:none;}
+
+  /* ── 小卡：节点 hover 栏 ── */
+  .mini{width:1080px;display:flex;gap:26px;flex-wrap:wrap;}
+  .mini-card{
+    background:var(--surface-raised);border:1px solid var(--edge-muted);border-radius:14px;
+    padding:14px;display:flex;flex-direction:column;gap:10px;
+  }
+  .mini-title{font-size:11px;color:var(--t-faint);letter-spacing:.04em;}
+  .hoverbar{
+    display:inline-flex;align-items:center;gap:2px;padding:4px;border-radius:999px;
+    background:rgba(28,28,28,.92);border:1px solid var(--edge);
+    box-shadow:0 8px 24px rgba(0,0,0,.5);
+  }
+  .hoverbar button{
+    width:26px;height:24px;display:flex;align-items:center;justify-content:center;
+    border:none;background:transparent;border-radius:999px;color:var(--t-secondary);cursor:pointer;
+  }
+  .hoverbar button:hover{background:var(--surface-hover);color:#fff;}
+  .hoverbar .v{width:1px;height:14px;background:var(--edge);margin:0 2px;}
+  .legend{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--t-muted);line-height:1.7;}
+  .legend b{color:var(--t-body);font-weight:500;}
+  .legend .k{color:#7ab8ff;}
+  .legend .c{color:#f87171;}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>图片编辑器重构 · Mockup（涂鸦 / 裁剪 / 扩图 三 Tab）</h1>
+  <p>依据 <b>110 图片编辑能力终态收敛</b> + <b>111 新建统一编辑器</b>；视觉严格走 <b>NODE-DESIGN-SPEC</b> token。
+  核心变更：编辑器内 <span class="hl">三 Tab 分工</span>，裁剪与扩图<span class="hl">不再合并为一个画幅面板</span>（二者目标不同：裁剪＝减画面，扩图＝留白给 AI），各自一套控件。</p>
+</div>
+
+<!-- ══════════ 舞台 1：涂鸦 Tab ══════════ -->
+<div class="stage">
+  <div class="editor">
+    <!-- header -->
+    <div class="eh">
+      <div class="eh-left">
+        <div class="eh-title">图片编辑 <span>1920 × 1080 · PNG</span></div>
+        <div class="seg">
+          <button class="on">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+            涂鸦
+          </button>
+          <button>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6h13"/></svg>
+            裁剪
+          </button>
+          <button>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+            扩图
+          </button>
+        </div>
+      </div>
+      <div class="eh-right">
+        <button class="ib" title="撤销">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+        </button>
+        <button class="ib danger" title="清空涂鸦">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+        </button>
+        <div class="vline"></div>
+        <button class="btn">取消</button>
+        <button class="btn primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          保存
+        </button>
+      </div>
+    </div>
+
+    <!-- 上下文工具条：涂鸦 -->
+    <div class="bar">
+      <div class="pill">
+        <button class="on" title="画笔"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/></svg></button>
+        <button title="橡皮擦"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H8.5L3 14.5a2 2 0 0 1 0-3l8-8a2 2 0 0 1 3 0l6 6a2 2 0 0 1 0 3L12 20"/></svg></button>
+        <button title="文字"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M12 4v16"/><path d="M9 20h6"/></svg></button>
+        <button title="直线"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+        <button title="箭头"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19L19 5"/><path d="M9 5h10v10"/></svg></button>
+        <button title="方框"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/></svg></button>
+        <button title="圆框"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></button>
+        <button title="序号标记"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11"/><path d="M4 12h11"/><path d="M4 18h11"/><path d="M18 6l3 3-3 3"/><path d="M18 18v-6"/></svg></button>
+        <button title="吸管取色"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 22l1-4 10-10 3 3L6 21l-4 1z"/><path d="M14 5l1-2a2.8 2.8 0 0 1 4 4l-2 1"/></svg></button>
+      </div>
+      <div class="vline"></div>
+      <div class="swatches">
+        <div class="sw on" style="background:#ff3b30"></div>
+        <div class="sw" style="background:#facc15"></div>
+        <div class="sw" style="background:#22c55e"></div>
+        <div class="sw" style="background:#3b82f6"></div>
+        <div class="sw" style="background:#ffffff"></div>
+        <div class="sw" style="background:#000000"></div>
+      </div>
+      <input class="swatch" type="color" value="#ff3b30" />
+      <div class="vline"></div>
+      <span class="lbl">粗细</span>
+      <input class="range" type="range" min="1" max="20" value="4" />
+      <span class="val">4px</span>
+      <div class="spacer"></div>
+      <span class="lbl">空格 + 拖拽平移 · 滚轮缩放</span>
+    </div>
+
+    <!-- 画布区 -->
+    <div class="stage-area">
+      <div class="checker"></div>
+      <div class="canvas-wrap">
+        <div class="photo" style="width:720px;height:405px;border-radius:2px;box-shadow:0 18px 50px rgba(0,0,0,.55);">
+          <svg class="doodle" viewBox="0 0 720 405">
+            <!-- 红色圈选 -->
+            <ellipse cx="470" cy="150" rx="86" ry="54" fill="none" stroke="#ff3b30" stroke-width="4"/>
+            <!-- 箭头 -->
+            <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill="#ffcc00"/></marker></defs>
+            <path d="M150 300 C 250 240, 330 210, 392 176" fill="none" stroke="#ffcc00" stroke-width="4" stroke-linecap="round" marker-end="url(#ah)"/>
+            <!-- 方框 -->
+            <rect x="96" y="96" width="150" height="98" fill="none" stroke="#3b82f6" stroke-width="4" rx="4"/>
+            <!-- 序号 -->
+            <circle cx="120" cy="76" r="16" fill="#ff3b30"/>
+            <text x="120" y="82" font-size="17" font-weight="700" fill="#fff" text-anchor="middle" font-family="system-ui">1</text>
+            <!-- 文字 -->
+            <text x="500" y="300" font-size="20" font-weight="600" fill="#ffffff" font-family="system-ui">主体换浅色</text>
+            <rect x="494" y="278" width="172" height="32" fill="rgba(0,0,0,.55)" rx="4"/>
+            <text x="500" y="301" font-size="20" font-weight="600" fill="#ffffff" font-family="system-ui">主体换浅色</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- 状态条 -->
+    <div class="status">
+      <span>画幅</span><b>1920 × 1080</b>
+      <span>·</span><span>缩放</span><b>100%</b>
+      <span>·</span><span>涂鸦层</span><b class="ok">5 笔</b>
+      <span>·</span><span>源</span><b>同源 dataURL（画布无污染）</b>
+      <div class="zoom-ctl">
+        <button class="zbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+        <b>100%</b>
+        <button class="zbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
+        <button class="zbtn" title="适应窗口">适应</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage-cap">
+    <span class="tag keep">保留</span><b>① 涂鸦 Tab</b>：9 个工具（画笔/橡皮/文字/直线/箭头/方框/圆框/编号/吸管），与旧版 1:1。
+    工具条是 <code>HoverToolbar</code> 那套胶囊风格（<code>rounded-full + bg-surface-1 + border-edge</code>），选中态蓝色实心。
+    颜色/粗细走规范 §二 的「颜色选择 + 滑块」，<b>不新增控件形态</b>。
+    <div class="note">
+      <b>本次改动：</b>初始绘制源改为 <code>compressImage(url,{keepOriginalFormat:true})</code> 的同源 dataURL → 画布永不被污染，<code>toDataURL</code> 永不抛 <code>SecurityError</code>；
+      吸管 <code>getImageData</code> 补 try/catch（旧实现裸调会崩整个编辑器）。<br/>
+      <b>画布区必须标 <code>nodrag</code></b>，否则拖笔会误拖节点。
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 舞台 2：裁剪 Tab ══════════ -->
+<div class="stage">
+  <div class="editor">
+    <div class="eh">
+      <div class="eh-left">
+        <div class="eh-title">图片编辑 <span>1920 × 1080 · PNG</span></div>
+        <div class="seg">
+          <button>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+            涂鸦
+          </button>
+          <button class="on">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6h13"/></svg>
+            裁剪
+          </button>
+          <button>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+            扩图
+          </button>
+        </div>
+      </div>
+      <div class="eh-right">
+        <button class="ib dis" title="撤销">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+        </button>
+        <button class="ib" title="重置选区">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+        </button>
+        <div class="vline"></div>
+        <button class="btn">取消</button>
+        <button class="btn primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          应用裁剪
+        </button>
+      </div>
+    </div>
+
+    <!-- 上下文工具条：裁剪 -->
+    <div class="bar">
+      <span class="lbl">比例</span>
+      <div class="ratios">
+        <div class="ratio">自由</div>
+        <div class="ratio">原比例</div>
+        <div class="ratio">1:1</div>
+        <div class="ratio">4:3</div>
+        <div class="ratio on">16:9</div>
+        <div class="ratio">9:16</div>
+      </div>
+      <div class="vline"></div>
+      <span class="lbl">选区</span>
+      <span class="val">1280 × 720</span>
+      <div class="spacer"></div>
+      <span class="lbl">拖动边角调整 · 拖动选区移动</span>
+    </div>
+
+    <!-- 画布区 -->
+    <div class="stage-area">
+      <div class="checker"></div>
+      <div class="canvas-wrap">
+        <div class="photo" style="width:720px;height:405px;box-shadow:0 18px 50px rgba(0,0,0,.55);">
+          <!-- 遮罩：上下左右四块 -->
+          <div class="crop-mask" style="left:0;top:0;right:0;height:56px;"></div>
+          <div class="crop-mask" style="left:0;bottom:0;right:0;height:56px;"></div>
+          <div class="crop-mask" style="left:0;top:56px;width:80px;height:293px;"></div>
+          <div class="crop-mask" style="right:0;top:56px;width:80px;height:293px;"></div>
+          <!-- 三分线 -->
+          <div class="third" style="left:80px;top:56px;width:560px;height:1px;"></div>
+          <div class="third" style="left:80px;bottom:56px;width:560px;height:1px;"></div>
+          <div class="third" style="left:80px;top:56px;width:1px;height:293px;"></div>
+          <div class="third" style="right:80px;top:56px;width:1px;height:293px;"></div>
+          <!-- 选区框 -->
+          <div class="crop-box" style="left:80px;top:56px;width:560px;height:293px;">
+            <div class="handle" style="left:-5px;top:-5px;cursor:nwse-resize"></div>
+            <div class="handle" style="right:-5px;top:-5px;cursor:nesw-resize"></div>
+            <div class="handle" style="left:-5px;bottom:-5px;cursor:nesw-resize"></div>
+            <div class="handle" style="right:-5px;bottom:-5px;cursor:nwse-resize"></div>
+            <div class="handle" style="left:50%;top:-5px;margin-left:-5px;cursor:ns-resize"></div>
+            <div class="handle" style="left:50%;bottom:-5px;margin-left:-5px;cursor:ns-resize"></div>
+            <div class="handle" style="left:-5px;top:50%;margin-top:-5px;cursor:ew-resize"></div>
+            <div class="handle" style="right:-5px;top:50%;margin-top:-5px;cursor:ew-resize"></div>
+          </div>
+          <div class="size-tag" style="left:80px;top:20px;">1280 × 720</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="status">
+      <span>原图</span><b>1920 × 1080</b>
+      <span>·</span><span>裁剪后</span><b>1280 × 720</b>
+      <span>·</span><span>变化</span><b>-50%</b>
+      <span>·</span><span>缩放</span><b>75%</b>
+      <div class="zoom-ctl">
+        <button class="zbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+        <b>75%</b>
+        <button class="zbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
+        <button class="zbtn" title="适应窗口">适应</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage-cap">
+    <span class="tag cut">替换</span><b>② 裁剪 Tab</b>：只做一件事 —— <b>缩小画面范围</b>。选区框 + 三分线 + 8 手柄 + 比例胶囊 + 实时尺寸。
+    <div class="note">
+      <b>与扩图分开的理由：</b>裁剪目标是「减画面、提主体」，交互是<b>选区</b>（遮罩压暗外部）；
+      扩图目标是「留白给 AI」，交互是<b>拖画幅边</b>（外部斜线纹）。二者心智相反，塞进一个 Tab 会让同一组手柄一会儿出遮罩一会儿出白边，容易误操作。<br/>
+      <b>实现要点：</b>裁剪 = 新建游离 canvas + <code>drawImage(源, -x, -y)</code>，<b>禁止</b> <code>getImageData</code> + 就地改活画布；保存回传 <code>{dataUrl,width,height}</code> → 节点 <code>fitByRatio</code> 跟随。
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 舞台 3：扩图 Tab ══════════ -->
+<div class="stage">
+  <div class="editor">
+    <div class="eh">
+      <div class="eh-left">
+        <div class="eh-title">图片编辑 <span>1920 × 1080 · PNG</span></div>
+        <div class="seg">
+          <button>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+            涂鸦
+          </button>
+          <button>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6h13"/></svg>
+            裁剪
+          </button>
+          <button class="on">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+            扩图
+          </button>
+        </div>
+      </div>
+      <div class="eh-right">
+        <button class="ib dis" title="撤销">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+        </button>
+        <button class="ib" title="原图居中">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+        </button>
+        <div class="vline"></div>
+        <button class="btn">取消</button>
+        <button class="btn primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          应用扩图
+        </button>
+      </div>
+    </div>
+
+    <!-- 上下文工具条：扩图 -->
+    <div class="bar">
+      <span class="lbl">目标比例</span>
+      <div class="ratios">
+        <div class="ratio">原比例</div>
+        <div class="ratio on">1:1</div>
+        <div class="ratio">4:3</div>
+        <div class="ratio">16:9</div>
+        <div class="ratio">9:16</div>
+      </div>
+      <div class="vline"></div>
+      <span class="lbl">白色区域</span>
+      <span class="val">+62%</span>
+      <div class="vline"></div>
+      <span class="lbl">原图 1:1 自然像素贴入，不缩放</span>
+      <div class="spacer"></div>
+      <span class="lbl">拖画幅边外扩 · 拖原图定位（居中吸附 + 三分线）</span>
+    </div>
+
+    <!-- 画布区 -->
+    <div class="stage-area">
+      <div class="checker"></div>
+      <div class="canvas-wrap">
+        <div class="frame hatch" style="width:560px;height:404px;border:1px dashed rgba(59,130,246,.75);border-radius:2px;">
+          <!-- 原图（可拖动，偏左显示定位效果） -->
+          <div class="photo" style="position:absolute;left:28px;top:34px;width:504px;height:336px;box-shadow:0 12px 34px rgba(0,0,0,.45);"></div>
+
+          <!-- 四角手柄 -->
+          <div class="corner" style="left:-6px;top:-6px;cursor:nwse-resize"></div>
+          <div class="corner" style="right:-6px;top:-6px;cursor:nesw-resize"></div>
+          <div class="corner" style="left:-6px;bottom:-6px;cursor:nesw-resize"></div>
+          <div class="corner" style="right:-6px;bottom:-6px;cursor:nwse-resize"></div>
+          <!-- 四边手柄 -->
+          <div class="edge" style="left:50%;top:-4px;margin-left:-18px;width:36px;height:7px;cursor:ns-resize"></div>
+          <div class="edge" style="left:50%;bottom:-4px;margin-left:-18px;width:36px;height:7px;cursor:ns-resize"></div>
+          <div class="edge" style="left:-4px;top:50%;margin-top:-18px;width:7px;height:36px;cursor:ew-resize"></div>
+          <div class="edge" style="right:-4px;top:50%;margin-top:-18px;width:7px;height:36px;cursor:ew-resize"></div>
+
+          <div class="size-tag" style="right:-2px;top:-32px;">1440 × 1440（目标）</div>
+          <div class="size-tag" style="left:28px;top:6px;background:rgba(59,130,246,.92);border-color:#3b82f6;color:#fff;">原图 1440 × 960</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="status">
+      <span>原图</span><b>1440 × 960</b>
+      <span>·</span><span>目标画幅</span><b>1440 × 1440</b>
+      <span>·</span><span>白边</span><b class="ok">纯白 #ffffff · PNG 无损</b>
+      <span>·</span><span>缩放</span><b>58%（fitZoom 自动）</b>
+      <div class="zoom-ctl">
+        <button class="zbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+        <b>58%</b>
+        <button class="zbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
+        <button class="zbtn" title="适应窗口">适应</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage-cap">
+    <span class="tag new">新增</span><b>③ 扩图 Tab</b>：<b>画幅往外扩 = 补白边</b>，白区用斜线纹明确「留给 AI 填」。
+    四边/四角手柄拖动画幅；原图在画幅内自由拖动定位（居中吸附 + 三分线）——<b>原图位置决定 AI 往哪延伸，是核心功能</b>。
+    <div class="note">
+      <b>统一模型（与裁剪同构、方向相反）：</b>结果画布 <code>tw × th</code>，原图贴入 <code>(dx,dy)</code>；
+      扩图 <code>dx,dy ≥ 0</code>，裁剪 <code>dx,dy ≤ 0</code> —— 同一行 <code>ctx.drawImage(img,dx,dy)</code> 覆盖两种情形，原图恒 1:1 自然像素，画质零劣化。<br/>
+      <b>★ fitZoom：</b>画幅一变必须重算缩放并居中，否则白边被顶到视口外看不见、拖不动（旧实现缺这步，是白边“看不见”的主因）。<br/>
+      <b>约束：</b>白边纯白 <code>#ffffff</code>（灰度过噪点会干扰下一步 AI 识别待填区）；输出 <b>PNG 无损</b>，禁止 JPEG；不做扩展滑块（拖边已替代）、不做 shimmer / A-B 对比 / 重新生成。
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 舞台 4：入口与出口 ══════════ -->
+<div class="stage">
+  <div class="mini">
+    <!-- 卡片 A：节点 hover 栏 -->
+    <div class="mini-card" style="flex:1;min-width:520px;">
+      <div class="mini-title">节点 HOVER 栏（三入口，无重复、无失效）</div>
+      <div class="hoverbar">
+        <button title="上传"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 9l5-5 5 5"/><path d="M12 4v12"/></svg></button>
+        <button title="裁剪（就地，节点内快速裁）"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6h13"/></svg></button>
+        <button title="标记（打开编辑器·涂鸦 Tab）"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg></button>
+        <button title="扩图（打开编辑器·扩图 Tab）"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button>
+        <div class="v"></div>
+        <button title="超分放大"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M21 3l-7 7"/></svg></button>
+        <button title="压缩"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H3v-6"/><path d="M3 21l7-7"/></svg></button>
+        <div class="v"></div>
+        <button title="发送到素材库"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M4 14l4-4 4 4 3-3 5 5"/></svg></button>
+        <button title="下载"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></button>
+      </div>
+      <div class="legend">
+        <b>裁剪</b> → <span class="k">就地</span> <code>InlineImageCropper</code>（不离开画布，随手裁）<br/>
+        <b>标记</b> → 编辑器 · <span class="k">涂鸦 Tab</span><br/>
+        <b>扩图</b> → 编辑器 · <span class="k">扩图 Tab</span>（双击大图也可进）<br/>
+        <span class="c">删除</span>：旧 <code>ImageEditor</code> 内的「裁剪/扩图」按钮（失效且与入口重复）
+      </div>
+    </div>
+
+    <!-- 卡片 B：状态流转 -->
+    <div class="mini-card" style="flex:1;min-width:460px;">
+      <div class="mini-title">切 TAB 即落定（自动保存 = commit 到图层）</div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t-muted);">
+        <div style="padding:5px 10px;border-radius:999px;background:var(--accent-soft);border:1px solid var(--accent-line);color:var(--accent-text);">涂鸦</div>
+        <span>→</span>
+        <div style="padding:5px 10px;border-radius:999px;background:var(--surface-hover);border:1px solid var(--edge-muted);color:var(--t-body);">裁剪</div>
+        <span>→</span>
+        <div style="padding:5px 10px;border-radius:999px;background:var(--surface-hover);border:1px solid var(--edge-muted);color:var(--t-body);">扩图</div>
+        <span>→</span>
+        <div style="padding:5px 10px;border-radius:999px;background:rgba(34,197,94,.14);border:1px solid rgba(34,197,94,.5);color:#6ee7b7;">保存</div>
+      </div>
+      <div class="legend">
+        每步结果 <b>commit 到对应 Layer</b>，不是把像素烙进单张裸位图 —— 与未来图层系统兼容（唯一红线）。<br/>
+        撤销栈操作的是 <code>editorDoc</code> 状态而非画布像素（方案 A：快照上限 10 步，存 Blob/ImageBitmap）。<br/>
+        最终出口统一：<code>onImageReplaced(dataUrl,{width,height})</code> → <code>fitByRatio</code> → 节点框跟随。
+      </div>
+    </div>
+  </div>
+
+  <div class="stage-cap" style="margin-top:2px;">
+    <span class="tag">验收</span>
+    ① 三 Tab 齐全、工具栏无失效按钮；② 涂鸦 9 工具逐个可用；③ 裁剪「往内选」、扩图「往外拖」各自正确；
+    ④ 扩图 <b>fitZoom 生效</b>（白边可见可拖）+ 实时尺寸正确；⑤ 出图纯白边 + PNG 无损；
+    ⑥ 保存后节点图更新、框比例跟随；⑦ 跨域图打开不崩、吸管不抛错；⑧ UI 全走 token（无裸色值/裸字号/裸 z-index）；⑨ 画布区 <code>nodrag</code>。
+  </div>
+</div>
+
+
+
+
+
+</body>
+</html>
