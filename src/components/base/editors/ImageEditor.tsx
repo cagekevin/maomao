@@ -203,6 +203,18 @@ export default function ImageEditor({
   const [outpaintFactor, setOutpaintFactor] = useState(1);
   const [outpaintOffset, setOutpaintOffset] = useState({ x: 0, y: 0 });
 
+  // ── Tab 切换：切离「裁剪」即清空 crop 选区 ──
+  // 否则 crop state 切走不清理，再切回时旧选区仍在（ReactCrop 也一直在 DOM 里 disabled，
+  // 遮罩可能残留盖在其它 Tab 的画布上）。清空后由上方进入-crop 的 effect 自动重建默认选区。
+  // 不放在 setTab updater 里调 setCrop（updater 须为纯函数，避免副作用在 StrictMode 双跑）。
+  const switchTab = useCallback(
+    (next: 'draw' | 'crop' | 'expand') => {
+      if (next !== 'crop' && tab === 'crop') setCrop(undefined);
+      setTab(next);
+    },
+    [tab],
+  );
+
   // ── 撤销栈（drawCvs 的 ImageBitmap 快照，上限 10）──
   const drawSnapshotsRef = useRef<ImageBitmap[]>([]);
   const snapChainRef = useRef<Promise<void>>(Promise.resolve());
@@ -951,19 +963,19 @@ export default function ImageEditor({
               active={tab === 'draw'}
               icon={<Brush size={12} />}
               label="涂鸦"
-              onClick={() => setTab('draw')}
+              onClick={() => switchTab('draw')}
             />
             <TabBtn
               active={tab === 'crop'}
               icon={<Crop size={12} />}
               label="裁剪"
-              onClick={() => setTab('crop')}
+              onClick={() => switchTab('crop')}
             />
             <TabBtn
               active={tab === 'expand'}
               icon={<Expand size={12} />}
               label="扩图"
-              onClick={() => setTab('expand')}
+              onClick={() => switchTab('expand')}
             />
           </div>
         </div>
@@ -1157,12 +1169,20 @@ export default function ImageEditor({
         </div>
       )}
 
-      {/* ── 画布区（nodrag，避免拖笔误拖节点）── */}
+      {/* ── 画布区（nodrag，避免拖笔误拖节点）──
+          画布工作区背景 = 透明棋盘（逐项对齐旧 mockup image-editor-tabs-mockup.html 的 .checker：
+          底透出 bg-black，格 #171717），而非纯黑平铺。 */}
       <div
         ref={viewportRef}
         onMouseDown={spaceDown ? onPanStart : undefined}
-        className="flex-1 overflow-auto bg-surface-sunken relative nodrag"
-        style={{ cursor: spaceDown ? (panning ? 'grabbing' : 'grab') : undefined }}
+        className="flex-1 overflow-auto bg-black nodrag"
+        style={{
+          cursor: spaceDown ? (panning ? 'grabbing' : 'grab') : undefined,
+          backgroundImage:
+            'linear-gradient(45deg,#171717 25%,transparent 25%,transparent 75%,#171717 75%),linear-gradient(45deg,#171717 25%,transparent 25%,transparent 75%,#171717 75%)',
+          backgroundSize: '16px 16px',
+          backgroundPosition: '0 0, 8px 8px',
+        }}
       >
         <div className="min-w-full min-h-full flex items-center justify-center p-4 w-fit">
           <ReactCrop
@@ -1198,7 +1218,7 @@ export default function ImageEditor({
                     ? onOutpaintPointerUp
                     : undefined
               }
-              className={`shadow-2xl nodrag bg-black ${
+              className={`shadow-2xl nodrag ${
                 tab === 'expand' ? 'cursor-move' : tab === 'draw' ? 'cursor-crosshair' : ''
               }`}
               style={{

@@ -443,7 +443,7 @@ function RangeControl({
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
       />
-      <span className="text-caption-sm font-medium text-secondary text-right min-w-[32px] shrink-0">
+      <span className="text-caption-sm font-medium text-secondary text-right min-w-8 shrink-0">
         {Math.round(value * 10) / 10}
         {suffix}
       </span>
@@ -549,19 +549,19 @@ function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStud
         }}
       >
         {/* ===== 顶部栏 ===== */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-edge-faint bg-surface-1 flex-shrink-0">
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-edge-muted bg-surface-1 flex-shrink-0">
           <div className="flex items-center gap-3">
             <span className="text-sm text-primary font-medium">摄影棚</span>
-            {/* 模式 Tab */}
+            {/* 模式 Tab（位置保持居中，仅统一配色为规范 §二「分段按钮」选中态） */}
             <div
-              className="flex gap-0 bg-surface rounded-lg p-0.5 border border-edge"
+              className="flex gap-1 bg-input rounded-lg p-0.5 border border-edge-muted"
               role="tablist"
               aria-label="摄影棚模式"
             >
               <button
                 type="button"
                 role="tab"
-                className={`flex-1 px-2.5 py-1.5 text-caption-sm text-center whitespace-nowrap cursor-pointer transition-colors border-none bg-transparent flex items-center justify-center gap-1 hover:text-primary hover:bg-surface-hover rounded-md ${mode === 'camera' ? 'text-strong bg-surface-raised border border-edge' : 'text-muted'}`}
+                className={`flex-1 px-2.5 py-1.5 text-caption-sm text-center whitespace-nowrap cursor-pointer transition-colors border flex items-center justify-center gap-1 rounded-md ${mode === 'camera' ? 'bg-blue-500/15 border-blue-500/60 text-blue-300' : 'bg-transparent border-transparent text-muted hover:text-white hover:bg-surface-hover'}`}
                 onClick={() => handleModeChange('camera')}
               >
                 <Camera size={13} />
@@ -570,7 +570,7 @@ function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStud
               <button
                 type="button"
                 role="tab"
-                className={`flex-1 px-2.5 py-1.5 text-caption-sm text-center whitespace-nowrap cursor-pointer transition-colors border-none bg-transparent flex items-center justify-center gap-1 hover:text-primary hover:bg-surface-hover rounded-md ${mode === 'lighting' ? 'text-strong bg-surface-raised border border-edge' : 'text-muted'}`}
+                className={`flex-1 px-2.5 py-1.5 text-caption-sm text-center whitespace-nowrap cursor-pointer transition-colors border flex items-center justify-center gap-1 rounded-md ${mode === 'lighting' ? 'bg-blue-500/15 border-blue-500/60 text-blue-300' : 'bg-transparent border-transparent text-muted hover:text-white hover:bg-surface-hover'}`}
                 onClick={() => handleModeChange('lighting')}
               >
                 <Lightbulb size={13} />
@@ -579,7 +579,7 @@ function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStud
               <button
                 type="button"
                 role="tab"
-                className={`flex-1 px-2.5 py-1.5 text-caption-sm text-center whitespace-nowrap cursor-pointer transition-colors border-none bg-transparent flex items-center justify-center gap-1 hover:text-primary hover:bg-surface-hover rounded-md ${mode === 'dual' ? 'text-strong bg-surface-raised border border-edge' : 'text-muted'}`}
+                className={`flex-1 px-2.5 py-1.5 text-caption-sm text-center whitespace-nowrap cursor-pointer transition-colors border flex items-center justify-center gap-1 rounded-md ${mode === 'dual' ? 'bg-blue-500/15 border-blue-500/60 text-blue-300' : 'bg-transparent border-transparent text-muted hover:text-white hover:bg-surface-hover'}`}
                 onClick={() => handleModeChange('dual')}
               >
                 <Combine size={13} />
@@ -588,7 +588,7 @@ function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStud
             </div>
           </div>
           <button
-            className="p-1.5 text-secondary hover:text-white hover:bg-white/10 rounded transition-colors"
+            className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover rounded transition-colors"
             onClick={onClose}
             title="关闭"
           >
@@ -600,15 +600,15 @@ function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStud
         <div className="flex flex-1 min-h-0">
           {/* 左侧：3D 视口 */}
           <div className="flex-1 relative flex flex-col min-w-0">
-            {/* 联动模式下的焦点切换 */}
+            {/* 联动模式下的焦点切换：胶囊浮层与 HoverToolbar 同一套（surface-raised/90 + backdrop-blur + rounded-full） */}
             {mode === 'dual' && (
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex gap-1 bg-black/50 rounded-lg p-0.5">
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-dropdown flex gap-0.5 px-1 py-1 bg-surface-raised/90 backdrop-blur-md border border-edge rounded-full shadow-lg">
                 <button
                   type="button"
-                  className={`px-2.5 py-1 rounded-md text-caption-sm transition-colors ${
+                  className={`px-2.5 py-1 rounded-full text-caption-sm transition-colors ${
                     activeControl === 'camera'
-                      ? 'bg-surface-hover text-white'
-                      : 'text-muted hover:text-primary'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-muted hover:text-white hover:bg-surface-hover'
                   }`}
                   onClick={() => setActiveControl('camera')}
                 >
@@ -616,10 +616,10 @@ function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStud
                 </button>
                 <button
                   type="button"
-                  className={`px-2.5 py-1 rounded-md text-caption-sm transition-colors ${
+                  className={`px-2.5 py-1 rounded-full text-caption-sm transition-colors ${
                     activeControl === 'lighting'
-                      ? 'bg-surface-hover text-white'
-                      : 'text-muted hover:text-primary'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-muted hover:text-white hover:bg-surface-hover'
                   }`}
                   onClick={() => setActiveControl('lighting')}
                 >
@@ -703,7 +703,7 @@ function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStud
                     <div>
                       <span className="text-caption text-muted block mb-1">景别</span>
                       <select
-                        className="bg-surface-hover border border-edge rounded-md px-2 py-1 text-caption-sm text-primary cursor-pointer outline-none w-full hover:border-edge-strong focus:border-edge-strong"
+                        className="bg-input border border-edge rounded-md px-2 py-1 text-caption-sm text-primary cursor-pointer outline-none w-full hover:border-edge-strong focus:border-edge-strong"
                         value={cameraState.distance}
                         onChange={(e) =>
                           updateCamera({ distance: e.target.value as CameraDistance })
@@ -719,7 +719,7 @@ function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStud
                     <div>
                       <span className="text-caption text-muted block mb-1">镜头</span>
                       <select
-                        className="bg-surface-hover border border-edge rounded-md px-2 py-1 text-caption-sm text-primary cursor-pointer outline-none w-full hover:border-edge-strong focus:border-edge-strong"
+                        className="bg-input border border-edge rounded-md px-2 py-1 text-caption-sm text-primary cursor-pointer outline-none w-full hover:border-edge-strong focus:border-edge-strong"
                         value={cameraState.lens}
                         onChange={(e) => updateCamera({ lens: e.target.value as CameraLens })}
                       >
@@ -834,9 +834,9 @@ function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStud
             </div>
 
             {/* 底部操作区 */}
-            <div className="border-t border-edge-faint p-3 space-y-2 bg-surface">
+            <div className="border-t border-edge-faint p-3 space-y-2 bg-surface-1">
               {/* 提示词预览 */}
-              <div className="bg-surface-strong border border-edge rounded-lg px-3 py-2.5 text-caption-sm leading-relaxed text-body min-h-[60px] max-h-20 overflow-y-auto break-words whitespace-pre-wrap">
+              <div className="bg-input border border-edge rounded-lg px-3 py-2.5 text-caption-sm leading-relaxed text-body min-h-24 max-h-32 overflow-y-auto break-words whitespace-pre-wrap">
                 {prompt}
               </div>
               {/* 按钮 */}
@@ -862,7 +862,7 @@ function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStud
                 <div className="flex-1" />
                 <button
                   type="button"
-                  className="flex items-center gap-1 px-2 py-1.5 rounded text-caption-sm text-muted hover:text-primary hover:bg-surface-hover border border-edge transition-colors"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-md text-caption-sm bg-blue-600 text-white font-medium border border-blue-600 hover:bg-blue-500 hover:border-blue-500 transition-colors"
                   onClick={handleGenerate}
                 >
                   <Sparkles size={13} />
