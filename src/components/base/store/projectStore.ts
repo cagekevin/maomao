@@ -21,6 +21,7 @@ import {
   createDebouncedPersist,
 } from '../core/contentStore.ts';
 import { logger } from '../core/logger.ts';
+import { normalizeNodeParents } from '../canvas/groupNodes.ts';
 
 /** 项目结构（对齐官方，仅 id + name） */
 export interface Project {
@@ -380,7 +381,14 @@ export async function saveCanvasState(
         zoom: Number(viewport.zoom) || 1,
       };
     }
-    const sanitizedNodes = sanitizeNodes(nodes);
+    // 落盘前归一化父子关系：React Flow 硬性要求「父节点必须在 nodes 数组中先于子节点声明」，
+    // 否则渲染时抛 "Parent node <id> not found. Please make sure that parent nodes are in front of
+    // their child nodes."；同时清理指向不存在节点的孤儿 parentId（防坏快照入库，根治刷新即崩）。
+    // 此写边界是自动保存与导入回写的唯一落盘口，这里归一化即可保证所有持久化快照天生合法。
+    const normalizedNodes = normalizeNodeParents(
+      nodes as unknown as import('@xyflow/react').Node[],
+    ) as unknown as Record<string, unknown>[];
+    const sanitizedNodes = sanitizeNodes(normalizedNodes);
     const sanitizedEdges = sanitizeEdges(edges);
     await contentSetAsync(key, {
       schemaVersion: CANVAS_SCHEMA_VERSION,

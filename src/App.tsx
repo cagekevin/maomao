@@ -77,7 +77,7 @@ import {
 import { externalizeInlineData } from './components/base/utils/externalizeInline.ts';
 import { saveInlineToLocal } from './components/base/api/index.ts';
 import { generateId } from './components/base/core/idGen.ts';
-import { resolveDragGrouping } from './components/base/canvas/groupNodes.ts';
+import { resolveDragGrouping, normalizeNodeParents } from './components/base/canvas/groupNodes.ts';
 import { buildNodesFromClipboard } from './components/base/utils/clipboard.ts';
 import {
   applyNodeTypeDefaults,
@@ -174,13 +174,16 @@ function Canvas() {
           history.clear?.();
           // 兜底：历史快照里各节点类型可能缺 width/style/className/data.name 等结构字段
           // （如早期「右键新建 group」未补 style/className），加载时统一补默认，与新建路径保持一致。
-          const rawNodes = saved.nodes.map((n) => applyNodeTypeDefaults(n));
+          // 兜底：归一化父子顺序 + 清理孤儿 parentId（防「Parent node not found」崩溃）
+          const safeNodes = normalizeNodeParents(
+            saved.nodes.map((n) => applyNodeTypeDefaults(n) as unknown as Node),
+          );
           // 2026-09-07：编组折叠状态整体下线，加载时不再做 collapsed ↔ hidden 对齐兜底。
           // 存量快照里「group data.collapsed + 子节点 hidden:true」不做迁移（见方案 D4/S3 决策）。
-          setNodes(rawNodes);
+          setNodes(safeNodes);
           // 预取重依赖节点 chunk：画布里若含 3D/视频处理节点，立即预热（不阻塞渲染），
           // 让节点真正渲染时 chunk 已在模块缓存里，骨架屏一闪而过甚至不出现。
-          for (const n of rawNodes)
+          for (const n of safeNodes)
             prefetchHeavyNode(n.type as Parameters<typeof prefetchHeavyNode>[0]);
           // 兜底：历史快照里可能有旧 onConnect 建的「无 id」边 → 补唯一 id，
           // 否则 EdgeRenderer 用 undefined 作 key 触发重复 key 警告。
@@ -189,9 +192,9 @@ function Canvas() {
           // null/undefined 会触发 React Flow 的 "Couldn't create edge for target handle id: null"。
           // 这里统一把 target 是 scriptBoxNode 的边 targetHandle 补成 'in'，让存量边立即生效。
           const targetIsScriptBox = new Set(
-            rawNodes.filter((n) => n.type === 'scriptBoxNode').map((n) => n.id),
+            safeNodes.filter((n) => n.type === 'scriptBoxNode').map((n) => n.id),
           );
-          const loadedEdges = (saved.edges || []).map((e, _i) => ({
+          const loadedEdges = ((saved.edges || []) as Edge[]).map((e, _i) => ({
             ...e,
             id: e.id || generateId('loaded-edge'),
             targetHandle:

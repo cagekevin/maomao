@@ -94,6 +94,75 @@ export function createGroupFromNodes(
 }
 
 /**
+ * 加载快照兜底：归一化父子节点顺序与孤儿 parentId。
+ *
+ * React Flow 要求「父节点必须在 nodes 数组中先于其子节点声明」，否则渲染时抛
+ *   "Parent node <id> not found. Please make sure that parent nodes are in front of their child nodes."
+ * 落盘快照若因任意原因（写入竞态 / 迁移 / 早期白名单漏字段）导致父 group 排在子节点之后，
+ * 或子节点残留 parentId 但其父 group 已丢失（孤儿 parentId），刷新打开画布即崩溃。
+ *
+ * 本函数作为「最后一道兜底」在加载入口调用：
+ *  - 把每个子节点重排到其父节点之后（支持多层嵌套，递归保证祖先始终在前）；
+ *  - 对 parentId 指向不存在节点的孤儿，清除其 parentId（保留节点不丢数据，仅按存着的
+ *    相对坐标当绝对坐标渲染——位置可能偏一点，但远好于崩溃/丢节点）。
+ *
+ * 纯函数，不修改入参，返回新数组。
+ */
+export function normalizeNodeParents(nodes: Node[]): Node[] {
+  if (!Array.isArray(nodes) || nodes.length === 0) return nodes;
+  const byId = new Map<string, Node>();
+  for (const n of nodes) byId.set(String(n.id), n);
+
+  // 1) 清理孤儿 parentId（父节点不存在的，解除父子关系），避免 React Flow 抛 not found。
+  const cleaned = nodes.map((n) => {
+    const pid = n.parentId != null ? String(n.parentId) : undefined;
+    if (pid && !byId.has(pid)) {
+      const {
+        parentId: _drop,
+        extent: _dropExt,
+        ...rest
+      } = n as Node & {
+        parentId?: string;
+        extent?: unknown;
+      };
+      return rest as Node;
+    }
+    return n;
+  });
+
+  // 2) 按「祖先必在前」重排：拓扑序（父先于子）。用稳定排序保留原相对顺序。
+  const order = new Map<string, number>(); // id → 拓扑深度（父越小越靠前）
+  const visiting = new Set<string>();
+  const resolveDepth = (id: string, guard = 0): number => {
+    if (order.has(id)) return order.get(id)!;
+    if (guard > 64 || visiting.has(id)) return 0; // 防环
+    const n = byId.get(id);
+    const pid = n?.parentId != null ? String(n.parentId) : undefined;
+    if (!pid) {
+      order.set(id, 0);
+      return 0;
+    }
+    visiting.add(id);
+    const d = resolveDepth(pid, guard + 1) + 1;
+    visiting.delete(id);
+    order.set(id, d);
+    return d;
+  };
+  for (const n of cleaned) resolveDepth(String(n.id));
+
+  // 原序索引，保证排序稳定（同深度时保持原相对位置）。
+  const origIndex = new Map<string, number>();
+  cleaned.forEach((n, i) => origIndex.set(String(n.id), i));
+
+  return [...cleaned].sort((a, b) => {
+    const da = order.get(String(a.id)) ?? 0;
+    const db = order.get(String(b.id)) ?? 0;
+    if (da !== db) return da - db;
+    return (origIndex.get(String(a.id)) ?? 0) - (origIndex.get(String(b.id)) ?? 0);
+  });
+}
+
+/**
  * 取消编组：移除 group 节点，并把其子节点移出组（parentId 置空 + position 转回绝对坐标）。
  */
 export function ungroupNodes(
