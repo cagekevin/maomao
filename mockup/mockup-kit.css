@@ -588,4 +588,155 @@ button,input,select{font-family:inherit;}
   font-variant-numeric:tabular-nums;white-space:nowrap;
 }
 
+/* ───────── L. 3D 导演台（白膜预演）专用件 ───────── */
+
+/* L1 视口：地面网格 + 白模几何体 */
+/* 绝对定位铺满 .cmid：内部全是 absolute 元素，靠 flex:1 撑会塌成 0 高 */
+.vport{position:absolute;inset:0;overflow:hidden;
+  background:radial-gradient(120% 90% at 50% 18%, #232323 0%, #151515 58%, #0e0e0e 100%);}
+.vp-ground{
+  position:absolute;left:-30%;right:-30%;bottom:0;height:56%;
+  background-image:
+    linear-gradient(to right, rgba(255,255,255,.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,.055) 1px, transparent 1px);
+  background-size:44px 44px;
+  transform:perspective(420px) rotateX(64deg);
+  transform-origin:bottom center;
+}
+.mafo{position:absolute;background:linear-gradient(160deg,#e6e2d8 0%,#c9c5ba 100%);}
+.mafo.side{background:linear-gradient(160deg,#cfcbc1 0%,#b3afa5 100%);}
+.mafo.top{background:linear-gradient(160deg,#f2eee4 0%,#dedad0 100%);}
+.mafo.person{background:linear-gradient(170deg,#efebe1 0%,#c4c0b6 100%);border-radius:6px 6px 2px 2px;}
+
+/* L2 视口浮层：工具条 / 面板 / 视图开关 */
+.vp-float{
+  position:absolute;display:flex;align-items:center;gap:2px;padding:3px;
+  border-radius:var(--r-pill);background:rgba(28,28,28,.92);
+  border:1px solid var(--edge);box-shadow:0 8px 24px rgba(0,0,0,.5);
+}
+.vp-float button{
+  height:24px;min-width:24px;padding:0 8px;display:flex;align-items:center;gap:4px;
+  border:none;background:transparent;border-radius:var(--r-pill);
+  color:var(--t-muted);font-size:11px;cursor:pointer;
+}
+.vp-float button:hover{background:var(--surface-hover);color:#fff;}
+.vp-float button.on{background:var(--accent);color:#fff;}
+.vp-float .v{width:1px;height:14px;background:var(--edge);margin:0 3px;}
+.vp-panel{
+  position:absolute;padding:8px 10px;border-radius:10px;
+  background:rgba(28,28,28,.94);border:1px solid var(--edge);box-shadow:var(--sh-pop);
+}
+
+/* L2b 右上角「视图面板」：视角切换 + 显示开关同属视图族，合一处（两行） */
+.vp-view{
+  position:absolute;top:12px;right:12px;display:flex;flex-direction:column;
+  padding:6px;border-radius:10px;background:rgba(28,28,28,.92);
+  border:1px solid var(--edge);box-shadow:0 8px 24px rgba(0,0,0,.5);
+}
+.vp-view .row{display:flex;gap:3px;}
+.vp-view .sep{height:1px;background:var(--edge-faint);margin:5px 2px;}
+.vp-view button{
+  height:24px;min-width:26px;padding:0 9px;display:flex;align-items:center;justify-content:center;gap:4px;
+  border:none;background:transparent;border-radius:var(--r-pill);
+  color:var(--t-muted);font-size:11px;cursor:pointer;
+}
+.vp-view button:hover{background:var(--surface-hover);color:#fff;}
+.vp-view button.on{background:var(--accent);color:#fff;}
+
+/* L2c 右下角轴圈（ViewCube）：线上版 SceneGizmo 的 Hud 定位 = 距右 72 / 距底 40，约 120 见方。
+   这是导航件，右下是它的标准位，别的东西不许占。 */
+.vp-gizmo{position:absolute;right:12px;bottom:12px;width:120px;height:120px;}
+.vp-gizmo .hint{position:absolute;left:0;right:0;bottom:-2px;text-align:center;
+  font-size:9px;color:var(--t-subtle);}
+
+/* L3 摄像机监视器 */
+.vp-monitor{position:absolute;left:12px;bottom:12px;width:226px;overflow:hidden;
+  border-radius:10px;background:rgba(24,24,24,.95);border:1px solid var(--edge);
+  box-shadow:0 10px 30px rgba(0,0,0,.55);}
+.vm-head{display:flex;align-items:center;gap:6px;height:27px;padding:0 5px 0 8px;
+  border-bottom:1px solid var(--edge-faint);font-size:11px;color:var(--t-body);}
+.vm-head .nm{display:flex;align-items:center;gap:5px;}
+.vm-head .act{margin-left:auto;display:flex;gap:1px;}
+.vm-screen{position:relative;aspect-ratio:16/9;background:#0c0c0c;}
+.vm-screen .tc{position:absolute;left:6px;bottom:5px;font-size:10px;color:#fff;
+  font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #000;}
+.vm-screen .fo{position:absolute;right:6px;bottom:5px;font-size:10px;color:#fff;
+  font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #000;}
+.vm-safe{position:absolute;inset:7px;border:1px solid rgba(255,255,255,.26);}
+
+/* L4 三分量轴滑杆（X 红 / Y 绿 / Z 蓝） */
+.axis{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+.axis .ax{width:9px;font-size:10px;font-weight:700;font-style:normal;flex-shrink:0;text-align:center;}
+.axis .ax.x{color:#d7675b;}
+.axis .ax.y{color:#76a96c;}
+.axis .ax.z{color:#5d87c7;}
+.axis .range{flex:1;}
+.axis .val{font-size:11px;color:var(--t-body);min-width:36px;text-align:right;
+  font-variant-numeric:tabular-nums;}
+
+/* L5 折叠组（人物分支的 4 个分组） */
+.fold{border-top:1px solid var(--edge-faint);}
+.fold:first-child{border-top:none;}
+.fold-h{display:flex;align-items:center;gap:6px;width:100%;padding:7px 0;
+  border:none;background:transparent;color:var(--t-secondary);font-size:11px;cursor:pointer;}
+.fold-h:hover{color:#fff;}
+.fold-h .caret{display:flex;color:var(--t-subtle);}
+.fold-h .caret.open{transform:rotate(90deg);}
+.fold-h .meta{margin-left:auto;font-size:10px;color:var(--t-subtle);}
+
+/* L6 镜头卡片 */
+.shot{display:flex;gap:7px;padding:5px;border-radius:7px;border:1px solid transparent;cursor:pointer;}
+.shot:hover{background:var(--surface-hover);}
+.shot.on{background:var(--accent-soft);border-color:var(--accent-line);}
+.shot .th{position:relative;width:52px;height:30px;border-radius:4px;flex-shrink:0;
+  background:#0f0f0f;border:1px solid var(--edge-faint);overflow:hidden;}
+.shot .no{position:absolute;left:3px;top:1px;font-size:9px;color:var(--t-faint);
+  font-variant-numeric:tabular-nums;}
+.shot .cur{position:absolute;right:2px;top:2px;font-size:8px;padding:0 3px;border-radius:3px;
+  background:var(--accent);color:#fff;}
+.shot .cp{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;}
+.shot .cp .n{font-size:11px;color:var(--t-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.shot .cp .d{font-size:10px;color:var(--t-faint);}
+/* 第二行：元信息 + 操作（操作仅当前项 / hover 项显示，列表项常态不摆一排按钮） */
+.shot .row2{display:flex;align-items:center;gap:4px;}
+.shot .acts{display:flex;gap:1px;margin-left:auto;opacity:0;transition:opacity .15s;}
+.shot:hover .acts,.shot.on .acts{opacity:1;}
+
+/* L7 时间轴 */
+.tl{height:160px;flex-shrink:0;display:flex;flex-direction:column;
+  border-top:1px solid var(--edge-muted);background:var(--surface-deep);}
+.tl-bar{height:34px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 12px;
+  border-bottom:1px solid var(--edge-faint);}
+.tl-bar .ctr{margin:0 auto;display:flex;align-items:center;gap:6px;}
+.tl-body{flex:1;min-height:0;display:flex;}
+.tl-heads{width:152px;flex-shrink:0;border-right:1px solid var(--edge-faint);}
+.tl-head{display:flex;align-items:center;gap:5px;height:30px;padding:0 8px;
+  font-size:11px;color:var(--t-body);border-bottom:1px solid var(--edge-faint);}
+.tl-head .add{margin-left:auto;}
+.tl-lanes{flex:1;position:relative;overflow:hidden;}
+.tl-ruler{position:relative;height:22px;border-bottom:1px solid var(--edge-faint);}
+.tl-ruler span{position:absolute;top:5px;font-size:9px;color:var(--t-subtle);
+  font-variant-numeric:tabular-nums;transform:translateX(-50%);}
+.tl-lane{position:relative;height:30px;border-bottom:1px solid var(--edge-faint);}
+.tl-lane .fill{position:absolute;left:0;top:0;bottom:0;background:rgba(59,130,246,.10);}
+.tl-lane .empty{position:absolute;left:10px;top:8px;font-size:10px;color:var(--t-subtle);}
+.kf{position:absolute;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;
+  border:1px solid var(--accent-text);background:var(--accent-soft);
+  border-radius:2px;transform:rotate(45deg);}
+.kf.on{background:var(--accent);border-color:var(--accent);}
+.kf.sel{box-shadow:0 0 0 2px rgba(147,197,253,.35);}
+.tl-playhead{position:absolute;top:0;bottom:0;width:1px;background:var(--danger);z-index:2;}
+.tl-playhead i{position:absolute;top:0;left:-4px;width:9px;height:6px;
+  background:var(--danger);border-radius:2px;}
+
+/* L8 骨架缩略图（现状 vs 改后 对比用） */
+.sk{width:352px;height:216px;border:1px solid var(--edge-muted);border-radius:10px;
+  display:flex;flex-direction:column;gap:4px;padding:5px;background:var(--surface-raised);}
+.sk-row{display:flex;gap:4px;flex:1;min-height:0;}
+.sk-box{display:flex;align-items:center;justify-content:center;text-align:center;
+  border-radius:5px;font-size:10px;line-height:1.4;padding:2px;
+  background:var(--surface-hover);color:var(--t-muted);}
+.sk-box.t{background:var(--surface-1);color:var(--t-faint);}
+.sk-box.hot{background:var(--accent-soft);color:var(--accent-text);border:1px solid var(--accent-line);}
+
 /* __APPEND_MARK__ */

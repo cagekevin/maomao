@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>3D 导演台 · 按同一套空间纪律重排的 Mockup</title>
+<link rel="stylesheet" href="./mockup-kit.css" />
+</head>
+<body>
+
+<div class="mk-head">
+  <h1>3D 导演台（Director3D）· 按同一套空间纪律重排</h1>
+  <p>
+    线上版在 <code>src/components/director3d/</code>（双击 <code>Director3DNode</code> → 全屏 overlay）。
+    本页用<b>与「多图编辑」完全相同的五条空间纪律</b>重排：左右栏按时间尺度分、对象在左属性在右、
+    面板按使用频率排、固定骨架 + 可变区、高频操作长在对象上。<br />
+    下面所有数值都取自线上默认值并做了口径统一：<span class="hl">24 FPS × 15 秒 = 360 帧</span>、画幅 16:9、
+    焦距 50mm（落在常用预设上）、当前帧 36 → <code>00:00:01:12</code>、摄像机 <code>[7.4, 4.6, 8.2]</code> / Y 旋转 14°。
+  </p>
+</div>
+
+<!-- ══════════ 舞台 1：骨架对比 ══════════ -->
+<div class="mk-stage">
+  <div class="mini">
+
+    <div class="mini-card">
+      <div class="mini-title">现状骨架</div>
+      <div class="sk">
+        <div class="sk-box t" style="height:20px;flex:none">topbar · 返回 / 打开 / 保存 / 初始化 / 资源库 ‖ 项目名 ‖ 导出 / 截图</div>
+        <div class="sk-row">
+          <div class="sk-box" style="width:74px">
+            左栏<br />场景层级 <b>／</b> 镜头<br /><span style="color:var(--danger)">Tab 二选一</span>
+          </div>
+          <div class="sk-box hot" style="flex:1">
+            视口<br /><span style="font-size:9px">工具条 · 视角工具 · 参考图 · 路径 · 监视器 · Gizmo<br />6 个浮层，其中 2 个都在「顶部居中」</span>
+          </div>
+          <div class="sk-box" style="width:78px">
+            Inspector<br />未选中 → 全局设置<br />选中 → 变换 + 分支
+          </div>
+        </div>
+        <div class="sk-box t" style="height:46px;flex:none">Timeline · 播放 ‖ 轨道 ‖ 吸附 + 缩放 + 加关键帧（挤在右下）</div>
+      </div>
+      <div class="mk-legend" style="max-width:352px">
+        <div class="c">① 场景层级与镜头用 Tab 互斥 —— 切镜头时看不见场景里有什么。</div>
+        <div class="c">② 视口最多 6 个浮层，参考图面板与路径面板同为「顶部居中」，会打架。</div>
+        <div class="c">③ 未选中时右栏全是低频全局设置；选中后变换才出现。</div>
+      </div>
+    </div>
+
+    <div class="mini-card" style="border-color:var(--accent-line)">
+      <div class="mini-title" style="color:var(--accent-text)">改后骨架 <span class="tag new">V2</span></div>
+      <div class="sk">
+        <div class="sk-box t" style="height:20px;flex:none">topbar · 返回 / 打开 / 保存 / 资源库 ‖ 项目名 ‖ 导出 / 截图<span style="color:var(--danger)">（初始化下沉）</span></div>
+        <div class="sk-row">
+          <div class="sk-box hot" style="width:74px">
+            左栏 = 对象侧<br />上段 场景层级（常驻）<br />下段 镜头（常驻）
+          </div>
+          <div class="sk-box hot" style="flex:1">
+            视口<br /><span style="font-size:9px">工具条（顶中）· 视角（右上）· 监视器（左下）· 视图开关（右下）<br />4 个浮层，四角分工不重叠</span>
+          </div>
+          <div class="sk-box hot" style="width:78px">
+            右栏 = 属性侧<br />变换（最高频，置顶）<br />类型专属 → 全局设置（收起）
+          </div>
+        </div>
+        <div class="sk-box t" style="height:46px;flex:none">Timeline · 播放 ‖ 轨道头带 +（贴近轨道）‖ 吸附 + 缩放（归到工具行）</div>
+      </div>
+      <div class="mk-legend" style="max-width:352px">
+        <div class="k">① 拆掉 Tab：场景层级与镜头上下常驻，可对照。</div>
+        <div class="k">② 视口浮层收到 4 个、四角定位，删除重复入口。</div>
+        <div class="k">③ 右栏按频率排：变换置顶，全局设置收起。</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════ 舞台 2：主界面 ══════════ -->
+<div class="mk-stage">
+  <div class="editor" style="height:820px">
+
+    <!-- ── topbar ── -->
+    <div class="eh">
+      <div class="eh-left">
+        <button class="btn" title="返回画布"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>返回画布</button>
+        <div class="vline"></div>
+        <button class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>打开</button>
+        <button class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>保存</button>
+        <button class="btn danger" title="把工程恢复到初始状态"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>初始化</button>
+        <div class="vline"></div>
+        <button class="btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
+          资源库 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+      <div class="eh-title" style="margin:0 auto">
+        <i style="width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block"></i>
+        未命名场景
+      </div>
+      <div class="eh-right">
+        <button class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>截图</button>
+        <button class="btn primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>导出工程</button>
+      </div>
+    </div>
+
+    <!-- ── 三栏 + 时间轴 ── -->
+    <div class="cbody">
+
+      <!-- 左：对象侧（我在操作谁） -->
+      <div class="cleft split">
+
+        <div class="pane-top">
+          <div class="sect" style="border-bottom:none">
+            <div class="sect-t"><span>场景层级</span><em>4 个对象</em></div>
+
+            <div class="layer-item on">
+              <div class="thumb" style="background:transparent"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-text)"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg></div>
+              <div class="nm">主摄像机</div>
+              <i style="width:6px;height:6px;border-radius:50%;background:var(--ok);flex-shrink:0"></i>
+            </div>
+
+            <div class="layer-item">
+              <div class="thumb" style="background:transparent"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--t-muted)"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></div>
+              <div class="nm">人物 · 主角</div>
+              <button class="ic" title="锁定物体"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
+              <button class="ic" title="隐藏物体"><i style="width:7px;height:7px;border-radius:50%;background:var(--ok);display:block"></i></button>
+            </div>
+
+            <div class="layer-item">
+              <div class="thumb" style="background:transparent"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--t-muted)"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></div>
+              <div class="nm">平台</div>
+              <button class="ic" title="锁定物体"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
+              <button class="ic" title="隐藏物体"><i style="width:7px;height:7px;border-radius:50%;background:var(--ok);display:block"></i></button>
+            </div>
+
+            <div class="layer-item">
+              <div class="thumb" style="background:transparent"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--t-muted)"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></div>
+              <div class="nm">方块 · 1</div>
+              <button class="ic" title="锁定物体"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
+              <button class="ic" title="隐藏物体"><i style="width:7px;height:7px;border-radius:50%;background:var(--ok);display:block"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="pane-bot">
+          <div class="sect" style="border-bottom:none">
+            <div class="sect-t"><span>镜头</span><button class="minibt">＋ 新建</button></div>
+
+            <div class="shot on">
+              <div class="th" style="width:44px;height:28px"><div class="mafo" style="inset:0;opacity:.5"></div><span class="no">01</span><span class="cur">当前</span></div>
+              <div class="cp">
+                <div class="n">开场 · 推轨</div>
+                <div class="row2">
+                  <div class="d">15 秒 · 3 关键帧</div>
+                  <span class="acts">
+                    <button class="ic" title="更新当前镜头缩略图"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"/><path d="M14 2v6h6"/></svg></button>
+                    <button class="ic" title="复制镜头"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
+                    <button class="ic danger" title="删除镜头"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="shot">
+              <div class="th" style="width:44px;height:28px"><div class="mafo photo2" style="inset:0;opacity:.45"></div><span class="no">02</span></div>
+              <div class="cp">
+                <div class="n">中景 · 侧跟</div>
+                <div class="row2">
+                  <div class="d">15 秒 · 2 关键帧</div>
+                  <span class="acts">
+                    <button class="ic" title="更新当前镜头缩略图"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"/><path d="M14 2v6h6"/></svg></button>
+                    <button class="ic" title="复制镜头"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
+                    <button class="ic danger" title="删除镜头"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="shot">
+              <div class="th" style="width:44px;height:28px"><div class="mafo photo3" style="inset:0;opacity:.45"></div><span class="no">03</span></div>
+              <div class="cp">
+                <div class="n">特写 · 定镜</div>
+                <div class="row2">
+                  <div class="d">15 秒 · 暂无关键帧</div>
+                  <span class="acts">
+                    <button class="ic" title="更新当前镜头缩略图"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"/><path d="M14 2v6h6"/></svg></button>
+                    <button class="ic" title="复制镜头"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
+                    <button class="ic danger" title="删除镜头"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="empty-tip" style="padding:4px 2px 0">每个镜头独立保存场景、骨骼、摄像机、参考图和关键帧。切换前自动更新缩略图。</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 中：视口 -->
+      <div class="cmid">
+        <div class="vport">
+          <div class="vp-ground"></div>
+
+          <!-- 白模示意 -->
+          <div class="mafo" style="left:186px;top:300px;width:250px;height:16px;opacity:.85"></div>
+          <div class="mafo side" style="left:186px;top:316px;width:250px;height:34px;opacity:.8"></div>
+          <div class="mafo person" style="left:366px;top:216px;width:34px;height:84px"></div>
+          <div class="mafo" style="left:560px;top:262px;width:64px;height:54px;opacity:.9"></div>
+          <div class="mafo side" style="left:624px;top:262px;width:22px;height:54px;opacity:.75"></div>
+
+          <!-- 选中框 + 轴（主摄像机） -->
+          <div style="position:absolute;left:330px;top:150px;width:96px;height:96px;border:1px solid var(--accent);border-radius:6px"></div>
+          <div class="size-tag" style="left:330px;top:120px">主摄像机 · 7.4 / 4.6 / 8.2</div>
+
+          <!-- 顶中：工具条（纯工具 + 变换参数就地展开） -->
+          <div class="vp-float" style="top:12px;left:50%;transform:translateX(-50%)">
+            <button title="选择 (Q)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
+            <div class="v"></div>
+            <button class="on" title="移动 (W)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="m8 6 4-4 4 4"/><path d="m8 18 4 4 4-4"/><path d="M2 12h20"/><path d="m6 8-4 4 4 4"/><path d="m18 8 4 4-4 4"/></svg></button>
+            <button title="旋转 (R)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
+            <button title="缩放 (E)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button>
+            <div class="v"></div>
+            <button title="世界坐标 / 局部坐标"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M2 12h20"/><path d="M5 5l14 14"/></svg>世界</button>
+            <button class="on" title="吸附（开启 / 关闭）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v9a6 6 0 0 0 12 0V3h-4v9a2 2 0 0 1-4 0V3z"/><path d="M6 8h4"/><path d="M14 8h4"/></svg></button>
+            <div class="v"></div>
+            <button title="编辑曲线"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/></svg>曲线</button>
+          </div>
+
+          <!-- 顶中第二层：条件浮层与工具条垂直堆叠，不再抢同一个「顶部居中」 -->
+          <div class="vp-panel" style="top:52px;left:50%;transform:translateX(-50%);width:252px">
+            <div class="sect-t" style="margin-bottom:6px"><span>参考图</span><em>已上传 · 可拖动</em></div>
+            <div class="fld"><span>不透明</span><input class="range" type="range" value="60" /><span class="val">60%</span></div>
+            <div class="fld" style="margin-bottom:0"><span>缩放</span><input class="range" type="range" value="100" /><span class="val">100%</span></div>
+            <div class="seg" style="margin-top:8px"><button style="flex:1">更换</button><button style="flex:1">移除</button></div>
+          </div>
+
+          <!-- 右上：视图族合一（视角切换 + 显示开关）。右下必须留给轴圈 -->
+          <div class="vp-view">
+            <div class="row">
+              <button class="on" title="使用固定的编辑观察相机自由布置场景"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>编辑视角</button>
+              <button title="切换到场景中主摄像机的实际画面"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>摄像机视角</button>
+            </div>
+            <div class="sep"></div>
+            <div class="row">
+              <button class="on" title="显示网格"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg></button>
+              <button title="性能模式"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h7l-2 8 11-12h-7l2-8z"/></svg></button>
+              <button title="无缝背景"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M3 12h18"/></svg></button>
+            </div>
+          </div>
+
+          <!-- 右下：轴圈（导航件，标准位 —— 线上 SceneGizmo 距右 72 / 距底 40，约 120 见方） -->
+          <div class="vp-gizmo">
+            <svg width="120" height="120" viewBox="0 0 120 120">
+              <line x1="60" y1="60" x2="100" y2="60" stroke="#e5484d" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="60" y1="60" x2="60" y2="20" stroke="#46a758" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="60" y1="60" x2="28" y2="88" stroke="#3e63dd" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="20" cy="60" r="4.5" fill="#e5484d" opacity=".45"/>
+              <circle cx="60" cy="100" r="4.5" fill="#46a758" opacity=".45"/>
+              <circle cx="96" cy="32" r="4.5" fill="#3e63dd" opacity=".45"/>
+              <circle cx="100" cy="60" r="9" fill="#e5484d"/>
+              <circle cx="60" cy="20" r="9" fill="#46a758"/>
+              <circle cx="28" cy="88" r="9" fill="#3e63dd"/>
+              <text x="100" y="63.5" font-size="9" font-weight="700" fill="#000" text-anchor="middle">X</text>
+              <text x="60" y="23.5" font-size="9" font-weight="700" fill="#000" text-anchor="middle">Y</text>
+              <text x="28" y="91.5" font-size="9" font-weight="700" fill="#000" text-anchor="middle">Z</text>
+            </svg>
+            <span class="hint">点击轴头跳转视角</span>
+          </div>
+
+          <!-- 左下：摄像机监视器 -->
+          <div class="vp-monitor">
+            <div class="vm-head">
+              <span class="nm"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2"/></svg>主摄像机 01</span>
+              <span class="act">
+                <button class="ic" title="选中场景中的主摄像机"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg></button>
+                <button class="ic" title="最小化"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg></button>
+                <button class="ic" title="放大"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button>
+              </span>
+            </div>
+            <div class="vm-screen">
+              <div class="mafo" style="left:0;right:0;bottom:0;height:38%;opacity:.18"></div>
+              <div class="mafo person" style="left:44%;top:30%;width:16px;height:44px;opacity:.85"></div>
+              <span class="vm-safe"></span>
+              <span class="tc">00:00:01:12</span>
+              <span class="fo">50 mm · 16 : 9</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：属性侧（改成啥）· 选中主摄像机 -->
+      <div class="cright">
+
+        <div class="sect">
+          <div class="sect-t"><span>主摄像机</span>
+            <em style="font-style:normal;color:var(--t-subtle)">不可锁定 / 复制 / 删除</em>
+            <button class="ic" title="视图聚焦"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg></button>
+          </div>
+        </div>
+
+        <!-- ① 变换：最高频，置顶 -->
+        <div class="sect">
+          <div class="sect-t"><span>变换</span><em>世界坐标 m</em></div>
+          <div class="axis"><i class="ax x">X</i><input class="range" type="range" min="-3000" max="3000" value="740" /><span class="val">7.40</span></div>
+          <div class="axis"><i class="ax y">Y</i><input class="range" type="range" min="-3000" max="3000" value="460" /><span class="val">4.60</span></div>
+          <div class="axis"><i class="ax z">Z</i><input class="range" type="range" min="-3000" max="3000" value="820" /><span class="val">8.20</span></div>
+          <div class="sect-t" style="margin:10px 0 6px"><span>摄像机旋转</span><em>X 俯仰 / Y 水平 / Z 翻滚</em></div>
+          <div class="axis"><i class="ax x">X</i><input class="range" type="range" min="-180" max="180" value="0" /><span class="val">0°</span></div>
+          <div class="axis"><i class="ax y">Y</i><input class="range" type="range" min="-180" max="180" value="14" /><span class="val">14°</span></div>
+          <div class="axis" style="margin-bottom:0"><i class="ax z">Z</i><input class="range" type="range" min="-180" max="180" value="0" /><span class="val">0°</span></div>
+        </div>
+
+        <!-- ② 镜头：摄像机类型专属 -->
+        <div class="sect">
+          <div class="sect-t"><span>镜头</span><em>50 mm</em></div>
+          <div class="fld"><span>朝向</span>
+            <select class="sel"><option>手动（不朝向）</option><option>人物 · 主角</option><option>平台</option></select>
+          </div>
+          <div class="fld"><span>焦距</span><input class="range" type="range" min="18" max="120" value="50" /><span class="val">50 mm</span></div>
+          <div class="fld" style="margin-bottom:0"><span>常用</span>
+            <div class="seg" style="display:flex;gap:3px">
+              <button style="flex:1">18</button><button style="flex:1">24</button><button style="flex:1">35</button>
+              <button class="on" style="flex:1">50</button><button style="flex:1">85</button><button style="flex:1">120</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ③ 全局设置：低频，收起 -->
+        <div class="sect" style="border-bottom:none;padding:9px 10px">
+          <button class="sect-sum" title="展开全局设置">
+            <span class="caret"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+            全局设置
+            <span class="txt">24 FPS · 15 秒 · 16:9</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── 时间轴 ── -->
+    <div class="tl">
+      <div class="tl-bar">
+        <span style="font-size:11px;color:var(--t-body);font-variant-numeric:tabular-nums">36 帧</span>
+        <select class="sel" style="width:72px" title="插值方式"><option>平滑</option><option>线性</option><option>保持</option></select>
+        <div class="vline"></div>
+        <button class="ic" title="复制关键帧"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
+        <button class="ic danger" title="删除关键帧"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+
+        <div class="ctr">
+          <button class="ic" title="回到开头"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 20 9 12 19 4z"/><path d="M5 19V5"/></svg></button>
+          <button title="播放" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 3l14 9-14 9z"/></svg></button>
+          <button class="ic" title="跳到结尾"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4l10 8-10 8z"/><path d="M19 5v14"/></svg></button>
+        </div>
+
+        <span class="spacer" style="flex:1"></span>
+        <button class="ic on" title="吸附：拖动关键帧时贴齐整数帧 / 播放头"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v9a6 6 0 0 0 12 0V3h-4v9a2 2 0 0 1-4 0V3z"/><path d="M6 8h4"/><path d="M14 8h4"/></svg></button>
+        <span class="lbl" style="font-size:10px;color:var(--t-faint)">缩放</span>
+        <input class="range" type="range" style="width:70px" min="1" max="40" value="6" />
+      </div>
+
+      <div class="tl-body">
+        <div class="tl-heads">
+          <div class="tl-ruler" style="border-bottom:1px solid var(--edge-faint)"></div>
+          <div class="tl-head">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--t-faint)"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg>
+            主摄像机
+            <button class="ic add" title="镜头关键帧"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+          </div>
+          <div class="tl-head">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--t-faint)"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>
+            人物 · 主角
+            <button class="ic add" title="角色状态关键帧"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+          </div>
+        </div>
+
+        <div class="tl-lanes">
+          <div class="tl-ruler">
+            <span style="left:0">0</span><span style="left:144px">24</span><span style="left:288px">48</span>
+            <span style="left:432px">72</span><span style="left:576px">96</span>
+          </div>
+          <div class="tl-lane">
+            <div class="fill" style="width:216px"></div>
+            <div class="kf" style="left:0"></div>
+            <div class="kf on sel" style="left:216px"></div>
+            <div class="kf" style="left:576px"></div>
+          </div>
+          <div class="tl-lane">
+            <div class="fill" style="width:216px"></div>
+            <div class="kf" style="left:0"></div>
+            <div class="kf on sel" style="left:216px"></div>
+          </div>
+          <div class="tl-playhead" style="left:216px"><i></i></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="mk-note">
+    <b>① 左栏拆掉 Tab，改成上下两段常驻。</b>「场景层级」和「镜头」在线上版是同一个位置的 Tab，
+    这意味着<b>切镜头时看不见场景里有什么、看场景时不知道有几个镜头</b>——而这两者在导演工作里必须对照着看。
+    按纪律「导航必须常驻、不随选中变化」，改成上段对象、下段镜头，两段同时可见。<br />
+    <b>② 视口浮层：四角分工 + 顶中两层。</b>线上版 <code>reference-panel</code> 与 <code>path-panel</code>
+    <b>同为「顶部居中」</b>，同时出现必然重叠。改后：<b>顶中分两层</b>（工具条在上、条件浮层在下）、
+    右上「视图面板」、左下监视器、右下轴圈——五个位置互不侵占。
+    参考图 / 路径 / 镜头角度这类<b>条件浮层</b>落在顶中第二层，垂直堆叠（见舞台 2.5 C）。<br />
+    <b>③ 视图开关从右栏下沉，与视角切换合成右上角「视图面板」。</b>
+    「显示网格 / 性能模式 / 无缝背景」是<b>视图开关</b>，线上版放在右栏「全局设置 › 视口」里——
+    要先取消选中对象、再滚到视口区才够得着。它们和「编辑视角 / 摄像机视角」<b>同属视图族</b>，
+    按「同类相邻」合成一个面板：上行切视角、下行切显示。右栏因此少了一整个分区。<br />
+    <b>④ 右下角是轴圈（ViewCube）的位置，任何浮层都不许占。</b>
+    线上版 <code>SceneGizmo</code> 用 Hud 渲染在<b>距右 72px / 距底 40px</b>、约 120px 见方，
+    是「点击轴头跳转标准视角」的<b>导航件</b>。右下是 Blender / Unity / Maya 的通用约定位，
+    占掉它等于废掉一种不看菜单就能转正视角的方式。
+    三轴着色沿用线上既有值 <b>X #e5484d / Y #46a758 / Z #3e63dd</b>，右栏变换滑杆的轴标同色——
+    <b>轴圈、变换滑杆、监视器三处看到的三轴颜色必须一致</b>。<br />
+    <b>④ 右栏按频率排：变换置顶，全局设置收起。</b>线上版未选中时右栏被低频的「工程设置」占满，
+    选中后变换才出现。改后变换恒在最顶（锚点不动），类型专属区其次，全局设置收起为一行摘要
+    <code>24 FPS · 15 秒 · 16:9</code>。<br />
+    <b>⑤ 时间轴：「加关键帧」贴回轨道头。</b>线上版三个加关键帧按钮挤在右下角第三列，离它们作用的轨道很远；
+    改成每条轨道头一个 <code>+</code>，右下只留吸附与缩放（两者都是时间轴自身的视图参数）。<br />
+    <b>⑥ 删掉的重复入口：</b>监视器头部与「视角工具」里的<b>两处「切换到摄像机视角」</b>（保留视角工具那处，它是视图态；
+    监视器只留选中 / 最小化 / 放大）；工具条里的「上传背景图」（是文件导入不是工具，随参考图面板走）。<br />
+    <b>⑦ 「初始化」保留在 topbar，不做下沉。</b>它是工程文件操作，topbar 是这类操作的惯例位置，藏进面板反而更难找、也更危险。
+    改为用 <code>danger</code> 样式与「打开 / 保存」区分，并<b>强制二次确认</b>后才执行（确认框见舞台 2.5 F）。
+    <b>全应用只此一处入口</b>，全局设置里不再重复。<br />
+    <b>⑧ 摄像机没有「锁定 / 复制 / 删除」。</b>线上版 <code>Inspector</code> 的头部按钮对摄像机只渲染「视图聚焦」一项
+    （其余三项是 <code>仅非摄像机</code>）——这一点容易在实现时被误加成四个按钮，此处明确标注。
+  </div>
+</div>
+
+<!-- ══════════ 舞台 2.5：右栏形态 + 视口条件浮层 ══════════ -->
+<div class="mk-stage">
+  <div class="mini">
+
+    <!-- A. 未选中 → 全局设置 -->
+    <div class="mini-card">
+      <div class="mini-title">A · 未选中任何对象 → 全局设置</div>
+      <div class="cright" style="width:252px;height:560px;border:1px solid var(--edge-faint);border-radius:10px">
+        <div class="sect">
+          <div class="sect-t"><span>工程</span><em>15 秒 = 360 帧</em></div>
+          <div class="fld"><span>名称</span><input class="num" style="flex:1" value="未命名场景" /></div>
+          <div class="numgrid">
+            <div class="nwrap"><i>帧率</i><select class="sel"><option>24 FPS</option><option>25 FPS</option><option>30 FPS</option></select></div>
+            <div class="nwrap"><i>时长</i><input class="num" value="15" /></div>
+          </div>
+          <div class="fld"><span>画幅</span>
+            <select class="sel"><option>16 : 9 · 横屏视频</option><option>9 : 16 · 竖屏短视频</option><option>1 : 1 · 方形画幅</option><option>2.39 : 1 · 电影宽银幕</option></select>
+          </div>
+          <div class="fld" style="margin-bottom:0"><span>循环</span>
+            <div class="seg"><button>关</button><button class="on">开</button></div>
+          </div>
+        </div>
+
+        <div class="sect">
+          <div class="sect-t"><span>光照</span><button class="minibt">恢复默认</button></div>
+          <div class="fld"><span>环境</span><input class="range" type="range" min="0" max="300" value="135" /><span class="val">1.35</span></div>
+          <div class="fld"><span>主光</span><input class="range" type="range" min="0" max="600" value="280" /><span class="val">2.80</span></div>
+          <div class="fld"><span>补光</span><input class="range" type="range" min="0" max="400" value="110" /><span class="val">1.10</span></div>
+          <div class="fld"><span>方向</span><input class="range" type="range" min="-180" max="180" value="39" /><span class="val">39°</span></div>
+          <div class="fld"><span>高度</span><input class="range" type="range" min="5" max="85" value="51" /><span class="val">51°</span></div>
+          <div class="fld" style="margin-bottom:0"><span>曝光</span><input class="range" type="range" min="25" max="175" value="90" /><span class="val">0.90</span></div>
+        </div>
+
+        <div class="sect" style="border-bottom:none">
+          <div class="sect-t"><span>光色</span></div>
+          <div class="fld"><span>环境</span><input type="color" class="color-inp" value="#fcfbfe" /><span class="val">#FCFBFE</span></div>
+          <div class="fld"><span>主光</span><input type="color" class="color-inp" value="#fcfdfd" /><span class="val">#FCFDFD</span></div>
+          <div class="fld" style="margin-bottom:0"><span>补光</span><input type="color" class="color-inp" value="#f3eee7" /><span class="val">#F3EEE7</span></div>
+          <div class="seg" style="margin-top:10px">
+            <button style="flex:1;color:var(--danger)" title="把工程恢复到初始状态">初始化工程</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- B. 选中人物 -->
+    <div class="mini-card">
+      <div class="mini-title">B · 选中人物 → 骨架不变，类型专属区在变换下面</div>
+      <div class="cright" style="width:252px;height:760px;border:1px solid var(--edge-faint);border-radius:10px">
+        <div class="sect">
+          <div class="sect-t"><span>位置</span><em>世界坐标 m</em></div>
+          <div class="axis"><i class="ax x">X</i><input class="range" type="range" value="-125" /><span class="val">-1.25</span></div>
+          <div class="axis"><i class="ax y">Y</i><input class="range" type="range" value="0" /><span class="val">0.00</span></div>
+          <div class="axis" style="margin-bottom:0"><i class="ax z">Z</i><input class="range" type="range" value="30" /><span class="val">0.30</span></div>
+        </div>
+
+        <div class="sect">
+          <div class="sect-t"><span>整体旋转</span><em>X 纵向 / Y 水平 / Z 翻滚</em></div>
+          <div class="axis"><i class="ax x">X</i><input class="range" type="range" min="-180" max="180" value="0" /><span class="val">0°</span></div>
+          <div class="axis"><i class="ax y">Y</i><input class="range" type="range" min="-180" max="180" value="0" /><span class="val">0°</span></div>
+          <div class="axis" style="margin-bottom:0"><i class="ax z">Z</i><input class="range" type="range" min="-180" max="180" value="0" /><span class="val">0°</span></div>
+        </div>
+
+        <div class="sect">
+          <div class="sect-t"><span>缩放</span><button class="minibt" title="开启后拖动任意未锁定轴，其他未锁定轴按原比例同步缩放">等比：开</button></div>
+          <div class="axis"><i class="ax x">X</i><input class="range" type="range" min="10" max="500" value="100" /><span class="val">1.00</span><button class="ic" title="锁定 X 轴缩放"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button></div>
+          <div class="axis"><i class="ax y">Y</i><input class="range" type="range" min="10" max="500" value="100" /><span class="val">1.00</span><button class="ic" title="锁定 Y 轴缩放"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button></div>
+          <div class="axis" style="margin-bottom:0"><i class="ax z">Z</i><input class="range" type="range" min="10" max="500" value="100" /><span class="val">1.00</span><button class="ic" title="锁定 Z 轴缩放"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button></div>
+          <div class="seg" style="margin-top:8px">
+            <button style="flex:1" title="按当前外形将物体最低点贴到世界地面">落到地面</button>
+            <button style="flex:1" title="保持位置和缩放，将整体旋转恢复为零">旋转归零</button>
+            <button style="flex:1" title="保持位置和旋转，将缩放恢复为 1">缩放归一</button>
+          </div>
+        </div>
+
+        <div class="sect">
+          <div class="sect-t"><span>人物</span><em>中性人体</em></div>
+          <div class="fld"><span>颜色</span><input type="color" class="color-inp" value="#e8e3d8" /><span class="val">#E8E3D8</span></div>
+          <div class="fld"><span>体型</span>
+            <select class="sel"><option>中性人体</option><option>女性人体</option><option>男性人体</option><option>修长人体</option><option>宽体人体</option></select>
+          </div>
+          <div class="fld"><span>动作</span>
+            <select class="sel"><option>行走</option><option>自然站立</option><option>奔跑</option><option>半蹲</option></select>
+          </div>
+          <div class="fld"><span>相位</span><input class="range" type="range" min="0" max="100" value="24" /><span class="val">24 %</span></div>
+          <div class="fld" style="margin-bottom:0"><span>循环</span>
+            <div class="seg"><button class="on">开</button><button>关</button></div>
+          </div>
+          <div class="empty-tip" style="padding:2px 2px 0">播放、拖帧和导出时持续循环；固定姿势的预设不支持循环（开关置灰）。</div>
+        </div>
+
+        <div class="sect">
+          <div class="sect-t"><span>姿势</span><em>我的 2 · 库 27</em></div>
+          <div class="fld"><span>我的</span>
+            <select class="sel"><option>招手定格</option><option>半蹲待机</option></select>
+          </div>
+          <div class="fld" style="margin-bottom:0"><span>库</span>
+            <select class="sel"><option>持续动作 › 行走循环</option><option>基础 › 自然站立</option><option>日常姿势 › 半蹲</option></select>
+          </div>
+          <div class="empty-tip" style="padding:4px 2px 0">「动作库」27 个预设与「我的姿势」线上版是两个折叠组，此处合并为一个「姿势」区：常用在上、预设在下。</div>
+        </div>
+
+        <div class="sect" style="border-bottom:none;padding:9px 10px">
+          <button class="sect-sum">
+            <span class="caret"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+            完整骨骼
+            <span class="txt">60 个关节</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- C. 视口条件浮层 -->
+    <div class="mini-card">
+      <div class="mini-title">C · 视口条件浮层：顶部居中第二层，与工具条垂直堆叠</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="vp-panel" style="position:relative;width:266px">
+          <div class="sect-t" style="margin-bottom:6px"><span>参考图</span><em>已上传</em></div>
+          <div class="fld"><span>不透明</span><input class="range" type="range" value="60" /><span class="val">60%</span></div>
+          <div class="fld" style="margin-bottom:0"><span>缩放</span><input class="range" type="range" value="100" /><span class="val">100%</span></div>
+          <div class="seg" style="margin-top:8px">
+            <button style="flex:1">更换</button><button style="flex:1">移除</button>
+          </div>
+        </div>
+
+        <div class="vp-panel" style="position:relative;width:266px">
+          <div class="sect-t" style="margin-bottom:2px"><span>镜头角度</span><em>参考图校正</em></div>
+          <div style="font-size:10px;color:var(--t-subtle);margin-bottom:6px">地面与水平线</div>
+          <div class="fld"><span>俯仰</span><input class="range" type="range" min="-89" max="89" value="0" /><span class="val">0°</span></div>
+          <div class="fld"><span>水平</span><input class="range" type="range" min="-180" max="180" value="0" /><span class="val">0°</span></div>
+          <div class="fld" style="margin-bottom:0"><span>翻滚</span><input class="range" type="range" min="-45" max="45" value="0" /><span class="val">0°</span></div>
+          <div class="seg" style="margin-top:8px"><button style="flex:1">水平归正</button></div>
+        </div>
+
+        <div class="vp-panel" style="position:relative;width:266px">
+          <div class="sect-t" style="margin-bottom:6px"><span>摄像机路径</span><em>曲线</em></div>
+          <div class="fld"><span>起点</span><input class="range" type="range" value="0" /><span class="val">0 帧</span></div>
+          <div class="fld"><span>终点</span><input class="range" type="range" value="96" /><span class="val">96 帧</span></div>
+          <div class="fld"><span>帧数</span><input class="range" type="range" value="96" /><span class="val">96 帧</span></div>
+          <div class="seg" style="margin-top:6px">
+            <button style="flex:1">预览</button><button style="flex:1;color:var(--danger)">删除路径</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- D. 选中普通物体 -->
+    <div class="mini-card">
+      <div class="mini-title">D · 选中普通物体（平台）→ 最单薄的形态</div>
+      <div class="cright" style="width:252px;height:400px;border:1px solid var(--edge-faint);border-radius:10px">
+        <div class="sect">
+          <div class="sect-t"><span>平台</span>
+            <span style="display:flex;gap:1px">
+              <button class="ic" title="视图聚焦"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg></button>
+              <button class="ic" title="锁定物体"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
+              <button class="ic" title="复制"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
+              <button class="ic danger" title="删除"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+            </span>
+          </div>
+        </div>
+        <div class="sect">
+          <div class="sect-t"><span>位置</span><em>世界坐标 m</em></div>
+          <div class="axis"><i class="ax x">X</i><input class="range" type="range" value="0" /><span class="val">0.00</span></div>
+          <div class="axis"><i class="ax y">Y</i><input class="range" type="range" value="45" /><span class="val">0.45</span></div>
+          <div class="axis" style="margin-bottom:0"><i class="ax z">Z</i><input class="range" type="range" value="0" /><span class="val">0.00</span></div>
+        </div>
+        <div class="sect">
+          <div class="sect-t"><span>缩放</span><em>等比：开</em></div>
+          <div class="axis"><i class="ax x">X</i><input class="range" type="range" min="10" max="500" value="280" /><span class="val">2.80</span></div>
+          <div class="axis"><i class="ax y">Y</i><input class="range" type="range" min="10" max="500" value="90" /><span class="val">0.90</span></div>
+          <div class="axis" style="margin-bottom:0"><i class="ax z">Z</i><input class="range" type="range" min="10" max="500" value="210" /><span class="val">2.10</span></div>
+        </div>
+        <div class="sect" style="border-bottom:none">
+          <div class="sect-t"><span>外观</span><em>白模材质</em></div>
+          <div class="fld" style="margin-bottom:0"><span>颜色</span><input type="color" class="color-inp" value="#d8d3c8" /><span class="val">#D8D3C8</span></div>
+        </div>
+      </div>
+      <div class="mk-legend" style="max-width:252px">
+        <div>全形态里最单薄的一种（类型专属区只有一项），但<b>骨架不塌</b>：仍是变换在上、类型专属在下、全局设置收起。</div>
+      </div>
+    </div>
+
+    <!-- E. 资源库级联菜单 -->
+    <div class="mini-card">
+      <div class="mini-title">E · 资源库级联菜单（topbar 展开态）</div>
+      <div style="display:flex;gap:2px;padding:6px;border-radius:10px;background:var(--surface-raised);
+                  border:1px solid var(--edge);box-shadow:var(--sh-pop)">
+        <div style="width:110px">
+          <button class="menu-item on"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg><span>人物</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto"><path d="m9 18 6-6-6-6"/></svg></button>
+          <button class="menu-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg><span>物体</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto"><path d="m9 18 6-6-6-6"/></svg></button>
+          <button class="menu-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg><span>场景粗模</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto"><path d="m9 18 6-6-6-6"/></svg></button>
+          <button class="menu-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg><span>导入模型</span></button>
+        </div>
+        <div style="width:150px;border-left:1px solid var(--edge-faint);padding-left:2px">
+          <button class="menu-item" style="flex-direction:column;align-items:flex-start;gap:0">
+            <span>标准人物</span><span style="font-size:9px;color:var(--t-subtle)">中性比例 · 可换动作</span></button>
+          <button class="menu-item on" style="flex-direction:column;align-items:flex-start;gap:0">
+            <span>女性人体</span><span style="font-size:9px;color:var(--t-subtle)">窄肩宽髋 · 真人比例</span></button>
+          <button class="menu-item" style="flex-direction:column;align-items:flex-start;gap:0">
+            <span>男性人体</span><span style="font-size:9px;color:var(--t-subtle)">宽肩躯干 · 真人比例</span></button>
+          <button class="menu-item" style="flex-direction:column;align-items:flex-start;gap:0">
+            <span>修长人物</span><span style="font-size:9px;color:var(--t-subtle)">高挑比例 · 适合走位</span></button>
+          <button class="menu-item" style="flex-direction:column;align-items:flex-start;gap:0">
+            <span>宽体人物</span><span style="font-size:9px;color:var(--t-subtle)">厚重比例 · 强轮廓</span></button>
+        </div>
+      </div>
+      <div class="mk-legend" style="max-width:272px">
+        <div>4 类入口，最多 3 列层级；<b>只有第 1 列带图标</b>，子列纯文字（线上版既有约定，保留）。</div>
+        <div>「导入模型」是叶子项，点击直接触发文件选择（<code>.glb / .gltf</code>）。</div>
+      </div>
+    </div>
+
+    <!-- F. 瞬时浮层 -->
+    <div class="mini-card">
+      <div class="mini-title">F · 瞬时浮层：导出进度 / 确认 / Toast / 监视器最小化</div>
+      <div style="display:flex;flex-direction:column;gap:14px;width:290px">
+
+        <div style="padding:14px;border-radius:12px;background:var(--surface-raised);border:1px solid var(--edge);box-shadow:var(--sh-pop)">
+          <div style="display:flex;align-items:center;gap:9px">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-text)"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2"/></svg>
+            <div>
+              <div style="font-size:12px;color:var(--t-strong);font-weight:600">正在编码 MP4</div>
+              <div style="font-size:10px;color:var(--t-faint);font-variant-numeric:tabular-nums">1920 × 1080 · 24 FPS · 第 120 / 360 帧</div>
+            </div>
+            <span style="margin-left:auto;font-size:13px;color:var(--t-body);font-variant-numeric:tabular-nums">33%</span>
+          </div>
+          <div style="margin-top:10px;height:4px;border-radius:2px;background:var(--surface-hover)">
+            <i style="display:block;width:33%;height:100%;border-radius:2px;background:var(--accent)"></i>
+          </div>
+        </div>
+
+        <div style="padding:14px;border-radius:12px;background:var(--surface-raised);border:1px solid var(--edge);box-shadow:var(--sh-pop)">
+          <div style="font-size:12px;color:var(--t-body);line-height:1.6;margin-bottom:12px">
+            把工程恢复到初始状态？<br />当前未保存的修改会丢失。
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn">取消</button>
+            <button class="btn danger">初始化</button>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;
+                    background:var(--surface-raised);border:1px solid var(--edge)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--ok)"><path d="M20 6 9 17l-5-5"/></svg>
+          <span style="font-size:11px;color:var(--t-body)">已保存工程</span>
+          <button class="ic" style="margin-left:auto" title="关闭"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+
+        <div class="vp-monitor" style="position:relative;left:0;bottom:0;width:220px">
+          <div class="vm-head">
+            <span class="nm"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2"/></svg>主摄像机 01</span>
+            <span class="act">
+              <button class="ic" title="恢复摄像机窗口"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button>
+            </span>
+          </div>
+        </div>
+        <div class="mk-legend" style="max-width:290px"><div>监视器最小化态：只剩标题条 + 一个恢复按钮。</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="mk-note">
+    <b>人物分支的折叠组重排：</b>线上版 4 个折叠组是「人物（展开）→ 动作库（收起 27 个）→ 完整骨骼（收起 60 关节）→ 我的姿势（展开）」。
+    问题在于<b>「动作库」和「我的姿势」是同一个东西的两面</b>（预设姿势 vs 自定义姿势），却一前一后夹着一个低频的骨骼组。
+    合并为单一「姿势」区：<b>常用的「我的」在上、预设库在下</b>；「完整骨骼」降为收起态放到最后，它是高级功能，不该占第二屏。<br />
+    <b>变换区的 XYZ 三轴着色沿用线上既有值</b>（X <code>#e5484d</code> / Y <code>#46a758</code> / Z <code>#3e63dd</code>），
+    与右下角轴圈、监视器三处保持一致。缩放组补回了线上版的两个细节：<b>「等比」开关</b>和<b>每轴独立锁定</b>。<br />
+    <b>未选中时右栏只留「工程 + 光照」：</b>「视口」三个开关已挪到视口右上角（见舞台 2 注 ③），这里不再重复；
+    「初始化」回到 topbar（注 ⑦），全局设置里也不再放一份。<br />
+    <b>镜头卡片的操作按钮改为 hover / 当前项才出现：</b>三条镜头常驻摆 9 个图标按钮，会把 196px 的左栏挤成一条按钮带。
+    列表项的操作按需出现是专业软件的常规做法。同时<b>删掉了元信息里的「24 FPS」</b>——FPS 是工程级属性，
+    每个镜头重复一遍是冗余，改呈现为「15 秒 · 3 关键帧」。<br />
+    <b>D / E / F 补的是「形态」不是「控件」：</b>物体形态（全形态里最单薄的一种，用来验证骨架不塌）、
+    资源库级联菜单展开态（topbar 最重的交互）、以及导出进度 / 确认 / Toast / 监视器最小化这四个瞬时浮层——
+    它们不常驻，但出现时必须有确定位置，否则实现阶段会临时拍脑袋。
+  </div>
+</div>
+
+<!-- ══════════ 舞台 3：落地映射 ══════════ -->
+<div class="mk-stage">
+  <div class="mini">
+    <div class="mini-card">
+      <div class="mini-title">改动 → 代码落点</div>
+      <div class="mk-legend" style="max-width:560px">
+        <div><b>左栏拆 Tab</b>：<code>panels/Sidebar.tsx</code> 的 <code>tab</code> state 删掉，<code>SceneList</code> 与 <code>ShotsPanel</code> 改为上下两段常驻</div>
+        <div><b>右栏顺序</b>：<code>panels/Inspector.tsx</code> 把 <code>变换</code> 提到 <code>inspector-head</code> 之下；<code>GlobalSettingsPanel</code> 收为折叠摘要</div>
+        <div><b>视图开关下沉</b>：<code>App.tsx</code> 视口右下新增一组 <code>vp-float</code>，绑定 <code>showGrid / performanceMode / seamlessBackground</code>；<code>GlobalSettingsPanel</code> 移除「视口」分区</div>
+        <div><b>浮层归位</b>：<code>styles.css</code> 中 <code>.reference-panel</code> / <code>.path-panel</code> / <code>.camera-angle-panel</code> 统一改为右上角堆叠</div>
+        <div><b>时间轴</b>：<code>panels/Timeline.tsx</code> 把 <code>镜头关键帧</code> / <code>角色状态关键帧</code> 移入各自 <code>.tl-head</code>，右下只留吸附 + 缩放</div>
+        <div><b>默认焦距</b>：42 → <b>50</b>（落在一个常用预设上，滑杆与预设组能对上）</div>
+      </div>
+    </div>
+
+    <div class="mini-card">
+      <div class="mini-title">保持不变的部分</div>
+      <div class="mk-legend" style="max-width:460px">
+        <div>三栏骨架（左 196 / 中 flex / 右 252）与底部时间轴的整体分区</div>
+        <div>视口工具条的工具集合与快捷键 <code>Q / W / R / E</code></div>
+        <div>监视器的画面 + 安全框 + 时间码 + 焦距信息</div>
+        <div>关键帧的三种插值（平滑 / 线性 / 保持）与框选、拖动改帧</div>
+        <div>资源库级联菜单、镜头卡片、骨骼与姿势数据模型</div>
+        <div class="k">本页只动<strong>空间排布与入口去重</strong>，不动任何功能逻辑</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-note">
+    <b>口径统一清单（这些数值在页面里必须彼此对得上）：</b>
+    24 FPS × 15 秒 = <b>360 帧</b>；当前帧 36 → 时间码 <b>00:00:01:12</b>、播放头在 <b>36 帧</b>、两条轨道各有一个关键帧落在 36；
+    画幅 <b>16 : 9</b> → 监视器 <code>50 mm · 16 : 9</code>、安全框比例一致；
+    焦距 <b>50 mm</b> → 滑杆位置 <code>(50−18)/102 ≈ 31%</code>、预设组里 <b>50</b> 高亮；
+    摄像机 <code>[7.4, 4.6, 8.2]</code> / Y 旋转 <code>14°</code> → 与视口里选中框旁的尺寸标签一致。<br />
+    <b>如果后续要动，请连带检查：</b>「总时长」改动会同时影响时间轴总帧数、标尺刻度和镜头卡片元信息里的秒数；
+    「画幅比例」改动会同时影响监视器画面比例与导出分辨率——这三处目前分散在 <code>GlobalSettingsPanel</code>、<code>Timeline</code>、<code>vp-monitor</code> 里。
+  </div>
+</div>
+</body>
+</html>
