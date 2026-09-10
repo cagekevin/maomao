@@ -494,6 +494,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   const {
     editor: _editor,
     setEditor: _setEditor,
+    cropping,
     renderEditor,
     renderInlineCropper,
     imageButtons,
@@ -601,6 +602,13 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
 
         <input type="file" ref={fileRef} style={{ display: 'none' }} accept="image/*" />
 
+        {/* 就地裁剪浮层：挂在「主框层级」（与图片区同级），absolute inset-0 覆盖整个节点内容区，
+          取消/裁剪按钮栏 top-full 以「主框底边 = 节点底边」为基准，稳定落在节点正下方、
+          不与节点本体重叠（此前挂在图片区 relative 子容器内，某些状态下图片区高度≠主框，
+          按钮栏会压到节点上）。详见 InlineImageCropper。
+          提至此层级还顺带避免点击浮层冒泡到图片区 onClick 误触发展开/收起。 */}
+        {renderInlineCropper()}
+
         {/* 主图片框：点击切换展开/收起；flex-1 填满 wrapper（高度由 useSizeSync 同步）。
           背景/边框/阴影已由 NodeShell 主容器提供，这里只保留布局与点击行为 */}
         <div
@@ -611,8 +619,6 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
             openZoom(imageUrl);
           }}
         >
-          {/* 就地裁剪浮层：覆盖在生图结果区，不跳全屏 */}
-          {renderInlineCropper()}
           <div
             className={`flex items-center justify-center absolute inset-0 rounded-xl overflow-hidden ${hasImage ? '' : 'bg-canvas'}`}
           >
@@ -656,197 +662,201 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
           </div>
         </div>
 
-        {/* 展开的提示词面板。手柄由节点在 children 里渲染（targetRef=textarea，写回 data.inputWidth/inputHeight）。 */}
-        <ExpandablePanel expanded={expanded} minWidth={500}>
-          <div className="space-y-3">
-            {/* 素材缩略图区（通用组件 MaterialStrip，以生图节点为标准：缩略图 + 底部@插入 + 右上×断线） */}
-            <MaterialStrip
-              images={refImages}
-              texts={refTexts}
-              onInsert={insertMention}
-              onDisconnect={disconnectSource}
-            />
+        {/* 展开的提示词面板。手柄由节点在 children 里渲染（targetRef=textarea，写回 data.inputWidth/inputHeight）。
+            裁剪进行中隐藏：就地裁剪按钮栏用 top-full 浮在节点正下方，与面板(同处节点下方)抢同一区域，
+            隐藏面板可让按钮栏有干净空间落在节点下方，不再与面板重叠（见 InlineImageCropper）。 */}
+        {!cropping && (
+          <ExpandablePanel expanded={expanded} minWidth={500}>
+            <div className="space-y-3">
+              {/* 素材缩略图区（通用组件 MaterialStrip，以生图节点为标准：缩略图 + 底部@插入 + 右上×断线） */}
+              <MaterialStrip
+                images={refImages}
+                texts={refTexts}
+                onInsert={insertMention}
+                onDisconnect={disconnectSource}
+              />
 
-            {/* 提示词输入（基座 PromptInput，contentEditable 富文本，含 @素材弹层与芯片插入） */}
-            <PromptInput
-              ref={promptInputRef}
-              value={prompt}
-              onChange={setPromptPersist}
-              placeholder="描述你想要的画面 (输入 @ 调出素材)..."
-              refImages={refImages}
-              refTexts={refTexts}
-              onInsert={insertMention}
-              onReady={(fn) => {
-                insertAssetRef.current = fn;
-              }}
-              richText
-              inputWidth={data.inputWidth}
-              inputHeight={data.inputHeight}
-            />
+              {/* 提示词输入（基座 PromptInput，contentEditable 富文本，含 @素材弹层与芯片插入） */}
+              <PromptInput
+                ref={promptInputRef}
+                value={prompt}
+                onChange={setPromptPersist}
+                placeholder="描述你想要的画面 (输入 @ 调出素材)..."
+                refImages={refImages}
+                refTexts={refTexts}
+                onInsert={insertMention}
+                onReady={(fn) => {
+                  insertAssetRef.current = fn;
+                }}
+                richText
+                inputWidth={data.inputWidth}
+                inputHeight={data.inputHeight}
+              />
 
-            {/* 底部参数区 */}
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-edge-faint nodrag">
-              <div className="flex items-center gap-1.5 overflow-visible">
-                {/* 画质 / 比例 / 渲染质量 */}
-                <div ref={imgMenuRef} className="relative nodrag">
-                  <button
-                    type="button"
-                    className="flex items-center gap-1.5 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowImgMenu((v) => !v);
-                    }}
-                  >
-                    <span className="w-2.5 h-3 border border-current rounded-[2px]" />
-                    <span>
-                      {aspectRatio} · {imageSize} ·{' '}
-                      {qualityOptions.find((q) => q.value === quality)?.label}
-                    </span>
-                  </button>
-                  {showImgMenu && (
-                    <div
-                      className="absolute bottom-full left-0 mb-1 w-56 bg-surface-1 border border-edge rounded-lg shadow-popover p-3 z-dropdown flex flex-col gap-3"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div>
-                        <div className="text-caption text-muted mb-2">画质</div>
-                        <div className="flex gap-1.5">
-                          {sizeOptions.map((s) => (
-                            <button
-                              key={s}
-                              type="button"
-                              className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${imageSize === s ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-secondary hover:bg-surface-hover'}`}
-                              onClick={() => {
-                                setShowImgMenu(false);
-                                setImageSize(s);
-                                setImgPrefs({ imageSize: s });
-                                requestAnimationFrame(() => patchData({ imageSize: s }));
-                              }}
-                            >
-                              {s}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-caption text-muted mb-2">比例</div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {ratioOptions.map((r) => (
-                            <button
-                              key={r}
-                              type="button"
-                              className={`px-3 py-1.5 text-caption-sm rounded-md border transition-colors ${aspectRatio === r ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-secondary hover:bg-surface-hover'}`}
-                              onClick={() => {
-                                setShowImgMenu(false);
-                                setAspectRatio(r);
-                                setImgPrefs({ aspectRatio: r });
-                                requestAnimationFrame(() => patchData({ aspectRatio: r }));
-                              }}
-                            >
-                              {r}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-caption text-muted mb-2">渲染质量</div>
-                        <div className="flex gap-1.5">
-                          {qualityOptions.map((q) => (
-                            <button
-                              key={q.value}
-                              type="button"
-                              className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${quality === q.value ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-secondary hover:bg-surface-hover'}`}
-                              onClick={() => {
-                                setShowImgMenu(false);
-                                setQuality(q.value);
-                                setImgPrefs({ quality: q.value });
-                                requestAnimationFrame(() => patchData({ quality: q.value }));
-                              }}
-                            >
-                              {q.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 模型选择（基座 ModelSelect；选择即记住，跨节点复用） */}
-                <ModelSelect
-                  value={selectedModel}
-                  onChange={(m) => {
-                    setSelectedModel(m);
-                    setImgPrefs({ model: m });
-                    patchData({ selectedModel: m });
-                  }}
-                  models={models}
-                  costMap={costMap}
-                  placeholder="选择模型"
-                />
-
-                {/* 预设：打开提示词库弹窗 → 可追加到当前提示词或新建文本节点 */}
-                <PromptLibraryButton
-                  category="image"
-                  onAppend={(p) => setPromptPersist((prev) => (prev ? `${prev}\n${p}` : p))}
-                />
-              </div>
-
-              {/* 批量 xN + 生成/停止 */}
-              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                {!loading && (
-                  <div ref={countMenuRef} className="relative nodrag flex items-center">
+              {/* 底部参数区 */}
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-edge-faint nodrag">
+                <div className="flex items-center gap-1.5 overflow-visible">
+                  {/* 画质 / 比例 / 渲染质量 */}
+                  <div ref={imgMenuRef} className="relative nodrag">
                     <button
-                      className="flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer"
+                      type="button"
+                      className="flex items-center gap-1.5 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setShowCountMenu((v) => !v);
+                        setShowImgMenu((v) => !v);
                       }}
-                      title="批量生成数量"
                     >
-                      <span>x{count}</span>
+                      <span className="w-2.5 h-3 border border-current rounded-[2px]" />
+                      <span>
+                        {aspectRatio} · {imageSize} ·{' '}
+                        {qualityOptions.find((q) => q.value === quality)?.label}
+                      </span>
                     </button>
-                    {showCountMenu && (
+                    {showImgMenu && (
                       <div
-                        className="absolute bottom-full right-0 mb-1 w-16 bg-surface-1 border border-edge rounded-lg shadow-popover p-1 z-dropdown flex flex-col gap-0.5"
+                        className="absolute bottom-full left-0 mb-1 w-56 bg-surface-1 border border-edge rounded-lg shadow-popover p-3 z-dropdown flex flex-col gap-3"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <button
-                            key={n}
-                            className={`w-full text-center py-1.5 text-caption-sm rounded-md transition-colors ${count === n ? 'bg-surface-hover-strong text-white' : 'text-secondary hover:bg-surface-hover hover:text-primary'}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setCount(n);
-                              setShowCountMenu(false);
-                            }}
-                          >
-                            x{n}
-                          </button>
-                        ))}
+                        <div>
+                          <div className="text-caption text-muted mb-2">画质</div>
+                          <div className="flex gap-1.5">
+                            {sizeOptions.map((s) => (
+                              <button
+                                key={s}
+                                type="button"
+                                className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${imageSize === s ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-secondary hover:bg-surface-hover'}`}
+                                onClick={() => {
+                                  setShowImgMenu(false);
+                                  setImageSize(s);
+                                  setImgPrefs({ imageSize: s });
+                                  requestAnimationFrame(() => patchData({ imageSize: s }));
+                                }}
+                              >
+                                {s}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-caption text-muted mb-2">比例</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {ratioOptions.map((r) => (
+                              <button
+                                key={r}
+                                type="button"
+                                className={`px-3 py-1.5 text-caption-sm rounded-md border transition-colors ${aspectRatio === r ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-secondary hover:bg-surface-hover'}`}
+                                onClick={() => {
+                                  setShowImgMenu(false);
+                                  setAspectRatio(r);
+                                  setImgPrefs({ aspectRatio: r });
+                                  requestAnimationFrame(() => patchData({ aspectRatio: r }));
+                                }}
+                              >
+                                {r}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-caption text-muted mb-2">渲染质量</div>
+                          <div className="flex gap-1.5">
+                            {qualityOptions.map((q) => (
+                              <button
+                                key={q.value}
+                                type="button"
+                                className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${quality === q.value ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-secondary hover:bg-surface-hover'}`}
+                                onClick={() => {
+                                  setShowImgMenu(false);
+                                  setQuality(q.value);
+                                  setImgPrefs({ quality: q.value });
+                                  requestAnimationFrame(() => patchData({ quality: q.value }));
+                                }}
+                              >
+                                {q.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
-                )}
-                <GenerateButton loading={loading} onGenerate={handleGenerate} onStop={onStop} />
+
+                  {/* 模型选择（基座 ModelSelect；选择即记住，跨节点复用） */}
+                  <ModelSelect
+                    value={selectedModel}
+                    onChange={(m) => {
+                      setSelectedModel(m);
+                      setImgPrefs({ model: m });
+                      patchData({ selectedModel: m });
+                    }}
+                    models={models}
+                    costMap={costMap}
+                    placeholder="选择模型"
+                  />
+
+                  {/* 预设：打开提示词库弹窗 → 可追加到当前提示词或新建文本节点 */}
+                  <PromptLibraryButton
+                    category="image"
+                    onAppend={(p) => setPromptPersist((prev) => (prev ? `${prev}\n${p}` : p))}
+                  />
+                </div>
+
+                {/* 批量 xN + 生成/停止 */}
+                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                  {!loading && (
+                    <div ref={countMenuRef} className="relative nodrag flex items-center">
+                      <button
+                        className="flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowCountMenu((v) => !v);
+                        }}
+                        title="批量生成数量"
+                      >
+                        <span>x{count}</span>
+                      </button>
+                      {showCountMenu && (
+                        <div
+                          className="absolute bottom-full right-0 mb-1 w-16 bg-surface-1 border border-edge rounded-lg shadow-popover p-1 z-dropdown flex flex-col gap-0.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <button
+                              key={n}
+                              className={`w-full text-center py-1.5 text-caption-sm rounded-md transition-colors ${count === n ? 'bg-surface-hover-strong text-white' : 'text-secondary hover:bg-surface-hover hover:text-primary'}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCount(n);
+                                setShowCountMenu(false);
+                              }}
+                            >
+                              x{n}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <GenerateButton loading={loading} onGenerate={handleGenerate} onStop={onStop} />
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* 面板右下角手柄：拖拽改输入框尺寸（复刻 bo.jsx:1676 _Component23）。
+            {/* 面板右下角手柄：拖拽改输入框尺寸（复刻 bo.jsx:1676 _Component23）。
             targetRef=textarea（promptInputRef），onResizeEnd → onInputResize 写回
             node.data.inputWidth/inputHeight，PromptInput 的 textarea 读这个 data 渲染。
             输入框是面板里的部件，不参与端口定位，所以只写 data，不改 node.width/height。 */}
-          <ResizeFullscreenHandle
-            targetRef={promptInputRef}
-            minWidth={200}
-            maxWidth={900}
-            minHeight={60}
-            maxHeight={400}
-            onRequestFullscreen={() => setFullscreenPrompt(true)}
-            onResizeEnd={onInputResize}
-          />
-        </ExpandablePanel>
+            <ResizeFullscreenHandle
+              targetRef={promptInputRef}
+              minWidth={200}
+              maxWidth={900}
+              minHeight={60}
+              maxHeight={400}
+              onRequestFullscreen={() => setFullscreenPrompt(true)}
+              onResizeEnd={onInputResize}
+            />
+          </ExpandablePanel>
+        )}
 
         {/* 全屏弹层：提示词输入框双击 → 全屏编辑提示词（统一组件） */}
         <FullscreenEditor

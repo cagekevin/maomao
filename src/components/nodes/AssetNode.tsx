@@ -366,11 +366,15 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
           onChange={handleFileSelect}
         />
 
+        {/* 就地裁剪浮层：挂在「主框层级」（与主容器同级），absolute inset-0 覆盖整个节点内容区，
+          取消/裁剪按钮栏 top-full 以「主框底边 = 节点底边」为基准，稳定落在节点正下方、
+          不与节点本体重叠（此前挂在主容器 relative 子容器内，某些状态下主容器高度≠主框，
+          按钮栏会压到节点上）。详见 InlineImageCropper。 */}
+        {renderInlineCropper()}
+
         {/* 主容器：背景/边框/阴影已由 NodeShell 主容器提供，这里只保留布局。
           relative 必须保留——内部空态/播放图标是 absolute inset-0 定位，依赖本容器做定位上下文 */}
         <div className="relative w-full flex flex-col flex-1">
-          {/* 就地裁剪浮层：覆盖在节点内容区之上，不跳全屏 */}
-          {renderInlineCropper()}
           <div
             className="flex-1 p-0 bg-surface-strong flex items-center justify-center relative overflow-hidden rounded-xl"
             style={{ minHeight: 160 }}

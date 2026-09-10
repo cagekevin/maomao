@@ -28,10 +28,14 @@ import { compressImage } from '../utils/imageCompress.ts';
  *    不再写死 image/jpeg 0.9（那是透明图变黑底的根源）。
  *  - 跨域/加载失败 → compressImage 抛明确错误，toast 透传真实原因，不静默吞错。
  *
- * 挂载：由调用方放在图片区 `relative` 容器内，本组件 `absolute inset-0` 覆盖。
- * 【溢出约束】按钮栏用 `top-full` 浮到节点外，因此**父级链（含图片区容器、节点主容器）
+ * 挂载：由调用方放在「节点主框」层级（ImageGenerate / AssetNode 里与图片区同级、位于
+ * NodeShell 的 mainShellClassName 这个 `relative` 容器内）。本组件 `absolute inset-0`
+ * 覆盖整个节点内容区，按钮栏 `top-full` 以「主框底边 = 节点底边」为基准浮到节点正下方。
+ * ⚠️ 不要把它挂在「图片区 relative 子容器」里：那样 inset-0 / top-full 会以图片区为基准，
+ * 一旦图片区高度≠整节点，遮罩只盖住节点一部分、按钮栏会压到节点上（即「和节点重叠」）。
+ * 【溢出约束】按钮栏用 `top-full` 浮到节点外，因此**父级链（含节点主容器）
  * 不可加 overflow-hidden**。NodeShell 主容器已明确不加 overflow-hidden（见其注释），
- * 各节点（ImageGenerate / AssetNode）挂载点的直接父容器也均无 overflow-hidden——
+ * 各节点挂载点的直接父容器（mainShellClassName）也均无 overflow-hidden——
  * overflow-hidden 只出现在更内层的兄弟 div 上，不影响本组件溢出。
  *
  * @param {Object} props
@@ -167,7 +171,7 @@ export default function InlineImageCropper({ imageUrl, onSave, onClose }: Inline
 
   return (
     // 外层遮罩不再用 flex flex-col 分栏：图片区独占整个节点，按钮栏浮到节点外下方。
-    <div className="absolute inset-0 z-30 bg-black/70 nodrag">
+    <div className="absolute inset-0 z-50 bg-black/70 nodrag">
       {/* 图片区：ReactCrop 撑满容器、图片 object-contain 完整显示。
           关键：必须让 ReactCrop 盒子 = 容器（无留白），选区手柄才能拖到最边边。
           原实现 flex 居中 + p-2 使图片盒子 < 容器，选区到图片边缘即停，四周留白处拖不到。
