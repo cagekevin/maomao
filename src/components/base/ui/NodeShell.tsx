@@ -30,6 +30,13 @@ interface NodeShellProps {
       默认留空（React Flow 视为 null handle），关闭时不影响既有无 id 连边；
       传 'main-output' 等值可让该节点作为固定契约的连线源头（如「转深度」spawn 写死 sourceHandle 的场景）。 */
   sourceHandleId?: string;
+  /** 左侧 target 端口的 handleId。
+      默认留空（React Flow 视为 null handle）；
+      传 'default' / 'in' 等值可让该节点接收写死 targetHandle 的上游连线。
+      ⚠️ 与 sourceHandleId 成对：凡是作为「成品节点」被下游 spawn 引用的节点，
+      两侧端口都必须通过本组 prop 声明（禁止在 children 里手写 CustomHandle），
+      否则端口进不了 NodeShell 的端口渲染路径 → 位置基准错乱 + 句柄契约漂移 → 连线不渲染。 */
+  targetHandleId?: string;
   showTitle?: boolean;
   titleRight?: ReactNode;
   onRename?: (label: string) => void;
@@ -223,6 +230,7 @@ function NodeShell({
   handleVariant = 'large',
   showHandles = true,
   sourceHandleId,
+  targetHandleId,
   showTitle = true,
   titleRight,
   onRename,
@@ -324,7 +332,7 @@ function NodeShell({
             剧本盒子等复合节点用 showHandles={false} 关闭，改用内部每镜头/每输出口端口 */}
         {showHandles && (
           <>
-            <CustomHandle position="left" variant={handleVariant} />
+            <CustomHandle position="left" variant={handleVariant} handleId={targetHandleId} />
             <CustomHandle position="right" variant={handleVariant} handleId={sourceHandleId} />
           </>
         )}

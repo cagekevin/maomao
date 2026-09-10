@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>生图节点 · 摄影参数面板 —— 外观 Mockup</title>
+<link rel="stylesheet" href="./mockup-kit.css" />
+</head>
+<body>
+
+<!-- 预览用渐变 / 裁剪路径：全文档共用一份 defs，避免各实例重复定义同 id -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="cp-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#312e81" />
+      <stop offset="1" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="cp-ground" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#111827" />
+      <stop offset=".5" stop-color="#312e81" />
+      <stop offset="1" stop-color="#111827" />
+    </linearGradient>
+    <clipPath id="cp-clip"><rect width="400" height="168" rx="10" /></clipPath>
+  </defs>
+</svg>
+
+<div class="mk-head">
+  <h1>生图节点 · 摄影参数面板 —— 外观 Mockup</h1>
+  <p>
+    参考 <b>ai-canvas-camera-params</b>（AI-Canvas-tauri 抽取包：右下角「摄影参数」入口 —— 相机按钮 + 弹出面板，
+    含焦距 / 快门效果 / 光圈 / 曝光时间），落到本仓库 <b>imageGenerateNode</b> 的
+    <span class="hl">展开面板底部参数行</span>（与「比例·尺寸·画质 / 模型 / 预设」同排）。
+    面板本身只是<b>收集参数</b>，真正生效靠生成时把英文片段追加到提示词末尾
+    <code>Camera settings: …</code>（仅 ai-image / ai-video）。
+  </p>
+</div>
+
+<!-- ══════════ 舞台 1：生图节点（展开态）+ 面板打开 ══════════ -->
+<div class="mk-stage">
+  <div class="ncard">
+
+    <div class="ncard-hd">
+      <span class="d"></span>
+      生图
+      <span class="t">imageGenerateNode</span>
+      <div class="hoverbar">
+        <button title="下载">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+        </button>
+        <button title="裁剪">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6h13"/></svg>
+        </button>
+        <button title="摄影棚">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></svg>
+        </button>
+        <span class="v"></span>
+        <button title="更多">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="ncard-img photo2">
+      <div style="position:absolute;left:8px;bottom:8px;font-size:10px;color:#bbb;
+                  background:rgba(10,10,10,.7);border:1px solid #333;border-radius:5px;padding:2px 6px;">
+        1024 × 1024 · PNG
+      </div>
+    </div>
+
+    <div class="ncard-panel">
+
+      <!-- 素材条 -->
+      <div class="mstrip">
+        <div class="th photo"><i>@ 插入</i></div>
+        <div class="th photo3"><i>@ 插入</i></div>
+        <button class="add" title="添加参考图">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+
+      <!-- 提示词输入 -->
+      <div class="pinput">
+        雨夜的东京街角，霓虹灯下的独行者，<span class="atk">@图片1</span> 参考构图，电影感氛围<span class="ph">（输入 @ 调出素材）…</span>
+      </div>
+
+      <!-- 底部参数行：摄影参数按钮插在「预设」之后、批量/生成之前 -->
+      <div class="prow">
+        <button class="chip">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/></svg>
+          1:1 · 1K · 自动
+        </button>
+        <button class="chip">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6z"/></svg>
+          Nano Banana
+        </button>
+        <button class="chip">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-1.5z"/><path d="M8 7h7M8 11h7"/></svg>
+          预设
+        </button>
+
+        <!-- 摄影参数：已设 3 项 → 蓝底 + 角标 -->
+        <div class="cam">
+          <button class="cam-btn on" title="摄影参数 · 3 项">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M4 8.5h3l1.4-2h7.2l1.4 2h3v9H4z" />
+              <circle cx="12" cy="13" r="3.5" />
+              <path d="M12 9.5 9.5 13l2.5 3.5 2.5-3.5z" opacity=".6" />
+            </svg>
+          </button>
+
+          <div class="cam-pop">
+            <div class="cam-hd">
+              <b>摄影参数</b>
+              <button>全部自动</button>
+            </div>
+
+            <div class="cam-view">
+              <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice"
+                   style="--blur:5px;--subj:1.18;--bk:1;--bkop:.72">
+                <g clip-path="url(#cp-clip)">
+                  <rect width="400" height="168" fill="url(#cp-sky)" />
+                  <g class="bg">
+                    <circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
+                    <g class="std">
+                      <path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" />
+                      <path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" />
+                    </g>
+                    <g class="fish">
+                      <path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" />
+                      <path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" />
+                    </g>
+                    <g stroke="#818cf8" stroke-width="1" opacity=".52">
+                      <path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" />
+                      <path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" />
+                    </g>
+                    <rect y="130" width="400" height="38" fill="url(#cp-ground)" />
+                    <path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
+                    <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" />
+                    <circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" />
+                    <circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" />
+                    <circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" />
+                  </g>
+                  <g class="motion" stroke-linecap="round">
+                    <path d="M18 119h126" stroke="#22d3ee" stroke-width="3" opacity=".5" />
+                    <path d="M258 106h124" stroke="#f472b6" stroke-width="4" opacity=".5" />
+                    <path class="trail" d="M8 137c88-34 204 31 384-18" stroke="#fde047" stroke-width="3" opacity=".62" />
+                  </g>
+                  <g class="ghost">
+                    <g class="gh gh1" fill="#a5b4fc" opacity=".08"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
+                    <g class="gh gh2" fill="#a5b4fc" opacity=".13"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
+                    <g class="gh gh3" fill="#a5b4fc" opacity=".18"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
+                  </g>
+                  <g class="macro" transform="translate(200 101)">
+                    <g fill="#c4b5fd" opacity=".9">
+                      <ellipse cx="0" cy="-27" rx="18" ry="35" />
+                      <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(60)" />
+                      <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(120)" />
+                      <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(180)" />
+                      <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(240)" />
+                      <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(300)" />
+                    </g>
+                    <circle r="24" fill="#fde047" />
+                    <circle r="10" fill="#f59e0b" />
+                    <path d="M0 23c-4 31 5 43 18 61" stroke="#4ade80" stroke-width="6" stroke-linecap="round" />
+                    <path d="M9 54c18-13 31-10 38 0-17 8-29 8-38 0Z" fill="#4ade80" opacity=".85" />
+                  </g>
+                  <g class="subj">
+                    <circle cx="200" cy="70" r="17" fill="#f8fafc" />
+                    <path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" />
+                    <path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" />
+                  </g>
+                  <rect class="dim" width="400" height="168" fill="#020617" />
+                  <rect class="bri" width="400" height="168" fill="#fff7ed" />
+                  <path class="fish" d="M2 35Q200 6 398 35M2 142Q200 162 398 142" stroke="#fff" opacity=".22" />
+                  <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" />
+                </g>
+              </svg>
+            </div>
+
+            <div class="cam-grid">
+              <label class="cam-fld">
+                <span>焦距</span>
+                <select><option>自动</option><option selected>85mm 人像</option><option>35mm 电影感</option><option>200mm 长焦</option><option>鱼眼</option></select>
+              </label>
+              <label class="cam-fld">
+                <span>快门效果</span>
+                <select><option selected>自动</option><option>凝固动作</option><option>自然动态</option><option>动态拖影</option><option>光轨效果</option></select>
+              </label>
+              <label class="cam-fld">
+                <span>光圈</span>
+                <select><option>自动</option><option>f/1.4</option><option selected>f/2.8</option><option>f/8</option><option>f/16</option></select>
+              </label>
+              <label class="cam-fld">
+                <span>曝光时间</span>
+                <select><option>自动</option><option>1/2000s</option><option selected>1/250s</option><option>1/8s</option><option>5s</option></select>
+              </label>
+            </div>
+
+            <div class="cam-out">
+              <b>Camera settings:</b> 85mm portrait lens, f/2.8 aperture, soft background separation, 1/250s exposure time.
+            </div>
+
+            <p class="cam-hint">自动项不会写入提示词；预览仅用于表达景深、明暗、透视与动态趋势。</p>
+          </div>
+        </div>
+
+        <span class="grow"></span>
+
+        <button class="chip">x1</button>
+        <button class="gen">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"/></svg>
+          生成
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-cap">
+    <span class="tag new">新增</span>
+    <b>① 入口</b>：底部参数行，紧挨「预设」——这排已经是「影响生成结果的参数」的固定位置，
+    不再另起一处。<span class="hl">有参数时按钮变蓝并显示角标数量</span>（当前 3 项），无参数时是普通灰图标。
+    <b>② 弹层</b>：从按钮上方弹出（与比例/批量菜单同向），宽 344px，不超过节点面板宽度。
+    <b>③ 预览</b>：随四个下拉实时变（景深 / 明暗 / 透视 / 动态）。
+    <b>④ 片段回显</b>：把即将拼进提示词的英文直接显示在面板底部——选了什么、会写进去什么，一处看全。
+  </div>
+</div>
+
+<!-- ══════════ 舞台 2：弹层放大（像素级对齐用） ══════════ -->
+<div class="mk-stage">
+  <div class="cam-pop static wide">
+    <div class="cam-hd">
+      <b>摄影参数</b>
+      <button>全部自动</button>
+    </div>
+
+    <div class="cam-view" style="height:186px">
+      <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice"
+           style="--blur:1.5px;--subj:.66;--bk:.556;--bkop:.58">
+        <g clip-path="url(#cp-clip)">
+          <rect width="400" height="168" fill="url(#cp-sky)" />
+          <g class="bg">
+            <circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
+            <g class="std">
+              <path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" />
+              <path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" />
+            </g>
+            <g class="fish">
+              <path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" />
+              <path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" />
+            </g>
+            <g stroke="#818cf8" stroke-width="1" opacity=".52">
+              <path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" />
+              <path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" />
+            </g>
+            <rect y="130" width="400" height="38" fill="url(#cp-ground)" />
+            <path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
+            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" />
+            <circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" />
+            <circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" />
+            <circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" />
+          </g>
+          <g class="motion" stroke-linecap="round">
+            <path d="M18 119h126" stroke="#22d3ee" stroke-width="3" opacity=".5" />
+            <path d="M258 106h124" stroke="#f472b6" stroke-width="4" opacity=".5" />
+            <path class="trail" d="M8 137c88-34 204 31 384-18" stroke="#fde047" stroke-width="3" opacity=".62" />
+          </g>
+          <g class="ghost">
+            <g class="gh gh1" style="--gx:24px" fill="#a5b4fc" opacity=".08"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
+            <g class="gh gh2" style="--gx:12px" fill="#a5b4fc" opacity=".13"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
+            <g class="gh gh3" fill="#a5b4fc" opacity=".18"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
+          </g>
+          <g class="macro" transform="translate(200 101)">
+            <g fill="#c4b5fd" opacity=".9">
+              <ellipse cx="0" cy="-27" rx="18" ry="35" />
+              <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(60)" />
+              <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(120)" />
+              <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(180)" />
+              <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(240)" />
+              <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(300)" />
+            </g>
+            <circle r="24" fill="#fde047" />
+            <circle r="10" fill="#f59e0b" />
+            <path d="M0 23c-4 31 5 43 18 61" stroke="#4ade80" stroke-width="6" stroke-linecap="round" />
+            <path d="M9 54c18-13 31-10 38 0-17 8-29 8-38 0Z" fill="#4ade80" opacity=".85" />
+          </g>
+          <g class="subj">
+            <circle cx="200" cy="70" r="17" fill="#f8fafc" />
+            <path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" />
+            <path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" />
+          </g>
+          <rect class="dim" width="400" height="168" fill="#020617" />
+          <rect class="bri" width="400" height="168" fill="#fff7ed" />
+          <path class="fish" d="M2 35Q200 6 398 35M2 142Q200 162 398 142" stroke="#fff" opacity=".22" />
+          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" />
+        </g>
+      </svg>
+    </div>
+
+    <div class="cam-grid">
+      <label class="cam-fld">
+        <span>焦距</span>
+        <select><option selected>自动</option><option>15mm 超广角</option><option>24mm 广角</option><option>35mm 电影感</option><option>50mm 标准</option><option>85mm 人像</option><option>200mm 长焦</option><option>100mm 微距</option><option>鱼眼</option></select>
+      </label>
+      <label class="cam-fld">
+        <span>快门效果</span>
+        <select><option selected>自动</option><option>凝固动作</option><option>自然动态</option><option>动态拖影</option><option>光轨效果</option></select>
+      </label>
+      <label class="cam-fld">
+        <span>光圈</span>
+        <select><option selected>自动</option><option>f/1.4</option><option>f/2</option><option>f/2.8</option><option>f/4</option><option>f/5.6</option><option>f/8</option><option>f/11</option><option>f/16</option></select>
+      </label>
+      <label class="cam-fld">
+        <span>曝光时间</span>
+        <select><option selected>自动</option><option>1/2000s</option><option>1/1000s</option><option>1/500s</option><option>1/250s</option><option>1/125s</option><option>1/60s</option><option>1/30s</option><option>1/8s</option><option>1/2s</option><option>1s</option><option>5s</option></select>
+      </label>
+    </div>
+
+    <div class="cam-out">四项全「自动」 → <b>不追加任何片段</b>，提示词保持原样。</div>
+    <p class="cam-hint">自动项不会写入提示词；预览仅用于表达景深、明暗、透视与动态趋势。</p>
+  </div>
+
+  <div class="mk-cap">
+    四个下拉的选项文案与顺序按参考包 1:1 保留（焦距 8 档 / 快门 4 档 / 光圈 8 档 / 曝光 11 档）。
+    右上角「全部自动」= 一次性清空四档（<code>onChange(undefined)</code>），等价于从未打开过面板。
+  </div>
+</div>
+
+<!-- ══════════ 舞台 3：预览随参数变化 ══════════ -->
+<div class="mk-stage">
+  <div class="cam-cases">
+
+    <div class="cam-case">
+      <div class="v">
+        <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:.7px;--subj:.66;--bk:.333;--bkop:.42">
+          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
+          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
+            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
+            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
+            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
+            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
+            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
+          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
+          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
+          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        </svg>
+      </div>
+      <div class="lb">15mm 超广角 + f/8 <em>主体缩小、前后都清</em></div>
+    </div>
+
+    <div class="cam-case">
+      <div class="v">
+        <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:8px;--subj:1.18;--bk:1.56;--bkop:.72">
+          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
+          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
+            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
+            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
+            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
+            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
+            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
+          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
+          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
+          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        </svg>
+      </div>
+      <div class="lb">85mm 人像 + f/1.4 <em>主体变大、背景散成大光斑</em></div>
+    </div>
+
+    <div class="cam-case">
+      <div class="v">
+        <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:5px;--subj:1.38;--bk:1;--bkop:.72">
+          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
+          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
+            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
+            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
+            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
+            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
+            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
+          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
+          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
+          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        </svg>
+      </div>
+      <div class="lb">200mm 长焦 + f/2.8 <em>压缩感最强，主体撑满</em></div>
+    </div>
+
+    <div class="cam-case">
+      <div class="v">
+        <svg class="cam-prev is-macro" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:6px;--subj:1;--bk:1;--bkop:.72">
+          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
+          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
+            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
+            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
+            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
+            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
+            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
+          <g class="macro" transform="translate(200 101)">
+            <g fill="#c4b5fd" opacity=".9"><ellipse cx="0" cy="-27" rx="18" ry="35" /><ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(60)" /><ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(120)" /><ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(180)" /><ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(240)" /><ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(300)" /></g>
+            <circle r="24" fill="#fde047" /><circle r="10" fill="#f59e0b" />
+            <path d="M0 23c-4 31 5 43 18 61" stroke="#4ade80" stroke-width="6" stroke-linecap="round" />
+            <path d="M9 54c18-13 31-10 38 0-17 8-29 8-38 0Z" fill="#4ade80" opacity=".85" />
+          </g>
+          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
+          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
+          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        </svg>
+      </div>
+      <div class="lb">100mm 微距 <em>换成花朵主体，强制大虚化</em></div>
+    </div>
+
+    <div class="cam-case">
+      <div class="v">
+        <svg class="cam-prev is-fish" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:1.5px;--subj:.92;--bk:.556;--bkop:.58">
+          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
+          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
+            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
+            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
+            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
+            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
+            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
+          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
+          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
+          <path class="fish" d="M2 35Q200 6 398 35M2 142Q200 162 398 142" stroke="#fff" opacity=".22" />
+          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        </svg>
+      </div>
+      <div class="lb">鱼眼 <em>地平线弯成弧形 + 上下桶形描边</em></div>
+    </div>
+
+    <div class="cam-case">
+      <div class="v">
+        <svg class="cam-prev is-motion" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:1.5px;--subj:1;--bk:.556;--bkop:.58">
+          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
+          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
+            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
+            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
+            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
+            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
+            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
+          <g class="motion" stroke-linecap="round"><path d="M18 119h126" stroke="#22d3ee" stroke-width="3" opacity=".5" /><path d="M258 106h124" stroke="#f472b6" stroke-width="4" opacity=".5" /><path class="trail" d="M8 137c88-34 204 31 384-18" stroke="#fde047" stroke-width="3" opacity=".62" /></g>
+          <g class="ghost">
+            <g class="gh gh1" fill="#a5b4fc" opacity=".08"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
+            <g class="gh gh2" fill="#a5b4fc" opacity=".13"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
+          </g>
+          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
+          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
+          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        </svg>
+      </div>
+      <div class="lb">动态拖影 <em>2 份残影 + 两条拖影线</em></div>
+    </div>
+
+    <div class="cam-case">
+      <div class="v">
+        <svg class="cam-prev is-motion is-trail" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:6.5px;--subj:1;--bk:1.22;--bkop:.72;--bri:.126">
+          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
+          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
+            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
+            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
+            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
+            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
+            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
+          <g class="motion" stroke-linecap="round"><path d="M18 119h126" stroke="#22d3ee" stroke-width="3" opacity=".5" /><path d="M258 106h124" stroke="#f472b6" stroke-width="4" opacity=".5" /><path class="trail" d="M8 137c88-34 204 31 384-18" stroke="#fde047" stroke-width="3" opacity=".62" /></g>
+          <g class="ghost">
+            <g class="gh gh1" style="--gx:24px" fill="#a5b4fc" opacity=".08"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
+            <g class="gh gh2" style="--gx:12px" fill="#a5b4fc" opacity=".13"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
+            <g class="gh gh3" fill="#a5b4fc" opacity=".18"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
+          </g>
+          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
+          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
+          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        </svg>
+      </div>
+      <div class="lb">光轨 + f/2 + 5s <em>3 份残影 + 光轨线 + 整体提亮</em></div>
+    </div>
+
+    <div class="cam-case">
+      <div class="v">
+        <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:1.5px;--subj:1;--bk:.556;--bkop:.58;--dim:.32">
+          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
+          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
+            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
+            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
+            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
+            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
+            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
+          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
+          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
+          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        </svg>
+      </div>
+      <div class="lb">1/2000s <em>最短曝光 → 压暗</em></div>
+    </div>
+
+  </div>
+
+  <div class="mk-cap">
+    预览是<b>趋势示意</b>，不是真实曝光计算：焦距只改主体大小（透视），光圈只改背景模糊与光斑大小，
+    快门只改残影/拖影，曝光时间只改整体明暗蒙版。四者可叠加，互不换算。
+  </div>
+</div>
+
+<!-- ══════════ 舞台 4：参数如何生效（提示词拼接） ══════════ -->
+<div class="mk-stage">
+  <div class="mk-code"><span class="lb">// 用户提示词（节点内输入 + 上游文本 + @ 素材芯片解析后）</span>
+雨夜的东京街角，霓虹灯下的独行者，电影感氛围
+
+<span class="lb">// 追加：仅当节点类型 = ai-image / ai-video</span>
+<span class="add">Camera settings: 85mm portrait lens, f/2.8 aperture, soft background separation, 1/250s exposure time.</span></div>
+
+  <div class="mk-legend" style="margin-top:2px">
+    <div><b>拼接顺序</b>：<span class="k">焦距</span> → 快门效果 → 光圈 → 曝光时间，英文逗号连接，末尾补句点；缺省项整段跳过。</div>
+    <div><b>节点限制</b>：<span class="c">ai-audio 等节点不追加</span>（与参考实现一致）——面板只挂在 imageGenerateNode / 视频节点上。</div>
+    <div><b>数据流</b>：面板 <code>onChange</code> → 节点 <code>data.cameraSettings</code> → 生成时 <code>buildGenerationCameraPrompt()</code> → 提示词。三步缺一不可，只做 UI 不会生效。</div>
+  </div>
+</div>
+
+<div class="mk-note">
+  <b>与现有能力的边界（避免做重）：</b>
+  本仓库已有 <code>CameraStudioPanel</code>（3D 摄影棚：球面拖拽机位 + 打光，hover 工具条里的太阳图标进入，产出「新建生图节点 + 预填提示词」）。
+  它和这里是<b>两套独立功能</b>：摄影棚改的是「机位与布光」并生成新节点，本面板改的是「当前节点这一次的成像参数」。
+  因此按钮<b>不进 hover 工具条</b>（那里已经是摄影棚的地盘），只落在展开面板的参数行。
+  <br />
+  <b>刻意不做：</b>真实曝光/景深计算（预览只表达趋势）、自定义焦距输入（只给 8 档预设）、把参数写进节点卡片常驻展示（用角标数字表达即可）。
+  <br />
+  <b>落地口径：</b>预览 SVG 的颜色沿用参考包（它是「画面」，不是 UI chrome，不套 token）；弹层、下拉、按钮全部走 <code>mockup-kit</code> 的 <code>--surface-*</code> / <code>--edge-*</code> / <code>--accent-*</code> token。
+</div>
+
+</body>
+</html>

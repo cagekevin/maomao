@@ -7,7 +7,6 @@ import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { Grid3X3, PanelsTopLeft, Layers, Loader2 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import NodeShell from '../base/ui/NodeShell.tsx';
-import CustomHandle from '../edges/CustomHandle.tsx';
 import OverlayEditor, { renderOverlayCanvas } from '../base/editors/OverlayEditor.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
@@ -35,7 +34,8 @@ import { loadImageOrNull } from '../base/utils/asyncGuard.ts';
  *  - 渲染：canvas 排布（grid cell / longImage 方向拼接）→ 预览 + 导出
  *  - 导出：renderToCanvas(true) / renderOverlayCanvas → 生成 assetNode 节点
  *
- * 端口：target default（按序填充）+ target cell-N（指定格子）；source merged-output / batch-output
+ * 端口：target 'default'（输入）+ source 'merged-output'（合并结果输出，spawn 写死引用）。
+ * （历史遗留的 'batch-output' 孤立端口已移除：无任何生产者/spawn 引用，属死端口。）
  * ════════════════════════════════════════════════════════════════ */
 
 const parseGrid = (str: string | null | undefined): { rows: number; cols: number } | null => {
@@ -583,7 +583,12 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
         defaultTitle="图像拼图"
         icon={titleIcon}
         selected={selected}
-        showHandles={false}
+        // 端口契约收口到 NodeShell（勿改回 children 手写 CustomHandle）：
+        // 手写在 children 里定位基准是「主框」（不含标题栏），与 NodeShell 标准端口层不一致，
+        // 会导致建边成功但线不显示（同 VideoProcessNode 历史事故）。
+        // 出口 id 固定 'merged-output'（spawn 写死引用，见本文件 spawnMergedNode 与 deriveNodes 单测）。
+        targetHandleId="default"
+        sourceHandleId="merged-output"
         titleRight={
           <div className="flex items-center gap-1 nodrag">
             {modeBtn('grid', '网格', <Grid3X3 size={11} />, '网格拼图')}
@@ -594,9 +599,6 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
         wrapperRef={wrapperRef}
         className="min-w-[320px]"
       >
-        <CustomHandle position="left" handleId="default" variant="small" />
-        <CustomHandle position="right" handleId="merged-output" variant="small" />
-
         <div ref={contentRef} className="p-3 space-y-3 bg-surface relative drag-handle w-full">
           {/* 预览区（含可拖拽 cell/项，复刻官方 Yo.jsx Component614/616 自由组合拼图） */}
           {mergeMode !== 'overlay' && (
@@ -940,8 +942,6 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
             </div>
           </div>
         </div>
-
-        <CustomHandle position="right" handleId="batch-output" variant="small" />
       </NodeShell>
 
       {/* 预览大图：共享 ImageZoomDialog */}

@@ -445,7 +445,9 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
                   },
                 },
               ],
-              { targetHandle: null },
+              // 显式声明出口契约：与 NodeShell sourceHandleId="main-output" 成对
+              // （原为只写 targetHandle、sourceHandle 留空，属隐式巧合匹配）。
+              { sourceHandle: 'main-output', targetHandle: null },
             );
             spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
           }
@@ -769,6 +771,11 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
       aspectRatio="16:9"
       defaultHeight={360}
       handleVariant="small"
+      // 输出口契约（勿删）：source 固定 'main-output'，与本节点 spawn 子节点时的
+      // { sourceHandle: 'main-output' } 成对。统一为语义 id 而非默认 null 口，
+      // 避免「默认口 null ↔ spawn 未传 sourceHandle」的隐式巧合匹配
+      // （一旦新增端口就会静默断线，即「连完没线」）。
+      sourceHandleId="main-output"
       className="min-w-[320px] min-h-[240px]"
       onRename={rename}
     >

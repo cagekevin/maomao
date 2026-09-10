@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { useReactFlow, type Node } from '@xyflow/react';
 import NodeShell from '../base/ui/NodeShell.tsx';
-import CustomHandle from '../edges/CustomHandle.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import { useNodeResize } from '../base/core/uiHooks.ts';
@@ -1526,13 +1525,17 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       defaultHeight={620}
       minWidth={520}
       minHeight={620}
-      showHandles={false}
+      // 端口契约收口到 NodeShell（勿改回 children 手写 CustomHandle）：
+      // 本节点是「成品节点」，两侧端口 id 被下游 spawn 写死引用
+      // （左侧接收 targetHandle='default'/null 的通用连线；
+      //   右侧 sourceHandle='main-output' 见 depthVideo/spawn.ts 与 VideoProcessNode 内部 spawn）。
+      // 手写在 children 里会让端口渲染位置基准错乱 → 建边成功但线不显示。
+      targetHandleId="default"
+      sourceHandleId="main-output"
       syncSize={false}
       onRename={rename}
     >
       <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={onUpload} />
-      {/* 左端口 default（NodeShell showHandles=false，手写保留原 handleId） */}
-      <CustomHandle position="left" handleId="default" variant="small" />
       <div
         ref={contentRef}
         className="flex-1 min-h-0 p-3 flex flex-col gap-3 overflow-y-auto custom-scrollbar nowheel"
@@ -2006,7 +2009,6 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           )}
         </div>
       </div>
-      <CustomHandle position="right" handleId="main-output" variant="small" />
 
       {/* 编辑片段截取弹层 */}
       {editingClipId && currentClip && (

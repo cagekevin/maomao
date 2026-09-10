@@ -941,4 +941,161 @@ button,input,select{font-family:inherit;}
 .ve-ph{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--danger);z-index:3;}
 .ve-ph i{position:absolute;top:0;left:-4px;width:10px;height:7px;background:var(--danger);border-radius:2px;}
 
+/* ───────── N. 生图节点卡片 & 摄影参数面板（camera params） ───────── */
+/* 与 L（3D 导演台）/ M（视频剪辑器）同构：按工具另起一段。
+   注意：这里的「摄影参数」是「收集参数 → 拼进提示词」的轻量面板，
+   与已有的 3D 摄影棚（CameraStudioPanel：球面拖拽机位 + 打光）是两套独立功能，
+   不可复用同一套样式语义，也不可合并成一个入口。 */
+
+/* N1 节点卡片（对齐 NodeShell：header + 媒体区 + 展开面板） */
+.ncard{
+  width:520px;flex-shrink:0;background:var(--surface-raised);
+  border:1px solid var(--edge-muted);border-radius:var(--r-card);box-shadow:var(--sh-card);
+}
+.ncard-hd{
+  display:flex;align-items:center;gap:7px;height:38px;padding:0 10px;
+  border-bottom:1px solid var(--edge-faint);font-size:12px;font-weight:600;color:var(--t-strong);
+}
+.ncard-hd .d{width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+.ncard-hd .t{
+  font-size:10px;font-weight:400;color:var(--t-faint);
+  border:1px solid var(--edge-muted);border-radius:4px;padding:1px 5px;
+}
+.ncard-hd .hoverbar{margin-left:auto;}
+.ncard-img{position:relative;height:196px;border-bottom:1px solid var(--edge-faint);overflow:hidden;}
+.ncard-panel{padding:10px;display:flex;flex-direction:column;gap:8px;}
+
+/* N2 素材条（缩略图 + 底部 @ 插入） */
+.mstrip{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.mstrip .th{
+  position:relative;width:44px;height:44px;border-radius:6px;overflow:hidden;
+  border:1px solid var(--edge-muted);flex-shrink:0;
+}
+.mstrip .th i{
+  position:absolute;left:0;right:0;bottom:0;height:14px;font-style:normal;
+  display:flex;align-items:center;justify-content:center;
+  font-size:9px;color:#fff;background:rgba(0,0,0,.55);
+}
+.mstrip .add{
+  width:44px;height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  border-radius:6px;border:1px dashed var(--edge);background:transparent;color:var(--t-faint);cursor:pointer;
+}
+.mstrip .add:hover{border-color:var(--accent-line);color:var(--accent-text);}
+
+/* N3 提示词输入框 */
+.pinput{
+  min-height:62px;padding:7px 9px;border-radius:var(--r-ctl);
+  background:var(--input);border:1px solid var(--edge-muted);
+  font-size:11px;line-height:1.8;color:var(--t-body);
+}
+.pinput .ph{color:var(--t-faint);}
+.pinput .atk{color:var(--accent-text);background:var(--accent-soft);border-radius:4px;padding:0 3px;}
+
+/* N4 底部参数行（比例/模型/预设/摄影参数 … + 批量 + 生成） */
+.prow{display:flex;align-items:center;gap:5px;padding-top:7px;border-top:1px solid var(--edge-faint);}
+.prow .chip{
+  display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:var(--r-sm);
+  background:transparent;border:1px solid transparent;color:var(--t-secondary);font-size:11px;cursor:pointer;
+  transition:background .15s,color .15s,border-color .15s;
+}
+.prow .chip:hover{background:var(--surface-hover);border-color:var(--edge);color:#fff;}
+.prow .chip .n{font-size:9px;padding:0 4px;border-radius:4px;background:var(--surface-hover-strong);color:var(--t-faint);}
+.prow .chip.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
+.prow .chip.on .n{background:var(--accent);color:#fff;}
+.prow .grow{flex:1;}
+.prow .gen{
+  display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 12px;border-radius:var(--r-pill);
+  background:var(--accent);border:none;color:#fff;font-size:11px;font-weight:500;cursor:pointer;
+}
+.prow .gen:hover{background:#2f6fdc;}
+
+/* N5 摄影参数按钮 + 弹层（从按钮上方弹出，与其它 popover 一致） */
+.cam{position:relative;display:inline-flex;flex-shrink:0;}
+.cam-btn{
+  width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm);
+  background:transparent;border:1px solid transparent;color:var(--t-secondary);cursor:pointer;
+  transition:background .15s,color .15s,border-color .15s;
+}
+.cam-btn:hover{background:var(--surface-hover);border-color:var(--edge);color:#fff;}
+.cam-btn.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
+/* 默认以按钮为中心向上弹（与参考实现 bottom-10 / left-1/2 一致）；靠边时用 .right 改为右对齐 */
+.cam-pop{
+  position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);z-index:40;
+  width:344px;padding:10px;
+  border-radius:12px;background:var(--surface-raised);border:1px solid var(--edge);box-shadow:var(--sh-pop);
+}
+.cam-pop.right{left:auto;right:0;transform:none;}
+.cam-pop.static{position:static;transform:none;}
+.cam-pop.wide{width:420px;}
+.cam-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 2px;}
+.cam-hd b{font-size:11px;font-weight:600;color:var(--t-primary);}
+.cam-hd button{border:none;background:transparent;color:var(--t-faint);font-size:10px;cursor:pointer;padding:0;}
+.cam-hd button:hover{color:#fff;}
+.cam-view{
+  height:152px;overflow:hidden;border-radius:8px;
+  border:1px solid var(--edge-muted);background:var(--surface-sunken);
+}
+.cam-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px;}
+.cam-fld{display:flex;flex-direction:column;gap:3px;min-width:0;}
+.cam-fld > span{font-size:10px;color:var(--t-faint);}
+.cam-fld select{
+  height:26px;width:100%;padding:0 6px;border-radius:var(--r-sm);
+  background:var(--input);border:1px solid var(--edge-muted);color:var(--t-body);font-size:11px;
+}
+.cam-fld select:focus{outline:none;border-color:var(--accent-line);}
+.cam-out{
+  margin-top:8px;padding:6px 7px;border-radius:var(--r-sm);
+  background:var(--surface-sunken);border:1px solid var(--edge-faint);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;line-height:1.7;
+  color:var(--t-faint);word-break:break-all;
+}
+.cam-out b{color:var(--accent-text);font-weight:400;}
+.cam-hint{margin-top:7px;padding:0 2px;font-size:10px;line-height:1.6;color:var(--t-faint);}
+
+/* N6 成像预览 SVG：一份结构 + CSS 变量换参（--blur 景深 / --subj 透视 / --bk 光斑 / --dim 欠曝 / --bri 过曝） */
+.cam-prev{display:block;width:100%;height:100%;}
+.cam-prev .bg{filter:blur(var(--blur,1.5px));opacity:.9;}
+.cam-prev .bk{transform-box:fill-box;transform-origin:center;transform:scale(var(--bk,1));opacity:var(--bkop,.58);}
+.cam-prev .subj,.cam-prev .gh{transform-box:view-box;transform-origin:200px 105px;}
+.cam-prev .subj{transform:scale(var(--subj,1));}
+/* 拖影偏移量：默认给「动态拖影」两档；内联 style 优先级高于样式表，故默认值只能写在 CSS 里 */
+.cam-prev .gh{transform:translateX(var(--gx,0px)) scale(var(--subj,1));}
+.cam-prev .gh1{--gx:24px;}
+.cam-prev .gh2{--gx:12px;}
+.cam-prev .dim{opacity:var(--dim,0);}
+.cam-prev .bri{opacity:var(--bri,0);}
+/* 分支件：默认全关，由 .is-* 打开（与参考实现的条件分支一一对应） */
+.cam-prev .macro,.cam-prev .fish,.cam-prev .trail,.cam-prev .motion,
+.cam-prev .ghost,.cam-prev .gh3{display:none;}
+.cam-prev.is-macro .macro{display:block;}
+.cam-prev.is-macro .subj,.cam-prev.is-macro .ghost{display:none;}
+.cam-prev.is-fish .fish{display:block;}
+.cam-prev.is-fish .std{display:none;}
+.cam-prev.is-motion .motion,.cam-prev.is-motion .ghost{display:block;}
+/* 光轨：三份拖影 + 长曝光轨迹线（拖影偏移量比「动态拖影」更大一档） */
+.cam-prev.is-trail .trail,.cam-prev.is-trail .gh3{display:block;}
+.cam-prev.is-trail .gh1{--gx:42px;opacity:.08;}
+.cam-prev.is-trail .gh2{--gx:28px;opacity:.13;}
+.cam-prev.is-trail .gh3{--gx:14px;opacity:.18;}
+
+/* N7 参数对照卡（预览 + 说明） */
+.cam-cases{display:flex;flex-wrap:wrap;gap:12px;}
+.cam-case{width:236px;}
+.cam-case .v{
+  height:99px;overflow:hidden;border-radius:8px;
+  border:1px solid var(--edge-muted);background:var(--surface-sunken);
+}
+.cam-case .lb{margin-top:5px;font-size:11px;color:var(--t-body);line-height:1.6;}
+.cam-case .lb em{font-style:normal;color:var(--t-faint);font-size:10px;}
+
+/* N8 提示词结果块（展示拼接后的最终文本） */
+.mk-code{
+  width:820px;padding:10px 12px;border-radius:var(--r-ctl);background:var(--surface-sunken);
+  border:1px solid var(--edge-faint);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:1.9;
+  color:var(--t-muted);white-space:pre-wrap;word-break:break-word;
+}
+.mk-code .add{color:var(--accent-text);}
+.mk-code .lb{color:var(--t-faint);}
+
 /* __APPEND_MARK__ */

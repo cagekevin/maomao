@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import NodeShell from '../base/ui/NodeShell.tsx';
-import CustomHandle from '../edges/CustomHandle.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import LazyImage from '../base/ui/LazyImage.tsx';
@@ -38,10 +37,8 @@ import { useRenderImageResolver, fileToDataUrl } from '../base/utils/imageUrl.ts
  *  - 缩略图：添加时用 canvas 生成 256 缩略图（对齐官方 _cmp_Tr）
  *  - 端口：target「in」接上游图片、source「active」输出当前激活图
  *
- * 结构（对齐官方 Rg.jsx，NodeShell 外壳 + 自定义带 id 端口）：
- *   <NodeShell showHandles={false}>          ← 外壳（背景/边框/阴影/尺寸）
- *     <CustomHandle target id="in" />        ← 输入端口
- *     <CustomHandle source id="active" />    ← 输出端口
+ * 结构（对齐官方 Rg.jsx，NodeShell 外壳 + 声明式端口）：
+ *   <NodeShell targetHandleId="in" sourceHandleId="active">  ← 外壳 + 端口（背景/边框/阴影/尺寸/端口）
  *     标题行（NodeShell titleRight 插槽放全选/展开，NodeTitle 由 NodeShell 渲染，外观与其他节点一致）
  *     <div flex-1> 图片区（空态/单图+导航/网格+添加/拖拽覆盖）</div>
  *   </NodeShell>
@@ -451,7 +448,11 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
         icon={titleIcon}
         selected={selected}
         handleVariant={smallHandle}
-        showHandles={false}
+        // 端口契约收口到 NodeShell（勿改回 children 手写 CustomHandle）：
+        // 手写在 children 里定位基准是「主框」（不含标题栏），与 NodeShell 标准端口层不一致，
+        // 会导致建边成功但线不显示（同 VideoProcessNode 历史事故）。
+        targetHandleId="in"
+        sourceHandleId="active"
         titleRight={
           <div className="flex items-center gap-1 nodrag">
             {expanded && images.length > 0 && (
@@ -499,10 +500,6 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
         }
         className="min-w-[240px] min-h-[200px]"
       >
-        {/* 自定义端口：target「in」（左上） / source「active」（右中） */}
-        <CustomHandle position="left" handleId="in" variant={smallHandle} />
-        <CustomHandle position="right" handleId="active" variant={smallHandle} />
-
         {/* 隐藏文件输入 */}
         <input
           type="file"

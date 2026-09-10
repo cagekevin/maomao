@@ -1,7 +1,6 @@
 import React from 'react';
 import { Folder } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
-import CustomHandle from '../edges/CustomHandle.tsx';
 
 /**
  * 群组 / 分组节点。
@@ -41,12 +40,13 @@ function GroupNode({ id, data, selected }: GroupNodeProps) {
       aspectRatio={null}
       defaultHeight={200}
       syncSize={false}
-      showHandles={false}
+      handleVariant="small"
     >
       {/* 空容器：外壳背景即 group 背景 */}
       <div className="w-full h-full" />
-      {/* 对外出口（右侧 source 端口）：下游连到 group，即自动聚合组内所有子节点产出 */}
-      <CustomHandle position="right" variant="small" />
+      {/* 端口走 NodeShell 标准渲染（默认左右口，handleId=null）：
+          下游连到 group 即自动聚合组内所有子节点产出。
+          原先手写 CustomHandle 在 children 里，定位基准错误 → 已收口。 */}
     </NodeShell>
   );
 }

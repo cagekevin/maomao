@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { useReactFlow, Handle, Position } from '@xyflow/react';
 import NodeShell from '../base/ui/NodeShell.tsx';
-import CustomHandle from '../edges/CustomHandle.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import { useContentHeightSync } from '../base/core/uiHooks.ts';
@@ -896,7 +895,11 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
         defaultTitle="图像切分"
         icon={titleIcon}
         selected={selected}
-        showHandles={false}
+        // 端口契约收口到 NodeShell（勿改回 children 手写 CustomHandle）：
+        // 手写在 children 里定位基准是「主框」（不含标题栏），与 NodeShell 标准端口层不一致，
+        // 会导致建边成功但线不显示（同 VideoProcessNode 历史事故）。
+        targetHandleId="in"
+        sourceHandleId="batch"
         titleRight={
           <div className="flex items-center gap-1 nodrag">
             {modeBtn('grid', '规则', <Grid3X3 size={11} />, '规则网格')}
@@ -907,9 +910,6 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
         wrapperRef={wrapperRef}
         className="min-w-[280px]"
       >
-        <CustomHandle position="left" handleId="in" variant="small" />
-        <CustomHandle position="right" handleId="batch" variant="small" />
-
         <div ref={contentRef} className="p-2 space-y-2 relative z-10 rounded-xl w-full">
           {/* 源图 + 切割覆盖层 */}
           {imageUrl ? (
