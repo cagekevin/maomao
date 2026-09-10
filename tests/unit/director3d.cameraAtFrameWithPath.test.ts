@@ -28,7 +28,6 @@ import {
   pathTangentAtFraction,
   cameraRotationToward,
   clamp,
-  normalizeCameraKeyframes,
   snapshotToChannelKeys,
   upsertChannelKeys,
 } from '../../src/components/director3d/project.ts';
