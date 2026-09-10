@@ -49,12 +49,10 @@ describe('settingsApi — providerApi 成功路径', () => {
     expect(init.method).toBe('POST');
   });
 
-  it('syncConfigBase 走 PUT /api/config/base', async () => {
-    fetchMock.mockResolvedValue(jsonResp({ ok: true }));
-    await providerApi.syncConfigBase([{ id: 'p1' }]);
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toContain('/api/config/base');
-    expect(init.method).toBe('PUT');
+  // syncConfigBase 已移除：它注释声称回写 api.config.json，实际后端只算 primaryId 不落盘，
+  // 属「假通路」。config/providers/<id>.json 是唯一真源，无需额外同步端点。
+  it('providerApi 不再暴露 syncConfigBase（单一真源，无假同步通路）', () => {
+    expect('syncConfigBase' in providerApi).toBe(false);
   });
 });
 

@@ -15,7 +15,6 @@ const h = vi.hoisted(() => ({
   mockProbeAsync: vi.fn(),
   mockFetchModels: vi.fn(),
   mockSaveProviders: vi.fn(),
-  mockSyncConfigBase: vi.fn(),
   mockKvSet: vi.fn(),
 }));
 
@@ -26,7 +25,6 @@ vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
     probeAsync: (...a) => h.mockProbeAsync(...a),
     fetchModels: (...a) => h.mockFetchModels(...a),
     saveProviders: (...a) => h.mockSaveProviders(...a),
-    syncConfigBase: (...a) => h.mockSyncConfigBase(...a),
   },
   // 2026-09-04 中间层折叠：contentStore 直接调 localToolApi 的 kv 三件套。
   // kvSet 断言钩子自原 kvStore mock 的 storageSet 迁来（providerStore 落盘走 contentSet → writeKvWithFallback → kvSet）。
@@ -55,10 +53,8 @@ describe('providerStore §4 供应商数据层（新时代配置型）', () => {
     h.mockProbeAsync.mockReset();
     h.mockFetchModels.mockReset();
     h.mockSaveProviders.mockReset();
-    h.mockSyncConfigBase.mockReset();
     h.mockKvSet.mockReset();
     h.mockKvSet.mockReturnValue(Promise.resolve());
-    h.mockSyncConfigBase.mockReturnValue(Promise.resolve());
     mod = await import('../../src/components/base/store/providerStore.ts');
   });
 

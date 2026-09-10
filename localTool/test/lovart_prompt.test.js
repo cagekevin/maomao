@@ -26,8 +26,10 @@ const { LOVART_MODEL_MANIFEST } = await import(
 
 test('B6 自然语言路：prompt 句子内嵌模型硬约束（对齐 main.build_gen_prefix）', () => {
   const p = buildLovartPrompt('gpt-image-2-low', 'a red dog');
-  // gpt-image-2-low 未登记 _PROMPT_MODEL_NAMES → 回退 model 原串（对齐 main）
-  assert.match(p, /Generate exactly ONE image using the gpt-image-2-low model\./);
+  // gpt-image-2-low 命中 LOVART_QUALITY_MODELS → 基础名 GPT Image 2 + 质量子句（模型名去后缀、质量独立）。
+  // 中文指令句（Lovart 解析）+ 英文指令句（双保险）：『用 GPT Image 2，质量 low。Generate exactly ONE image using the GPT Image 2 model, quality low.』
+  assert.match(p, /用 GPT Image 2，质量 low。/);
+  assert.match(p, /Generate exactly ONE image using the GPT Image 2 model, quality low\./);
   assert.match(p, /<user_prompt>\na red dog\n<\/user_prompt>/, '用户原文 <user_prompt> 包裹');
 });
 
@@ -49,7 +51,7 @@ test('参考图声明（对齐 main.build_gen_prefix）：IMAGE 带参考图写 
   const withRef = buildLovartPrompt('gpt-image-2-low', 'a red dog', '1024x1024', true);
   assert.match(
     withRef,
-    /Reference image attached\. Generate exactly ONE image using the gpt-image-2-low model\./,
+    /Reference image attached\. 用 GPT Image 2，质量 low。 Generate exactly ONE image using the GPT Image 2 model, quality low\./,
   );
   assert.match(withRef, /<user_prompt>\na red dog\n<\/user_prompt>/, '用户原文包裹');
 });
@@ -57,7 +59,10 @@ test('参考图声明（对齐 main.build_gen_prefix）：IMAGE 带参考图写 
 test('参考图声明（对齐 main）：IMAGE 无参考图不写 Reference，但写 Generate exactly ONE image', () => {
   const noRef = buildLovartPrompt('gpt-image-2-low', 'a cat');
   assert.ok(!noRef.includes('Reference image'), '无参考图不写 Reference 声明');
-  assert.match(noRef, /Generate exactly ONE image using the gpt-image-2-low model\./);
+  assert.match(
+    noRef,
+    /用 GPT Image 2，质量 low。 Generate exactly ONE image using the GPT Image 2 model, quality low\./,
+  );
 });
 
 test('参考图声明（对齐 main）：VIDEO 写 Generate exactly ONE video（参考图经 attachments 携带）', () => {
@@ -71,8 +76,20 @@ test('参考图声明（对齐 main）：VIDEO 写 Generate exactly ONE video（
 test('B5 结构化路：普通模型下发 tool_config.prefer_tool_categories', () => {
   const tc = buildLovartToolConfig('gpt-image-2-low');
   assert.ok(tc && tc.prefer_tool_categories, '必须下发 prefer_tool_categories');
-  // 对齐 main：低档位独立工具名（_IMAGE_RULES 首条，非合并的 generate_image_gpt_image_2）
-  assert.deepEqual(tc.prefer_tool_categories.IMAGE, ['generate_image_gpt_image_2_low']);
+  // 对齐 Lovart：质量不烤进工具名，tool_hint=基础工具名（无 _low 后缀），质量经 prompt『质量 low』独立下发
+  assert.deepEqual(tc.prefer_tool_categories.IMAGE, ['generate_image_gpt_image_2']);
+});
+
+test('质量模型 2.5：prompt 去后缀 + 中文质量子句，tool_config 发基础工具名', () => {
+  const p = buildLovartPrompt('gpt-image-2.5-sunburst-medium', 'a sunset', '1024x1024');
+  assert.match(p, /用 GPT Image 2.5 Sunburst，质量 medium。/);
+  assert.match(
+    p,
+    /Generate exactly ONE image using the GPT Image 2.5 Sunburst model, quality medium\./,
+  );
+  assert.match(p, /target_size: 1024x1024/);
+  const tc = buildLovartToolConfig('gpt-image-2.5-sunburst-medium');
+  assert.deepEqual(tc.prefer_tool_categories.IMAGE, ['generate_image_gpt_image_2_5_sunburst']);
 });
 
 test('B7 prompt_only：nano-bn-2-lite 无 tool_config（undefined）', () => {
@@ -114,9 +131,9 @@ test('回归：别名前缀不误吞——seedance-2 与 seedance-2.0-mini 各�
 });
 
 test('别名容错：归一化 + 模糊匹配（对齐 main.resolve_prefer_models）', () => {
-  // 归一化：大写 + 下划线 → 小写连字符
+  // 归一化：大写 + 下划线 → 小写连字符；质量模型去后缀发基础工具名
   assert.deepEqual(buildLovartToolConfig('GPT_Image_2_Low').prefer_tool_categories.IMAGE, [
-    'generate_image_gpt_image_2_low',
+    'generate_image_gpt_image_2',
   ]);
   // 别名：'seedance2' 命中 seedance-2 规则
   assert.deepEqual(buildLovartToolConfig('seedance2').prefer_tool_categories.VIDEO, [

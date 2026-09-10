@@ -27,6 +27,7 @@ import {
   LOVART_IMAGE_RULES,
   LOVART_MODEL_SPECS,
   LOVART_PROMPT_MODEL_NAMES,
+  LOVART_QUALITY_MODELS,
   LOVART_VIDEO_RULES,
 } from './lovart_config.js';
 
@@ -91,10 +92,16 @@ export function buildLovartPrompt(
   }
   // 可读模型名：查 _PROMPT_MODEL_NAMES（对齐 main.py:1252-1253，key 用 strip().lower()），
   // 未登记则回退 model 原串（对齐 main.py 兜底行为，而非 specs.readableName）。
+  // 质量模型派生（对齐 Lovart：tool_hint=基础工具名，quality=独立档位）：
+  // 模型 id 已含质量（low/medium/high），base 去后缀、quality 单独成句；未命中走原 _PROMPT_MODEL_NAMES。
+  const qm = LOVART_QUALITY_MODELS[(modelId ?? '').trim().toLowerCase()];
   const modelName =
-    LOVART_PROMPT_MODEL_NAMES[(modelId ?? '').trim().toLowerCase()] ?? modelId ?? '';
-  // 提示词硬约束：模型名嵌进生成指令句子（对齐 main.py build_gen_prefix:533）。
+    qm?.base ?? LOVART_PROMPT_MODEL_NAMES[(modelId ?? '').trim().toLowerCase()] ?? modelId ?? '';
+  // 英文硬约束：模型名嵌进生成指令句子（对齐 main.py build_gen_prefix:533），质量随模型一并声明。
   const modelClause = modelName ? ` using the ${modelName} model` : '';
+  const qualitySuffix = qm?.quality ? `, quality ${qm.quality}` : '';
+  // 中文质量子句（Lovart 自然语言解析用，对齐其明示格式『用 GPT Image 2.5 Sunburst，质量 max』）。
+  const cnQuality = qm?.quality ? `，质量 ${qm.quality}` : '';
 
   // 尺寸/参数前缀，对齐 build_gen_prefix:521-532：
   // 图片只传具体像素 target_size（最精确），不附带 1K/2K/1080p 档位文字（两者同传会冲突）。
@@ -109,9 +116,17 @@ export function buildLovartPrompt(
   let instr = '';
   if (category === 'IMAGE') {
     // 注意：不能写 "Use reference and edit"，那会引导 Lovart 走 edit_media（改图）。
-    instr = hasRefs
-      ? `Reference image attached. Generate exactly ONE image${modelClause}.`
-      : `Generate exactly ONE image${modelClause}.`;
+    // 质量模型：中文指令句（Lovart 解析）+ 英文指令句（双保险），模型名去后缀、质量单独成句。
+    if (qm) {
+      const cn = `用 ${modelName}${cnQuality}。`;
+      instr = hasRefs
+        ? `Reference image attached. ${cn} Generate exactly ONE image${modelClause}${qualitySuffix}.`
+        : `${cn} Generate exactly ONE image${modelClause}${qualitySuffix}.`;
+    } else {
+      instr = hasRefs
+        ? `Reference image attached. Generate exactly ONE image${modelClause}.`
+        : `Generate exactly ONE image${modelClause}.`;
+    }
   } else if (category === 'VIDEO') {
     instr = `Generate exactly ONE video${modelClause}.`;
   }

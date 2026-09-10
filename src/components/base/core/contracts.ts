@@ -805,13 +805,6 @@ export const apiRegistry = {
     envelope: 'code-data',
     status: 'ACTIVE',
   },
-  syncConfigBase: {
-    fn: 'localToolApi.providerApi.syncConfigBase',
-    method: 'PUT',
-    path: '/api/config/base',
-    envelope: 'code-data',
-    status: 'ACTIVE',
-  },
   testConnection: {
     fn: 'localToolApi.providerApi.testConnection',
     method: 'POST',

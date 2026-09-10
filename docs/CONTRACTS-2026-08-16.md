@@ -297,7 +297,7 @@ discountVideo→特惠视频  custom→万能  rhWebapp→AI应用
 { type:'imageBoxNode',      data:{ images:[], activeIndex:0, expanded:false } }
 { type:'gridSplitNode',     data:{ imageUrl:'', extractedImages:[], rows:3, cols:3, splitMode:'grid', hLines:[0.5], vLines:[0.5], lassoShapes:[], titlePattern:'#{num}', sendToImageBox:false } }
 { type:'gridMergeNode',     data:{ mergeMode:'grid', rows:3, cols:3, cellSize:512, aspectRatio:'1:1', autoSize:true, titlePattern:'', longDirection:'vertical', longGap:0, longTargetSize:1024, longAutoSize:true, bgColor:'transparent', overlayState:{layers:[], canvasWidth:1024, canvasHeight:1024, bgColor:'transparent'} } }
-{ type:'panoramaNode',      data:{ panoType:'sphere', highQuality:false, aspectRatio:'16:9', imageUrl:'' } }
+{ type:'panoramaNode',      data:{ aspectRatio:'16:9', imageUrl:'' } }
 { type:'director3dNode',    data: 无（palette 未登记 data 字段，defaultNodeData 仅兜底 expanded:false） }
 { type:'faceMosaicNode',    data:{ mode:'mosaic', strength:0.5, color:'#000000', imageUrls:[] } }
 // 视频工具

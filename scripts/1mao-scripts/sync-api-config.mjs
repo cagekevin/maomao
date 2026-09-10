@@ -2,29 +2,34 @@
 /**
  * API 供应商 config 同步脚本
  * ------------------------------------------------------------
- * 用途：把项目根 `api.config.json`（base config，人/AI 可编辑）同步到 localTool 后端
- *       `/api/providers`（落盘 ~/.maomao-localtool/providers.json）。
+ * 用途：把出厂模板 `localTool/providers.default.json`（人/AI 可编辑）同步到 localTool 后端
+ *       `/api/providers`（逐平台落盘 <数据目录>/providers/<id>.json，默认 ~/.maomao-localtool）。
  *
  * 用法（项目根执行）：
- *   node scripts/sync-api-config.mjs           同步（读取 api.config.json）
- *   node scripts/sync-api-config.mjs --print   只打印将要合并的结果，不写后端（dry-run）
+ *   node scripts/1mao-scripts/sync-api-config.mjs           同步（读取 providers.default.json）
+ *   node scripts/1mao-scripts/sync-api-config.mjs --print   只打印将要合并的结果，不写后端（dry-run）
+ *
+ * 【单一真源】运行态真源 = config/providers/<id>.json（后端自动播种只补缺）。
+ * 本脚本用于「显式把模板推给后端」的场景（模板改动后需要主动下发），正常使用无需运行。
  *
  * 合并规则（关键）：
  *   - 按 provider.id 匹配后端已有 provider。
- *   - base config 里该 provider「出现的字段」会覆盖后端值（name/base_url/protocol/
- *     image_request_mode/image_mode/enabled/isPrimary）。
- *   - 模型清单（image_models/chat_models/video_models）为可选：config 里写了才覆盖，
+ *   - 模板里该 provider「出现的字段」会覆盖后端值（name/base_url/protocol/
+ *     image_request_mode/image_mode/enabled/primary）。
+ *   - 模型清单（image_models/chat_models/video_models）为可选：模板里写了才覆盖，
  *     不写则保留后端现有（避免 fetch-models 拉到的完整模型被丢）。
- *   - API key 不在此文件也不在此脚本处理；key 只存 localTool/.env（API_PROVIDER_{ID}_KEY）。
- *   - 同步后保证「至少一个 isPrimary=true」，多主时取 config 里最后一个 isPrimary=true 胜出。
+ *   - API key 不在此文件也不在此脚本处理；key 只存 localTool/.env
+ *     （统一命名 API_PROVIDER_{ID}_KEY；lovart 等按厂商目录 envKeys 声明）。
+ *   - 同步后保证「至少一个 primary=true」，多主时取模板里最后一个 primary=true 胜出。
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '..');
-const CONFIG_FILE = path.join(ROOT, 'api.config.json');
+// 本文件在 scripts/1mao-scripts/ 下 → 上溯两级到项目根
+const ROOT = path.resolve(__dirname, '..', '..');
+const CONFIG_FILE = path.join(ROOT, 'localTool', 'providers.default.json');
 const API_BASE = process.env.LOCALTOOL_BASE || 'http://127.0.0.1:18080';
 
 const DRY_RUN = process.argv.includes('--print') || process.argv.includes('--dry-run');
@@ -83,10 +88,10 @@ function normModels(arr) {
 // ── 合并：base config → 后端现有 ──
 function mergeConfig(baseList, existingList) {
   const byId = new Map(existingList.map((p) => [p.id, { ...p }]));
-  // isPrimary 唯一化：取 config 里最后一个 isPrimary=true 胜出
+  // primary 唯一化：取模板里最后一个 primary=true 胜出（字段名与后端契约一致）
   let primaryId;
   for (const bp of baseList) {
-    if (bp.isPrimary) primaryId = bp.id;
+    if (bp.primary) primaryId = bp.id;
   }
 
   for (const bp of baseList) {
@@ -107,8 +112,8 @@ function mergeConfig(baseList, existingList) {
     for (const f of scalarFields) {
       if (bp[f] !== undefined) merged[f] = bp[f];
     }
-    // isPrimary：未指定主供应商时保留后端原有；否则按 primaryId 设置
-    merged.isPrimary = primaryId ? id === primaryId : prev ? !!prev.isPrimary : false;
+    // primary：未指定主供应商时保留后端原有；否则按 primaryId 设置
+    merged.primary = primaryId ? id === primaryId : prev ? !!prev.primary : false;
 
     // 模型：base config 里写了才覆盖
     const img = normModels(bp.image_models);
@@ -140,8 +145,8 @@ function mergeConfig(baseList, existingList) {
 
   const mergedList = [...byId.values()];
   // 至少一个 primary
-  if (!mergedList.some((p) => p.isPrimary) && mergedList.length > 0) {
-    mergedList[0].isPrimary = true;
+  if (!mergedList.some((p) => p.primary) && mergedList.length > 0) {
+    mergedList[0].primary = true;
   }
   return mergedList;
 }
@@ -161,7 +166,7 @@ async function main() {
   );
   for (const p of clean) {
     console.log(
-      `  - ${p.id} [${p.protocol}] enabled=${p.enabled} primary=${!!p.isPrimary} img=${p.image_models?.length ?? 0} chat=${p.chat_models?.length ?? 0} vid=${p.video_models?.length ?? 0} url=${p.base_url}`,
+      `  - ${p.id} [${p.protocol}] enabled=${p.enabled} primary=${!!p.primary} img=${p.image_models?.length ?? 0} chat=${p.chat_models?.length ?? 0} vid=${p.video_models?.length ?? 0} url=${p.base_url}`,
     );
   }
 

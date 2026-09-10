@@ -23,9 +23,15 @@ export function getEnvFile(): string {
   return process.env.MAOMAO_ENV_FILE || path.join(getRoot(), '.env');
 }
 
-/** localTool/api.config.json（支持 MAOMAO_CONFIG_FILE 覆盖） */
-export function getApiConfigFile(): string {
-  return process.env.MAOMAO_CONFIG_FILE || path.join(getRoot(), 'api.config.json');
+/**
+ * localTool/providers.default.json —— 出厂默认 provider 清单（模板/种子）。
+ *
+ * 【定位】只读种子文件：仅在某平台尚无 config/providers/<id>.json 时用于首次播种，
+ * 播种后即为运行时真源，本文件不再被读取、更不被写入。
+ * 历史名 api.config.json 已退役（曾与运行态双源漂移）；保留 MAOMAO_CONFIG_FILE 覆盖以兼容脚本。
+ */
+export function getProviderSeedFile(): string {
+  return process.env.MAOMAO_CONFIG_FILE || path.join(getRoot(), 'providers.default.json');
 }
 
 /** localTool/data/apiConfigs.baseline.json */

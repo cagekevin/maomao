@@ -76,7 +76,6 @@ import {
 import {
   handleProvidersGet,
   handleProvidersPut,
-  handleConfigBasePut,
   handleProviderTest,
   handleProviderProbeAsync,
   handleProviderFetchModels,
@@ -148,7 +147,6 @@ export const routes: Route[] = [
   // ── Providers（配置型：一个平台一个 JSON，读 config/providers/；测连/拉模型委托 ai-relay）──
   { method: 'GET', pattern: '/api/providers', handler: handleProvidersGet },
   { method: 'PUT', pattern: '/api/providers', handler: handleProvidersPut },
-  { method: 'PUT', pattern: '/api/config/base', handler: handleConfigBasePut },
   { method: 'POST', pattern: '/api/providers/test-connection', handler: handleProviderTest },
   { method: 'POST', pattern: '/api/providers/probe-async', handler: handleProviderProbeAsync },
   {

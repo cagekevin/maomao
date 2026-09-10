@@ -7,11 +7,15 @@
  * 文件存「前端 Provider 契约字段 + 可选 relay 连接元数据」。本模块是 provider 配置的唯一读写入口
  * （禁散落 fs 读写）。
  *
- * 【真源】
- *  - config/providers/<id>.json = 用户可见可改的 Provider（模型清单/协议/模式/base_url）。
+ * 【真源（唯二，职责不重叠）】
+ *  - 运行态真源：<数据目录>/providers/<id>.json = 用户可见可改的 Provider（模型清单/协议/模式/base_url）。
+ *  - 出厂模板：localTool/providers.default.json = 只读种子，仅在「该平台尚无文件」时播种（seedFromDefaultFile）。
+ *    播种后模板不再参与运行时；用户保存永不回写模板 → 无「初始化 JSON vs 运行态 JSON」双源漂移。
+ *    （历史名 api.config.json 曾扮演种子，但因「只迁移一次 + 不覆盖写」而沦为僵尸副本，已退役。）
  *  - ai-relay BUILT_IN_PROVIDER_DEFINITIONS = 出厂平台候选 + 测连/拉模型的默认连接元数据（只读，不落盘）。
  *  - 读时合并：文件字段优先；缺的 relay 元数据用内置定义补；只有内置定义无文件 → 生成最小 Provider（enabled=false）。
- *  - key 不入配置文件：只进 .env `API_PROVIDER_{ID}_KEY`（对齐 ai-relay key 红线）。
+ *  - key 不入配置文件：只进 .env（统一命名 `API_PROVIDER_{ID}_KEY`；凭证名特殊的厂商
+ *    如 lovart 按 ai-relay 目录的 `envKeys` 声明读取，见 providerCredentials.ts）。
  * ════════════════════════════════════════════════════════════════
  */
 
@@ -197,23 +201,31 @@ export function readProvider(id: string): Record<string, unknown> | null {
   return all.find((p) => p.id === id) || null;
 }
 
-/** 一次迁移：若 config/providers/ 不存在且无任何文件，则从 api.config.json 拆分首拆。 */
-export function migrateFromApiConfigFile(apiConfigPath: string): number {
-  if (listProviderConfigFiles().length > 0) return 0;
+/**
+ * 首次播种：把出厂模板 providers.default.json 逐平台拆成 config/providers/<id>.json。
+ *
+ * 【语义（单一真源）】仅当「该平台尚无自己的配置文件」时播种，已存在的平台一律跳过——
+ * 即用户配置永不被出厂模板覆盖。幂等：重复调用不产生副作用。
+ * 【历史】原名 migrateFromApiConfigFile（迁移 api.config.json）；api.config.json 已退役为
+ * providers.default.json，语义从「一次性整体迁移」收窄为「缺失才播种」，消除双源漂移。
+ */
+export function seedFromDefaultFile(defaultPath: string): number {
   let written = 0;
   try {
-    if (!fs.existsSync(apiConfigPath)) return 0;
-    const raw = JSON.parse(fs.readFileSync(apiConfigPath, 'utf-8')) as { providers?: unknown[] };
+    if (!fs.existsSync(defaultPath)) return 0;
+    const raw = JSON.parse(fs.readFileSync(defaultPath, 'utf-8')) as { providers?: unknown[] };
     const providers = Array.isArray(raw.providers) ? raw.providers : [];
     for (const p of providers) {
       if (!p || typeof p !== 'object') continue;
       const prov = p as Record<string, unknown>;
       const id = typeof prov.id === 'string' ? prov.id : '';
       if (!id) continue;
+      // 已有用户配置 → 不覆盖（播种只补缺，不动运行态）
+      if (readProviderConfigFile(id)) continue;
       if (writeProviderConfigFile(id, prov)) written++;
     }
   } catch {
-    // 迁移失败不阻塞服务
+    // 播种失败不阻塞服务（后续请求仍可按内置目录兜底）
   }
   return written;
 }

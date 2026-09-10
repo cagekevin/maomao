@@ -69,9 +69,6 @@ export interface ProviderState {
   fetchingId: string | null;
   fetchedModels: FetchedModels | null;
   testResult: Record<string, unknown> | null;
-  /** save() 后回写 api.config.json 的结果标记 */
-  configSynced?: boolean;
-  configSyncError?: string;
 }
 
 let state: ProviderState = {
@@ -440,12 +437,10 @@ export async function save(): Promise<{ ok: boolean; error?: string }> {
       ? data.data.providers.map(normalizeProvider)
       : state.providers;
     setState({ providers: savedProviders, dirty: false });
-    // 方案A：把保存后的结果回写 api.config.json，消除双源漂移。
-    // 回写是辅助动作，失败不影响主保存（避免 json 写失败导致保存报错）。
-    providerApi
-      .syncConfigBase(savedProviders || payload)
-      .then(() => setState({ configSynced: true }))
-      .catch((e) => setState({ configSyncError: e.message }));
+    // 【单一真源】`config/providers/<id>.json` 是唯一真源，saveProviders 已按 id 逐平台写盘。
+    // 删除原 syncConfigBase 调用：它注释声称「回写 api.config.json 消除双源漂移」，
+    // 但后端 handleConfigBasePut 只计算并回传 primaryId、从不落盘 —— 是个假动作，
+    // 留着只会让人误以为同步过。种子文件改由 providers.default.json 承担（见 providerConfigStore）。
     // 对齐官方 active_api_endpoint（KV）：把主供应商写入 localTool KV，供跨端读取当前生效 endpoint
     const primary = savedProviders.find((p) => p.primary) || savedProviders[0];
     if (primary) {

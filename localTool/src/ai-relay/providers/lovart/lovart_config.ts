@@ -24,19 +24,20 @@ export interface LovartModelSpec {
  *
  * 元素 = [别名数组, 工具名]。工具名空串 '' = 官方暂无对应生成工具，仅作提示词驱动，
  * 不下发 prefer_tool_categories（避免上游收到无效工具名），对齐 main.py:162-163 / 172-175。
+ * ⚠ 工具名【不带质量后缀】：质量经 prompt 的『质量 X』子句独立下发（对齐 Lovart：
+ *   tool_hint = 基础工具名，quality = 独立档位）。如 generate_image_gpt_image_2_5_sunburst
+ *   （非 _sunburst_low）；generate_image_gpt_image_2（非 _low）。质量模型见 LOVART_QUALITY_MODELS。
  *
  * ⚠ 顺序敏感：匹配用 `any(k in m)` 子串包含，故更特异的别名必须排在更短的之前，
  * 例如 'gpt-image-2-low' 必须排在 'gpt-image-2' 之前，否则 low 会被 'gpt-image-2' 误吞。
  */
 export const LOVART_IMAGE_RULES: ReadonlyArray<readonly [readonly string[], string]> = [
-  [['gpt-image-2-low', 'gpt-image2-low', 'gptimage2low'], 'generate_image_gpt_image_2_low'],
-  [
-    ['gpt-image-2-medium', 'gpt-image2-medium', 'gptimage2medium'],
-    'generate_image_gpt_image_2_medium',
-  ],
+  [['gpt-image-2-low', 'gpt-image2-low', 'gptimage2low'], 'generate_image_gpt_image_2'],
+  [['gpt-image-2-medium', 'gpt-image2-medium', 'gptimage2medium'], 'generate_image_gpt_image_2'],
   // 必须在 'gpt-image-2' 之前：'gpt-image-2.5-*' 含 'gpt-image-2' 子串，
   // 若排在后面会被 'gpt-image-2' 误吞成 generate_image_gpt_image_2。
-  // 仅 low / medium（用户明确不要 high）。工具名带质量后缀：上游无此工具但 Agent 会按名自行对应调整。
+  // 工具名已去质量后缀（generate_image_gpt_image_2_5_sunburst / _flare）：质量经 prompt『质量 X』子句独立下发，
+  // 对齐 Lovart（tool_hint=基础工具名，quality=独立档位）。当前仅 low/medium（运营精选子集，按用户需求保留）。
   [
     [
       'gpt-image-2.5-sunburst-low',
@@ -44,7 +45,7 @@ export const LOVART_IMAGE_RULES: ReadonlyArray<readonly [readonly string[], stri
       'gptimage2-5sunburstlow',
       'gpt image 2.5 sunburst low',
     ],
-    'generate_image_gpt_image_2_5_sunburst_low',
+    'generate_image_gpt_image_2_5_sunburst',
   ],
   [
     [
@@ -53,7 +54,7 @@ export const LOVART_IMAGE_RULES: ReadonlyArray<readonly [readonly string[], stri
       'gptimage2-5sunburstmedium',
       'gpt image 2.5 sunburst medium',
     ],
-    'generate_image_gpt_image_2_5_sunburst_medium',
+    'generate_image_gpt_image_2_5_sunburst',
   ],
   [
     [
@@ -62,7 +63,7 @@ export const LOVART_IMAGE_RULES: ReadonlyArray<readonly [readonly string[], stri
       'gptimage2-5flarelow',
       'gpt image 2.5 flare low',
     ],
-    'generate_image_gpt_image_2_5_flare_low',
+    'generate_image_gpt_image_2_5_flare',
   ],
   [
     [
@@ -71,7 +72,7 @@ export const LOVART_IMAGE_RULES: ReadonlyArray<readonly [readonly string[], stri
       'gptimage2-5flaremedium',
       'gpt image 2.5 flare medium',
     ],
-    'generate_image_gpt_image_2_5_flare_medium',
+    'generate_image_gpt_image_2_5_flare',
   ],
   [['gpt-image-2', 'gpt-image2', 'gptimage2'], 'generate_image_gpt_image_2'],
   [['nano-bn-pro', 'nano bn pro', 'nanobnpro'], 'generate_image_nano_banana_pro'],
@@ -81,6 +82,34 @@ export const LOVART_IMAGE_RULES: ReadonlyArray<readonly [readonly string[], stri
   [['nano-bn-2-lite', 'nano banana 2 lite', 'nanobn2lite'], ''],
   [['nano-bn-2', 'nano bn 2'], 'generate_image_nano_banana_2'],
 ];
+
+/**
+ * 质量模型派生表（模型 id → 基础可读名 base + 质量档位 quality）。
+ *
+ * 设计：模型 id 是【单一数据源】，prompt 与 tool_config 都从这里派生，不新增 quality 轴、不拆模型。
+ *   - base：去掉 id 里的 -low/-medium/-high 后缀；Lovart 真实工具/模型名不带质量后缀。
+ *   - quality：独立档位，prompt 里单独成句（『用 GPT Image 2.5 Sunburst，质量 max』），tool_config 发基础工具名。
+ *
+ * ⚠ GPT Image 2.5 支持的全部能力（供后续扩展参考，本表仅收运营精选子集）：
+ *   - 基础模型（tool_hint）：generate_image_gpt_image_2_5_sunburst ｜ generate_image_gpt_image_2_5_flare
+ *   - 质量档位（6 档）：auto（自动）/ low / medium / high / xhigh / max
+ *       · xhigh、max 仅 GPT Image 2.5 有效（最贵/最高质量）；image-2 仅 low/medium/high 三档。
+ *   - 当前仅收录 low/medium（按用户『用不了那么多』保留）；要暴露 high/xhigh/max 只需在此追加对应 id 行。
+ *
+ * 命中本表的模型：prompt 模型名去后缀 + 补质量子句；未命中（nano / 无质量模型）走 LOVART_PROMPT_MODEL_NAMES 原逻辑。
+ */
+export const LOVART_QUALITY_MODELS: Record<string, { base: string; quality: string }> = {
+  // GPT Image 2（质量 3 档：low/medium/high；工具名无后缀，quality 独立）
+  'gpt-image-2-low': { base: 'GPT Image 2', quality: 'low' },
+  'gpt-image-2-medium': { base: 'GPT Image 2', quality: 'medium' },
+  'gpt-image-2-high': { base: 'GPT Image 2', quality: 'high' },
+  // GPT Image 2.5 Sunburst（当前 low/medium）
+  'gpt-image-2.5-sunburst-low': { base: 'GPT Image 2.5 Sunburst', quality: 'low' },
+  'gpt-image-2.5-sunburst-medium': { base: 'GPT Image 2.5 Sunburst', quality: 'medium' },
+  // GPT Image 2.5 Flare（当前 low/medium）
+  'gpt-image-2.5-flare-low': { base: 'GPT Image 2.5 Flare', quality: 'low' },
+  'gpt-image-2.5-flare-medium': { base: 'GPT Image 2.5 Flare', quality: 'medium' },
+};
 
 export const LOVART_VIDEO_RULES: ReadonlyArray<readonly [readonly string[], string]> = [
   [
@@ -124,10 +153,8 @@ export const LOVART_PROMPT_MODEL_NAMES: Record<string, string> = {
   'nano-bn-2-lite': 'Nano Banana 2 Lite',
   'seedance-2.0-mini': 'Seedance 2.0 mini',
   'minimax-h3': 'MiniMax H3',
-  'gpt-image-2.5-sunburst-low': 'GPT Image 2.5 Sunburst Low',
-  'gpt-image-2.5-sunburst-medium': 'GPT Image 2.5 Sunburst Medium',
-  'gpt-image-2.5-flare-low': 'GPT Image 2.5 Flare Low',
-  'gpt-image-2.5-flare-medium': 'GPT Image 2.5 Flare Medium',
+  // ⚠ 以下 4 条 GPT Image 2.5 质量模型已从本表移除：其可读名（去后缀）+ 质量档位改由
+  //   LOVART_QUALITY_MODELS 统一派生（模型 id 为单一数据源），避免重复真相源。
 };
 
 /**

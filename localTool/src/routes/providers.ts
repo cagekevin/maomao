@@ -19,13 +19,14 @@ import {
   readProvider,
   writeProviderConfigFile,
   deleteProviderConfigFile,
-  migrateFromApiConfigFile,
+  seedFromDefaultFile,
   readProviderConfigFile,
 } from '../providerConfigStore.js';
-import { getEnvFile, getApiConfigFile } from '../paths.js';
+import { getEnvFile, getProviderSeedFile } from '../paths.js';
 import { getProviderDefinition } from '../ai-relay/index.js';
 import { testConnection as relayTestConnection } from '../ai-relay/connection.js';
 import { fetchProviderModelCatalog } from '../ai-relay/providerCatalogFetch.js';
+import { envKeysFor } from '../ai-relay/providerCredentials.js';
 
 /** 把 ai-relay CatalogModel[] 归类成前端 Provider 的 image/chat/video_models（缺省归 image）。 */
 function modelsByCategory(models: Array<{ id: string; name?: string; category?: string }>): {
@@ -53,8 +54,9 @@ export async function handleProvidersGet(
   _req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
-  // 首次：若尚无任何平台配置文件，从 api.config.json 一次性拆分（历史数据迁移，幂等）
-  migrateFromApiConfigFile(getApiConfigFile());
+  // 首次播种：出厂模板 providers.default.json → config/providers/<id>.json（仅补缺，不覆盖用户配置，幂等）。
+  // config/providers/ 是唯一运行态真源；模板只读、播种后即与运行时解耦（无双源漂移）。
+  seedFromDefaultFile(getProviderSeedFile());
   return json(res, { code: 0, data: { providers: readAllProviders() } });
 }
 
@@ -80,30 +82,36 @@ export async function handleProvidersPut(req: IncomingMessage, res: ServerRespon
   return json(res, { code: 0, data: { ok: true, saved: savedIds.size } });
 }
 
-/** PUT /api/config/base —— 兼容端点：落「当前生效 provider id」基线（供云同步对账，轻量）。 */
-export async function handleConfigBasePut(
-  req: IncomingMessage,
-  res: ServerResponse,
-): Promise<void> {
-  const body = (await parseJsonBody(req)) as { providers?: unknown[]; activeId?: string } | null;
-  const providers = Array.isArray(body?.providers) ? body.providers : [];
-  const primaryRec = (providers as Array<Record<string, unknown>>).find((p) => p?.primary === true);
-  const primaryId = typeof primaryRec?.id === 'string' ? primaryRec.id : undefined;
-  const firstId =
-    providers[0] && typeof providers[0] === 'object'
-      ? ((providers[0] as Record<string, unknown>).id as string | undefined)
-      : undefined;
-  return json(res, { code: 0, data: { ok: true, primaryId: primaryId || firstId || null } });
-}
-
-/** 从 .env 读某 provider key（不入库/不回读明文给前端）。 */
+/**
+ * 从 .env 读某 provider 的凭证（不入库/不回读明文给前端）。
+ *
+ * 【修复】此前只猜 `API_PROVIDER_{ID}_KEY`，导致凭证名不同的厂商（lovart 用
+ * LOVART_ACCESS_KEY/LOVART_SECRET_KEY）永远读空 → 测试连接恒报「缺少 API Key」。
+ * 现在按厂商目录声明的 envKeys 顺序依次查找，首个命中即返回；
+ * 未声明的厂商回落统一命名，保持既有行为。
+ *
+ * 注：process.env 优先（index.ts 启动时 loadDotEnv 注入），文件兜底，
+ * 兼容运行期新增凭证未重启的场景。
+ */
 function readEnvKey(providerId: string): string {
+  const def = getProviderDefinition(providerId);
+  const names = envKeysFor(providerId, def);
+  for (const name of names) {
+    const fromProc = (process.env[name] || '').trim();
+    if (fromProc) return fromProc;
+  }
   try {
     const envPath = getEnvFile();
     if (!fs.existsSync(envPath)) return '';
     const raw = fs.readFileSync(envPath, 'utf-8');
-    const m = raw.match(new RegExp(`API_PROVIDER_${providerId.toUpperCase()}_KEY\\s*=\\s*(\\S+)`));
-    return m ? m[1].replace(/['"]/g, '') : '';
+    for (const name of names) {
+      const m = raw.match(new RegExp(`^\\s*${name}\\s*=\\s*(.+)$`, 'm'));
+      if (m) {
+        const value = m[1].replace(/['"]/g, '').trim();
+        if (value) return value;
+      }
+    }
+    return '';
   } catch {
     return '';
   }

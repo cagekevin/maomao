@@ -9,6 +9,7 @@
  */
 import { baseUrlCandidates } from './providerBaseUrl.js';
 import { getProviderDefinition, isProviderModelVisible } from './providerCatalog.js';
+import { resolveAuth } from './providerCredentials.js';
 import { stableRequest, readCapped } from './httpTransport.js';
 import type {
   CatalogFetchOptions,
@@ -84,12 +85,15 @@ async function fetchAt(
   config: CatalogConfig,
   signal?: AbortSignal,
 ): Promise<CatalogModel[]> {
+  // 鉴权按厂商目录声明构造（HMAC 厂商必须声明，否则会被当 Bearer 发出 → 401）。
+  const auth = resolveAuth(providerId, definition).auth;
   const { response } = await stableRequest({
     method: 'GET',
     path: definition.modelsPath || '/models',
     baseUrl,
     candidates: [baseUrl],
     apiKey: config.apiKey,
+    auth,
     signal,
     requestQuery: definition.requestQuery,
   });

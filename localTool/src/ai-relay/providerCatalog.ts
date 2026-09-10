@@ -219,6 +219,11 @@ export const BUILT_IN_PROVIDER_DEFINITIONS: ProviderDefinition[] = [
       { key: 'secretKey', label: 'Lovart Secret Key', required: true, secret: true },
     ],
     models: LOVART_MODEL_MANIFEST,
+    // 凭证真源：localTool/.env 的 LOVART_ACCESS_KEY / LOVART_SECRET_KEY
+    // （顺序约定：首项 accessKey，次项 secretKey）。不声明就会被当成 API_PROVIDER_LOVART_KEY 读空。
+    envKeys: ['LOVART_ACCESS_KEY', 'LOVART_SECRET_KEY'],
+    // HMAC 签名鉴权（X-Access-Key/X-Timestamp/X-Signature），非 Bearer。
+    auth: { type: 'hmac' },
   },
 ];
 

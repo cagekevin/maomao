@@ -5,6 +5,7 @@
  */
 import { baseUrlCandidates } from './providerBaseUrl.js';
 import { getProviderDefinition } from './providerCatalog.js';
+import { resolveAuth } from './providerCredentials.js';
 import { stableRequest, RelayHttpError } from './httpTransport.js';
 import type { ConnectionTestResult, ProviderDefinition } from './types.js';
 
@@ -16,6 +17,14 @@ function connectionError(err: unknown): { status: number; warning: string } {
   return { status, warning };
 }
 
+/** 缺少凭证时的统一文案（按声明可区分 hmac 双凭证 / 单 key）。 */
+function missingCredentialWarning(definition?: ProviderDefinition): string {
+  if (definition?.auth?.type === 'hmac') {
+    return '缺少 Access Key / Secret Key，无法建立连接';
+  }
+  return '缺少 API Key，无法建立连接';
+}
+
 export async function testConnection(
   providerId: string,
   config: ConnectionConfig,
@@ -23,6 +32,12 @@ export async function testConnection(
 ): Promise<ConnectionTestResult> {
   const definition: ProviderDefinition | undefined = getProviderDefinition(providerId, config);
   const baseUrl = config.baseUrl || definition?.defaultBaseUrl || '';
+  // 凭证与鉴权方式一律来自厂商目录声明（envKeys / auth），不再猜名、不再一律 Bearer。
+  // 调用方若显式传入 apiKey（如前端编辑态未保存的新 key）则尊重之，否则走声明解析。
+  const resolved = resolveAuth(providerId, definition);
+  const apiKey = config.apiKey && config.apiKey.trim() ? config.apiKey.trim() : resolved.apiKey;
+  const auth = resolved.auth;
+
   // 纯配置文件厂商（无内置目录定义，如魔搭 modelscope）但有显式 base_url：
   // 按通用 openai-compatible 探测 /models，不再笼统报「未知厂商目录」。
   if (!definition) {
@@ -33,7 +48,8 @@ export async function testConnection(
         path: '/models',
         baseUrl,
         candidates: baseUrlCandidates(baseUrl),
-        apiKey: config.apiKey,
+        apiKey,
+        auth,
         signal,
         maxRetries: 1,
       });
@@ -52,7 +68,8 @@ export async function testConnection(
         path: definition.connectionTestPath,
         baseUrl,
         candidates: baseUrlCandidates(baseUrl),
-        apiKey: config.apiKey,
+        apiKey,
+        auth,
         signal,
         requestQuery: definition.requestQuery,
         maxRetries: 1,
@@ -72,7 +89,8 @@ export async function testConnection(
         path: definition.modelsPath || '/models',
         baseUrl,
         candidates: baseUrlCandidates(baseUrl),
-        apiKey: config.apiKey,
+        apiKey,
+        auth,
         signal,
         requestQuery: definition.requestQuery,
         maxRetries: 1,
@@ -84,10 +102,12 @@ export async function testConnection(
     }
   }
 
-  // 3. 本地清单 / 联网搜索类：无标准探测端点，按凭据存在判定
-  const hasKey = Boolean(config.apiKey && config.apiKey.trim());
-  if (!hasKey && definition.authType === 'api-key') {
-    return { ok: false, status: 0, warning: '缺少 API Key，无法建立连接' };
+  // 3. 本地清单 / 联网搜索类：无标准探测端点。
+  // 【修复】此前这里一律按「凭据是否存在」判定 ok；但 lovart 等 HMAC 厂商的凭证名
+  // 与 API_PROVIDER_{ID}_KEY 不一致，读空后被误判为「缺少 API Key」→ 恒失败。
+  // 现在 resolved.missing 由目录声明驱动；只有确实未配置凭证才报缺失。
+  if (resolved.missing) {
+    return { ok: false, status: 0, warning: missingCredentialWarning(definition) };
   }
   return { ok: true, status: 0, warning: '本地清单供应商无标准连通探测，已按凭据存在判定' };
 }

@@ -110,8 +110,15 @@ export function createRelay(config: CreateRelayConfig) {
       ? config.baseUrl || definition.defaultBaseUrl
       : definition.defaultBaseUrl;
   const candidates = baseUrlCandidates(effectiveBaseUrl ?? '');
+  // 鉴权优先级：调用方显式覆盖 > 厂商目录声明（definition.auth）> 按 authType 推导。
+  // HMAC 厂商（lovart）必须走声明，否则凭证会被当 Bearer 发出 → 必然 401。
   const auth =
-    config.auth ?? (definition.authType === 'oauth' ? { type: 'oauth' } : { type: 'bearer' });
+    config.auth ??
+    (definition.auth
+      ? { ...definition.auth }
+      : definition.authType === 'oauth'
+        ? { type: 'oauth' as const }
+        : { type: 'bearer' as const });
 
   const relay = {
     providerId: config.providerId,

@@ -86,18 +86,17 @@ test('C1+B5+B6 generateImageLovart 返回 string[]，send 请求体含 tool_conf
   assert.equal(t.sendBodies.length, 1);
   const sendBody = t.sendBodies[0];
   assert.equal(sendBody.project_id, 'proj-x');
-  // 对齐 main：gpt-image-2-low 映射到独立低档工具名（_IMAGE_RULES 首条，非合并的 generate_image_gpt_image_2）
+  // 对齐 Lovart：质量不烤进工具名，tool_hint=基础工具名（无 _low 后缀）
   assert.deepEqual(
     sendBody.tool_config.prefer_tool_categories.IMAGE,
-    ['generate_image_gpt_image_2_low'],
-    'B5 端到端结构化路（对齐 main）',
+    ['generate_image_gpt_image_2'],
+    'B5 端到端结构化路（tool_hint=基础工具名）',
   );
-  // 双保险 prompt 硬约束：模型名嵌进生成指令句
-  // gpt-image-2-low 未登记于 _PROMPT_MODEL_NAMES，回退 model 原串（对齐 main）
+  // 双保险 prompt 硬约束：质量模型去后缀 + 中文质量子句（对齐 Lovart 解析格式）
   assert.match(
     sendBody.prompt,
-    /Generate exactly ONE image using the gpt-image-2-low model\./,
-    'B6 自然语言路句子内嵌硬约束',
+    /用 GPT Image 2，质量 low。 Generate exactly ONE image using the GPT Image 2 model, quality low\./,
+    'B6 自然语言路句子内嵌硬约束（模型去后缀 + 质量独立）',
   );
   // 尺寸走 target_size（对齐 main，非 [size:] 标签）
   assert.match(sendBody.prompt, /target_size: 1024x1024/, 'C3 尺寸 target_size');
@@ -204,8 +203,8 @@ test('B8 参考图 base64 经上传成功：send 请求体 attachments 含 CDN U
   );
   assert.match(
     t.sendBodies[0].prompt,
-    /Generate exactly ONE image using the gpt-image-2-low model\./,
-    '生成份数+模型硬约束声明（对齐 main）',
+    /用 GPT Image 2，质量 low。 Generate exactly ONE image using the GPT Image 2 model, quality low\./,
+    '生成份数+模型硬约束声明（模型去后缀 + 质量独立）',
   );
 });
 
@@ -240,8 +239,8 @@ test('对齐 main：blob:/本地路径/未知形态 drop（不阻断，不进 at
   assert.ok(!('attachments' in t.sendBodies[0]), '无法识别形态 drop，不挂 attachments');
   assert.match(
     t.sendBodies[0].prompt,
-    /Generate exactly ONE image using the gpt-image-2-low model\./,
-    'drop 后按无参考图声明+模型硬约束',
+    /用 GPT Image 2，质量 low。 Generate exactly ONE image using the GPT Image 2 model, quality low\./,
+    'drop 后按无参考图声明+模型硬约束（模型去后缀 + 质量独立）',
   );
 });
 

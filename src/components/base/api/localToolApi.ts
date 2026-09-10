@@ -316,12 +316,6 @@ export const providerApi = {
       method: 'POST',
       label: 'fetchModels',
     }),
-  syncConfigBase: (providers: unknown) =>
-    request<ApiEnvelope<OkResult>>('/api/config/base', {
-      method: 'PUT',
-      body: { providers },
-      label: 'syncConfigBase',
-    }),
 };
 
 // ─────────────────────────── kv 底层（localTool KV，非 localStorage 分流）───────────────────────────

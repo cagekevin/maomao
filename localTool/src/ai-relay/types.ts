@@ -73,6 +73,19 @@ export interface ProviderDefinition {
   requestQuery?: Record<string, string>;
   hiddenModelIds?: string[];
   kind?: string;
+  /**
+   * 该厂商凭证在 .env 中的变量名（按声明读取，不猜名）。
+   * 顺序即优先级：首项为主凭证（等价 apiKey），其余为附加凭证（如 HMAC 的 secretKey）。
+   * 缺省时回落 `API_PROVIDER_{ID}_KEY`（providerConfigStore 的统一命名约定）。
+   * 例：lovart → ['LOVART_ACCESS_KEY', 'LOVART_SECRET_KEY']。
+   */
+  envKeys?: string[];
+  /**
+   * 该厂商的出站鉴权方式（与 stableRequest 的 auth 参数同构）。
+   * 未声明时按 authType 推导：oauth → { type:'oauth' }，其余 → Bearer。
+   * HMAC 厂商（lovart）必须显式声明，否则凭证会被当 Bearer 发出导致必然 401。
+   */
+  auth?: AuthConfig;
 }
 
 export interface CatalogFetchResult {
