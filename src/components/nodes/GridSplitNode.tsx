@@ -27,6 +27,7 @@ import { generateId } from '../base/core/idGen.ts';
 import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { createRafBatch, clamp } from '../base/core/utils.ts';
+import { useFullscreenEditorKeys } from '../base/core/modalLayer.ts';
 
 /* ════════════════════════════════════════════════════════════════
  * 图片切分节点（复刻官方 Lo.jsx / gridSplitNode）
@@ -620,15 +621,12 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
     };
   }, [splitMode, fullscreen, activeLasso]);
 
-  // 全屏 Esc 关闭（复刻 Lo.jsx useEffect[D]）
-  useEffect(() => {
-    if (!fullscreen) return;
-    const onKey = (e) => {
-      if (e.key === 'Escape') setFullscreen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [fullscreen]);
+  // 全屏 Esc 关闭（复刻 Lo.jsx useEffect[D]）→ 统一走 modalLayer。
+  // enabled 绑 fullscreen：本组件常驻挂载（节点始终在场），恒 true 会让画布快捷键永久失效。
+  useFullscreenEditorKeys({
+    enabled: fullscreen,
+    onEscape: () => setFullscreen(false),
+  });
 
   // 删除单个 lasso（复刻 Lo.jsx W）
   const removeLasso = useCallback((lid) => {

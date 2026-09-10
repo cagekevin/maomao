@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { isEditableTarget } from '../components/base/core/uiHooks.ts';
+import { hasModalLayer } from '../components/base/core/modalLayer.ts';
 
 /** 快捷键回调集合；未提供的快捷键自动不响应 */
 export interface CanvasShortcutHandlers {
@@ -67,6 +68,13 @@ export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
       // 长按连发防护：keydown 在按住时会以系统速率重复触发，
       // Q/W/E 快速建节点若不加 e.repeat 守卫会爆发式生成大量重叠节点。
       if (e.repeat) return;
+
+      // 全屏模态层打开时整体让位（见 modalLayer.ts 的事故说明）。
+      // 这是本守卫的关键：上面盖着全屏编辑器时，⌘Z / Q/W/E 必须不能落到画布 ——
+      // 否则用户在编辑器里撤销或切工具，实际动的是画布上的节点。
+      // 不能用 stopImmediatePropagation 代替：同一 target 上多个 listener 全部执行、
+      // 且依赖注册顺序；只有"画布自己不执行"才是确定性的。
+      if (hasModalLayer()) return;
 
       // 输入框内一律跳过
       if (isEditableTarget(e)) return;

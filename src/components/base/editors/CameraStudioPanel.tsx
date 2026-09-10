@@ -22,6 +22,7 @@ import {
   type CameraStudioResult,
   type LightTemperature,
 } from './cameraStudio.ts';
+import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
 
 // 模块级持久化：跨面板开关保留上一次参数
 let _lastCamera: CameraStudioCameraState | null = null;
@@ -516,15 +517,9 @@ function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStud
     onGenerate({ mode, camera: cameraState, light: lightState, prompt });
   }, [cameraState, lightState, mode, onGenerate, prompt]);
 
-  // Esc 关闭
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, onClose]);
+  // Esc 关闭 + 登记为全屏模态层（modalLayer）：面板打开期间画布快捷键让位，
+  // 避免在这里调参数时误触画布的撤销 / 快速建节点。
+  useFullscreenEditorKeys({ enabled: isOpen, onEscape: onClose });
 
   if (!isOpen) return null;
 

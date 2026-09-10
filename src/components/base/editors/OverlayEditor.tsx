@@ -38,6 +38,7 @@ import { generateId } from '../core/idGen.ts';
 // 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
 // 替代本文件原有的无超时私有实现（图片挂起会让整层渲染/导出永久卡住）。
 import { loadImageOrNull } from '../utils/asyncGuard.ts';
+import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
 const genId = () => generateId('ov');
 
 // 单层渲染 canvas（复刻 Bo_1.jsx：drawImage + mask destination-in）
@@ -182,15 +183,13 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
     paintLayerId ? 60 : 200,
   );
 
-  // Esc 退出全屏
-  useEffect(() => {
-    if (!fullscreen) return;
-    const onKey = (e) => {
-      if (e.key === 'Escape') setFullscreen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [fullscreen]);
+  // Esc 退出全屏 + 登记为全屏模态层（modalLayer）。
+  // enabled 必须绑 fullscreen：本组件常驻挂载（全屏与否由 state 决定），
+  // 若恒为 true，画布快捷键会在贴图编辑器的整个生命周期内永久失效。
+  useFullscreenEditorKeys({
+    enabled: fullscreen,
+    onEscape: () => setFullscreen(false),
+  });
 
   // 关闭菜单
   useEffect(() => {

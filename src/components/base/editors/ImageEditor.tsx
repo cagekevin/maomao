@@ -25,6 +25,7 @@ import {
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { logger } from '../core/logger.ts';
+import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
 import { createRafBatch } from '../core/utils.ts';
 import { compressImage } from '../utils/imageCompress.ts';
 import { loadImageWithTimeout } from '../utils/asyncGuard.ts';
@@ -72,6 +73,13 @@ const DRAW_TOOLS = [
   'eyedropper',
 ] as const;
 type DrawTool = (typeof DRAW_TOOLS)[number];
+
+/** 主按钮文案随 Tab 变化：让用户按下前就知道这次会产出什么（三 Tab 互斥，不跨 Tab 累积）。 */
+const SAVE_LABEL: Record<'draw' | 'crop' | 'expand', string> = {
+  draw: '保存涂鸦',
+  crop: '保存裁剪',
+  expand: '保存扩图',
+};
 
 const PRESET_COLORS = ['#ff3b30', '#facc15', '#22c55e', '#3b82f6', '#ffffff', '#000000'];
 const LINE_WIDTH_MIN = 1;
@@ -933,6 +941,28 @@ export default function ImageEditor({
     { t: 'eyedropper', icon: <Pipette size={14} />, title: '吸管取色' },
   ];
 
+  // ── 全屏编辑器的统一快捷键（modalLayer）：登记模态层 + 独占自己的键 + Esc 关闭 ──
+  // 登记之后画布全局快捷键整体让位，不再漏上来误伤画布。
+  // P/E/T 必须在这里接住：画布把无修饰键的 W/E 绑成了「快速新建图片/视频节点」，
+  // 在本编辑器里按 E 想切橡皮，不接住就会凭空长出一个视频节点。
+  useFullscreenEditorKeys({
+    keyMap: {
+      'mod+z': () => {
+        if (tab === 'draw') undo();
+      },
+      p: () => tab === 'draw' && setTool('pencil'),
+      e: () => tab === 'draw' && setTool('eraser'),
+      t: () => tab === 'draw' && setTool('text'),
+    },
+    // Esc 关闭：此前本编辑器完全没接 Esc，用户只能去点「取消」。
+    // 正在输文字时先撤输入框而不是整个退出 —— 否则误按一下就把画的东西全丢了
+    // （输入中的 <input> 自己也处理 Esc，两边都走向同一个结果，幂等）。
+    onEscape: () => {
+      if (textInput) setTextInput(null);
+      else onClose?.();
+    },
+  });
+
   const curAspect = cropRatioKey === 'original' ? docSize.w / docSize.h : undefined;
 
   // 画布内容尺寸：扩图 = 目标画幅（tw×th，四周留白要在画布内可见）；涂鸦/裁剪 = 底图尺寸
@@ -1015,13 +1045,17 @@ export default function ImageEditor({
           >
             <X size={14} /> 取消
           </button>
-          {/* 单一「保存」＝应用当前 Tab 结果并写回（用户决策：无独立「应用裁剪/应用扩图」） */}
+          {/* 主按钮的文案跟着 Tab 走，而不是永远叫「保存」。
+              三 Tab 是互斥单选，保存只产出当前 Tab 的结果（涂鸦总会被带上，
+              但裁剪 / 扩图不会跨 Tab 累积）。此前按钮恒为「保存」，用户调好裁剪、
+              切去涂鸦两笔再保存，得到的是「原始尺寸 + 涂鸦」，裁剪无声消失。
+              现在点之前就看得见会发生什么 —— 比事后弹二次确认轻得多。 */}
           <button
             type="button"
             onClick={handleSave}
             className="h-[30px] px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors flex items-center gap-1 text-body-xs font-medium"
           >
-            <Check size={14} /> 保存
+            <Check size={14} /> {SAVE_LABEL[tab]}
           </button>
         </div>
       </div>
@@ -1082,25 +1116,15 @@ export default function ImageEditor({
           />
           <span className="text-caption-sm text-body tabular-nums">{lineWidth}px</span>
           <div className="flex-1" />
-          <span className="text-caption-sm text-faint">空格 + 拖拽平移 · 滚轮缩放</span>
+          <HintBubble text="空格 + 拖拽平移画面 · 滚轮缩放" />
         </div>
       )}
 
       {tab === 'crop' && (
         <div className="flex items-center gap-2.5 h-[46px] shrink-0 px-3.5 bg-surface-deep border-b border-edge-faint">
-          <span className="text-caption-sm text-faint">模式</span>
-          <div className="flex items-center gap-[3px]">
-            <ModeBtn active label="矩形" />
-            <button
-              type="button"
-              disabled
-              title="钢笔裁剪（本期延后）"
-              className="h-6 px-2 rounded-md text-caption-sm bg-surface-hover/60 border border-edge-muted text-faint/60 cursor-not-allowed"
-            >
-              钢笔
-            </button>
-          </div>
-          <div className="w-px h-5 bg-surface-3" />
+          {/* 「模式：矩形｜钢笔(灰)」整组删掉：只有一个可选模式时，"模式"这个词和一个
+              禁用的占位按钮换来的只是让用户以为钢笔坏了。真做钢笔的那天再加回来，
+              那时它才是二选一 —— 现在它连"缺失功能"都算不上，因为没人知道该期待它。 */}
           <span className="text-caption-sm text-faint">比例</span>
           <div className="flex items-center gap-[3px]">
             {CROP_RATIOS.map((r) => (
@@ -1122,7 +1146,7 @@ export default function ImageEditor({
           <span className="text-caption-sm text-faint">选区</span>
           {curCropSizeLabel(crop, docSize)}
           <div className="flex-1" />
-          <span className="text-caption-sm text-faint">拖动边角调整 · 拖动选区移动</span>
+          <HintBubble text="拖动边角调整选区 · 拖动选区内部移动" />
         </div>
       )}
 
@@ -1159,13 +1183,11 @@ export default function ImageEditor({
           <span className="text-caption-sm text-body tabular-nums">
             +{Math.round((outpaintFactor * outpaintFactor - 1) * 100)}%
           </span>
-          <div className="w-px h-5 bg-surface-3" />
-          <span className="text-caption-sm text-faint">填充</span>
-          <span className="h-6 px-2 rounded-md text-caption-sm bg-white text-black border border-edge">
-            白
-          </span>
+          {/* 「填充：白」删掉：唯一选项却伪装成可选的样子（还特意画成白底 chip），
+              用户会试着点它、发现点了没反应。它是给 AI 补全留的伏笔，但在只有一个选项、
+              且不可选的当下，它只贡献困惑。 */}
           <div className="flex-1" />
-          <span className="text-caption-sm text-faint">拖动原图定位 · 面积最多 2 倍</span>
+          <HintBubble text="拖动原图调整落点 · 面积最多扩到原来的 2 倍" />
         </div>
       )}
 
@@ -1291,9 +1313,9 @@ export default function ImageEditor({
         <StatusBar>
           <span>涂鸦层</span>
           <b className="text-green-400">{strokeCount} 笔</b>
-          <span>·</span>
-          <span>源</span>
-          <b>同源 dataURL（画布无污染）</b>
+          {/* 「源 · 同源 dataURL（画布无污染）」删掉：这是写给架构评审看的备注，
+              用户既读不懂也不需要 —— 判断"图有没有被污染"是开发验收的事，不是他的任务。
+              状态条剩下的两样才是用户此刻要确认的：画了几笔、存了会落到哪。 */}
           <div className="ml-auto">
             <span>保存 = 覆盖本节点</span>
           </div>
@@ -1372,18 +1394,27 @@ function IconBtn({
   );
 }
 
-function ModeBtn({ active, label }: { active?: boolean; label: string }) {
+function HintBubble({ text }: { text: string }) {
   return (
-    <button
-      type="button"
-      className={`h-6 px-2 rounded-md text-caption-sm transition-colors border ${
-        active
-          ? 'bg-blue-500/15 border-blue-500/60 text-blue-300'
-          : 'bg-surface-hover border-edge-muted text-secondary hover:text-white'
-      }`}
-    >
-      {label}
-    </button>
+    // 操作提示收进 hover 气泡，不再常驻一行。
+    // 常驻文案的问题是它的生命周期和用户的学习曲线不匹配：第二次打开编辑器时它已经
+    // 是纯噪音，但它永远不会消失。收进 hover 之后，想看的那一下才出现 ——
+    // 代价是首次不知道这里有个「?」，所以按钮本身用圆形 + 问号明确表示可点。
+    <div className="group relative flex items-center">
+      <button
+        type="button"
+        aria-label={text}
+        className="w-[18px] h-[18px] rounded-full flex items-center justify-center border border-edge-muted text-faint text-[10px] leading-none hover:text-white hover:bg-surface-hover transition-colors"
+      >
+        ?
+      </button>
+      <div
+        role="tooltip"
+        className="pointer-events-none absolute right-0 top-full mt-1.5 hidden group-hover:block whitespace-nowrap px-2 py-1 rounded-md border border-edge bg-surface-raised text-caption-sm text-body shadow-lg z-modal-raise"
+      >
+        {text}
+      </div>
+    </div>
   );
 }
 

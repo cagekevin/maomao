@@ -26,6 +26,7 @@ import {
   downloadBlob,
 } from '../utils/clipboard.ts';
 import { createRafBatch } from '../core/utils.ts';
+import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
 
 interface ImageZoomDialogProps {
   url?: string;
@@ -202,6 +203,13 @@ function ImageZoomDialog({
     if (frameDownloadState.current.timer) clearTimeout(frameDownloadState.current.timer);
     frameDownloadState.current.timer = window.setTimeout(() => setFrameDl(null), 2000);
   }, [url]);
+
+  // 登记为全屏模态层：本组件**常驻挂载**（父层渲染 <ImageZoomDialog ref url />，
+  // 由外部调 showModal() 打开），所以 enabled 必须绑 url，绝不能恒为 true ——
+  // 否则画布快捷键在其整个生命周期内永久失效。
+  // Esc 不接管（escapeToClose: false）：原生 <dialog showModal> 自带 Esc 关闭，
+  // 再加一层会导致同一事件走两条关闭路径。
+  useFullscreenEditorKeys({ enabled: !!url, escapeToClose: false });
 
   const src = url ? toAbsoluteFileUrl(url) : '';
   // 「点空白关闭」判断放内部容器 div（onClick）而非本 dialog：因容器 fixed inset-0 铺满覆盖本层，

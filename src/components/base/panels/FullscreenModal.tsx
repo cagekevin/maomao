@@ -1,6 +1,7 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Pencil, X } from 'lucide-react';
+import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
 
 /**
 
@@ -73,14 +74,10 @@ export default function FullscreenModal({
   // 只有「按下起点也在遮罩」的点击才算真·点空白，拖选松出框外不再误关。
   const backdropStartRef = useRef(false);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
+  // Esc 关闭 + 登记为全屏模态层（modalLayer）。
+  // 登记是重点：本层打开时画布全局快捷键（⌘Z / ⌘D / Q/W/E…）必须让位，
+  // 否则用户在弹窗里按这些键，实际动的是画布上的节点。
+  useFullscreenEditorKeys({ enabled: open, onEscape: onClose });
 
   const onPanelResize = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {

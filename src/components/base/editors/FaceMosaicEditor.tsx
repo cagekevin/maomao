@@ -20,6 +20,7 @@ import {
   MosaicMode,
 } from '../utils/faceMosaic.ts';
 import { createRafBatch } from '../core/utils.ts';
+import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
 
 /**
  * 人脸打码 · 手动编辑器（完整复刻官方 _Component55.jsx）。
@@ -181,24 +182,24 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }: FaceMosa
   const canUndo = histIdx > 0;
   const canRedo = histIdx < historyRef.current.length - 1;
 
-  // 键盘快捷键（复刻官方 _Component55）：Ctrl+Z 撤销 / Ctrl+Shift+Z、Ctrl+Y 重做 / Esc 关闭
-  useEffect(() => {
-    const onKey = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) {
-          if (canRedo) restoreSnapshot(histIdx + 1);
-        } else if (canUndo) restoreSnapshot(histIdx - 1);
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        e.preventDefault();
+  // 快捷键统一走 modalLayer：除接管 ⌘Z / ⌘⇧Z / ⌘Y / Esc 本身，
+  // 更关键的是**登记为全屏模态层**，让画布全局快捷键让位。
+  // 原写法（自写 window keydown + preventDefault）只能拦浏览器默认行为，
+  // 拦不住画布那条 listener —— 结果是在这里撤销的同时，画布也被撤了一步。
+  useFullscreenEditorKeys({
+    keyMap: {
+      'mod+z': () => {
+        if (canUndo) restoreSnapshot(histIdx - 1);
+      },
+      'mod+shift+z': () => {
         if (canRedo) restoreSnapshot(histIdx + 1);
-      } else if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [canUndo, canRedo, histIdx, restoreSnapshot, onClose]);
+      },
+      'mod+y': () => {
+        if (canRedo) restoreSnapshot(histIdx + 1);
+      },
+    },
+    onEscape: onClose,
+  });
 
   const autoDetect = async () => {
     const c = canvasRef.current;

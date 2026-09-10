@@ -55,6 +55,8 @@ import { useTableSelection } from './useTableSelection.ts';
 import type { AssistantTable, TableRow, TableTab } from './assistantTable.ts';
 import { showToast } from '@/components/base/core/toastStore.ts';
 import { askConfirm } from '@/components/base/core/confirmStore.ts';
+import { hasModalLayer } from '@/components/base/core/modalLayer.ts';
+import { isEditableTarget } from '@/components/base/core/uiHooks.ts';
 import {
   useTableWorkspace,
   setTableWorkspaceRows,
@@ -433,6 +435,18 @@ export default function AssistantTablePanel({
    */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // ⚠️ 本监听在【捕获阶段】(true)，且最后会对 Delete/Backspace 调 preventDefault +
+      // stopPropagation —— 意味着它跑在所有冒泡监听之前，且能吞掉事件。两个后果：
+      //  ① 画布的 useCanvasShortcuts 让位与否救不了它（那招只对冒泡阶段生效）；
+      //  ② 用户在上方全屏编辑器（ImageEditor 等）里打字，退格会被这里截走。
+      // 可达路径（不是理论问题，2026-09-10 核实）：在表格里选过行 → selectedRowIds/
+      // focusedCell 非空且不会自动清 → 打开图片编辑器用文字工具输字 → 按退格想删字，
+      // 实际删掉的是表格里选中的行。所以这里必须自查两件事：
+      // ① 上方有全屏模态层 → 整体让位，不抢
+      if (hasModalLayer()) return;
+      // ② 焦点在任何输入框/可编辑元素内 → 退格是「删一个字符」，不是「删表格行」。
+      //    表格自身的编辑态由下方 editingCell 分支覆盖，这里补的是外部输入框的情况。
+      if (isEditableTarget(e)) return;
       const t = e.target as HTMLElement | null;
       // 编辑态：用户在改格内文字 → Ctrl/Cmd+C/V 走 textarea 原生（业界），不拦
       if (editingCell) {

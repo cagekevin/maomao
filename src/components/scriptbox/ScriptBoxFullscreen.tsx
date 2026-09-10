@@ -7,6 +7,7 @@ import StepAssets from './StepAssets.tsx';
 import StepPrompt from './StepPrompt.tsx';
 import GearSettings from './GearSettings.tsx';
 import { toastInfo } from '../base/core/toastStore.ts';
+import { useFullscreenEditorKeys } from '../base/core/modalLayer.ts';
 import type { ScriptBoxData, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema.ts';
 
 interface ScriptBoxFullscreenProps {
@@ -74,15 +75,9 @@ export default function ScriptBoxFullscreen({
     return () => clearInterval(t);
   }, [genMask]);
 
-  // Esc 关闭
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') handleClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose, genMask, handleClose]);
+  // Esc 关闭 + 登记为全屏模态层（modalLayer）：本层有大量文本/输入区，
+  // 焦点落在按钮或非输入控件上时，Q/W/E/⌘Z 会漏到画布（新建节点 / 撤掉节点操作）。
+  useFullscreenEditorKeys({ enabled: open, onEscape: handleClose });
 
   if (!open) return null;
 

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Search } from 'lucide-react';
 import { countMatchesInTabs } from './assistantTable.ts';
 import type { AssistantTableTabs } from './assistantTable.ts';
+import { useFullscreenEditorKeys } from '@/components/base/core/modalLayer.ts';
 
 /**
  * 表格「查找替换」弹窗（spec：查找替换面板）。
@@ -62,18 +63,11 @@ export default function FindReplaceDialog({
     return () => clearTimeout(timer);
   }, [find, tabs]);
 
-  // Esc = 取消（capture 防被画布快捷键先吃）
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onCancel();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [open, onCancel]);
+  // Esc = 取消。原实现挂在【捕获阶段】本是为了「抢在画布快捷键之前」，
+  // 但画布现在会主动查 hasModalLayer 让位，抢跑已无必要；统一走 modalLayer
+  // 还额外拿到「本层打开时画布快捷键整体让位」—— 此前焦点落在替换按钮上时，
+  // Q/W/E 会漏出去新建画布节点。
+  useFullscreenEditorKeys({ enabled: open, onEscape: onCancel });
 
   if (!open) return null;
 
