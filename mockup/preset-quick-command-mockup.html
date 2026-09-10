@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>预设 → 九宫格指令面板 · 外观 Mockup</title>
+<link rel="stylesheet" href="./mockup-kit.css" />
+<style>
+/* ══════════════════════════════════════════════════════════════
+ * P. 预设 → 九宫格指令面板专用件（前缀 .qc-*）
+ *    通用骨架/控件复用 mockup-kit.css，本段只写：
+ *    分类 tab 行 / 九宫格图卡 / 上传区 / 图床链路。
+ *    交互口径：全程点选，不打字、不弹全屏窗、不新建节点。
+ * ══════════════════════════════════════════════════════════════ */
+
+/* P1 九宫格面板：从节点底部「指令」按钮向上弹出 */
+.qc-pop{
+  width:388px;border-radius:12px;background:var(--surface-raised);
+  border:1px solid var(--edge);box-shadow:var(--sh-pop);overflow:hidden;
+  display:flex;flex-direction:column;
+}
+/* 分类 tab：横滚一行，带条数徽标。找指令靠切 tab，不靠搜索框 */
+.qc-tabs{
+  display:flex;align-items:center;gap:5px;padding:8px 9px;flex-shrink:0;
+  border-bottom:1px solid var(--edge-faint);overflow-x:auto;
+}
+.qc-tab{
+  display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 10px;flex-shrink:0;
+  border-radius:var(--r-pill);border:1px solid var(--edge-muted);background:var(--surface-hover);
+  color:var(--t-secondary);font-size:11px;cursor:pointer;white-space:nowrap;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.qc-tab:hover{color:#fff;}
+.qc-tab.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
+.qc-tab .n{
+  font-size:9px;padding:0 3px;border-radius:3px;
+  background:var(--surface-hover-strong);color:var(--t-faint);
+  font-variant-numeric:tabular-nums;
+}
+.qc-tab.on .n{background:var(--accent);color:#fff;}
+
+/* 九宫格：3 列图卡，图占大头 + 底部一行标题 */
+.qc-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:9px;
+  max-height:334px;overflow-y:auto;
+}
+.qc-cell{
+  position:relative;border-radius:9px;overflow:hidden;
+  border:1px solid var(--edge-muted);background:var(--surface-1);
+  cursor:pointer;text-align:left;padding:0;color:inherit;
+  transition:border-color .12s,box-shadow .12s;
+}
+/* 点一下 = 追加 + 立即关闭面板，所以不需要「已选中」态：
+   点完人已经看到提示词变长了，那才是最直接的反馈。 */
+.qc-cell:hover{border-color:var(--accent-line);box-shadow:0 0 0 1px var(--accent-line);}
+.qc-cell .pic{position:relative;aspect-ratio:4/3;background:var(--surface-sunken);}
+.qc-cell .pic .ph{position:absolute;inset:0;}
+/* 没传图的兜底：首字母大色块，占满图区，不留空白 */
+.qc-cell .pic .ini{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:19px;font-weight:600;color:rgba(255,255,255,.8);
+  background:linear-gradient(160deg,#2b2b2f,#141416);
+}
+.qc-cell .cap{
+  height:22px;display:flex;align-items:center;padding:0 6px;
+  font-size:10px;color:var(--t-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+/* 角标「查看」：常显（藏在 hover 里 = 没人发现），点了打开编辑界面看完整提示词。
+   与点格子主体（追加）是两个热区，互不干扰。 */
+.qc-cell .mk{
+  position:absolute;right:4px;top:4px;width:17px;height:17px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:10px;
+  background:rgba(10,10,10,.72);border:1px solid var(--edge-strong);color:#fff;
+}
+.qc-cell:hover .mk{background:var(--accent);border-color:var(--accent);}
+
+.qc-pop-ft{
+  display:flex;align-items:center;gap:8px;height:29px;flex-shrink:0;padding:0 10px;
+  border-top:1px solid var(--edge-faint);background:var(--surface-deep);
+  font-size:10px;color:var(--t-subtle);
+}
+.qc-pop-ft .sp{flex:1;}
+.qc-pop-ft .lk{color:var(--accent-text);cursor:pointer;}
+.qc-pop-ft .lk:hover{color:#fff;}
+
+/* P2 指令管理弹窗（「管理指令」进；原全屏提示词库降级为此入口） */
+.qc-mgr{
+  width:748px;background:var(--surface-raised);border:1px solid var(--edge-muted);
+  border-radius:var(--r-card);box-shadow:var(--sh-card);display:flex;flex-direction:column;overflow:hidden;
+}
+.qc-mgr-body{display:flex;height:392px;min-height:0;}
+.qc-mgr-list{
+  width:236px;flex-shrink:0;overflow-y:auto;padding:8px;
+  border-right:1px solid var(--edge-faint);background:var(--surface-deep);
+}
+.qc-mgr-list .hd{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:10px;color:var(--t-faint);padding:0 2px 6px;
+}
+.qc-mgr-list .hd button{
+  border:none;background:transparent;color:var(--accent-text);font-size:10px;cursor:pointer;padding:0;
+}
+.qc-row{
+  display:flex;align-items:center;gap:8px;width:100%;padding:5px 6px;margin-bottom:3px;
+  border-radius:7px;border:1px solid transparent;background:transparent;
+  color:var(--t-body);text-align:left;cursor:pointer;
+}
+.qc-row:hover{background:var(--surface-hover);}
+.qc-row.on{background:var(--accent-soft);border-color:var(--accent-line);}
+.qc-row .th{
+  width:30px;height:30px;flex-shrink:0;border-radius:5px;overflow:hidden;
+  border:1px solid var(--edge-faint);display:flex;align-items:center;justify-content:center;
+  font-size:10px;color:#fff;
+}
+.qc-row .nm{flex:1;min-width:0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.qc-row .grip{color:var(--t-subtle);font-size:10px;flex-shrink:0;}
+
+.qc-form{flex:1;min-width:0;padding:12px 14px;display:flex;flex-direction:column;gap:11px;overflow-y:auto;}
+.qc-form .fld-c{display:flex;flex-direction:column;gap:5px;}
+.qc-form .lb{font-size:10px;color:var(--t-faint);}
+.qc-inp{
+  height:28px;padding:0 8px;border-radius:var(--r-sm);background:var(--input);
+  border:1px solid var(--edge-muted);color:var(--t-body);font-size:11px;width:100%;
+}
+.qc-inp:focus{outline:none;border-color:var(--accent-line);}
+.qc-ta{
+  min-height:92px;padding:7px 9px;border-radius:var(--r-sm);background:var(--input);
+  border:1px solid var(--edge-muted);color:var(--t-body);font-size:11px;line-height:1.8;
+  resize:none;width:100%;font-family:inherit;
+}
+.qc-ta:focus{outline:none;border-color:var(--accent-line);}
+.qc-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+/* P2b 标签：多选 chips + 「新建标签」虚线胶囊（管理表单里用） */
+.qc-tagwrap{display:flex;flex-wrap:wrap;gap:5px;align-items:center;}
+.qc-tagchip{
+  display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;
+  border-radius:var(--r-pill);border:1px solid var(--edge-muted);background:var(--surface-hover);
+  color:var(--t-secondary);font-size:11px;cursor:pointer;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.qc-tagchip:hover{color:#fff;}
+.qc-tagchip.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
+.qc-tagchip .x{color:var(--t-faint);font-size:11px;}
+.qc-tagchip.on .x{color:var(--accent-text);}
+.qc-tagchip.add{border-style:dashed;background:transparent;color:var(--t-faint);}
+.qc-tagchip.add:hover{border-color:var(--accent-line);color:var(--accent-text);background:var(--accent-soft);}
+
+/* P2c 标签管理弹窗：只做改名 / 删除（从管理面板「标签管理」进）
+   没有「添加」和「排序」—— 标签从指令的 tags 派生，空标签和手动顺序都用不上 */
+.qc-tagmgr{
+  width:300px;border-radius:12px;background:var(--surface-raised);
+  border:1px solid var(--edge);box-shadow:var(--sh-pop);overflow:hidden;
+  display:flex;flex-direction:column;
+}
+.qc-tagmgr .tm-hd{
+  display:flex;align-items:center;height:38px;padding:0 12px;
+  border-bottom:1px solid var(--edge-faint);font-size:11px;font-weight:600;color:var(--t-strong);
+}
+.qc-tagmgr .tm-hd .ct{margin-left:auto;font-size:10px;color:var(--t-faint);font-weight:400;}
+.qc-tagmgr .tm-bd{padding:7px;max-height:260px;overflow-y:auto;}
+.qc-tagrow{
+  display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:7px;
+  border:1px solid transparent;
+}
+.qc-tagrow:hover{background:var(--surface-hover);}
+.qc-tagrow .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+.qc-tagrow .nm{flex:1;min-width:0;font-size:11px;color:var(--t-body);}
+.qc-tagrow .nm input{
+  width:100%;height:22px;padding:0 5px;border-radius:5px;background:var(--input);
+  border:1px solid var(--accent-line);color:var(--t-body);font-size:11px;font-family:inherit;
+}
+.qc-tagrow .ct{font-size:10px;color:var(--t-faint);font-variant-numeric:tabular-nums;flex-shrink:0;}
+.qc-tagrow .ic{opacity:0;}
+.qc-tagrow:hover .ic{opacity:1;}
+.qc-tagmgr .tm-tip{
+  padding:0 10px 8px;font-size:10px;line-height:1.75;color:var(--t-subtle);
+  background:var(--surface-deep);
+}
+
+/* P3 缩略图上传区：空 / 已有 两态共用一个框 */
+.qc-up{
+  position:relative;width:104px;height:104px;flex-shrink:0;border-radius:9px;overflow:hidden;
+  border:1px dashed var(--edge);background:var(--input);color:var(--t-faint);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  font-size:10px;cursor:pointer;text-align:center;padding:0 6px;
+}
+.qc-up:hover{border-color:var(--accent-line);color:var(--accent-text);background:var(--accent-soft);}
+.qc-up.filled{border-style:solid;border-color:var(--edge-muted);}
+.qc-up .ph{position:absolute;inset:0;}
+.qc-up .hover-mask{
+  position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  background:rgba(10,10,10,.72);color:var(--t-primary);font-size:10px;
+}
+.qc-up.filled:hover .hover-mask{display:flex;}
+.qc-up .hover-mask .acts{display:flex;gap:5px;}
+.qc-up .hover-mask .acts span{
+  padding:2px 7px;border-radius:5px;border:1px solid var(--edge);background:var(--surface-1);cursor:pointer;
+}
+.qc-up .hover-mask .acts span.del{color:var(--danger);}
+.qc-up-side{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;}
+.qc-hint{font-size:10px;line-height:1.75;color:var(--t-subtle);}
+.qc-hint b{color:var(--t-secondary);font-weight:500;}
+.qc-mgr-ft{
+  display:flex;align-items:center;gap:8px;height:46px;flex-shrink:0;padding:0 14px;
+  border-top:1px solid var(--edge-faint);background:var(--surface-deep);
+}
+.qc-mgr-ft .sp{flex:1;}
+.qc-mgr-ft .tip{font-size:10px;color:var(--t-subtle);}
+
+/* P4 图床/同步链路 */
+.qc-chain{display:flex;align-items:stretch;}
+.qc-node{
+  width:154px;padding:9px 10px;border-radius:9px;
+  background:var(--surface-1);border:1px solid var(--edge-muted);
+  display:flex;flex-direction:column;gap:4px;
+}
+.qc-node .n{font-size:11px;color:var(--t-body);font-weight:500;}
+.qc-node .d{font-size:10px;line-height:1.7;color:var(--t-faint);}
+.qc-node .d code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--t-secondary);font-size:9px;
+  word-break:break-all;
+}
+.qc-node.hot{border-color:var(--accent-line);background:var(--accent-soft);}
+.qc-node.hot .n{color:var(--accent-text);}
+.qc-arrow{
+  width:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  color:var(--t-subtle);font-size:12px;
+}
+.qc-branch{display:flex;flex-direction:column;gap:8px;}
+.qc-fallback{
+  margin-top:10px;padding:8px 10px;border-radius:9px;
+  background:var(--surface-deep);border:1px solid var(--edge-faint);
+  font-size:10px;line-height:1.85;color:var(--t-faint);
+}
+.qc-fallback b{color:var(--t-secondary);font-weight:500;}
+
+/* 现状对比小图（屏 0，压到最小，只为说明"为什么改"） */
+.now-old{
+  width:300px;height:172px;border-radius:10px;border:1px solid var(--edge);
+  background:var(--input);overflow:hidden;display:flex;flex-direction:column;
+}
+.now-old .tb{height:24px;display:flex;align-items:center;gap:6px;padding:0 8px;
+  border-bottom:1px solid var(--edge-faint);font-size:10px;color:var(--t-muted);}
+.now-old .bd{flex:1;display:flex;}
+.now-old .sd{width:66px;border-right:1px solid var(--edge-faint);padding:6px 5px;display:flex;flex-direction:column;gap:4px;}
+</style>
+</head>
+<body>
+
+<div class="mk-head">
+  <h1>预设 → 九宫格指令面板 · 外观 Mockup</h1>
+  <p>
+    全程<b>点选</b>，不打字、不弹全屏窗。点节点底部「指令」→ 弹出<b class="hl">标签 tab + 九宫格大图卡</b>，
+    点一下<b>直接追加进提示词并关闭</b>（<span class="na" style="display:inline-block;">新建节点</span> 已移除）。
+    每条指令配一张<b>你自己传的缩略图</b>做指引，图下面只留一行标题；<b>标签用户自己建</b>，一条可打多个。
+  </p>
+</div>
+
+<!-- ══════════ 屏 0 · 为什么改（一行小对比） ══════════ -->
+<div class="mk-stage">
+  <div class="mini">
+    <div class="mini-card" style="width:332px;">
+      <div class="mini-title">现状 · 全屏弹窗 + 文字卡片</div>
+      <div class="now-old">
+        <div class="tb">✦ 提示词库<span style="margin-left:auto;color:var(--t-subtle);">✕</span></div>
+        <div class="bd">
+          <div class="sd">
+            <div style="font-size:9px;padding:3px 5px;border-radius:5px;background:var(--surface-hover);color:var(--t-body);">我的提示词</div>
+            <div style="font-size:9px;padding:3px 5px;color:var(--t-faint);">最近使用</div>
+          </div>
+          <div style="flex:1;padding:6px;display:flex;flex-direction:column;gap:5px;">
+            <div style="border:1px solid var(--edge-faint);border-radius:6px;padding:5px;background:var(--surface-1);">
+              <div style="font-size:10px;color:var(--t-body);">面部变真实</div>
+              <div style="font-size:9px;color:var(--t-faint);margin-top:2px;line-height:1.5;">超写实人像；自然不均匀的皮肤纹理，可见毛孔…</div>
+            </div>
+            <div style="border:1px solid var(--edge-faint);border-radius:6px;padding:5px;background:var(--surface-1);">
+              <div style="font-size:10px;color:var(--t-body);">赛博朋克街道</div>
+              <div style="font-size:9px;color:var(--t-faint);margin-top:2px;line-height:1.5;">霓虹反射，雨后地面…</div>
+            </div>
+            <div style="font-size:9px;color:var(--t-subtle);margin-top:auto;">88vw×84vh · 纯文字 · 看不出风格</div>
+          </div>
+        </div>
+      </div>
+      <div class="mk-cap" style="max-width:302px;">
+        <span class="tag cut">问题</span>盖住整块画布、<b>纯文字看不出这条是啥</b>、还要再点卡片上的小按钮。
+      </div>
+    </div>
+
+    <div class="mini-card" style="width:332px;">
+      <div class="mini-title">改后 · 九宫格点选</div>
+      <div class="now-old" style="border-color:var(--accent-line);">
+        <div class="tb" style="border-bottom-color:var(--edge-faint);">
+          <span style="display:inline-flex;align-items:center;height:17px;padding:0 8px;border-radius:999px;background:var(--accent-soft);border:1px solid var(--accent-line);color:var(--accent-text);font-size:9px;">常用 12</span>
+          <span style="font-size:9px;color:var(--t-faint);">人像 8</span>
+          <span style="font-size:9px;color:var(--t-faint);">风格 20</span>
+          <span style="margin-left:auto;color:var(--t-subtle);">⋯</span>
+        </div>
+        <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:6px;align-content:start;">
+          <div style="border:1px solid var(--edge-muted);border-radius:6px;overflow:hidden;">
+            <div class="photo" style="aspect-ratio:4/3;"></div>
+            <div style="height:15px;display:flex;align-items:center;padding:0 4px;font-size:8px;color:var(--t-body);">胶片颗粒</div>
+          </div>
+          <div style="border:1px solid var(--edge-muted);border-radius:6px;overflow:hidden;">
+            <div class="photo2" style="aspect-ratio:4/3;"></div>
+            <div style="height:15px;display:flex;align-items:center;padding:0 4px;font-size:8px;color:var(--t-body);">面部变真实</div>
+          </div>
+          <div style="border:1px solid var(--edge-muted);border-radius:6px;overflow:hidden;">
+            <div class="photo3" style="aspect-ratio:4/3;"></div>
+            <div style="height:15px;display:flex;align-items:center;padding:0 4px;font-size:8px;color:var(--t-body);">赛博街道</div>
+          </div>
+          <div style="border:1px solid var(--edge-muted);border-radius:6px;overflow:hidden;">
+            <div class="photo4" style="aspect-ratio:4/3;"></div>
+            <div style="height:15px;display:flex;align-items:center;padding:0 4px;font-size:8px;color:var(--t-body);">日系动画</div>
+          </div>
+          <div style="border:1px solid var(--edge-muted);border-radius:6px;overflow:hidden;">
+            <div class="photo" style="aspect-ratio:4/3;"></div>
+            <div style="height:15px;display:flex;align-items:center;padding:0 4px;font-size:8px;color:var(--t-body);">柔光窗边</div>
+          </div>
+          <div style="border:1px solid var(--edge-muted);border-radius:6px;overflow:hidden;">
+            <div class="photo2" style="aspect-ratio:4/3;"></div>
+            <div style="height:15px;display:flex;align-items:center;padding:0 4px;font-size:8px;color:var(--t-body);">夜景霓虹</div>
+          </div>
+        </div>
+      </div>
+      <div class="mk-cap" style="max-width:302px;">
+        <span class="tag new">改法</span>388px 小面板、<b>图占大头一眼认风格</b>、点一下就追加并关掉。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 屏 1 · 真实上下文：点「指令」→ 面板向上弹 ══════════ -->
+<div class="mk-stage">
+  <div class="ncard">
+    <div class="ncard-hd">
+      <span class="d"></span>生图节点
+      <span class="t">imageGenerateNode</span>
+      <span class="hoverbar" style="margin-left:auto;">
+        <button title="全屏">⤢</button>
+        <button title="更多">⋯</button>
+      </span>
+    </div>
+    <div class="ncard-img"><div class="photo" style="position:absolute;inset:0;"></div></div>
+
+    <div class="ncard-panel">
+      <div class="mstrip">
+        <div class="th photo2"></div>
+        <div class="th photo3"></div>
+        <button class="add">+</button>
+      </div>
+
+      <!-- 追加后：新片段高亮在末尾，面板已自动关闭（此处面板为示意，同时画出「点之前/点之后」两个时刻） -->
+      <div class="pinput">
+        一位老人坐在窗边，午后阳光斜射，<span class="atk">自然不均匀的皮肤纹理，可见毛孔，无磨皮，纪实写实风格</span>
+      </div>
+
+      <div class="prow" style="position:relative;">
+        <span class="chip">16:9</span>
+        <span class="chip">Nano Banana</span>
+        <span class="chip on">✦ 指令 <span class="n">12</span></span>
+        <span class="grow"></span>
+        <span class="chip">批量 1</span>
+        <button class="gen">生成</button>
+
+        <!-- 面板：贴着「指令」按钮向上弹 -->
+        <div style="position:absolute;bottom:calc(100% + 8px);left:74px;z-index:40;">
+          <div class="qc-pop">
+            <div class="qc-tabs">
+              <span class="qc-tab on">常用 <span class="n">12</span></span>
+              <span class="qc-tab">全部 <span class="n">46</span></span>
+              <span class="qc-tab">人像 <span class="n">8</span></span>
+              <span class="qc-tab">风格 <span class="n">20</span></span>
+              <span class="qc-tab">光影 <span class="n">11</span></span>
+              <span class="qc-tab">镜头 <span class="n">9</span></span>
+              <span class="qc-tab">后期 <span class="n">7</span></span>
+              <span class="qc-tab">视频 <span class="n">6</span></span>
+            </div>
+
+            <div class="qc-grid">
+              <div class="qc-cell">
+                <div class="pic"><i class="ph photo"></i><span class="mk" title="查看这个提示词">ⓘ</span></div>
+                <div class="cap">胶片颗粒</div>
+              </div>
+              <div class="qc-cell">
+                <div class="pic"><i class="ph photo2"></i><span class="mk" title="查看这个提示词">ⓘ</span></div>
+                <div class="cap">面部变真实</div>
+              </div>
+              <div class="qc-cell">
+                <div class="pic"><i class="ph photo3"></i><span class="mk" title="查看这个提示词">ⓘ</span></div>
+                <div class="cap">赛博街道</div>
+              </div>
+              <div class="qc-cell">
+                <div class="pic"><i class="ph photo4"></i><span class="mk" title="查看这个提示词">ⓘ</span></div>
+                <div class="cap">日系动画</div>
+              </div>
+              <div class="qc-cell">
+                <div class="pic"><i class="ph photo"></i><span class="mk" title="查看这个提示词">ⓘ</span></div>
+                <div class="cap">柔光窗边</div>
+              </div>
+              <div class="qc-cell">
+                <div class="pic"><i class="ph photo2"></i><span class="mk" title="查看这个提示词">ⓘ</span></div>
+                <div class="cap">夜景霓虹</div>
+              </div>
+              <!-- 没传图的：首字母色块兜底，不留空白格 -->
+              <div class="qc-cell">
+                <div class="pic"><span class="ini">银</span><span class="mk" title="查看这个提示词">ⓘ</span></div>
+                <div class="cap">银盐黑白</div>
+              </div>
+              <div class="qc-cell">
+                <div class="pic"><i class="ph photo3"></i><span class="mk" title="查看这个提示词">ⓘ</span></div>
+                <div class="cap">雨天地面</div>
+              </div>
+              <div class="qc-cell">
+                <div class="pic"><i class="ph photo4"></i><span class="mk" title="查看这个提示词">ⓘ</span></div>
+                <div class="cap">广角纵深</div>
+              </div>
+            </div>
+
+            <div class="qc-pop-ft">
+              <span>点一下 → 追加并关闭</span>
+              <span class="sp"></span>
+              <span class="lk">管理指令</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-cap" style="max-width:520px;">
+    <span class="tag new">交互</span>
+    点「指令」→ 面板<b>贴着按钮向上弹</b>（388px，不遮画布、不抢焦点）→ 切 tab 找 → <b>点图卡即追加</b>。
+    <br />
+    <span class="tag new">ⓘ 角标</span>
+    格子右上角<b>常显</b>的 ⓘ 是<b>第二个热区</b>：点它打开编辑界面看完整提示词（<b>不追加</b>、不关闭九宫格之外的东西）。
+    藏进 hover 里 = 没人发现，所以常显。
+    <br />
+    <span class="tag keep">追加口径</span>
+    <b>点一下 = 追加 + 立即关闭面板</b>（同时加两条不是真实场景，不做多选）。追加到<b>提示词末尾</b>并自动补「，」，
+    追加后输入框末尾<b>高亮新片段</b>——看一眼就知道加进去了，不需要额外 toast。
+    <span class="na" style="display:inline-block;margin-left:4px;">新建节点</span> 整个动作移除。
+    <br />
+    <span class="tag keep">tab = 标签</span>
+    一个 tab 就是一个<b>标签</b>，标签<b>用户自己建</b>（指令表单 chips 里「＋ 新建标签」）。一条指令可打<b>多个标签</b>，
+    打了「人像 + 风格」就<b>在两个 tab 里都出现</b> —— 不用做 AND/OR 选择器，点 tab 即筛选。
+    「常用」是虚拟标签（最近使用聚合），「全部」= 不过滤；标签顺序按首次出现排，<b>不做手动排序</b>。
+  </div>
+</div>
+
+<!-- ══════════ 屏 2 · 面板特写（切到「风格」tab） ══════════ -->
+<div class="mk-stage">
+  <div class="qc-pop" style="width:400px;">
+    <div class="qc-tabs">
+      <span class="qc-tab">常用 <span class="n">12</span></span>
+      <span class="qc-tab">全部 <span class="n">46</span></span>
+      <span class="qc-tab">人像 <span class="n">8</span></span>
+      <span class="qc-tab on">风格 <span class="n">20</span></span>
+      <span class="qc-tab">光影 <span class="n">11</span></span>
+      <span class="qc-tab">镜头 <span class="n">9</span></span>
+      <span class="qc-tab">后期 <span class="n">7</span></span>
+      <span class="qc-tab">视频 <span class="n">6</span></span>
+    </div>
+
+    <div class="qc-grid" style="max-height:352px;">
+      <div class="qc-cell"><div class="pic"><i class="ph photo"></i><span class="mk" title="查看这个提示词">ⓘ</span></div><div class="cap">胶片颗粒</div></div>
+      <div class="qc-cell"><div class="pic"><i class="ph photo2"></i><span class="mk" title="查看这个提示词">ⓘ</span></div><div class="cap">高感粗颗粒</div></div>
+      <div class="qc-cell"><div class="pic"><i class="ph photo3"></i><span class="mk" title="查看这个提示词">ⓘ</span></div><div class="cap">赛博街道</div></div>
+      <div class="qc-cell"><div class="pic"><i class="ph photo4"></i><span class="mk" title="查看这个提示词">ⓘ</span></div><div class="cap">日系动画</div></div>
+      <div class="qc-cell"><div class="pic"><i class="ph photo"></i><span class="mk" title="查看这个提示词">ⓘ</span></div><div class="cap">水墨古风</div></div>
+      <div class="qc-cell"><div class="pic"><i class="ph photo2"></i><span class="mk" title="查看这个提示词">ⓘ</span></div><div class="cap">赛璐璐上色</div></div>
+      <div class="qc-cell"><div class="pic"><i class="ph photo3"></i><span class="mk" title="查看这个提示词">ⓘ</span></div><div class="cap">厚涂油画</div></div>
+      <div class="qc-cell"><div class="pic"><span class="ini">素</span><span class="mk" title="查看这个提示词">ⓘ</span></div><div class="cap">素描线稿</div></div>
+      <div class="qc-cell"><div class="pic"><i class="ph photo4"></i><span class="mk" title="查看这个提示词">ⓘ</span></div><div class="cap">低饱和电影</div></div>
+      <div class="qc-cell"><div class="pic"><i class="ph photo"></i><span class="mk" title="查看这个提示词">ⓘ</span></div><div class="cap">复古港风</div></div>
+      <div class="qc-cell"><div class="pic"><i class="ph photo2"></i><span class="mk" title="查看这个提示词">ⓘ</span></div><div class="cap">极简产品</div></div>
+      <div class="qc-cell"><div class="pic"><i class="ph photo3"></i><span class="mk" title="查看这个提示词">ⓘ</span></div><div class="cap">3D盲盒</div></div>
+    </div>
+
+    <div class="qc-pop-ft">
+      <span>风格 · 20 条</span>
+      <span class="sp"></span>
+      <span>Esc 关闭</span>
+      <span class="lk">管理指令</span>
+    </div>
+  </div>
+
+  <div class="mk-cap" style="max-width:400px;">
+    <span class="tag new">九宫格</span>
+    固定 <b>3 列</b>，图卡 <b>4:3 占大头</b>，下面<b>只留一行标题</b>（溢出省略，完整内容 hover 出 tooltip）。
+    <br />
+    <span class="tag keep">为什么图要大</span>
+    标题只能说"胶片颗粒"，图能直接告诉你是<b>哪种颗粒、什么色调</b> —— 这是缩略图唯一的作用，所以小图没意义。
+    <br />
+    <span class="tag keep">条目多了怎么办</span>
+    格子数不封顶，超出就滚；tab 横滚。不做搜索框（点选优先，打字不是这个面板的事）。
+    真攒到几十条时靠<b>加标签</b>收敛，而不是靠搜索 —— 标签是你自己建的，比关键词好记。
+  </div>
+</div>
+
+<!-- ══════════ 屏 3 · 指令管理（上传缩略图） ══════════ -->
+<div class="mk-stage">
+  <div class="qc-mgr">
+    <div class="eh" style="height:46px;">
+      <div class="eh-left">
+        <div class="eh-title">✦ 快捷指令 <span>20 条 · 改完对所有节点生效</span></div>
+      </div>
+      <div class="eh-right">
+        <button class="btn">标签管理</button>
+        <button class="btn">导入</button>
+        <button class="btn">导出</button>
+        <button class="btn primary">＋ 新建指令</button>
+      </div>
+    </div>
+
+    <div class="qc-mgr-body">
+      <div class="qc-mgr-list">
+        <div class="hd"><span>指令（拖拽排序）</span><button>＋</button></div>
+        <div class="qc-row on">
+          <span class="grip">⋮⋮</span>
+          <span class="th photo"></span>
+          <span class="nm">胶片颗粒</span>
+        </div>
+        <div class="qc-row">
+          <span class="grip">⋮⋮</span>
+          <span class="th photo2"></span>
+          <span class="nm">面部变真实</span>
+        </div>
+        <div class="qc-row">
+          <span class="grip">⋮⋮</span>
+          <span class="th photo3"></span>
+          <span class="nm">赛博街道</span>
+        </div>
+        <div class="qc-row">
+          <span class="grip">⋮⋮</span>
+          <span class="th photo4"></span>
+          <span class="nm">日系动画</span>
+        </div>
+        <div class="qc-row">
+          <span class="grip">⋮⋮</span>
+          <span class="th" style="background:linear-gradient(160deg,#2b2b2f,#141416);">银</span>
+          <span class="nm">银盐黑白</span>
+        </div>
+      </div>
+
+      <div class="qc-form">
+        <div style="display:flex;gap:12px;">
+          <div class="qc-up filled">
+            <i class="ph photo"></i>
+            <div class="hover-mask">
+              <span>点击 / 拖拽 / 粘贴</span>
+              <div class="acts"><span>更换</span><span class="del">移除</span></div>
+            </div>
+          </div>
+          <div class="qc-up-side">
+            <div class="lb">缩略图（只做指引，不参与生成）</div>
+            <div class="qc-hint">
+              点框上传，或直接<b>拖拽 / ⌘V 粘贴</b>。
+              <br />自动压到 <b>256px WebP</b>，约 6–10KB；原图不保留。
+              <br />没传图 → 九宫格里显示<b>首字母色块</b>，不影响使用。
+            </div>
+            <div style="display:flex;gap:6px;margin-top:2px;">
+              <button class="btn" style="height:24px;font-size:11px;">从画布取一张</button>
+              <button class="btn" style="height:24px;font-size:11px;">从素材库选</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="qc-2col">
+          <div class="fld-c">
+            <span class="lb">名称（格子里那行标题）</span>
+            <input class="qc-inp" value="胶片颗粒" />
+          </div>
+          <div class="fld-c">
+            <span class="lb">适用节点（按节点类型过滤，与标签无关）</span>
+            <select class="qc-inp">
+              <option>生图</option>
+              <option>文本</option>
+              <option>视频</option>
+              <option>全部（通用）</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="fld-c">
+          <span class="lb">标签（可多选 · 面板上每个标签一个 tab）</span>
+          <div class="qc-tagwrap">
+            <span class="qc-tagchip on">风格 <span class="x">✕</span></span>
+            <span class="qc-tagchip on">人像 <span class="x">✕</span></span>
+            <span class="qc-tagchip">光影 <span class="x">＋</span></span>
+            <span class="qc-tagchip">后期 <span class="x">＋</span></span>
+            <span class="qc-tagchip add">＋ 新建标签</span>
+          </div>
+          <div class="qc-hint">一条可打多个标签 → <b>在多个 tab 里都能找到它</b>。标签不够用就现场新建一个。</div>
+        </div>
+
+        <div class="fld-c">
+          <span class="lb">提示词内容（追加时插入的原文）</span>
+          <textarea class="qc-ta">胶片颗粒质感，柯达 Portra 400 胶片，细腻均匀的颗粒，柔和肤色过渡，自然的暖调偏色，无数字锐化痕迹</textarea>
+        </div>
+        <div class="fld-c">
+          <span class="lb">备注（可选，hover 图卡时 tooltip 显示）</span>
+          <input class="qc-inp" value="柯达 Portra 400，细腻颗粒，柔和肤色" />
+        </div>
+      </div>
+    </div>
+
+    <div class="qc-mgr-ft">
+      <span class="tip">改动即时生效，无需重启；缩略图随预设一起同步（见第 4 屏）</span>
+      <span class="sp"></span>
+      <button class="btn danger">删除</button>
+      <button class="btn">取消</button>
+      <button class="btn primary">保存</button>
+    </div>
+  </div>
+
+  <div class="mk-cap" style="max-width:748px;">
+    <span class="tag new">缩略图</span>
+    三条上传路径：<b>点框选文件 / 拖拽进来 / ⌘V 粘贴</b>；另给「从画布取一张」「从素材库选」两个快捷来源（复用已有图，不用另存）。
+    <br />
+    <span class="tag keep">标签</span>
+    每条指令<b>可打多个标签</b>（面板 tab 行跟着变）；标签不够用就点「＋ 新建标签」现场建，不用先去别处配置。
+    <br />
+    <span class="tag keep">就两个界面</span>
+    九宫格 + 这个编辑界面，<b>没有只读模式</b> —— 点九宫格角标 ⓘ 进来的就是这里，字段<b>直接可改</b>，
+    看完顺手改完保存即可；新建 = 同一套字段的空表单，只少一个「删除」按钮。
+  </div>
+</div>
+
+<!-- ══════════ 屏 3.5 · 标签管理 ══════════ -->
+<div class="mk-stage">
+  <div class="qc-tagmgr">
+    <div class="tm-hd">标签管理 <span class="ct">7 个 · 从指令派生</span></div>
+    <div class="tm-bd">
+      <div class="qc-tagrow">
+        <span class="dot"></span>
+        <span class="nm">人像</span><span class="ct">8</span>
+        <button class="ic" title="重命名">✎</button><button class="ic danger" title="删除">✕</button>
+      </div>
+      <div class="qc-tagrow">
+        <span class="dot"></span>
+        <span class="nm">风格</span><span class="ct">20</span>
+        <button class="ic" title="重命名">✎</button><button class="ic danger" title="删除">✕</button>
+      </div>
+      <div class="qc-tagrow">
+        <span class="dot"></span>
+        <span class="nm">光影</span><span class="ct">11</span>
+        <button class="ic" title="重命名">✎</button><button class="ic danger" title="删除">✕</button>
+      </div>
+      <!-- 重命名中：原地变输入框，回车确认 -->
+      <div class="qc-tagrow" style="background:var(--surface-hover);">
+        <span class="dot"></span>
+        <span class="nm"><input value="胶片" /></span><span class="ct">3</span>
+        <button class="ic" title="确认">✓</button><button class="ic" title="取消">✕</button>
+      </div>
+      <div class="qc-tagrow">
+        <span class="dot"></span>
+        <span class="nm">镜头</span><span class="ct">9</span>
+        <button class="ic" title="重命名">✎</button><button class="ic danger" title="删除">✕</button>
+      </div>
+      <div class="qc-tagrow">
+        <span class="dot"></span>
+        <span class="nm">后期</span><span class="ct">7</span>
+        <button class="ic" title="重命名">✎</button><button class="ic danger" title="删除">✕</button>
+      </div>
+      <div class="qc-tagrow">
+        <span class="dot"></span>
+        <span class="nm">视频</span><span class="ct">6</span>
+        <button class="ic" title="重命名">✎</button><button class="ic danger" title="删除">✕</button>
+      </div>
+    </div>
+    <div class="tm-tip" style="padding-top:8px;border-top:1px solid var(--edge-faint);">
+      删除标签<b>不会删指令</b>，只把该标签从指令上摘掉。
+      标签来自指令本身 —— 建标签在指令表单的 chips 里点「＋ 新建标签」，所以这里<b>没有「添加」也没有「排序」</b>。
+    </div>
+  </div>
+
+  <div class="mk-cap" style="max-width:300px;">
+    <span class="tag new">标签管理</span>
+    只做两件事：<b>改名 / 删除</b>。新建标签在指令表单的 chips 里点「＋ 新建标签」—— 那里建的标签必然有指令用。
+    <br />
+    <span class="tag keep">为什么是标签不是分类</span>
+    分类逼你给每条指令选唯一归属（「胶片颗粒」算风格还是人像？）；标签允许<b>同时属于多个</b>，
+    前端点哪个 tab 就显示含该标签的指令，<b>不用做 AND/OR 选择器</b> —— 交互成本和多归属兼得。
+  </div>
+</div>
+
+<!-- ══════════ 屏 4 · 图床与同步链路 ══════════ -->
+<div class="mk-stage">
+  <div style="width:1120px;background:var(--surface-raised);border:1px solid var(--edge-muted);border-radius:var(--r-card);box-shadow:var(--sh-card);padding:16px 18px;">
+    <div class="mk-cap" style="margin-bottom:14px;">
+      <span class="tag new">图床</span>
+      <b>结论：不用引入第三方图床。</b>现成的 <code>filesApi.uploadFileToLocal</code>（POST /api/files/upload）就是本机图床；
+      跨设备那份靠 <b>极小内联缩略图</b> 走已有 cloudSync。两级加起来覆盖全部场景，新增依赖 = 0。
+    </div>
+
+    <div class="qc-chain">
+      <div class="qc-node">
+        <span class="n">① 选图</span>
+        <span class="d">本地文件 / 拖拽 / 粘贴 / 画布已有图</span>
+      </div>
+      <div class="qc-arrow">→</div>
+      <div class="qc-node hot">
+        <span class="n">② 前端压缩</span>
+        <span class="d">复用 <code>imageCompress</code>：等比缩到 <b>256px</b>，转 WebP q80 → 约 <b>6–10KB</b></span>
+      </div>
+      <div class="qc-arrow">→</div>
+      <div class="qc-branch">
+        <div class="qc-node" style="width:236px;">
+          <span class="n">③a 原图落本地（高清）</span>
+          <span class="d"><code>uploadFileToLocal(file,'presets')</code> → <code>127.0.0.1:18080/files/presets/&lt;hash&gt;.webp</code><br />本机秒开、不占 localStorage 配额</span>
+        </div>
+        <div class="qc-node" style="width:236px;">
+          <span class="n">③b 96px 内联（可同步）</span>
+          <span class="d">再压一档到 96px → <b>base64</b> 写进 <code>preset.thumbInline</code><br />约 1.5–3KB，跟预设一起进 cloudSync</span>
+        </div>
+      </div>
+      <div class="qc-arrow">→</div>
+      <div class="qc-node">
+        <span class="n">④ 同步</span>
+        <span class="d"><code>yimao_preset_prompts</code>（含 thumbInline）<br />走既有 cloudSync(GAS)，换机器缩略图不丢</span>
+      </div>
+    </div>
+
+    <div class="qc-fallback">
+      <b>渲染优先级</b>：<code>thumbInline</code>（离线 / 跨设备，秒显，永不破图）　→　<code>thumbUrl</code>（本机高清）　→　<b>首字母色块</b>占位。
+      三者都不破坏界面 —— 换机器后即使本地文件不存在，也有内联小图顶着，不会出现一排裂图。
+      <br />
+      <b>配额</b>：50 条指令 × 约 3KB ≈ 150KB，进 cloudSync 单次 payload 无压力；原图一律只落本地磁盘，不进云端。
+    </div>
+  </div>
+</div>
+
+<div class="mk-note">
+  <b>落地口径（改代码时照这个来）</b><br />
+  1. 数据形状：<code>Preset</code> 加 4 个可选字段 —— <code>tags: string[]</code>（标签名数组，可多个）、<code>desc</code>（备注/tooltip）、<code>thumbUrl</code>（本机 256px）、<code>thumbInline</code>（96px base64）。老的 <code>type</code> 字段（text/image/video）继续保留，用于<b>按节点类型过滤</b>（生图节点只显示生图+通用类）。缺字段 = 降级为「无图 + 未打标签」，无需迁移。<br />
+  2. 存储键：<b>不新增键</b>，只用 <code>yimao_preset_prompts</code>。标签<b>不单独存</b> —— 面板的 tab 列表由所有指令的 <code>tags</code> <b>求并集派生</b>（<code>deriveTags(presets)</code> 纯函数，放 <code>promptManager.ts</code>）：
+     没有「空标签」「标签排序」这些只在独立表里才需要的概念，也就不用为它登记新键、不用管它和指令的同步。
+     改名 = 遍历 presets 替换 <code>tags</code> 中的该名字；删除 = 遍历移除（几十条，成本可忽略）。<br />
+  3. 落盘目录：需在 <code>base/utils/uploadDirs.ts</code> 中央表登记 <code>presets</code>（禁止散写字面量目录名），上传走 <code>filesApi.uploadFileToLocal</code> 唯一入口。<br />
+  4. 组件：<code>PromptLibraryButton</code> 由「弹全屏」改为「弹 388px 九宫格 popover」；<code>PromptLibrary.tsx</code> 全屏弹窗<b>不删</b>，改造为编辑界面（传图 / 改标签 / 改内容）。
+     <b>只有两个界面</b>：九宫格 + 编辑表单；<b>不做只读模式</b> —— 九宫格角标 ⓘ 与「管理指令」都打开同一个编辑表单，字段始终可编辑，新建只是传空初始值。<br />
+  5. 追加语义：<b>点击图卡 =</b> <code>onAppend(prompt)</code> <b>+ 立即 <code>onClose()</code></b>（一次只加一条，不做多选、不做「已选中」态）；追加到末尾 + 自动补「，」，追加后输入框末尾高亮新片段。
+     <code>onAppend</code> 各节点现成传入（ImageGenerate / VideoGenerate / TextGenerate 已有），去掉 <code>onUse</code>（新建节点）分支。
+</div>
+
+</body>
+</html>

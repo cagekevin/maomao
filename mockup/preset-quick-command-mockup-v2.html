@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>预设 → 九宫格指令面板 v2 · 外观 Mockup</title>
+<link rel="stylesheet" href="./mockup-kit.css" />
+<style>
+/* ══════════════════════════════════════════════════════════════
+ * v2 九宫格指令面板专用件（前缀 .qp-*）
+ *    通用骨架/控件复用 mockup-kit.css。
+ *
+ *    判据：用户只有三个必填 —— 名称 / 提示词 / 分类。
+ *    其余一切要么服务于这三者，要么不存在。
+ *
+ *    面板只有两块：分类 tab 行 + 九宫格。无 footer。
+ *    编辑 = 面板原地切换，不新开界面、不弹全屏窗。
+ *    「管理页」不存在 —— 九宫格本身就是列表。
+ * ══════════════════════════════════════════════════════════════ */
+
+/* ─── 1. 面板：从节点底部「指令」按钮向上弹 ─── */
+.qp-pop{
+  width:388px;border-radius:12px;background:var(--surface-raised);
+  border:1px solid var(--edge);box-shadow:var(--sh-pop);overflow:hidden;
+  display:flex;flex-direction:column;
+}
+/* 分类 tab：横滚区 + 右端常驻「＋ 新建」。
+   tab 不挂数字徽标 —— 条数对「要不要切过去」这个决策毫无帮助，只把 tab 拉宽。
+   ＋ 挂在这里而不是九宫格末尾：它因此永远可见，不用滚到最后一张图才找得到。 */
+.qp-tabs{
+  display:flex;align-items:center;gap:6px;padding:8px 9px;flex-shrink:0;
+  border-bottom:1px solid var(--edge-faint);
+}
+.qp-tabs-sc{
+  display:flex;align-items:center;gap:5px;flex:1;min-width:0;overflow-x:auto;
+}
+/* ＋ 新建：固定在 tab 行右端，不随分类横滚 */
+.qp-new{
+  width:24px;height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  border-radius:var(--r-pill);border:1px dashed var(--edge);background:transparent;
+  color:var(--t-faint);font-size:13px;line-height:1;cursor:pointer;
+  transition:border-color .12s,color .12s,background .12s;
+}
+.qp-new:hover{border-color:var(--edge-strong);color:#fff;background:var(--surface-hover);}
+.qp-tab{
+  display:inline-flex;align-items:center;height:24px;padding:0 11px;flex-shrink:0;
+  border-radius:var(--r-pill);border:1px solid var(--edge-muted);background:var(--surface-hover);
+  color:var(--t-secondary);font-size:11px;cursor:pointer;white-space:nowrap;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.qp-tab:hover{color:#fff;}
+.qp-tab.on{background:var(--surface-hover-strong);border-color:var(--edge-strong);color:#fff;}
+
+/* ─── 2. 九宫格：3 列图卡，图占大头 + 底部一行标题 ───
+   不封顶、不截断，超出就滚 —— 滚动本身对规模不敏感，
+   预设攒到几百条，操作方式也不变。 */
+.qp-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:9px;
+  max-height:334px;overflow-y:auto;
+}
+.qp-cell{
+  position:relative;border-radius:9px;overflow:hidden;
+  border:1px solid var(--edge-muted);background:var(--surface-1);
+  cursor:pointer;text-align:left;padding:0;color:inherit;
+  transition:border-color .12s,box-shadow .12s;
+}
+/* 点一下 = 追加 + 立即关闭面板。没有「已选中」态：
+   点完人已经看到提示词变长了，那才是最直接的反馈。 */
+.qp-cell:hover{border-color:var(--edge-strong);box-shadow:0 0 0 1px var(--edge-strong);}
+.qp-cell .pic{position:relative;aspect-ratio:4/3;background:var(--surface-sunken);}
+.qp-cell .pic .ph{position:absolute;inset:0;}
+/* 没传图的兜底：居中一个图片占位图标（SVG 精灵引用）。
+   不用首字母色块 —— 一排灰色汉字之间毫无区分度，跟「没图」传达的信息一样多，
+   而图标一眼说清「这里可以放图」。 */
+.qp-cell .pic .ico{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:var(--t-muted);background:var(--surface-sunken);
+}
+.qp-cell .pic .ico svg{width:24px;height:24px;}
+/* 标题叠在图卡底部，用一层渐变黑托住 —— 不再单独占一行，
+   省下的高度直接变成「多看到一行内容」。 */
+.qp-cell .cap{
+  position:absolute;left:0;right:0;bottom:0;
+  padding:10px 6px 5px;
+  font-size:10px;line-height:1.2;color:#fff;text-align:center;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  background:linear-gradient(to top,rgba(0,0,0,.9) 0%,rgba(0,0,0,.55) 58%,rgba(0,0,0,0) 100%);
+}
+/* ✎ 只在 hover 出现：编辑是低频动作，不该在高频点选区占常驻像素。
+   点它直接进编辑态（只有一件事就不做菜单，做了反而多一次点击）。 */
+.qp-cell .ed{
+  position:absolute;right:4px;top:4px;width:17px;height:17px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:10px;
+  background:rgba(10,10,10,.78);border:1px solid var(--edge-strong);color:#fff;
+  opacity:0;transition:opacity .12s;
+}
+.qp-cell:hover .ed{opacity:1;}
+.qp-cell .ed:hover{background:#fff;border-color:#fff;color:#111;}
+
+/* ─── 3. 编辑态：面板原地切换，不新开界面 ─── */
+.qp-ed-hd{
+  display:flex;align-items:center;gap:8px;height:32px;flex-shrink:0;padding:0 10px;
+  border-bottom:1px solid var(--edge-faint);
+}
+.qp-ed-hd .bk{
+  display:inline-flex;align-items:center;gap:2px;border:none;background:transparent;
+  color:var(--t-secondary);font-size:11px;cursor:pointer;padding:0;
+}
+.qp-ed-hd .bk:hover{color:#fff;}
+.qp-ed-hd .tt{margin-left:auto;font-size:10px;color:var(--t-faint);}
+
+.qp-ed-bd{padding:12px 14px;display:flex;flex-direction:column;gap:11px;}
+
+/* 图 + 名称同一行：上半部分直接就是这条在九宫格里长什么样，
+   所见即所得，用户填的时候不用想象。
+   图服务的是「名称」的识别，所以它该贴着名称，不该占首屏三分之一。 */
+.qp-trow{display:flex;gap:10px;align-items:center;}
+.qp-up{
+  position:relative;width:64px;height:64px;flex-shrink:0;border-radius:9px;overflow:hidden;
+  border:1px dashed var(--edge);background:var(--input);color:var(--t-faint);
+  display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;
+  transition:border-color .12s,color .12s,background .12s;
+}
+.qp-up:hover{border-color:var(--edge-strong);color:#fff;background:var(--surface-hover);}
+.qp-up.filled{border-style:solid;border-color:var(--edge-muted);}
+.qp-up .ph{position:absolute;inset:0;}
+.qp-up .mask{
+  position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(10,10,10,.72);color:#fff;font-size:10px;
+}
+.qp-up.filled:hover .mask{display:flex;}
+
+.qp-fld{display:flex;flex-direction:column;gap:5px;min-width:0;}
+.qp-lb{font-size:10px;color:var(--t-faint);}
+.qp-inp{
+  height:28px;padding:0 8px;border-radius:var(--r-sm);background:var(--input);
+  border:1px solid var(--edge-muted);color:var(--t-body);font-size:11px;width:100%;
+}
+.qp-inp:focus{outline:none;border-color:var(--edge-strong);}
+.qp-ta{
+  min-height:92px;padding:7px 9px;border-radius:var(--r-sm);background:var(--input);
+  border:1px solid var(--edge-muted);color:var(--t-body);font-size:11px;line-height:1.8;
+  resize:none;width:100%;font-family:inherit;
+}
+.qp-ta:focus{outline:none;border-color:var(--edge-strong);}
+
+/* 分类 chips：至少一个、可多选。新建分类就在这里 —— 必须挂在某条指令上才存在。 */
+.qp-chips{display:flex;flex-wrap:wrap;gap:5px;align-items:center;}
+.qp-chip{
+  display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;
+  border-radius:var(--r-pill);border:1px solid var(--edge-muted);background:var(--surface-hover);
+  color:var(--t-secondary);font-size:11px;cursor:pointer;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.qp-chip:hover{color:#fff;}
+.qp-chip.on{background:var(--surface-hover-strong);border-color:var(--edge-strong);color:#fff;}
+.qp-chip .x{color:var(--t-faint);font-size:11px;}
+.qp-chip.on .x{color:var(--t-secondary);}
+.qp-chip.add{border-style:dashed;background:transparent;color:var(--t-faint);}
+.qp-chip.add:hover{border-color:var(--edge-strong);color:#fff;background:var(--surface-hover);}
+/* 改名态：chip 原地变输入框，回车确认 */
+.qp-chip.editing{background:var(--input);border-color:var(--edge-strong);padding:0 5px;gap:3px;}
+.qp-chip.editing input{
+  width:52px;height:20px;border:none;background:transparent;outline:none;
+  color:var(--t-body);font-size:11px;font-family:inherit;
+}
+
+.qp-ed-ft{
+  display:flex;align-items:center;gap:8px;height:46px;flex-shrink:0;padding:0 14px;
+  border-top:1px solid var(--edge-faint);background:var(--surface-deep);
+}
+.qp-ed-ft .sp{flex:1;}
+
+/* ─── 4. 技术附录：图床 / 同步链路（这一屏是技术文档，不是界面） ─── */
+.qp-chain{display:flex;align-items:stretch;}
+.qp-node{
+  width:154px;padding:9px 10px;border-radius:9px;
+  background:var(--surface-1);border:1px solid var(--edge-muted);
+  display:flex;flex-direction:column;gap:4px;
+}
+.qp-node .n{font-size:11px;color:var(--t-body);font-weight:500;}
+.qp-node .d{font-size:10px;line-height:1.7;color:var(--t-faint);}
+.qp-node .d code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--t-secondary);font-size:9px;
+  word-break:break-all;
+}
+.qp-node.hot{border-color:var(--edge-strong);background:var(--surface-hover);}
+.qp-node.hot .n{color:#fff;}
+.qp-arrow{
+  width:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  color:var(--t-subtle);font-size:12px;
+}
+.qp-branch{display:flex;flex-direction:column;gap:8px;}
+.qp-fallback{
+  margin-top:10px;padding:8px 10px;border-radius:9px;
+  background:var(--surface-deep);border:1px solid var(--edge-faint);
+  font-size:10px;line-height:1.85;color:var(--t-faint);
+}
+.qp-fallback b{color:var(--t-secondary);font-weight:500;}
+
+/* 现状对比小图（屏 0） */
+.now-old{
+  width:300px;height:172px;border-radius:10px;border:1px solid var(--edge);
+  background:var(--input);overflow:hidden;display:flex;flex-direction:column;
+}
+.now-old .tb{height:24px;display:flex;align-items:center;gap:6px;padding:0 8px;
+  border-bottom:1px solid var(--edge-faint);font-size:10px;color:var(--t-muted);}
+.now-old .bd{flex:1;display:flex;}
+.now-old .sd{width:66px;border-right:1px solid var(--edge-faint);padding:6px 5px;display:flex;flex-direction:column;gap:4px;}
+
+/* ─── 5. 配色：苹果风克制（覆盖 mockup-kit 的蓝色强调）───
+   深色界面里白色本身就是最高对比度，不需要再借一个饱和色去喊。
+   规则：
+     选中态 = 白字 + 中性亮底 + 提亮一档的细边
+     主按钮 = 白底黑字（iOS prominent 按钮在深色模式下的样子）
+     hover  = 只把边框提亮一档，不换色相
+   整个界面只剩一个色相（灰阶）；红色只留给「删除」这一种语义。 */
+.btn.primary{background:#f2f2f2;border-color:#f2f2f2;color:#111;}
+.btn.primary:hover{background:#fff;border-color:#fff;color:#111;}
+.prow .gen{background:#f2f2f2;color:#111;}
+.prow .gen:hover{background:#fff;}
+.prow .chip.on{background:var(--surface-hover-strong);border-color:var(--edge-strong);color:#fff;}
+.prow .chip.on .n{background:var(--t-secondary);color:#111;}
+.ncard-hd .d{background:var(--t-secondary);}
+.pinput .atk{color:#fff;background:rgba(255,255,255,.10);}
+.mk-head .hl{color:#fff;}
+</style>
+</head>
+<body>
+
+<!-- 图片占位图标：无缩略图时居中显示。一份 symbol，多处 <use> 引用，避免重复画一遍 DOM -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="qp-img" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="4.5" width="18" height="15" rx="2.5"/>
+    <circle cx="8.75" cy="10" r="1.5"/>
+    <path d="M20.5 16L16 11.5 11.5 16 8.5 13 3 18.5"/>
+  </symbol>
+</svg>
+
+<div class="mk-head">
+  <h1>预设 → 九宫格指令面板 v2 · 外观 Mockup</h1>
+  <p>
+    用户只有三个必填：<b class="hl">名称 / 提示词 / 分类</b>，其余一切都是为这三者服务的。
+    面板只有两块 —— <b>分类 tab 行 + 九宫格</b>；<b>没有 footer、没有管理页、没有只读模式</b>。
+    点图卡 = 追加并关闭；hover 出 ✎ = 编辑；<b>tab 行右上角 ＋ = 新建</b>。
+    <b>编辑是面板原地切换</b>，不新开界面。
+  </p>
+</div>
+
+<!-- ══════════ 屏 0 · 为什么改（一行小对比） ══════════ -->
+<div class="mk-stage">
+  <div class="mini">
+    <div class="mini-card" style="width:332px;">
+      <div class="mini-title">现状 · 全屏弹窗 + 文字卡片</div>
+      <div class="now-old">
+        <div class="tb">✦ 提示词库<span style="margin-left:auto;color:var(--t-subtle);">✕</span></div>
+        <div class="bd">
+          <div class="sd">
+            <div style="font-size:9px;padding:3px 5px;border-radius:5px;background:var(--surface-hover);color:var(--t-body);">我的提示词</div>
+            <div style="font-size:9px;padding:3px 5px;color:var(--t-faint);">最近使用</div>
+          </div>
+          <div style="flex:1;padding:6px;display:flex;flex-direction:column;gap:5px;">
+            <div style="border:1px solid var(--edge-faint);border-radius:6px;padding:5px;background:var(--surface-1);">
+              <div style="font-size:10px;color:var(--t-body);">面部变真实</div>
+              <div style="font-size:9px;color:var(--t-faint);margin-top:2px;line-height:1.5;">超写实人像；自然不均匀的皮肤纹理，可见毛孔…</div>
+            </div>
+            <div style="border:1px solid var(--edge-faint);border-radius:6px;padding:5px;background:var(--surface-1);">
+              <div style="font-size:10px;color:var(--t-body);">赛博朋克街道</div>
+              <div style="font-size:9px;color:var(--t-faint);margin-top:2px;line-height:1.5;">霓虹反射，雨后地面…</div>
+            </div>
+            <div style="font-size:9px;color:var(--t-subtle);margin-top:auto;">88vw×84vh · 纯文字 · 看不出风格</div>
+          </div>
+        </div>
+      </div>
+      <div class="mk-cap" style="max-width:302px;">
+        <span class="tag cut">问题</span>盖住整块画布、<b>纯文字看不出这条是啥</b>、还要再点卡片上的小按钮。
+      </div>
+    </div>
+
+    <div class="mini-card" style="width:332px;">
+      <div class="mini-title">改后 · 九宫格点选</div>
+      <div class="now-old" style="border-color:var(--edge-strong);">
+        <div class="tb" style="border-bottom-color:var(--edge-faint);">
+          <span style="display:inline-flex;align-items:center;height:17px;padding:0 8px;border-radius:999px;background:var(--surface-hover-strong);border:1px solid var(--edge-strong);color:#fff;font-size:9px;">常用</span>
+          <span style="font-size:9px;color:var(--t-faint);">人像</span>
+          <span style="font-size:9px;color:var(--t-faint);">风格</span>
+          <span style="font-size:9px;color:var(--t-faint);">光影</span>
+          <span style="margin-left:auto;font-size:11px;color:var(--t-faint);">＋</span>
+        </div>
+        <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:6px;align-content:start;">
+          <div style="border:1px solid var(--edge-muted);border-radius:6px;overflow:hidden;">
+            <div class="photo" style="aspect-ratio:4/3;"></div>
+            <div style="height:15px;display:flex;align-items:center;padding:0 4px;font-size:8px;color:var(--t-body);">胶片颗粒</div>
+          </div>
+          <div style="border:1px solid var(--edge-muted);border-radius:6px;overflow:hidden;">
+            <div class="photo2" style="aspect-ratio:4/3;"></div>
+            <div style="height:15px;display:flex;align-items:center;padding:0 4px;font-size:8px;color:var(--t-body);">面部变真实</div>
+          </div>
+          <div style="border:1px solid var(--edge-muted);border-radius:6px;overflow:hidden;">
+            <div class="photo3" style="aspect-ratio:4/3;"></div>
+            <div style="height:15px;display:flex;align-items:center;padding:0 4px;font-size:8px;color:var(--t-body);">赛博街道</div>
+          </div>
+          <div style="border:1px solid var(--edge-muted);border-radius:6px;overflow:hidden;">
+            <div class="photo4" style="aspect-ratio:4/3;"></div>
+            <div style="height:15px;display:flex;align-items:center;padding:0 4px;font-size:8px;color:var(--t-body);">日系动画</div>
+          </div>
+          <div style="border:1px solid var(--edge-muted);border-radius:6px;overflow:hidden;">
+            <div class="photo" style="aspect-ratio:4/3;"></div>
+            <div style="height:15px;display:flex;align-items:center;padding:0 4px;font-size:8px;color:var(--t-body);">柔光窗边</div>
+          </div>
+          <div style="border:1px solid var(--edge-muted);border-radius:6px;overflow:hidden;">
+            <div class="photo2" style="aspect-ratio:4/3;"></div>
+            <div style="height:15px;display:flex;align-items:center;padding:0 4px;font-size:8px;color:var(--t-body);">夜景霓虹</div>
+          </div>
+        </div>
+      </div>
+      <div class="mk-cap" style="max-width:302px;">
+        <span class="tag new">改法</span>388px 小面板、<b>图占大头一眼认风格</b>、点一下就追加并关掉。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 屏 1 · 真实上下文：点「指令」→ 面板向上弹 ══════════ -->
+<div class="mk-stage">
+  <div class="ncard">
+    <div class="ncard-hd">
+      <span class="d"></span>生图节点
+      <span class="t">imageGenerateNode</span>
+      <span class="hoverbar" style="margin-left:auto;">
+        <button title="全屏">⤢</button>
+        <button title="更多">⋯</button>
+      </span>
+    </div>
+    <div class="ncard-img"><div class="photo" style="position:absolute;inset:0;"></div></div>
+
+    <div class="ncard-panel">
+      <div class="mstrip">
+        <div class="th photo2"></div>
+        <div class="th photo3"></div>
+        <button class="add">+</button>
+      </div>
+
+      <div class="pinput">
+        一位老人坐在窗边，午后阳光斜射，<span class="atk">自然不均匀的皮肤纹理，可见毛孔，无磨皮，纪实写实风格</span>
+      </div>
+
+      <div class="prow" style="position:relative;">
+        <span class="chip">16:9</span>
+        <span class="chip">Nano Banana</span>
+        <span class="chip on">✦ 指令</span>
+        <span class="grow"></span>
+        <span class="chip">批量 1</span>
+        <button class="gen">生成</button>
+
+        <!-- 面板：贴着「指令」按钮向上弹 -->
+        <div style="position:absolute;bottom:calc(100% + 8px);left:74px;z-index:40;">
+          <div class="qp-pop">
+            <div class="qp-tabs">
+              <div class="qp-tabs-sc">
+                <span class="qp-tab on">常用</span>
+                <span class="qp-tab">全部</span>
+                <span class="qp-tab">人像</span>
+                <span class="qp-tab">风格</span>
+                <span class="qp-tab">光影</span>
+                <span class="qp-tab">镜头</span>
+                <span class="qp-tab">后期</span>
+                <span class="qp-tab">视频</span>
+              </div>
+              <button class="qp-new" title="新建指令">＋</button>
+            </div>
+
+            <div class="qp-grid">
+              <div class="qp-cell">
+                <div class="pic"><i class="ph photo"></i><span class="ed" title="编辑">✎</span></div>
+                <div class="cap">胶片颗粒</div>
+              </div>
+              <div class="qp-cell">
+                <div class="pic"><i class="ph photo2"></i><span class="ed" title="编辑">✎</span></div>
+                <div class="cap">面部变真实</div>
+              </div>
+              <div class="qp-cell">
+                <div class="pic"><i class="ph photo3"></i><span class="ed" title="编辑">✎</span></div>
+                <div class="cap">赛博街道</div>
+              </div>
+              <div class="qp-cell">
+                <div class="pic"><i class="ph photo4"></i><span class="ed" title="编辑">✎</span></div>
+                <div class="cap">日系动画</div>
+              </div>
+              <div class="qp-cell">
+                <div class="pic"><i class="ph photo"></i><span class="ed" title="编辑">✎</span></div>
+                <div class="cap">柔光窗边</div>
+              </div>
+              <div class="qp-cell">
+                <div class="pic"><i class="ph photo2"></i><span class="ed" title="编辑">✎</span></div>
+                <div class="cap">夜景霓虹</div>
+              </div>
+              <!-- 没传图：居中占位图标 -->
+              <div class="qp-cell">
+                <div class="pic"><span class="ico"><svg><use href="#qp-img"/></svg></span><span class="ed" title="编辑">✎</span></div>
+                <div class="cap">银盐黑白</div>
+              </div>
+              <div class="qp-cell">
+                <div class="pic"><i class="ph photo3"></i><span class="ed" title="编辑">✎</span></div>
+                <div class="cap">雨天地面</div>
+              </div>
+              <div class="qp-cell">
+                <div class="pic"><span class="ico"><svg><use href="#qp-img"/></svg></span><span class="ed" title="编辑">✎</span></div>
+                <div class="cap">水墨古风</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-cap" style="max-width:520px;">
+    <span class="tag new">交互</span>
+    点「指令」→ 面板<b>贴着按钮向上弹</b>（388px，不遮画布）→ 切 tab 找 → <b>点图卡即追加</b>。
+    追加到<b>提示词末尾</b>并自动补「，」，追加后输入框末尾<b>高亮新片段</b>——看一眼就知道加进去了，不需要 toast。
+    <br />
+    <span class="tag new">没有 footer</span>
+    「点一下 = 追加并关闭」是看一眼就懂的事，写下来就是常驻噪音；「管理指令」入口也删了 ——
+    管理动作全部落在这一个面板里（hover 图卡出 ✎ = 编辑 / tab 行右上角 ＋ = 新建），不需要第三个去处。
+    <br />
+    <span class="tag keep">滚动</span>
+    格子数不封顶，超出就滚；<b>不做截断</b>。滚动对规模不敏感 —— 攒到几百条，操作方式也不变。
+    <b>排序靠行为</b>：每次追加都是一次投票，用得多的自然浮在前面，不需要拖拽、不需要整理。
+    <br />
+    <span class="tag keep">tab = 分类</span>
+    分类<b>用户自己建</b>，一条可打多个，打了「风格 + 人像」就在两个 tab 里都出现。
+    「常用」是虚拟分类（最近使用），「全部」不过滤。
+  </div>
+</div>
+
+<!-- ══════════ 屏 2 · 浏览态 / 编辑态（面板原地切换） ══════════ -->
+<div class="mk-stage">
+  <div class="mini">
+
+    <div class="mini-card" style="padding:0;border:none;background:transparent;">
+      <div class="mini-title">浏览态 · 切到「风格」</div>
+      <div class="qp-pop">
+        <div class="qp-tabs">
+          <div class="qp-tabs-sc">
+            <span class="qp-tab">常用</span>
+            <span class="qp-tab">全部</span>
+            <span class="qp-tab">人像</span>
+            <span class="qp-tab on">风格</span>
+            <span class="qp-tab">光影</span>
+            <span class="qp-tab">镜头</span>
+            <span class="qp-tab">后期</span>
+            <span class="qp-tab">视频</span>
+          </div>
+          <button class="qp-new" title="新建指令">＋</button>
+        </div>
+
+        <div class="qp-grid">
+          <div class="qp-cell"><div class="pic"><i class="ph photo"></i><span class="ed">✎</span></div><div class="cap">胶片颗粒</div></div>
+          <div class="qp-cell"><div class="pic"><i class="ph photo2"></i><span class="ed">✎</span></div><div class="cap">高感粗颗粒</div></div>
+          <div class="qp-cell"><div class="pic"><i class="ph photo3"></i><span class="ed">✎</span></div><div class="cap">赛博街道</div></div>
+          <div class="qp-cell"><div class="pic"><i class="ph photo4"></i><span class="ed">✎</span></div><div class="cap">日系动画</div></div>
+          <div class="qp-cell"><div class="pic"><i class="ph photo"></i><span class="ed">✎</span></div><div class="cap">水墨古风</div></div>
+          <div class="qp-cell"><div class="pic"><i class="ph photo2"></i><span class="ed">✎</span></div><div class="cap">赛璐璐上色</div></div>
+          <div class="qp-cell"><div class="pic"><i class="ph photo3"></i><span class="ed">✎</span></div><div class="cap">厚涂油画</div></div>
+          <div class="qp-cell"><div class="pic"><span class="ico"><svg><use href="#qp-img"/></svg></span><span class="ed">✎</span></div><div class="cap">素描线稿</div></div>
+          <div class="qp-cell"><div class="pic"><i class="ph photo4"></i><span class="ed">✎</span></div><div class="cap">低饱和电影</div></div>
+          <div class="qp-cell"><div class="pic"><i class="ph photo"></i><span class="ed">✎</span></div><div class="cap">复古港风</div></div>
+          <div class="qp-cell"><div class="pic"><i class="ph photo2"></i><span class="ed">✎</span></div><div class="cap">极简产品</div></div>
+          <div class="qp-cell"><div class="pic"><i class="ph photo4"></i><span class="ed">✎</span></div><div class="cap">3D 盲盒</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mini-card" style="padding:0;border:none;background:transparent;">
+      <div class="mini-title">编辑态 · 原地切换，不新开界面</div>
+      <div class="qp-pop">
+        <div class="qp-ed-hd">
+          <button class="bk">‹ 返回</button>
+          <span class="tt">编辑</span>
+        </div>
+        <div class="qp-ed-bd">
+          <!-- 图 + 名称：上半部分就是这条在九宫格里长什么样 -->
+          <div class="qp-trow">
+            <div class="qp-up filled">
+              <i class="ph photo"></i>
+              <div class="mask">更换</div>
+            </div>
+            <div class="qp-fld" style="flex:1;">
+              <span class="qp-lb">名称</span>
+              <input class="qp-inp" value="胶片颗粒" />
+            </div>
+          </div>
+
+          <div class="qp-fld">
+            <span class="qp-lb">提示词</span>
+            <textarea class="qp-ta">胶片颗粒质感，柯达 Portra 400 胶片，细腻均匀的颗粒，柔和肤色过渡，自然的暖调偏色，无数字锐化痕迹</textarea>
+          </div>
+
+          <div class="qp-fld">
+            <span class="qp-lb">分类</span>
+            <div class="qp-chips">
+              <span class="qp-chip on">风格 <span class="x">✕</span></span>
+              <span class="qp-chip on">人像 <span class="x">✕</span></span>
+              <span class="qp-chip">光影 <span class="x">＋</span></span>
+              <span class="qp-chip">后期 <span class="x">＋</span></span>
+              <span class="qp-chip add">＋ 新建分类</span>
+            </div>
+          </div>
+        </div>
+        <div class="qp-ed-ft">
+          <button class="btn danger">删除</button>
+          <span class="sp"></span>
+          <button class="btn primary">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-cap" style="max-width:820px;">
+    <span class="tag new">一个面板两种状态</span>
+    hover 图卡 → 右上角出现 ✎ → 点它，面板<b>原地切成编辑态</b>，不弹新窗、不跳到别处。
+    「‹ 返回」回到刚才那个分类和滚动位置。
+    <br />
+    <span class="tag keep">为什么不在九宫格里做删除</span>
+    九宫格是高频快速点选区，删除是不可逆的重操作 —— 放在同一个热区里，误触只是时间问题。
+    所以 <b>✎ 直接进编辑（只有一件事就不做菜单）</b>，删除只在编辑态里，多一步是应该的。
+    <br />
+    <span class="tag keep">三个字段，全必填</span>
+    名称 / 提示词 / 分类 —— <b>就这三个，所以不需要标星号</b>。缩略图不占字段位，它贴着名称，
+    因为它服务的是「名称」的识别。
+  </div>
+</div>
+
+<!-- ══════════ 屏 3 · 编辑态三种情形 ══════════ -->
+<div class="mk-stage">
+  <div class="mini">
+
+    <div class="mini-card" style="padding:0;border:none;background:transparent;">
+      <div class="mini-title">新建 · 同一套字段</div>
+      <div class="qp-pop">
+        <div class="qp-ed-hd">
+          <button class="bk">‹ 返回</button>
+          <span class="tt">新建</span>
+        </div>
+        <div class="qp-ed-bd">
+          <div class="qp-trow">
+            <div class="qp-up">传图</div>
+            <div class="qp-fld" style="flex:1;">
+              <span class="qp-lb">名称</span>
+              <input class="qp-inp" placeholder="名称" />
+            </div>
+          </div>
+          <div class="qp-fld">
+            <span class="qp-lb">提示词</span>
+            <textarea class="qp-ta" placeholder="提示词"></textarea>
+          </div>
+          <div class="qp-fld">
+            <span class="qp-lb">分类</span>
+            <div class="qp-chips">
+              <span class="qp-chip">风格 <span class="x">＋</span></span>
+              <span class="qp-chip">人像 <span class="x">＋</span></span>
+              <span class="qp-chip">光影 <span class="x">＋</span></span>
+              <span class="qp-chip add">＋ 新建分类</span>
+            </div>
+          </div>
+        </div>
+        <div class="qp-ed-ft">
+          <span class="sp"></span>
+          <button class="btn primary" disabled>保存</button>
+        </div>
+      </div>
+      <div class="mk-cap" style="max-width:388px;">
+        <span class="tag keep">新建</span>同一套字段的空表单，<b>只少一个「删除」</b>。
+        保存后插到列表顶部并选中 —— 不让用户建完找不到。
+        <br />
+        <span class="tag warn">校验</span>名称 / 提示词 / 分类<b>三个都填了才亮保存</b>；
+        没填完就置灰（此处即新建初始态）。校验只在保存按钮上体现，<b>不在字段旁挂红字</b>。
+      </div>
+    </div>
+
+    <div class="mini-card" style="padding:0;border:none;background:transparent;">
+      <div class="mini-title">分类改名 · chip 原地改</div>
+      <div class="qp-pop">
+        <div class="qp-ed-hd">
+          <button class="bk">‹ 返回</button>
+          <span class="tt">编辑</span>
+        </div>
+        <div class="qp-ed-bd">
+          <div class="qp-trow">
+            <div class="qp-up filled">
+              <i class="ph photo3"></i>
+              <div class="mask">更换</div>
+            </div>
+            <div class="qp-fld" style="flex:1;">
+              <span class="qp-lb">名称</span>
+              <input class="qp-inp" value="赛博街道" />
+            </div>
+          </div>
+          <div class="qp-fld">
+            <span class="qp-lb">提示词</span>
+            <textarea class="qp-ta">霓虹反射，雨后湿滑地面，浓重的青橙对比，体积雾，电影级光污染</textarea>
+          </div>
+          <div class="qp-fld">
+            <span class="qp-lb">分类</span>
+            <div class="qp-chips">
+              <span class="qp-chip on">风格 <span class="x">✕</span></span>
+              <!-- 点已选中的 chip → 原地变输入框，回车确认 -->
+              <span class="qp-chip on editing"><input value="人像" /></span>
+              <span class="qp-chip">光影 <span class="x">＋</span></span>
+              <span class="qp-chip add">＋ 新建分类</span>
+            </div>
+          </div>
+        </div>
+        <div class="qp-ed-ft">
+          <button class="btn danger">删除</button>
+          <span class="sp"></span>
+          <button class="btn primary">保存</button>
+        </div>
+      </div>
+      <div class="mk-cap" style="max-width:388px;">
+        <span class="tag keep">分类不用单独管</span>
+        分类从指令派生，没有独立实体 —— <b>没有指令用的分类会自动消失</b>，所以不需要「删除分类」。
+        只需要两个动作：在 chips 里<b>新建</b>（必须挂在某条指令上，天然不会产出空分类）、
+        点已选中的 chip <b>原地改名</b>。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 屏 4 · 技术附录：图床与同步链路（不是界面） ══════════ -->
+<div class="mk-stage">
+  <div style="width:1120px;background:var(--surface-raised);border:1px solid var(--edge-muted);border-radius:var(--r-card);box-shadow:var(--sh-card);padding:16px 18px;">
+    <div class="mk-cap" style="margin-bottom:14px;">
+      <span class="tag warn">技术附录</span>
+      这一屏是<b>落地用的技术链路</b>，不是界面稿。
+      <b>结论：不用引入第三方图床。</b>现成的 <code>filesApi.uploadFileToLocal</code>（POST /api/files/upload）就是本机图床；
+      跨设备那份靠 <b>极小内联缩略图</b> 走已有 cloudSync。两级加起来覆盖全部场景，新增依赖 = 0。
+    </div>
+
+    <div class="qp-chain">
+      <div class="qp-node">
+        <span class="n">① 选图</span>
+        <span class="d">本地文件 / 拖拽 / 粘贴 / 画布已有图</span>
+      </div>
+      <div class="qp-arrow">→</div>
+      <div class="qp-node hot">
+        <span class="n">② 前端压缩</span>
+        <span class="d">复用 <code>imageCompress</code>：等比缩到 <b>256px</b>，转 WebP q80 → 约 <b>6–10KB</b></span>
+      </div>
+      <div class="qp-arrow">→</div>
+      <div class="qp-branch">
+        <div class="qp-node" style="width:236px;">
+          <span class="n">③a 原图落本地（高清）</span>
+          <span class="d"><code>uploadFileToLocal(file,'presets')</code> → <code>127.0.0.1:18080/files/presets/&lt;hash&gt;.webp</code><br />本机秒开、不占 localStorage 配额</span>
+        </div>
+        <div class="qp-node" style="width:236px;">
+          <span class="n">③b 96px 内联（可同步）</span>
+          <span class="d">再压一档到 96px → <b>base64</b> 写进 <code>preset.thumbInline</code><br />约 1.5–3KB，跟预设一起进 cloudSync</span>
+        </div>
+      </div>
+      <div class="qp-arrow">→</div>
+      <div class="qp-node">
+        <span class="n">④ 同步</span>
+        <span class="d"><code>yimao_preset_prompts</code>（含 thumbInline）<br />走既有 cloudSync(GAS)，换机器缩略图不丢</span>
+      </div>
+    </div>
+
+    <div class="qp-fallback">
+      <b>渲染优先级</b>：<code>thumbInline</code>（离线 / 跨设备，秒显，永不破图）　→　<code>thumbUrl</code>（本机高清）　→　<b>首字母色块</b>占位。
+      三者都不破坏界面 —— 换机器后即使本地文件不存在，也有内联小图顶着，不会出现一排裂图。
+      <br />
+      <b>配额</b>：50 条指令 × 约 3KB ≈ 150KB，进 cloudSync 单次 payload 无压力；原图一律只落本地磁盘，不进云端。
+    </div>
+  </div>
+</div>
+
+<div class="mk-note">
+  <b>落地口径（改代码时照这个来）</b><br />
+  1. 数据形状：<code>Preset</code> 加 3 个可选字段 —— <code>tags: string[]</code>（分类名数组，至少一个、可多个）、<code>thumbUrl</code>（本机 256px）、<code>thumbInline</code>（96px base64）。
+     老的 <code>type</code> 字段（text/image/video）<b>不再作为界面字段暴露</b>，只做隐式过滤（生图节点只显示通用 + 生图类）——
+     它一旦出现在表单里，用户就会亲手造出「在某些节点里找不到的指令」。
+     <b>新指令一律不写 type</b>（<code>createPreset()</code> 保持默认 <code>'all'</code>），这条过滤便只作用在老数据上、随时间自然收敛；
+     老数据不动，缺字段 = 降级为「无图 + 未分类」，无需迁移。<br />
+  2. 存储键：<b>不新增键</b>，只用 <code>yimao_preset_prompts</code>。分类<b>不单独存</b> —— tab 列表由所有指令的 <code>tags</code> <b>求并集派生</b>（<code>deriveTags(presets)</code> 纯函数，放 <code>promptManager.ts</code>）。
+     没有「空分类」「分类排序」这些只在独立表里才需要的概念。改名 = 遍历 presets 替换 <code>tags</code> 中的该名字（几十条，成本可忽略）。<br />
+  3. 排序：<b>不存顺序字段</b>。默认视图按最近使用排 —— 复用现成的 <code>recordRecent(id)</code>（<code>promptManager.ts:113</code>，每次追加时已经写了），追加即排序。
+     老字段 <code>type</code> 保留但只用于隐式过滤。<br />
+  4. 落盘目录：需在 <code>base/utils/uploadDirs.ts</code> 中央表登记 <code>presets</code>（禁止散写字面量目录名），上传走 <code>filesApi.uploadFileToLocal</code> 唯一入口。<br />
+  5. 组件：<code>PromptLibraryButton</code> 由「弹全屏」改为「弹 388px 九宫格 popover」，popover 内<b>原地</b>切换浏览态 / 编辑态
+     （一个组件两种状态，<b>不新建页面、不走 portal、不套 FullscreenShell</b>）。
+     <code>PromptLibrary.tsx</code> <b>不删文件</b>，但去掉全屏外壳与遮罩，整体降级为编辑态的表单内容。<b>不做只读模式</b>。<br />
+  6. 交互语义：<b>点图卡 =</b> <code>onAppend(prompt)</code> <b>+ 立即 <code>onClose()</code></b>（一次只加一条，不做多选、不做「已选中」态）；追加到末尾 + 自动补「，」，追加后高亮新片段。
+     点 ✎ = 切编辑态（<b>不追加</b>）；点 tab 行右端 <b>＋</b> = 新建。<b>删除只在编辑态</b>，不在九宫格热区里。
+     去掉 <code>onUse</code>（新建节点）分支。<br />
+  7. <b>相对 v1 删掉的东西</b>（都是判据「不属于三者、也不服务于三者」的产出）：
+     tab 数字徽标、ⓘ 常显角标、整个 footer（引导文案 + Esc 提示 + 「管理指令」入口）、拖拽排序 grip、
+     备注字段、适用节点字段、「从画布取 / 从素材库选」两个快捷图源、三行上传说明、独立的标签管理弹窗、
+     「取消」按钮（即时生效模型下语义矛盾）、「改动即时生效」文案。
+</div>
+
+</body>
+</html>
