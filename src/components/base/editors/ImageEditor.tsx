@@ -1,5 +1,4 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import {
   Brush,
   Crop,
@@ -25,7 +24,7 @@ import {
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { logger } from '../core/logger.ts';
-import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
+import FullscreenShell from '../panels/FullscreenShell.tsx';
 import { createRafBatch } from '../core/utils.ts';
 import { compressImage } from '../utils/imageCompress.ts';
 import { loadImageWithTimeout } from '../utils/asyncGuard.ts';
@@ -941,28 +940,6 @@ export default function ImageEditor({
     { t: 'eyedropper', icon: <Pipette size={14} />, title: '吸管取色' },
   ];
 
-  // ── 全屏编辑器的统一快捷键（modalLayer）：登记模态层 + 独占自己的键 + Esc 关闭 ──
-  // 登记之后画布全局快捷键整体让位，不再漏上来误伤画布。
-  // P/E/T 必须在这里接住：画布把无修饰键的 W/E 绑成了「快速新建图片/视频节点」，
-  // 在本编辑器里按 E 想切橡皮，不接住就会凭空长出一个视频节点。
-  useFullscreenEditorKeys({
-    keyMap: {
-      'mod+z': () => {
-        if (tab === 'draw') undo();
-      },
-      p: () => tab === 'draw' && setTool('pencil'),
-      e: () => tab === 'draw' && setTool('eraser'),
-      t: () => tab === 'draw' && setTool('text'),
-    },
-    // Esc 关闭：此前本编辑器完全没接 Esc，用户只能去点「取消」。
-    // 正在输文字时先撤输入框而不是整个退出 —— 否则误按一下就把画的东西全丢了
-    // （输入中的 <input> 自己也处理 Esc，两边都走向同一个结果，幂等）。
-    onEscape: () => {
-      if (textInput) setTextInput(null);
-      else onClose?.();
-    },
-  });
-
   const curAspect = cropRatioKey === 'original' ? docSize.w / docSize.h : undefined;
 
   // 画布内容尺寸：扩图 = 目标画幅（tw×th，四周留白要在画布内可见）；涂鸦/裁剪 = 底图尺寸
@@ -978,8 +955,29 @@ export default function ImageEditor({
   const viewW = outpaintTarget ? outpaintTarget.tw : docSize.w;
   const viewH = outpaintTarget ? outpaintTarget.th : docSize.h;
 
-  return createPortal(
-    <div className="fixed inset-0 z-ceiling flex flex-col bg-canvas select-none">
+  // 全屏外壳负责 portal / 模态登记（登记后画布全局快捷键整体让位，不再漏上来误伤画布）。
+  // 本编辑器无 open prop —— 由父层条件渲染（editor && url 时才挂载），故 open 传常量。
+  return (
+    <FullscreenShell
+      open
+      // Esc：正在输文字时先撤输入框而不是整个退出 —— 否则误按一下就把画的东西全丢了。
+      // 此前本编辑器完全没接 Esc，用户只能去点「取消」。
+      onClose={() => {
+        if (textInput) setTextInput(null);
+        else onClose?.();
+      }}
+      // P/E/T 必须接住：画布把无修饰键的 W/E 绑成了「快速新建图片/视频节点」，
+      // 在本编辑器里按 E 想切橡皮，不接住就会凭空长出一个视频节点。
+      keyMap={{
+        'mod+z': () => {
+          if (tab === 'draw') undo();
+        },
+        p: () => tab === 'draw' && setTool('pencil'),
+        e: () => tab === 'draw' && setTool('eraser'),
+        t: () => tab === 'draw' && setTool('text'),
+      }}
+      className="fixed inset-0 z-ceiling flex flex-col bg-canvas select-none"
+    >
       {/* ── Header：标题 + 三 Tab + 右侧动作 ── */}
       <div className="flex items-center justify-between px-3.5 h-[52px] shrink-0 bg-surface-raised border-b border-edge-muted">
         <div className="flex items-center gap-3">
@@ -1329,8 +1327,7 @@ export default function ImageEditor({
       {tab === 'expand' && (
         <ExpandStatusBar docSize={docSize} ratioKey={outpaintRatioKey} factor={outpaintFactor} />
       )}
-    </div>,
-    document.body,
+    </FullscreenShell>
   );
 }
 

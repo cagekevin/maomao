@@ -1,5 +1,4 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import {
   Grid3X3,
   SlidersHorizontal,
@@ -27,7 +26,7 @@ import { generateId } from '../base/core/idGen.ts';
 import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { createRafBatch, clamp } from '../base/core/utils.ts';
-import { useFullscreenEditorKeys } from '../base/core/modalLayer.ts';
+import FullscreenShell from '../base/panels/FullscreenShell.tsx';
 
 /* ════════════════════════════════════════════════════════════════
  * 图片切分节点（复刻官方 Lo.jsx / gridSplitNode）
@@ -621,13 +620,6 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
     };
   }, [splitMode, fullscreen, activeLasso]);
 
-  // 全屏 Esc 关闭（复刻 Lo.jsx useEffect[D]）→ 统一走 modalLayer。
-  // enabled 绑 fullscreen：本组件常驻挂载（节点始终在场），恒 true 会让画布快捷键永久失效。
-  useFullscreenEditorKeys({
-    enabled: fullscreen,
-    onEscape: () => setFullscreen(false),
-  });
-
   // 删除单个 lasso（复刻 Lo.jsx W）
   const removeLasso = useCallback((lid) => {
     setLassoShapes((arr) => arr.filter((s) => s.id !== lid));
@@ -1118,128 +1110,124 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
         </div>
       </NodeShell>
 
-      {/* 切刀全屏聚焦 */}
-      {splitMode === 'lasso' &&
-        fullscreen &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-modal bg-black/90 backdrop-blur-md flex flex-col nodrag nowheel"
-            onClick={(e) => e.stopPropagation()}
-            onWheel={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-4 py-2 bg-black/60 border-b border-white/10">
-              <div className="flex items-center gap-2 text-primary text-sm">
-                <Scissors size={16} className="text-blue-400" />
-                <span>切刀（全屏聚焦）</span>
-                <span className="text-xs text-secondary ml-2">
-                  已绘制 {closedCount} 块 · 起/终点贴近边时会自动吸附
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="flex items-center gap-1 px-2 py-1 rounded border bg-surface-hover border-edge-muted text-primary hover:text-white hover:border-edge-strong text-xs disabled:opacity-50 cursor-pointer"
-                  onClick={clearLasso}
-                  disabled={lassoShapes.length === 0}
-                >
-                  <Trash2 size={13} />
-                  <span>清空</span>
-                </button>
-                <button
-                  className="flex items-center gap-1 px-2 py-1 rounded border bg-surface-hover border-edge-muted text-primary hover:text-white hover:border-edge-strong text-xs cursor-pointer"
-                  onClick={() => setFullscreen(false)}
-                  title="退出全屏 (Esc)"
-                >
-                  <X size={13} />
-                  <span>关闭</span>
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 flex items-center justify-center p-6">
-              <div className="relative max-w-full max-h-full">
-                {imageUrl && (
-                  <img
-                    src={imageUrl}
-                    alt="Source"
-                    className="max-w-[90vw] max-h-[80vh] object-contain block select-none pointer-events-none"
-                    draggable={false}
-                  />
-                )}
+      {/* 切刀全屏聚焦：外壳负责 portal / 模态登记（聚焦期间画布快捷键让位）/ Esc 退出全屏。
+          onClose 必须传 —— 原先由一段单独的 useEffect 接管 Esc，改用外壳后它才是唯一的出口。 */}
+      <FullscreenShell
+        open={splitMode === 'lasso' && fullscreen}
+        onClose={() => setFullscreen(false)}
+        className="fixed inset-0 z-modal bg-black/90 backdrop-blur-md flex flex-col nodrag nowheel"
+        onClick={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-2 bg-black/60 border-b border-white/10">
+          <div className="flex items-center gap-2 text-primary text-sm">
+            <Scissors size={16} className="text-blue-400" />
+            <span>切刀（全屏聚焦）</span>
+            <span className="text-xs text-secondary ml-2">
+              已绘制 {closedCount} 块 · 起/终点贴近边时会自动吸附
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              className="flex items-center gap-1 px-2 py-1 rounded border bg-surface-hover border-edge-muted text-primary hover:text-white hover:border-edge-strong text-xs disabled:opacity-50 cursor-pointer"
+              onClick={clearLasso}
+              disabled={lassoShapes.length === 0}
+            >
+              <Trash2 size={13} />
+              <span>清空</span>
+            </button>
+            <button
+              className="flex items-center gap-1 px-2 py-1 rounded border bg-surface-hover border-edge-muted text-primary hover:text-white hover:border-edge-strong text-xs cursor-pointer"
+              onClick={() => setFullscreen(false)}
+              title="退出全屏 (Esc)"
+            >
+              <X size={13} />
+              <span>关闭</span>
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="relative max-w-full max-h-full">
+            {imageUrl && (
+              <img
+                src={imageUrl}
+                alt="Source"
+                className="max-w-[90vw] max-h-[80vh] object-contain block select-none pointer-events-none"
+                draggable={false}
+              />
+            )}
+            <div
+              ref={fullCanvasRef}
+              className="absolute inset-0"
+              style={{ cursor: LASSO_CURSOR }}
+              onMouseDown={onLassoDown}
+            >
+              <svg
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                {lassoShapes.map((s) => {
+                  if (s.points.length < 2) return null;
+                  const d =
+                    s.points
+                      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x * 100} ${p.y * 100}`)
+                      .join(' ') + (s.closed ? ' Z' : '');
+                  const isActive = s.id === activeLasso;
+                  return (
+                    <path
+                      key={s.id}
+                      d={d}
+                      fill={
+                        s.closed
+                          ? isActive
+                            ? 'rgba(59,130,246,0.30)'
+                            : 'rgba(59,130,246,0.18)'
+                          : 'none'
+                      }
+                      stroke={isActive ? '#60a5fa' : '#3b82f6'}
+                      strokeWidth={0.3}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  );
+                })}
+              </svg>
+              {lassoCenters.map((c, i) => (
                 <div
-                  ref={fullCanvasRef}
-                  className="absolute inset-0"
-                  style={{ cursor: LASSO_CURSOR }}
-                  onMouseDown={onLassoDown}
+                  key={c.id}
+                  className="absolute -translate-x-1/2 -translate-y-1/2"
+                  style={{ left: `${c.cx * 100}%`, top: `${c.cy * 100}%` }}
                 >
-                  <svg
-                    className="absolute inset-0 w-full h-full pointer-events-none"
-                    viewBox="0 0 100 100"
-                    preserveAspectRatio="none"
+                  <button
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono cursor-pointer border ${
+                      activeLasso === c.id
+                        ? 'bg-blue-500 text-white border-blue-300'
+                        : 'bg-black/70 text-white border-white/30 hover:bg-blue-500/80'
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (e.shiftKey) {
+                        removeLasso(c.id);
+                        return;
+                      }
+                      setActiveLasso(c.id);
+                      handleSplitOne(i);
+                    }}
+                    title="点击切出 / Shift+点击删除"
                   >
-                    {lassoShapes.map((s) => {
-                      if (s.points.length < 2) return null;
-                      const d =
-                        s.points
-                          .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x * 100} ${p.y * 100}`)
-                          .join(' ') + (s.closed ? ' Z' : '');
-                      const isActive = s.id === activeLasso;
-                      return (
-                        <path
-                          key={s.id}
-                          d={d}
-                          fill={
-                            s.closed
-                              ? isActive
-                                ? 'rgba(59,130,246,0.30)'
-                                : 'rgba(59,130,246,0.18)'
-                              : 'none'
-                          }
-                          stroke={isActive ? '#60a5fa' : '#3b82f6'}
-                          strokeWidth={0.3}
-                          vectorEffect="non-scaling-stroke"
-                        />
-                      );
-                    })}
-                  </svg>
-                  {lassoCenters.map((c, i) => (
-                    <div
-                      key={c.id}
-                      className="absolute -translate-x-1/2 -translate-y-1/2"
-                      style={{ left: `${c.cx * 100}%`, top: `${c.cy * 100}%` }}
-                    >
-                      <button
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono cursor-pointer border ${
-                          activeLasso === c.id
-                            ? 'bg-blue-500 text-white border-blue-300'
-                            : 'bg-black/70 text-white border-white/30 hover:bg-blue-500/80'
-                        }`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (e.shiftKey) {
-                            removeLasso(c.id);
-                            return;
-                          }
-                          setActiveLasso(c.id);
-                          handleSplitOne(i);
-                        }}
-                        title="点击切出 / Shift+点击删除"
-                      >
-                        <span>{i + 1}</span>
-                        {connectedCells.has(i) && (
-                          <CircleCheck size={12} className="text-green-400" />
-                        )}
-                      </button>
-                    </div>
-                  ))}
+                    <span>{i + 1}</span>
+                    {connectedCells.has(i) && <CircleCheck size={12} className="text-green-400" />}
+                  </button>
                 </div>
-              </div>
+              ))}
             </div>
-            <div className="px-4 py-2 bg-black/60 border-t border-white/10 text-caption-sm text-body leading-snug">
-              按住鼠标在图上画一圈生成一个透明形状；起点或终点贴近图片边缘时会自动吸附到该边，并沿边自动闭合多边形（适合切人物
-              / 主体）。Shift + 点击编号可删除形状。
-            </div>
-          </div>,
-          document.body,
-        )}
+          </div>
+        </div>
+        <div className="px-4 py-2 bg-black/60 border-t border-white/10 text-caption-sm text-body leading-snug">
+          按住鼠标在图上画一圈生成一个透明形状；起点或终点贴近图片边缘时会自动吸附到该边，并沿边自动闭合多边形（适合切人物
+          / 主体）。Shift + 点击编号可删除形状。
+        </div>
+      </FullscreenShell>
     </>
   );
 }

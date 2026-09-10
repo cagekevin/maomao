@@ -4,6 +4,16 @@ import { isEditableTarget } from './uiHooks.ts';
 /**
  * 全屏模态层登记处 —— 画布全局快捷键的「让位」依据。
  *
+ * ⚠️ **不要直接调用本文件的 hook。** 新写全屏层请用
+ * `components/base/panels/FullscreenShell.tsx`，它内部已经接好这里的一切。
+ * 本文件是那个外壳的底层实现，直接调用会让"登记"重新变成每个组件各自要记得做的事
+ * —— 那正是下面这起事故的成因。
+ *
+ * 【当前仅剩两个直接使用者，且都是结构上的例外】
+ *  - `ImageZoomDialog`：原生 `<dialog showModal()>`，不用 createPortal，套不进外壳；
+ *  - `OverlayEditor`：节点内嵌编辑器，全屏只是它的一种显示模式，主体不走 portal。
+ *  这两个都有注释说明为何例外。除它们之外不应再有新增调用点。
+ *
  * 【要解决的真实事故】
  * 画布全局快捷键（useCanvasShortcuts）挂在 window 上，它不知道上面盖了全屏编辑器。
  * 于是用户在 ImageEditor 里按 ⌘Z 想撤一笔涂鸦，结果是：
@@ -18,23 +28,54 @@ import { isEditableTarget } from './uiHooks.ts';
  * 且依赖注册顺序；preventDefault 只拦浏览器默认行为，拦不住别的 listener。
  * 唯一可靠的办法是**让画布自己不执行**，而它需要一个可靠的信号 —— 就是这里的登记表。
  *
- * 【用法】
- *  全屏编辑器内部调 useFullscreenEditorKeys() 即可（它会自动登记/注销），
- *  画布侧 useCanvasShortcuts 每次按键实时读 hasModalLayer() 决定是否让位。
- *  两层保险：漏登记的编辑器只是"自己的快捷键不工作"（功能缺失，可发现），
- *  不会退化成"误伤画布"（数据丢失，难发现）—— 这个失败方向是刻意选的。
- *
- * 【为什么用 Set 而不是计数器】
+ * 【为什么用 Map 而不是计数器】
  * 支持嵌套（理论上弹窗之上再开编辑器的场景），且不会因为某次 cleanup 漏调导致计数永久失衡。
+ * Map 额外存了登记时刻与调用栈 —— 常驻误登记时那是唯一能指向元凶的线索（见 STUCK_WARN_MS）。
  */
 
-const layers = new Set<symbol>();
+interface LayerInfo {
+  /** 登记时刻 */
+  at: number;
+  /** 登记时的调用栈 —— 常驻误登记时，这是唯一能指向元凶的线索 */
+  stack: string | undefined;
+}
+
+const layers = new Map<symbol, LayerInfo>();
+
+/**
+ * 常驻登记的告警阈值。
+ * 选 60s 的权衡：正常编辑（ImageEditor 里涂鸦、扩图调参）很容易超过 1 分钟，
+ * 低于这个值会天天误报、最后被人忽略；而「误登记」的特征是从挂载那刻起永不注销，
+ * 60s 足够在它造成困惑前喊出来，又不至于在正常使用中刷屏。
+ */
+const STUCK_WARN_MS = 60_000;
 
 /** 登记一层全屏模态；返回注销函数（务必交给 useEffect 的 cleanup）。 */
 function registerLayer(): () => void {
   const id = Symbol('modal-layer');
-  layers.add(id);
+  layers.set(id, { at: Date.now(), stack: new Error().stack });
+
+  // 【为什么要有这个告警】本机制是「信任型」的：谁登记，画布就整体让位。
+  // 代价是一旦有层错误地常驻登记，画布全局快捷键会【静默全废】—— 用户只会看到
+  // 「Q/W/E 没反应」，而没有任何线索指向元凶（2026-09-10 真实事故：ImageZoomDialog
+  // 把 enabled 绑成了恒非空的 url，画布上每有一个 AssetNode 就永久登记一层）。
+  // 这是唯一一种能让全局快捷键静默失效的失败模式，必须在开发期就喊出来。
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  if (import.meta.env?.DEV) {
+    timer = setTimeout(() => {
+      const info = layers.get(id);
+      if (!info) return;
+      console.warn(
+        `[modalLayer] 某层已连续登记 ${Math.round(STUCK_WARN_MS / 1000)}s 未注销。` +
+          `若并非真的全屏打开，说明 enabled 绑错了（常见：常驻挂载却用「数据是否就绪」判定可见性），` +
+          `它将导致画布快捷键永久失效。登记处调用栈：`,
+        info.stack,
+      );
+    }, STUCK_WARN_MS);
+  }
+
   return () => {
+    if (timer) clearTimeout(timer);
     layers.delete(id);
   };
 }
@@ -42,6 +83,15 @@ function registerLayer(): () => void {
 /** 当前是否有全屏模态层打开（供画布快捷键实时查询，无需订阅）。 */
 export function hasModalLayer(): boolean {
   return layers.size > 0;
+}
+
+/** 调试用：列出当前所有已登记的层（含登记时长与调用栈）。控制台可直接调用排查。 */
+export function debugModalLayers(): Array<{ openSec: number; stack?: string }> {
+  const now = Date.now();
+  return [...layers.values()].map((l) => ({
+    openSec: Math.round((now - l.at) / 1000),
+    stack: l.stack,
+  }));
 }
 
 /**
@@ -87,9 +137,11 @@ export interface FullscreenEditorKeys {
 /**
  * 全屏编辑器的统一快捷键钩子：登记模态层 + 独占指定按键 + Esc 关闭。
  *
- * 各全屏编辑器用它替代自己手写的 window keydown，顺带获得两件事：
- *  ① 自动登记，画布快捷键随之让位（不再误伤画布）；
- *  ② Esc 可关闭（此前 ImageEditor 之类压根没接 Esc，只能点"取消"）。
+ * ⚠️ 正常业务代码不该直接用这个钩子 —— 请用 `panels/FullscreenShell.tsx`。
+ * 本钩子是外壳的内部实现，直接调用等于把「记得登记、记得绑对 enabled」的责任
+ * 又交回给每个组件，而那正是出过事故的地方（见文件头说明）。
+ * 目前仅 `ImageZoomDialog`（原生 dialog）与 `OverlayEditor`（非 portal 结构）
+ * 因结构无法套进外壳而直接使用。
  *
  * 挂载期间才登记；卸载（含 StrictMode 的二次挂载）由 cleanup 精确注销，不会泄漏。
  */
@@ -141,16 +193,5 @@ export function useFullscreenEditorKeys({
       window.removeEventListener('keydown', onKeyDown);
       unregister();
     };
-  }, [enabled]);
-}
-
-/**
- * 只登记模态层、不接管任何键。
- * 适用：不想改键盘行为的全屏浮层，但一样要让画布快捷键让位（否则用户在该浮层里按 ⌘Z 会撤画布）。
- */
-export function useModalLayer(enabled = true): void {
-  useEffect(() => {
-    if (!enabled) return;
-    return registerLayer();
   }, [enabled]);
 }

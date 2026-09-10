@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { Director3DApp } from './App.tsx';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
 import './styles.css';
-import { useModalLayer } from '../base/core/modalLayer.ts';
+import FullscreenShell from '../base/panels/FullscreenShell.tsx';
 
 /**
  * Director3DOverlay：把 3D 导演台白膜预演作为全屏 overlay 嵌入画布节点。
@@ -96,10 +95,13 @@ export function Director3DOverlay({ nodeId, onExit }) {
   // 登记为全屏模态层：本 overlay 盖住整个画布期间，画布快捷键（⌘Z/⌘D/Ctrl+G/Q/W/E）必须让位。
   // 只登记、不接管 Esc —— Director3D 有一整套自己的键位（D/Z/Y/V/F1-F4，见 App.tsx:1085
   // 的捕获监听），贸然加 Esc 退出会盖掉既有设计。条件挂载 → 挂载即打开，enabled 留默认 true。
-  useModalLayer();
-
-  return createPortal(
-    <div
+  // 全屏外壳负责 portal / 模态登记（画布快捷键在导演台打开期间让位）。
+  // 不传 onClose = 不接管 Esc —— 导演台有一整套自己的键位（D/Z/Y/V/F1-F4，
+  // 见 App.tsx:1085 的捕获监听），外壳退出会盖掉既有设计。
+  // ref 透传到外壳 div：本层要拿它做命令式操作（屏蔽宿主指针事件）。
+  return (
+    <FullscreenShell
+      open
       ref={hostRef}
       className="director3d-overlay"
       style={{ position: 'fixed', inset: 0, zIndex: 2147483000 }}
@@ -112,7 +114,6 @@ export function Director3DOverlay({ nodeId, onExit }) {
           onThumbnail={handleThumbnail}
         />
       </ErrorBoundary>
-    </div>,
-    document.body,
+    </FullscreenShell>
   );
 }

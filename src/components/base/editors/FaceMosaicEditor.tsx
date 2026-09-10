@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import {
   X,
   Check,
@@ -20,7 +19,7 @@ import {
   MosaicMode,
 } from '../utils/faceMosaic.ts';
 import { createRafBatch } from '../core/utils.ts';
-import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
+import FullscreenShell from '../panels/FullscreenShell.tsx';
 
 /**
  * 人脸打码 · 手动编辑器（完整复刻官方 _Component55.jsx）。
@@ -182,25 +181,6 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }: FaceMosa
   const canUndo = histIdx > 0;
   const canRedo = histIdx < historyRef.current.length - 1;
 
-  // 快捷键统一走 modalLayer：除接管 ⌘Z / ⌘⇧Z / ⌘Y / Esc 本身，
-  // 更关键的是**登记为全屏模态层**，让画布全局快捷键让位。
-  // 原写法（自写 window keydown + preventDefault）只能拦浏览器默认行为，
-  // 拦不住画布那条 listener —— 结果是在这里撤销的同时，画布也被撤了一步。
-  useFullscreenEditorKeys({
-    keyMap: {
-      'mod+z': () => {
-        if (canUndo) restoreSnapshot(histIdx - 1);
-      },
-      'mod+shift+z': () => {
-        if (canRedo) restoreSnapshot(histIdx + 1);
-      },
-      'mod+y': () => {
-        if (canRedo) restoreSnapshot(histIdx + 1);
-      },
-    },
-    onEscape: onClose,
-  });
-
   const autoDetect = async () => {
     const c = canvasRef.current;
     const ctx = c?.getContext('2d');
@@ -228,8 +208,27 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }: FaceMosa
     }
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-[9999] bg-black/80 flex flex-col" onClick={onClose}>
+  // 全屏外壳负责 portal / 模态登记 / Esc 关闭（登记后画布全局快捷键让位）。
+  // ⌘Z / ⌘⇧Z / ⌘Y 交给外壳的 keyMap：原本自写 window keydown + preventDefault
+  // 只能拦浏览器默认行为，拦不住画布那条 listener —— 结果是这里撤销的同时画布也被撤一步。
+  return (
+    <FullscreenShell
+      open
+      onClose={onClose}
+      keyMap={{
+        'mod+z': () => {
+          if (canUndo) restoreSnapshot(histIdx - 1);
+        },
+        'mod+shift+z': () => {
+          if (canRedo) restoreSnapshot(histIdx + 1);
+        },
+        'mod+y': () => {
+          if (canRedo) restoreSnapshot(histIdx + 1);
+        },
+      }}
+      className="fixed inset-0 z-[9999] bg-black/80 flex flex-col"
+      onClick={onClose}
+    >
       {/* 顶栏 */}
       <div
         className="flex items-center justify-between px-4 py-2.5 bg-surface-raised border-b border-edge"
@@ -371,8 +370,7 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }: FaceMosa
           )}
         </div>
       </div>
-    </div>,
-    document.body,
+    </FullscreenShell>
   );
 }
 

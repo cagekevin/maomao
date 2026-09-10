@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Search } from 'lucide-react';
 import { countMatchesInTabs } from './assistantTable.ts';
 import type { AssistantTableTabs } from './assistantTable.ts';
-import { useFullscreenEditorKeys } from '@/components/base/core/modalLayer.ts';
+import FullscreenShell from '@/components/base/panels/FullscreenShell.tsx';
 
 /**
  * 表格「查找替换」弹窗（spec：查找替换面板）。
@@ -63,14 +62,6 @@ export default function FindReplaceDialog({
     return () => clearTimeout(timer);
   }, [find, tabs]);
 
-  // Esc = 取消。原实现挂在【捕获阶段】本是为了「抢在画布快捷键之前」，
-  // 但画布现在会主动查 hasModalLayer 让位，抢跑已无必要；统一走 modalLayer
-  // 还额外拿到「本层打开时画布快捷键整体让位」—— 此前焦点落在替换按钮上时，
-  // Q/W/E 会漏出去新建画布节点。
-  useFullscreenEditorKeys({ enabled: open, onEscape: onCancel });
-
-  if (!open) return null;
-
   const canReplace = find.trim().length > 0 && matchCount > 0;
 
   const submit = () => {
@@ -78,8 +69,14 @@ export default function FindReplaceDialog({
     onReplace(find, replace);
   };
 
-  return createPortal(
-    <div
+  // 全屏外壳负责 portal / 模态登记 / Esc 取消。
+  // 原实现把 Esc 挂在【捕获阶段】只为「抢在画布快捷键之前」，但画布现在会主动让位，
+  // 抢跑已无必要；改用外壳还额外拿到「本层打开时画布快捷键整体让位」——
+  // 此前焦点落在替换按钮上时，Q/W/E 会漏出去新建画布节点。
+  return (
+    <FullscreenShell
+      open={open}
+      onClose={onCancel}
       className="fixed inset-0 z-ceiling-2 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
       onClick={onCancel}
       onContextMenu={(e) => e.stopPropagation()}
@@ -154,7 +151,6 @@ export default function FindReplaceDialog({
           </button>
         </div>
       </div>
-    </div>,
-    document.body,
+    </FullscreenShell>
   );
 }

@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { Clapperboard, Settings, X, Loader2 } from 'lucide-react';
 import StepNav from './StepNav.tsx';
 import StepShots from './StepShots.tsx';
@@ -7,7 +6,7 @@ import StepAssets from './StepAssets.tsx';
 import StepPrompt from './StepPrompt.tsx';
 import GearSettings from './GearSettings.tsx';
 import { toastInfo } from '../base/core/toastStore.ts';
-import { useFullscreenEditorKeys } from '../base/core/modalLayer.ts';
+import FullscreenShell from '../base/panels/FullscreenShell.tsx';
 import type { ScriptBoxData, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema.ts';
 
 interface ScriptBoxFullscreenProps {
@@ -75,17 +74,15 @@ export default function ScriptBoxFullscreen({
     return () => clearInterval(t);
   }, [genMask]);
 
-  // Esc 关闭 + 登记为全屏模态层（modalLayer）：本层有大量文本/输入区，
-  // 焦点落在按钮或非输入控件上时，Q/W/E/⌘Z 会漏到画布（新建节点 / 撤掉节点操作）。
-  useFullscreenEditorKeys({ enabled: open, onEscape: handleClose });
-
-  if (!open) return null;
-
-  return createPortal(
-    <div
-      data-testid="fullscreen"
+  // 全屏外壳负责 portal / 模态登记 / Esc 关闭（本层有大量文本与输入区，
+  // 焦点落在按钮上时 Q/W/E/⌘Z 会漏到画布，外壳统一挡住）。
+  return (
+    <FullscreenShell
+      open={open}
+      onClose={handleClose}
       className="fixed inset-0 z-ceiling-2 bg-surface-raised flex flex-col nodrag"
       onWheel={(e) => e.stopPropagation()}
+      data-testid="fullscreen"
     >
       {/* 顶部标题栏（与节点内标题栏一致，无自定义底色） */}
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.08] shrink-0">
@@ -129,7 +126,6 @@ export default function ScriptBoxFullscreen({
       {settingsOpen && (
         <GearSettings data={d} updateData={updateData} onClose={() => setSettingsOpen(false)} />
       )}
-    </div>,
-    document.body,
+    </FullscreenShell>
   );
 }

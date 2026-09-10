@@ -1,7 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { useReactFlow } from '@xyflow/react';
-import { createPortal } from 'react-dom';
 import {
   Globe,
   X,
@@ -28,7 +27,7 @@ import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import { logger } from '../base/core/logger.ts';
 import { toastInfo, toastSuccess, toastError, toastWarning } from '../base/core/toastStore.ts';
-import { useModalLayer } from '../base/core/modalLayer.ts';
+import FullscreenShell from '../base/panels/FullscreenShell.tsx';
 
 /**
  * 720 全景图节点（复刻官方 Zl.jsx / panoramaNode）。
@@ -516,12 +515,6 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [fullscreen, doCapture]);
 
-  // 全屏漫游期登记为模态层，让画布快捷键让位（漫游里有 1/2/3/r/f 等自己的键位，
-  // 不登记的话 Q/W/E/⌘Z 会漏出去动画片）。
-  // 只登记、不接管 Esc —— 本层键盘体系是自洽的（见上方 handler），
-  // 贸然加 Esc 关闭会盖掉既有交互设计。这正是 useModalLayer 与 useFullscreenEditorKeys 的分工。
-  useModalLayer(fullscreen && !!panoUrl);
-
   // 截图比例（分段控件 + 自定义宽高）。
   // 为什么不用原生 <select>：全屏层是深色玻璃拟态，原生下拉在 macOS/Windows 下样式割裂且不可控；
   // 分段控件把 4 个选项一次展开，选比例少一次点击，也更贴合"取景构图"的心智。
@@ -628,142 +621,142 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
     );
 
   // 全屏球体漫游（复刻官方 Component1861）：黑幕 + 顶部工具条。
-  const renderFullscreen = () =>
-    fullscreen &&
-    panoUrl &&
-    createPortal(
-      <div
-        className="fixed inset-0 z-modal bg-black flex flex-col nodrag"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
-      >
-        {/* 顶部条：居中比例控件 + 右侧操作（最高层级，压在一切之上） */}
-        <div className="absolute top-0 inset-x-0 z-[120] h-16 px-4 flex items-center justify-center pointer-events-none">
-          <div className="pointer-events-auto flex items-center gap-1.5 px-2 h-9 rounded-xl bg-black/45 backdrop-blur border border-white/10 shadow-lg">
-            {renderRatioPicker()}
-          </div>
-
-          <div className="absolute right-4 pointer-events-auto flex items-center gap-1.5">
-            <div className="flex items-center px-1 h-9 rounded-xl bg-black/45 backdrop-blur border border-white/10">
-              <IconButton
-                icon={<RotateCcw size={16} />}
-                title="复位视角 (R)"
-                onClick={() => viewerRef.current?.reset()}
-              />
-              <div className="w-px h-5 bg-white/10 mx-0.5" />
-              <IconButton
-                icon={<ZoomOut size={16} />}
-                title="缩小 (-)"
-                onClick={() => setFov((f) => Math.min(120, f + 8))}
-              />
-              <IconButton
-                icon={<ZoomIn size={16} />}
-                title="放大 (+)"
-                onClick={() => setFov((f) => Math.max(30, f - 8))}
-              />
-            </div>
-            <div className="flex items-center px-1 h-9 rounded-xl bg-black/45 backdrop-blur border border-white/10">
-              <TextButton
-                icon={autoRotate ? <Pause size={14} /> : <Play size={14} />}
-                label={autoRotate ? '暂停' : '漫游'}
-                active={autoRotate}
-                title="自动绕行旋转 (空格)"
-                onClick={() => setAutoRotate((v) => !v)}
-              />
-              <TextButton
-                icon={<Camera size={14} />}
-                label="截图"
-                active={shotKind === 'current'}
-                loading={shotKind === 'current'}
-                disabled={capturing}
-                title="截取当前视角 (1)"
-                onClick={() => doCapture([0])}
-              />
-              <div className="w-px h-5 bg-white/10 mx-1" />
-              <button
-                type="button"
-                title="退出漫游 (Esc)"
-                onClick={() => setFullscreen(false)}
-                className="grid place-items-center w-9 h-9 rounded-lg text-white/60 hover:text-white hover:bg-red-500/25 transition-colors cursor-pointer border-none"
-              >
-                <X size={19} />
-              </button>
-            </div>
-          </div>
+  // 外壳负责 portal 与模态登记（漫游期间画布快捷键让位）。
+  // 不传 onClose = 不接管 Esc —— 本层键盘体系自洽（1/2/3 截图、空格漫游、+/- 缩放），
+  // 贸然加 Esc 退出会盖掉既有交互设计。
+  const renderFullscreen = () => (
+    <FullscreenShell
+      open={fullscreen && !!panoUrl}
+      className="fixed inset-0 z-modal bg-black flex flex-col nodrag"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      {/* 顶部条：居中比例控件 + 右侧操作（最高层级，压在一切之上） */}
+      <div className="absolute top-0 inset-x-0 z-[120] h-16 px-4 flex items-center justify-center pointer-events-none">
+        <div className="pointer-events-auto flex items-center gap-1.5 px-2 h-9 rounded-xl bg-black/45 backdrop-blur border border-white/10 shadow-lg">
+          {renderRatioPicker()}
         </div>
 
-        {/* 主视图：球体全景，四周留黑边（cinema 黑边），viewport 区域球体不超界 */}
-        <div className="absolute inset-0 p-0">
-          <div className="relative w-full h-full overflow-hidden">
-            <div ref={sphereBoxRef} className="absolute inset-0">
-              {/* 加载/错误态：R3F Canvas 挂起时（纹理加载中）抛 promise 给外层 Suspense；
+        <div className="absolute right-4 pointer-events-auto flex items-center gap-1.5">
+          <div className="flex items-center px-1 h-9 rounded-xl bg-black/45 backdrop-blur border border-white/10">
+            <IconButton
+              icon={<RotateCcw size={16} />}
+              title="复位视角 (R)"
+              onClick={() => viewerRef.current?.reset()}
+            />
+            <div className="w-px h-5 bg-white/10 mx-0.5" />
+            <IconButton
+              icon={<ZoomOut size={16} />}
+              title="缩小 (-)"
+              onClick={() => setFov((f) => Math.min(120, f + 8))}
+            />
+            <IconButton
+              icon={<ZoomIn size={16} />}
+              title="放大 (+)"
+              onClick={() => setFov((f) => Math.max(30, f - 8))}
+            />
+          </div>
+          <div className="flex items-center px-1 h-9 rounded-xl bg-black/45 backdrop-blur border border-white/10">
+            <TextButton
+              icon={autoRotate ? <Pause size={14} /> : <Play size={14} />}
+              label={autoRotate ? '暂停' : '漫游'}
+              active={autoRotate}
+              title="自动绕行旋转 (空格)"
+              onClick={() => setAutoRotate((v) => !v)}
+            />
+            <TextButton
+              icon={<Camera size={14} />}
+              label="截图"
+              active={shotKind === 'current'}
+              loading={shotKind === 'current'}
+              disabled={capturing}
+              title="截取当前视角 (1)"
+              onClick={() => doCapture([0])}
+            />
+            <div className="w-px h-5 bg-white/10 mx-1" />
+            <button
+              type="button"
+              title="退出漫游 (Esc)"
+              onClick={() => setFullscreen(false)}
+              className="grid place-items-center w-9 h-9 rounded-lg text-white/60 hover:text-white hover:bg-red-500/25 transition-colors cursor-pointer border-none"
+            >
+              <X size={19} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 主视图：球体全景，四周留黑边（cinema 黑边），viewport 区域球体不超界 */}
+      <div className="absolute inset-0 p-0">
+        <div className="relative w-full h-full overflow-hidden">
+          <div ref={sphereBoxRef} className="absolute inset-0">
+            {/* 加载/错误态：R3F Canvas 挂起时（纹理加载中）抛 promise 给外层 Suspense；
                   纹理加载失败抛 error 给外层 ErrorBoundary（R3F CanvasImpl 的错误外抛机制）。 */}
-              <SphereErrorBoundary>
-                <Suspense fallback={<SphereLoadingOverlay />}>
-                  <Canvas
-                    resize={{ debounce: 0 }}
-                    dpr={1.5}
-                    gl={{
-                      preserveDrawingBuffer: true,
-                      antialias: true,
-                      alpha: true,
-                      powerPreference: 'high-performance',
-                    }}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                      cursor: 'grab',
-                      touchAction: 'none',
-                    }}
-                  >
-                    <PanoViewer
-                      ref={viewerRef}
-                      url={sphereTextureUrl}
-                      fov={fov}
-                      autoRotate={autoRotate}
-                    />
-                  </Canvas>
-                </Suspense>
-              </SphereErrorBoundary>
-            </div>
-
-            {renderCapturingOverlay()}
-            {renderRatioOverlay()}
+            <SphereErrorBoundary>
+              <Suspense fallback={<SphereLoadingOverlay />}>
+                <Canvas
+                  resize={{ debounce: 0 }}
+                  dpr={1.5}
+                  gl={{
+                    preserveDrawingBuffer: true,
+                    antialias: true,
+                    alpha: true,
+                    powerPreference: 'high-performance',
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    cursor: 'grab',
+                    touchAction: 'none',
+                  }}
+                >
+                  <PanoViewer
+                    ref={viewerRef}
+                    url={sphereTextureUrl}
+                    fov={fov}
+                    autoRotate={autoRotate}
+                  />
+                </Canvas>
+              </Suspense>
+            </SphereErrorBoundary>
           </div>
-        </div>
 
-        {/* 左：截图按钮条（玻璃胶囊，避让取景框不会跑到画面外） */}
-        <div className="absolute left-5 top-1/2 -translate-y-1/2 z-[110] rounded-2xl bg-black/45 backdrop-blur-md border border-white/10 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] pointer-events-none">
-          <div className="pointer-events-auto">{renderShotButtons()}</div>
+          {renderCapturingOverlay()}
+          {renderRatioOverlay()}
         </div>
+      </div>
 
-        {/* 底：操作引导（进入时提示，3.5s 后淡出） */}
-        <div
-          className={`absolute bottom-5 inset-x-0 z-[90] flex justify-center transition-opacity duration-500 ${showHint ? 'opacity-100' : 'opacity-0'}`}
-        >
-          <div className="flex items-center gap-4 px-4 h-8 rounded-full bg-black/45 backdrop-blur border border-white/10 text-caption-sm text-white/60">
-            <span className="flex items-center gap-1.5 whitespace-nowrap">
-              <Move3D size={13} className="text-sky-300/80" />
-              拖拽看 360°
-            </span>
-            <span className="text-white/20">|</span>
-            <span className="whitespace-nowrap">滚轮缩放</span>
-            <span className="text-white/20">|</span>
-            <span className="flex items-center gap-1.5 whitespace-nowrap">
-              快捷键
-              <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white/80 text-2xs">空格</kbd>
-              漫游
-              <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white/80 text-2xs">1/2/3</kbd>
-              截图
-            </span>
-          </div>
+      {/* 左：截图按钮条（玻璃胶囊，避让取景框不会跑到画面外） */}
+      <div className="absolute left-5 top-1/2 -translate-y-1/2 z-[110] rounded-2xl bg-black/45 backdrop-blur-md border border-white/10 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] pointer-events-none">
+        <div className="pointer-events-auto">{renderShotButtons()}</div>
+      </div>
+
+      {/* 底：操作引导（进入时提示，3.5s 后淡出） */}
+      <div
+        className={`absolute bottom-5 inset-x-0 z-[90] flex justify-center transition-opacity duration-500 ${showHint ? 'opacity-100' : 'opacity-0'}`}
+      >
+        <div className="flex items-center gap-4 px-4 h-8 rounded-full bg-black/45 backdrop-blur border border-white/10 text-caption-sm text-white/60">
+          <span className="flex items-center gap-1.5 whitespace-nowrap">
+            <Move3D size={13} className="text-sky-300/80" />
+            拖拽看 360°
+          </span>
+          <span className="text-white/20">|</span>
+          <span className="whitespace-nowrap">滚轮缩放</span>
+          <span className="text-white/20">|</span>
+          <span className="flex items-center gap-1.5 whitespace-nowrap">
+            快捷键
+            <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white/80 text-2xs">空格</kbd>
+            漫游
+            <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white/80 text-2xs">1/2/3</kbd>
+            截图
+          </span>
         </div>
-      </div>,
-      document.body,
-    );
+      </div>
+    </FullscreenShell>
+  );
 
   return (
     <NodeShell

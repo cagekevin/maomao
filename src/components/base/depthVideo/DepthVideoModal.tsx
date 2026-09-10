@@ -22,10 +22,9 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { RUNTIME_MODELS } from './depthUrls.ts';
-import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
+import FullscreenShell from '../panels/FullscreenShell.tsx';
 import {
   grayFromRaw,
   grayFromTensor,
@@ -469,13 +468,12 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
   }
 
   // Esc 走与 × / 完成同一条收尾路径（abort + dispose 缺一不可，否则第二次进来会撞上一次的残留）。
-  // 顺带登记为全屏模态层，让画布快捷键在本层打开期间让位。
-  // 父组件用 {depthOpen && videoUrl} 条件渲染本弹窗，故挂载即打开，enabled 恒 true。
-  useFullscreenEditorKeys({ onEscape: handleClose });
-
+  // 父组件用 {depthOpen && videoUrl} 条件渲染本弹窗，故挂载即打开，open 传常量。
   // 全屏遮罩弹窗（对齐摄影棚 CameraStudioPanel 外壳）：fixed inset-0 遮罩 + 居中面板
-  return createPortal(
-    <div
+  return (
+    <FullscreenShell
+      open
+      onClose={handleClose}
       className="fixed inset-0 z-ceiling-2 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
       onMouseDown={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
@@ -717,7 +715,6 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
           </div>
         </div>
       </div>
-    </div>,
-    document.body,
+    </FullscreenShell>
   );
 }

@@ -4,7 +4,6 @@
  * 布局：左 3D 视口 | 右参数面板，底部提示词预览 + 操作按钮。
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Camera, Lightbulb, Combine, X, Copy, Check, RotateCcw, Sparkles } from 'lucide-react';
 import * as THREE from 'three';
 import {
@@ -22,7 +21,7 @@ import {
   type CameraStudioResult,
   type LightTemperature,
 } from './cameraStudio.ts';
-import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
+import FullscreenShell from '../panels/FullscreenShell.tsx';
 
 // 模块级持久化：跨面板开关保留上一次参数
 let _lastCamera: CameraStudioCameraState | null = null;
@@ -517,16 +516,14 @@ function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStud
     onGenerate({ mode, camera: cameraState, light: lightState, prompt });
   }, [cameraState, lightState, mode, onGenerate, prompt]);
 
-  // Esc 关闭 + 登记为全屏模态层（modalLayer）：面板打开期间画布快捷键让位，
-  // 避免在这里调参数时误触画布的撤销 / 快速建节点。
-  useFullscreenEditorKeys({ enabled: isOpen, onEscape: onClose });
-
-  if (!isOpen) return null;
-
   const showCamera = mode === 'camera' || (mode === 'dual' && activeControl === 'camera');
 
-  return createPortal(
-    <div
+  // 全屏外壳负责 portal / 模态登记 / Esc 关闭：面板打开期间画布快捷键让位，
+  // 避免在这里调参数时误触画布的撤销 / 快速建节点。
+  return (
+    <FullscreenShell
+      open={isOpen}
+      onClose={onClose}
       className="fixed inset-0 z-ceiling-2 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
       onMouseDown={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
@@ -868,8 +865,7 @@ function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStud
           </aside>
         </div>
       </div>
-    </div>,
-    document.body,
+    </FullscreenShell>
   );
 }
 

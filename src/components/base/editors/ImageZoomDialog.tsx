@@ -50,13 +50,36 @@ function ImageZoomDialog({
   const [copied, setCopied] = useState(false);
   const [copyErr, setCopyErr] = useState(false);
 
+  const dlgRef = useRef<HTMLDialogElement | null>(null);
   const setRef = useCallback(
     (node) => {
+      dlgRef.current = node; // 内部也要持一份：下面要读它的 open 属性
       if (typeof ref === 'function') ref(node);
       else if (ref) ref.current = node;
     },
     [ref],
   );
+
+  // 本组件是【常驻挂载】的（父层始终渲染 <ImageZoomDialog url=... />，由外部命令式调
+  // showModal() 打开）。而 url 的语义在各调用方之间并不一致：
+  //   · VideoGenerate / ImageGenerate / AgentMessage：url 是 zoomUrl state，关闭后会置空
+  //   · AssetNode：url 直接就是节点的图片地址，**永远非空**
+  // 曾经用 `enabled: !!url` 判定打开，结果画布上每有一个 AssetNode 就永久登记一层，
+  // 画布快捷键（Q/W/E 等）全废。教训：常驻挂载的层绝不能用「数据是否就绪」推断可见性。
+  //
+  // 原生 <dialog> 的 open 状态不进 React：showModal()/close() 直接改 DOM 属性，
+  // 既不触发 React 事件也不改 state。唯一可靠的观察点是 open 属性本身 —— 用
+  // MutationObserver 同时覆盖「外部 showModal() 打开」与「原生 Esc / close() 关闭」两条路径。
+  const [dlgOpen, setDlgOpen] = useState(false);
+  useEffect(() => {
+    const dlg = dlgRef.current;
+    if (!dlg) return;
+    const sync = () => setDlgOpen(dlg.open);
+    sync();
+    const mo = new MutationObserver(sync);
+    mo.observe(dlg, { attributes: true, attributeFilter: ['open'] });
+    return () => mo.disconnect();
+  }, []);
 
   // 每次打开/换图重置缩放与位移
   useEffect(() => {
@@ -204,12 +227,11 @@ function ImageZoomDialog({
     frameDownloadState.current.timer = window.setTimeout(() => setFrameDl(null), 2000);
   }, [url]);
 
-  // 登记为全屏模态层：本组件**常驻挂载**（父层渲染 <ImageZoomDialog ref url />，
-  // 由外部调 showModal() 打开），所以 enabled 必须绑 url，绝不能恒为 true ——
-  // 否则画布快捷键在其整个生命周期内永久失效。
+  // 登记为全屏模态层：enabled 绑原生 dialog 的 open 状态（见上方 dlgOpen 的推导），
+  // 不是 bind url —— url 在 AssetNode 里恒非空，用它判定会让画布快捷键永久失效。
   // Esc 不接管（escapeToClose: false）：原生 <dialog showModal> 自带 Esc 关闭，
   // 再加一层会导致同一事件走两条关闭路径。
-  useFullscreenEditorKeys({ enabled: !!url, escapeToClose: false });
+  useFullscreenEditorKeys({ enabled: dlgOpen, escapeToClose: false });
 
   const src = url ? toAbsoluteFileUrl(url) : '';
   // 「点空白关闭」判断放内部容器 div（onClick）而非本 dialog：因容器 fixed inset-0 铺满覆盖本层，
