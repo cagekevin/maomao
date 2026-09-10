@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
 
@@ -70,6 +70,18 @@ export default function FullscreenShell({
   ref,
   ...rest
 }: FullscreenShellProps) {
+  // 内部 ref：仅供 DEV 期的「常驻误登记」告警判定可见性（见 modalLayer.ts 的 coversViewport）。
+  // 与调用方传入的 ref 合并 —— 两边都要拿到同一个 div。
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const setHostRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      hostRef.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref],
+  );
+
   // 登记 + 独占键 + Esc，全在这里；使用者不需要知道这套机制存在。
   // escapeToClose 由「有没有传 onClose」推导，省掉一个容易传错的开关。
   useFullscreenEditorKeys({
@@ -77,6 +89,7 @@ export default function FullscreenShell({
     escapeToClose: !!onClose,
     onEscape: onClose,
     keyMap,
+    getElement: () => hostRef.current,
   });
 
   if (!open) return null;
@@ -84,7 +97,7 @@ export default function FullscreenShell({
   // 剩余 props（onWheel / onMouseDown / onClick 等）原样透传到外壳 div：
   // 各层的"阻止滚轮冒到画布""点遮罩关闭"等细节不同，不进本组件的职责范围。
   return createPortal(
-    <div ref={ref} className={className} {...rest}>
+    <div ref={setHostRef} className={className} {...rest}>
       {children}
     </div>,
     document.body,

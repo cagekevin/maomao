@@ -43,6 +43,44 @@ interface LayerInfo {
 const layers = new Map<symbol, LayerInfo>();
 
 /**
+ * 登记表变化的订阅者。
+ *
+ * 【为什么需要它】`hasModalLayer()` 是**查询式**的，只能在"已经要执行某个动作时"再问一次
+ * （useCanvasShortcuts 就是这么用的，所以它天然安全）。
+ * 但有些宿主把快捷键的**开关本身**声明成了 props —— 典型是 React Flow 的 `deleteKeyCode`：
+ * 它在内部用 `useKeyPress` 自己挂 window 监听，完全绕过 useCanvasShortcuts，
+ * 因此**没有任何机会**去查询 hasModalLayer()。
+ * 对这种宿主，唯一可靠的办法是：模态层开合时**把 deleteKeyCode 换成 null**，从源头拆掉监听。
+ * 这就需要"变化通知"，也就是这个订阅表。
+ *
+ * 【2026-09-10 真实事故】在 3D 导演台（FullscreenShell 全屏层）里按 Delete，
+ * 想删导演台里的对象，实际删掉的是**画布上选中的节点** —— 因为 deleteKeyCode 没让位。
+ * 这类"静默破坏用户作品"的失败模式与 useCanvasShortcuts 那起事故同源，
+ * 只是一个走查询、一个必须走订阅。
+ */
+const changeListeners = new Set<() => void>();
+
+function notifyLayerChange() {
+  for (const listener of changeListeners) listener();
+}
+
+/**
+ * 订阅「全屏模态层开合」事件，返回取消订阅函数。
+ * 用途：给那些**把快捷键开关声明为 props** 的宿主（如 React Flow 的 deleteKeyCode）
+ * 提供响应式的让位依据 —— 层开时置空、层关时恢复。
+ *
+ * 惯用法（React）：
+ * ```tsx
+ * const modalOpen = useSyncExternalStore(subscribeModalLayer, hasModalLayer);
+ * <ReactFlow deleteKeyCode={modalOpen ? null : DELETE_KEY_CODE} />
+ * ```
+ */
+export function subscribeModalLayer(listener: () => void): () => void {
+  changeListeners.add(listener);
+  return () => changeListeners.delete(listener);
+}
+
+/**
  * 常驻登记的告警阈值。
  * 选 60s 的权衡：正常编辑（ImageEditor 里涂鸦、扩图调参）很容易超过 1 分钟，
  * 低于这个值会天天误报、最后被人忽略；而「误登记」的特征是从挂载那刻起永不注销，
@@ -50,25 +88,54 @@ const layers = new Map<symbol, LayerInfo>();
  */
 const STUCK_WARN_MS = 60_000;
 
+/**
+ * 判定「这一层是否真的可见地盖在屏幕上」——用来把「真的全屏开着很久」与「常驻误登记」
+ * 区分开。两者登记时长完全一样，只看时长必然把前者也一起误报（3D 导演台/图片编辑很容易
+ * 开着超过 1 分钟），喊多了就会被人当成噪音忽略，这个告警也就废了。
+ *
+ * 判据用「元素是否占据视口面积」而不是「DOM 里有没有」：误登记的层是**根本没渲染**
+ * （open 恒 true 但父层条件挂载成 false、或 createPortal 因异常未挂上）——
+ * 此时 element 为 null 或尺寸为 0；而真开着的层是一个 fixed inset-0、尺寸等于视口的元素。
+ * 阈值取视口面积的一半：全屏层必然远超，任何非全屏/塌陷的层必然达不到。
+ */
+function coversViewport(el: Element | null): boolean {
+  if (!el || !(el instanceof HTMLElement)) return false;
+  const rect = el.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return false;
+  const viewportArea = window.innerWidth * window.innerHeight;
+  if (viewportArea <= 0) return true; // 量不到视口时不做判断，保守放行（宁可不喊，也不误喊）
+  return rect.width * rect.height >= viewportArea * 0.5;
+}
+
 /** 登记一层全屏模态；返回注销函数（务必交给 useEffect 的 cleanup）。 */
-function registerLayer(): () => void {
+function registerLayer(getElement?: () => Element | null): () => void {
   const id = Symbol('modal-layer');
   layers.set(id, { at: Date.now(), stack: new Error().stack });
+  // 通知订阅者：宿主（如 React Flow 的 deleteKeyCode）需要据此让位。
+  notifyLayerChange();
 
   // 【为什么要有这个告警】本机制是「信任型」的：谁登记，画布就整体让位。
   // 代价是一旦有层错误地常驻登记，画布全局快捷键会【静默全废】—— 用户只会看到
   // 「Q/W/E 没反应」，而没有任何线索指向元凶（2026-09-10 真实事故：ImageZoomDialog
   // 把 enabled 绑成了恒非空的 url，画布上每有一个 AssetNode 就永久登记一层）。
   // 这是唯一一种能让全局快捷键静默失效的失败模式，必须在开发期就喊出来。
+  //
+  // 【为什么还要判可见性】只看时长会把「真的全屏开着」也喊进来：导演台/图片编辑开着
+  // 调样式轻松超过 60s，那时画布快捷键本来就该让位，不是故障。
+  // 加一道「是否真占视口」的门后，只有「登记着、却没有任何东西盖在屏幕上」才告警 ——
+  // 那正是误登记的唯一特征，误报归零，告警重新变得可信。
   let timer: ReturnType<typeof setTimeout> | undefined;
   if (import.meta.env?.DEV) {
     timer = setTimeout(() => {
       const info = layers.get(id);
       if (!info) return;
+      // 真在屏幕上盖着 → 正常的长时间使用，不喊
+      if (coversViewport(getElement?.() ?? null)) return;
       console.warn(
-        `[modalLayer] 某层已连续登记 ${Math.round(STUCK_WARN_MS / 1000)}s 未注销。` +
-          `若并非真的全屏打开，说明 enabled 绑错了（常见：常驻挂载却用「数据是否就绪」判定可见性），` +
-          `它将导致画布快捷键永久失效。登记处调用栈：`,
+        `[modalLayer] 某层已连续登记 ${Math.round(STUCK_WARN_MS / 1000)}s 未注销，` +
+          `但没有任何全屏内容真的盖在屏幕上 —— 这是「常驻误登记」的特征：` +
+          `画布全局快捷键将被它永久挡住（用户只看到 Q/W/E 没反应）。` +
+          `常见成因：常驻挂载却把 enabled 绑成了「数据是否就绪」这类恒真条件。登记处调用栈：`,
         info.stack,
       );
     }, STUCK_WARN_MS);
@@ -77,6 +144,8 @@ function registerLayer(): () => void {
   return () => {
     if (timer) clearTimeout(timer);
     layers.delete(id);
+    // 通知订阅者：层已关闭，宿主快捷键可恢复。
+    notifyLayerChange();
   };
 }
 
@@ -132,6 +201,12 @@ export interface FullscreenEditorKeys {
   onEscape?: () => void;
   /** 关掉本钩子（未打开 / 数据未就绪时不该抢键）。默认 true。 */
   enabled?: boolean;
+  /**
+   * 返回本层的 DOM 元素，仅供 DEV 期的「常驻误登记」告警判定可见性用。
+   * 不传时告警只在时长到点时保守放行（宁可不喊，也不误喊）。
+   * 业务代码不需要关心它 —— `FullscreenShell` 已经接好。
+   */
+  getElement?: () => Element | null;
 }
 
 /**
@@ -150,15 +225,18 @@ export function useFullscreenEditorKeys({
   escapeToClose = true,
   onEscape,
   enabled = true,
+  getElement,
 }: FullscreenEditorKeys): void {
   // 每次渲染都是新对象的入参（keyMap / onEscape 常内联书写），用 ref 持有最新值，
   // 让下面的 effect 只在 enabled 变化时重挂而不是每次渲染都重挂。
-  const latest = useRef({ keyMap, escapeToClose, onEscape });
-  latest.current = { keyMap, escapeToClose, onEscape };
+  const latest = useRef({ keyMap, escapeToClose, onEscape, getElement });
+  latest.current = { keyMap, escapeToClose, onEscape, getElement };
 
   useEffect(() => {
     if (!enabled) return;
-    const unregister = registerLayer();
+    // 走 ref 取最新 getElement：effect 只在 enabled 变化时重挂，但元素引用可能晚一拍到位
+    //（portal 挂载），告警触发时按需读取即可。
+    const unregister = registerLayer(() => latest.current.getElement?.() ?? null);
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;

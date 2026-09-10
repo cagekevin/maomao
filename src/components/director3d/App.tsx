@@ -59,8 +59,10 @@
  *    data 里即可（静止对象不逐帧重算，播放时跟随）。
  *
  * ⑥ UI（Inspector / 各面板）
- *    - 在对应面板加一个控件，通过 onUpdateObject / onUpdateCamera 写当前值。
+ *    - 在对应面板加一个控件，通过**唯一写入入口 updateObjectById(id, patch)** 写当前值。
  *      关键帧录的就是这个「当前值」，所以面板与录制共用同一份数据。
+ *      【契约 C3.1】三类对象签名统一为 (id, patch)：人物/道具传自身 id，摄像机传 CAMERA_ID。
+ *      禁止再出现「摄像机专属单参签名」——落点分派在 updateObjectById 内部按 id 完成。
  *
  * 四、摄像机轨道特别提醒（重要，容易踩坑）
  * ----------------------------------------------------------------------------
@@ -143,15 +145,18 @@ import {
   DEFAULT_PROJECT_SETTINGS,
   DEFAULT_REFERENCE,
   PROJECT_STORAGE_KEY,
+  assertRegisteredPatch,
   aspectLabel,
   aspectValue,
   bakePathKeyframes,
   cameraAtFrame,
+  cameraAtFrameWithPath,
   cameraRotationToward,
   clamp,
   cloneProjectValue,
   createEmptyPath,
   countChannelKeyframes,
+  createEmptyShot,
   defaultShotName,
   exportDimensionsForAspect,
   initialCamera,
@@ -170,8 +175,6 @@ import {
   objectKeyframeFromObject,
   objectsAtFrame,
   pathActive,
-  pathPositionAtFraction,
-  pathTangentAtFraction,
   projectData,
   readCachedProject,
   readCustomPoses,
@@ -253,26 +256,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const [settings, setSettings] = useState(() =>
     normalizeProjectSettings(startupProject?.settings),
   );
-  const [shots, setShots] = useState(
-    () =>
-      startupProject?.shots || [
-        {
-          id: 'shot-01',
-          name: '镜头 01',
-          thumbnail: '',
-          fps: DEFAULT_PROJECT_SETTINGS.fps,
-          durationSeconds: DEFAULT_PROJECT_SETTINGS.durationSeconds,
-          loopPlayback: false,
-          objects: cloneProjectValue(initialObjects),
-          camera: cloneProjectValue(initialCamera),
-          lighting: cloneProjectValue(DEFAULT_LIGHTING),
-          reference: cloneProjectValue(DEFAULT_REFERENCE),
-          keyframes: [],
-          objectKeyframes: {},
-          paths: {},
-        },
-      ],
-  );
+  const [shots, setShots] = useState(() => startupProject?.shots || [createEmptyShot()]);
   const [activeShotId, setActiveShotId] = useState(() => startupProject?.activeShotId || 'shot-01');
   const [objects, setObjects] = useState(() => startupProject?.objects || initialObjects);
   const [selectedId, setSelectedId] = useState(
@@ -446,39 +430,13 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       ? { ...selectedKeyframe, interpolation: normalizeInterpolation(key.interpolation) }
       : null;
   }, [characterKeyframes, entityTypeFor, keyframes, selectedKeyframe]);
-  // 当前镜头相机若有运动路径，则直接沿路径「弧长匀速」取位置与朝向（贝塞尔思路：
-  // 关键帧只作时间起止，位置不在离散关键帧上分段插值，从而消除转角顿挫与走走停停）。
-  const cameraPathSnapshot = useCallback(
-    (frame) => {
-      const path = paths[CAMERA_ID];
-      if (!path || !Array.isArray(path.points) || path.points.length < 2) return null;
-      const start = Math.max(0, Math.round(Number(path.startFrame) || 0));
-      const end = Math.max(start + 1, Math.round(Number(path.endFrame) || totalFrames));
-      const u = clamp((frame - start) / Math.max(1, end - start), 0, 1);
-      const pos = pathPositionAtFraction(path, u);
-      if (!pos) return null;
-      const tangent = pathTangentAtFraction(path, u) || [0, 0, -1];
-      const position = [pos.x, pos.y, pos.z];
-      const snapshot: { position: number[]; rotation?: number[] } = { position };
-      if (camera.targetMode !== 'object') {
-        snapshot.rotation = cameraRotationToward(position, [
-          pos.x + tangent[0],
-          pos.y + tangent[1],
-          pos.z + tangent[2],
-        ]);
-      }
-      return snapshot;
-    },
-    [camera.targetMode, paths, totalFrames],
+  // 摄像机求值：单入口（契约 C4.1）。原先的 if/else 三分支已收口到
+  // project.ts 的 cameraAtFrameWithPath——「路径 → 关键帧 → 基线」的来源优先级
+  // 与道具侧（synthesizeObjectState 的 pathActive 分支）同构，此处只做接线。
+  const animatedCamera = useMemo(
+    () => cameraAtFrameWithPath(camera, keyframes, paths[CAMERA_ID], currentFrame, totalFrames),
+    [camera, currentFrame, keyframes, paths, totalFrames],
   );
-  const animatedCamera = useMemo(() => {
-    const snap = cameraPathSnapshot(currentFrame);
-    if (snap) return { ...camera, ...snap };
-    // M1：keyframes 为通道结构，用「已打点帧数」判断是否有相机动画（代替旧数组 .length）
-    return countChannelKeyframes(keyframes)
-      ? cameraAtFrame(keyframes, currentFrame, camera.aspectRatio)
-      : camera;
-  }, [camera, cameraPathSnapshot, currentFrame, keyframes]);
   const isAnimating = playing || exporting;
   const hasObjectAnimation = useMemo(
     () => Object.values(characterKeyframes).some((track) => countChannelKeyframes(track) > 0),
@@ -652,12 +610,28 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   //   - 同步种子（startupProject / useMemo readCachedProject）仍走 localStorage，保证降级不丢图；
   //   - hydrate 拉取的是 KV 权威版本（可能比本地种子新），完成后 applyProjectSnapshot 覆盖；
   //   - KV 为空且本地有 → hydrate 内部已写回 KV（一次性迁移），本地照常复用；
-  //   - 用 alive 标志，组件卸载 / key 变化时取消过期覆盖，防竞态覆盖用户新编辑。
+  //   - 用 alive 标志，组件卸载 / key 变化时取消过期覆盖。
+  //
+  // ⚠️ 【用户编辑守卫】仅 alive 不足以防丢数据：hydrate 是异步的（KV 读可能数百 ms~秒级），
+  // 若用户在它返回前就动了对象/关键帧，`applyProjectSnapshot` 会**无条件覆盖**那批编辑 —— 静默丢失。
+  // 判据：历史栈已有入栈记录（past 非空）即「用户已经编辑过」→ 放弃 KV 覆盖，
+  // 保留用户现场（随后由本地自动保存写回）。
   useEffect(() => {
     let alive = true;
     hydrateProject(projectStorageKey)
       .then((project) => {
         if (!alive || !project) return;
+        const history = historyRef.current;
+        // 判据只看 past：`last` 是基线，startup 首次副作用就会设置（恒非空），
+        // 不能用作"用户编辑过"的信号；而 past 有记录 = 真的发生过一次可撤销的用户编辑。
+        if (history.past.length > 0) {
+          // 用户在 hydrate 期间已编辑：不覆盖，避免静默丢弃其编辑。
+          log.warn('director3d hydrate 跳过覆盖：检测到用户已编辑（保留现场）', {
+            key: projectStorageKey,
+            past: history.past.length,
+          });
+          return;
+        }
         applyProjectSnapshot(project);
       })
       .catch((error) => {
@@ -932,19 +906,21 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     (frame) => {
       historyRef.current.deferCount += 1;
       setCamera((current) => {
-        const snap = cameraPathSnapshot(frame);
-        if (snap)
-          return {
-            ...current,
-            ...snap,
-            targetMode: current.targetMode,
-            targetId: current.targetId,
-          };
-        const interpolated = cameraAtFrame(keyframes, frame, current.aspectRatio);
-        return { ...interpolated, targetMode: current.targetMode, targetId: current.targetId };
+        // 契约 C4.1：与 animatedCamera 共用**同一个**求值入口——
+        // 此前这里是「位置谁说了算」的第二个独立实现（又一份三分支），
+        // 与 animatedCamera 的同源逻辑一旦漂移就会出现「播放时对、拖帧时不对」这类分叉。
+        const evaluated = cameraAtFrameWithPath(
+          current,
+          keyframes,
+          paths[CAMERA_ID],
+          frame,
+          totalFrames,
+        );
+        // objectState 字段（targetMode/targetId）恒沿基线保留（L2，与 synthesizeObjectState 一致）。
+        return { ...evaluated, targetMode: current.targetMode, targetId: current.targetId };
       });
     },
-    [cameraPathSnapshot, keyframes],
+    [keyframes, paths, totalFrames],
   );
 
   const seekToFrame = useCallback(
@@ -1189,9 +1165,10 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       return;
     }
     const thumbnail = thumbnailFromMonitor();
-    const id = `shot-${uid()}`;
-    const nextShot = {
-      id,
+    // 统一构造（唯一字段清单）：此前这里手写结构体且漏了 paths——
+    // 新建镜头缺 paths 字段，运行时表现为 undefined 传播。收口后由 createEmptyShot 保证完整。
+    const nextShot = createEmptyShot({
+      id: `shot-${uid()}`,
       name: uniqueShotName(shots, defaultShotName(shots.length)),
       thumbnail,
       fps: settings.fps,
@@ -1203,7 +1180,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       reference: cloneProjectValue(DEFAULT_REFERENCE),
       keyframes: [],
       objectKeyframes: {},
-    };
+    });
     setShots((list) => [
       ...list.map((shot) =>
         shot.id === activeShotId ? liveShotRecord(shot, thumbnail || shot.thumbnail) : shot,
@@ -1388,7 +1365,19 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     }
     event.target.value = '';
   };
+  // 全系统唯一属性写入入口（契约 C3.1）：三类对象统一签名 `updateObjectById(id, patch)`。
+  // 按 entity 分派落点——摄像机恒为 CAMERA_ID，写 camera state（无草稿层）；
+  // 人物/道具写 objects + objectDrafts 两层。
+  // 禁止再出现「摄像机专属单参签名 onUpdateCamera(patch)」：曾因签名不一致导致
+  // `{...current, ...'camera'}` 静默展开、position 永不写入（拖动「拖一点就弹回」）。
   const updateObjectById = (id, patch) => {
+    // 开发期守卫（契约 C3.3）：patch 字段若未在注册表登记，立刻告警（带来源），
+    // 避免「写了个没登记的字段 → 运行时静默失效」这类黑洞。
+    assertRegisteredPatch(id === CAMERA_ID ? 'camera' : entityTypeFor(id), patch);
+    if (id === CAMERA_ID) {
+      setCamera((current) => ({ ...current, ...patch }));
+      return;
+    }
     setObjectDrafts((drafts) => {
       if (!countChannelKeyframes(characterKeyframes[id])) {
         if (!(id in drafts)) return drafts;
@@ -1410,6 +1399,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       list.map((object) => (object.id === id ? { ...object, ...patch } : object)),
     );
   };
+  // App 内部便捷包装：写「当前选中对象」（对象树选中项随 Inspector 走），签名单参。
+  // 仅限 App 内部使用；对外的 prop 一律用统一的 updateObjectById(id, patch)。
   const updateSelected = (patch) => updateObjectById(selectedId, patch);
   const groundSelected = () => {
     if (!activeObject || activeObject.locked) return;
@@ -1445,11 +1436,11 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setMonitorMode('normal');
   };
   const levelCameraHorizon = () => {
-    setCamera((current) => {
-      const rotation = Array.isArray(current.rotation) ? [...current.rotation] : [0, 0, 0];
-      rotation[2] = 0;
-      return { ...current, rotation };
-    });
+    // 契约 C3.1：rotation 是 animatable/transform 字段，属通用属性写入 → 走统一入口
+    // （而非直连 setCamera 绕过守卫）。
+    const rotation = Array.isArray(camera.rotation) ? [...camera.rotation] : [0, 0, 0];
+    rotation[2] = 0;
+    updateObjectById(CAMERA_ID, { rotation });
     setToast('摄像机翻滚已归零 · 地面水平线已校正');
   };
   const collapseViewOptions = () => {
@@ -1922,23 +1913,10 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const initializeProject = () => {
     const resetObjects = cloneProjectValue(initialObjects);
     const resetCamera = cloneProjectValue(initialCamera);
+    // 统一构造（唯一字段清单）：此前这里也漏了 paths，同 addShot。
+    const resetShot = createEmptyShot({ objects: resetObjects, camera: resetCamera });
     setSettings({ ...DEFAULT_PROJECT_SETTINGS });
-    setShots([
-      {
-        id: 'shot-01',
-        name: '镜头 01',
-        thumbnail: '',
-        fps: DEFAULT_PROJECT_SETTINGS.fps,
-        durationSeconds: DEFAULT_PROJECT_SETTINGS.durationSeconds,
-        loopPlayback: DEFAULT_PROJECT_SETTINGS.loopPlayback,
-        objects: resetObjects,
-        camera: resetCamera,
-        lighting: cloneProjectValue(DEFAULT_LIGHTING),
-        reference: cloneProjectValue(DEFAULT_REFERENCE),
-        keyframes: [],
-        objectKeyframes: {},
-      },
-    ]);
+    setShots([resetShot]);
     setActiveShotId('shot-01');
     setObjects(resetObjects);
     setCamera(resetCamera);
@@ -2286,7 +2264,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
           {cameraView && cameraAnglePanelOpen && (
             <CameraAnglePanel
               camera={camera}
-              onChange={(patch) => setCamera((current) => ({ ...current, ...patch }))}
+              onChange={(patch) => updateObjectById(CAMERA_ID, patch)}
               onClose={() => setCameraAnglePanelOpen(false)}
               onLevel={levelCameraHorizon}
             />
@@ -2322,7 +2300,6 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
                 groundRequest={groundRequest}
                 onUpdateObject={updateObjectById}
                 cameraData={displayCamera}
-                onUpdateCamera={(patch) => setCamera((current) => ({ ...current, ...patch }))}
                 lighting={lighting}
                 showGrid={showGrid}
                 performanceMode={performanceMode}
@@ -2414,7 +2391,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
           objects={objects}
           camera={camera}
           cameraAspect={camera.aspectRatio}
-          onAspectChange={(aspectRatio) => setCamera((current) => ({ ...current, aspectRatio }))}
+          onAspectChange={(aspectRatio) => updateObjectById(CAMERA_ID, { aspectRatio })}
           projectSettings={settings}
           onApplySettings={applySettings}
           maxKeyframeFrame={maxKeyframeFrame}
@@ -2429,8 +2406,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
           selectedJoint={selectedJoint}
           customPoses={customPoses}
           onSelectJoint={setSelectedJoint}
-          onUpdateObject={updateSelected}
-          onUpdateCamera={(patch) => setCamera((current) => ({ ...current, ...patch }))}
+          onUpdateObject={updateObjectById}
           onDelete={deleteSelected}
           onDuplicate={duplicateSelected}
           onFocus={focusSelected}

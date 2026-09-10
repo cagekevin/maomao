@@ -771,6 +771,11 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
       aspectRatio="16:9"
       defaultHeight={360}
       handleVariant="small"
+      // 输入口契约（勿删）：target 固定 'in'，与 App.addNode 建边时的
+      // { targetHandle: 'in' } 成对（见 App.tsx 单源表 TARGET_HANDLE_BY_NODE_TYPE）。
+      // 两侧端口都显式声明语义 id，避免「默认 null 口 ↔ 未传 handle」的隐式巧合匹配
+      // （一旦新增端口就会静默断线，即「连完没线」）。
+      targetHandleId="in"
       // 输出口契约（勿删）：source 固定 'main-output'，与本节点 spawn 子节点时的
       // { sourceHandle: 'main-output' } 成对。统一为语义 id 而非默认 null 口，
       // 避免「默认口 null ↔ spawn 未传 sourceHandle」的隐式巧合匹配

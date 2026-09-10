@@ -14,7 +14,7 @@ import * as THREE from 'three';
 import { StudioPerson, ImportedModel } from './models.tsx';
 import { PrimitiveModel } from './primitives.tsx';
 import { DepthMeshModel } from './depth.tsx';
-import { CAMERA_ID, aspectValue, pathSamplePoints } from './project.ts';
+import { CAMERA_ID, DEFAULT_LIGHTING, aspectValue, pathSamplePoints } from './project.ts';
 import type { ProjectCamera, ProjectObject } from './project.ts';
 import SceneGizmo from './SceneGizmo.tsx';
 
@@ -412,6 +412,8 @@ function CameraModel({
   transformSpace?: 'local' | 'world';
   snapEnabled?: boolean;
   onSelect: (id: string) => void;
+  // 与 SceneObject.onUpdate 统一签名 (id, patch)：全系统唯一更新入口（契约 C3.1）。
+  // 摄像机 id 恒为 CAMERA_ID，由 App 的 updateObjectById 按 entity 分派到 camera state。
   onUpdate: (id: string, patch: Record<string, unknown>) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
@@ -505,24 +507,17 @@ function CameraModel({
   );
 }
 
-const DEFAULT_STUDIO_LIGHTING = {
-  ambientIntensity: 1.35,
-  keyIntensity: 2.8,
-  fillIntensity: 1.1,
-  keyAzimuth: 39,
-  keyElevation: 51,
-  exposure: 0.9,
-  ambientColor: '#f7f1e6',
-  keyColor: '#fff6e8',
-  fillColor: '#a9c2c6',
-};
+// 灯光兜底统一用 project.ts 的 DEFAULT_LIGHTING —— 它是工程持久化的那份真相源。
+// 此前 Viewport 自带一份 DEFAULT_STUDIO_LIGHTING（且颜色值不同），造成同一概念两个定义点：
+// 排查「光照为什么不生效」时无法判断哪份为准。现直接复用工程默认值，消除第二定义点。
+const STUDIO_LIGHTING_DEFAULTS = DEFAULT_LIGHTING;
 
-function StudioLights({ lighting = DEFAULT_STUDIO_LIGHTING }) {
+function StudioLights({ lighting = STUDIO_LIGHTING_DEFAULTS }) {
   const azimuth = THREE.MathUtils.degToRad(
-    lighting.keyAzimuth ?? DEFAULT_STUDIO_LIGHTING.keyAzimuth,
+    lighting.keyAzimuth ?? STUDIO_LIGHTING_DEFAULTS.keyAzimuth,
   );
   const elevation = THREE.MathUtils.degToRad(
-    lighting.keyElevation ?? DEFAULT_STUDIO_LIGHTING.keyElevation,
+    lighting.keyElevation ?? STUDIO_LIGHTING_DEFAULTS.keyElevation,
   );
   const horizontal = Math.cos(elevation) * 10;
   const height = Math.sin(elevation) * 10;
@@ -539,15 +534,15 @@ function StudioLights({ lighting = DEFAULT_STUDIO_LIGHTING }) {
   return (
     <>
       <hemisphereLight
-        intensity={lighting.ambientIntensity ?? DEFAULT_STUDIO_LIGHTING.ambientIntensity}
-        color={lighting.ambientColor || DEFAULT_STUDIO_LIGHTING.ambientColor}
+        intensity={lighting.ambientIntensity ?? STUDIO_LIGHTING_DEFAULTS.ambientIntensity}
+        color={lighting.ambientColor || STUDIO_LIGHTING_DEFAULTS.ambientColor}
         groundColor="#343536"
       />
       <directionalLight
         castShadow
         position={keyPosition}
-        intensity={lighting.keyIntensity ?? DEFAULT_STUDIO_LIGHTING.keyIntensity}
-        color={lighting.keyColor || DEFAULT_STUDIO_LIGHTING.keyColor}
+        intensity={lighting.keyIntensity ?? STUDIO_LIGHTING_DEFAULTS.keyIntensity}
+        color={lighting.keyColor || STUDIO_LIGHTING_DEFAULTS.keyColor}
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-10}
         shadow-camera-right={10}
@@ -556,8 +551,8 @@ function StudioLights({ lighting = DEFAULT_STUDIO_LIGHTING }) {
       />
       <directionalLight
         position={fillPosition}
-        intensity={lighting.fillIntensity ?? DEFAULT_STUDIO_LIGHTING.fillIntensity}
-        color={lighting.fillColor || DEFAULT_STUDIO_LIGHTING.fillColor}
+        intensity={lighting.fillIntensity ?? STUDIO_LIGHTING_DEFAULTS.fillIntensity}
+        color={lighting.fillColor || STUDIO_LIGHTING_DEFAULTS.fillColor}
       />
     </>
   );
@@ -565,12 +560,12 @@ function StudioLights({ lighting = DEFAULT_STUDIO_LIGHTING }) {
 
 // 性能模式专用：近似 Blender/C4D 默认光的轻量两盏布光——主光（右前上）+ 弱补光（左后上），
 // 均不投射阴影，光源数 2、无阴影贴图，开销远低于完整 StudioLights，但暗部不死黑、立体感自然。
-function PerformanceLight({ lighting = DEFAULT_STUDIO_LIGHTING }) {
+function PerformanceLight({ lighting = STUDIO_LIGHTING_DEFAULTS }) {
   const azimuth = THREE.MathUtils.degToRad(
-    lighting.keyAzimuth ?? DEFAULT_STUDIO_LIGHTING.keyAzimuth,
+    lighting.keyAzimuth ?? STUDIO_LIGHTING_DEFAULTS.keyAzimuth,
   );
   const elevation = THREE.MathUtils.degToRad(
-    lighting.keyElevation ?? DEFAULT_STUDIO_LIGHTING.keyElevation,
+    lighting.keyElevation ?? STUDIO_LIGHTING_DEFAULTS.keyElevation,
   );
   const horizontal = Math.cos(elevation) * 10;
   const height = Math.sin(elevation) * 10;
@@ -583,19 +578,19 @@ function PerformanceLight({ lighting = DEFAULT_STUDIO_LIGHTING }) {
     <>
       <directionalLight
         position={keyPosition}
-        intensity={(lighting.keyIntensity ?? DEFAULT_STUDIO_LIGHTING.keyIntensity) * 1.1}
-        color={lighting.keyColor || DEFAULT_STUDIO_LIGHTING.keyColor}
+        intensity={(lighting.keyIntensity ?? STUDIO_LIGHTING_DEFAULTS.keyIntensity) * 1.1}
+        color={lighting.keyColor || STUDIO_LIGHTING_DEFAULTS.keyColor}
       />
       <directionalLight
         position={[-keyPosition[0] * 0.9, Math.max(3, height * 0.5), -keyPosition[2] * 0.9]}
         intensity={0.8}
-        color={lighting.fillColor || DEFAULT_STUDIO_LIGHTING.fillColor}
+        color={lighting.fillColor || STUDIO_LIGHTING_DEFAULTS.fillColor}
       />
     </>
   );
 }
 
-function RendererExposure({ value = DEFAULT_STUDIO_LIGHTING.exposure }) {
+function RendererExposure({ value = STUDIO_LIGHTING_DEFAULTS.exposure }) {
   const { gl } = useThree();
   useEffect(() => {
     gl.toneMappingExposure = value;
@@ -1075,10 +1070,11 @@ function EditorScene({
   transformSpace,
   snapEnabled,
   groundRequest,
+  // 契约 C3.1：全系统唯一写入入口 (id, patch)。摄像机不再单独走 onUpdateCamera，
+  // 其 id 恒为 CAMERA_ID，由 App 的 updateObjectById 按 entity 分派落点。
   onUpdateObject,
   cameraData,
   cameraAspect,
-  onUpdateCamera,
   editorCameraData,
   onEditorCameraChange,
   lighting,
@@ -1145,7 +1141,7 @@ function EditorScene({
           transformSpace={transformSpace}
           snapEnabled={snapEnabled}
           onSelect={onSelect}
-          onUpdate={onUpdateCamera}
+          onUpdate={onUpdateObject}
         />
       )}
       {pathEditing && !cameraView && (

@@ -62,13 +62,6 @@ function makeConflictUploadImpl() {
   });
 }
 
-/** 手动点开一个 tick，并用 resolveChoice 结算冲突（模拟用户点按钮） */
-async function runMockTick(key: 'cancel' | 'confirm' | 'download') {
-  const pending = vi.advanceTimersByTimeAsync(INTERVAL_MS);
-  resolveChoice(key);
-  await pending;
-}
-
 /** 首轮（延迟 30s）同样走冲突结算：makeConflictUploadImpl 的 askChoice 会挂起，必须从外部结算 */
 async function runFirstTick(key: 'cancel' | 'confirm' | 'download') {
   const pending = vi.advanceTimersByTimeAsync(FIRST_MS);

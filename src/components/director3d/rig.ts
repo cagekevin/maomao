@@ -259,6 +259,32 @@ export const RIG_PRESET_GROUPS = [
   },
 ];
 
+// ================================================================
+// 人物体型比例表（唯一真相源）
+// ------------------------------------------------------------------
+// 【为什么放这里】此前有两个定义点且值不一致：
+//   - models.tsx 的 MIXAMO_BODY_SCALES（模型实际缩放，如 tall: [0.95, 1.12, 0.95]）
+//   - project.ts 的 visualCenterForObject 里手抄的 bodyHeight 表（tall: 1.12）
+// 后者是前者的 Y 分量手抄副本。改一处不改另一处 → 视觉中心与模型实际位置错位
+// （表现为视图聚焦/摄像机对焦偏移）。
+// rig.ts 是纯数据层（不依赖 three / React），models 与 project 都可安全依赖它。
+// 取用：`BODY_SCALE_HEIGHT[bodyType]` 得到该体型的身高倍率（= 缩放 Y 分量）。
+// ================================================================
+/** 体型缩放三元组 [x, y, z]；用元组类型以匹配 three 的 scale 入参约束。 */
+export type BodyScaleTuple = [number, number, number];
+
+export const MIXAMO_BODY_SCALES: Record<string, BodyScaleTuple> = {
+  standard: [1, 1, 1],
+  tall: [0.95, 1.12, 0.95],
+  broad: [1.14, 1.04, 1.1],
+  female: [0.94, 0.98, 0.94],
+  male: [1.08, 1.06, 1.08],
+};
+
+/** 该体型的身高倍率（= MIXAMO_BODY_SCALES 的 Y 分量）；未登记体型回落 1。 */
+export const bodyScaleHeight = (bodyType?: string): number =>
+  MIXAMO_BODY_SCALES[bodyType || '']?.[1] ?? 1;
+
 const emptyPose = () => Object.fromEntries(JOINT_DEFINITIONS.map((joint) => [joint.id, [0, 0, 0]]));
 
 export function cloneJointPose(joints) {

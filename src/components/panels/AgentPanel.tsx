@@ -447,12 +447,12 @@ export default function AgentPanel({
   useEffect(() => {
     resetTableWorkspace();
     clearHistory();
-  }, [activeConversationId, resetTableWorkspace]);
+  }, [activeConversationId]);
   // 联动（用户裁定）：表格吸附在 AI 面板左缘，AI 面板收起 → 表格一起收（开合一体，非各管各的）。
   // 注：挂载即执行（open=false 时幂等：表格默认未开，close 无副作用）。
   useEffect(() => {
     if (!open) closeTableWorkspace();
-  }, [open, closeTableWorkspace]);
+  }, [open]);
 
   // 【设置即生效·方案 B】订阅「设置 → AI 助手」的聊天模型键（agent_chat_model）。
   // 该键由 AgentChatSettings.saveAgentChatModel → contentSet 写入，contentSubscribe 即时回调。
@@ -610,7 +610,7 @@ export default function AgentPanel({
   const [modelOpen, setModelOpen] = useState(false);
   const modelRef = useRef(null);
   // 上传 input 的 ref：上传 UI 当前被注释（见下方「图片上传：暂时隐藏」块），取消注释即可恢复
-  // eslint-disable-next-line no-unused-vars -- fileRef 仅在被注释的上传 UI 中引用
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- fileRef 仅在被注释的上传 UI 中引用
   const fileRef = useRef(null);
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
@@ -920,7 +920,7 @@ export default function AgentPanel({
   );
 
   // 图片上传（对应 UI 已被注释，见下方「图片上传：暂时隐藏」块；保留实现以便取消注释即恢复）
-  // eslint-disable-next-line no-unused-vars -- handleFiles 仅在被注释的上传 UI 中引用
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- handleFiles 仅在被注释的上传 UI 中引用
   const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;

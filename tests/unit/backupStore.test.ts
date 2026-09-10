@@ -84,6 +84,16 @@ describe('backupStore — 导出 exportAll', () => {
     expect(backup.ls['agent_conversations_canvas-assistant-p2']).toBeUndefined();
   });
 
+  it('exportAll 包含 KV 账号环境（非空才入包；账号为 KV 后端，不进 ls 清单）', async () => {
+    // 账号经 KV 单独走 out.accounts（不是 LS_KEYS 里的键）。
+    // 【由 backupCloudClipboard.test.ts 合并而来】该文件曾重复覆盖 clipboard/backupStore/cloudSync 三处，
+    // 删除整文件时把这条「云同步独有」的用例保留在此。
+    kvStore.set('yimao_accounts', [{ id: 'acc1', name: '环境1' }]);
+    const backup = await exportAll();
+    expect(backup.accounts).toEqual([{ id: 'acc1', name: '环境1' }]);
+    expect(backup.ls.yimao_accounts).toBeUndefined(); // KV 后端键不进 ls
+  });
+
   it('备份清单由 contracts.ts getLocalKeys() 统一生成，新增登记键自动进备份（无手写清单漂移）', async () => {
     // 这些新登记键此前未进手写 LS_KEYS，收口后必须自动进备份
     contentSet('agent_panel_width', '320');

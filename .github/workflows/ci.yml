@@ -25,11 +25,13 @@ jobs:
       - name: Type check
         run: npm run type-check
 
-      # 分层门禁：先跑快速逻辑面（纯逻辑/API/状态/hooks），最快暴露回归；
-      # 通过后再跑全量（含 jsdom 组件测试）与覆盖率门槛。
-      - name: Fast logic lane
-        run: npm run test:unit:logic
-
+      # 【2026-09-10 去重】此处原有一个 `Fast logic lane`（npm run test:unit:logic），
+      # 排在 test:coverage 之前「先跑快速面暴露回归」。实测该分层收益不成立，已删除：
+      #   · test:unit:logic 的 1932 个用例是 test:coverage（2332）的**真子集**，属纯重复执行；
+      #   · 耗时仅省 13.5s vs 19.0s —— 因为瓶颈是 vitest 的收集/初始化开销，不是 .tsx 组件数；
+      #   · 一旦逻辑面失败 CI 立刻红（少跑 5.5s 无意义），通过则还要再跑 19s，
+      #     总时长反而变成 32.5s。故合并为单条 test:coverage，语义等价且更快。
+      # 本地仍可单独用 npm run test:unit:logic 做开发期快速定向（该配置本身保留）。
       - name: Full unit tests + coverage
         run: npm run test:coverage
 

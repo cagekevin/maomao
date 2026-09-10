@@ -8,6 +8,7 @@ import {
   stripAtRef,
   hlAt,
   matchAsset,
+  matchAssetNames,
   collectAssets,
   buildShotPrompts,
   buildShots,
@@ -252,6 +253,74 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
   it('collectAssets：无资产或无图返回空', () => {
     expect(collectAssets({ description: '@x' }, [])).toEqual([]);
     expect(collectAssets(null, [{ name: 'x', imageUrl: '/f' }])).toEqual([]);
+  });
+
+  // ── 缺陷②回归锁：@名 后紧贴中文（无空格的中文书写）必须能垫图 ──
+  // 背景：旧实现用 matchAsset 的「@名后一位非中英数」边界，@卧室内 会被当"更长词"误杀，
+  // 场景图永远收不进参考图。collectAssets 改走 matchAssetNames（注册名词典 + 最长匹配）后修复。
+  // 【自 scriptBoxPrompts.boundaryDiag.test.ts 合并而来】：该文件的历史复现用例已删，
+  // 保留的这几条是「修复后的正确行为」契约锁。
+  describe('collectAssets · @名后紧贴中文也能垫图（缺陷②修复锁）', () => {
+    it('场景 @卧室内 → 命中注册名「卧室」（旧边界会误杀）', () => {
+      const assets = [{ id: '卧室', name: '卧室', category: 'scene', imageUrl: '/files/room.png' }];
+      const shotA = { description: '深夜@卧室,柔和灯光' }; // 后接标点
+      const shotB = { description: '深夜@卧室内,柔和灯光' }; // 后接中文（旧实现的断点）
+      expect(collectAssets(shotA, assets)).toHaveLength(1);
+      expect(collectAssets(shotB, assets)).toHaveLength(1); // 修复核心
+    });
+
+    it('角色/道具 @名后紧贴中文（站/坐/至）→ 全部被收，不再有数据依赖的偶发漏收', () => {
+      const shot = {
+        description: '深夜@卧室内。@骷髅A站在床边,右手举起@HKH精华瓶至胸前。@骷髅B坐在床上。',
+      };
+      const assets = [
+        { id: 'a1', name: '卧室', category: 'scene', imageUrl: '/files/room.png' },
+        { id: 'a2', name: '骷髅A', category: 'character', imageUrl: '/files/ka.png' },
+        { id: 'a3', name: '骷髅B', category: 'character', imageUrl: '/files/kb.png' },
+        { id: 'a4', name: 'HKH精华瓶', category: 'prop', imageUrl: '/files/bottle.png' },
+      ];
+      expect(new Set(collectAssets(shot, assets).map((i) => i.url))).toEqual(
+        new Set(['/files/room.png', '/files/ka.png', '/files/kb.png', '/files/bottle.png']),
+      );
+    });
+
+    it('mergeShotsForVideo 复用同一 collectAssets → 合并视频也能收到场景图（同口修复）', () => {
+      const shot = { id: 's1', description: '深夜@卧室内', videoPrompt: 'v' };
+      const assets = [{ id: 'a1', name: '卧室', imageUrl: '/files/room.png' }];
+      expect(mergeShotsForVideo([shot], assets).images.map((i) => i.url)).toEqual([
+        '/files/room.png',
+      ]);
+    });
+  });
+
+  // ── matchAssetNames：注册资产名词典 + 最长匹配（垫图收集核心）──
+  // 【自 boundaryDiag 合并】：原散落在诊断文件的「修复核心」用例，此处作为契约锁保留。
+  describe('matchAssetNames · 词典最长匹配', () => {
+    it('@名后紧贴中文（@卧室内 + 资产「卧室」）→ 命中', () => {
+      expect([...matchAssetNames('深夜@卧室内,柔和光', ['卧室'])]).toEqual(['卧室']);
+    });
+
+    it('最长优先防子串：@小马妈妈 只命中「小马妈妈」，不误配「小马」', () => {
+      expect([...matchAssetNames('@小马妈妈 来了', ['小马', '小马妈妈'])]).toEqual(['小马妈妈']);
+      expect([...matchAssetNames('@小马 吃草', ['小马', '小马妈妈'])]).toEqual(['小马']);
+    });
+
+    it('仅命中注册名：@路人（未注册）→ 空集合', () => {
+      expect(matchAssetNames('@路人 擦肩', ['小马', '卧室']).size).toBe(0);
+    });
+
+    it('空文本 / 空资产列表 / null → 空集合（不抛）', () => {
+      expect(matchAssetNames('', ['卧室']).size).toBe(0);
+      expect(matchAssetNames('@卧室', []).size).toBe(0);
+      expect(matchAssetNames(null, ['卧室']).size).toBe(0);
+    });
+
+    it('文本里多个 @名 都命中', () => {
+      const s = [
+        ...matchAssetNames('深夜@卧室, @骷髅A 举着 @HKH精华瓶', ['卧室', '骷髅A', 'HKH精华瓶']),
+      ];
+      expect(s).toHaveLength(3);
+    });
   });
 
   it('buildShotPrompts：生成 prompt/videoPrompt 并保留 @资产', () => {

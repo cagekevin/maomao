@@ -12,7 +12,7 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { poseForObject, presetDefinition } from './rig.ts';
+import { MIXAMO_BODY_SCALES, poseForObject, presetDefinition } from './rig.ts';
 import { log } from './log.ts';
 
 // 内置人物模型：使用减面版（49k→15k 三角），蒙皮/骨骼/动画全保留，降低每帧渲染成本
@@ -52,13 +52,7 @@ export function measureModelScale(
   });
 }
 
-const MIXAMO_BODY_SCALES = {
-  standard: [1, 1, 1],
-  tall: [0.95, 1.12, 0.95],
-  broad: [1.14, 1.04, 1.1],
-  female: [0.94, 0.98, 0.94],
-  male: [1.08, 1.06, 1.08],
-};
+// 体型比例表已收口到 rig.ts（唯一真相源，project.ts 的视觉中心计算共用同一份）。
 
 function dominantBoneNameFromHit(event) {
   const mesh = event.object;

@@ -13,7 +13,6 @@ import {
   setCurrentAssistantTabs,
   setActiveTableTab,
   getCurrentGlobalContract,
-  markMessageTableResolved,
 } from '../../src/components/agent/conversation/conversationStore.ts';
 import { getActiveConv } from '../../src/components/agent/conversation/conversationState.ts';
 import { appendMsg } from '../../src/components/agent/runtime/agentMessages.ts';
@@ -302,7 +301,6 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
       messageId: mid,
       selectedRowIds: [rid],
     });
-    const p = getTableWorkspace().preview!;
     // accept 后即使改选/表已变，确认仍写 preview 里的结果（B-003 结构消解）
     setTableWorkspaceRows([]);
     setCurrentAssistantTable(parsePasted('甲\t乙\nx\ty')!);

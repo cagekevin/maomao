@@ -2,6 +2,7 @@
 // 纯逻辑/纯函数，不依赖 React 与组件，供 App.jsx 及各面板复用。
 import {
   RIG_PRESET_OPTIONS,
+  bodyScaleHeight,
   cloneJointPose,
   interpolateJointPose,
   normalizePoseId,
@@ -279,6 +280,13 @@ export function uniqueSortedKeyframes(keys) {
 // ================================================================
 
 // ================================================================
+// 【契约索引（docs/115）】本文件是 director3d 三类对象（人物/道具/摄像机）的领域真相源。
+//   C2.1 属性必须先登记再使用：任何属性（含 config 类）都要在下方注册表登记一次。
+//   C2.2 animatable 必须声明 channel（deriveChannels 会抛错，见下）。
+//   C3.3 写入守卫：assertRegisteredPatch(entityType, patch) 在开发期校验字段已登记。
+//   C4.1 求值：三类对象走同一 synthesize 流程，通道数不同而已（见本文件 M2 段落）。
+// 完整契约见 docs/115-director3d-三类对象数据流契约与架构收口-2026-09-10.md
+// ================================================================
 // 属性归属注册表（PROPERTY_REGISTRY）：3D 导演台「属性归谁管、怎么生效」的唯一登记入口。
 // 一个属性只能在注册表登记一次，录制 / 求值 / 归一化自动按层生效，无需在各通道、求值器、Inspector 单独判断。
 // ------------------------------------------------------------------
@@ -323,6 +331,10 @@ export const PROPERTY_REGISTRY: PropertyRegistry = {
     color: { layer: 'config' },
     name: { layer: 'config' },
     locked: { layer: 'config' }, // 编辑约束，仍在动画系统之外
+    type: { layer: 'config' }, // 判别字段：决定渲染器与默认属性
+    visible: { layer: 'config' }, // 显隐开关（非动画：不随关键帧）
+    scaleAxisLocks: { layer: 'config' }, // 缩放轴锁定（编辑器约束）
+    proportionalScale: { layer: 'config' }, // 等比缩放开关（编辑器约束）
   },
   object: {
     position: { layer: 'animatable', channel: 'transform' },
@@ -331,6 +343,15 @@ export const PROPERTY_REGISTRY: PropertyRegistry = {
     color: { layer: 'config' },
     name: { layer: 'config' },
     locked: { layer: 'config' },
+    type: { layer: 'config' }, // 判别字段：box/arch/model/depthMesh/...（决定渲染器）
+    visible: { layer: 'config' }, // 显隐开关（非动画）
+    scaleAxisLocks: { layer: 'config' }, // 缩放轴锁定（编辑器约束）
+    proportionalScale: { layer: 'config' }, // 等比缩放开关（编辑器约束）
+    // ---- 模型类道具的资源字段（此前散落在 Viewport 的 if/else 里，现统一登记）----
+    url: { layer: 'config' }, // 导入模型资源（type: 'model'）
+    parts: { layer: 'config' }, // 装配体子件（type: 'assembly'）
+    depthMapUrl: { layer: 'config' }, // 深度图资源（type: 'depthMesh'）
+    depthSettings: { layer: 'config' }, // 深度网格参数（type: 'depthMesh'）
   },
   camera: {
     position: { layer: 'animatable', channel: 'transform' },
@@ -340,6 +361,7 @@ export const PROPERTY_REGISTRY: PropertyRegistry = {
     targetId: { layer: 'objectState' },
     name: { layer: 'config' },
     aspectRatio: { layer: 'config' },
+    type: { layer: 'config' }, // 判别字段：恒为 'camera'（与 entity 一致，便于统一处理）
   },
 };
 
@@ -369,6 +391,32 @@ export const OBJECT_STATE_FIELDS = Object.fromEntries(
     Object.keys(fields).filter((field) => fields[field].layer === 'objectState'),
   ]),
 );
+
+// 预编译每实体「合法字段名集合」：供开发期写入校验用（契约 C3.3）。
+// 写入 patch 的 key 若不在该 entity 的合法集合内，说明要么字段漏登记、要么写错了对象类型。
+export const ENTITY_FIELD_NAMES: Record<string, Set<string>> = Object.fromEntries(
+  Object.entries(PROPERTY_REGISTRY).map(([type, fields]) => [type, new Set(Object.keys(fields))]),
+);
+
+// 开发期写入守卫（契约 C3.3）：校验 patch 的字段是否已在该 entity 登记。
+// 目的：让「字段没登记就写」「写错对象类型」这两类静默问题在开发期立刻暴露（带调用栈），
+//      而不是等到运行时表现为「改了没反应」再去追。生产构建下为空操作（零开销）。
+// 注意：只告警不拦截——避免因个别未登记的历史字段导致写入被吞。
+export function assertRegisteredPatch(entityType: string, patch: Record<string, unknown>) {
+  if (!import.meta.env?.DEV) return;
+  const allowed = ENTITY_FIELD_NAMES[entityType];
+  if (!allowed || !patch || typeof patch !== 'object') return;
+  for (const field of Object.keys(patch)) {
+    if (!allowed.has(field)) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[PROPERTY_REGISTRY] ${entityType}.${field} 未在注册表登记却发生写入——` +
+          `请先在 PROPERTY_REGISTRY 补登记该字段（layer/channel）。`,
+        patch,
+      );
+    }
+  }
+}
 
 // 整快照 key → 各通道 key（M1.2 轨数据结构：`{frame, interpolation, fields:{…}}`）。
 // 只有 snapshot 里「存在」的字段才进对应通道的 fields；不存在的字段不补默认
@@ -521,40 +569,53 @@ export function setChannelInterpolation(channels = {}, frame, interpolation) {
   return next;
 }
 
-// M4.1 对象轨唯一写入口：手动 K / 单属性 K / 路径 bake / 删除 / 移动 / 改插值统一经它落库，
-// 禁止在 UI 层手写 setCharacterKeyframes 拼装（M4-C1）。
+// ================================================================
+// 轨道写操作（唯一 op 语义）——对象轨与相机轨共用同一套 operation。
+// ------------------------------------------------------------------
 // operation（互斥之一）：
 //   { op:'upsert', keys }                  增/改一帧（keys 为 snapshotToChannelKeys 产物的通道 key 映射）
-//   { op:'remove', frames:[...] }          删指定帧（跨通道；轨道被写空后自动移除该对象条目）
+//   { op:'remove', frames:[...] }          删指定帧（跨通道）
 //   { op:'move', from, to }                整帧平移
 //   { op:'interpolation', frame, value }   改该帧插值（各通道一致）
-//   { op:'clear' }                         清空整条轨道（删除对象时随对象移除）
-//   { op:'batch', steps:[operation...] }   原子批处理（路径 bake：先删旧路径帧再整批插新，M4-C5）
-// 语义集中：同帧覆盖/排序去重由底层原语保证。返回新 tracks（纯函数，不就地修改）。
-export function writeObjectTrack(tracks = {}, id, operation) {
-  if (!operation || typeof operation !== 'object') return tracks;
-  const applyOp = (channels, step) => {
+//   { op:'clear' }                         清空整条轨道
+//   { op:'batch', steps:[operation...] }   原子批处理（先删旧帧再整批插新，M4-C5）
+// 语义集中：同帧覆盖/排序去重由底层原语保证。返回新 channels（纯函数，不就地修改）。
+//
+// 【为什么抽这一层】此前相机轨的 moveCameraFrames / bakeCameraPath 各自**手写**
+// 「先 removeChannelFrames 再 upsertChannelKeys」——即重造了 batch 语义，与对象轨的
+// 同名操作是两份实现。一旦两者语义漂移（例如某处忘了先删旧帧），就会出现
+// 「相机轨留下幽灵帧、对象轨不会」这类只在一条轨道上复现的怪问题。
+// 抽出后两条轨道共用同一 applyTrackOperation，语义只有一份。
+// ================================================================
+export function applyTrackOperation(channels: ChannelTracks = {}, operation): ChannelTracks {
+  if (!operation || typeof operation !== 'object') return channels;
+  const applyOp = (list, step) => {
     switch (step?.op) {
       case 'upsert':
-        return upsertChannelKeys(channels, step.keys);
+        return upsertChannelKeys(list, step.keys);
       case 'remove':
-        return removeChannelFrames(
-          channels,
-          Array.isArray(step.frames) ? step.frames : [step.frames],
-        );
+        return removeChannelFrames(list, Array.isArray(step.frames) ? step.frames : [step.frames]);
       case 'move':
-        return moveChannelFrames(channels, step.from, step.to);
+        return moveChannelFrames(list, step.from, step.to);
       case 'interpolation':
-        return setChannelInterpolation(channels, step.frame, step.value);
+        return setChannelInterpolation(list, step.frame, step.value);
       case 'clear':
         return {};
       case 'batch':
-        return (Array.isArray(step.steps) ? step.steps : []).reduce(applyOp, channels);
+        return (Array.isArray(step.steps) ? step.steps : []).reduce(applyOp, list);
       default:
-        return channels;
+        return list;
     }
   };
-  const next = applyOp(tracks[id] || {}, operation);
+  return applyOp(channels || {}, operation);
+}
+
+// M4.1 对象轨唯一写入口：手动 K / 单属性 K / 路径 bake / 删除 / 移动 / 改插值统一经它落库，
+// 禁止在 UI 层手写 setCharacterKeyframes 拼装（M4-C1）。
+// 额外语义：轨道被写空后自动移除该对象条目（清空键不残留）。
+export function writeObjectTrack(tracks = {}, id, operation) {
+  if (!operation || typeof operation !== 'object') return tracks;
+  const next = applyTrackOperation(tracks[id] || {}, operation);
   if (countChannelKeyframes(next)) return { ...tracks, [id]: next };
   const copy = { ...tracks };
   delete copy[id];
@@ -888,6 +949,38 @@ export function normalizeObjectTracks(
 
 export const cloneProjectValue = (value) => JSON.parse(JSON.stringify(value));
 export const defaultShotName = (index) => `镜头 ${String(index + 1).padStart(2, '0')}`;
+
+/**
+ * 构造一个空镜头（shot）结构体 —— 镜头级字段的唯一构造入口。
+ *
+ * 【为什么要有它】此前 App.tsx 有**三处**各自内联手写这份结构体：
+ *   - startup 初始 shots（useState 初始化）
+ *   - addShot（新建镜头）
+ *   - initializeProject（初始化工程）
+ * 新增一个镜头级字段时（例如 `paths` 就曾漏过）必须记得改三处，漏一处就得到
+ * 「新建镜头缺字段 → 运行时 undefined」——这正是「属性散落、单一位置缺失」那类黑洞
+ * 在 shot 层的翻版。收口到此后，三处统一调用，字段清单只有一份。
+ *
+ * @param overrides 覆盖默认值（id / name / 场景内容等由调用方按语义提供）
+ */
+export function createEmptyShot(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'shot-01',
+    name: '镜头 01',
+    thumbnail: '',
+    fps: DEFAULT_PROJECT_SETTINGS.fps,
+    durationSeconds: DEFAULT_PROJECT_SETTINGS.durationSeconds,
+    loopPlayback: DEFAULT_PROJECT_SETTINGS.loopPlayback,
+    objects: cloneProjectValue(initialObjects),
+    camera: cloneProjectValue(initialCamera),
+    lighting: cloneProjectValue(DEFAULT_LIGHTING),
+    reference: cloneProjectValue(DEFAULT_REFERENCE),
+    keyframes: [],
+    objectKeyframes: {},
+    paths: {},
+    ...overrides,
+  };
+}
 
 export function uniqueShotName(shots, preferred) {
   const used = new Set(
@@ -1333,6 +1426,73 @@ export function cameraAtFrame(keyframes, frame, aspectRatio = '16:9') {
   return result;
 }
 
+/**
+ * 摄像机单入口求值（收口原 App.tsx 的三分支）。
+ *
+ * 【为什么收口】原先「这一帧摄像机位置/朝向是什么」由 App.tsx 的 if/else 三分支回答：
+ *   分支1 有路径 → { ...camera, ...snap }
+ *   分支2 有相机关键帧 → cameraAtFrame(...)
+ *   分支3 都没有 → camera（基线）
+ * 三者回答的是**同一个量**，拆在组件层导致「位置谁说了算」没有唯一答案点。
+ * 而道具侧早已用「来源优先级」表达（见 synthesizeObjectState 的 pathActive 分支）——
+ * 本函数让摄像机与道具同构：**路径（来源一）→ 关键帧（来源二）→ 基线（兜底）**。
+ *
+ * 【行为等价性】严格逐字复刻原三分支，包括两处易被合并顺序改坏的细节：
+ *   · 路径分支用**当前 camera 基线**打底（`{ ...camera, ...snapshot }`），
+ *     故路径只覆盖 position/rotation，focalLength 等仍取当前值；
+ *   · 关键帧分支走 `cameraAtFrame`，其内部用 **initialCamera** 打底（非当前 camera）。
+ * 收口不改这两处语义，只把分派从组件层搬到领域层（可单测、可逐帧比对）。
+ *
+ * @param camera       当前摄像机基线（camera state）
+ * @param keyframes    相机关键帧轨（通道结构或旧数组）
+ * @param path         当前镜头的相机运动路径（可选）
+ * @param frame        目标帧
+ * @param totalFrames  镜头总帧数（路径未声明 endFrame 时兜底）
+ */
+export function cameraAtFrameWithPath(
+  camera: ProjectCamera,
+  keyframes: ChannelTracks | ChannelKey[] | null | undefined,
+  path: object | null | undefined,
+  frame: number,
+  totalFrames: number,
+): ProjectCamera {
+  // 来源一：运动路径（沿曲线弧长匀速取位；非"始终面向对象"时朝向沿切线）
+  if (path && Array.isArray((path as { points?: unknown[] }).points)) {
+    const points = (path as { points: unknown[] }).points;
+    if (points.length >= 2) {
+      const start = Math.max(
+        0,
+        Math.round(Number((path as { startFrame?: number }).startFrame) || 0),
+      );
+      const end = Math.max(
+        start + 1,
+        Math.round(Number((path as { endFrame?: number }).endFrame) || totalFrames),
+      );
+      const u = clamp((frame - start) / Math.max(1, end - start), 0, 1);
+      const pos = pathPositionAtFraction(path, u);
+      if (pos) {
+        const tangent = pathTangentAtFraction(path, u) || [0, 0, -1];
+        const position = [pos.x, pos.y, pos.z];
+        const snapshot: { position: number[]; rotation?: number[] } = { position };
+        if (camera.targetMode !== 'object') {
+          snapshot.rotation = cameraRotationToward(position, [
+            pos.x + tangent[0],
+            pos.y + tangent[1],
+            pos.z + tangent[2],
+          ]);
+        }
+        return { ...camera, ...snapshot };
+      }
+    }
+  }
+  // 来源二：相机关键帧轨（"已打点帧数"判断有无动画）
+  if (countChannelKeyframes(keyframes as ChannelTracks)) {
+    return cameraAtFrame(keyframes as ChannelTracks, frame, camera.aspectRatio);
+  }
+  // 兜底三：基线
+  return camera;
+}
+
 export function objectKeyframeFromObject(object, frame) {
   const rig = poseForObject(object);
   return {
@@ -1629,7 +1789,9 @@ export function visualCenterForObject(object) {
   if (!object) return [0, 0, 0];
   const position = object.position || [0, 0, 0];
   if (object.type !== 'person') return [...position];
-  const bodyHeight = { tall: 1.12, broad: 1.04, female: 0.98, male: 1.06 }[object.bodyType] || 1;
+  // 身高倍率取自 rig.ts 的体型比例表（唯一真相源），不再手抄一份——
+  // 避免「改模型缩放了、视觉中心没跟着改」导致的聚焦/对焦偏移。
+  const bodyHeight = bodyScaleHeight(object.bodyType);
   const root = object.rigRoot || [0, 0, 0];
   const scale = object.scale || [1, 1, 1];
   const localCenter = [root[0] * scale[0], (root[1] + bodyHeight) * scale[1], root[2] * scale[2]];

@@ -1,4 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import {
   ReactFlow,
   Background,
@@ -48,6 +55,7 @@ import { useCanvasHistory } from './hooks/useCanvasHistory.ts';
 import { patchNodeDataById } from './hooks/useNodeData.ts';
 import { CanvasEdgesProvider } from './components/base/canvas/CanvasEdgesContext.tsx';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts.ts';
+import { hasModalLayer, subscribeModalLayer } from './components/base/core/modalLayer.ts';
 import { defaultNodeData, buildNodeTypeComponents } from './components/base/canvas/NodePalette.ts';
 import LodProvider, { useLod } from './components/base/canvas/lod.tsx';
 import ToastContainer from './components/base/ui/ToastContainer.tsx';
@@ -105,6 +113,34 @@ const nodeTypes = {
 // 边类型注册表
 const edgeTypes = {
   default: CustomEdge,
+};
+
+// ═══ 节点「输入口契约」单源表（type → targetHandleId）═══
+// 语义：凡是「左侧输入口不是 React Flow 默认 null 口」的节点，建边 / 恢复存量边时
+// 必须把 edge.targetHandle 显式指到该节点 NodeShell 声明的 targetHandleId，否则落成 null，
+// React Flow 的 getHandle$1 会用 null 去 handleBounds 里取「第一个 target 口」，
+// 取不到即报 "Couldn't create edge for target handle id: null"（含懒加载节点首帧无端口的场景）。
+// 现状：
+//  - scriptBoxNode：showHandles={false} 关了默认口，输入口来自 overlayHandles 的 'in'；
+//  - panoramaNode：懒加载节点（three 重依赖），targetHandleId='in'（与 sourceHandleId='main-output' 成对）。
+// 维护约定：新增节点若声明 targetHandleId，必须同步登记到本表（唯一真源，勿在调用点另写内联表）。
+const TARGET_HANDLE_BY_NODE_TYPE: Record<string, string> = {
+  scriptBoxNode: 'in',
+  panoramaNode: 'in',
+};
+
+// ═══ 节点「输出口契约」单源表（type → sourceHandleId）═══
+// 语义：凡是「右侧输出口不是 React Flow 默认 null 口」的节点，存量旧边（sourceHandle 为
+// null/undefined）在加载时必须显式补成该节点的 sourceHandleId，否则 React Flow 用 null 去
+// handleBounds 里取「第一个 source 口」，取不到即报 source 侧 code-008
+// （日志表现：`Couldn't create edge for source handle id: "null"`）。
+// 与 NodeShell 的 sourceHandleId prop 成对；新增节点声明 sourceHandleId 时同步登记。
+const SOURCE_HANDLE_BY_NODE_TYPE: Record<string, string> = {
+  panoramaNode: 'main-output',
+  videoProcessNode: 'main-output',
+  imageBoxNode: 'active',
+  gridSplitNode: 'batch',
+  gridMergeNode: 'merged-output',
 };
 
 // React Flow 错误回调（覆盖库内置的 devWarn，仅 dev 生效）。
@@ -187,19 +223,29 @@ function Canvas() {
             prefetchHeavyNode(n.type as Parameters<typeof prefetchHeavyNode>[0]);
           // 兜底：历史快照里可能有旧 onConnect 建的「无 id」边 → 补唯一 id，
           // 否则 EdgeRenderer 用 undefined 作 key 触发重复 key 警告。
-          // 同时修正「连到剧本盒子却缺 targetHandle」的历史坏边：scriptBoxNode 的输入口
-          // 固定为 handleId='in'（showHandles={false} 无默认口），旧边 targetHandle 是
-          // null/undefined 会触发 React Flow 的 "Couldn't create edge for target handle id: null"。
-          // 这里统一把 target 是 scriptBoxNode 的边 targetHandle 补成 'in'，让存量边立即生效。
-          const targetIsScriptBox = new Set(
-            safeNodes.filter((n) => n.type === 'scriptBoxNode').map((n) => n.id),
-          );
-          const loadedEdges = ((saved.edges || []) as Edge[]).map((e, _i) => ({
-            ...e,
-            id: e.id || generateId('loaded-edge'),
-            targetHandle:
-              targetIsScriptBox.has(e.target) && !e.targetHandle ? 'in' : e.targetHandle,
-          }));
+          // 同时修正「连到固定端口节点却缺 handle」的历史坏边：这些节点的入口/出口
+          // 不是默认 null 口（scriptBoxNode: showHandles={false} 只有 'in'；panoramaNode:
+          // target='in' / source='main-output' 等），旧边 handle 是 null/undefined 会触发
+          // React Flow 的 code-008（"Couldn't create edge for {target|source} handle id: null"）。
+          // 这里按节点类型统一补齐两侧 handle，让存量边立即生效。
+          // 类型→端口映射走模块级单源表 TARGET_/SOURCE_HANDLE_BY_NODE_TYPE（与 addNode 共用）。
+          const nodeTypeById = new Map(safeNodes.map((n) => [n.id, n.type as string]));
+          const loadedEdges = ((saved.edges || []) as Edge[]).map((e, _i) => {
+            const targetType = nodeTypeById.get(e.target) as string | undefined;
+            const sourceType = nodeTypeById.get(e.source) as string | undefined;
+            return {
+              ...e,
+              id: e.id || generateId('loaded-edge'),
+              targetHandle:
+                !e.targetHandle && targetType && TARGET_HANDLE_BY_NODE_TYPE[targetType]
+                  ? TARGET_HANDLE_BY_NODE_TYPE[targetType]
+                  : e.targetHandle,
+              sourceHandle:
+                !e.sourceHandle && sourceType && SOURCE_HANDLE_BY_NODE_TYPE[sourceType]
+                  ? SOURCE_HANDLE_BY_NODE_TYPE[sourceType]
+                  : e.sourceHandle,
+            };
+          });
           setEdges(loadedEdges);
           // P20 视窗状态恢复：快照里存了视窗（缩放/平移）则恢复，回到上次视角；
           // 无视窗（旧快照/首次）不干预，保留 ReactFlow 默认 fitView 适配全图。
@@ -578,9 +624,8 @@ function Canvas() {
       const nodeWithDefaults = applyNodeTypeDefaults(newNode);
       const nextNodes = [...nodesRef.current, nodeWithDefaults];
       // 若带 connection：自动创建 source→新节点 的边。
-      // 目标端口：剧本盒子（scriptBoxNode）只暴露 handleId='in' 的输入口（showHandles={false} 关了默认口），
-      // 若不带 targetHandle 会落成 null → React Flow 报 "Couldn't create edge for target handle id: null"。
-      // 因此当新节点是 scriptBoxNode 时，必须把边的 targetHandle 指到 'in'。
+      // 目标端口走模块级单源表 TARGET_HANDLE_BY_NODE_TYPE（见文件头【区 1】）：
+      // 表内节点显式指到其 targetHandleId，表外节点沿用默认 null 口。
       const nextEdges = connection
         ? [
             ...edgesRef.current,
@@ -589,7 +634,7 @@ function Canvas() {
               source: connection.source,
               sourceHandle: connection.sourceHandle || null,
               target: id,
-              targetHandle: type === 'scriptBoxNode' ? 'in' : undefined,
+              targetHandle: TARGET_HANDLE_BY_NODE_TYPE[type],
               type: 'default',
               animated: false,
             },
@@ -1043,6 +1088,14 @@ function Canvas() {
     );
   }, [setNodes]);
 
+  // 全屏模态层是否打开（响应式订阅）。
+  // useCanvasShortcuts 走「查询式」让位（执行前查 hasModalLayer），所以它天然安全；
+  // 但 React Flow 的 deleteKeyCode 是「声明式」的——它在内部用 useKeyPress 自挂 window 监听，
+  // 没有机会查询 hasModalLayer。若不让位，用户在 3D 导演台/图片编辑等全屏层里按 Delete，
+  // 删掉的会是**画布上选中的节点**（2026-09-10 真实事故）。
+  // 唯一可靠的做法：模态层开合时把 deleteKeyCode 换成 null，从源头拆掉那个监听。
+  const modalLayerOpen = useSyncExternalStore(subscribeModalLayer, hasModalLayer);
+
   // 键盘快捷键（基座 useCanvasShortcuts）
   useCanvasShortcuts({
     onUndo: history.undo,
@@ -1348,7 +1401,7 @@ function Canvas() {
               onError={handleReactFlowError}
               connectionLineComponent={ConnectionLine}
               connectionRadius={60}
-              deleteKeyCode={DELETE_KEY_CODE}
+              deleteKeyCode={modalLayerOpen ? null : DELETE_KEY_CODE}
               onPaneContextMenu={menu.onPaneContextMenu}
               onNodeContextMenu={menu.onNodeContextMenu}
               onSelectionContextMenu={menu.onSelectionContextMenu}

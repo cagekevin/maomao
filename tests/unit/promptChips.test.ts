@@ -386,7 +386,7 @@ describe('commitOccurrencesInRun（就地 DOM 手术，§8.4）', () => {
   });
 
   it('无 @ / 空素材 → 快速返回 false', () => {
-    const { root, run } = setup('普通文本', 4);
+    const { run } = setup('普通文本', 4);
     expect(commitOccurrencesInRun(run, assets, { frontierOffset: 4 })).toBe(false);
     expect(commitOccurrencesInRun(run, [], { frontierOffset: 4 })).toBe(false);
   });

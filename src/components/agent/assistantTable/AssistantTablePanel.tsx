@@ -116,12 +116,15 @@ export default function AssistantTablePanel({
   const [findReplaceOpen, setFindReplaceOpen] = useState(false);
 
   /** 唯一写回入口（当前活动 tab）：commit 前快照入撤销栈 */
-  const commit = (sb: AssistantTable) => {
-    if (sb === tableData) return;
-    pushHistory(getCurrentAssistantTabs());
-    const normalized = normalizeAssistantTable(sb);
-    setCurrentAssistantTable(normalized);
-  };
+  const commit = useCallback(
+    (sb: AssistantTable) => {
+      if (sb === tableData) return;
+      pushHistory(getCurrentAssistantTabs());
+      const normalized = normalizeAssistantTable(sb);
+      setCurrentAssistantTable(normalized);
+    },
+    [tableData],
+  );
 
   // 选区 + 系统/内部剪贴板（spec 3.6 + interaction-model；依赖 commit，故必须在其后声明）
   const { range, onCellPointerDown, clearRange, copy, paste } = useTableSelection({
@@ -306,7 +309,7 @@ export default function AssistantTablePanel({
     if (!ok) return;
     commit({ columns: [], rows: [] });
     showToast?.('已清空表格', { type: 'success' });
-  }, [commit]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [commit]);
 
   const handleStyleCommit = () => {
     const next = styleDraft.trim();

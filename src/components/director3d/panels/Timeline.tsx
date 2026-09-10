@@ -500,7 +500,7 @@ export function Timeline({
               className="keyframe-button object-keyframe-button"
               onClick={onAddObjectKeyframe}
             >
-              <Plus size={13} /> {objectTrack.type === 'person' ? '角色状态关键帧' : '物体关键帧'}
+              <Plus size={13} /> {objectTrack.type === 'person' ? '角色关键帧' : '物体关键帧'}
             </button>
           )}
         </div>

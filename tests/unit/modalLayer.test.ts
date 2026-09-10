@@ -10,7 +10,7 @@
  * 画布上每有一个 AssetNode 就多一层登记。当时的全量测试（2365 个用例）全绿 —— 因为
  * 没有任何用例在测"可见性变化时登记状态是否跟着变"。本文件补的就是这个缺口。
  */
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, renderHook, cleanup } from '@testing-library/react';
 import { createElement } from 'react';
 import {
@@ -120,6 +120,67 @@ describe('modalLayer — 登记与注销', () => {
     expect(typeof list[0].stack).toBe('string');
     unmount();
     expect(debugModalLayers()).toHaveLength(0);
+  });
+});
+
+describe('modalLayer — 「常驻误登记」告警只在层不可见时才喊', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('真的全屏盖着屏幕（可见）→ 长时间登记不告警（导演台/图片编辑开着调样式即此情形）', () => {
+    // 造一个占满视口的元素冒充全屏层
+    const el = document.createElement('div');
+    el.getBoundingClientRect = () =>
+      ({ width: window.innerWidth, height: window.innerHeight }) as DOMRect;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { unmount } = renderHook(() =>
+      useFullscreenEditorKeys({ enabled: true, getElement: () => el }),
+    );
+
+    vi.advanceTimersByTime(61_000);
+    expect(warn).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('登记着却没有任何东西盖在屏幕上（误登记）→ 到点告警', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { unmount } = renderHook(() =>
+      useFullscreenEditorKeys({ enabled: true, getElement: () => null }),
+    );
+
+    vi.advanceTimersByTime(61_000);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain('常驻误登记');
+    unmount();
+  });
+
+  it('尺寸塌陷（0 面积）也算不可见 —— 只判「DOM 里有没有」会漏掉这类', () => {
+    const el = document.createElement('div');
+    el.getBoundingClientRect = () => ({ width: 0, height: 0 }) as DOMRect;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { unmount } = renderHook(() =>
+      useFullscreenEditorKeys({ enabled: true, getElement: () => el }),
+    );
+
+    vi.advanceTimersByTime(61_000);
+    expect(warn).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it('到点前注销 → 不告警（正常开关一次）', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { unmount } = renderHook(() =>
+      useFullscreenEditorKeys({ enabled: true, getElement: () => null }),
+    );
+    vi.advanceTimersByTime(30_000);
+    unmount();
+    vi.advanceTimersByTime(60_000);
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 

@@ -1,5 +1,6 @@
 import React, { Suspense } from 'react';
 import ErrorBoundary from '../ui/ErrorBoundary.tsx';
+import NodeShell from '../ui/NodeShell.tsx';
 import { logger } from '../core/logger.ts';
 
 /**
@@ -21,8 +22,26 @@ import { logger } from '../core/logger.ts';
  * 【用法】palette 目录项：`component: lazyNode(HEAVY_NODE_LOADERS.xxx, { label: '3D导演台' })`
  */
 
-/** 加载中占位：占满节点内容区，不破坏节点尺寸与端口定位（对齐 ErrorBoundary node 粒度） */
-function NodeLoading({ label }: { label?: string }) {
+/** 懒加载节点的端口契约（type → NodeShell 的 target/source handleId）。
+ *
+ * 【为什么占位骨架也必须声明端口】chunk 未到达前节点渲染的是本文件的占位骨架，
+ * React Flow 若此刻已存在/新建指向该节点的边，会去 handleBounds 查端口位置；骨架没有
+ * 端口 → 查不到 → 报 code-008（target/source handle id: null），且在节点挂载后
+ * （useSizeSync/尺寸写回触发 updateNodeInternals 重算全画布边）反复刷屏。
+ * 故骨架用 NodeShell 渲染，并按本表声明与真实节点一致的端口 id，保证测量期就有正确端口。
+ * ⚠️ 新增懒加载节点时，必须与真实节点的 NodeShell sourceHandleId/targetHandleId 保持一致。 */
+const LAZY_NODE_HANDLE_CONTRACT: Record<
+  string,
+  { targetHandleId?: string; sourceHandleId?: string }
+> = {
+  // director3dNode：真实节点用 NodeShell 默认口（无显式 handleId）→ 这里同样留空
+  director3dNode: {},
+  panoramaNode: { targetHandleId: 'in', sourceHandleId: 'main-output' },
+  videoProcessNode: { targetHandleId: 'default', sourceHandleId: 'main-output' },
+};
+
+/** 骨架内容（纯视觉：转圈 + 文案） */
+function LoadingContent({ label }: { label?: string }) {
   return (
     <div className="w-full h-full min-h-[120px] flex flex-col items-center justify-center gap-2 text-center">
       <div className="w-5 h-5 rounded-full border-2 border-edge border-t-transparent animate-spin" />
@@ -31,14 +50,44 @@ function NodeLoading({ label }: { label?: string }) {
   );
 }
 
+/** 加载中占位：
+ *  - 有 id（真实画布：ReactFlow 内）→ 用 NodeShell 外壳承载，声明与真实节点一致的端口 →
+ *    chunk 未到达前 handleBounds 已就位，指向该节点的边不会报 code-008。
+ *    端口契约由 LAZY_NODE_HANDLE_CONTRACT 提供（按 loader 的 type 键）。
+ *  - 无 id（如单测直接 render，不在 ReactFlow 内）→ 只渲染纯骨架内容，
+ *    避免 NodeShell 的 useStore/useReactFlow 在无 Provider 环境抛错。 */
+function NodeLoading({
+  id,
+  label,
+  handleContract,
+}: {
+  id?: string;
+  label?: string;
+  handleContract?: { targetHandleId?: string; sourceHandleId?: string };
+}) {
+  if (!id) return <LoadingContent label={label} />;
+  return (
+    <NodeShell
+      id={id}
+      defaultTitle={label || '加载中'}
+      selected={false}
+      resizable={false}
+      {...handleContract}
+    >
+      <LoadingContent label={label} />
+    </NodeShell>
+  );
+}
+
 /**
  * 把「() => import(...)」包装成可直接放进 nodeTypes 的懒加载节点组件。
  * @param loader 动态 import（必须字面量，供 Vite 静态分析），返回 { default: ComponentType }
  * @param opts.label 用于占位文案与错误日志
+ * @param opts.type  节点类型键（用于查 LAZY_NODE_HANDLE_CONTRACT 给占位骨架声明端口）
  */
 export function lazyNode(
   loader: () => Promise<{ default: React.ComponentType }>,
-  { label }: { label?: string } = {},
+  { label, type }: { label?: string; type?: string } = {},
 ) {
   const Lazy = React.lazy(() =>
     loader().catch((e) => {
@@ -48,9 +97,19 @@ export function lazyNode(
     }),
   );
 
+  const handleContract = type ? LAZY_NODE_HANDLE_CONTRACT[type] : undefined;
+
   const LazyNode = (props: Record<string, unknown>) => (
     <ErrorBoundary variant="node">
-      <Suspense fallback={<NodeLoading label={label} />}>
+      <Suspense
+        fallback={
+          <NodeLoading
+            id={props.id as string | undefined}
+            label={label}
+            handleContract={handleContract}
+          />
+        }
+      >
         <Lazy {...(props as object)} />
       </Suspense>
     </ErrorBoundary>

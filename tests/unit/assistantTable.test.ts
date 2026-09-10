@@ -31,7 +31,6 @@ import {
   renameTab,
   getTab,
   getActiveTab,
-  setActiveTabId,
   updateTab,
   setTabGlobalStyle,
   deleteRows,
@@ -560,7 +559,6 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
       const cross = copyRowsToTab(f, 'A', 'B', [rowId]);
       const dst = getTab(cross, 'B')!;
       expect(dst.rows).toHaveLength(1);
-      const dstCol0 = dst.columns[0];
       expect(dst.rows[0].cells[0]).toBe('中景'); // 值不丢
     });
 
@@ -584,7 +582,7 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
 
     it('rangeToCells：按 rowId/colId 锚定取矩形，与锚点顺序无关', () => {
       const t = sb();
-      const [r0, r1, r2] = t.rows.map((r) => r.id);
+      const [r0, r1] = t.rows.map((r) => r.id);
       const [c0, c1] = t.columns.map((c) => c.id);
       const a = rangeToCells(t, { r0: r0, c0: c0, r1: r1, c1: c1 });
       const b = rangeToCells(t, { r0: r1, c0: c1, r1: r0, c1: c0 }); // 反向拖

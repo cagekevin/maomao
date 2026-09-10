@@ -65,21 +65,24 @@ function PromptInput({
   autoFocus = false, // 挂载后自动聚焦并把光标放到末尾（仅全屏弹窗等主动打开的场景传 true）
   portalTarget = document.body, // null → 全屏弹窗内保持内联；默认 portal 到 body
 }: PromptInputProps & { ref?: React.Ref<HTMLDivElement> }) {
-  // 素材候选统一形态
-  const all = [
-    ...refImages.map((i, idx) => ({
-      id: i.id ?? `img-${idx}`,
-      label: i.label || `图片${idx + 1}`,
-      url: i.url,
-      kind: 'image',
-    })),
-    ...refTexts.map((t, idx) => ({
-      id: t.id ?? `text-${idx}`,
-      label: t.label || `文本${idx + 1}`,
-      url: t.url,
-      kind: 'text',
-    })),
-  ];
+  // 素材候选统一形态（memo：作为 useCallback 依赖须保持引用稳定）
+  const all = React.useMemo(
+    () => [
+      ...refImages.map((i, idx) => ({
+        id: i.id ?? `img-${idx}`,
+        label: i.label || `图片${idx + 1}`,
+        url: i.url,
+        kind: 'image',
+      })),
+      ...refTexts.map((t, idx) => ({
+        id: t.id ?? `text-${idx}`,
+        label: t.label || `文本${idx + 1}`,
+        url: t.url,
+        kind: 'text',
+      })),
+    ],
+    [refImages, refTexts],
+  );
 
   const [showMention, setShowMention] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');

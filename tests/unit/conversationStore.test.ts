@@ -110,14 +110,9 @@ describe('会话隔离数据层 §2.15', () => {
     expect(importLegacy({ messages: [{ role: 'user', content: 'X' }] })).toBeNull();
   });
 
-  it('AGENT_MSG_MAX=60 上限截断（保留最近 60 条）', () => {
-    const id = ensureActiveConversation();
-    applyConversation(id);
-    const many = Array.from({ length: 100 }, (_, i) => ({ role: 'user', content: `m${i}` }));
-    setCurrentSnapshot({ messages: many });
-    expect(getCurrentSnapshot().messages).toHaveLength(60);
-    expect(getCurrentSnapshot().messages.at(-1).content).toBe('m99');
-  });
+  // 【去重】原「AGENT_MSG_MAX=60 上限截断」用例与 conversationState.test.ts:144
+  // （patchCurrentMessages 同上限）输入/断言完全等价，且截断实现在 conversationState.ts 单点。
+  // 保留更贴近热路径的 patchCurrentMessages 版本，此处不再重复。
 
   it('memory 读写：setCurrentMemory / getCurrentMemory', () => {
     const id = ensureActiveConversation();

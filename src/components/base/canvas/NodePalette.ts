@@ -133,7 +133,7 @@ export const paletteNodes = [
     label: '全景图',
     icon: Globe,
     cat: 'image',
-    component: lazyNode(HEAVY_NODE_LOADERS.panoramaNode, { label: '全景图' }),
+    component: lazyNode(HEAVY_NODE_LOADERS.panoramaNode, { label: '全景图', type: 'panoramaNode' }),
     builtin: true,
     data: { aspectRatio: '16:9', imageUrl: '' },
   },
@@ -142,7 +142,10 @@ export const paletteNodes = [
     label: '3D导演台',
     icon: Film,
     cat: 'image',
-    component: lazyNode(HEAVY_NODE_LOADERS.director3dNode, { label: '3D导演台' }),
+    component: lazyNode(HEAVY_NODE_LOADERS.director3dNode, {
+      label: '3D导演台',
+      type: 'director3dNode',
+    }),
   },
   {
     type: 'faceMosaicNode',
@@ -179,7 +182,10 @@ export const paletteNodes = [
     label: '视频处理',
     icon: Wand2,
     cat: 'video',
-    component: lazyNode(HEAVY_NODE_LOADERS.videoProcessNode, { label: '视频处理' }),
+    component: lazyNode(HEAVY_NODE_LOADERS.videoProcessNode, {
+      label: '视频处理',
+      type: 'videoProcessNode',
+    }),
     badge: { text: 'NEW', tone: 'new' },
     builtin: true,
     data: {

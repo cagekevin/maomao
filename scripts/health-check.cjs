@@ -32,6 +32,50 @@ const warn = (label, ok, detail = '') => {
   if (!ok) warns++;
 };
 
+/**
+ * 跑一道子进程门禁，**失败时把完整输出打出来**。
+ *
+ * 【2026-09-10 修：为什么不再 slice】
+ * 原实现是 `execSync(..., { stdio: 'pipe' })` + `catch(e) { check(false, e.stdout.slice(0, 100)) }`。
+ * 三重重击导致失败信息几乎不可用，排查者（含 AI）只能去 grep 源码反推：
+ *   ① stdio:'pipe' 吞掉实时输出 → 失败瞬间看不到任何细节；
+ *   ② `.slice(100)` 只留**首部** 100 字符 → 而 vitest/eslint 的失败摘要与断言差异都在**末尾**，被精准切除；
+ *   ③ 无 maxBuffer 设置 → 默认 1MB，全量测试输出可能撞上限，报 "stdout maxBuffer exceeded"
+ *      （这本身又是假错误，进一步误导排查）。
+ * 现在：成功静默；失败时完整打印 stdout + stderr，让定位一次到位。
+ *
+ * @param {string} label  检查名（打印用）
+ * @param {string} cmd    命令
+ * @param {{timeout?: number}} [opts]
+ * @returns {boolean} 是否通过
+ */
+function runGate(label, cmd, opts = {}) {
+  const timeout = opts.timeout ?? 180000; // 3min 余量（实测 test:all 全量约 17s，见下）
+  try {
+    execSync(cmd, {
+      cwd: ROOT,
+      stdio: 'pipe',
+      timeout,
+      maxBuffer: 32 * 1024 * 1024, // 32MB：防全量测试输出撞默认 1MB 上限产生假错误
+    });
+    check(label, true);
+    return true;
+  } catch (e) {
+    const status = e.status ?? '?';
+    const timedOut = e.signal === 'SIGTERM' || e.killed;
+    check(
+      label,
+      false,
+      timedOut ? `超时被终止（>${timeout}ms）` : `退出码 ${status}（完整输出如下）`,
+    );
+    console.log('\n─────── 失败详情（完整输出）───────');
+    if (e.stdout) console.log(String(e.stdout).trimEnd());
+    if (e.stderr) console.error(String(e.stderr).trimEnd());
+    console.log('───────────────────────────────────\n');
+    return false;
+  }
+}
+
 console.log('═'.repeat(54));
 console.log('  原型工程健康度全量检查（react-nodes）');
 console.log('═'.repeat(54));
@@ -82,53 +126,29 @@ for (const [f, name] of files) {
 console.log('\n🔧 npm scripts');
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
 ['dev', 'build', 'test:smoke', 'test:regression', 'test:tools', 'test:all'].forEach((s) =>
-  check(`scripts.${s}`, !!pkg.scripts[s], `package.json 缺 scripts.${s}`),
+  // detail 仅在失败时给（原实现无条件传「缺 xxx」文案，成功时也打印，自相矛盾）
+  check(`scripts.${s}`, !!pkg.scripts[s], pkg.scripts[s] ? '' : `package.json 缺 scripts.${s}`),
 );
 
 // ── 3. 构建 ──
 console.log('\n🏗️ 构建（npm run build）');
-try {
-  execSync('npm run build', { cwd: ROOT, stdio: 'pipe', timeout: 120000 });
-  check('npm run build', true);
-} catch (e) {
-  check('npm run build', false, (e.stdout || e.message || '').slice(0, 100));
-}
+runGate('npm run build', 'npm run build', { timeout: 120000 });
 
 // ── 4. 统一测试门禁 ──
 console.log('\n🧪 统一测试门禁（test:all）');
-try {
-  execSync('node scripts/run_all_tests.cjs', { cwd: ROOT, stdio: 'pipe', timeout: 60000 });
-  check('test:all (smoke+regression+tools)', true);
-} catch (e) {
-  check('test:all', false, (e.stdout || e.message || '').slice(0, 120));
-}
+runGate('test:all (smoke+regression+tools)', 'node scripts/run_all_tests.cjs');
 
 // ── 4.1 存储键契约静态校验（裸 key 编译期拦截，对应架构 P0-1）──
 console.log('\n🔑 存储键契约校验（npm run check:keys）');
-try {
-  execSync('npm run check:keys', { cwd: ROOT, stdio: 'pipe', timeout: 60000 });
-  check('check:keys (STORAGE_KEYS 裸 key 拦截)', true);
-} catch (e) {
-  check('check:keys', false, (e.stdout || e.message || '').slice(0, 160));
-}
+runGate('check:keys (STORAGE_KEYS 裸 key 拦截)', 'npm run check:keys');
 
 // ── 4.2 事件契约静态校验（裸事件名编译期拦截，对应架构 P0-1）──
 console.log('\n📡 事件契约校验（npm run check:events）');
-try {
-  execSync('npm run check:events', { cwd: ROOT, stdio: 'pipe', timeout: 60000 });
-  check('check:events (EVENTS 裸事件名拦截)', true);
-} catch (e) {
-  check('check:events', false, (e.stdout || e.message || '').slice(0, 160));
-}
+runGate('check:events (EVENTS 裸事件名拦截)', 'npm run check:events');
 
 // ── 4.3 节点类型契约静态校验（useNodePrefs 裸命名空间编译期拦截，对应架构 P0-1）──
 console.log('\n🏷️ 节点类型契约校验（npm run check:node-types）');
-try {
-  execSync('npm run check:node-types', { cwd: ROOT, stdio: 'pipe', timeout: 60000 });
-  check('check:node-types (NODE_TYPES 裸 useNodePrefs 命名空间拦截)', true);
-} catch (e) {
-  check('check:node-types', false, (e.stdout || e.message || '').slice(0, 160));
-}
+runGate('check:node-types (NODE_TYPES 裸 useNodePrefs 命名空间拦截)', 'npm run check:node-types');
 
 // ── 5. TDZ 风险扫描（扫 src 下 .jsx/.js/.ts/.tsx）──
 console.log('\n🛡️ TDZ 风险扫描（src/*.jsx|js|ts|tsx）');
@@ -180,12 +200,8 @@ else warn('TDZ 扫描', false, `${tdzHits} 处风险（仅提醒，不阻断）`
 
 // ── 5.5 架构校验（循环依赖 + base 分层，check-arch.mjs）──
 console.log('\n🏛 架构校验（no-circular + base 分层）');
-try {
-  execSync('node scripts/check-arch.mjs', { cwd: ROOT, stdio: 'pipe' });
+if (runGate('架构校验 (check-arch)', 'node scripts/check-arch.mjs')) {
   console.log('  ✅ 架构校验通过');
-} catch (e) {
-  const msg = e.stdout ? String(e.stdout) : e.message;
-  check('架构校验', false, msg.split('\n').filter(Boolean).slice(-2).join(' | '));
 }
 
 // ── 6. 决策渠道门禁（ADR 必须为空；CLAUDE 决策铁律必须存在）──

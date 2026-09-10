@@ -81,7 +81,6 @@ export function Inspector({
   customPoses,
   onSelectJoint,
   onUpdateObject,
-  onUpdateCamera,
   onDelete,
   onDuplicate,
   onFocus,
@@ -124,16 +123,21 @@ export function Inspector({
     );
   }
   const isCamera = selected.id === CAMERA_ID;
+  // 契约 C3.1：统一写入入口 updateObject(id, patch)。
+  // 面板内所有写入都经下面两个薄包装——摄像机补 CAMERA_ID，其余补 selected.id——
+  // 保证「改了哪个对象」永远携带在参数里，不再依赖调用方记住该调哪个 prop。
+  const updateObject = (patch) => onUpdateObject(selected.id, patch);
+  const updateCamera = (patch) => onUpdateObject(CAMERA_ID, patch);
   const position = isCamera ? camera.position : selected.position;
   const rigPose = selected.type === 'person' ? poseForObject(selected) : null;
   const canLoopPose = selected.type === 'person' && poseCanLoop(selected.pose);
   const jointRotation = rigPose?.joints[selectedJoint] || [0, 0, 0];
   const updateJoint = (rotation) =>
-    onUpdateObject({
+    updateObject({
       joints: { ...rigPose.joints, [selectedJoint]: rotation },
     });
   const applyPreset = (pose) =>
-    onUpdateObject({
+    updateObject({
       pose: normalizePoseId(pose),
       poseTime: presetPhase(pose),
       continuousMotion: poseCanLoop(pose) ? Boolean(selected.continuousMotion) : false,
@@ -151,7 +155,7 @@ export function Inspector({
             <input
               className="inspector-name-input"
               value={selected.name}
-              onChange={(event) => onUpdateObject({ name: event.target.value })}
+              onChange={(event) => updateObject({ name: event.target.value })}
               aria-label="物体名称"
             />
           )}
@@ -184,7 +188,7 @@ export function Inspector({
             title="位置"
             value={position}
             onChange={(value) =>
-              isCamera ? onUpdateCamera({ position: value }) : onUpdateObject({ position: value })
+              isCamera ? updateCamera({ position: value }) : updateObject({ position: value })
             }
             disabled={!isCamera && selected.locked}
           />
@@ -193,14 +197,14 @@ export function Inspector({
               title="摄像机旋转 · X 俯仰 / Y 水平 / Z 翻滚"
               value={camera.rotation}
               degrees
-              onChange={(rotation) => onUpdateCamera({ rotation })}
+              onChange={(rotation) => updateCamera({ rotation })}
             />
           ) : (
             <VectorFields
               title={selected.type === 'person' ? '整体旋转 · X 纵向 / Y 水平 / Z 翻滚' : '旋转'}
               value={selected.rotation}
               degrees
-              onChange={(rotation) => onUpdateObject({ rotation })}
+              onChange={(rotation) => updateObject({ rotation })}
               disabled={selected.locked}
             />
           )}
@@ -216,16 +220,16 @@ export function Inspector({
                   : [false, false, false]
               }
               onToggleProportionalScale={() =>
-                onUpdateObject({ proportionalScale: !selected.proportionalScale })
+                updateObject({ proportionalScale: !selected.proportionalScale })
               }
               onToggleScaleAxis={(axis) => {
                 const locks = Array.isArray(selected.scaleAxisLocks)
                   ? [...selected.scaleAxisLocks]
                   : [false, false, false];
                 locks[axis] = !locks[axis];
-                onUpdateObject({ scaleAxisLocks: locks });
+                updateObject({ scaleAxisLocks: locks });
               }}
-              onChange={(scale) => onUpdateObject({ scale })}
+              onChange={(scale) => updateObject({ scale })}
               disabled={selected.locked}
             />
           )}
@@ -276,8 +280,8 @@ export function Inspector({
                 }
                 onChange={(event) => {
                   const value = event.target.value;
-                  if (value === 'manual') onUpdateCamera({ targetMode: 'manual' });
-                  else onUpdateCamera({ targetMode: 'object', targetId: value });
+                  if (value === 'manual') updateCamera({ targetMode: 'manual' });
+                  else updateCamera({ targetMode: 'object', targetId: value });
                 }}
               >
                 <option value="manual">手动（不朝向）</option>
@@ -295,7 +299,7 @@ export function Inspector({
                 min="18"
                 max="120"
                 value={camera.focalLength}
-                onChange={(e) => onUpdateCamera({ focalLength: Number(e.target.value) })}
+                onChange={(e) => updateCamera({ focalLength: Number(e.target.value) })}
               />
               <output>{Math.round(camera.focalLength)} mm</output>
             </label>
@@ -305,7 +309,7 @@ export function Inspector({
                   type="button"
                   key={value}
                   className={Math.round(camera.focalLength) === value ? 'is-active' : ''}
-                  onClick={() => onUpdateCamera({ focalLength: value })}
+                  onClick={() => updateCamera({ focalLength: value })}
                 >
                   {value}
                 </button>
@@ -366,7 +370,7 @@ export function Inspector({
                       ? selected.poseTime
                       : presetPhase(selected.pose)
                   }
-                  onChange={(e) => onUpdateObject({ poseTime: Number(e.target.value) })}
+                  onChange={(e) => updateObject({ poseTime: Number(e.target.value) })}
                 />
                 <output>
                   {Math.round(
@@ -382,7 +386,7 @@ export function Inspector({
                   type="checkbox"
                   checked={canLoopPose && Boolean(selected.continuousMotion)}
                   disabled={!canLoopPose}
-                  onChange={(event) => onUpdateObject({ continuousMotion: event.target.checked })}
+                  onChange={(event) => updateObject({ continuousMotion: event.target.checked })}
                 />
                 <span>
                   <strong>随时间轴循环动作</strong>
@@ -466,7 +470,7 @@ export function Inspector({
                 <button
                   type="button"
                   className="joint-reset-button"
-                  onClick={() => onUpdateObject({ joints: presetJoints(selected.pose) })}
+                  onClick={() => updateObject({ joints: presetJoints(selected.pose) })}
                 >
                   重置全部骨骼
                 </button>
@@ -474,7 +478,7 @@ export function Inspector({
                   <input
                     type="checkbox"
                     checked={Boolean(selected.footLock)}
-                    onChange={(event) => onUpdateObject({ footLock: event.target.checked })}
+                    onChange={(event) => updateObject({ footLock: event.target.checked })}
                   />
                   <span>
                     <strong>脚底锁定</strong>

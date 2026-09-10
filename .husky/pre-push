@@ -1,0 +1,20 @@
+#!/bin/sh
+# 推送门禁：全量 ESLint（前端的「推送时兜底」）。
+#
+# 背景：全量 lint 曾在 2026-09 被移出门禁（当时理由是「跑得慢 + 报错多」，见 CLAUDE.md §3.1）。
+# 重新实测后该理由已不成立：全量 src+tests 约 4s、0 error / 0 warning，故重新接入——
+# 但只放在 push 这一道，不进 pre-commit（避免每次提交都等），目标分支的云端兜底仍由
+# .github/workflows/ci.yml 负责（type-check + 全量单测 + 覆盖率）。
+#
+# 注意：
+#  - lint-staged 仍在 pre-commit 对「暂存文件」跑 eslint --fix + prettier（快，只管本次改动）；
+#    本钩子是「全量」复核，两者互补。
+#  - 若 lint 报错（error 级）会阻断 push；warning 不阻断（当前全量已 0 warning）。
+#  - 紧急绕过：`git push --no-verify`（请随后补修，勿常态使用）。
+#
+# `set +e`：个别环境触发 git hook 时 stdout 可能是坏 fd，husky 用 `sh -e` 运行本脚本，
+# 首个 echo 失败即被 set -e 中止、误判为门禁失败。故关闭 errexit；结论纯由末行退出码推导。
+set +e
+npm run lint
+lint=$?
+[ "$lint" -eq 0 ]

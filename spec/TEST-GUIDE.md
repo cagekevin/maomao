@@ -73,10 +73,14 @@
 | 守门点 | 现状 | 说明 |
 |--------|------|------|
 | **手动全量** `npm run test:all` | ✅ 有效 | 冒烟 + vitest 单测 + SSR 回归 + Agent 工具，全绿才过 |
-| **提交钩子** `.husky/pre-commit` | ✅ 跑 `type-check` + `vitest run --changed` | 提交前快速校验：类型检查 + **只跑改动相关**的单元测试（~2-3s），e2e 仍独立 |
-| **推送钩子** `.husky/pre-push` | ✅ 跑 `test:unit`（全量） | push 前跑全量单测兜底，避免 commit 每次等全量（162 文件约 20s） |
+| **提交钩子** `.husky/pre-commit` | ✅ 跑 `lint-staged` + `type-check` + `test-affected` + 3 个 SSR 门禁 | 提交前快速校验：暂存文件 lint/format（~1s）+ 类型检查 + **只跑改动相关**的单测（`scripts/test-affected.cjs`，~2-3s）+ `smoke`/`regression`/`tools` 秒级门禁。**不跑全量单测**（留给 CI） |
+| **推送钩子** `.husky/pre-push` | ✅ 跑 `npm run lint`（全量 ESLint） | push 前全量 lint 兜底（约 4s，当前 0 error / 0 warning）。**不跑全量单测**——全量由 CI 负责，避免 push 每次等 20s。紧急可 `git push --no-verify` 绕过 |
 | **e2e 纳入门禁** | ⚠️ `test:all` **不含 e2e** | e2e 需单独 `npm run test:e2e`（慢），默认不在统一门禁 |
-| **CI**`.github/workflows/ci.yml` | ✅ `type-check` → `test:unit:logic`（快速面）→ `test:coverage`（全量+覆盖率） | 分层门禁：先用逻辑快速面暴露回归，再全量以覆盖率守住，任一失败红 |
+| **CI**`.github/workflows/ci.yml` | ✅ `type-check` → `test:coverage`（全量+覆盖率） | 【2026-09-10 去重】原「logic 快速面 → 全量」两层已合并：logic 的 1932 用例是全量 2332 的**真子集**，纯重复执行；且因瓶颈在 vitest 收集开销，只省 5.5s（13.5s vs 19.0s），总时长反而更久。现单条 coverage 兜住，语义等价 |
+
+> 🔍 **门禁失败排查**：`scripts/health-check.cjs` 的 `runGate()` 在**失败时打印子进程完整 stdout + stderr**（2026-09-10 修）。此前用 `stdio:'pipe'` + `e.stdout.slice(0, 100)` 只留首部 100 字符，而 vitest/eslint 的失败摘要与断言差异都在**末尾** → 被精准切除，排查者只能靠 grep 源码反推。现直接给出完整报错与位置；`maxBuffer` 提到 32MB 防「输出过大」假错误。
+
+> 📌 **历史变更（2026-09-10）**：① 全量 lint 曾在 2026-09 被移出门禁（当时理由「跑得慢 + 报错多」），实测重估后该理由已不成立（全量 4s、0 error/0 warning），遂**重新接入 pre-push**；② 上表此前误记 `pre-push` 跑 `test:unit`（全量单测）——该做法更早已被删除（与 CI 重叠），现以「push 只跑 lint、全量交 CI」为准。以本节为准，勿再按旧记忆操作。
 
 > **判断**：测试要有"活门禁"才有守门价值。设计取舍（2026-08-21）：commit 阶段用 `vitest run --changed` 早抓「本次改动」回归（快），全量单测移到 `pre-push` 兜底（安全网不丢）。若想 commit 时也全量守门，把 pre-commit 的 `npx vitest run --changed` 换回 `npm run test:unit` 即可，代价是每次 commit 多等 ~20s。
 
@@ -155,6 +159,8 @@ tests/
     │                       #   environmentMatchGlobs 自动归类 jsdom，无需写 @vitest-environment 注释
     ├── _testUtils.mjs      # 【公共 helper】`jsonResp`/`sseResp`/`createKvMem`/`flushAsync`/`fastPollTimers`，
     │                       #   集中假响应与 KV 内存桩、等待落定、轮询加速，消灭文件内重复实现
+    ├── _channelLegacy.mjs  # 【公共 helper】对象动画「通道化」迁移验证锚：旧整快照求值参考实现
+    │                       #   `legacyObjectAtFrame`（此前在 channelEvaluation/channelWrite 各复制一份）
     └── _nodeMocks.mjs      # 【共享 mock 基建】集中 stub @xyflow/react、base 基座组件、hooks、
                             #   网络/存储层，导出 `mocks` 命名空间 + resetNodeMockState()，
                             #   被 jsdom 组件测试复用，消灭文件内重复 vi.mock（数量勿写死）

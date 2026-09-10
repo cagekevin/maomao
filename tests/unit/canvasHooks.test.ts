@@ -1,12 +1,13 @@
-// 回归测试：useCanvasHistory.js、useSyncNodeData.js、workflowRuntime.ts
+// 回归测试：useCanvasHistory.js、workflowRuntime.ts
 // @vitest-environment jsdom
 /**
  * 画布与同步 hooks 回归测试（TASK-066）。
  *
  * 覆盖：
  *  - useCanvasHistory：撤销/重做 hook 层（React 桥接），断言 record/undo/redo/clear 行为。
- *  - useSyncNodeData：节点 data 外部变更 → 本地 state 同步 hook。
  *  - workflowRuntime：工作流运行时纯逻辑（生命周期/取消/确认/回滚/撤销栈）。
+ *
+ * 注：useSyncNodeData 曾在此文件重复覆盖，已迁至专用文件 tests/unit/useSyncNodeData.test.ts（去重）。
  *
  * 并发安全：仅用 `npx vitest run tests/unit/canvasHooks.test.js` 验证，不占用共享资源。
  */
@@ -123,66 +124,9 @@ describe('useCanvasHistory 撤销/重做 hook 桥接', () => {
 });
 
 // ───────────────────────────────────────────────────────────
-// 2. useSyncNodeData
+// 2. useSyncNodeData —— 已迁至 tests/unit/useSyncNodeData.test.ts
+//    （此前本文件第 2 节重复覆盖同一 hook 的同一批行为，已删除去重）
 // ───────────────────────────────────────────────────────────
-import { useSyncNodeData } from '../../src/hooks/useSyncNodeData.ts';
-
-describe('useSyncNodeData 节点 data 同步 hook', () => {
-  it('data 字段变化 → 调对应 setter(next)', () => {
-    const setAspectRatio = vi.fn();
-    const setPrompt = vi.fn();
-    const data = { aspectRatio: '16:9', prompt: 'hello' };
-    const setters = { aspectRatio: setAspectRatio, prompt: setPrompt };
-    // 首次挂载：跳过初始化
-    const { rerender } = renderHook(({ d, s }) => useSyncNodeData(d, s), {
-      initialProps: { d: data, s: setters },
-    });
-    expect(setAspectRatio).not.toHaveBeenCalled();
-    expect(setPrompt).not.toHaveBeenCalled();
-
-    // data 变化：触发 setter
-    rerender({ d: { aspectRatio: '1:1', prompt: 'hello' }, s: setters });
-    expect(setAspectRatio).toHaveBeenCalledWith('1:1');
-    expect(setPrompt).not.toHaveBeenCalled();
-  });
-
-  it('首次渲染不触发 setter（跳过初始化）', () => {
-    const setter = vi.fn();
-    renderHook(({ d, s }) => useSyncNodeData(d, s), {
-      initialProps: { d: { foo: 'a' }, s: { foo: setter } },
-    });
-    expect(setter).not.toHaveBeenCalled();
-  });
-
-  it('字段未变化不触发', () => {
-    const setter = vi.fn();
-    const data = { foo: 'a' };
-    const setters = { foo: setter };
-    const { rerender } = renderHook(({ d, s }) => useSyncNodeData(d, s), {
-      initialProps: { d: data, s: setters },
-    });
-    // 新引用但字段值相同
-    rerender({ d: { foo: 'a' }, s: setters });
-    expect(setter).not.toHaveBeenCalled();
-  });
-
-  it('setter 非函数时跳过（不抛错）', () => {
-    expect(() => {
-      renderHook(({ d, s }) => useSyncNodeData(d, s), {
-        initialProps: { d: { foo: 'b' }, s: { foo: 'not-a-function' } },
-      });
-    }).not.toThrow();
-  });
-
-  it('data 为 undefined / 缺字段时不抛错', () => {
-    const setter = vi.fn();
-    const { rerender } = renderHook(({ d, s }) => useSyncNodeData(d, s), {
-      initialProps: { d: undefined, s: { foo: setter } },
-    });
-    expect(() => rerender({ d: {}, s: { foo: setter } })).not.toThrow();
-    expect(setter).not.toHaveBeenCalled();
-  });
-});
 
 // ───────────────────────────────────────────────────────────
 // 3. workflowRuntime

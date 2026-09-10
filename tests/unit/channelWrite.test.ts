@@ -8,17 +8,8 @@
 //   M4-C6 混合轨迁移规则：①路径帧无姿态残留 ②手动帧字段完整迁入 ③路径启用时 position=路径、动作/骨骼不丢
 // 依赖均为纯函数，node 环境可跑（npm run test:unit:logic）。
 import { describe, it, expect } from 'vitest';
+import { cloneJointPose } from '../../src/components/director3d/rig.ts';
 import {
-  cloneJointPose,
-  interpolateJointPose,
-  normalizePoseId,
-  poseCanLoop,
-  poseForObject,
-  presetPhase,
-} from '../../src/components/director3d/rig.ts';
-import {
-  lerp,
-  segmentAmount,
   objectAtFrame,
   normalizeObjectTracks,
   normalizeCameraPath,
@@ -26,6 +17,7 @@ import {
   writeObjectTrack,
   setChannelInterpolation,
 } from '../../src/components/director3d/project.ts';
+import { legacyObjectAtFrame } from './_channelLegacy.mjs';
 
 const FPS = 24;
 
@@ -350,81 +342,9 @@ describe('M4-C3 迁移幂等', () => {
 
 // ---- M4-C4 迁移后 M2 逐帧一致（旧整快照参考实现） ----
 
-// 旧整快照求值参考实现（复刻现网 objectAtFrame，仅作对照基准，M4-C4）
-function legacyObjectAtFrame(object, keyframes, frame, fps) {
-  if (!object) return object;
-  const sorted = [...keyframes].sort((a, b) => a.frame - b.frame);
-  if (!sorted.length) return object;
-  const motionEnabled = (key) =>
-    poseCanLoop(key.pose || object.pose) &&
-    (key.continuousMotion === undefined
-      ? Boolean(object.continuousMotion)
-      : Boolean(key.continuousMotion));
-  const sameState = (leftKey, rightKey) =>
-    normalizePoseId(leftKey.pose || object.pose) ===
-      normalizePoseId(rightKey.pose || object.pose) &&
-    motionEnabled(leftKey) === motionEnabled(rightKey);
-  const stateStartFrame = (key) => {
-    let index = sorted.indexOf(key);
-    while (index > 0 && sameState(sorted[index - 1], sorted[index])) index -= 1;
-    return sorted[index]?.frame ?? key.frame;
-  };
-  const applyKey = (key) => ({
-    ...object,
-    position: [...key.position],
-    rotation: [...key.rotation],
-    scale: [...key.scale],
-    pose: normalizePoseId(key.pose || object.pose),
-    poseTime: Number.isFinite(key.poseTime) ? key.poseTime : presetPhase(key.pose || object.pose),
-    continuousMotion: motionEnabled(key),
-    motionStartTime: stateStartFrame(key) / fps,
-    rigRoot: [...(key.rigRoot || poseForObject({ ...object, pose: key.pose || object.pose }).root)],
-    joints: cloneJointPose(
-      key.joints || poseForObject({ ...object, pose: key.pose || object.pose }).joints,
-    ),
-  });
-  const exact = sorted.find((key) => key.frame === frame);
-  if (exact) return applyKey(exact);
-  if (frame <= sorted[0].frame) return applyKey(sorted[0]);
-  if (frame >= sorted.at(-1).frame) return applyKey(sorted.at(-1));
-  const rightIndex = sorted.findIndex((key) => key.frame >= frame);
-  const left = sorted[rightIndex - 1];
-  const right = sorted[rightIndex];
-  const t = segmentAmount(left, (frame - left.frame) / Math.max(1, right.frame - left.frame));
-  const leftRoot =
-    left.rigRoot || poseForObject({ ...object, pose: left.pose || object.pose }).root;
-  const rightRoot =
-    right.rigRoot || poseForObject({ ...object, pose: right.pose || object.pose }).root;
-  const leftPoseTime = Number.isFinite(left.poseTime)
-    ? left.poseTime
-    : presetPhase(left.pose || object.pose);
-  const rightPoseTime = Number.isFinite(right.poseTime)
-    ? right.poseTime
-    : presetPhase(right.pose || object.pose);
-  const interpolateState = sameState(left, right);
-  return {
-    ...object,
-    position: left.position.map((value, index) => lerp(value, right.position[index], t)),
-    rotation: left.rotation.map((value, index) => lerp(value, right.rotation[index], t)),
-    scale: left.scale.map((value, index) => lerp(value, right.scale[index], t)),
-    pose: normalizePoseId(left.pose || object.pose),
-    poseTime: interpolateState ? lerp(leftPoseTime, rightPoseTime, t) : leftPoseTime,
-    continuousMotion: motionEnabled(left),
-    motionStartTime: stateStartFrame(left) / fps,
-    rigRoot: interpolateState
-      ? leftRoot.map((value, index) => lerp(value, rightRoot[index], t))
-      : [...leftRoot],
-    joints: interpolateState
-      ? interpolateJointPose(
-          left.joints || poseForObject({ ...object, pose: left.pose || object.pose }).joints,
-          right.joints || poseForObject({ ...object, pose: right.pose || object.pose }).joints,
-          t,
-        )
-      : cloneJointPose(
-          left.joints || poseForObject({ ...object, pose: left.pose || object.pose }).joints,
-        ),
-  };
-}
+// 旧整快照求值参考实现：已抽到 tests/unit/_channelLegacy.mjs 共享
+// （此前 channelEvaluation / channelWrite 各复制一份，共 ~74 行，易漂移）
+// import { legacyObjectAtFrame } from './_channelLegacy.mjs'; —— 见文件顶部 import 区
 
 // 递归容差比较：数值在容差内视为相等，数组逐元素比，对象按 expected 的键子集比。
 function expectSameState(actual, expected) {
