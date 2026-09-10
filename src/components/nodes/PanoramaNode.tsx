@@ -15,21 +15,20 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
-  Minimize2,
-  Frame,
   Loader2,
   Move3D,
 } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import PanoViewer, { type PanoView } from '../base/editors/PanoViewer.tsx';
+import PanoViewer from '../base/editors/PanoViewer.tsx';
 import { generateId } from '../base/core/idGen.ts';
 import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import { logger } from '../base/core/logger.ts';
 import { toastInfo, toastSuccess, toastError, toastWarning } from '../base/core/toastStore.ts';
+import { useModalLayer } from '../base/core/modalLayer.ts';
 
 /**
  * 720 全景图节点（复刻官方 Zl.jsx / panoramaNode）。
@@ -50,7 +49,7 @@ import { toastInfo, toastSuccess, toastError, toastWarning } from '../base/core/
  *    纹理失败抛 error → 外层 SphereErrorBoundary 显示占位（不再黑屏）。
  *  - 滚轮缩放 fov：球心相机 OrbitControls zoom 无效（distance=0），缩放只能走 fov；
  *    手动非 passive wheel 监听（R3F 对 wheel 默认 passive，React onWheel 无法 preventDefault）。
- *  - 截图比例（aspectRatio/customDim）落盘 data，与 panoType 对齐（刷新不重置）。
+ *  - 截图比例（aspectRatio/customDim）落盘 data（刷新不重置）。
  *  - doCapture 并发守卫（capturingRef）：capturing 期间忽略再次触发，避免共享 gl 互相污染。
  *  - 依赖数组补 history/getNode；PanoViewer.capture 内部 try/finally 保证异常也恢复渲染目标。
  *
@@ -63,6 +62,12 @@ import { toastInfo, toastSuccess, toastError, toastWarning } from '../base/core/
  *  - viewerRef 未就绪（纹理加载中/失败，PanoViewer 未挂载）时点击不再静默 return——
  *    toastWarning 明确提示「全景加载中，请稍候再试」。
  *  - 完成提示 toastSuccess「截图完成，已存入图片盒子」，明确结果去向（下游图片盒子/自动新建）。
+ *
+ * 更新(2026-09-10) 奥卡姆剃刀精简（砍冗余实体，只保留核心价值链）：
+ *  - 删除浏览器原生全屏（isNativeFs / toggleNativeFullscreen / fullscreenchange）：漫游层本身即全屏。
+ *  - 删除柱状模式（panoType 'cylinder'）：720 全景事实标准为等距柱状，柱状几何/限位/角标一并移除。
+ *  - 删除视角 HUD（罗盘 + yaw/pitch 数字）：连带 PanoViewer 的 onViewChange 上报链路。
+ *  - 删除 orbitRef / highQuality 纯转发 plumbing（唯一调用点本就写死 false）。
  */
 
 const RATIO_OPTIONS = ['16:9', '9:16', '1:1', 'custom'];
@@ -194,7 +199,6 @@ function Segmented<T extends string>({
 interface PanoramaNodeData {
   label?: string;
   imageUrl?: string;
-  panoType?: string;
   aspectRatio?: string;
   customDim?: { w: number; h: number };
   images?: Array<{ url?: string; [key: string]: unknown }>;
@@ -209,7 +213,6 @@ interface PanoramaNodeProps {
 interface PanoViewerHandle {
   capture: (angles: number[], ratio: string) => Promise<string[]>;
   reset: () => void;
-  getView: () => PanoView;
 }
 
 /** 球体全景错误边界：纹理加载失败（404 / CORS）时给出可见占位，而不是黑屏。
@@ -262,25 +265,6 @@ function SphereLoadingOverlay() {
   );
 }
 
-/** 柱状全景图标（lucide 无现成，用简易圆柱视锥示意） */
-function OrbitViewIcon({ size = 12 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <ellipse cx="12" cy="12" rx="9" ry="3" />
-      <ellipse cx="12" cy="12" rx="9" ry="3" transform="rotate(90 12 12)" />
-    </svg>
-  );
-}
-
 function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow();
   // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
@@ -295,9 +279,6 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
   const history = useCanvasEdges();
   const connected = useConnectedInputs(id);
   const thumbResolve = useRenderImageResolver();
-  const [panoType, setPanoType] = useState<'sphere' | 'cylinder'>(
-    data.panoType === 'cylinder' ? 'cylinder' : 'sphere',
-  ); // 球/柱
   const [fullscreen, setFullscreen] = useState(false); // 全景漫游（球体视图）
   const [capturing, setCapturing] = useState(false);
   const [shotKind, setShotKind] = useState(null); // 'current'|'four'|'twelve'
@@ -309,18 +290,11 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
   const [autoRotate, setAutoRotate] = useState(false); // 自动漫游（绕 Y 轴缓慢自转）
   const [showFrame, setShowFrame] = useState(true); // 取景框（截图构图参考，可关）
   const [showHint, setShowHint] = useState(true); // 首次进入的操作引导（3.5s 后淡出）
-  const [isNativeFs, setIsNativeFs] = useState(false); // 浏览器原生全屏态
   // 【滚轮缩放】球心相机 OrbitControls zoom 无效（相机与 target 距离为 0），缩放只能走 fov。
   const [fov, setFov] = useState(75);
   const viewerRef = useRef<PanoViewerHandle | null>(null);
-  const orbitRef = useRef<unknown>(null);
   const sphereBoxRef = useRef<HTMLDivElement | null>(null);
   const capturingRef = useRef(false); // 【并发守卫】capturing 是异步 state，闭包里可能过期，用 ref 同步
-  // 【HUD】视角数字/罗盘每 80ms 回传一次，若走 state 会导致全屏层（含 Canvas）每秒重渲 12 次；
-  // 这里直接写 DOM textContent / transform，零 React 重渲染。
-  const yawRef = useRef<HTMLSpanElement | null>(null);
-  const pitchRef = useRef<HTMLSpanElement | null>(null);
-  const compassRef = useRef<HTMLDivElement | null>(null);
 
   const ratioStr =
     aspectRatio === 'custom' ? `${customDim.w}/${customDim.h}` : aspectRatio.replace(':', '/');
@@ -345,12 +319,6 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
     [id, setNodes],
   );
 
-  // 球/柱切换：写回 data.panoType（刷新不重置），与 PanoViewer 内部映射对齐
-  const pickPano = (v: 'sphere' | 'cylinder') => {
-    setPanoType(v);
-    patchData({ panoType: v });
-  };
-
   // 【R2 治理】panoUrl 变化时重置图片错误态（换图后可重试加载）
   const prevPanoRef = useRef(panoUrl);
   useEffect(() => {
@@ -374,14 +342,6 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
     return () => el.removeEventListener('wheel', onWheel);
   }, [fullscreen]);
 
-  // 【HUD】视角回传 → 直写 DOM（不用 state，见上方 refs 注释）。
-  const handleViewChange = useCallback((v: PanoView) => {
-    if (yawRef.current) yawRef.current.textContent = `${v.yaw}°`;
-    if (pitchRef.current) pitchRef.current.textContent = `${v.pitch}°`;
-    // 罗盘反向旋转：相机向右转（yaw 增大）时，正北标记相对视野向左移。
-    if (compassRef.current) compassRef.current.style.transform = `rotate(${-v.yaw}deg)`;
-  }, []);
-
   // 进入漫游：锁页面滚动 + 展示操作引导（3.5s 后淡出）+ 重置自动漫游。
   useEffect(() => {
     if (!fullscreen) return;
@@ -395,18 +355,6 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
       window.clearTimeout(t);
     };
   }, [fullscreen]);
-
-  // 浏览器原生全屏态同步（顶栏按钮在「进入/退出全屏」间切换图标）
-  useEffect(() => {
-    const sync = () => setIsNativeFs(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', sync);
-    return () => document.removeEventListener('fullscreenchange', sync);
-  }, []);
-
-  const toggleNativeFullscreen = useCallback(() => {
-    if (document.fullscreenElement) void document.exitFullscreen();
-    else void document.documentElement.requestFullscreen?.();
-  }, []);
 
   // 截图（复刻官方 F：在全屏球体里选视角裁切输出局部）
   const doCapture = useCallback(
@@ -568,6 +516,12 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [fullscreen, doCapture]);
 
+  // 全屏漫游期登记为模态层，让画布快捷键让位（漫游里有 1/2/3/r/f 等自己的键位，
+  // 不登记的话 Q/W/E/⌘Z 会漏出去动画片）。
+  // 只登记、不接管 Esc —— 本层键盘体系是自洽的（见上方 handler），
+  // 贸然加 Esc 关闭会盖掉既有交互设计。这正是 useModalLayer 与 useFullscreenEditorKeys 的分工。
+  useModalLayer(fullscreen && !!panoUrl);
+
   // 截图比例（分段控件 + 自定义宽高）。
   // 为什么不用原生 <select>：全屏层是深色玻璃拟态，原生下拉在 macOS/Windows 下样式割裂且不可控；
   // 分段控件把 4 个选项一次展开，选比例少一次点击，也更贴合"取景构图"的心智。
@@ -673,7 +627,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
       </div>
     );
 
-  // 全屏球体漫游（复刻官方 Component1861）：黑幕 + 沉浸式 HUD。
+  // 全屏球体漫游（复刻官方 Component1861）：黑幕 + 顶部工具条。
   const renderFullscreen = () =>
     fullscreen &&
     panoUrl &&
@@ -683,45 +637,13 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        {/* 顶部条：视角 HUD + 比例 + 右侧控件（最高层级，压在一切之上） */}
-        <div className="absolute top-0 inset-x-0 z-[120] h-16 px-4 flex items-center justify-between pointer-events-none">
-          {/* 左：罗盘 + 视角数字 */}
-          <div className="pointer-events-auto flex items-center gap-2.5 pl-1">
-            <div className="flex items-center gap-1.5 px-2 h-8 rounded-lg bg-black/45 backdrop-blur border border-white/10 text-caption-sm text-white/70">
-              <Frame size={14} className="text-white/40" />
-              <span ref={yawRef}>0°</span>
-              <span className="text-white/25">·</span>
-              <span ref={pitchRef}>0°</span>
-            </div>
-            <div className="relative w-9 h-9 grid place-items-center rounded-full bg-black/45 backdrop-blur border border-white/10">
-              <svg viewBox="-1.5 -1.5 3 3" className="w-full h-full p-1">
-                <circle r="1.05" cx="0" cy="0" fill="none" stroke="rgba(255,255,255,0.15)" />
-                <circle r="0.62" cx="0" cy="0" fill="none" stroke="rgba(255,255,255,0.08)" />
-              </svg>
-              <div className="absolute inset-0 p-1" ref={compassRef}>
-                <svg viewBox="0 0 24 24" className="w-full h-full">
-                  <path d="M12 2 L13.4 12 L12 22 L10.6 12 Z" fill="#38bdf8" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* 中：类型 + 截图比例 */}
+        {/* 顶部条：居中比例控件 + 右侧操作（最高层级，压在一切之上） */}
+        <div className="absolute top-0 inset-x-0 z-[120] h-16 px-4 flex items-center justify-center pointer-events-none">
           <div className="pointer-events-auto flex items-center gap-1.5 px-2 h-9 rounded-xl bg-black/45 backdrop-blur border border-white/10 shadow-lg">
-            <Segmented
-              value={panoType}
-              options={[
-                { value: 'sphere', label: '球状' },
-                { value: 'cylinder', label: '柱状' },
-              ]}
-              onChange={pickPano}
-            />
-            <div className="w-px h-5 bg-white/10 mx-1" />
             {renderRatioPicker()}
           </div>
 
-          {/* 右：截图 + 视角调整 + 原生全屏 + 退出 */}
-          <div className="pointer-events-auto flex items-center gap-1.5">
+          <div className="absolute right-4 pointer-events-auto flex items-center gap-1.5">
             <div className="flex items-center px-1 h-9 rounded-xl bg-black/45 backdrop-blur border border-white/10">
               <IconButton
                 icon={<RotateCcw size={16} />}
@@ -756,11 +678,6 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
                 disabled={capturing}
                 title="截取当前视角 (1)"
                 onClick={() => doCapture([0])}
-              />
-              <IconButton
-                icon={isNativeFs ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-                title={isNativeFs ? '退出全屏' : '浏览器全屏'}
-                onClick={toggleNativeFullscreen}
               />
               <div className="w-px h-5 bg-white/10 mx-1" />
               <button
@@ -805,12 +722,8 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
                     <PanoViewer
                       ref={viewerRef}
                       url={sphereTextureUrl}
-                      panoType={panoType}
                       fov={fov}
-                      highQuality={false}
-                      orbitControlsRefLocal={orbitRef}
                       autoRotate={autoRotate}
-                      onViewChange={handleViewChange}
                     />
                   </Canvas>
                 </Suspense>
@@ -905,8 +818,8 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
             {/* 左下：投影类型角标 */}
             {!imgError && (
               <span className="absolute bottom-4 left-4 z-30 flex items-center gap-1.5 px-2.5 h-7 rounded-full bg-black/55 backdrop-blur-md border border-white/10 text-caption-sm text-white/75 nodrag pointer-events-none">
-                {panoType === 'sphere' ? <Globe size={12} /> : <OrbitViewIcon />}
-                {panoType === 'sphere' ? '球状 360°' : '柱状全景'}
+                <Globe size={12} />
+                球状 360°
               </span>
             )}
 

@@ -34,7 +34,6 @@ export const NODE_TYPE_DEFAULTS: Record<string, NodeTypeDefault> = {
   imageGenerateNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
   gridSplitNode: { width: 280, style: { width: 280 } },
   videoProcessNode: { width: 520, height: 620, style: { width: 520, height: 620 } },
-  panoramaNode: { width: 640, height: 360, style: { width: 640, height: 360 } },
   director3dNode: { width: 420, height: 300, style: { width: 420, height: 300 } },
   group: {
     width: 300,

@@ -135,7 +135,7 @@ export const paletteNodes = [
     cat: 'image',
     component: lazyNode(HEAVY_NODE_LOADERS.panoramaNode, { label: '全景图' }),
     builtin: true,
-    data: { panoType: 'sphere', highQuality: false, aspectRatio: '16:9', imageUrl: '' },
+    data: { aspectRatio: '16:9', imageUrl: '' },
   },
   {
     type: 'director3dNode',
