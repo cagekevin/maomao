@@ -44,6 +44,9 @@ import { resolveProviderModel } from '../base/utils/providerModels.ts';
 import { debounce, mergeRefImages, buildEffectivePrompt } from '../base/core/utils.ts';
 import { resolvePromptChips } from '../base/prompt/promptChips.ts';
 import CameraStudioPanel from '../base/editors/CameraStudioPanel.tsx';
+import CameraSettingsSelector from '../base/editors/cameraParams/CameraSettingsSelector.tsx';
+import { applyCameraSettingsToPrompt } from '../base/editors/cameraParams/cameraPrompt.ts';
+import type { CameraGenerationSettings } from '../base/editors/cameraParams/types.ts';
 import { generateId } from '../base/core/idGen.ts';
 import type { CameraStudioResult } from '../base/editors/cameraStudio.ts';
 
@@ -84,6 +87,8 @@ interface ImageGenerateData {
   inputHeight?: number;
   images?: RefImage[];
   texts?: RefText[];
+  /** 摄影参数（焦距/快门效果/光圈/曝光时间）；缺省 = 全自动，不写入提示词 */
+  cameraSettings?: CameraGenerationSettings;
   [key: string]: unknown;
 }
 
@@ -153,6 +158,10 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   const [imageSize, setImageSize] = useState(data.imageSize ?? '1K');
   const [quality, setQuality] = useState(data.quality ?? 'auto');
   const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? '');
+  // 摄影参数（焦距/快门效果/光圈/曝光时间）：与 data.cameraSettings 同步，生成时拼进提示词
+  const [cameraSettings, setCameraSettings] = useState<CameraGenerationSettings | undefined>(
+    data.cameraSettings,
+  );
   const [count, setCount] = useState(data.count || 1);
   const [imageUrl, setImageUrl] = useState(data.imageUrl || '');
   const [showImgMenu, setShowImgMenu] = useState(false);
@@ -305,8 +314,8 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   } = useGenerateNode({
     nodeId: id,
     type: 'image',
-    // 上报用解析后的纯文本（芯片已替换为可读内容），与实发 chipResolved.text 一致
-    prompt: chipResolved.text || effectivePrompt || '',
+    // 上报用解析后的纯文本（芯片已替换为可读内容）+ 摄影参数片段，与实发 finalPrompt 一致
+    prompt: applyCameraSettingsToPrompt(chipResolved.text || effectivePrompt || '', cameraSettings),
     data,
     prefs: imgPrefs,
     setPrefs: setImgPrefs,
@@ -318,6 +327,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       selectedModel: setSelectedModel,
       quality: setQuality,
       imageSize: setImageSize,
+      cameraSettings: setCameraSettings,
     },
     resultField: 'imageUrl',
     recoverable: true,
@@ -336,11 +346,17 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       const chipUrls = chipResolved.refImages.map((im) => im.url);
       const upstreamUrls = refImages.map((img) => img.url);
       const refUrls = [...new Set([...chipUrls, ...upstreamUrls])];
+      // 摄影参数 → 提示词片段（仅在本节点为生图时生效）：拼接在最终提示词末尾
+      // （"Camera settings: <英文片段>."），与参考项目 AINodeDialog 完全一致。
+      const finalPrompt = applyCameraSettingsToPrompt(
+        chipResolved.text || effectivePrompt || '',
+        cameraSettings,
+      );
       return generateImage(
         {
           provider: useProvider,
-          // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）
-          prompt: chipResolved.text || effectivePrompt || '',
+          // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）+ 摄影参数片段
+          prompt: finalPrompt,
           model: modelId,
           size: imageSize,
           n: count,
@@ -798,6 +814,16 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                   <PromptLibraryButton
                     category="image"
                     onAppend={(p) => setPromptPersist((prev) => (prev ? `${prev}\n${p}` : p))}
+                  />
+
+                  {/* 摄影参数：焦距/快门效果/光圈/曝光时间 → 生成时拼进提示词。
+                      仅收集参数，界面不回显拼接后的片段；有参数时按钮变蓝并显示角标数量。 */}
+                  <CameraSettingsSelector
+                    value={cameraSettings}
+                    onChange={(v) => {
+                      setCameraSettings(v);
+                      patchData({ cameraSettings: v });
+                    }}
                   />
                 </div>
 

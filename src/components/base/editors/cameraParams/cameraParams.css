@@ -1,0 +1,27 @@
+/**
+ * 摄影参数成像预览样式（对齐 mockup/camera-params-mockup.html 的精灵变量驱动）。
+ *
+ * 只保留「变量驱动的可缩放图元」三条规则 —— 其余全靠内联 style 变量与 display 开关。
+ * 为什么必须在这里定义图元缩放：SVG 图元无法像 div 那样用 Tailwind 的 transform 工具类
+ * （需要 transform-box: fill-box / 指定锚点），故用类收敛：
+ *   .cp-bk        光斑：原点就是自身中心
+ *   .cp-subj-body 主体：原点钉在 (200,105)「脚踩地平线」锚点（不能按 bbox 中心，否则脚会漂）
+ *   .cp-ghost     残影：水平偏移 + 与主体同倍缩放（同锚点）
+ */
+
+.cp-bk {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(var(--bk, 1));
+}
+
+.cp-subj-body {
+  transform-origin: 200px 105px;
+  transform: scale(var(--subj, 1));
+}
+
+.cp-ghost {
+  fill: #a5b4fc;
+  transform-origin: 200px 105px;
+  transform: translateX(var(--gx, 0)) scale(var(--subj, 1));
+}

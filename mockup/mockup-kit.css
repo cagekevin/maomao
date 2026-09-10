@@ -1043,40 +1043,47 @@ button,input,select{font-family:inherit;}
   background:var(--input);border:1px solid var(--edge-muted);color:var(--t-body);font-size:11px;
 }
 .cam-fld select:focus{outline:none;border-color:var(--accent-line);}
-.cam-out{
-  margin-top:8px;padding:6px 7px;border-radius:var(--r-sm);
-  background:var(--surface-sunken);border:1px solid var(--edge-faint);
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;line-height:1.7;
-  color:var(--t-faint);word-break:break-all;
-}
-.cam-out b{color:var(--accent-text);font-weight:400;}
 .cam-hint{margin-top:7px;padding:0 2px;font-size:10px;line-height:1.6;color:var(--t-faint);}
 
-/* N6 成像预览 SVG：一份结构 + CSS 变量换参（--blur 景深 / --subj 透视 / --bk 光斑 / --dim 欠曝 / --bri 过曝） */
-.cam-prev{display:block;width:100%;height:100%;}
-.cam-prev .bg{filter:blur(var(--blur,1.5px));opacity:.9;}
-.cam-prev .bk{transform-box:fill-box;transform-origin:center;transform:scale(var(--bk,1));opacity:var(--bkop,.58);}
-.cam-prev .subj,.cam-prev .gh{transform-box:view-box;transform-origin:200px 105px;}
-.cam-prev .subj{transform:scale(var(--subj,1));}
-/* 拖影偏移量：默认给「动态拖影」两档；内联 style 优先级高于样式表，故默认值只能写在 CSS 里 */
-.cam-prev .gh{transform:translateX(var(--gx,0px)) scale(var(--subj,1));}
-.cam-prev .gh1{--gx:24px;}
-.cam-prev .gh2{--gx:12px;}
-.cam-prev .dim{opacity:var(--dim,0);}
-.cam-prev .bri{opacity:var(--bri,0);}
-/* 分支件：默认全关，由 .is-* 打开（与参考实现的条件分支一一对应） */
-.cam-prev .macro,.cam-prev .fish,.cam-prev .trail,.cam-prev .motion,
-.cam-prev .ghost,.cam-prev .gh3{display:none;}
-.cam-prev.is-macro .macro{display:block;}
-.cam-prev.is-macro .subj,.cam-prev.is-macro .ghost{display:none;}
-.cam-prev.is-fish .fish{display:block;}
-.cam-prev.is-fish .std{display:none;}
-.cam-prev.is-motion .motion,.cam-prev.is-motion .ghost{display:block;}
-/* 光轨：三份拖影 + 长曝光轨迹线（拖影偏移量比「动态拖影」更大一档） */
-.cam-prev.is-trail .trail,.cam-prev.is-trail .gh3{display:block;}
-.cam-prev.is-trail .gh1{--gx:42px;opacity:.08;}
-.cam-prev.is-trail .gh2{--gx:28px;opacity:.13;}
-.cam-prev.is-trail .gh3{--gx:14px;opacity:.18;}
+/* N6 成像预览：一份 <symbol> 精灵 + <use> 引用。
+   为什么抽精灵：场景 50+ 图元，每个实例重复一遍 DOM 既冗余又难改；抽成精灵后只定义一次，
+   实例只带几个 CSS 变量 —— 自定义属性会继承进 <use> 的影子树，所以景深/透视/明暗/分支开关
+   都能按实例覆盖。
+   性能：全场景 0 个 filter。原实现用 feGaussianBlur 做虚化，每改一次参数就要重算一遍高斯模糊
+   （最贵的一项）；这里换成「径向渐变光斑 + 低对比远山 + 雾霭叠加」表达景深 —— 纯填充，无滤镜通道。
+   变量：--subj 主体缩放 / --bk 光斑大小 / --bkop 光斑强度 / --haze 景深雾霭 / --dim 欠曝 / --bri 过曝
+   开关：--macro-d --fish-d --std-d --arc-d --motion-d --ghost-d --trail-d --gh3-d --subj-d（display 值） */
+/* 实例容器：视口外的预览跳过渲染（大页面滚动时省掉整棵精灵树的重复栅格化）。
+   contain-intrinsic-size 给占位高度，避免滚动条因「先 0 高后撑开」而跳动。
+   注意：content-visibility 只作用在实例外层，不影响 <use> 的变量继承。 */
+.cam-prev{
+  display:block;width:100%;height:100%;--gx1:24px;--gx2:12px;--gx3:14px;
+  /* 视口外的实例整棵跳过渲染（大页面滚动时省掉 102 图元树的重复栅格化） */
+  content-visibility:auto;contain-intrinsic-size:auto 152px;
+  /* 把场景的重绘/布局影响锁在实例内，不外溢到整页 */
+  contain:layout paint style;
+}
+/* 预览容器隔离布局/绘制：场景重绘不外溢到整页 */
+.cam-case .v,.cam-view{contain:layout paint;}
+
+/* N6b 精灵内部可缩放图元：收敛原来「每个图元写一遍」的三重 translate-scale-translate。
+   · 光斑 .cp-bk：原点就是自身中心 → transform-box:fill-box + transform-origin:center 最简洁。
+   · 主体 .cp-subj-body：原点必须钉在 (200,105)——那是「脚踩地平线」的锚点，
+     若用 fill-box/center 会以 bbox 中心缩放，脚会随焦距漂移，透视看着不实。
+   · 残影 .cp-ghost：水平偏移 + 与主体同倍缩放（同锚点，保证残影和本体一起长大）。
+   transform-box / transform-origin 在 <use> 影子树里对 SVG 图元有效（Chromium/Safari/Firefox）。 */
+.cp-bk{transform-box:fill-box;transform-origin:center;transform:scale(var(--bk,1));}
+.cp-subj-body{transform-origin:200px 105px;transform:scale(var(--subj,1));}
+.cp-ghost{
+  fill:#a5b4fc;
+  transform-origin:200px 105px;
+  transform:translateX(var(--gx,0)) scale(var(--subj,1));
+}
+.cam-prev.is-macro{--macro-d:block;--subj-d:none;}
+.cam-prev.is-fish{--std-d:none;--fish-d:block;--arc-d:block;}
+.cam-prev.is-motion{--motion-d:block;--ghost-d:block;}
+/* 光轨：三份残影 + 长曝光轨迹线（偏移量比「动态拖影」更大一档） */
+.cam-prev.is-trail{--gx1:42px;--gx2:28px;--gx3:14px;--trail-d:block;--gh3-d:block;}
 
 /* N7 参数对照卡（预览 + 说明） */
 .cam-cases{display:flex;flex-wrap:wrap;gap:12px;}
@@ -1087,15 +1094,8 @@ button,input,select{font-family:inherit;}
 }
 .cam-case .lb{margin-top:5px;font-size:11px;color:var(--t-body);line-height:1.6;}
 .cam-case .lb em{font-style:normal;color:var(--t-faint);font-size:10px;}
-
-/* N8 提示词结果块（展示拼接后的最终文本） */
-.mk-code{
-  width:820px;padding:10px 12px;border-radius:var(--r-ctl);background:var(--surface-sunken);
-  border:1px solid var(--edge-faint);
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:1.9;
-  color:var(--t-muted);white-space:pre-wrap;word-break:break-word;
-}
-.mk-code .add{color:var(--accent-text);}
-.mk-code .lb{color:var(--t-faint);}
+/* 大图（看清单层用；精灵是矢量的，放大不糊也不需要第二套资源） */
+.cam-case.hero{width:560px;}
+.cam-case.hero .v{height:235px;}
 
 /* __APPEND_MARK__ */

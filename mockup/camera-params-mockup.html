@@ -8,20 +8,328 @@
 </head>
 <body>
 
-<!-- 预览用渐变 / 裁剪路径：全文档共用一份 defs，避免各实例重复定义同 id -->
+<!-- ══════════════════════════════════════════════════════════════════
+     预览场景精灵：整份画面只在这里定义一次，页面上所有实例都是 <use> 引用。
+     · 变体全部由 CSS 变量驱动（自定义属性会继承进 <use> 的影子树）
+     · 全场景 0 个 filter —— 虚化用「径向渐变光斑 + 低对比远山 + 雾霭」表达
+     ══════════════════════════════════════════════════════════════════ -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <linearGradient id="cp-sky" x1="0" y1="0" x2="0" y2="1">
-      <stop stop-color="#312e81" />
-      <stop offset="1" stop-color="#111827" />
+      <stop offset="0" stop-color="#070a20" />
+      <stop offset=".28" stop-color="#1b1a52" />
+      <stop offset=".52" stop-color="#3d2b78" />
+      <stop offset=".76" stop-color="#8a4a8f" />
+      <stop offset="1" stop-color="#e08a68" />
     </linearGradient>
-    <linearGradient id="cp-ground" x1="0" y1="0" x2="1" y2="0">
-      <stop stop-color="#111827" />
-      <stop offset=".5" stop-color="#312e81" />
-      <stop offset="1" stop-color="#111827" />
+    <radialGradient id="cp-glow">
+      <stop offset="0" stop-color="#fbbf24" stop-opacity=".55" />
+      <stop offset="1" stop-color="#fbbf24" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="cp-sun">
+      <stop offset="0" stop-color="#fffbeb" />
+      <stop offset="1" stop-color="#f59e0b" />
+    </radialGradient>
+    <linearGradient id="cp-mtn-far" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5b4b9c" />
+      <stop offset="1" stop-color="#33295e" />
     </linearGradient>
-    <clipPath id="cp-clip"><rect width="400" height="168" rx="10" /></clipPath>
+    <linearGradient id="cp-mtn-near" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2e2657" />
+      <stop offset="1" stop-color="#1a1540" />
+    </linearGradient>
+    <linearGradient id="cp-city" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d1840" />
+      <stop offset="1" stop-color="#0d0a22" />
+    </linearGradient>
+    <linearGradient id="cp-ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#241d47" />
+      <stop offset="1" stop-color="#060512" />
+    </linearGradient>
+    <linearGradient id="cp-sheen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8b6fd6" stop-opacity="0" />
+      <stop offset=".5" stop-color="#8b6fd6" stop-opacity=".22" />
+      <stop offset="1" stop-color="#8b6fd6" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient id="cp-haze" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8b5fa8" stop-opacity="0" />
+      <stop offset="1" stop-color="#8b5fa8" stop-opacity=".9" />
+    </linearGradient>
+    <!-- 玻璃反光：斜向一道极淡的冷色高光，给平面场景一点"镜头玻璃"质感 -->
+    <linearGradient id="cp-glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eaf2ff" stop-opacity=".10" />
+      <stop offset=".34" stop-color="#eaf2ff" stop-opacity=".02" />
+      <stop offset=".62" stop-color="#eaf2ff" stop-opacity="0" />
+      <stop offset="1" stop-color="#ffe9c8" stop-opacity=".05" />
+    </linearGradient>
+    <!-- 地面反光带：落日在地面拉出的暖色倒影 -->
+    <linearGradient id="cp-reflect" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f9a86b" stop-opacity=".55" />
+      <stop offset="1" stop-color="#f9a86b" stop-opacity="0" />
+    </linearGradient>
+    <!-- 光斑：径向渐变自带柔边，取代 feGaussianBlur -->
+    <radialGradient id="cp-bokeh">
+      <stop offset="0" stop-color="#fff7ed" stop-opacity=".95" />
+      <stop offset=".45" stop-color="#fbbf24" stop-opacity=".7" />
+      <stop offset=".82" stop-color="#f59e0b" stop-opacity=".32" />
+      <stop offset="1" stop-color="#f59e0b" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="cp-head" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fafc" />
+      <stop offset="1" stop-color="#a8b5d2" />
+    </linearGradient>
+    <!-- 主体剪影：左（落日侧）受光偏暖、右背光偏冷 —— 渐变本身承担体积感 -->
+    <radialGradient id="cp-shadow">
+      <stop offset="0" stop-color="#000" stop-opacity=".5" />
+      <stop offset="1" stop-color="#000" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="cp-petal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f5d0fe" />
+      <stop offset="1" stop-color="#a78bfa" />
+    </linearGradient>
+    <radialGradient id="cp-core">
+      <stop offset="0" stop-color="#fde047" />
+      <stop offset="1" stop-color="#f59e0b" />
+    </radialGradient>
+    <radialGradient id="cp-vig" cx=".5" cy=".5" r=".72">
+      <stop offset=".5" stop-color="#000" stop-opacity="0" />
+      <stop offset="1" stop-color="#000" stop-opacity=".55" />
+    </radialGradient>
+
+    <!-- 猫的剪影：只画「外轮廓」（圆耳 ×2 + 梨形身 + 大圆头）。
+         残影要用它三份，抽成一份供 <use> 引用，避免同一段形状写三遍。
+         不给 fill —— 由引用方的 .cp-ghost 继承下去。
+         ⚠️ 必须与主场景里的猫轮辋一致：改了猫（#11）就要同步改这里，
+            否则「动态拖影/光轨」模式下的残影会是一只对不上的旧形状。 -->
+    <g id="cp-cat-sil">
+      <path d="M168 66 C 166 52 170 40 179 32 C 182 29 186 29 189 32 C 195 38 200 47 202 56 Z" />
+      <path d="M232 66 C 234 52 230 40 221 32 C 218 29 214 29 211 32 C 205 38 200 47 198 56 Z" />
+      <path d="M200 98 C 186 98 176 108 175 121
+               C 174 133 171 143 176 150 C 181 155 219 155 224 150
+               C 229 143 226 133 225 121 C 224 108 214 98 200 98 Z" />
+      <ellipse cx="200" cy="80" rx="37" ry="34" />
+    </g>
   </defs>
+
+  <symbol id="cam-scene" viewBox="0 0 400 168">
+    <!-- 1 天空 -->
+    <rect width="400" height="134" fill="url(#cp-sky)" />
+    <!-- 星点：11 个圆合并成 3 条 path（每档透明度一条）。
+         用小圆无法用 arc 简写（a 的 rx=ry=r 且弧角 <180° 才是半圆），
+         故用「两段半弧」画整圆：M x-r y a r r 0 1 0 2r 0 a r r 0 1 0 -2r 0。
+         收益：DOM 节点 11 → 3，绘制成本不变（同色同档可批量）。 -->
+    <g fill="#fff">
+      <path opacity=".72" d="M50.7 18a1.3 1.3 0 1 0 2.6 0a1.3 1.3 0 1 0-2.6 0
+        M334.6 22a1.4 1.4 0 1 0 2.8 0a1.4 1.4 0 1 0-2.8 0
+        M194.8 12a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0" />
+      <path opacity=".45" d="M117.1 34a.9.9 0 1 0 1.8 0a.9.9 0 1 0-1.8 0
+        M261.1 30a.9.9 0 1 0 1.8 0a.9.9 0 1 0-1.8 0
+        M87.2 52a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0
+        M307.2 46a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0" />
+      <path opacity=".26" d="M151.4 20a.6.6 0 1 0 1.2 0a.6.6 0 1 0-1.2 0
+        M223.4 44a.6.6 0 1 0 1.2 0a.6.6 0 1 0-1.2 0
+        M371.4 36a.6.6 0 1 0 1.2 0a.6.6 0 1 0-1.2 0
+        M23.4 40a.6.6 0 1 0 1.2 0a.6.6 0 1 0-1.2 0" />
+    </g>
+
+    <!-- 2 落日：三层叠加 —— 大光晕（大气散射）+ 中层暖光 + 实心日轮 -->
+    <circle cx="76" cy="112" r="76" fill="url(#cp-glow)" opacity=".7" />
+    <circle cx="76" cy="112" r="46" fill="url(#cp-glow)" />
+    <circle cx="76" cy="112" r="16" fill="url(#cp-sun)" opacity=".55" />
+    <circle cx="76" cy="112" r="11" fill="url(#cp-sun)" />
+
+    <!-- 3 远山（鱼眼时换成弧形地平线） -->
+    <path d="M-10 126 50 70l60 44 64-58 82 62 54-36 100 42V152H-10Z" fill="url(#cp-mtn-far)"
+          style="display:var(--std-d,block)" />
+    <path d="M-18 122Q200 58 418 122V174H-18Z" fill="url(#cp-mtn-far)"
+          style="display:var(--fish-d,none)" />
+    <path d="M-10 134 80 102l72 28 76-32 92 42 90-22V152H-10Z" fill="url(#cp-mtn-near)" />
+
+    <!-- 4 城市剪影 + 窗光（只占两侧，中间留给主体） -->
+    <path d="M14 130V96h22v34M40 130V84h20v46M64 130V104h18v26M86 130V92h20v38
+             M292 130V88h20v42M316 130V100h22v30M342 130V80h18v50M364 130V98h24v32Z"
+          fill="url(#cp-city)" />
+    <!-- 窗光：10 个 4×5 矩形按色合并成 3 条 path（h4v5h-4z 的小方块，同色可批量）。
+         收益：DOM 节点 10 → 3。 -->
+    <g opacity=".5">
+      <path fill="#fcd34d" d="M19 102h4v5h-4zM45 90h4v5h-4zM297 94h4v5h-4zM354 98h4v5h-4z" />
+      <path fill="#fef3c7" d="M26 112h4v5h-4zM91 98h4v5h-4zM304 106h4v5h-4zM369 104h4v5h-4z" />
+      <path fill="#93c5fd" d="M52 102h4v5h-4zM347 86h4v5h-4z" />
+    </g>
+
+    <!-- 5 地面 / 公路 -->
+    <rect y="128" width="400" height="40" fill="url(#cp-ground)" />
+    <!-- 落日地面倒影：地平线下方一竖条暖光，让「地面」不只是黑块 -->
+    <rect x="40" y="128" width="72" height="40" fill="url(#cp-reflect)" opacity=".5" />
+    <rect y="128" width="400" height="40" fill="url(#cp-sheen)" />
+    <path d="M196 128 158 168M204 128 242 168" stroke="#fbbf24" stroke-width="2"
+          opacity=".28" stroke-linecap="round" />
+
+    <!-- 6 景深雾霭（代替高斯模糊：光圈越大 → 远景越「化」） -->
+    <rect y="46" width="400" height="122" fill="url(#cp-haze)" style="opacity:var(--haze,0)" />
+
+    <!-- 7 光斑：径向渐变自带柔边，无需 filter。
+         缩放统一走 .cp-bk 类（transform-box:fill-box + transform-origin:center），
+         不再每个圆写一遍三段 translate —— 自定义属性继承进影子树，--bk 一处生效。 -->
+    <g class="cp-bokeh" style="opacity:var(--bkop,.5)">
+      <circle class="cp-bk" cx="28" cy="100" r="12" fill="url(#cp-bokeh)" />
+      <circle class="cp-bk" cx="62" cy="118" r="8" fill="url(#cp-bokeh)" />
+      <circle class="cp-bk" cx="120" cy="96" r="10" fill="url(#cp-bokeh)" />
+      <circle class="cp-bk" cx="286" cy="104" r="13" fill="url(#cp-bokeh)" />
+      <circle class="cp-bk" cx="330" cy="120" r="7" fill="url(#cp-bokeh)" />
+      <circle class="cp-bk" cx="372" cy="94" r="9" fill="url(#cp-bokeh)" />
+    </g>
+
+    <!-- 8 动态拖影 / 光轨 -->
+    <g stroke-linecap="round" style="display:var(--motion-d,none)">
+      <path d="M18 122h126" stroke="#22d3ee" stroke-width="3" opacity=".45" />
+      <path d="M258 108h124" stroke="#f472b6" stroke-width="4" opacity=".45" />
+      <path d="M8 140c88-34 204 31 384-18" stroke="#fde047" stroke-width="3" opacity=".6"
+            style="display:var(--trail-d,none)" />
+    </g>
+
+    <!-- 9 残影（快门效果：主体后面拖几份半透明副本）
+         三份副本形状完全相同，只差「偏移量 / 透明度 / 是否显示」——全部收敛到 .cp-ghost，
+         用 --gx / opacity 两个变量表达，避免同一段 60 字路径写三遍。 -->
+    <g class="cp-ghosts" style="display:var(--ghost-d,none)">
+      <use class="cp-ghost" href="#cp-cat-sil" style="--gx:var(--gx1,24px);opacity:.08" />
+      <use class="cp-ghost" href="#cp-cat-sil" style="--gx:var(--gx2,12px);opacity:.13" />
+      <use class="cp-ghost" href="#cp-cat-sil" style="--gx:var(--gx3,14px);opacity:.18;display:var(--gh3-d,none)" />
+    </g>
+
+    <!-- 10 微距主体（花） -->
+    <g transform="translate(200 100)" style="display:var(--macro-d,none)">
+      <g fill="url(#cp-petal)" opacity=".92">
+        <ellipse cx="0" cy="-28" rx="17" ry="34" />
+        <ellipse cx="0" cy="-28" rx="17" ry="34" transform="rotate(60)" />
+        <ellipse cx="0" cy="-28" rx="17" ry="34" transform="rotate(120)" />
+        <ellipse cx="0" cy="-28" rx="17" ry="34" transform="rotate(180)" />
+        <ellipse cx="0" cy="-28" rx="17" ry="34" transform="rotate(240)" />
+        <ellipse cx="0" cy="-28" rx="17" ry="34" transform="rotate(300)" />
+      </g>
+      <circle r="23" fill="url(#cp-core)" />
+      <circle r="10" fill="#f59e0b" />
+      <path d="M0 24c-4 30 5 42 18 60" stroke="#4ade80" stroke-width="6" stroke-linecap="round" />
+      <path d="M9 54c18-13 31-10 38 0-17 8-29 8-38 0Z" fill="#4ade80" opacity=".85" />
+    </g>
+
+    <!-- 11 主体（橘猫）：坐姿正脸，锚点 (200,105)。
+         【防「像熊」的关键】白色不能只留一小块圆口鼻（那是熊吻）。
+         猫的橘白花色标志是：白色从口鼻一路向下连到胸口，形成「白围脖」；
+         再补回猫的辨识特征 —— 胡须 + 额头虎斑（熊没有）。
+         保留：橘白花色 / 圆耳 / 大眼小粉鼻 / 胡须 / 额头虎斑。
+         头身比 ≈1:1（大头小身），纯填充/描边，0 filter。 -->
+    <g class="cp-subj-body" style="display:var(--subj-d,block)">
+      <!-- 投影 -->
+      <ellipse cx="200" cy="155" rx="28" ry="3.6" fill="url(#cp-shadow)" />
+
+      <!-- 尾巴：一条上翘弧线，尾尖白 -->
+      <path fill="none" stroke="#f6a961" stroke-width="8" stroke-linecap="round"
+            d="M224 146 C 242 147 249 137 246 124" />
+      <path fill="none" stroke="#fffaf3" stroke-width="8" stroke-linecap="round"
+            d="M246 124 C 245 119 242 116 238 114" />
+
+      <!-- 身体：矮胖梨形坐姿（更圆更短 → 配大头才像奶猫），橘底 -->
+      <path fill="#f6a961" d="
+        M200 98 C 186 98 176 108 175 121
+        C 174 133 171 143 176 150 C 181 155 219 155 224 150
+        C 229 143 226 133 225 121 C 224 108 214 98 200 98 Z" />
+      <!-- 白围脖：从胸口向上延伸的倒梯形，与脸颊白连成一片（橘白猫的标志） -->
+      <path fill="#fffaf3" d="
+        M200 100 C 188 100 180 109 179.6 121
+        C 179 133 179 145 183 152 C 189 155 211 155 217 152
+        C 221 145 221 133 220.4 121 C 220 109 212 100 200 100 Z" />
+      <!-- 两只前爪：白，露在身体最下方（坐姿的读法） -->
+      <ellipse cx="191" cy="152" rx="9" ry="5" fill="#fffaf3" />
+      <ellipse cx="209" cy="152" rx="9" ry="5" fill="#fffaf3" />
+
+      <!-- 耳朵：大号「花瓣形」猫耳 —— 不是直边三角。
+           外缘向外鼓、内缘向内收，两条弧在顶端自然圆滑收成小尖（半圆弧收口）。
+           参考图里猫耳几乎与头同高，故做得又大又立。
+           先画（耳底沉进头里 → 像长在头上）。 -->
+      <path fill="#f6a961" d="
+        M168 66
+        C 166 52 170 40 179 32
+        C 182 29 186 29 189 32
+        C 195 38 200 47 202 56
+        Z" />
+      <path fill="#f6a961" d="
+        M232 66
+        C 234 52 230 40 221 32
+        C 218 29 214 29 211 32
+        C 205 38 200 47 198 56
+        Z" />
+      <!-- 内耳粉：同形状内缩、位置略偏上（耳窝），留出一圈橘色耳缘 -->
+      <path fill="#f7b6c1" d="
+        M175 62
+        C 173 51 177 42 183 36
+        C 185 34 187 34 189 36
+        C 193 41 197 49 198 56
+        Z" />
+      <path fill="#f7b6c1" d="
+        M225 62
+        C 227 51 223 42 217 36
+        C 215 34 213 34 211 36
+        C 207 41 203 49 202 56
+        Z" />
+
+      <!-- 头：大圆脸（橘色占满头颅 = 猫的「帽檐」不是描边） -->
+      <ellipse cx="200" cy="80" rx="37" ry="34" fill="#f6a961" />
+      <!-- 白脸颊：只在下半脸，上边界压到眼线上沿，给额头留出成片橘色 -->
+      <path fill="#fffaf3" d="
+        M200 74 C 188 74 179 79 175 86
+        C 171.6 92 172 98 175.6 102.6
+        C 180 107.4 189 110 200 110
+        C 211 110 220 107.4 224.4 102.6
+        C 228 98 228.4 92 225 86
+        C 221 79 212 74 200 74 Z" />
+      <!-- 额头虎斑：三道内斜短纹（M 形），落在橘额头上 -->
+      <g fill="#dd8038" opacity=".75">
+        <path d="M190 56 C 191 59.8 191.4 62.8 190.6 65.2 L 186.6 64.4
+                 C 187.4 62 187.6 59 187 55.6 Z" />
+        <path d="M210 56 C 209 59.8 208.6 62.8 209.4 65.2 L 213.4 64.4
+                 C 212.6 62 212.4 59 213 55.6 Z" />
+        <path d="M200 54 C 200.6 57.8 200.6 61 200 63.6 L 197.2 63.6
+                 C 197.8 61 197.8 57.8 197.2 54 Z" />
+      </g>
+
+      <!-- 眼睛：大圆，双高光（落在白脸区，边界干净） -->
+      <circle cx="186" cy="88" r="8.4" fill="#2f2119" />
+      <circle cx="214" cy="88" r="8.4" fill="#2f2119" />
+      <circle cx="183.4" cy="85" r="2.8" fill="#fff" />
+      <circle cx="211.4" cy="85" r="2.8" fill="#fff" />
+      <circle cx="188.6" cy="91.4" r="1.3" fill="#fff" opacity=".7" />
+      <circle cx="216.6" cy="91.4" r="1.3" fill="#fff" opacity=".7" />
+
+      <!-- 鼻子：小粉三角；下面接 ω 小嘴 -->
+      <path d="M196.8 98.5 h6.4 l-3.2 3.4 Z" fill="#e8788f" />
+      <path d="M200 101.9 c-2.2 2.6-4.8 2.2-5.8 0 M200 101.9 c2.2 2.6 4.8 2.2 5.8 0"
+            stroke="#cf6274" stroke-width="1.2" fill="none" stroke-linecap="round" />
+
+      <!-- 胡须：每侧两根 —— 猫的招牌（熊没有），同时把「猫」和「熊」彻底分开 -->
+      <g stroke="#f6a961" stroke-width="1" stroke-linecap="round" opacity=".55">
+        <path d="M176 95 l-13 -3 M176 99 l-13 2" />
+        <path d="M224 95 l13 -3 M224 99 l13 2" />
+      </g>
+    </g>
+
+    <!-- 12 曝光（欠曝压暗 / 过曝提亮） -->
+    <rect width="400" height="168" fill="#020617" style="opacity:var(--dim,0)" />
+    <rect width="400" height="168" fill="#fff1dc" style="opacity:var(--bri,0)" />
+
+    <!-- 12b 镜头玻璃反光 + 暗角 + 画框（最后叠加，保证在最上层） -->
+    <rect width="400" height="168" fill="url(#cp-glass)" />
+
+    <!-- 13 暗角 + 鱼眼桶形描边 + 取景框角标
+         角标内缩到 26/24：容器多用 preserveAspectRatio="slice"，贴边角标会被裁掉一半 ——
+         内缩后无论怎么裁，四个直角都在安全区内。
+         vector-effect=non-scaling-stroke：矢量描边不随 use 的缩放变形，始终 1px 清爽。 -->
+    <rect width="400" height="168" fill="url(#cp-vig)" />
+    <path d="M8 36Q200 8 392 36M8 142Q200 162 392 142" stroke="#fff" opacity=".16" fill="none"
+          stroke-width="1" vector-effect="non-scaling-stroke" style="display:var(--arc-d,none)" />
+    <path d="M26 40V26h14M374 26h14M388 138v14h-14M40 152H26v-14" stroke="#fff" opacity=".34" fill="none"
+          stroke-width="1" vector-effect="non-scaling-stroke" />
+  </symbol>
 </svg>
 
 <div class="mk-head">
@@ -30,8 +338,9 @@
     参考 <b>ai-canvas-camera-params</b>（AI-Canvas-tauri 抽取包：右下角「摄影参数」入口 —— 相机按钮 + 弹出面板，
     含焦距 / 快门效果 / 光圈 / 曝光时间），落到本仓库 <b>imageGenerateNode</b> 的
     <span class="hl">展开面板底部参数行</span>（与「比例·尺寸·画质 / 模型 / 预设」同排）。
-    面板本身只是<b>收集参数</b>，真正生效靠生成时把英文片段追加到提示词末尾
-    <code>Camera settings: …</code>（仅 ai-image / ai-video）。
+    面板只负责<b>让用户做选择</b>，选择结果由节点携带、生成时自动生效，<b>界面不展示拼接后的提示词文本</b>。
+    预览重画为黄昏场景，并改成 <span class="hl">一份 &lt;symbol&gt; 精灵 + &lt;use&gt; 复用</span>，
+    全场景 <b>0 个 filter</b>。
   </p>
 </div>
 
@@ -116,64 +425,8 @@
 
             <div class="cam-view">
               <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice"
-                   style="--blur:5px;--subj:1.18;--bk:1;--bkop:.72">
-                <g clip-path="url(#cp-clip)">
-                  <rect width="400" height="168" fill="url(#cp-sky)" />
-                  <g class="bg">
-                    <circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
-                    <g class="std">
-                      <path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" />
-                      <path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" />
-                    </g>
-                    <g class="fish">
-                      <path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" />
-                      <path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" />
-                    </g>
-                    <g stroke="#818cf8" stroke-width="1" opacity=".52">
-                      <path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" />
-                      <path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" />
-                    </g>
-                    <rect y="130" width="400" height="38" fill="url(#cp-ground)" />
-                    <path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
-                    <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" />
-                    <circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" />
-                    <circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" />
-                    <circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" />
-                  </g>
-                  <g class="motion" stroke-linecap="round">
-                    <path d="M18 119h126" stroke="#22d3ee" stroke-width="3" opacity=".5" />
-                    <path d="M258 106h124" stroke="#f472b6" stroke-width="4" opacity=".5" />
-                    <path class="trail" d="M8 137c88-34 204 31 384-18" stroke="#fde047" stroke-width="3" opacity=".62" />
-                  </g>
-                  <g class="ghost">
-                    <g class="gh gh1" fill="#a5b4fc" opacity=".08"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
-                    <g class="gh gh2" fill="#a5b4fc" opacity=".13"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
-                    <g class="gh gh3" fill="#a5b4fc" opacity=".18"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
-                  </g>
-                  <g class="macro" transform="translate(200 101)">
-                    <g fill="#c4b5fd" opacity=".9">
-                      <ellipse cx="0" cy="-27" rx="18" ry="35" />
-                      <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(60)" />
-                      <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(120)" />
-                      <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(180)" />
-                      <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(240)" />
-                      <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(300)" />
-                    </g>
-                    <circle r="24" fill="#fde047" />
-                    <circle r="10" fill="#f59e0b" />
-                    <path d="M0 23c-4 31 5 43 18 61" stroke="#4ade80" stroke-width="6" stroke-linecap="round" />
-                    <path d="M9 54c18-13 31-10 38 0-17 8-29 8-38 0Z" fill="#4ade80" opacity=".85" />
-                  </g>
-                  <g class="subj">
-                    <circle cx="200" cy="70" r="17" fill="#f8fafc" />
-                    <path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" />
-                    <path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" />
-                  </g>
-                  <rect class="dim" width="400" height="168" fill="#020617" />
-                  <rect class="bri" width="400" height="168" fill="#fff7ed" />
-                  <path class="fish" d="M2 35Q200 6 398 35M2 142Q200 162 398 142" stroke="#fff" opacity=".22" />
-                  <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" />
-                </g>
+                   style="--subj:1.18;--bk:1.1;--bkop:.7;--haze:.3">
+                <use href="#cam-scene" />
               </svg>
             </div>
 
@@ -196,11 +449,7 @@
               </label>
             </div>
 
-            <div class="cam-out">
-              <b>Camera settings:</b> 85mm portrait lens, f/2.8 aperture, soft background separation, 1/250s exposure time.
-            </div>
-
-            <p class="cam-hint">自动项不会写入提示词；预览仅用于表达景深、明暗、透视与动态趋势。</p>
+            <p class="cam-hint">自动项不生效；预览仅用于表达景深、明暗、透视与动态趋势。</p>
           </div>
         </div>
 
@@ -221,107 +470,68 @@
     不再另起一处。<span class="hl">有参数时按钮变蓝并显示角标数量</span>（当前 3 项），无参数时是普通灰图标。
     <b>② 弹层</b>：从按钮上方弹出（与比例/批量菜单同向），宽 344px，不超过节点面板宽度。
     <b>③ 预览</b>：随四个下拉实时变（景深 / 明暗 / 透视 / 动态）。
-    <b>④ 片段回显</b>：把即将拼进提示词的英文直接显示在面板底部——选了什么、会写进去什么，一处看全。
+    <b>④ 不做片段回显</b>：用户只在这四个下拉里做选择，界面不展示拼接后的提示词文本。
   </div>
 </div>
 
-<!-- ══════════ 舞台 2：弹层放大（像素级对齐用） ══════════ -->
+<!-- ══════════ 舞台 2：弹层放大 + 场景大图 ══════════ -->
 <div class="mk-stage">
-  <div class="cam-pop static wide">
-    <div class="cam-hd">
-      <b>摄影参数</b>
-      <button>全部自动</button>
+  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+
+    <div class="cam-pop static wide">
+      <div class="cam-hd">
+        <b>摄影参数</b>
+        <button>全部自动</button>
+      </div>
+
+      <div class="cam-view" style="height:186px">
+        <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice"
+             style="--subj:.92;--bk:.6;--bkop:.5;--haze:.14">
+          <use href="#cam-scene" />
+        </svg>
+      </div>
+
+      <div class="cam-grid">
+        <label class="cam-fld">
+          <span>焦距</span>
+          <select><option selected>自动</option><option>15mm 超广角</option><option>24mm 广角</option><option>35mm 电影感</option><option>50mm 标准</option><option>85mm 人像</option><option>200mm 长焦</option><option>100mm 微距</option><option>鱼眼</option></select>
+        </label>
+        <label class="cam-fld">
+          <span>快门效果</span>
+          <select><option selected>自动</option><option>凝固动作</option><option>自然动态</option><option>动态拖影</option><option>光轨效果</option></select>
+        </label>
+        <label class="cam-fld">
+          <span>光圈</span>
+          <select><option selected>自动</option><option>f/1.4</option><option>f/2</option><option>f/2.8</option><option>f/4</option><option>f/5.6</option><option>f/8</option><option>f/11</option><option>f/16</option></select>
+        </label>
+        <label class="cam-fld">
+          <span>曝光时间</span>
+          <select><option selected>自动</option><option>1/2000s</option><option>1/1000s</option><option>1/500s</option><option>1/250s</option><option>1/125s</option><option>1/60s</option><option>1/30s</option><option>1/8s</option><option>1/2s</option><option>1s</option><option>5s</option></select>
+        </label>
+      </div>
+
+      <p class="cam-hint">四项全「自动」= 不施加任何摄影参数，与从未打开过面板等价。</p>
     </div>
 
-    <div class="cam-view" style="height:186px">
-      <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice"
-           style="--blur:1.5px;--subj:.66;--bk:.556;--bkop:.58">
-        <g clip-path="url(#cp-clip)">
-          <rect width="400" height="168" fill="url(#cp-sky)" />
-          <g class="bg">
-            <circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
-            <g class="std">
-              <path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" />
-              <path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" />
-            </g>
-            <g class="fish">
-              <path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" />
-              <path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" />
-            </g>
-            <g stroke="#818cf8" stroke-width="1" opacity=".52">
-              <path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" />
-              <path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" />
-            </g>
-            <rect y="130" width="400" height="38" fill="url(#cp-ground)" />
-            <path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
-            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" />
-            <circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" />
-            <circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" />
-            <circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" />
-          </g>
-          <g class="motion" stroke-linecap="round">
-            <path d="M18 119h126" stroke="#22d3ee" stroke-width="3" opacity=".5" />
-            <path d="M258 106h124" stroke="#f472b6" stroke-width="4" opacity=".5" />
-            <path class="trail" d="M8 137c88-34 204 31 384-18" stroke="#fde047" stroke-width="3" opacity=".62" />
-          </g>
-          <g class="ghost">
-            <g class="gh gh1" style="--gx:24px" fill="#a5b4fc" opacity=".08"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
-            <g class="gh gh2" style="--gx:12px" fill="#a5b4fc" opacity=".13"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
-            <g class="gh gh3" fill="#a5b4fc" opacity=".18"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
-          </g>
-          <g class="macro" transform="translate(200 101)">
-            <g fill="#c4b5fd" opacity=".9">
-              <ellipse cx="0" cy="-27" rx="18" ry="35" />
-              <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(60)" />
-              <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(120)" />
-              <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(180)" />
-              <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(240)" />
-              <ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(300)" />
-            </g>
-            <circle r="24" fill="#fde047" />
-            <circle r="10" fill="#f59e0b" />
-            <path d="M0 23c-4 31 5 43 18 61" stroke="#4ade80" stroke-width="6" stroke-linecap="round" />
-            <path d="M9 54c18-13 31-10 38 0-17 8-29 8-38 0Z" fill="#4ade80" opacity=".85" />
-          </g>
-          <g class="subj">
-            <circle cx="200" cy="70" r="17" fill="#f8fafc" />
-            <path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" />
-            <path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" />
-          </g>
-          <rect class="dim" width="400" height="168" fill="#020617" />
-          <rect class="bri" width="400" height="168" fill="#fff7ed" />
-          <path class="fish" d="M2 35Q200 6 398 35M2 142Q200 162 398 142" stroke="#fff" opacity=".22" />
-          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" />
-        </g>
-      </svg>
+    <div class="cam-case hero">
+      <div class="v">
+        <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice"
+             style="--subj:1.18;--bk:1.6;--bkop:.8;--haze:.5">
+          <use href="#cam-scene" />
+        </svg>
+      </div>
+      <div class="lb">
+        场景分层（自上而下 13 层，全部为纯填充，无滤镜）：
+        <em>天空渐变 → 星点 → 落日+光晕 → 远山（鱼眼时换弧形） → 近山 → 城市剪影+窗光 → 地面/公路透视线 → 景深雾霭 → 光斑 → 拖影/光轨 → 残影 → 主体（坐姿橘猫：投影/尾/耳/头/腮/口鼻垫/虎斑/梨形身/胸白/前腿/眼/鼻/ω嘴/胡须/轮廓光） → 曝光/暗角/画框</em>
+      </div>
     </div>
 
-    <div class="cam-grid">
-      <label class="cam-fld">
-        <span>焦距</span>
-        <select><option selected>自动</option><option>15mm 超广角</option><option>24mm 广角</option><option>35mm 电影感</option><option>50mm 标准</option><option>85mm 人像</option><option>200mm 长焦</option><option>100mm 微距</option><option>鱼眼</option></select>
-      </label>
-      <label class="cam-fld">
-        <span>快门效果</span>
-        <select><option selected>自动</option><option>凝固动作</option><option>自然动态</option><option>动态拖影</option><option>光轨效果</option></select>
-      </label>
-      <label class="cam-fld">
-        <span>光圈</span>
-        <select><option selected>自动</option><option>f/1.4</option><option>f/2</option><option>f/2.8</option><option>f/4</option><option>f/5.6</option><option>f/8</option><option>f/11</option><option>f/16</option></select>
-      </label>
-      <label class="cam-fld">
-        <span>曝光时间</span>
-        <select><option selected>自动</option><option>1/2000s</option><option>1/1000s</option><option>1/500s</option><option>1/250s</option><option>1/125s</option><option>1/60s</option><option>1/30s</option><option>1/8s</option><option>1/2s</option><option>1s</option><option>5s</option></select>
-      </label>
-    </div>
-
-    <div class="cam-out">四项全「自动」 → <b>不追加任何片段</b>，提示词保持原样。</div>
-    <p class="cam-hint">自动项不会写入提示词；预览仅用于表达景深、明暗、透视与动态趋势。</p>
   </div>
 
   <div class="mk-cap">
     四个下拉的选项文案与顺序按参考包 1:1 保留（焦距 8 档 / 快门 4 档 / 光圈 8 档 / 曝光 11 档）。
     右上角「全部自动」= 一次性清空四档（<code>onChange(undefined)</code>），等价于从未打开过面板。
+    右侧是同一份精灵的 <span class="hl">560px 大图</span>——矢量的，放大不需要第二套资源。
   </div>
 </div>
 
@@ -331,17 +541,9 @@
 
     <div class="cam-case">
       <div class="v">
-        <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:.7px;--subj:.66;--bk:.333;--bkop:.42">
-          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
-          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
-            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
-            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
-            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
-            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
-            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
-          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
-          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
-          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice"
+             style="--subj:.66;--bk:.42;--bkop:.4;--haze:.08">
+          <use href="#cam-scene" />
         </svg>
       </div>
       <div class="lb">15mm 超广角 + f/8 <em>主体缩小、前后都清</em></div>
@@ -349,17 +551,9 @@
 
     <div class="cam-case">
       <div class="v">
-        <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:8px;--subj:1.18;--bk:1.56;--bkop:.72">
-          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
-          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
-            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
-            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
-            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
-            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
-            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
-          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
-          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
-          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice"
+             style="--subj:1.18;--bk:1.6;--bkop:.8;--haze:.5">
+          <use href="#cam-scene" />
         </svg>
       </div>
       <div class="lb">85mm 人像 + f/1.4 <em>主体变大、背景散成大光斑</em></div>
@@ -367,17 +561,9 @@
 
     <div class="cam-case">
       <div class="v">
-        <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:5px;--subj:1.38;--bk:1;--bkop:.72">
-          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
-          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
-            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
-            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
-            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
-            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
-            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
-          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
-          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
-          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice"
+             style="--subj:1.38;--bk:1.1;--bkop:.7;--haze:.3">
+          <use href="#cam-scene" />
         </svg>
       </div>
       <div class="lb">200mm 长焦 + f/2.8 <em>压缩感最强，主体撑满</em></div>
@@ -385,23 +571,9 @@
 
     <div class="cam-case">
       <div class="v">
-        <svg class="cam-prev is-macro" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:6px;--subj:1;--bk:1;--bkop:.72">
-          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
-          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
-            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
-            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
-            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
-            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
-            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
-          <g class="macro" transform="translate(200 101)">
-            <g fill="#c4b5fd" opacity=".9"><ellipse cx="0" cy="-27" rx="18" ry="35" /><ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(60)" /><ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(120)" /><ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(180)" /><ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(240)" /><ellipse cx="0" cy="-27" rx="18" ry="35" transform="rotate(300)" /></g>
-            <circle r="24" fill="#fde047" /><circle r="10" fill="#f59e0b" />
-            <path d="M0 23c-4 31 5 43 18 61" stroke="#4ade80" stroke-width="6" stroke-linecap="round" />
-            <path d="M9 54c18-13 31-10 38 0-17 8-29 8-38 0Z" fill="#4ade80" opacity=".85" />
-          </g>
-          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
-          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
-          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        <svg class="cam-prev is-macro" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice"
+             style="--subj:1;--bk:1.1;--bkop:.7;--haze:.3">
+          <use href="#cam-scene" />
         </svg>
       </div>
       <div class="lb">100mm 微距 <em>换成花朵主体，强制大虚化</em></div>
@@ -409,18 +581,9 @@
 
     <div class="cam-case">
       <div class="v">
-        <svg class="cam-prev is-fish" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:1.5px;--subj:.92;--bk:.556;--bkop:.58">
-          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
-          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
-            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
-            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
-            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
-            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
-            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
-          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
-          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
-          <path class="fish" d="M2 35Q200 6 398 35M2 142Q200 162 398 142" stroke="#fff" opacity=".22" />
-          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        <svg class="cam-prev is-fish" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice"
+             style="--subj:.92;--bk:.6;--bkop:.5;--haze:.14">
+          <use href="#cam-scene" />
         </svg>
       </div>
       <div class="lb">鱼眼 <em>地平线弯成弧形 + 上下桶形描边</em></div>
@@ -428,22 +591,9 @@
 
     <div class="cam-case">
       <div class="v">
-        <svg class="cam-prev is-motion" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:1.5px;--subj:1;--bk:.556;--bkop:.58">
-          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
-          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
-            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
-            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
-            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
-            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
-            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
-          <g class="motion" stroke-linecap="round"><path d="M18 119h126" stroke="#22d3ee" stroke-width="3" opacity=".5" /><path d="M258 106h124" stroke="#f472b6" stroke-width="4" opacity=".5" /><path class="trail" d="M8 137c88-34 204 31 384-18" stroke="#fde047" stroke-width="3" opacity=".62" /></g>
-          <g class="ghost">
-            <g class="gh gh1" fill="#a5b4fc" opacity=".08"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
-            <g class="gh gh2" fill="#a5b4fc" opacity=".13"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
-          </g>
-          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
-          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
-          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        <svg class="cam-prev is-motion" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice"
+             style="--subj:1;--bk:.6;--bkop:.5;--haze:.14">
+          <use href="#cam-scene" />
         </svg>
       </div>
       <div class="lb">动态拖影 <em>2 份残影 + 两条拖影线</em></div>
@@ -451,23 +601,9 @@
 
     <div class="cam-case">
       <div class="v">
-        <svg class="cam-prev is-motion is-trail" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:6.5px;--subj:1;--bk:1.22;--bkop:.72;--bri:.126">
-          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
-          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
-            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
-            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
-            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
-            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
-            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
-          <g class="motion" stroke-linecap="round"><path d="M18 119h126" stroke="#22d3ee" stroke-width="3" opacity=".5" /><path d="M258 106h124" stroke="#f472b6" stroke-width="4" opacity=".5" /><path class="trail" d="M8 137c88-34 204 31 384-18" stroke="#fde047" stroke-width="3" opacity=".62" /></g>
-          <g class="ghost">
-            <g class="gh gh1" style="--gx:24px" fill="#a5b4fc" opacity=".08"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
-            <g class="gh gh2" style="--gx:12px" fill="#a5b4fc" opacity=".13"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
-            <g class="gh gh3" fill="#a5b4fc" opacity=".18"><circle cx="200" cy="70" r="17" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" /></g>
-          </g>
-          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
-          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
-          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        <svg class="cam-prev is-motion is-trail" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice"
+             style="--subj:1;--bk:1.35;--bkop:.76;--haze:.4;--bri:.126">
+          <use href="#cam-scene" />
         </svg>
       </div>
       <div class="lb">光轨 + f/2 + 5s <em>3 份残影 + 光轨线 + 整体提亮</em></div>
@@ -475,17 +611,9 @@
 
     <div class="cam-case">
       <div class="v">
-        <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" style="--blur:1.5px;--subj:1;--bk:.556;--bkop:.58;--dim:.32">
-          <g clip-path="url(#cp-clip)"><rect width="400" height="168" fill="url(#cp-sky)" />
-          <g class="bg"><circle cx="70" cy="43" r="19" fill="#fbbf24" opacity=".72" />
-            <g class="std"><path d="M-10 113 63 54l58 50 65-69 79 73 49-43 96 50v59H-10Z" fill="#172554" /><path d="M-10 130 88 90l67 36 78-48 82 48 95-30v78H-10Z" fill="#1e1b4b" /></g>
-            <g class="fish"><path d="M-18 117Q200 52 418 117V174H-18Z" fill="#172554" /><path d="M-20 135Q200 94 420 135V174H-20Z" fill="#1e1b4b" /></g>
-            <g stroke="#818cf8" stroke-width="1" opacity=".52"><path d="M22 126V88h34v38M74 126V99h28v27M292 126V84h38v42M345 126V96h31v30" /><path d="M29 96h8m7 0h7m30 11h14m204-14h8m8 0h8m29 11h17M29 108h8m7 0h7m248-3h8m8 0h8" /></g>
-            <rect y="130" width="400" height="38" fill="url(#cp-ground)" /><path d="M0 145h400M56 130l-25 38m313-38 25 38" stroke="#6366f1" stroke-width="1" opacity=".55" />
-            <circle class="bk" cx="34" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="98" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="302" cy="116" r="9" fill="#fbbf24" /><circle class="bk" cx="360" cy="116" r="9" fill="#fbbf24" /></g>
-          <g class="subj"><circle cx="200" cy="70" r="17" fill="#f8fafc" /><path d="M169 151c2-43 12-66 31-66s29 23 31 66h-62Z" fill="#c7d2fe" /><path d="M181 105h38" stroke="#818cf8" stroke-width="4" opacity=".7" /></g>
-          <rect class="dim" width="400" height="168" fill="#020617" /><rect class="bri" width="400" height="168" fill="#fff7ed" />
-          <path d="M14 28V14h14M372 14h14v14M386 140v14h-14M28 154H14v-14" stroke="#fff" opacity=".45" /></g>
+        <svg class="cam-prev" viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice"
+             style="--subj:1;--bk:.6;--bkop:.5;--haze:.14;--dim:.32">
+          <use href="#cam-scene" />
         </svg>
       </div>
       <div class="lb">1/2000s <em>最短曝光 → 压暗</em></div>
@@ -494,35 +622,34 @@
   </div>
 
   <div class="mk-cap">
-    预览是<b>趋势示意</b>，不是真实曝光计算：焦距只改主体大小（透视），光圈只改背景模糊与光斑大小，
-    快门只改残影/拖影，曝光时间只改整体明暗蒙版。四者可叠加，互不换算。
-  </div>
-</div>
-
-<!-- ══════════ 舞台 4：参数如何生效（提示词拼接） ══════════ -->
-<div class="mk-stage">
-  <div class="mk-code"><span class="lb">// 用户提示词（节点内输入 + 上游文本 + @ 素材芯片解析后）</span>
-雨夜的东京街角，霓虹灯下的独行者，电影感氛围
-
-<span class="lb">// 追加：仅当节点类型 = ai-image / ai-video</span>
-<span class="add">Camera settings: 85mm portrait lens, f/2.8 aperture, soft background separation, 1/250s exposure time.</span></div>
-
-  <div class="mk-legend" style="margin-top:2px">
-    <div><b>拼接顺序</b>：<span class="k">焦距</span> → 快门效果 → 光圈 → 曝光时间，英文逗号连接，末尾补句点；缺省项整段跳过。</div>
-    <div><b>节点限制</b>：<span class="c">ai-audio 等节点不追加</span>（与参考实现一致）——面板只挂在 imageGenerateNode / 视频节点上。</div>
-    <div><b>数据流</b>：面板 <code>onChange</code> → 节点 <code>data.cameraSettings</code> → 生成时 <code>buildGenerationCameraPrompt()</code> → 提示词。三步缺一不可，只做 UI 不会生效。</div>
+    预览是<b>趋势示意</b>，不是真实曝光计算：焦距只改主体大小（透视），光圈只改光斑/雾霭（景深），
+    快门只改残影与拖影，曝光时间只改整体明暗。四者可叠加，互不换算。
+    每个实例只有 <code>&lt;use href="#cam-scene"&gt;</code> 一行 + 几个变量。
   </div>
 </div>
 
 <div class="mk-note">
-  <b>与现有能力的边界（避免做重）：</b>
-  本仓库已有 <code>CameraStudioPanel</code>（3D 摄影棚：球面拖拽机位 + 打光，hover 工具条里的太阳图标进入，产出「新建生图节点 + 预填提示词」）。
-  它和这里是<b>两套独立功能</b>：摄影棚改的是「机位与布光」并生成新节点，本面板改的是「当前节点这一次的成像参数」。
-  因此按钮<b>不进 hover 工具条</b>（那里已经是摄影棚的地盘），只落在展开面板的参数行。
+  <b>性能取舍（为什么值得改）：</b>
+  原实现用 <code>feGaussianBlur</code> 做背景虚化 —— 每动一次下拉就要重算一遍高斯模糊，是这一屏最贵的开销，
+  且同屏多实例时是 N 份滤镜通道。现在<b>全场景 0 个 filter</b>：虚化改由
+  <code>径向渐变光斑</code>（自带柔边，比「硬边圆 + 模糊」更省也更好看）+ <code>雾霭叠加</code>（低对比远景）+ <code>低饱和远山渐变</code>
+  三件事共同表达；其余全是纯填充与描边。图元总量控制在 ~55 个，且<b>只定义一次</b>。
   <br />
-  <b>刻意不做：</b>真实曝光/景深计算（预览只表达趋势）、自定义焦距输入（只给 8 档预设）、把参数写进节点卡片常驻展示（用角标数字表达即可）。
+  <b>复用方式（推荐照抄）：</b>
+  ① 精灵 <code>&lt;symbol id="cam-scene"&gt;</code> 挂在应用根节点一次（同 icon sprite 的做法，React 里就是一个
+  <code>&lt;CameraPreviewSprite /&gt;</code>，返回 null 之外的那份 defs）；
+  ② 每个用到预览的地方只写 <code>&lt;svg class="cam-prev" style="--subj:…;--bk:…"&gt;&lt;use href="#cam-scene"/&gt;&lt;/svg&gt;</code>；
+  ③ 变体全部走 CSS 变量（<code>--subj / --bk / --bkop / --haze / --dim / --bri</code>）与 display 开关
+  （<code>--macro-d / --fish-d / --motion-d / --trail-d …</code>）——自定义属性会继承进 <code>&lt;use&gt;</code> 的影子树，
+  所以「一份定义、N 种状态」成立，改外观只改精灵一处。
+  ④ 万一目标环境对影子树变量支持有坑，兜底是把精灵内容直接内联渲染（变量与开关名不变，替换成本极低）。
   <br />
-  <b>落地口径：</b>预览 SVG 的颜色沿用参考包（它是「画面」，不是 UI chrome，不套 token）；弹层、下拉、按钮全部走 <code>mockup-kit</code> 的 <code>--surface-*</code> / <code>--edge-*</code> / <code>--accent-*</code> token。
+  <b>刻意不做：</b>真实曝光/景深计算（预览只表达趋势）、自定义焦距输入（只给 8 档预设）、
+  给光斑加逐帧动画（会持续占用合成，收益不抵开销）。
+  <br />
+  <b>与现有能力的边界：</b>本仓库已有 <code>CameraStudioPanel</code>（3D 摄影棚：球面拖拽机位 + 打光）。
+  它和这里是<b>两套独立功能</b>：摄影棚改「机位与布光」并新建节点，本面板改「当前节点这一次的成像参数」，
+  因此按钮<b>不进 hover 工具条</b>，只落在展开面板的参数行。
 </div>
 
 </body>
