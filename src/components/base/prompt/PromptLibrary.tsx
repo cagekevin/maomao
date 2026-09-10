@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
 import { Sparkles, X, Search, Plus, Pencil, Trash2, List, Clock } from 'lucide-react';
 import {
   loadPresets,
@@ -182,6 +183,11 @@ function PromptLibrary({
   };
 
   const isModalOpen = editingIndex >= 0 || showNewForm;
+
+  // Esc 关闭 + 登记为全屏模态层（modalLayer）。
+  // 本组件条件挂载（下方 `if (!open) return null`），且只在 true 时才登记。
+  // 原先只能通过「点遮罩 / 点关闭按钮」关闭，全屏浮层没接 Esc 属于缺遗憾 —— 一并补上。
+  useFullscreenEditorKeys({ enabled: open, onEscape: onClose });
 
   if (!open) return null;
 
