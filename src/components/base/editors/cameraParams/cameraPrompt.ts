@@ -9,7 +9,6 @@
 
 import type {
   CameraAperture,
-  CameraExposureTime,
   CameraGenerationSettings,
   CameraLens,
   CameraShutterEffect,
@@ -31,8 +30,8 @@ export function describeCameraLens(lens: CameraLens): string {
   return LENS_PROMPTS[lens];
 }
 
+/** 快门效果 → 英文片段（已删 freeze：静帧生图默认定格，该词无引导力） */
 export const SHUTTER_EFFECT_PROMPTS: Record<CameraShutterEffect, string> = {
-  freeze: 'high-speed shutter effect, crisp frozen motion',
   natural: 'natural shutter motion rendering',
   motion: 'slow-shutter motion blur',
   'light-trails': 'long-exposure light trails',

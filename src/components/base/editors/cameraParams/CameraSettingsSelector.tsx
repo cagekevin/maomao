@@ -35,33 +35,30 @@ const CAMERA_LENS_OPTIONS: Array<{ value: CameraLens; label: string }> = [
   { value: 'fisheye', label: '鱼眼' },
 ];
 
+// 快门效果：已删「凝固动作」（静帧生图默认定格，该档对模型无引导力）
 const CAMERA_SHUTTER_OPTIONS: Array<{ value: CameraShutterEffect; label: string }> = [
-  { value: 'freeze', label: '凝固动作' },
   { value: 'natural', label: '自然动态' },
   { value: 'motion', label: '动态拖影' },
   { value: 'light-trails', label: '光轨效果' },
 ];
 
-const CAMERA_APERTURE_OPTIONS: CameraAperture[] = [
-  'f/1.4',
-  'f/2',
-  'f/2.8',
-  'f/4',
-  'f/5.6',
-  'f/8',
-  'f/11',
-  'f/16',
+// 光圈：数字越小 = 光圈越大 = 景深越浅（背景越虚化）。中文后缀按对应提示词语义标注。
+const CAMERA_APERTURE_OPTIONS: Array<{ value: CameraAperture; label: string }> = [
+  { value: 'f/1.4', label: 'f/1.4 极致虚化' },
+  { value: 'f/2', label: 'f/2 强虚化' },
+  { value: 'f/2.8', label: 'f/2.8 柔和虚化' },
+  { value: 'f/4', label: 'f/4 均衡' },
+  { value: 'f/5.6', label: 'f/5.6 中等景深' },
+  { value: 'f/8', label: 'f/8 深景深' },
+  { value: 'f/11', label: 'f/11 大景深' },
+  { value: 'f/16', label: 'f/16 全景清晰' },
 ];
 
+// 曝光时间：只留能翻译成明暗的两端（短曝压暗 / 长曝提亮）；中间无效档（1/250s~1/8s）已删
 const CAMERA_EXPOSURE_OPTIONS: CameraExposureTime[] = [
   '1/2000s',
   '1/1000s',
   '1/500s',
-  '1/250s',
-  '1/125s',
-  '1/60s',
-  '1/30s',
-  '1/8s',
   '1/2s',
   '1s',
   '5s',
@@ -277,22 +274,6 @@ function CameraSettingsPreview({ settings }: { settings: CameraGenerationSetting
                   : 0.92;
 
   const apertureNumber = settings.aperture ? Number(settings.aperture.slice(2)) : 5.6;
-  const backgroundBlur =
-    apertureNumber <= 1.4
-      ? 8
-      : apertureNumber <= 2
-        ? 6.5
-        : apertureNumber <= 2.8
-          ? 5
-          : apertureNumber <= 4
-            ? 3.2
-            : apertureNumber <= 5.6
-              ? 1.5
-              : apertureNumber <= 8
-                ? 0.7
-                : apertureNumber <= 11
-                  ? 0.25
-                  : 0;
   const bokehRadius =
     apertureNumber <= 1.4
       ? 1.7
@@ -328,15 +309,13 @@ function CameraSettingsPreview({ settings }: { settings: CameraGenerationSetting
         ? 1.2
         : settings.exposureTime === '1/2s'
           ? 1.13
-          : settings.exposureTime === '1/8s'
-            ? 1.06
-            : settings.exposureTime === '1/2000s'
-              ? 0.68
-              : settings.exposureTime === '1/1000s'
-                ? 0.76
-                : settings.exposureTime === '1/500s'
-                  ? 0.84
-                  : 1;
+          : settings.exposureTime === '1/2000s'
+            ? 0.68
+            : settings.exposureTime === '1/1000s'
+              ? 0.76
+              : settings.exposureTime === '1/500s'
+                ? 0.84
+                : 1;
   const dim = exposureBrightness < 1 ? 1 - exposureBrightness : 0;
   const bri = exposureBrightness > 1 ? (exposureBrightness - 1) * 0.45 : 0;
 
@@ -529,20 +508,59 @@ function CameraSettingsPreview({ settings }: { settings: CameraGenerationSetting
         vectorEffect="non-scaling-stroke"
         style={{ display: 'var(--arc-d, none)' }}
       />
-      <path
-        d="M26 40V26h14M374 26h14M388 138v14h-14M40 152H26v-14"
-        stroke="#fff"
-        opacity=".34"
-        fill="none"
-        strokeWidth="1"
-        vectorEffect="non-scaling-stroke"
-      />
+      {/* 取景框角标不画在这里：容器用 preserveAspectRatio="slice" 会横向/纵向裁切，
+          贴在 viewBox 边上的角标会被裁掉（表现为右侧/上下缺角）。改由外层容器
+          绝对定位覆盖层绘制（见 CameraFrameCorners），四个角恒定贴住可视边界。 */}
 
       {/* 猫剪影定义（供残影 <use> 引用；必须与主场景猫轮廓一致） */}
       <defs>
         <CameraCatSilhouette />
       </defs>
     </svg>
+  );
+}
+
+/**
+ * 取景框角标（四个直角）—— 绝对定位覆盖在预览容器上，恒定贴住可视边界。
+ *
+ * 为什么不在场景 SVG 里画：场景容器用 preserveAspectRatio="xMidYMid slice"，
+ * 容器比例与 viewBox 不一致时会被裁切；画在 viewBox 边上的角标会随之被裁掉
+ * （右侧/上下缺角）。放到外层覆盖层后，不随 slice 缩放，四角始终完整。
+ *
+ * 用两层描边表达：外层深色底（在浅背景上也看得见）+ 内层白色细线。
+ */
+function CameraFrameCorners() {
+  const corners = [
+    { key: 'tl', d: 'M1 13V1h12' },
+    { key: 'tr', d: 'M11 1h12v12' },
+    { key: 'br', d: 'M23 11v12H11' },
+    { key: 'bl', d: 'M13 23H1V11' },
+  ];
+  return (
+    <>
+      {corners.map((c) => (
+        <svg
+          key={c.key}
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+          className={`absolute pointer-events-none ${
+            c.key === 'tl'
+              ? 'left-2 top-2'
+              : c.key === 'tr'
+                ? 'right-2 top-2'
+                : c.key === 'br'
+                  ? 'right-2 bottom-2'
+                  : 'left-2 bottom-2'
+          }`}
+        >
+          <path d={c.d} stroke="rgba(0,0,0,.45)" strokeWidth="3" fill="none" />
+          <path d={c.d} stroke="#fff" strokeWidth="1.2" fill="none" opacity=".55" />
+        </svg>
+      ))}
+    </>
   );
 }
 
@@ -611,9 +629,10 @@ export default function CameraSettingsSelector({
             </button>
           </div>
 
-          {/* 实时成像预览 */}
-          <div className="h-[152px] overflow-hidden rounded-md border border-edge-muted bg-surface-sunken">
+          {/* 实时成像预览（角标覆盖层贴容器边界，不随 slice 裁切） */}
+          <div className="relative h-[152px] overflow-hidden rounded-md border border-edge-muted bg-surface-sunken">
             <CameraSettingsPreview settings={value} />
+            <CameraFrameCorners />
           </div>
 
           <div className="grid grid-cols-2 gap-2 mt-2">
@@ -663,8 +682,8 @@ export default function CameraSettingsSelector({
               >
                 <option value="">自动</option>
                 {CAMERA_APERTURE_OPTIONS.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </select>
@@ -687,10 +706,6 @@ export default function CameraSettingsSelector({
               </select>
             </label>
           </div>
-
-          <p className="mt-2 px-0.5 text-caption leading-relaxed text-muted">
-            自动项不会写入提示词；预览仅用于表达景深、明暗、透视与动态趋势。
-          </p>
         </div>
       )}
     </div>
