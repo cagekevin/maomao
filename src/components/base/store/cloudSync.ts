@@ -557,13 +557,10 @@ async function restoreLocal(cloud) {
       }
     }
   }
-  // 2) API 配置：全量保存到 localTool
+  // 2) API 配置：全量保存到 localTool（config/providers/<id>.json 即唯一真源）
   if (Array.isArray(ls.providers)) {
     try {
       await providerApi.saveProviders(ls.providers);
-      providerApi
-        .syncConfigBase(ls.providers)
-        .catch((e) => logger.warn('sync', 'config-sync-fail', { error: e?.message }));
       written++;
     } catch {
       /* ignore */
