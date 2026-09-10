@@ -426,9 +426,24 @@ export function getCurrentProject(): Project {
   );
 }
 
+// 自动去重：同名项目自动加序号（项目 / 项目 (1) / 项目 (2)…），不阻断用户。
+// 仅「完全一致」的字符串算同名（区分大小写与首尾空格）；从 1 递增取首个空位。
+function makeUniqueProjectName(base: string): string {
+  const taken = new Set(projects.map((p) => p.name));
+  if (!taken.has(base)) return base;
+  let i = 1;
+  let candidate = `${base} (${i})`;
+  while (taken.has(candidate)) {
+    i += 1;
+    candidate = `${base} (${i})`;
+  }
+  return candidate;
+}
+
 // 新建项目：返回新项目；创建后切到该项目（不自动清空画布，由调用方决定）
 export function createProject(name?: string): Project {
-  const proj: Project = { id: genId(), name: (name && name.trim()) || '未命名项目' };
+  const baseName = (name && name.trim()) || '未命名项目';
+  const proj: Project = { id: genId(), name: makeUniqueProjectName(baseName) };
   projects = [...projects, proj];
   currentProjectId = proj.id;
   persist();

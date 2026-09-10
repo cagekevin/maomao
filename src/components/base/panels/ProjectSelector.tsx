@@ -90,8 +90,10 @@ export default function ProjectSelector({ onSwitch, onCreate }: ProjectSelectorP
       danger: true,
     });
     if (!ok) return;
+    // 删除当前项目：直接走 deleteProject（内部已把 currentProjectId 切到下一个并 notify，
+    // App 加载 effect 会自动 loadCanvasState(下一个)）。不要调 onSwitch：否则 handleSwitchProject
+    // 的 persistCanvas(getCurrentProject().id) 会把内存里【被删项目】的内容误写进下一个项目的快照 key，污染它。
     deleteProject(currentProjectId);
-    if (onSwitch) onSwitch(getCurrentProject().id);
   };
 
   const openCreateModal = () => {
@@ -101,7 +103,7 @@ export default function ProjectSelector({ onSwitch, onCreate }: ProjectSelectorP
 
   return (
     <div ref={wrapRef} className="flex items-center gap-1 group/project-selector relative">
-      {/* 下拉触发器（复刻 Component731） */}
+      {/* 下拉触发器 */}
       <div className="relative group/project-dropdown cursor-pointer">
         <div className="flex items-center gap-1 bg-transparent text-body text-sm hover:text-white pl-2 pr-2 py-1 outline-none min-w-[100px] pb-1.5 z-10 relative">
           <span className="truncate max-w-[120px]">{currentName}</span>
