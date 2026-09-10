@@ -199,14 +199,9 @@
               <button class="ic danger" title="删除图层"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
             </div>
 
-            <!-- 层序 + 新增：作用的是「这个图层在栈里的位置」，必须挨着列表 -->
+            <!-- 新增：只留「上传图片为图层」。层序改由「拖拽行换序」承担（见 mk-note），
+                 不在列表旁再放一套箭头按钮——同一件事不留多条路径。 -->
             <div class="layer-tools">
-              <div class="seg">
-                <button title="置顶 ⌘⇧]"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 11-5-5-5 5"/><path d="m17 18-5-5-5 5"/></svg></button>
-                <button title="上移一层 ⌘]"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></button>
-                <button title="下移一层 ⌘["><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
-                <button title="置底 ⌘⇧["><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 7 5 5 5-5"/><path d="m6 13 5 5 5-5"/></svg></button>
-              </div>
               <button class="ib" title="上传图片为图层"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
             </div>
           </div>
@@ -293,12 +288,11 @@
 
         </div>
 
-        <!-- 画布浮层：只留视图控制 -->
+        <!-- 画布浮层：只留缩放（「适配画布」不在任何地方重复出现，⌘0 由状态条快捷键承载） -->
         <div class="float" style="left:14px;bottom:14px">
           <button title="缩小"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg></button>
           <span class="pct">34%</span>
           <button title="放大"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
-          <button title="适配画布 ⌘0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
         </div>
       </div>
 
@@ -402,11 +396,20 @@
     <b>画布上补「直接操作」：</b>8 柄（v1 只有 4 个角柄，无法单向拉伸）、拖动时跟随的
     <code>size-tag</code>、选中框上的就近「上移 / 下移 / 删除」——手不用离开画布。
     画布右下角那条常驻教学文本删了（那是新手 App 的标志），快捷键改由状态条常驻。<br />
+    <b>层序只留一条主路径（v3 收口）：</b>v2 里「改图层顺序」有三套入口——左栏列表旁的 4 个箭头按钮、
+    画布选中框上的上移/下移、以及 <code>⌘] / ⌘[</code> 快捷键。同一件事三条路径，用户要先选一条再记住它，认知成本反而更高。
+    v3 <b>删掉左栏那 4 个箭头按钮</b>，保留两条互补路径：<b>画布上就近操作</b>（手不离画布，处理「这张压住那张」的即时调整）
+    + <b>列表拖拽行换序</b>（处理「背景 → 中景 → 前景」的长距离大挪动，也是图层列表的标配手势）。
+    左栏 <code>layer-tools</code> 因此只剩「上传图片为图层」。<br />
+    <b>「适配画布」不再复活（v3 收口）：</b>v2 已把它从工具条删除（列为重复入口第 1 项），
+    但画布左下角浮层里又画了一遍——<b>同一个功能换了个位置又出现，等于没砍</b>。
+    v3 从浮层中一并删除，视图控制只留「缩小 / 34% / 放大」；
+    需要适配时走 <code>⌘0</code>（状态条常驻快捷键列表已列）。<br />
     <b>修饰键定死三个且互不冲突：</b><code>空格=平移</code>、<code>⌘=临时移动</code>、<code>Alt=从中心</code>。
     v1 的「⌘ 拖旋转」已被删——⌘ 在画布编辑里的通用语义是「临时切换 / 加选」，用它做旋转既误触又和变换框上的 rot 手柄重复。<br />
     <b>数值统一到画布坐标系：</b>X/Y 从 96/86 改为 <b>279/250</b>（96px ÷ 0.344），缩放比 68% 改为 <b>34%</b>（660 ÷ 1920），
     文字层框宽 1152 改为 <b>727</b>（250px ÷ 0.344）。v1 把「屏幕像素」和「画布像素」写在同一格里，照着填会错位。<br />
-    <b>砍掉的 6 个重复入口：</b>适配画布（工具条）、上传（工具条）、header 的 ✕（与「取消」同义）、
+    <b>砍掉的 7 个重复入口：</b>适配画布（工具条 <b>+ v3 补删画布浮层那份</b>）、上传（工具条）、header 的 ✕（与「取消」同义）、
     header 标题里的动态元数据（与画板标签、状态条三处重复）、右栏的「复制 / 删除图层」整行（图层行内已有 ✕、状态条已有 ⌘D）、
     「明度」滑杆（与亮度语义重叠）。<br />
     <b>状态条换血：</b>删掉「撤销栈 12 步」（用户只关心能不能撤）和「显存 84/256 MiB」
@@ -598,8 +601,9 @@
     顶部锚点不动，肌肉记忆才成立。B / C 两个卡片都保留了「变换」在顶，就是为了固定这个骨架。<br />
     <b>画布上的两个交互（外包有、我第一版漏了）：</b>文字<b>双击就地编辑</b>、图片<b>拖入即加图层</b>。
     这两个都是「作用在画布上」而不是「作用在面板上」，必须在画布区展示，不能塞进右栏。<br />
-    <b>图层行补的三件事：</b>删除、双击改名、拖拽换序——外部包都有，属于图层列表的标配操作。
-    「复制 / 删除」不再单列一行：图层行内有删除，复制走 ⌘D。
+    <b>图层行补的三件事：</b>删除、双击改名、<b>拖拽换序</b>——外部包都有，属于图层列表的标配操作。
+    也正因为列表本身支持拖拽换序，<b>列表旁不再放一套箭头按钮</b>（v3 已删）：换序走「拖行」或「画布上就近按钮」，
+    两条路径各管一种场景，不再有第三、第四条。「复制 / 删除」不再单列一行：图层行内有删除，复制走 ⌘D。
   </div>
 </div>
 

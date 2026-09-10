@@ -27,6 +27,40 @@
     font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
   }
   .tc-in:focus{outline:none;border-color:var(--accent-line);}
+  /* 导出 = 主按钮 + 下拉（split button）：主链路点一下直达，次选项挂在箭头下拉。
+     主按钮与箭头共用 primary 视觉拼成一体，只在中间留一道缝，读起来仍是「一个导出」。 */
+  .ve-export{position:relative;display:flex;}
+  .ve-export>.btn.primary:first-child{border-top-right-radius:0;border-bottom-right-radius:0;}
+  .ve-export-caret{border-top-left-radius:0;border-bottom-left-radius:0;padding:0 7px;
+    border-left:1px solid rgba(255,255,255,.28);}
+  /* mockup 里其它 .menu 是静态常显给人看的；这里模拟真实体感：默认收起，hover 才展开。
+     注意 .menu 的默认方向是「向上弹」（bottom:calc(100%+8px)），kit 里靠 .dd .menu.down 才向下；
+     .ve-export 不是 .dd，所以必须自己显式覆盖成向下（top:100% / bottom:auto），靠右对齐。
+     间距只留 2px（kit 默认 8px）：抬头按钮在屏幕顶部，菜单离按钮越远，鼠标从按钮移到菜单
+     的途中越容易滑出 hover 区导致菜单消失 —— 贴身弹出可消除这段「真空带」。
+     宽度与 split button 整体等宽（left:0/right:0 撑满 .ve-export）。
+     必须显式 min-width:0 —— kit 的 .menu 自带 min-width:180px，而本按钮总宽仅约 136px，
+     min-width 优先级高于 left/right 撑开，会让菜单反而比按钮宽出约 44px（这就是「不等宽」的根因）。 */
+  .ve-export .menu{left:0;right:0;min-width:0;top:calc(100% + 2px);bottom:auto;display:none;}
+  .ve-export:hover .menu{display:block;}
+  /* 快捷键面板：走带右端那行常驻文案搬进来。规则写成专用类名而不是「.dd:hover .menu」，
+     避免顺手把本屏其它 .dd 的下拉也变成 hover 展开。
+     靠右对齐（left:auto/right:0）——按钮在最右侧，菜单向左展开才不出界。 */
+  .ve-kbd-menu{left:auto;right:0;min-width:214px;top:calc(100% + 6px);bottom:auto;display:none;}
+  .ve-kbd-dd:hover .ve-kbd-menu{display:block;}
+  .ve-kbd-menu div{display:flex;align-items:center;gap:10px;padding:5px 8px;font-size:11px;color:var(--t-muted);}
+  .ve-kbd-menu div b{margin-left:auto;color:var(--t-body);font-weight:500;white-space:nowrap;}
+
+  /* 只读片段信息：折叠成一条摘要行，而不是铺满 9 行。选中片段时右栏的主位
+     应留给「能改什么」，入点/出点/编码等只读项按需展开。 */
+  .ve-clipinfo{background:var(--input);border:1px solid var(--edge-faint);border-radius:var(--r-sm);overflow:hidden;}
+  .ve-clipinfo-head{display:flex;align-items:center;gap:6px;width:100%;padding:6px 8px;
+    background:transparent;border:none;cursor:pointer;text-align:left;color:var(--t-primary);}
+  .ve-clipinfo-head:hover{background:var(--surface-hover);}
+  .ve-clipinfo-head .n{font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ve-clipinfo-head .d{font-size:10px;color:var(--t-faint);margin-left:auto;white-space:nowrap;}
+  .ve-clipinfo-head svg{margin-left:4px;color:var(--t-faint);transform:rotate(90deg);}
+  .ve-clipinfo-body{padding:4px 8px 6px;border-top:1px solid var(--edge-faint);}
   /* 交互审计表：一屏看清「点了到底有没有反应」 */
   .audit{width:100%;border-collapse:collapse;font-size:11px;}
   .audit th{
@@ -47,7 +81,9 @@
   <p>
     参考 <b>AI-Canvas-tauri-video-editor</b>（AI-Canvas-tauri 抽取包），按本仓库 <b>NODE-DESIGN-SPEC §〇</b> 视觉 DNA 与
     <b>mockup-kit</b> token 重做；<span class="hl">主屏 = 定稿版</span>（已吸收舞台 4 的交互审计结论，不另出「改后」对比图）。<br />
-    全页五屏：① 主界面 · ② 右栏三态 + 添加菜单 · ③ 状态变体（空态 / 导出中 / 轨道三态 / 多选）· ④ 交互审计表 · ⑤ 顺手化清单。
+    全页五屏：① 主界面 · ② 右栏三态 + 添加菜单 · ③ 状态变体（空态 / 导出中 / 轨道三态 / 多选）· ④ 交互审计表 · ⑤ 顺手化清单。<br />
+    <b>本轮收口主线是「信息分类」而非「砍功能」</b>：同一个信息只出现在「用户需要它的那一刻」的地方——
+    只读信息不进常态可见区、同一数值不在两处重复、<b>「离开」与「产出」两类动作分列两侧</b>。
     时间轴口径：<b>45px/秒</b>，工程 24.50s = 1102px；主轨 4 段 + 叠加轨 2 段 + 字幕轨 2 段 + 音频轨 1 段，播放头 <code>00:00:08:12</code>（8.40s，30fps）。
   </p>
 </div>
@@ -56,16 +92,33 @@
 <div class="mk-stage">
   <div class="editor ve">
 
-    <!-- 抬头：标题 + 元信息 + 导出动作（沿用 ImageEditor 的「取消 / 主按钮」收口） -->
+    <!-- 抬头：「离开」与「产出」分列两侧。左 = 取消（离开类统一靠边，与 ImageEditor 一致）。
+         右 = 导出，收成一个「主按钮 + 下拉」：
+           主按钮「导出为新节点」= 主链路，点一下直达（不进下拉，否则每次导出多一步）；
+           下拉挂两个次选项 ——「导出到本地」（换落点）、「导出当前帧为图片」（换产物类型：图非视频）。
+         三个平铺的问题：① 它们本是「一个动作 + 不同落点」而非三个并列动作；
+         ② 三个同宽按钮稀释了 primary 的视觉焦点，扫一眼分不清该点哪个；
+         ③「当前帧」产物是图片，"导出视频" 与 "导出图片" 混排同级，语义被拉平。 -->
     <div class="eh">
       <div class="eh-left">
+        <button class="btn">取消</button>
+        <div class="vline sm"></div>
         <div class="eh-title">视频剪辑 <span>开场镜头_v3 · 1920×1080 · 6 个片段 · 24.50s</span></div>
       </div>
       <div class="eh-right">
-        <button class="ib" title="把播放头画面导出为画布图片节点"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></button>
-        <button class="btn">导出到本地</button>
-        <button class="btn">取消</button>
-        <button class="btn primary">导出为新节点</button>
+        <div class="ve-export">
+          <button class="btn primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            导出为新节点
+          </button>
+          <button class="btn primary ve-export-caret" title="更多导出方式">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="menu">
+            <button class="menu-item">导出到本地</button>
+            <button class="menu-item">导出当前帧为图片</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -131,11 +184,15 @@
 
       <!-- ── 中：预览 ── -->
       <div class="ve-mid">
+        <!-- 监视器三层，各管一件事，不许跨界：
+             ve-info        我在看谁的画（画面归属 + 画布尺寸）
+             ve-prog.scrub  这笔进度到哪了，兼作粗定位轨（可点可拖）
+             ve-transport   怎么走到某一帧（时间码 + 走带 + 画面适配）
+             播头时间值不再写在这里 —— 权威表达是下面可输入的时间码与时间轴那根红线；
+             同一数值摆两处（一处只读、一处可写），人先纠结的是「哪边准」。 -->
         <div class="ve-info">
-          <span>画布</span><b>1920 × 1080</b>
-          <span>·</span><span>适配</span><b>46%</b>
-          <span>·</span><span>播放头</span><b>00:00:08:12</b>
-          <span>·</span><span>选中</span><b>中景_跟拍.mp4</b>
+          <span>画面来源</span><b>中景_跟拍.mp4</b>
+          <span>·</span><span>画布</span><b>1920 × 1080</b>
         </div>
 
         <div class="ve-stage">
@@ -154,7 +211,9 @@
           <!-- 画面上不放走带浮层：与底部走带重复（见审计表） -->
         </div>
 
-        <div class="ve-prog">
+        <!-- scrub：同样是表达进度，可操作的那个才值得占这一层。
+             横向拖 = 找大致位置（比拖时间轴轻），精确卡点交给下面的时间码与帧步进。 -->
+        <div class="ve-prog scrub" title="点击 / 拖动跳转（粗定位）；精确卡点用时间码或 ← → 帧步进">
           <div class="fill" style="width:34%"></div>
           <div class="thumb" style="left:34%"></div>
         </div>
@@ -163,18 +222,40 @@
           <div class="ve-tc">
             <input class="tc-in" value="00:00:08:12" /><span class="tot">/ 00:00:24:50</span>
           </div>
+          <!-- 走带 = 「怎么走到某一帧」：先跳到大致位置，再逐帧微调。
+               补上 ◀ ▶ 帧步进 —— 定位的最后一步永远是逐帧，而此前它只存在于一行
+               快捷键提示文字里、没有按钮，等于把最高频的动作藏成了说明文字。
+               去掉「回到开头」（Home 能到，连点「上一片段」也能到；低频不该占主位）。 -->
           <div class="ve-play">
-            <button class="ib" title="回到开头"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6v12L9 12z"/><path d="M6 6v12"/></svg></button>
-            <button class="ib" title="上一片段"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 18V6l-8 6z"/><path d="M20 18V6l-8 6z"/></svg></button>
+            <button class="ib" title="上一片段边界（⇧←）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 18V6l-8 6z"/><path d="M20 18V6l-8 6z"/></svg></button>
+            <button class="ib" title="上一帧（←）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 6l-8 6 8 6z"/><path d="M17 6v12"/></svg></button>
             <button class="big" title="播放（空格）"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
-            <button class="ib" title="下一片段"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 6v12l8-6z"/><path d="M4 6v12l8-6z"/></svg></button>
+            <button class="ib" title="下一帧（→）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 6v12"/><path d="M11 6l8 6-8 6z"/></svg></button>
+            <button class="ib" title="下一片段边界（⇧→）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 6v12l8-6z"/><path d="M4 6v12l8-6z"/></svg></button>
             <button class="ib" title="循环播放"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></button>
           </div>
           <div class="ve-view">
-            <span class="ve-sel" style="display:flex;align-items:center;padding:0 6px">适应 ▾</span>
+            <!-- 适配比例归监视器：它管的正是这块画面，并由控件自己带出当前值。
+                 专注模式作用于本区域（隐藏左右栏），入口就近落在被影响的区域上。 -->
+            <span class="ve-sel" style="display:flex;align-items:center;padding:0 6px">适应 · 46% ▾</span>
             <button class="ib" title="专注模式：隐藏左右栏"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
-            <button class="ib" title="快捷键"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5h.01M14.5 9.5h.01M9 15h6"/></svg></button>
-            <span>S 分割 · Del 删除 · ⌘Z 撤销</span>
+            <!-- 快捷键：原来常驻在末尾那行「S 分割 · Del 删除 · ⌘Z 撤销」撤掉。
+                 常驻文案在学会之后就是永久噪音，但快捷键又必须有可发现性 ——
+                 收成 hover 面板，想看的那一下才出现（与导出箭头下拉同一套路）。 -->
+            <div class="dd ve-kbd-dd">
+              <button class="ib" title="快捷键"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5h.01M14.5 9.5h.01M9 15h6"/></svg></button>
+              <div class="menu down ve-kbd-menu">
+                <div><span>播放 / 暂停</span><b>空格</b></div>
+                <div><span>帧步进</span><b>← →</b></div>
+                <div><span>跳片段边界</span><b>⇧← →</b></div>
+                <div><span>跳到开头 / 结尾</span><b>Home / End</b></div>
+                <div class="menu-sep"></div>
+                <div><span>在播放头处分割</span><b>S</b></div>
+                <div><span>删除 · 波纹删除</span><b>⌫ · ⇧⌫</b></div>
+                <div><span>撤销 · 重做</span><b>⌘Z · ⌘⇧Z</b></div>
+                <div><span>缩放跟随指针</span><b>⌘滚轮</b></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -211,19 +292,23 @@
 
         <div class="sect">
           <div class="sect-t"><span>片段</span><em>可裁剪</em></div>
-          <div class="ve-row"><span>名称</span><b title="中景_跟拍.mp4">中景_跟拍.mp4</b></div>
-          <div class="ve-row"><span>类型</span><b>视频</b></div>
-          <div class="ve-row"><span>入点</span><b>0.00s</b></div>
-          <div class="ve-row"><span>出点</span><b>6.20s</b></div>
-          <div class="ve-row"><span>保留时长</span><b>4.20s</b></div>
-        </div>
-
-        <div class="sect">
-          <div class="sect-t"><span>源素材</span></div>
-          <div class="ve-row"><span>分辨率</span><b>1920 × 1080</b></div>
-          <div class="ve-row"><span>总时长</span><b>6.20s</b></div>
-          <div class="ve-row"><span>视频编码</span><b>h264</b></div>
-          <div class="ve-row"><span>音频编码</span><b>aac</b></div>
+          <!-- 只读信息折叠成一条摘要行，而不是铺 9 行。选中片段时用户要看的是
+               「能改什么」；入点/出点/编码等只读项降级为按需展开（ⓘ）。
+               编码（h264/aac）属环境信息（D 类），真正需要它的场合是导出对话框
+               判断「能不能无损直通」——右栏常驻 expose 它等于用最贵的位置放最冷的信息。 -->
+          <div class="ve-clipinfo">
+            <button class="ve-clipinfo-head" title="展开只读详情">
+              <span class="n">中景_跟拍.mp4</span>
+              <span class="d">4.20s / 6.20s · 1920×1080</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+            <div class="ve-clipinfo-body">
+              <div class="ve-row"><span>类型</span><b>视频</b></div>
+              <div class="ve-row"><span>入点 / 出点</span><b>0.00s / 6.20s</b></div>
+              <div class="ve-row"><span>源素材总时长</span><b>6.20s</b></div>
+              <div class="ve-row"><span>编码</span><b>h264 / aac</b></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -234,18 +319,11 @@
         <!-- 标题是标签不是按钮（审计：砍掉可点但无反应的「时间轴」按钮） -->
         <span class="ve-tl-title">时间轴</span>
 
+        <!-- 剪辑命令（不设「选择/刀片」工具模式）：分割 = 在播放头处把选中片段切开一刀，
+             与删除同级，放时间轴头。不做刀片工具模式 —— 它是「点哪切哪」的第二条路径，
+             与本按钮做同一件事，只留一条（精确切点靠「先定位播放头再按 S」，所见即所得）。 -->
         <div class="seg">
-          <button class="on" title="选择工具（V）">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l7 17 2-6 6-2z"/></svg>
-            选择
-          </button>
-          <button title="刀片工具（C）：点哪切哪">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9"/><path d="M14 15.9L8.1 21.8"/><path d="M20 12.9V21.1"/></svg>
-            刀片
-          </button>
-        </div>
-        <div class="seg">
-          <button title="在播放头处分割（S）">分割</button>
+          <button title="在播放头处分割选中片段（S）">分割</button>
           <button title="删除：留洞（⌫）／波纹删除（⇧⌫）">删除 ▾</button>
         </div>
         <div class="seg">
@@ -267,10 +345,12 @@
 
         <div class="spacer"></div>
 
+        <!-- 这里只报工程健康度。原来这条是「片段名 · 时长｜空隙：无」，其中片段名与
+             监视器抬头的「画面来源」是同一个名字隔一层出现两次。
+             归属信息归监视器，这个位置让给「删完有没有留洞」—— 配合删除二态，
+             有洞时这条要直接变成可点的「有 1 处空隙 · 闭合」。 -->
         <div class="ve-tc" style="font-size:11px">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14"/></svg>
-          <span>中景_跟拍.mp4 · 4.20s</span>
-          <span class="tot">｜ 空隙：无</span>
+          <span class="tot">空隙：无</span>
         </div>
 
         <div class="vline sm"></div>
@@ -392,7 +472,14 @@
       ① 抬头从「Tauri 自绘标题栏（最小化 / 关闭）」改为与 <code>ImageEditor</code> 同构的 <code>取消 / 导出为新节点</code>——本仓库是画布内编辑器，不是独立窗口；
       ② 主色 indigo <code>#6366f1</code> 全量换成 <code>--accent #3b82f6</code>（含转场覆盖、裁剪手柄、播放头不用红以外的强调色）；
       ③ 素材来源改成<b>素材库 / 本机文件 / 画布图片节点</b>三源，其中「画布图片节点」是本仓库独有（读画布上已有 <code>ImageNode</code> 的图源）。<br />
-      本屏已按舞台 4 的审计结论定稿：抬头撤销并入时间轴头、预览不放浮层走带、缩放只留滑杆 + 自适应、删除带波纹、分割配刀片。
+      本屏已按舞台 4 的审计结论定稿：抬头撤销并入时间轴头、预览不放浮层走带、缩放只留滑杆 + 自适应、删除带波纹。<br />
+      <b>本次追加（信息分类收口，见审计表末 5 条）：</b>
+      ① <b>抬头动作分组 + 导出收口</b>——「取消」靠左（离开类）；导出收成一个 <b>split button</b>：主按钮「导出为新节点」点一下直达（主链路不进下拉），次选项「导出到本地 / 导出当前帧为图片」挂在箭头下拉里。三个平铺会稀释 primary 焦点，且把「导出视频」与「导出图片」拉成同级；
+      ② <b>右栏只读折叠</b>——片段详情折成一条摘要行，入点/编码按需展开，把最贵的位置让给「能改什么」；
+      ③ <b>只留「分割」一条切开路径</b>——在播放头处切开选中片段（<code>S</code>），不设刀片工具模式；
+      ④ <b>适配比例去重</b>——信息条不再重复，只在「适应 ▾」旁带当前值（原 46% / 34% 两处打架）；
+      ⑤ <b>多选右栏定义</b>——显示「已选 N + 可批量项 + 差异项标—（混合）」；<br />
+      ⑥ <b>监视器三层按任务收敛</b>——<b>播头时间值只认一处</b>（可写的时间码 + 时间轴红线），抬头不再抄一份只读副本；<b>进度条升级成可拖的 scrub 轨</b>（从展示件变成操作件）；<b>走带补 ◀ ▶ 帧步进</b>、去掉低频的「回到开头」；<b>快捷键文案收进 hover 面板</b>；<b>时间轴头让给工程健康度</b>（空隙），片段名不再与抬头撞名。三层由「四份同一件事」变成「各管一件事」，高度下降只是顺带的结果。
     </div>
   </div>
 </div>
@@ -584,6 +671,24 @@
         拖空白处框选 + <code>⇧</code> 连选 + <code>⌘</code> 加选。现状多选只能「一起删」——
         <b>批量音量 / 批量转场 / 批量对齐</b>才是多选存在的理由。
       </div>
+
+      <!-- 多选时右栏显示什么：这是多选能否真正可用的分水岭（审计表只说了「给批量动作」，
+           没说右栏长什么样）。规则：共有的可改项 → 显示且可改；差异项 → 显示「—」并可批量覆盖；
+           只读项直接不显示。绝不能只显示第一个片段的属性——那会误导用户「改了只影响一个」。 -->
+      <div class="mini-title" style="margin:10px 0 6px">多选时右栏（此前未定义）</div>
+      <div class="cright" style="width:252px;height:auto;border:1px solid var(--edge-faint);border-radius:10px">
+        <div class="sect">
+          <div class="sect-t"><span>已选 2 个片段</span><em>批量</em></div>
+          <div class="ve-row"><span>时长合计</span><b>8.4s</b></div>
+          <div class="ve-row"><span>不透明度</span><b>1.00</b></div>
+          <div class="ve-row"><span>音量</span><b>—（混合）</b></div>
+          <div class="ve-row"><span>转场</span><b>—（不同）</b></div>
+          <div class="mk-note" style="border-top:none;padding:6px 0 0">
+            改任一项 = <b>批量落到全部选中片段</b>；<code>—（混合）</code> 表示各段取值不同，
+            填一次即统一。只读项（入点/编码等）在多选下不显示，避免「改不了又占位」。
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -607,7 +712,7 @@
 
       <tr><td class="k">时间轴头「时间轴」标题</td><td>常态可点</td><td>什么都没发生（纯标签做成按钮）</td><td><span class="cut">砍</span> 改静态文本</td></tr>
       <tr><td class="k">抬头 撤销 / 重做</td><td>无历史时灰</td><td>回退一步（与时间轴头那组完全等价）</td><td><span class="merge">合并</span> 只留时间轴头一处</td></tr>
-      <tr><td class="k">分割</td><td>播放头不在片段上 → 灰，用户以为坏了</td><td>切成两段</td><td><span class="fix">改</span> 加刀片工具（点哪切哪）；播放头不在片段上时自动吸到最近边界</td></tr>
+      <tr><td class="k">分割</td><td>播放头不在片段上 → 灰，用户以为坏了</td><td>切成两段</td><td><span class="fix">改</span> 播放头不在选中片段上时自动吸到最近边界（防误切空白）；不另加刀片工具</td></tr>
       <tr><td class="k">复制片段</td><td>未选中 → 灰</td><td>末尾追加同片段（低频）</td><td><span class="cut">砍</span> 移右键菜单，⌘D 保留</td></tr>
       <tr><td class="k">删除</td><td>未选中 → 灰</td><td>删掉片段，<b>留下一个洞</b></td><td><span class="fix">改</span> 拆「留洞 / 波纹删除」，删完给「闭合空隙」</td></tr>
       <tr><td class="k">吸附</td><td>开关（有 .on 反馈）</td><td>边界吸到 0 / 片段边 / 播放头</td><td><span class="keep">保留</span> 补 Alt 临时反转</td></tr>
@@ -632,6 +737,12 @@
       <tr><td class="k">左栏 筛选 / 搜索</td><td>素材 0 个时仍占位</td><td>过滤列表</td><td><span class="fix">改</span> 素材 ≥8 才显示</td></tr>
       <tr><td class="k">左栏 素材行单击</td><td>—</td><td>只改选中态，<b>预览不变</b>（最容易「点了没反应」）</td><td><span class="fix">改</span> 单击预览该素材、双击插到时间轴末尾</td></tr>
       <tr><td class="k">左栏 添加 ＋</td><td>—</td><td>展开三源菜单（素材库 / 本机 / 画布图片节点）</td><td><span class="keep">保留</span> 本仓库关键入口</td></tr>
+
+      <tr><td class="k">抬头 动作排布</td><td>「取消」夹在两个导出按钮中间</td><td>语义相反的动作相邻，误按代价高；三个导出平铺还稀释了 primary 焦点</td><td><span class="fix">改</span> 取消靠左；导出收成 split button —— 主按钮「导出为新节点」直达，次选项「导出到本地 / 导出当前帧为图片」收进箭头下拉</td></tr>
+      <tr><td class="k">检查器 片段只读行</td><td>9 行里 8 行不能改（含 h264/aac）</td><td>选中时看不到「能改什么」</td><td><span class="fix">改</span> 折叠成一条摘要行（名称 + 时长 + 分辨率），入点/编码按需展开；编码真正需要它的场合是导出对话框</td></tr>
+      <tr><td class="k">分割 / 刀片</td><td>两者做同一件事（在切点切开）</td><td>「先定位播放头再按 S」与「点哪切哪」是同一需求的两条路径</td><td><span class="keep">定</span> 只留<b>分割</b>：在播放头处切开选中片段（精确、所见即所得）；不设刀片工具模式</td></tr>
+      <tr><td class="k">适配比例显示</td><td>信息条 46% / 状态条 34%，两处打架</td><td>同屏两个百分比互相矛盾，损害信任</td><td><span class="fix">改</span> 只在可操作处（「适应 ▾」旁带当前值）显示，信息条不再重复</td></tr>
+      <tr><td class="k">多选时的右栏</td><td>未定义（审计只提「给批量动作」）</td><td>若显示第一个片段属性会误导</td><td><span class="fix">补</span> 显示「已选 N 个」+ 可批量项（差异项标「—（混合）」），只读项不显示</td></tr>
     </table>
 
     <div class="mk-note">
@@ -650,30 +761,35 @@
     <div class="mk-legend">
       <div><span class="tag cut">砍</span><b>「时间轴」标题按钮、复制、轨道高度、抬头撤销、预览浮层走带、全屏、自检</b> —— 展示性 / 重复 / 低频 / 开发件（主屏已按此定稿，不再另出一版「改后」）。</div>
       <div><span class="tag new">合</span><b>缩放三件套 → 滑杆 + 自适应</b>（⌘滚轮跟随指针）；<b>两处撤销 → 时间轴头一处</b>；<b>两处缩放控件 → 走带一处</b>。</div>
-      <div><span class="tag warn">改</span><b>删除拆「留洞 / 波纹」</b>；<b>分割补刀片工具</b>；<b>全屏 → 专注模式</b>；<b>时间码改可输入</b>。</div>
+      <div><span class="tag warn">改</span><b>删除拆「留洞 / 波纹」</b>；<b>分割 = 唯一切开路径（不设刀片工具）</b>；<b>全屏 → 专注模式</b>；<b>时间码改可输入</b>。</div>
     </div>
 
     <div class="mini-title" style="margin:16px 0 8px">顺手化清单（按优先级：先做 P0，编辑体验立刻变样）</div>
     <div class="mk-legend">
-      <div><b>P0 · 1</b> <span class="k">刀片工具 C</span>：点哪切哪，配吸附；<code>Alt</code> 临时关吸附。比「先挪播放头再按 S」少一步。</div>
+      <div><b>P0 · 1</b> <span class="k">分割 = 唯一切开路径</span>：先把播放头定位到切点（<code>←→</code> 帧步进 / 吸附边界），按 <code>S</code> 切开选中片段；配吸附，<code>Alt</code> 临时关吸附。<b>不做刀片工具模式</b>——它与分割做同一件事，只是省了「先定位」这一步；而「先定位」恰好带来所见即所得（切之前就看到那一帧），且能精确到帧。留一条路径，用户不用先想「这次该用哪个」。</div>
       <div><b>P0 · 2</b> <span class="k">删除二态</span>：<code>⌫</code> 留洞 / <code>⇧⌫</code> 波纹（后面片段整体前移），删完在头部显示「有 1 处空隙 · 闭合」。</div>
-      <div><b>P0 · 3</b> <span class="k">键盘走带</span>：空格播放 · <code>←→</code> 帧步进 · <code>⇧←→</code> 跳片段边界 · <code>Home/End</code> · <code>I/O</code> 设入出点。</div>
+      <div><b>P0 · 3</b> <span class="k">定位三件套</span>：<b>scrub 轨</b>横向拖找大致位置 → <b>时间码输入 / 帧步进按钮</b>精确卡点 → <code>⇧←→</code> 跳片段边界；<code>空格</code> 播放 · <code>Home/End</code> · <code>I/O</code> 设入出点。<b>帧步进必须有真按钮</b>——只写在快捷键文案里等于把最高频动作藏起来。</div>
       <div><b>P0 · 4</b> <span class="k">缩放跟随指针</span>（⌘滚轮）+ 播放时时间轴自动跟随播放头，别让用户手动追。</div>
       <div><b>P0 · 5</b> <span class="k">选中即联动</span>：点片段 → 播放头跳到片段起点、预览显示该段首帧；点素材 → 预览显示源素材。</div>
-      <div><b>P1 · 6</b> <span class="k">三点编辑</span>：素材预览设 I/O → 插入 / 覆盖到播放头，比拖拽精确，长素材尤其明显。</div>
-      <div><b>P1 · 7</b> <span class="k">拖到轨道区空白自动建轨</span>；跨轨拖动给落点指示线 + 目标轨高亮。</div>
-      <div><b>P1 · 8</b> <span class="k">框选 + ⇧/⌘ 多选</span>，多选后给批量（音量 / 转场 / 删除 / 左对齐）。</div>
-      <div><b>P1 · 9</b> <span class="k">轨道头右键</span>：重命名 / 复制轨 / 上移下移 / 删除（替代「轨道高度」按钮）。</div>
-      <div><b>P2 · 10</b> <span class="k">导出前自检</span>：分辨率/编码不一致、0 长度片段、无音频 → 导出前一条提示；进度分段可中断。</div>
-      <div><b>P2 · 11</b> <span class="k">自动保存</span>：工程记录持久化（<code>contentStore</code> + <code>STORAGE_KEYS</code> 登记），重开恢复上次播放头与选中。</div>
-      <div><b>P2 · 12</b> <span class="k">预览代理</span>：4K/长素材自动降分辨率预览，导出仍走原素材，防拖动卡顿。</div>
+      <div><b>P0 · 6</b> <span class="k">右栏只读信息折叠</span>：片段详情折成一条摘要行（名称 + 时长 + 分辨率），入点/编码按需展开——选中时把最贵的位置让给「能改什么」。</div>
+      <div><b>P1 · 7</b> <span class="k">三点编辑</span>：素材预览设 I/O → 插入 / 覆盖到播放头，比拖拽精确，长素材尤其明显。</div>
+      <div><b>P1 · 8</b> <span class="k">拖到轨道区空白自动建轨</span>；跨轨拖动给落点指示线 + 目标轨高亮。</div>
+      <div><b>P1 · 9</b> <span class="k">框选 + ⇧/⌘ 多选</span>，多选后给批量（音量 / 转场 / 删除 / 左对齐）；<b>多选时右栏显示「已选 N + 可批量项 + 差异项标—（混合）」</b>，否则多选只删 = 白做。</div>
+      <div><b>P1 · 10</b> <span class="k">抬头动作分组 + 导出收口</span>：取消靠左（离开类），导出收成 <b>主按钮 + 下拉</b>——「导出为新节点」直达不进下拉（主链路不能多点一步），「导出到本地 / 当前帧为图片」挂在箭头下。语义相反的动作不相邻，且 primary 焦点不被三个同宽按钮稀释。</div>
+      <div><b>P1 · 11</b> <span class="k">轨道头右键</span>：重命名 / 复制轨 / 上移下移 / 删除（替代「轨道高度」按钮）。</div>
+      <div><b>P2 · 12</b> <span class="k">导出前自检</span>：分辨率/编码不一致、0 长度片段、无音频 → 导出前一条提示；进度分段可中断。</div>
+      <div><b>P2 · 13</b> <span class="k">自动保存</span>：工程记录持久化（<code>contentStore</code> + <code>STORAGE_KEYS</code> 登记），重开恢复上次播放头与选中。</div>
+      <div><b>P2 · 14</b> <span class="k">预览代理</span>：4K/长素材自动降分辨率预览，导出仍走原素材，防拖动卡顿。</div>
     </div>
 
     <div class="mk-note">
       <b>一句话取舍</b>：剪辑器的手感 = <b>「少一次定位 + 少一次确认」</b>。
-      所有需要用户「先把播放头挪到正确位置再操作」的设计（分割、插入、删除）都要给一个直接操作的替代路径（刀片、拖入、框选）；
+      所有需要用户「先把播放头挪到正确位置再操作」的设计（分割、插入）都要么给直接操作的替代路径（拖入、框选、双击），要么让定位本身足够顺（吸附 + 帧步进 + 时间码输入）；
       所有「点了但界面没变化」的控件（轨道 flag、素材行单击、只读属性）要么补反馈，要么砍掉。
-      其余锦上添花（降分辨率预览、自动保存）排在 P2，不影响首发可用。
+      其余锦上添花（降分辨率预览、自动保存）排在 P2，不影响首发可用。<br />
+      <b>另加一条信息分类规则（本项目追加）</b>：<b>同一个信息只出现在「用户需要它的那一刻」的地方。</b>
+      只读信息（编码/入点）不进常态可见区（下沉导出对话框或折叠）；同一数值不在两处重复显示
+      （适配比例只在「适应 ▾」旁）；<b>「离开」与「产出」两类动作必须分列两侧</b>（取消靠左、导出族靠右）。
     </div>
   </div>
 </div>

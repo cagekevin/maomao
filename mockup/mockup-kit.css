@@ -779,7 +779,13 @@ button,input,select{font-family:inherit;}
 .ve-item .meta .d{font-size:10px;color:var(--t-faint);}
 .ve-item .idx{margin-left:auto;color:var(--t-subtle);font-size:10px;font-variant-numeric:tabular-nums;}
 
-/* M4 预览：信息条 / 进度条 / 走带 */
+/* M4 预览：监视器三件套 —— 这三层各管一件事，不许跨界
+     .ve-info        我在看谁的画（画面归属 + 画布尺寸）
+     .ve-prog.scrub  这笔进度到哪了，兼作粗定位轨（可点可拖）
+     .ve-transport   怎么走到某一帧（时间码 + 走带 + 画面适配）
+   播头时间值全局只有一处 Source of Truth —— 时间轴那根红线，以及这里的 tc-in。
+   .ve-info 里不再抄一份：同一数值摆两处（一处只读、一处可写），人第一反应不是
+   「信息真全」，而是「哪边准」，还得多花一次判断去确认它可信。 */
 .ve-info{
   height:26px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 12px;
   font-size:11px;color:var(--t-faint);background:var(--surface-deep);
@@ -792,10 +798,27 @@ button,input,select{font-family:inherit;}
   position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;
   background:var(--accent);box-shadow:0 0 6px var(--accent-line);
 }
+/* scrub：把「只能看的状态条」升级成「能拖的定位轨」。
+   同样是表达进度，可操作的那个才值得占这一层 —— 纯展示的第三条进度只是把同一件事
+   说第三遍。
+   容器高度锁死：hover 只让 fill 变粗、thumb 变大，绝不改容器高，
+   否则鼠标一扫整条走带就被顶下去，界面跟着抖。
+   静止时 fill 只有 2px（一条弱线，不抢画面）；hover 撑到 6px 并提亮，
+   「这里能拖」的信号在要用的那一刻才出现。 */
+.ve-prog.scrub{cursor:pointer;background:var(--surface-deep);border-top:1px solid var(--edge-faint);}
+.ve-prog.scrub .fill{top:3px;bottom:3px;transition:top .12s,bottom .12s,opacity .12s;}
+.ve-prog.scrub:hover .fill{top:1px;bottom:1px;opacity:.72;}
+.ve-prog.scrub .thumb{width:10px;height:10px;margin:-5px 0 0 -5px;transition:width .12s,height .12s,margin .12s;}
+.ve-prog.scrub:hover .thumb{width:14px;height:14px;margin:-7px 0 0 -7px;}
+/* 走带 = 「人怎么走到某一帧」。54 → 46：右列去掉常驻快捷键文案后只剩一行控件，
+   36 的播放键上下各留 5 已经从容。降高不是目标，是层级理顺之后的副产品。
+   border-top 交给上面那条 scrub（scrub 背景与本层同为 surface-deep，两者合成一条
+   控制带：上行 scrub 轨 + 下行按钮）；分隔画面用的是 scrub 上沿那道线，
+   而不是 scrub 与走带之间 —— 否则同一件事又被切成两块。 */
 .ve-transport{
-  height:54px;flex-shrink:0;display:grid;grid-template-columns:1fr auto 1fr;
+  height:46px;flex-shrink:0;display:grid;grid-template-columns:1fr auto 1fr;
   align-items:center;gap:12px;padding:0 12px;
-  background:var(--surface-deep);border-top:1px solid var(--edge-faint);
+  background:var(--surface-deep);
 }
 .ve-tc{
   display:flex;align-items:center;gap:4px;font-size:12px;color:var(--t-primary);
