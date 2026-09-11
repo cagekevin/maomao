@@ -18,7 +18,6 @@ import {
   readAllProviders,
   readProvider,
   writeProviderConfigFile,
-  deleteProviderConfigFile,
   seedFromDefaultFile,
   readProviderConfigFile,
 } from '../providerConfigStore.js';

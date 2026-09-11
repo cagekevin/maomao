@@ -16,7 +16,6 @@ const toUrl = (p) => 'file:///' + p.split(path.sep).join('/');
 
 const {
   createLovartProject,
-  validateLovartProject,
   setLovartMode,
   sendLovartChat,
   getLovartStatus,

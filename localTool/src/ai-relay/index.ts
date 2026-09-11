@@ -45,7 +45,6 @@ import type {
   StableRequestOptions,
   ChatOptions,
   StreamChatOptions,
-  ChatWithToolsResult,
   GenerateImageOptions,
   GenerateVideoOptions,
   GenerateAudioOptions,

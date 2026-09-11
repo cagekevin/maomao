@@ -69,7 +69,7 @@ function extractChatTextAndImages(messages?: Array<{ role?: string; content?: un
       continue;
     }
     if (Array.isArray(c)) {
-      let blockTexts: string[] = [];
+      const blockTexts: string[] = [];
       for (const block of c) {
         if (!block || typeof block !== 'object') continue;
         const b = block as { text?: string; type?: string; image_url?: { url?: string } | string };

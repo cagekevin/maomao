@@ -95,11 +95,6 @@ function data(res) {
   return body && body.code === 0 ? body.data : body;
 }
 
-function fileUrl(url) {
-  // 转成 127.0.0.1:18080 形式（内部一致）
-  return url;
-}
-
 // 构造一个小 PNG（1x1 红点）base64
 const RED_PNG_B64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -730,7 +725,6 @@ test('Files·read 读取文件内容与 MIME', async () => {
       cb();
     },
   });
-  const origWriteHead = res.writeHead;
   res.writeHead = (code, h) => {
     headers = h;
     return res;

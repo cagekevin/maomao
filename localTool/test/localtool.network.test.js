@@ -9,7 +9,7 @@
  *
  * 运行：node --test test/*.test.js
  */
-import test, { beforeEach, afterEach, mock } from 'node:test';
+import test, { beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -26,7 +26,7 @@ function toFileUrl(p) {
 // 模块在顶层 import（network 模块内 fetch 为运行时全局查找，替换 globalThis.fetch 有效）
 const officialMod = await import(toFileUrl(path.join(src, 'routes', 'official.ts')));
 const passthroughMod = await import(toFileUrl(path.join(src, 'routes', 'passthrough.ts')));
-const systemMod = await import(toFileUrl(path.join(src, 'routes', 'system.ts')));
+await import(toFileUrl(path.join(src, 'routes', 'system.ts')));
 const filesMod = await import(toFileUrl(path.join(src, 'routes', 'files.ts')));
 const dbMod = await import(toFileUrl(path.join(src, 'db', 'database.ts')));
 const kvMod = await import(toFileUrl(path.join(src, 'routes', 'kv.ts')));
@@ -104,12 +104,6 @@ function restoreFetch() {
     realFetch = null;
   }
   fetchLog.length = 0;
-}
-function jsonResponse(data, status = 200, headers = {}) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'content-type': 'application/json', ...headers },
-  });
 }
 
 beforeEach(() => {

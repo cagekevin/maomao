@@ -117,6 +117,13 @@ export async function pollModelProtocolOnce(
   signal?: AbortSignal,
   allowedBaseUrl?: string,
 ): Promise<ModelPollOnceResult> {
+  if (allowedBaseUrl) {
+    const pollUrl = new URL(poll.url);
+    const baseUrl = new URL(allowedBaseUrl);
+    if (pollUrl.origin !== baseUrl.origin) {
+      throw new Error('轮询地址与厂商连接地址不同源');
+    }
+  }
   const successValues = new Set(poll.successValues.map(normalizeStatus));
   const failureValues = new Set(poll.failureValues.map(normalizeStatus));
   let payload: unknown;

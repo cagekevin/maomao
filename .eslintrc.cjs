@@ -45,5 +45,15 @@ module.exports = {
     'no-debugger': 'warn',
     'no-undef': 'off',
   },
-  ignorePatterns: ['node_modules', 'dist', 'dev', 'build', 'coverage', '*.min.js'],
+  ignorePatterns: [
+    'node_modules',
+    'dist',
+    'dev',
+    'build',
+    'coverage',
+    '*.min.js',
+    'public/mediapipe/wasm/**',
+    'scripts/1mao-scripts/scriptbox-split-snapshot/**',
+    'tmp/**',
+  ],
 };

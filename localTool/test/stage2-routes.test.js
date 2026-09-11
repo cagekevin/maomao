@@ -15,7 +15,7 @@
  * DB 隔离：MAOMAO_DATA_DIR 指向 os.tmpdir 下独立目录，不污染 ~/.maomao-localtool。
  */
 
-import { test, beforeEach, after } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -424,6 +424,10 @@ test('[netProxy] fetchWithProxy 本地目标直连、且 requiresProxy 命中 Lo
   } finally {
     global.fetch = origFetch;
     netProxy.resetProxyCache();
+    if (prevH === undefined) delete process.env.HTTP_PROXY;
+    else process.env.HTTP_PROXY = prevH;
+    if (prevHs === undefined) delete process.env.HTTPS_PROXY;
+    else process.env.HTTPS_PROXY = prevHs;
   }
 
   // 2) Lovart 目标经 resolveProxy：当存在 env 代理时优先返回 env（无需真实连接）；
