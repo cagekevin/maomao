@@ -94,7 +94,6 @@ interface ImageGenerateData {
   texts?: RefText[];
   /** 摄影参数（焦距/快门效果/光圈/曝光时间）；缺省 = 全自动，不写入提示词 */
   cameraSettings?: CameraGenerationSettings;
-  [key: string]: unknown;
 }
 
 /** 上游产出（来自 useConnectedInputs）的共享返回类型真相源：src/hooks/useConnectedInputs.ts NodeOutputGroup。
@@ -406,9 +405,13 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   // 下载生成的图片（<a download> 触发浏览器保存；文件名推导走统一 resolveDownloadFilename）
   const handleDownload = () => {
     if (!imageUrl) return;
+    // 【2026-09-11】原为 `data.label || (data.name as string)`：`name` 不在本节点 data 契约里
+    // （只有 group 的 data 有 name，见 nodeDefaults/applyNodeTypeDefaults），恒为 undefined——
+    // 此前被 `[key: string]: unknown` 索引签名 + `as` 掩盖成"看起来有兜底"。删掉后语义不变：
+    // 无 label 时由 resolveDownloadFilename 从 URL 推导文件名。
     downloadUrl(
       imageUrl,
-      resolveDownloadFilename(data.label || (data.name as string), imageUrl, {
+      resolveDownloadFilename(data.label, imageUrl, {
         ext: 'png',
         fallback: 'generated.png',
       }),

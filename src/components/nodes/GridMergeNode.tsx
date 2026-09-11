@@ -120,7 +120,6 @@ interface GridMergeNodeData {
   canvasWidth?: number;
   canvasHeight?: number;
   imageUrl?: string;
-  [key: string]: unknown;
 }
 interface GridMergeNodeProps {
   id: string;

@@ -42,8 +42,13 @@ export interface UseGenerateNodeOptions {
   reportType?: string;
   /** 任务上报用的有效提示词（节点的 effectivePrompt） */
   prompt?: string;
-  /** 节点当前 data（供 useSyncNodeData 与默认模型守卫） */
-  data?: Record<string, unknown>;
+  /**
+   * 节点当前 data（供 useSyncNodeData 桥接与默认模型守卫）。
+   * 【2026-09-11】故意声明为 `object` 而非 `Record<string, unknown>`：各节点 data 有自己的
+   * interface（且已删 `[key: string]: unknown` 索引签名，见 TD-8 / L2），要求 Record 会反向
+   * 逼所有节点把索引签名加回来。本 hook 只读 `selectedModel` 一个字段，就地收窄即可。
+   */
+  data?: object;
   /** 节点 useNodePrefs().prefs */
   prefs?: Record<string, unknown>;
   setPrefs: (patch: Record<string, unknown>) => void;
@@ -123,7 +128,8 @@ export function useGenerateNode({
   useEffect(() => {
     if (!defaultFromProvider) return;
     if (prefs?.model) return; // 已有记忆，不覆盖
-    if (data?.selectedModel) return; // 节点显式指定，不覆盖
+    // 节点显式指定模型则不覆盖（data 的静态类型由各节点 interface 提供，此处只读一个字段，就地收窄）
+    if ((data as { selectedModel?: unknown } | undefined)?.selectedModel) return;
     setSelectedModel(defaultFromProvider);
     setPrefs({ model: defaultFromProvider });
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -167,9 +167,15 @@ describe('源码护栏 — 图片写回只有一个门', () => {
   });
 
   it('useImageHoverActions 的 4 条保存出口都落盘（编辑器/就地裁剪/压缩/放大）', () => {
+    // 断言【行为】：4 条出口（handleEditorSave / handleCropSave / compress / upscale）
+    // 都走全库唯一「图像入节点落盘策略」filesApi.showThenPersistInline。
+    // 旧断言数的是 `saveInlineToLocal(`——该直调已被收口替换（见 CONTEXT §5.4.9 唯一实现），
+    // 数它会恒为 0（陈旧断言，2026-09-11 修正）。按 tests 约定「测行为不测实现形式」改为数唯一入口。
     const src = readSrc('src/components/nodes/useImageHoverActions.tsx');
-    const hits = src.match(/saveInlineToLocal\(/g) || [];
-    // compress + upscale + handleEditorSave + handleCropSave
-    expect(hits.length, `保存出口落盘调用数应 ≥4，实际 ${hits.length}`).toBeGreaterThanOrEqual(4);
+    const hits = src.match(/showThenPersistInline\(/g) || [];
+    expect(
+      hits.length,
+      `4 条保存出口应各走一次唯一落盘入口 showThenPersistInline，实际 ${hits.length}`,
+    ).toBeGreaterThanOrEqual(4);
   });
 });

@@ -16,7 +16,6 @@ import NodeShell from '../base/ui/NodeShell.tsx';
  */
 interface GroupNodeData {
   name?: string;
-  [key: string]: unknown;
 }
 interface GroupNodeProps {
   id: string;

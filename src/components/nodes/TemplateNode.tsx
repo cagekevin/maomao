@@ -137,7 +137,6 @@ interface TemplateNodeData {
   inputHeight?: number;
   images?: RefImage[];
   texts?: RefText[];
-  [key: string]: unknown;
 }
 
 interface TemplateNodeProps {

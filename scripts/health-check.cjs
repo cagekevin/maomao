@@ -7,6 +7,8 @@
  *   2. npm scripts 完整性
  *   3. npm run build（能构建）
  *   4. npm run test:all（统一测试门禁：smoke + regression + tools）
+ *   4.1~4.3 横切契约静态校验（check:keys 存储键 / check:events 事件名 / check:node-types 节点类型）
+ *   4.4 check:node-data --strict（node.data 字段缺口 / 结果字段命名对账，对应 TD-8）
  *   5. TDZ 风险扫描（扫 src 下所有源码 .jsx/.js/.ts/.tsx，防「Cannot access before initialization」；
  *      逐行跳过注释——源码注释常引用报错文案作决策留痕，整文件盲扫会误报，见 depthUrls.ts:35 案例）
  *
@@ -149,6 +151,16 @@ runGate('check:events (EVENTS 裸事件名拦截)', 'npm run check:events');
 // ── 4.3 节点类型契约静态校验（useNodePrefs 裸命名空间编译期拦截，对应架构 P0-1）──
 console.log('\n🏷️ 节点类型契约校验（npm run check:node-types）');
 runGate('check:node-types (NODE_TYPES 裸 useNodePrefs 命名空间拦截)', 'npm run check:node-types');
+
+// ── 4.4 node.data 契约对账（字段缺口 / 结果字段命名，对应 TD-8）──
+// 为什么只挂 check:health 不挂 prebuild/pretest：它治的是「数据契约漂移」（node.data 五处各自表述），
+// 不是编译/构建必需项；且失败信息面向数据治理（该补声明还是该登记豁免），不适合每次提交都拦。
+// --strict 口径：字段缺口 ≠ 0 或「结果字段读侧不认」≠ 0 即失败；本节点自用的例外走脚本内 RESULT_EXEMPT（需带原因）。
+console.log('\n🧬 节点 data 契约对账（npm run check:node-data --strict）');
+runGate(
+  'check:node-data (node.data 字段缺口 / 结果字段命名，--strict)',
+  'npm run check:node-data -- --strict',
+);
 
 // ── 5. TDZ 风险扫描（扫 src 下 .jsx/.js/.ts/.tsx）──
 console.log('\n🛡️ TDZ 风险扫描（src/*.jsx|js|ts|tsx）');

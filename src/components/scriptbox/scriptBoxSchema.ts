@@ -82,12 +82,21 @@ export interface ScriptBoxData extends ScriptBoxTop {
 /**
  * 引擎注入 node.data 的回调集合（三步组件经 props.callbacks 调用，本组件不做计算）。
  * 由 useScriptBoxEngine 注入 node.data.onXxx；ScriptBoxNode 额外补 onDisconnectUpstream。
- * 索引签名兼容「{ ...d }」透传（d 含 shots/assets 等数据字段）。
+ *
+ * 更新(2026-09-11)：`[key: string]: unknown` 索引签名已删——它会让「callbacks 字段名拼错」静默通过。
+ * 原先加它是为「{ ...d } 透传」的 cast 兜底（见 ScriptBoxNode 组装 callbacks 处），现在
+ * `ScriptBoxNodeData extends ScriptBoxCallbacks` 后该 cast 仍成立，无需索引签名。
+ * 同时补上引擎实际注入但本表漏登的 2 个（onGenerateAssetImage / onGenerateAllAssetImages，
+ * 见 scriptBoxEngine.ts 的注入点与 StepAssets 的消费点）——回调字段真源只此一处，禁止在别处重抄。
  */
 export interface ScriptBoxCallbacks {
   onGenerateScript?: () => Promise<void> | void;
   onGenerateShotPrompts?: (ids: Array<string | number>) => void;
   onGenerateShotImage?: (shotId: string | number, type: string) => void;
+  /** 单个资产生成参考图（引擎注入；StepAssets 消费） */
+  onGenerateAssetImage?: (assetId: string) => void;
+  /** 批量生成资产参考图（缺省 = 全部无图资产） */
+  onGenerateAllAssetImages?: (assetIds?: string[]) => void;
   onConnectShot?: (shotId: string | number, kind: 'image' | 'video') => void;
   onConnectShots?: (ids: Array<string | number>, kind: 'image' | 'video') => void;
   onGenerateMergedVideo?: (ids: Array<string | number>) => Promise<void> | void;
@@ -97,8 +106,17 @@ export interface ScriptBoxCallbacks {
     msg: string,
   ) => Promise<{ ok: boolean; text?: string } | undefined>;
   onGenerateTailFrameVariants?: (shotId: string | number) => void;
+  /** 停止某个进行中的剧本盒任务（kind: 'asset' | 'shot'，或直接传 key） */
+  onStopScriptItem?: (kind?: string, id?: string) => void;
+  /** 重试单张资产图「上传素材库」（此前落盘失败 → imageStatus='failed'） */
+  onRetryAssetImageUpload?: (assetId: string) => Promise<void> | void;
+  /** 批量上传资产图到素材库 */
+  onUploadAllAssetImages?: () => void;
+  /** 上传单张资产图（file 为空 = 走文件选择器） */
+  onUploadAssetImage?: (assetId: string, file?: File | null) => Promise<void> | void;
+  /** 从素材库挑一张图作为资产参考图 */
+  onPickAssetImage?: (assetId: string, url: string) => void;
   onDisconnectUpstream?: (sourceNodeId: string) => void;
-  [key: string]: unknown;
 }
 
 /** 顶层字段默认值（含 P0-1 分通道 negative + tailFrameAngleIds 尾帧默认角度）。 */

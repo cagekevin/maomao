@@ -53,10 +53,16 @@ interface VideoExtractNodeData {
   frameCount?: number;
   intervalSec?: number;
   sensitivity?: number;
+  /**
+   * 视频源 —— **外部注入通道**（只读入口，非本节点产出）。
+   * 可被 Agent `update_node_any_field` / 快照 / 测试预置；本节点**自己不写回**这两个字段：
+   * 上传走 `previewUrls.create`（`blob:` 不可持久）、上游视频经 `useConnectedInputs` 实时读。
+   * 【2026-09-11 数据体检】确认全库（含 TS 迁移前 .jsx）零写入方，判定为"注入入口"而非"幽灵结果字段"，
+   * 故保留声明与读取；上传物不落盘这点见 spec/TECH-DEBT.md TD-9 附件口径。
+   */
   videoUrl?: string;
   videoName?: string;
   extractedImages?: string[];
-  [key: string]: unknown;
 }
 
 interface VideoExtractNodeProps {
@@ -93,6 +99,8 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
 
   // 视频来源
   const [file, setFile] = useState<File | null>(null); // 上传的 File
+  // 视频源三来源：① 外部注入（data.videoUrl，Agent/快照/测试预置，见 interface 注释）
+  // ② 会话内上传（blob: 预览，不落盘）③ 上游连线（useConnectedInputs 实时读）。
   const [videoUrl, setVideoUrl] = useState(data.videoUrl || '');
   const [videoName, setVideoName] = useState(data.videoName || '');
 

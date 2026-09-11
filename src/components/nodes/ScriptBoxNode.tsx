@@ -13,21 +13,29 @@ import StepPrompt from '../scriptbox/StepPrompt.tsx';
 import StepNav from '../scriptbox/StepNav.tsx';
 import ScriptBoxFullscreen from '../scriptbox/ScriptBoxFullscreen.tsx';
 import GearSettings from '../scriptbox/GearSettings.tsx';
-import type { ScriptBoxData, ScriptBoxCallbacks } from '../scriptbox/scriptBoxSchema.ts';
+import type {
+  ScriptBoxData,
+  ScriptBoxCallbacks,
+  ScriptBoxTop,
+} from '../scriptbox/scriptBoxSchema.ts';
 
-/** 剧本盒子 data 契约（字段极多且动态，统一以宽松接口 + 索引签名兜底） */
-interface ScriptBoxNodeData {
+/**
+ * 剧本盒子 data 契约。
+ * 真源全部外置，本文件只 extends + 声明上游注入的临时字段，禁止逐条重抄（重抄必然漂移）：
+ *  - 顶层字段 → `ScriptBoxTop`（step/story/globalStyle/aspectRatio/playbookId…）；
+ *  - 引擎注入的回调 → `ScriptBoxCallbacks`（onGenerateScript/onGenerateAssetImage…）。
+ * 更新(2026-09-11)：`[key: string]: unknown` 已删——它会把「读写了一个不存在的 data 字段」
+ * 变成静默通过（实测漏声明的回调只有在测试 tsconfig 下才暴露）。新增字段请先登记到上述真源。
+ */
+interface ScriptBoxNodeData extends Partial<ScriptBoxTop>, ScriptBoxCallbacks {
   label?: string;
   projectName?: string;
-  step?: number;
   shots?: Array<{ id: string; [k: string]: unknown }>;
   assets?: unknown;
   genMask?: boolean;
   genChars?: number;
-  upstreamStory?: string;
   upstreamImages?: Array<{ id?: string; url?: string; label?: string; sourceNodeId?: string }>;
   upstreamTexts?: Array<{ id?: string; label?: string; text?: unknown; sourceNodeId?: string }>;
-  [key: string]: unknown;
 }
 
 interface ScriptBoxNodeProps {

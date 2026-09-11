@@ -32,10 +32,13 @@ export type { ScriptBoxUpdateData };
  *
  * @param nodeId  剧本盒子节点 id
  * @param data    节点当前 data（仅兜底；引擎主要经 getNodes 实时读最新 data）
+ *   【2026-09-11】故意声明为 `object` 而非 `Record<string, unknown>`：节点 data 有自己的 interface
+ *   （且已删 `[key: string]: unknown` 索引签名，见 TD-8 / L2），要求 Record 会反向逼节点加回索引签名。
+ *   本 hook 只把它当「任意对象兜底」透传给 normalizeScriptBoxData，就地收窄一次即可。
  */
 export function useScriptBoxEngine(
   nodeId: string,
-  data?: Record<string, unknown>,
+  data?: object,
 ): { updateData: ScriptBoxUpdateData } {
   const { getNodes, getNode, setNodes, setEdges, addNodes, screenToFlowPosition } = useReactFlow();
 
@@ -79,7 +82,10 @@ export function useScriptBoxEngine(
     engineRef.current = createScriptBoxEngine({
       // 读最新 data：经 useReactFlow().getNode 实时取（O(1) hash 查，替 getNodes().find），避免闭包捕获旧值。
       // P0-0 数据契约：读取前先 normalizeScriptBoxData 补齐缺省（旧画布/新建节点缺新字段不漂移）。
-      getData: () => normalizeScriptBoxData(getNode(nodeId)?.data ?? data ?? {}),
+      // data 静态类型是 object（见上方 JSDoc），normalizeScriptBoxData 的入参契约是 Record；
+      // 就地收窄一次（语义安全：它只做「任意对象 + 补齐默认值」）。
+      getData: () =>
+        normalizeScriptBoxData((getNode(nodeId)?.data ?? data ?? {}) as Record<string, unknown>),
       // 写回 node.data：经 setNodes 不可变更新（引擎唯一写回通道）。
       // 支持两种形态：对象 patch（直接合并）或函数 `(latestData) => patch`（基于最新 data 计算，
       // 供并发场景下安全合并，避免 getData() 读到旧引用导致状态互相覆盖）。

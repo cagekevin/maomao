@@ -60,7 +60,6 @@ interface ImageBoxNodeData {
   activeIndex?: number;
   expanded?: boolean;
   selectedIds?: string[];
-  [key: string]: unknown;
 }
 interface ImageBoxNodeProps {
   id: string;

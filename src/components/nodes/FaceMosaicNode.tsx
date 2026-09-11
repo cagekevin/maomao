@@ -12,6 +12,7 @@ import {
 import NodeShell from '../base/ui/NodeShell.tsx';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
+import { useNodeData } from '../../hooks/useNodeData.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { uploadFileToLocal, toAbsoluteFileUrl } from '../base/api/index.ts';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
@@ -44,16 +45,29 @@ interface FaceMosaicResultInfo {
   count: number;
   faceTotal: number;
 }
+/**
+ * 人脸打码节点 data 契约。
+ *
+ * 【结果为什么不在 data 里】本节点产物经 `outputResults` spawn `assetNode` 子节点持久
+ * （对齐 spec/CONTEXT.md §五 审计豁免：FaceMosaic 结果经子节点交付，本节点仅预览）。
+ * 因此 `resultUrls / resultInfo / errorMessage` 天生是**会话内预览态**，只存 useState、不落盘。
+ *
+ * 2026-09-11 数据体检（`npm run check:node-data`）：这三个字段原先在接口声明且用
+ * `data.xxx` 初始化读取，但**全库（含 TS 迁移前的 .jsx 版本）从无任何写入点** ——
+ * 属幽灵字段（读了永远拿不到的默认值）。已删声明与读取，行为零变化。
+ */
 interface FaceMosaicNodeData {
   label?: string;
   mode?: MosaicMode;
   strength?: number;
   color?: string;
+  /**
+   * 手动上传的图片源（palette 默认 `[]`）。
+   * 【TD-9 口径 A，2026-09-11】`onUpload` 现在把落盘成功的持久 `/files/` URL 写回本字段（刷新不丢）；
+   * 落盘失败退回的 `blob:` 预览不入 data（刷新即死链，写进快照等于存垃圾）。
+   * 上游连线来的图不在此字段（每次实时读 `connected`）。
+   */
   imageUrls?: string[];
-  errorMessage?: string;
-  resultInfo?: FaceMosaicResultInfo | null;
-  resultUrls?: string[];
-  [key: string]: unknown;
 }
 interface FaceMosaicNodeProps {
   id: string;
@@ -62,6 +76,8 @@ interface FaceMosaicNodeProps {
 }
 function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
   const { setNodes, getNodes: _getNodes, getNode } = useReactFlow();
+  // data 写回唯一入口（收口）：模式参数 + 上传图源都走它（§5.4.9 节点样板收口 hook）
+  const { patchData } = useNodeData(id);
   // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
   const rename = useNodeRename(id);
   // 旧的 `const { hideMedia: _hideMedia } = useMediaDegrade()` 已删：本节点未落地降级隐藏，纯死调用
@@ -101,33 +117,46 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
 
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [errorMessage, setErrorMessage] = useState(data.errorMessage || '');
-  const [resultInfo, setResultInfo] = useState(data.resultInfo || null);
-  const [resultUrls, setResultUrls] = useState(data.resultUrls || []);
+  // 以下三个为会话内预览态（不落盘，原因见 FaceMosaicNodeData 注释）：不从 data 初始化
+  const [errorMessage, setErrorMessage] = useState('');
+  const [resultInfo, setResultInfo] = useState<FaceMosaicResultInfo | null>(null);
+  const [resultUrls, setResultUrls] = useState<string[]>([]);
   const zoomRef = useRef<HTMLDialogElement | null>(null); // 原生 <dialog> 查看大图
 
-  // 写回模式/参数（复刻官方 useEffect r(e,{mode,strength,color})）
+  // 写回模式/参数（复刻官方 useEffect r(e,{mode,strength,color})）——统一走 useNodeData.patchData
   useEffect(() => {
-    setNodes((ns) =>
-      ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, mode, strength, color } } : n)),
-    );
+    patchData({ mode, strength, color });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, strength, color, id, setNodes]);
+  }, [mode, strength, color, patchData]);
 
-  // 上传文件 → localImages
+  // 上传文件 → localImages（预览）+ 写回 data.imageUrls（持久 URL，刷新不丢）
+  //
+  // 【TD-9 口径 A，2026-09-11】此前只 setLocalImages、从不写回 → 刷新后手动上传的图全丢
+  // （上游连线来的图不受影响，因为每次实时读 connected）。现在：落盘成功（uploadFileToLocal
+  // 返回 /files/ 持久 URL）才写回 data.imageUrls；失败退回的 `blob:` 预览**不写回**
+  // （blob: 刷新即死链，写进快照等于存垃圾）。
   const onUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    Array.from(files).forEach(async (file) => {
-      try {
-        const url = await uploadFileToLocal(file, 'canvas/face_mosaic');
-        const target = url || previewUrls.create(file);
-        setLocalImages((prev) => [...prev, target]);
-      } catch {
-        /* ignore */
-      }
-    });
+    const list = Array.from(files); // 先物化：清空 input.value 后 FileList 会失效
     e.target.value = '';
+    void (async () => {
+      const previews: string[] = [];
+      const persisted: string[] = [];
+      for (const file of list) {
+        try {
+          const url = await uploadFileToLocal(file, 'canvas/face_mosaic');
+          const target = url || previewUrls.create(file);
+          previews.push(target);
+          if (url) persisted.push(url);
+        } catch {
+          /* ignore */
+        }
+      }
+      if (previews.length) setLocalImages((prev) => [...prev, ...previews]);
+      // 串行累加后一次性写回：避免多文件并发各自读旧 data.imageUrls 互相覆盖
+      if (persisted.length) patchData({ imageUrls: [...(data.imageUrls || []), ...persisted] });
+    })();
   };
 
   // 输出结果（复刻官方 y）：spawn assetNode（原型无 imageBox 直连，统一 spawn）

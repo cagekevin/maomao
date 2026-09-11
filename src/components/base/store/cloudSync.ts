@@ -818,6 +818,9 @@ export function isCloudSyncReady(): boolean {
  *  - agent_panel_width / agent_split_width：AI 助手面板/表格分栏宽度（本机 UI 偏好，跨设备无意义，不同步）
  *  - agent_input_mode / agent_work_mode：9-05 模式精简后的历史遗留死键（input_mode / work_mode 不再产出），同步无意义（不同步）。
  *  - canvasAgentGenParams：AI 生图默认参数（本机 UI 偏好，跨设备无意义，不同步）
+ *  - yimao_node_prefs：节点「上次参数」记忆（domain: 'pref'，本机 UI 偏好，跨设备无意义，不同步）。
+ *  - yimao_prompt_hub_cache：提示词社区库缓存（带 fetchedAt/signature，每台机重拉即可，跨设备同步既无意义又可能污染缓存判断，不同步）。
+ *  - yimao_preset_recent：最近使用预设（本机使用痕迹，与节点参数记忆同性质，跨设备无意义，不同步）。
  *  AI 会话键（agent_conversations_*）含隐私，本就为 pattern 键不在 getLocalKeys() 内。
  * 账号（yimao_accounts）为 KV 后端，本就不在 getLocalKeys()，由 S4 领域开关在 collect/restore 单独处理。
  * 同步台账（yimao_cloud_sync_ledger）：本机基线，随备份走但**绝不能进云端**（每台机器基线不同，
@@ -832,6 +835,9 @@ const SYNC_EXCLUDE = new Set([
   'agent_input_mode',
   'canvasAgentGenParams',
   'agent_skill_usage',
+  'yimao_node_prefs',
+  'yimao_prompt_hub_cache',
+  'yimao_preset_recent',
   LEDGER_KEY,
 ]);
 const LS_KEYS = getLocalKeys().filter((k) => !SYNC_EXCLUDE.has(k));

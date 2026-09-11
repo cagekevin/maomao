@@ -74,7 +74,6 @@ interface VideoGenerateData {
   inputWidth?: number;
   inputHeight?: number;
   texts?: RefText[];
-  [key: string]: unknown;
 }
 
 interface VideoGenerateProps {

@@ -32,6 +32,8 @@ import ScriptBoxNode from '../../nodes/ScriptBoxNode.tsx';
 // 统一走 lazyNode 动态 import，仅在对应节点首次渲染时才拉 chunk。见 ./lazyNode.jsx。
 // 【勿加回静态 import】加回即首屏 +1.7MB，且 tests/unit/lazyNode.test.jsx 会红。
 import { lazyNode, HEAVY_NODE_LOADERS } from './lazyNode.tsx';
+// 「有输入面板」节点类型集合（Tab 折叠 / Ctrl+L 整理 / defaultNodeData 的 expanded 注入共用同一范围）
+import { INPUT_PANEL_NODE_TYPES } from './nodeDefaults.ts';
 
 /**
  * 节点目录（复刻 H_.jsx:9423-9554 的 _i / vi）。
@@ -71,7 +73,9 @@ export const paletteNodes = [
     icon: ImageIcon,
     cat: 'image',
     component: AssetNode,
-    data: { images: [] },
+    // 注：曾在此声明 data:{ images: [] }，但 AssetNode 既不读也不写 images
+    // （其字段为 imageUrl/url/mediaType/text/poster…）→ 幽灵默认值，每个新建素材节点
+    // 白背一个空数组并随快照落盘。2026-09-11 数据体检删除（见 scripts/check-node-data.mjs）。
     builtin: true,
   },
   {
@@ -175,6 +179,10 @@ export const paletteNodes = [
     cat: 'video',
     component: VideoExtractNode,
     builtin: true,
+    // videoUrl/videoName 是**输入类字段的外部注入通道**（可被 Agent update_node_any_field /
+    // 快照 / 测试预置），本节点自己不写回（上传走 blob 预览 / 上游实时读 connected）。
+    // 保留空默认值同时起「向 AI 声明该字段存在」的作用（get_node_details 能看到）。
+    // 2026-09-11 数据体检：曾判定为幽灵字段并删除 → 误伤 6 个测试的预置入口，已回退（见 TD-9 附件）。
     data: { videoUrl: '', videoName: '' },
   },
   {
@@ -193,8 +201,8 @@ export const paletteNodes = [
       sourceOrder: [],
       timelineTracks: [],
       audioFormat: 'm4a',
-      trimStart: 0,
-      trimEnd: 4,
+      // 注：trimStart/trimEnd 已删（2026-09-11 数据体检）——VideoProcessNode 全文无
+      // data.trimStart/data.trimEnd 读取，属死默认值，白进每个新建节点的快照。
       resizeWidth: 1280,
       resizeHeight: 720,
       targetFps: 30,
@@ -255,10 +263,14 @@ export const getPaletteNode = (type) =>
 // 便捷：按分类取节点
 export const getNodesByCategory = (cat) => paletteNodes.filter((n) => n.cat === cat);
 
-// 便捷：默认节点 data（用于右键菜单 / 面板快速添加）
-// 统一兜底 expanded:false → 新建节点输入框默认收起（子项可在 palette 的 data 里显式传 expanded:true 覆盖）
+// 便捷：默认节点 data（用于右键菜单 / 面板快速添加 / Agent create_node）
+// expanded 只注入「有输入面板」的节点（INPUT_PANEL_NODE_TYPES）→ 新建节点输入框默认收起。
+// 2026-09-11 数据体检：此前无条件注入 expanded:false，但只有这 4 类节点会读它
+// （useNodeExpanded 的调用方），其余 13 种节点白背一个永不读的 UI 偏好字段并随快照落盘。
+// 范围与 Ctrl+L 整理（useArrangeCanvas）/ Tab 折叠（App.toggleInputPanels）同源，避免三处不对称。
+// 子项仍可在 palette 的 data 里显式传 expanded 覆盖（如 imageBoxNode 自带展开态）。
 export const defaultNodeData = (type) => ({
-  expanded: false,
+  ...(INPUT_PANEL_NODE_TYPES.includes(type) ? { expanded: false } : {}),
   ...getPaletteNode(type)?.data,
 });
 

@@ -18,7 +18,6 @@ interface Director3DNodeData {
   imageUrl?: string;
   images?: Array<{ url?: string; [key: string]: unknown }>;
   directorProject?: unknown;
-  [key: string]: unknown;
 }
 interface Director3DNodeProps {
   id: string;

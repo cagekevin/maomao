@@ -59,7 +59,6 @@ interface AssetNodeData {
   poster?: string;
   demoImage?: string;
   text?: string;
-  [key: string]: unknown;
 }
 interface AssetNodeProps {
   id: string;

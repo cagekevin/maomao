@@ -19,20 +19,17 @@ import type { MaterialStripProps } from '../base/panels/MaterialStrip.tsx';
 import { useOutsideClick } from '../base/core/uiHooks.ts';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import ScriptBoxModal from './ScriptBoxModal.tsx';
-import type { ScriptBoxData, ScriptBoxUpdateData } from './scriptBoxSchema.ts';
+import type { ScriptBoxData, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema.ts';
 
-/** StepShots 实际调用的引擎回调（来自 props.callbacks = { ...data, onDisconnectUpstream }） */
-interface StepShotsCallbacks {
-  onGenerateScript?: () => Promise<void> | void;
-  onGenerateTailFrameVariants?: (shotId: string | number) => void;
-  onDisconnectUpstream?: (sourceNodeId: string) => void;
-  [key: string]: unknown;
-}
-
+/**
+ * StepShots 的 callbacks 就是引擎回调集合（来自 props.callbacks = { ...data, onDisconnectUpstream }）。
+ * 更新(2026-09-11)：原来在本文件另立 `StepShotsCallbacks`（子集 + 索引签名）属于重抄真源 →
+ * 已删，统一引用 scriptBoxSchema.ScriptBoxCallbacks（本步实际只调用其中 3 个）。
+ */
 interface StepShotsProps {
   data?: ScriptBoxData;
   updateData: ScriptBoxUpdateData;
-  callbacks: StepShotsCallbacks;
+  callbacks: ScriptBoxCallbacks;
 }
 
 /**

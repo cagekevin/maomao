@@ -173,6 +173,9 @@ interface LassoShape {
 }
 interface GridSplitNodeData {
   label?: string;
+  // 上游图片 URL：palette 给了默认 ''、本节点读取并写回（spawn 子节点时也带）。
+  // 此前漏声明 → 读取处只能 `data.imageUrl as string | undefined` 硬转（索引签名兜住但不诚实）。
+  imageUrl?: string;
   gridSize?: number;
   splitMode?: string;
   rows?: number;
@@ -183,7 +186,6 @@ interface GridSplitNodeData {
   titlePattern?: string;
   sendToImageBox?: boolean;
   extractedImages?: string[];
-  [key: string]: unknown;
 }
 interface GridSplitNodeProps {
   id: string;

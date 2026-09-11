@@ -18,22 +18,17 @@ import { useOutsideClick } from '../base/core/uiHooks.ts';
 import { useRenderImageResolver, toAbsoluteFileUrl } from '../base/utils/imageUrl.ts';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import ScriptBoxAssetPicker from './ScriptBoxAssetPicker.tsx';
-import type { ScriptBoxData, ScriptBoxUpdateData } from './scriptBoxSchema.ts';
+import type { ScriptBoxData, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema.ts';
 
-/** StepAssets 实际调用的引擎回调（来自 props.callbacks = { ...data, onDisconnectUpstream }） */
-interface AssetCallbacks {
-  onGenerateAssetImage?: (assetId: string) => void;
-  onGenerateAllAssetImages?: (assetIds?: string[]) => void;
-  onRetryAssetImageUpload?: (assetId: string) => void;
-  onUploadAssetImage?: (assetId: string, file?: File | null) => void;
-  onDisconnectUpstream?: (sourceNodeId: string) => void;
-  [key: string]: unknown;
-}
-
+/**
+ * StepAssets 的 callbacks 就是引擎回调集合（来自 props.callbacks = { ...data, onDisconnectUpstream }）。
+ * 更新(2026-09-11)：原在本文件另立 `AssetCallbacks`（子集 + 索引签名）属于重抄真源 → 已删，
+ * 统一引用 scriptBoxSchema.ScriptBoxCallbacks（此前它漏登 onRetryAssetImageUpload 等，已一并补齐）。
+ */
 interface StepAssetsProps {
   data?: ScriptBoxData;
   updateData: ScriptBoxUpdateData;
-  callbacks: AssetCallbacks;
+  callbacks: ScriptBoxCallbacks;
 }
 
 /**
@@ -256,7 +251,7 @@ function AssetCard({
   idx: number;
   data: ScriptBoxData;
   updateData: ScriptBoxUpdateData;
-  callbacks: AssetCallbacks;
+  callbacks: ScriptBoxCallbacks;
   render: (url: string) => string;
   onOpen: () => void;
   onTogglePick: () => void;

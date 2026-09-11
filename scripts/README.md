@@ -17,6 +17,7 @@
 | `health-check.cjs` | 工程健康编排：脚手架/构建/冒烟/回归/TDZ/契约比对一键跑 | `npm run check:health` |
 | `_syntax_check.ps1` | 启动脚本 `launch-all.ps1` 语法检查 | — |
 | `check-jsx.mjs` | esbuild 批量校验 `src/` 下组件的 JSX/TSX 语法（防手工拼接 JSX 的括号/闭合错误）。src 已全 TS 化，实际只命中 `.tsx`；保留 `.jsx` 收集分支是零成本兜底 | `npm run check:jsx` |
+| `check-node-data.mjs` | **node.data 契约对账**：三张表——字段缺口（含**索引签名回退**拦截 / palette 默认 / 本节点自写）、结果字段命名（写侧产出 vs 读侧 genericOutput+NODE_OUTPUTS 是否认识）、读写路径分布；另出「清空遗留字段」与「豁免表过期」自检。**已挂 `check:health`（以 `--strict`：上述任一 ≠ 0 即失败）**；不挂 prebuild/pretest（非构建必需）。本节点自用的例外登记脚本内 `RESULT_EXEMPT`（须带原因）。可传类型名子串只看单个节点 | `npm run check:node-data` |
 | `extract-tailwind.mjs` | 从 `src/` 抽取 Tailwind 类到 `src/index.css` 白名单 | `npm run extract:tw` |
 | `ts-tests.mjs` | 测试类型消化作战系统：`check`/`verify` 单文件、`status` 全局进度、`add/rm-nocheck`。**`status` 已修复可放心用**（批量剥 nocheck → tsc → finally 还原；早期恢复不可靠的历史问题已不再复现） | — |
 | `m1-scan.mjs` | 测试类型错误**全貌聚合**（只读）：复制到 `tmp/unit` 副本扫描，零污染。产出每个文件 × 错误数 × 错误码 | — |

@@ -203,7 +203,6 @@ interface PanoramaNodeData {
   aspectRatio?: string;
   customDim?: { w: number; h: number };
   images?: Array<{ url?: string; [key: string]: unknown }>;
-  [key: string]: unknown;
 }
 interface PanoramaNodeProps {
   id: string;

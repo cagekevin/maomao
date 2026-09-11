@@ -208,7 +208,12 @@ interface GifResultInfo {
   size: number;
 }
 
-/** 视频处理节点 data 契约（字段多，统一以宽松接口 + 索引签名兜底） */
+/**
+ * 视频处理节点 data 契约。
+ * 【2026-09-11】原「宽松接口 + `[key: string]: unknown` 兜底」已删：索引签名会让写错字段名
+ * （如 `outputInfo` 漏声明）不报错，实测本节点字段已全部显式列出、删索引签名零编译错误。
+ * 新增字段请在此登记（`npm run check:node-data` 会对账 interface ↔ palette ↔ 实际写入）。
+ */
 interface VideoProcessNodeData {
   label?: string;
   mode?: string;
@@ -225,14 +230,25 @@ interface VideoProcessNodeData {
   gifDuration?: number;
   gifCrop?: unknown;
   gifResult?: GifResultInfo | null;
-  progress?: number;
-  loading?: boolean;
+  // 注：progress / loading 声明已删（2026-09-11 数据体检）——瞬态已收口到 nodeRuntimeStore，
+  // node.data 只留持久字段（spec/CONTEXT.md §二④b / §五）；此文件内已无 data.progress/data.loading 读取。
   errorMessage?: string;
   sourceVideoUrl?: string;
   sourceVideoName?: string;
   sourceMetadata?: Record<string, SourceMeta>;
   timelineTracks?: TimelineTrack[];
-  [key: string]: unknown;
+  /** 轨道中 video 片段引用的源 id 顺序（updateTracks 时随 timelineTracks 一起写回） */
+  sourceOrder?: string[];
+  /** 最近一次产出的文件名（与 outputInfo 一起写回，供下游子节点/下载复用） */
+  outputName?: string;
+  /** 最近一次产出的媒体元信息（写回时由 result.metadata 组装） */
+  outputInfo?: {
+    duration?: number;
+    width?: number;
+    height?: number;
+    fps?: number;
+    size?: number;
+  };
 }
 
 /** 视频源元信息（sourceMetadata 条目）：时长/分辨率/帧率等，字段宽松可空 */

@@ -132,3 +132,84 @@
 
 - 登记于：2026-09-04 · 来源：存储板块中间层折叠（storage-fold，方案 §3.Phase 3）
 
+### \[TD-8] `node.data` 无单一契约真源：同一节点的 data 形状由五处各自表述，结果字段语义靠读侧启发式兜底
+
+- 状态：**部分解决（2026-09-11）**——「字段声明失真」类已收口（详见文末「TD-8 实施记录」）；**未解决**：① `nodeDataSchema` 单源表仍未立（五处各自表述的骨架没变）、② 结果字段语义仍靠读侧 `genericOutput` 启发式兜底、③ 9 个节点无 `patchData`（手写 `setNodes` 写回）。
+
+- 现象：同一节点的 data 由五处分别定义，彼此无对账——① `NodePalette.ts` palette `data:{}`（新建默认）、② 各节点文件本地 `interface XxxData`、③ `useConnectedInputs.ts` 的 `NODE_OUTPUTS` + `genericOutput`（读上游产出）、④ `nodeDefaults.ts`（只补结构，不碰 data）、⑤ `projectStore.sanitizeNodes`（node 级白名单，data 整包透传）。后果两类：
+  **（a）字段声明失真 ——【已解决 2026-09-11，见实施记录】**：原状为 16 个节点 data interface 全带 `[key: string]: unknown` 索引签名，写错字段名无编译期拦截（首轮实测 `GridSplitNode.data.imageUrl` 未声明、读取处只能 `as string | undefined` 硬转；`VideoProcessNode` 写 `outputName/outputInfo` 不在 interface）。新行为：索引签名已全删，`npm run check:node-data` 对「索引签名回退」硬拦。
+  **（b）结果字段语义靠读侧启发式 ——【未解决】**：`genericOutput` 用「`imageUrl` > `videoUrl` > `resultUrl` 优先级 + 扩展名判型」兜底猜产出，写侧各写各的字段名（`gifResult`/`extractedImages`/`images[]`/`rows` 等），猜错即静默空产出（无报错）。
+
+- 根因：节点体系早期按「一个节点一个文件、字段自由」批量复刻，从未建立 data 契约登记表；后来 `useNodeData`（写回）与 `mediaType`（判型）各自收口，但**数据结构本身**始终无单源。收口只收了口径（怎么写），没收形状（写什么）。
+
+- 为何现在不动：属架构级改动（要引出 `nodeDataSchema` 单源表 + 由它派生 palette 默认值 / 读侧产出声明 / dev 期校验），改动面覆盖 17 个节点 + 快照兼容；且当前**无运行时报错**（读侧启发式事实上接住了大多数情形），优先级低于功能开发。需先评审「schema 单源 vs 维持现状」再动。
+
+- 现有量化工具（已落地，勿重复造）：`npm run check:node-data`（`scripts/check-node-data.mjs`）——三张表：字段缺口（interface / palette 默认 / 本节点自写，已区分「子节点规格」「跨节点写」两类非自身字段）、结果字段命名（写侧 vs 读侧是否认识）、读写路径分布；另出「清空遗留字段」清单与「豁免表过期」自检。**已以 `--strict` 挂 `npm run check:health`**（字段缺口 ≠ 0 或结果字段读侧不认 ≠ 0 即失败，下次缺口再涨会被体检拦下）；不挂 prebuild/pretest。本节点自用的例外走脚本内 `RESULT_EXEMPT`（须带原因，且自动校验是否过期）。
+
+- 首轮体检结果（2026-09-11，可作为后续收口基线）：字段缺口 13 处 → 已修 13 处（本节点 interface 补声明 5：`GridSplitNode`+`ScriptBoxNode` 改 extends 真源、`VideoProcessNode`+3；palette 幽灵默认值删 3：`assetNode.images`、`videoProcessNode.trimStart/trimEnd`、`expanded` 注入范围收窄到 `INPUT_PANEL_NODE_TYPES`）；**残留**：结果字段读侧不认 3（`videoProcessNode` 的 `gifResult/outputName/outputInfo`，经 spawn 子节点交付，属 CONTEXT §五审计豁免）、清空遗留字段 5（`assetNode.imageUrl/url`、`videoProcessNode.errorMessage/videoUrl/audioUrl`）、无 `patchData` 的节点 10 个（M5 手写 `setNodes` 写回靶子清单）。
+
+- 建议处理时机：① 下次要在 ≥3 个节点同时加/改结果字段时（先立 schema 再改，避免又一次五处同改）；② 清理「清空遗留字段」与「无 patchData 节点」时一并（两者同属 M5 类的剩余面）；③ 若 `check-node-data` 的缺口数在后续迭代中重新上涨，说明当前「各节点自持」模式不可持续，即为动 schema 的信号。
+
+- 登记于：2026-09-11 · 来源：写码时发现（node.data 契约对账首轮普查）
+
+#### TD-8 实施记录（2026-09-11，L2「写路径收口到真类型」）
+
+- **做了什么**：把 16 个节点 data interface 的 `[key: string]: unknown` 索引签名全删（`AssetNode`/`ImageBoxNode`/`GridSplitNode`/`GridMergeNode`/`PanoramaNode`/`Director3DNode`/`FaceMosaicNode`/`LoopNode`/`VideoExtractNode`/`VideoProcessNode`/`GroupNode`/`ScriptBoxNode`/`TextGenerate`/`ImageGenerate`/`TemplateNode`/`VideoGenerate`）。探针先行：先删 `GridSplitNode` 一个 → `tsc` 零错误，才推全量；全量删除后仅 **5 处**编译错误（远比预期小），逐个修完后 src+tests 双 `tsc` 全绿。
+
+- **删索引签名逼出来的真实问题（都是它原本掩盖的）**：
+  ① `ImageGenerate` 下载兜底读 `data.name`（该节点 data 无 `name`，恒 `undefined`）——被索引签名 + `as` 掩盖成"看起来有兜底"，已删死分支；
+  ② `ScriptBoxCallbacks`（回调真源）漏登 **5 个**引擎实际注入的回调（`onGenerateAssetImage`/`onGenerateAllAssetImages`/`onStopScriptItem`/`onRetryAssetImageUpload`/`onUploadAllAssetImages`/`onUploadAssetImage`/`onPickAssetImage` 中的漏项）——已按引擎注入点补齐真源；
+  ③ `StepShots`/`StepAssets` 各自重抄了一份 callbacks 子集接口（各带索引签名）——已删，统一引用 `ScriptBoxCallbacks`；
+  ④ `useGenerateNode` / `useScriptBoxEngine` 的 `data?: Record<string, unknown>` 会反向逼节点加回索引签名——改 `data?: object` + 就地收窄（各 1 处）。
+
+- **配套护栏**：`check-node-data` 新增「索引签名回退」检查（表1），命中即计入缺口 → `--strict` 下 `check:health` 失败。负例已验证会红。
+
+- **验证**：`type-check`（src + tests）0 错；`test:unit` 187 文件 / 2400 用例全绿；`check:health` ✅ 无错误。
+
+- **教训（给后续 AI）**：① 索引签名的真实代价平时看不出来，**只有在 `tests/tsconfig` 也参与类型检查时才暴露**（本次 6 个回调漏登错误只出现在 tests 配置里）；② 删索引签名的成本远低于直觉（16 文件 → 5 错误），"怕改动大所以不收"的假设不成立；③ 真源类型（`ScriptBoxTop`/`ScriptBoxCallbacks`）本身也会漏登，收口时要顺手对账真源 vs 实际写入点。
+
+### \[TD-9] FaceMosaicNode 手动上传的图片不落盘：`data.imageUrls` 有声明有默认值，但从不写回 → 刷新丢手传图
+
+- 状态：**主体已解决（2026-09-11，口径 A）** —— `FaceMosaicNode` 上传即写回 `data.imageUrls`（只写持久 URL）+ 2 条契约测试；遗留见文末附件（`blob:` 类入口维持会话内不落盘；`ImageBoxNode` base64 属独立项，另立）。
+
+- 现象：`FaceMosaicNode.data.imageUrls` 在 palette 有默认 `[]`、组件用 `useState(data.imageUrls || [])` 初始化读，但 `onUpload` 只 `setLocalImages(...)`，**全库无任何写回点**。后果：手动上传的图（`uploadFileToLocal` 成功时是持久 `/files/canvas/face_mosaic/...` URL）刷新后消失；上游连线来的图不受影响（每次实时读 `connected`）。
+
+- 根因：本节点定位是「输入 → 打码 → 结果 spawn `assetNode` 子节点」，输入被当成一次性素材（对齐 CONTEXT §五 审计豁免只保证「结果」不丢）；但接口 + palette 默认值又声明了 `imageUrls`，暗示过「要记住上传源」——**声明与行为不一致**（同批体检已删掉本节点另外 3 个同类幽灵字段 `resultUrls`/`resultInfo`/`errorMessage`，它们确认只是预览态）。
+
+- 为何现在不动：属**行为决策**——「输入用完即弃」vs「输入也要持久」。且落盘有边界：`previewUrls.create(file)` 降级出的 `blob:` URL 不可持久（刷新即死链），只能写回非 `blob:` 的持久 URL，需要写成「过滤后写回」而不是无脑写。
+
+- 建议处理时机：① 用户反馈「打码节点上传的图刷新没了」时立即做；② 或与其它节点（如 VideoExtractNode 同样读 `data.videoUrl` 当输入源）一起统一「输入源是否随快照落盘」的口径时做——**口径要一次定，别只改一个节点**。
+
+- 登记于：2026-09-11 · 来源：写码时发现（node.data 契约对账 → 确认 FaceMosaic 结果字段语义时顺带发现）
+
+#### TD-9 附件：上传入口 × 落盘口径清单（2026-09-11 普查，供一次定全局口径）
+
+普查范围：`src/components/nodes/` 下所有 `type="file"` 入口（9 个节点）。
+
+| 节点 | 上传 handler | 上传物去向 | 刷新后 | 存储形态 |
+| --- | --- | --- | --- | --- |
+| `AssetNode` | 上传/拖入/粘贴 | `replaceNodeImage` → `data.imageUrl` | ✔ 保留 | `/files/` 持久 URL（落盘失败回退内联 dataURL） |
+| `ImageGenerate` | `handleRefFileSelect` | `patchData({images})` | ✔ 保留 | `/files/`（`resolveNodeImageUrl`）——**正确样板** |
+| `ImageBoxNode` | `onFileInput`→`addImages`→`updateData` | `data.images` | ✔ 保留 | **base64 整图 dataURL**（`fileToDataUrl` 直存）→ 快照膨胀 |
+| `VideoProcessNode` | `onUpload` | `data.sourceVideoUrl/sourceVideoName` | ✔ 保留 | 上游/落盘 URL |
+| `FaceMosaicNode` | `onUpload` | 仅本地 `localImages` | ✗ 丢 → ✔ 已修 | **已产出 `/files/` 持久 URL，只是没写回** → 现写回 `data.imageUrls`（见文末「落地」） |
+| `TextGenerate` | `uploadImage` | 仅本地 `images` state | ✗ 丢 | `previewUrls.create` → `blob:`；`data.images` 保留为**注入通道** |
+| `VideoExtractNode` | `onUpload` | 仅本地 `videoUrl/videoName` state | ✗ 丢 | `previewUrls.create` → `blob:`；`data.videoUrl/videoName` 保留为**注入通道** |
+| `TemplateNode` | `() => showToast('上传处理')` | 无 | — | 模板样例占位，未实现 |
+| `VideoGenerate` | **input 无 `onChange`** | 无 | — | 死入口（= docs/119 §五 L1，**至今未修**） |
+
+**判据（2026-09-11 修正 —— 来自本轮踩坑，按字段性质分两类，别看「有没有写入方」一刀切）**：
+- **结果类字段**（本节点产出：`faceMosaic.resultUrls/resultInfo/errorMessage`）：**必须有本节点写入方**，否则就是"读了永远拿不到的默认值"→ **删**。已删。
+- **输入类字段**（外部可预置：`videoExtract.videoUrl/videoName`、`textGenerate.images`、`faceMosaic.imageUrls`）：**允许作为「只读注入通道」存在**（零内部写入方 ≠ 该删）。
+  ⚠️ **踩坑记录**：本轮曾按"全库零写入方"把 `videoExtract.videoUrl/videoName` 删掉，**直接打断 6 个测试的预置入口**（该文件 6 个用例全靠 `data:{videoUrl}` 给节点喂视频源；Agent 的 `update_node_any_field` 也能写）→ 已回退，改为在 interface 注释里标明"注入通道、本节点不写回"。
+  另：palette 的空默认值（如 `videoUrl: ''`）有额外作用 —— 让 `get_node_details` 能看到该字段，等于**向 AI 声明入口存在**，不要顺手删。
+
+**口径定稿**：
+- **落地 A**：`FaceMosaicNode.onUpload` 落盘成功即写回 `data.imageUrls`（只写非 `blob:` 的持久 URL）；配套 2 条契约测试（成功写回 / 落入 blob 兜底时不写回）。
+- **不做 B**：`blob:` 入口改走 `uploadFileToLocal` —— 代价是上传耗时段 + 磁盘占用，等真实用户反馈再评估。
+- **放弃 C**：一刀切删声明 —— 输入类字段是既存注入通道（测试/Agent 都在用），删了是静默砍能力。
+
+**独立项（不属本口径，另立）**：`ImageBoxNode` 把整张 base64 存进 `data.images[].url` → 与 §5.4.9「图像入节点落盘策略唯一实现（`filesApi`）」不符，属快照膨胀问题，应在下次动图片盒子时单独收口。
+
+- 登记于：2026-09-11 · 来源：写码时发现（node.data 契约对账 → 确认 FaceMosaic 结果字段语义时顺带发现）
+

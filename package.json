@@ -14,6 +14,7 @@
     "check:api": "node scripts/check-api-contract.cjs",
     "check:node-types": "node scripts/check-node-types.mjs",
     "check:node-handles": "node scripts/check-node-handles.mjs",
+    "check:node-data": "node scripts/check-node-data.mjs",
     "extract:tw": "node scripts/extract-tailwind.mjs",
     "test:smoke": "node scripts/smoke_test.cjs",
     "test:regression": "vitest run tests/unit/nodes/ssrRegression.test.ts",

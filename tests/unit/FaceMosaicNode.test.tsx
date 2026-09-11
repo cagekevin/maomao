@@ -11,6 +11,8 @@
  *  - AI打码全部失败 → toastError + 错误提示展示
  *  - 手动打码 → 打开编辑器、保存后输出 assetNode
  *  - 无图时 AI/手动按钮禁用（契约：不能空打码）
+ *  - 上传图源落盘（TD-9 口径 A）：落盘成功 → 写回 data.imageUrls（刷新不丢）；
+ *    落盘失败退回 blob: 预览 → 不写回（blob 刷新即死链，不进快照）
  */
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
@@ -90,8 +92,10 @@ vi.mock('../../src/components/base/editors/FaceMosaicEditor.tsx', () => ({
     ),
 }));
 vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({ default: () => null }));
+// release 必须有：上传用例会让 localImages 非空，组件卸载时 cleanup 会逐个 release
+// （原来 localImages 恒空、没人调 release，漏了这个 stub 也一直没暴露）。
 vi.mock('../../src/components/base/utils/previewUrl.ts', () => ({
-  default: { create: () => 'http://preview.x' },
+  default: { create: () => 'http://preview.x', release: () => {} },
 }));
 
 import FaceMosaicNode from '../../src/components/nodes/FaceMosaicNode.tsx';
@@ -219,6 +223,33 @@ describe('FaceMosaicNode — AI打码', () => {
       expect(screen.getByText(/detector 未加载/)).toBeTruthy();
       expect(spawnedNodes()).toHaveLength(0);
     });
+  });
+});
+
+describe('FaceMosaicNode — 上传图源落盘（TD-9 口径 A）', () => {
+  function uploadFile(name = 'a.png') {
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['x'], name, { type: 'image/png' })] } });
+  }
+
+  it('落盘成功 → 持久 URL 写回 data.imageUrls（刷新不丢）', async () => {
+    h.uploadMock.mockResolvedValue('http://local/files/canvas/face_mosaic/a.png');
+    setup();
+    uploadFile();
+    await waitFor(() => {
+      expect(lastData().imageUrls).toEqual(['http://local/files/canvas/face_mosaic/a.png']);
+    });
+    // 同一张图也进了输入预览（张数 0 → 1）
+    expect(screen.getByText(/已连接/)).toBeTruthy();
+  });
+
+  it('落盘失败（退回 blob 预览）→ 不写回 data.imageUrls，但预览仍在', async () => {
+    h.uploadMock.mockResolvedValue(null);
+    setup();
+    uploadFile();
+    // 预览出现即说明走完了上传流程（blob 兜底不进 data）
+    await waitFor(() => expect(screen.getByText(/已连接/)).toBeTruthy());
+    expect(lastData().imageUrls).toBeUndefined();
   });
 });
 

@@ -39,10 +39,11 @@ function CanvasToolbar({
     <div className="flex items-center gap-2">
       {/* 主工具组 */}
       <div className="flex items-center rounded-full px-1 py-0.5">
-        {/* 本地引擎连接状态（第一个；大小与其他按钮一致）。已连接=绿勾，未连接=红× */}
-        <button
-          type="button"
-          className={`${baseBtn} ${localToolConnected ? 'text-emerald-400 hover:text-emerald-300' : 'text-red-400 hover:text-red-300'}`}
+        {/* 本地引擎连接状态（纯指示器，非按钮）。已连接=绿勾，未连接=红× */}
+        <span
+          role="status"
+          aria-live="polite"
+          className={`p-1.5 flex items-center justify-center ${localToolConnected ? 'text-emerald-400' : 'text-red-400'} transition-colors duration-300`}
           title={localToolConnected ? '本地引擎已连接' : '本地引擎未连接'}
         >
           {localToolConnected ? (
@@ -73,7 +74,7 @@ function CanvasToolbar({
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           )}
-        </button>
+        </span>
         <button type="button" onClick={onArrange} className={baseBtn} title="整理画布">
           <LayoutGrid size={16} />
         </button>

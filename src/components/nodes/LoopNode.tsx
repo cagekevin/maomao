@@ -16,7 +16,6 @@ import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 interface LoopNodeData {
   label?: string;
   splitMethod?: string;
-  [key: string]: unknown;
 }
 
 interface LoopNodeProps {

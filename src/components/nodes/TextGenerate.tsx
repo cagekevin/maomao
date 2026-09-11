@@ -44,10 +44,14 @@ interface TextGenerateData {
   expanded?: boolean;
   inputLocked?: boolean;
   selectedModel?: string;
+  /**
+   * 自身上传的参考图 —— **输入类字段的外部注入通道**（可被 Agent / 快照 / 测试预置）。
+   * 本节点自己不写回：上传走 `previewUrls.create`（`blob:` 不可持久，见 TD-9 附件口径）。
+   * 上游参考图不在此字段（走 `useConnectedInputs` 实时读）。
+   */
   images?: string[];
   inputWidth?: number;
   inputHeight?: number;
-  [key: string]: unknown;
 }
 
 interface TextGenerateProps {
@@ -107,6 +111,8 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs('textGenerateNode', { model: '' });
   // 记忆只影响新建（见 App.addNode 注入）；存量初始化只读 data，缺字段用纯常量。
   const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? 'gpt-4o-mini');
+  // 参考图三来源：① 外部注入（data.images，见 interface 注释）② 会话内上传（blob: 预览，不落盘）
+  // ③ 上游连线（useConnectedInputs 实时读）。
   const [images, setImages] = useState(data.images || []);
   // 卸载时释放所有预览 Blob URL，避免内存泄漏（对齐 VideoProcessNode / AgentPanel）
   useEffect(
