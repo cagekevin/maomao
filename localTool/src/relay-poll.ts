@@ -21,26 +21,23 @@
  *    poll_task_id = 上游 task_id；result_url 终态落 /files/。
  */
 
-import { protocol, getProviderDefinition } from './ai-relay/index.js';
+import { protocol } from './ai-relay/index.js';
 import type {
   ModelProtocol,
   ModelProtocolSubmitResult,
   ResolvedPollConfig,
-  AuthConfig,
   ModelProtocolProfile,
 } from './ai-relay/types.js';
 import { submitLovartTask, pollLovartTaskOnce } from './ai-relay/providers/lovart/index.js';
-import { stableRequest } from './ai-relay/httpTransport.js';
-import { LOVART_DIRECT_BASE_URL } from './ai-relay/providerEndpoints.js';
-import type {
-  LovartDirectProfile,
-  LovartTransport,
-} from './ai-relay/providers/lovart/lovart_contract.js';
-import { fetchWithProxy } from './utils/netProxy.js';
 import { resolveLocalImages, resolveImagesForEgress } from './utils/resolveLocalImages.js';
 import { saveRemoteUrl } from './routes/files.js';
 import { upsertTask } from './routes/tasks.js';
-import { readProviderConfigFile } from './providerConfigStore.js';
+import {
+  readProviderConfigFile,
+  resolveProviderBaseUrl,
+  resolveProviderApiKey,
+  buildLovartDirectProfile,
+} from './providerConfigStore.js';
 import { getDb, queryAll, debouncedSaveDb } from './db/database.js';
 
 export type RelayCapability = 'image' | 'video' | 'chat';
@@ -102,69 +99,14 @@ function resolveProviderAsyncProtocol(
   return protocol.resolveModelExecutionProfile(profile);
 }
 
-/** 平台 baseUrl 真源 = ai-relay 内置目录（第 13 平台 lovart 含 defaultBaseUrl） */
-function resolveBaseUrl(providerId: string, override?: string): string {
-  if (override && override.trim()) return override.trim().replace(/\/+$/, '');
-  // 唯一出站地址真源 = 用户配置文件 base_url（modelscope/apimart 等在内置目录无 defaultBaseUrl 的厂商）。
-  // 只读内置目录会忽略用户配置 → 报「未配置接口地址」（2026-09-03 修复，与 relay.ts 对齐）。
-  const file = readProviderConfigFile(providerId);
-  const fileBase =
-    typeof (file as { base_url?: unknown } | null)?.base_url === 'string' &&
-    (file as { base_url?: string }).base_url!.trim()
-      ? (file as { base_url: string }).base_url
-      : '';
-  if (fileBase) return fileBase.replace(/\/+$/, '');
-  const def = getProviderDefinition(providerId);
-  const baseUrl = (def?.defaultBaseUrl || '').replace(/\/+$/, '');
-  if (!baseUrl) throw new Error(`Provider ${providerId} 未配置接口地址`);
-  return baseUrl;
-}
-
-/** key 只驻内存、不入库：提交时从 .env 取，重启按 providerId 重读（91 M3-C5）。 */
-function resolveApiKey(providerId: string, override?: string): string {
-  return override || process.env[`API_PROVIDER_${providerId.toUpperCase()}_KEY`] || '';
-}
+// 平台 baseUrl / apiKey 唯一实现已收口 providerConfigStore（resolveProviderBaseUrl /
+// resolveProviderApiKey），本文件不再持有副本（2026-09-11 单一规则收口）。
+// 历史（2026-09-03 修复）：只读内置目录会忽略用户配置 → 报「未配置接口地址」，
+// 该语义已完整迁移至 resolveProviderBaseUrl，勿在此处恢复第二份实现。
 
 /** 判断是否为 lovart（原生直连，走 providers/lovart adapter）。 */
 function isLovartDirect(providerId: string): boolean {
   return providerId === 'lovart';
-}
-
-/**
- * lovart.ai 出站传输：经代理（fetchWithProxy）。lovart 系域名本机必须经代理才能访问。
- * adapter 的 transport 是稳定请求签名，这里包一层 stableRequest + 代理 fetch。
- */
-function lovartProxyTransport(): LovartTransport {
-  // fetchWithProxy 只收 string|URL，与 typeof fetch 签名略有差异，此处断言注入（stableRequest 传的是 string url）
-  return (opts) => stableRequest({ ...opts, fetchImpl: fetchWithProxy as typeof fetch });
-}
-
-/**
- * 构造 lovart 的 HMAC profile。
- * 凭证真源 = localTool/.env（由 src/index.ts 顶部 loadDotEnv() 注入 process.env.LOVART_ACCESS_KEY/SECRET_KEY）。
- * 仅驻内存，不入 DB。
- * transport：注入走代理的 stableRequest（lovart.ai 域名必须经代理，见 netProxy.ts）。
- */
-function lovartDirectProfile(
-  baseUrl: string,
-  signal?: AbortSignal,
-  timeoutMs?: number,
-): LovartDirectProfile {
-  const accessKey = process.env.LOVART_ACCESS_KEY || '';
-  const secretKey = process.env.LOVART_SECRET_KEY || '';
-  if (!accessKey || !secretKey) {
-    throw new Error(
-      'lovart 需要 LOVART_ACCESS_KEY 与 LOVART_SECRET_KEY（请在 localTool/.env 配置）',
-    );
-  }
-  const auth: AuthConfig = { type: 'hmac', accessKey, secretKey };
-  return {
-    baseUrl: baseUrl || LOVART_DIRECT_BASE_URL,
-    auth,
-    signal,
-    timeoutMs,
-    transport: lovartProxyTransport(),
-  };
 }
 
 // ── 轮询时序默认值（对齐前端 config.ts GEN_TIMEOUT/VIDEO_TIMEOUT 语义）──
@@ -268,8 +210,8 @@ export async function submitGenerateTask(
 
     const providerId = input.providerId || 'lovart';
     const capability = input.capability;
-    const baseUrl = resolveBaseUrl(providerId, input.baseUrl);
-    const apiKey = resolveApiKey(providerId);
+    const baseUrl = resolveProviderBaseUrl(providerId, input.baseUrl);
+    const apiKey = resolveProviderApiKey(providerId);
 
     // ── lovart 原生直连：走 providers/lovart adapter（HMAC + chat-thread），不进声明式 preset ──
     // 【根治·2026-09-04】提交即返回：不再同步 await submitLovartTask 出站（ensureProject/mode/upload/sendChat
@@ -471,7 +413,9 @@ async function runDirectSubmit(handle: PollHandle): Promise<boolean> {
   if (!p) return true;
   try {
     // 单请求超时兜底（防底层出站单步卡死无限挂；任务总时长仍由 handle 总超时约束）
-    const profile = lovartDirectProfile(handle.baseUrl, undefined, DIRECT_SUBMIT_TIMEOUT_MS);
+    const profile = buildLovartDirectProfile(handle.baseUrl, {
+      timeoutMs: DIRECT_SUBMIT_TIMEOUT_MS,
+    });
     // 参考图形态按 lovart 直连（cdn）：不预压 base64，转回环可下载 URL 交给 adapter
     // resolveLovartAttachments 自取（下载→传 CDN），省掉 encode→decode 两遍。见 resolveLocalImages.ts 头。
     const images =
@@ -545,7 +489,9 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
           const okSubmit = await runDirectSubmit(handle);
           if (!okSubmit || handle.stopped) return;
         }
-        const profile = lovartDirectProfile(handle.baseUrl, undefined, DIRECT_SUBMIT_TIMEOUT_MS);
+        const profile = buildLovartDirectProfile(handle.baseUrl, {
+          timeoutMs: DIRECT_SUBMIT_TIMEOUT_MS,
+        });
         const r = await pollLovartTaskOnce(profile, {
           handle: { threadId: handle.taskId, projectId: '' },
         });
@@ -777,7 +723,7 @@ export async function initRelayPoller(opts: { timeoutMs?: number } = {}): Promis
       // 已提交任务：需 thread_id(=taskId) 才能续轮询
       if (!core.taskId) continue; // 无 taskId（脏数据），跳过
       if (!core.poll && !core.direct) continue; // 非 direct 但缺 poll → 旧/脏数据，跳过
-      const apiKey = resolveApiKey(core.providerId);
+      const apiKey = resolveProviderApiKey(core.providerId);
       registerHandle(
         frontTaskId,
         {

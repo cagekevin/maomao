@@ -6,6 +6,14 @@
 >
 > **历史注记（理解用，非运行依赖）**：本范式最早由一批「本地异步任务网关」（提交后返回 `{code, data:{task_id}}`，再轮询 `{code, data:{...}}`）沉淀而来。网关进程已退役，但**字段规则与网关无关——它们描述的是上游 HTTP 返回结构的普适规律**，因此本规范完全不依赖任何已退役进程。
 
+> **⛔ 现状更新（2026-09-11，必须优先于本文档正文阅读）**：
+> 本文档正文的 §1/§3/§4/§5 描述的是 **lovart-old 9004 时代**的旧范式，以下内容已随 2026-09-05 `lovart-old` 退役删除、**以 `presets.ts` 现状为准**：
+> - **旧 `lovart-image` / `lovart-video` / `lovart-chat` preset 已删**：presets.ts 现仅保留有跨厂商事实标准的同步预设（`openai-chat` / `openai-image`）与支持自定义异步的视频兜底（`agnes-video`）；非 lovart 平台的异步 image/video 不再有内置 preset，须在 provider 配置文件 `model_protocols[capability]` 自备 `ModelProtocol`（`preset:'custom'`），由 relay-poll 的 `resolveProviderAsyncProtocol` 读取（见 `relay-poll.ts`）。
+> - **`api.config.json` 已退役**：provider 配置现为「每平台一个 JSON」`config/providers/<id>.json`（读写唯一入口 `providerConfigStore.ts`），出厂种子为 `providers.default.json`。
+> - **旧字段名已升级 v1→v2**：`taskIdPath` / `poll.urlTemplate` / `poll.statusEnum` / `urlPath` / `textPath` / `progressPath` 等扁平字段已迁移为 `ModelProtocol` v2 结构（`submit` / `response` / `poll.response`，见 `types.ts` + `validation.ts` 的 `upgradeLegacyProtocolValue`）。
+> - **`presetMap` / `getPresetFor` / `presetNameFor` 不存在**：现状取 preset 的唯一入口是 `getModelProtocolPreset(preset)`（presets.ts）与 `resolveModelExecutionProfile(profile)`（protocol/engine.ts）。
+> - 下面 §0/§2 的「何时用声明式 vs 命令式」「状态枚举铁律」仍有效（普适规律）；§1/§3 字段字典请对照 v2 结构解读，勿照抄旧字段名。
+
 ---
 
 ## 0. 何时用声明式 preset（vs 命令式适配器）
@@ -71,25 +79,21 @@
 
 ---
 
-## 4. 现成活示例（无需 9004 即可对照）
+## 4. 现成活示例（现状，2026-09-11 更新）
 
-以下平台**当前**在 `api.config.json` 中使用本范式，可直接 `src/ai-relay/protocol/presets.ts` 对照：
-
-| 平台 id | 使用的 preset | 备注 |
-|---|---|---|
-| `apimart` | `lovart-image` / `lovart-video` / `lovart-chat` | `image_mode: async` |
-| `modelscope` | `lovart-image` / `lovart-video` / `lovart-chat` | `image_mode: async` |
-| `p_mt1h4ycb_sfr3gu` | `lovart-image` / `lovart-video` / `lovart-chat` | `image_mode: async` |
-| `lovart`（直连） | `lovart-image` / `lovart-video` / `lovart-chat` | 直连 `lgw.lovart.ai`，不经由任何本地网关 |
-
-> 新增一个「异步生图/生视频」平台时：复制 `lovart-image`/`lovart-video` 结构，按 §3 改 JSONPath，把 preset 名加进 `presetMap`（或 `getPresetFor`），再在 `api.config.json` 把该平台 `image_mode` 设为 `async` 并引用对应 preset 即可，**不用碰 relay 主路代码**。
+> **旧 §4（apimart/modelscope/p_mt1h4ycb_sfr3gu 用 `lovart-image/video/chat` + `api.config.json`）已随 lovart-old 9004 退役失效**。现状：
+> - 有跨厂商标准的同步模态 → 内置 preset：`openai-chat`（chat/completions）、`openai-image`（images/generations）、`agnes-video`（异步兜底示例，见 presets.ts）。
+> - 非 lovart 平台的异步 image/video → **无内置 preset**，须在 `config/providers/<id>.json` 的 `model_protocols[capability]` 自备 `ModelProtocol`（`preset:'custom'`），由 relay-poll 的 `resolveProviderAsyncProtocol` 读取；未配置 → 明确报错「该平台暂不支持异步生成」。
+> - `lovart` 直连走命令式适配器 `providers/lovart/`（HMAC 原生协议，不经声明式 preset），见 `../providers/ADAPTER_SPEC.md`。
+> 对照代码：`presets.ts`（内置预设）+ `relay-poll.ts resolveProviderAsyncProtocol`（自定义协议读取）+ `protocol/engine.ts resolveModelExecutionProfile`（preset/custom 解析）。
 
 ---
 
-## 5. 路由与执行链路（速查）
+## 5. 路由与执行链路（速查，2026-09-11 更新）
 
-- 提交：`generateEngine.ts` 对 `image_mode === 'async'` 的平台调用 `presetNameFor(capability)` 取 preset → `executeModelProtocol`（见 `ai-relay/index.ts`）。
-- 轮询：`relay-poll.ts` 的 `initRelayPoller` 用 preset 的 `poll.*` 字段轮询，按 `statusEnum` 判定终态，按 `urlPath`/`textPath` 抽产物，落盘到 `/files/`。
-- 协议选择：`getPresetFor`（`presets.ts`）按 `providerId` + `capability` 返回 preset 名。
+- 内置预设（同步）：`generate.ts generateImage` / `generateVideo` / `generateAudio` 经 `resolveModelExecutionProfile` → `executeModelProtocol`（`protocol/engine.ts`）。
+- 自定义协议（异步，非 lovart 平台）：`relay-poll.ts submitGenerateTask` → `resolveProviderAsyncProtocol`（读 `config/providers/<id>.json` 的 `model_protocols[capability]`）→ `protocol.submitModelProtocol` → `pollModelProtocolOnce` 轮询 → 落盘 `/files/`。
+- `lovart` 直连：命令式适配器 `providers/lovart/`（`submitLovartTask` / `pollLovartTaskOnce`），不经声明式 preset。
+- 协议选择：`resolveModelExecutionProfile`（`protocol/engine.ts`）——`preset:'custom'` 走 `parseModelExecutionProtocol` 校验，其余走 `getModelProtocolPreset`。
 
 > **红线**：preset 只描述「提交-轮询-抽值」的 JSON 路径，**不持有任何凭证/密钥**（密钥走 `.env` + `API_PROVIDER_{ID}_KEY`）。新增平台严禁在 preset 里写死 token。

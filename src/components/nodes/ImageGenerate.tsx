@@ -23,7 +23,7 @@ import { NODE_AREA_FIXED_BASE_SIZE } from '../base/core/config.ts';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import '../base/editors/ImageEditor.tsx';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
-import { replaceNodeImage } from './nodeImage.ts';
+import { replaceNodeImage } from '../base/nodeImage.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { useNodeExpanded } from '../../hooks/useNodeExpanded.ts';

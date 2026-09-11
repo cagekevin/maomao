@@ -96,7 +96,7 @@ import {
 } from './components/base/canvas/nodeDefaults.ts';
 import { injectNodePrefs } from './components/base/canvas/nodePrefs.ts';
 import { useCanvasSync } from './hooks/useCanvasSync.ts';
-import { parseShotHandle } from './components/base/core/contracts.ts';
+import { parseShotHandle, NODE_HANDLE_CONTRACT } from './components/base/core/contracts.ts';
 import { prefetchHeavyNode } from './components/base/canvas/lazyNode.tsx';
 
 /* ======================================================================
@@ -118,33 +118,24 @@ const edgeTypes = {
   default: CustomEdge,
 };
 
-// ═══ 节点「输入口契约」单源表（type → targetHandleId）═══
-// 语义：凡是「左侧输入口不是 React Flow 默认 null 口」的节点，建边 / 恢复存量边时
-// 必须把 edge.targetHandle 显式指到该节点 NodeShell 声明的 targetHandleId，否则落成 null，
-// React Flow 的 getHandle$1 会用 null 去 handleBounds 里取「第一个 target 口」，
-// 取不到即报 "Couldn't create edge for target handle id: null"（含懒加载节点首帧无端口的场景）。
-// 现状：
-//  - scriptBoxNode：showHandles={false} 关了默认口，输入口来自 overlayHandles 的 'in'；
-//  - panoramaNode：懒加载节点（three 重依赖），targetHandleId='in'（与 sourceHandleId='main-output' 成对）。
-// 维护约定：新增节点若声明 targetHandleId，必须同步登记到本表（唯一真源，勿在调用点另写内联表）。
-const TARGET_HANDLE_BY_NODE_TYPE: Record<string, string> = {
-  scriptBoxNode: 'in',
-  panoramaNode: 'in',
-};
-
-// ═══ 节点「输出口契约」单源表（type → sourceHandleId）═══
-// 语义：凡是「右侧输出口不是 React Flow 默认 null 口」的节点，存量旧边（sourceHandle 为
-// null/undefined）在加载时必须显式补成该节点的 sourceHandleId，否则 React Flow 用 null 去
-// handleBounds 里取「第一个 source 口」，取不到即报 source 侧 code-008
-// （日志表现：`Couldn't create edge for source handle id: "null"`）。
-// 与 NodeShell 的 sourceHandleId prop 成对；新增节点声明 sourceHandleId 时同步登记。
-const SOURCE_HANDLE_BY_NODE_TYPE: Record<string, string> = {
-  panoramaNode: 'main-output',
-  videoProcessNode: 'main-output',
-  imageBoxNode: 'active',
-  gridSplitNode: 'batch',
-  gridMergeNode: 'merged-output',
-};
+// ═══ 节点「固定端口」真源（TD-04-1 收口）═══
+// 原两张内联表 TARGET_/SOURCE_HANDLE_BY_NODE_TYPE 已删——收敛到 contracts.NODE_HANDLE_CONTRACT，
+// 与 lazyNode 占位骨架共用同一份（此前三处手工维护且已漂移，见 contracts.ts 该常量 JSDoc）。
+// 语义：凡「左侧输入 / 右侧输出口不是 React Flow 默认 null 口」的节点，建边 / 恢复存量边时
+// 必须把 edge.targetHandle/sourceHandle 显式指向契约值，否则落成 null → React Flow 用 null
+// 去 handleBounds 取「第一个口」，多口或无口时取不到即报 code-008、边静默不渲染。
+// 新增节点若声明 targetHandleId/sourceHandleId，登记到 contracts.NODE_HANDLE_CONTRACT
+// （由 scripts/check-node-handles.mjs 对账节点文件声明 ⊄ 契约表，漏登记即红）。
+const TARGET_HANDLE_BY_NODE_TYPE: Record<string, string> = Object.fromEntries(
+  Object.entries(NODE_HANDLE_CONTRACT)
+    .filter(([, h]) => h.targetHandleId)
+    .map(([type, h]) => [type, h.targetHandleId]),
+);
+const SOURCE_HANDLE_BY_NODE_TYPE: Record<string, string> = Object.fromEntries(
+  Object.entries(NODE_HANDLE_CONTRACT)
+    .filter(([, h]) => h.sourceHandleId)
+    .map(([type, h]) => [type, h.sourceHandleId]),
+);
 
 // React Flow 错误回调（覆盖库内置的 devWarn，仅 dev 生效）。
 // 只静音 002：本文件已把 nodeTypes/edgeTypes 提到模块级常量，正常渲染下引用永不变化，
@@ -531,9 +522,7 @@ function Canvas() {
     const r = await downloadConfig((msg) => showToast(msg, { type: 'info' }), {
       onConfirm: (copy) => askConfirm(copy),
     });
-    if (r.ok) {
-      setTimeout(() => window.location.reload(), 1200);
-    }
+    // [TD-13] 下载成功后精准重水合各 store 内存态已由 downloadConfig 内部统一触发（见 cloudSync.ts），此处无需重复。
     return r;
   }, []);
 

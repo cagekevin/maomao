@@ -3,7 +3,7 @@
 > **定位**：本目录是「架构师心法」驱动的**增量架构审计**落盘处。目标：近期一个区域一个区域排查系统架构问题，逐步还清技术债。
 > **视角**：一切审计从**数据流**出发——先定位「这条链路在哪些文件、谁产生、谁消费、落哪」，再判架构问题。
 > **维护者**：架构师心法（`/.codebuddy/commands/架构师心法.md` §七）。每验证完一个区域，由它更新本 index + 对应 `<区域>.md` + 刷新 `spec/DATAFLOW.md`。
-> **关联**：区域链路真源 = `spec/DATAFLOW.md`（数据流文件夹，架构师一并维护）；债登记唯一处 = `spec/TECH-DEBT.md`（禁 ADR）。
+> **关联**：区域链路真源 = `spec/DATAFLOW.md`（数据流文件夹，架构师一并维护）；债明细真源 = 各区域架构日志（分片），轻量索引 = `daily/架构日志/债务.md`（位于架构日志内，一行一债，禁 ADR）；`spec/TECH-DEBT.md` 已废弃只读。
 
 ---
 
@@ -15,18 +15,26 @@
 | # | 区域 | 数据流主文件（审计起点） | 状态 | 日志 |
 | - | ---- | ---------------------- | ---- | ---- |
 | 01 | 生成链路（主链路：节点→任务中心→回填） | `components/base/api/generate.ts` · `hooks/useNodeGeneration.ts` · `scriptbox/scriptBoxEngine.ts` | 待审计 | — |
-| 02 | 存储 / 持久化 | `components/base/core/contentStore.ts` | 已验证(有债待还) | [02-存储-持久化-2026-09-11.md](02-存储-持久化-2026-09-11.md) |
-| 03 | 资产 / 素材 | `components/base/store/assetStore.ts` · `api/filesApi.ts` | 待审计 | — |
-| 04 | 画布 / 节点 | `canvas/NodePalette` · `canvas/nodePrefs` · `hooks/useGenerateNode.ts` | 待审计 | — |
+| 02 | 存储 / 持久化 | `components/base/core/contentStore.ts` | 已还清 | [02-存储-持久化-2026-09-11.md](02-存储-持久化-2026-09-11.md) |
+| 03 | 资产 / 素材 | `components/base/store/assetStore.ts` · `api/filesApi.ts` | 审计中（底层已审） | [03-资产-素材-2026-09-11.md](03-资产-素材-2026-09-11.md) |
+| 04 | 画布 / 节点 | `canvas/NodePalette` · `canvas/nodePrefs` · `hooks/useGenerateNode.ts` | 已验证(有债待还)（编排地基已审；TD-04-1 端口契约三源 / TD-04-2 四建节点路径） | [04-画布-节点-2026-09-11.md](04-画布-节点-2026-09-11.md) |
 | 05 | 提示词 | `prompt/promptManager.ts` · `prompt/promptHubStore.ts` | 待审计 | — |
 | 06 | 编辑 / 查看 | `nodes/useImageHoverActions.ts` · `editors/*` | 待审计 | — |
 | 07 | 3D / 深度视频 | `components/director3d/*` · `depthVideo/*` | 待审计 | — |
-| 08 | localTool 后端（服务端 `:18080`） | `localTool/src/routes/generate.ts` · `relay-poll.ts` · `generateEngine.ts` | 待审计 | — |
-| 09 | 类型诚实性（横切：假收窄/无守卫断言） | 见 `docs/类型诚实性审计-假收窄清单.md` + `contracts.ts` | 待审计 | — |
+| 08 | localTool 后端（服务端 `:18080`） | `localTool/src/routes/generate.ts` · `relay-poll.ts` · `generateEngine.ts` | 已还清 | [08-localTool-后端-2026-09-11.md](08-localTool-后端-2026-09-11.md) · [08-localTool-后端-媒体与转发-2026-09-11.md](08-localTool-后端-媒体与转发-2026-09-11.md) · [08-localTool-后端-再评估-2026-09-11.md](08-localTool-后端-再评估-2026-09-11.md) · [08-localTool-后端-四轮深扫-2026-09-11.md](08-localTool-后端-四轮深扫-2026-09-11.md) · [08-localTool-后端-五轮底层-2026-09-11.md](08-localTool-后端-五轮底层-2026-09-11.md) |
+| 09 | 类型诚实性（横切：假收窄/无守卫断言） | 见 `docs/类型诚实性审计-假收窄清单.md` + `contracts.ts`（护栏：`type-check` + `check:node-data --strict`） | 已验证(无债) | [09-类型诚实性-2026-09-11.md](09-类型诚实性-2026-09-11.md) |
 | 10 | 云同步（Cloud） | `components/base/store/cloudSync.ts` | 已还清 | [10-云同步-2026-09-11.md](./10-云同步-2026-09-11.md) |
+| 11 | AI 助手（含表格）🆕自主新增 | `agent/conversation/conversationStore.ts` · `agent/runtime/useAgentChat.ts` · `agent/canvas/useCanvasAgentTools.ts` · `panels/AgentPanel.tsx` | 已验证(无债)（10 轮 10 债全还清；工具层 + 表格域模型层已审完，UI 组件层未审） | [11-AI助手-2026-09-11.md](./11-AI助手-2026-09-11.md) |
 
 > **区域 10 说明**：用户（审计发起方）点名优先审计的「云同步」未在原始 9 区计划内，属跨「存储/持久化」边界的专用同步层（自有引擎 + GAS 网关 + 冲突判定），故追加为第 10 区。审计发现 3 债（[F-云B]/[F-云A]/[F-云C]），**全部于 2026-09-11 当场根源收敛并验证**，状态 = 已还清（TD-12）。
-> 注：本区 3 债 ≠ 区域 02 的 F1（下载云端后各 store 内存态不刷新 → KV 新/内存旧，见 `spec/TECH-DEBT.md` **TD-13** 待处理）。两者根因不同（本区在 cloudSync 引擎内部，F1 在 store 边界），云同步区「已还清」仅指本区 3 引擎债；F1 归区域 02。
+> 注：本区 3 债 ≠ 区域 02 的 F1（下载云端后各 store 内存态不刷新 → KV 新/内存旧，见 `spec/TECH-DEBT.md` **TD-13 已解决**）。两者根因不同（本区在 cloudSync 引擎内部，F1 在 store 边界）；F1 的 rehydrate 代码已于 2026-09-11 **并入本区 cloudSync.ts**（原独立 cloudRehydrate.ts 删除，downloadConfig 写回后自触发），故"引擎"与"重水合"二合一为单一模块。云同步区「已还清」含本区 3 引擎债（TD-12）+ TD-13 重水合（已并入本区）+ TD-14 排除清单隐私缺口（已解决）；F1 债本登记在区域 02、修复落在本区模块——跨区互指保留以便溯源。
+>
+> **区域 11 说明**：**自主新增**（规则第 1 条）。原 10 区把 AI 助手整个子系统吸进「01 生成链路」的两行脚注（`agentRuntime → chatStream`），而它实为独立子系统（会话状态层 8 文件 + 运行时 12 文件 + 工具层 3 文件 + 表格 23 文件 + `AgentPanel.tsx` 1899 行），故追加为第 11 区（编号顺延 `max(10)+1`）。
+> 审计结论：结构总体健康——会话状态层 6 文件**单向无环**拆分合格（非过度抽象）；SSOT 六项唯一（会话/快照/表格/运行态/长期记忆/输入态）；三条运行期 Guard 均实测有效；静默 no-op 已出声。`runModeRegistry.ts` 整模块及 `AI-ASSISTANT-REDUNDANCY-CUT.md` 提案已 100% 落地（实测文件不存在、全仓仅 6 条注释）。
+> **债（9 轮 9 债，全部已还清）**：TD-11-1（`TS2698`）→ TD-16；TD-11-2（草稿双写/双 SSOT）+ TD-11-3（`UseAgentChatReturn` 回传 store 写操作）→ TD-17（第 3 轮）；**第 4 轮用户质问「真的结清了吗」→ 复核推翻第 3 轮结论**，发现 TD-11-4（4 处切对话/收尾静默清草稿 → 丢用户输入，利息率**高**，已修）；**第 5 轮**：TD-11-5 窄接口化（5 原子写 + 语义动作 `resetCurrentConversationToEmpty`，8 调用点全改 + 删 2 处 no-op）；**第 6 轮**：运行态字段生命周期对账 → TD-11-6（删 `workflowRuntime.ts` 生产级死代码/第二真相）+ TD-11-7（`creditGatePreview` 本地副本切对话不重置 → 卡片跨对话残留，**高**）；**第 7 轮**：子代理**独立**复核交叉验证（§六.5）；**第 8 轮**：工具执行链路 → TD-11-8（4 处裸调 `ctx.setEdges` 绕过 canvasHost；根因 canvasHost 缺 `removeEdges` 原语），把红线升级为 **`check:arch` AST 机器强制**；**第 9 轮**：TD-11-9（`MUTATING_TOOLS` 零覆盖 → 20 工具对账用例 + 负例验证；单飞锁超时静默 → 补日志）。**工具层 + 表格域模型层已审完**（第 10 轮 TD-11-10：运行态不变量 `validateWorkspace` 接通生产侧 + 列合并 `mergeColumnsByLabel` 收口）；UI 组件层（`AssistantTablePanel`/`AgentMessage`/`AgentConfirmCard`）未审。
+> **方法论沉淀**：① 语义迁移必须复核原防御逻辑是否仍成立；② 测试须**行为断言 + 先红后绿**（实现断言是自证式的）；③ 审计结论应由**独立路径**复核，不自证。见区域文件 §六.2 / §六.3 / §六.4 / §六.5。
+> **已裁定（2026-09-11 用户确认）**：`pendingImageNodes`（画布选中待引用图）不随对话切换清空 = **有意设计**（选中图属画布全局概念，非 per-conversation 数据），**非债、不改**。后续 AI 勿当残留 bug 清理（与 TD-11-4/11-7 形态相似性质相反）。
+> **改判留痕**：第 1 轮列的「`useAgentChat` 6 职责／1138 行」候选经量化**改判为非债**——注释占 31.6%、`send` 主循环是不可约编排时序、已充分下沉（agentCore/agentRuntime/agentMessages/agentAttachments/inputStateMachine/workflowState），再切要么成环要么造碎片；是合格深模块（窄接口厚实现）。理由见区域文件 §五.1。
 
 > **文件名约定（recency-at-a-glance）**：每区每轮审计一个独立文件，命名 `<NN>-<区域>-<YYYY-MM-DD>.md`（如 `01-生成链路-2026-09-11.md`）。
 > 同区多次审计**各写新日期文件、不覆盖旧档**——文件名即显示最近在动哪块、历史可追溯，且避免单文件膨胀。
@@ -50,8 +58,8 @@
 
 ## 审计闭环（每区一步）
 
-1. **定位**：读 `spec/DATAFLOW.md` 该区域链路，拿到文件清单。
-2. **实证**：对每个主文件跑 `node scripts/mv-sync-refs.mjs refs <file>`，确认 DATAFLOW 是否过期漂移（谁 import 它 / 字符串残留引用）。
+1. **定位（自底向上）**：读 `spec/DATAFLOW.md` 该区域链路，先按「层（底→顶）」定位其**类型/契约/定义地基**，拿到文件清单。
+2. **实证（先地基后消费者）**：从地基文件起，对每个主文件跑 `node scripts/mv-sync-refs.mjs refs <file>`——先看类型/契约定义，再沿 fan-in（谁 import 它）向上逐级实证最新数据流，确认 DATAFLOW 是否过期漂移。
 3. **审**：套用架构师心法 Phase 1–4（溯源/定海/切割/探债）+ 静默自检清单（§五），从数据流角度判问题。
 4. **落盘**：写 `daily/架构日志/<NN>-<区域>-<YYYY-MM-DD>.md`（按 `_template.md`，不覆盖旧档），更新本 index 状态与「日志」列链接。
 5. **刷新数据流**：若 DATAFLOW.md 与实际不符，就地追加 `更新(<日期>, refs实证): ...`（禁静默删旧链路）。

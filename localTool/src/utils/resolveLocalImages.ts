@@ -16,7 +16,8 @@
  *          否则图生图会静默退化成文生图且无报错 —— 见 docs/72 D-1 教训）。
  * 压缩：复用 fileStore.resizeImage 的缩放语义（最长边 ≤ MAX_SEND_DIM、小图不放大），内存内
  *       getBufferAsync 输出，不新建任何磁盘文件（不引入孤儿文件 GC 负担）。
- * 消费方：agentChat.ts（LLM 聊天消息）/ system.ts /api/proxy（生图/视频/聊天请求体），禁止各写一份。
+ * 消费方：generateEngine.ts（relayGenerate / relayChatStream）· relay-poll.ts（runDirectSubmit / 非 direct 提交），
+ *         禁止各写一份（2026-09-11 更新：旧 agentChat.ts 与 system.ts /api/proxy 已随 relay 收口退役，消费方改为生成引擎）。
  */
 import Jimp from 'jimp';
 import fs from 'node:fs';

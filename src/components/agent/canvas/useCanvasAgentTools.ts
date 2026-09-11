@@ -771,14 +771,16 @@ const connectNodesTool = {
     required: ['source', 'target'],
   },
   execute(args, ctx) {
-    const { getEdges, setEdges } = ctx;
+    // 【TD-11-8 收口 2026-09-11】原裸调 ctx.setEdges 绕过唯一入口 → 改走 canvasHost.appendEdges
+    // （写操作唯一入口红线，见 agent/index.ts:52；canvasHost 已提供 appendEdges/removeEdges，无需裸调）。
+    const host = createCanvasHost(ctx);
     const source = str(args.source);
     const target = str(args.target);
-    const built = buildConnect(args, ctx, getEdges());
+    const built = buildConnect(args, ctx, host.getEdges());
     if (built.status === 'error') return { ok: false, error: built.error };
     if (built.status === 'already')
       return { ok: true, data: { source, target, alreadyConnected: true } };
-    setEdges((es) => [...es, built.edge]);
+    host.appendEdges([built.edge]);
     return { ok: true, data: { source, target } };
   },
 };
@@ -807,9 +809,10 @@ const batchConnectNodesTool = {
   execute(args, ctx) {
     const list = Array.isArray(args.connections) ? args.connections : [];
     if (!list.length) return { ok: false, error: 'connections 为空' };
-    const { setEdges } = ctx;
-    // P11：批量连——先累计新边，单次 setEdges 写回，避免 N 条连线触发 N 次全量 setEdges（ReactFlow 重渲染风暴）。
-    let virtualEdges = ctx.getEdges();
+    // 【TD-11-8 收口】裸调 ctx.setEdges → canvasHost.appendEdges（保留 P11 单次写回防渲染风暴）
+    const host = createCanvasHost(ctx);
+    // P11：批量连——先累计新边，单次写回，避免 N 条连线触发 N 次全量 setEdges（ReactFlow 重渲染风暴）。
+    let virtualEdges = host.getEdges();
     const newEdges = [];
     let okCount = 0;
     for (const c of list) {
@@ -822,7 +825,7 @@ const batchConnectNodesTool = {
         okCount++; // 去重：已存在连线计成功（对齐原 connectNodesTool ok:true 语义）
       }
     }
-    if (newEdges.length) setEdges((es) => [...es, ...newEdges]);
+    if (newEdges.length) host.appendEdges(newEdges);
     return { ok: true, data: { connected: okCount, total: list.length } };
   },
 };
@@ -842,17 +845,19 @@ const deleteEdgeTool = {
     required: [],
   },
   execute(args, ctx) {
-    const { getEdges, setEdges } = ctx;
+    // 【TD-11-8 收口】裸调 ctx.setEdges → canvasHost.removeEdges（写操作唯一入口）
+    const host = createCanvasHost(ctx);
+    const edges = host.getEdges();
     if (args.edgeId) {
-      if (!getEdges().some((e) => e.id === args.edgeId))
+      if (!edges.some((e) => e.id === args.edgeId))
         return { ok: false, error: `连线不存在：${args.edgeId}` };
-      setEdges((es) => es.filter((e) => e.id !== args.edgeId));
+      host.removeEdges(args.edgeId);
       return { ok: true, data: { edgeId: args.edgeId } };
     }
     if (args.source && args.target) {
-      const edge = getEdges().find((e) => e.source === args.source && e.target === args.target);
+      const edge = edges.find((e) => e.source === args.source && e.target === args.target);
       if (!edge) return { ok: false, error: `未找到 ${args.source}→${args.target} 的连线` };
-      setEdges((es) => es.filter((e) => e.id !== edge.id));
+      host.removeEdges(edge.id);
       return { ok: true, data: { edgeId: edge.id } };
     }
     return { ok: false, error: '需提供 edgeId 或 source+target' };

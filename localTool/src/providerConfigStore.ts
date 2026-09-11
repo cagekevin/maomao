@@ -1,11 +1,19 @@
 /**
- * providerConfigStore — provider 配置型存储（一个平台一个 JSON 文件）。
+ * providerConfigStore — provider 配置型存储（一个平台一个 JSON 文件）+ 出站解析唯一实现。
  *
  * ════════════════════════════════════════════════════════════════
  * 【为什么存在】relay 迁移删掉了旧 /api/providers 的动态多连接 CRUD（providers.json 单文件，历史残留）。
  * 按架构师理解改为「配置型」：每个平台一个 JSON 文件（localTool/config/providers/<id>.json），
  * 文件存「前端 Provider 契约字段 + 可选 relay 连接元数据」。本模块是 provider 配置的唯一读写入口
  * （禁散落 fs 读写）。
+ *
+ * 【职责扩展（2026-09-11 收口）】在「配置读写」基础上，本模块同时是「出站解析」的唯一实现：
+ *  - resolveProviderBaseUrl / readConfiguredBaseUrl：出站地址解析（收口自 generateEngine/relay-poll/providers 双份+三份）；
+ *  - resolveProviderApiKey：出站 key 解析（收口，命名规则委托 providerCredentials.envKeysFor）；
+ *  - buildLovartDirectProfile：lovart 原生直连 HMAC profile 构造（收口自 generateEngine 内联 + relay-poll）。
+ * 选择归此的原因：这些解析都从「provider 配置文件 + 内置目录 + .env」取数，与配置读写同域；
+ * 且需要同时访问 ai-relay（目录）与 utils（netProxy/代理），放 src 根层本模块可满足而不破坏
+ * ai-relay 的独立性（ai-relay 是可独立运行的 Node 模块，不宜反向依赖 localTool utils）。
  *
  * 【真源（唯二，职责不重叠）】
  *  - 运行态真源：<数据目录>/providers/<id>.json = 用户可见可改的 Provider（模型清单/协议/模式/base_url）。
@@ -23,7 +31,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getDataDir } from './db/database.js';
 import { getProviderDefinitions, getProviderDefinition } from './ai-relay/index.js';
+import { readEnvValues } from './ai-relay/providerCredentials.js';
+import { stableRequest } from './ai-relay/httpTransport.js';
+import { LOVART_DIRECT_BASE_URL } from './ai-relay/providerEndpoints.js';
+import { fetchWithProxy } from './utils/netProxy.js';
 import type { ProviderDefinition } from './ai-relay/types.js';
+import type { AuthConfig } from './ai-relay/types.js';
+import type {
+  LovartDirectProfile,
+  LovartTransport,
+} from './ai-relay/providers/lovart/lovart_contract.js';
 
 /** config/providers/ 目录（建在数据目录下，与 uploads 平级，避免被清） */
 function getProviderConfigDir(): string {
@@ -118,6 +135,77 @@ export function deleteProviderConfigFile(id: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * 读某平台配置文件里的 base_url（无则返回 undefined）。
+ * 共享片段（2026-09-11 收口）：出站 resolveProviderBaseUrl 与 providers 路由
+ * （handleProviderTest 测连兜底）此前各内联一份「readProviderConfigFile(id).base_url 判 string+trim」，
+ * 现统一经本函数读取，禁止再内联第三份。
+ */
+export function readConfiguredBaseUrl(providerId: string): string | undefined {
+  const file = readProviderConfigFile(providerId);
+  return typeof (file as { base_url?: unknown } | null)?.base_url === 'string' &&
+    (file as { base_url: string }).base_url!.trim()
+    ? (file as { base_url: string }).base_url
+    : undefined;
+}
+
+/**
+ * 解析某平台出站 baseUrl（唯一实现，2026-09-11 从 generateEngine.ts / relay-poll.ts 双份收口）。
+ * 优先级：显式覆盖 → 用户配置文件 base_url（modelscope 等内置无 defaultBaseUrl 的厂商靠它）
+ * → 内置目录 defaultBaseUrl。无则抛「未配置接口地址」（不静默空串出站）。
+ */
+export function resolveProviderBaseUrl(providerId: string, override?: string): string {
+  if (override && override.trim()) return override.trim().replace(/\/+$/, '');
+  const fileBase = readConfiguredBaseUrl(providerId);
+  if (fileBase) return fileBase.replace(/\/+$/, '');
+  const def = getProviderDefinition(providerId);
+  const baseUrl = (def?.defaultBaseUrl || '').replace(/\/+$/, '');
+  if (!baseUrl) throw new Error(`Provider ${providerId} 未配置接口地址`);
+  return baseUrl;
+}
+
+/**
+ * 解析某平台出站 apiKey（唯一实现，2026-09-11 收口）。
+ * 规则唯一源 = providerCredentials.envKeysFor（厂商声明 envKeys 优先，未声明回落统一命名
+ * `API_PROVIDER_{ID}_KEY`），process.env 只读（localTool 启动 loadDotEnv 注入）。
+ * 显式覆盖优先（`??` 保留空串语义，对齐原 generateEngine）；relay-poll 不传 override 行为不变。
+ * 注意：lovart 等声明式凭证厂商经 buildLovartDirectProfile 读 LOVART_*，不经本函数。
+ */
+export function resolveProviderApiKey(providerId: string, override?: string): string {
+  if (override !== undefined && override !== null) return override;
+  const def = getProviderDefinition(providerId);
+  return readEnvValues(providerId, def)[0] || '';
+}
+
+/**
+ * 构造 lovart 原生直连的 HMAC profile（唯一实现，2026-09-11 收口自 generateEngine 内联
+ * 构造 + relay-poll 的 lovartDirectProfile，两处此前各自重复「读 LOVART_* 凭证 + hmac +
+ * 代理 transport」）。凭证真源 = localTool/.env（index.ts loadDotEnv 注入）；仅驻内存不入库。
+ * transport = stableRequest + fetchWithProxy（lovart.ai 域名必须经代理，见 netProxy.ts）。
+ */
+export function buildLovartDirectProfile(
+  baseUrl: string,
+  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
+): LovartDirectProfile {
+  const accessKey = process.env.LOVART_ACCESS_KEY || '';
+  const secretKey = process.env.LOVART_SECRET_KEY || '';
+  if (!accessKey || !secretKey) {
+    throw new Error(
+      'lovart 需要 LOVART_ACCESS_KEY 与 LOVART_SECRET_KEY（请在 localTool/.env 配置）',
+    );
+  }
+  const auth: AuthConfig = { type: 'hmac', accessKey, secretKey };
+  const transport: LovartTransport = (o) =>
+    stableRequest({ ...o, fetchImpl: fetchWithProxy as typeof fetch });
+  return {
+    baseUrl: baseUrl || LOVART_DIRECT_BASE_URL,
+    auth,
+    timeoutMs: opts.timeoutMs,
+    signal: opts.signal,
+    transport,
+  };
 }
 
 /** 把内置 ProviderDefinition 转成「最小前端 Provider」兜底（无配置文件时的出厂默认）。 */

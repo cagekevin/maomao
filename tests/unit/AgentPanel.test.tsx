@@ -61,8 +61,13 @@ const h = vi.hoisted(() => {
   const markSkillUsed = vi.fn();
   const showToast = vi.fn();
   const setCurrentSnapshot = vi.fn((s) => snapshotSetter(s));
-  const setAwaitingConfirm = vi.fn();
-  // 收口 store 穿透（2026-08-21）：AgentPanel 从 useAgentChat 解构这 4 个 handler，不再直连 conversationStore
+  // 【TD-17】AgentPanel 改收 useAgentChat 的语义化 action（不再收 store 原子函数透传）。
+  // action → store 写操作的映射仍指向同一 snapshotSetter，断言口径与旧「记录 setCurrentSnapshot 调用」等价。
+  const saveSkills = vi.fn((skills) => snapshotSetter({ skills }));
+  const saveDraft = vi.fn((draft) => snapshotSetter({ draft }));
+  const saveAttachments = vi.fn((attachments) => snapshotSetter({ attachments }));
+  const closeAwaitingConfirm = vi.fn();
+  // 收口 store 穿透（2026-08-21）：AgentPanel 从 useAgentChat 解构 handler，不再直连 conversationStore
   const useAgentChat = vi.fn(() => ({
     ...agentState,
     setModel,
@@ -75,9 +80,10 @@ const h = vi.hoisted(() => {
     deleteChat,
     updateMessageByContent: vi.fn(),
     executePlanDirect: vi.fn(async () => ({ ok: true })),
-    setCurrentSnapshot,
-    setAwaitingConfirm,
-    markMessageTableResolved: vi.fn(),
+    saveSkills,
+    saveDraft,
+    saveAttachments,
+    closeAwaitingConfirm,
     getCreditGate: vi.fn(() => null),
     clearCreditGate: vi.fn(),
   }));
@@ -113,7 +119,10 @@ const h = vi.hoisted(() => {
     markSkillUsed,
     showToast,
     setCurrentSnapshot,
-    setAwaitingConfirm,
+    saveDraft,
+    saveSkills,
+    saveAttachments,
+    closeAwaitingConfirm,
     contentSubscribe,
     subscribeCbs,
     AGENT_CHAT_MODEL_KEY,
@@ -210,7 +219,12 @@ vi.mock('../../src/components/base/core/confirmStore.ts', () => ({ askConfirm: h
 vi.mock('../../src/components/base/core/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }));
-vi.mock('../../src/components/base/core/config.ts', () => ({ AGENT_MODELS: ['gpt-4o-mini'] }));
+// importOriginal 部分 mock：保留 config 全部真实导出（含 TD-7 新增的 KV_TIMEOUT），仅覆盖 AGENT_MODELS。
+// 注：importOriginal 类型为 unknown（vitest 限制），直接 spread 报 TS2698，须断言为 Record 对象类型（对齐 useAssetMoveToFolder.test.tsx 写法）。
+vi.mock('../../src/components/base/core/config.ts', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return { ...actual, AGENT_MODELS: ['gpt-4o-mini'] };
+});
 vi.mock('../../src/components/base/utils/previewUrl.ts', () => ({
   default: { create: vi.fn(() => 'blob:x'), release: vi.fn() },
 }));
@@ -358,6 +372,23 @@ describe('AgentPanel — 消息发送', () => {
   it('无输入 → 发送按钮禁用', () => {
     render(<AgentPanel {...OPEN_PROPS} />);
     expect((screen.getByTitle('发送') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  // 【TD-17】草稿唯一真源 = 会话 draft 快照：逐字 onChange → saveDraft；发送后清空 → saveDraft('')
+  it('输入草稿 → 逐字写回会话 draft（saveDraft），不再有独立存储键双写', () => {
+    render(<AgentPanel {...OPEN_PROPS} />);
+    const ta = screen.getByPlaceholderText(/描述你想做的事/) as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '草' } });
+    fireEvent.change(ta, { target: { value: '草稿' } });
+    expect(h.saveDraft).toHaveBeenLastCalledWith('草稿');
+  });
+
+  it("发送后 → 清空草稿（saveDraft('')）", () => {
+    render(<AgentPanel {...OPEN_PROPS} />);
+    const ta = screen.getByPlaceholderText(/描述你想做的事/) as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: '你好' } });
+    fireEvent.keyDown(ta, { key: 'Enter', shiftKey: false });
+    expect(h.saveDraft).toHaveBeenLastCalledWith('');
   });
 
   it('发送后 → 清空输入框', () => {

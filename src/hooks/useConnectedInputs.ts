@@ -39,7 +39,7 @@ import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.t
  * @returns { images, texts, videos, audios } 聚合的所有「直接上游」产出
  */
 
-/** 产出类型判定（P1-B φ2 收口）委托 resultUrlExtractor.resolveMediaType：
+/** 产出类型判定（P1-B φ2 收口）委托 mediaType.resolveMediaType：
  *  mediaType 优先（产出方自带），否则按 URL 分类。唯一实现，勿在此另起一套（见下方 import）。
  *  · 为什么 mediaType 优先：如 VideoProcessNode extractAudio spawn 的 assetNode 带
  *    data.mediaType:'audio'（blob: URL 无扩展名），按扩展名判会误判为 image。

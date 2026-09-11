@@ -41,7 +41,8 @@ export const BLOCKED_HEADER_NAMES = new Set([
 ]);
 export const HEADER_NAME_RE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
 export const OMIT_TEMPLATE_VALUE = Symbol('omit-template-value');
-export const DEFAULT_RETRY_HTTP_STATUSES = [408, 429, 500, 502, 503, 504];
+// 重试状态码唯一真源在 httpTransport.RETRYABLE_HTTP_STATUSES，此处仅 re-export 兼容旧名（2026-09-11 收口）
+export { RETRYABLE_HTTP_STATUSES as DEFAULT_RETRY_HTTP_STATUSES } from '../httpTransport.js';
 export const DEFAULT_MAX_QUERY_RETRIES = 3;
 export const DEFAULT_MAX_RETRY_DELAY_MS = 60000;
 export const MIME_TYPE_RE = /^[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]*\/[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]*$/;

@@ -124,24 +124,41 @@ export function isExtensionEnv() {
  * 惰性执行一次，仅在环境列表仍为空时应用，避免与用户编辑竞态/覆盖。
  * @returns {Promise<Array>} 清洗后的环境数组
  */
-async function load(): Promise<AccountEnv[]> {
+/** 从 KV 读原始账号数组并清洗（去 demo/测试环境）。纯读取、不碰内存态，供 load / reload 共用。 */
+async function readEnvs(): Promise<AccountEnv[]> {
   try {
     // contentGetAsync 返回 unknown（存储值不可信）：先 Array.isArray 判数组，再按 AccountEnv[]
     // 收窄（外层有运行时守卫才诚实，F11），不要在断言后才补守卫。
     const parsed: unknown = await contentGetAsync(STORAGE_KEY);
-    const cleaned = Array.isArray(parsed)
+    return Array.isArray(parsed)
       ? (parsed as AccountEnv[]).filter(
           (e) =>
             !String(e.id || '').startsWith('env_demo_') &&
             !(e.siteName === '开发测试网' && (e.cookies || []).every((c) => c.name === 'test')),
         )
       : [];
-    if (state.envs.length === 0) setState({ envs: cleaned });
-    return cleaned;
   } catch {
-    if (state.envs.length === 0) setState({ envs: [] });
     return [];
   }
+}
+
+// 首次模块加载时惰性水合（KV 异步，不能同步填充）：仅当列表仍为空时应用，避免与用户编辑竞态/覆盖。
+async function load(): Promise<AccountEnv[]> {
+  const cleaned = await readEnvs();
+  if (state.envs.length === 0) setState({ envs: cleaned });
+  return cleaned;
+}
+
+/**
+ * 云同步「下载云端」成功后覆盖式重水合（TD-13 修复落地）。
+ * 与首次 load() 的「仅当空才应用」不同——下载是显式覆盖指令，必须无条件刷新；
+ * 若当前激活环境已不在新列表里则清空 activeId，避免指向已删除环境。
+ * 替换手动路径的 window.location.reload() 末端补丁（不冲画布、配置当轮一致）。
+ */
+export async function reloadAccounts(): Promise<void> {
+  const cleaned = await readEnvs();
+  const activeId = cleaned.some((e) => e.id === state.activeId) ? state.activeId : null;
+  setState({ envs: cleaned, activeId });
 }
 
 // 模块级 state：环境数组 + 当前激活环境 id + 表单/菜单态（官方 rn/on/un/fn/mn/gn/ja）。

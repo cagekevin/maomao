@@ -16,19 +16,16 @@
  * 给整个执行套硬超时（默认 10 分钟），到点 abort 抛错（失败可见，不静默挂起）。
  */
 
-import { getProviderDefinition, chatWithTools, chat } from './ai-relay/index.js';
+import { chatWithTools, chat } from './ai-relay/index.js';
 import { chatLovartText } from './ai-relay/providers/lovart/index.js';
-import { stableRequest } from './ai-relay/httpTransport.js';
-import { LOVART_DIRECT_BASE_URL } from './ai-relay/providerEndpoints.js';
-import type {
-  LovartDirectProfile,
-  LovartTransport,
-} from './ai-relay/providers/lovart/lovart_contract.js';
-import type { AuthConfig } from './ai-relay/types.js';
 import { resolveLocalImages, resolveImagesForEgress } from './utils/resolveLocalImages.js';
 import { fetchWithProxy } from './utils/netProxy.js';
 import { sendError } from './utils/helpers.js';
-import { readProviderConfigFile } from './providerConfigStore.js';
+import {
+  resolveProviderBaseUrl,
+  resolveProviderApiKey,
+  buildLovartDirectProfile,
+} from './providerConfigStore.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export type RelayCapability = 'image' | 'video' | 'chat';
@@ -83,23 +80,8 @@ export interface RelayGenerateOutput {
   durationMs: number;
 }
 
-function resolveBaseUrl(providerId: string, override?: string): string {
-  if (override && override.trim()) return override.trim().replace(/\/+$/, '');
-  // 1) 唯一出站地址真源 = 用户配置文件 base_url（modelscope 等内置无 defaultBaseUrl、靠配置地址）。
-  //    只读内置目录会忽略用户配置 → 报「未配置接口地址」（2026-09-03 modelscope 回归修复）。
-  const file = readProviderConfigFile(providerId);
-  const fileBase =
-    typeof (file as { base_url?: unknown } | null)?.base_url === 'string' &&
-    (file as { base_url?: string }).base_url!.trim()
-      ? (file as { base_url: string }).base_url
-      : '';
-  if (fileBase) return fileBase.replace(/\/+$/, '');
-  // 2) 兜底内置目录 defaultBaseUrl
-  const def = getProviderDefinition(providerId);
-  const baseUrl = (def?.defaultBaseUrl || '').replace(/\/+$/, '');
-  if (!baseUrl) throw new Error(`Provider ${providerId} 未配置接口地址`);
-  return baseUrl;
-}
+// 平台 baseUrl / apiKey 唯一实现已收口 providerConfigStore（resolveProviderBaseUrl /
+// resolveProviderApiKey），本文件不再持有副本（2026-09-11 单一规则收口）。
 
 /** 携带超时的 abort 信号（到点抛 AbortError，由 relayGenerate 捕获转 error）。 */
 function makeTimeoutSignal(
@@ -137,10 +119,9 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
   };
 
   try {
-    const baseUrl = resolveBaseUrl(providerId, input.baseUrl);
+    const baseUrl = resolveProviderBaseUrl(providerId, input.baseUrl);
     // key 只进 .env（localTool 启动 loadDotEnv 注入 process.env），调用方显式传时优先。
-    const apiKey =
-      input.apiKey ?? process.env[`API_PROVIDER_${providerId.toUpperCase()}_KEY`] ?? '';
+    const apiKey = resolveProviderApiKey(providerId, input.apiKey);
 
     // 参考图归一：/files/ 磁盘图 → data: base64（唯一出站口纪律）。
     // chat 参考图在前端经 imageUrl.normalizeImageUrlsForSend + toImageContentBlocks 塞进 messages
@@ -195,19 +176,9 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
     if (capability === 'chat') {
       // lovart（原生直连）：走 adapter 非流式拿整段文本（对齐 Lovart chat 同步语义）
       if (providerId === 'lovart') {
-        const ak = process.env.LOVART_ACCESS_KEY || '';
-        const sk = process.env.LOVART_SECRET_KEY || '';
-        if (!ak || !sk) throw new Error('lovart 需要 LOVART_ACCESS_KEY 与 LOVART_SECRET_KEY');
-        const auth: AuthConfig = { type: 'hmac', accessKey: ak, secretKey: sk };
-        // lovart.ai 必须经代理访问：transport = stableRequest + 代理 fetch
-        const proxyTransport: LovartTransport = (opts) =>
-          stableRequest({ ...opts, fetchImpl: fetchWithProxy as typeof fetch });
-        const profile: LovartDirectProfile = {
-          baseUrl: baseUrl || LOVART_DIRECT_BASE_URL,
-          auth,
-          timeoutMs,
-          transport: proxyTransport,
-        };
+        // HMAC profile 唯一构造已收口 providerConfigStore.buildLovartDirectProfile
+        // （读 LOVART_* 凭证 + 代理 transport），本文件不再内联复制（2026-09-11）。
+        const profile = buildLovartDirectProfile(baseUrl, { timeoutMs });
         // 参考图形态按 lovart 直连（cdn）：不把 messages 里 /files/ 预压 base64，而是保留
         // 回环可下载 URL 交给 adapter 自取（resolveLovartAttachments 下载→传 CDN），省 encode→decode。
         // resolvedMessages 是通用 base64 形态（给非直连通用分支用），此分支不复用它，用原消息按 cdn 归一。
@@ -290,9 +261,8 @@ export async function relayChatStream(
   },
 ): Promise<void> {
   try {
-    const baseUrl = resolveBaseUrl(input.providerId, input.baseUrl);
-    const apiKey =
-      input.apiKey ?? process.env[`API_PROVIDER_${input.providerId.toUpperCase()}_KEY`] ?? '';
+    const baseUrl = resolveProviderBaseUrl(input.providerId, input.baseUrl);
+    const apiKey = resolveProviderApiKey(input.providerId, input.apiKey);
     // 参考图统一内联 base64（唯一出站口纪律；魔搭读得到本机图）
     const msgs = (await resolveLocalImages(input.messages)) as unknown[];
 
@@ -308,7 +278,8 @@ export async function relayChatStream(
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
-          // 主动规避 gzip：本层多为原样透传，避免前端解析被压缩打断（对齐 agentChat.ts）
+          // 主动规避 gzip：本层多为原样透传，避免前端解析被压缩打断
+          // （对齐旧 agentChat.ts 行为，该文件已随 L3b 退役，语义保留）
           'Accept-Encoding': 'identity',
           ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
         },

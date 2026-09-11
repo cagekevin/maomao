@@ -27,6 +27,10 @@ export function getBackupDir(): string {
 export const LOCAL_FILE_BASE = 'http://127.0.0.1:18080/files/';
 
 let _db: SqlJsDatabase | null = null;
+// 首次初始化单例 promise：getDb 首次含 await initSqlJs()，并发请求若各自进初始化会
+// 竞态建库（损坏重建路径下可能空库覆盖有数据的库）。用 _dbPromise 串行化首次初始化，
+// 后续请求 await 同一 promise（2026-09-11 修复，第三轮评估发现）。
+let _dbPromise: Promise<SqlJsDatabase> | null = null;
 
 // ── 备份 / 导出 配置 ──
 const BACKUP_KEEP = 7; // 保留最近 N 份 db 备份，自动清理更旧的
@@ -39,7 +43,15 @@ const _DAILY_EXPORT_HOUR = 3;
 
 export async function getDb(): Promise<SqlJsDatabase> {
   if (_db) return _db;
+  // 并发首次初始化串行化：同一 promise，后续并发请求 await 同一初始化，避免各自建库竞态
+  if (!_dbPromise) {
+    _dbPromise = initDb();
+  }
+  return _dbPromise;
+}
 
+/** 首次初始化实现（getDb 单例化调用；损坏重建 + 空库兜底，原 getDb 函数体） */
+async function initDb(): Promise<SqlJsDatabase> {
   const dataDir = getDataDir();
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -275,32 +287,9 @@ export function startBackupSchedule(): void {
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-/**
- * 安全删除本地文件：只删 18080 本地文件，跳过远程 URL。
- * 删前检查是否有其他 task/resource 仍引用该 URL，有引用则跳过。
- * @returns true = 已删除，false = 跳过或不存在
- */
-export function deleteLocalFile(db: any, dbUrl: string): boolean {
-  if (!dbUrl.startsWith(LOCAL_FILE_BASE)) return false;
-
-  const relativePath = dbUrl.slice(LOCAL_FILE_BASE.length);
-  const diskPath = path.join(getUploadDir(), relativePath);
-
-  if (!fs.existsSync(diskPath)) return false;
-
-  // 检查是否有其他 task 或 resource 仍引用此 URL
-  const taskRefs = queryOne(
-    db,
-    'SELECT COUNT(*) as cnt FROM tasks WHERE result_url = ? OR thumbnail_url = ?',
-    [dbUrl, dbUrl],
-  ) as { cnt: number } | undefined;
-  const resRefs = queryOne(db, 'SELECT COUNT(*) as cnt FROM resources WHERE url = ?', [dbUrl]) as
-    { cnt: number } | undefined;
-  if ((taskRefs?.cnt ?? 0) > 0 || (resRefs?.cnt ?? 0) > 0) return false;
-
-  fs.unlinkSync(diskPath);
-  return true;
-}
+// 更新(2026-09-11)：deleteLocalFile 已删除——生产代码 0 引用（tasks/resources 删盘已统一
+// 委托 runReferenceGc 引用感知 GC，见 routes/tasks.ts 注释），仅测试引用，属死代码清理。
+// 若将来需要「单文件删盘」，应复用 utils/orphanGc.ts 的引用感知逻辑，勿恢复本函数。
 
 /**
  * 统一改写库内旧本地 url 引用 → 新 url（改名 / 移动后调用，防止旧引用 404）。
@@ -472,6 +461,8 @@ export function closeDb(): void {
     _db.close();
     _db = null;
   }
+  // 同进程内 closeDb 后再 getDb：清掉已 settled 的初始化 promise，允许重新初始化
+  _dbPromise = null;
 }
 
 // ── 兼容 better-sqlite3 风格的查询接口 ──

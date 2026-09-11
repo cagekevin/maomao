@@ -62,9 +62,9 @@ async function runTick(): Promise<void> {
       // 冲突处理器选择了「下载云端」→ 转 downloadConfig（复用手动链路的 askConfirm 门面）。
       const d = await downloadConfig(undefined, { onConfirm: (copy) => askConfirm(copy) });
       cancelCount = 0;
-      // 绝不 reload：自动下载若照抄手动链路的 window.location.reload() 会冲掉正在画的画布（旧稿 A-7d）
       if (d.ok) {
-        showToast(`已下载云端配置（${d.count} 项），部分设置刷新后生效`, { type: 'success' });
+        // [TD-13] 自动下载成功后精准重水合 store 内存态已由 downloadConfig 内部统一触发，不 reload 画布
+        showToast(`已下载云端配置（${d.count} 项），已立即生效`, { type: 'success' });
         // [F-云A] 部分域写回失败 → 如实告警
         if (d.partial?.failed?.length)
           showToast(`部分未恢复：${d.partial.failed.join('、')}`, { type: 'warning' });

@@ -81,7 +81,6 @@ export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWid
     <div className="tw-panel" style={{ width: ws.width, right: agentPanelWidth }}>
       <AssistantTablePanel
         width={ws.width}
-        previewing={!!ws.preview}
         onSendToCanvas={onSendToCanvas}
         sending={sending}
         onConfirmPreview={confirmTablePreview}

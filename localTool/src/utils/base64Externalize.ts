@@ -16,8 +16,10 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getUploadDir, LOCAL_FILE_BASE } from '../db/database.js';
+import { getUploadDir } from '../db/database.js';
 import { ensureDir, resolveUploadTarget, sanitizeFilename } from './fileStore.js';
+import { mimeToExt } from './mime.js';
+import { toAbsoluteFileUrl } from './localToolBaseUrl.js';
 
 /** data URI 正则：匹配 data:image/png;base64,xxxx 或 data:video/... */
 const DATA_URI_RE = /^data:([a-zA-Z0-9+.-]+\/[a-zA-Z0-9+.-]+);base64,(.*)$/s;
@@ -61,9 +63,8 @@ export function saveBase64ToFile(dataUri: string, subfolder: string = 'canvas'):
   const { savedPath, urlPath } = resolveUploadTarget(subfolder, stableName);
   ensureDir(path.dirname(savedPath));
 
-  // 返回【绝对】URL：urlPath 是相对路径（/files/...），若直接存 KV，画布运行在
-  // localhost:5180 / chrome-extension:// 下会被解析成错误源 → 刷新后破图。
-  // 与 resources.ts 的 toAbsoluteFileUrl 同一惯例（resources.ts:61-65）。
+  // 更新(2026-09-11)：toAbsoluteFileUrl 唯一实现已收口 utils/localToolBaseUrl.ts
+  // （读 PORT 动态端口；旧实现硬编码 LOCAL_FILE_BASE 18080，非默认端口启动时 URL 端口错配）。
   const absoluteUrl = toAbsoluteFileUrl(urlPath);
 
   // 已存在则直接返回 URL（幂等，不重复落盘）
@@ -80,42 +81,12 @@ export function saveBase64ToFile(dataUri: string, subfolder: string = 'canvas'):
   }
 }
 
-/** 相对 /files/ 路径 → 完整可访问 URL（对齐 resources.ts 的 toAbsoluteFileUrl 惯例）。 */
-function toAbsoluteFileUrl(relativePath: string): string {
-  if (!relativePath) return relativePath;
-  if (/^https?:\/\//i.test(relativePath)) return relativePath;
-  return `${LOCAL_FILE_BASE}${relativePath.replace(/^\/files\//, '')}`;
-}
-
-/** MIME 到扩展名的映射（小写，带点） */
+/** MIME → 扩展名（唯一实现 utils/mime.ts；表外兜底用 mime 子类型，对齐旧 extFromMime 行为） */
 function extFromMime(mime: string): string {
+  const dotted = mimeToExt(mime);
+  if (dotted) return dotted;
   const m = mime.split('/')[1]?.toLowerCase() ?? '';
-  switch (m) {
-    case 'jpeg':
-      return '.jpg';
-    case 'png':
-      return '.png';
-    case 'webp':
-      return '.webp';
-    case 'gif':
-      return '.gif';
-    case 'svg+xml':
-      return '.svg';
-    case 'bmp':
-      return '.bmp';
-    case 'mp4':
-      return '.mp4';
-    case 'webm':
-      return '.webm';
-    case 'mp3':
-      return '.mp3';
-    case 'wav':
-      return '.wav';
-    case 'json':
-      return '.json';
-    default:
-      return m ? `.${m}` : '.bin';
-  }
+  return m ? `.${m}` : '.bin';
 }
 
 /**

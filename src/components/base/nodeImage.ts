@@ -1,6 +1,10 @@
 /**
  * 节点「主图」唯一写入口 —— docs/118 §五 C5b（收口档 1 ③）+ §7.3 ⑤（档 2 字段唯一化）。
  *
+ * 【物理位置】坐落于 `src/components/base/`（通用地基），由各 image 节点（ImageGenerate / AssetNode …）
+ * 向地基单向依赖。这是刻意的收敛点：把「写回主图」的唯一逻辑收口到地基，避免节点间横向互引
+ * （触发 audit `no-nodes-cross`），也避免多节点各自实现导致字段漂移（历史：crop 按钮漏写 onClick）。
+ *
  * 【为什么】「把新图写回节点」此前有 **2 处各自实现**（`ImageGenerate.onImageReplaced`、
  * `AssetNode.replaceImage`），且字段已经漂移：前者只写 `imageUrl`，后者 `imageUrl` + `url` 双写。
  * 收成唯一出口后，结构上不可能再出现「某条路径忘了落盘」（历史漂移：生图节点 crop 按钮漏写 onClick）。

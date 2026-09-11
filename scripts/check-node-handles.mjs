@@ -32,7 +32,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve, extname, relative, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { defaultTargets } from './check-targets.mjs';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -98,10 +98,69 @@ for (const file of targets) {
   );
 }
 
+// ── 规则 3（TD-04-1）：节点文件声明的端口 ⊆ contracts.NODE_HANDLE_CONTRACT ──
+// 背景：节点端口真源是各节点文件的 NodeShell targetHandleId/sourceHandleId prop。契约表
+// contracts.NODE_HANDLE_CONTRACT 供 App 补边 + lazyNode 占位骨架消费。二者一旦不同步（节点新声明
+// 了非默认口但契约表漏登记），App 恢复存量边/建边时补不正 handle → 边静默不渲染 / code-008。
+// 本规则对账「节点文件里出现的每个 targetHandleId/sourceHandleId 字面量值，必须在契约表对应侧存在」，
+// 漏登记即红（防漂移回潮）。
+let contractTargets = new Set();
+let contractSources = new Set();
+try {
+  const contracts = await import(
+    pathToFileURL(resolve(root, 'src/components/base/core/contracts.ts')).href
+  );
+  for (const h of Object.values(contracts.NODE_HANDLE_CONTRACT || {})) {
+    if (h.targetHandleId) contractTargets.add(h.targetHandleId);
+    if (h.sourceHandleId) contractSources.add(h.sourceHandleId);
+  }
+} catch (e) {
+  console.error('  ✖ 无法加载 contracts.NODE_HANDLE_CONTRACT：', e.message);
+  process.exit(1);
+}
+
+// 节点文件里的 NodeShell handle prop 字面量（只扫节点目录，排除注释行）
+const NODE_DIR = resolve(root, 'src/components/nodes');
+const TARGET_PROP_RE = /\btargetHandleId\s*=\s*"([^"]+)"/;
+const SOURCE_PROP_RE = /\bsourceHandleId\s*=\s*"([^"]+)"/;
+const declaredHandleFiles = [];
+for (const file of defaultTargets(root)) {
+  if (!file.startsWith(NODE_DIR + sep)) continue;
+  let src;
+  try {
+    src = readFileSync(file, 'utf8');
+  } catch {
+    continue;
+  }
+  const rel = relative(root, file).split(sep).join('/');
+  const lines = src.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (t.startsWith('//') || t.startsWith('/*') || t.startsWith('*') || t.startsWith('*/')) continue;
+    const tm = TARGET_PROP_RE.exec(lines[i]);
+    if (tm && !contractTargets.has(tm[1])) {
+      violations++;
+      console.error(
+        `  ✖ ${rel}:${i + 1}  targetHandleId="${tm[1]}" 未登记到 contracts.NODE_HANDLE_CONTRACT`,
+      );
+      console.error(`      → 在 contracts.NODE_HANDLE_CONTRACT[<type>].targetHandleId 补 "${tm[1]}"（防 App 补边漏 handle）。`);
+    }
+    const sm = SOURCE_PROP_RE.exec(lines[i]);
+    if (sm && !contractSources.has(sm[1])) {
+      violations++;
+      console.error(
+        `  ✖ ${rel}:${i + 1}  sourceHandleId="${sm[1]}" 未登记到 contracts.NODE_HANDLE_CONTRACT`,
+      );
+      console.error(`      → 在 contracts.NODE_HANDLE_CONTRACT[<type>].sourceHandleId 补 "${sm[1]}"（防 App 补边漏 handle）。`);
+    }
+    if (tm || sm) declaredHandleFiles.push(rel);
+  }
+}
+
 if (violations === 0) {
-  console.log(`\n节点端口契约校验通过 ✔（已扫描 ${targets.length} 个文件，特例 ${Object.keys(HANDLE_EXEMPT).length} 个已登记）`);
+  console.log(`\n节点端口契约校验通过 ✔（已扫描 ${targets.length} 个文件，特例 ${Object.keys(HANDLE_EXEMPT).length} 个已登记；契约表 target ${contractTargets.size} / source ${contractSources.size}）`);
   process.exit(0);
 } else {
-  console.error(`\n发现 ${violations} 处端口手写失控（会导致连线不渲染）✖`);
+  console.error(`\n发现 ${violations} 处端口契约问题（会导致连线不渲染 / 补边漏 handle）✖`);
   process.exit(1);
 }

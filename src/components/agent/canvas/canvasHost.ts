@@ -51,6 +51,7 @@ export interface CanvasHost {
   appendNode: (newNode: Node) => void;
   appendMany: (payload: { nodes?: Node[]; edges?: Edge[] }) => void;
   appendEdges: (edges: Edge[]) => void;
+  removeEdges: (ids: string | string[]) => void;
   updateNodeData: (id: string, patch: Partial<Node['data']>) => void;
   updateNodePosition: (id: string, position: { x: number; y: number }) => void;
   lockNodes: (ids: string[], locked: boolean) => void;
@@ -111,6 +112,12 @@ export function createCanvasHost(ctx: CanvasHostCtx = DEFAULT_CTX): CanvasHost {
 
   const appendEdges = (edges: Edge[]): void => ctx.setEdges((es) => [...es, ...edges]);
 
+  /** 按 id 批量删除连线（connect/delete_edge 收口用；单次 setEdges，不逐条） */
+  const removeEdges = (ids: string | string[]): void => {
+    const idSet = new Set(Array.isArray(ids) ? ids : [ids]);
+    ctx.setEdges((es) => es.filter((e) => !idSet.has(e.id)));
+  };
+
   // ── 整体替换（undo_ai 恢复快照 / group_nodes 整体替换节点数组）──
   // 这两个场景是「整数组替换」而非「局部操作」，host 之前只覆盖局部原语，导致 undo_ai / group_nodes
   // 只能裸 ctx.setNodes。收口后统一走此原语（见实施计划 M1 C1-1 验收：工具层零裸 useReactFlow）。
@@ -129,6 +136,7 @@ export function createCanvasHost(ctx: CanvasHostCtx = DEFAULT_CTX): CanvasHost {
     appendNode,
     appendMany,
     appendEdges,
+    removeEdges,
     updateNodeData,
     updateNodePosition,
     lockNodes,

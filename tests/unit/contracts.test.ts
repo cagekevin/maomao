@@ -104,8 +104,8 @@ describe('STORAGE_KEYS 语义检查', () => {
 });
 
 describe('STORAGE_KEYS 内容验证', () => {
-  it('当前共有 35 个登记键', () => {
-    expect(Object.keys(STORAGE_KEYS).length).toBe(35);
+  it('当前共有 34 个登记键', () => {
+    expect(Object.keys(STORAGE_KEYS).length).toBe(34);
   });
 
   it('云同步台账键已登记（防覆盖保护的本地基线，不进云端）', () => {
@@ -131,7 +131,6 @@ describe('STORAGE_KEYS 内容验证', () => {
     expect(keys).toContain('yimao_node_prefs');
     expect(keys).toContain('yimao_accounts');
     expect(keys).toContain('agent_panel_width');
-    expect(keys).toContain('agent_draft');
     expect(keys).toContain('agent_input_mode');
     expect(keys).toContain('canvasAgentGenParams');
     expect(keys).toContain('mutiwindow-clipboard');

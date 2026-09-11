@@ -1,6 +1,7 @@
-# spec/TECH-DEBT.md · 技术债登记（单一固定文件）
+# spec/TECH-DEBT.md · 技术债登记（单一固定文件）【已废弃 · 只读】
 
-> **定位**：全仓库唯一的技术债留痕文件。由「系统治理5步法」Step 7 主动追加，也可由任何 AI 在发现"现在不能动、但确是债"时追加。**单一文件、只追加、不分散、不建 ADR**（CLAUDE.md 决策铁律）。
+> ⚠️ **废弃声明（2026-09-11）**：新债不再登记于此。技术债明细真源 = 各区域架构日志 `daily/架构日志/<NN>-<区域>-<日期>.md` 的「探债」段；轻量索引 = `daily/架构日志/债务.md`（位于架构日志内）。本文件仅保留 2026-09-11 前的历史债作只读参考，**勿再追加**。
+> **原定位（历史）**：全仓库唯一的技术债留痕文件。由「系统治理5步法」Step 7 主动追加，也可由任何 AI 在发现"现在不能动、但确是债"时追加。**单一文件、只追加、不分散、不建 ADR**（CLAUDE.md 决策铁律）。
 > **读者**：下一个 AI。目的是让债可见、不被聊天淹没、不被误删。
 > **不写**：备选方案否决理由（属决策过程，不落盘）；讲"为什么这么设计"的注释不挪到这里（留原处）。
 
@@ -284,14 +285,32 @@
 - 登记于：2026-09-11 · 来源：架构师审计（TD-9 附件普查「死入口」正式立项）
 
 ### \[TD-13] 云同步「下载云端」直写 contentStore / providerApi 但不触发各 store 内存态 rehydrate → KV 新值、内存旧值（SSOT 裂痕）
-- 状态：**待处理**
-- 归类：增债（历史缺口） · 利息率：中（个人单机配置域，刷新即恢复、无丢数据，但「下载后配置不一致」是真实 SSOT 裂痕） · 偿还计划(owner)：架构师
+- 状态：**[已解决 2026-09-11]**（reload 入口 + 手动/自动两路复用 rehydrate，替换整页 reload 末端补丁）
+- 归类：增债（已还） · 利息率：中 · 偿还计划(owner)：架构师（已于 2026-09-11 结清）
 - 现象：手动路径 `App.tsx:535` 下载成功后 `setTimeout(() => window.location.reload(), 1200)` 用**整页 reload** 兜底；自动路径 `autoSync.ts:65` 显式「绝不 reload」（正确，不该冲掉正在画的画布）→ 自动下载的账号/设置/Skill/provider 配置 **KV 是新值、内存态是旧值**，toast 自承「部分设置刷新后生效」，直至手动刷新才一致。
 - 根因：各 store（accountsStore / appSettings / skillStore / providerStore 等）是「模块级内存态 + `useSyncExternalStore`」，只在 `load()` 时从 contentStore 读一次，此后内存态即 UI 唯一真源，且**不订阅 contentStore 的 KV 变更**；`cloudSync.restoreLocal / downloadConfig` 直写 contentStore / providerApi 后**无 store rehydrate 钩子** → 「末端收敛」没做（甩给用户「刷新后生效」）。属 store 边界缺口，非 reload 补丁问题。
 - 为何现在不动：属 store 边界改造（给多 store 加 `reload` 入口 + 改手动/自动两路下载调用），且自动路径「绝不 reload」刻意保留（避免冲画布），改坏风险在中；当前个人单机、刷新即恢复，利息中。
 - 建议处理时机：下次动云同步 / store 层时一并；或用户反馈「自动下载后某设置没生效」时优先。
 - 偿还计划（owner：架构师）：给 `accountsStore/appSettings/skillStore/providerStore` 各暴露 `reload()` 入口；`cloudSync.downloadConfig` 成功后（手动 + 自动两路复用）统一精准 rehydrate，替换手动路径的 `window.location.reload()` 末端补丁；补「下载后内存态与 KV 一致」单测防回归。
+- **实施记录（2026-09-11，TD-13 落地）**：
+  - 根因确认：accountsStore / appSettings / providerStore 是「模块级内存态 + useSyncExternalStore」，只在 `load()` 读一次、不订阅 contentStore 变更；`cloudSync.restoreLocal` 直写 contentStore / providerApi 后内存态过期。
+  - 三个有缓存的 store 各加精准 `reload()`：`appSettings.reloadAppSettings()`（重读 contentStore + notify + 同步 `window.__DEBUG_ALL`）、`accountsStore.reloadAccounts()`（抽出 `readEnvs()` 共用、覆盖式刷新、activeId 失效则清空）、`providerStore.reloadProviders()`（静默重拉、不闪 loading/不清 testResult、失败仅告警）。
+  - 新增 `rehydrateStoresAfterCloudPull()`（`Promise.allSettled` 调三者），手动 `App.tsx:handlePullFromCloud` 与自动 `autoSync.ts:runTick` 两路下载成功后复用，删除手动路径的 `window.location.reload()` 末端补丁、自动路径 toast 由"部分设置刷新后生效"改为"已立即生效"。
+  - skillStore / agentModelStore 经核查为 `contentGet` 直读 + `contentSubscribe` 订阅（无模块缓存），天然跟随 contentStore，**无需 reload**（已在函数注释标明，避免误加）；`promptManager` / `scriptBoxPlaybookStore` 亦 contentGet 直读无模块缓存，同理无需 rehydrate（TD-13 完整性已核：全部同步键的 SSOT 裂痕均闭合，无残留）。
+  - 回归测试：`tests/unit/cloudSync.rehydrate.test.ts`（2 用例：三 reload 全触发 / 单点失败不阻断，import 已改指 cloudSync.ts）+ `tests/unit/appSettings.rehydrate.test.ts`（1 用例：直写后缓存过期→reload 跟随）。`tsc --noEmit` 0 错；cloudSync/providerStore/autoSync/accountsStore 共 103 已有单测全绿。
+  - **二合一（2026-09-11）**：原独立模块 `store/cloudRehydrate.ts` 已删除，`rehydrateStoresAfterCloudPull()` 并入 `cloudSync.ts` 并导出，`downloadConfig` 写回成功后**自触发**（手动/自动两路复用），`App.tsx` / `autoSync.ts` 不再各自调用——云同步下载收敛为单一模块，消除"引擎"与"重水合"两处分裂。
+
 - 登记于：2026-09-11 · 来源：架构师审计（区域 02 存储/持久化，F1）
+
+### \[TD-14] 云同步排除清单漏列遗留单数 AI 会话键 → 隐私键可能明文上 GAS（与文件头"含隐私不同步"注释矛盾）
+- 状态：**[已解决 2026-09-11]**（已加入 SYNC_EXCLUDE + 修正文件头注释）
+- 归类：增债（已还） · 利息率：高（AI 对话历史/当前会话 id 含隐私，明文同步到第三方 GAS 无鉴权/加密 = 隐私泄漏）· 偿还计划(owner)：架构师（已于 2026-09-11 结清）
+- 现象：`contracts.ts` 的 `STORAGE_KEYS` 登记了遗留单数键 `agent_conversations` 与 `agent_active_conversation_id`（`backend:'local'`、静态键、带 `migration` 指向 pattern 键，注释"仅读不写，改造后不再使用"）；`cloudSync.ts` 的 `SYNC_EXCLUDE` 只排除了 pattern 键相关项与若干 UI 偏好，**未排除这两个单数键**。而 `cloudSync.ts` 文件头注释 line 839 却声称"AI 会话键本就为 pattern 键不在 getLocalKeys() 内"——对 pattern 键成立，对**单数键不成立**（`getLocalKeys()` 含全部静态 `STORAGE_KEYS`，故这两个键会被纳入 `LS_KEYS` 随云同步上 GAS）。
+- 根因：迁移清理只做了"写入端停写单数键"，但没在校验侧（SYNC_EXCLUDE）双保险排除；且文件头注释把"pattern 键不在清单"误推广到"会话键都不在清单"，掩盖了单数键的残留风险。属"排除清单与存储登记不同步 + 注释过度概括"两类老问题叠加。
+- 为何当时不动：属一行排除清单修正，风险极低；但因注释误导，历史上无人察觉此路径，故列为债并当场收口。
+- 偿还计划（owner：架构师）：`SYNC_EXCLUDE` 显式加入 `agent_conversations` / `agent_active_conversation_id`（双保险，旧数据残留也不上云）；文件头注释改为"pattern 键不在清单 + 单数键显式排除"，与实际行为一致。
+- **实施记录（2026-09-11）**：`cloudSync.ts` `SYNC_EXCLUDE` 新增两键；文件头注释 line 839 修正为"pattern 键不在 getLocalKeys() 内；遗留单数键虽已迁移不再写入，仍显式列入 SYNC_EXCLUDE 双保险"。`tsc --noEmit` 0 错；cloudSync 47 + rehydrate 2 + accountsStore 30 等单测全绿。
+- 登记于：2026-09-11 · 来源：架构师审计（区域 10 云同步，合并二合一时复核排除清单发现）
 
 ### \[TD-12] 云同步（cloudSync）数据流：末端静默吞错 + projects 真相源裂痕
 
@@ -306,4 +325,105 @@
   - **[F-云C] 已结清 2026-09-11**：`callGateway` 的 `catch(err){ throw new Error(err.message) }` 改为 `if (err instanceof Error) throw err; else throw new Error(..., { cause: err })`——原错误类型/stack/network 信息不再被压平成 message 字符串；新增单测锁死「网络失败原 TypeError 子类上浮」。
 - 建议处理时机：[F-云C] 下次动 cloudSync 网关/错误分类时一并；其余已无需复查。
 - 登记于：2026-09-11 · 来源：架构师数据流审计（用户对 Cloud 模块发起）
+
+### \[TD-14] AgentPanel.test.tsx 的 config `vi.mock` 整模块替换，缺 TD-7 新增 `KV_TIMEOUT` → 测试桩回归（TD-7 漏全量验证的连带债）
+
+- 状态：**[已解决 2026-09-11]**
+- 归类：增债（TD-7 引入，本期发现即还） · 利息率：中（破坏全量 `test:unit`，非运行时功能） · 偿还计划(owner)：架构师 · 已于 2026-09-11 结清
+- 现象：`tests/unit/AgentPanel.test.tsx:213` `vi.mock(config, () => ({ AGENT_MODELS: [...] }))` 用工厂**整模块替换** config 为仅 `AGENT_MODELS`；TD-7（同日给 `config.ts` 加 `KV_TIMEOUT` 并被 `contracts.ts:431` 引用）后，mock 不含 `KV_TIMEOUT` → `AgentPanel.test.tsx` 模块收集期报 `No "KV_TIMEOUT" export is defined on the config mock`，0 测试可跑，全量 `test:unit` 红。
+- 根因：TD-7 只在 d3d / contentStore 两组测试验证（「tsc 0 错」掩盖了运行时 mock 缺字段），**未跑全量单测**，测试桩漏崩；`vi.mock` 整模块替换本就脆弱——config 每次新增导出都可能炸掉所有这么 mock 的测试。
+- 为何当时不动：属当日即时回归，已当场修。
+- 偿还计划（owner：架构师 · 已结清）：`vi.mock(config, async (importOriginal) => ({ ...await importOriginal(), AGENT_MODELS: [...] }))`——`importOriginal` 部分 mock 保留 config 全部真实导出（含 KV_TIMEOUT），仅覆盖 AGENT_MODELS，向前兼容未来新增字段。验证：AgentPanel 24 测试全过 + 全量 189 文件 / 2405 用例全绿。
+- 建议处理时机：已无需；教训 = 改核心 config/contracts 时须全量 `test:unit`，勿只看点测。
+- 登记于：2026-09-11 · 来源：架构师审计（区域 03 底层地基，验证删除产物时撞出）
+
+### \[TD-16] TD-14 的 importOriginal 部分 mock 残留类型缺陷：`await importOriginal()` 未收窄 → `{...actual}` 报 `TS2698`，`type-check:tests` 长期 1 错
+- 状态：**[已解决 2026-09-11]**
+- 归类：增债（TD-14 引入，本期发现即还） · 利息率：中（`type-check` 总门禁红，src 无碍） · 偿还计划(owner)：架构师 · 已于 2026-09-11 结清
+- 现象：TD-14 把 `vi.mock(config, () => ({...}))` 改为 `async (importOriginal) => { const actual = await importOriginal(); return { ...actual, AGENT_MODELS } }`，但 `importOriginal()` 的返回类型为 `unknown`（vitest 类型限制），`{ ...actual }` 报 `TS2698: Spread types may only be created from object types` → `npm run type-check`（src 0 错 + tests 1 错）总门禁长期红；运行时无碍，故点测全绿时无人发现。
+- 根因：同类写法在本仓已有既定范式（`tests/unit/useAssetMoveToFolder.test.tsx:22` 注释「importOriginal 返回 unknown，直接 spread 报 TS2698」）并断言 `as Record<string, unknown>`；TD-14 漏照抄该范式，只验证了 `vitest run` 未跑 `type-check`。
+- 为何当时不动：属当日即时回归，已当场修。
+- 偿还计划（owner：架构师 · 已结清）：补 `const actual = (await importOriginal()) as Record<string, unknown>;` + 注释留痕；验证 `npm run type-check` src + tests 双向 0 错。
+- 建议处理时机：已无需；教训 = 改测试 mock 时须同时跑 `type-check`（`test:unit` 不覆盖类型门）。
+- 登记于：2026-09-11 · 来源：架构师审计（AI 助手区域联动复核）
+
+### \[TD-20] AI 助手工具层：`MUTATING_TOOLS` 零测试覆盖 + 单飞锁超时静默释放（TD-11-9）
+
+- 状态：**[已解决 2026-09-11]（第 9 轮，区域 11 工具层三项遗留对账）**
+- 归类：还债 · 利息率：中（`MUTATING_TOOLS` 是「AI 操作可撤回」唯一保障，漂移即静默失效）
+- 现象/根因：① `mutating` 的判定契约（「会改 nodes/edges 的写工具」）只写在注释里，**零测试覆盖**——集合漂移（新增工具漏登/误登）无人发现；② `canvasPlanExecutor` 单飞锁 `executingPlan` 超时自动释放**静默无日志** → 锁泄漏在排障时不可见。
+- 偿还（owner：架构师 · 已结清）：
+  - ① 新增 `canvasAgentTools.test.ts` 对账用例：20 工具逐个断言「该进/不该进 undo 栈」，并断言两清单**完整覆盖**全部工具（漏登即红）。**负例验证**：临时把 `focus_node` 塞进集合 → `expected 1 to be +0` 精确报错；还原通过。
+  - ② 超时释放补 `logger.warn`（含 heldMs/timeoutMs，不阻断只留痕）。
+- **对账结论（另 3 项判定为「非缺陷、保留」）**：`MUTATING_TOOLS` 10 进/10 不进**恰好无遗漏**；`update_node`(白名单) vs `update_node_any_field`(高级逃生舱) 属**「窄接口 + 逃生舱」合理分层**，非重复；4 处模块级单例（`genParams`/正则缓存/单飞锁）**均无新增串台风险**。
+- 实证：`type-check` 0 错；`check:arch` 通过；工具层 3 文件 / 67 用例全绿。
+- 登记于：2026-09-11 · 来源：架构师审计（区域 11 第 9 轮）
+
+### \[TD-21] 表格域运行态不变量 `validateWorkspace` 生产侧零接线 + W5/W6 声明未实现 + 列合并逻辑两处同构（TD-11-10）
+
+- 状态：**[已解决 2026-09-11]（第 10 轮，区域 11 表格域模型层审计）**
+- 归类：还债 · 利息率：中（运行态不变量从不实际执行 → 引用脱节长期静默；两份同构实现改一边忘改另一边即漂移，I4 类）
+- 现象/根因：
+  - ① spec §七 把「W/P 类不变量必须在运行期校验」列为硬要求，并声称 `validateWorkspace` 覆盖 W5/W6；但**全库零生产调用**（仅测试），即"写了不跑 = 形同没写"（spec §七 原话）。
+  - ② W5（选区锚点指向不存在行/列应失效）实际无实现；W6（剪贴板 colIds ⊆ 当前列）基于**错误假设**——`TableClipboard`（`tableWorkspaceTypes.ts`）实为 `{kind:'rows',rows}|{kind:'range',cells}|{kind:'cell',text}`，**无 `colIds` 字段**，spec §七.L4 与实现漂移。
+  - ③ 列合并逻辑在 `buildPreviewResult` 与 `copyRowsToTab` **逐字同构两份**（I4「复制/重映射脱节」同源病灶）。
+- 偿还（owner：架构师 · 已结清）：
+  - ① `tableWorkspaceState.setState` 内接线 `validateWorkspace`：dev 下 `logger.warn` 告警（`import.meta.env?.DEV` 安全形式，生产零开销），**签名缓存**避免持久违规在高频 setState（拖拽宽度）下刷屏；每次变更都拿最新 tabs 对账，把会失效的引用在写侧就暴露。
+  - ② `tableInvariants` 补 **W5**（选区锚点 r0/c0/r1/c1 任一失效 → warn）；**W6 不谎报**——经查实 `TableClipboard` 无 `colIds`，在覆盖清单诚实标注「基于错误假设、未实现」，不伪造覆盖。
+  - ③ 抽 `mergeColumnsByLabel` 单一真相源，两处重复实现收口（禁再裸写第二遍）。
+  - ④ 补 2 条防回潮测试：`tableWorkspaceState.test.ts` 断言 setState 触发 W4 幽灵引用告警（验证"写了不跑"已修）+ `mergeColumnsByLabel` 保 id/去重/新 id。
+- 实证：`type-check` src+tests 双向 0 错；表格域 4 文件 / 92 用例全绿（`assistantTable` 66 + `tableWorkspaceState` 21 + memory 5 + property 2）。
+- **与本区其它债关系**：TD-11-4/11-7 是「per-conversation 真源被 UI 副本污染」；本条是「写了校验却不跑」+「重复实现」。共性 = 心法"暴露缺陷而非掩盖"的具体落点。
+- 登记于：2026-09-11 · 来源：架构师审计（区域 11 第 10 轮）
+
+### \[TD-19] AI 助手工具层裸调画布写操作，绕过 canvasHost 唯一入口（TD-11-8）
+
+- 状态：**[已解决 2026-09-11]（第 8 轮，区域 11 工具执行链路审计）**
+- 归类：还债 · 利息率：中（唯一入口红线；连线是高频操作，绕过入口后审计/撤销/并发防护均失效）
+- 现象：`connect_nodes`(`useCanvasAgentTools.ts:781`)、`batch_connect_nodes`(`:825`)、`delete_edge`(`:849,855`) 共 **4 处**裸调 `ctx.setEdges` 直改画布边，违反 `agent/index.ts:52`「画布写操作只经 canvasHost，禁止裸 ctx.setNodes/setEdges/addNodes」。
+- 根因：**`canvasHost` 缺 `removeEdges` 原语** —— 工具想删边却无通道，被逼裸调（同区域 03「缺通道 → 绕路」形态）。
+- 偿还（owner：架构师 · 已结清）：
+  - ① `canvasHost.ts` 补 `removeEdges(ids)` 原语（**补缺口，非在工具层打补丁**）；
+  - ② 4 处改走 `appendEdges`/`removeEdges`；
+  - ③ `scripts/check-arch.mjs` 追加**第 3 条 AST 规则**「agent/canvas 工具层禁裸调 setNodes/setEdges/addNodes/addEdges」（`canvasHost.ts` 本体豁免）—— 负例实测报错定位到行、还原通过。至此该红线由注释约定升级为**机器强制**。
+- 实证：`type-check` 0 错；`check:arch` 通过（含新规则）；工具层 4 文件 / 90 用例全绿。
+- 登记于：2026-09-11 · 来源：架构师审计（区域 11 第 8 轮）
+
+### \[TD-18] AI 助手：`workflowRuntime.ts` 生产级死代码（第二真相）+ `creditGatePreview` 本地副本跨对话残留（TD-11-6 / TD-11-7）
+
+- 状态：**[已解决 2026-09-11]（第 6/7 轮，区域 11 运行态字段生命周期对账 + 子代理独立复核）**
+- 归类：还债 · 利息率：**高**（TD-11-7 跨对话状态泄漏，与 TD-11-4 同源）/ 低（TD-11-6 死代码）
+- **TD-11-6（死代码 + 第二真相）**：`src/components/base/canvas/workflowRuntime.ts` 0 生产 import（仅 `workflowRuntime.test.ts` + `canvasHooks.test.ts` 第 3 节自证），其 `awaitingConfirm`/`aiUndoStack`/`steerQueue`/`status` 与 `agent/conversation/*` 的 per-conversation 实现完全同构。**已删**模块 + 自证测试 + `canvasHooks.test.ts` 第 3 节，同步 `base/README.md` 文件清单、`upstreamLink.ts` / `inputStateMachine.ts` 注释漂移；禁止据注释恢复。
+- **TD-11-7（UI 副本跨对话残留）**：`AgentPanel.creditGatePreview` 是 `useState` 本地副本（仅挂载时读 `getCreditGate()` 一次 + 靠 `CREDIT_GATE_EVENT` 刷新），切对话既不重读也不广播 → A 命中积分闸后切 B，卡片残留。**已修**：新增 `[activeConversationId]` effect 按当前对话真源重读 + 重置 `creditGateDismissed`。
+- **对账结论（真源层全 5 字段 ✅）**：`pendingGenerations`/`awaitingConfirm`/`pendingMemorySuggest`/`referenceImages`/`aiUndoStack` 均为 per-conversation 真源、唯一写点、切对话自动隔离；UI 侧**无** `useState` 副本。
+- **补测试缺口**：新增 `tests/unit/agentDraftTd17.test.ts` ⑥⑦（门禁 per-conversation 隔离 / 5 字段切对话互不串 + 切回原样）——此前切对话用例只断言 `activeConversationId` 与 `messages`。
+- **待用户裁定**：`pendingImageNodes`（画布选中待引用图）不随对话切换清空（属画布全局选中态语义），未擅改。
+- 登记于：2026-09-11 · 来源：架构师审计（区域 11 第 6/7 轮）
+
+### \[TD-17] AI 助手输入草稿「双写 + 双 SSOT」+ `useAgentChat` 回传 store 写操作给 UI（TD-11-2 / TD-11-3）
+
+- 状态：**[已解决 2026-09-11]（第 3 轮偿还，第 4 轮复核推翻并补还）**
+- **⚠️ 第 4 轮复核（2026-09-11）**：第 3 轮「结清」不成立——语义迁移（键 → `conv.draft`）时未复核独立键时代的原防御逻辑，导致 ① `switchChat`/`newChat`/`deleteChat` 切前 `draft: ''` 清掉**即将离开会话的草稿**（切走切回丢字）② `send` finally `draft: ''` 清掉**回复期间用户新输入** ③ `updateMessageByContent` 无理由顺带清草稿 ④ `agent_draft` 成死登记。**已一并修复**：三切换入口改语义化 `flushCurrentConversation()`（不列举字段）、send finally 只落 messages/skills、`setCurrentSnapshot` 部分 patch 语义写进契约、删死登记；新增 `agentDraftTd17.test.ts` 3 条行为用例（**先红后绿**留证）。**教训**：实现断言（「saveDraft 被调用了」）是自证式的，必须写行为断言（「数据还在吗」）。**未做**：`setCurrentSnapshot` 部分 patch 形态本身未拆窄接口（属翻新，9 调用点），`Conversation` 其余运行态字段生命周期未逐个对账 —— 见区域 11 日志 §六.2。
+- 归类：增债（已还） · 利息率：**中**（功能面 = 边缘「输入框草稿」；红线面 = 高，直接冲突 SSOT-1 与 CLAUDE §5.4.5）
+- **实施记录（2026-09-11）**：① `AgentPanel` 删 `AGENT_DRAFT_KEY` 及全部 7 处裸键读写，草稿唯一真源 = 当前对话 `conv.draft`（`input` 初值读 `getCurrentSnapshot().draft`；逐字/清空/发送/确认后一律 `saveDraft`；`handleConversationChange` 删双写分支）——天然 per-conversation 且随会话落盘。② `UseAgentChatReturn` 移除 5 个 store 写操作透传，收窄为 4 个语义化 action（`saveSkills`/`saveDraft`/`saveAttachments`/`closeAwaitingConfirm`）。③ 门禁测试：`AgentPanel.test.tsx` 2 条（逐字 `saveDraft('草稿')` / 发送后 `saveDraft('')`）+ `useAgentChat.hook.test.ts` 2 条（4 action 存在 + **5 个 store 函数必须 `undefined`** 防回潮 / `saveDraft` 落 `conv.draft` 往返）。④ 实证：`type-check` src+tests 0 错 · 全量 `vitest` 189 文件/2408 用例全绿 · `build` ✅ · `check:health` 0 错 · `test:smoke` ALL PASS。
+- **第 5 轮（2026-09-11，TD-11-5 窄接口收窄）**：`conversationSnapshot.ts` 新增 5 个窄接口（`setCurrentDraft`/`setCurrentSkills`/`setCurrentAttachments`/`setCurrentMessages` + `resetCurrentConversationToEmpty`），**8 个调用点全部改造**（`agentMessages` 3 + `useAgentChat` 5）；`clear()` 原手抄 11 字段收敛为语义动作（原先等于复制 `emptyMemory()` 定义）；顺带删 2 处 no-op（`send` 入口读回原值写回、`finally` 整段空转），并为「收尾无多余 commit」加断言。守卫测试：`agentDraftTd17.test.ts` 扩至 5 条（窄接口只动目标字段 / reset 清全态且 skills 保留）。实证：`type-check` 0 错；AI 助手全域 11 文件 / 125 用例全绿。
+- 现象（两个同源子项，一并偿还）：
+  - **[TD-11-2] 草稿双写 + 双 SSOT**：`AgentPanel.tsx` 有 **7 处**裸 `contentSet/contentGet('agent_draft', …)`（`:99` 定义 / `:323` 从 `snap.draft` 回写 / `:476` 初值 / `:862`·`:886` 发送与确认后清空 / `:1537` 逐字 `onChange`）。① **双写**：`input` React state 与 `agent_draft` 键各存一份，二者**无订阅桥接**（改设置页→草稿不会双向同步），靠 `handleConversationChange`「顺便也写一次键」维持一致——典型「第二份副本无同步机制」。② **双 SSOT**：会话侧真实字段 `conv.draft`（`conversationTypes.ts:135`，随会话落盘）才是真源，但其只在「发送后 / 切对话时」被 `setCurrentSnapshot` 覆盖修正；idle 态下草稿真相实际活在 `agent_draft` 键与 `input` state 里，`conv.draft` 是过期的。③ 形式违红线：`AGENT_DRAFT_KEY` 是**裸字符串字面量**（虽 `contracts.ts STORAGE_KEYS.agent_draft` 已登记该值，但代码未引用登记项），与 CLAUDE §5.4.5「存储键必须引用 `STORAGE_KEYS`、禁止裸字符串」不一致。
+  - **[TD-11-3] UI 持 store 写权**：`UseAgentChatReturn` 回传 5 个 **写操作**函数（`setCurrentSnapshot`/`setAwaitingConfirm`/`setCurrentAssistantTable`/`setCurrentGlobalContract`/`markMessageTableResolved`）供 UI 直调；`AgentPanel` 实收 2 个（`:364-365`），用于 `:273` skills 同步、`:488` attachments 同步、`:884` 关闭确认门禁。展示层持写权，绕开语义化 action。
+- 根因：草稿是 UI 高频输入（逐字 `onChange`），未纳入会话 store 的 per-conversation 快照，改以「独立键 + 双写」图省事；`store 穿透` 收口时留下「薄适配」半成品（回传 store 原子能力而非语义化 action）。
+- 为何现在不动（客观红线）：**正交顺延**——`AgentPanel.tsx` 该批行正被其它改动持有，此时编辑同文件会产生冲突；且事属翻新级（改草稿数据流），需一次做完、一次验证。
+- 偿还计划（owner：架构师 · 下一轮单点）：① 删 `AGENT_DRAFT_KEY` 直存（7 处），`input` 初值与变更改走会话 `draft` 快照（`draft: string` 是真实会话字段、已随会话落盘，天然 per-conversation，切对话自动跟随），`handleConversationChange` 不再需要「也写一次键」；② `UseAgentChatReturn` 收窄为语义化 action（`saveSkills/saveDraft/saveAttachments/closeAwaitingConfirm`），移除裸 store 函数透传；③ 若确需「本机级独立草稿」（不随会话走），则必须改为引用 `STORAGE_KEYS.agent_draft` 登记项而非裸字面量，并在注释写明「有意不收口进会话快照」的理由。验证：`type-check` + `AgentPanel.test.tsx` + `useAgentChat.hook.test.ts` + 手动「输入草稿→切对话→切回」一致性。
+- 建议处理时机：**下一轮**（与 `AgentPanel` 任何改动同批，勿再顺延）；若用户在「草稿」上反馈任何不一致现象，立即优先。
+- 登记于：2026-09-11 · 来源：架构师审计（区域 11 AI 助手，第 2 轮深挖）
+
+### \[TD-15] `resultUrlExtractor.ts` 生产级死代码（0 import，仅自证单测；头部「唯一准出口」言过其实）
+
+- 状态：**[已解决 2026-09-11]（删除）**
+- 归类：还债（降复杂度/奥卡姆） · 利息率：低（无功能影响） · 偿还计划(owner)：架构师 · 已于 2026-09-11 结清
+- 现象：`src/components/base/utils/resultUrlExtractor.ts` 导出 `extractResultUrl`，grep `src` 仅见自身定义 + 注释/README 提及，**全库 0 生产调用**；唯一真实 import 是自证单测 `resultUrlExtractor.test.ts`。其 `classifyUrl/resolveMediaType` 早已收口进 `mediaType.ts`，遗留 `extractResultUrl` 从未被采用。头部注释自称「唯一准出口，今后任何节点/API/脚本一律走本模块」——**假设中的深模块**，从未成立。
+- 根因：P1-B φ2 收口时立了「结果 URL 提取唯一实现」的承诺，但随 relay 收口（后端落盘 `/files/` 直返 + `t.data[0].url` 契约直读），前端已无「信封里 extractedResultUrl」的消费场景，模块成了空壳承诺，无人摘抄也无人删。
+- 为何当时不动：属「为未来预留」的惰性保留；7 年前语义（SSE/直返/轮询/网关 task_view）均已退役。
+- 偿还计划（owner：架构师 · 已结清）：删模块 + 删自证单测；同步全仓引用——`spec/DATAFLOW.md:42`（改 mediaType + 后端契约，附 refs 实证注）、`CLAUDE.md §5.4.9`（追加已删说明，禁恢复）、`base/README.md:53`（文件清单除名）、`useConnectedInputs.ts:42` 注释漂移（改指 mediaType）。禁止因历史「唯一准出口」规则恢复它。
+- 建议处理时机：已无需；关联规格 = CLAUDE §5.4.9「媒体判型唯一真值源」。
+- 登记于：2026-09-11 · 来源：架构师审计（区域 03 底层地基）
 

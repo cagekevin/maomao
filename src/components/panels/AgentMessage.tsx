@@ -5,6 +5,28 @@ import AgentConfirmCard from './AgentConfirmCard.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import ChatMarkdown from './ChatMarkdown.tsx';
 import { showToast } from '../base/core/toastStore.ts';
+import { logger } from '../base/core/logger.ts';
+
+/** 协议层 ChatMessage.content 可为 string 或 多模态数组，但本组件只渲染文本（UI 契约 content?: string）。
+ *  收到数组即暴露（warn）并降级为文本块拼接，不谎称（避免数组被当 string 发画布/渲染出错）。
+ *  对应 AgentMessageData.content 的 UI 收窄：声明收窄 + 此处运行时守卫兜底（铁律 2·诚实收窄）。 */
+function asText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    logger.warn('AI助手', '消息 content 为数组形态，UI 仅渲染文本，已降级', {
+      len: content.length,
+    });
+    return content
+      .map((b) =>
+        b && typeof b === 'object' && 'text' in b
+          ? String((b as { text: unknown }).text ?? '')
+          : '',
+      )
+      .join('')
+      .trim();
+  }
+  return '';
+}
 import { type ChatMessage } from '../agent/runtime/agentCore.ts';
 
 /** AgentMessage 实际渲染的消息形状：兼容 LLM 协议（ChatMessage）并扩展 UI 态字段。
@@ -115,8 +137,8 @@ const ToolCallChip = memo(function ToolCallChip({ name, args }: { name?: string;
     display = Object.entries(obj)
       .map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`)
       .join(', ');
-  } catch {
-    /* keep raw */
+  } catch (e) {
+    logger.warn('AI助手', '工具调用参数非 JSON，按原文展示', { error: e?.message || String(e) });
   }
   return (
     <span title={display ? `${name}(${display})` : name} className="agent-toolchip">
@@ -312,15 +334,16 @@ function AgentMessage({
         {/* 正文：无气泡无边框，直接铺在面板底色上。
             hideContent=true 时（如表格消息已被下方预览卡替代）隐藏，避免 JSON 与预览重复。
             displayContent 提供时（表格消息的「剥离 JSON 后的自然语言」）用它展示，不改原始 content */}
-        {!hideContent && (displayContent != null ? displayContent.trim() : message.content) && (
-          <div className="agent-ai-text">
-            <ChatMarkdown
-              value={displayContent != null ? displayContent : message.content}
-              onOpenImage={openZoom}
-            />
-            {message.streaming && <span className="agent-cursor" />}
-          </div>
-        )}
+        {!hideContent &&
+          (displayContent != null ? displayContent.trim() : asText(message.content)) && (
+            <div className="agent-ai-text">
+              <ChatMarkdown
+                value={displayContent != null ? displayContent : asText(message.content)}
+                onOpenImage={openZoom}
+              />
+              {message.streaming && <span className="agent-cursor" />}
+            </div>
+          )}
         {/* 【对齐大雄】阶段1 generations → 渲染步骤卡片（可折叠，用户确认前检查每步） */}
         <GenerationStepsCard generations={message.generations} />
         {/* 待确认（策划/记忆/积分）→ 统一确认卡（AgentConfirmCard）：仅前端按钮翻转 awaitingConfirm。
@@ -348,7 +371,7 @@ function AgentMessage({
               confirmText="保存"
               cancelText="暂不保存"
               onConfirm={onConfirmPlan}
-              onCancel={onCancelPlan ? () => onCancelPlan(message.content) : undefined}
+              onCancel={onCancelPlan ? () => onCancelPlan(asText(message.content)) : undefined}
             />
           ) : (
             <AgentConfirmCard
@@ -372,7 +395,7 @@ function AgentMessage({
               confirmText="确认，按此执行"
               cancelText="取消"
               onConfirm={onConfirmPlan}
-              onCancel={onCancelPlan ? () => onCancelPlan(message.content) : undefined}
+              onCancel={onCancelPlan ? () => onCancelPlan(asText(message.content)) : undefined}
             />
           ))}
         {/* 底部行：meta + 操作（发到画布从原气泡右下角移入此处，常驻淡显、hover 变亮） */}
@@ -385,7 +408,7 @@ function AgentMessage({
                 <button
                   type="button"
                   className="agent-icon-btn is-xs"
-                  onClick={() => onSendToCanvas(message.content)}
+                  onClick={() => onSendToCanvas(asText(message.content))}
                   title="发到画布生成文本节点"
                 >
                   <svg
@@ -449,7 +472,7 @@ function AgentMessage({
   }
 
   if (message.role === 'tool') {
-    let text = message.content;
+    let text = asText(message.content);
     let ok = true;
     let nodeId = '';
     let failedEntries = [];
@@ -462,8 +485,10 @@ function AgentMessage({
       if (Array.isArray(r.data?.entries)) {
         failedEntries = r.data.entries.filter((e) => e && e.status === 'failed' && e.nodeId);
       }
-    } catch {
-      /* keep raw */
+    } catch (e) {
+      logger.warn('AI助手', '工具消息 JSON 解析失败，按原文展示', {
+        error: e?.message || String(e),
+      });
     }
     // 失败且带 nodeId（generate_node 失败已回传）→ 显示「重试此步骤」；execute_plan 多失败步 → 逐项重试
     const canRetry = !ok && !!nodeId && typeof onRetryStep === 'function';

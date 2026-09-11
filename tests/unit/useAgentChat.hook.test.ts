@@ -77,6 +77,10 @@ interface ConvStoreMock {
   } | null;
   notify(): void;
   setActiveMessages(messages: TestChatMessage[]): void;
+  // 【TD-17】快照字段写口（saveDraft/saveSkills/saveAttachments 落点）
+  setDraft(draft: string): void;
+  setSkills(skills: unknown[]): void;
+  setAttachments(attachments: unknown[]): void;
   setSendingState(v: boolean): void;
   setActiveId(id: string): void;
   subscribe(cb: () => void): () => void;
@@ -102,6 +106,17 @@ const sharedConvStore = vi.hoisted((): ConvStoreMock => {
     conv.messages = Array.isArray(messages) ? messages.slice(-60) : conv.messages;
     notify();
   };
+  // 【TD-17】快照字段写口（saveDraft/saveSkills/saveAttachments 落点；模拟 setCurrentSnapshot 的合并语义）
+  const setField = (field, value) => {
+    const conv = getActiveConv();
+    if (!conv) return;
+    conv[field] = value;
+    notify();
+  };
+  const setDraft = (draft) => setField('draft', String(draft ?? ''));
+  const setSkills = (skills) => setField('skills', Array.isArray(skills) ? skills.slice() : []);
+  const setAttachments = (attachments) =>
+    setField('attachments', Array.isArray(attachments) ? attachments.slice() : []);
   // 阶段1D：sending 运行态（模拟 store.setSending，订阅可读）
   const setSendingState = (v) => {
     state.sending = !!v;
@@ -118,6 +133,9 @@ const sharedConvStore = vi.hoisted((): ConvStoreMock => {
     getActiveConv,
     notify,
     setActiveMessages,
+    setDraft,
+    setSkills,
+    setAttachments,
     setSendingState,
     setActiveId,
     subscribe(cb) {
@@ -173,13 +191,34 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => {
     captureActiveConversation: vi.fn(),
     // 消息单源：setCurrentSnapshot / patchCurrentMessages / getCurrentSnapshot 落到共享内存 store
     //   （useStoreSelector 读同一份 state → 写入立即可见，模拟生产环境 commit 同步链）。
+    // 【TD-17】快照补 draft/attachments/skills 往返：saveDraft/saveSkills/saveAttachments 的落点断言依赖它。
     setCurrentSnapshot: vi.fn((snap) => {
-      if (snap && snap.messages !== undefined) sharedConvStore.setActiveMessages(snap.messages);
+      if (!snap) return;
+      if (snap.messages !== undefined) sharedConvStore.setActiveMessages(snap.messages);
+      if (snap.skills !== undefined) sharedConvStore.setSkills(snap.skills);
+      if (snap.draft !== undefined) sharedConvStore.setDraft(snap.draft);
+      if (snap.attachments !== undefined) sharedConvStore.setAttachments(snap.attachments);
     }),
     patchCurrentMessages: vi.fn((messages) => sharedConvStore.setActiveMessages(messages)),
+    // 【TD-11-5】窄接口原子写：落到共享 store 同名字段（与 setCurrentSnapshot 语义一致）
+    setCurrentDraft: vi.fn((v) => sharedConvStore.setDraft(v)),
+    setCurrentSkills: vi.fn((v) => sharedConvStore.setSkills(v)),
+    setCurrentAttachments: vi.fn((v) => sharedConvStore.setAttachments(v)),
+    setCurrentMessages: vi.fn((v) => sharedConvStore.setActiveMessages(v)),
+    resetCurrentConversationToEmpty: vi.fn((skills) => {
+      sharedConvStore.setActiveMessages([]);
+      sharedConvStore.setDraft('');
+      sharedConvStore.setAttachments([]);
+      sharedConvStore.setSkills(skills || []);
+    }),
     getCurrentSnapshot: vi.fn(() => {
       const c = sharedConvStore.getActiveConv();
-      return { messages: c ? [...c.messages] : [], skills: [], draft: '', attachments: [] };
+      return {
+        messages: c ? [...c.messages] : [],
+        skills: [...(c?.skills || [])],
+        draft: c?.draft || '',
+        attachments: [...(c?.attachments || [])],
+      };
     }),
     // 阶段1D：sending 落到共享 store（订阅可读）
     setSending: vi.fn((v) => sharedConvStore.setSendingState(v)),
@@ -1295,11 +1334,45 @@ describe('useAgentChat · 阶段1D 薄壳化（sending/activeId 订阅 store）'
     expect(result.current.activeConversationId).toBe('c9');
   });
 
-  it('收口穿透：回传 AgentPanel 所需的 store 原子 handler（指向聚合层，非新造）', () => {
+  it('【TD-17】action 化：回传语义化 action，且不再回传 store 原子函数透传', () => {
     const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat());
-    // 若将来用 hook 时忘回传、或改成局部新造，此断言即红（保证 AgentPanel 不直连 store 仍可用）
-    expect(result.current.setCurrentSnapshot).toBe(convStore.setCurrentSnapshot);
-    expect(result.current.setAwaitingConfirm).toBe(convStore.setAwaitingConfirm);
+    // 四个语义化 action 必须存在（UI 只表达意图：存草稿/技能/附件、关闭确认门禁）
+    expect(typeof result.current.saveDraft).toBe('function');
+    expect(typeof result.current.saveSkills).toBe('function');
+    expect(typeof result.current.saveAttachments).toBe('function');
+    expect(typeof result.current.closeAwaitingConfirm).toBe('function');
+    // 收窄：store 写操作不再透传给 UI（防回潮——恢复了就直接改会话状态）
+    expect((result.current as Record<string, unknown>).setCurrentSnapshot).toBeUndefined();
+    expect((result.current as Record<string, unknown>).setAwaitingConfirm).toBeUndefined();
+    expect((result.current as Record<string, unknown>).setCurrentAssistantTable).toBeUndefined();
+    expect((result.current as Record<string, unknown>).setCurrentGlobalContract).toBeUndefined();
+    expect((result.current as Record<string, unknown>).markMessageTableResolved).toBeUndefined();
+  });
+
+  it('【TD-17】saveDraft 写入当前对话草稿快照（唯一真源，随会话落盘）', () => {
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat());
+    act(() => {
+      result.current.saveDraft('半截草稿');
+    });
+    expect(convStore.getCurrentSnapshot().draft).toBe('半截草稿');
+  });
+
+  it('【TD-11-5】send 收尾不再多余 commit：消息已由循环内写 store，finally 后不重写会话', () => {
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat());
+    // 清账：记录进入 send 前的 setCurrentSnapshot 调用数
+    const before = vi.mocked(convStore.setCurrentSnapshot).mock.calls.length;
+    return act(async () => {
+      await result.current.send('测试消息');
+    }).then(() => {
+      const calls = vi.mocked(convStore.setCurrentSnapshot).mock.calls.slice(before);
+      // 收尾（finally）不应产生「只带 messages/skills 的 no-op 调用」：
+      // 允许 send 入口的 draft/attachments 清理，但不允许末尾再有一次读回原值的写。
+      const tailNoop = calls.filter((c) => {
+        const arg = c[0] as Record<string, unknown> | undefined;
+        return arg && !('draft' in arg) && !('attachments' in arg) && 'skills' in arg;
+      });
+      expect(tailNoop).toHaveLength(0);
+    });
   });
 
   it('发送锁单一真相：send 一开始即同步置位 store.sending（不再依赖独立 sendingRef）', async () => {

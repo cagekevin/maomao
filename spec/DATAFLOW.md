@@ -39,12 +39,73 @@ scriptbox/scriptBoxEngine.ts（ScriptBoxNode 挂载）
 ─ 其它直接消费 generate 门面（非「节点生成→任务中心回填」范式，仅供 trace chat 链路）
   agent/runtime/agentRuntime.ts  → chatStream（AI 助手 SSE 对话，未消费 body 原样返回给 agent）
   agent/runtime/contextCompression.ts → chatCompletions（上下文压缩，会话级，不经任务中心）
-  下游取上游 URL：utils/resultUrlExtractor ◄── hooks/useConnectedInputs
+  下游取上游 URL：utils/mediaType（判型）◄── hooks/useConnectedInputs；结果 URL 由 localTool 后端落盘 /files/ 直返 / `t.data[0].url` 契约直读，无独立提取器（resultUrlExtractor 已删，见更新注）
+    更新(2026-09-11, refs实证): 原「utils/resultUrlExtractor ◄── useConnectedInputs」已删——该模块 0 生产引用，判型已收口 mediaType.ts，rendering URL 走后端 /files/ 直返契约。useConnectedInputs 实际 import mediaType.resolveMediaType。
   错误分类：utils/genErrors.classifyError（判定 abort/timeout/network/http/business）
   展示：panels/TaskCenter、panels/GeneratedView
 ```
 
 关键边（refs 实证 2026-09-05）：`relayProxy` ← generate.ts / pollTask.ts（无节点/agent/scriptBox 直连，门面收口）；`generate.ts` 直接消费方 = 4 生成节点（经 useGenerateNode）+ scriptBoxEngine + agentRuntime + contextCompression（见上）；`taskCompletionBus` ← pollTask.ts / taskStore.ts（均发布方）；`useNodeGeneration` ← useGenerateNode + 节点测试；`degrade` ← useNodeGeneration/TextNode/conversationState/contentStore（kvStore 折叠后已不再消费 degrade）。
+
+## AI 助手（Agent）链路 ★会话/工具/表格子系统
+
+> 更新(2026-09-11, refs 实证)：**新增本段**。此前 AI 助手仅在上方生成链路段以两行脚注出现（`agentRuntime → chatStream` / `contextCompression → chatCompletions`，**均仍真，未删**），但缺整个会话状态层 / 工具层 / 表格子系统的数据流描述，此处补齐。审计视角见 `daily/架构日志/11-AI助手-2026-09-11.md`。
+
+**A0 · 会话数据（SSOT 唯一可写源）**
+```
+panels/AgentPanel.tsx（1899 行，UI 壳，0 模块 import 的叶节点）
+  ⇅ agent/index.ts（聚合 re-export 单一入口）
+agent/runtime/useAgentChat.ts（唯一发送入口，1103 行）
+  ⇅ agent/conversation/conversationStore.ts（聚合 re-export，18 处 import）
+      └→ conversationState（底座：states[agentKey] + commit 唯一写漏斗 + 归一 + KV 水化）
+          ├→ conversationSnapshot（D：快照/workflow/pending/memory）
+          ├→ conversationAiState（F：global_contract/artifacts/undo/refImages + 表格 tabs）
+          ├→ conversationSkillState（Skill 三阶段 + creditGate）
+          └→ conversationImageMap（E：跨轮图「图N」编号）
+
+落盘：contentSet(convKey) / contentSetAsync（KV 键 agent_conversations_<agentKey>）
+      落盘前 → validateConversationState（dev 下 error 级 warn）
+读入口：useConversationStore / useStoreSelector（禁止裸 normalizeConversation 当读时复制）
+```
+
+**A1 · 发送 → 工具循环（唯一 LLM 出站）**
+```
+useAgentChat.send(text, attachments)
+  → inputStateMachine（idle/planning/running/steer/retry 按钮语义；与 store.sending 分工）
+  → agentMessages（appendMsg/setHistory/updateLastStreaming/endStreaming，消息写唯一入口）
+  → agentAttachments（normalizeAttachmentsForSend / buildRefCatalog 参考图编号）
+  → agentCore.buildRequestMessages(…, historyTurns, projectMemoryContext, mode)（纯函数组装，fresh-task）
+      + memoryRetrieval.buildProjectMemoryContextFromStore（长期记忆 MMR 排序注入）
+      + tokenBudget.decideContextCompression / contextCompression.compressToSummary（预算→摘要）
+  → agentRuntime.roundTrip → 前端门面 base/api/generate.ts chatStream → POST :18080 /api/generate
+  → agentRuntime.runToolCalls(await callTool) → canvas/useCanvasAgentTools（工具注册表，1817 行）
+      → canvas/canvasHost（画布写操作唯一入口，禁裸 useReactFlow）
+      → canvas/canvasPlanExecutor（Wave1 并行 + Wave2 依赖）
+      → conversation/*（状态回写）+ taskStore/assetStore（生成落点）
+  → workflowState（wfStart/wfSteer/wfFinish/wfAwaitConfirm/wfNextSteer 纯函数）
+```
+
+**A2 · 表格协作（第二入口：左表右对话）**
+```
+panels/TableWorkspacePanel.tsx ⇄ assistantTable/AssistantTablePanel.tsx
+  ⇅ assistantTable/tableWorkspaceState（运行态枢纽：open/width/selectedRowIds/preview/选区，不落盘）
+      → buildPreviewResult（assistantTable.ts，预览=确认唯一推导，C5）
+      → conversationStore.setCurrentAssistantTabs（写回 memory.assistantTables，写前 validateTabs）
+  AgentPanel.handleSend → buildTableSnapshotText + buildRefineRowsUser（表格现状注入，mode='table'）
+```
+
+**A3 · 长期记忆（独立真源，跨域经桥接）**
+```
+memory_suggest 工具 → conversationSkillState.setActivePendingMemorySuggest（暂存 + awaiting 门禁）
+  → UI 确认 → useAgentChat.confirmPendingMemorySuggest → runtime/projectMemoryStore.saveProjectMemory
+      → KV 键 agent_project_memory_v1_<agentKey>（按 agentKey 全局，不分项目；写入前 sanitizeMemoryContent）
+  → 下轮注入：memoryRetrieval.buildProjectMemoryContextFromStore → buildRequestMessages
+（⚠️ 长期记忆 ≠ 对话 memory；桥接只经 pendingMemorySuggest，禁止直写）
+```
+
+> 关键边（refs 实证 2026-09-11）：`conversationStore` ← 18 处（assistantTable 4 / canvas 2 / runtime 3 / index + 8 测试）；`conversationState` ← 13 处；`useAgentChat` ← 8 处；`projectMemoryStore` ← 5 处；`canvasHost` ← 3 处。**出站唯一**：LLM 一律经 `base/api/generate.ts`（无第二直连）；**画布写唯一**：一律经 `canvasHost`；**消息写唯一**：一律经 `agentMessages`。
+> 更新(2026-09-11, refs 实证)：`agent/runtime/runModeRegistry.ts`（三态执行模型注册表）**已整模块删除**（`ls` 实测不存在），执行模型收敛恒 `auto`，全仓 `runMode|workMode` 仅剩 6 条历史注释（属留痕，禁因注释恢复模块）。
+
 
 ## 存储 / 持久化链路
 
@@ -118,13 +179,15 @@ api/filesApi · api/localToolApi（取数据/上传/刮削）
 节点注册/默认/编组/派生/历史/懒加载/拓扑触发，是「节点怎么上画布、怎么联动」的骨架。
 
 ```
-canvas/NodePalette（节点注册表）+ canvas/nodeDefaults + canvas/nodePrefs（← App/各 nodes）
-canvas/groupNodes · canvas/deriveNodes · canvas/historyStack · canvas/CanvasEdgesContext
-canvas/lazyNode（重节点懒加载）· canvas/upstreamLink（拓扑自动触发）· canvas/toolRegistry（画布 AI 工具）
+canvas/NodePalette（节点注册表，buildNodeTypeComponents 单源派生 nodeTypes）+ canvas/nodeDefaults（结构默认单源 + INPUT_PANEL_NODE_TYPES）+ canvas/nodePrefs（参数记忆，KV yimao_node_prefs）
+canvas/groupNodes（编组/拖拽落组/级联删/克隆）· canvas/deriveNodes（建子节点+连线原子快照 spawnAndCommit）· canvas/historyStack（撤销纯类）· canvas/CanvasEdgesContext（history 注入通道）
+canvas/lazyNode（重节点懒加载 + 端口占位契约）· canvas/upstreamLink（拓扑自动触发）· canvas/toolRegistry（画布 AI 工具）
+canvas/canvasContextMenu（右键三态纯配置）· canvas/ArrangeConfirm（整理确认 UI）· canvas/lod（LOD 性能降级）· canvas/useCanvasEventSubscriptions（3 全局订阅收拢）
 生成触发入口：hooks/useGenerateNode（节点编排 start/模型，委托 hooks/useNodeGeneration，见上方「生成链路」）
 ```
 
-关键边（refs 实证）：`nodePrefs` ← App/ImageNode/PromptNode/TextNode/DiscountVideoNode/TemplateNode/useScriptBoxEngine。
+> 更新(2026-09-11, refs 实证)：画布段刷新。① 修正 `nodePrefs` 消费方——真实 fan-in = `App` + `AssetNode`/`ImageGenerate`/`TemplateNode`/`TextGenerate`/`VideoGenerate` + `useScriptBoxEngine`（原写的 `ImageNode`/`PromptNode`/`DiscountVideoNode` **实际 0 import**，已删旧链路）。② 补漏 fan-in：`CanvasEdgesContext` ← `App` + 8 节点（AssetNode/Director3DNode/GridMerge/GridSplit/Loop/Panorama/TextGenerate/VideoGenerate/VideoProcess）；`deriveNodes` ← 8 节点 + `depthVideo/spawn.ts`。③ 端口契约（target/source handle）**当前三处维护**（节点文件 `NodeShell` prop 真源 + `App.tsx` TARGET/SOURCE 表 + `lazyNode.LAZY_NODE_HANDLE_CONTRACT`），App 两表已漂移（见 `daily/架构日志/04-画布-节点-2026-09-11.md` TD-04-1），收口为单一 `NODE_HANDLE_CONTRACT` 后此处再更新。
+　　关键边（refs 实证）：`nodePrefs` ← App/AssetNode/ImageGenerate/TemplateNode/TextGenerate/VideoGenerate/useScriptBoxEngine。
 
 ## 提示词链路
 
@@ -157,7 +220,8 @@ editors/cameraStudio · CameraStudioPanel · PanoViewer
 
 ## localTool 后端（服务端 `localTool/`）职责与数据流
 
-前端（base/core/api）只是薄壳，真正的协议执行/落盘/任务常驻在 localTool 服务端（`:18080`），再经网关（`:9004`）到上游（Lovart 需 VPN）。前端 `contracts.ts apiRegistry` ↔ 后端 `router.ts` 双向互检（`check:api`）。
+前端（base/core/api）只是薄壳，真正的协议执行/落盘/任务常驻在 localTool 服务端（`:18080`），再直连上游（Lovart 需 VPN）。前端 `contracts.ts apiRegistry` ↔ 后端 `router.ts` 双向互检（`check:api`）。
+> 更新(2026-09-11, refs 实证)：原「经网关（:9004）到上游」已随 lovart-old 旧轨退役（2026-09-05）删除——localTool 只走直连上游 `lgw.lovart.ai`（relay-poll 常驻轮询 + 落盘 /files/），不再有 9004 网关环节。
 
 **文件分层**
 
@@ -181,7 +245,7 @@ editors/cameraStudio · CameraStudioPanel · PanoViewer
        ├─ chat：generateEngine.relayChatStream(SSE 打字机) / relayChat（同步）
        └─ image/video：relay-poll 注册句柄（submit 即返 taskId，GET attach 收结果）
    → generateEngine → ai-relay/（protocol kit + providerCatalog + generate.ts 能力）
-   → 出站：厂商直连 / 网关 :9004 → Lovart（需 VPN）
+   → 出站：厂商直连 lgw.lovart.ai（Lovart 需 VPN，经 fetchWithProxy 代理）
    → 结果：saveRemoteUrl 落盘成本地 /files/ url → 统一 {code,data} 回前端
 ```
 

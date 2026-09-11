@@ -68,8 +68,21 @@ export function getCurrentSnapshot(): ConversationSnapshot {
 }
 
 /**
- * 同步当前对话的内存态（只覆盖传入字段，其余保留）。
+ * 同步当前对话的内存态（**部分 patch：只覆盖显式传入的字段，未传字段原样保留**）。
  * 重构后这是唯一写入口之一：更新 active 对话并自动落盘。
+ *
+ * 【契约（TD-17 显式化 2026-09-11 · 改调用点前必读）】
+ *  - `undefined` = **不动该字段**；要清空必须显式传空值（`draft: ''` / `attachments: []`）。
+ *  - **禁止**为「顺手同步一下」而在切换/发送等路径上盲目列举字段——那正是 TD-17 的根因：
+ *    `switchChat/newChat/deleteChat` 曾各自手写 `draft: ''`，把「即将离开的会话」的草稿清掉
+ *    （旧 `agent_draft` 独立键时代的遗留防御，收敛进 `conv.draft` 后变成数据破坏）。
+ *  - 判据：**要改哪个字段就只传哪个**。带别的字段 = 声明你确实要覆盖它，请写明理由。
+ *  - `workflow`/`pending` 例外：`pending` 用 `!== undefined` 判空（可显式置 null），`workflow` 为真值判断。
+ *
+ * 【TD-11-5 收窄 2026-09-11】本函数仍保留（是唯一写漏斗），但**新代码禁止用它列举字段**：
+ * 单字段写请走下列 `setCurrentDraft/setCurrentSkills/setCurrentAttachments/setCurrentMessages`，
+ * 「清空整对话」请走 `resetCurrentConversationToEmpty`。理由：部分 patch 的「漏列举」在类型层面
+ * 不可防（多传/少传都合法），只有把「一次只改一件语义事」做成**函数签名**才能让错误不可能发生。
  */
 export function setCurrentSnapshot(snap?: SnapshotPatch | null): void {
   const conv = requireActiveConv('setCurrentSnapshot');
@@ -192,5 +205,66 @@ export function setCurrentMemory(m: unknown): void {
         ? { ...c, memory: capConversationMemory(normalizeMemory(m)), updatedAt: Date.now() }
         : c,
     ),
+  });
+}
+
+/* ────────────────────────────────────────────────────────────────
+ * 【TD-11-5 · 单字段原子写（窄接口）】2026-09-11
+ * 每个函数一次只改**一件语义事**，签名即契约：
+ *   - 无法「漏列举」：要改 draft 就只能调 setCurrentDraft，不存在"顺带清别的"；
+ *   - 无法「多传」：参数类型就是该字段的真类型（不是宽松 Record）；
+ *   - 读回一律走 getCurrentSnapshot/各 getCurrent*，不另开读入口。
+ * 新代码禁止再用 setCurrentSnapshot 列举字段（保留仅为「一次改多字段」的迁移期出口）。
+ * ──────────────────────────────────────────────────────────────── */
+
+/** 写当前对话草稿（唯一写点）。草稿是会话数据：切对话留存、随会话落盘。 */
+export function setCurrentDraft(draft: string): void {
+  setCurrentSnapshot({ draft: String(draft ?? '') });
+}
+
+/** 写当前对话技能列表（随会话落盘） */
+export function setCurrentSkills(skills: unknown[]): void {
+  setCurrentSnapshot({ skills: Array.isArray(skills) ? skills : [] });
+}
+
+/**
+ * 写当前对话消息数组（整体替换；随会话落盘）。
+ * 与 `agentMessages.setHistory` 的区别：本函数**不补消息 id**，供「已有稳定 id 的消息整体写回」场景
+ * （如按内容定位 patch 后写回）。需要补 id 的新消息构造请走 `agentMessages.setHistory`。
+ */
+export function setCurrentMessages(messages: ConversationMessage[] | unknown[]): void {
+  setCurrentSnapshot({
+    messages: (Array.isArray(messages) ? messages : []) as ConversationMessage[],
+  });
+}
+
+/** 写当前对话附件列表（随会话落盘） */
+export function setCurrentAttachments(attachments: unknown[]): void {
+  setCurrentSnapshot({ attachments: Array.isArray(attachments) ? attachments : [] });
+}
+
+/**
+ * 把当前对话重置为「空对话」（清空消息/草稿/附件/工作流/pending/记忆/生成暂存）。
+ *
+ * 【为何是一个函数而不是调用点手抄字段】原 `useAgentChat.clear()` 就地手写了 11 个字段
+ * （含整份 `memory` 字面量），等于**复制了一遍 `emptyMemory()` 的定义**——`Conversation` 每加
+ * 一个需清空的字段，clear 就必须记得回来加，漏一次即静默残留（TD-11-5 同源病灶）。
+ * 现收敛为「重置」这一语义动作，字段清单只此一处。
+ *
+ * 注：`skills` 保留（清空对话不撤已选技能，与原 `clear()` 行为一致）；
+ *     `aiUndoStack`/`referenceImages`/`pendingMemorySuggest` 等 per-conversation 运行态
+ *     由 `normalizeConversation` 在重置时补默认（此处显式置空以免依赖归一兜底）。
+ */
+export function resetCurrentConversationToEmpty(skills: unknown[] = []): void {
+  setCurrentSnapshot({
+    messages: [],
+    skills: Array.isArray(skills) ? skills : [],
+    draft: '',
+    attachments: [],
+    workflow: null,
+    pending: null,
+    memory: emptyMemory(),
+    pendingGenerations: null,
+    awaitingConfirm: false,
   });
 }

@@ -29,6 +29,11 @@ import { contentGet, contentSet, contentGetAsync, contentSetAsync } from '../cor
 import { logger } from '../core/logger.ts';
 import { CLOUD_SYNC_GAS_URL } from '../core/config.ts';
 import { stableStringify, contentFingerprint, formatTime } from '../core/utils.ts';
+// [TD-13] 下载云端后重水合 store 内存态（rehydrateStoresAfterCloudPull，原独立模块 cloudRehydrate.ts 已于 2026-09-11 并入本文件）。
+// 循环依赖安全：accountsStore/appSettings/providerStore 均不 import 本文件（仅 App/autoSync import 本文件），故此处 import 它们无环。
+import { reloadAppSettings } from './appSettings.ts';
+import { reloadAccounts } from './accountsStore.ts';
+import { reloadProviders } from './providerStore.ts';
 
 /* ======================================================================
  * 【标准同步引擎】原样保留，勿改动内部通讯逻辑。
@@ -786,6 +791,10 @@ export async function downloadConfig(
       logger.debug('同步', '[下载] 云端无新数据', {}, { module: 'project' });
       return { ok: false, count: 0, hasCloud: true, error: '云端没有新的数据' };
     }
+    // [TD-13] 写回成功后精准重水合各 store 内存态（替换旧整页 reload 末端补丁）：
+    // 手动/自动两路下载都经 downloadConfig，故在此统一触发，调用方无需各自 rehydrate；
+    // 仅在有实际写回时执行（written>0），「云端无新数据」已在上方面 return，不触发无谓刷新。
+    await rehydrateStoresAfterCloudPull();
     // 2) 记台账：云端这一版 = 新基线。指纹按「写回后的本地实际值」重新采集——
     //    若直接用云端包指纹，领域开关关闭的键（如 projects 不写回）会造成基线偏差，
     //    下次上传就会误报「本地改过」而多弹一次确认。
@@ -814,6 +823,28 @@ export async function downloadConfig(
 export { CloudSyncEngine };
 
 /**
+ * 云同步「下载云端」后精准重水合各 store 内存态（原独立模块 cloudRehydrate.ts，2026-09-11 并入本文件）。
+ *
+ * 根因：accountsStore / appSettings / providerStore 是「模块级内存态 + useSyncExternalStore」，只在 load() 读一次、
+ * 不订阅 contentStore 变更；restoreLocal 直写 contentStore / providerApi 后内存态过期 → KV 新/内存旧（SSOT 裂痕，TD-13）。
+ *
+ * 触发点：downloadConfig 写回成功后调用（手动 handlePullFromCloud + 自动 autoSync 两路复用），精准重水合，
+ * 不冲画布、配置当轮一致，替换旧整页 window.location.reload() 末端补丁。
+ *
+ * 覆盖范围：仅 3 个有模块级缓存的 store（reloadAppSettings / reloadAccounts / reloadProviders）。
+ * skillStore / agentModelStore 走 contentSubscribe 订阅、promptManager / scriptBoxPlaybookStore 走 contentGet 直读，
+ * 均无模块级缓存，天然跟随 contentStore，无需在此 rehydrate（避免误加造成双读）。
+ * 任一个 reload 失败不影响其余（Promise.allSettled）。
+ */
+export async function rehydrateStoresAfterCloudPull(): Promise<void> {
+  await Promise.allSettled([
+    Promise.resolve(reloadAppSettings()),
+    reloadAccounts(),
+    reloadProviders(),
+  ]);
+}
+
+/**
  * 云同步是否可用：GAS URL 已配置（非占位）且当前无同步在跑。
  * 自动调度（autoSync.ts）与手动按钮共用的唯一就绪判定——统一到一个入口，避免两边对
  * 「是否可同步」给出矛盾答案（旧稿曾各自判断，漏一种状态就会调度/按钮行为不一致）。
@@ -836,7 +867,9 @@ export function isCloudSyncReady(): boolean {
  *  - yimao_node_prefs：节点「上次参数」记忆（domain: 'pref'，本机 UI 偏好，跨设备无意义，不同步）。
  *  - yimao_prompt_hub_cache：提示词社区库缓存（带 fetchedAt/signature，每台机重拉即可，跨设备同步既无意义又可能污染缓存判断，不同步）。
  *  - yimao_preset_recent：最近使用预设（本机使用痕迹，与节点参数记忆同性质，跨设备无意义，不同步）。
- *  AI 会话键（agent_conversations_*）含隐私，本就为 pattern 键不在 getLocalKeys() 内。
+ *  AI 会话键含隐私：pattern 键（agent_conversations_{agentKey} / agent_active_conversation_id_{agentKey}）本就不在
+ *  getLocalKeys() 内；遗留单数键（agent_conversations / agent_active_conversation_id）虽已迁移不再写入，仍显式列入
+ *  下方 SYNC_EXCLUDE 双保险，杜绝明文上云（[TD-14] 2026-09-11）。
  * 账号（yimao_accounts）为 KV 后端，本就不在 getLocalKeys()，由 S4 领域开关在 collect/restore 单独处理。
  * 同步台账（yimao_cloud_sync_ledger）：本机基线，随备份走但**绝不能进云端**（每台机器基线不同，
  *   同步它会互相污染新旧判断）→ 显式排除。 */
@@ -846,6 +879,8 @@ const SYNC_EXCLUDE = new Set([
   //   再进云同步 = 造第二真相源（SSOT 裂痕）→ 从源头排除，下载端亦不复写（见 restoreLocal）。[F-云B]
   'projects',
   'yimao_asset_library',
+  // agent_draft：**已退役**（TD-17，2026-09-11）。草稿唯一真源 = 会话内 `conv.draft`（随会话走 KV 同步），
+  //   独立键不再有任何读写方、STORAGE_KEYS 登记亦已删。此处置保留仅为「旧机器残留本地键」双保险，勿据此恢复该键。
   'agent_draft',
   'mutiwindow-clipboard',
   'agent_panel_width',
@@ -856,6 +891,10 @@ const SYNC_EXCLUDE = new Set([
   'yimao_node_prefs',
   'yimao_prompt_hub_cache',
   'yimao_preset_recent',
+  // [TD-14] 遗留单数 AI 会话键：已迁移到 pattern 键、不再写入，但静态登记在 STORAGE_KEYS 且 backend:'local'，
+  // 若旧数据残留会被 getLocalKeys() 纳入云同步（明文上 GAS = 隐私泄漏）→ 显式排除双保险。
+  'agent_conversations',
+  'agent_active_conversation_id',
   LEDGER_KEY,
 ]);
 const LS_KEYS = getLocalKeys().filter((k) => !SYNC_EXCLUDE.has(k));

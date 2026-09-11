@@ -6,7 +6,7 @@
  *  - 上游节点完成（经 taskCompletionBus.publishTaskCompleted）→ 广播 `upstream:updated { sourceNodeId }`；
  *  - 本 hook 监听它，用 ReactFlow 的 edges 只找 `edge.source === sourceNodeId` 的**直接下游**（只接一层），
  *    当开关 AUTO_TRIGGER_DOWNSTREAM（config.js，默认 false）打开时，对下游调用 runNodeGeneration 触发一次。
- *  - 不做全图自动跑（workflowRuntime 全图演进另立 PRD）。
+ *  - 不做全图自动跑（全图演进另立 PRD）。
  *
  * 【挂载】须在 ReactFlow provider 内（useReactFlow 可用）。挂在画布根组件（App.jsx 的 Canvas）。
  * 【与 P1-E 关系】触发走 runNodeGeneration → 下游 start 的单节点互斥锁，天然防重入。

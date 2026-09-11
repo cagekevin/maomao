@@ -71,6 +71,8 @@ import {
 import type { AssistantTable } from '../agent/assistantTable/assistantTable.ts';
 import { useActiveAssistantTable } from '../agent/assistantTable/useActiveAssistantTable.ts';
 import { buildRefineRowsUser } from '../agent/assistantTable/assistantTablePrompt.ts';
+// 【TD-17】草稿初值经只读入口读会话快照（不再自持 agent_draft 存储键；写一律走 useAgentChat 的 saveDraft）
+import { getCurrentSnapshot } from '../agent/conversation/conversationSnapshot.ts';
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -88,6 +90,17 @@ import { buildRefineRowsUser } from '../agent/assistantTable/assistantTablePromp
  * 表格工作区（2026-09-06 拆分，见 spec/TABLE-WORKSPACE-INDEPENDENT-PANEL.md §四.5）：
  *  - 表格本体已拆到画布左侧 TableWorkspacePanel（App 挂载），本面板瘦身为纯对话；
  *  - 开合/宽度/选中行/待确认预览/探测游标收敛到共享态 tableWorkspaceState，
+ *
+ * 【草稿唯一真源（TD-17 根治 2026-09-11）】
+ *  输入框草稿的唯一真源 = 当前对话的 `conv.draft`（随会话落盘，per-conversation，切对话自动跟随）。
+ *  本面板 **不再** 自持 `agent_draft` 独立存储键，也 **不再** 双写（旧实现：input state + agent_draft 键
+ *  各存一份、无订阅桥接，且 conv.draft 仅被发送/切对话时覆盖修正 → 双写 + 双 SSOT）。
+ *  读写一律走 useAgentChat 的语义化 action：初值读 `snapshot.draft`（该值即本 effect 经 setCurrentSnapshot 读回），
+ *  变更调 `saveDraft`（逐字 onChange → 会话快照 → 300ms 节流落盘），清空调 `saveDraft('')`。
+ *  UI 不持 store 写权：本面板只表达意图（saveDraft/saveSkills/saveAttachments/closeAwaitingConfirm），
+ *  禁止再恢复 `setCurrentSnapshot` 等 store 函数透传（见 useAgentChat `UseAgentChatReturn` 注释）。
+ *
+ *  表格工作区（2026-09-06 拆分，见 spec/TABLE-WORKSPACE-INDEPENDENT-PANEL.md §四.5）：
  *    本面板只读：顶栏「表格」图标 = toggleTableWorkspace()；handleSend 按 open 注入表格上下文；
  *    探测 effect（watch 最后一条 assistant 消息 → 解析表格 JSON → acceptTablePreview，仅 open 时）；
  *    消息流内 pv-done 历史痕迹由消息自身 tableResolved 字段驱动（确认/取消由左面板调用共享态写回）。
@@ -96,7 +109,6 @@ import { buildRefineRowsUser } from '../agent/assistantTable/assistantTablePromp
 
 // 模型列表来自所选厂商在设置里实际配置的 chat_models（不再用 AGENT_MODELS 兜底）
 const PANEL_WIDTH_KEY = 'agent_panel_width';
-const AGENT_DRAFT_KEY = 'agent_draft';
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 1180;
 const DEFAULT_WIDTH = 400;
@@ -267,11 +279,11 @@ export default function AgentPanel({
   const [skillPickOpen, setSkillPickOpen] = useState(false);
   const skillPickRef = useRef(null);
   useOutsideClick(skillPickRef, skillPickOpen, () => setSkillPickOpen(false));
-  // skills 变化 → 同步到 conversationStore（重构后 setCurrentSnapshot 内部自动落盘，
+  // skills 变化 → 存进当前对话快照（TD-17：走语义化 action；内部 setCurrentSnapshot 自动落盘，
   // 且带 hydrated 时序守卫：挂载早期不会用空数据覆盖 localStorage 已有记录）
   useEffect(() => {
-    setCurrentSnapshot({ skills: activeSkills });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- setCurrentSnapshot 定义在本 effect 之后（TDZ 依赖数组）
+    saveSkills(activeSkills);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- saveDraft 等 action 定义在本 effect 之后（TDZ 依赖数组）
   }, [activeSkills]);
   const applySkill = (skill) => {
     setActiveSkills((prev) => {
@@ -317,13 +329,10 @@ export default function AgentPanel({
   const handleConversationChange = useCallback((snap) => {
     if (snap?.skills) setActiveSkills(snap.skills);
     if (Array.isArray(snap?.attachments)) setAttachments(snap.attachments);
+    // 【TD-17】草稿跟随对话：只同步到 UI state，不再手动「也写一次存储键」——
+    // 真源就是该对话自己的 draft 快照，回写自己等于制造第二份副本。
     if (typeof snap?.draft === 'string') {
       setInput(snap.draft);
-      try {
-        contentSet(AGENT_DRAFT_KEY, snap.draft);
-      } catch {
-        /* ignore */
-      }
     }
   }, []);
 
@@ -360,9 +369,11 @@ export default function AgentPanel({
     runExistingConfirm,
     getCreditGate,
     clearCreditGate,
-    // 展示→编排轴薄适配（收口 store 穿透）：这 3 个由 useAgentChat 回传，UI 不再直接 import conversationStore
-    setCurrentSnapshot,
-    setAwaitingConfirm,
+    // 【TD-17】语义化 action（UI 只表达意图，不持 store 写权）：草稿/技能/附件/确认门禁
+    saveDraft,
+    saveSkills,
+    saveAttachments,
+    closeAwaitingConfirm,
   } = useAgentChat({
     agentKey,
     systemPrompt,
@@ -471,22 +482,17 @@ export default function AgentPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [input, setInput] = useState<string>(() => {
-    try {
-      return String(contentGet(AGENT_DRAFT_KEY) || '');
-    } catch {
-      return '';
-    }
-  });
+  // 【TD-17】草稿初值 = 当前对话快照的 draft（useAgentChat 首渲前该值即会话内存态；不读独立存储键，杜绝双源）
+  const [input, setInput] = useState<string>(() => String(getCurrentSnapshot().draft || ''));
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
   // 【2026-09-05 精简】执行模型收敛恒 auto（完全自主）+ credit 积分闸：三态选择器（direct/step-confirm/auto）已删，
   // AI 助手只走 auto 完全自主。真正烧积分那下由全局积分闸 creditSwitch 拦截（见 useCanvasAgentTools.executePlanTool），
   // 与本执行模型正交——这里不掺和确认粒度。
-  // attachments 变化 → 同步到 conversationStore（自动落盘，带 hydrated 时序守卫）
+  // attachments 变化 → 存进当前对话快照（TD-17：语义化 action；自动落盘，带 hydrated 时序守卫）
   useEffect(() => {
-    setCurrentSnapshot({ attachments });
-  }, [attachments, setCurrentSnapshot]);
+    saveAttachments(attachments);
+  }, [attachments, saveAttachments]);
 
   // ── 高消耗积分确认闸（creditSwitch）── 2026-08-27 简化定稿
   // 全局开关（默认开）：任何模式下，真正烧积分那下（image/video 生成）都先经用户确认。
@@ -509,6 +515,10 @@ export default function AgentPanel({
     setCreditSwitch(next);
   };
   // credit 确认卡预览：跟随 per-conv creditGate 的 pending 态刷新（execute_plan 置位/补跑清除时由事件驱动）。
+  // 【TD-11-7 修正 2026-09-11】本 state 是**本地副本**，原先只在挂载时读一次 + 靠 CREDIT_GATE_EVENT 刷新。
+  // 切对话既不重读、也不广播事件 → 在 A 命中积分闸（卡亮）后切到 B，卡片会**残留在 B**（与 TD-11-4 同源形态）。
+  // 故新增「切对话即按真源重读」effect（下方 [activeConversationId]）：门禁是 per-conversation 真源，
+  // UI 副本必须随真源切换而重算，而不是等一个可能永不到来的事件。
   const [creditGatePreview, setCreditGatePreview] = useState(() => {
     try {
       const g = getCreditGate();
@@ -534,6 +544,17 @@ export default function AgentPanel({
     });
     return unsub;
   }, [getCreditGate]);
+  // 【TD-11-7】切对话 → 本地副本按**当前对话真源**重算（清残留 + 恢复目标对话自己的门禁态）。
+  // 与上方表格态 effect 同属「per-conversation 运行态随 activeId 重置」这一件事。
+  useEffect(() => {
+    try {
+      const g = getCreditGate();
+      setCreditGatePreview(g?.pending === true ? g : null);
+    } catch {
+      setCreditGatePreview(null);
+    }
+    setCreditGateDismissed(false);
+  }, [activeConversationId, getCreditGate]);
   // 确认生成：走 runExistingPlanTool（D8 补跑唯一入口）。成功后 creditGate 被清除并广播 → 卡片自动收起。
   const handleConfirmCredit = useCallback(async () => {
     const res = await runExistingConfirm();
@@ -858,11 +879,7 @@ export default function AgentPanel({
     setAttachments([]);
     setPendingImageNodes([]);
     setInput('');
-    try {
-      contentSet(AGENT_DRAFT_KEY, '');
-    } catch {
-      /* ignore */
-    }
+    saveDraft(''); // TD-17：清空会话草稿（唯一真源）
     scrollToBottom('smooth'); // 自己发消息 → 无论当前是否已上翻，都强制贴底
     Promise.resolve(send(finalText, attach)).catch((e) => logger.error('Agent', 'send 失败', e));
   };
@@ -881,16 +898,18 @@ export default function AgentPanel({
         .catch((e) => logger.error('Agent', '保存长期记忆失败', e));
       return;
     }
-    setAwaitingConfirm(false);
-    try {
-      contentSet(AGENT_DRAFT_KEY, '');
-    } catch {
-      /* ignore */
-    }
+    closeAwaitingConfirm();
+    saveDraft(''); // TD-17：清空会话草稿（唯一真源）
     Promise.resolve(send('已确认，请按刚才展示的策划执行。')).catch((e) =>
       logger.error('Agent', '确认后 send 失败', e),
     );
-  }, [send, confirmPendingMemorySuggest, getActivePendingMemorySuggest, setAwaitingConfirm]);
+  }, [
+    send,
+    confirmPendingMemorySuggest,
+    getActivePendingMemorySuggest,
+    closeAwaitingConfirm,
+    saveDraft,
+  ]);
 
   // 单步失败重试：点击失败 tool 卡片的「重试」，只重跑该 nodeId（复用 taskStore 已注册的生成契约，对齐大雄 retryAgentGeneration）
   const handleRetryStep = useCallback((nodeId) => {
@@ -1533,11 +1552,7 @@ export default function AgentPanel({
               onChange={(e) => {
                 const v = e.target.value;
                 setInput(v);
-                try {
-                  contentSet(AGENT_DRAFT_KEY, v);
-                } catch {
-                  /* ignore */
-                }
+                saveDraft(v); // TD-17：草稿唯一真源（会话快照，内部节流落盘）
                 setSkillSlashOpen(v === '/');
               }}
               onKeyDown={(e) => {

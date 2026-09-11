@@ -104,8 +104,10 @@ describe('contentGet / contentSet / contentDelete / contentHas', () => {
   });
 
   it('contentSet 字符串值原样持久化', () => {
-    contentSet('agent_draft', 'hello');
-    expect(mockStorageAdapter.sSet).toHaveBeenCalledWith('agent_draft', 'hello');
+    // 用已登记的字符串型键（agent_panel_width）；原 `agent_draft` 已随 TD-17 退役（登记已删，
+    // 未登记键在 dev 下会 throw——测试须用真实键，勿复活死键）。
+    contentSet('agent_panel_width', '400');
+    expect(mockStorageAdapter.sSet).toHaveBeenCalledWith('agent_panel_width', '400');
   });
 
   it('sSet 抛错时 contentSet 向上传播（不吞错；真实 sSet 抛错前已 publish persist:failed，事件不被阻断）', () => {

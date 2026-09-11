@@ -83,8 +83,6 @@ import './assistant-table.css';
 export interface AssistantTablePanelProps {
   /** 左栏固定宽度（px）（父级分栏拖拽决定） */
   width?: number;
-  /** AI 表格预览当前是否存在（待确认写回）。存在且空表时左栏空态提示「等你在右侧确认后写入」 */
-  previewing?: boolean;
   /** 某行 → 发送到画布（AgentPanel 传 sendContentToCanvas，内部 rowToText 拼好文字） */
   onSendToCanvas?: (text: string) => void;
   /** 是否正在发送（发送中禁用确认按钮） */
@@ -95,13 +93,14 @@ export interface AssistantTablePanelProps {
 
 export default function AssistantTablePanel({
   width = 460,
-  previewing = false,
   onSendToCanvas,
   sending = false,
   onConfirmPreview,
   onCancelPreview,
 }: AssistantTablePanelProps) {
   const { selectedRowIds, preview, previewHeight, focusedCell, editingCell } = useTableWorkspace();
+  // previewing 由已订阅的共享态 preview 派生（单一真相，不再由父级回声下发第二个来源，TD-11-11）
+  const previewing = !!preview;
   // ── 多标签页数据源（真源 = memory.assistantTables；返回 tabs + 当前活动 tab）──
   const {
     activeConversationId,
@@ -187,10 +186,9 @@ export default function AssistantTablePanel({
   };
 
   /**
-   * 【业界铁律·行选 vs 单格互斥（spec interaction-model §1.3/§3.1）】selectedRowIds（行）与 focusedCell（单格）
-   * 不可并存。必须**双向**清理，只做一边就会出「行也选了、单格还亮着」的脏叠加（2026-09-08 实测踩坑）：
-   *   - 点普通格聚焦 → 清行多选（本函数下方）；
-   *   - 点行号格选行 → 清 focusedCell/editingCell（见 onClickRow，勿漏）。
+   * 【行选 vs 单格互斥（spec interaction-model §1.3/§3.1）】selectedRowIds（行）与 focusedCell（单格）不可并存。
+   * 该互斥不变量已于 SSOT 写者收口（setTableFocusedCell 聚焦即清行选 / setTableWorkspaceRows 选行即清单格，
+   * 见 tableWorkspaceState.ts，TD-11-11）：本函数只调聚焦，无需再手动清行选。
    */
   /** 单击格：若正在编辑另一格先提交它；再聚焦该格为「当前格」（不进入编辑），并清行多选（互斥右半） */
   const handleFocusCell = (rowId: string, colId: string) => {
@@ -198,7 +196,6 @@ export default function AssistantTablePanel({
       commitEditingCellIfAny();
     }
     setTableFocusedCell({ rowId, colId });
-    if (selectedRowIds.length) setTableWorkspaceRows([]); // 互斥：聚焦普通格即清行多选
   };
 
   /** 双击格：先提交正在编辑的其它格，再进入编辑态（该格同时成为当前格），同样清行多选（互斥） */
@@ -207,7 +204,6 @@ export default function AssistantTablePanel({
       commitEditingCellIfAny();
     }
     setTableFocusedCell({ rowId, colId });
-    if (selectedRowIds.length) setTableWorkspaceRows([]); // 双击进入编辑也属聚焦普通格，须清行多选
     setTableEditingCell({ rowId, colId });
   };
 
@@ -417,13 +413,7 @@ export default function AssistantTablePanel({
     } else {
       next = selectedRowIds.length === 1 && selectedRowIds[0] === row.id ? [] : [row.id];
     }
-    setTableWorkspaceRows(next);
-    // 【业界铁律·互斥左半】行选中与单格聚焦互斥：一旦有选中行，就清掉「当前格/编辑格」（否则出现
-    // 「行也选了、单格还亮着」脏叠加，2026-09-08 踩坑）。与 handleFocusCell 清行选成对 —— 双向缺一不可。
-    if (next.length) {
-      setTableFocusedCell(null);
-      setTableEditingCell(null);
-    }
+    setTableWorkspaceRows(next); // 非空即清「当前格+编辑格」（互斥不变量已收口到 SSOT 写者 setTableWorkspaceRows）
   };
 
   /**

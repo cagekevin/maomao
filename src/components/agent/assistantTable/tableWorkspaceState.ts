@@ -47,6 +47,7 @@ import {
   setTabGlobalStyle,
   setTabTable,
 } from './assistantTable.ts';
+import { validateWorkspace } from './tableInvariants.ts';
 import type { AssistantTableJson, AssistantTableTabs, CellRange } from './assistantTable.ts';
 
 /** 选区类型由模型层（assistantTable.ts）定义并拥有，此处转出供 UI 层直接用 */
@@ -108,8 +109,31 @@ function getSnapshot(): TableWorkspaceState {
   return state;
 }
 
+/** 上次 dev 自检告警签名：持久违规在 width 拖拽等高频 setState 下不刷屏（仅签名变化才再 warn） */
+let lastInvariantSig: string | null = null;
+
 function setState(next: TableWorkspaceState): void {
   state = next;
+  // 运行态不变量自检：每次变更都拿最新 tabs 对账（spec §七「写了不跑 = 形同没写」——
+  // validateWorkspace 此前全库零生产调用，本轮补上接线）。dev 下告警、不阻断交互；
+  // 用签名缓存避免持久违规在高频 setState（如拖拽宽度）下反复刷屏。
+  if (import.meta.env?.DEV) {
+    const violations = validateWorkspace(next, getCurrentAssistantTabs());
+    if (violations.length) {
+      const sig = violations.map((v) => `${v.level}:${v.code}`).join('|');
+      if (sig !== lastInvariantSig) {
+        lastInvariantSig = sig;
+        for (const v of violations) {
+          logger.warn('AI助手表格', `运行态不变量告警 ${v.code}`, {
+            level: v.level,
+            msg: v.message,
+          });
+        }
+      }
+    } else {
+      lastInvariantSig = null;
+    }
+  }
   listeners.forEach((l) => l());
 }
 
@@ -146,9 +170,14 @@ export function closeTableWorkspace(): void {
   });
 }
 
-/** 设当前聚焦单格（单击格；null = 清）。调用方负责互斥（聚焦普通格即清行多选） */
+/** 设当前聚焦单格（单击格；null = 清）。
+ *  【TD-11-11 · 互斥收口】聚焦单格与行选互斥（spec interaction-model §1.3/§3.1）：聚焦非 null 即清行选。
+ *  不变量收口到 SSOT 写者，不再依赖「调用方负责互斥」——此前散在 UI 成对 clear（handleFocusCell/
+ *  handleEditCell），任何新入口漏清就会复发「行也选了、单格还亮着」脏叠加（2026-09-08 踩坑）。 */
 export function setTableFocusedCell(cell: { rowId: string; colId: string } | null): void {
-  setState({ ...state, focusedCell: cell });
+  setState(
+    cell ? { ...state, focusedCell: cell, selectedRowIds: [] } : { ...state, focusedCell: null },
+  );
 }
 
 /** 设正在编辑的格（双击格；null = 退出编辑回选中态）。整表唯一编辑源 */
@@ -172,9 +201,16 @@ export function setTableWorkspaceWidth(px: number): void {
  * 设置选中行集合（唯一意图信号，C1）。空数组 = 取消选中。
  * 供左面板 AssistantTablePanel onClickRow（普通点击=单选/取消，Cmd/Ctrl=累加 toggle）与
  * 右侧 AgentPanel「取消选中」共用——选中态全库只此一份。
+ * 【TD-11-11 · 互斥收口】选行与单格/编辑互斥（spec §1.3/§3.1）：非空即清「当前格+编辑格」；
+ * 空（取消选行）不动格（取消行选≠退出格聚焦）。不变量收口到 SSOT 写者，不再依赖 UI 成对 clear。
  */
 export function setTableWorkspaceRows(rowIds: string[]): void {
-  setState({ ...state, selectedRowIds: rowIds || [] });
+  const ids = rowIds || [];
+  setState(
+    ids.length
+      ? { ...state, selectedRowIds: ids, focusedCell: null, editingCell: null }
+      : { ...state, selectedRowIds: [] },
+  );
 }
 
 /** 写内部剪贴板（spec 3.6；仅内存，复制动作由 useTableSelection 触发） */
@@ -290,9 +326,11 @@ export function confirmTablePreview(recordHistory = true): { ok: boolean; mode?:
   if (!p) return { ok: false };
   const gs = String(p.json?.globalStyle ?? '').trim();
   if (p.resultCols.length === 0) {
-    // 探测时已拦空 rows；此处兜底：结果无列 = 推导异常，显式失败不静默落表（A-001/A-004）
+    // 探测时已拦空 rows；此处兜底：结果无列 = 推导异常，显式失败不静默落表（A-001/A-004）。
+    // ⚠️ 失败 → 标 'cancelled'（绝不谎称 'confirmed'）：UI 据 tableResolved==='confirmed' 渲染「已写入表格」绿勾，
+    //    谎称会制造「提示已写入实则未落盘」的假成功（违背文件头「根治·假成功」与心法「暴露而非掩盖」）。
     logger.warn('AI助手', '表格确认写回失败：结果无列，已中断', { messageId: p.messageId });
-    markMessageTableResolved(p.messageId, 'confirmed');
+    markMessageTableResolved(p.messageId, 'cancelled');
     setState({ ...state, preview: null });
     return { ok: false, mode: p.opKind };
   }
@@ -308,7 +346,8 @@ export function confirmTablePreview(recordHistory = true): { ok: boolean; mode?:
       targetTabId,
       messageId: p.messageId,
     });
-    markMessageTableResolved(p.messageId, 'confirmed');
+    // ⚠️ 失败 → 标 'cancelled'（绝不谎称 'confirmed'）：同上一分支，防止「提示已写入实则未落盘」假成功。
+    markMessageTableResolved(p.messageId, 'cancelled');
     setState({ ...state, preview: null });
     showToast?.('写入失败：目标表格已不存在，请重新生成', { type: 'error' });
     return { ok: false, mode: p.opKind };

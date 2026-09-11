@@ -85,7 +85,18 @@ npm run dup:code       # jscpd 重复代码 → out/jscpd-report.json
   `no-nodes-cross`，但这是**主工程既有合理设计**（audit/ 规则不应推翻 base/README 架构决策）→ 在
   `no-nodes-cross` 的 `to.pathNot` 加豁免。另删除该 hook 无引用的 `export default`（调用方均走具名导出）。
 
-**当前 depcruise 全量 `✔ no dependency violations found`（234 modules）。**
+- **`no-nodes-cross` 回归已根治（2026-09-11）**：新建的「节点主图唯一写入口」`nodeImage.ts` 误置于
+  `src/components/nodes/`，被 `ImageGenerate.tsx`、`AssetNode.tsx` 反向 import，触发 2 条 `no-nodes-cross`。
+  根因是**物理位置错误**（共享收敛点落在了叶子节点目录），不是规则太严。
+  修复：将其迁至 `src/components/base/nodeImage.ts`（地基），依赖方向归正为 `nodes/ → base/`（业务依赖地基），
+  2 处 import 改 `../base/nodeImage.ts`，**不新增任何规则豁免**。depcruise `no-nodes-cross` + madge 双工具确认
+  `✔ no dependency violations found`。
+  ⚠️ 不要误判同类：`useImageHoverActions.tsx` 的 `no-nodes-cross` 豁免**不是债**。它是图片节点专属 UI 行为 hook
+  （返回 crop/pencil/upscale/compress 按钮、产出 `<ImageEditor>` JSX、持有 `useState`），属业务域视图层；
+  2026-09-04 重组时由 `base/` **主动回收**到 `nodes/`（base/README「业务域专属件回收」），豁免是刻意的真缝隙
+  标记（choke-point），与本次 `nodeImage.ts`（纯地基逻辑误置叶子目录）性质不同，勿照搬本次迁移手法。
+
+**当前 depcruise 全量 `✔ no dependency violations found`（296 modules）。**
 
 ### 契约门禁脚本解析 bug（2026-09-06，挂 prebuild 的 `scripts/`，非 audit/ 内）
 

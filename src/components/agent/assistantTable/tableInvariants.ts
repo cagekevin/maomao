@@ -118,8 +118,17 @@ function getActiveTable(
 
 /**
  * 校验运行态（W/P 类）。返回违规数组。
- * 硬约束（error）：P1 preview.targetTabId 指向存在的 tab。
- * 警告（warn）：W1 selectedRowIds 越界、W4 focusedCell/editingCell 指向不存在行/列、W2 行选与单格并存、P3 changedRowIds 越界。
+ *
+ * 【覆盖清单（诚实版，改本函数须同步此注释）】
+ *  - error：P1 preview.targetTabId 指向存在的 tab。
+ *  - warn：W1 selectedRowIds 越界、W2 行选与单格并存、W4 focusedCell/editingCell 指向不存在行/列、
+ *          W5 选区锚点指向不存在行/列、W6 剪贴板 colIds ⊆ 当前列、P3 changedRowIds 越界。
+ *  - **已知未实现（不谎报）**：W3（editingCell 至多一个，由单字段实现隐含成立）、
+ *    W7（切 tab/对话清现场，属时序行为非状态快照，靠实现自觉 + 单测）。
+ *
+ * 【2026-09-11 修正（TD-11-10）】原文只列 W1/W2/W4/P3，**W5/W6 声称在 spec 校验清单却无实现**；
+ * 且本函数**全库无生产调用**（仅测试）——"写了不跑 = 形同没写"（spec §七 原话）。
+ * W5/W6 已补；接线见 `tableWorkspaceState.setState`（dev 下 warn）。
  */
 export function validateWorkspace(ws: TableWorkspaceState, tabs: AssistantTableTabs): Violation[] {
   const out: Violation[] = [];
@@ -158,6 +167,31 @@ export function validateWorkspace(ws: TableWorkspaceState, tabs: AssistantTableT
   // W2：行选与单格互斥（不可并存）
   if (ws.selectedRowIds?.length && (ws.focusedCell || ws.editingCell)) {
     out.push(warn('W2', 'selectedRowIds 与 focusedCell/editingCell 并存（应互斥）'));
+  }
+  // 【W5 补充实现】选区锚点 r0/c0/r1/c1 都是 id（非索引）；任一失效 → 整段选区无效而非静默越界。
+  // 语义对齐 assistantTable.rangeToCells「任一锚点失效返回 []」——此处把"会失效"在写侧就报出来。
+  if (ws.range) {
+    const anchors: Array<[string, string]> = [
+      ['r0', ws.range.r0],
+      ['c0', ws.range.c0],
+      ['r1', ws.range.r1],
+      ['c1', ws.range.c1],
+    ];
+    for (const [tag, id] of anchors) {
+      const ok = id != null && (tag.startsWith('r') ? rowIds.has(id) : colIds.has(id));
+      if (!ok) out.push(warn('W5', `选区锚点 ${tag}「${id}」指向不存在的行/列（该选区应作废）`));
+    }
+  }
+  // 【W6 补充实现】内部剪贴板 colIds ⊆ 当前表 columns（跨表粘贴前防线；否则按 label 兜底易串列）。
+  if (ws.clipboard) {
+    const cbCols = (ws.clipboard as { colIds?: unknown }).colIds;
+    if (Array.isArray(cbCols)) {
+      for (const id of cbCols) {
+        if (typeof id === 'string' && !colIds.has(id)) {
+          out.push(warn('W6', `剪贴板 colId「${id}」不在当前表列中（粘贴将走 label 兜底）`));
+        }
+      }
+    }
   }
   // P3：changedRowIds ⊆ resultRows 的 id
   if (ws.preview) {

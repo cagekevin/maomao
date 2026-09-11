@@ -264,6 +264,12 @@ export {
 export {
   getCurrentSnapshot,
   setCurrentSnapshot,
+  // 【TD-11-5 窄接口】单字段原子写 + 语义动作（新代码首选；setCurrentSnapshot 仅保留迁移期）
+  setCurrentDraft,
+  setCurrentSkills,
+  setCurrentAttachments,
+  setCurrentMessages,
+  resetCurrentConversationToEmpty,
   patchCurrentMessages,
   getCurrentWorkflow,
   patchCurrentWorkflow,

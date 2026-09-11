@@ -18,6 +18,7 @@ localTool 运维/调试脚本。统一入口：`cd localTool && npm run <脚本�
 | `npm run inspect -- --canvas-health [proj]` | 画布数据结构体检（节点/边统计 + 无id边/重复id边/悬空边） |
 | `npm run inspect -- --lovart-status <thread_id>` | 拿 Lovart 上游 thread_id 直接向 Lovart 查任务状态（HMAC 签名，凭据 `LOVART_ACCESS_KEY/SECRET_KEY`，自动走代理） |
 | `npm run inspect -- --lovart-result <thread_id>` | 同上，查任务**结果**（出图 URL / 生成文本），连 `/chat/result` |
+| `npm run inspect -- --poll-status <前端任务中心 task_id>` | 经 localTool 网关 `GET /api/generate/{id}` 查 relay 轮询**实时状态**（relay 重构后替代 `--lovart-status`；上游不再是 Lovart thread_id，而是 tasks.poll_task_id；无需 Lovart HMAC/代理，localTool 运行于 18080 即可） |
 | `npm run inspect -- --tables / --table tasks / --sql "..." / --search k / --kv k` | 通用只读查库 |
 | `npm run inspect -- --logs [download\|upload\|proxy\|error\|official\|passthrough]` | 查 localTool 日志，支持按前缀/关键词过滤 |
 | `npm run inspect -- --vacuum` | 压缩数据库（自动备份 + 完整性检查 + 端口冲突检测） |

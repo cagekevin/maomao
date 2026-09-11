@@ -39,32 +39,23 @@ function bearerHeaders(
   };
 }
 
-/** OpenAI 兼容文本生成（非流式），返回完整文本。 */
-export async function chat({
-  apiKey,
-  baseUrl,
-  model,
-  messages,
-  signal,
-  tools,
-  toolChoice,
-  timeoutMs,
-}: ChatOptions): Promise<string> {
+/** 非流式 chat POST 的公共前半段（body 构造 + 错误透传）。chat / chatWithTools 共用，避免两套重复。 */
+async function postChatRaw(opts: ChatOptions): Promise<{ payload: JsonChatResponse }> {
   const response = await corsSafeFetch(
-    chatUrl(baseUrl),
+    chatUrl(opts.baseUrl),
     {
       method: 'POST',
-      headers: bearerHeaders(apiKey),
+      headers: bearerHeaders(opts.apiKey),
       body: JSON.stringify({
-        model,
-        messages,
+        model: opts.model,
+        messages: opts.messages,
         stream: false,
-        ...(tools ? { tools } : {}),
-        ...(toolChoice ? { tool_choice: toolChoice } : {}),
+        ...(opts.tools ? { tools: opts.tools } : {}),
+        ...(opts.toolChoice ? { tool_choice: opts.toolChoice } : {}),
       }),
-      signal,
+      signal: opts.signal,
     },
-    { timeoutMs },
+    { timeoutMs: opts.timeoutMs },
   );
   if (!response.ok) {
     const text = await response.text().catch(() => '');
@@ -76,10 +67,22 @@ export async function chat({
     }
     throw new Error(msg);
   }
-  const json = await response.json();
-  const content = json.choices?.[0]?.message?.content;
+  return { payload: (await response.json()) as JsonChatResponse };
+}
+
+interface JsonChatResponse {
+  choices?: Array<{
+    message?: { content?: unknown; tool_calls?: unknown[] };
+    finish_reason?: string;
+  }>;
+}
+
+/** OpenAI 兼容文本生成（非流式），返回完整文本。 */
+export async function chat(opts: ChatOptions): Promise<string> {
+  const { payload } = await postChatRaw(opts);
+  const content = payload.choices?.[0]?.message?.content;
   if (!content) throw new Error('模型返回结果为空');
-  return content;
+  return String(content);
 }
 
 /**
@@ -88,48 +91,13 @@ export async function chat({
  * 一次返回完整 tool_calls，是画布 Agent 唯一可用的工具出站。relay chat 按 provider 分流：
  * 带 tools → 走本函数；普通文本 → 走 executeModelProtocol(LOVART preset)。非流式，打字机留后补。
  */
-export async function chatWithTools({
-  apiKey,
-  baseUrl,
-  model,
-  messages,
-  signal,
-  tools,
-  toolChoice,
-  timeoutMs,
-}: ChatOptions): Promise<ChatWithToolsResult> {
-  const response = await corsSafeFetch(
-    chatUrl(baseUrl),
-    {
-      method: 'POST',
-      headers: bearerHeaders(apiKey),
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: false,
-        ...(tools ? { tools } : {}),
-        ...(toolChoice ? { tool_choice: toolChoice } : {}),
-      }),
-      signal,
-    },
-    { timeoutMs },
-  );
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    let msg = `API 请求失败 (${response.status})`;
-    try {
-      msg = JSON.parse(text)?.error?.message || msg;
-    } catch {
-      if (text) msg += `: ${text.slice(0, 200)}`;
-    }
-    throw new Error(msg);
-  }
-  const json = await response.json();
-  const message = json.choices?.[0]?.message;
+export async function chatWithTools(opts: ChatOptions): Promise<ChatWithToolsResult> {
+  const { payload } = await postChatRaw(opts);
+  const message = payload.choices?.[0]?.message;
   return {
     text: message?.content ? String(message.content) : '',
     toolCalls: message?.tool_calls || undefined,
-    finishReason: json.choices?.[0]?.finish_reason,
+    finishReason: payload.choices?.[0]?.finish_reason,
   };
 }
 

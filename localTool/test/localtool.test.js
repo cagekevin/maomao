@@ -994,7 +994,7 @@ test('System·jianying/send 空 body → 400', async () => {
 });
 
 // ══════════════════════════════════════════════════════════════
-// Database 本地函数（backupDb / exportDataJson / deleteLocalFile）
+// Database 本地函数（backupDb / exportDataJson）
 // ══════════════════════════════════════════════════════════════
 
 test('Database·backupDb 生成整库备份文件', async () => {
@@ -1018,32 +1018,6 @@ test('Database·exportDataJson 导出轻量 JSON', async () => {
   const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
   assert.ok(data.counts.tasks >= 1);
   assert.ok(data.tasks.some((t) => t.task_id === 'e1'));
-});
-
-test('Database·deleteLocalFile 删除本地文件且引用计数', async () => {
-  // 造一个本地文件 + resources 引用
-  const tasksDir = path.join(TEST_DIR, 'uploads', 'tasks');
-  fs.mkdirSync(tasksDir, { recursive: true });
-  const fpath = path.join(tasksDir, 'del.png');
-  fs.writeFileSync(fpath, RED_PNG_BUFFER);
-  const url = `http://127.0.0.1:18080/files/tasks/del.png`;
-
-  const db = await dbMod.getDb();
-
-  // 无引用 → 删除
-  let ok = dbMod.deleteLocalFile(db, url);
-  assert.equal(ok, true, '无引用应删除');
-  assert.ok(!fs.existsSync(fpath), '文件应被删除');
-
-  // 再造一个文件 + 引用 → 不删
-  fs.writeFileSync(fpath, RED_PNG_BUFFER);
-  await resourcesMod.handleResourcesSave(
-    makeJsonReq({ id: 'ref1', url, type: 'image' }),
-    makeRes(),
-  );
-  ok = dbMod.deleteLocalFile(db, url);
-  assert.equal(ok, false, '有引用应跳过');
-  assert.ok(fs.existsSync(fpath), '文件应保留');
 });
 
 // ══════════════════════════════════════════════════════════════

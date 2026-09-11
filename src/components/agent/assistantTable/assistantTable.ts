@@ -506,6 +506,31 @@ export function normalizeLabel(label: string): string {
 }
 
 /**
+ * 按列 label 归一去重，合并「现有列 + 来源列名」：保留现有列（id/width 不动），
+ * 来源中 label 归一后未在现有命中者 → 追加新列（新 id）。纯函数，返回新数组。
+ *
+ * 单一真相源：AI 键名合并（buildPreviewResult）与跨表列对齐（copyRowsToTab）共用同一套口径。
+ * 这俩曾是**逐字同构**的两份实现（I4「复制/重映射引用脱节」的同源病灶：改一边忘改另一边即漂移），
+ * 本轮收口于此，禁止再裸写第二遍。
+ */
+export function mergeColumnsByLabel(
+  existing: TableColumn[],
+  incomingLabels: string[],
+): TableColumn[] {
+  const labelToCol = new Map<string, TableColumn>();
+  for (const c of existing) labelToCol.set(normalizeLabel(c.label), c);
+  const result = [...existing];
+  for (const k of incomingLabels) {
+    if (!labelToCol.has(normalizeLabel(k))) {
+      const col: TableColumn = { id: newColId(), label: k };
+      labelToCol.set(normalizeLabel(k), col);
+      result.push(col);
+    }
+  }
+  return result;
+}
+
+/**
  * 统一「AI JSON → 操作后最终表格」推导（预览卡与确认写回共用，替代旧 jsonToSb / mergeRowFromObj / buildPreviewModel）。
  *
  * 意图判定（对齐 spec/AI-ASSISTANT-TABLE-IMPLEMENTATION.md §1.5.2 C2）：
@@ -560,16 +585,8 @@ export function buildPreviewResult(
   }
 
   // ── 非空表：列 = 现有列（保 id/width）+ 未命中键的新列（追加末尾，C3）──
-  const labelToCol = new Map<string, TableColumn>();
-  for (const c of current.columns) labelToCol.set(normalizeLabel(c.label), c);
-  const resultCols = [...current.columns];
-  for (const k of keys) {
-    if (!labelToCol.has(normalizeLabel(k))) {
-      const col: TableColumn = { id: newColId(), label: k };
-      labelToCol.set(normalizeLabel(k), col);
-      resultCols.push(col);
-    }
-  }
+  // 列合并口径收敛到 mergeColumnsByLabel（copyRowsToTab 复用同一函数，禁再裸写）
+  const resultCols = mergeColumnsByLabel(current.columns, keys);
   /** 取某 AI 行中某列的值：先按列 label 精确取，再按归一化兜底（A-005）；未提及返回 undefined（保留原值） */
   const colValue = (obj: Record<string, unknown>, col: TableColumn): string | undefined => {
     if (col.label in obj) return String(obj[col.label] ?? '').trim();
@@ -1012,16 +1029,11 @@ export function copyRowsToTab(
   if (!src || !dst) return tabs;
   const set = new Set(rowIds);
   // 目标列 = 现有列 + src 里命中不到目标列的列（跨表归一：src 列 label 未在 dst 出现 → 追加）
-  const labelToCol = new Map<string, TableColumn>();
-  for (const c of dst.columns) labelToCol.set(normalizeLabel(c.label), c);
-  const resultCols = [...dst.columns];
-  for (const c of src.columns) {
-    if (!labelToCol.has(normalizeLabel(c.label))) {
-      const col: TableColumn = { id: newColId(), label: c.label };
-      labelToCol.set(normalizeLabel(c.label), col);
-      resultCols.push(col);
-    }
-  }
+  // 复用 mergeColumnsByLabel（与 buildPreviewResult 同一口径，禁再裸写）
+  const resultCols = mergeColumnsByLabel(
+    dst.columns,
+    src.columns.map((c) => c.label),
+  );
   // src 中被选行 → label→text 值映射（跨表复制以列 label 为归一键，复用 buildPreviewResult 同款匹配）
   const srcRowsLabel: Array<Record<string, string>> = src.rows
     .filter((r) => set.has(r.id))

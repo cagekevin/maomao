@@ -45,12 +45,12 @@
 
 ## 五、canvas/ （画布编排，核心链路勿轻动）
 
-`NodePalette.ts` `nodeDefaults.ts` `nodePrefs.ts` `groupNodes.ts` `deriveNodes.ts` `lazyNode.tsx` `CanvasEdgesContext.tsx` `historyStack.ts` `workflowRuntime.ts` `ArrangeConfirm.tsx` `lod.tsx`
+`NodePalette.ts` `nodeDefaults.ts` `nodePrefs.ts` `groupNodes.ts` `deriveNodes.ts` `lazyNode.tsx` `CanvasEdgesContext.tsx` `historyStack.ts` `ArrangeConfirm.tsx` `lod.tsx`
 （复核并入）`upstreamLink.ts`（拓扑触发安全网）`toolRegistry.ts`（画布 AI 工具注册表）
 
 ## 六、utils/ （无副作用纯函数工具，可单测）
 
-`asyncGuard.ts` `clipboard.ts` `externalizeInline.ts` `faceMosaic.ts` `genErrors.ts` `imageCompress.ts` `imagePixel.ts` `imageUpscale.ts` `imageUrl.ts` `mediaType.ts` `previewUrl.ts` `providerModels.ts` `providerUrlAdapters.ts` `refToken.ts` `resultUrlExtractor.ts` `uploadDirs.ts` `videoEngine.ts` `volumePolicy.ts`
+`asyncGuard.ts` `clipboard.ts` `externalizeInline.ts` `faceMosaic.ts` `genErrors.ts` `imageCompress.ts` `imagePixel.ts` `imageUpscale.ts` `imageUrl.ts` `mediaType.ts` `previewUrl.ts` `providerModels.ts` `providerUrlAdapters.ts` `refToken.ts` `uploadDirs.ts` `videoEngine.ts` `volumePolicy.ts`
 
 ## 七、ui/ （真·通用展示基座）
 

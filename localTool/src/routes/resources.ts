@@ -25,7 +25,8 @@ import {
 } from '../utils/helpers.js';
 import { writeUploadBuffer, ensureDir, resolveUploadFile } from '../utils/fileStore.js';
 import { runReferenceGc } from '../utils/orphanGc.js';
-import { localToolBaseUrl } from '../utils/localToolBaseUrl.js';
+import { toAbsoluteFileUrl } from '../utils/localToolBaseUrl.js';
+import { mimeToExt } from '../utils/mime.js';
 
 // ── rescan：扫描 upload 目录，把磁盘文件/文件夹元数据同步进 resources 表 ──
 const RESCAN_FILE_TYPE: Record<string, string> = {
@@ -61,30 +62,6 @@ function extToFileType(ext: string): string | null {
   return RESCAN_FILE_TYPE[ext.toLowerCase()] || null;
 }
 
-// MIME → 扩展名（dataURL 落盘时需要）。不在表内的兜底用 .bin。
-const MIME_TO_EXT: Record<string, string> = {
-  'image/png': '.png',
-  'image/jpeg': '.jpg',
-  'image/jpg': '.jpg',
-  'image/webp': '.webp',
-  'image/gif': '.gif',
-  'image/bmp': '.bmp',
-  'image/svg+xml': '.svg',
-  'video/mp4': '.mp4',
-  'video/webm': '.webm',
-  'video/quicktime': '.mov',
-  'video/x-msvideo': '.avi',
-  'video/x-matroska': '.mkv',
-  'audio/mpeg': '.mp3',
-  'audio/wav': '.wav',
-  'audio/x-wav': '.wav',
-  'audio/flac': '.flac',
-  'audio/ogg': '.ogg',
-  'audio/x-m4a': '.m4a',
-  'text/markdown': '.md',
-  'text/plain': '.txt',
-};
-
 /**
  * 把 dataURL（形如 data:<mime>;base64,xxxx）解成二进制 Buffer，并给出扩展名。
  * @returns null 表示不是可解析的 dataURL
@@ -101,7 +78,8 @@ function decodeDataUrl(dataUrl: string): { buffer: Buffer; ext: string } | null 
     return null;
   }
   if (buffer.length === 0) return null;
-  const ext = MIME_TO_EXT[mime] || (isBase64 && mime.startsWith('image/') ? '.bin' : '.bin');
+  // 扩展名唯一实现 mimeToExt（utils/mime.ts）；表外回 .bin（对齐旧兜底）
+  const ext = mimeToExt(mime) ?? '.bin';
   return { buffer, ext };
 }
 
@@ -110,12 +88,7 @@ function decodeDataUrl(dataUrl: string): { buffer: Buffer; ext: string } | null 
 // 因此 rescan 入库的 url 必须补全为可访问的完整地址。
 // 更新(2026-09-04)：基址改读 PORT（默认 18080），消除原硬编码 `:18080` 忽略 PORT 的弊病
 // （见 utils/localToolBaseUrl.ts / Temp/deepening-localtool-baseurl-seam-20260904.md）。
-const LOCAL_TOOL_BASE = localToolBaseUrl();
-function toAbsoluteFileUrl(relativePath: string): string {
-  if (!relativePath) return relativePath;
-  if (/^https?:\/\//i.test(relativePath)) return relativePath;
-  return `${LOCAL_TOOL_BASE}${relativePath.startsWith('/') ? '' : '/'}${relativePath}`;
-}
+// 更新(2026-09-11)：toAbsoluteFileUrl 唯一实现已收口 utils/localToolBaseUrl.ts，本文件委托。
 
 /**
  * 资源 id 规则：`local-${folder}-${name}`（顶层文件 folder 为空 → `local-${name}`）。

@@ -249,5 +249,81 @@ for (const f of files) {
 }
 if (!envelopeViol) console.log('  ✅ 无另立结果信封 interface');
 
+// ─────────────────────────────────────────────────────────────────
+// 规则 3（TD-11-8，2026-09-11）：AI 工具层禁止裸调画布写操作，必须经 canvasHost。
+//
+// 【为什么存在】agent/index.ts 契约写明「画布写操作 → 只经 canvasHost，禁止裸 ctx.setNodes/setEdges/addNodes」，
+// 但 2026-09-11 审计实测 connect_nodes/batch_connect_nodes/delete_edge 三工具共 4 处裸调 ctx.setEdges
+// 绕过唯一入口（根因：canvasHost 缺 removeEdges 原语，被逼裸调）。已补原语 + 收口，本规则防回潮。
+//
+// 【判定】在 agent/canvas 工具层文件里，检测「从 ctx 解构出 setNodes/setEdges/addNodes/addEdges」
+// 或直接 `ctx.setNodes(...)` 调用。canvasHost.ts 本体豁免（它就是唯一实现）。
+// ─────────────────────────────────────────────────────────────────
+const CANVAS_WRITE_BAN = new Set(['setNodes', 'setEdges', 'addNodes', 'addEdges']);
+const CANVAS_WRITE_SCOPE = 'src/components/agent/canvas/';
+const CANVAS_WRITE_EXEMPT = new Set([
+  'src/components/agent/canvas/canvasHost.ts', // 唯一实现本体
+]);
+let canvasWriteViol = 0;
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  if (!rel.startsWith(CANVAS_WRITE_SCOPE) || CANVAS_WRITE_EXEMPT.has(rel)) continue;
+  let code;
+  try {
+    code = readFileSync(f, 'utf8');
+  } catch {
+    continue;
+  }
+  let ast;
+  try {
+    ast = parse(code, {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: true,
+    });
+  } catch {
+    continue;
+  }
+  const hits = [];
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) {
+      n.forEach(walk);
+      return;
+    }
+    // ① 从 ctx 解构画布写函数：const { setNodes, ... } = ctx
+    if (n.type === 'VariableDeclarator' && n.id?.type === 'ObjectPattern') {
+      const init = n.init;
+      const fromCtx =
+        init && (init.name === 'ctx' || (init.type === 'MemberExpression' && init.property?.name === 'ctx'));
+      if (fromCtx) {
+        for (const p of n.id.properties || []) {
+          const pname = p.key?.name || p.value?.name;
+          if (CANVAS_WRITE_BAN.has(pname)) hits.push({ line: n.loc?.start?.line, name: pname });
+        }
+      }
+    }
+    // ② 直接调用 ctx.setNodes(...) / ctx.setEdges(...)
+    if (n.type === 'CallExpression' && n.callee?.type === 'MemberExpression') {
+      const obj = n.callee.object;
+      const prop = n.callee.property?.name;
+      if (CANVAS_WRITE_BAN.has(prop) && obj && (obj.name === 'ctx' || obj.property?.name === 'ctx')) {
+        hits.push({ line: n.loc?.start?.line, name: `ctx.${prop}` });
+      }
+    }
+    for (const k in n)
+      if (k !== 'loc' && k !== 'range' && typeof n[k] === 'object' && n[k] !== null) walk(n[k]);
+  };
+  walk(ast.program);
+  for (const h of hits) {
+    canvasWriteViol++;
+    fail(
+      `工具层裸调画布写操作: ${rel}:${h.line} → ${h.name}` +
+        `（必须经 canvasHost；缺原语就在 canvasHost 补原语，勿绕过唯一入口）`,
+    );
+  }
+}
+if (!canvasWriteViol) console.log('  ✅ 工具层无裸调画布写操作（均经 canvasHost）');
+
 console.log(`\n${errors === 0 ? '✅ 架构校验通过' : `❌ ${errors} 处架构违规`}`);
 process.exit(errors === 0 ? 0 : 1);

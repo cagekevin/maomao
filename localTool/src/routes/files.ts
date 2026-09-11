@@ -31,6 +31,7 @@ import { logTs } from '../utils/relayHeaders.js';
 import { localToolBaseUrl } from '../utils/localToolBaseUrl.js';
 import { saveBase64ToFile } from '../utils/base64Externalize.js';
 import { applyResourceIdentityChange } from './resources.js';
+import { extToMime, mimeToExt } from '../utils/mime.js';
 
 const BASE_URL = localToolBaseUrl();
 
@@ -40,29 +41,6 @@ const BASE_URL = localToolBaseUrl();
  * 产出「.webp 文件名 + 原格式字节」的假 webp（不省体积 + MIME 错标）。故一律禁掉。
  */
 const SUPPORTED_THUMB_FORMATS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff']);
-
-/**
- * 下载落盘用：响应 Content-Type → 文件扩展名。
- * 很多 CDN 图 URL 的 path 不带后缀（如 /download、/ep5579504），落盘后无扩展名会导致
- * 服务端按扩展名给 Content-Type/生成缩略图/类型识别全部失效。下载后按真实 Content-Type 补后缀。
- * 无法识别的 MIME 不在表内 → 保持无后缀（同旧行为）。
- */
-const MIME_TO_EXT: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/gif': 'gif',
-  'image/svg+xml': 'svg',
-  'image/avif': 'avif',
-  'image/bmp': 'bmp',
-  'image/tiff': 'tiff',
-  'video/mp4': 'mp4',
-  'video/webm': 'webm',
-  'audio/mpeg': 'mp3',
-  'audio/mp4': 'm4a',
-  'audio/wav': 'wav',
-  'audio/ogg': 'ogg',
-};
 
 /**
  * saveRemoteUrl 的落盘结果信封。
@@ -285,8 +263,9 @@ async function doSaveRemoteUrl(
   let finalName = stableName;
   if (needsExt) {
     const mime = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-    const ext = MIME_TO_EXT[mime];
-    if (ext) finalName = `${stableName}.${ext}`;
+    // 扩展名唯一实现 mimeToExt（utils/mime.ts）；返回带点，落盘拼名去点
+    const dottedExt = mimeToExt(mime);
+    if (dottedExt) finalName = `${stableName}${dottedExt}`;
   }
 
   // 幂等：按最终文件名判存在，重复到达只落一次
@@ -338,35 +317,14 @@ export async function handleRead(
     return sendError(res, 'Missing path parameter', 400);
   }
 
-  // 支持 X-Proxy-* 头做代理读
-  const proxyUrl = req.headers['x-proxy-url'] as string | undefined;
-  if (proxyUrl) {
-    return handleReadProxy(req, res, proxyUrl);
-  }
-
+  // 更新(2026-09-11)：旧 x-proxy-* 代理读分支已删除——该机制已随 2026-09-03 收口退役
+  // （CLAUDE §5.7 明令禁止恢复），前端 0 调用，属退役残留死代码。
   if (!fs.existsSync(filePath)) {
     return sendError(res, 'File not found', 404);
   }
 
-  const ext = path.extname(filePath).toLowerCase();
-  const mimeMap: Record<string, string> = {
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.webp': 'image/webp',
-    '.gif': 'image/gif',
-    '.mp4': 'video/mp4',
-    '.webm': 'video/webm',
-    '.mp3': 'audio/mpeg',
-    '.wav': 'audio/wav',
-    '.json': 'application/json',
-    '.txt': 'text/plain',
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'application/javascript',
-  };
-
-  const contentType = mimeMap[ext] || 'application/octet-stream';
+  // MIME 唯一实现 extToMime（utils/mime.ts），未登记回 octet-stream
+  const contentType = extToMime(path.extname(filePath));
   const stat = fs.statSync(filePath);
 
   res.writeHead(200, {
@@ -374,45 +332,6 @@ export async function handleRead(
     'Content-Length': stat.size,
   });
   fs.createReadStream(filePath).pipe(res);
-}
-
-async function handleReadProxy(
-  req: IncomingMessage,
-  res: ServerResponse,
-  proxyUrl: string,
-): Promise<void> {
-  const proxyMethod = (req.headers['x-proxy-method'] as string) || 'GET';
-  const proxyHeadersRaw = req.headers['x-proxy-headers'] as string | undefined;
-  const proxyCookie = req.headers['x-proxy-cookie'] as string | undefined;
-
-  let proxyHeaders: Record<string, string> = {};
-  if (proxyHeadersRaw) {
-    try {
-      proxyHeaders = JSON.parse(proxyHeadersRaw);
-    } catch {
-      // ignore
-    }
-  }
-  if (proxyCookie) {
-    proxyHeaders['Cookie'] = proxyCookie;
-  }
-
-  try {
-    // 代理读可能指向外部 CDN（如 Lovart），用 fetchWithProxy 支持跨平台代理
-    const fetchRes = await fetchWithProxy(proxyUrl, {
-      method: proxyMethod,
-      headers: proxyHeaders,
-    });
-
-    const resBody = Buffer.from(await fetchRes.arrayBuffer());
-    res.writeHead(fetchRes.status, {
-      'Content-Type': fetchRes.headers.get('content-type') || 'application/octet-stream',
-      'Content-Length': resBody.length,
-    });
-    res.end(resBody);
-  } catch (e) {
-    sendError(res, `Proxy read failed: ${(e as Error).message}`, 502);
-  }
 }
 
 // ── thumbnail ──
@@ -471,18 +390,10 @@ export async function handleThumbnail(
   if (!fs.existsSync(thumbPath)) {
     return sendError(res, 'Thumbnail not found', 404);
   }
-  const mimeMap: Record<string, string> = {
-    png: 'image/png',
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    gif: 'image/gif',
-    bmp: 'image/bmp',
-    tiff: 'image/tiff',
-    webp: 'image/webp',
-  };
+  // MIME 唯一实现 extToMime（utils/mime.ts），未登记回 octet-stream
   const stat = fs.statSync(thumbPath);
   res.writeHead(200, {
-    'Content-Type': mimeMap[outExt] || 'application/octet-stream',
+    'Content-Type': extToMime(`.${outExt}`),
     'Content-Length': stat.size,
     'Cache-Control': 'public, max-age=86400',
   });

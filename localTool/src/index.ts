@@ -28,6 +28,7 @@ import { routes, matchRoute } from './router.js';
 import { handlePassthrough } from './routes/passthrough.js';
 import { initLogWriter } from './utils/logWriter.js';
 import { initRelayPoller } from './relay-poll.js';
+import { extToMime } from './utils/mime.js';
 
 // ── 轻量 .env 加载（无 dotenv 依赖，localTool 仅 sql.js 一个运行时依赖）──
 // 读取 localTool/.env（路径真源 paths.ts），注入 process.env。
@@ -75,8 +76,9 @@ const SILENT_LOG_PATHS = new Set([
   '/api/tasks',
   '/api/providers',
 ]);
-// 注：/api/proxy 不在静默集——生图/对话链路请求须有主分行可追（L1-2.3，缺口 M5-d）。
-// system.ts handleProxy 内部另有 [proxy]:…ms 明细；此处主分行保留「有痕」基线。
+// 更新(2026-09-11)：旧 /api/proxy 与 system.ts handleProxy 均已随 relay 收口退役
+// （routes/system.ts 文件头已声明整段移除），此处静默集注释清理；生成链路请求
+// （/api/generate）不在静默集，主分行保留「有痕」基线。
 
 // ── 端口冲突检测 ──
 function checkPortAvailable(port: number): Promise<void> {
@@ -203,24 +205,8 @@ function handleStaticFile(
   }
 
   const ext = path.extname(resolvedPath).toLowerCase();
-  const mimeMap: Record<string, string> = {
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.webp': 'image/webp',
-    '.gif': 'image/gif',
-    '.mp4': 'video/mp4',
-    '.webm': 'video/webm',
-    '.mp3': 'audio/mpeg',
-    '.wav': 'audio/wav',
-    '.json': 'application/json',
-    '.txt': 'text/plain',
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'application/javascript',
-  };
-
-  const contentType = mimeMap[ext] || 'application/octet-stream';
+  // MIME 唯一实现 extToMime（utils/mime.ts）；/files/ 通用媒体/文本表，未登记回 octet-stream
+  const contentType = extToMime(ext);
   const stat = fs.statSync(resolvedPath);
 
   // 必须带 Range 支持：/files/* 的媒体是 <video> 随机 seek 的数据源（见 sendFileWithRange 注释）
@@ -467,9 +453,9 @@ async function main(): Promise<void> {
     console.log('           /api/tasks/delete  /api/tasks/batch-delete  /api/tasks/clear');
     console.log('    资源:   /api/resources  /api/resources/save  /api/resources/batch-save');
     console.log('           /api/resources/delete  /api/resources/clear');
-    console.log('    代理:   /api/proxy');
     console.log('    管理:   /api/admin/stats  /api/admin/cleanup');
     console.log('           /api/admin/export  /api/admin/import');
+    console.log('    生成:   /api/generate  (chat 同步/SSE · image/video 异步句柄)');
     console.log('    剪映:   /api/jianying/send');
     console.log('    平台:   /plugin/manifest.json  /api/workflow-apps/by-project/:id');
     console.log('    内置:   /public/platform/builtin  /public/platform/models');

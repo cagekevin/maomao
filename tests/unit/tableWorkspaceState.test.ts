@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as contentStore from '../../src/components/base/core/contentStore.ts';
 const { contentClearCache, contentGet } = contentStore;
+import { logger } from '../../src/components/base/core/logger.ts';
 import {
   resetConversationCache,
   ensureActiveConversation,
@@ -19,6 +20,8 @@ import { appendMsg } from '../../src/components/agent/runtime/agentMessages.ts';
 import {
   parsePasted,
   getActiveTab,
+  mergeColumnsByLabel,
+  type TableColumn,
 } from '../../src/components/agent/assistantTable/assistantTable.ts';
 import {
   getTableWorkspace,
@@ -454,5 +457,36 @@ describe('业界模型运行态（spec interaction-model §3：focusedCell/editi
     switchTableTab('t2');
     expect(getTableWorkspace().focusedCell).toBeNull();
     expect(getTableWorkspace().editingCell).toBeNull();
+  });
+});
+
+describe('TD-11-10 防回潮：运行态不变量自检已接线 + 列合并单一真相源', () => {
+  it('setState 触发 validateWorkspace：dev 下对幽灵引用告警（修「写了不跑=形同没写」）', () => {
+    setupConvWithTable(); // 一张真实表（2 行），幽灵格必越界
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    // focusedCell 指向不存在的 row/col → 应触发 W4（此前 validateWorkspace 零生产调用，从不跑）
+    setTableFocusedCell({ rowId: 'ghost-row', colId: 'ghost-col' });
+    expect(warnSpy).toHaveBeenCalledWith(
+      'AI助手表格',
+      expect.stringContaining('运行态不变量告警 W4'),
+      expect.anything(),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('mergeColumnsByLabel：现有列保 id、按归一去重、新列追加新 id', () => {
+    const existing: TableColumn[] = [
+      { id: 'c1', label: 'Name' },
+      { id: 'c2', label: 'Age' },
+    ];
+    // 'Name ' 归一(去尾空格)命中 'Name'（不新增）；' City' 归一 'city' 未命中 → 追加
+    // 注：归一仅 trim+空白折叠（大小写敏感，与原 buildPreviewResult 口径一致）
+    const merged = mergeColumnsByLabel(existing, ['Name ', ' City']);
+    expect(merged.length).toBe(3);
+    expect(merged[0].id).toBe('c1'); // 现有列 id/width 不动
+    expect(merged[1].id).toBe('c2');
+    expect(merged[2].label).toBe(' City'); // 来源 label 字面保留
+    expect(merged[2].id).not.toBe('c1'); // 新列拿到新 id（非复用）
+    expect(merged[2].id).not.toBe('c2');
   });
 });

@@ -210,6 +210,24 @@ export async function load(): Promise<void> {
   }
 }
 
+/**
+ * 云同步「下载云端」成功后重水合（TD-13 修复落地）：重拉 providers 覆盖内存态。
+ * 与 load() 区别：不切 loading / 不清 testResult（静默 rehydrate，避免 UI 闪烁）；
+ * 读取失败仅告警、保留原内存态（下载失败不应让当前可用配置消失）。
+ */
+export async function reloadProviders(): Promise<void> {
+  try {
+    const data = await providerApi.getProviders();
+    const list: Provider[] = Array.isArray(data?.data?.providers)
+      ? data.data.providers.map(normalizeProvider)
+      : [];
+    const primary = list.find((p) => p.primary) || list[0];
+    setState({ providers: list, selectedId: primary ? primary.id : null, dirty: false });
+  } catch (e) {
+    logger.warn('provider', 'reload-fail', { error: e?.message });
+  }
+}
+
 export function select(id: string | null): void {
   setState({ selectedId: id, testResult: null });
 }

@@ -15,7 +15,7 @@ import NodeShell from '../base/ui/NodeShell.tsx';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
-import { replaceNodeImage } from './nodeImage.ts';
+import { replaceNodeImage } from '../base/nodeImage.ts';
 import { detectMediaType } from '../base/utils/mediaType.ts';
 import type { MediaType } from '@/types';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';

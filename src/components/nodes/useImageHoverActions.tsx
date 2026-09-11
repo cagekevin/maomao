@@ -16,7 +16,7 @@ import { showToast, toastError } from '../base/core/toastStore.ts';
  * 两节点只声明差异项（上传语义不同），共享能力一处维护、一处修复。
  *
  * 【解耦写回】hook 不耦合 setNodes / patchData 差异：调用方传 onImageReplaced(dataUrl, dims?)，
- * 由各自节点决定如何把新图写回（两节点均经 nodes/nodeImage.ts 的 replaceNodeImage 唯一写入口）。
+ * 由各自节点决定如何把新图写回（两节点均经 base/nodeImage.ts 的 replaceNodeImage 唯一写入口）。
  * hook 只负责「产出新 dataURL」。
  *
  * 【保存出口统一「先落盘再写回」】编辑器保存 / 就地裁剪 / 压缩 / 放大四条路径同构：

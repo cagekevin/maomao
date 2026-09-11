@@ -19,7 +19,8 @@ import {
   readProvider,
   writeProviderConfigFile,
   seedFromDefaultFile,
-  readProviderConfigFile,
+  readConfiguredBaseUrl,
+  resolveProviderApiKey,
 } from '../providerConfigStore.js';
 import { getEnvFile, getProviderSeedFile } from '../paths.js';
 import { getProviderDefinition } from '../ai-relay/index.js';
@@ -84,21 +85,16 @@ export async function handleProvidersPut(req: IncomingMessage, res: ServerRespon
 /**
  * 从 .env 读某 provider 的凭证（不入库/不回读明文给前端）。
  *
- * 【修复】此前只猜 `API_PROVIDER_{ID}_KEY`，导致凭证名不同的厂商（lovart 用
- * LOVART_ACCESS_KEY/LOVART_SECRET_KEY）永远读空 → 测试连接恒报「缺少 API Key」。
- * 现在按厂商目录声明的 envKeys 顺序依次查找，首个命中即返回；
- * 未声明的厂商回落统一命名，保持既有行为。
- *
- * 注：process.env 优先（index.ts 启动时 loadDotEnv 注入），文件兜底，
- * 兼容运行期新增凭证未重启的场景。
+ * 【2026-09-11 收口】process.env 读取部分委托 resolveProviderApiKey（唯一实现，
+ * 内部已走 providerCredentials.envKeysFor：厂商声明优先、未声明回落统一命名，
+ * 修复了「只猜 API_PROVIDER_{ID}_KEY 导致 lovart 恒读空」的历史问题）。
+ * 本函数只保留其独特语义：.env 文件兜底重读（兼容运行期新增凭证未重启）。
  */
 function readEnvKey(providerId: string): string {
+  const fromProc = resolveProviderApiKey(providerId);
+  if (fromProc) return fromProc;
   const def = getProviderDefinition(providerId);
   const names = envKeysFor(providerId, def);
-  for (const name of names) {
-    const fromProc = (process.env[name] || '').trim();
-    if (fromProc) return fromProc;
-  }
   try {
     const envPath = getEnvFile();
     if (!fs.existsSync(envPath)) return '';
@@ -125,13 +121,7 @@ export async function handleProviderTest(req: IncomingMessage, res: ServerRespon
     typeof body?.base_url === 'string' && body.base_url
       ? body.base_url
       : // 纯配置文件厂商（无内置目录定义）→ 用配置文件 base_url 兜底，否则 test-connection 报「未知厂商目录」
-        (() => {
-          const p = readProviderConfigFile(id);
-          return typeof (p as { base_url?: unknown } | null)?.base_url === 'string' &&
-            (p as { base_url: string }).base_url.trim()
-            ? (p as { base_url: string }).base_url
-            : undefined;
-        })();
+        readConfiguredBaseUrl(id);
   const apiKey = typeof body?.key === 'string' && body.key ? body.key : readEnvKey(id);
   const r = await relayTestConnection(id, { apiKey: apiKey || undefined, baseUrl }, undefined);
   return json(res, {

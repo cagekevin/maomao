@@ -3,11 +3,7 @@
  * 对应 AI-Canvas-tauri 的 modelProtocolBody.ts。
  */
 
-const MIME_TYPE_RE = /^[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]*\/[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]*$/;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
+import { isRecord, MIME_TYPE_RE } from './shared.js';
 
 function findHeaderName(headers: Record<string, string>, target: string): string | undefined {
   return Object.keys(headers).find((name) => name.toLowerCase() === target.toLowerCase());

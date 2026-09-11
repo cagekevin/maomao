@@ -7,6 +7,7 @@ import { baseUrlCandidates } from './providerBaseUrl.js';
 import { getProviderDefinition } from './providerCatalog.js';
 import { resolveAuth } from './providerCredentials.js';
 import { stableRequest, RelayHttpError } from './httpTransport.js';
+import { isRecord } from './protocol/shared.js';
 import type { ConnectionTestResult, ProviderDefinition } from './types.js';
 
 type ConnectionConfig = { apiKey?: string; baseUrl?: string; catalogId?: string };
@@ -146,11 +147,6 @@ export interface BalanceResult {
   error?: string;
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
-/** 从常见错误响应形态里抽 message（搬自原仓库 testConnection.readErrorMessage） */
 function readErrorMessage(payload: unknown): string | undefined {
   if (!isRecord(payload)) return undefined;
   if (typeof payload.message === 'string') return payload.message;

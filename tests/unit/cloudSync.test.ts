@@ -213,7 +213,10 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     contentSet('agent_skill_usage', { foo: 1 });
     contentSet('lastOpenedProject', 'p1');
     contentSet('yimao_asset_library', [{ id: 'a' }]);
-    contentSet('agent_draft', '草稿');
+    // 'agent_draft' 已随 TD-17 退役（STORAGE_KEYS 登记已删 → contentSet 会 throw），
+    // 但它仍留在 SYNC_EXCLUDE 作「旧机器残留键」双保险，故用 raw localStorage 写入（绕 contentSet 登记闸）
+    // 验证「即便本地残留也不会进云」。这是残留键唯一合法的测试姿势。
+    localStorage.setItem('agent_draft', '旧机器残留草稿');
     contentSet('mutiwindow-clipboard', 'clip');
     contentSet('projects', [{ id: 'p1', name: '项目' }]); // 项目列表：有独立跨端通道，不应进云
     fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }));

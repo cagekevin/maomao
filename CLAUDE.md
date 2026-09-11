@@ -302,7 +302,8 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
    - **做法**：抽出唯一实现放既有归属模块，其余调用方改为委托；**不留 re-export 兼容层、不留旧分支**（§5.7 被运行时契约钉死的字符串除外）。
    - **同一语义的两种输入形态不算两条规则**（如 File 源 vs dataURL 源）——它们必须共用同一份**失败/降级策略**，不得各自降级。
    - **已收口的先例（禁止回退，新增同类能力一律挂到这些唯一实现上）**：
-     - **媒体判型唯一真值源** `components/base/utils/mediaType.ts`：一张 `EXT_KIND` 表 + data: 前缀；`classifyUrlKind / classifyUrl / resolveMediaType / detectMediaType / detectFileType / isAudio` 全部由它派生（`ogg`→audio、`ogv`→video、先剥 `?#` 再判扩展名、未知 `data:` 不扫 base64）。类型 `MediaKind / ResultKind` 在 `src/types/media.ts`；`resultUrlExtractor` 只负责结果 URL 提取，不得再判类型。
+     - **媒体判型唯一真值源** `components/base/utils/mediaType.ts`：一张 `EXT_KIND` 表 + data: 前缀；`classifyUrlKind / classifyUrl / resolveMediaType / detectMediaType / detectFileType / isAudio` 全部由它派生（`ogg`→audio、`ogv`→video、先剥 `?#` 再判扩展名、未知 `data:` 不扫 base64）。类型 `MediaKind / ResultKind` 在 `src/types/media.ts`。
+       ── 更新(2026-09-11)：原「`resultUrlExtractor` 只负责结果 URL 提取，不得再判类型」一项已删——该模块是**生产级死代码**（0 import，仅自证单测），其 `classifyUrl/resolveMediaType` 早收口进 mediaType.ts，遗留 `extractResultUrl` 从未被调用；区域内审计时连模块删单测一起清。结果 URL 提取现由 localTool 后端落盘 `/files/` 直返 / `t.data[0].url` 契约直读承担，**无独立提取器**。禁止因这句历史规则去恢复它。
      - **节点样板收口 hook**：`useNodeRename`（标题改名写回 `data.label`）、`useNodeExpanded`（展开态三件套）、`useNodeField`（可编辑字段 state ↔ data 落盘）、`useNodeData`（node.data 写回唯一入口）。
      - **图像入节点落盘策略**唯一实现（`filesApi`）：`resolveNodeImageUrl`（File 源：直传 multipart → 落盘失败读内联 dataURL 兜底 → 连内联都拿不到才返回 null）+ `showThenPersistInline`（dataURL 源：立即上屏 → 落盘 → 成功才换持久 URL）。**统一降级 = 落盘失败一律回退内联，不阻断、不回滚、不报错**；只有"连内联都拿不到"才算真失败，由调用方提示一次错误。消费方（`AssetNode` 上传、`useAssetDropPaste` 拖入/粘贴、`ImageGenerate` 上传参考图、`useImageHoverActions` 四条编辑出口）已全部委托，**禁止再写第二套降级**。
 

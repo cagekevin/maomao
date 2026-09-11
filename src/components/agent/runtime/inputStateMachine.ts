@@ -34,7 +34,7 @@
  * 输入区状态（对齐大雄）
  * awaiting_confirm：三阶段门禁（show_plan_for_confirm / 积分闸）暂停等用户点确认时由
  * useAgentChat 置位；不在 RUNNING 集合内（此时按钮回落到 send/idle，确认走消息上的确认卡）。
- * 与 workflowRuntime 的 status 全集、workflowState.WorkflowStatus 保持一致。
+ * 与 workflowState.WorkflowStatus 保持一致（原同时对齐的 workflowRuntime 已于 2026-09-11 作为死代码删除，见 TD-11-6）。
  */
 export type InputStatus =
   | 'idle'

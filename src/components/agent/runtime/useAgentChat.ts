@@ -83,7 +83,12 @@ import {
   captureActiveConversation,
   getActiveConversationId,
   getCurrentSnapshot,
-  setCurrentSnapshot,
+  // 【TD-11-5 窄接口】单字段原子写：一次只改一件语义事（禁再用 setCurrentSnapshot 列举字段）
+  setCurrentDraft,
+  setCurrentSkills,
+  setCurrentAttachments,
+  setCurrentMessages,
+  resetCurrentConversationToEmpty,
   getCurrentWorkflow,
   patchCurrentWorkflow,
   getCurrentPending,
@@ -290,11 +295,18 @@ export interface UseAgentChatReturn {
   runExistingConfirm: () => Promise<{ ok: boolean; error: unknown; data: unknown }>;
   getCreditGate: () => { pending?: boolean; gens?: unknown[] } | null;
   clearCreditGate: () => void;
-  setCurrentSnapshot: (patch: Record<string, unknown>) => void;
-  setAwaitingConfirm: (v: boolean) => void;
-  setCurrentAssistantTable: typeof setCurrentAssistantTable;
-  setCurrentGlobalContract: typeof setCurrentGlobalContract;
-  markMessageTableResolved: typeof markMessageTableResolved;
+  /**
+   * 【TD-17 · 展示→编排轴 action 化】以下 4 个是**语义化 action**，不是 store 原子函数透传：
+   * 过去 `UseAgentChatReturn` 直接回传 `setCurrentSnapshot`/`setAwaitingConfirm`/
+   * `setCurrentAssistantTable`/`setCurrentGlobalContract`/`markMessageTableResolved` 5 个 store 写操作，
+   * 展示层由此持有「改会话状态」的写权（可任意 patch 会话字段）——违反「UI 只表达意图」。
+   * 现收窄为意图签名：UI 说「存草稿 / 存技能 / 存附件 / 关闭确认门禁」，由 hook 翻译成对应 store 写。
+   * 需要新的写入场景 → 在此**加 action**，禁止恢复透传 store 函数。
+   */
+  saveSkills: (skills: unknown[]) => void;
+  saveDraft: (draft: string) => void;
+  saveAttachments: (attachments: unknown[]) => void;
+  closeAwaitingConfirm: () => void;
 }
 
 export function useAgentChat({
@@ -586,12 +598,10 @@ export function useAgentChat({
       setSending(true);
       setError(null);
       stateMachineRef.current.start({ status: 'planning' });
-      setCurrentSnapshot({
-        messages: getCurrentSnapshot().messages,
-        skills: skillsRef.current,
-        draft: '',
-        attachments: [],
-      });
+      // 清 draft + attachments：**正当副作用**——内容已随本次 send 发出，输入框理应清空（会话数据语义下
+      // 「草稿 = 尚未提交的内容」，提交后即空）。勿删这两条。
+      setCurrentDraft('');
+      setCurrentAttachments([]);
       patchCurrentWorkflow(wfStart());
 
       // 构造 user 消息（附件归一化：blob→data、相对→绝对；只认 base64 的 provider 转 base64）
@@ -800,12 +810,12 @@ export function useAgentChat({
         // 清理所有 streaming 残留占位（不只最后一个）：循环中途出错可能残留多轮 streaming:true 占位
         stripStreaming();
       } finally {
-        // 无论成功/失败/中止都落盘当前对话（对齐大雄：capture 快照到 conversations，per-conversation 持久化）
-        setCurrentSnapshot({
-          messages: getCurrentSnapshot().messages,
-          skills: skillsRef.current,
-          draft: '',
-        });
+        // 【TD-11-5 修正 2026-09-11】原此处 `setCurrentSnapshot({ messages: <读回原值>, skills })` 是 **no-op**：
+        //   - `messages: getCurrentSnapshot().messages` = 读回自己再写回自己（部分 patch 下等价于不传）；
+        //   - `skills: skillsRef.current` 已有独立写点 `saveSkills`（AgentPanel effect）负责落盘。
+        // 删除后语义零变化的依据：消息在循环内每步都已 `endStreaming/patchCurrentMessages` 写进 store，
+        // 且 `draft: ''` 早已因「会清掉回复期间新输入」被移除——这段的唯一效果就是制造一次多余的 commit+落盘。
+        // 保留注释作为「此处曾有此 write」的线索，勿凭"看起来要落盘"再把它加回来。
         // 更新 workflow 终态（completed/failed/stopped）；清除 pending（任务已有结果，不再需要刷新恢复）
         const wfStatus = !ok ? (aborted ? 'stopped' : 'failed') : 'completed';
         // 【三阶段门禁】展示策划后暂停：workflow 置 awaiting_confirm，状态机同步，等待用户确认按钮。
@@ -884,27 +894,9 @@ export function useAgentChat({
     setAwaitingConfirm(false);
     // 【积分闸】清空对话时一并清除 creditGate（含映射），防残留"待点生成"永久拒（对齐 awaitingConfirm 同清理）
     clearCreditGate();
-    // 落盘当前对话为空（messages/attachments/workflow/pending/memory 一并清空）
-    setCurrentSnapshot({
-      messages: [],
-      skills: skillsRef.current,
-      draft: '',
-      attachments: [],
-      workflow: null,
-      pending: null,
-      memory: {
-        summary: '',
-        facts: [],
-        lastPlan: null,
-        lastSharedStyle: '',
-        notes: [],
-        global_contract: null,
-        artifacts: null,
-        assistantTables: null,
-      },
-      pendingGenerations: null,
-      awaitingConfirm: false,
-    });
+    // 落盘当前对话为空（语义动作；字段清单收敛到 resetCurrentConversationToEmpty 一处，
+    // 原就地手写 11 字段 = 复制 emptyMemory 定义，加字段必漏 —— TD-11-5）
+    resetCurrentConversationToEmpty(skillsRef.current);
     try {
       captureActiveConversation();
     } catch {
@@ -963,46 +955,54 @@ export function useAgentChat({
     [], // setHistory 是模块级 import 函数（稳定），其余走 ref，非渲染依赖
   );
 
-  /** 新建对话（#9）：capture 当前 → 建空对话并切换；通知 UI 层更新 skills/草稿 */
+  /**
+   * 【TD-17 修正 2026-09-11 · 切换前只做「留存」，绝不列举字段】
+   *
+   * 原三处（newChat/switchChat/deleteChat）切前手写 `setCurrentSnapshot({ messages, skills, draft: '' })`：
+   *  - `draft: ''` 是**独立 `agent_draft` 键时代**的遗留防御（那时草稿不在会话里，切对话必须手动清防串台）。
+   *    草稿收敛进 `conv.draft`（per-conversation、随会话落盘）后，这一清变成**数据破坏**：
+   *    清的是「即将离开的会话」的草稿 → 切走再切回，未发送的内容永久丢失。
+   *  - 字段白名单本身也是病灶：`setCurrentSnapshot` 是部分 patch，**未来加会话字段就得记得回来加**，
+   *    漏一次即静默不同步（TD-17 同源的复利形态）。
+   *
+   * 现语义：切换前唯一的动作是「把**当前**对话的实时内存态留存下来」——而 `messages`/`skills`
+   * 在各自写点（agentMessages / saveSkills）就已同步进会话，**此处无需再列举任何字段**。
+   * 留一个空实现而是显式命名函数，是为了让「切换前要做留存」这件事可见、可挂载（若将来确有需 flush 的
+   * 派生字段，加在这里一处，而不是三个入口各抄一遍）。
+   */
+  const flushCurrentConversation = useCallback(() => {
+    // 暂无需要额外 flush 的字段：会话真源（messages/skills/draft/attachments）已在各自写点同步。
+    // 【禁】在此列举 setCurrentSnapshot 字段——那会重新引入「漏一处即静默不同步」的病灶。
+  }, []);
+
+  /** 新建对话（#9）：留存当前 → 建空对话并切换；通知 UI 层更新 skills/草稿 */
   const newChat = useCallback(() => {
     if (getState().sending) return;
-    setCurrentSnapshot({
-      messages: getCurrentSnapshot().messages,
-      skills: skillsRef.current,
-      draft: '',
-    });
+    flushCurrentConversation();
     const { id, snapshot } = newConversation();
     applyConversationState(id, snapshot);
-  }, [applyConversationState]);
+  }, [applyConversationState, flushCurrentConversation]);
 
   /** 切换对话（#9） */
   const switchChat = useCallback(
     (id) => {
       if (getState().sending || !id || id === getActiveConversationId()) return;
-      setCurrentSnapshot({
-        messages: getCurrentSnapshot().messages,
-        skills: skillsRef.current,
-        draft: '',
-      });
+      flushCurrentConversation();
       const snapshot = switchConversation(id);
       applyConversationState(id, snapshot);
     },
-    [applyConversationState],
+    [applyConversationState, flushCurrentConversation],
   );
 
   /** 删除对话（#9）：删除后自动切到下一个；若全删空则建新对话 */
   const deleteChat = useCallback(
     (id) => {
       if (getState().sending) return;
-      setCurrentSnapshot({
-        messages: getCurrentSnapshot().messages,
-        skills: skillsRef.current,
-        draft: '',
-      });
+      flushCurrentConversation();
       const { activeId, snapshot } = deleteConversation(id);
       applyConversationState(activeId, snapshot);
     },
-    [applyConversationState],
+    [applyConversationState, flushCurrentConversation],
   );
 
   /** 重命名对话（写 title 并持久化；不切换会话，仅列表改名） */
@@ -1011,8 +1011,34 @@ export function useAgentChat({
     renameConversation(id, title);
   }, []);
 
+  /**
+   * 【TD-17 · 展示→编排轴 action 化】UI 意图 → 会话草稿快照。
+   * 草稿唯一真源 = 当前对话的 `conv.draft`（随会话落盘，per-conversation，切对话自动跟随），
+   * UI 不再自持「独立存储键 + 内存 state」双份副本（原 `agent_draft` 键已退役，见 AgentPanel）。
+   */
+  const saveDraft = useCallback((draft: string) => {
+    setCurrentDraft(draft);
+  }, []);
+
+  /** 【TD-17】UI 意图 → 会话技能快照（skills 挂当前对话，随会话落盘） */
+  const saveSkills = useCallback((skills: unknown[]) => {
+    setCurrentSkills(skills);
+  }, []);
+
+  /** 【TD-17】UI 意图 → 会话附件快照（附件挂当前对话，随会话落盘） */
+  const saveAttachments = useCallback((attachments: unknown[]) => {
+    setCurrentAttachments(attachments);
+  }, []);
+
+  /** 【TD-17】UI 意图 → 关闭确认门禁（记忆确认卡取消 / 策划确认后收起） */
+  const closeAwaitingConfirm = useCallback(() => {
+    setAwaitingConfirm(false);
+  }, []);
+
   // 更新某条 assistant 消息的字段（按内容弱定位），同步 state + ref + 落盘。
   // 现仅用于 cancelPendingConfirm 清除 awaiting_confirm。
+  // 【TD-17 修正】只传 messages：本函数职责是「改消息字段」，**不应顺带清草稿**（无理由的副作用）。
+  // HINT 里若传了 draft 等字段仍会照常覆盖（patch 语义保留），但默认不碰。
   const updateMessageByContent = useCallback(
     (assistantContent, patch) => {
       if (!assistantContent) return;
@@ -1020,7 +1046,7 @@ export function useAgentChat({
         m.role === 'assistant' && m.content === assistantContent ? { ...m, ...patch } : m,
       );
       setHistory(next);
-      setCurrentSnapshot({ messages: next, skills: skillsRef.current, draft: '' });
+      setCurrentMessages(next);
       try {
         captureActiveConversation();
       } catch {
@@ -1090,13 +1116,14 @@ export function useAgentChat({
     runExistingConfirm,
     getCreditGate,
     clearCreditGate,
-    // 【展示→编排轴薄适配（收口 AgentPanel 的 store 穿透）】回传 UI 会用到的 store 原子能力，
-    // 使 AgentPanel 不再直接 import conversationStore（唯一入口收敛到本 hook）。这些是 store 的稳定
-    // 模块级函数（透传引用，非拷贝），消息单源下已满足"UI 不直连持久层"的一步；未来如需可再 action 化。
-    setCurrentSnapshot,
-    setAwaitingConfirm,
-    setCurrentAssistantTable,
-    setCurrentGlobalContract,
-    markMessageTableResolved,
+    // 【TD-17 · 展示→编排轴 action 化】UI 只表达意图，不持 store 写权：
+    // 原 5 个 store 写操作透传（setCurrentSnapshot/setAwaitingConfirm/setCurrentAssistantTable/
+    // setCurrentGlobalContract/markMessageTableResolved）已收窄为下列 4 个语义化 action（见接口注释）。
+    // 表格三写（setCurrentAssistantTable/setCurrentGlobalContract/markMessageTableResolved）由
+    // tableWorkspaceState / TableWorkspacePanel 直接调用，UI 层不再需要。
+    saveSkills,
+    saveDraft,
+    saveAttachments,
+    closeAwaitingConfirm,
   };
 }

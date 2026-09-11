@@ -1,15 +1,19 @@
-// 回归测试：useCanvasHistory.js、workflowRuntime.ts
+// 回归测试：useCanvasHistory.js
 // @vitest-environment jsdom
 /**
  * 画布与同步 hooks 回归测试（TASK-066）。
  *
  * 覆盖：
  *  - useCanvasHistory：撤销/重做 hook 层（React 桥接），断言 record/undo/redo/clear 行为。
- *  - workflowRuntime：工作流运行时纯逻辑（生命周期/取消/确认/回滚/撤销栈）。
  *
- * 注：useSyncNodeData 曾在此文件重复覆盖，已迁至专用文件 tests/unit/useSyncNodeData.test.ts（去重）。
+ * 注 ①：useSyncNodeData 曾在此文件重复覆盖，已迁至专用文件 tests/unit/useSyncNodeData.test.ts（去重）。
+ * 注 ②【TD-11-6 / 2026-09-11】：原第 3 节「workflowRuntime 生命周期」已随模块删除——
+ *   `src/components/base/canvas/workflowRuntime.ts` 是**生产级死代码**（0 生产 import，仅自证测试），
+ *   且其 `awaitingConfirm`/`aiUndoStack`/`steerQueue` 与 `agent/conversation/*` 的 per-conversation
+ *   同构实现构成「第二份真相」。真实工作流状态现由 `conversationSkillState` / `workflowState` /
+ *   `conversationSnapshot` 承担。禁止据本注释恢复该模块。
  *
- * 并发安全：仅用 `npx vitest run tests/unit/canvasHooks.test.js` 验证，不占用共享资源。
+ * 并发安全：仅用 `npx vitest run tests/unit/canvasHooks.test.ts` 验证，不占用共享资源。
  */
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
@@ -127,165 +131,3 @@ describe('useCanvasHistory 撤销/重做 hook 桥接', () => {
 // 2. useSyncNodeData —— 已迁至 tests/unit/useSyncNodeData.test.ts
 //    （此前本文件第 2 节重复覆盖同一 hook 的同一批行为，已删除去重）
 // ───────────────────────────────────────────────────────────
-
-// ───────────────────────────────────────────────────────────
-// 3. workflowRuntime
-// ───────────────────────────────────────────────────────────
-import { createWorkflow } from '../../src/components/base/canvas/workflowRuntime.ts';
-
-describe('workflowRuntime createWorkflow 生命周期', () => {
-  it('createWorkflow 初始 status=idle', () => {
-    const wf = createWorkflow({ conversationId: 'c1' });
-    expect(wf.status).toBe('idle');
-    expect(wf.isRunning).toBe(false);
-    expect(wf.nodeIds).toEqual([]);
-    expect(wf.steerQueue).toEqual([]);
-    expect(wf.aiUndoStack).toEqual([]);
-  });
-
-  it('start 后进入 planning/creating_nodes/running（isRunning=true）', () => {
-    const wf = createWorkflow({ conversationId: 'c1' });
-    wf.start('planning');
-    expect(wf.status).toBe('planning');
-    expect(wf.isRunning).toBe(true);
-
-    wf.start('creating_nodes');
-    expect(wf.status).toBe('creating_nodes');
-    expect(wf.isRunning).toBe(true);
-
-    wf.start('running');
-    expect(wf.status).toBe('running');
-    expect(wf.isRunning).toBe(true);
-  });
-
-  it('onStatusChange 回调在状态变化时被调用', () => {
-    const cb = vi.fn();
-    const wf = createWorkflow({ conversationId: 'c1', onStatusChange: cb });
-    wf.start('planning');
-    expect(cb).toHaveBeenCalledWith('planning');
-    wf.finish(true);
-    expect(cb).toHaveBeenCalledWith('completed');
-  });
-
-  it('cancel 真取消所有运行中任务（AbortController）', () => {
-    const wf = createWorkflow({ conversationId: 'c1' });
-    const { signal, cancel: _cancel } = wf.createTask();
-    expect(signal.aborted).toBe(false);
-    wf.cancel();
-    expect(signal.aborted).toBe(true);
-    // cancelTokens 已清空
-    const t2 = wf.createTask();
-    expect(t2.signal.aborted).toBe(false);
-    t2.cancel();
-  });
-
-  it('awaitNode 任务被停止时抛出 AbortError', async () => {
-    const wf = createWorkflow({ conversationId: 'c1' });
-    wf.start('running');
-    const p = wf.awaitNode(
-      (signal) =>
-        new Promise((_, reject) => {
-          signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
-        }),
-    );
-    wf.cancel();
-    await expect(p).rejects.toThrow();
-  });
-
-  it('pushUndo/popUndo 栈行为（后进先出，上限 20）', () => {
-    const wf = createWorkflow({ conversationId: 'c1' });
-    wf.pushUndo({ a: 1 }).pushUndo({ a: 2 });
-    expect(wf.aiUndoStack).toHaveLength(2);
-    expect(wf.popUndo()).toEqual({ a: 2 });
-    expect(wf.popUndo()).toEqual({ a: 1 });
-    expect(wf.popUndo()).toBeNull();
-
-    // 超过 20 条时最旧的被挤出
-    for (let i = 0; i < 25; i++) wf.pushUndo({ i });
-    expect(wf.aiUndoStack).toHaveLength(20);
-    // createWorkflow 的 aiUndoStack 为 unknown[]（src 泛型），断言其为含 i 的对象
-    expect((wf.aiUndoStack[0] as { i: number }).i).toBe(5);
-  });
-
-  it('confirm 翻转 awaitingConfirm（requestConfirm → confirm）', () => {
-    const wf = createWorkflow({ conversationId: 'c1' });
-    wf.start('planning');
-    wf.requestConfirm();
-    expect(wf.status).toBe('awaiting_confirm');
-    expect(wf.awaitingConfirm).toBe(true);
-    wf.confirm();
-    expect(wf.awaitingConfirm).toBe(false);
-    expect(wf.status).toBe('planning');
-  });
-
-  it('rollback 清理本次建的节点（deleteNode 路径）', () => {
-    const wf = createWorkflow({ conversationId: 'c1' });
-    wf.addNode('n1').addNode('n2');
-    expect(wf.nodeIds).toEqual(['n1', 'n2']);
-    const deleteNode = vi.fn();
-    wf.rollback({ deleteNode });
-    expect(deleteNode).toHaveBeenCalledWith('n1');
-    expect(deleteNode).toHaveBeenCalledWith('n2');
-    expect(wf.nodeIds).toEqual([]);
-  });
-
-  it('rollback 走 setNodes 路径（删除本次节点）', () => {
-    const wf = createWorkflow({ conversationId: 'c1' });
-    wf.addNode('n1').addNode('n2');
-    const nodes = [{ id: 'n1' }, { id: 'n2' }, { id: 'keep' }];
-    const setNodes = vi.fn();
-    wf.rollback({ getNodes: () => nodes, setNodes });
-    expect(setNodes).toHaveBeenCalledWith([{ id: 'keep' }]);
-    expect(wf.nodeIds).toEqual([]);
-  });
-
-  it('rollback 缺少 ctx 时安全跳过', () => {
-    const wf = createWorkflow({ conversationId: 'c1' });
-    wf.addNode('n1');
-    expect(() => wf.rollback({})).not.toThrow();
-    expect(wf.nodeIds).toEqual(['n1']); // 未清理
-  });
-
-  it('steer / nextSteer 补充指令队列', () => {
-    const wf = createWorkflow({ conversationId: 'c1' });
-    wf.steer('继续生成', [{ url: 'x' }]);
-    wf.steer('再调整');
-    expect(wf.steerQueue).toHaveLength(2);
-    const first = wf.nextSteer();
-    expect(first.text).toBe('继续生成');
-    expect(wf.nextSteer().text).toBe('再调整');
-    expect(wf.nextSteer()).toBeNull();
-  });
-
-  it('toJSON 序列化关键字段', () => {
-    const wf = createWorkflow({ conversationId: 'c1' });
-    wf.start('running').addNode('n1').pushUndo({ snap: 1 });
-    const j = wf.toJSON();
-    expect(j.conversationId).toBe('c1');
-    expect(j.status).toBe('running');
-    expect(j.nodeIds).toEqual(['n1']);
-    expect(j.aiUndoStack).toEqual([{ snap: 1 }]);
-    expect(typeof j.id).toBe('string');
-  });
-
-  it('finish 完成/失败置对应 status 并清理任务', () => {
-    const wf = createWorkflow({ conversationId: 'c1' });
-    const { signal } = wf.createTask();
-    wf.finish(true);
-    expect(wf.status).toBe('completed');
-    expect(signal.aborted).toBe(true);
-
-    const wf2 = createWorkflow({ conversationId: 'c2' });
-    wf2.start('running');
-    wf2.finish(false);
-    expect(wf2.status).toBe('failed');
-  });
-
-  it('requestStop 置 stopping 并取消任务', () => {
-    const wf = createWorkflow({ conversationId: 'c1' });
-    const { signal } = wf.createTask();
-    wf.requestStop();
-    expect(wf.status).toBe('stopping');
-    expect(signal.aborted).toBe(true);
-  });
-});

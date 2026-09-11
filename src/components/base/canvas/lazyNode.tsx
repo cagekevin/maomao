@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import ErrorBoundary from '../ui/ErrorBoundary.tsx';
 import NodeShell from '../ui/NodeShell.tsx';
 import { logger } from '../core/logger.ts';
+import { NODE_HANDLE_CONTRACT } from '../core/contracts.ts';
 
 /**
  * 重依赖节点的「按需加载」包装（3D 引擎 / 视频处理等）。
@@ -29,16 +30,14 @@ import { logger } from '../core/logger.ts';
  * 端口 → 查不到 → 报 code-008（target/source handle id: null），且在节点挂载后
  * （useSizeSync/尺寸写回触发 updateNodeInternals 重算全画布边）反复刷屏。
  * 故骨架用 NodeShell 渲染，并按本表声明与真实节点一致的端口 id，保证测量期就有正确端口。
- * ⚠️ 新增懒加载节点时，必须与真实节点的 NodeShell sourceHandleId/targetHandleId 保持一致。 */
+ *
+ * 【TD-04-1 收口】本体已从「lazyNode 内联表」改为从 contracts.NODE_HANDLE_CONTRACT 单源派生——
+ * 不再与 App.tsx / 节点文件三处手工维护（此前已漂移）。新增懒加载节点只需在 contracts 登记端口，
+ * 本表自动同步；scripts/check-node-handles.mjs 对账「节点文件声明 ⊆ 契约表」。 */
 const LAZY_NODE_HANDLE_CONTRACT: Record<
   string,
   { targetHandleId?: string; sourceHandleId?: string }
-> = {
-  // director3dNode：真实节点用 NodeShell 默认口（无显式 handleId）→ 这里同样留空
-  director3dNode: {},
-  panoramaNode: { targetHandleId: 'in', sourceHandleId: 'main-output' },
-  videoProcessNode: { targetHandleId: 'default', sourceHandleId: 'main-output' },
-};
+> = NODE_HANDLE_CONTRACT;
 
 /** 骨架内容（纯视觉：转圈 + 文案） */
 function LoadingContent({ label }: { label?: string }) {

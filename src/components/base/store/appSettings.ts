@@ -70,6 +70,18 @@ export function setSetting<K extends SettingKey>(key: K, value: SettingValue<K>)
   if (key === 'debugOn') syncDebugAll(!!value);
 }
 
+/**
+ * 云同步「下载云端」成功后精准重水合（TD-13 修复落地）：重读 contentStore 并通知订阅者。
+ * 背景：app_settings 是模块级缓存（只在本模块 load() 时读一次），cloudSync.restoreLocal 直写
+ * contentStore 后内存态会过期；此前手动路径靠 window.location.reload() 兜底（冲画布、体验差）。
+ * 调用本函数即可让 UI 当轮一致，且不动画布/项目（它们不在同步清单）。
+ */
+export function reloadAppSettings(): void {
+  settings = load();
+  syncDebugAll(!!getSetting('debugOn'));
+  notify();
+}
+
 /** 扩展 window 上的调试总开关（config.js isDebugModuleOn 运行时读取源；非标准窗口属性需显式声明） */
 type DebugWindow = Window & { __DEBUG_ALL: boolean };
 

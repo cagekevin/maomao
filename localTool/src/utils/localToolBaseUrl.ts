@@ -12,3 +12,15 @@ export function localToolBaseUrl(): string {
   const port = Number(process.env.PORT) || 18080;
   return `http://127.0.0.1:${port}`;
 }
+
+/**
+ * 相对 /files/ 路径 → 完整可访问 URL（唯一实现，2026-09-11 收口自 resources.ts /
+ * base64Externalize.ts 两份：前者用 localToolBaseUrl() 动态端口、后者硬编码 LOCAL_FILE_BASE
+ * 18080 —— 两份语义应一致，统一走本函数读 PORT）。
+ * 非 http(s) 开头的相对路径补全；已是完整 URL 则原样返回。
+ */
+export function toAbsoluteFileUrl(relativePath: string): string {
+  if (!relativePath) return relativePath;
+  if (/^https?:\/\//i.test(relativePath)) return relativePath;
+  return `${localToolBaseUrl()}${relativePath.startsWith('/') ? '' : '/'}${relativePath}`;
+}

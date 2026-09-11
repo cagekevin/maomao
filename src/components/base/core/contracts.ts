@@ -362,12 +362,6 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     backend: 'local',
     note: 'AI 助手表格模式左右分栏：左栏宽（px）。表格工作区左表格 | 分隔条 | 右对话',
   },
-  agent_draft: {
-    domain: 'agent',
-    store: 'AgentPanel.jsx',
-    backend: 'local',
-    note: 'AI 助手输入框草稿内容',
-  },
   agent_input_mode: {
     domain: 'agent',
     store: 'AgentPanel.jsx',
@@ -562,6 +556,57 @@ export function parseShotHandle(handle) {
   if (typeof handle !== 'string' || !handle.startsWith(SHOT_HANDLE_PREFIX)) return null;
   const id = handle.slice(SHOT_HANDLE_PREFIX.length);
   return id || null;
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════
+ * 节点「固定端口」契约 —— type → { targetHandleId?, sourceHandleId? } 的唯一事实来源
+ * ════════════════════════════════════════════════════════════════
+ *
+ * 【为什么收口（TD-04-1）】React Flow 渲染一条边时，用 edge.sourceHandle/targetHandle
+ * 去节点 handleBounds 里查句柄；查不到就静默不渲染该边（code-008）。节点的端口真源是各
+ * 节点文件的 NodeShell `targetHandleId/sourceHandleId` prop。但此前还有两处手工复制表：
+ *   - App.tsx `TARGET_/SOURCE_HANDLE_BY_NODE_TYPE`（补存量坏边 handle、建边 connection 路径）
+ *   - lazyNode.tsx `LAZY_NODE_HANDLE_CONTRACT`（chunk 未到达的占位骨架声明端口）
+ * 三处独立维护，且已实测漂移（App 表 target 缺 gridSplit/gridMerge/imageBox/videoProcess，
+ * source 缺 assetNode/videoGenerate）——同语义 ≥2 可写点且漂移过一次，按 CLAUDE §5.4·9 收口。
+ *
+ * 【本表定位】节点「非默认口」的**集中清单**（默认口 = React Flow null，无需登记）。
+ *   - 消费方（App 补边 / lazyNode 占位骨架）一律读本表，禁止再写内联表。
+ *   - 新增节点若声明 targetHandleId/sourceHandleId，必须同步登记本表。
+ *   - **与节点文件真源一致性由静态闸守护**：`node scripts/check-node-handles.mjs` 已扩展为
+ *     对账「节点文件 NodeShell prop ⊆ 本表」，漏登记即红（防回潮，见脚本头）。
+ *
+ * 【唯一豁免】scriptBoxNode 的 target `in` 走 overlayHandles（非 NodeShell prop），
+ *   因其输入口挂在节点根 div 上（showHandles=false + overlayHandles，见 ScriptBoxNode.tsx）；
+ *   其 source 口为动态多口（shot-*），不属「固定一进一出」，由 SHOT_HANDLE_PREFIX 契约表达。
+ *   GridMerge 的多输出口当前收敛为单一 'merged-output'（历史多口已下线），故仍登记固定口。
+ */
+export const NODE_HANDLE_CONTRACT: Record<string, NodeHandleContract> = {
+  /** 剧本盒子：输入口 'in' 经 overlayHandles 注册（非 NodeShell prop）；出口为动态 shot-* 多口，不在此登记 */
+  scriptBoxNode: { targetHandleId: 'in' },
+  /** 全景图（懒加载）：固定一进一出（three 重依赖） */
+  panoramaNode: { targetHandleId: 'in', sourceHandleId: 'main-output' },
+  /** 视频处理（懒加载）：固定一进一出 */
+  videoProcessNode: { targetHandleId: 'default', sourceHandleId: 'main-output' },
+  /** 3D 导演台（懒加载）：沿用 NodeShell 默认口（无显式 handleId） */
+  director3dNode: {},
+  /** 图片切分：一进一出 */
+  gridSplitNode: { targetHandleId: 'in', sourceHandleId: 'batch' },
+  /** 图片拼图：一进一出（多输出口已收敛为 merged-output） */
+  gridMergeNode: { targetHandleId: 'default', sourceHandleId: 'merged-output' },
+  /** 图片盒子：一进一出 */
+  imageBoxNode: { targetHandleId: 'in', sourceHandleId: 'active' },
+  /** 素材节点：出口 main-output（输入沿用默认 null） */
+  assetNode: { sourceHandleId: 'main-output' },
+  /** 视频生成：出口 main-output */
+  videoGenerateNode: { sourceHandleId: 'main-output' },
+};
+
+/** 节点端口契约值的形状 */
+export interface NodeHandleContract {
+  targetHandleId?: string;
+  sourceHandleId?: string;
 }
 
 /**

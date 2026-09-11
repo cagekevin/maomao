@@ -342,6 +342,12 @@ export async function executePlan({
     if (Date.now() - executingPlanSince < EXECUTING_PLAN_TIMEOUT) {
       return { workflow: { status: 'failed', error: '已有计划正在执行，请稍后再试' }, entries: [] };
     }
+    // 【TD-11-9 修正 2026-09-11】超时解锁是「正常路径本该释放却没释放」的异常信号，
+    // 原先静默解锁 → 排障时看不到"曾发生锁泄漏"。补日志（不阻断，只留痕）。
+    logger.warn('AI助手', '[执行计划] 单飞锁超时自动释放（说明上一次执行未走 finally）', {
+      heldMs: Date.now() - executingPlanSince,
+      timeoutMs: EXECUTING_PLAN_TIMEOUT,
+    });
     executingPlan = false;
   }
   if (steps.length === 0) return { workflow: { status: 'failed', error: '计划为空' }, entries: [] };

@@ -645,6 +645,65 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(t.focus_node({ nodeId: 'z' }).ok).toBe(false);
   });
 
+  // 【TD-11-9 · 2026-09-11】MUTATING_TOOLS 一致性对账（此前零覆盖）。
+  // 契约（useCanvasAgentTools.ts:296-299 决策注释）：对「会改画布的写工具」统一 wrap——
+  // 执行前 push {nodes,edges} 快照进 aiUndoStack，undo_ai 弹出恢复。
+  // 判定 = 该工具是否改变 nodes/edges（含 node.data）。本用例把该隐式契约钉死为显式清单：
+  // 任何工具「新增加入/移出」这个集合都会红——逼改动者显式确认意图，而非静默漂移。
+  const MUTATING_EXPECTED = new Set([
+    'create_node',
+    'batch_create_nodes',
+    'delete_node',
+    'batch_delete_nodes',
+    'update_node',
+    'update_node_any_field',
+    'connect_nodes',
+    'batch_connect_nodes',
+    'delete_edge',
+    'execute_plan',
+    // 明确「不进」且必须保持不进的（写 node.data，但不是「画布结构编辑」；且 undo 生成结果无意义
+    // ——生成已烧积分、进任务中心，撤回节点 data 只会造成「节点在但图没了」的假状态）：
+    //   generate_node / run_existing_plan
+    // 明确「不进」的只读/非画布工具：read_canvas / list_nodes / list_edges / get_node_details /
+    //   read_table / focus_node / undo_ai / memory_suggest
+  ]);
+  const NON_MUTATING_EXPECTED = new Set([
+    'read_canvas',
+    'list_nodes',
+    'list_edges',
+    'get_node_details',
+    'read_table',
+    'generate_node',
+    'run_existing_plan',
+    'focus_node',
+    'undo_ai',
+    'memory_suggest',
+  ]);
+
+  it('【TD-11-9】写画布工具必进 undo 栈；只读/生成类工具必不进（防集合漂移）', () => {
+    const ctx = makeCtx([
+      { id: 'n1', type: 'textGenerateNode', position: { x: 0, y: 0 }, data: {} },
+    ]);
+    const tools = buildCanvasAgentTools(ctx);
+    // 两个清单必须完整覆盖全部工具（漏登一个 → 红：逼显式归类，不允许「忘了」）
+    const covered = new Set([...MUTATING_EXPECTED, ...NON_MUTATING_EXPECTED]);
+    expect([...covered].sort()).toEqual([...CANVAS_AGENT_TOOL_NAMES].sort());
+
+    for (const name of MUTATING_EXPECTED) {
+      vi.mocked(convStore.pushActiveAiUndo).mockClear();
+      tools[name]({ nodeId: 'n1', id: 'n1', source: 'n1', target: 'n1' });
+      expect(
+        vi.mocked(convStore.pushActiveAiUndo).mock.calls.length,
+        `${name} 应 push 撤销快照`,
+      ).toBeGreaterThan(0);
+    }
+    for (const name of NON_MUTATING_EXPECTED) {
+      vi.mocked(convStore.pushActiveAiUndo).mockClear();
+      tools[name]({ nodeId: 'n1', id: 'n1' });
+      expect(vi.mocked(convStore.pushActiveAiUndo).mock.calls.length, `${name} 不应 push`).toBe(0);
+    }
+  });
+
   it('undo_ai 无栈返回错误', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);

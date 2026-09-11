@@ -22,7 +22,9 @@ import type { AuthConfig, StableRequestOptions, StableRequestResult } from './ty
 /** 与 Rust proxy_fetch 一致的响应体上限 */
 export const DEFAULT_MAX_BYTES = 64 * 1024 * 1024;
 
-const DEFAULT_RETRY_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+/** 可重试 HTTP 状态码（唯一真源：isRetryableHttpStatus / 协议层 poll 均引用此集） */
+export const RETRYABLE_HTTP_STATUSES: number[] = [408, 429, 500, 502, 503, 504];
+const DEFAULT_RETRY_STATUSES = new Set<number>(RETRYABLE_HTTP_STATUSES);
 const DEFAULT_MAX_RETRIES = 3;
 
 /**
