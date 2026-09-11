@@ -186,6 +186,22 @@ describe('ImageGenerate 保存后节点框跟随图片比例（aspectRatio 回 A
     await waitFor(() => expect(node.data.aspectRatio).toBe('Auto'));
   });
 
+  it('比例本就是 Auto 时：编辑保存（dims 16:9）→ 节点框仍跟随 dims，aspectRatio 保持 Auto（docs/117 §8 的置位分支）', async () => {
+    render(
+      <ImageGenerate
+        id="pn1"
+        data={{ imageUrl: 'http://x/result.png', aspectRatio: 'Auto', label: '生图' }}
+        selected={false}
+      />,
+    );
+    fireEvent.click(screen.getByTitle('标记'));
+    await waitFor(() => expect(lastEditorSave).toBeTruthy());
+    // aspectRatio 本就是 Auto：setAspectRatio('Auto') 不会产生状态变更 → 尺寸只能靠 dims 的 fitByRatio
+    lastEditorSave({ dataUrl: 'data:image/jpeg;base64,xxx', width: 1600, height: 900 });
+    await waitFor(() => expect(node.width / node.height).toBeCloseTo(16 / 9, 2));
+    await waitFor(() => expect(node.data.aspectRatio).toBe('Auto'));
+  });
+
   it('扩图保存（dims 16:9）→ fitByRatio 让节点框为 16:9，aspectRatio 回 Auto', async () => {
     render(
       <ImageGenerate

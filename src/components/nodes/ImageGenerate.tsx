@@ -171,6 +171,8 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   const mainImgRef = useRef<HTMLImageElement | null>(null);
   // 编辑保存（裁剪/扩图）刚用 dims 的 fitByRatio 设过节点框时的标记：防「切 Auto」useEffect
   // 用旧 <img> 尺寸覆盖刚设的正确比例（编辑保存后 aspectRatio 置 Auto 会误触发该 effect）。
+  // ⚠️ 置位条件必须带 `aspectRatio !== 'Auto'`：本来就是 Auto 时 setAspectRatio('Auto') 不变更 →
+  // effect 不跑 → 标记残留（docs/117 §8）。见下方 onImageReplaced 内的置位注释。
   const editedRatioRef = useRef(false);
   // useSyncNodeData（Agent update_node 改 data → 同步本地 state）已收进 useGenerateNode 的 sync 参数，此处不再手写。
   const { setNodes, setEdges, getEdges: _getEdges, getNodes, addNodes, addEdges } = useReactFlow();
@@ -515,7 +517,11 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         const w = Math.round(d.width);
         const h = Math.round(d.height);
         if (w <= 0 || h <= 0) return;
-        editedRatioRef.current = true; // 标记：本次置 Auto 由编辑保存触发，跳过「切 Auto 读图」effect
+        // ★ 只在「aspectRatio 真的会由非 Auto 变到 Auto」时才置跳过标记（docs/117 §8 的 flag 残留）：
+        //   若本来就是 Auto，setAspectRatio('Auto') 不触发 [aspectRatio] effect（值未变），
+        //   标记会残留成 true 且无人消费。残留本身不改变可观测行为（下一次切换会把它消费掉，
+        //   而那次切换若不是 Auto 本来就 return），但它是「谁动了 effect 顺序就会踩」的雷 —— 顺手消掉。
+        if (aspectRatio !== 'Auto') editedRatioRef.current = true;
         fitByRatio(w, h); // 直接改 node 尺寸跟随图片，等价 AssetNode 消费 dims 的落点
         setAspectRatio('Auto');
         patchData({ aspectRatio: 'Auto' }); // 写的是 aspectRatio 不是图，故不经 replaceNodeImage
