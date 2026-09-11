@@ -615,7 +615,7 @@ export default function CameraSettingsSelector({
         <div
           role="dialog"
           aria-label="摄影参数"
-          className="absolute bottom-full right-0 mb-1 w-[344px] bg-surface-1 border border-edge rounded-lg shadow-popover p-3 z-popover nodrag"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-[344px] bg-surface-1 border border-edge rounded-lg shadow-popover p-3 z-popover nodrag"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-2 px-0.5">

@@ -31,7 +31,7 @@
  *   node scripts/check-node-handles.mjs src/components/nodes/VideoProcessNode.tsx
  */
 import { readFileSync } from 'node:fs';
-import { resolve, extname } from 'node:path';
+import { resolve, extname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultTargets } from './check-targets.mjs';
 
@@ -62,7 +62,7 @@ const targets = args.length > 0 ? args.map((a) => resolve(root, a)) : defaultTar
 let violations = 0;
 
 for (const file of targets) {
-  const rel = file.replace(root + '/', '');
+  const rel = relative(root, file).split(sep).join('/');
   const relNoExt = rel.slice(0, rel.length - extname(rel).length);
 
   let src;
