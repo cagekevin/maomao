@@ -15,7 +15,8 @@ import PromptLibraryButton from '../base/prompt/PromptLibraryButton.tsx';
 import { useNodeResize } from '../base/core/uiHooks.ts';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
-import { debounce, buildEffectivePrompt } from '../base/core/utils.ts';
+import { buildEffectivePrompt } from '../base/core/utils.ts';
+import { useNodeData } from '../../hooks/useNodeData.ts';
 import { buildSpawnNodes, spawnAndCommit, makeChildId } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { saveTextToTasks } from '../base/api/index.ts';
@@ -82,18 +83,8 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   // → 手动输入的文字随画布快照落盘，刷新/切换项目不丢。
   // P2：prompt/text 持续输入走 debouncedPatch（200ms 防抖合并），避免每键 setNodes 全图 node 数组重建；
   // 卸载时 flush 兜底（防抖窗口内输入不丢）。autoSplit/expanded 是低频切换，保持即时写回。
-  const patchData = useCallback(
-    (patch: Record<string, unknown>) => {
-      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
-    },
-    [id, setNodes],
-  );
-  const debouncedPatch = useRef<{ (patch: Record<string, unknown>): void; flush(): void } | null>(
-    null,
-  );
-  if (debouncedPatch.current == null) {
-    debouncedPatch.current = debounce(patchData, 200);
-  }
+  // 唯一入口收口到 useNodeData（docs/118 §7.3 ④：内联 patchData 样板 → 复用 base hook）
+  const { patchData, patchDebounced } = useNodeData(id);
   const setPromptPersist = useCallback((v: React.SetStateAction<string>) => {
     setPrompt((prev) => (typeof v === 'function' ? v(prev) : v));
   }, []);
@@ -120,10 +111,10 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   // 【React 反模式修复】「写回 node.data」不再在 setState updater 里做（那会在渲染期间 setNodes → BatchProvider 警告）。
   // 改为监听本地 state 变化，用 useEffect 同步落盘（effect 内 setState 合法，不在渲染期）。
   useEffect(() => {
-    debouncedPatch.current({ prompt });
+    patchDebounced({ prompt });
   }, [prompt]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    debouncedPatch.current({ text });
+    patchDebounced({ text });
   }, [text]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     patchData({ autoSplit });
@@ -138,13 +129,6 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   useEffect(() => {
     if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded);
   }, [data.expanded]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 卸载前 flush 最后一次待提交（避免防抖窗口内丢数据）
-  useEffect(
-    () => () => {
-      debouncedPatch.current?.flush();
-    },
-    [],
-  );
   const [editingText, setEditingText] = useState(false);
   // 记住上次选择的模型（跨节点/跨会话）；初始用记忆值，无记忆回退 gpt-4o-mini
   const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs('textGenerateNode', { model: '' });

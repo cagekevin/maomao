@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { useReactFlow } from '@xyflow/react';
+import { useNodeData } from '../../hooks/useNodeData.ts';
 import {
   Globe,
   X,
@@ -310,13 +311,9 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
   // 但仍优于直接加载全分辨率原图（全景图常 8192 宽，显存/解码压力大）。
   const sphereTextureUrl = panoUrl ? thumbResolve(panoUrl, { maxDim: 4096 }) : '';
 
-  // 节点 data 写回（不可变更新：P0-B 红线，禁止原地 mutation，否则下游窄订阅静默不更新）
-  const patchData = useCallback(
-    (patch: Record<string, unknown>) => {
-      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
-    },
-    [id, setNodes],
-  );
+  // 节点 data 写回（不可变更新：P0-B 红线，禁止原地 mutation，否则下游窄订阅静默不更新）。
+  // 收口到 useNodeData（docs/118 §7.3 ④：内联 patchData 样板 → 复用 base hook）。
+  const { patchData } = useNodeData(id);
 
   // 【R2 治理】panoUrl 变化时重置图片错误态（换图后可重试加载）
   const prevPanoRef = useRef(panoUrl);

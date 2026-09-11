@@ -24,7 +24,8 @@ import { showToast } from '../base/core/toastStore.ts';
 import { generateImage } from '../base/api/index.ts';
 import { toAbsoluteFileUrl } from '../base/api/index.ts';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
-import { debounce, mergeRefImages, buildEffectivePrompt } from '../base/core/utils.ts';
+import { mergeRefImages, buildEffectivePrompt } from '../base/core/utils.ts';
+import { useNodeData } from '../../hooks/useNodeData.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
 
 /**
@@ -167,15 +168,11 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   // 注意：effectivePrompt 依赖下方声明的 prompt state，故计算延后到 prompt 初始化之后
 
   // ─── 2. ReactFlow 数据写回（统一范式）───
-  const { setNodes, setEdges } = useReactFlow();
+  const { setEdges } = useReactFlow();
 
-  // patchData：改 node.data 的唯一入口（不可变局部更新；Agent read_canvas 能读到最新）
-  const patchData = useCallback(
-    (patch: Record<string, unknown>) => {
-      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
-    },
-    [id, setNodes],
-  );
+  // patchData：改 node.data 的唯一入口（不可变局部更新；Agent read_canvas 能读到最新）。
+  // 收口到 useNodeData（docs/118 §7.3 ④：内联 patchData 样板 → 复用 base hook）。
+  const { patchData, patchDebounced } = useNodeData(id);
 
   // ─── 3. 业务 state（用 useState 存 UI；改后 setState + patchData 双写）───
   const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded);
@@ -210,20 +207,12 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   const setPromptPersist = useCallback((v: React.SetStateAction<string>) => {
     setPrompt((prev) => (typeof v === 'function' ? v(prev) : v));
   }, []);
-  // P2：prompt 持续输入走防抖写回（避免每键 setNodes 全图 node 数组重建）；卸载 flush 兜底
-  const debouncedPatch = useRef<{ (patch: Record<string, unknown>): void; flush(): void } | null>(
-    null,
-  );
-  if (debouncedPatch.current == null) {
-    debouncedPatch.current = debounce(patchData, 200);
-  }
-
   // 抽屉展开/收起
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
   // 【React 反模式修复】「写回 node.data」不在 setState updater 里做（渲染期间 setNodes → BatchProvider 警告），
   // 改用 useEffect 同步落盘。
   React.useEffect(() => {
-    debouncedPatch.current({ prompt });
+    patchDebounced({ prompt });
   }, [prompt]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     patchData({ expanded });
@@ -232,13 +221,6 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   React.useEffect(() => {
     if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded);
   }, [data.expanded]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 卸载前 flush 最后一次待提交（避免防抖窗口内丢数据）
-  React.useEffect(
-    () => () => {
-      debouncedPatch.current?.flush();
-    },
-    [],
-  );
 
   // ─── 4. refs + 尺寸写回（通用）───
   const wrapperRef = useRef<HTMLDivElement | null>(null); // NodeShell 根 div（供主框手柄拖拽）

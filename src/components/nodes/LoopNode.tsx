@@ -3,6 +3,7 @@ import { useReactFlow } from '@xyflow/react';
 import { Repeat, Play, ChevronDown } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
+import { useNodeData } from '../../hooks/useNodeData.ts';
 import { toastWarning } from '../base/core/toastStore.ts';
 import { useSyncNodeData } from '../../hooks/useSyncNodeData.ts';
 import { useOutsideClick } from '../base/core/uiHooks.ts';
@@ -159,12 +160,8 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
     [id, setNodes],
   );
 
-  const patchData = useCallback(
-    (patch) => {
-      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
-    },
-    [id, setNodes],
-  );
+  // 节点 data 写回唯一入口（docs/118 §7.3 ④：内联 patchData 样板 → 复用 base hook）
+  const { patchData } = useNodeData(id);
 
   // 上游文案：聚合所有直接上游文本节点（对齐大雄 smartLoopInputPromptItems）
   const upstreamItems = useMemo(

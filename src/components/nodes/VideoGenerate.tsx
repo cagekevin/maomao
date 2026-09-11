@@ -40,7 +40,8 @@ import { generateVideo } from '../base/api/index.ts';
 import { useNodePrefs } from '../base/canvas/nodePrefs.ts';
 import { logger } from '../base/core/logger.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
-import { debounce, buildEffectivePrompt, clampSeconds } from '../base/core/utils.ts';
+import { buildEffectivePrompt, clampSeconds } from '../base/core/utils.ts';
+import { useNodeData } from '../../hooks/useNodeData.ts';
 
 /**
  * 视频生成节点（复刻原 As.jsx / videoGenerateNode）
@@ -126,22 +127,11 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
   // 提示词落盘：本地 state + 写回 node.data（支持函数式更新）。
   // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave）→ 手动输入的提示词刷新不丢。
-  const patchData = useCallback(
-    (patch: Record<string, unknown>) => {
-      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
-    },
-    [id, setNodes],
-  );
+  // 唯一入口收口到 useNodeData（docs/118 §7.3 ④：内联 patchData 样板 → 复用 base hook）。
+  const { patchData, patchDebounced } = useNodeData(id);
   const setPromptPersist = useCallback((v: React.SetStateAction<string>) => {
     setPrompt((prev) => (typeof v === 'function' ? v(prev) : v));
   }, []);
-  // P2：prompt 持续输入走防抖写回（避免每键 setNodes 全图 node 数组重建）；卸载 flush 兜底
-  const debouncedPatch = useRef<{ (patch: Record<string, unknown>): void; flush(): void } | null>(
-    null,
-  );
-  if (debouncedPatch.current == null) {
-    debouncedPatch.current = debounce(patchData, 200);
-  }
   // 记住上次选择的模型/比例/分辨率/时长（跨节点/跨会话，与 ImageGenerate 一致）
   const { prefs: vidPrefs, set: setVidPrefs } = useNodePrefs('videoGenerateNode', {
     model: '',
@@ -160,7 +150,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   // 【React 反模式修复】「写回 node.data」不在 setState updater 里做（渲染期间 setNodes → BatchProvider 警告），
   // 改用 useEffect 同步落盘。
   React.useEffect(() => {
-    debouncedPatch.current({ prompt });
+    patchDebounced({ prompt });
   }, [prompt]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     patchData({ expanded });
@@ -169,13 +159,6 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   React.useEffect(() => {
     if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded);
   }, [data.expanded]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 卸载前 flush 最后一次待提交（避免防抖窗口内丢数据）
-  React.useEffect(
-    () => () => {
-      debouncedPatch.current?.flush();
-    },
-    [],
-  );
   const [videoUrl, setVideoUrl] = useState(data.videoUrl || '');
   const [depthOpen, setDepthOpen] = useState(false);
   const [showRatioMenu, setShowRatioMenu] = useState(false);
