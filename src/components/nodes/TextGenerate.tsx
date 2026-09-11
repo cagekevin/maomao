@@ -105,7 +105,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
       return;
     }
     setExpanded((v) => !v);
-  }, [inputLocked]);
+  }, [inputLocked, setExpanded]);
   const [editingText, setEditingText] = useState(false);
   // 记住上次选择的模型（跨节点/跨会话）；初始用记忆值，无记忆回退 gpt-4o-mini
   const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs('textGenerateNode', { model: '' });
