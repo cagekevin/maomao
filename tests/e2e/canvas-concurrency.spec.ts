@@ -8,13 +8,16 @@
  *     （即 `127.0.0.1:18080/` 能打开应用），并用 `E2E_CROSS_ORIGIN=1` 显式启用。
  *
  * 【本套件断言什么】
+ *  - 场景 1：单实例 —— 标记→裁剪→保存 → 平移落盘 → 刷新后节点**仍是裁剪后的图**（回归，不许退化）；
  *  - 场景 2/4：双实例同源 —— 后开实例保存后，旧实例「只是平移一下画布」的写入被服务端
  *    409 拒绝（不再静默覆盖），且冲突在旧实例上**可见**；
  *  - 场景 5：刷新后数据仍是对方的新版本，且本窗口恢复可写（不会自己把自己卡死）；
  *  - 场景 6：快照落盘不含内联 dataURL（KB 级，不是 MB 级）。
  *
- * 【数据安全】只在「当前项目画布为空」时写一个测试节点（空项目无数据可丢）；
- *    画布非空时**不写入任何种子数据**，整套用例只做只读断言 + 用户等价的平移手势。
+ * 【数据安全】两条策略，都不删用户数据：
+ *  - 场景 1：向当前快照**追加**一个固定 id 的测试生图节点（只增不改），用例结束/失败都在
+ *    finally 里把它摘掉；
+ *  - 场景 2/3/6：只在「当前项目画布为空」时写测试节点；非空时只做只读断言 + 用户等价的平移手势。
  */
 import {
   test,
@@ -170,6 +173,187 @@ test.beforeAll(async ({ request }) => {
         '先起 localTool（npm run dev / dist），再跑 npm run test:e2e。',
     );
   }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// 场景 1：单实例「编辑器保存 → 刷新不回退」（用户最初报障的最小回归护栏）
+//
+// 【为什么断言落在快照数据而不是 DOM 里的 <img>】
+//   生图节点在「性能模式媒体降级」下会隐藏媒体（lodLevel ≥ 2，即画布缩得很小时
+//   `isHidden('image')` 为真 → 不渲染 <img>，只显示「性能模式已隐藏」）。DOM 断言会因此
+//   随画布缩放而假红。而用户报的症状本质是「保存后刷新，节点的图回退成旧图」——
+//   等价于「快照里的 data.imageUrl 回退了」，数据层断言既稳定又直击症状。
+//   图片写回换 URL 是 C5「先落盘再写回」的必然结果（dataURL → /files/<sha1>.png）。
+// ════════════════════════════════════════════════════════════════════════
+const TEST_NODE_ID = 'e2e-img-node';
+
+/** 在页面里合成一张 400×300 的 PNG dataURL（避免往仓库里塞二进制 fixture）。 */
+async function makeSeedDataUrl(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 400;
+    c.height = 300;
+    const ctx = c.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#2b6cb0';
+      ctx.fillRect(0, 0, 400, 300);
+      ctx.fillStyle = '#f6e05e';
+      ctx.fillRect(0, 0, 200, 150);
+    }
+    return c.toDataURL('image/png');
+  });
+}
+
+/** 读快照里测试节点的 data.imageUrl（缺节点返回 null）。 */
+async function testNodeImageUrl(request: APIRequestContext, key: string): Promise<string | null> {
+  const snap = ((await kvSnapshot(request, key)) || {}) as Record<string, unknown>;
+  const nodes = (Array.isArray(snap.nodes) ? snap.nodes : []) as Array<{
+    id?: string;
+    data?: { imageUrl?: unknown };
+  }>;
+  const n = nodes.find((x) => x?.id === TEST_NODE_ID);
+  const url = n?.data?.imageUrl;
+  return typeof url === 'string' && url ? url : null;
+}
+
+/** 只增不改：往当前快照追加（幂等）一个测试生图节点；不动用户既有节点。 */
+async function seedTestImageNode(
+  page: Page,
+  request: APIRequestContext,
+  key: string,
+): Promise<void> {
+  const snap = ((await kvSnapshot(request, key)) || {}) as Record<string, unknown>;
+  const nodes = (Array.isArray(snap.nodes) ? snap.nodes : []) as Record<string, unknown>[];
+  if (nodes.some((n) => n?.id === TEST_NODE_ID)) return; // 幂等：上次跑残留则复用
+  const dataUrl = await makeSeedDataUrl(page);
+  nodes.push({
+    id: TEST_NODE_ID,
+    type: 'imageGenerateNode',
+    position: { x: 80, y: 80 },
+    width: 420,
+    height: 420,
+    data: { imageUrl: dataUrl, aspectRatio: 'Auto', label: 'e2e-image' },
+  });
+  const res = await request.post(`${LT}/api/kv/set`, {
+    data: {
+      key,
+      value: { ...snap, schemaVersion: snap.schemaVersion || 1, nodes, edges: snap.edges || [] },
+    },
+  });
+  expect(res.ok(), '种子节点写入失败').toBeTruthy();
+}
+
+/** 收尾：把测试节点摘掉（读当前值再过滤，绝不回滚其它节点的内容）。 */
+async function removeTestNode(request: APIRequestContext, key: string): Promise<void> {
+  try {
+    const snap = ((await kvSnapshot(request, key)) || {}) as Record<string, unknown>;
+    const nodes = (Array.isArray(snap.nodes) ? snap.nodes : []).filter(
+      (n) => (n as { id?: string })?.id !== TEST_NODE_ID,
+    );
+    await request.post(`${LT}/api/kv/set`, { data: { key, value: { ...snap, nodes } } });
+  } catch {
+    /* 清理失败不影响用例结论（残留下次会被幂等复用） */
+  }
+}
+
+/**
+ * 用户等价的编辑器裁剪：标记 → 裁剪 → 拖 SE 手柄 → 保存裁剪。
+ * 是否真的裁到了东西，由「保存后快照主图 URL 是否变化」兜底断言（见用例内注释）。
+ */
+async function cropViaEditor(page: Page): Promise<void> {
+  // 打开编辑器：直接点 DOM 按钮，不走 hover+click 的 actionability 流程 ——
+  // 画布可能被缩到 0.1 级（节点只有几十像素），hover 会一直判定「不稳定/被遮挡」。
+  // 这与本仓既有 __probe 的驱动方式一致（按钮在 DOM 里始终存在，不必真 hover）。
+  const opened = await page.evaluate((id) => {
+    const btn = document.querySelector(
+      `.react-flow__node[data-id="${id}"] button[title="标记"]`,
+    ) as HTMLElement | null;
+    if (!btn) return false;
+    btn.click();
+    return true;
+  }, TEST_NODE_ID);
+  expect(opened, '未找到生图节点的「标记」按钮').toBe(true);
+
+  // 编辑器是 portal 到 body 的覆盖层（z-ceiling + 标题含「图片编辑」），与既有 __probe 选择器一致
+  const editor = page
+    .locator('body > div[class*="z-ceiling"]')
+    .filter({ hasText: '图片编辑' })
+    .first();
+  await expect(editor, '图片编辑器未打开').toBeVisible({ timeout: 15000 });
+
+  await editor.getByRole('button', { name: '裁剪', exact: true }).click();
+  const handle = editor.locator('.ReactCrop__drag-handle.ord-se');
+  await expect(handle, '裁剪 SE 手柄未出现').toBeVisible({ timeout: 10000 });
+  const box = await handle.boundingBox();
+  if (!box) throw new Error('拿不到裁剪手柄位置');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 160, box.y + box.height / 2 - 120, { steps: 10 });
+  await page.mouse.up();
+
+  await editor.getByRole('button', { name: '保存裁剪' }).click();
+  await expect(editor, '保存裁剪后编辑器未关闭').toBeHidden({ timeout: 15000 });
+}
+
+test.describe('画布快照 · 场景 1 单实例编辑器保存不回退', () => {
+  test('标记→裁剪→保存 → 平移落盘 → 刷新仍是裁剪后的图', async ({ context, request }) => {
+    test.slow(); // 编辑器交互 + 两次刷新，给足时间（默认 30s 偏紧）
+    const page = await context.newPage();
+    const keyOf = trackProjectKey(page);
+    let key = '';
+    try {
+      await page.goto('http://localhost:5180/');
+      await page.waitForSelector('.react-flow', { timeout: 20000 });
+      await page.waitForTimeout(2500); // 等 initProjects 与首屏落盘稳定
+
+      key = keyOf();
+      expect(key, '未能从页面请求里学到当前项目快照 key').toBeTruthy();
+
+      await seedTestImageNode(page, request, key);
+      const urlBefore = await testNodeImageUrl(request, key);
+      expect(urlBefore, '种子节点的 imageUrl 未落到快照').toBeTruthy();
+
+      await page.reload();
+      await page.waitForSelector('.react-flow', { timeout: 20000 });
+      await expect(
+        page.locator(`.react-flow__node[data-id="${TEST_NODE_ID}"]`),
+        '刷新后未渲染出种子节点',
+      ).toBeAttached({ timeout: 20000 });
+
+      await cropViaEditor(page);
+
+      // 保存生效的证据：快照主图 URL 换了（文件名 = 内容 sha1）。
+      // 若拖拽没生效、保存的是原图，重编码后字节与种子图一致 → URL 不变 → 这里会红，
+      // 所以这也是「裁剪真的裁到了东西」的兜底判据。
+      let urlAfterCrop: string | null = null;
+      for (let i = 0; i < 20 && !urlAfterCrop; i++) {
+        const cur = await testNodeImageUrl(request, key);
+        if (cur && cur !== urlBefore) urlAfterCrop = cur;
+        else await page.waitForTimeout(1000);
+      }
+      expect(
+        urlAfterCrop,
+        '编辑器保存后快照主图 URL 未变化（裁剪未生效 / 保存的是原图）',
+      ).toBeTruthy();
+      expect(String(urlAfterCrop).startsWith('data:'), '快照主图不应是内联 dataURL').toBe(false);
+
+      // 平移触发一次落盘（等这次保存被接受，确保刷新前内容已进 KV）
+      const saved = page.waitForResponse(isKvSet, { timeout: 20000 }).catch(() => null);
+      await panCanvas(page);
+      const resp = await saved;
+      expect(resp?.status(), '平移触发的落盘应被接受（不是 409）').toBe(200);
+
+      // 刷新：节点主图不得回退（这正是用户报的「裁剪完还是原图」）
+      await page.reload();
+      await page.waitForSelector('.react-flow', { timeout: 20000 });
+      await expect
+        .poll(() => testNodeImageUrl(request, key), { timeout: 20000 })
+        .toBe(urlAfterCrop);
+    } finally {
+      await page.close().catch(() => {});
+      if (key) await removeTestNode(request, key);
+    }
+  });
 });
 
 test.describe('画布并发写入 · 同源双实例（场景 2/4/5）', () => {
