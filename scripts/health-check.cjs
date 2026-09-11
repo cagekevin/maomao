@@ -7,7 +7,7 @@
  *   2. npm scripts 完整性
  *   3. npm run build（能构建）
  *   4. npm run test:all（统一测试门禁：smoke + regression + tools）
- *   4.1~4.3 横切契约静态校验（check:keys 存储键 / check:events 事件名 / check:node-types 节点类型）
+ *   4.1~4.3b 横切契约静态校验（check:keys 存储键 / check:events 事件名 / check:node-types 节点类型 / check:node-handles 节点端口）
  *   4.4 check:node-data --strict（node.data 字段缺口 / 结果字段命名对账，对应 TD-8）
  *   5. TDZ 风险扫描（扫 src 下所有源码 .jsx/.js/.ts/.tsx，防「Cannot access before initialization」；
  *      逐行跳过注释——源码注释常引用报错文案作决策留痕，整文件盲扫会误报，见 depthUrls.ts:35 案例）
@@ -151,6 +151,15 @@ runGate('check:events (EVENTS 裸事件名拦截)', 'npm run check:events');
 // ── 4.3 节点类型契约静态校验（useNodePrefs 裸命名空间编译期拦截，对应架构 P0-1）──
 console.log('\n🏷️ 节点类型契约校验（npm run check:node-types）');
 runGate('check:node-types (NODE_TYPES 裸 useNodePrefs 命名空间拦截)', 'npm run check:node-types');
+
+// ── 4.3b 节点端口契约对账（节点文件声明 ⊆ contracts.NODE_HANDLE_CONTRACT，对应 TD-04-1）──
+// 与 check:node-types 对称的「契约表 ↔ 代码」一致性闸：节点声明了非默认端口但契约表漏登记
+// → App 补边漏 handle → 连线静默不渲染。已挂 prebuild/pretest，此处再列一次保证 check:health 也覆盖。
+console.log('\n🔌 节点端口契约对账（npm run check:node-handles）');
+runGate(
+  'check:node-handles (节点文件端口声明 ⊆ NODE_HANDLE_CONTRACT)',
+  'npm run check:node-handles',
+);
 
 // ── 4.4 node.data 契约对账（字段缺口 / 结果字段命名，对应 TD-8）──
 // 为什么只挂 check:health 不挂 prebuild/pretest：它治的是「数据契约漂移」（node.data 五处各自表述），

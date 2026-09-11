@@ -26,8 +26,8 @@ export const INPUT_PANEL_NODE_TYPES = [
   'textGenerateNode',
   'imageGenerateNode',
   'videoGenerateNode',
-  'templateNode',
 ] as const;
+// 注：原含 templateNode，已于 2026-09-11 摘除（TD-04-5）——它是参考蓝本非活节点，不在画布上。
 
 /** 各节点类型结构默认值（对齐官方 + 历史修复） */
 export const NODE_TYPE_DEFAULTS: Record<string, NodeTypeDefault> = {
@@ -57,17 +57,9 @@ export function applyNodeTypeDefaults(node: Record<string, unknown>): Record<str
   if (!d) return node;
   const next: Record<string, unknown> = { ...node };
   const data = (node.data as Record<string, unknown>) || {};
-  // group 特殊：优先用折叠时记录的真实尺寸（expandedWidth/expandedHeight）兜底，
-  // 否则旧快照 group 尺寸字段全丢时，会硬编码回默认 300×200（"刷新后编组大小变了"的根因之一）。
-  // 仅当真实尺寸字段也缺失时才用类型默认值。
-  const fallbackW =
-    type === 'group' && (data.expandedWidth ?? data.expandedHeight)
-      ? data.expandedWidth || d.width
-      : d.width;
-  const fallbackH =
-    type === 'group' && (data.expandedWidth ?? data.expandedHeight)
-      ? data.expandedHeight || d.height
-      : d.height;
+  // 折叠态已整体下线，expandedWidth/expandedHeight 为死字段，不再特判兜底（见 GroupNode.tsx 头注释）。
+  const fallbackW = d.width;
+  const fallbackH = d.height;
   // 尺寸/style/initial 只在缺失时补（存量快照若已有正确值则不覆盖）
   for (const k of ['width', 'height', 'initialWidth', 'initialHeight', 'className']) {
     if (next[k] === undefined || next[k] === null) {
@@ -78,9 +70,12 @@ export function applyNodeTypeDefaults(node: Record<string, unknown>): Record<str
   next.style = next.style
     ? { ...d.style, ...(next.style as Record<string, unknown>) }
     : d.style || next.style;
-  // group 的 data.name 缺失兜底
+  // group 兼容：旧快照用 data.name，统一收敛到全画布通用的 data.label（label ?? name 兜底）
   if (type === 'group') {
-    next.data = { ...data, name: data.name || '编组' };
+    next.data = {
+      ...data,
+      label: (data.label as string | undefined) ?? (data.name as string | undefined) ?? '编组',
+    };
   }
   return next;
 }

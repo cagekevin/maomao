@@ -17,6 +17,7 @@ import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { contentSet } from '../base/core/contentStore.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
+import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import '../base/api/index.ts';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import { downloadUrl } from '../base/utils/clipboard.ts';
@@ -120,6 +121,8 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
   // 结果落盘唯一入口（P0-2 收口）：本地处理无 server 任务，不走 useNodeGeneration，
   // 抽帧结果写 node.data.extractedImages 随画布快照落盘恢复（对齐 CONTEXT 真相源契约 ③文本类例外）。
   const { patchData } = useNodeData(id);
+  // TD-04-13：标题双击改名 → 写回 data.label（此前渲染 data.label 却漏接 onRename，与兄弟节点不一致）。
+  const rename = useNodeRename(id);
   // 原子防重入（对齐 useNodeGeneration R4）：同步 ref 防快速双击并发抽帧
   const extractingRef = useRef(false);
 
@@ -470,6 +473,7 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
       defaultTitle="视频抽帧"
       icon={<Clapperboard size={11} className="text-muted" />}
       selected={selected}
+      onRename={rename}
       minWidth={280}
       minHeight={mode === 'manual' ? 380 : 220}
       handleVariant="small"

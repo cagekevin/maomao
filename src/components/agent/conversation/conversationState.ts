@@ -109,7 +109,12 @@ const persistDebounced = createDebouncedPersist(() => {
   // 【P1c L3 整包预算安全网】序列化前对归一化副本做投影降级：整包超预算时先剥离瞬时字段、
   // 再截断最大字符串，保证落盘字符串恒 < SAFE_BUDGET_BYTES（规避 QuotaExceededError）。
   // 只作用于落盘投影副本，绝不动 states 本体（内存态完整，撤销/上下文/恢复读取不受影响）。
-  const normalized = next.conversations.map(normalizeConversation);
+  // 【P4 自愈·2026-09-11】用浅拷贝喂 normalizeConversation：该函数就地改写入参（归一字段），
+  // 若不拷贝会污染内存态——尤其流式途中会把 live 消息的 streaming 标志抹掉，致 UI 提前停 typing / 冻结流式增量。
+  // streaming 在归一时被清为 false（见 normalizeConversation 内 P4 自愈），落盘永不带 streaming:true。
+  const normalized = next.conversations.map((conv) =>
+    normalizeConversation({ ...conv, messages: conv.messages }),
+  );
   // 【批2 · 落盘前写前校验】dev 下对硬约束（error）违规告警——把「假成功」在写时就抓住，不等用户踩。
   // 只作用于内存归一副本，与落盘投影降级互不影响；P1 体积仍由下方 applyConversationBudget 强制。
   if (import.meta.env.DEV !== false) {
@@ -502,6 +507,16 @@ export function normalizeConversation(raw: unknown): Conversation | null {
     const msg = m as Record<string, unknown> | null;
     if (!msg || typeof msg !== 'object' || msg.id) return m;
     return { ...msg, id: generateId('msg') };
+  });
+  // 【P4 自愈·2026-09-11】streaming 是瞬时 UI 标志（与 sending 同类）：刷新后无法续流，
+  // 绝不该落盘、水化即清。否则历史未收尾的 streaming:true 会残留，触发「会话落盘前不变量校验」P4 警告，
+  // 并让刷新后看到半截气泡（内容已完整、仅标志位残留）。仅在 projections 副本上清除；调用方已保证不污染 live（落盘路径传浅拷贝）。
+  c.messages = c.messages.map((m) => {
+    const msg = m as Record<string, unknown> | null;
+    if (msg && typeof msg === 'object' && msg.streaming === true) {
+      return { ...msg, streaming: false };
+    }
+    return m;
   });
   if (!Array.isArray(c.skills)) c.skills = [];
   if (!Array.isArray(c.attachments)) c.attachments = [];

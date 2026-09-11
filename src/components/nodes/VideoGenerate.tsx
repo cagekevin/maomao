@@ -41,6 +41,7 @@ import { logger } from '../base/core/logger.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
 import { buildEffectivePrompt, clampSeconds } from '../base/core/utils.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
+import { useDisconnectSource } from '../../hooks/useDisconnectSource.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { useNodeExpanded } from '../../hooks/useNodeExpanded.ts';
 import { useNodeField } from '../../hooks/useNodeField.ts';
@@ -100,13 +101,8 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
   const rename = useNodeRename(id);
   // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）
-  const disconnectSource = useCallback(
-    (sourceNodeId: string) => {
-      if (!sourceNodeId) return;
-      setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)));
-    },
-    [id, setEdges],
-  );
+  // TD-04-12：收口到 useDisconnectSource（原先 4 节点逐字重复）。
+  const disconnectSource = useDisconnectSource(id);
   // 提示词落盘：本地 state + 防抖写回 node.data（唯一入口 useNodeField；卸载 flush 由 useNodeData 承接）
   const { patchDebounced } = useNodeData(id);
   const [prompt, setPrompt] = useNodeField('prompt', data.prompt || '', patchDebounced);

@@ -17,6 +17,8 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
 import { buildEffectivePrompt } from '../base/core/utils.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
+import { useNodeRename } from '../../hooks/useNodeRename.ts';
+import { useDisconnectSource } from '../../hooks/useDisconnectSource.ts';
 import { useNodeExpanded } from '../../hooks/useNodeExpanded.ts';
 import { useNodeField } from '../../hooks/useNodeField.ts';
 import { buildSpawnNodes, spawnAndCommit, makeChildId } from '../base/canvas/deriveNodes.ts';
@@ -66,13 +68,11 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   const { setEdges, getEdges, getNodes, getNode, setNodes } = useReactFlow();
   const history = useCanvasEdges();
   // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）
-  const disconnectSource = useCallback(
-    (sourceNodeId: string) => {
-      if (!sourceNodeId) return;
-      setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)));
-    },
-    [id, setEdges],
-  );
+  // TD-04-12：收口到 useDisconnectSource（原先 4 节点逐字重复）。
+  const disconnectSource = useDisconnectSource(id);
+  // TD-04-13：标题双击改名 → 写回 data.label（与 ImageGenerate/VideoGenerate/AssetNode 一致；
+  // 此前 TextGenerate 漏接 onRename，标题不可改名，与同类文本可改名节点不一致）。
+  const rename = useNodeRename(id);
   // ── 输入落盘（唯一入口 useNodeField）：prompt/text 高频输入走防抖，autoSplit/inputLocked 低频即时 ──
   // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave 只存 node.data，不存组件 useState）
   // → 手动输入的文字随画布快照落盘，刷新/切换项目不丢；卸载 flush 由 useNodeData 承接。
@@ -346,6 +346,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
       aspectRatio={null}
       defaultHeight={320}
       wrapperRef={wrapperRef}
+      onRename={rename}
     >
       {/* hover 操作栏 */}
       <HoverToolbar buttons={toolbarButtons} loading={loading} loadingIcon={loadingIcon} />

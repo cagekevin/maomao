@@ -1,4 +1,5 @@
 import 'react';
+import type React from 'react';
 import {
   Image as ImageIcon,
   Clapperboard,
@@ -52,8 +53,49 @@ import { INPUT_PANEL_NODE_TYPES } from './nodeDefaults.ts';
  * 仅 ghostTarget（连线占位，非真实节点）不在此登记，由 App.jsx 派生后显式补充。
  */
 
+/**
+ * 工具栏/右键菜单分类 tab（type → 显示名）。UI 图标由各项自带，分类只作分组键。
+ */
+export interface PaletteCategoryDef {
+  key: string;
+  label: string;
+}
+
+/**
+ * 节点目录项（palette 注册表元素）—— 全 17 节点注册表的**类型真源**。
+ *
+ * 【为什么补此接口（TD-04-6）】此前 paletteNodes 无类型标注（裸数组推断），
+ * 致消费方（canvasContextMenu）拿不到稳定形状、被迫 `n as unknown as PaletteNodeRef`
+ * 假收窄。定型后 getPaletteNode 返回真类型，下游按字段读即可。
+ *
+ * 字段可选性依据实际登记形态：
+ *  - icon/data/badge/builtin 可选（HIDDEN 顶部快捷项无 icon/badge/builtin；多数节点无 badge）；
+ *  - component 可选（ghostTarget 类连线占位不登记 component，由 App 派生后显式补）。
+ */
+export interface PaletteNodeDef {
+  /** 画布 node.type / contracts.NODE_TYPES 键 */
+  type: string;
+  /** 菜单/面板显示名 */
+  label: string;
+  /** 工具栏小图标（lucide 组件引用，渲染时由调用方实例化） */
+  icon?: React.ComponentType<{ size?: number; className?: string }>;
+  /** 分类键（paletteCategories.key） */
+  cat: string;
+  /** 画布渲染组件（buildNodeTypeComponents 的单源派生源；连占位类节点可省略=由 App 补）。
+   *  类型用 `ComponentType<any>`：各节点组件的 props 是各自的 `XxxNodeProps`（id/data/selected），
+   *  同构但 data 具体类型不同，无法收敛为单一精确类型；此处与 `lazyNode` 的 loader 契约一致放宽
+   *  （属「异构组件注册表」的诚实放宽，非假收窄——字段形状本身（有/无 component）仍是精确的）。 */
+  component?: React.ComponentType<any>;
+  /** 新建节点默认 data（defaultNodeData 合并源） */
+  data?: Record<string, unknown>;
+  /** 角标（如 NEW/Beta） */
+  badge?: { text: string; tone: 'new' | 'hot' };
+  /** =已在 components/nodes 下复刻出对应组件的节点 */
+  builtin?: boolean;
+}
+
 // 四个工具分类 tab（复刻 H_.jsx vi）
-export const paletteCategories = [
+export const paletteCategories: PaletteCategoryDef[] = [
   { key: 'text', label: '文本工具' },
   { key: 'image', label: '图片工具' },
   { key: 'video', label: '视频工具' },
@@ -61,7 +103,7 @@ export const paletteCategories = [
 ];
 
 // 完整节点目录（复刻 H_.jsx _i，图标用 lucide 等价）
-export const paletteNodes = [
+export const paletteNodes: PaletteNodeDef[] = [
   // --- 文本工具 ---
   // textGenerateNode（文本）与顶部 Q 快捷重复，子分类不再列出（由顶部快捷 + 节点面板添加）
 
@@ -230,7 +272,7 @@ export const paletteNodes = [
 ];
 
 /** 顶部快捷（Q/W/E）专属、不进入子分类展示、但仍可创建的内置节点 */
-const HIDDEN_TOP_LEVEL_NODES = [
+const HIDDEN_TOP_LEVEL_NODES: PaletteNodeDef[] = [
   {
     type: 'textGenerateNode',
     label: '文本',
@@ -257,11 +299,12 @@ const HIDDEN_TOP_LEVEL_NODES = [
 // 便捷：按 type 查目录项
 // 注意：顶部 QWE 快捷创建的 textGenerateNode/imageGenerateNode/videoGenerateNode 已从子分类展示移出，
 // 但仍是合法可创建节点（AI 工具 create_node 校验、defaultNodeData 兜底依赖这里），故单独补一份。
-export const getPaletteNode = (type) =>
+export const getPaletteNode = (type: string): PaletteNodeDef | undefined =>
   paletteNodes.find((n) => n.type === type) || HIDDEN_TOP_LEVEL_NODES.find((n) => n.type === type);
 
 // 便捷：按分类取节点
-export const getNodesByCategory = (cat) => paletteNodes.filter((n) => n.cat === cat);
+export const getNodesByCategory = (cat: string): PaletteNodeDef[] =>
+  paletteNodes.filter((n) => n.cat === cat);
 
 // 便捷：默认节点 data（用于右键菜单 / 面板快速添加 / Agent create_node）
 // expanded 只注入「有输入面板」的节点（INPUT_PANEL_NODE_TYPES）→ 新建节点输入框默认收起。
@@ -269,8 +312,10 @@ export const getNodesByCategory = (cat) => paletteNodes.filter((n) => n.cat === 
 // （useNodeExpanded 的调用方），其余 13 种节点白背一个永不读的 UI 偏好字段并随快照落盘。
 // 范围与 Ctrl+L 整理（useArrangeCanvas）/ Tab 折叠（App.toggleInputPanels）同源，避免三处不对称。
 // 子项仍可在 palette 的 data 里显式传 expanded 覆盖（如 imageBoxNode 自带展开态）。
-export const defaultNodeData = (type) => ({
-  ...(INPUT_PANEL_NODE_TYPES.includes(type) ? { expanded: false } : {}),
+export const defaultNodeData = (type: string): Record<string, unknown> => ({
+  ...(INPUT_PANEL_NODE_TYPES.includes(type as (typeof INPUT_PANEL_NODE_TYPES)[number])
+    ? { expanded: false }
+    : {}),
   ...getPaletteNode(type)?.data,
 });
 
@@ -288,8 +333,8 @@ export const builtinNodeTypes = paletteNodes.filter((n) => n.builtin).map((n) =>
  *  - 重依赖节点的 component 是 lazyNode 包装的懒加载组件，派生进 nodeTypes 后自动按需加载；
  *  - ghostTarget 由 App.jsx 在派生结果后补充。
  */
-export function buildNodeTypeComponents() {
-  const map = {};
+export function buildNodeTypeComponents(): Record<string, React.ComponentType<any>> {
+  const map: Record<string, React.ComponentType<any>> = {};
   const all = [...paletteNodes, ...HIDDEN_TOP_LEVEL_NODES];
   for (const n of all) {
     if (n.component) map[n.type] = n.component;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Folder } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
+import { useNodeRename } from '../../hooks/useNodeRename.ts';
 
 /**
  * 群组 / 分组节点。
@@ -9,13 +10,18 @@ import NodeShell from '../base/ui/NodeShell.tsx';
  * 端口与所有其它节点完全一致。
  *
  * 【2026-09-07 方案 D4】编组折叠态已整体下线——编组只有一种形态（展开框）。
- * 不再渲染小胶囊、不再有折叠按钮，也不再写 data.collapsed / expandedWidth / expandedHeight。
- * （nodeDefaults 仍保留 expandedWidth/expandedHeight 的读取兜底，仅兼容存量快照尺寸，见 S5。）
+ * 不再渲染小胶囊、不再有折叠按钮，也不再写 data.collapsed / expandedWidth / expandedHeight
+ * （nodeDefaults 的历史折叠特判亦已移除，见 nodeDefaults.ts）。
  *
  * 由 React Flow 父子节点机制承载：作为父节点，子节点通过 parentId 挂在其下。
+ *
+ * 【2026-09-11 方案 A 字段统一】编组显示名从孤立的 data.name 收敛为全画布通用的 data.label：
+ *   - 读侧 `label ?? name` 兜底，兼容旧快照（存量 group 仍用 name）；
+ *   - 接上 useNodeRename，双击标题 / 右键重命名即可改名（与其它节点一致）。
  */
 interface GroupNodeData {
-  name?: string;
+  label?: string;
+  name?: string; // 存量快照兼容：旧档用 name，读侧 label ?? name 兜底
 }
 interface GroupNodeProps {
   id: string;
@@ -23,15 +29,17 @@ interface GroupNodeProps {
   selected?: boolean;
 }
 function GroupNode({ id, data, selected }: GroupNodeProps) {
-  const name = (data?.name as string | undefined) || '编组';
+  const rename = useNodeRename(id);
+  const label = (data?.label as string | undefined) ?? (data?.name as string | undefined) ?? '编组';
 
   return (
     <NodeShell
       id={id}
-      label={name}
+      label={label}
       defaultTitle="编组"
       icon={<Folder size={11} className="text-muted" />}
       selected={selected}
+      onRename={rename}
       resizable
       minWidth={120}
       minHeight={80}

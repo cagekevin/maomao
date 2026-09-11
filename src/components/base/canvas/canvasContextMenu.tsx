@@ -30,7 +30,12 @@ import {
   Upload,
   Pen,
 } from 'lucide-react';
-import { getNodesByCategory, getPaletteNode, paletteCategories } from './NodePalette.ts';
+import {
+  getNodesByCategory,
+  getPaletteNode,
+  paletteCategories,
+  type PaletteNodeDef,
+} from './NodePalette.ts';
 import './lazyNode.tsx';
 import type { ContextMenuItem } from '../ui/ContextMenu.tsx';
 import type { ContextMenuState } from '../../../hooks/useContextMenu.ts';
@@ -69,19 +74,11 @@ export interface MenuActionCtx {
   applyDeleteSelected: () => void;
 }
 
-/** 图钉可取消固定唯一把手——二级固定项禁止删，见文件头 JSDoc */
-type PaletteNodeRef = {
-  type: string;
-  label: string;
-  icon?: React.ComponentType<{ size?: number; className?: string }>;
-  badge?: { text: string; tone: 'new' | 'hot' };
-};
-
 /** 空白处菜单：快速添加节点 + 小工具子菜单（复刻 H_.jsx:12232-12340） */
 export function buildCanvasMenuItems(ctx: MenuActionCtx): ContextMenuItem[] {
   const { pinnedTools } = ctx;
   // 单个目录节点的菜单项 + 图钉（固定到第一层）尾随按钮。复刻官方 H_.jsx:12317-12335。
-  const toolItem = (n) => {
+  const toolItem = (n: PaletteNodeDef) => {
     const pinned = pinnedTools.includes(n.type);
     return {
       key: n.type,
@@ -127,15 +124,15 @@ export function buildCanvasMenuItems(ctx: MenuActionCtx): ContextMenuItem[] {
   // 固定到一级的节点，直接渲染在菜单第一层（常用，一眼可见）。二级里也仍显示（承载取消图钉）。
   const pinnedItems = pinnedTools
     .map((type) => getPaletteNode(type))
-    .filter(Boolean)
+    .filter((n): n is PaletteNodeDef => Boolean(n))
     .map((n): ContextMenuItem & Record<string, unknown> => {
-      const item = n as unknown as PaletteNodeRef;
+      // n 已是 PaletteNodeDef（getPaletteNode 真类型，filter 收窄）——不再 `as unknown as`（TD-04-6）
       return {
-        key: `pinned-${item.type}`,
-        icon: item.icon,
-        label: item.label,
-        badge: item.badge,
-        onClick: () => ctx.addNodeFromMenu(item.type),
+        key: `pinned-${n.type}`,
+        icon: n.icon,
+        label: n.label,
+        badge: n.badge,
+        onClick: () => ctx.addNodeFromMenu(n.type),
       };
     });
 

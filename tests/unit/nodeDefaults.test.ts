@@ -51,9 +51,9 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
     expect(applyNodeTypeDefaults(node)).toBe(node);
   });
 
-  it('group 缺 data.name → 补「编组」', () => {
+  it('group 缺 data.name → 补 label「编组」（name 已收敛为全画布通用 label）', () => {
     const r = applyNodeTypeDefaults({ id: 'g', type: 'group', data: {}, position: { x: 0, y: 0 } });
-    expect((r.data as Record<string, unknown>).name).toBe('编组');
+    expect((r.data as Record<string, unknown>).label).toBe('编组');
   });
 
   it('group 有 data.name → 保留', () => {
@@ -66,15 +66,15 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
     expect((r.data as Record<string, unknown>).name).toBe('我的组');
   });
 
-  it('group 有 expandedWidth/expandedHeight → 用真实尺寸而非默认 300×200', () => {
+  it('group 的 expandedWidth/expandedHeight 为死字段 → 忽略，仍用默认 300×200', () => {
     const r = applyNodeTypeDefaults({
       id: 'g',
       type: 'group',
       data: { expandedWidth: 700, expandedHeight: 500 },
       position: { x: 0, y: 0 },
     });
-    expect(r.width).toBe(700);
-    expect(r.height).toBe(500);
+    expect(r.width).toBe(300);
+    expect(r.height).toBe(200);
   });
 
   it('group 无 expanded → 用默认 300×200 + initialWidth/Height + className', () => {

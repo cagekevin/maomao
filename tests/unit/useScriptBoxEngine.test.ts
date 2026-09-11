@@ -126,12 +126,23 @@ describe('useScriptBoxEngine', () => {
     expect(result.current.updateData).toBe(first);
   });
 
+  /** TD-04-2：addNodes 经 commitNewNodes → setNodes 函数式追加；取最后一次 updater 应用到 mock 现状，返回新节点 */
+  function lastAddedNode() {
+    const updater = setNodes.mock.calls.at(-1)?.[0];
+    expect(typeof updater).toBe('function');
+    const next = updater(getNodes());
+    // 新节点是 concat 到末尾的那个（id 以 'x' 为准）
+    return next.find((n) => n.id === 'x');
+  }
+
   it('addNodes 经 screenToFlowPosition 偏移落点', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
     const cfg = createScriptBoxEngine.mock.calls[0][0];
     // base = screenToFlowPosition({x:0,y:0}) = {x:5,y:7}；偏移 x + base.x + 100, y + base.y
     cfg.addNodes([{ id: 'x', position: { x: 10, y: 20 } }]);
-    expect(addNodes).toHaveBeenCalledWith([{ id: 'x', data: {}, position: { x: 115, y: 27 } }]);
+    const out = lastAddedNode();
+    expect(out.data).toEqual({});
+    expect(out.position).toEqual({ x: 115, y: 27 });
   });
 
   it('addNodes 注入节点模型记忆（复用 App.addNode 的新建口径）', () => {
@@ -147,7 +158,7 @@ describe('useScriptBoxEngine', () => {
         data: { prompt: 'p', aspectRatio: '16:9' },
       },
     ]);
-    const out = addNodes.mock.calls[0][0][0];
+    const out = lastAddedNode();
     expect(out.data.selectedModel).toBe('p1::gpt-image-1');
     expect(out.data.aspectRatio).toBe('16:9');
     expect(out.data.prompt).toBe('p');
@@ -159,7 +170,7 @@ describe('useScriptBoxEngine', () => {
     cfg.addNodes([
       { id: 'x', type: 'videoGenerateNode', position: { x: 0, y: 0 }, data: { prompt: 'v' } },
     ]);
-    const out = addNodes.mock.calls[0][0][0];
+    const out = lastAddedNode();
     // 记忆为空 → 注入默认 ''，与系统新建一致；节点侧 useGenerateNode 的兜底仍会生效
     expect(out.data.selectedModel).toBe('');
     expect(out.data.prompt).toBe('v');

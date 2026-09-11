@@ -6,6 +6,7 @@ import {
   type ScriptBoxData,
 } from '../components/scriptbox/scriptBoxSchema.ts';
 import { injectNodePrefs } from '../components/base/canvas/nodePrefs.ts';
+import { commitNewNodes } from '../components/base/canvas/deriveNodes.ts';
 import { useProvidersList, load as loadProviders } from '../components/base/store/providerStore.ts';
 import { logger } from '../components/base/core/logger.ts';
 
@@ -17,12 +18,12 @@ export type { ScriptBoxUpdateData };
  * 剧本盒子 —— 引擎回调注入 hook（对应官方 H_.jsx 的注入机制 A/B）。
  *
  * 职责铁律（docs/剧本盒子/剧本盒子职责划分.md）：
- *  - 引擎回调必须由「能拿到 setNodes/addNodes/坐标」的宿主创建，再挂到 node.data.onXxx；
+ *  - 引擎回调必须由「能拿到 setNodes/getNodes/坐标」的宿主创建，再挂到 node.data.onXxx；
  *  - UI 组件（ScriptBoxNode / scriptbox/*）只调 d.onXxx?.(...)，不做引擎；
  *  - 数据只存 node.data，引擎经 setNodes 写回、UI 编辑经 updateData 写回。
  *
  * 为什么放剧本盒子自己的 hook 而不是 App.jsx：
- *  - 用 useReactFlow() 就能拿到 getNodes/setNodes/addNodes/screenToFlowPosition，
+ *  - 用 useReactFlow() 就能拿到 getNodes/setNodes/getEdges/screenToFlowPosition，
  *    无需 App 传参，App 保持通用画布壳，不变成垃圾场；
  *  - 剧本盒子专用逻辑聚在本模块，与 scriptBoxEngine.js 同类。
  *
@@ -40,7 +41,7 @@ export function useScriptBoxEngine(
   nodeId: string,
   data?: object,
 ): { updateData: ScriptBoxUpdateData } {
-  const { getNodes, getNode, setNodes, setEdges, addNodes, screenToFlowPosition } = useReactFlow();
+  const { getNodes, getNode, getEdges, setNodes, setEdges, screenToFlowPosition } = useReactFlow();
 
   // 供应商（多 provider，接真系统）：引擎经 getProviderState 实时读 providers + 主供应商，
   // 生成/生图时按模型 value（providerId::modelId）解析到对应 provider，再经统一生成入口 /api/generate 转发（旧 /api/proxy 出站已随 2026-09-03 收口退役）。
@@ -99,29 +100,35 @@ export function useScriptBoxEngine(
         const list = providersRef.current || [];
         return { providers: list, primary: list.find((p) => p.primary) || list[0] || null };
       },
-      // 连线：经 addNodes 建下游节点，位置用 screenToFlowPosition 算落点基准。
+      // 连线：经 commitNewNodes 建下游节点，位置用 screenToFlowPosition 算落点基准。
       // 【复用系统新建入口的模型记忆】剧本盒子建节点不走 App.addNode，故在此补 injectNodePrefs，
       // 把 localStorage「上次选择的模型」填进 data.selectedModel —— 否则新节点 selectedModel 恒为 ''，
       // 且 useGenerateNode 的「自动选第一个模型」兜底被 prefs.model 守卫挡掉，永远补不回来。
       // injectNodePrefs 仅补 data 里未显式传的字段，剧本盒已预填的 aspectRatio/size/selectedSeconds/label 不受影响。
+      // 【TD-04-2】改用 commitNewNodes：补结构默认 + 原子写（替代原裸 addNodes）→ 与 App.addNode 的
+      //   结构默认口径一致（此前剧本盒建的节点手写 width/height，与 nodeDefaults 单源表漂移）。
+      //   ⚠️ 不传 history：边由 scriptBoxEngine 紧随其后单独 setEdges 写入（不经 history），若此处
+      //   只把「节点」记进 history，undo 会撤掉节点却留下悬空边。故本回调与边保持同口径 = 均不进 history。
+      //   【已裁定·勿改（2026-09-11 用户确认）】剧本盒「建节点」不纳入 undo 撤销栈 = **有意设计，非债**：
+      //   它建的是批量生成的中间产物节点，用户手动 Ctrl+Z 撤这类系统派生节点非主流程、且易与「重新生成」
+      //   混淆；为此给引擎加原子 addNodeWithEdge API 的复杂度不值当。后续 AI 勿当 bug 去「补撤销」。
+      //   （原 TD-04-10 据此结案为「非债·不改」。）
       addNodes: (nodes) => {
-        if (!addNodes) return;
         const base = screenToFlowPosition?.({ x: 0, y: 0 }) ?? { x: 0, y: 0 };
-        addNodes(
-          nodes.map((raw) => {
-            const nd = raw as Node;
-            const data = { ...nd.data };
-            injectNodePrefs(nd.type, data);
-            return {
-              ...nd,
-              data,
-              position: {
-                x: (nd.position?.x ?? 0) + base.x + 100,
-                y: (nd.position?.y ?? 0) + base.y,
-              },
-            };
-          }),
-        );
+        const prepared = nodes.map((raw) => {
+          const nd = raw as Node;
+          const data = { ...nd.data };
+          injectNodePrefs(nd.type, data);
+          return {
+            ...nd,
+            data,
+            position: {
+              x: (nd.position?.x ?? 0) + base.x + 100,
+              y: (nd.position?.y ?? 0) + base.y,
+            },
+          };
+        });
+        commitNewNodes({ nodes: prepared }, { getNodes, getEdges, setNodes, setEdges });
       },
     });
   }

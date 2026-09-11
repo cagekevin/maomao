@@ -98,12 +98,8 @@ export const EVENTS = {
     payload: '{ oldUrl, newUrl }',
     note: '素材 url 变更（改名/移动归类，前端入口）广播旧→新 url。两个订阅方各管一段内存态：App 改写画布/脚本箱节点并持久化（防下游图生图 404）；taskStore 改写内存任务的 resultUrl（防任务中心破图）。两侧共用 imageUrl.js 的 buildUrlRewritePairs/replaceUrlDeep，禁止各写一份。与后端 rewriteUrlReferences（localTool database.ts）配套，形态严格四态对账',
   },
-  'yimao:remove-edge': {
-    from: [],
-    to: [],
-    payload: '{ sourceNodeId, targetNodeId }',
-    note: '跨 sub-window 画布移除边通知：App.jsx:1105 用 window.addEventListener 监听（window.dispatchEvent 通道，与 eventBus 并存），非 eventBus publish/subscribe 字面量，故反向校验跳过；当前无在源码内的发布方（孤儿监听，由子窗口/插件侧派发）',
-  },
+  // 'yimao:remove-edge' 已于 2026-09-11 删除（TD-04-8）：只有 App window 监听、全项目从无 dispatch
+  // （CustomEdge 实际走 deleteElements→onDelete）。属「只有订阅、从无发布」的死事件，同 §多窗口 判定。
   'project:import': {
     from: ['ProjectSelector.tsx:117'],
     to: ['useCanvasEventSubscriptions.ts:66'],
@@ -504,10 +500,11 @@ export const NODE_TYPES = {
   scriptBoxNode: 'scriptBoxNode',
   textGenerateNode: 'textGenerateNode',
   imageGenerateNode: 'imageGenerateNode',
-  templateNode: 'templateNode',
   videoGenerateNode: 'videoGenerateNode',
   ghostTarget: 'ghostTarget',
 };
+// 注：原 templateNode 登记项已于 2026-09-11 删除（TD-04-5）——TemplateNode 是「新建节点参考蓝本」，
+// 非活节点，已迁至 src/components/nodes/_template/ 且不再占用 registry（详见该文件头 JSDoc）。
 
 /** 节点类型值集合（check-node-types 比对用） */
 export const NODE_TYPE_SET = new Set(Object.values(NODE_TYPES));

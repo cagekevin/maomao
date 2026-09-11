@@ -26,7 +26,7 @@ export interface ArrangeOptions {
 }
 
 /**
-
+ * 画布自动整理（dagre 有向图分层布局 + 连通分量按视窗择优打包）。
  *
  * 【为什么用 dagre 而不是手写布局】
  * 官方就是 dagre 做有向图分层布局（rankdir=LR）。dagre 处理「边 → 左右分层」

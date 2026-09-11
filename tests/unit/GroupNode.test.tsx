@@ -7,6 +7,10 @@ import 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
+vi.mock('@xyflow/react', () => ({
+  // GroupNode 经 useNodeRename → useReactFlow 取 setNodes，单测隔离 Provider 树
+  useReactFlow: () => ({ setNodes: () => {} }),
+}));
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
   default: ({ children, titleRight, label }) => (
     <div data-testid="shell" data-label={label}>

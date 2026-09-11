@@ -105,9 +105,33 @@ describe('validateConversation · 错误注入（I2/S1/S3/S4/P4）', () => {
     expect(errs(validateConversation(conv))).toContain('S4');
   });
 
-  it('P4：终态残留 streaming:true → error', () => {
-    const conv = validConv({ messages: [{ id: 'm1', role: 'assistant', streaming: true }] });
-    expect(errs(validateConversation(conv))).toContain('P4');
+  it('P4：终态残留 streaming:true → error（不变量本身仍捕获，未经 normalize 自愈的原始数据）', () => {
+    const raw = {
+      id: 'ac_1',
+      messages: [{ id: 'm1', role: 'assistant', content: '', streaming: true }],
+    } as unknown as Conversation;
+    expect(errs(validateConversation(raw))).toContain('P4');
+  });
+
+  it('P4 自愈：normalizeConversation 清除 streaming:true（内容保留，水化/落盘自愈）', () => {
+    const conv = normalizeConversation({
+      id: 'ac_1',
+      messages: [{ id: 'm1', role: 'assistant', content: '完整内容', streaming: true }],
+    });
+    const m = conv?.messages[0] as Record<string, unknown> | undefined;
+    expect(m?.streaming).toBe(false);
+    expect(m?.content).toBe('完整内容');
+  });
+
+  it('P4 自愈：含 streaming:true 残留的会话经 normalizeConversation 后不再触发 P4 警告', () => {
+    const conv = normalizeConversation({
+      id: 'ac_1',
+      messages: [
+        { id: 'm1', role: 'user', content: 'hi' },
+        { id: 'm2', role: 'assistant', content: '完整回复', streaming: true },
+      ],
+    }) as Conversation;
+    expect(errs(validateConversation(conv))).not.toContain('P4');
   });
 });
 

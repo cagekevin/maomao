@@ -17,6 +17,7 @@ import {
 import NodeShell from '../base/ui/NodeShell.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
+import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import LazyImage from '../base/ui/LazyImage.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
@@ -100,6 +101,8 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
 
   // ---- data 写回（收口到 useNodeData.patchData：节点 data 单源不可变写回，消除手写 setNodes 样板；TD-8 残留①）----
   const { patchData: updateData } = useNodeData(id);
+  // TD-04-13：标题双击改名 → 写回 data.label（此前渲染 data.label 却漏接 onRename，与兄弟节点不一致）。
+  const rename = useNodeRename(id);
 
   // ---- 缩略图生成（对齐官方 _cmp_Tr(url, 256, 0.7)：canvas 等比缩到 max 256，jpg 0.7）----
   const makeThumb = useCallback(async (url: string, max = 256, quality = 0.7) => {
@@ -444,6 +447,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
         defaultTitle="图片盒子"
         icon={titleIcon}
         selected={selected}
+        onRename={rename}
         handleVariant={smallHandle}
         // 端口契约收口到 NodeShell（勿改回 children 手写 CustomHandle）：
         // 手写在 children 里定位基准是「主框」（不含标题栏），与 NodeShell 标准端口层不一致，

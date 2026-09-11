@@ -332,13 +332,18 @@ describe('ImageGenerate 异步任务恢复（onRecover）', () => {
 
   it('节点已消失时，用原 id 重建生图节点并带 resultUrl', () => {
     mockGetNodes.mockReturnValue([]); // 节点不在画布
+    mockSetNodes.mockClear();
     setup({ prompt: '一只猫', label: '生图' });
     act(() => {
       genConfig.onRecover({ resultUrl: 'http://poll.local/rebuild.png' });
     });
-    expect(mockAddNodes).toHaveBeenCalled();
-    const added = mockAddNodes.mock.calls[0][0][0];
-    expect(added.id).toBe('n1');
+    // TD-04-2：重建走 commitNewNodes（setNodes 函数式追加），不再走裸 addNodes。
+    // 行为断言：把最后一次 setNodes 的 updater 应用到空画布，应得到带 resultUrl 的重建节点。
+    const updater = mockSetNodes.mock.calls.at(-1)?.[0];
+    expect(typeof updater).toBe('function');
+    const next = updater([]);
+    const added = next.find((n) => n.id === 'n1');
+    expect(added).toBeTruthy();
     expect(added.type).toBe('imageGenerateNode');
     expect(added.data.imageUrl).toBe('http://poll.local/rebuild.png');
   });

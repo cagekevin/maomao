@@ -67,7 +67,6 @@ export function getNodePrefs(type: string, defaults: NodePrefsMap = {}): NodePre
 const PREFS_FIELDS: PrefsFieldMap = {
   imageGenerateNode: { selectedModel: 'model', aspectRatio: 'aspectRatio', imageSize: 'imageSize' },
   textGenerateNode: { selectedModel: 'model' },
-  templateNode: { selectedModel: 'model', aspectRatio: 'aspectRatio' },
   videoGenerateNode: {
     selectedModel: 'model',
     size: 'size',
@@ -78,9 +77,10 @@ const PREFS_FIELDS: PrefsFieldMap = {
 const PREFS_DEFAULTS: PrefsFieldMap = {
   imageGenerateNode: { model: '', aspectRatio: 'Auto', imageSize: '1K' },
   textGenerateNode: { model: '' },
-  templateNode: { model: '', aspectRatio: '1:1' },
   videoGenerateNode: { model: '', size: '16:9', resolution: '1080p', seconds: '10' },
 };
+// 注：templateNode 已于 2026-09-11 从本表摘除（TD-04-5）——它是参考蓝本非活节点，
+// 不再走 injectNodePrefs 注入（该函数只在新建活节点时调用）。
 
 /**
  * 【新建注入 · 纯函数】把「上次参数」记忆填进新节点的 data。

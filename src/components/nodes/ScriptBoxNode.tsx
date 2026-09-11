@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clapperboard, Settings, Maximize2, Loader2 } from 'lucide-react';
-import { Handle, Position, useReactFlow, useUpdateNodeInternals } from '@xyflow/react';
+import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import CustomHandle from '../edges/CustomHandle.tsx';
 import { useScriptBoxEngine } from '../../hooks/useScriptBoxEngine.ts';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
+import { useDisconnectSource } from '../../hooks/useDisconnectSource.ts';
 import { useOutsideClick, useContentHeightSync } from '../base/core/uiHooks.ts';
 import { shotHandleId } from '../base/core/contracts.ts';
 import StepShots from '../scriptbox/StepShots.tsx';
@@ -69,7 +70,6 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
   // 图片写入 data.upstreamImages，均不覆盖用户手动输入的 data.story。
   // 展示交给第 1 步的 StepShots（剧情上方只读素材区）；生成剧本时引擎把上游内容一起交给编剧模型
   //（见 engine.onGenerateScript），让 AI 能「知道我产品外观」从而写出准确剧本。
-  const { setEdges } = useReactFlow();
   const connected = useConnectedInputs(id);
   const upstreamTexts = (connected.texts || [])
     .map((t) => String(t.text ?? '').trim())
@@ -119,13 +119,8 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
   }, [upstreamTexts, d.upstreamStory, d.upstreamImages, d.upstreamTexts, connected, updateData]);
 
   // 断开连线：点击只读素材区红色 × → 删除该来源节点 → 本节点的连线（对齐文本节点）。
-  const disconnectSource = useCallback(
-    (sourceNodeId) => {
-      if (!sourceNodeId) return;
-      setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)));
-    },
-    [id, setEdges],
-  );
+  // TD-04-12：收口到 useDisconnectSource（原先 4 节点逐字重复）。
+  const disconnectSource = useDisconnectSource(id);
 
   // —— UI 状态（非数据，放组件本地） ——
   const [settingsOpen, setSettingsOpen] = useState(false);

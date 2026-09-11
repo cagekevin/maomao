@@ -6,29 +6,30 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 //   - ENABLE_TOOLS_ON_NON_STREAM=true  + 非流式模型 → 请求体含 tools，响应带 tool_calls 时回填
 //   - 流式模型默认带 tools（无论开关）
 import { roundTrip } from '../../src/components/agent/runtime/agentRuntime.ts';
+import type { RoundTripCtx, StreamDelta } from '../../src/components/agent/runtime/agentRuntime.ts';
+import type { GenerationProvider } from '@/types';
 
-function makeCtx(args: Record<string, unknown> = {}): Record<string, unknown> {
-  const {
-    streamMode = 'stream',
-    ENABLE_TOOLS_ON_NON_STREAM = false,
-    toolSchemas = [{ name: 'show_plan_for_confirm' }],
-    provider = null,
-    useProxy = false,
-    onStream,
-  } = args;
+// 【TD-11-12③】roundTrip 现要求显式 RoundTripCtx 契约，mock 必须构造合法上下文。
+type TestCtx = RoundTripCtx & { onStream: (delta: StreamDelta) => void };
+
+function makeCtx(
+  args: {
+    streamMode?: string;
+    ENABLE_TOOLS_ON_NON_STREAM?: boolean;
+    onStream?: (delta: StreamDelta) => void;
+  } = {},
+): TestCtx {
+  const { streamMode = 'stream', ENABLE_TOOLS_ON_NON_STREAM = false, onStream } = args;
   return {
-    endpoint: 'http://local/api/agent/key/chat',
     model: 'test-model',
-    toolSchemas,
-    provider: useProxy ? provider || { id: 'p1', protocol: 'openai', base_url: 'http://up' } : null,
-    apiBase: 'http://local',
-    chatApiKey: '',
+    toolSchemas: [{ function: { name: 'show_plan_for_confirm' } }],
+    provider: { id: 'test' } as unknown as GenerationProvider,
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     loadAgentChatModel: () => ({ streamMode, id: 'm1' }),
-    parseAgentError: (res, fb) => `err:${res?.status || ''}:${fb}`,
+    parseAgentError: (res, fb) => Promise.resolve(`err:${res?.status || ''}:${fb}`),
     parseSSEChunk: vi.fn(),
     ENABLE_TOOLS_ON_NON_STREAM,
-    onStream: onStream || vi.fn(),
+    onStream: onStream || (vi.fn() as (delta: StreamDelta) => void),
   };
 }
 
@@ -182,6 +183,7 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
           if (delta.content) acc.content += delta.content;
         } catch (_) {}
       }
+      return true;
     };
     const r = await roundTrip(
       ctx,

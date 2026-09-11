@@ -25,6 +25,7 @@ import '../base/editors/ImageEditor.tsx';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
 import { replaceNodeImage } from '../base/nodeImage.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
+import { useDisconnectSource } from '../../hooks/useDisconnectSource.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { useNodeExpanded } from '../../hooks/useNodeExpanded.ts';
 import { useNodeField } from '../../hooks/useNodeField.ts';
@@ -43,6 +44,8 @@ import '../base/api/index.ts';
 import { logger } from '../base/core/logger.ts';
 import { fetchTasks, generateImage, resolveNodeImageUrl } from '../base/api/index.ts';
 import { useNodePrefs, injectNodePrefs } from '../base/canvas/nodePrefs.ts';
+import { commitNewNodes } from '../base/canvas/deriveNodes.ts';
+import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
 import { mergeRefImages, buildEffectivePrompt } from '../base/core/utils.ts';
@@ -180,17 +183,14 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   // effect 不跑 → 标记残留（docs/117 §8）。见下方 onImageReplaced 内的置位注释。
   const editedRatioRef = useRef(false);
   // useSyncNodeData（Agent update_node 改 data → 同步本地 state）已收进 useGenerateNode 的 sync 参数，此处不再手写。
-  const { setNodes, setEdges, getEdges: _getEdges, getNodes, addNodes, addEdges } = useReactFlow();
+  const { setNodes, setEdges, getEdges, getNodes } = useReactFlow();
+  // 画布历史句柄：供 commitNewNodes 原子记录自建子节点（TD-04-2）
+  const history = useCanvasEdges();
 
   // 断连线：点击素材缩略图红色 ×，删除该素材来源节点 → 本节点的连线。
   // 仅对来自连线的素材有效（有 sourceNodeId）；data.images（剧本盒子资产）无来源连线，不处理。
-  const disconnectSource = useCallback(
-    (sourceNodeId: string) => {
-      if (!sourceNodeId) return;
-      setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)));
-    },
-    [id, setEdges],
-  );
+  // TD-04-12：收口到 useDisconnectSource（原先 4 节点逐字重复）。
+  const disconnectSource = useDisconnectSource(id);
   // 节点框按媒体真实宽高比自适应（类似 AssetNode）：
   //  - Auto 比例下，<img onLoad={fitFromImage}> 让节点框跟随图片真实比例；
   //  - 裁剪/扩图保存后 onImageReplaced 用 fitByRatio(dims) 让节点框跟随编辑后真实画布。
@@ -346,21 +346,25 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       if (!getNodes().some((n) => n.id === id)) {
         // 原节点已不在画布：用原 id + 生图节点类型重建，带 resultUrl 与 label/prompt，放固定偏移位置。
         // 注意 addNodes 重复同 id 会告警，但此处仅在「确认不存在」时走，安全。
-        addNodes([
+        // TD-04-2：重建亦走 commitNewNodes（补结构默认 + 进 undo 栈），替代原裸 addNodes。
+        commitNewNodes(
           {
-            id,
-            type: 'imageGenerateNode',
-            position: { x: 100, y: 100 },
-            data: {
-              ...(data?.label ? { label: data.label } : {}),
-              ...(data?.prompt ? { prompt: data.prompt } : {}),
-              imageUrl: resultUrl,
-              aspectRatio: data?.aspectRatio || 'Auto',
-            },
-            width: 420,
-            height: 420,
+            nodes: [
+              {
+                id,
+                type: 'imageGenerateNode',
+                position: { x: 100, y: 100 },
+                data: {
+                  ...(data?.label ? { label: data.label } : {}),
+                  ...(data?.prompt ? { prompt: data.prompt } : {}),
+                  imageUrl: resultUrl,
+                  aspectRatio: data?.aspectRatio || 'Auto',
+                },
+              },
+            ],
           },
-        ]);
+          { getNodes, getEdges, setNodes, setEdges, history },
+        );
         return;
       }
       setImageUrl(String(resultUrl ?? ''));
@@ -453,8 +457,6 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         type: 'imageGenerateNode',
         position: newPos,
         data: nodeData,
-        width: 420,
-        height: 420,
       };
 
       const newEdge = {
@@ -463,11 +465,15 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         target: newNodeId,
       };
 
-      addNodes([newNode]);
-      addEdges([newEdge]);
+      // TD-04-2：自建子节点统一走 commitNewNodes（补结构默认 + 原子写 + 进 undo 栈），
+      // 替代原裸 addNodes/addEdges（不补结构默认、Ctrl+Z 撤不掉）。
+      commitNewNodes(
+        { nodes: [newNode], edges: [newEdge] },
+        { getNodes, getEdges, setNodes, setEdges, history },
+      );
       setIsCameraStudioOpen(false);
     },
-    [id, getNodes, addNodes, addEdges],
+    [id, getNodes, getEdges, setNodes, setEdges, history],
   );
 
   // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 setImageUrl + patchData（不可变落盘）。

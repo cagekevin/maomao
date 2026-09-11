@@ -490,3 +490,42 @@ describe('TD-11-10 防回潮：运行态不变量自检已接线 + 列合并单�
     expect(merged[2].id).not.toBe('c2');
   });
 });
+
+describe('TD-11-11 防回潮：confirmTablePreview 失败绝不谎称 confirmed + 互斥收口到 SSOT', () => {
+  it('F8 假成功修复：目标 tab 已删 → confirm 失败标 cancelled（非 confirmed），预览清空', () => {
+    setupConvWithTable();
+    const sb = getCurrentAssistantTable();
+    const rowId = sb.rows[0].id;
+    const mid = appendAssistant('{"rows":[{"景别":"特写","画面":"新"}]}');
+    setTableWorkspaceRows([rowId]);
+    acceptTablePreview({
+      json: { rows: [{ 景别: '特写', 画面: '新' }] },
+      messageId: mid,
+      selectedRowIds: [rowId],
+    });
+    const p = getTableWorkspace().preview!;
+    // 把预览目标切到一个不存在的 tab → confirm 时 getTab 找不到 → 走失败分支（A-001/A-004 兜底）
+    setPreviewTargetTab('ghost-tab-that-does-not-exist');
+    const res = confirmTablePreview();
+    expect(res.ok).toBe(false);
+    const msgs = getActiveConv()!.messages as Array<{ tableResolved?: string }>;
+    const last = msgs[msgs.length - 1];
+    expect(last.tableResolved).toBe('cancelled'); // 假成功已修：绝不谎称 confirmed
+    expect(last.tableResolved).not.toBe('confirmed');
+    expect(getTableWorkspace().preview).toBeNull();
+  });
+
+  it('F1 互斥收口：setTableFocusedCell 清行选；setTableWorkspaceRows 非空清单格+编辑态；取消选行不动格', () => {
+    setupConvWithTable();
+    setTableWorkspaceRows(['r1', 'r2']);
+    setTableFocusedCell({ rowId: 'a', colId: 'b' });
+    expect(getTableWorkspace().selectedRowIds).toEqual([]); // 聚焦即清行选（不变量收口 SSOT）
+    setTableWorkspaceRows(['r1']);
+    expect(getTableWorkspace().focusedCell).toBeNull(); // 选行即清单格
+    expect(getTableWorkspace().editingCell).toBeNull();
+    // 取消选行（空）不动格
+    setTableFocusedCell({ rowId: 'x', colId: 'y' });
+    setTableWorkspaceRows([]);
+    expect(getTableWorkspace().focusedCell).toEqual({ rowId: 'x', colId: 'y' });
+  });
+});

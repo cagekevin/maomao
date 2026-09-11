@@ -34,6 +34,7 @@ import CameraStudioPanel from '../base/editors/CameraStudioPanel.tsx';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { DepthVideoModal } from '../base/depthVideo/DepthVideoModal.tsx';
 import { spawnDepthVideoNode } from '../base/depthVideo/spawn.ts';
+import { commitNewNodes } from '../base/canvas/deriveNodes.ts';
 import { injectNodePrefs } from '../base/canvas/nodePrefs.ts';
 import { generateId } from '../base/core/idGen.ts';
 import type { CameraStudioResult } from '../base/editors/cameraStudio.ts';
@@ -71,7 +72,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   // `data.url` 是【刻意的存量兼容层】（docs/118 §7.3 ⑤）：写侧已统一只写 imageUrl（见 nodeImage.ts），
   // 但存量快照里真有只带 url 的节点 —— 删掉这层兜底 = 存量破图。读兼容、写唯一。
   const url = toAbsoluteFileUrl(data.imageUrl || data.url || '') || '';
-  const { setNodes, getNodes, getNode, getEdges, setEdges, addNodes, addEdges } = useReactFlow();
+  const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow();
   const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false);
   // 深度转视频弹窗开关 + 画布历史（undo）：供 spawnDepthVideoNode 原子提交，复用 VideoGenerate 范式
   const [depthOpen, setDepthOpen] = useState(false);
@@ -193,8 +194,6 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
         type: 'imageGenerateNode',
         position: newPos,
         data: nodeData,
-        width: 420,
-        height: 420,
       };
 
       const newEdge = {
@@ -203,11 +202,15 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
         target: newNodeId,
       };
 
-      addNodes([newNode]);
-      addEdges([newEdge]);
+      // TD-04-2：自建子节点统一走 commitNewNodes（补结构默认 width/height/style + 原子写 + 进 undo 栈）。
+      // 原裸 addNodes/addEdges 不补结构默认（手写 420 与 nodeDefaults 漂移）、不进 history（Ctrl+Z 撤不掉）。
+      commitNewNodes(
+        { nodes: [newNode], edges: [newEdge] },
+        { getNodes, getEdges, setNodes, setEdges, history },
+      );
       setIsCameraStudioOpen(false);
     },
-    [id, getNodes, addNodes, addEdges],
+    [id, getNodes, getEdges, setNodes, setEdges, history],
   );
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {

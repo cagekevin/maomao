@@ -8,6 +8,8 @@ const { contentClearCache } = contentStore;
 import {
   subscribe,
   getState,
+  commit,
+  emptyMemory,
   normalizeWorkflow,
 } from '../../src/components/agent/conversation/conversationState.ts';
 import {
@@ -22,6 +24,7 @@ import {
   setCurrentPending,
   getCurrentPending,
   makePendingRef,
+  resetCurrentConversationToEmpty,
 } from '../../src/components/agent/conversation/conversationStore.ts';
 
 // 会话键已迁 KV（backend:'kv'）：写走 kvSet、读走 kvGet。用 Map 兜底让 KV 确定性往返，
@@ -188,5 +191,54 @@ describe('conversationState · normalizeWorkflow 的 L1 限容', () => {
     const q = [{ text: 'a' }, { text: 'b' }];
     const w = normalizeWorkflow({ ...base, steerQueue: q });
     expect(w.steerQueue).toEqual(q);
+  });
+});
+
+describe('TD-11-12 防回潮：resetCurrentConversationToEmpty 真清空全部状态字段（非假重置）', () => {
+  it('重置后 workflow / pendingGenerations / awaitingConfirm / messages 全部清空（修复旧「漏斗漏字段」假重置）', () => {
+    setAgentKey('canvas-assistant');
+    ensureActiveConversation();
+    // 先注入脏状态：workflow（有值）、pendingGenerations、awaitingConfirm=true
+    const st = getState();
+    const conv = st.conversations[0];
+    commit({
+      ...st,
+      conversations: st.conversations.map((c) =>
+        c.id === conv.id
+          ? {
+              ...c,
+              workflow: normalizeWorkflow({ status: 'planning' }),
+              pendingGenerations: [{ step: 'gen', nodeId: 'n1' }],
+              awaitingConfirm: true,
+            }
+          : c,
+      ),
+    });
+    const dirty = getState().conversations[0];
+    expect(dirty.workflow).not.toBeNull();
+    expect(dirty.pendingGenerations).not.toBeNull();
+    expect(dirty.awaitingConfirm).toBe(true);
+
+    // 重置（TD-11-12 改为直接构造完整重置态，不再经会漏字段的 setCurrentSnapshot 漏斗）
+    resetCurrentConversationToEmpty();
+
+    const after = getState().conversations[0];
+    expect(after.workflow).toBeNull();
+    expect(after.pendingGenerations).toBeNull();
+    expect(after.awaitingConfirm).toBe(false);
+    expect(after.messages).toEqual([]);
+    expect(after.pending).toBeNull();
+    expect(after.memory).toEqual(emptyMemory()); // 记忆清空（JSDoc 声称的「清空记忆」非谎称）
+  });
+});
+
+describe('TD-11-12 防回潮：setCurrentSnapshot 的 workflow 判空对称（null 真清空）', () => {
+  it('传 workflow:null 经 setCurrentSnapshot 应真清空（修复旧真值判断「传 null 当不动」）', () => {
+    setAgentKey('canvas-assistant');
+    ensureActiveConversation();
+    setCurrentSnapshot({ workflow: normalizeWorkflow({ status: 'planning' }) });
+    expect(getCurrentSnapshot().workflow).not.toBeNull();
+    setCurrentSnapshot({ workflow: null }); // 旧实现因 truthy 判断会把 null 当「不动」→ 残留；现应清空
+    expect(getCurrentSnapshot().workflow).toBeNull();
   });
 });

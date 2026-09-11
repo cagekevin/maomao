@@ -125,7 +125,7 @@ vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   resolveProviderModel: mocks.resolveProviderModel,
 }));
 
-import TemplateNode from '../../src/components/nodes/TemplateNode.tsx';
+import TemplateNode from '../../src/components/nodes/_template/TemplateNode.tsx';
 
 beforeEach(() => {
   mocks.resetNodeMockState();

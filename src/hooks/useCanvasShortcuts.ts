@@ -20,12 +20,12 @@ export interface CanvasShortcutHandlers {
   onArrange?: () => void;
   /** Q/W/E 快速添加节点，入参为节点类型（textGenerateNode/imageGenerateNode/videoGenerateNode） */
   onAdd?: (nodeType: string) => void;
-  /** Tab 一键折叠/展开 text/prompt/discountVideo 节点的 input 面板 */
+  /** Tab 一键折叠/展开「有输入面板」节点（INPUT_PANEL_NODE_TYPES）的 input 面板 */
   onToggleInputPanels?: () => void;
 }
 
 /**
-
+ * 画布键盘快捷键（撤销/重做/全选/复制/编组/整理/快捷建节点/折叠面板）。
  *
  * 守卫条件与源码一致：
 
@@ -37,9 +37,9 @@ export interface CanvasShortcutHandlers {
  *  - onDuplicate              Ctrl+D
  *  - onGroup                  Ctrl+G 编组选中节点
  *  - onUngroup                Ctrl+Shift+G 取消所选 group 编组
-
+ *  - onArrange                Ctrl+L 自动排版（dagre）
  *  - onAdd(type)              Q / W / E 快速添加文本/图片/视频
- *  - getPosition()            快速添加节点时的坐标（默认基于当前鼠标不可得时返回 0,0）
+ *  - onToggleInputPanels      Tab 一键折叠/展开输入面板
  */
 export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
   const {

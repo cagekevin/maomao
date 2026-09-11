@@ -61,9 +61,10 @@ export default function AssistantTablePreviewCard(props: AssistantTablePreviewCa
         ? '确认追加'
         : '确认写入表格';
 
-  const cellOf = (r: Record<string, string>) =>
-    props.columns.map((c, ci) => <td key={ci}>{r[c] ?? ''}</td>);
-  const rowOf = (r: Record<string, string>, ri: number) => (
+  // 【TD-11-11 F6 修正】rows 为位置式 string[][]（与 columns 等长对齐），按列序索引 r[ci]，
+  // 杜绝原 Record<列名,值> 在「同名列」场景下静默覆盖的隐藏 bug。
+  const cellOf = (r: string[]) => props.columns.map((c, ci) => <td key={ci}>{r[ci] ?? ''}</td>);
+  const rowOf = (r: string[], ri: number) => (
     <tr key={ri} className={changedSet.has(ri) ? 'atw-pv-ai' : undefined}>
       {cellOf(r)}
     </tr>

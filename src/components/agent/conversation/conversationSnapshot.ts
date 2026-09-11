@@ -21,6 +21,7 @@ import {
   AGENT_MSG_MAX,
 } from './conversationState.ts';
 import {
+  Conversation,
   ConversationMessage,
   WorkflowState,
   PendingRefState,
@@ -46,8 +47,13 @@ export interface ConversationSnapshot {
   memory: ConversationMemory;
 }
 
-/** setCurrentSnapshot 入参：只覆盖传入字段，其余保留 */
-export type SnapshotPatch = Partial<ConversationSnapshot> & Record<string, unknown>;
+/**
+ * setCurrentSnapshot 入参：只覆盖传入字段，其余保留。
+ * 【TD-11-12 类型诚实】删去原 `& Record<string, unknown>` 假收窄——它让任意键（如
+ * pendingGenerations/awaitingConfirm）编译期合法、运行期却被 setCurrentSnapshot 静默丢弃，
+ * 正是 resetCurrentConversationToEmpty「假重置」在类型层不可见的使能根因。现严格为快照字段子集。
+ */
+export type SnapshotPatch = Partial<ConversationSnapshot>;
 
 /** 读当前对话的快照副本（对外） */
 export function getCurrentSnapshot(): ConversationSnapshot {
@@ -104,7 +110,10 @@ export function setCurrentSnapshot(snap?: SnapshotPatch | null): void {
       ? snap.attachments.map((a) => ({ ...(a as Record<string, unknown>) }))
       : conv.attachments,
     draft: typeof snap?.draft === 'string' ? snap.draft : conv.draft,
-    workflow: snap?.workflow ? normalizeWorkflow(snap.workflow) : conv.workflow,
+    // 【TD-11-12 对称修复】workflow 用 `!== undefined` 判空（与 pending 一致）：原真值判断使
+    // `workflow: null` 被当「不动」→ 任何经此入口的清空都静默失败。删 & Record<string,unknown>
+    // 后本入口只认快照 7 字段，传 null 即真清空（normalizeWorkflow(null) → null，见 conversationState）。
+    workflow: snap?.workflow !== undefined ? normalizeWorkflow(snap.workflow) : conv.workflow,
     pending: snap?.pending !== undefined ? normalizePending(snap.pending) : conv.pending,
     memory: capConversationMemory(rawMemory),
     updatedAt: Date.now(),
@@ -244,27 +253,41 @@ export function setCurrentAttachments(attachments: unknown[]): void {
 }
 
 /**
- * 把当前对话重置为「空对话」（清空消息/草稿/附件/工作流/pending/记忆/生成暂存）。
+ * 把当前对话重置为「空对话」（清空消息/草稿/附件/工作流/pending/记忆/生成暂存/运行态）。
  *
  * 【为何是一个函数而不是调用点手抄字段】原 `useAgentChat.clear()` 就地手写了 11 个字段
  * （含整份 `memory` 字面量），等于**复制了一遍 `emptyMemory()` 的定义**——`Conversation` 每加
  * 一个需清空的字段，clear 就必须记得回来加，漏一次即静默残留（TD-11-5 同源病灶）。
  * 现收敛为「重置」这一语义动作，字段清单只此一处。
  *
- * 注：`skills` 保留（清空对话不撤已选技能，与原 `clear()` 行为一致）；
- *     `aiUndoStack`/`referenceImages`/`pendingMemorySuggest` 等 per-conversation 运行态
- *     由 `normalizeConversation` 在重置时补默认（此处显式置空以免依赖归一兜底）。
+ * 【TD-11-12 修正 · 不再走 setCurrentSnapshot 部分 patch 漏斗】原实现经 setCurrentSnapshot 写，
+ * 但：① 漏斗只拣选 7 字段 → pendingGenerations / awaitingConfirm 永不清零（静默残留）；
+ * ② workflow 用真值判断 → 传 `null` 被当「不动」，workflow 也无法清空。
+ * 二者使 JSDoc 谎称「清空工作流/生成暂存」而实际残留——直接呼应 TD-11-4/11-7「状态残留」家族债。
+ * 现**直接构造完整重置态**（spread 当前 conv 继承 id/title/ts 等元数据，显式清空所有状态字段），
+ * 不再经会漏字段的漏斗，从源头杜绝残留。`skills` 由调用方决定（默认空，与原语义一致）。
  */
 export function resetCurrentConversationToEmpty(skills: unknown[] = []): void {
-  setCurrentSnapshot({
+  const conv = requireActiveConv('resetCurrentConversationToEmpty');
+  if (!conv) return;
+  // spread 当前 conv 继承元数据 + 显式清空所有会堆积状态的字段；用 spread 而非列举，新加字段也不会被漏清。
+  const reset: Conversation = {
+    ...conv,
     messages: [],
-    skills: Array.isArray(skills) ? skills : [],
-    draft: '',
     attachments: [],
+    draft: '',
     workflow: null,
     pending: null,
-    memory: emptyMemory(),
     pendingGenerations: null,
     awaitingConfirm: false,
+    memory: emptyMemory(),
+    aiUndoStack: [],
+    pendingMemorySuggest: null,
+    referenceImages: [],
+    skills: Array.isArray(skills) ? skills : [],
+  };
+  commit({
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? reset : c)),
   });
 }

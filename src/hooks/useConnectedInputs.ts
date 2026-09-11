@@ -386,11 +386,12 @@ if (import.meta.env.DEV) {
     'imageGenerateNode',
     'videoGenerateNode',
     'panoramaNode',
-    'templateNode',
     'faceMosaicNode',
     'loopNode',
     'videoProcessNode',
     'director3dNode',
+    // 注：原含 templateNode，已于 2026-09-11 摘除（TD-04-5）——TemplateNode 是参考蓝本非活节点，
+    // 已迁出 registry（不在 NODE_TYPES，故本覆盖校验不再需要它）。
   ]);
   const noOutput = new Set(['group', 'ghostTarget']); // 无管线产出（容器 / 连线占位）
   const covered = new Set([...specialHandled, ...declaredOutputs, ...genericOutputOk, ...noOutput]);

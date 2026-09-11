@@ -247,8 +247,9 @@ describe('EVENTS 结构完整性', () => {
 });
 
 describe('EVENTS 内容验证', () => {
-  it('当前共有 10 个登记事件', () => {
-    expect(Object.keys(EVENTS).length).toBe(10);
+  it('当前共有 9 个登记事件', () => {
+    // 2026-09-11：由 10 → 9（删 'yimao:remove-edge'，TD-04-8，只有订阅无发布的死事件）
+    expect(Object.keys(EVENTS).length).toBe(9);
   });
 
   it('包含所有核心事件', () => {
@@ -259,9 +260,9 @@ describe('EVENTS 内容验证', () => {
     expect(keys).toContain('project:export');
     expect(keys).toContain('persist:failed');
     expect(keys).toContain('agent:credit-gate');
-    // P1-D 新增：素材发送事件收口（取代 assetStore 裸回调桥）+ 跨窗口画布移除边登记
+    // P1-D 新增：素材发送事件收口（取代 assetStore 裸回调桥）
+    // 注：'yimao:remove-edge' 已于 2026-09-11 删除（TD-04-8，只有订阅无发布的死事件）
     expect(keys).toContain('asset:sent');
-    expect(keys).toContain('yimao:remove-edge');
     // P2-G 新增：上游完成 → 直接下游可自动触发（安全网）
     expect(keys).toContain('upstream:updated');
     // 素材改名/移动归类 → 旧 url 广播，App 订阅后改写画布引用

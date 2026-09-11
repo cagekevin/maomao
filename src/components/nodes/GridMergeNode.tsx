@@ -7,6 +7,7 @@ import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { Grid3X3, PanelsTopLeft, Layers, Loader2 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import { useNodeData } from '../../hooks/useNodeData.ts';
+import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import OverlayEditor, { renderOverlayCanvas } from '../base/editors/OverlayEditor.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
@@ -130,6 +131,8 @@ interface GridMergeNodeProps {
 function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow();
   const { patchData } = useNodeData(id);
+  // TD-04-13：标题双击改名 → 写回 data.label（此前渲染 data.label 却漏接 onRename，与兄弟节点不一致）。
+  const rename = useNodeRename(id);
   const history = useCanvasEdges();
   // 旧的 `const { isHidden: _isHidden } = useMediaDegrade()` 已删：本节点未消费（死调用）。
   const render = useRenderImageResolver();
@@ -571,6 +574,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
         defaultTitle="图像拼图"
         icon={titleIcon}
         selected={selected}
+        onRename={rename}
         // 端口契约收口到 NodeShell（勿改回 children 手写 CustomHandle）：
         // 手写在 children 里定位基准是「主框」（不含标题栏），与 NodeShell 标准端口层不一致，
         // 会导致建边成功但线不显示（同 VideoProcessNode 历史事故）。

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useReactFlow, Handle, Position } from '@xyflow/react';
 import { useNodeData } from '../../hooks/useNodeData.ts';
+import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
@@ -196,6 +197,8 @@ interface GridSplitNodeProps {
 function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   const { setNodes, getNodes, getNode, setEdges, getEdges } = useReactFlow();
   const { patchData } = useNodeData(id);
+  // TD-04-13：标题双击改名 → 写回 data.label（此前渲染 data.label 却漏接 onRename，与兄弟节点不一致）。
+  const rename = useNodeRename(id);
   const history = useCanvasEdges();
   const { isHidden } = useMediaDegrade();
   // 订阅「画布显示缩略图」设置：显示地址实时随开关（见 docs/18）
@@ -855,6 +858,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
         defaultTitle="图像切分"
         icon={titleIcon}
         selected={selected}
+        onRename={rename}
         // 端口契约收口到 NodeShell（勿改回 children 手写 CustomHandle）：
         // 手写在 children 里定位基准是「主框」（不含标题栏），与 NodeShell 标准端口层不一致，
         // 会导致建边成功但线不显示（同 VideoProcessNode 历史事故）。

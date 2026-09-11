@@ -1,4 +1,5 @@
 import { generateId } from '../core/idGen.ts';
+import { applyNodeTypeDefaults } from './nodeDefaults.ts';
 import type { Node, Edge } from '@xyflow/react';
 
 /**
@@ -89,22 +90,12 @@ export function buildSpawnNodes(
 }
 
 /**
- * 基于当前画布状态计算「追加子节点+边」后的完整 next 快照（用于 record）。
- */
-export function applySpawnSnapshot(
-  currentNodes: Node[],
-  currentEdges: Edge[],
-  spawned: SpawnResult,
-): { nodes: Node[]; edges: Edge[] } {
-  return {
-    nodes: currentNodes.concat(spawned.childNodes),
-    edges: currentEdges.concat(spawned.edges),
-  };
-}
-
-/**
- * 「建子节点 + 连线」的原子提交：把调用方重复的「applySpawnSnapshot → setNodes → setEdges → history.record」
+ * 「建子节点 + 连线」的原子提交：把调用方重复的「算快照 → setNodes → setEdges → history.record」
  * 三连收口为单点（消除 9 处复制）。
+ *
+ * 【TD-04-11（2026-09-11）】原 `applySpawnSnapshot` 帮助函数已删——Director3DNode 是最后一个手写
+ * 「applySpawnSnapshot + setNodes/setEdges/record」的调用方，收口到 spawnAndCommit 后它再无生产消费者
+ * （仅自证单测），属死代码。快照计算已内联进 commitNewNodes。
  *
  * 为什么收口：此前每处调用方各写一遍提交三连，且必须「先基于 getNodes()/getEdges() 当前值算快照，
  * 再 setNodes/setEdges，再 history.record(显式快照)」——顺序错了 undo 会丢新增节点（useCanvasHistory 红线）。
@@ -121,10 +112,43 @@ export interface CanvasCommitHandles {
   history?: { record(snapshot: { nodes: Node[]; edges: Edge[] }): void };
 }
 
+/**
+ * 「提交一批新建节点到画布」的**唯一原子原语**（TD-04-2 收口）——所有自建子节点的宿主共用。
+ *
+ * 【为什么抽】画布上有两类「自建子节点」场景，此前各写一遍提交逻辑、且**行为不一致**：
+ *   - A 类（node 内 spawn，经 spawnAndCommit）：applySpawnSnapshot + setNodes/setEdges + history.record ✅
+ *   - B 类（AssetNode 相机工作室 / ImageGenerate / useScriptBoxEngine 内联建节点）：
+ *     裸 addNodes/addEdges（或 setEdges），**不补结构默认、不进 undo 栈** ❌
+ * 本原语把「建子节点」的唯一正确语义固化为三段：**① 补结构默认 → ② 原子写 → ③ 记历史**，
+ * 两类场景统一走它。B 类只需补 history 句柄（useCanvasEdges）与形状对齐。
+ *
+ * 【为什么不变量如此】结构默认（width/style/className…）不补齐会导致「新建 vs 快照还原」字段漂移
+ * （nodeDefaults 单源表就是为此存在）；不进 history 会让 Ctrl+Z 撤不掉刚建的节点（用户可感 bug）。
+ *
+ * 【顺序红线】必须「先基于 getNodes()/getEdges() 当前值算 next 快照，再 setState，再 record(显式快照)」——
+ * 否则 undo 丢新增节点（见 useCanvasHistory record 语义）。本原语已固化该顺序，调用方零机会写错。
+ *
+ * @param payload.nodes 待追加节点（会被 applyNodeTypeDefaults 补齐结构默认，不覆盖已有字段）
+ * @param payload.edges 随节点一并追加的边（可为空，如剧本盒子的边由引擎另行写入）
+ * @returns 补齐结构默认后的节点数组（供调用方需拿 id/实测尺寸时用）
+ */
+export function commitNewNodes(
+  payload: { nodes?: Node[]; edges?: Edge[] },
+  handles: CanvasCommitHandles,
+): Node[] {
+  const nodes = (payload.nodes || []).map((n) => applyNodeTypeDefaults(n) as unknown as Node);
+  const edges = payload.edges || [];
+  // 仅在需要记历史时才读 getEdges（无 history 的宿主/最小 mock 不必提供 getEdges）。
+  const snapshot = handles.history
+    ? { nodes: handles.getNodes().concat(nodes), edges: handles.getEdges().concat(edges) }
+    : null;
+  handles.setNodes((ns) => ns.concat(nodes));
+  if (edges.length) handles.setEdges((es) => es.concat(edges));
+  if (snapshot) handles.history?.record(snapshot);
+  return nodes;
+}
+
+/** spawnAndCommit = buildSpawnNodes 产物 → commitNewNodes 的薄包装（保持既有 8 处调用签名不变）。 */
 export function spawnAndCommit(spawned: SpawnResult, handles: CanvasCommitHandles): Node[] {
-  const snapshot = applySpawnSnapshot(handles.getNodes(), handles.getEdges(), spawned);
-  handles.setNodes((ns) => ns.concat(spawned.childNodes));
-  handles.setEdges((es) => es.concat(spawned.edges));
-  handles.history?.record(snapshot);
-  return spawned.childNodes;
+  return commitNewNodes({ nodes: spawned.childNodes, edges: spawned.edges }, handles);
 }

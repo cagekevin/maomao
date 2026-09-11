@@ -14,14 +14,19 @@ const root = resolve(__dirname, '../../src/components/nodes');
 const TARGETS = {
   ImageGenerate: ['imgPrefs'],
   TextGenerate: ['textPrefs'],
+  // TemplateNode 于 2026-09-11 迁至 nodes/_template/（参考蓝本非活节点，TD-04-5）
   TemplateNode: ['myPrefs'],
   VideoGenerate: ['vidPrefs'],
 };
 
-/** 按 .jsx → .tsx 顺序探测节点文件（迁移期两者皆可能存在） */
+/** TemplateNode 是参考蓝本，已迁至 _template/ 子目录（2026-09-11，TD-04-5） */
+const SUBDIR = { TemplateNode: '_template' };
+
+/** 按 .jsx → .tsx 顺序探测节点文件（迁移期两者皆可能存在；蓝本在 _template/ 子目录） */
 function resolveNodeFile(name) {
+  const dir = SUBDIR[name] ? resolve(root, SUBDIR[name]) : root;
   for (const ext of ['.jsx', '.tsx']) {
-    const p = resolve(root, name + ext);
+    const p = resolve(dir, name + ext);
     if (existsSync(p)) return p;
   }
   throw new Error(`未找到节点文件：${name}.jsx / ${name}.tsx`);

@@ -198,12 +198,15 @@ function useNodeHeight(id) {
  *   · ⚠️ 已知重复（历史遗留，新代码别模仿、逐步收敛）：ImageBoxNode 手写 makeThumb/copyImage/downloadUrl，
  *     应分别用 imageCompress / clipboard.js。
  *
- * ── 7. 注册（4 处同步，漏一处 → 要么建不出 / 要么下游拿不到数据）──
- *   · components/base/canvas/NodePalette.ts paletteNodes 加一行 { type, label, icon, cat, data, builtin:true }。
- *   · App.jsx nodeTypes 加一行 type → 组件。
- *   · **base/useConnectedInputs.js 的 NODE_OUTPUTS 加一行**（有产出的节点必须登记，否则下游连线拿不到数据；
+ * ── 7. 注册（5 处同步，漏一处 → 要么建不出 / 要么下游拿不到数据 / 要么门禁红）──
+ *   · components/base/canvas/NodePalette.ts paletteNodes 加一行 { type, label, icon, cat, component, data, builtin:true }。
+ *     ⚠️ App.tsx 的 nodeTypes 已由 buildNodeTypeComponents() 单源派生，**不再手改 App.tsx**（旧注释已过时）。
+ *   · contracts.ts 的 NODE_TYPES 加一行（节点用 useNodePrefs('xxxNode', …) 时；check:node-types 强制）。
+ *   · contracts.ts 的 NODE_HANDLE_CONTRACT 加一行（节点端口非默认 null 口时；check:node-handles 强制）。
+ *   · **hooks/useConnectedInputs.ts 的 NODE_OUTPUTS 加一行**（有产出的节点必须登记，否则下游连线拿不到数据；
  *     数组型产出 extractedImages[] 用 arrayImages 归一）。这是最容易漏的一处。
  *   · 新增 base 能力登记 docs/BASE-CAPABILITIES.md；数据契约写交接文档。
+ *   权威流程见 spec/NEW-NODE-GUIDE.md §六（以该文档为准）。
  *
  * ── 8. 验证门禁 ──
  *   · npm run test:smoke + npm run test:regression + npm run build 三道门全绿。

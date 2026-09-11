@@ -10,7 +10,7 @@ import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import { Director3DOverlay } from '../director3d/Director3DOverlay.tsx';
 import { uploadFileToLocal } from '../base/api/index.ts';
 import { generateId } from '../base/core/idGen.ts';
-import { buildSpawnNodes, applySpawnSnapshot } from '../base/canvas/deriveNodes.ts';
+import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 
 interface Director3DNodeData {
@@ -132,10 +132,8 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
           ],
           { targetHandle: null },
         );
-        const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned);
-        setNodes((ns) => ns.concat(spawned.childNodes));
-        setEdges((es) => es.concat(spawned.edges));
-        history?.record(snapshot);
+        // TD-04-11：统一走 spawnAndCommit（原子提交三连收口），不再手写 applySpawnSnapshot+setNodes/setEdges/record。
+        spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -211,10 +209,8 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
           ],
           { targetHandle: null },
         );
-        const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned);
-        setNodes((ns) => ns.concat(spawned.childNodes));
-        setEdges((es) => es.concat(spawned.edges));
-        history?.record(snapshot);
+        // TD-04-11：统一走 spawnAndCommit（原子提交三连收口），不再手写 applySpawnSnapshot+setNodes/setEdges/record。
+        spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

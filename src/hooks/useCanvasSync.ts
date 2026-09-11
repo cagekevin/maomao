@@ -1,5 +1,5 @@
 /**
-
+ * 画布跨窗口/跨源冲突检测（BroadcastChannel 即时 + 3s 服务端版本轮询）。
  *
  * 【职责】让「快照已被别人写新」在任何形态下都可见（docs/118 §五 C4 / 不变量 I2）：
  *  - BroadcastChannel：收到「其他窗口」保存的同一项目 CANVAS_SAVED → 置 canvasConflict

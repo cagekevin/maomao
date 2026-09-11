@@ -202,7 +202,7 @@ function Canvas() {
           // initProjects / 外部 activeProjectId 重载路径时，旧项目的整图快照残留在栈内，
           // 首次 Ctrl+Z 会用旧项目整图污染当前画布。
           history.clear?.();
-          // 兜底：历史快照里各节点类型可能缺 width/style/className/data.name 等结构字段
+          // 兜底：历史快照里各节点类型可能缺 width/style/className/data.label 等结构字段
           // （如早期「右键新建 group」未补 style/className），加载时统一补默认，与新建路径保持一致。
           // 兜底：归一化父子顺序 + 清理孤儿 parentId（防「Parent node not found」崩溃）
           const safeNodes = normalizeNodeParents(
@@ -681,27 +681,26 @@ function Canvas() {
   // 用 App state 承载（最小侵入），不引全局 store；如后续需供非 React 模块调用再升级 renameStore。
   const [renameTarget, setRenameTarget] = useState<{ id: string; label: string } | null>(null);
 
-  // 打开重命名弹窗：按节点类型取当前显示名预填（group 用 data.name，其余 data.label；空则留空+placeholder）
+  // 打开重命名弹窗：统一读 data.label（编组旧快照用 data.name，读侧 label ?? name 兜底；空则留空+placeholder）
   const openRenameDialog = useCallback((id: string) => {
     const node = nodesRef.current.find((n) => n.id === id);
     if (!node) return;
-    const label =
-      node.type === 'group' ? String(node.data?.name ?? '') : String(node.data?.label ?? '');
+    const label = String(node.data?.label ?? node.data?.name ?? '');
     setRenameTarget({ id, label });
   }, []);
 
-  // 统一改名写回（docs/108 §4.2）：普通节点写 data.label，group 写 data.name；空值/未变 = 忽略；进撤销栈。
+  // 统一改名写回（docs/108 §4.2）：全部节点（含编组）写 data.label；空值/未变 = 忽略；进撤销栈。
   // 不依赖节点组件内部 onRename（一次覆盖全部节点/编组）；已接 onRename 节点的双击链路保留不动（避免双写）。
+  // 编组旧快照可能只有 data.name，写回时收敛到 label（读侧 label ?? name 已兼容）。
   const commitRename = useCallback(
     (id: string, name: string) => {
       const next = String(name || '').trim();
       const cur = nodesRef.current.find((n) => n.id === id);
       if (!cur) return;
-      const field = cur.type === 'group' ? 'name' : 'label';
-      if (!next || String(cur.data?.[field] ?? '') === next) return;
+      if (!next || String(cur.data?.label ?? cur.data?.name ?? '') === next) return;
       // P0-B 红线：setNodes 不可变更新（见 NodeShell.tsx 头注释 / docs/106），禁止原地 mutation
       const nextNodes = nodesRef.current.map((n) =>
-        n.id === id ? { ...n, data: { ...n.data, [field]: next } } : n,
+        n.id === id ? { ...n, data: { ...n.data, label: next } } : n,
       );
       setNodes(nextNodes);
       history.record({ nodes: nextNodes, edges: edgesRef.current });
@@ -1078,7 +1077,7 @@ function Canvas() {
 
   // 一键折叠/展开有输入面板节点的配置面板（Tab 键触发）。
   // 不在撤销栈里（expanded 是 UI 偏好，与节点内部 patchData 一致：只落盘不进 history）。
-  // 范围与 Ctrl+L 整理共用 INPUT_PANEL_NODE_TYPES（避免不对称：TemplateNode 也能展回）。
+  // 范围与 Ctrl+L 整理共用 INPUT_PANEL_NODE_TYPES（避免不对称：text/image/video 三类生成节点一致）。
   const toggleInputPanels = useCallback(() => {
     const targetTypes = new Set<string>(INPUT_PANEL_NODE_TYPES);
     const matching = nodesRef.current.filter((n) => targetTypes.has(n.type as string));
@@ -1127,11 +1126,16 @@ function Canvas() {
   // ⚠️ params 是 Connection 类型（只有 source/target/sourceHandle/targetHandle，无 id）。
   // 直接 { ...params } 塞进 edges 会让边【没有 id】→ EdgeRenderer 用 undefined 作 key →
   // 多条边 key 重复 → React key 警告。必须补唯一 id。
+  // 【TD-04-9】id 必须体现**端口**（sourceHandle/targetHandle）：同一对节点可用不同端口连多条
+  // 语义不同的边（如剧本盒子 shot-1→图A 与 shot-2→图A），仅用 source_target 作 id 会撞车。
+  // 用 handle 拼稳定 id；极端重复时用 generateId 兜底（替代原 Date.now()，防同毫秒撞车）。
   const onConnect = useCallback(
     (params) => {
-      const baseId = `xy-edge__${params.source}_${params.target}`;
+      const sh = params.sourceHandle ?? 'null';
+      const th = params.targetHandle ?? 'null';
+      const baseId = `xy-edge__${params.source}:${sh}_${params.target}:${th}`;
       const dup = edgesRef.current.some((e) => e.id === baseId);
-      const id = dup ? `${baseId}_${Date.now()}` : baseId;
+      const id = dup ? `${baseId}_${generateId('dup')}` : baseId;
       const nextEdges = [...edgesRef.current, { ...params, id, type: 'default', animated: false }];
       setEdges(nextEdges);
       history.record({ nodes: nodesRef.current, edges: nextEdges });
@@ -1209,14 +1213,11 @@ function Canvas() {
     [setEdges, history],
   );
 
-  // CustomEdge 的 ✕ 按钮通过 window 事件触发（edge 组件无法直接拿 App 函数）
-  useEffect(() => {
-    const handler = (e) => {
-      removeEdge(e.detail?.id);
-    };
-    window.addEventListener('yimao:remove-edge', handler);
-    return () => window.removeEventListener('yimao:remove-edge', handler);
-  }, [removeEdge]);
+  // 【TD-04-8 已清（2026-09-11）】原此处监听 window 'yimao:remove-edge'（注释称「CustomEdge ✕ 按钮
+  // 经 window 事件触发，edge 组件拿不到 App 函数」）。核实：CustomEdge 实际走 ReactFlow 官方
+  // deleteElements({edges}) → 触发 App 的 onDelete（已 record 历史），**从未 dispatch 该 window 事件**
+  // → 监听+事件为「只有订阅、从无发布」的死代码（同本文件 §多窗口 对 mutiwindow-* 的判定）。
+  // 连同 contracts.EVENTS 的 'yimao:remove-edge' 登记一并删除。删边仍走 onDelete / removeEdge（双击）。
 
   // 双击连线删除
   const onEdgeDoubleClick = useCallback(

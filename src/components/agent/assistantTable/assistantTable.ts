@@ -467,7 +467,9 @@ export interface AssistantTablePreview {
   kind: 'table';
   globalStyle: string;
   columns: string[];
-  rows: Array<Record<string, string>>;
+  /** 位置式单元格（与 columns 等长对齐）。【TD-11-11 F6 修正】原为 Array<Record<string,string>>（按列名 keyed），
+   *  同名列会被静默覆盖；改位置式后需方按列序索引，彻底消除「同名列丢值」隐藏 bug。 */
+  rows: string[][];
   /** 单行时为行号（1 起），整表为 null */
   rowIndex: number | null;
   /** 操作类别（update/append/replace），供预览卡文案（1.5 契约 C5 后由 result 派生） */

@@ -26,15 +26,107 @@
 // 【出口收口 L3b】出站统一走前端生成门面 chatStream（不再裸拼 provider URL / 直连 /api/agent）。
 // 旧 /api/proxy 已退役；providerUrlAdapters 的 URL 拼装链与 requestModes（responses 形态）随知识退场删除。
 import { chatStream } from '@/components/base/api/index.ts';
+import type { GenerationProvider } from '@/types';
+import type { ChatMessage as ApiChatMessage } from '@/components/base/api/generate.ts';
 import { withTimeout } from '../../base/utils/asyncGuard.ts';
 import { CHAT_TIMEOUT } from '../../base/core/config.ts';
 // 复用 agentCore 的权威消息/工具调用类型（同 runtime 目录，避免重定义漂移）
-import type { ChatMessage, ToolCall } from './agentCore.ts';
+import type { ChatMessage, ToolCall, SSEAccumulator } from './agentCore.ts';
 
 /** roundTrip 返回的 assistant 消息：在 ChatMessage 基础上携带运行期必填字段。 */
 interface RuntimeAssistantMessage extends ChatMessage {
   model: string;
   createdAt: number;
+}
+
+/** 运行时注入的日志接口：仅声明 roundTrip/runToolCalls 实际消费的 4 个方法（窄接口，不绑 React）。 */
+interface AgentLogger {
+  debug: (category: string, action: string, detail?: unknown, opts?: { module?: string }) => void;
+  info: (category: string, action: string, detail?: unknown) => void;
+  warn: (category: string, action: string, detail?: unknown) => void;
+  error: (category: string, action: string, detail?: unknown) => void;
+}
+
+/** 流式增量回调（roundTrip → 调用方 UI 更新）。 */
+export interface StreamDelta {
+  content: string;
+  reasoning: string;
+  toolCalls: ToolCall[];
+}
+
+/** 工具执行结果（callTool 返回；data 为各工具各异的动态负载，按 unknown 收口，消费端局部 cast）。
+ *  与 toolRegistry.ToolResult 对齐（error?: unknown、无 nodeId）——nodeId 并非 ToolResult 顶层字段，
+ *  故 runToolCalls 不再读 result?.nodeId（原读取恒为 undefined，属死分支）。 */
+interface ToolExecResult {
+  ok: boolean;
+  error?: unknown;
+  data?: unknown;
+}
+
+/** execute_plan 返回的单条生成结果（动态负载，局部收窄用）。 */
+interface RunToolEntry {
+  status?: string;
+  resultUrl?: string;
+  stepId?: string;
+  id?: string;
+  nodeId?: string;
+}
+/** execute_plan 返回的单条日志（动态负载，局部收窄用）。 */
+interface RunToolLog {
+  level?: string;
+  message?: string;
+}
+
+/** roundTrip 注入依赖契约（useAgentChat 在调用点构造；依赖注入，模块不绑 React）。
+ *  【TD-11-12③ 类型诚实】原 ctx 隐式 any → 收口为显式契约，杜绝「传错字段编译期无感」。 */
+export interface RoundTripCtx {
+  model: string;
+  toolSchemas: Array<{ function?: { name?: string } | null } | null | undefined>;
+  provider: GenerationProvider;
+  logger: AgentLogger;
+  loadAgentChatModel: () => { streamMode?: string } | null | undefined;
+  parseAgentError: (res: Response, fallback?: string) => Promise<string>;
+  parseSSEChunk: (line: string, acc: SSEAccumulator) => boolean;
+  ENABLE_TOOLS_ON_NON_STREAM?: boolean;
+}
+
+/** runToolCalls 注入依赖契约。与 RoundTripCtx 字段不同（工具执行侧依赖），故独立接口。 */
+interface ToolCallCtx {
+  // 真实 callTool 形参为 (name: any, args?: {})、返回同步 ToolResult；用并集 + 宽松 args 收口，
+  // 既让真实函数可赋值、又让内部 `callTool(name, JSON.parse)` 调用合法（args 实传 any）。
+  callTool: (
+    name: string | undefined,
+    args: Record<string, unknown>,
+  ) => ToolExecResult | Promise<ToolExecResult>;
+  appendMsg: (msg: Record<string, unknown>) => void;
+  model: string;
+  logger: AgentLogger;
+  getActivePendingGenerations: () => unknown[] | null;
+}
+
+/** resolveBody 选项（已拿到 HTTP 2xx 响应后的解析心智）。 */
+interface ResolveBodyOpts {
+  isNonStream: boolean;
+  model: string;
+  logger: AgentLogger;
+  parseSSEChunk: (line: string, acc: SSEAccumulator) => boolean;
+  ENABLE_TOOLS_ON_NON_STREAM?: boolean;
+  onStream?: (delta: StreamDelta) => void;
+}
+
+/** 非流式 / 兜底解析的 LLM 响应信封（OpenAI choices 或 relay {code,data} 两种形态）。 */
+interface OpenAIMessageEnvelope {
+  choices?: Array<{
+    message?: {
+      content?: unknown;
+      tool_calls?: Array<{
+        id?: string;
+        type?: string;
+        function?: { name?: string; arguments?: string };
+      }>;
+    };
+  }>;
+  data?: { text?: string };
 }
 
 /** ══════════════════════════════════════════════════════════════════════════════
@@ -57,7 +149,12 @@ interface RuntimeAssistantMessage extends ChatMessage {
  *  @param {Function} onStream      流式回调（content/reasoning/toolCalls）
  *  @returns {Promise<{ role, content, reasoning?, tool_calls? }>}
  */
-export async function roundTrip(ctx, requestMessages, signal, onStream) {
+export async function roundTrip(
+  ctx: RoundTripCtx,
+  requestMessages: ChatMessage[],
+  signal: AbortSignal,
+  onStream?: (delta: StreamDelta) => void,
+): Promise<RuntimeAssistantMessage> {
   const {
     model,
     toolSchemas,
@@ -127,7 +224,9 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
     res = await chatStream({
       provider,
       model,
-      messages: requestMessages,
+      // 【TD-11-12③ 跨模块边界】requestMessages 为 agentCore ChatMessage（useAgentChat 产出），
+      // chatStream 收 generate ChatMessage——两套同名词类型结构不一致，此处单点收窄（不扩散 cast）。
+      messages: requestMessages as unknown as ApiChatMessage[],
       tools: withTools ? toolSchemas : undefined,
       stream: !isNonStream,
       signal,
@@ -170,8 +269,15 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
  * responses 形态已随 requestModes 退役（L3b 知识退场）。语义与先前内联完全一致，仅被 withTimeout 包一层。
  */
 async function resolveBody(
-  res,
-  { isNonStream, model, logger, parseSSEChunk, ENABLE_TOOLS_ON_NON_STREAM, onStream },
+  res: Response,
+  {
+    isNonStream,
+    model,
+    logger,
+    parseSSEChunk,
+    ENABLE_TOOLS_ON_NON_STREAM,
+    onStream,
+  }: ResolveBodyOpts,
 ): Promise<RuntimeAssistantMessage> {
   // ── 非流式：普通 JSON 响应 ──
   // 【加固】非流式一次性读取整个响应体，遇网关/代理缓冲断流、content-length 不符等会截断 JSON。
@@ -180,7 +286,7 @@ async function resolveBody(
   // 兜底为原始文本（渲染层仍能从文本抽 URL 出图），并打 ERROR 日志，绝不静默丢内容。
   if (isNonStream) {
     const rawText = await res.text().catch(() => '');
-    const json = safeParseNonStreamJSON(rawText, logger);
+    const json = safeParseNonStreamJSON(rawText, logger) as OpenAIMessageEnvelope | null;
     // ── [debug] 非流式链路 · 跳③：响应体读取 + 解析结果（定位"收不到回复"） ──
     logger.debug(
       'AI助手',
@@ -238,7 +344,7 @@ async function resolveBody(
           tc?.function?.name
             ? {
                 id: tc.id || '',
-                type: tc.type || 'function',
+                type: 'function' as const,
                 function: { name: tc.function.name, arguments: tc.function.arguments || '' },
               }
             : null,
@@ -253,7 +359,7 @@ async function resolveBody(
         head: rawText.slice(0, 120),
       });
     onStream?.({
-      content: assistant.content,
+      content: typeof assistant.content === 'string' ? assistant.content : '',
       reasoning: '',
       toolCalls: assistant.tool_calls || [],
     });
@@ -269,7 +375,7 @@ async function resolveBody(
   const reader = res.body.getReader();
   const decoder = new TextDecoder('utf-8');
   let buffer = '';
-  const acc = { content: '', reasoning: '', toolCalls: [] };
+  const acc: SSEAccumulator = { content: '', reasoning: '', toolCalls: [] };
 
   // 【吞输出兜底】部分模型/网关在 streamMode='stream' 时仍返回「普通 JSON 非流式响应」
   //（choices[0].message.content，而非 choices[0].delta 的 SSE）。parseSSEChunk 只认 data: 前缀，
@@ -294,7 +400,7 @@ async function resolveBody(
           if (tc?.function?.name) {
             acc.toolCalls.push({
               id: tc.id || '',
-              type: 'function',
+              type: 'function' as const,
               function: { name: tc.function.name, arguments: tc.function.arguments || '' },
             });
             hit = true;
@@ -409,7 +515,7 @@ async function resolveBody(
  *  @param {object} logger   链路日志（失败时 WARN，不抛）
  *  @returns {object|null}   解析后的对象，或 null（表示需回退到原始文本）
  */
-function safeParseNonStreamJSON(rawText, logger) {
+function safeParseNonStreamJSON(rawText: string, logger: AgentLogger): unknown {
   if (!rawText || !rawText.trim()) return null;
   const candidate = (s) => {
     try {
@@ -479,7 +585,7 @@ function safeParseNonStreamJSON(rawText, logger) {
  *    - getActivePendingGenerations: () => 读取当前对话暂存 generations
  */
 /** 【B层日志辅助】工具参数摘要：截断超长（如 generations 超大 JSON），防 debug 刷屏 */
-function safeSummarizeArgs(args) {
+function safeSummarizeArgs(args: unknown): string {
   if (args == null) return '';
   try {
     const s = JSON.stringify(args);
@@ -489,7 +595,11 @@ function safeSummarizeArgs(args) {
   }
 }
 
-export async function runToolCalls(ctx, tools, callIdFor: (tc: ToolCall) => string = () => '') {
+export async function runToolCalls(
+  ctx: ToolCallCtx,
+  tools: ToolCall[],
+  callIdFor: (tc: ToolCall) => string = () => '',
+): Promise<{ creditHeld: boolean }> {
   const { callTool, appendMsg, model, logger, getActivePendingGenerations } = ctx;
   // 【积分闸停点语义修正】creditHeld：本轮是否「execute_plan 命中积分闸（返回 awaited:'credit'）」。
   // 只有它才触发工具循环暂停等用户点生成；积分闸不影响任何其它工具/建节点/读节点（用户裁定）。
@@ -514,19 +624,20 @@ export async function runToolCalls(ctx, tools, callIdFor: (tc: ToolCall) => stri
       { module: 'agent' },
     );
     const result = await callTool(tc.function?.name, args);
+    // 【TD-11-12③ 类型诚实】工具结果 data 为各工具各异的动态负载（unknown 收口）；
+    // 消费端统一经 data 局部收窄，杜绝原 any 下 result.data?.x 静默误读。
+    const data = result.data as Record<string, unknown> | undefined;
     // 【链路日志】工具执行结果：工具名 + 成功/失败（失败带 error），供排查 AI 调工具环节
     if (result?.ok) logger.info('AI助手', '工具', { name: tc.function?.name, ok: true });
     else
       logger.error('AI助手', '工具失败', { name: tc.function?.name, error: result?.error || '' });
     appendMsg({
       role: 'tool',
-      // 失败时也携带 result.nodeId（若工具失败返回了），供对话侧「重试此步骤」定位节点（对齐大雄）
       content: result?.ok
-        ? JSON.stringify({ ok: true, ...result.data })
+        ? JSON.stringify({ ok: true, ...data })
         : JSON.stringify({
             ok: false,
             error: result?.error,
-            ...(result?.nodeId ? { nodeId: result.nodeId } : {}),
           }),
       tool_call_id: callIdFor(tc),
       createdAt: Date.now(),
@@ -534,13 +645,11 @@ export async function runToolCalls(ctx, tools, callIdFor: (tc: ToolCall) => stri
     // Skill 三阶段阶段1：show_plan_for_confirm 把策划展示给用户（作为一条 assistant 消息，可见规划）
     // 门禁只依赖工具成功（result?.ok），与 plan_text/generations 传输彻底解耦（对齐大雄：门禁由前端本地构造）。
     if (tc.function?.name === 'show_plan_for_confirm' && result?.ok) {
-      const planText = result.data?.plan_text || '（策划已生成，请确认）';
+      const planText = data?.plan_text || '（策划已生成，请确认）';
       // 【对齐大雄】generations 挂到确认消息上，供前端渲染步骤卡片（agentGenCardHtml 等价物）。
       // 来源优先级：回复正文解析暂存（主） > 工具参数传入。都来自 per-conversation pendingGenerations。
-      const confirmGens =
-        Array.isArray(result.data?.generations) && result.data.generations.length
-          ? result.data.generations
-          : getActivePendingGenerations() || [];
+      const gens = data?.generations;
+      const confirmGens = Array.isArray(gens) ? gens : getActivePendingGenerations() || [];
       appendMsg({
         role: 'assistant',
         content: `生成策划：\n${planText}`,
@@ -554,10 +663,15 @@ export async function runToolCalls(ctx, tools, callIdFor: (tc: ToolCall) => stri
     // 复用 awaiting_confirm 门禁卡片；确认按钮文案由 AgentMessage 按 memory_suggest 语义渲染。
     // 用户确认动作由 UI 侧（AgentPanel.handleConfirmPlan → 确认记忆逻辑）落库。
     if (tc.function?.name === 'memory_suggest' && result?.ok) {
-      const kind = result.data?.kind || '';
-      const content = result.data?.content || '';
+      const kind = typeof data?.kind === 'string' ? data.kind : '';
+      const content = typeof data?.content === 'string' ? data.content : '';
       const kindLabel =
-        { preference: '偏好', fact: '事实', constraint: '约束', decision: '决定' }[kind] || kind;
+        (
+          { preference: '偏好', fact: '事实', constraint: '约束', decision: '决定' } as Record<
+            string,
+            string
+          >
+        )[kind] || kind;
       appendMsg({
         role: 'assistant',
         content: `建议保存一条长期记忆：\n[${kindLabel}] ${content}\n\n确认后该记忆将写入项目（之后每轮对话都会延续这一偏好/事实/约束/决定）。`,
@@ -572,11 +686,11 @@ export async function runToolCalls(ctx, tools, callIdFor: (tc: ToolCall) => stri
     if (tc.function?.name === 'execute_plan' && result?.ok) {
       // 【积分闸停点】execute_plan 命中积分闸（awaited:'credit'）→ 本轮已走到「点生成烧积分」临界点，
       // 置 creditHeld，send 循环据此暂停等用户确认；与全局残留 creditGate.pending 无关（见 send 停点注释）。
-      if (result.data?.awaited === 'credit') creditHeld = true;
-      const logsArr = Array.isArray(result.data?.logs) ? result.data.logs : [];
+      if (data?.awaited === 'credit') creditHeld = true;
+      const logsArr = Array.isArray(data?.logs) ? (data.logs as RunToolLog[]) : [];
       // 【对齐大雄 agentLastResults】把本轮生成结果图 url 存到 assistant 消息的 lastResults，
       //   供后续轮「改上一张生成图」时执行层跨轮取最近生成图（图不进 LLM 上下文，执行层反查原图）。
-      const entriesArr = Array.isArray(result.data?.entries) ? result.data.entries : [];
+      const entriesArr = Array.isArray(data?.entries) ? (data.entries as RunToolEntry[]) : [];
       const lastResults = entriesArr
         .filter((e) => e && e.status === 'completed' && e.resultUrl)
         .map((e) => ({

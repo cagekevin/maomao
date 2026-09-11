@@ -700,13 +700,9 @@ export default function AssistantTablePanel({
             kind="table"
             globalStyle={String(preview.json?.globalStyle ?? '').trim()}
             columns={preview.resultCols.map((c) => c.label)}
-            rows={preview.resultRows.map((r) => {
-              const rec: Record<string, string> = {};
-              for (let ci = 0; ci < preview.resultCols.length; ci++) {
-                rec[preview.resultCols[ci].label] = r.cells[ci] ?? '';
-              }
-              return rec;
-            })}
+            // 【TD-11-11 F6 修正】直接透传位置式 cells，删除原「按列名 → Record」转换
+            // （同名列会被覆盖，是丢值根因）。位置式与 columns 等长对齐，渲染按列序索引。
+            rows={preview.resultRows.map((r) => r.cells.map((c) => c ?? ''))}
             rowIndex={null}
             opKind={preview.opKind}
             updatedCount={preview.updatedCount}

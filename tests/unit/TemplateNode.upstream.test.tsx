@@ -123,7 +123,7 @@ beforeEach(() => {
   connectedInputs = { images: [], texts: [] };
 });
 
-import TemplateNode from '../../src/components/nodes/TemplateNode.tsx';
+import TemplateNode from '../../src/components/nodes/_template/TemplateNode.tsx';
 
 function setup(data = {}) {
   return render(<TemplateNode id="n1" data={data} selected={false} />);

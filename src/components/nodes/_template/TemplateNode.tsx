@@ -2,46 +2,55 @@ import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { Image as ImageIcon, Plus, ZoomIn, Download } from 'lucide-react';
 // ═══ 基座组件（统一入口，禁止手写外壳/端口/背景）═══
-import NodeShell from '../base/ui/NodeShell.tsx';
-import HoverToolbar from '../base/panels/HoverToolbar.tsx';
-import ExpandablePanel from '../base/ui/ExpandablePanel.tsx';
-import GenerateButton from '../base/ui/GenerateButton.tsx';
-import ModelSelect from '../base/ui/ModelSelect.tsx';
-import PromptInput from '../base/prompt/PromptInput.tsx';
-import { resolvePromptChips } from '../base/prompt/promptChips.ts';
-import MaterialStrip from '../base/panels/MaterialStrip.tsx';
-import ResizeFullscreenHandle from '../base/ui/ResizeFullscreenHandle.tsx';
-import FullscreenModal from '../base/panels/FullscreenModal.tsx';
-import FullscreenEditor from '../base/panels/FullscreenEditor.tsx';
-import GeneratingOverlay from '../base/ui/GeneratingOverlay.tsx';
+import NodeShell from '../../base/ui/NodeShell.tsx';
+import HoverToolbar from '../../base/panels/HoverToolbar.tsx';
+import ExpandablePanel from '../../base/ui/ExpandablePanel.tsx';
+import GenerateButton from '../../base/ui/GenerateButton.tsx';
+import ModelSelect from '../../base/ui/ModelSelect.tsx';
+import PromptInput from '../../base/prompt/PromptInput.tsx';
+import { resolvePromptChips } from '../../base/prompt/promptChips.ts';
+import MaterialStrip from '../../base/panels/MaterialStrip.tsx';
+import ResizeFullscreenHandle from '../../base/ui/ResizeFullscreenHandle.tsx';
+import FullscreenModal from '../../base/panels/FullscreenModal.tsx';
+import FullscreenEditor from '../../base/panels/FullscreenEditor.tsx';
+import GeneratingOverlay from '../../base/ui/GeneratingOverlay.tsx';
 // ═══ 基座 hook（统一范式）═══
-import { useNodeResize } from '../base/core/uiHooks.ts';
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
-import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
-import { useNodePrefs } from '../base/canvas/nodePrefs.ts';
-import { showToast } from '../base/core/toastStore.ts';
-import { generateImage } from '../base/api/index.ts';
-import { toAbsoluteFileUrl } from '../base/api/index.ts';
-import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
-import { mergeRefImages, buildEffectivePrompt } from '../base/core/utils.ts';
-import { useNodeData } from '../../hooks/useNodeData.ts';
-import { useNodeExpanded } from '../../hooks/useNodeExpanded.ts';
-import { useNodeField } from '../../hooks/useNodeField.ts';
-import { resolveProviderModel } from '../base/utils/providerModels.ts';
+import { useNodeResize } from '../../base/core/uiHooks.ts';
+import { useConnectedInputs } from '../../../hooks/useConnectedInputs.ts';
+import { useMediaDegrade } from '../../../hooks/useMediaDegrade.ts';
+import { useGenerateNode } from '../../../hooks/useGenerateNode.ts';
+import { useNodePrefs } from '../../base/canvas/nodePrefs.ts';
+import { showToast } from '../../base/core/toastStore.ts';
+import { generateImage } from '../../base/api/index.ts';
+import { toAbsoluteFileUrl } from '../../base/api/index.ts';
+import { useRenderImageResolver } from '../../base/utils/imageUrl.ts';
+import { mergeRefImages, buildEffectivePrompt } from '../../base/core/utils.ts';
+import { useNodeData } from '../../../hooks/useNodeData.ts';
+import { useNodeExpanded } from '../../../hooks/useNodeExpanded.ts';
+import { useNodeField } from '../../../hooks/useNodeField.ts';
+import { resolveProviderModel } from '../../base/utils/providerModels.ts';
 
 /**
  * ════════════════════════════════════════════════════════════════
  * 【节点模板】TemplateNode —— 新建节点的唯一权威蓝本
  * ════════════════════════════════════════════════════════════════
  *
+ * ⚠️【定位·必读】本文件是**参考蓝本（copy-from 样板）**，**不是活节点**：
+ *   - 位于 `nodes/_template/`（下划线前缀 = 非生产节点目录，勿在 palette 引用它）；
+ *   - **不占用任何 registry**（不在 NodePalette.paletteNodes / contracts.NODE_TYPES /
+ *     nodePrefs / INPUT_PANEL_NODE_TYPES / NODE_OUTPUTS）——故它不会被创建、不会被渲染。
+ *   - 迁移留痕：2026-09-11（TD-04-5）从 `nodes/TemplateNode.tsx` 迁至本目录，并从上述
+ *     5 处 registry 摘除（此前被当活节点登记，属「幽灵登记」）。单测
+ *     `tests/unit/TemplateNode*.test.tsx` 仍直接 render 本文件以锁定蓝本可用性。
+ *
  * 【怎么用】
- * 1. 复制本文件为 `src/components/XxxNode.jsx`，把函数名、type 占位符全换成你的。
+ * 1. 复制本文件为 `src/components/nodes/XxxNode.tsx`，把函数名、type 占位符全换成你的。
  * 2. 按「业务专属内容」改主显示框 children 和展开面板；不需要的能力直接删对应块。
- * 3. 4 处注册（漏一处必出问题，详见文件底部【注册】）：
- *    - NodePalette.jsx paletteNodes 加一行
- *    - App.jsx nodeTypes 加 `xxxNode -> XxxNode`
- *    - useConnectedInputs.js NODE_OUTPUTS 加一行（有产出必须，否则下游拿不到数据）
+ * 3. 注册（**以 spec/NEW-NODE-GUIDE.md §六为准**，2026-09-11 更新为 5 处；漏一处必出问题）：
+ *    - NodePalette.ts paletteNodes 加一行（App.tsx 的 nodeTypes 已单源派生，**不再手改 App.tsx**）
+ *    - contracts.ts NODE_TYPES 加一行（用 useNodePrefs 时；check:node-types 强制）
+ *    - contracts.ts NODE_HANDLE_CONTRACT 加一行（端口非默认 null 口时；check:node-handles 强制）
+ *    - useConnectedInputs.ts NODE_OUTPUTS 加一行（有产出必须，否则下游拿不到数据）
  *    - docs/BASE-CAPABILITIES.md 登记
  * 4. 跑 `npm run test:smoke` + `npm run build`。
  *
@@ -186,8 +195,10 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   const [fullscreenResult, setFullscreenResult] = useState(false);
 
   // 参数记忆：记住上次选的模型/比例，新建节点默认沿用（跨节点/跨会话）
-  // 【模板】type 换成你的节点 type（如 'textGenerateNode'），默认值按需改
-  const { prefs: myPrefs, set: setMyPrefs } = useNodePrefs('templateNode', {
+  // 【模板】⚠️ 这里必须填**你节点自己的 type**（且该 type 已在 contracts.NODE_TYPES 登记，
+  // 否则 npm run check:node-types 会红）。本模板用 'imageGenerateNode' 作可编译示例命名空间
+  // ——它不是本模板的私有 type（模板本身不是活节点，不占用 registry）。
+  const { prefs: myPrefs, set: setMyPrefs } = useNodePrefs('imageGenerateNode', {
     model: '',
     aspectRatio: '1:1',
   });

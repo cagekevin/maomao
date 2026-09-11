@@ -14,7 +14,7 @@
 
 ```
 ─ 画布节点生成（主范式：经 useGenerateNode 委托契约）
-nodes/{PromptNode,TextNode,TemplateNode,DiscountVideoNode}
+nodes/{ImageGenerate,TextGenerate,VideoGenerate}（原 PromptNode/TextNode/DiscountVideoNode 已改名）
   → hooks/useGenerateNode         (provider/模型管理 + useSyncNodeData + 委托 useNodeGeneration)
       → hooks/useNodeGeneration   (统一契约：reportGenerate→progress→run→成败→retry + 落盘 + node.data 回填)
           → base/api/generate.ts   (单门面：generateImage / generateVideo / chatCompletions / chatStream)
@@ -186,8 +186,11 @@ canvas/canvasContextMenu（右键三态纯配置）· canvas/ArrangeConfirm（�
 生成触发入口：hooks/useGenerateNode（节点编排 start/模型，委托 hooks/useNodeGeneration，见上方「生成链路」）
 ```
 
-> 更新(2026-09-11, refs 实证)：画布段刷新。① 修正 `nodePrefs` 消费方——真实 fan-in = `App` + `AssetNode`/`ImageGenerate`/`TemplateNode`/`TextGenerate`/`VideoGenerate` + `useScriptBoxEngine`（原写的 `ImageNode`/`PromptNode`/`DiscountVideoNode` **实际 0 import**，已删旧链路）。② 补漏 fan-in：`CanvasEdgesContext` ← `App` + 8 节点（AssetNode/Director3DNode/GridMerge/GridSplit/Loop/Panorama/TextGenerate/VideoGenerate/VideoProcess）；`deriveNodes` ← 8 节点 + `depthVideo/spawn.ts`。③ 端口契约（target/source handle）**当前三处维护**（节点文件 `NodeShell` prop 真源 + `App.tsx` TARGET/SOURCE 表 + `lazyNode.LAZY_NODE_HANDLE_CONTRACT`），App 两表已漂移（见 `daily/架构日志/04-画布-节点-2026-09-11.md` TD-04-1），收口为单一 `NODE_HANDLE_CONTRACT` 后此处再更新。
-　　关键边（refs 实证）：`nodePrefs` ← App/AssetNode/ImageGenerate/TemplateNode/TextGenerate/VideoGenerate/useScriptBoxEngine。
+> 更新(2026-09-11, refs 实证)：画布段刷新。① 修正 `nodePrefs` 消费方——真实 fan-in = `App` + `AssetNode`/`ImageGenerate`/`TemplateNode`/`TextGenerate`/`VideoGenerate` + `useScriptBoxEngine`（原写的 `ImageNode`/`PromptNode`/`DiscountVideoNode` **实际 0 import**，已删旧链路）。② 补漏 fan-in：`CanvasEdgesContext` ← `App` + 8 节点（AssetNode/Director3DNode/GridMerge/GridSplit/Loop/Panorama/TextGenerate/VideoGenerate/VideoProcess）；`deriveNodes` ← 8 节点 + `depthVideo/spawn.ts`。③ 端口契约（target/source handle）**已收口为单一真源 `contracts.NODE_HANDLE_CONTRACT`**（2026-09-11 TD-04-1）：节点文件 `NodeShell` prop 声明端口、该表集中登记、`App.tsx` 补边与 `lazyNode` 占位骨架均从它派生；一致性由 `scripts/check-node-handles.mjs`（挂 prebuild/pretest + check:health）对账「节点声明 ⊆ 契约表」，漏登记即红。
+　　关键边（refs 实证）：`nodePrefs` ← App/AssetNode/ImageGenerate/TextGenerate/VideoGenerate/useScriptBoxEngine（TemplateNode 蓝本亦用 useNodePrefs，但已迁 `nodes/_template/`，非活节点、不占 registry，见 TD-04-5）。
+
+> 更新(2026-09-11, refs 实证, 三轮底层)：① `TemplateNode` 已迁 `src/components/nodes/_template/` 并从 NODE_TYPES/nodePrefs/INPUT_PANEL/NODE_OUTPUTS 摘除（参考蓝本非活节点，TD-04-5）。② 删死事件 `yimao:remove-edge`（App window 监听 + EVENTS 登记，0 发布方；CustomEdge 删边实走 deleteElements→onDelete，TD-04-8）。③ 画布节点生成入口名义已更新为 ImageGenerate/TextGenerate/VideoGenerate（原 PromptNode/TextNode/DiscountVideoNode 为旧名）。④ node.data 写回唯一入口 = `useNodeData.patchNodeDataById`；节点 id 唯一入口 = `idGen.generateId`；端口真源 = `contracts.NODE_HANDLE_CONTRACT`。
+　　端口契约消费（refs 实证）：`NODE_HANDLE_CONTRACT` ← `App.tsx`（补存量坏边 handle + addNode connection 路径）+ `lazyNode.tsx`（chunk 未到达的占位骨架端口）。
 
 ## 提示词链路
 
