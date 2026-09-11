@@ -61,12 +61,44 @@ core/contentStore（STORAGE_KEYS 路由 + resolveBackend 唯一判定 + 内联 K
    ├→ storage/storageAdapter（sGet/sSet/sRemove，local/native 落地）
    ├→ api/localToolApi（kvGet/kvSet/kvDelete，KV 云端；不再经 kvStore 中间层）
    ├→ storage/storageQuota · storage/persistFailureBus（旁路工具，不参与读写主链）
-   └→ 上层：store/projectStore · store/backupStore · store/cloudSync
+   └→ 上层：store/projectStore · store/backupStore · store/cloudSync（云同步数据流详见下述独立段）
 fan-in（refs 实证 38 处 import）：几乎全部 store（task/asset/project/backup/cloudSync/skill/appSettings/
         accounts/agentModel/provider…）+ canvas/nodePrefs + prompt/* + agent/* + panels/AgentPanel
 ```
 
 关键边（refs 实证 2026-09-05）：`contentStore` 被 **38 处** import（约 20 个 src 业务模块 + 18 个测试，见 base/README §一红线说明，它是横切唯一入口）；`kvStore` 现仅 3 处引用（storage/index + projectStore/providerStore 测试的 re-export 兼容），src 业务侧无直读。
+
+> 更新(2026-09-11, refs 实证)：① `contentStore` 实证 import 数 **41 处**（原写 38，+3，随 8 月末后新增 store 接入而涨，属健康增长、非泄漏）；② `taskStore` 真实路径为 `src/components/base/store/taskStore.ts`（本文件 line 23/64/65 的 `store/taskStore` 为相对简写，勿回找 `src/store/`）；③ 存储「有意不收口保留裸调」的 2 处例外中，**`d3dPersistence.ts` 例外已失效**——2026-09-11 方案A（TD-7）已把它收编进 `contentStore`（`contentSetKvWithFallback`/`contentGetKvWithFallback`），不再裸调 `kvGet/kvSet/sGet/sSet`；现仅剩 `conversationState.ts`（KV 迁移回读旧 local）1 处例外。
+
+## 云同步（Cloud）链路
+
+> 更新(2026-09-11, refs 实证)：新增本段。原「存储/持久化」段把 `cloudSync` 列为 contentStore 上层消费者（仍真，未删），但缺独立数据流描述，此处补齐。
+> 收敛现状（2026-09-11 审计）：`cloudSync` 是**编排层**，不持有真相（真相在各域 store / contentStore）。
+> - [F-云B] `projects` 已入 `SYNC_EXCLUDE`（源头既不传也不收）；删 `restoreLocal` 内 `saveProjects(ls.projects)` 死路径 + `getCurrentProjectId` + `project` 领域开关。projects 跨端真通道仅剩 `projectStore` → localTool `/api/projects` backend + KV 画布快照。
+> - [F-云A] `collectLocalData`→`{ls, skipped}`、`restoreLocal`→`{written, failed}`，失败域结构化上抛；`uploadConfig`/`downloadConfig` 不再以 `ok:true` 掩盖（部分失败带 `partial`，全失败 `ok:false`）。
+> - [F-云C] `CloudSyncEngine.callGateway` 抛错保留原错误类型/`cause`，不再压平成 message 字符串。
+
+```
+主文件：src/components/base/store/cloudSync.ts（CloudSyncEngine 引擎 + uploadConfig/downloadConfig + normalizeCloudPayload / diffWithLocal / decideUpload 纯函数）
+fan-in（refs 实证 4 处 import）：App.tsx（手动按钮 handlePushToCloud/handlePullFromCloud）
+                                  · autoSync.ts（45min 定时调度，失败全静默→[F-云A]后已告警）
+                                  · tests/unit/cloudSync.test.ts · tests/unit/autoSync.test.ts（隔离 mock）
+
+源 collectLocalData() → { ls, skipped }
+  ├─ LS_KEYS = getLocalKeys() − SYNC_EXCLUDE → contentStore 读 localStorage 全量用户键（再按 domainSwitchEnabled 过滤）
+  ├─ providerApi.getProviders()             → localTool /api/providers（网络，key 已脱敏）
+  └─ contentGetAsync('yimao_accounts')       → KV（backend:'kv'，网络）
+  → contentFingerprint(ls) 算本地指纹
+传输 CloudSyncEngine.callGateway('push_data' / 'pull_data') → GAS（CLOUD_SYNC_GAS_URL，config.ts 配置，第三方黑盒，无鉴权/加密）
+汇 downloadConfig → normalizeCloudPayload → diffWithLocal → restoreLocal() → { written, failed }
+  ├─ LS_KEYS + domainSwitchEnabled → writeLS（contentStore）
+  ├─ providerApi.saveProviders()            → localTool backend
+  └─ contentSetAsync('yimao_accounts')      → KV
+冲突判定 decideUpload（rev 单调 + 内容指纹，纯函数）；台账 writeLedger
+消费者：App.tsx（手动）/ autoSync.ts（自动 45min）
+```
+
+关键边（refs 实证 2026-09-11）：`cloudSync` ← App.tsx（手动）+ autoSync.ts（自动），无其它生产代码隐式依赖；`projects` 已不进云同步清单（SYNC_EXCLUDE），其跨端真通道见「存储/持久化」段 projectStore 行 + `localTool /api/projects`。
 
 ## 资产 / 素材链路
 

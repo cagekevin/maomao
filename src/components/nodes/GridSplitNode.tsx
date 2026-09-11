@@ -12,6 +12,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { useReactFlow, Handle, Position } from '@xyflow/react';
+import { useNodeData } from '../../hooks/useNodeData.ts';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
@@ -194,6 +195,7 @@ interface GridSplitNodeProps {
 }
 function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   const { setNodes, getNodes, getNode, setEdges, getEdges } = useReactFlow();
+  const { patchData } = useNodeData(id);
   const history = useCanvasEdges();
   const { isHidden } = useMediaDegrade();
   // 订阅「画布显示缩略图」设置：显示地址实时随开关（见 docs/18）
@@ -302,26 +304,16 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   useEffect(() => {
     if (splitMode === 'lasso') return;
     if (!imageUrl) {
-      setNodes((ns) =>
-        ns.map((n) =>
-          n.id === id
-            ? {
-                ...n,
-                data: {
-                  ...n.data,
-                  extractedImages: [],
-                  rows: rowCount,
-                  cols: colCount,
-                  gridSize: Math.max(rowCount, colCount),
-                  splitMode,
-                  hLines,
-                  vLines,
-                  lassoShapes,
-                },
-              }
-            : n,
-        ),
-      );
+      patchData({
+        extractedImages: [],
+        rows: rowCount,
+        cols: colCount,
+        gridSize: Math.max(rowCount, colCount),
+        splitMode,
+        hLines,
+        vLines,
+        lassoShapes,
+      });
       return;
     }
     let cancelled = false;
@@ -355,26 +347,16 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
           }
         }
         if (!cancelled) {
-          setNodes((ns) =>
-            ns.map((n) =>
-              n.id === id
-                ? {
-                    ...n,
-                    data: {
-                      ...n.data,
-                      extractedImages: out,
-                      rows: rowCount,
-                      cols: colCount,
-                      gridSize: Math.max(rowCount, colCount),
-                      splitMode,
-                      hLines,
-                      vLines,
-                      lassoShapes,
-                    },
-                  }
-                : n,
-            ),
-          );
+          patchData({
+            extractedImages: out,
+            rows: rowCount,
+            cols: colCount,
+            gridSize: Math.max(rowCount, colCount),
+            splitMode,
+            hLines,
+            vLines,
+            lassoShapes,
+          });
         }
       } catch (e) {
         logger.error('GridSplitNode', 'Failed to pre-crop images', e);
@@ -390,26 +372,16 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   useEffect(() => {
     if (splitMode !== 'lasso' || activeCellIdRef.current) return;
     if (!imageUrl) {
-      setNodes((ns) =>
-        ns.map((n) =>
-          n.id === id
-            ? {
-                ...n,
-                data: {
-                  ...n.data,
-                  extractedImages: [],
-                  rows: 1,
-                  cols: 0,
-                  gridSize: 1,
-                  splitMode,
-                  hLines,
-                  vLines,
-                  lassoShapes,
-                },
-              }
-            : n,
-        ),
-      );
+      patchData({
+        extractedImages: [],
+        rows: 1,
+        cols: 0,
+        gridSize: 1,
+        splitMode,
+        hLines,
+        vLines,
+        lassoShapes,
+      });
       return;
     }
     let cancelled = false;
@@ -422,26 +394,16 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
         if (cancelled) return;
       }
       if (!cancelled) {
-        setNodes((ns) =>
-          ns.map((n) =>
-            n.id === id
-              ? {
-                  ...n,
-                  data: {
-                    ...n.data,
-                    extractedImages: out,
-                    rows: 1,
-                    cols: closed.length,
-                    gridSize: Math.max(1, closed.length),
-                    splitMode,
-                    hLines,
-                    vLines,
-                    lassoShapes,
-                  },
-                }
-              : n,
-          ),
-        );
+        patchData({
+          extractedImages: out,
+          rows: 1,
+          cols: closed.length,
+          gridSize: Math.max(1, closed.length),
+          splitMode,
+          hLines,
+          vLines,
+          lassoShapes,
+        });
       }
     })();
     return () => {
@@ -472,11 +434,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
 
   // 写 titlePattern / sendToImageBox 回 data（复刻 Lo.jsx useEffect）
   useEffect(() => {
-    setNodes((ns) =>
-      ns.map((n) =>
-        n.id === id ? { ...n, data: { ...n.data, titlePattern, sendToImageBox } } : n,
-      ),
-    );
+    patchData({ titlePattern, sendToImageBox });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [titlePattern, sendToImageBox]);
 

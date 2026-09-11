@@ -16,16 +16,14 @@
  * 路由路径以 contracts.ts apiRegistry 登记为准（/api/kv/get|set|delete，非 docs 方案里的 /api/kv）。
  */
 
-import { kvGet, kvSet } from '../base/api/localToolApi.ts';
-import { withTimeout } from '../base/utils/asyncGuard.ts';
 import { saveInlineToLocal } from '../base/api/filesApi.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
 import { logger } from '../base/core/logger.ts';
 import { showToast } from '../base/core/toastStore.ts';
-import { KV_TIMEOUT } from '../base/core/config.ts';
-// 【降级落点统一】本地降级副本走 storageAdapter（sGet/sSet，自动 yimao: 前缀），
-// 与 kvStore.storageGet 的降级回读一致，避免「裸 key vs 带前缀」两套副本互不可见（收口缺口）。
-import { sGet, sSet } from '../base/storage/index.ts';
+// TD-7 方案A：导演台工程双通道（KV 主通道 + localStorage 降级副本 + 独立 KV_TIMEOUT）
+// 收编进 contentStore 单一实现；per-key fallback/timeout 由 STORAGE_KEYS（director3d-project*）决定。
+// 不再裸调 kvGet/kvSet/sGet/sSet，消除「收口缺口」（与 kvStore.storageGet 双副本互不可见问题一并消除）。
+import { contentSetKvWithFallback, contentGetKvWithFallback } from '../base/core/contentStore.ts';
 
 /** 工程存储默认键（无 nodeId 独立运行场景，与 director3d/project.ts 一致） */
 export const PROJECT_KEY_DEFAULT = 'director3d-project';
@@ -140,30 +138,6 @@ export interface D3dProject {
 /** base64 → 本地文件 URL 的落盘函数（默认 filesApi.saveInlineToLocal） */
 export type SaveInlineFn = (dataUrl: string, dir?: string) => Promise<string | null>;
 
-/** 本地降级副本同步读取 + JSON 解析（走 sGet 统一 yimao: 前缀；读失败/脏数据返回 null，不抛） */
-function readLocalJson(key: string): D3dProject | null {
-  try {
-    const raw = sGet(key);
-    if (raw == null) return null;
-    const parsed: unknown = JSON.parse(raw);
-    // JSON.parse 产物为纯数据；D3dProject 含 [key:string]:unknown 索引签名是宽松形状，
-    // 仅需「确实是非空对象」守卫即可诚实收窄，避免把 null/基础值谎报成工程对象（F6）。
-    return parsed && typeof parsed === 'object' ? (parsed as D3dProject) : null;
-  } catch {
-    return null;
-  }
-}
-
-/** 本地降级副本同步写入 JSON（走 sSet 统一 yimao: 前缀；成功 true；失败 false 不抛） */
-function writeLocalJson(key: string, value: D3dProject): boolean {
-  try {
-    sSet(key, JSON.stringify(value));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * 外部化（base64 → 本地文件 URL）（T1/T2）。
  * 遍历工程内持久化图片字段（reference.image + shots[].thumbnail），把 data: base64 经
@@ -248,35 +222,20 @@ export async function writeProject(
 
   const ext = await externalizeProjectImages(project);
 
-  // 主通道：写 localTool KV（带总超时，防挂起）
-  try {
-    await withTimeout(kvSet(key, ext.project), KV_TIMEOUT, `director3d KV 写入超时（key=${key}）`);
+  // 双通道收口（TD-7 方案A）：KV 主通道 + localStorage 降级副本 + 独立超时，统一走 contentStore 单一实现。
+  // per-key fallback/timeout 由 STORAGE_KEYS 登记（director3d-project*）决定，写入返回实际落点。
+  const landed = await contentSetKvWithFallback(key, ext.project);
+
+  if (landed === 'kv') {
     logger.debug('d3dPersistence', '工程已写 KV', { key }, {});
     remoteConflictAt.delete(key); // 已消费冲突信号
     myLastWriteAt.set(key, Date.now()); // 记录本窗口写时间，供他窗口判断"更晚"
     announceSaved(key); // 广播，让其他窗口感知
-    return 'kv';
-  } catch (err) {
-    logger.warn('d3dPersistence', 'KV 不可达，降级 localStorage', {
-      key,
-      reason: err?.message || err,
-    });
+  } else {
+    // contentStore 已做降级写 + reportDegrade 提示；此处补充 d3d 上下文日志（双通道仍保住一份，宁慢勿丢）
+    logger.warn('d3dPersistence', 'KV 不可达，工程已降级写 localStorage', { key });
   }
-
-  // 降级通道：直写 localStorage（后端不可达时保住一份，宁慢勿丢）
-  if (writeLocalJson(key, ext.project)) {
-    // 【签名对齐】logger.warn 只接 (category, action, detail?) 三参；原第 4 参 {} 运行时本就被忽略，删除等价
-    logger.warn('d3dPersistence', '工程已降级写 localStorage', { key });
-    return 'local';
-  }
-
-  // 双通道都失败：不吞错，明确记录（内存态为权威，编辑不阻塞）
-  // 【签名对齐】logger.error 同只接三参；原第 4 参 new Error(...) 运行时被忽略，改并入 detail 以保留信息
-  logger.error('d3dPersistence', '工程写入失败：KV 与 localStorage 均不可用', {
-    key,
-    reason: '双通道写失败',
-  });
-  return 'local';
+  return landed;
 }
 
 /**
@@ -287,27 +246,21 @@ export async function writeProject(
  */
 export async function hydrateProject(storageKey?: string): Promise<D3dProject | null> {
   const key = projectKvKey(storageKey);
-  const ls = readLocalJson(key);
 
-  let kv: D3dProject | null = null;
-  try {
-    kv = await withTimeout(kvGet(key), KV_TIMEOUT, `director3d KV 读取超时（key=${key}）`);
-  } catch (err) {
-    logger.warn('d3dPersistence', 'KV 读取不可达，走本地', { key, reason: err?.message || err });
-  }
+  // 双通道收口（TD-7 方案A）：KV 优先，空/不可达回读本地降级副本，统一走 contentStore 单一实现。
+  // contentGetKvWithFallback 已封装 KV 独立超时 + 本地回读；返回 from 供一次性迁移判定。
+  const { value, from } = await contentGetKvWithFallback(key);
 
-  const pick = pickProjectSource(kv, ls);
-
-  // 迁移：KV 空 + 本地有 → 写回 KV（外部化后持久化），此后 KV 命中不再触发（天然幂等）
-  if (pick.migrateToKv && pick.project) {
+  // 迁移：KV 空（或不可达）但本地有 → 写回 KV（外部化后持久化），此后 KV 命中不再触发（天然幂等）
+  if (from === 'local' && value != null) {
     try {
-      await writeProject(key, pick.project);
+      await writeProject(key, value as D3dProject);
     } catch (err) {
-      logger.warn('d3dPersistence', '本地→KV 迁移写回失败（不影响读），', {
+      logger.warn('d3dPersistence', '本地→KV 迁移写回失败（不影响读）', {
         reason: err?.message || err,
       });
     }
   }
 
-  return pick.project;
+  return (value as D3dProject) ?? null;
 }

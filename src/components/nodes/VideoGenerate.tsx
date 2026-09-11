@@ -2,7 +2,6 @@ import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import {
   Clapperboard,
-  Plus,
   Expand,
   Download,
   Trash2,
@@ -145,7 +144,6 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   // enabled 必传：原调用漏传第二参 → enabled 恒为 undefined → 首帧封面永不生成（poster 静默失效），
   // 节点只能显示 <video> 本体（未播放时黑块）。本节点无播放态跟踪，有 videoUrl 即抓封面。
   const posterUrl = useVideoPoster(videoUrl, !!videoUrl);
-  const fileRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null); // 主视频元素（点击播放按钮用）
   const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
   const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
@@ -252,8 +250,6 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
     },
   });
 
-  const onUpload = () => fileRef.current?.click();
-
   // 下载当前视频（<a download> 触发浏览器保存；文件名推导走统一 resolveDownloadFilename，label 缺扩展名补 .mp4）
   const handleDownload = () => {
     if (!videoUrl) return;
@@ -265,12 +261,6 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
 
   // hover 操作栏按钮
   const toolbarButtons = [
-    {
-      key: 'upload',
-      icon: <Plus size={14} />,
-      title: '上传图片、视频或音频素材',
-      onClick: onUpload,
-    },
     ...(videoUrl
       ? [
           { key: 'fullscreen', icon: <Expand size={14} />, title: '全屏播放' },
@@ -319,13 +309,6 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
     >
       {/* hover 操作栏（loading 时隐藏） */}
       {!loading && <HoverToolbar buttons={toolbarButtons} loading={false} />}
-
-      <input
-        type="file"
-        ref={fileRef}
-        style={{ display: 'none' }}
-        accept="image/*,video/*,audio/*"
-      />
 
       {/* 主显示区：flex-1 填满 wrapper，wrapper 宽高由 useSizeSync(area-fixed) 按比例同步，
           主框宽=wrapper宽，高=wrapper高 → 自然成比例，端口不跑偏，无需主框自己定 ratio。

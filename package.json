@@ -61,7 +61,7 @@
     "dagre": "^0.8.5",
     "gifenc": "^1.0.3",
     "lucide-react": "^0.451.0",
-    "mediabunny": "^1.54.0",
+    "mediabunny": "1.54.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-image-crop": "^11.1.2",

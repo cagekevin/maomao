@@ -51,6 +51,9 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => ({
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   toAbsoluteFileUrl: mocks.toAbsoluteFileUrl,
+  // §5.4.9 落盘唯一实现：返回持久 /files/ URL（不内联 dataURL）；仅作测试替身
+  resolveNodeImageUrl: (file: File) =>
+    Promise.resolve(`http://127.0.0.1:18080/files/canvasDrop/${file?.name ?? 'x'}`),
 }));
 vi.mock('../../src/components/base/utils/clipboard.ts', () => h.clipboardMock);
 vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({ default: () => null }));
@@ -205,5 +208,30 @@ describe('ImageBoxNode — 从上游连线导入', () => {
     setup({ images: [], activeIndex: 0 });
     fireEvent.click(screen.getByTitle('从连线图一键导入'));
     expect(mocks.toastCalls.warn).toBeGreaterThan(0);
+  });
+});
+
+describe('ImageBoxNode — 上传/拖入文件落盘(TD-10)', () => {
+  it('选择本地图片文件 → 经 filesApi.resolveNodeImageUrl 落盘，data.images[].url 存持久 URL 而非内联 dataURL', async () => {
+    // makeThumb 内部 new Image()；jsdom 不触发 onload，手动触发 onerror 让缩略图快速失败（不影响 url 落盘）
+    const fakeImg = { crossOrigin: '', onload: null, onerror: null, src: '' };
+    vi.stubGlobal(
+      'Image',
+      vi.fn(() => fakeImg),
+    );
+    const { container } = setup({ images: [], activeIndex: 0 });
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File([new Uint8Array([1, 2, 3])], 'pic.png', { type: 'image/png' });
+    // jsdom 下 FileList 只读，需 defineProperty 注入后再触发 change
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    fireEvent.change(input);
+    await waitFor(() => {
+      fakeImg.onerror?.(); // 让 makeThumb 的 loadImageWithTimeout 立即 reject（setNodes 在 addImages 之后）
+      expect(lastData().images).toHaveLength(1);
+      const url = lastData().images[0].url as string;
+      expect(url.startsWith('data:')).toBe(false); // 关键：禁止整图 dataURL 内联进快照
+      expect(url).toBe('http://127.0.0.1:18080/files/canvasDrop/pic.png');
+      expect(lastData().images[0].source).toBe('upload');
+    });
   });
 });

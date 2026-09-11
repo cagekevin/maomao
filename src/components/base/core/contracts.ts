@@ -158,6 +158,8 @@ export const CANVAS_STATE_PREFIX = 'canvas-state-v1-';
  * 写入 saveCanvasState 快照的 schemaVersion 字段；读取端按版本做兼容（旧结构缺字段默认补齐）。
  * 变更快照结构（新增/重命名字段影响旧数据可恢复性）时 → 提升本版本号并补迁移，不宜原地覆盖旧结构。
  */
+import { KV_TIMEOUT } from './config.ts';
+
 export const CANVAS_SCHEMA_VERSION = 1;
 
 /** STORAGE_KEYS 单条登记的元信息形状（存储键登记表唯一类型）。 */
@@ -171,6 +173,10 @@ export interface StorageKeyMeta {
   pattern?: boolean;
   /** 旧键迁移映射：`旧键模板 → 新键模板`，存在时表示该键曾由旧键迁移而来 */
   migration?: string;
+  /** KV 键专用：KV 成功后是否保留本地降级副本（双通道镜像）。默认 false = 成功后清副本（避免旧副本"复活"覆盖新值）；true = 保留（如 d3d 工程双通道形态，TD-7 方案A 收编 contentStore） */
+  fallback?: boolean;
+  /** KV 键专用：本次 KV 读写的独立超时（ms）。缺省 = 走全局默认（contentStore 当前非 per-key）。d3d 等需快失败降级的场景置为 KV_TIMEOUT */
+  timeout?: number;
   note: string;
 }
 
@@ -419,16 +425,20 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   // 别再标 native（旧"native 空洞语义"，见 contentStore.getBackend 启发式兜底问题）。
   'director3d-project': {
     domain: 'director3d',
-    store: 'd3dPersistence.js',
+    store: 'd3dPersistence.ts',
     backend: 'kv',
-    note: '3D 导演台工程默认 key（独立运行时）→ KV 主通道，降级写 localStorage',
+    fallback: true, // TD-7 方案A：双通道镜像，KV 成功后保留本地降级副本
+    timeout: KV_TIMEOUT, // 独立超时，KV 不可达快失败降级（不挂起编辑）
+    note: '3D 导演台工程默认 key（独立运行时）→ KV 主通道 + localStorage 降级副本（双通道，TD-7 方案A 收编 contentStore）',
   },
   'director3d-project-{nodeId}': {
     domain: 'director3d',
-    store: 'd3dPersistence.js',
+    store: 'd3dPersistence.ts',
     backend: 'kv',
     pattern: true,
-    note: '3D 导演台工程（画布节点实例）动态键 → KV 主通道，降级写 localStorage',
+    fallback: true, // TD-7 方案A：双通道镜像
+    timeout: KV_TIMEOUT, // 独立超时
+    note: '3D 导演台工程（画布节点实例）动态键 → KV 主通道 + localStorage 降级副本（双通道，TD-7 方案A）',
   },
   'director3d-custom-poses': {
     domain: 'director3d',

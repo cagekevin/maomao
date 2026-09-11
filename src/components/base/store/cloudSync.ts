@@ -13,6 +13,8 @@
  *
  * 【不同步】画布/会话性/本机临时数据：
  *  - 所有项目画布快照（canvas-state-v1-*）：画布内容属业务数据，仅留在本机 localTool，不同步。
+ *  - 项目列表（projects）：有独立跨端真通道（projectStore → localTool /api/projects backend + KV 画布快照），
+ *    不进云同步（[F-云B] 2026-09-11：再经 GAS 云同步 = 造第二真相源，SSOT 裂痕）。
  *  - AI 对话历史（agent_conversations）与当前对话 id（agent_active_conversation_id）：含隐私。
  *  - lastOpenedProject（上次打开哪个项目）：本机会话偏好。
  *  - yimao_asset_library（素材库）：存的是本地 URL 引用（http://127.0.0.1:18080/files/...），
@@ -22,7 +24,7 @@
  * ⚠️ 含用户数据（账号环境/API key 等），同步到云端需注意保密。
  */
 import { getLocalKeys, STORAGE_KEYS } from '../core/contracts.ts';
-import { providerApi, saveProjects } from '../api/localToolApi.ts';
+import { providerApi } from '../api/localToolApi.ts';
 import { contentGet, contentSet, contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
 import { logger } from '../core/logger.ts';
 import { CLOUD_SYNC_GAS_URL } from '../core/config.ts';
@@ -61,7 +63,10 @@ const CloudSyncEngine = {
       if (jsonRes.error) throw new Error(jsonRes.error);
       return jsonRes;
     } catch (err) {
-      throw new Error(err.message);
+      // [F-云C] 保留原始错误根因：直接上浮原始 Error（保留类型/stack/network），
+      // 仅当非 Error（如 throw 字符串）时兜底包一层并附 cause；不再 throw new Error(err.message) 压平。
+      if (err instanceof Error) throw err;
+      throw new Error(`网关异常：${String(err)}`, { cause: err });
     } finally {
       this.isSyncing = false;
     }
@@ -217,6 +222,20 @@ export interface UploadResult {
   action?: 'download-needed';
   /** 内容一致零副作用跳过（未 push、rev 未变） */
   skipped?: boolean;
+  /** [F-云A] 部分域因读取失败未纳入上传（providers/accounts 人类可读名）；调用方必须告警，不得冒充完整上传 */
+  partial?: { skipped: string[] };
+}
+
+/** 下载配置结果（显式声明，调用方据此分支收敛成败与告警）。 */
+export interface DownloadResult {
+  ok: boolean;
+  count: number;
+  hasCloud: boolean;
+  /** 用户取消覆盖 → 本地未被改写 */
+  cancelled?: boolean;
+  error?: string;
+  /** [F-云A] 部分域写回失败（恢复了本地 LS，但 providers/accounts 等网络/KV 域失败）→ 调用方必须告警 */
+  partial?: { failed: string[] };
 }
 
 /** 自动同步冲突三选一的用户抉择。 */
@@ -451,28 +470,9 @@ function readLS(k) {
     return undefined;
   }
 }
-/** 写本地某个 key（容错，contentSet 已内置 JSON 序列化） */
+/** 写本地某个 key（contentSet 已内置 JSON 序列化；失败上浮由 restoreLocal 记录，不再静默吞） */
 function writeLS(k, v) {
-  try {
-    contentSet(k, v);
-  } catch {
-    /* ignore */
-  }
-}
-
-/** 当前项目 id（从项目列表取当前，优先 lastOpenedProject） */
-function getCurrentProjectId() {
-  try {
-    const projects = readLS('projects');
-    if (Array.isArray(projects) && projects.length) {
-      const last = readLS('lastOpenedProject');
-      if (last && projects.some((p) => p.id === last)) return last;
-      return projects[0].id;
-    }
-  } catch {
-    /* ignore */
-  }
-  return 'default';
+  contentSet(k, v);
 }
 
 /** 上传云端的包结构（version 是结构版本号，rev 才是数据修订号） */
@@ -490,10 +490,12 @@ export interface CloudPayload {
  * 收集本地全部要同步的数据（纯数据，不含包元字段）。
  * 单独抽出的理由：上传时除「打包」外，还要拿这份数据算内容指纹、并与云端做逐键冲突比对；
  * 若直接复用打包函数再剥元字段，容易漏剥（典型脏数据源头）。这里让「取数据」成为唯一入口。
- * @returns {Promise<Record<string, unknown>>} { [lsKey]: value, providers?, accounts? }（可能为空对象）
+ * @returns { ls, skipped } ls=纯数据；skipped=读取失败故本次未纳入的域（providers/accounts），
+ *   调用方必须如实上抛，绝不以"完整上传"假象掩盖（[F-云A] 错误真实透传）。
  */
-async function collectLocalData() {
+async function collectLocalData(): Promise<{ ls: Record<string, unknown>; skipped: string[] }> {
   const ls: Record<string, unknown> = {};
+  const skipped: string[] = [];
   // 1) localStorage 全量用户数据/配置：复用 backupStore 权威清单，按领域开关过滤
   for (const k of LS_KEYS) {
     if (!domainSwitchEnabled(k)) continue; // 领域关闭（如 projects）→ 该键不进云端
@@ -505,8 +507,12 @@ async function collectLocalData() {
     const { data: pd } = await providerApi.getProviders();
     const providers = Array.isArray(pd?.providers) ? pd.providers : null;
     if (Array.isArray(providers) && providers.length) ls.providers = providers;
-  } catch {
-    /* localTool 未连则跳过 API 配置 */
+  } catch (e) {
+    // [F-云A] 读取失败=未纳入本次上传，记录并上浮，不再静默当"无 providers"
+    skipped.push('providers');
+    logger.warn('同步', '[上传] providers 读取失败，本次不上传 API 配置', {
+      error: e?.message || '未知',
+    });
   }
   // 3) 账号环境：走 KV（backend:'kv'，不在 LS_KEYS），领域开关开则专门收集上传
   try {
@@ -515,10 +521,11 @@ async function collectLocalData() {
       if (Array.isArray(acc) && acc.length) ls.accounts = acc;
     }
   } catch (e) {
-    logger.warn('同步', '[上传] 账号读取失败，跳过账号', { error: e?.message || '未知' });
+    skipped.push('accounts');
+    logger.warn('同步', '[上传] 账号读取失败，本次不上传账号', { error: e?.message || '未知' });
   }
 
-  return ls;
+  return { ls, skipped };
 }
 
 /**
@@ -540,11 +547,14 @@ function buildCloudPayload(ls: Record<string, unknown>, rev: number): CloudPaylo
 }
 
 /**
- * 把云端 JSON 覆盖写回本地。@returns {Promise<number>} 恢复的条目数
+ * 把云端 JSON 覆盖写回本地。
+ * @returns { written, failed } written=成功写回条目数；failed=写回失败的域（人类可读名）。
+ *   失败域必须如实上抛，绝不以"ok:true"掩盖（[F-云A] 错误真实透传）。
  */
-async function restoreLocal(cloud) {
+async function restoreLocal(cloud): Promise<{ written: number; failed: string[] }> {
   const ls = cloud?.data;
-  if (!ls || typeof ls !== 'object') return 0;
+  const failed: string[] = [];
+  if (!ls || typeof ls !== 'object') return { written: 0, failed };
   let written = 0;
   // 1) localStorage 全量覆盖（只写我们备份清单里、且领域开关开启的键，避免误写未知/关闭领域键）
   for (const k of LS_KEYS) {
@@ -552,8 +562,9 @@ async function restoreLocal(cloud) {
       try {
         writeLS(k, ls[k]);
         written++;
-      } catch {
-        /* ignore */
+      } catch (e) {
+        failed.push(syncLabel(k));
+        logger.warn('同步', '[下载] 本地键写回失败', { key: k, error: e?.message || '未知' });
       }
     }
   }
@@ -562,20 +573,9 @@ async function restoreLocal(cloud) {
     try {
       await providerApi.saveProviders(ls.providers);
       written++;
-    } catch {
-      /* ignore */
-    }
-  }
-  // 3) 项目列表同步到 localTool（后端权威源）。限于领域开关：projects 关 → 不写，堵「云覆盖丢新项目」风险
-  if (domainSwitchEnabled('projects') && Array.isArray(ls.projects)) {
-    try {
-      await saveProjects(
-        ls.projects.map((p) => ({ id: p.id, name: p.name })),
-        getCurrentProjectId(),
-      );
-      written++;
-    } catch {
-      /* ignore */
+    } catch (e) {
+      failed.push(syncLabel('providers'));
+      logger.warn('同步', '[下载] providers 写回失败', { error: e?.message || '未知' });
     }
   }
   // 4) 账号环境：走 KV（backend:'kv'），领域开关开则恢复写回 KV
@@ -585,9 +585,10 @@ async function restoreLocal(cloud) {
       written++;
     }
   } catch (e) {
+    failed.push(syncLabel('accounts'));
     logger.warn('同步', '[下载] 账号写入失败', { error: e?.message || '未知' });
   }
-  return written;
+  return { written, failed };
 }
 
 /**
@@ -616,7 +617,7 @@ export async function uploadConfig(
   opts: { onConfirm?: UploadConfirmHandler; onAutoConflict?: AutoConflictHandler } = {},
 ): Promise<UploadResult> {
   const { onConfirm, onAutoConflict } = opts;
-  const ls = await collectLocalData();
+  const { ls, skipped: skippedUp } = await collectLocalData();
   if (Object.keys(ls).length === 0) {
     logger.debug('同步', '[上传] 无可同步数据', {}, { module: 'project' });
     return { ok: false, count: 0, error: '本地没有可同步的数据' };
@@ -710,7 +711,12 @@ export async function uploadConfig(
     writeLedger({ rev: nextRev, syncedAt: payload.updatedAt, localHash });
     // 【P0 埋点】云同步上传成功（排查「同步失败无痕」：确认上传发生且带条目数/修订号）
     logger.info('同步', '[上传] 成功', { count: n, rev: nextRev });
-    return { ok: true, count: n };
+    // [F-云A] 若有域因读取失败未纳入，如实带上，绝不冒充"完整上传"
+    return {
+      ok: true,
+      count: n,
+      partial: skippedUp.length ? { skipped: skippedUp.map(syncLabel) } : undefined,
+    };
   } catch (e) {
     logger.warn('同步', '[上传] 异常', { error: e?.message || '同步失败' });
     return { ok: false, count: 0, error: e?.message || '同步失败' };
@@ -732,7 +738,7 @@ export async function uploadConfig(
 export async function downloadConfig(
   onProgress,
   opts: { onConfirm?: DownloadConfirmHandler } = {},
-) {
+): Promise<DownloadResult> {
   const { onConfirm } = opts;
   let cloud = null;
   try {
@@ -753,7 +759,7 @@ export async function downloadConfig(
     return { ok: false, count: 0, hasCloud: false, error: '云端没有数据' };
   }
   // 1) 写回前先算「哪些本地内容会被覆盖」→ 有冲突就先把清单交给用户
-  const diff = diffWithLocal(cloud.data, await collectLocalData());
+  const diff = diffWithLocal(cloud.data, (await collectLocalData()).ls);
   const copy = describeDownloadConflict(diff);
   if (copy) {
     logger.debug('同步', '[下载] 检测到将被覆盖项', {
@@ -775,8 +781,8 @@ export async function downloadConfig(
     }
   }
   try {
-    const count = await restoreLocal(cloud);
-    if (count === 0) {
+    const { written, failed } = await restoreLocal(cloud);
+    if (written === 0 && failed.length === 0) {
       logger.debug('同步', '[下载] 云端无新数据', {}, { module: 'project' });
       return { ok: false, count: 0, hasCloud: true, error: '云端没有新的数据' };
     }
@@ -786,11 +792,18 @@ export async function downloadConfig(
     writeLedger({
       rev: cloud.rev,
       syncedAt: Date.now(),
-      localHash: contentFingerprint(await collectLocalData()),
+      localHash: contentFingerprint((await collectLocalData()).ls),
     });
+    if (failed.length > 0) {
+      // [F-云A] 部分域写回失败：恢复了本地 LS，但网络/KV 域失败 → 诚实返回 partial，由调用方告警；绝不 ok:true 掩盖
+      const msg = `部分配置未恢复：${failed.join('、')}`;
+      logger.warn('同步', '[下载] 部分域写回失败', { failed });
+      if (written === 0) return { ok: false, count: 0, hasCloud: true, error: msg };
+      return { ok: true, count: written, hasCloud: true, partial: { failed } };
+    }
     // 【P0 埋点】云同步下载成功（排查「拉取后数据没恢复」：确认恢复条目数/修订号）
-    logger.info('同步', '[下载] 成功', { count, rev: cloud.rev });
-    return { ok: true, count, hasCloud: true };
+    logger.info('同步', '[下载] 成功', { count: written, rev: cloud.rev });
+    return { ok: true, count: written, hasCloud: true };
   } catch (e) {
     logger.warn('同步', '[下载] 解析失败', { error: e?.message || '云端数据解析失败' });
     return { ok: false, count: 0, hasCloud: true, error: '云端数据解析失败' };
@@ -813,6 +826,8 @@ export function isCloudSyncReady(): boolean {
 /* ── localStorage 同步清单：由 contracts.ts STORAGE_KEYS 权威登记生成（getLocalKeys()），
  * 显式排除不适合跨设备同步的键（与文件头【不同步】原则一致）：
  *  - lastOpenedProject / agent_draft：本机/临时偏好（不同步）
+ *  - projects：项目列表有独立跨端真通道（projectStore → localTool /api/projects backend + KV 画布快照），
+ *    再经 GAS 云同步 = 造第二真相源（SSOT 裂痕）→ 从源头排除，不传不收（[F-云B] 2026-09-11）。
  *  - yimao_asset_library：本地 URL 引用，跨设备无意义（不同步）
  *  - mutiwindow-clipboard：跨窗口临时剪贴板（不同步）
  *  - agent_panel_width / agent_split_width：AI 助手面板/表格分栏宽度（本机 UI 偏好，跨设备无意义，不同步）
@@ -827,6 +842,9 @@ export function isCloudSyncReady(): boolean {
  *   同步它会互相污染新旧判断）→ 显式排除。 */
 const SYNC_EXCLUDE = new Set([
   'lastOpenedProject',
+  // projects：项目列表有独立跨端真通道（projectStore → localTool /api/projects backend + KV 画布快照），
+  //   再进云同步 = 造第二真相源（SSOT 裂痕）→ 从源头排除，下载端亦不复写（见 restoreLocal）。[F-云B]
+  'projects',
   'yimao_asset_library',
   'agent_draft',
   'mutiwindow-clipboard',
@@ -848,7 +866,6 @@ const LS_KEYS = getLocalKeys().filter((k) => !SYNC_EXCLUDE.has(k));
  * 未登记的键兜底显示键名本身——宁可显示原始 key，也绝不静默省略条目（漏报比难看危险）。
  */
 const SYNC_LABELS = {
-  projects: '项目列表',
   app_settings: '应用设置',
   scriptbox_playbooks: '剧本盒子 Playbook',
   agent_chat_model: 'AI 聊天模型配置',
@@ -873,14 +890,13 @@ function syncLabel(key) {
 
 /**
  * 云同步领域开关（开发者配置常量，集中治理「哪些领域允许进云端」）。
- * KEY 对应 contracts.ts STORAGE_KEYS.entry.domain（如 project / account，而非存储键名）。
+ * KEY 对应 contracts.ts STORAGE_KEYS.entry.domain（如 account，而非存储键名）。
  *  - account：true，账号环境走 KV，需专门上传/下载（见 collectLocal/restoreLocal）。
- *  - project：false，项目若经 saveProjects 云端覆盖（未带版本号）有丢新项目风险，先关堵。
+ *  - projects 域已整体移出云同步（见 SYNC_EXCLUDE，[F-云B] 2026-09-11），不再经本开关。
  * 未在本表登记的领域默认放行（维持既有行为）。
  */
 const SYNC_DOMAIN_SWITCHES = {
   account: true,
-  project: false,
 };
 
 /** 某存储键所属领域是否开启云同步（按 STORAGE_KEYS.entry.domain 判定；未登记/未切换领域默认开启） */

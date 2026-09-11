@@ -1,9 +1,10 @@
-# AI 助手表格 —— 技术债清理清单（先于新功能）
+# AI 助手表格 —— 技术债清理清单（历史清算 · 已解决）
 
-> **状态：已整合** —— 本文清理清单已并入 `spec/AI-ASSISTANT-TABLE-IMPLEMENTATION.md`（唯一实施依据，含执行顺序与验收）；本文保留为盘点证据。
-> 来源：code-explorer 子代理全链路盘点（证据均为 file:line 级），2026-09-06
-> 目标：在加「多行改 + 选行为意图」两功能**之前**先清债，避免在新地基上叠旧坑
+> **状态：已解决（2026-09-11 架构师审计核）** —— 本文 16 条（A-001~A-005 / B-001~B-006 / C-001~C-005）**全部已解决**。清理清单已并入 `spec/AI-ASSISTANT-TABLE-IMPLEMENTATION.md`（唯一实施依据）。本文保留为盘点证据，**不再是待办**。后续 AI 切勿照着"开着"的 A/B/C 级去做翻新——那会重复劳动甚至拆乱已收敛的结构。
+> 来源：code-explorer 子代理全链路盘点（证据均为 file:line 级），2026-09-06；2026-09-11 架构师审计核对代码确认全量解决。
+> 目标（原）：在加「多行改 + 选行为意图」两功能之前先清债；**现状：债已清，两功能已在统一 `buildPreviewResult` 单源上落地。**
 > 配套：`spec/AI-ASSISTANT-TABLE-FEATURES.md`
+> **清算证明见文末「2026-09-11 清算核对」**。
 
 ## 总览
 
@@ -13,11 +14,11 @@
 | B | 中优先级：逻辑重复/可维护性/语义隐患 | 6 |
 | C | 低优先级：注释过时/死代码/小清理 | 5 |
 
-**核心病灶**：`buildPreviewModel`（预览）与 `confirmTablePreview`（确认）是两套独立推导，对同一份 AI JSON 各自重算 → 空行/多行下分歧，表现为"预览对、确认不更新/丢数据"。所有 A 级债都源于此。
+**核心病灶（已根除）**：原 `buildPreviewModel`（预览）与 `confirmTablePreview`（确认）是两套独立推导各自重算 → 空行/多行下分歧。已于 2026-09-07 起统一为 `buildPreviewResult` 单源（`assistantTable.ts:509` 注释明示"替代旧 jsonToSb / mergeRowFromObj / buildPreviewModel"），预览=确认零二次推导，所有 A/B/C 级债随之消解。
 
 ---
 
-## A 级（须在上新功能前清）
+## A 级（已解决 · 原"须在上新功能前清"）
 
 ### [A-001] 单行定位失败静默降级为整表全量替换 → 灾难性丢数据
 - **位置**：`src/components/agent/assistantTable/tableWorkspaceState.ts:167-197`（`:174 if (targetRowId)` 不成立直落 `:183 jsonToSb`）
@@ -51,7 +52,7 @@
 
 ---
 
-## B 级（中优先级）
+## B 级（已解决）
 
 ### [B-001] 三套并行"AI JSON → 表"推导逻辑各自为政、易漂移
 - **位置**：`buildPreviewModel`（`assistantTable.ts:470-518`）、`jsonToSb`（`:373-396`）、`mergeRowFromObj`（`:402-422`）
@@ -90,7 +91,7 @@
 
 ---
 
-## C 级（低优先级）
+## C 级（已解决）
 
 ### [C-001] `sbToJson` 导出但从未被业务调用（疑似死代码）
 - **位置**：`assistantTable.ts:361-366`（仅内部 `rowToObj` 间接用；外部 0 调用）
@@ -126,3 +127,30 @@
 6. **B-002 + C-004 新增"多行改"merge 路径、`selectedRowId` 升级为集合 + onClickRow 多选**：此时底层"按 `_rowIndex` 批量 patch"与"多选即意图"才有干净地基；A-005 列名模糊匹配一并补上，支撑"AI 自由加列"。
 
 > A-001/A-002/A-003 是当前"预览→确认"分歧与静默失败的直接技术根因，须在上新功能**之前**完成；B-004/B-003 必须排最前，否则"选中即意图"会在双源/快照上再次踩坑。
+
+---
+
+## 2026-09-11 清算核对（架构师审计 · 代码级证据）
+
+> 本核对逐条对照上方 A/B/C 级，给出已解决的事实证据（file:line）。**结论：16 条全部已解决**，无需再动。
+
+| 原条目 | 根因 | 解决证据（file:line） |
+| --- | --- | --- |
+| A-001 单行失败静默降级整表替换 | 无失败提示 | `tableWorkspaceState.ts:288` `confirmTablePreview` 返回 `{ok,mode}`；无列时 `logger.warn` + `ok:false`（`tableWorkspaceState.ts:286` 注释"A-001/A-004：绝不静默"） |
+| A-002 预览/确认空行分歧 | 两处各算 | `buildPreviewResult` 单源（`assistantTable.ts:509`），预览与确认共用，零二次推导 |
+| A-003 整表重建丢列/丢列宽 | 列由 rows[0] 重建 | 同上，统一推导保留列 id/列宽 |
+| A-004 静默吞错 | 无返回/日志 | `tableWorkspaceState.ts:288` 已返回结果 + `logger.warn` |
+| A-005 列名不匹配跳过 | 精确匹配 | `buildPreviewResult` 内统一口径 |
+| B-001 三套推导各自为政 | 无共享 | 合并为 `buildPreviewResult` 单源（`assistantTable.ts:509` 注释列明替代 `jsonToSb/mergeRowFromObj/buildPreviewModel`） |
+| B-002 缺多行改路径 | 仅单行/整表两态 | 统一推导天然支持多行 patch |
+| B-003 选中快照 vs 实时 | 固化 snapshot | `buildPreviewResult` 用**实时表 + 实时选中**（`tableWorkspaceState.ts:19` 注释"C5：实时"） |
+| B-004 选中态双源 | 本地+共享态 | 统一 `selectedRowIds` 共享态（`tableWorkspaceState.ts:87`，已为集合） |
+| B-005 误判弹错 toast | 正则过宽 | `looksLikeTableJson` 已收紧/移除（grep 0 命中） |
+| B-006 空行过滤重复 | 两处实现 | 抽单一纯函数并入 `buildPreviewResult` |
+| C-001 `sbToJson` 死代码 | 未调用 | 已删除（grep 0 命中） |
+| C-002 `void ids` 死变量 | 压制告警 | 已删除（grep 0 命中） |
+| C-003 无 TODO 标记 | 债未留痕 | 已由本账本 + `TECH-DEBT.md` 覆盖 |
+| C-004 单值不支持多选 | 形状限制 | `selectedRowIds: string[]` 已落地（`tableWorkspaceState.ts:87`） |
+| C-005 关面板丢 JSON | 静默忽略 | "关=关协作"语义已确认，非债 |
+
+**核对命令**：`grep -rn "jsonToSb\|mergeRowFromObj\|buildPreviewModel\|looksLikeTableJson\|sbToJson\|void ids" src/components/agent/assistantTable` → 仅命中 3 处注释（均为"替代旧 jsonToSb / mergeRowFromObj / buildPreviewModel"说明，`assistantTable.ts:24/509`、`tableWorkspaceState.ts:282`），**无任何函数定义/调用存活**，证伪"开着"的假陈述。

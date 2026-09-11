@@ -63,12 +63,21 @@ async function runTick(): Promise<void> {
       const d = await downloadConfig(undefined, { onConfirm: (copy) => askConfirm(copy) });
       cancelCount = 0;
       // 绝不 reload：自动下载若照抄手动链路的 window.location.reload() 会冲掉正在画的画布（旧稿 A-7d）
-      if (d.ok)
+      if (d.ok) {
         showToast(`已下载云端配置（${d.count} 项），部分设置刷新后生效`, { type: 'success' });
-      else if (!d.cancelled) showToast(d.error || '下载云端配置失败', { type: 'error' });
+        // [F-云A] 部分域写回失败 → 如实告警
+        if (d.partial?.failed?.length)
+          showToast(`部分未恢复：${d.partial.failed.join('、')}`, { type: 'warning' });
+      } else if (!d.cancelled) showToast(d.error || '下载云端配置失败', { type: 'error' });
     } else if (!r.cancelled) {
       // 静默推送完成（含 skipped / 正常 push）→ 一次成功选择即清零退避计数
       cancelCount = 0;
+      // [F-云A] 部分域读取失败未上传 / 上传异常 → 如实告警（自动链路也不再完全静默）
+      if (r.partial?.skipped?.length) {
+        showToast(`同步未包含：${r.partial.skipped.join('、')}`, { type: 'warning' });
+      } else if (r.error && !r.error.includes('没有可同步的数据')) {
+        showToast(r.error, { type: 'error' });
+      }
     }
   } catch (e) {
     logger.warn('自动同步', '本轮异常（静默，不阻塞 UI）', {

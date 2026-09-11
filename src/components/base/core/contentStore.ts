@@ -36,9 +36,11 @@
  *   原因：实测该层在 src 侧唯一消费者就是本模块，是纯转发中间层；两套路由判定
  *   （本模块 getBackend + kvStore.isKvKey）互相兜底，属第二份真相。折叠后 Interface
  *   13 个导出签名逐字不变，391 处调用点零迁移。kvStore.ts 保留为 re-export 壳（CANVAS_STATE_PREFIX + kv 三件套）。
- *   ⚠️ 有意不收口的 2 处例外（保留裸调 sGet/sSet）：
+ *   ⚠️ 有意不收口的 1 处例外（保留裸调 sGet/sSet）：
  *   - conversationState.ts:406/410 —— 读旧 local 数据做 KV 迁移回读（键已登记 backend:'kv'，走本模块会读 KV → 语义即错）。
- *   - d3dPersistence.ts:140,154 —— 双通道形态（KV 主通道 + localStorage 降级副本 + 独立 KV_TIMEOUT），本模块无对应能力。
+ *   d3dPersistence 已于 TD-7 方案A 收编：其双通道形态（KV 主通道 + localStorage 降级副本 + 独立 KV_TIMEOUT）
+ *   通过 STORAGE_KEYS 的 `fallback`/`timeout` per-key 选项 + 新增 contentSetKvWithFallback/contentGetKvWithFallback
+ *   原语支持，不再裸调 kvGet/kvSet/sGet/sSet（消除「收口缺口」）。
  *   本模块承载两组职责：缓存/订阅/节流 + KV 降级策略，现不拆。若未来新增第三后端（如 remote），
  *   建议在文件内另起 `backends/` 小节，而非继续往主流程塞（C3 遗留建议）。
  */
@@ -49,6 +51,7 @@ import { STORAGE_KEYS } from './contracts.ts';
 import type { StorageKeyMeta } from './contracts.ts';
 import { logger } from './logger.ts';
 import { compilePatternRegex } from './utils.ts';
+import { withTimeout } from '../utils/asyncGuard.ts';
 
 /** 存储后端：local(localStorage) / kv(云端 KV) / native(原生桥) */
 export type StorageBackend = 'local' | 'kv' | 'native';
@@ -135,6 +138,11 @@ function findPatternEntry(key: string): StorageKeyEntry | null {
     }
   }
   return null;
+}
+
+/** 解析 key 对应的 STORAGE_KEYS 登记项（精确键优先，其次 pattern 动态模板）。供 per-key 选项（fallback/timeout）读取。 */
+function resolveMeta(key: string): StorageKeyMeta | null {
+  return KEYS[key] ?? findPatternEntry(key);
 }
 
 function isPatternMatch(key: string): boolean {
@@ -253,8 +261,11 @@ async function loadFromKv(key: string): Promise<unknown> {
  * - KV 失败降级读本地副本（storageSet 曾降级写过的副本读得回，修 R2）。
  */
 async function readKvWithFallback(key: string): Promise<unknown> {
+  const meta = resolveMeta(key);
+  const timeout = meta?.timeout;
   try {
-    return await kvGet(key);
+    const getOp = kvGet(key);
+    return await (timeout ? withTimeout(getOp, timeout, `KV 读取超时 (key=${key})`) : getOp);
   } catch (e) {
     reportDegrade({ layer: 'kvStore', key, e, toast: '本地引擎存储暂不可用，已回退读取本地缓存' });
     const raw = sGet(key);
@@ -268,18 +279,30 @@ async function readKvWithFallback(key: string): Promise<unknown> {
  * - KV 失败降级写 localStorage 并 reportDegrade
  *   （layer 保留 'kvStore' 字面量：既有日志查询 task-inspect --logs 依赖，勿改）。
  */
-async function writeKvWithFallback(key: string, value: unknown): Promise<void> {
+async function writeKvWithFallback(key: string, value: unknown): Promise<'kv' | 'local'> {
+  const meta = resolveMeta(key);
+  const timeout = meta?.timeout;
+  const keepFallback = meta?.fallback === true;
   try {
-    await kvSet(key, value);
-    sRemove(key);
+    const setOp = kvSet(key, value);
+    await (timeout ? withTimeout(setOp, timeout, `KV 写入超时 (key=${key})`) : setOp);
+    // 默认（keepFallback=false）：KV 成功后清历史降级副本，避免旧副本"复活"覆盖新值（P2-F1）；
+    // keepFallback=true（如 d3d 双通道）：保留本地镜像，供 KV 不可达时回读。
+    if (!keepFallback) sRemove(key);
+    return 'kv';
   } catch (e) {
-    sSet(key, typeof value === 'string' ? value : JSON.stringify(value));
+    try {
+      sSet(key, typeof value === 'string' ? value : JSON.stringify(value));
+    } catch {
+      /* 本地降级也失败：内存态为权威，不阻塞（双通道都失败仍不抛） */
+    }
     reportDegrade({
       layer: 'kvStore',
       key,
       e,
       toast: '本地引擎存储暂不可用，数据已暂存本地（跨设备同步可能丢失）',
     });
+    return 'local';
   }
 }
 
@@ -425,6 +448,46 @@ export function contentReadThrough(key: string): string | null {
   checkRegistered(key);
   if (resolveBackend(key) === 'kv') return null; // kv 键无法同步读
   return sGet(key);
+}
+
+/**
+ * KV 主通道 + 本地降级副本（双通道）写入原语 —— 供特殊形态键（如 d3d 工程）收编进 contentStore 使用。
+ * 行为遵循 STORAGE_KEYS 登记表 per-key 的 `fallback` / `timeout` 选项：
+ *  - timeout：KV 读写独立超时（ms），不可达快失败降级；
+ *  - fallback=true：KV 成功后保留本地降级副本（双通道镜像），否则成功后清副本（默认）。
+ * 写入返回实际落点 'kv' | 'local'，供调用方标记（如 d3d 跨窗口冲突提示）。
+ * 普通 store 请勿直接调本原语——走 contentSet/contentSetAsync 即可（per-key 选项对它们同样生效）。
+ */
+export async function contentSetKvWithFallback(
+  key: string,
+  value: unknown,
+): Promise<'kv' | 'local'> {
+  checkRegistered(key);
+  return writeKvWithFallback(key, value);
+}
+
+/**
+ * KV 主通道 + 本地降级副本（双通道）读取原语。
+ * KV 命中（非 null）→ 返回 { value, from: 'kv' }；KV 空或不可达 → 回读本地降级副本并返回 { value, from: 'local' }。
+ * 返回 `from` 供调用方做迁移/冲突判定（如 d3d 一次性 local→KV 迁移）。
+ */
+export async function contentGetKvWithFallback(
+  key: string,
+): Promise<{ value: unknown; from: 'kv' | 'local' }> {
+  checkRegistered(key);
+  const meta = resolveMeta(key);
+  const timeout = meta?.timeout;
+  try {
+    const getOp = kvGet(key);
+    const value = await (timeout ? withTimeout(getOp, timeout, `KV 读取超时 (key=${key})`) : getOp);
+    if (value != null) return { value, from: 'kv' };
+  } catch (e) {
+    reportDegrade({ layer: 'kvStore', key, e, toast: '本地引擎存储暂不可用，已回退读取本地缓存' });
+  }
+  // KV 空或失败 → 回读本地副本
+  const raw = sGet(key);
+  const value = raw === null ? null : tryParse(raw);
+  return { value, from: 'local' };
 }
 
 // ─────────────────────────────────────────────────────────────────

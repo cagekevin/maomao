@@ -97,6 +97,23 @@ describe('cloudSync — CloudSyncEngine.callGateway 守卫', () => {
     const res = await CloudSyncEngine.callGateway('push_data', {});
     expect(res.data).toEqual({ a: 1 });
   });
+
+  it('[F-云C] fetch 网络失败 → 原错误上浮（保留类型/stack，不压平成 message 字符串）', async () => {
+    class NetworkBoom extends TypeError {
+      constructor() {
+        super('fetch failed');
+      }
+    }
+    fetchMock.mockRejectedValue(new NetworkBoom());
+    let thrown: unknown;
+    try {
+      await CloudSyncEngine.callGateway('push_data', {});
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(NetworkBoom); // 原类型不丢
+    expect((thrown as Error).message).toBe('fetch failed');
+  });
 });
 
 describe('cloudSync — push / pull', () => {
@@ -198,6 +215,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     contentSet('yimao_asset_library', [{ id: 'a' }]);
     contentSet('agent_draft', '草稿');
     contentSet('mutiwindow-clipboard', 'clip');
+    contentSet('projects', [{ id: 'p1', name: '项目' }]); // 项目列表：有独立跨端通道，不应进云
     fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }));
     const res = await uploadConfig(() => {});
     expect(res.ok).toBe(true);
@@ -213,6 +231,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     expect(ls.yimao_asset_library).toBeUndefined();
     expect(ls.agent_draft).toBeUndefined();
     expect(ls.mutiwindow_clipboard).toBeUndefined();
+    expect(ls.projects).toBeUndefined(); // 项目列表整体移出云同步（[F-云B]）
   });
 
   it('account 领域开：账号环境（KV 后端）随上传进入云端', async () => {
@@ -233,7 +252,8 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     expect(ls.accounts).toEqual([{ id: 'acc1', name: '环境1' }]);
   });
 
-  it('project 领域关：云端 projects 下载时不覆写本地（堵「云覆盖丢新项目」）', async () => {
+  it('projects 整体移出云同步：云端含 projects 时下载零写回（不碰本地 LS、不碰 backend saveProjects）', async () => {
+    // [F-云B] 2026-09-11：projects 已从源头排除，云端即便带了 projects 也不应复写本地/后端
     const cloud = {
       type: 'cloud_config',
       version: 5,
@@ -243,9 +263,36 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     fetchMock.mockResolvedValueOnce(jsonResp(cloud)); // pull 返回
     const { saveProjects } = await import('@/components/base/api/localToolApi.ts');
     const res = await downloadConfig(() => {});
-    expect(res.ok).toBe(false); // projects 领域关 → 无任何写回 → count 0
+    expect(res.ok).toBe(false); // projects 已整体移出 → 无任何写回 → count 0
     expect(res.hasCloud).toBe(true);
     expect(saveProjects).not.toHaveBeenCalled();
+  });
+
+  it('[F-云A] 上传时 providers 读取失败 → 如实带 partial.skipped，不冒充完整上传', async () => {
+    const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
+    contentSet('app_settings', { theme: 'dark' });
+    vi.mocked(providerApi.getProviders).mockRejectedValue(new Error('ECONNREFUSED'));
+    fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }));
+    const res = await uploadConfig(() => {});
+    expect(res.ok).toBe(true);
+    expect(res.partial?.skipped).toContain('API 供应商配置'); // 失败域如实上抛
+  });
+
+  it('[F-云A] 下载时 providers 写回失败 → ok:true 但带 partial.failed，不掩盖', async () => {
+    const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
+    contentSet('app_settings', { theme: 'dark' });
+    const cloud = {
+      type: 'cloud_config',
+      version: 5,
+      updatedAt: 0,
+      data: { app_settings: { theme: 'dark' }, providers: [{ id: 'p', key: 'k' }] },
+    };
+    fetchMock.mockResolvedValueOnce(jsonResp(cloud));
+    vi.mocked(providerApi.saveProviders).mockRejectedValue(new Error('boom'));
+    const res = await downloadConfig(() => {});
+    expect(res.ok).toBe(true); // 本地 LS 已恢复
+    expect(res.count).toBeGreaterThan(0);
+    expect(res.partial?.failed).toContain('API 供应商配置'); // 失败域如实上抛
   });
 });
 

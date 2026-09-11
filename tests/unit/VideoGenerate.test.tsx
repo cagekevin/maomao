@@ -245,9 +245,11 @@ function nodeData() {
 describe('VideoGenerate — 渲染', () => {
   it('空态：无视频时显示占位图标，无工具栏视频按钮', () => {
     setup();
-    // 工具栏只保留「上传」按钮
+    // 死入口已移除（2026-09-11 TD-11）：空态不再有「上传图片、视频或音频素材」按钮
+    // （节点参考图来源为连线上游 + @素材芯片两条既有通道，节点内上传无语义）
     const toolbar = screen.getByTestId('hover-toolbar');
-    expect(toolbar.textContent).toContain('上传图片、视频或音频素材');
+    expect(toolbar.textContent).not.toContain('上传图片、视频或音频素材');
+    expect(toolbar.textContent).not.toContain('上传');
     expect(toolbar.textContent).not.toContain('下载');
     expect(toolbar.textContent).not.toContain('删除');
   });

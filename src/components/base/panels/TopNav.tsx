@@ -31,6 +31,8 @@ export interface SyncResult {
   error?: string;
   /** 用户在「是否覆盖」确认里选了取消 → 非错误，调用方应静默返回、不弹失败提示 */
   cancelled?: boolean;
+  /** [F-云A] 部分域失败：上传=读取失败未纳入（skipped）；下载=写回失败（failed）。调用方必须告警 */
+  partial?: { skipped?: string[]; failed?: string[] };
 }
 
 export interface TopNavProps {
@@ -76,8 +78,15 @@ function TopNav({
     try {
       const r = await onPushToCloud();
       if (r?.cancelled) return; // 用户取消覆盖：cloudSync 侧未做任何写操作，静默返回
-      if (!r?.ok) showToast(r?.error || '推送失败', { type: 'error' });
-      else showToast(`已推送到云端（${r.count} 项数据）`, { type: 'success' });
+      if (!r?.ok) {
+        showToast(r?.error || '推送失败', { type: 'error' });
+        return;
+      }
+      showToast(`已推送到云端（${r.count} 项数据）`, { type: 'success' });
+      // [F-云A] 部分域读取失败未上传 → 如实告警，不冒充完整上传
+      if (r?.partial?.skipped?.length) {
+        showToast(`以下未上传（读取失败）：${r.partial.skipped.join('、')}`, { type: 'warning' });
+      }
     } catch (e) {
       showToast(e?.message || '推送失败', { type: 'error' });
     }
@@ -92,8 +101,15 @@ function TopNav({
     try {
       const r = await onPullFromCloud();
       if (r?.cancelled) return; // 用户取消覆盖：本地未被改写，静默返回
-      if (!r?.ok) showToast(r?.error || '拉取失败', { type: 'error' });
-      else showToast(`已从云端拉取（${r.count} 项数据）`, { type: 'success' });
+      if (!r?.ok) {
+        showToast(r?.error || '拉取失败', { type: 'error' });
+        return;
+      }
+      showToast(`已从云端拉取（${r.count} 项数据）`, { type: 'success' });
+      // [F-云A] 部分域写回失败 → 如实告警，不冒充完整恢复
+      if (r?.partial?.failed?.length) {
+        showToast(`部分未恢复：${r.partial.failed.join('、')}`, { type: 'warning' });
+      }
     } catch (e) {
       showToast(e?.message || '拉取失败', { type: 'error' });
     }

@@ -1093,8 +1093,6 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
               data: {
                 ...n.data,
                 errorMessage: undefined,
-                videoUrl: undefined,
-                audioUrl: undefined,
               },
             }
           : n,
@@ -1252,8 +1250,6 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
                 data: {
                   ...n.data,
                   errorMessage: undefined,
-                  videoUrl: undefined,
-                  audioUrl: undefined,
                   outputName,
                   outputInfo: {
                     duration: result.metadata.duration,

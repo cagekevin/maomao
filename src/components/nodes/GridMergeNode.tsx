@@ -6,6 +6,7 @@ import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 
 import { Grid3X3, PanelsTopLeft, Layers, Loader2 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
+import { useNodeData } from '../../hooks/useNodeData.ts';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import OverlayEditor, { renderOverlayCanvas } from '../base/editors/OverlayEditor.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
@@ -128,6 +129,7 @@ interface GridMergeNodeProps {
 }
 function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow();
+  const { patchData } = useNodeData(id);
   const history = useCanvasEdges();
   // 旧的 `const { isHidden: _isHidden } = useMediaDegrade()` 已删：本节点未消费（死调用）。
   const render = useRenderImageResolver();
@@ -210,33 +212,23 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
 
   // ---- 同步 data（复刻 Yo.jsx 60-78 行）----
   useEffect(() => {
-    setNodes((ns) =>
-      ns.map((n) =>
-        n.id === id
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                mergeMode,
-                rows,
-                cols,
-                cellSize,
-                aspectRatio,
-                autoSize,
-                titlePattern,
-                longDirection,
-                longGap,
-                longTargetSize,
-                longAutoSize,
-                bgColor,
-                overlayState,
-                canvasWidth: overlayState.canvasWidth,
-                canvasHeight: overlayState.canvasHeight,
-              },
-            }
-          : n,
-      ),
-    );
+    patchData({
+      mergeMode,
+      rows,
+      cols,
+      cellSize,
+      aspectRatio,
+      autoSize,
+      titlePattern,
+      longDirection,
+      longGap,
+      longTargetSize,
+      longAutoSize,
+      bgColor,
+      overlayState,
+      canvasWidth: overlayState.canvasWidth,
+      canvasHeight: overlayState.canvasHeight,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     mergeMode,
@@ -434,16 +426,14 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
       }
       if (url) {
         setPreview(url);
-        setNodes((ns) =>
-          ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, imageUrl: url } } : n)),
-        );
+        patchData({ imageUrl: url });
         spawnMergedImage(url);
       }
     } finally {
       setExporting(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- spawnMergedImage 定义在本 useCallback 之后（TDZ 依赖数组）
-  }, [mergeMode, longList, gridCells, overlayState, renderToCanvas, id, setNodes]);
+  }, [mergeMode, longList, gridCells, overlayState, renderToCanvas, id, patchData]);
 
   // 生成合成图片节点（复刻 Yo.jsx onSpawnImageNode）
   const spawnMergedImage = useCallback(

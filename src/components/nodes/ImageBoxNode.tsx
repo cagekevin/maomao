@@ -14,9 +14,9 @@ import {
   List,
   MoreVertical,
 } from 'lucide-react';
-import { useReactFlow } from '@xyflow/react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
+import { useNodeData } from '../../hooks/useNodeData.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import LazyImage from '../base/ui/LazyImage.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
@@ -25,7 +25,9 @@ import { loadImageWithTimeout } from '../base/utils/asyncGuard.ts';
 import { generateId } from '../base/core/idGen.ts';
 import { downloadUrl as clipboardDownload } from '../base/utils/clipboard.ts';
 
-import { useRenderImageResolver, fileToDataUrl } from '../base/utils/imageUrl.ts';
+import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
+// §5.4.9 图像入节点落盘策略唯一实现：File 源走 resolveNodeImageUrl（multipart 直传 → /files/ 持久 URL）
+import { resolveNodeImageUrl } from '../base/api/filesApi.ts';
 
 /**
  * 图片盒子节点（复刻官方 Rg.jsx / imageBoxNode）。
@@ -67,7 +69,6 @@ interface ImageBoxNodeProps {
   selected?: boolean;
 }
 function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
-  const { setNodes } = useReactFlow();
   const { isHidden } = useMediaDegrade();
   const render = useRenderImageResolver();
   const hideImage = isHidden('image');
@@ -97,13 +98,8 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
   const selectedIds = useMemo(() => data.selectedIds || [], [data.selectedIds]);
   const current = images[activeIndex];
 
-  // ---- data 写回（统一用 setNodes 不可变更新，与 AssetNode 一致）----
-  const updateData = useCallback(
-    (patch: Partial<ImageBoxNodeData>) => {
-      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
-    },
-    [id, setNodes],
-  );
+  // ---- data 写回（收口到 useNodeData.patchData：节点 data 单源不可变写回，消除手写 setNodes 样板；TD-8 残留①）----
+  const { patchData: updateData } = useNodeData(id);
 
   // ---- 缩略图生成（对齐官方 _cmp_Tr(url, 256, 0.7)：canvas 等比缩到 max 256，jpg 0.7）----
   const makeThumb = useCallback(async (url: string, max = 256, quality = 0.7) => {
@@ -290,14 +286,16 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
     // 节点已显示导入的图片，结果可见，无需 toast
   }, [upstreamImages, images, addImages]);
 
-  // ---- 文件读取（对齐官方 te/ne：只收 image/，读成 dataURL）----
+  // ---- 文件读取（对齐 §5.4.9 落盘唯一实现：File 源走 resolveNodeImageUrl，禁止把整图 dataURL 塞进 node.data）----
   const readFiles = useCallback((files: FileList | File[]) => {
     const list = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    // 统一走 fileToDataUrl（官方出口，禁止散写 FileReader）；读取失败返回 null 由外层过滤丢弃
+    // 委托 filesApi.resolveNodeImageUrl：multipart 直传 → 持久 /files/ URL；
+    // 仅「上传失败且读不出内联」才兜底 dataURL（极端情形，符合契约降级语义）。
+    // 这样 node.data.images[].url 只存持久 URL，快照不再内联整图 → 消除 TD-10 快照膨胀。
     return Promise.all(
       list.map((f) =>
-        fileToDataUrl(f)
-          .then((url) => ({ url, label: f.name }))
+        resolveNodeImageUrl(f)
+          .then((url) => (url ? { url, label: f.name } : null))
           .catch(() => null),
       ),
     ).then((r) => r.filter(Boolean));
