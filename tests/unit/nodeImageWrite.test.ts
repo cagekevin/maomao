@@ -3,8 +3,11 @@
  *
  * 两条防线：
  *  1. `replaceNodeImage` 是 **唯一** 负责「把新图写回节点」的函数 → 纯函数行为单测；
- *  2. **源码级护栏**：两个图片节点（ImageGenerate / AssetNode）不得再出现「内联直写 imageUrl」的旧写法；
- *     `useImageHoverActions` 的 4 条保存出口（编辑器 / 就地裁剪 / 压缩 / 放大）必须都走落盘。
+ *  2. **源码级护栏**：
+ *     - 图片节点（ImageGenerate / AssetNode）不得再出现「内联直写 imageUrl / 双写 url」的旧写法；
+ *     - **写侧停写 `data.url` 值**（只允许 `url: undefined` 清空），且**读侧兜底必须保留**——
+ *       这是 §7.3 ⑤「读兼容、写唯一」的两半，缺一半就是破图或字段回流；
+ *     - `useImageHoverActions` 的 4 条保存出口（编辑器 / 就地裁剪 / 压缩 / 放大）必须都走落盘。
  *
  * 为什么用源码断言而不是只测行为：本收口防的正是「新增一条路径忘了走唯一的门」——
  * 行为测试只能覆盖你想到的路径，源码断言能拦住「又冒出一处直写」。
@@ -36,20 +39,29 @@ const node = (id: string, data: Record<string, unknown> = {}): Node =>
   ({ id, type: 'assetNode', position: { x: 0, y: 0 }, data }) as unknown as Node;
 
 describe('replaceNodeImage — 节点主图唯一写入口', () => {
-  it('写 imageUrl；未传 legacyUrlField 时不写 url', () => {
+  it('只写 imageUrl；存量字段 url 不再写值（字段唯一化：读兼容、写唯一）', () => {
     const s = fakeSetNodes();
     replaceNodeImage({ id: 'n1', dataUrl: 'http://x/new.png' }, s.setNodes);
     const out = s.apply([node('n1', { imageUrl: 'http://x/old.png', url: 'http://x/old.png' })]);
     expect(out[0].data.imageUrl).toBe('http://x/new.png');
-    expect(out[0].data.url).toBe('http://x/old.png'); // 不动存量字段
+    expect(out[0].data.url).toBe('http://x/old.png'); // 不动存量字段（读侧仍兜底）
   });
 
-  it('legacyUrlField: true → 同步写 url（AssetNode 存量兼容）', () => {
+  it('dataPatch 与主图同一次不可变更新写下去（「上传替换内容」用；值 undefined = 清空）', () => {
     const s = fakeSetNodes();
-    replaceNodeImage({ id: 'n1', dataUrl: 'http://x/new.png', legacyUrlField: true }, s.setNodes);
-    const out = s.apply([node('n1', { imageUrl: 'o', url: 'o' })]);
+    replaceNodeImage(
+      {
+        id: 'n1',
+        dataUrl: 'http://x/new.png',
+        dataPatch: { mediaType: undefined, text: undefined },
+      },
+      s.setNodes,
+    );
+    const out = s.apply([node('n1', { imageUrl: 'o', url: 'o', mediaType: 'image', text: 'x' })]);
     expect(out[0].data.imageUrl).toBe('http://x/new.png');
-    expect(out[0].data.url).toBe('http://x/new.png');
+    expect(out[0].data.url).toBe('o');
+    expect(out[0].data.mediaType).toBeUndefined();
+    expect(out[0].data.text).toBeUndefined();
   });
 
   it('不可变更新：其它字段与其它节点保持原引用，不原地 mutation', () => {
@@ -105,11 +117,53 @@ describe('源码护栏 — 图片写回只有一个门', () => {
     ).toBe(false);
   });
 
-  it('已知例外：AssetNode「上传替换内容」路径直写 imageUrl+url+mediaType（不在本次收口范围）', () => {
-    // 该路径语义是「把节点内容整体换成上传的媒体」，同时清 mediaType/text，
-    // replaceNodeImage 的签名（只管主图）表达不了 → 保留为档 2 遗留（见 docs/118 实施记录·遗留）。
+  it('已知例外已收口：AssetNode「上传替换内容」也走 replaceNodeImage（不再直写图片字段）', () => {
     const src = readSrc('src/components/nodes/AssetNode.tsx');
-    expect(src.includes('mediaType: undefined, text: undefined')).toBe(true);
+    // 上传分支：主图经唯一入口写，mediaType/text 用 dataPatch 一并置空
+    expect(
+      /replaceNodeImage\(\s*\{[^}]*dataPatch:\s*\{\s*mediaType:\s*undefined,\s*text:\s*undefined/ms.test(
+        src,
+      ),
+      'AssetNode 上传替换路径必须经 replaceNodeImage（dataPatch 清 mediaType/text）',
+    ).toBe(true);
+    // 该分支不得再出现「内联写 imageUrl + 双写 url」
+    expect(/\{\s*\.\.\.n\.data,\s*imageUrl:\s*url,\s*url\b/.test(src)).toBe(false);
+  });
+
+  it('写侧停写 data.url（值写归零）：只允许 url: undefined 这种「清空」', () => {
+    // docs/118 §7.3 ⑤ 分层收口：写侧只写 imageUrl；存量兼容字段 url 不再写【值】。
+    for (const rel of [
+      'src/components/nodes/AssetNode.tsx',
+      'src/components/nodes/Director3DNode.tsx',
+      'src/components/nodes/nodeImage.ts',
+    ]) {
+      const src = readSrc(rel);
+      expect(
+        /\burl:\s*(url|lastUrl|dataUrl|imageUrl)\b/.test(src),
+        `${rel} 不得再向主图字段写 url 值（只允许 url: undefined 清空）`,
+      ).toBe(false);
+    }
+    // 双写开关不得回归（加回来就等于又开了一条写 url 的路径）
+    // 断言「没有这个字段声明」而非「源码不含该词」——注释里保留它的历史说明是有意为之
+    expect(
+      /\blegacyUrlField\??\s*:/.test(readSrc('src/components/nodes/nodeImage.ts')),
+      'nodeImage 不得再提供 legacyUrlField 双写开关',
+    ).toBe(false);
+  });
+
+  it('读侧兜底必须保留（存量快照里有只带 url 的节点，删了就读丢）', () => {
+    expect(
+      /data\.imageUrl\s*\|\|\s*data\.url/.test(readSrc('src/components/nodes/AssetNode.tsx')),
+      'AssetNode 渲染必须保留 imageUrl || url 兜底',
+    ).toBe(true);
+    expect(
+      /node\?\.data\?\.imageUrl\s*\|\|\s*node\?\.data\?\.url/.test(readSrc('src/App.tsx')),
+      'App.copyNodeImage 必须保留 imageUrl || url 兜底',
+    ).toBe(true);
+    expect(
+      /\['imageUrl',\s*'url'\]/.test(readSrc('src/components/agent/canvas/useCanvasAgentTools.ts')),
+      'getNodeImageUrl 必须保留 imageUrl → url 的字段兼容顺序',
+    ).toBe(true);
   });
 
   it('useImageHoverActions 的 4 条保存出口都落盘（编辑器/就地裁剪/压缩/放大）', () => {

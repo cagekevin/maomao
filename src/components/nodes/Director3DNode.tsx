@@ -180,10 +180,11 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
       if (targets.length > 0) {
         // 已有下游 AssetNode：写最近导出视频
         const targetId = targets[0];
+        // 只写 imageUrl（docs/118 §7.3 ⑤ 写侧唯一）：不再双写存量字段 data.url。
         setNodes((ns) =>
           ns.map((n) =>
             n.id === targetId
-              ? { ...n, data: { ...n.data, imageUrl: lastUrl, url: lastUrl, mediaType: 'video' } }
+              ? { ...n, data: { ...n.data, imageUrl: lastUrl, mediaType: 'video' } }
               : n,
           ),
         );
@@ -209,7 +210,6 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
               },
               data: {
                 imageUrl: lastUrl,
-                url: lastUrl,
                 mediaType: 'video',
                 label: lastFile,
                 images: [],

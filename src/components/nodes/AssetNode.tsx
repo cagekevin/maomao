@@ -67,7 +67,9 @@ interface AssetNodeProps {
 }
 function AssetNode({ id, data, selected }: AssetNodeProps) {
   const fileRef = useRef<HTMLInputElement | null>(null);
-  // 读取端兜底：相对 /files/ 路径统一补全为绝对 URL，刷新不破图
+  // 读取端兜底：相对 /files/ 路径统一补全为绝对 URL，刷新不破图。
+  // `data.url` 是【刻意的存量兼容层】（docs/118 §7.3 ⑤）：写侧已统一只写 imageUrl（见 nodeImage.ts），
+  // 但存量快照里真有只带 url 的节点 —— 删掉这层兜底 = 存量破图。读兼容、写唯一。
   const url = toAbsoluteFileUrl(data.imageUrl || data.url || '') || '';
   const { setNodes, getNodes, getNode, getEdges, setEdges, addNodes, addEdges } = useReactFlow();
   const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false);
@@ -105,7 +107,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   const replaceImage = useCallback(
     (dataUrl: string, dims?: { width: number; height: number }) => {
       if (!dataUrl) return;
-      replaceNodeImage({ id, dataUrl, dims, legacyUrlField: true }, setNodes, (d) => {
+      replaceNodeImage({ id, dataUrl, dims }, setNodes, (d) => {
         if (d?.width && d?.height) setMediaRatio(`${d.width}:${d.height}`);
       });
     },
@@ -230,6 +232,9 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
                       ...n.data,
                       text: fr.result,
                       mediaType: 'text',
+                      // 切文本态 = 清空主图（imageUrl 为主、url 为存量兼容字段）：
+                      // 这里写 undefined 是【清空】不是【写值】，两者都必须清，否则渲染端
+                      // `imageUrl || url` 会从 url 兜底读回旧图 → 文本态节点显示旧图。
                       imageUrl: undefined,
                       url: undefined,
                     },
@@ -251,15 +256,11 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
         toastError('上传失败');
         return;
       }
-      setNodes((ns) =>
-        ns.map((n) =>
-          n.id === id
-            ? {
-                ...n,
-                data: { ...n.data, imageUrl: url, url, mediaType: undefined, text: undefined },
-              }
-            : n,
-        ),
+      // 「上传替换节点内容」也收口到唯一写入口：主图走 replaceNodeImage，`mediaType/text` 置空
+      // （交回 detectMediaType 按新 URL 判定）。此前这里是第三处直写 imageUrl/url 的地方（docs/118 §7.3 ⑤）。
+      replaceNodeImage(
+        { id, dataUrl: url, dataPatch: { mediaType: undefined, text: undefined } },
+        setNodes,
       );
       // 节点已显示新图，结果可见，无需 toast
     },
