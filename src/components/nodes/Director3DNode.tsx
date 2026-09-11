@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { Orbit, Maximize2 } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
+import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { toAbsoluteFileUrl, saveInlineToLocal } from '../base/api/index.ts';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import { Director3DOverlay } from '../director3d/Director3DOverlay.tsx';
@@ -26,15 +27,8 @@ interface Director3DNodeProps {
 }
 function Director3DNode({ id, data, selected }: Director3DNodeProps) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow();
-  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
-  const rename = useCallback(
-    (name: string) => {
-      setNodes((ns) =>
-        ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)),
-      );
-    },
-    [id, setNodes],
-  );
+  // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
+  const rename = useNodeRename(id);
   const history = useCanvasEdges();
   const connected = useConnectedInputs(id);
   const [open, setOpen] = useState(false);

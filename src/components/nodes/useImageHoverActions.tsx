@@ -4,7 +4,7 @@ import ImageEditor from '../base/editors/ImageEditor.tsx';
 import InlineImageCropper from '../base/editors/InlineImageCropper.tsx';
 import { compressImage } from '../base/utils/imageCompress.ts';
 import { upscaleImage } from '../base/utils/imageUpscale.ts';
-import { saveInlineToLocal } from '../base/api/filesApi.ts';
+import { showThenPersistInline } from '../base/api/filesApi.ts';
 import { showToast, toastError } from '../base/core/toastStore.ts';
 
 /**
@@ -20,7 +20,9 @@ import { showToast, toastError } from '../base/core/toastStore.ts';
  * hook 只负责「产出新 dataURL」。
  *
  * 【保存出口统一「先落盘再写回」】编辑器保存 / 就地裁剪 / 压缩 / 放大四条路径同构：
- *   ① 立即写回 dataURL（不等网络）→ ② saveInlineToLocal 换 /files/ 持久 URL → ③ 再写回持久 URL。
+ *   ① 立即写回 dataURL（不等网络）→ ② 落盘换 /files/ 持久 URL → ③ 再写回持久 URL。
+ * 三条路径统一委托 filesApi.showThenPersistInline（全库唯一"图像入节点落盘策略"：落盘失败一律保留内联，
+ * 不回滚不报错），禁止在本 hook 另写第二套降级。
  * 快照里因此不再出现 MB 级 dataURL（docs/118 §五 C5，解 I3）。
  *
  * 【失败可见】压缩/发送失败均 toastError 透传真实原因，不吞错；异步均经
@@ -70,31 +72,27 @@ export function useImageHoverActions({
   const [upscaling, setUpscaling] = useState(false);
 
   // 编辑器保存（裁剪/标记/扩图）→ 写回节点图片，并透传画布真实尺寸让节点自适应。
-  // ★ 与压缩/放大**完全同构**（docs/118 §五 C5）：① 立即写回 dataURL（不等网络）；
-  //   ② `saveInlineToLocal` 换成 /files/ 持久 URL（sha1 幂等）；③ 再写回持久 URL。
-  //   收益：快照里不再出现 MB 级 dataURL（只留 KB 级路径）→ CAS 上报体积小、冲突窗口小，
-  //   也不再依赖后端 base64Externalize 兜底。失败时保留原 dataURL（saveInline 返回 null 即跳过）。
+  // ★ 与压缩/放大**完全同构**：① 立即写回 dataURL（不等网络）；② 落盘换 /files/ 持久 URL（sha1 幂等）；
+  //   ③ 再写回持久 URL。三步统一由 filesApi.showThenPersistInline 实现（落盘失败保留内联），
+  //   策略定义见该函数头「图像入节点·统一落盘策略」——禁止在此另写第二套降级。
+  //   收益：快照里不再出现 MB 级 dataURL（只留 KB 级路径）→ CAS 上报体积小、冲突窗口小。
   const handleEditorSave = useCallback(
     async ({ dataUrl, width, height }) => {
       if (!dataUrl) return;
       const dims = width && height ? { width, height } : undefined;
-      onImageReplaced?.(dataUrl, dims); // ① 立即生效（不等网络）
       setEditor(null);
-      const saved = await saveInlineToLocal(dataUrl, 'canvas'); // ② dataURL → /files/ 持久 URL（幂等）
-      if (saved && saved !== dataUrl) onImageReplaced?.(saved, dims); // ③ 快照只留 KB 级路径
+      await showThenPersistInline(dataUrl, (u) => onImageReplaced?.(u, dims));
     },
     [onImageReplaced],
   );
 
   // 就地裁剪保存 → 写回节点图片，关闭裁剪浮层。
-  // ★ 与 handleEditorSave 同构（就地裁剪也必须落盘，否则又是「两条改对两条忘」）。
+  // ★ 与 handleEditorSave 同构，共用同一落盘策略（就地裁剪必须落盘，否则又是「两条改对两条忘」）。
   const handleCropSave = useCallback(
     async ({ dataUrl }) => {
       if (!dataUrl) return;
-      onImageReplaced?.(dataUrl); // ① 立即生效
       setCropping(false);
-      const saved = await saveInlineToLocal(dataUrl, 'canvas'); // ② 落盘换持久 URL
-      if (saved && saved !== dataUrl) onImageReplaced?.(saved); // ③ 快照只留路径
+      await showThenPersistInline(dataUrl, (u) => onImageReplaced?.(u));
     },
     [onImageReplaced],
   );
@@ -106,9 +104,8 @@ export function useImageHoverActions({
     try {
       const { dataUrl, size, originalSize } = await compressImage(url, { quality: 0.8 });
       if (!dataUrl) throw new Error('压缩失败');
-      onImageReplaced?.(dataUrl); // 立即覆盖显示
-      const saved = await saveInlineToLocal(dataUrl, 'canvas');
-      if (saved && saved !== dataUrl) onImageReplaced?.(saved); // 落盘后换持久 URL
+      // 立即覆盖显示 → 落盘换持久 URL（同一落盘策略；落盘失败保留内联）
+      await showThenPersistInline(dataUrl, (u) => onImageReplaced?.(u));
       const kb = (n) => `${(n / 1024).toFixed(0)}KB`;
       showToast(`已压缩：${originalSize ? kb(originalSize) : '?'} → ${size ? kb(size) : '?'}`, {
         type: 'success',
@@ -127,9 +124,8 @@ export function useImageHoverActions({
     try {
       const { dataUrl } = await upscaleImage(url, { scale: 2 });
       if (!dataUrl) throw new Error('放大失败');
-      onImageReplaced?.(dataUrl); // 立即覆盖显示
-      const saved = await saveInlineToLocal(dataUrl, 'canvas');
-      if (saved && saved !== dataUrl) onImageReplaced?.(saved); // 落盘后换持久 URL
+      // 立即覆盖显示 → 落盘换持久 URL（同一落盘策略；落盘失败保留内联）
+      await showThenPersistInline(dataUrl, (u) => onImageReplaced?.(u));
       showToast('已放大 2 倍', { type: 'success' });
     } catch (e) {
       toastError(e?.message || '放大失败');

@@ -17,6 +17,8 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
 import { buildEffectivePrompt } from '../base/core/utils.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
+import { useNodeExpanded } from '../../hooks/useNodeExpanded.ts';
+import { useNodeField } from '../../hooks/useNodeField.ts';
 import { buildSpawnNodes, spawnAndCommit, makeChildId } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { saveTextToTasks } from '../base/api/index.ts';
@@ -67,8 +69,12 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     },
     [id, setEdges],
   );
-  const [prompt, setPrompt] = useState(data.prompt || '');
-  const [text, setText] = useState(data.text || '');
+  // ── 输入落盘（唯一入口 useNodeField）：prompt/text 高频输入走防抖，autoSplit/inputLocked 低频即时 ──
+  // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave 只存 node.data，不存组件 useState）
+  // → 手动输入的文字随画布快照落盘，刷新/切换项目不丢；卸载 flush 由 useNodeData 承接。
+  const { patchData, patchDebounced } = useNodeData(id);
+  const [prompt, setPrompt] = useNodeField('prompt', data.prompt || '', patchDebounced);
+  const [text, setText] = useNodeField('text', data.text || '', patchDebounced);
 
   // 参考输入：自身上传图片（在 images 定义后并入）+ 连线上游产出。
   // refTexts / effectivePrompt 不依赖 images，先定义在 useNodeGeneration 之前，避免 TDZ。
@@ -76,28 +82,16 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   const refTexts = useMemo(() => connected.texts || [], [connected.texts]);
   // 有效提示词 = 本地 prompt/文本 + 上游文本（多文本节点合并），两者都参与生成
   const effectivePrompt = buildEffectivePrompt(prompt?.trim() || text?.trim(), refTexts);
-  const [autoSplit, setAutoSplit] = useState(data.autoSplit || false);
+  const [autoSplit, setAutoSplit] = useNodeField('autoSplit', data.autoSplit || false, patchData);
 
-  // ── 输入落盘：本地 state + 防抖写回 node.data（不可变更新）──
-  // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave 只存 node.data，不存组件 useState）
-  // → 手动输入的文字随画布快照落盘，刷新/切换项目不丢。
-  // P2：prompt/text 持续输入走 debouncedPatch（200ms 防抖合并），避免每键 setNodes 全图 node 数组重建；
-  // 卸载时 flush 兜底（防抖窗口内输入不丢）。autoSplit/expanded 是低频切换，保持即时写回。
-  // 唯一入口收口到 useNodeData（docs/118 §7.3 ④：内联 patchData 样板 → 复用 base hook）
-  const { patchData, patchDebounced } = useNodeData(id);
-  const setPromptPersist = useCallback((v: React.SetStateAction<string>) => {
-    setPrompt((prev) => (typeof v === 'function' ? v(prev) : v));
-  }, []);
-  const setTextPersist = useCallback((v: React.SetStateAction<string>) => {
-    setText((prev) => (typeof v === 'function' ? v(prev) : v));
-  }, []);
-  const setAutoSplitPersist = useCallback((v: boolean) => {
-    setAutoSplit(v);
-  }, []);
-  const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded);
+  // 抽屉展开/收起：本地 state + 写回 data.expanded + 外部（Tab/Agent）同步，收口到 useNodeExpanded
+  // （toggle 保留本节点自定义语义：输入锁着时只许收起，见下方 toggleExpanded）
+  const { expanded, setExpanded } = useNodeExpanded(id, data.expanded);
   // 输入锁定：默认加锁（锁着时不许展开，防误点）。解锁后恢复自由展开/收起。
-  const [inputLocked, setInputLocked] = useState(
+  const [inputLocked, setInputLocked] = useNodeField(
+    'inputLocked',
     data.inputLocked === undefined ? true : data.inputLocked,
+    patchData,
   );
   // 抽屉展开/收起
   const toggleExpanded = useCallback(() => {
@@ -108,27 +102,6 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     }
     setExpanded((v) => !v);
   }, [inputLocked]);
-  // 【React 反模式修复】「写回 node.data」不再在 setState updater 里做（那会在渲染期间 setNodes → BatchProvider 警告）。
-  // 改为监听本地 state 变化，用 useEffect 同步落盘（effect 内 setState 合法，不在渲染期）。
-  useEffect(() => {
-    patchDebounced({ prompt });
-  }, [prompt]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    patchDebounced({ text });
-  }, [text]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    patchData({ autoSplit });
-  }, [autoSplit]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    patchData({ expanded });
-  }, [expanded]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    patchData({ inputLocked });
-  }, [inputLocked]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 全局快捷键（Tab）折叠/展开：外部 data.expanded 变化时同步回本地 state
-  useEffect(() => {
-    if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded);
-  }, [data.expanded]); // eslint-disable-line react-hooks/exhaustive-deps
   const [editingText, setEditingText] = useState(false);
   // 记住上次选择的模型（跨节点/跨会话）；初始用记忆值，无记忆回退 gpt-4o-mini
   const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs('textGenerateNode', { model: '' });
@@ -292,7 +265,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
         },
         { module: 'text' },
       );
-      setTextPersist(r.content);
+      setText(r.content);
       // 文本结果落盘成 txt → 生成面板「文本」tab 收录（异步，失败不影响节点显示）
       // P1-3：统一经 reportDegrade 记录，避免只 catch 不提示（内网/权限问题时用户感知保存降级）
       if (typeof r.content === 'string' && r.content.trim()) {
@@ -432,7 +405,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
                 placeholder=""
                 value={text}
                 readOnly={!editingText}
-                onChange={(e) => setTextPersist(e.target.value)}
+                onChange={(e) => setText(e.target.value)}
                 onBlur={() => setEditingText(false)}
                 onWheel={(e) => e.stopPropagation()}
                 onCopy={() => {
@@ -493,7 +466,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
           <PromptInput
             ref={promptInputRef}
             value={prompt}
-            onChange={setPromptPersist}
+            onChange={setPrompt}
             placeholder="输入提示词 (输入 @ 调出素材)..."
             refImages={refImages}
             refTexts={refTexts}
@@ -513,7 +486,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
                 <input
                   type="checkbox"
                   checked={autoSplit}
-                  onChange={(e) => setAutoSplitPersist(e.target.checked)}
+                  onChange={(e) => setAutoSplit(e.target.checked)}
                   className="accent-blue-500 rounded sm:w-3 sm:h-3"
                 />
                 自动拆分
@@ -532,7 +505,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
               {/* 预设提示词：打开提示词库弹窗 → 可追加到当前提示词或新建文本节点 */}
               <PromptLibraryButton
                 category="text"
-                onAppend={(p) => setPromptPersist((prev) => (prev ? `${prev}\n${p}` : p))}
+                onAppend={(p) => setPrompt((prev) => (prev ? `${prev}\n${p}` : p))}
               />
             </div>
 
@@ -569,7 +542,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
         onClose={() => setFullscreenText(false)}
         variant="text"
         value={text}
-        onChange={setTextPersist}
+        onChange={setText}
         placeholder="输入文本内容..."
       />
 
@@ -579,7 +552,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
         onClose={() => setFullscreenPrompt(false)}
         variant="prompt"
         value={prompt}
-        onChange={setPromptPersist}
+        onChange={setPrompt}
         placeholder="输入提示词..."
         refImages={refImages}
         refTexts={refTexts}

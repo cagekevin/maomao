@@ -12,7 +12,7 @@ import {
 import NodeShell from '../base/ui/NodeShell.tsx';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
+import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { uploadFileToLocal, toAbsoluteFileUrl } from '../base/api/index.ts';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import { toastError, toastWarning } from '../base/core/toastStore.ts';
@@ -62,17 +62,10 @@ interface FaceMosaicNodeProps {
 }
 function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
   const { setNodes, getNodes: _getNodes, getNode } = useReactFlow();
-  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
-  const rename = useCallback(
-    (name: string) => {
-      setNodes((ns) =>
-        ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)),
-      );
-    },
-    [id, setNodes],
-  );
-  // hideMedia 当前无消费方（降级隐藏图片未在本节点落地），保留 hook 调用；下划线前缀表示有意不使用
-  const { hideMedia: _hideMedia } = useMediaDegrade();
+  // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
+  const rename = useNodeRename(id);
+  // 旧的 `const { hideMedia: _hideMedia } = useMediaDegrade()` 已删：本节点未落地降级隐藏，纯死调用
+  // （保留会在"谁真正响应性能降级"的排查里误导）。要加降级时再按需引入。
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   // 模式与参数（复刻官方 o/c/u）

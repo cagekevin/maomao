@@ -3,13 +3,12 @@ import type { DragEvent as ReactDragEvent, ClipboardEvent as ReactClipboardEvent
 import { detectFileType, isAssetUrl } from '../components/base/utils/mediaType.ts';
 import { isEditableTarget } from '../components/base/core/uiHooks.ts';
 import { sanitizePastedText } from '../components/base/utils/clipboard.ts';
-import { showToast } from '../components/base/core/toastStore.ts';
+import { showToast, toastError } from '../components/base/core/toastStore.ts';
 import {
-  uploadFileToLocal,
+  resolveNodeImageUrl,
   downloadRemoteToLocal,
   WEB_DROP_SUBFOLDER,
 } from '../components/base/api/index.ts';
-import { fileToDataUrl } from '../components/base/utils/imageUrl.ts';
 import { UPLOAD_DIRS } from '../components/base/utils/uploadDirs.ts';
 import { logger } from '../components/base/core/logger.ts';
 
@@ -148,22 +147,17 @@ export function useAssetDropPaste({
         return;
       }
       if (type === 'other' || type === 'empty') return;
-      // 图片/视频/音频：优先直接上传 localTool 成 /files/ URL（对齐官方 H_.jsx onDrop hi(file)），
-      // 避免把大视频 dataURL 塞进画布快照导致刷新丢失；上传失败（localTool 离线等）才 fallback 到 dataURL。
+      // 图片/视频/音频：统一落盘策略（File 直传成 /files/ URL → 落盘失败（localTool 离线等）内联 dataURL 兜底
+      // → 连内联都拿不到才算真失败），唯一实现见 filesApi.resolveNodeImageUrl。
+      // 收益：不把大视频 dataURL 塞进快照；localTool 离线时仍能拖入看到图。
       (async () => {
-        const url = await uploadFileToLocal(file, UPLOAD_DIRS.canvasDrop);
-        if (url) {
-          addNode('assetNode', pos, { imageUrl: url, label: file.name });
-          showToast(
-            `已导入${type === 'image' ? '图片' : type === 'video' ? '视频' : '音频'}「${file.name}」`,
-          );
+        const url = await resolveNodeImageUrl(file, UPLOAD_DIRS.canvasDrop);
+        if (!url) {
+          // 真失败（落盘已成功回退内联，走到这里说明文件读取也失败）→ 提示一次，不再静默
+          toastError(`导入失败：无法读取「${file.name}」`);
           return;
         }
-        // 上传失败 → fallback 读 dataURL 建节点（刷新可依赖 KV 自动外置兜底）；读 URL 统一走 fileToDataUrl，不散写 FileReader。
-        // 读取失败（非正常文件）→ 返回 null，保持原"静默不建节点"语义（上传已失败，读又失败则放弃）。
-        const dataUrl = await fileToDataUrl(file).catch(() => null);
-        if (!dataUrl) return;
-        addNode('assetNode', pos, { imageUrl: dataUrl, label: file.name });
+        addNode('assetNode', pos, { imageUrl: url, label: file.name });
         showToast(
           `已导入${type === 'image' ? '图片' : type === 'video' ? '视频' : '音频'}「${file.name}」`,
         );

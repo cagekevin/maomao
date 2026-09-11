@@ -42,6 +42,9 @@ import { logger } from '../base/core/logger.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
 import { buildEffectivePrompt, clampSeconds } from '../base/core/utils.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
+import { useNodeRename } from '../../hooks/useNodeRename.ts';
+import { useNodeExpanded } from '../../hooks/useNodeExpanded.ts';
+import { useNodeField } from '../../hooks/useNodeField.ts';
 
 /**
  * 视频生成节点（复刻原 As.jsx / videoGenerateNode）
@@ -96,15 +99,8 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   const { setEdges, setNodes, getNode, getNodes, getEdges } = useReactFlow();
   // 画布历史（undo）：与 VideoProcessNode 的 spawn 语义一致，供 spawnDepthVideoNode 原子提交
   const history = useCanvasEdges();
-  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
-  const rename = useCallback(
-    (name: string) => {
-      setNodes((ns) =>
-        ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)),
-      );
-    },
-    [id, setNodes],
-  );
+  // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
+  const rename = useNodeRename(id);
   // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）
   const disconnectSource = useCallback(
     (sourceNodeId: string) => {
@@ -113,7 +109,9 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
     },
     [id, setEdges],
   );
-  const [prompt, setPrompt] = useState(data.prompt || '');
+  // 提示词落盘：本地 state + 防抖写回 node.data（唯一入口 useNodeField；卸载 flush 由 useNodeData 承接）
+  const { patchDebounced } = useNodeData(id);
+  const [prompt, setPrompt] = useNodeField('prompt', data.prompt || '', patchDebounced);
   // 有效提示词 = 本地 prompt + 上游文本，两者都参与生成
   const effectivePrompt = buildEffectivePrompt(prompt, refTexts);
   // 【富文本芯片解析】prompt 里可能含 `@{id:label}` 素材芯片（图片 → 参考图，文本 → 纯文本）。
@@ -125,13 +123,6 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   );
   // 提示词输入框双击全屏编辑（复刻 TextGenerate 的交互：ResizeFullscreenHandle 双击 → 弹层）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
-  // 提示词落盘：本地 state + 写回 node.data（支持函数式更新）。
-  // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave）→ 手动输入的提示词刷新不丢。
-  // 唯一入口收口到 useNodeData（docs/118 §7.3 ④：内联 patchData 样板 → 复用 base hook）。
-  const { patchData, patchDebounced } = useNodeData(id);
-  const setPromptPersist = useCallback((v: React.SetStateAction<string>) => {
-    setPrompt((prev) => (typeof v === 'function' ? v(prev) : v));
-  }, []);
   // 记住上次选择的模型/比例/分辨率/时长（跨节点/跨会话，与 ImageGenerate 一致）
   const { prefs: vidPrefs, set: setVidPrefs } = useNodePrefs('videoGenerateNode', {
     model: '',
@@ -144,21 +135,8 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   const [resolution, setResolution] = useState(data.resolution ?? '1080p');
   const [seconds, setSeconds] = useState(data.selectedSeconds ?? '10');
   const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? '');
-  const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded);
-  // 抽屉展开/收起
-  const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
-  // 【React 反模式修复】「写回 node.data」不在 setState updater 里做（渲染期间 setNodes → BatchProvider 警告），
-  // 改用 useEffect 同步落盘。
-  React.useEffect(() => {
-    patchDebounced({ prompt });
-  }, [prompt]); // eslint-disable-line react-hooks/exhaustive-deps
-  React.useEffect(() => {
-    patchData({ expanded });
-  }, [expanded]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 全局快捷键（Tab）折叠/展开：外部 data.expanded 变化时同步回本地 state
-  React.useEffect(() => {
-    if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded);
-  }, [data.expanded]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 抽屉展开/收起：本地 state + 写回 data.expanded + 外部（Tab/Agent）同步，收口到 useNodeExpanded
+  const { expanded, toggleExpanded } = useNodeExpanded(id, data.expanded);
   const [videoUrl, setVideoUrl] = useState(data.videoUrl || '');
   const [depthOpen, setDepthOpen] = useState(false);
   const [showRatioMenu, setShowRatioMenu] = useState(false);
@@ -433,7 +411,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
           <PromptInput
             ref={promptInputRef}
             value={prompt}
-            onChange={setPromptPersist}
+            onChange={setPrompt}
             placeholder="描述你想要的视频内容 (输入 @ 调出素材)..."
             refImages={connected.images}
             refTexts={connected.texts}
@@ -540,7 +518,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
               {/* 预设提示词：打开提示词库弹窗 → 可追加到当前提示词或新建文本节点 */}
               <PromptLibraryButton
                 category="video"
-                onAppend={(p) => setPromptPersist((prev) => (prev ? `${prev}\n${p}` : p))}
+                onAppend={(p) => setPrompt((prev) => (prev ? `${prev}\n${p}` : p))}
               />
             </div>
 
@@ -576,7 +554,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
         onClose={() => setFullscreenPrompt(false)}
         variant="prompt"
         value={prompt}
-        onChange={setPromptPersist}
+        onChange={setPrompt}
         placeholder="描述你想要的视频内容 (输入 @ 调出素材)..."
         refImages={connected.images}
         refTexts={connected.texts}

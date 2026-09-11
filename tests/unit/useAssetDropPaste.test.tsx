@@ -16,7 +16,7 @@
  *   3. read() 抛错时退回 paste 事件同步 getData，不再静默失败。
  *   4. 所有来源都失败 → showToast 提示，而不是无声无息。
  *
- * 通过 vi.mock 隔离 uploadFileToLocal / showToast；用 vi.stubGlobal 控制 navigator.clipboard。
+ * 通过 vi.mock 隔离 resolveNodeImageUrl / showToast；用 vi.stubGlobal 控制 navigator.clipboard。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
@@ -25,7 +25,7 @@ import type { ClipboardEvent as ReactClipboardEvent, DragEvent as ReactDragEvent
 const uploadMock = vi.fn(async (file, _folder) => 'http://local/' + (file?.name || 'drag'));
 const downloadRemoteMock = vi.fn(async (_url, _opts) => null);
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  uploadFileToLocal: (file, folder) => uploadMock(file, folder),
+  resolveNodeImageUrl: (file, folder) => uploadMock(file, folder),
   downloadRemoteToLocal: (url, opts) => downloadRemoteMock(url, opts),
   WEB_DROP_SUBFOLDER: 'web',
 }));

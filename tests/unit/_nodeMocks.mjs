@@ -130,6 +130,8 @@ const saveResultToTasks = async () => undefined;
 const saveTextToTasks = async () => undefined;
 const saveInlineToLocal = async () => 'local://x';
 const uploadFileToLocal = async () => 'local://up';
+// 落盘收口：File → /files/ URL（失败回退内联），与 filesApi.resolveNodeImageUrl 同签名
+const resolveNodeImageUrl = async () => 'local://up';
 
 const useProviders = () => ({ providers: [] });
 const loadProviders = async () => {};
@@ -239,6 +241,7 @@ export const mocks = {
   saveTextToTasks,
   saveInlineToLocal,
   uploadFileToLocal,
+  resolveNodeImageUrl,
   useProviders,
   loadProviders,
   buildAllModels,

@@ -296,6 +296,16 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
    - `scripts/` 校验脚本（check-api/events/storage-keys/node-types/health-check/arch/group 测试等）**按字面路径**引用 `src/components/base/core/` 的 contracts/config/contentStore 等——`mv-sync-refs` 只改 import、不改 scripts 字符串路径，所以**改名/移动这几处时须同步 scripts 路径**，否则 `check:health` 会红。
 
+9. **单一规则原则（同一件事只允许一种实现；两种规则打架必须删掉一个）**：同一语义在库里**只准存在一条规则/一条实现路径**。一旦发现两处规则打架（同语义、两种行为），**必须删掉一个**，禁止"为了一时兼容先都留着"——留着的代价是此后每次改动都要同时改两处，且必然漂移（本项目已实证：媒体判型曾 5 处各写一份，漂出「ogg 归属相反 / ogv 漏认 / `a.mp4?token=1` 因未剥查询串被误判 image」三类不一致）。收口判据与做法：
+
+   - **判据**：同一语义的可写点/可判点 ≥2 处，且已经漂移过一次 → 该收。
+   - **做法**：抽出唯一实现放既有归属模块，其余调用方改为委托；**不留 re-export 兼容层、不留旧分支**（§5.7 被运行时契约钉死的字符串除外）。
+   - **同一语义的两种输入形态不算两条规则**（如 File 源 vs dataURL 源）——它们必须共用同一份**失败/降级策略**，不得各自降级。
+   - **已收口的先例（禁止回退，新增同类能力一律挂到这些唯一实现上）**：
+     - **媒体判型唯一真值源** `components/base/utils/mediaType.ts`：一张 `EXT_KIND` 表 + data: 前缀；`classifyUrlKind / classifyUrl / resolveMediaType / detectMediaType / detectFileType / isAudio` 全部由它派生（`ogg`→audio、`ogv`→video、先剥 `?#` 再判扩展名、未知 `data:` 不扫 base64）。类型 `MediaKind / ResultKind` 在 `src/types/media.ts`；`resultUrlExtractor` 只负责结果 URL 提取，不得再判类型。
+     - **节点样板收口 hook**：`useNodeRename`（标题改名写回 `data.label`）、`useNodeExpanded`（展开态三件套）、`useNodeField`（可编辑字段 state ↔ data 落盘）、`useNodeData`（node.data 写回唯一入口）。
+     - **图像入节点落盘策略**唯一实现（`filesApi`）：`resolveNodeImageUrl`（File 源：直传 multipart → 落盘失败读内联 dataURL 兜底 → 连内联都拿不到才返回 null）+ `showThenPersistInline`（dataURL 源：立即上屏 → 落盘 → 成功才换持久 URL）。**统一降级 = 落盘失败一律回退内联，不阻断、不回滚、不报错**；只有"连内联都拿不到"才算真失败，由调用方提示一次错误。消费方（`AssetNode` 上传、`useAssetDropPaste` 拖入/粘贴、`ImageGenerate` 上传参考图、`useImageHoverActions` 四条编辑出口）已全部委托，**禁止再写第二套降级**。
+
 ### 5.5 卡帕西编码准则 (Karpathy Rules)
 
 - **奥卡姆剃刀**：如无必要，勿增实体（依赖/文件/端点）。多解释并存取假设最少的一条。

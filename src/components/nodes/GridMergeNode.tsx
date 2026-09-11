@@ -9,7 +9,6 @@ import { useReactFlow } from '@xyflow/react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import OverlayEditor, { renderOverlayCanvas } from '../base/editors/OverlayEditor.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import { useContentHeightSync } from '../base/core/uiHooks.ts';
 import '../base/core/toastStore.ts';
@@ -131,7 +130,7 @@ interface GridMergeNodeProps {
 function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow();
   const history = useCanvasEdges();
-  const { isHidden: _isHidden } = useMediaDegrade();
+  // 旧的 `const { isHidden: _isHidden } = useMediaDegrade()` 已删：本节点未消费（死调用）。
   const render = useRenderImageResolver();
   const contentRef = useRef<HTMLDivElement | null>(null);
   // NodeShell 根 div ref：useContentHeightSync 需测「含标题栏的完整节点」而非仅内容区，

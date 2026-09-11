@@ -21,9 +21,10 @@ import type { MediaType } from '@/types';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import { NODE_AREA_FIXED_BASE_SIZE } from '../base/core/config.ts';
 import { useVideoPoster } from '../../hooks/useVideoPoster.ts';
-import { toAbsoluteFileUrl, uploadFileToLocal } from '../base/api/index.ts';
+import { useNodeRename } from '../../hooks/useNodeRename.ts';
+import { toAbsoluteFileUrl, resolveNodeImageUrl } from '../base/api/index.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
-import { useRenderImageResolver, fileToDataUrl } from '../base/utils/imageUrl.ts';
+import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
 import { downloadUrl } from '../base/utils/clipboard.ts';
 import { showToast, toastError } from '../base/core/toastStore.ts';
@@ -155,14 +156,8 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   // 「上传/替换」真正读取所选文件（修复：此前 fileRef input 无 onChange，选完不读 → 上传按钮失效）。
   // 图片/视频/音频：优先上传 localTool 成 /files/ 持久 URL（刷新不丢），失败回退 dataURL 内联（仍可显示，靠 base64 外置兜底）。
   // 文本文件：读文本写回 data.text，节点切到文本态。
-  const rename = useCallback(
-    (name: string) => {
-      setNodes((ns) =>
-        ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)),
-      );
-    },
-    [id, setNodes],
-  );
+  // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
+  const rename = useNodeRename(id);
 
   // 摄影棚生成回调：创建新 ImageGenerate，用户手动触发生成
   const handleCameraStudioGenerate = useCallback(
@@ -247,11 +242,9 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
         fr.readAsText(f);
         return;
       }
-      // 图片/视频/音频：上传落盘（mediaType 交由 detectMediaType 由 URL 判断）
-      let url = await uploadFileToLocal(f, UPLOAD_DIRS.canvasDrop, f.name);
-      if (!url) {
-        url = await fileToDataUrl(f).catch(() => null);
-      }
+      // 图片/视频/音频：统一落盘策略（File 直传 → 落盘失败内联兜底 → 连内联都拿不到才提示），
+      // 唯一实现见 filesApi.resolveNodeImageUrl；mediaType 交由 detectMediaType 由 URL 判断。
+      const url = await resolveNodeImageUrl(f, UPLOAD_DIRS.canvasDrop, f.name);
       if (!url) {
         toastError('上传失败');
         return;

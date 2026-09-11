@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useStore, type Node, type Edge } from '@xyflow/react';
 import { collectAssets } from '../components/scriptbox/scriptBoxPrompts.ts';
 import { toAbsoluteFileUrl } from '../components/base/api/index.ts';
-import { resolveMediaType } from '../components/base/utils/resultUrlExtractor.ts';
+import { resolveMediaType } from '../components/base/utils/mediaType.ts';
 import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.ts';
 
 /**

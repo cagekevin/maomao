@@ -249,3 +249,79 @@ describe('filesApi — downloadRemoteToLocal（网页拖图后台本地化）', 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+// ── 图像入节点·统一落盘策略（全库唯一降级规则，2026-09-11 收口）──
+// 消费方：AssetNode 上传 / useAssetDropPaste 拖入粘贴 / ImageGenerate 上传参考图 / useImageHoverActions 四条出口。
+// 这里钉住的规则：落盘失败一律回退内联（不返回 null 之外什么都不断），只有「连内联都拿不到」才交给调用方报错。
+describe('filesApi — resolveNodeImageUrl（File 源统一落盘策略）', () => {
+  const PNG = new File(['x'], 'a.png', { type: 'image/png' });
+
+  it('上传成功 → 持久 /files/ URL，且只发一次上传请求（不读内联）', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/canvas/drop/a.png'));
+    expect(await api.resolveNodeImageUrl(PNG, 'canvas/drop', 'a.png')).toBe(
+      'http://127.0.0.1:18080/files/canvas/drop/a.png',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('落盘失败（!res.ok）→ 回退内联 dataURL（不抛、不返回 null）', async () => {
+    // node 环境无 FileReader（fileToDataUrl 的回退路径依赖它），此处补最小实现
+    vi.stubGlobal(
+      'FileReader',
+      class {
+        onload: null | (() => void) = null;
+        onerror: null | (() => void) = null;
+        result = DATA_PNG;
+        readAsDataURL() {
+          queueMicrotask(() => this.onload?.());
+        }
+      },
+    );
+    fetchMock.mockResolvedValue(failResp());
+    const out = await api.resolveNodeImageUrl(PNG, 'canvas/drop');
+    expect(out).toBe(DATA_PNG); // 回退内联：图仍能上屏，只是刷新不保证
+  });
+
+  it('落盘失败且连内联都读不出 → null（真失败，由调用方提示一次错误）', async () => {
+    vi.stubGlobal(
+      'FileReader',
+      class {
+        onload: null | (() => void) = null;
+        onerror: null | (() => void) = null;
+        readAsDataURL() {
+          queueMicrotask(() => this.onerror?.());
+        }
+      },
+    );
+    fetchMock.mockResolvedValue(failResp());
+    expect(await api.resolveNodeImageUrl(PNG, 'canvas/drop')).toBeNull();
+  });
+
+  it('无文件 → null 且不发请求', async () => {
+    expect(await api.resolveNodeImageUrl(null)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('filesApi — showThenPersistInline（dataURL 源统一落盘策略）', () => {
+  it('立即上屏 → 落盘成功 → 二次上屏换持久 URL（顺序即策略）', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/canvas/abc.png'));
+    const seen = [];
+    await api.showThenPersistInline(DATA_PNG, (u) => seen.push(u));
+    expect(seen).toEqual([DATA_PNG, 'http://127.0.0.1:18080/files/canvas/abc.png']);
+  });
+
+  it('落盘失败 → 只上屏内联一次（保留内联、不回滚、不抛）', async () => {
+    fetchMock.mockResolvedValue(failResp());
+    const seen = [];
+    await api.showThenPersistInline(DATA_PNG, (u) => seen.push(u));
+    expect(seen).toEqual([DATA_PNG]);
+  });
+
+  it('空 dataURL → 既不上屏也不发请求', async () => {
+    const seen = [];
+    await api.showThenPersistInline('', (u) => seen.push(u));
+    expect(seen).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

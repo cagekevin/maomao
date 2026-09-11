@@ -93,9 +93,6 @@ function CanvasToolbar({
         >
           <RefreshCw size={16} />
         </button>
-        <button type="button" onClick={onFitView} className={baseBtn} title="适合视图">
-          <Maximize size={16} />
-        </button>
         {/* 缩放性能模式（复刻 H_.jsx:12047-12049，闪电图标 Zap，激活黄高亮） */}
         <button
           type="button"
@@ -108,9 +105,10 @@ function CanvasToolbar({
         <button
           type="button"
           onClick={onFitView}
-          className="text-xs text-secondary font-medium min-w-[36px] text-center cursor-default select-none"
-          title="点击适配视图"
+          className={`${baseBtn} gap-1 text-xs min-w-[36px] cursor-pointer active:scale-95 select-none`}
+          title="缩放适配：点击适配视图"
         >
+          <Maximize size={14} />
           {zoomPercentNode}
         </button>
       </div>

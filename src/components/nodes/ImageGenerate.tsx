@@ -25,10 +25,13 @@ import '../base/editors/ImageEditor.tsx';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
 import { replaceNodeImage } from './nodeImage.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
+import { useNodeRename } from '../../hooks/useNodeRename.ts';
+import { useNodeExpanded } from '../../hooks/useNodeExpanded.ts';
+import { useNodeField } from '../../hooks/useNodeField.ts';
 import PromptLibraryButton from '../base/prompt/PromptLibraryButton.tsx';
 import { downloadUrl, resolveDownloadFilename } from '../base/utils/clipboard.ts';
 import JianyingIcon from '../base/ui/JianyingIcon.tsx';
-import { showToast } from '../base/core/toastStore.ts';
+import { showToast, toastError } from '../base/core/toastStore.ts';
 import { sendToAssetLibrary } from '../base/store/assetStore.ts';
 import { openAssetLibrary } from '../base/store/taskStore.ts';
 import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts';
@@ -38,8 +41,7 @@ import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
 import { useFitNodeRatio } from '../../hooks/useFitNodeRatio.ts';
 import '../base/api/index.ts';
 import { logger } from '../base/core/logger.ts';
-import { fetchTasks } from '../base/api/index.ts';
-import { generateImage } from '../base/api/index.ts';
+import { fetchTasks, generateImage, resolveNodeImageUrl } from '../base/api/index.ts';
 import { useNodePrefs, injectNodePrefs } from '../base/canvas/nodePrefs.ts';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
@@ -50,6 +52,7 @@ import CameraSettingsSelector from '../base/editors/cameraParams/CameraSettingsS
 import { applyCameraSettingsToPrompt } from '../base/editors/cameraParams/cameraPrompt.ts';
 import type { CameraGenerationSettings } from '../base/editors/cameraParams/types.ts';
 import { generateId } from '../base/core/idGen.ts';
+import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
 import type { CameraStudioResult } from '../base/editors/cameraStudio.ts';
 
 /**
@@ -111,8 +114,11 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
 
   // 通用连线数据传递：读取直接上游节点的产出（图片/文本）作为参考输入
   const connected = useConnectedInputs(id);
-  const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded);
-  const [prompt, setPrompt] = useState(data.prompt || '');
+  // 抽屉展开/收起：本地 state + 写回 data.expanded + 外部（Tab/Agent）同步，收口到 useNodeExpanded
+  const { expanded, toggleExpanded } = useNodeExpanded(id, data.expanded);
+  // 提示词落盘 + 其它 data 字段写回唯一入口（本地 state → node.data；卸载 flush 由 useNodeData 承接）
+  const { patchData, patchDebounced } = useNodeData(id);
+  const [prompt, setPrompt] = useNodeField('prompt', data.prompt || '', patchDebounced);
 
   // 参考输入 = 连线上游的产出（useConnectedInputs）+ 自身 data.images/texts。
   // 为什么合并两处：useConnectedInputs 是「通用连线机制」（任意上游节点 → 本节点）；
@@ -186,10 +192,6 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     },
     [id, setEdges],
   );
-  // 用户手动选择 → 写回 node.data，让 data 始终是真实状态（Agent read_canvas 读到最新）。
-  // 唯一入口收口到 useNodeData（docs/118 §7.3 ④：内联 patchData 样板 → 复用 base hook）。
-  const { patchData, patchDebounced } = useNodeData(id);
-
   // 节点框按媒体真实宽高比自适应（类似 AssetNode）：
   //  - Auto 比例下，<img onLoad={fitFromImage}> 让节点框跟随图片真实比例；
   //  - 裁剪/扩图保存后 onImageReplaced 用 fitByRatio(dims) 让节点框跟随编辑后真实画布。
@@ -212,36 +214,8 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aspectRatio]);
 
-  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随（与 AssetNode 一致）
-  const rename = useCallback(
-    (name: string) => {
-      setNodes((ns) =>
-        ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)),
-      );
-    },
-    [id, setNodes],
-  );
-  // 提示词落盘：本地 state + 防抖写回 node.data（支持函数式更新）。
-  // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave）→ 手动输入的提示词刷新不丢。
-  // P2：prompt 持续输入走 patchDebounced（useNodeData，200ms 防抖合并），避免每键 setNodes 全图重建；
-  // 卸载时 flush 兜底（useNodeData 内部已注册）。expanded 是低频切换，保持即时写回。
-  const setPromptPersist = useCallback((v: React.SetStateAction<string>) => {
-    setPrompt((prev) => (typeof v === 'function' ? v(prev) : v));
-  }, []);
-  // 抽屉展开/收起
-  const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
-  // 【React 反模式修复】「写回 node.data」不再在 setState updater 里做（那会在渲染期间 setNodes → BatchProvider 警告）。
-  // 改为监听本地 state 变化，用 useEffect 同步落盘（effect 内 setState 合法，不在渲染期）。
-  React.useEffect(() => {
-    patchDebounced({ prompt });
-  }, [prompt]); // eslint-disable-line react-hooks/exhaustive-deps
-  React.useEffect(() => {
-    patchData({ expanded });
-  }, [expanded]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 全局快捷键（Tab）折叠/展开：外部 data.expanded 变化时同步回本地 state
-  React.useEffect(() => {
-    if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded);
-  }, [data.expanded]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
+  const rename = useNodeRename(id);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
   // 双击大图：原生 <dialog> 弹窗（无外框、无背景容器，只显示图片）
@@ -529,6 +503,27 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     },
   });
 
+  // 「上传参考图」：本地文件 → 统一落盘策略（File 直传 → 落盘失败内联兜底，见 filesApi.resolveNodeImageUrl）
+  // → 追加进 data.images 作为参考图（refImages = 连线上游 + data.images 合并）。
+  // 【修死按钮】此前该 input 只有 ref 没有 onChange：点「上传参考图」弹出文件框，选完什么都不发生
+  // （与 AssetNode 曾修过的「选完不读」同一类缺陷）。
+  const handleRefFileSelect = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const f = e.target.files?.[0];
+      e.target.value = '';
+      if (!f) return;
+      const url = await resolveNodeImageUrl(f, UPLOAD_DIRS.canvasDrop, f.name);
+      if (!url) {
+        toastError('上传失败');
+        return;
+      }
+      patchData({
+        images: [...(data.images || []), { id: generateId('img'), url, label: f.name }],
+      });
+    },
+    [data.images, patchData],
+  );
+
   // hover 操作栏按钮：图片类共享能力(crop/edit/compress)走 useImageHoverActions（带 onClick，修死按钮），
   // zoom/upload/send/jianying/download 按生图节点语义各自声明。
   const toolbarButtons = [
@@ -606,7 +601,13 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         {/* hover 操作栏（loading 时隐藏） */}
         {!loading && <HoverToolbar buttons={toolbarButtons} />}
 
-        <input type="file" ref={fileRef} style={{ display: 'none' }} accept="image/*" />
+        <input
+          type="file"
+          ref={fileRef}
+          style={{ display: 'none' }}
+          accept="image/*"
+          onChange={handleRefFileSelect}
+        />
 
         {/* 就地裁剪浮层：挂在「主框层级」（与图片区同级），absolute inset-0 覆盖整个节点内容区，
           取消/裁剪按钮栏 top-full 以「主框底边 = 节点底边」为基准，稳定落在节点正下方、
@@ -686,7 +687,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
               <PromptInput
                 ref={promptInputRef}
                 value={prompt}
-                onChange={setPromptPersist}
+                onChange={setPrompt}
                 placeholder="描述你想要的画面 (输入 @ 调出素材)..."
                 refImages={refImages}
                 refTexts={refTexts}
@@ -803,7 +804,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                   {/* 预设：打开提示词库弹窗 → 可追加到当前提示词或新建文本节点 */}
                   <PromptLibraryButton
                     category="image"
-                    onAppend={(p) => setPromptPersist((prev) => (prev ? `${prev}\n${p}` : p))}
+                    onAppend={(p) => setPrompt((prev) => (prev ? `${prev}\n${p}` : p))}
                   />
 
                   {/* 摄影参数：焦距/快门效果/光圈/曝光时间 → 生成时拼进提示词。
@@ -880,7 +881,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
           onClose={() => setFullscreenPrompt(false)}
           variant="prompt"
           value={prompt}
-          onChange={setPromptPersist}
+          onChange={setPrompt}
           placeholder="描述你想要的画面 (输入 @ 调出素材)..."
           refImages={refImages}
           refTexts={refTexts}

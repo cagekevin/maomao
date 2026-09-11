@@ -26,6 +26,8 @@ import { toAbsoluteFileUrl } from '../base/api/index.ts';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import { mergeRefImages, buildEffectivePrompt } from '../base/core/utils.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
+import { useNodeExpanded } from '../../hooks/useNodeExpanded.ts';
+import { useNodeField } from '../../hooks/useNodeField.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
 
 /**
@@ -170,13 +172,14 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   // ─── 2. ReactFlow 数据写回（统一范式）───
   const { setEdges } = useReactFlow();
 
-  // patchData：改 node.data 的唯一入口（不可变局部更新；Agent read_canvas 能读到最新）。
+  // 节点 data 写回唯一入口（不可变局部更新；Agent read_canvas 能读到最新）。
   // 收口到 useNodeData（docs/118 §7.3 ④：内联 patchData 样板 → 复用 base hook）。
-  const { patchData, patchDebounced } = useNodeData(id);
+  const { patchDebounced } = useNodeData(id);
 
-  // ─── 3. 业务 state（用 useState 存 UI；改后 setState + patchData 双写）───
-  const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded);
-  const [prompt, setPrompt] = useState(data.prompt || '');
+  // ─── 3. 业务 state（用 useState 存 UI；可编辑字段经 useNodeField 落盘）───
+  // 抽屉展开/收起：本地 state + 写回 data.expanded + 外部（Tab/Agent）同步，收口到 useNodeExpanded
+  const { expanded, toggleExpanded } = useNodeExpanded(id, data.expanded);
+  const [prompt, setPrompt] = useNodeField('prompt', data.prompt || '', patchDebounced);
   const [imageUrl, setImageUrl] = useState(data.imageUrl || '');
   // 全屏编辑：提示词输入框双击 → 全屏编辑提示词（复刻 TextGenerate）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
@@ -202,25 +205,6 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   );
 
   // 外部同步：Agent update_node 改 data 时，把变更同步回本地 state ——已收进 useGenerateNode 的 sync 参数。
-
-  // 提示词落盘：本地 state + 写回 node.data（支持函数式更新；刷新不丢）
-  const setPromptPersist = useCallback((v: React.SetStateAction<string>) => {
-    setPrompt((prev) => (typeof v === 'function' ? v(prev) : v));
-  }, []);
-  // 抽屉展开/收起
-  const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
-  // 【React 反模式修复】「写回 node.data」不在 setState updater 里做（渲染期间 setNodes → BatchProvider 警告），
-  // 改用 useEffect 同步落盘。
-  React.useEffect(() => {
-    patchDebounced({ prompt });
-  }, [prompt]); // eslint-disable-line react-hooks/exhaustive-deps
-  React.useEffect(() => {
-    patchData({ expanded });
-  }, [expanded]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 全局快捷键（Tab）折叠/展开：外部 data.expanded 变化时同步回本地 state（对齐 TextGenerate/ImageGenerate/VideoGenerate）
-  React.useEffect(() => {
-    if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded);
-  }, [data.expanded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── 4. refs + 尺寸写回（通用）───
   const wrapperRef = useRef<HTMLDivElement | null>(null); // NodeShell 根 div（供主框手柄拖拽）
@@ -413,7 +397,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
           <PromptInput
             ref={promptInputRef}
             value={prompt}
-            onChange={setPromptPersist}
+            onChange={setPrompt}
             placeholder="描述内容，输入 @ 引用素材..."
             refImages={refImages}
             refTexts={refTexts}
@@ -462,7 +446,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
         onClose={() => setFullscreenPrompt(false)}
         variant="prompt"
         value={prompt}
-        onChange={setPromptPersist}
+        onChange={setPrompt}
         placeholder="描述内容，输入 @ 引用素材..."
         refImages={refImages}
         refTexts={refTexts}

@@ -22,7 +22,7 @@ vi.mock('../../src/hooks/useVideoPoster.ts', () => ({ useVideoPoster: mocks.useV
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   toAbsoluteFileUrl: mocks.toAbsoluteFileUrl,
   saveInlineToLocal: mocks.saveInlineToLocal,
-  uploadFileToLocal: mocks.uploadFileToLocal,
+  resolveNodeImageUrl: mocks.resolveNodeImageUrl,
 }));
 vi.mock('../../src/components/base/core/toastStore.ts', () => ({
   showToast: mocks.showToast,

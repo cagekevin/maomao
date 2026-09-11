@@ -38,7 +38,7 @@ import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
 import type { ApiEnvelope } from './localToolApi.ts';
 export { toAbsoluteFileUrl } from '../utils/imageUrl.ts';
 export { EXT_BY_TYPE };
-import { isLocalFileUrl } from '../utils/imageUrl.ts';
+import { isLocalFileUrl, fileToDataUrl } from '../utils/imageUrl.ts';
 
 // ─────────────────────────── files 域（候选 C 收口：全站文件域单点可查）───────────────────────────
 // 此前文件域被劈成两半：落盘在 filesApi，move/mkdir/open + 3 个纯函数却住在 localToolApi
@@ -222,6 +222,54 @@ export async function uploadFileToLocal(
     logger.warn('filesApi', '文件上传失败', e);
     return null;
   }
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════
+ * 【图像入节点·统一落盘策略】—— 唯一策略，调用方禁止再写第二套降级
+ * ════════════════════════════════════════════════════════════════
+ * 语义前提：**落盘只是"让图刷新不丢"的优化，不是图能否显示的前提。**
+ *  ① File 源 → 先直接 multipart 上传（绝不为上传先把 File 转 dataURL：大视频会内存爆），
+ *     只有上传失败才读内联 dataURL 兜底；
+ *  ② dataURL 源（编辑器保存/裁剪/压缩/放大的产物）→ 先让图立即上屏，再落盘换持久 URL；
+ *  ③ **落盘失败一律回退内联**：不阻断、不回滚、不标记失败；
+ *  ④ 只有「连内联都拿不到」才算真失败 → 返回 null，由调用方提示一次错误。
+ * 快照里的内联体积由后端 base64Externalize 统一兜底，**入口侧不再各写一套"以防万一"的兜底**。
+ *
+ * 消费方（勿再各写降级）：AssetNode 上传、useAssetDropPaste 拖入/粘贴、ImageGenerate 上传参考图、
+ * useImageHoverActions 的四条编辑出口。
+ */
+
+/**
+ * File/Blob → 可上屏的图片 URL（图像入节点·File 源）。
+ * ① 先 uploadFileToLocal（原始 multipart）；② 上传失败 → 读内联 dataURL 兜底；③ 都拿不到 → null。
+ * @returns 持久 /files/ URL（优先）或 dataURL；两者都失败返回 null（调用方提示一次错误）
+ */
+export async function resolveNodeImageUrl(
+  file: File | Blob | null,
+  subfolder: string = UPLOAD_DIRS.canvasDrop,
+  filename?: string,
+): Promise<string | null> {
+  if (!file) return null;
+  const uploaded = await uploadFileToLocal(file, subfolder, filename); // ① 直传，不先转 dataURL
+  if (uploaded) return uploaded;
+  return fileToDataUrl(file).catch(() => null); // ③ 落盘失败 → 内联兜底（读不出才 null）
+}
+
+/**
+ * dataURL → 上屏 → 落盘换持久 URL（图像入节点·dataURL 源）。
+ * ① 立即 show(dataUrl)（不等网络）；② saveInlineToLocal 换 /files/ 持久 URL；③ 成功才二次 show。
+ * 落盘失败 → 静默保持内联（不回滚、不报错；抛错只可能是 show 自身，本函数不吞操作级错误）。
+ */
+export async function showThenPersistInline(
+  dataUrl: string,
+  show: (url: string) => void,
+  subfolder: string = UPLOAD_DIRS.canvas,
+): Promise<void> {
+  if (!dataUrl) return;
+  show(dataUrl); // ① 立即上屏
+  const saved = await saveInlineToLocal(dataUrl, subfolder);
+  if (saved && saved !== dataUrl) show(saved); // ③ 成功才换持久；失败保留内联
 }
 
 /**

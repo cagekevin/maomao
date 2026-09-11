@@ -1,9 +1,10 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { Repeat, Play, ChevronDown } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
+import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { toastWarning } from '../base/core/toastStore.ts';
 import { useSyncNodeData } from '../../hooks/useSyncNodeData.ts';
 import { useOutsideClick } from '../base/core/uiHooks.ts';
@@ -150,15 +151,8 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
   // 同步 Agent(update_node) 外部写入
   useSyncNodeData(data, { splitMethod: setSplitMethod });
 
-  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
-  const rename = useCallback(
-    (name) => {
-      setNodes((ns) =>
-        ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)),
-      );
-    },
-    [id, setNodes],
-  );
+  // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
+  const rename = useNodeRename(id);
 
   // 节点 data 写回唯一入口（docs/118 §7.3 ④：内联 patchData 样板 → 复用 base hook）
   const { patchData } = useNodeData(id);

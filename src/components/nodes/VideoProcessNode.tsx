@@ -17,6 +17,8 @@ import {
 import { useReactFlow, type Node } from '@xyflow/react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
+import { useNodeRename } from '../../hooks/useNodeRename.ts';
+import { classifyUrlKind } from '../base/utils/mediaType.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import { useNodeResize } from '../base/core/uiHooks.ts';
 import { showToast } from '../base/core/toastStore.ts';
@@ -92,7 +94,7 @@ const GIF_COLORS = [
   { label: '标准 (128色)', value: 128 },
   { label: '压缩 (64色)', value: 64 },
 ];
-const VIDEO_EXT = /\.(mp4|webm|mov|mkv|avi|m4v|ogg)(?:$|[?#])/i;
+
 const PX_PER_SEC = 36; // 时间线像素比例
 
 const normalizeMode = (m: string): string => {
@@ -275,15 +277,8 @@ interface VideoProcessNodeProps {
 
 function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow();
-  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
-  const rename = useCallback(
-    (name: string) => {
-      setNodes((ns) =>
-        ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)),
-      );
-    },
-    [id, setNodes],
-  );
+  // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
+  const rename = useNodeRename(id);
   const history = useCanvasEdges();
   const { isHidden } = useMediaDegrade();
   const { onMainBoxResize: _onMainBoxResize } = useNodeResize(id);
@@ -347,7 +342,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     for (const im of connected.images || []) {
       if (!im?.url) continue;
       const u = im.url;
-      if (u.startsWith('data:video/') || u.startsWith('blob:') || VIDEO_EXT.test(u)) {
+      // 视频判定统一走 mediaType.classifyUrlKind（含 data:video/ 前缀与 ?# 处理）；
+      // blob: 是本节点自身处理产出的视频 URL（无扩展名），显式保留
+      if (u.startsWith('blob:') || classifyUrlKind(u) === 'video') {
         if (seen.has(u)) continue;
         seen.add(u);
         list.push({ url: u });

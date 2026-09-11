@@ -24,6 +24,7 @@ import '../core/config.ts';
 import { rescanResources } from '../api/localToolApi.ts';
 import { saveInlineToLocal, uploadFileToLocal, EXT_BY_TYPE } from '../api/filesApi.ts';
 import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
+import { detectFileType } from '../utils/mediaType.ts';
 import { safeFileName } from '../core/utils.ts';
 import { logger } from '../core/logger.ts';
 import { publish, subscribe } from '../core/eventBus.ts';
@@ -193,18 +194,14 @@ function genId(): string {
   return generateId('asset');
 }
 
-// 判断文件类型（图片/视频/音频/文字/其他）
+/**
+ * 判断文件类型（图片/视频/音频/文字）。
+ * 委托 utils/mediaType.detectFileType（扩展名/mime 唯一真值源），未识别一律兜底 image
+ * （素材库只有四类，无 other/empty；与既有兜底行为一致）。
+ */
 export function detectAssetType(file?: TypeProbe | null): AssetType {
-  const type = file?.type || '';
-  if (type.startsWith('image/')) return 'image';
-  if (type.startsWith('video/')) return 'video';
-  if (type.startsWith('audio/')) return 'audio';
-  if (type.startsWith('text/')) return 'text'; // .txt/.md/.json 等文本文件
-  if (/\.(png|jpe?g|gif|webp|svg)$/i.test(file?.name || '')) return 'image';
-  if (/\.(mp4|webm|mov|mkv)$/i.test(file?.name || '')) return 'video';
-  if (/\.(mp3|wav|ogg|m4a)$/i.test(file?.name || '')) return 'audio';
-  if (/\.(txt|md|markdown|json|log|csv|srt)$/i.test(file?.name || '')) return 'text';
-  return 'image';
+  const kind = detectFileType(file);
+  return kind === 'video' || kind === 'audio' || kind === 'text' ? kind : 'image';
 }
 
 // 判断目录命中：folder 是否为当前 pill 的 folder 前缀

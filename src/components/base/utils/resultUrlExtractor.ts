@@ -10,8 +10,9 @@
  *      relay 链路结果 URL 由后端落盘 /files/ 直接返回，前端不再自提 SSE/JSON url，本模块保留
  *      （仍为 pollTask 恢复、脚本盒 JSON 直返等链路的唯一 URL 提取入口）。
  *
- * 【类型判定规则】与 useConnectedInputs.resolveMediaType 同源（本模块为唯一实现）：
- *   生产方 data.mediaType 优先，否则按扩展名 classifyUrl —— 消灭静默误分类。
+ * 【类型判定规则】已统一到 utils/mediaType.ts（扩展名/mime 唯一真值源）：
+ *   本模块只负责「结果 URL 提取」；产出类型一律走 mediaType.resolveMediaType / classifyUrl
+ *   （生产方 data.mediaType 优先，否则按扩展名判 —— 消灭静默误分类）。禁止在本模块再判一次类型。
  *
  * 【字段映射】统一按 type 取：
  *   video → result.videos[0].url / results[0].url / 顶层 video_url
@@ -22,9 +23,9 @@
  * 注：纯函数单测见 tests/unit/resultUrlExtractor.test.js。
  *
  * ════════════════════════════════════════════════════════════════
- * 【唯一准出口】本模块是全库「结果 URL 提取 / 类型判定」的唯一实现（唯一真值源）。
- *  · 今后任何节点 / API / 脚本需要从响应里提取结果 URL 或判定产出类型，
- *    一律走本模块（extractResultUrl / resolveMediaType / classifyUrl）。
+ * 【唯一准出口】本模块是全库「结果 URL 提取」的唯一实现（唯一真值源）；
+ * 「产出类型判定」的唯一实现是 utils/mediaType.ts（classifyUrl / resolveMediaType / classifyUrlKind）。
+ *  · 今后任何节点 / API / 脚本需要从响应里提取结果 URL，一律走本模块（extractResultUrl）。
  *  · 禁止在别处另起实现 / 就地手写字段映射 / 复制本模块逻辑（会导致"同一样例各
  *    处解析不一致 / video 被当 image"，正是当初收口的根因）。
  *  · 唯一例外：responses 协议生图（parseResponsesJson 走 output_text markdown 兜底，原 requestModes
@@ -32,31 +33,7 @@
  *    其余标准信封（result.images[].url 等）一律强制经本模块。
  * ════════════════════════════════════════════════════════════════
  */
-
-/** 产出类型（classifyUrl / resolveMediaType / extractResultUrl 的判定结果取值） */
-type ResultKind = 'image' | 'video' | 'audio';
-
-/** 按 mime / 扩展名把 url 分类（唯一实现，useConnectedInputs 同源，勿另起一套）。 */
-export function classifyUrl(url: string): ResultKind {
-  if (url.startsWith('data:video/') || /\.(mp4|webm|mov|mkv|avi|m4v|ogg)($|\?)/i.test(url))
-    return 'video';
-  if (url.startsWith('data:audio/') || /\.(mp3|wav|ogg|m4a|flac|aac)($|\?)/i.test(url))
-    return 'audio';
-  return 'image';
-}
-
-/**
- * 产出类型判定：mediaType 优先（产出方自带，避免 blob/无扩展名被误分类；见 VideoProcessNode extractAudio 例），
- * 否则按 URL 扩展名 classifyUrl。
- * @returns {'image'|'video'|'audio'}
- */
-export function resolveMediaType(
-  url: string | undefined | null,
-  mediaType: ResultKind | undefined | null,
-): ResultKind {
-  if (mediaType === 'image' || mediaType === 'video' || mediaType === 'audio') return mediaType;
-  return classifyUrl(url || '');
-}
+import type { ResultKind } from '@/types';
 
 // 各类型优先选取的字段路径（均取容器 [0]）
 const SELECTORS: Record<ResultKind, string[]> = {

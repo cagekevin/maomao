@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, Suspense } from 'react
 import { Canvas } from '@react-three/fiber';
 import { useReactFlow } from '@xyflow/react';
 import { useNodeData } from '../../hooks/useNodeData.ts';
+import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import {
   Globe,
   X,
@@ -267,15 +268,8 @@ function SphereLoadingOverlay() {
 
 function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow();
-  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
-  const rename = useCallback(
-    (name: string) => {
-      setNodes((ns) =>
-        ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)),
-      );
-    },
-    [id, setNodes],
-  );
+  // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
+  const rename = useNodeRename(id);
   const history = useCanvasEdges();
   const connected = useConnectedInputs(id);
   const thumbResolve = useRenderImageResolver();

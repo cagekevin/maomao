@@ -131,9 +131,12 @@ vi.mock('../../src/components/base/editors/InlineImageCropper.tsx', () => ({
   default: () => null,
 }));
 // docs/118 §五 C5：编辑器/裁剪保存出口改为「先落盘再写回」（useImageHoverActions 内调
-// filesApi.saveInlineToLocal）。本用例只验证「保存后节点框跟随比例」，桩掉落盘避免真实网络请求。
+// filesApi.showThenPersistInline）。本用例只验证「保存后节点框跟随比例」，桩掉落盘避免真实网络请求。
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  saveInlineToLocal: vi.fn(async () => null),
+  // saveInlineToLocal 回 null → 仅 show(dataUrl) 触发一次 onImageReplaced（先落盘前的即时写回），节点框即跟随比例
+  showThenPersistInline: vi.fn(async (dataUrl, show) => {
+    show(dataUrl);
+  }),
 }));
 
 import ImageGenerate from '../../src/components/nodes/ImageGenerate.tsx';
