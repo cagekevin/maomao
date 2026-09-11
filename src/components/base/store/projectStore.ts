@@ -11,12 +11,22 @@ import { useSyncExternalStore } from 'react';
 import { useStoreSelector } from '../../../hooks/useStoreSelector.ts';
 import { CANVAS_STATE_PREFIX } from '../storage/index.ts';
 import { CANVAS_SCHEMA_VERSION } from '../core/contracts.ts';
-import { fetchProjects, saveProjects, ApiEnvelope, ProjectsData } from '../api/localToolApi.ts';
+// kvGetVersion / kvSet：画布快照的「版本真源在服务端」读写口（docs/118 §四 4.2）。
+import {
+  fetchProjects,
+  saveProjects,
+  ApiEnvelope,
+  ProjectsData,
+  kvGetVersion,
+  kvSet,
+} from '../api/localToolApi.ts';
+// HttpError：CAS 冲突判定（409）；httpRequest 对 4xx 不重试，是现状行为。
+import { HttpError } from '../api/httpClient.ts';
+import { broadcastCanvasSaved } from '../core/canvasSyncBus.ts';
 import {
   contentGet,
   contentSet,
   contentGetAsync,
-  contentSetAsync,
   contentDeleteAsync,
   createDebouncedPersist,
 } from '../core/contentStore.ts';
@@ -45,16 +55,50 @@ interface CanvasSnapshot {
 interface SaveCanvasResult {
   success: boolean;
   skipped?: boolean;
+  /** ★ 因版本冲突被服务端拒绝（本次改动未落盘；服务端一个字节都没写） */
+  conflict?: boolean;
   conflictVersion?: number;
 }
 
 const PROJECTS_KEY: string = 'projects';
 const LAST_OPENED_KEY: string = 'lastOpenedProject';
 
+/**
+ * ★ 我「读到的」那个画布快照版本：CAS 的唯一基线（版本真源在服务端，客户端不再自己算/写版本）。
+ * 服务端 `ifVersion` 与之不符 → 409 → 本窗口本次不落盘（fail-closed，绝不覆盖别人的新数据）。
+ */
+let loadedVersion = 0;
+export function getLoadedVersion(): number {
+  return loadedVersion;
+}
+
+/** 同窗口单飞队列：把并发 saveCanvasState 串起来（避免自己两次写互相判冲突 → 假冲突红条）。 */
+let saveChain: Promise<SaveCanvasResult> = Promise.resolve({ success: false, skipped: true });
+
+// ── C6 写入审计（docs/118 §五 C6）──
+// 用途：用户报「又没生效」时能直接读日志定因——是「被 409 拒了（有人先写）」、
+// 「写了 ok 但刷新后没读到」，还是「压根没触发保存」，不再靠推测。
+interface CanvasWriteRecord {
+  at: number;
+  projectId: string;
+  ifVersion?: number;
+  version?: number;
+  result: 'ok' | 'conflict' | 'fail';
+}
+const WRITE_LOG_MAX = 50;
+const canvasWriteLog: CanvasWriteRecord[] = [];
+function recordCanvasWrite(rec: CanvasWriteRecord): void {
+  canvasWriteLog.push(rec);
+  if (canvasWriteLog.length > WRITE_LOG_MAX) canvasWriteLog.shift();
+}
+/** 调试导出：最近 N 次画布快照写入记录（对齐 debugModalLayers() 惯例）。 */
+export function debugCanvasWrites(): CanvasWriteRecord[] {
+  return canvasWriteLog.slice();
+}
+
 let projects: Project[] = loadProjects();
 let currentProjectId: string = loadLastOpened();
 let loaded = false; // 是否已从后端加载过
-let lastSavedVersion = 0; // 画布版本号单调递增保底（同毫秒连续保存时自增）
 // 项目列表整体版本号（并发覆盖保护）：从后端 fetch 时更新，保存时带回后端，
 // 后端检测旧版本拒绝覆盖（防双页面/旧数据覆盖丢新项目）。对齐画布快照版本冲突检测思路。
 let projectVersion = 0;
@@ -185,7 +229,12 @@ export function __resetForTest(): void {
   projects = loadProjects();
   currentProjectId = loadLastOpened();
   loaded = false;
-  lastSavedVersion = 0;
+  // ★ CAS 基线 / 落盘调度器 / 单飞队列必须同步归零：否则单测之间串版本/串定时器 → 偶发红。
+  loadedVersion = 0;
+  saveTimer = null;
+  pendingReq = null;
+  saveChain = Promise.resolve({ success: false, skipped: true });
+  canvasWriteLog.length = 0;
   projectVersion = 0;
   listeners.clear();
   lastSnapshot = { projects, currentProjectId };
@@ -248,7 +297,21 @@ function genId(): string {
 // 读写当前项目画布快照（走 KV，异步）。key 为 canvas-state-v1- 前缀 → 自动分流到 localTool KV。
 export async function loadCanvasState(projectId: string): Promise<CanvasSnapshot | null> {
   try {
-    const v = await contentGetAsync(CANVAS_STATE_PREFIX + (projectId || currentProjectId));
+    const key = CANVAS_STATE_PREFIX + (projectId || currentProjectId);
+    // ★ 三段读「版本 → 快照 → 版本」（docs/118 §五 C1）：
+    //   这样 loadedVersion ≤ 我持有的内容版本 → 最坏是【假冲突】（拒绝写 + 提示刷新）。
+    //   反过来（先读内容后读版本）会出现「我把别人的新写入当成自己的基线 → CAS 通过 → 又覆盖别人」，
+    //   那是【静默丢数据】，比假冲突严重得多。
+    //   读期间若被人改过（v1 !== v2）→ 重读（≤3 次）；仍不稳则取最新 v2（宁假冲突不假通过）。
+    let v1 = await kvGetVersion(key);
+    let v = await contentGetAsync(key);
+    let v2 = await kvGetVersion(key);
+    for (let i = 0; i < 3 && v1 !== v2; i++) {
+      v1 = v2;
+      v = await contentGetAsync(key);
+      v2 = await kvGetVersion(key);
+    }
+    loadedVersion = v2;
     if (!v || typeof v !== 'object') return null;
     // P0-4 兼容读取：旧快照无 schemaVersion（视为版本 1 + 缺字段），统一返回 { nodes, edges, schemaVersion }。
     // 缺省字段由 App 加载侧的 applyNodeTypeDefaults 补齐，读取端不在此改结构，保持最小差异。
@@ -340,82 +403,157 @@ function sanitizeEdges(edges: Record<string, unknown>[] | null): Record<string, 
     return out;
   });
 }
+/**
+ * 保存画布快照（★ 走服务端原子 CAS，docs/118 §五 C2）。
+ *
+ * - **CAS**：`ifVersion = loadedVersion`（我读到的那个版本）；服务端不符 → 409 → 本次不落盘
+ *   （fail-closed，绝不覆盖别人的新数据）。
+ * - **单飞**：同一窗口的并发调用排队执行（`saveChain`），执行时才读 `loadedVersion`
+ *   ——否则自己两次写会互相判冲突 → 假冲突红条。
+ * - **版本所有权移交服务端**：不再客户端算版本、不再单独写 `<key>_version`。
+ *
+ * @param opts.force 无条件覆盖（仅备份导入用；服务端仍会把版本自增）
+ */
 export async function saveCanvasState(
   projectId: string,
   nodes: Record<string, unknown>[] | null,
   edges: Record<string, unknown>[] | null,
   viewport?: { x?: number; y?: number; zoom?: number } | null,
+  opts: { force?: boolean } = {},
 ): Promise<SaveCanvasResult> {
   const key = CANVAS_STATE_PREFIX + (projectId || currentProjectId);
-  try {
-    // 对齐官方 shared.js L1405：空画布跳过保存，防止空画布覆盖已有历史（误清空保护）。
-    if (!nodes || nodes.length === 0) {
-      // 【P0 埋点】空画布跳过保存（排查「画布被清空/不保存」：确认是主动跳过而非丢失）
+  const pid = projectId || currentProjectId;
+
+  const run = async (): Promise<SaveCanvasResult> => {
+    // ★ 注意：loadedVersion 必须在【真正执行时】读（单飞队列里前面的写可能刚更新过它）
+    const ifVersion = loadedVersion;
+    try {
+      // 对齐官方 shared.js L1405：空画布跳过保存，防止空画布覆盖已有历史（误清空保护）。
+      if (!nodes || nodes.length === 0) {
+        // 【P0 埋点】空画布跳过保存（排查「画布被清空/不保存」：确认是主动跳过而非丢失）
+        logger.debug('项目', '[保存快照] 空画布跳过', { projectId: pid }, { module: 'project' });
+        return { success: false, skipped: true };
+      }
+      // 【④】落盘前清理 ReactFlow 运行时 UI 态（selected/dragging/measured 等），只存必要字段
+      // P20 viewport：视窗状态 { x, y, zoom }，仅当传入合法数值才存（否则留 undefined 不进 KV）。
+      let savedViewport: { x: number; y: number; zoom: number } | undefined;
+      if (viewport && typeof viewport === 'object' && Number.isFinite(viewport.zoom)) {
+        savedViewport = {
+          x: Number(viewport.x) || 0,
+          y: Number(viewport.y) || 0,
+          zoom: Number(viewport.zoom) || 1,
+        };
+      }
+      // 落盘前归一化父子关系：React Flow 硬性要求「父节点必须在 nodes 数组中先于子节点声明」，
+      // 否则渲染时抛 "Parent node <id> not found. Please make sure that parent nodes are in front of
+      // their child nodes."；同时清理指向不存在节点的孤儿 parentId（防坏快照入库，根治刷新即崩）。
+      // 此写边界是自动保存与导入回写的唯一落盘口，这里归一化即可保证所有持久化快照天生合法。
+      const normalizedNodes = normalizeNodeParents(
+        nodes as unknown as import('@xyflow/react').Node[],
+      ) as unknown as Record<string, unknown>[];
+      const sanitizedNodes = sanitizeNodes(normalizedNodes);
+      const sanitizedEdges = sanitizeEdges(edges);
+
+      // ★ 唯一裁决点（服务端）：版本不符则 409 且一个字节都不写。
+      const res = await kvSet(
+        key,
+        {
+          schemaVersion: CANVAS_SCHEMA_VERSION,
+          nodes: sanitizedNodes,
+          edges: sanitizedEdges,
+          ...(savedViewport ? { viewport: savedViewport } : {}),
+        },
+        opts.force ? {} : { ifVersion },
+      );
+      const version = res?.data?.version;
+      if (typeof version === 'number' && Number.isFinite(version)) loadedVersion = version; // 成功即成为新基线
+      recordCanvasWrite({
+        at: Date.now(),
+        projectId: pid,
+        ifVersion: opts.force ? undefined : ifVersion,
+        version,
+        result: 'ok',
+      });
+      // 【P0 埋点】快照保存成功（排查「刷新丢节点/丢字段」：记录保存前后节点数，区分「没存」vs「sanitize 裁剪」）
       logger.debug(
         '项目',
-        '[保存快照] 空画布跳过',
-        { projectId: projectId || currentProjectId },
+        '[保存快照]',
+        {
+          projectId: pid,
+          version,
+          nodeCount: nodes.length,
+          savedNodeCount: sanitizedNodes.length,
+          edgeCount: edges.length,
+          savedEdgeCount: sanitizedEdges.length,
+        },
         { module: 'project' },
       );
-      return { success: false, skipped: true };
+      return { success: true, skipped: false };
+    } catch (e) {
+      if (e instanceof HttpError && e.status === 409) {
+        const remote = Number((e.data as { current?: number } | undefined)?.current) || 0;
+        logger.warn('projectStore', '画布快照版本冲突，已拒绝覆盖', {
+          key,
+          remote,
+          loaded: loadedVersion,
+        });
+        recordCanvasWrite({
+          at: Date.now(),
+          projectId: pid,
+          ifVersion,
+          version: remote,
+          result: 'conflict',
+        });
+        return { success: false, skipped: true, conflict: true, conflictVersion: remote };
+      }
+      logger.warn('projectStore', '保存画布快照失败（KV 不可用？）', e?.message);
+      recordCanvasWrite({ at: Date.now(), projectId: pid, ifVersion, result: 'fail' });
+      return { success: false, skipped: false };
     }
-    // 对齐官方 shared.js L1416：版本冲突检测。每次保存用 Date.now() 作为版本号写入 <key>_version，
-    // 若远程已有更高版本（另一窗口/设备先写了更新的画布），拒绝本次覆盖，防旧数据冲掉新数据。
-    // 单调递增保底：同毫秒内连续保存时 Date.now() 不变，需保证严格递增（否则 v2 不 > v1）。
-    const now = Date.now();
-    const version = now > lastSavedVersion ? now : lastSavedVersion + 1;
-    lastSavedVersion = version;
-    const remoteRaw = await contentGetAsync(`${key}_version`);
-    const remoteVer = remoteRaw ? parseInt(String(remoteRaw), 10) : 0;
-    if (remoteVer > version) {
-      logger.warn('projectStore', '画布版本冲突，拒绝覆盖', { key, remoteVer, version });
-      return { success: false, skipped: true, conflictVersion: remoteVer };
-    }
-    // 【④】落盘前清理 ReactFlow 运行时 UI 态（selected/dragging/measured 等），只存必要字段
-    // P20 viewport：视窗状态 { x, y, zoom }，仅当传入合法数值才存（否则留 undefined 不进 KV）。
-    let savedViewport: { x: number; y: number; zoom: number } | undefined;
-    if (viewport && typeof viewport === 'object' && Number.isFinite(viewport.zoom)) {
-      savedViewport = {
-        x: Number(viewport.x) || 0,
-        y: Number(viewport.y) || 0,
-        zoom: Number(viewport.zoom) || 1,
-      };
-    }
-    // 落盘前归一化父子关系：React Flow 硬性要求「父节点必须在 nodes 数组中先于子节点声明」，
-    // 否则渲染时抛 "Parent node <id> not found. Please make sure that parent nodes are in front of
-    // their child nodes."；同时清理指向不存在节点的孤儿 parentId（防坏快照入库，根治刷新即崩）。
-    // 此写边界是自动保存与导入回写的唯一落盘口，这里归一化即可保证所有持久化快照天生合法。
-    const normalizedNodes = normalizeNodeParents(
-      nodes as unknown as import('@xyflow/react').Node[],
-    ) as unknown as Record<string, unknown>[];
-    const sanitizedNodes = sanitizeNodes(normalizedNodes);
-    const sanitizedEdges = sanitizeEdges(edges);
-    await contentSetAsync(key, {
-      schemaVersion: CANVAS_SCHEMA_VERSION,
-      nodes: sanitizedNodes,
-      edges: sanitizedEdges,
-      ...(savedViewport ? { viewport: savedViewport } : {}),
-    });
-    await contentSetAsync(`${key}_version`, version);
-    // 【P0 埋点】快照保存成功（排查「刷新丢节点/丢字段」：记录保存前后节点数，区分「没存」vs「sanitize 裁剪」）
-    logger.debug(
-      '项目',
-      '[保存快照]',
-      {
-        projectId: projectId || currentProjectId,
-        version,
-        nodeCount: nodes.length,
-        savedNodeCount: sanitizedNodes.length,
-        edgeCount: edges.length,
-        savedEdgeCount: sanitizedEdges.length,
-      },
-      { module: 'project' },
-    );
-    return { success: true, skipped: false };
-  } catch (e) {
-    logger.warn('projectStore', '保存画布快照失败（KV 不可用？）', e?.message);
-    return { success: false, skipped: false };
+  };
+
+  // ★ 单飞：串起来，别并发（防自己撞自己 → 假冲突红条）
+  saveChain = saveChain.then(run, run);
+  return saveChain;
+}
+
+// ── 画布落盘调度器（唯一落盘入口，docs/118 §七 7.2②）──
+// 原来 App 有两个 600ms 防抖入口（内容变更 autoSave / 视窗变更 handleViewportMoveEnd），
+// 各持一个 timer 且各自直调 saveCanvasState ——「何时写、写什么、写哪个版本」有两个答案点，
+// 正是「只是平移一下视窗就整包覆盖别人」从双入口面漏出去的结构性原因。收成一个。
+interface CanvasSaveReq {
+  projectId: string;
+  nodes: Record<string, unknown>[] | null;
+  edges: Record<string, unknown>[] | null;
+  viewport?: { x?: number; y?: number; zoom?: number } | null;
+}
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingReq: CanvasSaveReq | null = null;
+
+/** 请求落盘（防抖合流 + 最新胜）。内容变更与视窗变更共用同一个定时器，语义与现状的 600ms 一致。 */
+export function scheduleCanvasSave(req: CanvasSaveReq, delayMs = 600): void {
+  pendingReq = req;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    void flushCanvasSave();
+  }, delayMs);
+}
+
+/** 立即落盘（pagehide / 切项目 / 卸载兜底）。无待落盘请求时为空操作。 */
+export function flushCanvasSave(): Promise<SaveCanvasResult | void> {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
   }
+  const req = pendingReq;
+  pendingReq = null;
+  if (!req) return Promise.resolve();
+  return saveCanvasState(req.projectId, req.nodes, req.edges, req.viewport).then((res) => {
+    // ★ 同源即时冲突提示（BroadcastChannel）别丢：仅**写成功**时广播（冲突/失败 = 本次未写成功，
+    //   不该告诉别人「画布已保存」）。跨源场景由 useCanvasSync 的 3s 版本轮询兜底。
+    if (res.success) broadcastCanvasSaved(req.projectId);
+    return res;
+  });
 }
 
 // 当前项目信息

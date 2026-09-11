@@ -34,10 +34,13 @@ import {
   switchProject,
   loadCanvasState,
   saveCanvasState,
+  scheduleCanvasSave,
+  flushCanvasSave,
   getCurrentProject,
   initProjects,
   useCurrentProjectId,
 } from './components/base/store/projectStore.ts';
+import { broadcastCanvasSaved } from './components/base/core/canvasSyncBus.ts';
 import previewUrls from './components/base/utils/previewUrl.ts';
 import { logger } from './components/base/core/logger.ts';
 import {
@@ -290,9 +293,10 @@ function Canvas() {
    *    这是「模型调度 / 内置模型详情」两个独立功能面板的窗口内事件，
    *    属功能缺失而非窗口机制，应单独评估开发，不并入本多窗口模块。
    * ==================================================================== */
-  // 多窗口同步：返回 canvasConflict（冲突警告态）+ tabIdRef（persistCanvas 广播用）。
+  // 多窗口同步：返回 canvasConflict（冲突警告态）。tabId/广播/监听均已收口到 canvasSyncBus + 本 hook 内部，
+  // App 不再需要 tabIdRef（docs/118 §五 C2b）。
   // 「切换项目后重置冲突」已在 useCanvasSync 内部处理（getProjectId 变化时自动置 false）。
-  const { canvasConflict, tabIdRef } = useCanvasSync(() => getCurrentProject()?.id);
+  const { canvasConflict, setCanvasConflict } = useCanvasSync(() => getCurrentProject()?.id);
 
   // 视窗中心 → flow 坐标（Q/W/E 快速添加节点用）；适配用 fitView
   // P20 视窗状态持久化：getViewport 读取当前视窗、setViewport 恢复（刷新/切项目回到上次视角）。
@@ -309,8 +313,8 @@ function Canvas() {
   const store = useStoreApi();
   // 始终指向最新 viewport（onViewportChange 更新），persistCanvas 保存时无需实时 useReactFlow 查询
   const viewportRef = React.useRef(null);
-  // 视窗拖拽/缩放结束后 600ms 防抖保存（P20），与 autoSave 节奏一致，避免高频移动反复写 KV
-  const viewportSaveTimer = React.useRef(null);
+  // 视窗拖拽/缩放结束后的落盘：与内容变更合流进 projectStore.scheduleCanvasSave 单一定时器
+  // （P20 语义不变：600ms 防抖；docs/118 §七 7.2② 收口——App 不再持有第二个 timer/ref）。
 
   // 应用设置单一订阅（读写唯一入口 appSettings）：agentOpen/minimapOn/performanceMode/pinnedTools 从此快照解构。
   // 默认值/类型由 settingRegistry.ts 单一真源派生；写统一走 setSetting（内存+持久化+通知），不再用 useState+useEffect 镜像回写。
@@ -401,51 +405,63 @@ function Canvas() {
     },
   );
 
-  // 保存画布并广播到其他窗口
+  // 保存画布并广播到其他窗口（**一次性落盘**：仅切项目/新建项目这类「必须立刻写旧项目」的路径用）。
+  // 常规的「内容变更 / 视窗变更」落盘统一走 projectStore.scheduleCanvasSave（唯一调度入口）。
   const persistCanvas = React.useCallback(
     (projectId) => {
       // P20：顺带把视窗状态（缩放/平移）存进快照，刷新/切项目后回到上次视角
-      saveCanvasState(projectId, nodesRef.current, edgesRef.current, viewportRef.current).catch(
-        (e) => logger.warn('canvas', 'save-fail', { projectId, error: e?.message }),
-      );
-      try {
-        const channel = new BroadcastChannel('yimao_canvas_sync');
-        channel.postMessage({ type: 'CANVAS_SAVED', projectId, tabId: tabIdRef.current });
-        channel.close();
-      } catch (err) {
-        logger.warn('Canvas', '广播画布同步失败', err?.message);
-      }
+      saveCanvasState(projectId, nodesRef.current, edgesRef.current, viewportRef.current)
+        .then((r) => {
+          // ★ 冲突即可见：本次改动未落盘（不重试、不重写），红条提示用户刷新（docs/118 §五 C3）
+          if (r.conflict) {
+            setCanvasConflict(true);
+            return;
+          }
+          // 广播收口到 canvasSyncBus（tabId 单源；同源窗口 <1s 置冲突）。冲突时本次并未写成功 → 不广播。
+          if (r.success) broadcastCanvasSaved(projectId);
+        })
+        .catch((e) => logger.warn('canvas', 'save-fail', { projectId, error: e?.message }));
     },
-    [tabIdRef],
-  ); // ref 对象稳定，列依赖仅为满足 exhaustive-deps（.current 变化不触发重建）
+    [setCanvasConflict],
+  ); // setCanvasConflict 来自 useState（引用稳定）→ persistCanvas 身份不变
 
   // 自动保存（防抖）：节点/连线变化后延迟写入画布快照（KV），避免「新建节点后直接刷新丢失」。
   // 之前只有切换/新建项目时保存，画布变更无落盘 → 刷新即丢。这里用 600ms 防抖合并频繁变更，
   // canvasLoaded 跳过「首次从 KV 读回」那一次，避免把读回内容当用户改动重复保存并广播冲突。
-  const autoSaveTimer = React.useRef(null);
+  // ★ 防抖定时器已收进 projectStore.scheduleCanvasSave（与视窗变更合流成一次写，单一答案点）。
   React.useEffect(() => {
     if (!canvasLoaded) return;
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    autoSaveTimer.current = setTimeout(() => {
-      persistCanvas(getCurrentProject().id);
-    }, 600);
-    return () => {
-      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    };
-  }, [nodes, edges, canvasLoaded, persistCanvas]);
+    scheduleCanvasSave({
+      projectId: getCurrentProject().id,
+      nodes,
+      edges,
+      viewport: viewportRef.current,
+    });
+  }, [nodes, edges, canvasLoaded]);
 
   // P20 视窗拖拽/缩放结束 → 保存画布（顺带持久化视窗状态）。
   // 用 useCallback + canvasLoaded 守卫：初始化 fitView 也会触发 onMoveEnd，
   // 但此时 canvasLoaded 可能未置 true（首次加载中）→ 不存，避免把适配中的视窗误写回。
+  // ★ 与 autoSave 共用同一入口：不再另起定时器（600ms 防抖合并高频连续移动，最终态落一次盘）。
   const handleViewportMoveEnd = React.useCallback(() => {
     if (!canvasLoaded) return;
     if (!viewportRef.current) return; // 尚无视窗信息（未发生实际移动）
-    // 与 autoSave 一致：600ms 防抖合并高频连续移动，最终态落一次盘
-    if (viewportSaveTimer.current) clearTimeout(viewportSaveTimer.current);
-    viewportSaveTimer.current = setTimeout(() => {
-      persistCanvas(getCurrentProject().id);
-    }, 600);
-  }, [canvasLoaded, persistCanvas]);
+    scheduleCanvasSave({
+      projectId: getCurrentProject().id,
+      nodes: nodesRef.current,
+      edges: edgesRef.current,
+      viewport: viewportRef.current,
+    });
+  }, [canvasLoaded]);
+
+  // 页面卸载兜底：防抖窗口内关闭/刷新时立即落盘（createDebouncedPersist 的 pagehide 惯例）。
+  React.useEffect(() => {
+    const onPageHide = () => {
+      void flushCanvasSave();
+    };
+    window.addEventListener('pagehide', onPageHide);
+    return () => window.removeEventListener('pagehide', onPageHide);
+  }, []);
 
   // AI 会话按项目隔离：project 作为最顶层，每个项目一套 AI 会话（对话/绘画）。
   // agentKey = canvas-assistant-<projectId>，conversationStore 据此隔离存储；
@@ -1464,7 +1480,7 @@ function Canvas() {
                     title="点击刷新页面"
                   >
                     <RefreshCw size={14} className="text-red-400 animate-pulse" />
-                    检测到该画布在其他窗口被修改，继续保存可能会覆盖数据，强烈建议点击此处刷新页面！
+                    检测到该画布已在其他窗口被修改，本次改动未落盘；点击此处刷新后重做（不会覆盖对方数据）
                   </div>
                 </Panel>
               )}
