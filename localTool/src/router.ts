@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import { json } from './utils/helpers.js';
 import { getBaselinePath } from './paths.js';
 
-import { handleKvGet, handleKvSet, handleKvDelete } from './routes/kv.js';
+import { handleKvGet, handleKvSet, handleKvDelete, handleKvVersion } from './routes/kv.js';
 import {
   handleUpload,
   handleRead,
@@ -158,6 +158,8 @@ export const routes: Route[] = [
   // ── KV ──
   { method: 'GET', pattern: '/api/kv/get', handler: handleKvGet },
   { method: 'POST', pattern: '/api/kv/set', handler: handleKvSet },
+  // 轻量版本读取（3s 跨源冲突轮询用；只读 <key>_version，不拉整包）。见 docs/118 §三 S2。
+  { method: 'GET', pattern: '/api/kv/version', handler: handleKvVersion },
   { method: 'POST', pattern: '/api/kv/delete', handler: handleKvDelete },
 
   // ── 文件操作 ──

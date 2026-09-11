@@ -564,6 +564,9 @@ export const API_ENDPOINTS = {
    *   直接返回缩略图二进制（image/*），供 <img src> 直接使用；format 白名单仅 png/jpg/jpeg/gif/bmp/tiff/webp，
    *   Jimp 0.22 无法编码 webp 时后端拒绝回退源扩展名（沿用源扩展名）。 */
   fileThumbnail: '/api/files/thumbnail',
+  /** 画布快照版本号轻量读取：GET {API_BASE}/api/kv/version?key=<key>
+   *  3s 跨源冲突轮询专用（只读 <key>_version，不拉整包）。见 docs/118 §三 S1 / §五 C4。 */
+  kvVersion: '/api/kv/version',
 };
 
 /**
@@ -782,6 +785,15 @@ export const apiRegistry = {
     path: '/api/kv/set',
     envelope: 'code-data',
     status: 'ACTIVE',
+    note: '{ key, value, ifVersion? }。ifVersion 传入 = 乐观并发写入（CAS）：服务端当前 <key>_version 不等于它时返回 409 且不写任何内容；缺省 = 无条件写。返回 data.version 为写入后的新版本',
+  },
+  kvVersion: {
+    fn: 'localToolApi.kvGetVersion',
+    method: 'GET',
+    path: '/api/kv/version',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: 'GET ?key=… → data.version（读不到按 0）。轻量端点：只读 <key>_version，勿用 kvGet 拉整包做心跳',
   },
   kvDelete: {
     fn: 'localToolApi.kvDelete',

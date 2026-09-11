@@ -331,12 +331,28 @@ export async function kvGet<T = unknown>(key: string): Promise<T | null> {
   return value == null ? null : (value as T);
 }
 
-// POST /api/kv/set { key, value } → { ok:true }
-export async function kvSet(key: string, value: unknown): Promise<OkResult> {
+/** kv 写入结果（信封 code-data；version = 服务端写入后的快照版本） */
+export interface KvSetResult {
+  code?: number;
+  data?: { ok?: boolean; version?: number };
+}
+
+// POST /api/kv/set { key, value, ifVersion? }
+// ifVersion 传入 = 乐观并发写入（CAS）：服务端版本不等于它时返回 409 且不写任何内容
+// （调用点用 httpClient 已导出的 HttpError.status === 409 识别；4xx 不重试是现状行为）。
+export async function kvSet(
+  key: string,
+  value: unknown,
+  opts: { ifVersion?: number } = {},
+): Promise<KvSetResult> {
   return httpRequest(`${API_BASE}/api/kv/set`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key, value }),
+    body: JSON.stringify({
+      key,
+      value,
+      ...(opts.ifVersion !== undefined ? { ifVersion: opts.ifVersion } : {}),
+    }),
     label: 'kvSet',
   });
 }
@@ -347,6 +363,16 @@ export async function kvDelete(key: string): Promise<OkResult> {
     method: 'POST',
     label: 'kvDelete',
   });
+}
+
+// GET /api/kv/version?key=… → 版本号（读不到按 0；轻量端点，别用 kvGet 拉整包做心跳）
+export async function kvGetVersion(key: string): Promise<number> {
+  const res = await httpRequest<{ data?: { version?: number } }>(
+    `${API_BASE}/api/kv/version?key=${encodeURIComponent(key)}`,
+    { label: 'kvGetVersion' },
+  );
+  const v = res?.data?.version;
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
 // ─────────────────────────── files 域（候选 C 已移出 → filesApi）───────────────────────────

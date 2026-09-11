@@ -169,7 +169,11 @@ test('方案②·KV set 含 base64 的 JSON 画布对象 → value 变为 /files
     res,
   );
   assert.equal(res.status, 200, 'set 应 200');
-  assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
+  // docs/118 CAS：set 响应在 { ok:true } 基础上新增 data.version（写入后的快照版本号）
+  const setBody = parseResBody(res);
+  assert.equal(setBody.code, 0);
+  assert.equal(setBody.data.ok, true);
+  assert.ok(typeof setBody.data.version === 'number', 'set 应返回写入后的版本号');
 
   // 读回：value 里的 base64 应被替换为 /files/ URL
   const getRes = makeRes();
@@ -243,7 +247,9 @@ test('方案②·外置幂等：相同 base64 写两次 → 磁盘只一个文�
 test('方案②·裸 base64 形态（img_orig_*）：整串外置为 URL', async () => {
   const res = makeRes();
   await kvMod.handleKvSet(makeJsonReq({ key: 'img_orig_node1_1', value: RED_PNG_DATA_URI }), res);
-  assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
+  const bareBody = parseResBody(res);
+  assert.equal(bareBody.code, 0);
+  assert.equal(bareBody.data.ok, true);
 
   const getRes = makeRes();
   await kvMod.handleKvGet(
@@ -270,11 +276,9 @@ test('方案②·失败回退：非法 data URI 保留原值，不破坏 {ok:tru
   const res = makeRes();
   const badObj = { nodes: [{ data: { imageUrl: 'data:image/png;base64,@@@invalid@@@' } }] };
   await kvMod.handleKvSet(makeJsonReq({ key: 'k1', value: JSON.stringify(badObj) }), res);
-  assert.deepEqual(
-    parseResBody(res),
-    { code: 0, data: { ok: true } },
-    'set 仍应 {code:0,data:{ok:true}}',
-  );
+  const badBody = parseResBody(res);
+  assert.equal(badBody.code, 0);
+  assert.equal(badBody.data.ok, true, 'set 仍应 {code:0,data:{ok:true,version}}');
 
   const getRes = makeRes();
   await kvMod.handleKvGet(makeGetReq(), getRes, new URL('http://x/api/kv/get?key=k1'));

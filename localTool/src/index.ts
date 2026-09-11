@@ -69,6 +69,7 @@ const SILENT_LOG_PATHS = new Set([
   '/api/status',
   '/api/kv/get',
   '/api/kv/set',
+  '/api/kv/version',
   '/api/resources',
   '/api/resources/rescan',
   '/api/tasks',
