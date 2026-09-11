@@ -184,7 +184,10 @@ export async function importAll(backup) {
     for (const projectId of Object.keys(backup.canvas)) {
       const c = backup.canvas[projectId];
       try {
-        const res = await saveCanvasState(projectId, c?.nodes || [], c?.edges || []);
+        // ★ force: true —— 备份导入本来就该整包覆盖（不受 CAS 基线约束；服务端仍会把版本自增）。
+        const res = await saveCanvasState(projectId, c?.nodes || [], c?.edges || [], undefined, {
+          force: true,
+        });
         if (!res?.skipped) canvasCount++;
       } catch {
         // 【P0 埋点】单个快照写失败（排查「导入后画布丢」：标记具体项目）

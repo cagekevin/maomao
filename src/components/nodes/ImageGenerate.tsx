@@ -23,6 +23,8 @@ import { NODE_AREA_FIXED_BASE_SIZE } from '../base/core/config.ts';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import '../base/editors/ImageEditor.tsx';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
+import { replaceNodeImage } from './nodeImage.ts';
+import { useNodeData } from '../../hooks/useNodeData.ts';
 import PromptLibraryButton from '../base/prompt/PromptLibraryButton.tsx';
 import { downloadUrl, resolveDownloadFilename } from '../base/utils/clipboard.ts';
 import JianyingIcon from '../base/ui/JianyingIcon.tsx';
@@ -41,7 +43,7 @@ import { generateImage } from '../base/api/index.ts';
 import { useNodePrefs, injectNodePrefs } from '../base/canvas/nodePrefs.ts';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
-import { debounce, mergeRefImages, buildEffectivePrompt } from '../base/core/utils.ts';
+import { mergeRefImages, buildEffectivePrompt } from '../base/core/utils.ts';
 import { resolvePromptChips } from '../base/prompt/promptChips.ts';
 import CameraStudioPanel from '../base/editors/CameraStudioPanel.tsx';
 import CameraSettingsSelector from '../base/editors/cameraParams/CameraSettingsSelector.tsx';
@@ -182,13 +184,9 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     },
     [id, setEdges],
   );
-  // 用户手动选择 → 写回 node.data，让 data 始终是真实状态（Agent read_canvas 读到最新）
-  const patchData = useCallback(
-    (patch: Record<string, unknown>) => {
-      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
-    },
-    [id, setNodes],
-  );
+  // 用户手动选择 → 写回 node.data，让 data 始终是真实状态（Agent read_canvas 读到最新）。
+  // 唯一入口收口到 useNodeData（docs/118 §7.3 ④：内联 patchData 样板 → 复用 base hook）。
+  const { patchData, patchDebounced } = useNodeData(id);
 
   // 节点框按媒体真实宽高比自适应（类似 AssetNode）：
   //  - Auto 比例下，<img onLoad={fitFromImage}> 让节点框跟随图片真实比例；
@@ -223,23 +221,17 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   );
   // 提示词落盘：本地 state + 防抖写回 node.data（支持函数式更新）。
   // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave）→ 手动输入的提示词刷新不丢。
-  // P2：prompt 持续输入走 debouncedPatch（200ms 防抖合并），避免每键 setNodes 全图 node 数组重建；
-  // 卸载时 flush 兜底（防抖窗口内输入不丢）。expanded 是低频切换，保持即时写回。
+  // P2：prompt 持续输入走 patchDebounced（useNodeData，200ms 防抖合并），避免每键 setNodes 全图重建；
+  // 卸载时 flush 兜底（useNodeData 内部已注册）。expanded 是低频切换，保持即时写回。
   const setPromptPersist = useCallback((v: React.SetStateAction<string>) => {
     setPrompt((prev) => (typeof v === 'function' ? v(prev) : v));
   }, []);
-  const debouncedPatch = useRef<{ (patch: Record<string, unknown>): void; flush(): void } | null>(
-    null,
-  );
-  if (debouncedPatch.current == null) {
-    debouncedPatch.current = debounce(patchData, 200);
-  }
   // 抽屉展开/收起
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
   // 【React 反模式修复】「写回 node.data」不再在 setState updater 里做（那会在渲染期间 setNodes → BatchProvider 警告）。
   // 改为监听本地 state 变化，用 useEffect 同步落盘（effect 内 setState 合法，不在渲染期）。
   React.useEffect(() => {
-    debouncedPatch.current({ prompt });
+    patchDebounced({ prompt });
   }, [prompt]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     patchData({ expanded });
@@ -248,13 +240,6 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   React.useEffect(() => {
     if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded);
   }, [data.expanded]); // eslint-disable-line react-hooks/exhaustive-deps
-  // 卸载前 flush 最后一次待提交（避免防抖窗口内丢数据）
-  React.useEffect(
-    () => () => {
-      debouncedPatch.current?.flush();
-    },
-    [],
-  );
   const fileRef = useRef<HTMLInputElement | null>(null);
   const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
   // 双击大图：原生 <dialog> 弹窗（无外框、无背景容器，只显示图片）
@@ -520,22 +505,21 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     hasImage,
     label: data.label,
     onImageReplaced: (dataUrl, dims) => {
-      // 消费 dims（裁剪/扩图后画布真实尺寸）：用 fitByRatio 让节点框跟随编辑后真实比例，
-      // 并把 aspectRatio 置 'Auto'——这样 useSizeSync 不再按固定比例锁定节点框，也不会把
-      // 自定义 'W:H' 污染到后续生图的比例选择里。Auto 下节点框尺寸由媒体真实比例决定（见 docs/78）。
+      // 本地 state 立即生效（渲染读 state，先于节点 data 落盘）。
       setImageUrl(dataUrl);
-      if (dims?.width && dims?.height) {
-        const w = Math.round(dims.width);
-        const h = Math.round(dims.height);
-        if (w > 0 && h > 0) {
-          editedRatioRef.current = true; // 标记：本次置 Auto 由编辑保存触发，跳过「切 Auto 读图」effect
-          fitByRatio(w, h); // 直接改 node 尺寸跟随图片，等价 AssetNode 消费 dims 的落点
-          setAspectRatio('Auto');
-          patchData({ imageUrl: dataUrl, aspectRatio: 'Auto' });
-          return;
-        }
-      }
-      patchData({ imageUrl: dataUrl });
+      // ★ 图片字段唯一写入口（docs/118 §五 C5b）；尺寸模型仍留在本节点 afterWrite：
+      // 消费 dims（裁剪/扩图后画布真实尺寸）→ fitByRatio 让节点框跟随编辑后真实比例 +
+      // aspectRatio 置 'Auto'（useSizeSync 不再按固定比例锁框，也不把自定义 'W:H' 污染后续生图比例）。
+      replaceNodeImage({ id, dataUrl, dims }, setNodes, (d) => {
+        if (!d?.width || !d?.height) return;
+        const w = Math.round(d.width);
+        const h = Math.round(d.height);
+        if (w <= 0 || h <= 0) return;
+        editedRatioRef.current = true; // 标记：本次置 Auto 由编辑保存触发，跳过「切 Auto 读图」effect
+        fitByRatio(w, h); // 直接改 node 尺寸跟随图片，等价 AssetNode 消费 dims 的落点
+        setAspectRatio('Auto');
+        patchData({ aspectRatio: 'Auto' }); // 写的是 aspectRatio 不是图，故不经 replaceNodeImage
+      });
     },
   });
 

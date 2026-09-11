@@ -15,9 +15,13 @@ import { showToast, toastError } from '../base/core/toastStore.ts';
  * 生图节点的 crop/edit 甚至漏写 onClick 成了死按钮（功能漂移）。抽出统一 hook，
  * 两节点只声明差异项（上传语义不同），共享能力一处维护、一处修复。
  *
- * 【解耦写回】hook 不耦合 setNodes / patchData 差异：调用方传 onImageReplaced(dataUrl)，
- * 由各自节点决定如何把新图写回（图片节点走 setNodes 不可变更新，生图节点走
- * setImageUrl + patchData 落盘）。hook 只负责「产出新 dataURL」。
+ * 【解耦写回】hook 不耦合 setNodes / patchData 差异：调用方传 onImageReplaced(dataUrl, dims?)，
+ * 由各自节点决定如何把新图写回（两节点均经 nodes/nodeImage.ts 的 replaceNodeImage 唯一写入口）。
+ * hook 只负责「产出新 dataURL」。
+ *
+ * 【保存出口统一「先落盘再写回」】编辑器保存 / 就地裁剪 / 压缩 / 放大四条路径同构：
+ *   ① 立即写回 dataURL（不等网络）→ ② saveInlineToLocal 换 /files/ 持久 URL → ③ 再写回持久 URL。
+ * 快照里因此不再出现 MB 级 dataURL（docs/118 §五 C5，解 I3）。
  *
  * 【失败可见】压缩/发送失败均 toastError 透传真实原因，不吞错；异步均经
  * compressImage（内部带超时）与 saveInlineToLocal（httpRequest 带超时），不无限挂起。
@@ -65,22 +69,32 @@ export function useImageHoverActions({
   const [compressing, setCompressing] = useState(false);
   const [upscaling, setUpscaling] = useState(false);
 
-  // 编辑器保存（裁剪/标记/扩图）→ 写回节点图片，并透传画布真实尺寸让节点自适应。失败透传 toastError，不静默。
+  // 编辑器保存（裁剪/标记/扩图）→ 写回节点图片，并透传画布真实尺寸让节点自适应。
+  // ★ 与压缩/放大**完全同构**（docs/118 §五 C5）：① 立即写回 dataURL（不等网络）；
+  //   ② `saveInlineToLocal` 换成 /files/ 持久 URL（sha1 幂等）；③ 再写回持久 URL。
+  //   收益：快照里不再出现 MB 级 dataURL（只留 KB 级路径）→ CAS 上报体积小、冲突窗口小，
+  //   也不再依赖后端 base64Externalize 兜底。失败时保留原 dataURL（saveInline 返回 null 即跳过）。
   const handleEditorSave = useCallback(
-    ({ dataUrl, width, height }) => {
+    async ({ dataUrl, width, height }) => {
       if (!dataUrl) return;
-      onImageReplaced?.(dataUrl, width && height ? { width, height } : undefined);
+      const dims = width && height ? { width, height } : undefined;
+      onImageReplaced?.(dataUrl, dims); // ① 立即生效（不等网络）
       setEditor(null);
+      const saved = await saveInlineToLocal(dataUrl, 'canvas'); // ② dataURL → /files/ 持久 URL（幂等）
+      if (saved && saved !== dataUrl) onImageReplaced?.(saved, dims); // ③ 快照只留 KB 级路径
     },
     [onImageReplaced],
   );
 
   // 就地裁剪保存 → 写回节点图片，关闭裁剪浮层。
+  // ★ 与 handleEditorSave 同构（就地裁剪也必须落盘，否则又是「两条改对两条忘」）。
   const handleCropSave = useCallback(
-    ({ dataUrl }) => {
+    async ({ dataUrl }) => {
       if (!dataUrl) return;
-      onImageReplaced?.(dataUrl);
+      onImageReplaced?.(dataUrl); // ① 立即生效
       setCropping(false);
+      const saved = await saveInlineToLocal(dataUrl, 'canvas'); // ② 落盘换持久 URL
+      if (saved && saved !== dataUrl) onImageReplaced?.(saved); // ③ 快照只留路径
     },
     [onImageReplaced],
   );

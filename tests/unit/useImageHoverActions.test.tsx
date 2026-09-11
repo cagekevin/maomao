@@ -155,7 +155,7 @@ describe('useImageHoverActions — 图片共享 hover 能力', () => {
     expect(onReplaced).toHaveBeenNthCalledWith(2, 'local://saved');
   });
 
-  it('编辑器保存 → onImageReplaced 写回并关闭', () => {
+  it('编辑器保存 → 先立即写回 dataURL，再落盘换持久 URL，并关闭', async () => {
     const onReplaced = vi.fn();
     const { result } = renderHook(() =>
       useImageHoverActions({
@@ -169,10 +169,35 @@ describe('useImageHoverActions — 图片共享 hover 能力', () => {
     act(() => {
       findBtn(result.current.imageButtons, 'edit').onClick();
     });
-    act(() => {
-      result.current.handleEditorSave({ dataUrl: 'data:edited', width: 800, height: 600 });
+    await act(async () => {
+      await result.current.handleEditorSave({ dataUrl: 'data:edited', width: 800, height: 600 });
     });
-    expect(onReplaced).toHaveBeenCalledWith('data:edited', { width: 800, height: 600 });
+    // docs/118 §五 C5：① 立即写回 dataURL（不等网络）→ ② 落盘换持久 URL（快照只留 KB 级路径）
+    expect(onReplaced).toHaveBeenNthCalledWith(1, 'data:edited', { width: 800, height: 600 });
+    expect(onReplaced).toHaveBeenNthCalledWith(2, 'local://saved', { width: 800, height: 600 });
     expect(result.current.editor).toBeNull();
+  });
+
+  it('就地裁剪保存 → 同样「先落盘再写回」（与编辑器/压缩同构）', async () => {
+    const onReplaced = vi.fn();
+    const { result } = renderHook(() =>
+      useImageHoverActions({
+        id: 'n1',
+        url: 'http://x/a.png',
+        hasImage: true,
+        label: 'L',
+        onImageReplaced: onReplaced,
+      }),
+    );
+    act(() => {
+      findBtn(result.current.imageButtons, 'crop').onClick();
+    });
+    expect(result.current.cropping).toBe(true);
+    await act(async () => {
+      await result.current.handleCropSave({ dataUrl: 'data:cropped' });
+    });
+    expect(onReplaced).toHaveBeenNthCalledWith(1, 'data:cropped');
+    expect(onReplaced).toHaveBeenNthCalledWith(2, 'local://saved');
+    expect(result.current.cropping).toBe(false);
   });
 });

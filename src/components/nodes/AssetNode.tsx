@@ -15,6 +15,7 @@ import NodeShell from '../base/ui/NodeShell.tsx';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
+import { replaceNodeImage } from './nodeImage.ts';
 import { detectMediaType } from '../base/utils/mediaType.ts';
 import type { MediaType } from '@/types';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
@@ -96,18 +97,17 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   // 视频首帧封面（未播放时显示首帧，避免视频 URL 当 img 破图）
   const posterUrl = useVideoPoster(url, type === 'video');
 
-  // 编辑器/压缩保存 → 写回节点图片（不可变更新，与 HoverToolbar 统一机制共享）。
+  // 编辑器/压缩/裁剪保存 → 写回节点图片。
+  // ★ 唯一写入口 replaceNodeImage（docs/118 §五 C5b）：字段写入收口；尺寸模型仍留在本节点
+  //   （AssetNode 用 mediaRatio `${w}:${h}`，与 ImageGenerate 的 fitByRatio 模型不同，不硬合并）。
   // dims 为可选画布真实尺寸（扩图/裁剪后画布尺寸变化），传入则按真实比例自适应节点形状，
   // 避免缩略图端点压到最长边 640 后吞掉等比外扩带来的比例变化（扩图后节点比例不变的问题）。
   const replaceImage = useCallback(
     (dataUrl: string, dims?: { width: number; height: number }) => {
       if (!dataUrl) return;
-      setNodes((ns) =>
-        ns.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, imageUrl: dataUrl, url: dataUrl } } : n,
-        ),
-      );
-      if (dims?.width && dims?.height) setMediaRatio(`${dims.width}:${dims.height}`);
+      replaceNodeImage({ id, dataUrl, dims, legacyUrlField: true }, setNodes, (d) => {
+        if (d?.width && d?.height) setMediaRatio(`${d.width}:${d.height}`);
+      });
     },
     [id, setNodes],
   );
