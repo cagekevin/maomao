@@ -33,6 +33,7 @@
     "pretest": "npm run check:api && npm run check:events && npm run check:node-handles",
     "check:health": "node scripts/health-check.cjs",
     "check:arch": "node scripts/check-arch.mjs",
+    "check:strict-src": "node scripts/check-strict-src.mjs",
     "type-check": "tsc --noEmit && npm run type-check:tests",
     "type-check:tests": "tsc --noEmit -p tests/tsconfig.json",
     "lint": "eslint src tests --ext .ts,.tsx,.js,.jsx",

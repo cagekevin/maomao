@@ -430,11 +430,12 @@ export function replaceUrlDeep(value: unknown, from: string, to: string): unknow
     return next.every((n, i) => n === value[i]) ? value : next;
   }
   if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
     let changed = false;
-    const out = {};
-    for (const k of Object.keys(value)) {
-      const nv = replaceUrlDeep(value[k], from, to);
-      if (nv !== value[k]) changed = true;
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(obj)) {
+      const nv = replaceUrlDeep(obj[k], from, to);
+      if (nv !== obj[k]) changed = true;
       out[k] = nv;
     }
     return changed ? out : value;

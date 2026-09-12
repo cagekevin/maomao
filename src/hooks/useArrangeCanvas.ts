@@ -249,16 +249,24 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
           const relY = pos.y - pos.height / 2 - minY;
           const x = originX + relX;
           const y = originY + relY;
+          const isGroup = node.type === 'group';
           laid.push({
             ...node,
             position: { x, y },
             // 只对有输入面板的节点收起配置面板（Tab 与 Ctrl+L 同范围）；其余 data 原样透传
             data: collapseTypes.has(node.type) ? { ...node.data, expanded: false } : node.data,
-            // group 节点写回真实尺寸（外接矩形，否则框大小对不上内部子节点）
-            style:
-              node.type === 'group'
-                ? { ...node.style, width: pos.width, height: pos.height }
-                : node.style,
+            // group 节点写回真实尺寸（外接矩形，否则框大小对不上内部子节点）。
+            // ⚠️ 必须同时写 width/height（与 style 一致）：NodeShell 根 div 读 `n.width ?? n.style?.width`
+            // 是 width 优先，只写 style 会让 root 尺寸与 React Flow wrapper(style) 错位 → 端口/环绕错位，
+            // 且落盘快照 width 与 style 不一致。与 `useNodeResize.onMainBoxResize` 的「width+height+style
+            // 三写」不变量保持一致（TD-04-16 尺寸写回唯一化；此前只写 style 是漏网点，见 TD-04-19）。
+            ...(isGroup
+              ? {
+                  width: pos.width,
+                  height: pos.height,
+                  style: { ...node.style, width: pos.width, height: pos.height },
+                }
+              : {}),
           });
         });
 

@@ -89,6 +89,22 @@ function htmlImageItem(src = 'http://ext/pic.png') {
   return clipboardItem(['text/html'], { 'text/html': `<img src="${src}">` });
 }
 
+// 构造「真实浏览器形态」的 DataTransferItemList：有 length / 数字索引 / 可迭代，
+// 但【没有】Array.prototype 的 some / every（数组式接口 ≠ 数组）。
+// 用于锁定「假收窄后对非数组调 .some/.every → 真实环境 TypeError」这一 bug。
+function dataTransferItemListLike(items: unknown[]): unknown {
+  const list: Record<string | symbol, unknown> = {
+    length: items.length,
+    [Symbol.iterator]: function* () {
+      for (let i = 0; i < items.length; i++) yield items[i];
+    },
+  };
+  items.forEach((it, i) => {
+    list[i] = it;
+  });
+  return list;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -214,6 +230,33 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       assetUrl: 'http://local/png',
       label: 'png',
     });
+  });
+
+  // ── 回归（假收窄 → 真实环境 TypeError）：真实浏览器 clipboardData.items 是 DataTransferItemList
+  //    （非数组），此前 `as unknown as DataTransferItem[]` 后调 .some/.every 在真实环境抛错；测试
+  //    mock 用数组故未暴露。本用例用「无 some/every 的类数组」锁定修复（先红后绿负例）。──
+  it('contenteditable 内、items 为真实 DataTransferItemList（无 some/every）→ 不抛错且正确判定', async () => {
+    installClipboard({ read: vi.fn().mockRejectedValue(new Error('no read')) });
+    const opts = makeOpts();
+    const { result } = renderHook(() => useAssetDropPaste(opts));
+    const ce = document.createElement('div');
+    ce.setAttribute('contenteditable', 'true');
+    const items = dataTransferItemListLike([
+      { kind: 'string', type: 'text/plain', getAsString: () => {} },
+    ]);
+    const e = {
+      preventDefault: vi.fn(),
+      target: ce,
+      clipboardData: {
+        getData: (k) => (k === 'text/plain' ? 'hello' : null),
+        items,
+      },
+    };
+    // 修复前：ceItems.some 不是函数 → 抛 TypeError；修复后：正常判定为纯文本 → 不建节点
+    await act(async () => {
+      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+    });
+    expect(opts.addNode).not.toHaveBeenCalled();
   });
 
   it('焦点在 contenteditable 内、剪贴板是纯文本 → 走 insertText（不建节点）', async () => {

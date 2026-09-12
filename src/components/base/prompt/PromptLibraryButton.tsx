@@ -20,13 +20,24 @@ import { generateId } from '../core/idGen.ts';
  *  - onAppend  可选：追加回调（prompt）→ 把所选预设提示词追加到当前节点提示词。
  *              传入后卡片上会显示「添加到提示词」按钮。
  */
-export default function PromptLibraryButton({ category = 'text', onAppend }) {
+export interface PromptLibraryButtonProps {
+  /** 当前节点类型对应的提示词分类（'image' | 'video' | 'text'，用于弹窗默认筛选） */
+  category?: string;
+  /** 可选：追加回调（prompt）→ 把所选预设提示词追加到当前节点提示词。
+   *  传入后卡片上会显示「添加到提示词」按钮。 */
+  onAppend?: (prompt: string) => void;
+}
+
+export default function PromptLibraryButton({
+  category = 'text',
+  onAppend,
+}: PromptLibraryButtonProps) {
   const [open, setOpen] = useState(false);
   const { addNodes } = useReactFlow();
   const { posAtCenter } = useNodePosition();
 
   // 点「使用」→ 新建文本节点（内容 = 预设 prompt）
-  const handleUse = (prompt) => {
+  const handleUse = (prompt: string) => {
     // 落点：统一视图中央（走公共 base，与 Q/W/E 等一致）
     const position = posAtCenter();
     const newNode = {

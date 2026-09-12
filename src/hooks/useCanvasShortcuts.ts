@@ -28,8 +28,11 @@ export interface CanvasShortcutHandlers {
  * 画布键盘快捷键（撤销/重做/全选/复制/编组/整理/快捷建节点/折叠面板）。
  *
  * 守卫条件与源码一致：
-
-
+ *  - `e.repeat`：长按连发直接忽略（防 Q/W/E 爆发式建节点）
+ *  - `hasModalLayer()`：全屏模态层打开时整体让位（⌘Z / Q/W/E 不得落到画布）
+ *  - `isEditableTarget(e)`：焦点在 INPUT/TEXTAREA/contenteditable 内一律跳过
+ *  - `hasSelectionText()`：无修饰键（Q/W/E）与 Ctrl+A/D/L 在有文本选中时跳过
+ *    （Ctrl+G / Ctrl+Shift+G 编组除外——画布操作任意时刻可触发）
  *
  * @param handlers
  *  - onUndo / onRedo          Ctrl+Z / Ctrl+Shift+Z 或 Ctrl+Y

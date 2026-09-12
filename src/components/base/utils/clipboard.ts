@@ -220,6 +220,16 @@ export interface ClipboardEdge {
   [key: string]: unknown;
 }
 
+/** 粘贴解析用的宽松节点形状（含 measured 轨道测量，ClipboardNode 的可空超集） */
+interface ParseClipNode {
+  id?: string;
+  type?: string;
+  position?: { x: number; y: number };
+  measured?: { width?: number; height?: number };
+  data?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export function buildNodesFromClipboard(
   jsonStr: string,
   pos: { x: number; y: number },
@@ -231,9 +241,9 @@ export function buildNodesFromClipboard(
     return null;
   }
   if (!t || t.type !== 'mutiwindow-nodes') return null;
-  const e = t.nodes || [];
+  const e: ParseClipNode[] = t.nodes || [];
   if (e.length === 0) return null;
-  const n = t.edges || [];
+  const n: ClipboardEdge[] = t.edges || [];
   // 计算原节点组包围盒中心，使整组以粘贴点为中心落下（对齐官方 xi:9673-9686）
   const o = Math.min(...e.map((x) => x.position?.x ?? 0));
   const s = Math.min(...e.map((x) => x.position?.y ?? 0));

@@ -315,7 +315,7 @@ export function getCachedPromptHub(): {
 } {
   const all = readCache();
   const sources = getPromptHubSources();
-  const items = [];
+  const items: Prompt[] = [];
   sources.forEach((s) => {
     const c = all[s.id];
     if (c && c.items?.length && Date.now() - (c.fetchedAt || 0) < CACHE_TTL_MS)

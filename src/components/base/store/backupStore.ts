@@ -42,7 +42,7 @@ const AGENT_KEY_PREFIX = 'canvas-assistant';
  * @param {Array} projects 项目列表（{id}）
  * @returns {string[]} 所有项目的会话键
  */
-function conversationKeys(projects) {
+function conversationKeys(projects: unknown): string[] {
   const keys = [];
   const list = Array.isArray(projects) ? projects : [];
   const ids = new Set(list.map((p) => p && p.id).filter(Boolean));
@@ -55,7 +55,7 @@ function conversationKeys(projects) {
 }
 
 /** 读 contentStore 某键（容错） */
-function readLS(k) {
+function readLS(k: string) {
   try {
     const v = contentGet(k);
     return v !== undefined ? v : undefined;
@@ -65,7 +65,7 @@ function readLS(k) {
 }
 
 /** 写 contentStore 某键（容错） */
-function writeLS(k, v) {
+function writeLS(k: string, v: unknown) {
   try {
     contentSet(k, v);
   } catch {
@@ -77,7 +77,7 @@ function writeLS(k, v) {
  * 异步读 contentStore 某键（容错）——会话键已迁 KV，同步 contentGet 对 KV 键缓存未命中返回 undefined
  * （会漏备份非活动项目的会话），故读会话键必须走异步 contentGetAsync（见 AI助手会话存储迁移-KV收口事实记录.md）。
  */
-async function readLSAsync(k) {
+async function readLSAsync(k: string) {
   try {
     return await contentGetAsync(k);
   } catch {
@@ -167,22 +167,35 @@ export async function exportAll() {
  * @param {object} backup 备份对象（exportAll 的返回）
  * @returns {{ ok:boolean, ls:number, canvas:number, error?:string }}
  */
-export async function importAll(backup) {
-  if (!backup || typeof backup !== 'object')
+export async function importAll(backup: unknown): Promise<{
+  ok: boolean;
+  ls: number;
+  canvas: number;
+  error?: string;
+}> {
+  if (!backup || typeof backup !== 'object' || Array.isArray(backup))
     return { ok: false, ls: 0, canvas: 0, error: '备份数据无效' };
+  const b = backup as {
+    ls?: Record<string, unknown>;
+    canvas?: Record<
+      string,
+      { nodes?: Record<string, unknown>[]; edges?: Record<string, unknown>[] }
+    >;
+    accounts?: unknown;
+  };
   let lsCount = 0;
   let canvasCount = 0;
   // localStorage：先备份清单里已有的键再覆盖
-  if (backup.ls && typeof backup.ls === 'object') {
-    for (const k of Object.keys(backup.ls)) {
-      writeLS(k, backup.ls[k]);
+  if (b.ls && typeof b.ls === 'object') {
+    for (const k of Object.keys(b.ls)) {
+      writeLS(k, b.ls[k]);
       lsCount++;
     }
   }
   // 画布快照：逐个写回 KV
-  if (backup.canvas && typeof backup.canvas === 'object') {
-    for (const projectId of Object.keys(backup.canvas)) {
-      const c = backup.canvas[projectId];
+  if (b.canvas && typeof b.canvas === 'object') {
+    for (const projectId of Object.keys(b.canvas)) {
+      const c = b.canvas[projectId];
       try {
         // ★ force: true —— 备份导入本来就该整包覆盖（不受 CAS 基线约束；服务端仍会把版本自增）。
         const res = await saveCanvasState(projectId, c?.nodes || [], c?.edges || [], undefined, {
@@ -196,9 +209,9 @@ export async function importAll(backup) {
     }
   }
   // 账号环境（走 KV 后端）：备份包内的 accounts 写回 KV；非空数组才写（防写空覆盖丢历史）
-  if (Array.isArray(backup.accounts)) {
+  if (Array.isArray(b.accounts)) {
     try {
-      await contentSetAsync('yimao_accounts', backup.accounts);
+      await contentSetAsync('yimao_accounts', b.accounts);
       lsCount++;
     } catch {
       // 【P0 埋点】账号写回失败（排查「导入后账号丢」）
@@ -215,6 +228,6 @@ export async function importAll(backup) {
 }
 
 /** 把备份对象转成可下载的 Blob */
-export function backupToBlob(backup) {
+export function backupToBlob(backup: unknown): Blob {
   return new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
 }

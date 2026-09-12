@@ -192,6 +192,10 @@ canvas/canvasContextMenu（右键三态纯配置）· canvas/ArrangeConfirm（�
 > 更新(2026-09-11, refs 实证, 三轮底层)：① `TemplateNode` 已迁 `src/components/nodes/_template/` 并从 NODE_TYPES/nodePrefs/INPUT_PANEL/NODE_OUTPUTS 摘除（参考蓝本非活节点，TD-04-5）。② 删死事件 `yimao:remove-edge`（App window 监听 + EVENTS 登记，0 发布方；CustomEdge 删边实走 deleteElements→onDelete，TD-04-8）。③ 画布节点生成入口名义已更新为 ImageGenerate/TextGenerate/VideoGenerate（原 PromptNode/TextNode/DiscountVideoNode 为旧名）。④ node.data 写回唯一入口 = `useNodeData.patchNodeDataById`；节点 id 唯一入口 = `idGen.generateId`；端口真源 = `contracts.NODE_HANDLE_CONTRACT`。
 　　端口契约消费（refs 实证）：`NODE_HANDLE_CONTRACT` ← `App.tsx`（补存量坏边 handle + addNode connection 路径）+ `lazyNode.tsx`（chunk 未到达的占位骨架端口）。
 
+> 更新(2026-09-12, refs 实证, 九轮)：group 显示名唯一字段 = `data.label`（建组源头 `groupNodes.createGroupFromNodes` + 加载迁移 `nodeDefaults.applyNodeTypeDefaults` 双向收敛；旧 `data.name` 在加载时迁移进 label 并清除，不再保留）。整理 `useArrangeCanvas` 对 group 尺寸写回补 `width/height`（与 `style` 同写，对齐 `useNodeResize` 的「width+height+style 三写」不变量，TD-04-16/19）。
+
+> 更新(2026-09-12, refs 实证, 十一轮)：补「素材/文本/图片/节点组**上画布**」入口链路——统一收口在 `hooks/useAssetDropPaste.ts`（`App.tsx` 经 `onDragOver`/`onDrop`/`onPaste` + `useGlobalPaste`（window paste）挂载；`createNodeFromFile` 供右键「上传」复用），**全部经注入的 `App.addNode`（结构默认 + history）建节点，无旁路**（6+ 条路径皆 addNode 调用点，非独立实现）。
+
 ## 提示词链路
 
 ```

@@ -56,14 +56,29 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
     expect((r.data as Record<string, unknown>).label).toBe('编组');
   });
 
-  it('group 有 data.name → 保留', () => {
+  it('group 有 data.name → 源头收敛进 label 并清除遗留 name', () => {
     const r = applyNodeTypeDefaults({
       id: 'g',
       type: 'group',
       data: { name: '我的组' },
       position: { x: 0, y: 0 },
     });
-    expect((r.data as Record<string, unknown>).name).toBe('我的组');
+    const d = r.data as Record<string, unknown>;
+    expect(d.label).toBe('我的组');
+    // 遗留 name 应被迁移清除（「名字双字段」在数据模型层消亡，非末端兼容保留）
+    expect(d.name).toBeUndefined();
+  });
+
+  it('group 同时有 label/name → label 优先且 name 清除', () => {
+    const r = applyNodeTypeDefaults({
+      id: 'g',
+      type: 'group',
+      data: { label: '新名', name: '旧名' },
+      position: { x: 0, y: 0 },
+    });
+    const d = r.data as Record<string, unknown>;
+    expect(d.label).toBe('新名');
+    expect(d.name).toBeUndefined();
   });
 
   it('group 的 expandedWidth/expandedHeight 为死字段 → 忽略，仍用默认 300×200', () => {

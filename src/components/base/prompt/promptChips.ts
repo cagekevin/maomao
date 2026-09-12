@@ -198,7 +198,7 @@ export function renderPromptToNodes(text: string, metaMap?: Map<string, ChipMeta
       nodes.push(document.createTextNode(ZWSP));
     nodes.push(chip);
   };
-  const pushTextWithBreaks = (text): void => {
+  const pushTextWithBreaks = (text: string): void => {
     if (!text) return;
     text.split('\n').forEach((line: string, index: number) => {
       if (index > 0) nodes.push(document.createElement('br'));

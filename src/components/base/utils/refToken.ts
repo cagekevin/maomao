@@ -48,7 +48,7 @@ export function parseRefTokensFromText(
 ): RefTokenNode[] {
   const raw = String(text || '');
   if (!raw) return [];
-  const nodes = [];
+  const nodes: RefTokenNode[] = [];
   // 1) 新格式： [参考图1:name]{{agent-ref url="..." name="..." node="..." x=".." y=".."}}
   const re =
     /\[参考图\s*(\d+)\s*:\s*([^\]]*)\]\{\{agent-ref\s+url="([^"]*)"\s+name="([^"]*)"\s+node="([^"]*)"\s+x="([^"]*)"\s+y="([^"]*)"\}\}/g;

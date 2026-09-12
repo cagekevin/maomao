@@ -253,7 +253,7 @@ export async function resolveNodeAssetUrl(
   if (!file) return null;
   const uploaded = await uploadFileToLocal(file, subfolder, filename); // ① 直传，不先转 dataURL
   if (uploaded) return uploaded;
-  return fileToDataUrl(file).catch(() => null); // ③ 落盘失败 → 内联兜底（读不出才 null）
+  return fileToDataUrl(file).catch((): string | null => null); // ③ 落盘失败 → 内联兜底（读不出才 null）
 }
 
 /**

@@ -46,6 +46,9 @@ describe('编组算法 §2.2', () => {
     const group = r.nodes.find((n) => n.type === 'group');
     expect(group).toBeTruthy();
     expect(group.id).toBe(r.groupId);
+    // 显示名唯一字段 = data.label（建组源头不写 data.name，防「名字双字段」回潮）
+    expect(group.data.label).toBe('编组');
+    expect(group.data.name).toBeUndefined();
     // 父节点必须先于子节点声明（unshift 到开头）
     expect(r.nodes[0].type).toBe('group');
     const childA = r.nodes.find((n) => n.id === 'a');

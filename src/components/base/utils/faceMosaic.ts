@@ -58,7 +58,10 @@ export interface MosaicOptions {
 /** 解析静态资源路径：Chrome 扩展走 runtime.getURL，否则用相对路径（复刻官方 rl） */
 function resolveAsset(p: string): string {
   try {
-    if (globalThis.chrome?.runtime?.getURL) return globalThis.chrome.runtime.getURL(p);
+    const g = globalThis as unknown as {
+      chrome?: { runtime?: { getURL?: (path: string) => string } };
+    };
+    if (g.chrome?.runtime?.getURL) return g.chrome.runtime.getURL(p);
   } catch {}
   return p;
 }

@@ -72,7 +72,10 @@ export function createGroupFromNodes(
     initialHeight: gh,
     // 覆盖 React Flow 默认 .react-flow__node-group（自带 border/padding/背景 → 两层边框）
     className: 'yimao-group-node',
-    data: { name: '编组' },
+    // 显示名唯一字段 = data.label（2026-09-12 九轮源头收敛）。
+    // 此前写 data.name，与全画布通用的 data.label 并存 → 「名字双字段」第二真相（TD-04-14 只收敛了
+    // 读侧/改名侧，漏了这条真正的建组写侧源头）；加载侧 applyNodeTypeDefaults 会迁移旧 name 并清除。
+    data: { label: '编组' },
   };
 
   const next: Node[] = nodes.map((n) =>

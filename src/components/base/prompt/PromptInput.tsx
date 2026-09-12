@@ -50,6 +50,12 @@ interface PromptInputProps {
   richText?: boolean;
 }
 
+/** 素材芯片插入形态（ResourceStrip.onInsert / PromptInput.onReady 的共同契约）。 */
+type PromptChipItem = { id: string; label?: string; kind?: 'image' | 'text'; url?: string };
+
+/** 候选素材统一形态（refImages / refTexts 归一化后的结果）。 */
+type PromptAssetItem = { id: string; label: string; kind: 'image' | 'text'; url?: string };
+
 /** React 19：ref 作普通 prop 直接解构（替代已废弃的 forwardRef）。 */
 function PromptInput({
   ref,
@@ -66,15 +72,15 @@ function PromptInput({
   portalTarget = document.body, // null → 全屏弹窗内保持内联；默认 portal 到 body
 }: PromptInputProps & { ref?: React.Ref<HTMLDivElement> }) {
   // 素材候选统一形态（memo：作为 useCallback 依赖须保持引用稳定）
-  const all = React.useMemo(
+  const all = React.useMemo<PromptAssetItem[]>(
     () => [
-      ...refImages.map((i, idx) => ({
+      ...refImages.map((i, idx): PromptAssetItem => ({
         id: i.id ?? `img-${idx}`,
         label: i.label || `图片${idx + 1}`,
         url: i.url,
         kind: 'image',
       })),
-      ...refTexts.map((t, idx) => ({
+      ...refTexts.map((t, idx): PromptAssetItem => ({
         id: t.id ?? `text-${idx}`,
         label: t.label || `文本${idx + 1}`,
         url: t.url,
@@ -116,7 +122,7 @@ function PromptInput({
   const outsideRefs = React.useMemo(() => [wrapRef, popRef], []);
   useOutsideClick(outsideRefs, showMention, () => setShowMention(false));
 
-  const setEditorRef = (el) => {
+  const setEditorRef = (el: HTMLDivElement | null) => {
     editorRef.current = el;
     if (typeof ref === 'function') ref(el);
     else if (ref) ref.current = el;
@@ -127,7 +133,7 @@ function PromptInput({
   // 在弹窗里每敲一个字 → value 变 → 面板那个实例也走「外部 value 变化 → 重建 DOM」分支。
   // 它若照旧返回 0 并 restoreCursor(el, 0)，就会把全局 selection 抢到自己内部，
   // 光标瞬间跳出全屏编辑器 → 后面的字全打进面板那个隐藏输入框（表现为「一写字光标就错乱」）。
-  const saveCursor = useCallback((root) => {
+  const saveCursor = useCallback((root: HTMLElement) => {
     const sel = window.getSelection();
     if (!sel || !sel.rangeCount) return null;
     const range = sel.getRangeAt(0);
@@ -141,13 +147,13 @@ function PromptInput({
         if (node.parentElement?.closest('[data-ref-id]')) continue;
         offset += (node.textContent || '').length;
       } else if (node.nodeType === Node.ELEMENT_NODE) {
-        if (node.hasAttribute('data-ref-id')) offset += 1;
+        if ((node as Element).hasAttribute('data-ref-id')) offset += 1;
       }
     }
     return offset;
   }, []);
 
-  const restoreCursor = useCallback((root, offset) => {
+  const restoreCursor = useCallback((root: HTMLElement, offset: number) => {
     const sel = window.getSelection();
     if (!sel) return;
     const range = document.createRange();
@@ -160,7 +166,7 @@ function PromptInput({
         if (node.parentElement?.closest('[data-ref-id]')) continue;
         nodeLen = (node.textContent || '').length;
       } else if (node.nodeType === Node.ELEMENT_NODE) {
-        if (node.hasAttribute('data-ref-id')) nodeLen = 1;
+        if ((node as Element).hasAttribute('data-ref-id')) nodeLen = 1;
       }
       if (count + nodeLen >= offset) {
         range.setStart(node, offset - count);
@@ -411,7 +417,7 @@ function PromptInput({
   }, [showMention, all.length, computeMentionPos]);
 
   const insertChipAtCursor = useCallback(
-    (item) => {
+    (item: PromptChipItem) => {
       const el = editorRef.current;
       if (!el) return;
       const sel = window.getSelection();
@@ -440,7 +446,7 @@ function PromptInput({
   );
 
   const handleSelectMention = useCallback(
-    (item) => {
+    (item: PromptChipItem) => {
       const sel = window.getSelection();
       const saved = savedRangeRef.current;
       savedRangeRef.current = null;
@@ -473,13 +479,14 @@ function PromptInput({
   );
 
   const handleExternalInsert = useCallback(
-    (payload) => {
+    (payload: unknown) => {
+      // 载荷来自 ResourceStrip.onInsert / 父级 onReady：字符串 → 纯文本芯片；对象带 id → 芯片。
       const item =
         typeof payload === 'string' ? { id: payload, label: payload, kind: 'text' } : payload;
-      if (item && typeof item === 'object' && item.id) {
-        insertChipAtCursor(item);
+      if (item && typeof item === 'object' && 'id' in item && item.id) {
+        insertChipAtCursor(item as PromptChipItem);
       } else {
-        onInsert?.(payload);
+        onInsert?.(payload as { kind: 'image' | 'text'; label?: string; url?: string });
       }
       setShowMention(false);
     },
@@ -510,7 +517,7 @@ function PromptInput({
   }, []);
 
   const handleKeyDown = useCallback(
-    (e) => {
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (e.nativeEvent.isComposing) return;
       if (e.key.startsWith('Arrow') && editorRef.current) normalizeChipSlots(editorRef.current);
       // 候选弹层打开时：上下键切换高亮（拦截以免在内容区里移动光标）
@@ -574,7 +581,7 @@ function PromptInput({
   );
 
   const handlePaste = useCallback(
-    (e) => {
+    (e: React.ClipboardEvent<HTMLDivElement>) => {
       e.preventDefault();
       const plain = e.clipboardData.getData('text/plain');
       const el = editorRef.current;

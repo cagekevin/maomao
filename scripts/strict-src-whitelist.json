@@ -1,0 +1,11 @@
+{
+  "_comment": "已收口目录白名单（TD-09-1 选项 A）。check-strict-src.mjs 与 strict-report.mjs 共用本文件作为单一真源。每收口一个目录，把其路径加进 whitelist（末尾带 /）。",
+  "whitelist": [
+    "src/components/base/core/",
+    "src/components/base/storage/",
+    "src/components/base/api/",
+    "src/components/base/utils/",
+    "src/components/base/store/",
+    "src/components/base/prompt/"
+  ]
+}

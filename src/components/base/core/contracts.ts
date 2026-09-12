@@ -59,7 +59,18 @@ export const CREDIT_GATE_EVENT = 'agent:credit-gate';
  *   禁止仅凭本表 to:[] / 注释「待核对」下结论。
  *   来源：`grep -rn "publish('" src/components` 提取，2026-08-17 核对。
  */
-export const EVENTS = {
+/** EVENTS 单条登记的形状（from / to = 「文件:行」字符串数组）。
+ *  与 `STORAGE_KEYS: Record<string, StorageKeyMeta>` 同款——登记表须**显式定型**（提供上下文类型），
+ *  否则 `from: []` 在 noImplicitAny 下推断为 `any[]`（TD-09-1 隐式 any 面）。
+ *  ⚠️ 须用**前缀类型标注**而非 `satisfies`：`x satisfies T` 不用 T 做上下文推断，空数组仍会是 any[]。 */
+export interface EventRegistryEntry {
+  from: string[];
+  to: string[];
+  payload: string;
+  note: string;
+}
+
+export const EVENTS: Record<string, EventRegistryEntry> = {
   'agent:task-completed': {
     from: ['taskCompletionBus.ts:30'],
     to: ['useNodeGeneration.ts:328'],
@@ -538,7 +549,7 @@ export const SHOT_HANDLE_PREFIX = 'shot-';
  * @param {string|number} shotId
  * @returns {string} `shot-${shotId}`
  */
-export function shotHandleId(shotId) {
+export function shotHandleId(shotId: string | number) {
   return `${SHOT_HANDLE_PREFIX}${shotId}`;
 }
 
@@ -549,7 +560,7 @@ export function shotHandleId(shotId) {
  * @param {string} [handle]
  * @returns {string|null}
  */
-export function parseShotHandle(handle) {
+export function parseShotHandle(handle?: string | null) {
   if (typeof handle !== 'string' || !handle.startsWith(SHOT_HANDLE_PREFIX)) return null;
   const id = handle.slice(SHOT_HANDLE_PREFIX.length);
   return id || null;

@@ -183,7 +183,7 @@ export async function readVideoMetadata(blob: Blob): Promise<VideoMetadata> {
       input.getDurationFromMetadata(),
       track.getDisplayWidth(),
       track.getDisplayHeight(),
-      track.computePacketStats(120).catch(() => null),
+      track.computePacketStats(120).catch((): null => null),
     ]);
     const dur = duration ?? (await input.computeDuration());
     return {
@@ -278,7 +278,7 @@ export async function processVideo(
     const width = t.mode === 'sizeFrameRate' ? t.width : await videoTrack.getDisplayWidth();
     const height = t.mode === 'sizeFrameRate' ? t.height : await videoTrack.getDisplayHeight();
     const fps = Cc(
-      (await videoTrack.computePacketStats(120).catch(() => null))?.averagePacketRate ?? 0,
+      (await videoTrack.computePacketStats(120).catch((): null => null))?.averagePacketRate ?? 0,
     );
     const finalFps = t.mode === 'sizeFrameRate' ? t.fps : fps;
     const mimeType =
@@ -344,7 +344,7 @@ export async function concatVideos(
     }
     if (t.controller?.isCanceled) throw new ConversionCanceled();
 
-    const stats = await items[0].video.computePacketStats(120).catch(() => null);
+    const stats = await items[0].video.computePacketStats(120).catch((): null => null);
     let maxW = 0;
     let maxH = 0;
     for (const it of items) {
@@ -385,7 +385,7 @@ export async function concatVideos(
     await outputTarget.start();
 
     let progressMax = 0;
-    const report = (e) => {
+    const report = (e: number) => {
       const p = Math.max(progressMax, Math.min(1, e));
       progressMax = p;
       t.onProgress?.(p);
@@ -460,7 +460,7 @@ export async function concatVideos(
     };
   } catch (e) {
     if (outputTarget && outputTarget.state !== 'canceled' && outputTarget.state !== 'finalized') {
-      await outputTarget.cancel().catch(() => undefined);
+      await outputTarget.cancel().catch((): undefined => undefined);
     }
     throw t.controller?.isCanceled ? new ConversionCanceled() : e;
   } finally {

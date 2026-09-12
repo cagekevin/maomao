@@ -4,7 +4,7 @@
  * 【职责】各节点类型「结构默认」单源：addNode 新建、快照加载还原都复用，避免
  * 「右键/菜单新建」与「历史快照还原」两套路径字段不一致（如 group 缺 style/className）。
  *
- * 仅放与视觉/结构相关、缺失会出问题的字段：width/height/style/initialWidth/initialHeight/className/data.name。
+ * 仅放与视觉/结构相关、缺失会出问题的字段：width/height/style/initialWidth/initialHeight/className/data.label。
  * 内容对齐原 App.jsx 的 NODE_TYPE_DEFAULTS。
  */
 
@@ -70,11 +70,15 @@ export function applyNodeTypeDefaults(node: Record<string, unknown>): Record<str
   next.style = next.style
     ? { ...d.style, ...(next.style as Record<string, unknown>) }
     : d.style || next.style;
-  // group 兼容：旧快照用 data.name，统一收敛到全画布通用的 data.label（label ?? name 兜底）
+  // group 显示名源头收敛（2026-09-12 九轮）：唯一字段 = data.label。
+  // 旧快照/旧建组路径可能只有 data.name（TD-04-14 前）——这里是迁移点：把 name 收敛进 label
+  // 并**删除遗留 name**，让「名字双字段」在数据模型层消亡（此前保留 name 属末端兼容，非源头收敛）。
   if (type === 'group') {
+    const legacyName = data.name as string | undefined;
+    const { name: _dropLegacyName, ...restData } = data;
     next.data = {
-      ...data,
-      label: (data.label as string | undefined) ?? (data.name as string | undefined) ?? '编组',
+      ...restData,
+      label: (data.label as string | undefined) ?? legacyName ?? '编组',
     };
   }
   return next;

@@ -43,15 +43,25 @@ export function useLod() {
   return useContext(LodContext);
 }
 
+/** LodProvider props（此前无类型标注 → 隐式 any，与画布区「类型诚实」基调不符） */
+export interface LodProviderProps {
+  /** 性能模式开关（默认 true）；false 时清空 lod class 并令 lodLevel=0（关性能模式天然关闭降级） */
+  enablePerformanceMode?: boolean;
+  /** 当前节点数（透传进 context；⚠️ 当前无消费端读取，见下方 context 字段说明） */
+  nodeCount?: number;
+  children: React.ReactNode;
+}
+
 /**
  * LOD Provider（深模块）：内部监听 ReactFlow 视口缩放，自动算 lodLevel 并注入 context。
  *
- * @param props
- *  - enablePerformanceMode 默认 true；false 时清空 lod class 并令 lodLevel=0（关性能模式天然关闭降级）
- *  - nodeCount 当前节点数（可选，供消费端判断，默认 0）
- *  - children
+ * @param props 见 LodProviderProps
  */
-export default function LodProvider({ enablePerformanceMode = true, nodeCount = 0, children }) {
+export default function LodProvider({
+  enablePerformanceMode = true,
+  nodeCount = 0,
+  children,
+}: LodProviderProps) {
   // 监听 viewport.transform[2]（缩放值）的变化
   const zoom = useStore((s) => s.transform?.[2] ?? 1);
   const [lodLevel, setLodLevel] = useState(0);

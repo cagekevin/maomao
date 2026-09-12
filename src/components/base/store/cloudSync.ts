@@ -45,7 +45,7 @@ const CloudSyncEngine = {
   },
   isSyncing: false,
 
-  async callGateway(action, data = null) {
+  async callGateway(action: string, data: unknown = null) {
     if (!this.config.gasUrl || this.config.gasUrl.includes('填入'))
       throw new Error('未配置有效的 GAS URL');
     if (this.isSyncing) throw new Error('系统正在通信中，请勿频繁操作');
@@ -77,7 +77,12 @@ const CloudSyncEngine = {
     }
   },
 
-  async push(dataObj, onProgress, onSuccess, onError) {
+  async push(
+    dataObj: unknown,
+    onProgress?: (msg: string) => void,
+    onSuccess?: (msg: string) => void,
+    onError?: (msg: string) => void,
+  ) {
     if (onProgress) onProgress('正在同步至云端...');
     try {
       const res = await this.callGateway('push_data', dataObj);
@@ -89,7 +94,11 @@ const CloudSyncEngine = {
     }
   },
 
-  async pull(onProgress, onSuccess, onError) {
+  async pull(
+    onProgress?: (msg: string) => void,
+    onSuccess?: (msg: string) => void,
+    onError?: (msg: string) => void,
+  ) {
     if (onProgress) onProgress('正在从云端读取数据...');
     try {
       const res = await this.callGateway('pull_data');
@@ -466,7 +475,7 @@ export function describeDownloadConflict(diff: SyncDiff): ConfirmCopy | null {
 /* ===================== 防覆盖保护结束 ===================== */
 
 /** 读取本地某个 key（容错，contentGet 已内置 JSON 解析） */
-function readLS(k) {
+function readLS(k: string) {
   try {
     const v = contentGet(k);
     if (v === null || v === undefined) return undefined;
@@ -476,7 +485,7 @@ function readLS(k) {
   }
 }
 /** 写本地某个 key（contentSet 已内置 JSON 序列化；失败上浮由 restoreLocal 记录，不再静默吞） */
-function writeLS(k, v) {
+function writeLS(k: string, v: unknown) {
   contentSet(k, v);
 }
 
@@ -556,7 +565,7 @@ function buildCloudPayload(ls: Record<string, unknown>, rev: number): CloudPaylo
  * @returns { written, failed } written=成功写回条目数；failed=写回失败的域（人类可读名）。
  *   失败域必须如实上抛，绝不以"ok:true"掩盖（[F-云A] 错误真实透传）。
  */
-async function restoreLocal(cloud): Promise<{ written: number; failed: string[] }> {
+async function restoreLocal(cloud: CloudSnapshot): Promise<{ written: number; failed: string[] }> {
   const ls = cloud?.data;
   const failed: string[] = [];
   if (!ls || typeof ls !== 'object') return { written: 0, failed };
@@ -618,7 +627,7 @@ async function restoreLocal(cloud): Promise<{ written: number; failed: string[] 
  *        skipped:true            = 内容一致，零副作用跳过（未 push、未弹窗、rev 未变）。
  */
 export async function uploadConfig(
-  onProgress,
+  onProgress?: (msg: string) => void,
   opts: { onConfirm?: UploadConfirmHandler; onAutoConflict?: AutoConflictHandler } = {},
 ): Promise<UploadResult> {
   const { onConfirm, onAutoConflict } = opts;
@@ -741,7 +750,7 @@ export async function uploadConfig(
  * @returns {Promise<{ ok:boolean, count:number, hasCloud:boolean, cancelled?:boolean, error?:string }>}
  */
 export async function downloadConfig(
-  onProgress,
+  onProgress?: (msg: string) => void,
   opts: { onConfirm?: DownloadConfirmHandler } = {},
 ): Promise<DownloadResult> {
   const { onConfirm } = opts;
@@ -904,7 +913,7 @@ const LS_KEYS = getLocalKeys().filter((k) => !SYNC_EXCLUDE.has(k));
  * 冲突清单要让人看懂「到底动了什么」，直接甩存储键名（yimao_preset_prompts）等于没说。
  * 未登记的键兜底显示键名本身——宁可显示原始 key，也绝不静默省略条目（漏报比难看危险）。
  */
-const SYNC_LABELS = {
+const SYNC_LABELS: Record<string, string> = {
   app_settings: '应用设置',
   scriptbox_playbooks: '剧本盒子 Playbook',
   agent_chat_model: 'AI 聊天模型配置',
@@ -923,7 +932,7 @@ const SYNC_LABELS = {
 };
 
 /** 取同步键的可读名（未登记 → 回退键名） */
-function syncLabel(key) {
+function syncLabel(key: string) {
   return SYNC_LABELS[key] || key;
 }
 
@@ -934,12 +943,12 @@ function syncLabel(key) {
  *  - projects 域已整体移出云同步（见 SYNC_EXCLUDE，[F-云B] 2026-09-11），不再经本开关。
  * 未在本表登记的领域默认放行（维持既有行为）。
  */
-const SYNC_DOMAIN_SWITCHES = {
+const SYNC_DOMAIN_SWITCHES: Record<string, boolean> = {
   account: true,
 };
 
 /** 某存储键所属领域是否开启云同步（按 STORAGE_KEYS.entry.domain 判定；未登记/未切换领域默认开启） */
-function domainSwitchEnabled(k) {
+function domainSwitchEnabled(k: string) {
   const domain = STORAGE_KEYS[k]?.domain;
   if (domain && domain in SYNC_DOMAIN_SWITCHES) return !!SYNC_DOMAIN_SWITCHES[domain];
   return true;

@@ -329,7 +329,7 @@ async function collectAllCookies(url: string): Promise<AccountCookie[]> {
   if (!isExtensionEnv() || !url) return [];
   const seen = new Set<string>();
   const out: AccountCookie[] = [];
-  const push = (c) => {
+  const push = (c: AccountCookie) => {
     if (!c) return;
     const key = `${c.name}|${c.domain}|${c.path}`;
     if (seen.has(key)) return;
@@ -440,7 +440,8 @@ async function writeTabLocalStorage(
         try {
           localStorage.clear();
           if (store && typeof store === 'object') {
-            for (const k of Object.keys(store)) localStorage.setItem(k, store[k]);
+            const rec = store as Record<string, string>;
+            for (const k of Object.keys(rec)) localStorage.setItem(k, rec[k]);
           }
         } catch {
           /* 忽略 */

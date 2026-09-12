@@ -361,9 +361,13 @@ export function useAssetDropPaste({
         }
       };
       if (isCE) {
-        // 【边界收窄】DataTransferItemList 无 some/every，但既有调用（含测试 mock）均按数组形态传入，
-        // 此处仅做类型收窄以取到数组方法，运行时行为不变。
-        const ceItems = (e.clipboardData?.items || []) as unknown as DataTransferItem[];
+        // ★ 必须 `Array.from` 归一：真实浏览器的 `clipboardData.items` 是 **DataTransferItemList**
+        //   （数组式接口，有 length/索引/可迭代，但**没有** Array.prototype 的 some/every）。
+        //   此前用 `as unknown as DataTransferItem[]` 假收窄后调用 `ceItems.some(...)` —— 在真实浏览器
+        //   （如焦点在 PromptInput 的 contenteditable 内粘贴图片/节点组）会抛 `TypeError: ceItems.some
+        //   is not a function`。测试的 mock items 传的是数组，故长期绿灯掩盖。Array.from 后拿到真正的
+        //   数组方法（与同文件 useGlobalPaste 的 `Array.from(...)` 写法一致，消除第二实现）。
+        const ceItems = Array.from(e.clipboardData?.items || []);
         const hasImageFile = ceItems.some(
           (it) => it.kind === 'file' && it.type && it.type.startsWith('image/'),
         );

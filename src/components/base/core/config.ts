@@ -33,25 +33,33 @@ export const API_BASE =
  *   - DEBUG_ASSET 保留为别名（向后兼容既有引用），等价于 DEBUG 的 asset 模块位。 */
 export const DEBUG_MODULES = ['asset', 'agent', 'image', 'text', 'project', 'http', 'depth']; // 支持的模块位（新增模块在此登记）；'text'=文本节点复制/落盘链路；'project'=项目切换/快照/备份/同步；'http'=统一请求层(httpClient)传输日志；'depth'=深度转视频（模型加载/生成链路）
 
-const _debugOn = (key, upper) => {
+/** 运行时调试开关所在 window 形状：`__DEBUG_<MODULE>` / `__DEBUG_ALL` 由前端运行时注入，
+ *  非标准 Window 成员 → 显式声明模板字面量索引面（避免 noImplicitAny 下的隐式 any 索引，TD-09-1）。 */
+type DebugWindow = Window & { [k: `__DEBUG_${string}`]: boolean | undefined };
+
+const _debugOn = (upper: string) => {
   if (import.meta.env?.[`VITE_DEBUG_${upper}`] === '1') return true;
-  if (typeof window !== 'undefined' && window[`__DEBUG_${upper}`] === true) return true;
+  if (
+    typeof window !== 'undefined' &&
+    (window as unknown as DebugWindow)[`__DEBUG_${upper}`] === true
+  )
+    return true;
   return false;
 };
 // 总开关不在模块顶层缓存（否则运行时设 window.__DEBUG_ALL 不生效）。
 // 改由 isDebugModuleOn 每次实时读，使「前端调试总开关 / AI 设 __DEBUG_ALL」立即生效。
-// 兼容 env VITE_DEBUG_ALL='1'（_debugOn('all','ALL') 处理）。
+// 兼容 env VITE_DEBUG_ALL='1'（_debugOn('ALL') 处理）。
 
 /** 判断某模块位是否开启（未传入 module 时默认 false，需显式指定）。
  *  - 总开关实时读 window.__DEBUG_ALL / env VITE_DEBUG_ALL：为 true 时全开；
  *  - 否则按模块位实时读 window.__DEBUG_<MODULE> / env VITE_DEBUG_<MODULE>。
  *  前端「其他设置→调试模式」总开关会同步写 window.__DEBUG_ALL，实现自己一键开/关，不依赖 AI。 */
-export function isDebugModuleOn(module) {
+export function isDebugModuleOn(module?: string) {
   // 实时判断总开关（每次调用都查 window，支持运行时切换）
-  if (_debugOn('all', 'ALL')) return true;
+  if (_debugOn('ALL')) return true;
   if (!module) return false;
   const upper = String(module).toUpperCase();
-  if (DEBUG_MODULES.includes(module)) return _debugOn(module, upper);
+  if (DEBUG_MODULES.includes(module)) return _debugOn(upper);
   return false;
 }
 
