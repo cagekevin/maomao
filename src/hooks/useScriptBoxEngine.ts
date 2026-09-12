@@ -9,6 +9,7 @@ import { injectNodePrefs } from '../components/base/canvas/nodePrefs.ts';
 import { commitNewNodes } from '../components/base/canvas/deriveNodes.ts';
 import { useProvidersList, load as loadProviders } from '../components/base/store/providerStore.ts';
 import { logger } from '../components/base/core/logger.ts';
+import { patchNodeDataById } from './useNodeData.ts';
 
 // 写回通道契约收口在 scriptBoxSchema（引擎与 hook 共用同一份，避免两处漂移）
 import type { ScriptBoxUpdateData } from '../components/scriptbox/scriptBoxSchema.ts';
@@ -137,9 +138,7 @@ export function useScriptBoxEngine(
 
   // 把引擎全部回调写回 node.data.onXxx（官方注入点语义，含 P1-2 尾帧变体），保证复制/分享后回调仍在
   useEffect(() => {
-    setNodes((ns) =>
-      ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...callbacks } } : n)),
-    );
+    patchNodeDataById(setNodes, nodeId, callbacks);
     // 仅挂载时注入一次；nodeId 变化时重新注入
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId]);

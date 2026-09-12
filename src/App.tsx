@@ -24,6 +24,8 @@ import { Zap, RefreshCw } from 'lucide-react';
 import CanvasToolbar from './components/base/panels/CanvasToolbar.tsx';
 import ArrangeConfirm from './components/base/canvas/ArrangeConfirm.tsx';
 import { useArrangeCanvas } from './hooks/useArrangeCanvas.ts';
+import { computePatchNodeById, computePatchNodesById } from './hooks/useNodeData.ts';
+import { computePatchEdgeById, computePatchEdgesById, patchEdgeData } from './hooks/useEdgeData.ts';
 import { useAssetDropPaste, useGlobalPaste } from './hooks/useAssetDropPaste.ts';
 import { copyImageToClipboard } from './components/base/utils/clipboard.ts';
 import GhostTargetNode from './components/nodes/GhostTargetNode.tsx';
@@ -699,9 +701,7 @@ function Canvas() {
       if (!cur) return;
       if (!next || String(cur.data?.label ?? cur.data?.name ?? '') === next) return;
       // P0-B 红线：setNodes 不可变更新（见 NodeShell.tsx 头注释 / docs/106），禁止原地 mutation
-      const nextNodes = nodesRef.current.map((n) =>
-        n.id === id ? { ...n, data: { ...n.data, label: next } } : n,
-      );
+      const nextNodes = computePatchNodeById(nodesRef.current, id, { data: { label: next } });
       setNodes(nextNodes);
       history.record({ nodes: nextNodes, edges: edgesRef.current });
     },
@@ -710,8 +710,8 @@ function Canvas() {
 
   // 全选
   const selectAll = useCallback(() => {
-    setNodes((ns) => ns.map((n) => ({ ...n, selected: true })));
-    setEdges((eds) => eds.map((e) => ({ ...e, selected: true })));
+    setNodes((ns) => computePatchNodesById(ns, () => true, { selected: true }));
+    setEdges((eds) => computePatchEdgesById(eds, () => true, { selected: true }));
   }, [setNodes, setEdges]);
 
   // 克隆当前选中的节点（复刻 Ctrl+D）。R3：用统一子图克隆，保留组关系 + 连线（不再丢边/空壳）
@@ -725,12 +725,14 @@ function Canvas() {
     );
     const idSet = new Set(selectedIds);
     // 复制后只取消原节点/原边的选中，保留复制出的新节点/新边为选中态
-    const next = nextNodes.map((n) => (idSet.has(String(n.id)) ? { ...n, selected: false } : n));
+    const next = computePatchNodesById(nextNodes, (n) => idSet.has(String(n.id)), {
+      selected: false,
+    });
     setNodes(next);
     setEdges(
-      nextEdges.map((e) =>
-        idSet.has(String(e.source)) && idSet.has(String(e.target)) ? { ...e, selected: false } : e,
-      ),
+      computePatchEdgesById(nextEdges, (e) => idSet.has(e.source) && idSet.has(e.target), {
+        selected: false,
+      }),
     );
     history.record({ nodes: next, edges: nextEdges });
   }, [setNodes, setEdges, history]);
@@ -828,8 +830,12 @@ function Canvas() {
       const beforeNodes = nodesRef.current;
       const beforeEdges = edgesRef.current;
       // 旧节点取消选中，新节点/边并入（对齐官方 xi:9751-9766）
-      const nextNodes = beforeNodes.map((x) => ({ ...x, selected: false })).concat(p);
-      const nextEdges = beforeEdges.map((x) => ({ ...x, selected: false })).concat(m);
+      const nextNodes = computePatchNodesById(beforeNodes, () => true, { selected: false }).concat(
+        p,
+      );
+      const nextEdges = computePatchEdgesById(beforeEdges, () => true, { selected: false }).concat(
+        m,
+      );
       setNodes(nextNodes);
       setEdges(nextEdges);
       history.record({ nodes: nextNodes, edges: nextEdges });
@@ -1086,9 +1092,9 @@ function Canvas() {
     const anyExpanded = matching.some((n) => (n.data?.expanded ?? true) === true);
     const target = !anyExpanded;
     setNodes((ns) =>
-      ns.map((n) =>
-        targetTypes.has(n.type as string) ? { ...n, data: { ...n.data, expanded: target } } : n,
-      ),
+      computePatchNodesById(ns, (n) => targetTypes.has(n.type as string), {
+        data: { expanded: target },
+      }),
     );
   }, [setNodes]);
 
@@ -1286,16 +1292,14 @@ function Canvas() {
         setSelectedImageNodes(selImg);
 
         setEdges((eds) => {
-          let changed = false;
           const next = eds.map((ed) => {
             const rel = selectedIds.has(ed.source) || selectedIds.has(ed.target);
-            if (ed.data?.relatedToSelected !== rel) {
-              changed = true;
-              return { ...ed, data: { ...ed.data, relatedToSelected: rel } };
-            }
-            return ed;
+            return ed.data?.relatedToSelected !== rel
+              ? patchEdgeData(ed, { data: { relatedToSelected: rel } })
+              : ed;
           });
-          return changed ? next : eds;
+          // 等价原 changed 短路：无任何 edge 变化时返回原引用，避免无意义重渲染
+          return next.some((e, i) => e !== eds[i]) ? next : eds;
         });
         return currentNodes;
       });

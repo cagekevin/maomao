@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { useReactFlow } from '@xyflow/react';
-import { useNodeData } from '../../hooks/useNodeData.ts';
+import { useNodeData, patchNodeDataById } from '../../hooks/useNodeData.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import {
   Globe,
@@ -372,9 +372,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
         const shots = await viewerRef.current.capture(angles, ratioStr);
         if (shots && shots.length > 0) {
           if (angles.length === 1 && shots[0]) {
-            setNodes((ns) =>
-              ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, imageUrl: shots[0] } } : n)),
-            );
+            patchNodeDataById(setNodes, id, { imageUrl: shots[0] });
           }
           // 输出到图片盒子（对齐官方 onCaptureToBox / H_.jsx xr）：
           //  1) 有连接到本节点的 imageBoxNode 下游 → 把截图追加到该图片盒子的 images
@@ -393,19 +391,12 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
           if (boxes.length > 0) {
             // 有图片盒子下游：追加到第一个盒子
             const boxId = boxes[0];
-            setNodes((ns) =>
-              ns.map((n) => {
-                if (n.id !== boxId) return n;
-                const existing = (n.data?.images as Array<{ url?: string }> | undefined) || [];
-                const existingUrls = new Set(existing.map((x) => x.url));
-                const fresh = newImages.filter((x) => !existingUrls.has(x.url));
-                const merged = [...existing, ...fresh];
-                return {
-                  ...n,
-                  data: { ...n.data, images: merged, activeIndex: merged.length - 1 },
-                };
-              }),
-            );
+            const boxNode = getNode(boxId);
+            const existing = (boxNode?.data?.images as Array<{ url?: string }> | undefined) || [];
+            const existingUrls = new Set(existing.map((x) => x.url));
+            const fresh = newImages.filter((x) => !existingUrls.has(x.url));
+            const merged = [...existing, ...fresh];
+            patchNodeDataById(setNodes, boxId, { images: merged, activeIndex: merged.length - 1 });
           } else {
             // 无图片盒子下游：新建图片盒子 + 自动连线
             const me = getNode(id);

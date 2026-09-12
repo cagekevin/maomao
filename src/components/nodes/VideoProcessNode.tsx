@@ -18,6 +18,7 @@ import { useReactFlow, type Node } from '@xyflow/react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
+import { patchNodeDataById } from '../../hooks/useNodeData.ts';
 import { classifyUrlKind } from '../base/utils/mediaType.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import { useNodeResize } from '../base/core/uiHooks.ts';
@@ -510,22 +511,12 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   /* ---------- 写回 data（复刻官方 128-162 行） ---------- */
   const updateTracks = useCallback(
     (t) => {
-      setNodes((ns) =>
-        ns.map((n) =>
-          n.id === id
-            ? {
-                ...n,
-                data: {
-                  ...n.data,
-                  timelineTracks: t,
-                  sourceOrder: t
-                    .filter((e) => e.kind === 'video')
-                    .flatMap((e) => e.clips.map((c) => c.sourceId)),
-                },
-              }
-            : n,
-        ),
-      );
+      patchNodeDataById(setNodes, id, {
+        timelineTracks: t,
+        sourceOrder: t
+          .filter((e) => e.kind === 'video')
+          .flatMap((e) => e.clips.map((c) => c.sourceId)),
+      });
       setTimelineTracks(t);
     },
     [id, setNodes],
@@ -541,30 +532,20 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   );
 
   useEffect(() => {
-    setNodes((ns) =>
-      ns.map((n) =>
-        n.id === id
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                mode,
-                audioFormat,
-                resizeWidth,
-                resizeHeight,
-                targetFps,
-                gifFps,
-                gifMaxSize,
-                gifColors,
-                gifSpeed,
-                gifCrop,
-                gifStart,
-                gifEnd,
-              },
-            }
-          : n,
-      ),
-    );
+    patchNodeDataById(setNodes, id, {
+      mode,
+      audioFormat,
+      resizeWidth,
+      resizeHeight,
+      targetFps,
+      gifFps,
+      gifMaxSize,
+      gifColors,
+      gifSpeed,
+      gifCrop,
+      gifStart,
+      gifEnd,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     mode,
@@ -599,13 +580,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           const meta = await readVideoMetadata(blob);
           setSourceMetadata((prev) => {
             const next = { ...prev, [s.sourceId]: meta };
-            setNodes((ns) =>
-              ns.map((n) =>
-                n.id === id
-                  ? { ...n, data: { ...n.data, sourceMetadata: next, errorMessage: undefined } }
-                  : n,
-              ),
-            );
+            patchNodeDataById(setNodes, id, { sourceMetadata: next, errorMessage: undefined });
             return next;
           });
         } catch (e) {
@@ -938,21 +913,11 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     const url = previewUrls.create(file);
     setLocalFile(file);
     setLocalUrl(url);
-    setNodes((ns) =>
-      ns.map((n) =>
-        n.id === id
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                sourceVideoUrl: url,
-                sourceVideoName: file.name,
-                errorMessage: undefined,
-              },
-            }
-          : n,
-      ),
-    );
+    patchNodeDataById(setNodes, id, {
+      sourceVideoUrl: url,
+      sourceVideoName: file.name,
+      errorMessage: undefined,
+    });
     e.target.value = '';
   };
 
@@ -961,9 +926,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     (msg) => {
       // 【瞬态收口·阶段二】loading 归 nodeRuntimeStore，node.data 只留持久字段(errorMessage)。
       updateNodeRuntime(id, { loading: false });
-      setNodes((ns) =>
-        ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, errorMessage: msg } } : n)),
-      );
+      patchNodeDataById(setNodes, id, { errorMessage: msg });
       showToast(msg);
     },
     [id, setNodes],
@@ -1085,19 +1048,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     abortRef.current = abort;
     // 【瞬态收口·阶段二】loading/progress 归 nodeRuntimeStore；node.data 只留持久字段。
     updateNodeRuntime(id, { loading: true, progress: 0 });
-    setNodes((ns) =>
-      ns.map((n) =>
-        n.id === id
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                errorMessage: undefined,
-              },
-            }
-          : n,
-      ),
-    );
+    patchNodeDataById(setNodes, id, { errorMessage: undefined });
     try {
       let result;
       if (mode === 'toGif') {
@@ -1126,26 +1077,16 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         const url = URL.createObjectURL(gif.blob);
         const outputName = `${stripExt(currentName || 'video')}_gif.gif`;
         updateNodeRuntime(id, { loading: false, progress: 100 });
-        setNodes((ns) =>
-          ns.map((n) =>
-            n.id === id
-              ? {
-                  ...n,
-                  data: {
-                    ...n.data,
-                    errorMessage: undefined,
-                    gifResult: {
-                      width: gif.width,
-                      height: gif.height,
-                      frameCount: gif.frameCount,
-                      size: gif.size,
-                    },
-                    outputName,
-                  },
-                }
-              : n,
-          ),
-        );
+        patchNodeDataById(setNodes, id, {
+          errorMessage: undefined,
+          gifResult: {
+            width: gif.width,
+            height: gif.height,
+            frameCount: gif.frameCount,
+            size: gif.size,
+          },
+          outputName,
+        });
         setGifResult({
           width: gif.width,
           height: gif.height,
@@ -1242,27 +1183,17 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
               : `merged_${count}_clips`;
       const outputName = `${stripExt(currentName || 'video')}_${suffix}.${result.extension}`;
       updateNodeRuntime(id, { loading: false, progress: 100 });
-      setNodes((ns) =>
-        ns.map((n) =>
-          n.id === id
-            ? {
-                ...n,
-                data: {
-                  ...n.data,
-                  errorMessage: undefined,
-                  outputName,
-                  outputInfo: {
-                    duration: result.metadata.duration,
-                    width: mode === 'extractAudio' ? undefined : result.metadata.width,
-                    height: mode === 'extractAudio' ? undefined : result.metadata.height,
-                    fps: mode === 'extractAudio' ? undefined : result.metadata.fps,
-                    size: result.blob.size,
-                  },
-                },
-              }
-            : n,
-        ),
-      );
+      patchNodeDataById(setNodes, id, {
+        errorMessage: undefined,
+        outputName,
+        outputInfo: {
+          duration: result.metadata.duration,
+          width: mode === 'extractAudio' ? undefined : result.metadata.width,
+          height: mode === 'extractAudio' ? undefined : result.metadata.height,
+          fps: mode === 'extractAudio' ? undefined : result.metadata.fps,
+          size: result.blob.size,
+        },
+      });
       if (mode === 'extractAudio') {
         spawnAudioNode(uploaded.url, outputName);
         showToast('音频提取完成');
@@ -1284,9 +1215,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         fail(e instanceof Error ? e.message : '视频处理超时');
       } else if (e instanceof ConversionCanceled || abort.signal.aborted || controller.isCanceled) {
         updateNodeRuntime(id, { loading: false, progress: 0 });
-        setNodes((ns) =>
-          ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, errorMessage: undefined } } : n)),
-        );
+        patchNodeDataById(setNodes, id, { errorMessage: undefined });
       } else {
         logger.error('VideoProcessNode', 'process failed', {
           error: e?.message,

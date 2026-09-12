@@ -20,6 +20,7 @@
  * `afterWrite(dims)` 里处理。
  */
 import type { Node } from '@xyflow/react';
+import { patchNodeDataById } from '../../hooks/useNodeData.ts';
 
 export interface NodeImageWrite {
   id: string;
@@ -47,10 +48,6 @@ export function replaceNodeImage(
   afterWrite?: (dims?: { width: number; height: number }) => void,
 ): void {
   if (!id || !dataUrl) return;
-  setNodes((ns) =>
-    ns.map((n) =>
-      n.id === id ? { ...n, data: { ...n.data, imageUrl: dataUrl, ...(dataPatch || {}) } } : n,
-    ),
-  );
+  patchNodeDataById(setNodes, id, { imageUrl: dataUrl, ...(dataPatch || {}) });
   afterWrite?.(dims);
 }

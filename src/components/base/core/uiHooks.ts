@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { RefObject } from 'react';
 import { useReactFlow, useUpdateNodeInternals } from '@xyflow/react';
 import { NODE_AREA_FIXED_BASE_SIZE } from './config.ts';
+import { patchNodeById, patchNodeDataById } from '../../../hooks/useNodeData.ts';
 
 /**
  * 判断事件目标是否在可编辑元素内（INPUT / TEXTAREA / contenteditable）。
@@ -131,13 +132,11 @@ export function useSizeSync(
     });
     const changed = (n.style?.height ?? n.height) !== h || (n.style?.width ?? n.width) !== w;
     if (changed) {
-      setNodes((ns) =>
-        ns.map((x) =>
-          x.id === id
-            ? { ...x, width: w, height: h, style: { ...x.style, width: w, height: h } }
-            : x,
-        ),
-      );
+      patchNodeById(setNodes, id, {
+        width: w,
+        height: h,
+        style: { ...(n.style || {}), width: w, height: h },
+      });
       updateNodeInternals(id);
     }
   }, [
@@ -223,31 +222,20 @@ export function useNodeResize(id: string): {
   /** 输入框手柄 → 写回 node.data.inputWidth/inputHeight */
   onInputResize: (w: number, h: number) => void;
 } {
-  const { setNodes } = useReactFlow();
+  const { setNodes, getNode } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
 
   const onMainBoxResize = useCallback(
     (w: number, h: number) => {
-      setNodes((ns) =>
-        ns.map((n) =>
-          n.id === id
-            ? { ...n, width: w, height: h, style: { ...n.style, width: w, height: h } }
-            : n,
-        ),
-      );
+      const style = { ...(getNode(id)?.style || {}), width: w, height: h };
+      patchNodeById(setNodes, id, { width: w, height: h, style });
       updateNodeInternals(id);
     },
-    [id, setNodes, updateNodeInternals],
+    [id, setNodes, getNode, updateNodeInternals],
   );
 
   const onInputResize = useCallback(
-    (w: number, h: number) => {
-      setNodes((ns) =>
-        ns.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, inputWidth: w, inputHeight: h } } : n,
-        ),
-      );
-    },
+    (w: number, h: number) => patchNodeDataById(setNodes, id, { inputWidth: w, inputHeight: h }),
     [id, setNodes],
   );
 

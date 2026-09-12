@@ -22,6 +22,7 @@ import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import { NODE_AREA_FIXED_BASE_SIZE } from '../base/core/config.ts';
 import { useVideoPoster } from '../../hooks/useVideoPoster.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
+import { patchNodeDataById } from '../../hooks/useNodeData.ts';
 import { toAbsoluteFileUrl, resolveNodeImageUrl } from '../base/api/index.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
@@ -220,25 +221,15 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       if (f.type.startsWith('text/') || detectMediaType(f.name) === 'text') {
         const fr = new FileReader();
         fr.onload = () => {
-          setNodes((ns) =>
-            ns.map((n) =>
-              n.id === id
-                ? {
-                    ...n,
-                    data: {
-                      ...n.data,
-                      text: fr.result,
-                      mediaType: 'text',
-                      // 切文本态 = 清空主图（imageUrl 为主、url 为存量兼容字段）：
-                      // 这里写 undefined 是【清空】不是【写值】，两者都必须清，否则渲染端
-                      // `imageUrl || url` 会从 url 兜底读回旧图 → 文本态节点显示旧图。
-                      imageUrl: undefined,
-                      url: undefined,
-                    },
-                  }
-                : n,
-            ),
-          );
+          patchNodeDataById(setNodes, id, {
+            text: fr.result,
+            mediaType: 'text',
+            // 切文本态 = 清空主图（imageUrl 为主、url 为存量兼容字段）：
+            // 这里写 undefined 是【清空】不是【写值】，两者都必须清，否则渲染端
+            // `imageUrl || url` 会从 url 兜底读回旧图 → 文本态节点显示旧图。
+            imageUrl: undefined,
+            url: undefined,
+          });
           // 节点已切到文本态，结果可见，无需 toast
         };
         fr.readAsText(f);

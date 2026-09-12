@@ -325,5 +325,140 @@ for (const f of files) {
 }
 if (!canvasWriteViol) console.log('  ✅ 工具层无裸调画布写操作（均经 canvasHost）');
 
+// ─────────────────────────────────────────────────────────────────
+// 规则 5（TD-04-15 / TD-04-16 / TD-04-17，2026-09-12）：禁止手写 `setNodes/setEdges(...)` 裸写
+// node/edge 字段样板。
+//
+// 【为什么存在】node/edge 写回唯一入口 = patchNodeById / computePatch*（src/hooks/useNodeData.ts）
+// 与 patchEdgeById / computePatchEdgesById（src/hooks/useEdgeData.ts）。此前散落的手写样板
+// （同语义多实现、易漂移项），2026-09-12 审计已迁移：
+//  - node.data：VideoProcessNode/Director3DNode/AssetNode/PanoramaNode（TD-04-15）+ nodeImage/
+//    useScriptBoxEngine/App.commitRename/App.expanded（TD-04-15 补）
+//  - node 本体 width/height/style：useNodeResize.onMainBoxResize / useFitNodeRatio（TD-04-16）
+//  - edge.data：App 选中联动 relatedToSelected（TD-04-17，全库仅此 1 处 edge.data 合并写回）
+//  - edge 本体 selected：App.selectAll / duplicateSelected（TD-04-17 顺手收口）
+// 本规则防回潮。
+//
+// 【判定】全 src 扫描 `setNodes(` / `setEdges(` 调用，且其回调/参数子树内出现手写样板签名
+// `...<x>.data` 或 `...<x>.(width|height|style)`（SpreadElement + MemberExpression 命中字段名）。
+// 豁免：
+//  - src/components/agent/：agent 写操作统一经 canvasHost（TD-11-8 工具层已守），有意分层不重复闸；
+//  - patchNodeById / patchEdgeById / computePatch* 内部在 hooks/（不在 setNodes/setEdges 调用内），不误报；
+//  - 批量 position 更新（不碰 data/尺寸）无该 spread，不误报；
+//  - groupNodes 的 parentId/extent 写回是纯函数（不在 setNodes 调用内），不误报；
+//  - setEdges append/filter/replace（建边/删边/整体替换）非「按字段合并写回」，不归本规则管。
+// ─────────────────────────────────────────────────────────────────
+const NODE_FIELD_SPREAD = new Set(['data', 'width', 'height', 'style']);
+// 嵌套写操作（不归 node 字段规则管的维度）：递归检测时遇到这些调用不深入其参数
+const WRITE_CALLS = new Set(['setNodes', 'setEdges', 'addNodes', 'addEdges', 'deleteElements', 'applyNodeChanges']);
+let nodeDataViol = 0;
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  // agent 层由 TD-11-8 守工具层（canvasHost 唯一入口），有意分层，不重复闸
+  if (rel.startsWith('src/components/agent/')) continue;
+  let code;
+  try {
+    code = readFileSync(f, 'utf8');
+  } catch {
+    continue;
+  }
+  let ast;
+  try {
+    ast = parse(code, {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: true,
+    });
+  } catch {
+    continue;
+  }
+  const findSpreadField = (node, root = true) => {
+    if (!node || typeof node !== 'object') return false;
+    if (Array.isArray(node)) return node.some((x) => findSpreadField(x, false));
+    if (
+      node.type === 'SpreadElement' &&
+      node.argument?.type === 'MemberExpression' &&
+      node.argument.property?.name &&
+      NODE_FIELD_SPREAD.has(node.argument.property.name)
+    ) {
+      return true;
+    }
+    // 嵌套写操作（如 setNodes 回调内再调 setEdges 写 edge.data）不归 node 字段规则管，
+    // 不深入其参数，避免误抓 edge.data 裸写（App.tsx:1285-1291 的 relatedToSelected 回写）。
+    // 注意：仅在「递归进入的」写操作调用上生效（root=false）；最外层 setNodes/setEdges 调用（root=true）
+    // 不被此边界拦截，否则其回调内的合法 spread 永不被检查（TD-04-17 修复的误判）。
+    if (node.type === 'CallExpression') {
+      const c = node.callee;
+      const name = c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' ? c.property?.name : null;
+      if (!root && name && WRITE_CALLS.has(name)) return false;
+    }
+    for (const k in node) {
+      if (k !== 'loc' && k !== 'range' && typeof node[k] === 'object' && node[k] !== null) {
+        if (findSpreadField(node[k], false)) return true;
+      }
+    }
+    return false;
+  };
+  // 专门检测「整节点/边 spread + 覆盖 selected」样板（如 {...n, selected:true}）。
+  // 注意：selected 不是「spread 旧对象某字段」模式（...n.selected 不存在），而是 spread 整个对象后附加键，
+  // 故无法用上面的 NODE_FIELD_SPREAD（只匹配 SpreadElement.property）捕获，需独立检测。
+  const findSelectedSpread = (node, root = true) => {
+    if (!node || typeof node !== 'object') return false;
+    if (Array.isArray(node)) return node.some((x) => findSelectedSpread(x, false));
+    if (node.type === 'ObjectExpression') {
+      const hasSpread = node.properties.some((p) => p.type === 'SpreadElement');
+      const hasSelected = node.properties.some(
+        (p) =>
+          p.type === 'ObjectProperty' &&
+          (p.key?.name === 'selected' || p.key?.value === 'selected'),
+      );
+      if (hasSpread && hasSelected) return true;
+    }
+    if (node.type === 'CallExpression') {
+      const c = node.callee;
+      const name = c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' ? c.property?.name : null;
+      if (!root && name && WRITE_CALLS.has(name)) return false;
+    }
+    for (const k in node) {
+      if (k !== 'loc' && k !== 'range' && typeof node[k] === 'object' && node[k] !== null) {
+        if (findSelectedSpread(node[k], false)) return true;
+      }
+    }
+    return false;
+  };
+  const walkSet = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) {
+      n.forEach(walkSet);
+      return;
+    }
+    if (n.type === 'CallExpression') {
+      const c = n.callee;
+      const name = c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' ? c.property?.name : null;
+      const isSet = name === 'setNodes' || name === 'setEdges';
+      if (isSet && findSpreadField(n)) {
+        nodeDataViol++;
+        fail(
+          `手写 ${name} 裸写 node/edge 字段样板: ${rel}:${n.loc?.start?.line}` +
+            `（必须改调 patchNodeById/patchEdgeById 或 computePatch*，禁手写 ...n/e.data|width|height|style 样板）`,
+        );
+      }
+      if (isSet && findSelectedSpread(n)) {
+        nodeDataViol++;
+        fail(
+          `手写 ${name} 裸写 node/edge 选中态: ${rel}:${n.loc?.start?.line}` +
+            `（必须改调 patchNodeById/patchEdgeById 或 computePatch*，禁手写 {...n, selected} 样板）`,
+        );
+      }
+    }
+    for (const k in n) {
+      if (k !== 'loc' && k !== 'range' && typeof n[k] === 'object' && n[k] !== null) walkSet(n[k]);
+    }
+  };
+  walkSet(ast.program);
+}
+if (!nodeDataViol)
+  console.log('  ✅ 无手写 setNodes/setEdges 裸写 node/edge 字段（data/width/height/style 均经 patchNodeById/patchEdgeById）');
+
 console.log(`\n${errors === 0 ? '✅ 架构校验通过' : `❌ ${errors} 处架构违规`}`);
 process.exit(errors === 0 ? 0 : 1);

@@ -5,18 +5,61 @@ import { debounce } from '../components/base/core/utils.ts';
 import { NODE_PATCH_DEBOUNCE_MS } from '../components/base/core/config.ts';
 
 /**
- * 节点 data 不可变写回纯函数（节点写回唯一入口，useNodeData.patchData 与宿主通用写回共用）。
+ * 节点级字段不可变写回纯函数（通用：覆盖 node.data 与 node 本体字段 width/height/style/selected/...）。
+ * 语义：把 patch 浅合并进 id 节点；patch.data 单独与 n.data 浅合并（不覆盖整个 data 对象）。
+ * 节点不存在时原样返回，天然安全。这是 useNodeResize / App 批量命令 / 各节点写回的统一底层，
+ * 与 patchNodeDataById 共用同一不可变不变式（见 TD-04-16，2026-09-12）。
+ *
+ * 【用法】
+ *   patchNodeById(setNodes, id, { width, height, style })   // node 本体字段
+ *   patchNodeById(setNodes, id, { data: { label } })        // 等价于 patchNodeDataById
+ */
+type NodeFieldPatch = Partial<Node> & { data?: Record<string, unknown> };
+
+/** computePatchNodeById：纯函数版（返回新数组，不触发 setNodes），供需先拿到结果再 record 历史的调用方复用 */
+export function computePatchNodeById(nodes: Node[], id: string, patch: NodeFieldPatch): Node[] {
+  if (!nodes || !id || !patch) return nodes;
+  const { data, ...rest } = patch;
+  return nodes.map((n) =>
+    n.id === id ? { ...n, ...rest, data: data ? { ...n.data, ...data } : n.data } : n,
+  );
+}
+
+/** computePatchNodesById：批量版（predicate 命中即写回，用于「按类型/条件」批量命令，如展开面板） */
+export function computePatchNodesById(
+  nodes: Node[],
+  predicate: (n: Node) => boolean,
+  patch: NodeFieldPatch,
+): Node[] {
+  if (!nodes || !predicate || !patch) return nodes;
+  const { data, ...rest } = patch;
+  return nodes.map((n) =>
+    predicate(n) ? { ...n, ...rest, data: data ? { ...n.data, ...data } : n.data } : n,
+  );
+}
+
+export function patchNodeById(
+  setNodes: (updater: (ns: Node[]) => Node[]) => void,
+  id: string,
+  patch: NodeFieldPatch,
+): void {
+  if (!setNodes || !id || !patch) return;
+  setNodes((ns) => computePatchNodeById(ns, id, patch));
+}
+
+/**
+ * 节点 data 不可变写回纯函数（节点 data 写回唯一入口，useNodeData.patchData 与宿主通用写回共用）。
  * 语义：把 patch 合并进 id 节点的 data（不可变更新）；节点不存在（如已删除）时原样返回，天然安全。
+ * 底层复用通用 patchNodeById（见上），保持既有签名向后兼容。
  * setNodes 用 reactflow Node[] 泛型（与 useReactFlow().setNodes 及 App.jsx 传入的 setNodes 一致）。
  */
-
 export function patchNodeDataById(
   setNodes: (updater: (ns: Node[]) => Node[]) => void,
   id: string,
   patch: Record<string, unknown>,
 ): void {
   if (!setNodes || !id || !patch) return;
-  setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)));
+  patchNodeById(setNodes, id, { data: patch });
 }
 
 /** patch 载荷（节点 data 局部字段合并对象） */

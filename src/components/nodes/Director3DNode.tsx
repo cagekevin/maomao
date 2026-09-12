@@ -5,6 +5,7 @@ import { Orbit, Maximize2 } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
+import { patchNodeDataById } from '../../hooks/useNodeData.ts';
 import { toAbsoluteFileUrl, saveInlineToLocal } from '../base/api/index.ts';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import { Director3DOverlay } from '../director3d/Director3DOverlay.tsx';
@@ -92,16 +93,12 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
         }));
       if (boxes.length > 0) {
         const boxId = boxes[0];
-        setNodes((ns) =>
-          ns.map((n) => {
-            if (n.id !== boxId) return n;
-            const existing = (n.data?.images as Array<{ url?: string }> | undefined) || [];
-            const existingUrls = new Set(existing.map((x) => x.url));
-            const fresh = newImages.filter((x) => !existingUrls.has(x.url));
-            const merged = [...existing, ...fresh];
-            return { ...n, data: { ...n.data, images: merged, activeIndex: merged.length - 1 } };
-          }),
-        );
+        const boxNode = getNode(boxId);
+        const existing = (boxNode?.data?.images as Array<{ url?: string }> | undefined) || [];
+        const existingUrls = new Set(existing.map((x) => x.url));
+        const fresh = newImages.filter((x) => !existingUrls.has(x.url));
+        const merged = [...existing, ...fresh];
+        patchNodeDataById(setNodes, boxId, { images: merged, activeIndex: merged.length - 1 });
       } else {
         const me = getNode(id);
         const boxId = generateId('imageBoxNode');
@@ -172,13 +169,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
         // 已有下游 AssetNode：写最近导出视频
         const targetId = targets[0];
         // 只写 imageUrl（docs/118 §7.3 ⑤ 写侧唯一）：不再双写存量字段 data.url。
-        setNodes((ns) =>
-          ns.map((n) =>
-            n.id === targetId
-              ? { ...n, data: { ...n.data, imageUrl: lastUrl, mediaType: 'video' } }
-              : n,
-          ),
-        );
+        patchNodeDataById(setNodes, targetId, { imageUrl: lastUrl, mediaType: 'video' });
       } else {
         // 无下游 AssetNode：新建并连线
         const me = getNode(id);
@@ -250,18 +241,11 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
         const fileUrl = await saveInlineToLocal(persistedThumb, 'tasks');
         if (fileUrl) persistedThumb = fileUrl;
       }
-      // 写回节点：imageUrl 存缩略图，彻底移除旧 directorProject 字段
-      setNodes((ns) =>
-        ns.map((n) => {
-          if (n.id !== id) return n;
-          const next = { ...n.data, imageUrl: persistedThumb || n.data.imageUrl || null } as Record<
-            string,
-            unknown
-          >;
-          delete next.directorProject;
-          return { ...n, data: next };
-        }),
-      );
+      // 写回节点：imageUrl 存缩略图，彻底移除旧 directorProject 字段（patchNodeDataById 浅合并 + undefined 等价删键）
+      patchNodeDataById(setNodes, id, {
+        imageUrl: persistedThumb || getNode(id)?.data?.imageUrl || null,
+        directorProject: undefined,
+      });
       // 分类回写：图片 → 图片盒子；视频 → AssetNode
       if (captures && captures.length > 0) {
         const imageCaptures = captures.filter((c) => c.type === 'image');
