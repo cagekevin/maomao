@@ -102,7 +102,7 @@ export const SPLIT_METHODS = [
 export function splitByMethod(text: unknown, method: string) {
   const trimmed = String(text || '').trim();
   if (!trimmed) return [];
-  const clean = (list) => list.map((s) => String(s ?? '').trim()).filter(Boolean);
+  const clean = (list: string[]) => list.map((s: string) => String(s ?? '').trim()).filter(Boolean);
   switch (method) {
     case 'newline':
       return clean(trimmed.split(/\r?\n+/));
@@ -139,7 +139,7 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
   // 从 data 初始化（splitMethod=newline）
   const [splitMethod, setSplitMethod] = useState(data.splitMethod || 'newline');
   // overrides：用户对某段提示词的手动编辑（key=段 index），切换拆分方式/上游变化时清空
-  const [overrides, setOverrides] = useState({});
+  const [overrides, setOverrides] = useState<Record<number, string>>({});
   // 拆分方式下拉浮层开关
   const [showSplitMenu, setShowSplitMenu] = useState(false);
   const splitMenuRef = useRef(null);
@@ -177,19 +177,19 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
 
   // 最终显示/运行段：segments 基础上叠加用户手动编辑的 overrides（key=index）
   const displaySegs = useMemo(
-    () => segments.map((seg, i) => (overrides[i] != null ? overrides[i] : seg)),
+    () => segments.map((seg: string, i: number) => (overrides[i] != null ? overrides[i] : seg)),
     [segments, overrides],
   );
 
   // 切换拆分方式：清空手动编辑覆盖，让界面按新方式重新切段
-  const changeSplitMethod = (m) => {
+  const changeSplitMethod = (m: string) => {
     setSplitMethod(m);
     setOverrides({});
     patchData({ splitMethod: m });
   };
 
   // 本段 prompt：替换《计数》/《总数》/《进度》token（对齐大雄 smartLoopPrompt）
-  const promptForSegment = (seg, index) => {
+  const promptForSegment = (seg: string, index: number) => {
     const total = displaySegs.length;
     const num = index + 1;
     return String(seg || '')
@@ -230,7 +230,14 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
 
     busyRef.current = true;
     try {
-      const specs = [];
+      const specs: Array<{
+        id?: string;
+        type: string;
+        position?: { x: number; y: number };
+        data?: Record<string, unknown>;
+        width?: number;
+        height?: number;
+      }> = [];
       segs.forEach((seg, i) => {
         const prompt = promptForSegment(seg, i);
         if (!prompt) return;
@@ -256,7 +263,7 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
   };
 
   // 分段编辑：写入手动覆盖 overrides（key=段 index）
-  const updateSegment = (i, value) => {
+  const updateSegment = (i: number, value: string) => {
     setOverrides((prev) => ({ ...prev, [i]: value }));
   };
 

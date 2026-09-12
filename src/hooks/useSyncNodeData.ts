@@ -16,15 +16,20 @@ import { useEffect, useRef } from 'react';
  * @param data       节点当前 data（ReactFlow setNodes 后是新引用，effect 会触发）
  * @param setters    { data字段名: 本地setState } 映射。data 中该字段变化时同步到本地 state。
  */
-export function useSyncNodeData(data, setters) {
-  const prevRef = useRef({});
-  const settersRef = useRef(setters);
+export function useSyncNodeData(
+  data: object | undefined,
+  setters: Record<string, (v: unknown) => void>,
+) {
+  const prevRef = useRef<Record<string, unknown>>({});
+  const settersRef = useRef<Record<string, (v: unknown) => void>>(setters);
   settersRef.current = setters;
 
   useEffect(() => {
     const prev = prevRef.current;
+    // 调用方传入的 data 是 node.data（运行时必为普通对象），收窄为 Record 以做字段索引
+    const dataRec = data as Record<string, unknown> | undefined;
     for (const key of Object.keys(settersRef.current)) {
-      const next = data?.[key];
+      const next = dataRec?.[key];
       const last = prev[key];
       // 跳过首次（首次由 useState 初始化已处理）与未变化
       if (!(key in prev)) {

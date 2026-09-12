@@ -9,6 +9,13 @@
  *     读工具（read_canvas/list_nodes）透传 ctx；create_node 调用 ctx.addNodes 并返回新 id
  */
 import { describe, it, expect, vi } from 'vitest';
+import type { Node } from '@xyflow/react';
+
+const mkNode = (data: Record<string, unknown> = {}): Node => ({
+  id: 'n',
+  position: { x: 0, y: 0 },
+  data,
+});
 
 const mod = await import('../../src/components/agent/canvas/useCanvasAgentTools.ts');
 const {
@@ -20,22 +27,22 @@ const {
 
 describe('getNodeAssetUrl', () => {
   it('data.assetUrl 优先', () => {
-    expect(getNodeAssetUrl({ data: { assetUrl: 'A' } })).toBe('A');
+    expect(getNodeAssetUrl(mkNode({ assetUrl: 'A' }))).toBe('A');
   });
   it('data.url 兜底字符串', () => {
-    expect(getNodeAssetUrl({ data: { url: 'B' } })).toBe('B');
+    expect(getNodeAssetUrl(mkNode({ url: 'B' }))).toBe('B');
   });
   it('images 数组（字符串元素 / {url} / {assetUrl}）', () => {
-    expect(getNodeAssetUrl({ data: { images: ['http://a'] } })).toBe('http://a');
-    expect(getNodeAssetUrl({ data: { images: [{ url: 'http://b' }] } })).toBe('http://b');
-    expect(getNodeAssetUrl({ data: { images: [{ assetUrl: 'http://c' }] } })).toBe('http://c');
+    expect(getNodeAssetUrl(mkNode({ images: ['http://a'] }))).toBe('http://a');
+    expect(getNodeAssetUrl(mkNode({ images: [{ url: 'http://b' }] }))).toBe('http://b');
+    expect(getNodeAssetUrl(mkNode({ images: [{ assetUrl: 'http://c' }] }))).toBe('http://c');
   });
   it('assetUrls 数组', () => {
-    expect(getNodeAssetUrl({ data: { assetUrls: ['http://d'] } })).toBe('http://d');
+    expect(getNodeAssetUrl(mkNode({ assetUrls: ['http://d'] }))).toBe('http://d');
   });
   it('无图 → 空串', () => {
-    expect(getNodeAssetUrl({ data: {} })).toBe('');
-    expect(getNodeAssetUrl({})).toBe('');
+    expect(getNodeAssetUrl(mkNode({}))).toBe('');
+    expect(getNodeAssetUrl(mkNode())).toBe('');
   });
 });
 

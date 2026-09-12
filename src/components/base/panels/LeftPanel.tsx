@@ -76,7 +76,7 @@ export default function LeftPanel() {
   }, [expanded]);
 
   // 收起时同步保存当前 tab
-  const openTab = (key) => {
+  const openTab = (key: PanelTabKey) => {
     setActiveTab(key);
     setExpanded(true);
   };

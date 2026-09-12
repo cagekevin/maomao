@@ -275,8 +275,10 @@ export function useNodeGeneration({
         // 【失败可见】落盘失败不得静默吞掉：统一经 reportDegrade 留痕（logger.warn，全链路可查），
         //   但保留 P0-C 回退语义（persistedUrl || strUrl），不因落盘失败把整体生成判为失败。
         const persistedUrl = strUrl
-          ? await saveResultToTasks(strUrl, t.type).catch((e) => {
-              reportDegrade({ layer: 'useNodeGeneration', key: 'saveResultToTasks', e });
+          ? await saveResultToTasks(strUrl, t.type).catch((e: unknown): null => {
+              // catch 原因未必是 Error 实例，统一收窄为 Error 再交给 reportDegrade（其 e 字段为 Error）
+              const err = e instanceof Error ? e : new Error(String(e));
+              reportDegrade({ layer: 'useNodeGeneration', key: 'saveResultToTasks', e: err });
               return null;
             })
           : null;

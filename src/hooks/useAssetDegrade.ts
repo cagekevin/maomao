@@ -23,6 +23,6 @@ export function useAssetDegrade() {
     () => (lodLevel >= 3 ? 'image video audio' : lodLevel >= 2 ? 'image' : ''),
     [lodLevel],
   );
-  const isHidden = (type) => hideMedia.includes(type);
+  const isHidden = (type: string) => hideMedia.includes(type);
   return { lodLevel, hideMedia, isHidden };
 }

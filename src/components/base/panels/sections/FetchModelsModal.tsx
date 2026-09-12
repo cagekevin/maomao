@@ -7,6 +7,8 @@ import {
   Video as VideoIcon,
   Search,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import type { RawModel } from '../../utils/providerModels.ts';
 
 /**
  * 拉取模型结果弹窗（勾选式保存）。
@@ -22,14 +24,31 @@ import {
  *  - onConfirm: (selected) => void                          selected = { image_models, chat_models, video_models }
  */
 
-const CATS = [
+type ModelCatKey = 'image_models' | 'chat_models' | 'video_models';
+
+export interface FetchedModelGroup {
+  image_models?: RawModel[];
+  chat_models?: RawModel[];
+  video_models?: RawModel[];
+}
+
+const CATS: Array<{ key: ModelCatKey; label: string; Icon: LucideIcon }> = [
   { key: 'chat_models', label: '聊天模型', Icon: MessageSquare },
   { key: 'image_models', label: '生图模型', Icon: ImageIcon },
   { key: 'video_models', label: '视频模型', Icon: VideoIcon },
 ];
 
-const modelId = (m) => (m && (m.id || m.label)) || '';
-const modelLabel = (m) => (m && (m.label || m.id)) || '';
+const modelId = (m: RawModel) => (m && (m.id || m.label)) || '';
+const modelLabel = (m: RawModel) => (m && (m.label || m.id)) || '';
+
+interface FetchModelsModalProps {
+  open: boolean;
+  fetched: FetchedModelGroup | null;
+  existing: FetchedModelGroup | null;
+  fetching: boolean;
+  onClose: () => void;
+  onConfirm: (selected: FetchedModelGroup) => void;
+}
 
 export default function FetchModelsModal({
   open,
@@ -38,12 +57,12 @@ export default function FetchModelsModal({
   fetching: _fetching,
   onClose,
   onConfirm,
-}) {
+}: FetchModelsModalProps) {
   // selected: { [catKey]: Set<modelId> }，仅存勾选中的 id 集合
   const [selected, setSelected] = React.useState({
-    image_models: new Set(),
-    chat_models: new Set(),
-    video_models: new Set(),
+    image_models: new Set<string>(),
+    chat_models: new Set<string>(),
+    video_models: new Set<string>(),
   });
   const [keyword, setKeyword] = React.useState('');
   const [tabKey, setTabKey] = React.useState('image_models');
@@ -63,7 +82,7 @@ export default function FetchModelsModal({
   const fetchedList = fetched || { image_models: [], chat_models: [], video_models: [] };
   const kw = keyword.trim().toLowerCase();
 
-  const toggle = (catKey, id) => {
+  const toggle = (catKey: ModelCatKey, id: string) => {
     setSelected((prev) => {
       const next = new Set(prev[catKey]);
       if (next.has(id)) next.delete(id);
@@ -72,7 +91,7 @@ export default function FetchModelsModal({
     });
   };
 
-  const setCatAll = (catKey, on) => {
+  const setCatAll = (catKey: ModelCatKey, on: boolean) => {
     setSelected((prev) => {
       const ids = (fetchedList[catKey] || []).map(modelId);
       const next = new Set(prev[catKey]);
@@ -89,7 +108,7 @@ export default function FetchModelsModal({
 
   const handleConfirm = () => {
     // 合并：勾选的 = 本次拉到的且勾选的 ∪ 已存在但本次未拉到的且仍勾选的
-    const out = {};
+    const out: FetchedModelGroup = {};
     for (const cat of CATS) {
       const existMap = new Map((existing?.[cat.key] || []).map((m) => [modelId(m), m]));
       const fetchedMap = new Map((fetchedList[cat.key] || []).map((m) => [modelId(m), m]));
@@ -97,7 +116,7 @@ export default function FetchModelsModal({
         ...(fetchedList[cat.key] || []).map(modelId),
         ...selected[cat.key], // 含已存在但本次未拉到的（它们未必在 fetchedList 里）
       ]);
-      const list = [];
+      const list: RawModel[] = [];
       for (const id of selected[cat.key]) {
         list.push(fetchedMap.get(id) || existMap.get(id) || { id, label: id });
       }

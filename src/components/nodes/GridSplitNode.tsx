@@ -47,11 +47,13 @@ import FullscreenShell from '../base/panels/FullscreenShell.tsx';
  * ════════════════════════════════════════════════════════════════ */
 
 // ---- 工具（复刻 shared.js：Do/Oo/ko/No/Po/Ao/Fo）----
+type Pt = { x: number; y: number };
+type SnapPoint = { x: number; y: number; edge: string | null };
 const norm = (arr: number[]): number[] =>
   Array.from(
     new Set(arr.map((v) => clamp(v, 0.01, 0.99)).map((v) => Math.round(v * 10000) / 10000)),
   ).sort((a, b) => a - b);
-const pairs = (arr) => {
+const pairs = (arr: number[]) => {
   const t = [0, ...arr, 1];
   const out = [];
   for (let i = 0; i < t.length - 1; i++) out.push([t[i], t[i + 1]]);
@@ -59,7 +61,7 @@ const pairs = (arr) => {
 };
 const genId = () => generateId('lasso');
 const SNAP = 0.04;
-const snapEdge = (p) => {
+const snapEdge = (p: Pt): SnapPoint => {
   const t = p.y,
     b = 1 - p.y,
     l = p.x,
@@ -78,7 +80,7 @@ const EDGE_PTS = {
   'top-left': { x: 0, y: 0 },
 };
 const EDGE_ORDER = ['top', 'right', 'bottom', 'left'];
-const closePolygon = (pts, startEdge, endEdge) => {
+const closePolygon = (pts: Pt[], startEdge: string | null, endEdge: string | null) => {
   if (!startEdge || !endEdge) return pts;
   const r = [...pts];
   if (startEdge === endEdge) return r;
@@ -99,7 +101,7 @@ const closePolygon = (pts, startEdge, endEdge) => {
   }
   return r;
 };
-const bounds = (pts) => {
+const bounds = (pts: Pt[]) => {
   let minX = 1,
     minY = 1,
     maxX = 0,
@@ -114,8 +116,8 @@ const bounds = (pts) => {
 };
 
 // ---- 不规则形状裁剪（复刻 Io.jsx：clip path + drawImage → png）----
-function clipShape(src, points) {
-  function doClip(srcImg) {
+function clipShape(src: string, points: Pt[]) {
+  function doClip(srcImg: HTMLImageElement) {
     try {
       const w = srcImg.naturalWidth || srcImg.width;
       const h = srcImg.naturalHeight || srcImg.height;
@@ -151,9 +153,12 @@ function clipShape(src, points) {
     .then(() => loadImageWithTimeout(src))
     .catch(() => loadImageWithTimeout(src))
     .then((img) => doClip(img))
-    .catch((e) => {
+    .catch((e: unknown): null => {
       // 切图失败（跨域/格式不支持/超时）必须可见+可查，禁止静默返回 null
-      logger.warn('GridSplit', '切图失败', { src, error: e?.message || String(e) });
+      logger.warn('GridSplit', '切图失败', {
+        src,
+        error: e instanceof Error ? e.message : String(e),
+      });
       showToast('切图失败：图片加载或裁剪出错（可能跨域或格式不支持）', { type: 'error' });
       return null;
     });
@@ -219,7 +224,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   const [lassoShapes, setLassoShapes] = useState(
     Array.isArray(data.lassoShapes) ? data.lassoShapes : [],
   );
-  const [activeLasso, setActiveLasso] = useState(null); // 当前绘制/选中的 lasso id
+  const [activeLasso, setActiveLasso] = useState<string | null>(null); // 当前绘制/选中的 lasso id（边名或 shape id）
   const [titlePattern, setTitlePattern] = useState(data.titlePattern || '#{num}');
   const [sendToImageBox, setSendToImageBox] = useState(data.sendToImageBox ?? false);
   const [showCustom, setShowCustom] = useState(false);
@@ -452,7 +457,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
 
   // ---- 手动模式：双击加线 / Shift+双击加垂直线（复刻 Lo.jsx oe）----
   const onManualDbl = useCallback(
-    (e) => {
+    (e: React.MouseEvent) => {
       if (splitMode !== 'manual') return;
       e.stopPropagation();
       const el = mainCanvasRef.current;
@@ -486,7 +491,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
         setVLines((arr) => norm(arr.map((line, i) => (i === dragLine.index ? v : line))));
       }
     });
-    const onMove = (e) => batch(e.clientX, e.clientY);
+    const onMove = (e: MouseEvent) => batch(e.clientX, e.clientY);
     const onUp = () => {
       batch.flush(); // 松手补最后一帧，避免差一帧
       setDragLine(null);
@@ -501,8 +506,14 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   }, [dragLine]);
 
   // 删除切割线（复刻 Lo.jsx H/se）
-  const removeHLine = useCallback((i) => setHLines((arr) => arr.filter((_, n) => n !== i)), []);
-  const removeVLine = useCallback((i) => setVLines((arr) => arr.filter((_, n) => n !== i)), []);
+  const removeHLine = useCallback(
+    (i: number) => setHLines((arr) => arr.filter((_, n) => n !== i)),
+    [],
+  );
+  const removeVLine = useCallback(
+    (i: number) => setVLines((arr) => arr.filter((_, n) => n !== i)),
+    [],
+  );
   const resetLines = useCallback(() => {
     setHLines([0.5]);
     setVLines([0.5]);
@@ -510,7 +521,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
 
   // ---- 切刀模式：开始绘制（复刻 Lo.jsx U）----
   const onLassoDown = useCallback(
-    (e) => {
+    (e: React.MouseEvent) => {
       if (splitMode !== 'lasso') return;
       e.stopPropagation();
       e.preventDefault();
@@ -551,7 +562,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
         arr.map((s) => (s.id === rec.id ? { ...s, points: [...s.points, { x, y }] } : s)),
       );
     });
-    const onMove = (e) => batch(e.clientX, e.clientY);
+    const onMove = (e: MouseEvent) => batch(e.clientX, e.clientY);
     const onUp = () => {
       const rec = activeCellIdRef.current;
       if (!rec) return;
@@ -583,7 +594,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   }, [splitMode, fullscreen, activeLasso]);
 
   // 删除单个 lasso（复刻 Lo.jsx W）
-  const removeLasso = useCallback((lid) => {
+  const removeLasso = useCallback((lid: string) => {
     setLassoShapes((arr) => arr.filter((s) => s.id !== lid));
     setActiveLasso((cur) => (cur === lid ? null : cur));
   }, []);
@@ -594,7 +605,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
 
   // ---- 生成图片节点（复刻 H_.jsx lr/cr：创建 assetNode + 自动连线）----
   const spawnImageNodes = useCallback(
-    (list) => {
+    (list: Array<{ url: string; label: string }>) => {
       if (!list || list.length === 0) return;
       const me = getNode(id);
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 400) + 50;
@@ -641,7 +652,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
 
   // ---- 单块切出（复刻 Lo.jsx ue → onSplitOne）----
   const handleSplitOne = useCallback(
-    (index) => {
+    (index: number) => {
       if (!assetUrl) {
         toastWarning('请先连接包含图片的节点');
         return;
@@ -665,7 +676,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   const titleIcon = <Grid3X3 size={11} className="text-muted" />;
 
   // 模式切换按钮
-  const modeBtn = (mode, label, icon, title) => (
+  const modeBtn = (mode: string, label: string, icon: React.ReactNode, title: string) => (
     <button
       key={mode}
       className={`node-btn-settings ${splitMode === mode ? 'is-active' : ''}`}

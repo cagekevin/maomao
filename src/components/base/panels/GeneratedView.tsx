@@ -53,7 +53,11 @@ const TYPE_FILTERS: TypeFilter[] = [
   { key: 'text', label: '文本' },
 ];
 
-const TYPE_BADGE = {
+interface TypeBadgeEntry {
+  icon: typeof ImageIcon;
+  cls: string;
+}
+const TYPE_BADGE: Record<string, TypeBadgeEntry> = {
   image: { icon: ImageIcon, cls: 'text-blue-400 bg-blue-500/10' },
   video: { icon: Play, cls: 'text-purple-400 bg-purple-500/10' },
   audio: { icon: Music, cls: 'text-green-400 bg-green-500/10' },
@@ -192,7 +196,7 @@ function GeneratedView() {
 
   // 点击上一页/下一页 → 加载指定页（对齐官方 Un.jsx：每页固定数量，只显示当前页，不追加）
   const goPage = useCallback(
-    async (next) => {
+    async (next: number) => {
       if (!connected || loading || next < 1) return;
       const target = Math.min(next, totalPages);
       const token = ++resetTokenRef.current;

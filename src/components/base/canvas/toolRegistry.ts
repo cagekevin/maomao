@@ -23,8 +23,17 @@
  * 【幂等】getTools() 返回注册表数组引用（live）；resetTools() 仅供测试清空。
  * ════════════════════════════════════════════════════════════════
  */
-/** 工具执行上下文（由 buildCanvasAgentTools 注入） */
-export type ToolExecuteCtx = Record<string, unknown>;
+import type { Node, Edge } from '@xyflow/react';
+
+/** 工具执行上下文（由 buildCanvasAgentTools 注入：useReactFlow() 能力 + 索引签名承载其余按需方法） */
+export interface ToolExecuteCtx {
+  getNodes: () => Node[];
+  setNodes: (updater: Node[] | ((nodes: Node[]) => Node[])) => void;
+  getEdges: () => Edge[];
+  setEdges: (updater: Edge[] | ((edges: Edge[]) => Edge[])) => void;
+  screenToFlowPosition?: (p: { x: number; y: number }) => { x: number; y: number };
+  setCenter?: (x: number, y: number, options?: { zoom?: number; duration?: number }) => void;
+}
 
 /** 工具定义（docs/25 · 阶段2） */
 export interface ToolDef {
@@ -33,7 +42,8 @@ export interface ToolDef {
   parameters?: unknown;
   /** mutating=true → 调用前统一压 AI 撤销栈，使 undo_ai 能整体撤回 */
   mutating?: boolean;
-  execute: (ctx: ToolExecuteCtx, args?: Record<string, unknown>) => unknown | Promise<unknown>;
+  /** 实际调用约定：execute(args, ctx) —— args 为 LLM 入参，ctx 为画布能力（见 buildCanvasAgentTools） */
+  execute: (args: Record<string, unknown>, ctx: ToolExecuteCtx) => unknown | Promise<unknown>;
   [key: string]: unknown;
 }
 

@@ -225,7 +225,7 @@ export default function StorageMonitor() {
    报表主体：总览圆环图 + 项目条状图 + 孤儿/重复两个清理 tab
    ──────────────────────────────────────────────────────────────── */
 
-const CATEGORY_COLORS = {
+const CATEGORY_COLORS: Record<string, string> = {
   图片: '#34d399',
   视频: '#60a5fa',
   音频: '#fbbf24',
@@ -564,7 +564,14 @@ function ReportView({
 }
 
 /* ── 统计项 ── */
-function Stat({ label, value, big = false, accent = false }) {
+interface StatProps {
+  label: string;
+  value: string;
+  big?: boolean;
+  accent?: boolean;
+}
+
+function Stat({ label, value, big = false, accent = false }: StatProps) {
   return (
     <div>
       <div className="text-[11px] text-muted mb-0.5">{label}</div>
@@ -578,11 +585,20 @@ function Stat({ label, value, big = false, accent = false }) {
 }
 
 /* ── ECharts 风格 SVG 圆环图（对外部 StorageHealthCenter 的 DonutChart 视觉对齐）── */
-function polarToCartesian(cx, cy, r, angleDeg) {
+function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
 }
-function buildDonutPath(cx, cy, innerR, outerR, startAngle, endAngle, cr, gapDeg) {
+function buildDonutPath(
+  cx: number,
+  cy: number,
+  innerR: number,
+  outerR: number,
+  startAngle: number,
+  endAngle: number,
+  cr: number,
+  gapDeg: number,
+) {
   const sa = startAngle + gapDeg / 2;
   const ea = endAngle - gapDeg / 2;
   const sweep = ea - sa;
@@ -617,7 +633,22 @@ function buildDonutPath(cx, cy, innerR, outerR, startAngle, endAngle, cr, gapDeg
     'Z',
   ].join(' ');
 }
-function DonutChart({ segments, total, size = 150 }) {
+interface DonutSegment {
+  label: string;
+  value: number;
+  color: string;
+  start?: number;
+  sweep?: number;
+  pct?: number;
+}
+
+interface DonutChartProps {
+  segments: DonutSegment[];
+  total: number;
+  size?: number;
+}
+
+function DonutChart({ segments, total, size = 150 }: DonutChartProps) {
   const cx = size / 2;
   const cy = size / 2;
   const innerR = size * 0.28;
@@ -743,7 +774,18 @@ function DonutChart({ segments, total, size = 150 }) {
 }
 
 /* ── SVG 条状图（各项目占用，对外部 StackedBar 对齐）── */
-function StackedBar({ items }) {
+interface BarItem {
+  label: string;
+  value: number;
+  color: string;
+  pct?: number;
+}
+
+interface StackedBarProps {
+  items: BarItem[];
+}
+
+function StackedBar({ items }: StackedBarProps) {
   const total = items.reduce((s, i) => s + i.value, 0);
   if (items.length === 0 || !total) {
     return <div className="py-4 text-center text-xs text-muted">暂无数据</div>;
@@ -787,7 +829,12 @@ function StackedBar({ items }) {
 }
 
 /* ── 浏览器存储配额卡片（保留）：IndexedDB/Cache 配额 + 受压预警 ── */
-function BrowserQuotaCard({ data, pressure }) {
+interface BrowserQuotaCardProps {
+  data: { usage: number; quota: number; ratio: number } | null;
+  pressure: ReturnType<typeof estimateStoragePressure> | null;
+}
+
+function BrowserQuotaCard({ data, pressure }: BrowserQuotaCardProps) {
   const under = pressure?.underPressure;
   const idleIndexedDb = !!data && data.usage === 0;
   return (

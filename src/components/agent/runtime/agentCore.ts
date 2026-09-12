@@ -265,7 +265,7 @@ export function parseGenerationsFromReply(content = '') {
   if (parsed && typeof parsed === 'object') {
     if (parsed.plan && typeof parsed.plan === 'object') plan = parsed.plan;
     if (Array.isArray(parsed.generations))
-      generations = parsed.generations.filter((g) => g && typeof g === 'object');
+      generations = parsed.generations.filter((g: unknown) => g && typeof g === 'object');
   }
   return { plan, generations };
 }

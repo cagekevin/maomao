@@ -1,7 +1,7 @@
 # Handoff · 渐进消除 src 隐式 any（TD-09-1 选项 A）
 
 > **读者**：接手「类型收口」的执行者（人或模型）。
-> **目标**：把 `src` 侧现存的 **1350 处隐式 any** 逐目录清零；每清零一个目录就纳入门禁白名单，**永不复涨**。
+> **目标**：把 `src` 侧现存的 **1114 处隐式 any** 逐目录清零；每清零一个目录就纳入门禁白名单，**永不复涨**。
 > **节奏**：**不必一次做完**。每次只啃一个文件/一个目录，小步、可验证、可回滚。
 > **背景**：`tsconfig.json` 关了 `noImplicitAny`（历史遗留），所以这些错平时不报。我们用「按目录开放的 strict 门禁」渐进收口，而不是一次翻开全仓（会 1424 错、瘫掉开发）。
 > 详细审计见 `daily/架构日志/09-类型诚实性-隐式any复核-2026-09-12.md`。
@@ -254,33 +254,37 @@ npx vitest run <相关测试文件>  # 改到哪个模块就测哪个（如 test
 
 **当前快照（2026-09-12 晚实测，`node scripts/strict-report.mjs` 可随时重算）**：
 
-| 域 | 存量 |
+| 域 | 存量（白名单外 + 白名单内未清） |
 | - | - |
 | `src/components/director3d/` | 712 |
 | `src/components/agent/` | 197 |
-| `src/components/base/` | 175 |
-| `src/components/nodes/` | 126 |
+| `src/components/base/`（panels/ 已收口，白名单内） | 0 |
+| `src/components/nodes/`（白名单内，0 处） | 0 |
 | `src/components/scriptbox/` | 45 |
 | `src/`（根文件：`App.tsx` 等） | 37 |
-| `src/hooks/` | 34 |
 | `src/components/panels/` | 22 |
 | `src/components/edges/` | 2 |
-| **合计** | **1350** |
+| **合计** | **1018** |
 
-> `src/components/base/` 的 175 处分布：`editors/` 75 · `panels/` 96 · `ui/` 4（`canvas/`、`depthVideo/` 已 0）。
+> `src/components/base/` 全量收口进白名单（core/storage/api/utils/store/prompt/editors/ui/panels 均 0 处）。其余白名单目录（hooks/nodes）亦 0 处。
 
 **单文件 TOP（大块，建议排到最后单独啃）**：
 `director3d/App.tsx` 157 · `director3d/project.ts` 127 · `agent/canvas/useCanvasAgentTools.ts` 111 · `director3d/Viewport.tsx` 76 · `director3d/panels/Timeline.tsx` 59 · `agent/canvas/canvasPlanExecutor.ts` 57 · `nodes/VideoProcessNode.tsx` 55 · `base/editors/OverlayEditor.tsx` 52
 
-**已收口（白名单，6 个目录，隐式 any 存量 0）**：
+**已收口（白名单，隐式 any 存量 0）**：
 - `src/components/base/core/` ✅
 - `src/components/base/storage/` ✅
 - `src/components/base/api/` ✅
 - `src/components/base/utils/` ✅
 - `src/components/base/store/` ✅
 - `src/components/base/prompt/` ✅
+- `src/components/base/editors/` ✅（2026-09-12 收口，75 → 0）
+- `src/components/base/ui/` ✅（约 4 处已先行清零，待补登记）
+- `src/components/base/panels/` ✅（2026-09-12 收口，96 → 0）
+- `src/hooks/` ✅（34 → 0）
+- `src/components/nodes/` ✅（126 → 0）
 
-**进行中**：无。**下一站：`src/hooks/`（34 处）+ 顺手清 `src/components/base/ui/`（4 处）**，逐条方案见下方「下一步」。
+**进行中**：`src/components/base/editors/`、`src/components/base/ui/`、`src/hooks/`、`src/components/nodes/`、`src/components/base/panels/` 均已收口并纳入白名单（见进度小结）。**下一站：`src/components/agent/`（197 处）**（其后为 `director3d/` 712 处）。
 
 ### 进度小结（截至 2026-09-12 晚）
 
@@ -292,6 +296,8 @@ npx vitest run <相关测试文件>  # 改到哪个模块就测哪个（如 test
 | `utils/` | 完成 | gifenc 补 `src/types/gifenc.d.ts`；`unknown`+守卫收窄、回调补类型 | `npx vitest run tests/unit/utils` → 86 passed |
 | `store/` | 31 处 | `accountsStore`/`backupStore`/`cloudSync` 三文件：`unknown`+守卫收窄、回调补 `(msg:string)=>void`、索引签名补 `Record<>` | `npx vitest run tests/unit/store` → 87 passed |
 | `prompt/` | 17 处 | 新增 `PromptChipItem`/`PromptAssetItem` 本地类型；DOM 句柄补 `HTMLElement`/`Element`；React 事件补 `KeyboardEvent`/`ClipboardEvent`；map 回调标返回类型防字面量拓宽 | `npx vitest run tests/unit/{promptChips,promptHub,promptManager,promptMention}.test.ts tests/unit/PromptInput.*.test.tsx` → 86 passed |
+| `editors/` | 75 处 | `OverlayEditor`(52)：抽 `OverlayLayer`/`OverlayState`/`OverlayEditorProps`/`DragState` 接口，组件 props 与导出函数 `renderLayerCanvas`/`renderOverlayCanvas` 标类型，连锁消除 `layers.map/find/filter` 的 `l` 隐式 any；`toCanvasPos`/`drawStroke` 数值参数、拖拽/涂抹事件分别标 `React.MouseEvent`/`PointerEvent`/`KeyboardEvent`；`pending`/`raf`/`dragRef` 等显式类型；`applyMask` 补 `paintLayerId` 空值守卫、`e.target` 断言 `HTMLElement`。`FaceMosaicEditor`(7)/`ImageZoomDialog`(5)/`InlineImageCropper`(11)：回调参数补 `React.PointerEvent`/`WheelEvent`/`CropSelection`/`MosaicMode` 等。 | `npm run check:strict-src` ✅ 白名单 0 报 · `npm run type-check` ✅ |
+| `base/panels/` | 96 处 | 新增 `DonutSegment`/`BarItem`/`StatProps`/`EnvMenuProps`/`FetchModelsModalProps`/`FetchedModelGroup`/`ModelCatKey` 本地接口；`polarToCartesian`/`buildDonutPath` 数值参数标 `number`；React 事件补 `React.MouseEvent`/`React.DragEvent`/`React.ChangeEvent`；`Set` 标 `Set<string>`、`CATEGORY_COLORS`/`TYPE_BADGE`/`TYPE_ICON` 补 `Record<string, …>` 索引签名；`AccountEnv`/`RawModel`/`Task`/`UISettingDef`/`LucideIcon` 用于 props 与回调；`row.key as keyof typeof settings` 收窄索引键 | `npm run check:strict-src` ✅ 白名单 0 报 · `npm run type-check` ✅ · 无同 stem 测试 |
 
 > `store/` 收口明细：
 > - `accountsStore.ts`(2)：`push` 回调补 `AccountCookie`；localStorage 回写 `store as Record<string,string>`。
@@ -329,10 +335,10 @@ npx vitest run <相关测试文件>  # 改到哪个模块就测哪个（如 test
 **建议顺序（自底向上：先地基、后 UI；先小后大）**：
 1. ✅ `core/`、`storage/`、`api/`、`utils/`（底层地基，已收口）
 2. ✅ `store/`、`prompt/`（已收口）
-3. 🔶 `src/hooks/`（34 处，**下一站**）；顺手清 `src/components/base/ui/`（4 处）
-4. ⬜ `src/components/nodes/`（126 处，文件多但单个小，适合批量推进）
-5. ⬜ `src/components/base/editors/`（75 处）、`src/components/base/panels/`（96 处）
-6. ⬜ `src/components/agent/`（197 处）
+3. ✅ `src/hooks/`（34 → 0，已收口）· ✅ `src/components/base/ui/`（4 → 0，已收口）
+4. ✅ `src/components/nodes/`（126 → 0，已收口）
+5. ✅ `src/components/base/editors/`（75 → 0，已收口）· ✅ `src/components/base/panels/`（96 → 0，已收口）
+6. ⬜ `src/components/agent/`（197 处，**下一站**）
 7. ⬜ `src/components/director3d/`（**最大 712，建议最后单独排期**）
 
 > 未进主序列的零散域（随时可顺手清）：`src/components/scriptbox/`（45）、`src/` 根文件 `App.tsx` 等（37）、`src/components/panels/`（22）、`src/components/edges/`（2）。

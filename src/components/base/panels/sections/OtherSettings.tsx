@@ -1,10 +1,18 @@
 import 'react';
 import { useAppSettings, setSetting } from '../../store/appSettings.ts';
-import { UI_SETTING_ROWS } from '../../store/settingRegistry.ts';
+import { UI_SETTING_ROWS, type UISettingDef } from '../../store/settingRegistry.ts';
 import { Toggle } from '../../ui/Toggle.tsx';
 
 /** 单项设置行：标题 + 说明 + 右侧开关 */
-function SettingRow({ icon: Icon, title, desc, checked, onChange }) {
+interface SettingRowProps {
+  icon: UISettingDef['icon'];
+  title: string;
+  desc?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}
+
+function SettingRow({ icon: Icon, title, desc, checked, onChange }: SettingRowProps) {
   return (
     <div className="flex items-center justify-between gap-4 py-4">
       <div className="flex items-center gap-3 min-w-0">
@@ -29,7 +37,11 @@ export default function OtherSettings() {
   const settings = useAppSettings();
 
   // 按 group 分组渲染（注册表顺序即组内顺序）
-  const groups = [];
+  interface SettingsGroup {
+    name: string;
+    rows: UISettingDef[];
+  }
+  const groups: SettingsGroup[] = [];
   for (const row of UI_SETTING_ROWS) {
     let g = groups.find((x) => x.name === row.group);
     if (!g) {
@@ -48,8 +60,8 @@ export default function OtherSettings() {
             <div className="divide-y divide-edge-subtle/60">
               {g.rows.map((row) => {
                 const checked =
-                  settings[row.key] !== undefined
-                    ? Boolean(settings[row.key])
+                  settings[row.key as keyof typeof settings] !== undefined
+                    ? Boolean(settings[row.key as keyof typeof settings])
                     : Boolean(row.default);
                 return (
                   <SettingRow
@@ -58,7 +70,7 @@ export default function OtherSettings() {
                     title={row.title}
                     desc={row.desc}
                     checked={checked}
-                    onChange={(v) => setSetting(row.key, v)}
+                    onChange={(v) => setSetting(row.key as keyof typeof settings, v)}
                   />
                 );
               })}

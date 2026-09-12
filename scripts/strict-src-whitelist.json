@@ -6,6 +6,12 @@
     "src/components/base/api/",
     "src/components/base/utils/",
     "src/components/base/store/",
-    "src/components/base/prompt/"
+    "src/components/base/prompt/",
+    "src/components/base/ui/",
+    "src/components/base/editors/",
+    "src/components/base/panels/",
+    "src/hooks/",
+    "src/components/nodes/",
+    "src/components/agent/"
   ]
 }

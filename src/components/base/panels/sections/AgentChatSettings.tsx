@@ -8,6 +8,7 @@ import {
   saveAgentChatModel,
   loadAgentHistoryTurns,
   saveAgentHistoryTurns,
+  type AgentStreamMode,
 } from '../../store/agentModelStore.ts';
 import SkillSettings from './SkillSettings.tsx';
 
@@ -69,7 +70,7 @@ export default function AgentChatSettings() {
     }
   };
 
-  const handleStreamModeChange = (mode) => {
+  const handleStreamModeChange = (mode: AgentStreamMode) => {
     setStreamMode(mode);
     saveAgentChatModel({ providerId, modelId, streamMode: mode });
     showToast(mode === 'non-stream' ? '已设为非流式（不支持工具调用，仅对话）' : '已设为流式', {
@@ -79,7 +80,7 @@ export default function AgentChatSettings() {
 
   // 【过渡方案·2026-08-18】历史回传轮数：0=不回传、1=只上一轮、任意大=尽量多（≈不限）。
   // 允许自由输入任意非负整数；非法输入忽略不保存。实时读，下次发送立即生效。
-  const handleHistoryTurnsChange = (e) => {
+  const handleHistoryTurnsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
     setHistoryTurns(raw); // 保留用户输入，允许临时为空/半输入
     if (raw === '') return; // 空：暂存，不保存（等填完）
@@ -162,7 +163,7 @@ export default function AgentChatSettings() {
                 <span className="block text-xs text-secondary mb-1.5">响应方式</span>
                 <select
                   value={streamMode}
-                  onChange={(e) => handleStreamModeChange(e.target.value)}
+                  onChange={(e) => handleStreamModeChange(e.target.value as AgentStreamMode)}
                   className={selectCls}
                 >
                   <option value="stream">流式（推荐，支持工具调用）</option>

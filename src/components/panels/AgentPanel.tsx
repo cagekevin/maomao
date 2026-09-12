@@ -20,13 +20,11 @@ import {
   FileText,
   Image as ImageIcon,
   MessageSquarePlus,
-  Music,
   Package as PackageIcon,
   Shield,
   SlidersHorizontal,
   SquarePen,
   Trash2,
-  Video,
   X,
   Zap,
 } from 'lucide-react';
@@ -75,7 +73,7 @@ import { useActiveAssistantTable } from '../agent/assistantTable/useActiveAssist
 import { buildRefineRowsUser } from '../agent/assistantTable/assistantTablePrompt.ts';
 // 【TD-17】草稿初值经只读入口读会话快照（不再自持 agent_draft 存储键；写一律走 useAgentChat 的 saveDraft）
 import { getCurrentSnapshot } from '../agent/conversation/conversationSnapshot.ts';
-import { useVideoPoster } from '../../hooks/useVideoPoster.ts';
+import AttachmentCover from '../base/ui/attachmentCover.tsx';
 
 /**
  * 待发送/待引用区的媒体占位 chip：图片/视频/音频统一 44×44 缩略占位，仅示意、不可在 chip 内播放。
@@ -95,24 +93,11 @@ function AttMediaChip({
 }) {
   const src = toAbsoluteFileUrl(item?.url || '');
   const t = item?.type;
-  const poster = useVideoPoster(src, t === 'video' && !!src);
+  // 视频首帧 / 音频图标统一走共享 AttachmentCover，与发送后气泡一致（单一渲染来源）
+  const cover = <AttachmentCover type={t} url={src} />;
   return (
     <span className="agent-att">
-      {t === 'audio' ? (
-        <span className="agent-att-icon">
-          <Music size={18} strokeWidth={1.8} />
-        </span>
-      ) : t === 'video' ? (
-        poster ? (
-          <img src={poster} alt="" className="agent-att-media" />
-        ) : (
-          <span className="agent-att-icon">
-            <Video size={18} strokeWidth={1.8} />
-          </span>
-        )
-      ) : (
-        <img src={src} alt="" />
-      )}
+      {cover ?? <img src={src} alt="" />}
       <button type="button" className="agent-att-remove" onClick={onRemove} title={removeTitle}>
         <X size={12} strokeWidth={2.5} />
       </button>

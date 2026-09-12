@@ -77,7 +77,7 @@ const LEGACY_ACTIVE_KEY = 'agent_active_conversation_id';
 export const AGENT_MSG_MAX = 60;
 
 /** 空对话记忆（对齐大雄 agentEmptyConversationMemory） */
-export function emptyMemory() {
+export function emptyMemory(): ConversationMemory {
   return {
     summary: '',
     facts: [],

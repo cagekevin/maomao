@@ -1,6 +1,8 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import '../base/api/index.ts';
 import LazyImage from '../base/ui/LazyImage.tsx';
+import AttachmentCover from '../base/ui/attachmentCover.tsx';
+import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import AgentConfirmCard from './AgentConfirmCard.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import ChatMarkdown from './ChatMarkdown.tsx';
@@ -159,6 +161,43 @@ const ToolCallChip = memo(function ToolCallChip({ name, args }: { name?: string;
   );
 });
 
+/**
+ * 用户消息附件缩略图（按媒体类型分渲染）。
+ * 修复：此前所有附件统一用 <img>（LazyImage）渲染 → 视频/音频 URL 被当图片加载而显示「图片加载失败」。
+ *  - image：LazyImage（与历史行为一致）。
+ *  - video：useVideoPoster 抓首帧作封面（与发送前输入框 chip 一致）；点击放大走视频播放器（ImageZoomDialog kind='video'）。
+ *  - audio：Music 图标占位（音频无视觉帧，不可作图片）。
+ */
+const AttachmentThumb = memo(function AttachmentThumb({
+  att,
+  onOpen,
+}: {
+  att: { type?: string; url?: string; [k: string]: unknown };
+  onOpen: (url: string, kind: 'image' | 'video') => void;
+}) {
+  const isVideo = att?.type === 'video';
+  const isAudio = att?.type === 'audio';
+  const url = toAbsoluteFileUrl(String(att?.url || ''));
+  // 视频首帧 / 音频图标统一走共享 AttachmentCover；图片走 LazyImage（懒加载 + 破图兜底）。
+  // 注意：<AttachmentCover> 对 image 返回 null，不能用 `cover ?? <LazyImage>`（React 元素恒 truthy，
+  // 兜底永不触发），须按类型显式分支。
+  return (
+    <button
+      type="button"
+      disabled={isAudio}
+      onClick={() => onOpen(url, isVideo ? 'video' : 'image')}
+      title={isVideo ? '点击播放视频' : isAudio ? '音频' : '点击查看大图'}
+      className={`w-full h-full ${isAudio ? 'cursor-default' : ''}`}
+    >
+      {isVideo || isAudio ? (
+        <AttachmentCover type={att?.type} url={url} />
+      ) : (
+        <LazyImage src={url} alt="" className="w-full h-full" />
+      )}
+    </button>
+  );
+});
+
 /** 生成步骤卡片（对齐大雄 agentExecutionPromptsHtml：阶段1 把 generations 渲染成可检查的步骤列表） */
 const GenerationStepsCard = memo(function GenerationStepsCard({
   generations,
@@ -254,12 +293,14 @@ function AgentMessage({
   // 图片查看大图（原生 dialog）：点击消息里的图片 → 打开查看，替代 target=_blank 新窗口
   const zoomRef = useRef(null);
   const [zoomUrl, setZoomUrl] = useState(null);
-  const openZoom = useCallback((url) => {
+  const [zoomKind, setZoomKind] = useState<'image' | 'video'>('image');
+  const openZoom = useCallback((url: string, kind: 'image' | 'video' = 'image') => {
     if (!url) return;
+    setZoomKind(kind);
     setZoomUrl(url);
     requestAnimationFrame(() => zoomRef.current?.showModal());
   }, []);
-  const zoomDialog = <ImageZoomDialog ref={zoomRef} url={zoomUrl} />;
+  const zoomDialog = <ImageZoomDialog ref={zoomRef} url={zoomUrl} kind={zoomKind} />;
 
   /** 复制整段回复（navigator.clipboard 在非安全上下文不可用，降级为提示而非静默失败） */
   const copyContent = useCallback(async () => {
@@ -307,9 +348,7 @@ function AgentMessage({
           {message.attachments && message.attachments.length > 0 && (
             <div className="agent-user-att">
               {message.attachments.map((a, i) => (
-                <button key={i} type="button" onClick={() => openZoom(a.url)} title="点击查看大图">
-                  <LazyImage src={a.url} alt="" className="w-full h-full" />
-                </button>
+                <AttachmentThumb key={i} att={a} onOpen={openZoom} />
               ))}
             </div>
           )}

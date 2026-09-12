@@ -95,7 +95,7 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
       // 取节点真实尺寸（抉择：三选一优先序）
       // measured=已渲染实测最准 → 其次显式 width/height → 再 style → 最后兜底 320×80。
       // 尺寸准不准直接决定 dagre 排布疏密，所以宁可多取几层也不让它退到瞎猜的 0。
-      const nodeDim = (n, fallbackW = 320, fallbackH = 80) => {
+      const nodeDim = (n: Node, fallbackW = 320, fallbackH = 80) => {
         const styleW = Number(n.style?.width);
         const styleH = Number(n.style?.height);
         return {
@@ -111,11 +111,11 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
             fallbackH,
         };
       };
-      const childSize = (n) => nodeDim(n, 420, 420);
+      const childSize = (n: Node) => nodeDim(n, 420, 420);
 
       // 【优化①：编组当整体】计算 group 的真实尺寸 = 其子节点当前（相对父框）外接矩形 + 留白。
       // 这样 dagre 把 group 视为一个不可拆分的块来排，组间间距才真实，且整理后组大小不变。
-      const groupSize = (groupId) => {
+      const groupSize = (groupId: string) => {
         const kids = nodes.filter((n) => n.parentId === groupId);
         if (kids.length === 0) return { width: 300, height: 200 };
         let minX = Infinity,
@@ -159,7 +159,7 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
       //
       // ⚠️ 邻接表必须同时纳入 group 父子关系（parentId，子 ↔ 父 双向），
       // 否则 group 框和子节点不连通会被拆成独立分量，整理时组被拆散/重叠。
-      const components = [];
+      const components: Node[][] = [];
       const visited = new Set();
       const adj = new Map();
       // adj 必须包含【所有节点】（子节点也要占位），否则下面 parentId 合并时
@@ -184,7 +184,7 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
           const cur = queue.shift();
           const node = nodes.find((x) => x.id === cur);
           if (node) comp.push(node);
-          adj.get(cur)?.forEach((nid) => {
+          adj.get(cur)?.forEach((nid: string) => {
             if (!visited.has(nid)) {
               visited.add(nid);
               queue.push(nid);
@@ -197,7 +197,7 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
       // 先算每个连通分量的包围盒与摆放（2026-09-07：按视窗比例择优换行）。
       // 用 packComponents 打包：不用固定 COL_MAX_W 换列启发式，而是遍历 perRow=1..n
       // 试排，取 fitView 后真实缩放最大的行列分布 → 宽屏自动更扁、窄屏更竖，节点最大化。
-      const compBoxes = [];
+      const compBoxes: { width: number; height: number }[] = [];
       components.forEach((comp) => {
         let minX = Infinity,
           minY = Infinity,
@@ -221,7 +221,7 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
         maxZoom,
       });
 
-      const laid = []; // 最终写回的新节点数组（顶层节点先按 0,0 起算的初稿坐标）
+      const laid: Node[] = []; // 最终写回的新节点数组（顶层节点先按 0,0 起算的初稿坐标）
       components.forEach((comp, ci) => {
         // 分量左上角原点 = packComponents 算出的占位（对单个分量即 0,0）
         const originX = packed.placements[ci]?.x ?? 0;

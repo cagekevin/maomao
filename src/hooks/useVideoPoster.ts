@@ -16,7 +16,7 @@ import { useState, useEffect } from 'react';
  * @param {boolean} enabled 是否启用（如视频且非播放态时才抓）
  * @returns {string} posterUrl 首帧封面 dataURL；未就绪/失败为空串
  */
-export function useVideoPoster(url, enabled) {
+export function useVideoPoster(url: string, enabled: boolean) {
   const [posterUrl, setPosterUrl] = useState('');
 
   useEffect(() => {

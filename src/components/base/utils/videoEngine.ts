@@ -52,7 +52,7 @@ interface ConcatSegment {
   muted: boolean;
 }
 /** processVideo 选项（对齐官方 Dc 的 t） */
-interface ProcessVideoOptions extends ProgressOptions {
+export interface ProcessVideoOptions extends ProgressOptions {
   mode: 'trim' | 'extractAudio' | 'sizeFrameRate';
   start?: number;
   end?: number;

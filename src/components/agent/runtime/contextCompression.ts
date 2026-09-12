@@ -98,7 +98,12 @@ export function serializeMessagesForSummary(
 /** 提取摘要里的锚点（可引用图编号、URL 等），用于校验摘要是否保留关键引用 */
 export function extractSummaryAnchors(value: string): string[] {
   const patterns = [/图[0-9]+/g, /#[0-9]+/g, /https?:\/\/[^\s)\]}]+/g];
-  return [...new Set(patterns.flatMap((pattern) => value.match(pattern) ?? []))].slice(0, 100);
+  const matches: string[] = [];
+  for (const pattern of patterns) {
+    const m = value.match(pattern);
+    if (m) matches.push(...m);
+  }
+  return [...new Set(matches)].slice(0, 100);
 }
 
 /**

@@ -41,8 +41,55 @@ import { loadImageOrNull } from '../utils/asyncGuard.ts';
 import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
 const genId = () => generateId('ov');
 
+type DragMode = 'move' | 'scale' | 'rotate';
+
+interface OverlayLayer {
+  id: string;
+  assetUrl: string;
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  opacity: number;
+  zIndex: number;
+  visible?: boolean;
+  locked?: boolean;
+  naturalWidth?: number;
+  naturalHeight?: number;
+  maskUrl?: string;
+}
+
+export interface OverlayState {
+  layers: OverlayLayer[];
+  canvasWidth: number;
+  canvasHeight: number;
+  bgColor?: string;
+}
+
+interface OverlayEditorProps {
+  state: OverlayState;
+  onChange: (next: OverlayState) => void;
+  upstreamUrls: string[];
+}
+
+interface DragState {
+  mode: DragMode;
+  layerId: string;
+  startX: number;
+  startY: number;
+  rect: DOMRect | null;
+  origX: number;
+  origY: number;
+  origScale: number;
+  origRotation: number;
+  origCenterX: number;
+  origCenterY: number;
+  width: number;
+  height: number;
+}
+
 // 单层渲染 canvas（复刻 Bo_1.jsx：drawImage + mask destination-in）
-const renderLayerCanvas = async (layer) => {
+const renderLayerCanvas = async (layer: OverlayLayer) => {
   const img = await loadImageOrNull(layer.assetUrl);
   if (!img) return null;
   const w = img.naturalWidth || img.width;
@@ -65,7 +112,12 @@ const renderLayerCanvas = async (layer) => {
 };
 
 // overlay 合成（复刻 Vo.jsx：背景 + 按 zIndex 绘制，返回 dataURL）
-export const renderOverlayCanvas = async ({ layers, canvasWidth, canvasHeight, bgColor }) => {
+export const renderOverlayCanvas = async ({
+  layers,
+  canvasWidth,
+  canvasHeight,
+  bgColor,
+}: OverlayState) => {
   if (canvasWidth <= 0 || canvasHeight <= 0) return null;
   const canvas = document.createElement('canvas');
   canvas.width = canvasWidth;
@@ -94,23 +146,23 @@ export const renderOverlayCanvas = async ({ layers, canvasWidth, canvasHeight, b
   return canvas.toDataURL('image/png');
 };
 
-export default function OverlayEditor({ state, onChange, upstreamUrls }) {
+export default function OverlayEditor({ state, onChange, upstreamUrls }: OverlayEditorProps) {
   const { layers, canvasWidth, canvasHeight } = state;
 
-  const [selectedId, setSelectedId] = useState(null);
-  const [paintLayerId, setPaintLayerId] = useState(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [paintLayerId, setPaintLayerId] = useState<string | null>(null);
   const [brushSize, setBrushSize] = useState(40);
-  const [brushMode, setBrushMode] = useState('erase');
-  const [menu, setMenu] = useState(null);
+  const [brushMode, setBrushMode] = useState<'erase' | 'restore'>('erase');
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
 
-  const boardRef = useRef(null);
-  const paintCanvasRef = useRef(null);
-  const overlayCanvasRef = useRef(null);
-  const strokeRef = useRef([]);
-  const historyRef = useRef([]);
-  const dragRef = useRef(null);
-  const pointerRef = useRef(null);
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const paintCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const strokeRef = useRef<Array<{ x0: number; y0: number; x1: number; y1: number }>>([]);
+  const historyRef = useRef<ImageData[]>([]);
+  const dragRef = useRef<DragState | null>(null);
+  const pointerRef = useRef<{ x: number; y: number } | null>(null);
 
   const selectedLayer = layers.find((l) => l.id === selectedId) || null;
 
@@ -173,7 +225,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
   }, [upstreamUrls.join('|'), canvasWidth, canvasHeight]);
 
   // 合成预览（复刻 Uo.jsx useEffect[E]：debounce）
-  const [preview, setPreview] = useState(null);
+  const [preview, setPreview] = useState<string | null>(null);
   useDebouncedEffect(
     async () => {
       const url = await renderOverlayCanvas(state);
@@ -205,7 +257,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
 
   // 更新单个图层（复刻 te）
   const updateLayer = useCallback(
-    (layerId, patch) => {
+    (layerId: string, patch: Partial<OverlayLayer>) => {
       onChange({
         ...state,
         layers: layers.map((l) => (l.id === layerId ? { ...l, ...patch } : l)),
@@ -216,7 +268,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
 
   // 删除图层（复刻 z）
   const removeLayer = useCallback(
-    (layerId) => {
+    (layerId: string) => {
       onChange({ ...state, layers: layers.filter((l) => l.id !== layerId) });
       if (selectedId === layerId) setSelectedId(null);
     },
@@ -225,7 +277,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
 
   // 图层排序（复刻 ee）
   const reorderLayer = useCallback(
-    (layerId, dir) => {
+    (layerId: string, dir: 'top' | 'bottom' | 'up' | 'down') => {
       const sorted = [...layers].sort((a, b) => b.zIndex - a.zIndex);
       const from = sorted.findIndex((l) => l.id === layerId);
       if (from < 0) return;
@@ -244,10 +296,10 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
     [layers, state, onChange],
   );
 
-  const [dragLayerId, setDragLayerId] = useState(null);
-  const [overLayerId, setOverLayerId] = useState(null);
+  const [dragLayerId, setDragLayerId] = useState<string | null>(null);
+  const [overLayerId, setOverLayerId] = useState<string | null>(null);
   const handleDropReorder = useCallback(
-    (fromId, toId) => {
+    (fromId: string, toId: string) => {
       if (fromId === toId) return;
       const sorted = [...layers].sort((a, b) => b.zIndex - a.zIndex);
       const from = sorted.findIndex((l) => l.id === fromId);
@@ -264,7 +316,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
 
   // 开始拖拽（复刻 ne）
   const beginDrag = useCallback(
-    (e, layer, mode) => {
+    (e: React.MouseEvent, layer: OverlayLayer, mode: DragMode) => {
       if (layer.locked || paintLayerId) return;
       e.stopPropagation();
       e.preventDefault();
@@ -313,7 +365,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
         updateLayer(d.layerId, { rotation: deg });
       }
     });
-    const onMove = (e) => batch(e.clientX, e.clientY);
+    const onMove = (e: MouseEvent) => batch(e.clientX, e.clientY);
     const onUp = () => {
       batch.flush(); // 松手补最后一帧，避免位置差一帧
       dragRef.current = null;
@@ -387,6 +439,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
   const applyMask = useCallback(() => {
     const canvas = paintCanvasRef.current;
     if (!canvas) return;
+    if (!paintLayerId) return;
     updateLayer(paintLayerId, { maskUrl: canvas.toDataURL('image/png') });
   }, [paintLayerId, updateLayer]);
 
@@ -396,7 +449,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
   }, [applyMask]);
 
   const toCanvasPos = useCallback(
-    (clientX, clientY, layer) => {
+    (clientX: number, clientY: number, layer: OverlayLayer) => {
       const rect = boardRef.current?.getBoundingClientRect();
       if (!rect || rect.width <= 0) return null;
       const sx = (clientX - rect.left) * (canvasWidth / rect.width);
@@ -414,7 +467,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
   );
 
   const drawStroke = useCallback(
-    (x0, y0, x1, y1) => {
+    (x0: number, y0: number, x1: number, y1: number) => {
       const canvas = overlayCanvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
@@ -472,8 +525,8 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
     if (!layer) return;
     const board = boardRef.current;
     if (!board) return;
-    let pending = null;
-    let raf = null;
+    let pending: { x: number; y: number } | null = null;
+    let raf: number | null = null;
     let pointerDown = false;
 
     const flush = () => {
@@ -488,7 +541,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
         pointerRef.current = null;
       }
     };
-    const onDown = (e) => {
+    const onDown = (e: PointerEvent) => {
       const pos = toCanvasPos(e.clientX, e.clientY, layer);
       if (!pos) return;
       if (
@@ -505,7 +558,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
       pointerRef.current = { x: pos.x, y: pos.y };
       drawStroke(pos.x, pos.y, pos.x, pos.y);
     };
-    const onMove = (e) => {
+    const onMove = (e: PointerEvent) => {
       const pos = toCanvasPos(e.clientX, e.clientY, layer);
       if (!pos) return;
       if (!pointerDown) return;
@@ -519,7 +572,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
         pointerRef.current = p;
       });
     };
-    const onUp = (e) => {
+    const onUp = (e: PointerEvent) => {
       if (pointerDown) {
         flush();
         pointerDown = false;
@@ -556,9 +609,9 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
 
   useEffect(() => {
     if (!selectedId && !paintLayerId) return;
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-      const t = e.target;
+      const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       if (paintLayerId) {
         e.stopPropagation();

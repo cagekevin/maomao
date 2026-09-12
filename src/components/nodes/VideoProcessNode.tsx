@@ -26,6 +26,7 @@ import { showToast } from '../base/core/toastStore.ts';
 import { logger } from '../base/core/logger.ts';
 import { classifyError } from '../base/utils/genErrors.ts';
 import { withTimeout, isTimeoutError } from '../base/utils/asyncGuard.ts';
+import type { ProcessVideoOptions } from '../base/utils/videoEngine.ts';
 import {
   readVideoMetadata,
   processVideo,
@@ -147,7 +148,7 @@ function captureFrame(url: string, atTime: number, quality = 0.55): Promise<Blob
     video.playsInline = true;
     video.src = url;
     let done = false;
-    const fail = (msg) => {
+    const fail = (msg: string) => {
       if (done) return;
       done = true;
       video.removeAttribute('src');
@@ -156,7 +157,7 @@ function captureFrame(url: string, atTime: number, quality = 0.55): Promise<Blob
       } catch {}
       reject(new Error(msg));
     };
-    const ok = (blob) => {
+    const ok = (blob: Blob) => {
       if (done) return;
       done = true;
       video.removeAttribute('src');
@@ -286,6 +287,34 @@ export interface TimelineTrack {
   [key: string]: unknown;
 }
 
+/** 节点内部渲染用片段/轨道：具名字段显式声明（保留 [key:string]:unknown 索引以兼容写入 timelineTracks），
+ *  id 归一为 string。必须显式声明具名字段——用 TimelineClip 交叉会因索引签名让 id/sourceStart 等读成 unknown。 */
+interface VClip {
+  id: string;
+  sourceId?: string | number;
+  sourceUrl?: string;
+  url?: string;
+  name?: string;
+  duration?: number;
+  sourceStart?: number;
+  sourceEnd?: number;
+  timelineStart?: number;
+  muted?: boolean;
+  trackId?: string;
+  [key: string]: unknown;
+}
+interface VTrack {
+  id: string;
+  kind?: string;
+  type?: string;
+  name?: string;
+  label?: string;
+  muted?: boolean;
+  clips: VClip[];
+  segments?: VClip[];
+  [key: string]: unknown;
+}
+
 interface VideoProcessNodeProps {
   id: string;
   data: VideoProcessNodeData;
@@ -321,7 +350,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   const [selectedClipId, setSelectedClipId] = useState(null); // F
   const [playheadTime, setPlayheadTime] = useState(0); // j
   const [isPlaying, setIsPlaying] = useState(false); // N
-  const [thumbnails, setThumbnails] = useState({}); // ee {sourceId:[url]}
+  const [thumbnails, setThumbnails] = useState<Record<string, string[]>>({}); // ee {sourceId:[url]}
   const [editingClipId, setEditingClipId] = useState(null); // k
   const [localFile, setLocalFile] = useState(null); // o
   const [localUrl, setLocalUrl] = useState(''); // s
@@ -406,12 +435,12 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   }, [ne, localSource]);
 
   /* ---------- 时间线轨道（复刻官方 Wc） ---------- */
-  const tracks = useMemo(() => {
+  const tracks = useMemo((): VTrack[] => {
     const sourceMap = new Map(sources.map((s) => [s.sourceId, s]));
     const usedSourceIds = new Set();
     const built = (timelineTracks || []).map((tr, idx) => {
       const kind = tr.kind || tr.type || 'video';
-      const trackId = tr.id || `${kind}-track-${idx + 1}`;
+      const trackId = tr.id != null ? String(tr.id) : `${kind}-track-${idx + 1}`;
       let cursor = 0;
       const clips = (tr.clips || tr.segments || []).map((cl) => {
         const src = sourceMap.get(cl.sourceId);
@@ -427,7 +456,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         const tlStart = cl.timelineStart ?? cursor;
         cursor = tlStart + clipDur;
         return {
-          id: cl.id || makeId('clip'),
+          id: cl.id != null ? String(cl.id) : makeId('clip'),
           sourceId: cl.sourceId,
           url: src?.url || cl.url || cl.sourceUrl || '',
           name: src?.name || cl.name || cl.sourceName || '视频片段',
@@ -510,12 +539,12 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
 
   /* ---------- 写回 data（复刻官方 128-162 行） ---------- */
   const updateTracks = useCallback(
-    (t) => {
+    (t: VTrack[]) => {
       patchNodeDataById(setNodes, id, {
         timelineTracks: t,
         sourceOrder: t
           .filter((e) => e.kind === 'video')
-          .flatMap((e) => e.clips.map((c) => c.sourceId)),
+          .flatMap((e) => e.clips.map((c) => String(c.sourceId))),
       });
       setTimelineTracks(t);
     },
@@ -523,8 +552,8 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   );
 
   const mutateTracks = useCallback(
-    (mutator) => {
-      const next = tracks.map((t) => ({ ...t, clips: t.clips.map((c) => ({ ...c })) }));
+    (mutator: (draft: VTrack[]) => void) => {
+      const next = tracks.map((t) => ({ ...t, clips: t.clips.map((c) => ({ ...c })) }) as VTrack);
       mutator(next);
       updateTracks(next);
     },
@@ -617,9 +646,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     let cancelled = false;
     (async () => {
       for (const s of withMeta) {
-        if (thumbnails[s.sourceId]) continue;
+        if (thumbnails[String(s.sourceId)]) continue;
         const meta = sourceMetadata[s.sourceId];
-        const urls = [];
+        const urls: string[] = [];
         for (let i = 0; i < 6; i++) {
           try {
             const blob = await captureFrame(
@@ -662,7 +691,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
 
   /* ---------- 片段操作（复刻官方 267-362 行） ---------- */
   const updateClip = useCallback(
-    (clipId, patch) => {
+    (clipId: string, patch: Partial<VClip>) => {
       mutateTracks((t) => {
         let clip;
         let track;
@@ -679,7 +708,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         if (clip && track && patch.trackId && patch.trackId !== track.id) {
           const target = t.find((e) => e.id === patch.trackId);
           if (target) {
-            track.clips = track.clips.filter((c) => c.id !== clipId);
+            track.clips = track.clips.filter((c) => c.id !== clipId) as VClip[];
             target.clips.push(clip);
           }
         }
@@ -730,7 +759,8 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     if (selectedClipInfo) {
       mutateTracks((t) => {
         const track = t.find((e) => e.id === selectedClipInfo.track.id);
-        if (track) track.clips = track.clips.filter((c) => c.id !== selectedClipInfo.clip.id);
+        if (track)
+          track.clips = track.clips.filter((c) => c.id !== selectedClipInfo.clip.id) as VClip[];
       });
       setSelectedClipId('');
     }
@@ -739,8 +769,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   /* ---------- 键盘快捷键（复刻官方 363-388 行） ---------- */
   useEffect(() => {
     if (mode !== 'trim' && mode !== 'concat') return;
-    const onKey = (e) => {
-      if (e.target?.matches('input, textarea, select')) return;
+    const onKey = (e: KeyboardEvent) => {
+      const tgt = e.target as HTMLElement | null;
+      if (tgt?.matches('input, textarea, select')) return;
       if (e.key === '[') {
         e.preventDefault();
         setInPoint();
@@ -762,7 +793,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   /* ---------- 播放头 / scrubber（复刻官方 389-454 行） ---------- */
   const snapTolerance = Math.max(0.08, totalDuration * 0.012);
   const snapTo = useCallback(
-    (v, targets) => {
+    (v: number, targets: number[]) => {
       let best = null;
       for (const t of targets) {
         const dist = Math.abs(t - v);
@@ -775,7 +806,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   );
 
   const setPlayhead = useCallback(
-    (v) => {
+    (v: number) => {
       const targets = currentClip ? [currentClip.sourceStart, currentClip.sourceEnd] : [];
       const clamped = Math.max(0, Math.min(totalDuration, snapTo(v, targets)));
       setPlayheadTime(clamped);
@@ -786,7 +817,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   );
 
   // P3：scrub 高频 → pointerdown 建一次 batch + rect 缓存，move 只 batch（每帧一次 setPlayhead+video.currentTime），up flush
-  const onScrubPointer = (e) => {
+  const onScrubPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!scrubDrag.current) {
       const rect = e.currentTarget.getBoundingClientRect();
       const batch = createRafBatch((clientX) => {
@@ -804,7 +835,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     scrubDrag.current = null;
   };
 
-  const onDragTrimHandle = (e, side) => {
+  const onDragTrimHandle = (e: React.PointerEvent, side: 'start' | 'end') => {
     e.preventDefault();
     e.stopPropagation();
     const clip = currentClip;
@@ -825,7 +856,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         updateClip(clip.id, { sourceStart: Math.min(v, clip.sourceEnd - 0.05) });
       else updateClip(clip.id, { sourceEnd: Math.max(v, clip.sourceStart + 0.05) });
     });
-    const move = (ev) => batch(ev.clientX);
+    const move = (ev: PointerEvent) => batch(ev.clientX);
     const up = () => {
       batch.flush(); // 松手补最后一帧，避免入出点差一帧
       window.removeEventListener('pointermove', move);
@@ -839,7 +870,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   };
 
   /* ---------- 片段拖动（复刻官方 455-508 行） ---------- */
-  const onDragClip = (e, clipId) => {
+  const onDragClip = (e: React.PointerEvent<HTMLDivElement>, clipId: string) => {
     e.preventDefault();
     e.stopPropagation();
     const clip = tracks.flatMap((t) => t.clips).find((c) => c.id === clipId);
@@ -874,7 +905,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         ...(newTrackId ? { trackId: newTrackId } : {}),
       });
     });
-    const move = (ev) => batch(ev.clientX, ev.clientY);
+    const move = (ev: PointerEvent) => batch(ev.clientX, ev.clientY);
     const up = () => {
       batch.flush(); // 松手补最后一帧，避免片段位置差一帧
       window.removeEventListener('pointermove', move);
@@ -906,7 +937,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     ]);
   };
 
-  const onUpload = (e) => {
+  const onUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (localUrl) previewUrls.release(localUrl);
@@ -923,7 +954,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
 
   /* ---------- 处理（复刻官方 546-707 行） ---------- */
   const fail = useCallback(
-    (msg) => {
+    (msg: string) => {
       // 【瞬态收口·阶段二】loading 归 nodeRuntimeStore，node.data 只留持久字段(errorMessage)。
       updateNodeRuntime(id, { loading: false });
       patchNodeDataById(setNodes, id, { errorMessage: msg });
@@ -933,7 +964,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   );
 
   const spawnVideoNode = useCallback(
-    (url, name) => {
+    (url: string, name: string) => {
       const me = getNode(id);
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60;
       const baseY = me?.position.y ?? 100;
@@ -958,7 +989,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   );
 
   const spawnAudioNode = useCallback(
-    (url, name) => {
+    (url: string, name: string) => {
       const me = getNode(id);
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60;
       const baseY = me?.position.y ?? 100;
@@ -984,7 +1015,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
 
   // GIF 结果 spawn 成图片节点（gif 是图片，assetType:'image'）
   const spawnGifNode = useCallback(
-    (url, name) => {
+    (url: string, name: string) => {
       const me = getNode(id);
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60;
       const baseY = me?.position.y ?? 100;
@@ -1148,13 +1179,21 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
               }).then((r) => r.blob());
         const baseOpts = {
           controller,
-          onProgress: (p) => updateNodeRuntime(id, { progress: Math.round(p * 100) }),
+          onProgress: (p: number) => updateNodeRuntime(id, { progress: Math.round(p * 100) }),
         };
-        let opts;
+        let opts: ProcessVideoOptions;
         if (mode === 'trim')
           opts = { mode, start: clip.sourceStart, end: clip.sourceEnd, ...baseOpts };
-        else if (mode === 'extractAudio') opts = { mode, format: audioFormat, ...baseOpts };
-        else opts = { mode, width: outW, height: outH, fps: targetFps, ...baseOpts };
+        else if (mode === 'extractAudio')
+          opts = { mode, format: audioFormat as ProcessVideoOptions['format'], ...baseOpts };
+        else
+          opts = {
+            mode: mode as ProcessVideoOptions['mode'],
+            width: outW,
+            height: outH,
+            fps: targetFps,
+            ...baseOpts,
+          };
         // 【R2 视频治理】processVideo 包总超时（5min），防 conversion.execute 编码卡死（TASK-028 #6-14）
         result = await withTimeout(
           processVideo(blob, opts),
@@ -1292,7 +1331,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   const playheadX = playheadTime * PX_PER_SEC;
 
   /* 同步横向滚动（复刻官方 Pe） */
-  const syncScroll = (e) => {
+  const syncScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const left = e.currentTarget.scrollLeft;
     if (timelineWrapRef.current) {
       timelineWrapRef.current.querySelectorAll('.timeline-container').forEach((el) => {
@@ -1302,7 +1341,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   };
 
   /* 点击时间线定位（复刻官方 Le） */
-  const onTimelinePointer = (e) => {
+  const onTimelinePointer = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!videoRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const t = Math.max(0, (e.clientX - rect.left) / PX_PER_SEC);
@@ -1336,8 +1375,8 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   };
 
   /* 时间线片段缩略图组件（复刻官方 Re） */
-  const renderClipThumb = (clip) => {
-    const imgs = thumbnails[clip.sourceId] || [];
+  const renderClipThumb = (clip: VClip) => {
+    const imgs = thumbnails[String(clip.sourceId)] || [];
     return (
       <div
         key={clip.id}
@@ -1395,7 +1434,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         onPointerUp={flushScrub}
       >
         <div className="absolute inset-0 flex">
-          {(thumbnails[currentClip.sourceId] || []).map((u) => (
+          {(thumbnails[String(currentClip.sourceId)] || []).map((u) => (
             <img
               key={u}
               src={u}
@@ -1846,7 +1885,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
             {gifDuration > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
                 <button
-                  onClick={() => setGifCrop((c) => (c ? 0 : 1))}
+                  onClick={() => setGifCrop((c: number) => (c ? 0 : 1))}
                   className={`nodrag h-6 px-2 rounded text-caption border ${gifCrop ? 'bg-inverse text-inverse-strong border-inverse' : 'bg-surface-active text-secondary border-edge-raised'}`}
                 >
                   {gifCrop ? '裁剪已开' : '裁剪'}

@@ -20,10 +20,11 @@ import { toAbsoluteFileUrl } from '../../base/utils/assetUrl.ts';
 import { createCanvasHost, type CanvasHostCtx } from './canvasHost.ts';
 
 /** 计划单步（generations 数组元素）：字段均可选，因 LLM 计划数据可能不完整。 */
-interface GenerationStep {
+export interface GenerationStep {
   id?: string;
   title?: string;
   prompt?: string;
+  professionalPrompt?: string;
   index?: number;
   ratio?: string;
   resolution?: string;
@@ -34,6 +35,8 @@ interface GenerationStep {
   depends_on_steps?: string[];
   dependency_mode?: string;
   referenceImages?: unknown[];
+  direct_refs?: unknown[];
+  attachment_indices?: unknown[];
   input_artifact_ids?: string[];
 }
 /** executePlan 入参：面板默认生图参数（model/ratio/resolution/quality 均可选）。 */
@@ -68,6 +71,36 @@ interface NodeSettings {
   ratio?: string;
   resolution?: string;
   quality?: string;
+}
+/** executePlan 单个步骤产出（写回 entries / byId / waves）。 */
+interface PlanEntry {
+  id: string;
+  stepId?: string;
+  nodeId: string;
+  phase: string;
+  status: string;
+  resultUrl: string;
+  error: string;
+}
+/** Wave 批调度单元（独立批 / 依赖批共用）。 */
+interface WaveItem {
+  nodeId: string;
+  step: GenerationStep;
+  entry: PlanEntry;
+}
+/** 依赖批 DAG 调度作业。 */
+interface DepJob {
+  di: number;
+  k: number;
+  step: GenerationStep;
+  nodeId: string;
+  entry: PlanEntry;
+}
+/** 前序解析结果（resolved Map 值）。 */
+interface ResolvedStep {
+  status: string;
+  nodeId: string;
+  resultUrl: string;
 }
 
 /* ── 全局单飞锁（对齐大雄 __canvasAgentGenRunning）──
@@ -188,9 +221,9 @@ function extractSubjectLabel(text = '', index = 0) {
   return first.slice(0, 12) || `素材${index + 1}`;
 }
 /** 融合批：挂全部前序成功图 + 改写为融合提示词 */
-export function buildFusionPrompt(prevGens, userText = '') {
+export function buildFusionPrompt(prevGens: GenerationStep[], userText = '') {
   const labels = prevGens
-    .map((g, i) => {
+    .map((g: GenerationStep, i: number) => {
       const short = extractSubjectLabel(g.prompt || g.professionalPrompt || '', i);
       return `图${i + 1}（${short || '素材'}）`;
     })
@@ -207,7 +240,11 @@ export function buildFusionPrompt(prevGens, userText = '') {
   return prompt;
 }
 /** 产品参考批：只挂产品定稿 + 改写为产品一致性提示词 */
-export function buildProductReferencePrompt(productGen, pagePrompt = '', userText = '') {
+export function buildProductReferencePrompt(
+  productGen: GenerationStep,
+  pagePrompt: string = '',
+  userText: string = '',
+) {
   const product = extractSubjectLabel(productGen?.prompt || '产品定稿', 0);
   const page = stripSharedStylePrefix(pagePrompt || '').trim();
   const user = String(userText || '').trim();
@@ -216,7 +253,7 @@ export function buildProductReferencePrompt(productGen, pagePrompt = '', userTex
 }
 
 /** 是否带前序依赖（对齐大雄 stepDependsOnPrevious） */
-function dependsOnPrevious(step) {
+function dependsOnPrevious(step: GenerationStep) {
   if (!step) return false;
   if (step.depends_on_previous === true || step.use_previous_results === true) return true;
   if (Array.isArray(step.depends_on_steps) && step.depends_on_steps.length) return true;
@@ -225,7 +262,7 @@ function dependsOnPrevious(step) {
 
 /** 比例归一：square/1:1 → '1:1'，story/9:16 → '9:16'，landscape/16:9 → '16:9'。
  *  TASK-007 2.4：补中文写法（9比16/竖图/横图/方图/九比十六等）。 */
-function normalizeRatio(ratio) {
+function normalizeRatio(ratio: unknown) {
   const r = String(ratio || '')
     .trim()
     .toLowerCase()
@@ -260,12 +297,12 @@ function normalizeRatio(ratio) {
   if (r === '3:1' || r === '3比1' || r === '三比一') return '3:1';
   if (r === '21:9' || r === '21比9') return '21:9';
   if (r === '9:21' || r === '9比21') return '9:21';
-  if (r) return ratio;
+  if (r) return String(ratio);
   return 'Auto';
 }
 
 /** 档位归一：1k/1K → '1K'，2k/4k 同理 */
-function normalizeResolution(res) {
+function normalizeResolution(res: unknown) {
   const r = String(res || '')
     .trim()
     .toLowerCase()
@@ -278,7 +315,7 @@ function normalizeResolution(res) {
 }
 
 /** 画质归一：high/高画质 → 'high'，medium/中画质 → 'medium'，low/低画质 → 'low' */
-function normalizeQuality(q) {
+function normalizeQuality(q: unknown) {
   const v = String(q || '')
     .trim()
     .toLowerCase()
@@ -289,11 +326,11 @@ function normalizeQuality(q) {
     return 'medium';
   if (v === 'low' || v === '低' || v === '低画质' || v === '节能') return 'low';
   if (v === 'auto' || v === '自动') return 'auto';
-  return q;
+  return String(q);
 }
 
 /** 放置新节点的锚点：就近放到已有节点右侧（简单实现；复杂可对齐大雄 getViewportAnchor） */
-function nextAnchor(ctx, base, index, perRow = 3) {
+function nextAnchor(ctx: CanvasHostCtx, base: { x: number; y: number }, index: number, perRow = 3) {
   const col = index % perRow;
   const row = Math.floor(index / perRow);
   // 纵向间距 750，与 Ctrl+D 复制偏移对齐（图片节点高 + 抽屉高，避免重叠）
@@ -328,7 +365,7 @@ export async function executePlan({
   mode = 'normal',
   nodeMappings = null,
 }: PlanOptions) {
-  const log = (level, message) => {
+  const log = (level: string, message: string) => {
     try {
       onLog?.({ level, message });
     } catch {
@@ -340,7 +377,10 @@ export async function executePlan({
   if (executingPlan) {
     // 超时兜底：异常未释放时自动解锁（防御性，正常路径由 finally 释放）
     if (Date.now() - executingPlanSince < EXECUTING_PLAN_TIMEOUT) {
-      return { workflow: { status: 'failed', error: '已有计划正在执行，请稍后再试' }, entries: [] };
+      return {
+        workflow: { status: 'failed', error: '已有计划正在执行，请稍后再试' },
+        entries: [] as PlanEntry[],
+      };
     }
     // 【TD-11-9 修正 2026-09-11】超时解锁是「正常路径本该释放却没释放」的异常信号，
     // 原先静默解锁 → 排障时看不到"曾发生锁泄漏"。补日志（不阻断，只留痕）。
@@ -350,7 +390,8 @@ export async function executePlan({
     });
     executingPlan = false;
   }
-  if (steps.length === 0) return { workflow: { status: 'failed', error: '计划为空' }, entries: [] };
+  if (steps.length === 0)
+    return { workflow: { status: 'failed', error: '计划为空' }, entries: [] as PlanEntry[] };
   executingPlan = true;
   executingPlanSince = Date.now();
   // 【A层】执行计划入口：总步数 + 是否自动执行（高价值：定位 AI 批量出图的发起与规模）
@@ -402,8 +443,8 @@ export async function executePlan({
   );
   try {
     const host = createCanvasHost(ctx);
-    const entries = [];
-    const byId = new Map(); // step.id -> { nodeId, resultUrl, status }
+    const entries: PlanEntry[] = [];
+    const byId = new Map<string, PlanEntry>(); // step.id -> { nodeId, resultUrl, status }
 
     // 基础锚点：当前画布最右节点右侧，或固定 40,40
     const nodes = host.getNodes();
@@ -413,7 +454,7 @@ export async function executePlan({
     const base = { x: maxX + 120, y: 40 };
 
     // 取某步自己的参考图（execute_plan 按 attachment_indices 解析后写入 step.referenceImages，URL 数组）。
-    const stepRefImages = (step) =>
+    const stepRefImages = (step: GenerationStep) =>
       Array.isArray(step?.referenceImages) ? step.referenceImages.filter(Boolean) : [];
 
     // 【模型二次锁定】建节点/跑节点后强制写回 selectedModel/比例/分辨率，防 React 重渲染把模型回落默认
@@ -432,7 +473,11 @@ export async function executePlan({
 
     // 建一个 imageGenerateNode 并设参数。
     // 参数优先级对齐大雄 resolveFinalGenParams：generations 每步显式字段 > 面板 defaults（model/ratio/resolution）。
-    const createGenNode = async (step, index, anchor) => {
+    const createGenNode = async (
+      step: GenerationStep,
+      index: number,
+      anchor: { x: number; y: number },
+    ) => {
       const nodeId = `plan-${step.id || `step_${index + 1}`}-${generateId('p')}`;
       const ratio = normalizeRatio(step.ratio || defaults.ratio);
       const resolution = normalizeResolution(step.resolution || defaults.resolution);
@@ -465,7 +510,7 @@ export async function executePlan({
           ? {}
           : stepRefImages(step).length
             ? {
-                images: stepRefImages(step).map((u) =>
+                images: stepRefImages(step).map((u: unknown) =>
                   typeof u === 'string' ? { url: toAbsoluteFileUrl(u), name: 'reference' } : u,
                 ),
               }
@@ -504,7 +549,7 @@ export async function executePlan({
 
     // 等待节点渲染 + useNodeGeneration effect 注册 start（最多 5s）。直接 addNodes 后 React 异步渲染，
     // ImageGenerate 挂载时才 registerTaskRetry；不等就直接 runNodeGeneration 会因找不到回调返回 false。
-    const waitForNodeReady = (nodeId, timeout = 5000) =>
+    const waitForNodeReady = (nodeId: string, timeout = 5000) =>
       new Promise((resolve) => {
         const start = Date.now();
         const tick = () => {
@@ -516,7 +561,7 @@ export async function executePlan({
       });
 
     // 触发并 await 结果，写回 data.assetUrl
-    const runNode = async (nodeId, step) => {
+    const runNode = async (nodeId: string, step: GenerationStep) => {
       const ready = await waitForNodeReady(nodeId);
       if (!ready) return { status: 'failed', error: `节点 ${nodeId} 未注册生成契约（渲染超时）` };
       const res = await runNodeGeneration(nodeId);
@@ -550,7 +595,7 @@ export async function executePlan({
       if (!nodeMappings || typeof nodeMappings !== 'object') {
         return {
           workflow: { status: 'failed', error: '补跑缺少 nodeMappings 映射（幂等防线，拒绝）' },
-          entries: [],
+          entries: [] as PlanEntry[],
         };
       }
       // 幂等防线：每个步骤必须能由映射对号，对不上 → 明确报错拒绝（红线 §6.1 不重定位节点）
@@ -561,11 +606,11 @@ export async function executePlan({
             status: 'failed',
             error: `补跑找不到以下步骤的节点映射：${missing.join('、')}（拒绝重建/重定位）`,
           },
-          entries: [],
+          entries: [] as PlanEntry[],
         };
       }
-      const wave1 = [];
-      const wave2 = [];
+      const wave1: WaveItem[] = [];
+      const wave2: WaveItem[] = [];
       independent.forEach((s, i) => {
         const nodeId = nodeMappings[String(s.id)];
         const entry = {
@@ -656,7 +701,7 @@ export async function executePlan({
     }
 
     // ── Wave 1：独立批（Step E 并行化：先串行建节点避免 addNodes 竞态，再并行跑图提升效率）──
-    const wave1 = [];
+    const wave1: WaveItem[] = [];
     for (let i = 0; i < independent.length; i++) {
       const step = independent[i];
       const anchor = nextAnchor(ctx, base, entries.length);
@@ -727,11 +772,11 @@ export async function executePlan({
         .filter((e) => e.status !== 'completed').length;
 
       // ① 索引：真实 step.id → steps 下标（depends_on_steps 反查）；steps 下标稳定解析（补种克隆也能归位）
-      const realIdToIdx = new Map();
+      const realIdToIdx = new Map<string, number>();
       steps.forEach((s, i) => {
         if (s && s.id != null) realIdToIdx.set(String(s.id), i);
       });
-      const stepsIdxOf = (s) => {
+      const stepsIdxOf = (s: GenerationStep): number => {
         const byRef = steps.indexOf(s);
         if (byRef >= 0) return byRef;
         if (s && s.id != null)
@@ -742,20 +787,20 @@ export async function executePlan({
       const depIdxs = dependent.map((s) => stepsIdxOf(s)).filter((i) => i >= 0);
 
       // 依赖步「前序集合」（steps 下标列表）
-      const predsOf = (step, k) => {
+      const predsOf = (step: GenerationStep, k: number): number[] => {
         const declared =
           Array.isArray(step.depends_on_steps) && step.depends_on_steps.length
             ? step.depends_on_steps
                 .map(String)
                 .map((r) => realIdToIdx.get(r))
-                .filter((i) => i >= 0)
+                .filter((i): i is number => i != null)
             : [];
         if (declared.length) return declared;
         return [...indepIdxs, ...depIdxs.slice(0, k)]; // 链式：全部独立步 + 更早的依赖步
       };
 
       // resolved：step 下标 -> { status, nodeId, resultUrl }（独立批 Wave1 已全部完成，先登记）
-      const resolved = new Map();
+      const resolved = new Map<number, ResolvedStep>();
       independent.forEach((s, i) =>
         resolved.set(stepsIdxOf(s), {
           status: entries[i].status,
@@ -767,7 +812,7 @@ export async function executePlan({
       // ② setup（顺序、确定性）：改写 prompt + 资产校验 + 建节点 + 占位 entry。
       //    连线与前序判定放 DAG 阶段（前序就绪后才能决定 prevOk）；建节点在此先完成以定锚点，防并行创建撞位。
       let anchorCount = entries.length;
-      const depJobs = []; // { di, k, step, nodeId, entry }
+      const depJobs: DepJob[] = []; // { di, k, step, nodeId, entry }
       for (let k = 0; k < dependent.length; k++) {
         const step0 = dependent[k];
         const di = stepsIdxOf(step0);
@@ -837,6 +882,9 @@ export async function executePlan({
           stepId: step.id,
           nodeId,
           phase: 'dependent',
+          status: 'ready',
+          resultUrl: '',
+          error: '',
         };
         byId.set(entry.id, entry);
         entries.push(entry);
@@ -844,9 +892,11 @@ export async function executePlan({
       }
 
       // ③ DAG 并行调度：就绪（前序全部已解析）的兄弟依赖步并行触发；真正有依赖的才前后等待。
-      const predIdxOfIdx = new Map(depJobs.map((j) => [j.di, predsOf(j.step, j.k)]));
-      const pending = new Set(depJobs.map((j) => j.di));
-      const runDep = async (job) => {
+      const predIdxOfIdx: Map<number, number[]> = new Map(
+        depJobs.map((j: DepJob) => [j.di, predsOf(j.step, j.k)]),
+      );
+      const pending = new Set<number>(depJobs.map((j: DepJob) => j.di));
+      const runDep = async (job: DepJob) => {
         const { di, k, nodeId, step, entry } = job;
         // 前序依赖：把「已成功且有节点」的前序节点连到本步（下游 useConnectedInputs 自动读其 assetUrl 当参考图）。
         // 只取本步的前序（显式 depends_on_steps 或链式前序），已失败的 / 无节点的排除在连线之外。
@@ -892,7 +942,9 @@ export async function executePlan({
       };
 
       while (pending.size) {
-        let ready = [...pending].filter((di) => predIdxOfIdx.get(di).every((p) => resolved.has(p)));
+        let ready = [...pending].filter((di: number) =>
+          (predIdxOfIdx.get(di) ?? []).every((p: number) => resolved.has(p)),
+        );
         if (ready.length === 0) {
           // 环/不可达兜底（正常计划不应出现）：剩余依赖步一把梭，防整单死等
           ready = [...pending];

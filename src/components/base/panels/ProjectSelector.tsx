@@ -41,7 +41,7 @@ export default function ProjectSelector({ onSwitch, onCreate }: ProjectSelectorP
   const current = getCurrentProject();
   const currentName = current?.name || '选择项目';
 
-  const handleSwitch = (id) => {
+  const handleSwitch = (id: string) => {
     if (id === currentProjectId) return;
     if (onSwitch) onSwitch(id);
     else switchProject(id);

@@ -172,7 +172,7 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
   }, [genMask]);
 
   const step = d.step || 1;
-  const setStep = (n) => updateData({ step: n });
+  const setStep = (n: number) => updateData({ step: n });
 
   // 三步组件只调 d.onXxx?.(...)（引擎回调，由 useScriptBoxEngine 注入 node.data.onXxx）。
   // callbacks 追加断线回调（onDisconnectUpstream），供第 1 步 StepShots 的上游只读素材区断线用。

@@ -149,7 +149,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
   const wrapperRef = useRef<HTMLDivElement | null>(null); // NodeShell 根 div ref（主框手柄拖拽改整体尺寸）
   const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 ResourceStrip 共用）
-  const insertMention = (asset) => {
+  const insertMention = (asset: unknown) => {
     if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset);
   };
   // 全屏编辑状态（复刻 Co.jsx:33,35 的 m/y → 主框/输入框全屏）
@@ -282,7 +282,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     },
   });
 
-  const uploadImage = (e) => {
+  const uploadImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) setImages((prev) => [...prev, previewUrls.create(f)]);
     e.target.value = '';

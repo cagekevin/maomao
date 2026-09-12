@@ -77,7 +77,7 @@ export function useImageHoverActions({
   //   策略定义见该函数头「图像入节点·统一落盘策略」——禁止在此另写第二套降级。
   //   收益：快照里不再出现 MB 级 dataURL（只留 KB 级路径）→ CAS 上报体积小、冲突窗口小。
   const handleEditorSave = useCallback(
-    async ({ dataUrl, width, height }) => {
+    async ({ dataUrl, width, height }: { dataUrl: string; width: number; height: number }) => {
       if (!dataUrl) return;
       const dims = width && height ? { width, height } : undefined;
       setEditor(null);
@@ -89,7 +89,7 @@ export function useImageHoverActions({
   // 就地裁剪保存 → 写回节点图片，关闭裁剪浮层。
   // ★ 与 handleEditorSave 同构，共用同一落盘策略（就地裁剪必须落盘，否则又是「两条改对两条忘」）。
   const handleCropSave = useCallback(
-    async ({ dataUrl }) => {
+    async ({ dataUrl }: { dataUrl: string }) => {
       if (!dataUrl) return;
       setCropping(false);
       await showThenPersistInline(dataUrl, (u) => onImageReplaced?.(u));
@@ -106,7 +106,7 @@ export function useImageHoverActions({
       if (!dataUrl) throw new Error('压缩失败');
       // 立即覆盖显示 → 落盘换持久 URL（同一落盘策略；落盘失败保留内联）
       await showThenPersistInline(dataUrl, (u) => onImageReplaced?.(u));
-      const kb = (n) => `${(n / 1024).toFixed(0)}KB`;
+      const kb = (n: number) => `${(n / 1024).toFixed(0)}KB`;
       showToast(`已压缩：${originalSize ? kb(originalSize) : '?'} → ${size ? kb(size) : '?'}`, {
         type: 'success',
       });

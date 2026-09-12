@@ -67,7 +67,7 @@ export default function FaceMosaicEditor({ assetUrl, onSave, onClose }: FaceMosa
     setHistIdx(next.length - 1);
   }, [histIdx]);
 
-  const restoreSnapshot = useCallback((i) => {
+  const restoreSnapshot = useCallback((i: number) => {
     const c = canvasRef.current;
     const ctx = c?.getContext('2d');
     if (!c || !ctx || !historyRef.current[i]) return;
@@ -106,14 +106,14 @@ export default function FaceMosaicEditor({ assetUrl, onSave, onClose }: FaceMosa
   }, [assetUrl, onClose]);
 
   // 屏幕坐标 → 图片坐标（复刻官方 k）
-  const toCanvasPos = (cx, cy) => {
+  const toCanvasPos = (cx: number, cy: number) => {
     const rect = canvasRef.current.getBoundingClientRect();
     const x = (cx - rect.left) / scale;
     const y = (cy - rect.top) / scale;
     return { x: Math.max(0, Math.min(dims.w, x)), y: Math.max(0, Math.min(dims.h, y)) };
   };
 
-  const onPointerDown = (e) => {
+  const onPointerDown = (e: React.PointerEvent) => {
     const rect = canvasRef.current.getBoundingClientRect();
     const p = toCanvasPos(e.clientX, e.clientY);
     // 起点写入 ref：rAF 回调直接读本次起点，避免 state 异步更新导致的 stale closure
@@ -141,7 +141,7 @@ export default function FaceMosaicEditor({ assetUrl, onSave, onClose }: FaceMosa
     });
     dragGesture.current = { batch };
   };
-  const onPointerMove = (e) => {
+  const onPointerMove = (e: React.PointerEvent) => {
     if (!dragStartRef.current) return;
     dragGesture.current?.batch(e.clientX, e.clientY);
   };
@@ -374,7 +374,7 @@ export default function FaceMosaicEditor({ assetUrl, onSave, onClose }: FaceMosa
   );
 }
 
-function ModeIcon({ mode, size }) {
+function ModeIcon({ mode, size }: { mode: MosaicMode; size: number }) {
   switch (mode) {
     case 'mosaic':
       return <LayoutGrid size={size} />;

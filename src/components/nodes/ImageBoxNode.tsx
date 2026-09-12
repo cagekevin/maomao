@@ -84,7 +84,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
   // 放大查看大图（原生 <dialog>）：zoomUrl 存当前图，openZoom 打开弹层
   const [zoomUrl, setZoomUrl] = useState<string | null>(null);
   const zoomRef = useRef<HTMLDialogElement | null>(null);
-  const openZoom = useCallback((url) => {
+  const openZoom = useCallback((url: string) => {
     if (!url) return;
     setZoomUrl(url);
     // 等 state 提交后再 showModal，确保 img src 已更新
@@ -200,13 +200,13 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
 
   // ---- 设默认图 / 切换选中（对齐官方 j / w）----
   const setActive = useCallback(
-    (index) => {
+    (index: number) => {
       if (index >= 0 && index < images.length) updateData({ activeIndex: index });
     },
     [images.length, updateData],
   );
   const toggleSelect = useCallback(
-    (imageId) => {
+    (imageId: string) => {
       const set = new Set(selectedIds);
       if (set.has(imageId)) set.delete(imageId);
       else set.add(imageId);
@@ -258,7 +258,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
   // ---- 从上游连线取图（对齐官方 ie：assetUrl / imageBoxNode.images / videoExtractNode.extractedImages）----
   const connected = useConnectedInputs(id);
   const upstreamImages = useCallback(() => {
-    const list = [];
+    const list: { id: string; url: string }[] = [];
     // 直接上游 assetUrl（assetNode / imageGenerateNode 等）
     connected.images.forEach((img) => {
       if (
@@ -299,7 +299,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
       list.map((f) =>
         resolveNodeAssetUrl(f)
           .then((url) => (url ? { url, label: f.name } : null))
-          .catch(() => null),
+          .catch((): null => null),
       ),
     ).then((r) => r.filter(Boolean));
   }, []);
@@ -349,7 +349,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
 
   // ---- 拖拽（对齐官方 B/re/V：文件或 URL，及盒子内排序）----
   const onDrop = useCallback(
-    async (e) => {
+    async (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       e.stopPropagation();
       setDragOver(false);
@@ -373,22 +373,23 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
     [dragFrom, readFiles, addImages],
   );
   const onDragOver = useCallback(
-    (e) => {
+    (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       e.stopPropagation();
       if (dragFrom === null && !dragOver) setDragOver(true);
     },
     [dragFrom, dragOver],
   );
-  const onDragLeave = useCallback((e) => {
+  const onDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     if (e.currentTarget === e.target) setDragOver(false);
   }, []);
 
   // ---- 菜单：点击外部关闭（对齐官方 Rg.jsx useEffect）----
   useEffect(() => {
     if (menuIndex === null) return;
-    const close = (e) => {
-      if (!e.target.closest('[data-thumb-menu]') && !e.target.closest('[data-thumb-menu-portal]')) {
+    const close = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      if (!target?.closest('[data-thumb-menu]') && !target?.closest('[data-thumb-menu-portal]')) {
         setMenuIndex(null);
         setMenuPos(null);
       }

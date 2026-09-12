@@ -69,7 +69,27 @@ interface InlineImageCropperProps {
  * @param {number} natH    原图高
  * @returns {{sx:number,sy:number,sw:number,sh:number} | null}
  */
-export function cropRectFromSelection({ sel, renderW, renderH, natW, natH }) {
+interface CropSelection {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  unit: 'px' | '%';
+}
+
+export function cropRectFromSelection({
+  sel,
+  renderW,
+  renderH,
+  natW,
+  natH,
+}: {
+  sel: CropSelection;
+  renderW: number;
+  renderH: number;
+  natW: number;
+  natH: number;
+}) {
   if (!sel || !sel.width || !sel.height) return null;
   let sx, sy, sw, sh;
   if (sel.unit === '%') {
@@ -97,7 +117,7 @@ export default function InlineImageCropper({ assetUrl, onSave, onClose }: Inline
   const [percentCrop, setPercentCrop] = useState(undefined);
 
   // 图片加载 → 默认整图选区（100%），即初始尺寸 = 图片尺寸
-  const onImageLoad = useCallback((e) => {
+  const onImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     imgRef.current = e.currentTarget;
     const full = { unit: '%', x: 0, y: 0, width: 100, height: 100 };
     setCrop(full);
@@ -132,7 +152,7 @@ export default function InlineImageCropper({ assetUrl, onSave, onClose }: Inline
       const offsetX = (boxW - contentW) / 2; // 左右留白宽
       const offsetY = (boxH - contentH) / 2; // 上下留白高
       // %（相对盒子）→ 内容框内像素（相对可见图）→ 再映射到自然像素
-      const toNat = (pct, box, content, offset, nat) =>
+      const toNat = (pct: number, box: number, content: number, offset: number, nat: number) =>
         Math.round((((pct / 100) * box - offset) / content) * nat);
       const rect = {
         sx: toNat(percentCrop.x, boxW, contentW, offsetX, natW),

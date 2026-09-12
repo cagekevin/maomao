@@ -163,9 +163,16 @@ export function getCurrentWorkflow(): WorkflowState | null {
 export function patchCurrentWorkflow(patch: Record<string, unknown> = {}): WorkflowState | null {
   const conv = requireActiveConv('patchCurrentWorkflow');
   if (!conv) return null;
-  const wf = conv.workflow
+  const wf: WorkflowState = conv.workflow
     ? { ...conv.workflow }
-    : { status: 'planning', nodeIds: [], steerQueue: [] };
+    : {
+        id: '',
+        status: 'planning',
+        nodeIds: [] as string[],
+        steerQueue: [] as unknown[],
+        startedAt: 0,
+        updatedAt: 0,
+      };
   const nextWf = normalizeWorkflow({
     ...wf,
     ...patch,

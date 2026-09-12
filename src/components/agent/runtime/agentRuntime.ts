@@ -517,7 +517,7 @@ async function resolveBody(
  */
 function safeParseNonStreamJSON(rawText: string, logger: AgentLogger): unknown {
   if (!rawText || !rawText.trim()) return null;
-  const candidate = (s) => {
+  const candidate = (s: string) => {
     try {
       return JSON.parse(s);
     } catch {

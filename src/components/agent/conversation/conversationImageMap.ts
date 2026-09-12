@@ -60,7 +60,7 @@ export function getCurrentImageMap(): ImageMapEntry[] {
   const genResults = getLastGeneratedImages();
   const attachments = getCurrentSnapshot().attachments || [];
   /** @type {ImageMapEntry[]} */
-  const map = [];
+  const map: ImageMapEntry[] = [];
   genResults.forEach((r, i) => {
     const item = r as Record<string, unknown>;
     map.push({

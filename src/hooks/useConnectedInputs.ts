@@ -1,6 +1,10 @@
 import { useCallback, useMemo } from 'react';
 import { useStore, type Node, type Edge } from '@xyflow/react';
-import { collectAssets } from '../components/scriptbox/scriptBoxPrompts.ts';
+import {
+  collectAssets,
+  type Shot,
+  type ScriptAsset,
+} from '../components/scriptbox/scriptBoxPrompts.ts';
 import { toAbsoluteFileUrl } from '../components/base/api/index.ts';
 import { resolveAssetType } from '../components/base/utils/assetType.ts';
 import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.ts';
@@ -83,7 +87,13 @@ function arrayImages(
   return out;
 }
 
-export const NODE_OUTPUTS = {
+/** 节点产出解析函数签名：d 为节点 data（动态字段，统一以 Record 约束），返回聚合产出（可缺省字段 / 弃权 undefined）。 */
+type NodeOutputResolver = (
+  d: Record<string, unknown>,
+  sourceHandle?: string,
+) => Partial<NodeOutputGroup> | undefined;
+
+export const NODE_OUTPUTS: Record<string, NodeOutputResolver> = {
   // 剧本盒子：多端口产出（每个分镜一个 `shot-${id}` 端口，见 contracts.SHOT_HANDLE_PREFIX）。
   // 按 sourceHandle 反查对应分镜，再用 @资产名 匹配收集「该镜头引用且有图」的资产为参考图。
   // 为什么只给连的那个镜头：下游连哪个镜头就该只拿那个镜头的资产，不能把所有镜头的图都塞下去。
@@ -96,8 +106,11 @@ export const NODE_OUTPUTS = {
   scriptBoxNode: (d, sourceHandle) => {
     const shotId = parseShotHandle(sourceHandle);
     if (!shotId) return undefined;
-    const shot = (d.shots || []).find((s) => String(s.id) === String(shotId));
-    return { images: shot ? collectAssets(shot, d.assets) : [] };
+    const shots = Array.isArray(d.shots) ? d.shots : [];
+    const shot = shots.find((s: Record<string, unknown>) => String(s.id) === String(shotId));
+    const assets = Array.isArray(d.assets) ? (d.assets as ScriptAsset[]) : null;
+    // d 来自节点 data（运行时对象），收窄为具体契约类型交给 collectAssets
+    return { images: shot ? collectAssets(shot as Shot, assets) : [] };
   },
   // 图片盒子：多图（对象数组 {id,url,label}），产出全部图；assetType 由 URL 判定
   imageBoxNode: (d) => {

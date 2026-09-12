@@ -61,13 +61,13 @@ interface NodeShellProps {
 // （不推荐 useShallow：它每次仍分配新对象，大画布下每帧几百次对象分配有 GC 压力。）
 // 等价性：旧实现在 !lookup / !n / !id 三种情况下返回 {width:undefined,height:undefined}，
 // 新实现 s?.nodeLookup?.get(id) 在这三种情况下同样得到 undefined → 行为完全等价。
-function useNodeWidth(id) {
+function useNodeWidth(id: string) {
   return useStore((s) => {
     const n = s?.nodeLookup?.get(id);
     return n?.width ?? n?.style?.width;
   });
 }
-function useNodeHeight(id) {
+function useNodeHeight(id: string) {
   return useStore((s) => {
     const n = s?.nodeLookup?.get(id);
     return n?.height ?? n?.style?.height;

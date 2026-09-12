@@ -52,7 +52,7 @@ function ImageZoomDialog({
 
   const dlgRef = useRef<HTMLDialogElement | null>(null);
   const setRef = useCallback(
-    (node) => {
+    (node: HTMLDialogElement | null) => {
       dlgRef.current = node; // 内部也要持一份：下面要读它的 open 属性
       if (typeof ref === 'function') ref(node);
       else if (ref) ref.current = node;
@@ -105,7 +105,7 @@ function ImageZoomDialog({
       pending = 0;
       setScale((s) => Math.min(Math.max(0.1, s + delta), 10));
     });
-    const onWheel = (e) => {
+    const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
       pending += -e.deltaY * 0.0015;
@@ -127,7 +127,7 @@ function ImageZoomDialog({
       pending = { x: 0, y: 0 };
       setOffset((o) => ({ x: o.x + dx, y: o.y + dy }));
     });
-    const onMove = (e) => {
+    const onMove = (e: PointerEvent) => {
       if (!dragging.current) return;
       pending.x += e.clientX - lastPointer.current.x;
       pending.y += e.clientY - lastPointer.current.y;
@@ -148,7 +148,7 @@ function ImageZoomDialog({
     };
   }, [isVideo]);
 
-  const onPointerDown = useCallback((e) => {
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
     dragging.current = true;
     lastPointer.current = { x: e.clientX, y: e.clientY };
     // P10：拖拽期挂 will-change（transform 会被高频改写，提示浏览器提前建合成层）
@@ -156,7 +156,7 @@ function ImageZoomDialog({
   }, []);
 
   const close = useCallback(
-    (e) => {
+    (e: React.MouseEvent) => {
       const dlg =
         e?.currentTarget?.closest?.('dialog') || (typeof ref === 'function' ? null : ref?.current);
       dlg?.close?.();

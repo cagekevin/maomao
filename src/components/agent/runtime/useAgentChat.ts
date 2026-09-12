@@ -40,6 +40,7 @@ import type { ToolCall, ChatMessage, AgentMemory } from './agentCore.ts';
 import {
   roundTrip as agentRuntimeRoundTrip,
   runToolCalls as agentRuntimeRunToolCalls,
+  type StreamDelta,
 } from './agentRuntime.ts';
 // 「记·长期」：按 agentKey 全局长期记忆注入块（照搬参考项目 memoryRetrieval + contextManager），注入 buildRequestMessages
 import { buildProjectMemoryContextFromStore } from './memoryRetrieval.ts';
@@ -112,6 +113,7 @@ import {
 // 避免整包 useConversationStore() 订阅 → 流式高频更新连坐重渲染整个面板。
 import { subscribe, getState } from '../conversation/conversationState.ts';
 import type { ConversationStoreState, Conversation } from '../conversation/conversationState.ts';
+import type { ConversationSnapshot } from '../conversation/conversationSnapshot.ts';
 import { useStoreSelector, shallowEqual } from '../../../hooks/useStoreSelector.ts';
 // UI 渲染层消息形状（extends ChatMessage + 可选 UI 态字段）。hook 返回的 messages 即此形状，
 // 在此 import 类型保证「hook 产出」与「AgentPanel 消费」共用一份定义，消除两端的 `as unknown as`（F3）。
@@ -487,7 +489,11 @@ export function useAgentChat({
   // 【职责模块化】roundTrip 已下沉到 agentRuntime.js（依赖注入）。此处只构造 ctx 并转发，
   // 逻辑与拆分前完全一致（LLM 通信：流式 SSE / 非流式 JSON 双模式；出站统一走 chatStream/post 生成门面）。
   const roundTrip = useCallback(
-    async (requestMessages, signal, onStream) => {
+    async (
+      requestMessages: ChatMessage[],
+      signal: AbortSignal,
+      onStream?: (delta: StreamDelta) => void,
+    ) => {
       return agentRuntimeRoundTrip(
         {
           model,
@@ -553,7 +559,7 @@ export function useAgentChat({
 
   /** 发送（复刻官方 dr:2786-2895 的 send：SSE + 多轮工具循环） */
   const send = useCallback(
-    async (text, attachments = []) => {
+    async (text: string, attachments: unknown[] = []) => {
       // ── 保护：空内容直接返回 ──
       if (!text.trim() && (!attachments || attachments.length === 0)) return;
 
@@ -612,7 +618,7 @@ export function useAgentChat({
       };
       if (attachments && attachments.length > 0) {
         // 发送统一出口守卫：附件图必经归一（含缩略图端点自动还原原图），禁止发 render 小图。见 agentAttachments.js
-        userMsg.attachments = await normalizeAttachmentsForSend(attachments, {
+        userMsg.attachments = await normalizeAttachmentsForSend(attachments as SendAttachment[], {
           preferBase64: provider?.refFormat === 'base64',
         });
         // 【参考图编号目录】对齐大雄：给 AI 参考图顺序编号（按输入框从左到右），
@@ -736,7 +742,7 @@ export function useAgentChat({
             updateLastStreaming(delta),
           );
           // 结束流式（把占位替换为完整 assistant）
-          endStreaming(assistant);
+          endStreaming(assistant as unknown as Record<string, unknown>);
           // ── [debug] 非流式链路 · 跳④：roundTrip 返回（定位"前端拿到什么"） ──
           logger.debug(
             'AI助手',
@@ -753,7 +759,9 @@ export function useAgentChat({
 
           // 【对齐大雄】阶段1 的 generations 主通道：从 LLM 回复正文解析并暂存（不走工具参数超大 JSON）。
           // 若正文含 plan+generations JSON，解析后写入 per-conversation 暂存，供阶段3 execute_plan 从内存读。
-          const { generations: replyGens } = parseGenerationsFromReply(assistant.content);
+          const { generations: replyGens } = parseGenerationsFromReply(
+            String(assistant.content || ''),
+          );
           if (Array.isArray(replyGens) && replyGens.length > 0) {
             setActivePendingGenerations(replyGens);
           }
@@ -944,7 +952,7 @@ export function useAgentChat({
   // 已更新 store.activeId + conversations），不再需要本地 state 同步 → 移除 setActiveConversationId / refreshConversations。
   // 注意：切换前只 setCurrentSnapshot（暂存），与 switchConversation 内部的落盘逻辑配合，勿额外 captureActiveConversation。
   const applyConversationState = useCallback(
-    (targetId, snapshot) => {
+    (targetId: string, snapshot: ConversationSnapshot) => {
       setHistory(snapshot.messages);
       setError(null);
       stateMachineRef.current.load(targetId);
@@ -983,7 +991,7 @@ export function useAgentChat({
 
   /** 切换对话（#9） */
   const switchChat = useCallback(
-    (id) => {
+    (id: string) => {
       if (getState().sending || !id || id === getActiveConversationId()) return;
       flushCurrentConversation();
       const snapshot = switchConversation(id);
@@ -994,7 +1002,7 @@ export function useAgentChat({
 
   /** 删除对话（#9）：删除后自动切到下一个；若全删空则建新对话 */
   const deleteChat = useCallback(
-    (id) => {
+    (id: string) => {
       if (getState().sending) return;
       flushCurrentConversation();
       const { activeId, snapshot } = deleteConversation(id);
@@ -1038,7 +1046,7 @@ export function useAgentChat({
   // 【TD-17 修正】只传 messages：本函数职责是「改消息字段」，**不应顺带清草稿**（无理由的副作用）。
   // HINT 里若传了 draft 等字段仍会照常覆盖（patch 语义保留），但默认不碰。
   const updateMessageByContent = useCallback(
-    (assistantContent, patch) => {
+    (assistantContent: string, patch: Record<string, unknown>) => {
       if (!assistantContent) return;
       const next = getCurrentSnapshot().messages.map((m) =>
         m.role === 'assistant' && m.content === assistantContent ? { ...m, ...patch } : m,
@@ -1069,7 +1077,7 @@ export function useAgentChat({
   // 避免取消后 execute_plan 被永久拒、也避免残留 pendingMemorySuggest 导致下次确认误判成「记忆确认」。
   // 不通知 LLM（用户放弃本次策划/记忆，可重新输入指令）。
   const cancelPendingConfirm = useCallback(
-    (assistantContent) => {
+    (assistantContent: string) => {
       setActivePendingMemorySuggest(null);
       setAwaitingConfirm(false);
       if (assistantContent) updateMessageByContent(assistantContent, { awaiting_confirm: false });
@@ -1082,7 +1090,7 @@ export function useAgentChat({
   // 复用 AI 操作画布的现成工具链路（create_node → canvasHost），而非裸写 setNodes。
   // 供 AgentPanel「回复右下角箭头」按钮调用；空文本直接忽略。
   const sendContentToCanvas = useCallback(
-    (content) => {
+    (content: unknown) => {
       const text = String(content ?? '').trim();
       if (!text) return { ok: false, error: '内容为空' };
       return callTool('create_node', { type: 'textGenerateNode', text });

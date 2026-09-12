@@ -33,6 +33,7 @@ import {
 } from '../../store/providerStore.ts';
 import FetchModelsModal from './FetchModelsModal.tsx';
 import type { RawModel } from '../../utils/providerModels.ts';
+import type { FetchedModelGroup } from './FetchModelsModal.tsx';
 
 /**
  * 设置分区 · 服务商配置（新时代「切哪个用哪个」，docs/96、docs/101）。
@@ -336,7 +337,7 @@ export default function ApiSettings() {
                 }
                 fetching={fetchingId === selected?.id}
                 onClose={() => closeFetchedModels()}
-                onConfirm={(selectedModels) => {
+                onConfirm={(selectedModels: FetchedModelGroup) => {
                   if (fetchedModels) {
                     applyFetchedModels(fetchedModels.id, selectedModels);
                     const total =

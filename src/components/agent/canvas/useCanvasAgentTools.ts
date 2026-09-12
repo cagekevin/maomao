@@ -1,11 +1,11 @@
 import { useCallback, useMemo } from 'react';
-import { useReactFlow } from '@xyflow/react';
+import { useReactFlow, type Node, type Edge } from '@xyflow/react';
 import { registerTool, getTools, type ToolResult } from '../../base/canvas/toolRegistry.ts';
 import { defaultNodeData } from '@/components/base/canvas/NodePalette';
 import { runNodeGeneration } from '../../base/store/taskStore.ts';
 import '@/components/base/canvas/groupNodes';
-import { createCanvasHost } from './canvasHost.ts';
-import { executePlan } from './canvasPlanExecutor.ts';
+import { createCanvasHost, type CanvasHostCtx } from './canvasHost.ts';
+import { executePlan, type GenerationStep } from './canvasPlanExecutor.ts';
 import {
   patchCurrentWorkflow,
   setCurrentMemory,
@@ -93,7 +93,7 @@ export function getCreditSwitch() {
     return true;
   }
 }
-export function setCreditSwitch(v) {
+export function setCreditSwitch(v: unknown) {
   try {
     contentSet(CREDIT_SWITCH_KEY, !!v);
   } catch {
@@ -109,7 +109,7 @@ export function setCreditSwitch(v) {
  * execute_plan 工具读取它，按 AI 输出的 attachment_indices（0-based）精确取对应 URL，
  * 写进每个 generation 的 referenceImages（该步图生图参考）。
  */
-export function setCurrentReferenceImages(urls = []) {
+export function setCurrentReferenceImages(urls: string[] = []) {
   setCurrentRefImages(urls);
 }
 export function getCurrentReferenceImages() {
@@ -127,7 +127,7 @@ export function getCurrentReferenceImages() {
  * 保留 setPendingGenerations/getPendingGenerations/clearPendingGenerations 导出兼容调用方，
  * 内部改走 conversationStore。
  */
-export function setPendingGenerations(gens) {
+export function setPendingGenerations(gens: unknown) {
   setActivePendingGenerations(Array.isArray(gens) && gens.length ? gens : null);
 }
 export function getPendingGenerations() {
@@ -231,14 +231,14 @@ export function clearPendingGenerations() {
  *  - name:        工具名（LLM 调用名）
  *  - description: 中文描述（喂 LLM，让它理解何时调用）
  *  - parameters:  OpenAI function calling 参数 schema
- *  - execute:     (args, ctx) => { ok, data|error }   ctx 为 useReactFlow() 能力
+ *  - execute:     (args: Record<string, unknown>, ctx: CanvasAgentCtx) => { ok, data|error }   ctx 为 useReactFlow() 能力
  */
 
 /** 把 args 里某字段归一为 string，缺省给 fallback */
-const str = (v, fb = '') => (typeof v === 'string' && v ? v : fb);
+const str = (v: unknown, fb: string = ''): string => (typeof v === 'string' && v ? v : fb);
 
 /** 【B层日志辅助】工具参数摘要：截断过长字符串，避免 debug 刷屏（保留结构但限长） */
-function stringifyArgs(args) {
+function stringifyArgs(args: unknown) {
   if (args == null) return '';
   try {
     const s = JSON.stringify(args);
@@ -249,7 +249,7 @@ function stringifyArgs(args) {
 }
 
 /** 把 args 里某字段归一为 number（允许 '12'），非法给 fallback */
-const num = (v, fb) => {
+const num = (v: unknown, fb: number): number => {
   const n = Number(v);
   return Number.isFinite(n) ? n : fb;
 };
@@ -260,7 +260,7 @@ const num = (v, fb) => {
  * images 数组元素兼容字符串（url）与对象（{ url } 或 { assetUrl }）。无图返回空串。
  * 设计取舍：只取「主图」一个 URL（用户选中节点即引用其首图），保证简单、可复用现有图片附件链路。
  */
-export function getNodeAssetUrl(node) {
+export function getNodeAssetUrl(node: Node | null) {
   const d = node?.data || {};
   for (const key of ['assetUrl', 'url']) {
     if (typeof d[key] === 'string' && d[key]) return d[key];
@@ -287,9 +287,16 @@ export function getNodeAssetUrl(node) {
  *   3. 退化为 getNodeAssetUrl 主图 url → 按扩展名判型（video/audio 原样标记，其余按 image）。
  * 只返回可作 AI 多模态上下文的媒体（image / video / audio），text / 空返回 { type:'', url:'' }。
  */
-export function getNodeMedia(node) {
-  const d = node?.data || {};
-  const kindOf = (u) => classifyAssetUrlKind(u) || '';
+export function getNodeMedia(node: Node | null) {
+  const d = (node?.data || {}) as {
+    assetType?: string;
+    videoUrl?: string;
+    audioUrl?: string;
+    url?: string;
+    assetUrl?: string;
+    [k: string]: unknown;
+  };
+  const kindOf = (u: unknown) => classifyAssetUrlKind(String(u)) || '';
   let explicit = '';
   let url = '';
   if (d.assetType === 'video' || d.assetType === 'audio') {
@@ -373,7 +380,7 @@ const CN_TO_ARABIC = {
 };
 /** P6：按「图N」编号缓存对应正则（entry.num 动态插值），避免 refs.forEach 内重复 new RegExp。编号取值有限，天然防膨胀。 */
 const FIG_NUM_RE_CACHE = new Map();
-function getFigNumRegex(num) {
+function getFigNumRegex(num: string | number) {
   let re = FIG_NUM_RE_CACHE.get(num);
   if (!re) {
     re = new RegExp(`图\\s*${num}(?![0-9])`, 'g');
@@ -387,7 +394,7 @@ function getFigNumRegex(num) {
  * LLM 可能传 720p/1080p/1440p/2K/4K，这里统一归一：1080p→1K、1440p/2K→2K、4K→4K，
  * 兜底 1K。未知/空值返回 null（调用方不设置）。
  */
-function normalizeResolution(res) {
+function normalizeResolution(res: unknown) {
   if (!res) return null;
   const r = String(res).trim().toLowerCase();
   if (r.includes('4k')) return '4K';
@@ -396,7 +403,7 @@ function normalizeResolution(res) {
 }
 
 /** 取节点宽度（ReactFlow 测量后）：优先 width，其次 measured.width，兜底 280（对齐参考项目 nodeRect 兜底 w=280） */
-function nodeWidth(n) {
+function nodeWidth(n: Node) {
   const w = Number(n?.width) || Number(n?.measured?.width) || 0;
   return w > 0 ? w : 280;
 }
@@ -406,7 +413,12 @@ function nodeWidth(n) {
  * 1) 有选中节点：放在「选中区最右边界 + 100px」处，y 对齐选中区顶部（水平排列、顶部对齐）。
  * 2) 无选中：放视口中心（screenToFlowPosition 屏幕中心 → 画布世界坐标）。
  */
-function computeCreatePosition(nodes, screenToFlowPosition, vw, vh) {
+function computeCreatePosition(
+  nodes: Node[],
+  screenToFlowPosition: ((p: { x: number; y: number }) => { x: number; y: number }) | undefined,
+  vw: number,
+  vh: number,
+) {
   const selected = (nodes || []).filter((n) => n.selected);
   if (selected.length > 0) {
     const right = Math.max(...selected.map((n) => Number(n.position?.x || 0) + nodeWidth(n)));
@@ -423,7 +435,7 @@ function computeCreatePosition(nodes, screenToFlowPosition, vw, vh) {
  * @param currentNodes 当前节点快照（批量时传「虚拟增长」的数组，保持横向自动布局）
  * @returns { error? } 或 { id, newNode, edges }
  */
-function buildCreateNode(args, ctx, currentNodes) {
+function buildCreateNode(args: Record<string, unknown>, ctx: CanvasAgentCtx, currentNodes: Node[]) {
   const type = str(args.type);
   // agent 可创建的节点类型白名单（不含剧本盒等复合节点）。
   // 用白名单而非 getPaletteNode：即使调色板里新增了剧本盒等类型，agent 也不会被允许创建。
@@ -459,8 +471,9 @@ function buildCreateNode(args, ctx, currentNodes) {
   // 画布无节点时才放视窗中心。这样 AI 建多个节点会自动横向排开，不乱叠。
   const vw = typeof window !== 'undefined' ? window.innerWidth : 0;
   const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
-  const position = args.position
-    ? { x: num(args.position.x, 0), y: num(args.position.y, 0) }
+  const pos = args.position as { x?: unknown; y?: unknown } | undefined;
+  const position = pos
+    ? { x: num(pos.x, 0), y: num(pos.y, 0) }
     : computeCreatePosition(currentNodes, ctx.screenToFlowPosition, vw, vh);
   const id = generateId(type);
   const newNode = { id, type, position: { ...position }, data };
@@ -468,7 +481,7 @@ function buildCreateNode(args, ctx, currentNodes) {
   if (type === 'imageGenerateNode')
     Object.assign(newNode, { width: 420, height: 420, style: { width: 420, height: 420 } });
 
-  let edges = [];
+  let edges: Edge[] = [];
   if (args.connectFrom) {
     const src = currentNodes.find((n) => n.id === args.connectFrom);
     if (src) {
@@ -535,7 +548,7 @@ const createNodeTool = {
     },
     required: ['type'],
   },
-  execute(args, ctx) {
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const host = createCanvasHost(ctx);
     const built = buildCreateNode(args, ctx, ctx.getNodes());
     if (built.error) return { ok: false, error: built.error };
@@ -593,7 +606,7 @@ const batchCreateNodesTool = {
     },
     required: ['nodes'],
   },
-  execute(args, ctx) {
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     if (!Array.isArray(args.nodes) || args.nodes.length === 0)
       return { ok: false, error: 'nodes 数组为空' };
     const host = createCanvasHost(ctx);
@@ -644,7 +657,7 @@ const deleteNodeTool = {
     },
     required: ['nodeId'],
   },
-  execute(args, ctx) {
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const host = createCanvasHost(ctx);
     const id = str(args.nodeId);
     const exists = host.getNodes().some((n) => n.id === id);
@@ -671,7 +684,7 @@ const batchDeleteNodesTool = {
     },
     required: ['nodeIds'],
   },
-  execute(args, ctx) {
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const ids = Array.isArray(args.nodeIds) ? args.nodeIds.map(String) : [];
     if (!ids.length) return { ok: false, error: 'nodeIds 数组为空' };
     const host = createCanvasHost(ctx);
@@ -710,7 +723,7 @@ const updateNodeTool = {
     },
     required: ['nodeId'],
   },
-  execute(args, ctx) {
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const host = createCanvasHost(ctx);
     const id = str(args.nodeId);
     const node = host.getNode(id);
@@ -753,7 +766,7 @@ const updateNodeRawTool = {
     },
     required: ['nodeId', 'patch'],
   },
-  execute(args, ctx) {
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const host = createCanvasHost(ctx);
     const id = str(args.nodeId);
     const node = host.getNode(id);
@@ -770,7 +783,11 @@ const updateNodeRawTool = {
  * @param currentEdges 当前边快照（批量时传「虚拟增长」数组，保证去重语义与逐条一致）
  * @returns { status: 'created', edge } | { status: 'already' } | { status: 'error', error }
  */
-function buildConnect(conn, ctx, currentEdges) {
+function buildConnect(
+  conn: { source?: unknown; target?: unknown },
+  ctx: CanvasAgentCtx,
+  currentEdges: Edge[],
+) {
   const source = str(conn.source);
   const target = str(conn.target);
   if (!ctx.getNodes().some((n) => n.id === source))
@@ -784,7 +801,7 @@ function buildConnect(conn, ctx, currentEdges) {
     edge: {
       id: generateId('e'),
       source,
-      sourceHandle: null,
+      sourceHandle: null as string | null,
       target,
       type: 'default',
       animated: false,
@@ -805,7 +822,7 @@ const connectNodesTool = {
     },
     required: ['source', 'target'],
   },
-  execute(args, ctx) {
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     // 【TD-11-8 收口 2026-09-11】原裸调 ctx.setEdges 绕过唯一入口 → 改走 canvasHost.appendEdges
     // （写操作唯一入口红线，见 agent/index.ts:52；canvasHost 已提供 appendEdges/removeEdges，无需裸调）。
     const host = createCanvasHost(ctx);
@@ -841,7 +858,7 @@ const batchConnectNodesTool = {
     },
     required: ['connections'],
   },
-  execute(args, ctx) {
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const list = Array.isArray(args.connections) ? args.connections : [];
     if (!list.length) return { ok: false, error: 'connections 为空' };
     // 【TD-11-8 收口】裸调 ctx.setEdges → canvasHost.appendEdges（保留 P11 单次写回防渲染风暴）
@@ -877,16 +894,16 @@ const deleteEdgeTool = {
       source: { type: 'string', description: '源节点 id（可选，配合 target）' },
       target: { type: 'string', description: '目标节点 id（可选，配合 source）' },
     },
-    required: [],
+    required: [] as string[],
   },
-  execute(args, ctx) {
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     // 【TD-11-8 收口】裸调 ctx.setEdges → canvasHost.removeEdges（写操作唯一入口）
     const host = createCanvasHost(ctx);
     const edges = host.getEdges();
     if (args.edgeId) {
       if (!edges.some((e) => e.id === args.edgeId))
         return { ok: false, error: `连线不存在：${args.edgeId}` };
-      host.removeEdges(args.edgeId);
+      host.removeEdges(args.edgeId as string);
       return { ok: true, data: { edgeId: args.edgeId } };
     }
     if (args.source && args.target) {
@@ -903,8 +920,13 @@ const deleteEdgeTool = {
 const listNodesTool = {
   name: 'list_nodes',
   description: '列出全部节点（id/type/label/坐标）。改画布前先调它了解结构。',
-  parameters: { type: 'object', additionalProperties: false, properties: {}, required: [] },
-  execute(args, ctx) {
+  parameters: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {},
+    required: [] as string[],
+  },
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const nodes = ctx.getNodes().map((n) => ({
       id: n.id,
       type: n.type,
@@ -919,8 +941,13 @@ const listNodesTool = {
 const listEdgesTool = {
   name: 'list_edges',
   description: '列出画布上所有连线，返回 source/target 关系。',
-  parameters: { type: 'object', additionalProperties: false, properties: {}, required: [] },
-  execute(args, ctx) {
+  parameters: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {},
+    required: [] as string[],
+  },
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const edges = ctx.getEdges().map((e) => ({
       id: e.id,
       source: e.source,
@@ -942,7 +969,7 @@ const getNodeDetailsTool = {
     properties: { nodeId: { type: 'string' } },
     required: ['nodeId'],
   },
-  execute(args, ctx) {
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const id = str(args.nodeId);
     const node = ctx.getNodes().find((n) => n.id === id);
     if (!node) return { ok: false, error: `节点不存在：${id}` };
@@ -955,8 +982,13 @@ const readCanvasTool = {
   name: 'read_canvas',
   description:
     '一次读取画布全貌（所有节点+连线，含各节点提示词、文本内容与生成结果）。⚠️ 只返回结构化数据，不含图像/视频的画面内容；分析图片内容（反推提示词、描述图片、识别图中文字等）不要用本工具，直接看用户消息里的图。',
-  parameters: { type: 'object', additionalProperties: false, properties: {}, required: [] },
-  execute(args, ctx) {
+  parameters: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {},
+    required: [] as string[],
+  },
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const nodes = ctx.getNodes().map((n) => ({
       id: n.id,
       type: n.type,
@@ -1001,9 +1033,9 @@ const readTableTool = {
           '可选：某行的 id（整表返回里的 rows[].id），只返回该行（带列名）。缺省返回整表',
       },
     },
-    required: [],
+    required: [] as string[],
   },
-  execute(args) {
+  execute(args: Record<string, unknown>) {
     const sb = getCurrentAssistantTable();
     const rowId =
       args && typeof args === 'object' && typeof (args as { rowId?: unknown }).rowId === 'string'
@@ -1058,7 +1090,7 @@ const triggerGenerationTool = {
     },
     required: ['nodeId'],
   },
-  execute: async (args, ctx) => {
+  execute: async (args: Record<string, unknown>, ctx: CanvasAgentCtx) => {
     const id = str(args.nodeId);
     const node = ctx.getNodes().find((n) => n.id === id);
     if (!node) {
@@ -1257,9 +1289,9 @@ const executePlanTool = {
     },
     // 对齐大雄：generations 主通道是阶段1 暂存（回复正文解析），execute_plan 不再 required。
     // 仅当暂存为空时才要求 LLM 在参数里补传（兜底）。
-    required: [],
+    required: [] as string[],
   },
-  execute: async (args, ctx) => {
+  execute: async (args: Record<string, unknown>, ctx: CanvasAgentCtx) => {
     try {
       // 【Step F 确认态硬约束】show_plan_for_confirm 后 awaitingConfirm=true，未确认前拒绝 execute_plan
       // （无论是否带 generations），防止 LLM 在用户未确认时直接出图。仅前端确认按钮翻转。
@@ -1326,16 +1358,16 @@ const executePlanTool = {
           g?.dependency_mode === 'fusion'
         );
         // ① 独立步骤 + direct_refs → 优先用 direct_refs（对齐大雄 10638：`direct_refs && !isPrevDep`）
-        if (!isPrevDep && Array.isArray(g?.direct_refs) && g.direct_refs.length > 0) {
-          const refs = g.direct_refs.filter((r) => r && r.url);
+        if (!isPrevDep && Array.isArray(g.direct_refs) && g.direct_refs.length > 0) {
+          const refs = g.direct_refs.filter((r: { url?: unknown }) => r && r.url);
           if (refs.length > 0) {
             let prompt = String(g.prompt || '');
             prompt = prompt.replace(
               /图\s*([一二三四五六七八九十])/g,
-              (m, cn) => `图${CN_TO_ARABIC[cn] || cn}`,
+              (m: string, cn: string) => `图${(CN_TO_ARABIC as Record<string, string>)[cn] || cn}`,
             );
-            const roleDescs = [];
-            refs.forEach((ref, i) => {
+            const roleDescs: string[] = [];
+            refs.forEach((ref: { url?: unknown }, i: number) => {
               const entry = imgMap.find((m) => m.url === ref.url);
               if (entry) {
                 const re = getFigNumRegex(entry.num);
@@ -1345,12 +1377,18 @@ const executePlanTool = {
             });
             if (roleDescs.length > 1)
               prompt = `[参考图顺序：${roleDescs.join('、')}，与下方参考图数组一一对应]\n${prompt}`;
-            return { ...g, prompt, referenceImages: refs.map((r) => r.url).filter(Boolean) };
+            return {
+              ...g,
+              prompt,
+              referenceImages: refs.map((r: { url?: unknown }) => r.url).filter(Boolean),
+            };
           }
         }
         // ② attachment_indices → 挂本轮/回退的参考图（对齐大雄 10649-10669：use_attachments 且按索引取 refPool）
-        const idxs = Array.isArray(g?.attachment_indices)
-          ? g.attachment_indices.map((i) => Number(i)).filter((i) => Number.isFinite(i) && i >= 0)
+        const idxs = Array.isArray(g.attachment_indices)
+          ? g.attachment_indices
+              .map((i: unknown) => Number(i))
+              .filter((i: number) => Number.isFinite(i) && i >= 0)
           : [];
         const useAttach = refPool.length > 0 && (g?.use_attachments === true || idxs.length > 0);
         if (useAttach) {
@@ -1360,8 +1398,8 @@ const executePlanTool = {
               ? idxs
               : Array.from({ length: refPool.length }, (_, i) => i)
             )
-              .filter((i) => i >= 0 && i < refPool.length)
-              .map((i) => refPool[i])
+              .filter((i: number) => i >= 0 && i < refPool.length)
+              .map((i: number) => refPool[i])
               .filter(Boolean),
           };
         }
@@ -1370,10 +1408,15 @@ const executePlanTool = {
       });
       // 【统一风格契约 global_contract】（对齐大雄）：取阶段1/本次的契约，把三字段逐字锁到每个 generation 的 prompt 头部，
       // 保证电商套图（13张同品牌）每步都带统一风格/负面提示词。
-      const gc =
+      const gc = (
         args.global_contract && typeof args.global_contract === 'object'
           ? args.global_contract
-          : getCurrentGlobalContract() || {};
+          : getCurrentGlobalContract() || {}
+      ) as {
+        visual_positioning?: string;
+        unified_style_prompt?: string;
+        unified_negative_prompt?: string;
+      };
       const gcText = [gc.visual_positioning, gc.unified_style_prompt, gc.unified_negative_prompt]
         .filter(Boolean)
         .map((t, i) => ['视觉整体定位：', '统一风格提示词：', '统一负面提示词：'][i] + t)
@@ -1393,7 +1436,7 @@ const executePlanTool = {
         args.user_text || getCurrentMemory()?.lastPlan?.plan_text || '',
       ).trim();
       // 【TASK-009 进度日志】executor 逐步 onLog → 收集进 logs，随结果返回，供 useAgentChat 渲染折叠「执行摘要」（对齐大雄 workflowLogs）
-      const logs = [];
+      const logs: unknown[] = [];
       // 【plan debug】阶段3 执行诊断（受 agent 模块 debug 开关控制）：
       //   · gensSource        步骤来自「阶段1暂存」还是「本次参数」；
       //   · refTypePerStep    每步参考图来源：direct_refs / attachment_indices / none（定位"图没挂上/挂错图"）；
@@ -1472,7 +1515,7 @@ const executePlanTool = {
           logger.error('AI助手', '[plan] execute_plan 命中积分闸但未建出节点', {});
           return { ok: false, error: '计划未能建出节点，未进入积分确认' };
         }
-        const map = {};
+        const map: Record<string, string> = {};
         result.entries.forEach((e) => {
           if (e.nodeId) map[String(e.stepId ?? e.id)] = e.nodeId;
         });
@@ -1542,7 +1585,7 @@ const executePlanTool = {
  * 禁止任何路径手写 setNodes/逐节点触发——一律汇入这里（红线 §6.8/6.9 补跑=点生成）。
  * @param {object} ctx  useReactFlow() 能力（与首次 execute_plan 同源）
  */
-export async function runExistingPlanTool(ctx) {
+export async function runExistingPlanTool(ctx: CanvasHostCtx) {
   const gate = getCreditGate();
   if (!gate || gate.pending !== true || !gate.map || typeof gate.map !== 'object') {
     return { ok: false, error: '无待点生成的计划（积分确认未置位或已清空），已拒绝补跑' };
@@ -1580,8 +1623,13 @@ const runExistingPlanToolDef = {
   name: 'run_existing_plan',
   description:
     '对已建好、待点生成的节点补跑触发生成（需先有积分确认待确认态）。仅供确认「确认生成」时调用。',
-  parameters: { type: 'object', additionalProperties: false, properties: {}, required: [] },
-  execute: (args, ctx) => runExistingPlanTool(ctx),
+  parameters: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {},
+    required: [] as string[],
+  },
+  execute: (args: Record<string, unknown>, ctx: CanvasAgentCtx) => runExistingPlanTool(ctx),
 };
 
 /** 定位/聚焦某节点（focus_node）—— 居中视口到指定节点 */
@@ -1597,7 +1645,7 @@ const focusNodeTool = {
     },
     required: ['nodeId'],
   },
-  execute(args, ctx) {
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const id = str(args.nodeId);
     const node = ctx.getNodes().find((n) => n.id === id);
     if (!node) return { ok: false, error: `节点不存在：${id}` };
@@ -1619,8 +1667,13 @@ const focusNodeTool = {
 const undoAiTool = {
   name: 'undo_ai',
   description: '撤回 AI 上一步画布操作（仅 AI 自己改的，与用户 Ctrl+Z 隔离）。',
-  parameters: { type: 'object', additionalProperties: false, properties: {}, required: [] },
-  execute(args, ctx) {
+  parameters: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {},
+    required: [] as string[],
+  },
+  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const snap = popActiveAiUndo(); // 当前对话的 AI 撤销栈（Step D，多对话不串）
     if (!snap) return { ok: false, error: '没有可撤回的 AI 操作' };
     // 整体恢复快照（undo_ai 是整数组替换，走 host.restoreNodesAndEdges，收口裸 ctx.setNodes/setEdges，见 M1 C1-1）
@@ -1665,7 +1718,7 @@ const memorySuggestTool = {
     },
     required: ['kind', 'content'],
   },
-  execute(args) {
+  execute(args: Record<string, unknown>) {
     const kind = String(args.kind || '');
     const rawContent = String(args.content || '').trim();
     // 【脱敏】写入前统一脱敏（复用 projectMemoryStore.sanitizeMemoryContent，纯函数）
@@ -1762,8 +1815,12 @@ export type CanvasEdgeLike = {
  * 故以索引签名承载，避免强约束 ReactFlowInstance 全量方法导致 mock 无法构造。
  */
 export type CanvasAgentCtx = {
-  getNodes: () => CanvasNodeLike[];
-  getEdges: () => CanvasEdgeLike[];
+  getNodes: () => Node[];
+  setNodes: (updater: Node[] | ((nodes: Node[]) => Node[])) => void;
+  getEdges: () => Edge[];
+  setEdges: (updater: Edge[] | ((edges: Edge[]) => Edge[])) => void;
+  screenToFlowPosition?: (p: { x: number; y: number }) => { x: number; y: number };
+  setCenter?: (x: number, y: number, options?: { zoom?: number; duration?: number }) => void;
   [key: string]: unknown;
 };
 
@@ -1815,7 +1872,7 @@ export function useCanvasAgentTools() {
   const toolSchemas = useMemo(() => buildCanvasAgentToolSchemas(), []);
 
   const callTool = useCallback(
-    (name, args = {}) => {
+    (name: string, args: Record<string, unknown> = {}) => {
       // 【B层】每个工具分发：工具名 + 参数摘要（截断防超大 JSON 刷屏）——定位 AI 调了哪个工具、传了什么
       logger.debug(
         'AI助手',
@@ -1839,11 +1896,14 @@ export function useCanvasAgentTools() {
 
   // 批量执行（支持 Agent 多步编排/测试脚本）
   const execute = useCallback(
-    (spec) => {
+    (spec: { name?: string; args?: unknown } | Array<{ name?: string; args?: unknown }>) => {
       const list = Array.isArray(spec) ? spec : [{ name: spec?.name, args: spec?.args }];
-      const results = [];
+      const results: unknown[] = [];
       for (const item of list) {
-        results.push({ name: item?.name, ...callTool(item?.name, item?.args) });
+        results.push({
+          name: item?.name,
+          ...callTool(item?.name ?? '', (item?.args as Record<string, unknown>) ?? {}),
+        });
       }
       return { ok: true, data: results };
     },

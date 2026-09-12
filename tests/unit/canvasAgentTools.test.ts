@@ -1,4 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Node } from '@xyflow/react';
+
+const mkNode = (data: Record<string, unknown> = {}): Node => ({
+  id: 'n',
+  position: { x: 0, y: 0 },
+  data,
+});
 
 // 隔离依赖：AI 撤销栈 / 真实生成 / 多步执行器
 // 状态（awaiting / pending）用 beforeEach 内 vi.mocked 配对闭包管理，避免模块级变量在 vi.mock 工厂下 TDZ 怪异
@@ -412,54 +419,54 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('getNodeAssetUrl：提取节点主图 URL（assetUrl 字符串）', () => {
-    expect(getNodeAssetUrl({ data: { assetUrl: 'http://a/1.png' } })).toBe('http://a/1.png');
-    expect(getNodeAssetUrl({ data: { url: 'http://a/2.png' } })).toBe('http://a/2.png');
-    expect(getNodeAssetUrl({ data: {} })).toBe('');
+    expect(getNodeAssetUrl(mkNode({ assetUrl: 'http://a/1.png' }))).toBe('http://a/1.png');
+    expect(getNodeAssetUrl(mkNode({ url: 'http://a/2.png' }))).toBe('http://a/2.png');
+    expect(getNodeAssetUrl(mkNode({}))).toBe('');
   });
 
   it('getNodeAssetUrl：支持 images/assetUrls 数组（字符串或对象）', () => {
     expect(
-      getNodeAssetUrl({ data: { images: [{ url: 'http://a/3.png' }, { url: 'http://a/4.png' }] } }),
+      getNodeAssetUrl(mkNode({ images: [{ url: 'http://a/3.png' }, { url: 'http://a/4.png' }] })),
     ).toBe('http://a/3.png');
-    expect(getNodeAssetUrl({ data: { images: ['http://a/5.png'] } })).toBe('http://a/5.png');
-    expect(getNodeAssetUrl({ data: { assetUrls: [{ assetUrl: 'http://a/6.png' }] } })).toBe(
+    expect(getNodeAssetUrl(mkNode({ images: ['http://a/5.png'] }))).toBe('http://a/5.png');
+    expect(getNodeAssetUrl(mkNode({ assetUrls: [{ assetUrl: 'http://a/6.png' }] }))).toBe(
       'http://a/6.png',
     );
-    expect(getNodeAssetUrl({ data: { images: [] } })).toBe('');
+    expect(getNodeAssetUrl(mkNode({ images: [] }))).toBe('');
   });
 
   it('getNodeMedia：视频节点返回本体 videoUrl + type=video', () => {
     expect(
-      getNodeMedia({ data: { videoUrl: 'http://a/c.mp4', assetUrl: 'http://a/cov.png' } }),
+      getNodeMedia(mkNode({ videoUrl: 'http://a/c.mp4', assetUrl: 'http://a/cov.png' })),
     ).toEqual({ type: 'video', url: 'http://a/c.mp4' });
     // 显式 assetType::video 且仅 url → 用 url 作本体并判 video
-    expect(getNodeMedia({ data: { assetType: 'video', url: 'http://a/c.mp4' } })).toEqual({
+    expect(getNodeMedia(mkNode({ assetType: 'video', url: 'http://a/c.mp4' }))).toEqual({
       type: 'video',
       url: 'http://a/c.mp4',
     });
   });
 
   it('getNodeMedia：音频节点返回本体 audioUrl + type=audio', () => {
-    expect(getNodeMedia({ data: { audioUrl: 'http://a/v.mp3' } })).toEqual({
+    expect(getNodeMedia(mkNode({ audioUrl: 'http://a/v.mp3' }))).toEqual({
       type: 'audio',
       url: 'http://a/v.mp3',
     });
-    expect(getNodeMedia({ data: { assetType: 'audio', url: 'http://a/v.ogg' } })).toEqual({
+    expect(getNodeMedia(mkNode({ assetType: 'audio', url: 'http://a/v.ogg' }))).toEqual({
       type: 'audio',
       url: 'http://a/v.ogg',
     });
   });
 
   it('getNodeMedia：图片节点退化为主图 + type=image；无媒体返回空', () => {
-    expect(getNodeMedia({ data: { assetUrl: 'http://a/1.png' } })).toEqual({
+    expect(getNodeMedia(mkNode({ assetUrl: 'http://a/1.png' }))).toEqual({
       type: 'image',
       url: 'http://a/1.png',
     });
-    expect(getNodeMedia({ data: { url: 'http://a/2.png' } })).toEqual({
+    expect(getNodeMedia(mkNode({ url: 'http://a/2.png' }))).toEqual({
       type: 'image',
       url: 'http://a/2.png',
     });
-    expect(getNodeMedia({ data: {} })).toEqual({ type: '', url: '' });
+    expect(getNodeMedia(mkNode({}))).toEqual({ type: '', url: '' });
   });
 
   it('batch_delete_nodes 批量删', () => {

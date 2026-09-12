@@ -1,5 +1,6 @@
 import React from 'react';
 import { showToast } from '../../core/toastStore.ts';
+import type { AccountEnv } from '../../store/accountsStore.ts';
 import {
   useAccounts,
   isExtensionEnv,
@@ -25,7 +26,16 @@ import {
  */
 
 // 环境卡片的 ⋮ 菜单（独立子组件，hover 展开，复刻官方 Component851）
-function EnvMenu({ env: _env, isConfirming, onEdit, onCopy, onClearAll, onDelete }) {
+interface EnvMenuProps {
+  env: AccountEnv;
+  isConfirming: boolean;
+  onEdit: (ev: React.MouseEvent) => void;
+  onCopy: (ev: React.MouseEvent) => void;
+  onClearAll: (ev: React.MouseEvent) => void;
+  onDelete: (ev: React.MouseEvent) => void;
+}
+
+function EnvMenu({ env: _env, isConfirming, onEdit, onCopy, onClearAll, onDelete }: EnvMenuProps) {
   return (
     <div className="relative group/menu" onClick={(e) => e.stopPropagation()}>
       <button
@@ -94,7 +104,7 @@ export default function AccountsSettings() {
   const dragIndexRef = React.useRef(null);
   const [dragOverIndex, setDragOverIndex] = React.useState(null);
 
-  const handleDragStart = (e, idx) => {
+  const handleDragStart = (e: React.DragEvent, idx: number) => {
     dragIndexRef.current = idx;
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -102,19 +112,19 @@ export default function AccountsSettings() {
     dragIndexRef.current = null;
     setDragOverIndex(null);
   };
-  const handleDragOver = (e, idx) => {
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOverIndex(idx);
   };
-  const handleDrop = (e, idx) => {
+  const handleDrop = (e: React.DragEvent, idx: number) => {
     e.preventDefault();
     setDragOverIndex(null);
     moveEnv(dragIndexRef.current, idx);
     dragIndexRef.current = null;
   };
 
-  const handleCopy = (env) => {
+  const handleCopy = (env: AccountEnv) => {
     const text = JSON.stringify(env.cookies);
     navigator.clipboard?.writeText(text);
     showToast('Cookie 已复制', { type: 'success' });
@@ -132,7 +142,7 @@ export default function AccountsSettings() {
     if (!r.ok && r.error) alert(r.error);
   };
 
-  const handleClearAll = async (env) => {
+  const handleClearAll = async (env: AccountEnv) => {
     // 非扩展端：官方 ha L1666 `if(!k){ K.error('仅支持浏览器扩展环境'); return }`
     if (!isExt) {
       showToast('仅支持浏览器扩展环境', { type: 'error' });

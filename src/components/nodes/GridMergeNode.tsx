@@ -9,7 +9,10 @@ import { useReactFlow } from '@xyflow/react';
 import { useNodeData } from '../../hooks/useNodeData.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import NodeShell from '../base/ui/NodeShell.tsx';
-import OverlayEditor, { renderOverlayCanvas } from '../base/editors/OverlayEditor.tsx';
+import OverlayEditor, {
+  renderOverlayCanvas,
+  type OverlayState,
+} from '../base/editors/OverlayEditor.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import { useContentHeightSync } from '../base/core/uiHooks.ts';
@@ -46,14 +49,8 @@ const parseGrid = (str: string | null | undefined): { rows: number; cols: number
   const cols = clamp(parseInt(m[2], 10), 1, 20);
   return rows && cols ? { rows, cols } : null;
 };
-/** 叠加图层状态（OverlayEditor 的最小只读视图；完整形状见 base/OverlayEditor） */
-interface OverlayLayerState {
-  layers: unknown[];
-  canvasWidth: number;
-  canvasHeight: number;
-  bgColor: string;
-  [key: string]: unknown;
-}
+/** 叠加图层状态（与 base/OverlayEditor 的 OverlayState 对齐；完整形状见该文件） */
+type OverlayLayerState = OverlayState;
 // 背景填充（复刻 shared.js Jo）：非透明→实色；透明预览→棋盘格；grid 预览→网格线
 const fillBg = (
   ctx: CanvasRenderingContext2D,
@@ -143,7 +140,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
   // 双击预览图查看大图（原生 <dialog>）
   const [zoomUrl, setZoomUrl] = useState<string | null>(null);
   const zoomRef = useRef<HTMLDialogElement | null>(null);
-  const openZoom = useCallback((url) => {
+  const openZoom = useCallback((url: string) => {
     if (!url) return;
     setZoomUrl(url);
     requestAnimationFrame(() => zoomRef.current?.showModal());
@@ -193,7 +190,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
   const { gridCells: zCells, longList: bList } = useMemo(() => {
     const total = rows * cols;
     const z = Array(total).fill(null);
-    const n = [];
+    const n: string[] = [];
     // connected.images 是 {id, url}[]，原型 useConnectedInputs 不区分 targetHandle，
     // 这里所有上游图片按 default 顺序填充 grid / 全部进 longList
     const urls = (connected.images || []).map((x) => x.url).filter(Boolean);
@@ -259,7 +256,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
 
   // ---- 渲染到 canvas（复刻 Yo.jsx pe）----
   const renderToCanvas = useCallback(
-    async (isExport) => {
+    async (isExport: boolean) => {
       try {
         if (mergeMode === 'longImage') {
           const list = longList;
@@ -270,7 +267,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
           const base = longAutoSize ? (vertical ? imgs[0].width : imgs[0].height) : longTargetSize;
           let totalW = 0;
           let totalH = 0;
-          const sizes = [];
+          const sizes: { w: number; h: number }[] = [];
           if (vertical) {
             totalW = base;
             for (const img of imgs) {
@@ -440,7 +437,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
 
   // 生成合成图片节点（复刻 Yo.jsx onSpawnImageNode）
   const spawnMergedImage = useCallback(
-    (url) => {
+    (url: string) => {
       const me = getNode(id);
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 400) + 50;
       const baseY = me?.position.y ?? 100;

@@ -33,7 +33,7 @@ import { useOutsideClick } from '../core/uiHooks.ts';
 import { formatTime } from '../core/utils.ts';
 import { PanelSubBar, PanelMoreMenu } from './PanelBar.tsx';
 
-const TYPE_ICON = {
+const TYPE_ICON: Record<string, typeof ImageIcon> = {
   image: ImageIcon,
   video: Play,
   text: ImageIcon,
@@ -72,7 +72,7 @@ function TaskCenter() {
   const runningCount = counts.running;
   const failedCount = counts.failed;
 
-  const copyPrompt = (t) => {
+  const copyPrompt = (t: Task) => {
     try {
       navigator.clipboard.writeText(t.prompt || '');
       showToast('已复制提示词', { type: 'success' });
@@ -232,7 +232,7 @@ const TaskCard = React.memo(function TaskCard({
   const isCompleted = task.status === 'completed';
 
   // 真实下载任务结果（fetch blob → downloadUrl，可控文件名）
-  const downloadResult = async (e) => {
+  const downloadResult = async (e: React.MouseEvent) => {
     if (e?.stopPropagation) e.stopPropagation();
     if (!task.resultUrl) {
       showToast('没有可下载的结果', { type: 'warning' });

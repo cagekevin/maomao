@@ -62,7 +62,7 @@ export default function ResizeFullscreenHandle({
 
   // 拖拽改尺寸（复刻 _Component23 u 函数）
   const onMouseDown = useCallback(
-    (e) => {
+    (e: React.MouseEvent<HTMLDivElement>) => {
       e.preventDefault();
       e.stopPropagation();
       const el = targetRef?.current;
@@ -87,7 +87,7 @@ export default function ResizeFullscreenHandle({
       });
       el.style.willChange = 'width, height';
 
-      const move = (ev) => batch(ev.clientX, ev.clientY);
+      const move = (ev: MouseEvent) => batch(ev.clientX, ev.clientY);
       const up = () => {
         batch.flush(); // 松手补最后一帧，否则位置差一帧
         window.removeEventListener('mousemove', move);
