@@ -31,13 +31,13 @@ let _lastActiveControl: 'camera' | 'lighting' | null = null;
 
 interface CameraStudioPanelProps {
   isOpen: boolean;
-  imageUrl?: string;
+  assetUrl?: string;
   onClose: () => void;
   onGenerate: (result: CameraStudioResult) => void;
 }
 
 interface StudioViewportProps {
-  imageUrl?: string;
+  assetUrl?: string;
   mode: CameraStudioMode;
   activeControl: 'camera' | 'lighting';
   cameraState: CameraStudioCameraState;
@@ -73,7 +73,7 @@ function sphericalPosition(yaw: number, pitch: number, radius: number): THREE.Ve
 }
 
 function StudioViewport({
-  imageUrl,
+  assetUrl,
   mode,
   activeControl,
   cameraState,
@@ -157,9 +157,9 @@ function StudioViewport({
 
     let subjectTexture: THREE.Texture | undefined;
     let disposed = false;
-    if (imageUrl) {
+    if (assetUrl) {
       new THREE.TextureLoader().load(
-        imageUrl,
+        assetUrl,
         (texture) => {
           if (disposed) {
             texture.dispose();
@@ -342,7 +342,7 @@ function StudioViewport({
       renderer.dispose();
       renderer.domElement.remove();
     };
-  }, [imageUrl]);
+  }, [assetUrl]);
 
   useEffect(() => {
     const marker = cameraMarkerRef.current;
@@ -451,7 +451,7 @@ function RangeControl({
   );
 }
 
-function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStudioPanelProps) {
+function CameraStudioPanel({ isOpen, assetUrl, onClose, onGenerate }: CameraStudioPanelProps) {
   const [mode, setMode] = useState<CameraStudioMode>(() => _lastMode ?? 'camera');
   const [activeControl, setActiveControl] = useState<'camera' | 'lighting'>(
     () => _lastActiveControl ?? 'camera',
@@ -620,7 +620,7 @@ function CameraStudioPanel({ isOpen, imageUrl, onClose, onGenerate }: CameraStud
               </div>
             )}
             <StudioViewport
-              imageUrl={imageUrl}
+              assetUrl={assetUrl}
               mode={mode}
               activeControl={activeControl}
               cameraState={cameraState}

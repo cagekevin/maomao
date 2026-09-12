@@ -39,7 +39,7 @@ import { compressImage } from '../utils/imageCompress.ts';
  * overflow-hidden 只出现在更内层的兄弟 div 上，不影响本组件溢出。
  *
  * @param {Object} props
- * @param {string} props.imageUrl 要裁剪的图片 URL
+ * @param {string} props.assetUrl 要裁剪的图片 URL
  * @param {Function} props.onSave  保存回调，入参 { dataUrl }
  * @param {Function} props.onClose 关闭回调
  */
@@ -47,7 +47,7 @@ import { compressImage } from '../utils/imageCompress.ts';
 /** 就地裁剪浮层 Props。 */
 interface InlineImageCropperProps {
   /** 要裁剪的图片 URL */
-  imageUrl: string;
+  assetUrl: string;
   /** 保存回调，入参 { dataUrl } */
   onSave?: (payload: { dataUrl: string }) => void;
   /** 关闭回调 */
@@ -90,7 +90,7 @@ export function cropRectFromSelection({ sel, renderW, renderH, natW, natH }) {
   return { sx, sy, sw, sh };
 }
 
-export default function InlineImageCropper({ imageUrl, onSave, onClose }: InlineImageCropperProps) {
+export default function InlineImageCropper({ assetUrl, onSave, onClose }: InlineImageCropperProps) {
   const imgRef = useRef(null);
   const [crop, setCrop] = useState(undefined);
   // 百分比选区：保存用它（相对图片本身，布局无关，最稳）；onChange 第二个参数即 PercentCrop
@@ -115,7 +115,7 @@ export default function InlineImageCropper({ imageUrl, onSave, onClose }: Inline
     try {
       // 1) 干净原图 + 原图格式（compressImage 内部已补 /files/ 相对路径、带超时、
       //    keepOriginalFormat 推断 MIME：透明图回退 PNG、JPEG 白底填充、跨域抛明确错误）
-      const clean = await compressImage(imageUrl, { keepOriginalFormat: true });
+      const clean = await compressImage(assetUrl, { keepOriginalFormat: true });
       // 2) 同源 dataURL 再加载成绘制源（100% 干净，canvas 永不污染）
       const drawImg = await loadImageWithTimeout(clean.dataUrl);
       // 2.5) ReactCrop 的 % 相对「img 元素盒子」（=容器）。img 用 object-contain 撑满容器，
@@ -167,7 +167,7 @@ export default function InlineImageCropper({ imageUrl, onSave, onClose }: Inline
     } catch (e) {
       toastError(`裁剪保存失败：${e?.message || '图片加载失败'}`);
     }
-  }, [imageUrl, percentCrop, onSave, onClose]);
+  }, [assetUrl, percentCrop, onSave, onClose]);
 
   return (
     // 外层遮罩不再用 flex flex-col 分栏：图片区独占整个节点，按钮栏浮到节点外下方。
@@ -187,7 +187,7 @@ export default function InlineImageCropper({ imageUrl, onSave, onClose }: Inline
           style={{ width: '100%', height: '100%', display: 'block' }}
         >
           <img
-            src={imageUrl}
+            src={assetUrl}
             alt="裁剪预览"
             onLoad={onImageLoad}
             className="block w-full h-full object-contain select-none"

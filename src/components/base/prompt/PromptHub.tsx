@@ -21,8 +21,8 @@ const fmtDate = (s: string): string => {
 
 const getSrc = (it: Prompt): string => {
   if (it.coverUrl) return it.coverUrl;
-  if (Array.isArray(it.referenceImageUrls) && it.referenceImageUrls[0])
-    return it.referenceImageUrls[0];
+  if (Array.isArray(it.referenceAssetUrls) && it.referenceAssetUrls[0])
+    return it.referenceAssetUrls[0];
   return '';
 };
 // 注：原名 `it.title || it.name || '未命名'` 中 `it.name` 恒为 undefined ——
@@ -84,7 +84,7 @@ interface HubDetailProps {
 }
 
 const HubDetail = React.memo(function HubDetail({ it, onClose }: HubDetailProps) {
-  const refs = Array.isArray(it.referenceImageUrls) ? it.referenceImageUrls : [];
+  const refs = Array.isArray(it.referenceAssetUrls) ? it.referenceAssetUrls : [];
   return (
     <div className="absolute inset-0 z-20 bg-input flex flex-col">
       <div className="flex items-center justify-between px-3 py-2 border-b border-edge-subtle shrink-0">

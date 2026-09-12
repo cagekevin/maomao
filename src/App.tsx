@@ -388,7 +388,7 @@ function Canvas() {
   // 输入框出现对应附件入口，含媒体类型 type + 本体 URL，getNodeMedia 提取）。
   // 只存 id/type/label + 主媒体 URL，不存整个 node（避免状态过大）。
   // 在 onNodesChangeForEdges 的 select 变化里同步更新。
-  const [selectedMediaNodes, setSelectedMediaNodes] = React.useState([]);
+  const [selectedAssetNodes, setSelectedAssetNodes] = React.useState([]);
 
   // 历史栈（基座 useCanvasHistory）：record 需显式传最新快照，避免异步 setState 取到旧值
   const history = useCanvasHistory(
@@ -791,9 +791,9 @@ function Canvas() {
         delete data.loading;
         delete data.progress;
         delete data.errorMessage;
-        delete data.imageUrlRef;
-        delete data.imageUrlThumbRef;
-        delete data.imageUrlUploaded;
+        delete data.assetUrlRef;
+        delete data.assetUrlThumbRef;
+        delete data.assetUrlUploaded;
         return { ...n, data };
       }),
       edges: innerEdges,
@@ -811,7 +811,7 @@ function Canvas() {
   // 这是把图片以 image/png 写进剪贴板，可粘到微信/PS 等其它软件。复用公共 clipboard.copyImageToClipboard。
   const copyNodeImage = useCallback(async (nodeId) => {
     const node = nodesRef.current.find((n) => n.id === nodeId);
-    const imgUrl = node?.data?.imageUrl || node?.data?.url;
+    const imgUrl = node?.data?.assetUrl || node?.data?.url;
     if (!imgUrl) {
       showToast('该节点没有图片', { type: 'warning' });
       return;
@@ -901,7 +901,7 @@ function Canvas() {
 
   // 清理缓存：把画布内联 base64 资源真正转为本地 /files/ URL，而非删除。
   //  1) 深度遍历节点 data，把所有 data:image/video/audio;base64 字段（含 imageBoxNode 的 images 数组、
-  //     imageUrl / videoUrl / thumbnailUrl / poster 等）逐个落盘为 /files/ URL（sha1 幂等去重）；
+  //     assetUrl / videoUrl / thumbnailUrl / poster 等）逐个落盘为 /files/ URL（sha1 幂等去重）；
   //  2) 落盘成功的字段用 URL 替换；失败字段保留原 base64（绝不删图，图片不丢）；
   //  3) localTool 离线时无法落盘 → 保留原图并提示，不做任何删除。
   const handleClearCache = useCallback(async () => {
@@ -959,7 +959,7 @@ function Canvas() {
     onPasteNodeGroup: (json, pos) => {
       void pasteNodeGroup(json, pos);
     },
-    // 节点 data 写回走 useNodeData 唯一入口（网页图后台本地化成功后替换 imageUrl）
+    // 节点 data 写回走 useNodeData 唯一入口（网页图后台本地化成功后替换 assetUrl）
     patchNodeData: (id, patch) => patchNodeDataById(setNodes, id, patch),
   });
 
@@ -1279,7 +1279,7 @@ function Canvas() {
         // 输入框附件）。对齐参考项目（daxiong-canvas-plugins canvas-agent agentBuildAttachmentsFromNodes）：
         // 除 nodeId/type/label/url 外，把节点的画布坐标 position(x/y) + 媒体类型 type 一并传给 AI，
         // 让 LLM 感知参考素材来自画布哪个位置、是什么形态。
-        const selMedia = currentNodes
+        const selAsset = currentNodes
           .filter((n) => selectedIds.has(n.id))
           .map((n) => {
             const media = getNodeMedia(n);
@@ -1294,7 +1294,7 @@ function Canvas() {
             };
           })
           .filter((n) => n.url);
-        setSelectedMediaNodes(selMedia);
+        setSelectedAssetNodes(selAsset);
 
         setEdges((eds) => {
           const next = eds.map((ed) => {
@@ -1567,7 +1567,7 @@ function Canvas() {
             open={agentOpen}
             onClose={() => setSetting('agentOpen', false)}
             systemPrompt={''}
-            selectedMediaNodes={selectedMediaNodes}
+            selectedAssetNodes={selectedAssetNodes}
           />
 
           {/* 多开整页：覆盖画布 */}

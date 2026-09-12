@@ -56,7 +56,7 @@ export interface UseGenerateNodeOptions {
   setSelectedModel: (model: string) => void;
   /** { data字段: setState } → 收编 useSyncNodeData */
   sync?: Record<string, (value: unknown) => void>;
-  /** 成功/广播自动写回的 data 字段（如 'imageUrl'/'videoUrl'） */
+  /** 成功/广播自动写回的 data 字段（如 'assetUrl'/'videoUrl'） */
   resultField?: string;
   recoverable?: boolean;
   validate?: GenerateValidate;
@@ -108,7 +108,7 @@ export function useGenerateNode({
   selectedModel, // 节点 selectedModel state
   setSelectedModel,
   sync = {}, // { data字段: setState } → 收编 useSyncNodeData（第71行）
-  resultField, // 成功/广播自动写回的 data 字段（如 'imageUrl'/'videoUrl'）；文本节点不传
+  resultField, // 成功/广播自动写回的 data 字段（如 'assetUrl'/'videoUrl'）；文本节点不传
   recoverable = false,
   validate,
   run,

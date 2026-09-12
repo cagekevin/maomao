@@ -407,15 +407,10 @@ const isResultish = (f) =>
  * 本表会被自检：豁免的字段若已不再被写入 → 报「表过期」，防豁免越挂越多变成垃圾桶。
  */
 const RESULT_EXEMPT = {
-  videoProcessNode: {
-    gifResult: '节点内 GIF 结果摘要（宽高/帧数/体积），仅供本节点展示；GIF 产物经 spawnGifNode 交付子节点',
-    outputName: '最近一次产出的文件名，供下载命名 / 子节点 label；非下游管线数据',
-    outputInfo: '最近一次产出媒体元信息（时长/宽高/帧率/体积），供本节点展示；产物经 spawn 交付子节点',
-  },
   faceMosaicNode: {
-    // 输入通道字段（手动上传图源列表）：节点初始化读取（data.imageUrls || []）+ TD-9 改动写回持久 URL，
+    // 输入通道字段（手动上传图源列表 string[]）：节点初始化读取（data.assetUrls || []）+ TD-9 改动写回持久 URL，
     // 是「节点自有状态」而非下游管线产出；真结果经 spawn assetNode 子节点交付（见 CONTEXT §五 审计豁免口径）。
-    imageUrls: '上传图源 = 输入通道，不是给下游的产出；下游取图走 spawn 的 assetNode 子节点',
+    assetUrls: '上传图源 = 输入通道（string[]），不是给下游的产出；下游取图走 spawn 的 assetNode 子节点',
   },
 };
 

@@ -8,8 +8,8 @@
  *  - 发送端：blob:（浏览器临时地址）/ 相对路径，后端网关访问不到 → 丢图。
  *
  * 因此所有「图片 URL 出口」（渲染、发送、存储）应统一经过本模块，保证：
- *  - 渲染用 normalizeImageUrl → 相对补全成绝对，前端不破图；
- *  - 发送用 normalizeImageUrlForSend → /files/ 保持相对（出站由 localTool resolveLocalImages 回读转 base64）、blob 转 data、公网补全绝对，后端不丢图；
+ *  - 渲染用 normalizeAssetUrl → 相对补全成绝对，前端不破图；
+ *  - 发送用 normalizeAssetUrlForSend → /files/ 保持相对（出站由 localTool resolveLocalImages 回读转 base64）、blob 转 data、公网补全绝对，后端不丢图；
  *
  * 【E 方案 · docs/72 · 会话落盘体积治理的抉择（2026-08-29）】
  * 契约：/files/ 是 AI 会话内唯一真值（可落盘、可累积、KB 级）；base64 只是「出站编码」，
@@ -32,12 +32,12 @@ import { useAppSettings } from '../store/appSettings.ts';
 import { compressImage } from './imageCompress.ts';
 
 /**
- * 图片 URL 解析统一选项（resolveImageUrl / useRenderImageResolver 共用）。
+ * 图片 URL 解析统一选项（resolveAssetUrl / useRenderAssetResolver 共用）。
  * - scope='render' 显示用小图 / 'send' 原图；
  * - thumbnail=false（渲染端关掉「显示缩略图」）时 render 也回原图绝对地址；
  * - maxDim / format 仅 render 按需出图透传（format 非白名单不产出）。
  */
-export interface ImageResolveOptions {
+export interface AssetResolveOptions {
   scope?: 'render' | 'send';
   maxDim?: number;
   format?: string;
@@ -45,8 +45,8 @@ export interface ImageResolveOptions {
   thumbnail?: boolean;
 }
 
-/** 发送归一化选项（normalizeImageUrlForSend / normalizeImageUrlsForSend 共用） */
-export interface ImageSendOptions {
+/** 发送归一化选项（normalizeAssetUrlForSend / normalizeAssetUrlsForSend 共用） */
+export interface AssetSendOptions {
   preferBase64?: boolean;
 }
 
@@ -168,7 +168,7 @@ export function buildThumbnailUrl(
  * @param {{ scope?: 'render'|'send', maxDim?: number, format?: string }} [opts]
  * @returns {string}
  */
-export function resolveImageUrl(url: string, opts: ImageResolveOptions = {}): string {
+export function resolveAssetUrl(url: string, opts: AssetResolveOptions = {}): string {
   if (!url || typeof url !== 'string') return url;
   const scope = opts.scope || 'render';
   // thumbnail:false（设置里关掉「显示缩略图」）→ render 也回原图绝对地址，不按需出图
@@ -183,12 +183,12 @@ export function resolveImageUrl(url: string, opts: ImageResolveOptions = {}): st
  * 自动读取 app_settings.thumbnailOn（实时生效），关掉缩略图即回原图。
  * 在渲染内/循环内（如网格格元）直接调用 resolve(u) 即可，避免 hook 进循环。
  */
-export function useRenderImageResolver(): (u: string, extra?: ImageResolveOptions) => string {
+export function useRenderAssetResolver(): (u: string, extra?: AssetResolveOptions) => string {
   const settings = useAppSettings();
   const thumbnail = settings.thumbnailOn !== false;
   return useCallback(
-    (u: string, extra?: ImageResolveOptions) =>
-      resolveImageUrl(u, { scope: 'render', thumbnail, ...extra }),
+    (u: string, extra?: AssetResolveOptions) =>
+      resolveAssetUrl(u, { scope: 'render', thumbnail, ...extra }),
     [thumbnail],
   );
 }
@@ -200,7 +200,7 @@ export function useRenderImageResolver(): (u: string, extra?: ImageResolveOption
  * @param {string} url
  * @returns {string}
  */
-export function normalizeImageUrl(url: string | null | undefined): string {
+export function normalizeAssetUrl(url: string | null | undefined): string {
   return toAbsoluteFileUrl(url);
 }
 
@@ -241,7 +241,7 @@ async function blobToDataUrl(u: string): Promise<string> {
       fr.readAsDataURL(blob);
     });
   } catch (e) {
-    logger.warn('imageUrl', 'blob 转 dataURL 失败', e.message);
+    logger.warn('assetUrl', 'blob 转 dataURL 失败', e.message);
     return '';
   }
 }
@@ -271,7 +271,7 @@ async function urlToDataUrl(u: string): Promise<string> {
       fr.readAsDataURL(blob);
     });
   } catch (e) {
-    logger.warn('imageUrl', 'URL 转 base64 失败', e.message);
+    logger.warn('assetUrl', 'URL 转 base64 失败', e.message);
     return '';
   }
 }
@@ -297,9 +297,9 @@ async function urlToDataUrl(u: string): Promise<string> {
  * @param {{ preferBase64?: boolean }} [opts]
  * @returns {Promise<string>}
  */
-export async function normalizeImageUrlForSend(
+export async function normalizeAssetUrlForSend(
   u: string,
-  opts: ImageSendOptions = {},
+  opts: AssetSendOptions = {},
 ): Promise<string> {
   if (typeof u !== 'string') return '';
   // 发送侧硬契约：禁止发送缩略图端点 URL。若误入 render 结果，先还原回原图再走后续归一。
@@ -336,7 +336,7 @@ export async function normalizeImageUrlForSend(
     });
     if (dataUrl) return dataUrl;
   } catch (e) {
-    logger.warn('imageUrl', '发送前压缩失败，回退原样发送', {
+    logger.warn('assetUrl', '发送前压缩失败，回退原样发送', {
       url: String(u).slice(0, 80),
       error: e?.message,
     });
@@ -350,23 +350,23 @@ export async function normalizeImageUrlForSend(
 }
 
 /**
- * 发送端归一化（图片数组）：逐个过 normalizeImageUrlForSend，过滤空值。
+ * 发送端归一化（图片数组）：逐个过 normalizeAssetUrlForSend，过滤空值。
  * @param {Array<string>} images
  * @param {{ preferBase64?: boolean }} [opts]
  * @returns {Promise<string[]>}
  */
-export async function normalizeImageUrlsForSend(
+export async function normalizeAssetUrlsForSend(
   images: string[] | null | undefined,
-  opts: ImageSendOptions = {},
+  opts: AssetSendOptions = {},
 ): Promise<string[]> {
   const urls = (images || []).filter((u) => typeof u === 'string' && u);
   // 【带图可观测】发送前记录本次带了几张图、每张是 URL 还是 Base64（基于原始输入，不携带图片内容）。
   // 统一收口在发送归一化出口：覆盖生图/文本/视频/AI 聊天全部带图发送路径，一处埋点全链路可 grep。
   if (urls.length > 0) {
-    logger.info('imageUrl', '发送图片', { ...summarizeImages(urls), total: urls.length });
+    logger.info('assetUrl', '发送图片', { ...summarizeAssetUrls(urls), total: urls.length });
   }
   // 多图并行压缩/归一化（Promise.all），避免多张图串行累积等待（本地图压缩耗时集中在 canvas 解码）。
-  const results = await Promise.all(urls.map((u) => normalizeImageUrlForSend(u, opts)));
+  const results = await Promise.all(urls.map((u) => normalizeAssetUrlForSend(u, opts)));
   return results.filter(Boolean);
 }
 
@@ -400,7 +400,7 @@ export function classifyImageType(url: string): 'url' | 'base64' {
  * @param {Array<string>} images 原始图片 URL 数组
  * @returns {{ count:number, urls:number, base64s:number }}
  */
-export function summarizeImages(images: string[] | null | undefined): {
+export function summarizeAssetUrls(images: string[] | null | undefined): {
   count: number;
   urls: number;
   base64s: number;

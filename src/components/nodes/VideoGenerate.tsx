@@ -29,7 +29,7 @@ import PromptInput from '../base/prompt/PromptInput.tsx';
 import { resolvePromptChips } from '../base/prompt/promptChips.ts';
 import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
+import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { useVideoPoster } from '../../hooks/useVideoPoster.ts';
 import '../base/ui/LazyImage.tsx';
 import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
@@ -50,7 +50,7 @@ import { useNodeField } from '../../hooks/useNodeField.ts';
  * 视频生成节点（复刻原 As.jsx / videoGenerateNode）
  * 已迁移到基座：NodeShell + HoverToolbar + ExpandablePanel + GenerateButton + ModelSelect。
  * 保留差异化：主显示区、比例/分辨率/时长菜单、素材区、提示词输入。
- * 性能降级用通用 useMediaDegrade：lodLevel>=3 藏视频（与官方横幅 yt===3 一致）。
+ * 性能降级用通用 useAssetDegrade：lodLevel>=3 藏视频（与官方横幅 yt===3 一致）。
  */
 /** 参考文本形态（resolvePromptChips 要求 id/label 必填） */
 interface RefText {
@@ -84,7 +84,7 @@ interface VideoGenerateProps {
 
 function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   // 性能模式媒体降级（通用 hook）：hideVideo = isHidden('video')，即 lodLevel>=3
-  const { isHidden } = useMediaDegrade();
+  const { isHidden } = useAssetDegrade();
   const hideVideo = isHidden('video');
 
   // 通用连线数据传递：读取直接上游节点的图片/文本作为参考素材
@@ -544,7 +544,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
       {/* 双击视频查看大图：原生 <dialog> + 系统原生 <video> 播放器 */}
       <ImageZoomDialog ref={zoomRef} url={zoomUrl} kind="video" />
 
-      {/* 转深度视频弹窗（无 iframe）：源 = 当前节点 videoUrl；onSave → spawn 下游 assetNode(mediaType:'video') 使链式可再转 */}
+      {/* 转深度视频弹窗（无 iframe）：源 = 当前节点 videoUrl；onSave → spawn 下游 assetNode(assetType:'video') 使链式可再转 */}
       {depthOpen && videoUrl && (
         <DepthVideoModal
           videoUrl={videoUrl}

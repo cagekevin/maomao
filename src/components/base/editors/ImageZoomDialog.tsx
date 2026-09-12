@@ -17,7 +17,7 @@
  *  打开：zoomRef.current?.showModal()
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { toAbsoluteFileUrl } from '../utils/imageUrl.ts';
+import { toAbsoluteFileUrl } from '../utils/assetUrl.ts';
 import {
   copyImageToClipboard,
   copyVideoFrameToClipboard,

@@ -2,7 +2,7 @@
 /**
  * useCanvasAgentTools 单测（批 3）。
  * 覆盖对外暴露的纯函数（脱离 React 可测）：
- *   - getNodeImageUrl：data.imageUrl / data.url / data.images[] / data.imageUrls[] 各种形态取主图，无图→''
+ *   - getNodeAssetUrl：data.assetUrl / data.url / data.images[] / data.assetUrls[] 各种形态取主图，无图→''
  *   - buildCanvasAgentToolSchemas()：OpenAI function-calling 格式 schema
  *   - CANVAS_AGENT_TOOL_NAMES：工具名数组（snake_case，如 create_node/delete_node/generate_node）
  *   - buildCanvasAgentTools(ctx)：返回工具 Map；写工具异常被包成 {ok:false,error} 不冒泡；
@@ -12,30 +12,30 @@ import { describe, it, expect, vi } from 'vitest';
 
 const mod = await import('../../src/components/agent/canvas/useCanvasAgentTools.ts');
 const {
-  getNodeImageUrl,
+  getNodeAssetUrl,
   buildCanvasAgentTools,
   buildCanvasAgentToolSchemas,
   CANVAS_AGENT_TOOL_NAMES,
 } = mod;
 
-describe('getNodeImageUrl', () => {
-  it('data.imageUrl 优先', () => {
-    expect(getNodeImageUrl({ data: { imageUrl: 'A' } })).toBe('A');
+describe('getNodeAssetUrl', () => {
+  it('data.assetUrl 优先', () => {
+    expect(getNodeAssetUrl({ data: { assetUrl: 'A' } })).toBe('A');
   });
   it('data.url 兜底字符串', () => {
-    expect(getNodeImageUrl({ data: { url: 'B' } })).toBe('B');
+    expect(getNodeAssetUrl({ data: { url: 'B' } })).toBe('B');
   });
-  it('images 数组（字符串元素 / {url} / {imageUrl}）', () => {
-    expect(getNodeImageUrl({ data: { images: ['http://a'] } })).toBe('http://a');
-    expect(getNodeImageUrl({ data: { images: [{ url: 'http://b' }] } })).toBe('http://b');
-    expect(getNodeImageUrl({ data: { images: [{ imageUrl: 'http://c' }] } })).toBe('http://c');
+  it('images 数组（字符串元素 / {url} / {assetUrl}）', () => {
+    expect(getNodeAssetUrl({ data: { images: ['http://a'] } })).toBe('http://a');
+    expect(getNodeAssetUrl({ data: { images: [{ url: 'http://b' }] } })).toBe('http://b');
+    expect(getNodeAssetUrl({ data: { images: [{ assetUrl: 'http://c' }] } })).toBe('http://c');
   });
-  it('imageUrls 数组', () => {
-    expect(getNodeImageUrl({ data: { imageUrls: ['http://d'] } })).toBe('http://d');
+  it('assetUrls 数组', () => {
+    expect(getNodeAssetUrl({ data: { assetUrls: ['http://d'] } })).toBe('http://d');
   });
   it('无图 → 空串', () => {
-    expect(getNodeImageUrl({ data: {} })).toBe('');
-    expect(getNodeImageUrl({})).toBe('');
+    expect(getNodeAssetUrl({ data: {} })).toBe('');
+    expect(getNodeAssetUrl({})).toBe('');
   });
 });
 

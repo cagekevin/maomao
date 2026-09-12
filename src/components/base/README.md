@@ -50,7 +50,7 @@
 
 ## 六、utils/ （无副作用纯函数工具，可单测）
 
-`asyncGuard.ts` `clipboard.ts` `externalizeInline.ts` `faceMosaic.ts` `genErrors.ts` `imageCompress.ts` `imagePixel.ts` `imageUpscale.ts` `imageUrl.ts` `mediaType.ts` `previewUrl.ts` `providerModels.ts` `providerUrlAdapters.ts` `refToken.ts` `uploadDirs.ts` `videoEngine.ts` `volumePolicy.ts`
+`asyncGuard.ts` `clipboard.ts` `externalizeInline.ts` `faceMosaic.ts` `genErrors.ts` `imageCompress.ts` `imagePixel.ts` `imageUpscale.ts` `assetUrl.ts` `assetType.ts` `previewUrl.ts` `providerModels.ts` `providerUrlAdapters.ts` `refToken.ts` `uploadDirs.ts` `videoEngine.ts` `volumePolicy.ts`
 
 ## 七、ui/ （真·通用展示基座）
 

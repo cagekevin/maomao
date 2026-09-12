@@ -1,7 +1,7 @@
 /**
  * AssetNode 深度测试（修复审计 P1"偏薄"）。
  * 覆盖 content type 判定的多种内容态：empty / image / audio / text / video。
- * detectMediaType 为真实实现；mediaType 显式标注时优先（blob/无扩展名产出场景）。
+ * detectAssetType 为真实实现；assetType 显式标注时优先（blob/无扩展名产出场景）。
  */
 import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -16,13 +16,13 @@ vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({
 vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({
   default: mocks.ImageEditor,
 }));
-vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }));
+vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
 vi.mock('../../src/hooks/useFitNodeRatio.ts', () => ({ useFitNodeRatio: mocks.useFitNodeRatio }));
 vi.mock('../../src/hooks/useVideoPoster.ts', () => ({ useVideoPoster: mocks.useVideoPoster }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   toAbsoluteFileUrl: mocks.toAbsoluteFileUrl,
   saveInlineToLocal: mocks.saveInlineToLocal,
-  resolveNodeImageUrl: mocks.resolveNodeImageUrl,
+  resolveNodeAssetUrl: mocks.resolveNodeAssetUrl,
 }));
 vi.mock('../../src/components/base/core/toastStore.ts', () => ({
   showToast: mocks.showToast,
@@ -46,25 +46,25 @@ describe('AssetNode — 内容态', () => {
   });
 
   it('image URL → 渲染图片并加载宽高比', () => {
-    const { container } = setup({ data: { imageUrl: 'http://x/a.png' } });
+    const { container } = setup({ data: { assetUrl: 'http://x/a.png' } });
     const img = container.querySelector('img[alt="Content"]');
     expect(img).toBeTruthy();
     // 可选链：查不到时由上一行断言先失败，避免这里抛 TypeError 盖掉真实失败原因
     expect(img?.getAttribute('src')).toBe('http://x/a.png');
   });
 
-  it('mediaType=text → 渲染文本文件占位', () => {
-    setup({ data: { mediaType: 'text', url: 'http://x/a.txt' } });
+  it('assetType=text → 渲染文本文件占位', () => {
+    setup({ data: { assetType: 'text', url: 'http://x/a.txt' } });
     expect(screen.getByText('文本/数据文件')).toBeTruthy();
   });
 
-  it('mediaType=audio → 渲染 audio 元素', () => {
-    setup({ data: { mediaType: 'audio', url: 'http://x/a.m4a' } });
+  it('assetType=audio → 渲染 audio 元素', () => {
+    setup({ data: { assetType: 'audio', url: 'http://x/a.m4a' } });
     expect(document.querySelector('audio')).toBeTruthy();
   });
 
-  it('mediaType=video → 渲染视频播放器 + 播放按钮', () => {
-    setup({ data: { mediaType: 'video', url: 'http://x/v.mp4' } });
+  it('assetType=video → 渲染视频播放器 + 播放按钮', () => {
+    setup({ data: { assetType: 'video', url: 'http://x/v.mp4' } });
     expect(document.querySelector('video')).toBeTruthy();
     // 未播放状态：出现播放按钮（title=播放视频）
     const playBtn = screen.getAllByTitle('播放视频')[0];

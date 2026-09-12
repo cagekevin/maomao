@@ -37,7 +37,7 @@ import {
 } from '../api/filesApi.ts';
 import { onAssetSent, emitAssetSent } from '../store/assetStore.ts';
 import { logger } from '../core/logger.ts';
-import { isAudio } from '../utils/mediaType.ts';
+import { isAudio } from '../utils/assetType.ts';
 import LazyImage from '../ui/LazyImage.tsx';
 import ImageZoomDialog from '../editors/ImageZoomDialog.tsx';
 import type { ResourceItem } from '../api/localToolApi.ts';
@@ -71,7 +71,7 @@ const TYPE_BADGE: Record<string, TypeBadge> = {
 
 const PAGE_SIZE = 20; // 每次加载 20 个，无限滚动追加
 
-// fetchText/textCache 统一收敛到 useAssetDragToCanvas.js；isAudio 统一到 mediaType.js
+// fetchText/textCache 统一收敛到 useAssetDragToCanvas.js；isAudio 统一到 assetType.js
 // 文字素材单元格：默认展示文件内容（前几行）
 const TextAssetCell = React.memo(function TextAssetCell({
   url,

@@ -7,7 +7,7 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { patchNodeDataById } from '../../hooks/useNodeData.ts';
 import { toAbsoluteFileUrl, saveInlineToLocal } from '../base/api/index.ts';
-import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
+import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { Director3DOverlay } from '../director3d/Director3DOverlay.tsx';
 import { uploadFileToLocal } from '../base/api/index.ts';
 import { generateId } from '../base/core/idGen.ts';
@@ -16,7 +16,7 @@ import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 
 interface Director3DNodeData {
   label?: string;
-  imageUrl?: string;
+  assetUrl?: string;
   images?: Array<{ url?: string; [key: string]: unknown }>;
   directorProject?: unknown;
 }
@@ -32,9 +32,9 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
   const history = useCanvasEdges();
   const connected = useConnectedInputs(id);
   const [open, setOpen] = useState(false);
-  const render = useRenderImageResolver();
+  const render = useRenderAssetResolver();
   // 缩略图显示：兼容相对 /files/ 路径（刷新后需补全为绝对 URL 才不破图）
-  const imageUrl = toAbsoluteFileUrl(data.imageUrl || '') || null;
+  const assetUrl = toAbsoluteFileUrl(data.assetUrl || '') || null;
 
   // 输入全景图 URL：连接上游图片 或 已保存
   useMemo(() => {
@@ -137,7 +137,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
     [id, getNodes, getEdges, setNodes, setEdges, history],
   );
 
-  // 视频回写到 AssetNode（图片视频素材节点）：落盘 /files/*.mp4 → 写 imageUrl + mediaType:'video'
+  // 视频回写到 AssetNode（图片视频素材节点）：落盘 /files/*.mp4 → 写 assetUrl + assetType:'video'
   interface CaptureVideo {
     blob?: Blob;
     fileName?: string;
@@ -168,8 +168,8 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
       if (targets.length > 0) {
         // 已有下游 AssetNode：写最近导出视频
         const targetId = targets[0];
-        // 只写 imageUrl（docs/118 §7.3 ⑤ 写侧唯一）：不再双写存量字段 data.url。
-        patchNodeDataById(setNodes, targetId, { imageUrl: lastUrl, mediaType: 'video' });
+        // 只写 assetUrl（docs/118 §7.3 ⑤ 写侧唯一）：不再双写存量字段 data.url。
+        patchNodeDataById(setNodes, targetId, { assetUrl: lastUrl, assetType: 'video' });
       } else {
         // 无下游 AssetNode：新建并连线
         const me = getNode(id);
@@ -191,8 +191,8 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
                 y: (me?.position.y ?? 100) + 320,
               },
               data: {
-                imageUrl: lastUrl,
-                mediaType: 'video',
+                assetUrl: lastUrl,
+                assetType: 'video',
                 label: lastFile,
                 images: [],
               },
@@ -208,7 +208,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
     [id, getNodes, getEdges, setNodes, setEdges, history],
   );
 
-  // 退出导演台：缩略图落盘 /files/ 写节点 imageUrl，彻底删除旧 directorProject；
+  // 退出导演台：缩略图落盘 /files/ 写节点 assetUrl，彻底删除旧 directorProject；
   // 图片截图 → 图片盒子，视频 → AssetNode（有则写，无则新建并连线）
   interface Director3DCapture {
     type: 'image' | 'video';
@@ -241,9 +241,9 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
         const fileUrl = await saveInlineToLocal(persistedThumb, 'tasks');
         if (fileUrl) persistedThumb = fileUrl;
       }
-      // 写回节点：imageUrl 存缩略图，彻底移除旧 directorProject 字段（patchNodeDataById 浅合并 + undefined 等价删键）
+      // 写回节点：assetUrl 存缩略图，彻底移除旧 directorProject 字段（patchNodeDataById 浅合并 + undefined 等价删键）
       patchNodeDataById(setNodes, id, {
-        imageUrl: persistedThumb || getNode(id)?.data?.imageUrl || null,
+        assetUrl: persistedThumb || getNode(id)?.data?.assetUrl || null,
         directorProject: undefined,
       });
       // 分类回写：图片 → 图片盒子；视频 → AssetNode
@@ -278,9 +278,9 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
           setOpen(true);
         }}
       >
-        {imageUrl ? (
+        {assetUrl ? (
           <img
-            src={render(imageUrl)}
+            src={render(assetUrl)}
             className="w-full h-full object-cover rounded-xl"
             alt="导演台预览"
             draggable={false}

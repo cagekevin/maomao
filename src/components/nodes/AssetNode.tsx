@@ -16,16 +16,16 @@ import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
 import { replaceNodeImage } from '../base/nodeImage.ts';
-import { detectMediaType } from '../base/utils/mediaType.ts';
-import type { MediaType } from '@/types';
-import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
+import { detectAssetType } from '../base/utils/assetType.ts';
+import type { AssetType } from '@/types';
+import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { NODE_AREA_FIXED_BASE_SIZE } from '../base/core/config.ts';
 import { useVideoPoster } from '../../hooks/useVideoPoster.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { patchNodeDataById } from '../../hooks/useNodeData.ts';
-import { toAbsoluteFileUrl, resolveNodeImageUrl } from '../base/api/index.ts';
+import { toAbsoluteFileUrl, resolveNodeAssetUrl } from '../base/api/index.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
-import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
+import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
 import { downloadUrl } from '../base/utils/clipboard.ts';
 import { showToast, toastError } from '../base/core/toastStore.ts';
@@ -42,22 +42,22 @@ import type { CameraStudioResult } from '../base/editors/cameraStudio.ts';
 
 /**
  * 图片节点（复刻原 xi.jsx / assetNode）
- * 支持 image / video / audio / text / empty 五种内容态（类型用 detectMediaType 统一判断）。
+ * 支持 image / video / audio / text / empty 五种内容态（类型用 detectAssetType 统一判断）。
  * 已迁移到 NodeShell 基座（外壳 + 端口 + 尺寸管理统一）。
  *
  * hover 工具栏「裁剪」「编辑(标记)」→ 打开全屏 ImageEditor：
  *  - 裁剪 = initialTool='crop'
  *  - 编辑 = initialTool='pencil'
- * 保存后把 canvas dataURL 写回 data.imageUrl（useReactFlow setNodes 不可变更新）。
+ * 保存后把 canvas dataURL 写回 data.assetUrl（useReactFlow setNodes 不可变更新）。
  *
- * 通用能力抽到 base/：useMediaDegrade（性能降级），宽高比自适应走 NodeShell 的 useSizeSync（area-fixed），
- * useVideoPoster（视频首帧封面）、detectMediaType（类型判断）。
+ * 通用能力抽到 base/：useAssetDegrade（性能降级），宽高比自适应走 NodeShell 的 useSizeSync（area-fixed），
+ * useVideoPoster（视频首帧封面）、detectAssetType（类型判断）。
  */
 interface AssetNodeData {
   label?: string;
-  imageUrl?: string;
+  assetUrl?: string;
   url?: string;
-  mediaType?: MediaType;
+  assetType?: AssetType;
   poster?: string;
   demoImage?: string;
   text?: string;
@@ -70,26 +70,26 @@ interface AssetNodeProps {
 function AssetNode({ id, data, selected }: AssetNodeProps) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   // 读取端兜底：相对 /files/ 路径统一补全为绝对 URL，刷新不破图。
-  // `data.url` 是【刻意的存量兼容层】（docs/118 §7.3 ⑤）：写侧已统一只写 imageUrl（见 nodeImage.ts），
-  // 但存量快照里真有只带 url 的节点 —— 删掉这层兜底 = 存量破图。读兼容、写唯一。
-  const url = toAbsoluteFileUrl(data.imageUrl || data.url || '') || '';
+  // `data.url` 是【刻意的存量兼容层】（docs/118 §7.3 ⑤）：写侧已统一只写 assetUrl（见 nodeImage.ts），
+  // 但存量快照里真有只带 url 的旧节点（assetUrl 改名前）—— 删掉这层兜底 = 存量破图。读兼容、写唯一。
+  const url = toAbsoluteFileUrl(data.assetUrl || data.url || '') || '';
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow();
   const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false);
   // 深度转视频弹窗开关 + 画布历史（undo）：供 spawnDepthVideoNode 原子提交，复用 VideoGenerate 范式
   const [depthOpen, setDepthOpen] = useState(false);
   const history = useCanvasEdges();
   // 订阅「画布显示缩略图」设置：显示地址实时随开关（见 docs/18）
-  const render = useRenderImageResolver();
+  const render = useRenderAssetResolver();
 
   // 查看大图：原生 <dialog> 弹层（双击图片 → showModal，点图/Esc 关闭，无外框/标题栏）。
   const dialogRef = useRef<HTMLDialogElement | null>(null);
 
-  // 内容类型：优先显式 data.mediaType（blob: 等无扩展名/前缀的 URL 无法靠字符串判断，
-  // 由产出方明确标注，如视频处理节点的 audio/video 输出），否则统一走 detectMediaType
-  const type = data.mediaType || detectMediaType(url);
+  // 内容类型：优先显式 data.assetType（blob: 等无扩展名/前缀的 URL 无法靠字符串判断，
+  // 由产出方明确标注，如视频处理节点的 audio/video 输出），否则统一走 detectAssetType
+  const type = data.assetType || detectAssetType(url);
 
-  // 性能模式媒体降级（hideMedia：'image' / 'image video audio' / ''，见 useMediaDegrade）
-  const { hideMedia } = useMediaDegrade();
+  // 性能模式媒体降级（hideMedia：'image' / 'image video audio' / ''，见 useAssetDegrade）
+  const { hideMedia } = useAssetDegrade();
 
   // 节点按媒体真实宽高比自适应：area-fixed 模式下，媒体加载/裁剪后把比例交给 useSizeSync
   // 锁定面积（与 ImageGenerate / VideoGenerate 统一的面积恒定模型），形状跟随媒体比例。
@@ -135,7 +135,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   // 文件名优先用节点 label，其次是 URL 里的文件名；无扩展名时按类型补扩展名。
   const handleDownload = useCallback(() => {
     if (!url) return;
-    const extMap: Partial<Record<MediaType, string>> = {
+    const extMap: Partial<Record<AssetType, string>> = {
       image: 'png',
       video: 'mp4',
       audio: 'm4a',
@@ -218,16 +218,16 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       const f = e.target.files?.[0];
       e.target.value = '';
       if (!f) return;
-      if (f.type.startsWith('text/') || detectMediaType(f.name) === 'text') {
+      if (f.type.startsWith('text/') || detectAssetType(f.name) === 'text') {
         const fr = new FileReader();
         fr.onload = () => {
           patchNodeDataById(setNodes, id, {
             text: fr.result,
-            mediaType: 'text',
-            // 切文本态 = 清空主图（imageUrl 为主、url 为存量兼容字段）：
+            assetType: 'text',
+            // 切文本态 = 清空主图（assetUrl 为主、url 为存量兼容字段）：
             // 这里写 undefined 是【清空】不是【写值】，两者都必须清，否则渲染端
-            // `imageUrl || url` 会从 url 兜底读回旧图 → 文本态节点显示旧图。
-            imageUrl: undefined,
+            // `assetUrl || url` 会从 url 兜底读回旧图 → 文本态节点显示旧图。
+            assetUrl: undefined,
             url: undefined,
           });
           // 节点已切到文本态，结果可见，无需 toast
@@ -236,16 +236,16 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
         return;
       }
       // 图片/视频/音频：统一落盘策略（File 直传 → 落盘失败内联兜底 → 连内联都拿不到才提示），
-      // 唯一实现见 filesApi.resolveNodeImageUrl；mediaType 交由 detectMediaType 由 URL 判断。
-      const url = await resolveNodeImageUrl(f, UPLOAD_DIRS.canvasDrop, f.name);
+      // 唯一实现见 filesApi.resolveNodeAssetUrl；assetType 交由 detectAssetType 由 URL 判断。
+      const url = await resolveNodeAssetUrl(f, UPLOAD_DIRS.canvasDrop, f.name);
       if (!url) {
         toastError('上传失败');
         return;
       }
-      // 「上传替换节点内容」也收口到唯一写入口：主图走 replaceNodeImage，`mediaType/text` 置空
-      // （交回 detectMediaType 按新 URL 判定）。此前这里是第三处直写 imageUrl/url 的地方（docs/118 §7.3 ⑤）。
+      // 「上传替换节点内容」也收口到唯一写入口：主图走 replaceNodeImage，`assetType/text` 置空
+      // （交回 detectAssetType 按新 URL 判定）。此前这里是第三处直写 assetUrl/url 的地方（docs/118 §7.3 ⑤）。
       replaceNodeImage(
-        { id, dataUrl: url, dataPatch: { mediaType: undefined, text: undefined } },
+        { id, dataUrl: url, dataPatch: { assetType: undefined, text: undefined } },
         setNodes,
       );
       // 节点已显示新图，结果可见，无需 toast
@@ -480,7 +480,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       {/* 摄影棚面板 */}
       <CameraStudioPanel
         isOpen={isCameraStudioOpen}
-        imageUrl={type === 'image' ? url : undefined}
+        assetUrl={type === 'image' ? url : undefined}
         onClose={() => setIsCameraStudioOpen(false)}
         onGenerate={handleCameraStudioGenerate}
       />

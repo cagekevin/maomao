@@ -18,7 +18,7 @@ import NodeShell from '../base/ui/NodeShell.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
-import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
+import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import LazyImage from '../base/ui/LazyImage.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import { toastError, toastWarning } from '../base/core/toastStore.ts';
@@ -26,16 +26,16 @@ import { loadImageWithTimeout } from '../base/utils/asyncGuard.ts';
 import { generateId } from '../base/core/idGen.ts';
 import { downloadUrl as clipboardDownload } from '../base/utils/clipboard.ts';
 
-import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
-// §5.4.9 图像入节点落盘策略唯一实现：File 源走 resolveNodeImageUrl（multipart 直传 → /files/ 持久 URL）
-import { resolveNodeImageUrl } from '../base/api/filesApi.ts';
+import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
+// §5.4.9 图像入节点落盘策略唯一实现：File 源走 resolveNodeAssetUrl（multipart 直传 → /files/ 持久 URL）
+import { resolveNodeAssetUrl } from '../base/api/filesApi.ts';
 
 /**
  * 图片盒子节点（复刻官方 Rg.jsx / imageBoxNode）。
  *
  * 一个「多图容器」：单图展示 / 缩略图网格两种模式，是图片切分/拼图/全景/人脸打码等
  * 图片类节点的共同上游。核心能力：
- *  - 加图：点击/拖拽/粘贴/从上游连线一键导入（imageUrl / 其它 imageBoxNode.images / 抽帧结果）
+ *  - 加图：点击/拖拽/粘贴/从上游连线一键导入（assetUrl / 其它 imageBoxNode.images / 抽帧结果）
  *  - 多图管理：单图模式上下张导航；网格模式多选（Ctrl=设默认）、全选/删已选、拖拽排序、缩略图菜单
  *  - 缩略图：添加时用 canvas 生成 256 缩略图（对齐官方 _cmp_Tr）
  *  - 端口：target「in」接上游图片、source「active」输出当前激活图
@@ -70,8 +70,8 @@ interface ImageBoxNodeProps {
   selected?: boolean;
 }
 function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
-  const { isHidden } = useMediaDegrade();
-  const render = useRenderImageResolver();
+  const { isHidden } = useAssetDegrade();
+  const render = useRenderAssetResolver();
   const hideImage = isHidden('image');
 
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -255,11 +255,11 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
     [images, activeIndex, updateData],
   );
 
-  // ---- 从上游连线取图（对齐官方 ie：imageUrl / imageBoxNode.images / videoExtractNode.extractedImages）----
+  // ---- 从上游连线取图（对齐官方 ie：assetUrl / imageBoxNode.images / videoExtractNode.extractedImages）----
   const connected = useConnectedInputs(id);
   const upstreamImages = useCallback(() => {
     const list = [];
-    // 直接上游 imageUrl（assetNode / imageGenerateNode 等）
+    // 直接上游 assetUrl（assetNode / imageGenerateNode 等）
     connected.images.forEach((img) => {
       if (
         typeof img.url === 'string' &&
@@ -289,15 +289,15 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
     // 节点已显示导入的图片，结果可见，无需 toast
   }, [upstreamImages, images, addImages]);
 
-  // ---- 文件读取（对齐 §5.4.9 落盘唯一实现：File 源走 resolveNodeImageUrl，禁止把整图 dataURL 塞进 node.data）----
+  // ---- 文件读取（对齐 §5.4.9 落盘唯一实现：File 源走 resolveNodeAssetUrl，禁止把整图 dataURL 塞进 node.data）----
   const readFiles = useCallback((files: FileList | File[]) => {
     const list = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    // 委托 filesApi.resolveNodeImageUrl：multipart 直传 → 持久 /files/ URL；
+    // 委托 filesApi.resolveNodeAssetUrl：multipart 直传 → 持久 /files/ URL；
     // 仅「上传失败且读不出内联」才兜底 dataURL（极端情形，符合契约降级语义）。
     // 这样 node.data.images[].url 只存持久 URL，快照不再内联整图 → 消除 TD-10 快照膨胀。
     return Promise.all(
       list.map((f) =>
-        resolveNodeImageUrl(f)
+        resolveNodeAssetUrl(f)
           .then((url) => (url ? { url, label: f.name } : null))
           .catch(() => null),
       ),

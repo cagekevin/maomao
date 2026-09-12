@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useStore, type Node, type Edge } from '@xyflow/react';
 import { collectAssets } from '../components/scriptbox/scriptBoxPrompts.ts';
 import { toAbsoluteFileUrl } from '../components/base/api/index.ts';
-import { resolveMediaType } from '../components/base/utils/mediaType.ts';
+import { resolveAssetType } from '../components/base/utils/assetType.ts';
 import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.ts';
 
 /**
@@ -21,8 +21,8 @@ import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.t
  *       不应自动混入（否则依赖关系不可控、数据爆炸）。
  *  2. 每个上游节点产出它的「生成物」或「外部传入的素材」（见 getNodeOutput）：
  *       textGenerateNode        → 文本（data.text）
- *       assetNode       → 图片/视频/音频（data.imageUrl，按 mime/扩展名分类）
- *       imageGenerateNode      → 图片（data.imageUrl）
+ *       assetNode       → 图片/视频/音频（data.assetUrl，按 mime/扩展名分类）
+ *       imageGenerateNode      → 图片（data.assetUrl）
  *       videoGenerateNode → 视频（data.videoUrl）
  *       scriptBoxNode   → 按 sourceHandle=`shot-${id}` 的镜头，用 @资产名 匹配有图资产（images）
  *                          （端口前缀走 contracts.SHOT_HANDLE_PREFIX，禁止裸拼字符串）
@@ -39,10 +39,10 @@ import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.t
  * @returns { images, texts, videos, audios } 聚合的所有「直接上游」产出
  */
 
-/** 产出类型判定（P1-B φ2 收口）委托 mediaType.resolveMediaType：
- *  mediaType 优先（产出方自带），否则按 URL 分类。唯一实现，勿在此另起一套（见下方 import）。
- *  · 为什么 mediaType 优先：如 VideoProcessNode extractAudio spawn 的 assetNode 带
- *    data.mediaType:'audio'（blob: URL 无扩展名），按扩展名判会误判为 image。
+/** 产出类型判定（P1-B φ2 收口）委托 assetType.resolveAssetType：
+ *  assetType 优先（产出方自带），否则按 URL 分类。唯一实现，勿在此另起一套（见下方 import）。
+ *  · 为什么 assetType 优先：如 VideoProcessNode extractAudio spawn 的 assetNode 带
+ *    data.assetType:'audio'（blob: URL 无扩展名），按扩展名判会误判为 image。
  *  · 产出方自带类型是「协议判断」与「节点渲染判断」一致的唯一来源。 */
 
 /**
@@ -91,7 +91,7 @@ export const NODE_OUTPUTS = {
   // 调度函数 getNodeOutput 内不再出现任何业务模块符号。
   // 返回 undefined = 「本声明不适用」，交回 getNodeOutput 继续走后续兜底（见下方调用处注释）。
   // 为什么必须如此：剧本盒是「类型 + 端口」双条件产出，而查表只按类型命中。
-  // 若非分镜端口也返回 { images: [] }，会屏蔽掉通用兜底（genericOutput 读 data.imageUrl），
+  // 若非分镜端口也返回 { images: [] }，会屏蔽掉通用兜底（genericOutput 读 data.assetUrl），
   // 改变既有行为（回归点，见 tests/unit/useConnectedInputs.test.js「非 shot- 端口走通用兜底」）。
   scriptBoxNode: (d, sourceHandle) => {
     const shotId = parseShotHandle(sourceHandle);
@@ -99,7 +99,7 @@ export const NODE_OUTPUTS = {
     const shot = (d.shots || []).find((s) => String(s.id) === String(shotId));
     return { images: shot ? collectAssets(shot, d.assets) : [] };
   },
-  // 图片盒子：多图（对象数组 {id,url,label}），产出全部图；mediaType 由 URL 判定
+  // 图片盒子：多图（对象数组 {id,url,label}），产出全部图；assetType 由 URL 判定
   imageBoxNode: (d) => {
     const images: NodeOutputItem[] = [];
     const list: unknown[] = Array.isArray(d.images) ? (d.images as unknown[]) : [];
@@ -119,28 +119,28 @@ export const NODE_OUTPUTS = {
   gridMergeNode: (d) => ({ images: arrayImages(d.extractedImages, 'merge', (i) => `图 ${i + 1}`) }),
 };
 
-/** 通用单产出兜底：imageUrl > videoUrl > resultUrl，且尊重 data.mediaType */
+/** 通用单产出兜底：assetUrl > videoUrl > resultUrl，且尊重 data.assetType */
 function genericOutput(d: Record<string, unknown>, id: string): NodeOutputGroup {
   const empty: NodeOutputGroup = { images: [], texts: [], videos: [], audios: [] };
-  // 候选 url / mediaType 都用控制流收窄（非 as）：只有真是 string / 已知枚举才生效。
-  const raw: Array<{ url: unknown; mediaType: unknown }> = [
-    { url: d.imageUrl, mediaType: d.mediaType },
-    { url: d.videoUrl, mediaType: d.mediaType },
-    { url: d.resultUrl, mediaType: d.mediaType },
+  // 候选 url / assetType 都用控制流收窄（非 as）：只有真是 string / 已知枚举才生效。
+  const raw: Array<{ url: unknown; assetType: unknown }> = [
+    { url: d.assetUrl, assetType: d.assetType },
+    { url: d.videoUrl, assetType: d.assetType },
+    { url: d.resultUrl, assetType: d.assetType },
   ];
-  const candidates: Array<{ url: string; mediaType: 'image' | 'video' | 'audio' | undefined }> = [];
+  const candidates: Array<{ url: string; assetType: 'image' | 'video' | 'audio' | undefined }> = [];
   for (const c of raw) {
     if (typeof c.url === 'string' && c.url) {
-      // mediaType 只认白名单枚举：非已知值视为未声明（undefined），交 resolveMediaType 按 URL 判。
-      const mediaType =
-        c.mediaType === 'image' || c.mediaType === 'video' || c.mediaType === 'audio'
-          ? c.mediaType
+      // assetType 只认白名单枚举：非已知值视为未声明（undefined），交 resolveAssetType 按 URL 判。
+      const assetType =
+        c.assetType === 'image' || c.assetType === 'video' || c.assetType === 'audio'
+          ? c.assetType
           : undefined;
-      candidates.push({ url: c.url, mediaType });
+      candidates.push({ url: c.url, assetType });
     }
   }
-  for (const { url, mediaType } of candidates) {
-    const kind = resolveMediaType(url, mediaType);
+  for (const { url, assetType } of candidates) {
+    const kind = resolveAssetType(url, assetType);
     // label 统一带上 d.label（图片/视频/音频都带，供下游候选列表显示 / 未来 @名 匹配视频）。
     // 单图/单视频节点（assetNode/imageGenerateNode/panorama/discountVideo/...）双击标题改的名即 d.label。
     const item: NodeOutputItem = { id, url, label: str(d.label) };
@@ -186,7 +186,7 @@ export function getNodeOutput(
   const type = String(node.type || '');
   const id = String(node.id || '');
 
-  // 1. 节点产出声明表（管线契约）：声明过的节点类型走这里（含剧本盒多端口 / 数组型产出 / 自带 mediaType）。
+  // 1. 节点产出声明表（管线契约）：声明过的节点类型走这里（含剧本盒多端口 / 数组型产出 / 自带 assetType）。
   // 声明可返回 undefined 表示「本声明不适用」（如剧本盒接到非分镜端口），此时继续往下走兜底，
   // 而非当成空产出直接返回 —— 否则会屏蔽通用兜底、改变既有行为。
   const declared = NODE_OUTPUTS[type];
@@ -202,7 +202,7 @@ export function getNodeOutput(
     return { ...empty, texts: [{ id, label: str(d.label) || '参考文本', text: d.text }] };
   }
 
-  // 2. 通用单产出兜底（imageUrl/videoUrl/resultUrl + 尊重 mediaType）。
+  // 2. 通用单产出兜底（assetUrl/videoUrl/resultUrl + 尊重 assetType）。
   return genericOutput(d, id);
 }
 
@@ -379,9 +379,9 @@ export function useConnectedInputs(nodeId?: string): NodeOutputGroup {
 // 吞掉（进而被下游当错类型/漏传给上游，甚至外部硬编码 t.data[0].url）。仅 DEV 触发，生产零开销。
 if (import.meta.env.DEV) {
   const specialHandled = new Set(['textGenerateNode']); // getNodeOutput 保留特判（读 node.id，非 data 派生）
-  const declaredOutputs = new Set(Object.keys(NODE_OUTPUTS)); // 显式产出声明（剧本盒多端口 / 多图 / 数组 / 自带 mediaType）
+  const declaredOutputs = new Set(Object.keys(NODE_OUTPUTS)); // 显式产出声明（剧本盒多端口 / 多图 / 数组 / 自带 assetType）
   const genericOutputOk = new Set([
-    // 单输出由 genericOutput 兜底（imageUrl/videoUrl/resultUrl）
+    // 单输出由 genericOutput 兜底（assetUrl/videoUrl/resultUrl）
     'assetNode',
     'imageGenerateNode',
     'videoGenerateNode',

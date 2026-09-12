@@ -46,14 +46,14 @@ export interface ScriptBoxShot extends Shot {
   tailFrameVariantsError?: string | undefined;
 }
 
-/** 单个 asset 子字段（含 P0-3 imageUrl / thumbnailUrl 分离） */
+/** 单个 asset 子字段（含 P0-3 assetUrl / thumbnailUrl 分离） */
 export interface ScriptBoxAsset {
   id: string;
   category: string;
   name: string;
   description: string;
   prompt: string;
-  imageUrl: string;
+  assetUrl: string;
   thumbnailUrl: string;
   has: boolean;
   loading: boolean;
@@ -165,7 +165,7 @@ export function defaultShotFields(): ScriptBoxShot {
   };
 }
 
-/** 单个 asset 子字段默认值（含 P0-3 imageUrl / thumbnailUrl 分离）。 */
+/** 单个 asset 子字段默认值（含 P0-3 assetUrl / thumbnailUrl 分离）。 */
 export function defaultAssetFields(): ScriptBoxAsset {
   return {
     id: '',
@@ -173,7 +173,7 @@ export function defaultAssetFields(): ScriptBoxAsset {
     name: '',
     description: '',
     prompt: '',
-    imageUrl: '',
+    assetUrl: '',
     thumbnailUrl: '',
     has: false,
     loading: false,
@@ -198,14 +198,14 @@ export function normalizeScriptBoxData(raw: Record<string, unknown> = {}): Scrip
     s && typeof s === 'object' ? { ...defaultShotFields(), ...s } : { ...defaultShotFields() },
   );
 
-  // assets 子字段归一化：P0-3 thumbnailUrl 缺省回退 imageUrl（唯一回退点，UI 不再各自处理）。
+  // assets 子字段归一化：P0-3 thumbnailUrl 缺省回退 assetUrl（唯一回退点，UI 不再各自处理）。
   d.assets = (Array.isArray(raw.assets) ? raw.assets : []).map((a) => {
     if (!a || typeof a !== 'object') return { ...defaultAssetFields() };
     const norm = { ...defaultAssetFields(), ...a } as ScriptBoxAsset & {
       videoStatus?: string;
       videoError?: string;
     };
-    if (!norm.thumbnailUrl) norm.thumbnailUrl = norm.imageUrl || '';
+    if (!norm.thumbnailUrl) norm.thumbnailUrl = norm.assetUrl || '';
     // 字段改名迁移：旧画布用 videoStatus/videoError（历史命名错误，存的是图片上传状态），
     // 迁移到 imageStatus/imageError，避免老数据丢失上传状态。
     if (norm.imageStatus === '' && (norm.videoStatus || norm.videoStatus === '')) {

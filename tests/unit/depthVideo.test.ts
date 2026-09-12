@@ -141,14 +141,14 @@ describe('A5 资源前缀 buildRuntimeModels（同源根相对）', () => {
 });
 
 describe('A6 下游节点规格 buildDepthChildSpec + 命名', () => {
-  it('下游为 assetNode 视频态，imageUrl=outputUrl，expanded=true，label=name', () => {
+  it('下游为 assetNode 视频态，assetUrl=outputUrl，expanded=true，label=name', () => {
     const spec = buildDepthChildSpec(
       'http://127.0.0.1:18080/files/canvas/video-process/x_depth.mp4',
       'scene_depth.mp4',
     );
     expect(spec.type).toBe('assetNode');
-    expect(spec.data.mediaType).toBe('video');
-    expect(spec.data.imageUrl).toBe(
+    expect(spec.data.assetType).toBe('video');
+    expect(spec.data.assetUrl).toBe(
       'http://127.0.0.1:18080/files/canvas/video-process/x_depth.mp4',
     );
     expect(spec.data.expanded).toBe(true);

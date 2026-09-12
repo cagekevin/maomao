@@ -53,7 +53,7 @@ describe('matchAsset 边界语义（@名后一位非中英数才命中，防 @�
 // 隐藏 bug 探索：仍未修复的边界（保留为「已知行为」记录）
 // ═══════════════════════════════════════════════════════════════════
 describe('隐藏 bug 探索：collectAssets 的已知边界', () => {
-  const assets = [{ id: 'a1', name: '卧室', imageUrl: '/files/room.png' }];
+  const assets = [{ id: 'a1', name: '卧室', assetUrl: '/files/room.png' }];
 
   it('已知①：@引用写在 dialogue（数组）里 → 因 `${shot.dialogue}` 拼成 "[object Object]" 而漏收', () => {
     // collectAssets 用模板串拼接 dialogue；真实 dialogue 是数组结构（textToDlg 产出）。
@@ -70,9 +70,9 @@ describe('隐藏 bug 探索：collectAssets 的已知边界', () => {
   it('已知②：collectAssets 返回对象不含 category，下游无法区分场景/角色/道具（契约空白）', () => {
     const shotDesc = { description: '@卧室, @骷髅A, @HKH精华瓶' };
     const multi = [
-      { id: 'a1', name: '卧室', category: 'scene', imageUrl: '/files/room.png' },
-      { id: 'a2', name: '骷髅A', category: 'character', imageUrl: '/files/ka.png' },
-      { id: 'a4', name: 'HKH精华瓶', category: 'prop', imageUrl: '/files/bottle.png' },
+      { id: 'a1', name: '卧室', category: 'scene', assetUrl: '/files/room.png' },
+      { id: 'a2', name: '骷髅A', category: 'character', assetUrl: '/files/ka.png' },
+      { id: 'a4', name: 'HKH精华瓶', category: 'prop', assetUrl: '/files/bottle.png' },
     ];
     const out = collectAssets(shotDesc, multi);
     expect(out).toHaveLength(3); // 图能拿到…

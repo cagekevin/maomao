@@ -13,7 +13,7 @@ import {
   presetRoot,
 } from './rig.ts';
 import { readJson, removeKey, writeJson } from './storage.ts';
-import { isProjectImageUrl } from './d3dPersistence.ts';
+import { isProjectAssetUrl } from './d3dPersistence.ts';
 
 // ================================================================
 // 领域类型真相源（3D 导演台）
@@ -756,7 +756,7 @@ export function normalizeCameraKeyframes(
 
 export function normalizeReference(reference: Partial<ProjectReference> = {}): ProjectReference {
   const image =
-    typeof reference.image === 'string' && isProjectImageUrl(reference.image)
+    typeof reference.image === 'string' && isProjectAssetUrl(reference.image)
       ? reference.image
       : '';
   return {
@@ -1045,7 +1045,7 @@ export function normalizeShot(shot, index, fallback) {
         .trim()
         .slice(0, 30) || defaultShotName(index),
     thumbnail:
-      typeof shot?.thumbnail === 'string' && isProjectImageUrl(shot.thumbnail)
+      typeof shot?.thumbnail === 'string' && isProjectAssetUrl(shot.thumbnail)
         ? shot.thumbnail
         : '',
     fps: timing.fps,

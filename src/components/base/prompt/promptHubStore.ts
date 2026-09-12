@@ -35,7 +35,7 @@ export interface Prompt {
   prompt: string;
   description: string;
   coverUrl: string;
-  referenceImageUrls: string[];
+  referenceAssetUrls: string[];
   tags: string[];
   preview: string;
   createdAt: string;
@@ -115,7 +115,7 @@ const listeners = new Map<string, Set<() => void>>();
 
 /**
  * @typedef {Object} RawPrompt
- * 原版字段（搬运），referenceImageUrls 保留以支持以后多图预览。
+ * 原版字段（搬运），referenceAssetUrls 保留以支持以后多图预览。
  */
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
@@ -163,18 +163,18 @@ function normalizeItems(values: unknown[], source: PromptSource): Prompt[] {
     const id = stringValue(rec.id).trim() || `${source.id}-${leftPad(index + 1)}`;
     if (seen.has(id)) return;
     seen.add(id);
-    const referenceImageUrls = stringArray(rec.referenceImageUrls).map((u) =>
+    const referenceAssetUrls = stringArray(rec.referenceAssetUrls).map((u) =>
       absoluteUrl(source.url, u),
     );
     const coverUrl =
-      absoluteUrl(source.url, stringValue(rec.coverUrl)) || referenceImageUrls[0] || '';
+      absoluteUrl(source.url, stringValue(rec.coverUrl)) || referenceAssetUrls[0] || '';
     items.push({
       id,
       title,
       prompt,
       description: stringValue(rec.description),
       coverUrl,
-      referenceImageUrls,
+      referenceAssetUrls,
       tags: stringArray(rec.tags),
       preview: stringValue(rec.preview),
       createdAt: stringValue(rec.createdAt),

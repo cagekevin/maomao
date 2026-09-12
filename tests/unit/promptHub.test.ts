@@ -59,7 +59,7 @@ describe('提示词社区库 §2.19 数据层', () => {
     });
   });
 
-  it('相对 URL 转绝对：coverUrl/referenceImageUrls 按源 url 补全', async () => {
+  it('相对 URL 转绝对：coverUrl/referenceAssetUrls 按源 url 补全', async () => {
     const { getPromptHubSources } =
       await import('../../src/components/base/prompt/promptHubStore.ts');
     const src = getPromptHubSources()[0];
@@ -68,7 +68,7 @@ describe('提示词社区库 §2.19 数据层', () => {
         title: 'A',
         prompt: 'p',
         coverUrl: './cover.png',
-        referenceImageUrls: ['ref1.png', 'https://x.com/r2.jpg'],
+        referenceAssetUrls: ['ref1.png', 'https://x.com/r2.jpg'],
       },
     ];
     fetchImpl = (url) =>
@@ -78,8 +78,8 @@ describe('提示词社区库 §2.19 数据层', () => {
     const { loadPromptHub } = await import('../../src/components/base/prompt/promptHubStore.ts');
     const { items } = await loadPromptHub();
     expect(items[0].coverUrl).toBe(`${src.url.replace(/[^/]+$/, '')}cover.png`);
-    expect(items[0].referenceImageUrls[0]).toContain(src.url.replace(/[^/]+$/, ''));
-    expect(items[0].referenceImageUrls[1]).toBe('https://x.com/r2.jpg');
+    expect(items[0].referenceAssetUrls[0]).toContain(src.url.replace(/[^/]+$/, ''));
+    expect(items[0].referenceAssetUrls[1]).toBe('https://x.com/r2.jpg');
   });
 
   it('源拉取失败不崩：返回空数组并记 lastError，UI 可显示错误', async () => {

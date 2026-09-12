@@ -23,7 +23,7 @@ import { toAbsoluteFileUrl } from '../api/filesApi.ts';
  *
  * 受控组件：props = { state, onChange, upstreamUrls }
  *  state: { layers, canvasWidth, canvasHeight, bgColor }
- *  layer: { id, imageUrl, x, y, scale, rotation, opacity, zIndex, visible, locked, naturalWidth, naturalHeight, maskUrl }
+ *  layer: { id, assetUrl, x, y, scale, rotation, opacity, zIndex, visible, locked, naturalWidth, naturalHeight, maskUrl }
  *
  * ★ 核心渲染模型（与官方一致）：
  *  - 画布只显示一张「合成预览图」（renderOverlayCanvas 把全部图层按 zIndex 合成，object-fill 铺满）
@@ -43,7 +43,7 @@ const genId = () => generateId('ov');
 
 // 单层渲染 canvas（复刻 Bo_1.jsx：drawImage + mask destination-in）
 const renderLayerCanvas = async (layer) => {
-  const img = await loadImageOrNull(layer.imageUrl);
+  const img = await loadImageOrNull(layer.assetUrl);
   if (!img) return null;
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
@@ -132,9 +132,9 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
   useEffect(() => {
     let cancelled = false;
     const set = new Set(upstreamUrls);
-    const cur = new Set(layers.map((l) => l.imageUrl));
+    const cur = new Set(layers.map((l) => l.assetUrl));
     const toAdd = upstreamUrls.filter((u) => !cur.has(u));
-    const toRemove = layers.filter((l) => !set.has(l.imageUrl));
+    const toRemove = layers.filter((l) => !set.has(l.assetUrl));
     if (toAdd.length === 0 && toRemove.length === 0) return;
     (async () => {
       const added = [];
@@ -149,7 +149,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
         maxZ += 1;
         added.push({
           id: genId(),
-          imageUrl: url,
+          assetUrl: url,
           x: (canvasWidth - w * s) / 2,
           y: (canvasHeight - h * s) / 2,
           scale: s,
@@ -935,7 +935,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
                   {layer.locked ? <Lock size={11} /> : <Unlock size={11} />}
                 </button>
                 <img
-                  src={toAbsoluteFileUrl(layer.imageUrl)}
+                  src={toAbsoluteFileUrl(layer.assetUrl)}
                   alt=""
                   className="w-6 h-6 object-cover rounded pointer-events-none"
                 />

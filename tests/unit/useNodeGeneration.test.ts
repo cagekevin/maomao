@@ -80,18 +80,18 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
   it('传 resultKey 后成功自动 patchData({[resultKey]: url})，onSuccess 仍会调用', async () => {
     const onSuccess = vi.fn();
     const { result } = renderHook(() =>
-      useNodeGeneration({ ...baseProps, resultKey: 'imageUrl', onSuccess }),
+      useNodeGeneration({ ...baseProps, resultKey: 'assetUrl', onSuccess }),
     );
     await act(async () => {
       await result.current.start();
     });
-    expect(patchDataMock).toHaveBeenCalledWith({ imageUrl: 'http://x/y.png' });
+    expect(patchDataMock).toHaveBeenCalledWith({ assetUrl: 'http://x/y.png' });
     expect(onSuccess).toHaveBeenCalledTimes(1);
   });
 
   it('recoverable + resultKey：收到完成广播自动回填，且过滤非本节点/非完成', async () => {
     const { result: _result } = renderHook(() =>
-      useNodeGeneration({ ...baseProps, resultKey: 'imageUrl', recoverable: true }),
+      useNodeGeneration({ ...baseProps, resultKey: 'assetUrl', recoverable: true }),
     );
     // 先让 start 抛错无关：直接测广播路径
     await act(async () => {
@@ -105,7 +105,7 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
       busState.handler({ nodeId: 'n1', status: 'completed', resultUrl: 'http://x/rec.png' });
     });
     expect(patchDataMock).toHaveBeenCalledTimes(1);
-    expect(patchDataMock).toHaveBeenCalledWith({ imageUrl: 'http://x/rec.png' });
+    expect(patchDataMock).toHaveBeenCalledWith({ assetUrl: 'http://x/rec.png' });
   });
 
   it('run 抛网络异常 → logger.error 记录 classifyError 分类（network，可重试）', async () => {

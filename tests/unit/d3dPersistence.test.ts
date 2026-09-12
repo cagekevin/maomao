@@ -12,7 +12,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   projectKvKey,
-  isProjectImageUrl,
+  isProjectAssetUrl,
   isProjectPersistenceKey,
   externalizeProjectImages,
   pickProjectSource,
@@ -46,23 +46,23 @@ describe('isProjectPersistenceKey — 工程键判定', () => {
 });
 
 // ── T3 读还原图片地址判定 ──────────────────────────────
-describe('isProjectImageUrl — 图片地址判定', () => {
+describe('isProjectAssetUrl — 图片地址判定', () => {
   it('放行 data:image base64', () => {
-    expect(isProjectImageUrl('data:image/png;base64,xxx')).toBe(true);
-    expect(isProjectImageUrl('data:image/jpeg;base64,yyy')).toBe(true);
+    expect(isProjectAssetUrl('data:image/png;base64,xxx')).toBe(true);
+    expect(isProjectAssetUrl('data:image/jpeg;base64,yyy')).toBe(true);
   });
   it('放行本地 /files/ 相对地址', () => {
-    expect(isProjectImageUrl('/files/director3d/a.png')).toBe(true);
+    expect(isProjectAssetUrl('/files/director3d/a.png')).toBe(true);
   });
   it('放行本地 /files/ 绝对 http 地址', () => {
-    expect(isProjectImageUrl('http://127.0.0.1:18080/files/director3d/a.png')).toBe(true);
+    expect(isProjectAssetUrl('http://127.0.0.1:18080/files/director3d/a.png')).toBe(true);
   });
   it('拒绝垃圾 / 空 / 外链', () => {
-    expect(isProjectImageUrl('垃圾字符串')).toBe(false);
-    expect(isProjectImageUrl('')).toBe(false);
-    expect(isProjectImageUrl('https://cdn.example.com/a.png')).toBe(false);
-    expect(isProjectImageUrl(undefined)).toBe(false);
-    expect(isProjectImageUrl(null)).toBe(false);
+    expect(isProjectAssetUrl('垃圾字符串')).toBe(false);
+    expect(isProjectAssetUrl('')).toBe(false);
+    expect(isProjectAssetUrl('https://cdn.example.com/a.png')).toBe(false);
+    expect(isProjectAssetUrl(undefined)).toBe(false);
+    expect(isProjectAssetUrl(null)).toBe(false);
   });
 });
 

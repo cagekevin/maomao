@@ -50,7 +50,7 @@ import '../core/toastStore.ts';
  */
 interface ImageEditorProps {
   /** 要编辑的图片 URL（dataURL / http / blob / /files/） */
-  imageUrl: string;
+  assetUrl: string;
   /** 初始 Tab：'crop' / 'expand' 直接进对应 Tab，其余（含未知）回退涂鸦 */
   initialTool?: string;
   /** 保存回调（保存 = 导出 PNG 覆盖本节点），width/height 为最终画布真实像素 */
@@ -163,7 +163,7 @@ export function computeOutpaintDrawPos(
 }
 
 export default function ImageEditor({
-  imageUrl,
+  assetUrl,
   initialTool = 'pencil',
   onSave,
   onClose,
@@ -323,7 +323,7 @@ export default function ImageEditor({
     let cancelled = false;
     (async () => {
       try {
-        const { dataUrl } = await compressImage(imageUrl, { keepOriginalFormat: true });
+        const { dataUrl } = await compressImage(assetUrl, { keepOriginalFormat: true });
         const im = await loadImageWithTimeout(dataUrl);
         if (cancelled) return;
         const w = im.naturalWidth;
@@ -352,7 +352,7 @@ export default function ImageEditor({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageUrl]);
+  }, [assetUrl]);
 
   // 文字输入框聚焦
   useEffect(() => {

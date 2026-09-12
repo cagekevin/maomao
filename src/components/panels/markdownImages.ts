@@ -9,7 +9,7 @@
  *  - 跳过临时协议：blob:/ipfs:/ipns:（持久化后必破图）
  *  - data: 只接受 data:image/
  *  - http(s)：带图片后缀(.png/.jpg…)直接渲染；无后缀则排除网页类后缀(.html/.json…)后渲染（兼容无后缀图床） */
-export function isImageUrl(u: string): boolean {
+export function isAssetUrl(u: string): boolean {
   u = String(u || '')
     .trim()
     .toLowerCase();
@@ -41,12 +41,12 @@ export function extractImageSpans(text: string): ImageSpan[] {
   // 3) 裸链接：http(s)://… 或 data:image/…
   //    读到空白才停（不再遇 ) 即截断，保留 url 内部的 ) 与 ?query 参数）；
   //    尾随的中英文标点/括号/引号不属于 url，用非捕获组剥离；
-  //    排除被 blob:/ipfs:/ipns: 协议前缀包裹的 URL（与 isImageUrl「临时协议不渲染」契约冲突）
+  //    排除被 blob:/ipfs:/ipns: 协议前缀包裹的 URL（与 isAssetUrl「临时协议不渲染」契约冲突）
   for (const m of text.matchAll(
     /(https?:\/\/[^\s]+?|data:image\/[^\s"]+?)(?:[)\]}'"，。、,!?；;]+)?(?=\s|$)/gi,
   )) {
     const before = text.slice(Math.max(0, (m.index ?? 0) - 5), m.index ?? 0);
-    // 排除 blob:/ipfs:/ipns: 临时协议前缀（与 isImageUrl「临时协议不渲染」契约冲突）
+    // 排除 blob:/ipfs:/ipns: 临时协议前缀（与 isAssetUrl「临时协议不渲染」契约冲突）
     if (/^(?:blob:|ipfs:|ipns:)$/.test(before)) continue;
     // 排除 markdown 链接目标 [text](url)：这种 URL 属于链接，不是图片，交给行内链接渲染
     if (before.endsWith('](')) continue;
@@ -56,6 +56,6 @@ export function extractImageSpans(text: string): ImageSpan[] {
   // 去重 key 用「纯 url」：markdown 与裸链接多处出现同一 url 只渲染一次（根治重复显示）
   const seen = new Set<string>();
   return spans
-    .filter((s) => isImageUrl(s.url) && !seen.has(s.url) && seen.add(s.url))
+    .filter((s) => isAssetUrl(s.url) && !seen.has(s.url) && seen.add(s.url))
     .sort((a, b) => a.start - b.start);
 }

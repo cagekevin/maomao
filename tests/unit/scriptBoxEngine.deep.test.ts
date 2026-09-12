@@ -106,9 +106,9 @@ describe('剧本盒引擎深度业务 §2.7', () => {
         { id: 's2', description: '@大灰狼 出现', prompt: '', videoPrompt: '' },
       ],
       assets: [
-        { id: 'a1', name: '小红帽', imageUrl: '/files/r.png' },
-        { id: 'a2', name: '森林', imageUrl: '/files/f.png' },
-        { id: 'a3', name: '大灰狼', imageUrl: '/files/w.png' },
+        { id: 'a1', name: '小红帽', assetUrl: '/files/r.png' },
+        { id: 'a2', name: '森林', assetUrl: '/files/f.png' },
+        { id: 'a3', name: '大灰狼', assetUrl: '/files/w.png' },
       ],
       globalStyle: '皮克斯',
       globalConstraints: ['风格统一'],
@@ -256,7 +256,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
           category: 'character',
           description: '少女',
           prompt: '',
-          imageUrl: '',
+          assetUrl: '',
         },
         {
           id: 'a2',
@@ -264,7 +264,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
           category: 'character',
           description: '狼',
           prompt: '',
-          imageUrl: '',
+          assetUrl: '',
         },
       ],
     };
@@ -286,7 +286,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
           category: 'character',
           description: '少女',
           prompt: '',
-          imageUrl: '',
+          assetUrl: '',
         },
         {
           id: 'a2',
@@ -294,7 +294,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
           category: 'character',
           description: '狼',
           prompt: '',
-          imageUrl: '/files/old.png',
+          assetUrl: '/files/old.png',
         },
       ],
     };
@@ -320,7 +320,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
       shots: [
         { id: 's1', index: 1, prompt: '猫的图', videoPrompt: '', description: '@小红帽 出现' },
       ],
-      assets: [{ id: 'a1', name: '小红帽', imageUrl: '/files/r.png' }],
+      assets: [{ id: 'a1', name: '小红帽', assetUrl: '/files/r.png' }],
     };
     const eng = createScriptBoxEngine(ctx());
     eng.onConnectShot('s1', 'image');
@@ -502,7 +502,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     expect(shot.prevTailFrameVariants.map((v) => v.id)).toEqual(['original', 'composed']);
     expect(shot.prevTailFrameVariants[0]).toMatchObject({
       id: 'original',
-      imageUrl: 'data:image/jpeg;base64,FRAME',
+      assetUrl: 'data:image/jpeg;base64,FRAME',
     });
     expect(shot.selectedTailFrameVariantId).toBe('composed');
     expect(shot.prevShotImageRefUrls).toEqual(['/files/variant.png']);
@@ -531,8 +531,8 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     expect(cf).not.toHaveBeenCalled();
   });
 
-  // ── P0-2 真上传 + P2-1 本地化落盘：imageStatus 状态机 / imageUrl 改写 / thumbnailUrl 生成 ──
-  it('onRetryAssetImageUpload：成功 → uploading→uploaded，imageUrl 本地化', async () => {
+  // ── P0-2 真上传 + P2-1 本地化落盘：imageStatus 状态机 / assetUrl 改写 / thumbnailUrl 生成 ──
+  it('onRetryAssetImageUpload：成功 → uploading→uploaded，assetUrl 本地化', async () => {
     localizeMock.mockResolvedValueOnce('/files/migrated/人物/主角.png');
     data = {
       assets: [
@@ -540,7 +540,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
           id: 'a1',
           category: 'character',
           name: '主角',
-          imageUrl: '/files/orig.png',
+          assetUrl: '/files/orig.png',
           imageStatus: '',
         },
       ],
@@ -553,14 +553,14 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     const final = patches[patches.length - 1].assets.find((a) => a.id === 'a1');
     expect(final.imageStatus).toBe('uploaded');
     expect(final.imageError).toBeUndefined();
-    expect(final.imageUrl).toBe('/files/migrated/人物/主角.png');
+    expect(final.assetUrl).toBe('/files/migrated/人物/主角.png');
   });
 
   it('onRetryAssetImageUpload：失败 → failed + imageError', async () => {
     localizeMock.mockRejectedValueOnce(new Error('落盘失败'));
     data = {
       assets: [
-        { id: 'a1', category: 'character', name: '主角', imageUrl: 'data:image/png;base64,x' },
+        { id: 'a1', category: 'character', name: '主角', assetUrl: 'data:image/png;base64,x' },
       ],
       shots: [],
     };
@@ -575,7 +575,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     generateImageMock.mockResolvedValueOnce({ ok: true, url: 'https://upstream/x.png' });
     localizeMock.mockResolvedValueOnce('/files/migrated/人物/角色1.png'); // 仅主图本地化，不再二次落盘缩略图
     data = {
-      assets: [{ id: 'a1', category: 'character', name: '角色1', imageUrl: '', thumbnailUrl: '' }],
+      assets: [{ id: 'a1', category: 'character', name: '角色1', assetUrl: '', thumbnailUrl: '' }],
       shots: [],
     };
     const eng = createScriptBoxEngine(ctx());
@@ -583,7 +583,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     const final = patches[patches.length - 1].assets.find((a) => a.id === 'a1');
     expect(final.has).toBe(true);
     expect(final.loading).toBe(false);
-    expect(final.imageUrl).toBe('/files/migrated/人物/角色1.png');
+    expect(final.assetUrl).toBe('/files/migrated/人物/角色1.png');
     // 统一缩略图机制：thumbnailUrl 回退原图，显示由系统按需出图端点（buildThumbnailUrl）出小图
     expect(final.thumbnailUrl).toBe('/files/migrated/人物/角色1.png');
     // 不再二次落盘缩略图文件（缩略图统一走系统按需出图端点）
@@ -596,7 +596,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
       Object.assign(new Error('Aborted'), { name: 'AbortError' }),
     );
     data = {
-      assets: [{ id: 'a1', category: 'character', name: '角色1', imageUrl: '' }],
+      assets: [{ id: 'a1', category: 'character', name: '角色1', assetUrl: '' }],
       shots: [],
     };
     const eng = createScriptBoxEngine(ctx());
@@ -615,7 +615,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     // 改走 classifyError 后应正确判 business → toast + logger.error（scriptBox 侧不产生「已中止」warn）。
     generateImageMock.mockRejectedValueOnce(new Error('request aborted by provider: 429'));
     data = {
-      assets: [{ id: 'a1', category: 'character', name: '角色1', imageUrl: '' }],
+      assets: [{ id: 'a1', category: 'character', name: '角色1', assetUrl: '' }],
       shots: [],
     };
     const eng = createScriptBoxEngine(ctx());
@@ -633,7 +633,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     const { TimeoutError } = await import('@/components/base/utils/asyncGuard.ts');
     generateImageMock.mockRejectedValueOnce(new TimeoutError('尾帧变体生成失败（超时）'));
     data = {
-      assets: [{ id: 'a1', category: 'character', name: '角色1', imageUrl: '' }],
+      assets: [{ id: 'a1', category: 'character', name: '角色1', assetUrl: '' }],
       shots: [],
     };
     const eng = createScriptBoxEngine(ctx());

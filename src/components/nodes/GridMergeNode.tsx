@@ -15,7 +15,7 @@ import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import { useContentHeightSync } from '../base/core/uiHooks.ts';
 import '../base/core/toastStore.ts';
 import { toAbsoluteFileUrl } from '../base/api/index.ts';
-import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
+import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { logger } from '../base/core/logger.ts';
 import { generateId } from '../base/core/idGen.ts';
 // 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
@@ -31,7 +31,7 @@ import { loadImageOrNull } from '../base/utils/asyncGuard.ts';
  *  - 叠加（overlay）：完整图层编辑器（OverlayEditor，复刻 Uo.jsx）+ PNG 导出
  *
  * 核心链路：
- *  - 上游取图（imageBoxNode.images selectedIds优先/全部 → extractedImages → imageUrl）
+ *  - 上游取图（imageBoxNode.images selectedIds优先/全部 → extractedImages → assetUrl）
  *  - 渲染：canvas 排布（grid cell / longImage 方向拼接）→ 预览 + 导出
  *  - 导出：renderToCanvas(true) / renderOverlayCanvas → 生成 assetNode 节点
  *
@@ -121,7 +121,7 @@ interface GridMergeNodeData {
   overlayState?: OverlayLayerState;
   canvasWidth?: number;
   canvasHeight?: number;
-  imageUrl?: string;
+  assetUrl?: string;
 }
 interface GridMergeNodeProps {
   id: string;
@@ -134,8 +134,8 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
   // TD-04-13：标题双击改名 → 写回 data.label（此前渲染 data.label 却漏接 onRename，与兄弟节点不一致）。
   const rename = useNodeRename(id);
   const history = useCanvasEdges();
-  // 旧的 `const { isHidden: _isHidden } = useMediaDegrade()` 已删：本节点未消费（死调用）。
-  const render = useRenderImageResolver();
+  // 旧的 `const { isHidden: _isHidden } = useAssetDegrade()` 已删：本节点未消费（死调用）。
+  const render = useRenderAssetResolver();
   const contentRef = useRef<HTMLDivElement | null>(null);
   // NodeShell 根 div ref：useContentHeightSync 需测「含标题栏的完整节点」而非仅内容区，
   // 否则写回的 node.height 偏矮（漏标题栏），conic 连接跑马灯高度不贴合。
@@ -429,7 +429,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
       }
       if (url) {
         setPreview(url);
-        patchData({ imageUrl: url });
+        patchData({ assetUrl: url });
         spawnMergedImage(url);
       }
     } finally {
@@ -452,7 +452,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
             id: nid,
             type: 'assetNode',
             position: { x: baseX, y: baseY },
-            data: { imageUrl: url, label: `合并结果`, expanded: false },
+            data: { assetUrl: url, label: `合并结果`, expanded: false },
             style: { width: 320, height: 320 },
           },
         ],

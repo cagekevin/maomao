@@ -28,7 +28,7 @@ import { showToast } from '../core/toastStore.ts';
 import { makeAssetDragProps } from '../../../hooks/useAssetDragToCanvas.ts';
 import VideoThumbnail from '../ui/VideoThumbnail.tsx';
 import ImageZoomDialog from '../editors/ImageZoomDialog.tsx';
-import { useRenderImageResolver } from '../utils/imageUrl.ts';
+import { useRenderAssetResolver } from '../utils/assetUrl.ts';
 import { useOutsideClick } from '../core/uiHooks.ts';
 import { formatTime } from '../core/utils.ts';
 import { PanelSubBar, PanelMoreMenu } from './PanelBar.tsx';
@@ -221,7 +221,7 @@ const TaskCard = React.memo(function TaskCard({
   onRemove,
   onPreview,
 }: TaskCardProps) {
-  const render = useRenderImageResolver();
+  const render = useRenderAssetResolver();
   const [showData, setShowData] = useState(false);
   const menuRef = useRef(null); // 任务卡片「⋮」更多菜单容器 ref，点击外部自动关闭
   useOutsideClick(menuRef, moreOpen, () => onCloseMore?.());

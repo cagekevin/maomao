@@ -116,7 +116,7 @@ export const paletteNodes: PaletteNodeDef[] = [
     cat: 'image',
     component: AssetNode,
     // 注：曾在此声明 data:{ images: [] }，但 AssetNode 既不读也不写 images
-    // （其字段为 imageUrl/url/mediaType/text/poster…）→ 幽灵默认值，每个新建素材节点
+    // （其字段为 assetUrl/url/assetType/text/poster…）→ 幽灵默认值，每个新建素材节点
     // 白背一个空数组并随快照落盘。2026-09-11 数据体检删除（见 scripts/check-node-data.mjs）。
     builtin: true,
   },
@@ -136,7 +136,7 @@ export const paletteNodes: PaletteNodeDef[] = [
     cat: 'image',
     component: GridSplitNode,
     data: {
-      imageUrl: '',
+      assetUrl: '',
       extractedImages: [],
       rows: 3,
       cols: 3,
@@ -181,7 +181,7 @@ export const paletteNodes: PaletteNodeDef[] = [
     cat: 'image',
     component: lazyNode(HEAVY_NODE_LOADERS.panoramaNode, { label: '全景图', type: 'panoramaNode' }),
     builtin: true,
-    data: { aspectRatio: '16:9', imageUrl: '' },
+    data: { aspectRatio: '16:9', assetUrl: '' },
   },
   {
     type: 'director3dNode',
@@ -200,7 +200,7 @@ export const paletteNodes: PaletteNodeDef[] = [
     cat: 'image',
     component: FaceMosaicNode,
     builtin: true,
-    data: { mode: 'mosaic', strength: 0.5, color: '#000000', imageUrls: [] },
+    data: { mode: 'mosaic', strength: 0.5, color: '#000000', assetUrls: [] },
   },
   {
     type: 'loopNode',

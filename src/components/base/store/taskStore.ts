@@ -34,7 +34,7 @@ import { GEN_MAX_CONCURRENT } from '../core/config.ts';
 // 具名导入会遮蔽。且 check-events.mjs 只识别 `publish/subscribe/subscribeOnce` 三个函数名，
 // 用别名（onEvent）会让这条订阅逃出事件契约登记的反向校验 —— 必须用能被门禁扫描到的写法。
 import * as eventBus from '../core/eventBus.ts';
-import { buildUrlRewritePairs } from '../utils/imageUrl.ts';
+import { buildUrlRewritePairs } from '../utils/assetUrl.ts';
 
 /** 任务状态机：pending(待跑) → running(进行中) → completed / failed */
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
@@ -175,7 +175,7 @@ export function getTasks(): Task[] {
 // ── 素材 url 变更（改名 / 移动）→ 同步内存任务的 resultUrl ──
 // 后端已改写 tasks 表（rewriteUrlReferences），这里同步「当前页面内存」：
 // 否则任务中心卡片（缩略图渲染 / 下载 / 拖拽建节点）仍指旧路径 → 破图，刷新页面才恢复（清单 #8）。
-// 改写工具与 App.jsx（画布 / 脚本箱节点）共用 imageUrl.js 的同一份实现，不另写一套。
+// 改写工具与 App.jsx（画布 / 脚本箱节点）共用 assetUrl.js 的同一份实现，不另写一套。
 eventBus.subscribe('resource:renamed', (payload) => {
   const { oldUrl, newUrl } = (payload || {}) as { oldUrl?: string; newUrl?: string };
   if (!oldUrl || !newUrl || oldUrl === newUrl) return;

@@ -42,7 +42,7 @@ vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({ default: mocks.C
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
   useConnectedInputs: mocks.useConnectedInputs,
 }));
-vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }));
+vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
 vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({ default: mocks.LazyImage }));
 vi.mock('../../src/components/base/core/toastStore.ts', () => ({
   showToast: mocks.showToast,
@@ -52,7 +52,7 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => ({
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   toAbsoluteFileUrl: mocks.toAbsoluteFileUrl,
   // §5.4.9 落盘唯一实现：返回持久 /files/ URL（不内联 dataURL）；仅作测试替身
-  resolveNodeImageUrl: (file: File) =>
+  resolveNodeAssetUrl: (file: File) =>
     Promise.resolve(`http://127.0.0.1:18080/files/canvasDrop/${file?.name ?? 'x'}`),
 }));
 vi.mock('../../src/components/base/utils/clipboard.ts', () => h.clipboardMock);
@@ -212,7 +212,7 @@ describe('ImageBoxNode — 从上游连线导入', () => {
 });
 
 describe('ImageBoxNode — 上传/拖入文件落盘(TD-10)', () => {
-  it('选择本地图片文件 → 经 filesApi.resolveNodeImageUrl 落盘，data.images[].url 存持久 URL 而非内联 dataURL', async () => {
+  it('选择本地图片文件 → 经 filesApi.resolveNodeAssetUrl 落盘，data.images[].url 存持久 URL 而非内联 dataURL', async () => {
     // makeThumb 内部 new Image()；jsdom 不触发 onload，手动触发 onerror 让缩略图快速失败（不影响 url 落盘）
     const fakeImg = { crossOrigin: '', onload: null, onerror: null, src: '' };
     vi.stubGlobal(

@@ -14,7 +14,7 @@
 import { useEffect } from 'react';
 import type { Node } from '@xyflow/react';
 import { subscribe } from '../core/eventBus.ts';
-import { buildUrlRewritePairs, replaceUrlDeep } from '../utils/imageUrl.ts';
+import { buildUrlRewritePairs, replaceUrlDeep } from '../utils/assetUrl.ts';
 import { createThrottledPersistHandler } from '../storage';
 import { showToast } from '../core/toastStore.ts';
 import { logger } from '../core/logger.ts';

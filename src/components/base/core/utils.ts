@@ -32,7 +32,7 @@ export function deepClone<T>(value: T): T {
 
 /** data: URL → Blob（base64 编码）。缺省 MIME 从 data: meta 段解析（失败回退 octet-stream）。
  * 收口：dataURL 转 Blob 统一在此（曾散落 filesApi / imageCompress / imageUpscale / FaceMosaicNode 四份，
- * 其中 imageCompress 因法定「imageUrl↔imageCompress 禁反向 import」不能依赖 imageUrl，故放本通用的叶模块）。
+ * 其中 imageCompress 因法定「assetUrl↔imageCompress 禁反向 import」不能依赖 assetUrl，故放本通用的叶模块）。
  * @param dataUrl data:...;base64,xxx
  * @param mime 可选 MIME 覆盖（调用方已知目标类型时传，如 'image/png'）
  */

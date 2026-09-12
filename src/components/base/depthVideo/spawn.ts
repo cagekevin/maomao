@@ -13,7 +13,7 @@
  * 后两者通过 NodeShell 的 sourceHandleId="main-output" 关闭默认空端口、改用 main-output。
  * 若未来新增入口节点，务必照此约定补上 main-output 输出口。
  *
- * 链式：下游是 assetNode(mediaType:'video')，其 hover 同样有「转深度」→ 可继续转深度。
+ * 链式：下游是 assetNode(assetType:'video')，其 hover 同样有「转深度」→ 可继续转深度。
  */
 
 import {

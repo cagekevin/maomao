@@ -81,8 +81,8 @@ vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
   useConnectedInputs: () => connectedInputs,
 }));
 
-vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({
-  useMediaDegrade: () => ({ isHidden: () => false }),
+vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({
+  useAssetDegrade: () => ({ isHidden: () => false }),
 }));
 vi.mock('../../src/components/base/canvas/nodePrefs.ts', () => ({
   useNodePrefs: () => ({ prefs: {}, set: vi.fn() }),

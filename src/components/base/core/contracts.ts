@@ -14,7 +14,7 @@
  *   ② 表现层 toastStore   —— 用户可见即时反馈
  *   ③ 观测层 logger       —— 记录 + 上报，供排查
  *   ④ 持久化层 storageAdapter + *Store —— 数据存取
- *   ⑤ 能力层 mediaType / clipboard / filesApi / imageCompress 等 —— 工具函数单一入口
+ *   ⑤ 能力层 assetType / clipboard / filesApi / imageCompress 等 —— 工具函数单一入口
  *
  * 【约定】新增事件：先在本表 EVENTS 登记（发布方/订阅方须成对，避免「只监听未发布」），
  * 命名统一「领域:动作」，再用 eventBus.publish/subscribe。
@@ -96,7 +96,7 @@ export const EVENTS = {
     from: ['AssetLibrary.tsx:300', 'GeneratedView.tsx:231', 'useAssetMoveToFolder.ts:98'],
     to: ['useCanvasEventSubscriptions.ts:79', 'taskStore.ts:165'],
     payload: '{ oldUrl, newUrl }',
-    note: '素材 url 变更（改名/移动归类，前端入口）广播旧→新 url。两个订阅方各管一段内存态：App 改写画布/脚本箱节点并持久化（防下游图生图 404）；taskStore 改写内存任务的 resultUrl（防任务中心破图）。两侧共用 imageUrl.js 的 buildUrlRewritePairs/replaceUrlDeep，禁止各写一份。与后端 rewriteUrlReferences（localTool database.ts）配套，形态严格四态对账',
+    note: '素材 url 变更（改名/移动归类，前端入口）广播旧→新 url。两个订阅方各管一段内存态：App 改写画布/脚本箱节点并持久化（防下游图生图 404）；taskStore 改写内存任务的 resultUrl（防任务中心破图）。两侧共用 assetUrl.js 的 buildUrlRewritePairs/replaceUrlDeep，禁止各写一份。与后端 rewriteUrlReferences（localTool database.ts）配套，形态严格四态对账',
   },
   // 'yimao:remove-edge' 已于 2026-09-11 删除（TD-04-8）：只有 App window 监听、全项目从无 dispatch
   // （CustomEdge 实际走 deleteElements→onDelete）。属「只有订阅、从无发布」的死事件，同 §多窗口 判定。

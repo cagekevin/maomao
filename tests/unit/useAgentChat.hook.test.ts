@@ -802,11 +802,11 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
       image_url: { url: 'http://x/d.png' },
     });
     // 整条请求里只有本轮这张图（http://x/d.png），历史 a/b/c 三张真图一律不出现
-    const allImageUrls = out
+    const allAssetUrls = out
       .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
       .filter((c) => c.type === 'image_url')
       .map((c) => c.image_url.url);
-    expect(allImageUrls).toEqual(['http://x/d.png']);
+    expect(allAssetUrls).toEqual(['http://x/d.png']);
     // 历史 user 文字也不回传（对齐大雄 messages:[]）
     expect(out.some((m) => m.role === 'user' && m.content === '轮1')).toBe(false);
   });
@@ -824,10 +824,10 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
     ] as ChatMessage[];
     const out = buildRequestMessages(history, '', true) as AssembledMsg[];
     // 无任何 image_url（历史图不进上下文）
-    const allImageUrls = out
+    const allAssetUrls = out
       .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
       .filter((c) => c.type === 'image_url');
-    expect(allImageUrls).toHaveLength(0);
+    expect(allAssetUrls).toHaveLength(0);
     // 只保留本轮 user 纯文字，历史 user 丢弃
     const users = out.filter((m) => m.role === 'user');
     expect(users).toHaveLength(1);

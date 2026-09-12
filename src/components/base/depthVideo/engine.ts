@@ -184,6 +184,6 @@ export function buildDepthChildSpec(
 } {
   return {
     type: 'assetNode',
-    data: { imageUrl: outputUrl, mediaType: 'video', label: name, expanded: true },
+    data: { assetUrl: outputUrl, assetType: 'video', label: name, expanded: true },
   };
 }

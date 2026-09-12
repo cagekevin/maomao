@@ -15,7 +15,7 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { uploadFileToLocal, toAbsoluteFileUrl } from '../base/api/index.ts';
-import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
+import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { toastError, toastWarning } from '../base/core/toastStore.ts';
 import { logger } from '../base/core/logger.ts';
 import { classifyError } from '../base/utils/genErrors.ts';
@@ -67,7 +67,7 @@ interface FaceMosaicNodeData {
    * 落盘失败退回的 `blob:` 预览不入 data（刷新即死链，写进快照等于存垃圾）。
    * 上游连线来的图不在此字段（每次实时读 `connected`）。
    */
-  imageUrls?: string[];
+  assetUrls?: string[];
 }
 interface FaceMosaicNodeProps {
   id: string;
@@ -80,7 +80,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
   const { patchData } = useNodeData(id);
   // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
   const rename = useNodeRename(id);
-  // 旧的 `const { hideMedia: _hideMedia } = useMediaDegrade()` 已删：本节点未落地降级隐藏，纯死调用
+  // 旧的 `const { hideMedia: _hideMedia } = useAssetDegrade()` 已删：本节点未落地降级隐藏，纯死调用
   // （保留会在"谁真正响应性能降级"的排查里误导）。要加降级时再按需引入。
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -90,10 +90,10 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
   const [color, setColor] = useState(data.color || '#000000');
   const [manualOpen, setManualOpen] = useState(false);
 
-  // 图片来源：手动上传的 imageUrl + 连接上游收集的图片 URL（复刻官方 Sl）
+  // 图片来源：手动上传的 assetUrl + 连接上游收集的图片 URL（复刻官方 Sl）
   const connected = useConnectedInputs(id);
-  const [localImages, setLocalImages] = useState(data.imageUrls || []);
-  const render = useRenderImageResolver();
+  const [localImages, setLocalImages] = useState(data.assetUrls || []);
+  const render = useRenderAssetResolver();
 
   // 卸载时释放所有预览 Blob URL，避免内存泄漏（对齐 VideoProcessNode / AgentPanel）
   useEffect(
@@ -102,7 +102,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
     },
     [localImages],
   );
-  const imageUrls = useCallback(() => {
+  const assetUrls = useCallback(() => {
     const list = [...localImages];
     const seen = new Set(list);
     for (const img of connected.images || []) {
@@ -129,11 +129,11 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, strength, color, patchData]);
 
-  // 上传文件 → localImages（预览）+ 写回 data.imageUrls（持久 URL，刷新不丢）
+  // 上传文件 → localImages（预览）+ 写回 data.assetUrls（持久 URL，刷新不丢）
   //
   // 【TD-9 口径 A，2026-09-11】此前只 setLocalImages、从不写回 → 刷新后手动上传的图全丢
   // （上游连线来的图不受影响，因为每次实时读 connected）。现在：落盘成功（uploadFileToLocal
-  // 返回 /files/ 持久 URL）才写回 data.imageUrls；失败退回的 `blob:` 预览**不写回**
+  // 返回 /files/ 持久 URL）才写回 data.assetUrls；失败退回的 `blob:` 预览**不写回**
   // （blob: 刷新即死链，写进快照等于存垃圾）。
   const onUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -154,8 +154,8 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
         }
       }
       if (previews.length) setLocalImages((prev) => [...prev, ...previews]);
-      // 串行累加后一次性写回：避免多文件并发各自读旧 data.imageUrls 互相覆盖
-      if (persisted.length) patchData({ imageUrls: [...(data.imageUrls || []), ...persisted] });
+      // 串行累加后一次性写回：避免多文件并发各自读旧 data.assetUrls 互相覆盖
+      if (persisted.length) patchData({ assetUrls: [...(data.assetUrls || []), ...persisted] });
     })();
   };
 
@@ -169,7 +169,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
         id: `face-mosaic-${id}-${i}-${generateId('fm')}`,
         type: 'assetNode',
         position: { x: baseX, y: baseY + i * 260 },
-        data: { imageUrl: it.url, label: it.label },
+        data: { assetUrl: it.url, label: it.label },
         style: { width: 360, height: 260 },
       }));
       setNodes((ns) => [...ns, ...list]);
@@ -179,7 +179,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
 
   // AI 打码（复刻官方 b）
   const handleAI = async () => {
-    const urls = imageUrls();
+    const urls = assetUrls();
     if (urls.length === 0) {
       toastWarning('请先上传图片或连接包含图片的节点');
       return;
@@ -254,7 +254,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
     [outputResults], // id 在函数体内未使用
   );
 
-  const count = imageUrls().length;
+  const count = assetUrls().length;
 
   const toolbarButtons = [
     {
@@ -304,7 +304,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
             </div>
             {/* 输入图缩略图：上传的图片立即在此显示 */}
             <div className="grid grid-cols-4 gap-1.5">
-              {imageUrls().map((u, i) => (
+              {assetUrls().map((u, i) => (
                 <div
                   key={i}
                   className="relative aspect-square bg-surface-black rounded-md overflow-hidden border border-edge group"
@@ -463,9 +463,9 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
       </div>
 
       {/* 手动打码编辑器 */}
-      {manualOpen && imageUrls()[0] && (
+      {manualOpen && assetUrls()[0] && (
         <FaceMosaicEditor
-          imageUrl={imageUrls()[0]}
+          assetUrl={assetUrls()[0]}
           onSave={handleManualSave}
           onClose={() => setManualOpen(false)}
         />

@@ -18,7 +18,7 @@
  * 【结果信封】复用 src/types/provider.ts 的 GenerationResult 唯一真源，禁止二次定义（修正 8）。
  */
 import { GEN_TIMEOUT, VIDEO_TIMEOUT, CHAT_TIMEOUT } from '../core/config.ts';
-import { normalizeImageUrlsForSend, toImageContentBlocks } from '../utils/imageUrl.ts';
+import { normalizeAssetUrlsForSend, toImageContentBlocks } from '../utils/assetUrl.ts';
 import { resolveImagePixel } from '../utils/imagePixel.ts';
 import { relayGenerate, relayChat, relayChatStream } from './relayProxy.ts';
 import { logger } from '../core/logger.ts';
@@ -119,8 +119,8 @@ async function attachImages(
   _provider: GenerationProvider | undefined,
 ): Promise<ChatMessage[]> {
   if (!images?.length) return messages;
-  // 发送统一出口守卫：参考图必经此归一（含缩略图端点自动还原原图），禁止绕过。见 imageUrl.js thumbnailToOriginal
-  const refUrls = await normalizeImageUrlsForSend(images);
+  // 发送统一出口守卫：参考图必经此归一（含缩略图端点自动还原原图），禁止绕过。见 assetUrl.js thumbnailToOriginal
+  const refUrls = await normalizeAssetUrlsForSend(images);
   if (!refUrls.length) return messages;
   const blocks = toImageContentBlocks(refUrls);
   const userIdx = messages.length - 1;
@@ -177,7 +177,7 @@ async function generate(
   }
 
   // image | video：异步 relay。参考图统一出口守卫 + abort 原样上抛（铁律 2，禁止吞成信封）
-  const refImages = await normalizeImageUrlsForSend(req.images);
+  const refImages = await normalizeAssetUrlsForSend(req.images);
   const intent: RelayIntent = {
     frontTaskId: req.taskId || '',
     type: capability,

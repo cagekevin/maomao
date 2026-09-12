@@ -191,7 +191,7 @@ function useNodeHeight(id) {
  *     但不要引入新 state 管理库。
  *
  * ── 6. 通用能力走单一入口（见 docs/CODING-STANDARD.md §一，别各写各的）──
- *   · 媒体判断 mediaType.js；URL 归一 imageUrl.js；弹提示 toastStore.showToast；
+ *   · 媒体判断 assetType.js；URL 归一 assetUrl.js；弹提示 toastStore.showToast；
  *     落盘 filesApi.js；压缩 imageCompress.js；复制/下载 clipboard.js；缩略图 base/LazyImage.jsx。
  *   · 生成流程 useNodeGeneration；模型下拉 ModelSelect；提示词 PromptInput；按钮 GenerateButton。
  *   · 参数记忆 useNodePrefs（记住上次模型/比例/尺寸，跨节点复用）。

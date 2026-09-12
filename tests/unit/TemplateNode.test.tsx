@@ -58,7 +58,7 @@ vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
   useConnectedInputs: mocks.useConnectedInputs,
 }));
-vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }));
+vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
 // useNodeGeneration：记录 config，复刻真实 hook 的声明式写回（resultKey + recoverable）以对齐 P0-2-c。
 // 桩经 h.setNodes 写入 node.data，供断言「成功/广播回填」后 data 自动更新（不再依赖节点手写 patchData）。
 let genConfig = null;
@@ -156,12 +156,12 @@ describe('TemplateNode', () => {
     expect(mocks.generateImageCalls.last).toBeTruthy();
   });
 
-  it('onRecover（任务中心完成广播回填）→ 把持久 resultUrl 写回 data.imageUrl（刷新不丢）', () => {
+  it('onRecover（任务中心完成广播回填）→ 把持久 resultUrl 写回 data.assetUrl（刷新不丢）', () => {
     setup();
     // 触发 useNodeGeneration 的 onRecover 回调（模拟 agent:task-completed 广播精准回填）
     const cfg = getGenConfig();
     expect(cfg).toBeTruthy();
     act(() => cfg.onRecover({ resultUrl: 'http://127.0.0.1:18080/files/tasks/x.png' }));
-    expect(nodeData().imageUrl).toBe('http://127.0.0.1:18080/files/tasks/x.png');
+    expect(nodeData().assetUrl).toBe('http://127.0.0.1:18080/files/tasks/x.png');
   });
 });

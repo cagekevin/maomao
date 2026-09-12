@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Play } from 'lucide-react';
-import { toAbsoluteFileUrl } from '../utils/imageUrl.ts';
+import { toAbsoluteFileUrl } from '../utils/assetUrl.ts';
 
 /**
  * 视频缩略图统一组件：静音封面 + 居中悬浮播放按钮。

@@ -118,9 +118,9 @@ function promptPreview(p: string | undefined): string {
  *  - Agent / 测试 / 脚本通过 runNodeGeneration(nodeId) 驱动任意节点生成
  *
  * 【真相源契约（节点必守，P0）】任务中心为结果权威源，node.data 为渲染缓存副本：
- *  1. onSuccess 必须把结果写回 node.data（如 patchData({ imageUrl: r.url })），
+ *  1. onSuccess 必须把结果写回 node.data（如 patchData({ assetUrl: r.url })），
  *     否则刷新后节点因 data 无持久 URL 而丢结果（结果只在任务中心）。
- *     对照样板：ImageGenerate / VideoGenerate.onSuccess 写 data.imageUrl / data.videoUrl。
+ *     对照样板：ImageGenerate / VideoGenerate.onSuccess 写 data.assetUrl / data.videoUrl。
  *  2. 异步可恢复的节点必须声明 onRecover（见下），收到 agent:task-completed 广播
  *     把持久 resultUrl 写回 node.data，刷新后自动恢复显示。
  *  3. 文本类节点（结果本体在 data.text、任务中心 resultUrl 为空）不适用 onRecover，
@@ -138,13 +138,13 @@ function promptPreview(p: string | undefined): string {
  *     type: { type: 'image', prompt: p, modelName: modelId },  // 任务上报信息
  *     validate: () => (p.trim() ? '' : '请输入提示词'),          // 前置校验，返回错误文案或空串
  *     run: async ({ progress }) => generateImage({...}, progress),  // 真执行器
- *     onSuccess: (r, ctx) => { setImageUrl(r.url); setImgPrefs({...}); },  // 成功回写 node.data
- *     onRecover: ({ resultUrl }) => { setImageUrl(resultUrl); patchData({ imageUrl: resultUrl }) },  // 广播回填（异步可恢复节点必传）
+ *     onSuccess: (r, ctx) => { setAssetUrl(r.url); setImgPrefs({...}); },  // 成功回写 node.data
+ *     onRecover: ({ resultUrl }) => { setAssetUrl(resultUrl); patchData({ assetUrl: resultUrl }) },  // 广播回填（异步可恢复节点必传）
  *     // ── P0-2-b 声明式写法（推荐，省去手写「写回 node.data」样板）──
- *     resultKey: 'imageUrl',   // 声明后成功时自动 patchData({[resultKey]: r.url})
+ *     resultKey: 'assetUrl',   // 声明后成功时自动 patchData({[resultKey]: r.url})
  *     recoverable: true,       // 声明后收到 task-completed 自动回填 patchData({[resultKey]: resultUrl})
  *     // 声明了 resultKey/recoverable 即可省略 onSuccess 与 onRecover 里的写 node.data 部分、
- *     // 但 onSuccess 中 UI state 回写（如 setImageUrl）与业务逻辑仍需保留。
+ *     // 但 onSuccess 中 UI state 回写（如 setAssetUrl）与业务逻辑仍需保留。
  *     // 文本类节点（结果在 data.text、任务中心 resultUrl 为空）不传 recoverable。如 onRecover 不适用此自动回填，可省略。
  *     // 注意：onRecover/onSuccess 与声明式并存时，若都写了同一字段会幂等双写（无害）。
  *   })

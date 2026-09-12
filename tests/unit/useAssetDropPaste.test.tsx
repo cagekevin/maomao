@@ -16,7 +16,7 @@
  *   3. read() 抛错时退回 paste 事件同步 getData，不再静默失败。
  *   4. 所有来源都失败 → showToast 提示，而不是无声无息。
  *
- * 通过 vi.mock 隔离 resolveNodeImageUrl / showToast；用 vi.stubGlobal 控制 navigator.clipboard。
+ * 通过 vi.mock 隔离 resolveNodeAssetUrl / showToast；用 vi.stubGlobal 控制 navigator.clipboard。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
@@ -25,7 +25,7 @@ import type { ClipboardEvent as ReactClipboardEvent, DragEvent as ReactDragEvent
 const uploadMock = vi.fn(async (file, _folder) => 'http://local/' + (file?.name || 'drag'));
 const downloadRemoteMock = vi.fn(async (_url, _opts) => null);
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  resolveNodeImageUrl: (file, folder) => uploadMock(file, folder),
+  resolveNodeAssetUrl: (file, folder) => uploadMock(file, folder),
   downloadRemoteToLocal: (url, opts) => downloadRemoteMock(url, opts),
   WEB_DROP_SUBFOLDER: 'web',
 }));
@@ -114,7 +114,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     // 补充路径（read() 异步）不依赖 e.preventDefault（异步期调用无效），只需验证节点被正确建立
     expect(uploadMock).toHaveBeenCalled();
     expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
-      imageUrl: 'http://local/png',
+      assetUrl: 'http://local/png',
       label: 'png',
     });
   });
@@ -132,7 +132,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
     expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
-      imageUrl: 'http://ext/cat.png',
+      assetUrl: 'http://ext/cat.png',
     });
   });
 
@@ -190,11 +190,11 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
     expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
-      imageUrl: 'http://x/1.png',
+      assetUrl: 'http://x/1.png',
       label: '提取帧 1',
     });
     expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
-      imageUrl: 'http://x/2.png',
+      assetUrl: 'http://x/2.png',
       label: '提取帧 2',
     });
   });
@@ -211,7 +211,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
     expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
-      imageUrl: 'http://local/png',
+      assetUrl: 'http://local/png',
       label: 'png',
     });
   });
@@ -268,7 +268,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     });
     expect(uploadMock).toHaveBeenCalledWith(file, 'canvas/drop');
     expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
-      imageUrl: 'http://local/fb.png',
+      assetUrl: 'http://local/fb.png',
       label: 'fb.png',
     });
   });
@@ -292,7 +292,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
     expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
-      imageUrl: 'http://local/ev.png',
+      assetUrl: 'http://local/ev.png',
       label: 'ev.png',
     });
   });
@@ -396,7 +396,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
     expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
-      imageUrl: 'http://x/1.png',
+      assetUrl: 'http://x/1.png',
       label: '提取帧 1',
     });
   });
@@ -493,7 +493,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     expect(opts.addNode).toHaveBeenCalledWith(
       'assetNode',
       { x: 0, y: 0 },
-      { imageUrl: 'https://www.qq.com/img/cat.png' },
+      { assetUrl: 'https://www.qq.com/img/cat.png' },
     );
     expect(e.preventDefault).toHaveBeenCalled();
   });
@@ -530,7 +530,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     expect(opts.addNode).toHaveBeenCalledWith(
       'assetNode',
       { x: 0, y: 0 },
-      { imageUrl: 'https://cdn/x/1.jpg' },
+      { assetUrl: 'https://cdn/x/1.jpg' },
     );
   });
 
@@ -548,13 +548,13 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
 
 // ════════════════════════════════════════════════════════════════
 // 网页图后台本地化（先显示后替换）：复用后端 fileUrl 下载（服务端+代理，绕 CORS），
-// 成功把节点 imageUrl 替换为 /files/web/ 本地 URL（专用 web 目录）；失败保持原 URL，
+// 成功把节点 assetUrl 替换为 /files/web/ 本地 URL（专用 web 目录）；失败保持原 URL，
 // 不打扰、不抛错。未注入 patchNodeData 时退回纯显示模式（不触发本地化）。
 // ════════════════════════════════════════════════════════════════
 describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () => {
   afterEach(() => downloadRemoteMock.mockReset());
 
-  it('拖入网页图 → 先用原 URL 建节点 + 触发后台本地化；成功后替换节点 imageUrl', async () => {
+  it('拖入网页图 → 先用原 URL 建节点 + 触发后台本地化；成功后替换节点 assetUrl', async () => {
     downloadRemoteMock.mockResolvedValue('http://127.0.0.1:18080/files/web/abc.png');
     const patchNodeData = vi.fn();
     const opts = makeOpts({ addNode: vi.fn(() => 'node-web-1'), patchNodeData });
@@ -571,14 +571,14 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
     expect(opts.addNode).toHaveBeenCalledWith(
       'assetNode',
       { x: 0, y: 0 },
-      { imageUrl: 'https://x/cat.png' },
+      { assetUrl: 'https://x/cat.png' },
     );
     // 后台本地化 → 专用 web 目录
     expect(downloadRemoteMock).toHaveBeenCalledWith('https://x/cat.png', { folder: 'web' });
     // 等异步完成 → 替换为本地 URL（id = addNode 返回值）
     await act(async () => {});
     expect(patchNodeData).toHaveBeenCalledWith('node-web-1', {
-      imageUrl: 'http://127.0.0.1:18080/files/web/abc.png',
+      assetUrl: 'http://127.0.0.1:18080/files/web/abc.png',
     });
   });
 
@@ -600,7 +600,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
     expect(opts.addNode).toHaveBeenCalledWith(
       'assetNode',
       { x: 0, y: 0 },
-      { imageUrl: 'https://x/cat.png' },
+      { assetUrl: 'https://x/cat.png' },
     );
   });
 
@@ -635,7 +635,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
     expect(opts.addNode).toHaveBeenCalledWith(
       'assetNode',
       { x: 0, y: 0 },
-      { imageUrl: 'https://x/cat.png' },
+      { assetUrl: 'https://x/cat.png' },
     );
     expect(downloadRemoteMock).not.toHaveBeenCalled();
   });

@@ -58,8 +58,8 @@ vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useOutsideClick: () => {},
 }));
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({}) }));
-vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({
-  useMediaDegrade: () => ({ isHidden: () => false }),
+vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({
+  useAssetDegrade: () => ({ isHidden: () => false }),
 }));
 vi.mock('../../src/components/base/canvas/nodePrefs.ts', () => ({
   useNodePrefs: () => ({ prefs: {}, set: vi.fn() }),
@@ -87,20 +87,20 @@ vi.mock('../../src/components/base/utils/clipboard.ts', async (importOriginal) =
   return { ...actual, downloadUrl: vi.fn() };
 });
 
-// ImageEditor：记录最近渲染的 imageUrl，便于断言「打开编辑器」
+// ImageEditor：记录最近渲染的 assetUrl，便于断言「打开编辑器」
 let lastEditorUrl = null;
 vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({
-  default: ({ imageUrl, onSave: _onSave, onClose: _onClose }) => {
-    lastEditorUrl = imageUrl;
-    return <div data-testid="image-editor" data-url={imageUrl} />;
+  default: ({ assetUrl, onSave: _onSave, onClose: _onClose }) => {
+    lastEditorUrl = assetUrl;
+    return <div data-testid="image-editor" data-url={assetUrl} />;
   },
 }));
 // InlineImageCropper：记录是否打开（就地裁剪浮层）
 let inlineCropperOpen = false;
 vi.mock('../../src/components/base/editors/InlineImageCropper.tsx', () => ({
-  default: ({ imageUrl, onSave: _onSave, onClose: _onClose }) => {
+  default: ({ assetUrl, onSave: _onSave, onClose: _onClose }) => {
     inlineCropperOpen = true;
-    return <div data-testid="inline-cropper" data-url={imageUrl} />;
+    return <div data-testid="inline-cropper" data-url={assetUrl} />;
   },
 }));
 
@@ -134,7 +134,7 @@ describe('ImageGenerate hover 工具栏 — 共享图片能力', () => {
     render(
       <ImageGenerate
         id="pn1"
-        data={{ imageUrl: 'http://x/result.png', label: '生图' }}
+        data={{ assetUrl: 'http://x/result.png', label: '生图' }}
         selected={false}
       />,
     );
@@ -150,7 +150,7 @@ describe('ImageGenerate hover 工具栏 — 共享图片能力', () => {
     render(
       <ImageGenerate
         id="pn1"
-        data={{ imageUrl: 'http://x/result.png', label: '生图' }}
+        data={{ assetUrl: 'http://x/result.png', label: '生图' }}
         selected={false}
       />,
     );
@@ -160,13 +160,13 @@ describe('ImageGenerate hover 工具栏 — 共享图片能力', () => {
   });
 
   it('有生图结果时，hover 栏出现「标记」「压缩图片（80%）」按钮', () => {
-    render(<ImageGenerate id="pn1" data={{ imageUrl: 'http://x/result.png' }} selected={false} />);
+    render(<ImageGenerate id="pn1" data={{ assetUrl: 'http://x/result.png' }} selected={false} />);
     expect(screen.getByTitle('标记')).toBeTruthy();
     expect(screen.getByTitle('压缩图片（80%）')).toBeTruthy();
   });
 
   it('有生图结果时仍保留生图节点专属按钮（放大/发送到剪映素材库）', () => {
-    render(<ImageGenerate id="pn1" data={{ imageUrl: 'http://x/result.png' }} selected={false} />);
+    render(<ImageGenerate id="pn1" data={{ assetUrl: 'http://x/result.png' }} selected={false} />);
     expect(screen.getByTitle('放大')).toBeTruthy();
     expect(screen.getByTitle('发送到剪映素材库')).toBeTruthy();
   });

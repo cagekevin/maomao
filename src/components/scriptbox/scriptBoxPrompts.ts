@@ -62,13 +62,13 @@ export interface Shot {
   [key: string]: unknown;
 }
 
-/** 剧本资产（本层读 name / imageUrl / picked / id） */
+/** 剧本资产（本层读 name / assetUrl / picked / id） */
 export interface ScriptAsset {
   id?: string | number;
   name?: string;
   category?: AssetCategory;
   description?: string;
-  imageUrl?: string;
+  assetUrl?: string;
   thumbnailUrl?: string;
   picked?: boolean;
   [key: string]: unknown;
@@ -362,13 +362,13 @@ export function removeShot(shots: Shot[] | null | undefined, idx: number): Shot[
  *  选帧 → usePrevShotVideoTail=true + 参考 URL 数组；不使用 → 清空开关与参考 URL。
  *  @param shots   分镜数组
  *  @param shotId  目标分镜 id
- *  @param variant 尾帧变体 { id, imageUrl }（useTail=false 时可空）
+ *  @param variant 尾帧变体 { id, assetUrl }（useTail=false 时可空）
  *  @param useTail 是否使用尾帧
  *  @returns 新 shots 数组；找不到 shotId 返回 null（调用方据此直接 return，不写回） */
 /** 尾帧变体（选帧弹窗的候选项） */
 export interface TailFrameVariant {
   id?: string;
-  imageUrl?: string;
+  assetUrl?: string;
   [key: string]: unknown;
 }
 
@@ -381,7 +381,7 @@ export function applyTailFrameSelection(
   const list = Array.isArray(shots) ? shots : [];
   const idx = list.findIndex((x) => x.id === shotId);
   if (idx < 0) return null;
-  const url = useTail && variant?.imageUrl ? [variant.imageUrl] : [];
+  const url = useTail && variant?.assetUrl ? [variant.assetUrl] : [];
   return list.map((x, i) =>
     i === idx
       ? {
@@ -487,8 +487,8 @@ export function renameAssetRefs(
 
 /** 收集某个分镜引用的「有图资产」作为参考图（复刻官方 shared.js Ra 的 scriptBoxNode 分支）。
  *  @param shot   分镜对象（读 description/prompt/videoPrompt/dialogue）
- *  @param assets 资产数组（读 name/imageUrl）
- *  @returns { id, url, label }[]  该镜头 @名 匹配到且有图（imageUrl）的资产，供下游生图/生视频作参考图；label=资产名
+ *  @param assets 资产数组（读 name/assetUrl）
+ *  @returns { id, url, label }[]  该镜头 @名 匹配到且有图（assetUrl）的资产，供下游生图/生视频作参考图；label=资产名
  *
  * 匹配口径（2026-08-28 修复缺陷②）：用「注册资产名词典 + 最长匹配」`matchAssetNames` 替代原
  * `matchAsset` 的「单名 + 后一位非中英数」边界。原因见 matchAssetNames 注释——场景 `@卧室内`
@@ -510,9 +510,9 @@ export function collectAssets(shot?: Shot | null, assets?: ScriptAsset[] | null)
   );
   const out: CollectedAsset[] = [];
   list.forEach((a) => {
-    if (a?.name && a.imageUrl && refNames.has(a.name)) {
+    if (a?.name && a.assetUrl && refNames.has(a.name)) {
       // label = 资产名，让下游候选列表显示真实名（配合 PromptInput @名 自动匹配）
-      out.push({ id: `script-asset-${a.id}`, url: a.imageUrl, label: a.name });
+      out.push({ id: `script-asset-${a.id}`, url: a.assetUrl, label: a.name });
     }
   });
   return out;
@@ -681,7 +681,7 @@ export function buildAssets(
     name: a.name,
     description: a.desc,
     prompt: ZgPrompt(a.cat, a.desc, style, customTemplates),
-    imageUrl: '',
+    assetUrl: '',
     thumbnailUrl: '',
     has: false,
     loading: false,

@@ -24,7 +24,7 @@
  *  - maxOutputSize 输出最长边像素上限（可选），超出则等比 clamp（防超大图内存爆炸）
  * @returns {Promise<{ dataUrl, blob, width, height }>}
  */
-import { toAbsoluteFileUrl } from './imageUrl.ts';
+import { toAbsoluteFileUrl } from './assetUrl.ts';
 import { loadImageWithTimeout } from './asyncGuard.ts';
 import { IMAGE_LOAD_TIMEOUT } from '../core/config.ts';
 import { dataUrlToBlob } from '../core/utils.ts';

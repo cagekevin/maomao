@@ -98,8 +98,8 @@ vi.mock('../../src/hooks/useAssetDragToCanvas.ts', () => ({
   makeAssetDragProps: () => ({ draggable: true }),
 }));
 vi.mock('../../src/components/base/core/uiHooks.ts', () => ({ useOutsideClick: () => {} }));
-vi.mock('../../src/components/base/utils/imageUrl.ts', () => ({
-  useRenderImageResolver: () => (u) => (u && u.startsWith('/files/') ? `THUMB${u}` : u || ''),
+vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
+  useRenderAssetResolver: () => (u) => (u && u.startsWith('/files/') ? `THUMB${u}` : u || ''),
 }));
 vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({
   default: ({ src, onActivate }) =>

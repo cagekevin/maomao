@@ -17,7 +17,7 @@ import { useStore } from '@xyflow/react';
  *  - edgeFxLimit         启用边特效的最大边数
  *  - useThumbnail        是否用缩略图替代原图（性能模式）
  *
- * 消费端（如 ConnectionLine / useMediaDegrade）用 useLod() 读 lodLevel 据此关特效。
+ * 消费端（如 ConnectionLine / useAssetDegrade）用 useLod() 读 lodLevel 据此关特效。
  * 降级 CSS 契约：给 .react-flow 容器加 lod-1/2/3 / zoomed-out-lod class（index.css 依赖，勿改）。
  */
 

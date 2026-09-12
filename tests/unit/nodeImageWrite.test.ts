@@ -4,7 +4,7 @@
  * 两条防线：
  *  1. `replaceNodeImage` 是 **唯一** 负责「把新图写回节点」的函数 → 纯函数行为单测；
  *  2. **源码级护栏**：
- *     - 图片节点（ImageGenerate / AssetNode）不得再出现「内联直写 imageUrl / 双写 url」的旧写法；
+ *     - 图片节点（ImageGenerate / AssetNode）不得再出现「内联直写 assetUrl / 双写 url」的旧写法；
  *     - **写侧停写 `data.url` 值**（只允许 `url: undefined` 清空），且**读侧兜底必须保留**——
  *       这是 §7.3 ⑤「读兼容、写唯一」的两半，缺一半就是破图或字段回流；
  *     - `useImageHoverActions` 的 4 条保存出口（编辑器 / 就地裁剪 / 压缩 / 放大）必须都走落盘。
@@ -39,11 +39,11 @@ const node = (id: string, data: Record<string, unknown> = {}): Node =>
   ({ id, type: 'assetNode', position: { x: 0, y: 0 }, data }) as unknown as Node;
 
 describe('replaceNodeImage — 节点主图唯一写入口', () => {
-  it('只写 imageUrl；存量字段 url 不再写值（字段唯一化：读兼容、写唯一）', () => {
+  it('只写 assetUrl；存量字段 url 不再写值（字段唯一化：读兼容、写唯一）', () => {
     const s = fakeSetNodes();
     replaceNodeImage({ id: 'n1', dataUrl: 'http://x/new.png' }, s.setNodes);
-    const out = s.apply([node('n1', { imageUrl: 'http://x/old.png', url: 'http://x/old.png' })]);
-    expect(out[0].data.imageUrl).toBe('http://x/new.png');
+    const out = s.apply([node('n1', { assetUrl: 'http://x/old.png', url: 'http://x/old.png' })]);
+    expect(out[0].data.assetUrl).toBe('http://x/new.png');
     expect(out[0].data.url).toBe('http://x/old.png'); // 不动存量字段（读侧仍兜底）
   });
 
@@ -53,26 +53,26 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
       {
         id: 'n1',
         dataUrl: 'http://x/new.png',
-        dataPatch: { mediaType: undefined, text: undefined },
+        dataPatch: { assetType: undefined, text: undefined },
       },
       s.setNodes,
     );
-    const out = s.apply([node('n1', { imageUrl: 'o', url: 'o', mediaType: 'image', text: 'x' })]);
-    expect(out[0].data.imageUrl).toBe('http://x/new.png');
+    const out = s.apply([node('n1', { assetUrl: 'o', url: 'o', assetType: 'image', text: 'x' })]);
+    expect(out[0].data.assetUrl).toBe('http://x/new.png');
     expect(out[0].data.url).toBe('o');
-    expect(out[0].data.mediaType).toBeUndefined();
+    expect(out[0].data.assetType).toBeUndefined();
     expect(out[0].data.text).toBeUndefined();
   });
 
   it('不可变更新：其它字段与其它节点保持原引用，不原地 mutation', () => {
     const s = fakeSetNodes();
     replaceNodeImage({ id: 'n1', dataUrl: 'd1' }, s.setNodes);
-    const other = node('n2', { imageUrl: 'keep' });
-    const target = node('n1', { imageUrl: 'o', keep: 1 });
+    const other = node('n2', { assetUrl: 'keep' });
+    const target = node('n1', { assetUrl: 'o', keep: 1 });
     const out = s.apply([other, target]);
     expect(out[0]).toBe(other);
     expect(out[1]).not.toBe(target);
-    expect(target.data.imageUrl).toBe('o'); // 入参未被修改
+    expect(target.data.assetUrl).toBe('o'); // 入参未被修改
     expect(out[1].data.keep).toBe(1); // 其它 data 字段保留
   });
 
@@ -108,30 +108,30 @@ describe('源码护栏 — 图片写回只有一个门', () => {
     }
     // 漂移原形：AssetNode 旧 replaceImage 内联双写 / ImageGenerate 旧 patchData 直接塞图
     expect(
-      /imageUrl: dataUrl,\s*url: dataUrl/.test(readSrc('src/components/nodes/AssetNode.tsx')),
+      /assetUrl: dataUrl,\s*url: dataUrl/.test(readSrc('src/components/nodes/AssetNode.tsx')),
       'AssetNode 旧 replaceImage 内联双写不得回归（必须走 replaceNodeImage）',
     ).toBe(false);
     expect(
-      /patchData\(\{\s*imageUrl: dataUrl/.test(readSrc('src/components/nodes/ImageGenerate.tsx')),
+      /patchData\(\{\s*assetUrl: dataUrl/.test(readSrc('src/components/nodes/ImageGenerate.tsx')),
       'ImageGenerate 旧 patchData 直塞图片字段不得回归（必须走 replaceNodeImage）',
     ).toBe(false);
   });
 
   it('已知例外已收口：AssetNode「上传替换内容」也走 replaceNodeImage（不再直写图片字段）', () => {
     const src = readSrc('src/components/nodes/AssetNode.tsx');
-    // 上传分支：主图经唯一入口写，mediaType/text 用 dataPatch 一并置空
+    // 上传分支：主图经唯一入口写，assetType/text 用 dataPatch 一并置空
     expect(
-      /replaceNodeImage\(\s*\{[^}]*dataPatch:\s*\{\s*mediaType:\s*undefined,\s*text:\s*undefined/ms.test(
+      /replaceNodeImage\(\s*\{[^}]*dataPatch:\s*\{\s*assetType:\s*undefined,\s*text:\s*undefined/ms.test(
         src,
       ),
-      'AssetNode 上传替换路径必须经 replaceNodeImage（dataPatch 清 mediaType/text）',
+      'AssetNode 上传替换路径必须经 replaceNodeImage（dataPatch 清 assetType/text）',
     ).toBe(true);
-    // 该分支不得再出现「内联写 imageUrl + 双写 url」
-    expect(/\{\s*\.\.\.n\.data,\s*imageUrl:\s*url,\s*url\b/.test(src)).toBe(false);
+    // 该分支不得再出现「内联写 assetUrl + 双写 url」
+    expect(/\{\s*\.\.\.n\.data,\s*assetUrl:\s*url,\s*url\b/.test(src)).toBe(false);
   });
 
   it('写侧停写 data.url（值写归零）：只允许 url: undefined 这种「清空」', () => {
-    // docs/118 §7.3 ⑤ 分层收口：写侧只写 imageUrl；存量兼容字段 url 不再写【值】。
+    // docs/118 §7.3 ⑤ 分层收口：写侧只写 assetUrl；存量兼容字段 url 不再写【值】。
     for (const rel of [
       'src/components/nodes/AssetNode.tsx',
       'src/components/nodes/Director3DNode.tsx',
@@ -139,7 +139,7 @@ describe('源码护栏 — 图片写回只有一个门', () => {
     ]) {
       const src = readSrc(rel);
       expect(
-        /\burl:\s*(url|lastUrl|dataUrl|imageUrl)\b/.test(src),
+        /\burl:\s*(url|lastUrl|dataUrl|assetUrl)\b/.test(src),
         `${rel} 不得再向主图字段写 url 值（只允许 url: undefined 清空）`,
       ).toBe(false);
     }
@@ -153,16 +153,16 @@ describe('源码护栏 — 图片写回只有一个门', () => {
 
   it('读侧兜底必须保留（存量快照里有只带 url 的节点，删了就读丢）', () => {
     expect(
-      /data\.imageUrl\s*\|\|\s*data\.url/.test(readSrc('src/components/nodes/AssetNode.tsx')),
-      'AssetNode 渲染必须保留 imageUrl || url 兜底',
+      /data\.assetUrl\s*\|\|\s*data\.url/.test(readSrc('src/components/nodes/AssetNode.tsx')),
+      'AssetNode 渲染必须保留 assetUrl || url 兜底',
     ).toBe(true);
     expect(
-      /node\?\.data\?\.imageUrl\s*\|\|\s*node\?\.data\?\.url/.test(readSrc('src/App.tsx')),
-      'App.copyNodeImage 必须保留 imageUrl || url 兜底',
+      /node\?\.data\?\.assetUrl\s*\|\|\s*node\?\.data\?\.url/.test(readSrc('src/App.tsx')),
+      'App.copyNodeImage 必须保留 assetUrl || url 兜底',
     ).toBe(true);
     expect(
-      /\['imageUrl',\s*'url'\]/.test(readSrc('src/components/agent/canvas/useCanvasAgentTools.ts')),
-      'getNodeImageUrl 必须保留 imageUrl → url 的字段兼容顺序',
+      /\['assetUrl',\s*'url'\]/.test(readSrc('src/components/agent/canvas/useCanvasAgentTools.ts')),
+      'getNodeAssetUrl 必须保留 assetUrl → url 的字段兼容顺序',
     ).toBe(true);
   });
 

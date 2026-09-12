@@ -17,7 +17,7 @@ import {
 import MaterialStrip from '../base/panels/MaterialStrip.tsx';
 import type { MaterialStripProps } from '../base/panels/MaterialStrip.tsx';
 import { useOutsideClick } from '../base/core/uiHooks.ts';
-import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
+import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import ScriptBoxModal from './ScriptBoxModal.tsx';
 import type { ScriptBoxData, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema.ts';
 
@@ -52,7 +52,7 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
   // 切步骤/关全屏导致组件卸载后回来不会丢状态，也就不会重复发起第二次生成。
   const scriptLoading = !!d.genMask;
   // 缩略图显示复用系统统一按需出图出口（与资产卡/AssetNode 一致）
-  const render = useRenderImageResolver();
+  const render = useRenderAssetResolver();
 
   const setStory = (story) => updateData({ story });
   const setStyle = (globalStyle) => updateData({ globalStyle });
@@ -397,7 +397,7 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
             return null;
           }
           // prevTailFrameVariants 经索引签名收口为 unknown[]，逐元素 object 守卫 + id 为 string 才收窄（F33）
-          const variants: Array<{ id: string; imageUrl?: string }> = [];
+          const variants: Array<{ id: string; assetUrl?: string }> = [];
           if (Array.isArray(tfShot.prevTailFrameVariants)) {
             for (const raw of tfShot.prevTailFrameVariants) {
               if (raw && typeof raw === 'object') {
@@ -405,7 +405,7 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
                 if (typeof rec.id === 'string')
                   variants.push({
                     id: rec.id,
-                    imageUrl: typeof rec.imageUrl === 'string' ? rec.imageUrl : undefined,
+                    assetUrl: typeof rec.assetUrl === 'string' ? rec.assetUrl : undefined,
                   });
               }
             }
@@ -433,7 +433,7 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
                     onClick={() => selectTailFrame(tfShotId, v, true)}
                   >
                     <img
-                      src={v.imageUrl ? render(v.imageUrl) : ''}
+                      src={v.assetUrl ? render(v.assetUrl) : ''}
                       alt=""
                       className="w-24 h-16 object-cover rounded"
                     />

@@ -13,7 +13,7 @@ import { runNodeGeneration } from '../../src/components/base/store/taskStore.ts'
 // 测试侧用 .mockImplementationOnce/.mockReturnValueOnce 断言，故用 vi.mocked 恢复 mock 类型。
 const runNodeGenerationMock = vi.mocked(runNodeGeneration);
 
-// 最小 ctx：addNodes 记录、addEdges 记录、setNodes 写回 imageUrl、getNodes 反映最新
+// 最小 ctx：addNodes 记录、addEdges 记录、setNodes 写回 assetUrl、getNodes 反映最新
 // P7：executor 的 live 检查用 ctx.getNode（O(1)），mock 需提供（返回当前节点或 undefined）
 function makeCtx(initialNodes = []) {
   let nodes = [...initialNodes];
@@ -81,7 +81,7 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
     expect(r1.workflow.status).toBe('completed');
   });
 
-  it('独立批（Wave1）：并行建节点 + 触发 + 写回 imageUrl，status=completed', async () => {
+  it('独立批（Wave1）：并行建节点 + 触发 + 写回 assetUrl，status=completed', async () => {
     const ctx = makeCtx();
     const r = await executePlan({
       ctx,
@@ -95,8 +95,8 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
     // 比例归一：square→1:1，story→9:16
     expect(ctx.nodes()[0].data.aspectRatio).toBe('1:1');
     expect(ctx.nodes()[1].data.aspectRatio).toBe('9:16');
-    // 每个节点生成结果已写回 imageUrl
-    expect(ctx.nodes().every((n) => n.data.imageUrl === 'http://r/ok.png')).toBe(true);
+    // 每个节点生成结果已写回 assetUrl
+    expect(ctx.nodes().every((n) => n.data.assetUrl === 'http://r/ok.png')).toBe(true);
     expect(r.entries).toHaveLength(2);
     expect(
       r.entries.every((e) => e.status === 'completed' && e.resultUrl === 'http://r/ok.png'),
@@ -160,7 +160,7 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
       generations: [{ id: 'g1', prompt: '猫' }],
     });
     expect(ctx.nodes()).toHaveLength(1);
-    expect(ctx.nodes()[0].data.imageUrl).toBeUndefined();
+    expect(ctx.nodes()[0].data.assetUrl).toBeUndefined();
     expect(r.entries[0].status).toBe('ready');
     expect(r.workflow.status).toBe('ready');
     expect(runNodeGeneration).not.toHaveBeenCalled();

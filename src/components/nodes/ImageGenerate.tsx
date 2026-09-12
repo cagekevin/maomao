@@ -37,16 +37,16 @@ import { sendToAssetLibrary } from '../base/store/assetStore.ts';
 import { openAssetLibrary } from '../base/store/taskStore.ts';
 import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
+import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
 import { useFitNodeRatio } from '../../hooks/useFitNodeRatio.ts';
 import '../base/api/index.ts';
 import { logger } from '../base/core/logger.ts';
-import { fetchTasks, generateImage, resolveNodeImageUrl } from '../base/api/index.ts';
+import { fetchTasks, generateImage, resolveNodeAssetUrl } from '../base/api/index.ts';
 import { useNodePrefs, injectNodePrefs } from '../base/canvas/nodePrefs.ts';
 import { commitNewNodes } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
-import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
+import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
 import { mergeRefImages, buildEffectivePrompt } from '../base/core/utils.ts';
 import { resolvePromptChips } from '../base/prompt/promptChips.ts';
@@ -62,7 +62,7 @@ import type { CameraStudioResult } from '../base/editors/cameraStudio.ts';
  * 生图节点（复刻原 bo.jsx / imageGenerateNode）
  * 已迁移到基座：NodeShell + HoverToolbar + ExpandablePanel + PromptInput + GenerateButton + ModelSelect。
  * 保留差异化：主图片框、素材缩略图区、画质/比例/渲染质量菜单、请求格式、批量 xN。
- * 性能降级用通用 useMediaDegrade：lodLevel>=2 藏生图结果（与官方横幅"图片已隐藏"一致）。
+ * 性能降级用通用 useAssetDegrade：lodLevel>=2 藏生图结果（与官方横幅"图片已隐藏"一致）。
  */
 /** 参考图素材形态（MaterialStrip / PromptInput / generateImage 共用） */
 interface RefImage {
@@ -84,7 +84,7 @@ interface RefText {
 interface ImageGenerateData {
   label?: string;
   prompt?: string;
-  imageUrl?: string;
+  assetUrl?: string;
   aspectRatio?: string;
   imageSize?: string;
   quality?: string;
@@ -109,9 +109,9 @@ interface ImageGenerateProps {
 }
 
 function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
-  const render = useRenderImageResolver();
+  const render = useRenderAssetResolver();
   // 性能模式媒体降级（通用 hook）：hideResult = isHidden('image')，即 lodLevel>=2
-  const { isHidden } = useMediaDegrade();
+  const { isHidden } = useAssetDegrade();
   const hideResult = isHidden('image');
 
   // 通用连线数据传递：读取直接上游节点的产出（图片/文本）作为参考输入
@@ -173,7 +173,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     data.cameraSettings,
   );
   const [count, setCount] = useState(data.count || 1);
-  const [imageUrl, setImageUrl] = useState(data.imageUrl || '');
+  const [assetUrl, setAssetUrl] = useState(data.assetUrl || '');
   const [showImgMenu, setShowImgMenu] = useState(false);
   const [showCountMenu, setShowCountMenu] = useState(false);
   const mainImgRef = useRef<HTMLImageElement | null>(null);
@@ -226,14 +226,14 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     requestAnimationFrame(() => zoomRef.current?.showModal());
   }, []);
 
-  // 【刷新不丢·根治】挂载时若 data.imageUrl 为空，从任务中心按 nodeId 拉取已完成任务的持久化 resultUrl 回填。
-  // 覆盖两类场景：① 旧代码生成的存量节点（onSuccess 从未写回 data.imageUrl）；② 落盘/写回竞态导致 data 里没存持久 URL。
+  // 【刷新不丢·根治】挂载时若 data.assetUrl 为空，从任务中心按 nodeId 拉取已完成任务的持久化 resultUrl 回填。
+  // 覆盖两类场景：① 旧代码生成的存量节点（onSuccess 从未写回 data.assetUrl）；② 落盘/写回竞态导致 data 里没存持久 URL。
   // 任务中心 resultUrl 是已落盘到 /files/tasks/ 的持久地址，回填后随画布快照自动保存，刷新不再丢图。
   const recoveredRef = useRef(false);
   React.useEffect(() => {
     if (recoveredRef.current) return;
     recoveredRef.current = true;
-    if (data.imageUrl) return; // 已有图，不覆盖
+    if (data.assetUrl) return; // 已有图，不覆盖
     let cancelled = false;
     fetchTasks({ pageSize: 1000 })
       .then((d) => {
@@ -241,8 +241,8 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         const items = (d && d.data && d.data.items) || [];
         const hit = items.find((t) => t.nodeId === id && t.status === 'completed' && t.resultUrl);
         if (hit && hit.resultUrl) {
-          setImageUrl(hit.resultUrl);
-          patchData({ imageUrl: hit.resultUrl });
+          setAssetUrl(hit.resultUrl);
+          patchData({ assetUrl: hit.resultUrl });
         }
       })
       .catch((e) => logger.warn('task', 'restore-fail', { nodeId: id, error: e?.message }));
@@ -289,7 +289,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       imageSize: setImageSize,
       cameraSettings: setCameraSettings,
     },
-    resultField: 'imageUrl',
+    resultField: 'assetUrl',
     recoverable: true,
     // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生图
     validate: () =>
@@ -330,11 +330,11 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       );
     },
     onSuccess: (r) => {
-      // 【S3 落盘唯一出口】data.imageUrl 由 resultField:'imageUrl' 在 hook 内自动 patchData(原始 r.url)，
+      // 【S3 落盘唯一出口】data.assetUrl 由 resultField:'assetUrl' 在 hook 内自动 patchData(原始 r.url)，
       // 落盘后 useNodeGeneration 主落盘再把持久 /files/ URL 覆盖写回 node.data[resultKey]，
       // 经 useSyncNodeData 同步回本节点 state → 节点显示持久 URL。此处不再二次 saveResultToTasks
       // (旧逻辑为补"落盘持久 URL 未回写 node.data"的洞而多落一次 → 双落盘)，S3 统一由主落盘出口承接。
-      setImageUrl(r.url); // 即时反馈(可能短暂显示原始 URL，data 同步后覆盖为持久 URL)
+      setAssetUrl(r.url); // 即时反馈(可能短暂显示原始 URL，data 同步后覆盖为持久 URL)
       // 记忆本次参数（模型/比例/尺寸），供新建节点复用
       setImgPrefs({ model: selectedModel, aspectRatio, imageSize });
     },
@@ -357,7 +357,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                 data: {
                   ...(data?.label ? { label: data.label } : {}),
                   ...(data?.prompt ? { prompt: data.prompt } : {}),
-                  imageUrl: resultUrl,
+                  assetUrl: resultUrl,
                   aspectRatio: data?.aspectRatio || 'Auto',
                 },
               },
@@ -367,7 +367,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         );
         return;
       }
-      setImageUrl(String(resultUrl ?? ''));
+      setAssetUrl(String(resultUrl ?? ''));
     },
   });
 
@@ -403,19 +403,19 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       insertAssetRef.current(asset);
     }
   };
-  const hasImage = !!imageUrl;
+  const hasImage = !!assetUrl;
   const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false);
 
   // 下载生成的图片（<a download> 触发浏览器保存；文件名推导走统一 resolveDownloadFilename）
   const handleDownload = () => {
-    if (!imageUrl) return;
+    if (!assetUrl) return;
     // 【2026-09-11】原为 `data.label || (data.name as string)`：`name` 不在本节点 data 契约里
     // （只有 group 的 data 有 name，见 nodeDefaults/applyNodeTypeDefaults），恒为 undefined——
     // 此前被 `[key: string]: unknown` 索引签名 + `as` 掩盖成"看起来有兜底"。删掉后语义不变：
     // 无 label 时由 resolveDownloadFilename 从 URL 推导文件名。
     downloadUrl(
-      imageUrl,
-      resolveDownloadFilename(data.label, imageUrl, {
+      assetUrl,
+      resolveDownloadFilename(data.label, assetUrl, {
         ext: 'png',
         fallback: 'generated.png',
       }),
@@ -476,7 +476,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     [id, getNodes, getEdges, setNodes, setEdges, history],
   );
 
-  // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 setImageUrl + patchData（不可变落盘）。
+  // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 setAssetUrl + patchData（不可变落盘）。
   const {
     editor: _editor,
     setEditor: _setEditor,
@@ -486,12 +486,12 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     imageButtons,
   } = useImageHoverActions({
     id,
-    url: imageUrl,
+    url: assetUrl,
     hasImage,
     label: data.label,
     onImageReplaced: (dataUrl, dims) => {
       // 本地 state 立即生效（渲染读 state，先于节点 data 落盘）。
-      setImageUrl(dataUrl);
+      setAssetUrl(dataUrl);
       // ★ 图片字段唯一写入口（docs/118 §五 C5b）；尺寸模型仍留在本节点 afterWrite：
       // 消费 dims（裁剪/扩图后画布真实尺寸）→ fitByRatio 让节点框跟随编辑后真实比例 +
       // aspectRatio 置 'Auto'（useSizeSync 不再按固定比例锁框，也不把自定义 'W:H' 污染后续生图比例）。
@@ -512,7 +512,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     },
   });
 
-  // 「上传参考图」：本地文件 → 统一落盘策略（File 直传 → 落盘失败内联兜底，见 filesApi.resolveNodeImageUrl）
+  // 「上传参考图」：本地文件 → 统一落盘策略（File 直传 → 落盘失败内联兜底，见 filesApi.resolveNodeAssetUrl）
   // → 追加进 data.images 作为参考图（refImages = 连线上游 + data.images 合并）。
   // 【修死按钮】此前该 input 只有 ref 没有 onChange：点「上传参考图」弹出文件框，选完什么都不发生
   // （与 AssetNode 曾修过的「选完不读」同一类缺陷）。
@@ -521,7 +521,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       const f = e.target.files?.[0];
       e.target.value = '';
       if (!f) return;
-      const url = await resolveNodeImageUrl(f, UPLOAD_DIRS.canvasDrop, f.name);
+      const url = await resolveNodeAssetUrl(f, UPLOAD_DIRS.canvasDrop, f.name);
       if (!url) {
         toastError('上传失败');
         return;
@@ -563,12 +563,12 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
             title: '发送到素材库',
             hoverClass: 'hover:text-blue-400',
             onClick: () => {
-              if (!imageUrl) {
+              if (!assetUrl) {
                 showToast('没有可发送的素材', { type: 'error' });
                 return;
               }
               const name = (data.label && String(data.label).trim()) || '';
-              sendToAssetLibrary(imageUrl, { name, type: 'image' });
+              sendToAssetLibrary(assetUrl, { name, type: 'image' });
               openAssetLibrary();
               showToast('已发送到素材库', { type: 'success' });
             },
@@ -632,7 +632,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
           onClick={toggleExpanded}
           onDoubleClick={(e) => {
             e.stopPropagation();
-            openZoom(imageUrl);
+            openZoom(assetUrl);
           }}
         >
           <div
@@ -648,7 +648,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
             {hasImage && !hideResult && (
               <img
                 ref={mainImgRef}
-                src={render(imageUrl)}
+                src={render(assetUrl)}
                 alt="Generated Content"
                 loading="lazy"
                 decoding="async"
@@ -658,7 +658,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
               />
             )}
             {loading && (
-              <GeneratingOverlay label="生图中..." backgroundUrl={imageUrl} category="image" />
+              <GeneratingOverlay label="生图中..." backgroundUrl={assetUrl} category="image" />
             )}
             {error && !loading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-red-500 z-10 bg-surface p-4 text-center">
@@ -909,7 +909,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       {/* 摄影棚面板 */}
       <CameraStudioPanel
         isOpen={isCameraStudioOpen}
-        imageUrl={imageUrl || undefined}
+        assetUrl={assetUrl || undefined}
         onClose={() => setIsCameraStudioOpen(false)}
         onGenerate={handleCameraStudioGenerate}
       />

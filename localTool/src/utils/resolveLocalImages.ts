@@ -9,7 +9,7 @@
  * 幂等（刻意决策，勿改成"连 data: 也压缩"）：已是 data: 的 base64 原样透传、不二次压缩——
  *   ① 存量会话里历史 base64 不应被意外重编码（行为稳定）；
  *   ② data: 可能是 video 型（视频生成参考图），Jimp 解不了，若压缩需按图像/视频分流，复杂度上升；
- *   ③ blob:/data: 的 ≤1920 压缩已由前端在转 base64 时完成（imageUrl.js normalizeImageUrlForSend），
+ *   ③ blob:/data: 的 ≤1920 压缩已由前端在转 base64 时完成（assetUrl.ts normalizeAssetUrlForSend），
  *      localTool 只负责 /files/ 的压缩——两端压缩口径对齐（MAX_SEND_DIM=1920 契约双写，勿单边漂移）。
  *   http(s) 公网 URL 原样透传（AI/网关可直接访问）。
  * 失败可见：读文件/压缩失败 → console.error 记录 + 保留原 URL（由上游显性失败，绝不静默丢参考图，
@@ -24,7 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getUploadDir } from '../db/database.js';
 
-/** 发送最长边上限（与前端 imageUrl.js MAX_SEND_DIM=1920 契约对齐，出站压缩防超大图触碰 API 上限） */
+/** 发送最长边上限（与前端 assetUrl.ts MAX_SEND_DIM=1920 契约对齐，出站压缩防超大图触碰 API 上限） */
 const MAX_SEND_DIM = 1920;
 
 /** 绝对自指 localTool /files/ URL（127.0.0.1 / localhost / ::1 + 任意端口 + /files/ 路径） */

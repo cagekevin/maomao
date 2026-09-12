@@ -24,13 +24,11 @@ import '../core/config.ts';
 import { rescanResources } from '../api/localToolApi.ts';
 import { saveInlineToLocal, uploadFileToLocal, EXT_BY_TYPE } from '../api/filesApi.ts';
 import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
-import { detectFileType } from '../utils/mediaType.ts';
+import { detectFileType } from '../utils/assetType.ts';
 import { safeFileName } from '../core/utils.ts';
 import { logger } from '../core/logger.ts';
 import { publish, subscribe } from '../core/eventBus.ts';
-
-/** 素材类型（type 字段）：图片/视频/音频/文字 */
-export type AssetType = 'image' | 'video' | 'audio' | 'text';
+import type { AssetType } from '@/types';
 
 /** 素材记录 */
 export interface Asset {
@@ -196,7 +194,7 @@ function genId(): string {
 
 /**
  * 判断文件类型（图片/视频/音频/文字）。
- * 委托 utils/mediaType.detectFileType（扩展名/mime 唯一真值源），未识别一律兜底 image
+ * 委托 utils/assetType.detectFileType（扩展名/mime 唯一真值源），未识别一律兜底 image
  * （素材库只有四类，无 other/empty；与既有兜底行为一致）。
  */
 export function detectAssetType(file?: TypeProbe | null): AssetType {

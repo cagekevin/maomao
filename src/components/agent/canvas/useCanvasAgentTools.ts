@@ -39,7 +39,7 @@ import { generateId } from '../../base/core/idGen.ts';
 import { logger } from '../../base/core/logger.ts';
 import { publish } from '../../base/core/eventBus.ts';
 import { CREDIT_SWITCH_KEY, CREDIT_GATE_EVENT } from '../../base/core/contracts.ts';
-import { classifyUrlKind } from '../../base/utils/mediaType.ts';
+import { classifyAssetUrlKind } from '../../base/utils/assetType.ts';
 
 /* ════════════════════════════════════════════════════════════════
  * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。
@@ -256,21 +256,21 @@ const num = (v, fb) => {
 
 /**
  * 提取节点「主图 URL」（纯函数，导出供 AgentPanel/App 引用带图节点用）。
- * 覆盖常见图字段形态：data.imageUrl / data.url（字符串）、data.images / data.imageUrls（数组）。
- * images 数组元素兼容字符串（url）与对象（{ url } 或 { imageUrl }）。无图返回空串。
+ * 覆盖常见图字段形态：data.assetUrl / data.url（字符串）、data.images / data.assetUrls（数组）。
+ * images 数组元素兼容字符串（url）与对象（{ url } 或 { assetUrl }）。无图返回空串。
  * 设计取舍：只取「主图」一个 URL（用户选中节点即引用其首图），保证简单、可复用现有图片附件链路。
  */
-export function getNodeImageUrl(node) {
+export function getNodeAssetUrl(node) {
   const d = node?.data || {};
-  for (const key of ['imageUrl', 'url']) {
+  for (const key of ['assetUrl', 'url']) {
     if (typeof d[key] === 'string' && d[key]) return d[key];
   }
-  for (const key of ['images', 'imageUrls']) {
+  for (const key of ['images', 'assetUrls']) {
     const arr = Array.isArray(d[key]) ? d[key] : [];
     for (const item of arr) {
       if (typeof item === 'string' && item) return item;
       if (item && typeof item === 'object') {
-        const u = item.url || item.imageUrl;
+        const u = item.url || item.assetUrl;
         if (typeof u === 'string' && u) return u;
       }
     }
@@ -280,21 +280,21 @@ export function getNodeImageUrl(node) {
 
 /**
  * 提取选中节点的「主媒体」（纯函数，供 App 传给 AgentPanel 待发送区）。
- * 与 getNodeImageUrl 的区别：视频/音频节点返回【本体】URL 而非封面图，并标记媒体类型。
- * 判定顺序（对齐 AssetNode：`data.mediaType || detectMediaType`）：
- *   1. 显式 `data.mediaType==='video'|'audio'` → 取本体 url（videoUrl/audioUrl/url/imageUrl）；
+ * 与 getNodeAssetUrl 的区别：视频/音频节点返回【本体】URL 而非封面图，并标记媒体类型。
+ * 判定顺序（对齐 AssetNode：`data.assetType || detectAssetType`）：
+ *   1. 显式 `data.assetType==='video'|'audio'` → 取本体 url（videoUrl/audioUrl/url/assetUrl）；
  *   2. 存在 `data.videoUrl` / `data.audioUrl` → 判 video / audio（视频生成/提取/处理等节点）；
- *   3. 退化为 getNodeImageUrl 主图 url → 按扩展名判型（video/audio 原样标记，其余按 image）。
+ *   3. 退化为 getNodeAssetUrl 主图 url → 按扩展名判型（video/audio 原样标记，其余按 image）。
  * 只返回可作 AI 多模态上下文的媒体（image / video / audio），text / 空返回 { type:'', url:'' }。
  */
 export function getNodeMedia(node) {
   const d = node?.data || {};
-  const kindOf = (u) => classifyUrlKind(u) || '';
+  const kindOf = (u) => classifyAssetUrlKind(u) || '';
   let explicit = '';
   let url = '';
-  if (d.mediaType === 'video' || d.mediaType === 'audio') {
-    explicit = d.mediaType;
-    url = d.videoUrl || d.audioUrl || d.url || d.imageUrl || '';
+  if (d.assetType === 'video' || d.assetType === 'audio') {
+    explicit = d.assetType;
+    url = d.videoUrl || d.audioUrl || d.url || d.assetUrl || '';
   } else if (typeof d.videoUrl === 'string' && d.videoUrl) {
     explicit = 'video';
     url = d.videoUrl;
@@ -306,7 +306,7 @@ export function getNodeMedia(node) {
     const type = explicit || kindOf(url);
     return { type: type === 'audio' ? 'audio' : type === 'video' ? 'video' : 'image', url };
   }
-  const image = getNodeImageUrl(node);
+  const image = getNodeAssetUrl(node);
   if (!image) return { type: '', url: '' };
   const k = kindOf(image);
   return { type: k === 'video' ? 'video' : k === 'audio' ? 'audio' : 'image', url: image };
@@ -965,7 +965,7 @@ const readCanvasTool = {
       text: n.data?.text || '',
       position: n.position || { x: 0, y: 0 },
       // 生成结果（打通 Agent 感知：读完画布即可看到哪个节点已出图/出视频/出音频，供多步编排）
-      imageUrl: n.data?.imageUrl || undefined,
+      assetUrl: n.data?.assetUrl || undefined,
       videoUrl: n.data?.videoUrl || undefined,
       audioUrl: n.data?.audioUrl || undefined,
       resultUrl: n.data?.resultUrl || undefined,

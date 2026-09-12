@@ -108,8 +108,8 @@ vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useOutsideClick: () => {},
 }));
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({}) }));
-vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({
-  useMediaDegrade: () => ({ isHidden: () => false }),
+vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({
+  useAssetDegrade: () => ({ isHidden: () => false }),
 }));
 vi.mock('../../src/components/base/canvas/nodePrefs.ts', () => ({
   useNodePrefs: () => ({ prefs: {}, set: vi.fn() }),
@@ -277,7 +277,7 @@ describe('ImageGenerate 模型选择', () => {
 });
 
 describe('ImageGenerate 刷新恢复（restoreFromServer）', () => {
-  it('节点无图时，从任务中心恢复最近完成结果并写回 data.imageUrl', async () => {
+  it('节点无图时，从任务中心恢复最近完成结果并写回 data.assetUrl', async () => {
     mockFetchTasks.mockResolvedValue({
       data: {
         items: [
@@ -286,46 +286,46 @@ describe('ImageGenerate 刷新恢复（restoreFromServer）', () => {
         ],
       },
     });
-    setup({}); // data 无 imageUrl，走恢复分支
+    setup({}); // data 无 assetUrl，走恢复分支
 
     await waitFor(() => {
       const data = lastPatchData();
-      expect(data.imageUrl).toBe('http://recovered.local/a.png');
+      expect(data.assetUrl).toBe('http://recovered.local/a.png');
     });
   });
 
   it('节点已有图时不覆盖（不发起恢复写回）', async () => {
-    setup({ imageUrl: 'http://already.local/c.png' });
+    setup({ assetUrl: 'http://already.local/c.png' });
     // 等待一拍，确保恢复 effect 已执行
     await new Promise((r) => setTimeout(r, 20));
     const data = lastPatchData();
-    // 最近一次 patch 不应把 imageUrl 覆盖成任务中心结果
-    expect(data?.imageUrl).not.toBe('http://recovered.local/a.png');
+    // 最近一次 patch 不应把 assetUrl 覆盖成任务中心结果
+    expect(data?.assetUrl).not.toBe('http://recovered.local/a.png');
   });
 });
 
 describe('ImageGenerate 生成成功回填（onSuccess）', () => {
-  it('点击生成后，结果 url 落盘写回 data.imageUrl', async () => {
+  it('点击生成后，结果 url 落盘写回 data.assetUrl', async () => {
     mockGenerateImage.mockResolvedValue({ url: 'http://gen.local/result.png' });
     setup({});
     fireEvent.click(screen.getByText('生成'));
 
     await waitFor(() => {
       const data = lastPatchData();
-      expect(data.imageUrl).toBe('http://gen.local/result.png');
+      expect(data.assetUrl).toBe('http://gen.local/result.png');
     });
   });
 });
 
 describe('ImageGenerate 异步任务恢复（onRecover）', () => {
-  it('节点仍在画布时，轮询完成的广播结果写回本节点 data.imageUrl', () => {
+  it('节点仍在画布时，轮询完成的广播结果写回本节点 data.assetUrl', () => {
     mockGetNodes.mockReturnValue([{ id: 'n1' }]);
     setup({});
     act(() => {
       genConfig.onRecover({ resultUrl: 'http://poll.local/done.png' });
     });
     const data = lastPatchData();
-    expect(data.imageUrl).toBe('http://poll.local/done.png');
+    expect(data.assetUrl).toBe('http://poll.local/done.png');
     // 节点存在时不重建（不调用 addNodes）
     expect(mockAddNodes).not.toHaveBeenCalled();
   });
@@ -345,6 +345,6 @@ describe('ImageGenerate 异步任务恢复（onRecover）', () => {
     const added = next.find((n) => n.id === 'n1');
     expect(added).toBeTruthy();
     expect(added.type).toBe('imageGenerateNode');
-    expect(added.data.imageUrl).toBe('http://poll.local/rebuild.png');
+    expect(added.data.assetUrl).toBe('http://poll.local/rebuild.png');
   });
 });

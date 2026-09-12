@@ -17,13 +17,13 @@ import GeneratingOverlay from '../../base/ui/GeneratingOverlay.tsx';
 // ═══ 基座 hook（统一范式）═══
 import { useNodeResize } from '../../base/core/uiHooks.ts';
 import { useConnectedInputs } from '../../../hooks/useConnectedInputs.ts';
-import { useMediaDegrade } from '../../../hooks/useMediaDegrade.ts';
+import { useAssetDegrade } from '../../../hooks/useAssetDegrade.ts';
 import { useGenerateNode } from '../../../hooks/useGenerateNode.ts';
 import { useNodePrefs } from '../../base/canvas/nodePrefs.ts';
 import { showToast } from '../../base/core/toastStore.ts';
 import { generateImage } from '../../base/api/index.ts';
 import { toAbsoluteFileUrl } from '../../base/api/index.ts';
-import { useRenderImageResolver } from '../../base/utils/imageUrl.ts';
+import { useRenderAssetResolver } from '../../base/utils/assetUrl.ts';
 import { mergeRefImages, buildEffectivePrompt } from '../../base/core/utils.ts';
 import { useNodeData } from '../../../hooks/useNodeData.ts';
 import { useNodeExpanded } from '../../../hooks/useNodeExpanded.ts';
@@ -65,15 +65,15 @@ import { resolveProviderModel } from '../../base/utils/providerModels.ts';
  *  - 右下角手柄：ResizeFullscreenHandle（拖拽改尺寸+双击全屏）✓
  *  - 数据范式：useState 存 UI + setNodes 写回 data + useSyncNodeData 外部同步
  *    + useNodePrefs 参数记忆 + useNodeResize 尺寸写回 ✓
- *  - 性能降级：useMediaDegrade ✓
+ *  - 性能降级：useAssetDegrade ✓
  *  - 生成契约：useNodeGeneration（提交/进度/成功写回/失败/重试）✓
  *
  * 【上/下游数据怎么接（对应"接节点"的通用机制）】
  *  - 读上游：`useConnectedInputs(id)` 已在模板接入 → 自动聚合所有直接上游产出
  *    { images, texts, videos, audios }，本节点作为参考输入用（已接 MaterialStrip + PromptInput）。
- *  - 产出给下游：① 组件里把结果写回 node.data（如 data.imageUrl / data.images[]）；
+ *  - 产出给下游：① 组件里把结果写回 node.data（如 data.assetUrl / data.images[]）；
  *    ② 在 `useConnectedInputs.js` 的 `NODE_OUTPUTS` 加一行声明如何解析你的产出
- *    （单产出其实可省略——有 `genericOutput` 兜底读 imageUrl/videoUrl/resultUrl；
+ *    （单产出其实可省略——有 `genericOutput` 兜底读 assetUrl/videoUrl/resultUrl；
  *    但**数组型产出（images[]/extractedImages[]）必须声明**，否则下游拿不到）。
  *    见文件底部【上/下游数据 + 产出声明】。
  *
@@ -84,7 +84,7 @@ import { resolveProviderModel } from '../../base/utils/providerModels.ts';
  * 需要时按表去对应节点复制对应代码块，改到你的节点里即可：
  *
  * ┌─ 能力 ────────────────────┬─ 抄哪 ────────────────┬─ 备注 ───────────────────────┐
- * │ 多内容类型(图/视频/音频/文)  │ AssetNode           │ detectMediaType + data.mediaType│
+ * │ 多内容类型(图/视频/音频/文)  │ AssetNode           │ detectAssetType + data.assetType│
  * │ 全屏编辑器(裁剪/涂鸦/压缩)   │ AssetNode           │ ImageEditor + FullscreenModal    │
  * │ 视频首帧封面               │ AssetNode/TextGenerate   │ base/useVideoPoster             │
  * │ 宽高比自适应               │ AssetNode            │ base/useFitNodeRatio            │
@@ -94,7 +94,7 @@ import { resolveProviderModel } from '../../base/utils/providerModels.ts';
  * │ 多图容器(图片盒子)          │ ImageBoxNode         │ data.images 直读 + 多选/全选     │
  * │ 自定义多端口               │ ImageBox/GridSplit    │ showHandles=false + CustomHandle │
  * │ 批量 spawn 下游多图         │ GridSplitNode        │ addNodes 网格排列 + addEdges     │
- * │ spawn 视频/音频/GIF 下游    │ VideoProcessNode      │ addNodes + mediaType 显式标注   │
+ * │ spawn 视频/音频/GIF 下游    │ VideoProcessNode      │ addNodes + assetType 显式标注   │
  * │ 高度自适应(ResizeObserver)  │ ScriptBoxNode         │ contentRef + onMainBoxResize    │
  * │ 折叠/展开 编组              │ GroupNode            │ parentId 子节点 + 聚合出口       │
  * │ 拆分多段→spawn 多个生图节点  │ LoopNode             │ 文案切段 + 每段 addNodes         │
@@ -138,7 +138,7 @@ interface RefText {
 interface TemplateNodeData {
   label?: string;
   prompt?: string;
-  imageUrl?: string;
+  assetUrl?: string;
   aspectRatio?: string;
   selectedModel?: string;
   expanded?: boolean;
@@ -158,9 +158,9 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   // ─── 1. 上游数据 + 性能降级（通用）───
   // useConnectedInputs：读取直接上游节点的产出（图片/文本）作为参考输入；空则渲染空态
   const connected = useConnectedInputs(id);
-  // useMediaDegrade：lodLevel>=2 时隐藏生成结果（大画布性能降级）
-  const { isHidden } = useMediaDegrade();
-  const render = useRenderImageResolver();
+  // useAssetDegrade：lodLevel>=2 时隐藏生成结果（大画布性能降级）
+  const { isHidden } = useAssetDegrade();
+  const render = useRenderAssetResolver();
   const hideResult = isHidden('image');
 
   // 上游合并：图片 + 文本（多个上游节点自动聚合；data.images/texts 额外资产也并入）
@@ -188,7 +188,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   // 抽屉展开/收起：本地 state + 写回 data.expanded + 外部（Tab/Agent）同步，收口到 useNodeExpanded
   const { expanded, toggleExpanded } = useNodeExpanded(id, data.expanded);
   const [prompt, setPrompt] = useNodeField('prompt', data.prompt || '', patchDebounced);
-  const [imageUrl, setImageUrl] = useState(data.imageUrl || '');
+  const [assetUrl, setAssetUrl] = useState(data.assetUrl || '');
   // 全屏编辑：提示词输入框双击 → 全屏编辑提示词（复刻 TextGenerate）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
   // 全屏查看：主框双击 → 全屏查看生成结果（替代原 showToast('全屏') 占位）
@@ -250,7 +250,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
     setSelectedModel,
     // 【模板】把所有「由 data 初始化的 state」都放进 sync（外部变更同步，直接读 useGenerateNode 文档）
     sync: { prompt: setPrompt, aspectRatio: setAspectRatio, selectedModel: setSelectedModel },
-    resultField: 'imageUrl', // 成功 / 广播恢复自动 patchData({ imageUrl })
+    resultField: 'assetUrl', // 成功 / 广播恢复自动 patchData({ assetUrl })
     recoverable: true,
     // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生图
     validate: () =>
@@ -286,12 +286,12 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
     },
     onSuccess: (r) => {
       // 成功：本地 state + 业务记忆；写 node.data 交由 resultField
-      setImageUrl(r.url ?? '');
+      setAssetUrl(r.url ?? '');
       setMyPrefs({ model: selectedModel, aspectRatio });
     },
     // 【真相源契约·onRecover】任务中心完成广播 → 刷新后结果自动恢复（node.data 回填由 recoverable 自动完成）
     onRecover: ({ resultUrl }) => {
-      setImageUrl(String(resultUrl ?? ''));
+      setAssetUrl(String(resultUrl ?? ''));
     },
   });
 
@@ -308,14 +308,14 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
       key: 'zoom',
       icon: <ZoomIn size={12} />,
       title: '放大',
-      show: !!imageUrl,
+      show: !!assetUrl,
       onClick: () => showToast('放大预览'),
     },
     {
       key: 'download',
       icon: <Download size={12} />,
       title: '下载',
-      show: !!imageUrl,
+      show: !!assetUrl,
       onClick: () => showToast('下载'),
     },
   ];
@@ -360,10 +360,10 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
           <div className="flex-1 flex items-center justify-center text-caption text-muted">
             图片已隐藏
           </div>
-        ) : imageUrl ? (
+        ) : assetUrl ? (
           <div className="flex-1 relative overflow-hidden rounded-xl">
             <img
-              src={render(imageUrl)}
+              src={render(assetUrl)}
               alt=""
               className="w-full h-full object-cover"
               loading="lazy"
@@ -471,9 +471,9 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
         title="查看生成结果"
         onClose={() => setFullscreenResult(false)}
       >
-        {imageUrl ? (
+        {assetUrl ? (
           <img
-            src={toAbsoluteFileUrl(imageUrl)}
+            src={toAbsoluteFileUrl(assetUrl)}
             alt="生成结果"
             className="max-w-full max-h-full object-contain rounded"
           />
@@ -501,9 +501,9 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
  *   模板里已把 connected.images/texts 接给 MaterialStrip + PromptInput 作参考输入。
  *
  * 二、产出给下游（有产出必做，否则下游连了线也拿不到数据）
- *   1) 组件里把结果写回 node.data（模板已在 onSuccess 写 data.imageUrl）。
+ *   1) 组件里把结果写回 node.data（模板已在 onSuccess 写 data.assetUrl）。
  *   2) 到 `src/components/base/useConnectedInputs.js` 的 `NODE_OUTPUTS` 加一行声明。
- *      · 单图/单视频/单文本：通常可省略（有 genericOutput 兜底读 data.imageUrl/videoUrl/resultUrl）。
+ *      · 单图/单视频/单文本：通常可省略（有 genericOutput 兜底读 data.assetUrl/videoUrl/resultUrl）。
  *      · 数组型产出（data.images[] / data.extractedImages[]）必须声明，示范：
  *
  *      // 在 NODE_OUTPUTS 里加：
@@ -548,7 +548,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
  *
  *   · 数组型产出要在 useConnectedInputs.js 的 NODE_OUTPUTS 登记（见【上/下游数据】）。
  *   · spawn 视频/音频：参考 VideoProcessNode.spawnVideoNode/spawnAudioNode，
- *     下游用 type:'assetNode' + data.mediaType:'video'/'audio'（blob URL 无扩展名，靠显式类型）。
+ *     下游用 type:'assetNode' + data.assetType:'video'/'audio'（blob URL 无扩展名，靠显式类型）。
  */
 
 /**

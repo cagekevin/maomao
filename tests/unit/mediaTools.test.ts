@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-// 回归测试：useMediaDegrade.js、nodePrefs.js、imageCompress.js
+// 回归测试：useAssetDegrade.js、nodePrefs.js、imageCompress.js
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
 // ───────────────────────────────────────────────────────────
-// 1. useMediaDegrade.js
+// 1. useAssetDegrade.js
 // 依赖 useLod()（LodContext）。mock useLod 返回不同 lodLevel。
 // ───────────────────────────────────────────────────────────
 vi.mock('../../src/components/base/canvas/lod.tsx', () => ({
@@ -18,11 +18,11 @@ vi.mock('../../src/components/base/canvas/lod.tsx', () => ({
   })),
 }));
 import { useLod } from '../../src/components/base/canvas/lod.tsx';
-import { useMediaDegrade } from '../../src/hooks/useMediaDegrade.ts';
+import { useAssetDegrade } from '../../src/hooks/useAssetDegrade.ts';
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 
 // useLod 实际返回完整 LOD 对象（lodLevel/viewportMoving/...6 字段），并非仅 {lodLevel}
-describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
+describe('useAssetDegrade —— lodLevel→hideMedia 映射', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -36,7 +36,7 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
       edgeFxLimit: 50,
       useThumbnail: false,
     });
-    const { result } = renderHook(() => useMediaDegrade());
+    const { result } = renderHook(() => useAssetDegrade());
     expect(result.current.hideMedia).toBe('image video audio');
     expect(result.current.isHidden('image')).toBe(true);
     expect(result.current.isHidden('video')).toBe(true);
@@ -52,7 +52,7 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
       edgeFxLimit: 50,
       useThumbnail: false,
     });
-    const { result } = renderHook(() => useMediaDegrade());
+    const { result } = renderHook(() => useAssetDegrade());
     expect(result.current.hideMedia).toBe('image');
     expect(result.current.isHidden('image')).toBe(true);
     expect(result.current.isHidden('video')).toBe(false);
@@ -68,7 +68,7 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
       edgeFxLimit: 50,
       useThumbnail: false,
     });
-    const { result } = renderHook(() => useMediaDegrade());
+    const { result } = renderHook(() => useAssetDegrade());
     expect(result.current.hideMedia).toBe('');
     expect(result.current.isHidden('image')).toBe(false);
     expect(result.current.isHidden('video')).toBe(false);
@@ -83,7 +83,7 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
       edgeFxLimit: 50,
       useThumbnail: false,
     });
-    const { result } = renderHook(() => useMediaDegrade());
+    const { result } = renderHook(() => useAssetDegrade());
     expect(result.current.hideMedia).toBe('');
     expect(result.current.isHidden('image')).toBe(false);
   });
@@ -91,7 +91,7 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
   it('lodLevel 未定义（兜底 0）→ hideMedia=""', () => {
     // 故意喂缺 lodLevel 的 shape：验证 hook 对「未初始化 context」的兜底（用 unknown as 标注此处为故意）
     vi.mocked(useLod).mockReturnValue({} as unknown as ReturnType<typeof useLod>);
-    const { result } = renderHook(() => useMediaDegrade());
+    const { result } = renderHook(() => useAssetDegrade());
     expect(result.current.hideMedia).toBe('');
   });
 
@@ -104,7 +104,7 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
       edgeFxLimit: 50,
       useThumbnail: false,
     });
-    const { result } = renderHook(() => useMediaDegrade());
+    const { result } = renderHook(() => useAssetDegrade());
     // includes 语义正确性：任意未列出的类型都隐藏为 false
     expect(result.current.isHidden('text')).toBe(false);
     expect(result.current.isHidden('')).toBe(true); // '' 总被 includes

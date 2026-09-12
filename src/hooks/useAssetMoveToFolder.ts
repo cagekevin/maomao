@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 import { moveFile, canMoveAsset, resolveMovePaths } from '../components/base/api/index.ts';
-import { toAbsoluteFileUrl } from '../components/base/utils/imageUrl.ts';
+import { toAbsoluteFileUrl } from '../components/base/utils/assetUrl.ts';
 import { publish } from '../components/base/core/eventBus.ts';
 import { showToast } from '../components/base/core/toastStore.ts';
 

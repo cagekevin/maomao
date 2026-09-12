@@ -1,5 +1,5 @@
 import { memo, useRef, useState, useEffect } from 'react';
-import { useRenderImageResolver } from '../utils/imageUrl.ts';
+import { useRenderAssetResolver } from '../utils/assetUrl.ts';
 import { ImageOff } from 'lucide-react';
 
 /**
@@ -9,7 +9,7 @@ import { ImageOff } from 'lucide-react';
  *
  * 读取端破图兜底：src 若是相对 /files/ 路径（后端外置/存量数据），统一补全为
  * 绝对 URL，避免在画布环境（localhost:5180 / chrome-extension://）解析成错误源破图。
- * 统一出口：复用 useRenderImageResolver——本地文件走按需小图（渲染快，不装全分辨率），
+ * 统一出口：复用 useRenderAssetResolver——本地文件走按需小图（渲染快，不装全分辨率），
  * 外部 http / data: / blob: 回退原绝对地址。视频/弹层不传本组件（本组件仅图片缩略显示）。
  *
  * 加载失败兜底：img onError 时显示统一「破图占位」（图标 + 文案），并保留外层
@@ -34,7 +34,7 @@ function LazyImage({
   onDoubleClick,
   imgClassName = 'w-full h-full object-cover',
 }: LazyImageProps) {
-  const resolve = useRenderImageResolver();
+  const resolve = useRenderAssetResolver();
   const resolvedSrc = resolve(src || '');
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);

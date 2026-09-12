@@ -17,7 +17,7 @@ let node = {
   width: 380,
   height: 380,
   style: { width: 380, height: 380 },
-  data: { imageUrl: 'http://x/result.png', aspectRatio: '1:1' },
+  data: { assetUrl: 'http://x/result.png', aspectRatio: '1:1' },
 };
 const mockSetNodes = vi.fn();
 const mockGetNodes = vi.fn(() => [node]);
@@ -99,11 +99,11 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', () => ({
   useNodePrefs: () => ({ prefs: {}, set: vi.fn() }),
 }));
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({}) }));
-vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({
-  useMediaDegrade: () => ({ isHidden: () => false }),
+vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({
+  useAssetDegrade: () => ({ isHidden: () => false }),
 }));
-vi.mock('../../src/components/base/utils/imageUrl.ts', () => ({
-  useRenderImageResolver: () => (x: string) => x,
+vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
+  useRenderAssetResolver: () => (x: string) => x,
 }));
 vi.mock('../../src/components/base/api/index.ts', () => ({
   toAbsoluteFileUrl: (x: string) => x,
@@ -122,9 +122,9 @@ vi.mock('../../src/components/base/store/providerStore.ts', () => ({
 
 // ImageEditor：记录 onSave（模拟裁剪/扩图保存回传 dims）
 vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({
-  default: ({ imageUrl, onSave, onClose: _onClose }: any) => {
+  default: ({ assetUrl, onSave, onClose: _onClose }: any) => {
     lastEditorSave = onSave;
-    return <div data-testid="image-editor" data-url={imageUrl} />;
+    return <div data-testid="image-editor" data-url={assetUrl} />;
   },
 }));
 vi.mock('../../src/components/base/editors/InlineImageCropper.tsx', () => ({
@@ -147,7 +147,7 @@ beforeEach(() => {
     width: 380,
     height: 380,
     style: { width: 380, height: 380 },
-    data: { imageUrl: 'http://x/result.png', aspectRatio: '1:1' },
+    data: { assetUrl: 'http://x/result.png', aspectRatio: '1:1' },
   };
   lastEditorSave = null;
   mockSetNodes.mockClear();
@@ -174,7 +174,7 @@ describe('ImageGenerate 保存后节点框跟随图片比例（aspectRatio 回 A
     render(
       <ImageGenerate
         id="pn1"
-        data={{ imageUrl: 'http://x/result.png', aspectRatio: '1:1', label: '生图' }}
+        data={{ assetUrl: 'http://x/result.png', aspectRatio: '1:1', label: '生图' }}
         selected={false}
       />,
     );
@@ -193,7 +193,7 @@ describe('ImageGenerate 保存后节点框跟随图片比例（aspectRatio 回 A
     render(
       <ImageGenerate
         id="pn1"
-        data={{ imageUrl: 'http://x/result.png', aspectRatio: 'Auto', label: '生图' }}
+        data={{ assetUrl: 'http://x/result.png', aspectRatio: 'Auto', label: '生图' }}
         selected={false}
       />,
     );
@@ -209,7 +209,7 @@ describe('ImageGenerate 保存后节点框跟随图片比例（aspectRatio 回 A
     render(
       <ImageGenerate
         id="pn1"
-        data={{ imageUrl: 'http://x/result.png', aspectRatio: '1:1', label: '生图' }}
+        data={{ assetUrl: 'http://x/result.png', aspectRatio: '1:1', label: '生图' }}
         selected={false}
       />,
     );

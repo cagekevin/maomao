@@ -18,7 +18,7 @@ vi.mock('../../src/components/base/editors/OverlayEditor.tsx', () => ({
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
   useConnectedInputs: mocks.useConnectedInputs,
 }));
-vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }));
+vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
 vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useNodeResize: mocks.useNodeResize,
   useContentHeightSync: mocks.useContentHeightSync,

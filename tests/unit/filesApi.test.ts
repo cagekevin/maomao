@@ -253,12 +253,12 @@ describe('filesApi — downloadRemoteToLocal（网页拖图后台本地化）', 
 // ── 图像入节点·统一落盘策略（全库唯一降级规则，2026-09-11 收口）──
 // 消费方：AssetNode 上传 / useAssetDropPaste 拖入粘贴 / ImageGenerate 上传参考图 / useImageHoverActions 四条出口。
 // 这里钉住的规则：落盘失败一律回退内联（不返回 null 之外什么都不断），只有「连内联都拿不到」才交给调用方报错。
-describe('filesApi — resolveNodeImageUrl（File 源统一落盘策略）', () => {
+describe('filesApi — resolveNodeAssetUrl（File 源统一落盘策略）', () => {
   const PNG = new File(['x'], 'a.png', { type: 'image/png' });
 
   it('上传成功 → 持久 /files/ URL，且只发一次上传请求（不读内联）', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/canvas/drop/a.png'));
-    expect(await api.resolveNodeImageUrl(PNG, 'canvas/drop', 'a.png')).toBe(
+    expect(await api.resolveNodeAssetUrl(PNG, 'canvas/drop', 'a.png')).toBe(
       'http://127.0.0.1:18080/files/canvas/drop/a.png',
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -278,7 +278,7 @@ describe('filesApi — resolveNodeImageUrl（File 源统一落盘策略）', () 
       },
     );
     fetchMock.mockResolvedValue(failResp());
-    const out = await api.resolveNodeImageUrl(PNG, 'canvas/drop');
+    const out = await api.resolveNodeAssetUrl(PNG, 'canvas/drop');
     expect(out).toBe(DATA_PNG); // 回退内联：图仍能上屏，只是刷新不保证
   });
 
@@ -294,11 +294,11 @@ describe('filesApi — resolveNodeImageUrl（File 源统一落盘策略）', () 
       },
     );
     fetchMock.mockResolvedValue(failResp());
-    expect(await api.resolveNodeImageUrl(PNG, 'canvas/drop')).toBeNull();
+    expect(await api.resolveNodeAssetUrl(PNG, 'canvas/drop')).toBeNull();
   });
 
   it('无文件 → null 且不发请求', async () => {
-    expect(await api.resolveNodeImageUrl(null)).toBeNull();
+    expect(await api.resolveNodeAssetUrl(null)).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

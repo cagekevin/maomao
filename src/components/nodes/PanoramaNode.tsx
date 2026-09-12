@@ -26,7 +26,7 @@ import PanoViewer from '../base/editors/PanoViewer.tsx';
 import { generateId } from '../base/core/idGen.ts';
 import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
-import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
+import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { logger } from '../base/core/logger.ts';
 import { toastInfo, toastSuccess, toastError, toastWarning } from '../base/core/toastStore.ts';
 import FullscreenShell from '../base/panels/FullscreenShell.tsx';
@@ -199,7 +199,7 @@ function Segmented<T extends string>({
 
 interface PanoramaNodeData {
   label?: string;
-  imageUrl?: string;
+  assetUrl?: string;
   aspectRatio?: string;
   customDim?: { w: number; h: number };
   images?: Array<{ url?: string; [key: string]: unknown }>;
@@ -271,7 +271,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
   const rename = useNodeRename(id);
   const history = useCanvasEdges();
   const connected = useConnectedInputs(id);
-  const thumbResolve = useRenderImageResolver();
+  const thumbResolve = useRenderAssetResolver();
   const [fullscreen, setFullscreen] = useState(false); // 全景漫游（球体视图）
   const [capturing, setCapturing] = useState(false);
   const [shotKind, setShotKind] = useState(null); // 'current'|'four'|'twelve'
@@ -292,11 +292,11 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
   const ratioStr =
     aspectRatio === 'custom' ? `${customDim.w}/${customDim.h}` : aspectRatio.replace(':', '/');
 
-  // 输入全景图 URL：连接上游图片 或 data.imageUrl
+  // 输入全景图 URL：连接上游图片 或 data.assetUrl
   const panoUrl = (() => {
     const src = connected.images?.find((im) => im?.url)?.url;
     if (src) return src;
-    return data.imageUrl || null;
+    return data.assetUrl || null;
   })();
 
   // 球体贴图专用地址：本地文件走大尺寸按需出图（4096 上限），非本地（data:/blob:/公网）回原图。
@@ -372,7 +372,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
         const shots = await viewerRef.current.capture(angles, ratioStr);
         if (shots && shots.length > 0) {
           if (angles.length === 1 && shots[0]) {
-            patchNodeDataById(setNodes, id, { imageUrl: shots[0] });
+            patchNodeDataById(setNodes, id, { assetUrl: shots[0] });
           }
           // 输出到图片盒子（对齐官方 onCaptureToBox / H_.jsx xr）：
           //  1) 有连接到本节点的 imageBoxNode 下游 → 把截图追加到该图片盒子的 images

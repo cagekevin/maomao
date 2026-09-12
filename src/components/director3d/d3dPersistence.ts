@@ -106,7 +106,7 @@ export function projectKvKey(storageKey?: string): string {
  * @param {string} url 待判定的图片地址
  * @returns {boolean} 是否放行
  */
-export function isProjectImageUrl(url: unknown): boolean {
+export function isProjectAssetUrl(url: unknown): boolean {
   return (
     typeof url === 'string' &&
     url.length > 0 &&
@@ -165,12 +165,12 @@ export async function externalizeProjectImages(
     return src; // 落盘失败 → 保留原 base64
   };
 
-  if (out?.reference && isProjectImageUrl(out.reference.image)) {
+  if (out?.reference && isProjectAssetUrl(out.reference.image)) {
     out.reference.image = await maybeReplace(out.reference.image);
   }
   if (Array.isArray(out?.shots)) {
     for (const shot of out.shots) {
-      if (shot && isProjectImageUrl(shot.thumbnail)) {
+      if (shot && isProjectAssetUrl(shot.thumbnail)) {
         shot.thumbnail = await maybeReplace(shot.thumbnail);
       }
     }

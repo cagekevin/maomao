@@ -105,11 +105,11 @@ const RED_PNG_BUFFER = Buffer.from(RED_PNG_B64, 'base64');
 function makeCanvasState(projectId, extraNodes = []) {
   return {
     nodes: [
-      { id: 'node-1', type: 'image', data: { imageUrl: RED_PNG_DATA_URI, name: '原图' } },
+      { id: 'node-1', type: 'image', data: { assetUrl: RED_PNG_DATA_URI, name: '原图' } },
       {
         id: 'node-2',
         type: 'text',
-        data: { text: 'hello', imageUrl: 'http://example.com/normal.png' },
+        data: { text: 'hello', assetUrl: 'http://example.com/normal.png' },
       },
       ...extraNodes,
     ],
@@ -179,11 +179,11 @@ test('方案②·KV set 含 base64 的 JSON 画布对象 → value 变为 /files
   );
   const saved = parseResBody(getRes);
   assert.ok(
-    saved.nodes[0].data.imageUrl.startsWith('http://127.0.0.1:18080/files/canvas/'),
-    `imageUrl 应外置为绝对 /files URL, got=${saved.nodes[0].data.imageUrl}`,
+    saved.nodes[0].data.assetUrl.startsWith('http://127.0.0.1:18080/files/canvas/'),
+    `assetUrl 应外置为绝对 /files URL, got=${saved.nodes[0].data.assetUrl}`,
   );
   // 无 base64 的字段保持原样
-  assert.equal(saved.nodes[1].data.imageUrl, 'http://example.com/normal.png');
+  assert.equal(saved.nodes[1].data.assetUrl, 'http://example.com/normal.png');
   // 文本节点不受影响
   assert.equal(saved.nodes[1].data.text, 'hello');
 
@@ -191,7 +191,7 @@ test('方案②·KV set 含 base64 的 JSON 画布对象 → value 变为 /files
   const diskPath = path.join(
     TEST_DIR,
     'uploads',
-    saved.nodes[0].data.imageUrl.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, ''),
+    saved.nodes[0].data.assetUrl.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, ''),
   );
   assert.ok(fs.existsSync(diskPath), '磁盘应存在外置文件');
   assert.ok(RED_PNG_BUFFER.equals(fs.readFileSync(diskPath)), '落盘内容应与原图一致');
@@ -210,7 +210,7 @@ test('方案②·外置幂等：相同 base64 写两次 → 磁盘只一个文�
     getRes1,
     new URL('http://x/api/kv/get?key=canvas-state-v1-a'),
   );
-  const url1 = parseResBody(getRes1).nodes[0].data.imageUrl;
+  const url1 = parseResBody(getRes1).nodes[0].data.assetUrl;
 
   // 第二次（相同 base64 不同项目）
   res = makeRes();
@@ -224,7 +224,7 @@ test('方案②·外置幂等：相同 base64 写两次 → 磁盘只一个文�
     getRes2,
     new URL('http://x/api/kv/get?key=canvas-state-v1-b'),
   );
-  const url2 = parseResBody(getRes2).nodes[0].data.imageUrl;
+  const url2 = parseResBody(getRes2).nodes[0].data.assetUrl;
 
   assert.equal(url1, url2, '相同 base64 应映射同一 URL');
   const diskPath = path.join(
@@ -269,7 +269,7 @@ test('方案②·裸 base64 形态（img_orig_*）：整串外置为 URL', async
 
 test('方案②·失败回退：非法 data URI 保留原值，不破坏 {ok:true}', async () => {
   const res = makeRes();
-  const badObj = { nodes: [{ data: { imageUrl: 'data:image/png;base64,@@@invalid@@@' } }] };
+  const badObj = { nodes: [{ data: { assetUrl: 'data:image/png;base64,@@@invalid@@@' } }] };
   await kvMod.handleKvSet(makeJsonReq({ key: 'k1', value: JSON.stringify(badObj) }), res);
   const badBody = parseResBody(res);
   assert.equal(badBody.code, 0);
@@ -279,7 +279,7 @@ test('方案②·失败回退：非法 data URI 保留原值，不破坏 {ok:tru
   await kvMod.handleKvGet(makeGetReq(), getRes, new URL('http://x/api/kv/get?key=k1'));
   const saved = parseResBody(getRes);
   assert.equal(
-    saved.nodes[0].data.imageUrl,
+    saved.nodes[0].data.assetUrl,
     'data:image/png;base64,@@@invalid@@@',
     '非法 base64 应保留原值',
   );
@@ -1218,7 +1218,7 @@ test('docs62·rename 会改写画布 KV / 任务里对旧 url 的引用（原样
   // 画布 KV：节点A 存原样绝对、节点B 存编码绝对（模拟脚本箱参考图存编码形态）
   dbMod.run(db, `INSERT INTO kv (key, value) VALUES (?, ?)`, [
     'canvas-state-v1-p1',
-    JSON.stringify({ nodes: [{ data: { url: oldAbsRaw } }, { data: { imageUrl: oldAbsEnc } }] }),
+    JSON.stringify({ nodes: [{ data: { url: oldAbsRaw } }, { data: { assetUrl: oldAbsEnc } }] }),
   ]);
   // 任务：存编码相对
   dbMod.run(db, `INSERT INTO tasks (task_id, prompt) VALUES (?, ?)`, [
@@ -1276,7 +1276,7 @@ test('docs13·删除 task 不删盘：磁盘文件仍在（GC 裁决，不因任
   await kvMod.handleKvSet(
     makeJsonReq({
       key: 'canvas-state-v1-p',
-      value: JSON.stringify({ nodes: [{ id: 'n1', data: { imageUrl: url } }] }),
+      value: JSON.stringify({ nodes: [{ id: 'n1', data: { assetUrl: url } }] }),
     }),
     makeRes(),
   );
@@ -1361,7 +1361,7 @@ test('docs13·resources clear 只删记录不 rmSync 整目录', async () => {
   await kvMod.handleKvSet(
     makeJsonReq({
       key: 'canvas-state-v1-p',
-      value: JSON.stringify({ nodes: [{ id: 'n1', data: { imageUrl: url } }] }),
+      value: JSON.stringify({ nodes: [{ id: 'n1', data: { assetUrl: url } }] }),
     }),
     makeRes(),
   );
@@ -1534,7 +1534,7 @@ test('身份变更·move 改写画布 KV / 任务里对旧 url 的引用（原�
   const newAbsEnc = `http://127.0.0.1:18080/files/${encodeURI(newRel)}`;
   dbMod.run(db, `INSERT INTO kv (key, value) VALUES (?, ?)`, [
     'canvas-state-v1-p1',
-    JSON.stringify({ nodes: [{ data: { url: oldAbsRaw } }, { data: { imageUrl: oldAbsEnc } }] }),
+    JSON.stringify({ nodes: [{ data: { url: oldAbsRaw } }, { data: { assetUrl: oldAbsEnc } }] }),
   ]);
   dbMod.run(db, `INSERT INTO tasks (task_id, prompt) VALUES (?, ?)`, [
     't1',

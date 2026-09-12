@@ -182,7 +182,7 @@ test.beforeAll(async ({ request }) => {
 //   生图节点在「性能模式媒体降级」下会隐藏媒体（lodLevel ≥ 2，即画布缩得很小时
 //   `isHidden('image')` 为真 → 不渲染 <img>，只显示「性能模式已隐藏」）。DOM 断言会因此
 //   随画布缩放而假红。而用户报的症状本质是「保存后刷新，节点的图回退成旧图」——
-//   等价于「快照里的 data.imageUrl 回退了」，数据层断言既稳定又直击症状。
+//   等价于「快照里的 data.assetUrl 回退了」，数据层断言既稳定又直击症状。
 //   图片写回换 URL 是 C5「先落盘再写回」的必然结果（dataURL → /files/<sha1>.png）。
 // ════════════════════════════════════════════════════════════════════════
 const TEST_NODE_ID = 'e2e-img-node';
@@ -204,15 +204,15 @@ async function makeSeedDataUrl(page: Page): Promise<string> {
   });
 }
 
-/** 读快照里测试节点的 data.imageUrl（缺节点返回 null）。 */
-async function testNodeImageUrl(request: APIRequestContext, key: string): Promise<string | null> {
+/** 读快照里测试节点的 data.assetUrl（缺节点返回 null）。 */
+async function testNodeAssetUrl(request: APIRequestContext, key: string): Promise<string | null> {
   const snap = ((await kvSnapshot(request, key)) || {}) as Record<string, unknown>;
   const nodes = (Array.isArray(snap.nodes) ? snap.nodes : []) as Array<{
     id?: string;
-    data?: { imageUrl?: unknown };
+    data?: { assetUrl?: unknown };
   }>;
   const n = nodes.find((x) => x?.id === TEST_NODE_ID);
-  const url = n?.data?.imageUrl;
+  const url = n?.data?.assetUrl;
   return typeof url === 'string' && url ? url : null;
 }
 
@@ -232,7 +232,7 @@ async function seedTestImageNode(
     position: { x: 80, y: 80 },
     width: 420,
     height: 420,
-    data: { imageUrl: dataUrl, aspectRatio: 'Auto', label: 'e2e-image' },
+    data: { assetUrl: dataUrl, aspectRatio: 'Auto', label: 'e2e-image' },
   });
   const res = await request.post(`${LT}/api/kv/set`, {
     data: {
@@ -310,8 +310,8 @@ test.describe('画布快照 · 场景 1 单实例编辑器保存不回退', () =
       expect(key, '未能从页面请求里学到当前项目快照 key').toBeTruthy();
 
       await seedTestImageNode(page, request, key);
-      const urlBefore = await testNodeImageUrl(request, key);
-      expect(urlBefore, '种子节点的 imageUrl 未落到快照').toBeTruthy();
+      const urlBefore = await testNodeAssetUrl(request, key);
+      expect(urlBefore, '种子节点的 assetUrl 未落到快照').toBeTruthy();
 
       await page.reload();
       await page.waitForSelector('.react-flow', { timeout: 20000 });
@@ -327,7 +327,7 @@ test.describe('画布快照 · 场景 1 单实例编辑器保存不回退', () =
       // 所以这也是「裁剪真的裁到了东西」的兜底判据。
       let urlAfterCrop: string | null = null;
       for (let i = 0; i < 20 && !urlAfterCrop; i++) {
-        const cur = await testNodeImageUrl(request, key);
+        const cur = await testNodeAssetUrl(request, key);
         if (cur && cur !== urlBefore) urlAfterCrop = cur;
         else await page.waitForTimeout(1000);
       }
@@ -347,7 +347,7 @@ test.describe('画布快照 · 场景 1 单实例编辑器保存不回退', () =
       await page.reload();
       await page.waitForSelector('.react-flow', { timeout: 20000 });
       await expect
-        .poll(() => testNodeImageUrl(request, key), { timeout: 20000 })
+        .poll(() => testNodeAssetUrl(request, key), { timeout: 20000 })
         .toBe(urlAfterCrop);
     } finally {
       await page.close().catch(() => {});

@@ -82,7 +82,7 @@ type PatchDebouncedFn = {
  *
  * 【用法】
  *   const { patchData, patchDebounced } = useNodeData(id)
- *   patchData({ imageUrl: r.url })                 // 立即写回（成功/确认回填等关键路径）
+ *   patchData({ assetUrl: r.url })                 // 立即写回（成功/确认回填等关键路径）
  *   patchDebounced({ prompt })                      // 防抖写回（编辑器高频输入用）
  *
  * 【说明】

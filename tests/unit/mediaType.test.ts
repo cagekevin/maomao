@@ -1,25 +1,25 @@
 import { describe, it, expect } from 'vitest';
 import {
-  detectMediaType,
+  detectAssetType,
   detectFileType,
   classifyUrl,
-  classifyUrlKind,
-  resolveMediaType,
+  classifyAssetUrlKind,
+  resolveAssetType,
   isAssetUrl,
   isAudio,
-} from '../../src/components/base/utils/mediaType.ts';
+} from '../../src/components/base/utils/assetType.ts';
 
-describe('mediaType §2.17', () => {
-  it('detectMediaType 按 dataURL 前缀/扩展名分类', () => {
-    expect(detectMediaType('')).toBe('empty');
-    expect(detectMediaType('data:video/mp4;base64,xxx')).toBe('video');
-    expect(detectMediaType('data:audio/mp3;base64,xxx')).toBe('audio');
-    expect(detectMediaType('data:text/plain;base64,xxx')).toBe('text');
-    expect(detectMediaType('/files/a.png')).toBe('image');
-    expect(detectMediaType('http://x/a.mp4')).toBe('video');
-    expect(detectMediaType('http://x/a.mp3')).toBe('audio');
-    expect(detectMediaType('http://x/a.txt')).toBe('text');
-    expect(detectMediaType('http://x/a.webp')).toBe('image');
+describe('assetType §2.17', () => {
+  it('detectAssetType 按 dataURL 前缀/扩展名分类', () => {
+    expect(detectAssetType('')).toBe('empty');
+    expect(detectAssetType('data:video/mp4;base64,xxx')).toBe('video');
+    expect(detectAssetType('data:audio/mp3;base64,xxx')).toBe('audio');
+    expect(detectAssetType('data:text/plain;base64,xxx')).toBe('text');
+    expect(detectAssetType('/files/a.png')).toBe('image');
+    expect(detectAssetType('http://x/a.mp4')).toBe('video');
+    expect(detectAssetType('http://x/a.mp3')).toBe('audio');
+    expect(detectAssetType('http://x/a.txt')).toBe('text');
+    expect(detectAssetType('http://x/a.webp')).toBe('image');
   });
 
   it('detectFileType 按 File.type/name', () => {
@@ -52,44 +52,44 @@ describe('mediaType §2.17', () => {
 
 /**
  * 媒体判型唯一真值源（EXT_KIND 一张表）—— 此前的 5 处就地正则已全部委托本模块。
- * 本组用「对账断言」把统一钉住：detectMediaType / classifyUrl / isAudio 必须始终与同一张表一致，
+ * 本组用「对账断言」把统一钉住：detectAssetType / classifyUrl / isAudio 必须始终与同一张表一致，
  * 今后任何一处再另起一套判型都会在这里先红。
  */
 describe('媒体判型唯一真值源（EXT_KIND 表）', () => {
   it('data: 前缀优先于扩展名（data:video/ogg 仍是视频）', () => {
-    expect(classifyUrlKind('data:video/ogg;base64,xxx')).toBe('video');
-    expect(classifyUrlKind('data:audio/ogg;base64,xxx')).toBe('audio');
+    expect(classifyAssetUrlKind('data:video/ogg;base64,xxx')).toBe('video');
+    expect(classifyAssetUrlKind('data:audio/ogg;base64,xxx')).toBe('audio');
   });
 
   it('ogg 归音频、ogv 归视频、oga 归音频（历史漂移已统一）', () => {
-    expect(classifyUrlKind('http://x/a.ogg')).toBe('audio');
-    expect(classifyUrlKind('http://x/a.ogv')).toBe('video');
-    expect(classifyUrlKind('http://x/a.oga')).toBe('audio');
-    // 旧 classifyUrl 把 ogg 当 video、旧 detectMediaType 漏认 ogv —— 现两者一致
+    expect(classifyAssetUrlKind('http://x/a.ogg')).toBe('audio');
+    expect(classifyAssetUrlKind('http://x/a.ogv')).toBe('video');
+    expect(classifyAssetUrlKind('http://x/a.oga')).toBe('audio');
+    // 旧 classifyUrl 把 ogg 当 video、旧 detectAssetType 漏认 ogv —— 现两者一致
     expect(classifyUrl('http://x/a.ogg')).toBe('audio');
-    expect(detectMediaType('http://x/a.ogv')).toBe('video');
+    expect(detectAssetType('http://x/a.ogv')).toBe('video');
   });
 
   it('带查询串/锚点先剥离再判（不再因 ?token= 漏判成 image）', () => {
-    expect(detectMediaType('http://x/a.mp4?token=1')).toBe('video');
-    expect(detectMediaType('http://x/a.mov#t=1')).toBe('video');
+    expect(detectAssetType('http://x/a.mp4?token=1')).toBe('video');
+    expect(detectAssetType('http://x/a.mov#t=1')).toBe('video');
     expect(classifyUrl('http://x/a.flac?t=1')).toBe('audio');
-    expect(classifyUrlKind('http://x/a.mp3?file=b.mp4')).toBe('audio'); // 不误读查询串里的 .mp4
+    expect(classifyAssetUrlKind('http://x/a.mp3?file=b.mp4')).toBe('audio'); // 不误读查询串里的 .mp4
   });
 
   it('大小写不敏感；无扩展名 / 未知 / 空 返回 null（不猜）', () => {
-    expect(classifyUrlKind('HTTP://X/A.MP4')).toBe('video');
-    expect(classifyUrlKind('blob:http://127.0.0.1:3000/x')).toBeNull();
-    expect(classifyUrlKind('/files/noext')).toBeNull();
-    expect(classifyUrlKind('')).toBeNull();
-    expect(classifyUrlKind(null)).toBeNull();
+    expect(classifyAssetUrlKind('HTTP://X/A.MP4')).toBe('video');
+    expect(classifyAssetUrlKind('blob:http://127.0.0.1:3000/x')).toBeNull();
+    expect(classifyAssetUrlKind('/files/noext')).toBeNull();
+    expect(classifyAssetUrlKind('')).toBeNull();
+    expect(classifyAssetUrlKind(null)).toBeNull();
   });
 
   it('未知 data: URI 不扫 base64，直接 null（性能 + 不误判）', () => {
-    expect(classifyUrlKind('data:application/octet-stream;base64,AAA')).toBeNull();
+    expect(classifyAssetUrlKind('data:application/octet-stream;base64,AAA')).toBeNull();
   });
 
-  it('对账：detectMediaType 与 classifyUrl 同表（text/empty 在产出类型里归 image）', () => {
+  it('对账：detectAssetType 与 classifyUrl 同表（text/empty 在产出类型里归 image）', () => {
     const urls = [
       'http://x/a.png',
       'http://x/a.mp4',
@@ -104,20 +104,20 @@ describe('媒体判型唯一真值源（EXT_KIND 表）', () => {
       '',
     ];
     for (const u of urls) {
-      const d = detectMediaType(u);
-      expect(classifyUrl(u), `classifyUrl 应与 detectMediaType 同表：${u}`).toBe(
+      const d = detectAssetType(u);
+      expect(classifyUrl(u), `classifyUrl 应与 detectAssetType 同表：${u}`).toBe(
         d === 'text' || d === 'empty' ? 'image' : d,
       );
     }
   });
 
-  it('resolveMediaType：产出方声明优先于扩展名（blob/无扩展名兜底）', () => {
-    expect(resolveMediaType('blob:http://x/0', 'audio')).toBe('audio');
-    expect(resolveMediaType('blob:http://x/0', 'video')).toBe('video');
-    expect(resolveMediaType('http://x/a.mp4', undefined)).toBe('video');
-    expect(resolveMediaType('http://x/a.mp3', undefined)).toBe('audio');
-    expect(resolveMediaType('http://x/a.png', undefined)).toBe('image');
-    expect(resolveMediaType('', undefined)).toBe('image');
+  it('resolveAssetType：产出方声明优先于扩展名（blob/无扩展名兜底）', () => {
+    expect(resolveAssetType('blob:http://x/0', 'audio')).toBe('audio');
+    expect(resolveAssetType('blob:http://x/0', 'video')).toBe('video');
+    expect(resolveAssetType('http://x/a.mp4', undefined)).toBe('video');
+    expect(resolveAssetType('http://x/a.mp3', undefined)).toBe('audio');
+    expect(resolveAssetType('http://x/a.png', undefined)).toBe('image');
+    expect(resolveAssetType('', undefined)).toBe('image');
   });
 
   it('detectFileType：mime 优先于扩展名（旧实现按 name 先命中会判反）', () => {

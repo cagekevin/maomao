@@ -2,7 +2,7 @@ import React, { useImperativeHandle, useEffect, useRef, useCallback } from 'reac
 import { useThree, useFrame } from '@react-three/fiber';
 import { PerspectiveCamera, OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
-import { toAbsoluteFileUrl } from '../utils/imageUrl.ts';
+import { toAbsoluteFileUrl } from '../utils/assetUrl.ts';
 
 /**
  * 720 全景查看器核心
@@ -53,7 +53,7 @@ function PanoViewer({
   const setControls = useCallback((e: unknown) => {
     controlsRef.current = (e as PanoOrbit) ?? null;
   }, []);
-  // URL 归一化（统一图片出口）：data.imageUrl 可能是相对 /files/ 路径，
+  // URL 归一化（统一图片出口）：data.assetUrl 可能是相对 /files/ 路径，
   // 直接喂 TextureLoader 会在画布源（localhost:5180）解析失败 → 球体黑屏。
   const texture = useTexture(toAbsoluteFileUrl(url));
 

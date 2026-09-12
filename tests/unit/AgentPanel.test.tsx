@@ -16,7 +16,7 @@
  *  - conversationStore.setCurrentSnapshot 记录调用，验证 skills 同步落盘。
  *  - 其余外部依赖空桩；AgentMessage/ModelSelect 用最小桩（其自身已有/将有专测）。
  *
- * OOM 教训：AgentPanel 的 selectedMediaNodes 若用默认参数（每次渲染新 []），
+ * OOM 教训：AgentPanel 的 selectedAssetNodes 若用默认参数（每次渲染新 []），
  * 会与组件内 useEffect(setPendingMediaNodes) 无限 re-render → 堆溢出。测试必须传稳定引用。
  */
 import React from 'react';
@@ -288,14 +288,14 @@ if (typeof globalThis.window !== 'undefined') {
 
 // 稳定引用：默认参数每次渲染都是新 []，会与组件内 effect(setPendingMediaNodes) 无限 re-render → OOM
 const OPEN_PROPS = {
-  selectedMediaNodes: [],
+  selectedAssetNodes: [],
   open: true,
   onClose: vi.fn(),
   onWidthChange: vi.fn(),
   onEnabledChange: vi.fn(),
 };
 const CLOSED_PROPS = {
-  selectedMediaNodes: [],
+  selectedAssetNodes: [],
   open: false,
   onClose: vi.fn(),
   onWidthChange: vi.fn(),
@@ -561,7 +561,7 @@ describe('AgentPanel — 待引用图确认', () => {
     render(
       <AgentPanel
         {...OPEN_PROPS}
-        selectedMediaNodes={[
+        selectedAssetNodes={[
           { type: 'image', url: 'http://x/img.png', label: 'L', nodeId: 'n1', nodeType: 'image' },
         ]}
       />,
@@ -581,7 +581,7 @@ describe('AgentPanel — 待引用图确认', () => {
     render(
       <AgentPanel
         {...OPEN_PROPS}
-        selectedMediaNodes={[
+        selectedAssetNodes={[
           { type: 'video', url: 'http://x/clip.mp4', label: 'V', nodeId: 'v1', nodeType: 'video' },
           { type: 'audio', url: 'http://x/vo.mp3', label: 'A', nodeId: 'a1', nodeType: 'audio' },
         ]}

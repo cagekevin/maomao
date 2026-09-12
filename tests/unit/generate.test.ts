@@ -7,7 +7,7 @@
  *   - capability 分流（image/video→relayGenerate；chat→relayChat，绝不碰 relayChatStream）
  *   - 模态差异化（image 比例→像素查表；video 时长/清晰度/总超时）
  *   - abort 统一抛 AbortError（修正 1 选 A + §4.2.1 铁律：message 恒可被 /abort/i 匹配）
- *   - 参考图统一出口守卫（normalizeImageUrlsForSend）/ 参考图 attach 消息块
+ *   - 参考图统一出口守卫（normalizeAssetUrlsForSend）/ 参考图 attach 消息块
  *   - resolveImagePixel 查表纯函数（迁自 imageApi → base/utils/imagePixel.ts）
  *   - barrel 契约（只导出具名门面，不导出 generate）
  *
@@ -18,14 +18,14 @@ import type { GenerationResult } from '@/types';
 import type { RelayGenerationResult } from '@/components/base/api/relayProxy.ts';
 import type { NodeGenerationResult } from '@/hooks/useNodeGeneration.ts';
 
-vi.mock('../../src/components/base/utils/imageUrl.ts', () => ({
-  normalizeImageUrlsForSend: vi.fn(async () => []),
+vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
+  normalizeAssetUrlsForSend: vi.fn(async () => []),
   toImageContentBlocks: vi.fn((urls) =>
     (urls || []).map((url) => ({ type: 'image_url', image_url: { url } })),
   ),
   toAbsoluteFileUrl: vi.fn((u) => u),
-  normalizeImageUrl: vi.fn((u) => u),
-  normalizeImageUrlForSend: vi.fn(async (u) => u),
+  normalizeAssetUrl: vi.fn((u) => u),
+  normalizeAssetUrlForSend: vi.fn(async (u) => u),
 }));
 
 const h = vi.hoisted(() => ({
@@ -41,14 +41,14 @@ vi.mock('../../src/components/base/api/relayProxy.ts', () => ({
 
 const api = await import('@/components/base/api/generate.ts');
 const { resolveImagePixel } = await import('@/components/base/utils/imagePixel.ts');
-const { normalizeImageUrlsForSend } = await import('../../src/components/base/utils/imageUrl.ts');
+const { normalizeAssetUrlsForSend } = await import('../../src/components/base/utils/assetUrl.ts');
 
 beforeEach(() => {
   h.mockRelayGenerate.mockReset();
   h.mockRelayChat.mockReset();
   h.mockRelayChatStream.mockReset();
-  vi.mocked(normalizeImageUrlsForSend).mockReset();
-  vi.mocked(normalizeImageUrlsForSend).mockResolvedValue([]);
+  vi.mocked(normalizeAssetUrlsForSend).mockReset();
+  vi.mocked(normalizeAssetUrlsForSend).mockResolvedValue([]);
 });
 
 describe('generate — capability 分流与唯一入口（#1）', () => {
@@ -145,8 +145,8 @@ describe('generate — 三模态差异与信封（#2/#3 + 迁移）', () => {
     expect(intent.duration).toBeUndefined();
   });
 
-  it('参考图（#3）：缩略图 URL 经 normalizeImageUrlsForSend 还原后入 relayGenerate.images', async () => {
-    vi.mocked(normalizeImageUrlsForSend).mockResolvedValue(['http://ref/a.png']);
+  it('参考图（#3）：缩略图 URL 经 normalizeAssetUrlsForSend 还原后入 relayGenerate.images', async () => {
+    vi.mocked(normalizeAssetUrlsForSend).mockResolvedValue(['http://ref/a.png']);
     h.mockRelayGenerate.mockResolvedValue({ ok: true, url: 'http://x/y.png' });
     await api.generateImage({
       provider: { id: 'p1' },
@@ -154,7 +154,7 @@ describe('generate — 三模态差异与信封（#2/#3 + 迁移）', () => {
       model: 'm',
       images: ['blob:x'],
     });
-    expect(normalizeImageUrlsForSend).toHaveBeenCalledWith(['blob:x']);
+    expect(normalizeAssetUrlsForSend).toHaveBeenCalledWith(['blob:x']);
     expect(h.mockRelayGenerate.mock.calls[0][0].intent.images).toEqual(['http://ref/a.png']);
   });
 
@@ -240,19 +240,19 @@ describe('generate — chat 消息与透传（迁移自 chatApi）', () => {
     expect(opts.responseFormat).toBe('json_object');
   });
 
-  it('无参考图 → 不调 normalizeImageUrlsForSend，消息原样', async () => {
+  it('无参考图 → 不调 normalizeAssetUrlsForSend，消息原样', async () => {
     h.mockRelayChat.mockResolvedValue({ ok: true, content: 'x' });
     await api.chatCompletions({
       provider: { id: 'p1' },
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
     });
-    expect(normalizeImageUrlsForSend).not.toHaveBeenCalled();
+    expect(normalizeAssetUrlsForSend).not.toHaveBeenCalled();
     expect(h.mockRelayChat.mock.calls[0][0].messages).toEqual([{ role: 'user', content: 'hi' }]);
   });
 
-  it('有参考图 → normalizeImageUrlsForSend + 图片块追加到末条 user 消息', async () => {
-    vi.mocked(normalizeImageUrlsForSend).mockResolvedValue(['http://ref/x.png']);
+  it('有参考图 → normalizeAssetUrlsForSend + 图片块追加到末条 user 消息', async () => {
+    vi.mocked(normalizeAssetUrlsForSend).mockResolvedValue(['http://ref/x.png']);
     h.mockRelayChat.mockResolvedValue({ ok: true, content: 'x' });
     await api.chatCompletions({
       provider: { id: 'p1' },
@@ -260,7 +260,7 @@ describe('generate — chat 消息与透传（迁移自 chatApi）', () => {
       messages: [{ role: 'user', content: 'hi' }],
       images: ['blob:q'],
     });
-    expect(normalizeImageUrlsForSend).toHaveBeenCalledWith(['blob:q']);
+    expect(normalizeAssetUrlsForSend).toHaveBeenCalledWith(['blob:q']);
     const sent = h.mockRelayChat.mock.calls[0][0].messages;
     expect(sent).toHaveLength(1);
     expect(sent[0].content).toEqual([
@@ -269,7 +269,7 @@ describe('generate — chat 消息与透传（迁移自 chatApi）', () => {
     ]);
   });
 
-  it('normalizeImageUrlsForSend 返回空 → 不追加图片块，消息原样', async () => {
+  it('normalizeAssetUrlsForSend 返回空 → 不追加图片块，消息原样', async () => {
     h.mockRelayChat.mockResolvedValue({ ok: true, content: 'x' });
     await api.chatCompletions({
       provider: { id: 'p1' },
@@ -313,7 +313,7 @@ describe('barrel 契约（#8）', () => {
 
 describe('别名函数共用 generate 实现（#10，防各自实现漂移）', () => {
   it('generateImage 的意图组装（比例→像素查表、参考图归一）只可能发生在 generate() 内', async () => {
-    vi.mocked(normalizeImageUrlsForSend).mockResolvedValue(['http://ref/a.png']);
+    vi.mocked(normalizeAssetUrlsForSend).mockResolvedValue(['http://ref/a.png']);
     h.mockRelayGenerate.mockResolvedValue({ ok: true, url: 'http://x/y.png' });
     await api.generateImage({
       provider: { id: 'p1' },
@@ -325,7 +325,7 @@ describe('别名函数共用 generate 实现（#10，防各自实现漂移）', 
     });
     const { intent } = h.mockRelayGenerate.mock.calls[0][0];
     expect(intent.size).toBe('1152x2048'); // 走 resolveImagePixel（仅 generate() 调用）
-    expect(intent.images).toEqual(['http://ref/a.png']); // 走 normalizeImageUrlsForSend（仅 generate() 调用）
+    expect(intent.images).toEqual(['http://ref/a.png']); // 走 normalizeAssetUrlsForSend（仅 generate() 调用）
   });
   it('generateVideo 时长转字符串 + VIDEO_TIMEOUT 只发生在 generate() 内', async () => {
     h.mockRelayGenerate.mockResolvedValue({ ok: true, url: 'http://x/v.mp4' });
@@ -335,7 +335,7 @@ describe('别名函数共用 generate 实现（#10，防各自实现漂移）', 
     expect(timeoutMs).toBe(600000);
   });
   it('chatCompletions 走 relayChat 消息块组装只发生在 generate() 的 chat 分支', async () => {
-    vi.mocked(normalizeImageUrlsForSend).mockResolvedValue(['http://ref/x.png']);
+    vi.mocked(normalizeAssetUrlsForSend).mockResolvedValue(['http://ref/x.png']);
     h.mockRelayChat.mockResolvedValue({ ok: true, content: 'x' });
     await api.chatCompletions({
       provider: { id: 'p1' },

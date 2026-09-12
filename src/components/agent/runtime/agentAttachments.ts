@@ -5,24 +5,24 @@
  * 抽成独立纯函数，hook 只 import 调用。两处（send LLM 分支 / send 内 runDirectBranch 直连分支）共用统一附件归一出口。
  *
  * 约束：
- * - 【发送统一出口守卫】附件图必经 normalizeImageUrlForSend（含缩略图端点自动还原原图），禁止发 render 小图。
+ * - 【发送统一出口守卫】附件图必经 normalizeAssetUrlForSend（含缩略图端点自动还原原图），禁止发 render 小图。
  * - 只认 base64 的 provider（refFormat==='base64'）走 preferBase64 转 base64。
  * - 【视频/音频原样发送】多模态扩展：type==='video'|'audio' 的附件【不做图片压缩/转 base64/缩略图还原】——
  *   仅把相对 /files/ 补全为绝对路径，其余 URL 形态原样透传（由网关/模型自行消费）。图片逻辑完全不变。
- * - 【E 方案 · docs/72】/files/ 附件经 normalizeImageUrlForSend 在 URL 模式保持相对路径（不转 base64），
+ * - 【E 方案 · docs/72】/files/ 附件经 normalizeAssetUrlForSend 在 URL 模式保持相对路径（不转 base64），
  *   会话内存/落盘只存 /files/（KB 级，不触发体积降级）；出站时由 localTool resolveLocalImages
- *   统一读 uploads/ → 压缩≤1920 → base64。决策与边界见 imageUrl.js 文件头「E 方案的抉择」。
+ *   统一读 uploads/ → 压缩≤1920 → base64。决策与边界见 assetUrl.js 文件头「E 方案的抉择」。
  * - 目录编号固定按输入框从左到右（0-based 的 display 用 i+1），AI 在 generations 里用 attachment_indices（0-based）引用。
- * - 本层为纯函数：不 import React / store，一个附件归一函数可作 Promise 返回（内部 await normalizeImageUrlForSend）。
+ * - 本层为纯函数：不 import React / store，一个附件归一函数可作 Promise 返回（内部 await normalizeAssetUrlForSend）。
  *
- * 依赖方向（单向）：useAgentChat → agentAttachments → imageUrl / 其它 utils。无环。
+ * 依赖方向（单向）：useAgentChat → agentAttachments → assetUrl / 其它 utils。无环。
  */
 
 import {
-  normalizeImageUrlForSend,
+  normalizeAssetUrlForSend,
   toAbsoluteFileUrl,
-  summarizeImages,
-} from '../../base/utils/imageUrl.ts';
+  summarizeAssetUrls,
+} from '../../base/utils/assetUrl.ts';
 import { logger } from '../../base/core/logger.ts';
 
 /**
@@ -45,7 +45,7 @@ function normalizeMediaUrlForSend(url: string | null | undefined): string {
 
 /**
  * 归一化附件数组（发送统一出口）：每条 { ...a, url } 按媒体类型走对应归一管线。
- *  - 图片（type==='image' 或未标 type）→ normalizeImageUrlForSend（压缩/缩略图还原/E 方案相对路径/preferBase64）
+ *  - 图片（type==='image' 或未标 type）→ normalizeAssetUrlForSend（压缩/缩略图还原/E 方案相对路径/preferBase64）
  *  - 视频/音频（type==='video'|'audio'）→ normalizeMediaUrlForSend（原样，仅相对 /files/ 补全绝对）
  * @param {Array}  attachments 附件数组 [{ type, url, ... }]
  * @param {object} [opts]  { preferBase64?: boolean } 只认 base64 的 provider 传 true
@@ -67,7 +67,7 @@ export async function normalizeAttachmentsForSend(
 ): Promise<SendAttachment[]> {
   const items = (attachments || []).filter((a) => typeof a?.url === 'string' && a.url);
   // 【带图可观测】记录本次附件的媒体形态：几张图片（URL/Base64）+ 多少个视频/音频。
-  // 与 normalizeImageUrlsForSend 的日志语义一致，只记形态不携带内容。
+  // 与 normalizeAssetUrlsForSend 的日志语义一致，只记形态不携带内容。
   if (items.length > 0) {
     const imgUrls = items.filter((a) => !a.type || a.type === 'image').map((a) => a.url);
     const mediaCounts = items.reduce(
@@ -78,7 +78,7 @@ export async function normalizeAttachmentsForSend(
       {} as Record<string, number>,
     );
     logger.info('agentAttachments', '发送附件', {
-      ...summarizeImages(imgUrls),
+      ...summarizeAssetUrls(imgUrls),
       total: items.length,
       mediaCounts,
     });
@@ -89,7 +89,7 @@ export async function normalizeAttachmentsForSend(
       url:
         a?.type === 'video' || a?.type === 'audio'
           ? normalizeMediaUrlForSend(a?.url)
-          : await normalizeImageUrlForSend(a?.url, { preferBase64 }),
+          : await normalizeAssetUrlForSend(a?.url, { preferBase64 }),
     })),
   );
 }

@@ -11,7 +11,7 @@
  *  - AI打码全部失败 → toastError + 错误提示展示
  *  - 手动打码 → 打开编辑器、保存后输出 assetNode
  *  - 无图时 AI/手动按钮禁用（契约：不能空打码）
- *  - 上传图源落盘（TD-9 口径 A）：落盘成功 → 写回 data.imageUrls（刷新不丢）；
+ *  - 上传图源落盘（TD-9 口径 A）：落盘成功 → 写回 data.assetUrls（刷新不丢）；
  *    落盘失败退回 blob: 预览 → 不写回（blob 刷新即死链，不进快照）
  */
 import React from 'react';
@@ -55,7 +55,7 @@ vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
   useConnectedInputs: mocks.useConnectedInputs,
 }));
-vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }));
+vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   uploadFileToLocal: (...a: unknown[]) =>
     (h.uploadMock as unknown as (...x: unknown[]) => void)(...a),
@@ -78,7 +78,7 @@ vi.mock('../../src/components/base/utils/faceMosaic.ts', () => ({
   MOSAIC_PALETTE: ['#000000', '#ffffff'],
 }));
 vi.mock('../../src/components/base/editors/FaceMosaicEditor.tsx', () => ({
-  default: ({ imageUrl: _imageUrl, onSave, onClose }) =>
+  default: ({ assetUrl: _assetUrl, onSave, onClose }) =>
     React.createElement(
       'div',
       { 'data-testid': 'mosaic-editor' },
@@ -190,7 +190,7 @@ describe('FaceMosaicNode — AI打码', () => {
       });
       expect(spawnedNodes()).toHaveLength(1);
       const spawned = spawnedNodes()[0];
-      expect(spawned.data.imageUrl).toBe('http://local/mosaic.png');
+      expect(spawned.data.assetUrl).toBe('http://local/mosaic.png');
       expect(spawned.data.label).toBe('马赛克 1');
       // 结果信息（「共 <span>2</span> 张人脸」被拆分，跨元素匹配）
       expect(screen.getByText('1 张')).toBeTruthy();
@@ -232,24 +232,24 @@ describe('FaceMosaicNode — 上传图源落盘（TD-9 口径 A）', () => {
     fireEvent.change(input, { target: { files: [new File(['x'], name, { type: 'image/png' })] } });
   }
 
-  it('落盘成功 → 持久 URL 写回 data.imageUrls（刷新不丢）', async () => {
+  it('落盘成功 → 持久 URL 写回 data.assetUrls（刷新不丢）', async () => {
     h.uploadMock.mockResolvedValue('http://local/files/canvas/face_mosaic/a.png');
     setup();
     uploadFile();
     await waitFor(() => {
-      expect(lastData().imageUrls).toEqual(['http://local/files/canvas/face_mosaic/a.png']);
+      expect(lastData().assetUrls).toEqual(['http://local/files/canvas/face_mosaic/a.png']);
     });
     // 同一张图也进了输入预览（张数 0 → 1）
     expect(screen.getByText(/已连接/)).toBeTruthy();
   });
 
-  it('落盘失败（退回 blob 预览）→ 不写回 data.imageUrls，但预览仍在', async () => {
+  it('落盘失败（退回 blob 预览）→ 不写回 data.assetUrls，但预览仍在', async () => {
     h.uploadMock.mockResolvedValue(null);
     setup();
     uploadFile();
     // 预览出现即说明走完了上传流程（blob 兜底不进 data）
     await waitFor(() => expect(screen.getByText(/已连接/)).toBeTruthy());
-    expect(lastData().imageUrls).toBeUndefined();
+    expect(lastData().assetUrls).toBeUndefined();
   });
 });
 

@@ -57,7 +57,7 @@ vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.ts', async (import
 import {
   buildCanvasAgentTools,
   CANVAS_AGENT_TOOL_NAMES,
-  getNodeImageUrl,
+  getNodeAssetUrl,
   getNodeMedia,
   setCurrentReferenceImages,
   runExistingPlanTool,
@@ -411,29 +411,29 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(t.delete_node({ nodeId: 'x' }).ok).toBe(false);
   });
 
-  it('getNodeImageUrl：提取节点主图 URL（imageUrl 字符串）', () => {
-    expect(getNodeImageUrl({ data: { imageUrl: 'http://a/1.png' } })).toBe('http://a/1.png');
-    expect(getNodeImageUrl({ data: { url: 'http://a/2.png' } })).toBe('http://a/2.png');
-    expect(getNodeImageUrl({ data: {} })).toBe('');
+  it('getNodeAssetUrl：提取节点主图 URL（assetUrl 字符串）', () => {
+    expect(getNodeAssetUrl({ data: { assetUrl: 'http://a/1.png' } })).toBe('http://a/1.png');
+    expect(getNodeAssetUrl({ data: { url: 'http://a/2.png' } })).toBe('http://a/2.png');
+    expect(getNodeAssetUrl({ data: {} })).toBe('');
   });
 
-  it('getNodeImageUrl：支持 images/imageUrls 数组（字符串或对象）', () => {
+  it('getNodeAssetUrl：支持 images/assetUrls 数组（字符串或对象）', () => {
     expect(
-      getNodeImageUrl({ data: { images: [{ url: 'http://a/3.png' }, { url: 'http://a/4.png' }] } }),
+      getNodeAssetUrl({ data: { images: [{ url: 'http://a/3.png' }, { url: 'http://a/4.png' }] } }),
     ).toBe('http://a/3.png');
-    expect(getNodeImageUrl({ data: { images: ['http://a/5.png'] } })).toBe('http://a/5.png');
-    expect(getNodeImageUrl({ data: { imageUrls: [{ imageUrl: 'http://a/6.png' }] } })).toBe(
+    expect(getNodeAssetUrl({ data: { images: ['http://a/5.png'] } })).toBe('http://a/5.png');
+    expect(getNodeAssetUrl({ data: { assetUrls: [{ assetUrl: 'http://a/6.png' }] } })).toBe(
       'http://a/6.png',
     );
-    expect(getNodeImageUrl({ data: { images: [] } })).toBe('');
+    expect(getNodeAssetUrl({ data: { images: [] } })).toBe('');
   });
 
   it('getNodeMedia：视频节点返回本体 videoUrl + type=video', () => {
     expect(
-      getNodeMedia({ data: { videoUrl: 'http://a/c.mp4', imageUrl: 'http://a/cov.png' } }),
+      getNodeMedia({ data: { videoUrl: 'http://a/c.mp4', assetUrl: 'http://a/cov.png' } }),
     ).toEqual({ type: 'video', url: 'http://a/c.mp4' });
-    // 显式 mediaType::video 且仅 url → 用 url 作本体并判 video
-    expect(getNodeMedia({ data: { mediaType: 'video', url: 'http://a/c.mp4' } })).toEqual({
+    // 显式 assetType::video 且仅 url → 用 url 作本体并判 video
+    expect(getNodeMedia({ data: { assetType: 'video', url: 'http://a/c.mp4' } })).toEqual({
       type: 'video',
       url: 'http://a/c.mp4',
     });
@@ -444,14 +444,14 @@ describe('画布 Agent 工具层 §2.5', () => {
       type: 'audio',
       url: 'http://a/v.mp3',
     });
-    expect(getNodeMedia({ data: { mediaType: 'audio', url: 'http://a/v.ogg' } })).toEqual({
+    expect(getNodeMedia({ data: { assetType: 'audio', url: 'http://a/v.ogg' } })).toEqual({
       type: 'audio',
       url: 'http://a/v.ogg',
     });
   });
 
   it('getNodeMedia：图片节点退化为主图 + type=image；无媒体返回空', () => {
-    expect(getNodeMedia({ data: { imageUrl: 'http://a/1.png' } })).toEqual({
+    expect(getNodeMedia({ data: { assetUrl: 'http://a/1.png' } })).toEqual({
       type: 'image',
       url: 'http://a/1.png',
     });
@@ -496,7 +496,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('update_node_any_field 合并任意字段', () => {
     const ctx = makeCtx([{ id: 'a', type: 'imageGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.update_node_any_field({ nodeId: 'a', patch: { custom: 1, imageUrl: '/f.png' } });
+    const r = t.update_node_any_field({ nodeId: 'a', patch: { custom: 1, assetUrl: '/f.png' } });
     expect(r.ok).toBe(true);
     expect(ctx.getNodes()[0].data.custom).toBe(1);
   });
@@ -591,7 +591,7 @@ describe('画布 Agent 工具层 §2.5', () => {
         {
           id: 'a',
           type: 'textGenerateNode',
-          data: { label: 'X', imageUrl: '/f.png' },
+          data: { label: 'X', assetUrl: '/f.png' },
           position: { x: 1, y: 2 },
         },
       ],
@@ -601,7 +601,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(t.list_nodes({}).data.nodes).toHaveLength(1);
     expect(t.list_edges({}).data.edges).toHaveLength(1);
     const rc = t.read_canvas({});
-    expect(rc.data.nodes[0].imageUrl).toBe('/f.png');
+    expect(rc.data.nodes[0].assetUrl).toBe('/f.png');
   });
 
   it('get_node_details 读详情', () => {

@@ -60,7 +60,7 @@ export type { UseAgentChatReturn } from './runtime/useAgentChat.ts';
 export {
   setGenParams,
   getGenParams,
-  getNodeImageUrl,
+  getNodeAssetUrl,
   getNodeMedia,
   getCreditSwitch,
   setCreditSwitch,

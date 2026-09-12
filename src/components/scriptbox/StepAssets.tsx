@@ -15,7 +15,7 @@ import { ZgPrompt, removeAsset, renameAssetRefs } from './scriptBoxPrompts.ts';
 import { resolveAssetTemplates } from './scriptBoxPromptResolver.ts';
 import { assetFolderOf } from '../base/store/assetStore.ts';
 import { useOutsideClick } from '../base/core/uiHooks.ts';
-import { useRenderImageResolver, toAbsoluteFileUrl } from '../base/utils/imageUrl.ts';
+import { useRenderAssetResolver, toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import ScriptBoxAssetPicker from './ScriptBoxAssetPicker.tsx';
 import type { ScriptBoxData, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema.ts';
@@ -54,7 +54,7 @@ export default function StepAssets({ data, updateData, callbacks }: StepAssetsPr
   // 「从素材库选择」：picking 记录正在选图的资产 id（非空时弹出素材库选择器）
   const [picking, setPicking] = useState<number | null>(null);
   // 缩略图显示复用系统统一按需出图出口（与 AssetNode 一致），不再各自落盘独立缩略图文件
-  const render = useRenderImageResolver();
+  const render = useRenderAssetResolver();
 
   const CATS = [
     { k: 'character', n: '角色', icon: <User size={12} /> },
@@ -191,7 +191,7 @@ export default function StepAssets({ data, updateData, callbacks }: StepAssetsPr
                   a.id === assets[picking].id
                     ? {
                         ...a,
-                        imageUrl: abs,
+                        assetUrl: abs,
                         thumbnailUrl: abs,
                         has: true,
                         imageStatus: 'uploaded',
@@ -218,7 +218,7 @@ function addAsset(updateData: ScriptBoxUpdateData, cat: string, assets: ScriptBo
     name,
     description: '',
     prompt: '',
-    imageUrl: '',
+    assetUrl: '',
     thumbnailUrl: '',
     has: false,
     loading: false,
@@ -285,14 +285,14 @@ function AssetCard({
       >
         {asset.loading ? (
           <Loader2 size={16} className="animate-spin text-secondary" />
-        ) : asset.imageUrl ? (
+        ) : asset.assetUrl ? (
           <img
-            src={render(asset.imageUrl)}
+            src={render(asset.assetUrl)}
             alt={asset.name}
             className="w-full h-full object-cover"
             onDoubleClick={(e) => {
               e.stopPropagation();
-              onZoomClick?.(asset.imageUrl);
+              onZoomClick?.(asset.assetUrl);
             }}
           />
         ) : asset.has ? (

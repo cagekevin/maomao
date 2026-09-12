@@ -656,11 +656,11 @@ function runConsistencyCheck(db, projectId) {
     return path.join(uploadsRoot, decodeURIComponent(m[1]));
   };
 
-  // 收集节点媒体 URL（含 imageUrl / videoUrl / images[] 数组 / poster 等）
+  // 收集节点媒体 URL（含 imageUrl / assetUrl / videoUrl / images[] 数组 / poster 等）
   const collectMediaUrls = (n) => {
     const urls = [];
     const d = (n && n.data) || {};
-    for (const k of ['imageUrl', 'videoUrl', 'thumbnailUrl', 'poster', 'url']) {
+    for (const k of ['imageUrl', 'assetUrl', 'videoUrl', 'thumbnailUrl', 'poster', 'url']) {
       if (typeof d[k] === 'string' && d[k]) urls.push({ field: k, url: d[k] });
     }
     if (Array.isArray(d.images)) {

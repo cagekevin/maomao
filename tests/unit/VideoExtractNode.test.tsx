@@ -50,7 +50,7 @@ const h = vi.hoisted(() => {
 vi.mock('@xyflow/react', () => mocks.xyflow);
 vi.mock('../../src/components/base/ui/NodeTitle.tsx', () => ({ default: mocks.NodeTitle }));
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => h.connected }));
-vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }));
+vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
 vi.mock('../../src/components/base/core/toastStore.ts', () => ({
   showToast: (...a) => h.showToast(...a),
   toastError: vi.fn(),

@@ -19,8 +19,8 @@ import NodeShell from '../base/ui/NodeShell.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { patchNodeDataById } from '../../hooks/useNodeData.ts';
-import { classifyUrlKind } from '../base/utils/mediaType.ts';
-import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
+import { classifyAssetUrlKind } from '../base/utils/assetType.ts';
+import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { useNodeResize } from '../base/core/uiHooks.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { logger } from '../base/core/logger.ts';
@@ -297,7 +297,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
   const rename = useNodeRename(id);
   const history = useCanvasEdges();
-  const { isHidden } = useMediaDegrade();
+  const { isHidden } = useAssetDegrade();
   const { onMainBoxResize: _onMainBoxResize } = useNodeResize(id);
   const contentRef = useRef<HTMLDivElement | null>(null);
 
@@ -359,9 +359,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     for (const im of connected.images || []) {
       if (!im?.url) continue;
       const u = im.url;
-      // 视频判定统一走 mediaType.classifyUrlKind（含 data:video/ 前缀与 ?# 处理）；
+      // 视频判定统一走 assetType.classifyAssetUrlKind（含 data:video/ 前缀与 ?# 处理）；
       // blob: 是本节点自身处理产出的视频 URL（无扩展名），显式保留
-      if (u.startsWith('blob:') || classifyUrlKind(u) === 'video') {
+      if (u.startsWith('blob:') || classifyAssetUrlKind(u) === 'video') {
         if (seen.has(u)) continue;
         seen.add(u);
         list.push({ url: u });
@@ -945,8 +945,8 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
             id: nid,
             type: 'assetNode',
             position: { x: baseX, y: baseY },
-            // mediaType:'video'：blob 视频 URL 无扩展名/前缀，靠显式类型让 assetNode 正确渲染视频
-            data: { imageUrl: url, mediaType: 'video', label: name, expanded: true },
+            // assetType:'video'：blob 视频 URL 无扩展名/前缀，靠显式类型让 assetNode 正确渲染视频
+            data: { assetUrl: url, assetType: 'video', label: name, expanded: true },
             style: { width: 420, height: 380 },
           },
         ],
@@ -970,8 +970,8 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
             id: nid,
             type: 'assetNode',
             position: { x: baseX, y: baseY },
-            // mediaType:'audio'：blob 音频 URL 无扩展名/前缀，靠显式类型让 assetNode 正确渲染音频
-            data: { imageUrl: url, mediaType: 'audio', label: name, expanded: false },
+            // assetType:'audio'：blob 音频 URL 无扩展名/前缀，靠显式类型让 assetNode 正确渲染音频
+            data: { assetUrl: url, assetType: 'audio', label: name, expanded: false },
             style: { width: 320, height: 200 },
           },
         ],
@@ -982,7 +982,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     [id, getNode, getNodes, getEdges, setNodes, setEdges, history],
   );
 
-  // GIF 结果 spawn 成图片节点（gif 是图片，mediaType:'image'）
+  // GIF 结果 spawn 成图片节点（gif 是图片，assetType:'image'）
   const spawnGifNode = useCallback(
     (url, name) => {
       const me = getNode(id);
@@ -996,7 +996,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
             id: nid,
             type: 'assetNode',
             position: { x: baseX, y: baseY },
-            data: { imageUrl: url, mediaType: 'image', label: name, expanded: false },
+            data: { assetUrl: url, assetType: 'image', label: name, expanded: false },
             style: { width: 360, height: 260 },
           },
         ],

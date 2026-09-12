@@ -29,12 +29,12 @@ import FullscreenShell from '../panels/FullscreenShell.tsx';
  * 完成 → onSave(dataUrl)；取消 → onClose。
  */
 interface FaceMosaicEditorProps {
-  imageUrl?: string;
+  assetUrl?: string;
   onSave?: (dataUrl: string) => void;
   onClose?: () => void;
 }
 
-export default function FaceMosaicEditor({ imageUrl, onSave, onClose }: FaceMosaicEditorProps) {
+export default function FaceMosaicEditor({ assetUrl, onSave, onClose }: FaceMosaicEditorProps) {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const origImgRef = useRef(null); // 原始 Image（mosaic/blur 需要原图做像素源）
@@ -102,8 +102,8 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }: FaceMosa
       }
     };
     img.onerror = () => onClose();
-    img.src = imageUrl;
-  }, [imageUrl, onClose]);
+    img.src = assetUrl;
+  }, [assetUrl, onClose]);
 
   // 屏幕坐标 → 图片坐标（复刻官方 k）
   const toCanvasPos = (cx, cy) => {
@@ -188,7 +188,7 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }: FaceMosa
     if (!c || !ctx || !src) return;
     setRecognizing(true);
     try {
-      const boxes = await detectFaces(imageUrl);
+      const boxes = await detectFaces(assetUrl);
       if (boxes.length === 0) return;
       const shape = mode === 'mosaic' || mode === 'blur' ? 'ellipse' : 'rect';
       for (const b of boxes) {

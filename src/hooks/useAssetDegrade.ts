@@ -17,7 +17,7 @@ import { useLod } from '../components/base/canvas/lod.tsx';
  * 接真系统：官方是「用缩略图替换原图」（useThumbnail）而非完全隐藏。接 localTool 缩略图
  * 服务后，可把「隐藏占位」改成「换 thumbnailUrl」，本 hook 只负责算降级级别，无需改。
  */
-export function useMediaDegrade() {
+export function useAssetDegrade() {
   const { lodLevel = 0 } = useLod();
   const hideMedia = useMemo(
     () => (lodLevel >= 3 ? 'image video audio' : lodLevel >= 2 ? 'image' : ''),

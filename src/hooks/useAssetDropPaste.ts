@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { DragEvent as ReactDragEvent, ClipboardEvent as ReactClipboardEvent } from 'react';
-import { detectFileType, isAssetUrl } from '../components/base/utils/mediaType.ts';
+import { detectFileType, isAssetUrl } from '../components/base/utils/assetType.ts';
 import { isEditableTarget } from '../components/base/core/uiHooks.ts';
 import { sanitizePastedText } from '../components/base/utils/clipboard.ts';
 import { showToast, toastError } from '../components/base/core/toastStore.ts';
 import {
-  resolveNodeImageUrl,
+  resolveNodeAssetUrl,
   downloadRemoteToLocal,
   WEB_DROP_SUBFOLDER,
 } from '../components/base/api/index.ts';
@@ -99,7 +99,7 @@ export interface AssetDropPasteApi {
  * @param {Function} opts.screenToFlowPosition  屏幕坐标 → 画布坐标
  * @param {Function} opts.onPasteNodeGroup  粘贴节点组（mutiwindow-nodes）回调：onPasteNodeGroup(json, pos) → boolean
  * @param {Function} [opts.patchNodeData]  节点 data 写回：patchNodeData(id, patch)（走 useNodeData 唯一入口；
- *                                         网页图后台本地化成功后替换 imageUrl 用；不传则跳过本地化）
+ *                                         网页图后台本地化成功后替换 assetUrl 用；不传则跳过本地化）
  * @returns {{ onDragOver, onDrop, onPaste }} 挂到 ReactFlow 的事件 + 供 window paste 监听
  */
 export function useAssetDropPaste({
@@ -148,16 +148,16 @@ export function useAssetDropPaste({
       }
       if (type === 'other' || type === 'empty') return;
       // 图片/视频/音频：统一落盘策略（File 直传成 /files/ URL → 落盘失败（localTool 离线等）内联 dataURL 兜底
-      // → 连内联都拿不到才算真失败），唯一实现见 filesApi.resolveNodeImageUrl。
+      // → 连内联都拿不到才算真失败），唯一实现见 filesApi.resolveNodeAssetUrl。
       // 收益：不把大视频 dataURL 塞进快照；localTool 离线时仍能拖入看到图。
       (async () => {
-        const url = await resolveNodeImageUrl(file, UPLOAD_DIRS.canvasDrop);
+        const url = await resolveNodeAssetUrl(file, UPLOAD_DIRS.canvasDrop);
         if (!url) {
           // 真失败（落盘已成功回退内联，走到这里说明文件读取也失败）→ 提示一次，不再静默
           toastError(`导入失败：无法读取「${file.name}」`);
           return;
         }
-        addNode('assetNode', pos, { imageUrl: url, label: file.name });
+        addNode('assetNode', pos, { assetUrl: url, label: file.name });
         showToast(
           `已导入${type === 'image' ? '图片' : type === 'video' ? '视频' : '音频'}「${file.name}」`,
         );
@@ -168,17 +168,17 @@ export function useAssetDropPaste({
 
   // 拖入网络图片 URL → 先用原 URL 同步建 assetNode（立即显示，能显示就显示，防盗链破图不阻塞导入）。
   // 后台本地化（先显示后替换）：复用后端 fileUrl 下载（服务端 + 7897 代理，绕 CORS）落盘专用 web 目录，
-  // 成功把节点 imageUrl 替换为本地 /files/ URL（发送/图生图/压缩/裁剪都能用）；失败保持原 URL，不打扰、日志留痕。
-  // 不加 label：与 onPaste 的 html <img> 建图路径一致，节点 data 保持最简 { imageUrl }。
+  // 成功把节点 assetUrl 替换为本地 /files/ URL（发送/图生图/压缩/裁剪都能用）；失败保持原 URL，不打扰、日志留痕。
+  // 不加 label：与 onPaste 的 html <img> 建图路径一致，节点 data 保持最简 { assetUrl }。
   const addImageNodeFromUrl = useCallback(
     (pos: FlowPosition, url: string) => {
       if (!url) return;
-      const id = addNode('assetNode', pos, { imageUrl: url });
+      const id = addNode('assetNode', pos, { assetUrl: url });
       // 未注入 patchNodeData 则跳过本地化（纯显示模式）；非 http(s) 由 downloadRemoteToLocal 内部拦截（返回 null 不替换）
       if (id && typeof patchNodeData === 'function') {
         downloadRemoteToLocal(url, { folder: WEB_DROP_SUBFOLDER })
           .then((localUrl) => {
-            if (localUrl && localUrl !== url) patchNodeData(id, { imageUrl: localUrl });
+            if (localUrl && localUrl !== url) patchNodeData(id, { assetUrl: localUrl });
           })
           .catch((e) => logger.warn('assetDrop', '网页图本地化失败，保持原 URL', e));
       }
@@ -216,7 +216,7 @@ export function useAssetDropPaste({
               addNode('textGenerateNode', pos, { text: content, label: asset.name || '文字素材' });
               showToast(`已添加文字素材「${asset.name || '文字素材'}」`);
             } else {
-              addNode('assetNode', pos, { imageUrl: asset.url, label: asset.name || '素材' });
+              addNode('assetNode', pos, { assetUrl: asset.url, label: asset.name || '素材' });
               showToast(`已添加素材「${asset.name || '素材'}」`);
             }
             return;
@@ -279,7 +279,7 @@ export function useAssetDropPaste({
             addNode(
               'assetNode',
               { x: pos.x + col * 150, y: pos.y + row * 150 },
-              { imageUrl: img, label: `提取帧 ${i + 1}` },
+              { assetUrl: img, label: `提取帧 ${i + 1}` },
             );
           });
           showToast(`已粘贴 ${images.length} 张提取的图片`);
@@ -423,7 +423,7 @@ export function useAssetDropPaste({
         const src = extractImgFromHtml(html);
         if (src) {
           e.preventDefault();
-          if (isAssetUrl(src)) addNode('assetNode', pos, { imageUrl: src });
+          if (isAssetUrl(src)) addNode('assetNode', pos, { assetUrl: src });
           else addNode('textGenerateNode', pos, { text: src, expanded: false });
           return;
         }
@@ -465,7 +465,7 @@ export function useAssetDropPaste({
                 const html = await readClipText(item, 'text/html');
                 const src = extractImgFromHtml(html);
                 if (src) {
-                  if (isAssetUrl(src)) addNode('assetNode', pos, { imageUrl: src });
+                  if (isAssetUrl(src)) addNode('assetNode', pos, { assetUrl: src });
                   else addNode('textGenerateNode', pos, { text: src, expanded: false });
                   return;
                 }

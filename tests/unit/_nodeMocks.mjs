@@ -84,9 +84,9 @@ const useConnectedInputs = () => connectedInputsState;
 const setConnectedInputs = (v) => {
   connectedInputsState = v;
 };
-// AssetNode 用 useMediaDegrade().hideMedia 直接做 includes 判断（'' / [] 等"不隐藏"空值）；
+// AssetNode 用 useAssetDegrade().hideMedia 直接做 includes 判断（'' / [] 等"不隐藏"空值）；
 // GridSplit/GridMerge 等用 isHidden()。两者都 stub，掩盖两种调用形态。
-const useMediaDegrade = () => ({ hideMedia: [], isHidden: () => false });
+const useAssetDegrade = () => ({ hideMedia: [], isHidden: () => false });
 const useNodeResize = () => ({ onInputResize: () => {} });
 const useContentHeightSync = () => {}; // 内容高度自适应 hook（jsdom 无 ResizeObserver 反馈，测试用 no-op）
 const useOutsideClick = () => {};
@@ -130,8 +130,8 @@ const saveResultToTasks = async () => undefined;
 const saveTextToTasks = async () => undefined;
 const saveInlineToLocal = async () => 'local://x';
 const uploadFileToLocal = async () => 'local://up';
-// 落盘收口：File → /files/ URL（失败回退内联），与 filesApi.resolveNodeImageUrl 同签名
-const resolveNodeImageUrl = async () => 'local://up';
+// 落盘收口：File → /files/ URL（失败回退内联），与 filesApi.resolveNodeAssetUrl 同签名
+const resolveNodeAssetUrl = async () => 'local://up';
 
 const useProviders = () => ({ providers: [] });
 const loadProviders = async () => {};
@@ -152,7 +152,7 @@ const chatCompletions = async (...a) => {
   return { choices: [{ message: { content: '{"ok":true}' } }] };
 };
 
-const detectMediaType = () => ({ type: 'image' });
+const detectAssetType = () => ({ type: 'image' });
 const compressImage = async (url) => url;
 
 const publish = () => {};
@@ -222,7 +222,7 @@ export const mocks = {
   renderOverlayCanvas,
   useConnectedInputs,
   setConnectedInputs,
-  useMediaDegrade,
+  useAssetDegrade,
   useNodeResize,
   useContentHeightSync,
   useOutsideClick,
@@ -241,7 +241,7 @@ export const mocks = {
   saveTextToTasks,
   saveInlineToLocal,
   uploadFileToLocal,
-  resolveNodeImageUrl,
+  resolveNodeAssetUrl,
   useProviders,
   loadProviders,
   buildAllModels,
@@ -250,7 +250,7 @@ export const mocks = {
   generateImage,
   chatCompletionsCalls,
   chatCompletions,
-  detectMediaType,
+  detectAssetType,
   compressImage,
   publish,
   withTimeout,

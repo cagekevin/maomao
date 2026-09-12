@@ -15,13 +15,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 /**
- * 收口：LazyImage 显示出口统一走 useRenderImageResolver（原生 render 出口）——
+ * 收口：LazyImage 显示出口统一走 useRenderAssetResolver（原生 render 出口）——
  * 本地 /files/ 走按需小图端点；外部 http / data: 回退原绝对地址；空串保持空。
  */
 
-// 统一出口：resolveImageUrl(render) — 本地 /files/ → 缩略图端点；http 原样/补绝对；空/非字符串原样
-vi.mock('../../src/components/base/utils/imageUrl.ts', () => ({
-  useRenderImageResolver: () => (u) => {
+// 统一出口：resolveAssetUrl(render) — 本地 /files/ → 缩略图端点；http 原样/补绝对；空/非字符串原样
+vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
+  useRenderAssetResolver: () => (u) => {
     if (!u || typeof u !== 'string') return u;
     if (u.startsWith('/files/')) return `THUMB${u}`;
     if (u.startsWith('http://127.0.0.1:18080/files/'))
@@ -30,7 +30,7 @@ vi.mock('../../src/components/base/utils/imageUrl.ts', () => ({
   },
 }));
 
-// appSettings（thumbnailOn）：useRenderImageResolver 读取 —— mock 提供默认 true
+// appSettings（thumbnailOn）：useRenderAssetResolver 读取 —— mock 提供默认 true
 vi.mock('../../src/components/base/store/appSettings.ts', () => ({
   useAppSettings: () => ({ thumbnailOn: true }),
 }));

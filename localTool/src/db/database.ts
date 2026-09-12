@@ -295,7 +295,7 @@ let _saveTimer: ReturnType<typeof setTimeout> | null = null;
  * 统一改写库内旧本地 url 引用 → 新 url（改名 / 移动后调用，防止旧引用 404）。
  *
  * 【为什么存在】rename/move 会改物理文件名 → resources id/url 变化。但画布 KV 快照
- * （canvas-state-v1-{projectId}，含各节点 data.url/imageUrl 与脚本箱参考图 imageUrl）、
+ * （canvas-state-v1-{projectId}，含各节点 data.url/assetUrl/imageUrl 与脚本箱参考图 assetUrl）、
  * tasks 的 url 相关列里可能仍存着旧 url；旧路径文件已 rename 走 → 下游一读就 404
  * （如脚本箱图生图「参考素材上传失败」）。故在此一次性把旧 url 的所有引用改写为新 url。
  *

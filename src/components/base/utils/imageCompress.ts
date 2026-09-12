@@ -20,8 +20,8 @@ import { httpRequest } from '../api/httpClient.ts';
 import { IMAGE_LOAD_TIMEOUT, API_BASE } from '../core/config.ts';
 import { dataUrlToBlob } from '../core/utils.ts';
 
-// 加载用地址补全：/files/ 相对 → 绝对（本地引擎端口）。与 imageUrl.js 的 toAbsoluteFileUrl 逻辑一致，
-// 但这里不 import imageUrl 以避免「imageUrl → imageCompress → imageUrl」循环依赖（imageUrl 发送出口要调本模块）。
+// 加载用地址补全：/files/ 相对 → 绝对（本地引擎端口）。与 assetUrl.js 的 toAbsoluteFileUrl 逻辑一致，
+// 但这里不 import assetUrl 以避免「assetUrl → imageCompress → assetUrl」循环依赖（assetUrl 发送出口要调本模块）。
 function toLoadableUrl(url: string): string {
   return typeof url === 'string' && url.startsWith('/files/') ? `${API_BASE}${url}` : url;
 }

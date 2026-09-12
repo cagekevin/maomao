@@ -20,9 +20,9 @@ describe('externalizeInlineData — 内联资源外置', () => {
 
   it('转换成功：data: 字段被 URL 替换，converted=1 failed=0', async () => {
     const save = vi.fn().mockResolvedValue('http://localhost/files/canvas/abc.png');
-    const r = await externalizeInlineData({ imageUrl: 'data:image/png;base64,xxx' }, { save });
+    const r = await externalizeInlineData({ assetUrl: 'data:image/png;base64,xxx' }, { save });
     expect(save).toHaveBeenCalledWith('data:image/png;base64,xxx');
-    expect(r.data.imageUrl).toBe('http://localhost/files/canvas/abc.png');
+    expect(r.data.assetUrl).toBe('http://localhost/files/canvas/abc.png');
     expect(r.converted).toBe(1);
     expect(r.failed).toBe(0);
   });

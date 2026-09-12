@@ -13,13 +13,13 @@ import NodeShell from '../base/ui/NodeShell.tsx';
 import { useContentHeightSync } from '../base/core/uiHooks.ts';
 import GenerateButton from '../base/ui/GenerateButton.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
+import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { contentSet } from '../base/core/contentStore.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import '../base/api/index.ts';
-import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
+import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { downloadUrl } from '../base/utils/clipboard.ts';
 import { logger } from '../base/core/logger.ts';
 import { classifyError } from '../base/utils/genErrors.ts';
@@ -41,7 +41,7 @@ const MULTIWINDOW_CLIPBOARD_KEY = 'mutiwindow-clipboard';
  *   </NodeShell>
  *
  * 功能：
- *  - 视频来源：上传视频文件 或 从直接上游节点自动获取（videoUrl / imageUrl / text 里的视频链接）
+ *  - 视频来源：上传视频文件 或 从直接上游节点自动获取（videoUrl / assetUrl / text 里的视频链接）
  *  - 5 种抽帧模式：固定数量 / 等距 / 智能转场 / 首尾帧 / 手动截取
  *  - 用 canvas.drawImage 抽帧，输出 JPEG base64 缩略图网格
  *  - 单帧/全部复制（mutiwindow-images 格式，可 Ctrl+V 粘贴成图片节点）
@@ -88,9 +88,9 @@ interface ExtractTimes {
 
 function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
   const connected = useConnectedInputs(id);
-  const { isHidden } = useMediaDegrade();
+  const { isHidden } = useAssetDegrade();
   const hideVideo = isHidden('video');
-  const render = useRenderImageResolver();
+  const render = useRenderAssetResolver();
 
   // 模式与参数
   const [mode, setMode] = useState(data.mode || 'count');

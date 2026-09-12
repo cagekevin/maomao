@@ -33,7 +33,7 @@ import {
 } from '../api/filesApi.ts';
 import { PanelSubBar, PanelPills, PanelMoreMenu } from './PanelBar.tsx';
 import { logger } from '../core/logger.ts';
-import { isAudio } from '../utils/mediaType.ts';
+import { isAudio } from '../utils/assetType.ts';
 import VideoThumbnail from '../ui/VideoThumbnail.tsx';
 import LazyImage from '../ui/LazyImage.tsx';
 import ImageZoomDialog from '../editors/ImageZoomDialog.tsx';
@@ -62,7 +62,7 @@ const TYPE_BADGE = {
 
 const PAGE_SIZE = 20; // 每次加载 20 个，点击翻页（对齐官方 Un.jsx 默认 pageSize:20）
 
-// fetchText/textCache 统一收敛到 useAssetDragToCanvas.js；isAudio 统一到 mediaType.js
+// fetchText/textCache 统一收敛到 useAssetDragToCanvas.js；isAudio 统一到 assetType.js
 // 文字资源单元格：默认展示文件内容（前几行）
 const TextResourceCell = React.memo(function TextResourceCell({
   url,

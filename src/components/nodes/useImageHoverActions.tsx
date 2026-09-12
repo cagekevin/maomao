@@ -171,7 +171,7 @@ export function useImageHoverActions({
   const renderEditor = () =>
     editor && url ? (
       <ImageEditor
-        imageUrl={url}
+        assetUrl={url}
         initialTool={editor.tool}
         onSave={handleEditorSave}
         onClose={() => setEditor(null)}
@@ -182,7 +182,7 @@ export function useImageHoverActions({
   const renderInlineCropper = () =>
     cropping && url ? (
       <InlineImageCropper
-        imageUrl={url}
+        assetUrl={url}
         onSave={handleCropSave}
         onClose={() => setCropping(false)}
       />

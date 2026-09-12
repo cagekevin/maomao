@@ -29,7 +29,7 @@ import { generateImage } from '../base/api/index.ts';
 import { resolveProviderModel, buildAllModels } from '../base/utils/providerModels.ts';
 import { localizeAndStoreToLibrary, assetFolderOf } from '../base/store/assetStore.ts';
 import { uploadFileToLocal, saveResultToTasks } from '../base/api/index.ts';
-import { toAbsoluteFileUrl } from '../base/utils/imageUrl.ts';
+import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { logger } from '../base/core/logger.ts';
 import { reportGenerate } from '../base/store/taskStore.ts';
@@ -301,7 +301,7 @@ export function createScriptBoxEngine({
     // 上游接入图片（data.upstreamImages，由 ScriptBoxNode 从 useConnectedInputs 同步）。
     // 编剧模型需要「知道产品外观」才能写出准确剧本，故把上游图片作为视觉参考一并传入
     //（chatCompletions 会把图片转成 image_url 内容块，让 AI 看图理解产品外观）。
-    const upstreamImageUrls = (Array.isArray(d.upstreamImages) ? d.upstreamImages : [])
+    const upstreamAssetUrls = (Array.isArray(d.upstreamImages) ? d.upstreamImages : [])
       .map((im) => (im && im.url ? im.url : ''))
       .filter(Boolean);
     if (!story) {
@@ -339,7 +339,7 @@ export function createScriptBoxEngine({
       provider: provider?.id,
       model: modelId,
       storyLen: story.length,
-      imgs: upstreamImageUrls.length,
+      imgs: upstreamAssetUrls.length,
       shotCount,
     });
     return runAbortable(
@@ -352,7 +352,7 @@ export function createScriptBoxEngine({
           temperature: 0.7,
           responseFormat: useJsonObject(modelId) ? 'json_object' : undefined,
           signal,
-          images: upstreamImageUrls,
+          images: upstreamAssetUrls,
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: story },
@@ -434,7 +434,7 @@ export function createScriptBoxEngine({
               name: String(t.name || ''),
               description: desc,
               prompt: ZgPrompt(category, desc, globalStyle, customTemplates),
-              imageUrl: '',
+              assetUrl: '',
               thumbnailUrl: '',
               has: false,
               loading: false,
@@ -546,13 +546,13 @@ export function createScriptBoxEngine({
             // 彻底替换旧的「上游 https 直链」式临时/外部 URL，让下游生图/生视频引用持久 /files/ 地址。
             // 缩略图机制统一：不再自产落盘独立 _thumb 文件，thumbnailUrl 回退原图，
             // 显示时由系统按需出图端点（buildThumbnailUrl）出小图（与画布 AssetNode 一致）。
-            let imageUrl = r.url;
+            let assetUrl = r.url;
             try {
               const localized = await localizeAndStoreToLibrary(r.url, {
                 name: asset.name,
                 folder: assetFolderOf(asset.category),
               });
-              if (localized) imageUrl = localized;
+              if (localized) assetUrl = localized;
             } catch (e) {
               logger.warn('scriptBox', '资产图本地化落盘失败，保留原 URL', {
                 nodeId,
@@ -560,23 +560,23 @@ export function createScriptBoxEngine({
                 error: e?.message,
               });
             }
-            const thumbnailUrl = imageUrl;
+            const thumbnailUrl = assetUrl;
             commit((latest) => ({
               assets: (latest.assets || []).map((a) =>
-                a.id === assetId ? { ...a, loading: false, has: true, imageUrl, thumbnailUrl } : a,
+                a.id === assetId ? { ...a, loading: false, has: true, assetUrl, thumbnailUrl } : a,
               ),
             }));
             // 用本地化落盘后的持久 URL 作任务中心结果。done 不再落盘（P0-C），故此处显式补一个
             // tasks 目录副本（与素材库目录 migrated/... 不同、不冲突），保持任务中心「生成」面板可收录。
-            if (typeof imageUrl === 'string' && imageUrl && !imageUrl.startsWith('blob:')) {
-              await saveResultToTasks(imageUrl, 'image').catch(() => null);
+            if (typeof assetUrl === 'string' && assetUrl && !assetUrl.startsWith('blob:')) {
+              await saveResultToTasks(assetUrl, 'image').catch(() => null);
             }
-            taskCtl.done(imageUrl);
+            taskCtl.done(assetUrl);
             taskSettled = true;
             logger.info('scriptBox', '生成资产图·成功', {
               nodeId,
               assetId,
-              url: imageUrl,
+              url: assetUrl,
               thumbnailUrl,
             });
           } else {
@@ -615,7 +615,7 @@ export function createScriptBoxEngine({
     const target =
       assetIds && assetIds.length > 0
         ? assets.filter((a) => assetIds.includes(a.id))
-        : assets.filter((a) => !a.imageUrl);
+        : assets.filter((a) => !a.assetUrl);
     if (target.length === 0) {
       toast(
         assets.length === 0
@@ -1128,14 +1128,14 @@ export function createScriptBoxEngine({
   // ═══════════════════════════════════════════════════════════════
   // P0-2 真化：原实现是 setTimeout 600ms 假成功。现改为真实调素材库落盘通道
   // （assetStore.localizeAndStoreToLibrary → /files/migrated/{人物|场景|道具}）：
-  //   落盘成功 → imageStatus='uploaded' + imageUrl 改写为本地化 URL；
+  //   落盘成功 → imageStatus='uploaded' + assetUrl 改写为本地化 URL；
   //   落盘失败 → imageStatus='failed' + imageError（依赖承诺，去假）。
   const onRetryAssetImageUpload = async (assetId: string) => {
     const d = getData();
     const asset = (d.assets || []).find((a) => a.id === assetId);
-    // 无参考图时不能上传（上传的是 asset.imageUrl 到素材库），给出明确提示避免静默无反应
+    // 无参考图时不能上传（上传的是 asset.assetUrl 到素材库），给出明确提示避免静默无反应
     if (!asset) return;
-    if (!asset.imageUrl) {
+    if (!asset.assetUrl) {
       toast(`「${asset.name || '该资产'}」还没有参考图，请先生成再上传`);
       return;
     }
@@ -1146,14 +1146,14 @@ export function createScriptBoxEngine({
     });
     logger.info('scriptBox', '素材上传·开始', { nodeId, assetId, name: asset.name });
     try {
-      const localized = await localizeAndStoreToLibrary(asset.imageUrl, {
+      const localized = await localizeAndStoreToLibrary(asset.assetUrl, {
         name: asset.name,
         folder: assetFolderOf(asset.category),
       });
       updateData({
         assets: getData().assets.map((a) =>
           a.id === assetId
-            ? { ...a, imageStatus: 'uploaded', imageUrl: localized || a.imageUrl }
+            ? { ...a, imageStatus: 'uploaded', assetUrl: localized || a.assetUrl }
             : a,
         ),
       });
@@ -1173,7 +1173,7 @@ export function createScriptBoxEngine({
 
   const onUploadAllAssetImages = () => {
     const d = getData();
-    const has = (d.assets || []).filter((a) => a.imageUrl && a.imageStatus !== 'uploaded');
+    const has = (d.assets || []).filter((a) => a.assetUrl && a.imageStatus !== 'uploaded');
     if (has.length === 0) {
       toast('暂无已生成的图片资产');
       return;
@@ -1184,9 +1184,9 @@ export function createScriptBoxEngine({
 
   // 上传本地图片作为资产参考图（用户自选图当角色/场景/道具）。
   // 复用与画布右键上传同一套底层（filesApi.uploadFileToLocal 落盘），不重复造轮子；
-  // 仅额外补「写入剧本资产 data」这一层：设 imageUrl/thumbnailUrl + 归档素材库对应目录。
+  // 仅额外补「写入剧本资产 data」这一层：设 assetUrl/thumbnailUrl + 归档素材库对应目录。
   //  - file：<input type=file> 选中的本地图片
-  //  - 成功 → imageUrl/thumbnailUrl/has 写入，imageStatus='uploaded'（表示已归档到素材库）；
+  //  - 成功 → assetUrl/thumbnailUrl/has 写入，imageStatus='uploaded'（表示已归档到素材库）；
   //  - 失败 → imageStatus='failed' + imageError。
   const onUploadAssetImage = async (assetId: string, file?: File | null) => {
     const d = getData();
@@ -1214,20 +1214,20 @@ export function createScriptBoxEngine({
       const folder = assetFolderOf(asset.category);
       // 原始图落盘（保留可读文件名，走 multipart；与右键上传同一入口 uploadFileToLocal）
       const ext = (file.name.split('.').pop() || 'png').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-      const imageUrl = await uploadFileToLocal(
+      const assetUrl = await uploadFileToLocal(
         file,
         folder,
         `${asset.name || 'asset'}.${ext || 'png'}`,
       );
-      if (!imageUrl) throw new Error('图片落盘失败');
+      if (!assetUrl) throw new Error('图片落盘失败');
       // 缩略图：不再自产落盘独立文件，thumbnailUrl 回退原图；显示时由系统按需出图端点（buildThumbnailUrl）出小图
       updateData({
         assets: getData().assets.map((a) =>
           a.id === assetId
             ? {
                 ...a,
-                imageUrl,
-                thumbnailUrl: imageUrl,
+                assetUrl,
+                thumbnailUrl: assetUrl,
                 has: true,
                 loading: false,
                 imageStatus: 'uploaded',
@@ -1236,7 +1236,7 @@ export function createScriptBoxEngine({
         ),
       });
       toast(`已将「${asset.name || '资产'}」设为本地参考图`);
-      logger.info('scriptBox', '上传本地资产图·成功', { nodeId, assetId, url: imageUrl });
+      logger.info('scriptBox', '上传本地资产图·成功', { nodeId, assetId, url: assetUrl });
     } catch (e) {
       const msg = e?.message || '图片上传失败';
       updateData({
@@ -1250,10 +1250,10 @@ export function createScriptBoxEngine({
   };
 
   // 从素材库选择图片设为资产参考图（用户在素材库挑一张已有的图）。
-  // 素材库的图已在本地磁盘（/files/... 可访问），故直接把其 URL 写入资产 imageUrl，
+  // 素材库的图已在本地磁盘（/files/... 可访问），故直接把其 URL 写入资产 assetUrl，
   // 不再重复上传落盘（与 onUploadAssetImage 的「本地 file 落盘」互补：一个收 file，一个收现成 URL）。
   //  - url：素材库图片的 /files/ 相对地址
-  //  - 成功 → imageUrl/thumbnailUrl/has 写入，imageStatus='uploaded'（素材库图等价于已归档）。
+  //  - 成功 → assetUrl/thumbnailUrl/has 写入，imageStatus='uploaded'（素材库图等价于已归档）。
   const onPickAssetImage = (assetId: string, url: string) => {
     const d = getData();
     const asset = (d.assets || []).find((a) => a.id === assetId);
@@ -1268,7 +1268,7 @@ export function createScriptBoxEngine({
         a.id === assetId
           ? {
               ...a,
-              imageUrl: abs,
+              assetUrl: abs,
               thumbnailUrl: abs,
               has: true,
               imageStatus: 'uploaded',
@@ -1623,7 +1623,7 @@ export function createScriptBoxEngine({
         const original = {
           id: 'original',
           label: '原版尾帧',
-          imageUrl: origUrl,
+          assetUrl: origUrl,
           thumbnailUrl: origUrl,
           loading: false,
         };
@@ -1636,7 +1636,7 @@ export function createScriptBoxEngine({
         const composed = {
           id: 'composed',
           label: composeLabel,
-          imageUrl: '',
+          assetUrl: '',
           thumbnailUrl: undefined,
           loading: true,
         };
@@ -1695,7 +1695,7 @@ export function createScriptBoxEngine({
                 v.id === 'composed'
                   ? {
                       ...v,
-                      imageUrl: cUrl,
+                      assetUrl: cUrl,
                       thumbnailUrl: cUrl,
                       loading: false,
                       errorMsg: undefined,

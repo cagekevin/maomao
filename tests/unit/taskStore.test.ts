@@ -188,7 +188,7 @@ describe('taskStore §P4 进度落库节流', () => {
 //
 // 后端已改写 tasks 表（rewriteUrlReferences），这里同步「当前页面内存」：
 // 否则任务中心卡片（缩略图 / 下载 / 拖拽建节点）仍指旧路径 → 破图，刷新页面才恢复。
-// 改写工具与 App.jsx 共用 imageUrl.js 的同一份，禁止各写一套。
+// 改写工具与 App.jsx 共用 assetUrl.js 的同一份，禁止各写一套。
 // ════════════════════════════════════════════════════════════════
 describe('taskStore · resource:renamed 同步 resultUrl', () => {
   it('改名后内存任务的 resultUrl 改写为新 url（原样态）', () => {

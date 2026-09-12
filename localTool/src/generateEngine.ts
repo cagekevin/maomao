@@ -124,7 +124,7 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
     const apiKey = resolveProviderApiKey(providerId, input.apiKey);
 
     // 参考图归一：/files/ 磁盘图 → data: base64（唯一出站口纪律）。
-    // chat 参考图在前端经 imageUrl.normalizeImageUrlsForSend + toImageContentBlocks 塞进 messages
+    // chat 参考图在前端经 assetUrl.normalizeAssetUrlsForSend + toImageContentBlocks 塞进 messages
     // 的 image_url 内容块（URL 形态，base64s:0）；顶层 images 前端不传。故对 messages 也做 resolveLocalImages
     // （深遍历就地 inline 内嵌的所有 /files/ URL），否则上游读不到本机图、链路失效。data:/公网幂等透传。
     const resolvedImages =

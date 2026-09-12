@@ -13,7 +13,7 @@
  */
 
 import { IMAGE_LOAD_TIMEOUT } from '../core/config.ts';
-import type { ImageLoadOptions } from '@/types';
+import type { AssetLoadOptions } from '@/types';
 
 /** 超时错误（统一类型，便于调用方用 isTimeoutError 区分"超时"与"真实失败"） */
 export class TimeoutError extends Error {
@@ -87,7 +87,7 @@ export function withTimeout<T>(
  */
 export function loadImageWithTimeout(
   url: string,
-  opts: ImageLoadOptions = {},
+  opts: AssetLoadOptions = {},
 ): Promise<HTMLImageElement> {
   const { timeoutMs = IMAGE_LOAD_TIMEOUT, crossOrigin = 'anonymous' } = opts;
   return new Promise((resolve, reject) => {
@@ -121,7 +121,7 @@ export function loadImageWithTimeout(
  */
 export async function loadImageOrNull(
   url: string,
-  opts: ImageLoadOptions = {},
+  opts: AssetLoadOptions = {},
 ): Promise<HTMLImageElement | null> {
   if (!url) return null;
   try {

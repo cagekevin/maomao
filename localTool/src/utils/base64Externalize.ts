@@ -1,7 +1,7 @@
 /**
  * base64 图片外置工具（方案2核心，docs/41 第2节）
  *
- * 背景：画布节点 data.imageUrl / img_orig_* / img_thumb_* 里存的 base64
+ * 背景：画布节点 data.assetUrl / img_orig_* / img_thumb_* 里存的 base64
  *      把 sql.js KV 库撑到 79MB+，且每次 saveDb 全量 export + 同步写盘导致卡死。
  * 思路：在 handleKvSet 入库前，把所有 data:* base64 解码落盘成 uploads/ 文件，
  *      用 /files/ URL 替换，库只剩 URL，体积骤降。前端读 URL 正常渲染（已验证）。

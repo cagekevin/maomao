@@ -93,7 +93,7 @@ export const AGENT_CONTEXT_OUTPUT_BUDGET_RATIO = 0.2;
  */
 /** localTool 探活 / 拖拽文本读取（短超时，快失败） */
 export const LOCAL_TOOL_PING_TIMEOUT = 5000;
-/** 图片 URL → blob 读取（imageUrl.js） */
+/** 图片 URL → blob 读取（assetUrl.js） */
 export const IMAGE_FETCH_TIMEOUT = 10000;
 /** 图片压缩 / 图像加载（imageCompress.js、asyncGuard.js） */
 export const IMAGE_LOAD_TIMEOUT = 10000;

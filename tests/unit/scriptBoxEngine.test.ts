@@ -16,8 +16,8 @@ vi.mock('../../src/components/base/api/generate.ts', () => ({
   chatCompletions: vi.fn(),
   generateImage: vi.fn(),
 }));
-// 统一出口：toAbsoluteFileUrl 把相对 /files/ 补全为绝对原图（与 imageUrl.js 真实行为一致，注入 data.images 前收口）
-vi.mock('../../src/components/base/utils/imageUrl.ts', () => ({
+// 统一出口：toAbsoluteFileUrl 把相对 /files/ 补全为绝对原图（与 assetUrl.js 真实行为一致，注入 data.images 前收口）
+vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
   toAbsoluteFileUrl: (u) => (u && u.startsWith('/files/') ? `http://127.0.0.1:18080${u}` : u || ''),
 }));
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
@@ -227,7 +227,7 @@ describe('scriptBoxSchema · normalizeScriptBoxData（P0-0）', () => {
     const raw = {
       story: '旧故事',
       shots: [{ id: 's1', description: '旧' }],
-      assets: [{ id: 'a1', imageUrl: '/files/a.png' }],
+      assets: [{ id: 'a1', assetUrl: '/files/a.png' }],
     };
     const d = normalizeScriptBoxData(raw);
     expect(d.story).toBe('旧故事'); // 存量保留
@@ -240,14 +240,14 @@ describe('scriptBoxSchema · normalizeScriptBoxData（P0-0）', () => {
     expect(s.prevShotImageRefUrls).toEqual([]);
     expect(s.prevTailFrameVariants).toEqual([]);
     expect(s.selectedTailFrameVariantId).toBe('original');
-    // asset 子字段：thumbnailUrl 缺省回退 imageUrl（P0-3）
+    // asset 子字段：thumbnailUrl 缺省回退 assetUrl（P0-3）
     expect(d.assets[0].thumbnailUrl).toBe('/files/a.png');
   });
   it('non-object 项兜底为空默认', () => {
     const d = normalizeScriptBoxData({ shots: [null, 'x'], assets: [undefined] });
     expect(d.shots.length).toBe(2);
     expect(d.shots[1].usePrevShotVideoTail).toBe(false);
-    expect(d.assets[0].imageUrl).toBe('');
+    expect(d.assets[0].assetUrl).toBe('');
   });
   it('默认值对象为全新引用（防共享突变）', () => {
     const a = defaultShotFields();
@@ -415,7 +415,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
 
   // ── P0-②：下游参考图字段名统一为 images（生图/生视频不再各用各的名字）──
   it('onConnectShot 生图/生视频下游参考图字段统一为 images', async () => {
-    const assets = [{ id: 'asset-城堡', name: '城堡', imageUrl: '/files/城堡.png' }];
+    const assets = [{ id: 'asset-城堡', name: '城堡', assetUrl: '/files/城堡.png' }];
     const { engine, addNodes } = makeEngine({
       shots: [{ id: 's1', index: 1, description: '走进 @城堡', prompt: 'p', videoPrompt: 'v' }],
       assets,
@@ -450,8 +450,8 @@ describe('scriptBoxEngine · 引擎编排', () => {
 
   // ── 连线早于资产生图：data.images 是连线时快照，但实时连线链路会自愈补上 ──
   it('onConnectShot 连线时资产还没出图 → data.images 快照为空；但该字段不随 store 变化（实时垫图靠 connected.images 活性链）', async () => {
-    // 资产已注册但 imageUrl 为空（用户先连线、后生成资产图）
-    const assets = [{ id: 'asset-城堡', name: '城堡', imageUrl: '' }];
+    // 资产已注册但 assetUrl 为空（用户先连线、后生成资产图）
+    const assets = [{ id: 'asset-城堡', name: '城堡', assetUrl: '' }];
     const { engine, addNodes, store } = makeEngine({
       shots: [{ id: 's1', index: 1, description: '走进 @城堡', prompt: 'p', videoPrompt: 'v' }],
       assets,
@@ -460,12 +460,12 @@ describe('scriptBoxEngine · 引擎编排', () => {
     const node = addNodes.mock.calls[0][0][0];
     expect(node.data.images).toEqual([]); // 快照：连线那一刻图片还没生成
 
-    // 之后用户生成城堡图（imageUrl 补上）→ node.data.images 这份快照字段仍是空（不可变快照）。
+    // 之后用户生成城堡图（assetUrl 补上）→ node.data.images 这份快照字段仍是空（不可变快照）。
     // ⚠️ 但这不是"永不补"：onConnectShot 同时建了 scriptBoxNode 的 shot- 边，
     //    下游 ImageGenerate 的 refImages = mergeRefImages(connected.images(实时), data.images(快照))，
     //    connected.images 走 useConnectedInputs 实时从 scriptBoxNode.data.assets 重新 collectAssets ——
     //    资产生成后被实时链路自动补上，无需重连。（engine 单测无法触达 hook，故仅断言快照字段不变）
-    store.assets = [{ id: 'asset-城堡', name: '城堡', imageUrl: '/files/x.png' }];
+    store.assets = [{ id: 'asset-城堡', name: '城堡', assetUrl: '/files/x.png' }];
     expect(node.data.images).toEqual([]);
   });
 
@@ -477,8 +477,8 @@ describe('scriptBoxEngine · 引擎编排', () => {
         { id: 's2', index: 2, description: '@森林', prompt: 'p2', videoPrompt: 'v2' },
       ],
       assets: [
-        { id: 'a1', name: '城堡', imageUrl: '/f/1.png' },
-        { id: 'a2', name: '森林', imageUrl: '/f/2.png' },
+        { id: 'a1', name: '城堡', assetUrl: '/f/1.png' },
+        { id: 'a2', name: '森林', assetUrl: '/f/2.png' },
       ],
     });
     // onConnectShots 内部逐个调 onConnectShot（forEach），每次 addNodes 1 个节点
@@ -525,7 +525,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
           id: 'a1',
           name: '主角',
           category: 'character',
-          imageUrl: '',
+          assetUrl: '',
           thumbnailUrl: '',
           has: false,
           imageStatus: '',
@@ -535,13 +535,13 @@ describe('scriptBoxEngine · 引擎编排', () => {
     engine.onPickAssetImage('a1', '/files/migrated/人物/主角.png');
     expect(store.assets[0].has).toBe(true);
     expect(store.assets[0].imageStatus).toBe('uploaded');
-    expect(store.assets[0].imageUrl).toContain('/files/migrated/人物/主角.png');
-    expect(store.assets[0].thumbnailUrl).toBe(store.assets[0].imageUrl);
+    expect(store.assets[0].assetUrl).toContain('/files/migrated/人物/主角.png');
+    expect(store.assets[0].thumbnailUrl).toBe(store.assets[0].assetUrl);
   });
 
   it('onPickAssetImage：空 URL 不写资产，资产不存在不抛错', async () => {
     const { engine, store } = makeEngine({
-      assets: [{ id: 'a1', name: '主角', category: 'character', imageUrl: '', has: false }],
+      assets: [{ id: 'a1', name: '主角', category: 'character', assetUrl: '', has: false }],
     });
     engine.onPickAssetImage('a1', ''); // 空 url → 只 toast，不写入
     expect(store.assets[0].has).toBe(false);

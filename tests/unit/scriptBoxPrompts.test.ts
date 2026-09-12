@@ -173,7 +173,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
 
   it('applyTailFrameSelection：选帧 → usePrevShotVideoTail=true + 参考 URL 数组', () => {
     const shots = [{ id: 1, usePrevShotVideoTail: false, prevShotImageRefUrls: [] }];
-    const next = applyTailFrameSelection(shots, 1, { id: 'v2', imageUrl: '/files/tail.png' }, true);
+    const next = applyTailFrameSelection(shots, 1, { id: 'v2', assetUrl: '/files/tail.png' }, true);
     expect(next[0]).toMatchObject({
       usePrevShotVideoTail: true,
       selectedTailFrameVariantId: 'v2',
@@ -240,9 +240,9 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
   it('collectAssets：镜头 @名 匹配到有图资产', () => {
     const shot = { description: '@小红帽 走进 @幽暗森林' };
     const assets = [
-      { id: 'a1', name: '小红帽', imageUrl: '/files/r.png' },
-      { id: 'a2', name: '幽暗森林', imageUrl: '' }, // 无图不算
-      { id: 'a3', name: '大灰狼', imageUrl: '/files/w.png' },
+      { id: 'a1', name: '小红帽', assetUrl: '/files/r.png' },
+      { id: 'a2', name: '幽暗森林', assetUrl: '' }, // 无图不算
+      { id: 'a3', name: '大灰狼', assetUrl: '/files/w.png' },
     ];
     const out = collectAssets(shot, assets);
     expect(out).toHaveLength(1);
@@ -252,7 +252,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
 
   it('collectAssets：无资产或无图返回空', () => {
     expect(collectAssets({ description: '@x' }, [])).toEqual([]);
-    expect(collectAssets(null, [{ name: 'x', imageUrl: '/f' }])).toEqual([]);
+    expect(collectAssets(null, [{ name: 'x', assetUrl: '/f' }])).toEqual([]);
   });
 
   // ── 缺陷②回归锁：@名 后紧贴中文（无空格的中文书写）必须能垫图 ──
@@ -262,7 +262,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
   // 保留的这几条是「修复后的正确行为」契约锁。
   describe('collectAssets · @名后紧贴中文也能垫图（缺陷②修复锁）', () => {
     it('场景 @卧室内 → 命中注册名「卧室」（旧边界会误杀）', () => {
-      const assets = [{ id: '卧室', name: '卧室', category: 'scene', imageUrl: '/files/room.png' }];
+      const assets = [{ id: '卧室', name: '卧室', category: 'scene', assetUrl: '/files/room.png' }];
       const shotA = { description: '深夜@卧室,柔和灯光' }; // 后接标点
       const shotB = { description: '深夜@卧室内,柔和灯光' }; // 后接中文（旧实现的断点）
       expect(collectAssets(shotA, assets)).toHaveLength(1);
@@ -274,10 +274,10 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
         description: '深夜@卧室内。@骷髅A站在床边,右手举起@HKH精华瓶至胸前。@骷髅B坐在床上。',
       };
       const assets = [
-        { id: 'a1', name: '卧室', category: 'scene', imageUrl: '/files/room.png' },
-        { id: 'a2', name: '骷髅A', category: 'character', imageUrl: '/files/ka.png' },
-        { id: 'a3', name: '骷髅B', category: 'character', imageUrl: '/files/kb.png' },
-        { id: 'a4', name: 'HKH精华瓶', category: 'prop', imageUrl: '/files/bottle.png' },
+        { id: 'a1', name: '卧室', category: 'scene', assetUrl: '/files/room.png' },
+        { id: 'a2', name: '骷髅A', category: 'character', assetUrl: '/files/ka.png' },
+        { id: 'a3', name: '骷髅B', category: 'character', assetUrl: '/files/kb.png' },
+        { id: 'a4', name: 'HKH精华瓶', category: 'prop', assetUrl: '/files/bottle.png' },
       ];
       expect(new Set(collectAssets(shot, assets).map((i) => i.url))).toEqual(
         new Set(['/files/room.png', '/files/ka.png', '/files/kb.png', '/files/bottle.png']),
@@ -286,7 +286,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
 
     it('mergeShotsForVideo 复用同一 collectAssets → 合并视频也能收到场景图（同口修复）', () => {
       const shot = { id: 's1', description: '深夜@卧室内', videoPrompt: 'v' };
-      const assets = [{ id: 'a1', name: '卧室', imageUrl: '/files/room.png' }];
+      const assets = [{ id: 'a1', name: '卧室', assetUrl: '/files/room.png' }];
       expect(mergeShotsForVideo([shot], assets).images.map((i) => i.url)).toEqual([
         '/files/room.png',
       ]);
@@ -407,8 +407,8 @@ describe('剧本盒纯函数 · 合并生成视频', () => {
     },
   ];
   const assets = [
-    { id: 'a1', name: '小狗', imageUrl: '/files/dog.png' },
-    { id: 'a2', name: '餐桌', imageUrl: '/files/table.png' },
+    { id: 'a1', name: '小狗', assetUrl: '/files/dog.png' },
+    { id: 'a2', name: '餐桌', assetUrl: '/files/table.png' },
   ];
 
   it('mergeShotsForVideo：时长累加（单一数据来源：第一步各镜 duration）', () => {
@@ -547,16 +547,16 @@ describe('剧本盒纯函数 · 合并生成视频', () => {
         { id: 's1', index: 1, duration: '3s', description: '@小狗 蹲坐', videoPrompt: 'a' },
         { id: 's2', index: 2, duration: '4s', description: '@小狗 叼鱼', videoPrompt: 'b' },
       ];
-      const assets = [{ id: 'a1', name: '小狗', imageUrl: '/files/dog.png' }];
+      const assets = [{ id: 'a1', name: '小狗', assetUrl: '/files/dog.png' }];
       expect(mergeShotsForVideo(shots, assets).images).toHaveLength(1);
       expect(mergeShotsForVideo(shots, assets).images[0].url).toBe('/files/dog.png');
     });
 
-    it('资产 imageUrl 为空串 → 不入图', () => {
+    it('资产 assetUrl 为空串 → 不入图', () => {
       const shots = [
         { id: 's1', index: 1, duration: '3s', description: '@小狗', videoPrompt: 'a' },
       ];
-      const assets = [{ id: 'a1', name: '小狗', imageUrl: '' }];
+      const assets = [{ id: 'a1', name: '小狗', assetUrl: '' }];
       expect(mergeShotsForVideo(shots, assets).images).toHaveLength(0);
     });
 
@@ -569,7 +569,7 @@ describe('剧本盒纯函数 · 合并生成视频', () => {
 
     it('镜头 description 为 undefined → collectAssets 不崩、不入图', () => {
       const shots = [{ id: 's1', index: 1, duration: '3s', videoPrompt: 'a' }];
-      const assets = [{ id: 'a1', name: '小狗', imageUrl: '/files/dog.png' }];
+      const assets = [{ id: 'a1', name: '小狗', assetUrl: '/files/dog.png' }];
       expect(mergeShotsForVideo(shots, assets).images).toHaveLength(0);
     });
   });

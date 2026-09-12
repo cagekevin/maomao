@@ -16,11 +16,11 @@ import { useNodeData } from '../../hooks/useNodeData.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
+import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { useContentHeightSync } from '../base/core/uiHooks.ts';
 import { showToast, toastWarning } from '../base/core/toastStore.ts'; // 保留阻断校验提示
 import { toAbsoluteFileUrl } from '../base/api/index.ts';
-import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
+import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { loadImageWithTimeout } from '../base/utils/asyncGuard.ts';
 import { logger } from '../base/core/logger.ts';
 import { generateId } from '../base/core/idGen.ts';
@@ -38,7 +38,7 @@ import FullscreenShell from '../base/panels/FullscreenShell.tsx';
  *  - 切刀（lasso）：鼠标绘制任意形状（边缘自动吸附），点编号切块，支持全屏聚焦
  *
  * 核心链路：
- *  - 上游图片（imageUrl，从 target「in」连线或 ImageBoxNode 取）
+ *  - 上游图片（assetUrl，从 target「in」连线或 ImageBoxNode 取）
  *  - 预切图：加载源图 → 按 cells 区域 canvas 裁切 → 写 data.extractedImages
  *  - 单块切出：点击 cell → 生成 assetNode + 自动连线
  *  - 批量切分：全部块 → 生成多个 assetNode 网格 + 自动连线（或推送图片盒子）
@@ -176,8 +176,8 @@ interface LassoShape {
 interface GridSplitNodeData {
   label?: string;
   // 上游图片 URL：palette 给了默认 ''、本节点读取并写回（spawn 子节点时也带）。
-  // 此前漏声明 → 读取处只能 `data.imageUrl as string | undefined` 硬转（索引签名兜住但不诚实）。
-  imageUrl?: string;
+  // 此前漏声明 → 读取处只能 `data.assetUrl as string | undefined` 硬转（索引签名兜住但不诚实）。
+  assetUrl?: string;
   gridSize?: number;
   splitMode?: string;
   rows?: number;
@@ -200,9 +200,9 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   // TD-04-13：标题双击改名 → 写回 data.label（此前渲染 data.label 却漏接 onRename，与兄弟节点不一致）。
   const rename = useNodeRename(id);
   const history = useCanvasEdges();
-  const { isHidden } = useMediaDegrade();
+  const { isHidden } = useAssetDegrade();
   // 订阅「画布显示缩略图」设置：显示地址实时随开关（见 docs/18）
-  const render = useRenderImageResolver();
+  const render = useRenderAssetResolver();
   // 内容区引用：高度自适应（内容撑多高，节点就多高，不留空白，复刻 ScriptBoxNode 自适应方案）
   const contentRef = useRef(null);
   // NodeShell 根 div ref：useContentHeightSync 需测「含标题栏的完整节点」而非仅内容区，
@@ -226,11 +226,11 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   const [fullscreen, setFullscreen] = useState(false);
   const [dragLine, setDragLine] = useState(null); // { type:'h'|'v', index } 拖动切割线
 
-  // ---- 上游图片（复刻 Lo.jsx F：data.imageUrl 优先，否则取上游 imageUrl）----
+  // ---- 上游图片（复刻 Lo.jsx F：data.assetUrl 优先，否则取上游 assetUrl）----
   const connected = useConnectedInputs(id);
   const upstreamImg = connected.images[0]?.url;
-  const imageUrl = toAbsoluteFileUrl(
-    (data.imageUrl as string | undefined) ||
+  const assetUrl = toAbsoluteFileUrl(
+    (data.assetUrl as string | undefined) ||
       (typeof upstreamImg === 'string' ? upstreamImg : '') ||
       '',
   );
@@ -306,7 +306,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   // ---- 预切图（复刻 Lo.jsx useEffect[F,I,...]：加载源图按 cells 裁切写 extractedImages）----
   useEffect(() => {
     if (splitMode === 'lasso') return;
-    if (!imageUrl) {
+    if (!assetUrl) {
       patchData({
         extractedImages: [],
         rows: rowCount,
@@ -325,9 +325,9 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
         // 图片加载收口到统一入口（超时兜底）；保留原 onerror 一次性重试语义
         let img = null;
         try {
-          img = await loadImageWithTimeout(imageUrl);
+          img = await loadImageWithTimeout(assetUrl);
         } catch {
-          img = await loadImageWithTimeout(imageUrl);
+          img = await loadImageWithTimeout(assetUrl);
         }
         if (!img) return; // 两次均失败：无可裁剪，跳过本次写回
         const iw = img.width;
@@ -369,12 +369,12 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageUrl, cells, rowCount, colCount, splitMode, hLines, vLines, lassoShapes]);
+  }, [assetUrl, cells, rowCount, colCount, splitMode, hLines, vLines, lassoShapes]);
 
   // ---- lasso 模式预切（复刻 Lo.jsx useEffect[F,_,...]：用 clipShape 裁闭包形状）----
   useEffect(() => {
     if (splitMode !== 'lasso' || activeCellIdRef.current) return;
-    if (!imageUrl) {
+    if (!assetUrl) {
       patchData({
         extractedImages: [],
         rows: 1,
@@ -392,7 +392,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
       const closed = lassoShapes.filter((s) => s.closed && s.points.length >= 3);
       const out = [];
       for (const s of closed) {
-        const r = await clipShape(imageUrl, s.points);
+        const r = await clipShape(assetUrl, s.points);
         out.push(r);
         if (cancelled) return;
       }
@@ -413,7 +413,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageUrl, lassoShapes, splitMode, hLines, vLines]);
+  }, [assetUrl, lassoShapes, splitMode, hLines, vLines]);
 
   // 同步外部 data 变化（复刻 Lo.jsx 各 sync effect）
   useEffect(() => {
@@ -609,7 +609,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
             id: `split-${id}-${n}-${generateId('s')}`,
             type: 'assetNode',
             position: { x: baseX + c * 330, y: baseY + r * 330 },
-            data: { imageUrl: item.url, label: item.label, expanded: false },
+            data: { assetUrl: item.url, label: item.label, expanded: false },
             style: { width: 320, height: 320 },
           };
         }),
@@ -621,7 +621,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
 
   // ---- 批量切分（复刻 Lo.jsx G → onSplit；这里组件内直接生成）----
   const handleSplit = useCallback(() => {
-    if (!imageUrl) {
+    if (!assetUrl) {
       toastWarning('请先连接包含图片的节点');
       return;
     }
@@ -637,12 +637,12 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
     }));
     spawnImageNodes(items);
     // 切片节点已生成在画布，结果可见，无需 toast
-  }, [imageUrl, data.extractedImages, titlePattern, spawnImageNodes]);
+  }, [assetUrl, data.extractedImages, titlePattern, spawnImageNodes]);
 
   // ---- 单块切出（复刻 Lo.jsx ue → onSplitOne）----
   const handleSplitOne = useCallback(
     (index) => {
-      if (!imageUrl) {
+      if (!assetUrl) {
         toastWarning('请先连接包含图片的节点');
         return;
       }
@@ -658,7 +658,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
       const label = titlePattern.replace('{num}', String(index + 1));
       spawnImageNodes([{ url, label }]);
     },
-    [imageUrl, data.extractedImages, splitMode, titlePattern, spawnImageNodes],
+    [assetUrl, data.extractedImages, splitMode, titlePattern, spawnImageNodes],
   );
 
   // 标题图标
@@ -876,12 +876,12 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
       >
         <div ref={contentRef} className="p-2 space-y-2 relative z-10 rounded-xl w-full">
           {/* 源图 + 切割覆盖层 */}
-          {imageUrl ? (
+          {assetUrl ? (
             <div className="relative w-full">
               <div className="relative w-full h-[180px] rounded bg-black/50 overflow-hidden shadow-inner">
                 {!isHidden('image') && (
                   <img
-                    src={render(imageUrl)}
+                    src={render(assetUrl)}
                     alt="Source"
                     loading="lazy"
                     decoding="async"
@@ -1061,7 +1061,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
               </label>
               <button
                 className="node-btn-primary flex-1 justify-between"
-                disabled={!imageUrl}
+                disabled={!assetUrl}
                 onClick={handleSplit}
               >
                 <span>批量切分</span>
@@ -1112,9 +1112,9 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
         </div>
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="relative max-w-full max-h-full">
-            {imageUrl && (
+            {assetUrl && (
               <img
-                src={imageUrl}
+                src={assetUrl}
                 alt="Source"
                 className="max-w-[90vw] max-h-[80vh] object-contain block select-none pointer-events-none"
                 draggable={false}

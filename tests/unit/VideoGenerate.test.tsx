@@ -145,8 +145,8 @@ vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
   useConnectedInputs: () => ({ images: [], texts: [] }),
 }));
-vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({
-  useMediaDegrade: () => ({ isHidden: () => false }),
+vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({
+  useAssetDegrade: () => ({ isHidden: () => false }),
 }));
 vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useNodeResize: () => ({ onInputResize: vi.fn() }),

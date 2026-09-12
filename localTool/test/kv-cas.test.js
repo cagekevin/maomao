@@ -177,7 +177,7 @@ test('[kv-cas] 冲突时不触发 base64 外置 → 不落盘任何新文件', a
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
   const conflict = makeRes();
   await handleKvSet(
-    makeJsonReq({ key, value: { imageUrl: TINY_PNG }, ifVersion: cur - 1 }),
+    makeJsonReq({ key, value: { assetUrl: TINY_PNG }, ifVersion: cur - 1 }),
     conflict,
   );
   assert.equal(conflict.status, 409);

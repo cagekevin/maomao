@@ -36,9 +36,9 @@ import { UPLOAD_TIMEOUT } from '../core/config.ts';
 import { formatTime, dataUrlToBlob, safeFileName } from '../core/utils.ts';
 import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
 import type { ApiEnvelope } from './localToolApi.ts';
-export { toAbsoluteFileUrl } from '../utils/imageUrl.ts';
+export { toAbsoluteFileUrl } from '../utils/assetUrl.ts';
 export { EXT_BY_TYPE };
-import { isLocalFileUrl, fileToDataUrl } from '../utils/imageUrl.ts';
+import { isLocalFileUrl, fileToDataUrl } from '../utils/assetUrl.ts';
 
 // ─────────────────────────── files 域（候选 C 收口：全站文件域单点可查）───────────────────────────
 // 此前文件域被劈成两半：落盘在 filesApi，move/mkdir/open + 3 个纯函数却住在 localToolApi
@@ -133,8 +133,8 @@ export const WEB_DROP_SUBFOLDER = UPLOAD_DIRS.web;
 // multipart/大文件上传统一参数：较长超时 + 不自动重试（避免重复上传）
 const UPLOAD_OPTS = { timeoutMs: UPLOAD_TIMEOUT, retries: 0 };
 
-// toAbsoluteFileUrl 已收敛到 imageUrl.js（统一图片 URL 归一化入口）。
-// 此处 re-export 兼容既有引用，逻辑单一来源在 imageUrl.js。
+// toAbsoluteFileUrl 已收敛到 assetUrl.js（统一图片 URL 归一化入口）。
+// 此处 re-export 兼容既有引用，逻辑单一来源在 assetUrl.js。
 
 // 类型 → 扩展名（生成面板按扩展名分类展示）
 const EXT_BY_TYPE: Record<string, string> = {
@@ -245,7 +245,7 @@ export async function uploadFileToLocal(
  * ① 先 uploadFileToLocal（原始 multipart）；② 上传失败 → 读内联 dataURL 兜底；③ 都拿不到 → null。
  * @returns 持久 /files/ URL（优先）或 dataURL；两者都失败返回 null（调用方提示一次错误）
  */
-export async function resolveNodeImageUrl(
+export async function resolveNodeAssetUrl(
   file: File | Blob | null,
   subfolder: string = UPLOAD_DIRS.canvasDrop,
   filename?: string,

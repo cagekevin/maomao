@@ -98,11 +98,11 @@ describe('管线契约 getNodeOutput', () => {
     expect(mg.images[0].id).toBe('merge-0');
   });
 
-  it('通用兜底 imageUrl → images', () => {
+  it('通用兜底 assetUrl → images', () => {
     const r = getNodeOutput({
       id: 'p1',
       type: 'imageGenerateNode',
-      data: { imageUrl: 'http://x/y.png' },
+      data: { assetUrl: 'http://x/y.png' },
     });
     expect(r.images).toHaveLength(1);
     expect(r.images[0].url).toBe('http://x/y.png');
@@ -112,7 +112,7 @@ describe('管线契约 getNodeOutput', () => {
     const r = getNodeOutput({
       id: 'p1',
       type: 'imageGenerateNode',
-      data: { imageUrl: 'http://x/y.png', label: '猫' },
+      data: { assetUrl: 'http://x/y.png', label: '猫' },
     });
     expect(r.images[0].label).toBe('猫');
   });
@@ -121,12 +121,12 @@ describe('管线契约 getNodeOutput', () => {
     const r = getNodeOutput({
       id: 'p1',
       type: 'imageGenerateNode',
-      data: { imageUrl: 'http://x/y.png' },
+      data: { assetUrl: 'http://x/y.png' },
     });
     expect(r.images[0].label).toBeUndefined();
   });
 
-  it('通用兜底 videoUrl（data:video）→ videos，尊重 mediaType，且带 label（预留）', () => {
+  it('通用兜底 videoUrl（data:video）→ videos，尊重 assetType，且带 label（预留）', () => {
     const r = getNodeOutput({
       id: 'p1',
       type: 'videoGenerateNode',
@@ -136,21 +136,21 @@ describe('管线契约 getNodeOutput', () => {
     expect(r.videos[0].label).toBe('参考');
   });
 
-  it('通用兜底：resultUrl 兜底、mediaType=audio 优先，且带 label（预留）', () => {
+  it('通用兜底：resultUrl 兜底、assetType=audio 优先，且带 label（预留）', () => {
     const r = getNodeOutput({
       id: 'a1',
       type: 'assetNode',
-      data: { resultUrl: 'blob:x', mediaType: 'audio', label: 'BGM' },
+      data: { resultUrl: 'blob:x', assetType: 'audio', label: 'BGM' },
     });
     expect(r.audios).toHaveLength(1);
     expect(r.audios[0].label).toBe('BGM');
   });
 
-  it('imageUrl > videoUrl > resultUrl 优先级', () => {
+  it('assetUrl > videoUrl > resultUrl 优先级', () => {
     const r = getNodeOutput({
       id: 'p1',
       type: 'imageGenerateNode',
-      data: { imageUrl: 'http://x/i.png', videoUrl: 'http://x/v.mp4' },
+      data: { assetUrl: 'http://x/i.png', videoUrl: 'http://x/v.mp4' },
     });
     expect(r.images).toHaveLength(1);
     expect(r.videos).toHaveLength(0);
@@ -166,8 +166,8 @@ describe('管线契约 getNodeOutput', () => {
           { id: 's2', description: '@大灰狼 出现' },
         ],
         assets: [
-          { id: 'a1', name: '小红帽', imageUrl: '/files/r.png' },
-          { id: 'a2', name: '大灰狼', imageUrl: '/files/w.png' },
+          { id: 'a1', name: '小红帽', assetUrl: '/files/r.png' },
+          { id: 'a2', name: '大灰狼', assetUrl: '/files/w.png' },
         ],
       },
     };
@@ -181,7 +181,7 @@ describe('管线契约 getNodeOutput', () => {
   });
 
   it('剧本盒子非 shot- 端口走通用兜底', () => {
-    const node = { id: 'sb', type: 'scriptBoxNode', data: { imageUrl: '/files/out.png' } };
+    const node = { id: 'sb', type: 'scriptBoxNode', data: { assetUrl: '/files/out.png' } };
     const r = getNodeOutput(node, 'output');
     expect(r.images).toHaveLength(1);
     expect(r.images[0].url).toBe('/files/out.png');
@@ -190,7 +190,7 @@ describe('管线契约 getNodeOutput', () => {
   it('剧本盒声明在非分镜端口时「弃权」（返回 undefined），不屏蔽通用兜底', () => {
     // 断言实现一变必红：若有人把 getNodeOutput 里的 `if (out)` 改回 `|| {}`，
     // 声明返回 undefined 会被当空产出 → 通用兜底被屏蔽 → 上一条断言立刻变红。
-    const d = { imageUrl: '/files/out.png' };
+    const d = { assetUrl: '/files/out.png' };
     expect(NODE_OUTPUTS.scriptBoxNode(d, 'output')).toBeUndefined();
     expect(NODE_OUTPUTS.scriptBoxNode(d, undefined)).toBeUndefined();
     // 分镜端口命中时正常返回产出对象
@@ -283,22 +283,22 @@ describe('P0-B ① 入边索引（incomingOf 引用缓存，edges 引用变才�
 
 describe('P0-B ② 上游收集与判等（collectUpstream / upstreamEqual）', () => {
   it('上游改 data（引用变化）→ upstreamEqual 判不等 → 重算', () => {
-    const before = mkNode('u1', 'imageGenerateNode', { imageUrl: 'http://a.png' });
-    const after = mkNode('u1', 'imageGenerateNode', { imageUrl: 'http://b.png' }); // 重新生成 → 新 data 引用
+    const before = mkNode('u1', 'imageGenerateNode', { assetUrl: 'http://a.png' });
+    const after = mkNode('u1', 'imageGenerateNode', { assetUrl: 'http://b.png' }); // 重新生成 → 新 data 引用
     const upA = [{ node: before, sourceHandle: undefined }];
     const upB = [{ node: after, sourceHandle: undefined }];
     expect(upstreamEqual(upA, upB)).toBe(false);
   });
 
   it('上游被拖拽只改 position（node 引用变、data 引用不变）→ 判等 → 下游不重渲', () => {
-    const data = { imageUrl: 'http://a.png' };
+    const data = { assetUrl: 'http://a.png' };
     const still1 = mkNode('u1', 'imageGenerateNode', data, { position: { x: 0, y: 0 } });
     const moved = mkNode('u1', 'imageGenerateNode', data, { position: { x: 10, y: 10 } }); // 新 node 引用，data 同引用
     expect(upstreamEqual([{ node: still1 }], [{ node: moved }])).toBe(true);
   });
 
   it('同引用 / 同内容 → 判等（不重渲）', () => {
-    const n = mkNode('u1', 'imageGenerateNode', { imageUrl: 'http://a.png' });
+    const n = mkNode('u1', 'imageGenerateNode', { assetUrl: 'http://a.png' });
     expect(upstreamEqual([{ node: n, sourceHandle: 'o' }], [{ node: n, sourceHandle: 'o' }])).toBe(
       true,
     );
@@ -307,8 +307,8 @@ describe('P0-B ② 上游收集与判等（collectUpstream / upstreamEqual）', 
   });
 
   it('长度 / 来源 id / handle / 类型 任一变化 → 判不等', () => {
-    const n1 = mkNode('u1', 'imageGenerateNode', { imageUrl: 'http://a.png' });
-    const n2 = mkNode('u2', 'imageGenerateNode', { imageUrl: 'http://a.png' });
+    const n1 = mkNode('u1', 'imageGenerateNode', { assetUrl: 'http://a.png' });
+    const n2 = mkNode('u2', 'imageGenerateNode', { assetUrl: 'http://a.png' });
     expect(upstreamEqual([{ node: n1 }], [])).toBe(false); // 删连线 → 上游变短
     expect(upstreamEqual([{ node: n1 }], [{ node: n1 }, { node: n2 }])).toBe(false); // 增连线
     expect(
@@ -320,7 +320,7 @@ describe('P0-B ② 上游收集与判等（collectUpstream / upstreamEqual）', 
 
   it('上游节点被删除 → 从 lookup 消失 → 上游收缩（判不等）', () => {
     const lookup = new Map([
-      ['u1', mkNode('u1', 'imageGenerateNode', { imageUrl: 'http://a.png' })],
+      ['u1', mkNode('u1', 'imageGenerateNode', { assetUrl: 'http://a.png' })],
     ]);
     const incoming = [{ source: 'u1', sourceHandle: undefined }];
     const up = collectUpstream({ nodeLookup: lookup }, incoming);
@@ -332,7 +332,7 @@ describe('P0-B ② 上游收集与判等（collectUpstream / upstreamEqual）', 
 
 describe('P0-B ③ 聚合（aggregateUpstream 与旧 useMemo 体语义等价）', () => {
   it('非编组上游：聚合产出 + 补 sourceNodeId', () => {
-    const src = mkNode('u1', 'imageGenerateNode', { imageUrl: 'http://a.png' });
+    const src = mkNode('u1', 'imageGenerateNode', { assetUrl: 'http://a.png' });
     const out = aggregateUpstream([{ node: src, sourceHandle: undefined }]);
     expect(out.images).toHaveLength(1);
     expect(out.images[0].url).toBe('http://a.png');
@@ -347,7 +347,7 @@ describe('P0-B ③ 聚合（aggregateUpstream 与旧 useMemo 体语义等价）'
   });
 
   it('相对 /files/ URL 兜底为绝对 URL（刷新不破图）', () => {
-    const src = mkNode('u1', 'imageGenerateNode', { imageUrl: '/files/a.png' });
+    const src = mkNode('u1', 'imageGenerateNode', { assetUrl: '/files/a.png' });
     const out = aggregateUpstream([{ node: src, sourceHandle: undefined }]);
     expect(out.images[0].url).toContain('/files/a.png');
     expect(out.images[0].url.startsWith('http')).toBe(true);
@@ -360,8 +360,8 @@ describe('P0-B ③ 聚合（aggregateUpstream 与旧 useMemo 体语义等价）'
 
 describe('P0-B 编组出口（parentLookup 展开，行为与旧 nodes.filter 等价）', () => {
   const group = mkNode('g1', 'group', {});
-  const child1 = mkNode('c1', 'assetNode', { imageUrl: 'http://c1.png' });
-  const childHidden = mkNode('c2', 'assetNode', { imageUrl: 'http://c2.png' }, { hidden: true });
+  const child1 = mkNode('c1', 'assetNode', { assetUrl: 'http://c1.png' });
+  const childHidden = mkNode('c2', 'assetNode', { assetUrl: 'http://c2.png' }, { hidden: true });
 
   it('group 上游展开为非 hidden 子节点（hidden 被排除）', () => {
     const lookup = new Map([
@@ -394,7 +394,7 @@ describe('P0-B 编组出口（parentLookup 展开，行为与旧 nodes.filter �
   });
 
   it('组内子节点 data 变化 → upstreamEqual 判不等（折叠/增删子节点同理走长度/元素变化）', () => {
-    const childNew = mkNode('c1', 'assetNode', { imageUrl: 'http://c1-new.png' });
+    const childNew = mkNode('c1', 'assetNode', { assetUrl: 'http://c1-new.png' });
     expect(
       upstreamEqual(
         [{ node: child1, sourceHandle: undefined, fromGroup: true }],

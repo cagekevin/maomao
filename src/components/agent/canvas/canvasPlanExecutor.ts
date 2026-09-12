@@ -3,12 +3,12 @@
  *
  * 【它解决什么】把「generations」计划（多张图/多步骤，含前序依赖）转成画布节点流程并执行：
  *   1. 按 depends_on_previous 分「独立批(Wave1) + 依赖批(Wave2)」（对齐大雄 plan-executor）
- *   2. Wave1：并行建 imageGenerateNode + 触发 + await 拿 resultUrl，写回 data.imageUrl
+ *   2. Wave1：并行建 imageGenerateNode + 触发 + await 拿 resultUrl，写回 data.assetUrl
  *   3. Wave2：依赖批仅当独立批全部成功才执行，用「前序节点连线」让下游自动拿到前序图当参考图
  *   4. autoRun=false 时只建节点不触发生成（ready 态，供用户确认后手动跑）
  *
  * 【为什么用「连线」而非「运行时注入 data.images」做前序依赖】
- *  useConnectedInputs 靠「连线」把上游产出传给下游（getNodeOutput 读上游 data.imageUrl）。
+ *  useConnectedInputs 靠「连线」把上游产出传给下游（getNodeOutput 读上游 data.assetUrl）。
  *  建 A→B 连线后，B 生成时自动读到 A 的图当参考图，无需手动注入、无需改下游节点代码。
  *
  * 【依赖第 1 步异步执行器】触发用 taskStore.runNodeGeneration（await 拿已落盘 resultUrl）。
@@ -16,7 +16,7 @@
 import { runNodeGeneration, isNodeRegistered } from '../../base/store/taskStore.ts';
 import { generateId } from '../../base/core/idGen.ts';
 import { logger } from '../../base/core/logger.ts';
-import { toAbsoluteFileUrl } from '../../base/utils/imageUrl.ts';
+import { toAbsoluteFileUrl } from '../../base/utils/assetUrl.ts';
 import { createCanvasHost, type CanvasHostCtx } from './canvasHost.ts';
 
 /** 计划单步（generations 数组元素）：字段均可选，因 LLM 计划数据可能不完整。 */
@@ -84,7 +84,7 @@ const EXECUTING_PLAN_TIMEOUT = 120000;
  * agentBuildProductReferencePrompt 等，纯函数、无副作用、可独立单测）
  * ────────────────────────────────────────────────────────────────
  * 大雄在依赖批不是「只连线」，而是把下游 prompt 重建为「挂前序成功图 + 改写后的提示词」，
- * 保证产品一致性 / 融合的画面约束强于「仅连线读 data.imageUrl」。这 6 个函数是纯函数，
+ * 保证产品一致性 / 融合的画面约束强于「仅连线读 data.assetUrl」。这 6 个函数是纯函数，
  * 直接平移自大雄 canvas-agent.js L10055-10172（同名简化去前缀）。
  */
 /** 剥离「【统一设定·不可变更】」前缀 */
@@ -515,7 +515,7 @@ export async function executePlan({
         tick();
       });
 
-    // 触发并 await 结果，写回 data.imageUrl
+    // 触发并 await 结果，写回 data.assetUrl
     const runNode = async (nodeId, step) => {
       const ready = await waitForNodeReady(nodeId);
       if (!ready) return { status: 'failed', error: `节点 ${nodeId} 未注册生成契约（渲染超时）` };
@@ -530,7 +530,7 @@ export async function executePlan({
       // 防节点在生成期间被删除/合并（409）导致对悬空对象写回。节点已消失则跳过写回。
       const live = host.getNode(nodeId);
       if (live) {
-        host.updateNodeData(nodeId, { imageUrl: resultUrl });
+        host.updateNodeData(nodeId, { assetUrl: resultUrl });
         // 完成时再锁一次参数（对齐大雄 L248 finishAgentNodeImages 末尾 lock），防 update_node/重渲染回落
         lockNodeSettings(nodeId, {
           m: model || defaults.model,
@@ -785,7 +785,7 @@ export async function executePlan({
           };
         } else if (depMode === 'fusion') {
           // 【依赖批 prompt 改写】（对齐大雄 L10218/L10277/L10284）：依赖步不是只连线，而是按 dependency_mode 重建下游 prompt，
-          // 保证产品一致性(fusion/product_reference)的画面约束强于「仅连线读 data.imageUrl」。
+          // 保证产品一致性(fusion/product_reference)的画面约束强于「仅连线读 data.assetUrl」。
           const prevSteps = steps.filter((s) => s !== step && (s.prompt || s.title));
           step = {
             ...step,
@@ -848,7 +848,7 @@ export async function executePlan({
       const pending = new Set(depJobs.map((j) => j.di));
       const runDep = async (job) => {
         const { di, k, nodeId, step, entry } = job;
-        // 前序依赖：把「已成功且有节点」的前序节点连到本步（下游 useConnectedInputs 自动读其 imageUrl 当参考图）。
+        // 前序依赖：把「已成功且有节点」的前序节点连到本步（下游 useConnectedInputs 自动读其 assetUrl 当参考图）。
         // 只取本步的前序（显式 depends_on_steps 或链式前序），已失败的 / 无节点的排除在连线之外。
         const prevOk = predIdxOfIdx
           .get(di)

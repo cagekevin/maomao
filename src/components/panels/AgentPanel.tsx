@@ -43,7 +43,7 @@ import {
 } from '../base/store/skillStore.ts';
 import { contentGet, contentSet, contentSubscribe } from '../base/core/contentStore.ts';
 import { toAbsoluteFileUrl } from '../base/api/index.ts';
-import { fileToDataUrl } from '../base/utils/imageUrl.ts';
+import { fileToDataUrl } from '../base/utils/assetUrl.ts';
 import { runNodeGeneration } from '../base/store/taskStore.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { askConfirm } from '../base/core/confirmStore.ts';
@@ -185,7 +185,7 @@ export default function AgentPanel({
   onClose,
   onWidthChange,
   onEnabledChange,
-  selectedMediaNodes = [],
+  selectedAssetNodes = [],
 }: {
   agentKey?: string;
   systemPrompt?: string;
@@ -193,7 +193,7 @@ export default function AgentPanel({
   onClose?: () => void;
   onWidthChange?: (w: number) => void;
   onEnabledChange?: (enabled: boolean) => void;
-  selectedMediaNodes?: Array<{
+  selectedAssetNodes?: Array<{
     type?: 'image' | 'video' | 'audio' | '';
     url: string;
     label?: string;
@@ -632,9 +632,9 @@ export default function AgentPanel({
   // 确认转正式（confirmPendingMedia），此时按输入框顺序定编号。避免拖动/查看画布误塞附件。
   const [pendingMediaNodes, setPendingMediaNodes] = useState([]);
   useEffect(() => {
-    if (!Array.isArray(selectedMediaNodes)) return;
+    if (!Array.isArray(selectedAssetNodes)) return;
     setPendingMediaNodes(
-      selectedMediaNodes
+      selectedAssetNodes
         .map((n) => ({
           type: n.type || 'image',
           url: n.url,
@@ -646,7 +646,7 @@ export default function AgentPanel({
         }))
         .filter((n) => n.url),
     );
-  }, [selectedMediaNodes]);
+  }, [selectedAssetNodes]);
   // 确认待引用媒体 → 并入正式附件（定编号）；按 url 去重（已存在跳过）
   const confirmPendingMedia = useCallback(() => {
     setPendingMediaNodes((pending) => {
