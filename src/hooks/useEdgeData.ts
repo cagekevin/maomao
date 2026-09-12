@@ -24,7 +24,7 @@ export function patchEdgeData(e: Edge, patch: EdgeFieldPatch): Edge {
 }
 
 /** computePatchEdgeById：按 id 写回，返回新数组（纯函数，不触发 setEdges） */
-export function computePatchEdgeById(edges: Edge[], id: string, patch: EdgeFieldPatch): Edge[] {
+function computePatchEdgeById(edges: Edge[], id: string, patch: EdgeFieldPatch): Edge[] {
   if (!edges || !id || !patch) return edges;
   const { data, ...rest } = patch;
   return edges.map((e) =>

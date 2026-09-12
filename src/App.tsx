@@ -25,7 +25,7 @@ import CanvasToolbar from './components/base/panels/CanvasToolbar.tsx';
 import ArrangeConfirm from './components/base/canvas/ArrangeConfirm.tsx';
 import { useArrangeCanvas } from './hooks/useArrangeCanvas.ts';
 import { computePatchNodeById, computePatchNodesById } from './hooks/useNodeData.ts';
-import { computePatchEdgeById, computePatchEdgesById, patchEdgeData } from './hooks/useEdgeData.ts';
+import { computePatchEdgesById, patchEdgeData } from './hooks/useEdgeData.ts';
 import { useAssetDropPaste, useGlobalPaste } from './hooks/useAssetDropPaste.ts';
 import { copyImageToClipboard } from './components/base/utils/clipboard.ts';
 import GhostTargetNode from './components/nodes/GhostTargetNode.tsx';
