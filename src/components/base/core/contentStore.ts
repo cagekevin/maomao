@@ -10,6 +10,13 @@
  * 3. 缓存优先：同步 API 读内存缓存（惰性加载），避免重复序列化/网络请求
  * 4. 变更通知：set/delete 自动通知订阅者，React 组件可响应式更新
  * 5. 不可变快照：getSnapshot() 返回冻结副本，用于撤销/恢复/历史追踪
+ * 6. 失败分类（2026-09-12/TD-02-1）：KV 失败分两类——「引擎不可用」（网络/超时/5xx，可降级写本地副本）
+ *    与「请求被拒」（4xx，业务结论，必须原样上抛）。分类唯一实现 = isEngineUnavailable；降级只服务前者。
+ *    此前把两类压进一个 catch，导致严格族（画布快照 fail-closed）无法经本入口表达 → 被逼出直调 kvSet 旁路。
+ * 7. 策略两族（2026-09-12/TD-02-1）：「尽力而为族」（contentSet/Get/Delete(+Async)，配置类，失败降级不阻断）
+ *    与「严格族」（contentGetKvVersion / contentSetKvCas，用户主数据，失败 fail-closed 绝不写副本）。
+ *    两族共用路由/缓存/订阅内核；**真分叉在「失败语义」，不在「后端」**（勿按 local/kv 划族）。
+ * 8. 协议面与后端对齐：KV 后端有「版本读 + 条件写（CAS）」，入口必须一并暴露，否则消费者绕过入口直调 transport。
  *
  * ── API 概览 ──
  *   同步（local/native 后端）    异步（通用，包含 KV）
@@ -44,8 +51,8 @@
  *   本模块承载两组职责：缓存/订阅/节流 + KV 降级策略，现不拆。若未来新增第三后端（如 remote），
  *   建议在文件内另起 `backends/` 小节，而非继续往主流程塞（C3 遗留建议）。
  */
-import { sGet, sSet, sRemove } from '../storage/index.ts';
-import { kvGet, kvSet, kvDelete } from '../api/localToolApi.ts';
+import { sGet, sSet, sRemove, isStorageReady } from '../storage/index.ts';
+import { kvGet, kvSet, kvDelete, kvGetVersion } from '../api/localToolApi.ts';
 import { reportDegrade } from './degrade.ts';
 import { STORAGE_KEYS } from './contracts.ts';
 import type { StorageKeyMeta } from './contracts.ts';
@@ -233,8 +240,16 @@ function notify(key: string, value: unknown): void {
   globalListeners.forEach((cb) => cb(key, value));
 }
 
-/** 从 localStorage 加载键到缓存（同步） */
+/**
+ * 从 localStorage 加载键到缓存（同步）。
+ *
+ * 【未就绪 ≠ 不存在（2026-09-12 / TD-02-2）】扩展环境在 `initStorage()` 异步预填完成前，
+ * `sGet` 必然返回 null —— 那是「还不知道」，不是「确实没有」。旧实现照常 `cache.set(key, undefined)`，
+ * 而 `contentGet` 命中 `cache.has` 即返回 → 该键被**粘**成「不存在」直到整会话结束（cache 无失效机制）。
+ * 现改为：未就绪时返回 undefined 但**不写缓存**，等就绪后自然重读到真值。
+ */
 function loadFromLocal(key: string): unknown {
+  if (!isStorageReady()) return undefined;
   const raw = sGet(key);
   if (raw === null) {
     cache.set(key, undefined);
@@ -257,6 +272,19 @@ async function loadFromKv(key: string): Promise<unknown> {
 // ─────────────────────────────────────────────────────────────────
 
 /**
+ * KV 失败分类（全库唯一实现，2026-09-12/TD-02-1）。
+ * - `true`  = 引擎不可用：网络错误 / 超时 / 5xx / 无 HTTP 状态（序列化等）→ 允许降级写本地副本。
+ * - `false` = 请求被拒：4xx（如 CAS 409 版本冲突、400 缺字段）→ 是**业务结论**，必须原样上抛，
+ *   绝不能降级写本地副本（否则「版本冲突被误报成引擎不可用」，冲突被静默吞掉）。
+ * 判据用鸭子类型读 `status`（不 import HttpError）：测试/自定义桩抛带 status 的普通对象同样成立。
+ */
+function isEngineUnavailable(e: unknown): boolean {
+  const status = (e as { status?: unknown } | null)?.status;
+  if (typeof status === 'number') return status >= 500;
+  return true;
+}
+
+/**
  * KV 读取 + 降级回读本地副本（自 kvStore.storageGet 折叠而来）。
  * - KV 失败降级读本地副本（storageSet 曾降级写过的副本读得回，修 R2）。
  */
@@ -274,10 +302,11 @@ async function readKvWithFallback(key: string): Promise<unknown> {
 }
 
 /**
- * KV 写入 + 降级（自 kvStore.storageSet 折叠而来，行为逐字保持）。
+ * KV 写入 + 降级（自 kvStore.storageSet 折叠而来，行为逐字保持；2026-09-12 增失败分类）。
  * - KV 成功后 sRemove 清历史降级副本（P2-F1）：否则 KV 再故障时旧副本"复活"覆盖新值。
- * - KV 失败降级写 localStorage 并 reportDegrade
+ * - KV **引擎不可用**才降级写 localStorage 并 reportDegrade
  *   （layer 保留 'kvStore' 字面量：既有日志查询 task-inspect --logs 依赖，勿改）。
+ * - KV **请求被拒（4xx）原样上抛**（见 isEngineUnavailable）：不写副本、不报"引擎不可用"。
  */
 async function writeKvWithFallback(key: string, value: unknown): Promise<'kv' | 'local'> {
   const meta = resolveMeta(key);
@@ -291,6 +320,8 @@ async function writeKvWithFallback(key: string, value: unknown): Promise<'kv' | 
     if (!keepFallback) sRemove(key);
     return 'kv';
   } catch (e) {
+    // 请求被拒（4xx，如 CAS 409 版本冲突）= 业务结论，原样上抛；降级只服务「引擎不可用」。
+    if (!isEngineUnavailable(e)) throw e;
     try {
       sSet(key, typeof value === 'string' ? value : JSON.stringify(value));
     } catch {
@@ -488,6 +519,58 @@ export async function contentGetKvWithFallback(
   const raw = sGet(key);
   const value = raw === null ? null : tryParse(raw);
   return { value, from: 'local' };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// KV 协议原语：版本读 + 条件写（CAS）—— 严格族（用户主数据）专用
+// ─────────────────────────────────────────────────────────────────
+// 【为什么在这里】KV 后端的协议能力是「get / set / delete / version / 条件写」五件事。
+// 入口只暴露前三件时，需要版本语义的消费者（画布快照）只能绕过入口直调 transport →
+// 唯一入口红线名存实亡（TD-02-1）。故把后两件也收进本模块，接口面与后端能力对齐。
+// 【为什么不降级】CAS 语义要求 fail-closed：写不进去宁可报失败，也不能偷偷写本地副本
+// （否则两窗口各写一份本地副本 → 静默分叉，且 KV 恢复后本地副本永远不会被回读 → 数据陷阱）。
+// 因此本族**不做任何降级**，失败一律上抛，由业务编排层（projectStore）决定如何呈现。
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * 读 KV 键的服务端版本号（CAS 基线）。
+ * - 非 KV 后端键返回 0（无版本概念）；键必须已登记（checkRegistered 守卫）。
+ * - 读失败**原样上抛**（不吞成 0）：调用方据此 fail-closed，避免「读不到版本 → 当成版本 0 → 覆盖别人」。
+ *   需要「读失败静默」的场景（如 3s 冲突轮询）由调用方自行 catch。
+ */
+export async function contentKvGetVersion(key: string): Promise<number> {
+  checkRegistered(key);
+  if (resolveBackend(key) !== 'kv') return 0;
+  return kvGetVersion(key);
+}
+
+/** CAS 写入结果：landed 恒 'kv'（严格族不降级）；version = 服务端写入后的新版本（桩/异常态可能缺省）。 */
+export interface KvCasWriteResult {
+  landed: 'kv';
+  version?: number;
+}
+
+/**
+ * KV 条件写（CAS）—— 严格族写入原语。
+ * - `opts.ifVersion` 传入 = 乐观并发：服务端当前版本不符 → 抛 HttpError(409) 且**一个字节都不写**；
+ *   缺省 = 无条件写（备份导入/强制覆盖，服务端仍会自增版本）。
+ * - **绝不降级**：任何失败（4xx 拒绝 / 网络不可用）都原样上抛，不写本地副本、不 reportDegrade。
+ * - 成功后按 STORAGE_KEYS 的 per-key `fallback` 清理历史降级副本（与 writeKvWithFallback 同口径）。
+ */
+export async function contentKvSetCas(
+  key: string,
+  value: unknown,
+  opts: { ifVersion?: number } = {},
+): Promise<KvCasWriteResult> {
+  checkRegistered(key);
+  const meta = resolveMeta(key);
+  const timeout = meta?.timeout;
+  const keepFallback = meta?.fallback === true;
+  const setOp = kvSet(key, value, opts);
+  const res = await (timeout ? withTimeout(setOp, timeout, `KV 写入超时 (key=${key})`) : setOp);
+  if (!keepFallback) sRemove(key);
+  const version = res?.data?.version;
+  return { landed: 'kv', version: typeof version === 'number' ? version : undefined };
 }
 
 // ─────────────────────────────────────────────────────────────────

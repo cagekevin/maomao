@@ -33,14 +33,21 @@ import ScriptBoxNode from '../../nodes/ScriptBoxNode.tsx';
 // 统一走 lazyNode 动态 import，仅在对应节点首次渲染时才拉 chunk。见 ./lazyNode.jsx。
 // 【勿加回静态 import】加回即首屏 +1.7MB，且 tests/unit/lazyNode.test.jsx 会红。
 import { lazyNode, HEAVY_NODE_LOADERS } from './lazyNode.tsx';
-// 「有输入面板」节点类型集合（Tab 折叠 / Ctrl+L 整理 / defaultNodeData 的 expanded 注入共用同一范围）
-import { INPUT_PANEL_NODE_TYPES } from './nodeDefaults.ts';
+// 注：`defaultNodeData` 与 `INPUT_PANEL_NODE_TYPES` 的 expanded 注入已于 2026-09-12 迁至
+// `./nodeDataSchema.ts`（TD-02-7：数据契约真源独立）；本文件不再 import 二者。
 
 /**
- * 节点目录（复刻 H_.jsx:9423-9554 的 _i / vi）。
+ * 节点目录（复刻 H_.jsx:9423-9554 的 _i / vi）—— **纯 UI 目录**。
  *
- * 这是批量复刻 20+ 节点的「数据地基」：每个节点一行 { type, label, icon, cat, component, data, badge }，
- * 新增节点时只需在此登记，右键菜单 / 节点面板即可自动接入。
+ * 每个节点一行 { type, label, icon, cat, component, badge }，新增节点时在此登记，
+ * 右键菜单 / 节点面板即可自动接入。
+ *
+ * 【三张表各管一件事，别混（2026-09-12 / TD-02-7 收口后的分工）】
+ *  - **本表（NodePalette）**：UI 目录 —— 菜单怎么显示、用哪个组件渲染；
+ *  - **`nodeDataSchema.NODE_DATA_DEFAULTS`**：新建节点的 **data 初值**（原寄居在本表的 `data` 字段）；
+ *  - **`nodeDefaults.NODE_TYPE_DEFAULTS`**：**结构默认**（width/height/style/initial*），新建与快照还原**都**补。
+ *  新建路径 = `defaultNodeData(type)`（data） + `applyNodeTypeDefaults(node)`（结构）；
+ *  快照还原路径 **只走** `applyNodeTypeDefaults`（绝不注入 data 默认值，否则覆盖用户数据）。
  *
  * 字段说明：
  *  - icon：工具栏小图标（lucide 组件引用，渲染时由调用方实例化）；
@@ -69,7 +76,7 @@ export interface PaletteCategoryDef {
  * 假收窄。定型后 getPaletteNode 返回真类型，下游按字段读即可。
  *
  * 字段可选性依据实际登记形态：
- *  - icon/data/badge/builtin 可选（HIDDEN 顶部快捷项无 icon/badge/builtin；多数节点无 badge）；
+ *  - icon/badge/builtin 可选（HIDDEN 顶部快捷项无 icon/badge/builtin；多数节点无 badge）；
  *  - component 可选（ghostTarget 类连线占位不登记 component，由 App 派生后显式补）。
  */
 export interface PaletteNodeDef {
@@ -86,8 +93,9 @@ export interface PaletteNodeDef {
    *  同构但 data 具体类型不同，无法收敛为单一精确类型；此处与 `lazyNode` 的 loader 契约一致放宽
    *  （属「异构组件注册表」的诚实放宽，非假收窄——字段形状本身（有/无 component）仍是精确的）。 */
   component?: React.ComponentType<any>;
-  /** 新建节点默认 data（defaultNodeData 合并源） */
-  data?: Record<string, unknown>;
+  // 注：原 `data?: Record<string, unknown>`（新建默认 data）已于 2026-09-12 移出本接口 ——
+  // 数据契约归 nodeDataSchema.NODE_DATA_DEFAULTS（TD-02-7）。本文件回归纯 UI 目录：
+  // label / icon / cat / component / badge 五个展示字段，不再承担「节点 data 有哪些字段」。
   /** 角标（如 NEW/Beta） */
   badge?: { text: string; tone: 'new' | 'hot' };
   /** =已在 components/nodes 下复刻出对应组件的节点 */
@@ -103,6 +111,9 @@ export const paletteCategories: PaletteCategoryDef[] = [
 ];
 
 // 完整节点目录（复刻 H_.jsx _i，图标用 lucide 等价）
+// 【本表只放 UI 目录字段】label / icon / cat / component / badge。**新建节点的 data 默认值一律登记
+// 在 `nodeDataSchema.ts` 的 NODE_DATA_DEFAULTS**（TD-02-7，2026-09-12）——此处不再声明 `data`，
+// 避免「UI 目录」与「数据契约」两件事混在一张表里（两类消费者的变更速率与关注点不同）。
 export const paletteNodes: PaletteNodeDef[] = [
   // --- 文本工具 ---
   // textGenerateNode（文本）与顶部 Q 快捷重复，子分类不再列出（由顶部快捷 + 节点面板添加）
@@ -118,6 +129,7 @@ export const paletteNodes: PaletteNodeDef[] = [
     // 注：曾在此声明 data:{ images: [] }，但 AssetNode 既不读也不写 images
     // （其字段为 assetUrl/url/assetType/text/poster…）→ 幽灵默认值，每个新建素材节点
     // 白背一个空数组并随快照落盘。2026-09-11 数据体检删除（见 scripts/check-node-data.mjs）。
+    // 该教训已写进 nodeDataSchema.NODE_DATA_DEFAULTS 的登记规则「禁止登记幽灵默认值」。
     builtin: true,
   },
   {
@@ -126,7 +138,6 @@ export const paletteNodes: PaletteNodeDef[] = [
     icon: Box,
     cat: 'image',
     component: ImageBoxNode,
-    data: { images: [], activeIndex: 0, expanded: false },
     builtin: true,
   },
   {
@@ -135,18 +146,6 @@ export const paletteNodes: PaletteNodeDef[] = [
     icon: Grid3X3,
     cat: 'image',
     component: GridSplitNode,
-    data: {
-      assetUrl: '',
-      extractedImages: [],
-      rows: 3,
-      cols: 3,
-      splitMode: 'grid',
-      hLines: [0.5],
-      vLines: [0.5],
-      lassoShapes: [],
-      titlePattern: '#{num}',
-      sendToImageBox: false,
-    },
     builtin: true,
   },
   {
@@ -155,21 +154,6 @@ export const paletteNodes: PaletteNodeDef[] = [
     icon: Grid2X2,
     cat: 'image',
     component: GridMergeNode,
-    data: {
-      mergeMode: 'grid',
-      rows: 3,
-      cols: 3,
-      cellSize: 512,
-      aspectRatio: '1:1',
-      autoSize: true,
-      titlePattern: '',
-      longDirection: 'vertical',
-      longGap: 0,
-      longTargetSize: 1024,
-      longAutoSize: true,
-      bgColor: 'transparent',
-      overlayState: { layers: [], canvasWidth: 1024, canvasHeight: 1024, bgColor: 'transparent' },
-    },
     builtin: true,
   },
   // 以下三项为重依赖（three / mediabunny），component 用 lazyNode 包动态 import：
@@ -181,7 +165,6 @@ export const paletteNodes: PaletteNodeDef[] = [
     cat: 'image',
     component: lazyNode(HEAVY_NODE_LOADERS.panoramaNode, { label: '全景图', type: 'panoramaNode' }),
     builtin: true,
-    data: { aspectRatio: '16:9', assetUrl: '' },
   },
   {
     type: 'director3dNode',
@@ -200,7 +183,6 @@ export const paletteNodes: PaletteNodeDef[] = [
     cat: 'image',
     component: FaceMosaicNode,
     builtin: true,
-    data: { mode: 'mosaic', strength: 0.5, color: '#000000', assetUrls: [] },
   },
   {
     type: 'loopNode',
@@ -209,7 +191,6 @@ export const paletteNodes: PaletteNodeDef[] = [
     cat: 'image',
     component: LoopNode,
     builtin: true,
-    data: { splitMethod: 'newline' },
   },
 
   // --- 视频工具 ---
@@ -221,11 +202,7 @@ export const paletteNodes: PaletteNodeDef[] = [
     cat: 'video',
     component: VideoExtractNode,
     builtin: true,
-    // videoUrl/videoName 是**输入类字段的外部注入通道**（可被 Agent update_node_any_field /
-    // 快照 / 测试预置），本节点自己不写回（上传走 blob 预览 / 上游实时读 connected）。
-    // 保留空默认值同时起「向 AI 声明该字段存在」的作用（get_node_details 能看到）。
-    // 2026-09-11 数据体检：曾判定为幽灵字段并删除 → 误伤 6 个测试的预置入口，已回退（见 TD-9 附件）。
-    data: { videoUrl: '', videoName: '' },
+    // videoUrl/videoName 的默认值与「为何保留」的决策理由见 nodeDataSchema（NODE_DATA_DEFAULTS）。
   },
   {
     type: 'videoProcessNode',
@@ -238,17 +215,6 @@ export const paletteNodes: PaletteNodeDef[] = [
     }),
     badge: { text: 'NEW', tone: 'new' },
     builtin: true,
-    data: {
-      mode: 'trim',
-      sourceOrder: [],
-      timelineTracks: [],
-      audioFormat: 'm4a',
-      // 注：trimStart/trimEnd 已删（2026-09-11 数据体检）——VideoProcessNode 全文无
-      // data.trimStart/data.trimEnd 读取，属死默认值，白进每个新建节点的快照。
-      resizeWidth: 1280,
-      resizeHeight: 720,
-      targetFps: 30,
-    },
   },
 
   // --- 其他工具 ---
@@ -267,7 +233,6 @@ export const paletteNodes: PaletteNodeDef[] = [
     cat: 'other',
     component: ScriptBoxNode,
     builtin: true,
-    data: { step: 1, story: '', globalStyle: '', shots: [], assets: [] },
   },
 ];
 
@@ -278,27 +243,24 @@ const HIDDEN_TOP_LEVEL_NODES: PaletteNodeDef[] = [
     label: '文本',
     cat: 'text',
     component: TextGenerate,
-    data: { text: '' },
   },
   {
     type: 'imageGenerateNode',
     label: '图片',
     cat: 'image',
     component: ImageGenerate,
-    data: { prompt: '' },
   },
   {
     type: 'videoGenerateNode',
     label: '视频生成',
     cat: 'video',
     component: VideoGenerate,
-    data: { prompt: '' },
   },
 ];
 
 // 便捷：按 type 查目录项
 // 注意：顶部 QWE 快捷创建的 textGenerateNode/imageGenerateNode/videoGenerateNode 已从子分类展示移出，
-// 但仍是合法可创建节点（AI 工具 create_node 校验、defaultNodeData 兜底依赖这里），故单独补一份。
+// 但仍是合法可创建节点（AI 工具 create_node 校验依赖这里），故单独补一份。
 export const getPaletteNode = (type: string): PaletteNodeDef | undefined =>
   paletteNodes.find((n) => n.type === type) || HIDDEN_TOP_LEVEL_NODES.find((n) => n.type === type);
 
@@ -306,18 +268,9 @@ export const getPaletteNode = (type: string): PaletteNodeDef | undefined =>
 export const getNodesByCategory = (cat: string): PaletteNodeDef[] =>
   paletteNodes.filter((n) => n.cat === cat);
 
-// 便捷：默认节点 data（用于右键菜单 / 面板快速添加 / Agent create_node）
-// expanded 只注入「有输入面板」的节点（INPUT_PANEL_NODE_TYPES）→ 新建节点输入框默认收起。
-// 2026-09-11 数据体检：此前无条件注入 expanded:false，但只有这 4 类节点会读它
-// （useNodeExpanded 的调用方），其余 13 种节点白背一个永不读的 UI 偏好字段并随快照落盘。
-// 范围与 Ctrl+L 整理（useArrangeCanvas）/ Tab 折叠（App.toggleInputPanels）同源，避免三处不对称。
-// 子项仍可在 palette 的 data 里显式传 expanded 覆盖（如 imageBoxNode 自带展开态）。
-export const defaultNodeData = (type: string): Record<string, unknown> => ({
-  ...(INPUT_PANEL_NODE_TYPES.includes(type as (typeof INPUT_PANEL_NODE_TYPES)[number])
-    ? { expanded: false }
-    : {}),
-  ...getPaletteNode(type)?.data,
-});
+// 注：`defaultNodeData(type)`（新建节点 data 初值）已于 2026-09-12 迁至 `./nodeDataSchema.ts`：
+// 数据默认值属数据契约，不属 UI 目录。原在此处「expanded 注入 + palette.data 合并」的实现与
+// 「无条件注入 expanded:false 导致 13 种节点白背字段」的修复史，一并随迁（见该文件注释）。
 
 // 已复刻节点的类型集合
 export const builtinNodeTypes = paletteNodes.filter((n) => n.builtin).map((n) => n.type);

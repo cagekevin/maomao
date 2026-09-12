@@ -12,14 +12,17 @@ import {
   contentClearCache,
 } from '../../src/components/base/core/contentStore.ts';
 
-// ── stub projectStore：内存画布快照 ──
+// ── stub projectStore：内存画布快照 + 当前项目（内存真相）──
 const canvasStore = new Map();
+/** 当前项目「内存真相」（TD-02-4 后 backupStore 委托 getCurrentProject，不再从存储重推导） */
+let currentProject: { id: string; name?: string } = { id: 'default', name: '默认项目' };
 vi.mock('../../src/components/base/store/projectStore.ts', () => ({
   loadCanvasState: vi.fn(async (id) => canvasStore.get(id) || null),
   saveCanvasState: vi.fn(async (id, nodes, edges) => {
     canvasStore.set(id, { nodes, edges });
     return { ok: true };
   }),
+  getCurrentProject: vi.fn(() => currentProject),
 }));
 
 // ── 账号/会话 KV stub：exportAll 经 contentGetAsync('yimao_accounts')/会话键走 KV。
@@ -41,12 +44,14 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
 
 const { exportAll, importAll, backupToBlob } =
   await import('@/components/base/store/backupStore.ts');
+const { getCurrentProject } = await import('@/components/base/store/projectStore.ts');
 
 beforeEach(() => {
   localStorage.clear();
   canvasStore.clear();
   kvStore.clear();
   contentClearCache();
+  currentProject = { id: 'default', name: '默认项目' };
 });
 
 describe('backupStore — 导出 exportAll', () => {
@@ -71,6 +76,21 @@ describe('backupStore — 导出 exportAll', () => {
     expect(backup.ls).toBeDefined();
     // default 项目无快照 → canvas 为空对象
     expect(backup.canvas).toEqual({});
+  });
+
+  it('当前项目委托 projectStore 内存真相（不再从存储重推导，TD-02-4）', async () => {
+    // 存储里只有 p1、lastOpenedProject 也指向 p1；但内存真相是 p2（模拟 300ms 防抖窗口内刚切换）。
+    // 旧实现（读 projects + lastOpenedProject 重推导）只会遍历 p1 → 漏导出 p2 的画布。
+    contentSet('projects', [{ id: 'p1' }]);
+    contentSet('lastOpenedProject', 'p1');
+    currentProject = { id: 'p2', name: '内存真相' };
+    canvasStore.set('p2', { nodes: [{ id: 'n2' }], edges: [] });
+
+    const backup = await exportAll();
+
+    expect(getCurrentProject).toHaveBeenCalled();
+    expect(Object.keys(backup.canvas)).toEqual(['p2']);
+    expect(backup.canvas.p2).toEqual({ nodes: [{ id: 'n2' }], edges: [] });
   });
 
   it('动态收集 AI 会话键（按项目隔离）', async () => {

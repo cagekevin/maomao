@@ -18,6 +18,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import { contentGet, contentSet, createDebouncedPersist } from '../core/contentStore.ts';
+import { isStorageReady, onStorageReady } from '../storage/index.ts';
 import { generateId } from '../core/idGen.ts';
 import { httpRequest } from '../api/httpClient.ts';
 import '../core/config.ts';
@@ -125,7 +126,8 @@ function load(): Resource[] {
   if (Array.isArray(raw) && raw.length > 0) return raw as Resource[];
   // 首次：seed 演示素材
   const seeded = DEFAULT_RESOURCES.map((a) => ({ ...a, ts: Date.now() }));
-  contentSet(STORAGE_KEY, seeded);
+  // 【未就绪不回写（2026-09-12 / TD-02-2）】预填完成前读到的是「还不知道」，回写种子会覆盖真实素材库
+  if (isStorageReady()) contentSet(STORAGE_KEY, seeded);
   return seeded;
 }
 
@@ -166,6 +168,14 @@ function notify(): void {
   persistDebounced.schedule();
   listeners.forEach((l) => l());
 }
+
+/**
+ * 【TD-02-2】存储预填就绪后重读一次：扩展环境下模块级 `load()` 早于 `initStorage()`，
+ * 只能拿到演示种子（此时不回写）；就绪后重读，真实素材库才不会被整会话遮成演示数据。
+ */
+onStorageReady(() => {
+  reloadFromStorage();
+});
 
 /** 强制立即落盘（页面卸载兜底 / 测试用）；createDebouncedPersist 已自动注册 pagehide 兜底 */
 export function flushPersist(): void {
@@ -449,11 +459,25 @@ export function clearResources(): void {
   notify();
 }
 
-// 本地持久化时同步到内存（跨 tab）
-export function loadResources(): Resource[] {
+/**
+ * 从存储重读素材列表到内存（内部唯一实现：`onStorageReady` 就绪后重读 + 测试出口共用）。
+ *
+ * 【TD-02-8】原先导出为 `loadResources()`，但 src 零调用方（只有测试拿它当 seed 辅助）——
+ * 「定义完整却没人用」的死抽象。改为模块内私有 + 就绪重读复用，公开面不再暴露无调用方 API；
+ * 测试改用 `__resetForTest`（显式测试出口，仿 `projectStore.__resetForTest` 先例）。
+ */
+function reloadFromStorage(): Resource[] {
   resources = load();
   notify();
   return resources;
+}
+
+/**
+ * 【测试出口】把模块级内存态重置为「存储中的素材列表」（等同重新 import 一份干净模块，
+ * 但无 vitest 并发下的实例分裂风险——理由见 projectStore.__resetForTest 注释）。
+ */
+export function __resetForTest(): Resource[] {
+  return reloadFromStorage();
 }
 
 // React hook：订阅素材列表

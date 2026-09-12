@@ -69,6 +69,54 @@ describe('TD-7 方案A — d3d 双通道收口 contentStore', () => {
   });
 });
 
+describe('TD-02-3 — 跨窗口广播通道（首调建立 / 次调复用，修恒真守卫假护栏）', () => {
+  it('首次保存建立 BroadcastChannel 并广播；再次保存复用同一实例', async () => {
+    // 原实现初值 null + 守卫 `!== undefined`（恒真）→ 通道从未建立、广播静默失效。
+    // 本用例是「护栏真的生效」的机器证据：建 1 次、两次保存各广播 1 次。
+    vi.resetModules();
+    const posts: unknown[] = [];
+    let built = 0;
+    class FakeChannel {
+      onmessage: unknown = null;
+      constructor(public name: string) {
+        built += 1;
+      }
+      postMessage = (msg: unknown) => void posts.push(msg);
+    }
+    vi.stubGlobal('BroadcastChannel', FakeChannel);
+    const mod = await import('../../src/components/director3d/d3dPersistence.ts');
+    (contentSetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValue('kv');
+
+    await mod.writeProject('director3d-project', { shots: [] });
+    await mod.writeProject('director3d-project', { shots: [] });
+
+    expect(built).toBe(1); // 只建立一次（复用，不每次保存都 new）
+    expect(posts).toHaveLength(2); // 两次成功写入各广播一次
+    expect((posts[0] as { type?: string }).type).toBe('D3D_SAVED');
+    vi.unstubAllGlobals();
+  });
+
+  it('环境不支持 BroadcastChannel → 退化为无冲突提示（不抛错），且只尝试建立一次', async () => {
+    vi.resetModules();
+    let tries = 0;
+    class ThrowingChannel {
+      constructor() {
+        tries += 1;
+        throw new Error('BroadcastChannel unsupported');
+      }
+    }
+    vi.stubGlobal('BroadcastChannel', ThrowingChannel);
+    const mod = await import('../../src/components/director3d/d3dPersistence.ts');
+    (contentSetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValue('kv');
+
+    await expect(mod.writeProject('director3d-project', { shots: [] })).resolves.toBe('kv');
+    await mod.writeProject('director3d-project', { shots: [] });
+
+    expect(tries).toBe(1); // 不可用记入 null 复用，不每次保存重试构造
+    vi.unstubAllGlobals();
+  });
+});
+
 describe('TD-7 方案A — STORAGE_KEYS 登记表兜底双通道选项', () => {
   it('director3d-project* 登记 backend=kv + fallback=true + timeout>0', () => {
     expect(STORAGE_KEYS['director3d-project'].backend).toBe('kv');

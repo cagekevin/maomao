@@ -5,6 +5,7 @@
  *  - `handleKvSet` 支持 `ifVersion`（乐观并发 / CAS）：版本不符 → 409 且**一个字节都不写**；
  *    `ifVersion` 缺省 = 旧行为（无条件写 + 版本自增）→ 现有调用点零改动、可随时回滚。
  *  - `handleKvVersion`：轻量只读 `<key>_version`（跨源冲突轮询用，绝不拉整包）。
+ *  - `handleKvDelete`：**键与版本一并删除**（TD-02-10，2026-09-12）——删除后重建不带旧版本基线。
  *
  * ★★★ 原子性红线（勿删）★★★
  *   `await getDb()` 之后到 `return` 之间**禁止任何 await**：sql.js 是内存库、API 全同步，
@@ -106,6 +107,14 @@ export async function handleKvVersion(
   return json(res, { code: 0, data: { version } });
 }
 
+/**
+ * DELETE /api/kv/delete?key=<key> → `{ code:0, data:{ ok:true } }`
+ *
+ * 【删除语义 = 键与版本一并删除（TD-02-10，2026-09-12）】原先只删 `<key>`、留下 `<key>_version`
+ * 兄弟行 → 「删除后重建」会拿到**旧版本基线**（CAS 的 `ifVersion` 语义失真）；且删除完整性此前
+ * 靠**各调用方手工补删**（`projectStore.deleteProject` 手动删过 `_version`），新调用方必漏。
+ * 现由 handler 一次性保证：`<key>` 与 `<key>_version` 同删（调用方只删一次即可、无需补删）。
+ */
 export async function handleKvDelete(
   req: IncomingMessage,
   res: ServerResponse,
@@ -116,6 +125,7 @@ export async function handleKvDelete(
 
   const db = await getDb();
   run(db, 'DELETE FROM kv WHERE key = ?', [key]);
+  run(db, 'DELETE FROM kv WHERE key = ?', [`${key}_version`]);
   debouncedSaveDb();
   return json(res, { code: 0, data: { ok: true } });
 }

@@ -66,17 +66,9 @@ declare const chrome: {
 /** 配额受压预警阈值：用量比例 ≥ 此值时视为「即将用尽」（对齐文档 STORAGE_PRESSURE_RATIO） */
 export const STORAGE_PRESSURE_RATIO = 0.85;
 
-/**
- * 【已弃用】AI 会话键级本地存储预算预警。
- * 会话键 `agent_conversations_*` 已迁 localTool KV（contracts.ts backend:'kv'，
- * 见 docs/AI助手会话存储迁移-KV收口事实记录.md），不再占用 localStorage / chrome.storage，
- * 故「本地存储配额键级预警」已无意义。本函数固定返回 null（不枚举、不误报）。
- * 真正兜底会话体积的是 volumePolicy 的 L3 预算降级（applyConversationBudget），与本地存储配额无关。
- * @returns {Promise<null>} 恒 null（已弃用）
- */
-export async function analyzeAgentConversationPressure(): Promise<null> {
-  return null;
-}
+// 更新(2026-09-12 / TD-02-8)：analyzeAgentConversationPressure 已删除——会话键迁 KV 后该函数
+// 恒返回 null（「已弃用却保留 API」= 死抽象：调用方早已移除、留着只会被误用为"预警仍在生效"）。
+// 真正兜底会话体积的是 volumePolicy 的 L3 预算降级（applyConversationBudget），与本地存储配额无关。
 
 /** domain → 中文标签（仅供 UI 展示，domain 值以 STORAGE_KEYS 登记为准） */
 export const DOMAIN_LABELS: Record<string, string> = {

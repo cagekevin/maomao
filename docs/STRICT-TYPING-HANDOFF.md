@@ -254,17 +254,13 @@ npx vitest run <相关测试文件>  # 改到哪个模块就测哪个（如 test
 
 **当前快照（2026-09-12 晚实测，`node scripts/strict-report.mjs` 可随时重算）**：
 
-| 域 | 存量（白名单外 + 白名单内未清） |
+| 域 | 存量（白名单外，待翻新） |
 | - | - |
 | `src/components/director3d/` | 712 |
-| `src/components/agent/` | 197 |
-| `src/components/base/`（panels/ 已收口，白名单内） | 0 |
-| `src/components/nodes/`（白名单内，0 处） | 0 |
-| `src/components/scriptbox/` | 45 |
-| `src/`（根文件：`App.tsx` 等） | 37 |
-| `src/components/panels/` | 22 |
-| `src/components/edges/` | 2 |
-| **合计** | **1018** |
+| `src/`（根文件：`App.tsx` 等） | 0 ✅（2026-09-12 收口） |
+| **合计（白名单外）** | **712** |
+
+> 白名单已收口目录（17 项：15 个目录 + `src/App.tsx`/`src/main.tsx` 两个根文件，隐式 any 存量 0，门禁永不复涨）：core / storage / api / utils / store / prompt / ui / editors / base/panels / hooks / nodes / agent / edges / panels / scriptbox / `src/App.tsx` / `src/main.tsx`。
 
 > `src/components/base/` 全量收口进白名单（core/storage/api/utils/store/prompt/editors/ui/panels 均 0 处）。其余白名单目录（hooks/nodes）亦 0 处。
 
@@ -283,8 +279,12 @@ npx vitest run <相关测试文件>  # 改到哪个模块就测哪个（如 test
 - `src/components/base/panels/` ✅（2026-09-12 收口，96 → 0）
 - `src/hooks/` ✅（34 → 0）
 - `src/components/nodes/` ✅（126 → 0）
+- `src/components/edges/` ✅（本批次 2026-09-12：2 → 0）
+- `src/components/panels/` ✅（本批次 2026-09-12：21 → 0）
+- `src/components/scriptbox/` ✅（本批次 2026-09-12：45 → 0）
+- `src/`（根文件 `App.tsx` / `main.tsx`） ✅（2026-09-12 收口：37 → 0）
 
-**进行中**：`src/components/base/editors/`、`src/components/base/ui/`、`src/hooks/`、`src/components/nodes/`、`src/components/base/panels/` 均已收口并纳入白名单（见进度小结）。**下一站：`src/components/agent/`（197 处）**（其后为 `director3d/` 712 处）。
+**进行中**：`src/components/base/editors/`、`src/components/base/ui/`、`src/hooks/`、`src/components/nodes/`、`src/components/base/panels/`、`src/components/edges/`、`src/components/panels/`、`src/components/scriptbox/`、`src/`（根文件 `App.tsx`/`main.tsx`）均已收口并纳入白名单（见进度小结）。**下一站（白名单外，待翻新）**：`src/components/director3d/`（712 处，最大，建议最后单独排期）。
 
 ### 进度小结（截至 2026-09-12 晚）
 
@@ -298,6 +298,7 @@ npx vitest run <相关测试文件>  # 改到哪个模块就测哪个（如 test
 | `prompt/` | 17 处 | 新增 `PromptChipItem`/`PromptAssetItem` 本地类型；DOM 句柄补 `HTMLElement`/`Element`；React 事件补 `KeyboardEvent`/`ClipboardEvent`；map 回调标返回类型防字面量拓宽 | `npx vitest run tests/unit/{promptChips,promptHub,promptManager,promptMention}.test.ts tests/unit/PromptInput.*.test.tsx` → 86 passed |
 | `editors/` | 75 处 | `OverlayEditor`(52)：抽 `OverlayLayer`/`OverlayState`/`OverlayEditorProps`/`DragState` 接口，组件 props 与导出函数 `renderLayerCanvas`/`renderOverlayCanvas` 标类型，连锁消除 `layers.map/find/filter` 的 `l` 隐式 any；`toCanvasPos`/`drawStroke` 数值参数、拖拽/涂抹事件分别标 `React.MouseEvent`/`PointerEvent`/`KeyboardEvent`；`pending`/`raf`/`dragRef` 等显式类型；`applyMask` 补 `paintLayerId` 空值守卫、`e.target` 断言 `HTMLElement`。`FaceMosaicEditor`(7)/`ImageZoomDialog`(5)/`InlineImageCropper`(11)：回调参数补 `React.PointerEvent`/`WheelEvent`/`CropSelection`/`MosaicMode` 等。 | `npm run check:strict-src` ✅ 白名单 0 报 · `npm run type-check` ✅ |
 | `base/panels/` | 96 处 | 新增 `DonutSegment`/`BarItem`/`StatProps`/`EnvMenuProps`/`FetchModelsModalProps`/`FetchedModelGroup`/`ModelCatKey` 本地接口；`polarToCartesian`/`buildDonutPath` 数值参数标 `number`；React 事件补 `React.MouseEvent`/`React.DragEvent`/`React.ChangeEvent`；`Set` 标 `Set<string>`、`CATEGORY_COLORS`/`TYPE_BADGE`/`TYPE_ICON` 补 `Record<string, …>` 索引签名；`AccountEnv`/`RawModel`/`Task`/`UISettingDef`/`LucideIcon` 用于 props 与回调；`row.key as keyof typeof settings` 收窄索引键 | `npm run check:strict-src` ✅ 白名单 0 报 · `npm run type-check` ✅ · 无同 stem 测试 |
+| `src/（根文件）` | 37 处 | 新增 `DragConnection`（`Connection & { dropPosition }`）/`ConnectEndState` 本地类型；ReactFlow 回调 `onConnect`/`onConnectEnd`/`onDelete`/`onEdgeDoubleClick`/`onNodeDragStop`/`onViewportChange`/`onNodesChangeForEdges`/`handleReactFlowError`/`handleCanvasMouseDown` 按库类型（`Connection`/`ConnectEndState`/`Edge`/`Node`/`Viewport`/`NodeChange`/`React.MouseEvent`/`MouseEvent|TouchEvent`）标注；`viewportRef` 显式 `Viewport | null`；`selectionMap` 补 `Record<string, boolean>`；`handleCreateProject`(`Project`)/`handleSwitchProject`/`persistCanvas`/`syncAgentKey`/`agentKeyForProject` 等补 `string`；`onConnectEnd` 的 `event` 用 `'changedTouches' in event` 守卫收窄解构 | `npm run check:strict-src` ✅ 白名单 0 报 · `npm run type-check` ✅ · 无同 stem 测试（纯类型标注，全仓编译已覆盖） |
 
 > `store/` 收口明细：
 > - `accountsStore.ts`(2)：`push` 回调补 `AccountCookie`；localStorage 回写 `store as Record<string,string>`。
@@ -341,7 +342,7 @@ npx vitest run <相关测试文件>  # 改到哪个模块就测哪个（如 test
 6. ⬜ `src/components/agent/`（197 处，**下一站**）
 7. ⬜ `src/components/director3d/`（**最大 712，建议最后单独排期**）
 
-> 未进主序列的零散域（随时可顺手清）：`src/components/scriptbox/`（45）、`src/` 根文件 `App.tsx` 等（37）、`src/components/panels/`（22）、`src/components/edges/`（2）。
+> 未进主序列的零散域（随时可顺手清）：`src/components/director3d/`（712，最大，建议最后单独排期）。`src/` 根文件 `App.tsx`/`main.tsx` 已于 2026-09-12 收口，登记为白名单文件级条目。
 
 > 每完成一个目录，就更新本节表格 + 白名单，并在提交说明里附 `check:strict-src` 输出。
 

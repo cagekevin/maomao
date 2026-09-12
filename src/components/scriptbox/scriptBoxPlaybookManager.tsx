@@ -102,7 +102,7 @@ export default function ScriptBoxPlaybookManager({
   };
 
   // 导入：读单个 playbook JSON → 解析/归一化 → 去重 → 落为「我的」自定义
-  const onImportFile = async (e) => {
+  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = ''; // 允许重复选择同一文件
     if (!f) return;

@@ -514,7 +514,13 @@ function AgentMessage({
     let text = asText(message.content);
     let ok = true;
     let nodeId = '';
-    let failedEntries = [];
+    interface PlanFailedEntry {
+      status?: string;
+      nodeId?: string;
+      error?: string;
+      id?: string;
+    }
+    let failedEntries: PlanFailedEntry[] = [];
     try {
       const r = JSON.parse(message.content);
       ok = !!r.ok;
@@ -522,7 +528,10 @@ function AgentMessage({
       text = r.error || (r.ok ? `操作成功${r.nodeId ? `：${r.nodeId}` : ''}` : '操作失败');
       // 【TASK-007 2.1】execute_plan 计划返回 entries：把失败的步收集出来，逐个提供「重试此步」（对齐大雄 retryAgentGeneration）
       if (Array.isArray(r.data?.entries)) {
-        failedEntries = r.data.entries.filter((e) => e && e.status === 'failed' && e.nodeId);
+        // 载荷来自 JSON.parse（any），按计划失败项形状收窄；filter 内已对 status/nodeId 做运行时守卫
+        failedEntries = (r.data.entries as PlanFailedEntry[]).filter(
+          (e) => e && e.status === 'failed' && e.nodeId,
+        );
       }
     } catch (e) {
       logger.warn('AI助手', '工具消息 JSON 解析失败，按原文展示', {

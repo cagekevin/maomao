@@ -19,7 +19,7 @@ import {
   useStore,
   useStoreApi,
 } from '@xyflow/react';
-import type { Node, Edge, Connection } from '@xyflow/react';
+import type { Node, Edge, Connection, Viewport, NodeChange } from '@xyflow/react';
 import { Zap, RefreshCw } from 'lucide-react';
 import CanvasToolbar from './components/base/panels/CanvasToolbar.tsx';
 import ArrangeConfirm from './components/base/canvas/ArrangeConfirm.tsx';
@@ -41,6 +41,7 @@ import {
   getCurrentProject,
   initProjects,
   useCurrentProjectId,
+  type Project,
 } from './components/base/store/projectStore.ts';
 import { broadcastCanvasSaved } from './components/base/core/canvasSyncBus.ts';
 import previewUrls from './components/base/utils/previewUrl.ts';
@@ -61,7 +62,8 @@ import { patchNodeDataById } from './hooks/useNodeData.ts';
 import { CanvasEdgesProvider } from './components/base/canvas/CanvasEdgesContext.tsx';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts.ts';
 import { hasModalLayer, subscribeModalLayer } from './components/base/core/modalLayer.ts';
-import { defaultNodeData, buildNodeTypeComponents } from './components/base/canvas/NodePalette.ts';
+import { buildNodeTypeComponents } from './components/base/canvas/NodePalette.ts';
+import { defaultNodeData } from './components/base/canvas/nodeDataSchema.ts';
 import LodProvider, { useLod } from './components/base/canvas/lod.tsx';
 import ToastContainer from './components/base/ui/ToastContainer.tsx';
 import ConfirmContainer from './components/base/ui/ConfirmContainer.tsx';
@@ -100,6 +102,16 @@ import { injectNodePrefs } from './components/base/canvas/nodePrefs.ts';
 import { useCanvasSync } from './hooks/useCanvasSync.ts';
 import { parseShotHandle, NODE_HANDLE_CONTRACT } from './components/base/core/contracts.ts';
 import { prefetchHeavyNode } from './components/base/canvas/lazyNode.tsx';
+
+// 拖线连接态：menu.state.connection 声明为 Connection，但 onConnectEnd 构造时额外补了 dropPosition，
+// 运行时实际形态是 Connection & { dropPosition }。本文件 buildFromConnection 仅消费 source/sourceHandle/dropPosition。
+type DragConnection = Connection & { dropPosition: { x: number; y: number } };
+// onConnectEnd 第二参（FinalConnectionState）的结构子集：仅取本文件用到的字段。
+type ConnectEndState = {
+  isValid?: boolean | null;
+  fromNode?: { id: string } | null;
+  fromHandle?: { id?: string | null } | null;
+};
 
 /* ======================================================================
  * 【区 1】常量与配置区
@@ -146,7 +158,7 @@ const SOURCE_HANDLE_BY_NODE_TYPE: Record<string, string> = Object.fromEntries(
 // 其余错误码是真问题（003 节点类型未注册 / 004 连线端点不存在 / 010 011 012 013 …），必须原样输出。
 const RF_SILENCED_ERROR_CODES = new Set(['002']);
 
-function handleReactFlowError(code, message) {
+function handleReactFlowError(code: string, message: string) {
   if (RF_SILENCED_ERROR_CODES.has(String(code))) return;
   logger.warn('react-flow', `code-${code}`, message);
 }
@@ -305,7 +317,7 @@ function Canvas() {
   // 用 useStoreApi 而非 useStore，避免 App 因视窗尺寸变化重渲染（P0-C 性能红线，同 ZoomPercent）。
   const store = useStoreApi();
   // 始终指向最新 viewport（onViewportChange 更新），persistCanvas 保存时无需实时 useReactFlow 查询
-  const viewportRef = React.useRef(null);
+  const viewportRef = React.useRef<Viewport | null>(null);
   // 视窗拖拽/缩放结束后的落盘：与内容变更合流进 projectStore.scheduleCanvasSave 单一定时器
   // （P20 语义不变：600ms 防抖；docs/118 §七 7.2② 收口——App 不再持有第二个 timer/ref）。
 
@@ -359,7 +371,7 @@ function Canvas() {
   // 接真系统：若需在缩小到某级做额外事（如隐藏 toolbar 部分按钮），可直接读 lodLevel state（见下）。
   // onViewportChange 保留只为同步 viewportRef（持久化视窗位置用，persistCanvas 读它），
   // 不再驱动任何 setState → 缩放时 App 不重渲染，rAF 回调不再承担全量重渲。
-  const onViewportChange = React.useCallback((v) => {
+  const onViewportChange = React.useCallback((v: Viewport) => {
     viewportRef.current = v || null;
   }, []);
 
@@ -402,7 +414,7 @@ function Canvas() {
   // 保存画布并广播到其他窗口（**一次性落盘**：仅切项目/新建项目这类「必须立刻写旧项目」的路径用）。
   // 常规的「内容变更 / 视窗变更」落盘统一走 projectStore.scheduleCanvasSave（唯一调度入口）。
   const persistCanvas = React.useCallback(
-    (projectId) => {
+    (projectId: string) => {
       // P20：顺带把视窗状态（缩放/平移）存进快照，刷新/切项目后回到上次视角
       saveCanvasState(projectId, nodesRef.current, edgesRef.current, viewportRef.current)
         .then((r) => {
@@ -461,12 +473,12 @@ function Canvas() {
   // agentKey = canvas-assistant-<projectId>，conversationStore 据此隔离存储；
   // 新建项目 = 新 projectId = 新 agentKey → 该项目的绘画/会话全新。
   const agentKeyForProject = useCallback(
-    (projectId) => `canvas-assistant-${projectId || 'default'}`,
+    (projectId: string) => `canvas-assistant-${projectId || 'default'}`,
     [],
   );
   // 切换项目时同步 AI 会话隔离键（conversationStore 内部切换 + 通知订阅者重载）
   const syncAgentKey = useCallback(
-    (projectId) => {
+    (projectId: string) => {
       setAgentKey(agentKeyForProject(projectId));
     },
     [agentKeyForProject],
@@ -481,7 +493,7 @@ function Canvas() {
   // 切换项目：保存当前画布快照（KV）→ 切换 → 目标项目快照由「加载 effect（依赖 activeProjectId）」统一重载 → 重置历史（对齐官方 Vr.jsx）。
   // 不再手动 loadCanvasState：switchProject 更新 currentProjectId 后，加载 effect 会自动加载目标项目，避免双重加载竞态。
   const handleSwitchProject = useCallback(
-    (targetId) => {
+    (targetId: string) => {
       persistCanvas(getCurrentProject().id);
       const target = switchProject(targetId);
       syncAgentKey(target?.id || targetId);
@@ -498,7 +510,7 @@ function Canvas() {
   // 注意不能再用 getCurrentProject().id：createProject 已把 currentProjectId 切到新项目，
   // 若此时 persistCanvas(新id) 会把旧节点误存进新项目 key（bug：新项目=旧内容）。
   const handleCreateProject = useCallback(
-    (proj, prevProjectId) => {
+    (proj: Project, prevProjectId: string) => {
       if (prevProjectId) persistCanvas(prevProjectId);
       syncAgentKey(proj?.id); // 新项目 → 新 agentKey → 该项目 AI 会话全新
       setNodes([]);
@@ -600,7 +612,7 @@ function Canvas() {
         const shotId = parseShotHandle(connection.sourceHandle);
         const shot =
           shotId && src?.type === 'scriptBoxNode'
-            ? (src.data?.shots || []).find((s) => s.id === shotId)
+            ? (src.data?.shots || []).find((s: { id: string }) => s.id === shotId)
             : null;
         if (shot) {
           const ar = String(src.data?.aspectRatio || '16:9');
@@ -666,7 +678,7 @@ function Canvas() {
 
   // 删除节点及其相连边 + 级联删除其子孙（R3：删 group 不留孤儿子节点）
   const deleteNode = useCallback(
-    (id) => {
+    (id: string) => {
       const { nodes: nextNodes, edges: nextEdges } = deleteNodesWithCascade(
         nodesRef.current,
         edgesRef.current,
@@ -809,7 +821,7 @@ function Canvas() {
 
   // 复制节点图片本身到剪贴板：与「复制节点」不同，
   // 这是把图片以 image/png 写进剪贴板，可粘到微信/PS 等其它软件。复用公共 clipboard.copyImageToClipboard。
-  const copyNodeImage = useCallback(async (nodeId) => {
+  const copyNodeImage = useCallback(async (nodeId: string) => {
     const node = nodesRef.current.find((n) => n.id === nodeId);
     const imgUrl = node?.data?.assetUrl || node?.data?.url;
     if (!imgUrl) {
@@ -824,7 +836,7 @@ function Canvas() {
   // 以粘贴点 pos 为中心整体落下。返回是否处理了 mutiwindow-nodes。
   // 解析+重建纯逻辑已收拢到 clipboard.buildNodesFromClipboard，这里只做编排（写回/历史/toast）。
   const pasteNodeGroup = useCallback(
-    async (jsonStr, pos) => {
+    async (jsonStr: string, pos: { x: number; y: number }) => {
       const rebuilt = buildNodesFromClipboard(jsonStr, pos);
       if (!rebuilt) return false;
       const { nodes: p, edges: m, count } = rebuilt;
@@ -989,7 +1001,7 @@ function Canvas() {
 
   // 从「连接」状态建下游节点：在 dropPosition 建节点 + 自动连线，并清掉 ghost（复刻官方 di + a()）
   const buildFromConnection = useCallback(
-    (type, conn) => {
+    (type: string, conn: DragConnection | null) => {
       if (!conn) return;
       addNode(
         type,
@@ -1017,10 +1029,10 @@ function Canvas() {
   //   - 从端口拖出到空白（state.connection 存在）→ 复用同一份 canvas 菜单项，但建节点时自动连线 + 清 ghost；
   //   - 空白处右键（无 connection）→ 普通建节点。
   const addNodeFromMenu = useCallback(
-    (type) => {
+    (type: string) => {
       const conn = menu.state?.connection;
       if (conn) {
-        buildFromConnection(type, conn);
+        buildFromConnection(type, conn as DragConnection | null);
         return;
       }
       // 右键菜单（含工具子菜单/视频抽帧）：用公共 posAtMenu 算落点（右键位置，点哪建哪）
@@ -1121,7 +1133,7 @@ function Canvas() {
       // 若处于「拖线」菜单态（复用 canvas 菜单但 state 带 connection）：建下游并自动连线
       const conn = menu.state?.connection;
       if (conn) {
-        buildFromConnection(type, conn);
+        buildFromConnection(type, conn as DragConnection | null);
         return;
       }
       // 否则快速添加节点到视窗中心（复刻 Q/W/E，统一走公共 posAtCenter）
@@ -1137,7 +1149,7 @@ function Canvas() {
   // 语义不同的边（如剧本盒子 shot-1→图A 与 shot-2→图A），仅用 source_target 作 id 会撞车。
   // 用 handle 拼稳定 id；极端重复时用 generateId 兜底（替代原 Date.now()，防同毫秒撞车）。
   const onConnect = useCallback(
-    (params) => {
+    (params: Connection) => {
       const sh = params.sourceHandle ?? 'null';
       const th = params.targetHandle ?? 'null';
       const baseId = `xy-edge__${params.source}:${sh}_${params.target}:${th}`;
@@ -1154,11 +1166,12 @@ function Canvas() {
   // 从端口拖出到空白：建 ghost-target + ghost-edge + 弹「连接」菜单
   // ReactFlow 的 onConnectEnd 第二参数是 connectionState（含 isValid/fromNode/fromHandle）。
   const onConnectEnd = useCallback(
-    (event, connectionState) => {
-      const t = connectionState || {};
+    (event: MouseEvent | TouchEvent, connectionState: ConnectEndState | null) => {
+      const t = connectionState;
       // 仅当「连接无效（拖到空白）+ 有源节点和源端口」时弹菜单（官方判断）
-      if (t.isValid || !t.fromNode || !t.fromHandle) return;
-      const { clientX, clientY } = event?.changedTouches?.[0] || event || {};
+      if (!t || t.isValid || !t.fromNode || !t.fromHandle) return;
+      const point = 'changedTouches' in event ? event.changedTouches[0] : event;
+      const { clientX, clientY } = point;
       if (clientX == null) return;
 
       const rect = menu.containerRef.current?.getBoundingClientRect();
@@ -1211,7 +1224,7 @@ function Canvas() {
 
   // 删除连线（统一入口：CustomEdge 的 ✕ 按钮、连线双击删除 都走这里）
   const removeEdge = useCallback(
-    (id) => {
+    (id: string) => {
       if (!id) return;
       const nextEdges = edgesRef.current.filter((ed) => ed.id !== id);
       setEdges(nextEdges);
@@ -1228,7 +1241,7 @@ function Canvas() {
 
   // 双击连线删除
   const onEdgeDoubleClick = useCallback(
-    (event, edge) => {
+    (event: React.MouseEvent, edge: Edge) => {
       removeEdge(edge.id);
     },
     [removeEdge],
@@ -1238,7 +1251,7 @@ function Canvas() {
   // 旧实现只绑 onEdgesDelete：删节点时节点本身不进 undo 历史，导致按 Delete 删节点后 Ctrl+Z 无反应。
   // onDelete 一次性拿到被删的 { nodes, edges }，据此算出「删除后」完整快照并 record 一次，避免与删边重复入栈。
   const onDelete = useCallback(
-    ({ nodes: dn, edges: de }) => {
+    ({ nodes: dn, edges: de }: { nodes: Node[]; edges: Edge[] }) => {
       if ((!dn || !dn.length) && (!de || !de.length)) return;
       const delNodeIds = new Set((dn || []).map((n) => n.id));
       const delEdgeIds = new Set((de || []).map((e) => e.id));
@@ -1253,11 +1266,11 @@ function Canvas() {
   // 选中节点联动：与选中节点相连的边 → data.relatedToSelected = true（触发 comet + 加亮）
   // 每次节点 change 后，基于当前全部选中节点重算每条边的关联态（支持多选）
   const onNodesChangeForEdges = useCallback(
-    (changes) => {
+    (changes: NodeChange[]) => {
       onNodesChange(changes);
 
       // 聚合本次 change 造成的选中变化（select 类型 change 带 selected 字段）
-      const selectionMap = {};
+      const selectionMap: Record<string, boolean> = {};
       changes.forEach((c) => {
         if (c.type === 'select' && c.id) {
           selectionMap[c.id] = c.selected;
@@ -1325,7 +1338,7 @@ function Canvas() {
   // 2) 拖出离组：原 group 子节点拖出其父边界 → 解除 parentId（转绝对坐标），group 保留
   // group 尺寸只由用户手动拖动调整，不根据子节点自动伸缩。
   const handleNodeDragStop = React.useCallback(
-    (_evt, dragged) => {
+    (_evt: MouseEvent | TouchEvent, dragged: Node) => {
       if (!dragged || dragged.type === 'group') return;
       // 拖入/拖出判定的纯几何计算已收拢到 groupNodes.resolveDragGrouping：
       // 返回新 nodes（有组归属变化）或 null（无组归属变化）。
@@ -1346,7 +1359,7 @@ function Canvas() {
    * 文本上（顶栏/侧栏等），浏览器原生选区会延续到画布外。这里在画布区域
    * 按下 Shift 的那一刻清掉已有选区，仅作用于框选交互、零渲染副作用。
    * ==================================================================== */
-  const handleCanvasMouseDown = useCallback((e) => {
+  const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.shiftKey) {
       const sel = window.getSelection();
       if (sel && sel.toString().length > 0) sel.removeAllRanges();
@@ -1583,7 +1596,7 @@ function Canvas() {
 // 性能模式黄条：性能模式开且 lodLevel>=2 时顶部黄条。
 // 抽为子组件是因为 lodLevel 已收进 LodProvider 内部，需在 Provider 内用 useLod() 读，
 // 而非在 Canvas 外层读已删除的 App 级 state。
-function LodPerformanceBanner({ performanceMode }) {
+function LodPerformanceBanner({ performanceMode }: { performanceMode: boolean }) {
   const { lodLevel } = useLod();
   if (!performanceMode || lodLevel < 2) return null;
   return (

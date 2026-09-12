@@ -7,7 +7,7 @@ import {
   addResources,
   removeResource,
   clearResources,
-  loadResources,
+  __resetForTest,
   getResources,
   flushPersist,
   safeResourceBase,
@@ -18,7 +18,7 @@ const STORAGE_KEY = 'yimao:yimao_asset_library'; // storageAdapter 对键加 yim
 beforeEach(() => {
   clearResources();
   localStorage.clear();
-  loadResources(); // 重新 seed 默认素材
+  __resetForTest(); // 重新 seed 默认素材（测试出口；生产侧 reloadFromStorage 由 onStorageReady 调用）
 });
 
 describe('素材库数据层 §2.18', () => {

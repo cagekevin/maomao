@@ -23,7 +23,7 @@ import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.t
  *  1. 上游「只接一层」：只取 edge.target === 本节点 的边，不递归无限上游。
  *     · 为什么只接一层：下游只需直接依赖它的上游产出；隔了多层的间接数据
  *       不应自动混入（否则依赖关系不可控、数据爆炸）。
- *  2. 每个上游节点产出它的「生成物」或「外部传入的素材」（见 getNodeOutput）：
+ *  2. 每个上游节点产出它的「生成物」或「外部传入的素材」（见 getNodeOutput + 下方**产出契约三张表**）：
  *       textGenerateNode        → 文本（data.text）
  *       assetNode       → 图片/视频/音频（data.assetUrl，按 mime/扩展名分类）
  *       imageGenerateNode      → 图片（data.assetUrl）
@@ -51,16 +51,56 @@ import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.t
 
 /**
  * ════════════════════════════════════════════════════════════════
- * 节点产出声明表（管线契约入口，治根）
+ * 产出契约三张表 + 特判集（TD-02-11，2026-09-12 收口）
  * ════════════════════════════════════════════════════════════════
- * 每个「有产出的上游节点」在此声明如何解析它的产出。getNodeOutput 统一查表调度。
- *  · 新增节点只需在此加一行声明，产出即对下游开放，天然接入管线。
- *  · 各声明返回 { images:[{id,url,label}], texts:[{id,label,text}], videos:[{id,url}], audios:[{id,url}] }。
- *  · 数组型产出（images[]/extractedImages[]）在此集中归一，避免各节点手写上游解析导致不一致。
- *  · 声明返回 undefined = 「不适用，弃权」，getNodeOutput 继续走后续兜底。
- *    多端口节点（剧本盒按 shot- 端口区分）靠此机制表达「类型命中但端口不匹配」，
- *    切勿改成返回空对象 —— 那会屏蔽通用兜底。
+ * 【治什么】此前「读侧认识什么产出」靠 `genericOutput` 的三个魔法字段名
+ * （assetUrl > videoUrl > resultUrl）**猜**：节点若把结果写到别的字段（如 `myResult`），
+ * 读侧静默返回空产出（无报错、无日志）；新增节点也无从知道该登记什么。
+ * 现改为**写侧显式声明**，`getNodeOutput` 按表调度，**不再对已登记类型做任何猜测**：
+ *   ① `SINGLE_OUTPUT_FIELDS`  单 URL 产出：字段名显式列出（按序取第一个非空）；
+ *   ② `NODE_OUTPUTS`          复合产出：多端口 / 多图 / 数组归一 / 需按 handle 解析；
+ *   ③ `NO_OUTPUT_NODE_TYPES`  **无自有产出**：容器 / 占位 / 结果只经 spawn 子节点交付；
+ *   ④ `SPECIAL_OUTPUT_TYPES`  特判：读 node.id（节点身份）而非纯 data 派生，不适合入表。
+ * 覆盖性由 `uncoveredOutputNodeTypes()` 保证（可单测：新增类型漏登记即红）；
+ * `genericOutput`（三字段猜测）降级为**未登记类型的最后安全网**，只服务存量退役节点快照。
  */
+
+/**
+ * ① 单 URL 产出节点：**产出字段名在此显式声明**（按序取第一个非空 URL）。
+ * 字段真源 = 各节点**实际写回**的 data 字段（2026-09-12 逐一核对代码写点）：
+ *   - `assetNode`         → assetUrl（`replaceNodeImage` 唯一写入口；assetType 可为 image/video/audio）
+ *   - `imageGenerateNode` → assetUrl（生成成功 / 任务恢复回写）
+ *   - `videoGenerateNode` → videoUrl（useGenerateNode 声明 `resultField:'videoUrl'`）
+ *   - `panoramaNode`      → assetUrl（单角度截图写回；多角度走 spawn 图片盒子）
+ *   - `director3dNode`    → assetUrl（退出导演台写落盘缩略图）
+ * ⚠️ 新增 / 改名产出字段 = 改此表一行；漏改即下游静默拿不到数据（`check:node-data` 对账）。
+ */
+export const SINGLE_OUTPUT_FIELDS: Record<string, readonly string[]> = {
+  assetNode: ['assetUrl'],
+  imageGenerateNode: ['assetUrl'],
+  videoGenerateNode: ['videoUrl'],
+  panoramaNode: ['assetUrl'],
+  director3dNode: ['assetUrl'],
+};
+
+/**
+ * ③ 无自有产出的节点类型：`getNodeOutput` 直接返回空，**不进安全网**
+ * （否则「三字段猜测」会在已知类型上复活，正是本次要消灭的隐式语义）。
+ *   - `group` / `ghostTarget`：容器 / 连线占位；
+ *   - `faceMosaicNode`：只写输入 `assetUrls`，结果经 spawn `assetNode` 子节点交付；
+ *   - `loopNode`：只写 `splitMethod`，结果经 spawn 生图节点交付；
+ *   - `videoProcessNode`：只写 `sourceVideoUrl`/`errorMessage`，结果经 spawn `assetNode` 子节点交付。
+ */
+export const NO_OUTPUT_NODE_TYPES: ReadonlySet<string> = new Set([
+  'group',
+  'ghostTarget',
+  'faceMosaicNode',
+  'loopNode',
+  'videoProcessNode',
+]);
+
+/** ④ 特判集：`textGenerateNode` 产出读 `node.id`（节点身份）而非纯 data 派生，保留在 getNodeOutput 内特判。 */
+export const SPECIAL_OUTPUT_TYPES: ReadonlySet<string> = new Set(['textGenerateNode']);
 /** 把未知值归为可选 string（防假收窄：诚实标注缺省为 undefined，不谎报类型） */
 function str(v: unknown): string | undefined {
   return v == null ? undefined : String(v);
@@ -87,7 +127,10 @@ function arrayImages(
   return out;
 }
 
-/** 节点产出解析函数签名：d 为节点 data（动态字段，统一以 Record 约束），返回聚合产出（可缺省字段 / 弃权 undefined）。 */
+/**
+ * ② 复合产出解析函数签名：d 为节点 data（动态字段，统一以 Record 约束），
+ * 返回聚合产出（可缺省字段）；返回 `undefined` = 「本声明不适用，弃权」→ 交回 getNodeOutput 继续往下走。
+ */
 type NodeOutputResolver = (
   d: Record<string, unknown>,
   sourceHandle?: string,
@@ -132,30 +175,26 @@ export const NODE_OUTPUTS: Record<string, NodeOutputResolver> = {
   gridMergeNode: (d) => ({ images: arrayImages(d.extractedImages, 'merge', (i) => `图 ${i + 1}`) }),
 };
 
-/** 通用单产出兜底：assetUrl > videoUrl > resultUrl，且尊重 data.assetType */
-function genericOutput(d: Record<string, unknown>, id: string): NodeOutputGroup {
+/**
+ * 单产出解析（**唯一实现**）：按 `fields` 顺序取第一个非空 URL，并按 `data.assetType` / URL 判型。
+ * 字段名由调用方**显式传入**（`SINGLE_OUTPUT_FIELDS[type]` 或安全网常量）——
+ * 这正是 TD-02-11 的落点：产出字段名是「写侧声明」的，不再由读侧猜。
+ * `label` 统一带 `d.label`（供下游候选列表显示 / @名 匹配）。
+ */
+function singleOutput(
+  d: Record<string, unknown>,
+  fields: readonly string[],
+  id: string,
+): NodeOutputGroup {
   const empty: NodeOutputGroup = { images: [], texts: [], videos: [], audios: [] };
-  // 候选 url / assetType 都用控制流收窄（非 as）：只有真是 string / 已知枚举才生效。
-  const raw: Array<{ url: unknown; assetType: unknown }> = [
-    { url: d.assetUrl, assetType: d.assetType },
-    { url: d.videoUrl, assetType: d.assetType },
-    { url: d.resultUrl, assetType: d.assetType },
-  ];
-  const candidates: Array<{ url: string; assetType: 'image' | 'video' | 'audio' | undefined }> = [];
-  for (const c of raw) {
-    if (typeof c.url === 'string' && c.url) {
-      // assetType 只认白名单枚举：非已知值视为未声明（undefined），交 resolveAssetType 按 URL 判。
-      const assetType =
-        c.assetType === 'image' || c.assetType === 'video' || c.assetType === 'audio'
-          ? c.assetType
-          : undefined;
-      candidates.push({ url: c.url, assetType });
-    }
-  }
-  for (const { url, assetType } of candidates) {
+  for (const field of fields) {
+    const url = d[field];
+    // 控制流收窄（非 as）：只有真是非空 string 才生效。
+    if (typeof url !== 'string' || !url) continue;
+    // assetType 只认白名单枚举：非已知值视为未声明（undefined），交 resolveAssetType 按 URL 判。
+    const at = d.assetType;
+    const assetType = at === 'image' || at === 'video' || at === 'audio' ? at : undefined;
     const kind = resolveAssetType(url, assetType);
-    // label 统一带上 d.label（图片/视频/音频都带，供下游候选列表显示 / 未来 @名 匹配视频）。
-    // 单图/单视频节点（assetNode/imageGenerateNode/panorama/discountVideo/...）双击标题改的名即 d.label。
     const item: NodeOutputItem = { id, url, label: str(d.label) };
     if (kind === 'video') return { ...empty, videos: [item] };
     if (kind === 'audio') return { ...empty, audios: [item] };
@@ -164,8 +203,16 @@ function genericOutput(d: Record<string, unknown>, id: string): NodeOutputGroup 
   return empty;
 }
 
+/** 安全网字段（**仅未登记类型**使用，见 getNodeOutput 第 5 步）：服务存量退役节点快照。 */
+const SAFETY_NET_FIELDS: readonly string[] = ['assetUrl', 'videoUrl', 'resultUrl'];
+
+/** 安全网：三字段猜测。**已登记类型一律不走这里**（走三张表）—— 它不再承担任何契约。 */
+function genericOutput(d: Record<string, unknown>, id: string): NodeOutputGroup {
+  return singleOutput(d, SAFETY_NET_FIELDS, id);
+}
+
 /** 提取「单个」源节点的产出资源。
- *  统一调度：特殊类型（剧本盒子/文本节点）→ 节点产出声明表 → 通用字段兜底。
+ *  统一调度顺序（见 getNodeOutput）：无自有产出 → 单 URL 产出 → 复合产出声明 → 文本特判 → 安全网。
  *  · 为什么统一返回 { id, url, label, text } 对象：下游渲染缩略图/文本都需要 id 作 key、label 作显示名。
  *  · 无产出返回空对象，不返回 undefined：调用方可直接 push，无需判空。 */
 /** 节点产出资源项（id 作 key、label 作显示名、url/text 二选一）。
@@ -199,23 +246,31 @@ export function getNodeOutput(
   const type = String(node.type || '');
   const id = String(node.id || '');
 
-  // 1. 节点产出声明表（管线契约）：声明过的节点类型走这里（含剧本盒多端口 / 数组型产出 / 自带 assetType）。
-  // 声明可返回 undefined 表示「本声明不适用」（如剧本盒接到非分镜端口），此时继续往下走兜底，
-  // 而非当成空产出直接返回 —— 否则会屏蔽通用兜底、改变既有行为。
+  // 1. 显式「无自有产出」：容器 / 占位 / 仅经 spawn 子节点交付结果的类型。
+  //    直接返回空、**不进安全网** —— 否则三字段猜测会在这类已知类型上复活（本次要消灭的隐式语义）。
+  if (NO_OUTPUT_NODE_TYPES.has(type)) return empty;
+
+  // 2. 单 URL 产出：字段名由 `SINGLE_OUTPUT_FIELDS` 显式声明（TD-02-11：不再由读侧猜字段名）。
+  const fields = SINGLE_OUTPUT_FIELDS[type];
+  if (fields) return singleOutput(d, fields, id);
+
+  // 3. 复合产出声明表（多端口 / 多图 / 数组归一）。
+  //    声明可返回 undefined 表示「本声明不适用」（如剧本盒接到非分镜端口），此时继续往下走安全网，
+  //    而非当成空产出直接返回 —— 否则会屏蔽安全网、改变既有行为。
   const declared = NODE_OUTPUTS[type];
   if (declared) {
     const out = declared(d, sourceHandle);
     if (out) return { ...empty, ...out };
   }
 
-  // 2. 文本节点：输出 data.text（统一为 {id,label,text} 对象，供 PromptInput/@弹层显示）。
-  // 保留特判而非入表：它读的是 node.id（节点身份）而非纯 data 派生，与 NODE_OUTPUTS
-  // 「data → 产出」的声明语义不符；且它不引入任何业务模块依赖，无架构债。
-  if (type === 'textGenerateNode' && d.text && typeof d.text === 'string') {
+  // 4. 文本节点：输出 data.text（统一为 {id,label,text} 对象，供 PromptInput/@弹层显示）。
+  // 保留特判而非入表：它读的是 node.id（节点身份）而非纯 data 派生，与「data → 产出」的声明语义不符。
+  if (SPECIAL_OUTPUT_TYPES.has(type) && d.text && typeof d.text === 'string') {
     return { ...empty, texts: [{ id, label: str(d.label) || '参考文本', text: d.text }] };
   }
 
-  // 2. 通用单产出兜底（assetUrl/videoUrl/resultUrl + 尊重 assetType）。
+  // 5. 安全网（三字段猜测）：**只服务未登记类型**（存量退役节点快照，如旧版 discountVideoNode）。
+  //    已登记类型的产出契约全在 ①②③④ —— 漏登记由 uncoveredOutputNodeTypes() 兜住（dev 告警 + 单测）。
   return genericOutput(d, id);
 }
 
@@ -385,36 +440,34 @@ export function useConnectedInputs(nodeId?: string): NodeOutputGroup {
 }
 
 // ════════════════════════════════════════════════════════════════
-// G2（P2-G）dev 期产出 schema 校验 —— 治「NODE_OUTPUTS 无校验 + schema 静默缺失」
+// G2（P2-G）产出 schema 覆盖校验 —— 治「新增节点漏登记产出 → 下游静默拿不到数据」
 // ════════════════════════════════════════════════════════════════
-// 对比节点类型清单（contracts.NODE_TYPES），凡「产出节点」既未在 NODE_OUTPUTS 声明、也未列入
-// 通用单输出兜底或无产出集合 → dev 加载期给可读 warning，避免新增产出节点漏声明被静默 genericOutput
-// 吞掉（进而被下游当错类型/漏传给上游，甚至外部硬编码 t.data[0].url）。仅 DEV 触发，生产零开销。
-if (import.meta.env.DEV) {
-  const specialHandled = new Set(['textGenerateNode']); // getNodeOutput 保留特判（读 node.id，非 data 派生）
-  const declaredOutputs = new Set(Object.keys(NODE_OUTPUTS)); // 显式产出声明（剧本盒多端口 / 多图 / 数组 / 自带 assetType）
-  const genericOutputOk = new Set([
-    // 单输出由 genericOutput 兜底（assetUrl/videoUrl/resultUrl）
-    'assetNode',
-    'imageGenerateNode',
-    'videoGenerateNode',
-    'panoramaNode',
-    'faceMosaicNode',
-    'loopNode',
-    'videoProcessNode',
-    'director3dNode',
-    // 注：原含 templateNode，已于 2026-09-11 摘除（TD-04-5）——TemplateNode 是参考蓝本非活节点，
-    // 已迁出 registry（不在 NODE_TYPES，故本覆盖校验不再需要它）。
+/**
+ * 产出覆盖缺口：`NODE_TYPES` 中既未声明产出、也不属「无自有产出」/ 特判的类型（空数组 = 全覆盖）。
+ *
+ * 导出成纯函数（2026-09-12 / TD-02-11）而非只做 dev console 告警 —— **护栏必须可测**：
+ * `tests/unit/useConnectedInputs.test.ts` 断言其为空，新增节点漏登记即红（旧实现把
+ * `genericOutputOk` 写成第二份手动白名单，删了它才真正实现"漏登记必被发现"）。
+ */
+export function uncoveredOutputNodeTypes(): string[] {
+  const covered = new Set<string>([
+    ...Object.keys(SINGLE_OUTPUT_FIELDS),
+    ...Object.keys(NODE_OUTPUTS),
+    ...NO_OUTPUT_NODE_TYPES,
+    ...SPECIAL_OUTPUT_TYPES,
   ]);
-  const noOutput = new Set(['group', 'ghostTarget']); // 无管线产出（容器 / 连线占位）
-  const covered = new Set([...specialHandled, ...declaredOutputs, ...genericOutputOk, ...noOutput]);
-  for (const t of Object.keys(NODE_TYPES)) {
-    if (!covered.has(t)) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[P2-G] 节点类型 "${t}" 未在 NODE_OUTPUTS 声明产出，且未列入 genericOutputOk / noOutput：` +
-          `管线对它的上游产出可能静默缺失（schema 缺口）。请在 NODE_OUTPUTS 声明或补入对应集合。`,
-      );
-    }
+  return Object.keys(NODE_TYPES).filter((t) => !covered.has(t));
+}
+
+// dev 加载期给可读 warning（生产零开销）：覆盖缺口 = 该类型的上游产出可能静默缺失。
+if (import.meta.env.DEV) {
+  const missing = uncoveredOutputNodeTypes();
+  if (missing.length) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[P2-G] 节点类型未登记产出声明：${missing.join(' / ')} —— ` +
+        `单 URL 产出请在 SINGLE_OUTPUT_FIELDS 登记（字段名显式），复合产出请在 NODE_OUTPUTS 登记，` +
+        `确无自有产出则加入 NO_OUTPUT_NODE_TYPES。否则下游再也拿不到它的数据且无人报错。`,
+    );
   }
 }

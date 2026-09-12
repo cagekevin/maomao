@@ -31,7 +31,7 @@
  * 存储：localStorage 键 `yimao_node_prefs`，结构 { [nodeType]: { ...lastParams } }。
  * 接真系统：可改为后端 KV（app_settings / node_prefs），本模块是纯前端唯一数据源。
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { contentGet, contentSet } from '../core/contentStore.ts';
 
 const STORAGE_KEY = 'yimao_node_prefs';
@@ -103,6 +103,30 @@ export function injectNodePrefs(type: string, data: NodePrefsMap): NodePrefsMap 
 }
 
 /**
+ * 【写存储 · 纯函数（导出供单测）】把 patch 合并进某类型的记忆并落盘，返回该实例的新 UI 态。
+ *
+ * 【TD-02-5 修复 2026-09-12】原实现是「读-改-写**本实例整份 prev**」：`all[type] = {...prev, ...patch}`。
+ * 同类型多个节点实例（或另一窗口）各自持初始副本 → 后写者把别人刚写的字段整份盖掉 = **丢更新**。
+ * 现改为「以**存储最新**为基准合并 patch」：`all[type] = {...stored, ...patch}` ——
+ * 只覆盖本次真正改动的字段，别人的更新保留（`prev` 仍用于本实例 UI 态，含 defaults 合并）。
+ */
+export function mergeNodePrefs(
+  type: string,
+  prev: NodePrefsMap,
+  patch: NodePrefsMap,
+): NodePrefsMap {
+  try {
+    const all = loadAll();
+    const stored = (all[type] as NodePrefsMap | undefined) ?? {};
+    all[type] = { ...stored, ...patch };
+    contentSet(STORAGE_KEY, all);
+  } catch {
+    /* ignore：记忆写入失败不影响节点本次参数生效 */
+  }
+  return { ...prev, ...patch };
+}
+
+/**
  * 读取某节点类型的上次参数（合并默认值）。
  * @param {string} type 节点类型，如 'textGenerateNode' / 'imageGenerateNode' / 'videoGenerateNode'
  * @param {object} defaults 默认参数
@@ -117,20 +141,16 @@ export function useNodePrefs(
     return { ...defaults, ...(all[type] as Record<string, unknown> | undefined) };
   });
 
+  // 最新态 ref：给「写存储」提供合并基准，避免在 setState updater 内做副作用
+  // （updater 必须是纯函数——StrictMode 下会被调用两次，副作用会写两遍；见 TD-02-5 附带修正）。
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
+
   const set = useCallback(
     (patch: NodePrefsMap) => {
-      setPrefs((prev) => {
-        const next = { ...prev, ...patch };
-        // 持久化
-        try {
-          const all = loadAll();
-          all[type] = next;
-          contentSet(STORAGE_KEY, all);
-        } catch {
-          /* ignore */
-        }
-        return next;
-      });
+      const next = mergeNodePrefs(type, prefsRef.current, patch);
+      prefsRef.current = next; // 同一事件里连续 set 两次也以最新为基准
+      setPrefs(next);
     },
     [type],
   );

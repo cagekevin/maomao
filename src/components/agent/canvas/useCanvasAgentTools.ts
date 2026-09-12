@@ -1,11 +1,11 @@
 import { useCallback, useMemo } from 'react';
 import { useReactFlow, type Node, type Edge } from '@xyflow/react';
 import { registerTool, getTools, type ToolResult } from '../../base/canvas/toolRegistry.ts';
-import { defaultNodeData } from '@/components/base/canvas/NodePalette';
+import { defaultNodeData } from '@/components/base/canvas/nodeDataSchema';
 import { runNodeGeneration } from '../../base/store/taskStore.ts';
 import '@/components/base/canvas/groupNodes';
 import { createCanvasHost, type CanvasHostCtx } from './canvasHost.ts';
-import { executePlan, type GenerationStep } from './canvasPlanExecutor.ts';
+import { executePlan } from './canvasPlanExecutor.ts';
 import {
   patchCurrentWorkflow,
   setCurrentMemory,

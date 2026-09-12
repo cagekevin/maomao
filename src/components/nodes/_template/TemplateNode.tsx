@@ -46,8 +46,9 @@ import { resolveProviderModel } from '../../base/utils/providerModels.ts';
  * 【怎么用】
  * 1. 复制本文件为 `src/components/nodes/XxxNode.tsx`，把函数名、type 占位符全换成你的。
  * 2. 按「业务专属内容」改主显示框 children 和展开面板；不需要的能力直接删对应块。
- * 3. 注册（**以 spec/NEW-NODE-GUIDE.md §六为准**，2026-09-11 更新为 5 处；漏一处必出问题）：
- *    - NodePalette.ts paletteNodes 加一行（App.tsx 的 nodeTypes 已单源派生，**不再手改 App.tsx**）
+ * 3. 注册（**以 spec/NEW-NODE-GUIDE.md §六为准**，2026-09-12 更新为 6 处；漏一处必出问题）：
+ *    - NodePalette.ts paletteNodes 加一行（**纯 UI 目录，不带 data**；App.tsx 的 nodeTypes 已单源派生，**不再手改 App.tsx**）
+ *    - canvas/nodeDataSchema.ts NODE_DATA_DEFAULTS 加一行（**新建 data 初值**唯一真源；只用于新建，禁用于快照还原）
  *    - contracts.ts NODE_TYPES 加一行（用 useNodePrefs 时；check:node-types 强制）
  *    - contracts.ts NODE_HANDLE_CONTRACT 加一行（端口非默认 null 口时；check:node-handles 强制）
  *    - useConnectedInputs.ts NODE_OUTPUTS 加一行（有产出必须，否则下游拿不到数据）
@@ -72,10 +73,10 @@ import { resolveProviderModel } from '../../base/utils/providerModels.ts';
  *  - 读上游：`useConnectedInputs(id)` 已在模板接入 → 自动聚合所有直接上游产出
  *    { images, texts, videos, audios }，本节点作为参考输入用（已接 ResourceStrip + PromptInput）。
  *  - 产出给下游：① 组件里把结果写回 node.data（如 data.assetUrl / data.images[]）；
- *    ② 在 `useConnectedInputs.js` 的 `NODE_OUTPUTS` 加一行声明如何解析你的产出
- *    （单产出其实可省略——有 `genericOutput` 兜底读 assetUrl/videoUrl/resultUrl；
- *    但**数组型产出（images[]/extractedImages[]）必须声明**，否则下游拿不到）。
- *    见文件底部【上/下游数据 + 产出声明】。
+ *    ② **必须**在 `useConnectedInputs.ts` 登记产出声明（TD-02-11 起无"猜字段名"兜底）：
+ *       单 URL → `SINGLE_OUTPUT_FIELDS`；复合（多端口/多图/数组）→ `NODE_OUTPUTS`；
+ *       确无自有产出（只经 spawn 子节点交付）→ `NO_OUTPUT_NODE_TYPES`。
+ *       见文件底部【上/下游数据 + 产出声明】。
  *
  * ════════════════════════════════════════════════════════════════
  * 【特殊能力索引 · 想抄哪个能力去哪个节点找】
@@ -502,13 +503,15 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
  *
  * 二、产出给下游（有产出必做，否则下游连了线也拿不到数据）
  *   1) 组件里把结果写回 node.data（模板已在 onSuccess 写 data.assetUrl）。
- *   2) 到 `src/components/base/useConnectedInputs.js` 的 `NODE_OUTPUTS` 加一行声明。
- *      · 单图/单视频/单文本：通常可省略（有 genericOutput 兜底读 data.assetUrl/videoUrl/resultUrl）。
- *      · 数组型产出（data.images[] / data.extractedImages[]）必须声明，示范：
- *
- *      // 在 NODE_OUTPUTS 里加：
- *      xxxNode: (d) => ({ images: arrayImages(d.extractedImages, 'xxx', (i) => `输出 ${i + 1}`) }),
- *      // arrayImages 是 useConnectedInputs.js 里现成的数组归一函数，直接 import/引用。
+ *   2) 到 `src/hooks/useConnectedInputs.ts` **登记产出声明**（2026-09-12 / TD-02-11 起，
+ *      "读侧猜字段名"的兜底已降级为只服务未登记类型的安全网——**不要指望它**）：
+ *      · 单 URL 产出（单图 / 单视频）→ 加进 `SINGLE_OUTPUT_FIELDS`，**写出你的真实字段名**：
+ *          `xxxNode: ['assetUrl']`（按序取第一个非空；assetType 会参与判型）
+ *      · 复合产出（多端口 / 多图 / 数组归一）→ 加进 `NODE_OUTPUTS`：示范
+ *          `xxxNode: (d) => ({ images: arrayImages(d.extractedImages, 'xxx', (i) => `输出 ${i + 1}`) }),`
+ *          （`arrayImages` 是文件里现成的数组归一函数，直接引用）
+ *      · 确无自有产出（结果只经 spawn 子节点交付）→ 加入 `NO_OUTPUT_NODE_TYPES`
+ *      漏登记会被 `uncoveredOutputNodeTypes()` 拦下（单测 + dev 告警）。
  *
  * 三、多图容器（要当"图片盒子/视频盒子"那种多图节点时）
  *   - 数据量大、被连线/剧本盒子频繁读写 → 参考 ImageBoxNode：直接读 data.images、不复制 state。

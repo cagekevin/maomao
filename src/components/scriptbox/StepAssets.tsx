@@ -63,12 +63,12 @@ export default function StepAssets({ data, updateData, callbacks }: StepAssetsPr
   ];
 
   // 切换选中
-  const togglePick = (id) => {
+  const togglePick = (id: string) => {
     const next = assets.map((a) => (a.id === id ? { ...a, picked: !a.picked } : a));
     updateData({ assets: next, pickedCount: next.filter((a) => a.picked).length });
   };
   // 删除资产
-  const delAsset = (id) => {
+  const delAsset = (id: string) => {
     // 联动清理逻辑收口到纯函数 removeResource：删资产 → 各镜头文本里 @名 标记去掉（只去 @、保留名字）
     updateData(removeResource(assets, id, d.shots));
   };
@@ -79,8 +79,8 @@ export default function StepAssets({ data, updateData, callbacks }: StepAssetsPr
     callbacks.onGenerateAllAssetImages?.(target);
   };
   // 上传单个资产图片：把本地图片设为该资产参考图（onUploadAssetImage，复用右键上传同一套落盘底层）
-  const uploadOne = (id, file) => callbacks.onUploadAssetImage?.(id, file);
-  const retryUpload = (id) => callbacks.onRetryAssetImageUpload?.(id);
+  const uploadOne = (id: string, file: File) => callbacks.onUploadAssetImage?.(id, file);
+  const retryUpload = (id: string) => callbacks.onRetryAssetImageUpload?.(id);
 
   return (
     <div className="flex flex-col gap-3">
@@ -268,7 +268,7 @@ function AssetCard({
   const fileRef = React.useRef<HTMLInputElement>(null);
   useOutsideClick(moreRef, more, () => setMore(false));
   // 选图后回调（复用上传底层，把图设为该资产参考图）；失败/取消重置 input 便于再次选择
-  const handlePickFile = (e) => {
+  const handlePickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) onUpload(asset.id, file);
     e.target.value = '';
@@ -444,7 +444,7 @@ function AssetPanel({
   const [desc, setDesc] = useState(asset.description);
   const [prompt, setPrompt] = useState(asset.prompt);
 
-  const save = (alsoGen) => {
+  const save = (alsoGen: boolean) => {
     // 改名联动：@旧名 → @新名（纯函数收口，避免内联 split('@') 重复实现）
     const shots =
       name !== asset.name ? renameAssetRefs(data.shots || [], asset.name, name) : data.shots || [];

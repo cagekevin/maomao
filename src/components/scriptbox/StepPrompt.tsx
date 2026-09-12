@@ -71,9 +71,10 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
   const [singleIdx, setSingleIdx] = useState(0); // 单镜头视图：当前查看的镜头 idx
   const [mergeLoading, setMergeLoading] = useState(false); // 合并生成视频：按钮转圈+「生成中」
 
-  const patchShot = (idx, field, val) => updateData({ shots: patchShots(shots, idx, field, val) });
+  const patchShot = (idx: number, field: string | Record<string, unknown>, val?: unknown) =>
+    updateData({ shots: patchShots(shots, idx, field, val) });
 
-  const toggleSel = (idx) => {
+  const toggleSel = (idx: number) => {
     const s2 = new Set(selShots);
     if (s2.has(idx)) s2.delete(idx);
     else s2.add(idx);

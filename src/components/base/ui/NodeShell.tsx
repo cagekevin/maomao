@@ -199,8 +199,11 @@ function useNodeHeight(id: string) {
  *     应分别用 imageCompress / clipboard.js。
  *
  * ── 7. 注册（5 处同步，漏一处 → 要么建不出 / 要么下游拿不到数据 / 要么门禁红）──
- *   · components/base/canvas/NodePalette.ts paletteNodes 加一行 { type, label, icon, cat, component, data, builtin:true }。
+ *   · components/base/canvas/NodePalette.ts paletteNodes 加一行 { type, label, icon, cat, component, builtin:true }
+ *     （**纯 UI 目录，不带 data**；`data` 默认值 2026-09-12 起归 nodeDataSchema）。
  *     ⚠️ App.tsx 的 nodeTypes 已由 buildNodeTypeComponents() 单源派生，**不再手改 App.tsx**（旧注释已过时）。
+ *   · **components/base/canvas/nodeDataSchema.ts 的 NODE_DATA_DEFAULTS 加一行**（新建 data 初值唯一真源，
+ *     2026-09-12 / TD-02-7 从 palette.data 迁出；无 data 字段的节点可省。**只用于新建，禁用于快照还原**）。
  *   · contracts.ts 的 NODE_TYPES 加一行（节点用 useNodePrefs('xxxNode', …) 时；check:node-types 强制）。
  *   · contracts.ts 的 NODE_HANDLE_CONTRACT 加一行（节点端口非默认 null 口时；check:node-handles 强制）。
  *   · **hooks/useConnectedInputs.ts 的 NODE_OUTPUTS 加一行**（有产出的节点必须登记，否则下游连线拿不到数据；

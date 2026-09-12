@@ -12,6 +12,11 @@
     "src/components/base/panels/",
     "src/hooks/",
     "src/components/nodes/",
-    "src/components/agent/"
+    "src/components/agent/",
+    "src/components/edges/",
+    "src/components/panels/",
+    "src/components/scriptbox/",
+    "src/App.tsx",
+    "src/main.tsx"
   ]
 }

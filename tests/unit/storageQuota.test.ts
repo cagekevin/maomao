@@ -12,7 +12,6 @@ import {
   estimateChromeStorage,
   mapKeyToDomain,
   analyzeStorageByKeys,
-  analyzeAgentConversationPressure,
 } from '@/components/base/storage/storageQuota.ts';
 
 /** 可控的 chrome 全局（模拟 普通网页 / 真实扩展 两种环境） */
@@ -177,13 +176,8 @@ describe('storageQuota.analyzeStorageByKeys（按键画像）', () => {
   });
 });
 
-describe('storageQuota.analyzeAgentConversationPressure（已弃用）', () => {
-  it('会话键已迁 KV，恒返回 null（不再做本地存储键级预警）', async () => {
-    // AI 会话键迁 localTool KV 后不再占本地存储，该键级本地配额预警已无意义（见迁移事实记录文档）
-    localStorage.clear();
-    expect(await analyzeAgentConversationPressure()).toBeNull();
-  });
-});
+// 更新(2026-09-12 / TD-02-8)：`analyzeAgentConversationPressure`（恒 null 的已弃用 API）已删除，
+// 对应「已弃用」describe 一并移除——保留"恒 null 仍是正确行为"的用例，等于给死抽象续命。
 
 describe('utils.formatBytes（存储专用）', () => {
   it('B 级：1536 → 1.5 KB', () => {

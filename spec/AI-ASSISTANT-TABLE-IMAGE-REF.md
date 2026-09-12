@@ -379,7 +379,7 @@ AI 因此能直接看出「第 2 行和第 7 行是同一个角色」。所以�
 | 产出声明 | `NODE_OUTPUTS.tableNode = (d, sourceHandle) => …`，按端口反查该行，返回 `{ texts:[{id,label,text:行文本}], images:[该行引用的素材图] }` |
 | 未命中端口 | 返回 `undefined`（= 弃权，交回通用兜底），**不可返回空对象**（会屏蔽兜底——剧本盒注释已明写此为回归点） |
 | 节点注册 | `NodePalette` 登记一处即可（`App.tsx` 的 `nodeTypes` 由 `buildNodeTypeComponents()` 单源派生） |
-| dev 校验 | `useConnectedInputs.ts:380` 的 G2 校验会扫描新类型，未声明产出会 warn——**必须**在 `NODE_OUTPUTS` 或 `noOutput` 登记 |
+| dev 校验 | `uncoveredOutputNodeTypes()`（useConnectedInputs）扫描 `NODE_TYPES`，未声明产出会 dev warn 且单测红——**必须**在 `SINGLE_OUTPUT_FIELDS`（单 URL）/ `NODE_OUTPUTS`（复合）/ `NO_OUTPUT_NODE_TYPES`（无产出）之一登记（2026-09-12 / TD-02-11 起） |
 
 ### 11.3 已定稿设计点（2026-09-08 用户拍板）
 

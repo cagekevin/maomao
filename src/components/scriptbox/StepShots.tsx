@@ -13,6 +13,7 @@ import {
   removeShot,
   applyTailFrameSelection,
   parseShotSeconds,
+  type TailFrameVariant,
 } from './scriptBoxPrompts.ts';
 import ResourceStrip from '../base/panels/ResourceStrip.tsx';
 import type { ResourceStripProps } from '../base/panels/ResourceStrip.tsx';
@@ -54,17 +55,18 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
   // 缩略图显示复用系统统一按需出图出口（与资产卡/AssetNode 一致）
   const render = useRenderAssetResolver();
 
-  const setStory = (story) => updateData({ story });
-  const setStyle = (globalStyle) => updateData({ globalStyle });
-  const setShotCount = (shotCount) => updateData({ shotCount });
-  const setCustomCount = (customCount) => updateData({ customCount });
+  const setStory = (story: string) => updateData({ story });
+  const setStyle = (globalStyle: string) => updateData({ globalStyle });
+  const setShotCount = (shotCount: number | string) => updateData({ shotCount });
+  const setCustomCount = (customCount: string) => updateData({ customCount });
 
   // 更新单个分镜字段（复用纯函数 patchShots，收口 StepShots/StepPrompt 重复）
-  const patchShot = (idx, field, val) => updateData({ shots: patchShots(shots, idx, field, val) });
+  const patchShot = (idx: number, field: string | Record<string, unknown>, val?: unknown) =>
+    updateData({ shots: patchShots(shots, idx, field, val) });
 
   // 对白数组 → 文本（可编辑）与 文本 → 对白数组：统一复用 scriptBoxPrompts 纯函数
   //（dlgToText / textToDlg，与引擎生成解析一致，含旁白识别）
-  const openField = (idx, field, title) => {
+  const openField = (idx: number, field: string, title: string) => {
     setEditing({ idx, field, title });
     setEditVal(String(shots[idx]?.[field] ?? ''));
   };
@@ -72,7 +74,7 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
     if (editing) patchShot(editing.idx, editing.field, editVal);
     setEditing(null);
   };
-  const openDlg = (idx) => {
+  const openDlg = (idx: number) => {
     setDlgEditing(idx);
     setDlgText(dlgToText(shots[idx]?.dialogue));
   };
@@ -84,20 +86,24 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
   const addShot = () => {
     updateData({ shots: [...shots, createNewShot(shots)] });
   };
-  const delShot = (idx) => {
+  const delShot = (idx: number) => {
     updateData({ shots: removeShot(shots, idx) });
   };
 
   // P1-1 尾帧变体选帧（浮层内）：写回 selectedTailFrameVariantId + usePrevShotVideoTail 开关 + prevShotImageRefUrls。
   // 单次 updateData 一次性写回（避免多次 patch 读旧引用互相覆盖）。选「不使用尾帧」时 useTail=false、清参考 URL。
-  const selectTailFrame = (shotId, variant, useTail) => {
+  const selectTailFrame = (
+    shotId: string | number,
+    variant?: TailFrameVariant | null,
+    useTail?: boolean,
+  ) => {
     const next = applyTailFrameSelection(shots, shotId, variant, useTail);
     if (!next) return; // 找不到 shotId：不写回、不关浮层（与原实现一致）
     updateData({ shots: next });
     setTfShotId(null);
   };
   // 浮层内重试生成尾帧变体
-  const openTailFrame = (shotId) => {
+  const openTailFrame = (shotId: string | number) => {
     setTfShotId(shotId);
     callbacks.onGenerateTailFrameVariants?.(shotId);
   };

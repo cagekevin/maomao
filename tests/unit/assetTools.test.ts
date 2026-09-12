@@ -124,6 +124,9 @@ vi.mock('../../src/components/base/storage/storageAdapter.ts', () => ({
   sRemove: vi.fn((k) => {
     prefsMem.delete(k);
   }),
+  // TD-02-2：contentStore.loadFromLocal 未就绪时返回 undefined 且不读底层 → 桩必须声明「已就绪」，
+  // 否则内存实现永远读不到 seed（nodePrefs 会退化为默认值）。
+  isStorageReady: () => true,
 }));
 import { useNodePrefs } from '../../src/components/base/canvas/nodePrefs.ts';
 
@@ -153,16 +156,21 @@ describe('nodePrefs —— 节点上次参数记忆', () => {
     expect(result.current.prefs).toEqual({ model: 'saved', size: '1K', ratio: '16:9' });
   });
 
-  it('set(patch) 合并并写回 localStorage', () => {
+  it('set(patch) 合并并写回 localStorage（存储只记用户改过的字段，defaults 读取时补）', () => {
+    // 既有记忆（另一次会话/另一节点写过的 ratio）必须保留 —— TD-02-5：写的是「存储最新 ∪ patch」，
+    // 不是「本实例整份 prev」。defaults 不落盘：否则改代码默认值对老用户永久失效（被历史固化值掩盖）。
+    prefsMem.set('yimao_node_prefs', JSON.stringify({ textGenerateNode: { ratio: '16:9' } }));
     const { result } = renderHook(() =>
       useNodePrefs('textGenerateNode', { model: 'a', size: '1K' }),
     );
     act(() => {
       result.current.set({ model: 'b' });
     });
-    expect(result.current.prefs).toEqual({ model: 'b', size: '1K' });
+    // 本实例 UI 态 = defaults ∪ 既有记忆 ∪ patch
+    expect(result.current.prefs).toEqual({ model: 'b', size: '1K', ratio: '16:9' });
     const stored = JSON.parse(prefsMem.get('yimao_node_prefs'));
-    expect(stored.textGenerateNode).toEqual({ model: 'b', size: '1K' });
+    // 存储 = 既有记忆 ∪ patch（不含 defaults）
+    expect(stored.textGenerateNode).toEqual({ model: 'b', ratio: '16:9' });
   });
 
   it('set 多次累计合并', () => {

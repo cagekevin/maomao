@@ -19,7 +19,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { CANVAS_SYNC_CHANNEL, getCanvasTabId } from '../components/base/core/canvasSyncBus.ts';
 import { CANVAS_STATE_PREFIX } from '../components/base/core/contracts.ts';
-import { kvGetVersion } from '../components/base/api/localToolApi.ts';
+// 版本读经 contentStore KV 协议原语（不再直调 transport；TD-02-1 收口点）
+import { contentKvGetVersion } from '../components/base/core/contentStore.ts';
 import { getLoadedVersion } from '../components/base/store/projectStore.ts';
 import { logger } from '../components/base/core/logger.ts';
 
@@ -79,7 +80,7 @@ export function useCanvasSync(getProjectId: () => string): CanvasSyncApi {
       const pid = getProjectIdRef.current?.();
       if (!pid || document.visibilityState !== 'visible') return;
       try {
-        const remote = await kvGetVersion(CANVAS_STATE_PREFIX + pid);
+        const remote = await contentKvGetVersion(CANVAS_STATE_PREFIX + pid);
         if (remote > getLoadedVersion()) setCanvasConflict(true);
       } catch {
         /* 轮询失败静默：不打扰主链路 */

@@ -14,6 +14,8 @@ import {
   sRemove,
   isChromeExtension,
   initStorage,
+  isStorageReady,
+  onStorageReady,
 } from '@/components/base/storage/storageAdapter.ts';
 
 /** 可控的 chrome 全局（模拟 普通网页 / 真实扩展 两种环境） */
@@ -217,5 +219,40 @@ describe('storageAdapter 双端兼容加固', () => {
     expect(publishMock.mock.calls[0][0]).toBe('persist:failed');
     expect(publishMock.mock.calls[0][1].key).toBe('ext_lerr_k');
     expect(publishMock.mock.calls[0][1].error).toContain('quota exceeded');
+  });
+});
+
+describe('storageAdapter 就绪度一等状态（TD-02-2）', () => {
+  it('非扩展环境（localStorage 同步径）：恒就绪，无「异步预填」窗口', () => {
+    chromeGlobal = undefined;
+    expect(isStorageReady()).toBe(true);
+  });
+
+  it('onStorageReady 在已就绪时立即同步执行一次', () => {
+    chromeGlobal = undefined;
+    const cb = vi.fn();
+    onStorageReady(cb);
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
+
+  it('扩展环境：initStorage 预填完成后唤醒等待者（未就绪时注册不立即执行）', async () => {
+    chromeGlobal = makeExtensionChrome();
+    const cb = vi.fn();
+    onStorageReady(cb);
+    initStorage();
+    await flushAsync();
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
+
+  it('取消注册：就绪回调不再触发', async () => {
+    chromeGlobal = makeExtensionChrome();
+    const cb = vi.fn();
+    const off = onStorageReady(cb);
+    // 若已就绪，回调在注册时已执行一次；取消后不应再有第二次
+    const before = cb.mock.calls.length;
+    off();
+    initStorage();
+    await flushAsync();
+    expect(cb.mock.calls.length).toBe(before);
   });
 });

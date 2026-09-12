@@ -15,7 +15,7 @@
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { resolve, join, dirname, extname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 let parse;
 try {
@@ -459,6 +459,222 @@ for (const f of files) {
 }
 if (!nodeDataViol)
   console.log('  ✅ 无手写 setNodes/setEdges 裸写 node/edge 字段（data/width/height/style 均经 patchNodeById/patchEdgeById）');
+
+// ─────────────────────────────────────────────────────────────────
+// 规则 6（TD-02-1，2026-09-12）：存储读写唯一入口 —— 禁止绕过 contentStore 直调底层 transport。
+//
+// 【为什么存在】CLAUDE.md §二 / contentStore 文件头红字：「所有业务数据读写必须走 contentStore，
+// 禁止直调 storageAdapter / kv 底层」。此前该红线**只有注释、无机器强制**，实测已被绕过：
+// projectStore 直调 kvSet/kvGetVersion（画布快照 CAS）+ useCanvasSync 直调 kvGetVersion。
+// 旁路一旦存在，contentStore 的失败分类 / 降级 / 观测对该条数据流全部失效——红线无守卫 = 无红线。
+//
+// 【判定】src 下（含 hooks）：
+//  - 从 localToolApi（或 api barrel `base/api`）具名导入 kvGet/kvSet/kvDelete/kvGetVersion；
+//  - 从 storageAdapter（或 storage barrel `base/storage`）具名导入 sGet/sSet/sRemove。
+// 命中即违规（白名单文件除外）。
+//
+// 【白名单（有意例外，理由见 daily/架构日志/02-存储-持久化-二轮深扫-2026-09-12.md §一.2）】
+//  - contentStore.ts：唯一入口本体，它才是这些底层的合法消费者；
+//  - base/storage/**：底层实现内部互引（storageAdapter / index / storageQuota / kvStore 壳）；
+//  - conversationState.ts：KV 迁移需回读旧 local 存量（键已登记 kv 后端，走 contentStore 会读错后端）；
+//  - director3d/**：第三方域（§五·五 明示例外，不走本项目存储键体系）。
+// ─────────────────────────────────────────────────────────────────
+const KV_TRANSPORT_SYMBOLS = new Set(['kvGet', 'kvSet', 'kvDelete', 'kvGetVersion']);
+const LOCAL_ADAPTER_SYMBOLS = new Set(['sGet', 'sSet', 'sRemove']);
+function storageBypassAllowed(rel) {
+  return (
+    rel === 'src/components/base/core/contentStore.ts' ||
+    rel.startsWith('src/components/base/storage/') ||
+    rel === 'src/components/agent/conversation/conversationState.ts' ||
+    rel.startsWith('src/components/director3d/')
+  );
+}
+let storageBypassViol = 0;
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  if (storageBypassAllowed(rel)) continue;
+  let code;
+  try {
+    code = readFileSync(f, 'utf8');
+  } catch {
+    continue;
+  }
+  let ast;
+  try {
+    ast = parse(code, {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: true,
+    });
+  } catch {
+    continue;
+  }
+  for (const st of ast.program.body) {
+    if (st.type !== 'ImportDeclaration') continue;
+    const spec = st.source.value || '';
+    const isKvTransport =
+      /(^|\/)localToolApi(\.ts)?$/.test(spec) || /(^|\/)api(\/index)?(\.ts)?$/.test(spec);
+    const isLocalAdapter =
+      /(^|\/)storageAdapter(\.ts)?$/.test(spec) || /(^|\/)storage(\/index)?(\.ts)?$/.test(spec);
+    if (!isKvTransport && !isLocalAdapter) continue;
+    const banned = isKvTransport ? KV_TRANSPORT_SYMBOLS : LOCAL_ADAPTER_SYMBOLS;
+    for (const s of st.specifiers || []) {
+      const nm = s.imported?.name || s.local?.name;
+      if (nm && banned.has(nm)) {
+        storageBypassViol++;
+        fail(
+          `绕过存储唯一入口直调底层: ${rel}:${st.loc?.start?.line} → import { ${nm} } from '${spec}'` +
+            `（必须经 contentStore：尽力而为族 contentSet/Get/Delete(+Async)，严格族 contentKvGetVersion/contentKvSetCas）`,
+        );
+      }
+    }
+  }
+}
+if (!storageBypassViol)
+  console.log('  ✅ 无绕过 contentStore 直调存储底层（唯一入口红线成立）');
+
+// ─────────────────────────────────────────────────────────────────
+// 规则 7（TD-02-12，2026-09-12）：KV 后端键禁止「同步读」——必须 contentGetAsync / 严格族。
+//
+// 【为什么存在】`contentGet`（同步）对 **backend:'kv'** 的键在缓存未命中时只能返回 `undefined`：
+// 它表达的是「未知」，与「键不存在」同值；而 KV 键的真实数据在 localTool 后端，只有
+// `contentGetAsync`（或严格族 `contentKvGetVersion`/`contentKvSetCas`）才有权威语义。
+// 用同步读读 KV 键 → 冷启动/缓存未命中时把「未知」当「不存在」→ **水化出空数据**
+// （AI 会话迁移已真实踩过一次：docs/AI助手会话迁移-KV收口事实记录.md §读取路径）。
+// 2026-09-12 普查时全库 0 处违规，但纯靠人工审：新增调用方写 `contentGet(CANVAS_STATE_PREFIX + id)`
+// 无人拦 —— 本条把它变成机器红线（假护栏的教训：规则存在但不生效比没有更糟）。
+//
+// 【判定】src 下对同步 `contentGet(...)` 的**第一实参**做受限静态求值：
+//   StringLiteral / 嵌套 `+` 拼接 / TemplateLiteral（丢弃 ${...} 占位视为通配）/ Identifier
+//   （先查本文件字符串常量表，再查「全 src 唯一定义」的常量名 → 覆盖 import 进来的前缀常量）
+//   → 拼出候选键文本；命中任一 KV 键前缀 / 精确键 → 违规。
+//   求值不到（函数调用等）→ **不猜**（诚实免责，见「已知边界」）。
+//
+// 【豁免】contentStore.ts（入口本体）/ base/storage/**（底层自持原始键语义）/
+//   director3d/**（第三方域，同规则 6 §五·五 例外）。
+//
+// 【已知边界（诚实标注）】
+//   - 只覆盖**直接出现在调用点**的键文本；经多层变量传递、跨文件函数返回的键无法静态求值（宁漏不猜）；
+//   - 只查同步 `contentGet`。`contentHas` 有同类隐患（「未知」与「不存在」同值），当前全库无 KV 键
+//     用法故不纳入；若将来出现，把本规则 CALLEES 扩成 Set(['contentGet','contentHas']) 即可。
+// ─────────────────────────────────────────────────────────────────
+const KV_SYNC_READ_SCOPE_EXEMPT = (rel) =>
+  rel === 'src/components/base/core/contentStore.ts' ||
+  rel.startsWith('src/components/base/storage/') ||
+  rel.startsWith('src/components/director3d/');
+
+const kvKeyPrefixes = new Set();
+const kvKeyExact = new Set();
+try {
+  const mod = await import(pathToFileURL(join(SRC, 'components/base/core/contracts.ts')).href);
+  for (const [k, v] of Object.entries(mod.STORAGE_KEYS || {})) {
+    if (v?.backend !== 'kv') continue;
+    const brace = k.indexOf('{');
+    if (brace > 0) kvKeyPrefixes.add(k.slice(0, brace));
+    else kvKeyExact.add(k);
+  }
+} catch (e) {
+  console.log('  ⚠ 规则 7 无法加载 contracts.ts 的 STORAGE_KEYS（' + e.message + '）');
+}
+const KV_PREFIX_LIST = [...kvKeyPrefixes];
+const isKvKeyText = (s) => !!s && (kvKeyExact.has(s) || KV_PREFIX_LIST.some((p) => s.startsWith(p)));
+// 解析器自检（fail-loud）：解析源为空时上面的「✅ 无违规」不可信（假绿），必须报警而非放过。
+// 教训来源：TD-02-9（check-node-data 因解析被打瞎却长期报 0 缺口）。
+if (KV_PREFIX_LIST.length === 0 && kvKeyExact.size === 0) {
+  fail('规则 7 解析源为空：未能从 contracts.ts 的 STORAGE_KEYS 取到任何 backend:"kv" 键 → 本规则未生效（勿当通过）');
+}
+
+// ── 字符串常量表（规则 7 静态求值用）：本文件表 + 「全 src 唯一定义」的全局表 ──
+const fileConsts = new Map(); // absPath -> Map(name -> literal)
+const nameDefCount = new Map(); // name -> 定义次数（跨文件歧义名不参与全局求值，避免同名误解析）
+const nameValue = new Map();
+for (const f of files) {
+  const map = new Map();
+  let ast;
+  try {
+    ast = parse(readFileSync(f, 'utf8'), {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: true,
+    });
+  } catch {
+    continue;
+  }
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (
+      n.type === 'VariableDeclarator' &&
+      n.id?.type === 'Identifier' &&
+      n.init?.type === 'StringLiteral'
+    ) {
+      map.set(n.id.name, n.init.value);
+      nameDefCount.set(n.id.name, (nameDefCount.get(n.id.name) || 0) + 1);
+      nameValue.set(n.id.name, n.init.value);
+    }
+    for (const k in n)
+      if (k !== 'loc' && k !== 'range' && typeof n[k] === 'object' && n[k] !== null) walk(n[k]);
+  };
+  walk(ast.program);
+  fileConsts.set(f, map);
+}
+/** 受限静态求值：能拼出确定文本就返回，否则返回 ''（宁漏不猜） */
+const resolveConstText = (node, consts) => {
+  if (!node) return '';
+  if (node.type === 'StringLiteral') return node.value;
+  if (node.type === 'TemplateLiteral')
+    return (node.quasis || []).map((q) => q.value.raw).join(''); // ${...} 丢掉 → 前缀仍可判
+  if (node.type === 'BinaryExpression' && node.operator === '+')
+    return resolveConstText(node.left, consts) + resolveConstText(node.right, consts);
+  if (node.type === 'Identifier') {
+    if (consts.has(node.name)) return consts.get(node.name);
+    // import 进来的常量（如 contracts.CANVAS_STATE_PREFIX）：仅当全 src 唯一定义时才敢用
+    if (nameDefCount.get(node.name) === 1) return nameValue.get(node.name);
+    return '';
+  }
+  return '';
+};
+
+let kvSyncReadViol = 0;
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  if (KV_SYNC_READ_SCOPE_EXEMPT(rel)) continue;
+  let ast;
+  try {
+    ast = parse(readFileSync(f, 'utf8'), {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: true,
+    });
+  } catch {
+    continue;
+  }
+  const consts = fileConsts.get(f) || new Map();
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (n.type === 'CallExpression') {
+      const c = n.callee;
+      const name = c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' ? c.property?.name : null;
+      if (name === 'contentGet' && n.arguments?.length) {
+        const keyText = resolveConstText(n.arguments[0], consts);
+        if (isKvKeyText(keyText)) {
+          kvSyncReadViol++;
+          fail(
+            `KV 后端键被同步读: ${rel}:${n.loc?.start?.line} → contentGet(${keyText}…)` +
+              `（KV 键缓存冷时同步读返回 undefined = 「未知」而非「不存在」，会水化出空数据；` +
+              `必须用 contentGetAsync，或严格族 contentKvGetVersion/contentKvSetCas）`,
+          );
+        }
+      }
+    }
+    for (const k in n)
+      if (k !== 'loc' && k !== 'range' && typeof n[k] === 'object' && n[k] !== null) walk(n[k]);
+  };
+  walk(ast.program);
+}
+if (!kvSyncReadViol)
+  console.log('  ✅ 无 KV 后端键同步读（KV 键均走 contentGetAsync / 严格族）');
 
 console.log(`\n${errors === 0 ? '✅ 架构校验通过' : `❌ ${errors} 处架构违规`}`);
 process.exit(errors === 0 ? 0 : 1);

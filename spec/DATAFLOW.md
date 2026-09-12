@@ -131,6 +131,14 @@ fan-in（refs 实证 38 处 import）：几乎全部 store（task/asset/project/
 
 > 更新(2026-09-11, refs 实证)：① `contentStore` 实证 import 数 **41 处**（原写 38，+3，随 8 月末后新增 store 接入而涨，属健康增长、非泄漏）；② `taskStore` 真实路径为 `src/components/base/store/taskStore.ts`（本文件 line 23/64/65 的 `store/taskStore` 为相对简写，勿回找 `src/store/`）；③ 存储「有意不收口保留裸调」的 2 处例外中，**`d3dPersistence.ts` 例外已失效**——2026-09-11 方案A（TD-7）已把它收编进 `contentStore`（`contentSetKvWithFallback`/`contentGetKvWithFallback`），不再裸调 `kvGet/kvSet/sGet/sSet`；现仅剩 `conversationState.ts`（KV 迁移回读旧 local）1 处例外。
 
+> 更新(2026-09-12, refs 实证, 二轮深扫)：**修正上述「KV 裸 import 仅存在于 contentStore 内部」的表述——不成立**。`grep kvSet|kvGetVersion` 实测另有 2 处业务侧直调 transport：`store/projectStore.ts:458` 的 `kvSet(key, value, {ifVersion})`（画布快照 CAS 写）+ `projectStore.ts:306/308/312`、`hooks/useCanvasSync.ts:82` 的 `kvGetVersion`（版本读/3s 冲突轮询）。即**画布快照「写」绕过 contentStore 唯一入口（读仍走 `contentGetAsync`、删走 `contentDeleteAsync`）**，导致该键的 KV 降级链（写本地副本 + reportDegrade）从未生效，而读端仍会去读一个永远为空的本地副本（半截降级链）。根因：contentStore 缺「CAS 条件写 + 版本读」原语（`writeKvWithFallback` 会把 409 冲突误当引擎不可用降级，语义错）。TD-02-1。`conversationState.ts` 的 1 处裸 `sGet` 例外仍有效（另见区域 02 二轮深扫文件 §一）；`contentStore` import 数 41 复核不变（22 src + 19 tests）。
+
+> 更新(2026-09-12, refs 实证, TD-02-1 已收口)：上述旁路**同日已消除**，现数据流为
+> `projectStore`（CAS 基线/单飞/冲突提示，L3 编排）→ `contentStore` 严格族 `contentKvGetVersion` / `contentKvSetCas`（L2：失败分类 + 不降级）→ `localToolApi.kv*`（L1）；`useCanvasSync` 版本轮询同经 `contentKvGetVersion`。
+> `contentStore` 现分两族：**尽力而为族** `contentSet/Get/Delete(+Async)`（配置类，引擎不可用才降级本地副本）与**严格族** `contentKvGetVersion/contentKvSetCas`（用户主数据，fail-closed 绝不写副本）；两族共用「失败分类唯一实现 `isEngineUnavailable`（4xx=请求被拒→上抛 / 其余=引擎不可用→降级）」。**真分叉在失败语义，不在后端。** 防回潮：`check:arch` 规则 6（禁绕过 contentStore 直调 kv\*/s\* 底层，白名单 4 类）。
+
+> 更新(2026-09-12, refs 实证, 三轮)：① **就绪度链路（TD-02-2）**：`storageAdapter.isStorageReady()` / `onStorageReady(cb)` 为 L1 新增就绪度原语（非插件环境恒就绪）；`contentStore.loadFromLocal` 未就绪时**返回 undefined 且不写缓存**（杜绝「未加载＝不存在」的粘性假真相）；`projectStore`/`resourceStore`/`appSettings` 三个模块级 eager 读改为「未就绪不回写种子 + 就绪后重读一次」。② **快照 schema 真源（TD-02-7 第一步）**：`base/canvas/canvasSnapshotSchema.ts`（`NODE_KEEP`/`EDGE_KEEP` + `sanitizeSnapshotNodes/Edges`）成为「画布快照保留哪些字段」的唯一物理位置，`projectStore` 只消费；原白名单及其「为什么必须保留 parentId/extent/style/initialWidth/initialHeight」的决策理由一并迁入该模块（projectStore 留指针）。③ 对账工具 `scripts/check-node-data.mjs` 修复三处静默失效（类型标注打断「名 = [」、类型注解里的 `[]` 被 `indexOf` 抢先命中、抹白把字符串字面量抹空导致取不到 `type`）并新增**解析器自检**（任一解析源为空 → 告警且 `--strict` exit 1），`check:node-data --strict` 由「假绿」恢复为可信门禁。
+
 ## 云同步（Cloud）链路
 
 > 更新(2026-09-11, refs 实证)：新增本段。原「存储/持久化」段把 `cloudSync` 列为 contentStore 上层消费者（仍真，未删），但缺独立数据流描述，此处补齐。
@@ -179,7 +187,7 @@ api/filesApi · api/localToolApi（取数据/上传/刮削）
 节点注册/默认/编组/派生/历史/懒加载/拓扑触发，是「节点怎么上画布、怎么联动」的骨架。
 
 ```
-canvas/NodePalette（节点注册表，buildNodeTypeComponents 单源派生 nodeTypes）+ canvas/nodeDefaults（结构默认单源 + INPUT_PANEL_NODE_TYPES）+ canvas/nodePrefs（参数记忆，KV yimao_node_prefs）
+canvas/NodePalette（**纯 UI 目录**：type/label/icon/cat/component，buildNodeTypeComponents 单源派生 nodeTypes）+ canvas/nodeDataSchema（**新建 data 初值真源** NODE_DATA_DEFAULTS + defaultNodeData；2026-09-12 自 NodePalette.data 迁出）+ canvas/nodeDefaults（**结构默认**单源 + INPUT_PANEL_NODE_TYPES）+ canvas/canvasSnapshotSchema（**落盘保留白名单** NODE_KEEP/EDGE_KEEP）+ canvas/nodePrefs（参数记忆，KV yimao_node_prefs）
 canvas/groupNodes（编组/拖拽落组/级联删/克隆）· canvas/deriveNodes（建子节点+连线原子快照 spawnAndCommit）· canvas/historyStack（撤销纯类）· canvas/CanvasEdgesContext（history 注入通道）
 canvas/lazyNode（重节点懒加载 + 端口占位契约）· canvas/upstreamLink（拓扑自动触发）· canvas/toolRegistry（画布 AI 工具）
 canvas/canvasContextMenu（右键三态纯配置）· canvas/ArrangeConfirm（整理确认 UI）· canvas/lod（LOD 性能降级）· canvas/useCanvasEventSubscriptions（3 全局订阅收拢）
@@ -195,6 +203,12 @@ canvas/canvasContextMenu（右键三态纯配置）· canvas/ArrangeConfirm（�
 > 更新(2026-09-12, refs 实证, 九轮)：group 显示名唯一字段 = `data.label`（建组源头 `groupNodes.createGroupFromNodes` + 加载迁移 `nodeDefaults.applyNodeTypeDefaults` 双向收敛；旧 `data.name` 在加载时迁移进 label 并清除，不再保留）。整理 `useArrangeCanvas` 对 group 尺寸写回补 `width/height`（与 `style` 同写，对齐 `useNodeResize` 的「width+height+style 三写」不变量，TD-04-16/19）。
 
 > 更新(2026-09-12, refs 实证, 十一轮)：补「素材/文本/图片/节点组**上画布**」入口链路——统一收口在 `hooks/useAssetDropPaste.ts`（`App.tsx` 经 `onDragOver`/`onDrop`/`onPaste` + `useGlobalPaste`（window paste）挂载；`createNodeFromFile` 供右键「上传」复用），**全部经注入的 `App.addNode`（结构默认 + history）建节点，无旁路**（6+ 条路径皆 addNode 调用点，非独立实现）。
+
+> 更新(2026-09-12, refs 实证, 四轮)：画布「数据契约」拆成三张**职责单一**的表，别再混：① `NodePalette` = **纯 UI 目录**（type/label/icon/cat/component/badge；`data` 字段已移出）；② `nodeDataSchema.NODE_DATA_DEFAULTS` = **新建 data 初值唯一真源**（+ `defaultNodeData(type)` 注入 `expanded`，值深拷贝）；③ `nodeDefaults.NODE_TYPE_DEFAULTS` = **结构默认**（新建与快照还原**都**补）。落盘保留白名单见 `canvasSnapshotSchema`（三轮）。`interface XxxData` 与 `NODE_OUTPUTS` **不派生自** data 表（丢类型/关注点不同），由 `npm run check:node-data --strict` 机器对账。
+
+> 更新(2026-09-12, 六轮低息清偿)：① **KV 删除语义** = 键与版本同删（后端 `handleKvDelete` 删 `<key>` + `<key>_version`；`projectStore.deleteProject` 不再手工补删，删除后重建不带旧 CAS 基线）。② **`yimao_node_prefs` 写语义** = 「以存储最新为基准合并 patch」（`mergeNodePrefs`），且**defaults 不落盘**（只存用户改过的字段；defaults 由 `getNodePrefs`/`injectNodePrefs` 读取时补）。③ `director3d` 跨窗口广播通道（`d3dPersistence` BroadcastChannel）**已真正建立**（原恒真守卫使提示静默失效）——同 key 被其他窗口更晚保存时，保存前一次红色 toast + 日志（同 tab 按 tabId 忽略）。④ `backupStore` 的「当前项目」改委托 `projectStore.getCurrentProject()`（内存真相，不再从存储重推导）。
+
+> 更新(2026-09-12, refs 实证, 五轮)：**上游产出（读侧）拆三张表 + 特判集**（TD-02-11，`hooks/useConnectedInputs.ts`）：① `SINGLE_OUTPUT_FIELDS`（单 URL 产出，**字段名由写侧显式声明**：assetNode/imageGenerateNode→`assetUrl`、videoGenerateNode→`videoUrl`、panoramaNode/director3dNode→`assetUrl`）；② `NODE_OUTPUTS`（复合产出：scriptBoxNode 多端口 / imageBoxNode 多图 / videoExtract·gridSplit·gridMerge 的 `extractedImages[]` 归一）；③ `NO_OUTPUT_NODE_TYPES`（group / ghostTarget / faceMosaicNode / loopNode / videoProcessNode —— 无自有产出，结果经 spawn 子节点交付）；④ `SPECIAL_OUTPUT_TYPES`（textGenerateNode 读 node.id 特判）。`getNodeOutput` 调度序 = 无产出 → 单 URL → 复合 → 特判 → **安全网**；`genericOutput`（`assetUrl>videoUrl>resultUrl` 三字段猜测）**降级为只服务未登记类型（存量退役节点快照）的安全网**，不再承担任何契约。覆盖性 = `uncoveredOutputNodeTypes()`（导出纯函数 + 单测 + dev 告警）；`check-node-data.mjs` 的读侧字段解析随之改指向 `SINGLE_OUTPUT_FIELDS`。
 
 ## 提示词链路
 

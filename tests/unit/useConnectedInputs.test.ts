@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   getNodeOutput,
   NODE_OUTPUTS,
+  SINGLE_OUTPUT_FIELDS,
+  NO_OUTPUT_NODE_TYPES,
+  uncoveredOutputNodeTypes,
   buildIncomingIndex,
   incomingOf,
   collectUpstream,
@@ -136,17 +139,56 @@ describe('管线契约 getNodeOutput', () => {
     expect(r.videos[0].label).toBe('参考');
   });
 
-  it('通用兜底：resultUrl 兜底、assetType=audio 优先，且带 label（预留）', () => {
+  it('assetNode 产出走显式声明字段 assetUrl，assetType=audio 时进 audios（真实契约）', () => {
     const r = getNodeOutput({
       id: 'a1',
       type: 'assetNode',
+      data: { assetUrl: 'blob:x', assetType: 'audio', label: 'BGM' },
+    });
+    expect(r.audios).toHaveLength(1);
+    expect(r.audios[0].label).toBe('BGM');
+  });
+
+  it('安全网只服务未登记类型：未登记 type 仍可经 assetUrl/videoUrl/resultUrl 取到产出（存量退役节点快照）', () => {
+    // 例：旧版 discountVideoNode 已从 NODE_TYPES 摘除，但存量快照里仍有该节点。
+    // 已登记类型的产出契约全在三张表（TD-02-11）—— 安全网不再承担任何契约，只兜这类"无表可查"的节点。
+    const r = getNodeOutput({
+      id: 'legacy1',
+      type: 'discountVideoNode',
       data: { resultUrl: 'blob:x', assetType: 'audio', label: 'BGM' },
     });
     expect(r.audios).toHaveLength(1);
     expect(r.audios[0].label).toBe('BGM');
   });
 
-  it('assetUrl > videoUrl > resultUrl 优先级', () => {
+  it('无自有产出类型不进安全网：即使带着 assetUrl 也返回空（显式无产出优先）', () => {
+    // 断言实现一变必红：若有人把第 1 步「无自有产出」判断删掉/后移，
+    // loopNode 会被安全网猜出 assetUrl → 本断言立刻变红。
+    const r = getNodeOutput({ id: 'l1', type: 'loopNode', data: { assetUrl: 'http://x/y.png' } });
+    expect(r).toEqual({ images: [], texts: [], videos: [], audios: [] });
+  });
+
+  it('产出契约覆盖完整：NODE_TYPES 每个类型都在三张表 ∪ 特判内（新增节点漏登记即红）', () => {
+    // 这是本文件最底层的护栏：旧实现靠第二份手写白名单 genericOutputOk，删掉它之后
+    // 「漏登记」才真正能被发现（否则只是 dev console 噪音，无测试拦）。
+    expect(uncoveredOutputNodeTypes()).toEqual([]);
+  });
+
+  it('单 URL 产出表与复合产出表不相交（同一类型只该有一个产出契约）', () => {
+    const overlap = Object.keys(SINGLE_OUTPUT_FIELDS).filter((t) => t in NODE_OUTPUTS);
+    expect(overlap).toEqual([]);
+  });
+
+  it('单 URL 产出表的字段名非空（防声明成空数组导致静默无产出）', () => {
+    for (const [type, fields] of Object.entries(SINGLE_OUTPUT_FIELDS)) {
+      expect(fields.length, `${type} 的产出字段列表不应为空`).toBeGreaterThan(0);
+    }
+    expect(NO_OUTPUT_NODE_TYPES.size).toBeGreaterThan(0);
+  });
+
+  it('单 URL 声明按序取第一个非空：imageGenerateNode 只认 assetUrl（同存 videoUrl 不误判为视频）', () => {
+    // 旧实现是三魔法字段名的优先级猜测；现为「该类型声明的字段按序取第一个非空」——
+    // imageGenerateNode 只声明 assetUrl，故即便 data 里混入 videoUrl 也不会产出视频（TD-02-11 收口语义）。
     const r = getNodeOutput({
       id: 'p1',
       type: 'imageGenerateNode',

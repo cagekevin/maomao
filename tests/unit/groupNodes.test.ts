@@ -7,6 +7,7 @@ import {
   duplicateSelectedWithEdges,
   resolveDragGrouping,
 } from '../../src/components/base/canvas/groupNodes.ts';
+import { NODE_KEEP } from '../../src/components/base/canvas/canvasSnapshotSchema.ts';
 
 describe('编组算法 §2.2', () => {
   const nodes = [
@@ -280,24 +281,13 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
   const { ok, nodes: grouped, groupId } = createGroupFromNodes(nodes, ['a', 'b', 'c']);
   if (!ok) throw new Error('编组失败');
 
-  // 模拟 projectStore 落盘白名单（与 NODE_KEEP 一致）
-  const KEEP = [
-    'id',
-    'type',
-    'position',
-    'data',
-    'width',
-    'height',
-    'parentId',
-    'extent',
-    'style',
-    'initialWidth',
-    'initialHeight',
-  ];
+  // 模拟落盘白名单：直接引用快照 schema 真源（TD-02-7 第一步）。
+  // 此前此处**手抄**一份 KEEP 副本（「与 NODE_KEEP 一致」靠注释保证）→ 真源改了它不红，给出假信心；
+  // 改为 import 后白名单变更时本用例必然同步感知。
   const sanitize = (arr) =>
     arr.map((n) => {
       const out = {};
-      for (const k of KEEP) if (n[k] !== undefined && n[k] !== null) out[k] = n[k];
+      for (const k of NODE_KEEP) if (n[k] !== undefined && n[k] !== null) out[k] = n[k];
       return out;
     });
 

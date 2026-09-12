@@ -35,7 +35,7 @@ function CustomEdge({
   });
 
   const { deleteElements } = useReactFlow();
-  const removeEdge = (evt) => {
+  const removeEdge = (evt: React.MouseEvent) => {
     evt.stopPropagation();
     // 用 ReactFlow 官方 deleteElements 删边（比自定义事件更可靠）
     deleteElements({ edges: [{ id }] });

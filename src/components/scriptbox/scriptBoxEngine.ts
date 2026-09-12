@@ -572,7 +572,7 @@ export function createScriptBoxEngine({
             // 用本地化落盘后的持久 URL 作任务中心结果。done 不再落盘（P0-C），故此处显式补一个
             // tasks 目录副本（与素材库目录 migrated/... 不同、不冲突），保持任务中心「生成」面板可收录。
             if (typeof assetUrl === 'string' && assetUrl && !assetUrl.startsWith('blob:')) {
-              await saveResultToTasks(assetUrl, 'image').catch(() => null);
+              await saveResultToTasks(assetUrl, 'image').catch((): null => null);
             }
             taskCtl.done(assetUrl);
             taskSettled = true;
@@ -636,7 +636,7 @@ export function createScriptBoxEngine({
     // 【滑动窗口并发】同 onGenerateShotPrompts：同时最多 4 张在途，每张启动之间隔 500ms。
     const MAX_CONCURRENT = 4;
     const START_GAP_MS = 500;
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     const pool = new Set();
     let next = 0;
     while (next < target.length) {
@@ -854,7 +854,7 @@ export function createScriptBoxEngine({
     const START_GAP_MS = 500;
     const pool = new Set();
     let next = 0;
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     while (next < target.length) {
       const shot = target[next];
       next += 1;
@@ -1593,8 +1593,18 @@ export function createScriptBoxEngine({
       return;
     }
     // 本镜 loading 置位 / 复位（尾帧可中止，注册 `tailframe-${id}`）
-    const patchShot = (apply) =>
-      updateData({ shots: (getData().shots || []).map((s) => (s.id === shotId ? apply(s) : s)) });
+    interface TailFrameVariant {
+      id: string;
+      label?: string;
+      assetUrl?: string;
+      thumbnailUrl?: string;
+      loading?: boolean;
+      errorMsg?: string;
+    }
+    const patchShot = (apply: (s: ScriptBoxShot) => ScriptBoxShot) =>
+      updateData({
+        shots: (getData().shots || []).map((s: ScriptBoxShot) => (s.id === shotId ? apply(s) : s)),
+      });
     patchShot((s) => ({ ...s, tailFrameVariantsLoading: true, tailFrameVariantsError: undefined }));
     logger.info('scriptBox', '尾帧变体·开始', {
       nodeId,
@@ -1623,7 +1633,7 @@ export function createScriptBoxEngine({
             error: e?.message,
           });
         }
-        const original = {
+        const original: TailFrameVariant = {
           id: 'original',
           label: '原版尾帧',
           assetUrl: origUrl,
@@ -1634,9 +1644,11 @@ export function createScriptBoxEngine({
         // 2) 取角度集（过滤为已知角度），按官方「原版 + composed」布局：composed 先占位 loading
         const angleIds = (
           Array.isArray(d.tailFrameAngleIds) ? d.tailFrameAngleIds : ['forward']
-        ).filter((e) => typeof e === 'string' && TAIL_ANGLE_BY_ID[e]);
+        ).filter(
+          (e) => typeof e === 'string' && TAIL_ANGLE_BY_ID[e as keyof typeof TAIL_ANGLE_BY_ID],
+        );
         const { prompt: composePrompt, label: composeLabel } = buildTailComposePrompt(angleIds);
-        const composed = {
+        const composed: TailFrameVariant = {
           id: 'composed',
           label: composeLabel,
           assetUrl: '',
@@ -1694,7 +1706,7 @@ export function createScriptBoxEngine({
             }
             patchShot((s) => ({
               ...s,
-              prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v) =>
+              prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v: TailFrameVariant) =>
                 v.id === 'composed'
                   ? {
                       ...v,
@@ -1713,7 +1725,7 @@ export function createScriptBoxEngine({
             // 注：图像链路中止一律 AbortError 上抛，由 runAbortable 的 catch 兜底（记「已中止」warn），不会走到这里。
             patchShot((s) => ({
               ...s,
-              prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v) =>
+              prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v: TailFrameVariant) =>
                 v.id === 'composed'
                   ? { ...v, loading: false, errorMsg: r.error || '综合图生成失败' }
                   : v,
@@ -1880,7 +1892,7 @@ export const TAIL_ANGLE_BY_ID = {
  *    - prompt 含「请同时满足以下全部镜头调整要求，输出一张综合结果」 */
 export function buildTailComposePrompt(angleIds?: string[]): { prompt: string; label: string } {
   const known = Array.isArray(angleIds)
-    ? angleIds.map((e) => TAIL_ANGLE_BY_ID[e]).filter(Boolean)
+    ? angleIds.map((e) => TAIL_ANGLE_BY_ID[e as keyof typeof TAIL_ANGLE_BY_ID]).filter(Boolean)
     : [];
   const label = known.map((e) => e.label).join(' + ') || '换角度图';
   const prompt = [

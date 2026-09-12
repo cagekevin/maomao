@@ -6,7 +6,11 @@
  *  - 之后 sGet/sSet/sRemove 同步读写内存，sSet 同步更新内存 + 异步持久化到 chrome.storage.local
  *  - 非插件环境直接读写 localStorage（同步），与现有行为一致
  *
- * 使用：页面入口调用一次 initStorage()（App.tsx onMount），此后配置读写走 sGet/sSet。
+ * 使用：页面入口调用一次 initStorage()（**实为 main.tsx 模块体第 12 行**，早于 App 渲染；原注释写「App.tsx onMount」已过时），此后配置读写走 sGet/sSet。
+ *
+ * 【就绪度是一等状态（2026-09-12 / TD-02-2）】预填是**异步**的，而导出的读写是**同步**的 →
+ * 天然存在「未就绪窗口」。本层暴露 `isStorageReady()`，并以 `onStorageReady(cb)` 让模块级 eager 读
+ * 在就绪后重读一次。**上层必须区分「未就绪」与「不存在」**，禁止把前者缓存成后者（否则整会话粘成空）。
  *
  * 【R1 系统性根因治理】写入失败不再静默吞掉：sSet/sRemove 任一持久化失败都发布
  * `persist:failed` 事件（含 key），由全局监听器节流上报 toast。调用方无需逐个改。
@@ -80,10 +84,55 @@ export const KEY_PREFIX: string = 'yimao:';
 const cache = new Map<string, unknown>();
 let loaded = false;
 
+/**
+ * 预填完成监听者（TD-02-2）。模块级 eager 读在扩展环境拿不到数据，就绪后必须重读一次。
+ * 定序：本模块被 import（评估）时 loaded 仍为 false，监听者只能靠 initStorage 的异步回调唤醒。
+ */
+const readyListeners = new Set<() => void>();
+
+/**
+ * 预填是否完成（TD-02-2）。
+ * - 非插件环境（localStorage 同步读写）**恒就绪** —— 不存在「异步预填」这一步；
+ * - 插件环境：chrome.storage 预填回调完成前 = **未就绪**。此时任何同步读都读不到真实数据，
+ *   调用方必须区分「未就绪（还不知道）」与「确实不存在」，**禁止把前者缓存成后者**。
+ */
+export function isStorageReady(): boolean {
+  return loaded || !isChromeExtension();
+}
+
+/**
+ * 注册「预填完成」回调（已就绪则立即同步执行一次）。返回取消函数。
+ * 用途：模块级 eager 读（projectStore / resourceStore / appSettings）在未就绪时只能拿到默认值，
+ * 就绪后必须重读一次；否则整会话停留在默认值，且默认值/种子可能已回写覆盖真实存档。
+ */
+export function onStorageReady(cb: () => void): () => void {
+  if (isStorageReady()) {
+    cb();
+    return () => {};
+  }
+  readyListeners.add(cb);
+  return () => readyListeners.delete(cb);
+}
+
+/** 标记预填完成并唤醒监听者（仅由 initStorage 调用；幂等） */
+function markReady(): void {
+  if (loaded) return;
+  loaded = true;
+  const waiters = [...readyListeners];
+  readyListeners.clear();
+  for (const cb of waiters) {
+    try {
+      cb();
+    } catch {
+      /* 单个监听者失败不影响其余（就绪事件不该被下游异常吞掉） */
+    }
+  }
+}
+
 /** 初始化：插件环境从 chrome.storage.local 批量加载到内存缓存（仅需调用一次） */
 export function initStorage(): void {
   if (loaded || !isChromeExtension()) {
-    loaded = true;
+    markReady();
     return;
   }
   try {
@@ -93,10 +142,10 @@ export function initStorage(): void {
           if (k.startsWith(KEY_PREFIX)) cache.set(k.slice(KEY_PREFIX.length), all[k]);
         }
       }
-      loaded = true;
+      markReady();
     });
   } catch {
-    loaded = true;
+    markReady();
   }
 }
 

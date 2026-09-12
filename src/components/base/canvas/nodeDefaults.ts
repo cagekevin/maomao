@@ -6,6 +6,12 @@
  *
  * 仅放与视觉/结构相关、缺失会出问题的字段：width/height/style/initialWidth/initialHeight/className/data.label。
  * 内容对齐原 App.jsx 的 NODE_TYPE_DEFAULTS。
+ *
+ * 【与 nodeDataSchema 的分工（2026-09-12 起，别混用 —— 这是真分缝）】
+ *  - 本表 = **结构默认**：新建与**快照还原**都补（缺了尺寸塌陷/父子关系丢）。
+ *  - `nodeDataSchema.NODE_DATA_DEFAULTS` = **data 初值**：**只在新建那一刻注入**。
+ *    ⚠️ 绝不能在快照还原时注入 data 默认值 —— 那会覆盖存量节点的真实 data（用户内容）。
+ *    两者合并成一张表看似更收敛，实则会诱导后人用同一函数处理两种时机 → 静默覆盖用户数据，故刻意分开。
  */
 
 /** 节点类型「结构默认」形状（缺字段缺失时才补，见 applyNodeTypeDefaults） */

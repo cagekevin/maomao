@@ -28,6 +28,74 @@ export interface GcResult {
   deletedFiles: string[];
 }
 
+/** 数据库句柄类型（getDb 的解析值），供下方引用查询辅助函数使用 */
+type Db = Awaited<ReturnType<typeof getDb>>;
+
+/**
+ * 完整 `/files/` URL → uploads 相对路径（`canvas/x.png`）；非 /files/ 形态返回 null。
+ * 【TD-02-6 收口】此前「URL → 相对路径」的转换在 `runOrphanGc`（extraRefs）与
+ * `collectReferencedRelPaths`（resources/tasks）各写一份（连 decodeURIComponent 容错都重复），
+ * 是同一知识的两处实现 → 抽此唯一实现，三处共用。
+ */
+export function toUploadRelPath(url: unknown): string | null {
+  if (typeof url !== 'string' || !url) return null;
+  const m = url.match(/\/files\/(.+)$/);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return m[1]; // 非法转义序列：原样返回（不去掉引用，宁可少删盘）
+  }
+}
+
+/**
+ * 【全库引用来源 · SQL 唯一查询点（TD-02-6）】返回：
+ *   - `refUrls`：resources 表 url + tasks 表 result_url/thumbnail_url（**画布外**引用的完整 URL）；
+ *   - `kvValues`：kv 表全部 value 字符串（含 canvas-state-*，画布内引用藏于 JSON）。
+ * 这三类必须全覆盖、缺一不可（漏一类 → 误删仍在用的文件）：
+ *   resources 表 = 存进素材库但没放画布的图；tasks 表 = AI 任务结果；kv 表 = 画布节点引用。
+ *
+ * `collectReferencedRelPaths`（存储健康报表 / 重复文件安全删除）与 `runReferenceGc`
+ * （孤儿回收）**必须**共用本函数——此前两处各写一份同构 SQL（注释自承"完全同口径"），
+ * 口径一旦漂移就是误删或漏回收（TD-02-6）。
+ */
+function queryReferenceSources(db: Db): { refUrls: Set<string>; kvValues: string[] } {
+  const refUrls = new Set<string>();
+  const resRows = queryAll(db, 'SELECT url FROM resources') as Array<{ url?: string }>;
+  for (const r of resRows) if (r.url) refUrls.add(r.url);
+  const taskRows = queryAll(db, 'SELECT result_url, thumbnail_url FROM tasks') as Array<{
+    result_url?: string;
+    thumbnail_url?: string;
+  }>;
+  for (const t of taskRows) {
+    if (t.result_url) refUrls.add(t.result_url);
+    if (t.thumbnail_url) refUrls.add(t.thumbnail_url);
+  }
+  const kvRows = queryAll(db, 'SELECT value FROM kv') as Array<{ value?: unknown }>;
+  const kvValues = kvRows
+    .map((r) => r.value)
+    .filter((v): v is string => typeof v === 'string' && v.length > 0);
+  return { refUrls, kvValues };
+}
+
+/**
+ * 把「完整 /files/ URL 集合」并入 referenced（相对路径形态）——`runOrphanGc` 的 extraRefs
+ * 与 `collectReferencedRelPaths` 共用，转换走 `toUploadRelPath` 唯一实现。
+ */
+function addUrlRefs(referenced: Set<string>, urls: Iterable<string>): void {
+  for (const url of urls) {
+    const rel = toUploadRelPath(url);
+    if (rel) referenced.add(rel);
+  }
+}
+
+/** 把 KV 全部 value 内嵌的 /files/ 相对路径并入 referenced（提取走 extractFilesUrls 唯一实现）。 */
+function addKvRefs(referenced: Set<string>, kvValues: readonly string[]): void {
+  for (const v of kvValues) {
+    for (const rel of extractFilesUrls(v)) referenced.add(rel);
+  }
+}
+
 /**
  * 执行孤儿文件 GC。
  * @param kvValues KV 表所有 value 字符串（调用方负责查库提取）
@@ -50,26 +118,11 @@ export function runOrphanGc(
     deletedFiles: [],
   };
 
-  // 1. 收集所有被引用的 /files/ 相对路径（KV value + 额外来源）
+  // 1. 收集所有被引用的 /files/ 相对路径（KV value + 额外来源）；两处转换均走共用实现（TD-02-6）
   const referenced = new Set<string>();
-  for (const v of kvValues) {
-    if (typeof v === 'string' && v) {
-      for (const rel of extractFilesUrls(v)) {
-        referenced.add(rel);
-      }
-    }
-  }
+  addKvRefs(referenced, kvValues);
   // 额外引用（形如 http://127.0.0.1:18080/files/canvas/x.png 的完整 URL）转相对路径
-  for (const url of extraRefs) {
-    const m = url.match(/\/files\/(.+)$/);
-    if (m) {
-      try {
-        referenced.add(decodeURIComponent(m[1]));
-      } catch {
-        referenced.add(m[1]);
-      }
-    }
-  }
+  addUrlRefs(referenced, extraRefs);
   result.referenced = referenced.size;
 
   if (!fs.existsSync(uploadDir)) {
@@ -121,49 +174,17 @@ export function runOrphanGc(
 /**
  * 收集全库「被引用的 uploads 相对路径」集合（只读，不删）。
  *
- * 引用来源必须覆盖三类，缺一不可（与 runReferenceGc 完全同口径，存储健康报表 / 重复文件
- * 安全删除都要用它判断"哪个文件在用"）：
- *   - resources 表 url：存进素材库但没放画布的图只在此表；
- *   - tasks 表 result_url / thumbnail_url：AI 任务结果；
- *   - KV 表全部 value（含 canvas-state-*）：画布节点引用。
+ * 引用来源三类（resources 表 / tasks 表 / KV 表全部 value）由 `queryReferenceSources` 统一查询，
+ * 与 `runReferenceGc` **同一实现**（TD-02-6 收口：此前是同构两份、口径靠注释保证一致）。
  *
  * 返回形如 "canvas/xxx.png" 的 uploads 相对路径集合。未引用的文件 = 可安全删除。
  */
 export async function collectReferencedRelPaths(): Promise<Set<string>> {
   const db = await getDb();
+  const { refUrls, kvValues } = queryReferenceSources(db);
   const referenced = new Set<string>();
-
-  // ① resources + tasks 的完整 /files/ URL（画布外引用）
-  const refUrls = new Set<string>();
-  const resUrls = queryAll(db, 'SELECT url FROM resources') as Array<{ url: string }>;
-  for (const r of resUrls) if (r.url) refUrls.add(r.url);
-  const taskUrls = queryAll(db, 'SELECT result_url, thumbnail_url FROM tasks') as Array<{
-    result_url?: string;
-    thumbnail_url?: string;
-  }>;
-  for (const t of taskUrls) {
-    if (t.result_url) refUrls.add(t.result_url);
-    if (t.thumbnail_url) refUrls.add(t.thumbnail_url);
-  }
-  for (const url of refUrls) {
-    const m = url.match(/\/files\/(.+)$/);
-    if (m) {
-      try {
-        referenced.add(decodeURIComponent(m[1]));
-      } catch {
-        referenced.add(m[1]);
-      }
-    }
-  }
-
-  // ② KV 全部 value 里内嵌的 /files/ 相对路径（画布引用）
-  const kvValues = queryAll(db, 'SELECT value FROM kv') as Array<{ value: string }>;
-  for (const r of kvValues) {
-    if (typeof r.value === 'string' && r.value) {
-      for (const rel of extractFilesUrls(r.value)) referenced.add(rel);
-    }
-  }
-
+  addUrlRefs(referenced, refUrls); // ① resources + tasks 的完整 /files/ URL（画布外引用）
+  addKvRefs(referenced, kvValues); // ② KV 全部 value 内嵌的 /files/ 相对路径（画布引用）
   return referenced;
 }
 
@@ -171,10 +192,8 @@ export async function collectReferencedRelPaths(): Promise<Set<string>> {
  * 引用感知 GC 的统一入口：收集全库引用（resources 表 url + tasks 表 url + KV 全部 value）后执行孤儿回收。
  *
  * 设计背景（docs/13 §3.5）：删除接口「只删记录、绝不删盘」，删盘统一交给本函数裁决。
- * 引用来源必须覆盖三类，缺一不可：
- *   - resources 表 url：用户"存进素材库但没放画布"的图只在此表，漏了会被误删 → 素材丢失；
- *   - tasks 表 result_url / thumbnail_url：AI 任务结果；
- *   - KV 表全部 value（含 canvas-state-*）：画布节点引用。
+ * 引用来源的查询与转换全部复用 `queryReferenceSources` / `addUrlRefs` / `addKvRefs`
+ * （**与 `collectReferencedRelPaths` 同一实现**，TD-02-6 收口；漏一类引用即误删仍在用的文件）。
  *
  * 由删除入口（tasks/resources 删除/清空）尾部调用，让"引用消失 → 文件回收"窗口趋近于零；
  * 也供 /api/admin/cleanup 手动触发复用，保证引用收集口径只有一处。
@@ -184,23 +203,6 @@ export async function collectReferencedRelPaths(): Promise<Set<string>> {
 export async function runReferenceGc(dryRun = false): Promise<GcResult> {
   const db = await getDb();
   const uploadDir = getUploadDir();
-
-  const refUrls = new Set<string>();
-  const resUrls = queryAll(db, 'SELECT url FROM resources') as Array<{ url: string }>;
-  for (const r of resUrls) if (r.url) refUrls.add(r.url);
-  const taskUrls = queryAll(db, 'SELECT result_url, thumbnail_url FROM tasks') as Array<{
-    result_url?: string;
-    thumbnail_url?: string;
-  }>;
-  for (const t of taskUrls) {
-    if (t.result_url) refUrls.add(t.result_url);
-    if (t.thumbnail_url) refUrls.add(t.thumbnail_url);
-  }
-
-  const kvValues = queryAll(db, 'SELECT value FROM kv') as Array<{ value: string }>;
-  const kvValueStrings = kvValues
-    .map((r) => r.value)
-    .filter((v): v is string => typeof v === 'string');
-
-  return runOrphanGc(kvValueStrings, uploadDir, refUrls, dryRun);
+  const { refUrls, kvValues } = queryReferenceSources(db);
+  return runOrphanGc(kvValues, uploadDir, refUrls, dryRun);
 }

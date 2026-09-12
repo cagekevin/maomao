@@ -26,7 +26,7 @@
  */
 import { getLocalKeys } from '../core/contracts.ts';
 import { contentGet, contentSet, contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
-import { loadCanvasState, saveCanvasState } from './projectStore.ts';
+import { getCurrentProject, loadCanvasState, saveCanvasState } from './projectStore.ts';
 import { logger } from '../core/logger.ts';
 
 /** localStorage 备份清单 —— 由 contracts.ts STORAGE_KEYS 权威登记生成（getLocalKeys()）。
@@ -85,19 +85,14 @@ async function readLSAsync(k: string) {
   }
 }
 
-/** 当前项目 id（从项目列表取当前，优先 lastOpenedProject） */
-function getCurrentProjectId() {
-  try {
-    const projects = readLS('projects');
-    if (Array.isArray(projects) && projects.length) {
-      const last = readLS('lastOpenedProject');
-      if (last && projects.some((p) => p.id === last)) return last;
-      return projects[0].id;
-    }
-  } catch {
-    /* ignore */
-  }
-  return 'default';
+/**
+ * 当前项目 id —— **委托 `projectStore.getCurrentProject()` 内存真相**（TD-02-4）。
+ * 原先本地从存储重推导（读 projects + lastOpenedProject）是同一语义的**第二实现**，
+ * 且会落后 projectStore 的内存态（写盘有 300ms 防抖）→ 导出可能把「刚切换的项目」漏掉。
+ * getCurrentProject 自带 `{id:'default'}` 兜底，故无项目时行为不变。
+ */
+function getCurrentProjectId(): string {
+  return getCurrentProject().id;
 }
 
 /**

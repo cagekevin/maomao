@@ -9,13 +9,25 @@ const { mockStorageAdapter, mockLocalToolApi, mockLogger } = vi.hoisted(() => {
       sGet: vi.fn(),
       sSet: vi.fn(),
       sRemove: vi.fn(),
+      // TD-02-2：未就绪（扩展预填中）时 contentStore 不写缓存；默认按「已就绪」跑既有用例
+      isStorageReady: vi.fn(() => true),
     },
     // 2026-09-04 中间层折叠后 contentStore 不再 import kvStore，directly 调 localToolApi 的 kv 三件套。
     // 工厂整体替换：缺任一符号即 undefined 崩溃，故三件套必须齐。
     mockLocalToolApi: {
       kvGet: vi.fn(async () => null),
-      kvSet: vi.fn(async () => ({ ok: true })),
+      // 形状对齐真实 KvSetResult（code-data 信封）：CAS 用例需断言 data.version
+      kvSet: vi.fn(
+        async (): Promise<{
+          ok?: boolean;
+          code?: number;
+          data?: { ok?: boolean; version?: number };
+        }> => ({
+          ok: true,
+        }),
+      ),
       kvDelete: vi.fn(async () => ({ ok: true })),
+      kvGetVersion: vi.fn(async () => 0),
     },
     mockLogger: {
       logger: {
@@ -52,6 +64,8 @@ import {
   contentClearCache,
   contentStats,
   contentReadThrough,
+  contentKvGetVersion,
+  contentKvSetCas,
 } from '../../src/components/base/core/contentStore.ts';
 
 import '../../src/components/base/core/contracts.ts';
@@ -65,6 +79,8 @@ beforeEach(() => {
   contentClearCache();
   // 默认 sGet 返回 null（不存在）
   mockStorageAdapter.sGet.mockReturnValue(null);
+  // 默认已就绪（TD-02-2 用例会显式关掉）
+  mockStorageAdapter.isStorageReady.mockReturnValue(true);
 });
 
 afterEach(() => {
@@ -518,5 +534,93 @@ describe('未登记键 生产环境降级（仅 warning 不抛）', () => {
   it('contentSet 未登记字面量键在生产环境仅 warning 不抛', () => {
     expect(() => contentSet('unknown-key', 'value')).not.toThrow();
     expect(mockLogger.logger.warn).toHaveBeenCalled();
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════
+ * KV 失败分类 + 严格族原语（TD-02-1，2026-09-12）
+ * 地基不变式：4xx（请求被拒）≠ 引擎不可用；前者原样上抛、绝不写本地副本，
+ * 后者才降级。严格族（CAS/版本）失败一律 fail-closed，不降级。
+ * ════════════════════════════════════════════════════════════════ */
+
+describe('KV 失败分类 + 严格族原语（TD-02-1）', () => {
+  // active_api_endpoint：已登记 backend:'kv' 的普通 KV 键（无 fallback 选项）
+  const KV_KEY = 'active_api_endpoint';
+  const VALUE = { providerId: 'p1' };
+  const httpErr = (status: number, msg: string) => Object.assign(new Error(msg), { status });
+
+  it('4xx（请求被拒）原样上抛，绝不降级写本地副本', async () => {
+    mockLocalToolApi.kvSet.mockRejectedValueOnce(httpErr(409, '版本冲突'));
+    await expect(contentSetAsync(KV_KEY, VALUE)).rejects.toThrow('版本冲突');
+    expect(mockStorageAdapter.sSet).not.toHaveBeenCalled();
+    expect(mockStorageAdapter.sRemove).not.toHaveBeenCalled();
+  });
+
+  it('无 HTTP 状态（网络/超时）= 引擎不可用 → 降级写本地副本且不抛', async () => {
+    mockLocalToolApi.kvSet.mockRejectedValueOnce(new Error('Failed to fetch'));
+    await expect(contentSetAsync(KV_KEY, VALUE)).resolves.toBeUndefined();
+    expect(mockStorageAdapter.sSet).toHaveBeenCalledWith(KV_KEY, JSON.stringify(VALUE));
+  });
+
+  it('5xx = 引擎不可用 → 降级', async () => {
+    mockLocalToolApi.kvSet.mockRejectedValueOnce(httpErr(503, 'boom'));
+    await expect(contentSetAsync(KV_KEY, VALUE)).resolves.toBeUndefined();
+    expect(mockStorageAdapter.sSet).toHaveBeenCalledWith(KV_KEY, JSON.stringify(VALUE));
+  });
+
+  it('contentKvSetCas 成功：返回服务端版本 + 透传 ifVersion + 清历史降级副本', async () => {
+    mockLocalToolApi.kvSet.mockResolvedValueOnce({ code: 0, data: { ok: true, version: 42 } });
+    const res = await contentKvSetCas(KV_KEY, VALUE, { ifVersion: 41 });
+    expect(res).toEqual({ landed: 'kv', version: 42 });
+    expect(mockLocalToolApi.kvSet).toHaveBeenCalledWith(KV_KEY, VALUE, { ifVersion: 41 });
+    expect(mockStorageAdapter.sRemove).toHaveBeenCalledWith(KV_KEY);
+  });
+
+  it('contentKvSetCas 409：原样上抛、不降级（fail-closed，绝不写本地副本）', async () => {
+    mockLocalToolApi.kvSet.mockRejectedValueOnce(httpErr(409, '版本冲突'));
+    await expect(contentKvSetCas(KV_KEY, VALUE, { ifVersion: 1 })).rejects.toThrow('版本冲突');
+    expect(mockStorageAdapter.sSet).not.toHaveBeenCalled();
+  });
+
+  it('contentKvSetCas 引擎不可用：同样上抛（严格族不降级）', async () => {
+    mockLocalToolApi.kvSet.mockRejectedValueOnce(new Error('Failed to fetch'));
+    await expect(contentKvSetCas(KV_KEY, VALUE)).rejects.toThrow('Failed to fetch');
+    expect(mockStorageAdapter.sSet).not.toHaveBeenCalled();
+  });
+
+  it('contentKvGetVersion：非 KV 后端键返回 0（无版本概念）', async () => {
+    expect(await contentKvGetVersion('projects')).toBe(0);
+    expect(mockLocalToolApi.kvGetVersion).not.toHaveBeenCalled();
+  });
+
+  it('contentKvGetVersion：KV 键读失败原样上抛（调用方据此 fail-closed）', async () => {
+    mockLocalToolApi.kvGetVersion.mockRejectedValueOnce(new Error('离线'));
+    await expect(contentKvGetVersion(KV_KEY)).rejects.toThrow('离线');
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════
+ * 「未就绪 ≠ 不存在」（TD-02-2，2026-09-12）
+ * 扩展环境异步预填完成前，底层读必为 null——那是「还不知道」，不得缓存成「确实没有」，
+ * 否则该键被粘成不存在直到整会话结束（cache 无失效机制）。
+ * ════════════════════════════════════════════════════════════════ */
+
+describe('存储未就绪时不产生假真相（TD-02-2）', () => {
+  it('未就绪读：返回 undefined、不调 sGet、不写缓存；就绪后能读到真值', () => {
+    mockStorageAdapter.isStorageReady.mockReturnValue(false);
+    mockStorageAdapter.sGet.mockReturnValue(JSON.stringify([{ id: 'p1' }]));
+    expect(contentGet('projects')).toBeUndefined();
+    expect(mockStorageAdapter.sGet).not.toHaveBeenCalled(); // 未就绪连底层都不问
+    // 就绪后重读：未被「粘」成不存在
+    mockStorageAdapter.isStorageReady.mockReturnValue(true);
+    expect(contentGet('projects')).toEqual([{ id: 'p1' }]);
+  });
+
+  it('未就绪读不污染后续缓存命中判定（contentHas 不误报 false 缓存）', () => {
+    mockStorageAdapter.isStorageReady.mockReturnValue(false);
+    expect(contentHas('projects')).toBe(false);
+    mockStorageAdapter.isStorageReady.mockReturnValue(true);
+    mockStorageAdapter.sGet.mockReturnValue(JSON.stringify([{ id: 'p1' }]));
+    expect(contentHas('projects')).toBe(true);
   });
 });

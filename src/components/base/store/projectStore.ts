@@ -9,17 +9,11 @@
  */
 import { useSyncExternalStore } from 'react';
 import { useStoreSelector } from '../../../hooks/useStoreSelector.ts';
-import { CANVAS_STATE_PREFIX } from '../storage/index.ts';
+import { CANVAS_STATE_PREFIX, isStorageReady, onStorageReady } from '../storage/index.ts';
 import { CANVAS_SCHEMA_VERSION } from '../core/contracts.ts';
-// kvGetVersion / kvSet：画布快照的「版本真源在服务端」读写口（docs/118 §四 4.2）。
-import {
-  fetchProjects,
-  saveProjects,
-  ApiEnvelope,
-  ProjectsData,
-  kvGetVersion,
-  kvSet,
-} from '../api/localToolApi.ts';
+// 画布快照的「版本真源在服务端」读写口（docs/118 §四 4.2）：
+// 2026-09-12/TD-02-1 起经 contentStore 的 KV 协议原语（不再直调 transport，唯一入口红线恢复）。
+import { fetchProjects, saveProjects, ApiEnvelope, ProjectsData } from '../api/localToolApi.ts';
 // HttpError：CAS 冲突判定（409）；httpRequest 对 4xx 不重试，是现状行为。
 import { HttpError } from '../api/httpClient.ts';
 import { broadcastCanvasSaved } from '../core/canvasSyncBus.ts';
@@ -28,10 +22,13 @@ import {
   contentSet,
   contentGetAsync,
   contentDeleteAsync,
+  contentKvGetVersion,
+  contentKvSetCas,
   createDebouncedPersist,
 } from '../core/contentStore.ts';
 import { logger } from '../core/logger.ts';
 import { normalizeNodeParents } from '../canvas/groupNodes.ts';
+import { sanitizeSnapshotNodes, sanitizeSnapshotEdges } from '../canvas/canvasSnapshotSchema.ts';
 
 /** 项目结构（对齐官方，仅 id + name） */
 export interface Project {
@@ -108,7 +105,9 @@ function loadProjects(): Project[] {
   const list = contentGet(PROJECTS_KEY);
   if (Array.isArray(list) && list.length > 0) return list as Project[];
   const seeded: Project[] = [{ id: 'default', name: '默认项目' }];
-  contentSet(PROJECTS_KEY, seeded);
+  // 【未就绪不回写（2026-09-12 / TD-02-2）】扩展环境预填完成前读到的是「还不知道」，
+  // 此时把种子写回存储 = 用默认值覆盖用户真实项目列表。
+  if (isStorageReady()) contentSet(PROJECTS_KEY, seeded);
   return seeded;
 }
 
@@ -280,6 +279,19 @@ function notify(): void {
   listeners.forEach((l) => l());
 }
 
+/**
+ * 【TD-02-2】存储预填就绪后重读一次。
+ * 扩展环境下 ESM 求值先于 main.tsx 的 `initStorage()`，模块级 `loadProjects()/loadLastOpened()`
+ * 只能拿到默认值（且此时不回写，见 loadProjects）；就绪后必须重读，否则整会话停留在默认值。
+ * 注：已从后端加载过（`loaded` = 已调 initProjects）则以后端为准，不在此覆盖。
+ */
+onStorageReady(() => {
+  if (loaded) return;
+  projects = loadProjects();
+  currentProjectId = loadLastOpened();
+  notify();
+});
+
 function subscribe(cb: () => void): () => void {
   listeners.add(cb);
   return () => listeners.delete(cb);
@@ -303,13 +315,13 @@ export async function loadCanvasState(projectId: string): Promise<CanvasSnapshot
     //   反过来（先读内容后读版本）会出现「我把别人的新写入当成自己的基线 → CAS 通过 → 又覆盖别人」，
     //   那是【静默丢数据】，比假冲突严重得多。
     //   读期间若被人改过（v1 !== v2）→ 重读（≤3 次）；仍不稳则取最新 v2（宁假冲突不假通过）。
-    let v1 = await kvGetVersion(key);
+    let v1 = await contentKvGetVersion(key);
     let v = await contentGetAsync(key);
-    let v2 = await kvGetVersion(key);
+    let v2 = await contentKvGetVersion(key);
     for (let i = 0; i < 3 && v1 !== v2; i++) {
       v1 = v2;
       v = await contentGetAsync(key);
-      v2 = await kvGetVersion(key);
+      v2 = await contentKvGetVersion(key);
     }
     loadedVersion = v2;
     if (!v || typeof v !== 'object') return null;
@@ -349,60 +361,10 @@ export async function loadCanvasState(projectId: string): Promise<CanvasSnapshot
   }
 }
 
-// 【④ 不存不该存的】画布快照落盘前清理 ReactFlow 运行时 UI 态。
-// ReactFlow 的 nodes 在交互时会带 selected / dragging / measured / handles 等运行时字段，
-// 这些是「会话态」不是「数据」，不该进 KV 快照（否则污染存储、加大体积）。
-// 白名单：只保留恢复画布必需的字段。
-// ⚠️ 必须保留 parentId 与 extent：编组后子节点以「相对父节点的坐标」存储，且带 parentId + extent:'parent'。
-// 旧白名单漏掉这俩，落盘后子节点丢失父子关系、却仍带着相对坐标被当作绝对坐标渲染，
-// 刷新后所有编组子节点跑到原点附近（位置全乱）；同时 React Flow 失去 extent 钳制约束。
-// ⚠️ 还要保留 style / initialWidth / initialHeight：group 节点的面积存在 style.width/height（渲染用）
-// 与 initialWidth/Height（React Flow getNodeDimensions fallback 用）。旧白名单漏掉它们，
-// 刷新后 group 矩形面积塌成 0×0（视觉缩成点），且框选命中判定因尺寸缺失而错乱。
-// edges 同理只保留 source/target/type/data 等必要字段。
-const NODE_KEEP: string[] = [
-  'id',
-  'type',
-  'position',
-  'data',
-  'width',
-  'height',
-  'parentId',
-  'extent',
-  'style',
-  'initialWidth',
-  'initialHeight',
-];
-const EDGE_KEEP: string[] = [
-  'id',
-  'source',
-  'target',
-  'sourceHandle',
-  'targetHandle',
-  'type',
-  'data',
-  'label',
-];
-function sanitizeNodes(nodes: Record<string, unknown>[] | null): Record<string, unknown>[] | null {
-  if (!Array.isArray(nodes)) return nodes;
-  return nodes.map((n) => {
-    const out: Record<string, unknown> = {};
-    for (const k of NODE_KEEP) {
-      if (n[k] !== undefined && n[k] !== null) out[k] = n[k];
-    }
-    return out;
-  });
-}
-function sanitizeEdges(edges: Record<string, unknown>[] | null): Record<string, unknown>[] | null {
-  if (!Array.isArray(edges)) return edges;
-  return edges.map((e) => {
-    const out: Record<string, unknown> = {};
-    for (const k of EDGE_KEEP) {
-      if (e[k] !== undefined && e[k] !== null) out[k] = e[k];
-    }
-    return out;
-  });
-}
+// 【④ 不存不该存的】落盘前清理 ReactFlow 运行时 UI 态。
+// ⚠️ 白名单与「为什么必须保留 parentId/extent/style/initialWidth/initialHeight」的完整决策理由，
+//    已收口到 `canvas/canvasSnapshotSchema.ts`（快照 schema 的唯一物理位置，TD-02-7 第一步）；
+//    本文件只消费 sanitizeSnapshotNodes / sanitizeSnapshotEdges，不再自持白名单（防第二真相）。
 /**
  * 保存画布快照（★ 走服务端原子 CAS，docs/118 §五 C2）。
  *
@@ -451,11 +413,12 @@ export async function saveCanvasState(
       const normalizedNodes = normalizeNodeParents(
         nodes as unknown as import('@xyflow/react').Node[],
       ) as unknown as Record<string, unknown>[];
-      const sanitizedNodes = sanitizeNodes(normalizedNodes);
-      const sanitizedEdges = sanitizeEdges(edges);
+      const sanitizedNodes = sanitizeSnapshotNodes(normalizedNodes);
+      const sanitizedEdges = sanitizeSnapshotEdges(edges);
 
       // ★ 唯一裁决点（服务端）：版本不符则 409 且一个字节都不写。
-      const res = await kvSet(
+      // 经 contentStore 严格族原语（fail-closed，失败原样上抛，绝不降级写本地副本）——TD-02-1 收口点。
+      const res = await contentKvSetCas(
         key,
         {
           schemaVersion: CANVAS_SCHEMA_VERSION,
@@ -465,7 +428,7 @@ export async function saveCanvasState(
         },
         opts.force ? {} : { ifVersion },
       );
-      const version = res?.data?.version;
+      const version = res?.version;
       if (typeof version === 'number' && Number.isFinite(version)) loadedVersion = version; // 成功即成为新基线
       recordCanvasWrite({
         at: Date.now(),
@@ -629,9 +592,10 @@ export function deleteProject(id: string): boolean {
   }
   const before = projects.length;
   projects = projects.filter((p) => p.id !== id);
-  // 异步删除画布快照（KV）及对应 _version 版本 key
+  // 异步删除画布快照（KV）。版本键 `<key>_version` 由后端 handleKvDelete **随键同删**
+  // （TD-02-10，2026-09-12：删除语义收口到 handler，调用方不再手工补删——补删漏一处就残留版本行，
+  //  会让「删除后重建」拿到旧 CAS 基线）。
   contentDeleteAsync(CANVAS_STATE_PREFIX + id).catch(() => {}); // fire-and-forget，KV 删除失败不影响主流程
-  contentDeleteAsync(CANVAS_STATE_PREFIX + id + '_version').catch(() => {}); // fire-and-forget
   if (currentProjectId === id) currentProjectId = projects[0].id;
   persist();
   notify();

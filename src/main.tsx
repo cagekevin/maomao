@@ -31,7 +31,7 @@ const _globalErrThrottle = { key: '', ts: 0 };
 //  - 无 stack（非应用 JS 抛错），是浏览器派发的 error 事件。
 // 第三方库内部行为项目代码无法根治，故在此过滤，避免污染错误日志。
 const _HARMLESS_GLOBAL_ERROR_MSGS = ['ResizeObserver loop', 'ResizeObserver loop completed'];
-function reportGlobalError(type, e) {
+function reportGlobalError(type: string, e: unknown) {
   try {
     const message =
       e instanceof Error

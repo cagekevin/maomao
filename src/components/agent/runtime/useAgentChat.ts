@@ -114,6 +114,7 @@ import {
 import { subscribe, getState } from '../conversation/conversationState.ts';
 import type { ConversationStoreState, Conversation } from '../conversation/conversationState.ts';
 import type { ConversationSnapshot } from '../conversation/conversationSnapshot.ts';
+import type { GenerationProvider } from '@/types';
 import { useStoreSelector, shallowEqual } from '../../../hooks/useStoreSelector.ts';
 // UI 渲染层消息形状（extends ChatMessage + 可选 UI 态字段）。hook 返回的 messages 即此形状，
 // 在此 import 类型保证「hook 产出」与「AgentPanel 消费」共用一份定义，消除两端的 `as unknown as`（F3）。
@@ -308,6 +309,16 @@ export interface UseAgentChatReturn {
   closeAwaitingConfirm: () => void;
 }
 
+interface UseAgentChatOptions {
+  agentKey?: string;
+  systemPrompt?: string;
+  defaultModel?: string;
+  provider?: GenerationProvider | null;
+  skills?: unknown[];
+  onConversationChange?: ((snap: ConversationSnapshot) => void) | null;
+  tableOpen?: boolean;
+}
+
 export function useAgentChat({
   agentKey = 'canvas-assistant',
   systemPrompt = '',
@@ -316,7 +327,7 @@ export function useAgentChat({
   skills = [],
   onConversationChange = null,
   tableOpen = false,
-} = {}): UseAgentChatReturn {
+}: UseAgentChatOptions = {}): UseAgentChatReturn {
   // ── 消息单源（阶段1A）：不再自持 messages state，改为按字段订阅 store 的
   //    conversations[activeId].messages。流式高频更新只重渲染消息订阅者，其余字段不连坐。
   const messages = useStoreSelector<ConversationStoreState, AgentMessageData[]>(

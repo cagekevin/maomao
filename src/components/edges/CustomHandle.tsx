@@ -65,7 +65,7 @@ function CustomHandle({
       cachedCx = r.left + r.width / 2;
       cachedCy = r.top + r.height / 2;
     };
-    const move = (e) => batch(e.clientX, e.clientY);
+    const move = (e: MouseEvent) => batch(e.clientX, e.clientY);
     const reset = () => {
       batch.cancel();
       el.style.setProperty('--cust-shift-x', '0px');

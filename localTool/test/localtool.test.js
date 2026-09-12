@@ -365,14 +365,22 @@ test('KV·get 缺少 key → 400', async () => {
   assert.equal(getRes.status, 400);
 });
 
-test('KV·delete 删除后 get 为 null', async () => {
+test('KV·delete 删除后 get 为 null，且版本行一并删除（TD-02-10）', async () => {
   await kvMod.handleKvSet(makeJsonReq({ key: 'd1', value: 'v' }), makeRes());
+  // 写入后版本 > 0（CAS 基线存在）
+  const verRes1 = makeRes();
+  await kvMod.handleKvVersion(makeGetReq(), verRes1, new URL('http://x/api/kv/version?key=d1'));
+  assert.ok(parseResBody(verRes1).data.version > 0, '写入后应有版本号');
   const delRes = makeRes();
   await kvMod.handleKvDelete(makeJsonReq(), delRes, new URL('http://x/api/kv/delete?key=d1'));
   assert.deepEqual(parseResBody(delRes), { code: 0, data: { ok: true } });
   const getRes = makeRes();
   await kvMod.handleKvGet(makeGetReq(), getRes, new URL('http://x/api/kv/get?key=d1'));
   assert.equal(parseResBody(getRes), null);
+  // 版本行随键删除：删除后重建不带旧 CAS 基线（否则「删除后重建」会拿到旧版本号）
+  const verRes2 = makeRes();
+  await kvMod.handleKvVersion(makeGetReq(), verRes2, new URL('http://x/api/kv/version?key=d1'));
+  assert.equal(parseResBody(verRes2).data.version, 0, '删除后版本应归零（版本行随键删）');
 });
 
 // ══════════════════════════════════════════════════════════════

@@ -70,7 +70,7 @@ function loadCustom(): Record<string, Playbook> {
 }
 
 /** 持久化自定义列表（contentStore 对 local 键自动 JSON.stringify 写 localStorage + 更新缓存）。 */
-function persist(obj) {
+function persist(obj: unknown) {
   try {
     contentSet(PLAYBOOKS_KEY, obj);
   } catch (e) {

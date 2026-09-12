@@ -17,7 +17,17 @@
 | `health-check.cjs` | 工程健康编排：脚手架/构建/冒烟/回归/TDZ/契约比对一键跑 | `npm run check:health` |
 | `_syntax_check.ps1` | 启动脚本 `launch-all.ps1` 语法检查 | — |
 | `check-jsx.mjs` | esbuild 批量校验 `src/` 下组件的 JSX/TSX 语法（防手工拼接 JSX 的括号/闭合错误）。src 已全 TS 化，实际只命中 `.tsx`；保留 `.jsx` 收集分支是零成本兜底 | `npm run check:jsx` |
-| `check-node-data.mjs` | **node.data 契约对账**：三张表——字段缺口（含**索引签名回退**拦截 / palette 默认 / 本节点自写）、结果字段命名（写侧产出 vs 读侧 genericOutput+NODE_OUTPUTS 是否认识）、读写路径分布；另出「清空遗留字段」与「豁免表过期」自检。**已挂 `check:health`（以 `--strict`：上述任一 ≠ 0 即失败）**；不挂 prebuild/pretest（非构建必需）。本节点自用的例外登记脚本内 `RESULT_EXEMPT`（须带原因）。可传类型名子串只看单个节点 | `npm run check:node-data` |
+| `check-node-data.mjs` | **node.data + 产出契约对账**：① 字段缺口（含**索引签名回退**拦截 / `nodeDataSchema` 默认 / 本节点自写）；② 结果字段命名（写侧产出 vs 读侧 `SINGLE_OUTPUT_FIELDS` / `NODE_OUTPUTS` / 安全网是否认识，2026-09-12 / TD-02-11）；③ **无产出声明一致性**（登记 `NO_OUTPUT_NODE_TYPES` 却写产出字段即报，表2d）；④ 清空遗留字段、豁免表过期、**解析器自检**（解析源为空即 fail-loud，TD-02-9）。**已挂 `check:health`（`--strict`：上述任一 ≠ 0 即失败）**；本节点自用的例外登记脚本内 `RESULT_EXEMPT`（须带原因）。可传类型名子串只看单个节点 | `npm run check:node-data` |
+| `check-arch.mjs` | **架构红线（7 条，@babel/parser AST）**：① 循环依赖 ② `base/` 禁反向依赖业务域 ③ 结果信封禁另立 interface ④ agent 工具层禁裸调画布写（须经 canvasHost）⑤ 禁手写 `setNodes/setEdges` 裸写 node/edge 字段（data/width/height/style/selected → 须经 `patchNodeById`/`patchEdgeById`）⑥ 存储唯一入口（禁直调 `kvGet/kvSet/sGet/sSet` 底层）⑦ **KV 后端键禁同步读**（TD-02-12：`contentGet` 对 `backend:'kv'` 键冷缓存返回「未知」而非「不存在」→ 须用 `contentGetAsync`/严格族；含解析源自检） | `npm run check:arch` |
+| `check-storage-keys.mjs` | 存储键契约：`contentSet/Get` 用到的键必须在 `contracts.STORAGE_KEYS` 登记（防裸键漂移） | `npm run check:keys` |
+| `check-events.mjs` | 事件契约：`publish/subscribe` 的事件名必须在 `contracts.EVENTS` 登记（防发布无订阅/订阅无发布） | `npm run check:events` |
+| `check-api-contract.cjs` | 前后端 API 契约比对（前端 `apiRegistry` ↔ localTool 路由表） | `npm run check:api` |
+| `check-node-types.mjs` | `useNodePrefs` 命名空间必须先登记 `contracts.NODE_TYPES`（防裸字符串命名空间让「上次参数」静默失效） | `npm run check:node-types` |
+| `check-node-handles.mjs` | 节点端口契约：`NODE_HANDLE_CONTRACT` 为端口真源，App/lazyNode 只允许派生 | `npm run check:node-handles` |
+| `check-strict-src.mjs` | 隐式 any 渐进闸（TD-09-1 选项 A）：按 `strict-src-whitelist.json` 白名单逐目录清零，红 = 未达标 | `npm run check:strict-src` |
+| `check-targets.mjs` | 各 `check-*` 共享的**默认扫描根唯一事实源**（被上面几个脚本 require，不单独跑） | — |
+| `mv-sync-refs.mjs` | **改名/移动文件 + AST 全库同步 import 说明符**（CLAUDE §5.4.8 强制：改名/搬文件一律用它，禁手写 import 漂移） | 手动 |
+| `strict-report.mjs` | strict 类型收口报告（只读、不 fail）：全仓概览 + 建议下一步，供渐进消除隐式 any 使用 | 手动 |
 | `extract-tailwind.mjs` | 从 `src/` 抽取 Tailwind 类到 `src/index.css` 白名单 | `npm run extract:tw` |
 | `ts-tests.mjs` | 测试类型消化作战系统：`check`/`verify` 单文件、`status` 全局进度、`add/rm-nocheck`。**`status` 已修复可放心用**（批量剥 nocheck → tsc → finally 还原；早期恢复不可靠的历史问题已不再复现） | — |
 | `m1-scan.mjs` | 测试类型错误**全貌聚合**（只读）：复制到 `tmp/unit` 副本扫描，零污染。产出每个文件 × 错误数 × 错误码 | — |
@@ -26,6 +36,13 @@
 
 数据文件（根目录，流水线输入/产物）：
 - `dist-snapshot.json`：dist 产物基线快照（体积/文件清单），`health-check` 比对用。
+- `strict-src-whitelist.json`：`check-strict-src` 的白名单真源（逐目录渐进清零隐式 any）。
+
+内部辅助 / 一次性脚本（未挂 `package.json`，按需手动跑，勿删）：
+- `test-affected.cjs`：按**暂存改动**反查受影响测试并只跑它们（`vitest run --changed` 不认改动的源码文件，故自实现）。
+- `ts-exts.cjs`：TS 规范化重构期「扩展名无关解析 + 永久豁免」的唯一事实源（被 `.mjs`/`.cjs` 双方 require）。
+- `_shot.cjs`：Playwright 截图/取控制台报错的临时脚本（`_` 前缀 = 内部件）。
+- `_fix_unused_vars.mjs`：一次性根治 `no-unused-vars` 的批量修复脚本（已用完，留档）。
 
 ## 命令速查（AI 工作流）
 

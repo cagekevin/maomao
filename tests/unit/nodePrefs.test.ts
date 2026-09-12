@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getNodePrefs, injectNodePrefs } from '../../src/components/base/canvas/nodePrefs.ts';
+import {
+  getNodePrefs,
+  injectNodePrefs,
+  mergeNodePrefs,
+} from '../../src/components/base/canvas/nodePrefs.ts';
 import { contentSet, contentClearCache } from '../../src/components/base/core/contentStore.ts';
 
 // 记忆写入必须走业务唯一入口 contentSet（带 yimao: 前缀 + STORAGE_KEYS 登记），
@@ -63,5 +67,35 @@ describe('injectNodePrefs（新建注入，不污染存量）', () => {
     expect(data.aspectRatio).toBe('Auto');
     expect(data.imageSize).toBe('1K');
     expect(data.selectedModel).toBe('');
+  });
+});
+
+describe('mergeNodePrefs（写存储：以存储最新为基准合并 patch，TD-02-5）', () => {
+  it('同类型两实例各持旧副本、先后改不同字段 → 两次更新都保留（旧实现末写胜会丢）', () => {
+    // 实例 A、B 都从「无记忆」起步（各自持初始副本），A 先改 model、B 再改 imageSize。
+    mergeNodePrefs('imageGenerateNode', {}, { model: 'm1' });
+    mergeNodePrefs('imageGenerateNode', {}, { imageSize: '2K' });
+    // 旧实现写的是 `{...本实例prev, ...patch}` → B 落盘会把 A 的 model 整份盖掉（只剩 imageSize）
+    expect(getNodePrefs('imageGenerateNode')).toEqual({ model: 'm1', imageSize: '2K' });
+  });
+
+  it('同名字段以最新为准（patch 覆盖，非丢弃）', () => {
+    mergeNodePrefs('imageGenerateNode', {}, { model: 'm1' });
+    mergeNodePrefs('imageGenerateNode', {}, { model: 'm2' });
+    expect(getNodePrefs('imageGenerateNode')).toEqual({ model: 'm2' });
+  });
+
+  it('不同节点类型的记忆互不干扰（整表结构保留）', () => {
+    mergeNodePrefs('imageGenerateNode', {}, { model: 'm1' });
+    mergeNodePrefs('textGenerateNode', {}, { model: 't1' });
+    expect(getNodePrefs('imageGenerateNode')).toEqual({ model: 'm1' });
+    expect(getNodePrefs('textGenerateNode')).toEqual({ model: 't1' });
+  });
+
+  it('返回值 = 本实例新 UI 态（含 defaults 合并，供节点立即生效）', () => {
+    const next = mergeNodePrefs('imageGenerateNode', { aspectRatio: 'Auto' }, { model: 'm1' });
+    expect(next).toEqual({ aspectRatio: 'Auto', model: 'm1' });
+    // 存储侧只落本次 patch + 已有记忆，不把 UI 态里的 defaults 一起写进去
+    expect(getNodePrefs('imageGenerateNode')).toEqual({ model: 'm1' });
   });
 });

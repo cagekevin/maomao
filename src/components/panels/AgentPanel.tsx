@@ -9,7 +9,7 @@ import {
   setCreditSwitch,
 } from '../agent/index.ts';
 import { useProviders, load as loadProviders } from '../base/store/providerStore.ts';
-import AgentMessage from './AgentMessage.tsx';
+import AgentMessage, { type AgentMessageData } from './AgentMessage.tsx';
 import AgentConfirmCard from './AgentConfirmCard.tsx';
 import ModelSelect from '../base/ui/ModelSelect.tsx';
 import {
@@ -38,6 +38,7 @@ import {
   isSkillEnabled,
   SKILLS_KEY,
   ENABLED_KEY,
+  type Skill,
 } from '../base/store/skillStore.ts';
 import { contentGet, contentSet, contentSubscribe } from '../base/core/contentStore.ts';
 import { toAbsoluteFileUrl } from '../base/api/index.ts';
@@ -72,8 +73,13 @@ import type { AssistantTable } from '../agent/assistantTable/assistantTable.ts';
 import { useActiveAssistantTable } from '../agent/assistantTable/useActiveAssistantTable.ts';
 import { buildRefineRowsUser } from '../agent/assistantTable/assistantTablePrompt.ts';
 // 【TD-17】草稿初值经只读入口读会话快照（不再自持 agent_draft 存储键；写一律走 useAgentChat 的 saveDraft）
-import { getCurrentSnapshot } from '../agent/conversation/conversationSnapshot.ts';
+import {
+  getCurrentSnapshot,
+  type SnapshotPatch,
+} from '../agent/conversation/conversationSnapshot.ts';
+import type { Conversation } from '../agent/conversation/conversationTypes.ts';
 import AttachmentCover from '../base/ui/attachmentCover.tsx';
+import LazyImage from '../base/ui/LazyImage.tsx';
 
 /**
  * 待发送/待引用区的媒体占位 chip：图片/视频/音频统一 44×44 缩略占位，仅示意、不可在 chip 内播放。
@@ -91,13 +97,19 @@ function AttMediaChip({
   removeTitle: string;
   onRemove: () => void;
 }) {
+  const isVideo = item?.type === 'video';
+  const isAudio = item?.type === 'audio';
   const src = toAbsoluteFileUrl(item?.url || '');
-  const t = item?.type;
-  // 视频首帧 / 音频图标统一走共享 AttachmentCover，与发送后气泡一致（单一渲染来源）
-  const cover = <AttachmentCover type={t} url={src} />;
+  // 视频首帧 / 音频图标统一走共享 AttachmentCover，与发送后气泡一致（单一渲染来源）。
+  // 注意：<AttachmentCover> 对 image 返回 null，不能用 `cover ?? <img>`（React 元素恒 truthy，
+  // 兜底永不触发 → 图片缩略图不显示）；须按类型显式分支，图片走 LazyImage（懒加载 + 破图兜底）。
   return (
     <span className="agent-att">
-      {cover ?? <img src={src} alt="" />}
+      {isVideo || isAudio ? (
+        <AttachmentCover type={item?.type} url={src} />
+      ) : (
+        <LazyImage src={src} alt="" className="w-full h-full" />
+      )}
       <button type="button" className="agent-att-remove" onClick={onRemove} title={removeTitle}>
         <X size={12} strokeWidth={2.5} />
       </button>
@@ -251,19 +263,19 @@ export default function AgentPanel({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [genModels]);
-  const onGenModel = (id) => {
+  const onGenModel = (id: string) => {
     setGenModel(id);
     setGenParams({ model: id });
   };
-  const onGenSize = (s) => {
+  const onGenSize = (s: string) => {
     setGenSize(s);
     setGenParams({ resolution: s });
   };
-  const onGenRatio = (r) => {
+  const onGenRatio = (r: string) => {
     setGenRatio(r);
     setGenParams({ ratio: r });
   };
-  const onGenQuality = (q) => {
+  const onGenQuality = (q: string) => {
     setGenQuality(q);
     setGenParams({ quality: q });
   };
@@ -317,7 +329,7 @@ export default function AgentPanel({
     saveSkills(activeSkills);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- saveDraft 等 action 定义在本 effect 之后（TDZ 依赖数组）
   }, [activeSkills]);
-  const applySkill = (skill) => {
+  const applySkill = (skill: Skill) => {
     setActiveSkills((prev) => {
       if (prev.some((s) => s.id === skill.id)) return prev;
       markSkillUsed(skill.id);
@@ -328,7 +340,7 @@ export default function AgentPanel({
     });
   };
   // 移除 Skill（已启用列表里去掉）：应用 Skill 后，用户可在已启用 chip 上点 ✕ 撤销
-  const removeSkill = (id) => {
+  const removeSkill = (id: string) => {
     setActiveSkills((prev) => prev.filter((a) => a.id !== id));
   };
   // 【联动修复】订阅 skillStore 两键：设置页新增/删除/编辑 Skill（agent_skills）、
@@ -358,7 +370,7 @@ export default function AgentPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleConversationChange = useCallback((snap) => {
+  const handleConversationChange = useCallback((snap: SnapshotPatch) => {
     if (snap?.skills) setActiveSkills(snap.skills);
     if (Array.isArray(snap?.attachments)) setAttachments(snap.attachments);
     // 【TD-17】草稿跟随对话：只同步到 UI state，不再手动「也写一次存储键」——
@@ -697,10 +709,10 @@ export default function AgentPanel({
   }, [onEnabledChange]);
 
   // 宽度拖拽
-  const startDrag = useCallback((e) => {
+  const startDrag = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setDragging(true);
-    const onMove = (ev) => {
+    const onMove = (ev: MouseEvent) => {
       const w = window.innerWidth - ev.clientX;
       setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, w)));
     };
@@ -720,7 +732,7 @@ export default function AgentPanel({
   // 点击外部关闭模型下拉
   useEffect(() => {
     if (!modelOpen) return;
-    const handler = (e) => {
+    const handler = (e: MouseEvent) => {
       if (modelRef.current && !modelRef.current.contains(e.target)) setModelOpen(false);
     };
     document.addEventListener('mousedown', handler);
@@ -824,7 +836,7 @@ export default function AgentPanel({
       });
     };
     // 拖滚动条：命中容器自身 + 指针落在 clientWidth 之外（滚动条轨道区，custom-scrollbar 宽 6px 且占布局）
-    const onPointerDown = (e) => {
+    const onPointerDown = (e: PointerEvent) => {
       if (e.target !== el || e.offsetX <= el.clientWidth) return;
       takeOver();
     };
@@ -838,7 +850,7 @@ export default function AgentPanel({
       ' ',
       'Spacebar',
     ]);
-    const onKeyDown = (e) => {
+    const onKeyDown = (e: KeyboardEvent) => {
       if (SCROLL_KEYS.has(e.key)) takeOver();
     };
     const opts = { passive: true };
@@ -946,7 +958,7 @@ export default function AgentPanel({
   ]);
 
   // 单步失败重试：点击失败 tool 卡片的「重试」，只重跑该 nodeId（复用 taskStore 已注册的生成契约，对齐大雄 retryAgentGeneration）
-  const handleRetryStep = useCallback((nodeId) => {
+  const handleRetryStep = useCallback((nodeId: string) => {
     if (!nodeId) return;
     runNodeGeneration(nodeId);
   }, []);
@@ -955,7 +967,7 @@ export default function AgentPanel({
   // useAgentChat 未单独暴露 regenerate（大雄该功能依附 prompts 通道，见 useAgentChat 注释），
   // 故在 UI 层就近重发上一条 user 文本——语义等价「再问一次」，历史会多一轮，行为可预期。
   const handleRegenerate = useCallback(
-    (msg) => {
+    (msg: AgentMessageData) => {
       const idx = messages.findIndex((m) => m?.id && m.id === msg?.id);
       if (idx <= 0) return;
       for (let i = idx - 1; i >= 0; i--) {
@@ -1017,13 +1029,13 @@ export default function AgentPanel({
   };
 
   // 释放本地预览 blob 的 url（幂等：非 blob 预览 url 未登记，release 安全返回）
-  const releaseAttachmentUrls = (list) => {
+  const releaseAttachmentUrls = (list: { localUrl?: string }[]) => {
     (list || []).forEach((a) => {
       if (a?.localUrl) previewUrls.release(a.localUrl);
     });
   };
 
-  const removeAttachment = (idx) => {
+  const removeAttachment = (idx: number) => {
     setAttachments((prev) => {
       const item = prev[idx];
       if (item?.localUrl) previewUrls.release(item.localUrl);
@@ -1080,7 +1092,7 @@ export default function AgentPanel({
 
   /** 顶栏标题 = 当前会话标题（首条用户消息优先，未命名则回退 c.title / “新对话”） */
   // 会话显示名：用户显式重命名过（titleCustom）→ 用自定义 c.title；否则沿用「首条用户消息 / 标题」自动标题
-  const convDisplayTitle = (c) => {
+  const convDisplayTitle = (c: Conversation) => {
     if (!c) return '新对话';
     if (c.titleCustom && c.title) return c.title;
     const firstUser = (c.messages || []).find((m) => m?.role === 'user' && m?.content);

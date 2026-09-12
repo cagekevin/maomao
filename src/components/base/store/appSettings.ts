@@ -8,6 +8,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import { contentGet, contentSet } from '../core/contentStore.ts';
+import { onStorageReady } from '../storage/index.ts';
 import {
   buildDefaults,
   type SettingKey,
@@ -93,6 +94,17 @@ function syncDebugAll(v: boolean): void {
 // 应用加载初始化：若已持久化的调试总开关为开（云同步/刷新恢复），启动即同步 window.__DEBUG_ALL，
 // 否则刷新后 debug 会因 window 为新的而丢失开启状态。
 syncDebugAll(!!getSetting('debugOn'));
+
+/**
+ * 【TD-02-2】存储预填就绪后重读一次：扩展环境下 ESM 求值早于 main.tsx 的 `initStorage()`，
+ * 模块级 `let settings = load()` 只能拿到默认值 → 整会话「设置全变默认」。
+ * 与 cloudSync 的 `reloadAppSettings()` 同款动作（重读 + notify），差别只在触发时机。
+ */
+onStorageReady(() => {
+  settings = load();
+  syncDebugAll(!!getSetting('debugOn'));
+  notify();
+});
 
 /** React hook：订阅 app_settings */
 export function useAppSettings(): SettingState {

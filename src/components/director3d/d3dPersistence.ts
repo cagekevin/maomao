@@ -51,19 +51,20 @@ const myLastWriteAt = new Map<string, number>();
 /** key → 最近一次他窗口更晚保存的时间戳（触发冲突提示后清掉，避免每次保存刷屏） */
 const remoteConflictAt = new Map<string, number>();
 /**
- * 【疑似历史 bug · 迁移保持行为不变，仅如实标注，勿顺手修】
- * 初始值设计为 null，守卫却写 `!== undefined` → 首次调用即命中 return，下方创建逻辑
- * 实际从未执行，BroadcastChannel 从未建立（announceSaved 静默失效、跨窗口冲突提示形同虚设）。
- * 类型上保留 undefined 分支，正是为了让这处恒真比较合法地原样留存；修复需改 `!== null`
- * 并补测试，属行为变更，不在迁移范围内。
+ * 广播通道句柄（模块级单例）：`undefined` = 未初始化，`null` = 环境不可用（只尝试一次）。
+ *
+ * 【TD-02-3 修复 2026-09-12】原实现初值 `null`、守卫却写 `!== undefined`（恒真）→ 下方创建逻辑
+ * 从未执行、BroadcastChannel 从未建立，`announceSaved` 静默失效、跨窗口覆盖提示形同虚设；
+ * 更糟的是用 `null | undefined` 联合类型**为这个恒真比较背书**（编译合法、语义错误 = 假护栏）。
+ * 现以「未初始化 undefined / 不可用 null」两个真值区分状态，守卫与初值语义一致，不再靠类型兜底。
  */
-const channelRef: { value: BroadcastChannel | null | undefined } = { value: null };
+let channel: BroadcastChannel | null | undefined;
 
 function getChannel(): BroadcastChannel | null {
-  if (channelRef.value !== undefined) return channelRef.value as BroadcastChannel | null;
+  if (channel !== undefined) return channel; // 已建立 / 已确认不可用 → 复用（首调建立、次调复用）
   try {
-    channelRef.value = new BroadcastChannel(SAVE_CHANNEL);
-    channelRef.value.onmessage = (event: MessageEvent) => {
+    const created = new BroadcastChannel(SAVE_CHANNEL);
+    created.onmessage = (event: MessageEvent) => {
       const message = event?.data as D3dSavedMessage | undefined;
       if (!message || message.type !== 'D3D_SAVED' || message.tabId === tabId) return;
       // 只有"他窗口保存且比本窗口最近一次保存更新"才算落后冲突
@@ -71,10 +72,11 @@ function getChannel(): BroadcastChannel | null {
         remoteConflictAt.set(message.key, message.at);
       }
     };
+    channel = created;
   } catch {
-    channelRef.value = null; // BroadcastChannel 不可用（如部分受限环境）→ 退化为无冲突提示，不影响主流程
+    channel = null; // BroadcastChannel 不可用（如部分受限环境）→ 退化为无冲突提示，不影响主流程
   }
-  return channelRef.value;
+  return channel;
 }
 
 function announceSaved(key: string): void {

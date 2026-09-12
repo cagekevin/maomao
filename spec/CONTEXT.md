@@ -88,15 +88,15 @@
 
 * **程序化建节点+连线**：**唯一**走 `base/deriveNodes.ts` 链路，原子进 undo。
 
-* **单源节点目录**：`base/NodePalette.ts` 是唯一目录。
+* **单源节点目录**：`base/NodePalette.ts` 是唯一目录（**纯 UI 目录**：type/label/icon/cat/component/badge）。
 
-* **⚠️ 新增节点必做 3 处同步**：1. Palette 登记；2. `useConnectedInputs.ts` 声明产出（漏写会导致下游拿不到数据）；3. 文档登记。例外：`director3dNode` 与 `ghostTarget` 由 App.tsx 派生后补充。
+* **⚠️ 新增节点必做 4 处同步**：1. `NodePalette.paletteNodes` 登记（UI 目录）；2. **`canvas/nodeDataSchema.ts` 的 `NODE_DATA_DEFAULTS` 登记 data 初值**（2026-09-12 / TD-02-7：数据默认值从 palette 迁出，「新建默认值」与「UI 目录」分家）；3. **`useConnectedInputs.ts` 登记产出声明**（单 URL → `SINGLE_OUTPUT_FIELDS`；复合 → `NODE_OUTPUTS`；确无自有产出 → `NO_OUTPUT_NODE_TYPES`；漏写会导致下游拿不到数据，且由 `uncoveredOutputNodeTypes()` 单测拦下）；4. 文档登记。例外：`director3dNode` 与 `ghostTarget` 由 App.tsx 派生后补充。结构默认（width/height/style/initial\*）另表 `canvas/nodeDefaults.ts`，新建与快照还原**都**补；**data 默认值只在新建时注入**，严禁用于快照还原。
 
 * **节点类型/参数记忆契约**：`useNodePrefs` 首参（节点命名空间）必须先登记 `contracts.ts` 的 `NODE_TYPES`（编译期由 `npm run check:node-types` 拦截），禁止散落裸字符串当命名空间；拼错会让该节点「上次参数」跨窗口静默失效。
 
 * **节点统一范式**：外壳用 `NodeShell`（禁止手写外壳）；UI 用 `useState(data.xxx)`、写回用 `setNodes` 不可变更新；上游数据走 `useConnectedInputs`。详见 `spec/NEW-NODE-GUIDE.md`。
 
-* **管线契约**：`useConnectedInputs.ts` 的 `NODE_OUTPUTS` 是「下游自动拿上游数据」的唯一声明，有产出的节点必须登记，数组型用 `arrayImages` 归一。
+* **管线契约（产出声明三张表）**：`useConnectedInputs.ts` 的 `SINGLE_OUTPUT_FIELDS`（单 URL 产出，字段名显式）+ `NODE_OUTPUTS`（复合产出：多端口/多图/数组归一，用 `arrayImages`）+ `NO_OUTPUT_NODE_TYPES`（无自有产出）是「下游自动拿上游数据」的唯一声明（2026-09-12 / TD-02-11：原靠 `genericOutput` 猜三个魔法字段名，现降级为未登记类型的安全网）。有产出的节点必须登记，覆盖性由 `uncoveredOutputNodeTypes()` 单测保证。
 
 ### C. 逻辑收口准则（手写 ≥3 次必收口）
 
