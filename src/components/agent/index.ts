@@ -61,6 +61,7 @@ export {
   setGenParams,
   getGenParams,
   getNodeImageUrl,
+  getNodeMedia,
   getCreditSwitch,
   setCreditSwitch,
 } from './canvas/useCanvasAgentTools.ts';

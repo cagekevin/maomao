@@ -135,3 +135,38 @@ export interface <Id>Profile {
 - chat：`streamChat`
 
 9004 退役后，后端只剩适配器这一条路，relay 是纯消费者，越收越拢。
+
+---
+
+## 8. 平台能力差异：视频 / 媒体处理策略（契约留痕，2026-09-12）
+
+> **目的**：把「平台对视频/音频输入的处理差异」显式化为适配器的统一能力维度，让每个平台**个性化应对不同情况**；
+> 后端 relay 只认能力结果、不感知平台差异。⚠️ 本小节是**契约定义 + 现状映射**，不代表已全部实现。
+
+### 8.1 统一能力维度（设计契约）
+
+适配器对外统一接口（§2）之上新增一个**媒体策略维度** `mediaPolicy`：
+
+| 声明值 | 语义 | 适配器职责 |
+|---|---|---|
+| `'raw'` | 平台**原生支持视频输入** | 原样发送 `video_url`/`audio_url` 内容块；若平台包装在附件后，由适配器像图片一样提取上传（如 lovart 上传 CDN） |
+| `'frameize'` | 平台**不支持视频输入** | 适配器（或共用 base）把视频**抽帧成多张图片**，以多个 `image_url` 块代替 `video_url` 再发送 |
+
+音频同理：适配器按「该平台 chat 模型是否支持音频输入」在两端之间选边（暂无独立维度，归入同一 `mediaPolicy`）。
+
+> **判据（谁决定各平台取值）** =「平台是否原生支持视频/音频作为 chat 输入」。前端一律原样生成 `video_url`/`audio_url` 块（见 `src/components/agent/runtime/agentCore.ts` `toMediaContentBlocks` 的决策留痕），**分叉只发生在后端适配器，前端不做抽帧。**
+
+### 8.2 实现落点约定（勿在前端 / provider 层各写一份）
+
+- `'raw'` 平台：在各自适配器的 chat 入口处理（lovart 已落在 `providers/lovart/index.ts` `extractChatTextAndImages`）。
+- `'frameize'` 平台：在未来**抽帧逻辑的唯一挂载点 = `ai-relay/generate.ts` 的 `streamChat`**（OpenAI 通用透传出站口）。⚠️ **当前未实现**，仅作契约挂载点，见该文件顶部决策注释。
+
+### 8.3 现状映射（诚实标注 · 勿当已实现）
+
+| 路径 | mediaPolicy | 状态 |
+|---|---|---|
+| `providers/lovart/index.ts` | `'raw'` | ✅ 已实现：`video_url`/`audio_url` 与图片同等提取 → `resolveLovartAttachments` 上传 CDN |
+| `ai-relay/generate.ts` `streamChat`（通用 OpenAI 透传 / 12+ preset 平台） | `'frameize'` | ⚠️ **设计意图 · 抽帧未实现 · 当前不动**；实现时挂载于此 |
+| 前端 `toMediaContentBlocks` / `normalizeMediaUrlForSend` | 原样透传（不分叉） | ✅ 已实现：只做 /files/ 补绝对 + 原样 content 块 |
+
+> 迁移契约（§0/§6）：存量 OpenAI 兼容平台仍走声明式 preset 时，其 `mediaPolicy` 归 `'frameize'`（共用 base 统一处理）；待逐一迁为命令式适配器后，各适配器可自行声明更精确的策略。新平台默认命令式适配器。

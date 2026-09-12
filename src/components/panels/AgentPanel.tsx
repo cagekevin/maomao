@@ -20,11 +20,13 @@ import {
   FileText,
   Image as ImageIcon,
   MessageSquarePlus,
+  Music,
   Package as PackageIcon,
   Shield,
   SlidersHorizontal,
   SquarePen,
   Trash2,
+  Video,
   X,
   Zap,
 } from 'lucide-react';
@@ -73,6 +75,50 @@ import { useActiveAssistantTable } from '../agent/assistantTable/useActiveAssist
 import { buildRefineRowsUser } from '../agent/assistantTable/assistantTablePrompt.ts';
 // 【TD-17】草稿初值经只读入口读会话快照（不再自持 agent_draft 存储键；写一律走 useAgentChat 的 saveDraft）
 import { getCurrentSnapshot } from '../agent/conversation/conversationSnapshot.ts';
+import { useVideoPoster } from '../../hooks/useVideoPoster.ts';
+
+/**
+ * 待发送/待引用区的媒体占位 chip：图片/视频/音频统一 44×44 缩略占位，仅示意、不可在 chip 内播放。
+ *  - image：图片缩略。
+ *  - video：useVideoPoster 抓首帧作封面（不渲染播放控件；抓帧失败回退 Video 图标）。
+ *  - audio ：Music 图标占位（音频无视觉帧可用）。
+ * 移除按钮浮在右上角，onRemove 由调用方注入。
+ */
+function AttMediaChip({
+  item,
+  removeTitle,
+  onRemove,
+}: {
+  item: { type?: string; url?: string; [k: string]: unknown };
+  removeTitle: string;
+  onRemove: () => void;
+}) {
+  const src = toAbsoluteFileUrl(item?.url || '');
+  const t = item?.type;
+  const poster = useVideoPoster(src, t === 'video' && !!src);
+  return (
+    <span className="agent-att">
+      {t === 'audio' ? (
+        <span className="agent-att-icon">
+          <Music size={18} strokeWidth={1.8} />
+        </span>
+      ) : t === 'video' ? (
+        poster ? (
+          <img src={poster} alt="" className="agent-att-media" />
+        ) : (
+          <span className="agent-att-icon">
+            <Video size={18} strokeWidth={1.8} />
+          </span>
+        )
+      ) : (
+        <img src={src} alt="" />
+      )}
+      <button type="button" className="agent-att-remove" onClick={onRemove} title={removeTitle}>
+        <X size={12} strokeWidth={2.5} />
+      </button>
+    </span>
+  );
+}
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -139,7 +185,7 @@ export default function AgentPanel({
   onClose,
   onWidthChange,
   onEnabledChange,
-  selectedImageNodes = [],
+  selectedMediaNodes = [],
 }: {
   agentKey?: string;
   systemPrompt?: string;
@@ -147,7 +193,8 @@ export default function AgentPanel({
   onClose?: () => void;
   onWidthChange?: (w: number) => void;
   onEnabledChange?: (enabled: boolean) => void;
-  selectedImageNodes?: Array<{
+  selectedMediaNodes?: Array<{
+    type?: 'image' | 'video' | 'audio' | '';
     url: string;
     label?: string;
     nodeId?: string;
@@ -580,15 +627,16 @@ export default function AgentPanel({
   const showCreditCard = creditGatePreview?.pending === true && !creditGateDismissed;
   const creditGenCount = Array.isArray(creditGatePreview?.gens) ? creditGatePreview.gens.length : 0;
 
-  // 【选中图→待确认引用】（对齐大雄 ghost 语义，防误触）：用户选中画布带图节点时，
-  // 图先进「待确认」列表（pendingImageNodes），不直接进正式附件。用户点输入框/发送时才
-  // 确认转正式（confirmPendingImages），此时按输入框顺序定编号。避免拖动/查看画布误塞图。
-  const [pendingImageNodes, setPendingImageNodes] = useState([]);
+  // 【选中媒体→待确认引用】（对齐大雄 ghost 语义，防误触）：用户选中画布带媒体节点（图/视频/音频）时，
+  // 媒体先进「待确认」列表（pendingMediaNodes），不直接进正式附件。用户点输入框/发送时才
+  // 确认转正式（confirmPendingMedia），此时按输入框顺序定编号。避免拖动/查看画布误塞附件。
+  const [pendingMediaNodes, setPendingMediaNodes] = useState([]);
   useEffect(() => {
-    if (!Array.isArray(selectedImageNodes)) return;
-    setPendingImageNodes(
-      selectedImageNodes
+    if (!Array.isArray(selectedMediaNodes)) return;
+    setPendingMediaNodes(
+      selectedMediaNodes
         .map((n) => ({
+          type: n.type || 'image',
           url: n.url,
           label: n.label || '',
           nodeId: n.nodeId || '',
@@ -598,10 +646,10 @@ export default function AgentPanel({
         }))
         .filter((n) => n.url),
     );
-  }, [selectedImageNodes]);
-  // 确认待引用图 → 并入正式附件（定编号）；按 url 去重（已存在跳过）
-  const confirmPendingImages = useCallback(() => {
-    setPendingImageNodes((pending) => {
+  }, [selectedMediaNodes]);
+  // 确认待引用媒体 → 并入正式附件（定编号）；按 url 去重（已存在跳过）
+  const confirmPendingMedia = useCallback(() => {
+    setPendingMediaNodes((pending) => {
       if (!pending.length) return pending;
       setAttachments((prev) => {
         const exist = new Set(prev.filter((a) => a.url).map((a) => a.url));
@@ -610,7 +658,7 @@ export default function AgentPanel({
         for (const n of pending) {
           if (!n?.url || exist.has(n.url)) continue;
           next.push({
-            type: 'image',
+            type: n.type || 'image',
             url: n.url,
             localUrl: n.url,
             label: n.label || '',
@@ -837,7 +885,7 @@ export default function AgentPanel({
   // 发送
   const handleSend = (overrideText?: string) => {
     // 待发图 = 正式附件 + 待确认引用（灰态），按序去重合并后随本次发出；发送后清空两者
-    const allImages = [...attachments, ...pendingImageNodes]
+    const allImages = [...attachments, ...pendingMediaNodes]
       .filter((a) => a?.url)
       .filter((a, i, arr) => arr.findIndex((x) => x.url === a.url) === i);
     const text = (typeof overrideText === 'string' ? overrideText : input).trim();
@@ -864,10 +912,11 @@ export default function AgentPanel({
       finalText = parts.filter(Boolean).join('\n\n');
     }
     // 【单入口 · docs/65 M7/M8】一律调 send（direct 已删、执行模型恒 auto，无 inputMode 发送分支）。
+    // 附件带媒体类型 type（image/video/audio），发送统一出口按类型走不同归一（见 agentAttachments）。
     const attach =
       allImages.length > 0
-        ? allImages.map(({ url, nodeId, label, x, y }) => ({
-            type: 'image',
+        ? allImages.map(({ type, url, nodeId, label, x, y }) => ({
+            type: type || 'image',
             url,
             nodeId,
             label,
@@ -877,7 +926,7 @@ export default function AgentPanel({
         : undefined;
     releaseAttachmentUrls(attachments);
     setAttachments([]);
-    setPendingImageNodes([]);
+    setPendingMediaNodes([]);
     setInput('');
     saveDraft(''); // TD-17：清空会话草稿（唯一真源）
     scrollToBottom('smooth'); // 自己发消息 → 无论当前是否已上翻，都强制贴底
@@ -1455,7 +1504,7 @@ export default function AgentPanel({
         <div className="agent-composer">
           <div className="agent-box">
             {/* 当前上下文 chip（对齐 mockup ctx-row）：正在处理第 N 行（多行） + 画布参考图，可一键移除 */}
-            {tableOpen && (selectedRows.length > 0 || pendingImageNodes.length > 0) && (
+            {tableOpen && (selectedRows.length > 0 || pendingMediaNodes.length > 0) && (
               <div className="agent-ctx-row">
                 {selCtx && (
                   <span className="agent-ctx">
@@ -1485,14 +1534,14 @@ export default function AgentPanel({
                     </span>
                   </span>
                 )}
-                {pendingImageNodes.length > 0 && (
+                {pendingMediaNodes.length > 0 && (
                   <span className="agent-ctx">
                     <ImageIcon size={11} strokeWidth={2} />
-                    <span>{pendingImageNodes.length} 张画布参考图</span>
+                    <span>{pendingMediaNodes.length} 个画布素材</span>
                     <span
                       className="x"
-                      onClick={() => setPendingImageNodes([])}
-                      title="移除全部参考图"
+                      onClick={() => setPendingMediaNodes([])}
+                      title="移除全部素材"
                     >
                       <X size={10} strokeWidth={2.6} />
                     </span>
@@ -1504,17 +1553,12 @@ export default function AgentPanel({
             {(attachments.length > 0 || uploading) && (
               <div className="agent-att-row">
                 {attachments.map((a, i) => (
-                  <span key={i} className="agent-att">
-                    <img src={toAbsoluteFileUrl(a.localUrl || a.url)} alt="" />
-                    <button
-                      type="button"
-                      className="agent-att-remove"
-                      onClick={() => removeAttachment(i)}
-                      title="移除"
-                    >
-                      <X size={12} strokeWidth={2.5} />
-                    </button>
-                  </span>
+                  <AttMediaChip
+                    key={i}
+                    item={a}
+                    removeTitle="移除"
+                    onRemove={() => removeAttachment(i)}
+                  />
                 ))}
                 {uploading && (
                   <span className="agent-att-loading">
@@ -1524,22 +1568,17 @@ export default function AgentPanel({
               </div>
             )}
 
-            {/* 待确认引用（选中画布图未确认，防误触）：点输入框/发送才并入正式附件 */}
-            {pendingImageNodes.length > 0 && (
+            {/* 待确认引用（选中画布媒体未确认，防误触）：点输入框/发送才并入正式附件 */}
+            {pendingMediaNodes.length > 0 && (
               <div className="agent-att-row">
                 <span className="agent-att-note">待引用：</span>
-                {pendingImageNodes.map((a, i) => (
-                  <span key={`${a.url}-${i}`} className="agent-att">
-                    <img src={toAbsoluteFileUrl(a.url)} alt="" />
-                    <button
-                      type="button"
-                      className="agent-att-remove"
-                      onClick={() => setPendingImageNodes((prev) => prev.filter((_, j) => j !== i))}
-                      title="移除该待引用图"
-                    >
-                      <X size={12} strokeWidth={2.5} />
-                    </button>
-                  </span>
+                {pendingMediaNodes.map((a, i) => (
+                  <AttMediaChip
+                    key={`${a.url}-${i}`}
+                    item={a}
+                    removeTitle="移除该待引用素材"
+                    onRemove={() => setPendingMediaNodes((prev) => prev.filter((_, j) => j !== i))}
+                  />
                 ))}
               </div>
             )}
@@ -1548,7 +1587,7 @@ export default function AgentPanel({
             <textarea
               ref={textareaRef}
               value={input}
-              onFocus={confirmPendingImages}
+              onFocus={confirmPendingMedia}
               onChange={(e) => {
                 const v = e.target.value;
                 setInput(v);

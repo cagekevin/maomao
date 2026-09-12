@@ -41,9 +41,40 @@
  */
 import { contentGet } from '../../base/core/contentStore.ts';
 import { logger } from '../../base/core/logger.ts';
-import { toImageContentBlocks } from '../../base/utils/imageUrl.ts';
 import { AGENT_PROMPTS } from '../agentConfig.ts';
 import type { ImageMapEntry } from '../conversation/conversationImageMap.ts';
+
+/**
+ * 把本轮附件数组转成 OpenAI 兼容的多模态 messages content 块：
+ *  - type==='image'（或未标 type）→ { type:'image_url',  image_url:{ url } }
+ *  - type==='video'            → { type:'video_url',  video_url:{ url } }
+ *  - type==='audio'            → { type:'audio_url',  audio_url:{ url } }
+ *
+ * ═══ 视频/音频的【平台分叉设计】（决策留痕，2026-09-12）═══
+ * 视频/音频的发送形态按「目标平台是否原生支持视频输入」分流：
+ *  - 【支持视频的平台（如 lovart）】：原样发送 video_url/audio_url 内容块，由平台原样消费；
+ *    前端不做抽帧/转写/base64。lovart 端会像图片一样把媒体提取为附件上传 CDN（见 lovart extractChatTextAndImages）。
+ *  - 【其它平台】：由【后端】在发送前把视频抽帧转成多张图片再发送（即把 video_url 块替换成多张 image_url 块），
+ *    前端也无须处理。⚠️【抽帧转图目前未实现】——仅记录此设计意图，「当前不动」，
+ *    未来在后端 ai-relay 通用 chat 透传处挂载（见 localTool/ai-relay/generate.ts streamChat 注释）。
+ * 当前实现 = 前端一律原样生成 content 块透传，不做抽帧分叉（分叉判定留待后端做）。
+ *
+ * @param {Array} attachments [{ type?, url, ... }]
+ * @returns {Array<object>} 多模态 content 块列表
+ */
+export function toMediaContentBlocks(
+  attachments: Array<{ type?: string; url?: string; [k: string]: unknown }>,
+): Array<{ type: string; url?: string; image_url?: { url: string } }> {
+  return (attachments || [])
+    .filter((a) => typeof a?.url === 'string' && a.url)
+    .map((a) => {
+      if (a.type === 'video')
+        return { type: 'video_url', video_url: { url: a.url } as { url: string } };
+      if (a.type === 'audio')
+        return { type: 'audio_url', audio_url: { url: a.url } as { url: string } };
+      return { type: 'image_url', image_url: { url: a.url } as { url: string } };
+    });
+}
 
 /** 单条工具调用（对齐 OpenAI chat tool_calls 形态）。 */
 export interface ToolCall {
@@ -439,7 +470,8 @@ export function buildRequestMessages(
     if (messages[i].role === 'user') lastUserIdx = i;
   }
   const lastUser = lastUserIdx >= 0 ? messages[lastUserIdx] : null;
-  const currentHasImages = !!lastUser && lastUser.attachments && lastUser.attachments.length > 0;
+  const currentHasAttachments =
+    !!lastUser && lastUser.attachments && lastUser.attachments.length > 0;
 
   // 计算回传起始下标：
   //  - historyTurns<=0：startIdx = lastUserIdx（只发本轮 + 本轮工具循环）——即旧 fresh-task；
@@ -461,20 +493,23 @@ export function buildRequestMessages(
   for (let i = startIdx; i < messages.length; i++) {
     const m = messages[i];
     if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
-      if (currentHasImages && i === lastUserIdx) {
-        // 本轮：内联本轮图 + refCatalog/坐标（供 attachment_indices 精确引用）
-        // 收口：图片 content block 统一用 toImageContentBlocks（见 imageUrl.js），与 generate.ts 门面保持一致，禁散写。
+      if (currentHasAttachments && i === lastUserIdx) {
+        // 本轮：内联本轮全部媒体 content 块 + refCatalog/坐标（供 AI 引用）。
+        // 收口：图片统一走 image_url 块；视频/音频原样透传给网关/模型（raw 发送，不做预处理）。
+        // 生成逻辑统一 in toMediaContentBlocks（本文件），禁散写。
         const content: Array<{
           type: string;
           text?: string;
           url?: string;
           image_url?: { url: string };
+          video_url?: { url: string };
+          audio_url?: { url: string };
           [k: string]: unknown;
-        }> = toImageContentBlocks(m.attachments.map((a) => a.url).filter(Boolean));
-        // 参考图编号目录（对齐大雄）：附加给 AI，让它能用 attachment_indices 精确引用第几张参考图。
-        // 对齐参考项目（daxiong-canvas-plugins canvas-agent）：参考图附件带画布坐标 x/y，
-        // 这里把坐标以文本形式附给 LLM，让它感知每张参考图来自画布哪个位置。
-        const coordLines = m.attachments
+        }> = toMediaContentBlocks(m.attachments);
+        // 参考图编号目录（对齐大雄）+ 画布坐标：只对「图片附件」算——视频/音频不做"第N张参考图"编号，
+        // 它们仅作为上方的多模态 content 块随消息透传。图片序号与 useAgentChat.buildRefCatalog 对齐（图片内部序）。
+        const imgAtts = m.attachments.filter((a) => !a.type || a.type === 'image');
+        const coordLines = imgAtts
           .map((a, i) =>
             a.x != null || a.y != null
               ? `参考图${i + 1}：画布坐标 x=${Number(a.x) || 0}, y=${Number(a.y) || 0}`

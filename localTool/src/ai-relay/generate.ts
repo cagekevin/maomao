@@ -102,6 +102,11 @@ export async function chatWithTools(opts: ChatOptions): Promise<ChatWithToolsRes
 }
 
 /** 流式文本生成：逐 token 通过 onEvent 回调，返回拼接后的完整文本。 */
+// ═══ 视频发送的平台分叉设计（决策留痕，2026-09-12）═══
+// 本函数是【其它平台】（OpenAI 通用透传，非 lovart）的 chat 出站口 = 视频「抽帧转多图」的未来挂载点：
+// 目标平台不开原生支持视频输入时，应在此对 messages 里的 `type:'video_url'` 块做【抽帧转成多张 image_url】
+// 再随消息发送（前端不做抽帧，见 agentCore.toMediaContentBlocks / ai-relay index.ts 分流说明）。
+// ⚠️ 【抽帧转图目前未实现 · 当前不动】——仅记录设计意图；实现时在此挂载，勿在前端或 provider 层各写一份。
 export async function streamChat({
   apiKey,
   baseUrl,

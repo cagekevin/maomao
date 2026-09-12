@@ -16,8 +16,8 @@
  *  - conversationStore.setCurrentSnapshot 记录调用，验证 skills 同步落盘。
  *  - 其余外部依赖空桩；AgentMessage/ModelSelect 用最小桩（其自身已有/将有专测）。
  *
- * OOM 教训：AgentPanel 的 selectedImageNodes 若用默认参数（每次渲染新 []），
- * 会与组件内 useEffect(setPendingImageNodes) 无限 re-render → 堆溢出。测试必须传稳定引用。
+ * OOM 教训：AgentPanel 的 selectedMediaNodes 若用默认参数（每次渲染新 []），
+ * 会与组件内 useEffect(setPendingMediaNodes) 无限 re-render → 堆溢出。测试必须传稳定引用。
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -286,16 +286,16 @@ if (typeof globalThis.window !== 'undefined') {
   globalThis.requestAnimationFrame = globalThis.window.requestAnimationFrame;
 }
 
-// 稳定引用：默认参数每次渲染都是新 []，会与组件内 effect(setPendingImageNodes) 无限 re-render → OOM
+// 稳定引用：默认参数每次渲染都是新 []，会与组件内 effect(setPendingMediaNodes) 无限 re-render → OOM
 const OPEN_PROPS = {
-  selectedImageNodes: [],
+  selectedMediaNodes: [],
   open: true,
   onClose: vi.fn(),
   onWidthChange: vi.fn(),
   onEnabledChange: vi.fn(),
 };
 const CLOSED_PROPS = {
-  selectedImageNodes: [],
+  selectedMediaNodes: [],
   open: false,
   onClose: vi.fn(),
   onWidthChange: vi.fn(),
@@ -561,8 +561,8 @@ describe('AgentPanel — 待引用图确认', () => {
     render(
       <AgentPanel
         {...OPEN_PROPS}
-        selectedImageNodes={[
-          { url: 'http://x/img.png', label: 'L', nodeId: 'n1', nodeType: 'image' },
+        selectedMediaNodes={[
+          { type: 'image', url: 'http://x/img.png', label: 'L', nodeId: 'n1', nodeType: 'image' },
         ]}
       />,
     );
@@ -575,6 +575,28 @@ describe('AgentPanel — 待引用图确认', () => {
     // agent 模式发送：attachments 映射为 {type,url,nodeId,label,x,y}（不带 localUrl/nodeType）
     expect(h.send).toHaveBeenCalledWith('参考这张图', [
       { type: 'image', url: 'http://x/img.png', nodeId: 'n1', label: 'L', x: 0, y: 0 },
+    ]);
+  });
+  it('选中画布视频/音频节点 → 显示待引用，聚焦并入附件后随发送带出（type 原样透传）', () => {
+    render(
+      <AgentPanel
+        {...OPEN_PROPS}
+        selectedMediaNodes={[
+          { type: 'video', url: 'http://x/clip.mp4', label: 'V', nodeId: 'v1', nodeType: 'video' },
+          { type: 'audio', url: 'http://x/vo.mp3', label: 'A', nodeId: 'a1', nodeType: 'audio' },
+        ]}
+      />,
+    );
+    // 待引用区出现（存在性），随后聚焦确认并入附件
+    expect(screen.getByText('待引用：')).toBeTruthy();
+    const ta = screen.getByPlaceholderText(/描述你想做的事/) as HTMLTextAreaElement;
+    fireEvent.focus(ta);
+    fireEvent.change(ta, { target: { value: '理解这段内容和配音' } });
+    fireEvent.keyDown(ta, { key: 'Enter', shiftKey: false });
+    // 业务断言：视频/音频附件随发送带出，且 type 原样透传（video/audio 分别保留，不被拍平成 image）
+    expect(h.send).toHaveBeenCalledWith('理解这段内容和配音', [
+      { type: 'video', url: 'http://x/clip.mp4', nodeId: 'v1', label: 'V', x: 0, y: 0 },
+      { type: 'audio', url: 'http://x/vo.mp3', nodeId: 'a1', label: 'A', x: 0, y: 0 },
     ]);
   });
 });

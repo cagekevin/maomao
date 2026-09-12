@@ -30,7 +30,7 @@ import { useAssetDropPaste, useGlobalPaste } from './hooks/useAssetDropPaste.ts'
 import { copyImageToClipboard } from './components/base/utils/clipboard.ts';
 import GhostTargetNode from './components/nodes/GhostTargetNode.tsx';
 import AgentPanel from './components/panels/AgentPanel.tsx';
-import { getNodeImageUrl } from './components/agent/index.ts';
+import { getNodeMedia } from './components/agent/index.ts';
 import LeftPanel from './components/base/panels/LeftPanel.tsx';
 import {
   switchProject,
@@ -384,10 +384,11 @@ function Canvas() {
     edgesRef.current = edges;
   }, [edges]);
 
-  // 当前选中的「带图节点」列表（供 AgentPanel 引用：用户选中带图节点 → 输入框出现缩略图）。
-  // 只存 id/type/label + 主图 URL（getNodeImageUrl 提取），不存整个 node（避免状态过大）。
+  // 当前选中的「带媒体节点」列表（供 AgentPanel 待发送区：用户选中带图/视频/音频节点 →
+  // 输入框出现对应附件入口，含媒体类型 type + 本体 URL，getNodeMedia 提取）。
+  // 只存 id/type/label + 主媒体 URL，不存整个 node（避免状态过大）。
   // 在 onNodesChangeForEdges 的 select 变化里同步更新。
-  const [selectedImageNodes, setSelectedImageNodes] = React.useState([]);
+  const [selectedMediaNodes, setSelectedMediaNodes] = React.useState([]);
 
   // 历史栈（基座 useCanvasHistory）：record 需显式传最新快照，避免异步 setState 取到旧值
   const history = useCanvasHistory(
@@ -1274,22 +1275,26 @@ function Canvas() {
           }
         });
 
-        // 【选中锚点】算出当前选中的「带图节点」，传给 AgentPanel 供引用（选中图→输入框缩略图）。
-        // 对齐参考项目（daxiong-canvas-plugins canvas-agent agentBuildAttachmentsFromNodes）：
-        // 除 nodeId/type/label/url 外，把节点的画布坐标 position(x/y) 一并传给 AI，
-        // 让 LLM 感知参考图来自画布哪个位置。
-        const selImg = currentNodes
+        // 【选中锚点】算出当前选中的「带媒体节点」，传给 AgentPanel 待发送区（选中图/视频/音频 →
+        // 输入框附件）。对齐参考项目（daxiong-canvas-plugins canvas-agent agentBuildAttachmentsFromNodes）：
+        // 除 nodeId/type/label/url 外，把节点的画布坐标 position(x/y) + 媒体类型 type 一并传给 AI，
+        // 让 LLM 感知参考素材来自画布哪个位置、是什么形态。
+        const selMedia = currentNodes
           .filter((n) => selectedIds.has(n.id))
-          .map((n) => ({
-            nodeId: n.id,
-            nodeType: n.type,
-            label: n.data?.label || n.data?.projectName || '',
-            url: getNodeImageUrl(n),
-            x: Number(n.position?.x) || 0,
-            y: Number(n.position?.y) || 0,
-          }))
+          .map((n) => {
+            const media = getNodeMedia(n);
+            return {
+              nodeId: n.id,
+              nodeType: n.type,
+              label: n.data?.label || n.data?.projectName || '',
+              type: media.type,
+              url: media.url,
+              x: Number(n.position?.x) || 0,
+              y: Number(n.position?.y) || 0,
+            };
+          })
           .filter((n) => n.url);
-        setSelectedImageNodes(selImg);
+        setSelectedMediaNodes(selMedia);
 
         setEdges((eds) => {
           const next = eds.map((ed) => {
@@ -1562,7 +1567,7 @@ function Canvas() {
             open={agentOpen}
             onClose={() => setSetting('agentOpen', false)}
             systemPrompt={''}
-            selectedImageNodes={selectedImageNodes}
+            selectedMediaNodes={selectedMediaNodes}
           />
 
           {/* 多开整页：覆盖画布 */}

@@ -51,9 +51,16 @@ function assertCategory(model: string, expected: 'IMAGE' | 'VIDEO' | 'CHAT'): vo
 }
 
 /**
- * 从 OpenAI 风格 messages 提取「纯文本」+「图片 URL 列表」。
+ * 从 OpenAI 风格 messages 提取「纯文本」+「参考素材 URL 列表（图片/视频/音频）」。
  * 对齐 apimart-gateway/main.py chat_completions：content 为字符串直接取；为数组时提取 text 块与
- * image_url 块（url 可为 data:base64 / http(s) / 本地 /files/ 路径，后续由 resolveLovartAttachments 上传 CDN）。
+ * 多模态 content 块——image_url / video_url / audio_url（url 可为 data:base64 / http(s) / 本地 /files/ 路径，
+ * 后续由 resolveLovartAttachments 上传 CDN）。视频/音频块与图片块同等对待：并入同一素材列表，
+ * 由 resolveLovartAttachments 上传（其魔数表/Content-Type 判定已覆盖 mp4/webm/mp3/flac 等媒体）。
+ *
+ * ═══ 平台分叉设计（决策留痕，2026-09-12）═══
+ * lovart 是【原生支持视频输入的平台】→ 承载「原样发送」分支：video_url/audio_url 与图片一样被提取为附件上传 CDN。
+ * 而【其它平台】（OpenAI 通用透传，见 ai-relay generate.ts streamChat）将来由后端把视频【抽帧转成多张图片】再发送——
+ * ⚠️ 抽帧转图【暂未实现，当前不动】，仅此记录设计意图。此适配器不承担抽帧，只负责 lovart 的原样/附件路径。
  */
 function extractChatTextAndImages(messages?: Array<{ role?: string; content?: unknown }>): {
   text: string;
@@ -72,12 +79,25 @@ function extractChatTextAndImages(messages?: Array<{ role?: string; content?: un
       const blockTexts: string[] = [];
       for (const block of c) {
         if (!block || typeof block !== 'object') continue;
-        const b = block as { text?: string; type?: string; image_url?: { url?: string } | string };
+        const b = block as {
+          text?: string;
+          type?: string;
+          image_url?: { url?: string } | string;
+          video_url?: { url?: string } | string;
+          audio_url?: { url?: string } | string;
+        };
         if (typeof b.text === 'string' && b.text.trim()) {
           blockTexts.push(b.text.trim());
-        } else if (b.type === 'image_url') {
-          const u = typeof b.image_url === 'string' ? b.image_url : b.image_url?.url;
-          if (u) images.push(u);
+        } else if (b.type === 'image_url' || b.type === 'video_url' || b.type === 'audio_url') {
+          // 统一提取多模态引用素材的 url（string 或 { url }），I/V/A 与图片同等作为附件上传 CDN。
+          const u =
+            b.type === 'image_url'
+              ? b.image_url
+              : b.type === 'video_url'
+                ? b.video_url
+                : b.audio_url;
+          const url = typeof u === 'string' ? u : u?.url;
+          if (url) images.push(url);
         }
       }
       if (blockTexts.length) textParts.push(blockTexts.join(' '));

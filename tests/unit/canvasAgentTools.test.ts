@@ -58,6 +58,7 @@ import {
   buildCanvasAgentTools,
   CANVAS_AGENT_TOOL_NAMES,
   getNodeImageUrl,
+  getNodeMedia,
   setCurrentReferenceImages,
   runExistingPlanTool,
   setCreditSwitch,
@@ -425,6 +426,40 @@ describe('画布 Agent 工具层 §2.5', () => {
       'http://a/6.png',
     );
     expect(getNodeImageUrl({ data: { images: [] } })).toBe('');
+  });
+
+  it('getNodeMedia：视频节点返回本体 videoUrl + type=video', () => {
+    expect(
+      getNodeMedia({ data: { videoUrl: 'http://a/c.mp4', imageUrl: 'http://a/cov.png' } }),
+    ).toEqual({ type: 'video', url: 'http://a/c.mp4' });
+    // 显式 mediaType::video 且仅 url → 用 url 作本体并判 video
+    expect(getNodeMedia({ data: { mediaType: 'video', url: 'http://a/c.mp4' } })).toEqual({
+      type: 'video',
+      url: 'http://a/c.mp4',
+    });
+  });
+
+  it('getNodeMedia：音频节点返回本体 audioUrl + type=audio', () => {
+    expect(getNodeMedia({ data: { audioUrl: 'http://a/v.mp3' } })).toEqual({
+      type: 'audio',
+      url: 'http://a/v.mp3',
+    });
+    expect(getNodeMedia({ data: { mediaType: 'audio', url: 'http://a/v.ogg' } })).toEqual({
+      type: 'audio',
+      url: 'http://a/v.ogg',
+    });
+  });
+
+  it('getNodeMedia：图片节点退化为主图 + type=image；无媒体返回空', () => {
+    expect(getNodeMedia({ data: { imageUrl: 'http://a/1.png' } })).toEqual({
+      type: 'image',
+      url: 'http://a/1.png',
+    });
+    expect(getNodeMedia({ data: { url: 'http://a/2.png' } })).toEqual({
+      type: 'image',
+      url: 'http://a/2.png',
+    });
+    expect(getNodeMedia({ data: {} })).toEqual({ type: '', url: '' });
   });
 
   it('batch_delete_nodes 批量删', () => {

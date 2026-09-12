@@ -47,16 +47,17 @@ describe('normalizeAttachmentsForSend — 附件统一归一出口', () => {
     expect(normalizeImageUrlForSend).toHaveBeenCalledWith('http://a', { preferBase64: false });
   });
 
-  it('带图发送 → 记一条图片形态 info 日志（不携带图片内容）', async () => {
+  it('带图发送 → 记一条附件形态 info 日志（不携带图片内容）', async () => {
     await normalizeAttachmentsForSend([
       { url: 'http://a.png' },
       { url: 'data:image/png;base64,xxx' },
     ]);
-    expect(loggerInfo).toHaveBeenCalledWith('agentAttachments', '发送图片', {
+    expect(loggerInfo).toHaveBeenCalledWith('agentAttachments', '发送附件', {
       count: 2,
       urls: 1,
       base64s: 1,
       total: 2,
+      mediaCounts: {},
     });
   });
 

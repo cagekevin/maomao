@@ -925,6 +925,24 @@
   object-fit: cover;
   display: block;
 }
+/* 视频缩略封面：与图片同占位尺寸（image object-fit cover 填满 44×44 chip） */
+.agent-att .agent-att-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: #000;
+}
+/* 音/视频无封面时的图标占位：居中显示，底色与 chip 边框协调 */
+.agent-att .agent-att-icon {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgb(var(--mao-text-faint));
+  background: rgb(0 0 0 / 0.06);
+}
 .agent-att .agent-att-remove {
   position: absolute;
   inset: 0;

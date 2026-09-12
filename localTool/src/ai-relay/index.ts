@@ -176,6 +176,13 @@ export function createRelay(config: CreateRelayConfig) {
   };
 
   // ── 分流：lovart（原生直连）走 providers/lovart 命令式 adapter（HMAC 原生协议）──
+  // ═══ 视频发送的平台分叉设计（决策留痕，2026-09-12）═══
+  // 按 providerId 分发到两种视频/音频处理路径：
+  //  - lovart（下方 if）：【原生支持视频输入】→ 原样发送（提取为附件上传 CDN，见 providers/lovart）。
+  //  - 其它 provider（上面 relay 通用分支，走得 streamChat）：OpenAI 通用透传，未来需由后端把视频
+  //    【抽帧转成多张图片】再发送。⚠️ 抽帧转图【暂未实现，当前不动】；挂载点见 generate.ts streamChat 注释。
+  // 判定基准 = 「平台是否原生支持视频输入」。前端一律原样生成 video_url 块（见 agentCore.toMediaContentBlocks），
+  // 此处的分叉只发生在后端，勿在前端做抽帧。
   if (config.providerId === 'lovart') {
     const accessKey =
       config.accessKey ?? (config.auth?.type === 'hmac' ? config.auth.accessKey : undefined);

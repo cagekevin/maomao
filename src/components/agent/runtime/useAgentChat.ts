@@ -617,8 +617,9 @@ export function useAgentChat({
         });
         // 【参考图编号目录】对齐大雄：给 AI 参考图顺序编号（按输入框从左到右），
         // AI 才能在 generations 里用 attachment_indices 精确引用「第几张图」（0-based）。
-        // 只对「图片附件」编号（含来自画布选中节点的图）；nodeId 记录来源便于执行器定位。
-        const imgAtts = userMsg.attachments.filter((a) => a.type !== 'node');
+        // 只对「图片附件」编号（含来自画布选中节点的图）；视频/音频【不参与】——图生图引用只认图，
+        // 音视频仅作为多模态上下文 content 块随消息透传（见 agentCore toMediaContentBlocks）。
+        const imgAtts = userMsg.attachments.filter((a) => !a.type || a.type === 'image');
         if (imgAtts.length > 0) {
           userMsg.refCatalog = buildRefCatalog(imgAtts);
         }
