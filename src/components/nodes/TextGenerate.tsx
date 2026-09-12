@@ -25,7 +25,7 @@ import { buildSpawnNodes, spawnAndCommit, makeChildId } from '../base/canvas/der
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { saveTextToTasks } from '../base/api/index.ts';
 import { chatCompletions } from '../base/api/index.ts';
-import { useNodePrefs } from '../base/canvas/nodePrefs.ts';
+import { useNodePrefs, PREFS_DEFAULTS } from '../base/canvas/nodePrefs.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
 import { resolvePromptChips } from '../base/prompt/promptChips.ts';
 import { logger } from '../base/core/logger.ts';
@@ -108,7 +108,11 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   }, [inputLocked, setExpanded]);
   const [editingText, setEditingText] = useState(false);
   // 记住上次选择的模型（跨节点/跨会话）；初始用记忆值，无记忆回退 gpt-4o-mini
-  const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs('textGenerateNode', { model: '' });
+  // TD-04-23：默认值改引单一真源（原为就地字面量第二份）
+  const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs(
+    'textGenerateNode',
+    PREFS_DEFAULTS.textGenerateNode,
+  );
   // 记忆只影响新建（见 App.addNode 注入）；存量初始化只读 data，缺字段用纯常量。
   const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? 'gpt-4o-mini');
   // 参考图三来源：① 外部注入（data.images，见 interface 注释）② 会话内上传（blob: 预览，不落盘）

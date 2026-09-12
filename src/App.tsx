@@ -19,7 +19,7 @@ import {
   useStore,
   useStoreApi,
 } from '@xyflow/react';
-import type { Node, Edge, Connection, Viewport, NodeChange } from '@xyflow/react';
+import type { Node, Edge, Connection, Viewport } from '@xyflow/react';
 import { Zap, RefreshCw } from 'lucide-react';
 import CanvasToolbar from './components/base/panels/CanvasToolbar.tsx';
 import ArrangeConfirm from './components/base/canvas/ArrangeConfirm.tsx';
@@ -30,7 +30,12 @@ import { useAssetDropPaste, useGlobalPaste } from './hooks/useAssetDropPaste.ts'
 import { copyImageToClipboard } from './components/base/utils/clipboard.ts';
 import GhostTargetNode from './components/nodes/GhostTargetNode.tsx';
 import AgentPanel from './components/panels/AgentPanel.tsx';
-import { getNodeMedia } from './components/agent/index.ts';
+import {
+  deriveSelectedAssets,
+  selectedAssetSig,
+  selectedNodeIdSig,
+  type SelectedAsset,
+} from './components/base/canvas/nodeMedia.ts';
 import LeftPanel from './components/base/panels/LeftPanel.tsx';
 import {
   switchProject,
@@ -395,10 +400,22 @@ function Canvas() {
   }, [edges]);
 
   // 当前选中的「带媒体节点」列表（供 AgentPanel 待发送区：用户选中带图/视频/音频节点 →
-  // 输入框出现对应附件入口，含媒体类型 type + 本体 URL，getNodeMedia 提取）。
-  // 只存 id/type/label + 主媒体 URL，不存整个 node（避免状态过大）。
-  // 在 onNodesChangeForEdges 的 select 变化里同步更新。
-  const [selectedAssetNodes, setSelectedAssetNodes] = React.useState([]);
+  // 输入框出现对应附件入口，含媒体类型 type + 本体 URL）。
+  // 【单一事实来源 = nodes】（TD-04-24/27）：不再用独立 state + 逐路径手工同步（原实现只在
+  // onNodesChangeForEdges 的 select 变化里写 → 删除节点 / undo-redo 都覆盖不到 → 幽灵条目/陈旧）。
+  // 改为「提交后 effect 从 nodes 实时派生」：任何让选中集或媒体变化的路径（点击选中、删除、
+  // undo/redo 写回、节点生成出图）都改 nodes → 自动重算。只存投影，不存整个 node（避免状态过大）。
+  const [selectedAssetNodes, setSelectedAssetNodes] = React.useState<SelectedAsset[]>([]);
+  // 内容签名（nodeId:type:url，不含坐标）短路：拖动节点每帧改 nodes 但签名不变 → 不重渲下游
+  //（AgentPanel 若每次渲染都拿到新数组，会重跑其侧 effect，历史上曾因此 OOM）。
+  const selectedAssetSigRef = React.useRef('');
+  React.useEffect(() => {
+    const list = deriveSelectedAssets(nodes);
+    const sig = selectedAssetSig(list);
+    if (sig === selectedAssetSigRef.current) return;
+    selectedAssetSigRef.current = sig;
+    setSelectedAssetNodes(list);
+  }, [nodes]);
 
   // 历史栈（基座 useCanvasHistory）：record 需显式传最新快照，避免异步 setState 取到旧值
   const history = useCanvasHistory(
@@ -1260,67 +1277,25 @@ function Canvas() {
     [history],
   );
 
-  // 选中节点联动：与选中节点相连的边 → data.relatedToSelected = true（触发 comet + 加亮）
-  // 每次节点 change 后，基于当前全部选中节点重算每条边的关联态（支持多选）
-  const onNodesChangeForEdges = useCallback(
-    (changes: NodeChange[]) => {
-      onNodesChange(changes);
-
-      // 聚合本次 change 造成的选中变化（select 类型 change 带 selected 字段）
-      const selectionMap: Record<string, boolean> = {};
-      changes.forEach((c) => {
-        if (c.type === 'select' && c.id) {
-          selectionMap[c.id] = c.selected;
-        }
+  // 选中节点联动：与选中节点相连的边 → data.relatedToSelected = true（触发 comet + 加亮）。
+  // 【状态驱动】（TD-04-24/27）：原实现把派生塞进 setNodes(updater) 当「读最新值的观察者」——
+  // 用状态更新回调当读值通道，违背 React 数据流，且 undo/redo 写回不触发边重算。
+  // 改为「选中集签名变化 → effect 重算边」：只在选中集真变化时算（拖动/挪点跳过），
+  // undo/redo 写回 nodes 后签名变化 → 自动重算。选中集取自唯一真源 nodes[].selected。
+  const selectedIdSig = React.useMemo(() => selectedNodeIdSig(nodes), [nodes]);
+  React.useEffect(() => {
+    const ids = selectedIdSig ? new Set(selectedIdSig.split('|')) : new Set<string>();
+    setEdges((eds) => {
+      const next = eds.map((ed) => {
+        const rel = ids.has(ed.source) || ids.has(ed.target);
+        return ed.data?.relatedToSelected !== rel
+          ? patchEdgeData(ed, { data: { relatedToSelected: rel } })
+          : ed;
       });
-      if (Object.keys(selectionMap).length === 0) return;
-
-      // 基于当前 nodes 快照 + 本次 select 覆盖，算出真实选中集合，再重算每条边关联态
-      setNodes((currentNodes) => {
-        const selectedIds = new Set();
-        currentNodes.forEach((n) => {
-          const override = selectionMap[n.id];
-          if (override !== undefined ? override : !!n.selected) {
-            selectedIds.add(n.id);
-          }
-        });
-
-        // 【选中锚点】算出当前选中的「带媒体节点」，传给 AgentPanel 待发送区（选中图/视频/音频 →
-        // 输入框附件）。对齐参考项目（daxiong-canvas-plugins canvas-agent agentBuildAttachmentsFromNodes）：
-        // 除 nodeId/type/label/url 外，把节点的画布坐标 position(x/y) + 媒体类型 type 一并传给 AI，
-        // 让 LLM 感知参考素材来自画布哪个位置、是什么形态。
-        const selAsset = currentNodes
-          .filter((n) => selectedIds.has(n.id))
-          .map((n) => {
-            const media = getNodeMedia(n);
-            return {
-              nodeId: n.id,
-              nodeType: n.type,
-              label: n.data?.label || n.data?.projectName || '',
-              type: media.type,
-              url: media.url,
-              x: Number(n.position?.x) || 0,
-              y: Number(n.position?.y) || 0,
-            };
-          })
-          .filter((n) => n.url);
-        setSelectedAssetNodes(selAsset);
-
-        setEdges((eds) => {
-          const next = eds.map((ed) => {
-            const rel = selectedIds.has(ed.source) || selectedIds.has(ed.target);
-            return ed.data?.relatedToSelected !== rel
-              ? patchEdgeData(ed, { data: { relatedToSelected: rel } })
-              : ed;
-          });
-          // 等价原 changed 短路：无任何 edge 变化时返回原引用，避免无意义重渲染
-          return next.some((e, i) => e !== eds[i]) ? next : eds;
-        });
-        return currentNodes;
-      });
-    },
-    [onNodesChange, setEdges, setNodes],
-  );
+      // 等价原 changed 短路：无任何 edge 变化时返回原引用，避免无意义重渲染
+      return next.some((e, i) => e !== eds[i]) ? next : eds;
+    });
+  }, [selectedIdSig, setEdges]);
 
   const proOptions = useMemo(() => ({ hideAttribution: true }), []);
 
@@ -1414,7 +1389,7 @@ function Canvas() {
               key={activeProjectId}
               nodes={nodes}
               edges={edges}
-              onNodesChange={onNodesChangeForEdges}
+              onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onNodeDragStop={handleNodeDragStop}
               onConnect={onConnect}

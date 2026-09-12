@@ -41,6 +41,7 @@ function save(): void {
   try {
     contentSet(KEY, settings);
   } catch {
+    // catch-ok: 写入失败不阻断设置交互（contentSet 内部已分类/留痕）
     /* ignore */
   }
 }

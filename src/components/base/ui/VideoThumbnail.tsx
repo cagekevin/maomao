@@ -74,7 +74,7 @@ function VideoThumbnail({
     try {
       const v = (effectiveVideoRef as React.RefObject<HTMLVideoElement | null>)?.current;
       v?.play?.();
-    } catch {}
+    } catch {} // catch-ok: 视频元素释放失败不阻断缩略图卸载
   };
 
   // playable 模式：双击容器 → 拦截原生双击全屏 + 开大图
@@ -85,7 +85,7 @@ function VideoThumbnail({
     try {
       const v = (effectiveVideoRef as React.RefObject<HTMLVideoElement | null>)?.current;
       v?.pause?.();
-    } catch {}
+    } catch {} // catch-ok: 视频元素释放失败不阻断（seeked 后清理）
     setPlaying(false);
     onContainerDoubleClick?.();
   };

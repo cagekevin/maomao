@@ -36,7 +36,7 @@ import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
 import { generateVideo } from '../base/api/index.ts';
-import { useNodePrefs } from '../base/canvas/nodePrefs.ts';
+import { useNodePrefs, PREFS_DEFAULTS } from '../base/canvas/nodePrefs.ts';
 import { logger } from '../base/core/logger.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
 import { buildEffectivePrompt, clampSeconds } from '../base/core/utils.ts';
@@ -118,12 +118,11 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   // 提示词输入框双击全屏编辑（复刻 TextGenerate 的交互：ResizeFullscreenHandle 双击 → 弹层）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
   // 记住上次选择的模型/比例/分辨率/时长（跨节点/跨会话，与 ImageGenerate 一致）
-  const { prefs: vidPrefs, set: setVidPrefs } = useNodePrefs('videoGenerateNode', {
-    model: '',
-    size: '16:9',
-    resolution: '1080p',
-    seconds: '10',
-  });
+  // TD-04-23：默认值改引单一真源（原为就地字面量第二份）
+  const { prefs: vidPrefs, set: setVidPrefs } = useNodePrefs(
+    'videoGenerateNode',
+    PREFS_DEFAULTS.videoGenerateNode,
+  );
   // 记忆只影响新建（见 App.addNode 注入）；存量初始化只读 data，缺字段用纯常量。
   const [ratio, setRatio] = useState(data.size ?? '16:9');
   const [resolution, setResolution] = useState(data.resolution ?? '1080p');

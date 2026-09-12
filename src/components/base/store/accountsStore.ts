@@ -342,6 +342,7 @@ async function collectAllCookies(url: string): Promise<AccountCookie[]> {
     const base = await chrome.cookies.getAll({ url });
     base.forEach(push);
   } catch {
+    // catch-ok: 扩展 cookies.getAll 当前域失败继续上溯（尽力枚举）
     /* 忽略 */
   }
 
@@ -352,6 +353,7 @@ async function collectAllCookies(url: string): Promise<AccountCookie[]> {
       const list = await chrome.cookies.getAll({ domain: dom });
       list.forEach(push);
     } catch {
+      // catch-ok: 扩展 cookies.getAll 某域失败继续下一域
       /* 忽略 */
     }
   }
@@ -444,12 +446,14 @@ async function writeTabLocalStorage(
             for (const k of Object.keys(rec)) localStorage.setItem(k, rec[k]);
           }
         } catch {
+          // catch-ok: 注入 localStorage 失败不阻断 script 执行
           /* 忽略 */
         }
       },
       args: [data],
     });
   } catch {
+    // catch-ok: script 注入整体失败不阻断（尽力）
     /* 忽略 */
   }
 }
@@ -577,6 +581,7 @@ export async function activateEnv(envId: string): Promise<void> {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab) chrome.tabs.update(tab.id, { url: env.siteUrl });
     } catch {
+      // catch-ok: 扩展 tabs.update 失败不阻断环境切换
       /* ignore */
     }
   }
@@ -597,6 +602,7 @@ async function syncCookies(env: AccountEnv): Promise<void> {
         try {
           await chrome.cookies.remove({ url, name: c.name, storeId: c.storeId });
         } catch {
+          // catch-ok: 扩展 cookies.remove 单个失败继续清其余
           /* ignore */
         }
       }
@@ -614,12 +620,14 @@ async function syncCookies(env: AccountEnv): Promise<void> {
         if (t.sameSite) setOpts.sameSite = t.sameSite;
         await chrome.cookies.set(setOpts);
       } catch {
+        // catch-ok: 扩展 chrome.cookies.set 单项失败不阻断其余环境恢复
         /* ignore */
       }
     }
     // 连带写回该环境的 localStorage 快照（登录态 token 常存这里，一并恢复免重登）
     await writeTabLocalStorage(env.localStorage);
   } catch {
+    // catch-ok: 扩展 cookie 写入整体失败不阻断 localStorage 恢复
     /* ignore */
   }
 }
@@ -649,6 +657,7 @@ export async function clearCookies(
           await chrome.cookies.remove({ url, name: c.name, storeId: c.storeId });
           cleared++;
         } catch {
+          // catch-ok: 扩展 chrome.cookies.remove 单项失败继续清其余
           /* ignore */
         }
       }
@@ -657,6 +666,7 @@ export async function clearCookies(
       try {
         await chrome.tabs.reload(tab.id);
       } catch {
+        // catch-ok: 扩展 tabs.reload 失败不影响 clearCookies 结果返回
         /* ignore */
       }
     }

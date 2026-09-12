@@ -448,6 +448,7 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
         // 原为 `a && b()` 惯用短路语句（结果本就被丢弃，oxlint no-unused-expressions 误报），改 if 更直白
         if (rec?.recorder.state === 'recording') rec.recorder.stop();
       } catch {
+        // catch-ok: MediaRecorder.stop 已停止/异常态不阻断卸载
         /* 忽略 */
       }
     }

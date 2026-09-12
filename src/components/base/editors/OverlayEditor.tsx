@@ -19,7 +19,7 @@ import {
 import { toAbsoluteFileUrl } from '../api/filesApi.ts';
 
 /* ════════════════════════════════════════════════════════════════
- * 叠加图层编辑器（复刻官方 Uo.jsx，图片拼图 overlay 模式）
+ * 叠加图层编辑器
  *
  * 受控组件：props = { state, onChange, upstreamUrls }
  *  state: { layers, canvasWidth, canvasHeight, bgColor }
@@ -68,7 +68,16 @@ export interface OverlayState {
 
 interface OverlayEditorProps {
   state: OverlayState;
-  onChange: (next: OverlayState) => void;
+  /**
+   * 受控更新回调。**支持 React updater 形式**（`Dispatch<SetStateAction<OverlayState>>`）——
+   * 唯一消费方 `GridMergeNode` 传的就是 `useState` setter，天然兼容（无需改动）。
+   *
+   * 【为什么需要 updater（TD-06-8 修复，2026-09-13）】组件内有**异步 effect**（上游图片变化 →
+   * `await loadImageOrNull` → 增删 layers）。异步跨越 render 周期，闭包里的 `state` 可能是旧值；
+   * 若此时用户已改动其他字段（拖动/背景色），`onChange({ ...旧state })` 会**回写覆盖**。
+   * updater 形式从结构上消除该风险（拿的是调用时刻的最新 state）。
+   */
+  onChange: React.Dispatch<React.SetStateAction<OverlayState>>;
   upstreamUrls: string[];
 }
 
@@ -189,7 +198,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
     const toRemove = layers.filter((l) => !set.has(l.assetUrl));
     if (toAdd.length === 0 && toRemove.length === 0) return;
     (async () => {
-      const added = [];
+      const added: OverlayLayer[] = [];
       let maxZ = layers.reduce((m, l) => Math.max(m, l.zIndex), 0);
       for (const url of toAdd) {
         const img = await loadImageOrNull(url);
@@ -216,7 +225,12 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
       }
       if (cancelled) return;
       const removeIds = new Set(toRemove.map((l) => l.id));
-      onChange({ ...state, layers: [...layers.filter((l) => !removeIds.has(l.id)), ...added] });
+      // 【TD-06-8 修复】用 updater 形式：本 effect 跨越 `await loadImageOrNull`，闭包里的 `state`/`layers`
+      // 可能是**旧值**（期间用户若拖动图层/改背景色会被旧 state 覆盖回写）。updater 取调用时刻最新值。
+      onChange((prev) => ({
+        ...prev,
+        layers: [...prev.layers.filter((l) => !removeIds.has(l.id)), ...added],
+      }));
     })();
     return () => {
       cancelled = true;
@@ -582,7 +596,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
       }
       try {
         board.releasePointerCapture?.(e.pointerId);
-      } catch {}
+      } catch {} // catch-ok: releasePointerCapture 未持有捕获时抛错不阻断
     };
     board.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove);

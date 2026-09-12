@@ -218,11 +218,34 @@ function sourceSignature(source: PromptSource): string {
   return `${v.length}:${hash}`;
 }
 
+/**
+ * 运行期判定单条 SourceCache 形状（TD-05-10：替代 `as` 假收窄）。
+ * 只校验**后续代码真正依赖**的字段（items 为数组 + fetchedAt/signature/lastError 类型），
+ * 不做逐项深校验（避免过度设计）。
+ */
+function isSourceCache(v: unknown): v is SourceCache {
+  if (!v || typeof v !== 'object') return false;
+  const c = v as Record<string, unknown>;
+  return (
+    Array.isArray(c.items) &&
+    typeof c.fetchedAt === 'number' &&
+    typeof c.signature === 'string' &&
+    typeof c.lastError === 'string'
+  );
+}
+
 /** 读整份缓存 { [sourceId]: { items, fetchedAt, signature, lastError } } */
 function readCache(): Record<string, SourceCache> {
-  // contentGet 返回 unknown（存储值不可信），按缓存表形状收窄
-  const c = contentGet(CACHE_KEY) as Record<string, SourceCache> | null;
-  return c && typeof c === 'object' ? c : {};
+  // TD-05-10：contentGet 返回 unknown（存储值不可信）——原 `as Record<string,SourceCache>|null` 是
+  // 假收窄（L225 `typeof c==='object'` 经 TS 收窄后恒真，仅排 null）；旧 schema/数组/字段缺失会静默流过。
+  // 现改为**运行期 schema 校验**：非对象或形状不符的条目丢弃（不信任坏缓存，宁少勿错）。
+  const raw = contentGet(CACHE_KEY);
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, SourceCache> = {};
+  for (const [id, entry] of Object.entries(raw as Record<string, unknown>)) {
+    if (isSourceCache(entry)) out[id] = entry;
+  }
+  return out;
 }
 function writeCache(all: Record<string, SourceCache>): void {
   contentSet(CACHE_KEY, all);

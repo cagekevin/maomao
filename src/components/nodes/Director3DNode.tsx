@@ -235,6 +235,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
           const fileUrl = await uploadFileToLocal(blob, 'tasks', 'director3d-thumb.png');
           if (fileUrl) persistedThumb = fileUrl;
         } catch {
+          // catch-ok: 缩略图落盘失败保留原值（不阻断）
           /* 落盘失败保留原值 */
         }
       } else if (persistedThumb && persistedThumb.startsWith('data:')) {

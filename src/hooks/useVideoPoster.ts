@@ -36,7 +36,7 @@ export function useVideoPoster(url: string, enabled: boolean) {
     v.onloadeddata = () => {
       try {
         v.currentTime = 0.05; /* 微调到首帧，部分视频首帧是黑的 */
-      } catch {}
+      } catch {} // catch-ok: 视频时钟设置失败不阻断取帧（部分浏览器首帧限制）
     };
     v.onseeked = () => {
       try {
@@ -48,7 +48,7 @@ export function useVideoPoster(url: string, enabled: boolean) {
         ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         if (!cancelled && dataUrl) setPosterUrl(dataUrl);
-      } catch {} // 跨域 canvas 污染时静默失败，回退占位
+      } catch {} // 跨域 canvas 污染时静默失败，回退占位  // catch-ok: canvas 取帧失败回退占位（跨域污染为浏览器预期限制）
     };
     v.src = url;
     v.load();

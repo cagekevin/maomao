@@ -207,7 +207,7 @@ export const CAMERA_ID = '__shot_camera__';
 export const PROJECT_STORAGE_KEY = 'director3d-project';
 export const LEGACY_PROJECT_STORAGE_KEY = 'stageframe-project';
 export const CUSTOM_POSE_STORAGE_KEY = 'director3d-custom-poses';
-export const PROJECT_VERSION = 17;
+const PROJECT_VERSION = 17;
 export const DEFAULT_PROJECT_SETTINGS = {
   name: '未命名场景',
   fps: 24,
@@ -238,7 +238,7 @@ export const ASPECT_RATIOS = [
   { value: '2.39:1', label: '2.39 : 1 · 电影宽银幕', ratio: 2.39 },
   { value: 'custom', label: '自定义画幅' },
 ];
-export const CUSTOM_ASPECT_PATTERN = /^custom:([0-9]+(?:\.[0-9]+)?):([0-9]+(?:\.[0-9]+)?)$/;
+const CUSTOM_ASPECT_PATTERN = /^custom:([0-9]+(?:\.[0-9]+)?):([0-9]+(?:\.[0-9]+)?)$/;
 export const DEFAULT_CAMERA_POSITION = [7.4, 4.6, 8.2];
 export const LEGACY_DEFAULT_CAMERA_TARGET = [0.2, 1.2, 0];
 export const initialObjects = [
@@ -298,7 +298,7 @@ export const DEFAULT_REFERENCE = {
 export const initialKeyframes = {};
 export const initialCharacterKeyframes = {};
 
-export const cleanAspectPart = (value: number | string) =>
+const cleanAspectPart = (value: number | string) =>
   String(Math.round(clamp(Number(value) || 1, 0.1, 100) * 100) / 100);
 export const customAspectParts = (value: number | string) => {
   const match = String(value || '').match(CUSTOM_ASPECT_PATTERN);
@@ -801,7 +801,7 @@ export function cameraRotationToward(position: number[], target: number[]): numb
   return [Math.asin(Math.min(1, Math.max(-1, dy))), Math.atan2(-dx, -dz), 0];
 }
 
-export function normalizeCamera(camera: Partial<ProjectCamera> = {}): ProjectCamera {
+function normalizeCamera(camera: Partial<ProjectCamera> = {}): ProjectCamera {
   const position = finiteVector3(camera.position, initialCamera.position);
   const rotation = Array.isArray(camera.rotation)
     ? finiteVector3(camera.rotation, initialCamera.rotation)
@@ -1122,7 +1122,7 @@ export function uniqueShotName(shots: ProjectShot[], preferred: string): string 
   return `${base.slice(0, 23)} ${uid().slice(-6)}`;
 }
 
-export function normalizeShot(shot: RawShot, index: number, fallback: ShotFallback) {
+function normalizeShot(shot: RawShot, index: number, fallback: ShotFallback) {
   const objects = (Array.isArray(shot?.objects) ? shot.objects : fallback.objects).map(
     normalizePerson,
   );
@@ -1690,7 +1690,7 @@ export function normalizePathPoint(point: unknown): PathPoint {
   return { x: numeric(p.x), y: numeric(p.y), z: numeric(p.z) };
 }
 
-export function normalizePathPoints(points: unknown[]): PathPoint[] {
+function normalizePathPoints(points: unknown[]): PathPoint[] {
   if (!Array.isArray(points)) return [];
   return points.filter(Boolean).map(normalizePathPoint);
 }

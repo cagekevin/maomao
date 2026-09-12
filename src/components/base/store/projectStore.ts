@@ -595,7 +595,13 @@ export function deleteProject(id: string): boolean {
   // 异步删除画布快照（KV）。版本键 `<key>_version` 由后端 handleKvDelete **随键同删**
   // （TD-02-10，2026-09-12：删除语义收口到 handler，调用方不再手工补删——补删漏一处就残留版本行，
   //  会让「删除后重建」拿到旧 CAS 基线）。
-  contentDeleteAsync(CANVAS_STATE_PREFIX + id).catch(() => {}); // fire-and-forget，KV 删除失败不影响主流程
+  // 【失败可见 TD-02-16】fire-and-forget 但失败须留痕：KV 快照残留 → 若复用同 id 会读到旧画布
+  contentDeleteAsync(CANVAS_STATE_PREFIX + id).catch((e) => {
+    logger.warn('projectStore', '删除项目后清理画布快照失败（KV 可能残留）', {
+      projectId: id,
+      reason: e?.message || e,
+    });
+  });
   if (currentProjectId === id) currentProjectId = projects[0].id;
   persist();
   notify();

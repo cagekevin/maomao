@@ -356,18 +356,4 @@ function PrimitiveModel({
   return <SimplePart color={color} selected={selected} />;
 }
 
-export {
-  ArchPrimitive,
-  RoofPrimitive,
-  SimplePart,
-  AssemblyModel,
-  StairsModel,
-  TableModel,
-  ChairModel,
-  SofaModel,
-  DoorModel,
-  WindowModel,
-  TreeModel,
-  VehicleModel,
-  PrimitiveModel,
-};
+export { PrimitiveModel };

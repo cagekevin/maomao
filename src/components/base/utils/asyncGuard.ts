@@ -54,6 +54,7 @@ export function withTimeout<T>(
       try {
         onTimeout?.();
       } catch {
+        // catch-ok: 超时取消回调抛错不阻断超时 reject（防回调失控）
         /* 取消回调失败不阻断 */
       }
       // 中止底层信号：优先标准 abort()，跨环境（jsdom/老浏览器）用 dispatchEvent fallback
@@ -63,6 +64,7 @@ export function withTimeout<T>(
         if (sig?.abort) sig.abort();
         else sig?.dispatchEvent?.(new Event('abort'));
       } catch {
+        // catch-ok: AbortSignal 非标准 abort()/dispatchEvent 兜底失败不阻断
         /* 忽略 */
       }
       reject(new TimeoutError(message));
@@ -127,6 +129,7 @@ export async function loadImageOrNull(
   try {
     return await loadImageWithTimeout(url, opts);
   } catch {
+    // catch-ok: 第一级 crossOrigin 加载失败 → 落无 crossOrigin 重试
     /* 落到无 crossOrigin 重试：跨域图无 CORS 头的兜底 */
   }
   try {

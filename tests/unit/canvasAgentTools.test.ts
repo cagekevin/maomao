@@ -64,12 +64,12 @@ vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.ts', async (import
 import {
   buildCanvasAgentTools,
   CANVAS_AGENT_TOOL_NAMES,
-  getNodeAssetUrl,
-  getNodeMedia,
   setCurrentReferenceImages,
   runExistingPlanTool,
   setCreditSwitch,
 } from '../../src/components/agent/canvas/useCanvasAgentTools.ts';
+// getNodeAssetUrl / getNodeMedia 已下沉 base/canvas（TD-04-25），测试改引新位置。
+import { getNodeAssetUrl, getNodeMedia } from '../../src/components/base/canvas/nodeMedia.ts';
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts';
 import '../../src/components/agent/conversation/conversationSnapshot.ts';
 import * as taskStore from '../../src/components/base/store/taskStore.ts';

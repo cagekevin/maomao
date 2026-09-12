@@ -170,6 +170,7 @@ function loadWidth() {
     const n = t ? Number(t) : NaN;
     if (Number.isFinite(n)) return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, n));
   } catch {
+    // catch-ok: 面板宽度读取失败回退默认
     /* ignore */
   }
   return DEFAULT_WIDTH;
@@ -579,6 +580,7 @@ export default function AgentPanel({
         try {
           setCreditGatePreview(getCreditGate());
         } catch {
+          // catch-ok: creditGate 读取失败忽略（订阅回调容错）
           /* ignore */
         }
         setCreditGateDismissed(false);
@@ -695,6 +697,7 @@ export default function AgentPanel({
     try {
       contentSet(PANEL_WIDTH_KEY, String(width));
     } catch {
+      // catch-ok: 面板宽度写入失败不阻断（contentSet 内部已分类）
       /* ignore */
     }
   }, [width]);

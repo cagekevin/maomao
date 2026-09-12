@@ -109,6 +109,7 @@ export async function upscaleImage(
     try {
       applyUnsharpMask(canvas, sharpenAmount);
     } catch {
+      // catch-ok: 锐化失败（老环境无 getImageData）不阻断，保留原结果
       // 锐化失败（极老环境无 getImageData 权限等）不阻断，保留未锐化结果
     }
   }

@@ -73,6 +73,7 @@ function reportPersistFailure(key: string, error: unknown) {
     publish('persist:failed', { key, error: message });
     logger.warn('存储', '持久化失败', { key, error: message });
   } catch {
+    // catch-ok: 持久化失败上报本身失败不阻断写入流程
     /* 事件上报本身失败不阻断写入流程 */
   }
 }
@@ -124,6 +125,7 @@ function markReady(): void {
     try {
       cb();
     } catch {
+      // catch-ok: 单个就绪监听者抛错不影响其余（隔离）
       /* 单个监听者失败不影响其余（就绪事件不该被下游异常吞掉） */
     }
   }

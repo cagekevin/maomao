@@ -230,7 +230,7 @@ export default function ImageEditor({
     drawSnapshotsRef.current.forEach((b) => {
       try {
         b.close?.();
-      } catch {}
+      } catch {} // catch-ok: ImageBitmap.close 释放失败不阻断（浏览器兼容）
     });
     drawSnapshotsRef.current = [];
     setUndoSteps(0);
@@ -247,10 +247,11 @@ export default function ImageEditor({
           const dropped = drawSnapshotsRef.current.shift()!;
           try {
             dropped.close?.();
-          } catch {}
+          } catch {} // catch-ok: 淘汰快照 close 失败不阻断
         }
         setUndoSteps(drawSnapshotsRef.current.length);
       } catch {
+        // catch-ok: 极端环境 createImageBitmap 失败不阻断绘制
         // 极端环境拿不到快照不阻断绘制
       }
     });
@@ -280,7 +281,7 @@ export default function ImageEditor({
     }
     try {
       bmp.close?.();
-    } catch {}
+    } catch {} // catch-ok: ImageBitmap.close 释放失败不阻断撤销
     setUndoSteps(drawSnapshotsRef.current.length);
     renderView();
   }, [renderView]);
@@ -362,7 +363,7 @@ export default function ImageEditor({
       const len = el.value.length;
       try {
         el.setSelectionRange(len, len);
-      } catch {}
+      } catch {} // catch-ok: setSelectionRange 在隐藏/只读态抛错不阻断聚焦
     }
   }, [textInput]);
 

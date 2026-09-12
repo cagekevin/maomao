@@ -220,6 +220,7 @@ export function parseSSEChunk(line: string, acc: SSEAccumulator): boolean {
       }
     }
   } catch {
+    // catch-ok: 单条 toolCall JSON 解析失败跳过（流式增量容错）
     /* 忽略单条解析失败 */
   }
   return true;
@@ -607,6 +608,7 @@ export async function parseAgentError(
     const parsed = JSON.parse(text);
     msg = parsed?.error?.message || parsed?.error || (typeof parsed === 'string' ? parsed : text);
   } catch {
+    // catch-ok: 错误体解析失败保留默认文案（非吞没，msg 已有）
     /* 保留默认文案 */
   }
   return msg;

@@ -613,7 +613,7 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
                           e.stopPropagation();
                           try {
                             downloadUrl(img, `frame-${idx + 1}.jpg`);
-                          } catch {}
+                          } catch {} // catch-ok: 剪贴板写入失败不阻断（已有 toast 提示路径）
                         }}
                         className="p-2 bg-surface-1 hover:bg-white rounded-full text-body hover:text-black transition-all shadow-lg cursor-pointer border-none"
                         title="下载"

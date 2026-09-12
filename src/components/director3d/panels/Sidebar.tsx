@@ -28,7 +28,7 @@ interface SceneListProps {
   onToggleLock: (id: string) => void;
 }
 
-export function SceneList({
+function SceneList({
   objects,
   selectedId,
   onSelect,

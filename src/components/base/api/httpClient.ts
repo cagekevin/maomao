@@ -22,6 +22,27 @@
 import { withTimeout, isTimeoutError } from '../utils/asyncGuard.ts';
 import { logger } from '../core/logger.ts';
 
+/**
+ * 判定一个 TypeError 是否**由 fetch 自身因网络失败抛出**（TD-03-12，2026-09-13）。
+ *
+ * 【为什么需要】`fetch` 在网络不可达时抛 `TypeError`，但**JS 代码 bug 也抛 TypeError**
+ * （调用未定义函数、属性访问越界）。原实现 `e instanceof TypeError` 无差别归类为 NetworkError →
+ * 代码 bug 被伪装成"网络错误"并重试 3 次，类别被篡改、排障被引偏。
+ *
+ * 【判据】fetch 网络失败的 message 是**各引擎的固定文案**（浏览器/Node 各自一条，跨语言本地化）。
+ * 只认这些文案；其余 TypeError 一律视为代码 bug，原样上抛（保留 stack）。
+ */
+function isFetchNetworkTypeError(e: TypeError): boolean {
+  const msg = String(e?.message || '');
+  return (
+    /failed to fetch/i.test(msg) || // Chrome/Node undici
+    /networkerror when attempting to fetch/i.test(msg) || // Firefox
+    /load failed/i.test(msg) || // Safari
+    /fetch failed/i.test(msg) || // Node
+    /network request failed/i.test(msg) // React Native / 其它
+  );
+}
+
 /** httpRequest 选项（fetch 统一入口的参数契约） */
 export interface HttpRequestOptions {
   method?: string;
@@ -113,11 +134,13 @@ async function readErrorBody(res: Response): Promise<unknown> {
   try {
     return await res.json();
   } catch {
+    // catch-ok: 错误体非 JSON → 落 text 分支（降级链，非吞没）
     /* 非 JSON 错误体 */
   }
   try {
     return { message: await res.text() };
   } catch {
+    // catch-ok: 错误体无 text → 兜底空对象（已尽力保留）
     /* 无 body */
   }
   return {};
@@ -195,7 +218,10 @@ export async function httpRequest<_T = unknown>(
           internalCtrl.signal,
         );
         if (parseJson) {
-          const data = await res.json().catch(() => ({}));
+          // 【TD-03-11 修复】失败响应体非 JSON（后端崩溃页/代理 HTML/空体）时，不得清空为 `{}`——
+          // 否则 extractErrorDetail 取不到 message，HttpError 丢失真实报文，排障只能看到状态码。
+          // 故非 2xx 走 readErrorBody（json → text 原文 → 兜底），保留上游真实错误文本。
+          const data = res.ok ? await res.json().catch(() => ({})) : await readErrorBody(res);
           if (!res.ok) {
             // HttpError.message 只承载业务 message（B2）；HTTP 状态由 HttpError.status 单独暴露，不再拼前缀
             const { message } = extractErrorDetail(data);
@@ -230,16 +256,24 @@ export async function httpRequest<_T = unknown>(
         const err = e as { name?: string; message?: string } | undefined;
         // 外部取消：立即抛，不重试
         if (signal?.aborted || err?.name === 'AbortError') throw e;
-        // 仅网络/超时错误可重试；业务错误（HttpError）不重试
+        // 仅网络/超时错误可重试；业务错误（HttpError）不重试。
+        // 【TD-03-12】TypeError 须再验「是否 fetch 网络失败」——代码 bug 的 TypeError 不重试（重试 3 次也修不好 bug）。
         const retryable =
-          e instanceof NetworkError || isTimeoutError(e) || err?.name === 'TypeError';
+          e instanceof NetworkError ||
+          isTimeoutError(e) ||
+          (e instanceof TypeError && isFetchNetworkTypeError(e));
         if (retryable && attempt < retries) {
           onRetry?.(attempt + 1, e);
           await new Promise((r) => setTimeout(r, retryDelay * (attempt + 1)));
           continue;
         }
-        // 归类：TypeError 通常是 fetch 网络失败（断网/拒绝连接）
-        if (e instanceof TypeError) throw new NetworkError(err?.message || '网络错误', e);
+        // 归类：仅**fetch 自身抛的**网络型 TypeError 才归类为 NetworkError。
+        // 【TD-03-12 修复】原来 `if (e instanceof TypeError)` 无差别归类 —— 把**我们代码里的** bug
+        // （调用未定义函数 / 属性访问越界，同样抛 TypeError）伪装成"网络错误"、类别被篡改、排障引偏。
+        // 现改用 message 白名单识别 fetch 网络失败（浏览器固定文案），代码 bug 原样上抛（保留 stack）。
+        if (e instanceof TypeError && isFetchNetworkTypeError(e)) {
+          throw new NetworkError(err?.message || '网络错误', e);
+        }
         // 传输层事实（状态码/错误类型/耗时）统一记录，便于定位「哪条请求断在哪」
         const status = e instanceof HttpError ? e.status : undefined;
         logger.debug(

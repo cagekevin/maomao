@@ -85,8 +85,8 @@ export const EVENTS: Record<string, EventRegistryEntry> = {
     note: '上游生成完成 → 直接下游（只接一层）自动触发（经 useUpstreamAutoTrigger；开关默认关，零行为改变）',
   },
   'presets-changed': {
-    from: ['promptManager.ts:107'],
-    to: ['PromptLibrary.tsx:65'],
+    from: ['promptManager.ts:105'],
+    to: ['PromptLibrary.tsx:80'],
     payload: '{ presets }',
     note: '提示词库跨节点同步。生产使用',
   },

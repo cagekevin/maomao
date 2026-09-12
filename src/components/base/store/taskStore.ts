@@ -333,7 +333,13 @@ export function patchTask(id: string, patch: Partial<Task>): void {
 export function removeTask(id: string): void {
   tasks = tasks.filter((t) => t.id !== id);
   notify();
-  deleteTask(id).catch(() => {}); // 后端删除
+  // 【失败可见 TD-02-16】后端删除失败不得静默：前端已移除但后端仍残留，需留痕（下次列表刷新会"复活"）
+  deleteTask(id).catch((e) => {
+    logger.warn('taskStore', '后端删除任务失败（前端已移除，可能与后端不一致）', {
+      id,
+      reason: e?.message || e,
+    });
+  });
 }
 
 /**
@@ -683,14 +689,25 @@ export function clearTasksBy(predicate: (t: Task) => boolean): void {
   if (removed.length > 0) {
     tasks = tasks.filter((t) => !predicate(t));
     notify();
-    batchDeleteTasks(removed.map((t) => t.id)).catch(() => {}); // fire-and-forget，后端删除失败不影响前端
+    // 【失败可见 TD-02-16】fire-and-forget 但失败须留痕（后端残留 → 下次拉到已删任务）
+    batchDeleteTasks(removed.map((t) => t.id)).catch((e) => {
+      logger.warn('taskStore', '批量后端删除任务失败（前端已移除）', {
+        count: removed.length,
+        reason: e?.message || e,
+      });
+    });
   }
 }
 export function clearAllTasks(): void {
   if (tasks.length > 0) {
     tasks = [];
     notify();
-    clearAllTasksApi().catch(() => {}); // fire-and-forget，后端清空失败下次再清
+    // 【失败可见 TD-02-16】fire-and-forget 但失败须留痕（否则"已清空"是假的，刷新后重现）
+    clearAllTasksApi().catch((e) => {
+      logger.warn('taskStore', '后端清空任务失败（前端已清，刷新后可能重现）', {
+        reason: e?.message || e,
+      });
+    });
   }
 }
 

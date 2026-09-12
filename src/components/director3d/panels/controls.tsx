@@ -33,7 +33,7 @@ export function ToolButton({
   );
 }
 
-export interface AxisSliderProps {
+interface AxisSliderProps {
   label: string;
   title: string;
   value: number;

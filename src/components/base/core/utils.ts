@@ -1,4 +1,21 @@
 import { useEffect, type DependencyList } from 'react';
+import { API_BASE } from './config.ts';
+
+/**
+ * 相对 `/files/` 路径 → 完整可访问 URL（localTool 本地引擎端口）。
+ *
+ * 【为什么住在 core/utils（TD-06-7 收口，2026-09-13）】此前同语义有两份实现：
+ *  - `assetUrl.ts::toAbsoluteFileUrl`（40+ 消费方走它）
+ *  - `imageCompress.ts::toLoadableUrl`（为避免 `assetUrl → imageCompress → assetUrl` **循环依赖**而复制）
+ *
+ * 本函数**唯一依赖** `API_BASE`（core/config，零 import 的叶常量）——它本不必住在 `assetUrl`（业务层）。
+ * 现下沉到本纯工具叶模块：`assetUrl` 与 `imageCompress` 都从此处取 → **环消失、两份合一**，
+ * 且 `assetUrl` 保持同名 re-export（40+ 消费方零改动）。
+ */
+export function toAbsoluteFileUrl(url: string | null | undefined): string {
+  if (!url || typeof url !== 'string') return url;
+  return url.startsWith('/files/') ? `${API_BASE}${url}` : url;
+}
 
 /**
  * 通用工具集中实现 —— 唯一入口，禁止散落手写替代。
@@ -123,6 +140,10 @@ export function safeFileName(
  * 原各有逐字相同的 getPatternRegex，统一收敛到本函数，新增使用方一律 import 本函数、禁止再复制。
  * 语义：把 STORAGE_KEYS 的 `{xxx}` 动态键模板（如 canvas-state-v1-{projectId}）编译成
  * `^canvas-state-v1-.+$`；模板数量有限（契约层登记量级），按模板 lazy 编译一次缓存，天然防无限膨胀。
+ *
+ * 【转义集补全 2026-09-13】原集 `[.+^$()|[\]\\]` **漏了 `* ? | ]` 等元字符** → 模板里出现 `*`（如
+ * `a*b-{x}`）会直接抛 `Nothing to repeat`，或含 `|` 时语义变成"或"（键匹配错乱）。现补齐为
+ * JS 正则全部元字符（对齐 `escapeRegExp` 通行实现）。
  * @param template 含 {占位} 的模板
  */
 const patternRegexCache = new Map<string, RegExp>();
@@ -130,7 +151,8 @@ export function compilePatternRegex(template: string): RegExp {
   let re = patternRegexCache.get(template);
   if (!re) {
     const parts = template.split(/\{[^}]+\}/);
-    const escaped = parts.map((p) => p.replace(/[.+^$()|[\]\\]/g, '\\$&')).join('.+');
+    // 转义全部正则元字符：. + * ? ^ $ ( ) [ ] { } | \
+    const escaped = parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.+');
     re = new RegExp('^' + escaped + '$');
     patternRegexCache.set(template, re);
   }

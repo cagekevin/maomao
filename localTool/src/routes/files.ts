@@ -96,12 +96,17 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
 
   if (fileData) {
     const saveName = filename || fileData.filename;
+    // 【TD-03-8 修复】扩展名回退链：filename 后缀 → multipart mimeType → 空。
+    // 此前**只用** filename 推 ext，于是 `canvas.toBlob` 等无 `.name` 的 Blob（前端传 'upload'）
+    // 落盘成无后缀文件 → handleRead 回 octet-stream（浏览器不按图渲染）+ tryGenerateThumbnail 跳过。
+    // 手边的 fileData.mimeType 是权威回退源，必须用上。
+    const ext = path.extname(saveName) || mimeToExt(fileData.mimeType) || '';
     // 【docs/122 Content 维度 #6】按 contentId(`<alg>:<hex>`) 全局查重（folder 无关，入口不可能自带 hash 上行）：
     // 命中既有 Content/url → 复用不写盘；未命中 → 以 sha1(hex) 命名落盘（#1 仅初始命名）。
     const db = await getDb();
     const dedup = await writeUploadDedup({
       subfolder,
-      ext: path.extname(saveName),
+      ext,
       data: fileData.data,
       existingUrlByContentId: (contentId) => {
         const row = queryOne(db, 'SELECT url FROM resources WHERE sha1 = ?', [contentId]);
@@ -276,7 +281,11 @@ async function doSaveRemoteUrl(
   // docs/122 Content 维度 #6·根因修复：下载后按【字节内容】算 contentId 做全局去重（与 multipart/base64 同一权威）。
   // 命中既有 contentId → 复用其 url（不写盘、不新建第二份）→ 内容相同的图（即使来自不同 URL）落同一物理文件。
   const mime = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-  const ext = needsExt ? mimeToExt(mime) || '' : path.extname(stableName);
+  // 【TD-03-8 修复·远程分支】原 `mimeToExt(mime) || ''` 在未知 MIME 且 URL 无后缀时 ext='' → 无扩展名落盘
+  // （octet-stream + 跳过缩略图）。改为回退 `path.extname(fileUrl)`（从 URL 路径再试一次），仍无则留空。
+  const ext = needsExt
+    ? mimeToExt(mime) || path.extname(new URL(fileUrl).pathname) || ''
+    : path.extname(stableName);
   const db = await getDb();
   const contentId = contentIdOf(crypto.createHash('sha1').update(data).digest('hex'));
   const existing = queryOne(db, 'SELECT url FROM resources WHERE sha1 = ?', [contentId]) as
@@ -317,9 +326,14 @@ async function tryGenerateThumbnail(filePath: string, _urlPath: string): Promise
   const { thumbPath, thumbUrl } = ensureThumbnailTarget(filePath);
   try {
     if (!fs.existsSync(thumbPath)) {
-      // 真实缩放（最长边 ≤256）生成缩略图；jimp 不可用/异常时回退复制原图（兜底，docs/35 §6）
+      // 【TD-03-7 修复】缩放失败**不再 copyFileSync 伪造缩略图**：那会把全尺寸原图当缩略图返回，
+      // 与「缩略图」语义相反（且 MIME/尺寸全错、无日志）。改为诚实降级 —— 不生成缩略图，
+      // 返回 null，由调用方交给前端用原图 URL（这正是「缩略图是优化非前提」的正确表达）。
       const ok = await resizeImage(filePath, thumbPath, { maxDim: 256, quality: 80 });
-      if (!ok) fs.copyFileSync(filePath, thumbPath);
+      if (!ok) {
+        console.warn(`[thumbnail] resize 失败，跳过缩略图（返回原图给前端）: ${filePath}`);
+        return null;
+      }
     }
     return thumbUrl;
   } catch {
@@ -400,11 +414,16 @@ export async function handleThumbnail(
   const thumbName = `thumb_${maxDim}x${quality}_${outExt}_${stemName}.${outExt}`;
   const thumbPath = path.join(thumbDir, thumbName);
 
-  // maxDim/quality 真正参与缩放与压缩（此前仅拼进文件名后缀，见 docs/35 §2.3）；
-  // jimp 不可用/异常时回退复制原图（兜底，docs/19 约束 3「兜底保留」）
+  // maxDim/quality 真正参与缩放与压缩（此前仅拼进文件名后缀，见 docs/35 §2.3）。
+  // 【TD-03-7 修复】缩放失败**不再 copyFileSync 伪造缩略图**（全尺寸原图冒充缩略图 + 扩展名/字节不符）：
+  // 本端点是显式「要缩略图」的请求，失败就该**显式失败**，让前端 <img onError> 回退原图 ——
+  // 而非静默返回一张语义相反的假图（会把前端缩略图逻辑与体积优化一起骗过）。
   if (!fs.existsSync(thumbPath)) {
     const ok = await resizeImage(filePath, thumbPath, { maxDim, quality });
-    if (!ok) fs.copyFileSync(filePath, thumbPath);
+    if (!ok) {
+      console.warn(`[thumbnail] resize 失败: ${filePath} (maxDim=${maxDim} quality=${quality})`);
+      return sendError(res, 'Thumbnail generation failed', 500);
+    }
   }
 
   // 直接返回缩略图二进制，供 <img src> 使用（前端把该端点 URL 直接作为 img src）

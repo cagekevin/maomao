@@ -138,4 +138,4 @@ function DepthMeshModel({ url, settings = {}, color, selected }: DepthMeshModelP
   );
 }
 
-export { smoothDepthValues, DepthMeshModel };
+export { DepthMeshModel };

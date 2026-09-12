@@ -6,8 +6,8 @@
  * 思路：在 handleKvSet 入库前，把所有 data:* base64 解码落盘成 uploads/ 文件，
  *      用 /files/ URL 替换，库只剩 URL，体积骤降。前端读 URL 正常渲染（已验证）。
  *
- * 幂等：文件名 = sha1(base64内容) 前 16 位，同一 base64 永远映射同一文件，
- *       重复外置不重复落盘（对齐 saveRemoteUrl 的 sha1 去重惯例，files.ts:97）。
+ * 幂等：文件名 = contentHashName(sha1(bytes), ext)（canonical 内容寻址，与 writeUploadBuffer/
+ *       writeUploadDedup 同口径，2026-09-13 TD-03-09 统一）。同字节 → 同物理名，重复外置不重复落盘。
  * 失败降级：单字段外置失败保留原 base64，不拖垮整条 value（docs/41 第2.7节）。
  *
  * 本模块同时暴露 extractFilesUrls，供孤儿文件 GC（docs/41 第2.7节）复用，
@@ -17,7 +17,13 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getUploadDir, queryOne } from '../db/database.js';
-import { ensureDir, resolveUploadTarget, sanitizeFilename, contentIdOf } from './fileStore.js';
+import {
+  ensureDir,
+  resolveUploadTarget,
+  sanitizeFilename,
+  contentIdOf,
+  contentHashName,
+} from './fileStore.js';
 import { mimeToExt } from './mime.js';
 import { toAbsoluteFileUrl } from './localToolBaseUrl.js';
 
@@ -72,9 +78,12 @@ export function saveBase64ToFile(
     if (hit?.url) return toAbsoluteFileUrl(hit.url);
   }
 
-  // 未命中：沿用既有 base64 命名（sha1(base64 文本)前16位 + ext），保持 URL 契约 / 测试不变
-  const hash = crypto.createHash('sha1').update(base64Data).digest('hex').slice(0, 16);
-  const stableName = sanitizeFilename(`${hash}${ext}`);
+  // 【TD-03-9 修复】改用 canonical 内容寻址命名 `sha1(bytes)[:16] + ext`（与 writeUploadBuffer/
+  // writeUploadDedup 同口径）。原实现用 `sha1(base64 文本)[:16]` —— 同一字节内容经不同入口（multipart 上传
+  // vs base64 外置）会得到**不同物理文件名**，仅靠 contentId URL 级去重掩盖；该 16 位命名实际只当本地
+  // `fs.existsSync` 幂等键，却与全局命名规范背离、误导后续改者。现统一为字节哈希。
+  const hash = crypto.createHash('sha1').update(buf).digest('hex');
+  const stableName = sanitizeFilename(contentHashName(hash, ext));
 
   const { savedPath, urlPath } = resolveUploadTarget(subfolder, stableName);
   ensureDir(path.dirname(savedPath));

@@ -380,6 +380,22 @@ describe('compilePatternRegex（存储键模板 → 正则，2026-08-30 收口�
     expect(re.test('a.b-1')).toBe(true);
     expect(re.test('aXb-1')).toBe(false); // '.' 是字面点，非通配
   });
+
+  it('转义集补全（2026-09-13）：`*` 不再抛错、`|` 不变"或"、`?`/`+` 字面化', () => {
+    // 回归锁：原转义集漏 `* ? |` 等 → `*` 直接抛 Nothing to repeat、`|` 语义变"或"（键匹配错乱）。
+    expect(() => compilePatternRegex('*bad-{z}')).not.toThrow();
+    const star = compilePatternRegex('*bad-{z}');
+    expect(star.test('*bad-abc')).toBe(true);
+    expect(star.test('xbad-abc')).toBe(false); // '*' 是字面星号，非量词
+
+    const pipe = compilePatternRegex('a|b-{k}');
+    expect(pipe.test('a|b-x')).toBe(true);
+    expect(pipe.test('a')).toBe(false); // '|' 是字面竖线，非"或"
+
+    const plus = compilePatternRegex('a+b-{k}');
+    expect(plus.test('a+b-x')).toBe(true);
+    expect(plus.test('aab-x')).toBe(false); // '+' 是字面加号，非量词
+  });
 });
 
 describe('createRafBatch（P3 高频事件 rAF 合并原语）', () => {

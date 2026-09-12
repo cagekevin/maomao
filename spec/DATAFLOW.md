@@ -4,6 +4,9 @@
 > **依据**：每条链路的「边」由 `scripts/mv-sync-refs.mjs refs <file>` 机械实证（2026-09-04），非凭文件名猜测。
 > **物理归属**见 `src/components/base/README.md`；本文件只画链路与流向，**不决定文件位置**。查「文件实际被谁 import / 实际在哪」→ 跑 `refs <file>`。
 > **省消耗铁律**：改某条链路时，照本文件该链路的文件清单走 + 读对应文件头注释即可，**不需要**为搞清楚「这条链路在哪几个文件」启动子代理全库乱搜——这张图就是答案。真拿不准单文件归属时才跑 `refs` 一锤定音。
+> **审计灯图例**（2026-09-13 立）：🟢 已审·无债 · 🟡 已审·持平待裁定 · 🔴 有债待还 · ⚪ 未审。
+> 灯只标在**链路 / 文件节点旁**（一个节点一盏），**禁止在本文件写债明细 / 日期 / 说明**（会臃肿）；真源 = `daily/架构日志/<NN>-<区域>-<日期>.md` 的**覆盖度表**，本文件只放灯的投影，冲突以覆盖度表为准。
+> 灯的读/写流程见 `/.codebuddy/commands/债务登记5步法.md`（Step 1 读灯定位、Step 5 定点改灯）。
 
 ***
 
@@ -21,7 +24,7 @@ nodes/{ImageGenerate,TextGenerate,VideoGenerate}（原 PromptNode/TextNode/Disco
               → base/api/relayProxy.ts (relaySubmit / relayAttachUntilDone / relayChat / relayChatStream)
                   → POST :18080 /api/generate（chat→同步快路径 / image/video→relay-poll 异步句柄）
   → store/taskStore.reportGenerate / progress / done / fail    （任务中心权威源）
-  → 落盘唯一出口 filesApi.saveResultToTasks（useNodeGeneration 单点调，杜绝双落盘）
+  → 落盘唯一出口 filesApi.saveResultToTasks（节点侧 useNodeGeneration + 剧本盒 scriptBoxEngine 各 1 处调用，杜绝双落盘）
   → 刷新恢复 base/api/pollTask.ts ─→ 复用 relayProxy.relayAttachUntilDone（只 attach 不 cancel）
       → taskStore.patchTask + taskCompletionBus.publishTaskCompleted（唯一发布入口）
           → 广播 agent:task-completed → useNodeGeneration 精准回填 node.data（detail.nodeId===本节点）
@@ -171,16 +174,22 @@ fan-in（refs 实证 4 处 import）：App.tsx（手动按钮 handlePushToCloud/
 
 ## 资产 / 素材链路
 
-素材库数据 → 类型识别/URL 归一 → 卡片展示 → 拖拽进节点。
+素材/文件落盘与引用（落盘唯一域 = filesApi；素材库 SSOT = resourceStore，主审区域 12）。
 
 ```
-api/filesApi · api/localToolApi（取数据/上传/刮削）
-   └→ store/assetStore ← panels/AssetLibrary · panels/LeftPanel · nodes/ImageNode · scriptbox/StepAssets
-        ├→ utils/mediaType（类型判断）· utils/previewUrl（预览）+ utils/imageUrl（URL 归一）
-        └→ 展示：panels/MaterialStrip · ui/LazyImage
+api/filesApi（全站文件域单点：upload[FormData/JSON 双模式] / move[context-only] / mkdir / open / open-dir + 3 纯函数）
+   ├→ store/resourceStore（素材库 SSOT：saveInlineToLocal/uploadFileToLocal/EXT_BY_TYPE —— 主审见区域 12）
+   ├→ panels/ResourceLibrary · panels/GeneratedView（openLocalFolder/openFileDir/relativePathFromUrl/createFolder）
+   ├→ hooks/useAssetDropPaste（resolveNodeAssetUrl/downloadRemoteToLocal/WEB_DROP_SUBFOLDER）
+   ├→ nodes/ImageBoxNode（resolveNodeAssetUrl）· nodes/useImageHoverActions（showThenPersistInline）
+   ├→ scriptbox/scriptBoxEngine（uploadFileToLocal/saveResultToTasks）· hooks/useNodeGeneration（saveResultToTasks）
+   ├→ depthVideo/DepthVideoModal · utils/videoEngine（uploadFileToLocal → videoProcess 桶）· director3d/d3dPersistence（saveInlineToLocal）
+   └→ 地基：utils/uploadDirs（subfolder 中央表）· utils/mediaType（判型）· utils/previewUrl · utils/imageUrl（URL 归一）
 ```
 
-关键边（refs 实证）：`assetStore` ← AssetLibrary/LeftPanel/ImageNode/PromptNode/StepAssets/scriptBoxEngine。
+关键边（refs 实证 2026-09-12）：`filesApi` 模块引用 32（resourceStore/ResourceLibrary/GeneratedView/OverlayEditor/DepthVideoModal/videoEngine/d3dPersistence/ImageBoxNode/useImageHoverActions + api barrel + 21 测试）；后端唯一落盘端点 = `POST /api/files/upload`（multipart `filename` 字段优先于 part 名；contentId=sha1(字节) 全局查重）。
+
+> 更新(2026-09-12, refs 实证, 区域 03 二轮)：资产段整体刷新。① `store/assetStore` 已删除（全仓 0 文件 0 import），素材库域由 `resourceStore` 承接（区域 12 主审）——旧链路 `store/assetStore ← AssetLibrary/LeftPanel/ImageNode/PromptNode/StepAssets` 已删；② 旧展示实体更名：`panels/AssetLibrary`→`ResourceLibrary`、`panels/MaterialStrip`→`ResourceStrip`、`nodes/ImageNode`→`ImageGenerate`（展示层不逐一点名，见区域 12 续审）；③ `api/localToolApi` 候选 C 后已无文件域成员（仅余迁移注释），文件域唯一单点 = `filesApi`；④ 生成链路段「saveResultToTasks（useNodeGeneration 单点调）」更正——scriptBoxEngine:578 为第二调用方（同一唯一出口，双落盘防线不变）。
 
 ## 画布 / 节点链路
 
@@ -236,10 +245,27 @@ prompt/promptChips · prompt/promptMention（纯函数）
 ## 3D / 深度视频链路
 
 ```
-director3d/* + director3d/d3dPersistence（工程持久化，回收自 base）
-depthVideo/engine · loader · depthUrls · spawn · DepthVideoModal
-editors/cameraStudio · CameraStudioPanel · PanoViewer
+入区边（唯一宿主）：nodes/Director3DNode ──→ director3d/Director3DOverlay.tsx
+  （storageKey = `director3d-project-${nodeId}`；capture 拦指针/滚轮 + `#root pointer-events:none`；出区契约 onExport/onExit/onThumbnail）
+   └→ App.tsx（Director3DApp，唯一 export，编排全部状态）
+        ├→ Viewport.tsx（Canvas/useFrame）─ models.tsx · primitives.tsx · SceneGizmo.tsx · depth.tsx
+        ├→ panels/*（9 文件，单向 fan-in 进 App：Inspector·Timeline·Sidebar→ShotsPanel·GlobalSettingsPanel
+        │            ·AssetMenu·CameraAnglePanel·ReferenceOverlay·controls）
+        ├→ project.ts（领域真源：常量/归一化/插值 cameraAtFrame/序列化/路径/宽高比）+ tracks.ts · history.ts
+        ├→ rig.ts（骨架/关节定义单源）
+        ├→ log.ts（console 日志，⚠ 未接 base/core/logger 的 /api/logs，见 TD-07-1）
+        └→ storage.ts ─ d3dPersistence.ts（工程持久化，回收自 base；contentStore KV + localStorage 回退 + BroadcastChannel）
+
+深度视频（两宿主共用一个 spawn，防漂移）：
+  nodes/AssetNode · nodes/VideoGenerate ──→ depthVideo/DepthVideoModal.tsx ─→ depthVideo/spawn.ts（唯一派生出口）
+  DepthVideoModal ← RUNTIME_MODELS = depthVideo/depthUrls.ts（运行时资源 URL 单源）
+                    · engine.ts（纯逻辑） · loader.ts（运行时装载）
+
+3D 摄影棚（实体在 base/editors/）：editors/cameraStudio.ts · CameraStudioPanel（← nodes/AssetNode · nodes/ImageGenerate）
+  ※ editors/PanoViewer 属 2D 全景查看器（← nodes/PanoramaNode），归「编辑/查看链路」，不在本段
 ```
+
+> 更新(2026-09-12, refs实证/区域07首轮): 原段仅列 3 个文件名、无边，本轮补关键边并更正归属——① 入区边唯一：`nodes/Director3DNode`──→`Director3DOverlay.tsx`（`storageKey=director3d-project-${nodeId}`，出区契约三回调）──→`App.tsx`（唯一 export）；② `App`→`Viewport`（消费 `models/primitives/SceneGizmo/depth`）+ `panels/*` 9 文件单向汇入 + `project.ts`(20 fan-in)/`tracks.ts`/`history.ts` + `rig.ts` 地基；③ 工程持久化 `storage.ts`→`d3dPersistence.ts`（contentStore KV + localStorage 回退 = TD-7 方案A；BroadcastChannel 跨窗口提示 @见 TD-02-3）；④ `depthVideo/*` 两宿主 `nodes/AssetNode`·`nodes/VideoGenerate` 共用 `DepthVideoModal`+`spawnDepthVideoNode`，`RUNTIME_MODELS`(`depthUrls.ts`) 为 URL 单源；⑤ `editors/cameraStudio.ts`·`CameraStudioPanel` 消费方为 `AssetNode`/`ImageGenerate`（@见区域 06）。**更正**：`editors/PanoViewer` 原误列入本段，实为 2D 全景查看器（← `PanoramaNode`），归「编辑/查看链路」。
 
 ***
 

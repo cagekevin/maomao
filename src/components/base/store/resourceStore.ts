@@ -345,7 +345,7 @@ export function sendToResourceLibrary(
   try {
     const fromUrl = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
     if (fromUrl && !/^blob:|^data:/.test(url)) fname = fromUrl;
-  } catch {}
+  } catch {} // catch-ok: URL 解析失败回退占位文件名（data:/blob: 无 pathname）
   const resourceName = (name && String(name).trim()) || fname;
   const detectedType = type || detectAssetType({ name: fname, type: '' });
   // docs/122 #3：发送到素材库登记时带上当前 projectId（resource 逻辑引用层按项目隔离；渲染过滤见 resourcesOfProject）
@@ -527,7 +527,12 @@ export async function localizeAndStoreToResourceLibrary(
     folder,
   );
   emitResourceSent(folder);
-  rescanResources().catch(() => {});
+  // 【失败可见 TD-02-16】素材入库后重扫失败不得静默：列表可能与后端不一致
+  rescanResources().catch((e) => {
+    logger.warn('resourceStore', '素材入库后重扫失败（列表可能与后端不一致）', {
+      reason: e?.message || e,
+    });
+  });
   return localized;
 }
 

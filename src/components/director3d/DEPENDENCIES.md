@@ -53,7 +53,15 @@
 - `src/components/director3d/primitives.tsx` — 场景粗模（几何体）
 - `src/components/director3d/depth.tsx` — 深度网格模型
 - `src/components/director3d/project.ts` — 领域逻辑（常量/归一化/插值/序列化）
-- `src/components/director3d/Director3DOverlay.jsx` — 画布接入外壳
+- `src/components/director3d/tracks.ts` — 关键帧轨道写操作领域（纯函数 updater）
+- `src/components/director3d/history.ts` — 撤销/重做状态机
+- `src/components/director3d/storage.ts` — 本地存储薄适配（工程键转交 d3dPersistence）
+- `src/components/director3d/d3dPersistence.ts` — 工程持久化（KV + localStorage 回退 + 跨窗口广播）
+- `src/components/director3d/log.ts` — 日志层（error/warn 统一落盘 base/core/logger）
+- `src/components/director3d/thumbnails.ts` — 缩略图绘制纯函数
+- `src/components/director3d/Director3DOverlay.tsx` — 画布接入外壳（唯一宿主入口）
+- `src/components/director3d/ErrorBoundary.tsx` — 渲染异常边界
+- `src/components/director3d/SceneGizmo.tsx` — 场景方向指示器
 - `src/components/director3d/styles.css` — 样式
 - `src/components/director3d/rig.ts` — 骨骼/动作
 - `src/components/director3d/panels/` — UI 面板（Sidebar/Inspector/Timeline/ShotsPanel/GlobalSettingsPanel/AssetMenu/CameraAnglePanel/ReferenceOverlay/controls）

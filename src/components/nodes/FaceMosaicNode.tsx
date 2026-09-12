@@ -150,6 +150,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
           previews.push(target);
           if (url) persisted.push(url);
         } catch {
+          // catch-ok: 单个文件上传失败跳过（批量容错）
           /* ignore */
         }
       }

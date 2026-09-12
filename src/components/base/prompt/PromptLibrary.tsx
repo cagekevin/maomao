@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import FullscreenShell from '../panels/FullscreenShell.tsx';
 import { Sparkles, X, Search, Plus, Pencil, Trash2, List, Clock } from 'lucide-react';
@@ -39,8 +39,6 @@ export interface PromptLibraryProps {
   onAppend?: (content: string) => void;
   /** 默认分类（image/video/text/''） */
   defaultCategory?: string;
-  /** 可选的预设数组覆盖（不传则从本地读） */
-  presetPrompts?: Preset[];
 }
 
 interface PresetFormData {
@@ -55,7 +53,6 @@ function PromptLibrary({
   onUse,
   onAppend,
   defaultCategory = '',
-  presetPrompts,
 }: PromptLibraryProps) {
   const [activeTab, setActiveTab] = useState<'mine' | 'recent'>('mine');
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -71,13 +68,15 @@ function PromptLibrary({
     searchIme.current = createImeInput((v) => setDebouncedKeyword(v), 200);
   }
 
-  // 预设列表：外部传入优先，否则本地读
-  const [localPresets, setLocalPresets] = useState(() => loadPresets());
-  const presets = presetPrompts || localPresets;
+  // 预设列表（TD-05-9：原 `presetPrompts` 可选覆盖 prop 全 src 0 调用方传入 →
+  // `presetPrompts || localPresets` 恒取本地、三处 `if (!presetPrompts)` 恒走 = 假受控。
+  // 已删除该 prop 与其分支。state 随之正名为 `presets`——"local" 前缀本是为区分
+  // 「外部传入 vs 本地读」而设，该区分消失后名字即冗余。）
+  const [presets, setPresets] = useState(() => loadPresets());
 
   // 监听外部 presets-changed 广播（经 eventBus），保持同步
   useEffect(() => {
-    const onChanged = (presets?: Preset[] | null) => setLocalPresets(presets || loadPresets());
+    const onChanged = (next?: Preset[] | null) => setPresets(next || loadPresets());
     return subscribe('presets-changed', onChanged);
   }, []);
 
@@ -95,7 +94,14 @@ function PromptLibrary({
   }, [open, defaultCategory]);
 
   const cards = useMemo(() => mapToLibraryCards(presets), [presets]);
-  const recentIds = useMemo(() => getRecent(), []); // open 是渲染态但 getRecent 只读存储，open 变化无需重算
+  // TD-05-8：「最近使用」须随本会话使用实时更新 —— 原 `useMemo(() => getRecent(), [])` 空依赖
+  // 首挂载后永久锁定，`recordRecent` 写入后 tab 不刷新（注释「open 变化无需重算」是语义误解）。
+  // 改用 state：打开时读一次 + 每次 recordRecent 后重读。
+  const [recentIds, setRecentIds] = useState<string[]>(() => getRecent());
+  useEffect(() => {
+    if (open) setRecentIds(getRecent());
+  }, [open]);
+  const refreshRecent = useCallback(() => setRecentIds(getRecent()), []);
   const recentCards = useMemo(() => getRecentCards(cards, recentIds), [cards, recentIds]);
 
   const displayCards = useMemo(() => {
@@ -107,6 +113,7 @@ function PromptLibrary({
   // 点「新建节点」→ 把预设提示词新建为文本节点
   const handleNewNode = (card: LibraryCard) => {
     recordRecent(card.id);
+    refreshRecent(); // TD-05-8：写入后刷新「最近使用」
     if (onUse) {
       onUse(card.content);
       onClose();
@@ -115,6 +122,7 @@ function PromptLibrary({
       try {
         navigator.clipboard.writeText(card.content);
       } catch {
+        // catch-ok: clipboard 写失败不阻断（已 showToast 提示）
         /* ignore */
       }
     }
@@ -123,6 +131,7 @@ function PromptLibrary({
   // 点「添加到提示词」→ 把预设提示词追加到当前节点提示词
   const handleAppend = (card: LibraryCard) => {
     recordRecent(card.id);
+    refreshRecent(); // TD-05-8：写入后刷新「最近使用」
     if (onAppend) {
       onAppend(card.content);
       onClose();
@@ -149,7 +158,7 @@ function PromptLibrary({
       prompt: formData.prompt,
     };
     saveAndNotify(next);
-    if (!presetPrompts) setLocalPresets(next);
+    setPresets(next);
     setEditingIndex(-1);
     showToast('已保存', { type: 'success' });
   };
@@ -157,7 +166,7 @@ function PromptLibrary({
   const handleDelete = (presetIndex: number) => {
     const next = presets.filter((_, i) => i !== presetIndex);
     saveAndNotify(next);
-    if (!presetPrompts) setLocalPresets(next);
+    setPresets(next);
     if (editingIndex === presetIndex) setEditingIndex(-1);
     showToast('已删除', { type: 'success' });
   };
@@ -177,7 +186,7 @@ function PromptLibrary({
       { ...createPreset(), title: formData.title, type: formData.type, prompt: formData.prompt },
     ];
     saveAndNotify(next);
-    if (!presetPrompts) setLocalPresets(next);
+    setPresets(next);
     setShowNewForm(false);
     showToast('已添加', { type: 'success' });
   };

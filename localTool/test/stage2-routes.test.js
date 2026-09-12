@@ -382,6 +382,20 @@ test('[fileStore] ensureThumbnailTarget 返回 .thumbnails 内 thumb_ 前缀文�
   assert.ok(thumbUrl.startsWith('/files/'));
 });
 
+test('[fileStore] TD-03-7：resizeImage 对非法图片返回 false 且不产出文件（供调用方诚实降级）', async () => {
+  // 回归锁根因：resizeImage 失败返回 false 是「诚实信号」；此前**两处缩略图调用方**据它 copyFileSync 伪造缩略图，
+  // 把「必须显式失败」降级成「静默产出语义相反的结果」。本测试锁 resizeImage 侧契约（false + 不写文件），
+  // 迫使调用方必须显式处理（files.ts 已改为 return null / sendError(500)）。
+  const bad = path.join(TEST_DIR, 'not-an-image.png');
+  const out = path.join(TEST_DIR, 'should-not-exist.png');
+  fs.writeFileSync(bad, 'this is definitely not a png');
+  if (fs.existsSync(out)) fs.unlinkSync(out);
+  const ok = await fileStore.resizeImage(bad, out, { maxDim: 64, quality: 80 });
+  assert.equal(ok, false, '非法图片应返回 false（不得静默成功）');
+  assert.equal(fs.existsSync(out), false, 'resize 失败不得产出输出文件（防调用方误会已成功）');
+  fs.unlinkSync(bad);
+});
+
 test('[fileStore] resizeImage 真实缩放（jimp 读图→写图）', async () => {
   const Jimp = (await import('jimp')).default;
   const src = path.join(TEST_DIR, 'resize-src.png');
@@ -609,7 +623,9 @@ test('[index] 默认端口 18080', () => {
 // ════════════════════════════════════════════════════════════════════════
 // routes/files.ts —— upload dataUri 分支（deepening-files-upload-seam 候选 B）
 // saveInlineToLocal 已收口为「透传 base64 原文 + 子目录」，落盘统一走
-// saveBase64ToFile（sha1(base64原文)前16位幂等 + isValidBase64 严格校验）。
+// saveBase64ToFile（contentHashName(sha1(bytes)) 内容寻址幂等 + isValidBase64 严格校验）。
+// 【2026-09-13 TD-03-9】命名由 `sha1(base64文本)前16位` 统一为 canonical `sha1(bytes)`（40 位 hex），
+// 与 writeUploadBuffer/writeUploadDedup 同口径（同字节 → 同物理名）。
 // ════════════════════════════════════════════════════════════════════════
 const { handleUpload } = await importSrc(path.join('routes', 'files.ts'));
 
@@ -628,7 +644,8 @@ test('[files/dataUri] 合法 dataUri + subfolder → 200 + 落盘 /files/tasks/<
   assert.ok(url.startsWith(`${uploadBase}/tasks/`), 'URL 应落 tasks 子目录，实际: ' + url);
   assert.ok(url.endsWith('.png'), '扩展名应为 .png，实际: ' + url);
   const name = url.split('/').pop();
-  assert.equal(name.length, 16 + 4, '文件名应为 sha1 前16位 + .png');
+  // TD-03-9（2026-09-13）：命名统一为 canonical `sha1(bytes)` 全 40 位 hex + ext（此前是 sha1(base64文本)前16位）
+  assert.equal(name.length, 40 + 4, '文件名应为 sha1(bytes) 全 40 位 hex + .png');
   assert.ok(fs.existsSync(path.join(TEST_DIR, 'uploads', 'tasks', name)), '文件应真实落盘');
 });
 
@@ -638,6 +655,66 @@ test('[files/dataUri] 幂等：同一 dataUri 二次上传返回同一 URL（不
   const b = makeRes();
   await handleUpload(makeJsonReq({ dataUri: TINY_PNG, subfolder: 'tasks' }), b);
   assert.equal(parseResBody(a).data.url, parseResBody(b).data.url, 'sha1 幂等 → 同 URL');
+});
+
+// ── TD-03-8（2026-09-13）：multipart 无扩展名 filename + mimeType → 应据 mimeType 补扩展名 ──
+/** 构造 multipart/form-data 请求（Buffer 部件，支持指定 part 的 Content-Type） */
+function makeMultipartReq(parts) {
+  const boundary = '----testboundary' + Date.now();
+  const chunks = [];
+  for (const p of parts) {
+    let head = `--${boundary}\r\n`;
+    if (p.filename !== undefined) {
+      head += `Content-Disposition: form-data; name="${p.name}"; filename="${p.filename}"\r\n`;
+      if (p.contentType) head += `Content-Type: ${p.contentType}\r\n`;
+    } else {
+      head += `Content-Disposition: form-data; name="${p.name}"\r\n`;
+    }
+    head += '\r\n';
+    chunks.push(Buffer.from(head, 'utf-8'));
+    chunks.push(Buffer.isBuffer(p.data) ? p.data : Buffer.from(String(p.data), 'utf-8'));
+    chunks.push(Buffer.from('\r\n', 'utf-8'));
+  }
+  chunks.push(Buffer.from(`--${boundary}--\r\n`, 'utf-8'));
+  const data = Buffer.concat(chunks);
+  const req = { headers: { 'content-type': `multipart/form-data; boundary=${boundary}` } };
+  req.on = (ev, cb) => {
+    if (ev === 'data') cb(data);
+    if (ev === 'end') cb();
+    return req;
+  };
+  return req;
+}
+
+test('[files/multipart] TD-03-8：无扩展名 filename + image/png 的 mimeType → 落盘应带 .png（非无后缀）', async () => {
+  // 回归锁：原实现只用 filename 推 ext，故 'upload'（无后缀）→ 落成无扩展名文件 → octet-stream + 跳过缩略图。
+  const pngBytes = Buffer.from(TINY_PNG.split(',')[1], 'base64');
+  const res = makeRes();
+  await handleUpload(
+    makeMultipartReq([
+      { name: 'subfolder', data: 'canvas' },
+      { name: 'filename', data: 'upload' },
+      { name: 'file', filename: 'upload', contentType: 'image/png', data: pngBytes },
+    ]),
+    res,
+  );
+  const body = parseResBody(res);
+  assert.equal(res.status, 200, '应 200，实际 ' + res.status + ' body=' + res.body);
+  assert.ok(body.data.url.endsWith('.png'), '应据 mimeType 补 .png，实际: ' + body.data.url);
+});
+
+test('[files/multipart] TD-03-8：filename 已带扩展名时优先用文件名后缀（mimeType 不覆盖）', async () => {
+  const pngBytes = Buffer.from(TINY_PNG.split(',')[1], 'base64');
+  const res = makeRes();
+  await handleUpload(
+    makeMultipartReq([
+      { name: 'subfolder', data: 'canvas' },
+      { name: 'file', filename: 'explicit.jpg', contentType: 'image/png', data: pngBytes },
+    ]),
+    res,
+  );
+  const body = parseResBody(res);
+  assert.ok(body.data.url.endsWith('.jpg'), '文件名后缀优先，实际: ' + body.data.url);
 });
 
 test('[files/dataUri] 子目录缺省回退 canvas / 嵌套目录合法', async () => {

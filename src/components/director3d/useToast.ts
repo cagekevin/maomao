@@ -8,7 +8,7 @@
 import { useCallback, useState } from 'react';
 
 /** 单条 toast 自动消失时长（毫秒）。 */
-export const TOAST_DURATION_MS = 1800;
+const TOAST_DURATION_MS = 1800;
 
 type ToastLevel = 'info' | 'success' | 'warning' | 'error';
 

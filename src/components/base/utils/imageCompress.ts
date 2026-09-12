@@ -17,14 +17,8 @@
  */
 import { loadImageWithTimeout } from './asyncGuard.ts';
 import { httpRequest } from '../api/httpClient.ts';
-import { IMAGE_LOAD_TIMEOUT, API_BASE } from '../core/config.ts';
-import { dataUrlToBlob } from '../core/utils.ts';
-
-// 加载用地址补全：/files/ 相对 → 绝对（本地引擎端口）。与 assetUrl.js 的 toAbsoluteFileUrl 逻辑一致，
-// 但这里不 import assetUrl 以避免「assetUrl → imageCompress → assetUrl」循环依赖（assetUrl 发送出口要调本模块）。
-function toLoadableUrl(url: string): string {
-  return typeof url === 'string' && url.startsWith('/files/') ? `${API_BASE}${url}` : url;
-}
+import { IMAGE_LOAD_TIMEOUT } from '../core/config.ts';
+import { dataUrlToBlob, toAbsoluteFileUrl } from '../core/utils.ts';
 
 // 常见图片 MIME → canvas.toDataURL 格式
 const MIME_TO_FORMAT: Record<string, string> = {
@@ -88,7 +82,7 @@ export async function compressImage(
   opts: CompressImageOptions = {},
 ): Promise<CompressImageResult> {
   const { quality = 0.8, format = 'image/jpeg', maxSize = 0, keepOriginalFormat = false } = opts;
-  const src = toLoadableUrl(url || '');
+  const src = toAbsoluteFileUrl(url || '');
   if (!src) throw new Error('无图片可压缩');
 
   // 保持原格式：推断原图 MIME 作为输出格式（推断不出回退 png，避免 JPEG 丢透明/变黑底）
@@ -149,7 +143,7 @@ export async function compressImage(
   } catch {
     try {
       originalSize = atob(src.split(',')[1] || '').length;
-    } catch {}
+    } catch {} // catch-ok: blob 取 size 失败 → 回退 base64 长度估算
   }
 
   return { dataUrl, blob, width: w, height: h, size: blob.size, originalSize };

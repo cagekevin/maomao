@@ -73,8 +73,9 @@ function reportToBackend(p: {
         nodeId: nodeId || '',
       }),
       keepalive: true,
-    }).catch(() => {}); // fire-and-forget：日志上报失败静默；本文件内禁止调 logger 自身（会递归）
+    }).catch(() => {}); // fire-and-forget：日志上报失败静默；本文件内禁止调 logger 自身（会递归）  // catch-ok: 日志上报 fire-and-forget；logger 自身禁止自调（会递归）
   } catch {
+    // catch-ok: 上报构造失败静默（防递归，不能调 logger 报错）
     /* 静默 */
   }
 }

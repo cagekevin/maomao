@@ -1,0 +1,101 @@
+{
+  "_comment": "架构闸清单唯一真源（分区/disjoint 模型，2026-09-13 二次重构）。消费方 prebuild/pre-commit/pretest/pre-push/check:health 一律经 scripts/gates-run.mjs 从本文件派生，禁止手写在 npm script 或 husky hook 里。",
+  "_design": {
+    "model": "分区（disjoint）：每个闸归属恰好一个 phase（build/commit/push），phase 只跑自己名下的闸，互不重叠。相较『累积式分层』，build/commit/push 各跑『不同的事』，且提交与推送连着来时同一闸不会被重复跑（消除累积式的重跑）。",
+    "assignment": {
+      "build": "7 道廉价构建契约（无 tsc）：api/node-types/node-handles/node-data/keys/upload-dirs/jsx。只在 npm run build 时跑，与 git 流无关。",
+      "commit": "4 道提交前置：type-check(tsc --noEmit 通用类型，秒级) + any/catch/events(代码卫生)。提交即知类型错误，不拖慢提交。",
+      "push": "2 道重型终闸：strict-src(全量 tsc 带 --noImplicitAny，白名单隐式 any) / arch(全图扫描)。最不频繁，承载代价最高的检查。",
+      "health": "全量巡检 = 所有闸 + healthOnly，仅 check:health 用。"
+    },
+    "tsc": "通用类型校验(type-check, tsc --noEmit 不带 --noImplicitAny) 在 commit 阶段跑（秒级、提交即知类型错误）；白名单隐式 any 收口(strict-src, 带 --noImplicitAny) 在 push 阶段跑。二者用不同 tsc 标志、互不重叠，commit+push 连发也不会跑同一道闸两遍。CI 仍是不可绕过的最终兜底。"
+  },
+  "phases": ["build", "commit", "push", "health"],
+  "gates": [
+    {
+      "id": "api",
+      "cmd": "node scripts/check-api-contract.cjs",
+      "phase": "build",
+      "desc": "API 契约（模块名 → 导出）"
+    },
+    {
+      "id": "node-types",
+      "cmd": "node scripts/check-node-types.mjs",
+      "phase": "build",
+      "desc": "节点类型注册一致性（NODE_TYPES）"
+    },
+    {
+      "id": "node-handles",
+      "cmd": "node scripts/check-node-handles.mjs",
+      "phase": "build",
+      "desc": "节点端口契约（NODE_HANDLE_CONTRACT 单源）"
+    },
+    {
+      "id": "node-data",
+      "cmd": "node scripts/check-node-data.mjs --strict",
+      "phase": "build",
+      "desc": "node data 形状对账（NODE_DATA_DEFAULTS/NODE_OUTPUTS/palette）"
+    },
+    {
+      "id": "keys",
+      "cmd": "node scripts/check-storage-keys.mjs",
+      "phase": "build",
+      "desc": "存储键登记表（STORAGE_KEYS）单一真源"
+    },
+    {
+      "id": "upload-dirs",
+      "cmd": "node scripts/check-upload-dirs.mjs",
+      "phase": "build",
+      "desc": "uploads 顶层根白名单对账（后端 UPLOAD_ROOT_ALLOW 为真源）"
+    },
+    {
+      "id": "jsx",
+      "cmd": "node scripts/check-jsx.mjs",
+      "phase": "build",
+      "desc": "JSX/TSX 文件规范"
+    },
+    {
+      "id": "type-check",
+      "cmd": "npm run type-check",
+      "phase": "commit",
+      "desc": "通用类型校验（tsc --noEmit，不带 --noImplicitAny；秒级，提交即知类型错误）"
+    },
+    {
+      "id": "any",
+      "cmd": "node scripts/check-any-honesty.mjs",
+      "phase": "commit",
+      "desc": "类型诚实性：禁显式 any/never + 未标注 useState(null)/useRef(null)（全 src 零白名单）"
+    },
+    {
+      "id": "catch",
+      "cmd": "node scripts/check-silent-catch.mjs",
+      "phase": "commit",
+      "desc": "静默吞错误：空 catch 必须带 // catch-ok: 标记"
+    },
+    {
+      "id": "events",
+      "cmd": "node scripts/check-events.mjs",
+      "phase": "commit",
+      "desc": "事件登记表（EVENTS）与发布/订阅成对"
+    },
+    {
+      "id": "strict-src",
+      "cmd": "node scripts/check-strict-src.mjs",
+      "phase": "push",
+      "desc": "白名单目录 0 隐式 any（src 侧永不复涨 · TD-09-1）"
+    },
+    {
+      "id": "arch",
+      "cmd": "node scripts/check-arch.mjs",
+      "phase": "push",
+      "desc": "架构红线（循环依赖 / 分层 / 唯一入口 / 节点写回 / KV 同步读 / 深路径）"
+    }
+  ],
+  "healthOnly": [
+    {
+      "id": "health",
+      "cmd": "node scripts/health-check.cjs",
+      "desc": "全量健康巡检（含孤儿文件/扫描根/额外一致性）"
+    }
+  ]
+}

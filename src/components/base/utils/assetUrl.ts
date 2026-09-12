@@ -30,6 +30,8 @@ import { IMAGE_FETCH_TIMEOUT } from '../core/config.ts';
 import { API_ENDPOINTS } from '../core/contracts.ts';
 import { useAppSettings } from '../store/appSettings.ts';
 import { compressImage } from './imageCompress.ts';
+// TD-06-7：URL 归一化原语已下沉 core/utils（消除与 imageCompress 的循环依赖复制）；本模块自用 + 同名导出
+import { toAbsoluteFileUrl } from '../core/utils.ts';
 
 /**
  * 图片 URL 解析统一选项（resolveAssetUrl / useRenderAssetResolver 共用）。
@@ -58,13 +60,15 @@ export interface AssetSendOptions {
 export const MAX_SEND_DIM = 1920;
 
 /**
- * 相对 /files/ 路径 → 完整可访问 URL（对齐后端 resources.ts / base64Externalize 惯例）。
+ * 相对 /files/ 路径 → 完整可访问 URL。
+ *
+ * 【TD-06-7 收口 2026-09-13】实现在此**已下沉** `core/utils.ts::toAbsoluteFileUrl`
+ * （纯 URL 原语只依赖 `API_BASE`，不应住在业务层 assetUrl；下沉后 imageCompress 可直取，
+ * 消除 `assetUrl → imageCompress → assetUrl` 循环依赖的复制动机）。
+ * 本模块**import + 同名 export**（非纯 re-export：内部 5 处仍自用）——
+ * 40+ 既有消费方（`api/index` / `api/filesApi` / 本文件）零改动。
  */
-export function toAbsoluteFileUrl(url: string | null | undefined): string {
-  if (!url || typeof url !== 'string') return url;
-  if (url.startsWith('/files/')) return `${API_BASE}${url}`;
-  return url;
-}
+export { toAbsoluteFileUrl };
 
 /**
  * 是否是 localTool 本地文件 URL（相对 /files/ 或 API_BASE 绝对地址）。

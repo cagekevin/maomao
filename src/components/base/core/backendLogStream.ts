@@ -50,6 +50,7 @@ export function subscribeBackendLogStream(): void {
       // 断线/后端不可达：EventSource 按服务端 retry 自动重连，这里不额外动作、不抛错
     };
   } catch {
+    // catch-ok: 日志流解析失败忽略（后台流容错）
     // 订阅失败静默，绝不影响主链路
   }
 }

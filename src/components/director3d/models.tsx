@@ -746,15 +746,4 @@ function ImportedModel({ url, selected }: { url: string; selected?: boolean }) {
   return <primitive object={scene} />;
 }
 
-export {
-  MIXAMO_BODY_SCALES,
-  dominantBoneNameFromHit,
-  IK_CHAINS,
-  ikEffectorForJoint,
-  MixamoJointMarker,
-  MixamoIKHandle,
-  MixamoPersonModel,
-  ModelErrorBoundary,
-  StudioPerson,
-  ImportedModel,
-};
+export { StudioPerson, ImportedModel };

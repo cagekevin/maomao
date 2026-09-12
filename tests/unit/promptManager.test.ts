@@ -127,6 +127,17 @@ describe('cards mapping', () => {
     });
   });
 
+  it('TD-05-6：mapToLibraryCards 对缺 id 项用 generateId 口径兜底（不再 "preset-<idx>"）', () => {
+    // 回归锁：原兜底 `'preset-' + idx` 与 ensureIds/createPreset 的 `generateId('pp')` 两口径并存，
+    // 一旦某路径漏补 id → 卡片 id 与 recordRecent 记录不匹配 → 「最近使用」静默失效。
+    const list = [
+      { title: '无 id', type: 'all', prompt: 'P', enabled: true },
+    ] as unknown as Parameters<typeof pm.mapToLibraryCards>[0];
+    const cards = pm.mapToLibraryCards(list);
+    expect(cards[0].id).toBeTruthy();
+    expect(cards[0].id.startsWith('preset-')).toBe(false); // 不再是旧口径
+  });
+
   it('getRecentCards 按 id 顺序提取', () => {
     const cards = [
       { id: '1', title: 'A' },

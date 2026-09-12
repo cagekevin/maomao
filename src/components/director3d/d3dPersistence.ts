@@ -85,6 +85,7 @@ function announceSaved(key: string): void {
   try {
     channel.postMessage({ type: 'D3D_SAVED', key, tabId, at: Date.now() });
   } catch {
+    // catch-ok: BroadcastChannel 广播失败不影响保存
     /* 广播失败忽略，不影响保存 */
   }
 }
@@ -250,13 +251,26 @@ export async function hydrateProject(storageKey?: string): Promise<D3dProject | 
   const key = projectKvKey(storageKey);
 
   // 双通道收口（TD-7 方案A）：KV 优先，空/不可达回读本地降级副本，统一走 contentStore 单一实现。
-  // contentGetKvWithFallback 已封装 KV 独立超时 + 本地回读；返回 from 供一次性迁移判定。
-  const { value, from } = await contentGetKvWithFallback(key);
+  // 【TD-02-25 正确性修复】contentGetKvWithFallback 返回诚实判别信号：
+  //   - value 非空 + 无 vacated → KV 真值，直接用。
+  //   - vacated:true → KV **确认为空**（"确定没有"）→ 许可一次性迁移写回本地副本。
+  //   - source:'local'（degraded）→ KV **引擎不可用**，状态未知 → **绝不可迁移写回**
+  //     （否则用本地 stale 副本无条件覆盖 KV = lost update / 已删数据复活）。
+  //   - ok:false（rejected）→ KV 4xx 拒收，不服务本地副本。
+  const res = await contentGetKvWithFallback(key);
+  if (!res.ok) {
+    logger.warn('d3dPersistence', '派导台工程读取被后端拒绝，本次不加载（不降级）', {
+      key,
+      status: res.status,
+    });
+    return null;
+  }
 
-  // 迁移：KV 空（或不可达）但本地有 → 写回 KV（外部化后持久化），此后 KV 命中不再触发（天然幂等）
-  if (from === 'local' && value != null) {
+  // 迁移：**仅当 KV 确认为真空（vacated:true）** 而本地有副本 → 写回 KV（外部化后持久化，天然幂等）。
+  // 引擎降级时 KV 真值未知，写回会 clobber 他人更新或复活已删数据，故一律禁止。
+  if (res.vacated && res.fallback != null) {
     try {
-      await writeProject(key, value as D3dProject);
+      await writeProject(key, res.fallback as D3dProject);
     } catch (err) {
       logger.warn('d3dPersistence', '本地→KV 迁移写回失败（不影响读）', {
         reason: err?.message || err,
@@ -264,5 +278,6 @@ export async function hydrateProject(storageKey?: string): Promise<D3dProject | 
     }
   }
 
-  return (value as D3dProject) ?? null;
+  // 读值：KV 真值（或真空时回退的本地副本）优先
+  return (res.value as D3dProject) ?? null;
 }

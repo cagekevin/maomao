@@ -13,7 +13,11 @@
  *  - 新增 contentIdOf / findDedupUrl（按 contentId 去重的纯判定，folder 无关）与
  *    writeUploadDedup（按 contentId 查重的去重感知落盘编排）。
  *  -「同字节 → 1 物理文件」去重真源 = Content 维度 identity = contentId(`<alg>:<hex>`)；
- *    应用层查重仅优化，并发去重真保证 = DB 对 contentId 列加唯一约束 + 冲突回退复用。
+ *    应用层查重仅优化。并发去重真保证 = **content-hash 文件名的写入幂等**（同字节必得同名 →
+ *    `writeFileSync` 覆盖同一路径）+ `inflightDownloads` 同进程并发锁。
+ *    【TD-03-10 更正 2026-09-13】此前声称「DB 对 contentId 列加唯一约束 + 冲突回退」不成立——
+ *    `database.ts:330` 已显式 `DROP INDEX idx_resources_sha1` 并声明不依赖该约束
+ *    （因「同内容被不同路径引用」时 UNIQUE 会误杀合法复用）。原注释 stale，会误导审阅者。
  */
 
 import fs from 'node:fs';
@@ -46,7 +50,7 @@ export function sanitizeFilename(name: string): string {
  * 且 canvas、migrated 下可嵌套（canvas/drop、canvas/video-process）——故白名单针对【顶层根】，
  * 只拒绝未知顶层根与目录逃逸，放行既有所有合法用法（这与前端 uploadDirs.js 的常量根一致）。
  */
-const UPLOAD_ROOT_ALLOW = new Set(['tasks', 'web', 'canvas', 'migrated', 'director3d']);
+export const UPLOAD_ROOT_ALLOW = new Set(['tasks', 'web', 'canvas', 'migrated', 'director3d']);
 
 /**
  * 规范化并校验 subfolder（目录根白名单 + 防目录逃逸）。

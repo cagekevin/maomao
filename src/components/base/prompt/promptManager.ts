@@ -63,6 +63,7 @@ function writeJSON(key: string, val: unknown): void {
   try {
     contentSet(key, val);
   } catch {
+    // catch-ok: 写入失败忽略（隐私模式等，contentSet 内部已分类）
     // 忽略（隐私模式等）
   }
 }
@@ -122,7 +123,10 @@ export function mapToLibraryCards(presets: Preset[]): LibraryCard[] {
     .map((p, idx) => ({ p, idx }))
     .filter(({ p }) => p.enabled !== false)
     .map(({ p, idx }) => ({
-      id: p.id || 'preset-' + idx,
+      // TD-05-6：兜底 id 口径统一为 `generateId('pp')`（原 `'preset-' + idx`）——与 `ensureIds`/`createPreset`
+      // 同口径。`loadPresets` 已保证每项有 id，故本兜底是防御路径；但两口径并存时，一旦漏补会产出
+      // 与 `recordRecent` 记录不匹配的 id（「最近使用」静默失效），故统一。
+      id: p.id || generateId('pp'),
       title: p.title,
       content: p.prompt,
       category: p.type === 'all' ? '' : p.type,
@@ -134,7 +138,8 @@ export function mapToLibraryCards(presets: Preset[]): LibraryCard[] {
 // 按最近使用 id 提取最近卡片
 export function getRecentCards(allCards: LibraryCard[], recentIds: string[]): LibraryCard[] {
   const map = new Map(allCards.map((c) => [c.id, c]));
-  return recentIds.map((id) => map.get(id)).filter(Boolean);
+  // TD-05-6：`.filter(Boolean)` 无类型谓词（strictNullChecks 下 TS 无法收窄）→ 显式谓词
+  return recentIds.map((id) => map.get(id)).filter((c): c is LibraryCard => c !== undefined);
 }
 
 // 搜索过滤（标题 + 内容）
@@ -161,4 +166,5 @@ export const CATEGORY_OPTIONS: { value: string; label: string }[] = [
   { value: 'video', label: '视频' },
 ];
 
-export { generateId };
+// TD-05-4：删除 `export { generateId }` 二次导出（把 core/idGen.generateId 借道本模块给 UI 走捷径）。
+// 全仓 0 消费方从本模块取它（需要者直取 `core/idGen.ts`）——第二出口只会让"id 生成唯一入口"名存实亡。

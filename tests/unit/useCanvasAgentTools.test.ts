@@ -18,12 +18,9 @@ const mkNode = (data: Record<string, unknown> = {}): Node => ({
 });
 
 const mod = await import('../../src/components/agent/canvas/useCanvasAgentTools.ts');
-const {
-  getNodeAssetUrl,
-  buildCanvasAgentTools,
-  buildCanvasAgentToolSchemas,
-  CANVAS_AGENT_TOOL_NAMES,
-} = mod;
+const { buildCanvasAgentTools, buildCanvasAgentToolSchemas, CANVAS_AGENT_TOOL_NAMES } = mod;
+// getNodeAssetUrl 已下沉 base/canvas（TD-04-25），测试改引新位置。
+const { getNodeAssetUrl } = await import('../../src/components/base/canvas/nodeMedia.ts');
 
 describe('getNodeAssetUrl', () => {
   it('data.assetUrl 优先', () => {

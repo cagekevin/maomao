@@ -66,6 +66,7 @@ import {
   contentReadThrough,
   contentKvGetVersion,
   contentKvSetCas,
+  contentGetKvWithFallback,
 } from '../../src/components/base/core/contentStore.ts';
 
 import '../../src/components/base/core/contracts.ts';
@@ -236,11 +237,12 @@ describe('KV 键路由', () => {
     expect(mockStorageAdapter.sSet).not.toHaveBeenCalled();
   });
 
-  it('contentDelete 对 KV 键 fire-and-forget', async () => {
+  it('contentDelete 对 KV 键 fire-and-forget（删除成功同时清本地副本，TD-02-25）', async () => {
     contentDelete(KV_KEY);
     await Promise.resolve();
     expect(mockLocalToolApi.kvDelete).toHaveBeenCalledWith(KV_KEY);
-    expect(mockStorageAdapter.sRemove).not.toHaveBeenCalled();
+    // 删除成功也清本地降级副本：否则 keepFallback 键下次 hydrate 会"复活"已删数据
+    expect(mockStorageAdapter.sRemove).toHaveBeenCalledWith(KV_KEY);
   });
 
   it('contentHas 对 KV 键（未缓存）返回 false', () => {
@@ -288,17 +290,24 @@ describe('折叠回归（KV 降级 / 路由 / native）', () => {
     expect(mockStorageAdapter.sRemove).toHaveBeenCalledWith(KV_KEY);
   });
 
-  it('KV 删成功 → 不清本地副本（A3 回归锁：无条件 sRemove 会改行为）', async () => {
-    // kvDelete 默认 mock resolve({ ok:true })，KV 成功路径
+  it('KV 删成功 → **同时清本地副本**（TD-02-25 修正：保留副本会致 hydrate 复活已删数据）', async () => {
+    // 【行为变更说明】原用例锁「不清本地副本」（A3 字面回归），但该行为与 keepFallback=true 的键
+    // （如 d3d 工程）叠加时构成数据正确性故障：KV 删除成功后本地镜像残留 → 下次 hydrate 读到
+    // 「KV 真空 + 本地有」→ 触发迁移写回 → **已删除的工程复活**。
+    // 删除语义要求「彻底消失」，故删除成功也必须清本地副本（与写入的 keepFallback 镜像策略不同）。
     await contentDeleteAsync(KV_KEY);
     expect(mockLocalToolApi.kvDelete).toHaveBeenCalledWith(KV_KEY);
-    expect(mockStorageAdapter.sRemove).not.toHaveBeenCalled();
+    expect(mockStorageAdapter.sRemove).toHaveBeenCalledWith(KV_KEY);
   });
 
-  it('KV 删失败 → 清本地降级副本（修 R3，防副本残留）', async () => {
+  it('TD-02-18：KV 删**引擎不可用** → 删除状态未知，**保留**本地副本（不谎报成功）+ 留痕', async () => {
+    // 【行为反转说明】原用例锁「清本地副本（防副本残留）」，但那会制造「KV 键仍残留 + 本地已清」的
+    // 假删除态 —— 用户以为删了，重载后却从 KV 读到旧数据。正确语义：删除**未确认**时两边一致地
+    // 「没删成功」（保留本地副本 + warn 留痕）。注意与 TD-02-25 不冲突：那里修的是「KV 删**成功**后
+    // 本地残留 → hydrate 复活」，本处是「KV 删**失败** → 不假装删除」。
     mockLocalToolApi.kvDelete.mockRejectedValue(new Error('kv down'));
     await contentDeleteAsync(KV_KEY);
-    expect(mockStorageAdapter.sRemove).toHaveBeenCalledWith(KV_KEY);
+    expect(mockStorageAdapter.sRemove).not.toHaveBeenCalled();
   });
 
   it('native 键走 sGet，不触 KV/网络', () => {
@@ -596,6 +605,68 @@ describe('KV 失败分类 + 严格族原语（TD-02-1）', () => {
   it('contentKvGetVersion：KV 键读失败原样上抛（调用方据此 fail-closed）', async () => {
     mockLocalToolApi.kvGetVersion.mockRejectedValueOnce(new Error('离线'));
     await expect(contentKvGetVersion(KV_KEY)).rejects.toThrow('离线');
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════
+ * 读族失败分类 + 诚实结果契约（TD-02-15/19/25，2026-09-12）
+ * 读族此前漏接 isEngineUnavailable 守卫（写族有、读族无），且 contentGetKvWithFallback
+ * 把「KV 真空」与「KV 读失败」都标 from:'local' → 下游据假信号无条件写回 KV（clobber/复活）。
+ * 本块锁死新契约：真空 ≠ 失败；降级只服务引擎不可用；4xx 拒收必须显式暴露。
+ * ════════════════════════════════════════════════════════════════ */
+describe('读族失败分类 + KvFallback 诚实信号（TD-02-15/19/25）', () => {
+  const KV_KEY = 'active_api_endpoint';
+  const httpErr = (status: number, msg: string) => Object.assign(new Error(msg), { status });
+
+  it('TD-02-15：读族 4xx 拒收 → 原样上抛（不再静默回退本地副本）', async () => {
+    mockLocalToolApi.kvGet.mockRejectedValueOnce(httpErr(403, '无权限'));
+    mockStorageAdapter.sGet.mockReturnValue(JSON.stringify({ stale: true }));
+    await expect(contentGetAsync(KV_KEY)).rejects.toThrow('无权限');
+    // 关键：4xx 不得被当作"引擎不可用"而降级读本地
+    expect(mockStorageAdapter.sGet).not.toHaveBeenCalledWith(KV_KEY);
+  });
+
+  it('TD-02-15：读族 引擎不可用（无 status）→ 降级回退本地副本，不抛', async () => {
+    mockLocalToolApi.kvGet.mockRejectedValueOnce(new Error('Failed to fetch'));
+    mockStorageAdapter.sGet.mockReturnValue(JSON.stringify({ cached: 1 }));
+    await expect(contentGetAsync(KV_KEY)).resolves.toEqual({ cached: 1 });
+  });
+
+  it('TD-02-25：KV **真空** → from/source 标 kv + vacated:true（"确定没有"，允许迁移）', async () => {
+    mockLocalToolApi.kvGet.mockResolvedValueOnce(null);
+    mockStorageAdapter.sGet.mockReturnValue(JSON.stringify({ localCopy: 1 }));
+    const res = await contentGetKvWithFallback(KV_KEY);
+    expect(res.ok).toBe(true);
+    expect(res.source).toBe('kv');
+    expect(res.vacated).toBe(true); // 唯一许可迁移的形态
+    expect(res.fallback).toEqual({ localCopy: 1 });
+  });
+
+  it('TD-02-25：KV **引擎不可用** → source:local + degraded，**不带 vacated**（禁迁移）', async () => {
+    mockLocalToolApi.kvGet.mockRejectedValueOnce(new Error('Failed to fetch'));
+    mockStorageAdapter.sGet.mockReturnValue(JSON.stringify({ localCopy: 1 }));
+    const res = await contentGetKvWithFallback(KV_KEY);
+    expect(res.ok).toBe(true);
+    expect(res.source).toBe('local');
+    expect(res.degraded).toBe(true);
+    expect(res.vacated).toBeUndefined(); // 关键断言：降级不可作迁移依据
+  });
+
+  it('TD-02-25：KV **4xx 拒收** → ok:false + rejected（不服务本地副本）', async () => {
+    mockLocalToolApi.kvGet.mockRejectedValueOnce(httpErr(400, 'bad request'));
+    const res = await contentGetKvWithFallback(KV_KEY);
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('rejected');
+    expect(res.status).toBe(400);
+  });
+
+  it('TD-02-25：KV 命中 → source:kv，不带 vacated', async () => {
+    mockLocalToolApi.kvGet.mockResolvedValueOnce({ real: true });
+    const res = await contentGetKvWithFallback(KV_KEY);
+    expect(res.ok).toBe(true);
+    expect(res.source).toBe('kv');
+    expect(res.value).toEqual({ real: true });
+    expect(res.vacated).toBeUndefined();
   });
 });
 

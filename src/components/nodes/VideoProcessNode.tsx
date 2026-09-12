@@ -154,7 +154,7 @@ function captureFrame(url: string, atTime: number, quality = 0.55): Promise<Blob
       video.removeAttribute('src');
       try {
         video.load();
-      } catch {}
+      } catch {} // catch-ok: video.load() 释放 src 失败不阻断 fail 回调
       reject(new Error(msg));
     };
     const ok = (blob: Blob) => {
@@ -163,7 +163,7 @@ function captureFrame(url: string, atTime: number, quality = 0.55): Promise<Blob
       video.removeAttribute('src');
       try {
         video.load();
-      } catch {}
+      } catch {} // catch-ok: video.load() 释放 src 失败不阻断 ok 回调
       resolve(blob);
     };
     const grab = () => {
@@ -1101,7 +1101,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           () => {
             try {
               controller.cancel();
-            } catch {}
+            } catch {} // catch-ok: 浏览器 API 释放失败不阻断帧处理主流程
           },
         );
         // GIF 产物 URL 喂给 spawnGifNode 作持久节点源，非「组件预览」，不收进 previewUrl（见 CONTEXT §二⑤）
@@ -1161,7 +1161,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           () => {
             try {
               controller.cancel();
-            } catch {}
+            } catch {} // catch-ok: 浏览器 API 释放失败不阻断帧处理主流程
           },
         );
       } else {
@@ -1203,7 +1203,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           () => {
             try {
               controller.cancel();
-            } catch {}
+            } catch {} // catch-ok: 浏览器 API 释放失败不阻断帧处理主流程
           },
         );
       }

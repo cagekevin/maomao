@@ -339,7 +339,7 @@ export function resolveDownloadFilename(
   try {
     const fromUrl = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
     if (fromUrl && !/^blob:|^data:/.test(url)) filename = filename || fromUrl;
-  } catch {}
+  } catch {} // catch-ok: URL 解析失败回退 label/fallback 文件名
   // 先兜底再补扩展名：空 label + blob/data 等无来源名时用 fallback（原实现「先补扩展名后判空」使该兜底成为死代码，产生残缺文件名 'png'）
   if (!filename) filename = fallback;
   if (!/\.[a-z0-9]{2,5}$/i.test(filename)) filename += (filename ? '.' : '') + ext;

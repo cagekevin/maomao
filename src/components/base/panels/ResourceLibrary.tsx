@@ -351,6 +351,7 @@ function ResourceLibrary() {
       reset(true);
       return true;
     } catch {
+      // catch-ok: 建文件夹失败返回 false 由 UI 呈现（非静默）
       /* ignore */
     }
     return false;

@@ -62,7 +62,7 @@ function resolveAsset(p: string): string {
       chrome?: { runtime?: { getURL?: (path: string) => string } };
     };
     if (g.chrome?.runtime?.getURL) return g.chrome.runtime.getURL(p);
-  } catch {}
+  } catch {} // catch-ok: chrome.runtime 不存在（非扩展环境）回退相对路径
   return p;
 }
 

@@ -35,6 +35,7 @@ export function loadAgentChatModel(): AgentChatModelConfig | null {
     }
   } catch {
     /* 忽略损坏数据 */
+    // catch-ok: 存储值损坏时回退 null（读取侧容错，非失败吞没）
   }
   return null;
 }
@@ -49,6 +50,7 @@ export function saveAgentChatModel(cfg?: Partial<AgentChatModelConfig>): void {
     });
   } catch {
     /* 忽略 */
+    // catch-ok: 写入失败不阻断配置交互（contentSet 内部已分类/留痕）
   }
 }
 
@@ -71,6 +73,7 @@ export function loadAgentHistoryTurns(): number {
     if (Number.isFinite(n) && n >= 0) return Math.floor(n); // 支持 0、任意非负整数（含大值≈不限）
   } catch {
     /* 忽略损坏数据 */
+    // catch-ok: 存储值损坏时回退默认轮数（读取侧容错）
   }
   return AGENT_HISTORY_TURNS_DEFAULT;
 }
@@ -83,5 +86,6 @@ export function saveAgentHistoryTurns(n: number | string): void {
     contentSet(AGENT_HISTORY_TURNS_KEY, Math.floor(v));
   } catch {
     /* 忽略 */
+    // catch-ok: 写入失败不阻断（contentSet 内部已分类/留痕）
   }
 }

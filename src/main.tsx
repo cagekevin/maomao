@@ -53,6 +53,7 @@ function reportGlobalError(type: string, e: unknown) {
     _globalErrThrottle.ts = now;
     logger.error('运行时', type, { name, message, error: String(e), stack });
   } catch {
+    // catch-ok: 全局错误兜底自身异常不再上报（防递归）
     /* 防递归：全局兜底自身异常不再上报 */
   }
 }

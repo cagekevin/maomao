@@ -198,7 +198,6 @@ type HubStatus = 'idle' | 'loading' | 'ready' | 'error';
 function PromptHub() {
   const [items, setItems] = useState<Prompt[]>([]);
   const [status, setStatus] = useState<HubStatus>('idle');
-  const [_error, setError] = useState('');
   const [sourceFilter, setSourceFilter] = useState('all');
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -206,6 +205,40 @@ function PromptHub() {
   const warnedRef = useRef(false);
 
   // 注：历史上曾用 visibleCount 做分页，已移除（列表全量渲染 filtered）。勿再引入 setVisibleCount 类未声明状态。
+
+  /**
+   * 拉取社区提示词并落状态（**唯一实现**，TD-05-7）。
+   *
+   * 【为什么抽出来】原代码里这段逻辑**逐字重复两份**：一份在首屏 effect（L219-235）、
+   * 另一份是**悬空 useCallback**（返回值未赋标识、全组件 0 调用点 = 死刷新 handler，
+   * 逐字复刻首屏逻辑却从未接线）。现收敛为单一 `runLoad`，首屏 effect 调用它；
+   * **死 useCallback 已删除**（若产品将来要「刷新」按钮，接线到本函数即可，无需再复制一份）。
+   *
+   * @param isAlive 可选守卫：组件已卸载时丢弃迟到结果（首屏 effect 用；主动刷新不需要）
+   */
+  const runLoad = useCallback((isAlive?: () => boolean) => {
+    return loadPromptHub()
+      .then((res) => {
+        if (isAlive && !isAlive()) return;
+        setItems(res.items);
+        setStatus(res.items.length ? 'ready' : 'error');
+        const errs = getPromptHubErrors();
+        if (errs.length && !warnedRef.current) {
+          warnedRef.current = true;
+          toastWarning(`${errs.length} 个源加载失败，其余正常显示`);
+        }
+      })
+      .catch(() => {
+        if (isAlive && !isAlive()) return;
+        // 【审计修正 2026-09-13】原此处 `setError(err.message)` 写入一个 UI **从不读取**的死 state
+        // （`_error` 前缀即前人留下的信号：只在 3 处 set 写、0 处读）。删除该 state 与其写入。
+        // 失败仍由 `status='error'` 表达（UI 走 HubEmpty；`toastWarning` 已在 then 分支提示源级失败）。
+        // ⚠️ 遗留观察：`status==='error'` 与「加载成功但为空」在 UI 上**呈现相同**（都 HubEmpty），
+        //    错误态无独立 UI —— 是否补错误视图属产品决策，登记为观察项，勿擅自加。
+        setStatus('error');
+      });
+  }, []);
+
   // 首屏：先秒显缓存，再静默拉取最新
   useEffect(() => {
     const cached = getCachedPromptHub();
@@ -216,47 +249,11 @@ function PromptHub() {
       setStatus('loading');
     }
     let alive = true;
-    loadPromptHub()
-      .then((res) => {
-        if (!alive) return;
-        setItems(res.items);
-        setStatus(res.items.length ? 'ready' : 'error');
-        setError(res.items.length ? '' : '未加载到任何提示词');
-        const errs = getPromptHubErrors();
-        if (errs.length && !warnedRef.current) {
-          warnedRef.current = true;
-          toastWarning(`${errs.length} 个源加载失败，其余正常显示`);
-        }
-      })
-      .catch((err) => {
-        if (!alive) return;
-        setStatus('error');
-        setError(err instanceof Error ? err.message : String(err));
-      });
+    void runLoad(() => alive);
     return () => {
       alive = false;
     };
-  }, []);
-
-  useCallback(() => {
-    setStatus('loading');
-    setError('');
-    loadPromptHub()
-      .then((res) => {
-        setItems(res.items);
-        setStatus(res.items.length ? 'ready' : 'error');
-        setError(res.items.length ? '' : '未加载到任何提示词');
-        const errs = getPromptHubErrors();
-        if (errs.length && !warnedRef.current) {
-          warnedRef.current = true;
-          toastWarning(`${errs.length} 个源加载失败，其余正常显示`);
-        }
-      })
-      .catch((err) => {
-        setStatus('error');
-        setError(err instanceof Error ? err.message : String(err));
-      });
-  }, []);
+  }, [runLoad]);
 
   const filtered = useMemo(() => {
     return items.filter((it) => {

@@ -257,6 +257,7 @@ export async function roundTrip(
       try {
         res?.body?.cancel?.();
       } catch {
+        // catch-ok: 解析失败忽略（流式增量容错）
         /* 中断响应流 */
       }
     },

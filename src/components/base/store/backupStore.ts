@@ -69,6 +69,7 @@ function writeLS(k: string, v: unknown) {
   try {
     contentSet(k, v);
   } catch {
+    // catch-ok: 写入失败不阻断备份流程（contentSet 内部已分类/留痕）
     /* ignore */
   }
 }

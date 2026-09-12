@@ -369,6 +369,7 @@ export async function executePlan({
     try {
       onLog?.({ level, message });
     } catch {
+      // catch-ok: 日志回调失败不阻断计划执行
       /* 日志失败不阻断执行 */
     }
   };

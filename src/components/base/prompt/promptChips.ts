@@ -1,12 +1,17 @@
 /**
- * promptChips —— prompt 富文本的「芯片」纯逻辑层（无 React / 无 DOM 环境依赖，可单测）。
+ * promptChips —— prompt 富文本的「芯片」转换层（无 React，但**依赖 DOM**：`document.createElement` /
+ * `Node.ELEMENT_NODE`；可单测，测试环境需 jsdom）。
+ *
+ * 【口径更正 2026-09-13 / TD-05-5】原文件头自称「纯逻辑层（无 DOM 环境依赖）」，与实现不符——
+ * 本文件实为 **DOM 工具层**（芯片 ↔ DOM 节点）。文档诚实化，防后续误在无 DOM 环境（如 SSR/Node）引用本模块。
+ * 真正的纯函数是其中的匹配/解析部分（`findAutoLinkOccurrences`/`resolvePromptChips` 等）。
  *
  * 职责：把 prompt 里的 `@{id:label}` 素材引用与 DOM 芯片互转，以及生成前把芯片解析回
  * 「纯文本 + 参考图」。是唯一入口，禁止在别处手写 /@\{/ 正则或就地解析。
  *
  * 序列化约定（与参考仓库 AI-Canvas-tauri 一致）：
  *   芯片 → 字符串：`@{id:label}`
- *   字符串 → 芯片：用 PROMPT_CHIP_RE 解析
+ *   字符串 → 芯片：用 `promptChipRe()` 解析（工厂返回新实例，避免 /g 的 lastIndex 共享状态）
  *   旧数据（无 `@{...}` 格式的纯文本 `@素材名`）→ 解析不到 → 原样显示为文字，向后兼容不崩。
  *
  * 数据模型（token 统一形态，来自 refImages / refTexts）：
@@ -37,8 +42,13 @@ export interface ChipMeta {
  *   - group2 = label（不含 `|` 与 `}`，旧数据无 url 段时完全兼容）
  *   - group3 = 可选缩略图 URL（已 encodeURIComponent，防止 `}` 等字符破坏解析）
  * 旧数据 `@{id:label}`（无 `|`）也能正确匹配，向后兼容不崩。
+ *
+ * 【为什么是工厂而非常量（TD-05-5）】`/g` 正则在 `exec()` 后**携带 `lastIndex` 可变状态**：
+ * 模块级共享同一实例时，任何一处 `exec` 中途 return 都会让**下一次调用从错位置开始**（静默丢匹配）。
+ * 原实现导出 const `PROMPT_CHIP_RE`（外部可持同一实例）——现改为工厂，调用方各拿各的，
+ * 从结构上消除共享可变状态。内部 `exec` 循环亦改用局部实例。
  */
-export const PROMPT_CHIP_RE: RegExp = /@\{([^:]+):([^|}]*)(?:\|([^}]+))?\}/g;
+export const promptChipRe = (): RegExp => /@\{([^:]+):([^|}]*)(?:\|([^}]+))?\}/g;
 
 /** 零宽空格：芯片前后光标落点占位 */
 export const ZWSP: string = '\u200B';
@@ -208,7 +218,8 @@ export function renderPromptToNodes(text: string, metaMap?: Map<string, ChipMeta
 
   let lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = PROMPT_CHIP_RE.exec(text)) !== null) {
+  const re = promptChipRe(); // TD-05-5：本次调用独占实例，无 lastIndex 共享
+  while ((match = re.exec(text)) !== null) {
     pushTextWithBreaks(text.slice(lastIndex, match.index));
     const id = match[1];
     const meta = metaMap ? metaMap.get(id) : undefined;
@@ -218,7 +229,7 @@ export function renderPromptToNodes(text: string, metaMap?: Map<string, ChipMeta
     const url = match[3] ? decodeThumb(match[3]) : meta?.url || '';
     const kind = url ? 'image' : meta?.kind || 'text';
     pushChip(buildChipEl(id, label, kind as 'image' | 'text', url));
-    lastIndex = PROMPT_CHIP_RE.lastIndex;
+    lastIndex = re.lastIndex;
   }
   pushTextWithBreaks(text.slice(lastIndex));
   return nodes;
@@ -249,7 +260,7 @@ export function resolvePromptChips(
   const resolvedRefImages: Array<{ id: string; url: string }> = [];
 
   const text = String(rawPrompt || '').replace(
-    PROMPT_CHIP_RE,
+    promptChipRe(), // TD-05-5：replace 传新实例（replace 内部会用完重置，但独占更稳）
     (_match: string, id: string, _label: string) => {
       const imgUrl = imgById.get(id);
       if (imgUrl) {

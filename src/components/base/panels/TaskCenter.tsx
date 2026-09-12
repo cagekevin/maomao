@@ -75,6 +75,7 @@ function TaskCenter() {
       navigator.clipboard.writeText(t.prompt || '');
       showToast('已复制提示词', { type: 'success' });
     } catch {
+      // catch-ok: clipboard 写失败不阻断（非安全上下文无 API）
       /* ignore */
     }
   };

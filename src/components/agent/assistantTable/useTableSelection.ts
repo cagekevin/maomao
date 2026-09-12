@@ -63,6 +63,7 @@ async function writeSystemClipboard(text: string): Promise<boolean> {
       return true;
     }
   } catch {
+    // catch-ok: clipboard 写被拒 → 落 execCommand 兜底（失败由返回值表达）
     /* 权限被拒 / 非安全上下文 → 返回 false 走回退 */
   }
   // 兜底：execCommand（旧/受限环境）
@@ -88,6 +89,7 @@ async function readSystemClipboard(): Promise<string | null> {
       return await navigator.clipboard.readText();
     }
   } catch {
+    // catch-ok: clipboard 读被拒 → 返回 null 由调用方回退内部（失败可见）
     /* 权限被拒 / 非安全上下文 */
   }
   return null;

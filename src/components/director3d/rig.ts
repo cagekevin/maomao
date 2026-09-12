@@ -108,7 +108,7 @@ interface RigPreset {
   joints?: Record<string, number[]>;
 }
 
-export const RIG_PRESETS: Record<string, RigPreset> = {
+const RIG_PRESETS: Record<string, RigPreset> = {
   idle: { clip: 'idle', phase: 0.08, duration: 2.5, loopable: true, label: '自然站立' },
   stand_relaxed: { clip: 'idle', phase: 0.34, label: '放松站姿' },
   idle_shift: { clip: 'idle', phase: 0.58, label: '站立重心变化' },

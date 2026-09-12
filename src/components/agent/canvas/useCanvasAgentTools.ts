@@ -39,7 +39,6 @@ import { generateId } from '../../base/core/idGen.ts';
 import { logger } from '../../base/core/logger.ts';
 import { publish } from '../../base/core/eventBus.ts';
 import { CREDIT_SWITCH_KEY, CREDIT_GATE_EVENT } from '../../base/core/contracts.ts';
-import { classifyAssetUrlKind } from '../../base/utils/assetType.ts';
 
 /* ════════════════════════════════════════════════════════════════
  * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。
@@ -71,6 +70,7 @@ export function setGenParams(patch = {}) {
   try {
     contentSet(GEN_PARAMS_KEY, genParams);
   } catch {
+    // catch-ok: 持久化失败仅降级为内存（contentSet 内部已分类）
     /* 持久化失败仅降级为内存 */
   }
 }
@@ -97,6 +97,7 @@ export function setCreditSwitch(v: unknown) {
   try {
     contentSet(CREDIT_SWITCH_KEY, !!v);
   } catch {
+    // catch-ok: 持久化失败仅降级为内存（contentSet 内部已分类）
     /* 持久化失败仅降级为内存 */
   }
 }
@@ -254,70 +255,9 @@ const num = (v: unknown, fb: number): number => {
   return Number.isFinite(n) ? n : fb;
 };
 
-/**
- * 提取节点「主图 URL」（纯函数，导出供 AgentPanel/App 引用带图节点用）。
- * 覆盖常见图字段形态：data.assetUrl / data.url（字符串）、data.images / data.assetUrls（数组）。
- * images 数组元素兼容字符串（url）与对象（{ url } 或 { assetUrl }）。无图返回空串。
- * 设计取舍：只取「主图」一个 URL（用户选中节点即引用其首图），保证简单、可复用现有图片附件链路。
- */
-export function getNodeAssetUrl(node: Node | null) {
-  const d = node?.data || {};
-  for (const key of ['assetUrl', 'url']) {
-    if (typeof d[key] === 'string' && d[key]) return d[key];
-  }
-  for (const key of ['images', 'assetUrls']) {
-    const arr = Array.isArray(d[key]) ? d[key] : [];
-    for (const item of arr) {
-      if (typeof item === 'string' && item) return item;
-      if (item && typeof item === 'object') {
-        const u = item.url || item.assetUrl;
-        if (typeof u === 'string' && u) return u;
-      }
-    }
-  }
-  return '';
-}
-
-/**
- * 提取选中节点的「主媒体」（纯函数，供 App 传给 AgentPanel 待发送区）。
- * 与 getNodeAssetUrl 的区别：视频/音频节点返回【本体】URL 而非封面图，并标记媒体类型。
- * 判定顺序（对齐 AssetNode：`data.assetType || detectAssetType`）：
- *   1. 显式 `data.assetType==='video'|'audio'` → 取本体 url（videoUrl/audioUrl/url/assetUrl）；
- *   2. 存在 `data.videoUrl` / `data.audioUrl` → 判 video / audio（视频生成/提取/处理等节点）；
- *   3. 退化为 getNodeAssetUrl 主图 url → 按扩展名判型（video/audio 原样标记，其余按 image）。
- * 只返回可作 AI 多模态上下文的媒体（image / video / audio），text / 空返回 { type:'', url:'' }。
- */
-export function getNodeMedia(node: Node | null) {
-  const d = (node?.data || {}) as {
-    assetType?: string;
-    videoUrl?: string;
-    audioUrl?: string;
-    url?: string;
-    assetUrl?: string;
-    [k: string]: unknown;
-  };
-  const kindOf = (u: unknown) => classifyAssetUrlKind(String(u)) || '';
-  let explicit = '';
-  let url = '';
-  if (d.assetType === 'video' || d.assetType === 'audio') {
-    explicit = d.assetType;
-    url = d.videoUrl || d.audioUrl || d.url || d.assetUrl || '';
-  } else if (typeof d.videoUrl === 'string' && d.videoUrl) {
-    explicit = 'video';
-    url = d.videoUrl;
-  } else if (typeof d.audioUrl === 'string' && d.audioUrl) {
-    explicit = 'audio';
-    url = d.audioUrl;
-  }
-  if (url) {
-    const type = explicit || kindOf(url);
-    return { type: type === 'audio' ? 'audio' : type === 'video' ? 'video' : 'image', url };
-  }
-  const image = getNodeAssetUrl(node);
-  if (!image) return { type: '', url: '' };
-  const k = kindOf(image);
-  return { type: k === 'video' ? 'video' : k === 'audio' ? 'audio' : 'image', url: image };
-}
+// getNodeAssetUrl / getNodeMedia 已下沉至 base/canvas/nodeMedia.ts（TD-04-25：二者仅依赖
+// Node 数据形态、属画布基础设施；留在 agent 层会让 base/canvas 的选中派生反向依赖本层，
+// 依赖方向倒置）。本文件不再实现、也不再消费它们；对外聚合入口见 components/agent/index.ts。
 
 /* ════════════════════════════════════════════════════════════════
  * AI 独立撤回（undo_ai）—— 与用户手动撤销【完全隔离】
@@ -1491,6 +1431,7 @@ const executePlanTool = {
           try {
             logs.push(it);
           } catch {
+            // catch-ok: 读取失败回退默认（配置容错）
             /* 忽略 */
           }
         },

@@ -43,7 +43,7 @@ import { useFitNodeRatio } from '../../hooks/useFitNodeRatio.ts';
 import '../base/api/index.ts';
 import { logger } from '../base/core/logger.ts';
 import { fetchTasks, generateImage, resolveNodeAssetUrl } from '../base/api/index.ts';
-import { useNodePrefs, injectNodePrefs } from '../base/canvas/nodePrefs.ts';
+import { useNodePrefs, injectNodePrefs, PREFS_DEFAULTS } from '../base/canvas/nodePrefs.ts';
 import { commitNewNodes } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
@@ -156,11 +156,11 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   // 提示词输入框双击全屏编辑（复刻 TextGenerate 的交互：ResizeFullscreenHandle 双击 → 弹层）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
   // 记住上次选择的比例/尺寸/模型（跨节点/跨会话）；初始用记忆值，无记忆回退默认
-  const { prefs: imgPrefs, set: setImgPrefs } = useNodePrefs('imageGenerateNode', {
-    model: '',
-    aspectRatio: 'Auto',
-    imageSize: '1K',
-  });
+  // TD-04-23：默认值改引 nodePrefs 的单一真源 PREFS_DEFAULTS（原为就地字面量第二份）
+  const { prefs: imgPrefs, set: setImgPrefs } = useNodePrefs(
+    'imageGenerateNode',
+    PREFS_DEFAULTS.imageGenerateNode,
+  );
   // ⚠️【记忆只影响新建，不污染存量】组件初始化只读 data，缺字段用纯常量默认，
   // 绝不读记忆(imgPrefs)做回退——记忆已在新建入口 App.addNode 注入新节点 data。
   // 这样已挂载/快照还原的存量节点不会被记忆反向改写（见 nodePrefs.js 注释）。

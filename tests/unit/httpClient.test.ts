@@ -80,14 +80,36 @@ describe('httpRequest — HTTP 错误', () => {
     });
   });
 
+  it('TD-03-11：失败响应体非 JSON（崩溃页/代理 HTML）→ 保留 text 原文到 message，不丢失真实报文', async () => {
+    // 回归锁：原实现 `res.json().catch(() => ({}))` 把非 JSON 错误体清成 {} → message 空、排障只能看状态码。
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: () => Promise.reject(new SyntaxError('Unexpected token < in JSON')),
+      text: () => Promise.resolve('<html>502 Bad Gateway</html>'),
+    });
+    await expect(httpRequest('/api/x')).rejects.toMatchObject({
+      status: 502,
+      message: '<html>502 Bad Gateway</html>',
+    });
+  });
+
+  it('TD-03-11：失败响应体 json 与 text 双双失败 → 兜底空对象（仍保留 status）', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: () => Promise.reject(new Error('not json')),
+      text: () => Promise.reject(new Error('body consumed')),
+    });
+    await expect(httpRequest('/api/x')).rejects.toMatchObject({ status: 500 });
+  });
+
   it('业务 4xx 不重试', async () => {
-    const fn = vi
-      .fn()
-      .mockResolvedValue({
-        ok: false,
-        status: 401,
-        json: () => Promise.resolve({ error: 'unauthorized' }),
-      });
+    const fn = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({ error: 'unauthorized' }),
+    });
     mockFetch.mockImplementation(fn);
     await expect(httpRequest('/api/x', { retries: 3 })).rejects.toThrow(HttpError);
     expect(fn).toHaveBeenCalledTimes(1);
@@ -111,8 +133,8 @@ describe('httpRequest — 网络错误', () => {
     vi.useRealTimers();
     const fn = vi
       .fn()
-      .mockRejectedValueOnce(new TypeError('net err'))
-      .mockRejectedValueOnce(new TypeError('net err'))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
       .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
     mockFetch.mockImplementation(fn);
     const data = await httpRequest('/api/x', { retries: 3, retryDelay: 10 });
@@ -122,12 +144,39 @@ describe('httpRequest — 网络错误', () => {
 
   it('重试耗尽仍失败', async () => {
     vi.useRealTimers();
-    const fn = vi.fn().mockRejectedValue(new TypeError('net err'));
+    const fn = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
     mockFetch.mockImplementation(fn);
     await expect(httpRequest('/api/x', { retries: 2, retryDelay: 10 })).rejects.toThrow(
       NetworkError,
     );
     expect(fn).toHaveBeenCalledTimes(3); // 初始 + 2 次重试
+  });
+
+  it('TD-03-12：代码 bug 的 TypeError（非 fetch 文案）→ 不重试、不伪装成 NetworkError、保留原名', async () => {
+    // 回归锁：原实现 `e instanceof TypeError` 无差别归类 → 代码 bug 被当"网络错误"重试 3 次 + 类别篡改。
+    vi.useRealTimers();
+    const fn = vi
+      .fn()
+      .mockRejectedValue(new TypeError("Cannot read properties of undefined (reading 'x')"));
+    mockFetch.mockImplementation(fn);
+    await expect(httpRequest('/api/x', { retries: 3, retryDelay: 10 })).rejects.toThrow(TypeError);
+    // 关键断言②：不得被重分类为 NetworkError
+    await expect(httpRequest('/api/x', { retries: 3, retryDelay: 10 })).rejects.not.toThrow(
+      /NetworkError|网络/,
+    );
+    expect(fn).toHaveBeenCalledTimes(2); // 只调 2 次（各一次请求），未因"可重试"循环
+  });
+
+  it('TD-03-12：各引擎 fetch 网络文案均被识别（Firefox/Safari/Node）', async () => {
+    vi.useRealTimers();
+    for (const msg of [
+      'NetworkError when attempting to fetch resource.',
+      'Load failed',
+      'fetch failed',
+    ]) {
+      mockFetch.mockRejectedValue(new TypeError(msg));
+      await expect(httpRequest('/api/x', { retries: 0 })).rejects.toThrow(NetworkError);
+    }
   });
 });
 

@@ -1,8 +1,6 @@
 // 镜头缩略图绘制逻辑 —— 纯函数模块（不依赖 React），供 App.jsx 收敛调用。
-import type { RefObject } from 'react';
 // 设计意图：把「画布内容 → 240×135 JPEG 缩略图」的绘制逻辑与 React / 组件解耦，
-//   由调用方注入画布源（source）；monitor / 截图等使用方各自从 ref 取数，
-//   通过 thumbnailFromMonitorRef 统一收敛，消除跨组件隐式取数。
+//   由调用方注入画布源（source）——monitor / 截图等使用方各自从 ref 取 current 后传入。
 // 本模块为纯同步逻辑，可直接单测（构造 ImageData / canvas mock 验证输出）。
 
 /**
@@ -34,14 +32,4 @@ export function thumbnailFromCanvas(source: HTMLCanvasElement) {
   } catch {
     return '';
   }
-}
-
-/**
- * 命令式封装：从 monitor 画布 ref 生成缩略图。
- * 注入保持引用稳定的 canvas ref，解耦跨组件取数边界（ref.current 由调用方持有）。
- * @param {import('react').RefObject<HTMLCanvasElement|null>} monitorCanvasRef 监视器画布 ref
- * @returns {string} 缩略图 dataURL；画布未就绪时 ''
- */
-export function thumbnailFromMonitorRef(monitorCanvasRef: RefObject<HTMLCanvasElement | null>) {
-  return thumbnailFromCanvas(monitorCanvasRef.current);
 }

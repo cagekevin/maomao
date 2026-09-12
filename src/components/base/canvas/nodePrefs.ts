@@ -74,7 +74,15 @@ const PREFS_FIELDS: PrefsFieldMap = {
     selectedSeconds: 'seconds',
   },
 };
-const PREFS_DEFAULTS: PrefsFieldMap = {
+/**
+ * 各节点类型的「记忆字段默认值」——**单一真源**（TD-04-23，2026-09-13 导出）。
+ *
+ * 【为什么导出】此前同一份默认值有**两处**：本表（供 `injectNodePrefs` 新建注入）+
+ * 各节点自己的 `useNodePrefs(type, {...字面量})`（供组件初始化）。两处逐字一致但**会漂移**——
+ * 改一处忘另一处 → 「新建节点注入的记忆默认」与「组件初始化默认」不一致。
+ * 现导出本表，节点侧改引 `PREFS_DEFAULTS.<type>`，**消除第二份**（实测三处字面量与本表逐字相同，零行为变化）。
+ */
+export const PREFS_DEFAULTS: PrefsFieldMap = {
   imageGenerateNode: { model: '', aspectRatio: 'Auto', imageSize: '1K' },
   textGenerateNode: { model: '' },
   videoGenerateNode: { model: '', size: '16:9', resolution: '1080p', seconds: '10' },
@@ -121,6 +129,7 @@ export function mergeNodePrefs(
     all[type] = { ...stored, ...patch };
     contentSet(STORAGE_KEY, all);
   } catch {
+    // catch-ok: 读取失败回退默认（节点偏好容错）
     /* ignore：记忆写入失败不影响节点本次参数生效 */
   }
   return { ...prev, ...patch };

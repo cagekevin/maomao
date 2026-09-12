@@ -46,26 +46,54 @@ describe('TD-7 方案A — d3d 双通道收口 contentStore', () => {
     expect(r).toBe('local');
   });
 
-  it('hydrateProject 经 contentGetKvWithFallback 读取；KV 空且本地有 → 触发 local→KV 迁移写回', async () => {
+  it('hydrateProject：KV 真空（vacated）+ 本地有副本 → 触发一次性迁移写回', async () => {
     (contentGetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
       value: { shots: [{ id: 'ls' }] },
-      from: 'local',
+      source: 'kv',
+      vacated: true,
+      fallback: { shots: [{ id: 'ls' }] },
     });
     (contentSetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce('kv');
     const r = await hydrateProject('director3d-project');
     expect(contentGetKvWithFallback).toHaveBeenCalledWith('director3d-project');
-    expect(contentSetKvWithFallback).toHaveBeenCalled(); // 一次性迁移写回 KV
+    expect(contentSetKvWithFallback).toHaveBeenCalled(); // 唯一许可迁移的形态：KV 确认为空
     expect(r).toEqual({ shots: [{ id: 'ls' }] });
   });
 
   it('hydrateProject KV 命中 → 不触发迁移', async () => {
     (contentGetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
       value: { shots: [{ id: 'kv' }] },
-      from: 'kv',
+      source: 'kv',
     });
     const r = await hydrateProject('director3d-project');
     expect(contentSetKvWithFallback).not.toHaveBeenCalled();
     expect(r).toEqual({ shots: [{ id: 'kv' }] });
+  });
+
+  it('TD-02-25：KV 引擎降级（source:local）→ **禁止迁移写回**（防 lost update / 已删复活）', async () => {
+    // 回归锁：降级读返回的本地副本不得作为迁移源无条件写回 KV（KV 真值未知）。
+    (contentGetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      value: { shots: [{ id: 'stale' }] },
+      source: 'local',
+      degraded: true,
+    });
+    const r = await hydrateProject('director3d-project');
+    expect(contentSetKvWithFallback).not.toHaveBeenCalled(); // 关键断言：降级不写回
+    expect(r).toEqual({ shots: [{ id: 'stale' }] }); // 但仍用降级副本供显示
+  });
+
+  it('TD-02-25：KV 4xx 拒收（ok:false）→ 不加载、不降级、不迁移', async () => {
+    (contentGetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      error: 'rejected',
+      status: 403,
+    });
+    const r = await hydrateProject('director3d-project');
+    expect(contentSetKvWithFallback).not.toHaveBeenCalled();
+    expect(r).toBeNull();
   });
 });
 

@@ -227,11 +227,13 @@ export default function AssistantTablePanel({
         }
       }
     } catch {
+      // catch-ok: clipboard.read 缺权限 → 回退 readText 分支
       /* read() 可能缺权限，回退 readText */
     }
     try {
       if (!text) text = await navigator.clipboard.readText();
     } catch {
+      // catch-ok: clipboard.readText 权限被拒 → 交 parsePasted 判空并 toast
       /* 权限被拒 */
     }
     const sb = parsePasted(text, html);

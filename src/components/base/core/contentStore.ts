@@ -17,6 +17,14 @@
  *    与「严格族」（contentGetKvVersion / contentSetKvCas，用户主数据，失败 fail-closed 绝不写副本）。
  *    两族共用路由/缓存/订阅内核；**真分叉在「失败语义」，不在「后端」**（勿按 local/kv 划族）。
  * 8. 协议面与后端对齐：KV 后端有「版本读 + 条件写（CAS）」，入口必须一并暴露，否则消费者绕过入口直调 transport。
+ * 9. 诚实结果契约（2026-09-12/TD-02-24）：一次 KV 操作的「成没成功 / 降没降级 / 真源在哪」由
+ *    `StorageOpResult<T>` 判别联合定型，两族差异由分支表达（降级族返回 degraded，严格族 throw）。
+ *    铁律：`source:'local'` **仅在引擎不可用**出现；KV 真空是 `source:'kv'` + `value:null`（非降级）；
+ *    4xx 拒收返回 `{ok:false,error:'rejected'}`（**绝不可当作降级/迁移依据**）。读族与写族共用内核
+ *    `kvReadOp`/`kvWriteOp`——此前读族漏接失败分类守卫（写族有 read 族无）即因缺此契约（TD-02-15）。
+ *
+ * 【2026-09-12 TD-02-15/19/22/24/25 修复记录】读族补齐 isEngineUnavailable 守卫、`from` 信号诚实化、
+ * 抽 `kvReadOp`/`kvWriteOp`/`kvOpMeta`/`withKvTimeout` 消 4 处内核样板、remove keepFallback 本地副本防复活。
  *
  * ── API 概览 ──
  *   同步（local/native 后端）    异步（通用，包含 KV）
@@ -114,6 +122,37 @@ const warnedKeys = new Set<string>();
 /** STORAGE_KEYS 登记表（单一事实来源，直接引用，供全文件复用） */
 const KEYS = STORAGE_KEYS as Record<string, StorageKeyEntry>;
 
+/**
+ * 契约加载时校验：所有 `pattern:true` 模板必须能编译为正则（TD-02-17，2026-09-13）。
+ *
+ * 【为什么在加载时做】坏正则原本被 `findPatternEntry`/`isKvPatternKey` 的**热路径 catch 静默吞**：
+ * 模板坏了 → 该动态键永不匹配 → 键路由静默退化为启发式兜底，而**无人知道契约已损坏**。
+ * 这与同文件 `checkRegistered` 对「未登记字面量键」dev 环境直接 throw 的 fail-loud 哲学**自相矛盾**
+ * （对拼写错零容忍，却对正则坏了零感知）。
+ *
+ * 【修法】复杂度**前移到契约加载源头**：模块加载即校验，坏正则带键名抛错（dev 立即炸、
+ * 生产也只炸一次于启动而非每次读写热路径）。热路径的 catch 退化为「不该发生的兜底」。
+ */
+function assertPatternRegExpsValid(): void {
+  const broken: string[] = [];
+  for (const [k, v] of Object.entries(KEYS)) {
+    if (!v.pattern) continue;
+    try {
+      compilePatternRegex(k);
+    } catch {
+      broken.push(k);
+    }
+  }
+  if (broken.length > 0) {
+    throw new Error(
+      `[contentStore] STORAGE_KEYS 中以下 pattern 模板无法编译为正则（键名含非法占位/字符）：` +
+        broken.map((k) => `"${k}"`).join(', ') +
+        `。请修正 contracts.ts 的模板（如 canvas-state-v1-{projectId}）。`,
+    );
+  }
+}
+assertPatternRegExpsValid();
+
 // P6：动态键模板 → 编译后正则，统一走 utils.compilePatternRegex（2026-08-30 收口，原本地副本已删）
 
 // ─────────────────────────────────────────────────────────────────
@@ -130,21 +169,41 @@ function tryParse(s: string): unknown {
 }
 
 /**
+ * 动态键模板匹配**单一实现**（TD-02-21：原 `findPatternEntry` / `isKvPatternKey` 结构逐字重复，
+ * 同遍历 KEYS + compilePatternRegex + 坏正则吞，仅差 `backend!=='kv'` 过滤 → 抽本函数，`predicate` 表差异）。
+ *
+ * 坏正则**不再在此静默吞**：`assertPatternRegExpsValid()`（模块加载时 fail-loud）已保证所有
+ * `pattern:true` 模板可编译 → 此处 catch 是「不该发生的运行期兜底」（防炸主流程），
+ * 而坏正则会在**加载时**带键名抛错（TD-02-17：复杂度前移到契约加载源头，而非散在热路径）。
+ *
+ * @param key 待匹配的存储键
+ * @param predicate 可选额外过滤（如只认 `backend==='kv'` 的模板）
+ */
+function matchPatternEntry(
+  key: string,
+  predicate?: (entry: StorageKeyEntry) => boolean,
+): StorageKeyEntry | null {
+  // 用缓存的收窄视图 KEYS（等价原 Object.entries(STORAGE_KEYS)，避免 each 处再 as 一次）
+  for (const [k, v] of Object.entries(KEYS)) {
+    if (!v.pattern) continue;
+    if (predicate && !predicate(v)) continue;
+    try {
+      if (compilePatternRegex(k).test(key)) return v;
+    } catch {
+      // catch-ok: assertPatternRegExpsValid 已在加载时 fail-loud，此处仅防运行期炸主流程
+      /* 忽略无效正则 */
+    }
+  }
+  return null;
+}
+
+/**
  * 检查 key 是否匹配 STORAGE_KEYS 中 pattern:true 的动态键模板。
  * 返回匹配的条目，无匹配返回 null。
  * 例如 key="canvas-state-v1-proj-123" 匹配模板 "canvas-state-v1-{projectId}"。
  */
 function findPatternEntry(key: string): StorageKeyEntry | null {
-  // 用缓存的收窄视图 KEYS（等价原 Object.entries(STORAGE_KEYS)，避免 each 处再 as 一次）
-  for (const [k, v] of Object.entries(KEYS)) {
-    if (!v.pattern) continue;
-    try {
-      if (compilePatternRegex(k).test(key)) return v;
-    } catch {
-      /* 忽略无效正则 */
-    }
-  }
-  return null;
+  return matchPatternEntry(key);
 }
 
 /** 解析 key 对应的 STORAGE_KEYS 登记项（精确键优先，其次 pattern 动态模板）。供 per-key 选项（fallback/timeout）读取。 */
@@ -220,18 +279,11 @@ function resolveBackend(key: string): StorageBackend {
 /**
  * 未登记键的启发式兜底：命中任一 backend==='kv' 的 pattern 模板即走 KV。
  * 由 kvStore.isKvKey 折叠而来（其精确键分支在 KEYS[key] 已查过后必不命中，只剩 pattern 扫描，语义等价）。
+ * TD-02-21：改复用 `matchPatternEntry` 单一实现（原为与 findPatternEntry 逐字重复的第二份）。
  */
 function isKvPatternKey(key: string): boolean {
   if (typeof key !== 'string' || !key) return false;
-  for (const [k, v] of Object.entries(KEYS)) {
-    if (!v.pattern || v.backend !== 'kv') continue;
-    try {
-      if (compilePatternRegex(k).test(key)) return true;
-    } catch {
-      /* 忽略无效正则模板 */
-    }
-  }
-  return false;
+  return matchPatternEntry(key, (v) => v.backend === 'kv') !== null;
 }
 
 /** 通知所有订阅者 */
@@ -260,9 +312,28 @@ function loadFromLocal(key: string): unknown {
   return parsed;
 }
 
-/** 从 KV 加载键到缓存（异步） */
+/**
+ * 从 KV 加载键到缓存（异步）。
+ *
+ * 【TD-02-20 修复·诚实标注，2026-09-13】降级副本入 cache 原是**无标记**的：
+ * 同步读者 `contentGet` 先查 `cache.has`（先于 backend 判断）→ 会读到降级副本却「以为读到 KV 真值」。
+ *
+ * 修法取**最小正确形态**（而非「给 cache 值加 source 结构」——见下）：
+ *  - 降级发生时**留痕**（warn），使「该键此刻读到的是本地副本」可观测；
+ *  - **不给 cache 值加来源结构**：审计过消费方——**没有任何读者需要区分**（画布侧已改用
+ *    `contentGetKvWithFallback` 的诚实 `vacated` 分支）。为不存在的消费方改 cache 结构 = 铁律 5 假抽象
+ *    （且会破坏 `contentGet` 的 `unknown` 契约、波及全部同步读者）。
+ *  - 诚实标注：`contentGet` 对 KV 键的 cache 命中**可能是降级副本**（有日志可查）。
+ */
 async function loadFromKv(key: string): Promise<unknown> {
-  const value = await readKvWithFallback(key);
+  const res = await kvReadOp(key);
+  const value = res.ok ? res.value : null;
+  if (res.ok && res.source === 'local') {
+    logger.warn(
+      'contentStore',
+      `KV 引擎不可用，已回退本地降级副本（同步读者将读到副本而非 KV 真值）: ${key}`,
+    );
+  }
   cache.set(key, value);
   return value;
 }
@@ -273,9 +344,9 @@ async function loadFromKv(key: string): Promise<unknown> {
 
 /**
  * KV 失败分类（全库唯一实现，2026-09-12/TD-02-1）。
- * - `true`  = 引擎不可用：网络错误 / 超时 / 5xx / 无 HTTP 状态（序列化等）→ 允许降级写本地副本。
+ * - `true`  = 引擎不可用：网络错误 / 超时 / 5xx / 无 HTTP 状态（序列化等）→ 允许降级读/写本地副本。
  * - `false` = 请求被拒：4xx（如 CAS 409 版本冲突、400 缺字段）→ 是**业务结论**，必须原样上抛，
- *   绝不能降级写本地副本（否则「版本冲突被误报成引擎不可用」，冲突被静默吞掉）。
+ *   绝不能降级（否则「版本冲突被误报成引擎不可用」，冲突被静默吞掉）。
  * 判据用鸭子类型读 `status`（不 import HttpError）：测试/自定义桩抛带 status 的普通对象同样成立。
  */
 function isEngineUnavailable(e: unknown): boolean {
@@ -284,48 +355,77 @@ function isEngineUnavailable(e: unknown): boolean {
   return true;
 }
 
-/**
- * KV 读取 + 降级回读本地副本（自 kvStore.storageGet 折叠而来）。
- * - KV 失败降级读本地副本（storageSet 曾降级写过的副本读得回，修 R2）。
- */
-async function readKvWithFallback(key: string): Promise<unknown> {
-  const meta = resolveMeta(key);
-  const timeout = meta?.timeout;
-  try {
-    const getOp = kvGet(key);
-    return await (timeout ? withTimeout(getOp, timeout, `KV 读取超时 (key=${key})`) : getOp);
-  } catch (e) {
-    reportDegrade({ layer: 'kvStore', key, e, toast: '本地引擎存储暂不可用，已回退读取本地缓存' });
-    const raw = sGet(key);
-    return raw === null ? null : tryParse(raw);
-  }
+/** 从错误对象提取 HTTP 状态码（无则 undefined）；与 isEngineUnavailable 同口径。 */
+function statusOf(e: unknown): number | undefined {
+  const status = (e as { status?: unknown } | null)?.status;
+  return typeof status === 'number' ? status : undefined;
 }
 
 /**
- * KV 写入 + 降级（自 kvStore.storageSet 折叠而来，行为逐字保持；2026-09-12 增失败分类）。
- * - KV 成功后 sRemove 清历史降级副本（P2-F1）：否则 KV 再故障时旧副本"复活"覆盖新值。
- * - KV **引擎不可用**才降级写 localStorage 并 reportDegrade
- *   （layer 保留 'kvStore' 字面量：既有日志查询 task-inspect --logs 依赖，勿改）。
- * - KV **请求被拒（4xx）原样上抛**（见 isEngineUnavailable）：不写副本、不报"引擎不可用"。
+ * 存储操作结果的诚实判别联合（地基·2026-09-12/TD-02-24）。
+ *
+ * 【为什么需要它】此前 5 个 KV 函数各自发明返回形状（`unknown` / `'kv'|'local'` /
+ * `{value,from}` / `{landed,version?}` / `void`），调用方必须重新推导「成没成功、降没降级、
+ * 真源在哪」——复杂度从声称的「唯一内核」漏进散落 catch，读族因此漏接失败分类守卫
+ * （writeKv 有守卫、readKv 无），并最终在下游 downgrade 信号被滥用（TD-02-25 数据正确性故障）。
+ * 现在把「一次存储操作的结果」在类型层定型，两族的差异**由分支自然表达**，规则由编译器守护。
+ *
+ * 【语义铁律】
+ * - `source:'kv'`               → KV 真值，权威。
+ * - `source:'local', degraded`  → **仅「引擎不可用」**才会出现；KV 状态未知，本地副本仅为降级。
+ * - `error:'rejected'`          → 4xx 业务拒收，**不携带任何 source/值**，调用方必须自行决定呈现。
+ * - `error:'engine-unavailable'`→ 网络/超时/5xx；降级族据此回退本地，严格族据此 throw。
  */
-async function writeKvWithFallback(key: string, value: unknown): Promise<'kv' | 'local'> {
+export type StorageOpResult<T> =
+  | { ok: true; value: T; source: 'kv'; degraded?: false }
+  | { ok: true; value: T; source: 'local'; degraded: true }
+  | { ok: false; error: 'engine-unavailable' }
+  | { ok: false; error: 'rejected'; status?: number };
+
+/** KV op 的公共内核（TD-02-22：resolveMeta/timeout/keepFallback/sRemove 原在 4 处字面复制）。 */
+interface KvOpMeta {
+  timeout: number | undefined;
+  keepFallback: boolean;
+}
+
+/** 解析 per-key 选项（timeout / fallback），供全部 KV op 复用。 */
+function kvOpMeta(key: string): KvOpMeta {
   const meta = resolveMeta(key);
-  const timeout = meta?.timeout;
-  const keepFallback = meta?.fallback === true;
+  return { timeout: meta?.timeout, keepFallback: meta?.fallback === true };
+}
+
+/** 按 per-key timeout 包装一次异步 op（无 timeout 则原样 await）。 */
+function withKvTimeout<T>(op: Promise<T>, timeout: number | undefined, label: string): Promise<T> {
+  return timeout ? withTimeout(op, timeout, label) : op;
+}
+
+/**
+ * 降级族写入内核（read/write/内容族共用）。
+ * 返回 StorageOpResult：成功标 `source:'kv'`；引擎不可用回退本地并标 `degraded:true`；
+ * 4xx 拒收**原样上抛**（不吞、不降级）——由调用方 catch 决定语义（本族一律上抛）。
+ */
+async function kvWriteOp(key: string, value: unknown): Promise<StorageOpResult<unknown>> {
+  const { timeout, keepFallback } = kvOpMeta(key);
   try {
-    const setOp = kvSet(key, value);
-    await (timeout ? withTimeout(setOp, timeout, `KV 写入超时 (key=${key})`) : setOp);
+    await withKvTimeout(kvSet(key, value), timeout, `KV 写入超时 (key=${key})`);
     // 默认（keepFallback=false）：KV 成功后清历史降级副本，避免旧副本"复活"覆盖新值（P2-F1）；
     // keepFallback=true（如 d3d 双通道）：保留本地镜像，供 KV 不可达时回读。
     if (!keepFallback) sRemove(key);
-    return 'kv';
+    return { ok: true, value, source: 'kv' };
   } catch (e) {
     // 请求被拒（4xx，如 CAS 409 版本冲突）= 业务结论，原样上抛；降级只服务「引擎不可用」。
     if (!isEngineUnavailable(e)) throw e;
+    // 引擎不可用：写降级副本（本地也失败则内存态为权威，不阻塞——双通道都失败仍不抛）
     try {
       sSet(key, typeof value === 'string' ? value : JSON.stringify(value));
-    } catch {
-      /* 本地降级也失败：内存态为权威，不阻塞（双通道都失败仍不抛） */
+    } catch (localErr) {
+      // 【TD-02-18】双通道都失败曾零信号 —— 保留「不抛」（内存态为权威），但必须留痕：
+      // 此刻 KV 挂 + 本地也写不进 → 该键**只在内存里**，刷新即丢。这是最高危状态，绝不能静默。
+      logger.warn(
+        'contentStore',
+        `KV 与本地降级双通道均写入失败，数据仅在内存（刷新将丢失）: ${key}`,
+        localErr,
+      );
     }
     reportDegrade({
       layer: 'kvStore',
@@ -333,21 +433,69 @@ async function writeKvWithFallback(key: string, value: unknown): Promise<'kv' | 
       e,
       toast: '本地引擎存储暂不可用，数据已暂存本地（跨设备同步可能丢失）',
     });
-    return 'local';
+    return { ok: true, value, source: 'local', degraded: true };
   }
 }
 
 /**
- * KV 删除 + 降级（自 kvStore.storageDelete 折叠而来，行为逐字保持）。
- * ⚠️ 原语义（kvStore.ts:103-111）：KV 删除【成功即 return，不清本地副本】；
- *    只有 KV 失败才落到 sRemove 清残留降级副本。
- *    【禁止】写成 `await kvDelete(key); sRemove(key)` —— 那是无条件删副本，属行为变更（审计 A3 红）。
+ * 降级族读取内核（read/内容族共用，含失败分类守卫——修 TD-02-15 读族漏接）。
+ * KV 命中非空 → `{ok, source:'kv'}`；KV **真空**（null/undefined）→ `{ok, value:null, source:'kv'}`
+ *   （区分：真空是 KV 的确定回答，不算降级）；
+ * KV **引擎不可用** → 回退本地副本，`{ok, source:'local', degraded:true}`；
+ * KV **4xx 拒收** → 抛出，由调用方语义决定（本族一律上抛，不静默回退本地）。
+ */
+async function kvReadOp(key: string): Promise<StorageOpResult<unknown>> {
+  const { timeout } = kvOpMeta(key);
+  try {
+    const value = await withKvTimeout(kvGet(key), timeout, `KV 读取超时 (key=${key})`);
+    // KV 真空：确定回答"没有"，非降级（下游据 source:'kv' + value null 判迁移）
+    return { ok: true, value, source: 'kv' };
+  } catch (e) {
+    if (!isEngineUnavailable(e)) {
+      // 4xx 业务拒收：不服务本地副本、不降级——原样上抛（TD-02-15/25 根因）
+      throw e;
+    }
+    reportDegrade({ layer: 'kvStore', key, e, toast: '本地引擎存储暂不可用，已回退读取本地缓存' });
+    const raw = sGet(key);
+    return {
+      ok: true,
+      value: raw === null ? null : tryParse(raw),
+      source: 'local',
+      degraded: true,
+    };
+  }
+}
+
+/**
+ * KV 写入 + 降级（薄包装，保留原 `Promise<'kv'|'local'>` 对外契约给 contentSet/SetAsync）。
+ * 引擎不可用降级写本地并标 'local'；4xx 原样上抛。
+ */
+async function writeKvWithFallback(key: string, value: unknown): Promise<'kv' | 'local'> {
+  const res = await kvWriteOp(key, value);
+  return res.ok && res.source === 'local' ? 'local' : 'kv';
+}
+
+/**
+ * KV 删除 + 降级（自 kvStore.storageDelete 折叠而来）。
+ * ⚠️ 原语义（kvStore.ts:103-111）：KV 删除【成功即 return】；只有 KV 失败才落到 sRemove 清残留降级副本。
+ * 【TD-02-25 修正】删除成功后，keepFallback=true 的键（如 d3d）本地副本**也会残留** →
+ * 后续 hydrate 读到"KV 真空 + 本地有"会**复活已删数据**。故删除成功时**必须清本地副本**
+ * （删除语义要求"彻底消失"，与写入的 keepFallback 镜像策略不同——镜像服务的是"KV 不可达时能读回"，
+ * 而删除是明确的用户意图，保留副本即违背意图）。
  */
 async function deleteKvWithFallback(key: string): Promise<void> {
   try {
     await kvDelete(key);
-  } catch {
+    // 删除成功后清本地降级副本（含 keepFallback 镜像），防 hydrate 复活
     sRemove(key);
+  } catch (e) {
+    // 4xx 拒收：删除**确定未成功**，原样上抛（不上抛会被误认为已删）
+    if (!isEngineUnavailable(e)) throw e;
+    // 【TD-02-18 修正】引擎不可用 = 删除**状态未知**（KV 键可能仍残留）：
+    // 原来无条件 `sRemove(key)` 会删掉本地副本，制造「KV 残留真值 + 本地已清」的假删除态
+    // —— 与 TD-02-25「已删复活」正相反（这是「没删却以为删了」）。
+    // 正确：KV 状态未知时不谎报成功，**保留本地副本**（两边一致地"没删成功"）+ 留痕。
+    logger.warn('contentStore', `KV 引擎不可用，删除未确认（键可能仍残留）: ${key}`, e);
   }
 }
 
@@ -498,27 +646,56 @@ export async function contentSetKvWithFallback(
 }
 
 /**
- * KV 主通道 + 本地降级副本（双通道）读取原语。
- * KV 命中（非 null）→ 返回 { value, from: 'kv' }；KV 空或不可达 → 回读本地降级副本并返回 { value, from: 'local' }。
- * 返回 `from` 供调用方做迁移/冲突判定（如 d3d 一次性 local→KV 迁移）。
+ * KV 主通道 + 本地降级副本（双通道）读取原语（含迁移许可信号）。
+ *
+ * 【信号诚实化（TD-02-19/25 修复·正确性）】旧实现把「KV 真空」「KV 读失败」都标 `from:'local'`，
+ * 下游（d3d `hydrateProject`）据假信号**无条件写回 KV** → lost update + 已删数据复活。
+ * 现返回诚实判别联合，并在「KV 真空」分支额外探测本地副本供一次性迁移：
+ *  - KV 命中非空        → `{ ok:true, value, source:'kv' }`
+ *  - KV 真空 + 本地有副本 → `{ ok:true, value:本地副本, source:'kv', vacated:true, fallback:本地副本 }`
+ *      （`vacated:true` = **KV 确认为空**，`fallback` 是待迁移的本地副本 —— 这是唯一允许迁移的形态）
+ *  - KV 真空 + 本地也空   → `{ ok:true, value:null, source:'kv', vacated:true }`
+ *  - KV 引擎不可用        → `{ ok:true, value:本地副本, source:'local', degraded:true }`（**不可迁移**）
+ *  - KV 4xx 拒收          → `{ ok:false, error:'rejected' }`（不服务本地副本、不可迁移）
+ * **迁移判定铁律**：只认 `vacated === true`（KV 真空的确定回答）；`source:'local'` 或 `rejected`
+ * 一律**禁止**写回 KV（KV 真值未知，写回即 clobber / 复活）。
  */
-export async function contentGetKvWithFallback(
-  key: string,
-): Promise<{ value: unknown; from: 'kv' | 'local' }> {
+export interface KvFallbackReadResult {
+  ok: boolean;
+  value?: unknown;
+  source?: 'kv' | 'local';
+  degraded?: boolean;
+  /** KV 确认为空（"确定没有"，非"读失败"）；仅此情形允许一次性迁移写回。 */
+  vacated?: boolean;
+  /** KV 真空时探测到的本地降级副本（待迁移源）；无则 undefined。 */
+  fallback?: unknown;
+  error?: 'rejected';
+  status?: number;
+}
+
+export async function contentGetKvWithFallback(key: string): Promise<KvFallbackReadResult> {
   checkRegistered(key);
-  const meta = resolveMeta(key);
-  const timeout = meta?.timeout;
   try {
-    const getOp = kvGet(key);
-    const value = await (timeout ? withTimeout(getOp, timeout, `KV 读取超时 (key=${key})`) : getOp);
-    if (value != null) return { value, from: 'kv' };
+    const res = await kvReadOp(key);
+    if (res.ok && res.source === 'kv') {
+      if (res.value != null) return { ok: true, value: res.value, source: 'kv' };
+      // KV 真空：探测本地副本，供调用方决定一次性迁移（唯一许可迁移的形态）
+      const raw = sGet(key);
+      const fallback = raw === null ? null : tryParse(raw);
+      return {
+        ok: true,
+        value: fallback,
+        source: 'kv',
+        vacated: true,
+        fallback: fallback ?? undefined,
+      };
+    }
+    // 引擎不可用降级（source:'local'）：KV 真值未知 → 不携带 vacated，禁迁移
+    return { ok: true, value: res.ok ? res.value : null, source: 'local', degraded: true };
   } catch (e) {
-    reportDegrade({ layer: 'kvStore', key, e, toast: '本地引擎存储暂不可用，已回退读取本地缓存' });
+    // 4xx 业务拒收：诚实返回 rejected（不吞、不降级），调用方据分支决定行为
+    return { ok: false, error: 'rejected', status: statusOf(e) };
   }
-  // KV 空或失败 → 回读本地副本
-  const raw = sGet(key);
-  const value = raw === null ? null : tryParse(raw);
-  return { value, from: 'local' };
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -563,11 +740,8 @@ export async function contentKvSetCas(
   opts: { ifVersion?: number } = {},
 ): Promise<KvCasWriteResult> {
   checkRegistered(key);
-  const meta = resolveMeta(key);
-  const timeout = meta?.timeout;
-  const keepFallback = meta?.fallback === true;
-  const setOp = kvSet(key, value, opts);
-  const res = await (timeout ? withTimeout(setOp, timeout, `KV 写入超时 (key=${key})`) : setOp);
+  const { timeout, keepFallback } = kvOpMeta(key);
+  const res = await withKvTimeout(kvSet(key, value, opts), timeout, `KV 写入超时 (key=${key})`);
   if (!keepFallback) sRemove(key);
   const version = res?.data?.version;
   return { landed: 'kv', version: typeof version === 'number' ? version : undefined };

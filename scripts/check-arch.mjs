@@ -676,5 +676,41 @@ for (const f of files) {
 if (!kvSyncReadViol)
   console.log('  ✅ 无 KV 后端键同步读（KV 键均走 contentGetAsync / 严格族）');
 
+// ─────────────────────────────────────────────────────────────────
+// 规则 8（TD-03-5 裁定，2026-09-13）：实现层深路径禁绕行 —— 唯一入口红线的可执行化。
+//
+// 【背景】`base/api/index.ts` 等 barrel 的注释红线是「外部只从本入口 import（禁绕深层路径）」，
+// 但**只有注释、无机器守卫**。审计发现 2 处绕行（d3dPersistence/ImageBoxNode 直引 api/filesApi.ts）。
+//
+// 【裁定（非「强行统一」，而是划清真边界）】审计时实测：base/api/* 深路径与 barrel **指向同一模块**，
+// 绕 barrel 并不绕过任何实现；且 22 个测试按「模块名 api/filesApi.ts」mock 是**既定契约**
+// （改 mock barrel 需列全 barrel 导出 → 测试脆弱度↑、收益 0）。故：
+//   · `base/api/*` 深路径 = **合法契约边界**（可按模块名 import / mock），不纳本规则；
+//   · 危险的是绕**实现层**深路径（`base/storage/*`、`base/core/contentStore` 等）——那里才是
+//     「改内部实现会打爆外部」的真风险，也才是红线要防的东西。
+// 本规则即把「实现层禁绕行」变成机器红线，补上原注释级无守卫的缺口。
+//
+// 【判定】业务代码（非 base/ 内部、非 tests）import `base/storage/<impl>` 深路径
+// （storageAdapter/index/kvStore/storageQuota）→ 违规（必须经 `base/storage/index.ts` barrel 或更高层入口）。
+// ─────────────────────────────────────────────────────────────────
+const STORAGE_IMPL_DEEP = /^src\/components\/base\/storage\/(?!index\.ts$)[^/]+$/;
+let deepImportViol = 0;
+for (const [from, deps] of graph) {
+  const relFrom = from.slice(root.length + 1).replace(/\\/g, '/');
+  // base/storage/** 内部互引合法；其余才查
+  if (relFrom.startsWith('src/components/base/storage/')) continue;
+  for (const dep of deps) {
+    const relDep = dep.slice(root.length + 1).replace(/\\/g, '/');
+    if (STORAGE_IMPL_DEEP.test(relDep)) {
+      deepImportViol++;
+      fail(
+        `绕实现层深路径 import: ${relFrom} → ${relDep}` +
+          `（storage 实现层必须经 base/storage/index.ts 唯一入口，勿直引内部实现文件）`,
+      );
+    }
+  }
+}
+if (!deepImportViol) console.log('\n  ✅ 无绕实现层深路径 import（storage 均经 index.ts 入口）');
+
 console.log(`\n${errors === 0 ? '✅ 架构校验通过' : `❌ ${errors} 处架构违规`}`);
 process.exit(errors === 0 ? 0 : 1);

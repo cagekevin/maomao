@@ -137,5 +137,11 @@ export const HEAVY_NODE_LOADERS = {
 export function prefetchHeavyNode(type: keyof typeof HEAVY_NODE_LOADERS) {
   const load = HEAVY_NODE_LOADERS[type];
   if (!load) return;
-  load().catch(() => {});
+  // 【失败可见 TD-02-16】预取失败不阻断（真正渲染走 ErrorBoundary），但须留痕：预取失败=渲染时会卡
+  load().catch((e) => {
+    logger.warn('lazyNode', '重型节点预取失败（真正渲染时将现场加载）', {
+      type,
+      reason: e?.message || e,
+    });
+  });
 }

@@ -60,9 +60,9 @@ export type { UseAgentChatReturn } from './runtime/useAgentChat.ts';
 export {
   setGenParams,
   getGenParams,
-  getNodeAssetUrl,
-  getNodeMedia,
   getCreditSwitch,
   setCreditSwitch,
 } from './canvas/useCanvasAgentTools.ts';
+// getNodeAssetUrl / getNodeMedia 已下沉 base/canvas（TD-04-25）。此处转发以保持对外聚合入口契约。
+export { getNodeAssetUrl, getNodeMedia } from '../base/canvas/nodeMedia.ts';
 export { setAgentKey } from './conversation/conversationStore.ts';

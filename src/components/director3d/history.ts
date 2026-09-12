@@ -6,7 +6,7 @@
 // 本模块所有函数均为纯操作，无副作用调用（定时器由调用方传入处理），可直接单测。
 
 /** 撤销栈长度上限 */
-export const HISTORY_LIMIT = 50;
+const HISTORY_LIMIT = 50;
 /** 自动入栈防抖（合并连续拖拽/滑动）毫秒数 */
 export const HISTORY_DEBOUNCE_MS = 280;
 

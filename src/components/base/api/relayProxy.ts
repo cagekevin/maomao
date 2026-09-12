@@ -186,7 +186,13 @@ export async function relayAttachUntilDone(
   const onAbort = () => {
     if (settled || !opts.cancelOnAbort) return;
     settled = true;
-    void relayCancel(frontTaskId).catch(() => {});
+    // 【失败可见 TD-02-16】取消失败留痕：后端句柄会续跑到终态（用户已中止却仍烧算力）
+    void relayCancel(frontTaskId).catch((e) => {
+      logger.warn('relayProxy', '中止后通知后端 cancel 失败（后端句柄可能续跑）', {
+        taskId: frontTaskId,
+        reason: e?.message || e,
+      });
+    });
   };
   signal?.addEventListener('abort', onAbort, { once: true });
 

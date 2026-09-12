@@ -354,6 +354,7 @@ export async function test(id: string): Promise<void> {
         // 优先展示异步嗅探的更精确原始信息；status 若为 0 则回填
         data = probe.ok ? { ...data, ...probe, ok: true } : { ...data, ...probe, ok: false };
       } catch {
+        // catch-ok: probe-async 探测失败时保留 test-connection 原始结果
         // probe-async 本身失败时保留 test-connection 的原始信息
       }
     }

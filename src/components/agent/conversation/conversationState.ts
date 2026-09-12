@@ -380,6 +380,7 @@ async function hydrateAsync(k: string): Promise<void> {
             `旧键活跃 id 迁 KV 超时(${k})`,
           );
         } catch {
+          // catch-ok: 旧键迁移超时兜底（存量迁移语义，同族）
           /* 与上述存量迁移同款兜底语义 */
         }
       } else {

@@ -12,8 +12,14 @@
  *     multipart FormData（file + subfolder [+filename]）→ 直接存本地文件；
  *     JSON（{ fileUrl, subfolder, filename }）→ 后端 saveRemoteUrl 代下载（fetchWithProxy）
  *     并 sha1 幂等去重（downloadRemoteToLocal / saveResultToTasks 的 http 分支共用 uploadRemoteUrl）。
- * · 落盘目录：subfolder 一律取自 UPLOAD_DIRS 中央表（tasks/web/canvas/canvas/drop/
- *   canvas/video-process/migrated/director3d），禁止散写字面量；目录名一律不改（防存量 URL 破链）。
+ * · 落盘目录：**默认值**取自 UPLOAD_DIRS 中央表（tasks/web/canvas/canvas/drop/
+ *   canvas/video-process/migrated/director3d）。
+ *   【TD-03-6③ 文档更正，2026-09-13】原写「subfolder **一律**取自 UPLOAD_DIRS…禁止散写字面量」，
+ *   与实流不符：`subfolder` 参数接受**任意合法相对路径**，调用方会传表外动态目录——如素材库按分类
+ *   `migrated/人物|场景|道具`（ResourceLibrary）、尾帧变体 `migrated/脚本/尾帧变体`（scriptBoxEngine），
+ *   经 resourceStore.localizeAndStoreToResourceLibrary → saveInlineToLocal/uploadFileToLocal 落盘。
+ *   后端以 `normalizeSubfolder` 的**顶层根白名单**（tasks/web/canvas/migrated/director3d）校验，而非枚举全路径。
+ *   **本模块内**仍然成立的纪律：不散写目录字面量（用 UPLOAD_DIRS 作默认值）；目录名不改（防存量 URL 破链）。
  * · 返回契约：后端返回 { code, data: { url } } 信封，本模块取 data.data.url
  *   （http://127.0.0.1:18080/files/<subfolder>/<name>）；失败一律返回 null 不抛
  *   （调用方降级保持原 URL），并 logger.warn 留痕 —— 失败可见但不打断主流程。
@@ -81,9 +87,14 @@ export function relativePathFromUrl(url: string): string | null {
   }
 }
 
-// POST /api/files/move { src, dst } → { code:0, data:{ ok:true } }
-// src/dst 均为「相对 uploadDir」路径（后端拼 getUploadDir，口径同 createFolder/mkdir）。
-// 移动是即时操作，不重试（成功但响应超时的重试会撞「src 已不存在」404）。
+// POST /api/files/move { src, dst } → { code:0, data:{ ok:true, id, url, name } }
+// src/dst 为「相对 uploadDir」路径（口径同 createFolder/mkdir）。
+//
+// 【TD-03-6① 文档更正，2026-09-13】原名「移动」是**物理移动时代的化石**。实测后端
+// `handleMove` → `applyResourceContextMove` 是 **context-only**：只改 `resources` 表的 folder 列，
+// **不移动磁盘文件**（后端注释明说「context-only 虽不碰磁盘」「物理文件未动」）。
+// 故原注释「重试会撞『src 已不存在』404」的**理由已不成立**（context-only 更新本身幂等）。
+// ⚠️ 本次**只更正文档，不改行为**：`retries:0` 原样保留（既有调用方行为不变；是否放宽留给后续按需评估）。
 export async function moveFile(src: string, dst: string): Promise<FileOpResult> {
   return httpRequest(`${API_BASE}/api/files/move`, {
     method: 'POST',
@@ -181,13 +192,25 @@ export async function saveInlineToLocal(
 }
 
 /**
+ * 从 `File | Blob` **诚实**取文件名（TD-03-6④，2026-09-13）。
+ *
+ * 参数类型是 `File | Blob`，而 **`Blob` 没有 `name`** —— 原写法 `(file as File).name` 是
+ * **假收窄**（类型声称是 File，运行时可能是 Blob）→ 拿到 `undefined` 后静默落到 `'upload'` 兜底，
+ * 类型层完全看不见这个可能性。改用 `instanceof` 运行时守卫，把"可能没有 name"这件事显式化。
+ * 调用方仍可用显式 `filename` 参数覆盖（本条只修**默认取名**路径）。
+ */
+function fileNameOf(file: File | Blob): string {
+  return file instanceof File ? file.name : '';
+}
+
+/**
  * 直接把 File/Blob 上传到 localTool（对齐官方 H_.jsx onDrop 的 hi(file,{subfolder})）。
  * 区别于 saveInlineToLocal（dataURL → 落盘）：这里直接 multipart 传原始文件，
  * 避免视频等大文件先转 dataURL 再转 Blob 的两段大内存拷贝。
  * 上传成功返回 http://127.0.0.1:18080/files/<subfolder>/<name>；失败返回 null。
  * @param {File|Blob} file 原始文件
  * @param {string} [subfolder] 落盘子目录，默认 canvas/drop（对齐官方）
- * @param {string} [filename] 可选自定义文件名（默认用 file.name）
+ * @param {string} [filename] 可选自定义文件名。**Blob 无 name**，故默认名对 Blob 恒为空 → 落 `'upload'`
  * @returns {Promise<string|null>}
  */
 export async function uploadFileToLocal(
@@ -199,12 +222,12 @@ export async function uploadFileToLocal(
   logger.debug(
     'filesApi',
     '[UPLOAD] 准备 multipart 上传',
-    { subfolder, name: filename || (file as File).name, size: file.size, type: file.type },
+    { subfolder, name: filename || fileNameOf(file), size: file.size, type: file.type },
     { module: 'asset' },
   );
   try {
     const fd = new FormData();
-    fd.append('file', file, filename || (file as File).name || 'upload');
+    fd.append('file', file, filename || fileNameOf(file) || 'upload');
     fd.append('subfolder', subfolder);
     const data = await httpRequest(`${API_BASE}/api/files/upload`, {
       method: 'POST',
@@ -364,12 +387,15 @@ export async function saveResultToTasks(url: string, type: string): Promise<stri
 
   try {
     if (url.startsWith('data:')) {
-      // 本地 base64 → multipart 上传
+      // 本地 base64 → multipart 上传。
+      // 【TD-03-6② 修复】原 part 名 `result_${Date.now()}.${ext}` 是**死参数**：后端 `saveName = filename || fileData.filename`
+      // 让 `filename` 字段优先 → part 名的时间戳永被压死；且两处各起一个名字（`result_*` vs `generated_*`）互相误导。
+      // 现**统一为一个名字**：part 名（协议必需，提供 ext）即文件名，删掉冗余的 `filename` 字段。
+      // 无行为变化：后端只从 `saveName` 取 ext，最终物理名 = 内容哈希名（contentHashName）。
       const blob = dataUrlToBlob(url);
       const fd = new FormData();
-      fd.append('file', blob, `result_${Date.now()}.${ext}`);
+      fd.append('file', blob, safeName('generated', ext));
       fd.append('subfolder', SUBFOLDER);
-      fd.append('filename', safeName('generated', ext));
       const data = await httpRequest(`${API_BASE}/api/files/upload`, {
         method: 'POST',
         body: fd,
