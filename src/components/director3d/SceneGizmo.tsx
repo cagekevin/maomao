@@ -8,7 +8,7 @@ const FOCUS = new THREE.Vector3(0, 1, 0);
 const _pos = new THREE.Vector3();
 const _mat = new THREE.Matrix4();
 
-const VIEW_DIRS = {
+const VIEW_DIRS: Record<string, number[]> = {
   perspective: [8.5, 5.4, 9.5],
   top: [0, 1, 0],
   left: [1, 0, 0],
@@ -88,7 +88,11 @@ function AxisHead({
   );
 }
 
-export default function SceneGizmo({ onReady }) {
+interface SceneGizmoProps {
+  onReady?: (handler: ((name: string) => void) | null) => void;
+}
+
+export default function SceneGizmo({ onReady }: SceneGizmoProps) {
   const mainCamera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as unknown as { update: () => void } | null;
   const invalidate = useThree((s) => s.invalidate);
@@ -96,7 +100,7 @@ export default function SceneGizmo({ onReady }) {
   const groupRef = useRef(null);
 
   const jump = useCallback(
-    (dir) => {
+    (dir: number[]) => {
       const d = new THREE.Vector3(dir[0], dir[1], dir[2]);
       // 顶/底视图加微偏移避免万向锁（up 向量与视线共线）
       if (Math.abs(d.y) > 0.99) d.x += 0.0001;
@@ -128,7 +132,10 @@ export default function SceneGizmo({ onReady }) {
   const x = size.width / 2 - 72;
   const y = -size.height / 2 + 40;
   const colors = { x: '#e5484d', y: '#46a758', z: '#3e63dd' };
-  const onJump = useCallback((pos) => jump([pos[0], pos[1], pos[2]]), [jump]);
+  const onJump = useCallback(
+    (pos: [number, number, number]) => jump([pos[0], pos[1], pos[2]]),
+    [jump],
+  );
 
   return (
     <Hud renderPriority={1}>

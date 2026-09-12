@@ -94,6 +94,7 @@
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import {
   AlertTriangle,
   Axis3D,
@@ -186,7 +187,18 @@ import {
   uniqueShotName,
   visualCenterForObject,
 } from './project.ts';
-import type { ChannelKey, ChannelTracks } from './project.ts';
+import type {
+  ChannelKey,
+  ChannelTracks,
+  EntityType,
+  ProjectCamera,
+  ProjectDataInput,
+  ProjectLighting,
+  ProjectObject,
+  ProjectReference,
+  ProjectSettings,
+  ProjectShot,
+} from './project.ts';
 import {
   bakeCameraPath,
   bakeObjectPath,
@@ -229,6 +241,93 @@ import { useConfirm } from './ConfirmDialog.tsx';
 const nextPaint = () =>
   new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
+// ---- 本地类型（project.ts 未导出的形状，仅在本文件内用于类型标注）----
+interface Director3DAppProps {
+  storageKey?: string;
+  onExport?: (payload: { type: 'image' | 'video'; blob: Blob; fileName: string }) => void;
+  onExit?: () => void;
+  onThumbnail?: (url: string) => void;
+}
+
+interface MotionPathPoint {
+  x: number;
+  y: number;
+  z: number;
+}
+
+interface MotionPath {
+  startFrame: number;
+  endFrame: number;
+  keyframeCount: number;
+  closed: boolean;
+  points: MotionPathPoint[];
+  sourceKeyframeFrames: number[];
+}
+
+interface DirectorShot extends ProjectShot {
+  id: string;
+  name: string;
+  thumbnail: string;
+  fps: number;
+  durationSeconds: number;
+  loopPlayback: boolean;
+  objects: ProjectObject[];
+  camera: ProjectCamera;
+  lighting: ProjectLighting;
+  reference: ProjectReference;
+  keyframes: ChannelTracks | ChannelKey[];
+  objectKeyframes: Record<string, ChannelTracks | ChannelKey[]>;
+  paths: Record<string, unknown>;
+}
+
+interface CustomPose {
+  id: string;
+  name: string;
+  pose: string;
+  poseTime: number;
+  rigRoot: number[];
+  joints: unknown;
+}
+
+interface SelectedKeyframe {
+  kind: 'camera' | 'object';
+  frame: number;
+  trackId: string | null;
+}
+
+interface KeyframeSelection {
+  kind: 'camera' | 'object';
+  frame: number;
+  trackId: string | null;
+}
+
+interface KeyframeMove {
+  kind: 'camera' | 'object';
+  fromFrame: number;
+  toFrame: number;
+  trackId?: string;
+}
+
+interface MoveKeyframeArg {
+  kind: 'camera' | 'object';
+  trackId: string | null;
+  fromFrame: number;
+  toFrame: number;
+}
+
+interface KeyframeClipboard {
+  kind: 'camera' | 'object';
+  key: unknown;
+}
+
+interface PathContextMenu {
+  x: number;
+  y: number;
+  index: number;
+}
+
+type ToastTier = 'info' | 'success' | 'warning' | 'error';
+
 // Toast 四档状态图标（对齐 maomao 统一通知：success 绿 / error 红 / warning 黄 / info 蓝）
 const TOAST_ICONS = {
   info: Info,
@@ -239,7 +338,7 @@ const TOAST_ICONS = {
 
 // P1：面板类组件的回调 props（onXxx）约定为语义稳定，比较时忽略；仅当数据 props 变化才重渲染，
 // 避免播放时 currentFrame 逐帧更新连带重算这些不依赖时间轴的面板（时间轴本身依赖 currentFrame，不在此列）。
-const ignoreCallbackProps = (prev, next) => {
+const ignoreCallbackProps = (prev: Record<string, unknown>, next: Record<string, unknown>) => {
   const keys = new Set([...Object.keys(prev), ...Object.keys(next)]);
   for (const key of keys) {
     if (key.startsWith('on')) continue;
@@ -249,16 +348,20 @@ const ignoreCallbackProps = (prev, next) => {
 };
 const MemoLeftSidebar = memo(LeftSidebar, ignoreCallbackProps);
 const MemoInspector = memo(Inspector, ignoreCallbackProps);
-export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
+export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Director3DAppProps) {
   // 受控工程存储 key：每节点独立（director3d-project-<nodeId>）；默认兼容独立运行（director3d-project）
   const projectStorageKey = storageKey || PROJECT_STORAGE_KEY;
   const startupProject = useMemo(() => readCachedProject(projectStorageKey), [projectStorageKey]);
   const [settings, setSettings] = useState(() =>
     normalizeProjectSettings(startupProject?.settings),
   );
-  const [shots, setShots] = useState(() => startupProject?.shots || [createEmptyShot()]);
+  const [shots, setShots] = useState<DirectorShot[]>(
+    () => (startupProject?.shots ?? [createEmptyShot()]) as DirectorShot[],
+  );
   const [activeShotId, setActiveShotId] = useState(() => startupProject?.activeShotId || 'shot-01');
-  const [objects, setObjects] = useState(() => startupProject?.objects || initialObjects);
+  const [objects, setObjects] = useState<ProjectObject[]>(
+    () => startupProject?.objects || initialObjects,
+  );
   const [selectedId, setSelectedId] = useState(
     () => startupProject?.objects?.[0]?.id || 'actor-lead',
   );
@@ -267,38 +370,41 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const [transformSpace, setTransformSpace] = useState('world');
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [groundRequest, setGroundRequest] = useState(null);
-  const [camera, setCamera] = useState(() => ({ ...initialCamera, ...startupProject?.camera }));
+  const [camera, setCamera] = useState<ProjectCamera>(() => ({
+    ...initialCamera,
+    ...startupProject?.camera,
+  }));
   const [lighting, setLighting] = useState(() => normalizeLighting(startupProject?.lighting));
   const [reference, setReference] = useState(() => normalizeReference(startupProject?.reference));
-  const [keyframes, setKeyframes] = useState(() => startupProject?.keyframes || initialKeyframes);
-  const [characterKeyframes, setCharacterKeyframes] = useState<
-    Record<string, ChannelTracks | ChannelKey[]>
-  >(
+  const [keyframes, setKeyframes] = useState<ChannelTracks>(
+    () => (startupProject?.keyframes || initialKeyframes) as ChannelTracks,
+  );
+  const [characterKeyframes, setCharacterKeyframes] = useState<Record<string, ChannelTracks>>(
     () =>
-      startupProject?.objectKeyframes ||
-      startupProject?.characterKeyframes ||
-      initialCharacterKeyframes,
+      (startupProject?.objectKeyframes ||
+        startupProject?.characterKeyframes ||
+        initialCharacterKeyframes) as Record<string, ChannelTracks>,
   );
   // 当前镜头下 targetId → 运动路径表（targetId 即对象 id，摄像机用 CAMERA_ID），随镜头切换一起走
-  const [paths, setPaths] = useState(() => startupProject?.paths || {});
+  const [paths, setPaths] = useState<Record<string, MotionPath>>(() => startupProject?.paths || {});
   // 画线编辑：editMode='path' 表示正在为选中对象（含摄像机）画运动路径；pathDraft 为当时正在编辑的路径
   const [editMode, setEditMode] = useState('');
   const [pathMenuOpen, setPathMenuOpen] = useState(false);
   // 是否处于「绘制态」：true 时左键拖动在场景里画曲线；false 为查看/调整态（可拖控制点、不画线）
   const [pathDrawing, setPathDrawing] = useState(false);
-  const [pathDraft, setPathDraft] = useState(null);
+  const [pathDraft, setPathDraft] = useState<MotionPath | null>(null);
   // 右键菜单：{ x, y, index } index 为最近控制点下标（-1 = 空白处），用于「删除此点 / 删除整条曲线」
-  const [pathContextMenu, setPathContextMenu] = useState(null);
+  const [pathContextMenu, setPathContextMenu] = useState<PathContextMenu | null>(null);
   const [pathTiming, setPathTiming] = useState(() => ({
     startSec: 0,
     endSec: DEFAULT_PROJECT_SETTINGS.durationSeconds,
     density: 'sparse',
     keyframeCount: DEFAULT_PATH_SETTINGS.keyframeCount,
   }));
-  const [objectDrafts, setObjectDrafts] = useState({});
+  const [objectDrafts, setObjectDrafts] = useState<Record<string, ProjectObject>>({});
   const [currentFrame, setCurrentFrame] = useState(0);
-  const [selectedKeyframe, setSelectedKeyframe] = useState(null);
-  const [keyframeClipboard, setKeyframeClipboard] = useState(null);
+  const [selectedKeyframe, setSelectedKeyframe] = useState<SelectedKeyframe | null>(null);
+  const [keyframeClipboard, setKeyframeClipboard] = useState<KeyframeClipboard | null>(null);
   const [customPoses, setCustomPoses] = useState(() => readCustomPoses());
   const [playing, setPlaying] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -327,26 +433,26 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const imageCaptureCanvasRef = useRef(null);
   const monitorCanvasRef = useRef(null);
   const editorViewRef = useRef(editorView);
-  const gizmoApiRef = useRef(null);
+  const gizmoApiRef = useRef<((mode: string) => void) | null>(null);
   const exportLockRef = useRef(false);
   const historyRef = useRef(createHistoryState());
   const latestProjectRef = useRef(null);
   // 路径烘焙去重唯一依据：target → 上一批由路径生成的帧号（同步更新，避免高频 onPathChange + React 批处理读过期闭包导致旧帧清不掉而叠加）
-  const pathFramesRef = useRef({});
+  const pathFramesRef = useRef<Record<string, number[]>>({});
 
   // 队列化 toast（剥离到 useToast.js）：每条独立 1800ms 自动消失，视觉对齐 maomao 统一通知（顶部居中、四档状态色）。
   const { toasts, setToast, dismiss } = useToast();
   // 自定义确认层（替代原生 window.confirm，D8）
   const { ask, renderConfirm } = useConfirm();
 
-  const handleReferenceUpload = async (event) => {
+  const handleReferenceUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
     const file = input.files?.[0];
     if (!file) return;
     try {
       const image = await referenceImageFromFile(file);
       setReference(normalizeReference({ ...DEFAULT_REFERENCE, image, name: file.name }));
-      setToast(`参考图“${file.name}”已加入 · 可切换到“摄像机视角”核对导出构图`);
+      setToast(`参考图"${file.name}"已加入 · 可切换到"摄像机视角"核对导出构图`);
     } catch (error) {
       log.error('参考图上传失败', error);
       setToast(error.message || '参考图上传失败', 'error');
@@ -411,7 +517,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   );
   // 对象实体类型解析：通道结构需按实体类型 flatten 成整快照数组供查找/复制（M1-C1 实体通道划分）
   const entityTypeFor = useCallback(
-    (id) => objects.find((object) => object.id === id)?.type || 'object',
+    (id: string) => objects.find((object) => object.id === id)?.type || 'object',
     [objects],
   );
   const selectedKeyframeInfo = useMemo(() => {
@@ -427,7 +533,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
           );
     const key = track?.find((item) => item.frame === selectedKeyframe.frame);
     return key
-      ? { ...selectedKeyframe, interpolation: normalizeInterpolation(key.interpolation) }
+      ? { ...selectedKeyframe, interpolation: normalizeInterpolation(key.interpolation ?? '') }
       : null;
   }, [characterKeyframes, entityTypeFor, keyframes, selectedKeyframe]);
   // 摄像机求值：单入口（契约 C4.1）。原先的 if/else 三分支已收口到
@@ -573,8 +679,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     return () => clearTimeout(timer);
   }, [currentProject, setToast, projectStorageKey]);
 
-  const applyProjectSnapshot = useCallback((snapshot) => {
-    const normalized = normalizeProjectData(snapshot);
+  const applyProjectSnapshot = useCallback((snapshot: unknown) => {
+    const normalized = normalizeProjectData(snapshot as ProjectDataInput);
     if (!normalized) return;
     setSettings(normalized.settings);
     setShots(normalized.shots);
@@ -583,8 +689,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setCamera(normalized.camera);
     setLighting(normalized.lighting);
     setReference(normalized.reference);
-    setKeyframes(normalized.keyframes);
-    setCharacterKeyframes(normalized.objectKeyframes);
+    setKeyframes(normalized.keyframes as ChannelTracks);
+    setCharacterKeyframes(normalized.objectKeyframes as Record<string, ChannelTracks>);
     setPaths(normalized.paths || {});
     setObjectDrafts({});
     setSelectedKeyframe(null);
@@ -598,7 +704,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       currentFrameRef.current = nextFrame;
       return nextFrame;
     });
-    setSelectedId((current) =>
+    setSelectedId((current: string) =>
       current === CAMERA_ID || normalized.objects.some((object) => object.id === current)
         ? current
         : normalized.objects[0]?.id || CAMERA_ID,
@@ -685,7 +791,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   }, [animatedObjects, camera.position, selectedId]);
 
   const applyTimingToPath = useCallback(
-    (path) => {
+    (path: MotionPath | null) => {
       if (!path) return path;
       return {
         ...path,
@@ -728,7 +834,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   }, [selectedId, editMode]);
 
   const applyPathBake = useCallback(
-    (path) => {
+    (path: MotionPath) => {
       if (!path || !Array.isArray(path.points) || path.points.length < 2) return;
       const baked = bakePathKeyframes(path, fps);
       if (!baked.frames.length) return;
@@ -748,7 +854,9 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
         if (source) {
           // 对象路径烘焙：路径帧只产 position 来源标识、先删后加原子 batch（M3-C2/C5 + M4-C5）
           setCharacterKeyframes((tracks) =>
-            bakeObjectPath(tracks, target, source.type, baked.frames, [...removeFrames]),
+            bakeObjectPath(tracks, target, source.type as EntityType, baked.frames, [
+              ...removeFrames,
+            ]),
           );
         }
       }
@@ -764,7 +872,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   );
 
   const commitPathPoints = useCallback(
-    (nextPoints) => {
+    (nextPoints: MotionPathPoint[]) => {
       setPathDraft((draft) => {
         if (!draft) return draft;
         const next = { ...draft, points: nextPoints };
@@ -776,9 +884,12 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   );
 
   // 时间范围 / 画点密度 / 关键帧数量：先自动生成，再随时调整即时重烘焙
-  const updatePathTiming = useCallback((patch) => {
-    setPathTiming((timing) => ({ ...timing, ...patch }));
-  }, []);
+  const updatePathTiming = useCallback(
+    (patch: { startSec?: number; endSec?: number; keyframeCount?: number }) => {
+      setPathTiming((timing) => ({ ...timing, ...patch }));
+    },
+    [],
+  );
 
   // 「开始绘制/完成」：进入绘制态先清空旧曲线（一个对象只有一条路径，重画必须先删旧的），
   // 左键拖动在场景里画出新线；点「完成」退出绘制态，回到查看/调整态（可拖控制点）。
@@ -835,7 +946,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setPathDraft((draft) => (draft ? { ...draft, points: [], sourceKeyframeFrames: [] } : draft));
   }, [paths, selectedId]);
 
-  const openPathContextMenu = useCallback((index, clientX, clientY) => {
+  const openPathContextMenu = useCallback((index: number, clientX: number, clientY: number) => {
     setPathContextMenu({ x: clientX, y: clientY, index });
   }, []);
 
@@ -843,12 +954,12 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
 
   // 删除单个控制点：从曲线上挖掉该点，重新烘焙关键帧；若剩点不足 2 个则视为删整条曲线
   const deletePathPoint = useCallback(
-    (index) => {
+    (index: number) => {
       closePathContextMenu();
       setPathDraft((draft) => {
         if (!draft || !Array.isArray(draft.points) || index < 0 || index >= draft.points.length)
           return draft;
-        const nextPoints = draft.points.filter((_, i) => i !== index);
+        const nextPoints = draft.points.filter((_: MotionPathPoint, i: number) => i !== index);
         if (nextPoints.length < 2) {
           clearPath();
           return { ...draft, points: [], sourceKeyframeFrames: [] };
@@ -869,7 +980,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   // 右键菜单打开时：Escape 关闭
   useEffect(() => {
     if (!pathContextMenu) return undefined;
-    const onKey = (event) => {
+    const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closePathContextMenu();
     };
     window.addEventListener('keydown', onKey);
@@ -903,9 +1014,9 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   // P0-C：此入口仅在播放/暂停/拖帧等「非用户编辑」场景被调用，故统一挂抑制计数，
   //   让历史副作用对该写入「只推进基线、不入栈」，避免撤销栈被逐帧预览写污染。
   const setCameraAtFrame = useCallback(
-    (frame) => {
+    (frame: number) => {
       historyRef.current.deferCount += 1;
-      setCamera((current) => {
+      setCamera((current: ProjectCamera) => {
         // 契约 C4.1：与 animatedCamera 共用**同一个**求值入口——
         // 此前这里是「位置谁说了算」的第二个独立实现（又一份三分支），
         // 与 animatedCamera 的同源逻辑一旦漂移就会出现「播放时对、拖帧时不对」这类分叉。
@@ -924,7 +1035,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   );
 
   const seekToFrame = useCallback(
-    (frame) => {
+    (frame: number) => {
       const nextFrame = clamp(Math.round(frame), 0, totalFrames);
       setPlaying(false);
       // 仅当存在未提交的拖拽草稿时才重置，避免拖动播放头时每次 seek 都新建空对象触发无谓重渲染
@@ -957,8 +1068,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       playStartRef.current = null;
       return;
     }
-    let frameId;
-    const animate = (timestamp) => {
+    let frameId = 0;
+    const animate = (timestamp: number) => {
       if (playStartRef.current === null)
         playStartRef.current = timestamp - (currentFrameRef.current / fps) * 1000;
       let frame = Math.floor(((timestamp - playStartRef.current) / 1000) * fps);
@@ -983,7 +1094,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   }, [playing, fps, totalFrames, settings.loopPlayback, setCameraAtFrame]);
 
   useEffect(() => {
-    const onKeyDown = (event) => {
+    const onKeyDown = (event: KeyboardEvent) => {
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
       if (event.key.toLowerCase() === 'w') {
         setTransformMode('translate');
@@ -1063,7 +1174,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deleteSelected/duplicateSelected 定义在本 effect 之后（TDZ 依赖数组）
   }, [selectedId, objects, togglePlayback, undo, redo, focusSelected]);
 
-  const applySettings = (nextSettings) => {
+  const applySettings = (nextSettings: Partial<ProjectSettings>) => {
     const next = normalizeProjectSettings(nextSettings);
     const nextTotalFrames = next.fps * next.durationSeconds;
     const lastKeyframeFrame = normalizeFrameNumber(maxKeyframeFrame);
@@ -1099,7 +1210,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   // 解耦跨组件取画布边界。刻意不为此创建额外 WebGL 上下文——避免每次镜头操作挂载/销毁画布导致黑屏。
   const thumbnailFromMonitor = () => thumbnailFromCanvas(monitorCanvasRef.current);
 
-  const liveShotRecord = (shot, thumbnail = shot?.thumbnail || '') => ({
+  const liveShotRecord = (shot: DirectorShot, thumbnail = shot?.thumbnail || '') => ({
     ...shot,
     id: shot?.id || activeShotId,
     name: shot?.name || '镜头',
@@ -1116,7 +1227,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     paths,
   });
 
-  const applyShotState = (shot) => {
+  const applyShotState = (shot: DirectorShot) => {
     setPlaying(false);
     setObjectDrafts({});
     setSelectedKeyframe(null);
@@ -1131,9 +1242,11 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setCamera(cloneProjectValue(shot.camera));
     setLighting(normalizeLighting(shot.lighting));
     setReference(normalizeReference(shot.reference));
-    setKeyframes(cloneProjectValue(shot.keyframes || []));
-    setCharacterKeyframes(cloneProjectValue(shot.objectKeyframes || {}));
-    setPaths(cloneProjectValue(shot.paths || {}));
+    setKeyframes(cloneProjectValue(shot.keyframes || []) as ChannelTracks);
+    setCharacterKeyframes(
+      cloneProjectValue(shot.objectKeyframes || {}) as Record<string, ChannelTracks>,
+    );
+    setPaths(cloneProjectValue(shot.paths || {}) as Record<string, MotionPath>);
     setEditMode('');
     setPathDraft(null);
     setPathMenuOpen(false);
@@ -1143,7 +1256,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setSelectedId(shot.objects?.[0]?.id || CAMERA_ID);
   };
 
-  const switchShot = (shotId) => {
+  const switchShot = (shotId: string) => {
     if (shotId === activeShotId) return;
     const target = shots.find((shot) => shot.id === shotId);
     if (!target) return;
@@ -1156,7 +1269,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       ),
     );
     applyShotState(target);
-    setToast(`已切换到“${target.name}”`);
+    setToast(`已切换到"${target.name}"`);
   };
 
   const addShot = () => {
@@ -1188,10 +1301,10 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       nextShot,
     ]);
     applyShotState(nextShot);
-    setToast(`已新建“${nextShot.name}” · 场景已复制，关键帧和参考图为空`);
+    setToast(`已新建"${nextShot.name}" · 场景已复制，关键帧和参考图为空`);
   };
 
-  const duplicateShot = (shotId) => {
+  const duplicateShot = (shotId: string) => {
     if (shots.length >= 30) {
       setToast('每个工程最多 30 个镜头');
       return;
@@ -1220,15 +1333,15 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       ];
     });
     applyShotState(duplicate);
-    setToast(`已复制“${source.name}”`);
+    setToast(`已复制"${source.name}"`);
   };
 
-  const deleteShot = async (shotId) => {
+  const deleteShot = async (shotId: string) => {
     if (shots.length <= 1) return;
     const sourceIndex = shots.findIndex((shot) => shot.id === shotId);
     const source = shots[sourceIndex];
     if (!source) return;
-    const ok = await ask(`删除镜头“${source.name}”？`, { confirmText: '删除', danger: true });
+    const ok = await ask(`删除镜头"${source.name}"？`, { confirmText: '删除', danger: true });
     if (!ok) return;
     const thumbnail = thumbnailFromMonitor();
     const persisted = shots.map((shot) =>
@@ -1238,10 +1351,10 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setShots(remaining);
     if (shotId === activeShotId)
       applyShotState(remaining[Math.min(sourceIndex, remaining.length - 1)]);
-    setToast(`已删除“${source.name}”`);
+    setToast(`已删除"${source.name}"`);
   };
 
-  const renameShot = (shotId, name, commit = false) =>
+  const renameShot = (shotId: string, name: string, commit = false) =>
     setShots((list) => {
       const index = list.findIndex((shot) => shot.id === shotId);
       if (index < 0) return list;
@@ -1250,7 +1363,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       return list.map((shot) => (shot.id === shotId ? { ...shot, name: nextName } : shot));
     });
 
-  const captureShotThumbnail = (shotId) => {
+  const captureShotThumbnail = (shotId: string) => {
     if (shotId !== activeShotId) {
       setToast('请先切换到该镜头再更新缩略图');
       return;
@@ -1264,7 +1377,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setToast('镜头缩略图已更新');
   };
 
-  const addPerson = (bodyType) => {
+  const addPerson = (bodyType: string) => {
     const id = uid();
     const person = {
       id,
@@ -1285,9 +1398,9 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setObjects((list) => [...list, person]);
     setSelectedId(id);
   };
-  const addPrimitive = (type) => {
+  const addPrimitive = (type: string) => {
     const id = uid();
-    const labels = {
+    const labels: Record<string, string> = {
       box: '方块',
       sphere: '球体',
       cylinder: '圆柱',
@@ -1303,7 +1416,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       vehicle: '车辆',
       roof: '屋顶',
     };
-    const defaultScales = {
+    const defaultScales: Record<string, number[]> = {
       arch: [1.8, 2.2, 0.45],
       stairs: [2.2, 1.4, 2.8],
       door: [1.2, 2.2, 0.25],
@@ -1330,7 +1443,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     ]);
     setSelectedId(id);
   };
-  const importModel = async (event) => {
+  const importModel = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
@@ -1350,10 +1463,10 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
           id,
           name: file.name.replace(/\.(glb|gltf)$/i, ''),
           type: 'model',
-          url,
+          url: url as string,
           position: [0, positionY, 0],
           rotation: [0, 0, 0],
-          scale,
+          scale: [scale],
           color: '#ddd8cc',
         },
       ]);
@@ -1370,12 +1483,12 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   // 人物/道具写 objects + objectDrafts 两层。
   // 禁止再出现「摄像机专属单参签名 onUpdateCamera(patch)」：曾因签名不一致导致
   // `{...current, ...'camera'}` 静默展开、position 永不写入（拖动「拖一点就弹回」）。
-  const updateObjectById = (id, patch) => {
+  const updateObjectById = (id: string, patch: Record<string, unknown>) => {
     // 开发期守卫（契约 C3.3）：patch 字段若未在注册表登记，立刻告警（带来源），
     // 避免「写了个没登记的字段 → 运行时静默失效」这类黑洞。
     assertRegisteredPatch(id === CAMERA_ID ? 'camera' : entityTypeFor(id), patch);
     if (id === CAMERA_ID) {
-      setCamera((current) => ({ ...current, ...patch }));
+      setCamera((current: ProjectCamera) => ({ ...current, ...patch }));
       return;
     }
     setObjectDrafts((drafts) => {
@@ -1401,7 +1514,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   };
   // App 内部便捷包装：写「当前选中对象」（对象树选中项随 Inspector 走），签名单参。
   // 仅限 App 内部使用；对外的 prop 一律用统一的 updateObjectById(id, patch)。
-  const updateSelected = (patch) => updateObjectById(selectedId, patch);
+  const updateSelected = (patch: Record<string, unknown>) => updateObjectById(selectedId, patch);
   const groundSelected = () => {
     if (!activeObject || activeObject.locked) return;
     setGroundRequest({ id: activeObject.id, nonce: Date.now() });
@@ -1417,10 +1530,17 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     updateSelected({ scale: [1, 1, 1] });
     setToast('整体缩放已恢复为 1');
   };
-  const captureEditorView = useCallback((view) => {
-    if (view?.position?.length === 3 && view?.rotation?.length === 3 && view?.target?.length === 3)
-      editorViewRef.current = view;
-  }, []);
+  const captureEditorView = useCallback(
+    (view: { position?: number[]; rotation?: number[]; target?: number[] }) => {
+      if (
+        view?.position?.length === 3 &&
+        view?.rotation?.length === 3 &&
+        view?.target?.length === 3
+      )
+        editorViewRef.current = view as { position: number[]; target: number[] };
+    },
+    [],
+  );
   const openCameraView = () => {
     setEditorView(cloneProjectValue(editorViewRef.current));
     setCameraView(true);
@@ -1451,7 +1571,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   // 每次变更仅写 customPoses + 持久化到 localStorage（CUSTOM_POSE_STORAGE_KEY），不进撤销栈。
   // 误删无法 Ctrl+Z 恢复（弹 confirm 确认）。「应用姿势」applyCustomPose 则走 updateSelected
   // 修改 objects，是可撤销的。若后续需要姿势库可撤销，需单独设计（纳入工程快照或独立历史）。
-  const saveCustomPose = (person) => {
+  const saveCustomPose = (person: ProjectObject) => {
     if (!person || person.type !== 'person') return;
     const suggestedName = `自定义姿势 ${customPoses.length + 1}`;
     const name = window.prompt('为当前姿势命名', suggestedName)?.trim();
@@ -1468,27 +1588,26 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
         joints: cloneJointPose(rig.joints),
       },
     ]);
-    setToast(`姿势“${name}”已保存到本机`);
+    setToast(`姿势"${name}"已保存到本机`);
   };
-  const applyCustomPose = (customPose) => {
-    if (!customPose || !activeObject || activeObject.type !== 'person') return;
+  const applyCustomPose = (customPose: unknown) => {
+    const cp = customPose as CustomPose;
+    if (!cp || !activeObject || activeObject.type !== 'person') return;
     updateSelected({
-      pose: normalizePoseId(customPose.pose),
-      poseTime: Number.isFinite(customPose.poseTime)
-        ? customPose.poseTime
-        : presetPhase(customPose.pose),
-      rigRoot: [...(customPose.rigRoot || presetRoot(customPose.pose))],
-      joints: cloneJointPose(customPose.joints),
+      pose: normalizePoseId(cp.pose),
+      poseTime: Number.isFinite(cp.poseTime) ? cp.poseTime : presetPhase(cp.pose),
+      rigRoot: [...(cp.rigRoot || presetRoot(cp.pose))],
+      joints: cloneJointPose(cp.joints),
     });
-    setToast(`已应用姿势“${customPose.name}”`);
+    setToast(`已应用姿势"${cp.name}"`);
   };
-  const deleteCustomPose = async (poseId) => {
+  const deleteCustomPose = async (poseId: string) => {
     const pose = customPoses.find((item) => item.id === poseId);
     if (!pose) return;
-    const ok = await ask(`删除姿势“${pose.name}”？`, { confirmText: '删除', danger: true });
+    const ok = await ask(`删除姿势"${pose.name}"？`, { confirmText: '删除', danger: true });
     if (!ok) return;
     setCustomPoses((list) => list.filter((item) => item.id !== poseId));
-    setToast(`已删除姿势“${pose.name}”`);
+    setToast(`已删除姿势"${pose.name}"`);
   };
   const deleteSelected = () => {
     if (selectedId === CAMERA_ID) return;
@@ -1530,7 +1649,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     const pose = paths[CAMERA_ID] ? animatedCamera : camera;
     const next = {
       frame: currentFrame,
-      interpolation: normalizeInterpolation(existing?.interpolation),
+      interpolation: normalizeInterpolation(String(existing?.interpolation)),
       position: [...pose.position],
       rotation: [...pose.rotation],
       focalLength: pose.focalLength,
@@ -1540,7 +1659,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setSelectedKeyframe({ kind: 'camera', frame: currentFrame, trackId: null });
     setToast(`已记录第 ${currentFrame} 帧`);
   };
-  const deleteKeyframe = (frame) => {
+  const deleteKeyframe = (frame: number) => {
     // 相机轨为通道结构，transform/lens 同时删该帧，避免漏删幽灵 key（tracks.js）
     setKeyframes((channels) => removeCameraFrames(channels, [frame]));
     if (selectedKeyframe?.kind === 'camera' && selectedKeyframe.frame === frame)
@@ -1558,11 +1677,11 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     ).find((key) => key.frame === currentFrame);
     const next = {
       ...objectKeyframeFromObject(source, currentFrame),
-      interpolation: normalizeInterpolation(existing?.interpolation),
+      interpolation: normalizeInterpolation(String(existing?.interpolation)),
     };
     // 对象轨为通道结构，整快照按实体类型拆通道写入（person→transform/action/skeleton，object→transform，tracks.js）
     setCharacterKeyframes((tracks) =>
-      upsertObjectSnapshot(tracks, activeObject.id, activeObject.type, next),
+      upsertObjectSnapshot(tracks, activeObject.id, activeObject.type as EntityType, next),
     );
     setSelectedKeyframe({ kind: 'object', frame: currentFrame, trackId: activeObject.id });
     setObjectDrafts((drafts) => {
@@ -1572,11 +1691,11 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     });
     setToast(
       activeObject.type === 'person'
-        ? `已记录“${activeObject.name}”第 ${currentFrame} 帧角色状态`
-        : `已记录“${activeObject.name}”第 ${currentFrame} 帧`,
+        ? `已记录"${activeObject.name}"第 ${currentFrame} 帧角色状态`
+        : `已记录"${activeObject.name}"第 ${currentFrame} 帧`,
     );
   };
-  const deleteObjectKeyframe = (frame) => {
+  const deleteObjectKeyframe = (frame: number) => {
     if (!activeObject) return;
     // 对象轨统一写入口 remove（轨道写空后自动移除该对象条目，tracks.js）
     setCharacterKeyframes((tracks) => removeObjectFrames(tracks, activeObject.id, frame));
@@ -1587,7 +1706,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     )
       setSelectedKeyframe(null);
   };
-  const moveKeyframe = ({ kind, trackId, fromFrame, toFrame }) => {
+  const moveKeyframe = ({ kind, trackId, fromFrame, toFrame }: MoveKeyframeArg) => {
     // 通道结构下逐通道整体平移该帧，保证各通道同帧一致（tracks.js）
     if (kind === 'camera')
       setKeyframes((channels) => moveCameraFrame(channels, fromFrame, toFrame));
@@ -1598,11 +1717,11 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   };
 
   // 批量删除关键帧（时间轴框选/多选删除）：相机/对象按轨道分组一次删整批（tracks.js）
-  const deleteKeyframes = useCallback((keys) => {
+  const deleteKeyframes = useCallback((keys: KeyframeSelection[]) => {
     if (!Array.isArray(keys) || !keys.length) return;
     const cameraFrames = keys.filter((key) => key.kind === 'camera').map((key) => key.frame);
     if (cameraFrames.length) setKeyframes((channels) => removeCameraFrames(channels, cameraFrames));
-    const objectGroups = {};
+    const objectGroups: Record<string, number[]> = {};
     for (const key of keys) {
       if (key.kind !== 'object' || !key.trackId) continue;
       objectGroups[key.trackId] = [...(objectGroups[key.trackId] || []), key.frame];
@@ -1614,10 +1733,10 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   }, []);
 
   // 批量平移关键帧（时间轴框选拖动）：同一轨道内整组平移，先删旧帧再整批插新（tracks.js 原子 batch）
-  const moveKeyframes = useCallback((moves) => {
+  const moveKeyframes = useCallback((moves: KeyframeMove[]) => {
     if (!Array.isArray(moves) || !moves.length) return;
-    const cameraMap = {};
-    const objectMaps = {};
+    const cameraMap: Record<string, number> = {};
+    const objectMaps: Record<string, Record<string, number>> = {};
     for (const move of moves) {
       if (move.kind === 'camera') cameraMap[move.fromFrame] = move.toFrame;
       else if (move.trackId)
@@ -1630,7 +1749,12 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     }
   }, []);
   // 改指定帧插值（时间轴右键菜单用）：按参数操作，不依赖 selectedKeyframe 状态
-  const changeKeyframeInterpolation = (kind, trackId, frame, value) => {
+  const changeKeyframeInterpolation = (
+    kind: 'camera' | 'object',
+    trackId: string | null,
+    frame: number,
+    value: string,
+  ) => {
     const normalized = normalizeInterpolation(value);
     if (kind === 'camera')
       setKeyframes((channels) => setCameraInterpolation(channels, frame, normalized));
@@ -1668,7 +1792,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       }
       // 粘贴整快照 key → 按目标物体实体类型拆进对应通道（粘贴允许跨实体，以目标类型为准）
       setCharacterKeyframes((tracks) =>
-        upsertObjectSnapshot(tracks, activeObject.id, activeObject.type, next),
+        upsertObjectSnapshot(tracks, activeObject.id, activeObject.type as EntityType, next),
       );
       setSelectedKeyframe({ kind: 'object', frame: currentFrame, trackId: activeObject.id });
     }
@@ -1704,7 +1828,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       URL.revokeObjectURL(link.href);
     }
     if (download) setToast(cached ? '工程 JSON 已导出' : '工程已导出，但浏览器自动保存空间不足');
-    else setToast(cached ? '工程已保存到浏览器' : '浏览器保存空间不足，请使用“导出工程”备份');
+    else setToast(cached ? '工程已保存到浏览器' : '浏览器保存空间不足，请使用"导出工程"备份');
   };
   const handleCaptureImage = async () => {
     if (exportLockRef.current || exporting || capturingImage) return;
@@ -1727,7 +1851,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       await nextPaint();
       const blob = await new Promise<Blob>((resolve, reject) =>
         canvas.toBlob(
-          (result) => (result ? resolve(result) : reject(new Error('PNG 生成失败'))),
+          (result: Blob | null) => (result ? resolve(result) : reject(new Error('PNG 生成失败'))),
           'image/png',
         ),
       );
@@ -1870,7 +1994,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       exportLockRef.current = false;
     }
   };
-  const loadProject = (event) => {
+  const loadProject = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -1885,8 +2009,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
         setCamera(loaded.camera);
         setLighting(loaded.lighting);
         setReference(loaded.reference);
-        setKeyframes(loaded.keyframes);
-        setCharacterKeyframes(loaded.objectKeyframes);
+        setKeyframes(loaded.keyframes as ChannelTracks);
+        setCharacterKeyframes(loaded.objectKeyframes as Record<string, ChannelTracks>);
         setObjectDrafts({});
         setSelectedKeyframe(null);
         setCurrentFrame(0);
@@ -1922,8 +2046,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setCamera(resetCamera);
     setLighting(cloneProjectValue(DEFAULT_LIGHTING));
     setReference(cloneProjectValue(DEFAULT_REFERENCE));
-    setKeyframes(initialKeyframes);
-    setCharacterKeyframes(initialCharacterKeyframes);
+    setKeyframes(initialKeyframes as ChannelTracks);
+    setCharacterKeyframes(initialCharacterKeyframes as Record<string, ChannelTracks>);
     setObjectDrafts({});
     setSelectedKeyframe(null);
     setCurrentFrame(0);
@@ -2034,12 +2158,12 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
           objects={objects}
           selectedId={selectedId}
           onSelect={setSelectedId}
-          onToggleVisible={(id) =>
+          onToggleVisible={(id: string) =>
             updateObjectById(id, {
               visible: objects.find((item) => item.id === id)?.visible === false,
             })
           }
-          onToggleLock={(id) =>
+          onToggleLock={(id: string) =>
             updateObjectById(id, { locked: !objects.find((item) => item.id === id)?.locked })
           }
           shots={displayedShots}
@@ -2264,7 +2388,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
           {cameraView && cameraAnglePanelOpen && (
             <CameraAnglePanel
               camera={camera}
-              onChange={(patch) => updateObjectById(CAMERA_ID, patch)}
+              onChange={(patch: Record<string, unknown>) => updateObjectById(CAMERA_ID, patch)}
               onClose={() => setCameraAnglePanelOpen(false)}
               onLevel={levelCameraHorizon}
             />
@@ -2282,7 +2406,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
                 cameraAspect={previewAspect}
                 editorCameraData={editorView}
                 onEditorCameraChange={captureEditorView}
-                onGizmoReady={(api) => {
+                onGizmoReady={(api: (mode: string) => void) => {
                   gizmoApiRef.current = api;
                 }}
                 objects={animatedObjects}
@@ -2290,7 +2414,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
                 selectedId={selectedId}
                 activeJoint={selectedJoint}
                 onSelect={setSelectedId}
-                onJointSelect={(objectId, jointId) => {
+                onJointSelect={(objectId: string, jointId: string) => {
                   setSelectedId(objectId);
                   setSelectedJoint(jointId);
                 }}
@@ -2371,7 +2495,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
                     performanceMode={performanceMode}
                     seamlessBackground={seamlessBackground}
                     backgroundCanvas={monitorReferenceBackground}
-                    onCanvasReady={(canvas) => {
+                    onCanvasReady={(canvas: HTMLCanvasElement) => {
                       monitorCanvasRef.current = canvas;
                     }}
                   />
@@ -2391,7 +2515,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
           objects={objects}
           camera={camera}
           cameraAspect={camera.aspectRatio}
-          onAspectChange={(aspectRatio) => updateObjectById(CAMERA_ID, { aspectRatio })}
+          onAspectChange={(aspectRatio: string) => updateObjectById(CAMERA_ID, { aspectRatio })}
           projectSettings={settings}
           onApplySettings={applySettings}
           maxKeyframeFrame={maxKeyframeFrame}
@@ -2434,7 +2558,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
                   id: activeObject.id,
                   name: activeObject.name,
                   type: activeObject.type,
-                  continuousMotion: activeObject.continuousMotion,
+                  continuousMotion: Boolean(activeObject.continuousMotion),
                   keyframes: snapshotKeysForTrack(
                     characterKeyframes[activeObject.id],
                     activeObject.type,
@@ -2468,7 +2592,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
             lighting={lighting}
             exportMode
             backgroundCanvas={exportReferenceBackground}
-            onCanvasReady={(canvas) => {
+            onCanvasReady={(canvas: HTMLCanvasElement) => {
               imageCaptureCanvasRef.current = canvas;
             }}
           />
@@ -2489,7 +2613,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
               lighting={lighting}
               exportMode
               backgroundCanvas={exportReferenceBackground}
-              onCanvasReady={(canvas) => {
+              onCanvasReady={(canvas: HTMLCanvasElement) => {
                 exportCanvasRef.current = canvas;
               }}
             />
@@ -2514,7 +2638,9 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       )}
       <div className="toast-stack">
         {toasts.map((item) => {
-          const tier = item.level || 'info';
+          const tier: ToastTier = ['info', 'success', 'warning', 'error'].includes(item.level)
+            ? (item.level as ToastTier)
+            : 'info';
           const Icon = TOAST_ICONS[tier] || Info;
           return (
             <div key={item.id} className={`toast toast-${tier}`}>

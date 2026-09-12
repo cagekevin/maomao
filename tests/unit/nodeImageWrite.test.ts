@@ -152,9 +152,17 @@ describe('源码护栏 — 图片写回只有一个门', () => {
   });
 
   it('读侧兜底必须保留（存量快照里有只带 url 的节点，删了就读丢）', () => {
+    // docs/122 #4/#5：读侧「渲染解析」已收口为唯一入口 resolveAssetDisplayUrl
+    // （AssetNode 不再内联 `assetUrl || url`，统一走该入口；兜底行为迁到 assetUrl.ts）。
+    // 护栏分两层：① AssetNode 必须经由该入口（防回退内联 / 绕过 missing 态）；
+    // ② 该入口函数本身必须保留 assetUrl 存量兜底（无 resourceId/url 时退回 assetUrl）。
     expect(
-      /data\.assetUrl\s*\|\|\s*data\.url/.test(readSrc('src/components/nodes/AssetNode.tsx')),
-      'AssetNode 渲染必须保留 assetUrl || url 兜底',
+      /resolveAssetDisplayUrl\(/.test(readSrc('src/components/nodes/AssetNode.tsx')),
+      'AssetNode 渲染必须经唯一入口 resolveAssetDisplayUrl（不得回退内联 assetUrl || url）',
+    ).toBe(true);
+    expect(
+      /typeof d\.assetUrl === 'string'/.test(readSrc('src/components/base/utils/assetUrl.ts')),
+      'resolveAssetDisplayUrl 必须保留 assetUrl 存量兜底（无 resourceId/url 时退回 assetUrl）',
     ).toBe(true);
     expect(
       /node\?\.data\?\.assetUrl\s*\|\|\s*node\?\.data\?\.url/.test(readSrc('src/App.tsx')),

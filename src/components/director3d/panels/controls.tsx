@@ -133,7 +133,7 @@ export function VectorFields({
     : kind === 'scale'
       ? { min: 0.1, max: 5, step: 0.05, unit: '' }
       : { min: -30, max: 30, step: 0.05, unit: '' };
-  const update = (index, next) => {
+  const update = (index: number, next: number) => {
     if (kind === 'scale' && scaleAxisLocks[index]) return;
     const copy = [...display];
     if (kind === 'scale' && proportionalScale) {

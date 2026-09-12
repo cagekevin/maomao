@@ -1,6 +1,19 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { ChevronDown, ChevronUp, FileImage, Move3D, Trash2 } from 'lucide-react';
-import { cloneProjectValue, DEFAULT_REFERENCE, normalizeReference } from '../project.ts';
+import {
+  cloneProjectValue,
+  DEFAULT_REFERENCE,
+  normalizeReference,
+  ProjectReference,
+} from '../project.ts';
+
+interface ReferenceOverlayProps {
+  reference: ProjectReference;
+  onChange: Dispatch<SetStateAction<ProjectReference>>;
+  cameraMode?: boolean;
+  cameraAspect?: number;
+  children?: React.ReactNode;
+}
 
 export function ReferenceOverlay({
   reference,
@@ -8,12 +21,13 @@ export function ReferenceOverlay({
   cameraMode = false,
   cameraAspect = 16 / 9,
   children,
-}) {
+}: ReferenceOverlayProps) {
   const dragRef = useRef(null);
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(true);
-  const update = (patch) => onChange((current) => normalizeReference({ ...current, ...patch }));
-  const beginDrag = (event) => {
+  const update = (patch: Partial<ProjectReference>) =>
+    onChange((current) => normalizeReference({ ...current, ...patch }));
+  const beginDrag = (event: React.PointerEvent) => {
     if (!editing) return;
     event.preventDefault();
     event.stopPropagation();
@@ -29,7 +43,7 @@ export function ReferenceOverlay({
     };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
-  const moveDrag = (event) => {
+  const moveDrag = (event: React.PointerEvent) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     update({
@@ -37,7 +51,7 @@ export function ReferenceOverlay({
       y: drag.y + ((event.clientY - drag.startY) / Math.max(1, drag.height)) * 100,
     });
   };
-  const endDrag = (event) => {
+  const endDrag = (event: React.PointerEvent) => {
     if (dragRef.current?.pointerId !== event.pointerId) return;
     dragRef.current = null;
     event.currentTarget.releasePointerCapture?.(event.pointerId);

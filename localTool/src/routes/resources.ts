@@ -3,6 +3,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
@@ -23,7 +24,12 @@ import {
   buildPaginatedQuery,
   paginatedResult,
 } from '../utils/helpers.js';
-import { writeUploadBuffer, ensureDir, resolveUploadFile } from '../utils/fileStore.js';
+import {
+  writeUploadBuffer,
+  ensureDir,
+  resolveUploadFile,
+  contentIdOf,
+} from '../utils/fileStore.js';
 import { runReferenceGc } from '../utils/orphanGc.js';
 import { toAbsoluteFileUrl } from '../utils/localToolBaseUrl.js';
 import { mimeToExt } from '../utils/mime.js';
@@ -60,6 +66,19 @@ const RESCAN_FILE_TYPE: Record<string, string> = {
 
 function extToFileType(ext: string): string | null {
   return RESCAN_FILE_TYPE[ext.toLowerCase()] || null;
+}
+
+/**
+ * 计算文件内容 sha1（去重身份列 A′）。读文件失败返回 null（不阻断 rescan，缺失列可下次回填）。
+ * @param {string} filePath 磁盘绝对路径
+ * @returns {string|null} sha1(file 内容) hex；读失败 → null
+ */
+function contentSha1(filePath: string): string | null {
+  try {
+    return crypto.createHash('sha1').update(fs.readFileSync(filePath)).digest('hex');
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -178,15 +197,34 @@ export async function handleResourcesRescan(
 
       const url = toAbsoluteFileUrl(`/files/${childRel}`);
       const id = resourceIdOf(childRel);
+      const absPath = path.join(absDir, entry.name);
 
-      // 已存在同 id 则跳过（保留收藏/手动元数据）
-      const exist = queryOne(dbh, 'SELECT id FROM resources WHERE id = ?', [id]);
+      // 已存在同 id → 保留收藏/手动元数据；若缺去重身份列则懒回填（避免每次 rescan 全表重读文件）
+      const exist = queryOne(dbh, 'SELECT id, sha1 FROM resources WHERE id = ?', [id]);
       if (exist) {
+        if (!exist.sha1) {
+          const h = contentSha1(absPath);
+          if (h) run(dbh, `UPDATE resources SET sha1 = ? WHERE id = ?`, [contentIdOf(h), id]);
+        }
         counters.skipped++;
         continue;
       }
 
-      const stat = fs.statSync(path.join(absDir, entry.name));
+      const stat = fs.statSync(absPath);
+      const fileSha1 = contentSha1(absPath);
+      const contentIdVal = fileSha1 ? contentIdOf(fileSha1) : null;
+      // Content 维度去重（docs/122）：该 contentId 已被另一 id 引用 → 复用既有 Content，
+      // 不新建重复 row（否则撞 UNIQUE → rescan 崩）。应用层先判、DB 唯一约束兜底。
+      if (contentIdVal) {
+        const existing = queryOne(dbh, 'SELECT url FROM resources WHERE sha1 = ? AND id != ?', [
+          contentIdVal,
+          id,
+        ]);
+        if (existing) {
+          counters.skipped++;
+          continue;
+        }
+      }
       const row = resourceToRow({
         id,
         url,
@@ -194,6 +232,8 @@ export async function handleResourcesRescan(
         source: 'local-tool',
         folder: relFolderPath,
         name: entry.name,
+        // 去重身份列（docs/122 Content 维度）：contentId = `<alg>:<hex>`，folder 无关、全库唯一
+        sha1: contentIdVal,
         timestamp: stat.mtimeMs ? Math.floor(stat.mtimeMs) : Date.now(),
       });
       upsertResource(dbh, row);
@@ -238,6 +278,8 @@ const SNAKE_TO_CAMEL: Record<string, string> = {
   source: 'source',
   folder: 'folder',
   name: 'name',
+  sha1: 'sha1',
+  project_id: 'projectId',
   page_url: 'pageUrl',
   page_title: 'pageTitle',
   is_favorite: 'isFavorite',
@@ -252,6 +294,8 @@ function rowToResource(row: Record<string, unknown>) {
     const camelKey = SNAKE_TO_CAMEL[key] || key;
     resource[camelKey] = camelKey === 'isFavorite' ? Boolean(value) : value;
   }
+  // docs/122 #4：暴露 contentId 别名（= sha1 去重身份列），供前端 asset 持稳定 contentId（folder/url 无关）
+  if (typeof resource.sha1 === 'string' && resource.sha1) resource.contentId = resource.sha1;
   return resource;
 }
 
@@ -272,12 +316,37 @@ function upsertResource(db: any, row: Record<string, unknown>) {
   run(db, `INSERT INTO resources (${keys.join(', ')}) VALUES (${placeholders})`, vals);
 }
 
+/**
+ * projectId 过滤谓词（docs/122 #2 语义的纯函数表达）：
+ *  - filterProjectId 缺省 → 不过滤（全量，向后兼容）
+ *  - rowProjectId 为 null/undefined（legacy/全局物理）→ 对所有 project 可见
+ *  - 否则 → 仅当与过滤 projectId 相同才可见
+ * @param {string|null|undefined} rowProjectId 行内 project_id
+ * @param {string|null|undefined} filterProjectId 查询过滤的 projectId（缺省 = 不过滤）
+ * @returns {boolean}
+ */
+export function resourceVisibleForProject(
+  rowProjectId: string | null | undefined,
+  filterProjectId: string | null | undefined,
+): boolean {
+  if (filterProjectId === undefined || filterProjectId === null || filterProjectId === '')
+    return true;
+  if (rowProjectId === undefined || rowProjectId === null) return true; // legacy NULL 全项目可见
+  return rowProjectId === filterProjectId;
+}
+
 export async function handleResourcesGet(
   req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {
   const params = parsePagination(url, { sortBy: 'timestamp', sortDir: 'DESC' });
+  // 【docs/122 #2】GET ?projectId= 作为 project_id 的「NULL 也可见」过滤（统一走 buildPaginatedQuery nullOrEqCols）。
+  // 语义：project_id IS NULL（legacy/全局物理，rescan 行保持 NULL 不分裂）或等于该 projectId 的行可见。
+  const projectId = url.searchParams.get('projectId');
+  if (projectId) {
+    params.filters = { ...(params.filters || {}), project_id: projectId };
+  }
   const searchColumns = [
     'id',
     'url',
@@ -285,6 +354,7 @@ export async function handleResourcesGet(
     'source',
     'folder',
     'name',
+    'project_id',
     'page_url',
     'page_title',
     'timestamp',
@@ -293,6 +363,7 @@ export async function handleResourcesGet(
     'resources',
     params,
     searchColumns,
+    ['project_id'],
   );
 
   const db = await getDb();
@@ -514,8 +585,80 @@ export async function applyResourceIdentityChange(opts: {
 }
 
 /**
- * 重命名一条资源（同步改磁盘文件名 + resources 表记录）。
- * 仅支持 source='local-tool' 的本地文件型资源；保留原扩展名，只改文件名主体。
+ * 增量② · 上下文仅改名/移动（docs/122 Content/Ref：#4「改名/移动只动 context」）：
+ * 只更新 resource 行的 `name`（显示名）/`folder`（UI 分类），**不动磁盘、不改 `url`（含不可变 physBucket）、
+ * 不改 contentId** → 引用方（asset 持 contentId/url）永不感知改名 → **永不破图，无需 rewriteUrlReferences**。
+ * 这是对 applyResourceIdentityChange（真·移动磁盘 + 改写 url）的正交替代：改名/移动归类属 context 层操作。
+ * @returns 更新后的 { id, url(不变), name, folder }；url/contentId 保持原值
+ */
+export async function applyResourceContextChange(opts: {
+  id: string;
+  /** 新显示名（仅改 UI 名，不动物理文件名） */
+  name?: string;
+  /** 新 UI 分类目录（仅改展示，不移动磁盘/物理路径） */
+  folder?: string;
+}): Promise<{ id: string; url: string; name: string; folder: string | null }> {
+  const db = await getDb();
+  const row = queryOne(db, 'SELECT * FROM resources WHERE id = ?', [opts.id]) as
+    Record<string, unknown> | undefined;
+  if (!row) throw new HttpStatusError(404, 'Resource not found');
+  const name =
+    opts.name !== undefined && String(opts.name).trim()
+      ? String(opts.name).trim()
+      : (row.name as string);
+  const folder =
+    opts.folder !== undefined && String(opts.folder).trim()
+      ? String(opts.folder).trim()
+      : ((row.folder as string | null) ?? null);
+  // 只改 context 层：url（物理, 含 physBucket）、contentId、磁盘均不动
+  run(db, 'UPDATE resources SET name = ?, folder = ? WHERE id = ?', [name, folder, opts.id]);
+  debouncedSaveDb();
+  return { id: opts.id, url: row.url as string, name, folder };
+}
+
+/**
+ * 增量② · context-only 移动归类（docs/122 Content/Ref：#4「移动只动 context」）：
+ * 把资源拖入文件夹 = 只更新 resource 行的 `folder`（UI 分类），**物理文件 / url / contentId 均不动**。
+ * 与 applyResourceContextChange 同一 context 层语义；按「旧相对路径」定位 resource 行（id = resourceIdOf(oldRel)）。
+ * 行不存在（尚未 rescan）时无元数据可改、物理本就未动，返回原样（由后续 rescan 对齐）。
+ * @returns 更新后的 { id, url(url 不变，可能 null 当行不存在), name, folder }
+ */
+export async function applyResourceContextMove(opts: {
+  oldRel: string;
+  newRel: string;
+}): Promise<{ id: string; url: string | null; name: string; folder: string | null }> {
+  const { oldRel, newRel } = opts;
+  // 路径安全（context-only 虽不碰磁盘，仍拒绝越出 uploads 的相对路径，防脏 folder 污染 UI）
+  if (
+    !oldRel ||
+    !newRel ||
+    oldRel.includes('..') ||
+    newRel.includes('..') ||
+    oldRel.startsWith('/') ||
+    newRel.startsWith('/')
+  ) {
+    throw new HttpStatusError(400, '非法的资源路径');
+  }
+  const oldName = path.posix.basename(oldRel);
+  const parent = path.posix.dirname(newRel);
+  const folder = parent === '.' ? '' : parent;
+  const id = resourceIdOf(oldRel);
+
+  const db = await getDb();
+  const row = queryOne(db, 'SELECT * FROM resources WHERE id = ?', [id]) as
+    Record<string, unknown> | undefined;
+  if (!row) {
+    // context-only 移动：行不存在则无可更新元数据，物理文件未动，返回原样供前端刷新
+    return { id, url: null, name: oldName, folder };
+  }
+  run(db, 'UPDATE resources SET folder = ? WHERE id = ?', [folder, id]);
+  debouncedSaveDb();
+  return { id, url: row.url as string, name: row.name as string, folder };
+}
+
+/**
+ * 重命名一条资源（context-only）：只改显示名，磁盘文件 / url / contentId 不变（docs/122 增量②）。
+ * 仅支持 source='local-tool' 的本地文件型资源；保留原扩展名，只改文件名主体（显示名）。
  * 用法：POST /api/resources/rename?id=<id>&name=<新名>
  */
 export async function handleResourcesRename(
@@ -534,7 +677,6 @@ export async function handleResourcesRename(
   if (row.source !== 'local-tool' || row.type === 'folder')
     return sendError(res, '仅支持重命名本地文件', 400);
 
-  const folder = (row.folder as string) || '';
   const oldName = row.name as string;
   const ext = path.extname(oldName);
   let base = String(rawName || '').trim();
@@ -548,11 +690,9 @@ export async function handleResourcesRename(
   if (!newFileName || newFileName === oldName)
     return json(res, { code: 0, data: { ok: true, id, url: row.url, name: oldName } });
 
-  const oldRel = folder ? `${folder}/${oldName}` : oldName;
-  const newRel = folder ? `${folder}/${newFileName}` : newFileName;
   try {
-    // 与「移动归类」共用同一个身份变更入口：判重 / 表行迁移（保收藏）/ 引用改写 / 落盘一次做完
-    const r = await applyResourceIdentityChange({ oldRel, newRel, newName: newFileName });
+    // context-only 改名：只更新显示名，url/contentId/磁盘不变 → asset 永不破图（docs/122 #4）
+    const r = await applyResourceContextChange({ id, name: newFileName });
     return json(res, { code: 0, data: { ok: true, id: r.id, url: r.url, name: r.name } });
   } catch (e) {
     const status = e instanceof HttpStatusError ? e.status : 500;

@@ -9,24 +9,31 @@ import {
   useState,
 } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import type { ThreeEvent } from '@react-three/fiber';
 import { ContactShadows, Grid, OrbitControls, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { StudioPerson, ImportedModel } from './models.tsx';
 import { PrimitiveModel } from './primitives.tsx';
 import { DepthMeshModel } from './depth.tsx';
 import { CAMERA_ID, DEFAULT_LIGHTING, aspectValue, pathSamplePoints } from './project.ts';
-import type { ProjectCamera, ProjectObject } from './project.ts';
+import type { ProjectCamera, ProjectLighting, ProjectObject } from './project.ts';
 import SceneGizmo from './SceneGizmo.tsx';
 
-const normalizeNum = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
+const normalizeNum = (value: number | string) =>
+  Number.isFinite(Number(value)) ? Number(value) : 0;
 
-function sceneObjectIdFromIntersection(intersection) {
+function sceneObjectIdFromIntersection(intersection: THREE.Intersection) {
   let object = intersection?.object;
   while (object && !object.userData?.sceneObjectId) object = object.parent;
   return object?.userData?.sceneObjectId || null;
 }
 
-function shouldKeepCurrentSelection(event, selectedId, selected, transformMode) {
+function shouldKeepCurrentSelection(
+  event: ThreeEvent<PointerEvent>,
+  selectedId: string | null,
+  selected: boolean,
+  transformMode: 'select' | 'translate' | 'rotate' | 'scale',
+) {
   // 当前没有选中目标 → 允许点击选中任意物体
   if (!selected || !selectedId) return false;
   // 已选中：非 select 模式（translate/rotate/scale）点击当前已选中的物体时保持选择，
@@ -44,6 +51,22 @@ function shouldKeepCurrentSelection(event, selectedId, selected, transformMode) 
   );
 }
 
+interface SceneObjectProps {
+  data: ProjectObject;
+  selected?: boolean;
+  selectedId?: string | null;
+  activeJoint?: string | null;
+  transformMode?: 'select' | 'translate' | 'rotate' | 'scale';
+  transformSpace?: 'local' | 'world';
+  snapEnabled?: boolean;
+  groundRequest?: { id: string; nonce: number } | null;
+  onSelect?: (id: string) => void;
+  onUpdate?: (id: string, patch: Record<string, unknown>) => void;
+  onJointSelect?: (objectId: string, jointId: string) => void;
+  animationTime?: number;
+  preview?: boolean;
+}
+
 function SceneObject({
   data,
   selected,
@@ -58,21 +81,7 @@ function SceneObject({
   onJointSelect,
   animationTime = 0,
   preview = false,
-}: {
-  data: ProjectObject;
-  selected?: boolean;
-  selectedId?: string | null;
-  activeJoint?: string | null;
-  transformMode?: 'select' | 'translate' | 'rotate' | 'scale';
-  transformSpace?: 'local' | 'world';
-  snapEnabled?: boolean;
-  groundRequest?: { id: string; nonce: number } | null;
-  onSelect?: (id: string) => void;
-  onUpdate?: (id: string, patch: Record<string, unknown>) => void;
-  onJointSelect?: (objectId: string, jointId: string) => void;
-  animationTime?: number;
-  preview?: boolean;
-}) {
+}: SceneObjectProps) {
   const groupRef = useRef<THREE.Group>(null);
   const objectRotateDrag = useRef<{
     pointerId: number;
@@ -149,14 +158,14 @@ function SceneObject({
     });
   }, [data.id, data.proportionalScale, data.scaleAxisLocks, onUpdate, transformMode]);
   const beginObjectInteraction = useCallback(
-    (event) => {
+    (event: ThreeEvent<PointerEvent>) => {
       if (shouldKeepCurrentSelection(event, selectedId, selected, transformMode)) return;
       event.stopPropagation();
       onSelect(data.id);
       if (data.locked) return;
       if (!selected || transformMode !== 'rotate' || !groupRef.current) return;
       event.nativeEvent?.stopImmediatePropagation?.();
-      event.target?.setPointerCapture?.(event.pointerId);
+      (event.target as Element | null)?.setPointerCapture?.(event.pointerId);
       objectRotateDrag.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
@@ -173,7 +182,7 @@ function SceneObject({
     [data.id, data.locked, onSelect, orbitControls, selected, selectedId, transformMode],
   );
   const rotateObjectFromSurface = useCallback(
-    (event) => {
+    (event: ThreeEvent<PointerEvent>) => {
       const drag = objectRotateDrag.current;
       const object = groupRef.current;
       if (!drag || !object || event.pointerId !== drag.pointerId) return;
@@ -192,11 +201,11 @@ function SceneObject({
     [invalidate],
   );
   const endObjectInteraction = useCallback(
-    (event) => {
+    (event: ThreeEvent<PointerEvent>) => {
       const drag = objectRotateDrag.current;
       if (!drag || event.pointerId !== drag.pointerId) return;
       event.stopPropagation();
-      event.target?.releasePointerCapture?.(event.pointerId);
+      (event.target as Element | null)?.releasePointerCapture?.(event.pointerId);
       objectRotateDrag.current = null;
       if (orbitControls) orbitControls.enabled = true;
       document.body.style.cursor = '';
@@ -231,22 +240,22 @@ function SceneObject({
           bodyType={data.bodyType}
           pose={data.pose}
           poseTime={data.poseTime}
-          continuousMotion={data.continuousMotion}
+          continuousMotion={data.continuousMotion as boolean}
           animationTime={stateAnimationTime}
           rigRoot={data.rigRoot}
           joints={data.joints}
-          footLock={data.footLock}
+          footLock={data.footLock as boolean}
           color={data.color}
           selected={selected}
           selectedJoint={activeJoint}
           showBoneGizmo={!preview && transformMode === 'select'}
-          onSelectJoint={(jointId) => onJointSelect?.(data.id, jointId)}
-          onRotateJoint={(jointId, rotation) =>
+          onSelectJoint={(jointId: string) => onJointSelect?.(data.id, jointId)}
+          onRotateJoint={(jointId: string, rotation: number[]) =>
             onUpdate(data.id, {
               joints: { ...(data.joints as object), [jointId]: rotation },
             })
           }
-          onRotateJoints={(rotations) =>
+          onRotateJoints={(rotations: Record<string, number[]>) =>
             onUpdate(data.id, {
               joints: { ...(data.joints as object), ...rotations },
             })
@@ -325,9 +334,9 @@ function SceneObject({
 
 // P2：静止对象（非持续动作人物）的动画时间不影响渲染；回调 props 约定语义稳定。
 // 播放时这些对象的 data 引用不变，比较器让它们跳过逐帧重渲染，从而不再逐帧重建姿势/重放骨骼。
-const sceneObjectNeedsAnimation = (data) =>
+const sceneObjectNeedsAnimation = (data: ProjectObject) =>
   data?.type === 'person' && Boolean(data.continuousMotion);
-function sceneObjectPropsEqual(prev, next) {
+function sceneObjectPropsEqual(prev: SceneObjectProps, next: SceneObjectProps) {
   if (prev.data !== next.data) return false;
   if (prev.selected !== next.selected) return false;
   if (prev.selectedId !== next.selectedId) return false;
@@ -445,7 +454,7 @@ function CameraModel({
       'YXZ',
     );
   }, [data.position, data.rotation]);
-  const selectCamera = (event) => {
+  const selectCamera = (event: ThreeEvent<PointerEvent>) => {
     if (shouldKeepCurrentSelection(event, selectedId, selected, transformMode)) return;
     event.stopPropagation();
     onSelect(CAMERA_ID);
@@ -590,7 +599,7 @@ function PerformanceLight({ lighting = STUDIO_LIGHTING_DEFAULTS }) {
   );
 }
 
-function RendererExposure({ value = STUDIO_LIGHTING_DEFAULTS.exposure }) {
+function RendererExposure({ value = STUDIO_LIGHTING_DEFAULTS.exposure }): null {
   const { gl } = useThree();
   useEffect(() => {
     gl.toneMappingExposure = value;
@@ -598,7 +607,19 @@ function RendererExposure({ value = STUDIO_LIGHTING_DEFAULTS.exposure }) {
   return null;
 }
 
-function Ground({ showGrid = true, showSurface = true, plain = false, surfaceColor = null }) {
+interface GroundProps {
+  showGrid?: boolean;
+  showSurface?: boolean;
+  plain?: boolean;
+  surfaceColor?: string | null;
+}
+
+function Ground({
+  showGrid = true,
+  showSurface = true,
+  plain = false,
+  surfaceColor = null,
+}: GroundProps) {
   const color = surfaceColor || (plain ? '#5a5a57' : '#4b4b48');
   // 无缝背景模式（surfaceColor 非空）：地面放大到远超相机 far（200），
   // 这样从任何地面以上的视角都看不到地面边缘，与天空在 horizon 处同色衔接。
@@ -642,7 +663,7 @@ function ViewFocusController({
   request,
 }: {
   request: { position: [number, number, number]; height?: number; distance?: number } | null;
-}) {
+}): null {
   const { camera, controls } = useThree() as unknown as {
     camera: THREE.Camera;
     controls: OrbitLike | null;
@@ -667,7 +688,7 @@ function EditorCameraReporter({
 }: {
   enabled: boolean;
   onChange: (snapshot: { position: number[]; rotation: number[]; target: number[] }) => void;
-}) {
+}): null {
   const { camera, controls } = useThree() as unknown as {
     camera: THREE.Camera;
     controls: OrbitLike | null;
@@ -756,6 +777,25 @@ function ScreenConstantDot({
   );
 }
 
+interface PathPoint {
+  x: number;
+  y: number;
+  z: number;
+}
+
+interface PathDraft {
+  points: PathPoint[];
+}
+
+interface PathEditorProps {
+  pathDraft?: PathDraft | null;
+  anchorY?: number;
+  onPathChange?: (points: PathPoint[]) => void;
+  density?: 'dense' | 'mid' | 'sparse';
+  drawing?: boolean;
+  onContextMenuAt?: (index: number, clientX: number, clientY: number) => void;
+}
+
 function PathEditor({
   pathDraft,
   anchorY = 0,
@@ -763,7 +803,7 @@ function PathEditor({
   density = 'mid',
   drawing = false,
   onContextMenuAt,
-}) {
+}: PathEditorProps) {
   // 控制点抽稀间距：拖动超过该距离才新增一个点。档位越大点越少（曲线由平滑样条补齐，无需密点）
   const spacing = { dense: 0.6, mid: 1.4, sparse: 2.8 }[density] || 1.4;
   const { camera, gl, invalidate } = useThree() as unknown as {
@@ -809,7 +849,7 @@ function PathEditor({
 
   // 屏幕坐标 → 水平面（y=anchorY）世界坐标
   const toWorld = useCallback(
-    (clientX, clientY) => {
+    (clientX: number, clientY: number) => {
       const rect = gl.domElement.getBoundingClientRect();
       const ndc = new THREE.Vector2(
         ((clientX - rect.left) / rect.width) * 2 - 1,
@@ -830,7 +870,7 @@ function PathEditor({
   );
 
   const beginDraw = useCallback(
-    (event) => {
+    (event: ThreeEvent<PointerEvent>) => {
       event.stopPropagation();
       const point = toWorld(event.clientX, event.clientY);
       if (!point) return;
@@ -844,7 +884,7 @@ function PathEditor({
   );
 
   const beginGrab = useCallback(
-    (index, event) => {
+    (index: number, event: React.PointerEvent) => {
       event.stopPropagation();
       activeMode.current = index;
       setSelectedDot(index);
@@ -855,7 +895,7 @@ function PathEditor({
   );
 
   const handleMove = useCallback(
-    (event) => {
+    (event: PointerEvent) => {
       if (activeMode.current == null) return;
       const point = toWorld(event.clientX, event.clientY);
       if (!point) return;
@@ -921,7 +961,7 @@ function PathEditor({
   // - 曲线 hover 检测：把鼠标屏幕坐标与采样点集比 NDC 距离，命中阈值内视为「在曲线上」（光标变加号）
   // - 单击曲线 → 在鼠标处插入新控制点，插入位置按最近采样点所在段落到两个控制点之间
   const nearestOnCurve = useCallback(
-    (clientX, clientY) => {
+    (clientX: number, clientY: number) => {
       const rect = gl.domElement.getBoundingClientRect();
       const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
       const ndcY = -((clientY - rect.top) / rect.height) * 2 + 1;
@@ -944,7 +984,7 @@ function PathEditor({
   );
 
   const handleCurvePointerMove = useCallback(
-    (event) => {
+    (event: ThreeEvent<PointerEvent>) => {
       if (activeMode.current !== null) return; // 拖动/绘制中不切换加点提示
       const nearest = nearestOnCurve(event.clientX, event.clientY);
       setCurveHover(nearest.dist <= CURVE_HOVER_THRESHOLD);
@@ -953,7 +993,7 @@ function PathEditor({
   );
 
   const insertPointOnCurve = useCallback(
-    (event) => {
+    (event: ThreeEvent<PointerEvent>) => {
       event.stopPropagation();
       const point = toWorld(event.clientX, event.clientY);
       if (!point || curvePoints.length < 2) return;
@@ -971,7 +1011,7 @@ function PathEditor({
   );
 
   const addPointOnDoubleClick = useCallback(
-    (event) => {
+    (event: ThreeEvent<MouseEvent>) => {
       event.stopPropagation();
       const point = toWorld(event.clientX, event.clientY);
       if (!point) return;
@@ -986,7 +1026,7 @@ function PathEditor({
   );
 
   const onRightClick = useCallback(
-    (event) => {
+    (event: MouseEvent) => {
       event.stopPropagation();
       event.preventDefault(); // 屏蔽浏览器原生菜单，改用自己的「删除此点/删除整条曲线」菜单
       // 找到离光标最近的控制点，连同屏幕坐标上报给外层弹出「删除此点/删除整条」菜单
@@ -1024,7 +1064,7 @@ function PathEditor({
         }}
         onPointerMove={drawing ? undefined : handleCurvePointerMove}
         onDoubleClick={drawing ? undefined : addPointOnDoubleClick}
-        onContextMenu={drawing ? undefined : onRightClick}
+        onContextMenu={drawing ? undefined : (event) => onRightClick(event.nativeEvent)}
       >
         <planeGeometry args={[200, 200]} />
         <meshBasicMaterial visible={false} side={THREE.DoubleSide} transparent opacity={0} />
@@ -1052,12 +1092,54 @@ function PathEditor({
             }}
             onPointerOut={() => setHoveredDot(-1)}
             onPointerDown={(event) => beginGrab(index, event)}
-            onContextMenu={drawing ? undefined : onRightClick}
+            onContextMenu={drawing ? undefined : (event) => onRightClick(event.nativeEvent)}
           />
         );
       })}
     </group>
   );
+}
+
+interface EditorSceneProps {
+  objects?: ProjectObject[];
+  selectedId?: string | null;
+  activeJoint?: string | null;
+  onSelect?: (id: string | null) => void;
+  onJointSelect?: (objectId: string, jointId: string) => void;
+  transformMode?: string;
+  transformSpace?: string;
+  snapEnabled?: boolean;
+  groundRequest?: { id: string; nonce: number } | null;
+  onUpdateObject?: (id: string, patch: Record<string, unknown>) => void;
+  cameraData?: ProjectCamera;
+  cameraAspect?: number;
+  editorCameraData?: {
+    target?: number[];
+    position?: number[];
+    rotation?: number[];
+  } | null;
+  onEditorCameraChange?: (snapshot: {
+    position: number[];
+    rotation: number[];
+    target: number[];
+  }) => void;
+  lighting?: ProjectLighting;
+  showGrid?: boolean;
+  performanceMode?: boolean;
+  focusRequest?: { position: [number, number, number]; height?: number; distance?: number } | null;
+  referenceVisible?: boolean;
+  cameraView?: boolean;
+  animationTime?: number;
+  onGizmoReady?: (handler: ((name: string) => void) | null) => void;
+  pathEditing?: boolean;
+  pathDrawing?: boolean;
+  pathDraft?: PathDraft | null;
+  pathAnchorY?: number;
+  pathDensity?: string;
+  onPathChange?: (points: PathPoint[]) => void;
+  onClearPath?: () => void;
+  onContextMenuAt?: (index: number, clientX: number, clientY: number) => void;
+  seamlessBackground?: boolean;
 }
 
 function EditorScene({
@@ -1093,7 +1175,7 @@ function EditorScene({
   onPathChange,
   onContextMenuAt,
   seamlessBackground = false,
-}) {
+}: EditorSceneProps) {
   return (
     <>
       {!referenceVisible &&
@@ -1122,8 +1204,8 @@ function EditorScene({
           selected={selectedId === object.id}
           selectedId={selectedId}
           activeJoint={activeJoint}
-          transformMode={transformMode}
-          transformSpace={transformSpace}
+          transformMode={transformMode as 'select' | 'translate' | 'rotate' | 'scale'}
+          transformSpace={transformSpace as 'local' | 'world'}
           snapEnabled={snapEnabled}
           groundRequest={groundRequest}
           onSelect={onSelect}
@@ -1137,8 +1219,8 @@ function EditorScene({
           data={cameraData}
           selected={selectedId === CAMERA_ID}
           selectedId={selectedId}
-          transformMode={transformMode}
-          transformSpace={transformSpace}
+          transformMode={transformMode as 'select' | 'translate' | 'rotate' | 'scale'}
+          transformSpace={transformSpace as 'local' | 'world'}
           snapEnabled={snapEnabled}
           onSelect={onSelect}
           onUpdate={onUpdateObject}
@@ -1148,7 +1230,7 @@ function EditorScene({
         <PathEditor
           pathDraft={pathDraft}
           anchorY={pathAnchorY}
-          density={pathDensity}
+          density={pathDensity as 'dense' | 'mid' | 'sparse'}
           drawing={pathDrawing}
           onPathChange={onPathChange}
           onContextMenuAt={onContextMenuAt}
@@ -1162,7 +1244,7 @@ function EditorScene({
       ) : (
         <OrbitControls
           makeDefault
-          target={editorCameraData?.target || [0, 1, 0]}
+          target={(editorCameraData?.target as [number, number, number]) || [0, 1, 0]}
           minDistance={2}
           maxDistance={35}
           maxPolarAngle={Math.PI}
@@ -1181,7 +1263,7 @@ function PreviewCameraController({
 }: {
   cameraData: ProjectCamera;
   cameraAspect: number;
-}) {
+}): null {
   const { camera, size } = useThree() as unknown as {
     camera: THREE.PerspectiveCamera;
     size: { width: number; height: number };
@@ -1209,7 +1291,11 @@ function PreviewCameraController({
   return null;
 }
 
-function CanvasBackground({ canvas }) {
+interface CanvasBackgroundProps {
+  canvas: HTMLCanvasElement | null;
+}
+
+function CanvasBackground({ canvas }: CanvasBackgroundProps) {
   const texture = useMemo(() => {
     if (!canvas) return null;
     const next = new THREE.CanvasTexture(canvas);
@@ -1225,6 +1311,18 @@ function CanvasBackground({ canvas }) {
   );
 }
 
+interface PreviewSceneProps {
+  objects?: ProjectObject[];
+  cameraData?: ProjectCamera;
+  cameraAspect?: number;
+  lighting?: ProjectLighting;
+  backgroundCanvas?: HTMLCanvasElement | null;
+  animationTime?: number;
+  performanceMode?: boolean;
+  lightweight?: boolean;
+  seamlessBackground?: boolean;
+}
+
 function PreviewScene({
   objects,
   cameraData,
@@ -1235,7 +1333,7 @@ function PreviewScene({
   performanceMode = false,
   lightweight = false,
   seamlessBackground = false,
-}) {
+}: PreviewSceneProps) {
   return (
     <>
       {backgroundCanvas ? (
@@ -1269,7 +1367,7 @@ function PreviewScene({
   );
 }
 
-export function MainViewport(props) {
+export function MainViewport(props: EditorSceneProps) {
   const editorCamera = props.editorCameraData || {};
   // 摄像机视角的初始相机朝向用 'YXZ'：与 cameraRotationToward 生成约定一致（见 PreviewCameraController）
   const shotCameraRotation = useMemo(() => {
@@ -1278,15 +1376,17 @@ export function MainViewport(props) {
   }, [props.cameraData.rotation]);
   const cameraSettings = props.cameraView
     ? {
-        position: props.cameraData.position,
+        position: props.cameraData.position as [number, number, number],
         rotation: shotCameraRotation,
         fov: 42,
         near: 0.05,
         far: 200,
       }
     : {
-        position: editorCamera.position || [8.5, 6.4, 9.5],
-        ...(editorCamera.rotation ? { rotation: editorCamera.rotation } : {}),
+        position: (editorCamera.position as [number, number, number]) || [8.5, 6.4, 9.5],
+        ...(editorCamera.rotation
+          ? { rotation: editorCamera.rotation as [number, number, number] }
+          : {}),
         fov: 42,
         near: 0.05,
         far: 200,
@@ -1310,6 +1410,19 @@ export function MainViewport(props) {
   );
 }
 
+interface CameraPreviewProps {
+  objects?: ProjectObject[];
+  cameraData?: ProjectCamera;
+  cameraAspect?: number;
+  lighting?: ProjectLighting;
+  backgroundCanvas?: HTMLCanvasElement | null;
+  animationTime?: number;
+  onCanvasReady?: (canvas: HTMLCanvasElement) => void;
+  exportMode?: boolean;
+  performanceMode?: boolean;
+  seamlessBackground?: boolean;
+}
+
 export function CameraPreview({
   objects,
   cameraData,
@@ -1321,7 +1434,7 @@ export function CameraPreview({
   exportMode = false,
   performanceMode = false,
   seamlessBackground = false,
-}) {
+}: CameraPreviewProps) {
   // 监视器小窗（非导出）始终轻量渲染：dpr=1、无阴影、无接触阴影、无抗锯齿，静止时零渲染；
   // 导出画布（exportMode）保持最终画质（阴影取决于性能模式）。两者都按需渲染 frameloop="demand"。
   const lightweight = !exportMode;
@@ -1331,7 +1444,7 @@ export function CameraPreview({
       dpr={1}
       frameloop="demand"
       camera={{
-        position: cameraData.position,
+        position: cameraData.position as [number, number, number],
         fov: 40,
         aspect: cameraAspect,
         near: 0.05,

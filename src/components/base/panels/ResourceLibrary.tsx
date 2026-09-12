@@ -36,6 +36,7 @@ import {
   createFolder as createFolderApi,
 } from '../api/filesApi.ts';
 import { onResourceSent, emitResourceSent } from '../store/resourceStore.ts';
+import { useCurrentProjectId } from '../store/projectStore.ts';
 import { logger } from '../core/logger.ts';
 import { isAudio } from '../utils/assetType.ts';
 import LazyImage from '../ui/LazyImage.tsx';
@@ -135,6 +136,8 @@ const TextPreview = React.memo(function TextPreview({ url, name }: { url: string
 function ResourceLibrary() {
   const { status } = useLocalToolStatus();
   const connected = status.isConnected;
+  // docs/122 #3：按当前项目拉取素材（legacy project_id NULL 全项目可见，显式 projectId 只对其项目）
+  const projectId = useCurrentProjectId();
 
   const [folder, setFolder] = useState('migrated'); // 当前目录前缀路径（migrated 为「全部」根）
   const [preview, setPreview] = useState<ResourceItem | null>(null);
@@ -180,7 +183,12 @@ function ResourceLibrary() {
       pageRef.current = 1;
       try {
         if (rescan) await rescanResources();
-        const data = await fetchResources({ folder: currentFolder, page: 1, pageSize: PAGE_SIZE });
+        const data = await fetchResources({
+          folder: currentFolder,
+          page: 1,
+          pageSize: PAGE_SIZE,
+          projectId,
+        });
         if (token !== resetTokenRef.current) return;
         const d = data?.data;
         setItems(d?.items || []);
@@ -193,15 +201,15 @@ function ResourceLibrary() {
         if (token === resetTokenRef.current) setLoading(false);
       }
     },
-    [connected, currentFolder],
+    [connected, currentFolder, projectId],
   );
 
-  // 首次挂载 + 目录变化 → 重置到第 1 页并 rescan
+  // 首次挂载 + 目录变化 + 项目切换 → 重置到第 1 页并 rescan
   useEffect(() => {
     if (!connected) return;
     reset(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, currentFolder]);
+  }, [connected, currentFolder, projectId]);
 
   // 订阅「发送到素材库」成功事件：自动切到落盘目录并重新 rescan 拉取，
   // 解决此前「点完要切目录/点别处才刷新」的体感问题（resourceStore 与面板互不相通）。
@@ -219,7 +227,12 @@ function ResourceLibrary() {
     setLoading(true);
     const next = pageRef.current + 1;
     try {
-      const data = await fetchResources({ folder: currentFolder, page: next, pageSize: PAGE_SIZE });
+      const data = await fetchResources({
+        folder: currentFolder,
+        page: next,
+        pageSize: PAGE_SIZE,
+        projectId,
+      });
       const d = data?.data;
       if (d?.page && d.page > 1) {
         setItems((prev) => {
@@ -236,7 +249,7 @@ function ResourceLibrary() {
       loadingRef.current = false;
       setLoading(false);
     }
-  }, [connected, currentFolder, hasMore]);
+  }, [connected, currentFolder, hasMore, projectId]);
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current;

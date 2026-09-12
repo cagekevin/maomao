@@ -4,6 +4,9 @@ import {
   toRelativeFileUrl,
   buildThumbnailUrl,
   resolveAssetUrl,
+  contentIdOfBytes,
+  resolveAssetDisplayUrl,
+  assertMutuallyExclusiveAssetForm,
   normalizeAssetUrl,
   normalizeAssetUrlForSend,
   normalizeAssetUrlsForSend,
@@ -329,5 +332,65 @@ describe('assetUrl · classifyImageType / summarizeAssetUrls（发送图片可�
     vi.mocked(logger.info).mockClear();
     await normalizeAssetUrlsForSend([], { preferBase64: true });
     expect(logger.info).not.toHaveBeenCalled();
+  });
+});
+
+// ── resolveAssetDisplayUrl / assertMutuallyExclusiveAssetForm（docs/122 #4/#5：素材节点渲染解析 + 互斥双形态）──
+describe('assetUrl · resolveAssetDisplayUrl / assertMutuallyExclusiveAssetForm', () => {
+  const resolveFrom = (table: Record<string, string>) => (rid: string) =>
+    table[rid] ? table[rid] : null;
+
+  it('文件型（resourceId）命中 resource → 解析为 url', () => {
+    const st = resolveAssetDisplayUrl(
+      { resourceId: 'local-web-a.png' },
+      resolveFrom({ 'local-web-a.png': '/files/web/a.png' }),
+    );
+    expect(st).toEqual({ kind: 'ok', url: '/files/web/a.png' });
+  });
+
+  it('内联（url，dataURL/blob）→ 直接用，不查 resource', () => {
+    const st = resolveAssetDisplayUrl({ url: 'data:image/png;base64,xxx' }, resolveFrom({}));
+    expect(st).toEqual({ kind: 'ok', url: 'data:image/png;base64,xxx' });
+  });
+
+  it('文件型（resourceId）查无 → missing（fail-loud 显式缺失态）', () => {
+    const st = resolveAssetDisplayUrl({ resourceId: 'ghost' }, resolveFrom({}));
+    expect(st).toEqual({ kind: 'missing' });
+  });
+
+  it('存量兼容：仅 assetUrl 历史字段 → 原样使用（不断存量）', () => {
+    const st = resolveAssetDisplayUrl({ assetUrl: '/files/old.png' }, resolveFrom({}));
+    expect(st).toEqual({ kind: 'ok', url: '/files/old.png' });
+  });
+
+  it('empty / undefined → missing', () => {
+    expect(resolveAssetDisplayUrl(undefined, resolveFrom({}))).toEqual({ kind: 'missing' });
+  });
+
+  it('assertMutuallyExclusiveAssetForm：resourceId+url 双字段同指文件 → 违规', () => {
+    expect(assertMutuallyExclusiveAssetForm({ resourceId: 'x', url: '/files/x.png' })).toEqual([
+      'resourceId',
+      'url',
+    ]);
+  });
+
+  it('assertMutuallyExclusiveAssetForm：单形态（仅 resourceId 或仅 url）→ []', () => {
+    expect(assertMutuallyExclusiveAssetForm({ resourceId: 'x' })).toEqual([]);
+    expect(assertMutuallyExclusiveAssetForm({ url: '/files/x.png' })).toEqual([]);
+    expect(assertMutuallyExclusiveAssetForm({})).toEqual([]);
+  });
+});
+
+// ── contentIdOfBytes：由字节算 Content 维度 identity（docs/122 #4，与后端 sha1:<hex> 同源）──
+describe('assetUrl · contentIdOfBytes', () => {
+  it('由 ArrayBuffer 算 sha1:<hex>（与后端 contentIdOf(sha1(file)) 一致）', async () => {
+    // sha1('hello') = aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d
+    const cid = await contentIdOfBytes(new TextEncoder().encode('hello'));
+    expect(cid).toBe('sha1:aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d');
+  });
+
+  it('由 Blob 算同值（File 即 Blob，multipart 字节即其原文）', async () => {
+    const cid = await contentIdOfBytes(new Blob(['hello'], { type: 'text/plain' }));
+    expect(cid).toBe('sha1:aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d');
   });
 });

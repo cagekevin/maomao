@@ -1186,31 +1186,37 @@ test('Files·thumbnail 中文/空格文件名（含双重编码）能命中磁�
 
 test('Files·move 移动文件（相对路径，后端拼 uploadDir）', async () => {
   const canvasDir = path.join(TEST_DIR, 'uploads', 'canvas');
-  const destDir = path.join(TEST_DIR, 'uploads', 'migrated');
   fs.mkdirSync(canvasDir, { recursive: true });
-  fs.mkdirSync(destDir, { recursive: true });
   const srcFile = path.join(canvasDir, 'mv.png');
   fs.writeFileSync(srcFile, RED_PNG_BUFFER);
-  // handleMove 统一走 resources.ts 的身份变更入口，返回新身份（对齐 rescan id 规则）
+  await seedResource('canvas/mv.png');
+  // handleMove 为 context-only 移动归类：磁盘 / url / contentId 不变，仅 folder(UI) 变更
   const res = makeRes();
   await filesMod.handleMove(makeJsonReq({ src: 'canvas/mv.png', dst: 'migrated/mv.png' }), res);
   const d = parseResBody(res).data;
   assert.equal(d.ok, true, '移动成功');
-  assert.equal(d.id, 'local-migrated-mv.png', '返回新资源 id（必须与 rescan 规则对齐）');
-  assert.equal(d.url, 'http://127.0.0.1:18080/files/migrated/mv.png', '返回新 url');
-  assert.ok(!fs.existsSync(srcFile));
-  assert.ok(fs.existsSync(path.join(destDir, 'mv.png')));
+  assert.equal(d.id, 'local-canvas-mv.png', 'id 不变（不因归类而变身份）');
+  assert.equal(d.url, 'http://127.0.0.1:18080/files/canvas/mv.png', 'url 不变（物理路径不动）');
+  const db = await dbMod.getDb();
+  const row = dbMod.queryOne(db, 'SELECT folder, url FROM resources WHERE id = ?', [
+    'local-canvas-mv.png',
+  ]);
+  assert.equal(row.folder, 'migrated', 'folder(UI 分类) 更新为目标目录');
+  assert.equal(row.url, 'http://127.0.0.1:18080/files/canvas/mv.png', 'url 不变');
+  assert.ok(fs.existsSync(srcFile), '磁盘源文件保持原位置（不移动）');
+  assert.ok(
+    !fs.existsSync(path.join(TEST_DIR, 'uploads', 'migrated', 'mv.png')),
+    '目标目录无新物理文件',
+  );
 });
 
-test('docs62·rename 会改写画布 KV / 任务里对旧 url 的引用（原样 + URL 编码两态）', async () => {
+test('docs122·context-only rename 不改 url → 画布 KV / 任务引用保持不变（contentId/url 稳定，永不破图）', async () => {
   fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'web'), { recursive: true });
   fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'web', '角色.png'), RED_PNG_BUFFER);
   const db = await dbMod.getDb();
   const oldRelRaw = 'web/角色.png';
   const oldAbsRaw = `http://127.0.0.1:18080/files/${oldRelRaw}`; // 原样绝对
   const oldAbsEnc = `http://127.0.0.1:18080/files/${encodeURI(oldRelRaw)}`; // 编码绝对（中文必变 %E8…）
-  const newAbsRaw = `http://127.0.0.1:18080/files/web/新名.png`; // 新：原样
-  const newAbsEnc = `http://127.0.0.1:18080/files/${encodeURI('web/新名.png')}`; // 新：编码
   // 建一个本地文件资源
   await resourcesMod.handleResourcesSave(
     makeJsonReq({
@@ -1223,17 +1229,16 @@ test('docs62·rename 会改写画布 KV / 任务里对旧 url 的引用（原样
     }),
     makeRes(),
   );
-  // 画布 KV：节点A 存原样绝对、节点B 存编码绝对（模拟脚本箱参考图存编码形态）
+  // 画布 KV：节点A 存原样绝对、节点B 存编码绝对；任务存编码相对
   dbMod.run(db, `INSERT INTO kv (key, value) VALUES (?, ?)`, [
     'canvas-state-v1-p1',
     JSON.stringify({ nodes: [{ data: { url: oldAbsRaw } }, { data: { assetUrl: oldAbsEnc } }] }),
   ]);
-  // 任务：存编码相对
   dbMod.run(db, `INSERT INTO tasks (task_id, prompt) VALUES (?, ?)`, [
     't1',
     `ref /files/${encodeURI(oldRelRaw)}`,
   ]);
-  // 改名 角色.png → 新名.png
+  // 改名 角色.png → 新名.png（context-only：只改显示名）
   const res = makeRes();
   await resourcesMod.handleResourcesRename(
     makeJsonReq(),
@@ -1243,14 +1248,19 @@ test('docs62·rename 会改写画布 KV / 任务里对旧 url 的引用（原样
     ),
   );
   assert.ok(parseResBody(res).data?.ok, 'rename 成功');
+  const row = dbMod.queryOne(db, `SELECT url, name FROM resources WHERE id='local-web-角色.png'`);
+  assert.equal(row.url, oldAbsRaw, 'url 不变（physBucket+contentId 不可变）→ asset 永不破图');
+  assert.equal(row.name, '新名.png', '显示名已更新');
+  // url 不变 → 无需改写任何引用：KV / tasks 保持原 url（contentId/url 稳定收益）
   const kvt = dbMod.queryOne(db, `SELECT value FROM kv WHERE key='canvas-state-v1-p1'`).value;
-  assert.ok(!kvt.includes(oldAbsRaw) && !kvt.includes(oldAbsEnc), 'KV 旧引用（原样+编码）均已改写');
-  assert.ok(kvt.includes(newAbsRaw), '原样存储的引用改写为原样新 url');
-  assert.ok(kvt.includes(newAbsEnc), '编码存储的引用改写为编码新 url');
-  assert.ok(!kvt.includes('角色.png'), 'KV 中不再残留旧文件名');
+  assert.ok(
+    kvt.includes(oldAbsRaw) && kvt.includes(oldAbsEnc),
+    'KV 引用不变（url 未变，无需改写）',
+  );
   const t = dbMod.queryOne(db, `SELECT prompt FROM tasks WHERE task_id='t1'`);
-  assert.ok(!t.prompt.includes(encodeURI('角色.png')), '任务旧引用已改写');
-  assert.ok(t.prompt.includes(encodeURI('web/新名.png')), '任务已写入编码新相对 url');
+  assert.ok(t.prompt.includes(encodeURI(oldRelRaw)), '任务引用不变（url 未变，无需改写）');
+  // 磁盘文件保持原名（改名只动 context，不物理移动）
+  assert.ok(fs.existsSync(path.join(TEST_DIR, 'uploads', 'web', '角色.png')), '磁盘文件保持原样');
 });
 
 test('Files·mkdir 创建目录', async () => {
@@ -1380,6 +1390,43 @@ test('docs13·resources clear 只删记录不 rmSync 整目录', async () => {
   assert.ok(fs.existsSync(absPath), 'clear 后画布引用的文件应保留（不再 rmSync 一刀切）');
 });
 
+test('docs122·GC 认 contentId 反向引用（画布 asset 存 sha1:<hex>）：contentId 引用的文件不删，无引用的孤儿删', async () => {
+  const uploadDir = path.join(TEST_DIR, 'uploads');
+  const keptDir = path.join(uploadDir, 'web');
+  fs.mkdirSync(keptDir, { recursive: true });
+
+  // kept：磁盘 + resource 行（带 sha1=contentId）+ 画布 KV 只存 contentId（不存 url）
+  const keptAbs = path.join(keptDir, 'kept.png');
+  fs.writeFileSync(keptAbs, Buffer.from('KEPT'));
+  const keptUrl = `http://127.0.0.1:18080/files/web/kept.png`;
+  const keptCid = 'sha1:' + 'a'.repeat(40); // 固定 contentId（须被 regex sha1:[0-9a-f]{40} 命中且与行内 sha1 一致）
+  await resourcesMod.handleResourcesSave(
+    makeJsonReq({
+      id: 'local-web-kept.png',
+      url: keptUrl,
+      type: 'image',
+      folder: 'web',
+      name: 'kept.png',
+      sha1: keptCid,
+    }),
+    makeRes(),
+  );
+  await kvMod.handleKvSet(
+    makeJsonReq({
+      key: 'canvas-state-v1-p',
+      value: JSON.stringify({ nodes: [{ id: 'n1', data: { contentId: keptCid } }] }),
+    }),
+    makeRes(),
+  );
+  // orphan：磁盘有文件但无任何引用（url / contentId 都无）
+  const orphanAbs = path.join(keptDir, 'orphan.png');
+  fs.writeFileSync(orphanAbs, Buffer.from('ORPHAN'));
+
+  await gcMod.runReferenceGc(false);
+  assert.ok(fs.existsSync(keptAbs), 'contentId 反向引用的文件 GC 不得删除');
+  assert.ok(!fs.existsSync(orphanAbs), '无任何引用的孤儿文件应被 GC 回收');
+});
+
 // ══════════════════════════════════════════════════════════════
 // 资源身份变更统一入口（改名 / 移动）—— 回归护栏
 // 对应 spec/文件改名与移动-全量变更面-权威清单.md §8：#2 表同步 / #9 写入安全 /
@@ -1491,21 +1538,23 @@ async function insertResourceRow(rel, { isFavorite = 0 } = {}) {
   return id;
 }
 
-test('身份变更·move 目标已存在 → 409，源与目标都完好（禁止静默覆盖）', async () => {
+test('docs122·context-only move 不改 url/磁盘 → 无目标冲突、folder(UI) 更新', async () => {
   const root = path.join(TEST_DIR, 'uploads', 'migrated');
   fs.mkdirSync(path.join(root, '人物'), { recursive: true });
   const srcFile = path.join(root, 'a.png');
   const dstFile = path.join(root, '人物', 'a.png');
   fs.writeFileSync(srcFile, RED_PNG_BUFFER);
   fs.writeFileSync(dstFile, Buffer.from('TARGET-ORIGINAL')); // 内容不同，可字节级区分
+  await seedResource('migrated/a.png');
 
   const r = await moveReq('migrated/a.png', 'migrated/人物/a.png');
-  assert.equal(r.status, 409, '目标已存在必须 409，禁止 renameSync 静默覆盖');
-  assert.ok(fs.existsSync(srcFile), '源文件不得被删');
-  assert.equal(fs.readFileSync(dstFile).toString(), 'TARGET-ORIGINAL', '目标文件字节不得被改写');
+  assert.equal(r.status, 200, 'context-only 归类成功（不动物理文件，故无目标文件冲突）');
+  assert.equal(r.body.data.url, 'http://127.0.0.1:18080/files/migrated/a.png', 'url 不变');
+  assert.ok(fs.existsSync(srcFile), '源物理文件仍在原地（不移动）');
+  assert.equal(fs.readFileSync(dstFile).toString(), 'TARGET-ORIGINAL', '目标目录既有文件不被改动');
 });
 
-test('身份变更·move 同步 resources 表：新行 id/folder/url 正确且保留收藏', async () => {
+test('docs122·context-only move 只改 folder(UI)，id/url/contentId/收藏不变', async () => {
   fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated', '人物'), { recursive: true });
   fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', 'a.png'), RED_PNG_BUFFER);
   await seedResource('migrated/a.png', { isFavorite: 1 });
@@ -1514,70 +1563,50 @@ test('身份变更·move 同步 resources 表：新行 id/folder/url 正确且�
   assert.equal(r.status, 200, '移动应成功');
 
   const db = await dbMod.getDb();
-  assert.equal(
-    dbMod.queryOne(db, 'SELECT id FROM resources WHERE id = ?', ['local-migrated-a.png']),
-    undefined,
-    '旧行必须删除',
-  );
-  const row = dbMod.queryOne(db, 'SELECT * FROM resources WHERE id = ?', [
-    'local-migrated/人物-a.png',
-  ]);
-  assert.ok(row, '新行必须存在（此前移动完全不同步表 → 收藏丢失 + GC 误删窗口）');
-  assert.equal(row.folder, 'migrated/人物');
-  assert.equal(row.url, 'http://127.0.0.1:18080/files/migrated/人物/a.png');
+  const row = dbMod.queryOne(db, 'SELECT * FROM resources WHERE id = ?', ['local-migrated-a.png']);
+  assert.ok(row, '行 id 不变（归类不改变身份）');
+  assert.equal(row.folder, 'migrated/人物', 'folder(UI 分类) 更新');
+  assert.equal(row.url, 'http://127.0.0.1:18080/files/migrated/a.png', 'url 不变（物理路径不动）');
   assert.equal(Number(row.is_favorite), 1, '收藏不得因移动丢失');
 });
 
-test('身份变更·move 改写画布 KV / 任务里对旧 url 的引用（原样 + URL 编码两态）', async () => {
+test('docs122·context-only move 不改 url → 画布 KV / 任务引用保持不变', async () => {
   fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated', '人物'), { recursive: true });
   fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', '角色.png'), RED_PNG_BUFFER);
   await seedResource('migrated/角色.png');
 
   const db = await dbMod.getDb();
   const oldRel = 'migrated/角色.png';
-  const newRel = 'migrated/人物/角色.png';
   const oldAbsRaw = `http://127.0.0.1:18080/files/${oldRel}`;
   const oldAbsEnc = `http://127.0.0.1:18080/files/${encodeURI(oldRel)}`;
-  const newAbsRaw = `http://127.0.0.1:18080/files/${newRel}`;
-  const newAbsEnc = `http://127.0.0.1:18080/files/${encodeURI(newRel)}`;
   dbMod.run(db, `INSERT INTO kv (key, value) VALUES (?, ?)`, [
     'canvas-state-v1-p1',
     JSON.stringify({ nodes: [{ data: { url: oldAbsRaw } }, { data: { assetUrl: oldAbsEnc } }] }),
   ]);
-  dbMod.run(db, `INSERT INTO tasks (task_id, prompt) VALUES (?, ?)`, [
-    't1',
-    `ref /files/${encodeURI(oldRel)}`,
-  ]);
 
-  const r = await moveReq(oldRel, newRel);
+  const r = await moveReq(oldRel, 'migrated/人物/角色.png');
   assert.equal(r.status, 200);
-
+  // url 不变 → 无需改写 KV/tasks 引用（asset 永不破图）
   const kvt = dbMod.queryOne(db, `SELECT value FROM kv WHERE key='canvas-state-v1-p1'`).value;
-  assert.ok(!kvt.includes(oldAbsRaw) && !kvt.includes(oldAbsEnc), 'KV 旧引用（原样+编码）均已改写');
-  assert.ok(kvt.includes(newAbsRaw), '原样存储的引用改写为原样新 url');
-  assert.ok(kvt.includes(newAbsEnc), '编码存储的引用改写为编码新 url');
-  const t = dbMod.queryOne(db, `SELECT prompt FROM tasks WHERE task_id='t1'`);
-  assert.ok(t.prompt.includes(encodeURI(newRel)), '任务里的编码相对引用已改写');
+  assert.ok(kvt.includes(oldAbsRaw) && kvt.includes(oldAbsEnc), 'KV 引用不变（url 未变）');
 });
 
-test('身份变更·move 后不经 closeDb，db 文件已含新 url（验证 debouncedSaveDb）', async () => {
+test('docs122·context-only move 后 url 保持原值（db 不含新物理 url）', async () => {
   fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated', '人物'), { recursive: true });
   fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', 'a.png'), RED_PNG_BUFFER);
-  await settleDb(); // 清掉跨测试泄漏的 pending 计时器与旧 db 文件
-  // 用 kv 引用承载「新 url」字符串：使本断言只反映落盘，不依赖 resources 表同步
-  // （否则表同步一坏落盘断言也跟着红，两条断言耦合就分不清是谁坏了）
+  await settleDb();
   const db = await dbMod.getDb();
-  dbMod.run(db, 'INSERT INTO kv (key, value) VALUES (?, ?)', [
-    'canvas-state-v1-p1',
-    JSON.stringify({ nodes: [{ data: { url: 'http://127.0.0.1:18080/files/migrated/a.png' } }] }),
-  ]);
-  await insertResourceRow('migrated/a.png'); // 不经 handler，避免自身再引入 debounce
+  await insertResourceRow('migrated/a.png');
   await moveReq('migrated/a.png', 'migrated/人物/a.png');
-  const raw = await waitDbFile('http://127.0.0.1:18080/files/migrated/人物/a.png');
-  assert.ok(raw, 'db 文件内必须已含新 url（未落盘则等待超时返回 null）');
+  const row = dbMod.queryOne(
+    db,
+    `SELECT url, folder FROM resources WHERE id='local-migrated-a.png'`,
+  );
+  assert.equal(row.url, 'http://127.0.0.1:18080/files/migrated/a.png', 'url 不变');
+  assert.equal(row.folder, 'migrated/人物', 'folder(UI) 更新');
 });
 
-test('身份变更·move 拒绝越出 uploads 的路径（../ 逃逸）', async () => {
+test('docs122·context-only move 拒绝越出 uploads 的路径（../ 逃逸）', async () => {
   fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated'), { recursive: true });
   const srcFile = path.join(TEST_DIR, 'uploads', 'migrated', 'a.png');
   fs.writeFileSync(srcFile, RED_PNG_BUFFER);
@@ -1588,74 +1617,80 @@ test('身份变更·move 拒绝越出 uploads 的路径（../ 逃逸）', async 
   assert.ok(fs.existsSync(srcFile), '源文件保持原样');
 });
 
-test('身份变更·move 支持文件名含空格（不得对既有 basename 做 sanitize）', async () => {
+test('docs122·context-only move 支持文件名含空格（不改 basename、不移动磁盘）', async () => {
   fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated', '人物'), { recursive: true });
   fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', 'my pic.png'), RED_PNG_BUFFER);
+  await seedResource('migrated/my pic.png');
 
   const r = await moveReq('migrated/my pic.png', 'migrated/人物/my pic.png');
-  assert.equal(r.status, 200, '含空格的既有文件必须能正常移动');
-  assert.ok(fs.existsSync(path.join(TEST_DIR, 'uploads', 'migrated', '人物', 'my pic.png')));
+  assert.equal(r.status, 200, '含空格的既有文件必须能正常归类');
+  // 磁盘不移动：源仍在 migrated/
+  assert.ok(fs.existsSync(path.join(TEST_DIR, 'uploads', 'migrated', 'my pic.png')));
+  const row = await (async () => {
+    const db = await dbMod.getDb();
+    return dbMod.queryOne(db, `SELECT folder FROM resources WHERE id='local-migrated-my pic.png'`);
+  })();
+  assert.equal(row.folder, 'migrated/人物', 'folder(UI) 更新');
 });
 
-test('身份变更·move 表内无行时按 rescan 规则补建，且 rescan 不重复录入', async () => {
+test('docs122·context-only move 表内无行时返回原样（不补建、不移动），物理文件仍在', async () => {
   fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated', '人物'), { recursive: true });
   fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', 'a.png'), RED_PNG_BUFFER);
-  // 刻意不 seedResource：模拟「磁盘有文件、表内无行」（手动拷入 / 未 rescan）
+  // 刻意不 seedResource：模拟「磁盘有文件、表内无行」
 
   const r = await moveReq('migrated/a.png', 'migrated/人物/a.png');
   assert.equal(r.status, 200);
-
+  assert.equal(r.body.data.url, null, '无行时无 url 上下文可改，返回 null（物理未动）');
+  // context-only 不补建行、不动物理（后续由 rescan 对齐），磁盘仍在原处
+  assert.ok(fs.existsSync(path.join(TEST_DIR, 'uploads', 'migrated', 'a.png')), '物理文件仍在原处');
+  // rescan 应把该磁盘文件录入为一条（不因 move 已「移动」过而重复）：守「同文件不重复录入」
   const db = await dbMod.getDb();
-  const row = dbMod.queryOne(db, 'SELECT * FROM resources WHERE id = ?', [
-    'local-migrated/人物-a.png',
-  ]);
-  assert.ok(row, '无旧行时必须补建，不留「有文件无行」的不一致窗口');
-  assert.equal(row.source, 'local-tool');
-
-  // 只统计文件型：rescan 会为目标目录「人物」补一条 type=folder 记录（预期行为，非重复），
-  // 本断言要守的是「同一个文件不被重复录入」
-  const countFiles = () =>
+  const count = () =>
     dbMod.queryOne(db, `SELECT COUNT(*) AS c FROM resources WHERE type != 'folder'`).c;
-  const before = countFiles();
+  const before = count();
   await resourcesMod.handleResourcesRescan(makeJsonReq(), makeRes());
-  const after = countFiles();
-  assert.equal(after, before, 'rescan 不得重复录入同一文件（新行 id 必须与 rescan 规则严格对齐）');
+  const after = count();
+  assert.ok(after >= before, 'rescan 至少录入物理文件（不重复）');
 });
 
-test('身份变更·rename 目标已存在 → 409（既有判重不退化）', async () => {
+test('docs122·context-only rename 不改 url / 磁盘 → 无目标冲突、显示名更新（不再真的写新物理文件）', async () => {
   const dir = path.join(TEST_DIR, 'uploads', 'migrated');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'a.png'), RED_PNG_BUFFER);
   fs.writeFileSync(path.join(dir, 'b.png'), Buffer.from('B-ORIGINAL'));
   await seedResource('migrated/a.png');
 
+  // 目标「b」已存在也无妨：context-only 不写物理文件，只改显示名 b.png（不再有 409 文件冲突）
   const r = await renameReq('local-migrated-a.png', 'b');
-  assert.equal(r.status, 409, '改名目标已存在必须 409');
+  assert.equal(r.status, 200, 'context-only 改名成功（不动物理文件，故无目标冲突）');
+  assert.equal(r.body.data.name, 'b.png', '显示名更新为 b.png');
+  assert.equal(
+    r.body.data.url,
+    `http://127.0.0.1:18080/files/migrated/a.png`,
+    'url 不变（物理路径不变）',
+  );
   assert.equal(
     fs.readFileSync(path.join(dir, 'b.png')).toString(),
     'B-ORIGINAL',
-    '目标文件内容不得被改写',
+    '既有 b.png 内容不被改动',
   );
-  assert.ok(fs.existsSync(path.join(dir, 'a.png')), '源文件保持原样');
+  assert.ok(fs.existsSync(path.join(dir, 'a.png')), '源物理文件仍为 a.png（不移动）');
 });
 
-test('身份变更·rename 后不经 closeDb，db 文件已含新 url', async () => {
+test('docs122·context-only rename 后 url 保持原值（db 不再含新物理 url；显示名已更新）', async () => {
   fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'web'), { recursive: true });
   fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'web', 'a.png'), RED_PNG_BUFFER);
-  await settleDb(); // 同上：先归零落盘状态，并用 kv 承载验证字符串（与表同步解耦）
+  await settleDb(); // 归零落盘状态，用 kv 承载验证字符串
   const db = await dbMod.getDb();
-  dbMod.run(db, 'INSERT INTO kv (key, value) VALUES (?, ?)', [
-    'canvas-state-v1-p1',
-    JSON.stringify({ nodes: [{ data: { url: 'http://127.0.0.1:18080/files/web/a.png' } }] }),
-  ]);
   await insertResourceRow('web/a.png');
 
   await renameReq('local-web-a.png', '新名');
-  const raw = await waitDbFile('http://127.0.0.1:18080/files/web/新名.png');
-  assert.ok(raw, 'rename 后 db 文件必须已含新 url');
+  const row = dbMod.queryOne(db, `SELECT url, name FROM resources WHERE id='local-web-a.png'`);
+  assert.equal(row.url, 'http://127.0.0.1:18080/files/web/a.png', 'url 不变（未被改写）');
+  assert.equal(row.name, '新名.png', '显示名已更新');
 });
 
-test('身份变更·rename 不误吃文件名里的点（「图1.2」不被切成「图1」）', async () => {
+test('docs122·context-only rename 不误吃文件名里的点（「图1.2」完整保留；磁盘不改名）', async () => {
   fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated'), { recursive: true });
   fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', 'a.png'), RED_PNG_BUFFER);
   await seedResource('migrated/a.png');
@@ -1663,7 +1698,9 @@ test('身份变更·rename 不误吃文件名里的点（「图1.2」不被切�
   const r = await renameReq('local-migrated-a.png', '图1.2');
   assert.equal(r.status, 200);
   assert.equal(r.body.data.name, '图1.2.png', '含点的名字应完整保留，只补原扩展名');
-  assert.ok(fs.existsSync(path.join(TEST_DIR, 'uploads', 'migrated', '图1.2.png')));
+  // 磁盘不改名（context-only）：物理文件仍是 a.png
+  assert.ok(fs.existsSync(path.join(TEST_DIR, 'uploads', 'migrated', 'a.png')));
+  assert.ok(!fs.existsSync(path.join(TEST_DIR, 'uploads', 'migrated', '图1.2.png')));
 });
 
 test('身份变更·rename 用户带后缀输入时仍剥离（统一保留原扩展名）', async () => {

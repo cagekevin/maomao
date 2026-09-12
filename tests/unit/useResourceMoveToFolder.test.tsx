@@ -113,11 +113,9 @@ describe('folderDropProps（目标·文件夹卡片）', () => {
     expect(mocks.moveFile).toHaveBeenCalledWith('migrated/a.png', 'migrated/人物/a.png');
     expect(mocks.showToast).toHaveBeenCalledWith('已移动到「migrated/人物」', { type: 'success' });
     expect(onRefreshed).toHaveBeenCalledTimes(1);
-    // 移动也必须广播 url 变更（与改名同一事件），App 据此同步内存节点，否则同会话内仍指旧路径 → 404
-    expect(mocks.publish).toHaveBeenCalledWith('resource:renamed', {
-      oldUrl: 'http://127.0.0.1:18080/files/migrated/a.png',
-      newUrl: 'http://127.0.0.1:18080/files/migrated/人物/a.png',
-    });
+    // 【增量② · context-only】move 只改 folder(UI)，url/contentId/磁盘不变 → 不广播 url 改写
+    //（url 未变则无需 rewrite；广播旧→新反而指向不存在的物理路径 → 破图）
+    expect(mocks.publish).not.toHaveBeenCalledWith('resource:renamed', expect.anything());
   });
 
   it('目标与源同目录 → 忽略，不调 moveFile，toast 提示', async () => {

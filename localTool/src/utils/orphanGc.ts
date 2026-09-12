@@ -13,6 +13,9 @@
  *   - 只删 getUploadDir() 目录内文件；
  *   - 跳过 .thumbnails/（缩略图可按需重新生成）；
  *   - dryRun 模式只统计不删除，先验证再执行。
+ *
+ * 更新(2026-09-12 · docs/122 增量④)：引用收集在「/files/ url」基础上，补充 **Content 维度 contentId 引用**
+ * （画布 asset 现持 `sha1:<hex>`；经 resources.sha1 反查物理 url 并入 referenced），防 contentId-only 引用被误判孤儿。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -75,6 +78,23 @@ function queryReferenceSources(db: Db): { refUrls: Set<string>; kvValues: string
   const kvValues = kvRows
     .map((r) => r.value)
     .filter((v): v is string => typeof v === 'string' && v.length > 0);
+  // 【docs/122 增量④】Content 维度反向引用：画布 asset 存稳定 contentId（`sha1:<hex>`，非 /files/ url），
+  // extractFilesUrls 取不到其 url 引用 —— 若不补该 contentId 引用 → 这些文件会被误判孤儿真删。
+  // 故把 KV 值里的 contentId 解析成物理 url 并入 refUrls（经 resources.sha1 反查；物理文件仍由 rescan 建行）。
+  const contentIdRe = /sha1:[0-9a-f]{40}/gi;
+  const contentIds = new Set<string>();
+  for (const v of kvValues) {
+    for (const m of v.matchAll(contentIdRe)) contentIds.add(m[0]);
+  }
+  if (contentIds.size > 0) {
+    const ids = [...contentIds];
+    const sha1Rows = queryAll(
+      db,
+      `SELECT url FROM resources WHERE sha1 IN (${ids.map(() => '?').join(',')})`,
+      ids,
+    ) as Array<{ url?: string }>;
+    for (const r of sha1Rows) if (r.url) refUrls.add(r.url);
+  }
   return { refUrls, kvValues };
 }
 

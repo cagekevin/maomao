@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
 import * as THREE from 'three';
 
-function smoothDepthValues(values, width, height, passes) {
+function smoothDepthValues(
+  values: Float32Array<ArrayBuffer>,
+  width: number,
+  height: number,
+  passes: number,
+): Float32Array<ArrayBuffer> {
   let current = values;
   for (let pass = 0; pass < passes; pass += 1) {
     const next = new Float32Array(current.length);

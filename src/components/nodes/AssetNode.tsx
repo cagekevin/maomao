@@ -25,11 +25,15 @@ import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { patchNodeDataById } from '../../hooks/useNodeData.ts';
 import { toAbsoluteFileUrl, resolveNodeAssetUrl } from '../base/api/index.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
-import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
+import {
+  useRenderAssetResolver,
+  resolveAssetDisplayUrl,
+  contentIdOfBytes,
+} from '../base/utils/assetUrl.ts';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
 import { downloadUrl } from '../base/utils/clipboard.ts';
 import { showToast, toastError } from '../base/core/toastStore.ts';
-import { sendToResourceLibrary } from '../base/store/resourceStore.ts';
+import { sendToResourceLibrary, getResources } from '../base/store/resourceStore.ts';
 import { openResourceLibrary } from '../base/store/taskStore.ts';
 import CameraStudioPanel from '../base/editors/CameraStudioPanel.tsx';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
@@ -41,7 +45,7 @@ import { generateId } from '../base/core/idGen.ts';
 import type { CameraStudioResult } from '../base/editors/cameraStudio.ts';
 
 /**
- * 图片节点（复刻原 xi.jsx / assetNode）
+ * 素材节点
  * 支持 image / video / audio / text / empty 五种内容态（类型用 detectAssetType 统一判断）。
  * 已迁移到 NodeShell 基座（外壳 + 端口 + 尺寸管理统一）。
  *
@@ -57,6 +61,8 @@ interface AssetNodeData {
   label?: string;
   assetUrl?: string;
   url?: string;
+  /** docs/122 #4：文件型持稳定 contentId（sha1:<hex>，与后端同源）；内联 dataURL/blob 无此字段 */
+  contentId?: string;
   assetType?: AssetType;
   poster?: string;
   demoImage?: string;
@@ -69,10 +75,16 @@ interface AssetNodeProps {
 }
 function AssetNode({ id, data, selected }: AssetNodeProps) {
   const fileRef = useRef<HTMLInputElement | null>(null);
+  // 【docs/122 #4/#5】渲染解析统一入口（resolveAssetDisplayUrl）：文件型持 resourceId →
+  // 经 resourceStore 解析 url；内联 dataURL/blob 持 url 直用；存量 assetUrl 兼容兜底。
+  // 资源查无 → 显式「素材已移除」缺失态（fail-loud：边界契约失效，UI 呈现，不静默破图）。
+  const assetRef = resolveAssetDisplayUrl(data, (rid) => {
+    const found = getResources().find((r) => r.id === rid);
+    return found ? found.url : null;
+  });
   // 读取端兜底：相对 /files/ 路径统一补全为绝对 URL，刷新不破图。
-  // `data.url` 是【刻意的存量兼容层】（docs/118 §7.3 ⑤）：写侧已统一只写 assetUrl（见 nodeImage.ts），
-  // 但存量快照里真有只带 url 的旧节点（assetUrl 改名前）—— 删掉这层兜底 = 存量破图。读兼容、写唯一。
-  const url = toAbsoluteFileUrl(data.assetUrl || data.url || '') || '';
+  const url = (assetRef.kind === 'ok' ? toAbsoluteFileUrl(assetRef.url) : '') || '';
+  const assetMissing = assetRef.kind === 'missing';
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow();
   const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false);
   // 深度转视频弹窗开关 + 画布历史（undo）：供 spawnDepthVideoNode 原子提交，复用 VideoGenerate 范式
@@ -244,8 +256,19 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       }
       // 「上传替换节点内容」也收口到唯一写入口：主图走 replaceNodeImage，`assetType/text` 置空
       // （交回 detectAssetType 按新 URL 判定）。此前这里是第三处直写 assetUrl/url 的地方（docs/118 §7.3 ⑤）。
+      // docs/122 #4：持久文件 → 同时落稳定 contentId（sha1:<hex>）；内联 dataURL 无 contentId。
+      let contentId: string | undefined;
+      if (!url.startsWith('data:')) contentId = await contentIdOfBytes(f);
       replaceNodeImage(
-        { id, dataUrl: url, dataPatch: { assetType: undefined, text: undefined } },
+        {
+          id,
+          dataUrl: url,
+          dataPatch: {
+            assetType: undefined,
+            text: undefined,
+            ...(contentId ? { contentId } : {}),
+          },
+        },
         setNodes,
       );
       // 节点已显示新图，结果可见，无需 toast
@@ -372,6 +395,15 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
                 <div className="flex flex-col items-center gap-1 opacity-60">
                   <ImageIcon size={18} className="text-muted-2" />
                   <span className="text-meta text-muted">性能模式已隐藏</span>
+                </div>
+              </div>
+            )}
+            {/* 素材已移除：引用的 resource 已删（fail-loud，docs/122 #5）。显式呈现缺失态，不静默破图 */}
+            {assetMissing && (
+              <div className="absolute inset-0 flex items-center justify-center bg-surface-strong">
+                <div className="flex flex-col items-center gap-1 opacity-70">
+                  <ImageIcon size={18} className="text-muted-2" />
+                  <span className="text-caption text-muted">素材已移除</span>
                 </div>
               </div>
             )}

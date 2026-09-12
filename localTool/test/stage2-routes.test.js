@@ -17,6 +17,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -347,13 +348,18 @@ test('[fileStore] resolveUploadTarget 未知根回退默认 canvas（防目录�
   assert.ok(urlPath.startsWith('/files/canvas/'));
 });
 
-test('[fileStore] writeUploadBuffer 自动加时间戳前缀去重并返回 urlPath', () => {
+test('[fileStore] writeUploadBuffer 内容寻址命名（sha1(buffer)）替代时间戳前缀并返回 urlPath', () => {
   const buf = Buffer.from('hello-maomao');
   const { savedPath, urlPath } = fileStore.writeUploadBuffer('tasks', 'note.txt', buf);
   assert.ok(fs.existsSync(savedPath), '文件应已落盘');
-  assert.ok(
-    /\d+-note\.txt$/.test(path.basename(savedPath)),
-    '应含时间戳前缀，实际: ' + path.basename(savedPath),
+  const expectedName = fileStore.contentHashName(
+    crypto.createHash('sha1').update(buf).digest('hex'),
+    '.txt',
+  );
+  assert.equal(
+    path.basename(savedPath),
+    expectedName,
+    '应含 sha1(content) 内容寻址名，实际: ' + path.basename(savedPath),
   );
   assert.ok(urlPath.startsWith('/files/tasks/'));
   assert.equal(fs.readFileSync(savedPath, 'utf-8'), 'hello-maomao');

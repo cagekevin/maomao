@@ -282,7 +282,7 @@ describe('两条轨道 · 语义对等性（契约 C6 核心）', () => {
     const channels = {
       transform: [{ frame: 0, interpolation: 'linear', fields: { position: [0, 0, 0] } }],
     };
-    const op = { op: 'move', from: 0, to: 10 };
+    const op = { op: 'move', from: 0, to: 10 } as const;
     const once = applyTrackOperation(channels, op);
     expect(once.transform[0].frame).toBe(10);
     // 无变化的操作应返回等价结构（move 同帧直接返回原对象）

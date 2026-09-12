@@ -45,6 +45,17 @@ describe('fetchResources', () => {
     expect(filters.type).toBe('image');
   });
 
+  it('projectId 透传为 ?projectId=（docs/122 #3 前端消费契约，不传则无该参数）', async () => {
+    const fetchMock = mockFetchOnce({ items: [] });
+    await ra.fetchResources({ projectId: 'p1' });
+    const url = fetchMock.mock.calls[0][0];
+    expect(url).toContain(`projectId=p1`);
+    // 不传 projectId → 不带该参数（向后兼容全量）
+    fetchMock.mockClear();
+    await ra.fetchResources({});
+    expect(fetchMock.mock.calls[0][0]).not.toContain('projectId');
+  });
+
   it('HTTP 非 2xx 抛 HttpError，message 取业务文案', async () => {
     mockFetchOnce({ error: 'x' }, { ok: false, status: 500 });
     await expect(ra.fetchResources()).rejects.toMatchObject({

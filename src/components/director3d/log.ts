@@ -10,17 +10,19 @@ import { DIRECTOR3D_DEBUG } from '../base/core/config.ts';
 const DEBUG_ENABLED = DIRECTOR3D_DEBUG;
 
 // 可选错误上报通道（外部挂接，例如接入 apimart gateway 或飞书）。
-let errorReporter = null;
+type ErrorReporter = (payload: { level: string; message: string; raw: unknown }) => void;
+
+let errorReporter: ErrorReporter | null = null;
 
 /** 挂接错误上报函数；返回旧值便于恢复。 */
-export function configureErrorReporting(fn) {
+export function configureErrorReporting(fn: ErrorReporter) {
   const prev = errorReporter;
   errorReporter = fn;
   return prev;
 }
 
 /** 提取可读的错误描述（保留原始 message / stack 供排查）。 */
-function describe(args) {
+function describe(args: unknown[]) {
   return args
     .map((arg) => {
       if (arg instanceof Error) return arg.message;
@@ -38,7 +40,7 @@ function describe(args) {
 
 export const log = {
   /** 错误：总是输出 + 上报。推荐在所有 catch 处调用。 */
-  error(...args) {
+  error(...args: unknown[]) {
     const text = describe(args);
     console.error(`[director3d] ${text}`);
     if (errorReporter) {
@@ -50,15 +52,15 @@ export const log = {
     }
   },
   /** 警告：总是输出。 */
-  warn(...args) {
+  warn(...args: unknown[]) {
     console.warn(`[director3d] ${describe(args)}`);
   },
   /** 信息：总是输出。 */
-  info(...args) {
+  info(...args: unknown[]) {
     console.info(`[director3d] ${describe(args)}`);
   },
   /** 调试：由 DEBUG_ENABLED 开关控制，默认安静。 */
-  debug(...args) {
+  debug(...args: unknown[]) {
     if (DEBUG_ENABLED) console.log(`[director3d][debug] ${describe(args)}`);
   },
 };

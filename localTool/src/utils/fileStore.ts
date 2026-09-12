@@ -5,10 +5,20 @@
  * saveRemoteUrl、tryGenerateThumbnail、handleThumbnail、handleMkdir、
  * handleMove、handleOpen 多处，各自重复 existsSync+mkdirSync+writeFileSync，
  * 缩略图目录逻辑还复制了两份。这里统一收口，避免后期改一处漏一处。
+ *
+ * 更新(2026-09-12 · docs/122 文件管理收口 #1/#6 · Content 维度)：
+ *  - writeUploadBuffer 命名由 `${Date.now()}-${filename}` 时间戳前缀改为内容寻址
+ *    `sha1(buffer)`（contentHashName）。同字节 → 同一初始物理文件名；仅决定首次落盘的
+ *    初始文件名，applyResourceIdentityChange 改名后再失效。
+ *  - 新增 contentIdOf / findDedupUrl（按 contentId 去重的纯判定，folder 无关）与
+ *    writeUploadDedup（按 contentId 查重的去重感知落盘编排）。
+ *  -「同字节 → 1 物理文件」去重真源 = Content 维度 identity = contentId(`<alg>:<hex>`)；
+ *    应用层查重仅优化，并发去重真保证 = DB 对 contentId 列加唯一约束 + 冲突回退复用。
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import Jimp from 'jimp';
 import { getUploadDir } from '../db/database.js';
 
@@ -109,16 +119,104 @@ export function resolveUploadFile(rel: unknown): string | null {
   return abs;
 }
 
-/** 本地上传落盘：自动加时间戳前缀去重，返回绝对路径与 URL */
+/**
+ * 文件物理命名的单一规范（内容寻址）：`sha1(content).ext`。
+ * - ext 统一小写、去前导点；无扩展名（空串）→ 只返回哈希（保持既有「无后缀文件」语义）。
+ * - 去重本体依赖该命名：同一字节必然得到同一 name，是跨目录预查的匹配键。
+ * @param {string} hash sha1(content) hex
+ * @param {string} [ext] 扩展名（可带或不带前导点）
+ */
+export function contentHashName(hash: string, ext = ''): string {
+  const e = String(ext || '')
+    .replace(/^\./, '')
+    .toLowerCase();
+  return e ? `${hash}.${e}` : hash;
+}
+
+/**
+ * 本地上传落盘：以内容寻址命名（替代原时间戳前缀），返回绝对路径与 URL。
+ * - 命名 = contentHashName(sha1(data), ext)，ext 从入参 filename 推导（保留调用方想要的扩展名/类型识别）。
+ * - 注意：只决定「首次落盘的初始文件名」（同一目录内同内容同名覆盖 = 同目录去重）。
+ *   跨目录去重用 writeUploadDedup 的预查，非本函数职责。
+ */
 export function writeUploadBuffer(
   subfolder: string,
   filename: string,
   data: Buffer,
 ): { savedPath: string; urlPath: string } {
-  const { dir, savedPath, urlPath } = resolveUploadTarget(subfolder, `${Date.now()}-${filename}`);
+  const hash = crypto.createHash('sha1').update(data).digest('hex');
+  const contentName = contentHashName(hash, path.extname(filename));
+  const { dir, savedPath, urlPath } = resolveUploadTarget(subfolder, contentName);
   ensureDir(dir);
   fs.writeFileSync(savedPath, data);
   return { savedPath, urlPath };
+}
+
+/** 内容寻址默认算法（docs/122 Content 维度）：contentId 带算法前缀可演进 */
+export const CONTENT_ALG = 'sha1' as const;
+
+/** 由纯哈希 hex 组成 contentId：`<alg>:<hex>`（Content 维度身份，folder/url/name 无关） */
+export function contentIdOf(hashHex: string): string {
+  return `${CONTENT_ALG}:${hashHex}`;
+}
+
+/**
+ * 按 `contentId` 去重（docs/122 Content 维度核心判定，纯函数、无 DB / 无 I/O）：
+ * 在既有文件记录列表中按 `contentId` 匹配（folder/url 无关、改名仍存活），命中返回其 url。
+ * 去重是维度副产物（同字节→同 contentId→同 Content）；应用层查重只是优化，
+ * 并发去重真保证是 DB 对 contentId 加唯一约束 + 冲突回退（见路由层）。
+ * @param {Array<{url:string; sha1?:string}>} files 既有文件记录（含去重身份列，值为 contentId）
+ * @param {string} contentId `<alg>:<hex>`
+ * @returns {{url:string}|null} 命中返回既有 url；无则 null（需新建）
+ */
+export function findDedupUrl(
+  files: Array<{ url: string; sha1?: string }>,
+  contentId: string,
+): { url: string } | null {
+  const hit = (files || []).find((f) => !!f.sha1 && f.sha1 === contentId);
+  return hit ? { url: hit.url } : null;
+}
+
+/** writeUploadDedup 入参 / 出参（纯只读数据结构，不 mutate） */
+export interface WriteDedupOpts {
+  subfolder: string;
+  /** 扩展名（可带或不带前导点），用于首落盘文件命名（仅初始命名，非去重键） */
+  ext?: string;
+  data: Buffer;
+  /**
+   * 按 `contentId` 查重路由：查询既有文件（任意 folder）中 contentId 匹配的 url。
+   * 路由层注入 DB glue（SELECT url FROM resources WHERE sha1(contentId)=?），
+   * fileStore 不直接依赖 DB -> 保持低层职责纯粹、去重判定单一实现。
+   */
+  existingUrlByContentId: (contentId: string) => string | null;
+}
+export interface WriteDedupResult {
+  /** 实际落盘的绝对路径；deduped=true 时为 null（未写盘） */
+  savedPath: string | null;
+  /** /files/...（新建）或既有 url（复用命中，可能为绝对形式，路由层转相对） */
+  urlPath: string;
+  /** contentId = `<alg>:<hex>`（Content 维度身份，去重/GC 键） */
+  contentId: string;
+  /** true = 按 contentId 命中，复用既有物理文件，未写盘 */
+  deduped: boolean;
+}
+
+/**
+ * 去重感知落盘（docs/122 Content 维度 #6 单一实现）：
+ * 1. 算 sha1(data) → contentId = `<alg>:<hex>`（去重身份）；
+ * 2. 调 existingUrlByContentId 按 contentId 查重（folder 无关）→ 命中复用既有 url；
+ *    （应用层查重仅优化；并发真保证 = DB contentId 唯一约束 + 冲突回退，见路由层）
+ * 3. 未命中 → writeUploadBuffer 以 sha1 命名落盘（contentHashName，仅初始命名）。
+ * 任何「新建文件落盘」入口应经本函数按 contentId 去重。
+ */
+export async function writeUploadDedup(opts: WriteDedupOpts): Promise<WriteDedupResult> {
+  const hash = crypto.createHash('sha1').update(opts.data).digest('hex');
+  const contentId = contentIdOf(hash);
+  const hitUrl = opts.existingUrlByContentId(contentId);
+  if (hitUrl) return { savedPath: null, urlPath: hitUrl, contentId, deduped: true };
+  const contentName = contentHashName(hash, opts.ext);
+  const { savedPath, urlPath } = writeUploadBuffer(opts.subfolder, contentName, opts.data);
+  return { savedPath, urlPath, contentId, deduped: false };
 }
 
 /** 落盘到指定稳定文件名（远程 URL 下载用，幂等由调用方判 exists 保证） */

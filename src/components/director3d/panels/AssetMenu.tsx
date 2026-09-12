@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Box, ChevronRight, Import, Layers, UserRound } from 'lucide-react';
 
 /** 资源库菜单节点：叶子节点带 kind（person/primitive/import），非叶子带 children 递归展开 */
@@ -70,7 +70,13 @@ function isLeaf(node: AssetNode) {
   return node.leaf || !node.children || node.children.length === 0;
 }
 
-export function AssetMenu({ onAddPerson, onAddPrimitive, onImport }) {
+interface AssetMenuProps {
+  onAddPerson: (value: string) => void;
+  onAddPrimitive: (value: string) => void;
+  onImport: (event: ChangeEvent<HTMLInputElement>) => void;
+}
+
+export function AssetMenu({ onAddPerson, onAddPrimitive, onImport }: AssetMenuProps) {
   const [open, setOpen] = useState(false);
   // path 记录当前展开路径，例如 [2] 表示展开了"场景粗模"那一列。列数 = path.length + 1，自适应数据深度。
   const [path, setPath] = useState([]);
@@ -79,10 +85,10 @@ export function AssetMenu({ onAddPerson, onAddPrimitive, onImport }) {
 
   useEffect(() => {
     if (!open) return;
-    const onDocClick = (event) => {
+    const onDocClick = (event: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false);
     };
-    const onKey = (event) => {
+    const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
     document.addEventListener('mousedown', onDocClick);
@@ -98,7 +104,7 @@ export function AssetMenu({ onAddPerson, onAddPrimitive, onImport }) {
     setPath([]);
   };
 
-  const pick = (node) => {
+  const pick = (node: AssetNode) => {
     if (node.kind === 'person') onAddPerson(node.value);
     else if (node.kind === 'primitive') onAddPrimitive(node.value);
     else if (node.kind === 'import') fileRef.current?.click();
@@ -115,7 +121,7 @@ export function AssetMenu({ onAddPerson, onAddPrimitive, onImport }) {
     cursor = next;
   }
 
-  const enterColumn = (depth, index) => {
+  const enterColumn = (depth: number, index: number) => {
     // depth 为当前列的层级（0 起），点击后展开/收起对应下一列
     const base = path.slice(0, depth);
     if (path[depth] === index) {

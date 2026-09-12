@@ -20,7 +20,16 @@ export const HISTORY_DEBOUNCE_MS = 280;
  *  - deferCount: 待消费的「抑制入栈」计数（非用户编辑写，只更新基线）
  *  - timer:   防抖定时器句柄（由调用方管理，仅存值）
  */
-export function createHistoryState() {
+export interface HistoryState {
+  past: unknown[];
+  future: unknown[];
+  last: unknown | null;
+  restoring: boolean;
+  deferCount: number;
+  timer: ReturnType<typeof setTimeout> | null;
+}
+
+export function createHistoryState(): HistoryState {
   return { past: [], future: [], last: null, restoring: false, deferCount: 0, timer: null };
 }
 
@@ -29,7 +38,7 @@ export function createHistoryState() {
  * 若存在未消费的抑制计数：只把基线推进到 latest，不入栈，返回 true（被吞掉）。
  * 否则返回 false，由调用方决定是否正常入栈。
  */
-export function consumeDefer(state, latest) {
+export function consumeDefer(state: HistoryState, latest: unknown): boolean {
   if (state.deferCount > 0) {
     state.deferCount -= 1;
     state.last = latest;
@@ -39,7 +48,7 @@ export function consumeDefer(state, latest) {
 }
 
 /** 入栈一条历史（自动清空 future 分支，超出上限裁剪最旧）。 */
-export function recordChange(state, previous, latest) {
+export function recordChange(state: HistoryState, previous: unknown, latest: unknown): void {
   state.past.push(previous);
   if (state.past.length > HISTORY_LIMIT) state.past.shift();
   state.last = latest;
@@ -51,7 +60,7 @@ export function recordChange(state, previous, latest) {
  * 仅当存在「非空基线 且 与最新不同」时才入栈，避免重复。
  * 返回是否真的入栈。
  */
-export function flushChange(state, latest) {
+export function flushChange(state: HistoryState, latest: unknown): boolean {
   if (state.last && latest && latest !== state.last) {
     recordChange(state, state.last, latest);
     return true;
@@ -63,7 +72,7 @@ export function flushChange(state, latest) {
  * 弹出一条可撤销快照。无可用历史时返回 null（由调用方决定越界反馈）。
  * 同时将当前基线压入 future（可重做）。
  */
-export function undoPeek(state) {
+export function undoPeek(state: HistoryState): unknown | null {
   const previous = state.past.pop();
   if (!previous) return null;
   state.future.push(state.last);
@@ -73,7 +82,7 @@ export function undoPeek(state) {
 }
 
 /** 弹出一条可重做快照。无可用历史时返回 null。 */
-export function redoPeek(state) {
+export function redoPeek(state: HistoryState): unknown | null {
   const next = state.future.pop();
   if (!next) return null;
   state.past.push(state.last);
@@ -88,7 +97,10 @@ export function redoPeek(state) {
  * 使「撤销」不会退回已废弃的旧工程。
  * timer 为此次重置前残留的防抖句柄，一并清理。
  */
-export function resetHistory(state, clearTimer) {
+export function resetHistory(
+  state: HistoryState,
+  clearTimer: (timer: ReturnType<typeof setTimeout>) => void,
+): void {
   if (clearTimer && state.timer) clearTimer(state.timer);
   state.past = [];
   state.future = [];

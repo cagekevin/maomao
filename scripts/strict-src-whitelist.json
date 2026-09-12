@@ -17,6 +17,7 @@
     "src/components/panels/",
     "src/components/scriptbox/",
     "src/App.tsx",
-    "src/main.tsx"
+    "src/main.tsx",
+    "src/components/director3d/"
   ]
 }

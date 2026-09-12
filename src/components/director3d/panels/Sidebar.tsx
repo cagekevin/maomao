@@ -1,9 +1,40 @@
 import { useState } from 'react';
 import { Box, Camera, Lock, ScanLine, Sparkles, Unlock, UserRound } from 'lucide-react';
 import { ShotsPanel } from './ShotsPanel.tsx';
-import { CAMERA_ID } from '../project.ts';
+import { CAMERA_ID, ProjectObject } from '../project.ts';
 
-export function SceneList({ objects, selectedId, onSelect, onToggleVisible, onToggleLock }) {
+/** 场景对象在渲染侧需要的字段（ProjectObject 的索引签名不强制 locked/visible，这里显式收窄） */
+interface SceneObject extends ProjectObject {
+  locked?: boolean;
+  visible?: boolean;
+}
+
+/** 镜头卡片摘要（与 ShotsPanel.ShotCard 同形，供左侧栏透传） */
+interface ShotSummary {
+  id: string;
+  name: string;
+  thumbnail?: string;
+  fps: number;
+  durationSeconds: number;
+  keyframes?: unknown;
+  objectKeyframes?: Record<string, unknown>;
+}
+
+interface SceneListProps {
+  objects: SceneObject[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+  onToggleVisible: (id: string) => void;
+  onToggleLock: (id: string) => void;
+}
+
+export function SceneList({
+  objects,
+  selectedId,
+  onSelect,
+  onToggleVisible,
+  onToggleLock,
+}: SceneListProps) {
   return (
     <div className="scene-list">
       <div
@@ -58,6 +89,22 @@ export function SceneList({ objects, selectedId, onSelect, onToggleVisible, onTo
   );
 }
 
+interface LeftSidebarProps {
+  objects: SceneObject[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+  onToggleVisible: (id: string) => void;
+  onToggleLock: (id: string) => void;
+  shots: ShotSummary[];
+  activeShotId: string | null;
+  onSelectShot: (id: string) => void;
+  onAddShot: () => void;
+  onDuplicateShot: (id: string) => void;
+  onDeleteShot: (id: string) => void;
+  onRenameShot: (id: string, name: string, commit?: boolean) => void;
+  onCaptureShot: (id: string) => void;
+}
+
 export function LeftSidebar({
   objects,
   selectedId,
@@ -72,7 +119,7 @@ export function LeftSidebar({
   onDeleteShot,
   onRenameShot,
   onCaptureShot,
-}) {
+}: LeftSidebarProps) {
   const [tab, setTab] = useState('scene');
   return (
     <aside className="left-sidebar panel">

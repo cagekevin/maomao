@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import { RotateCcw } from 'lucide-react';
 import {
   ASPECT_RATIOS,
@@ -9,7 +9,25 @@ import {
   customAspectParts,
   customAspectValue,
   normalizeLighting,
+  ProjectSettings,
+  ProjectLighting,
 } from '../project.ts';
+
+interface GlobalSettingsPanelProps {
+  cameraAspect: string;
+  onAspectChange: (value: string) => void;
+  projectSettings: ProjectSettings;
+  onApplySettings: (settings: ProjectSettings) => void;
+  maxKeyframeFrame?: number;
+  showGrid: boolean;
+  onToggleGrid: () => void;
+  performanceMode: boolean;
+  onTogglePerformance: () => void;
+  seamlessBackground: boolean;
+  onToggleSeamless: () => void;
+  lighting: ProjectLighting;
+  onLightingChange: Dispatch<SetStateAction<ProjectLighting>>;
+}
 
 /**
  * 全局设置栏：与选中物体无关的画布/工程级设置。
@@ -31,14 +49,14 @@ export function GlobalSettingsPanel({
   onToggleSeamless,
   lighting,
   onLightingChange,
-}) {
+}: GlobalSettingsPanelProps) {
   const selected = aspectSelectValue(cameraAspect);
   const [customWidth, customHeight] = customAspectParts(cameraAspect);
-  const settings = projectSettings || {};
+  const settings: ProjectSettings = projectSettings || ({} as ProjectSettings);
   // 总时长输入本地暂存：输入过程不生效，失焦/回车才提交，避免"想填 15 时敲到 1 就已生效"
   const [durationDraft, setDurationDraft] = useState(null);
   const durationValue = durationDraft ?? settings.durationSeconds ?? 15;
-  const commitDuration = (value) => {
+  const commitDuration = (value: string) => {
     setDurationDraft(null);
     const seconds = Math.min(60, Math.max(1, Number(value)));
     if (!Number.isFinite(seconds)) return;
@@ -51,9 +69,18 @@ export function GlobalSettingsPanel({
     Math.ceil(safeMaxKeyframeFrame / (Number(settings.fps) || 24)),
   );
   const hasDurationConflict = Number.isFinite(totalFrames) && totalFrames < safeMaxKeyframeFrame;
-  const updateLighting = (patch) =>
-    onLightingChange((current) => normalizeLighting({ ...current, ...patch }));
-  const lightRange = (label, key, minimum, maximum, step, suffix = '') => (
+  const updateLighting = (patch: Record<string, number | string>) =>
+    onLightingChange((current) =>
+      normalizeLighting({ ...current, ...(patch as Partial<ProjectLighting>) }),
+    );
+  const lightRange = (
+    label: string,
+    key: keyof ProjectLighting,
+    minimum: number,
+    maximum: number,
+    step: number,
+    suffix = '',
+  ) => (
     <label className="lighting-range" key={key}>
       <span>{label}</span>
       <input
@@ -71,7 +98,7 @@ export function GlobalSettingsPanel({
       </output>
     </label>
   );
-  const lightColor = (label, key) => (
+  const lightColor = (label: string, key: keyof ProjectLighting) => (
     <label className="lighting-color" key={key}>
       <span>{label}</span>
       <input

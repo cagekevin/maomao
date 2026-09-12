@@ -12,7 +12,7 @@ import {
   Trash2,
   UserRound,
 } from 'lucide-react';
-import { clamp, normalizeInterpolation, poseLabel } from '../project.ts';
+import { clamp, normalizeInterpolation, poseLabel, type ChannelKey } from '../project.ts';
 
 // 时间轴水平缩放（每帧像素）与吸附（整数帧/播放头）的默认/边界
 const PX_PER_FRAME_DEFAULT = 6;
@@ -21,6 +21,80 @@ const PX_PER_FRAME_HARD_MIN = 0.2; // 下限兜底；实际滑块最小值 = 可
 const MARQUEE_THRESHOLD = 4; // 空白按下后拖动超过该像素才视为框选（否则视为 seek 移动播放头）
 
 // 关键帧右键菜单：插值（不常用操作下沉到右键）+ 删除（也可用 Delete 键）。
+type TrackKind = 'camera' | 'object';
+
+interface KeyframeSelector {
+  kind: TrackKind;
+  trackId: string | null;
+  frame: number;
+}
+
+interface SelectedKeyframeInfo {
+  kind: TrackKind;
+  trackId: string | null;
+  frame: number;
+  interpolation?: string;
+}
+
+interface KeyframeMove {
+  kind: TrackKind;
+  trackId: string | null;
+  fromFrame: number;
+  toFrame: number;
+}
+
+interface DraggingState {
+  kind: TrackKind;
+  trackId: string | null;
+  fromFrame: number;
+  toFrame: number;
+}
+
+interface MarqueeState {
+  kind: TrackKind;
+  trackId: string | null;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+interface ObjectTrackView {
+  id: string;
+  name: string;
+  type: string;
+  continuousMotion?: boolean;
+  keyframes: ChannelKey[];
+}
+
+interface TimelineProps {
+  currentFrame: number;
+  fps: number;
+  totalFrames: number;
+  onSeek: (frame: number) => void;
+  playing: boolean;
+  onTogglePlay: () => void;
+  keyframes: ChannelKey[];
+  onAddKeyframe: () => void;
+  onDeleteKeyframe: (frame: number) => void;
+  objectTrack: ObjectTrackView | null;
+  onAddObjectKeyframe: () => void;
+  onDeleteObjectKeyframe: (frame: number) => void;
+  selectedKeyframe: SelectedKeyframeInfo | null;
+  onSelectKeyframe: (info: KeyframeSelector | null) => void;
+  onMoveKeyframe: (move: KeyframeMove) => void;
+  onMoveKeyframes: (moves: KeyframeMove[]) => void;
+  onDeleteSelectedKeyframe: () => void;
+  onDeleteKeyframes: (keys: KeyframeSelector[]) => void;
+  onCopyKeyframe: () => void;
+  onChangeInterpolationAt: (
+    kind: TrackKind,
+    trackId: string | null,
+    frame: number,
+    value: string,
+  ) => void;
+}
+
 export function Timeline({
   currentFrame,
   fps: _fps,
@@ -42,12 +116,12 @@ export function Timeline({
   onDeleteKeyframes,
   onCopyKeyframe,
   onChangeInterpolationAt,
-}) {
+}: TimelineProps) {
   const [pxPerFrame, setPxPerFrame] = useState(PX_PER_FRAME_DEFAULT);
   const [snapEnabled, setSnapEnabled] = useState(true);
-  const [dragging, setDragging] = useState(null); // {kind, trackId, fromFrame, toFrame}
-  const [selection, setSelection] = useState([]); // [{kind, trackId, frame}] 框选/多选集合
-  const [marquee, setMarquee] = useState(null); // {x0,y0,x1,y1} 相对轨道内部像素
+  const [dragging, setDragging] = useState<DraggingState | null>(null); // {kind, trackId, fromFrame, toFrame}
+  const [selection, setSelection] = useState<KeyframeSelector[]>([]); // [{kind, trackId, frame}] 框选/多选集合
+  const [marquee, setMarquee] = useState<MarqueeState | null>(null); // {x0,y0,x1,y1} 相对轨道内部像素
   // 标尺与轨道共用同一个横向滚动容器（.timeline-scroll），天然共享滚动位置与内容宽度，刻度精确对齐轨道
   const scrollRef = useRef(null);
 
@@ -98,7 +172,7 @@ export function Timeline({
   useEffect(() => {
     const el = bodyRef.current;
     if (!el) return undefined;
-    const onWheel = (event) => {
+    const onWheel = (event: WheelEvent) => {
       if (!event.ctrlKey) return;
       event.preventDefault();
       setPxPerFrame((value) =>
@@ -111,66 +185,71 @@ export function Timeline({
   }, [minPxPerFrame]);
 
   // 单条轨道内所有关键帧（框选命中用）：相机轨 / 对象轨
-  const allTrackFrames = (kind, trackId) =>
+  const allTrackFrames = (kind: TrackKind, trackId: string | null): KeyframeSelector[] =>
     kind === 'camera'
-      ? keyframes.map((key) => ({ kind: 'camera', trackId: null, frame: key.frame }))
-      : (objectTrack?.keyframes || []).map((key) => ({
+      ? keyframes.map((key: ChannelKey): KeyframeSelector => ({
+          kind: 'camera',
+          trackId: null,
+          frame: key.frame,
+        }))
+      : (objectTrack?.keyframes || []).map((key: ChannelKey): KeyframeSelector => ({
           kind: 'object',
           trackId,
           frame: key.frame,
         }));
 
   // 单击/拖动轨道空白：拖动超阈值 → 框选该轨道关键帧；否则移动播放头（seek）
-  const beginTrackScrub = (kind, trackId) => (event) => {
-    if (event.button !== 0) return;
-    event.stopPropagation();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x0 = event.clientX - rect.left;
-    const y0 = event.clientY - rect.top;
-    let dragged = false;
-    setMarquee(null);
-    const move = (moveEvent) => {
-      const x = moveEvent.clientX - rect.left;
-      const y = moveEvent.clientY - rect.top;
-      if (!dragged && Math.hypot(x - x0, y - y0) > MARQUEE_THRESHOLD) dragged = true;
-      // 记录所属轨道，确保只有被框选的那条轨渲染选框（避免多轨各画一个出现「两个框」）
-      if (dragged) setMarquee({ kind, trackId, x0, y0, x1: x, y1: y });
+  const beginTrackScrub =
+    (kind: TrackKind, trackId: string | null) => (event: React.PointerEvent) => {
+      if (event.button !== 0) return;
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x0 = event.clientX - rect.left;
+      const y0 = event.clientY - rect.top;
+      let dragged = false;
+      setMarquee(null);
+      const move = (moveEvent: PointerEvent) => {
+        const x = moveEvent.clientX - rect.left;
+        const y = moveEvent.clientY - rect.top;
+        if (!dragged && Math.hypot(x - x0, y - y0) > MARQUEE_THRESHOLD) dragged = true;
+        // 记录所属轨道，确保只有被框选的那条轨渲染选框（避免多轨各画一个出现「两个框」）
+        if (dragged) setMarquee({ kind, trackId, x0, y0, x1: x, y1: y });
+      };
+      const up = (upEvent: PointerEvent) => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        if (dragged) {
+          setMarquee(null);
+          // 命中：该轨道内关键帧中心 x 落在选框内（框在当前轨道内拖，y 恒在轨道范围）
+          const left = Math.min(x0, upEvent.clientX - rect.left);
+          const right = Math.max(x0, upEvent.clientX - rect.left);
+          const hit = allTrackFrames(kind, trackId).filter((item) => {
+            const x = item.frame * pxPerFrame;
+            return x >= left && x <= right;
+          });
+          setSelection(hit);
+          if (hit.length) onSelectKeyframe(null);
+        } else {
+          // 未拖动：视为点击轨道空白，seek 到点击处，并取消关键帧选择
+          onSeek(clamp(Math.round((event.clientX - rect.left) / pxPerFrame), 0, totalFrames));
+          onSelectKeyframe(null);
+          setSelection([]);
+        }
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
     };
-    const up = (upEvent) => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      if (dragged) {
-        setMarquee(null);
-        // 命中：该轨道内关键帧中心 x 落在选框内（框在当前轨道内拖，y 恒在轨道范围）
-        const left = Math.min(x0, upEvent.clientX - rect.left);
-        const right = Math.max(x0, upEvent.clientX - rect.left);
-        const hit = allTrackFrames(kind, trackId).filter((item) => {
-          const x = item.frame * pxPerFrame;
-          return x >= left && x <= right;
-        });
-        setSelection(hit);
-        if (hit.length) onSelectKeyframe(null);
-      } else {
-        // 未拖动：视为点击轨道空白，seek 到点击处，并取消关键帧选择
-        onSeek(clamp(Math.round((event.clientX - rect.left) / pxPerFrame), 0, totalFrames));
-        onSelectKeyframe(null);
-        setSelection([]);
-      }
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-  };
 
   // 播放头拖动 seek：按住竖线（或顶部菱形把手）左右拖动实时移动播放头（rAF 节流避免高频 setState 卡顿）
-  const beginPlayheadDrag = (event) => {
+  const beginPlayheadDrag = (event: React.PointerEvent) => {
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     const rect = event.currentTarget.parentElement.getBoundingClientRect(); // .track
-    const frameAt = (clientX) =>
+    const frameAt = (clientX: number) =>
       clamp(Math.round((clientX - rect.left) / pxPerFrame), 0, totalFrames);
-    let raf = null;
-    const seekTo = (clientX) => {
+    let raf: number | null = null;
+    const seekTo = (clientX: number) => {
       if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = null;
@@ -178,7 +257,7 @@ export function Timeline({
       });
     };
     seekTo(event.clientX);
-    const move = (moveEvent) => seekTo(moveEvent.clientX);
+    const move = (moveEvent: PointerEvent) => seekTo(moveEvent.clientX);
     const up = () => {
       if (raf) {
         cancelAnimationFrame(raf);
@@ -191,7 +270,13 @@ export function Timeline({
     window.addEventListener('pointerup', up);
   };
 
-  const beginKeyDrag = (event, key, kind, trackId, trackFrames = []) => {
+  const beginKeyDrag = (
+    event: React.PointerEvent,
+    key: ChannelKey,
+    kind: TrackKind,
+    trackId: string | null,
+    trackFrames: ChannelKey[] = [],
+  ) => {
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
@@ -215,7 +300,7 @@ export function Timeline({
     onSeek(key.frame);
     onSelectKeyframe({ kind, frame: key.frame, trackId });
     setDragging({ kind, trackId, fromFrame: key.frame, toFrame });
-    const move = (moveEvent) => {
+    const move = (moveEvent: PointerEvent) => {
       const raw = (moveEvent.clientX - rect.left) / pxPerFrame;
       const rounded = Math.round(raw);
       let next = clamp(rounded, 0, totalFrames);
@@ -234,7 +319,7 @@ export function Timeline({
       toFrame = next;
       setDragging({ kind, trackId, fromFrame: key.frame, toFrame });
     };
-    const up = (upEvent) => {
+    const up = (upEvent: PointerEvent) => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       setDragging(null);
@@ -261,14 +346,17 @@ export function Timeline({
     window.addEventListener('pointerup', up);
   };
 
-  const toggleFrameSelection = (list, item) => {
+  const toggleFrameSelection = (
+    list: KeyframeSelector[],
+    item: KeyframeSelector,
+  ): KeyframeSelector[] => {
     const index = list.findIndex(
-      (candidate) =>
+      (candidate: KeyframeSelector) =>
         candidate.kind === item.kind &&
         candidate.trackId === item.trackId &&
         candidate.frame === item.frame,
     );
-    if (index >= 0) return list.filter((_, i) => i !== index);
+    if (index >= 0) return list.filter((_: KeyframeSelector, i: number) => i !== index);
     return [...list, item];
   };
 
@@ -285,10 +373,10 @@ export function Timeline({
 
   // Delete/Backspace 删除选中关键帧（快捷键）；输入框聚焦时不拦截
   useEffect(() => {
-    const onKeyDown = (event) => {
+    const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Delete' && event.key !== 'Backspace') return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      const target = event.target;
+      const target = event.target as HTMLElement;
       if (
         target &&
         (target.tagName === 'INPUT' ||
@@ -306,7 +394,7 @@ export function Timeline({
 
   // Esc 取消关键帧选择（清除悬浮工具栏与框选）
   useEffect(() => {
-    const onKey = (event) => {
+    const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       if (selectedKeyframe || selection.length) {
         onSelectKeyframe(null);
@@ -317,7 +405,12 @@ export function Timeline({
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const renderTrack = (frames, kind, onDelete, trackId = null) => (
+  const renderTrack = (
+    frames: ChannelKey[],
+    kind: TrackKind,
+    onDelete: (frame: number) => void,
+    trackId: string | null = null,
+  ) => (
     <div
       className={`track ${kind}-track`}
       style={{ width: timelineWidth }}
@@ -325,7 +418,7 @@ export function Timeline({
     >
       <div className="track-fill" style={{ width: `${currentFrame * pxPerFrame}px` }} />
       {!frames.length && <span className="empty-track-note">暂无关键帧</span>}
-      {frames.map((key) => {
+      {frames.map((key: ChannelKey) => {
         const isDragged =
           dragging?.kind === kind &&
           dragging?.trackId === trackId &&
@@ -336,7 +429,7 @@ export function Timeline({
         );
         const stateCopy =
           kind === 'object' && objectTrack?.type === 'person'
-            ? ` · ${poseLabel(key.pose)}${objectTrack.continuousMotion ? '（持续）' : ''}`
+            ? ` · ${poseLabel(key.pose as string)}${objectTrack.continuousMotion ? '（持续）' : ''}`
             : '';
         const title = `第 ${key.frame} 帧${stateCopy} · ${normalizeInterpolation(key.interpolation) === 'smooth' ? '平滑' : normalizeInterpolation(key.interpolation) === 'linear' ? '线性' : '保持'} · 拖动可移动，单击改插值/删除`;
         return (

@@ -4,7 +4,14 @@ import * as THREE from 'three';
 const whiteMaterial = { roughness: 0.78, metalness: 0.02 };
 const selectedEmission = { emissive: '#4b3511', emissiveIntensity: 0.3 };
 
-function ArchPrimitive({ color, selected = false }) {
+interface PrimitivePart {
+  shape: string;
+  position?: [number, number, number];
+  rotationDegrees?: [number, number, number];
+  scale?: [number, number, number];
+}
+
+function ArchPrimitive({ color, selected = false }: { color?: string; selected?: boolean }) {
   const shape = useMemo(() => {
     const outer = new THREE.Shape();
     outer.moveTo(-0.5, -0.5);
@@ -44,7 +51,7 @@ function ArchPrimitive({ color, selected = false }) {
   );
 }
 
-function RoofPrimitive({ color, selected = false }) {
+function RoofPrimitive({ color, selected = false }: { color?: string; selected?: boolean }) {
   const shape = useMemo(() => {
     const triangle = new THREE.Shape();
     triangle.moveTo(-0.5, -0.5);
@@ -66,7 +73,15 @@ function RoofPrimitive({ color, selected = false }) {
   );
 }
 
-function SimplePart({ shape = 'box', color, selected = false }) {
+function SimplePart({
+  shape = 'box',
+  color,
+  selected = false,
+}: {
+  shape?: string;
+  color?: string;
+  selected?: boolean;
+}) {
   if (shape === 'sphere')
     return (
       <mesh castShadow receiveShadow>
@@ -102,26 +117,39 @@ function SimplePart({ shape = 'box', color, selected = false }) {
   );
 }
 
-function AssemblyModel({ parts = [], color, selected = false }) {
+function AssemblyModel({
+  parts = [],
+  color,
+  selected = false,
+}: {
+  parts?: unknown[];
+  color?: string;
+  selected?: boolean;
+}) {
   return (
     <group>
-      {parts.map((part, index) => (
-        <group
-          key={index}
-          position={part.position || [0, 0, 0]}
-          rotation={(part.rotationDegrees || [0, 0, 0]).map((value) =>
-            THREE.MathUtils.degToRad(value),
-          )}
-          scale={part.scale || [1, 1, 1]}
-        >
-          <SimplePart shape={part.shape} color={color} selected={selected} />
-        </group>
-      ))}
+      {parts.map((rawPart, index) => {
+        const part = rawPart as PrimitivePart;
+        return (
+          <group
+            key={index}
+            position={part.position || [0, 0, 0]}
+            rotation={
+              (part.rotationDegrees || [0, 0, 0]).map((value) =>
+                THREE.MathUtils.degToRad(value),
+              ) as [number, number, number]
+            }
+            scale={part.scale || [1, 1, 1]}
+          >
+            <SimplePart shape={part.shape} color={color} selected={selected} />
+          </group>
+        );
+      })}
     </group>
   );
 }
 
-function StairsModel({ color, selected = false }) {
+function StairsModel({ color, selected = false }: { color?: string; selected?: boolean }) {
   const steps = 7;
   return (
     <group>
@@ -141,7 +169,7 @@ function StairsModel({ color, selected = false }) {
   );
 }
 
-function TableModel({ color, selected = false }) {
+function TableModel({ color, selected = false }: { color?: string; selected?: boolean }) {
   return (
     <group>
       <group position={[0, 0.34, 0]} scale={[1, 0.14, 0.82]}>
@@ -158,7 +186,7 @@ function TableModel({ color, selected = false }) {
   );
 }
 
-function ChairModel({ color, selected = false }) {
+function ChairModel({ color, selected = false }: { color?: string; selected?: boolean }) {
   return (
     <group>
       <group position={[0, 0.02, 0]} scale={[0.82, 0.13, 0.78]}>
@@ -178,7 +206,7 @@ function ChairModel({ color, selected = false }) {
   );
 }
 
-function SofaModel({ color, selected = false }) {
+function SofaModel({ color, selected = false }: { color?: string; selected?: boolean }) {
   return (
     <group>
       <group position={[0, -0.17, 0]} scale={[1, 0.42, 0.82]}>
@@ -197,7 +225,7 @@ function SofaModel({ color, selected = false }) {
   );
 }
 
-function DoorModel({ color, selected = false }) {
+function DoorModel({ color, selected = false }: { color?: string; selected?: boolean }) {
   return (
     <group>
       <group position={[-0.46, 0, 0]} scale={[0.09, 1, 0.16]}>
@@ -219,7 +247,7 @@ function DoorModel({ color, selected = false }) {
   );
 }
 
-function WindowModel({ color, selected = false }) {
+function WindowModel({ color, selected = false }: { color?: string; selected?: boolean }) {
   return (
     <group>
       <group position={[-0.46, 0, 0]} scale={[0.08, 1, 0.14]}>
@@ -244,7 +272,7 @@ function WindowModel({ color, selected = false }) {
   );
 }
 
-function TreeModel({ color, selected = false }) {
+function TreeModel({ color, selected = false }: { color?: string; selected?: boolean }) {
   return (
     <group>
       <group position={[0, -0.23, 0]} scale={[0.2, 0.55, 0.2]}>
@@ -263,7 +291,7 @@ function TreeModel({ color, selected = false }) {
   );
 }
 
-function VehicleModel({ color, selected = false }) {
+function VehicleModel({ color, selected = false }: { color?: string; selected?: boolean }) {
   return (
     <group>
       <group position={[0, -0.08, 0]} scale={[1, 0.42, 0.78]}>
@@ -288,7 +316,17 @@ function VehicleModel({ color, selected = false }) {
   );
 }
 
-function PrimitiveModel({ type, color, selected, parts = [] }) {
+function PrimitiveModel({
+  type,
+  color,
+  selected,
+  parts = [],
+}: {
+  type?: string;
+  color?: string;
+  selected?: boolean;
+  parts?: unknown[];
+}) {
   if (type === 'sphere') return <SimplePart shape="sphere" color={color} selected={selected} />;
   if (type === 'cylinder') return <SimplePart shape="cylinder" color={color} selected={selected} />;
   if (type === 'plane')

@@ -12,7 +12,7 @@
     "incremental": true,
 
     "allowJs": true,
-    "checkJs": false,
+    "checkJs": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
 
@@ -38,7 +38,13 @@
     "vitest.config.ts",
     "vitest.logic.config.ts",
     "playwright.config.ts",
-    "tailwind.config.ts"
+    "tailwind.config.ts",
+    // 全盘扫描（2026-09-12）：并入 tests，取消独立的 tests/tsconfig.json。
+    // 此前 tests 走独立 tsconfig（lib ES2022 + checkJs:true 罩 .mjs 底座），
+    // 主配置只扫 src。现统一由本配置一次扫描，lib/target 取主配置口径。
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "tests/**/*.mjs"
   ],
   "exclude": ["node_modules", "dist", "dev"]
 }

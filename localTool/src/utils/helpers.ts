@@ -76,9 +76,7 @@ export function readRawBody(req: IncomingMessage): Promise<Buffer> {
  * 解析 multipart/form-data
  * 返回 { fields: Record<string, string>, files: Record<string, { filename: string, data: Buffer, mimeType: string }> }
  */
-export function parseMultipart(
-  req: IncomingMessage,
-): Promise<{
+export function parseMultipart(req: IncomingMessage): Promise<{
   fields: Record<string, string>;
   files: Record<string, { filename: string; data: Buffer; mimeType: string }>;
 }> {
@@ -209,6 +207,7 @@ export function buildPaginatedQuery(
   table: string,
   params: PaginationParams,
   searchColumns: string[] = [],
+  nullOrEqCols: string[] = [],
 ): { sql: string; countSql: string; values: unknown[]; countValues: unknown[] } {
   const conditions: string[] = [];
   const values: unknown[] = [];
@@ -224,11 +223,26 @@ export function buildPaginatedQuery(
     }
   }
 
+  // 「legacy NULL 也可见」的过滤器：`(<col> IS NULL OR <col> = ?)`。
+  // 由 filters[col] 提供判定值；未提供则跳过。用于 project_id 这类「NULL=全量可见」列（docs/122 #2），
+  // 现有 filters DSL 只支持等值/前缀，表达不了 IS NULL OR = 语义，故用统一机制扩展而非各调用方手写第二套 WHERE。
+  for (const col of nullOrEqCols) {
+    const rawVal = params.filters?.[col];
+    if (rawVal === undefined || rawVal === null) continue;
+    if (typeof rawVal === 'object' || Array.isArray(rawVal)) continue; // 只支持标量判定值
+    conditions.push(`(${col} IS NULL OR ${col} = ?)`);
+    values.push(rawVal);
+    countValues.push(rawVal);
+  }
+
   // 过滤器（支持 V1 的过滤器 DSL：数组 IN / eqOrPrefix 前缀 / 普通等值）
   if (params.filters) {
+    const nullOrEqSet = new Set(nullOrEqCols);
     for (const [rawKey, rawVal] of Object.entries(params.filters)) {
       if (rawVal === undefined || rawVal === null) continue;
       const column = camelToSnake(rawKey);
+      // 已被 nullOrEqCols 处理（IS NULL OR =）的列，跳过 generic 等值，避免叠加成「同时非 NULL 且等值」的错误语义
+      if (nullOrEqSet.has(column)) continue;
 
       if (Array.isArray(rawVal)) {
         // 数组 → IN (?, ?, ...)

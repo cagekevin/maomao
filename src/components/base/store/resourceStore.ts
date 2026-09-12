@@ -16,7 +16,7 @@
  * 「发送到素材库」（sendToResourceLibrary）现已同时把 URL 素材落盘到 localTool
  * （POST /api/files/upload，subfolder=folder）并 rescan，素材库面板（读 /api/resources）可读到。
  */
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { contentGet, contentSet, createDebouncedPersist } from '../core/contentStore.ts';
 import { isStorageReady, onStorageReady } from '../storage/index.ts';
 import { generateId } from '../core/idGen.ts';
@@ -29,6 +29,7 @@ import { detectFileType } from '../utils/assetType.ts';
 import { safeFileName } from '../core/utils.ts';
 import { logger } from '../core/logger.ts';
 import { publish, subscribe } from '../core/eventBus.ts';
+import { getCurrentProject, useCurrentProjectId } from './projectStore.ts';
 import type { AssetType } from '@/types';
 
 /** 素材记录 */
@@ -198,6 +199,27 @@ export function getResources(): Resource[] {
   return resources;
 }
 
+/** 当前项目 id（非 React 场景读 projectStore 快照；未初始化返回 null） */
+function currentProjectId(): string | null {
+  try {
+    return getCurrentProject()?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 供展示/面板做项目过滤（docs/122 #2/#7，纯函数、非响应式）：
+ * legacy（无 `projectId`）全项目可见；显式 `projectId` 仅其项目可见。
+ * 不改动 store 的响应式读（`getSnapshot` 过滤会破坏 useSyncExternalStore 引用相等 → 重渲染循环）。
+ * @param {Resource[]} list 待过滤素材
+ * @param {string|null|undefined} [projectId] 当前项目 id；缺省取 projectStore 当前快照
+ */
+export function resourcesOfProject(list: Resource[], projectId?: string | null): Resource[] {
+  const pid = projectId ?? currentProjectId();
+  return list.filter((r) => r.projectId == null || r.projectId === pid);
+}
+
 function genId(): string {
   return generateId('resource');
 }
@@ -228,21 +250,30 @@ export function filterByFolder(list: Resource[], folder: string | null): Resourc
 /** addResources 的入参项：缺字段由 store 补默认（id/folder/type/name/size/ts） */
 export type NewResourceItem = Partial<Resource>;
 
+/**
+ * 把一条「缺字段的素材入参」规范化为完整 Resource 记录（纯函数，供 addResources 复用）。
+ * - id 缺省 genId()；folder 缺省取入参 folder；type 缺省 'image'；name 缺省 '未命名'；size/ts 缺省 0/now。
+ * - 不 mutate item、不触发任何副作用；返回新对象（登记语义，无共享可变态）。
+ */
+export function buildResourceRecord(item: NewResourceItem, folder: string, now: number): Resource {
+  return {
+    id: item.id || genId(),
+    folder: item.folder || folder,
+    type: item.type || 'image',
+    url: item.url,
+    name: item.name || '未命名',
+    size: item.size || 0,
+    ts: item.ts || now,
+  };
+}
+
 // 新增素材（folder 指定落目录，缺省 migrated）
 export function addResources(
   items: NewResourceItem[],
   folder: string = UPLOAD_DIRS.migrated,
 ): Resource[] {
   const now = Date.now();
-  const added = items.map((it) => ({
-    id: it.id || genId(),
-    folder: it.folder || folder,
-    type: it.type || 'image',
-    url: it.url,
-    name: it.name || '未命名',
-    size: it.size || 0,
-    ts: it.ts || now,
-  }));
+  const added = items.map((it) => buildResourceRecord(it, folder, now));
   resources = [...added, ...resources];
   notify();
   return added;
@@ -282,7 +313,11 @@ export function sendToResourceLibrary(
   } catch {}
   const resourceName = (name && String(name).trim()) || fname;
   const detectedType = type || detectAssetType({ name: fname, type: '' });
-  const added = addResources([{ url, name: resourceName, type: detectedType }], folder);
+  // docs/122 #3：发送到素材库登记时带上当前 projectId（resource 逻辑引用层按项目隔离；渲染过滤见 resourcesOfProject）
+  const added = addResources(
+    [{ url, name: resourceName, type: detectedType, projectId: currentProjectId() || undefined }],
+    folder,
+  );
 
   // 异步后端落盘（不阻塞、失败不抛——前端 store 仍保留，只是面板稍后 rescan 可见）。
   // 修复：blob: 是本地临时对象 URL，此前被直接短路丢弃（「发送到素材库」静默不落盘）。
@@ -443,7 +478,19 @@ export async function localizeAndStoreToResourceLibrary(
     throw new Error('不支持的素材来源');
   }
   if (!localized) throw new Error('素材落盘失败');
-  addResources([{ url: localized, name: name || '剧本资产', type: 'image', folder }], folder);
+  // docs/122 #3：本地化落盘登记带当前 projectId（逻辑引用层按项目隔离）
+  addResources(
+    [
+      {
+        url: localized,
+        name: name || '剧本资产',
+        type: 'image',
+        folder,
+        projectId: currentProjectId() || undefined,
+      },
+    ],
+    folder,
+  );
   emitResourceSent(folder);
   rescanResources().catch(() => {});
   return localized;
@@ -482,7 +529,12 @@ export function __resetForTest(): Resource[] {
 
 // React hook：订阅素材列表
 export function useResources(): Resource[] {
-  return useSyncExternalStore(storeSubscribe, getSnapshot, getSnapshot);
+  const all = useSyncExternalStore(storeSubscribe, getSnapshot, getSnapshot);
+  // docs/122 #7：按当前项目投影过滤（legacy 无 projectId 全项目可见；显式 projectId 仅其项目）。
+  // memo 化关键：getSnapshot 返回的 `all` 只在 resources 变更时换引用、currentProjectId 只在切项目时变，
+  // 投影数组仅当二者之一变化才重建 → 不破坏 useSyncExternalStore 引用相等、无重渲染循环。
+  const projectId = useCurrentProjectId();
+  return useMemo(() => resourcesOfProject(all, projectId), [all, projectId]);
 }
 
 // ── 发送成功事件（P1-D 收口：平行裸回调桥改为 eventBus 事件 resource:sent）──

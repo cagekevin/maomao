@@ -1,8 +1,6 @@
 import { useCallback } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 import { moveFile, canMoveAsset, resolveMovePaths } from '../components/base/api/index.ts';
-import { toAbsoluteFileUrl } from '../components/base/utils/assetUrl.ts';
-import { publish } from '../components/base/core/eventBus.ts';
 import { showToast } from '../components/base/core/toastStore.ts';
 
 /** 资源项（素材/生成/文件夹卡片共用的最小形状） */
@@ -12,6 +10,8 @@ export interface ResourceMoveItem {
   source?: string;
   type?: string;
   url?: string;
+  /** docs/122 #4：素材稳定 contentId（由资源项携带，拖到画布建 asset 时写入节点） */
+  contentId?: string;
 }
 
 /**
@@ -117,13 +117,10 @@ export function useResourceMoveToFolder({ connected, onRefreshed }: ResourceMove
           return;
         }
         try {
+          // 【增量② · context-only】移动到文件夹 = 只改 resource 行的 folder（UI 分类），
+          // 磁盘 / url / contentId 不变 → 不广播 url 改写（url 未变则不需 rewrite，改发也会指向不存在的路径）。
+          // 移动 only 刷新列表（新 folder 上下文生效）。
           await moveFile(src, dst);
-          // 移动也改资源 url：广播旧→新，让 App 同步改写当前画布/脚本箱节点里引用旧 url 的字段
-          // （与改名同一事件，后端 handleMove 已 rewrite 落盘库）。否则同一会话内节点仍指旧路径 → 404。
-          publish('resource:renamed', {
-            oldUrl: toAbsoluteFileUrl(`/files/${src}`),
-            newUrl: toAbsoluteFileUrl(`/files/${dst}`),
-          });
           showToast(`已移动到「${target}」`, { type: 'success' });
           onRefreshed?.();
         } catch (err) {

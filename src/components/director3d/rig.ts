@@ -1,7 +1,11 @@
 const BONE_PREFIX = 'mixamorig';
 
-const bone = (name, label, group) => ({ id: `${BONE_PREFIX}${name}`, label, group });
-const fingerBones = (side, sideLabel, finger, fingerLabel) =>
+const bone = (name: string, label: string, group: string) => ({
+  id: `${BONE_PREFIX}${name}`,
+  label,
+  group,
+});
+const fingerBones = (side: string, sideLabel: string, finger: string, fingerLabel: string) =>
   Array.from({ length: 4 }, (_, index) =>
     bone(
       `${side}Hand${finger}${index + 1}`,
@@ -94,7 +98,17 @@ const FULL_SQUAT_JOINTS = {
   mixamorigRightLeg: [0.6397601162120418, -0.22522846126351503, -0.9402899567027515],
 };
 
-export const RIG_PRESETS = {
+interface RigPreset {
+  clip: string | null;
+  phase: number;
+  duration?: number;
+  loopable?: boolean;
+  label: string;
+  root?: number[];
+  joints?: Record<string, number[]>;
+}
+
+export const RIG_PRESETS: Record<string, RigPreset> = {
   idle: { clip: 'idle', phase: 0.08, duration: 2.5, loopable: true, label: '自然站立' },
   stand_relaxed: { clip: 'idle', phase: 0.34, label: '放松站姿' },
   idle_shift: { clip: 'idle', phase: 0.58, label: '站立重心变化' },
@@ -142,7 +156,7 @@ export const RIG_PRESETS = {
   tpose: { clip: null, phase: 0, label: 'T 型绑定姿态（官方骨架）' },
 };
 
-const LEGACY_PRESET_MAP = {
+const LEGACY_PRESET_MAP: Record<string, string> = {
   crouch_half: 'crouch',
   wave_raise: 'wave',
   wave_hold: 'wave',
@@ -285,23 +299,35 @@ export const MIXAMO_BODY_SCALES: Record<string, BodyScaleTuple> = {
 export const bodyScaleHeight = (bodyType?: string): number =>
   MIXAMO_BODY_SCALES[bodyType || '']?.[1] ?? 1;
 
-const emptyPose = () => Object.fromEntries(JOINT_DEFINITIONS.map((joint) => [joint.id, [0, 0, 0]]));
+interface RigPose {
+  root: [number, number, number];
+  joints: Record<string, number[]>;
+}
 
-export function cloneJointPose(joints) {
+const emptyPose = (): Record<string, number[]> => {
+  const pose: Record<string, number[]> = {};
+  for (const { id } of JOINT_DEFINITIONS) pose[id] = [0, 0, 0];
+  return pose;
+};
+
+export function cloneJointPose(joints: unknown) {
   const result = emptyPose();
+  const source = (joints ?? {}) as Record<string, unknown>;
   for (const { id } of JOINT_DEFINITIONS) {
-    const rotation = joints?.[id];
+    const rotation = source[id];
     if (Array.isArray(rotation) && rotation.length >= 3)
       result[id] = rotation.slice(0, 3).map((value) => Number(value) || 0);
   }
   return result;
 }
 
-export function poseForObject(object) {
-  return {
-    root: Array.isArray(object?.rigRoot) ? object.rigRoot.slice(0, 3) : [0, 0, 0],
-    joints: cloneJointPose(object?.joints),
-  };
+export function poseForObject(object: Record<string, unknown>): RigPose {
+  const rootRaw = object?.rigRoot;
+  const root: [number, number, number] =
+    Array.isArray(rootRaw) && rootRaw.length >= 3
+      ? [Number(rootRaw[0]) || 0, Number(rootRaw[1]) || 0, Number(rootRaw[2]) || 0]
+      : [0, 0, 0];
+  return { root, joints: cloneJointPose(object?.joints) };
 }
 
 export function presetJoints(pose = 'idle') {
@@ -313,13 +339,18 @@ export function presetRoot(pose = 'idle') {
   return Array.isArray(root) ? root.slice(0, 3).map((value) => Number(value) || 0) : [0, 0, 0];
 }
 
-export function interpolateJointPose(left, right, amount) {
+export function interpolateJointPose(
+  left: unknown,
+  right: unknown,
+  amount: number,
+): Record<string, number[]> {
   const leftPose = cloneJointPose(left);
   const rightPose = cloneJointPose(right);
-  return Object.fromEntries(
-    JOINT_DEFINITIONS.map(({ id }) => [
-      id,
-      leftPose[id].map((value, index) => value + (rightPose[id][index] - value) * amount),
-    ]),
-  );
+  const result: Record<string, number[]> = {};
+  for (const { id } of JOINT_DEFINITIONS) {
+    result[id] = leftPose[id].map(
+      (value, index) => value + (rightPose[id][index] - value) * amount,
+    );
+  }
+  return result;
 }

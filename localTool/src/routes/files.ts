@@ -8,13 +8,13 @@ import { execSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getUploadDir } from '../db/database.js';
+import { getUploadDir, getDb, queryOne } from '../db/database.js';
 import {
   ensureDir,
   sanitizeFilename,
   resolveUploadTarget,
-  writeUploadBuffer,
   writeUploadBufferAt,
+  writeUploadDedup,
   ensureThumbnailTarget,
   resizeImage,
   normalizeSubfolder,
@@ -30,7 +30,7 @@ import { fetchWithProxy } from '../utils/netProxy.js';
 import { logTs } from '../utils/relayHeaders.js';
 import { localToolBaseUrl } from '../utils/localToolBaseUrl.js';
 import { saveBase64ToFile } from '../utils/base64Externalize.js';
-import { applyResourceIdentityChange } from './resources.js';
+import { applyResourceContextMove } from './resources.js';
 import { extToMime, mimeToExt } from '../utils/mime.js';
 
 const BASE_URL = localToolBaseUrl();
@@ -95,16 +95,35 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
 
   if (fileData) {
     const saveName = filename || fileData.filename;
-    const savedPath = await saveFile(fileData.data, subfolder, saveName);
-    const fileUrlPath = `/files/${subfolder}/${path.basename(savedPath)}`;
-    const thumbnailUrl = await tryGenerateThumbnail(savedPath, fileUrlPath);
-    uploadLog(200, `formdata ${saveName} -> ${fileUrlPath}`);
+    // 【docs/122 Content 维度 #6】按 contentId(`<alg>:<hex>`) 全局查重（folder 无关，入口不可能自带 hash 上行）：
+    // 命中既有 Content/url → 复用不写盘；未命中 → 以 sha1(hex) 命名落盘（#1 仅初始命名）。
+    const db = await getDb();
+    const dedup = await writeUploadDedup({
+      subfolder,
+      ext: path.extname(saveName),
+      data: fileData.data,
+      existingUrlByContentId: (contentId) => {
+        const row = queryOne(db, 'SELECT url FROM resources WHERE sha1 = ?', [contentId]);
+        return row ? (row.url as string) : null;
+      },
+    });
+    // DB 既有 url 为绝对形式（http://.../files/...），转相对供 `BASE_URL + urlPath` 统一拼接
+    const fileUrlPath = dedup.urlPath.replace(/^https?:\/\/[^/]+/, '');
+    const thumbnailUrl = dedup.savedPath
+      ? await tryGenerateThumbnail(dedup.savedPath, fileUrlPath)
+      : undefined;
+    uploadLog(
+      200,
+      `formdata ${saveName} -> ${fileUrlPath}${dedup.deduped ? ' (contentId dedup)' : ''}`,
+    );
     return json(res, {
       code: 0,
       data: {
         url: `${BASE_URL}${fileUrlPath}`,
-        path: savedPath,
+        path: dedup.savedPath || fileUrlPath,
         thumbnailUrl: thumbnailUrl ? `${BASE_URL}${thumbnailUrl}` : undefined,
+        // Content 维度去重身份（docs/122 #4 桥）：前端可持 contentId（稳定），渲染经 url 派生
+        contentId: dedup.contentId,
       },
     });
   }
@@ -167,11 +186,6 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
     uploadLog(400, `fileUrl ${body.fileUrl} | ${(e as Error).message}`);
     return sendError(res, `Failed to download fileUrl: ${(e as Error).message}`, 400);
   }
-}
-
-async function saveFile(data: Buffer, subfolder: string, filename: string): Promise<string> {
-  const { savedPath } = writeUploadBuffer(subfolder, filename, data);
-  return savedPath;
 }
 
 /**
@@ -417,14 +431,11 @@ export async function handleMkdir(req: IncomingMessage, res: ServerResponse): Pr
 // ── move ──
 // 收相对 uploadDir 的 src/dst 路径（与 mkdir 收相对 folder、open-dir 收相对 filepath 口径一致）。
 // 前端从资源 url 拿不到磁盘绝对路径，统一由后端拼 getUploadDir()，避免把绝对路径透传到前端。
-// 参考官方 shared.js moveFile（传 tasks/、migrated/ 相对前缀）。
 //
-// 【实现收口】移动与改名是同一件事（资源 url 身份变化），统一走 resources.ts 的
-// applyResourceIdentityChange。此前本处只做一次裸 renameSync，漏了三件事：
-//   ① 目标同名文件不判重 → POSIX rename 静默覆盖（清单 §8 P0-1，真丢数据）；
-//   ② 不同步 resources 表 → 收藏丢失，且窗口期内可能被引用感知 GC 判为孤儿真删（P0-2）；
-//   ③ 改完不落盘 → 改写停在内存，进程非优雅退出即丢失（P1-3）。
-// 收口后这三项由唯一入口统一保证，两侧不可能再不对称。
+// 【增量② · context-only（docs/122 Content/Ref：#4「移动只动 context」）】
+// 把资源拖入文件夹 = 只更新 resource 行的 folder（UI 分类），**磁盘文件 / url / contentId 均不动**。
+// 故此移动不再真做 renameSync 物理移动、不再改写 url/引用 → asset 永不破图、无需 rewriteUrlReferences。
+// 历史「真移动磁盘 + 改写 url」由 applyResourceIdentityChange（真·身份变更）承担，此处移动归类走 context-only。
 export async function handleMove(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = (await parseJsonBody(req)) as { src?: string; dst?: string } | null;
   if (!body || !body.src || !body.dst) {
@@ -432,10 +443,9 @@ export async function handleMove(req: IncomingMessage, res: ServerResponse): Pro
   }
 
   try {
-    const r = await applyResourceIdentityChange({ oldRel: body.src, newRel: body.dst });
+    const r = await applyResourceContextMove({ oldRel: body.src, newRel: body.dst });
     return json(res, { code: 0, data: { ok: true, id: r.id, url: r.url, name: r.name } });
   } catch (e) {
-    // 错误原样透传（含 400 非法路径 / 404 源不存在 / 409 目标已存在），不做泛化改写
     const status = e instanceof HttpStatusError ? e.status : 500;
     return sendError(res, (e as Error).message, status);
   }

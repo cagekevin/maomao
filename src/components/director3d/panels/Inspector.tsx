@@ -22,7 +22,14 @@ import {
   presetPhase,
   presetRoot,
 } from '../rig.ts';
-import { CAMERA_ID, FOCAL_LENGTH_PRESETS } from '../project.ts';
+import {
+  CAMERA_ID,
+  FOCAL_LENGTH_PRESETS,
+  type ProjectObject,
+  type ProjectCamera,
+  type ProjectSettings,
+  type ProjectLighting,
+} from '../project.ts';
 import { GlobalSettingsPanel } from './GlobalSettingsPanel.tsx';
 import { ToolButton, VectorFields } from './controls.tsx';
 
@@ -60,6 +67,59 @@ function Collapsible({
   );
 }
 
+interface CustomPose {
+  id: string;
+  name: string;
+  pose?: string;
+  poseTime?: number;
+  rigRoot?: number[];
+  joints?: unknown;
+  [key: string]: unknown;
+}
+
+type InspectorCollapsedKey = 'person' | 'poseLibrary' | 'skeleton' | 'customPose';
+
+interface InspectorSelectedObject extends ProjectObject {
+  locked?: boolean;
+  continuousMotion?: boolean;
+  footLock?: boolean;
+  proportionalScale?: boolean;
+  scaleAxisLocks?: boolean[];
+}
+
+interface InspectorProps {
+  selected: InspectorSelectedObject | null;
+  objects: ProjectObject[];
+  camera: ProjectCamera;
+  cameraAspect: string;
+  onAspectChange: (aspectRatio: string) => void;
+  projectSettings: ProjectSettings;
+  onApplySettings: (nextSettings: Partial<ProjectSettings>) => void;
+  maxKeyframeFrame: number;
+  showGrid: boolean;
+  onToggleGrid: () => void;
+  performanceMode: boolean;
+  onTogglePerformance: () => void;
+  seamlessBackground: boolean;
+  onToggleSeamless: () => void;
+  lighting: ProjectLighting;
+  onLightingChange: (value: ProjectLighting | ((prev: ProjectLighting) => ProjectLighting)) => void;
+  selectedJoint: string;
+  customPoses: CustomPose[];
+  onSelectJoint: (value: string) => void;
+  onUpdateObject: (id: string, patch: Record<string, unknown>) => void;
+  onDelete: () => void;
+  onDuplicate: () => void;
+  onFocus: () => void;
+  onToggleLock: () => void;
+  onGround: () => void;
+  onResetRotation: () => void;
+  onResetScale: () => void;
+  onSaveCustomPose: (person: ProjectObject) => void;
+  onApplyCustomPose: (customPose: CustomPose) => void;
+  onDeleteCustomPose: (poseId: string) => void;
+}
+
 export function Inspector({
   selected,
   objects,
@@ -91,10 +151,10 @@ export function Inspector({
   onSaveCustomPose,
   onApplyCustomPose,
   onDeleteCustomPose,
-}) {
+}: InspectorProps) {
   // 人物面板折叠状态：动作库、完整骨骼默认收起，人物整段与我的姿势默认展开。
   // 提前到 early return 之前调用，遵守 Hooks 规则（selected 在 null/非null 间切换不会打乱 hook 顺序）。
-  const [collapsed, setCollapsed] = useState({
+  const [collapsed, setCollapsed] = useState<Record<InspectorCollapsedKey, boolean>>({
     person: false,
     poseLibrary: true,
     skeleton: true,
@@ -126,17 +186,17 @@ export function Inspector({
   // 契约 C3.1：统一写入入口 updateObject(id, patch)。
   // 面板内所有写入都经下面两个薄包装——摄像机补 CAMERA_ID，其余补 selected.id——
   // 保证「改了哪个对象」永远携带在参数里，不再依赖调用方记住该调哪个 prop。
-  const updateObject = (patch) => onUpdateObject(selected.id, patch);
-  const updateCamera = (patch) => onUpdateObject(CAMERA_ID, patch);
+  const updateObject = (patch: Record<string, unknown>) => onUpdateObject(selected.id, patch);
+  const updateCamera = (patch: Record<string, unknown>) => onUpdateObject(CAMERA_ID, patch);
   const position = isCamera ? camera.position : selected.position;
   const rigPose = selected.type === 'person' ? poseForObject(selected) : null;
   const canLoopPose = selected.type === 'person' && poseCanLoop(selected.pose);
   const jointRotation = rigPose?.joints[selectedJoint] || [0, 0, 0];
-  const updateJoint = (rotation) =>
+  const updateJoint = (rotation: number[]) =>
     updateObject({
       joints: { ...rigPose.joints, [selectedJoint]: rotation },
     });
-  const applyPreset = (pose) =>
+  const applyPreset = (pose: string) =>
     updateObject({
       pose: normalizePoseId(pose),
       poseTime: presetPhase(pose),
@@ -144,7 +204,8 @@ export function Inspector({
       rigRoot: presetRoot(pose),
       joints: presetJoints(pose),
     });
-  const toggle = (key) => setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
+  const toggle = (key: InspectorCollapsedKey) =>
+    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
   return (
     <aside className="right-sidebar panel">
       <div className="inspector-head">
@@ -274,7 +335,7 @@ export function Inspector({
                 aria-label="始终面向对象"
                 value={
                   camera.targetMode === 'object' &&
-                  objects.some((object) => object.id === camera.targetId)
+                  objects.some((object: ProjectObject) => object.id === camera.targetId)
                     ? camera.targetId
                     : 'manual'
                 }
@@ -285,7 +346,7 @@ export function Inspector({
                 }}
               >
                 <option value="manual">手动（不朝向）</option>
-                {objects.map((object) => (
+                {objects.map((object: ProjectObject) => (
                   <option key={object.id} value={object.id}>
                     {object.name}
                   </option>
@@ -328,7 +389,7 @@ export function Inspector({
                 <input
                   type="color"
                   value={selected.color || '#e8e3d8'}
-                  onChange={(e) => onUpdateObject({ color: e.target.value })}
+                  onChange={(e) => updateObject({ color: e.target.value })}
                 />
                 <output>{selected.color || '#e8e3d8'}</output>
               </label>
@@ -336,7 +397,7 @@ export function Inspector({
                 <span>体型</span>
                 <select
                   value={selected.bodyType}
-                  onChange={(e) => onUpdateObject({ bodyType: e.target.value })}
+                  onChange={(e) => updateObject({ bodyType: e.target.value })}
                 >
                   <option value="standard">中性人体</option>
                   <option value="female">女性人体</option>
@@ -504,7 +565,7 @@ export function Inspector({
                 </button>
                 {customPoses.length ? (
                   <div className="custom-pose-list">
-                    {customPoses.map((customPose) => (
+                    {customPoses.map((customPose: CustomPose) => (
                       <div className="custom-pose-row" key={customPose.id}>
                         <button
                           type="button"
@@ -544,7 +605,7 @@ export function Inspector({
               <input
                 type="color"
                 value={selected.color || '#d8d3c8'}
-                onChange={(e) => onUpdateObject({ color: e.target.value })}
+                onChange={(e) => updateObject({ color: e.target.value })}
               />
               <output>{selected.color || '#d8d3c8'}</output>
             </label>

@@ -8,12 +8,55 @@ import {
   useRef,
 } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import type { ThreeEvent } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MIXAMO_BODY_SCALES, poseForObject, presetDefinition } from './rig.ts';
 import { log } from './log.ts';
+
+interface MixamoJointMarkerProps {
+  bone: THREE.Bone;
+  jointId: string;
+  selected: boolean;
+  modelRoot: React.RefObject<THREE.Group>;
+  onSelectJoint?: (jointId: string) => void;
+  onBeginDrag?: (event: ThreeEvent<PointerEvent>, jointId: string) => boolean | void;
+  onDrag?: (event: ThreeEvent<PointerEvent>) => void;
+  onEndDrag?: (event: ThreeEvent<PointerEvent>) => void;
+}
+
+interface MixamoIKHandleProps {
+  bone: THREE.Bone;
+  jointId: string;
+  selected: boolean;
+  modelRoot: React.RefObject<THREE.Group>;
+  onBeginDrag?: (event: ThreeEvent<PointerEvent>, jointId: string) => boolean | void;
+  onDrag?: (event: ThreeEvent<PointerEvent>) => void;
+  onEndDrag?: (event: ThreeEvent<PointerEvent>) => void;
+}
+
+interface MixamoPersonModelProps {
+  bodyType?: string;
+  pose?: string;
+  poseTime?: number;
+  continuousMotion?: boolean;
+  animationTime?: number;
+  rigRoot?: unknown;
+  joints?: unknown;
+  footLock?: boolean;
+  color?: string;
+  selected?: boolean;
+  selectedJoint?: string;
+  onSelectJoint?: (jointId: string) => void;
+  onRotateJoint?: (jointId: string, rotation: number[]) => void;
+  onRotateJoints?: (rotations: Record<string, number[]>) => void;
+  showBoneGizmo?: boolean;
+  onSurfacePointerDown?: (event: ThreeEvent<PointerEvent>) => void;
+  onSurfacePointerMove?: (event: ThreeEvent<PointerEvent>) => void;
+  onSurfacePointerUp?: (event: ThreeEvent<PointerEvent>) => void;
+}
 
 // 内置人物模型：使用减面版（49k→15k 三角），蒙皮/骨骼/动画全保留，降低每帧渲染成本
 // 原件 xbot-animated.glb 保留在 public/models/ 作回退
@@ -54,8 +97,8 @@ export function measureModelScale(
 
 // 体型比例表已收口到 rig.ts（唯一真相源，project.ts 的视觉中心计算共用同一份）。
 
-function dominantBoneNameFromHit(event) {
-  const mesh = event.object;
+function dominantBoneNameFromHit(event: ThreeEvent<PointerEvent>) {
+  const mesh = event.object as THREE.SkinnedMesh;
   const face = event.face;
   const skinIndex = mesh?.geometry?.attributes?.skinIndex;
   const skinWeight = mesh?.geometry?.attributes?.skinWeight;
@@ -107,7 +150,7 @@ function MixamoJointMarker({
   onBeginDrag,
   onDrag,
   onEndDrag,
-}) {
+}: MixamoJointMarkerProps) {
   const markerRef = useRef(null);
   const worldPosition = useMemo(() => new THREE.Vector3(), []);
   const isFineBone = /Hand|Eye|End/.test(jointId);
@@ -142,7 +185,15 @@ function MixamoJointMarker({
   );
 }
 
-function MixamoIKHandle({ bone, jointId, selected, modelRoot, onBeginDrag, onDrag, onEndDrag }) {
+function MixamoIKHandle({
+  bone,
+  jointId,
+  selected,
+  modelRoot,
+  onBeginDrag,
+  onDrag,
+  onEndDrag,
+}: MixamoIKHandleProps) {
   const markerRef = useRef(null);
   const worldPosition = useMemo(() => new THREE.Vector3(), []);
   useFrame(() => {
@@ -195,7 +246,7 @@ function MixamoPersonModel({
   onSurfacePointerDown,
   onSurfacePointerMove,
   onSurfacePointerUp,
-}) {
+}: MixamoPersonModelProps) {
   const gltf = useGLTF(BUILT_IN_MODEL_URL);
   const orbitControls = useThree((state) => state.controls) as unknown as {
     enabled: boolean;
@@ -330,7 +381,7 @@ function MixamoPersonModel({
   );
 
   const beginIKDrag = useCallback(
-    (event, jointId) => {
+    (event: ThreeEvent<PointerEvent>, jointId: string) => {
       const effectorId = ikEffectorForJoint(jointId);
       const chainIds = IK_CHAINS[effectorId];
       const effector = bones[effectorId];
@@ -344,7 +395,7 @@ function MixamoPersonModel({
         return false;
       event.stopPropagation();
       event.nativeEvent?.stopImmediatePropagation?.();
-      event.target?.setPointerCapture?.(event.pointerId);
+      (event.target as Element | null)?.setPointerCapture?.(event.pointerId);
       onSelectJoint?.(effectorId);
       scene.updateMatrixWorld(true);
       const startTarget = effector.getWorldPosition(new THREE.Vector3());
@@ -388,12 +439,12 @@ function MixamoPersonModel({
   );
 
   const beginBoneDrag = useCallback(
-    (event, jointId) => {
+    (event: ThreeEvent<PointerEvent>, jointId: string) => {
       if (ikEffectorForJoint(jointId) && beginIKDrag(event, jointId)) return true;
       if (!selected || !showBoneGizmo || !onRotateJoint || !bones[jointId]) return false;
       event.stopPropagation();
       event.nativeEvent?.stopImmediatePropagation?.();
-      event.target?.setPointerCapture?.(event.pointerId);
+      (event.target as Element | null)?.setPointerCapture?.(event.pointerId);
       onSelectJoint?.(jointId);
       const startRotation = rig.joints[jointId] || [0, 0, 0];
       boneDrag.current = {
@@ -422,7 +473,7 @@ function MixamoPersonModel({
   );
 
   const dragBone = useCallback(
-    (event) => {
+    (event: ThreeEvent<PointerEvent>) => {
       const drag = boneDrag.current;
       if (!drag || event.pointerId !== drag.pointerId) return;
       event.stopPropagation();
@@ -495,16 +546,16 @@ function MixamoPersonModel({
   );
 
   const endBoneDrag = useCallback(
-    (event) => {
+    (event: ThreeEvent<PointerEvent>) => {
       const drag = boneDrag.current;
       if (!drag || event.pointerId !== drag.pointerId) return;
       event.stopPropagation();
-      event.target?.releasePointerCapture?.(event.pointerId);
+      (event.target as Element | null)?.releasePointerCapture?.(event.pointerId);
       boneDrag.current = null;
       if (orbitControls) orbitControls.enabled = true;
       document.body.style.cursor = '';
       if (drag.kind === 'ik') {
-        const rotations = {};
+        const rotations: Record<string, [number, number, number]> = {};
         const inverseSampled = new THREE.Quaternion();
         const delta = new THREE.Quaternion();
         const euler = new THREE.Euler();
@@ -526,7 +577,7 @@ function MixamoPersonModel({
   );
 
   const beginBoneDragFromSurface = useCallback(
-    (event) => {
+    (event: ThreeEvent<PointerEvent>) => {
       if (!selected || !showBoneGizmo) return;
       const jointId = dominantBoneNameFromHit(event);
       if (jointId) beginBoneDrag(event, jointId);
@@ -535,21 +586,21 @@ function MixamoPersonModel({
   );
 
   const handleSurfacePointerDown = useCallback(
-    (event) => {
+    (event: ThreeEvent<PointerEvent>) => {
       if (showBoneGizmo) beginBoneDragFromSurface(event);
       else onSurfacePointerDown?.(event);
     },
     [beginBoneDragFromSurface, onSurfacePointerDown, showBoneGizmo],
   );
   const handleSurfacePointerMove = useCallback(
-    (event) => {
+    (event: ThreeEvent<PointerEvent>) => {
       if (showBoneGizmo) dragBone(event);
       else onSurfacePointerMove?.(event);
     },
     [dragBone, onSurfacePointerMove, showBoneGizmo],
   );
   const handleSurfacePointerUp = useCallback(
-    (event) => {
+    (event: ThreeEvent<PointerEvent>) => {
       if (showBoneGizmo) endBoneDrag(event);
       else onSurfacePointerUp?.(event);
     },
@@ -638,7 +689,7 @@ class ModelErrorBoundary extends Component<
   }
 }
 
-function StudioPerson(props) {
+function StudioPerson(props: MixamoPersonModelProps) {
   const fallback = (
     <mesh position={[0, 0.9, 0]} castShadow>
       <capsuleGeometry args={[0.28, 1.25, 8, 18]} />

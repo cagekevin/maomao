@@ -17,9 +17,20 @@ import FullscreenShell from '../base/panels/FullscreenShell.tsx';
  *  - nodeId：节点 id，用于生成独立工程存储 key
  *  - onExit：退出回调，回传 { thumbnailDataUrl?, captures? }
  */
-export function Director3DOverlay({ nodeId, onExit }) {
-  const capturesRef = useRef([]);
-  const thumbnailRef = useRef(null);
+interface CaptureItem {
+  type: 'image' | 'video';
+  blob: Blob;
+  fileName: string;
+}
+
+interface Director3DOverlayProps {
+  nodeId: string;
+  onExit?: (payload: { thumbnailDataUrl: string | null; captures: CaptureItem[] }) => void;
+}
+
+export function Director3DOverlay({ nodeId, onExit }: Director3DOverlayProps) {
+  const capturesRef = useRef<CaptureItem[]>([]);
+  const thumbnailRef = useRef<string | null>(null);
   const hostRef = useRef(null);
   const storageKey = nodeId ? `director3d-project-${nodeId}` : null;
 
@@ -27,14 +38,14 @@ export function Director3DOverlay({ nodeId, onExit }) {
   // - pointer/wheel：仅当目标在 overlay 外（画布）时拦截，不影响 3D 导演台内部。
   // - drag/paste：overlay 打开时无条件拦截（画布拖拽/粘贴建节点无需保留，3D 导演台内部用 file input 上传、内部 state 处理关键帧）。
   useEffect(() => {
-    const blockPointerOutside = (e) => {
+    const blockPointerOutside = (e: Event) => {
       const target = e.target;
       const host = hostRef.current;
       if (target && host && host.contains(target)) return;
       e.preventDefault();
       e.stopImmediatePropagation();
     };
-    const blockAll = (e) => {
+    const blockAll = (e: Event) => {
       e.preventDefault();
       e.stopImmediatePropagation();
     };
@@ -45,9 +56,9 @@ export function Director3DOverlay({ nodeId, onExit }) {
     // React Flow 的 onDrop/onDragOver 是 React 合成事件，委托到 #root。
     // 在 #root 捕获阶段拦截 drag/drop，确保画布拖拽建节点被阻止（overlay 不在 #root 内，不受影响）。
     const hostRoot = document.getElementById('root');
-    const rootCaptureCleanup = [];
+    const rootCaptureCleanup: Array<() => void> = [];
     if (hostRoot) {
-      const rootBlock = (e) => {
+      const rootBlock = (e: Event) => {
         e.preventDefault();
         e.stopImmediatePropagation();
       };
@@ -71,12 +82,12 @@ export function Director3DOverlay({ nodeId, onExit }) {
   }, []);
 
   // 受控导出：收集产物（Blob），退出时交给宿主落盘/回写画布
-  const handleExport = useCallback(({ type, blob, fileName }) => {
+  const handleExport = useCallback(({ type, blob, fileName }: CaptureItem) => {
     capturesRef.current = [...capturesRef.current, { type, blob, fileName }];
   }, []);
 
   // 缩略图回传：App 每次截图成功后给出节点预览图
-  const handleThumbnail = useCallback((dataUrl) => {
+  const handleThumbnail = useCallback((dataUrl: string) => {
     if (dataUrl) thumbnailRef.current = dataUrl;
   }, []);
 

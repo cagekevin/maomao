@@ -127,12 +127,12 @@ function resolveArg(arg) {
  */
 const hasProject = Boolean(values.project);
 const projectRoot = hasProject ? resolveArg(values.project) : root;
-/** 实际使用的 tsconfig：--tsconfig > <project>/tsconfig.json（旧：tests/tsconfig.json） */
+/** 实际使用的 tsconfig：--tsconfig > <project>/tsconfig.json（全盘扫描统一走根配置） */
 const tsconfigPath = values.tsconfig
   ? resolveArg(values.tsconfig)
   : hasProject
     ? resolve(projectRoot, 'tsconfig.json')
-    : resolve(root, 'tests', 'tsconfig.json');
+    : resolve(root, 'tsconfig.json');
 /** status 扫描目录：--scan > <project 根递归> > 旧 tests/unit */
 const scanDir = values.scan
   ? resolveArg(values.scan)

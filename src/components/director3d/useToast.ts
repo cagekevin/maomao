@@ -10,13 +10,15 @@ import { useCallback, useState } from 'react';
 /** 单条 toast 自动消失时长（毫秒）。 */
 export const TOAST_DURATION_MS = 1800;
 
+type ToastLevel = 'info' | 'success' | 'warning' | 'error';
+
 /**
  * 队列化 Toast 状态。渲染层消费 toasts；业务层 setToast(text[, level]) 入队；dismiss(id) 手动关闭。
  */
 export function useToast() {
   const [toasts, setToasts] = useState([]);
 
-  const notify = useCallback((text, level = 'info') => {
+  const notify = useCallback((text: string, level: ToastLevel = 'info') => {
     if (text == null || text === '') return;
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setToasts((list) => [...list, { id, text, level }]);
@@ -27,7 +29,7 @@ export function useToast() {
   }, []);
 
   // 手动关闭某条（渲染层关闭按钮用）
-  const dismiss = useCallback((id) => {
+  const dismiss = useCallback((id: string) => {
     setToasts((list) => list.filter((item) => item.id !== id));
   }, []);
 

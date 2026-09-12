@@ -5,6 +5,8 @@ import {
   detectAssetType,
   filterByFolder,
   addResources,
+  buildResourceRecord,
+  resourcesOfProject,
   removeResource,
   clearResources,
   __resetForTest,
@@ -74,6 +76,44 @@ describe('素材库数据层 §2.18', () => {
   it('clearResources 清空', () => {
     clearResources();
     expect(getResources()).toHaveLength(0);
+  });
+
+  it('buildResourceRecord 缺省字段补全（id/folder/type/name/size/ts）', () => {
+    const rec = buildResourceRecord({ url: '/files/x.png' }, 'migrated', 123456);
+    expect(rec).toMatchObject({
+      id: expect.any(String),
+      folder: 'migrated',
+      type: 'image',
+      name: '未命名',
+      size: 0,
+      ts: 123456,
+    });
+  });
+
+  it('buildResourceRecord 保留显式字段、回填 folder/now', () => {
+    const rec = buildResourceRecord(
+      { url: '/files/y.png', name: '猫', type: 'video', size: 99 },
+      'tasks',
+      7,
+    );
+    expect(rec).toMatchObject({
+      folder: 'tasks',
+      type: 'video',
+      name: '猫',
+      size: 99,
+      ts: 7,
+    });
+  });
+
+  it('resourcesOfProject：legacy(无 projectId) 全项目可见，显式 projectId 仅其项目可见', () => {
+    const list = [
+      { id: 'a', url: '/a.png', legacy: true }, // 无 projectId
+      { id: 'b', url: '/b.png', projectId: 'p1' },
+      { id: 'c', url: '/c.png', projectId: 'p2' },
+    ] as never;
+    expect(resourcesOfProject(list, 'p1').map((r) => r.id)).toEqual(['a', 'b']);
+    expect(resourcesOfProject(list, 'p2').map((r) => r.id)).toEqual(['a', 'c']);
+    expect(resourcesOfProject(list, 'px').map((r) => r.id)).toEqual(['a']); // 未知项目只见 legacy
   });
 });
 

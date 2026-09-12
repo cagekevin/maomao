@@ -9,6 +9,7 @@ import {
   downloadRemoteToLocal,
   WEB_DROP_SUBFOLDER,
 } from '../components/base/api/index.ts';
+import { contentIdOfBytes } from '../components/base/utils/assetUrl.ts';
 import { UPLOAD_DIRS } from '../components/base/utils/uploadDirs.ts';
 import { logger } from '../components/base/core/logger.ts';
 
@@ -157,7 +158,15 @@ export function useAssetDropPaste({
           toastError(`导入失败：无法读取「${file.name}」`);
           return;
         }
-        addNode('assetNode', pos, { assetUrl: url, label: file.name });
+        // docs/122 #4：持久文件（非内联 dataURL）→ 落稳定 contentId（sha1:<hex>，与后端同源）；
+        // 内联 dataURL/blob 无持久 Content，只存 url（互斥双形态）。
+        let contentId: string | undefined;
+        if (!url.startsWith('data:')) contentId = await contentIdOfBytes(file);
+        addNode('assetNode', pos, {
+          assetUrl: url,
+          label: file.name,
+          ...(contentId ? { contentId } : {}),
+        });
         showToast(
           `已导入${type === 'image' ? '图片' : type === 'video' ? '视频' : '音频'}「${file.name}」`,
         );
@@ -201,6 +210,7 @@ export function useAssetDropPaste({
             type?: string;
             text?: string;
             name?: string;
+            contentId?: string;
           };
           if (asset?.url) {
             // 文字素材 → textGenerateNode（把 data:text 内容解码成文本）；图片/视频/音频 → assetNode
@@ -216,7 +226,12 @@ export function useAssetDropPaste({
               addNode('textGenerateNode', pos, { text: content, label: asset.name || '文字素材' });
               showToast(`已添加文字素材「${asset.name || '文字素材'}」`);
             } else {
-              addNode('assetNode', pos, { assetUrl: asset.url, label: asset.name || '素材' });
+              // docs/122 #4：素材库拖入建 asset → 带稳定 contentId（来自后端资源 sha1），与 assetUrl 同存
+              addNode('assetNode', pos, {
+                assetUrl: asset.url,
+                label: asset.name || '素材',
+                ...(asset.contentId ? { contentId: asset.contentId } : {}),
+              });
               showToast(`已添加素材「${asset.name || '素材'}」`);
             }
             return;

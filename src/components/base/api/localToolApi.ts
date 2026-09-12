@@ -33,6 +33,8 @@ export interface ResourceItem {
   type?: string;
   folder?: string;
   source?: string;
+  /** docs/122 #4：稳定 contentId（后端 sha1 去重身份列别名；folder/url 无关），供 asset 引用 */
+  contentId?: string;
 }
 
 // ── 后端报文返回类型（基于各端点注释里记录的结构，收窄 Promise<any>）──
@@ -165,20 +167,28 @@ export async function saveProjects(
 }
 
 // ─────────────────────────── resources ───────────────────────────
-// GET /api/resources?page&pageSize&filters=JSON → 分页资源列表
+// GET /api/resources?page&pageSize&filters=JSON&projectId= → 分页资源列表
+// projectId（可选，docs/122 #2/#3）：后端按 `(project_id IS NULL OR project_id=?)` 过滤，
+// legacy(project_id NULL)全项目可见、显式 projectId 的行只对其可见；不传 = 全量(向后兼容)。
 export async function fetchResources({
   folder,
   page = 1,
   pageSize = 60,
   type,
-}: { folder?: string; page?: number; pageSize?: number; type?: string } = {}): Promise<
-  ApiEnvelope<PagedResult<ResourceItem>>
-> {
+  projectId,
+}: {
+  folder?: string;
+  page?: number;
+  pageSize?: number;
+  type?: string;
+  projectId?: string;
+} = {}): Promise<ApiEnvelope<PagedResult<ResourceItem>>> {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   const filters: Record<string, string> = {};
   if (folder) filters.folder = folder; // 精确等值匹配当前层级
   if (type) filters.type = type;
   if (Object.keys(filters).length) params.set('filters', JSON.stringify(filters));
+  if (projectId) params.set('projectId', projectId);
   return httpRequest(`${API_BASE}/api/resources?${params.toString()}`, { label: 'fetchResources' }); // { items, total, page, pageSize, totalPages }
 }
 

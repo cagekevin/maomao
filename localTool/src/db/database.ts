@@ -389,8 +389,27 @@ function initTables(db: any): void {
     `CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, node_id TEXT, prompt TEXT, result_url TEXT, thumbnail_url TEXT, error_msg TEXT, custom_output_type TEXT, channel_name TEXT, model_name TEXT, progress INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, not_found_count INTEGER NOT NULL DEFAULT 0, custom_result_data TEXT, custom_raw_response TEXT, request_data TEXT, response_data TEXT, media_meta TEXT, extra_fields TEXT, thread_id TEXT, submit_ack_at INTEGER, completed_at INTEGER, poll_count INTEGER NOT NULL DEFAULT 0)`,
   );
   db.run(
-    `CREATE TABLE IF NOT EXISTS resources (id TEXT PRIMARY KEY, url TEXT NOT NULL, type TEXT NOT NULL, source TEXT, folder TEXT, name TEXT, page_url TEXT, page_title TEXT, is_favorite INTEGER NOT NULL DEFAULT 0, timestamp INTEGER NOT NULL DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS resources (id TEXT PRIMARY KEY, url TEXT NOT NULL, type TEXT NOT NULL, source TEXT, folder TEXT, name TEXT, sha1 TEXT, project_id TEXT, page_url TEXT, page_title TEXT, is_favorite INTEGER NOT NULL DEFAULT 0, timestamp INTEGER NOT NULL DEFAULT 0)`,
   );
+  // 【docs/122 #2 + A′】新库由建表语句带列；旧库幂等补列（PRAGMA 探测避免重复 ALTER）。
+  //  - project_id：只约束 resource 逻辑引用层；物理去重仍全局；legacy NULL = 全项目可见。
+  //  - sha1：去重身份列（folder 无关、全库唯一、改名仍存活；docs/122 A′），值 = sha1(file 内容) hex，由落盘/回填写入。
+  // rescan 行保持 project_id NULL（不因 project 分裂成多行防重复显示）；sha1 由 rescan 回填。
+  const resCols = db.exec('PRAGMA table_info(resources)');
+  const resColSet = new Set<string>();
+  if (resCols.length > 0 && Array.isArray(resCols[0].values)) {
+    for (const r of resCols[0].values) {
+      if (Array.isArray(r) && typeof r[1] === 'string') resColSet.add(r[1]);
+    }
+  }
+  if (!resColSet.has('sha1')) {
+    db.run(`ALTER TABLE resources ADD COLUMN sha1 TEXT`);
+  }
+  if (!resColSet.has('project_id')) {
+    db.run(`ALTER TABLE resources ADD COLUMN project_id TEXT`);
+  }
+  // 去重身份列唯一约束（docs/122 Content 维度）：并发去重真保证 = DB 唯一约束 + 冲突回退复用
+  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_resources_sha1 ON resources(sha1)`);
   db.run(
     `CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, is_last_opened INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0)`,
   );

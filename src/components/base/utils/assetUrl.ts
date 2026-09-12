@@ -205,6 +205,82 @@ export function normalizeAssetUrl(url: string | null | undefined): string {
 }
 
 /**
+ * 由原始字节计算 Content 维度 identity（docs/122：`contentId = <alg>:<hex>(decodedBytes)`）。
+ * 供资产创建时给节点 node.data 落稳定 contentId，与后端 resources.sha1 列同源（`sha1:` 前缀）。
+ * 浏览器用 WebCrypto(crypto.subtle) 算 sha1；环境无 crypto.subtle（非浏览器/受限）→ 返回 undefined（跳过 contentId）。
+ * 说明：File/Blob 源由 multipart 直传的字节即其原文 → 前端算出的 sha1 与后端 contentId 一致（contentId 与 folder/url 无关）。
+ * @param {ArrayBuffer|Blob} data 已解码原始字节（File/Blob 或 ArrayBuffer）
+ * @returns {Promise<string|undefined>} `sha1:<hex>`；不可用/失败 → undefined
+ */
+export async function contentIdOfBytes(
+  data: Uint8Array | ArrayBuffer | Blob,
+): Promise<string | undefined> {
+  const subtle = (globalThis as { crypto?: Crypto })?.crypto?.subtle;
+  if (!subtle) return undefined;
+  try {
+    const buf = data instanceof Blob ? await data.arrayBuffer() : data;
+    const hash = await subtle.digest('SHA-1', buf as BufferSource);
+    const hex = Array.from(new Uint8Array(hash))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    return `sha1:${hex}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 素材节点 data 的「渲染解析结果」。
+ * - ok       → 可显示 url（文件型经 resource 解析，或内联 url）
+ * - missing  → 资源查无（resourceId 指向的资源已删）→ 显式缺失态（fail-loud，UI 呈现不吞错破图）
+ */
+export type AssetRefState = { kind: 'ok'; url: string } | { kind: 'missing' };
+
+/**
+ * 素材节点渲染 url 解析（docs/122 #4/#5）——「渲染解析」唯一入口，禁止 asset/脚本盒各自 map 拼 url。
+ *
+ * data 互斥双形态：
+ *  - 文件型持 `resourceId` → 经 resolveResourceUrl 解析 resource → url；查无 → missing（fail-loud）。
+ *  - 内联 dataURL/blob 持 `url` → 直接用（不查 resource）。
+ *  - 存量兼容层：仅当既无 resourceId 也无 url 时，退回历史 `assetUrl` 字段（docs/118 §7.3 ⑤ 读兼容写唯一）。
+ *
+ * 纯函数，不 import store（避免循环依赖）；resource 解析由调用方注入 resolveResourceUrl。
+ * @param {Record<string, unknown>|undefined} data 素材节点 data
+ * @param {(resourceId:string)=>string|null} resolveResourceUrl 由调用方注入（如查询 resourceStore 得到 url）
+ */
+export function resolveAssetDisplayUrl(
+  data: object | undefined,
+  resolveResourceUrl: (resourceId: string) => string | null,
+): AssetRefState {
+  if (!data) return { kind: 'missing' };
+  // 结构可读：data 是任意对象（含各节点 data 接口），只按需读 resourceId/url/assetUrl，不假设索引签名
+  const d = data as Record<string, unknown>;
+  const resourceId = typeof d.resourceId === 'string' ? d.resourceId : undefined;
+  const url = typeof d.url === 'string' ? d.url : undefined;
+  if (resourceId) {
+    const resolved = resolveResourceUrl(resourceId);
+    return resolved ? { kind: 'ok', url: resolved } : { kind: 'missing' };
+  }
+  if (url) return { kind: 'ok', url };
+  const assetUrl = typeof d.assetUrl === 'string' ? d.assetUrl : undefined;
+  return assetUrl ? { kind: 'ok', url: assetUrl } : { kind: 'missing' };
+}
+
+/**
+ * 互斥双形态校验（docs/122 #4）：返回「同时存在的字段」列表。
+ * 文件型持 `resourceId`、内联 type 持 `url`，二者互斥；`resourceId+url` 双字段同指一文件即为
+ * 冗余副本（明令杜绝），本函数返回违反字段供 UI guard / 测试兜底。
+ * @param {Record<string, unknown>} data
+ * @returns {Array<'resourceId'|'url'>} 违规字段；normal 为 []
+ */
+export function assertMutuallyExclusiveAssetForm(data: object): Array<'resourceId' | 'url'> {
+  const d = data as Record<string, unknown>;
+  const hasResourceId = typeof d?.resourceId === 'string';
+  const hasUrl = typeof d?.url === 'string';
+  return hasResourceId && hasUrl ? ['resourceId', 'url'] : [];
+}
+
+/**
  * 本地 File/Blob → data: base64（发送附件用）。
  * 收口：FileReader 的 dataURL 转换统一在此，各面板不得散写 FileReader。
  * 与 blobToDataUrl（网络 blob→data）语义互补：一个收本地 File、一个收 URL。

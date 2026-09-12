@@ -14,6 +14,8 @@ export interface CanvasAssetLike {
   url?: string;
   name?: string;
   type?: string;
+  /** docs/122 #4：素材持有的稳定 contentId（来自后端资源 sha1 列），拖到画布时一并带给 asset 节点 */
+  contentId?: string;
 }
 
 /**
@@ -52,7 +54,13 @@ function fetchText(url: string): Promise<string> {
 
 /** 素材的完整拖拽格式（统一信封） */
 function assetPayload(asset: CanvasAssetLike, text?: string): string {
-  return JSON.stringify({ url: asset.url, name: asset.name, type: asset.type, text });
+  return JSON.stringify({
+    url: asset.url,
+    name: asset.name,
+    type: asset.type,
+    contentId: asset.contentId,
+    text,
+  });
 }
 
 /**

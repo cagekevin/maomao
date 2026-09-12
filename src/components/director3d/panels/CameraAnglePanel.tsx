@@ -1,13 +1,21 @@
 import { ChevronUp, SlidersHorizontal } from 'lucide-react';
+import { ProjectCamera } from '../project.ts';
 
-export function CameraAnglePanel({ camera, onChange, onClose, onLevel }) {
+interface CameraAnglePanelProps {
+  camera: ProjectCamera;
+  onChange: (patch: Partial<ProjectCamera>) => void;
+  onClose: () => void;
+  onLevel: () => void;
+}
+
+export function CameraAnglePanel({ camera, onChange, onClose, onLevel }: CameraAnglePanelProps) {
   const rotation = Array.isArray(camera.rotation) ? camera.rotation : [0, 0, 0];
-  const updateAxis = (axis, degrees) => {
+  const updateAxis = (axis: number, degrees: string) => {
     const next = [...rotation];
     next[axis] = (Number(degrees) * Math.PI) / 180;
     onChange({ rotation: next });
   };
-  const range = (label, axis, minimum, maximum) => {
+  const range = (label: string, axis: number, minimum: number, maximum: number) => {
     const degrees = Math.round(((rotation[axis] || 0) * 180) / Math.PI);
     return (
       <label className="camera-angle-range" key={label}>

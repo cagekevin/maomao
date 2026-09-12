@@ -11,13 +11,14 @@
 // 读取仍同步（localStorage 种子），KV 覆盖交给 App 挂载后的 hydrateProject（读异步化见 App.jsx）。
 import { log } from './log.ts';
 import * as d3dPersistence from './d3dPersistence.ts';
+import type { D3dProject } from './d3dPersistence.ts';
 
 /**
  * 读取并 JSON 解析。key 不存在 / 解析失败均返回 fallback（默认 null）。
  * 解析失败（脏数据）会记录日志。保留同步读取：作为启动种子（localStorage 降级值），
  * KV 权威覆盖由 App 挂载后的 hydrateProject 异步完成。
  */
-export function readJson(key, fallback = null) {
+export function readJson(key: string, fallback: unknown = null) {
   try {
     const raw = localStorage.getItem(key);
     if (raw == null) return fallback;
@@ -35,7 +36,7 @@ export function readJson(key, fallback = null) {
  *   乐观返回 true（内存态为权威），写失败不阻塞编辑，由 writeProject 内部降级 + 日志暴露。
  * 返回 true/false 仅作「已受理 / 未受理」信号，不再代表「已落盘到浏览器」。
  */
-export function writeJson(key, value) {
+export function writeJson(key: string, value: unknown): boolean {
   if (!d3dPersistence.isProjectPersistenceKey(key)) {
     // 非工程键（如 director3d-custom-poses）保持同步 localStorage
     try {
@@ -47,7 +48,8 @@ export function writeJson(key, value) {
     }
   }
   // 工程键：引擎/KV 收口，异步落盘（失败内部降级 localStorage 或记录错误，不在此抛）
-  d3dPersistence.writeProject(key, value).catch((error) => {
+  // value 经调用方保证为 D3dProject（工程键路径），此处收窄供 writeProject 类型。
+  d3dPersistence.writeProject(key, value as D3dProject).catch((error) => {
     log.error('director3d 工程写 KV 失败', { key }, error);
   });
   return true;
@@ -57,7 +59,7 @@ export function writeJson(key, value) {
  * 删除指定 key。成功返回 true，失败记录日志并返回 false。
  * 仍只清 localStorage（旧版迁移清理用）；KV 侧不留显式 delete（同 key 覆盖写即幂等）。
  */
-export function removeKey(key) {
+export function removeKey(key: string): boolean {
   try {
     localStorage.removeItem(key);
     return true;

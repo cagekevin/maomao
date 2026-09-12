@@ -47,6 +47,95 @@ export interface ChannelKey {
 /** 通道结构：通道名 → 关键帧数组 */
 export type ChannelTracks = Record<string, ChannelKey[]>;
 
+/** 单条运动路径控制点（已归一化为有限数值） */
+export interface PathPoint {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** 镜头结构体（镜头级字段唯一构造入口见 createEmptyShot） */
+export interface ProjectShot {
+  id: string;
+  name: string;
+  thumbnail: string;
+  fps: number;
+  durationSeconds: number;
+  loopPlayback: boolean;
+  objects: ProjectObject[];
+  camera: ProjectCamera;
+  lighting: ProjectLighting;
+  reference: ProjectReference;
+  keyframes: ChannelTracks | ChannelKey[];
+  objectKeyframes: Record<string, ChannelTracks | ChannelKey[]>;
+  paths: Record<string, unknown>;
+  settings?: ProjectSettings;
+  [key: string]: unknown;
+}
+
+/** normalizeShot 的 fallback 入参：仅含「基线兜底」字段（不含镜头级 id/name 等，那些来自 shot 本身） */
+export interface ShotFallback {
+  settings: ProjectSettings;
+  objects: ProjectObject[];
+  camera: ProjectCamera;
+  lighting: ProjectLighting;
+  reference: ProjectReference;
+  keyframes: ChannelTracks | ChannelKey[];
+  objectKeyframes: Record<string, ChannelTracks | ChannelKey[]>;
+  paths: Record<string, unknown>;
+}
+
+/** normalize* 的脏数据入参：外部读入、字段均可缺、嵌套 settings 亦宽松 */
+export interface RawShot {
+  id?: string;
+  name?: string;
+  thumbnail?: string;
+  fps?: number;
+  durationSeconds?: number;
+  loopPlayback?: boolean;
+  objects?: ProjectObject[];
+  camera?: Partial<ProjectCamera>;
+  lighting?: Partial<ProjectLighting>;
+  reference?: Partial<ProjectReference>;
+  keyframes?: ChannelTracks | ChannelKey[];
+  objectKeyframes?: Record<string, ChannelTracks | ChannelKey[]>;
+  characterKeyframes?: Record<string, ChannelTracks | ChannelKey[]>;
+  paths?: Record<string, unknown>;
+  settings?: Partial<ProjectSettings>;
+  [key: string]: unknown;
+}
+
+/** normalizeProjectData 的脏数据入参 */
+export interface ProjectDataInput {
+  version?: number;
+  settings?: Partial<ProjectSettings>;
+  activeShotId?: string;
+  shots?: RawShot[];
+  objects?: ProjectObject[];
+  camera?: Partial<ProjectCamera>;
+  lighting?: Partial<ProjectLighting>;
+  reference?: Partial<ProjectReference>;
+  keyframes?: ChannelTracks | ChannelKey[];
+  objectKeyframes?: Record<string, ChannelTracks | ChannelKey[]>;
+  characterKeyframes?: Record<string, ChannelTracks | ChannelKey[]>;
+  paths?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** projectData() 的入参（已拆好的字段，settings 必填） */
+export interface ProjectDataFields {
+  settings: Partial<ProjectSettings>;
+  objects: ProjectObject[];
+  camera: Partial<ProjectCamera>;
+  lighting: Partial<ProjectLighting>;
+  reference: Partial<ProjectReference>;
+  keyframes: ChannelTracks | ChannelKey[];
+  objectKeyframes: Record<string, ChannelTracks | ChannelKey[]>;
+  paths: Record<string, unknown>;
+  shots?: RawShot[];
+  activeShotId?: string;
+}
+
 /** 实体类型名 */
 export type EntityType = 'person' | 'object' | 'camera';
 
@@ -209,29 +298,29 @@ export const DEFAULT_REFERENCE = {
 export const initialKeyframes = {};
 export const initialCharacterKeyframes = {};
 
-export const cleanAspectPart = (value) =>
+export const cleanAspectPart = (value: number | string) =>
   String(Math.round(clamp(Number(value) || 1, 0.1, 100) * 100) / 100);
-export const customAspectParts = (value) => {
+export const customAspectParts = (value: number | string) => {
   const match = String(value || '').match(CUSTOM_ASPECT_PATTERN);
   return match ? [Number(match[1]), Number(match[2])] : [16, 9];
 };
-export const customAspectValue = (width, height) =>
+export const customAspectValue = (width: number | string, height: number | string) =>
   `custom:${cleanAspectPart(width)}:${cleanAspectPart(height)}`;
-export const aspectSelectValue = (value) =>
+export const aspectSelectValue = (value: string) =>
   CUSTOM_ASPECT_PATTERN.test(String(value || '')) ? 'custom' : value;
-export const aspectValue = (value) => {
+export const aspectValue = (value: string) => {
   const custom = String(value || '').match(CUSTOM_ASPECT_PATTERN);
   if (custom) return Number(custom[1]) / Math.max(0.1, Number(custom[2]));
   return ASPECT_RATIOS.find((option) => option.value === value)?.ratio || 16 / 9;
 };
-export const aspectLabel = (value) => {
+export const aspectLabel = (value: string) => {
   if (aspectSelectValue(value) === 'custom') {
     const [width, height] = customAspectParts(value);
     return `${width} : ${height} · 自定义`;
   }
   return value || '16:9';
 };
-export const customAspectFrom = (value) => {
+export const customAspectFrom = (value: string) => {
   if (aspectSelectValue(value) === 'custom') return value;
   const parts = String(value || '16:9')
     .split(':')
@@ -239,35 +328,39 @@ export const customAspectFrom = (value) => {
   return customAspectValue(parts[0] || 16, parts[1] || 9);
 };
 
-export function exportDimensionsForAspect(aspectRatio) {
+export function exportDimensionsForAspect(aspectRatio: string) {
   const ratio = aspectValue(aspectRatio);
-  const even = (value) => Math.max(2, Math.round(value / 2) * 2);
+  const even = (value: number) => Math.max(2, Math.round(value / 2) * 2);
   return ratio >= 1
     ? { width: 1280, height: even(1280 / ratio) }
     : { width: even(1280 * ratio), height: 1280 };
 }
 
 export const uid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-export const radToDeg = (value) => Math.round(((value * 180) / Math.PI) * 10) / 10;
-export const degToRad = (value) => (Number(value || 0) * Math.PI) / 180;
-export const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-export const lerp = (a, b, t) => a + (b - a) * t;
-export const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
-export const ease = (t) => t * t * (3 - 2 * t);
-export const normalizeInterpolation = (value) =>
+export const radToDeg = (value: number) => Math.round(((value * 180) / Math.PI) * 10) / 10;
+export const degToRad = (value: number) => (Number(value || 0) * Math.PI) / 180;
+export const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+export const lerpAngle = (a: number, b: number, t: number) =>
+  a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
+export const ease = (t: number) => t * t * (3 - 2 * t);
+export const normalizeInterpolation = (value: string) =>
   ['smooth', 'linear', 'hold'].includes(value) ? value : 'smooth';
-export const segmentAmount = (key, amount) =>
-  key?.interpolation === 'hold' ? 0 : key?.interpolation === 'linear' ? amount : ease(amount);
+export const segmentAmount = (
+  key: { interpolation?: string } | null | undefined,
+  amount: number,
+) => (key?.interpolation === 'hold' ? 0 : key?.interpolation === 'linear' ? amount : ease(amount));
 export const POSE_LABELS = Object.fromEntries(RIG_PRESET_OPTIONS);
-export const poseLabel = (pose) => POSE_LABELS[normalizePoseId(pose)] || '自定义动作';
-export const normalizeFrameNumber = (value) => {
+export const poseLabel = (pose: string) => POSE_LABELS[normalizePoseId(pose)] || '自定义动作';
+export const normalizeFrameNumber = (value: unknown) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
 };
 
-export function uniqueSortedKeyframes(keys) {
-  const byFrame = new Map();
-  keys.forEach((key) => byFrame.set(key.frame, key));
+export function uniqueSortedKeyframes(keys: ChannelKey[]) {
+  const byFrame = new Map<number, ChannelKey>();
+  keys.forEach((key: ChannelKey) => byFrame.set(key.frame, key));
   return [...byFrame.values()].sort((a, b) => a.frame - b.frame);
 }
 
@@ -450,7 +543,10 @@ export function snapshotToChannelKeys(
 
 // 通道结构 → 整快照 key 数组（读侧桥：M2 求值器落地前，旧 objectAtFrame/cameraAtFrame/Timeline
 // 仍吃整快照数组，用本函数把各通道按帧合并还原）。同帧多通道合并，插值取后写通道（M1 全通道同插值）。
-export function channelsToSnapshotKeys(entityType: string, channels: ChannelTracks = {}) {
+export function channelsToSnapshotKeys(
+  entityType: string,
+  channels: ChannelTracks = {},
+): ChannelKey[] {
   const definition = ENTITY_CHANNELS[entityType] || ENTITY_CHANNELS.object;
   const fieldList = Object.values(definition).flat();
   const merged = new Map<
@@ -475,7 +571,7 @@ export function channelsToSnapshotKeys(entityType: string, channels: ChannelTrac
   return [...merged.values()]
     .sort((a, b) => a.frame - b.frame)
     .map((entry) => {
-      const key: Record<string, unknown> = {
+      const key: ChannelKey = {
         frame: entry.frame,
         interpolation: entry.interpolation,
       };
@@ -491,7 +587,7 @@ export function channelsToSnapshotKeys(entityType: string, channels: ChannelTrac
 export function snapshotKeysForTrack(
   track: ChannelTracks | ChannelKey[],
   entityType: string = 'object',
-) {
+): ChannelKey[] {
   return Array.isArray(track) ? track : channelsToSnapshotKeys(entityType, track || {});
 }
 
@@ -543,9 +639,13 @@ export function removeChannelFrames(
 // 写入口：把某帧在所有通道整体平移到另一帧（Timeline 拖动关键帧用）。
 // 逐通道改 frame 后重排；目标帧已有 key 时先删旧再写（与 upsert 同帧覆盖语义一致），
 // 保证「同帧最多一个 key」，否则求值端 left/right 段定位会因重复帧号错乱。
-export function moveChannelFrames(channels = {}, fromFrame, toFrame) {
+export function moveChannelFrames(
+  channels: ChannelTracks = {},
+  fromFrame: number,
+  toFrame: number,
+): ChannelTracks {
   if (fromFrame === toFrame) return channels;
-  const next = {};
+  const next: ChannelTracks = {};
   for (const [channel, list] of Object.entries(channels)) {
     const moved = (Array.isArray(list) ? list : [])
       .filter((key) => key.frame !== toFrame)
@@ -557,10 +657,14 @@ export function moveChannelFrames(channels = {}, fromFrame, toFrame) {
 
 // 写入口：把某帧在各通道的 interpolation 统一更新（Timeline 改插值用，M4.1）。
 // 同帧多通道共用同一 interpolation（M1 全通道同插值），故一次性更新所有通道该帧。
-export function setChannelInterpolation(channels = {}, frame, interpolation) {
+export function setChannelInterpolation(
+  channels: ChannelTracks = {},
+  frame: number,
+  interpolation: string,
+): ChannelTracks {
   const normalized = normalizeInterpolation(interpolation);
   const target = normalizeFrameNumber(frame);
-  const next = {};
+  const next: ChannelTracks = {};
   for (const [channel, list] of Object.entries(channels)) {
     next[channel] = (Array.isArray(list) ? list : []).map((key) =>
       key.frame === target ? { ...key, interpolation: normalized } : key,
@@ -587,9 +691,20 @@ export function setChannelInterpolation(channels = {}, frame, interpolation) {
 // 「相机轨留下幽灵帧、对象轨不会」这类只在一条轨道上复现的怪问题。
 // 抽出后两条轨道共用同一 applyTrackOperation，语义只有一份。
 // ================================================================
-export function applyTrackOperation(channels: ChannelTracks = {}, operation): ChannelTracks {
+export type TrackOperation =
+  | { op: 'upsert'; keys: ChannelTracks }
+  | { op: 'remove'; frames: number | number[] }
+  | { op: 'move'; from: number; to: number }
+  | { op: 'interpolation'; frame: number; value: string }
+  | { op: 'clear' }
+  | { op: 'batch'; steps: TrackOperation[] };
+
+export function applyTrackOperation(
+  channels: ChannelTracks = {},
+  operation: TrackOperation,
+): ChannelTracks {
   if (!operation || typeof operation !== 'object') return channels;
-  const applyOp = (list, step) => {
+  const applyOp = (list: ChannelTracks, step: TrackOperation): ChannelTracks => {
     switch (step?.op) {
       case 'upsert':
         return upsertChannelKeys(list, step.keys);
@@ -613,7 +728,11 @@ export function applyTrackOperation(channels: ChannelTracks = {}, operation): Ch
 // M4.1 对象轨唯一写入口：手动 K / 单属性 K / 路径 bake / 删除 / 移动 / 改插值统一经它落库，
 // 禁止在 UI 层手写 setCharacterKeyframes 拼装（M4-C1）。
 // 额外语义：轨道被写空后自动移除该对象条目（清空键不残留）。
-export function writeObjectTrack(tracks = {}, id, operation) {
+export function writeObjectTrack(
+  tracks: Record<string, ChannelTracks> = {},
+  id: string,
+  operation: TrackOperation,
+): Record<string, ChannelTracks> {
   if (!operation || typeof operation !== 'object') return tracks;
   const next = applyTrackOperation(tracks[id] || {}, operation);
   if (countChannelKeyframes(next)) return { ...tracks, [id]: next };
@@ -662,13 +781,13 @@ export function keyframeMaxFrame(
 
 export function finiteVector3(value: unknown, fallback: number[]): number[] {
   return Array.isArray(value) && value.length >= 3
-    ? value
+    ? (value as unknown[])
         .slice(0, 3)
         .map((item, index) => (Number.isFinite(Number(item)) ? Number(item) : fallback[index]))
     : [...fallback];
 }
 
-export function cameraRotationToward(position, target) {
+export function cameraRotationToward(position: number[], target: number[]): number[] {
   const eye = finiteVector3(position, DEFAULT_CAMERA_POSITION);
   const point = finiteVector3(target, LEGACY_DEFAULT_CAMERA_TARGET);
   let dx = point[0] - eye[0];
@@ -792,11 +911,11 @@ export function normalizeProjectSettings(settings: Partial<ProjectSettings> = {}
 }
 
 export function normalizeLighting(lighting: Partial<ProjectLighting> = {}): ProjectLighting {
-  const numeric = (value, fallback, minimum, maximum) => {
+  const numeric = (value: number, fallback: number, minimum: number, maximum: number) => {
     const parsed = Number(value);
     return clamp(Number.isFinite(parsed) ? parsed : fallback, minimum, maximum);
   };
-  const color = (value, fallback) =>
+  const color = (value: string, fallback: string) =>
     /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value) : fallback;
   return {
     ambientIntensity: numeric(lighting.ambientIntensity, DEFAULT_LIGHTING.ambientIntensity, 0, 3),
@@ -811,7 +930,7 @@ export function normalizeLighting(lighting: Partial<ProjectLighting> = {}): Proj
   };
 }
 
-export function timecodeAtFrame(frame, fps) {
+export function timecodeAtFrame(frame: number, fps: number) {
   const safeFrame = Math.max(0, Math.round(frame));
   const frames = safeFrame % fps;
   const totalSeconds = Math.floor(safeFrame / fps);
@@ -821,15 +940,15 @@ export function timecodeAtFrame(frame, fps) {
   return [hours, minutes, seconds, frames].map((value) => String(value).padStart(2, '0')).join(':');
 }
 
-export function normalizePerson(object) {
+export function normalizePerson(object: ProjectObject): ProjectObject {
   if (object?.type !== 'person') return object;
-  const pose = normalizePoseId(object.pose);
+  const pose = normalizePoseId(object.pose as string);
   return {
     ...object,
     pose,
     poseTime: Number.isFinite(object.poseTime) ? object.poseTime : presetPhase(pose),
     rigRoot: Array.isArray(object.rigRoot)
-      ? object.rigRoot.slice(0, 3).map((value) => Number(value) || 0)
+      ? (object.rigRoot as number[]).slice(0, 3).map((value) => Number(value) || 0)
       : [0, 0, 0],
     joints: cloneJointPose(object.joints),
     footLock: Boolean(object.footLock),
@@ -947,8 +1066,8 @@ export function normalizeObjectTracks(
   );
 }
 
-export const cloneProjectValue = (value) => JSON.parse(JSON.stringify(value));
-export const defaultShotName = (index) => `镜头 ${String(index + 1).padStart(2, '0')}`;
+export const cloneProjectValue = (value: unknown) => JSON.parse(JSON.stringify(value));
+export const defaultShotName = (index: number) => `镜头 ${String(index + 1).padStart(2, '0')}`;
 
 /**
  * 构造一个空镜头（shot）结构体 —— 镜头级字段的唯一构造入口。
@@ -963,7 +1082,7 @@ export const defaultShotName = (index) => `镜头 ${String(index + 1).padStart(2
  *
  * @param overrides 覆盖默认值（id / name / 场景内容等由调用方按语义提供）
  */
-export function createEmptyShot(overrides: Partial<Record<string, unknown>> = {}) {
+export function createEmptyShot(overrides: Partial<Record<string, unknown>> = {}): ProjectShot {
   return {
     id: 'shot-01',
     name: '镜头 01',
@@ -975,16 +1094,16 @@ export function createEmptyShot(overrides: Partial<Record<string, unknown>> = {}
     camera: cloneProjectValue(initialCamera),
     lighting: cloneProjectValue(DEFAULT_LIGHTING),
     reference: cloneProjectValue(DEFAULT_REFERENCE),
-    keyframes: [],
+    keyframes: [] as ChannelKey[],
     objectKeyframes: {},
     paths: {},
     ...overrides,
   };
 }
 
-export function uniqueShotName(shots, preferred) {
+export function uniqueShotName(shots: ProjectShot[], preferred: string): string {
   const used = new Set(
-    shots.map((shot) =>
+    shots.map((shot: ProjectShot) =>
       String(shot.name || '')
         .trim()
         .toLocaleLowerCase(),
@@ -1003,12 +1122,14 @@ export function uniqueShotName(shots, preferred) {
   return `${base.slice(0, 23)} ${uid().slice(-6)}`;
 }
 
-export function normalizeShot(shot, index, fallback) {
+export function normalizeShot(shot: RawShot, index: number, fallback: ShotFallback) {
   const objects = (Array.isArray(shot?.objects) ? shot.objects : fallback.objects).map(
     normalizePerson,
   );
   // M1：对象轨道按实体类型拆通道，entityTypes 从镜头内 objects 构建（决定 person 拆 3 通道 / object 拆 1 通道）
-  const entityTypes = Object.fromEntries(objects.map((object) => [object.id, object.type]));
+  const entityTypes: Record<string, string> = Object.fromEntries(
+    objects.map((object: ProjectObject) => [object.id, String(object.type)]),
+  );
   const camera = normalizeCamera(shot?.camera || fallback.camera);
   let keyframes = normalizeCameraKeyframes(shot?.keyframes ?? fallback.keyframes ?? [], camera);
   // M4.2：先归一化 paths（拿路径烘焙帧号），再迁移对象轨——路径帧剥姿态残留依赖它
@@ -1019,7 +1140,7 @@ export function normalizeShot(shot, index, fallback) {
     paths,
   );
   const timing = normalizeProjectSettings({
-    fps: shot?.fps ?? shot?.settings?.fps ?? fallback.settings.fps,
+    fps: shot?.fps ?? shot?.settings?.fps ?? fallback.settings?.fps ?? DEFAULT_PROJECT_SETTINGS.fps,
     durationSeconds:
       shot?.durationSeconds ?? shot?.settings?.durationSeconds ?? fallback.settings.durationSeconds,
     loopPlayback:
@@ -1061,7 +1182,7 @@ export function normalizeShot(shot, index, fallback) {
   };
 }
 
-export function normalizeProjectData(data) {
+export function normalizeProjectData(data: ProjectDataInput) {
   if (!data) return null;
   const firstShot = Array.isArray(data.shots) ? data.shots[0] : null;
   const sourceObjects = Array.isArray(data.objects) ? data.objects : firstShot?.objects;
@@ -1075,14 +1196,17 @@ export function normalizeProjectData(data) {
         ? DEFAULT_PROJECT_SETTINGS.durationSeconds
         : data.settings?.durationSeconds,
   });
-  const fallback = {
+  const fallback: ShotFallback = {
     settings,
     objects: sourceObjects,
-    camera: data.camera || firstShot?.camera || initialCamera,
-    lighting: data.lighting || firstShot?.lighting || DEFAULT_LIGHTING,
-    reference: data.reference || firstShot?.reference || DEFAULT_REFERENCE,
+    camera: (data.camera || firstShot?.camera || initialCamera) as ProjectCamera,
+    lighting: (data.lighting || firstShot?.lighting || DEFAULT_LIGHTING) as ProjectLighting,
+    reference: (data.reference || firstShot?.reference || DEFAULT_REFERENCE) as ProjectReference,
     keyframes: data.keyframes || [],
-    objectKeyframes: data.objectKeyframes || data.characterKeyframes || {},
+    objectKeyframes: (data.objectKeyframes || data.characterKeyframes || {}) as Record<
+      string,
+      ChannelTracks | ChannelKey[]
+    >,
     paths: data.paths || {},
   };
   const rawShots =
@@ -1143,7 +1267,7 @@ export function normalizeProjectData(data) {
   };
 }
 
-export function readCachedProject(storageKey) {
+export function readCachedProject(storageKey: string) {
   const key = storageKey || PROJECT_STORAGE_KEY;
   // 优先读当前 key；无有效缓存时才回退旧版 key 做一次性迁移
   const current = readJson(key, null);
@@ -1169,7 +1293,7 @@ export function projectData({
   paths,
   shots,
   activeShotId,
-}) {
+}: ProjectDataFields) {
   const normalizedSettings = normalizeProjectSettings(settings);
   const sourceShots = shots?.length ? shots : [{ id: 'shot-01', name: '镜头 01' }];
   const resolvedActiveShotId = sourceShots.some((shot) => shot.id === activeShotId)
@@ -1347,17 +1471,23 @@ function evaluateSkeletonChannel(
   const field = (key: ChannelKey, name: string) => key?.fields?.[name];
   const { exact, left, right, t, bounds } = locateChannelKey(keys, frame);
   const key = exact || left;
-  const jointsOf = (k) =>
+  const jointsOf = (k: ChannelKey): unknown =>
     field(k, 'joints') ||
     poseForObject({ ...object, pose: field(k, 'pose') || object.pose }).joints;
-  const rootOf = (k) =>
-    field(k, 'rigRoot') || poseForObject({ ...object, pose: field(k, 'pose') || object.pose }).root;
+  const rootOf = (k: ChannelKey): number[] => {
+    const raw = field(k, 'rigRoot');
+    return Array.isArray(raw) && raw.length >= 3
+      ? raw.slice(0, 3).map((value) => Number(value) || 0)
+      : poseForObject({ ...object, pose: field(k, 'pose') || object.pose }).root;
+  };
   const interpolate = actionContext ? actionContext.interpolateState : true;
   if (bounds !== 'segment' || !interpolate) {
     return { rigRoot: [...rootOf(key)], joints: cloneJointPose(jointsOf(key)) };
   }
   return {
-    rigRoot: rootOf(left).map((value, index) => lerp(value, rootOf(right)[index], t)),
+    rigRoot: rootOf(left).map((value: number, index: number) =>
+      lerp(value, rootOf(right)[index], t),
+    ),
     joints: interpolateJointPose(jointsOf(left), jointsOf(right), t),
   };
 }
@@ -1410,7 +1540,11 @@ function synthesizeObjectState(
   return result;
 }
 
-export function cameraAtFrame(keyframes, frame, aspectRatio = '16:9') {
+export function cameraAtFrame(
+  keyframes: ChannelTracks | ChannelKey[] | null | undefined,
+  frame: number,
+  aspectRatio: string = '16:9',
+) {
   // M2：keyframes 兼容「旧整快照数组」与「已通道化结构」；旧数组经幂等归一化转通道。
   // transform 通道的 rotation 走绕角插值（lerpAngle，与旧行为一致），lens 通道 focalLength 走 lerp。
   const channels = Array.isArray(keyframes)
@@ -1493,7 +1627,7 @@ export function cameraAtFrameWithPath(
   return camera;
 }
 
-export function objectKeyframeFromObject(object, frame) {
+export function objectKeyframeFromObject(object: ProjectObject, frame: number) {
   const rig = poseForObject(object);
   return {
     frame,
@@ -1547,57 +1681,85 @@ export const DEFAULT_PATH_SETTINGS = {
 };
 
 // 归一化单个路径控制点：统一成 `{x,y,z}` 的有限数值。
-export function normalizePathPoint(point) {
+export function normalizePathPoint(point: unknown): PathPoint {
   if (!point || typeof point !== 'object') return { x: 0, y: 0, z: 0 };
-  const numeric = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
-  return {
-    x: numeric(point.x ?? point[0]),
-    y: numeric(point.y ?? point[1]),
-    z: numeric(point.z ?? point[2]),
-  };
+  const numeric = (value: unknown) => (Number.isFinite(Number(value)) ? Number(value) : 0);
+  if (Array.isArray(point))
+    return { x: numeric(point[0]), y: numeric(point[1]), z: numeric(point[2]) };
+  const p = point as { x?: unknown; y?: unknown; z?: unknown };
+  return { x: numeric(p.x), y: numeric(p.y), z: numeric(p.z) };
 }
 
-export function normalizePathPoints(points) {
+export function normalizePathPoints(points: unknown[]): PathPoint[] {
   if (!Array.isArray(points)) return [];
   return points.filter(Boolean).map(normalizePathPoint);
 }
 
-export function normalizeCameraPath(path) {
+/** 归一化后的相机运动路径形状 */
+export type CameraPath = {
+  startFrame: number;
+  endFrame: number;
+  keyframeCount: number;
+  closed: boolean;
+  points: PathPoint[];
+  sourceKeyframeFrames: number[];
+};
+
+export function normalizeCameraPath(path: unknown): CameraPath | null {
   if (!path || typeof path !== 'object') return null;
-  const startFrame = clamp(Math.round(Number(path.startFrame) || 0), 0, 9999);
+  const p = path as {
+    startFrame?: unknown;
+    endFrame?: unknown;
+    points?: unknown;
+    keyframeCount?: unknown;
+    closed?: unknown;
+    sourceKeyframeFrames?: unknown;
+  };
+  const startFrame = clamp(Math.round(Number(p.startFrame) || 0), 0, 9999);
   const endFrame = Math.max(
     startFrame + 1,
-    Math.round(Number(path.endFrame) || DEFAULT_PATH_SETTINGS.endFrame),
+    Math.round(Number(p.endFrame) || DEFAULT_PATH_SETTINGS.endFrame),
   );
-  const points = normalizePathPoints(path.points);
+  const points = normalizePathPoints((p.points as unknown[]) || []);
   return {
     startFrame,
     endFrame,
     keyframeCount: clamp(
-      Math.round(Number(path.keyframeCount) || DEFAULT_PATH_SETTINGS.keyframeCount),
+      Math.round(Number(p.keyframeCount) || DEFAULT_PATH_SETTINGS.keyframeCount),
       2,
       500,
     ),
-    closed: Boolean(path.closed),
+    closed: Boolean(p.closed),
     points,
-    sourceKeyframeFrames: Array.isArray(path.sourceKeyframeFrames)
-      ? path.sourceKeyframeFrames.map(normalizeFrameNumber).filter((frame) => frame >= 0)
+    sourceKeyframeFrames: Array.isArray(p.sourceKeyframeFrames)
+      ? (p.sourceKeyframeFrames as unknown[])
+          .map(normalizeFrameNumber)
+          .filter((frame) => frame >= 0)
       : [],
   };
 }
 
 // 某镜头下：targetId → 其运动路径。targetId 即对象 id，摄像机用 CAMERA_ID。
-export function normalizeShotPaths(paths = {}) {
+export function normalizeShotPaths(
+  paths: Record<string, unknown> = {},
+): Record<string, CameraPath> {
   if (!paths || typeof paths !== 'object') return {};
   return Object.fromEntries(
     Object.entries(paths)
       .map(([id, path]) => [id, normalizeCameraPath(path)])
       .filter(([, path]) => path),
-  );
+  ) as Record<string, CameraPath>;
 }
 
 // 生成一条空的、用于全新绘制的运动路径（控制点由绘制产生）。
-export function createEmptyPath(timing = DEFAULT_PROJECT_SETTINGS) {
+export function createEmptyPath(timing: Partial<ProjectSettings> = DEFAULT_PROJECT_SETTINGS): {
+  startFrame: number;
+  endFrame: number;
+  keyframeCount: number;
+  closed: boolean;
+  points: PathPoint[];
+  sourceKeyframeFrames: number[];
+} {
   const totalFrames = Math.max(
     2,
     (timing.durationSeconds || DEFAULT_PROJECT_SETTINGS.durationSeconds) *
@@ -1608,30 +1770,30 @@ export function createEmptyPath(timing = DEFAULT_PROJECT_SETTINGS) {
     endFrame: Math.round(totalFrames),
     keyframeCount: DEFAULT_PATH_SETTINGS.keyframeCount,
     closed: false,
-    points: [],
-    sourceKeyframeFrames: [],
+    points: [] as PathPoint[],
+    sourceKeyframeFrames: [] as number[],
   };
 }
 
-const clampSegmentIndex = (array, index) => array[Math.max(0, Math.min(array.length - 1, index))];
+const clampSegmentIndex = <T>(array: T[], index: number): T =>
+  array[Math.max(0, Math.min(array.length - 1, index))];
 
 // M3 路径来源判定：路径「存在且启用」= 有 ≥2 个可归一化控制点（M3-C1/C3 的唯一判定入口）。
 // 与旧 UI 层 `path && Array.isArray(path.points) && path.points.length >= 2` 语义一致。
-export function pathActive(path) {
-  return Boolean(path && Array.isArray(path.points) && path.points.length >= 2);
+export function pathActive(path: unknown): boolean {
+  const p = path as { points?: unknown } | null;
+  return Boolean(p && Array.isArray(p.points) && p.points.length >= 2);
 }
 
 // M3 路径→帧求值：把 frame 映射到 [startFrame, endFrame] 的弧长进度，沿路径匀速取位。
 // 直接复用 pathPositionAtFraction（M3-C4：曲线几何/匀速/平滑不重写）。
 // 返回 [x,y,z] 或 null（路径未启用时）。路径启用即全程接管 position（帧越界按端点钳制，
 // 与旧 UI 层行为一致），故「有路径」恒为位置来源存在（M3-C3）。
-export function pathPositionAtFrame(path, frame) {
+export function pathPositionAtFrame(path: unknown, frame: number): number[] | null {
   if (!pathActive(path)) return null;
-  const start = Math.max(0, Math.round(Number(path.startFrame) || 0));
-  const end = Math.max(
-    start + 1,
-    Math.round(Number(path.endFrame) || DEFAULT_PATH_SETTINGS.endFrame),
-  );
+  const p = path as { startFrame?: unknown; endFrame?: unknown };
+  const start = Math.max(0, Math.round(Number(p.startFrame) || 0));
+  const end = Math.max(start + 1, Math.round(Number(p.endFrame) || DEFAULT_PATH_SETTINGS.endFrame));
   const u = clamp((frame - start) / Math.max(1, end - start), 0, 1);
   const pos = pathPositionAtFraction(path, u);
   if (!pos) return null;
@@ -1639,10 +1801,16 @@ export function pathPositionAtFrame(path, frame) {
 }
 
 // uniform Catmull-Rom 求值：p1-p2 段内 [0,1]，p0/p3 为前后相邻控制点。
-function catmullRomPoint(p0, p1, p2, p3, t) {
+function catmullRomPoint(
+  p0: PathPoint,
+  p1: PathPoint,
+  p2: PathPoint,
+  p3: PathPoint,
+  t: number,
+): PathPoint {
   const t2 = t * t;
   const t3 = t2 * t;
-  const evalAxis = (a, b, c, d) =>
+  const evalAxis = (a: number, b: number, c: number, d: number) =>
     0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
   return {
     x: evalAxis(p0.x, p1.x, p2.x, p3.x),
@@ -1651,11 +1819,15 @@ function catmullRomPoint(p0, p1, p2, p3, t) {
   };
 }
 
-const pathPointDistanceSq = (a, b) =>
+const pathPointDistanceSq = (a: PathPoint, b: PathPoint): number =>
   (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y) + (a.z - b.z) * (a.z - b.z);
 
 // 把控制点采样成一条稠密折线（用于渲染曲线本体 / 弧长累加）。返回 {x,y,z}[]。
-export function pathSamplePoints(points, closed = false, samplesPerSegment = 8) {
+export function pathSamplePoints(
+  points: unknown[],
+  closed: boolean = false,
+  samplesPerSegment = 8,
+): PathPoint[] {
   if (!Array.isArray(points) || points.length < 2) return [];
   const pts = points.map(normalizePathPoint);
   const segmentCount = closed ? pts.length : pts.length - 1;
@@ -1684,8 +1856,9 @@ export function pathSamplePoints(points, closed = false, samplesPerSegment = 8) 
 
 // 求路径在弧线比例 u∈[0,1] 处的前进切线（沿采样折线的局部差分，用于摄像机朝向前方）。
 // 返回 [x,y,z]；采样不足两点时返回 null。
-export function pathTangentAtFraction(path, u = 0) {
-  const samples = pathSamplePoints(path?.points, Boolean(path?.closed), 16);
+export function pathTangentAtFraction(path: unknown, u: number = 0): number[] | null {
+  const p = path as { points?: unknown; closed?: unknown };
+  const samples = pathSamplePoints((p.points as unknown[]) || [], Boolean(p.closed), 16);
   if (samples.length < 2) return null;
   const index = clamp(Math.round(clamp(u, 0, 1) * (samples.length - 1)), 0, samples.length - 2);
   const a = samples[index];
@@ -1700,23 +1873,33 @@ export function pathTangentAtFraction(path, u = 0) {
 
 // 按弧长把路径均匀切出 `count` 个关键帧（覆盖 [startFrame, endFrame]）。
 // 返回：`{ frames:[{frame, position:[x,y,z]}], sourceKeyframeFrames:number[] }`。
-export function bakePathKeyframes(path, _fps = DEFAULT_PROJECT_SETTINGS.fps) {
-  if (!path || !Array.isArray(path.points) || path.points.length < 2) {
+export function bakePathKeyframes(
+  path: unknown,
+  _fps: number = DEFAULT_PROJECT_SETTINGS.fps,
+): {
+  frames: { frame: number; position: [number, number, number] }[];
+  sourceKeyframeFrames: number[];
+} {
+  const p = path as {
+    points?: unknown;
+    closed?: unknown;
+    keyframeCount?: unknown;
+    startFrame?: unknown;
+    endFrame?: unknown;
+  };
+  if (!path || !Array.isArray(p.points) || p.points.length < 2) {
     return { frames: [], sourceKeyframeFrames: [] };
   }
-  const closed = Boolean(path.closed);
+  const closed = Boolean(p.closed);
   const count = clamp(
-    Math.round(Number(path.keyframeCount) || DEFAULT_PATH_SETTINGS.keyframeCount),
+    Math.round(Number(p.keyframeCount) || DEFAULT_PATH_SETTINGS.keyframeCount),
     2,
     500,
   );
-  const start = Math.max(0, Math.round(Number(path.startFrame) || 0));
-  const end = Math.max(
-    start + 1,
-    Math.round(Number(path.endFrame) || DEFAULT_PATH_SETTINGS.endFrame),
-  );
+  const start = Math.max(0, Math.round(Number(p.startFrame) || 0));
+  const end = Math.max(start + 1, Math.round(Number(p.endFrame) || DEFAULT_PATH_SETTINGS.endFrame));
   const totalFrames = end - start;
-  const samples = pathSamplePoints(path.points, closed, 8);
+  const samples = pathSamplePoints(p.points as unknown[], closed, 8);
   // 累加弧长
   const cumulative = [0];
   for (let index = 1; index < samples.length; index += 1) {
@@ -1725,8 +1908,8 @@ export function bakePathKeyframes(path, _fps = DEFAULT_PROJECT_SETTINGS.fps) {
     );
   }
   const totalLength = cumulative[cumulative.length - 1] || 0;
-  const frames = [];
-  const sourceKeyframeFrames = [];
+  const frames: { frame: number; position: [number, number, number] }[] = [];
+  const sourceKeyframeFrames: number[] = [];
   for (let i = 0; i < count; i += 1) {
     const u = count === 1 ? 0 : i / (count - 1);
     const targetLength = u * totalLength;
@@ -1745,8 +1928,9 @@ export function bakePathKeyframes(path, _fps = DEFAULT_PROJECT_SETTINGS.fps) {
 // 按弧长匀速在平滑路径上取一点（贝塞尔思路：点少、曲线平滑、路程匀速）。
 // u 为 0..1 的进度；把路径先重采样成稠密平滑折线，再按累计弧长定位，
 // 并在目标弧长前后两个采样点之间做线性插值，保证任意进度都连续、不掉帧。
-export function pathPositionAtFraction(path, u = 0) {
-  const samples = pathSamplePoints(path?.points, Boolean(path?.closed), 30);
+export function pathPositionAtFraction(path: unknown, u: number = 0): PathPoint | null {
+  const p = path as { points?: unknown; closed?: unknown };
+  const samples = pathSamplePoints((p.points as unknown[]) || [], Boolean(p.closed), 30);
   if (samples.length < 2) return null;
   const cumulative = [0];
   for (let index = 1; index < samples.length; index += 1) {
@@ -1770,7 +1954,7 @@ export function pathPositionAtFraction(path, u = 0) {
   };
 }
 
-export function rotateVectorXYZ(vector, rotation = [0, 0, 0]) {
+export function rotateVectorXYZ(vector: number[], rotation: number[] = [0, 0, 0]): number[] {
   let [x, y, z] = vector;
   const [rx, ry, rz] = rotation;
   const cosX = Math.cos(rx);
@@ -1785,17 +1969,20 @@ export function rotateVectorXYZ(vector, rotation = [0, 0, 0]) {
   return [x, y, z];
 }
 
-export function visualCenterForObject(object) {
+export function visualCenterForObject(object: ProjectObject): number[] {
   if (!object) return [0, 0, 0];
-  const position = object.position || [0, 0, 0];
+  const position = (object.position as number[] | undefined) ?? [0, 0, 0];
   if (object.type !== 'person') return [...position];
   // 身高倍率取自 rig.ts 的体型比例表（唯一真相源），不再手抄一份——
   // 避免「改模型缩放了、视觉中心没跟着改」导致的聚焦/对焦偏移。
-  const bodyHeight = bodyScaleHeight(object.bodyType);
-  const root = object.rigRoot || [0, 0, 0];
-  const scale = object.scale || [1, 1, 1];
+  const bodyHeight = bodyScaleHeight(String(object.bodyType));
+  const root = (object.rigRoot as number[] | undefined) ?? [0, 0, 0];
+  const scale = (object.scale as number[] | undefined) ?? [1, 1, 1];
   const localCenter = [root[0] * scale[0], (root[1] + bodyHeight) * scale[1], root[2] * scale[2]];
-  const offset = rotateVectorXYZ(localCenter, object.rotation);
+  const offset = rotateVectorXYZ(
+    localCenter,
+    (object.rotation as number[] | undefined) ?? [0, 0, 0],
+  );
   return position.map((value, index) => value + offset[index]);
 }
 
@@ -1833,7 +2020,11 @@ export function referenceImageFromFile(file: File): Promise<string> {
   });
 }
 
-export function referenceCanvasForExport(reference, width, height) {
+export function referenceCanvasForExport(
+  reference: ProjectReference,
+  width: number,
+  height: number,
+) {
   return new Promise((resolve, reject) => {
     if (!reference?.image || !reference.includeInExport) return resolve(null);
     const image = new Image();

@@ -11,6 +11,12 @@ import { useCallback, useState } from 'react';
 
 const DEFAULT_OPTS = { confirmText: '确定', cancelText: '取消', danger: false };
 
+interface ConfirmDialogOpts {
+  confirmText?: string;
+  cancelText?: string;
+  danger?: boolean;
+}
+
 /**
  * 命令式确认框。返回：
  *  - ask(message, opts?) => Promise<boolean>：弹出确认；resolve(true) 确认 / resolve(false) 取消
@@ -23,7 +29,7 @@ export function useConfirm() {
   const resolverRef = useState({ cur: null })[0];
 
   const ask = useCallback(
-    (message, opts) => {
+    (message: string, opts: ConfirmDialogOpts) => {
       const { confirmText, cancelText, danger } = { ...DEFAULT_OPTS, ...opts };
       return new Promise((resolve) => {
         // 若已有弹窗未决，先以取消关闭旧弹窗，避免状态覆盖
@@ -36,7 +42,7 @@ export function useConfirm() {
   );
 
   const settle = useCallback(
-    (result) => {
+    (result: boolean) => {
       const resolve = resolverRef.cur;
       resolverRef.cur = null;
       setState(null);
