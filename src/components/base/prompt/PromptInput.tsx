@@ -183,11 +183,30 @@ function PromptInput({
     sel.addRange(range);
   }, []);
 
+  // 竖向自适应：内容变高时把高度撑到 scrollHeight（不超过上限，超出则内部滚动），
+  // 横向宽度始终由 width/minWidth/maxWidth 约束，不随文字增多而扩张。
+  // 手动拖拽设定的高度（inputHeight）作为下限/地板：内容更矮时保持拖拽高度（不回弹），
+  // 内容更高时继续撑高；封顶取「默认上限 / 手动高度」较大者，避免手动拖高被压回。
+  // 定义在 emitDOM 之前：emitDOM 是「所有内容变更」唯一序列化点，高度重算收敛进它（见 emitDOM）。
+  const MAX_PROMPT_H = 360;
+  const autoGrow = useCallback(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    const floor = inputHeight != null ? Number(inputHeight) || 80 : 80;
+    const cap = Math.max(MAX_PROMPT_H, floor);
+    el.style.height = 'auto';
+    const next = Math.min(Math.max(el.scrollHeight, floor), cap);
+    el.style.height = `${next}px`;
+  }, [inputHeight]);
+
+  // 唯一序列化点：任何内容变更（打字 / 粘贴 / 插入芯片 / 删芯片 / blur）都经此处，
+  // 故把 autoGrow 收敛到这里——调用方无需各自调一次（空间收敛：6 处散调用 → 1 处）。
   const emitDOM = useCallback(() => {
     const el = editorRef.current;
     if (!el || syncingRef.current) return;
     onChange?.(serializeDOM(el));
-  }, [onChange]);
+    autoGrow();
+  }, [onChange, autoGrow]);
 
   // 运行期自动转换（docs/PromptInput-@名自动转缩略图 §8.3）：打字/粘贴/终结字符/blur 后，
   // 把光标所在 run 里「已封口」的 @名 就地转芯片（commitOccurrencesInRun，DOM 手术不整段重建）。
@@ -283,6 +302,7 @@ function PromptInput({
     normalizeChipSlots(el);
     syncingRef.current = false;
     if (cursor !== null) restoreCursor(el, cursor);
+    autoGrow(); // 外部 value 变化重建后，按新内容重算竖向高度
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, chipMetaMap, nameSignature]);
 
@@ -440,7 +460,7 @@ function PromptInput({
         sel.removeAllRanges();
         sel.addRange(range);
       }
-      emitDOM();
+      emitDOM(); // 序列化 + 竖向自适应（autoGrow 已收敛进 emitDOM）
     },
     [emitDOM],
   );
@@ -513,8 +533,15 @@ function PromptInput({
       sel.removeAllRanges();
       sel.addRange(range);
     }
+    autoGrow(); // 聚焦时（全屏弹窗等）按现有内容重算竖向高度
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 横向尺寸变化（拖拽改宽 / inputWidth 写回）后，换行点改变 → 重算竖向高度，避免高度残留旧值。
+  React.useEffect(() => {
+    autoGrow();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputWidth, inputHeight]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -572,7 +599,7 @@ function PromptInput({
       if (e.key === 'Backspace' || e.key === 'Delete') {
         if (deleteChipNearCursor()) {
           e.preventDefault();
-          emitDOM();
+          emitDOM(); // 序列化 + 竖向自适应（autoGrow 已收敛进 emitDOM）
           return;
         }
       }
@@ -607,7 +634,7 @@ function PromptInput({
           setMentionQuery('');
         }
       }
-      emitDOM();
+      emitDOM(); // 序列化 + 竖向自适应（autoGrow 已收敛进 emitDOM）
     },
     [all, emitDOM],
   );
@@ -668,7 +695,7 @@ function PromptInput({
 
   return (
     <div className="flex items-start gap-2">
-      <div ref={wrapRef} className="flex-1 relative shrink-0">
+      <div ref={wrapRef} className="flex-1 relative shrink-0 min-w-0">
         <div
           ref={setEditorRef}
           contentEditable
@@ -676,15 +703,19 @@ function PromptInput({
           className="w-full bg-transparent text-base-sm text-primary outline-none leading-relaxed font-sans custom-scrollbar nodrag nowheel nopan resize-none"
           style={{
             width: inputWidth ? `${inputWidth}px` : undefined,
-            height: inputHeight ? `${inputHeight}px` : '80px',
-            minHeight: '80px',
-            overflow: 'auto',
+            minWidth: 0,
+            maxWidth: '100%',
+            minHeight: inputHeight ? `${inputHeight}px` : '80px',
+            // 竖向自适应：高度随内容增长（autoGrow 写回），超过上限才滚动；横向固定不扩张。
+            overflowX: 'hidden',
+            overflowY: 'auto',
             lineHeight: 1.625,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
+            overflowWrap: 'break-word',
           }}
           onInput={(e) => {
-            emitDOM();
+            emitDOM(); // 序列化 + 竖向自适应（autoGrow 已收敛进 emitDOM）
             if (composingRef.current || e.nativeEvent.isComposing) return; // 组字中不判定
             detectMention();
             // 打字即转（§8.3）：end<frontier 的 @名 已被封口，就地转芯片（含打空格/标点终结场景）
