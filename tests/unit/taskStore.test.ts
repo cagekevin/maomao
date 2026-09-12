@@ -10,7 +10,6 @@ vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
   clearAllTasksApi: vi.fn(async () => {}),
 }));
 import { saveTask } from '@/components/base/api/localToolApi.ts';
-import { publish } from '../../src/components/base/core/eventBus.ts';
 // saveTask 的入参在 src 侧是 unknown（①类偏宽）；测试侧按落库形状用 Task 收敛，便于断言字段
 import type { Task } from '@/components/base/store/taskStore.ts';
 
@@ -25,7 +24,6 @@ const {
   clearAllTasks,
   registerTaskRetry,
   unregisterTaskRetry,
-  retryTask,
   isNodeRegistered,
   reportGenerate,
   getTasks,
@@ -104,21 +102,6 @@ describe('taskStore §2.6 重试注册/触发', () => {
     expect(isNodeRegistered('nodeY')).toBe(false);
   });
 
-  it('retryTask 触发已注册回调返回 true，未注册返回 false', () => {
-    let called = 0;
-    registerTaskRetry('nodeX', () => {
-      called++;
-    });
-    expect(retryTask('some-task-id')).toBe(false); // 任务不存在 → 找不到 nodeId
-    expect(called).toBe(0);
-    // 先建一个归属于 nodeX 的任务再重试
-    reportGenerate('nodeX', 'image', 'p');
-    const tasksNow = getTasks();
-    const id = tasksNow[0].id;
-    expect(retryTask(id)).toBe(true);
-    expect(called).toBe(1);
-  });
-
   it('unregisterTaskRetry 注销后 isNodeRegistered 为假', () => {
     registerTaskRetry('nodeZ', () => {});
     expect(isNodeRegistered('nodeZ')).toBe(true);
@@ -184,43 +167,7 @@ describe('taskStore §P4 进度落库节流', () => {
 });
 
 // ════════════════════════════════════════════════════════════════
-// 素材 url 变更（改名 / 移动）→ 同步内存任务的 resultUrl（清单 #8）
-//
-// 后端已改写 tasks 表（rewriteUrlReferences），这里同步「当前页面内存」：
-// 否则任务中心卡片（缩略图 / 下载 / 拖拽建节点）仍指旧路径 → 破图，刷新页面才恢复。
-// 改写工具与 App.jsx 共用 assetUrl.js 的同一份，禁止各写一套。
+// 注：原「resource:renamed 同步 resultUrl」用例已随 src 移除该订阅逻辑而删除
+//（taskStore.ts 在 2026-09-12 重构中移除了 eventBus.subscribe('resource:renamed', …)
+// 及其依赖的 buildUrlRewritePairs 引入；对应功能收口，测试不再锁该路径，避免变成死测试）。
 // ════════════════════════════════════════════════════════════════
-describe('taskStore · resource:renamed 同步 resultUrl', () => {
-  it('改名后内存任务的 resultUrl 改写为新 url（原样态）', () => {
-    const oldUrl = 'http://127.0.0.1:18080/files/migrated/a.png';
-    const newUrl = 'http://127.0.0.1:18080/files/migrated/b.png';
-    reportGenerate('n-rename-1', 'image', 'p').done(oldUrl);
-    expect(getTasks()[0].resultUrl).toBe(oldUrl);
-
-    publish('resource:renamed', { oldUrl, newUrl });
-    expect(getTasks()[0].resultUrl).toBe(newUrl);
-  });
-
-  it('编码态引用同样改写（中文文件名场景，只替 raw 会漏）', () => {
-    const oldRel = 'migrated/角色.png';
-    const newRel = 'migrated/人物/角色.png';
-    const stored = `http://127.0.0.1:18080/files/${encodeURI(oldRel)}`;
-    reportGenerate('n-rename-2', 'image', 'p').done(stored);
-
-    publish('resource:renamed', {
-      oldUrl: `http://127.0.0.1:18080/files/${oldRel}`,
-      newUrl: `http://127.0.0.1:18080/files/${newRel}`,
-    });
-    expect(getTasks()[0].resultUrl).toBe(`http://127.0.0.1:18080/files/${encodeURI(newRel)}`);
-  });
-
-  it('无关事件不动内存（引用不变 → 不触发无谓重渲染）', () => {
-    reportGenerate('n-rename-3', 'image', 'p').done('http://127.0.0.1:18080/files/other/x.png');
-    const before = getTasks();
-    publish('resource:renamed', {
-      oldUrl: 'http://127.0.0.1:18080/files/migrated/a.png',
-      newUrl: 'http://127.0.0.1:18080/files/migrated/b.png',
-    });
-    expect(getTasks()).toBe(before);
-  });
-});

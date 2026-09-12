@@ -97,7 +97,7 @@ export default function SceneGizmo({ onReady }: SceneGizmoProps) {
   const controls = useThree((s) => s.controls) as unknown as { update: () => void } | null;
   const invalidate = useThree((s) => s.invalidate);
   const size = useThree((s) => s.size);
-  const groupRef = useRef(null);
+  const groupRef = useRef<THREE.Group | null>(null);
 
   const jump = useCallback(
     (dir: number[]) => {

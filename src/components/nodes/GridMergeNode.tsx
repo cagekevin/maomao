@@ -17,7 +17,7 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import { useContentHeightSync } from '../base/core/uiHooks.ts';
 import '../base/core/toastStore.ts';
-import { toAbsoluteFileUrl } from '../base/api/index.ts';
+import { toAbsoluteFileUrl, persistInlineOrKeep } from '../base/api/index.ts';
 import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { logger } from '../base/core/logger.ts';
 import { generateId } from '../base/core/idGen.ts';
@@ -164,7 +164,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
     `${data.rows ?? gridSize ?? 3}x${data.cols ?? gridSize ?? 3}`,
   );
   const [bgColor, setBgColor] = useState(data.bgColor || 'transparent');
-  const [preview, setPreview] = useState(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [gridCells, setGridCells] = useState<string[]>([]); // rows×cols 定长数组
   const [longList, setLongList] = useState<string[]>([]); // 长图图片数组
@@ -179,8 +179,8 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
     };
   });
   // 拖拽交换状态
-  const [dragFrom, setDragFrom] = useState(null);
-  const [dragTo, setDragTo] = useState(null);
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragTo, setDragTo] = useState<number | null>(null);
   const suppressSyncRef = useRef(false);
 
   // ---- 上游取图（复刻 Yo.jsx 89-189 行）----
@@ -426,8 +426,11 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
       }
       if (url) {
         setPreview(url);
-        patchData({ assetUrl: url });
-        spawnMergedImage(url);
+        // 合成结果是全质量 PNG dataURL（可达 MB 级）→ 统一走落盘出口换 /files/ 持久 URL 再写回，
+        // 避免 MB 级 dataURL 进画布快照（docs/118 §五 C5）；落盘失败保留内联（同一降级策略，勿自写）。
+        const persistedUrl = await persistInlineOrKeep(url);
+        patchData({ assetUrl: persistedUrl });
+        spawnMergedImage(persistedUrl);
       }
     } finally {
       setExporting(false);

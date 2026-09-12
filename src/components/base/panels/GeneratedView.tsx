@@ -18,7 +18,6 @@ import {
   renameResource,
 } from '../api/localToolApi.ts';
 import { showToast } from '../core/toastStore.ts';
-import { publish } from '../core/eventBus.ts';
 import {
   useResourceCardDragProps,
   fetchText,
@@ -272,9 +271,6 @@ function GeneratedView() {
           ),
         );
       textCache.delete(renameTarget.url);
-      // 广播改名：画布/脚本箱节点里引用旧 url 的字段改写为新 url（App 订阅），防下游图生图 404
-      if (d.url && d.url !== renameTarget.url)
-        publish('resource:renamed', { oldUrl: renameTarget.url, newUrl: d.url });
       showToast('重命名成功', { type: 'success' });
     } catch (e) {
       showToast(e?.message || '重命名失败', { type: 'error' });

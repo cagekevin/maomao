@@ -1,9 +1,4 @@
 /**
- * ── 唯一性/兄弟声明（2026-08-30）──
- * 本文件 listeners（subscribePromptHub / notifyAll）是「按 sourceId 的模块内订阅」，
- * 与 eventBus.js 同构（Map<key,Set<fn>> 订阅-通知）但非广播通道、不走 EVENTS 登记——合法内部订阅。
- * 兄弟：eventBus.js（全局广播）/ taskStore.js listeners（任务中心 store 订阅）。禁止再复制第四处。
- *
  * 提示词社区库 — 数据层（promptHubStore）。
  *
  * 搬运自 infinite-canvas 的 prompt-source-runtime.ts（normalizeItems / absoluteUrl /
@@ -109,9 +104,6 @@ export function getPromptHubSources(): PromptSource[] {
 
 const CACHE_KEY = 'yimao_prompt_hub_cache';
 const CACHE_TTL_MS = 1000 * 60 * 60; // 1 小时
-
-/** 订阅者：{ [sourceId]: Set<cb> }（轻量，仅用于触发 UI 刷新） */
-const listeners = new Map<string, Set<() => void>>();
 
 /**
  * @typedef {Object} RawPrompt
@@ -234,7 +226,6 @@ function readCache(): Record<string, SourceCache> {
 }
 function writeCache(all: Record<string, SourceCache>): void {
   contentSet(CACHE_KEY, all);
-  notifyAll();
 }
 
 /** 拉取（或读缓存）单个源，返回 Prompt[]；失败返回上次缓存或空，不抛 */
@@ -334,20 +325,6 @@ export function getPromptHubErrors(): { id: string; name: string; error: string 
     .filter((x) => x.error);
 }
 
-// ── 轻量订阅（缓存变更 → 通知 UI） ──
-function notifyAll(): void {
-  listeners.forEach((set) =>
-    set.forEach((cb) => {
-      try {
-        cb();
-      } catch {
-        /* ignore */
-      }
-    }),
-  );
-}
-export function subscribePromptHub(cb: () => void): () => void {
-  if (!listeners.has('all')) listeners.set('all', new Set());
-  listeners.get('all').add(cb);
-  return () => listeners.get('all')?.delete(cb);
-}
+// 注：「缓存变更 → 通知 UI」的模块内订阅机制已删除（2026-09-12，区域 05 TD-05-2）：
+//   subscribePromptHub / notifyAll / listeners 全仓 0 消费方（消费方经 getCachedPromptHub 读一次即可），
+//   属死抽象。若将来真需要缓存变更推送，届时按需重建单一订阅集，不要再留未用的泛化维度。

@@ -55,63 +55,56 @@ interface InlineImageCropperProps {
 }
 
 /**
- * 把 ReactCrop 的选区换算成原图像素上的裁剪矩形。
+ * 把 ReactCrop 的「百分比选区」换算成原图像素裁剪矩形（**纯函数，唯一实现**）。
  *
- * 【两种单位，两种映射】
- *  - unit === '%'：百分比是「图片本身的占比」，与盒子渲染/缩放完全无关 → 直接映射原图像素
- *    （sx=x/100×natW）。这是最稳的，避免不同宽高比在节点盒子里缩放不一致导致的「右边多出一截」。
- *  - unit === 'px'：像素坐标是「渲染盒上的像素」，需按 natural/render 换算（兜底）。
+ * 【为什么必须做 contain 校正】ReactCrop 的 % 坐标相对「img 元素盒子」，而图片用
+ * object-contain 撑满盒子 → 盒子含四周留白（letterbox），% 不是相对可见图。故先用
+ * contain 比例算出「可见图内容框」与留白偏移，再把 % 换算到内容框内像素、最后映射自然像素；
+ * 否则会裁到留白或「右边多出一截」。
  *
- * @param {Object} sel     { x, y, width, height, unit }
- * @param {number} renderW 渲染盒子宽（仅 px 分支用）
- * @param {number} renderH 渲染盒子高（仅 px 分支用）
- * @param {number} natW    原图宽
- * @param {number} natH    原图高
- * @returns {{sx:number,sy:number,sw:number,sh:number} | null}
+ * 组件 handleSave 与本文件单测**共用本函数**（此前组件内联一份、另导出 `cropRectFromSelection`
+ * 一份且口径不同 → 双实现、测试锁住的还不是生产路径，见区域 06 TD-06-3）。
+ *
+ * @param percentCrop ReactCrop 的 PercentCrop（% 相对盒子）
+ * @param boxW/boxH 渲染盒子尺寸（= 渲染 <img> 的 clientWidth/Height）
+ * @param natW/natH 原图自然尺寸
+ * @returns {{sx,sy,sw,sh}} 已收敛到自然像素边界；选区/尺寸无效返回 null
  */
-interface CropSelection {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  unit: 'px' | '%';
-}
-
-export function cropRectFromSelection({
-  sel,
-  renderW,
-  renderH,
+export function cropRectFromPercent({
+  percentCrop,
+  boxW,
+  boxH,
   natW,
   natH,
 }: {
-  sel: CropSelection;
-  renderW: number;
-  renderH: number;
+  percentCrop: { x: number; y: number; width: number; height: number };
+  boxW: number;
+  boxH: number;
   natW: number;
   natH: number;
-}) {
-  if (!sel || !sel.width || !sel.height) return null;
-  let sx, sy, sw, sh;
-  if (sel.unit === '%') {
-    sx = Math.max(0, Math.round((sel.x / 100) * natW));
-    sy = Math.max(0, Math.round((sel.y / 100) * natH));
-    sw = Math.max(1, Math.min(natW - sx, Math.round((sel.width / 100) * natW)));
-    sh = Math.max(1, Math.min(natH - sy, Math.round((sel.height / 100) * natH)));
-  } else {
-    const iw = renderW || natW || 1;
-    const ih = renderH || natH || 1;
-    const scaleX = natW / iw;
-    const scaleY = natH / ih;
-    sx = Math.max(0, Math.round(sel.x * scaleX));
-    sy = Math.max(0, Math.round(sel.y * scaleY));
-    sw = Math.max(1, Math.min(natW - sx, Math.round(sel.width * scaleX)));
-    sh = Math.max(1, Math.min(natH - sy, Math.round(sel.height * scaleY)));
-  }
+}): { sx: number; sy: number; sw: number; sh: number } | null {
+  const c = percentCrop;
+  if (!c || !c.width || !c.height || !boxW || !boxH || !natW || !natH) return null;
+  const containScale = Math.min(boxW / natW, boxH / natH);
+  const contentW = natW * containScale;
+  const contentH = natH * containScale;
+  const offsetX = (boxW - contentW) / 2; // 左右留白宽
+  const offsetY = (boxH - contentH) / 2; // 上下留白高
+  // %（相对盒子）→ 内容框内像素 → 自然像素。
+  // 位置要减留白 offset；尺寸【不能】减 offset（留白是两侧对称的位移，不改变可见图内的长度）。
+  const toNatPos = (pct: number, box: number, content: number, offset: number, nat: number) =>
+    Math.round((((pct / 100) * box - offset) / content) * nat);
+  const toNatSize = (pct: number, box: number, content: number, nat: number) =>
+    Math.round((((pct / 100) * box) / content) * nat);
+  const sx = Math.max(0, toNatPos(c.x, boxW, contentW, offsetX, natW));
+  const sy = Math.max(0, toNatPos(c.y, boxH, contentH, offsetY, natH));
+  const sw = Math.max(1, Math.min(natW - sx, toNatSize(c.width, boxW, contentW, natW)));
+  const sh = Math.max(1, Math.min(natH - sy, toNatSize(c.height, boxH, contentH, natH)));
   return { sx, sy, sw, sh };
 }
 
 export default function InlineImageCropper({ assetUrl, onSave, onClose }: InlineImageCropperProps) {
-  const imgRef = useRef(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
   const [crop, setCrop] = useState(undefined);
   // 百分比选区：保存用它（相对图片本身，布局无关，最稳）；onChange 第二个参数即 PercentCrop
   const [percentCrop, setPercentCrop] = useState(undefined);
@@ -138,34 +131,18 @@ export default function InlineImageCropper({ assetUrl, onSave, onClose }: Inline
       const clean = await compressImage(assetUrl, { keepOriginalFormat: true });
       // 2) 同源 dataURL 再加载成绘制源（100% 干净，canvas 永不污染）
       const drawImg = await loadImageWithTimeout(clean.dataUrl);
-      // 2.5) ReactCrop 的 % 相对「img 元素盒子」（=容器）。img 用 object-contain 撑满容器，
-      //      盒子含四周留白（letterbox），% 不是相对可见图 → 需先换算到可见图内容框。
-      //      用渲染 <img>（imgRef.current，盒子=容器）的自然/客户尺寸算 contain 内容框偏移。
+      // 2.5) ReactCrop 的 % 相对「img 元素盒子」（含 object-contain 留白）→ 统一经唯一纯函数
+      //      cropRectFromPercent 换算到可见图内容框、再映射自然像素（同一实现，勿再内联）。
+      //      盒子尺寸取渲染 <img>（imgRef.current，=容器）的 clientWidth/Height。
       const renderImg = imgRef.current;
-      const boxW = renderImg?.clientWidth || drawImg.naturalWidth;
-      const boxH = renderImg?.clientHeight || drawImg.naturalHeight;
-      const natW = drawImg.naturalWidth;
-      const natH = drawImg.naturalHeight;
-      const containScale = Math.min(boxW / natW, boxH / natH);
-      const contentW = natW * containScale;
-      const contentH = natH * containScale;
-      const offsetX = (boxW - contentW) / 2; // 左右留白宽
-      const offsetY = (boxH - contentH) / 2; // 上下留白高
-      // %（相对盒子）→ 内容框内像素（相对可见图）→ 再映射到自然像素
-      const toNat = (pct: number, box: number, content: number, offset: number, nat: number) =>
-        Math.round((((pct / 100) * box - offset) / content) * nat);
-      const rect = {
-        sx: toNat(percentCrop.x, boxW, contentW, offsetX, natW),
-        sy: toNat(percentCrop.y, boxH, contentH, offsetY, natH),
-        sw: toNat(percentCrop.width, boxW, contentW, offsetX, natW),
-        sh: toNat(percentCrop.height, boxH, contentH, offsetY, natH),
-      };
-      // 收敛到自然像素边界，杜绝越界/负值
-      rect.sx = Math.max(0, rect.sx);
-      rect.sy = Math.max(0, rect.sy);
-      rect.sw = Math.max(1, Math.min(natW - rect.sx, rect.sw));
-      rect.sh = Math.max(1, Math.min(natH - rect.sy, rect.sh));
-      if (!rect.sw || !rect.sh) {
+      const rect = cropRectFromPercent({
+        percentCrop,
+        boxW: renderImg?.clientWidth || drawImg.naturalWidth,
+        boxH: renderImg?.clientHeight || drawImg.naturalHeight,
+        natW: drawImg.naturalWidth,
+        natH: drawImg.naturalHeight,
+      });
+      if (!rect) {
         onClose?.();
         return;
       }

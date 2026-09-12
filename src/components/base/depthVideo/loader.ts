@@ -15,6 +15,15 @@ import { clampInt } from './engine.ts';
 import type { RuntimeModelPaths } from './depthUrls.ts';
 import { logger } from '../core/logger.ts';
 
+/**
+ * WebGPU 入口的最小可用契约。
+ * `lib.dom` 在各 TS 版本里未必声明 `navigator.gpu`，这里**显式声明真实运行时形状**
+ * （而非 `as any` 关掉类型）——只取本文件用到的成员，属性缺失一律按「无 GPU」处理。
+ */
+interface GpuHandle {
+  requestAdapter(opts?: Record<string, unknown>): Promise<{ isFallbackAdapter?: boolean } | null>;
+}
+
 /** 注入的 transformers.js 运行时（组件层动态 import 后传入） */
 export interface DepthRuntimeModule {
   env: any;
@@ -99,9 +108,10 @@ async function prepareHighPerformanceGpu(
   hooks: LoadHooks,
 ): Promise<boolean> {
   const webgpu = runtime.env?.backends?.onnx?.webgpu;
-  const gpu = (typeof navigator !== 'undefined' ? (navigator as any).gpu : null) as {
-    requestAdapter(opts?: Record<string, unknown>): Promise<any>;
-  } | null;
+  const gpu =
+    typeof navigator !== 'undefined'
+      ? ((navigator as Navigator & { gpu?: GpuHandle }).gpu ?? null)
+      : null;
   if (!gpu || !webgpu) return false;
   try {
     hooks.onStatus?.('正在请求高性能显卡。');
@@ -135,7 +145,8 @@ export async function ensureModel(
 
   let preferredDevice: 'webgpu' | 'wasm' = options.device === 'webgpu' ? 'webgpu' : 'wasm';
   if (preferredDevice === 'webgpu') {
-    const gpu = typeof navigator !== 'undefined' ? (navigator as any).gpu : null;
+    const gpu =
+      typeof navigator !== 'undefined' ? (navigator as Navigator & { gpu?: GpuHandle }).gpu : null;
     if (!gpu) {
       hooks.onStatus?.('这个浏览器没有打开 GPU 通道，改用 CPU。');
       preferredDevice = 'wasm';

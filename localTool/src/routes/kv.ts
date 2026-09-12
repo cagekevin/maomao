@@ -69,7 +69,7 @@ export async function handleKvSet(req: IncomingMessage, res: ServerResponse): Pr
   // 方案②：把 value 里的 base64 图片外置为 uploads/ 磁盘文件，用 /files/ URL 替换后入库，
   // 避免 sql.js KV 库被 base64 撑大 → 全量 export + 同步写盘导致的卡死（docs/41）。
   // 失败字段自动回退保留原 base64，不破坏契约。
-  const finalValue = externalizeBase64InValue(value);
+  const finalValue = externalizeBase64InValue(value, db);
   const next = Math.max(Date.now(), cur + 1);
 
   // sql.js 不支持 ON CONFLICT，用 DELETE + INSERT 模拟

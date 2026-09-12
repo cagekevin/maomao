@@ -54,7 +54,7 @@ export function GlobalSettingsPanel({
   const [customWidth, customHeight] = customAspectParts(cameraAspect);
   const settings: ProjectSettings = projectSettings || ({} as ProjectSettings);
   // 总时长输入本地暂存：输入过程不生效，失焦/回车才提交，避免"想填 15 时敲到 1 就已生效"
-  const [durationDraft, setDurationDraft] = useState(null);
+  const [durationDraft, setDurationDraft] = useState<string | null>(null);
   const durationValue = durationDraft ?? settings.durationSeconds ?? 15;
   const commitDuration = (value: string) => {
     setDurationDraft(null);

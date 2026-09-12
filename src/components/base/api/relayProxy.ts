@@ -19,6 +19,13 @@ import { httpRequest } from './httpClient.ts';
 import { logger } from '../core/logger.ts';
 
 /**
+ * 连续 N 轮 attach 均报 transport 错误即 fail-loud。
+ * 动机：relayPoll 为「网络抖动下轮续查」把错误折成 running，但错误**不得**一路被吞到
+ * 「生成超时」——那样真实根因（连不上 localTool / HTTP 错）会丢，排障只能靠猜。
+ */
+const MAX_CONSECUTIVE_POLL_ERRORS = 5;
+
+/**
  * relay 生成最终结果信封 —— 别名对齐 GenerationResult（单一真源 src/types/provider.ts，L3c，禁另立 interface）。
  * 原独立 interface 已收口为别名，字段改动会在本别名处编译期爆红。
  */
@@ -191,6 +198,10 @@ export async function relayAttachUntilDone(
 
   // 低频 GET attach（后端句柄在 localTool 进程，前端刷新=重 attach，不丢）
   let lastProgress = opts.startProgress ?? 30;
+  // 【失败可见】transport 层错误（连不上/HTTP 错）在 relayPoll 里被折成 running 以便续查；
+  // 但绝不能因此把「连不上」一路吞到「生成超时」——记下真实原因 + 连续错误数，达阈值即 fail-loud。
+  let lastTransportError = '';
+  let consecutiveErrors = 0;
   while (Date.now() - startedAt < timeoutMs) {
     if (signal?.aborted) {
       onAbort();
@@ -214,12 +225,32 @@ export async function relayAttachUntilDone(
       logger.debug('生成', '[relay] 失败', { frontTaskId, error: st.error }, { module: 'image' });
       return finish({ ok: false, error: st.error || '生成失败' });
     }
+    if (st.error) {
+      // transport 错误：续查但留痕；连续到阈值 → 直接以真实原因失败（不再等到超时误报）
+      lastTransportError = st.error;
+      consecutiveErrors += 1;
+      if (consecutiveErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
+        logger.debug(
+          '生成',
+          '[relay] 连续查询失败，终止',
+          { frontTaskId, error: lastTransportError },
+          { module: 'image' },
+        );
+        return finish({ ok: false, error: lastTransportError });
+      }
+    } else {
+      consecutiveErrors = 0;
+    }
     if (st.progress !== undefined && st.progress !== lastProgress) {
       lastProgress = st.progress;
       opts.onProgress?.(30 + Math.min(60, Math.round(lastProgress)), '上游生成中…');
     }
   }
-  return finish({ ok: false, error: '生成超时' });
+  // 超时退出：优先透出最后一次真实 transport 原因，避免误报「生成超时」而丢失根因
+  return finish({
+    ok: false,
+    error: lastTransportError ? `生成超时（最后一次错误：${lastTransportError}）` : '生成超时',
+  });
 }
 
 /**

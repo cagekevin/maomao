@@ -35,6 +35,12 @@ export interface ResourceItem {
   source?: string;
   /** docs/122 #4：稳定 contentId（后端 sha1 去重身份列别名；folder/url 无关），供 asset 引用 */
   contentId?: string;
+  /** 字节大小（后端 resources.size）；并入 resourceStore 供 AssetNode 解析时回填 */
+  size?: number;
+  /** 时间戳（后端 resources.timestamp）；回填空默认 now */
+  timestamp?: number;
+  /** 项目隔离标识（后端 resources.project_id）；legacy NULL 全项目可见 */
+  projectId?: string;
 }
 
 // ── 后端报文返回类型（基于各端点注释里记录的结构，收窄 Promise<any>）──

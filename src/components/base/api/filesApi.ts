@@ -257,8 +257,24 @@ export async function resolveNodeAssetUrl(
 }
 
 /**
+ * dataURL → 落盘（图像入节点·dataURL 源，**需要拿到落盘结果的调用方**用）。
+ * 与 showThenPersistInline 同族、共用同一条降级策略（落盘失败保留内联），只是返回形态不同：
+ * 本函数返回最终 URL 供调用方自行决定何时写回（如「合成结果 → 先落盘再 patchData + spawn」）。
+ * 禁止在调用方另写 `saveInlineToLocal(...) || dataUrl` 的第二套降级。
+ * @returns 持久 /files/ URL（成功）或原 dataURL（失败保留内联）
+ */
+export async function persistInlineOrKeep(
+  dataUrl: string,
+  subfolder: string = UPLOAD_DIRS.canvas,
+): Promise<string> {
+  if (!dataUrl) return dataUrl;
+  const saved = await saveInlineToLocal(dataUrl, subfolder);
+  return saved || dataUrl;
+}
+
+/**
  * dataURL → 上屏 → 落盘换持久 URL（图像入节点·dataURL 源）。
- * ① 立即 show(dataUrl)（不等网络）；② saveInlineToLocal 换 /files/ 持久 URL；③ 成功才二次 show。
+ * ① 立即 show(dataUrl)（不等网络）；② persistInlineOrKeep 换 /files/ 持久 URL；③ 成功才二次 show。
  * 落盘失败 → 静默保持内联（不回滚、不报错；抛错只可能是 show 自身，本函数不吞操作级错误）。
  */
 export async function showThenPersistInline(
@@ -268,8 +284,8 @@ export async function showThenPersistInline(
 ): Promise<void> {
   if (!dataUrl) return;
   show(dataUrl); // ① 立即上屏
-  const saved = await saveInlineToLocal(dataUrl, subfolder);
-  if (saved && saved !== dataUrl) show(saved); // ③ 成功才换持久；失败保留内联
+  const persisted = await persistInlineOrKeep(dataUrl, subfolder);
+  if (persisted !== dataUrl) show(persisted); // ③ 成功才换持久；失败保留内联
 }
 
 /**

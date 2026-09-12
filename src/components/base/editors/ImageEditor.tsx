@@ -21,7 +21,7 @@ import {
   X,
   Check,
 } from 'lucide-react';
-import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
+import ReactCrop, { centerCrop, makeAspectCrop, type Crop as CropRect } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { logger } from '../core/logger.ts';
 import FullscreenShell from '../panels/FullscreenShell.tsx';
@@ -202,7 +202,7 @@ export default function ImageEditor({
   } | null>(null);
 
   // ── 裁剪态（ReactCrop，单位 %）──
-  const [crop, setCrop] = useState<any>(undefined);
+  const [crop, setCrop] = useState<CropRect | undefined>(undefined);
   const [cropRatioKey, setCropRatioKey] = useState('free');
 
   // ── 扩图态 ──
@@ -457,14 +457,14 @@ export default function ImageEditor({
     };
   }, [panning]);
 
-  // 事件坐标 → viewCvs 自然像素坐标（内部像素 / 渲染盒比例）
+  // 事件坐标 → viewCvs 自然像素坐标（内部像素 / 渲染盒比例）。
+  // 只读 PointerEvent.clientX/Y：本编辑器全部经 onPointerDown/Move/Up 绑定，指针事件统一覆盖
+  // 鼠标/触摸/笔，不存在 TouchEvent.touches 分支（旧的 `(e as any).touches` 是不可达死分支 + 假 any）。
   const toCanvasPos = useCallback((e: React.PointerEvent, el: HTMLCanvasElement) => {
     const rect = el.getBoundingClientRect();
-    const cxp = 'touches' in e ? (e as any).touches[0].clientX : e.clientX;
-    const cyp = 'touches' in e ? (e as any).touches[0].clientY : e.clientY;
     return {
-      x: (cxp - rect.left) * (el.width / (rect.width || 1)),
-      y: (cyp - rect.top) * (el.height / (rect.height || 1)),
+      x: (e.clientX - rect.left) * (el.width / (rect.width || 1)),
+      y: (e.clientY - rect.top) * (el.height / (rect.height || 1)),
     };
   }, []);
 
@@ -526,13 +526,11 @@ export default function ImageEditor({
         }
         const vp = viewportRef.current;
         const vpRect = vp?.getBoundingClientRect();
-        const cxp = 'touches' in e ? (e as any).touches[0].clientX : e.clientX;
-        const cyp = 'touches' in e ? (e as any).touches[0].clientY : e.clientY;
         setTextInput({
           x,
           y,
-          left: vpRect ? cxp - vpRect.left + (vp.scrollLeft || 0) : cxp,
-          top: vpRect ? cyp - vpRect.top + (vp.scrollTop || 0) : cyp,
+          left: vpRect ? e.clientX - vpRect.left + (vp.scrollLeft || 0) : e.clientX,
+          top: vpRect ? e.clientY - vpRect.top + (vp.scrollTop || 0) : e.clientY,
           text: '',
         });
         return;

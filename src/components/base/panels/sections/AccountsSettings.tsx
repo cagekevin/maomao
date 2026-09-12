@@ -101,8 +101,8 @@ export default function AccountsSettings() {
   const isExt = isExtensionEnv();
 
   // 拖拽排序（复刻官方 Da/Oa/ka/Aa：记录源索引，drop 时移动）
-  const dragIndexRef = React.useRef(null);
-  const [dragOverIndex, setDragOverIndex] = React.useState(null);
+  const dragIndexRef = React.useRef<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
 
   const handleDragStart = (e: React.DragEvent, idx: number) => {
     dragIndexRef.current = idx;

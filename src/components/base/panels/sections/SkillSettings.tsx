@@ -46,8 +46,8 @@ export default function SkillSettings() {
   const [editing, setEditing] = useState(false); // 详情页内的编辑态
   const [enabledMap, setEnabledMap] = useState(() => getAllEnabledMap());
   const [moreOpen, setMoreOpen] = useState(false);
-  const moreRef = useRef(null);
-  const mdFileRef = useRef(null);
+  const moreRef = useRef<HTMLDivElement | null>(null);
+  const mdFileRef = useRef<HTMLInputElement | null>(null);
 
   /** 刷新列表并同步「损坏/失败」状态（每次写后都调，保证错误态不残留、不谎报） */
   const refreshAll = () => {
@@ -58,7 +58,7 @@ export default function SkillSettings() {
   };
 
   // 搜索 IME 感知防抖
-  const searchIme = useRef(null);
+  const searchIme = useRef<ReturnType<typeof createImeInput> | null>(null);
   if (searchIme.current == null) {
     searchIme.current = createImeInput((v) => setDebouncedKeyword(v), 200);
   }
@@ -69,7 +69,7 @@ export default function SkillSettings() {
   useEffect(() => {
     if (!moreOpen) return;
     const close = (e: Event) => {
-      if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false);
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false);
     };
     document.addEventListener('mousedown', close, true);
     return () => document.removeEventListener('mousedown', close, true);

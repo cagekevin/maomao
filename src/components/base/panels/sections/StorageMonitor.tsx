@@ -653,7 +653,7 @@ function DonutChart({ segments, total, size = 150 }: DonutChartProps) {
   const cy = size / 2;
   const innerR = size * 0.28;
   const outerR = size * 0.46;
-  const [hoverIdx, setHoverIdx] = React.useState(null);
+  const [hoverIdx, setHoverIdx] = React.useState<number | null>(null);
   if (!segments || segments.length === 0 || !total) {
     return (
       <div className="flex flex-col items-center gap-2">

@@ -22,7 +22,15 @@ export function ReferenceOverlay({
   cameraAspect = 16 / 9,
   children,
 }: ReferenceOverlayProps) {
-  const dragRef = useRef(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const update = (patch: Partial<ProjectReference>) =>

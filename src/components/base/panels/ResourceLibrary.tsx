@@ -21,7 +21,6 @@ import {
   renameResource,
 } from '../api/localToolApi.ts';
 import { showToast } from '../core/toastStore.ts';
-import { publish } from '../core/eventBus.ts';
 import {
   fetchText,
   textCache,
@@ -35,7 +34,11 @@ import {
   relativePathFromUrl,
   createFolder as createFolderApi,
 } from '../api/filesApi.ts';
-import { onResourceSent, emitResourceSent } from '../store/resourceStore.ts';
+import {
+  onResourceSent,
+  emitResourceSent,
+  mergeResourcesFromBackend,
+} from '../store/resourceStore.ts';
 import { useCurrentProjectId } from '../store/projectStore.ts';
 import { logger } from '../core/logger.ts';
 import { isAudio } from '../utils/assetType.ts';
@@ -192,6 +195,7 @@ function ResourceLibrary() {
         if (token !== resetTokenRef.current) return;
         const d = data?.data;
         setItems(d?.items || []);
+        mergeResourcesFromBackend(d?.items || []);
         setTotal(d?.total || 0);
         setHasMore((d?.items || []).length < (d?.total || 0));
       } catch (e) {
@@ -243,6 +247,7 @@ function ResourceLibrary() {
       pageRef.current = d.page || next;
       setTotal(d.total || 0);
       setHasMore((d.items || []).length > 0 && d.page < (d.totalPages || 1));
+      mergeResourcesFromBackend(d.items || []);
     } catch {
       /* 忽略下一页失败 */
     } finally {
@@ -330,9 +335,6 @@ function ResourceLibrary() {
           ),
         );
       textCache.delete(renameTarget.url);
-      // 广播改名：画布/脚本箱节点里引用旧 url 的字段改写为新 url（App 订阅），防下游图生图 404
-      if (d.url && d.url !== renameTarget.url)
-        publish('resource:renamed', { oldUrl: renameTarget.url, newUrl: d.url });
       showToast('重命名成功', { type: 'success' });
     } catch (e) {
       showToast(e?.message || '重命名失败', { type: 'error' });

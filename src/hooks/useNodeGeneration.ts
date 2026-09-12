@@ -106,7 +106,7 @@ function promptPreview(p: string | undefined): string {
  * 此前每个生成节点的 handleGenerate 都手写同一套样板：
  *   解析 provider → reportGenerate → taskCtl.progress → 调 API
  *   → 成功写 node.data + taskCtl.done / 失败 setError + taskCtl.fail
- *   → registerTaskRetry 注册「再来一次」
+ *   → registerTaskRetry 注册重生成回调（供 Agent runNodeGeneration / 测试驱动）
  * ImageGenerate / TextGenerate / VideoGenerate 各重复约 40 行，
  * 且 Agent 的 generate_node 工具是死桩（没接真实生成）。
  * 未来 28 个节点逐个接真引擎时，若没有统一契约，每个节点都要重复踩一遍坑，
@@ -114,7 +114,7 @@ function promptPreview(p: string | undefined): string {
  *
  * 【它收敛什么】
  *  - 统一「提交任务 → 进度 → 成功双写(taskStore + node.data) / 失败」契约
- *  - 统一「再来一次」retry 注册
+ *  - 统一重生成回调注册（registerTaskRetry，供 Agent runNodeGeneration 驱动）
  *  - Agent / 测试 / 脚本通过 runNodeGeneration(nodeId) 驱动任意节点生成
  *
  * 【真相源契约（节点必守，P0）】任务中心为结果权威源，node.data 为渲染缓存副本：
@@ -198,7 +198,7 @@ export function useNodeGeneration({
 
   const start = useCallback(async (): Promise<NodeGenerationStartResult | boolean> => {
     // 【P1-E 跨发起方并发锁】先占单节点互斥锁（taskStore 层，任何发起方都经本 start 汇聚）。
-    // 同节点已有进行中（Agent runNodeGeneration / 用户手动 / 再来一次）→ 明确返回「进行中」，不并发生成。
+    // 同节点已有进行中（Agent runNodeGeneration / 用户手动 start）→ 明确返回「进行中」，不并发生成。
     const claim: NodeRunClaim = claimNodeRun(nodeId);
     if (!claim.ok) {
       logger.debug('生成', '[节点] 已在生成，跳过并发', { nodeId }, { module: 'image' });
@@ -332,7 +332,7 @@ export function useNodeGeneration({
       logger.error('useNodeGeneration', '生成异常', e?.message);
       const msg = e?.message || '生成失败';
       // 【R7 错误分类记录】异常对象经 classifyError 统一分类（abort/timeout/network/http/business），
-      // 分类结果记录进日志：网络/超时（retryable）供「再来一次/自动重试」决策，业务失败不自动重试（防封号）。
+      // 分类结果记录进日志：网络/超时（retryable）供「自动重试」决策，业务失败不自动重试（防封号）。
       const cls = classifyError(e);
       updateNodeRuntime(nodeId, { error: msg });
       taskCtl.fail(msg);
@@ -360,7 +360,8 @@ export function useNodeGeneration({
     updateNodeRuntime(nodeId, { loading: false });
   }, [nodeId]);
 
-  // 「再来一次」注册：让任务中心重试 / Agent generate_node 能驱动本节点
+  // 重生成回调注册：让 Agent runNodeGeneration（generate_node 工具）能驱动本节点重新生成
+  // （任务中心「再来一次」入口已于 2026-09-12 删除——第二入口剧本盒资产任务未接 retry，点必失败，故整体移除）
   const startRef = useRef(start);
   startRef.current = start;
   useEffect(() => {

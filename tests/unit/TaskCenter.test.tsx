@@ -192,15 +192,6 @@ describe('TaskCenter — 更多菜单操作', () => {
     expect(h.showToast).toHaveBeenCalledWith('已复制提示词', { type: 'success' });
   });
 
-  it('更多菜单 → 点击「再来一次」触发 retryTask', () => {
-    h.setTasks([makeTask()]);
-    render(<TaskCenter />);
-    // 打开 ⋮ 菜单
-    fireEvent.click(screen.getByTitle('更多操作'));
-    fireEvent.click(screen.getByText('再来一次'));
-    expect(h.retryTask).toHaveBeenCalledWith('t1');
-  });
-
   it('更多菜单 → 点击「删除任务」触发 removeTask', () => {
     h.setTasks([makeTask()]);
     render(<TaskCenter />);
@@ -221,7 +212,7 @@ describe('TaskCenter — 更多菜单操作', () => {
     render(<TaskCenter />);
     fireEvent.click(screen.getByTitle('更多操作'));
     expect(screen.queryByText('下载结果')).toBeNull();
-    expect(screen.getByText('再来一次')).toBeTruthy();
+    expect(screen.getByText('删除任务')).toBeTruthy();
   });
 });
 

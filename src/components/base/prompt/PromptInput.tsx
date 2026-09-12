@@ -12,8 +12,14 @@ import {
   autoLinkAssetsByName,
   commitOccurrencesInRun,
   extendable,
+  type ChipMeta,
 } from './promptChips.ts';
-import { detectMentionQuery, computeMentionPlacement, MENTION_PANEL_W } from './promptMention.ts';
+import {
+  detectMentionQuery,
+  computeMentionPlacement,
+  MENTION_PANEL_W,
+  type MentionPlacement,
+} from './promptMention.ts';
 
 /**
  * 提示词输入区（富文本 contentEditable + @素材芯片）。
@@ -93,7 +99,7 @@ function PromptInput({
   const [showMention, setShowMention] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0); // 候选列表当前高亮项（键盘上下键导航）
-  const [mentionPos, setMentionPos] = useState(null); // { placement, left, top?, bottom?, height }
+  const [mentionPos, setMentionPos] = useState<MentionPlacement | null>(null);
 
   // 过滤后的候选列表（mentionQuery 为空则全部）。声明在 handleKeyDown 之前，避免 TDZ。
   const filtered = mentionQuery
@@ -110,8 +116,8 @@ function PromptInput({
 
   const editorRef = useRef<HTMLDivElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const popRef = useRef(null);
-  const savedRangeRef = useRef(null);
+  const popRef = useRef<HTMLDivElement | null>(null);
+  const savedRangeRef = useRef<Range | null>(null);
   const syncingRef = useRef(false);
   const composingRef = useRef(false); // 中文输入法组字中
   const mentionAtRef = useRef(-1); // 本次弹层对应的 @ 下标（Esc 后据此不再重弹）
@@ -248,7 +254,7 @@ function PromptInput({
   // 序列化的字符串已自带缩略图 URL 与 label，此处仅在字符串缺缩略图（旧数据/刚插入）或
   // 「上游改名」时补最新信息——改名后字符串里仍是旧 label，metaMap 里是当前最新名。
   const chipMetaMap = React.useMemo(() => {
-    const m = new Map();
+    const m = new Map<string, ChipMeta>();
     for (const im of refImages || []) {
       if (im && im.id) m.set(im.id, { kind: 'image', url: im.url, label: im.label });
     }

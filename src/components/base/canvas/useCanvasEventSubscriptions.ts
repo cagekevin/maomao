@@ -6,23 +6,18 @@
  *
  * 覆盖：
  *  - useProjectBackupIO()       project:import / project:export —— 完整工作流备份导入导出（自包含）。
- *  - useAssetUrlRewrite(g,s)    resource:renamed —— 素材改名/移动后同步画布/脚本箱节点 url 引用。
  *  - usePersistFailureToast()   persist:failed —— 持久化失败统一上报（同 key 5s 节流 / 逐 key 透传）。
  *
  * 名称注释：from/to 登记见 contracts.ts 的 EVENTS 表，届时 subscribe 位置更新须同步 from 基线。
  */
 import { useEffect } from 'react';
-import type { Node } from '@xyflow/react';
 import { subscribe } from '../core/eventBus.ts';
-import { buildUrlRewritePairs, replaceUrlDeep } from '../utils/assetUrl.ts';
+
 import { createThrottledPersistHandler } from '../storage';
 import { showToast } from '../core/toastStore.ts';
 import { logger } from '../core/logger.ts';
 import { importAll, exportAll, backupToBlob } from '../store/backupStore.ts';
 import { downloadBlob } from '../utils/clipboard.ts';
-
-/** setNodes 窄接口：只允许直接写回，不暴露 Dispatch 细节（useNodesState 的 setNodes 是其超集，可传入） */
-type SetNodesValue = (next: Node[]) => void;
 
 /** 完整工作流备份导入导出（对齐官方 yimao 工作流备份）：承接 project:import / project:export 事件 */
 export function useProjectBackupIO(): void {
@@ -72,35 +67,6 @@ export function useProjectBackupIO(): void {
       offExport();
     };
   }, []);
-}
-
-/**
- * 素材 url 变更（改名/移动）后同步画布/脚本箱节点引用（resource:renamed 由素材面板/移动 hook 广播）：
- * 把节点 data 里引用旧 url 的字段改写为新 url，setNodes 触发自动持久化（防下游图生图 404）。
- * 与后端 rewriteUrlReferences 配套：后端改库，这里改「当前打开页面内存里的节点」。
- */
-export function useAssetUrlRewrite(getNodes: () => Node[], setNodes: SetNodesValue): void {
-  useEffect(() => {
-    const off = subscribe('resource:renamed', ({ oldUrl, newUrl }) => {
-      if (!oldUrl || !newUrl || oldUrl === newUrl) return;
-      const pairs = buildUrlRewritePairs(oldUrl, newUrl); // 原样/编码 × 绝对/相对，与后端一致
-      const nodes = getNodes();
-      let changed = false;
-      const next = nodes.map((n) => {
-        let data: Record<string, unknown> = n.data ?? ({} as Record<string, unknown>);
-        for (const [from, to] of pairs) {
-          const d = replaceUrlDeep(data, from, to);
-          if (d !== data) {
-            data = d as Record<string, unknown>;
-            changed = true;
-          }
-        }
-        return data === n.data ? n : { ...n, data };
-      });
-      if (changed) setNodes(next); // setNodes → [nodes] 自动保存 effect 落盘
-    });
-    return off;
-  }, [getNodes, setNodes]);
 }
 
 /** 持久化失败统一上报：storageAdapter 的 sSet/sRemove 失败会 publish('persist:failed')，逐 key 原样透传提示 */

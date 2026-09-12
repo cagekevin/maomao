@@ -6,7 +6,6 @@ import {
   RotateCw,
   Trash2,
   X,
-  RefreshCw,
   ChevronDown,
   Download,
   Image as ImageIcon,
@@ -15,7 +14,6 @@ import {
   statusLabel,
   typeLabel,
   removeTask,
-  retryTask,
   clearTasksBy,
   clearAllTasks,
   type Task,
@@ -46,10 +44,10 @@ const TYPE_ICON: Record<string, typeof ImageIcon> = {
  */
 function TaskCenter() {
   const tasks = useTasks();
-  const [moreOpenId, setMoreOpenId] = useState(null);
+  const [moreOpenId, setMoreOpenId] = useState<string | null>(null);
   // 大图/视频预览（点击缩略图打开；图片显示像素/可拖到画布，视频走统一 ImageZoomDialog 播放器）
   const [preview, setPreview] = useState<{ url: string; type: string } | null>(null);
-  const [previewDims, setPreviewDims] = useState(null); // { w, h }
+  const [previewDims, setPreviewDims] = useState<{ w: number; h: number } | null>(null);
   const videoZoomRef = useRef<HTMLDialogElement>(null); // 视频预览统一走 ImageZoomDialog（含截屏/下载当前帧）
 
   // 视频预览：preview 变为视频时，等 dialog 挂载后自动 showModal（与 GeneratedView/生成面板一致）
@@ -124,13 +122,6 @@ function TaskCenter() {
                 onToggleMore={() => setMoreOpenId(moreOpenId === t.id ? null : t.id)}
                 onCloseMore={() => setMoreOpenId(null)}
                 onCopy={() => copyPrompt(t)}
-                onRetry={() => {
-                  const ok = retryTask(t.id);
-                  setMoreOpenId(null);
-                  showToast(ok ? '已重新生成' : '找不到对应节点，请在画布上重新生成', {
-                    type: ok ? 'info' : 'warning',
-                  });
-                }}
                 onRemove={() => {
                   removeTask(t.id);
                   setMoreOpenId(null);
@@ -205,7 +196,6 @@ interface TaskCardProps {
   onToggleMore: () => void;
   onCloseMore: () => void;
   onCopy: () => void;
-  onRetry: () => void;
   onRemove: () => void;
   onPreview: (task: Task) => void;
 }
@@ -217,13 +207,12 @@ const TaskCard = React.memo(function TaskCard({
   onToggleMore,
   onCloseMore,
   onCopy,
-  onRetry,
   onRemove,
   onPreview,
 }: TaskCardProps) {
   const render = useRenderAssetResolver();
   const [showData, setShowData] = useState(false);
-  const menuRef = useRef(null); // 任务卡片「⋮」更多菜单容器 ref，点击外部自动关闭
+  const menuRef = useRef<HTMLDivElement | null>(null); // 任务卡片「⋮」更多菜单容器 ref，点击外部自动关闭
   useOutsideClick(menuRef, moreOpen, () => onCloseMore?.());
   const TypeIcon = TYPE_ICON[task.type] || ImageIcon;
   const dot = statusDotClass(task.status);
@@ -296,7 +285,6 @@ const TaskCard = React.memo(function TaskCard({
                 {isCompleted && (
                   <MenuBtn icon={Download} label="下载结果" onClick={downloadResult} />
                 )}
-                <MenuBtn icon={RefreshCw} label="再来一次" onClick={onRetry} />
                 <MenuBtn icon={Copy} label="复制任务信息" onClick={onCopy} />
                 <div className="h-[1px] bg-surface-hover-strong my-1" />
                 <MenuBtn icon={Trash2} label="删除任务" onClick={onRemove} danger />

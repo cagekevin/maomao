@@ -48,10 +48,10 @@ export default function ScriptBoxPlaybookManager({
   const [officialOpen, setOfficialOpen] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState('');
-  const [renameId, setRenameId] = useState(null);
+  const [renameId, setRenameId] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState('');
-  const [confirmDel, setConfirmDel] = useState(null); // {id,label}
-  const fileRef = useRef(null);
+  const [confirmDel, setConfirmDel] = useState<{ id: string; label: string } | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const playbooks = getAllPlaybooks();
   const official = playbooks.filter((p) => p.builtin);

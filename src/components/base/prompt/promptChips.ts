@@ -23,8 +23,8 @@
 
 import { BREAK } from './promptMention.ts';
 
-/** 芯片 token 的素材元信息（renderPromptToNodes 的 metaMap 值形态） */
-interface ChipMeta {
+/** 芯片 token 的素材元信息（renderPromptToNodes 的 metaMap 值形态；导出供调用方标注 Map 泛型） */
+export interface ChipMeta {
   kind?: string;
   url?: string;
   label?: string;
@@ -76,15 +76,15 @@ export function isBrEl(node: Node | null): boolean {
 
 /**
  * 确保芯片前有光标落点（零宽空格）：
- *   - 前一个兄弟为空或 <br> → 插一个 ZWSP 文本节点；
+ *   - 前一个兄弟为空 / <br> / 另一个芯片 → 插一个 ZWSP 文本节点；
  *   - 前一个兄弟是空文本 → 填 ZWSP；
- *   - 否则（已有内容）不处理。
- * 这样光标才能停在芯片前面，避免行首芯片无法聚焦。
+ *   - 否则（已有文本内容）不处理。
+ * 这样光标才能停在芯片前面（行首芯片、以及 @{a}{b} 相邻芯片之间都能落点）。
  * @param {Node} chip 芯片元素
  */
 export function ensureCaretSlotBeforeChip(chip: Node): void {
   const previous = chip.previousSibling;
-  if (!previous || isBrEl(previous)) {
+  if (!previous || isBrEl(previous) || isChipEl(previous)) {
     chip.parentNode?.insertBefore(document.createTextNode(ZWSP), chip);
   } else if (previous.nodeType === Node.TEXT_NODE && !previous.textContent) {
     previous.textContent = ZWSP;

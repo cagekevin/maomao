@@ -48,7 +48,6 @@ import previewUrls from './components/base/utils/previewUrl.ts';
 import { logger } from './components/base/core/logger.ts';
 import {
   useProjectBackupIO,
-  useAssetUrlRewrite,
   usePersistFailureToast,
 } from './components/base/canvas/useCanvasEventSubscriptions.ts';
 import { menuForState, type MenuActionCtx } from './components/base/canvas/canvasContextMenu.tsx';
@@ -310,7 +309,6 @@ function Canvas() {
     fitView,
     getViewport: _getViewport,
     setViewport,
-    getNodes,
     getEdges: _getEdges,
   } = useReactFlow();
   // 视窗尺寸只读通道（引用稳定）：arrangeCanvas 读 width/height 传给按视窗择优换行。
@@ -544,7 +542,6 @@ function Canvas() {
   // 完整工作流备份导入导出 / 素材 url 改写同步 / 持久化失败上报
   // → 已收拢到 useCanvasEventSubscriptions.ts（本项目"抽独立事件订阅"收口，见该文件头）。
   useProjectBackupIO();
-  useAssetUrlRewrite(getNodes, setNodes);
 
   // 右键菜单状态（基座 useContextMenu）
   const menu = useContextMenu();

@@ -19,6 +19,7 @@ import {
   MosaicMode,
 } from '../utils/faceMosaic.ts';
 import { createRafBatch } from '../core/utils.ts';
+import { loadImageOrNull } from '../utils/asyncGuard.ts';
 import FullscreenShell from '../panels/FullscreenShell.tsx';
 
 /**
@@ -28,6 +29,19 @@ import FullscreenShell from '../panels/FullscreenShell.tsx';
  * 也可「自动识别人脸」一键框出所有脸；支持撤销/重做/重置 + 模式/强度/颜色。
  * 完成 → onSave(dataUrl)；取消 → onClose。
  */
+/** 框选矩形（图像坐标） */
+interface DragBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+/** 图像坐标点 */
+interface Point {
+  x: number;
+  y: number;
+}
+
 interface FaceMosaicEditorProps {
   assetUrl?: string;
   onSave?: (dataUrl: string) => void;
@@ -35,25 +49,25 @@ interface FaceMosaicEditorProps {
 }
 
 export default function FaceMosaicEditor({ assetUrl, onSave, onClose }: FaceMosaicEditorProps) {
-  const canvasRef = useRef(null);
-  const wrapRef = useRef(null);
-  const origImgRef = useRef(null); // 原始 Image（mosaic/blur 需要原图做像素源）
-  const historyRef = useRef([]); // getImageData 快照栈
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const origImgRef = useRef<HTMLImageElement | null>(null); // 原始 Image（mosaic/blur 需要原图做像素源）
+  const historyRef = useRef<ImageData[]>([]); // getImageData 快照栈
   const [mode, setMode] = useState<MosaicMode>('mosaic');
   const [strength, setStrength] = useState(0.5);
   const [color, setColor] = useState('#000000');
   const [dims, setDims] = useState({ w: 0, h: 0 });
   const [scale, setScale] = useState(1);
   const [recognizing, setRecognizing] = useState(false);
-  const [_dragStart, setDragStart] = useState(null);
-  const [dragBox, setDragBox] = useState(null);
+  const [_dragStart, setDragStart] = useState<Point | null>(null);
+  const [dragBox, setDragBox] = useState<DragBox | null>(null);
   const [histIdx, setHistIdx] = useState(0);
   // P3：框选手势期缓存 { rect, batch }；dragBoxRef 供 onPointerUp 读最新框（state 异步，避免差一帧）
-  const dragGesture = useRef(null);
-  const dragBoxRef = useRef(null);
+  const dragGesture = useRef<{ batch: ReturnType<typeof createRafBatch> } | null>(null);
+  const dragBoxRef = useRef<DragBox | null>(null);
   // 拖拽起点缓存（ref 而非 state）：rAF 回调若读 state 的 dragStart 会因异步更新拿到
   // 上一次/空起点，导致「第一次拖不动」（stale closure）。起点必须与当次手势绑定。
-  const dragStartRef = useRef(null);
+  const dragStartRef = useRef<Point | null>(null);
 
   // 快照当前 canvas 入历史栈（复刻官方 D，用于撤销/重做）
   const pushSnapshot = useCallback(() => {
@@ -75,11 +89,19 @@ export default function FaceMosaicEditor({ assetUrl, onSave, onClose }: FaceMosa
     setHistIdx(i);
   }, []);
 
-  // 加载图片
+  // 加载图片（统一走 asyncGuard 入口：带超时 + crossOrigin 处理 + 坏图降级 null）。
+  // 替代本文件原私有 `new Image()`（无超时、不可取消、无 CORS 重试），与 OverlayEditor/GridMergeNode/
+  // InlineImageCropper/faceMosaic 等一致；坏图/慢图不再让编辑器无兜底卡住。
   useEffect(() => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
+    let cancelled = false;
+    (async () => {
+      if (!assetUrl) return;
+      const img = await loadImageOrNull(assetUrl);
+      if (cancelled) return;
+      if (!img) {
+        onClose?.();
+        return;
+      }
       const c = canvasRef.current;
       const ctx = c?.getContext('2d');
       if (!c || !ctx) return;
@@ -100,9 +122,10 @@ export default function FaceMosaicEditor({ assetUrl, onSave, onClose }: FaceMosa
         );
         setScale(scale > 0 ? scale : 1);
       }
+    })();
+    return () => {
+      cancelled = true;
     };
-    img.onerror = () => onClose();
-    img.src = assetUrl;
   }, [assetUrl, onClose]);
 
   // 屏幕坐标 → 图片坐标（复刻官方 k）

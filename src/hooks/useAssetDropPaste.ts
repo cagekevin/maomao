@@ -186,8 +186,21 @@ export function useAssetDropPaste({
       // 未注入 patchNodeData 则跳过本地化（纯显示模式）；非 http(s) 由 downloadRemoteToLocal 内部拦截（返回 null 不替换）
       if (id && typeof patchNodeData === 'function') {
         downloadRemoteToLocal(url, { folder: WEB_DROP_SUBFOLDER })
-          .then((localUrl) => {
-            if (localUrl && localUrl !== url) patchNodeData(id, { assetUrl: localUrl });
+          .then(async (localUrl) => {
+            if (localUrl && localUrl !== url) {
+              // docs/122 #4：网页图本地化成功后，落稳定 contentId（由本地文件字节算，与后端同源）；
+              // asset 主引用从易变 assetUrl 升级为 contentId，渲染经 resource 解析 → 永不破图。
+              const patch: Record<string, unknown> = { assetUrl: localUrl };
+              try {
+                const resp = await fetch(localUrl);
+                const buf = await resp.arrayBuffer();
+                const cid = await contentIdOfBytes(buf);
+                if (cid) patch.contentId = cid;
+              } catch {
+                /* 本地化成功即满足显示；contentId 为可选稳定身份，缺失不阻断 */
+              }
+              patchNodeData(id, patch);
+            }
           })
           .catch((e) => logger.warn('assetDrop', '网页图本地化失败，保持原 URL', e));
       }

@@ -3,6 +3,7 @@ import { Loader2, Image as ImageIcon } from 'lucide-react';
 import { fetchResources, rescanResources } from '../base/api/index.ts';
 import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import type { ResourceItem } from '../base/api/localToolApi.ts';
+import { mergeResourcesFromBackend } from '../base/store/resourceStore.ts';
 import { useLocalToolStatus } from '../../hooks/useLocalToolStatus.ts';
 import { logger } from '../base/core/logger.ts';
 import ScriptBoxModal from './ScriptBoxModal.tsx';
@@ -48,6 +49,7 @@ export default function ScriptBoxAssetPicker({
         // fetchResources 返回 unknown：先 Array.isArray 判「确实是数组」再按 ResourceItem[] 收窄（F13）
         const list = Array.isArray(data?.data?.items) ? (data.data.items as ResourceItem[]) : [];
         setItems(list);
+        mergeResourcesFromBackend(list);
       } catch (e) {
         // UI 红字已提示；再补 logger 便于排查本地引擎/后端问题
         const errMsg = (e as { message?: string }).message || String(e);

@@ -291,8 +291,8 @@ function AgentMessage({
   displayContent,
 }: AgentMessageProps) {
   // 图片查看大图（原生 dialog）：点击消息里的图片 → 打开查看，替代 target=_blank 新窗口
-  const zoomRef = useRef(null);
-  const [zoomUrl, setZoomUrl] = useState(null);
+  const zoomRef = useRef<HTMLDialogElement | null>(null);
+  const [zoomUrl, setZoomUrl] = useState<string | null>(null);
   const [zoomKind, setZoomKind] = useState<'image' | 'video'>('image');
   const openZoom = useCallback((url: string, kind: 'image' | 'video' = 'image') => {
     if (!url) return;

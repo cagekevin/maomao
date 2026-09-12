@@ -209,10 +209,10 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   // 订阅「画布显示缩略图」设置：显示地址实时随开关（见 docs/18）
   const render = useRenderAssetResolver();
   // 内容区引用：高度自适应（内容撑多高，节点就多高，不留空白，复刻 ScriptBoxNode 自适应方案）
-  const contentRef = useRef(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   // NodeShell 根 div ref：useContentHeightSync 需测「含标题栏的完整节点」而非仅内容区，
   // 否则写回的 node.height 偏矮（漏标题栏），conic 连接跑马灯高度不贴合。
-  const wrapperRef = useRef(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   // ---- 状态（复刻 Lo.jsx：state 名与官方逻辑一一对应）----
   const gridSize = typeof data.gridSize === 'number' ? data.gridSize : undefined;
@@ -229,7 +229,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   const [sendToImageBox, setSendToImageBox] = useState(data.sendToImageBox ?? false);
   const [showCustom, setShowCustom] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const [dragLine, setDragLine] = useState(null); // { type:'h'|'v', index } 拖动切割线
+  const [dragLine, setDragLine] = useState<{ type: 'h' | 'v'; index: number } | null>(null); // 拖动切割线
 
   // ---- 上游图片（复刻 Lo.jsx F：data.assetUrl 优先，否则取上游 assetUrl）----
   const connected = useConnectedInputs(id);
@@ -241,9 +241,10 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   );
 
   // 画布引用
-  const mainCanvasRef = useRef(null);
-  const fullCanvasRef = useRef(null);
-  const activeCellIdRef = useRef(null); // 当前绘制的 lasso 记录（mousemove 用）
+  const mainCanvasRef = useRef<HTMLDivElement | null>(null);
+  const fullCanvasRef = useRef<HTMLDivElement | null>(null);
+  // 当前绘制的 lasso 记录（mousemove 用）：{ 边/形 id, 上一坐标 }
+  const activeCellIdRef = useRef<{ id: string; lastX: number; lastY: number } | null>(null);
 
   // ---- 高度自适应（内容撑多高，节点就多高，不留空白；收口到 useContentHeightSync）----
   useContentHeightSync(contentRef, id, {

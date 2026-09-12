@@ -123,7 +123,7 @@ export function Timeline({
   const [selection, setSelection] = useState<KeyframeSelector[]>([]); // [{kind, trackId, frame}] 框选/多选集合
   const [marquee, setMarquee] = useState<MarqueeState | null>(null); // {x0,y0,x1,y1} 相对轨道内部像素
   // 标尺与轨道共用同一个横向滚动容器（.timeline-scroll），天然共享滚动位置与内容宽度，刻度精确对齐轨道
-  const scrollRef = useRef(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const contentWidth = Math.max(1, totalFrames * pxPerFrame);
   // 可视宽度随容器 resize 更新（scrollRef 挂载后 measure 一次），用于计算滑块最小值与背景轴铺满宽度
@@ -168,7 +168,7 @@ export function Timeline({
   }, [rulerStep, totalFrames]);
 
   // Ctrl+滚轮缩放：React onWheel 是 passive（preventDefault 无效），需原生 non-passive 监听阻止页面缩放
-  const bodyRef = useRef(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = bodyRef.current;
     if (!el) return undefined;

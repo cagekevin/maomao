@@ -301,7 +301,7 @@ export default function AgentPanel({
     { value: 'high', label: '高质量' },
   ];
   const [genImgMenuOpen, setGenImgMenuOpen] = useState(false);
-  const genImgMenuRef = useRef(null);
+  const genImgMenuRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(genImgMenuRef, genImgMenuOpen, () => setGenImgMenuOpen(false));
 
   useEffect(() => {
@@ -317,11 +317,11 @@ export default function AgentPanel({
   );
   const [activeSkills, setActiveSkills] = useState([]);
   const [skillSlashOpen, setSkillSlashOpen] = useState(false);
-  const skillSlashRef = useRef(null);
+  const skillSlashRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(skillSlashRef, skillSlashOpen, () => setSkillSlashOpen(false));
   // 底部「Skill」按钮 → 应用 Skill 下拉（管理已移至设置页 AI 助手分区，面板只做「使用」）
   const [skillPickOpen, setSkillPickOpen] = useState(false);
-  const skillPickRef = useRef(null);
+  const skillPickRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(skillPickRef, skillPickOpen, () => setSkillPickOpen(false));
   // skills 变化 → 存进当前对话快照（TD-17：走语义化 action；内部 setCurrentSnapshot 自动落盘，
   // 且带 hydrated 时序守卫：挂载早期不会用空数据覆盖 localStorage 已有记录）
@@ -381,7 +381,7 @@ export default function AgentPanel({
   }, []);
 
   const [chatListOpen, setChatListOpen] = useState(false);
-  const chatListRef = useRef(null);
+  const chatListRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(chatListRef, chatListOpen, () => setChatListOpen(false));
   // 新建对话短锁：新建后 1s 内禁用按钮，避免用户狂点出十几个空对话
   const newChatLock = useRef(false);
@@ -674,12 +674,12 @@ export default function AgentPanel({
   }, []);
 
   const [modelOpen, setModelOpen] = useState(false);
-  const modelRef = useRef(null);
+  const modelRef = useRef<HTMLDivElement | null>(null);
   // 上传 input 的 ref：上传 UI 当前被注释（见下方「图片上传：暂时隐藏」块），取消注释即可恢复
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- fileRef 仅在被注释的上传 UI 中引用
-  const fileRef = useRef(null);
-  const scrollRef = useRef(null);
-  const textareaRef = useRef(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   // 「回到底部」按钮：atBottom 驱动显隐；atBottomRef 供滚动副作用同步读取最新值（避免闭包读到过期 state）
   const [atBottom, setAtBottom] = useState(true);
   const atBottomRef = useRef(true);
@@ -687,9 +687,9 @@ export default function AgentPanel({
   //   原因：smooth 滚动动画本身持续触发 scroll 事件，中间帧「距底部」很大，
   //   若不屏蔽会把 atBottomRef 误翻成 false → 流式跟随中断、按钮误弹出。
   const programmaticRef = useRef(false);
-  const idleTimerRef = useRef(null);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 用户接管后下一帧校正位置的 rAF 句柄（抵消 wheel→scroll 之间的一帧空档，见 takeOver）
-  const rafRef = useRef(null);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     try {
@@ -733,7 +733,7 @@ export default function AgentPanel({
   useEffect(() => {
     if (!modelOpen) return;
     const handler = (e: MouseEvent) => {
-      if (modelRef.current && !modelRef.current.contains(e.target)) setModelOpen(false);
+      if (modelRef.current && !modelRef.current.contains(e.target as Node)) setModelOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -751,7 +751,7 @@ export default function AgentPanel({
 
   /** 强制贴底（流式跟随/发送/切对话/点按钮）：同步置位 atBottom → 按钮立即隐藏 */
   const scrollToBottom = useCallback(
-    (behavior = 'smooth') => {
+    (behavior: ScrollBehavior = 'smooth') => {
       const el = scrollRef.current;
       if (!el) return;
       atBottomRef.current = true;
@@ -853,7 +853,7 @@ export default function AgentPanel({
     const onKeyDown = (e: KeyboardEvent) => {
       if (SCROLL_KEYS.has(e.key)) takeOver();
     };
-    const opts = { passive: true };
+    const opts: AddEventListenerOptions = { passive: true };
     el.addEventListener('wheel', takeOver, opts);
     el.addEventListener('touchmove', takeOver, opts);
     el.addEventListener('pointerdown', onPointerDown, opts);

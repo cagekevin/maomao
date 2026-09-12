@@ -35,6 +35,7 @@ import { uploadFileToLocal, saveResultToTasks } from '../base/api/index.ts';
 import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { logger } from '../base/core/logger.ts';
+import { reportDegrade } from '../base/core/degrade.ts';
 import { reportGenerate } from '../base/store/taskStore.ts';
 import { shotHandleId } from '../base/core/contracts.ts';
 import {
@@ -572,7 +573,13 @@ export function createScriptBoxEngine({
             // 用本地化落盘后的持久 URL 作任务中心结果。done 不再落盘（P0-C），故此处显式补一个
             // tasks 目录副本（与素材库目录 migrated/... 不同、不冲突），保持任务中心「生成」面板可收录。
             if (typeof assetUrl === 'string' && assetUrl && !assetUrl.startsWith('blob:')) {
-              await saveResultToTasks(assetUrl, 'image').catch((): null => null);
+              // 落盘失败不得静默吞：经 reportDegrade 留痕（对齐 useNodeGeneration 同一步），
+              // 但保留「失败不阻断」语义（任务结果仍用 assetUrl）。
+              await saveResultToTasks(assetUrl, 'image').catch((e: unknown): null => {
+                const err = e instanceof Error ? e : new Error(String(e));
+                reportDegrade({ layer: 'scriptBoxEngine', key: 'saveResultToTasks', e: err });
+                return null;
+              });
             }
             taskCtl.done(assetUrl);
             taskSettled = true;

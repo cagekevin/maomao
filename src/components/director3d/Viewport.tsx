@@ -662,7 +662,7 @@ interface OrbitLike {
 function ViewFocusController({
   request,
 }: {
-  request: { position: [number, number, number]; height?: number; distance?: number } | null;
+  request: { position: number[]; height?: number; distance?: number } | null;
 }): null {
   const { camera, controls } = useThree() as unknown as {
     camera: THREE.Camera;
@@ -813,7 +813,7 @@ function PathEditor({
   };
   const controls = useThree((state) => state.controls) as unknown as { enabled: boolean } | null;
   const [points, setPoints] = useState<{ x: number; y: number; z: number }[]>([]);
-  const activeMode = useRef(null); // null | 'draw' | grab 的索引
+  const activeMode = useRef<number | 'draw' | null>(null); // null | 'draw' | grab 的索引
   const trailRef = useRef([]); // 绘制态进行中的笔画轨迹
   const [selectedDot, setSelectedDot] = useState(-1);
   const [hoveredDot, setHoveredDot] = useState(-1);
@@ -1126,7 +1126,7 @@ interface EditorSceneProps {
   lighting?: ProjectLighting;
   showGrid?: boolean;
   performanceMode?: boolean;
-  focusRequest?: { position: [number, number, number]; height?: number; distance?: number } | null;
+  focusRequest?: { position: number[]; height?: number; distance?: number } | null;
   referenceVisible?: boolean;
   cameraView?: boolean;
   animationTime?: number;

@@ -369,7 +369,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
   const [transformMode, setTransformMode] = useState('translate');
   const [transformSpace, setTransformSpace] = useState('world');
   const [snapEnabled, setSnapEnabled] = useState(true);
-  const [groundRequest, setGroundRequest] = useState(null);
+  const [groundRequest, setGroundRequest] = useState<{ id: string; nonce: number } | null>(null);
   const [camera, setCamera] = useState<ProjectCamera>(() => ({
     ...initialCamera,
     ...startupProject?.camera,
@@ -409,8 +409,10 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
   const [playing, setPlaying] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [capturingImage, setCapturingImage] = useState(false);
-  const [exportReferenceBackground, setExportReferenceBackground] = useState(null);
-  const [monitorReferenceBackground, setMonitorReferenceBackground] = useState(null);
+  const [exportReferenceBackground, setExportReferenceBackground] =
+    useState<HTMLCanvasElement | null>(null);
+  const [monitorReferenceBackground, setMonitorReferenceBackground] =
+    useState<HTMLCanvasElement | null>(null);
   const [exportProgress, setExportProgress] = useState(0);
   const [showGrid, setShowGrid] = useState(true);
   const [performanceMode, setPerformanceMode] = useState(false);
@@ -420,23 +422,28 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
   const [viewOptionsCollapsed, setViewOptionsCollapsed] = useState(false);
   const [monitorMode, setMonitorMode] = useState('minimized');
   const [editorView, setEditorView] = useState({ position: [8.5, 6.4, 9.5], target: [0, 1, 0] });
-  const [viewFocusRequest, setViewFocusRequest] = useState(null);
+  const [viewFocusRequest, setViewFocusRequest] = useState<{
+    position: number[];
+    height?: number;
+    distance?: number;
+    nonce: number;
+  } | null>(null);
   const [saveStatus, setSaveStatus] = useState(
     startupProject ? '已恢复自动保存' : '自动保存已开启',
   );
   const [, setHistoryVersion] = useState(0);
-  const loadRef = useRef(null);
-  const referenceFileRef = useRef(null);
-  const playStartRef = useRef(null);
+  const loadRef = useRef<HTMLInputElement | null>(null);
+  const referenceFileRef = useRef<HTMLInputElement | null>(null);
+  const playStartRef = useRef<number | null>(null);
   const currentFrameRef = useRef(0);
-  const exportCanvasRef = useRef(null);
-  const imageCaptureCanvasRef = useRef(null);
-  const monitorCanvasRef = useRef(null);
+  const exportCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const imageCaptureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const monitorCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const editorViewRef = useRef(editorView);
   const gizmoApiRef = useRef<((mode: string) => void) | null>(null);
   const exportLockRef = useRef(false);
   const historyRef = useRef(createHistoryState());
-  const latestProjectRef = useRef(null);
+  const latestProjectRef = useRef<ReturnType<typeof projectData> | null>(null);
   // 路径烘焙去重唯一依据：target → 上一批由路径生成的帧号（同步更新，避免高频 onPathChange + React 批处理读过期闭包导致旧帧清不掉而叠加）
   const pathFramesRef = useRef<Record<string, number[]>>({});
 

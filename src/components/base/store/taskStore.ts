@@ -30,11 +30,6 @@ import {
 import { publishTaskCompleted } from './taskCompletionBus.ts';
 import { generateId } from '../core/idGen.ts';
 import { GEN_MAX_CONCURRENT } from '../core/config.ts';
-// 用命名空间调用而非 `subscribe` 具名导入：本模块内部已有同名 `subscribe`（任务监听器），
-// 具名导入会遮蔽。且 check-events.mjs 只识别 `publish/subscribe/subscribeOnce` 三个函数名，
-// 用别名（onEvent）会让这条订阅逃出事件契约登记的反向校验 —— 必须用能被门禁扫描到的写法。
-import * as eventBus from '../core/eventBus.ts';
-import { buildUrlRewritePairs } from '../utils/assetUrl.ts';
 
 /** 任务状态机：pending(待跑) → running(进行中) → completed / failed */
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
@@ -171,33 +166,6 @@ function getSnapshot(): Task[] {
 export function getTasks(): Task[] {
   return tasks;
 }
-
-// ── 素材 url 变更（改名 / 移动）→ 同步内存任务的 resultUrl ──
-// 后端已改写 tasks 表（rewriteUrlReferences），这里同步「当前页面内存」：
-// 否则任务中心卡片（缩略图渲染 / 下载 / 拖拽建节点）仍指旧路径 → 破图，刷新页面才恢复（清单 #8）。
-// 改写工具与 App.jsx（画布 / 脚本箱节点）共用 assetUrl.js 的同一份实现，不另写一套。
-eventBus.subscribe('resource:renamed', (payload) => {
-  const { oldUrl, newUrl } = (payload || {}) as { oldUrl?: string; newUrl?: string };
-  if (!oldUrl || !newUrl || oldUrl === newUrl) return;
-  const pairs = buildUrlRewritePairs(oldUrl, newUrl);
-  let changed = false;
-  const next = tasks.map((t) => {
-    let resultUrl = t.resultUrl;
-    if (typeof resultUrl === 'string') {
-      for (const [from, to] of pairs) {
-        if (resultUrl.includes(from)) resultUrl = resultUrl.split(from).join(to);
-      }
-    }
-    if (resultUrl === t.resultUrl) return t;
-    changed = true;
-    return { ...t, resultUrl };
-  });
-  // 只有真变了才换引用 + 通知，避免无谓重渲染
-  if (changed) {
-    tasks = next;
-    notify();
-  }
-});
 
 // ── 左侧面板全局状态（对齐官方 setShowTaskList：生成任务时自动弹出任务中心）──
 // 官方 H_.jsx 在每次提交生成任务时调用 H?.(true)（即 setShowTaskList(true)）弹出任务中心。
@@ -374,7 +342,7 @@ export function removeTask(id: string): void {
  * 形态——兄弟。语义是「注册 + 按 key 查询」（canvasPlanExecutor 靠 isNodeRegistered 同步轮询等注册完成），
  * 与 eventBus 广播不同（非事件通道、不走 EVENTS 登记）。禁止再开第三种注册形态。
  */
-// ── 「再来一次/刷新」真正触发节点重新生成 ──
+// ── 重生成回调注册表（供 Agent runNodeGeneration / 测试 / 脚本驱动节点重新生成）──
 /**
  * 节点重生成回调（节点 registerTaskRetry 注册）。
  * 返回值跨代不统一：旧版同步返回 boolean、新版 start 返回 promise，故声明为 unknown，
@@ -389,25 +357,6 @@ export function registerTaskRetry(nodeId: string, fn: TaskRetryFn): void {
 }
 export function unregisterTaskRetry(nodeId: string): void {
   if (nodeId) retryRegistry.delete(nodeId);
-}
-
-/**
- * 重试任务：触发对应节点的重新生成（若节点已注册回调）。
- * 返回是否成功触发（true=已触发，false=找不到节点回调）。
- */
-export function retryTask(id: string): boolean {
-  const t = tasks.find((x) => x.id === id);
-  const fn = t ? retryRegistry.get(t.nodeId) : undefined;
-  if (fn) {
-    try {
-      fn();
-    } catch (e) {
-      logger.error('gen', 'retry-trigger-fail', { nodeId: t?.nodeId, error: e?.message });
-    }
-    return true;
-  }
-  logger.warn('gen', 'retry-callback-missing', { taskId: id, nodeId: t?.nodeId });
-  return false;
 }
 
 /**
@@ -432,7 +381,7 @@ const MAX_CONCURRENT_GEN = GEN_MAX_CONCURRENT;
 let genActive = 0;
 
 // 【P1-E · 跨发起方并发锁】单节点互斥。
-// 任何发起方（Agent runNodeGeneration / 用户手动 start / 「再来一次」retryTask）最终都汇聚到
+// 任何发起方（Agent runNodeGeneration / 用户手动 start）最终都汇聚到
 // useNodeGeneration.start()。start 进入时经本 Map 占位、finally 释放；同节点已有进行中 →
 // claim 返回 { ok:false, inFlight:true }（明确"进行中"，不静默、不并发生成）。
 // 与 genActive（全局并发数）分层：genActive 先占全局任务槽，本 Map 管单节点互斥，两层不冲突。

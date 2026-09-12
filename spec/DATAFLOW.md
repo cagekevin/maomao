@@ -31,8 +31,8 @@ nodes/{ImageGenerate,TextGenerate,VideoGenerate}（原 PromptNode/TextNode/Disco
 scriptbox/scriptBoxEngine.ts（ScriptBoxNode 挂载）
   ① asset 生图（generateImage）→ 走 store/taskStore.reportGenerate（每张 asset 用独立伪 nodeId
      `nodeId-asset-<id>` 对齐节点契约，防批量互顶）→ 回填节点 data.assets[].imageUrl
-     → 生成后本地化落盘 assetStore.localizeAndStoreToLibrary（migrated/ 目录）+ saveResultToTasks 副本
-     → 注：不声明 useNodeGeneration 的 retry 注册
+     → 生成后本地化落盘 resourceStore.localizeAndStoreToResourceLibrary（migrated/ 目录）+ saveResultToTasks 副本
+     → 注：不接 useNodeGeneration 的 retry 注册（任务中心「再来一次」入口已于 2026-09-12 删除）
   ② 文本类 chatCompletions（写剧本/生图提示词/审计/合并视频提示词）→ 直接回填画布节点 data
      （写剧本 / data.shots[].prompt 等），**不经过任务中心 reportGenerate**
 
@@ -223,11 +223,15 @@ prompt/promptChips · prompt/promptMention（纯函数）
 ## 编辑 / 查看链路
 
 ```
-动作入口：nodes/useImageHoverActions（← nodes/ImageNode · nodes/PromptNode）
-编辑器/工具：editors/ImageEditor · editors/InlineImageCropper
-            + utils/imageCompress · utils/imageUpscale · utils/faceMosaic
-查看器：editors/ImageZoomDialog · editors/PanoViewer · ui/VideoThumbnail·ui/LazyImage
+动作入口：nodes/useImageHoverActions（← nodes/AssetNode · nodes/ImageGenerate）
+编辑器/工具：editors/ImageEditor · editors/InlineImageCropper · editors/FaceMosaicEditor · editors/OverlayEditor
+            + utils/imageCompress · utils/imageUpscale · utils/faceMosaic · utils/previewUrl（预览 URL 生命周期唯一出口）
+查看器：editors/ImageZoomDialog（11 消费方，命令式 showModal）· editors/PanoViewer（← PanoramaNode）· ui/VideoThumbnail·ui/LazyImage
+摄影参数：editors/cameraParams/*（← ImageGenerate；与 3D 摄影棚 editors/cameraStudio.ts·CameraStudioPanel 是【两套独立功能】，后者见 3D 段）
+产出落盘：编辑器结果统一经 filesApi.showThenPersistInline（唯一「图像入节点落盘」出口）→ 写回节点
 ```
+
+> 更新(2026-09-12, refs实证/区域06首轮): 补 `FaceMosaicEditor`/`OverlayEditor`/`cameraParams/*`/`previewUrl` 四边（原段漏列）；标注 cameraParams 与 cameraStudio 为两套独立功能（勿混用）；标注编辑器结果唯一落盘出口 `showThenPersistInline`（合成节点 GridMergeNode 尚未纳入，见 TD-06-6）。
 
 ## 3D / 深度视频链路
 

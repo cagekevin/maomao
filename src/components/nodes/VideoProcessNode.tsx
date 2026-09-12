@@ -347,12 +347,12 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   const [gifDuration, setGifDuration] = useState(data.gifDuration ?? 0); // h（视频总时长）
   const [gifResult, setGifResult] = useState(data.gifResult || null); // E（resultInfo）
   const [sourceMetadata, setSourceMetadata] = useState(data.sourceMetadata || {});
-  const [selectedClipId, setSelectedClipId] = useState(null); // F
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null); // F
   const [playheadTime, setPlayheadTime] = useState(0); // j
   const [isPlaying, setIsPlaying] = useState(false); // N
   const [thumbnails, setThumbnails] = useState<Record<string, string[]>>({}); // ee {sourceId:[url]}
-  const [editingClipId, setEditingClipId] = useState(null); // k
-  const [localFile, setLocalFile] = useState(null); // o
+  const [editingClipId, setEditingClipId] = useState<string | null>(null); // k
+  const [localFile, setLocalFile] = useState<File | null>(null); // o
   const [localUrl, setLocalUrl] = useState(''); // s
   const [timelineTracks, setTimelineTracks] = useState(data.timelineTracks || []);
   const [errorMessage, setErrorMessage] = useState(data.errorMessage || '');

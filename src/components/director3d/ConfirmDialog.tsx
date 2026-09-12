@@ -24,7 +24,12 @@ interface ConfirmDialogOpts {
  */
 export function useConfirm() {
   // state: null 表示无弹窗；否则 { message, confirmText, cancelText, danger }
-  const [state, setState] = useState(null);
+  const [state, setState] = useState<{
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    danger?: boolean;
+  } | null>(null);
   // 持有当前弹窗的 resolver，避免 setState 异步回调作用域丢失
   const resolverRef = useState({ cur: null })[0];
 

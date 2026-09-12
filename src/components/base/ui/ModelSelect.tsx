@@ -72,7 +72,7 @@ function ModelSelect({
   active = false,
 }: ModelSelectProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const ref = useRef<HTMLDivElement | null>(null);
   useOutsideClick(ref, open, () => setOpen(false));
 
   const badge = (id: string) => models.find((m) => m.id === id)?.badge || 'builtin';

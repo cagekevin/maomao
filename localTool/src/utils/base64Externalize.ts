@@ -16,8 +16,8 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getUploadDir } from '../db/database.js';
-import { ensureDir, resolveUploadTarget, sanitizeFilename } from './fileStore.js';
+import { getUploadDir, queryOne } from '../db/database.js';
+import { ensureDir, resolveUploadTarget, sanitizeFilename, contentIdOf } from './fileStore.js';
 import { mimeToExt } from './mime.js';
 import { toAbsoluteFileUrl } from './localToolBaseUrl.js';
 
@@ -40,14 +40,18 @@ function isValidBase64(s: string): boolean {
 
 /**
  * 把单个 data URI 解码并落盘为 uploads/ 文件，返回可访问 /files/ URL。
- * 文件名 = sha1(base64 原文) 前 16 位 + 扩展名，幂等去重。
- * @param subfolder 落盘子目录（默认 'canvas'）。本函数是 base64→落盘【唯一实现】，
- *   同时服务两条链路：KV 入库外置（externalizeBase64InValue，恒 'canvas'）与
- *   /api/files/upload 的 dataUri 分支（前端传 tasks/director3d/canvas 等调用方目录）。
- *   以参数透传子目录，单一实现杜绝前后端两套 sha1/校验漂移（deepening-files-upload-seam 候选 B）。
- * 落盘失败返回 null（调用方保留原 base64）。
+ * 去重：先按【解码后的原始字节】算 contentId（`<alg>:<hex>`），查 resources 表命中即复用既有 url
+ * （不二次落盘、不新建第二份）—— 与 multipart 上传 / 远程 URL 走同一 contentId 权威，跨入口去重免费。
+ * 仅当未命中（新内容）时落盘，文件名沿用既有 sha1(base64 原文) 前 16 位 + 扩展名（保持 URL 契约 / 测试不变）。
+ * 失败（非法 / 落盘异常）返回 null，调用方保留原 base64。
+ * @param subfolder 落盘子目录（默认 'canvas'）
+ * @param db 可选已初始化的 DB 句柄：传入则做 contentId 查重复用；不传则跳过（仅本地幂等）
  */
-export function saveBase64ToFile(dataUri: string, subfolder: string = 'canvas'): string | null {
+export function saveBase64ToFile(
+  dataUri: string,
+  subfolder: string = 'canvas',
+  db: any = null,
+): string | null {
   const m = dataUri.match(DATA_URI_RE);
   if (!m) return null;
   const mime = m[1];
@@ -56,24 +60,30 @@ export function saveBase64ToFile(dataUri: string, subfolder: string = 'canvas'):
   // 严格校验：含非法 base64 字符（Node 会宽容忽略）视为无效，回退保留原值
   if (!isValidBase64(base64Data)) return null;
 
+  const buf = Buffer.from(base64Data, 'base64');
   const ext = extFromMime(mime);
+
+  // docs/122 Content 维度 #6·根因修复：跨入口去重权威 = contentId(字节哈希)，与入口无关。
+  // 命中既有 contentId → 直接复用其 url（不写盘、不新建第二份）→ 同图「文件上传 / base64 粘贴」落同一物理文件。
+  if (db) {
+    const contentId = contentIdOf(crypto.createHash('sha1').update(buf).digest('hex'));
+    const hit = queryOne(db, 'SELECT url FROM resources WHERE sha1 = ?', [contentId]) as
+      { url?: string } | undefined;
+    if (hit?.url) return toAbsoluteFileUrl(hit.url);
+  }
+
+  // 未命中：沿用既有 base64 命名（sha1(base64 文本)前16位 + ext），保持 URL 契约 / 测试不变
   const hash = crypto.createHash('sha1').update(base64Data).digest('hex').slice(0, 16);
   const stableName = sanitizeFilename(`${hash}${ext}`);
 
   const { savedPath, urlPath } = resolveUploadTarget(subfolder, stableName);
   ensureDir(path.dirname(savedPath));
-
-  // 更新(2026-09-11)：toAbsoluteFileUrl 唯一实现已收口 utils/localToolBaseUrl.ts
-  // （读 PORT 动态端口；旧实现硬编码 LOCAL_FILE_BASE 18080，非默认端口启动时 URL 端口错配）。
   const absoluteUrl = toAbsoluteFileUrl(urlPath);
 
   // 已存在则直接返回 URL（幂等，不重复落盘）
-  if (fs.existsSync(savedPath)) {
-    return absoluteUrl;
-  }
+  if (fs.existsSync(savedPath)) return absoluteUrl;
 
   try {
-    const buf = Buffer.from(base64Data, 'base64');
     fs.writeFileSync(savedPath, buf);
     return absoluteUrl;
   } catch {
@@ -94,10 +104,10 @@ function extFromMime(mime: string): string {
  * 逐字段 try/catch：单字段失败保留原 base64，其余照常外置，不抛异常。
  * 数组元素同样处理。
  */
-function externalizeObject(obj: unknown, warnKey: string): void {
+function externalizeObject(obj: unknown, warnKey: string, db: any = null): void {
   if (Array.isArray(obj)) {
     for (const item of obj) {
-      externalizeObject(item, warnKey);
+      externalizeObject(item, warnKey, db);
     }
     return;
   }
@@ -107,7 +117,7 @@ function externalizeObject(obj: unknown, warnKey: string): void {
     const val = (obj as Record<string, unknown>)[key];
     if (typeof val === 'string') {
       if (val.startsWith('data:')) {
-        const url = saveBase64ToFile(val);
+        const url = saveBase64ToFile(val, 'canvas', db);
         if (url) {
           (obj as Record<string, unknown>)[key] = url;
         } else {
@@ -117,7 +127,7 @@ function externalizeObject(obj: unknown, warnKey: string): void {
         }
       }
     } else if (Array.isArray(val) || (val && typeof val === 'object')) {
-      externalizeObject(val, `${warnKey}.${key}`);
+      externalizeObject(val, `${warnKey}.${key}`, db);
     }
   }
 }
@@ -127,10 +137,10 @@ function externalizeObject(obj: unknown, warnKey: string): void {
  * JSON 可解析：深度遍历对象，外置所有 data: base64 字段。
  * JSON 不可解析：若整串是 data: base64（img_orig_* / img_thumb_* 形态），直接外置为 URL。
  */
-export function externalizeBase64InValue(value: string): string {
+export function externalizeBase64InValue(value: string, db: any = null): string {
   // 裸 base64 形态（img_* 键）：整串就是 data URI
   if (value.startsWith('data:')) {
-    const url = saveBase64ToFile(value);
+    const url = saveBase64ToFile(value, 'canvas', db);
     if (url) return url;
     return value; // 失败保留
   }
@@ -146,7 +156,7 @@ export function externalizeBase64InValue(value: string): string {
   if (parsed === null || typeof parsed !== 'object') return value;
 
   const before = JSON.stringify(parsed);
-  externalizeObject(parsed, 'kv');
+  externalizeObject(parsed, 'kv', db);
   const after = JSON.stringify(parsed);
   return after.length === before.length ? value : after;
 }

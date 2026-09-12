@@ -79,7 +79,7 @@ export function useScriptBoxEngine(
   );
 
   // 引擎实例用 ref 缓存，跨 render 稳定（不因 data 变化重建导致子组件重渲染）
-  const engineRef = useRef(null);
+  const engineRef = useRef<ReturnType<typeof createScriptBoxEngine> | null>(null);
   if (!engineRef.current) {
     engineRef.current = createScriptBoxEngine({
       // 读最新 data：经 useReactFlow().getNode 实时取（O(1) hash 查，替 getNodes().find），避免闭包捕获旧值。

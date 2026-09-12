@@ -142,7 +142,7 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
   const [overrides, setOverrides] = useState<Record<number, string>>({});
   // 拆分方式下拉浮层开关
   const [showSplitMenu, setShowSplitMenu] = useState(false);
-  const splitMenuRef = useRef(null);
+  const splitMenuRef = useRef<HTMLDivElement | null>(null);
   // 防重入锁：运行是同步完成的，running state 在 React 批处理下无法阻止连点，必须用 ref
   const busyRef = useRef(false);
   useOutsideClick(splitMenuRef, showSplitMenu, () => setShowSplitMenu(false));

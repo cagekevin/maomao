@@ -22,8 +22,6 @@ import {
   copyImageToClipboard,
   copyVideoFrameToClipboard,
   downloadUrl,
-  drawVideoFrameToCanvas,
-  downloadBlob,
 } from '../utils/clipboard.ts';
 import { createRafBatch } from '../core/utils.ts';
 import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
@@ -46,7 +44,7 @@ function ImageZoomDialog({
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragging = useRef(false);
   const lastPointer = useRef({ x: 0, y: 0 });
-  const imgRef = useRef(null); // P10：拖拽期给 img 挂 will-change
+  const imgRef = useRef<HTMLImageElement | HTMLVideoElement | null>(null); // P10：拖拽期给 img 挂 will-change（视频模式挂 video）
   const [copied, setCopied] = useState(false);
   const [copyErr, setCopyErr] = useState(false);
 
@@ -195,37 +193,18 @@ function ImageZoomDialog({
   } | null>(null);
   const handleCaptureFrame = useCallback(async (last: boolean) => {
     const which = last ? 'last' : 'current';
-    const video = imgRef.current as unknown as HTMLVideoElement | null;
+    // 视频模式下 imgRef 挂的是 <video>：用 instanceof 收窄（不再 `as unknown as`）
+    const el = imgRef.current;
+    const video = el instanceof HTMLVideoElement ? el : null;
     const { ok } = await copyVideoFrameToClipboard(video, { last });
     setCaptureState({ which, status: ok ? 'ok' : 'err' });
     if (captureTimer.current) clearTimeout(captureTimer.current);
     captureTimer.current = window.setTimeout(() => setCaptureState(null), 2000);
   }, []);
 
-  // 视频模式：下载当前帧为图片文件（PNG）。复用 drawVideoFrameToCanvas 抽帧 + downloadBlob 落盘。
-  const frameDownloadState = useRef<{ timer: number | null }>({ timer: null });
-  const [_frameDl, setFrameDl] = useState<{ status: 'ok' | 'err' | 'busy' } | null>(null);
-  useCallback(async () => {
-    const video = imgRef.current as unknown as HTMLVideoElement | null;
-    if (!video) return;
-    setFrameDl({ status: 'busy' });
-    try {
-      const canvas = await drawVideoFrameToCanvas(video, {});
-      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'));
-      if (!blob) throw new Error('帧导出失败');
-      const name =
-        (url || '')
-          .split('/')
-          .pop()
-          ?.replace(/\.[a-z0-9]+$/i, '') || 'video';
-      await downloadBlob(blob, `${name}_frame.png`);
-      setFrameDl({ status: 'ok' });
-    } catch {
-      setFrameDl({ status: 'err' });
-    }
-    if (frameDownloadState.current.timer) clearTimeout(frameDownloadState.current.timer);
-    frameDownloadState.current.timer = window.setTimeout(() => setFrameDl(null), 2000);
-  }, [url]);
+  // 注：原「下载当前帧为 PNG 文件」的半成品死代码已删除（2026-09-12，区域 06 TD-06-1）：
+  //   该 useCallback 返回值无人接收、工具条也没有对应按钮 → 从未可达；连带死 state/死 import 一并清除。
+  //   视频帧能力仍保留：截屏当前帧/尾帧并「复制到剪贴板」（见下方 handleCaptureFrame）。
 
   // 登记为全屏模态层：enabled 绑原生 dialog 的 open 状态（见上方 dlgOpen 的推导），
   // 不是 bind url —— url 在 AssetNode 里恒非空，用它判定会让画布快捷键永久失效。
@@ -256,7 +235,9 @@ function ImageZoomDialog({
                 不加 autoPlay：避免弹窗打开即自动播放、触发浏览器原生播放界面挡住自定义工具栏。
                 playsInline 防止移动端强制全屏；用户点播放后即可「下载当前帧/复制当前帧」。 */
             <video
-              ref={imgRef}
+              ref={(el) => {
+                imgRef.current = el;
+              }}
               src={src}
               controls
               playsInline
@@ -267,7 +248,9 @@ function ImageZoomDialog({
             />
           ) : (
             <img
-              ref={imgRef}
+              ref={(el) => {
+                imgRef.current = el;
+              }}
               src={src}
               alt="大图"
               onClick={(e) => e.stopPropagation()}

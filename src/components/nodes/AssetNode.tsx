@@ -75,11 +75,12 @@ interface AssetNodeProps {
 }
 function AssetNode({ id, data, selected }: AssetNodeProps) {
   const fileRef = useRef<HTMLInputElement | null>(null);
-  // 【docs/122 #4/#5】渲染解析统一入口（resolveAssetDisplayUrl）：文件型持 resourceId →
-  // 经 resourceStore 解析 url；内联 dataURL/blob 持 url 直用；存量 assetUrl 兼容兜底。
-  // 资源查无 → 显式「素材已移除」缺失态（fail-loud：边界契约失效，UI 呈现，不静默破图）。
-  const assetRef = resolveAssetDisplayUrl(data, (rid) => {
-    const found = getResources().find((r) => r.id === rid);
+  // 【docs/122 #4/#5】渲染解析统一入口（resolveAssetDisplayUrl）：文件型持稳定 contentId →
+  // 经 resourceStore 解析 url（resource 行改名/移动只改 context，contentId→url 自动跟随，永不破图）；
+  // 内联 dataURL/blob 持 url 直用；存量 assetUrl 兼容兜底。资源查无 → 显式「素材已移除」缺失态
+  //（fail-loud：边界契约失效，UI 呈现，不静默破图）。
+  const assetRef = resolveAssetDisplayUrl(data, (cid) => {
+    const found = getResources().find((r) => r.contentId === cid);
     return found ? found.url : null;
   });
   // 读取端兜底：相对 /files/ 路径统一补全为绝对 URL，刷新不破图。

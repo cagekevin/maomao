@@ -340,10 +340,10 @@ describe('assetUrl · resolveAssetDisplayUrl / assertMutuallyExclusiveAssetForm'
   const resolveFrom = (table: Record<string, string>) => (rid: string) =>
     table[rid] ? table[rid] : null;
 
-  it('文件型（resourceId）命中 resource → 解析为 url', () => {
+  it('文件型（contentId）命中 resource → 解析为 url', () => {
     const st = resolveAssetDisplayUrl(
-      { resourceId: 'local-web-a.png' },
-      resolveFrom({ 'local-web-a.png': '/files/web/a.png' }),
+      { contentId: 'sha1:abc' },
+      resolveFrom({ 'sha1:abc': '/files/web/a.png' }),
     );
     expect(st).toEqual({ kind: 'ok', url: '/files/web/a.png' });
   });
@@ -353,8 +353,8 @@ describe('assetUrl · resolveAssetDisplayUrl / assertMutuallyExclusiveAssetForm'
     expect(st).toEqual({ kind: 'ok', url: 'data:image/png;base64,xxx' });
   });
 
-  it('文件型（resourceId）查无 → missing（fail-loud 显式缺失态）', () => {
-    const st = resolveAssetDisplayUrl({ resourceId: 'ghost' }, resolveFrom({}));
+  it('文件型（contentId）查无 → missing（fail-loud 显式缺失态）', () => {
+    const st = resolveAssetDisplayUrl({ contentId: 'sha1:ghost' }, resolveFrom({}));
     expect(st).toEqual({ kind: 'missing' });
   });
 
@@ -367,15 +367,15 @@ describe('assetUrl · resolveAssetDisplayUrl / assertMutuallyExclusiveAssetForm'
     expect(resolveAssetDisplayUrl(undefined, resolveFrom({}))).toEqual({ kind: 'missing' });
   });
 
-  it('assertMutuallyExclusiveAssetForm：resourceId+url 双字段同指文件 → 违规', () => {
-    expect(assertMutuallyExclusiveAssetForm({ resourceId: 'x', url: '/files/x.png' })).toEqual([
-      'resourceId',
+  it('assertMutuallyExclusiveAssetForm：contentId+url 双字段同指文件 → 违规', () => {
+    expect(assertMutuallyExclusiveAssetForm({ contentId: 'sha1:x', url: '/files/x.png' })).toEqual([
+      'contentId',
       'url',
     ]);
   });
 
-  it('assertMutuallyExclusiveAssetForm：单形态（仅 resourceId 或仅 url）→ []', () => {
-    expect(assertMutuallyExclusiveAssetForm({ resourceId: 'x' })).toEqual([]);
+  it('assertMutuallyExclusiveAssetForm：单形态（仅 contentId 或仅 url）→ []', () => {
+    expect(assertMutuallyExclusiveAssetForm({ contentId: 'sha1:x' })).toEqual([]);
     expect(assertMutuallyExclusiveAssetForm({ url: '/files/x.png' })).toEqual([]);
     expect(assertMutuallyExclusiveAssetForm({})).toEqual([]);
   });

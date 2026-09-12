@@ -578,7 +578,7 @@ function ChatEdit({
   const previewText = draft != null ? draft : fieldCurrent;
   const changed = draft != null && draft !== fieldCurrent;
   // 意见输入条 auto-resize：内容超过一行自动增高（上限 96px≈4行），不再裁掉换行后的第一行
-  const inputRef = useRef(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const resizeInput = () => {
     const el = inputRef.current;
     if (!el) return;

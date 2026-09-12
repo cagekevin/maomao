@@ -23,6 +23,7 @@ import { generateId } from '../core/idGen.ts';
 import { httpRequest } from '../api/httpClient.ts';
 import '../core/config.ts';
 import { rescanResources } from '../api/localToolApi.ts';
+import type { ResourceItem } from '../api/localToolApi.ts';
 import { saveInlineToLocal, uploadFileToLocal, EXT_BY_TYPE } from '../api/filesApi.ts';
 import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
 import { detectFileType } from '../utils/assetType.ts';
@@ -42,6 +43,8 @@ export interface Resource {
   url: string;
   size: number;
   ts: number;
+  /** docs/122 #4：稳定 contentId（= 后端 resources.sha1，<alg>:<hex>）；文件型 asset 持此身份解析 url */
+  contentId?: string;
   [key: string]: unknown;
 }
 
@@ -264,7 +267,39 @@ export function buildResourceRecord(item: NewResourceItem, folder: string, now: 
     name: item.name || '未命名',
     size: item.size || 0,
     ts: item.ts || now,
+    contentId: item.contentId,
   };
+}
+
+/**
+ * 把后端 /api/resources 拉取到的资源并入本 store（docs/122 #4「统一 resourceStore 与后端源」）。
+ * 画布 asset 节点持稳定 contentId，经本 store 的 contentId→url 解析出 url；面板与 AssetNode
+ * 共用同一份真相，改名/移动（context-only，url 不变）即自动跟随，无需四态 URL 改写广播。
+ * 后端项按 id 去重并入（同 id 以 backend 为准覆盖）；纯本地项（demo 种子 / 未落盘 send）保留。
+ * 注：合并后照常落盘；下次面板 fetch 会重新合并，以后端为最新真相，避免把后端快照长期固化。
+ * @param {ResourceItem[]} items 后端资源列表（含 contentId / url / folder / type 等）
+ */
+export function mergeResourcesFromBackend(items: ResourceItem[]): void {
+  if (!Array.isArray(items) || items.length === 0) return;
+  const incoming = new Map<string, Resource>();
+  for (const it of items) {
+    if (!it?.id) continue;
+    incoming.set(it.id, {
+      id: it.id,
+      folder: it.folder || '',
+      type: (it.type as AssetType) || 'image',
+      name: it.name || '未命名',
+      url: it.url || '',
+      size: typeof it.size === 'number' ? it.size : 0,
+      ts: typeof it.timestamp === 'number' ? it.timestamp : Date.now(),
+      contentId: it.contentId,
+      ...(it.projectId != null ? { projectId: it.projectId } : {}),
+    });
+  }
+  // 本地项（demo / 未落盘）保留；backend 项覆盖同 id；backend 新项追加
+  const kept = resources.filter((r) => !incoming.has(r.id));
+  resources = [...kept, ...Array.from(incoming.values())];
+  notify();
 }
 
 // 新增素材（folder 指定落目录，缺省 migrated）

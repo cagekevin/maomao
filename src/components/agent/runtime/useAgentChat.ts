@@ -347,7 +347,7 @@ export function useAgentChat({
     (s) => !!s.sending,
     shallowEqual,
   );
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [model, setModel] = useState(defaultModel);
   // ── 会话隔离（#9）：当前对话 id + 对话列表由 store 字段订阅（薄壳化，删本地 state + refreshConversations）──
   const activeConversationId = useStoreSelector<ConversationStoreState, string>(
@@ -372,7 +372,7 @@ export function useAgentChat({
   // 表格工作区开合：send 是 useCallback 且在工具循环里经 makeContextMessages 实时重建请求，
   //  故用 ref 同步（仿 systemRef/skillsRef），避免闭包依赖旧值导致表格态切换不生效。
   const tableOpenRef = useRef(tableOpen);
-  const abortRef = useRef(null);
+  const abortRef = useRef<AbortController | null>(null);
   // 【复合忙判定】对齐大雄 agentIsTaskBusy：发送锁（store.sending）+ 状态机是否运行中。
   // 2026-08-21 消除 sendingRef 双源：异步闭包用 getState().sending 同步读最新（setSending → commit 同步更新 store，
   // 无需依赖渲染；与旧 sendingRef 的"同步读防并发"语义等价，单一真相收口到 store）。

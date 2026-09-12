@@ -5,6 +5,7 @@
 > **节奏**：**不必一次做完**。每次只啃一个文件/一个目录，小步、可验证、可回滚。
 > **背景**：`tsconfig.json` 关了 `noImplicitAny`（历史遗留），所以这些错平时不报。我们用「按目录开放的 strict 门禁」渐进收口，而不是一次翻开全仓（会 1424 错、瘫掉开发）。
 > 详细审计见 `daily/架构日志/09-类型诚实性-隐式any复核-2026-09-12.md`。
+> **状态（2026-09-12 收口）**：✅ **src 侧已全部收口（1435 → 0）**，18 项白名单 0 隐式 any，`npm run check:strict-src` 永不复涨。本手册转为**历史执行记录 + tests 侧（TD-09-2）复用**。仅余 tests 侧 1323 处（不影响生产代码）。
 
 ---
 
@@ -13,6 +14,11 @@
 ```
 读报告（strict-report）→ 选一个文件 → 按 §4 的错误码表修 → 跑 §5 三条验证 → 绿了换下一个
 → 一个目录全清 → 加进白名单（§7）→ 门禁从此守住它
+
+# tests 侧（TD-09-2）走另一条路，详见 §8.5：
+#   读 §2.5 两份前辈文档 → 跑 tsc -p tests/tsconfig.strict.probe.json 按真实错排序
+#   → 只改测试侧对齐 src（vi.mocked / as unknown as X / vi.fn(..._args:any[])）
+#   → IDE lints + vitest 实跑判据；绝不新建白名单 JSON（那是 src 侧机制，错配）
 ```
 
 ---
@@ -35,8 +41,11 @@
 | `node scripts/strict-report.mjs` | **总览**：存量、按域/错误码分类、TOP 文件、「建议下一步（最易啃）」 |
 | `node scripts/strict-report.mjs --file <path>` | **单文件**全部错误（开工前先看它） |
 | `node scripts/strict-report.mjs --dir <path>` | **某目录**全部错误 + 明细 |
-| `npm run check:strict-src` | **门禁**：白名单目录必须 0 隐式 any（红 = 没修完） |
-| `npm run type-check` | 常规类型闸（必须一直绿） |
+| `npm run check:strict-src` | **门禁**（src 侧）：白名单目录必须 0 隐式 any（红 = 没修完） |
+| `npm run type-check` | 常规类型闸（src + tests 全量，必须一直绿） |
+| `npx tsc -p tests/tsconfig.strict.probe.json --noEmit` | **tests 侧旁路探针**（TD-09-2）：开 strict 看真实存量，**不写回门禁** |
+| `node scripts/ts-tests.mjs check <file>` / `verify <file>` | tests 侧单文件检查 / 去帽验证（前辈体系，勿重建） |
+| `node scripts/ts-detail.mjs` | tests 侧逐条明细（含解析率自检，防误判 0 错） |
 
 ---
 
@@ -252,39 +261,24 @@ npx vitest run <相关测试文件>  # 改到哪个模块就测哪个（如 test
 
 ## 8. 进度与建议顺序
 
-**当前快照（2026-09-12 晚实测，`node scripts/strict-report.mjs` 可随时重算）**：
+**当前快照（2026-09-12 收口实测，`node scripts/strict-report.mjs` 可随时重算）**：
 
-| 域 | 存量（白名单外，待翻新） |
-| - | - |
-| `src/components/director3d/` | 712 |
-| `src/`（根文件：`App.tsx` 等） | 0 ✅（2026-09-12 收口） |
-| **合计（白名单外）** | **712** |
+| 域 | 存量 | 门禁机制 |
+| - | - | - |
+| **src 侧（TD-09-1 范围）** | **0 ✅ 已全目录收口** | 白名单门禁 `npm run check:strict-src`（§7） |
+| tests 侧（TD-09-2，另一面） | 真实门禁已绿；strict 探针 4309 处（待翻新，**不阻塞**） | **无白名单门禁**，走全量 `npm run type-check` + 旁路 `tsconfig.strict.probe.json` |
 
-> 白名单已收口目录（17 项：15 个目录 + `src/App.tsx`/`src/main.tsx` 两个根文件，隐式 any 存量 0，门禁永不复涨）：core / storage / api / utils / store / prompt / ui / editors / base/panels / hooks / nodes / agent / edges / panels / scriptbox / `src/App.tsx` / `src/main.tsx`。
+> **✅ TD-09-1 已结清（2026-09-12）**：`node scripts/strict-report.mjs --dir src` = **0 处**；`npm run check:strict-src` 白名单 **18 项 0 报、exit 0**。白名单（18 项 = 16 目录 + `src/App.tsx`/`src/main.tsx`）：core / storage / api / utils / store / prompt / ui / editors / base/panels / hooks / nodes / agent / edges / panels / scriptbox / **director3d（最大 712 → 0，最后收口）** / `src/App.tsx` / `src/main.tsx`。
 
-> `src/components/base/` 全量收口进白名单（core/storage/api/utils/store/prompt/editors/ui/panels 均 0 处）。其余白名单目录（hooks/nodes）亦 0 处。
+> **⚠️ tests 侧（TD-09-2）关键澄清（2026-09-12 修订，曾误判）**：
+> - `tsconfig.json` 2026-09-12 已将 `tests/**`（含 `.mjs` 底座）**并入根扫描**（取消独立 `tests/tsconfig.json`）。即 tests 的**真实门禁 = 根 `npm run type-check`（`tsc --noEmit`）**，已由 husky/pre-commit 守住，**不是** src 侧那套白名单机制。
+> - 所谓「tests 侧 1323 处隐式 any」是**临时开 `--noImplicitAny` 扫出的噪音存量**，前辈 `docs/75-测试类型消化-Handoff-2026-09-01.md` 早已把 172 个测试文件 `@ts-nocheck` 清零、常规闸（当时 `strict:false`）全绿。这些 1323 处**平时不报**（根 `tsconfig` 的 `noImplicitAny:false`），属「待翻新」非「破门禁」。
+> - **因此 tests 侧不要新建 JSON 白名单门禁**（那是 src 侧 TD-09-1 的机制，错配）。正确做法是沿用前辈已验证的体系：全量 `tsc -p tests/tsconfig.strict.probe.json` 旁路探针 + 按真实错误数排序 + IDE/vitest 实跑判据。详见 **§8.5**。
+> - 旁路线索：1286 处里绝大多数是隐式 any 噪音（见 §2.5 探针报告），`accountsStore`/`providerStore`/`logger` 等错误数 top5 真实隐患为 0；真要攻坚应聚焦 `canvasAgentTools`(86 真实错) 等真实型文件。
 
-**单文件 TOP（大块，建议排到最后单独啃）**：
-`director3d/App.tsx` 157 · `director3d/project.ts` 127 · `agent/canvas/useCanvasAgentTools.ts` 111 · `director3d/Viewport.tsx` 76 · `director3d/panels/Timeline.tsx` 59 · `agent/canvas/canvasPlanExecutor.ts` 57 · `nodes/VideoProcessNode.tsx` 55 · `base/editors/OverlayEditor.tsx` 52
+**已收口（白名单，隐式 any 存量 0）**：core / storage / api / utils / store / prompt / ui / editors / base/panels / hooks（34→0）/ nodes（126→0）/ agent（197→0）/ edges（2→0）/ panels（21→0）/ scriptbox（45→0）/ `src/App.tsx`+`main.tsx`（37→0）/ **director3d（712→0）** → **合计 1435 → 0 ✅**。
 
-**已收口（白名单，隐式 any 存量 0）**：
-- `src/components/base/core/` ✅
-- `src/components/base/storage/` ✅
-- `src/components/base/api/` ✅
-- `src/components/base/utils/` ✅
-- `src/components/base/store/` ✅
-- `src/components/base/prompt/` ✅
-- `src/components/base/editors/` ✅（2026-09-12 收口，75 → 0）
-- `src/components/base/ui/` ✅（约 4 处已先行清零，待补登记）
-- `src/components/base/panels/` ✅（2026-09-12 收口，96 → 0）
-- `src/hooks/` ✅（34 → 0）
-- `src/components/nodes/` ✅（126 → 0）
-- `src/components/edges/` ✅（本批次 2026-09-12：2 → 0）
-- `src/components/panels/` ✅（本批次 2026-09-12：21 → 0）
-- `src/components/scriptbox/` ✅（本批次 2026-09-12：45 → 0）
-- `src/`（根文件 `App.tsx` / `main.tsx`） ✅（2026-09-12 收口：37 → 0）
-
-**进行中**：`src/components/base/editors/`、`src/components/base/ui/`、`src/hooks/`、`src/components/nodes/`、`src/components/base/panels/`、`src/components/edges/`、`src/components/panels/`、`src/components/scriptbox/`、`src/`（根文件 `App.tsx`/`main.tsx`）均已收口并纳入白名单（见进度小结）。**下一站（白名单外，待翻新）**：`src/components/director3d/`（712 处，最大，建议最后单独排期）。
+**src 侧已无待排期目录**：全部 src 目录均已收口并纳入白名单（见上）。若后续新增 src 目录，请按 §7 从零维护白名单。
 
 ### 进度小结（截至 2026-09-12 晚）
 
@@ -333,18 +327,88 @@ npx vitest run <相关测试文件>  # 改到哪个模块就测哪个（如 test
 
 落完编辑 → `npm run check:strict-src` 必须 0 报 → 把 `src/hooks/`、`src/components/base/ui/` 逐条加进 `scripts/strict-src-whitelist.json` → `npx vitest run tests/unit` 相关用例（`hooks` 相关测试用 `node scripts/mv-sync-refs.mjs refs <file>` 找同 stem 测试）。
 
-**建议顺序（自底向上：先地基、后 UI；先小后大）**：
-1. ✅ `core/`、`storage/`、`api/`、`utils/`（底层地基，已收口）
-2. ✅ `store/`、`prompt/`（已收口）
-3. ✅ `src/hooks/`（34 → 0，已收口）· ✅ `src/components/base/ui/`（4 → 0，已收口）
-4. ✅ `src/components/nodes/`（126 → 0，已收口）
-5. ✅ `src/components/base/editors/`（75 → 0，已收口）· ✅ `src/components/base/panels/`（96 → 0，已收口）
-6. ⬜ `src/components/agent/`（197 处，**下一站**）
-7. ⬜ `src/components/director3d/`（**最大 712，建议最后单独排期**）
+**建议顺序（自底向上：先地基、后 UI；先小后大）——全部完成 ✅**：
+1. ✅ `core/`、`storage/`、`api/`、`utils/`（底层地基）
+2. ✅ `store/`、`prompt/`
+3. ✅ `src/hooks/`（34 → 0）· ✅ `src/components/base/ui/`（4 → 0）
+4. ✅ `src/components/nodes/`（126 → 0）
+5. ✅ `src/components/base/editors/`（75 → 0）· ✅ `src/components/base/panels/`（96 → 0）
+6. ✅ `src/components/agent/`（197 → 0）
+7. ✅ `src/components/director3d/`（**最大 712 → 0，2026-09-12 最后收口**）
 
-> 未进主序列的零散域（随时可顺手清）：`src/components/director3d/`（712，最大，建议最后单独排期）。`src/` 根文件 `App.tsx`/`main.tsx` 已于 2026-09-12 收口，登记为白名单文件级条目。
+> **src 侧已 100% 收口（1435 → 0）**。`src/` 根文件 `App.tsx`/`main.tsx` 亦已于 2026-09-12 收口，登记为白名单文件级条目。后续新增 src 目录请按 §7 从零维护白名单。
 
 > 每完成一个目录，就更新本节表格 + 白名单，并在提交说明里附 `check:strict-src` 输出。
+
+---
+
+## 8.5 tests 侧（TD-09-2）实战纠错与正确姿势（2026-09-12 增补）
+
+本节是「在 tests 侧动手」前**必读**的血泪复盘。一次真实执行中，执行者误把 src 侧的白名单门禁机制套到 tests 侧，走了弯路。把正确做法钉死如下。
+
+### 8.5.1 最大误判：tests 侧 ≠ src 侧，不要新建白名单门禁
+
+| | src 侧（TD-09-1） | **tests 侧（TD-09-2）** |
+| - | - | - |
+| 门禁 | `npm run check:strict-src`（白名单 JSON + 路径过滤） | **无白名单**。真实门禁 = 根 `npm run type-check`（`tsc --noEmit`，已含 tests） |
+| 配置 | `tsconfig.json` 关 `strict`/`noImplicitAny`，靠门禁脚本临时 `--noImplicitAny` | 根 `tsconfig.json` 同样关 `noImplicitAny`；tests 已被并入主扫描 |
+| 存量 | 1435 → 0（已收口） | 常规闸已绿；strict 探针 4309 处（含 2593 噪音）**不阻塞门禁** |
+| 复用工具 | `scripts/strict-src-whitelist.json` + `check-strict-src.mjs` | **`scripts/ts-tests.mjs`**（check/verify/status）+ `scripts/ts-detail.mjs`（逐条明细+解析率自检）+ `tests/tsconfig.strict.probe.json`（旁路 strict 探针） |
+
+**❌ 错误做法**（本次踩坑）：新建 `scripts/check-strict-tests.mjs` + `scripts/strict-tests-whitelist.json` + `package.json` 的 `check:strict-tests`，把 `_nodeMocks.mjs` 重命名为 `.ts` 并补真实类型标注。
+**为什么错**：① tests 侧本就有全量门禁（根 `tsc --noEmit`），无需再立白名单；② 在 `strict:false` 配置下，那 9 个文件**原本就已经是 0 错**，所谓"收口"是冗余标注 + 重复造轮子（前辈 2026-09-01 的 `ts-tests.mjs` 体系已覆盖）；③ 违反 Handoff §2.5「tests 侧方法论与工具可直接复用，别重复造轮子」。
+**✅ 正确做法**：要做 tests 侧 strict 收口，起点是 `npx tsc -p tests/tsconfig.strict.probe.json --noEmit`（旁路、不动门禁），按探针报告的**真实错误数**排序攻坚，且**绝不新建白名单 JSON**。
+
+### 8.5.2 探针报告的核心排序铁律（§2.5 已强调，此处钉死）
+
+`docs/75-strict探针报告-2026-09-01.md` 第 2 节：
+
+> **按错误总数排序会误判优先级，应改按「真实错误数」排。**
+
+| 文件 | 总错 | 真实错 | 结论 |
+| - | - | - | - |
+| `accountsStore.test.ts` | 95 | **0** | 纯噪音，别碰 |
+| `providerStore.test.ts` | 92 | **0** | 纯噪音，别碰 |
+| `logger.test.ts` | 62 | **0** | 纯噪音，别碰 |
+| `canvasAgentTools.test.ts` | 89 | **86** | 🎯 M3 靶心（src 类型太宽，TS2322 主导） |
+| `useAgentChat.hook.test.ts` | 84 | 21 | 75% 是缺标注，先补测试侧 |
+
+**先吃「准干净」文件**（23 个只差 1~2 处，几乎零风险），再啃真实型大头。
+
+### 8.5.3 修测试的正确姿势（建在前辈踩坑之上，勿重蹈）
+
+前置必读：`docs/75-测试类型消化-Handoff-2026-09-01.md` 的 §7「踩坑记录 19 条」与 §6c 实战。复用要点：
+
+1. **区分「测试错 vs src 连带错」**（踩坑 #3）：跑 `tsc -p tests/tsconfig.strict.probe.json` 时 src 被连带检查，但该探针已是真实文件直跑（无副本），src 错会混入。**动手前先确认报错归属**——是测试侧 mock 形状不对，还是 src 业务类型太宽。前者测侧改，后者（M3）才动 src。
+2. **`vi.mocked()` 是标准解法**（踩坑 #10）：`vi.mock`'d 模块的具名导入函数直接 `.mockReset/.mockResolvedValue` 报 TS2339 → 包 `vi.mocked(fn)`。
+3. **`vi.fn(async () => …)` 参数被推断成空元组 `[]`**（踩坑 #12，最大根因）：统一改 `vi.fn(async (..._args: any[]) => …)`，一处消 TS2493/TS18048/TS2532 三码；`vi.mock` 工厂 `(...a) => h.x(...a)` 同款 → 若 `h` 属性不被重赋值直接引用 `h.x`。
+4. **`importOriginal()` 返回 `unknown`**（踩坑 #16）：`await importOriginal()` 直接 spread 报 TS2698 → 先 `as Record<string, unknown>` 再 spread。
+5. **DOM/Canvas/事件 mock 用 `as unknown as X` 收尾**（踩坑 #11）：`getContext` 返回、`fakeDataTransfer()`、事件对象、crypto stub，因缺 DOM 字段报 TS2740/2322，cast 成对应类型（测试 mock 本就只实现被测用到的字段）。
+6. **JSX 组件 cast 写法**（踩坑补充）：把 `const X = SomeComp; <X {...props} />` 写成 `(SomeComp as any)({...})` 虽过 TS，但运行时 React 无法以函数调用形式渲染 → 渲染失败。正确姿势：**保留 JSX 语法**，用 `{...({} as any)}` 或 `const XAny: any = SomeComp; <XAny .../>`。
+7. **fetch mock 只需类型对齐**（踩坑 #9）：`setup.mjs` 已把 `globalThis.fetch` 定义成共享 vi.fn，运行时就是 mock；TS 却当 `typeof fetch`。`const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>` 即可，**不要**在测试里 `vi.stubGlobal`（会静默失败）。
+8. **判据只用 IDE `read_lints`（真实文件）+ `vitest` 实跑**（踩坑 #17 + 探针 §6）：任何「复制副本扫描」的数字（如旧 `m1-scan.mjs`）有 GBK 假阳性，不可信。**全量 `tsc -p tests/tsconfig.strict.probe.json --noEmit` 兜底 + `vitest run` 实跑**才是真干净标准。
+
+### 8.5.4 真实案例：src 重构后测试不同步的修法（2026-09-12 实战）
+
+tests 侧的真实报错，常常是 **src 有意重构（改名/删功能）后，测试还锁着旧签名**——这不是类型收口债，是「改实现没同步测试」的回归。修法**只在测试侧改，绝不碰 src 行为**（Handoff 铁律 2）。
+
+案例 A：`src/components/base/editors/InlineImageCropper.tsx` 把 `cropRectFromSelection(sel, renderW, renderH, natW, natH)` 重构成 `cropRectFromPercent(percentCrop, boxW, boxH, natW, natH)`（纯函数 + object-contain 留白校正 + 单一实现）。测试 `InlineImageCropper.cropRect.test.ts` 改用新函数名/新签名，并**按源码真实输出值**重写断言（contain 校正后：相同宽高比盒子 → 同一选区映射同一自然区域；不同宽高比盒子 → 不保证相等）。
+
+> ⚠️ **测试断言必须反映源码真实行为，不要「假设完美」**。本次写测试时曾按手算假设 `sh:800`，实际源码 `toNatSize(50, 200, 200, 800)=400` → 真实为 `sh:400`；并把「不同宽高比盒子落到同一区域」写成断言（实际只有**同宽高比**盒子才相等）。**手算不如实跑**：写完先 `vitest run` 拿真实返回值，再回填 `toEqual`，避免自以为是。
+
+> ⚠️ **源码边界缺陷要如实记录，不要为测试强行改 src**。本函数当选区贴右边界时 `sx+sw` 会 = `natW+1`（源码 `Math.max(1, Math.min(natW-sx, size))` 在 `sx=natW` 时给出 1，未严格钳制）。这超出「测试对齐」范围，测试只锁形状并标注 `⚠️ 待确认（源码右边界最小宽度未钳制）`，留待 src 侧单独修。
+
+案例 B：`src/components/base/store/taskStore.ts` 移除了 `retryTask(id)` 导出及 `eventBus.subscribe('resource:renamed', …)` 订阅逻辑（有意功能收口）。测试 `taskStore.test.ts` 中依赖它们的用例（`retryTask 触发…`、`resource:renamed 同步 resultUrl` 整块）成为**死测试** → 按 Handoff 铁律 2 删除对应用例 + 解构里移除已删导出 + 移除不再使用的 `publish` import。**保留仍有效的注册语义用例**（`registerTaskRetry → isNodeRegistered`）。
+
+验证（两案例共同）：
+```bash
+npm run type-check                                    # ✅ 真实门禁绿（原 2 个 TS 错消失）
+npx vitest run tests/unit/taskStore.test.ts tests/unit/InlineImageCropper.cropRect.test.ts  # ✅ 18 passed
+```
+
+### 8.5.5 一句话总结（给下次接手）
+
+> tests 侧要动手前：**先读 §2.5 两份前辈文档 + 跑 `tsc -p tests/tsconfig.strict.probe.json` 按真实错排序**；修法只动测试侧、沿用 `vi.mocked` / `as unknown as X` / `vi.fn(..._args:any[])` 三板斧；判据用 IDE lints + vitest 实跑；**绝不新建白名单 JSON、绝不重复造 `ts-tests.mjs` 的轮子、绝不假设源码行为（实跑拿真值）**。
 
 ---
 

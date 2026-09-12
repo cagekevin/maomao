@@ -16,6 +16,24 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MIXAMO_BODY_SCALES, poseForObject, presetDefinition } from './rig.ts';
 import { log } from './log.ts';
 
+/** 骨骼拖拽会话态（ik / joint 两分支，按 kind 判别；仅手势期存在） */
+interface BoneDragState {
+  kind: 'ik' | 'joint';
+  pointerId: number;
+  jointId: string;
+  startX: number;
+  startY: number;
+  startRotation?: number[];
+  nextRotation?: number[];
+  chainIds?: string[];
+  startTarget?: THREE.Vector3;
+  worldPerPixel?: number;
+  right?: THREE.Vector3;
+  up?: THREE.Vector3;
+  lockHeight?: boolean;
+  startQuaternions?: Record<string, THREE.Quaternion>;
+}
+
 interface MixamoJointMarkerProps {
   bone: THREE.Bone;
   jointId: string;
@@ -151,7 +169,7 @@ function MixamoJointMarker({
   onDrag,
   onEndDrag,
 }: MixamoJointMarkerProps) {
-  const markerRef = useRef(null);
+  const markerRef = useRef<THREE.Mesh | null>(null);
   const worldPosition = useMemo(() => new THREE.Vector3(), []);
   const isFineBone = /Hand|Eye|End/.test(jointId);
   useFrame(() => {
@@ -194,7 +212,7 @@ function MixamoIKHandle({
   onDrag,
   onEndDrag,
 }: MixamoIKHandleProps) {
-  const markerRef = useRef(null);
+  const markerRef = useRef<THREE.Group | null>(null);
   const worldPosition = useMemo(() => new THREE.Vector3(), []);
   useFrame(() => {
     if (!bone || !markerRef.current || !modelRoot.current) return;
@@ -255,10 +273,10 @@ function MixamoPersonModel({
   const camera = useThree((state) => state.camera) as unknown as
     (THREE.PerspectiveCamera & { fov?: number }) | null;
   const viewportSize = useThree((state) => state.size);
-  const modelRoot = useRef(null);
+  const modelRoot = useRef<THREE.Group | null>(null);
   const rig = poseForObject({ pose, rigRoot, joints });
   const sampledRotations = useRef(new WeakMap());
-  const boneDrag = useRef(null);
+  const boneDrag = useRef<BoneDragState | null>(null);
   const { scene, bones, bindTransforms, materials, mixer, clips } = useMemo(() => {
     const cloned = skeletonClone(gltf.scene);
     const nextBones: Record<string, THREE.Bone> = {};

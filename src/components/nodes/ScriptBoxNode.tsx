@@ -125,7 +125,7 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
   // —— UI 状态（非数据，放组件本地） ——
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const settingsRef = useRef(null);
+  const settingsRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(settingsRef, settingsOpen, () => setSettingsOpen(false));
 
   // —— 外框自适应（无限画布：内容撑开时，节点高度跟随，外框不溢出） ——
@@ -133,10 +133,10 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
   // 而要「内容自然撑开 → 节点高度跟随 → 外框贴合内容」。用 ResizeObserver 监听主容器高度变化，
   // 写回 node.height + updateNodeInternals，让 ReactFlow 节点 wrapper（含端口定位）也跟随。
   // 注意：必须去掉固定 height（只留 minHeight），否则根 div 高度被锁死、内容溢出到框外。
-  const contentRef = useRef(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   // NodeShell 根 div ref：useContentHeightSync 需测「含标题栏的完整节点」而非仅内容区，
   // 否则写回的 node.height 偏矮（漏标题栏），节点框高度与端口定位基准不一致。
-  const wrapperRef = useRef(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
   // 输入端口经 NodeShell 的 overlayHandles 插槽挂在「整个节点」上（定位基准含标题栏），
   // 使其相对整个节点定位在 50% 中点，而不是相对内容区（contentRef）。内容区高度随三步
   // （StepShots/StepAssets/StepPrompt）变化，若相对内容区 top:50% 会导致端口在不同步骤

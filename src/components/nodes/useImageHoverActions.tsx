@@ -66,7 +66,7 @@ export function useImageHoverActions({
   label: _label,
   onImageReplaced,
 }: UseImageHoverActionsArgs) {
-  const [editor, setEditor] = useState(null); // 全屏 ImageEditor（重编辑入口，保留）
+  const [editor, setEditor] = useState<{ tool: 'crop' | 'pencil' } | null>(null); // 全屏 ImageEditor（重编辑入口，保留）
   const [cropping, setCropping] = useState(false); // 就地裁剪浮层
   const [compressing, setCompressing] = useState(false);
   const [upscaling, setUpscaling] = useState(false);

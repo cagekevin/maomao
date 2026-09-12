@@ -103,12 +103,8 @@ export const EVENTS: Record<string, EventRegistryEntry> = {
     payload: '{ folder }',
     note: '素材落盘成功 → 素材库面板刷新（ResourceLibrary 经 onResourceSent 订阅）。生产使用',
   },
-  'resource:renamed': {
-    from: ['GeneratedView.tsx:277', 'ResourceLibrary.tsx:335'],
-    to: ['useCanvasEventSubscriptions.ts:79', 'taskStore.ts:165'],
-    payload: '{ oldUrl, newUrl }',
-    note: '素材 url 变更广播。经增量②（docs/122）改名/移动已 context-only（url/contentId 不变），故此处 oldUrl=newUrl 的情况为「仅刷新」，面板仍发布以触发订阅方同步内存态；真改 url 的场景已随 rewriteUrlReferences 停用而不再需要四态改写。订阅方 reinterpret 各管一段内存态。',
-  },
+  // 'resource:renamed' 已于 2026-09-12 删除：四态 url 改写广播随 context-only 改名已无订阅方（发布点亦被守卫为 no-op），
+  // 改名/移动改由 contentId 模型处理，属「第二机制」死脚手架（见 docs/122）。
   // 'yimao:remove-edge' 已于 2026-09-11 删除（TD-04-8）：只有 App window 监听、全项目从无 dispatch
   // （CustomEdge 实际走 deleteElements→onDelete）。属「只有订阅、从无发布」的死事件，同 §多窗口 判定。
   'project:import': {

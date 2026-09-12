@@ -23,9 +23,6 @@ export function getBackupDir(): string {
   return path.join(getDataDir(), 'backups');
 }
 
-/** 本地文件可访问 base（files 路由前缀）。多处拼 URL 共用，避免硬编码漂移 */
-export const LOCAL_FILE_BASE = 'http://127.0.0.1:18080/files/';
-
 let _db: SqlJsDatabase | null = null;
 // 首次初始化单例 promise：getDb 首次含 await initSqlJs()，并发请求若各自进初始化会
 // 竞态建库（损坏重建路径下可能空库覆盖有数据的库）。用 _dbPromise 串行化首次初始化，
@@ -291,88 +288,6 @@ let _saveTimer: ReturnType<typeof setTimeout> | null = null;
 // 委托 runReferenceGc 引用感知 GC，见 routes/tasks.ts 注释），仅测试引用，属死代码清理。
 // 若将来需要「单文件删盘」，应复用 utils/orphanGc.ts 的引用感知逻辑，勿恢复本函数。
 
-/**
- * 统一改写库内旧本地 url 引用 → 新 url（改名 / 移动后调用，防止旧引用 404）。
- *
- * 【为什么存在】rename/move 会改物理文件名 → resources id/url 变化。但画布 KV 快照
- * （canvas-state-v1-{projectId}，含各节点 data.url/assetUrl/imageUrl 与脚本箱参考图 assetUrl）、
- * tasks 的 url 相关列里可能仍存着旧 url；旧路径文件已 rename 走 → 下游一读就 404
- * （如脚本箱图生图「参考素材上传失败」）。故在此一次性把旧 url 的所有引用改写为新 url。
- *
- * 【覆盖范围】kv.value（JSON 文本，含绝对/相对两种形式）+ tasks 各 url 承载列。
- * 资源表由各自 rename/move 逻辑重建行，不在此处理。
- *
- * @param fromRel 旧相对路径（相对 uploadDir，如 'web/a.png'）
- * @param toRel   新相对路径（相对 uploadDir）
- */
-export function rewriteUrlReferences(db: any, fromRel: string, toRel: string): number {
-  const fromAbs = `${LOCAL_FILE_BASE}${fromRel}`;
-  const toAbs = `${LOCAL_FILE_BASE}${toRel}`;
-  const fromRelUrl = `/files/${fromRel}`;
-  const toRelUrl = `/files/${toRel}`;
-  // 同一相对路径可能以「原样」或「URL 编码」两种形式存进引用（中文文件名尤其如此），都要改写。
-  // encodeURI 保留 '/'，恰好对应 /files/… 形式；编码形态即报错里那种 %E5%A6… 的写法。
-  const enc = (s: string) => encodeURI(s);
-  const pairs: Array<[string, string]> = [
-    [fromAbs, toAbs],
-    [fromRelUrl, toRelUrl],
-    [`${LOCAL_FILE_BASE}${enc(fromRel)}`, `${LOCAL_FILE_BASE}${enc(toRel)}`],
-    [`/files/${enc(fromRel)}`, `/files/${enc(toRel)}`],
-  ];
-  let changed = 0;
-
-  // ── kv（画布快照 / 脚本箱 / d3d 等 JSON blob）──
-  const kvs = queryAll(db, 'SELECT key, value FROM kv');
-  for (const k of kvs) {
-    let v: string | null = k.value;
-    let dirty = false;
-    for (const [from, to] of pairs) {
-      if (v && v.includes(from)) {
-        v = v.split(from).join(to);
-        dirty = true;
-      }
-    }
-    if (dirty && v != null) {
-      run(db, 'UPDATE kv SET value = ? WHERE key = ?', [v, k.key]);
-      changed++;
-    }
-  }
-
-  // ── tasks 的 url 承载列（结果/缩略图/请求响应等可能嵌入引用了素材的 url）──
-  const taskCols = [
-    'result_url',
-    'thumbnail_url',
-    'request_data',
-    'response_data',
-    'custom_result_data',
-    'custom_raw_response',
-    'error_msg',
-    'extra_fields',
-    'media_meta',
-    'prompt',
-  ];
-  for (const col of taskCols) {
-    const rows = queryAll(db, `SELECT task_id, ${col} AS v FROM tasks`);
-    for (const r of rows) {
-      if (r.v == null) continue;
-      let v: string = r.v;
-      let dirty = false;
-      for (const [from, to] of pairs) {
-        if (v.includes(from)) {
-          v = v.split(from).join(to);
-          dirty = true;
-        }
-      }
-      if (dirty) {
-        run(db, `UPDATE tasks SET ${col} = ? WHERE task_id = ?`, [v, r.task_id]);
-        changed++;
-      }
-    }
-  }
-
-  return changed;
-}
-
 export function debouncedSaveDb(): void {
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
@@ -408,8 +323,11 @@ function initTables(db: any): void {
   if (!resColSet.has('project_id')) {
     db.run(`ALTER TABLE resources ADD COLUMN project_id TEXT`);
   }
-  // 去重身份列唯一约束（docs/122 Content 维度）：并发去重真保证 = DB 唯一约束 + 冲突回退复用
-  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_resources_sha1 ON resources(sha1)`);
+  // docs/122 收口（根因修复）：resource 行 identity 与 content 一一对应（同内容→同行），
+  // 由 upsertResource 应用层落实（命中既有 contentId → 复用其行，不新建冲突行），
+  // 不再依赖 DB UNIQUE 约束兜底——该约束会在「同内容被不同路径引用」时误杀合法复用（撞约束→500）。
+  // 旧库可能残留该索引，此处显式 DROP 收口（幂等）。
+  db.run(`DROP INDEX IF EXISTS idx_resources_sha1`);
   db.run(
     `CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, is_last_opened INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0)`,
   );

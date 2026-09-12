@@ -6,15 +6,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  getDb,
-  getUploadDir,
-  queryAll,
-  queryOne,
-  run,
-  debouncedSaveDb,
-  rewriteUrlReferences,
-} from '../db/database.js';
+import { getDb, getUploadDir, queryAll, queryOne, run, debouncedSaveDb } from '../db/database.js';
 import {
   json,
   parseJsonBody,
@@ -309,6 +301,44 @@ function resourceToRow(resource: Record<string, unknown>) {
 }
 
 function upsertResource(db: any, row: Record<string, unknown>) {
+  // docs/122 收口（根因修复）：resource 行 identity 与 content 一一对应（同内容→同行）。
+  // 若同一 contentId 已存在于另一行（不同 id，例如同图从文件上传后又被 base64/远程入口登记），
+  // 不新建冲突行、不触发历史 UNIQUE 约束 500，而是复用既有行、仅刷新其可变 context（folder/name/...），
+  // 物理 url 与 contentId 保持不变（永不破图）。这是「同内容全局唯一一行」不变量在应用层的落实。
+  const sha1val =
+    (typeof row.sha1 === 'string' && row.sha1) ||
+    (typeof row.contentId === 'string' ? row.contentId : undefined);
+  if (sha1val) {
+    const existing = queryOne(db, 'SELECT id FROM resources WHERE sha1 = ? AND id != ?', [
+      sha1val,
+      row.id,
+    ]) as { id?: string } | undefined;
+    if (existing?.id) {
+      const sets: string[] = [];
+      const vals: unknown[] = [];
+      // 仅刷新可变 context；url / sha1(contentId) 保持既有，绝不改动物理落点
+      for (const col of [
+        'folder',
+        'name',
+        'type',
+        'source',
+        'project_id',
+        'timestamp',
+        'is_favorite',
+      ]) {
+        if (row[col] !== undefined) {
+          sets.push(`${col} = ?`);
+          vals.push(row[col]);
+        }
+      }
+      if (sets.length) {
+        vals.push(existing.id);
+        run(db, `UPDATE resources SET ${sets.join(', ')} WHERE id = ?`, vals);
+      }
+      return;
+    }
+  }
+
   const keys = Object.keys(row);
   const vals = Object.values(row);
   const placeholders = keys.map(() => '?').join(', ');
@@ -470,118 +500,6 @@ export async function handleResourcesClear(
     await runReferenceGc(false);
     return json(res, { code: 0, data: { deleted: result.changes } });
   }
-}
-
-/**
- * 资源身份变更的【唯一入口】—— 改名（rename）与移动归类（move）共用。
- *
- * 【为什么必须收口成一个】二者本质同一件事：资源的 url 身份变了（文件名变 / 所在目录变）。
- * 此前 `handleResourcesRename` 与 `files.ts handleMove` 各写一遍，第二份抄漏了三步：
- * 目标存在性判重（→ 静默覆盖丢数据）、resources 表行重建（→ 收藏丢失 + GC 误删窗口）、
- * 落盘（→ 改写停在内存，进程强杀即丢）。清单 §8 P0-1/P0-2/P1-3 全部源于此。
- * 收口后两侧在结构上不可能再不对称。
- *
- * 【一次调用完成的五件事】
- *  1. 路径安全解析（拒绝越出 uploads 的 `..` 逃逸）
- *  2. 目标已存在 → 409（禁止静默覆盖，源与目标都保持完好）
- *  3. 磁盘 renameSync
- *  4. resources 表行重建：有旧行则迁移（保留 is_favorite 等元数据），无旧行则按 rescan
- *     规则补建（保证"磁盘有文件、表内无行"的不一致态不会残留）
- *  5. 库内旧 url 引用改写（kv + tasks，raw/encodeURI × 绝对/相对 四态）+ 落盘
- *
- * 【id 硬约束】新行 id 必须走 resourceIdOf（即 rescan 的 `local-${folder}-${name}` 规则），
- * 否则下次 rescan 会重复录入同一文件 → 面板重复显示（T11 护栏）。
- *
- * @throws {HttpStatusError} 400 非法路径 / 404 源不存在 / 409 目标已存在 / 500 磁盘失败
- */
-export async function applyResourceIdentityChange(opts: {
-  /** 旧相对路径（相对 uploadDir，如 'migrated/a.png'） */
-  oldRel: string;
-  /** 新相对路径（相对 uploadDir，如 'migrated/人物/a.png'） */
-  newRel: string;
-  /** 新文件名；缺省取 basename(newRel)。改名场景显式传入（可能含大小写修正） */
-  newName?: string;
-}): Promise<{
-  oldRel: string;
-  newRel: string;
-  id: string;
-  url: string;
-  name: string;
-  folder: string;
-  /** 变更前表内是否已有对应行（false = 本次为补建） */
-  hadRow: boolean;
-  /** 是否真的动了磁盘（同路径短路时为 false） */
-  renamed: boolean;
-}> {
-  const { oldRel, newRel } = opts;
-  const db = await getDb();
-
-  const srcAbs = resolveUploadFile(oldRel);
-  const dstAbs = resolveUploadFile(newRel);
-  // 非法路径一律 400，且不静默回退到默认目录——回退会掩盖越权尝试
-  if (!srcAbs || !dstAbs) throw new HttpStatusError(400, '非法的资源路径');
-
-  const relFolder = path.posix.dirname(newRel);
-  const folder = relFolder === '.' ? '' : relFolder;
-  const name = opts.newName || path.posix.basename(newRel);
-  const id = resourceIdOf(newRel);
-  const url = toAbsoluteFileUrl(`/files/${newRel}`);
-
-  // 同路径：幂等短路（移动同目录 / 改名同名），不动磁盘、不改写引用
-  if (srcAbs === dstAbs) {
-    return { oldRel, newRel, id, url, name, folder, hadRow: true, renamed: false };
-  }
-
-  if (!fs.existsSync(srcAbs)) throw new HttpStatusError(404, 'Source file not found');
-  // P0：renameSync 在 POSIX 上是「目标存在即静默覆盖」，必须先判重。
-  // 覆盖不仅丢文件，更隐蔽的是引用还在（kv/tasks 仍指向该路径）→ 引用感知 GC 判定"有人引用"
-  // 而不回收，结果是全库引用静默指向了另一张图的内容，比 404 更难发现。
-  if (fs.existsSync(dstAbs)) {
-    throw new HttpStatusError(409, `目标已存在同名文件：${path.basename(dstAbs)}`);
-  }
-
-  // 旧行：优先按 url 定位（rescan / rename 都写绝对 url），兜底按 id
-  const oldUrl = toAbsoluteFileUrl(`/files/${oldRel}`);
-  let oldRow = queryOne(db, 'SELECT * FROM resources WHERE url = ?', [oldUrl]) as
-    Record<string, unknown> | undefined;
-  if (!oldRow) {
-    oldRow = queryOne(db, 'SELECT * FROM resources WHERE id = ?', [resourceIdOf(oldRel)]) as
-      Record<string, unknown> | undefined;
-  }
-  const hadRow = !!oldRow;
-
-  ensureDir(path.dirname(dstAbs));
-  try {
-    fs.renameSync(srcAbs, dstAbs);
-  } catch (e) {
-    throw new HttpStatusError(500, `Rename failed: ${(e as Error).message}`);
-  }
-
-  // 有旧行 → 迁移（保留 is_favorite / page_url / timestamp 等全部元数据，只换身份字段）；
-  // 无旧行 → 按 rescan 口径补建，使 resources 表始终与磁盘一致（不留"有文件无行"的窗口）
-  const row = oldRow
-    ? { ...oldRow, id, url, name, folder }
-    : {
-        id,
-        url,
-        name,
-        folder,
-        type: extToFileType(path.extname(name)) || 'image',
-        source: 'local-tool',
-        timestamp: Date.now(),
-      };
-  if (oldRow) run(db, 'DELETE FROM resources WHERE id = ?', [oldRow.id as string]);
-  upsertResource(db, resourceToRow(row));
-
-  try {
-    rewriteUrlReferences(db, oldRel, newRel);
-  } catch (e) {
-    // 改写失败不阻断：身份变更已成功，库里旧引用留待后续排查，但必须留痕
-    console.error(`[identity] url 引用改写失败（不影响变更本身）：${(e as Error).message}`);
-  }
-
-  debouncedSaveDb();
-  return { oldRel, newRel, id, url, name, folder, hadRow, renamed: true };
 }
 
 /**

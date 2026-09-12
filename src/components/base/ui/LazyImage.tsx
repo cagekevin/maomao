@@ -3,7 +3,7 @@ import { useRenderAssetResolver } from '../utils/assetUrl.ts';
 import { ImageOff } from 'lucide-react';
 
 /**
- * 懒加载图片（复刻官方 Lg.jsx）
+ * 懒加载图片
  * 外层用 div 占位，IntersectionObserver（rootMargin 120px）判断进入视口附近
  * 才真正挂载 <img>，避免大画布多图节点一次性解码全部图片。
  *
@@ -36,7 +36,7 @@ function LazyImage({
 }: LazyImageProps) {
   const resolve = useRenderAssetResolver();
   const resolvedSrc = resolve(src || '');
-  const ref = useRef(null);
+  const ref = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
   const [failed, setFailed] = useState(false);
 

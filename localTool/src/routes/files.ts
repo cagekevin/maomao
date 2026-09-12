@@ -18,6 +18,7 @@ import {
   ensureThumbnailTarget,
   resizeImage,
   normalizeSubfolder,
+  contentIdOf,
 } from '../utils/fileStore.js';
 import {
   json,
@@ -162,7 +163,8 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
   // 落盘统一委托 base64Externalize.saveBase64ToFile（sha1(base64 原文) 前 16 位幂等 + isValidBase64 严格校验），
   // 单一实现杜绝前端另造一套 hash/校验导致的不一致。非法 dataUri 返回 400，由前端 catch → null 降级保留原 base64。
   if (body.dataUri) {
-    const url = saveBase64ToFile(body.dataUri, subfolder);
+    const db = await getDb();
+    const url = saveBase64ToFile(body.dataUri, subfolder, db);
     if (!url) {
       uploadLog(400, 'dataUri 非法/不可解码');
       return sendError(res, 'Invalid dataUri', 400);
@@ -223,12 +225,12 @@ export async function saveRemoteUrl(
 }
 
 /**
- * 【原 saveRemoteUrl 实现体，改名保留既有幂等逻辑，逐字不变】
- * - 文件名 = sha1(fileUrl) 前 16 位 + 原 basename → 同一远程地址永远映射到同一文件名;
- * - URL basename 不带后缀时（很多 CDN 图 URL 如此），下载后按响应 Content-Type 补扩展名
- *   （否则落盘无后缀 → 服务端按扩展名的 Content-Type/缩略图/类型识别全部失效，见 MIME_TO_EXT）;
- * - 文件已存在则跳过下载 → 重复调用不重复落盘(幂等,所以"调两次 ii"也不会下两份原图);
- * - 单次成功调用产出【1 原图 + 1 缩略图】两个文件(缩略图在 .thumbnails/ 下),这是正常设计,不是"重复下载"。
+ * 【原 saveRemoteUrl 实现体，改名保留既有幂等逻辑（URL 哈希命名 / 跳过下载 / 后缀补写）】
+ * - 文件名 = sha1(fileUrl) 前 16 位 + 原 basename → 同一远程地址永远映射到同一文件名（URL 契约 / 测试不变）；
+ * - URL basename 不带后缀时，下载后按响应 Content-Type 补扩展名；
+ * - 文件已存在（带后缀快路径）则跳过下载 → 重复调用不重复落盘（幂等）；
+ * - 下载后按【解码字节】算 contentId 查重：命中既有 contentId → 复用其 url（不新建第二份、不二次落盘），
+ *   与 multipart / base64 走同一 contentId 权威，跨入口 / 跨 URL 去重免费成立（docs/122 #6 根因修复）。
  * 调用方(polling ii→Zr / gateway / 迁移)下载失败表现为 POST /api/files/upload 返回 400,由 Zr 打 WARN 暴露。
  */
 async function doSaveRemoteUrl(
@@ -258,9 +260,7 @@ async function doSaveRemoteUrl(
     }
   }
 
-  // 直连优先，失败走代理（跨平台：读环境变量或探测 127.0.0.1:7897 等常见本机代理端口）。
-  // 解决了 localTool 进程 fetch 不继承浏览器代理、导致下载 Lovart CDN 图超时 400 的问题。
-  // 留痕：下载成败都打 [download] 日志（含 URL/落盘路径/原因），供"图丢了"排查溯源。
+  // 直连优先，失败走代理
   let response: Response;
   try {
     response = await fetchWithProxy(fileUrl);
@@ -273,26 +273,33 @@ async function doSaveRemoteUrl(
   }
   const data = Buffer.from(await response.arrayBuffer());
 
-  // 无扩展名 → 按响应 Content-Type 补后缀（真实类型，非猜 URL）；无法识别则保持无后缀
-  let finalName = stableName;
-  if (needsExt) {
-    const mime = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-    // 扩展名唯一实现 mimeToExt（utils/mime.ts）；返回带点，落盘拼名去点
-    const dottedExt = mimeToExt(mime);
-    if (dottedExt) finalName = `${stableName}${dottedExt}`;
+  // docs/122 Content 维度 #6·根因修复：下载后按【字节内容】算 contentId 做全局去重（与 multipart/base64 同一权威）。
+  // 命中既有 contentId → 复用其 url（不写盘、不新建第二份）→ 内容相同的图（即使来自不同 URL）落同一物理文件。
+  const mime = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  const ext = needsExt ? mimeToExt(mime) || '' : path.extname(stableName);
+  const db = await getDb();
+  const contentId = contentIdOf(crypto.createHash('sha1').update(data).digest('hex'));
+  const existing = queryOne(db, 'SELECT url FROM resources WHERE sha1 = ?', [contentId]) as
+    { url?: string } | undefined;
+  if (existing?.url) {
+    const existingRel = existing.url.replace(/^https?:\/\/[^/]+/, '');
+    const existingPath = resolveUploadTarget(subfolder, path.basename(existingRel)).savedPath;
+    const thumbnailUrl = await tryGenerateThumbnail(existingPath, existingRel);
+    return {
+      url: `${BASE_URL}${existingRel}`,
+      path: existingPath,
+      thumbnailUrl: thumbnailUrl ? `${BASE_URL}${thumbnailUrl}` : undefined,
+    };
   }
 
-  // 幂等：按最终文件名判存在，重复到达只落一次
+  // 未命中：按 URL 哈希命名落盘（沿用既有命名，保持 URL 契约 / 测试不变）
+  const finalName = needsExt ? `${stableName}${ext}` : stableName;
   const { savedPath, urlPath } = resolveUploadTarget(subfolder, finalName);
   ensureDir(path.dirname(savedPath));
-  if (fs.existsSync(savedPath)) {
-    console.log(`[download] ${ts()} | SKIP(已存在) | ${fileUrl} -> ${urlPath}`);
-  } else {
-    writeUploadBufferAt(subfolder, finalName, data);
-    console.log(
-      `[download] ${ts()} | OK  | ${fileUrl} -> ${urlPath} | ${(data.length / 1024).toFixed(0)}KB`,
-    );
-  }
+  writeUploadBufferAt(subfolder, finalName, data);
+  console.log(
+    `[download] ${ts()} | OK  | ${fileUrl} -> ${urlPath} | ${(data.length / 1024).toFixed(0)}KB`,
+  );
 
   const thumbnailUrl = await tryGenerateThumbnail(savedPath, urlPath);
   return {

@@ -22,7 +22,7 @@ import {
 import NodeShell from '../base/ui/NodeShell.tsx';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import PanoViewer from '../base/editors/PanoViewer.tsx';
+import PanoViewer, { type PanoViewerHandle } from '../base/editors/PanoViewer.tsx';
 import { generateId } from '../base/core/idGen.ts';
 import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
@@ -209,11 +209,6 @@ interface PanoramaNodeProps {
   data: PanoramaNodeData;
   selected?: boolean;
 }
-/** PanoViewer 暴露的命令式句柄（ref）。 */
-interface PanoViewerHandle {
-  capture: (angles: number[], ratio: string) => Promise<string[]>;
-  reset: () => void;
-}
 
 /** 球体全景错误边界：纹理加载失败（404 / CORS）时给出可见占位，而不是黑屏。
  *  原理：R3F Canvas 内部错误会经 CanvasImpl throw 传播到外层 React 树（见 R3F CanvasImpl `if (error) throw error`）。 */
@@ -274,7 +269,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
   const thumbResolve = useRenderAssetResolver();
   const [fullscreen, setFullscreen] = useState(false); // 全景漫游（球体视图）
   const [capturing, setCapturing] = useState(false);
-  const [shotKind, setShotKind] = useState(null); // 'current'|'four'|'twelve'
+  const [shotKind, setShotKind] = useState<'current' | 'four' | 'twelve' | null>(null);
   const [imgError, setImgError] = useState(false); // 【R2 治理】主全景图加载失败占位（TASK-018#4 静默）
   const [aspectRatio, setAspectRatio] = useState(data.aspectRatio || '16:9');
   const [customDim, setCustomDim] = useState(

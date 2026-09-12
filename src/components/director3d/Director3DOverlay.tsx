@@ -31,7 +31,7 @@ interface Director3DOverlayProps {
 export function Director3DOverlay({ nodeId, onExit }: Director3DOverlayProps) {
   const capturesRef = useRef<CaptureItem[]>([]);
   const thumbnailRef = useRef<string | null>(null);
-  const hostRef = useRef(null);
+  const hostRef = useRef<HTMLDivElement | null>(null);
   const storageKey = nodeId ? `director3d-project-${nodeId}` : null;
 
   // 挂载期间：拦截画布的鼠标/滚轮/拖拽/粘贴事件，避免画布被误操作。
@@ -41,7 +41,7 @@ export function Director3DOverlay({ nodeId, onExit }: Director3DOverlayProps) {
     const blockPointerOutside = (e: Event) => {
       const target = e.target;
       const host = hostRef.current;
-      if (target && host && host.contains(target)) return;
+      if (target && host && host.contains(target as Node)) return;
       e.preventDefault();
       e.stopImmediatePropagation();
     };

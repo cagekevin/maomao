@@ -240,44 +240,67 @@ export type AssetRefState = { kind: 'ok'; url: string } | { kind: 'missing' };
  * 素材节点渲染 url 解析（docs/122 #4/#5）——「渲染解析」唯一入口，禁止 asset/脚本盒各自 map 拼 url。
  *
  * data 互斥双形态：
- *  - 文件型持 `resourceId` → 经 resolveResourceUrl 解析 resource → url；查无 → missing（fail-loud）。
- *  - 内联 dataURL/blob 持 `url` → 直接用（不查 resource）。
- *  - 存量兼容层：仅当既无 resourceId 也无 url 时，退回历史 `assetUrl` 字段（docs/118 §7.3 ⑤ 读兼容写唯一）。
+ *  - 文件型持稳定 `contentId`(`sha1:<hex>`，与后端 resources.sha1 同源) → 经 resolveContentUrl 解析
+ *    resource → url；若 resource 暂未登记（如纯画布拖入尚未入素材库）则回落到下方内联/存量兜底。
+ *  - 内联 dataURL/blob/http 持 `url` → 直接用（不查 resource）。
+ *  - 存量兼容层：仅当既无 contentId 也无 url 时，退回历史 `assetUrl` 字段（docs/118 §7.3 ⑤ 读兼容写唯一）。
  *
- * 纯函数，不 import store（避免循环依赖）；resource 解析由调用方注入 resolveResourceUrl。
+ * 纯函数，不 import store（避免循环依赖）；contentId 解析由调用方注入 resolveContentUrl
+ * （如用 buildContentUrlResolver 由 resource 列表构建）。contentId 是 stable identity：
+ * resource 行改名/移动只改 context（folder/name），url 经 contentId 派生自动跟随 → 永不破图。
  * @param {Record<string, unknown>|undefined} data 素材节点 data
- * @param {(resourceId:string)=>string|null} resolveResourceUrl 由调用方注入（如查询 resourceStore 得到 url）
+ * @param {(contentId:string)=>string|null} resolveContentUrl 由调用方注入（查询 resource 得到 url）
  */
 export function resolveAssetDisplayUrl(
   data: object | undefined,
-  resolveResourceUrl: (resourceId: string) => string | null,
+  resolveContentUrl: (contentId: string) => string | null,
 ): AssetRefState {
   if (!data) return { kind: 'missing' };
-  // 结构可读：data 是任意对象（含各节点 data 接口），只按需读 resourceId/url/assetUrl，不假设索引签名
+  // 结构可读：data 是任意对象（含各节点 data 接口），只按需读 contentId/url/assetUrl，不假设索引签名
   const d = data as Record<string, unknown>;
-  const resourceId = typeof d.resourceId === 'string' ? d.resourceId : undefined;
-  const url = typeof d.url === 'string' ? d.url : undefined;
-  if (resourceId) {
-    const resolved = resolveResourceUrl(resourceId);
-    return resolved ? { kind: 'ok', url: resolved } : { kind: 'missing' };
+  // 文件型：稳定 contentId → 经 resource 解析（资源行是 url 真源；改名/移动只改 context，contentId→url 自动跟随，永不破图）
+  const contentId = typeof d.contentId === 'string' ? d.contentId : undefined;
+  if (contentId) {
+    const resolved = resolveContentUrl(contentId);
+    if (resolved) return { kind: 'ok', url: resolved };
   }
+  // 内联 dataURL/blob/http（网页图未本地化、粘贴图、生成结果）：直用 url
+  const url = typeof d.url === 'string' ? d.url : undefined;
   if (url) return { kind: 'ok', url };
+  // 存量兼容：老节点只有 assetUrl（读兼容、写唯一；不破存量快照）
   const assetUrl = typeof d.assetUrl === 'string' ? d.assetUrl : undefined;
   return assetUrl ? { kind: 'ok', url: assetUrl } : { kind: 'missing' };
 }
 
 /**
+ * 由 resource 列表构建 contentId → url 解析器（docs/122 #4：文件型 asset 持稳定 contentId，
+ * 渲染时经此解析出 url；resource 行改名/移动只改 context，url 自动跟随）。
+ * 仅收录同时带 contentId 与 url 的 resource；缺失其一则不入表（解析时回落到 asset 自身 url/assetUrl 兜底）。
+ * @param {Array<{contentId?:string|null; url?:string|null}>} resources
+ * @returns {(contentId:string)=>string|null}
+ */
+export function buildContentUrlResolver(
+  resources: Array<{ contentId?: string | null; url?: string | null }>,
+): (contentId: string) => string | null {
+  const map = new Map<string, string>();
+  for (const r of resources) {
+    if (r?.contentId && r?.url) map.set(r.contentId, r.url);
+  }
+  return (cid: string) => map.get(cid) ?? null;
+}
+
+/**
  * 互斥双形态校验（docs/122 #4）：返回「同时存在的字段」列表。
- * 文件型持 `resourceId`、内联 type 持 `url`，二者互斥；`resourceId+url` 双字段同指一文件即为
+ * 文件型持 `contentId`、内联 type 持 `url`，二者互斥；`contentId+url` 双字段同指一文件即为
  * 冗余副本（明令杜绝），本函数返回违反字段供 UI guard / 测试兜底。
  * @param {Record<string, unknown>} data
- * @returns {Array<'resourceId'|'url'>} 违规字段；normal 为 []
+ * @returns {Array<'contentId'|'url'>} 违规字段；normal 为 []
  */
-export function assertMutuallyExclusiveAssetForm(data: object): Array<'resourceId' | 'url'> {
+export function assertMutuallyExclusiveAssetForm(data: object): Array<'contentId' | 'url'> {
   const d = data as Record<string, unknown>;
-  const hasResourceId = typeof d?.resourceId === 'string';
+  const hasContentId = typeof d?.contentId === 'string';
   const hasUrl = typeof d?.url === 'string';
-  return hasResourceId && hasUrl ? ['resourceId', 'url'] : [];
+  return hasContentId && hasUrl ? ['contentId', 'url'] : [];
 }
 
 /**
@@ -492,55 +515,5 @@ export function summarizeAssetUrls(images: string[] | null | undefined): {
 }
 
 /* ════════════════════════════════════════════════════════════════
- * 素材 url 变更（改名 / 移动）后的【引用改写工具对】
+ * (以下工具对已随 context-only 改名废弃，相关函数已移除)
  * ════════════════════════════════════════════════════════════════ */
-
-/**
- * 递归替换结构里所有等于 `from` 的字符串（覆盖嵌套对象 / 数组）。
- * 无变化返回**原引用**，便于调用方用 `!==` 判脏、避免无谓重渲染与落盘。
- */
-export function replaceUrlDeep(value: unknown, from: string, to: string): unknown {
-  if (typeof value === 'string') return value.includes(from) ? value.split(from).join(to) : value;
-  if (Array.isArray(value)) {
-    const next = value.map((v) => replaceUrlDeep(v, from, to));
-    return next.every((n, i) => n === value[i]) ? value : next;
-  }
-  if (value && typeof value === 'object') {
-    const obj = value as Record<string, unknown>;
-    let changed = false;
-    const out: Record<string, unknown> = {};
-    for (const k of Object.keys(obj)) {
-      const nv = replaceUrlDeep(obj[k], from, to);
-      if (nv !== obj[k]) changed = true;
-      out[k] = nv;
-    }
-    return changed ? out : value;
-  }
-  return value;
-}
-
-/**
- * 由旧 / 新绝对 url 生成需要改写的 (from, to) 对，覆盖四态：
- * 原样绝对 / 原样相对 / 编码绝对 / 编码相对。
- *
- * 【为什么必须四态】引用可能以「原样 / URL 编码」两种形态存进各内存态——
- * 脚本箱参考图存的就是编码态（`%E5%A6%B9…`）。只替换 raw 会漏，中文/空格文件名必现 404。
- * 形态与后端 `rewriteUrlReferences`（localTool database.ts）严格一致，两侧对账。
- *
- * 【单一来源】App.jsx（画布 / 脚本箱节点）与 taskStore（任务中心 resultUrl）共用本函数，
- * 禁止任一处另写一份——各写一份正是"改名只改一半"的根源（清单 #8）。
- */
-export function buildUrlRewritePairs(oldAbs: string, newAbs: string): string[][] {
-  const toRel = (abs = '') => (/^https?:\/\/[^/]+(\/files\/.*)$/.exec(abs) || [])[1];
-  const oldRel = toRel(oldAbs);
-  const newRel = toRel(newAbs);
-  const pairs = [[oldAbs, newAbs]]; // 原样绝对
-  if (oldRel && newRel) {
-    const hostOld = oldAbs.slice(0, oldAbs.indexOf('/files/'));
-    const hostNew = newAbs.slice(0, newAbs.indexOf('/files/'));
-    pairs.push([oldRel, newRel]); // 原样相对
-    pairs.push([`${hostOld}${encodeURI(oldRel)}`, `${hostNew}${encodeURI(newRel)}`]); // 编码绝对
-    pairs.push([encodeURI(oldRel), encodeURI(newRel)]); // 编码相对
-  }
-  return pairs;
-}

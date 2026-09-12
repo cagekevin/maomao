@@ -80,13 +80,13 @@ export function AssetMenu({ onAddPerson, onAddPrimitive, onImport }: AssetMenuPr
   const [open, setOpen] = useState(false);
   // path 记录当前展开路径，例如 [2] 表示展开了"场景粗模"那一列。列数 = path.length + 1，自适应数据深度。
   const [path, setPath] = useState([]);
-  const rootRef = useRef(null);
-  const fileRef = useRef(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
     const onDocClick = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false);
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);

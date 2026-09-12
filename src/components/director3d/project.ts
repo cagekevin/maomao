@@ -2025,7 +2025,7 @@ export function referenceCanvasForExport(
   width: number,
   height: number,
 ) {
-  return new Promise((resolve, reject) => {
+  return new Promise<HTMLCanvasElement | null>((resolve, reject) => {
     if (!reference?.image || !reference.includeInExport) return resolve(null);
     const image = new Image();
     image.onerror = () => reject(new Error('参考图无法加入导出画面'));
