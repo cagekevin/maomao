@@ -106,9 +106,6 @@ import {
   getCreditGate,
   clearCreditGate,
   getCurrentImageMap,
-  setCurrentAssistantTable,
-  setCurrentGlobalContract,
-  markMessageTableResolved,
   waitHydrated,
 } from '../conversation/conversationStore.ts';
 // 【消息单源 P5 基座】按字段订阅 store 的 messages（含 activeId 从 store 同步读），

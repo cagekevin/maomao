@@ -145,6 +145,7 @@ describe('TD-17 复核 · 草稿唯一真源 = conv.draft（切对话不丢）',
     store.pushActiveAiUndo({ action: 'A 的操作' });
 
     const convB = store.newConversation().id;
+    void convB;
     // B 上是全新空态：任何一个字段串过来都是 bug
     expect(store.getActivePendingGenerations()).toBeNull();
     expect(store.getAwaitingConfirm()).toBe(false);

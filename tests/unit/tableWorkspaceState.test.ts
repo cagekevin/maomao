@@ -503,7 +503,6 @@ describe('TD-11-11 防回潮：confirmTablePreview 失败绝不谎称 confirmed 
       messageId: mid,
       selectedRowIds: [rowId],
     });
-    const p = getTableWorkspace().preview!;
     // 把预览目标切到一个不存在的 tab → confirm 时 getTab 找不到 → 走失败分支（A-001/A-004 兜底）
     setPreviewTargetTab('ghost-tab-that-does-not-exist');
     const res = confirmTablePreview();
