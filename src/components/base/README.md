@@ -40,7 +40,7 @@
 
 ## 四、store/ （业务独立状态库）
 
-`assetStore.ts` `projectStore.ts` `skillStore.ts` `taskStore.ts` `taskCompletionBus.ts` `backupStore.ts` `cloudSync.ts` `appSettings.ts`
+`resourceStore.ts` `projectStore.ts` `skillStore.ts` `taskStore.ts` `taskCompletionBus.ts` `backupStore.ts` `cloudSync.ts` `appSettings.ts`
 （自 `settings/` 并入）`accountsStore.ts` `agentModelStore.ts` `providerStore.ts` `settingRegistry.ts`
 
 ## 五、canvas/ （画布编排，核心链路勿轻动）
@@ -59,7 +59,7 @@
 
 ## 八、panels/ （应用壳/大面板 + sections/ 设置分区）
 
-`TopNav.tsx` `LeftPanel.tsx` `TaskCenter.tsx` `AssetLibrary.tsx` `MaterialStrip.tsx` `GeneratedView.tsx` `CanvasToolbar.tsx` `HoverToolbar.tsx` `ProjectSelector.tsx` `FullscreenEditor.tsx` `FullscreenModal.tsx` `LocalToolConnectModal.tsx` `EmptyCanvasGuide.tsx`
+`TopNav.tsx` `LeftPanel.tsx` `TaskCenter.tsx` `ResourceLibrary.tsx` `ResourceStrip.tsx` `GeneratedView.tsx` `CanvasToolbar.tsx` `HoverToolbar.tsx` `ProjectSelector.tsx` `FullscreenEditor.tsx` `FullscreenModal.tsx` `LocalToolConnectModal.tsx` `EmptyCanvasGuide.tsx`
 （自 `settings/` 并入）`SettingsFrame.tsx` + `sections/`{`AccountsSettings` `AgentChatSettings` `ApiSettings` `FetchModelsModal` `OtherSettings` `SkillSettings` `StorageMonitor`}
 
 ## 九、editors/ （内容编辑/查看器）

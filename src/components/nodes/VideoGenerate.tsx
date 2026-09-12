@@ -24,7 +24,7 @@ import { spawnDepthVideoNode } from '../base/depthVideo/spawn.ts';
 import { downloadUrl, resolveDownloadFilename } from '../base/utils/clipboard.ts';
 import PromptLibraryButton from '../base/prompt/PromptLibraryButton.tsx';
 import JianyingIcon from '../base/ui/JianyingIcon.tsx';
-import MaterialStrip from '../base/panels/MaterialStrip.tsx';
+import ResourceStrip from '../base/panels/ResourceStrip.tsx';
 import PromptInput from '../base/prompt/PromptInput.tsx';
 import { resolvePromptChips } from '../base/prompt/promptChips.ts';
 import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts';
@@ -142,7 +142,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   const posterUrl = useVideoPoster(videoUrl, !!videoUrl);
   const videoRef = useRef<HTMLVideoElement | null>(null); // 主视频元素（点击播放按钮用）
   const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
-  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
+  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 ResourceStrip 共用）
   const insertMention = (asset: unknown) => {
     if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset);
   };
@@ -377,8 +377,8 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
       {/* 展开的提示词面板。手柄由节点在 children 里渲染（targetRef=textarea，写回 data.inputWidth/inputHeight）。 */}
       <ExpandablePanel expanded={expanded} minWidth={500}>
         <div className="space-y-3">
-          {/* 素材缩略图区（通用组件 MaterialStrip，以生图节点为标准） */}
-          <MaterialStrip
+          {/* 素材缩略图区（通用组件 ResourceStrip，以生图节点为标准） */}
+          <ResourceStrip
             images={connected.images}
             texts={connected.texts}
             onInsert={insertMention}

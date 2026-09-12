@@ -85,15 +85,15 @@ export const EVENTS = {
     payload: '{ pending }',
     note: '高消耗积分确认门禁置位/清除广播（AgentPanel 刷新 credit 确认卡片）。经常量 CREDIT_GATE_EVENT 引用（P1-D），非字面量故反向校验跳过；发布 useCanvasAgentTools / 订阅 AgentPanel',
   },
-  // 素材发送成功事件（P1-D 收口：原 assetStore 裸回调桥 → eventBus；assetStore 保留薄封装 onAssetSent/emitAssetSent）
-  'asset:sent': {
-    from: ['assetStore.ts:364'],
-    to: ['assetStore.ts:361'],
+  // 素材发送成功事件（P1-D 收口：原 resourceStore 裸回调桥 → eventBus；resourceStore 保留薄封装 onResourceSent/emitResourceSent）
+  'resource:sent': {
+    from: ['resourceStore.ts:364'],
+    to: ['resourceStore.ts:361'],
     payload: '{ folder }',
-    note: '素材落盘成功 → 素材库面板刷新（AssetLibrary 经 onAssetSent 订阅）。生产使用',
+    note: '素材落盘成功 → 素材库面板刷新（ResourceLibrary 经 onResourceSent 订阅）。生产使用',
   },
   'resource:renamed': {
-    from: ['AssetLibrary.tsx:300', 'GeneratedView.tsx:231', 'useAssetMoveToFolder.ts:98'],
+    from: ['ResourceLibrary.tsx:300', 'GeneratedView.tsx:231', 'useResourceMoveToFolder.ts:98'],
     to: ['useCanvasEventSubscriptions.ts:79', 'taskStore.ts:165'],
     payload: '{ oldUrl, newUrl }',
     note: '素材 url 变更（改名/移动归类，前端入口）广播旧→新 url。两个订阅方各管一段内存态：App 改写画布/脚本箱节点并持久化（防下游图生图 404）；taskStore 改写内存任务的 resultUrl（防任务中心破图）。两侧共用 assetUrl.js 的 buildUrlRewritePairs/replaceUrlDeep，禁止各写一份。与后端 rewriteUrlReferences（localTool database.ts）配套，形态严格四态对账',
@@ -275,10 +275,10 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     note: '最近使用预设 id 列表（上限 50）',
   },
 
-  // ── 素材库（assetStore）────────────────────────────────────────────
+  // ── 素材库（resourceStore）────────────────────────────────────────────
   yimao_asset_library: {
-    domain: 'asset',
-    store: 'assetStore.js',
+    domain: 'resource',
+    store: 'resourceStore.ts',
     backend: 'local',
     note: '素材库列表 [{id, folder, type, url, name, size, ts}]',
   },
@@ -664,7 +664,7 @@ export const API_ENDPOINTS = {
  *  - consumer：真实消费门面链（4.4：fn 是底层原语时用本字段登记门面，如 relayProxy.* 配 generate.*，check:api 双查）
  *
  * 【纪律】新增端点 → 先在本表登记 + 在 localToolApi/filesApi 加函数（M2-d「加函数+登记」双动作）。
- * 散落点（GeneratedView/AssetLibrary/pollTask）也须登记，即便它们暂走 httpRequest 直拼——
+ * 散落点（GeneratedView/ResourceLibrary/pollTask）也须登记，即便它们暂走 httpRequest 直拼——
  * 本批只登记定位，B3 再收进薄壳。
  *
  * ⚠️ RESERVED 组（后端已 handle、前端零消费）登记 admin/official/platform/workflow/sync/assets

@@ -4,21 +4,21 @@ import {
   FOLDERS,
   detectAssetType,
   filterByFolder,
-  addAssets,
-  removeAsset,
-  clearAssets,
-  loadAssets,
-  getAssets,
+  addResources,
+  removeResource,
+  clearResources,
+  loadResources,
+  getResources,
   flushPersist,
-  safeAssetBase,
-} from '../../src/components/base/store/assetStore.ts';
+  safeResourceBase,
+} from '../../src/components/base/store/resourceStore.ts';
 
 const STORAGE_KEY = 'yimao:yimao_asset_library'; // storageAdapter 对键加 yimao: 前缀
 
 beforeEach(() => {
-  clearAssets();
+  clearResources();
   localStorage.clear();
-  loadAssets(); // 重新 seed 默认素材
+  loadResources(); // 重新 seed 默认素材
 });
 
 describe('素材库数据层 §2.18', () => {
@@ -44,7 +44,7 @@ describe('素材库数据层 §2.18', () => {
   });
 
   it('filterByFolder：全部返回全部；单目录按 folder 前缀匹配', () => {
-    const list = getAssets(); // 默认 seed
+    const list = getResources(); // 默认 seed
     expect(filterByFolder(list, null).length).toBe(list.length);
     const char = filterByFolder(list, 'migrated/人物');
     expect(char.every((a) => a.folder === 'migrated/人物')).toBe(true);
@@ -52,32 +52,32 @@ describe('素材库数据层 §2.18', () => {
     expect(gen.every((a) => a.folder === 'tasks')).toBe(true);
   });
 
-  it('addAssets 新增并置默认 folder=migrated', () => {
-    const added = addAssets([{ url: '/files/x.png', name: '新图', type: 'image' }]);
+  it('addResources 新增并置默认 folder=migrated', () => {
+    const added = addResources([{ url: '/files/x.png', name: '新图', type: 'image' }]);
     expect(added).toHaveLength(1);
     expect(added[0].folder).toBe('migrated');
     expect(added[0].id).toBeTruthy();
-    expect(getAssets().find((a) => a.id === added[0].id)).toBeTruthy();
+    expect(getResources().find((a) => a.id === added[0].id)).toBeTruthy();
   });
 
-  it('addAssets 指定 folder 落对应目录', () => {
-    const added = addAssets([{ url: '/files/y.png', type: 'image' }], 'migrated/场景');
+  it('addResources 指定 folder 落对应目录', () => {
+    const added = addResources([{ url: '/files/y.png', type: 'image' }], 'migrated/场景');
     expect(added[0].folder).toBe('migrated/场景');
   });
 
-  it('removeAsset 删除指定 id', () => {
-    const added = addAssets([{ url: '/files/z.png', type: 'image' }]);
-    removeAsset(added[0].id);
-    expect(getAssets().find((a) => a.id === added[0].id)).toBeFalsy();
+  it('removeResource 删除指定 id', () => {
+    const added = addResources([{ url: '/files/z.png', type: 'image' }]);
+    removeResource(added[0].id);
+    expect(getResources().find((a) => a.id === added[0].id)).toBeFalsy();
   });
 
-  it('clearAssets 清空', () => {
-    clearAssets();
-    expect(getAssets()).toHaveLength(0);
+  it('clearResources 清空', () => {
+    clearResources();
+    expect(getResources()).toHaveLength(0);
   });
 });
 
-describe('assetStore P4 落盘节流', () => {
+describe('resourceStore P4 落盘节流', () => {
   beforeEach(() => {
     // 排空文件级 beforeEach 用真实定时器排的待落盘（避免脏 timer 污染假定时器窗口，导致后续 schedule 不排程）
     flushPersist();
@@ -88,12 +88,12 @@ describe('assetStore P4 落盘节流', () => {
     vi.useRealTimers();
   });
 
-  it('高频变更（addAssets/removeAsset）在防抖窗口内不触发落盘，窗口结束只落盘 1 次', () => {
-    clearAssets();
-    addAssets([{ url: '/a.png', type: 'image' }]);
+  it('高频变更（addResources/removeResource）在防抖窗口内不触发落盘，窗口结束只落盘 1 次', () => {
+    clearResources();
+    addResources([{ url: '/a.png', type: 'image' }]);
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
-    addAssets([{ url: '/b.png', type: 'image' }]);
-    removeAsset(getAssets()[0].id);
+    addResources([{ url: '/b.png', type: 'image' }]);
+    removeResource(getResources()[0].id);
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     vi.advanceTimersByTime(300);
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -103,8 +103,8 @@ describe('assetStore P4 落盘节流', () => {
   });
 
   it('flushPersist 强制立即落盘（供页面卸载兜底）', () => {
-    clearAssets();
-    addAssets([{ url: '/c.png', type: 'image' }]);
+    clearResources();
+    addResources([{ url: '/c.png', type: 'image' }]);
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     flushPersist();
     expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull();
@@ -114,8 +114,8 @@ describe('assetStore P4 落盘节流', () => {
 
   it('flushPersist 后防抖窗口内不重复落盘', () => {
     const setSpy = vi.spyOn(Storage.prototype, 'setItem');
-    clearAssets();
-    addAssets([{ url: '/d.png', type: 'image' }]);
+    clearResources();
+    addResources([{ url: '/d.png', type: 'image' }]);
     flushPersist();
     const writesBefore = setSpy.mock.calls.filter(([k]) => k === STORAGE_KEY).length;
     vi.advanceTimersByTime(300); // 原定时器已清，不应再写
@@ -124,23 +124,23 @@ describe('assetStore P4 落盘节流', () => {
   });
 });
 
-describe('safeAssetBase（发送到素材库落盘文件名安全化）', () => {
+describe('safeResourceBase（发送到素材库落盘文件名安全化）', () => {
   it('中文名保留（无非法字符）', () => {
-    expect(safeAssetBase('猫')).toBe('猫');
+    expect(safeResourceBase('猫')).toBe('猫');
   });
   it('去非法字符 /\\:*?"<>| → 下划线', () => {
-    expect(safeAssetBase('a/b\\c')).toBe('a_b_c');
+    expect(safeResourceBase('a/b\\c')).toBe('a_b_c');
   });
   it('空白 → 下划线', () => {
-    expect(safeAssetBase('猫 狗')).toBe('猫_狗');
+    expect(safeResourceBase('猫 狗')).toBe('猫_狗');
   });
   it('去掉尾部扩展名，避免「猫.png.png」', () => {
-    expect(safeAssetBase('猫.png')).toBe('猫');
-    expect(safeAssetBase('photo.123')).toBe('photo');
+    expect(safeResourceBase('猫.png')).toBe('猫');
+    expect(safeResourceBase('photo.123')).toBe('photo');
   });
   it('空/纯空白 → 回退 asset', () => {
-    expect(safeAssetBase('')).toBe('asset');
-    expect(safeAssetBase('   ')).toBe('asset');
-    expect(safeAssetBase()).toBe('asset');
+    expect(safeResourceBase('')).toBe('asset');
+    expect(safeResourceBase('   ')).toBe('asset');
+    expect(safeResourceBase()).toBe('asset');
   });
 });

@@ -19,7 +19,7 @@ const {
   getPanel,
   setPanel,
   openTaskCenter,
-  openAssetLibrary,
+  openResourceLibrary,
   togglePin,
   clearTasksBy,
   clearAllTasks,
@@ -60,7 +60,7 @@ describe('taskStore §2.6 面板状态', () => {
     expect(getPanel().expanded).toBe(true);
   });
 
-  it('togglePin 切换钉住状态，且 openTaskCenter/openAssetLibrary 保留 pinned', () => {
+  it('togglePin 切换钉住状态，且 openTaskCenter/openResourceLibrary 保留 pinned', () => {
     setPanel({ expanded: false, activeTab: 'generated', pinned: false });
     togglePin();
     expect(getPanel().pinned).toBe(true);
@@ -69,7 +69,7 @@ describe('taskStore §2.6 面板状态', () => {
     expect(getPanel()).toEqual({ expanded: true, activeTab: 'tasks', pinned: true });
     // 自动弹出素材库同样保留钉住态
     setPanel({ activeTab: 'assets' });
-    openAssetLibrary();
+    openResourceLibrary();
     expect(getPanel()).toEqual({ expanded: true, activeTab: 'assets', pinned: true });
     togglePin();
     expect(getPanel().pinned).toBe(false);

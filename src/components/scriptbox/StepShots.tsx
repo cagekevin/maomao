@@ -14,8 +14,8 @@ import {
   applyTailFrameSelection,
   parseShotSeconds,
 } from './scriptBoxPrompts.ts';
-import MaterialStrip from '../base/panels/MaterialStrip.tsx';
-import type { MaterialStripProps } from '../base/panels/MaterialStrip.tsx';
+import ResourceStrip from '../base/panels/ResourceStrip.tsx';
+import type { ResourceStripProps } from '../base/panels/ResourceStrip.tsx';
 import { useOutsideClick } from '../base/core/uiHooks.ts';
 import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import ScriptBoxModal from './ScriptBoxModal.tsx';
@@ -121,12 +121,12 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
           {/* 上游接入只读素材区（位置在剧情框上方）：展示连入的上游文本/图片，内容只读不可改，仅可断线。
               素材来自 node.data.upstreamTexts / upstreamImages（ScriptBoxNode 经 useConnectedInputs 同步）；
               多个时 flex-wrap 自动换行。 */}
-          {((d.upstreamImages as MaterialStripProps['images'])?.length > 0 ||
-            (d.upstreamTexts as MaterialStripProps['texts'])?.length > 0) && (
+          {((d.upstreamImages as ResourceStripProps['images'])?.length > 0 ||
+            (d.upstreamTexts as ResourceStripProps['texts'])?.length > 0) && (
             <div className="mb-1.5">
-              <MaterialStrip
-                images={(d.upstreamImages as MaterialStripProps['images']) ?? []}
-                texts={(d.upstreamTexts as MaterialStripProps['texts']) ?? []}
+              <ResourceStrip
+                images={(d.upstreamImages as ResourceStripProps['images']) ?? []}
+                texts={(d.upstreamTexts as ResourceStripProps['texts']) ?? []}
                 readOnly
                 onDisconnect={callbacks?.onDisconnectUpstream}
               />

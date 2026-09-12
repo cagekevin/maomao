@@ -3,7 +3,7 @@
  * store selector 原子订阅原语（P5 范式基座）
  * ════════════════════════════════════════════════════════════════
  *
- * 【为什么】各 store（conversationStore/assetStore/projectStore/appSettings…）此前用
+ * 【为什么】各 store（conversationStore/resourceStore/projectStore/appSettings…）此前用
  *   useSyncExternalStore(subscribe, getSnapshot) 整包订阅——store 里任何字段变更都会
  *   触发所有订阅组件重渲染（连坐）。本原语让组件只订阅 selector 选中的字段：
  *   - 无关字段变更 → selector 结果不变 → 不重渲染

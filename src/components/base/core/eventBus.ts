@@ -3,7 +3,7 @@
  * 全项目唯一的事件广播通道（subscribe/publish/subscribeOnce）。
  * 对外「一对多、瞬时广播」一律走本模块 + contracts.ts EVENTS 登记（check:events 门禁）。
  * 禁止自建第二套广播（window.dispatchEvent / 手写 Map 监听）。
- * taskCompletionBus / persistFailureBus / assetStore.onAssetSent 均为本总线之上的薄封装，非第二套；
+ * taskCompletionBus / persistFailureBus / resourceStore.onResourceSent 均为本总线之上的薄封装，非第二套；
  * promptHubStore.js subscribePromptHub / taskStore.js listeners 是「模块内订阅」非广播通道（见各自文件头）。
  * 明确不做：不加优先级/超时/统一 context 调度器（当前订阅者全为 UI 刷新，规模不需要）。
  *
@@ -19,7 +19,7 @@
  *
  * 【当前事件注册表】改代码前先查这份全量清单（发布/订阅均须存在，避免"只监听未发布"）：
  *  - agent:task-completed   taskCompletionBus.publishTaskCompleted 发布 → useNodeGeneration:210 订阅（任务完成→精准回填节点）
- *  - asset:sent             assetStore.onAssetSent/emitAssetSent（薄封装）→ AssetLibrary 刷新（P1-D 收口裸回调桥）
+ *  - resource:sent             resourceStore.onResourceSent/emitResourceSent（薄封装）→ ResourceLibrary 刷新（P1-D 收口裸回调桥）
  *  - presets-changed        promptManager:88 发布 → PromptLibrary:40 订阅（预设库跨节点同步）
  *  - project:import         ProjectSelector:99 发布 → App:343 订阅（导入按钮→App 处理文件）
  *  - project:export         ProjectSelector:103 发布 → App:344 订阅（导出按钮→App 下载）

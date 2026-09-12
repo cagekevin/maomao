@@ -10,12 +10,12 @@ import './panel-kit.css';
  *
  * 【为什么抽】左侧栏 4 个 tab（任务 / 生成 / 素材 / 提示词）此前各自实现了一遍
  *   「副工具条 + pill 组 + ⋯ 菜单」，其中 pill 的「按住横向拖动滚动 + 拖动超阈值不误触点击」
- *   在 GeneratedView / AssetLibrary 里各写了一份（两份逻辑相同）。本文件收成唯一实现，
+ *   在 GeneratedView / ResourceLibrary 里各写了一份（两份逻辑相同）。本文件收成唯一实现，
  *   视觉与交互统一走 panel-kit.css。
  *
  * 【边界】这里只管**外壳**（条 / pill / 菜单），不碰各面板的数据与业务：
  *   · 上传、拖到画布、新建文件夹、重命名、清理任务等动作仍由各面板自己实现并传入 onClick；
- *   · 拖拽到画布（makeAssetDragProps / useAssetCardDragProps）不在本文件，保持在各面板内。
+ *   · 拖拽到画布（makeAssetDragProps / useResourceCardDragProps）不在本文件，保持在各面板内。
  */
 
 /** pill 项：key 为选中值，label 为显示文案 */

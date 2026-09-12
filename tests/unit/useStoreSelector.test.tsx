@@ -1,7 +1,7 @@
 /**
  * store selector 浅比较锚点（P5 原子 hook 的测试基座）。
  *
- * 现状各 store（conversationStore/assetStore/projectStore/appSettings 等）用
+ * 现状各 store（conversationStore/resourceStore/projectStore/appSettings 等）用
  * useSyncExternalStore 整包订阅，任何字段变更都触发订阅组件重渲染（连坐）。
  * P5 引入 useStoreSelector(selector, isEqual=shallowEqual)：只订阅 selector 结果，
  * 无关字段变更不重渲染；selector 返回新对象时靠浅比较返回旧引用，防无限重渲。

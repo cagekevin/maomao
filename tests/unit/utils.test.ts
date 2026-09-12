@@ -49,7 +49,7 @@ describe('clamp（通用数值钳制）', () => {
 });
 
 describe('safeFileName（文件名安全化统一出口）', () => {
-  // 行为与 assetStore.safeAssetBase 同源（stripExt + 空白归一 + 非法字符 + 回退）
+  // 行为与 resourceStore.safeResourceBase 同源（stripExt + 空白归一 + 非法字符 + 回退）
   it('后续非法字符替换、空白归一', () => {
     expect(safeFileName('a/b\\c')).toBe('a_b_c');
     expect(safeFileName('猫 狗')).toBe('猫_狗');
@@ -132,7 +132,7 @@ describe('buildEffectivePrompt（本地 prompt + 上游文本合并）', () => {
   });
 });
 
-describe('assetLabel（MaterialStrip onInsert 对象/字符串兼容）', () => {
+describe('assetLabel（ResourceStrip onInsert 对象/字符串兼容）', () => {
   it('对象 → 取 label', () => {
     // 真实对象常带 id/kind 等额外字段（assetLabel 只消费 label），断言到 {label?:string} 入参形状
     expect(assetLabel({ id: 'img-1', label: '人物', kind: 'image' } as { label?: string })).toBe(

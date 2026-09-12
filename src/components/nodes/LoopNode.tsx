@@ -214,7 +214,7 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
     }
 
     // 统一参考图：循环节点从自己上游接到的图片（连线），塞给每个生图节点当参考图。
-    // 结构对齐管线契约 { id, url, label }（MaterialStrip 显示名 / mergeRefImages 去重），
+    // 结构对齐管线契约 { id, url, label }（ResourceStrip 显示名 / mergeRefImages 去重），
     // 不带 sourceNodeId —— 与剧本盒资产参考图同义，在生图节点中不可断开。
     const refImages = (connected.images || [])
       .map((img, i) => ({

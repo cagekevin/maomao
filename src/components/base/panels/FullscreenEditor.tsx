@@ -1,10 +1,10 @@
 import React from 'react';
 import { Minimize2 } from 'lucide-react';
 import FullscreenModal from './FullscreenModal';
-import MaterialStrip from './MaterialStrip.tsx';
+import ResourceStrip from './ResourceStrip.tsx';
 import PromptInput from '../prompt/PromptInput.tsx';
 
-/** 上游连入的素材形状（图片 / 文本），与 MaterialStrip / PromptInput 对齐。 */
+/** 上游连入的素材形状（图片 / 文本），与 ResourceStrip / PromptInput 对齐。 */
 interface RefAsset {
   id?: string;
   label?: string;
@@ -67,7 +67,7 @@ export default function FullscreenEditor({
   richText = false,
 }: FullscreenEditorProps) {
   const showMaterials = variant === 'prompt';
-  // 富文本模式：MaterialStrip 插入走 PromptInput 上抛的能力；否则兼容旧回调（提取 label 字符串）
+  // 富文本模式：ResourceStrip 插入走 PromptInput 上抛的能力；否则兼容旧回调（提取 label 字符串）
   const insertAssetRef = React.useRef<((asset: unknown) => void) | null>(null);
   const handleInsert = (asset: unknown) => {
     if (richText && typeof insertAssetRef.current === 'function') {
@@ -98,7 +98,7 @@ export default function FullscreenEditor({
 
       <div className="flex flex-col gap-2">
         {showMaterials && (
-          <MaterialStrip
+          <ResourceStrip
             images={refImages}
             texts={refTexts}
             onInsert={handleInsert}

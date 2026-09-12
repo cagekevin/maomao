@@ -67,8 +67,8 @@ export function mergeRefImages<T extends { id?: string; url?: string }>(
   return merged;
 }
 
-/** 从素材取显示名（统一兼容 MaterialStrip 的 onInsert 两种形态）：
- *  - 对象 { label, ... }（富文本芯片插入，MaterialStrip 现传完整对象）→ 返回 label
+/** 从素材取显示名（统一兼容 ResourceStrip 的 onInsert 两种形态）：
+ *  - 对象 { label, ... }（富文本芯片插入，ResourceStrip 现传完整对象）→ 返回 label
  *  - 字符串 name（旧式纯文本插入回调）→ 原样返回
  * 供未升级节点的 onInsert 字符串拼接回调复用，避免把对象拼成 [object Object]。 */
 export function assetLabel(asset: string | { label?: string } | null | undefined): string {
@@ -102,8 +102,8 @@ export function clampSeconds(value: unknown, min = 4, max = 15): number {
 }
 
 /** 文件名安全化（磁盘文件名 base）：trim → 非法字符替换为 sep → 可选去尾部扩展名 → 空白替换为 sep。
- * 收口：各处文件名清洗统一走这里（assetStore.safeAssetBase / filesApi.safeName / videoEngine 等），
- * 不再各写 replace 样板。处理顺序与 assetStore.safeAssetBase 逐字节一致（其行为有单测钉住）。
+ * 收口：各处文件名清洗统一走这里（resourceStore.safeResourceBase / filesApi.safeName / videoEngine 等），
+ * 不再各写 replace 样板。处理顺序与 resourceStore.safeResourceBase 逐字节一致（其行为有单测钉住）。
  * @param name 名字
  * @param o - sep 非法字符/空白替换成的字符，默认 '_'；stripExt 是否去掉尾部 `.ext`，默认 false；fallback 为空时回退名，默认 '' */
 export function safeFileName(

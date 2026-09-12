@@ -192,7 +192,7 @@ export function useAssetDropPaste({
       e.preventDefault();
       const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
 
-      // 素材库素材拖入（AssetLibrary 写 application/x-yimao-asset）：用素材 url 建节点
+      // 素材库素材拖入（ResourceLibrary 写 application/x-yimao-asset）：用素材 url 建节点
       const assetRaw = e.dataTransfer?.getData('application/x-yimao-asset');
       if (assetRaw) {
         try {

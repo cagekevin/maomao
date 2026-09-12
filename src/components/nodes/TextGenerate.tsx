@@ -7,7 +7,7 @@ import ExpandablePanel from '../base/ui/ExpandablePanel.tsx';
 import GenerateButton from '../base/ui/GenerateButton.tsx';
 import ModelSelect from '../base/ui/ModelSelect.tsx';
 import PromptInput from '../base/prompt/PromptInput.tsx';
-import MaterialStrip from '../base/panels/MaterialStrip.tsx';
+import ResourceStrip from '../base/panels/ResourceStrip.tsx';
 import ResizeFullscreenHandle from '../base/ui/ResizeFullscreenHandle.tsx';
 import FullscreenEditor from '../base/panels/FullscreenEditor.tsx';
 import GeneratingOverlay from '../base/ui/GeneratingOverlay.tsx';
@@ -123,7 +123,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   );
   // 自身上传图片 + 连线上游图片，多上游图片节点自动合并
   // 【memo 优化】用 useMemo 稳定 refImages 引用：否则每次 render 新建数组，传给 memo 子组件
-  // （MaterialStrip/PromptInput）会失效导致每次重渲染。
+  // （ResourceStrip/PromptInput）会失效导致每次重渲染。
   const refImages = useMemo(
     () => [
       ...(connected.images || []),
@@ -148,7 +148,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
   const wrapperRef = useRef<HTMLDivElement | null>(null); // NodeShell 根 div ref（主框手柄拖拽改整体尺寸）
-  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
+  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 ResourceStrip 共用）
   const insertMention = (asset) => {
     if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset);
   };
@@ -461,8 +461,8 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
           targetRef=textarea, onResizeEnd 写回 node.data.inputWidth/inputHeight。 */}
       <ExpandablePanel expanded={expanded} minWidth={420}>
         <div className="space-y-3">
-          {/* 素材缩略图区（通用组件 MaterialStrip，以生图节点为标准） */}
-          <MaterialStrip
+          {/* 素材缩略图区（通用组件 ResourceStrip，以生图节点为标准） */}
+          <ResourceStrip
             images={refImages}
             texts={refTexts}
             onInsert={insertMention}

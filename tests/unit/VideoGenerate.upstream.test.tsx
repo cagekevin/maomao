@@ -52,7 +52,7 @@ vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
 vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
   default: ({ children }) => children,
 }));
-vi.mock('../../src/components/base/panels/MaterialStrip.tsx', () => ({
+vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
   default: ({ children }) => children,
 }));
 vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({ default: () => null }));

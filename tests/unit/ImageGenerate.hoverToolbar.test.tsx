@@ -44,7 +44,7 @@ vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
 vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
   default: ({ children }) => children,
 }));
-vi.mock('../../src/components/base/panels/MaterialStrip.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({ default: () => null }));

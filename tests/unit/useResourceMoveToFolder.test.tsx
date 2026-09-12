@@ -1,12 +1,15 @@
 /**
- * useAssetMoveToFolder 测试：把文件「拖到文件夹卡片」归类。
+ * useResourceMoveToFolder 测试：把文件「拖到文件夹卡片」归类。
  * 复用真实 canMoveAsset/resolveMovePaths，仅 mock moveFile 与 toast。
  */
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import type { DragEvent } from 'react';
-import { useAssetMoveToFolder, ASSET_MOVE_MIME } from '../../src/hooks/useAssetMoveToFolder.ts';
+import {
+  useResourceMoveToFolder,
+  RESOURCE_MOVE_MIME,
+} from '../../src/hooks/useResourceMoveToFolder.ts';
 
 // 事件总线 mock 也在此声明：否则 mocks.subscribe 等属性不存在 → TS2339
 const mocks = vi.hoisted(() => ({
@@ -68,7 +71,7 @@ beforeEach(() => {
 describe('sourceDragProps（源·文件卡片）', () => {
   it('非文件夹 → 可拖拽，onDragStart 写入移动 payload', () => {
     const { result } = renderHook(() =>
-      useAssetMoveToFolder({ connected: true, onRefreshed: vi.fn() }),
+      useResourceMoveToFolder({ connected: true, onRefreshed: vi.fn() }),
     );
     const p = result.current.sourceDragProps({
       folder: 'migrated',
@@ -81,7 +84,7 @@ describe('sourceDragProps（源·文件卡片）', () => {
     const evt = makeDragStartEvent();
     p.onDragStart(evt);
     expect(evt.setData).toHaveBeenCalledTimes(1);
-    expect(evt.setData.mock.calls[0][0]).toBe(ASSET_MOVE_MIME);
+    expect(evt.setData.mock.calls[0][0]).toBe(RESOURCE_MOVE_MIME);
     expect(JSON.parse(evt.setData.mock.calls[0][1])).toEqual({
       folder: 'migrated',
       name: 'a.png',
@@ -93,7 +96,7 @@ describe('sourceDragProps（源·文件卡片）', () => {
 
   it('文件夹 / 无 url → 不启用拖拽', () => {
     const { result } = renderHook(() =>
-      useAssetMoveToFolder({ connected: true, onRefreshed: vi.fn() }),
+      useResourceMoveToFolder({ connected: true, onRefreshed: vi.fn() }),
     );
     expect(result.current.sourceDragProps({ type: 'folder', name: 'x' })).toEqual({});
     expect(result.current.sourceDragProps({ type: 'image' })).toEqual({});
@@ -103,7 +106,7 @@ describe('sourceDragProps（源·文件卡片）', () => {
 describe('folderDropProps（目标·文件夹卡片）', () => {
   it('拖文件到子文件夹 → moveFile(相对 src/dst)，toast 成功，回调刷新', async () => {
     const onRefreshed = vi.fn();
-    const { result } = renderHook(() => useAssetMoveToFolder({ connected: true, onRefreshed }));
+    const { result } = renderHook(() => useResourceMoveToFolder({ connected: true, onRefreshed }));
     const it = { folder: 'migrated', name: 'a.png', source: 'local-tool', type: 'image' };
     const folderCard = { folder: 'migrated', name: '人物' }; // 完整路径 migrated/人物
     await result.current.folderDropProps(folderCard).onDrop(makeDropEvent(payload(it)));
@@ -119,7 +122,7 @@ describe('folderDropProps（目标·文件夹卡片）', () => {
 
   it('目标与源同目录 → 忽略，不调 moveFile，toast 提示', async () => {
     const onRefreshed = vi.fn();
-    const { result } = renderHook(() => useAssetMoveToFolder({ connected: true, onRefreshed }));
+    const { result } = renderHook(() => useResourceMoveToFolder({ connected: true, onRefreshed }));
     const it = { folder: 'migrated', name: 'a.png', source: 'local-tool', type: 'image' };
     const folderCard = { folder: 'migrated', name: 'a' }; // 目标 migrated 下的 a 无意义；直接用同目录场景→构造同目录
     // 同目录：目标目录 === 源目录。构造目标目录为 migrated（folder='', name='migrated'）
@@ -133,7 +136,7 @@ describe('folderDropProps（目标·文件夹卡片）', () => {
 
   it('非 local-tool 资源 → 不移动，toast 提示', async () => {
     const { result } = renderHook(() =>
-      useAssetMoveToFolder({ connected: true, onRefreshed: vi.fn() }),
+      useResourceMoveToFolder({ connected: true, onRefreshed: vi.fn() }),
     );
     const it = { folder: 'migrated', name: 'a.png', source: 'remote', type: 'image' };
     await result.current
@@ -145,7 +148,7 @@ describe('folderDropProps（目标·文件夹卡片）', () => {
 
   it('未连接本地引擎 → 不移动', async () => {
     const { result } = renderHook(() =>
-      useAssetMoveToFolder({ connected: false, onRefreshed: vi.fn() }),
+      useResourceMoveToFolder({ connected: false, onRefreshed: vi.fn() }),
     );
     await result.current
       .folderDropProps({ folder: 'migrated', name: '场景' })

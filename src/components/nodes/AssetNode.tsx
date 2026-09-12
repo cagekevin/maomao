@@ -29,8 +29,8 @@ import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
 import { downloadUrl } from '../base/utils/clipboard.ts';
 import { showToast, toastError } from '../base/core/toastStore.ts';
-import { sendToAssetLibrary } from '../base/store/assetStore.ts';
-import { openAssetLibrary } from '../base/store/taskStore.ts';
+import { sendToResourceLibrary } from '../base/store/resourceStore.ts';
+import { openResourceLibrary } from '../base/store/taskStore.ts';
 import CameraStudioPanel from '../base/editors/CameraStudioPanel.tsx';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { DepthVideoModal } from '../base/depthVideo/DepthVideoModal.tsx';
@@ -310,8 +310,8 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
           type === 'image' || type === 'video' || type === 'audio' || type === 'text'
             ? type
             : undefined;
-        sendToAssetLibrary(url, { name, type: assetType });
-        openAssetLibrary();
+        sendToResourceLibrary(url, { name, type: assetType });
+        openResourceLibrary();
         showToast('已发送到素材库', { type: 'success' });
       },
     },

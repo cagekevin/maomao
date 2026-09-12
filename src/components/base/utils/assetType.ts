@@ -4,7 +4,7 @@
  * ════════════════════════════════════════════════════════════════
  * 【唯一真值源】全库「扩展名 / mime → 媒体类别」判定只有下面 EXT_KIND 一张表 + 一组 data: 前缀。
  *  · 消费方：AssetNode.detectAssetType（节点内容态）、useAssetDropPaste.detectFileType（拖入/粘贴建节点）、
- *    assetStore.detectAssetType（素材库分类）、classifyUrl / resolveAssetType（产出类型，含
+ *    resourceStore.detectAssetType（素材库分类）、classifyUrl / resolveAssetType（产出类型，含
  *    useConnectedInputs 连线判型）、isAudio（素材库/生成面板）、VideoProcessNode 上游视频筛选。
  *  · 禁止再就地手写 `\.(mp4|webm…)$` 正则：此前 5 处各写一份，已漂移出三类不一致
  *    （ogg 归属相反 / ogv·oga·opus 等漏认 / a.mp4?token=1 因未剥查询串被误判 image）。
@@ -73,7 +73,7 @@ export function detectAssetType(url: string | null | undefined): AssetType {
   return classifyAssetUrlKind(url) ?? 'image'; // data:image / http 图片 / 其它 URL 默认按图片
 }
 
-/** detectFileType 入参最小契约：只需 name / type（真 File 天然满足；assetStore.TypeProbe 亦满足） */
+/** detectFileType 入参最小契约：只需 name / type（真 File 天然满足；resourceStore.TypeProbe 亦满足） */
 export interface TypeProbeLike {
   name?: string;
   type?: string;
@@ -125,7 +125,7 @@ export function isAssetUrl(url: unknown): url is string {
 
 /**
  * 判断是否为音频素材（type 字段或 URL 扩展名）。
- * 收敛 AssetLibrary / GeneratedView 各自重复的实现，统一放这里。
+ * 收敛 ResourceLibrary / GeneratedView 各自重复的实现，统一放这里。
  * @param type 素材 type（如 'audio'）
  * @param url 素材 URL（按统一扩展名表兜底，含 ?#/大小写处理）
  */

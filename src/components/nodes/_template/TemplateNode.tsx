@@ -9,7 +9,7 @@ import GenerateButton from '../../base/ui/GenerateButton.tsx';
 import ModelSelect from '../../base/ui/ModelSelect.tsx';
 import PromptInput from '../../base/prompt/PromptInput.tsx';
 import { resolvePromptChips } from '../../base/prompt/promptChips.ts';
-import MaterialStrip from '../../base/panels/MaterialStrip.tsx';
+import ResourceStrip from '../../base/panels/ResourceStrip.tsx';
 import ResizeFullscreenHandle from '../../base/ui/ResizeFullscreenHandle.tsx';
 import FullscreenModal from '../../base/panels/FullscreenModal.tsx';
 import FullscreenEditor from '../../base/panels/FullscreenEditor.tsx';
@@ -59,7 +59,7 @@ import { resolveProviderModel } from '../../base/utils/providerModels.ts';
  *  - 顶部 hover 操作栏：HoverToolbar + ToolbarButton 式按钮 ✓
  *  - 底部展开面板：ExpandablePanel ✓
  *  - 提示词输入：PromptInput（含 @素材弹层）✓
- *  - 素材缩略图条：MaterialStrip（真实上游连线）✓
+ *  - 素材缩略图条：ResourceStrip（真实上游连线）✓
  *  - 生成按钮：GenerateButton（含 loading/停止）✓
  *  - 模型下拉：ModelSelect（多 provider 聚合）✓
  *  - 右下角手柄：ResizeFullscreenHandle（拖拽改尺寸+双击全屏）✓
@@ -70,7 +70,7 @@ import { resolveProviderModel } from '../../base/utils/providerModels.ts';
  *
  * 【上/下游数据怎么接（对应"接节点"的通用机制）】
  *  - 读上游：`useConnectedInputs(id)` 已在模板接入 → 自动聚合所有直接上游产出
- *    { images, texts, videos, audios }，本节点作为参考输入用（已接 MaterialStrip + PromptInput）。
+ *    { images, texts, videos, audios }，本节点作为参考输入用（已接 ResourceStrip + PromptInput）。
  *  - 产出给下游：① 组件里把结果写回 node.data（如 data.assetUrl / data.images[]）；
  *    ② 在 `useConnectedInputs.js` 的 `NODE_OUTPUTS` 加一行声明如何解析你的产出
  *    （单产出其实可省略——有 `genericOutput` 兜底读 assetUrl/videoUrl/resultUrl；
@@ -118,7 +118,7 @@ import { resolveProviderModel } from '../../base/utils/providerModels.ts';
  *  - 按钮 hover 统一 hover:bg-surface-hover + hover:text-white
  */
 
-/** 参考图素材形态（MaterialStrip / PromptInput / generateImage 共用） */
+/** 参考图素材形态（ResourceStrip / PromptInput / generateImage 共用） */
 interface RefImage {
   id: string;
   url: string;
@@ -219,7 +219,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   // ─── 4. refs + 尺寸写回（通用）───
   const wrapperRef = useRef<HTMLDivElement | null>(null); // NodeShell 根 div（供主框手柄拖拽）
   const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器（PromptInput 暴露 contentEditable div）
-  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
+  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 ResourceStrip 共用）
   const insertMention = (asset: unknown) => {
     if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset);
   };
@@ -395,8 +395,8 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
       {/* 底部展开面板（通用；参数区 + 生成按钮） */}
       <ExpandablePanel expanded={expanded} minWidth={420}>
         <div className="space-y-3">
-          {/* 素材缩略图区（通用 MaterialStrip，真实上游连线；空则不渲染） */}
-          <MaterialStrip
+          {/* 素材缩略图区（通用 ResourceStrip，真实上游连线；空则不渲染） */}
+          <ResourceStrip
             images={refImages}
             texts={refTexts}
             onInsert={insertMention}
@@ -498,7 +498,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
  * 一、读上游（已接入，无需改）
  *   `useConnectedInputs(id)` 会自动聚合所有「直接连线到自己」的上游节点产出，
  *   返回 { images:[{url,label,sourceNodeId}], texts:[], videos:[], audios:[] }。
- *   模板里已把 connected.images/texts 接给 MaterialStrip + PromptInput 作参考输入。
+ *   模板里已把 connected.images/texts 接给 ResourceStrip + PromptInput 作参考输入。
  *
  * 二、产出给下游（有产出必做，否则下游连了线也拿不到数据）
  *   1) 组件里把结果写回 node.data（模板已在 onSuccess 写 data.assetUrl）。

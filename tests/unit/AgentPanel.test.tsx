@@ -220,7 +220,7 @@ vi.mock('../../src/components/base/core/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }));
 // importOriginal 部分 mock：保留 config 全部真实导出（含 TD-7 新增的 KV_TIMEOUT），仅覆盖 AGENT_MODELS。
-// 注：importOriginal 类型为 unknown（vitest 限制），直接 spread 报 TS2698，须断言为 Record 对象类型（对齐 useAssetMoveToFolder.test.tsx 写法）。
+// 注：importOriginal 类型为 unknown（vitest 限制），直接 spread 报 TS2698，须断言为 Record 对象类型（对齐 useResourceMoveToFolder.test.tsx 写法）。
 vi.mock('../../src/components/base/core/config.ts', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return { ...actual, AGENT_MODELS: ['gpt-4o-mini'] };

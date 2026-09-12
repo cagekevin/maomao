@@ -15,7 +15,7 @@ import ExpandablePanel from '../base/ui/ExpandablePanel.tsx';
 import GenerateButton from '../base/ui/GenerateButton.tsx';
 import ModelSelect from '../base/ui/ModelSelect.tsx';
 import PromptInput from '../base/prompt/PromptInput.tsx';
-import MaterialStrip from '../base/panels/MaterialStrip.tsx';
+import ResourceStrip from '../base/panels/ResourceStrip.tsx';
 import ResizeFullscreenHandle from '../base/ui/ResizeFullscreenHandle.tsx';
 import FullscreenEditor from '../base/panels/FullscreenEditor.tsx';
 import GeneratingOverlay from '../base/ui/GeneratingOverlay.tsx';
@@ -33,8 +33,8 @@ import PromptLibraryButton from '../base/prompt/PromptLibraryButton.tsx';
 import { downloadUrl, resolveDownloadFilename } from '../base/utils/clipboard.ts';
 import JianyingIcon from '../base/ui/JianyingIcon.tsx';
 import { showToast, toastError } from '../base/core/toastStore.ts';
-import { sendToAssetLibrary } from '../base/store/assetStore.ts';
-import { openAssetLibrary } from '../base/store/taskStore.ts';
+import { sendToResourceLibrary } from '../base/store/resourceStore.ts';
+import { openResourceLibrary } from '../base/store/taskStore.ts';
 import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
@@ -64,7 +64,7 @@ import type { CameraStudioResult } from '../base/editors/cameraStudio.ts';
  * 保留差异化：主图片框、素材缩略图区、画质/比例/渲染质量菜单、请求格式、批量 xN。
  * 性能降级用通用 useAssetDegrade：lodLevel>=2 藏生图结果（与官方横幅"图片已隐藏"一致）。
  */
-/** 参考图素材形态（MaterialStrip / PromptInput / generateImage 共用） */
+/** 参考图素材形态（ResourceStrip / PromptInput / generateImage 共用） */
 interface RefImage {
   id: string;
   url: string;
@@ -128,7 +128,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   // 上游为空 + data 无图 → 两者都空 → 素材区隐藏，绝不显示假示例。
   // 【必须放在 prompt 定义之后、useNodeGeneration 之前】否则其 config 闭包首帧访问会触发 TDZ。
   // 【memo 优化】用 useMemo 稳定 refImages/refTexts 引用：否则每次 render 新建数组，传给 memo 子组件
-  // （MaterialStrip/PromptInput）会失效导致每次重渲染。依赖用 connected.*/data.* 引用而非整对象，
+  // （ResourceStrip/PromptInput）会失效导致每次重渲染。依赖用 connected.*/data.* 引用而非整对象，
   // 上游/自身数据未变时引用稳定。
   const refImages = useMemo(
     // 合并「连线上游产出」+「剧本盒等塞给本节点的 data.images」时，可能同一批资产图
@@ -396,7 +396,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   const costMap = { 'dall-e-3': 4 };
 
   // 富文本素材插入：由 PromptInput 挂载后通过 onReady 上抛（在光标处插芯片）。
-  // MaterialStrip 的蓝色 @按钮点击也走这里，复用同一插入能力（保持组件职责内聚）。
+  // ResourceStrip 的蓝色 @按钮点击也走这里，复用同一插入能力（保持组件职责内聚）。
   const insertAssetRef = useRef<((asset: unknown) => void) | null>(null);
   const insertMention = (asset: unknown) => {
     if (typeof insertAssetRef.current === 'function') {
@@ -568,8 +568,8 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                 return;
               }
               const name = (data.label && String(data.label).trim()) || '';
-              sendToAssetLibrary(assetUrl, { name, type: 'image' });
-              openAssetLibrary();
+              sendToResourceLibrary(assetUrl, { name, type: 'image' });
+              openResourceLibrary();
               showToast('已发送到素材库', { type: 'success' });
             },
           },
@@ -684,8 +684,8 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         {!cropping && (
           <ExpandablePanel expanded={expanded} minWidth={500}>
             <div className="space-y-3">
-              {/* 素材缩略图区（通用组件 MaterialStrip，以生图节点为标准：缩略图 + 底部@插入 + 右上×断线） */}
-              <MaterialStrip
+              {/* 素材缩略图区（通用组件 ResourceStrip，以生图节点为标准：缩略图 + 底部@插入 + 右上×断线） */}
+              <ResourceStrip
                 images={refImages}
                 texts={refTexts}
                 onInsert={insertMention}

@@ -160,7 +160,7 @@ function ImageZoomDialog({
       const dlg =
         e?.currentTarget?.closest?.('dialog') || (typeof ref === 'function' ? null : ref?.current);
       dlg?.close?.();
-      onClose?.(); // 通知外部（如 GeneratedView/AssetLibrary 复位 preview），失败不静默吞
+      onClose?.(); // 通知外部（如 GeneratedView/ResourceLibrary 复位 preview），失败不静默吞
     },
     [ref, onClose],
   );

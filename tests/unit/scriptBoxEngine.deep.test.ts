@@ -5,12 +5,12 @@ vi.mock('../../src/components/base/api/generate.ts', () => ({
   generateImage: vi.fn(),
 }));
 vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: vi.fn() }));
-vi.mock('../../src/components/base/store/assetStore.ts', () => ({
-  localizeAndStoreToLibrary: vi.fn(),
-  assetFolderOf: vi.fn(() => 'migrated/人物'),
-  sendToAssetLibrary: vi.fn(),
-  getAssets: vi.fn(() => []),
-  useAssets: vi.fn(() => []),
+vi.mock('../../src/components/base/store/resourceStore.ts', () => ({
+  localizeAndStoreToResourceLibrary: vi.fn(),
+  resourceFolderOf: vi.fn(() => 'migrated/人物'),
+  sendToResourceLibrary: vi.fn(),
+  getResources: vi.fn(() => []),
+  useResources: vi.fn(() => []),
   FOLDERS: [],
 }));
 // 【L3c】logger mock：断言「已中止」判定只走 warn、业务/超时走 error，且 showToast 不被误调
@@ -27,7 +27,7 @@ vi.mock('../../src/components/base/store/taskStore.ts', () => ({
 import { chatCompletions, generateImage } from '@/components/base/api/generate.ts';
 import { showToast } from '../../src/components/base/core/toastStore.ts';
 import { logger } from '../../src/components/base/core/logger.ts';
-import { localizeAndStoreToLibrary } from '../../src/components/base/store/assetStore.ts';
+import { localizeAndStoreToResourceLibrary } from '../../src/components/base/store/resourceStore.ts';
 import { createScriptBoxEngine } from '@/components/scriptbox/scriptBoxEngine.ts';
 
 const loggerWarnMock = vi.mocked(logger.warn);
@@ -36,7 +36,7 @@ const loggerErrorMock = vi.mocked(logger.error);
 // vi.mock 工厂不改变静态导入类型，用 vi.mocked 标注以拿到 .mockResolvedValue/.mock
 const chatCompletionsMock = vi.mocked(chatCompletions);
 const generateImageMock = vi.mocked(generateImage);
-const localizeMock = vi.mocked(localizeAndStoreToLibrary);
+const localizeMock = vi.mocked(localizeAndStoreToResourceLibrary);
 
 const providerState = {
   providers: [
@@ -587,7 +587,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     // 统一缩略图机制：thumbnailUrl 回退原图，显示由系统按需出图端点（buildThumbnailUrl）出小图
     expect(final.thumbnailUrl).toBe('/files/migrated/人物/角色1.png');
     // 不再二次落盘缩略图文件（缩略图统一走系统按需出图端点）
-    expect(localizeAndStoreToLibrary).toHaveBeenCalledTimes(1);
+    expect(localizeAndStoreToResourceLibrary).toHaveBeenCalledTimes(1);
   });
 
   // ── L3c C2a 统一中止判定：runAbortable catch 走 classifyError 而非 /abort/i（证据 scriptBoxEngine:236）──

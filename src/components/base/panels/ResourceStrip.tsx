@@ -23,7 +23,7 @@ import LazyImage from '../ui/LazyImage.tsx';
  *  - onDisconnect (sourceNodeId) => void   点击红色 × 断开该来源节点 → 本节点的连线
  *  - readOnly boolean         只读展示：去掉「点击 @插入」交互，仅显示缩略图/文字标签（含 × 断线）
  */
-export interface MaterialStripProps {
+export interface ResourceStripProps {
   images?: Array<{
     id?: string;
     label?: string;
@@ -43,13 +43,13 @@ export interface MaterialStripProps {
   readOnly?: boolean;
 }
 
-function MaterialStrip({
+function ResourceStrip({
   images = [],
   texts = [],
   onInsert,
   onDisconnect,
   readOnly = false,
-}: MaterialStripProps) {
+}: ResourceStripProps) {
   if (images.length === 0 && texts.length === 0) return null;
   return (
     <div className="flex flex-wrap gap-2 mb-1">
@@ -143,4 +143,4 @@ function MaterialStrip({
   );
 }
 
-export default React.memo(MaterialStrip);
+export default React.memo(ResourceStrip);

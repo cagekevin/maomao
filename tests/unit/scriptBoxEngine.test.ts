@@ -28,12 +28,12 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => {
   const showToast = vi.fn();
   return { showToast, toastStore: { showToast } };
 });
-vi.mock('../../src/components/base/store/assetStore.ts', () => ({
-  localizeAndStoreToLibrary: vi.fn(),
-  assetFolderOf: vi.fn(() => 'migrated/人物'),
-  sendToAssetLibrary: vi.fn(),
-  getAssets: vi.fn(() => []),
-  useAssets: vi.fn(() => []),
+vi.mock('../../src/components/base/store/resourceStore.ts', () => ({
+  localizeAndStoreToResourceLibrary: vi.fn(),
+  resourceFolderOf: vi.fn(() => 'migrated/人物'),
+  sendToResourceLibrary: vi.fn(),
+  getResources: vi.fn(() => []),
+  useResources: vi.fn(() => []),
   FOLDERS: [],
 }));
 

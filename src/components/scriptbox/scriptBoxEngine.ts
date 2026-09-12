@@ -27,7 +27,10 @@ import {
 import { chatCompletions } from '../base/api/index.ts';
 import { generateImage } from '../base/api/index.ts';
 import { resolveProviderModel, buildAllModels } from '../base/utils/providerModels.ts';
-import { localizeAndStoreToLibrary, assetFolderOf } from '../base/store/assetStore.ts';
+import {
+  localizeAndStoreToResourceLibrary,
+  resourceFolderOf,
+} from '../base/store/resourceStore.ts';
 import { uploadFileToLocal, saveResultToTasks } from '../base/api/index.ts';
 import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import { showToast } from '../base/core/toastStore.ts';
@@ -445,7 +448,7 @@ export function createScriptBoxEngine({
 
         // story 只写回用户手动输入的部分（data.story 驱动「输入剧本」textarea）：
         // 上游文本已由 useConnectedInputs 同步到 data.upstreamStory，并经第 1 步只读素材区
-        //（MaterialStrip 缩略框）展示，不应再复制进 story 造成重复。
+        //（ResourceStrip 缩略框）展示，不应再复制进 story 造成重复。
         updateData({
           genMask: false,
           story: userStory,
@@ -548,9 +551,9 @@ export function createScriptBoxEngine({
             // 显示时由系统按需出图端点（buildThumbnailUrl）出小图（与画布 AssetNode 一致）。
             let assetUrl = r.url;
             try {
-              const localized = await localizeAndStoreToLibrary(r.url, {
+              const localized = await localizeAndStoreToResourceLibrary(r.url, {
                 name: asset.name,
-                folder: assetFolderOf(asset.category),
+                folder: resourceFolderOf(asset.category),
               });
               if (localized) assetUrl = localized;
             } catch (e) {
@@ -1127,7 +1130,7 @@ export function createScriptBoxEngine({
   // 上传 / 连线（对齐官方 li / ui / ai / oi 的节点侧语义；上传素材走真素材库落盘）
   // ═══════════════════════════════════════════════════════════════
   // P0-2 真化：原实现是 setTimeout 600ms 假成功。现改为真实调素材库落盘通道
-  // （assetStore.localizeAndStoreToLibrary → /files/migrated/{人物|场景|道具}）：
+  // （resourceStore.localizeAndStoreToResourceLibrary → /files/migrated/{人物|场景|道具}）：
   //   落盘成功 → imageStatus='uploaded' + assetUrl 改写为本地化 URL；
   //   落盘失败 → imageStatus='failed' + imageError（依赖承诺，去假）。
   const onRetryAssetImageUpload = async (assetId: string) => {
@@ -1146,9 +1149,9 @@ export function createScriptBoxEngine({
     });
     logger.info('scriptBox', '素材上传·开始', { nodeId, assetId, name: asset.name });
     try {
-      const localized = await localizeAndStoreToLibrary(asset.assetUrl, {
+      const localized = await localizeAndStoreToResourceLibrary(asset.assetUrl, {
         name: asset.name,
-        folder: assetFolderOf(asset.category),
+        folder: resourceFolderOf(asset.category),
       });
       updateData({
         assets: getData().assets.map((a) =>
@@ -1211,7 +1214,7 @@ export function createScriptBoxEngine({
     });
     logger.info('scriptBox', '上传本地资产图·开始', { nodeId, assetId, name: file.name });
     try {
-      const folder = assetFolderOf(asset.category);
+      const folder = resourceFolderOf(asset.category);
       // 原始图落盘（保留可读文件名，走 multipart；与右键上传同一入口 uploadFileToLocal）
       const ext = (file.name.split('.').pop() || 'png').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
       const assetUrl = await uploadFileToLocal(
@@ -1608,7 +1611,7 @@ export function createScriptBoxEngine({
         const frameData = await cf(videoUrl, 1);
         let origUrl = frameData;
         try {
-          const localized = await localizeAndStoreToLibrary(frameData, {
+          const localized = await localizeAndStoreToResourceLibrary(frameData, {
             name: `prev-${prevShot.id}-tail`,
             folder: 'migrated/脚本/尾帧变体',
           });
@@ -1677,7 +1680,7 @@ export function createScriptBoxEngine({
           if (r.ok && r.url) {
             let cUrl = r.url;
             try {
-              const loc = await localizeAndStoreToLibrary(r.url, {
+              const loc = await localizeAndStoreToResourceLibrary(r.url, {
                 name: `prev-${prevShot.id}-composed`,
                 folder: 'migrated/脚本/尾帧变体',
               });

@@ -231,7 +231,7 @@ export function openTaskCenter() {
   setPanel({ expanded: true, activeTab: 'tasks' });
 }
 /** 自动弹出素材库（展开面板 + 切到「素材」tab），供节点「发送到素材库」后联动 */
-export function openAssetLibrary() {
+export function openResourceLibrary() {
   setPanel({ expanded: true, activeTab: 'assets' });
 }
 /** 切换面板钉住状态（钉住后点击面板外部不再自动收起） */

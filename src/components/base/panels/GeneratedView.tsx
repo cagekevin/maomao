@@ -20,7 +20,7 @@ import {
 import { showToast } from '../core/toastStore.ts';
 import { publish } from '../core/eventBus.ts';
 import {
-  useAssetCardDragProps,
+  useResourceCardDragProps,
   fetchText,
   textCache,
 } from '../../../hooks/useAssetDragToCanvas.ts';
@@ -40,7 +40,7 @@ import ImageZoomDialog from '../editors/ImageZoomDialog.tsx';
 import type { ResourceItem } from '../api/localToolApi.ts';
 import { toImgDragProps } from '../../../hooks/useAssetDragToCanvas.ts';
 
-// 类型过滤 pill（沿用素材库 AssetLibrary 的小圆按钮形式）
+// 类型过滤 pill（沿用素材库 ResourceLibrary 的小圆按钮形式）
 interface TypeFilter {
   key: string;
   label: string;
@@ -121,7 +121,7 @@ const TextPreview = React.memo(function TextPreview({ url, name }: { url: string
 /**
  * 生成 tab —— 对齐官方资源面板「生成」(generated) 视图的数据逻辑（Vr.jsx ft()/kr() + Un.jsx），
  * 过滤用本原型素材库的小圆按钮（pill）形式，点击翻页（每页 20 个，底部固定分页栏），无收藏。
- * 预览交互与素材库 AssetLibrary 一致：文字默认展示内容、图片点击大图、视频点击大图播放。
+ * 预览交互与素材库 ResourceLibrary 一致：文字默认展示内容、图片点击大图、视频点击大图播放。
  *
  * 官方逻辑（逐条对齐）：
  *  - 数据：GET /api/resources?filters={folder:{eqOrPrefix:'tasks'}}（AI 生成结果落盘 tasks 目录，rescan 收录）
@@ -299,9 +299,9 @@ function GeneratedView() {
     setFolder(parent);
   }, [folder]);
 
-  // 卡片拖拽：一套 dragstart 同时写「移动归类」+「拖到画布建节点」两套 MIME（见 useAssetCardDragProps 注释）。
+  // 卡片拖拽：一套 dragstart 同时写「移动归类」+「拖到画布建节点」两套 MIME（见 useResourceCardDragProps 注释）。
   // assetDragProps 另用于「点开大图预览」里拖图到画布。
-  const { cardDragProps, assetDragProps } = useAssetCardDragProps({
+  const { cardDragProps, assetDragProps } = useResourceCardDragProps({
     connected,
     onRefreshed: () => reset(true),
   });

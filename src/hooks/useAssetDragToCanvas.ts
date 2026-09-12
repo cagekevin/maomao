@@ -2,12 +2,12 @@ import { useCallback } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 import { httpRequest } from '../components/base/api/index.ts';
 import { LOCAL_TOOL_PING_TIMEOUT } from '../components/base/core/config.ts';
-import { useAssetMoveToFolder } from './useAssetMoveToFolder.ts';
+import { useResourceMoveToFolder } from './useResourceMoveToFolder.ts';
 import type {
-  AssetMoveItem,
-  AssetMoveToFolderOptions,
-  AssetDragSourceProps,
-} from './useAssetMoveToFolder.ts';
+  ResourceMoveItem,
+  ResourceMoveToFolderOptions,
+  ResourceDragSourceProps,
+} from './useResourceMoveToFolder.ts';
 
 /** 素材最小形状（拖到画布建节点所需字段） */
 export interface CanvasAssetLike {
@@ -21,7 +21,7 @@ export interface CanvasAssetLike {
  *
  * 【为什么收敛到这里】
  * 此前「把图片/视频/音频/文字素材拖到画布」的 onDragStart 在多个面板各写一遍：
- *  - AssetLibrary.tsx / GeneratedView.tsx（用 application/x-yimao-asset）
+ *  - ResourceLibrary.tsx / GeneratedView.tsx（用 application/x-yimao-asset）
  *  - TaskCenter.tsx（用 text/plain，格式与前者不一致）
  * 接收端统一是 useAssetDropPaste.onDrop（画布侧）。这里把发起端收敛成一份：
  *  - 统一格式：全部写 application/x-yimao-asset（带 url/name/type/text，比 text/plain 信息更全）
@@ -64,7 +64,7 @@ function assetPayload(asset: CanvasAssetLike, text?: string): string {
 export function makeAssetDragProps(
   asset: CanvasAssetLike,
   opts: { disable?: boolean } = {},
-): AssetDragSourceProps {
+): ResourceDragSourceProps {
   const dragEnabled = !opts.disable && asset && asset.url;
   return {
     draggable: dragEnabled,
@@ -94,13 +94,13 @@ export function useAssetDragToCanvas(): { assetDragProps: typeof makeAssetDragPr
  * 而 React 的 img.draggable 只接受 Booleanish，故在消费端按真值收窄。
  * React 对 draggable 一律渲染成 "true"/"false"，DOM 产物与收窄前完全一致，零行为变化。
  */
-export function toImgDragProps(props: AssetDragSourceProps) {
+export function toImgDragProps(props: ResourceDragSourceProps) {
   return { ...props, draggable: Boolean(props.draggable) };
 }
 
 /**
  * 素材卡片拖拽属性的【唯一组合点】：一次 dragstart 同时写两套 MIME。
- *  - application/x-yimao-move  → 拖到文件夹卡片上做移动归类（useAssetMoveToFolder）
+ *  - application/x-yimao-move  → 拖到文件夹卡片上做移动归类（useResourceMoveToFolder）
  *  - application/x-yimao-asset → 拖到画布上建节点（useAssetDropPaste 接收）
  *
  * 【为什么必须合并、不能二选一】
@@ -111,14 +111,14 @@ export function toImgDragProps(props: AssetDragSourceProps) {
  * 落进 uploads/web —— 于是「拖进素材库的图莫名跑到 web 目录」。
  * 画布侧已加本地 URL 兜底拦截（filesApi.downloadRemoteToLocal），这里补回来源才是根治。
  *
- * @param {{ connected: boolean, onRefreshed?: Function }} opts 透传给 useAssetMoveToFolder
+ * @param {{ connected: boolean, onRefreshed?: Function }} opts 透传给 useResourceMoveToFolder
  * @returns {{ cardDragProps: (item) => object }}
  */
-export function useAssetCardDragProps(opts: AssetMoveToFolderOptions) {
+export function useResourceCardDragProps(opts: ResourceMoveToFolderOptions) {
   const { assetDragProps } = useAssetDragToCanvas();
-  const { sourceDragProps, folderDropProps } = useAssetMoveToFolder(opts);
+  const { sourceDragProps, folderDropProps } = useResourceMoveToFolder(opts);
   const cardDragProps = useCallback(
-    (item: AssetMoveItem) => {
+    (item: ResourceMoveItem) => {
       // 文件夹卡片是「移动落点」，不是拖拽源
       if (item.type === 'folder') return folderDropProps(item);
       if (!item.url) return {};
@@ -138,5 +138,5 @@ export function useAssetCardDragProps(opts: AssetMoveToFolderOptions) {
 }
 
 // 供非 hook 场景（如纯函数封装）复用；面板一律走 useAssetDragToCanvas()/makeAssetDragProps()
-// fetchText/textCache 从本模块统一导出，替代各面板各自的副本（AssetLibrary/GeneratedView）
+// fetchText/textCache 从本模块统一导出，替代各面板各自的副本（ResourceLibrary/GeneratedView）
 export { textCache, fetchText };

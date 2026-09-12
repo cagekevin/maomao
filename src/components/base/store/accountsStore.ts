@@ -6,7 +6,7 @@
  *  - 运行端 k = !!chrome.runtime?.id；扩展端才有真实 Cookie 读写，浏览器端降级。
  *  - 数据持久化：localStorage（原型对官方 `users` KV 键 B.USERS 的替代）。
  *
- * 范式对齐 taskStore/assetStore：模块级 state + useSyncExternalStore，
+ * 范式对齐 taskStore/resourceStore：模块级 state + useSyncExternalStore，
  * 数据变更一律新引用，绝不原地修改（useSyncExternalStore 依赖引用变化触发渲染）。
  */
 import { useSyncExternalStore } from 'react';

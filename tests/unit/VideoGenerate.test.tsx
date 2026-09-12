@@ -62,8 +62,8 @@ vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({
 vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
   default: ({ children }) => children,
 }));
-// MaterialStrip：渲染可点的「插入素材」与「断开连线」按钮，透传回调
-vi.mock('../../src/components/base/panels/MaterialStrip.tsx', () => ({
+// ResourceStrip：渲染可点的「插入素材」与「断开连线」按钮，透传回调
+vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
   default: ({ onInsert, onDisconnect }) => (
     <div data-testid="material-strip">
       <button type="button" data-testid="insert" onClick={() => onInsert('素材A')}>

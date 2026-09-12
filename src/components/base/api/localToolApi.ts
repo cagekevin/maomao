@@ -23,8 +23,8 @@ import { API_BASE } from '../core/config.ts';
 
 /**
  * GET /api/resources 返回的单条资源（后端报文，字段一律可选）。
- * 素材库 AssetLibrary / 生成 GeneratedView 两个面板共用同一形状，收口在此避免两处各写一份漂移。
- * 结构上可赋值给拖拽用的 AssetMoveItem（useAssetMoveToFolder）。
+ * 素材库 ResourceLibrary / 生成 GeneratedView 两个面板共用同一形状，收口在此避免两处各写一份漂移。
+ * 结构上可赋值给拖拽用的 ResourceMoveItem（useResourceMoveToFolder）。
  */
 export interface ResourceItem {
   id: string;

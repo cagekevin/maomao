@@ -25,7 +25,7 @@ import { publish } from '../core/eventBus.ts';
 import {
   fetchText,
   textCache,
-  useAssetCardDragProps,
+  useResourceCardDragProps,
 } from '../../../hooks/useAssetDragToCanvas.ts';
 import {
   toAbsoluteFileUrl,
@@ -35,7 +35,7 @@ import {
   relativePathFromUrl,
   createFolder as createFolderApi,
 } from '../api/filesApi.ts';
-import { onAssetSent, emitAssetSent } from '../store/assetStore.ts';
+import { onResourceSent, emitResourceSent } from '../store/resourceStore.ts';
 import { logger } from '../core/logger.ts';
 import { isAudio } from '../utils/assetType.ts';
 import LazyImage from '../ui/LazyImage.tsx';
@@ -132,7 +132,7 @@ const TextPreview = React.memo(function TextPreview({ url, name }: { url: string
  * 顶部「⋯」菜单含「打开本地目录」「新建文件夹」（对齐官方素材 tab）。
  * 上传文件真实落盘到后端 /api/files/upload；删除走 /api/resources/delete。预览/拖拽建节点保留。
  */
-function AssetLibrary() {
+function ResourceLibrary() {
   const { status } = useLocalToolStatus();
   const connected = status.isConnected;
 
@@ -187,7 +187,7 @@ function AssetLibrary() {
         setTotal(d?.total || 0);
         setHasMore((d?.items || []).length < (d?.total || 0));
       } catch (e) {
-        logger.warn('AssetLibrary', '加载失败（localTool 未连？）', e?.message);
+        logger.warn('ResourceLibrary', '加载失败（localTool 未连？）', e?.message);
         if (token === resetTokenRef.current) setItems([]);
       } finally {
         if (token === resetTokenRef.current) setLoading(false);
@@ -204,9 +204,9 @@ function AssetLibrary() {
   }, [connected, currentFolder]);
 
   // 订阅「发送到素材库」成功事件：自动切到落盘目录并重新 rescan 拉取，
-  // 解决此前「点完要切目录/点别处才刷新」的体感问题（assetStore 与面板互不相通）。
+  // 解决此前「点完要切目录/点别处才刷新」的体感问题（resourceStore 与面板互不相通）。
   useEffect(() => {
-    return onAssetSent((sentFolder: string) => {
+    return onResourceSent((sentFolder: string) => {
       const target = sentFolder || 'migrated';
       setFolder(target); // 触发 currentFolder 变化 → 上面的 reset(true) 自动 rescan 刷新
     });
@@ -261,7 +261,7 @@ function AssetLibrary() {
         showToast(`已上传 ${ok} 个素材`, { type: 'success' });
         // 修复：上传后未触发 rescan → 面板不刷新、用户「看不到刚传的图」。
         // 主动广播事件，复用与链路 B 一致的「切目录 + rescan」刷新机制。
-        emitAssetSent(currentFolder);
+        emitResourceSent(currentFolder);
         reset(true); // rescan 后刷新，保证与磁盘一致
       } else {
         showToast('上传失败', { type: 'error' });
@@ -341,8 +341,8 @@ function AssetLibrary() {
     return false;
   };
 
-  // 卡片拖拽：一套 dragstart 同时写「移动归类」+「拖到画布建节点」两套 MIME（见 useAssetCardDragProps 注释）
-  const { cardDragProps, assetDragProps } = useAssetCardDragProps({
+  // 卡片拖拽：一套 dragstart 同时写「移动归类」+「拖到画布建节点」两套 MIME（见 useResourceCardDragProps 注释）
+  const { cardDragProps, assetDragProps } = useResourceCardDragProps({
     connected,
     onRefreshed: () => reset(true),
   });
@@ -695,4 +695,4 @@ function AssetLibrary() {
   );
 }
 
-export default React.memo(AssetLibrary);
+export default React.memo(ResourceLibrary);

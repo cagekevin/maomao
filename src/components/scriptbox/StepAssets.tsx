@@ -11,9 +11,9 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react';
-import { ZgPrompt, removeAsset, renameAssetRefs } from './scriptBoxPrompts.ts';
+import { ZgPrompt, removeResource, renameAssetRefs } from './scriptBoxPrompts.ts';
 import { resolveAssetTemplates } from './scriptBoxPromptResolver.ts';
-import { assetFolderOf } from '../base/store/assetStore.ts';
+import { resourceFolderOf } from '../base/store/resourceStore.ts';
 import { useOutsideClick } from '../base/core/uiHooks.ts';
 import { useRenderAssetResolver, toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
@@ -69,8 +69,8 @@ export default function StepAssets({ data, updateData, callbacks }: StepAssetsPr
   };
   // 删除资产
   const delAsset = (id) => {
-    // 联动清理逻辑收口到纯函数 removeAsset：删资产 → 各镜头文本里 @名 标记去掉（只去 @、保留名字）
-    updateData(removeAsset(assets, id, d.shots));
+    // 联动清理逻辑收口到纯函数 removeResource：删资产 → 各镜头文本里 @名 标记去掉（只去 @、保留名字）
+    updateData(removeResource(assets, id, d.shots));
   };
   // 批量生图：用选中集（未选则全部无图资产），走真批量引擎（onGenerateAllAssetImages）
   const batchGen = () => {
@@ -181,7 +181,7 @@ export default function StepAssets({ data, updateData, callbacks }: StepAssetsPr
           保证选完图一定能写进该资产并显示。 */}
       {picking !== null && assets[picking] && (
         <ScriptBoxAssetPicker
-          folder={assetFolderOf(assets[picking].category)}
+          folder={resourceFolderOf(assets[picking].category)}
           onClose={() => setPicking(null)}
           onPick={(url) => {
             if (url) {

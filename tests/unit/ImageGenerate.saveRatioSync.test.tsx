@@ -68,7 +68,7 @@ vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({
 vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
   default: ({ children }: any) => children,
 }));
-vi.mock('../../src/components/base/panels/MaterialStrip.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({ default: () => null }));
@@ -89,8 +89,10 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => ({
   showToast: vi.fn(),
   toastError: vi.fn(),
 }));
-vi.mock('../../src/components/base/store/assetStore.ts', () => ({ sendToAssetLibrary: vi.fn() }));
-vi.mock('../../src/components/base/store/taskStore.ts', () => ({ openAssetLibrary: vi.fn() }));
+vi.mock('../../src/components/base/store/resourceStore.ts', () => ({
+  sendToResourceLibrary: vi.fn(),
+}));
+vi.mock('../../src/components/base/store/taskStore.ts', () => ({ openResourceLibrary: vi.fn() }));
 vi.mock('../../src/components/base/utils/clipboard.ts', () => ({
   downloadUrl: vi.fn(),
   resolveDownloadFilename: vi.fn(),

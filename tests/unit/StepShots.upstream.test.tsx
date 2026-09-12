@@ -1,7 +1,7 @@
 /**
  * StepShots 上游接入只读素材区测试。
  *
- * 剧本盒子第 1 步（写剧本处）把连入的上游文本/图片以只读 MaterialStrip 展示在「剧情」框上方。
+ * 剧本盒子第 1 步（写剧本处）把连入的上游文本/图片以只读 ResourceStrip 展示在「剧情」框上方。
  * 断言：
  *  - 有上游接入时，只读素材区渲染且位于剧情 textarea 之前
  *  - 无上游接入时不渲染素材区
@@ -11,7 +11,7 @@ import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
-vi.mock('../../src/components/base/panels/MaterialStrip.tsx', () => ({
+vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
   default: ({ images = [], texts = [], readOnly, onDisconnect }) => (
     <div data-testid="upstream-strip" data-readonly={String(!!readOnly)}>
       <span data-testid="strip-imgs">{images.length}</span>

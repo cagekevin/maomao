@@ -62,7 +62,7 @@ NullComp.displayName = 'NullComp';
 const NodeShell = ShellPassthrough;
 const HoverToolbar = Passthrough;
 const ExpandablePanel = Passthrough;
-const MaterialStrip = Passthrough;
+const ResourceStrip = Passthrough;
 const ResizeFullscreenHandle = NullComp;
 const FullscreenModal = Passthrough;
 const GeneratingOverlay = NullComp;
@@ -206,7 +206,7 @@ export const mocks = {
   NodeShell,
   HoverToolbar,
   ExpandablePanel,
-  MaterialStrip,
+  ResourceStrip,
   ResizeFullscreenHandle,
   FullscreenModal,
   GeneratingOverlay,

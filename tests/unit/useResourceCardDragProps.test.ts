@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * useAssetCardDragProps 单测（素材卡片拖拽 · 回归护栏）。
+ * useResourceCardDragProps 单测（素材卡片拖拽 · 回归护栏）。
  *
  * 锁定 2026-08-28 的 bug：素材从素材库拖到画布后，uploads/web 里凭空多出一份重复文件。
  *
@@ -18,15 +18,18 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import type { DragEvent as ReactDragEvent } from 'react';
-import type { AssetMoveItem, FolderDropTargetProps } from '../../src/hooks/useAssetMoveToFolder.ts';
+import type {
+  ResourceMoveItem,
+  FolderDropTargetProps,
+} from '../../src/hooks/useResourceMoveToFolder.ts';
 
-const { useAssetCardDragProps } = await import('../../src/hooks/useAssetDragToCanvas.ts');
+const { useResourceCardDragProps } = await import('../../src/hooks/useAssetDragToCanvas.ts');
 
 // cardDragProps 返回联合类型：image 卡片分支含 draggable/onDragStart，文件夹分支是 FolderDropTargetProps。
 // 测试按 item.type 分流，故分别收口到精确分支类型，避免 any。
 type ImageCardProps = { draggable: boolean; onDragStart: (e: ReactDragEvent) => void };
 
-const ASSET: AssetMoveItem = {
+const ASSET: ResourceMoveItem = {
   url: 'http://127.0.0.1:18080/files/migrated/道具/a.png',
   name: 'a.png',
   type: 'image',
@@ -48,12 +51,12 @@ function fakeDataTransfer() {
 
 function renderCardProps() {
   const { result } = renderHook(() =>
-    useAssetCardDragProps({ connected: true, onRefreshed: () => {} }),
+    useResourceCardDragProps({ connected: true, onRefreshed: () => {} }),
   );
   return result.current;
 }
 
-describe('useAssetCardDragProps — 文件卡片', () => {
+describe('useResourceCardDragProps — 文件卡片', () => {
   it('可拖拽，且一次 dragstart 同时写「移动归类」与「拖到画布」两套 MIME', () => {
     const { cardDragProps } = renderCardProps();
     // ASSET 是 image 卡片，收口到含 draggable/onDragStart 的分支类型
@@ -86,7 +89,7 @@ describe('useAssetCardDragProps — 文件卡片', () => {
   });
 });
 
-describe('useAssetCardDragProps — 文件夹卡片', () => {
+describe('useResourceCardDragProps — 文件夹卡片', () => {
   it('作为移动落点：不给 draggable，只给 drop/dragOver 承接', () => {
     const { cardDragProps } = renderCardProps();
     const props = cardDragProps({

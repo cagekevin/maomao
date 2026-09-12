@@ -19,7 +19,7 @@ import {
   createNewShot,
   removeShot,
   applyTailFrameSelection,
-  removeAsset,
+  removeResource,
   renameAssetRefs,
   formatLineBreaks,
   parseShotSeconds,
@@ -202,22 +202,22 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
     expect(applyTailFrameSelection([{ id: 1 }], 999, {}, true)).toBe(null);
   });
 
-  it('removeAsset：删资产 → 各镜头文本 @名 去标记（保留名字文字），pickedCount 重算', () => {
+  it('removeResource：删资产 → 各镜头文本 @名 去标记（保留名字文字），pickedCount 重算', () => {
     const assets = [
       { id: 'a1', name: '森林', picked: true },
       { id: 'a2', name: '小红帽', picked: false },
     ];
     const shots = [{ description: '@森林 深处 @小红帽 走进' }, { description: '无引用' }];
-    const patch = removeAsset(assets, 'a1', shots);
+    const patch = removeResource(assets, 'a1', shots);
     expect(patch.assets.map((a) => a.id)).toEqual(['a2']);
     expect(patch.pickedCount).toBe(0);
     expect(patch.shots[0].description).toBe('森林 深处 @小红帽 走进'); // @森林 去 @，@小红帽 保留
     expect(patch.shots[1].description).toBe('无引用');
   });
 
-  it('removeAsset：无 name 资产（空壳）删除时不改镜头', () => {
+  it('removeResource：无 name 资产（空壳）删除时不改镜头', () => {
     const assets = [{ id: 'a1' }];
-    const patch = removeAsset(assets, 'a1', [{ description: '@x' }]);
+    const patch = removeResource(assets, 'a1', [{ description: '@x' }]);
     expect(patch.shots).toBeUndefined();
   });
 

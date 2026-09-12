@@ -39,8 +39,8 @@ vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({
 }));
 vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({ default: mocks.ModelSelect }));
 vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: mocks.PromptInput }));
-vi.mock('../../src/components/base/panels/MaterialStrip.tsx', () => ({
-  default: mocks.MaterialStrip,
+vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
+  default: mocks.ResourceStrip,
 }));
 vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({
   default: mocks.ResizeFullscreenHandle,
