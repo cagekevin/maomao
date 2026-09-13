@@ -246,6 +246,55 @@ export async function readVideoMetadata(blob: Blob): Promise<VideoMetadata> {
 }
 
 /**
+ * 媒体**探测**结果（用于「这个素材能不能用、多长、多大」）。
+ *
+ * 与 `readVideoMetadata` 的区别（**不是同一件事的两份实现**）：
+ *  - `readVideoMetadata` 是**元数据读取器**：要求必须有视频轨（纯音频会抛），失败靠抛；
+ *  - 本函数是**探测**：三态可判别（`ok` / `failed` + 原因）、**纯音频也认**、**不抛**。
+ *    调用方（素材入轨 / 断链判定）需要的是「能不能读 + 多长」，而不是「读不到就炸」。
+ */
+export type MediaProbe =
+  | { status: 'ok'; width?: number; height?: number; duration: number }
+  | { status: 'failed'; reason: string };
+
+/**
+ * 探测一个媒体文件（视频 / 音频）的可读性、时长与尺寸。
+ *
+ * 图片不走这里（浏览器侧 `createImageBitmap` 即可，且没有「时长」概念）；
+ * 由调用方按素材类别分流。
+ */
+export async function probeMediaTrack(blob: Blob): Promise<MediaProbe> {
+  let input: Input;
+  try {
+    input = await xc(blob);
+  } catch (e) {
+    return { status: 'failed', reason: e instanceof Error ? e.message : '无法打开媒体文件' };
+  }
+  try {
+    if (!(await input.canRead())) return { status: 'failed', reason: '无法识别媒体格式' };
+    const raw = (await input.getDurationFromMetadata()) ?? (await input.computeDuration());
+    const duration = Number.isFinite(raw) ? raw : 0;
+
+    const video = await input.getPrimaryVideoTrack();
+    if (video) {
+      return {
+        status: 'ok',
+        width: await video.getDisplayWidth(),
+        height: await video.getDisplayHeight(),
+        duration,
+      };
+    }
+    const audio = await input.getPrimaryAudioTrack();
+    if (audio) return { status: 'ok', duration };
+    return { status: 'failed', reason: '文件里没有可用的视频或音频轨' };
+  } catch (e) {
+    return { status: 'failed', reason: e instanceof Error ? e.message : '媒体探测失败' };
+  } finally {
+    input.dispose();
+  }
+}
+
+/**
  * 单输入处理（官方 Dc）：trim / extractAudio / sizeFrameRate。
  * @param {Blob} blob 输入视频
  * @param {object} t { mode, start, end, format, width, height, fps, controller, onProgress }

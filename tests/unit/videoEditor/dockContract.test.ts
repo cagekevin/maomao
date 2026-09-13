@@ -45,3 +45,63 @@ describe('键盘归属判据单点（docs/123 §二.6 G-3）', () => {
     expect(code).not.toMatch(/key\s*===\s*'Delete'/);
   });
 });
+
+/* ────────────────────────────────────────────────────────────────
+ * G5：入轨 / 导出 / 断链 的**结构性守卫**
+ *
+ * 这几条是「一旦被绕过，功能看起来还在、但判据已经分叉」的那类退化 ——
+ * 人工点一遍发现不了（导出照样出片），所以必须机器守。
+ * ──────────────────────────────────────────────────────────────── */
+
+describe('导出必须经唯一入口（docs/120 C5.1：判路只准有一次）', () => {
+  it('基座不得直调导出实现（exportLossless / exportComposite）', () => {
+    // 直调 = 在基座里自判「走哪条路」，于是出现「常驻信息说走直通、实际走了合成」
+    expect(code).not.toContain('exportLossless');
+    expect(code).not.toContain('exportComposite');
+  });
+
+  it('基座不得自己判「要不要合成」（needsCompositing 只准在 pipeline 里被消费）', () => {
+    expect(code).not.toContain('needsCompositing');
+  });
+
+  it('导出走 runExport（唯一入口），路径与原因来自 planExport（常驻展示用）', () => {
+    expect(code).toContain('runExport');
+    expect(code).toContain('planExport');
+  });
+});
+
+describe('C11.5 激活门：折叠态点选不留痕', () => {
+  it('入轨 effect 里有「未展开即返回」的门（少它 = 折叠态点两下就静默塞片段）', () => {
+    // 门必须在 enqueue 之前：`if (!open) return;`
+    const gate = code.indexOf('if (!open) return;');
+    expect(gate).toBeGreaterThan(-1);
+    expect(code.indexOf('enqueue(')).toBeGreaterThan(gate);
+  });
+
+  it('入轨用「选中集内容签名」驱动（不订阅逐帧坐标 —— 拖动不该触发入轨）', () => {
+    // 复用 base/canvas 既有原语；自己写一份选中 diff 就是第二个判据
+    expect(code).toContain('selectedAssetSig');
+    expect(code).toContain('deriveSelectedAssets');
+  });
+});
+
+describe('C4.5 挂载硬断言（provider 上下文缺失必须立刻炸）', () => {
+  it('挂载期断言 ReactFlowProvider 上下文（缺失时导出回写会静默失败）', () => {
+    expect(code).toContain('useReactFlow');
+    expect(code).toContain('throw new Error');
+    expect(code).toContain('ReactFlowProvider');
+  });
+});
+
+describe('C13 断链是持续状态（红标），不是一次性提示', () => {
+  it('片段按素材状态上红标（不是靠 toast 一闪而过）', () => {
+    expect(code).toContain('broken');
+    expect(code).toContain('bg-danger');
+  });
+});
+
+describe('C5.6 导出前信息常驻', () => {
+  it('有一条常驻信息行（路径 / 工程参数 / 黑边 / 音频出口）', () => {
+    expect(code).toContain('data-export-info');
+  });
+});

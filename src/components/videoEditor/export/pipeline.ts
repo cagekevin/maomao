@@ -248,10 +248,19 @@ async function runDirect(
   callbacks: ExportCallbacks,
   signal?: AbortSignal,
 ): Promise<ExportArtifact> {
+  // 【只取**主轨**的片段】直通拼的是「一条视频流」。`request.sources` 是「参与导出的全部片段」
+  // （合成路要按它解析所有素材），若照单搬运，音频轨上的片段会被当成视频段塞进同一条流。
+  // 主轨判据 = `!overlay`，与 `core/types.ts` 的轨道二分同源，不另立判断。
+  const onlySource = new Map(request.sources.map((s) => [s.clip.id, s.url]));
+  const mainClips = request.project.tracks.filter((t) => !t.overlay).flatMap((t) => t.clips);
+
   // 同一素材被多个片段使用时只取一次字节（素材复用是常态，见 `docs/120` C11.4）。
   const blobs = new Map<string, Blob>();
   const segments: LosslessSegment[] = [];
-  for (const { clip, url } of request.sources) {
+  for (const clip of mainClips) {
+    const url = onlySource.get(clip.id);
+    // 不在这份清单里 = 调用方已按 C13 让用户选择跳过（`sources` 即「参与导出的片段」）
+    if (url === undefined) continue;
     let blob = blobs.get(url);
     if (!blob) {
       blob = await ports.fetchBlob(url);
@@ -264,6 +273,7 @@ async function runDirect(
       label: clip.name ?? clip.id,
     });
   }
+  if (segments.length === 0) throw new Error('主轨上没有可直通的片段');
 
   callbacks.onStage?.('video');
   const result = await ports.lossless(segments, {
