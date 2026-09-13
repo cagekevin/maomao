@@ -194,6 +194,117 @@ export function drawVideoFrame(
   });
 }
 
+/** `buildFilmstrip` 入参。 */
+export interface FilmstripOptions {
+  /**
+   * 源素材时长（秒）。
+   *
+   * **必传**（不从元素现读）：调用方（剪辑器）本来就知道它 —— 它正是「这个片段有多长」的同一件事实。
+   * 让本函数再读一次 = 同一事实第二个来源，且两者不一致时无法判断谁对。
+   */
+  duration: number;
+  /** 每张缩略图的**显示高度**（px）。胶片条的真高 = 它（C11.10c：由行高派生，禁写死）。 */
+  frameHeight: number;
+  /** 抽几帧（≥1）。**固定值**而不是"按片段宽度算"—— 见文件头「为什么一条一起抽」。 */
+  frames?: number;
+  /** 每帧最长边上限（默认 160）—— 胶片条是**缩略**，不是原图。 */
+  maxFrameSize?: number;
+  /** JPEG 质量（默认 0.6）。 */
+  quality?: number;
+  /** 取消信号：宿主卸载 / 换素材时别继续抽。 */
+  signal?: AbortSignal;
+}
+
+/** 一条横向胶片（`docs/120` C11.10 的「一次抽帧拼成一条横向胶片 jpg」）。 */
+export interface Filmstrip {
+  blob: Blob;
+  /** 实际帧数（可能少于请求数：源太短 / 个别帧抽失败）。 */
+  frameCount: number;
+  /** 整条的画布尺寸（px）。 */
+  width: number;
+  height: number;
+}
+
+/**
+ * 宿主薄包装 ⑥：把一条素材**一次抽 N 帧拼成一条横向胶片**（`docs/120` C11.10 规定的形态）。
+ *
+ * ── 为什么是「一条」而不是「N 张图」 ──
+ * C11.10 是性能红线：时间轴上每个片段各挂一个真 `<video>`（或各挂 N 张 `<img>`）会让
+ * 解码线程争用、滚动卡顿、内存上涨。正确形态 = **一条图**，片段用 CSS `background` 按
+ * 「源区间 → 图内区间」映射显示（**裁剪即所见**，映射的数学在调用方，见 `filmstripBackground`）。
+ *
+ * ── 为什么一个 `<video>` 抽 N 帧（而不是 N 次 `captureFrame`）──
+ * `captureFrame` 每次调用都新建元素 + 重新加载整条素材；N 帧就是 N 次加载。
+ * 本函数复用**同一个**元素、只反复 seek ⇒ 一次加载 N 帧。这正是 ⑤ 的模式
+ * （`drawVideoFrame(video, { waitForLoad: false })`）：首帧等 `loadeddata`，其后直接 seek。
+ *
+ * ── 它的落点为什么还是这里（而不是某个域的宿主）──
+ * 它不是「某个域怎么显示缩略图」，而是**抽帧能力的第二种输出形态**（拼成一条）。
+ * 放在这里，`drawVideoFrame` 依旧是「seek + drawImage」的**唯一**实现，本函数只是它的组合用法。
+ */
+export async function buildFilmstrip(url: string, options: FilmstripOptions): Promise<Filmstrip> {
+  const { duration, frameHeight, frames = 8, maxFrameSize = 160, quality = 0.6, signal } = options;
+  const count = Math.max(1, Math.floor(frames));
+  const height = Math.max(1, Math.round(frameHeight));
+
+  const video = document.createElement('video');
+  video.crossOrigin = 'anonymous';
+  video.preload = 'auto';
+  video.muted = true;
+  video.playsInline = true;
+  video.src = url;
+  const release = () => {
+    video.removeAttribute('src');
+    try {
+      video.load();
+    } catch {} // catch-ok: 释放 src 失败不阻断已抽到的结果
+  };
+
+  try {
+    const shots: HTMLCanvasElement[] = [];
+    for (let i = 0; i < count; i++) {
+      if (signal?.aborted) break;
+      // 取每格**中点**：格首/格尾常在镜切处，中点更能代表这一格（也是 ① 的取法）
+      const at = Math.max(0, duration * ((i + 0.5) / count));
+      const shot = await drawVideoFrame(video, {
+        atTime: Math.min(at, Math.max(0, (duration || at) - 0.01)),
+        maxSize: maxFrameSize,
+        // 首帧等 loadeddata（元素刚建）；其后视频已在内存里，不能再等一个不会再触发的事件
+        waitForLoad: i === 0,
+      });
+      shots.push(shot);
+    }
+    if (shots.length === 0) throw new Error('buildFilmstrip: 一帧都没抽到');
+
+    // 等高拼接：每张按自身宽高比缩到 height，宽度随之
+    const widths = shots.map((s) =>
+      Math.max(1, Math.round((s.width * height) / Math.max(1, s.height))),
+    );
+    const total = widths.reduce((sum, w) => sum + w, 0);
+    const sheet = document.createElement('canvas');
+    sheet.width = total;
+    sheet.height = height;
+    const ctx = sheet.getContext('2d');
+    if (!ctx) throw new Error(DEFAULT_FRAME_ERRORS.context);
+    let x = 0;
+    for (let i = 0; i < shots.length; i++) {
+      ctx.drawImage(shots[i], x, 0, widths[i], height);
+      x += widths[i];
+    }
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      sheet.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error('buildFilmstrip: toBlob null'))),
+        'image/jpeg',
+        quality,
+      );
+    });
+    return { blob, frameCount: shots.length, width: total, height };
+  } finally {
+    release();
+  }
+}
+
 /**
  * 宿主薄包装 ①：URL → seek → drawImage → JPEG `Blob`（原 `nodes/VideoProcessNode.tsx` 本地 `captureFrame` 下沉）。
  * 消费方：时间线胶片条抽缩略图；视频剪辑器可直接复用。

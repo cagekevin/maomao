@@ -19,7 +19,15 @@
  * 缩略图胶片条（C11.10）/ 真实波形（C11.7b）/ 走带出声（C11.7）/ 拖拽调长度（§0.4 粗档）/
  * 吸附（`snapTime` 已就位，但**没有拖拽消费方**）/ 带原声视频的 🔊 角标（C4.7 配套）。
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { useReactFlow, useStore, type Node } from '@xyflow/react';
 import {
   ChevronDown,
@@ -78,10 +86,26 @@ import {
   readSourceBlob,
   useEditorSources,
 } from '../../hooks/useEditorSources.ts';
+import { useEditorFilmstrips } from '../../hooks/useEditorFilmstrips.ts';
+import { filmstripBackground } from './filmstripView.ts';
 import { useEditorProject } from './useEditorProject.ts';
 
 /** 基座时间轴的固定缩放（像素/秒）。缩放交互属后续加粗功能；这里过 `clampZoom` 走同一取值域。 */
 const DOCK_PPS = clampZoom(40);
+
+/**
+ * 轨道行高与片段内部件高度（**单一出处**）。
+ *
+ * `docs/120` C11.10c 红线：「胶片条 / 波形占剩余高度并**随之缩放**」「禁止写死像素」。
+ * 三者由行高**派生**，于是 C7.5（轨道高度可调）只需改 `ROW_HEIGHT` 一处。
+ */
+const ROW_HEIGHT = 48;
+/** 片段名条高度（C11.10b：名字**不压在缩略图上**，独立一条窄条）。 */
+const CLIP_NAME_BAR = 16;
+/** 片段在行内的上下边距（`inset-y-1` = 4px ×2）。 */
+const CLIP_INSET = 4;
+/** 胶片条 / 波形可用高度 = 行高 − 上下边距 − 名条。 */
+const CLIP_STRIP_HEIGHT = ROW_HEIGHT - CLIP_INSET * 2 - CLIP_NAME_BAR;
 
 /** 导出产物的节点尺寸（与 `VideoProcessNode` 的产物同款，C4.8「同型」）。 */
 const EXPORT_NODE_STYLE = { width: 420, height: 380 };
@@ -149,6 +173,36 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
     }
     return ids;
   }, [sources.byClipId]);
+
+  /* ── 胶片条（`docs/120` C11.10）：**一条图**共享给所有同源片段，片段按源区间映射显示 ── */
+
+  const stripEntries = useMemo(
+    () =>
+      allClips
+        .map((clip) => {
+          const state = sources.byClipId.get(clip.id);
+          if (clip.kind !== 'video' || state?.resolved.status !== 'ok') return null;
+          return { url: state.resolved.url, duration: state.duration ?? 0 };
+        })
+        .filter((e): e is { url: string; duration: number } => e !== null),
+    [allClips, sources.byClipId],
+  );
+  const strips = useEditorFilmstrips(stripEntries, CLIP_STRIP_HEIGHT);
+
+  /** 片段 → 画面上该显示什么（胶片条 / 图片本体 / 都没有）。 */
+  const visuals = useMemo(() => {
+    const map = new Map<string, ClipVisual>();
+    for (const clip of allClips) {
+      const state = sources.byClipId.get(clip.id);
+      if (!state || state.resolved.status !== 'ok') continue;
+      map.set(clip.id, {
+        url: state.resolved.url,
+        sourceDuration: state.duration ?? clipDuration(clip),
+        stripUrl: strips.get(state.resolved.url),
+      });
+    }
+    return map;
+  }, [allClips, sources.byClipId, strips]);
 
   /* ════════════════════════════════════════════════════════════════
    * C11 · 入轨：在画布上点选素材节点 → 追加到对应类型轨尾
@@ -634,6 +688,7 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
             track={track}
             selectedClipId={selectedClipId}
             brokenIds={brokenIds}
+            visuals={visuals}
             onSelectClip={setSelectedClipId}
             onToggle={(patch) =>
               store.applyTracks((tracks) =>
@@ -660,6 +715,41 @@ const EMPTY_CLIPS: Clip[] = [];
 
 /** 探测画像的窄类型（`MediaProfile` 的形状；此处不自造新类型，只做局部别名便于可空收窄）。 */
 type ClipProfile = { width?: number; height?: number; mimeType?: string };
+
+/** 片段在时间轴上的画面素材（胶片条 / 图片本体）。 */
+interface ClipVisual {
+  url: string;
+  sourceDuration: number;
+  stripUrl?: string;
+}
+
+/**
+ * 片段「画面区」的 CSS。
+ *
+ * 三种素材三种处理，且都**不是「随便找个图填上」**：
+ *  · 视频片段：用**共享的那一条**胶片图 + `filmstripBackground` 映射到本片段取用的源区间（裁剪即所见，C11.10）；
+ *  · 图片片段：没有时间维度，直接显示素材本体（`contain`，**不裁切** —— C11.10 明确不要 `object-cover`）；
+ *  · 其余（胶片条还没抽出来 / 音频轨）：**留空**。
+ *
+ * 【为什么宁可留空也不填占位图案】C11.7b 的原话：「用固定图案冒充波形会被读成真实音量，属于撒谎」。
+ * 同理，给视频填一张假缩略图会被读成「这一镜就是这个画面」—— 空着至少是诚实的「还没抽出来」。
+ */
+function clipStripStyle(clip: Clip, visual: ClipVisual | undefined): CSSProperties {
+  if (clip.kind === 'image' && visual) {
+    return {
+      backgroundImage: `url(${visual.url})`,
+      backgroundSize: 'contain',
+      backgroundPosition: 'center',
+    };
+  }
+  if (clip.kind === 'video' && visual?.stripUrl) {
+    return {
+      backgroundImage: `url(${visual.stripUrl})`,
+      ...filmstripBackground(clip, visual.sourceDuration),
+    };
+  }
+  return {};
+}
 
 /** 工带按钮：不可用时**置灰 + tooltip 说明为什么**（`docs/123` §一.5 O3：不可用状态 ≠ 刚发生的动作）。 */
 function DockAction({
@@ -696,12 +786,14 @@ function TrackRow({
   track,
   selectedClipId,
   brokenIds,
+  visuals,
   onSelectClip,
   onToggle,
 }: {
   track: Track;
   selectedClipId: string | null;
   brokenIds: Set<string>;
+  visuals: ReadonlyMap<string, ClipVisual>;
   onSelectClip: (id: string) => void;
   onToggle: (patch: Partial<Pick<Track, 'locked' | 'hidden' | 'muted'>>) => void;
 }) {
@@ -735,18 +827,20 @@ function TrackRow({
         </button>
       </div>
 
-      <div className="relative flex-1 h-10 min-w-full">
+      <div className="relative flex-1 min-w-full" style={{ height: ROW_HEIGHT }}>
         {track.clips.map((clip) => {
           const broken = brokenIds.has(clip.id);
+          const visual = visuals.get(clip.id);
           return (
-            <button
+            <div
               key={clip.id}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={(e) => {
                 e.stopPropagation();
                 onSelectClip(clip.id);
               }}
-              className={`absolute top-1 bottom-1 rounded border text-[11px] truncate px-1 text-left ${
+              className={`absolute flex flex-col overflow-hidden rounded border cursor-pointer ${
                 broken
                   ? 'border-danger bg-danger/30 text-danger'
                   : selectedClipId === clip.id
@@ -756,6 +850,8 @@ function TrackRow({
               style={{
                 left: timeToX(clip.timelineStart, DOCK_PPS, 0),
                 width: Math.max(2, timeDeltaToPx(clipDuration(clip), DOCK_PPS)),
+                top: CLIP_INSET,
+                bottom: CLIP_INSET,
               }}
               // C13：断链是**持续状态**（红标 + 原因），不是一次性 toast
               title={
@@ -764,8 +860,20 @@ function TrackRow({
                   : `${clip.name ?? clip.id} · ${clipDuration(clip).toFixed(2)}s`
               }
             >
-              {clip.name ?? clip.kind}
-            </button>
+              {/* C11.10b：素材名**不压在缩略图上** —— 独立的顶部窄条（高度写死由 C11.10c 禁，故用常量） */}
+              <span
+                className="shrink-0 truncate px-1 text-[10px] leading-4 bg-surface-panel"
+                style={{ height: CLIP_NAME_BAR }}
+              >
+                {clip.name ?? clip.kind}
+              </span>
+              {/* 胶片条 / 图片本体占剩余高度并随之缩放（C11.10c） */}
+              <span
+                className="min-h-0 flex-1 bg-no-repeat"
+                style={clipStripStyle(clip, visual)}
+                data-clip-strip
+              />
+            </div>
           );
         })}
       </div>
