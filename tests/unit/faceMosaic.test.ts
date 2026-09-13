@@ -57,10 +57,12 @@ function makeCtx() {
 function installOffscreenCanvasSpy() {
   const offscreen = makeCtx();
   const original = document.createElement.bind(document);
-  return vi.spyOn(document, 'createElement').mockImplementation((tag) => {
-    if (tag === 'canvas') return { width: 0, height: 0, getContext: () => offscreen };
+  return vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
+    if (tag === 'canvas') {
+      return { width: 0, height: 0, getContext: () => offscreen } as unknown as HTMLCanvasElement;
+    }
     return original(tag);
-  });
+  }) as unknown as typeof document.createElement);
 }
 
 const SRC = { width: 100, height: 100 } as unknown as CanvasImageSource;

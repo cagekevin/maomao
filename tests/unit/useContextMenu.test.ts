@@ -10,6 +10,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
+import type { Node } from '@xyflow/react';
 
 const { useContextMenu } = await import('../../src/hooks/useContextMenu.ts');
 
@@ -33,7 +34,7 @@ function makeEvent({
 }
 
 describe('useContextMenu', () => {
-  let hook;
+  let hook: { current: ReturnType<typeof useContextMenu> };
   beforeEach(() => {
     const r = renderHook(() => useContextMenu());
     hook = r.result;
@@ -47,17 +48,17 @@ describe('useContextMenu', () => {
     const e = makeEvent();
     act(() => hook.current.onPaneContextMenu(e));
     expect(hook.current.state).not.toBeNull();
-    expect(hook.current.state.type).toBe('canvas');
-    expect(hook.current.state.nodeId).toBeUndefined();
+    expect(hook.current.state!.type).toBe('canvas');
+    expect(hook.current.state!.nodeId).toBeUndefined();
     expect(e.preventDefault).toHaveBeenCalled();
     expect(e.stopPropagation).toHaveBeenCalled();
   });
 
   it('onNodeContextMenu → node 菜单带 nodeId', () => {
     const e = makeEvent();
-    act(() => hook.current.onNodeContextMenu(e, { id: 'n1' }));
-    expect(hook.current.state.type).toBe('node');
-    expect(hook.current.state.nodeId).toBe('n1');
+    act(() => hook.current.onNodeContextMenu(e, { id: 'n1' } as unknown as Node));
+    expect(hook.current.state!.type).toBe('node');
+    expect(hook.current.state!.nodeId).toBe('n1');
   });
 
   it('onPaneClick / close → 关闭', () => {

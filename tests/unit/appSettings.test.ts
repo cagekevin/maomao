@@ -79,7 +79,7 @@ describe('appSettings 读写（key 受 SettingKey 约束，值类型随 key 收�
     // 关闭后清除
     setSetting('debugOn', false);
     expect(globalThis.window.__DEBUG_ALL).toBe(false);
-    if (prevWindow === undefined) delete globalThis.window;
+    if (prevWindow === undefined) delete (globalThis as { window?: unknown }).window;
     else globalThis.window = prevWindow;
   });
 

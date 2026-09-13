@@ -32,9 +32,9 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => ({
 // 补全 subscribe/subscribeOnce（taskStore 等模块顶层会 subscribe，缺则崩）；返回 no-op unsubscribe
 vi.mock('../../src/components/base/core/eventBus.ts', () => ({
   publish: mocks.publish,
-  subscribe: mocks.subscribe ?? (() => () => {}),
-  subscribeOnce: mocks.subscribeOnce ?? (() => () => {}),
-  clearEvent: mocks.clearEvent ?? (() => {}),
+  subscribe: (mocks as any).subscribe ?? (() => () => {}),
+  subscribeOnce: (mocks as any).subscribeOnce ?? (() => () => {}),
+  clearEvent: (mocks as any).clearEvent ?? (() => {}),
 }));
 vi.mock('../../src/components/base/utils/asyncGuard.ts', () => ({
   withTimeout: mocks.withTimeout,
@@ -138,7 +138,7 @@ describe('VideoProcessNode — 视频来源', () => {
 describe('VideoProcessNode — 校验与错误态', () => {
   it('无视频时 trim 模式「开始处理」禁用（不可点）', () => {
     setup();
-    const btn = screen.getByText('开始处理').closest('button');
+    const btn = screen.getByText('开始处理').closest('button')!;
     expect(btn).toBeTruthy();
     expect(btn.disabled).toBe(true);
   });

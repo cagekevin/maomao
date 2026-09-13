@@ -13,7 +13,21 @@ import {
   getResources,
   flushPersist,
   safeResourceBase,
+  mergeResourcesFromBackend,
+  sendToResourceLibrary,
 } from '../../src/components/base/store/resourceStore.ts';
+import { saveInlineToLocal } from '../../src/components/base/api/filesApi.ts';
+import { rescanResources } from '../../src/components/base/api/localToolApi.ts';
+
+// ── TD-12-2：落盘链隔离（sendToResourceLibrary 会异步调 filesApi + rescanResources）──
+vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+  saveInlineToLocal: vi.fn(async () => 'http://127.0.0.1:18080/files/migrated/recon.png'),
+  uploadFileToLocal: vi.fn(async () => 'http://127.0.0.1:18080/files/migrated/recon.png'),
+  EXT_BY_TYPE: { image: 'png', video: 'mp4', audio: 'mp3', text: 'txt' },
+}));
+vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
+  rescanResources: vi.fn(async () => ({ ok: true })),
+}));
 
 const STORAGE_KEY = 'yimao:yimao_asset_library'; // storageAdapter 对键加 yimao: 前缀
 
@@ -115,6 +129,30 @@ describe('素材库数据层 §2.18', () => {
     expect(resourcesOfProject(list, 'p2').map((r) => r.id)).toEqual(['a', 'c']);
     expect(resourcesOfProject(list, 'px').map((r) => r.id)).toEqual(['a']); // 未知项目只见 legacy
   });
+
+  // ── TD-12-5：项目隔离写入链（buildResourceRecord 透传 projectId）──
+
+  it('TD-12-5·buildResourceRecord 透传 projectId（此前静默丢弃 → 隔离失效）', () => {
+    const rec = buildResourceRecord({ url: '/files/a.png', projectId: 'p1' }, 'migrated', 1);
+    expect(rec.projectId).toBe('p1');
+  });
+
+  it('TD-12-5·buildResourceRecord 无 projectId 时为 undefined（legacy，全项目可见）', () => {
+    const rec = buildResourceRecord({ url: '/files/a.png' }, 'migrated', 1);
+    expect(rec.projectId).toBeUndefined();
+  });
+
+  it('TD-12-5·登记带 projectId → 经 contentId 同源过滤对本项目可见、对它项目不可见', () => {
+    clearResources();
+    const added = addResources(
+      [{ url: '/files/a.png', projectId: 'p1', type: 'image' }],
+      'migrated',
+    );
+    const list = getResources();
+    expect(list.find((r) => r.id === added[0].id)?.projectId).toBe('p1');
+    expect(resourcesOfProject(list, 'p1').some((r) => r.id === added[0].id)).toBe(true);
+    expect(resourcesOfProject(list, 'p2').some((r) => r.id === added[0].id)).toBe(false);
+  });
 });
 
 describe('resourceStore P4 落盘节流', () => {
@@ -136,7 +174,7 @@ describe('resourceStore P4 落盘节流', () => {
     removeResource(getResources()[0].id);
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     vi.advanceTimersByTime(300);
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
     expect(Array.isArray(saved)).toBe(true);
     // 窗口内 3 次变更合并为最终态：加了 2 个、删了 1 个 → 只剩 1 个
     expect(saved).toHaveLength(1);
@@ -148,7 +186,7 @@ describe('resourceStore P4 落盘节流', () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     flushPersist();
     expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull();
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
     expect(saved).toHaveLength(1);
   });
 
@@ -182,5 +220,89 @@ describe('safeResourceBase（发送到素材库落盘文件名安全化）', () 
     expect(safeResourceBase('')).toBe('asset');
     expect(safeResourceBase('   ')).toBe('asset');
     expect(safeResourceBase()).toBe('asset');
+  });
+});
+
+// ── 【TD-12-2】双注册表残留收口：占位项与后端项按 url 归并（消除「同一素材并存两行」）──
+describe('TD-12-2 占位项与后端项按 url 归并', () => {
+  it('合并：同 url 的本地占位项（随机 id）被后端项替换，不再并存两行', () => {
+    clearResources();
+    const localUrl = 'http://127.0.0.1:18080/files/migrated/a.png';
+    addResources([{ url: localUrl, name: '猫' }], 'migrated');
+    expect(getResources()).toHaveLength(1); // 本地占位项（随机 id、无 contentId）
+
+    mergeResourcesFromBackend([
+      {
+        id: 'local-migrated-a.png',
+        url: localUrl,
+        folder: 'migrated',
+        name: 'a.png',
+        type: 'image',
+        contentId: 'sha1:abc',
+      },
+    ] as never);
+
+    const list = getResources();
+    expect(list).toHaveLength(1); // 改前 = 2 行（随机 id 与后端路径 id 永不相交）
+    expect(list[0].id).toBe('local-migrated-a.png'); // 以后端身份为准
+    expect(list[0].contentId).toBe('sha1:abc');
+  });
+
+  it('不误删：url 不同的本地项照常保留', () => {
+    clearResources();
+    addResources([{ url: '/files/keep.png', name: '保留' }], 'migrated');
+    mergeResourcesFromBackend([
+      {
+        id: 'local-migrated-other.png',
+        url: '/files/other.png',
+        folder: 'migrated',
+        name: 'other.png',
+        type: 'image',
+      },
+    ] as never);
+    expect(
+      getResources()
+        .map((r) => r.url)
+        .sort(),
+    ).toEqual(['/files/keep.png', '/files/other.png']);
+  });
+
+  it('sendToResourceLibrary 落盘成功后把占位项 url 校正为后端持久 url', async () => {
+    clearResources();
+    sendToResourceLibrary('data:image/png;base64,AAAA', { name: '猫', folder: 'migrated' });
+    // 立即：占位项 url 仍是原始 data:（改前会一直如此 → 合并时与后端项 url 不同 → 永久两行）
+    expect(String(getResources()[0].url).startsWith('data:')).toBe(true);
+    // 落盘为异步：等微任务推进后应被校正为后端持久 url
+    for (let i = 0; i < 12 && String(getResources()[0].url).startsWith('data:'); i++) {
+      await Promise.resolve();
+    }
+    expect(getResources()[0].url).toBe('http://127.0.0.1:18080/files/migrated/recon.png');
+  });
+
+  // ── 判别联合契约（TD-12-2 · Step 4）：落盘失败 ≠ 重扫失败，各自语义独立 ──
+
+  it('落盘接口返回空（失败）→ 占位项保留原 url，不校正（禁假成功）', async () => {
+    clearResources();
+    vi.mocked(saveInlineToLocal).mockResolvedValueOnce(null);
+    sendToResourceLibrary('data:image/png;base64,BBBB', { name: '狗', folder: 'migrated' });
+    for (let i = 0; i < 12; i++) await Promise.resolve();
+    expect(String(getResources()[0].url).startsWith('data:')).toBe(true);
+  });
+
+  it('落盘抛异常 → 占位项保留原 url（reason=exception）', async () => {
+    clearResources();
+    vi.mocked(saveInlineToLocal).mockRejectedValueOnce(new Error('boom'));
+    sendToResourceLibrary('data:image/png;base64,CCCC', { name: '鸟', folder: 'migrated' });
+    for (let i = 0; i < 12; i++) await Promise.resolve();
+    expect(String(getResources()[0].url).startsWith('data:')).toBe(true);
+  });
+
+  it('【先红锚点 · 禁重分类】rescan 失败不丢弃已落盘的持久 url（仍校正占位项）', async () => {
+    clearResources();
+    vi.mocked(rescanResources).mockRejectedValueOnce(new Error('rescan down'));
+    sendToResourceLibrary('data:image/png;base64,DDDD', { name: '鱼', folder: 'migrated' });
+    for (let i = 0; i < 12; i++) await Promise.resolve();
+    // 图已落盘 → 持久 url 必须到手；rescan 失败只影响「面板何时看到」，不得改写落盘结论
+    expect(getResources()[0].url).toBe('http://127.0.0.1:18080/files/migrated/recon.png');
   });
 });

@@ -40,7 +40,9 @@ describe('useUpstreamAutoTrigger — 下游触发失败可见（§3.3）', () =>
     runNodeGenerationMock.mockRejectedValueOnce(new Error('网络中断'));
     // handler 同步触发；内部 runNodeGeneration 的 rejection 已被 catch 住，这里 await 不应抛
     await act(async () => {
-      await busState.handler({ sourceNodeId: 'n1' });
+      await (busState.handler as unknown as (arg: { sourceNodeId: string }) => Promise<void>)({
+        sourceNodeId: 'n1',
+      });
     });
     expect(runNodeGenerationMock).toHaveBeenCalledWith('n2');
     expect(loggerState.warn).toHaveBeenCalledWith(
@@ -54,7 +56,9 @@ describe('useUpstreamAutoTrigger — 下游触发失败可见（§3.3）', () =>
     renderHook(() => useUpstreamAutoTrigger());
     runNodeGenerationMock.mockResolvedValueOnce({ ok: true });
     await act(async () => {
-      await busState.handler({ sourceNodeId: 'n1' });
+      await (busState.handler as unknown as (arg: { sourceNodeId: string }) => Promise<void>)({
+        sourceNodeId: 'n1',
+      });
     });
     expect(runNodeGenerationMock).toHaveBeenCalledWith('n2');
     expect(loggerState.info).toHaveBeenCalledWith(

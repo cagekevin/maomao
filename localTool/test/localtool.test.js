@@ -302,10 +302,7 @@ test('方案②·孤儿 GC：cleanup 删除未被引用文件，保留被 KV 引
   const keptPath = path.join(keptDir, 'kept.png');
   fs.writeFileSync(keptPath, RED_PNG_BUFFER);
   const keptUrl = `http://127.0.0.1:18080/files/tasks/kept.png`;
-  await resourcesMod.handleResourcesSave(
-    makeJsonReq({ id: 'res-kept', url: keptUrl, type: 'image', name: 'kept' }),
-    makeRes(),
-  );
+  await insertResourceRow({ id: 'res-kept', url: keptUrl, name: 'kept' });
 
   // 执行 cleanup
   const cleanRes = makeRes();
@@ -528,17 +525,13 @@ test('Tasks·batch-save 非数组 → 400', async () => {
 // Resources 路由
 // ══════════════════════════════════════════════════════════════
 
-test('Resources·save + get + 分页', async () => {
+test('Resources·get 分页', async () => {
   for (let i = 1; i <= 25; i++) {
-    await resourcesMod.handleResourcesSave(
-      makeJsonReq({
-        id: `r${i}`,
-        url: `http://example.com/${i}.png`,
-        type: 'image',
-        name: `img${i}`,
-      }),
-      makeRes(),
-    );
+    await insertResourceRow({
+      id: `r${i}`,
+      url: `http://example.com/${i}.png`,
+      name: `img${i}`,
+    });
   }
   const getRes = makeRes();
   await resourcesMod.handleResourcesGet(
@@ -554,35 +547,8 @@ test('Resources·save + get + 分页', async () => {
   assert.equal(page.totalPages, 2);
 });
 
-test('Resources·save 缺少 id → 400', async () => {
-  const res = makeRes();
-  await resourcesMod.handleResourcesSave(makeJsonReq({ url: 'x' }), res);
-  assert.equal(res.status, 400);
-});
-
-test('Resources·save dataURL → 自动落盘为文件', async () => {
-  const res = makeRes();
-  await resourcesMod.handleResourcesSave(
-    makeJsonReq({ id: 'clip-1', url: RED_PNG_DATA_URI, type: 'image' }),
-    res,
-  );
-  assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
-
-  const getRes = makeRes();
-  await resourcesMod.handleResourcesGet(makeGetReq(), getRes, new URL('http://x/api/resources'));
-  const item = data(getRes).items[0];
-  assert.ok(
-    item.url.startsWith('http://127.0.0.1:18080/files/'),
-    `dataURL 落盘后应转绝对文件 URL, got=${item.url}`,
-  );
-  assert.match(item.id, /^local-/, 'id 应对齐 rescan 命名');
-});
-
 test('Resources·delete 删除记录', async () => {
-  await resourcesMod.handleResourcesSave(
-    makeJsonReq({ id: 'r1', url: 'http://example.com/1.png', type: 'image' }),
-    makeRes(),
-  );
+  await insertResourceRow({ id: 'r1', url: 'http://example.com/1.png' });
   const delRes = makeRes();
   await resourcesMod.handleResourcesDelete(
     makeJsonReq(),
@@ -596,14 +562,8 @@ test('Resources·delete 删除记录', async () => {
 });
 
 test('Resources·clear 全部 + 按 folder 清', async () => {
-  await resourcesMod.handleResourcesSave(
-    makeJsonReq({ id: 'a', url: 'u1', type: 'image', folder: 'f1' }),
-    makeRes(),
-  );
-  await resourcesMod.handleResourcesSave(
-    makeJsonReq({ id: 'b', url: 'u2', type: 'image', folder: 'f2' }),
-    makeRes(),
-  );
+  await insertResourceRow({ id: 'a', url: 'u1', folder: 'f1' });
+  await insertResourceRow({ id: 'b', url: 'u2', folder: 'f2' });
 
   // 按 folder 清
   let clearRes = makeRes();
@@ -1081,6 +1041,66 @@ test('Files·upload multipart 落盘并返回 URL + 缩略图', async () => {
   assert.ok(RED_PNG_BUFFER.equals(fs.readFileSync(diskPath)));
 });
 
+test('TD-12-5·multipart 上传携 projectId → resource 行写入 project_id（不再恒 NULL）', async () => {
+  const res = makeRes();
+  // 用独立字节，避开其它用例 fixture 的 contentId 去重（去重命中则复用既有行、不新建）
+  const uniq = Buffer.concat([RED_PNG_BUFFER, Buffer.from('pid-A')]);
+  await filesMod.handleUpload(
+    makeMultipartReq({
+      filename: 'pid.png',
+      fileContent: uniq,
+      contentType: 'image/png',
+      fields: { subfolder: 'migrated', projectId: 'proj-A' },
+    }),
+    res,
+  );
+  assert.equal(res.status, 200);
+  const url = parseResBody(res).data.url;
+  const rel = url.replace(/^https?:\/\/[^/]+/, '').replace(/^\/files\//, '');
+  const db = await dbMod.getDb();
+  const row = dbMod.queryOne(db, 'SELECT * FROM resources WHERE id = ?', [
+    `local-${rel.replace(/\//g, '-')}`,
+  ]);
+  assert.ok(row, '上传后应已登记 resource 行（不经 rescan）');
+  assert.equal(row.project_id, 'proj-A', 'project_id 必须写入（隔离写入链闭环）');
+});
+
+test('TD-12-5·multipart 上传不携 projectId → 行 project_id 为 NULL（legacy，全项目可见）', async () => {
+  const res = makeRes();
+  const uniq = Buffer.concat([RED_PNG_BUFFER, Buffer.from('nopid')]);
+  await filesMod.handleUpload(
+    makeMultipartReq({
+      filename: 'nopid.png',
+      fileContent: uniq,
+      contentType: 'image/png',
+      fields: { subfolder: 'migrated' },
+    }),
+    res,
+  );
+  assert.equal(res.status, 200);
+  const url = parseResBody(res).data.url;
+  const rel = url.replace(/^https?:\/\/[^/]+/, '').replace(/^\/files\//, '');
+  const db = await dbMod.getDb();
+  const row = dbMod.queryOne(db, 'SELECT * FROM resources WHERE id = ?', [
+    `local-${rel.replace(/\//g, '-')}`,
+  ]);
+  assert.ok(row, '上传后应已登记 resource 行');
+  assert.ok(row.project_id == null, '未提供 projectId → 保持 legacy（NULL）');
+});
+
+test('TD-12-5·JSON dataUri 上传携 projectId → 行写入 project_id', async () => {
+  const res = makeRes();
+  const dataUri = `data:image/png;base64,${RED_PNG_BUFFER.toString('base64')}`;
+  await filesMod.handleUpload(
+    makeJsonReq({ dataUri, subfolder: 'migrated', projectId: 'proj-B' }),
+    res,
+  );
+  assert.equal(res.status, 200);
+  const db = await dbMod.getDb();
+  const row = dbMod.queryOne(db, 'SELECT * FROM resources WHERE project_id = ?', ['proj-B']);
+  assert.ok(row, 'dataUri 上传应登记行并写 project_id');
+});
+
 test('Files·upload multipart 缺少文件 → 400', async () => {
   const boundary = '----testboundary123';
   const data = Buffer.from(
@@ -1218,17 +1238,12 @@ test('docs122·context-only rename 不改 url → 画布 KV / 任务引用保持
   const oldAbsRaw = `http://127.0.0.1:18080/files/${oldRelRaw}`; // 原样绝对
   const oldAbsEnc = `http://127.0.0.1:18080/files/${encodeURI(oldRelRaw)}`; // 编码绝对（中文必变 %E8…）
   // 建一个本地文件资源
-  await resourcesMod.handleResourcesSave(
-    makeJsonReq({
-      id: 'local-web-角色.png',
-      url: oldAbsRaw,
-      type: 'image',
-      source: 'local-tool',
-      folder: 'web',
-      name: '角色.png',
-    }),
-    makeRes(),
-  );
+  await insertResourceRow({
+    id: 'local-web-角色.png',
+    url: oldAbsRaw,
+    folder: 'web',
+    name: '角色.png',
+  });
   // 画布 KV：节点A 存原样绝对、节点B 存编码绝对；任务存编码相对
   dbMod.run(db, `INSERT INTO kv (key, value) VALUES (?, ?)`, [
     'canvas-state-v1-p1',
@@ -1328,16 +1343,7 @@ test('docs13·删除 resource 不删盘 + GC 回收真正的孤儿', async () =>
   const keptAbs = path.join(uploadDir, keptRel);
   fs.writeFileSync(keptAbs, RED_PNG_BUFFER);
   const keptUrl = `http://127.0.0.1:18080/files/${keptRel}`;
-  await resourcesMod.handleResourcesSave(
-    makeJsonReq({
-      id: 'local-migrated-keep.png',
-      url: keptUrl,
-      type: 'image',
-      folder: 'migrated',
-      name: 'keep.png',
-    }),
-    makeRes(),
-  );
+  await insertResourceRow('migrated/keep.png');
 
   // 一个磁盘有、但全库无引用的孤儿（如 AI 资产落盘后未入库且画布删除）
   const orphanRel = 'migrated/orphan.png';
@@ -1366,16 +1372,7 @@ test('docs13·resources clear 只删记录不 rmSync 整目录', async () => {
   const absPath = path.join(uploadDir, fileRel);
   fs.writeFileSync(absPath, RED_PNG_BUFFER);
   const url = `http://127.0.0.1:18080/files/${fileRel}`;
-  await resourcesMod.handleResourcesSave(
-    makeJsonReq({
-      id: 'local-migrated-shared.png',
-      url,
-      type: 'image',
-      folder: 'migrated',
-      name: 'shared.png',
-    }),
-    makeRes(),
-  );
+  await insertResourceRow('migrated/shared.png');
   await kvMod.handleKvSet(
     makeJsonReq({
       key: 'canvas-state-v1-p',
@@ -1400,17 +1397,13 @@ test('docs122·GC 认 contentId 反向引用（画布 asset 存 sha1:<hex>）：
   fs.writeFileSync(keptAbs, Buffer.from('KEPT'));
   const keptUrl = `http://127.0.0.1:18080/files/web/kept.png`;
   const keptCid = 'sha1:' + 'a'.repeat(40); // 固定 contentId（须被 regex sha1:[0-9a-f]{40} 命中且与行内 sha1 一致）
-  await resourcesMod.handleResourcesSave(
-    makeJsonReq({
-      id: 'local-web-kept.png',
-      url: keptUrl,
-      type: 'image',
-      folder: 'web',
-      name: 'kept.png',
-      sha1: keptCid,
-    }),
-    makeRes(),
-  );
+  await insertResourceRow({
+    id: 'local-web-kept.png',
+    url: keptUrl,
+    folder: 'web',
+    name: 'kept.png',
+    sha1: keptCid,
+  });
   await kvMod.handleKvSet(
     makeJsonReq({
       key: 'canvas-state-v1-p',
@@ -1486,54 +1479,45 @@ async function settleDb() {
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
 }
 
-/** 造一条本地文件型资源行（id 用 rescan 规则） */
-async function seedResource(rel, { isFavorite = 0 } = {}) {
-  const name = path.basename(rel);
-  const dir = path.dirname(rel);
-  const folder = dir === '.' ? '' : dir;
-  const url = `http://127.0.0.1:18080/files/${rel}`;
-  await resourcesMod.handleResourcesSave(
-    makeJsonReq({
-      id: `local-${folder ? folder + '-' : ''}${name}`,
-      url,
-      type: 'image',
-      source: 'local-tool',
-      folder,
-      name,
-      is_favorite: isFavorite,
-    }),
-    makeRes(),
-  );
-  return url;
+/** 造一条本地文件型资源行（id 用 rescan 规则）。现为 `insertResourceRow` 的薄封装，不再经 HTTP handler。 */
+async function seedResource(rel, opts = {}) {
+  return insertResourceRow(rel, opts);
 }
 
 /**
  * 直接 SQL 插入资源行（**不经任何 handler**）。
  *
- * 【落盘类断言（T4/T8）必须用它，不能用 seedResource】seedResource 走 handleResourcesSave，
- * 其内部 debouncedSaveDb 会留下一个 500ms 计时器；该计时器在 move/rename **之后**才触发
- * saveDb，把「已含改写的内存态」落盘 —— 于是即使 handler 忘了调 debouncedSaveDb，
- * 断言依然通过（假绿）。这是变异测试实测出来的坑：去掉落盘调用后 T4/T8 竟然仍是绿的。
+ * 【为什么不再走 handler】原 `seedResource` 走 `POST /api/resources/save`（TD-12-7 已退役该端点），
+ * 其内部 `debouncedSaveDb` 会留下一个 500ms 计时器；该计时器在 move/rename **之后**才触发 saveDb，
+ * 把「已含改写的内存态」落盘 —— 于是即使 handler 忘了调 debouncedSaveDb，断言依然通过（假绿）。
+ * 这是变异测试实测出来的坑：去掉落盘调用后 T4/T8 竟然仍是绿的。
+ *
+ * 用法：
+ *  - `insertResourceRow('migrated/a.png')` → 文件型：id/url 按 rescan 规则生成
+ *  - `insertResourceRow({ id, url, folder, name, sha1 })` → 自定义行（非文件 URL / 指定 sha1 的用例）
  */
-async function insertResourceRow(rel, { isFavorite = 0 } = {}) {
+async function insertResourceRow(relOrRow, opts = {}) {
   const db = await dbMod.getDb();
-  const name = path.basename(rel);
-  const dir = path.dirname(rel);
-  const folder = dir === '.' ? '' : dir;
-  const id = `local-${folder ? folder + '-' : ''}${name}`;
+  let id;
+  let url;
+  let folder;
+  let name;
+  let sha1 = null;
+  let isFavorite = opts.isFavorite ?? 0;
+  if (typeof relOrRow === 'string') {
+    const rel = relOrRow;
+    name = path.basename(rel);
+    const dir = path.dirname(rel);
+    folder = dir === '.' ? '' : dir;
+    id = `local-${folder ? folder + '-' : ''}${name}`;
+    url = `http://127.0.0.1:18080/files/${rel}`;
+  } else {
+    ({ id, url, folder = '', name = '', sha1 = null, isFavorite = 0 } = relOrRow);
+  }
   dbMod.run(
     db,
-    'INSERT INTO resources (id, url, type, source, folder, name, is_favorite, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [
-      id,
-      `http://127.0.0.1:18080/files/${rel}`,
-      'image',
-      'local-tool',
-      folder,
-      name,
-      isFavorite,
-      Date.now(),
-    ],
+    'INSERT INTO resources (id, url, type, source, folder, name, sha1, is_favorite, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, url, 'image', 'local-tool', folder, name, sha1, isFavorite, Date.now()],
   );
   return id;
 }
@@ -1633,15 +1617,19 @@ test('docs122·context-only move 支持文件名含空格（不改 basename、�
   assert.equal(row.folder, 'migrated/人物', 'folder(UI) 更新');
 });
 
-test('docs122·context-only move 表内无行时返回原样（不补建、不移动），物理文件仍在', async () => {
+test('TD-12-8·context-only move 表内无行时**明确失败**（不再假成功「已移动」），物理文件仍在', async () => {
   fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated', '人物'), { recursive: true });
   fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', 'a.png'), RED_PNG_BUFFER);
   // 刻意不 seedResource：模拟「磁盘有文件、表内无行」
 
   const r = await moveReq('migrated/a.png', 'migrated/人物/a.png');
-  assert.equal(r.status, 200);
-  assert.equal(r.body.data.url, null, '无行时无 url 上下文可改，返回 null（物理未动）');
-  // context-only 不补建行、不动物理（后续由 rescan 对齐），磁盘仍在原处
+  // 旧行为回 200 → 前端提示「已移动」= 假成功；TD-12-8 修正为明确失败（用户裁定）
+  assert.equal(r.status, 404, '行不存在必须返回失败（不得假成功）');
+  assert.ok(
+    String(r.body?.error?.message || r.body?.error || '').includes('资源未同步'),
+    '失败文案应提示资源未同步',
+  );
+  // context-only 不补建行、不动物理，磁盘仍在原处（失败不改盘）
   assert.ok(fs.existsSync(path.join(TEST_DIR, 'uploads', 'migrated', 'a.png')), '物理文件仍在原处');
   // rescan 应把该磁盘文件录入为一条（不因 move 已「移动」过而重复）：守「同文件不重复录入」
   const db = await dbMod.getDb();
@@ -1651,6 +1639,84 @@ test('docs122·context-only move 表内无行时返回原样（不补建、不�
   await resourcesMod.handleResourcesRescan(makeJsonReq(), makeRes());
   const after = count();
   assert.ok(after >= before, 'rescan 至少录入物理文件（不重复）');
+});
+
+test('TD-12-8·move 后 rescan：行仍在且 folder/name/收藏保留（归类不回弹）', async () => {
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated', '人物'), { recursive: true });
+  const srcFile = path.join(TEST_DIR, 'uploads', 'migrated', 'keep.png');
+  fs.writeFileSync(srcFile, RED_PNG_BUFFER);
+  await seedResource('migrated/keep.png', { isFavorite: 1 });
+
+  // 归类到 migrated/人物（context-only：磁盘仍在 migrated/keep.png）
+  const r = await moveReq('migrated/keep.png', 'migrated/人物/keep.png');
+  assert.equal(r.status, 200, '有位应归类成功');
+
+  // 触发 rescan（ResourceLibrary.reset(true) 每次都 rescan）→ 旧实现在此按 folder 拼路径删行 → 回弹
+  await resourcesMod.handleResourcesRescan(makeJsonReq(), makeRes());
+
+  const db = await dbMod.getDb();
+  const row = dbMod.queryOne(db, 'SELECT * FROM resources WHERE id = ?', [
+    'local-migrated-keep.png',
+  ]);
+  assert.ok(row, 'rescan 后行必须仍在（不得因 folder 与磁盘脱钩被误删）');
+  assert.equal(row.folder, 'migrated/人物', '归类的 folder(UI) 保留，不回弹');
+  assert.equal(Number(row.is_favorite), 1, '收藏不得归零');
+  assert.ok(fs.existsSync(srcFile), '磁盘文件未被移动/删除');
+});
+
+test('TD-12-8·二次 move 仍生效（用磁盘真源定位行，不受上一次归类影响）', async () => {
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated', 'B'), { recursive: true });
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated', 'C'), { recursive: true });
+  fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', 'twice.png'), RED_PNG_BUFFER);
+  await seedResource('migrated/twice.png');
+
+  // 第一次 → 归到 A（磁盘仍在 migrated/twice.png）
+  const r1 = await moveReq('migrated/twice.png', 'migrated/B/twice.png');
+  assert.equal(r1.status, 200, '第一次移动成功');
+
+  // 第二次：src 仍必须是**磁盘真源** migrated/twice.png（旧实现用 UI folder 拼成 migrated/B/twice.png → 定位不到行 → 假成功）
+  const r2 = await moveReq('migrated/twice.png', 'migrated/C/twice.png');
+  assert.equal(r2.status, 200, '第二次移动必须生效（定位到同一行）');
+
+  const db = await dbMod.getDb();
+  const row = dbMod.queryOne(db, 'SELECT folder FROM resources WHERE id = ?', [
+    'local-migrated-twice.png',
+  ]);
+  assert.equal(row.folder, 'migrated/C', 'folder 更新为第二次的目标（未假成功）');
+});
+
+test('TD-12-8·rename 后 rescan：显示名与收藏保留（不回弹）', async () => {
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated'), { recursive: true });
+  fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', 'rn.png'), RED_PNG_BUFFER);
+  await seedResource('migrated/rn.png', { isFavorite: 1 });
+
+  const rr = await renameReq('local-migrated-rn.png', '改后名');
+  assert.equal(rr.status, 200, '改名成功');
+
+  await resourcesMod.handleResourcesRescan(makeJsonReq(), makeRes());
+
+  const db = await dbMod.getDb();
+  const row = dbMod.queryOne(db, 'SELECT * FROM resources WHERE id = ?', ['local-migrated-rn.png']);
+  assert.ok(row, 'rescan 后行必须仍在');
+  assert.equal(row.name, '改后名.png', '显示名保留，不回弹为磁盘名');
+  assert.equal(Number(row.is_favorite), 1, '收藏不得归零');
+});
+
+test('TD-12-8·orphan 判定用 url 真源：磁盘文件真被删时行仍应被清理', async () => {
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated'), { recursive: true });
+  const goneFile = path.join(TEST_DIR, 'uploads', 'migrated', 'gone.png');
+  fs.writeFileSync(goneFile, RED_PNG_BUFFER);
+  await seedResource('migrated/gone.png');
+
+  // 真删磁盘文件 → 下一次 rescan 应把该行判为孤儿删除（url 派生的磁盘路径确实不存在）
+  fs.unlinkSync(goneFile);
+  await resourcesMod.handleResourcesRescan(makeJsonReq(), makeRes());
+
+  const db = await dbMod.getDb();
+  const row = dbMod.queryOne(db, 'SELECT id FROM resources WHERE id = ?', [
+    'local-migrated-gone.png',
+  ]);
+  assert.ok(!row, '磁盘文件真被删 → 行应被孤儿清理');
 });
 
 test('docs122·context-only rename 不改 url / 磁盘 → 无目标冲突、显示名更新（不再真的写新物理文件）', async () => {

@@ -19,6 +19,8 @@ import {
 // 409 判定用真实 HttpError：projectStore 用 `instanceof HttpError` 识别冲突，
 // 桩里必须抛同一个类（同文件 → 同一模块实例），否则会被当成「KV 不可用」走 fail 分支。
 import { HttpError } from '../../src/components/base/api/httpClient.ts';
+// 【TD-02-23】读存储 cache 用（断言 module 态与 contentStore cache 同步；真实 contentStore，未 mock）
+import { contentGet, contentClearCache } from '../../src/components/base/core/contentStore.ts';
 
 // ── 内存 KV / 项目后端 mock ──
 // 共享状态用 vi.hoisted 提前创建：vi.mock 工厂会被提升到 import 之前，工厂体里引用它们时不能处于 TDZ。
@@ -93,6 +95,9 @@ beforeEach(() => {
   H.versionQueue.length = 0;
   H.kvSetOverride = null;
   localStorage.clear();
+  // 【TD-02-23】contentStore 的 module 级 cache 不清于 localStorage.clear()：projectStore 现「即时写」cache
+  // → 上例的项目会留在 cache 里，__resetForTest 的 loadProjects() 会读到它（跨例污染）。显式清 cache。
+  contentClearCache();
   H.fetchProjectsPayload.projects = [];
   H.fetchProjectsPayload.lastOpened = '';
   __resetForTest();
@@ -225,14 +230,14 @@ describe('项目系统 §2.8', () => {
     const r = await saveCanvasState('default', nodes, [], { x: 120, y: -50, zoom: 1.5 });
     expect(r.success).toBe(true);
     const loaded = await loadCanvasState('default');
-    expect(loaded.viewport).toEqual({ x: 120, y: -50, zoom: 1.5 });
+    expect(loaded!.viewport).toEqual({ x: 120, y: -50, zoom: 1.5 });
   });
 
   it('saveCanvasState 不传 viewport → 快照无 viewport 字段，loadCanvasState 返回 null（P20 兼容旧快照）', async () => {
     const nodes = [{ id: 'n1', type: 'textGenerateNode', data: {}, position: { x: 0, y: 0 } }];
     await saveCanvasState('default', nodes, []);
     const loaded = await loadCanvasState('default');
-    expect(loaded.viewport).toBeNull();
+    expect(loaded!.viewport).toBeNull();
   });
 
   it('落盘白名单保留编组所需字段（parentId/extent/style/width/height）→ 刷新后尺寸与父关系不丢', async () => {
@@ -284,14 +289,14 @@ describe('projectStore · 画布快照 CAS（docs/118 §6.1 A）', () => {
     expect(getLoadedVersion()).toBe(0);
     await saveCanvasState('default', [node('n1')], []);
     const first = H.kvSetCalls.at(-1);
-    expect(first.key).toBe(CANVAS_KEY);
-    expect(first.ifVersion).toBe(0);
+    expect(first!.key).toBe(CANVAS_KEY);
+    expect(first!.ifVersion).toBe(0);
 
     const v1 = getLoadedVersion();
     expect(v1).toBeGreaterThan(0);
     // 第二次保存：基线已是服务端返回的新版本
     await saveCanvasState('default', [node('n2')], []);
-    expect(H.kvSetCalls.at(-1).ifVersion).toBe(v1);
+    expect(H.kvSetCalls.at(-1)!.ifVersion).toBe(v1);
     expect(getLoadedVersion()).toBeGreaterThan(v1);
   });
 
@@ -320,7 +325,7 @@ describe('projectStore · 画布快照 CAS（docs/118 §6.1 A）', () => {
 
   it('A3 force:true（备份导入）→ 不传 ifVersion（无条件覆盖）', async () => {
     await saveCanvasState('default', [node('n1')], [], undefined, { force: true });
-    expect(H.kvSetCalls.at(-1).ifVersion).toBeUndefined();
+    expect(H.kvSetCalls.at(-1)!.ifVersion).toBeUndefined();
   });
 
   it('A4 并发两次 → 串行（第二次在第一次 resolve 之后才发起，非时序赌运气）', async () => {
@@ -384,5 +389,26 @@ describe('projectStore · 画布快照 CAS（docs/118 §6.1 A）', () => {
     expect(loaded?.nodes).toHaveLength(1);
     expect(H.ops.filter((o) => o.startsWith('version:')).length).toBe(3); // 三次版本读 = 重读一次
     expect(getLoadedVersion()).toBe(serverV + 1);
+  });
+});
+
+// ── 【TD-02-23】SSOT 双真收口：module 态与 contentStore cache（同键 projects）**即时同步** ──
+describe('TD-02-23 module 态 / 存储 cache 即时同步', () => {
+  it('createProject 后**立即**读存储 cache 即含新项目（cache 不再是滞后 300ms 的第二真相）', () => {
+    const p = createProject('即时同步项');
+    const cached = contentGet('projects');
+    expect(Array.isArray(cached)).toBe(true);
+    expect((cached as Array<{ id: string }>).some((x) => x.id === p.id)).toBe(true);
+  });
+
+  it('renameProject / deleteProject 后 cache 同样即时反映（写路径唯一 → 不会漏同步）', () => {
+    const p = createProject('待改');
+    renameProject(p.id, '改名后');
+    let cached = contentGet('projects') as Array<{ id: string; name?: string }>;
+    expect(cached.find((x) => x.id === p.id)?.name).toBe('改名后');
+
+    deleteProject(p.id);
+    cached = contentGet('projects') as Array<{ id: string; name?: string }>;
+    expect(cached.some((x) => x.id === p.id)).toBe(false);
   });
 });

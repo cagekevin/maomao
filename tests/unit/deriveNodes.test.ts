@@ -29,7 +29,12 @@ describe('buildSpawnNodes', () => {
     const { childNodes, edges } = buildSpawnNodes(
       parent,
       [{ id: 'c1', type: 'assetNode', position: { x: 1, y: 2 }, data: {} }],
-      { sourceHandle: 'merged-output', targetHandle: null, type: 'default', animated: false },
+      {
+        sourceHandle: 'merged-output',
+        targetHandle: null as never,
+        type: 'default',
+        animated: false,
+      },
     );
     expect(childNodes[0].id).toBe('c1');
     expect(childNodes[0].position).toEqual({ x: 1, y: 2 });
@@ -56,7 +61,7 @@ describe('makeChildId', () => {
 });
 
 describe('commitNewNodes / spawnAndCommit（建节点唯一原语，TD-04-2/04-11）', () => {
-  const makeHandles = (nodes = [], edges = []) => ({
+  const makeHandles = (nodes: any[] = [], edges: any[] = []) => ({
     getNodes: () => nodes,
     getEdges: () => edges,
     setNodes: vi.fn(),

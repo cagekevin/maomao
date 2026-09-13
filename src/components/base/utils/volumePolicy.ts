@@ -221,8 +221,6 @@ function clampToLimits(convs: Conversation[]): Conversation[] {
 export function applyConversationBudget(
   conversations: Conversation[] | null | undefined,
   budget: number,
-  // 该形参目前未参与计算（保留位），调用方（conversationState 落盘投影）只传前两参，故标可选。
-  _activeId?: string,
 ): { conversations: Conversation[] | null | undefined; downgraded: boolean } {
   if (!Array.isArray(conversations) || conversations.length === 0) {
     return { conversations, downgraded: false };

@@ -50,6 +50,8 @@ import { logger } from '../base/core/logger.ts';
 import previewUrls from '../base/utils/previewUrl.ts';
 import { subscribe } from '../base/core/eventBus.ts';
 import { CREDIT_GATE_EVENT } from '../base/core/contracts.ts';
+// 【TD-15-1】agentKey 前缀单源（默认 agentKey = 前缀，禁本地拼字面量）
+import { AGENT_KEY_PREFIX } from '../base/core/agentKeys.ts';
 // AI 助手表格工作区：共享运行态（开合/宽度/选中行/待确认预览/探测游标）+ 纯函数模型/上下文拼装。
 // 表格本体已拆到画布左侧 TableWorkspacePanel，本面板只读共享态做「注入/探测/协作指示」。
 import {
@@ -177,7 +179,7 @@ function loadWidth() {
 }
 
 export default function AgentPanel({
-  agentKey = 'canvas-assistant',
+  agentKey = AGENT_KEY_PREFIX,
   systemPrompt = '',
   open,
   onClose,

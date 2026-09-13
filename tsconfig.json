@@ -16,6 +16,10 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
 
+    // ⚠️ strict / strictNullChecks 关闭是本仓既有演进项（非紧急不缩紧）。
+    // 后果（约定见 spec/CONTEXT.md §三）：此配置下 TS 对 `boolean` 判别位**只在真分支 / 显式 `=== false` 收窄** ——
+    //   `{ok:true;url} | {ok:false;reason}` 在 `else` / `!x.ok` / 三元假支访问 `.reason` 会报 TS2339（字符串/数字判别位正常）。
+    //   判别联合请写成「双方各带对方的键（可选 undefined）」或改字符串/数字判别位；禁用 as 绕墙。
     "strict": false,
     "noImplicitAny": false,
     "strictNullChecks": false,

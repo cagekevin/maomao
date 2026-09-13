@@ -53,7 +53,7 @@ function makeConflictUploadImpl() {
         localDirty: true,
         inSync: false,
       };
-      const r = await opts.onAutoConflict(copy, decision);
+      const r = await opts.onAutoConflict!(copy, decision);
       if (r === 'cancel') return { ok: false, count: 0, cancelled: true };
       if (r === 'download') return { ok: false, count: 0, action: 'download-needed' as const };
       return { ok: true, count: 3 };
@@ -159,7 +159,7 @@ describe('autoSync — 冲突三选一与退避', () => {
         localDirty: true,
         inSync: false,
       };
-      const r = await opts.onAutoConflict(copy, decision);
+      const r = await opts.onAutoConflict!(copy, decision);
       return r === 'download'
         ? { ok: false, count: 0, action: 'download-needed' as const }
         : { ok: false, count: 0, cancelled: true };

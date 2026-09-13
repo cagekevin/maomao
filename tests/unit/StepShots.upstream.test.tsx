@@ -12,7 +12,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
-  default: ({ images = [], texts = [], readOnly, onDisconnect }) => (
+  default: ({
+    images = [] as Array<{ sourceNodeId: string }>,
+    texts = [],
+    readOnly,
+    onDisconnect,
+  }) => (
     <div data-testid="upstream-strip" data-readonly={String(!!readOnly)}>
       <span data-testid="strip-imgs">{images.length}</span>
       <span data-testid="strip-texts">{texts.length}</span>

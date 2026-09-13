@@ -24,8 +24,8 @@ import { isProjectAssetUrl } from './d3dPersistence.ts';
 // ================================================================
 
 /** 属性层级：animatable 进通道被打点驱动 / objectState 沿对象基线 / config 不参与求值 */
-export type PropertyLayer = 'animatable' | 'objectState' | 'config';
-export interface PropertyMeta {
+type PropertyLayer = 'animatable' | 'objectState' | 'config';
+interface PropertyMeta {
   layer: PropertyLayer;
   /** 所属通道名，仅 animatable 必填（transform/action/skeleton/lens） */
   channel?: string;
@@ -33,7 +33,7 @@ export interface PropertyMeta {
 export type PropertyRegistry = Record<string, Record<string, PropertyMeta>>;
 
 /** 通道定义：通道名 → 该通道负责的字段名数组（顺序 = 注册表内首次出现顺序，合成按此覆盖） */
-export type ChannelDefinition = Record<string, string[]>;
+type ChannelDefinition = Record<string, string[]>;
 /** 实体类型 → 通道定义 */
 export type EntityChannelMap = Record<string, ChannelDefinition>;
 
@@ -205,7 +205,7 @@ export interface ProjectObject {
 
 export const CAMERA_ID = '__shot_camera__';
 export const PROJECT_STORAGE_KEY = 'director3d-project';
-export const LEGACY_PROJECT_STORAGE_KEY = 'stageframe-project';
+const LEGACY_PROJECT_STORAGE_KEY = 'stageframe-project';
 export const CUSTOM_POSE_STORAGE_KEY = 'director3d-custom-poses';
 const PROJECT_VERSION = 17;
 export const DEFAULT_PROJECT_SETTINGS = {
@@ -239,8 +239,8 @@ export const ASPECT_RATIOS = [
   { value: 'custom', label: '自定义画幅' },
 ];
 const CUSTOM_ASPECT_PATTERN = /^custom:([0-9]+(?:\.[0-9]+)?):([0-9]+(?:\.[0-9]+)?)$/;
-export const DEFAULT_CAMERA_POSITION = [7.4, 4.6, 8.2];
-export const LEGACY_DEFAULT_CAMERA_TARGET = [0.2, 1.2, 0];
+const DEFAULT_CAMERA_POSITION = [7.4, 4.6, 8.2];
+const LEGACY_DEFAULT_CAMERA_TARGET = [0.2, 1.2, 0];
 export const initialObjects = [
   {
     id: 'actor-lead',
@@ -344,21 +344,21 @@ export const clamp = (value: number, min: number, max: number) =>
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const lerpAngle = (a: number, b: number, t: number) =>
   a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
-export const ease = (t: number) => t * t * (3 - 2 * t);
+const ease = (t: number) => t * t * (3 - 2 * t);
 export const normalizeInterpolation = (value: string) =>
   ['smooth', 'linear', 'hold'].includes(value) ? value : 'smooth';
 export const segmentAmount = (
   key: { interpolation?: string } | null | undefined,
   amount: number,
 ) => (key?.interpolation === 'hold' ? 0 : key?.interpolation === 'linear' ? amount : ease(amount));
-export const POSE_LABELS = Object.fromEntries(RIG_PRESET_OPTIONS);
+const POSE_LABELS = Object.fromEntries(RIG_PRESET_OPTIONS);
 export const poseLabel = (pose: string) => POSE_LABELS[normalizePoseId(pose)] || '自定义动作';
 export const normalizeFrameNumber = (value: unknown) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
 };
 
-export function uniqueSortedKeyframes(keys: ChannelKey[]) {
+function uniqueSortedKeyframes(keys: ChannelKey[]) {
   const byFrame = new Map<number, ChannelKey>();
   keys.forEach((key: ChannelKey) => byFrame.set(key.frame, key));
   return [...byFrame.values()].sort((a, b) => a.frame - b.frame);
@@ -409,7 +409,7 @@ export function uniqueSortedKeyframes(keys: ChannelKey[]) {
 //   3. 消费：渲染端（Viewport → models）读合成结果，开关最终决定行为（如 continuousMotion && loopable）。
 //   链路即：注册表 `登记` → `录制只捡量` → `求值 L2 沿基线` → `渲染消费`，全程不逐列特判。
 // ================================================================
-export const PROPERTY_REGISTRY: PropertyRegistry = {
+const PROPERTY_REGISTRY: PropertyRegistry = {
   person: {
     position: { layer: 'animatable', channel: 'transform' },
     rotation: { layer: 'animatable', channel: 'transform' },
@@ -487,7 +487,7 @@ export const OBJECT_STATE_FIELDS = Object.fromEntries(
 
 // 预编译每实体「合法字段名集合」：供开发期写入校验用（契约 C3.3）。
 // 写入 patch 的 key 若不在该 entity 的合法集合内，说明要么字段漏登记、要么写错了对象类型。
-export const ENTITY_FIELD_NAMES: Record<string, Set<string>> = Object.fromEntries(
+const ENTITY_FIELD_NAMES: Record<string, Set<string>> = Object.fromEntries(
   Object.entries(PROPERTY_REGISTRY).map(([type, fields]) => [type, new Set(Object.keys(fields))]),
 );
 
@@ -779,7 +779,7 @@ export function keyframeMaxFrame(
   return Math.max(0, ...cameraFrames, ...objectFrames);
 }
 
-export function finiteVector3(value: unknown, fallback: number[]): number[] {
+function finiteVector3(value: unknown, fallback: number[]): number[] {
   return Array.isArray(value) && value.length >= 3
     ? (value as unknown[])
         .slice(0, 3)
@@ -940,7 +940,7 @@ export function timecodeAtFrame(frame: number, fps: number) {
   return [hours, minutes, seconds, frames].map((value) => String(value).padStart(2, '0')).join(':');
 }
 
-export function normalizePerson(object: ProjectObject): ProjectObject {
+function normalizePerson(object: ProjectObject): ProjectObject {
   if (object?.type !== 'person') return object;
   const pose = normalizePoseId(object.pose as string);
   return {
@@ -1681,7 +1681,7 @@ export const DEFAULT_PATH_SETTINGS = {
 };
 
 // 归一化单个路径控制点：统一成 `{x,y,z}` 的有限数值。
-export function normalizePathPoint(point: unknown): PathPoint {
+function normalizePathPoint(point: unknown): PathPoint {
   if (!point || typeof point !== 'object') return { x: 0, y: 0, z: 0 };
   const numeric = (value: unknown) => (Number.isFinite(Number(value)) ? Number(value) : 0);
   if (Array.isArray(point))
@@ -1954,7 +1954,7 @@ export function pathPositionAtFraction(path: unknown, u: number = 0): PathPoint 
   };
 }
 
-export function rotateVectorXYZ(vector: number[], rotation: number[] = [0, 0, 0]): number[] {
+function rotateVectorXYZ(vector: number[], rotation: number[] = [0, 0, 0]): number[] {
   let [x, y, z] = vector;
   const [rx, ry, rz] = rotation;
   const cosX = Math.cos(rx);

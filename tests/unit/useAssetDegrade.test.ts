@@ -21,14 +21,7 @@ function renderWithLod(lodLevel) {
       createElement(
         LodContext.Provider,
         {
-          value: {
-            lodLevel,
-            viewportMoving: false,
-            nodeCount: 0,
-            handleFollowLimit: 60,
-            edgeFxLimit: 50,
-            useThumbnail: false,
-          },
+          value: { lodLevel },
         },
         children,
       ),

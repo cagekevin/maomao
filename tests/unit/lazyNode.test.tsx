@@ -59,7 +59,7 @@ describe('prefetchHeavyNode', () => {
     expect(() =>
       prefetchHeavyNode('notExist' as unknown as Parameters<typeof prefetchHeavyNode>[0]),
     ).not.toThrow();
-    expect(() => prefetchHeavyNode(undefined)).not.toThrow();
+    expect(() => prefetchHeavyNode(undefined as never)).not.toThrow();
   });
 
   it('已知类型触发对应 loader（此处 mock，避免真的拉起 three/mediabunny）', () => {

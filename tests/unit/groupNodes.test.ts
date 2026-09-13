@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { Node } from '@xyflow/react';
 import { adoptUserNodes, getNodeDimensions } from '@xyflow/system';
 import {
   createGroupFromNodes,
@@ -44,15 +45,15 @@ describe('编组算法 §2.2', () => {
     const r = createGroupFromNodes(nodes, ['a', 'b']);
     expect(r.ok).toBe(true);
     expect(r.nodes).toHaveLength(4); // 3 原 + 1 group
-    const group = r.nodes.find((n) => n.type === 'group');
+    const group = r.nodes!.find((n) => n.type === 'group')!;
     expect(group).toBeTruthy();
     expect(group.id).toBe(r.groupId);
     // 显示名唯一字段 = data.label（建组源头不写 data.name，防「名字双字段」回潮）
     expect(group.data.label).toBe('编组');
     expect(group.data.name).toBeUndefined();
     // 父节点必须先于子节点声明（unshift 到开头）
-    expect(r.nodes[0].type).toBe('group');
-    const childA = r.nodes.find((n) => n.id === 'a');
+    expect(r.nodes![0].type).toBe('group');
+    const childA = r.nodes!.find((n) => n.id === 'a')!;
     expect(childA.parentId).toBe(r.groupId);
     // 相对坐标 = 绝对 - group 位置（group 在 minX-pad, minY-pad = -40,-40）
     expect(childA.position).toEqual({ x: 40, y: 40 });
@@ -76,12 +77,12 @@ describe('编组算法 §2.2', () => {
 
   it('ungroupNodes 移除 group + 子节点转回绝对坐标', () => {
     const r = createGroupFromNodes(nodes, ['a', 'b']);
-    const groupId = r.groupId;
-    const grouped = r.nodes;
+    const groupId = r.groupId!;
+    const grouped = r.nodes!;
     const ug = ungroupNodes(grouped, groupId);
     expect(ug.ok).toBe(true);
-    expect(ug.nodes.find((n) => n.id === groupId)).toBeFalsy();
-    const childA = ug.nodes.find((n) => n.id === 'a');
+    expect(ug.nodes!.find((n) => n.id === groupId)).toBeFalsy();
+    const childA = ug.nodes!.find((n) => n.id === 'a')!;
     expect(childA.parentId).toBeUndefined();
     // 绝对坐标 = 相对 + group 位置(-40,-40) = (40-40, 40-40) = (0,0)
     expect(childA.position).toEqual({ x: 0, y: 0 });
@@ -124,9 +125,9 @@ describe('R4 groupId 无碰撞（crypto.randomUUID 替代 Date.now）', () => {
 
   it('id 以 group- 开头且包含随机段', () => {
     const r = createGroupFromNodes(twoNodes, ['a', 'b']);
-    expect(r.groupId.startsWith('group-')).toBe(true);
+    expect(r.groupId!.startsWith('group-')).toBe(true);
     // crypto.randomUUID 形式：group-xxxxxxxx-xxxx-...
-    expect(r.groupId.length).toBeGreaterThan('group-'.length + 10);
+    expect(r.groupId!.length).toBeGreaterThan('group-'.length + 10);
   });
 });
 
@@ -197,9 +198,9 @@ describe('R3 duplicateSelectedWithEdges 克隆子图（保留组关系 + 连线�
     expect(r.nodes).toHaveLength(7);
     // 克隆的 c1/c2 有新的 parentId（指向克隆的 group），不指向原 group
     const newIds = [...ids].filter((id) => !['g', 'c1', 'c2', 'outer'].includes(id));
-    const cloneC1 = r.nodes.find((n) => newIds.includes(n.id) && n.type === 'assetNode');
-    const cloneC2 = r.nodes.find((n) => newIds.includes(n.id) && n.type === 'textGenerateNode');
-    const cloneG = r.nodes.find((n) => newIds.includes(n.id) && n.type === 'group');
+    const cloneC1 = r.nodes!.find((n) => newIds.includes(n.id) && n.type === 'assetNode')!;
+    const cloneC2 = r.nodes!.find((n) => newIds.includes(n.id) && n.type === 'textGenerateNode')!;
+    const cloneG = r.nodes!.find((n) => newIds.includes(n.id) && n.type === 'group')!;
     expect(cloneC1.parentId).toBe(cloneG.id);
     expect(cloneC2.parentId).toBe(cloneG.id);
   });
@@ -284,26 +285,29 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
   // 模拟落盘白名单：直接引用快照 schema 真源（TD-02-7 第一步）。
   // 此前此处**手抄**一份 KEEP 副本（「与 NODE_KEEP 一致」靠注释保证）→ 真源改了它不红，给出假信心；
   // 改为 import 后白名单变更时本用例必然同步感知。
-  const sanitize = (arr) =>
-    arr.map((n) => {
-      const out = {};
-      for (const k of NODE_KEEP) if (n[k] !== undefined && n[k] !== null) out[k] = n[k];
+  const sanitize = (arr: Node[]) =>
+    arr.map((n: Node) => {
+      const out: Record<string, unknown> = {};
+      for (const k of NODE_KEEP) {
+        const val = (n as Record<string, unknown>)[k];
+        if (val !== undefined && val !== null) out[k] = val;
+      }
       return out;
     });
 
   it('group 创建时必须带 width/height 字段（NodeShell.useNodeSize 优先读 width）', () => {
-    const group = grouped.find((n) => n.id === groupId);
+    const group = grouped!.find((n) => n.id === groupId)!;
     expect(group.width).toBe(780);
     expect(group.height).toBe(530);
-    expect(group.style.width).toBe(780);
-    expect(group.style.height).toBe(530);
+    expect(group.style!.width).toBe(780);
+    expect(group.style!.height).toBe(530);
   });
 
   it('落盘 -> 加载重建后 group 面积不变（防止刷新塌成 0×0）', () => {
-    const snapshot = sanitize(grouped);
+    const snapshot = sanitize(grouped!);
     const lookup = new Map();
     const parentLookup = new Map();
-    adoptUserNodes(snapshot, lookup, parentLookup, { nodeOrigin: [0, 0] });
+    adoptUserNodes(snapshot as unknown as Node[], lookup, parentLookup, { nodeOrigin: [0, 0] });
     const g = lookup.get(groupId);
     const dims = getNodeDimensions(g);
     expect(dims.width).toBe(780);
@@ -323,15 +327,18 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
 
   it('落盘必须保留 style/initialWidth/initialHeight（缺则面积塌 0）', () => {
     const badKeep = ['id', 'type', 'position', 'data', 'width', 'height', 'parentId', 'extent']; // 旧白名单：无 style/initialWidth
-    const badSanitize = (arr) =>
-      arr.map((n) => {
-        const out = {};
-        for (const k of badKeep) if (n[k] !== undefined && n[k] !== null) out[k] = n[k];
+    const badSanitize = (arr: Node[]) =>
+      arr.map((n: Node) => {
+        const out: Record<string, unknown> = {};
+        for (const k of badKeep) {
+          const val = (n as Record<string, unknown>)[k];
+          if (val !== undefined && val !== null) out[k] = val;
+        }
         return out;
       });
-    const snapshot = badSanitize(grouped);
+    const snapshot = badSanitize(grouped!);
     const lookup = new Map();
-    adoptUserNodes(snapshot, lookup, new Map(), { nodeOrigin: [0, 0] });
+    adoptUserNodes(snapshot as unknown as Node[], lookup, new Map(), { nodeOrigin: [0, 0] });
     const dims = getNodeDimensions(lookup.get(groupId));
     // 旧白名单即使有 width/height（本次修复新增），也会因丢 initialWidth 退化；
     // 该用例守住「缺 initialWidth/height 会塌」的边界，提醒后续不要删这些字段。
@@ -380,7 +387,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
     // 传入的 nodes 必须包含被拖拽节点本身（对齐原调用方 nodesRef.current）
     const r = resolveDragGrouping(dragged, [group, outer, dragged]);
     expect(r).not.toBeNull();
-    const moved = r.find((n) => n.id === 'd');
+    const moved = r!.find((n) => n.id === 'd')!;
     expect(moved.parentId).toBe('g');
     expect(moved.position).toEqual({ x: 200, y: 200 }); // group 在原点，相对=绝对
   });
@@ -408,7 +415,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
     };
     const r = resolveDragGrouping(dragged, [group, child, outer, dragged]);
     expect(r).not.toBeNull();
-    const moved = r.find((n) => n.id === 'd');
+    const moved = r!.find((n) => n.id === 'd')!;
     expect(moved.parentId).toBeUndefined();
     expect(moved.extent).toBeUndefined();
     // 原组在原点，绝对=相对 700,700
@@ -433,7 +440,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
     };
     const r = resolveDragGrouping(dragged, [inner, group, dragged]);
     expect(r).not.toBeNull();
-    const moved = r.find((n) => n.id === 'd');
+    const moved = r!.find((n) => n.id === 'd')!;
     expect(moved.parentId).toBe('inner');
   });
 });

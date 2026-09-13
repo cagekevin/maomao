@@ -4,6 +4,8 @@ import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/store/agen
 import { logger } from '../../base/core/logger.ts';
 import { InputStateMachine } from './inputStateMachine.ts';
 import { generateId } from '../../base/core/idGen.ts';
+// 【TD-15-1】agentKey 前缀单源（禁本地拼字面量）
+import { AGENT_KEY_PREFIX } from '../../base/core/agentKeys.ts';
 
 /**
  * 【过渡方案·2026-08-18 决策注释】回传给 LLM 的「历史纯文字」轮数（由 AI 助手设置控制，不硬编码）。
@@ -320,7 +322,7 @@ interface UseAgentChatOptions {
 }
 
 export function useAgentChat({
-  agentKey = 'canvas-assistant',
+  agentKey = AGENT_KEY_PREFIX,
   systemPrompt = '',
   defaultModel = '',
   provider = null,

@@ -25,20 +25,31 @@
  * }
  */
 import { getLocalKeys } from '../core/contracts.ts';
+// 【TD-15-1】agentKey 前缀 / 会话键构造收口到 base/core 单一真源（禁本地再拼字面量）
+import {
+  agentKeyForProject,
+  agentConversationsKey,
+  agentActiveConversationKey,
+} from '../core/agentKeys.ts';
 import { contentGet, contentSet, contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
-import { getCurrentProject, loadCanvasState, saveCanvasState } from './projectStore.ts';
+import {
+  getCurrentProject,
+  getAllProjects,
+  loadCanvasState,
+  saveCanvasState,
+} from './projectStore.ts';
 import { logger } from '../core/logger.ts';
 
 /** localStorage 备份清单 —— 由 contracts.ts STORAGE_KEYS 权威登记生成（getLocalKeys()）。
  *  新增存储键先在 contracts.ts 登记即自动进备份，禁止再手写清单（防漂移漏备份）。 */
 const LS_KEYS = getLocalKeys();
 
-/** AI 助手 agentKey 前缀（对齐 App.jsx / conversationState.js 的 agentKey 命名，集中避免散落硬编码） */
-const AGENT_KEY_PREFIX = 'canvas-assistant';
+/** 备份格式版本：写出与导入守卫**共用**（禁两处写死，TD-15-3）。 */
+const BACKUP_VERSION = 2;
 
 /**
  * AI 会话键（conversationStore 按 agentKey=项目隔离）：每项目一套会话存储。
- * 项目列表读自 projects 键；键形如 agent_conversations_canvas-assistant-<projectId>。
+ * 键形如 agent_conversations_canvas-assistant-<projectId>；构造单源在 `core/agentKeys`（TD-15-1）。
  * @param {Array} projects 项目列表（{id}）
  * @returns {string[]} 所有项目的会话键
  */
@@ -48,8 +59,9 @@ function conversationKeys(projects: unknown): string[] {
   const ids = new Set(list.map((p) => p && p.id).filter(Boolean));
   ids.add(getCurrentProjectId());
   for (const id of ids) {
-    keys.push(`agent_conversations_${AGENT_KEY_PREFIX}-${id}`);
-    keys.push(`agent_active_conversation_id_${AGENT_KEY_PREFIX}-${id}`);
+    const agentKey = agentKeyForProject(String(id));
+    keys.push(agentConversationsKey(agentKey));
+    keys.push(agentActiveConversationKey(agentKey));
   }
   return keys;
 }
@@ -64,13 +76,14 @@ function readLS(k: string) {
   }
 }
 
-/** 写 contentStore 某键（容错） */
-function writeLS(k: string, v: unknown) {
+/** 写 contentStore 某键（容错）；返回是否成功（供 importAll 汇总失败，TD-15-3 禁假成功）。 */
+function writeLS(k: string, v: unknown): boolean {
   try {
     contentSet(k, v);
+    return true;
   } catch {
-    // catch-ok: 写入失败不阻断备份流程（contentSet 内部已分类/留痕）
-    /* ignore */
+    // catch-ok: 单键写入失败不阻断其余导入；失败由 importAll 计入 failed 清单（不静默吞）
+    return false;
   }
 }
 
@@ -106,16 +119,24 @@ export async function exportAll() {
     const v = readLS(k);
     if (v !== undefined) ls[k] = v;
   }
+  // 【TD-15-2】项目集合以 projectStore **内存真相**为准（并集存储副本兜底）：
+  // 存储副本落盘有 300ms 防抖滞后 → 只读它会漏备窗口内新建的项目。内存项优先（改名/新建即时生效）。
+  const storedProjects = Array.isArray(ls.projects) ? (ls.projects as { id?: unknown }[]) : [];
+  const byId = new Map<string, { id?: unknown }>();
+  for (const p of [...getAllProjects(), ...storedProjects]) {
+    const id = p && typeof p === 'object' ? (p as { id?: unknown }).id : undefined;
+    if (typeof id === 'string' && id && !byId.has(id)) byId.set(id, p as { id?: unknown });
+  }
+  const projectList = [...byId.values()];
+  if (projectList.length) ls.projects = projectList; // 备份包内项目列表与枚举同源，保证导入自洽
   // AI 会话（按项目隔离）：动态收集所有项目的会话键（键为 KV 后端 → 异步读，见 readLSAsync）
-  const projectsForConv = Array.isArray(ls.projects) ? ls.projects : [];
-  for (const k of conversationKeys(projectsForConv)) {
+  for (const k of conversationKeys(projectList)) {
     const v = await readLSAsync(k);
     if (v !== undefined && v !== null) ls[k] = v;
   }
   // 画布快照：遍历所有项目逐个读 KV
   const canvas: Record<string, unknown> = {};
-  const projects = Array.isArray(ls.projects) ? ls.projects : [];
-  const ids = new Set(projects.map((p) => p.id));
+  const ids = new Set(projectList.map((p) => String(p.id)));
   ids.add(getCurrentProjectId());
   for (const id of ids) {
     try {
@@ -148,7 +169,7 @@ export async function exportAll() {
     { module: 'project' },
   );
   return {
-    version: 2,
+    version: BACKUP_VERSION,
     type: 'yimao-backup',
     exportedAt: new Date().toISOString(),
     ls,
@@ -161,17 +182,21 @@ export async function exportAll() {
  * 导入备份：把备份对象写回 localStorage + KV 画布快照。
  * ⚠️ 调用方需在成功后 window.location.reload() 刷新应用。
  * @param {object} backup 备份对象（exportAll 的返回）
- * @returns {{ ok:boolean, ls:number, canvas:number, error?:string }}
+ * @returns {{ ok:boolean, ls:number, canvas:number, failed:{projectId,error}[], error?:string }}
+ *   【TD-15-3 诚实失败】任一项写失败 → `ok=false` 且 `failed` 列明；**不再恒返 ok:true**（禁假成功）。
  */
 export async function importAll(backup: unknown): Promise<{
   ok: boolean;
   ls: number;
   canvas: number;
+  failed: { projectId: string; error: string }[];
   error?: string;
 }> {
   if (!backup || typeof backup !== 'object' || Array.isArray(backup))
-    return { ok: false, ls: 0, canvas: 0, error: '备份数据无效' };
+    return { ok: false, ls: 0, canvas: 0, failed: [], error: '备份数据无效' };
   const b = backup as {
+    type?: unknown;
+    version?: unknown;
     ls?: Record<string, unknown>;
     canvas?: Record<
       string,
@@ -179,13 +204,28 @@ export async function importAll(backup: unknown): Promise<{
     >;
     accounts?: unknown;
   };
+  // 【TD-15-3】格式/版本守卫（**宽松向后兼容**）：显式不符才拒；缺 type/version 视为旧包放行
+  //（历史包与最小测试夹具可能不带这两字段，不能因"没写版本"就拒绝合法数据）。
+  if (b.type !== undefined && b.type !== 'yimao-backup')
+    return { ok: false, ls: 0, canvas: 0, failed: [], error: '不是 yimao 备份文件（type 不符）' };
+  if (typeof b.version === 'number' && b.version > BACKUP_VERSION)
+    return {
+      ok: false,
+      ls: 0,
+      canvas: 0,
+      failed: [],
+      error: `备份版本 ${b.version} 高于当前支持的 ${BACKUP_VERSION}，请升级应用后再导入`,
+    };
+
   let lsCount = 0;
   let canvasCount = 0;
-  // localStorage：先备份清单里已有的键再覆盖
+  // 【TD-15-3】失败明细：任一写失败 → 不再伪装成导入成功（禁假成功）。
+  const failed: { projectId: string; error: string }[] = [];
+  // 配置键：逐个写回（writeLS 返回 false 计入失败，不静默）
   if (b.ls && typeof b.ls === 'object') {
     for (const k of Object.keys(b.ls)) {
-      writeLS(k, b.ls[k]);
-      lsCount++;
+      if (writeLS(k, b.ls[k])) lsCount++;
+      else failed.push({ projectId: k, error: '写入配置失败' });
     }
   }
   // 画布快照：逐个写回 KV
@@ -198,9 +238,11 @@ export async function importAll(backup: unknown): Promise<{
           force: true,
         });
         if (!res?.skipped) canvasCount++;
-      } catch {
-        // 【P0 埋点】单个快照写失败（排查「导入后画布丢」：标记具体项目）
-        logger.warn('backupStore', '导入时写回项目画布失败', { projectId });
+      } catch (e) {
+        // 【P0 埋点 + TD-15-3】单个快照写失败：日志留痕 + 计入 failed（不再静默吞成"成功"）
+        const msg = e instanceof Error ? e.message : String(e);
+        logger.warn('backupStore', '导入时写回项目画布失败', { projectId, error: msg });
+        failed.push({ projectId, error: msg });
       }
     }
   }
@@ -209,18 +251,27 @@ export async function importAll(backup: unknown): Promise<{
     try {
       await contentSetAsync('yimao_accounts', b.accounts);
       lsCount++;
-    } catch {
-      // 【P0 埋点】账号写回失败（排查「导入后账号丢」）
-      logger.warn('backupStore', '导入时写回账号失败');
+    } catch (e) {
+      // 【P0 埋点 + TD-15-3】账号写回失败：计入 failed
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.warn('backupStore', '导入时写回账号失败', { error: msg });
+      failed.push({ projectId: 'yimao_accounts', error: msg });
     }
   }
+  const ok = failed.length === 0;
+  const error = ok
+    ? undefined
+    : `${failed.length} 项导入失败（${failed
+        .slice(0, 3)
+        .map((f) => f.projectId)
+        .join('、')}${failed.length > 3 ? ' 等' : ''}）`;
   logger.debug(
     '备份',
     '[导入]',
-    { ls: lsCount, canvas: canvasCount, error: undefined },
+    { ls: lsCount, canvas: canvasCount, failed: failed.length },
     { module: 'project' },
   );
-  return { ok: true, ls: lsCount, canvas: canvasCount };
+  return { ok, ls: lsCount, canvas: canvasCount, failed, ...(error ? { error } : {}) };
 }
 
 /** 把备份对象转成可下载的 Blob */

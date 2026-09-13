@@ -196,7 +196,7 @@ describe('contentGetAsync / contentSetAsync / contentDeleteAsync', () => {
 
 describe('KV 键路由', () => {
   const KV_KEY = 'canvas-state-v1-test-project';
-  const KV_VALUE = { nodes: [], edges: [] };
+  const KV_VALUE: any = { nodes: [], edges: [] };
 
   // 路由由 resolveBackend 读真实 STORAGE_KEYS 决定（canvas-state-v1-{projectId} pattern 登记为 kv），
   // 不再由 mock 注入 isKvKey（2026-09-04 折叠）。这里只预设 kv 底层返回值。
@@ -256,7 +256,7 @@ describe('KV 键路由', () => {
 
 describe('折叠回归（KV 降级 / 路由 / native）', () => {
   const KV_KEY = 'canvas-state-v1-test-project';
-  const KV_VALUE = { nodes: [], edges: [] };
+  const KV_VALUE: any = { nodes: [], edges: [] };
 
   // clearAllMocks 只清调用不清实现（mockRejectedValue 会跨用例残留），故在此统一重置 kv 三件套为成功默认。
   beforeEach(() => {
@@ -489,7 +489,7 @@ describe('动态键模式匹配', () => {
   });
 
   it('contentGetAsync 动态 KV 键走 kvGet', async () => {
-    mockLocalToolApi.kvGet.mockResolvedValue({ nodes: [] });
+    mockLocalToolApi.kvGet.mockResolvedValue({ nodes: [] } as never);
     const result = await contentGetAsync('canvas-state-v1-proj-999');
     expect(mockLocalToolApi.kvGet).toHaveBeenCalledWith('canvas-state-v1-proj-999');
     expect(result).toEqual({ nodes: [] });
@@ -661,7 +661,7 @@ describe('读族失败分类 + KvFallback 诚实信号（TD-02-15/19/25）', () 
   });
 
   it('TD-02-25：KV 命中 → source:kv，不带 vacated', async () => {
-    mockLocalToolApi.kvGet.mockResolvedValueOnce({ real: true });
+    mockLocalToolApi.kvGet.mockResolvedValueOnce({ real: true } as never);
     const res = await contentGetKvWithFallback(KV_KEY);
     expect(res.ok).toBe(true);
     expect(res.source).toBe('kv');

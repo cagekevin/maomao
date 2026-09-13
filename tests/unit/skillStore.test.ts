@@ -40,9 +40,9 @@ describe('Skill 系统 §2.19', () => {
 
   it('upsertCustomSkill 新增 + 更新（同 id 覆盖）', () => {
     const s = upsertCustomSkill({ id: 's1', name: 'A', content: 'c1' });
-    expect(s.id).toBe('s1');
+    expect(s!.id).toBe('s1');
     const updated = upsertCustomSkill({ id: 's1', name: 'A2', content: 'c2' });
-    expect(updated.name).toBe('A2');
+    expect(updated!.name).toBe('A2');
     expect(getCustomSkills()).toHaveLength(1); // 未重复添加
   });
 

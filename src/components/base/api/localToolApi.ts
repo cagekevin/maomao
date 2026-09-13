@@ -210,16 +210,6 @@ export async function deleteResource(id: string): Promise<ApiEnvelope<OkResult>>
   });
 }
 
-// POST /api/resources/save body 资源对象 → { ok:true }（upsert，含 isFavorite）
-export async function saveResource(resource: unknown): Promise<ApiEnvelope<OkResult>> {
-  return httpRequest(`${API_BASE}/api/resources/save`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(resource),
-    label: 'saveResource',
-  });
-}
-
 // GET /api/resources/rename?id=...&name=... → { data:{ id,url,name } }（重命名后回写资源）
 export async function renameResource(id: string, name: string): Promise<ApiEnvelope<ResourceItem>> {
   return httpPost(

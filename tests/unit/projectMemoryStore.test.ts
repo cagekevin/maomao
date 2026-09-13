@@ -58,7 +58,7 @@ describe('sanitizeMemoryContent —— 脱敏（T1）', () => {
 
   it('空/非字符串安全返回空串', () => {
     expect(sanitizeMemoryContent('')).toBe('');
-    expect(sanitizeMemoryContent(null)).toBe('');
+    expect(sanitizeMemoryContent(null as never)).toBe('');
   });
 });
 

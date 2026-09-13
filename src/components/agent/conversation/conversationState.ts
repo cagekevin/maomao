@@ -30,6 +30,12 @@ import { sGet } from '@/components/base/storage/index.ts';
 import { withTimeout } from '../../base/utils/asyncGuard.ts';
 import { generateId } from '../../base/core/idGen.ts';
 import { CREDIT_GATE_FIELD } from '../../base/core/contracts.ts';
+// 【TD-15-1】agentKey 前缀 / 会话键构造收口到 base/core 单一真源（禁本地再拼字面量）
+import {
+  AGENT_KEY_PREFIX,
+  agentConversationsKey,
+  agentActiveConversationKey,
+} from '../../base/core/agentKeys.ts';
 import { logger } from '../../base/core/logger.ts';
 import { reportDegrade } from '../../base/core/degrade.ts';
 import { KV_TIMEOUT } from '../../base/core/config.ts';
@@ -47,8 +53,8 @@ import { validateConversationState } from './conversationInvariants.ts';
  * 存储键按 agentKey 隔离（每项目一个 agentKey → 每项目一套会话）。
  * 键形如 agent_conversations_canvas-assistant-<projectId>，天然按项目分开。
  */
-export const convKey = (k: string) => `agent_conversations_${k}`;
-export const activeKey = (k: string) => `agent_active_conversation_id_${k}`;
+export const convKey = agentConversationsKey;
+export const activeKey = agentActiveConversationKey;
 
 /**
  * 会话记忆（对齐大雄 agentEmptyConversationMemory）。
@@ -68,8 +74,6 @@ import type {
 } from './conversationTypes.ts';
 export * from './conversationTypes.ts';
 
-/** AI 助手 agentKey 前缀（对齐 App.jsx / backupStore.ts，集中避免散落硬编码） */
-const AGENT_KEY_PREFIX = 'canvas-assistant';
 /** 旧全局会话键（迁移用）：改造前无 agentKey 后缀（contracts.ts 登记为 migration 键） */
 const LEGACY_CONV_KEY = 'agent_conversations';
 const LEGACY_ACTIVE_KEY = 'agent_active_conversation_id';

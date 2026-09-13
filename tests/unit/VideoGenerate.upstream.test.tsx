@@ -64,7 +64,10 @@ vi.mock('../../src/components/base/core/uiHooks.ts', async (importOriginal) => (
 }));
 
 // 可控的 useConnectedInputs
-let connectedInputs = { images: [], texts: [] };
+let connectedInputs: {
+  images: Array<{ id: string; url: string; sourceNodeId: string }>;
+  texts: Array<{ id: string; text: string; sourceNodeId: string }>;
+} = { images: [], texts: [] };
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
   useConnectedInputs: () => connectedInputs,
 }));

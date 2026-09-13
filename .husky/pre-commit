@@ -1,5 +1,5 @@
 #!/bin/sh
-# 提交门禁（仅前端）：type-check（快）+ 只跑「改动相关」的单元测试（scripts/test-affected.cjs）
+# 提交门禁（仅前端）：lint-staged（暂存文件）+ 只跑「改动相关」的单元测试（scripts/test-affected.cjs）
 # + 三个秒级 SSR 门禁（smoke/regression/tools，防「改名后 SSR 挂」这类问题）。
 #   regression/tools 已迁为 vitest 用例（ssrRegression / canvasAgentTools / demoPlan），
 #   不再用 esbuild 把前端代码打成 CJS。它们在此处「无条件」跑，是因为 SSR 崩通常来自
@@ -26,11 +26,9 @@ set +e
 # 只对暂存文件做 lint + format（快，不查全站）
 npx lint-staged
 ls=$?
-# 分区闸 commit 层：type-check(通用类型，秒级，提交即知类型错误) + 3 道代码卫生闸(any/catch/events)。
-#   白名单隐式 any 收口(strict-src, 带 --noImplicitAny) 与 arch 留到 pre-push（push 最不频繁）。
-#   两者用不同 tsc 标志、互不重叠，commit+push 连发也不会跑同一道闸两遍。
-npm run check:commit
-cc=$?
+# 【2026-09-13 闸时机裁定（用户）】代码闸（type-check/any/catch/events/strict-src/arch/dead-code）
+#   已合并为**单一验证阶段**，只在 pre-push 跑一次 → 本钩子**不再跑闸**（不再"提交一轮 + 推送一轮"）。
+#   本钩子只做「快守卫」：lint-staged + 改动相关测试 + 三个秒级 SSR 门禁。
 node scripts/test-affected.cjs
 vt=$?
 node scripts/smoke_test.cjs
@@ -39,4 +37,4 @@ npm run test:regression
 rg=$?
 npm run test:tools
 tl=$?
-[ "$ls" -eq 0 ] && [ "$cc" -eq 0 ] && [ "$vt" -eq 0 ] && [ "$sm" -eq 0 ] && [ "$rg" -eq 0 ] && [ "$tl" -eq 0 ]
+[ "$ls" -eq 0 ] && [ "$vt" -eq 0 ] && [ "$sm" -eq 0 ] && [ "$rg" -eq 0 ] && [ "$tl" -eq 0 ]

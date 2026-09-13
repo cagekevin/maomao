@@ -84,11 +84,11 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
       new AbortController().signal,
       ctx.onStream,
     );
-    expect(captured.tools).toBeUndefined();
-    expect(captured.tool_choice).toBeUndefined();
-    expect(captured.stream).toBe(false);
+    expect(captured!.tools).toBeUndefined();
+    expect(captured!.tool_choice).toBeUndefined();
+    expect(captured!.stream).toBe(false);
     expect(r.content).toBe('普通对话');
-    expect(r.tool_calls).toBeUndefined();
+    expect(r.tool_calls!).toBeUndefined();
   });
 
   it('【§6.3 开开关】非流式模型 + 开关=true → 请求体含 tools/tool_choice，且响应 tool_calls 被回填', async () => {
@@ -122,10 +122,10 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
       new AbortController().signal,
       ctx.onStream,
     );
-    expect(Array.isArray(captured.tools)).toBe(true);
-    expect(captured.tool_choice).toBe('auto');
-    expect(r.tool_calls).toBeDefined();
-    expect(r.tool_calls[0].function.name).toBe('show_plan_for_confirm');
+    expect(Array.isArray(captured!.tools)).toBe(true);
+    expect(captured!.tool_choice).toBe('auto');
+    expect(r.tool_calls!).toBeDefined();
+    expect(r.tool_calls![0].function!.name).toBe('show_plan_for_confirm');
   });
 
   it('【§6.3 开开关但无 tool_calls】非流式 + 开关=true → 响应无 tool_calls 时不回填', async () => {
@@ -140,7 +140,7 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
       ctx.onStream,
     );
     expect(r.content).toBe('纯文本');
-    expect(r.tool_calls).toBeUndefined();
+    expect(r.tool_calls!).toBeUndefined();
   });
 
   it('【§6.3 流式默认】流式模型 → 请求体含 tools（无论开关），走 SSE', async () => {
@@ -191,8 +191,8 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
       new AbortController().signal,
       ctx.onStream,
     );
-    expect(Array.isArray(captured.tools)).toBe(true);
-    expect(captured.stream).toBe(true);
+    expect(Array.isArray(captured!.tools)).toBe(true);
+    expect(captured!.stream).toBe(true);
     expect(r.content).toBe('hello');
   });
 
@@ -288,8 +288,8 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
       new AbortController().signal,
       ctx.onStream,
     );
-    expect(Array.isArray(r.tool_calls)).toBe(true);
-    expect(r.tool_calls[0].function.name).toBe('create_node');
-    expect(r.tool_calls[0].function.arguments).toBe('{"nodeType":"textGenerateNode"}');
+    expect(Array.isArray(r.tool_calls!)).toBe(true);
+    expect(r.tool_calls![0].function!.name).toBe('create_node');
+    expect(r.tool_calls![0].function!.arguments).toBe('{"nodeType":"textGenerateNode"}');
   });
 });

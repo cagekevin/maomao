@@ -262,7 +262,7 @@ describe('accountsStore §4 多开账号管理', () => {
     it('保存后经 /api/kv/set 落盘 yimao_accounts（KV 持久化，非浏览器内存）', async () => {
       await createEnv('即梦小号');
       const setCalls = (
-        globalThis.fetch as unknown as { mock: { calls: unknown[] } }
+        globalThis.fetch as unknown as { mock: { calls: any[] } }
       ).mock.calls.filter((c: unknown[]) => String(c[0]).includes('/api/kv/set'));
       expect(setCalls.length).toBeGreaterThan(0);
     });
@@ -271,7 +271,7 @@ describe('accountsStore §4 多开账号管理', () => {
       await flushAsync(); // 等模块导入时 `void load()` 的异步 KV 读落定
       expect(mod.useAccounts().envs).toEqual([]);
       const setCalls = (
-        globalThis.fetch as unknown as { mock: { calls: unknown[] } }
+        globalThis.fetch as unknown as { mock: { calls: any[] } }
       ).mock.calls.filter((c: unknown[]) => String(c[0]).includes('/api/kv/set'));
       expect(setCalls).toHaveLength(0);
       expect(localStorage.getItem('yimao_accounts')).toBeNull();

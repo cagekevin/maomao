@@ -16,15 +16,9 @@ import {
   buildPaginatedQuery,
   paginatedResult,
 } from '../utils/helpers.js';
-import {
-  writeUploadBuffer,
-  ensureDir,
-  resolveUploadFile,
-  contentIdOf,
-} from '../utils/fileStore.js';
+import { contentIdOf } from '../utils/fileStore.js';
 import { runReferenceGc } from '../utils/orphanGc.js';
 import { toAbsoluteFileUrl } from '../utils/localToolBaseUrl.js';
-import { mimeToExt } from '../utils/mime.js';
 
 // ── rescan：扫描 upload 目录，把磁盘文件/文件夹元数据同步进 resources 表 ──
 const RESCAN_FILE_TYPE: Record<string, string> = {
@@ -73,27 +67,6 @@ function contentSha1(filePath: string): string | null {
   }
 }
 
-/**
- * 把 dataURL（形如 data:<mime>;base64,xxxx）解成二进制 Buffer，并给出扩展名。
- * @returns null 表示不是可解析的 dataURL
- */
-function decodeDataUrl(dataUrl: string): { buffer: Buffer; ext: string } | null {
-  const m = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(dataUrl);
-  if (!m || !m[3]) return null;
-  const mime = (m[1] || '').toLowerCase();
-  const isBase64 = !!m[2];
-  let buffer: Buffer;
-  try {
-    buffer = isBase64 ? Buffer.from(m[3], 'base64') : Buffer.from(decodeURIComponent(m[3]), 'utf8');
-  } catch {
-    return null;
-  }
-  if (buffer.length === 0) return null;
-  // 扩展名唯一实现 mimeToExt（utils/mime.ts）；表外回 .bin（对齐旧兜底）
-  const ext = mimeToExt(mime) ?? '.bin';
-  return { buffer, ext };
-}
-
 // 本地工具服务基址：资源面板运行在 chrome-extension:// 页面，
 // 直接 <img src="/files/..."> 会被解析成 chrome-extension://.../files/... → 404 破图。
 // 因此 rescan 入库的 url 必须补全为可访问的完整地址。
@@ -113,6 +86,29 @@ export function resourceIdOf(relPath: string): string {
   const folder = !dir || dir === '.' ? '' : dir;
   const name = path.posix.basename(relPath);
   return folder ? `local-${folder}-${name}` : `local-${name}`;
+}
+
+/**
+ * 从资源的**不可变 url** 反解「相对 uploadDir 的磁盘路径」（去 `/files/` 前缀、解码）。
+ *
+ * 【为什么这是磁盘定位真源（TD-12-8）】context-only 下 `folder`/`name` 已降格为「UI 分类/显示名」
+ * 且允许与磁盘脱钩；物理真源一直是不变的 `url`（= `toAbsoluteFileUrl('/files/<磁盘rel>')`，
+ * rescan 写入后永不改）。故**任何磁盘定位（孤儿判定 / 移动行定位）都必须由本函数派生**，
+ * 禁止再 `path.join(uploadDir, row.folder, row.name)`（那是把可变的 UI 分类误当磁盘路径 —— TD-12-8 母体）。
+ *
+ * @returns 相对路径（如 `migrated/人物/a.png`）；非 `/files/` 形态或解析失败 → null（调用方须跳过，不得猜）
+ */
+export function relativePathFromFileUrl(url: unknown): string | null {
+  if (typeof url !== 'string' || !url) return null;
+  try {
+    const pathname = decodeURIComponent(new URL(url).pathname);
+    // 必须命中 `/files/` 前缀（远程图 / data URL / 其它路径 → 非本地磁盘文件）
+    if (!pathname.startsWith('/files/')) return null;
+    const rel = pathname.slice('/files/'.length);
+    return rel || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function handleResourcesRescan(
@@ -243,13 +239,23 @@ export async function handleResourcesRescan(
 
   // 孤儿清理：库中 source='local-tool' 但磁盘上对应路径已不存在的记录删除。
   // 否则本地删了文件夹/文件后，rescan 只新增不删除，前端仍显示陈旧条目。
+  //
+  // 【TD-12-8 修复】磁盘定位必须由**不可变 url** 派生（relativePathFromFileUrl），
+  // 不得用 `path.join(uploadDir, row.folder, row.name)` —— context-only 下 folder/name 是
+  // 「UI 分类/显示名」，拖入文件夹后 folder 已与磁盘脱钩，按它拼路径会 existsSync 恒 false
+  // → 行被误删 → 「归类回弹 / 改名回弹 / 收藏归零」。
   let orphanDeleted = 0;
   const localRows = queryAll(
     db,
-    `SELECT id, folder, name, type FROM resources WHERE source = 'local-tool'`,
-  ) as Array<{ id: string; folder: string; name: string; type: string }>;
+    `SELECT id, url, type FROM resources WHERE source = 'local-tool'`,
+  ) as Array<{ id: string; url: string | null; type: string }>;
   for (const row of localRows) {
-    const diskPath = path.join(uploadDir, row.folder, row.name);
+    // folder 类型行（目录）暂不参与本判定：其磁盘存在性由内部文件承担，且目录不参与移动归类。
+    if (row.type === 'folder') continue;
+    const rel = relativePathFromFileUrl(row.url);
+    // url 非本地 /files/ 形态（远程图、data URL、历史脏数据）→ **不判孤儿**（跳过，宁可留亦不误删）
+    if (!rel) continue;
+    const diskPath = path.join(uploadDir, rel);
     if (!fs.existsSync(diskPath)) {
       run(db, `DELETE FROM resources WHERE id = ?`, [row.id]);
       orphanDeleted++;
@@ -298,6 +304,54 @@ function resourceToRow(resource: Record<string, unknown>) {
     row[snakeKey] = snakeKey === 'is_favorite' ? (value ? 1 : 0) : value;
   }
   return row;
+}
+
+/**
+ * 【TD-12-5】上传落盘时登记/刷新 resource 行，并**写入 projectId**（项目隔离写入链闭环）。
+ *
+ * 【为什么需要】此前上传只写文件、不建行，行**全靠后续 rescan 目录扫描**创建 ——
+ * 而 rescan 无从知道 projectId → `project_id` 恒 NULL → `resourcesOfProject` 判 legacy
+ * → 新素材跨项目可见（隔离失效；且刷新后依旧，因后端行无归属）。
+ * 故上传成功时须由**发起方**（唯知当前项目）把 projectId 落进行里。
+ *
+ * 幂等与去重：按 `sha1 = contentId` 走 `upsertResource`（同内容命中既有行 → 复用并刷新
+ * project_id/folder/name，不新建第二行、绝不改物理 url）；无 contentId 时按 id 覆盖。
+ * rescan 之后扫到同 id 走 `exist → skip` 分支 → **自然保留**这里写入的 project_id。
+ *
+ * @param rel 相对 uploadDir 的磁盘路径（由落盘结果派生；id 由 resourceIdOf 单源生成）
+ * @param opts.projectId 当前项目 id（缺省/空 → 不写，保持 legacy）
+ */
+export async function recordUploadedFileRow(
+  rel: string,
+  opts: { projectId?: string | null; type?: string; source?: string } = {},
+): Promise<void> {
+  if (!rel) return;
+  const db = await getDb();
+  const id = resourceIdOf(rel);
+  const name = path.posix.basename(rel);
+  const dir = path.posix.dirname(rel);
+  const folder = !dir || dir === '.' ? '' : dir;
+  const absPath = path.join(getUploadDir(), rel);
+  let sha1: string | null = null;
+  try {
+    sha1 = contentIdOf(crypto.createHash('sha1').update(fs.readFileSync(absPath)).digest('hex'));
+  } catch {
+    sha1 = null; // 读不到文件（已被并发删除等）→ 不写 contentId，仍登记基本行
+  }
+  const resource: Record<string, unknown> = {
+    id,
+    url: toAbsoluteFileUrl(`/files/${rel}`),
+    type: opts.type || extToFileType(path.extname(name)) || 'image',
+    source: opts.source || 'local-tool',
+    folder,
+    name,
+    sha1,
+    timestamp: Date.now(),
+  };
+  // projectId 仅在显式提供时写入（null/undefined = 保持 legacy，不写列）
+  if (opts.projectId) resource.projectId = opts.projectId;
+  upsertResource(db, resourceToRow(resource));
+  debouncedSaveDb();
 }
 
 function upsertResource(db: any, row: Record<string, unknown>) {
@@ -407,43 +461,6 @@ export async function handleResourcesGet(
   });
 }
 
-export async function handleResourcesSave(
-  req: IncomingMessage,
-  res: ServerResponse,
-): Promise<void> {
-  const body = (await parseJsonBody(req)) as Record<string, unknown> | null;
-  if (!body || !body.id) return sendError(res, 'Missing id field', 400);
-
-  // dataURL 素材（剪贴板粘贴等）：先解码落盘为真实文件，再入库。
-  // 否则只把 dataURL 长字符串塞进 SQLite、磁盘 upload/ 无文件，刷新/重开页面后素材会丢。
-  // 落盘后 URL 改写为 18080 文件地址，与 ci/hi/rescan 共用同一文件体系，删除/备份也统一。
-  if (typeof body.url === 'string' && body.url.startsWith('data:')) {
-    const decoded = decodeDataUrl(body.url);
-    if (decoded) {
-      const folder = typeof body.folder === 'string' && body.folder ? body.folder : 'migrated';
-      const filename = `clip-${Date.now()}${decoded.ext}`;
-      try {
-        const { urlPath } = writeUploadBuffer(folder, filename, decoded.buffer);
-        body.url = toAbsoluteFileUrl(urlPath);
-        // 落盘文件会被 rescan 扫到并以 `local-${folder}-${basename}` 为 id 入库（resources.ts:126）。
-        // 前端剪贴板粘贴自造的 id 是时间戳字符串，与 rescan 的 id 不一致 → 同一文件两条记录（「来自剪贴板」+ 落盘文件各一条）。
-        // 这里把 id 对齐为 rescan 命名，使 rescan 扫到同文件时因 id 相同而 skipped，避免前端重复显示。
-        // 参考：docs/34 素材落盘修复 + 本处 dup 修复。
-        const basename = path.basename(urlPath);
-        body.id = resourceIdOf(`${folder}/${basename}`);
-      } catch (e) {
-        // 落盘失败不阻断：仍按原 dataURL 入库，避免前端报错
-        console.error(`[resources] save dataURL 落盘失败，按原样入库:`, e);
-      }
-    }
-  }
-
-  const db = await getDb();
-  upsertResource(db, resourceToRow(body));
-  debouncedSaveDb();
-  return json(res, { code: 0, data: { ok: true } });
-}
-
 export async function handleResourcesBatchSave(
   req: IncomingMessage,
   res: ServerResponse,
@@ -506,7 +523,8 @@ export async function handleResourcesClear(
  * 增量② · 上下文仅改名/移动（docs/122 Content/Ref：#4「改名/移动只动 context」）：
  * 只更新 resource 行的 `name`（显示名）/`folder`（UI 分类），**不动磁盘、不改 `url`（含不可变 physBucket）、
  * 不改 contentId** → 引用方（asset 持 contentId/url）永不感知改名 → **永不破图，无需 rewriteUrlReferences**。
- * 这是对 applyResourceIdentityChange（真·移动磁盘 + 改写 url）的正交替代：改名/移动归类属 context 层操作。
+ * 它取代了历史上 applyResourceIdentityChange（真·移动磁盘 + 改写 url）的语义：改名/移动归类属 context 层操作
+ * （applyResourceIdentityChange 已退役、全仓无定义，此处仅作历史对照）。
  * @returns 更新后的 { id, url(不变), name, folder }；url/contentId 保持原值
  */
 export async function applyResourceContextChange(opts: {
@@ -537,14 +555,15 @@ export async function applyResourceContextChange(opts: {
 /**
  * 增量② · context-only 移动归类（docs/122 Content/Ref：#4「移动只动 context」）：
  * 把资源拖入文件夹 = 只更新 resource 行的 `folder`（UI 分类），**物理文件 / url / contentId 均不动**。
- * 与 applyResourceContextChange 同一 context 层语义；按「旧相对路径」定位 resource 行（id = resourceIdOf(oldRel)）。
- * 行不存在（尚未 rescan）时无元数据可改、物理本就未动，返回原样（由后续 rescan 对齐）。
- * @returns 更新后的 { id, url(url 不变，可能 null 当行不存在), name, folder }
+ * 与 applyResourceContextChange 同一 context 层语义；按「旧磁盘相对路径」定位 resource 行。
+ * 【TD-12-8】`oldRel` 须为**不可变 url 派生的磁盘路径**（前端 resolveMovePaths 由 item.url 派生），
+ * 不得用 UI `folder` 拼 —— 否则移动后定位不到行。行不存在 → 抛 404（不假成功）。
+ * @returns 更新后的 { id, url(url 不变), name, folder }
  */
 export async function applyResourceContextMove(opts: {
   oldRel: string;
   newRel: string;
-}): Promise<{ id: string; url: string | null; name: string; folder: string | null }> {
+}): Promise<{ id: string; url: string; name: string; folder: string | null }> {
   const { oldRel, newRel } = opts;
   // 路径安全（context-only 虽不碰磁盘，仍拒绝越出 uploads 的相对路径，防脏 folder 污染 UI）
   if (
@@ -557,7 +576,6 @@ export async function applyResourceContextMove(opts: {
   ) {
     throw new HttpStatusError(400, '非法的资源路径');
   }
-  const oldName = path.posix.basename(oldRel);
   const parent = path.posix.dirname(newRel);
   const folder = parent === '.' ? '' : parent;
   const id = resourceIdOf(oldRel);
@@ -566,8 +584,11 @@ export async function applyResourceContextMove(opts: {
   const row = queryOne(db, 'SELECT * FROM resources WHERE id = ?', [id]) as
     Record<string, unknown> | undefined;
   if (!row) {
-    // context-only 移动：行不存在则无可更新元数据，物理文件未动，返回原样供前端刷新
-    return { id, url: null, name: oldName, folder };
+    // 【TD-12-8 修复】行不存在 → **不得假成功**。`src` 现由不可变 url 派生（见 relativePathFromFileUrl
+    // 与 resolveMovePaths），正常移动必能命中行；走到这里说明该资源未同步入表（磁盘有文件、表无行）。
+    // 物理文件本就未动，但静默回 ok:true 会让前端提示「已移动」= 假成功（用户以为归类成功、刷新却回弹）。
+    // 按用户裁定：返回明确失败，前端提示「资源未同步，请刷新后重试」。
+    throw new HttpStatusError(404, '资源未同步，请刷新后重试');
   }
   run(db, 'UPDATE resources SET folder = ? WHERE id = ?', [folder, id]);
   debouncedSaveDb();

@@ -35,8 +35,8 @@ const BOM = '﻿'; // BOM
 describe('clipboard — sanitizePastedText（纯函数）', () => {
   it('空值/假值返回空串', () => {
     expect(sanitizePastedText('')).toBe('');
-    expect(sanitizePastedText(null)).toBe('');
-    expect(sanitizePastedText(undefined)).toBe('');
+    expect(sanitizePastedText(null as unknown as string)).toBe('');
+    expect(sanitizePastedText(undefined as unknown as string)).toBe('');
   });
 
   it('去除零宽/不可见字符（BOM/零宽空格/LRM/RLM/软连字符）', () => {
@@ -90,13 +90,13 @@ describe('clipboard — copyText', () => {
 });
 
 describe('clipboard — copyImageToClipboard', () => {
-  function mockImage(ok) {
+  function mockImage(ok: boolean) {
     vi.stubGlobal(
       'Image',
       class {
         onload?: () => void;
         onerror?: (e: unknown) => void;
-        set src(_v) {
+        set src(_v: string) {
           if (ok) queueMicrotask(() => this.onload && this.onload());
           else queueMicrotask(() => this.onerror && this.onerror(new Error('x')));
         }
@@ -240,7 +240,7 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
   });
 
   it('正常重建：id 重映射、新节点 selected:true、data 深拷贝', () => {
-    const r = buildNodesFromClipboard(clipboardJson, { x: 500, y: 500 });
+    const r = buildNodesFromClipboard(clipboardJson, { x: 500, y: 500 })!;
     expect(r).not.toBeNull();
     expect(r.nodes).toHaveLength(2);
     // id 已重映射（不保留原 id a/b）
@@ -261,8 +261,8 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
   it('以粘贴点为中心：包围盒中心对齐 pos', () => {
     // 原包围盒 x: 0..200(0+100?) 实际 0..100 / y:0..100 → 中心 (50,50)
     // 节点 a 绝对 x:0..100、b x:200..300 → 整体 x 范围 0..300，中心 150
-    const r = buildNodesFromClipboard(clipboardJson, { x: 1000, y: 800 });
-    const nodeA = r.nodes.find((n) => n.type === 'assetNode');
+    const r = buildNodesFromClipboard(clipboardJson, { x: 1000, y: 800 })!;
+    const nodeA = r.nodes.find((n) => n.type === 'assetNode')!;
     // a 原始 position.x=0，平移后 = pos.x + (0 - centerX) = 1000 + (0 - 150) = 850
     expect(nodeA.position.x).toBe(850);
   });
@@ -272,7 +272,7 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
       type: 'mutiwindow-nodes',
       nodes: [{ id: 'a', type: 'assetNode', data: { label: 'L' }, position: { x: 0, y: 0 } }],
     };
-    const r = buildNodesFromClipboard(JSON.stringify(src), { x: 0, y: 0 });
+    const r = buildNodesFromClipboard(JSON.stringify(src), { x: 0, y: 0 })!;
     r.nodes[0].data.label = 'MUTATED';
     expect(src.nodes[0].data.label).toBe('L');
   });

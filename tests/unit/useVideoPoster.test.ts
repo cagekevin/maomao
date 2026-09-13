@@ -42,7 +42,7 @@ beforeEach(() => {
       Object.defineProperty(v, 'src', {
         set(_val) {
           queueMicrotask(() => {
-            if (v.onloadeddata) v.onloadeddata({});
+            if (v.onloadeddata) v.onloadeddata({} as Event);
           });
         },
         get() {
@@ -51,7 +51,7 @@ beforeEach(() => {
         configurable: true,
       });
       const seek = () => {
-        if (v.onseeked) v.onseeked({});
+        if (v.onseeked) v.onseeked({} as Event);
       };
       Object.defineProperty(v, 'currentTime', {
         set(_t) {

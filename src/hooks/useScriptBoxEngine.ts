@@ -3,8 +3,15 @@ import { useReactFlow, type Node } from '@xyflow/react';
 import { createScriptBoxEngine } from '../components/scriptbox/scriptBoxEngine.ts';
 import {
   normalizeScriptBoxData,
+  parseAssetTaskNodeId,
+  parseTailFrameTaskNodeId,
   type ScriptBoxData,
 } from '../components/scriptbox/scriptBoxSchema.ts';
+import { subscribe } from '../components/base/core/eventBus.ts';
+import {
+  localizeAndStoreToResourceLibrary,
+  resourceFolderOf,
+} from '../components/base/store/resourceStore.ts';
 import { injectNodePrefs } from '../components/base/canvas/nodePrefs.ts';
 import { commitNewNodes } from '../components/base/canvas/deriveNodes.ts';
 import { useProvidersList, load as loadProviders } from '../components/base/store/providerStore.ts';
@@ -142,6 +149,91 @@ export function useScriptBoxEngine(
     // 仅挂载时注入一次；nodeId 变化时重新注入
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId]);
+
+  // 【TD-01-9 / TD-01-12】「生成中刷新」回填：任务中心 pollTask 找回 resultUrl 后，经 eventBus 广播
+  // `agent:task-completed`。节点侧 useNodeGeneration 按 nodeId 精准回填；剧本盒此前**不订阅**。
+  // 本 handler 按**伪 nodeId 前缀**分别回填剧本盒的两类任务（规则单源在 scriptBoxSchema）：
+  //   ① 资产图 `${nodeId}-asset-${assetId}` → 回填 data.assets（TD-01-9）
+  //   ② 尾帧综合图 `${nodeId}-tailframe-${shotId}` → 回填该镜 composed 变体（TD-01-12）
+  // 【TD-01-13 边界补齐】剧本盒生图的**设计意图**是「生成完自动归类进素材库的 人物/场景/道具」
+  //（resourceFolderOf(category)），省用户手动拖。但「落素材库」是生成流程的一步，随刷新会中断 →
+  // 资产图 recover 时**补一次落库**到同一分类，否则素材库里会缺这张图（用户得手动补）。
+  // 幂等：后端按 sha1 去重，重复调用不会产生第二份；并记 ref 防同一资产重复触发。
+  const recoveredAssetsRef = useRef(new Set<string>());
+  useEffect(() => {
+    const handler = (payload: unknown) => {
+      const d = payload as { nodeId?: string; resultUrl?: string; status?: string } | undefined;
+      if (!d || d.status !== 'completed' || !d.resultUrl) return;
+      const taskNodeId = d.nodeId || '';
+      const url = d.resultUrl;
+
+      // ① 资产图任务
+      const assetId = parseAssetTaskNodeId(nodeId, taskNodeId);
+      if (assetId) {
+        updateData((latest) => ({
+          assets: (latest.assets || []).map((a) =>
+            a.id === assetId
+              ? { ...a, loading: false, has: true, assetUrl: url, thumbnailUrl: url }
+              : a,
+          ),
+        }));
+        // 补「自动归类进素材库」（仅首次；分类/名取自资产自身，与生成时同口径）
+        if (!recoveredAssetsRef.current.has(assetId)) {
+          recoveredAssetsRef.current.add(assetId);
+          const asset = normalizeScriptBoxData(
+            (getNode(nodeId)?.data ?? {}) as Record<string, unknown>,
+          ).assets?.find((a) => a.id === assetId);
+          if (asset?.category) {
+            void localizeAndStoreToResourceLibrary(url, {
+              name: asset.name,
+              folder: resourceFolderOf(asset.category),
+            }).catch((e: unknown) => {
+              const err = e instanceof Error ? e : new Error(String(e));
+              logger.warn('scriptBox', 'recover 补落素材库失败（图已回填剧本盒，不阻断）', {
+                nodeId,
+                assetId,
+                error: err.message,
+              });
+            });
+          }
+        }
+        return;
+      }
+
+      // ② 尾帧综合图任务（每镜一卡）：写回该镜 composed 变体 + 自动选中 + 复位 loading。
+      const shotId = parseTailFrameTaskNodeId(nodeId, taskNodeId);
+      if (!shotId) return;
+      updateData((latest) => ({
+        shots: (latest.shots || []).map((s) => {
+          if (s.id !== shotId) return s;
+          const variants = Array.isArray(s.prevTailFrameVariants) ? s.prevTailFrameVariants : [];
+          const hasComposed = variants.some(
+            (v) => (v as { id?: string } | null)?.id === 'composed',
+          );
+          return {
+            ...s,
+            tailFrameVariantsLoading: false,
+            prevTailFrameVariants: hasComposed
+              ? variants.map((v) =>
+                  (v as { id?: string } | null)?.id === 'composed'
+                    ? {
+                        ...(v as object),
+                        assetUrl: url,
+                        thumbnailUrl: url,
+                        loading: false,
+                        errorMsg: undefined,
+                      }
+                    : v,
+                )
+              : [...variants, { id: 'composed', assetUrl: url, thumbnailUrl: url, loading: false }],
+            selectedTailFrameVariantId: 'composed',
+            prevShotImageRefUrls: [url],
+          };
+        }),
+      }));
+    };
+    return subscribe('agent:task-completed', handler);
+  }, [nodeId, updateData, getNode]);
 
   return { updateData };
 }

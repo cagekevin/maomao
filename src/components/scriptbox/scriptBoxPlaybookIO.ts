@@ -25,8 +25,15 @@ export interface Playbook {
   negative: ScriptBoxNegatives;
 }
 
-/** parseImport 的返回：成功带归一化 playbook，失败带错误信息。 */
-export type ImportResult = { ok: true; playbook: Playbook } | { ok: false; error: string };
+/**
+ * parseImport 的返回：成功带归一化 playbook，失败带错误信息。
+ * 【判别位写法（本仓 tsconfig 约束）】两侧**互带对方的键（可选 `undefined`）**：`strictNullChecks:false`
+ * 下 TS 对 `boolean` 判别位只在「真分支 / 显式 `=== false`」收窄，`else`/`!x.ok` 读 `error` 会报 TS2339
+ * ——互带键后两分支字段都可直接读，`ok` 仍是判别位（见 `spec/CONTEXT.md` §三）。
+ */
+export type ImportResult =
+  | { ok: true; playbook: Playbook; error?: undefined }
+  | { ok: false; error: string; playbook?: undefined };
 
 const FILE_META = { type: 'scriptbox-playbook' };
 

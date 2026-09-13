@@ -27,7 +27,7 @@ describe('toolRegistry（docs/25 阶段2：工具轴注册表）', () => {
 
   it('非法 def（无 name / 非对象）被忽略，不污染注册表', () => {
     registerTool({ name: 'ok1', execute: () => {} });
-    registerTool(null);
+    registerTool(null as never);
     registerTool({ execute: () => {} } as unknown as ToolDef);
     expect(getTools().map((t) => t.name)).toEqual(['ok1']);
   });

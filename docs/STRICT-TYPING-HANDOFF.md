@@ -406,6 +406,29 @@ npm run type-check                                    # ✅ 真实门禁绿（�
 npx vitest run tests/unit/taskStore.test.ts tests/unit/InlineImageCropper.cropRect.test.ts  # ✅ 18 passed
 ```
 
+### 8.5.6 实战进度与下一步（2026-09-13 更新）
+
+**本交接文档的对象**：写给**后续接手的 agent / 未来的同一会话**——记录 tests 侧 strict 收口的进度、靶心与修正手法，便于无缝续作。它不是给某个具体的人，而是给「下一个开工的 AI 会话」的工作备忘录（呼应 §18「读报告 → 选文件 → 修 → 绿了换下一个」的循环）。
+
+**收口累计（本轮会话，4 批共 17 个文件真实错全清零）**
+- 第一批（路径/会话/图像类）：`projectPath` / `agentLogic` / `conversationState` / `imageUpscale` / `storageQuota`
+- 第二批（纯函数+图标+通道）：`JianyingIcon`(noise=0 整文件清零) / `d3dPersistence` / `cloudSync` / `channelContract`
+- 第三批（组件/数据，`never[]` 根因）：`tracks` / `agentRuntime` / `FaceMosaicNode` / `promptChips` / `VideoGenerate`
+- 第四批（组件 `!`/`?.`/`as`）：`AgentPanel` / `CustomEdge` / `LazyImage`
+- 第五批（real=6 组：`never[]` 定型 + `as never` 对齐脏数据）：`projectStore` / `refToken` / `imageCompress` / `assetUrl` / `scriptBoxPrompts` / `ImageBoxNode` / `VideoGenerate.upstream`
+- 第六批（real=5 组：`!` / `as never` / mock 参数定型 / 测试内对照函数默认参数标型）：`contentStore` / `promptManager` / `agentModelStore` / `ImageGenerate.hoverToolbar` / `director3d.trackWriteParity`
+- 第七批（real=4 组：`!` 移到声明消除索引 undefined / `as unknown as` 桥接 null→函数 / `?.()` 消可选方法 / `ToolCall.function!` 消可选字段）：`TaskCenter` / `useScriptBoxEngine` / `Comet` / `PromptInput.disconnectCleanup` / `useNodeGeneration` / `agentMessages`
+
+**验证三道（对标 §5/§8.5）**：增量严格探针真实错全清零 · `npm run type-check`（真门禁）绿 · `vitest run` 全过（含 `imageUpscale` 经 `test:unit:heavy`）。探针全量真实错由约 1963 → 1657（本轮会话累计收口 4+3+5+3+7+5+6 = 33 个文件）。
+
+**修正手法（复用 §8.5.3 三板斧）**：`never[]` 根因（`h.state.nodes = []` / `connectedInputs` / `setup` 的 `connected` 默认 `{images:[],texts:[]}` / mock 的 `buttons=[]` / `KV_VALUE={nodes:[],edges:[]}`）→ 定型 `MockNode[]`/`MockEdge[]`/具体元素类型/`any`；`lastData(): any` 对齐 `Record<string,unknown>` 子集访问；可选返回（`loadAgentChatModel`/`getCurrentPending`/`normalizeWorkflow`/`ToolCall.function`/`ChannelKey.fields`）→ `!`；`querySelector`/`getSelection`/`find`/`readStored()` 返回 null/undefined → `!`；可选回调 `onChange?.()`；`mockResolvedValue(null as never)` 与 `as never` 对齐脏数据用例（喂 `null`/`undefined` 验防御）；**测试内旧实现对照函数**的默认参数 `= []` 需显式标型（如 `removeFrames: number[] = []`）避免推成 never[]。
+
+**下一步：继续 test 侧 strict 收口（未完，按真实错排序攻坚）**
+- real=4 组（`TaskCenter` / `useScriptBoxEngine` / `Comet` / `PromptInput.disconnectCleanup` / `useNodeGeneration` / `agentMessages`）已于第七批清零 → 其后为纯噪音文件（真实错=0，仅隐式 any，按 §8.5.2「别碰」留待最后）。
+- 打法：严格按 §8.5.2 铁律——**先吃准干净文件**（真实错少、零风险），沿用 `vi.mocked` / `as unknown as X` / `vi.fn(..._args:any[])` + IDE lints + vitest 实跑判据。
+- 纯噪音文件（真实错=0，仅隐式 any，如 `accountsStore`/`providerStore`/`logger`）：按 §8.5.2「别碰」原则**留待最后**；若后续要动，仅机械补标注，绝不立白名单。
+- 红线（§8.5.1/§8.5.3）：**绝不新建白名单 JSON、绝不重复造 `ts-tests.mjs` 的轮子、绝不假设源码行为（以实跑拿真值）**。
+
 ### 8.5.5 一句话总结（给下次接手）
 
 > tests 侧要动手前：**先读 §2.5 两份前辈文档 + 跑 `tsc -p tests/tsconfig.strict.probe.json` 按真实错排序**；修法只动测试侧、沿用 `vi.mocked` / `as unknown as X` / `vi.fn(..._args:any[])` 三板斧；判据用 IDE lints + vitest 实跑；**绝不新建白名单 JSON、绝不重复造 `ts-tests.mjs` 的轮子、绝不假设源码行为（实跑拿真值）**。

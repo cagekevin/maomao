@@ -177,19 +177,34 @@ fan-in（refs 实证 4 处 import）：App.tsx（手动按钮 handlePushToCloud/
 素材/文件落盘与引用（落盘唯一域 = filesApi；素材库 SSOT = resourceStore，主审区域 12）。
 
 ```
-api/filesApi（全站文件域单点：upload[FormData/JSON 双模式] / move[context-only] / mkdir / open / open-dir + 3 纯函数）
-   ├→ store/resourceStore（素材库 SSOT：saveInlineToLocal/uploadFileToLocal/EXT_BY_TYPE —— 主审见区域 12）
-   ├→ panels/ResourceLibrary · panels/GeneratedView（openLocalFolder/openFileDir/relativePathFromUrl/createFolder）
-   ├→ hooks/useAssetDropPaste（resolveNodeAssetUrl/downloadRemoteToLocal/WEB_DROP_SUBFOLDER）
-   ├→ nodes/ImageBoxNode（resolveNodeAssetUrl）· nodes/useImageHoverActions（showThenPersistInline）
+api/filesApi 🟢（全站文件域单点：upload[FormData/JSON 双模式] / move[context-only] / mkdir / open / open-dir + 3 纯函数）
+   ├→ store/resourceStore 🔴（素材库 SSOT：saveInlineToLocal/uploadFileToLocal/EXT_BY_TYPE —— 主审见区域 12）
+   ├→ api/localToolApi 🟢（fetchResources?projectId / saveResource / renameResource / deleteResource / rescan）
+   ├→ panels/ResourceLibrary 🔴 · panels/GeneratedView（openLocalFolder/openFileDir/relativePathFromUrl/createFolder）
+   ├→ hooks/useAssetDropPaste · hooks/useResourceMoveToFolder 🟢(TD-12-8 已清) · hooks/useAssetDragToCanvas 🟢
+   ├→ nodes/ImageBoxNode（resolveNodeAssetUrl）· nodes/useImageHoverActions（showThenPersistInline）· nodes/AssetNode 🟢
    ├→ scriptbox/scriptBoxEngine（uploadFileToLocal/saveResultToTasks）· hooks/useNodeGeneration（saveResultToTasks）
    ├→ depthVideo/DepthVideoModal · utils/videoEngine（uploadFileToLocal → videoProcess 桶）· director3d/d3dPersistence（saveInlineToLocal）
-   └→ 地基：utils/uploadDirs（subfolder 中央表）· utils/mediaType（判型）· utils/previewUrl · utils/imageUrl（URL 归一）
+   └→ 地基：utils/uploadDirs 🟢（subfolder 中央表）· utils/mediaType（判型）· utils/previewUrl · utils/imageUrl（URL 归一）
+
+后端落盘 / 资源表（localTool，主审见区域 12 / 08）：
+  routes/files.ts 🔴（upload→writeUploadDedup 内容寻址去重 / move→context-only / read·thumbnail·mkdir·open·list）
+    → utils/fileStore.ts 🔴（落盘真源：contentHashName(sha1(bytes)) / writeUploadDedup / UPLOAD_ROOT_ALLOW）
+  routes/resources.ts 🟢（resources 表：rescan 1:1 映射 / GET ?projectId / rename·move 走 context-only；TD-12-8 已清：孤儿判定与 move 行定位均由不可变 url 派生）
+    → db/database.ts 🟢（resources 表含 project_id；rescan 行保持 NULL 不分裂）· utils/orphanGc.ts（引用感知 GC）
 ```
 
 关键边（refs 实证 2026-09-12）：`filesApi` 模块引用 32（resourceStore/ResourceLibrary/GeneratedView/OverlayEditor/DepthVideoModal/videoEngine/d3dPersistence/ImageBoxNode/useImageHoverActions + api barrel + 21 测试）；后端唯一落盘端点 = `POST /api/files/upload`（multipart `filename` 字段优先于 part 名；contentId=sha1(字节) 全局查重）。
 
 > 更新(2026-09-12, refs 实证, 区域 03 二轮)：资产段整体刷新。① `store/assetStore` 已删除（全仓 0 文件 0 import），素材库域由 `resourceStore` 承接（区域 12 主审）——旧链路 `store/assetStore ← AssetLibrary/LeftPanel/ImageNode/PromptNode/StepAssets` 已删；② 旧展示实体更名：`panels/AssetLibrary`→`ResourceLibrary`、`panels/MaterialStrip`→`ResourceStrip`、`nodes/ImageNode`→`ImageGenerate`（展示层不逐一点名，见区域 12 续审）；③ `api/localToolApi` 候选 C 后已无文件域成员（仅余迁移注释），文件域唯一单点 = `filesApi`；④ 生成链路段「saveResultToTasks（useNodeGeneration 单点调）」更正——scriptBoxEngine:578 为第二调用方（同一唯一出口，双落盘防线不变）。
+
+> 更新(2026-09-13, refs实证, 区域 12 二轮·实施后复核)：**本段是「实施后」现状，首轮的「设计态」表述作废（未删旧文，仅更正）**。① **落地已实证**：`fileStore.writeUploadBuffer` 由 `Date.now()` 前缀改为内容寻址 `contentHashName(sha1(bytes))`(`fileStore.ts:133/151-152`)；multipart 落盘走 `writeUploadDedup` 按 contentId 全局去重(`files.ts:108-116`)、远程下载按解码字节算 contentId 复用(`files.ts:291-303`)、`upsertResource` 落实「同内容→同行」(`resources.ts:303-340`)；`resources` 表已含 `project_id`(`database.ts:307/323-324`)；`handleResourcesGet` 接 `?projectId`(`resources.ts:376-379`，nullOrEqCols `helpers.ts:227`)。② **改名/移动已改 context-only**：`handleResourcesRename`(`resources.ts:582`)→`applyResourceContextChange`、`handleMove`(`files.ts:466`)→`applyResourceContextMove`，只 `UPDATE name/folder`、**不碰磁盘/不改 url/contentId**；原「物理改名 + 引用改写」入口 `applyResourceIdentityChange` 与 `rewriteUrlReferences` **全仓已无定义**（仅 4 处注释残留），`resource:renamed` 事件已删（`contracts.ts:106-107`）→ **TD-02-13/14 前提消失（改判已解决）**。③ **新缺口（见区域 12 二轮 TD-12-5/6/7）**：`buildResourceRecord`(`resourceStore.ts:261-272`) 静默丢 `projectId` → `resourcesOfProject`(:223) 恒判 legacy、项目隔离**写入链断裂**（`Resource` 未声明 `projectId`、靠 `[key:string]:unknown` 兜底）；`handleResourcesSave`(`resources.ts:426`) 为**第二落盘入口**（`clip-${Date.now()}` 时间戳命名、绕过 `writeUploadDedup`）。灯已按区域 12 覆盖度表就地更新（🟢/🟡/🔴/⚪），**未塞明细**。
+
+> 更新(2026-09-13, refs实证, 区域 12 三轮·深探)：**补一条此前未画的关键相互作用——「context-only 变更」× 「rescan 孤儿判定」冲突（TD-12-8）**。链路：素材卡片拖到文件夹 → `useResourceMoveToFolder`(`src/hooks/useResourceMoveToFolder.ts:114-125`) → `resolveMovePaths`（src 由 **UI `folder`/`name`** 拼，`filesApi.ts:119-127`）→ `moveFile` → `handleMove`(`files.ts:466`) → `applyResourceContextMove`（只 `UPDATE resources SET folder`，`resources.ts:572`；**行定位用 `resourceIdOf(oldRel)`(:563)、无行则静默 return 但回 `ok:true`**）→ `onRefreshed` → `ResourceLibrary.reset(true)`(`ResourceLibrary.tsx:363/188`) → `POST /api/resources/rescan` → **孤儿清理 `path.join(uploadDir, row.folder, row.name)`(`resources.ts:252`) 按已脱钩的 `folder/name` 定位磁盘 → 行被 DELETE**。物理真源仍是不可变 `resources.url`(`resources.ts:190/222`)，落点唯一真源是 `resolveUploadTarget`(`fileStore.ts:80-89`) → `:252` 属**第二份磁盘定位实现**。后果：归类/改名刷新即回弹、`is_favorite` 归零、第二次移动「假成功」。灯已随区域 12 三轮覆盖度表改：`routes/resources.ts 🟡→🔴`、`panels/ResourceLibrary ⚪→🔴`、`hooks/useResourceMoveToFolder ⚪→🔴`、`hooks/useAssetDragToCanvas ⚪→🟢`（**只改灯，未塞明细**）。
+
+> 更新(2026-09-13, refs实证, 区域 12 五轮·TD-12-8 清偿)：**磁盘定位真源改由不可变 `url` 派生（一处真源替换清 3 症状）**。① 后端新增 `relativePathFromFileUrl(url)`（`resources.ts`，非 `/files/` → null）；rescan 孤儿判定改用它（`path.join(uploadDir, relFromUrl)`，folder 型行不参与、url 非本地跳过不误删）。② `resolveMovePaths`(`filesApi.ts`) 改由 `item.url` 派生 src/dst 磁盘路径（payload 携 `url`）；`relativePathFromUrl` 收紧为「必须命中 `/files/`」，与后端同口径。③ `applyResourceContextMove` 无 row → 抛 `HttpStatusError(404)「资源未同步，请刷新后重试」`（不再假成功；用户裁定）。灯：`routes/resources.ts 🔴→🟢`、`useResourceMoveToFolder 🔴→🟢`。先红后绿 probe1（orphan 回退）/probe2（resolveMovePaths 回退）精确红；localTool +4 回归、前端 +5 用例全绿。
+
+> 更新(2026-09-13, refs实证, 区域 12 六轮·TD-12-5 清偿)：**上传落盘即写 resource 行 project_id（项目隔离写入链闭环）**。此前上传只写文件、行由 **rescan** 建 → `project_id` 恒 NULL → 新素材跨项目可见。现：后端新增 `resources.recordUploadedFileRow(rel,{projectId})`（按 contentId 幂等走 `upsertResource`，仅真落盘/显式 projectId 时写），`files.handleUpload` 的 multipart/JSON × file/fileUrl/dataUri 四分支均接 `projectId`；前端 `uploadFileToLocal`/`saveInlineToLocal` 加参、`resourceStore` 三处 + `localizeAndStoreToResourceLibrary` 传 `currentProjectId()`；`ScriptBoxAssetPicker` fetchResources 补 `projectId`。`Resource` 显式声明 `projectId`。
 
 ## 画布 / 节点链路
 
@@ -269,6 +284,26 @@ prompt/promptChips · prompt/promptMention（纯函数）
 
 ***
 
+## 配置 / 账户 / 事件总线（横切契约域）
+
+> 更新(2026-09-13, refs+grep实证)：新增本段。此前配置/账户类 store + 横切契约登记表（EVENTS/STORAGE_KEYS）+ eventBus 不在这张进度地图上（属「其他领域」，区域 13 首审）。审计视角见 `daily/架构日志/13-配置账户与事件总线-2026-09-13.md`。
+
+```
+contracts.ts（EVENTS/STORAGE_KEYS/NODE_TYPES/apiRegistry 单一事实来源） 🔴（EVENTS 登记表 agent:credit-gate 虚假标死事件·TD-13-1）
+settingRegistry.ts（设置声明表·app_settings 默认值/UI/云同步三派生 SSOT） 🟢
+eventBus.ts（subscribe/publish 唯一通道） 🟢
+appSettings.ts（KEY=app_settings, backend:local） 🟢
+accountsStore.ts（KEY=yimao_accounts, backend:kv，仍进云同步） 🔴（冗余 import·TD-13-2；明文 Cookie 云同步隐私债·TD-13-3 待用户拍板）
+providerStore.ts（21 fan-in；save 后回写 active_api_endpoint KV 供后端路由） 🟢
+agentModelStore.ts（agent_chat_model / agent_history_turns, backend:local） 🟢
+skillStore.ts（agent_skills / agent_skill_usage / agent_skill_enabled） ⚪（抽审，下轮深审）
+nodeRuntimeStore.ts（纯内存瞬态 map，不落盘） ⚪（抽审，下轮深审）
+```
+
+> 关键边（refs 实证 2026-09-13）：`contracts.ts` EVENTS 被全仓 `publish/subscribe('` 配对消费（8 事件均成对，无第二套广播通道）；`providerStore` ← 21 处（AgentChatSettings/ApiSettings/GearSettings/useScriptBoxEngine/useGenerateNode + 18 测试）；`active_api_endpoint` 已在 STORAGE_KEYS 登记（backend:kv），前端 save 写、后端 official.ts/passthrough.ts 读做路由（派生缓存，设计权衡非债）。
+
+***
+
 ## localTool 后端（服务端 `localTool/`）职责与数据流
 
 前端（base/core/api）只是薄壳，真正的协议执行/落盘/任务常驻在 localTool 服务端（`:18080`），再直连上游（Lovart 需 VPN）。前端 `contracts.ts apiRegistry` ↔ 后端 `router.ts` 双向互检（`check:api`）。
@@ -303,6 +338,101 @@ prompt/promptChips · prompt/promptMention（纯函数）
 > 后端改名记录（2026-09-04）：`relay.ts`→`generateEngine.ts`(生成引擎，与 ai-relay 框架/relay-poll 区分)、`providerConfig.ts`→`providerConfigStore.ts`(用户配置存储，与 ai-relay/providerCatalog 内置目录区分)、`ai-relay/generate/index.ts`→`ai-relay/generate.ts`(摊平单文件目录)。
 
 ***
+
+## hooks 编排层（横切 · 节点/画布/store 写回归口）
+
+> 更新(2026-09-13, refs实证, 14 区首轮)：新增本段。此前 hooks 层散落各业务段（useNodeData 在「画布/节点」、useConnectedInputs 在「画布/资产」），无独立进度节点。审计视角 `daily/架构日志/14-hooks编排层-2026-09-13.md`。
+
+```
+写回唯一入口：hooks/useNodeData.ts 🟢（patchNodeDataById/patchNodeById/computePatch*；24 fan-in；TD-04-15/16/17 闸守）
+订阅基座：    hooks/useStoreSelector.ts 🟢（selector+shallowEqual 记忆化，防连坐重渲）
+跨窗口冲突：  hooks/useCanvasSync.ts 🟢（BroadcastChannel+3s 版本轮询，TD-02-1 收口点）
+画布快捷键：  hooks/useCanvasShortcuts.ts 🟢 · hooks/useCanvasHistory.ts 🟢（逻辑下沉纯类）
+工具：        hooks/useVideoPoster.ts 🟢 · hooks/useAssetDegrade.ts 🟢 · hooks/useLocalToolStatus.ts 🟢（ensurePoll 幂等）
+产出契约：    hooks/useConnectedInputs.ts 🟢（33 fan-in，TD-02-11 写侧声明；@见 04）
+建边/改名：    hooks/useDisconnectSource.ts 🟢(@见04 TD-04-12) · hooks/useEdgeData.ts 🟢(@见04 TD-04-17)
+生成链路：    hooks/useGenerateNode.ts 🟢 · hooks/useNodeGeneration.ts 🟢(@见01) · hooks/useScriptBoxEngine.ts 🟢(@见01 TD-01-8 母体待还)
+素材落画布：  hooks/useAssetDropPaste.ts 🟢(@见04 TD-04-20/21) · hooks/useAssetDragToCanvas.ts 🟢(@见12 TD-12-8) · hooks/useResourceMoveToFolder.ts 🟢(@见12 TD-12-8 已清)
+改名/重命名： hooks/useNodeRename.ts 🟢(@见04 TD-04-13)
+欠深审：      hooks/useNodeField.ts ⚪ · hooks/useNodeExpanded.ts ⚪ · hooks/useFitNodeRatio.ts ⚪ · hooks/useArrangeCanvas.ts ⚪(@见04 TD-04-19) · hooks/useContextMenu.ts ⚪(@见04 TD-04-24)
+```
+
+> 关键边（refs 实证 2026-09-13）：`useNodeData` ← 24 处（App/uiHooks/nodeImage/17 节点/useNodeExpanded/Generation/Rename/ScriptBoxEngine + 3 测试）；`useConnectedInputs` ← 33 处（14 节点 + 19 测试）；`useStoreSelector` ← 全 store 原子订阅基座；`useCanvasSync` ← App 单点。`useNodeData.patchData` 是 node.data 写回唯一真源，绕行者由 `check:arch` 规则5（覆盖全 src、豁免 agent/）拦截。
+
+## 导出/备份（项目文件导入导出）
+
+> 更新(2026-09-13, refs实证, 区域 15 首轮)：新增本段。此前备份/还原只作 storage 段脚注，从未作主区域审计（数据正确性直接关系用户数据存亡）。审计视角 `daily/架构日志/15-导出备份-项目文件导入导出-2026-09-13.md`。
+
+```
+backupStore.exportAll/importAll/backupToBlob 🔴（TD-15-1 前缀双源 / TD-15-2 项目列表副本 / TD-15-3 导入假成功 / TD-15-4 明文账号进备份）
+  → useCanvasEventSubscriptions（project:export/import 事件接线）🔴（TD-15-3 UI 侧只判 res.ok）
+  → ProjectSelector（纯触发壳）🟢非债 · contracts.getLocalKeys（LS_KEYS 备份清单单源）🟢非债 · projectStore I/O 🟢非债 · contentStore 🟢非债
+```
+
+## 工具层（横切纯函数）
+
+> 更新(2026-09-13, refs实证, 区域 16 首轮)：新增本段。横切纯函数工具此前散落各业务段未作主域审计。审计视角 `daily/架构日志/16-utils工具层-横切纯函数-2026-09-13.md`。
+
+```
+volumePolicy.ts 🔴（TD-16-1 `_activeId` 死参）
+asyncGuard.ts 🟢（loadImageOrNull 收口私有实现）· clipboard.ts 🟢（复制/清洗/下载统一出口）
+providerModels.ts 🟢（buildAllModels/resolveProviderModel 单源）· providerUrlAdapters.ts 🟢（展示名映射·非债）
+refToken.ts 🟢（编解码纯函数）· arrangePack.ts 🟢（packComponents 单消费方）
+assetType.ts 🟢（EXT_KIND 单源）· imagePixel.ts 🟢（RATIO_PIXEL_TABLE 单源）
+```
+
+## 审计工具链治理（元层·其他领域）
+
+> 更新(2026-09-13, refs+grep实证, 区域 17 首轮)：新增本段。审计/腐化检测工具链自身（`audit/` 的 knip/jscpd/oxlint/depcruise/madge）此前不在任何进度节点上（属"其他领域"，区域 17 首审）。
+> 更新(2026-09-13, 二轮·TD-17-1 收口)：**audit/ 沙盒已退役**——把**唯一主工程未覆盖**的能力（死代码 knip）**并进主工程闸体系**；其余四件经取证不并。审计视角 `daily/架构日志/17-审计工具链治理-二轮-TD17-1并进主工程-2026-09-13.md`。
+
+```
+knip（死代码检测）→ 并进主工程 🟢（TD-17-1 二轮新增）
+  ├→ package.json devDependency `knip`（原在 .gitignore 沙盒 → CI 装不到，现随 npm ci 可装） 🟢
+  ├→ 根 `knip.json`（由 audit/knip.json 迁移） 🟢
+  ├→ scripts/check-dead-code.mjs（基线「永不复涨」；--update-baseline 重生成） 🟢
+  ├→ scripts/dead-code-baseline.json（158 条存量基线 · knip 6.33.0） 🟢
+  ├→ scripts/gates.manifest.json::dead-code（phase=push → 本地 pre-push 自动跑） 🟢
+  └→ .github/workflows/ci.yml `npm run check:push` 🟢（**闸时机合并为单一验证阶段**：原 commit+push
+      两阶段并成 push 一层 7 道；本地 pre-push 与 CI 跑**同一份清单、各一次**。此前 CI 完全无闸
+      → 所有规则在云端不可达；现一次补齐）
+scripts/check-arch.mjs 🟢（架构规则**唯一落点**：循环依赖/分层/唯一入口/裸写 node 字段/KV 同步读/深路径）
+  └ 原 audit/.dependency-cruiser.cjs 的能力早已自包含搬入此文件；沙盒退役后即唯一落点
+docs/audit-archive/*.md ⚪（原 audit/audit_Plan 三份历史报告，归档保留，非活配置）
+```
+
+> 退役边界（TD-17-1 二轮取证，逐件判必要性）：depcruise / madge 的架构能力**已被 `scripts/check-arch.mjs` 覆盖** → 不并；oxlint 实测仅 4 条且与既有 eslint 重叠 → 不并；jscpd 重复率 1.7%（137 块）无迫切性 → 不并；ast-grep 是**批量重写执行器**（重构工具）非闸 → 不并。
+
+## core 横切基础设施（base/core 地基层）
+
+> 更新(2026-09-13, refs+grep实证, 区域 18 首轮)：新增本段。base/core 横切地基此前只作各业务段脚注，从未作主域审计（区域 18 首审）。审计视角 `daily/架构日志/18-core横切基础设施-2026-09-13.md`。
+
+```
+config.ts 🟢（TD-18-1 已清：删 DEBUG_ASSET 死别名 + 注释更正，2026-09-13）
+degrade.ts 🟢（TD-18-2 已清：删字符串两参兼容分支，签名收窄，2026-09-13）
+logger.ts 🟢（87 fan-in 唯一日志出口；TD-18-1 级联注释更正）· backendLogStream.ts 🟢 · canvasSyncBus.ts 🟢
+confirmStore.ts 🟢 · toastStore.ts 🟢 · modalLayer.ts 🟢 · idGen.ts 🟢 · uiHooks.ts 🟢 · utils.ts 🟢
+contentStore.ts/contracts.ts/eventBus.ts 🟢（属 02/13 深审，不重审）
+```
+
+> 关键边（refs 实证 2026-09-13）：`logger` ← 87 处 import（唯一日志出口）；`reportDegrade` 11 处调用全对象形态。
+>
+> 更新(2026-09-13, 清偿轮 20)：TD-18-1/TD-18-2 已清（见 `daily/架构日志/20-跨区-幽灵预留清偿轮-2026-09-13.md`）。原「`DEBUG_ASSET` 在 src 业务侧 0 消费方（仅 config.test.ts）」经取证修正——`config.test.ts` 引的是运行时 `window.__DEBUG_ASSET`（仍有效），**导出常量**才是真死（已删）。级联更正 `spec/CONTEXT.md`/`docs/调试日志总览.md`/`logger.ts` 三处「DEBUG_ASSET 别名」失实注释。
+
+## UI 基础组件层（base/ui 叶组件库）
+
+> 更新(2026-09-13, refs实证, 区域 19 首轮)：新增本段。base/ui 通用 UI 原语库此前散落各业务段，从未作主域审计（区域 19 首审）。审计视角 `daily/架构日志/19-ui基础组件层-2026-09-13.md`。
+
+```
+Select.tsx 🔴（TD-19-1 与 ModelSelect 同款下拉第二份实现）
+ModelSelect.tsx 🔴（TD-19-1 同款交互/配色）
+ContextMenu.tsx 🟢 · RenameDialog.tsx 🟢 · ErrorBoundary.tsx 🟢 · LazyImage.tsx 🟢
+Toggle.tsx 🟢（已从两处抽公共）· attachmentCover.tsx 🟢 · NodeShell.tsx 🟢
+ConfirmContainer.tsx 🟢 · ToastContainer.tsx 🟢
+NodeTitle/ToolbarButton/GenerateButton/GeneratingOverlay/ExpandablePanel/VideoThumbnail/ResizeFullscreenHandle/CometParticles/JianyingIcon ⚪（抽审，下轮深审）
+```
+
+> 关键边（refs 实证 2026-09-13）：`Select.tsx` ← 1 处（scriptbox/GearSettings）；`ModelSelect.tsx` 多消费方（节点模型下拉）。二者触发按钮/弹层/选项行逐字相近、仅数据形态不同。
 
 ## 怎么用
 

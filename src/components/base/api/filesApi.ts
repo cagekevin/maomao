@@ -38,6 +38,7 @@
 import { API_BASE } from '../core/config.ts';
 import { httpRequest } from './httpClient.ts';
 import { logger } from '../core/logger.ts';
+import { reportDegrade } from '../core/degrade.ts';
 import { UPLOAD_TIMEOUT } from '../core/config.ts';
 import { formatTime, dataUrlToBlob, safeFileName } from '../core/utils.ts';
 import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
@@ -78,10 +79,21 @@ export async function openFileDir(
   });
 }
 
-/** 从资源的 18080 url 解析出相对路径（去 /files/ 前缀），供 open-dir 用。纯函数，非转发。 */
+/**
+ * 从资源的 18080 url 解析出「相对 uploadDir 的磁盘路径」（去 /files/ 前缀 + 解码）。
+ * 纯函数，非转发。用于 open-dir 与移动归类的**磁盘定位真源**（TD-12-8）。
+ *
+ * 【必须命中 /files/ 前缀】非本地 url（远程图 https://…、data URL、其它路径）→ **返回 null**，
+ * 不得返回一个看似合法的残串（旧实现直接 replace，会把 `https://x/y.png` 返回成 `/y.png`，
+ * 使调用方误以为拿到了本地相对路径）。与后端 `relativePathFromFileUrl` 同口径（同一探测原语）。
+ */
 export function relativePathFromUrl(url: string): string | null {
+  if (typeof url !== 'string' || !url) return null;
   try {
-    return decodeURIComponent(new URL(url).pathname).replace(/^\/files\//, '');
+    const pathname = decodeURIComponent(new URL(url).pathname);
+    if (!pathname.startsWith('/files/')) return null;
+    const rel = pathname.slice('/files/'.length);
+    return rel || null;
   } catch {
     return null;
   }
@@ -112,17 +124,33 @@ export function canMoveAsset(item: { source?: string; type?: string } = {}): boo
 }
 
 // 由资源项 + 目标目录（相对 uploadDir）推导移动的 src/dst，并判断是否同目录。
-// - src  = folder ? folder/name : name（folder 为 rescan 记录的相对路径，可为空/undefined 顶层）
-// - dst  = targetFolderRel/name
-// - sameDir = (folder||'') === targetFolderRel（落点与源同目录 → 调用方忽略/提示）
+//
+// 【TD-12-8 修复 · 磁盘定位真源 = 不可变 url】src/dst 的**磁盘相对路径**必须由 `item.url` 派生
+// （`relativePathFromUrl`），**不得**用 `folder`/`name` 拼：
+//   - `folder`/`name` 是 context-only 下的「UI 分类 / 显示名」，移动归类后 folder 与磁盘脱钩、
+//     改名后 name 与磁盘文件名脱钩 → 用它们拼路径会得到**不存在的磁盘路径**（移动失败/假成功）。
+//   - `url`（= `/files/<磁盘rel>`）rescan 写入后**永不改**，是唯一真源。
+// 回退：item 无 url（历史/非本地）时退回旧 folder/name 口径（不静默改语义，避免本函数调用方炸）。
+// - src  = 磁盘 rel（url 派生）
+// - dst  = targetFolderRel/磁盘文件名（basename 取自 url，非 UI name）
+// - sameDir = 磁盘源目录 === targetFolderRel
 // 纯函数，供拖拽移动到文件夹（useResourceMoveToFolder）+ 单测；禁止各 tab 各自拼路径。
 export function resolveMovePaths(
-  item: { folder?: unknown; name?: unknown } = {},
+  item: { folder?: unknown; name?: unknown; url?: unknown } = {},
   targetFolderRel = '',
 ): { src: string; dst: string; sameDir: boolean } {
-  const srcFolder = item.folder ? String(item.folder) : '';
-  const src = srcFolder ? `${srcFolder}/${item.name}` : String(item.name || '');
-  const dst = targetFolderRel ? `${targetFolderRel}/${item.name}` : String(item.name || '');
+  const fromUrl = typeof item.url === 'string' ? relativePathFromUrl(item.url) : null;
+  // 磁盘相对路径 + 磁盘文件名：优先 url 派生，缺失时回退 UI folder/name（历史兼容）
+  const srcFolder = fromUrl
+    ? fromUrl.includes('/')
+      ? fromUrl.slice(0, fromUrl.lastIndexOf('/'))
+      : ''
+    : item.folder
+      ? String(item.folder)
+      : '';
+  const diskName = fromUrl ? fromUrl.slice(fromUrl.lastIndexOf('/') + 1) : String(item.name || '');
+  const src = srcFolder ? `${srcFolder}/${diskName}` : diskName;
+  const dst = targetFolderRel ? `${targetFolderRel}/${diskName}` : diskName;
   return { src, dst, sameDir: srcFolder === (targetFolderRel || '') };
 }
 
@@ -175,13 +203,15 @@ function safeName(base: string, ext: string): string {
 export async function saveInlineToLocal(
   dataUrl: string,
   subfolder: string = UPLOAD_DIRS.canvas,
+  projectId?: string,
 ): Promise<string | null> {
   if (!dataUrl || !dataUrl.startsWith('data:')) return null;
   try {
     const data = await httpRequest(`${API_BASE}/api/files/upload`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dataUri: dataUrl, subfolder }),
+      // 【TD-12-5】携当前项目 id → 后端落盘时写 resource 行 project_id（项目隔离写入链闭环）
+      body: JSON.stringify({ dataUri: dataUrl, subfolder, projectId }),
       ...UPLOAD_OPTS,
     });
     return data?.data?.url || null;
@@ -217,6 +247,7 @@ export async function uploadFileToLocal(
   file: File | Blob | null,
   subfolder: string = UPLOAD_DIRS.canvasDrop,
   filename?: string,
+  projectId?: string,
 ): Promise<string | null> {
   if (!file) return null;
   logger.debug(
@@ -229,6 +260,8 @@ export async function uploadFileToLocal(
     const fd = new FormData();
     fd.append('file', file, filename || fileNameOf(file) || 'upload');
     fd.append('subfolder', subfolder);
+    // 【TD-12-5】携当前项目 id → 后端落盘时写 resource 行 project_id（项目隔离写入链闭环）
+    if (projectId) fd.append('projectId', projectId);
     const data = await httpRequest(`${API_BASE}/api/files/upload`, {
       method: 'POST',
       body: fd,
@@ -264,6 +297,26 @@ export async function uploadFileToLocal(
  */
 
 /**
+ * 【TD-03-13】本地服务（localTool :18080）不可用 → 落盘降级为「内联 base64」时的**一次性**提示。
+ *
+ * 语义前提：落盘只是"让图刷新不丢"的优化，不是"图能否显示"的前提（见上方统一落盘策略）——
+ * 所以降级本身**不阻断、不回滚**，但**不能再静默**：此前用户完全不知道后台没存成，
+ * 直到项目快照膨胀 / 换设备 / 清缓存后图全丢才察觉。
+ * 本会话只提示一次（localTool 未启动是**持续性状态**，反复弹是打扰）；日志每次留痕（reportDegrade 内 logger.warn）。
+ */
+let localServiceDegradeNotified = false;
+function notifyLocalServiceDegrade(): void {
+  reportDegrade({
+    layer: 'filesApi',
+    key: 'local-service-down',
+    toast: localServiceDegradeNotified
+      ? undefined
+      : '本地服务未启动，素材已临时保存（换设备或清缓存可能丢失）',
+  });
+  localServiceDegradeNotified = true;
+}
+
+/**
  * File/Blob → 可上屏的图片 URL（图像入节点·File 源）。
  * ① 先 uploadFileToLocal（原始 multipart）；② 上传失败 → 读内联 dataURL 兜底；③ 都拿不到 → null。
  * @returns 持久 /files/ URL（优先）或 dataURL；两者都失败返回 null（调用方提示一次错误）
@@ -276,7 +329,8 @@ export async function resolveNodeAssetUrl(
   if (!file) return null;
   const uploaded = await uploadFileToLocal(file, subfolder, filename); // ① 直传，不先转 dataURL
   if (uploaded) return uploaded;
-  return fileToDataUrl(file).catch((): string | null => null); // ③ 落盘失败 → 内联兜底（读不出才 null）
+  notifyLocalServiceDegrade(); // ② 落盘失败 → 降级内联：一次可见提示（TD-03-13）
+  return fileToDataUrl(file).catch((): string | null => null); // ③ 读不出才 null（真失败，由调用方提示）
 }
 
 /**
@@ -292,6 +346,7 @@ export async function persistInlineOrKeep(
 ): Promise<string> {
   if (!dataUrl) return dataUrl;
   const saved = await saveInlineToLocal(dataUrl, subfolder);
+  if (!saved) notifyLocalServiceDegrade(); // 落盘失败 → 降级内联：一次可见提示（TD-03-13）
   return saved || dataUrl;
 }
 

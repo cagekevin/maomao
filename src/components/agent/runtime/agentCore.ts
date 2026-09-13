@@ -41,6 +41,8 @@
  */
 import { contentGet } from '../../base/core/contentStore.ts';
 import { logger } from '../../base/core/logger.ts';
+// 【TD-15-1】agentKey 前缀单源（禁本地拼字面量）
+import { AGENT_KEY_PREFIX } from '../../base/core/agentKeys.ts';
 import { AGENT_PROMPTS } from '../agentConfig.ts';
 import type { ImageMapEntry } from '../conversation/conversationImageMap.ts';
 
@@ -175,7 +177,7 @@ export const AUTO_MODE_SYSTEM_PROMPT =
 
 /** 旧单会话历史键（仅用于首次迁移到多对话；会话隔离后消息存 conversationStore） */
 export const historyKey = (agentKey: string): string =>
-  `agent_history_${agentKey || 'canvas-assistant'}`;
+  `agent_history_${agentKey || AGENT_KEY_PREFIX}`;
 
 /** 从 localStorage 读旧单会话历史（首次启动迁移用，对齐大雄"messages → conversations"迁移） */
 export function loadHistory(agentKey: string): ChatMessage[] {

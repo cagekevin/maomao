@@ -6,8 +6,13 @@
  *     传入的**字面量**事件名，必须已在 EVENTS 登记。漏登记 → 报错（exit 1）。
  *     （防裸事件名拼错 / 漏登记，原本只在运行时静默暴露）
  *
+ *  ①b【TD-13-1 母体修复·常量引用】经常量的事件名（`const CREDIT_GATE_EVENT = 'agent:credit-gate'`
+ *     后 `publish(CREDIT_GATE_EVENT, ...)`）**同样纳入正/反向校验**。历史盲区：原实现只认字面量，
+ *     常量引用的事件全部逃过守卫 → 登记表可长期 `from:[]/to:[]` 虚假标死（如 agent:credit-gate）。
+ *     做法：前置 pass 收集全仓 `const X = 'event:name'` 建映射，再解析 `fn(CONST)` 回真实事件名。
+ *
  *  ② 反向（表 → 代码）：EVENTS 表的 `to` / `from` 必须与代码实测的
- *     `subscribe('key'` / `publish('key'` 调用自洽。
+ *     `subscribe('key'` / `publish('key'`（字面量或常量引用）调用自洽。
  *     - 表 `to: []` 但代码里实际有 `subscribe('key'` → 报「登记表 to 滞后于代码」
  *       （即历史误判根因：表标无订阅方、实际已被订阅，导致误判为死事件）
  *     - 表 `to` 列了 `file:NN` 但代码对应文件里完全没有 `subscribe('key'` → 报「登记表 to 指向 stale」
@@ -48,6 +53,17 @@ const LITERAL_EVENT_RE = new RegExp(
   'g',
 );
 
+// 【TD-13-1 母体修复】常量引用的事件名正则：fn(CONST_NAME, ...)。
+// 历史根因：反向校验只认字面量，凡「事件名经 const 常量引用」（如 CREDIT_GATE_EVENT）的
+// publish/subscribe 全部落在守卫盲区 → 登记表可长期 from:[]/to:[] 虚假标死而不被发现。
+// 故先扫全仓 `export const X = '事件名'` 建「常量名 → 字面量事件名」映射，再按映射解析常量引用。
+const CONST_EVENT_REF_RE = new RegExp(
+  `\\b(${[...EVENT_FNS].join('|')})\\s*\\(\\s*([A-Za-z_$][\\w$]*)\\s*[,)]`,
+  'g',
+);
+// 常量声明：`const NAME = 'event:string'` / `export const NAME = "event:string"`（同一行，事件名须含 ':'）
+const CONST_DECL_RE = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*(['"])([a-zA-Z0-9_-]+:[a-zA-Z0-9:_-]+)\2/g;
+
 // ── 加载事件登记表 ──
 let EVENTS = {};
 try {
@@ -87,6 +103,29 @@ let violations = 0;
 // 反向校验所需：实测每个事件名在代码中的 publish / subscribe 位置
 const actualPublish = new Map(); // eventName -> ['rel:line', ...]
 const actualSubscribe = new Map(); // eventName -> ['rel:line', ...]
+// 【TD-13-1 母体修复】常量名 → 事件名字面量（`const CREDIT_GATE_EVENT = 'agent:credit-gate'`）；
+// 值 null 表示同名常量声明冲突（不解析）。供 publish(CONST)/subscribe(CONST) 解析成真实事件名。
+// 收集（独立前置 pass）：`const X = 'event:name'` 可能声明在 contracts.ts（主循环跳过该文件，
+// 但常量正是在此定义）或任意被扫文件 → 先全量收集，再在主循环里解析 fn(CONST)。
+const CONST_EVENT_NAMES = new Map();
+for (const file of [resolve(root, 'src/components/base/core/contracts.ts'), ...targets]) {
+  let src;
+  try {
+    src = readFileSync(file, 'utf8');
+  } catch {
+    continue;
+  }
+  CONST_DECL_RE.lastIndex = 0;
+  let m;
+  while ((m = CONST_DECL_RE.exec(src)) !== null) {
+    const name = m[1];
+    const ev = m[3];
+    if (CONST_EVENT_NAMES.has(name) && CONST_EVENT_NAMES.get(name) !== ev)
+      CONST_EVENT_NAMES.set(name, null);
+    else CONST_EVENT_NAMES.set(name, ev);
+  }
+}
+
 const pushLoc = (map, name, loc) => {
   if (!map.has(name)) map.set(name, []);
   map.get(name).push(loc);
@@ -153,7 +192,30 @@ for (const file of targets) {
       if (fn === 'publish') pushLoc(actualPublish, name, loc);
       else pushLoc(actualSubscribe, name, loc); // subscribe / subscribeOnce
     }
-    // 本行已有事件名字面量命中 → 无需再做跨行合并（避免重复计数）
+
+    // 【TD-13-1】常量引用：fn(CONST) → 经 CONST_EVENT_NAMES 解析为真实事件名。
+    // 与字面量同样纳入「正向登记校验 + 反向实测位置收集」，消除守卫盲区。
+    if (!hasLiteralOnThisLine) {
+      CONST_EVENT_REF_RE.lastIndex = 0;
+      let cr;
+      while ((cr = CONST_EVENT_REF_RE.exec(line)) !== null) {
+        const fn = cr[1];
+        const constName = cr[2];
+        const resolved = CONST_EVENT_NAMES.get(constName);
+        if (!resolved) continue; // 非事件常量（如普通变量）/ 冲突 → 不判（避免误报）
+        hasLiteralOnThisLine = true;
+        const loc = `${rel}:${lineNo}`;
+        if (!isRegistered(resolved)) {
+          violations++;
+          console.error(`  ✖ ${loc}  常量事件名未登记: ${fn}(${constName} → '${resolved}')`);
+          continue;
+        }
+        if (fn === 'publish') pushLoc(actualPublish, resolved, loc);
+        else pushLoc(actualSubscribe, resolved, loc);
+      }
+    }
+
+    // 本行已有事件名（字面量/常量）命中 → 无需再做跨行合并（避免重复计数）
     if (hasLiteralOnThisLine) continue;
 
     // 找出本行中「到行尾仍未闭合」的事件总线调用：取其从 fn( 之后的括号净深

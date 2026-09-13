@@ -102,27 +102,6 @@ describe('deleteResource', () => {
   });
 });
 
-describe('saveResource', () => {
-  it('POST JSON body', async () => {
-    const fetchMock = mockFetchOnce({ ok: true });
-    await ra.saveResource({ id: '1', isFavorite: true });
-    const [reqUrl, init] = fetchMock.mock.calls[0];
-    expect(reqUrl).toBe(`${API_BASE}/api/resources/save`);
-    expect(init.method).toBe('POST');
-    expect(init.headers['Content-Type']).toBe('application/json');
-    expect(JSON.parse(init.body)).toEqual({ id: '1', isFavorite: true });
-  });
-
-  it('非 2xx 抛 HttpError', async () => {
-    mockFetchOnce({ error: 'x' }, { ok: false, status: 400 });
-    await expect(ra.saveResource({ id: '1' })).rejects.toMatchObject({
-      name: 'HttpError',
-      status: 400,
-      message: 'x',
-    });
-  });
-});
-
 describe('renameResource', () => {
   it('id 与 name 都进 query 且被编码', async () => {
     const fetchMock = mockFetchOnce({ data: { ok: true, id: '1', url: 'u', name: '新名' } });
@@ -190,8 +169,11 @@ describe('relativePathFromUrl', () => {
     );
   });
 
-  it('非 /files/ 前缀原样返回 pathname（含前导斜杠）', () => {
-    expect(fl.relativePathFromUrl('http://127.0.0.1:18080/other/x.png')).toBe('/other/x.png');
+  it('非 /files/ 前缀 → null（TD-12-8：与后端 relativePathFromFileUrl 同口径，不再返回残串）', () => {
+    // 旧实现直接 replace 会把 /other/x.png 原样返回（看似合法），使调用方误以为拿到本地相对路径；
+    // 收紧为「必须命中 /files/」后，非本地 url 一律 null → 调用方走「打开所在目录失败」的诚实分支。
+    expect(fl.relativePathFromUrl('http://127.0.0.1:18080/other/x.png')).toBeNull();
+    expect(fl.relativePathFromUrl('https://example.com/x.png')).toBeNull();
   });
 
   it('非法 url 返回 null', () => {

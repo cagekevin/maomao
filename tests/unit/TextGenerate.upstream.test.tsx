@@ -4,13 +4,39 @@
  * 上游有文本但本地为空时校验通过。
  */
 import 'react';
+import type { ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+
+/** useNodeGeneration 注入的 config 形状（仅标注测试用到的字段）。 */
+interface GenConfigLike {
+  run?: (opts: {
+    progress: (p: unknown) => void;
+    signal: { aborted: boolean };
+  }) => Promise<unknown>;
+  onSuccess?: (r: unknown) => void;
+  validate: () => string;
+}
+
+interface ConnectedText {
+  id: string;
+  text: string;
+  sourceNodeId: string;
+}
+interface ConnectedImage {
+  id: string;
+  url: string;
+  sourceNodeId: string;
+}
 
 const mockSetNodes = vi.fn();
 const mockGetNodes = vi.fn(() => []);
 const mockAddNodes = vi.fn();
-let genConfig = null;
+let genConfig: GenConfigLike | null = null;
+let connectedInputs: { images: ConnectedImage[]; texts: ConnectedText[] } = {
+  images: [],
+  texts: [],
+};
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
@@ -24,7 +50,7 @@ vi.mock('@xyflow/react', () => ({
 }));
 
 vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
-  useNodeGeneration: (config) => {
+  useNodeGeneration: (config: GenConfigLike) => {
     genConfig = config;
     return {
       loading: false,
@@ -40,20 +66,20 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
 }));
 
 vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({
-  default: ({ onGenerate }) => (
+  default: ({ onGenerate }: { onGenerate?: () => void }) => (
     <button type="button" onClick={onGenerate}>
       生成
     </button>
   ),
 }));
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
-  default: ({ children }) => children,
+  default: ({ children }: { children?: ReactNode }) => children,
 }));
 vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
-  default: ({ children }) => children,
+  default: ({ children }: { children?: ReactNode }) => children,
 }));
 vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
-  default: ({ children }) => children,
+  default: ({ children }: { children?: ReactNode }) => children,
 }));
 vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: () => null }));
@@ -64,7 +90,6 @@ vi.mock('../../src/components/base/core/uiHooks.ts', async (importOriginal) => (
 }));
 
 // 可控的 useConnectedInputs
-let connectedInputs = { images: [], texts: [] };
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
   useConnectedInputs: () => connectedInputs,
 }));
@@ -80,7 +105,7 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
 }));
 vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {} }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  toAbsoluteFileUrl: (x) => x,
+  toAbsoluteFileUrl: (x: unknown) => x,
   saveResultToTasks: vi.fn(async () => undefined),
 }));
 vi.mock('../../src/components/base/store/providerStore.ts', () => ({
@@ -94,7 +119,7 @@ vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
 // 导致后续 mock.calls[0][0] 报 TS2493、mockChat(...a) 报 TS2556。
 const mockChat = vi.fn(async (..._args: unknown[]) => ({ ok: true, content: '生成结果' }));
 vi.mock('../../src/components/base/api/generate.ts', () => ({
-  chatCompletions: (...a) => mockChat(...a),
+  chatCompletions: (...a: unknown[]) => mockChat(...a),
 }));
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   buildAllModels: vi.fn(() => []),
@@ -132,14 +157,14 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
       messages: Array<{ role: string; [k: string]: unknown }>;
     };
     const userMsg = call.messages.find((m) => m.role === 'user');
-    expect(userMsg.content).toContain('改写成小红书风格');
-    expect(userMsg.content).toContain('原始文案：今天天气好');
+    expect(userMsg!.content).toContain('改写成小红书风格');
+    expect(userMsg!.content).toContain('原始文案：今天天气好');
   });
 
   it('上游有文本但本地为空时，校验通过', async () => {
     connectedInputs = { images: [], texts: [{ id: 't1', text: '产品卖点', sourceNodeId: 's1' }] };
     setup({ prompt: '', text: '' });
-    expect(genConfig.validate()).toBe('');
+    expect(genConfig!.validate()).toBe('');
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockChat).toHaveBeenCalled());
     const userMsg = (
@@ -147,7 +172,7 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
         messages: Array<{ role: string; [k: string]: unknown }>;
       }
     ).messages.find((m) => m.role === 'user');
-    expect(userMsg.content).toContain('产品卖点');
+    expect(userMsg!.content).toContain('产品卖点');
   });
 
   it('多个上游文本节点合并', async () => {
@@ -166,9 +191,9 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
         messages: Array<{ role: string; [k: string]: unknown }>;
       }
     ).messages.find((m) => m.role === 'user');
-    expect(userMsg.content).toContain('汇总');
-    expect(userMsg.content).toContain('段落A');
-    expect(userMsg.content).toContain('段落B');
+    expect(userMsg!.content).toContain('汇总');
+    expect(userMsg!.content).toContain('段落A');
+    expect(userMsg!.content).toContain('段落B');
   });
 
   it('上游图片节点合并进 images 参考图', async () => {
@@ -185,13 +210,13 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
     };
     expect(call.images).toEqual(['http://up/a.png']);
     const userMsg = call.messages.find((m) => m.role === 'user');
-    expect(userMsg.content).toContain('看图说话');
+    expect(userMsg!.content).toContain('看图说话');
   });
 
   it('本地与上游皆为空时，提示请输入提示词或文本', () => {
     connectedInputs = { images: [], texts: [] };
     setup({ prompt: '', text: '' });
-    expect(genConfig.validate()).toBe('请输入提示词或文本');
+    expect(genConfig!.validate()).toBe('请输入提示词或文本');
   });
 
   it('prompt 中的 @图片芯片 → 解析为可读文本 + 提取为参考图（不泄漏 @{...|url} 噪音）', async () => {
@@ -208,9 +233,9 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
     };
     // 芯片被解析为显式垫图引用（图片 → [img=图片N]），绝不把 @{id:label|url} 噪音原样发给 LLM
     const userMsg = call.messages.find((m) => m.role === 'user');
-    expect(userMsg.content).not.toContain('@{i1');
-    expect(userMsg.content).not.toContain('http%3A');
-    expect(userMsg.content).toContain('[img=图片1]');
+    expect(userMsg!.content).not.toContain('@{i1');
+    expect(userMsg!.content).not.toContain('http%3A');
+    expect(userMsg!.content).toContain('[img=图片1]');
     // 芯片图被提取进参考图，供 LLM 看图理解
     expect(call.images).toContain('http://up/ref.png');
   });

@@ -132,8 +132,8 @@ const migrateMixed = () =>
   normalizeObjectTracks(
     { 'actor-lead': legacyMixedTrack },
     { 'actor-lead': 'person' },
-    { 'actor-lead': straightPath },
-  )['actor-lead'];
+    { 'actor-lead': straightPath! },
+  )['actor-lead']!;
 
 // ---- M4-C1 统一写入口 ----
 
@@ -259,12 +259,13 @@ describe('M4-C5 batch 原子性（路径 bake 先删旧帧再整批插新）', (
       ],
     });
 
-    const frames = batchResult['actor-lead'].transform
+    const frames = batchResult!['actor-lead'].transform
       .map((key) => key.frame)
       .sort((a, b) => a - b);
     expect(frames).toEqual([0, 24, 120, 240]); // 旧路径帧 0/60 被删，新增 120/240，手动帧 24 保留
-    expect(batchResult['actor-lead'].action).toHaveLength(1);
-    expect(batchResult['actor-lead'].action[0].fields.pose).toBe('run'); // 手动动作帧不丢
+    expect(batchResult!['actor-lead'].action).toHaveLength(1);
+    const leadAction = batchResult!['actor-lead']!.action[0]!;
+    expect(leadAction.fields!.pose).toBe('run'); // 手动动作帧不丢
   });
 });
 
@@ -282,14 +283,14 @@ describe('M4-C2/C6 混合 legacy 轨迁移', () => {
     // ①路径帧无姿态残留：fields 只有 position（剥掉 pose/joints/rigRoot/rotation/scale）
     for (const pathFrame of [0, 60, 120, 180, 240]) {
       const key = transform.find((k) => k.frame === pathFrame);
-      expect(Object.keys(key.fields)).toEqual(['position']);
-      expect(key.fields.position).toEqual([(pathFrame * 10) / 240, 0, 0]);
+      expect(Object.keys(key!.fields!)).toEqual(['position']);
+      expect(key!.fields!.position).toEqual([(pathFrame * 10) / 240, 0, 0]);
     }
     // ②手动帧字段完整迁入 transform 通道
     const manualTransform = transform.find((k) => k.frame === 24);
-    expect(Object.keys(manualTransform.fields).sort()).toEqual(['position', 'rotation', 'scale']);
-    expect(manualTransform.fields.position).toEqual([100, 0, 100]);
-    expect(manualTransform.fields.scale).toEqual([1.2, 1, 1]);
+    expect(Object.keys(manualTransform!.fields!).sort()).toEqual(['position', 'rotation', 'scale']);
+    expect(manualTransform!.fields!.position).toEqual([100, 0, 100]);
+    expect(manualTransform!.fields!.scale).toEqual([1.2, 1, 1]);
     // ②手动帧完整迁入 action/skeleton 通道（continuousMotion 是 objectState，不落通道，见 47）
     expect(migrated.action[0]).toEqual({
       frame: 24,
@@ -297,15 +298,15 @@ describe('M4-C2/C6 混合 legacy 轨迁移', () => {
       fields: { pose: 'run', poseTime: 0.6 },
     });
     // cloneJointPose 恒返回全部登记关节（缺失补零），runJoints 注入值应在其中
-    expect(migrated.skeleton[0].fields.joints).toEqual(cloneJointPose(runJoints));
+    expect(migrated.skeleton[0]!.fields!.joints).toEqual(cloneJointPose(runJoints));
   });
 
   it('③路径启用时 position=路径位置（忽略位置关键帧），动作/骨骼不丢', () => {
     const migrated = migrateMixed();
     // frame 30：路径 u=0.125 → x=1.25；关键帧段 24→60 插值 x≈83.75（被显示忽略）
     const at = objectAtFrame(person, migrated, 30, FPS, straightPath);
-    expect(at.position[0]).toBeCloseTo(1.25, 1);
-    expect(at.position[0]).not.toBeCloseTo(83.75, 1);
+    expect(at.position![0]).toBeCloseTo(1.25, 1);
+    expect(at.position![0]).not.toBeCloseTo(83.75, 1);
     // 手动动作/骨骼帧未被路径锁死或丢失
     expect(at.pose).toBe('run');
     expect(at.poseTime).toBeCloseTo(0.6, 5);
@@ -318,7 +319,7 @@ describe('M4-C2/C6 混合 legacy 轨迁移', () => {
     // frame 30 落在 24(手动帧,smooth)→60(路径帧) 段：smoothstep 平滑插值，而非路径位置
     const t = 6 / 36;
     const s = t * t * (3 - 2 * t);
-    expect(at.position[0]).toBeCloseTo(100 + (2.5 - 100) * s, 1);
+    expect(at.position![0]).toBeCloseTo(100 + (2.5 - 100) * s, 1);
   });
 });
 
@@ -329,12 +330,12 @@ describe('M4-C3 迁移幂等', () => {
     const first = normalizeObjectTracks(
       { 'actor-lead': legacyMixedTrack },
       { 'actor-lead': 'person' },
-      { 'actor-lead': straightPath },
+      { 'actor-lead': straightPath! },
     );
     const second = normalizeObjectTracks(
       first,
       { 'actor-lead': 'person' },
-      { 'actor-lead': straightPath },
+      { 'actor-lead': straightPath! },
     );
     expect(second).toEqual(first);
   });
@@ -347,7 +348,7 @@ describe('M4-C3 迁移幂等', () => {
 // import { legacyObjectAtFrame } from './_channelLegacy.mjs'; —— 见文件顶部 import 区
 
 // 递归容差比较：数值在容差内视为相等，数组逐元素比，对象按 expected 的键子集比。
-function expectSameState(actual, expected) {
+function expectSameState(actual: Record<string, unknown>, expected: Record<string, unknown>) {
   for (const field of [
     'position',
     'rotation',

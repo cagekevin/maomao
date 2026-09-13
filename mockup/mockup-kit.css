@@ -175,6 +175,10 @@ button,input,select{font-family:inherit;}
 }
 .seg button:hover{color:#fff;border-color:var(--edge);}
 .seg button.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
+/* 禁用态（.dis）。**必须有可见样式** —— 否则就是"假禁用"：点了没反应、也看不出为什么，
+   正是 docs/120 反复记的那类事故（禁用必须同时给 tooltip 说明原因）。 */
+.seg button.dis{opacity:.4;cursor:not-allowed;color:var(--t-muted);}
+.seg button.dis:hover{color:var(--t-muted);border-color:var(--edge-muted);background:var(--surface-hover);}
 /* 分段里的取色槽：当作「第 N 个预设」，与按钮等高，不再单独起一行 */
 .seg .color-inp{width:28px;height:24px;border-radius:var(--r-sm);}
 
@@ -836,6 +840,17 @@ button,input,select{font-family:inherit;}
   height:26px;padding:0 4px;border-radius:var(--r-sm);background:var(--input);
   border:1px solid var(--edge-muted);color:var(--t-body);font-size:11px;
 }
+/* 开关类控件用图标 toggle（对齐剪映的磁铁图标）：激活时高亮。
+ * 这不是"省字"，而是"它本来就是个开关" —— 开关用 图标 + 状态色，
+ * 比一个写着「吸附」的按钮更一眼可判（开着还是关着）。 */
+.ve-tgl{
+  width:26px;height:26px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:var(--r-sm);border:1px solid var(--edge-muted);background:var(--input);
+  color:var(--t-faint);cursor:pointer;
+}
+.ve-tgl.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
+/* 工具带上的「禁用」必须有可见样式，否则就是"假禁用"（点了没反应、也看不出为什么）。 */
+.ve-tgl.dis,.ve-sel.dis{opacity:.4;cursor:not-allowed;}
 
 /* M5 右栏：Tab 行 / 四宫格属性分类 / 键值行 */
 .ve-itabs{display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid var(--edge-faint);}
@@ -881,7 +896,9 @@ button,input,select{font-family:inherit;}
   color:var(--t-faint);font-size:9px;cursor:pointer;
 }
 .ve-flag.on{background:var(--accent);border-color:transparent;color:#fff;}
-.ve-flag.mute.on{background:var(--surface-hover-strong);border-color:var(--edge);color:var(--t-body);}
+/* 静音开启 = 琥珀色（可见的状态色）。原来用"深灰"表示 on ——
+   用户看不出它到底开没开，正是我们反复警告的"假按钮"。 */
+.ve-flag.mute.on{background:rgba(234,179,8,.20);border-color:rgba(234,179,8,.55);color:#fbbf24;}
 /* 时间轴头的「时间轴」是标签不是按钮（审计砍掉可点无反应项） */
 .ve-tl-title{
   font-size:11px;font-weight:600;color:var(--t-secondary);
@@ -931,6 +948,32 @@ button,input,select{font-family:inherit;}
 .ve-clip .trans{position:absolute;left:0;top:0;bottom:0;
   background:linear-gradient(90deg,var(--accent-soft),transparent);
   border-right:1px solid var(--accent-line);}
+/* 音频片段（docs/120 C11.7b）：视觉主体是【秒格】—— 语义是"长度"，不是"音量"。
+ * **禁止伪波形**：固定图案会被读成真实音量（"图案平的地方=静音"），那是撒谎，比没有更糟。
+ * 真实波形是 M2 项。反证：剪映的音频轨主体就是蓝色波形 —— 那是精剪工具的选择，不是粗排的前提。 */
+.ve-clip.audio{
+  background:linear-gradient(180deg,rgba(59,130,246,.16),rgba(59,130,246,.06));
+  border-color:var(--accent-line);
+}
+.ve-clip.audio .secs{
+  position:absolute;inset:0;pointer-events:none;
+  background-image:repeating-linear-gradient(to right,rgba(255,255,255,.20) 0 1px,transparent 1px 45px);
+  background-position:0 0;
+}
+.ve-clip.audio .secs::after{
+  content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(255,255,255,.22);
+}
+.ve-clip .dur{
+  position:absolute;right:4px;bottom:3px;font-size:9px;color:var(--t-body);
+  font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.9);
+}
+/* 片段上的「有原声」角标（docs/120 C4.7 配套）：音轨内联在视频片段里，
+ * 所以「这条有没有声音」必须看得见 —— 否则用户要到导出才发现没声音（C4.3 同一条原则）。
+ * 与之配对的控制就是 C7 的「视频轨静音 = 关原声」。 */
+.ve-clip .aud{
+  position:absolute;right:4px;top:3px;font-size:9px;line-height:1;
+  padding:1px 3px;border-radius:3px;background:rgba(0,0,0,.6);color:#fff;
+}
 .ve-seam{
   position:absolute;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;
   display:flex;align-items:center;justify-content:center;
@@ -938,8 +981,17 @@ button,input,select{font-family:inherit;}
   background:var(--surface-1);color:var(--t-muted);font-size:9px;
 }
 .ve-seam.on{border-color:var(--accent-line);background:var(--accent-soft);color:var(--accent-text);}
-.ve-ph{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--danger);z-index:3;}
-.ve-ph i{position:absolute;top:0;left:-4px;width:10px;height:7px;background:var(--danger);border-radius:2px;}
+.ve-ph{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--danger);z-index:3;cursor:ew-resize;}
+/* 播放头把手（对齐剪映）：顶部一个带下尖的可抓抓手。
+ * 只有一条 2px 竖线的话，播放头只能"点"不能"抓" —— 而抓取拖拽是走带最高频的动作。
+ * 抓手落在刻度尺那一行，指针在其上直接可拖。 */
+.ve-ph i{position:absolute;top:0;left:-6px;width:14px;height:10px;background:var(--danger);
+  border-radius:3px 3px 1px 1px;box-shadow:0 1px 3px rgba(0,0,0,.5);}
+.ve-ph i::after{
+  content:"";position:absolute;left:4px;top:9px;
+  border-left:3px solid transparent;border-right:3px solid transparent;
+  border-top:5px solid var(--danger);
+}
 
 /* ───────── N. 生图节点卡片 & 摄影参数面板（camera params） ───────── */
 /* 与 L（3D 导演台）/ M（视频剪辑器）同构：按工具另起一段。
@@ -1097,5 +1149,240 @@ button,input,select{font-family:inherit;}
 /* 大图（看清单层用；精灵是矢量的，放大不糊也不需要第二套资源） */
 .cam-case.hero{width:560px;}
 .cam-case.hero .v{height:235px;}
+
+/* ───────── O. 视频剪辑基座层（画布底部时间轴 · docs/120 形态定稿） ───────── */
+/* 与 M 段（.ve-*）同族但不同层：
+ *   M 段 = 全屏「工作台」（编辑器视角，四段骨架）= M2；
+ *   O 段 = 常驻「基座」（画布视角，底部条）= M1。
+ * 前缀 .vd-*（video dock）。
+ *
+ * 三条形态红线（docs/120 形态定稿），本段样式即为它们服务：
+ *  1. 基座是常驻层、不是全屏模态层 → 画布始终可见可操作，基座展开时画布「被压缩」而非「被盖住」；
+ *  2. 折叠 = 未激活：底部不留任何痕迹，也不接受画布素材（**没有**「细状态条」这类中间形态）；
+ *  3. 轨道区直接复用 M 段的 .ve-ruler / .ve-lane / .ve-clip / .ve-tlabel / .ve-flag
+ *     —— 基座与工作台是「同一份 tracks 的两个视图」，样式也必须共用一套类，避免两份漂移。
+ *     基座只压高度，不改语义。
+ */
+
+/* O1 画布宿主框：顶栏 + 画布 + 基座纵向排列 */
+.vd-app{
+  width:1280px;height:800px;display:flex;flex-direction:column;overflow:hidden;
+  background:var(--canvas);border:1px solid var(--edge-muted);border-radius:var(--r-card);
+  box-shadow:var(--sh-card);
+}
+.vd-app.sm{width:612px;height:430px;}
+
+/* O1b 顶栏：入口按钮与 AI 助手按钮同一位置、同款样式（本方案唯一的「打开」入口） */
+.vd-nav{
+  height:44px;flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 12px;
+  border-bottom:1px solid var(--edge-faint);background:var(--surface-deep);
+}
+.vd-nav .logo{width:22px;height:22px;border-radius:6px;flex-shrink:0;
+  background:linear-gradient(160deg,#f2eee4,#c9c5ba);}
+.vd-nav .nm{font-size:12px;font-weight:600;color:var(--t-primary);}
+.vd-nav .tabs{display:flex;gap:3px;padding:3px;border-radius:var(--r-pill);
+  background:var(--input);border:1px solid var(--edge-muted);}
+.vd-nav .tabs span{font-size:11px;color:var(--t-faint);padding:2px 10px;border-radius:var(--r-pill);}
+.vd-nav .tabs span.on{background:var(--accent-soft);color:var(--accent-text);}
+.vd-nav .right{margin-left:auto;display:flex;align-items:center;gap:2px;}
+.vd-nav .ib.entry{background:var(--accent-soft);color:var(--accent-text);}
+.vd-nav .ib.entry:hover{background:rgba(59,130,246,.26);color:#fff;}
+
+/* O2 画布：点阵底 + 节点。基座展开时 flex 收缩，画布不消失、仍可选素材 */
+.vd-canvas{
+  flex:1;min-height:0;position:relative;overflow:hidden;background-color:var(--canvas);
+  background-image:radial-gradient(var(--edge) 1px,transparent 1px);
+  background-size:20px 20px;
+}
+.vd-node{
+  position:absolute;width:196px;background:var(--surface-raised);
+  border:1px solid var(--edge-muted);border-radius:12px;overflow:hidden;
+}
+.vd-node.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 24px rgba(0,0,0,.5);}
+.vd-node .hd{display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;
+  border-bottom:1px solid var(--edge-faint);font-size:11px;color:var(--t-body);}
+.vd-node .hd .d{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+.vd-node .hd .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.vd-node .bd{height:96px;position:relative;}
+.vd-node .bd .tag{position:absolute;left:6px;bottom:5px;font-size:9px;color:#fff;
+  background:rgba(0,0,0,.55);border-radius:4px;padding:1px 5px;font-variant-numeric:tabular-nums;}
+/* （原「已入池」徽标已删除：待加入区整个删了，点素材不再有"入池"这个中间态，见 O4） */
+.vd-edge{position:absolute;height:1px;background:var(--edge-strong);transform-origin:0 50%;opacity:.7;}
+
+/* O3 基座（展开态）：拖动柄 + 工具带 + 待加入区 + 轨道区 */
+.vd-dock{flex-shrink:0;display:flex;flex-direction:column;
+  border-top:1px solid var(--edge-strong);background:var(--surface-deep);}
+.vd-grip{height:5px;flex-shrink:0;background:transparent;}
+.vd-grip i{display:block;width:38px;height:3px;margin:0 auto;border-radius:2px;background:var(--edge);}
+.vd-bar{height:36px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 10px;
+  border-bottom:1px solid var(--edge-faint);}
+/* 工具带标题：只作标签，**不加分隔线**（分区靠颜色与留白，不靠堆线 —— 参照实现的做法） */
+.vd-bar .t{font-size:11px;font-weight:600;color:var(--t-secondary);}
+/* 缩放百分比：夹在 − / ⟲ / + 之间，等宽数字防跳动 */
+.vd-bar .pct{min-width:36px;text-align:center;font-size:10px;color:var(--t-faint);
+  font-variant-numeric:tabular-nums;}
+.vd-bar .tc{font-size:11px;color:var(--t-primary);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;}
+.vd-bar .tc .tot{color:var(--t-faint);}
+.vd-bar .right{margin-left:auto;display:flex;align-items:center;gap:6px;}
+
+/* O4 入轨的两个入口（docs/120 C11 · 2026-09-13 重写）
+ *
+ * **「待加入区」整个删掉了。** 它原来照搬 AI 助手的「待引用区」，但那个类比在关键处不成立：
+ *   AI 助手发消息 = 调模型、花钱、**不可轻改** → 值得"先攒再确认"；
+ *   剪辑器落轨 = **可撤销、零成本** → 不需要中间站。
+ * 池子连带的一串复杂度（两态 / 加入即消费 / chip / `pool` 持久化 / 幂等 / 触发点短路 / 框选顺序歧义）
+ * 随之全部消失。现在入轨只有两个入口，且都是**显式动作**：
+ *   ① 节点上的「加入时间轴」按钮（点击 = 贴尾）  ② 把节点拖进轨道（拖拽 = 自选位置）
+ * 折叠态（未激活）下这两个入口都不出现。 */
+.vd-node .addbtn{
+  display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 8px;
+  border-radius:var(--r-pill);border:1px solid var(--accent-line);
+  background:var(--accent-soft);color:var(--accent-text);font-size:9px;cursor:pointer;
+}
+.vd-node .addbtn:hover{background:rgba(59,130,246,.26);color:#fff;}
+/* 拖入轨道的落点预览（docs/120 C11 / C14.3）：虚线插入位 + 时码。
+ * 这是"不静默失败"的另一半 —— 位置被占要滑入最近合法位，而且**拖的过程中**就要让用户看到落点。 */
+.vd-dropzone{position:absolute;top:0;bottom:0;border:1px dashed var(--accent-line);border-radius:5px;
+  background:var(--accent-soft);}
+.vd-dropzone i{position:absolute;top:-7px;left:50%;transform:translateX(-50%);white-space:nowrap;
+  font-style:normal;font-size:9px;color:#fff;background:var(--accent);border-radius:4px;padding:1px 5px;}
+.vd-node.ghost{opacity:.5;border-style:dashed;}
+/* O4b 导出前的常驻信息条（docs/120 C5.6）：取代"点导出先弹预检窗"。
+ * 一行小字常驻，用户提前就知道走哪条路、会不会有黑边；**点导出直接开始**。
+ * 只有"存在断链片段"这种真需要决策的情况才弹一次确认。 */
+.vd-info{height:24px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 10px;
+  border-bottom:1px solid var(--edge-faint);background:var(--surface-sunken);
+  font-size:10px;color:var(--t-muted);white-space:nowrap;overflow:hidden;}
+.vd-info b{color:var(--t-body);font-weight:500;}
+/* 空隙占位（留洞删除的产物，docs/120 C15）：虚线 + 斜纹，且**不是空白** ——
+   空白会被读成"渲染坏了"，虚线斜纹一眼是"这里有个洞，可以闭合"。 */
+.vd-gap{
+  position:absolute;top:0;bottom:0;border:1px dashed var(--edge-strong);border-radius:5px;
+  background:repeating-linear-gradient(-45deg,transparent 0 6px,rgba(255,255,255,.035) 6px 7px);
+  display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--t-subtle);
+}
+/* （原 .vd-chip .go / .vd-pool .hint / .vd-pool .empty 随「待加入区」一并删除） */
+
+/* O5 轨道区：复用 M 段类，只压高度（基座要「一屏看全所有轨」，工作台才要宽裕轨道） */
+.vd-tracks{flex:1;min-height:0;display:flex;}
+.vd-tracks .ve-labels{width:78px;}
+.vd-tracks .ve-ruler-sp{height:22px;}
+.vd-tracks .ve-ruler{height:22px;}
+.vd-tracks .ve-lane{height:38px;margin-bottom:3px;}
+.vd-tracks .ve-scroll{padding-bottom:4px;}
+
+/* O5b 轨道头 = 固定列图标网格（docs/120 C7.4）
+ * 不写中文标签，改 [类型] [锁] [眼] [喇叭] 四列固定图标；缺的列留空占位 → 跨轨列位对齐，
+ * 扫一眼就能读出所有轨的全部状态。**状态靠颜色**：正常 = 次级灰，开启 = accent。
+ * 收益：轨道头从 132px 收到 78px，宽度还给轨道。 */
+.vd-tracks .ve-thead{
+  display:flex;align-items:center;gap:1px;height:38px;margin-bottom:3px;padding:0 8px;
+}
+.ve-ico{
+  width:19px;height:19px;flex:0 0 19px;display:flex;align-items:center;justify-content:center;
+  border:none;background:transparent;color:var(--t-faint);cursor:pointer;border-radius:4px;padding:0;
+}
+.ve-ico:hover{background:var(--surface-hover);color:var(--t-body);}
+/* 开启 = accent 色（对齐剪映：隐藏 / 静音 / 锁定 都用同一个高亮色，不再靠"有没有底色"判断） */
+.ve-ico.on{color:var(--accent);}
+.ve-ico.on:hover{color:var(--accent);background:var(--accent-soft);}
+.ve-ico.type{color:var(--t-subtle);cursor:default;}
+.ve-ico.type:hover{background:transparent;color:var(--t-subtle);}
+.ve-ico.blank{visibility:hidden;}
+
+/* O5c 片段名条独立在片段顶部（docs/120 C11.10b）
+ * 名字不压缩略图 / 波形 —— 名字永远可读，缩略图也不被遮挡；且**不带序号**
+ * （分割后序号会变成 1. 1. 1.，反而误导；顺序由片段在轨上的位置本身表达）。 */
+.vd-tracks .ve-clip .nm{
+  position:absolute;left:0;right:0;top:0;height:15px;bottom:auto;
+  display:flex;align-items:center;padding:0 5px;z-index:2;
+  background:rgba(0,0,0,.44);color:#fff;font-size:9px;line-height:15px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.6);
+}
+.vd-tracks .ve-clip .thumbs{top:15px;}
+
+/* O5d 音频片段 = 真实波形（docs/120 C11.7b）
+ * 波形是音频在时间轴上**唯一**的信息载体：定位靠它、判断"这段有没有声音"也靠它。
+ * 上一稿把波形降为 P1、换成"秒格"，是判断错误 —— 已反转，M1 必做。 */
+.ve-clip.audio{background:linear-gradient(180deg,#17253f,#0d1729);border-color:var(--accent-line);}
+.ve-clip.audio .nm{background:rgba(24,44,84,.92);}
+.ve-clip .wave{position:absolute;left:0;right:0;top:15px;bottom:0;width:100%;height:calc(100% - 15px);
+  color:rgba(122,190,255,.9);display:block;}
+.ve-clip .wave path{fill:currentColor;}
+.vd-tracks .ve-clip .dur{
+  position:absolute;right:4px;top:0;height:15px;line-height:15px;z-index:3;
+  font-size:8px;color:rgba(255,255,255,.62);font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.8);
+}
+
+/* O5e 时间轴缩放 = ⊖ + 长滑块 + ⊕（docs/120 工具带形态）
+ * 滑块不是"多余的一个控件"：**它的位置本身就是一条信息** —— 一眼看出当前缩到多小。
+ * 这是上轮"只留一个「自适应」"被推翻的原因。 */
+.ve-zoom{display:inline-flex;align-items:center;gap:5px;padding:0 2px;}
+.ve-zbtn{width:22px;height:22px;flex:0 0 22px;display:flex;align-items:center;justify-content:center;
+  border:none;background:transparent;color:var(--t-body);cursor:pointer;border-radius:5px;padding:0;}
+.ve-zbtn:hover{background:var(--surface-hover);color:#fff;}
+.ve-zoom .track{width:96px;height:3px;border-radius:2px;background:var(--edge);position:relative;}
+.ve-zoom .track i{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;
+  border-radius:50%;background:#e8e8e8;box-shadow:0 1px 3px rgba(0,0,0,.6);}
+
+/* O5f 工具带左侧的「编辑动作组」：与走带组之间一条 vline，组内不堆线。
+ * 撤销 / 重做 / 分割 / 裁左 / 裁右 / 定格 全部**恒常渲染**；不可用时**置灰**（不是隐藏）。 */
+.ve-ebtn{height:26px;min-width:26px;padding:0 6px;flex-shrink:0;
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  border:1px solid transparent;border-radius:var(--r-sm);background:transparent;
+  color:var(--t-body);font-size:11px;cursor:pointer;}
+.ve-ebtn:hover{background:var(--surface-hover);}
+.ve-ebtn.icon{min-width:0;padding:0 5px;}
+.ve-ebtn.dis{opacity:.34;cursor:not-allowed;}
+.ve-ebtn.dis:hover{background:transparent;}
+
+/* O6 折叠态：底部【零痕迹】—— 这里故意没有样式。
+ * 「折叠 = 未激活 = 不接受画布素材」（docs/120 §0.1 红线），所以折叠态什么都不画：
+ * 不画细状态条、不画把手、不画徽标。留任何痕迹都会暗示「后台还有事」，让人以为剪辑器还在跑。 */
+
+/* O7 导出中：阶段进度（混音 / 画面 / 写音频）+ 可中断。
+ * 导出归基座（粗排完即出片），所以进度条常驻在基座顶端而不是另开弹窗。 */
+.vd-prog{height:30px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 10px;
+  border-top:1px solid var(--accent-line);background:var(--accent-soft);
+  font-size:11px;color:var(--t-secondary);}
+.vd-prog .bar{flex:1;height:4px;border-radius:2px;background:var(--surface-hover);overflow:hidden;}
+.vd-prog .bar i{display:block;height:100%;background:var(--accent);}
+
+/* O8 空态提示（基座刚展开、轨道还空着） */
+.vd-hollow{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  font-size:11px;line-height:1.8;color:var(--t-subtle);text-align:center;pointer-events:none;}
+
+/* O9 键盘归属示意（docs/120 C10）：激活态下只有 Delete / ⌘Z / ⌘⇧Z 归剪辑器。
+ * 注意：**没有**「焦点作用域」这套东西 —— 归属由激活位派生、不由焦点派生，
+ * 所以这里也不需要 .focus 之类的焦点态样式（旧设计已删）。 */
+.vd-keyscope{position:absolute;left:12px;top:12px;font-size:10px;line-height:1.7;
+  padding:6px 9px;border-radius:8px;background:rgba(28,28,28,.92);
+  border:1px solid var(--accent-line);color:var(--t-secondary);}
+.vd-keyscope b{color:var(--accent-text);font-weight:500;}
+
+/* O9b 折叠态把手（docs/120 §0.3）：页面最底部居中的半圆 + 向上箭头。
+ * 三条约束：① 固定底部居中（**不放右上角**，不跟 AI 助手挤）；② **只画形状、不显示任何数值**
+ * （参考实现的把手带「7 段 · 0:24」摘要，我们刻意不带 —— 带了就是状态暗示，会把"未激活"变回"后台还在跑"）；
+ * ③ 只在折叠态存在；基座展开时由工具带上的收起按钮接管，避免两个入口并存。 */
+.vd-handle{
+  position:absolute;left:50%;bottom:0;transform:translateX(-50%);
+  width:56px;height:28px;border:1px solid var(--edge);border-bottom:none;
+  border-radius:28px 28px 0 0;background:var(--surface-1);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--t-secondary);box-shadow:0 -6px 18px rgba(0,0,0,.45);cursor:pointer;
+  transition:background .15s,color .15s;
+}
+.vd-handle:hover{background:var(--surface-hover);color:var(--t-strong);}
+.vd-handle svg{transition:transform .15s;}
+.vd-handle:hover svg{transform:translateY(-1px);}
+
+/* O10 断链片段（docs/120 C13）：红 = 素材读不到。
+ * 片段仍**留在轨上**（不自动删、不自动改时长）—— 用户可能只是临时离线、或把节点挪走了；修好即自动恢复。 */
+.ve-clip.broken{
+  background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.55);
+  box-shadow:inset 0 0 0 1px rgba(239,68,68,.35);
+}
+.ve-clip.broken .nm{color:#fca5a5;}
 
 /* __APPEND_MARK__ */

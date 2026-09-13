@@ -126,7 +126,7 @@
 
 > **协作规则（不越层）**：弹提示→②、记日志→③、广播→①、存数据→④、算/转换→⑤⑥、下载→⑦。**禁止越层**（toast 不写日志、logger 不弹提示）。新增事件/存储键/错误类型先到 `contracts.ts` 登记再实现。
 
-> **debug 开关（查 bug 临时日志用，已升级为通用 DEBUG）**：`config.ts` 的 `DEBUG`（`isDebugModuleOn(module)`）按模块分类控制 `logger.debug` 输出，默认全关、不上报后端。模块位集中在 `DEBUG_MODULES = ['asset','agent','image','text']`（素材库 / AI 助手 / 图片生成全链路 / 文本节点）。开启：`.env` 加 `VITE_DEBUG_ALL=1`（全开）或 `VITE_DEBUG_<MODULE>=1`（单模块），运行时 `window.__DEBUG_ALL` / `window.__DEBUG_<MODULE>`。`DEBUG_ASSET` 保留为 asset 模块位别名（旧引用不破）。**新增模块直接在** **`DEBUG_MODULES`** **登记，禁止再起独立散开关**。详见 CLAUDE.md §3.2（改 bug 先加日志）。
+> **debug 开关（查 bug 临时日志用，已升级为通用 DEBUG）**：`config.ts` 的 `DEBUG`（`isDebugModuleOn(module)`）按模块分类控制 `logger.debug` 输出，默认全关、不上报后端。模块位集中在 `DEBUG_MODULES = ['asset','agent','image','text']`（素材库 / AI 助手 / 图片生成全链路 / 文本节点）。开启：`.env` 加 `VITE_DEBUG_ALL=1`（全开）或 `VITE_DEBUG_<MODULE>=1`（单模块），运行时 `window.__DEBUG_ALL` / `window.__DEBUG_<MODULE>`。asset 模块位的判定入口 = `isDebugModuleOn('asset')`（**运行时实时读**；不提供顶层缓存常量）。**新增模块直接在** **`DEBUG_MODULES`** **登记，禁止再起独立散开关**。详见 CLAUDE.md §3.2（改 bug 先加日志）。
 
 ***
 
@@ -141,6 +141,8 @@
 * **自动重试**：仅网络/超时最多 3 次指数退避，上游业务失败绝不自动重试（防封号）。
 
 * **幂等 / 去重 / 唯一键纪律（P0 全局收口红线）**：任何"可能重复触发"的写操作（提交生图、落盘、webhook 收结果、事件入库、外部回调）必须带全局唯一键并幂等落库——同一键重复到达只生效一次，禁止重复建任务 / 重复写 / 重复副作用。规则：① 全局唯一键统一来源（如 `base/idGen.ts` 的 `generateId`、上游 `task_id`/`thread_id`），禁止业务各处手写 `Date.now()` 当幂等键；② 落库前先按唯一键查重，命中即返回既有结果而非新建；③ 去重逻辑收口到**唯一入口**（如 `useNodeGeneration` 提交 Seam、localTool `/files/` 落盘），禁止散落各调用方各自判重；④ webhook / 重试 / 刷新回填等"至少一次"语义的入口默认按唯一键去重。项目 R1\~R4 方法论即此纪律落地：存储事件化、子图事务、防重入 UUID、统一超时——新增同类能力优先复用既有机制，不另起一套。
+
+* **类型契约：判别联合的写法（`strictNullChecks:false` 约束）**：本仓 `strict:false` / `strictNullChecks:false`，TS 对 `boolean` 判别位**只在「真分支 / 显式 `=== false`」收窄**——`else`、`!x.ok`、三元假支访问失败分支字段报 **TS2339**（**字符串/数字判别位不受影响**；实测矩阵见 `daily/架构日志/21-跨区-判别联合boolean窄化约定-2026-09-13.md`）。故「成功/失败」联合写成二者之一：① **双方各带对方的键（可选 `undefined`）**——`{ ok:true; url:string; reason?:undefined } | { ok:false; url?:undefined; reason:'x' }`（`ok` 仍是判别位、语义不变，且两分支字段都可直接读）；② 改用**字符串/数字判别位**（`kind:'a'|'b'`）。**🚫 严禁用 `as` / `!` 绕墙**（把编译期问题埋成运行时不诚实）——需要 boolean 分支时按 ① 改形状，而不是加断言。
 
 ***
 
@@ -250,7 +252,7 @@
 
 * **图片类节点共享 hover 能力**：`base/useImageHoverActions.tsx` 是 ImageNode / PromptNode 的「裁剪/标记/压缩」hover 操作唯一收口。写回经 `onImageReplaced(dataUrl)` 回调解耦（ImageNode 走 setNodes 不可变更新，PromptNode 走 setImageUrl+patchData），hook 只产出新 dataURL、不耦合节点写回方式。新增图片类 hover 操作走此 hook，勿在两节点各写一份（曾因各写一份导致生图节点 crop 漏 onClick 成死按钮）。
 
-* **API 契约真源（2026-08-22）**：前端↔localTool 端点唯一真源是 `contracts.ts` 的 **`apiRegistry`**（55 条：fn/method/path/envelope/status），与 `localTool/src/router.ts` 的 `routes` 表双向互检由 **`npm run check:api`**（`scripts/check-api-contract.cjs`，挂 prebuild+pretest）完成。**改端点 = 「加函数 + 登记」双动作**，信封形态须标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub`。前端薄壳统一收口在 `localToolApi.ts`/`filesApi.ts`，散落点（GeneratedView/AssetLibrary/pollTask）已收进薄壳。**勿再引用过时的** **`BACKEND_ROUTES`/`API_ENDPOINTS`** **占位**（已弃，真源是 apiRegistry）。
+* **API 契约真源（2026-08-22）**：前端↔localTool 端点唯一真源是 `contracts.ts` 的 **`apiRegistry`**（55 条：fn/method/path/envelope/status），与 `localTool/src/router.ts` 的 `routes` 表双向互检由 **`npm run check:api`**（`scripts/check-api-contract.cjs`，挂 `prebuild` + `check:health`）完成。**改端点 = 「加函数 + 登记」双动作**，信封形态须标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub`。前端薄壳统一收口在 `localToolApi.ts`/`filesApi.ts`，散落点（GeneratedView/AssetLibrary/pollTask）已收进薄壳。**勿再引用过时的** **`BACKEND_ROUTES`/`API_ENDPOINTS`** **占位**（已弃，真源是 apiRegistry）。
 
 * **脚本盒全量收口至 scriptbox/（2026-08-31）**：`scriptBoxEngine/Prompts/PromptResolver/Schema` 已全部从 `base/` 迁入 `src/components/scriptbox/`（解 base⇄scriptbox 循环，见 download/REPORT P0）。**base/ 不再含任何 scriptbox 业务域专属文件**。
 

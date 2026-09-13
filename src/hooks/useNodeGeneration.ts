@@ -1,7 +1,6 @@
 import { useCallback, useRef, useEffect } from 'react';
 import type { GenerationResult } from '@/types';
 import {
-  reportGenerate,
   registerTaskRetry,
   unregisterTaskRetry,
   claimNodeRun,
@@ -9,13 +8,10 @@ import {
 } from '../components/base/store/taskStore.ts';
 import { updateNodeRuntime, useNodeRuntime } from '../components/base/store/nodeRuntimeStore.ts';
 import type { TaskController, NodeRunClaim } from '../components/base/store/taskStore.ts';
-import { saveResultToTasks } from '../components/base/api/index.ts';
+import { runGenerationContract } from '../components/base/store/generationContract.ts';
 import { logger } from '../components/base/core/logger.ts';
 import { subscribe } from '../components/base/core/eventBus.ts';
-import { showToast } from '../components/base/core/toastStore.ts';
 import { useNodeData } from './useNodeData.ts';
-import { classifyError } from '../components/base/utils/genErrors.ts';
-import { reportDegrade } from '../components/base/core/degrade.ts';
 
 /**
  * 任务控制器：直接复用 taskStore 的权威定义（taskStore 已转 .ts，不再各写一份）。
@@ -40,7 +36,11 @@ export interface NodeGenerationRunArgs {
 /** run 执行器返回的结果信封 —— 别名对齐 GenerationResult（单一真源 src/types/provider.ts，L3c，禁另立 interface） */
 export type NodeGenerationResult = GenerationResult;
 
-/** start() 的返回值（成功 / 失败 / 中止 / 并发在跑） */
+/**
+ * start() 的「已触发」返回值（成功 / 失败 / 中止 / 并发在跑）。
+ * 【TD-01-6】start 另有 `false` 一态 = **未触发**（loading 忙 / 校验不过），见 `NodeGenerationApi.start`；
+ * 两者语义有别——`{ok:false}` 是「触发了但失败」，`false` 是「压根没触发」。
+ */
 export interface NodeGenerationStartResult {
   ok: boolean;
   resultUrl?: string;
@@ -84,7 +84,8 @@ export interface UseNodeGenerationOptions {
 export interface NodeGenerationApi {
   loading: boolean;
   error: string;
-  start: () => Promise<NodeGenerationStartResult | boolean>;
+  /** 【TD-01-6】`false` = 未触发（loading 忙 / 校验不过）；对象 = 已触发结果。两者勿混。 */
+  start: () => Promise<NodeGenerationStartResult | false>;
   stop: () => void;
 }
 
@@ -180,10 +181,9 @@ export function useNodeGeneration({
   const { loading, error } = useNodeRuntime(nodeId);
   // AbortController：stop() 真中断请求（Step C）。run 执行器接收 signal 并传给底层 API（Step A 已支持）。
   const abortRef = useRef<AbortController | null>(null);
-  // 【R4 防重入】同步 runningRef 原子防重：start 入口立即置位、finally 复位。
-  // 旧实现用闭包 `loading`（重渲染后才更新），快速双击时第二次仍读到旧 false → 并发生图。
-  // ref 同步更新，第二次 start 立即被拒，根治并发浪费（TASK-016 #6）。
-  const runningRef = useRef(false);
+  // 【TD-01-5 · 2026-09-13】原 `runningRef` 同步防重已删：`claimNodeRun`（taskStore 同步 Map 锁，
+  // 本函数第一句）已覆盖同 tick 重入——claim 成功即证明无在跑（唯一置位点就是本函数，各退出路径皆复位），
+  // 故 runningRef 在本函数内恒为 false（死 ref）。防重实际由 claim + 下方 `loading` 守卫共同承担。
 
   const runRef = useRef<GenerationRunner | undefined>(run);
   runRef.current = run;
@@ -196,7 +196,7 @@ export function useNodeGeneration({
   const typeRef = useRef<GenerationTypeInfo>(type);
   typeRef.current = type;
 
-  const start = useCallback(async (): Promise<NodeGenerationStartResult | boolean> => {
+  const start = useCallback(async (): Promise<NodeGenerationStartResult | false> => {
     // 【P1-E 跨发起方并发锁】先占单节点互斥锁（taskStore 层，任何发起方都经本 start 汇聚）。
     // 同节点已有进行中（Agent runNodeGeneration / 用户手动 start）→ 明确返回「进行中」，不并发生成。
     const claim: NodeRunClaim = claimNodeRun(nodeId);
@@ -204,16 +204,16 @@ export function useNodeGeneration({
       logger.debug('生成', '[节点] 已在生成，跳过并发', { nodeId }, { module: 'image' });
       return { ok: false, inFlight: true };
     }
-    // 【R4 防重入】同步 runningRef 原子防重（比闭包 loading 可靠，第二次立即被拒）
-    if (loading || runningRef.current) {
+    // 【TD-01-5 收窄】`loading` 守卫**保留**（非冗余）：其它流程会独立置 loading:true
+    //（如 VideoProcessNode 自管的处理流程 `updateNodeRuntime(id,{loading:true})`，不持有本 claim）→
+    // 节点忙时不并发起生成。原先一并检查的 `runningRef` 已删（见上方说明：claim 已覆盖，恒 false）。
+    if (loading) {
       releaseNodeRun(nodeId);
       return false;
     }
-    runningRef.current = true;
     const v = validateRef.current?.();
     if (v) {
       updateNodeRuntime(nodeId, { error: v });
-      runningRef.current = false;
       releaseNodeRun(nodeId);
       return false;
     }
@@ -225,10 +225,7 @@ export function useNodeGeneration({
     abortRef.current = ctl;
     // 缺省兜底用完整形状而非 `|| {}`，否则 t 退化为 `{}`、取 t.type/t.prompt 会报属性不存在
     const t: GenerationTypeInfo = typeRef.current || { type: '', prompt: '', modelName: '' };
-    const taskCtl: TaskController = reportGenerate(nodeId, t.type, t.prompt, {
-      modelName: t.modelName,
-    });
-    taskCtl.progress(5, '准备中…');
+    // 任务中心上报 / 进度 / done-fail 分类统一由 runGenerationContract 承载（TD-01-8）
     logger.info('生成', 'start', { nodeId, type: t.type, prompt: promptPreview(t.prompt) });
     // 【B层】节点生成入口：prompt 摘要 + 节点类型（定位是哪个节点、发的什么提示词触发生图）
     logger.debug(
@@ -243,113 +240,36 @@ export function useNodeGeneration({
       { module: 'image' },
     );
     try {
-      // signal/taskId 传给 run 执行器（P0-A：taskId 请求级贯穿，节点透传给 generateImage/generateVideo opts）
-      const r = await runRef.current({
-        progress: (p, stage) => taskCtl.progress(p, stage),
-        signal: ctl.signal,
-        taskId: taskCtl.taskId || '',
-      });
-      // 【B层】run 执行器返回：ok + url（定位生成契约是否拿到结果）
-      logger.debug(
-        '生成',
-        '[节点] run返回',
-        {
-          nodeId,
-          ok: r?.ok,
-          urlHead: r?.url ? String(r.url).slice(0, 80) : '',
-          error: r?.error || '',
-        },
-        { module: 'image' },
-      );
-      if (r?.ok) {
-        // P0-2-b：声明 resultKey 后自动写回 node.data，省去各节点在 onSuccess 里手写 patchData({[xxx]: url})
-        const resultKey = resultKeyRef.current;
-        const autoUrl = resultKey && r.url;
-        if (autoUrl) patchData({ [resultKey]: autoUrl });
-        onSuccessRef.current?.(r, taskCtl);
-        // 防御：done 只接收字符串结果 URL（B2：doneUrl 悬空契约已删，统一用 r.url；上游偶发返回对象会触发 .startsWith 崩）
-        const rawUrl = r.url;
-        const strUrl = typeof rawUrl === 'string' ? rawUrl : '';
-        // 【P0-C 单向落盘】落盘唯一出口在此：先落盘得持久 URL，再 done(persistedUrl) 回填最终 url（done 不再落盘）。
-        // 落盘失败（saveResultToTasks 返回 null）回退上游原始 url。
-        // 【失败可见】落盘失败不得静默吞掉：统一经 reportDegrade 留痕（logger.warn，全链路可查），
-        //   但保留 P0-C 回退语义（persistedUrl || strUrl），不因落盘失败把整体生成判为失败。
-        const persistedUrl = strUrl
-          ? await saveResultToTasks(strUrl, t.type).catch((e: unknown): null => {
-              // catch 原因未必是 Error 实例，统一收窄为 Error 再交给 reportDegrade（其 e 字段为 Error）
-              const err = e instanceof Error ? e : new Error(String(e));
-              reportDegrade({ layer: 'useNodeGeneration', key: 'saveResultToTasks', e: err });
-              return null;
-            })
-          : null;
-        const finalUrl = persistedUrl || strUrl;
-        // 【S3 落盘唯一出口】resultKey 自动写回(L235)用的是原始 r.url；落盘拿到持久 URL 后，
-        // 必须再覆盖写回 node.data[resultKey]，否则节点存的是会过期的外链而非 /files/ 持久 URL
-        // (此前各节点在 onSuccess 里各自二次 saveResultToTasks 补这个洞 → 双落盘)。统一在此补。
-        // 仅当落盘成功且持久 URL 与原始 URL 不同才覆盖(避免无谓写 + 幂等)；patchData 经 useSyncNodeData
-        // 同步回节点本地 state，节点无需再手动二次落盘。
-        if (resultKey && persistedUrl && persistedUrl !== strUrl) {
-          patchData({ [resultKey]: persistedUrl });
-        }
-        taskCtl.done(finalUrl);
-        logger.debug(
-          '生成',
-          '[节点] 落盘',
-          { nodeId, persisted: !!persistedUrl, urlHead: finalUrl.slice(0, 80) },
-          { module: 'image' },
-        );
-        logger.info('生成', 'success', { nodeId, type: t.type });
-        return { ok: true, resultUrl: finalUrl };
-      } else {
-        const msg = r?.error || '生成失败';
-        // 【R7 错误分类记录】run 返回 { ok:false } 是契约业务失败（message 为字符串），
-        // classifyError 归 business（非网络/超时，不自动重试）——分类结果记录进日志，供全链路排查。
-        const cls = classifyError(msg);
-        updateNodeRuntime(nodeId, { error: msg });
-        taskCtl.fail(msg);
-        // 生成失败：统一 logger + 全局 toast（节点内红字易忽略；logger 供全链路排查）
-        logger.error('生成', 'fail', {
-          nodeId,
-          type: t.type,
-          prompt: promptPreview(t.prompt),
-          error: msg,
-          errType: cls.type,
-          retryable: cls.retryable,
-        });
-        showToast(msg, { type: 'error' });
-        return { ok: false, error: msg };
-      }
-    } catch (e) {
-      // 【L3c】判定统一走 classifyError（唯一入口）：新判据是原 `e?.name === 'AbortError'` 的超集
-      // （新增 err?.aborted 覆盖），只可能多判 abort、不可能少判 → 零回归。align :273/:293 同文件口径。
-      if (classifyError(e).type === 'abort') {
-        // 用户停止：不报错，返回取消标记，由调用方处理
-        logger.debug('生成', '[节点] 用户停止', { nodeId }, { module: 'image' });
-        updateNodeRuntime(nodeId, { error: '' });
-        taskCtl.fail('已停止');
-        return { ok: false, error: '已停止', aborted: true };
-      }
-      logger.error('useNodeGeneration', '生成异常', e?.message);
-      const msg = e?.message || '生成失败';
-      // 【R7 错误分类记录】异常对象经 classifyError 统一分类（abort/timeout/network/http/business），
-      // 分类结果记录进日志：网络/超时（retryable）供「自动重试」决策，业务失败不自动重试（防封号）。
-      const cls = classifyError(e);
-      updateNodeRuntime(nodeId, { error: msg });
-      taskCtl.fail(msg);
-      // 生成异常：统一 logger + 全局 toast（用户主动停止 AbortError 除外）
-      logger.error('生成', 'fail', {
-        nodeId,
+      // 【TD-01-8 收口】编排序列（report→progress→run→localize→落盘→写回→done/fail 分类）
+      // 交给 runGenerationContract（与剧本盒同一份实现）；本 hook 只保留 React 侧职责：
+      // claim / validate / loading 状态 / AbortController，以及「写回 + 错误落点」回调。
+      return await runGenerationContract({
+        taskNodeId: nodeId,
         type: t.type,
-        prompt: promptPreview(t.prompt),
-        error: msg,
-        errType: cls.type,
-        retryable: cls.retryable,
+        prompt: t.prompt,
+        modelName: t.modelName,
+        signal: ctl.signal,
+        run: (args) => runRef.current(args),
+        // 首写：resultKey 自动 patchData + 节点 onSuccess 特化（与旧实现同序：先写回、后落盘）
+        settle: (url, r, taskCtl) => {
+          const resultKey = resultKeyRef.current;
+          if (resultKey && url) patchData({ [resultKey]: url });
+          onSuccessRef.current?.(r, taskCtl);
+        },
+        // 落盘后的持久 URL 覆盖写回（旧「patchData(持久)」一步；原语保证仅在与显示 URL 不同时调用）
+        onPersisted: (persistedUrl) => {
+          const resultKey = resultKeyRef.current;
+          if (resultKey) patchData({ [resultKey]: persistedUrl });
+        },
+        onFail: (msg) => updateNodeRuntime(nodeId, { error: msg }),
+        onAbort: () => updateNodeRuntime(nodeId, { error: '' }),
+        logTag: '生成',
+        // 降级留痕的 layer 用**模块名**（不是日志标签）：degrade 观测按「层」归组，读者不同（Step 4 三问③）
+        degradeLayer: 'useNodeGeneration',
+        logCtx: { nodeId, prompt: promptPreview(t.prompt) },
       });
-      showToast(msg, { type: 'error' });
-      return { ok: false, error: msg };
     } finally {
       updateNodeRuntime(nodeId, { loading: false });
-      runningRef.current = false; // 【R4】原子防重复位
       releaseNodeRun(nodeId); // 【P1-E】释放单节点互斥锁
     }
   }, [loading, nodeId, patchData]);

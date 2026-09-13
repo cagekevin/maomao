@@ -42,8 +42,8 @@ describe('ensureIds', () => {
   });
 
   it('非数组输入返回空数组', () => {
-    expect(pm.ensureIds(null)).toEqual([]);
-    expect(pm.ensureIds(undefined)).toEqual([]);
+    expect(pm.ensureIds(null as never)).toEqual([]);
+    expect(pm.ensureIds(undefined as never)).toEqual([]);
   });
 });
 
@@ -60,7 +60,7 @@ describe('loadPresets / savePresets', () => {
     const list = pm.loadPresets();
     expect(list.find((x) => x.id === 'my1')).toBeTruthy();
     expect(list.length).toBe(1);
-    expect(readStored(STORAGE_KEY)[0].id).toBe('my1');
+    expect(readStored(STORAGE_KEY)![0].id).toBe('my1');
   });
 
   it('旧数据缺 id 时被补齐并写回', () => {
@@ -68,7 +68,7 @@ describe('loadPresets / savePresets', () => {
     const list = pm.loadPresets();
     expect(list[0].id).toBeTruthy();
     const reread = readStored(STORAGE_KEY);
-    expect(reread[0].id).toBeTruthy();
+    expect(reread![0].id).toBeTruthy();
   });
 });
 
@@ -90,7 +90,7 @@ describe('saveAndNotify', () => {
     const list = [{ id: 'n1', title: 't', type: 'text', prompt: 'p', enabled: true }];
     pm.saveAndNotify(list);
     expect(handler).toHaveBeenCalledWith(list);
-    expect(readStored(STORAGE_KEY)[0].id).toBe('n1');
+    expect(readStored(STORAGE_KEY)![0].id).toBe('n1');
     unsub();
   });
 });

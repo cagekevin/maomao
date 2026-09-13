@@ -214,7 +214,7 @@ describe('filesApi — downloadRemoteToLocal（网页拖图后台本地化）', 
     expect(await api.downloadRemoteToLocal('data:image/png;base64,xx')).toBeNull();
     expect(await api.downloadRemoteToLocal('blob:http://x/y')).toBeNull();
     expect(await api.downloadRemoteToLocal('')).toBeNull();
-    expect(await api.downloadRemoteToLocal(undefined)).toBeNull();
+    expect(await api.downloadRemoteToLocal(undefined as never)).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('上传失败（!res.ok / fetch reject）→ null 不抛', async () => {

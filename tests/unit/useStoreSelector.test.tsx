@@ -35,7 +35,7 @@ function createStore(initial: Record<string, unknown>) {
 
 /** 探针组件：订阅 selector，每次渲染回调 onRender（统计重渲染次数） */
 type ProbeProps = {
-  store: { subscribe: (cb: () => void) => () => void; getState: () => unknown };
+  store: { subscribe: (cb: () => void) => () => void; getState: () => Record<string, unknown> };
   selector: (state: Record<string, unknown>) => unknown;
   isEqual?: (a: unknown, b: unknown) => boolean;
   onRender: () => void;

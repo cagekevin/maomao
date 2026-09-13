@@ -74,7 +74,9 @@ beforeEach(() => {
   fetchMock.mockClear();
   kv.memKV.clear();
   vi.mocked(providerApi.getProviders).mockReset();
-  vi.mocked(providerApi.getProviders).mockResolvedValue({ data: null }); // 默认无 providers，与既有用例行为一致
+  vi.mocked(providerApi.getProviders).mockResolvedValue({ data: null } as unknown as Awaited<
+    ReturnType<typeof providerApi.getProviders>
+  >); // 默认无 providers，与既有用例行为一致
   CloudSyncEngine.isSyncing = false;
   localStorage.clear();
   contentClearCache();
@@ -307,7 +309,7 @@ describe('cloudSync — 防覆盖保护：云端包解析（GAS 两种回包形�
       rev: 7,
       updatedAt: 111,
       data: { app_settings: { a: 1 }, __meta: { rev: 7, updatedAt: 111 } },
-    });
+    })!;
     expect(snap.hasMeta).toBe(true);
     expect(snap.rev).toBe(7);
     expect(snap.updatedAt).toBe(111);
@@ -319,7 +321,7 @@ describe('cloudSync — 防覆盖保护：云端包解析（GAS 两种回包形�
     const snap = normalizeCloudPayload({
       app_settings: { a: 1 },
       __meta: { rev: 3, updatedAt: 222 },
-    });
+    })!;
     expect(snap.hasMeta).toBe(false);
     expect(snap.rev).toBe(3);
     expect(snap.updatedAt).toBe(222);
@@ -327,7 +329,7 @@ describe('cloudSync — 防覆盖保护：云端包解析（GAS 两种回包形�
   });
 
   it('无版本信息的旧包 → rev/updatedAt 归 0（表示「不知道」，不做新旧判断）', () => {
-    const snap = normalizeCloudPayload({ type: 'cloud_config', version: 5, data: { a: 1 } });
+    const snap = normalizeCloudPayload({ type: 'cloud_config', version: 5, data: { a: 1 } })!;
     expect(snap.rev).toBe(0);
     expect(snap.updatedAt).toBe(0);
   });
@@ -484,7 +486,7 @@ describe('cloudSync — 防覆盖保护：弹窗文案', () => {
       conflicts: [{ key: 'app_settings', label: '应用设置' }],
       cloudOnly: [],
       localOnly: [],
-    });
+    })!;
     expect(copy.title).toContain('1 项');
     expect(copy.items).toEqual(['应用设置']);
     expect(copy.danger).toBe(true);

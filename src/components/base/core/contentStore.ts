@@ -17,10 +17,12 @@
  *    与「严格族」（contentGetKvVersion / contentSetKvCas，用户主数据，失败 fail-closed 绝不写副本）。
  *    两族共用路由/缓存/订阅内核；**真分叉在「失败语义」，不在「后端」**（勿按 local/kv 划族）。
  * 8. 协议面与后端对齐：KV 后端有「版本读 + 条件写（CAS）」，入口必须一并暴露，否则消费者绕过入口直调 transport。
- * 9. 诚实结果契约（2026-09-12/TD-02-24）：一次 KV 操作的「成没成功 / 降没降级 / 真源在哪」由
- *    `StorageOpResult<T>` 判别联合定型，两族差异由分支表达（降级族返回 degraded，严格族 throw）。
- *    铁律：`source:'local'` **仅在引擎不可用**出现；KV 真空是 `source:'kv'` + `value:null`（非降级）；
- *    4xx 拒收返回 `{ok:false,error:'rejected'}`（**绝不可当作降级/迁移依据**）。读族与写族共用内核
+ * 9. 诚实结果契约（2026-09-12/TD-02-24；2026-09-13 按实现校正）：降级族一次 KV 操作**能返回即成功**，
+ *    结果为 `{ value, source:'kv'|'local' }`（判别位 = **字符串** `source`，窄化在本仓 tsconfig 下正常）；
+ *    **失败一律上抛**（4xx 拒收 = 业务结论，引擎不可用耗尽 = 降级也不可用），由调用方按
+ *    `isEngineUnavailable` 语义处理。铁律：`source:'local'` **仅在引擎不可用**出现；KV 真空是
+ *    `source:'kv'` + `value:null`（**非降级**）。`contentGetKvWithFallback` 另有自己的对外契约
+ *    （`KvFallbackReadResult`，其 rejected 分支是**真接线**的，勿混）。读族与写族共用内核
  *    `kvReadOp`/`kvWriteOp`——此前读族漏接失败分类守卫（写族有 read 族无）即因缺此契约（TD-02-15）。
  *
  * 【2026-09-12 TD-02-15/19/22/24/25 修复记录】读族补齐 isEngineUnavailable 守卫、`from` 信号诚实化、
@@ -327,8 +329,8 @@ function loadFromLocal(key: string): unknown {
  */
 async function loadFromKv(key: string): Promise<unknown> {
   const res = await kvReadOp(key);
-  const value = res.ok ? res.value : null;
-  if (res.ok && res.source === 'local') {
+  const value = res.value;
+  if (res.source === 'local') {
     logger.warn(
       'contentStore',
       `KV 引擎不可用，已回退本地降级副本（同步读者将读到副本而非 KV 真值）: ${key}`,
@@ -362,25 +364,25 @@ function statusOf(e: unknown): number | undefined {
 }
 
 /**
- * 存储操作结果的诚实判别联合（地基·2026-09-12/TD-02-24）。
+ * 一次 KV 降级族操作的结果 —— **能返回即成功**（失败一律上抛）。
  *
  * 【为什么需要它】此前 5 个 KV 函数各自发明返回形状（`unknown` / `'kv'|'local'` /
  * `{value,from}` / `{landed,version?}` / `void`），调用方必须重新推导「成没成功、降没降级、
  * 真源在哪」——复杂度从声称的「唯一内核」漏进散落 catch，读族因此漏接失败分类守卫
  * （writeKv 有守卫、readKv 无），并最终在下游 downgrade 信号被滥用（TD-02-25 数据正确性故障）。
- * 现在把「一次存储操作的结果」在类型层定型，两族的差异**由分支自然表达**，规则由编译器守护。
  *
- * 【语义铁律】
- * - `source:'kv'`               → KV 真值，权威。
- * - `source:'local', degraded`  → **仅「引擎不可用」**才会出现；KV 状态未知，本地副本仅为降级。
- * - `error:'rejected'`          → 4xx 业务拒收，**不携带任何 source/值**，调用方必须自行决定呈现。
- * - `error:'engine-unavailable'`→ 网络/超时/5xx；降级族据此回退本地，严格族据此 throw。
+ * 【语义铁律】判别位是 `source`（**字符串**，本仓 tsconfig 下窄化正常）：
+ * - `source:'kv'`    → KV 真值，权威（KV **真空**也是 kv + `value:null`：确定回答，非降级）。
+ * - `source:'local'` → **仅「引擎不可用」**才会出现；KV 状态未知，本地副本仅为降级。
+ *
+ * 【TD-02-24 收口修正（2026-09-13 · 按实现校正）】原 `StorageOpResult<T>` 是 4 支判别联合，**与现实不符**：
+ *  ① `ok:false` 两支（`error:'engine-unavailable' | 'rejected'`）**全仓零构造** —— 4xx 拒收与引擎不可用
+ *     耗尽都走 **throw**（`kvReadOp`/`kvWriteOp` 内 `if (!isEngineUnavailable(e)) throw e`），从不由本类型承载；
+ *  ② `ok` 因此恒 `true`、`degraded`/`error`/`status` **零读取** → 一并删除（`source:'local'` 已等价表达降级）；
+ *  ③ 该类型本身是**未用导出**（在死代码基线内）→ 同时降为模块内私有。
+ *  ⇒ 结论：**失败以 throw 表达是两族共识**（降级族尽力而为、严格族 fail-closed），类型不再声明失败分支。
  */
-export type StorageOpResult<T> =
-  | { ok: true; value: T; source: 'kv'; degraded?: false }
-  | { ok: true; value: T; source: 'local'; degraded: true }
-  | { ok: false; error: 'engine-unavailable' }
-  | { ok: false; error: 'rejected'; status?: number };
+type KvOpOutcome<T> = { value: T; source: 'kv' | 'local' };
 
 /** KV op 的公共内核（TD-02-22：resolveMeta/timeout/keepFallback/sRemove 原在 4 处字面复制）。 */
 interface KvOpMeta {
@@ -401,17 +403,17 @@ function withKvTimeout<T>(op: Promise<T>, timeout: number | undefined, label: st
 
 /**
  * 降级族写入内核（read/write/内容族共用）。
- * 返回 StorageOpResult：成功标 `source:'kv'`；引擎不可用回退本地并标 `degraded:true`；
- * 4xx 拒收**原样上抛**（不吞、不降级）——由调用方 catch 决定语义（本族一律上抛）。
+ * 返回 KvOpOutcome：成功标 `source:'kv'`；引擎不可用回退本地并标 `source:'local'`；
+ * 4xx 拒收**原样上抛**（不吞、不降级）——失败一律上抛，不进返回信封。
  */
-async function kvWriteOp(key: string, value: unknown): Promise<StorageOpResult<unknown>> {
+async function kvWriteOp(key: string, value: unknown): Promise<KvOpOutcome<unknown>> {
   const { timeout, keepFallback } = kvOpMeta(key);
   try {
     await withKvTimeout(kvSet(key, value), timeout, `KV 写入超时 (key=${key})`);
     // 默认（keepFallback=false）：KV 成功后清历史降级副本，避免旧副本"复活"覆盖新值（P2-F1）；
     // keepFallback=true（如 d3d 双通道）：保留本地镜像，供 KV 不可达时回读。
     if (!keepFallback) sRemove(key);
-    return { ok: true, value, source: 'kv' };
+    return { value, source: 'kv' };
   } catch (e) {
     // 请求被拒（4xx，如 CAS 409 版本冲突）= 业务结论，原样上抛；降级只服务「引擎不可用」。
     if (!isEngineUnavailable(e)) throw e;
@@ -433,23 +435,23 @@ async function kvWriteOp(key: string, value: unknown): Promise<StorageOpResult<u
       e,
       toast: '本地引擎存储暂不可用，数据已暂存本地（跨设备同步可能丢失）',
     });
-    return { ok: true, value, source: 'local', degraded: true };
+    return { value, source: 'local' };
   }
 }
 
 /**
  * 降级族读取内核（read/内容族共用，含失败分类守卫——修 TD-02-15 读族漏接）。
- * KV 命中非空 → `{ok, source:'kv'}`；KV **真空**（null/undefined）→ `{ok, value:null, source:'kv'}`
+ * KV 命中非空 → `{value, source:'kv'}`；KV **真空**（null/undefined）→ `{value:null, source:'kv'}`
  *   （区分：真空是 KV 的确定回答，不算降级）；
- * KV **引擎不可用** → 回退本地副本，`{ok, source:'local', degraded:true}`；
+ * KV **引擎不可用** → 回退本地副本，`{value, source:'local'}`；
  * KV **4xx 拒收** → 抛出，由调用方语义决定（本族一律上抛，不静默回退本地）。
  */
-async function kvReadOp(key: string): Promise<StorageOpResult<unknown>> {
+async function kvReadOp(key: string): Promise<KvOpOutcome<unknown>> {
   const { timeout } = kvOpMeta(key);
   try {
     const value = await withKvTimeout(kvGet(key), timeout, `KV 读取超时 (key=${key})`);
     // KV 真空：确定回答"没有"，非降级（下游据 source:'kv' + value null 判迁移）
-    return { ok: true, value, source: 'kv' };
+    return { value, source: 'kv' };
   } catch (e) {
     if (!isEngineUnavailable(e)) {
       // 4xx 业务拒收：不服务本地副本、不降级——原样上抛（TD-02-15/25 根因）
@@ -457,12 +459,7 @@ async function kvReadOp(key: string): Promise<StorageOpResult<unknown>> {
     }
     reportDegrade({ layer: 'kvStore', key, e, toast: '本地引擎存储暂不可用，已回退读取本地缓存' });
     const raw = sGet(key);
-    return {
-      ok: true,
-      value: raw === null ? null : tryParse(raw),
-      source: 'local',
-      degraded: true,
-    };
+    return { value: raw === null ? null : tryParse(raw), source: 'local' };
   }
 }
 
@@ -472,7 +469,7 @@ async function kvReadOp(key: string): Promise<StorageOpResult<unknown>> {
  */
 async function writeKvWithFallback(key: string, value: unknown): Promise<'kv' | 'local'> {
   const res = await kvWriteOp(key, value);
-  return res.ok && res.source === 'local' ? 'local' : 'kv';
+  return res.source === 'local' ? 'local' : 'kv';
 }
 
 /**
@@ -677,7 +674,7 @@ export async function contentGetKvWithFallback(key: string): Promise<KvFallbackR
   checkRegistered(key);
   try {
     const res = await kvReadOp(key);
-    if (res.ok && res.source === 'kv') {
+    if (res.source === 'kv') {
       if (res.value != null) return { ok: true, value: res.value, source: 'kv' };
       // KV 真空：探测本地副本，供调用方决定一次性迁移（唯一许可迁移的形态）
       const raw = sGet(key);
@@ -691,7 +688,7 @@ export async function contentGetKvWithFallback(key: string): Promise<KvFallbackR
       };
     }
     // 引擎不可用降级（source:'local'）：KV 真值未知 → 不携带 vacated，禁迁移
-    return { ok: true, value: res.ok ? res.value : null, source: 'local', degraded: true };
+    return { ok: true, value: res.value, source: 'local', degraded: true };
   } catch (e) {
     // 4xx 业务拒收：诚实返回 rejected（不吞、不降级），调用方据分支决定行为
     return { ok: false, error: 'rejected', status: statusOf(e) };

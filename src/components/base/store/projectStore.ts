@@ -144,12 +144,12 @@ function mergeFromBackend(data: ProjectBackendData): void {
   }
   if (typeof data?.data?.version === 'number') projectVersion = data.data.version;
   if (merged.length === 0) return;
-  projects = merged;
   currentProjectId =
     data?.data?.lastOpened && merged.some((p) => p.id === data.data.lastOpened)
       ? data.data.lastOpened
       : merged[0]?.id || 'default';
-  notify();
+  // 载入路径：不回写（调用方按需自行 persist，见 initProjects / handleSaveConflict）
+  writeProjects(merged, { persist: false });
 }
 
 // 后端保存返回冲突（旧版本被拒，说明另一窗口/更新数据先写了）→ 重新合并以获取最新项目与版本。
@@ -170,12 +170,11 @@ interface DebouncedPersist {
   cancel(): void;
 }
 
-const persistDebounced: DebouncedPersist = createDebouncedPersist(() => {
-  contentSet(PROJECTS_KEY, projects);
-  contentSet(LAST_OPENED_KEY, currentProjectId);
+/** 后端保存专用防抖（本地 cache 不再随它延后，见 `persist`）。 */
+const saveBackendDebounced: DebouncedPersist = createDebouncedPersist(() => {
   // 【失败可见】后端保存失败不再空 catch 静默——否则后端缺项会在下次 initProjects 合并前
   // 被误判为「项目不存在」，掩盖「双页面/网络导致后端与本地不同步」的真实原因。
-  // 记录 warn 让后端缺失可观测；本地 localStorage 仍已写入，后端下次 persist 会再同步。
+  // 记录 warn 让后端缺失可观测；本地 localStorage 已即时写入，后端下次 persist 会再同步。
   saveProjects(
     projects.map((p) => ({ id: p.id, name: p.name })),
     currentProjectId,
@@ -202,12 +201,33 @@ const persistDebounced: DebouncedPersist = createDebouncedPersist(() => {
 }, 300);
 
 function persist(): void {
-  persistDebounced.schedule();
+  contentSet(PROJECTS_KEY, projects);
+  contentSet(LAST_OPENED_KEY, currentProjectId);
+  saveBackendDebounced.schedule();
 }
 
 /** 强制立即落盘（页面卸载兜底 / 测试用） */
 export function flushPersist(): void {
-  persistDebounced.flush();
+  contentSet(PROJECTS_KEY, projects);
+  contentSet(LAST_OPENED_KEY, currentProjectId);
+  saveBackendDebounced.flush();
+}
+
+/**
+ * 【TD-02-23 收口】`projects` 的**唯一 module 态写点**。
+ *
+ * `projects`（module 态 = 同步渲染与对外读 API 的真源）与 contentStore 的 cache（同键 `PROJECTS_KEY`）
+ * 是两份内存真相 —— 此前靠「每处 mutation 都记得调 persist()」的**纸面约定**同步：新增一个写点漏调即
+ * 静默分叉（读 cache 者拿到旧列表）。现所有赋值集中于此，`persist`（默认）+ `notify` 由本函数统一保证，
+ * 把约定变成**结构**。（例外：测试重置出口直改内部态，带 `// write-ok:` 标注。）
+ *
+ * @param next 新列表（调用方自行算出，不改原数组）
+ * @param opts.persist 是否落盘；`false` 用于「从存储/后端载入」路径（本就是在读，回写无意义）
+ */
+function writeProjects(next: Project[], opts: { persist?: boolean } = {}): void {
+  projects = next;
+  if (opts.persist !== false) persist();
+  notify();
 }
 
 /**
@@ -225,7 +245,7 @@ export function flushPersist(): void {
  * `useSyncExternalStore` 持有 stale 快照。
  */
 export function __resetForTest(): void {
-  projects = loadProjects();
+  projects = loadProjects(); // write-ok: 测试重置出口直改内部态（刻意不 notify/不落盘，快照在其后手动重建）
   currentProjectId = loadLastOpened();
   loaded = false;
   // ★ CAS 基线 / 落盘调度器 / 单飞队列必须同步归零：否则单测之间串版本/串定时器 → 偶发红。
@@ -287,9 +307,9 @@ function notify(): void {
  */
 onStorageReady(() => {
   if (loaded) return;
-  projects = loadProjects();
   currentProjectId = loadLastOpened();
-  notify();
+  // 载入路径：不回写（只是把存储里的值读进内存）
+  writeProjects(loadProjects(), { persist: false });
 });
 
 function subscribe(cb: () => void): () => void {
@@ -527,6 +547,17 @@ export function getCurrentProject(): Project {
   );
 }
 
+/**
+ * 项目列表（**内存真相**）只读快照——TD-15-2 单一真源出口。
+ *
+ * 外域消费方（备份导出枚举项目、按项目收集会话键等）必须取此，**不得再读 `contentGet('projects')`
+ * 存储副本**：项目列表落盘有 300ms 防抖，副本会滞后 → 防抖窗内新建/改名/删除被漏备或备旧。
+ * @returns 项目数组的浅拷贝（防外部改内存真相）
+ */
+export function getAllProjects(): Project[] {
+  return projects.slice();
+}
+
 // 自动去重：同名项目自动加序号（项目 / 项目 (1) / 项目 (2)…），不阻断用户。
 // 仅「完全一致」的字符串算同名（区分大小写与首尾空格）；从 1 递增取首个空位。
 function makeUniqueProjectName(base: string): string {
@@ -545,10 +576,8 @@ function makeUniqueProjectName(base: string): string {
 export function createProject(name?: string): Project {
   const baseName = (name && name.trim()) || '未命名项目';
   const proj: Project = { id: genId(), name: makeUniqueProjectName(baseName) };
-  projects = [...projects, proj];
   currentProjectId = proj.id;
-  persist();
-  notify();
+  writeProjects([...projects, proj]);
   // 【P0 埋点】新建项目（排查项目丢失/切错项目：记录新建动作与总项目数）
   logger.debug(
     '项目',
@@ -591,7 +620,7 @@ export function deleteProject(id: string): boolean {
     return false;
   }
   const before = projects.length;
-  projects = projects.filter((p) => p.id !== id);
+  const next = projects.filter((p) => p.id !== id);
   // 异步删除画布快照（KV）。版本键 `<key>_version` 由后端 handleKvDelete **随键同删**
   // （TD-02-10，2026-09-12：删除语义收口到 handler，调用方不再手工补删——补删漏一处就残留版本行，
   //  会让「删除后重建」拿到旧 CAS 基线）。
@@ -602,9 +631,8 @@ export function deleteProject(id: string): boolean {
       reason: e?.message || e,
     });
   });
-  if (currentProjectId === id) currentProjectId = projects[0].id;
-  persist();
-  notify();
+  if (currentProjectId === id) currentProjectId = next[0].id;
+  writeProjects(next);
   // 【P0 埋点】删除项目（排查「项目莫名消失」：确认删除动作发生）
   logger.debug('项目', '[删除]', { id, before, after: projects.length }, { module: 'project' });
   return true;
@@ -613,11 +641,9 @@ export function deleteProject(id: string): boolean {
 // 重命名项目
 export function renameProject(id: string, name?: string): void {
   const prev = getCurrentProject().id === id ? getCurrentProject().name : undefined;
-  projects = projects.map((p) =>
-    p.id === id ? { ...p, name: (name && name.trim()) || p.name } : p,
+  writeProjects(
+    projects.map((p) => (p.id === id ? { ...p, name: (name && name.trim()) || p.name } : p)),
   );
-  persist();
-  notify();
   // 【P0 埋点】重命名项目
   logger.debug(
     '项目',

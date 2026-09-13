@@ -74,7 +74,7 @@ function legacyMoveCameraFrames(channels, frameMap) {
   return upsertChannelKeys(next, keys);
 }
 
-function legacyBakeCameraPath(tracks, path, camera, bakedFrames, removeFrames = []) {
+function legacyBakeCameraPath(tracks, path, camera, bakedFrames, removeFrames: number[] = []) {
   let next = removeChannelFrames(tracks, [...removeFrames]);
   for (const frame of bakedFrames) {
     const u = (frame.frame - path.startFrame) / Math.max(1, path.endFrame - path.startFrame);
@@ -119,7 +119,7 @@ const straightPath = normalizeCameraPath({
   endFrame: 240,
   keyframeCount: 3,
   sourceKeyframeFrames: [0, 120, 240],
-});
+})!;
 
 const buildCamTrack = (frames) =>
   frames.reduce(
@@ -187,7 +187,7 @@ describe('相机轨 · 收口后与旧手写实现逐字等价（回归护栏）
       [24, [3, 4, 5], 50],
     ]);
     const camera = { focalLength: 42 };
-    const baked = [
+    const baked: any = [
       { frame: 0, position: [0, 0, 0] },
       { frame: 120, position: [5, 0, 0] },
       { frame: 240, position: [10, 0, 0] },
@@ -199,7 +199,7 @@ describe('相机轨 · 收口后与旧手写实现逐字等价（回归护栏）
 
   it('bakeCameraPath：空 removeFrames（首次烘焙）', () => {
     const camera = { focalLength: 42 };
-    const baked = [{ frame: 0, position: [0, 0, 0] }];
+    const baked: any = [{ frame: 0, position: [0, 0, 0] }];
     expect(bakeCameraPath({}, straightPath, camera, baked, [])).toEqual(
       legacyBakeCameraPath({}, straightPath, camera, baked, []),
     );

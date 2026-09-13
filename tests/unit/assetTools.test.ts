@@ -8,14 +8,7 @@ import { renderHook, act } from '@testing-library/react';
 // 依赖 useLod()（LodContext）。mock useLod 返回不同 lodLevel。
 // ───────────────────────────────────────────────────────────
 vi.mock('../../src/components/base/canvas/lod.tsx', () => ({
-  useLod: vi.fn(() => ({
-    lodLevel: 0,
-    viewportMoving: false,
-    nodeCount: 0,
-    handleFollowLimit: 60,
-    edgeFxLimit: 50,
-    useThumbnail: false,
-  })),
+  useLod: vi.fn(() => ({ lodLevel: 0 })),
 }));
 import { useLod } from '../../src/components/base/canvas/lod.tsx';
 import { useAssetDegrade } from '../../src/hooks/useAssetDegrade.ts';
@@ -30,11 +23,6 @@ describe('useAssetDegrade —— lodLevel→hideMedia 映射', () => {
   it('lodLevel>=3 → hideMedia="image video audio"', () => {
     vi.mocked(useLod).mockReturnValue({
       lodLevel: 3,
-      viewportMoving: false,
-      nodeCount: 0,
-      handleFollowLimit: 60,
-      edgeFxLimit: 50,
-      useThumbnail: false,
     });
     const { result } = renderHook(() => useAssetDegrade());
     expect(result.current.hideMedia).toBe('image video audio');
@@ -46,11 +34,6 @@ describe('useAssetDegrade —— lodLevel→hideMedia 映射', () => {
   it('lodLevel=2 → hideMedia="image"', () => {
     vi.mocked(useLod).mockReturnValue({
       lodLevel: 2,
-      viewportMoving: false,
-      nodeCount: 0,
-      handleFollowLimit: 60,
-      edgeFxLimit: 50,
-      useThumbnail: false,
     });
     const { result } = renderHook(() => useAssetDegrade());
     expect(result.current.hideMedia).toBe('image');
@@ -62,11 +45,6 @@ describe('useAssetDegrade —— lodLevel→hideMedia 映射', () => {
   it('lodLevel<2（=1）→ hideMedia=""', () => {
     vi.mocked(useLod).mockReturnValue({
       lodLevel: 1,
-      viewportMoving: false,
-      nodeCount: 0,
-      handleFollowLimit: 60,
-      edgeFxLimit: 50,
-      useThumbnail: false,
     });
     const { result } = renderHook(() => useAssetDegrade());
     expect(result.current.hideMedia).toBe('');
@@ -77,11 +55,6 @@ describe('useAssetDegrade —— lodLevel→hideMedia 映射', () => {
   it('lodLevel=0（默认）→ hideMedia=""', () => {
     vi.mocked(useLod).mockReturnValue({
       lodLevel: 0,
-      viewportMoving: false,
-      nodeCount: 0,
-      handleFollowLimit: 60,
-      edgeFxLimit: 50,
-      useThumbnail: false,
     });
     const { result } = renderHook(() => useAssetDegrade());
     expect(result.current.hideMedia).toBe('');
@@ -98,11 +71,6 @@ describe('useAssetDegrade —— lodLevel→hideMedia 映射', () => {
   it('isHidden(type) = hideMedia.includes(type)', () => {
     vi.mocked(useLod).mockReturnValue({
       lodLevel: 3,
-      viewportMoving: false,
-      nodeCount: 0,
-      handleFollowLimit: 60,
-      edgeFxLimit: 50,
-      useThumbnail: false,
     });
     const { result } = renderHook(() => useAssetDegrade());
     // includes 语义正确性：任意未列出的类型都隐藏为 false

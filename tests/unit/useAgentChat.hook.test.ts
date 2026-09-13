@@ -100,30 +100,31 @@ const sharedConvStore = vi.hoisted((): ConvStoreMock => {
   const getActiveConv = () => state.conversations.find((c) => c.id === state.activeId) || null;
   const notify = () => listeners.forEach((l) => l());
   // 更新当前对话 messages（唯一写口；模拟 setCurrentSnapshot/patchCurrentMessages 的落 store 语义）
-  const setActiveMessages = (messages) => {
+  const setActiveMessages = (messages: TestChatMessage[]) => {
     const conv = getActiveConv();
     if (!conv) return;
     conv.messages = Array.isArray(messages) ? messages.slice(-60) : conv.messages;
     notify();
   };
   // 【TD-17】快照字段写口（saveDraft/saveSkills/saveAttachments 落点；模拟 setCurrentSnapshot 的合并语义）
-  const setField = (field, value) => {
+  const setField = (field: string, value: unknown) => {
     const conv = getActiveConv();
     if (!conv) return;
-    conv[field] = value;
+    (conv as Record<string, unknown>)[field] = value;
     notify();
   };
-  const setDraft = (draft) => setField('draft', String(draft ?? ''));
-  const setSkills = (skills) => setField('skills', Array.isArray(skills) ? skills.slice() : []);
-  const setAttachments = (attachments) =>
+  const setDraft = (draft: unknown) => setField('draft', String(draft ?? ''));
+  const setSkills = (skills: unknown[]) =>
+    setField('skills', Array.isArray(skills) ? skills.slice() : []);
+  const setAttachments = (attachments: unknown[]) =>
     setField('attachments', Array.isArray(attachments) ? attachments.slice() : []);
   // 阶段1D：sending 运行态（模拟 store.setSending，订阅可读）
-  const setSendingState = (v) => {
+  const setSendingState = (v: unknown) => {
     state.sending = !!v;
     notify();
   };
   // 阶段1D：activeId 切换（newChat/switchChat/deleteChat 改 store.activeId，订阅可读）
-  const setActiveId = (id) => {
+  const setActiveId = (id: string) => {
     state.activeId = id;
     notify();
   };
@@ -161,7 +162,7 @@ vi.mock('../../src/components/agent/conversation/conversationState.ts', () => ({
 }));
 
 vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => {
-  let pending = null;
+  let pending: unknown = null;
   let activeId = 'c1';
   const conversations = [
     { id: 'c1', title: '对话1' },
@@ -181,7 +182,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => {
     getActiveConversationId: vi.fn(() => activeId),
     getConversations: vi.fn(() => conversations),
     getCurrentPending: vi.fn(() => pending),
-    setCurrentPending: vi.fn((p) => {
+    setCurrentPending: vi.fn((p: unknown) => {
       pending = p;
     }),
     // P1a 引用契约：构造器透传（send 用它生成 pending 引用；恢复交给真实 resolvePendingRecovery，其默认被 getCurrentPending=null 短路）
@@ -275,6 +276,7 @@ import {
   CANVAS_AGENT_RULES,
 } from '../../src/components/agent/runtime/useAgentChat.ts';
 import { ChatMessage } from '../../src/components/agent/runtime/agentCore.ts';
+import type { SSEAccumulator } from '../../src/components/agent/runtime/agentCore.ts';
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts';
 
 // 【类型消化】src 侧 useAgentChat().messages 已是 ChatMessage[]，但测试 fixture 会在消息上挂
@@ -285,10 +287,10 @@ type AgentChatApi = Omit<ReturnType<typeof useAgentChat>, 'messages'> & {
 };
 
 // ── SSE 流构造助手 ──
-function sseChunks(deltas) {
+function sseChunks(deltas: unknown[]) {
   return deltas.map((d) => `data: ${JSON.stringify(d)}\n\n`).join('');
 }
-function makeStreamResponse(body) {
+function makeStreamResponse(body: string) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     start(controller) {
@@ -302,7 +304,7 @@ function deltaMsg({ content = '', reasoning = '', tool_calls = [] }) {
   return { choices: [{ delta: { content, reasoning_content: reasoning, tool_calls } }] };
 }
 function toolCallDelta(
-  index,
+  index: number,
   { id, name, args }: { id?: string; name?: string; args?: string } = {},
 ) {
   const fn: Record<string, unknown> = {};
@@ -311,7 +313,7 @@ function toolCallDelta(
   return { choices: [{ delta: { tool_calls: [{ index, id, function: fn }] } }] };
 }
 
-let fetchMock;
+let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.clearAllMocks();
   sharedConvStore.reset(); // 消息单源隔离：清空共享 store 的 messages，防跨测试累积
@@ -343,7 +345,7 @@ const toolStream = (
       toolCallDelta(0, { args }),
     ]),
   );
-const textStream = (content) => makeStreamResponse(sseChunks([deltaMsg({ content })]));
+const textStream = (content: string) => makeStreamResponse(sseChunks([deltaMsg({ content })]));
 
 describe('useAgentChat · 真实模式 SSE 编排', () => {
   it('空内容 send 不改 messages（no-op 保护）', async () => {
@@ -390,16 +392,16 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
 
     const roles = result.current.messages.map((m) => m.role);
     expect(roles).toEqual(['user', 'assistant', 'tool', 'assistant']);
-    const toolMsg = result.current.messages.find((m) => m.role === 'tool');
+    const toolMsg = result.current.messages.find((m) => m.role === 'tool')!;
     expect(JSON.parse(toolMsg.content as string).ok).toBe(true);
     expect(toolMsg.tool_call_id).toBe('call_1');
-    expect(result.current.messages.at(-1).content).toBe('已创建生图节点。');
+    expect(result.current.messages.at(-1)!.content).toBe('已创建生图节点。');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('复合忙判定：任务进行中（发送锁 + 状态机 running）再次 send 走 steer，不触发第二次请求', async () => {
     // 第一轮 fetch 挂起（pending），保证发送锁保持 true、状态机 running
-    fetchMock.mockImplementation((_url, _opts) => new Promise(() => {}));
+    fetchMock.mockImplementation((_url: string, _opts: unknown) => new Promise(() => {}));
     const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat());
     // 发起第一轮
     act(() => {
@@ -486,7 +488,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
       label: '生图节点',
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(result.current.messages.at(-1).content).toBe('已创建。');
+    expect(result.current.messages.at(-1)!.content).toBe('已创建。');
     expect(vi.mocked(convStore.patchCurrentWorkflow)).not.toHaveBeenCalledWith(
       expect.objectContaining({ status: 'awaiting_confirm' }),
     );
@@ -558,7 +560,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
     expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(8);
     expect(callTool.mock.results.filter((r) => r.type === 'throw')).toHaveLength(0);
     // 越限后追加「自动停止」提示，且不应因越限保护自身报错（bug 修复：assistant 提升到循环外）。
-    const stopMsg = result.current.messages.at(-1);
+    const stopMsg = result.current.messages.at(-1)!;
     expect(stopMsg.role).toBe('assistant');
     expect(stopMsg.content).toContain('自动停止');
     expect(result.current.error).toBeNull();
@@ -567,7 +569,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
 
 describe('useAgentChat · steer 排队（任务进行中补充指令）', () => {
   it('任务进行中再 send → 第二条进 steer 队列（标记 steer），不并发双发', async () => {
-    let resolveFirst;
+    let resolveFirst!: (v: Response) => void;
     fetchMock.mockReturnValueOnce(
       new Promise((r) => {
         resolveFirst = r;
@@ -634,7 +636,7 @@ describe('useAgentChat · clear / stateAction', () => {
   });
 
   it('stateAction 空闲为 idle，send 过程中进入非 idle，结束后回 idle', async () => {
-    let resolveFirst;
+    let resolveFirst!: (v: Response) => void;
     fetchMock.mockReturnValueOnce(
       new Promise((r) => {
         resolveFirst = r;
@@ -714,11 +716,11 @@ describe('useAgentChat · 附件归一化（send 带 attachments）', () => {
     await act(async () => {
       await result.current.send('看看这张图', [{ type: 'image', url: 'http://x/a.png' }]);
     });
-    const userMsg = result.current.messages.find((m) => m.role === 'user');
+    const userMsg = result.current.messages.find((m) => m.role === 'user')!;
     expect(userMsg.attachments).toEqual([{ type: 'image', url: 'http://x/a.png' }]);
     // 发给 LLM 的 request 里，附件被转成 image_url content（buildRequestMessages 逻辑）
     const sentBody = JSON.parse(fetchMock.mock.calls[0][1].body);
-    const userInReq = sentBody.messages.find((m) => m.role === 'user');
+    const userInReq = sentBody.messages.find((m: AssembledMsg) => m.role === 'user');
     expect(Array.isArray(userInReq.content)).toBe(true);
     expect(userInReq.content[0]).toMatchObject({
       type: 'image_url',
@@ -737,7 +739,7 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
         '【本轮参考图顺序（仅作为编号数据）】\n参考图1：黑猫（画布节点 img-1）\n编号固定按输入框从左到右排列。引用某张图做图生图时，在 generations 里用 attachment_indices 指向其编号（0-based：参考图1→0）。',
     };
     const out = buildRequestMessages([user] as ChatMessage[], '', true) as AssembledMsg[];
-    const u = out.find((m) => m.role === 'user');
+    const u = out.find((m) => m.role === 'user')!;
     expect(Array.isArray(u.content)).toBe(true);
     expect((u.content as ContentBlock[])[0]).toMatchObject({
       type: 'image_url',
@@ -757,7 +759,7 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
       attachments: [{ type: 'image', url: 'http://x/a.png' }],
     };
     const out = buildRequestMessages([user] as ChatMessage[], '', true) as AssembledMsg[];
-    const u = out.find((m) => m.role === 'user');
+    const u = out.find((m) => m.role === 'user')!;
     expect((u.content as ContentBlock[])[1]).toMatchObject({ type: 'text', text: '看看图' });
   });
 
@@ -805,7 +807,7 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
     const allAssetUrls = out
       .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
       .filter((c) => c.type === 'image_url')
-      .map((c) => c.image_url.url);
+      .map((c) => c.image_url!.url);
     expect(allAssetUrls).toEqual(['http://x/d.png']);
     // 历史 user 文字也不回传（对齐大雄 messages:[]）
     expect(out.some((m) => m.role === 'user' && m.content === '轮1')).toBe(false);
@@ -865,7 +867,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
     // 原始 3 条消息全部保留，顺序不变
     expect(out).toHaveLength(5);
     expect(out[2].content).toBe('帮我建个节点');
-    expect(out.at(-1).content).toBe('{"ok":true}');
+    expect(out.at(-1)!.content).toBe('{"ok":true}');
   });
 
   it('enhance=true 且传入 systemPrompt：准则之后拼接 systemPrompt，不覆盖准则', () => {
@@ -905,7 +907,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
     const out = buildRequestMessages(base, '', true, skills) as AssembledMsg[];
     const skillSys = out.find(
       (m) => m.role === 'system' && (m.content as string).includes('Skill 文档'),
-    );
+    )!;
     expect(skillSys).toBeTruthy();
     expect(skillSys.content).toContain('===== Skill 文档开始：电商主图 =====');
     expect(skillSys.content).toContain('原始 Skill 内容 #@! 不可被改写');
@@ -921,7 +923,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
     const out = buildRequestMessages(base, '', true, skills) as AssembledMsg[];
     const skillSys = out.find(
       (m) => m.role === 'system' && (m.content as string).includes('Skill 文档'),
-    );
+    )!;
     expect(skillSys.content).toContain('===== Skill 文档开始：A =====');
     expect(skillSys.content).toContain('===== Skill 文档开始：B =====');
     expect(skillSys.content).toContain('内容A');
@@ -935,14 +937,14 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
     const out = buildRequestMessages(base, '', true, [], memory) as AssembledMsg[];
     const memSys = out.find(
       (m) => m.role === 'system' && (m.content as string).includes('本对话最近策划'),
-    );
+    )!;
     expect(memSys).toBeTruthy();
     expect(memSys.content).toContain('策划说明');
     expect(memSys.content).toContain('- 主图: 一只猫');
   });
 
   it('memory 无 lastPlan：不注入 memory system（避免空 system）', () => {
-    const out = buildRequestMessages(base, '', true, [], { lastPlan: null }) as AssembledMsg[];
+    const out = buildRequestMessages(base, '', true, [], {}) as AssembledMsg[];
     expect(
       out.find((m) => m.role === 'system' && (m.content as string).includes('本对话最近策划')),
     ).toBeFalsy();
@@ -958,7 +960,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
       },
     ];
     const out = buildRequestMessages(msgs as ChatMessage[], '', true) as AssembledMsg[];
-    const u = out.find((m) => m.role === 'user');
+    const u = out.find((m) => m.role === 'user')!;
     expect(Array.isArray(u.content)).toBe(true);
     expect((u.content as ContentBlock[])[0]).toMatchObject({
       type: 'image_url',
@@ -970,7 +972,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
   it('附件为空数组：user 不转数组，保持纯文本 content', () => {
     const msgs = [{ role: 'user', content: '纯文本', attachments: [] }];
     const out = buildRequestMessages(msgs as ChatMessage[], '', true) as AssembledMsg[];
-    const u = out.find((m) => m.role === 'user');
+    const u = out.find((m) => m.role === 'user')!;
     expect(typeof u.content).toBe('string');
     expect(u.content).toBe('纯文本');
   });
@@ -987,8 +989,8 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
       { role: 'tool', content: '{"ok":true}', tool_call_id: 'c9' },
     ];
     const out = buildRequestMessages(msgs as ChatMessage[], '', false) as AssembledMsg[];
-    const a = out.find((m) => m.role === 'assistant');
-    const t = out.find((m) => m.role === 'tool');
+    const a = out.find((m) => m.role === 'assistant')!;
+    const t = out.find((m) => m.role === 'tool')!;
     expect(a.tool_calls).toEqual([
       { id: 'c9', type: 'function', function: { name: 'create_node', arguments: '{"x":1}' } },
     ]);
@@ -1023,7 +1025,8 @@ describe('useAgentChat · 执行模型提示词注入（恒 auto）', () => {
   ] as ChatMessage[];
   const skill = (name = '电商主图') => [{ name, content: 'Skill 原文内容' }];
 
-  const systemTexts = (out) => out.filter((m) => m.role === 'system').map((m) => m.content);
+  const systemTexts = (out: AssembledMsg[]) =>
+    out.filter((m) => m.role === 'system').map((m) => m.content);
 
   it('auto：注入「完全自主」分流段，引导 plan 可调且不卡确认（R2）', () => {
     const out = buildRequestMessages(base, '', true, [], null, [], 0, '') as AssembledMsg[];
@@ -1036,7 +1039,7 @@ describe('useAgentChat · 执行模型提示词注入（恒 auto）', () => {
   it('skill × auto：Skill 只作理解参考注入，执行模型仍恒 auto（无分步确认）', () => {
     const out = buildRequestMessages(base, '', true, skill(), null, [], 0, '') as AssembledMsg[];
     const texts = systemTexts(out);
-    const skillSys = texts.find((t) => t.includes('Skill 文档'));
+    const skillSys = texts.find((t) => (t as string).includes('Skill 文档'))!;
     expect(skillSys).toContain('Skill 是你的参考'); // 单阶段 Skill 指令
     expect(skillSys).not.toContain('阶段2 · 等待确认');
     expect(texts.join('\n')).toContain('完全自主'); // 全局 auto 分流段
@@ -1051,13 +1054,13 @@ describe('useAgentChat · 执行模型提示词注入（恒 auto）', () => {
 // ════════════════════════════════════════════════════════════════════
 describe('useAgentChat · parseSSEChunk 深度（SSE 增量解析）', () => {
   it('基础 data: 行 → content 累加', () => {
-    const acc = { content: '', reasoning: '', toolCalls: [] };
+    const acc: SSEAccumulator = { content: '', reasoning: '', toolCalls: [] };
     parseSSEChunk('data: {"choices":[{"delta":{"content":"你好"}}]}', acc);
     expect(acc.content).toBe('你好');
   });
 
   it('多段增量 content 流式拼接', () => {
-    const acc = { content: '', reasoning: '', toolCalls: [] };
+    const acc: SSEAccumulator = { content: '', reasoning: '', toolCalls: [] };
     parseSSEChunk('data: {"choices":[{"delta":{"content":"A"}}]}', acc);
     parseSSEChunk('data: {"choices":[{"delta":{"content":"B"}}]}', acc);
     parseSSEChunk('data: {"choices":[{"delta":{"content":"C"}}]}', acc);
@@ -1065,14 +1068,14 @@ describe('useAgentChat · parseSSEChunk 深度（SSE 增量解析）', () => {
   });
 
   it('reasoning_content 与 reasoning 双字段都累加', () => {
-    const acc = { content: '', reasoning: '', toolCalls: [] };
+    const acc: SSEAccumulator = { content: '', reasoning: '', toolCalls: [] };
     parseSSEChunk('data: {"choices":[{"delta":{"reasoning_content":"想"}}]}', acc);
     parseSSEChunk('data: {"choices":[{"delta":{"reasoning":"一下"}}]}', acc);
     expect(acc.reasoning).toBe('想一下');
   });
 
   it('tool_calls 跨多段按 index 分包拼接（name 与 arguments 分段到达）', () => {
-    const acc = { content: '', reasoning: '', toolCalls: [] };
+    const acc: SSEAccumulator = { content: '', reasoning: '', toolCalls: [] };
     // 第 1 段：index 0，带 id + 部分 name
     parseSSEChunk(
       'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"create_"}}]}}]}',
@@ -1090,12 +1093,12 @@ describe('useAgentChat · parseSSEChunk 深度（SSE 增量解析）', () => {
     );
     expect(acc.toolCalls).toHaveLength(1);
     expect(acc.toolCalls[0].id).toBe('call_1');
-    expect(acc.toolCalls[0].function.name).toBe('create_node');
-    expect(acc.toolCalls[0].function.arguments).toBe('{"type":"imageGenerateNode"}');
+    expect(acc.toolCalls[0].function!.name).toBe('create_node');
+    expect(acc.toolCalls[0].function!.arguments).toBe('{"type":"imageGenerateNode"}');
   });
 
   it('多个并行 tool_calls（不同 index）分别归并，不串台', () => {
-    const acc = { content: '', reasoning: '', toolCalls: [] };
+    const acc: SSEAccumulator = { content: '', reasoning: '', toolCalls: [] };
     parseSSEChunk(
       'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c0","function":{"name":"a"}}]}}]}',
       acc,
@@ -1104,44 +1107,44 @@ describe('useAgentChat · parseSSEChunk 深度（SSE 增量解析）', () => {
       'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"c1","function":{"name":"b"}}]}}]}',
       acc,
     );
-    expect(acc.toolCalls.map((t) => t.function.name)).toEqual(['a', 'b']);
+    expect(acc.toolCalls.map((t) => t.function!.name)).toEqual(['a', 'b']);
   });
 
   it('SSE tool_calls 无 name（仅 index）：产生空占位（根因——filter 后为空需判断）', () => {
-    const acc = { content: '', reasoning: '', toolCalls: [] };
+    const acc: SSEAccumulator = { content: '', reasoning: '', toolCalls: [] };
     // 模型只发 index + id，无 function.name（某些模型/网关流式占位）
     parseSSEChunk(
       'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_x","function":{}}]}}]}',
       acc,
     );
     expect(acc.toolCalls).toHaveLength(1); // 产生了占位
-    expect(acc.toolCalls[0].function.name).toBe(''); // name 为空
+    expect(acc.toolCalls[0].function!.name).toBe(''); // name 为空
     // 关键：filter 后应为空数组，roundTrip 据此不应设 tool_calls（避免发 tool_calls:[]）
     expect(acc.toolCalls.filter((t) => t.function?.name)).toHaveLength(0);
   });
 
   it('[DONE] 标记：直接跳过，不污染 acc', () => {
-    const acc = { content: '已有', reasoning: '', toolCalls: [] };
+    const acc: SSEAccumulator = { content: '已有', reasoning: '', toolCalls: [] };
     parseSSEChunk('data: [DONE]', acc);
     expect(acc.content).toBe('已有');
     expect(acc.toolCalls).toHaveLength(0);
   });
 
   it('非空 data: 行（如注释/keepalive）：忽略，不改 acc', () => {
-    const acc = { content: 'x', reasoning: '', toolCalls: [] };
+    const acc: SSEAccumulator = { content: 'x', reasoning: '', toolCalls: [] };
     parseSSEChunk(': keepalive', acc);
     expect(acc.content).toBe('x');
   });
 
   it('坏 JSON：try/catch 吞掉，不改 acc（单条解析失败不影响整体流）', () => {
-    const acc = { content: 'keep', reasoning: '', toolCalls: [] };
+    const acc: SSEAccumulator = { content: 'keep', reasoning: '', toolCalls: [] };
     parseSSEChunk('data: {这不是合法json', acc);
     expect(acc.content).toBe('keep');
     expect(acc.toolCalls).toHaveLength(0);
   });
 
   it('data: 行但无 delta（choices 缺省）：安全跳过', () => {
-    const acc = { content: '', reasoning: '', toolCalls: [] };
+    const acc: SSEAccumulator = { content: '', reasoning: '', toolCalls: [] };
     parseSSEChunk('data: {"choices":[]}', acc);
     parseSSEChunk('data: {"other":"field"}', acc);
     expect(acc.content).toBe('');
@@ -1149,14 +1152,14 @@ describe('useAgentChat · parseSSEChunk 深度（SSE 增量解析）', () => {
   });
 
   it('tool_calls 无 name 仅 arguments（补全场景）：保留已有 name', () => {
-    const acc = { content: '', reasoning: '', toolCalls: [] };
+    const acc: SSEAccumulator = { content: '', reasoning: '', toolCalls: [] };
     parseSSEChunk(
       'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c","function":{"arguments":"{\\"x\\":1}"}}]}}]}',
       acc,
     );
     // 没有 name 段 → name 为空字符串（roundTrip 会用 .filter(t=>t.function?.name) 过滤掉空 name 的）
-    expect(acc.toolCalls[0].function.name).toBe('');
-    expect(acc.toolCalls[0].function.arguments).toBe('{"x":1}');
+    expect(acc.toolCalls[0].function!.name).toBe('');
+    expect(acc.toolCalls[0].function!.arguments).toBe('{"x":1}');
   });
 });
 
@@ -1234,8 +1237,8 @@ describe('useAgentChat · 全链路 400 错误透传（发图被拒）', () => {
 // 卸载不断流（配合阶段1C 面板常驻）；切 agentKey 显式中断旧流（防项目串台）。
 describe('useAgentChat · 阶段1B 卸载不 abort / 切 key abort', () => {
   it('组件卸载且 send 进行中 → 不触发 abort，流不被中断', async () => {
-    let capturedSignal;
-    let resolveFetch;
+    let capturedSignal: AbortSignal | undefined;
+    let resolveFetch: (v: Response) => void;
     fetchMock.mockImplementation(
       (_url, opts) =>
         new Promise((resolve) => {
@@ -1251,9 +1254,9 @@ describe('useAgentChat · 阶段1B 卸载不 abort / 切 key abort', () => {
       result.current.send('挂起任务').catch(() => {});
     });
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    expect(capturedSignal.aborted).toBe(false);
+    expect(capturedSignal!.aborted).toBe(false);
     unmount(); // 卸载——不得触发 abort（原 cleanup abort 已移除）
-    expect(capturedSignal.aborted).toBe(false);
+    expect(capturedSignal!.aborted).toBe(false);
     // 收尾：让挂起的 fetch 正常结束，避免遗留 pending
     act(() => {
       resolveFetch(textStream('卸载后仍完成'));
@@ -1293,7 +1296,7 @@ describe('useAgentChat · 消息单源（store 唯一真相）', () => {
     });
     expect(result.current.messages).toEqual([{ role: 'user', content: '来自别的模块写入' }]);
     // 渲染的就是 store 数组本身（同一引用），单源不变量核心
-    expect(result.current.messages).toBe(sharedConvStore.getActiveConv().messages);
+    expect(result.current.messages).toBe(sharedConvStore.getActiveConv()!.messages);
   });
 
   it('流式结束后占位替换为完整 assistant 且无 streaming 残留，内容与 store 一致', async () => {
@@ -1302,8 +1305,8 @@ describe('useAgentChat · 消息单源（store 唯一真相）', () => {
     await act(async () => {
       await result.current.send('发消息');
     });
-    const storeConv = sharedConvStore.getActiveConv();
-    const last = storeConv.messages.at(-1);
+    const storeConv = sharedConvStore.getActiveConv()!;
+    const last = storeConv.messages.at(-1)!;
     expect(last.role).toBe('assistant');
     expect(last.streaming).toBeFalsy(); // 无 streaming 残留占位
     expect(result.current.messages).toEqual(storeConv.messages);

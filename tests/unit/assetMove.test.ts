@@ -5,7 +5,12 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { API_BASE } from '../../src/components/base/core/config.ts';
-import { moveFile, canMoveAsset, resolveMovePaths } from '@/components/base/api/filesApi.ts';
+import {
+  moveFile,
+  canMoveAsset,
+  resolveMovePaths,
+  relativePathFromUrl,
+} from '@/components/base/api/filesApi.ts';
 
 /**
  * 一次性 fetch mock。
@@ -87,5 +92,54 @@ describe('resolveMovePaths', () => {
     const { src, sameDir } = resolveMovePaths({ folder: '', name: 'x.png' }, 'x');
     expect(src).toBe('x.png');
     expect(sameDir).toBe(false);
+  });
+
+  // ── TD-12-8：磁盘定位真源 = 不可变 url（优先于可变的 UI folder/name）──
+
+  it('有 url → src/dst 由 url 派生（忽略与磁盘脱钩的 UI folder/name）', () => {
+    // 场景：素材已归类到「人物」（UI folder=migrated/人物），但磁盘仍在 migrated/ 下（context-only 不动磁盘）
+    const item = {
+      folder: 'migrated/人物',
+      name: '新名字.png',
+      url: 'http://127.0.0.1:18080/files/migrated/a.png',
+    };
+    const { src, dst, sameDir } = resolveMovePaths(item, 'migrated/场景');
+    expect(src).toBe('migrated/a.png'); // 磁盘真源，不是 UI 的 migrated/人物/新名字.png
+    expect(dst).toBe('migrated/场景/a.png'); // 磁盘文件名 a.png，不是 UI 显示名 新名字.png
+    expect(sameDir).toBe(false);
+  });
+
+  it('有 url 且 url 含中文/空格 → 解码正确（encodeURI 往返）', () => {
+    const item = {
+      folder: 'migrated',
+      name: '角色.png',
+      url: `http://127.0.0.1:18080/files/${encodeURI('migrated/角色 图.png')}`,
+    };
+    const { src } = resolveMovePaths(item, 'migrated/人物');
+    expect(src).toBe('migrated/角色 图.png');
+  });
+
+  it('有 url 但非 /files/ 形态（远程图）→ 回退 UI folder/name 口径', () => {
+    const { src } = resolveMovePaths(
+      { folder: 'migrated', name: 'a.png', url: 'https://example.com/x.png' },
+      'migrated/人物',
+    );
+    expect(src).toBe('migrated/a.png'); // 非本地磁盘 url → 退回旧口径
+  });
+});
+
+describe('relativePathFromUrl', () => {
+  it('去 /files/ 前缀 + 解码 + 保留子目录', () => {
+    expect(relativePathFromUrl('http://127.0.0.1:18080/files/migrated/a.png')).toBe(
+      'migrated/a.png',
+    );
+    expect(relativePathFromUrl(`http://127.0.0.1:18080/files/${encodeURI('人物/图 1.png')}`)).toBe(
+      '人物/图 1.png',
+    );
+  });
+  it('非 /files/ 或非法 → null', () => {
+    expect(relativePathFromUrl('https://example.com/x.png')).toBeNull();
+    expect(relativePathFromUrl('/files/')).toBeNull();
+    expect(relativePathFromUrl('')).toBeNull();
   });
 });

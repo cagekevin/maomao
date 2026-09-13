@@ -23,7 +23,7 @@ describe('agentModelStore §4 读取/保存 AI 聊天模型偏好', () => {
     const { loadAgentChatModel, saveAgentChatModel } =
       await import('../../src/components/base/store/agentModelStore.ts');
     saveAgentChatModel({ providerId: 'p1', modelId: 'm1' });
-    const cfg = loadAgentChatModel();
+    const cfg = loadAgentChatModel()!;
     expect(cfg).toEqual({ providerId: 'p1', modelId: 'm1', streamMode: 'stream' });
   });
 
@@ -31,7 +31,7 @@ describe('agentModelStore §4 读取/保存 AI 聊天模型偏好', () => {
     const { loadAgentChatModel, saveAgentChatModel } =
       await import('../../src/components/base/store/agentModelStore.ts');
     saveAgentChatModel({ providerId: 'p1', modelId: 'm1', streamMode: 'non-stream' });
-    expect(loadAgentChatModel().streamMode).toBe('non-stream');
+    expect(loadAgentChatModel()!.streamMode).toBe('non-stream');
   });
 
   it('streamMode 非 "non-stream" 一律回落 stream（向后兼容旧配置）', async () => {
@@ -43,7 +43,7 @@ describe('agentModelStore §4 读取/保存 AI 聊天模型偏好', () => {
       modelId: 'm1',
       streamMode: 'whatever' as AgentStreamMode,
     });
-    expect(loadAgentChatModel().streamMode).toBe('stream');
+    expect(loadAgentChatModel()!.streamMode).toBe('stream');
   });
 
   it('缺失 providerId 或 modelId 视为损坏，load 返回 null', async () => {
@@ -59,7 +59,7 @@ describe('agentModelStore §4 读取/保存 AI 聊天模型偏好', () => {
     saveAgentChatModel({ providerId: 'p-old', modelId: 'm-old', streamMode: 'non-stream' });
     // 只更新 modelId，不传 providerId/streamMode → 沿用旧值
     saveAgentChatModel({ modelId: 'm-new' });
-    const cfg = loadAgentChatModel();
+    const cfg = loadAgentChatModel()!;
     expect(cfg.providerId).toBe('p-old');
     expect(cfg.modelId).toBe('m-new');
     expect(cfg.streamMode).toBe('non-stream');

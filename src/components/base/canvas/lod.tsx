@@ -10,28 +10,20 @@ import { useStore } from '@xyflow/react';
  * 调用方只声明 enablePerformanceMode，零编排。
  *
  * 字段含义：
- *  - lodLevel            视口缩放等级 0/1/2/3（越大越缩小）
- *  - viewportMoving      视口是否在移动
- *  - nodeCount           当前节点数
- *  - handleFollowLimit   启用 handle 鼠标跟随的最大节点数
- *  - edgeFxLimit         启用边特效的最大边数
- *  - useThumbnail        是否用缩略图替代原图（性能模式）
+ *  - lodLevel  视口缩放等级 0/1/2/3（越大越缩小）—— **唯一真实字段**
+ *
+ * 【TD-04-22 清理】原 context 还声明了 viewportMoving / nodeCount / handleFollowLimit /
+ * edgeFxLimit / useThumbnail 五个字段：前四者恒为常量或零消费端读取，useThumbnail 恒 false——
+ * 它们只是「当年以为要做、后来没做」的占位，而测试还在断言其存在（= 给假实现背书）。
+ * 已连同 `LOD_LIMITS` 常量与 LodProvider 的 `nodeCount` prop 一并删除。
+ * **若将来真要做「handle 跟随上限 / 边特效上限 / 缩略图降级」，请新写实现并同时接上消费端**，
+ * 而不是复活这些空字段（否则又是一轮「声明了但没实现」）。
  *
  * 消费端（如 ConnectionLine / useAssetDegrade）用 useLod() 读 lodLevel 据此关特效。
  * 降级 CSS 契约：给 .react-flow 容器加 lod-1/2/3 / zoomed-out-lod class（index.css 依赖，勿改）。
  */
 
-// 阈值集中为命名常量（CONTEXT §一.C 配置集中，消除裸数字 60/50）
-const LOD_LIMITS = { handleFollow: 60, edgeFx: 50 };
-
-const DEFAULT_LOD = {
-  lodLevel: 0,
-  viewportMoving: false,
-  nodeCount: 0,
-  handleFollowLimit: LOD_LIMITS.handleFollow,
-  edgeFxLimit: LOD_LIMITS.edgeFx,
-  useThumbnail: false,
-};
+const DEFAULT_LOD = { lodLevel: 0 };
 
 export const LodContext = createContext(DEFAULT_LOD);
 
@@ -43,12 +35,10 @@ export function useLod() {
   return useContext(LodContext);
 }
 
-/** LodProvider props（此前无类型标注 → 隐式 any，与画布区「类型诚实」基调不符） */
+/** LodProvider props */
 export interface LodProviderProps {
   /** 性能模式开关（默认 true）；false 时清空 lod class 并令 lodLevel=0（关性能模式天然关闭降级） */
   enablePerformanceMode?: boolean;
-  /** 当前节点数（透传进 context；⚠️ 当前无消费端读取，见下方 context 字段说明） */
-  nodeCount?: number;
   children: React.ReactNode;
 }
 
@@ -57,11 +47,7 @@ export interface LodProviderProps {
  *
  * @param props 见 LodProviderProps
  */
-export default function LodProvider({
-  enablePerformanceMode = true,
-  nodeCount = 0,
-  children,
-}: LodProviderProps) {
+export default function LodProvider({ enablePerformanceMode = true, children }: LodProviderProps) {
   // 监听 viewport.transform[2]（缩放值）的变化
   const zoom = useStore((s) => s.transform?.[2] ?? 1);
   const [lodLevel, setLodLevel] = useState(0);
@@ -98,18 +84,6 @@ export default function LodProvider({
     });
   }, [zoom, enablePerformanceMode]);
 
-  const v = {
-    lodLevel,
-    viewportMoving: false,
-    nodeCount,
-    handleFollowLimit: LOD_LIMITS.handleFollow,
-    edgeFxLimit: LOD_LIMITS.edgeFx,
-    useThumbnail: false,
-  };
-  const memoValue = React.useMemo(
-    () => v,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 返回 v 本体但按关键字段细粒度缓存：v 每渲染新建对象，若把 v 列入依赖则 memo 永远重算（意图失效）
-    [v.lodLevel, v.viewportMoving, v.nodeCount, v.handleFollowLimit, v.edgeFxLimit, v.useThumbnail],
-  );
+  const memoValue = React.useMemo(() => ({ lodLevel }), [lodLevel]);
   return <LodContext.Provider value={memoValue}>{children}</LodContext.Provider>;
 }

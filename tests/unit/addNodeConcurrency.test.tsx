@@ -79,7 +79,7 @@ describe('addNode 同一 tick 批量调用并发安全', () => {
       />,
     );
     act(() => {
-      for (let i = 0; i < 5; i++) holder.addNode();
+      for (let i = 0; i < 5; i++) holder.addNode!();
     });
     expect(latestCount).toBe(6);
   });
@@ -98,7 +98,7 @@ describe('addNode 同一 tick 批量调用并发安全', () => {
       />,
     );
     act(() => {
-      for (let i = 0; i < 5; i++) holder.addNode();
+      for (let i = 0; i < 5; i++) holder.addNode!();
     });
     expect(latestCount).toBeLessThan(6);
   });

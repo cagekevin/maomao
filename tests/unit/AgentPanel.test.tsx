@@ -330,14 +330,14 @@ beforeEach(() => {
 describe('AgentPanel — 面板显隐（阶段1C：常驻 DOM，CSS 显隐）', () => {
   it('open=false → 根容器仍在 DOM 但带 hidden（不卸载，运行态不断流）', () => {
     render(<AgentPanel {...CLOSED_PROPS} />);
-    const root = document.querySelector('.absolute.top-0.right-0.bottom-0');
+    const root = document.querySelector('.absolute.top-0.right-0.bottom-0')!;
     expect(root).toBeTruthy(); // 常驻：容器卸载不触发
     expect(root.className).toContain('hidden'); // 关闭：CSS 隐藏可见内容
   });
 
   it('open=true → 根容器不带 hidden（可见）', () => {
     render(<AgentPanel {...OPEN_PROPS} />);
-    const root = document.querySelector('.absolute.top-0.right-0.bottom-0');
+    const root = document.querySelector('.absolute.top-0.right-0.bottom-0')!;
     expect(root).toBeTruthy();
     expect(root.className).not.toContain('hidden');
   });
@@ -444,15 +444,15 @@ describe('AgentPanel — Skill 应用与移除', () => {
     h.setSkills(SKILLS);
     render(<AgentPanel {...OPEN_PROPS} />);
     const picker = openSkillPicker();
-    expect(within(picker).getByText('赛博朋克风格')).toBeTruthy();
-    expect(within(picker).getByText('分镜脚本')).toBeTruthy();
+    expect(within(picker!).getByText('赛博朋克风格')).toBeTruthy();
+    expect(within(picker!).getByText('分镜脚本')).toBeTruthy();
   });
 
   it('应用 Skill → markSkillUsed 调用 + 按钮标题带 Skill 名 + 同步 setCurrentSnapshot', () => {
     h.setSkills(SKILLS);
     render(<AgentPanel {...OPEN_PROPS} />);
     const picker = openSkillPicker();
-    fireEvent.click(within(picker).getByText('赛博朋克风格'));
+    fireEvent.click(within(picker!).getByText('赛博朋克风格'));
     expect(h.markSkillUsed).toHaveBeenCalledWith('s1');
     // 按钮标题变为已启用 Skill 名
     expect(screen.getByTitle('已启用 赛博朋克风格')).toBeTruthy();
@@ -468,13 +468,13 @@ describe('AgentPanel — Skill 应用与移除', () => {
     render(<AgentPanel {...OPEN_PROPS} />);
     // 先应用
     const picker = openSkillPicker();
-    fireEvent.click(within(picker).getByText('赛博朋克风格'));
+    fireEvent.click(within(picker!).getByText('赛博朋克风格'));
     // 再打开下拉移除（按钮标题此时为已启用）
     fireEvent.click(screen.getByTitle(/已启用/));
     // chip 按钮(agent-skill-main)与下拉行(agent-pop 内)都显示同名，须限定到下拉容器取行。
     // 见应用用例：chip 显示完整 Skill 名后，整容器(.agent-skill-btn)会有两个同名文本，故 query 下拉 .agent-pop。
     const picker2 = screen.getByTitle(/已启用/).parentElement;
-    const pop = picker2.querySelector('.agent-pop') as HTMLElement | null;
+    const pop = picker2!.querySelector('.agent-pop') as HTMLElement | null;
     if (!pop) throw new Error('skill 下拉容器 .agent-pop 未找到');
     fireEvent.click(within(pop).getByText('赛博朋克风格'));
     expect(h.markSkillUsed).toHaveBeenCalledTimes(1); // 移除不计数

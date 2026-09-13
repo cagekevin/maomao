@@ -25,7 +25,7 @@ describe('refToken · 参考图 token 编解码（对齐大雄 agentEncodeRefTok
     expect(t).toContain('x="100"');
     expect(t).toContain('y="200"');
     // url/name 等被 URL 编码（对齐大雄 encodeURIComponent），解码后可还原
-    const img = parseRefTokensFromText(t).find((n) => n.type === 'image');
+    const img = parseRefTokensFromText(t).find((n) => n.type === 'image')!;
     expect(img.url).toBe('http://x/a.png');
     expect(img.name).toBe('黑猫');
     expect(img.nodeId).toBe('n1');
@@ -36,7 +36,7 @@ describe('refToken · 参考图 token 编解码（对齐大雄 agentEncodeRefTok
     const t = encodeRefToken({ url: 'http://x/a.png?v=1&w=2', name: '图', refIndex: 2 });
     const nodes = parseRefTokensFromText(t);
     expect(nodes.some((n) => n.type === 'image')).toBe(true);
-    const img = nodes.find((n) => n.type === 'image');
+    const img = nodes.find((n) => n.type === 'image')!;
     expect(img.url).toBe('http://x/a.png?v=1&w=2');
     expect(img.refIndex).toBe(2);
   });
@@ -61,7 +61,7 @@ describe('refToken · 参考图 token 编解码（对齐大雄 agentEncodeRefTok
   it('parseRefTokensFromText：旧格式 [参考图N:name] 结合 knownImages 反查 url', () => {
     const known = [{ type: 'image' as const, url: 'http://x/a.png', name: '黑猫', refIndex: 1 }];
     const nodes = parseRefTokensFromText('[参考图1:黑猫] 把它改白', known);
-    const img = nodes.find((n) => n.type === 'image');
+    const img = nodes.find((n) => n.type === 'image')!;
     expect(img).toMatchObject({ type: 'image', url: 'http://x/a.png', refIndex: 1 });
   });
 

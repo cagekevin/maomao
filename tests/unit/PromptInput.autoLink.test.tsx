@@ -34,7 +34,7 @@ if (!Range.prototype.getBoundingClientRect) {
 }
 
 /** 素材转 refImages；value 由 PromptInput 自持（onChange setState） */
-function Harness({ assets }) {
+function Harness({ assets }: { assets: Array<{ id: string; label: string; url: string }> }) {
   const [value, setValue] = useState('');
   const refImages = (assets || []).map((a, i) => ({
     id: a.id || `img-${i}`,
@@ -46,19 +46,19 @@ function Harness({ assets }) {
   );
 }
 
-const placeCaretAtEnd = (el) => {
+const placeCaretAtEnd = (el: Element) => {
   const range = document.createRange();
   range.selectNodeContents(el);
   range.collapse(false);
   const sel = document.getSelection();
-  sel.removeAllRanges();
-  sel.addRange(range);
+  sel!.removeAllRanges();
+  sel!.addRange(range);
 };
 
 /** 模拟真实打字：字符追加进编辑器末尾的文本节点（光标落在文本节点内，而非元素边界），并派发 input */
-const typeInto = (el, ch) => {
+const typeInto = (el: Element, ch: string) => {
   const sel = document.getSelection();
-  let last = el.lastChild;
+  let last = el.lastChild as Text | null;
   if (!last || last.nodeType !== Node.TEXT_NODE) {
     last = document.createTextNode('');
     el.appendChild(last);
@@ -67,19 +67,19 @@ const typeInto = (el, ch) => {
   const range = document.createRange();
   range.setStart(last, last.textContent.length);
   range.collapse(true);
-  sel.removeAllRanges();
-  sel.addRange(range);
+  sel!.removeAllRanges();
+  sel!.addRange(range);
   fireEvent.input(el);
 };
 
-const chipOf = (el, id) => el.querySelector(`[data-ref-id="${id}"]`);
+const chipOf = (el: Element, id: string) => el.querySelector(`[data-ref-id="${id}"]`);
 
 describe('PromptInput 运行期 @名 自动转芯片', () => {
   it('手输唯一名（@猫）→ 输入完成后自动变缩略图芯片', () => {
     const { container } = render(
       <Harness assets={[{ id: 'img-1', label: '猫', url: 'u/cat.png' }]} />,
     );
-    const el = container.querySelector('[contenteditable="true"]');
+    const el = container.querySelector('[contenteditable="true"]')!;
 
     act(() => {
       placeCaretAtEnd(el);
@@ -99,7 +99,7 @@ describe('PromptInput 运行期 @名 自动转芯片', () => {
         ]}
       />,
     );
-    const el = container.querySelector('[contenteditable="true"]');
+    const el = container.querySelector('[contenteditable="true"]')!;
 
     act(() => {
       placeCaretAtEnd(el);
@@ -125,7 +125,7 @@ describe('PromptInput 运行期 @名 自动转芯片', () => {
         ]}
       />,
     );
-    const el = container.querySelector('[contenteditable="true"]');
+    const el = container.querySelector('[contenteditable="true"]')!;
 
     act(() => {
       placeCaretAtEnd(el);
@@ -141,7 +141,7 @@ describe('PromptInput 运行期 @名 自动转芯片', () => {
     const { container } = render(
       <Harness assets={[{ id: 'img-1', label: '猫', url: 'u/cat.png' }]} />,
     );
-    const el = container.querySelector('[contenteditable="true"]');
+    const el = container.querySelector('[contenteditable="true"]')!;
 
     act(() => {
       placeCaretAtEnd(el);
@@ -157,7 +157,7 @@ describe('PromptInput 运行期 @名 自动转芯片', () => {
     const { container } = render(
       <Harness assets={[{ id: 'img-1', label: '猫', url: 'u/cat.png' }]} />,
     );
-    const el = container.querySelector('[contenteditable="true"]');
+    const el = container.querySelector('[contenteditable="true"]')!;
 
     act(() => {
       placeCaretAtEnd(el);
@@ -172,7 +172,7 @@ describe('PromptInput 运行期 @名 自动转芯片', () => {
     const { container } = render(
       <Harness assets={[{ id: 'img-1', label: '猫', url: 'u/cat.png' }]} />,
     );
-    const el = container.querySelector('[contenteditable="true"]');
+    const el = container.querySelector('[contenteditable="true"]')!;
 
     act(() => {
       fireEvent.compositionStart(el);
@@ -224,7 +224,7 @@ describe('PromptInput 运行期 @名 自动转芯片', () => {
     // 焦点实例（full）就地转 chip；光标仍留在 full
     expect(chipOf(full, 'img-1')).toBeTruthy();
     const sel = document.getSelection();
-    expect(full.contains(sel.anchorNode)).toBe(true);
-    expect(panel.contains(sel.anchorNode)).toBe(false);
+    expect(full.contains(sel!.anchorNode)).toBe(true);
+    expect(panel.contains(sel!.anchorNode)).toBe(false);
   });
 });

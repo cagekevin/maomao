@@ -67,7 +67,7 @@ describe('CustomEdge — 未激活态', () => {
   it('渲染透明命中层 + 基础线（无 is-active）', () => {
     const view = setup();
     expect(view.container.querySelector('.cust-edge-hit')).toBeTruthy();
-    const base = view.container.querySelector('.cust-edge-base');
+    const base = view.container.querySelector('.cust-edge-base')!;
     expect(base).toBeTruthy();
     expect(base.className).not.toContain('is-active');
   });
@@ -82,7 +82,7 @@ describe('CustomEdge — 未激活态', () => {
 
   it('markerEnd 透传给主线 path', () => {
     const view = setup();
-    expect(view.container.querySelector('.cust-edge-base').getAttribute('marker-end')).toBe(
+    expect(view.container.querySelector('.cust-edge-base')!.getAttribute('marker-end')).toBe(
       'url(#arrow)',
     );
   });
@@ -90,14 +90,14 @@ describe('CustomEdge — 未激活态', () => {
   it('markerEnd 非字符串时不透传', () => {
     // 故意喂错类型：验证组件对脏数据的防御（markerEnd 正常应为 string）
     const view = setup({ markerEnd: { id: 'obj' } as unknown as string });
-    expect(view.container.querySelector('.cust-edge-base').getAttribute('marker-end')).toBeNull();
+    expect(view.container.querySelector('.cust-edge-base')!.getAttribute('marker-end')).toBeNull();
   });
 
   it('bezier path d 透传给各层', () => {
     const view = setup();
     const d = 'M0,0 C10,10 90,10 100,100';
-    expect(view.container.querySelector('.cust-edge-hit').getAttribute('d')).toBe(d);
-    expect(view.container.querySelector('.cust-edge-base').getAttribute('d')).toBe(d);
+    expect(view.container.querySelector('.cust-edge-hit')!.getAttribute('d')).toBe(d);
+    expect(view.container.querySelector('.cust-edge-base')!.getAttribute('d')).toBe(d);
   });
 });
 
@@ -120,7 +120,7 @@ describe('CustomEdge — 激活态', () => {
 
   it('data.relatedToSelected=true：关联激活（与选中联动）', () => {
     const view = setup({ data: { relatedToSelected: true } });
-    expect(view.container.querySelector('.cust-edge-base').className).toContain('is-active');
+    expect(view.container.querySelector('.cust-edge-base')!.className).toContain('is-active');
     expect(view.container.querySelector('.cust-edge-glow.is-active')).toBeTruthy();
     expect(h.cometProps).toHaveLength(1);
     expect(screen.getByTitle('删除连线')).toBeTruthy();
@@ -137,6 +137,6 @@ describe('CustomEdge — 激活态', () => {
     const view = setup({ selected: true });
     const label = view.container.querySelector('[data-testid="edge-label"]');
     expect(label).toBeTruthy();
-    expect(label.querySelector('[title="删除连线"]')).toBeTruthy();
+    expect(label!.querySelector('[title="删除连线"]')).toBeTruthy();
   });
 });

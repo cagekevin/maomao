@@ -38,7 +38,7 @@ describe('Comet', () => {
 
   function setup(props) {
     const view = render(<Comet {...props} />);
-    const g = view.container.querySelector('g');
+    const g = view.container.querySelector('g')!;
     return { view, g };
   }
 

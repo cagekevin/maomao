@@ -26,7 +26,7 @@ import { showToast } from '../base/core/toastStore.ts';
 import { contentSetKvWithFallback, contentGetKvWithFallback } from '../base/core/contentStore.ts';
 
 /** 工程存储默认键（无 nodeId 独立运行场景，与 director3d/project.ts 一致） */
-export const PROJECT_KEY_DEFAULT = 'director3d-project';
+const PROJECT_KEY_DEFAULT = 'director3d-project';
 
 /**
  * ── 多开 / 并发覆盖的可见警示（docs/45 R6，非锁，只把"静默覆盖"变成可见）──

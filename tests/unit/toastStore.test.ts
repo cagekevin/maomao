@@ -25,7 +25,7 @@ describe('toastStore §基础设施 提示', () => {
   });
 
   it('message 非字符串被转成字符串（防御 null/undefined）', () => {
-    showToast(null);
+    showToast(null as never);
     expect(getToasts()[0].message).toBe('');
   });
 

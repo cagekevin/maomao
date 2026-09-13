@@ -20,8 +20,9 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';
 
 // 捕获 setNodes 传入的 updater 并执行，得到更新后的 nodes（供断言 data 变更与 spawn 输出）
+type MockNode = { id: string; type?: string; data: Record<string, unknown> };
 const h = vi.hoisted(() => {
-  const state = { nodes: [] };
+  const state: { nodes: MockNode[] } = { nodes: [] };
   const setNodesMock = vi.fn((updater) => {
     state.nodes = typeof updater === 'function' ? updater(state.nodes) : updater;
   });
@@ -114,7 +115,7 @@ function setup(
   return render(<FaceMosaicNode id={nodeId} data={{ ...data }} selected={false} />);
 }
 function lastData() {
-  return h.state.nodes.find((n) => n.id === nodeId)?.data;
+  return h.state.nodes.find((n) => n.id === nodeId)!.data;
 }
 function spawnedNodes() {
   return h.state.nodes.filter((n) => n.type === 'assetNode');
@@ -160,7 +161,7 @@ describe('FaceMosaicNode — 模式/强度/颜色写回 data', () => {
 
   it('调整强度滑块 → 写回 data.strength 且百分比显示同步', () => {
     setup();
-    const range = document.querySelector('input[type="range"]');
+    const range = document.querySelector('input[type="range"]')!;
     fireEvent.change(range, { target: { value: '0.8' } });
     expect(lastData().strength).toBe(0.8);
     expect(screen.getByText('80%')).toBeTruthy();
@@ -244,7 +245,7 @@ describe('FaceMosaicNode — 上传图源落盘（TD-9 口径 A）', () => {
   });
 
   it('落盘失败（退回 blob 预览）→ 不写回 data.assetUrls，但预览仍在', async () => {
-    h.uploadMock.mockResolvedValue(null);
+    h.uploadMock.mockResolvedValue(null as never);
     setup();
     uploadFile();
     // 预览出现即说明走完了上传流程（blob 兜底不进 data）

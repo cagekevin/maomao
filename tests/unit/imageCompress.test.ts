@@ -36,8 +36,8 @@ function installImageMock() {
       return '';
     }
     crossOrigin = null;
-    onload = null;
-    onerror = null;
+    onload: (() => void) | null = null;
+    onerror: ((e?: Error) => void) | null = null;
     naturalWidth = 0;
     naturalHeight = 0;
   };
@@ -153,7 +153,7 @@ describe('imageCompress — 输出格式', () => {
     let usedType = '';
     const orig = HTMLCanvasElement.prototype.toDataURL;
     HTMLCanvasElement.prototype.toDataURL = function (type) {
-      usedType = type;
+      usedType = type ?? '';
       return orig.call(this, type);
     };
     const res = await compressImage('/files/a.png', { maxSize: 1920, keepOriginalFormat: true });
@@ -168,7 +168,7 @@ describe('imageCompress — 输出格式', () => {
     let usedType = '';
     const orig = HTMLCanvasElement.prototype.toDataURL;
     HTMLCanvasElement.prototype.toDataURL = function (type) {
-      usedType = type;
+      usedType = type ?? '';
       return orig.call(this, type);
     };
     await compressImage('/files/b.jpg', { maxSize: 1920, keepOriginalFormat: true });
@@ -180,7 +180,7 @@ describe('imageCompress — 输出格式', () => {
     let usedType = '';
     const orig = HTMLCanvasElement.prototype.toDataURL;
     HTMLCanvasElement.prototype.toDataURL = function (type) {
-      usedType = type;
+      usedType = type ?? '';
       return orig.call(this, type);
     };
     await compressImage('data:image/png;base64,xxx', { maxSize: 1920, keepOriginalFormat: true });
@@ -195,7 +195,7 @@ describe('imageCompress — 输出格式', () => {
     let usedType = '';
     const orig = HTMLCanvasElement.prototype.toDataURL;
     HTMLCanvasElement.prototype.toDataURL = function (type) {
-      usedType = type;
+      usedType = type ?? '';
       return orig.call(this, type);
     };
     await compressImage('/files/a.png', { maxSize: 800 });

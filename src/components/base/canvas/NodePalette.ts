@@ -1,4 +1,3 @@
-import 'react';
 import type React from 'react';
 import {
   Image as ImageIcon,

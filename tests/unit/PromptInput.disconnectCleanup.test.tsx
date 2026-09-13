@@ -48,14 +48,14 @@ describe('PromptInput 上游素材消失清理', () => {
         }}
       />,
     );
-    const el = container.querySelector('[contenteditable="true"]');
+    const el = container.querySelector('[contenteditable="true"]')!;
 
     // 初始：value 自带 @{img1:...} 芯片串 → 重建后 DOM 出现 data-ref-id=img1 芯片
     expect(el.querySelector('[data-ref-id="img1"]')).toBeTruthy();
 
     // 模拟断开上游：refImages 清空（等价点红 × 删连线后 connected 少该素材）
     await act(async () => {
-      container.querySelector('button').click();
+      container.querySelector('button')!.click();
     });
 
     // 富文本里引用 img1 的芯片应被清掉，缩略图不再残留
@@ -66,7 +66,7 @@ describe('PromptInput 上游素材消失清理', () => {
 
   it('素材仍在 refImages 时，即使触发重建也不误删引用芯片', async () => {
     const { container } = render(<DisconnectHarness onChangeOut={() => {}} />);
-    const el = container.querySelector('[contenteditable="true"]');
+    const el = container.querySelector('[contenteditable="true"]')!;
 
     // 未断开（refImages 仍含 img1）→ 芯片保留
     expect(el.querySelector('[data-ref-id="img1"]')).toBeTruthy();

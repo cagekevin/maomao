@@ -1,5 +1,3 @@
-import 'react';
-
 /**
  * 小型开关组件（对齐整体 zinc 风格，开启为青蓝色）。
  * 抽公共：OtherSettings / SkillSettings 原本各定义一份逐字相同的 Toggle（download/REPORT P2 重复代码）。

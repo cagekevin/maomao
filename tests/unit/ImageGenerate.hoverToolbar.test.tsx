@@ -26,7 +26,11 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
 }));
 // HoverToolbar：把传入的 buttons 数组按 title 渲染成可点击按钮（show=false 不渲染）
 vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({
-  default: ({ buttons = [] }) => (
+  default: ({
+    buttons = [],
+  }: {
+    buttons?: Array<{ show?: boolean; key: string; title: string; onClick: () => void }>;
+  }) => (
     <>
       {buttons
         .filter((b) => b.show !== false)

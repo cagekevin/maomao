@@ -103,7 +103,7 @@ describe('relayProxy §R6 — relayAttachUntilDone（统一 attach 契约）', (
     const r = await runWithTimers(
       relayAttachUntilDone({ frontTaskId: 'task-1', signal: ctl.signal, cancelOnAbort: true }),
     );
-    expect(r.value.ok).toBe(true);
+    expect(r.value!.ok).toBe(true);
     // 终态返回后 abort 不再触发额外 cancel（已完成任务不应误 cancel）
     ctl.abort();
     expect(h.mockHttpRequest.mock.calls.some(([u]) => u.includes('/cancel'))).toBe(false);
@@ -138,7 +138,7 @@ describe('relayProxy §R6 — relayGenerate = submit + attach', () => {
     expect(r.value).toEqual({ ok: true, url: '/files/tasks/x.png' });
     const submitCall = h.mockHttpRequest.mock.calls.find(([u]) => u.endsWith('/api/generate'));
     expect(submitCall).toBeTruthy();
-    expect(JSON.parse(submitCall[1].body)).toMatchObject({
+    expect(JSON.parse(submitCall![1].body)).toMatchObject({
       frontTaskId: 'task-1',
       providerId: 'lovart',
       capability: 'image',

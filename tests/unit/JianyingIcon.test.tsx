@@ -16,7 +16,7 @@ import JianyingIcon from '../../src/components/base/ui/JianyingIcon.tsx';
 describe('JianyingIcon', () => {
   it('默认渲染 14px 剪映图标', () => {
     const { container } = render(<JianyingIcon />);
-    const svg = container.querySelector('svg');
+    const svg = container.querySelector('svg')!;
     expect(svg).toBeTruthy();
     expect(svg.getAttribute('width')).toBe('14');
     expect(svg.getAttribute('height')).toBe('14');
@@ -26,22 +26,22 @@ describe('JianyingIcon', () => {
 
   it('可传入自定义 size 覆盖宽高', () => {
     const { container } = render(<JianyingIcon size={20} />);
-    const svg = container.querySelector('svg');
+    const svg = container.querySelector('svg')!;
     expect(svg.getAttribute('width')).toBe('20');
     expect(svg.getAttribute('height')).toBe('20');
   });
 
   it('装饰性图标带 aria-hidden，不被读屏朗读', () => {
     const { container } = render(<JianyingIcon />);
-    expect(container.querySelector('svg').getAttribute('aria-hidden')).toBe('true');
+    expect(container.querySelector('svg')!.getAttribute('aria-hidden')).toBe('true');
     // 无 title/文本节点：不向辅助技术暴露多余内容
     expect(screen.queryByRole('img')).toBeNull();
   });
 
   it('SVG 内容非空壳：含路径且可被查询', () => {
     const { container } = render(<JianyingIcon />);
-    const path = container.querySelector('path');
+    const path = container.querySelector('path')!;
     expect(path).toBeTruthy();
-    expect(path.getAttribute('d').length).toBeGreaterThan(50);
+    expect(path.getAttribute('d')!.length).toBeGreaterThan(50);
   });
 });

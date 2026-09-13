@@ -59,7 +59,7 @@ beforeEach(() => {
       }) as unknown as import('../../src/components/agent/conversation/conversationSnapshot.ts').ConversationSnapshot,
   );
   setCurrentSnapshot.mockImplementation((p) => {
-    if (p.messages) store.set(p.messages as TestChatMessage[]);
+    if (p?.messages) store.set(p!.messages as TestChatMessage[]);
   });
   patchCurrentMessages.mockImplementation((next) => store.set(next as TestChatMessage[]));
 });
@@ -106,9 +106,9 @@ describe('updateLastStreaming — 流式增量（仅通知）', () => {
       { id: 's', role: 'assistant', content: '', streaming: true, tool_calls: [] },
     ]);
     updateLastStreaming({ content: 'hi', toolCalls: [{ function: { name: 'f' } }] });
-    const last = store.current[store.current.length - 1];
+    const last = store.current[store.current.length - 1]!;
     expect(last.content).toBe('hi');
-    expect(last.tool_calls[0].function.name).toBe('f');
+    expect(last.tool_calls![0]!.function!.name).toBe('f');
     expect(patchCurrentMessages).toHaveBeenCalled();
   });
 

@@ -149,7 +149,7 @@ describe('assetUrl · normalizeAssetUrlForSend（发送端归一化）', () => {
       '',
       null,
       undefined,
-    ]);
+    ] as unknown as string[]);
     expect(out).toEqual(['http://x/a.png', 'data:image/png;base64,compressed:blob:http://x/b']);
   });
 
@@ -246,8 +246,8 @@ describe('assetUrl · resolveAssetUrl（统一出口，render 按需小图 / sen
 
   it('空 / 非字符串 → 原样返回', () => {
     expect(resolveAssetUrl('')).toBe('');
-    expect(resolveAssetUrl(null)).toBeNull();
-    expect(resolveAssetUrl(undefined)).toBeUndefined();
+    expect(resolveAssetUrl(null as never)).toBeNull();
+    expect(resolveAssetUrl(undefined as never)).toBeUndefined();
   });
 
   it('buildThumbnailUrl 非本地 → 回退原图绝对地址', () => {
@@ -298,7 +298,7 @@ describe('assetUrl · classifyImageType / summarizeAssetUrls（发送图片可�
     expect(classifyImageType('blob:http://x/abc')).toBe('url');
     expect(classifyImageType('iVBORw0KGgo=')).toBe('url'); // 裸 base64 无 data: 前缀按 url 处理
     expect(classifyImageType('')).toBe('url');
-    expect(classifyImageType(null)).toBe('url');
+    expect(classifyImageType(null as never)).toBe('url');
   });
 
   it('summarizeAssetUrls：混合 URL/base64 → 正确统计且不携带图片内容', () => {
@@ -308,7 +308,7 @@ describe('assetUrl · classifyImageType / summarizeAssetUrls（发送图片可�
       '/files/b.png',
       '',
       null,
-    ]);
+    ] as unknown as string[]);
     expect(s).toEqual({ count: 3, urls: 2, base64s: 1 });
   });
 

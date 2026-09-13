@@ -9,7 +9,7 @@ import { createRafBatch } from '../base/core/utils.ts';
  */
 type CustomHandleVariant = 'large' | 'small';
 
-interface CustomHandleProps {
+export interface CustomHandleProps {
   className?: string;
   variant?: CustomHandleVariant;
   position: Position | 'left' | 'right';

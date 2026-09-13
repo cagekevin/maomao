@@ -42,14 +42,14 @@ const placeCaretAtEnd = (el) => {
   const range = document.createRange();
   range.selectNodeContents(el);
   range.collapse(false);
-  const sel = document.getSelection();
+  const sel = document.getSelection()!;
   sel.removeAllRanges();
   sel.addRange(range);
 };
 
 /** 模拟在 contentEditable 里敲一个字：插入文本 + 光标后移 + 派发 input */
 const typeInto = (el, ch) => {
-  const sel = document.getSelection();
+  const sel = document.getSelection()!;
   const range = sel.getRangeAt(0);
   const node = document.createTextNode(ch);
   range.insertNode(node);
@@ -70,7 +70,7 @@ describe('PromptInput 共享 value 双实例', () => {
       typeInto(full, 'a');
     });
 
-    const sel = document.getSelection();
+    const sel = document.getSelection()!;
     expect(full.contains(sel.anchorNode)).toBe(true);
     expect(panel.contains(sel.anchorNode)).toBe(false);
     expect(full.textContent).toBe('a');
@@ -85,7 +85,7 @@ describe('PromptInput 共享 value 双实例', () => {
       for (const ch of ['a', 'b', 'c']) typeInto(full, ch);
     });
 
-    const sel = document.getSelection();
+    const sel = document.getSelection()!;
     expect(full.contains(sel.anchorNode)).toBe(true);
     expect(full.textContent).toBe('abc');
     expect(panel.textContent).toBe('abc'); // 面板实例重建后内容与大窗一致
@@ -95,23 +95,23 @@ describe('PromptInput 共享 value 双实例', () => {
 describe('PromptInput 外部 value 变化重建', () => {
   it('重建后光标仍停在原偏移，不会跳到开头', () => {
     const { container } = render(<ExternalChangeHarness />);
-    const el = container.querySelector('[contenteditable="true"]');
-    const textNode = el.firstChild;
+    const el = container.querySelector('[contenteditable="true"]')!;
+    const textNode = el.firstChild!;
 
     act(() => {
       const range = document.createRange();
       range.setStart(textNode, 1); // 'a|bc'
       range.collapse(true);
-      const sel = document.getSelection();
+      const sel = document.getSelection()!;
       sel.removeAllRanges();
       sel.addRange(range);
     });
 
     act(() => {
-      container.querySelector('button').click();
+      container.querySelector('button')!.click();
     });
 
-    const range = document.getSelection().getRangeAt(0);
+    const range = document.getSelection()!.getRangeAt(0);
     expect(el.contains(range.startContainer)).toBe(true);
     expect(range.startContainer.textContent).toBe('Xabc');
     expect(range.startOffset).toBe(1); // 仍是 'X|a…' 的相对位置语义（不丢光标）

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Node } from '@xyflow/react';
+import type { Node, Edge } from '@xyflow/react';
+import type { CanvasAgentCtx } from '../../src/components/agent/canvas/useCanvasAgentTools.ts';
 
 const mkNode = (data: Record<string, unknown> = {}): Node => ({
   id: 'n',
@@ -101,23 +102,45 @@ type ConvMock = typeof convStore & {
 };
 const convMock = convStore as unknown as ConvMock;
 
-function makeCtx(initialNodes = [], initialEdges = []) {
-  let nodes = [...initialNodes];
-  let edges = [...initialEdges];
+// 测试侧构造的节点/边只需实现被测用到的字段（宽松本地类型），
+// 经 as unknown as 收窄到 @xyflow/react 的 Node/Edge 以满足 CanvasAgentCtx 契约。
+type TestNode = {
+  id: string;
+  type?: string;
+  data?: Record<string, unknown>;
+  position?: { x: number; y: number } | Record<string, unknown>;
+  selected?: boolean;
+  width?: number;
+  [k: string]: unknown;
+};
+type TestEdge = {
+  id: string;
+  source: string;
+  target: string;
+  [k: string]: unknown;
+};
+
+function makeCtx(initialNodes: TestNode[] = [], initialEdges: TestEdge[] = []): CanvasAgentCtx {
+  let nodes: TestNode[] = [...initialNodes];
+  let edges: TestEdge[] = [...initialEdges];
   return {
-    getNodes: () => nodes,
+    getNodes: () => nodes as unknown as Node[],
     // P11：setNodes/setEdges 用 vi.fn 包装，便于断言「批量写合并为单次调用」
-    setNodes: vi.fn((fn) => {
-      nodes = typeof fn === 'function' ? fn(nodes) : fn;
+    setNodes: vi.fn((fn: Node[] | ((ns: Node[]) => Node[])) => {
+      nodes = (typeof fn === 'function'
+        ? fn(nodes as unknown as Node[])
+        : fn) as unknown as TestNode[];
     }),
-    getEdges: () => edges,
-    setEdges: vi.fn((fn) => {
-      edges = typeof fn === 'function' ? fn(edges) : fn;
+    getEdges: () => edges as unknown as Edge[],
+    setEdges: vi.fn((fn: Edge[] | ((es: Edge[]) => Edge[])) => {
+      edges = (typeof fn === 'function'
+        ? fn(edges as unknown as Edge[])
+        : fn) as unknown as TestEdge[];
     }),
-    addNodes: (ns) => {
-      nodes = [...nodes, ...ns];
+    addNodes: (ns: Node[]) => {
+      nodes = [...nodes, ...(ns as unknown as TestNode[])];
     },
-    screenToFlowPosition: (p) => p || { x: 0, y: 0 },
+    screenToFlowPosition: (p: { x: number; y: number }) => p || { x: 0, y: 0 },
     fitView: vi.fn(),
     zoomIn: vi.fn(),
     zoomOut: vi.fn(),
@@ -151,7 +174,7 @@ beforeEach(() => {
     convMock.__state.pending = g;
   });
   vi.mocked(convStore.getCurrentRefImages).mockImplementation(() => convMock.__state.refImages);
-  vi.mocked(convStore.setCurrentRefImages).mockImplementation((u: unknown[]) => {
+  vi.mocked(convStore.setCurrentRefImages).mockImplementation((u?: unknown[]) => {
     convMock.__state.refImages = Array.isArray(u) ? (u as string[]) : [];
   });
 });
@@ -172,7 +195,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       position: { x: 10, y: 20 },
     });
     expect(r.ok).toBe(true);
-    const node = ctx.getNodes().find((n) => n.id === r.data.id);
+    const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
     expect(node.data.label).toBe('测试');
     expect(node.position).toEqual({ x: 10, y: 20 });
   });
@@ -197,7 +220,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = t.create_node({ type: 'imageGenerateNode' });
-    const node = ctx.getNodes().find((n) => n.id === r.data.id);
+    const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
     expect(node.width).toBe(420);
   });
 
@@ -211,7 +234,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       resolution: '1080p',
     });
     expect(r.ok).toBe(true);
-    const node = ctx.getNodes().find((n) => n.id === r.data.id);
+    const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
     // 比例写入 data.aspectRatio（ImageGenerate 组件读取）
     expect(node.data.aspectRatio).toBe('9:16');
     // 分辨率 1080p 映射到 data.imageSize=1K（组件读取 imageSize 而非 resolution）
@@ -226,13 +249,13 @@ describe('画布 Agent 工具层 §2.5', () => {
       type: 'imageGenerateNode',
       resolution: '4K',
     });
-    expect(c1.getNodes().find((n) => n.id === r4.data.id).data.imageSize).toBe('4K');
+    expect(c1.getNodes().find((n) => n.id === r4.data!.id)!.data.imageSize).toBe('4K');
     const c2 = makeCtx();
     const r2 = buildCanvasAgentTools(c2).create_node({
       type: 'imageGenerateNode',
       resolution: '1440p',
     });
-    expect(c2.getNodes().find((n) => n.id === r2.data.id).data.imageSize).toBe('2K');
+    expect(c2.getNodes().find((n) => n.id === r2.data!.id)!.data.imageSize).toBe('2K');
   });
 
   it('create_node 非生图节点不写 aspectRatio/resolution', () => {
@@ -244,7 +267,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       aspectRatio: '9:16',
       resolution: '1080p',
     });
-    const node = ctx.getNodes().find((n) => n.id === r.data.id);
+    const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
     expect(node.data.aspectRatio).toBeUndefined();
     expect(node.data.imageSize).toBeUndefined();
   });
@@ -264,7 +287,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const t = buildCanvasAgentTools(ctx);
     const r = t.create_node({ type: 'imageGenerateNode', prompt: '新图' });
     expect(r.ok).toBe(true);
-    const node = ctx.getNodes().find((n) => n.id === r.data.id);
+    const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
     expect(node.position.x).toBe(200 + 420 + 100);
     expect(node.position.y).toBe(300);
   });
@@ -290,7 +313,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     ]);
     const t = buildCanvasAgentTools(ctx);
     const r = t.create_node({ type: 'imageGenerateNode' });
-    const node = ctx.getNodes().find((n) => n.id === r.data.id);
+    const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
     expect(node.position.x).toBe(300 + 300 + 100); // 最右边界 600 + 100
     expect(node.position.y).toBe(50); // 最小顶部
   });
@@ -308,7 +331,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     ]);
     const t = buildCanvasAgentTools(ctx);
     const r = t.create_node({ type: 'imageGenerateNode', position: { x: 999, y: 888 } });
-    const node = ctx.getNodes().find((n) => n.id === r.data.id);
+    const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
     expect(node.position.x).toBe(999);
     expect(node.position.y).toBe(888);
   });
@@ -382,7 +405,9 @@ describe('画布 Agent 工具层 §2.5', () => {
     const b = t2.batch_create_nodes({
       nodes: [{ type: 'textGenerateNode' }, { type: 'textGenerateNode' }],
     });
-    const batchPos = b.data.ids.map((id) => c2.getNodes().find((n) => n.id === id).position);
+    const batchPos = b.data.ids.map(
+      (id: string) => c2.getNodes().find((n) => n.id === id)!.position,
+    );
     expect(batchPos).toEqual(seqPos);
     expect(c2.setNodes).toHaveBeenCalledTimes(1);
   });
@@ -653,6 +678,16 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.error).toBe('模型超时');
   });
 
+  it('【TD-01-6】generate_node 未触发（runNodeGeneration 返回 false）→ 报「未注册生成契约」并带 nodeId', async () => {
+    vi.mocked(taskStore.runNodeGeneration).mockResolvedValueOnce(false);
+    const ctx = makeCtx([{ id: 'a', type: 'imageGenerateNode', data: {}, position: {} }]);
+    const t = buildCanvasAgentTools(ctx);
+    const r = await t.generate_node({ nodeId: 'a' });
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain('未注册生成契约');
+    expect((r as unknown as { nodeId: string }).nodeId).toBe('a');
+  });
+
   it('generate_node 节点不存在 → 回填可用 id 引导自愈（防 LLM 自猜 imageGenerateNode_1）', async () => {
     const ctx = makeCtx([
       { id: 'imageGenerateNode_real_a', type: 'imageGenerateNode', data: {}, position: {} },
@@ -845,8 +880,8 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(mockExecutePlan).toHaveBeenCalledTimes(1);
     const arg = mockExecutePlan.mock.calls[0][0];
     expect(arg.generations).toHaveLength(1);
-    expect(arg.generations[0].id).toBe('g1'); // 主通道：gens 取自暂存，非 args
-    expect(arg.generations[0].prompt).toBe('一只猫'); // 无 global_contract → 不加风格前缀
+    expect(arg.generations![0].id).toBe('g1'); // 主通道：gens 取自暂存，非 args
+    expect(arg.generations![0].prompt).toBe('一只猫'); // 无 global_contract → 不加风格前缀
     expect(convStore.setActivePendingGenerations).toHaveBeenCalledWith(null); // 执行后清暂存
   });
 
@@ -868,10 +903,10 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.ok).toBe(true);
     const arg = mockExecutePlan.mock.calls[0][0];
     // 每步按索引解析成自己的 referenceImages
-    expect(arg.generations[0].referenceImages).toEqual(['http://ref/1.png']);
-    expect(arg.generations[1].referenceImages).toEqual(['http://ref/2.png']);
+    expect(arg.generations![0].referenceImages).toEqual(['http://ref/1.png']);
+    expect(arg.generations![1].referenceImages).toEqual(['http://ref/2.png']);
     // 无索引的步骤不注入 per-step referenceImages（执行器会回退整批共享）
-    expect(arg.generations[2].referenceImages).toBeUndefined();
+    expect(arg.generations![2].referenceImages).toBeUndefined();
   });
 
   it('【对齐大雄 agentLastUserAttachments】本轮无图时 execute_plan 回退用历史 user 图（attachment_indices 精确取）', async () => {
@@ -893,8 +928,8 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.ok).toBe(true);
     const arg = mockExecutePlan.mock.calls[0][0];
     // 每步按索引精确取历史图（对齐大雄「本轮无图回退上一轮用户图」）
-    expect(arg.generations[0].referenceImages).toEqual(['http://hist/1.png']);
-    expect(arg.generations[1].referenceImages).toEqual(['http://hist/2.png']);
+    expect(arg.generations![0].referenceImages).toEqual(['http://hist/1.png']);
+    expect(arg.generations![1].referenceImages).toEqual(['http://hist/2.png']);
   });
 
   it('【对齐大雄 direct_refs】execute_plan 按图编号引用历史/生成图，prompt 里「图N」翻译成「第X张参考图」', async () => {
@@ -919,9 +954,9 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.ok).toBe(true);
     const arg = mockExecutePlan.mock.calls[0][0];
     // prompt 里「图1」「图2」被翻译成「第1张参考图」「第2张参考图」
-    expect(arg.generations[0].prompt).toContain('把第1张参考图改成红色，第2张参考图保持不变');
+    expect(arg.generations![0].prompt).toContain('把第1张参考图改成红色，第2张参考图保持不变');
     // referenceImages 精确取 direct_refs 的 url
-    expect(arg.generations[0].referenceImages).toEqual(['http://x/gen1.png', 'http://x/gen2.png']);
+    expect(arg.generations![0].referenceImages).toEqual(['http://x/gen1.png', 'http://x/gen2.png']);
   });
 
   it('buildFusionPrompt：挂全部前序成功图 + 改写为融合提示词（对齐大雄）', () => {

@@ -142,8 +142,8 @@ describe('buildCanvasAgentTools', () => {
     ) => Record<string, unknown>[];
     const result = applyFn([{ id: 'existing', data: {} }]);
     const created = result.find((n) => n.id === res.data.id);
-    expect((created.data as Record<string, unknown>).text).toBe('AI 回复内容');
-    expect((created.data as Record<string, unknown>).prompt).toBeUndefined();
+    expect((created!.data as Record<string, unknown>).text).toBe('AI 回复内容');
+    expect((created!.data as Record<string, unknown>).prompt).toBeUndefined();
   });
 
   it('create_node 对 textGenerateNode 仅传 prompt → 内容落抽屉区 data.prompt（AI 既有行为不变）', () => {
@@ -159,7 +159,7 @@ describe('buildCanvasAgentTools', () => {
     ) => Record<string, unknown>[];
     const result = applyFn([{ id: 'existing', data: {} }]);
     const created = result.find((n) => n.id === res.data.id);
-    expect((created.data as Record<string, unknown>).prompt).toBe('抽屉提示词');
+    expect((created!.data as Record<string, unknown>).prompt).toBe('抽屉提示词');
   });
 
   it('create_node 用非法 type → ok:false 且给出可选类型', () => {

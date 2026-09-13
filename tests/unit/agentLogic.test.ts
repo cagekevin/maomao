@@ -7,7 +7,7 @@ import {
 } from '../../src/components/agent/runtime/useAgentChat.ts';
 // buildRequestMessages 的 messages 参数为 ChatMessage[]（role 是字面量联合、content 是 string | 内容块数组联合），
 // 测试构造的消息需按该类型标注，避免字面量被宽化成 string。
-import type { ChatMessage } from '@/components/agent/runtime/agentCore.ts';
+import type { ChatMessage, SSEAccumulator } from '@/components/agent/runtime/agentCore.ts';
 
 // buildRequestMessages 输出的 content 块类型（测试按块读 type/text）
 type ContentBlock = { type: string; text?: string; image_url?: { url: string } };
@@ -30,7 +30,7 @@ describe('AI 助手 parseSSEChunk（SSE 解析）§2.15', () => {
   });
 
   it('解析 tool_calls 增量（name + arguments 分段拼接）', () => {
-    const acc = { content: '', reasoning: '', toolCalls: [] };
+    const acc: SSEAccumulator = { content: '', reasoning: '', toolCalls: [] };
     parseSSEChunk(
       'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call1","function":{"name":"create","arguments":"{\\"ty"}}]}}]}',
       acc,
@@ -39,9 +39,9 @@ describe('AI 助手 parseSSEChunk（SSE 解析）§2.15', () => {
       'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"pe\\":\\"imageGenerateNode\\"}"}}]}}]}',
       acc,
     );
-    expect(acc.toolCalls[0].id).toBe('call1');
-    expect(acc.toolCalls[0].function.name).toBe('create');
-    expect(acc.toolCalls[0].function.arguments).toBe('{"type":"imageGenerateNode"}');
+    expect(acc.toolCalls[0]!.id).toBe('call1');
+    expect(acc.toolCalls[0]!.function!.name).toBe('create');
+    expect(acc.toolCalls[0]!.function!.arguments).toBe('{"type":"imageGenerateNode"}');
   });
 
   it('忽略非 data: 前缀 / [DONE] / 空', () => {
@@ -119,8 +119,8 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const skillMsg = out.find(
       (m) => m.role === 'system' && String(m.content).includes('Skill 文档'),
     );
-    expect(skillMsg.content).toContain('你是电商设计师');
-    expect(skillMsg.content).toContain('===== Skill 文档开始：电商 =====');
+    expect(skillMsg!.content).toContain('你是电商设计师');
+    expect(skillMsg!.content).toContain('===== Skill 文档开始：电商 =====');
   });
 
   it('memory.lastPlan 注入最近策划', () => {
@@ -129,8 +129,8 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     };
     const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', true, [], memory);
     const memMsg = out.find((m) => m.role === 'system' && String(m.content).includes('最近策划'));
-    expect(memMsg.content).toContain('规划说明');
-    expect(memMsg.content).toContain('主图');
+    expect(memMsg!.content).toContain('规划说明');
+    expect(memMsg!.content).toContain('主图');
   });
 
   it('用户消息带附件 → 转 image_url 数组', () => {
@@ -142,7 +142,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       null,
     );
     const user = out.find((m) => m.role === 'user');
-    expect(user.content).toEqual([
+    expect(user!.content).toEqual([
       { type: 'image_url', image_url: { url: '/files/a.png' } },
       { type: 'text', text: '看图' },
     ]);
@@ -224,7 +224,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const out = buildRequestMessages(msgs, '', false);
     const tool = out.find((m) => m.role === 'tool');
     expect(tool).toBeTruthy();
-    expect(tool.tool_call_id).toBe('c_real');
+    expect(tool!.tool_call_id).toBe('c_real');
     expect(out.find((m) => m.role === 'assistant')?.tool_calls).toHaveLength(1);
   });
 
@@ -256,10 +256,10 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const out = buildRequestMessages(msgs, '', false);
     const user = out.find((m) => m.role === 'user');
     // 图片转 image_url（带附件时 content 运行时为内容块数组，此处断言为数组）
-    expect((user.content as unknown as ContentBlock[])[0].type).toBe('image_url');
+    expect((user!.content as unknown as ContentBlock[])[0].type).toBe('image_url');
     // 坐标文本附加在 content 里，LLM 能感知参考图来自画布哪个位置
     const text =
-      (user.content as unknown as ContentBlock[]).find((c) => c.type === 'text')?.text || '';
+      (user!.content as unknown as ContentBlock[]).find((c) => c.type === 'text')?.text || '';
     expect(text).toContain('画布坐标 x=100, y=200');
   });
 
@@ -274,7 +274,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const out = buildRequestMessages(msgs, '', false);
     const user = out.find((m) => m.role === 'user');
     const text =
-      (user.content as unknown as ContentBlock[]).find((c) => c.type === 'text')?.text || '';
+      (user!.content as unknown as ContentBlock[]).find((c) => c.type === 'text')?.text || '';
     expect(text).not.toContain('画布坐标');
     expect(text).toContain('生成一张图');
   });
@@ -331,8 +331,8 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const users = out.filter((m) => m.role === 'user');
     // 历史 user 只保留纯文字，content 是字符串而非 image_url 数组
     const histUser = users.find((u) => u.content === '看这张图');
-    expect(typeof histUser.content).toBe('string'); // 图未内联（是纯文字，不是 image_url 数组）
-    expect(histUser.content).not.toContain('image_url');
+    expect(typeof histUser!.content).toBe('string'); // 图未内联（是纯文字，不是 image_url 数组）
+    expect(histUser!.content).not.toContain('image_url');
     // 图片只以 imageCatalog 编号形式进 system（图N 机制），供 LLM 引用
     const sys = out.find((m) => m.role === 'system');
     expect(sys?.content).toContain('图1');

@@ -46,6 +46,19 @@ export function useProjectBackupIO(): void {
           try {
             const backup = JSON.parse(String(ev.target?.result));
             const res = await importAll(backup);
+            // 【TD-15-3】部分失败：数据已部分写回 → 明确告知失败项，**仍刷新**（否则停在半导入态）
+            if (!res.ok && res.failed.length > 0) {
+              logger.error('App', '导入部分失败', { failed: res.failed });
+              showToast(
+                `导入完成但有 ${res.failed.length} 项失败（${res.failed
+                  .map((f) => f.projectId)
+                  .join('、')}），即将刷新`,
+                { type: 'warning' },
+              );
+              setTimeout(() => window.location.reload(), 2500);
+              return;
+            }
+            // 非对象/非 yimao 备份/版本过高：预检拒绝，未写入任何数据 → 不刷新
             if (!res.ok) throw new Error(res.error || '导入失败');
             showToast(`导入成功（${res.ls} 配置 + ${res.canvas} 画布），即将刷新应用`, {
               type: 'success',
@@ -53,7 +66,8 @@ export function useProjectBackupIO(): void {
             setTimeout(() => window.location.reload(), 1500);
           } catch (err) {
             logger.error('App', '导入失败', err);
-            showToast('导入失败：文件格式不正确', { type: 'error' });
+            // 不再一律归因"文件格式不正确"——诚实透传真实原因（版本不符 / 文件不可解析等）
+            showToast(`导入失败：${(err as Error)?.message || '未知错误'}`, { type: 'error' });
           }
         };
         reader.readAsText(file);

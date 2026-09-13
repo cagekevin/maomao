@@ -19,28 +19,28 @@ const h = vi.hoisted(() => {
   const handleProps: Array<Record<string, unknown>> = [];
   return {
     handleProps,
-    HandleMock: (props) => {
-      h.handleProps.push(props);
+    HandleMock: (props: CustomHandleProps) => {
+      h.handleProps.push(props as unknown as Record<string, unknown>);
       return null;
     },
   };
 });
 
 vi.mock('@xyflow/react', () => ({
-  Handle: (props) => h.HandleMock(props),
+  Handle: (props: CustomHandleProps) => h.HandleMock(props),
 }));
 
-import CustomHandle from '../../src/components/edges/CustomHandle.tsx';
+import CustomHandle, { type CustomHandleProps } from '../../src/components/edges/CustomHandle.tsx';
 
 describe('CustomHandle — 变体与定位', () => {
   afterEach(() => {
     h.handleProps.length = 0;
   });
 
-  function setup(props) {
+  function setup(props: CustomHandleProps) {
     const view = render(<CustomHandle {...props} />);
     // querySelector 默认返回 Element（无 style 属性），用泛型收窄到 HTMLElement
-    const wrap = view.container.querySelector<HTMLElement>('.cust-handle-wrap');
+    const wrap = view.container.querySelector<HTMLElement>('.cust-handle-wrap')!;
     return { view, wrap };
   }
 
@@ -108,10 +108,10 @@ describe('CustomHandle — 鼠标追踪（--cust-shift-x/y）', () => {
     vi.useRealTimers();
   });
 
-  function setup(props) {
+  function setup(props: CustomHandleProps) {
     const view = render(<CustomHandle {...props} />);
     // querySelector 默认返回 Element（无 style 属性），用泛型收窄到 HTMLElement
-    const wrap = view.container.querySelector<HTMLElement>('.cust-handle-wrap');
+    const wrap = view.container.querySelector<HTMLElement>('.cust-handle-wrap')!;
     return { view, wrap };
   }
 

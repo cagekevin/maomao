@@ -22,7 +22,7 @@ import { mocks } from './_nodeMocks.mjs';
 
 // ── 可控 hoisted 状态 ──
 const h = vi.hoisted(() => {
-  let connected = { videos: [] };
+  let connected: { videos: unknown[] } = { videos: [] };
   const showToast = vi.fn();
   const contentSet = vi.fn();
   const downloadUrl = vi.fn();
@@ -34,7 +34,7 @@ const h = vi.hoisted(() => {
     get connected() {
       return connected;
     },
-    setConnected: (v) => {
+    setConnected: (v: { videos: unknown[] }) => {
       connected = v;
     },
     showToast,
@@ -52,7 +52,7 @@ vi.mock('../../src/components/base/ui/NodeTitle.tsx', () => ({ default: mocks.No
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => h.connected }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
 vi.mock('../../src/components/base/core/toastStore.ts', () => ({
-  showToast: (...a) => h.showToast(...a),
+  showToast: (...a: unknown[]) => h.showToast(...a),
   toastError: vi.fn(),
   toastWarning: vi.fn(),
   toastInfo: vi.fn(),
@@ -61,7 +61,7 @@ vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   contentSet: (...a: unknown[]) => (h.contentSet as unknown as (...x: unknown[]) => void)(...a),
 }));
 vi.mock('../../src/components/base/utils/clipboard.ts', () => ({
-  downloadUrl: (...a) => h.downloadUrl(...a),
+  downloadUrl: (...a: unknown[]) => h.downloadUrl(...a),
 }));
 vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: h.logger }));
 vi.mock('../../src/components/base/utils/previewUrl.ts', () => ({
@@ -75,14 +75,31 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({
 }));
 // 结果落盘唯一入口：断言节点把 extractedImages 写回 node.data（刷新不丢）
 vi.mock('../../src/hooks/useNodeData.ts', () => ({
-  useNodeData: () => ({ patchData: (...a) => h.patchData(...a) }),
+  useNodeData: () => ({ patchData: (...a: unknown[]) => h.patchData(...a) }),
 }));
 
 import VideoExtractNode from '../../src/components/nodes/VideoExtractNode.tsx';
 
+/** 抽帧失败用例里用于顶替 <video> 的最小形状（仅实现被测用到的字段）。 */
+interface FakeVideo {
+  src: string;
+  duration: number;
+  videoWidth: number;
+  videoHeight: number;
+  currentTime: number;
+  muted: boolean;
+  playsInline: boolean;
+  crossOrigin: string;
+  load: () => void;
+  addEventListener: () => void;
+  removeEventListener: () => void;
+  onloadedmetadata: ((e?: unknown) => void) | null;
+  onerror: ((e: unknown) => void) | null;
+}
+
 // jsdom 无 navigator.clipboard；复制逻辑依赖它，固定为可断言 mock
 Object.defineProperty(globalThis.navigator, 'clipboard', {
-  value: { writeText: (...a) => h.clipboardWrite(...a) },
+  value: { writeText: (...a: unknown[]) => h.clipboardWrite(...a) },
   configurable: true,
 });
 
@@ -90,7 +107,7 @@ const setup = (props = {}) =>
   render(<VideoExtractNode id="ve1" data={{}} selected={false} {...props} />);
 
 // 抽帧流程用：spy document.createElement 注入 fake video/canvas
-let createElSpy;
+let createElSpy: { mockRestore: () => void } | undefined;
 function installMediaMocks() {
   const origCreate = document.createElement.bind(document);
   const ctx = {
@@ -110,24 +127,26 @@ function installMediaMocks() {
   Object.defineProperty(video, 'duration', { configurable: true, writable: true, value: 10 });
   Object.defineProperty(video, 'videoWidth', { configurable: true, writable: true, value: 640 });
   Object.defineProperty(video, 'videoHeight', { configurable: true, writable: true, value: 360 });
+  // seek 进度用闭包变量记录（避免往真实 HTMLVideoElement 上挂自定义字段 _t）
+  let seekT = 0;
   Object.defineProperty(video, 'currentTime', {
     configurable: true,
-    get: () => video._t || 0,
-    set: (t) => {
-      video._t = t;
+    get: () => seekT,
+    set: (t: number) => {
+      seekT = t;
       video.dispatchEvent(new Event('seeked'));
     },
   });
-  createElSpy = vi.spyOn(document, 'createElement').mockImplementation((tag) => {
-    if (tag === 'video') {
-      setTimeout(() => {
-        if (video.onloadedmetadata) video.onloadedmetadata();
-      }, 0);
-      return video;
-    }
-    if (tag === 'canvas') return canvas;
-    return origCreate(tag);
-  });
+  createElSpy = vi.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
+    // 测试 mock 只实现被测用到的分支；返回形状与真实 createElement 不完全一致，收窄为原函数类型
+    tag === 'video'
+      ? (setTimeout(() => {
+          if (video.onloadedmetadata) video.onloadedmetadata(new Event('loadedmetadata'));
+        }, 0),
+        video)
+      : tag === 'canvas'
+        ? canvas
+        : origCreate(tag)) as unknown as typeof document.createElement);
   return { video, ctx };
 }
 
@@ -151,7 +170,7 @@ describe('VideoExtractNode — 空态与视频来源', () => {
 
   it('上传视频 → 显示视频名与替换按钮', () => {
     const { container } = setup();
-    const input = container.querySelector('input[type="file"]');
+    const input = container.querySelector('input[type="file"]')!;
     fireEvent.change(input, {
       target: { files: [new File(['x'], 'myvideo.mp4', { type: 'video/mp4' })] },
     });
@@ -228,30 +247,31 @@ describe('VideoExtractNode — 抽帧完整流程', () => {
   it('加载失败（视频 onerror）→ 展示错误信息 + 分类记录（business）', async () => {
     const origCreate = document.createElement.bind(document);
     // 必须存入 createElSpy：beforeEach 统一 mockRestore，否则 spy 泄漏污染后续用例
-    createElSpy = vi.spyOn(document, 'createElement').mockImplementation((tag) => {
-      if (tag === 'video') {
-        const v = {
-          src: '',
-          duration: 0,
-          videoWidth: 0,
-          videoHeight: 0,
-          currentTime: 0,
-          muted: false,
-          playsInline: false,
-          crossOrigin: '',
-          load: vi.fn(),
-          addEventListener: () => {},
-          removeEventListener: () => {},
-          onloadedmetadata: null,
-          onerror: null,
-        };
-        setTimeout(() => {
-          if (v.onerror) v.onerror(new Error('boom'));
-        }, 0);
-        return v;
-      }
-      return origCreate(tag);
-    });
+    createElSpy = vi.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
+      // 测试 mock 只实现被测用到的分支；返回形状与真实 createElement 不完全一致，收窄为原函数类型
+      tag === 'video'
+        ? (() => {
+            const v: FakeVideo = {
+              src: '',
+              duration: 0,
+              videoWidth: 0,
+              videoHeight: 0,
+              currentTime: 0,
+              muted: false,
+              playsInline: false,
+              crossOrigin: '',
+              load: vi.fn(),
+              addEventListener: () => {},
+              removeEventListener: () => {},
+              onloadedmetadata: null,
+              onerror: null,
+            };
+            setTimeout(() => {
+              if (v.onerror) v.onerror(new Error('boom'));
+            }, 0);
+            return v;
+          })()
+        : origCreate(tag)) as unknown as typeof document.createElement);
     setup({ data: { videoUrl: 'http://x/bad.mp4', videoName: 'bad.mp4' } });
     fireEvent.click(screen.getByText('开始处理'));
     expect(await screen.findByText('无法加载视频')).toBeTruthy();
@@ -331,18 +351,20 @@ describe('VideoExtractNode — 结果落盘 node.data（刷新不丢）', () => 
     });
     fireEvent.click(screen.getByText('开始处理'));
     expect(await screen.findByText('已提取 9 帧')).toBeTruthy();
-    const calls = h.patchData.mock.calls.map((c) => c[0]);
+    const calls = h.patchData.mock.calls.map((c) => c[0] as { extractedImages?: string[] });
     // 开始先清空旧帧
     expect(calls).toContainEqual({ extractedImages: [] });
     // 完成时写入 9 帧（mock canvas 每帧返回同一 base64）
     const finalCall = calls.find((c) => c.extractedImages?.length === 9);
     expect(finalCall).toBeTruthy();
-    expect(finalCall.extractedImages.every((f) => f === 'data:image/jpeg;base64,frame')).toBe(true);
+    expect(
+      finalCall!.extractedImages!.every((f: string) => f === 'data:image/jpeg;base64,frame'),
+    ).toBe(true);
   });
 
   it('上传新视频 → 清空 data.extractedImages（旧帧不残留）', () => {
     setup({ data: { extractedImages: ['data:image/jpeg;base64,old'] } });
-    const input = document.querySelector('input[type="file"]');
+    const input = document.querySelector('input[type="file"]')!;
     fireEvent.change(input, {
       target: { files: [new File(['x'], 'new.mp4', { type: 'video/mp4' })] },
     });
@@ -365,30 +387,31 @@ describe('VideoExtractNode — 结果落盘 node.data（刷新不丢）', () => 
   it('抽帧失败 → 只清空不写结果（data 无帧数组）', async () => {
     const origCreate = document.createElement.bind(document);
     // 存入 createElSpy，beforeEach 统一还原（防泄漏污染后续用例）
-    createElSpy = vi.spyOn(document, 'createElement').mockImplementation((tag) => {
-      if (tag === 'video') {
-        const v = {
-          src: '',
-          duration: 0,
-          videoWidth: 0,
-          videoHeight: 0,
-          currentTime: 0,
-          muted: false,
-          playsInline: false,
-          crossOrigin: '',
-          load: vi.fn(),
-          addEventListener: () => {},
-          removeEventListener: () => {},
-          onloadedmetadata: null,
-          onerror: null,
-        };
-        setTimeout(() => {
-          if (v.onerror) v.onerror(new Error('boom'));
-        }, 0);
-        return v;
-      }
-      return origCreate(tag);
-    });
+    createElSpy = vi.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
+      // 测试 mock 只实现被测用到的分支；返回形状与真实 createElement 不完全一致，收窄为原函数类型
+      tag === 'video'
+        ? (() => {
+            const v: FakeVideo = {
+              src: '',
+              duration: 0,
+              videoWidth: 0,
+              videoHeight: 0,
+              currentTime: 0,
+              muted: false,
+              playsInline: false,
+              crossOrigin: '',
+              load: vi.fn(),
+              addEventListener: () => {},
+              removeEventListener: () => {},
+              onloadedmetadata: null,
+              onerror: null,
+            };
+            setTimeout(() => {
+              if (v.onerror) v.onerror(new Error('boom'));
+            }, 0);
+            return v;
+          })()
+        : origCreate(tag)) as unknown as typeof document.createElement);
     setup({ data: { videoUrl: 'http://x/bad.mp4', videoName: 'bad.mp4' } });
     fireEvent.click(screen.getByText('开始处理'));
     expect(await screen.findByText('无法加载视频')).toBeTruthy();

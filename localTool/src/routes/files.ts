@@ -31,7 +31,11 @@ import { fetchWithProxy } from '../utils/netProxy.js';
 import { logTs } from '../utils/relayHeaders.js';
 import { localToolBaseUrl } from '../utils/localToolBaseUrl.js';
 import { saveBase64ToFile } from '../utils/base64Externalize.js';
-import { applyResourceContextMove } from './resources.js';
+import {
+  applyResourceContextMove,
+  recordUploadedFileRow,
+  relativePathFromFileUrl,
+} from './resources.js';
 import { extToMime, mimeToExt } from '../utils/mime.js';
 
 const BASE_URL = localToolBaseUrl();
@@ -89,6 +93,8 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
 
   const subfolder = fields['subfolder'] || 'canvas';
   const filename = fields['filename'] || undefined;
+  // 【TD-12-5】当前项目 id（发起方唯一知晓）→ 落盘后写入 resource 行，闭合项目隔离写入链
+  const projectId = fields['projectId'] || undefined;
 
   // file 优先于 fileUrl
   const fileData = files['file'];
@@ -115,6 +121,13 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
     });
     // DB 既有 url 为绝对形式（http://.../files/...），转相对供 `BASE_URL + urlPath` 统一拼接
     const fileUrlPath = dedup.urlPath.replace(/^https?:\/\/[^/]+/, '');
+    // 【TD-12-5】本次真落盘（非 contentId 去重复用）时登记行并写 projectId。
+    // 去重命中说明**行已存在**（命中依据正是既有行的 sha1）→ 无需重复登记；
+    // 既有行归属哪个项目属 content 全局去重策略（docs/122 #6：同内容跨入口/跨 folder 只一行），不在本次扩建范围。
+    if (!dedup.deduped) {
+      const relPath = fileUrlPath.replace(/^\/files\//, '');
+      await recordUploadedFileRow(relPath, { projectId });
+    }
     const thumbnailUrl = dedup.savedPath
       ? await tryGenerateThumbnail(dedup.savedPath, fileUrlPath)
       : undefined;
@@ -138,6 +151,9 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
     // fileUrl 模式：下载远程文件保存（幂等：同一远程 URL → 同一本地文件名，已存在则跳过下载）
     try {
       const result = await saveRemoteUrl(subfolder, fileUrl, filename);
+      // 【TD-12-5】登记行并写 projectId
+      const rel = result?.url ? relativePathFromFileUrl(result.url) : null;
+      if (rel) await recordUploadedFileRow(rel, { projectId });
       uploadLog(200, `fileUrl ${fileUrl}`);
       return json(res, { code: 0, data: result });
     } catch (e) {
@@ -156,6 +172,7 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
     dataUri?: string;
     subfolder?: string;
     filename?: string;
+    projectId?: string;
   } | null;
   if (!body) {
     uploadLog(400, 'missing body in JSON');
@@ -163,6 +180,8 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
   }
 
   const subfolder = body.subfolder || 'canvas';
+  // 【TD-12-5】当前项目 id（发起方唯一知晓）→ 落盘后写入 resource 行，闭合项目隔离写入链
+  const projectId = body.projectId || undefined;
 
   // dataUri 分支：前端 saveInlineToLocal 已收口为纯透传 base64 原文 + 子目录（deepening-files-upload-seam 候选 B）。
   // 落盘统一委托 base64Externalize.saveBase64ToFile（sha1(base64 原文) 前 16 位幂等 + isValidBase64 严格校验），
@@ -174,6 +193,9 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
       uploadLog(400, 'dataUri 非法/不可解码');
       return sendError(res, 'Invalid dataUri', 400);
     }
+    // 【TD-12-5】登记行并写 projectId（否则行由 rescan 建、project_id 恒 NULL）
+    const rel = relativePathFromFileUrl(url);
+    if (rel) await recordUploadedFileRow(rel, { projectId });
     uploadLog(200, `dataUri -> ${url}`);
     return json(res, { code: 0, data: { url } });
   }
@@ -187,6 +209,9 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
 
   try {
     const result = await saveRemoteUrl(subfolder, body.fileUrl, filename);
+    // 【TD-12-5】登记行并写 projectId
+    const rel = result?.url ? relativePathFromFileUrl(result.url) : null;
+    if (rel) await recordUploadedFileRow(rel, { projectId });
     uploadLog(200, `fileUrl ${body.fileUrl}`);
     return json(res, { code: 0, data: result });
   } catch (e) {
@@ -461,7 +486,7 @@ export async function handleMkdir(req: IncomingMessage, res: ServerResponse): Pr
 // 【增量② · context-only（docs/122 Content/Ref：#4「移动只动 context」）】
 // 把资源拖入文件夹 = 只更新 resource 行的 folder（UI 分类），**磁盘文件 / url / contentId 均不动**。
 // 故此移动不再真做 renameSync 物理移动、不再改写 url/引用 → asset 永不破图、无需 rewriteUrlReferences。
-// 历史「真移动磁盘 + 改写 url」由 applyResourceIdentityChange（真·身份变更）承担，此处移动归类走 context-only。
+// 历史「真移动磁盘 + 改写 url」曾由 applyResourceIdentityChange（真·身份变更）承担；该函数已随 context-only 上线退役。
 export async function handleMove(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = (await parseJsonBody(req)) as { src?: string; dst?: string } | null;
   if (!body || !body.src || !body.dst) {

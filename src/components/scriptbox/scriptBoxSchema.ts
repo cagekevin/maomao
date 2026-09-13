@@ -217,3 +217,39 @@ export function normalizeScriptBoxData(raw: Record<string, unknown> = {}): Scrip
 
   return d;
 }
+
+/* ════════════════════════════════════════════════════════════════
+ * 剧本盒「多任务」的伪 nodeId 契约（**单源**：引擎生成 / hook recover 解析共用）
+ * ────────────────────────────────────────────────────────────────
+ * 剧本盒一个节点会发起多类独立生成任务（每张资产一张图 / 每镜一张尾帧综合图）。任务中心以
+ * nodeId 为卡片粒度且 reportGenerate 会结束**同 nodeId**的旧 running 任务 → 若都用剧本盒自身
+ * nodeId，任务会互相顶掉。故每类任务用独立伪 nodeId：
+ *   - 资产图：`${nodeId}-asset-${assetId}`（批量时每张一卡）
+ *   - 尾帧综合图：`${nodeId}-tailframe-${shotId}`（每镜一卡）
+ * 引擎上报与 hook 回填**必须用同一规则** → 收在此处，禁止各自拼字符串（否则改一处漏一处）。
+ * ════════════════════════════════════════════════════════════════ */
+
+/** 资产图任务的伪 nodeId（引擎 reportGenerate 上报用）。 */
+export function assetTaskNodeId(nodeId: string, assetId: string): string {
+  return `${nodeId}-asset-${assetId}`;
+}
+
+/**
+ * 反解伪 nodeId → assetId（hook 收 `agent:task-completed` 广播时用）。
+ * 非本剧本盒的资产任务（前缀不匹配）返回 null → 调用方忽略（精准回填，与节点侧 `d.nodeId === nodeId` 同精神）。
+ */
+export function parseAssetTaskNodeId(nodeId: string, taskNodeId: string): string | null {
+  const prefix = `${nodeId}-asset-`;
+  return taskNodeId.startsWith(prefix) ? taskNodeId.slice(prefix.length) : null;
+}
+
+/** 尾帧综合图任务的伪 nodeId（引擎 reportGenerate 上报用；每镜一张卡，互不顶掉）。 */
+export function tailFrameTaskNodeId(nodeId: string, shotId: string): string {
+  return `${nodeId}-tailframe-${shotId}`;
+}
+
+/** 反解尾帧任务伪 nodeId → shotId（hook 收 `agent:task-completed` 广播回填用；非本盒/非尾帧任务返回 null）。 */
+export function parseTailFrameTaskNodeId(nodeId: string, taskNodeId: string): string | null {
+  const prefix = `${nodeId}-tailframe-`;
+  return taskNodeId.startsWith(prefix) ? taskNodeId.slice(prefix.length) : null;
+}

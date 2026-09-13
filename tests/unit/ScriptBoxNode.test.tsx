@@ -16,7 +16,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 const h = vi.hoisted(() => {
-  const state = { nodes: [] };
+  const state: { nodes: Array<{ id: string; data: Record<string, unknown> }> } = { nodes: [] };
   const setNodesMock = vi.fn((updater) => {
     state.nodes = typeof updater === 'function' ? updater(state.nodes) : updater;
   });
@@ -24,7 +24,12 @@ const h = vi.hoisted(() => {
   const updateData = vi.fn();
   const updateNodeInternals = vi.fn();
   // 上游输入（可控，供「上游接入」用例）：默认空
-  const upstream = { images: [], texts: [], videos: [], audios: [] };
+  const upstream: {
+    images: Array<{ id: string; url: string; label: string; sourceNodeId: string }>;
+    texts: Array<{ id: string; text: string; label: string; sourceNodeId: string }>;
+    videos: unknown[];
+    audios: unknown[];
+  } = { images: [], texts: [], videos: [], audios: [] };
   // 引擎实例：10 个回调（含 onStopScriptItem），与真实 createScriptBoxEngine 返回一致
   const engine = {
     onGenerateScript: vi.fn(),
@@ -59,7 +64,13 @@ vi.mock('@xyflow/react', () => ({
 // NodeShell mock：区分两个插槽 —— children（定位基准=主框，不含标题栏）与
 // overlayHandles（定位基准=整个节点）。剧本盒子的 in 端口必须走 overlayHandles。
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
-  default: ({ children, overlayHandles }) => (
+  default: ({
+    children,
+    overlayHandles,
+  }: {
+    children?: React.ReactNode;
+    overlayHandles?: React.ReactNode;
+  }) => (
     <div>
       <div data-testid="node-children">{children}</div>
       <div data-testid="node-overlay">{overlayHandles}</div>
@@ -68,10 +79,13 @@ vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
 }));
 // 端口 mock：按 handleId 打标记，便于断言「in 端口挂在哪个插槽 / 是否存在」
 vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({
-  default: ({ handleId }) => <div data-testid={`handle-${handleId || 'default'}`} />,
+  default: ({ handleId }: { handleId?: string }) => (
+    <div data-testid={`handle-${handleId || 'default'}`} />
+  ),
 }));
 vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({
-  default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null),
+  default: ({ open, children }: { open?: boolean; children?: React.ReactNode }) =>
+    open ? <div data-testid="fullscreen">{children}</div> : null,
 }));
 // 数据读写通道：真实 useScriptBoxEngine 负责注入回调副作用，仅把返回的 updateData 指向 h.updateData 以记录调用（StepNav 切步用）
 vi.mock('../../src/hooks/useScriptBoxEngine.ts', async (importOriginal) => {
@@ -80,9 +94,9 @@ vi.mock('../../src/hooks/useScriptBoxEngine.ts', async (importOriginal) => {
     (await importOriginal()) as unknown as typeof import('../../src/hooks/useScriptBoxEngine.ts');
   return {
     ...real,
-    useScriptBoxEngine: (nodeId, data) => {
+    useScriptBoxEngine: (nodeId: string, data: ScriptBoxNodeData) => {
       const r = real.useScriptBoxEngine(nodeId, data);
-      return { ...r, updateData: (...a) => h.updateData(...a) };
+      return { ...r, updateData: (...a: unknown[]) => h.updateData(...a) };
     },
   };
 });
@@ -106,7 +120,13 @@ vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: ()
 
 // 三步子组件 mock：渲染内容标记 + 可点的引擎回调按钮（验证 UI 只调回调）
 vi.mock('../../src/components/scriptbox/StepShots.tsx', () => ({
-  default: ({ data, callbacks }) => (
+  default: ({
+    data,
+    callbacks,
+  }: {
+    data: { shots?: unknown[] };
+    callbacks?: { onGenerateScript?: () => void };
+  }) => (
     <div data-testid="step-shots">
       <span data-testid="shots-count">{data.shots?.length || 0}</span>
       <button
@@ -120,21 +140,21 @@ vi.mock('../../src/components/scriptbox/StepShots.tsx', () => ({
   ),
 }));
 vi.mock('../../src/components/scriptbox/StepAssets.tsx', () => ({
-  default: ({ data }) => (
+  default: ({ data }: { data: { assets?: unknown[] } }) => (
     <div data-testid="step-assets">
       <span data-testid="assets-count">{data.assets?.length || 0}</span>
     </div>
   ),
 }));
 vi.mock('../../src/components/scriptbox/StepPrompt.tsx', () => ({
-  default: ({ data }) => (
+  default: ({ data }: { data: { shots?: unknown[] } }) => (
     <div data-testid="step-prompt">
       <span data-testid="prompt-count">{data.shots?.length || 0}</span>
     </div>
   ),
 }));
 vi.mock('../../src/components/scriptbox/GearSettings.tsx', () => ({
-  default: ({ updateData }) => (
+  default: ({ updateData }: { updateData: (x: unknown) => void }) => (
     <div data-testid="gear-settings">
       <button
         type="button"
@@ -161,7 +181,7 @@ const nodeId = 'sb1';
 // data 入参用宽松的 Record（测试常喂 number id 等偏窄形状，props 处再断言到精确类型）
 function setup(data: Record<string, unknown> = {}) {
   // 传入含引擎回调的 data（模拟挂载后注入完成状态），使步骤子组件能调 callbacks
-  const nodeData0 = { ...data, ...h.engine };
+  const nodeData0: Record<string, unknown> = { ...data, ...h.engine };
   h.state.nodes = [{ id: nodeId, data: { ...nodeData0 } }];
   h.updateData.mockClear();
   Object.values(h.engine).forEach((fn) => fn.mockClear());

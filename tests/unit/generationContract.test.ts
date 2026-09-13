@@ -1,0 +1,211 @@
+/**
+ * generationContract 单测（TD-01-8）—— 任务中心编排序列的**唯一实现**。
+ * 覆盖（R3 顺序 + R5 三分支）：
+ *  - 成功：localize → settle(显示URL) → saveToTasks → onPersisted(持久URL) → done(最终)
+ *  - 不落盘 / 落盘失败降级（reportDegrade，不判整体失败）/ localize 失败降级
+ *  - 业务失败（含 aborted 不 toast）/ 抛 AbortError（分类中止）/ 抛普通异常 / run 返回 undefined
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const taskCtl = { taskId: 't-1', progress: vi.fn(), done: vi.fn(), fail: vi.fn() };
+const reportGenerateMock = vi.fn((..._a: unknown[]) => taskCtl);
+vi.mock('../../src/components/base/store/taskStore.ts', () => ({
+  reportGenerate: (...a: unknown[]) => reportGenerateMock(...a),
+}));
+
+const saveResultToTasksMock = vi.fn();
+vi.mock('../../src/components/base/api/index.ts', () => ({
+  saveResultToTasks: (...a: unknown[]) => saveResultToTasksMock(...a),
+}));
+
+const showToastMock = vi.fn();
+vi.mock('../../src/components/base/core/toastStore.ts', () => ({
+  showToast: (...a: unknown[]) => showToastMock(...a),
+}));
+
+const reportDegradeMock = vi.fn();
+vi.mock('../../src/components/base/core/degrade.ts', () => ({
+  reportDegrade: (...a: unknown[]) => reportDegradeMock(...a),
+}));
+
+vi.mock('../../src/components/base/core/logger.ts', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
+const { runGenerationContract } =
+  await import('../../src/components/base/store/generationContract.ts');
+
+const sig = new AbortController().signal;
+/** 记录关键步骤的顺序（验证 R3 的 persist 顺序固化） */
+let order: string[] = [];
+
+beforeEach(() => {
+  order = [];
+  reportGenerateMock.mockClear();
+  saveResultToTasksMock.mockReset();
+  showToastMock.mockClear();
+  reportDegradeMock.mockClear();
+  taskCtl.progress.mockReset();
+  taskCtl.done.mockReset().mockImplementation(() => order.push('done'));
+  taskCtl.fail.mockReset();
+});
+
+describe('runGenerationContract', () => {
+  it('成功：localize → settle(显示URL) → 落盘 → onPersisted(持久URL) → done(最终URL)', async () => {
+    saveResultToTasksMock.mockImplementation(async () => {
+      order.push('save');
+      return '/files/tasks/x.png';
+    });
+    const out = await runGenerationContract({
+      taskNodeId: 'n1',
+      type: 'image',
+      signal: sig,
+      localize: async () => '/files/migrated/人物/x.png',
+      settle: () => order.push('settle'),
+      onPersisted: () => order.push('onPersisted'),
+      run: async (a) => {
+        expect(a.taskId).toBe('t-1');
+        expect(a.signal).toBe(sig); // R1 signal 贯穿
+        a.progress(50, '生成中');
+        return { ok: true, url: 'https://up/x.png' };
+      },
+    });
+    expect(order).toEqual(['settle', 'save', 'onPersisted', 'done']); // R3 顺序固化
+    expect(taskCtl.progress).toHaveBeenCalledWith(5, '准备中…');
+    expect(taskCtl.progress).toHaveBeenCalledWith(50, '生成中');
+    expect(taskCtl.done).toHaveBeenCalledWith('/files/tasks/x.png');
+    expect(out).toMatchObject({ ok: true, resultUrl: '/files/tasks/x.png' });
+  });
+
+  it('不落盘（saveToTasks:false）→ 直接 done(显示URL)，不触发 onPersisted', async () => {
+    const onPersisted = vi.fn();
+    const out = await runGenerationContract({
+      taskNodeId: 'n1',
+      type: 'image',
+      signal: sig,
+      saveToTasks: false,
+      onPersisted,
+      run: async () => ({ ok: true, url: 'https://up/x.png' }),
+    });
+    expect(saveResultToTasksMock).not.toHaveBeenCalled();
+    expect(onPersisted).not.toHaveBeenCalled();
+    expect(taskCtl.done).toHaveBeenCalledWith('https://up/x.png');
+    expect(out.resultUrl).toBe('https://up/x.png');
+  });
+
+  it('落盘失败 → reportDegrade 留痕 + done(显示URL)，**不**把整体判定为失败', async () => {
+    saveResultToTasksMock.mockRejectedValue(new Error('offline'));
+    const out = await runGenerationContract({
+      taskNodeId: 'n1',
+      type: 'image',
+      signal: sig,
+      run: async () => ({ ok: true, url: 'https://up/x.png' }),
+    });
+    expect(reportDegradeMock).toHaveBeenCalledTimes(1);
+    expect(taskCtl.done).toHaveBeenCalledWith('https://up/x.png');
+    expect(out.ok).toBe(true);
+  });
+
+  it('localize 抛错 → 降级保留原 URL（reportDegrade）+ 仍按成功处理', async () => {
+    saveResultToTasksMock.mockResolvedValue(null);
+    const settleArgs: string[] = [];
+    const out = await runGenerationContract({
+      taskNodeId: 'n1',
+      type: 'image',
+      signal: sig,
+      localize: async () => {
+        throw new Error('localize 挂了');
+      },
+      settle: (url) => settleArgs.push(url),
+      run: async () => ({ ok: true, url: 'https://up/x.png' }),
+    });
+    expect(reportDegradeMock).toHaveBeenCalledTimes(1);
+    expect(settleArgs).toEqual(['https://up/x.png']); // 保留原 URL
+    expect(out.ok).toBe(true);
+  });
+
+  it('localize 返回空 → 保留原 URL', async () => {
+    saveResultToTasksMock.mockResolvedValue(null);
+    const settleArgs: string[] = [];
+    await runGenerationContract({
+      taskNodeId: 'n1',
+      type: 'image',
+      signal: sig,
+      localize: async () => null,
+      settle: (url) => settleArgs.push(url),
+      run: async () => ({ ok: true, url: 'https://up/x.png' }),
+    });
+    expect(settleArgs).toEqual(['https://up/x.png']);
+  });
+
+  it('业务失败（ok:false）→ fail + onFail + toast + 返回 ok:false', async () => {
+    const onFail = vi.fn();
+    const out = await runGenerationContract({
+      taskNodeId: 'n1',
+      type: 'image',
+      signal: sig,
+      onFail,
+      run: async () => ({ ok: false, error: '上游拒绝' }),
+    });
+    expect(taskCtl.fail).toHaveBeenCalledWith('上游拒绝');
+    expect(onFail).toHaveBeenCalledWith('上游拒绝');
+    expect(showToastMock).toHaveBeenCalledTimes(1);
+    expect(out).toMatchObject({ ok: false, error: '上游拒绝' });
+  });
+
+  it('业务失败但 aborted=true → 不弹 toast（用户主动停止不打扰）', async () => {
+    const out = await runGenerationContract({
+      taskNodeId: 'n1',
+      type: 'image',
+      signal: sig,
+      run: async () => ({ ok: false, error: '已停止', aborted: true }),
+    });
+    expect(showToastMock).not.toHaveBeenCalled();
+    expect(out).toMatchObject({ ok: false, aborted: true });
+  });
+
+  it('run 返回 undefined → 按业务失败处理', async () => {
+    const out = await runGenerationContract({
+      taskNodeId: 'n1',
+      type: 'image',
+      signal: sig,
+      run: async () => undefined,
+    });
+    expect(taskCtl.fail).toHaveBeenCalled();
+    expect(out.ok).toBe(false);
+  });
+
+  it('抛 AbortError → 分类中止：fail("已停止") + onAbort + 不弹 toast', async () => {
+    const onAbort = vi.fn();
+    const out = await runGenerationContract({
+      taskNodeId: 'n1',
+      type: 'image',
+      signal: sig,
+      onAbort,
+      run: async () => {
+        throw Object.assign(new Error('Aborted'), { name: 'AbortError' });
+      },
+    });
+    expect(taskCtl.fail).toHaveBeenCalledWith('已停止');
+    expect(onAbort).toHaveBeenCalledTimes(1);
+    expect(showToastMock).not.toHaveBeenCalled();
+    expect(out).toMatchObject({ ok: false, aborted: true });
+  });
+
+  it('抛普通异常 → fail(msg) + onFail + toast', async () => {
+    const onFail = vi.fn();
+    const out = await runGenerationContract({
+      taskNodeId: 'n1',
+      type: 'image',
+      signal: sig,
+      onFail,
+      run: async () => {
+        throw new Error('boom');
+      },
+    });
+    expect(taskCtl.fail).toHaveBeenCalledWith('boom');
+    expect(onFail).toHaveBeenCalledWith('boom');
+    expect(showToastMock).toHaveBeenCalledTimes(1);
+    expect(out).toMatchObject({ ok: false, error: 'boom' });
+  });
+});

@@ -42,6 +42,8 @@ function movePayload(item: ResourceMoveItem): string {
   return JSON.stringify({
     folder: item.folder || '',
     name: item.name,
+    // 【TD-12-8】携带不可变 url：磁盘定位真源（resolveMovePaths 由它派生 src/dst）
+    url: item.url,
     source: item.source,
     type: item.type,
   });

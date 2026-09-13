@@ -38,6 +38,7 @@ function payload(item) {
   return JSON.stringify({
     folder: item.folder || '',
     name: item.name,
+    url: item.url,
     source: item.source,
     type: item.type,
   });
@@ -82,12 +83,14 @@ describe('sourceDragProps（源·文件卡片）', () => {
     });
     expect(p.draggable).toBe(true);
     const evt = makeDragStartEvent();
-    p.onDragStart(evt);
+    p.onDragStart?.(evt);
     expect(evt.setData).toHaveBeenCalledTimes(1);
     expect(evt.setData.mock.calls[0][0]).toBe(RESOURCE_MOVE_MIME);
+    // url 必须随 payload 传出（TD-12-8：磁盘定位真源由 url 派生，不能只用 UI folder/name）
     expect(JSON.parse(evt.setData.mock.calls[0][1])).toEqual({
       folder: 'migrated',
       name: 'a.png',
+      url: 'x',
       source: 'local-tool',
       type: 'image',
     });
@@ -116,6 +119,42 @@ describe('folderDropProps（目标·文件夹卡片）', () => {
     // 【增量② · context-only】move 只改 folder(UI)，url/contentId/磁盘不变 → 不广播 url 改写
     //（url 未变则无需 rewrite；广播旧→新反而指向不存在的物理路径 → 破图）
     expect(mocks.publish).not.toHaveBeenCalledWith('resource:renamed', expect.anything());
+  });
+
+  it('TD-12-8：带 url 的素材 → moveFile 用 url 派生的磁盘路径（非 UI folder/name）', async () => {
+    const onRefreshed = vi.fn();
+    const { result } = renderHook(() => useResourceMoveToFolder({ connected: true, onRefreshed }));
+    // UI folder 已归类到 migrated/人物、显示名已改为「新名.png」，但磁盘真源仍是 migrated/a.png
+    const it = {
+      folder: 'migrated/人物',
+      name: '新名.png',
+      url: 'http://127.0.0.1:18080/files/migrated/a.png',
+      source: 'local-tool',
+      type: 'image',
+    };
+    await result.current
+      .folderDropProps({ folder: 'migrated', name: '场景' })
+      .onDrop(makeDropEvent(payload(it)));
+    expect(mocks.moveFile).toHaveBeenCalledWith('migrated/a.png', 'migrated/场景/a.png');
+    expect(mocks.showToast).toHaveBeenCalledWith('已移动到「migrated/场景」', { type: 'success' });
+  });
+
+  it('TD-12-8：后端 404（资源未同步）→ toast 透出错误文案，不报成功', async () => {
+    const onRefreshed = vi.fn();
+    const { result } = renderHook(() => useResourceMoveToFolder({ connected: true, onRefreshed }));
+    mocks.moveFile.mockRejectedValueOnce(new Error('资源未同步，请刷新后重试'));
+    const it = {
+      folder: 'migrated',
+      name: 'a.png',
+      url: 'http://127.0.0.1:18080/files/migrated/a.png',
+      source: 'local-tool',
+      type: 'image',
+    };
+    await result.current
+      .folderDropProps({ folder: 'migrated', name: '人物' })
+      .onDrop(makeDropEvent(payload(it)));
+    expect(mocks.showToast).toHaveBeenCalledWith('资源未同步，请刷新后重试', { type: 'error' });
+    expect(onRefreshed).not.toHaveBeenCalled();
   });
 
   it('目标与源同目录 → 忽略，不调 moveFile，toast 提示', async () => {

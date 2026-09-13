@@ -67,7 +67,7 @@ describe('GridMergeNode — 模式切换', () => {
 describe('GridMergeNode — 多图输入与校验', () => {
   it('无上游图 → grid 模式「开始合成」禁用', () => {
     setup();
-    const btn = screen.getByText('开始合成').closest('button');
+    const btn = screen.getByText('开始合成').closest('button')!;
     expect(btn).toBeTruthy();
     expect(btn.disabled).toBe(true);
   });
@@ -89,7 +89,7 @@ describe('GridMergeNode — 多图输入与校验', () => {
   it('多图输入 → 开始合成由禁用变为可用', () => {
     mocks.setConnectedInputs({ images: [{ id: 'a', url: 'http://img/a.png' }], texts: [] });
     setup();
-    const btn = screen.getByText('开始合成').closest('button');
+    const btn = screen.getByText('开始合成').closest('button')!;
     expect(btn.disabled).toBe(false);
   });
 });

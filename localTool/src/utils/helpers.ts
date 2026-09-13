@@ -27,7 +27,7 @@ export function sendError(res: ServerResponse, message: string, status = 500, co
 /**
  * 带 HTTP 状态的业务错误：供「不接触 res 的共享逻辑」抛出，由路由层捕获后转 sendError。
  *
- * 【为什么存在】共享逻辑（如资源身份变更 applyResourceIdentityChange）被多个路由复用，
+ * 【为什么存在】共享逻辑（如资源 context 变更 applyResourceContextChange/applyResourceContextMove）被多个路由复用，
  * 它拿不到 ServerResponse、不能 sendError，但又必须区分 400/404/409/500——否则路由层
  * 只能一律按 500 返回，前端拿不到可决策的状态码与原因。
  *

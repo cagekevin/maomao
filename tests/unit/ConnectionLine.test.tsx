@@ -69,7 +69,7 @@ describe('ConnectionLine — 正常渲染（lodLevel < 2）', () => {
 
   it('渲染隐藏 mpath path（供粒子沿其运动）', () => {
     const view = setup();
-    const mpath = view.container.querySelector('#cust-conn-mpath');
+    const mpath = view.container.querySelector('#cust-conn-mpath')!;
     expect(mpath).toBeTruthy();
     expect(mpath.getAttribute('d')).toBe('M0,0 C10,10 90,10 100,100');
   });
@@ -93,7 +93,7 @@ describe('ConnectionLine — 正常渲染（lodLevel < 2）', () => {
   it('bezier path d 透传给各层 path', () => {
     const view = setup();
     const d = 'M0,0 C10,10 90,10 100,100';
-    expect(view.container.querySelector('.cust-edge-base').getAttribute('d')).toBe(d);
+    expect(view.container.querySelector('.cust-edge-base')!.getAttribute('d')).toBe(d);
     expect(view.container.querySelector('.cust-edge-glow').getAttribute('d')).toBe(d);
   });
 });

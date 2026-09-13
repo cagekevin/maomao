@@ -24,7 +24,7 @@ let chromeGlobal = null;
 beforeEach(() => {
   publishMock.mockClear();
   chromeGlobal = null;
-  if ('chrome' in globalThis) delete globalThis.chrome;
+  if ('chrome' in globalThis) delete (globalThis as any).chrome;
   Object.defineProperty(globalThis, 'chrome', {
     configurable: true,
     get: () => chromeGlobal,
@@ -35,7 +35,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  if ('chrome' in globalThis) delete globalThis.chrome;
+  if ('chrome' in globalThis) delete (globalThis as any).chrome;
 });
 
 /** 构造「真实扩展」的 chrome：storage.local.get/set/remove 都是函数 */

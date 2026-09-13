@@ -4,6 +4,7 @@ import { fetchResources, rescanResources } from '../base/api/index.ts';
 import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import type { ResourceItem } from '../base/api/localToolApi.ts';
 import { mergeResourcesFromBackend } from '../base/store/resourceStore.ts';
+import { useCurrentProjectId } from '../base/store/projectStore.ts';
 import { useLocalToolStatus } from '../../hooks/useLocalToolStatus.ts';
 import { logger } from '../base/core/logger.ts';
 import ScriptBoxModal from './ScriptBoxModal.tsx';
@@ -31,6 +32,8 @@ export default function ScriptBoxAssetPicker({
 }) {
   const { status } = useLocalToolStatus();
   const connected = status.isConnected;
+  // 【TD-12-5 修复】与 ResourceLibrary 同口径传 projectId（此前缺参 → 剧本盒选图跨项目可见）
+  const projectId = useCurrentProjectId();
   const [items, setItems] = useState<ResourceItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
@@ -45,7 +48,13 @@ export default function ScriptBoxAssetPicker({
         if (rescan) {
           await rescanResources();
         }
-        const data = await fetchResources({ folder, page: 1, pageSize: PAGE_SIZE, type: 'image' });
+        const data = await fetchResources({
+          folder,
+          page: 1,
+          pageSize: PAGE_SIZE,
+          type: 'image',
+          projectId,
+        });
         // fetchResources 返回 unknown：先 Array.isArray 判「确实是数组」再按 ResourceItem[] 收窄（F13）
         const list = Array.isArray(data?.data?.items) ? (data.data.items as ResourceItem[]) : [];
         setItems(list);
@@ -59,7 +68,7 @@ export default function ScriptBoxAssetPicker({
         setLoading(false);
       }
     },
-    [connected, folder],
+    [connected, folder, projectId],
   );
 
   useEffect(() => {

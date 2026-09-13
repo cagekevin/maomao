@@ -1,6 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { ChevronDown, Check } from 'lucide-react';
 import { useOutsideClick } from '../core/uiHooks.ts';
+// 【TD-19-1】面板/行 chrome 与定位收口到共用窄原语（与 ModelSelect 同一份）
+import DropdownPanel from './DropdownPanel.tsx';
+import DropdownRow from './DropdownRow.tsx';
 
 /**
  * 通用下拉菜单（与 ModelSelect 同款交互/配色，供工作流等「少数固定选项」选择用）。
@@ -66,33 +69,28 @@ export default function Select<T extends React.Key = string>({
       </button>
 
       {open && (
-        <div
-          className={`absolute ${popupTo === 'down' ? 'top-full left-0 mt-1' : 'bottom-full left-0 mb-1'} min-w-[10rem] w-max max-w-[20rem] bg-surface-1 border border-edge rounded-lg shadow-xl p-2 z-50 block max-h-60 overflow-y-auto custom-scrollbar nowheel nopan nodrag`}
-          onClick={(e) => e.stopPropagation()}
-        >
+        <DropdownPanel popupTo={popupTo} widthClass="min-w-[10rem] w-max max-w-[20rem]">
           {options.length === 0 ? (
             <div className="px-2 py-1.5 text-caption-sm text-muted">无可用选项</div>
           ) : (
             options.map((o) => {
               const sel = value === o.value;
               return (
-                <div
+                <DropdownRow
                   key={o.value}
-                  role="button"
-                  className={`flex items-center gap-1.5 mb-1 last:mb-0 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors cursor-pointer ${sel ? 'bg-surface-hover-strong text-white' : 'text-secondary hover:bg-surface-hover hover:text-primary'}`}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
+                  selected={sel}
+                  onSelect={() => {
                     onChange(o.value);
                     setOpen(false);
                   }}
                 >
                   <span className="flex-1 whitespace-nowrap">{o.label}</span>
                   {sel && <Check size={12} className="shrink-0 text-emerald-400" />}
-                </div>
+                </DropdownRow>
               );
             })
           )}
-        </div>
+        </DropdownPanel>
       )}
     </div>
   );

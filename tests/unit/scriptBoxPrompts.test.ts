@@ -173,7 +173,12 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
 
   it('applyTailFrameSelection：选帧 → usePrevShotVideoTail=true + 参考 URL 数组', () => {
     const shots = [{ id: 1, usePrevShotVideoTail: false, prevShotImageRefUrls: [] }];
-    const next = applyTailFrameSelection(shots, 1, { id: 'v2', assetUrl: '/files/tail.png' }, true);
+    const next = applyTailFrameSelection(
+      shots,
+      1,
+      { id: 'v2', assetUrl: '/files/tail.png' },
+      true,
+    )!;
     expect(next[0]).toMatchObject({
       usePrevShotVideoTail: true,
       selectedTailFrameVariantId: 'v2',
@@ -190,7 +195,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
         selectedTailFrameVariantId: 'v2',
       },
     ];
-    const next = applyTailFrameSelection(shots, 1, null, false);
+    const next = applyTailFrameSelection(shots, 1, null, false)!;
     expect(next[0]).toMatchObject({
       usePrevShotVideoTail: false,
       selectedTailFrameVariantId: 'original',
@@ -211,8 +216,8 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
     const patch = removeResource(assets, 'a1', shots);
     expect(patch.assets.map((a) => a.id)).toEqual(['a2']);
     expect(patch.pickedCount).toBe(0);
-    expect(patch.shots[0].description).toBe('森林 深处 @小红帽 走进'); // @森林 去 @，@小红帽 保留
-    expect(patch.shots[1].description).toBe('无引用');
+    expect(patch.shots![0].description).toBe('森林 深处 @小红帽 走进'); // @森林 去 @，@小红帽 保留
+    expect(patch.shots![1].description).toBe('无引用');
   });
 
   it('removeResource：无 name 资产（空壳）删除时不改镜头', () => {
@@ -435,7 +440,7 @@ describe('剧本盒纯函数 · 合并生成视频', () => {
 
   it('mergeShotsForVideo：无 videoPrompt 段过滤为空 prompt；duration 缺省兜底 5', () => {
     // seconds 对每个元素累加：空 duration → 兜底 5；null → 兜底 5。共 5+5=10
-    const r = mergeShotsForVideo([{ id: 'x', duration: '' }, null], assets);
+    const r = mergeShotsForVideo([{ id: 'x', duration: '' }, null as never], assets);
     expect(r.seconds).toBe(10);
     expect(r.prompt).toBe(''); // 无有效 videoPrompt
   });
@@ -576,7 +581,10 @@ describe('剧本盒纯函数 · 合并生成视频', () => {
 
   describe('buildMergedVideoUser · null/缺省安全', () => {
     it('shots 含 null 项 → 不崩', () => {
-      const user = buildMergedVideoUser([null, { id: 's2', index: 2, description: 'ok' }], []);
+      const user = buildMergedVideoUser(
+        [null as never, { id: 's2', index: 2, description: 'ok' }],
+        [],
+      );
       expect(user).toContain('【镜头2】');
     });
 

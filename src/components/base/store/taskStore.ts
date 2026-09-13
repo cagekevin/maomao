@@ -351,8 +351,9 @@ export function removeTask(id: string): void {
 // ── 重生成回调注册表（供 Agent runNodeGeneration / 测试 / 脚本驱动节点重新生成）──
 /**
  * 节点重生成回调（节点 registerTaskRetry 注册）。
- * 返回值跨代不统一：旧版同步返回 boolean、新版 start 返回 promise，故声明为 unknown，
- * 由 runNodeGenerationNow 在调用处做 thenable 判定（P2 兼容逻辑，勿简化成统一 Promise）。
+ * 【TD-01-6】唯一生产注册方是 `useNodeGeneration.start`（async → 恒返回 promise），故消费侧
+ * （runNodeGenerationNow）直接 await。类型仍为 `unknown`：注册表只做「按 key 存/取」，不约束
+ * 各注册方返回形态（测试亦注册同步空函数，仅用于 isNodeRegistered 探活）。
  */
 export type TaskRetryFn = () => unknown;
 
@@ -418,17 +419,14 @@ export function releaseNodeRun(nodeId: string): void {
  *  - 当前活跃已到上限 → 直接返回 false（= 未触发），节点保持待生成，由用户手动点。
  *    不新增状态/字段，调用方按「未触发」处理（executePlan 标 ready，不报失败）。
  *
- * 【异步执行器地基】透传 start() 的 promise 结果：
- *  - 节点用新版 useNodeGeneration（start 返回 { ok, resultUrl }）→ 本函数返回该 promise，
- *    调用方可 `await runNodeGeneration(id)` 拿到已落盘的 resultUrl（供前序依赖/多图编排）。
- *  - 旧版回调（返回 true/false）→ 透传原返回值，向后兼容。
+ * 【异步执行器地基】透传 start() 的 promise 结果：本函数 await 该 promise，调用方可
+ * `await runNodeGeneration(id)` 拿到已落盘的 resultUrl（供前序依赖/多图编排）。
+ * 返回语义见 `NodeGenerationOutcome`（`false` = 未触发 · 对象 = 已触发结果）。
  *
  * @param {string} nodeId
- * @returns {Promise<false | true | {ok:boolean, resultUrl?:string, error?:string}>}
+ * @returns {Promise<NodeGenerationOutcome>}
  */
-export async function runNodeGeneration(
-  nodeId: string,
-): Promise<boolean | NodeGenerationRunResult> {
+export async function runNodeGeneration(nodeId: string): Promise<NodeGenerationOutcome> {
   if (!nodeId) return false;
   // 并发上限：已满则返回 false（未触发），节点保持待生成，用户手动点
   if (genActive >= MAX_CONCURRENT_GEN) {
@@ -443,24 +441,33 @@ export async function runNodeGeneration(
   }
 }
 
-/** runNodeGeneration 的结果：触发成功返回 ok:true（含已落盘 resultUrl）；失败返回 ok:false + error */
+/** runNodeGeneration 的「已触发」结果：成功 ok:true（含已落盘 resultUrl）/ 失败 ok:false + error。
+ *  （结构上是 useNodeGeneration.NodeGenerationStartResult 的读取子集——调用方只读 ok/resultUrl/error；
+ *    该 hook 另可带 aborted/inFlight，此处不重复声明，以免 taskStore 反向依赖 hook 层。） */
 export interface NodeGenerationRunResult {
   ok: boolean;
   resultUrl?: string;
   error?: string;
 }
 
-async function runNodeGenerationNow(nodeId: string): Promise<boolean | NodeGenerationRunResult> {
+/**
+ * runNodeGeneration 的返回语义（**两态有别，勿混**，TD-01-6）：
+ *  - `false`                    → **未触发**（无 nodeId / 并发上限已满 / 节点未注册回调）→ 按「待生成」处理，
+ *                                 **不算失败**（executePlan 标 ready，用户可手动点）。
+ *  - `NodeGenerationRunResult`   → **已触发**：`{ok:true, resultUrl?}` 完成 / `{ok:false, error?}` 失败。
+ *
+ * 【为何没有 `true`】历史 `true` = 旧同步回调「已触发但无结果信封」的兼容值。retryRegistry 唯一生产注册方
+ * 是 `useNodeGeneration.start`（async → 恒返回 promise），该分支不可达（死代码）→ 已删（见 runNodeGenerationNow）。
+ */
+export type NodeGenerationOutcome = false | NodeGenerationRunResult;
+
+async function runNodeGenerationNow(nodeId: string): Promise<NodeGenerationOutcome> {
   const fn = retryRegistry.get(nodeId);
   if (fn) {
     try {
-      // thenable 判定（兼容旧版同步返回 boolean / 新版返回 promise），行为与原逻辑逐字一致
-      const p = fn();
-      const thenable =
-        p && typeof (p as PromiseLike<unknown>).then === 'function'
-          ? (p as Promise<boolean | NodeGenerationRunResult>)
-          : null;
-      return thenable ? await thenable : true;
+      // 【TD-01-6】直接 await：注册方 start 是 async → 恒为 promise。旧「非 thenable → 返回 true」的
+      // 兼容分支已删（死代码：无同步注册方；且 await 非 promise 亦安全，不会抛）。
+      return (await fn()) as NodeGenerationOutcome;
     } catch (e) {
       logger.error('gen', 'run-trigger-fail', { nodeId, error: e?.message });
       return { ok: false, error: e?.message || '触发失败' };

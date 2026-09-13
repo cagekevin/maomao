@@ -5,7 +5,6 @@
  */
 import { describe, it, expect } from 'vitest';
 import { exportText, parseImport } from '../../src/components/scriptbox/scriptBoxPlaybookIO.ts';
-import type { ImportResult } from '../../src/components/scriptbox/scriptBoxPlaybookIO.ts';
 
 const MANGA = {
   id: 'manga',
@@ -44,12 +43,10 @@ describe('exportText', () => {
 describe('parseImport', () => {
   it('导出→导入往返：保留内容、builtin 强制 false（即使源是内置）', () => {
     const { text } = exportText(MANGA);
-    // ImportResult 为可辨识联合；测试只覆盖成功分支，用 Extract 收窄到 { ok:true; playbook }
-    const r: Extract<ImportResult, { ok: true }> = parseImport(text) as Extract<
-      ImportResult,
-      { ok: true }
-    >;
+    // 【判别联合写法】ImportResult 两侧互带对方的键 → 两分支字段可直接读，无需 Extract/as 绕墙（spec/CONTEXT.md §三）
+    const r = parseImport(text);
     expect(r.ok).toBe(true);
+    if (!r.ok) throw new Error('expected ok ImportResult');
     expect(r.playbook.builtin).toBe(false); // 导入一律落为「我的」
     expect(r.playbook.label).toBe('漫剧');
     expect(r.playbook.script).toContain('爆款短剧');
@@ -58,11 +55,9 @@ describe('parseImport', () => {
   });
 
   it('宽容归一化：缺字段补默认，未知键保留', () => {
-    const r: Extract<ImportResult, { ok: true }> = parseImport('{"label":"空配置"}') as Extract<
-      ImportResult,
-      { ok: true }
-    >;
+    const r = parseImport('{"label":"空配置"}');
     expect(r.ok).toBe(true);
+    if (!r.ok) throw new Error('expected ok ImportResult');
     expect(r.playbook.script).toBe('');
     expect(r.playbook.constraints).toEqual({ image: '', video: '' });
     expect(r.playbook.negative).toEqual({ common: '', image: '', video: '' });

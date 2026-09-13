@@ -73,9 +73,9 @@ export interface EventRegistryEntry {
 export const EVENTS: Record<string, EventRegistryEntry> = {
   'agent:task-completed': {
     from: ['taskCompletionBus.ts:30'],
-    to: ['useNodeGeneration.ts:328'],
+    to: ['useNodeGeneration.ts:328', 'useScriptBoxEngine.ts'],
     payload: '{ taskId, nodeId, resultUrl, type, status: "completed" }',
-    note: '任务完成 → 精准回填节点（刷新不丢图）。现统一经 taskCompletionBus.publishTaskCompleted 唯一发布（P1-D）；done 已去落盘（P0-C），广播直接用持久 resultUrl',
+    note: '任务完成 → 精准回填节点（刷新不丢图）。现统一经 taskCompletionBus.publishTaskCompleted 唯一发布（P1-D）；done 已去落盘（P0-C），广播直接用持久 resultUrl。两个订阅者判据不同：节点侧按 nodeId 等值（useNodeGeneration）；剧本盒资产图按伪 nodeId 前缀反解（useScriptBoxEngine，TD-01-9）',
   },
   // 上游节点完成 → 直接下游可视需要自动触发（P2-G 安全网，AUTO_TRIGGER_DOWNSTREAM 默认关）
   'upstream:updated': {
@@ -91,10 +91,10 @@ export const EVENTS: Record<string, EventRegistryEntry> = {
     note: '提示词库跨节点同步。生产使用',
   },
   'agent:credit-gate': {
-    from: [],
-    to: [],
+    from: ['useCanvasAgentTools.ts:1464', 'useCanvasAgentTools.ts:1550'],
+    to: ['AgentPanel.tsx:577'],
     payload: '{ pending }',
-    note: '高消耗积分确认门禁置位/清除广播（AgentPanel 刷新 credit 确认卡片）。经常量 CREDIT_GATE_EVENT 引用（P1-D），非字面量故反向校验跳过；发布 useCanvasAgentTools / 订阅 AgentPanel',
+    note: '高消耗积分确认门禁置位/清除广播（AgentPanel 刷新 credit 确认卡片）。经常量 CREDIT_GATE_EVENT 引用（P1-D）；check-events 已支持常量引用解析（TD-13-1），不再跳过',
   },
   // 素材发送成功事件（P1-D 收口：原 resourceStore 裸回调桥 → eventBus；resourceStore 保留薄封装 onResourceSent/emitResourceSent）
   'resource:sent': {
@@ -755,13 +755,6 @@ export const apiRegistry = {
     fn: 'localToolApi.deleteResource',
     method: 'POST',
     path: '/api/resources/delete',
-    envelope: 'code-data',
-    status: 'ACTIVE',
-  },
-  saveResource: {
-    fn: 'localToolApi.saveResource',
-    method: 'POST',
-    path: '/api/resources/save',
     envelope: 'code-data',
     status: 'ACTIVE',
   },

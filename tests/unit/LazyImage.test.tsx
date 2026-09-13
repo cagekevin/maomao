@@ -41,7 +41,7 @@ import LazyImage from '../../src/components/base/ui/LazyImage.tsx';
 const h = vi.hoisted(() => {
   class FakeIO {
     cb: (entries: unknown, observer: unknown) => void;
-    static instances = [];
+    static instances: FakeIO[] = [];
     constructor(cb) {
       this.cb = cb;
       FakeIO.instances.push(this);
@@ -77,7 +77,7 @@ describe('LazyImage — 懒加载语义', () => {
     expect(document.querySelector('img')).toBeNull();
 
     triggerIntersect([{ isIntersecting: true }]);
-    const img = document.querySelector('img');
+    const img = document.querySelector('img')!;
     expect(img).toBeTruthy();
     expect(img.getAttribute('src')).toBe('http://x/b.png');
   });
@@ -85,21 +85,21 @@ describe('LazyImage — 懒加载语义', () => {
   it('相对 /files/ 路径 → 经 render 出按需小图端点（本地图收口）', () => {
     render(<LazyImage src="/files/pic.png" />);
     triggerIntersect([{ isIntersecting: true }]);
-    const img = document.querySelector('img');
+    const img = document.querySelector('img')!;
     expect(img.getAttribute('src')).toBe('THUMB/files/pic.png');
   });
 
   it('绝对本地 URL → 还原相对出按需小图（DB 存量形态）', () => {
     render(<LazyImage src="http://127.0.0.1:18080/files/tasks/x.png" />);
     triggerIntersect([{ isIntersecting: true }]);
-    const img = document.querySelector('img');
+    const img = document.querySelector('img')!;
     expect(img.getAttribute('src')).toBe('THUMB/files/tasks/x.png');
   });
 });
 
 describe('LazyImage — 降级与兜底', () => {
   it('无 IntersectionObserver（旧环境）→ 直接挂载，不依赖 IO', () => {
-    delete global.IntersectionObserver;
+    delete (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver;
     render(<LazyImage src="http://x/c.png" />);
     expect(document.querySelector('img')).toBeTruthy();
   });
@@ -107,7 +107,7 @@ describe('LazyImage — 降级与兜底', () => {
   it('加载失败 → 显示「破图占位」，不再保留 <img>', () => {
     render(<LazyImage src="http://x/d.png" />);
     triggerIntersect([{ isIntersecting: true }]);
-    const img = document.querySelector('img');
+    const img = document.querySelector('img')!;
     expect(img).toBeTruthy();
 
     fireEvent.error(img);

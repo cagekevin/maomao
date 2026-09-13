@@ -105,7 +105,7 @@ describe('ChatMarkdown — 图片', () => {
     render(<ChatMarkdown value={'看这张图：![alt](http://x/a.png)'} />);
     const img = document.querySelector('img');
     expect(img).toBeTruthy();
-    expect(img.getAttribute('src')).toBe('http://x/a.png');
+    expect(img?.getAttribute('src')).toBe('http://x/a.png');
   });
 
   it('裸图片 URL → 渲染 img', () => {

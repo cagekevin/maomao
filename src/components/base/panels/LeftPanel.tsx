@@ -7,7 +7,6 @@ import GeneratedView from './GeneratedView.tsx';
 import ResourceLibrary from './ResourceLibrary.tsx';
 import PromptHub from '../prompt/PromptHub.tsx';
 import { useTasks, usePanel, setPanel, getPanel, togglePin } from '../store/taskStore.ts';
-import { useResources } from '../store/resourceStore.ts';
 
 // tab 配置：任务 / 生成 / 素材 / 提示词库
 export type PanelTabKey = 'tasks' | 'generated' | 'assets' | 'prompts';
@@ -38,7 +37,6 @@ export default function LeftPanel() {
   const setActiveTab = (key: PanelTabKey) => setPanel({ activeTab: key });
   const setExpanded = (v: boolean) => setPanel({ expanded: v });
   const tasks = useTasks();
-  useResources();
   const panelRef = useRef<HTMLDivElement>(null);
 
   // 未读角标：失败任务数 + 进行中任务数，单次遍历

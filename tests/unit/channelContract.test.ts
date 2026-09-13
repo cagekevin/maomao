@@ -183,13 +183,13 @@ describe('M1.2 整快照 → 通道 key（snapshotToChannelKeys）', () => {
       rotation: [0, 0.25, 0],
       scale: [1, 1, 1],
     });
-    expect(Object.keys(keys.action[0].fields).sort()).toEqual(['pose', 'poseTime']);
-    expect(Object.keys(keys.skeleton[0].fields).sort()).toEqual(['joints', 'rigRoot']);
+    expect(Object.keys(keys.action[0].fields!).sort()).toEqual(['pose', 'poseTime']);
+    expect(Object.keys(keys.skeleton[0].fields!).sort()).toEqual(['joints', 'rigRoot']);
     // 反例：transform.fields 里不得出现动作/骨骼字段
     // objectState（continuousMotion）不进任何通道（47）
-    expect(keys.action[0].fields.continuousMotion).toBeUndefined();
-    expect(keys.transform[0].fields.pose).toBeUndefined();
-    expect(keys.transform[0].fields.joints).toBeUndefined();
+    expect(keys.action[0].fields!.continuousMotion).toBeUndefined();
+    expect(keys.transform[0].fields!.pose).toBeUndefined();
+    expect(keys.transform[0].fields!.joints).toBeUndefined();
   });
 
   it('摄像机整快照拆为 transform + lens（镜头通道独立）', () => {
@@ -213,7 +213,7 @@ describe('M1.2 整快照 → 通道 key（snapshotToChannelKeys）', () => {
     const keys = snapshotToChannelKeys('person', { position: [1, 2, 3] }, 5, 'smooth');
     expect(Object.keys(keys)).toEqual(['transform']);
     expect(keys.transform[0].fields).toEqual({ position: [1, 2, 3] });
-    expect(keys.transform[0].fields.rotation).toBeUndefined();
+    expect(keys.transform[0].fields!.rotation).toBeUndefined();
   });
 
   it('插值方式随 key 透传（M1-C3 语义的一部分）', () => {
@@ -350,7 +350,7 @@ describe('M1-C6 旧整快照无损迁移 → 播放逐帧一致', () => {
           paths: {},
         },
       ],
-    });
+    })!;
     expect(project.keyframes.transform).toBeInstanceOf(Array);
     expect(project.keyframes.lens).toBeInstanceOf(Array);
     expect(project.objectKeyframes['actor-lead'].action).toBeInstanceOf(Array);
@@ -417,8 +417,8 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
       { 'actor-lead': 'person' },
     );
     const clamped = clampKeyframeFrames(channels['actor-lead'], 30);
-    const frames = Object.values(clamped).flatMap((list: ChannelKey[]) =>
-      list.map((key: ChannelKey) => key.frame),
+    const frames = Object.values(clamped).flatMap((list) =>
+      (list as ChannelKey[]).map((key: ChannelKey) => key.frame),
     );
     expect(Math.max(...frames)).toBeLessThanOrEqual(30);
     expect((clamped as ChannelTracks).transform.map((key: ChannelKey) => key.frame)).toEqual([
@@ -442,7 +442,7 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
     const overwrite = { ...legacyPersonKeys[0], position: [9, 9, 9] };
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', overwrite, 0, 'smooth'));
     expect(countChannelKeyframes(channels)).toBe(2);
-    expect(channels.transform[0].fields.position).toEqual([9, 9, 9]);
+    expect(channels.transform[0].fields!.position).toEqual([9, 9, 9]);
   });
 
   it('removeChannelFrames：从所有通道删除指定帧', () => {

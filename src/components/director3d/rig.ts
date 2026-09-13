@@ -14,7 +14,7 @@ const fingerBones = (side: string, sideLabel: string, finger: string, fingerLabe
     ),
   );
 
-export const JOINT_DEFINITIONS = [
+const JOINT_DEFINITIONS = [
   bone('Hips', '骨盆', '躯干与头部'),
   bone('Spine', '脊柱 1', '躯干与头部'),
   bone('Spine1', '脊柱 2', '躯干与头部'),

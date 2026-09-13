@@ -31,12 +31,12 @@ import {
   localizeAndStoreToResourceLibrary,
   resourceFolderOf,
 } from '../base/store/resourceStore.ts';
-import { uploadFileToLocal, saveResultToTasks } from '../base/api/index.ts';
+import { uploadFileToLocal } from '../base/api/index.ts';
+import { runGenerationContract } from '../base/store/generationContract.ts';
 import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { logger } from '../base/core/logger.ts';
-import { reportDegrade } from '../base/core/degrade.ts';
-import { reportGenerate } from '../base/store/taskStore.ts';
+
 import { shotHandleId } from '../base/core/contracts.ts';
 import {
   SCRIPTBOX_DOWNSTREAM_GRID_COLS,
@@ -52,7 +52,13 @@ import { withTimeout } from '../base/utils/asyncGuard.ts';
 import { classifyError } from '../base/utils/genErrors.ts';
 import type { Shot, ScriptAsset, Dialogue } from './scriptBoxPrompts.ts';
 import type { ProviderWithModels } from '../base/utils/providerModels.ts';
-import type { ScriptBoxUpdateData, ScriptBoxData, ScriptBoxShot } from './scriptBoxSchema.ts';
+import {
+  assetTaskNodeId,
+  tailFrameTaskNodeId,
+  type ScriptBoxUpdateData,
+  type ScriptBoxData,
+  type ScriptBoxShot,
+} from './scriptBoxSchema.ts';
 
 /** toast 状态档（与 toastStore 的 ToastType 同形，后者未导出故此处本地声明） */
 type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -499,18 +505,18 @@ export function createScriptBoxEngine({
             resolveAssetTemplates(getData().playbookId),
           );
 
-    // ── 任务中心上报（对齐 Prompt 节点 useNodeGeneration 契约）──
-    // 每张资产用独立伪 nodeId（nodeId-asset-资产id）：保证批量时任务中心每张一张卡片、互不顶掉
-    //（reportGenerate 会结束同 nodeId 的旧 running 任务，故不能用剧本盒节点自身 nodeId）。
-    const taskNodeId = `${nodeId}-asset-${assetId}`;
-    const taskCtl = reportGenerate(taskNodeId, 'image', prompt, { modelName: modelId });
-    taskCtl.progress(5, '准备中…');
+    // ── 任务中心上报 + 编排（TD-01-8：交给纯 TS 原语，与节点侧同一份实现）──
+    // 每张资产用独立伪 nodeId（规则**单源**在 scriptBoxSchema.assetTaskNodeId）：保证批量时任务中心
+    // 每张一张卡片、互不顶掉；同一规则由 useScriptBoxEngine 反解（parseAssetTaskNodeId）用于刷新回填（TD-01-9）。
+    const taskNodeId = assetTaskNodeId(nodeId, assetId);
 
     // 单张/批量均为独立写回（批量已改为逐张独立任务，不再走 enqueuePatch 合并器）
     const commit = updateData;
-    commit((latest) => ({
-      assets: (latest.assets || []).map((a) => (a.id === assetId ? { ...a, loading: true } : a)),
-    }));
+    const setAssetLoading = (loading: boolean) =>
+      commit((latest) => ({
+        assets: (latest.assets || []).map((a) => (a.id === assetId ? { ...a, loading } : a)),
+      }));
+    setAssetLoading(true);
     logger.info('scriptBox', '生成资产图·开始', {
       nodeId,
       taskNodeId,
@@ -521,100 +527,53 @@ export function createScriptBoxEngine({
       aspectRatio,
       imageSize,
     });
-    // 注：用户要求「停止」不做——不传 AbortSignal、无中止分支；generateImage 内部自带 GEN_TIMEOUT 总超时兜底。
-    let taskSettled = false; // 防御：异常兜底标记，防止任务卡在 running（失败可见禁令）
-    try {
-      return await runAbortable(
-        `asset-${assetId}`,
-        () =>
-          commit((latest) => ({
-            assets: (latest.assets || []).map((a) =>
-              a.id === assetId ? { ...a, loading: false } : a,
+    // 编排序列（report→progress→run→localize→落盘→写回→done/fail 分类）由 runGenerationContract 统一承载：
+    // 本处只负责 loading 状态、signal，以及「本地化 / 写回」两个业务回调。
+    // signal 经原语 R1 贯穿到 generateImage 第 3 位 → 真中止（TD-01-10）。
+    return await runAbortable(
+      `asset-${assetId}`,
+      () => setAssetLoading(false),
+      async (signal) =>
+        runGenerationContract({
+          taskNodeId,
+          type: 'image',
+          prompt,
+          modelName: modelId,
+          signal,
+          run: ({ progress, taskId }) =>
+            generateImage(
+              { provider, prompt, model: modelId, size: imageSize, n: 1, aspectRatio, taskId },
+              progress,
+              signal,
             ),
-          })),
-        async () => {
-          const r = await generateImage(
-            {
-              provider,
-              prompt,
-              model: modelId,
-              size: imageSize,
-              n: 1,
-              aspectRatio,
-              taskId: taskCtl.taskId || '', // P0-A 请求级贯穿
-            },
-            (p, stage) => taskCtl.progress(p, stage),
-          );
-          if (r.ok && r.url) {
-            // P2-1/P2-2：生图成功后把结果本地化落盘到素材库目录（migrated/{人物|场景|道具}），
-            // 彻底替换旧的「上游 https 直链」式临时/外部 URL，让下游生图/生视频引用持久 /files/ 地址。
-            // 缩略图机制统一：不再自产落盘独立 _thumb 文件，thumbnailUrl 回退原图，
-            // 显示时由系统按需出图端点（buildThumbnailUrl）出小图（与画布 AssetNode 一致）。
-            let assetUrl = r.url;
-            try {
-              const localized = await localizeAndStoreToResourceLibrary(r.url, {
-                name: asset.name,
-                folder: resourceFolderOf(asset.category),
-              });
-              if (localized) assetUrl = localized;
-            } catch (e) {
-              logger.warn('scriptBox', '资产图本地化落盘失败，保留原 URL', {
-                nodeId,
-                assetId,
-                error: e?.message,
-              });
-            }
-            const thumbnailUrl = assetUrl;
+          // P2-1/P2-2：成功后本地化落盘到素材库分类目录（migrated/{人物|场景|道具}），让下游生图/生视频
+          // 引用持久 /files/ 地址；thumbnailUrl 回退原图（缩略图走系统按需出图端点，不再自产 _thumb 文件）。
+          localize: (url) =>
+            localizeAndStoreToResourceLibrary(url, {
+              name: asset.name,
+              folder: resourceFolderOf(asset.category),
+            }),
+          settle: (url) =>
             commit((latest) => ({
               assets: (latest.assets || []).map((a) =>
-                a.id === assetId ? { ...a, loading: false, has: true, assetUrl, thumbnailUrl } : a,
+                a.id === assetId
+                  ? { ...a, loading: false, has: true, assetUrl: url, thumbnailUrl: url }
+                  : a,
               ),
-            }));
-            // 用本地化落盘后的持久 URL 作任务中心结果。done 不再落盘（P0-C），故此处显式补一个
-            // tasks 目录副本（与素材库目录 migrated/... 不同、不冲突），保持任务中心「生成」面板可收录。
-            if (typeof assetUrl === 'string' && assetUrl && !assetUrl.startsWith('blob:')) {
-              // 落盘失败不得静默吞：经 reportDegrade 留痕（对齐 useNodeGeneration 同一步），
-              // 但保留「失败不阻断」语义（任务结果仍用 assetUrl）。
-              await saveResultToTasks(assetUrl, 'image').catch((e: unknown): null => {
-                const err = e instanceof Error ? e : new Error(String(e));
-                reportDegrade({ layer: 'scriptBoxEngine', key: 'saveResultToTasks', e: err });
-                return null;
-              });
-            }
-            taskCtl.done(assetUrl);
-            taskSettled = true;
-            logger.info('scriptBox', '生成资产图·成功', {
-              nodeId,
-              assetId,
-              url: assetUrl,
-              thumbnailUrl,
-            });
-          } else {
-            commit((latest) => ({
-              assets: (latest.assets || []).map((a) =>
-                a.id === assetId ? { ...a, loading: false } : a,
-              ),
-            }));
-            const errMsg = r?.error || '资产参考图生成失败';
-            taskCtl.fail(errMsg);
-            taskSettled = true;
-            if (r && !r.aborted) toast(errMsg);
-            if (r && !r.aborted)
-              logger.error('scriptBox', '生成资产图·上游失败', { nodeId, assetId, error: errMsg });
-            else logger.warn('scriptBox', '生成资产图·已中止', { nodeId, assetId });
-          }
-        },
-        {
-          logLabel: '生成资产图',
+            })),
+          onFail: () => setAssetLoading(false),
+          onAbort: () => setAssetLoading(false),
           toastFail: '资产参考图生成失败',
-          ctx: { nodeId, assetId },
-          timeoutMs: SCRIPT_IMAGE_TIMEOUT,
-        },
-      );
-    } finally {
-      // 异常兜底：若 task 因未捕获异常未走到 done/fail，标记失败，防任务卡 running
-      if (!taskSettled) taskCtl.fail('资产参考图生成失败');
-    }
+          logTag: 'scriptBox',
+          logCtx: { nodeId, assetId, name: asset.name },
+        }),
+      {
+        logLabel: '生成资产图',
+        toastFail: '资产参考图生成失败',
+        ctx: { nodeId, assetId },
+        timeoutMs: SCRIPT_IMAGE_TIMEOUT,
+      },
+    );
   };
 
   // 批量生成资产参考图（对齐官方 Fr）：传数组=选中集；undefined=全部无图资产。
@@ -1673,75 +1632,88 @@ export function createScriptBoxEngine({
           prevShotImageRefUrls: origUrl ? [origUrl] : [],
         }));
 
-        // 3) 以「原版尾帧」为参考图（images:[origUrl]），调一次资产生图模型合成「综合图」→ 自动选中 composed
+        // 3) 以「原版尾帧」为参考图（images:[origUrl]）合成「综合图」→ 自动选中 composed。
+        //    【TD-01-12 收口】编排（report→progress→run→localize→落盘→写回→done/fail 分类）交给
+        //    runGenerationContract（纯 TS，与节点侧/资产图**同一份实现**）→ 任务中心可见（此前完全裸绕）。
+        //    伪 nodeId 按「每镜一卡」规则（单源 tailFrameTaskNodeId）；复杂写回（composed 项 + 自动选中 +
+        //    成功 toast）由 settle 承载；中止/失败由 onAbort/onFail 复位（原实现靠 runAbortable catch 兜底，
+        //    异常时 composed 项会卡在 loading，此处一并修）。
+        //    失败分类/进度由原语统一产出（此前无）。
         const { provider, modelId } = resolveImageModel();
         if (provider && modelId && origUrl) {
           const ams = (d.assetModelSettings as Record<string, unknown>) || {};
           const aspectRatio = String(ams.globalAspectRatio || '16:9');
           const imageSize = String(ams.globalSize || '2K');
-          const r = await generateImage(
-            {
-              provider,
-              prompt: composePrompt,
-              images: origUrl ? [toAbsoluteFileUrl(origUrl)] : [],
-              model: modelId,
-              size: imageSize,
-              n: 1,
-              aspectRatio,
-              // 中止信号必须落在第 3 位：generateImage(opts, onProgress?, signal?)。
-              // 【已修历史 bug】曾误传在第 2 位 onProgress 位 → imageProxy/pollUntilDone 首句
-              // onProgress?.(10,…) 对 AbortSignal 对象发起调用 → TypeError（AbortSignal 非 nullish，
-              // ?.() 不短路）→ 被 catch 后 classifyError 以 `e instanceof TypeError` 判为 network →
-              // fail('onProgress is not a function')。三条分支（responses/async 轮询/同步 SSE）首句均如此，
-              // 请求在发出前就已失败，综合图从未成功过。回归断言见 scriptBoxEngine.deep.test.js。
-            },
-            undefined,
+          await runGenerationContract({
+            taskNodeId: tailFrameTaskNodeId(nodeId, shotId),
+            type: 'image',
+            prompt: composePrompt,
+            modelName: modelId,
             signal,
-          );
-          if (r.ok && r.url) {
-            let cUrl = r.url;
-            try {
-              const loc = await localizeAndStoreToResourceLibrary(r.url, {
+            // 中止信号必须落在第 3 位：generateImage(opts, onProgress?, signal?)（历史 bug 回归点）。
+            // 现 onProgress 由原语经 taskCtl.progress 提供 → 任务中心有真实进度（此前传 undefined）。
+            run: ({ progress, taskId }) =>
+              generateImage(
+                {
+                  provider,
+                  prompt: composePrompt,
+                  images: [toAbsoluteFileUrl(origUrl)],
+                  model: modelId,
+                  size: imageSize,
+                  n: 1,
+                  aspectRatio,
+                  taskId, // P0-A 请求级贯穿
+                },
+                progress,
+                signal,
+              ),
+            // 本地化落 migrated/脚本/尾帧变体（失败降级保留原 URL，由原语 reportDegrade 留痕）
+            localize: async (url) => {
+              const loc = await localizeAndStoreToResourceLibrary(url, {
                 name: `prev-${prevShot.id}-composed`,
                 folder: 'migrated/脚本/尾帧变体',
               });
-              if (loc) cUrl = loc;
-            } catch (e) {
-              logger.warn('scriptBox', '尾帧综合图本地化失败，保留原 URL', {
-                nodeId,
-                shotId,
-                error: e?.message,
-              });
-            }
-            patchShot((s) => ({
-              ...s,
-              prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v: TailFrameVariant) =>
-                v.id === 'composed'
-                  ? {
-                      ...v,
-                      assetUrl: cUrl,
-                      thumbnailUrl: cUrl,
-                      loading: false,
-                      errorMsg: undefined,
-                    }
-                  : v,
-              ),
-              selectedTailFrameVariantId: 'composed',
-              prevShotImageRefUrls: cUrl ? [cUrl] : s.prevShotImageRefUrls,
-            }));
-            toast('尾帧综合图生成完毕（原版 + 1 张综合图），已自动选中', 'success');
-          } else {
-            // 注：图像链路中止一律 AbortError 上抛，由 runAbortable 的 catch 兜底（记「已中止」warn），不会走到这里。
-            patchShot((s) => ({
-              ...s,
-              prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v: TailFrameVariant) =>
-                v.id === 'composed'
-                  ? { ...v, loading: false, errorMsg: r.error || '综合图生成失败' }
-                  : v,
-              ),
-              tailFrameVariantsError: r.error || '综合图生成失败，可重试',
-            }));
-          }
+              return loc || url;
+            },
+            settle: (url) => {
+              patchShot((s) => ({
+                ...s,
+                prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v: TailFrameVariant) =>
+                  v.id === 'composed'
+                    ? {
+                        ...v,
+                        assetUrl: url,
+                        thumbnailUrl: url,
+                        loading: false,
+                        errorMsg: undefined,
+                      }
+                    : v,
+                ),
+                selectedTailFrameVariantId: 'composed',
+                prevShotImageRefUrls: url ? [url] : s.prevShotImageRefUrls,
+              }));
+              toast('尾帧综合图生成完毕（原版 + 1 张综合图），已自动选中', 'success');
+            },
+            onFail: (msg) => {
+              patchShot((s) => ({
+                ...s,
+                prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v: TailFrameVariant) =>
+                  v.id === 'composed' ? { ...v, loading: false, errorMsg: msg } : v,
+                ),
+                tailFrameVariantsError: msg,
+              }));
+            },
+            onAbort: () =>
+              patchShot((s) => ({
+                ...s,
+                prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v: TailFrameVariant) =>
+                  v.id === 'composed' ? { ...v, loading: false } : v,
+                ),
+              })),
+            toastFail: '综合图生成失败，可重试',
+            logTag: 'scriptBox',
+            logCtx: { nodeId, shotId, kind: 'tailframe' },
+          });
         } else if (!(provider && modelId)) {
           patchShot((s) => ({
             ...s,

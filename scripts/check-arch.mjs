@@ -2,13 +2,15 @@
 /**
  * check-arch.mjs — 架构校验（轻量版，主工程内自包含，仅依赖 @babel/parser）。
  *
- * 【为什么存在】download/.dependency-cruiser.cjs 固化了完整架构规则，但 download/ 在 .gitignore，
- * CI 装不到。这里用 @babel/parser 实现最核心的两条架构红线，挂进 check:health，让门槛在主工程内持久生效：
+ * 【为什么存在】架构红线的历史落点曾是 audit/ 沙盒里的 .dependency-cruiser.cjs，但它装在 .gitignore
+ * 的目录、CI 装不到 → 规则不生效。故用主工程依赖 @babel/parser 自包含实现架构红线，挂进闸体系
+ * （gates.manifest push 层 + check:health），让门槛在主工程内持久生效：
  *   1. no-circular —— 模块循环依赖（CLAUDE.md §5.4.2 TDZ 红线）
  *   2. base/ 禁反向依赖业务域（nodes/scriptbox/agent/panels）—— 通用地基必须单向，业务依赖 base 才正确
+ *   （另含：结果信封 / 工具层写操作 / 裸写 node 字段 / 存储唯一入口 / KV 同步读 / 深路径，见下方各规则）
  *
- * 与 download/.dependency-cruiser.cjs 的关系：这里是它的「精简、自包含」等价实现，规则一致；
- * 全量图/可视化仍用 dependency-cruiser。
+ * 【与 audit/ 的关系（2026-09-13 · TD-17-1）】audit/ 沙盒已退役，本文件即架构规则的**唯一落点**
+ * （原「全量图/可视化另用 dependency-cruiser」的补充形态随之取消——不留孤岛）。
  *
  * 用法: node scripts/check-arch.mjs       （或 npm run check:arch）
  * 退出码: 有违规 → 1；无 → 0
@@ -711,6 +713,92 @@ for (const [from, deps] of graph) {
   }
 }
 if (!deepImportViol) console.log('\n  ✅ 无绕实现层深路径 import（storage 均经 index.ts 入口）');
+
+// ─────────────────────────────────────────────────────────────────
+// 规则 9（TD-02-23 收口，2026-09-13）：`projects` 键 SSOT —— module 态唯一真源，cache 只是同步副本。
+//
+// 【为什么存在】`projectStore` 的 module 态 `projects` 与 contentStore 同键（'projects'）的 cache
+// 是两份内存真相，此前靠「每改必 contentSet」的**纸面约定**同步（无结构保证、无守卫）。
+// 收口后：module 态 = 唯一真源；`persist()` 即时写 cache（cache 不再滞后 300ms，仅后端保存防抖）；
+// store 内所有赋值集中到 `writeProjects()`。本规则把这条红线机器化：
+//  ① 非 projectStore 文件**禁直读** cache（`contentGet('projects')`）——应走 `getAllProjects()` /
+//     `useProjects()` / `getCurrentProject()`（cache 是副本，且绕过项目过滤/快照语义）；
+//  ② projectStore 内对 `projects` 的赋值**必须**落在 `writeProjects` 内，或带 `// write-ok: <理由>` 显式豁免。
+// ─────────────────────────────────────────────────────────────────
+const PROJECTS_ASSIGN_RE = /^\s*projects\s*=[^=]/;
+let projectsSSoTViol = 0;
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  let code;
+  try {
+    code = readFileSync(f, 'utf8');
+  } catch {
+    continue;
+  }
+  const isStore = rel === 'src/components/base/store/projectStore.ts';
+  let ast;
+  try {
+    ast = parse(code, {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: true,
+    });
+  } catch {
+    continue;
+  }
+
+  if (!isStore) {
+    // ① 外部禁直读 projects cache
+    const walk = (n) => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) return n.forEach(walk);
+      if (n.type === 'CallExpression') {
+        const c = n.callee;
+        const a0 = n.arguments?.[0];
+        if (
+          c?.type === 'Identifier' &&
+          c.name === 'contentGet' &&
+          a0?.type === 'StringLiteral' &&
+          a0.value === 'projects'
+        ) {
+          projectsSSoTViol++;
+          fail(
+            `直读 projects cache: ${rel}:${n.loc?.start?.line} → contentGet('projects')` +
+              `（module 态才是唯一真源；请用 getAllProjects()/useProjects()/getCurrentProject()）`,
+          );
+        }
+      }
+      for (const k in n)
+        if (k !== 'loc' && k !== 'range' && typeof n[k] === 'object' && n[k] !== null) walk(n[k]);
+    };
+    walk(ast.program);
+  } else {
+    // ② store 内赋值只走 writeProjects（或显式 // write-ok: 豁免）
+    let wpStart = 0;
+    let wpEnd = Number.MAX_SAFE_INTEGER;
+    for (const st of ast.program.body) {
+      if (st.type === 'FunctionDeclaration' && st.id?.name === 'writeProjects') {
+        wpStart = st.loc.start.line;
+        wpEnd = st.loc.end.line;
+      }
+    }
+    code.split('\n').forEach((ln, i) => {
+      const lineNo = i + 1;
+      if (!PROJECTS_ASSIGN_RE.test(ln)) return;
+      if (lineNo >= wpStart && lineNo <= wpEnd) return;
+      if (ln.includes('write-ok:')) return;
+      projectsSSoTViol++;
+      fail(
+        `projects 赋值绕过唯一写点: ${rel}:${lineNo}` +
+          `（必须走 writeProjects()，或加 // write-ok: <理由> 显式豁免）`,
+      );
+    });
+  }
+}
+if (!projectsSSoTViol)
+  console.log(
+    '\n  ✅ projects 键 SSOT 成立（module 态唯一真源；外部无直读 cache、store 内无绕过 writeProjects 的赋值）',
+  );
 
 console.log(`\n${errors === 0 ? '✅ 架构校验通过' : `❌ ${errors} 处架构违规`}`);
 process.exit(errors === 0 ? 0 : 1);

@@ -15,8 +15,9 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';
 
 // 捕获 setNodes 传入的 updater 并执行，得到更新后的 nodes 数组（供断言 data 变更）
+type MockNode = { id: string; data: Record<string, unknown> };
 const h = vi.hoisted(() => {
-  const state = { nodes: [] };
+  const state: { nodes: MockNode[] } = { nodes: [] };
   const setNodesMock = vi.fn((updater) => {
     state.nodes = typeof updater === 'function' ? updater(state.nodes) : updater;
   });
@@ -61,7 +62,13 @@ vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({ defaul
 import ImageBoxNode from '../../src/components/nodes/ImageBoxNode.tsx';
 
 const nodeId = 'ib1';
-function setup(data = {}, connected = { images: [], texts: [] }) {
+function setup(
+  data = {},
+  connected: {
+    images: Array<{ id: string; url: string; label: string }>;
+    texts: Array<{ id: string; text: string; sourceNodeId: string }>;
+  } = { images: [], texts: [] },
+) {
   h.state.nodes = [{ id: nodeId, data: { ...data } }];
   h.setNodesMock.mockClear();
   h.clipboardMock.downloadUrl.mockClear();
@@ -69,7 +76,7 @@ function setup(data = {}, connected = { images: [], texts: [] }) {
   mocks.setConnectedInputs(connected);
   return render(<ImageBoxNode id={nodeId} data={{ ...data }} selected={false} />);
 }
-function lastData() {
+function lastData(): any {
   return h.state.nodes.find((n) => n.id === nodeId)?.data;
 }
 const twoImgs = [
@@ -184,7 +191,12 @@ describe('ImageBoxNode — 单图导航', () => {
 describe('ImageBoxNode — 从上游连线导入', () => {
   it('导入上游图片 → 追加 images（source=connect）并 activeIndex 指向最后', async () => {
     // makeThumb 内部 new Image()，jsdom 不触发 onload；用 stub 手动触发 onerror 使缩略图生成为 undefined
-    const fakeImg = { crossOrigin: '', onload: null, onerror: null, src: '' };
+    const fakeImg = {
+      crossOrigin: '',
+      onload: null as (() => void) | null,
+      onerror: null as ((e?: Error) => void) | null,
+      src: '',
+    };
     vi.stubGlobal(
       'Image',
       vi.fn(() => fakeImg),
@@ -214,7 +226,12 @@ describe('ImageBoxNode — 从上游连线导入', () => {
 describe('ImageBoxNode — 上传/拖入文件落盘(TD-10)', () => {
   it('选择本地图片文件 → 经 filesApi.resolveNodeAssetUrl 落盘，data.images[].url 存持久 URL 而非内联 dataURL', async () => {
     // makeThumb 内部 new Image()；jsdom 不触发 onload，手动触发 onerror 让缩略图快速失败（不影响 url 落盘）
-    const fakeImg = { crossOrigin: '', onload: null, onerror: null, src: '' };
+    const fakeImg = {
+      crossOrigin: '',
+      onload: null as (() => void) | null,
+      onerror: null as ((e?: Error) => void) | null,
+      src: '',
+    };
     vi.stubGlobal(
       'Image',
       vi.fn(() => fakeImg),

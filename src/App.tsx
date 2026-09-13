@@ -49,6 +49,8 @@ import {
   type Project,
 } from './components/base/store/projectStore.ts';
 import { broadcastCanvasSaved } from './components/base/core/canvasSyncBus.ts';
+// 【TD-15-1】agentKey 构造收口到 base/core 单一真源（与 conversationState / backupStore 共用）
+import { agentKeyForProject } from './components/base/core/agentKeys.ts';
 import previewUrls from './components/base/utils/previewUrl.ts';
 import { logger } from './components/base/core/logger.ts';
 import {
@@ -487,17 +489,11 @@ function Canvas() {
   // AI 会话按项目隔离：project 作为最顶层，每个项目一套 AI 会话（对话/绘画）。
   // agentKey = canvas-assistant-<projectId>，conversationStore 据此隔离存储；
   // 新建项目 = 新 projectId = 新 agentKey → 该项目的绘画/会话全新。
-  const agentKeyForProject = useCallback(
-    (projectId: string) => `canvas-assistant-${projectId || 'default'}`,
-    [],
-  );
+  // 【TD-15-1】构造器现为 base/core/agentKeys 的纯函数（顶部 import），不再本地实现（防前缀漂移）。
   // 切换项目时同步 AI 会话隔离键（conversationStore 内部切换 + 通知订阅者重载）
-  const syncAgentKey = useCallback(
-    (projectId: string) => {
-      setAgentKey(agentKeyForProject(projectId));
-    },
-    [agentKeyForProject],
-  );
+  const syncAgentKey = useCallback((projectId: string) => {
+    setAgentKey(agentKeyForProject(projectId));
+  }, []);
 
   // 挂载 / 当前项目变化时，同步 AI 会话隔离键（agentKey）。initProjects 异步覆盖项目后，
   // activeProjectId 变化也会触发这里，确保 AI 会话始终跟随当前项目。
@@ -1343,7 +1339,7 @@ function Canvas() {
    * ReactFlow 画布 + 覆盖层（右键菜单）
    * ==================================================================== */
   return (
-    <LodProvider enablePerformanceMode={performanceMode} nodeCount={nodes.length}>
+    <LodProvider enablePerformanceMode={performanceMode}>
       {/* 顶层：flex 纵向布局*/}
       <div className="flex flex-col h-screen bg-canvas font-sans text-primary">
         {/* 本地引擎未连接全屏提醒 */}

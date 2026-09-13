@@ -10,7 +10,7 @@ import { mocks } from './_nodeMocks.mjs';
 
 // 覆盖 @xyflow/react：setNodes 真正执行 updater 维护 nodes state，供断言 patchData 写回 node.data
 const h = vi.hoisted(() => {
-  const state = { nodes: [] };
+  const state = { nodes: [] as Array<{ id: string; data?: Record<string, unknown> }> };
   const setNodes = vi.fn((updater) => {
     state.nodes = typeof updater === 'function' ? updater(state.nodes) : updater;
   });

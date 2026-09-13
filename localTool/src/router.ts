@@ -43,7 +43,6 @@ import {
 import { handleLogsPost, handleLogsStream } from './routes/logs.js';
 import {
   handleResourcesGet,
-  handleResourcesSave,
   handleResourcesBatchSave,
   handleResourcesDelete,
   handleResourcesClear,
@@ -186,7 +185,6 @@ export const routes: Route[] = [
 
   // ── Resources ──
   { method: 'GET', pattern: '/api/resources', handler: handleResourcesGet },
-  { method: 'POST', pattern: '/api/resources/save', handler: handleResourcesSave },
   { method: 'POST', pattern: '/api/resources/batch-save', handler: handleResourcesBatchSave },
   { method: 'POST', pattern: '/api/resources/delete', handler: handleResourcesDelete },
   { method: 'POST', pattern: '/api/resources/clear', handler: handleResourcesClear },

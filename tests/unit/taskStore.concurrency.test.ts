@@ -56,7 +56,7 @@ describe('taskStore 生图并发上限（最多 6 个同时跑，超出跳过）
     expect(seventh).toBe(false);
 
     // 释放前 6 个挂起的任务，让它们完成
-    for (const r of resolvers) r();
+    for (const r of resolvers) (r as unknown as () => void)();
     const firstSix = await Promise.all(promises.slice(0, 6));
     expect(firstSix.every((r) => (r as unknown as NodeGenerationRunResult).ok === true)).toBe(true);
 
@@ -77,7 +77,7 @@ describe('taskStore 生图并发上限（最多 6 个同时跑，超出跳过）
     expect(((await p2) as unknown as NodeGenerationRunResult).ok).toBe(true);
 
     // 释放第一个 → 槽位释放，无异常
-    resolve();
+    (resolve as unknown as () => void)();
     expect(((await p1) as unknown as NodeGenerationRunResult).ok).toBe(true);
 
     unregisterTaskRetry('conc-a');

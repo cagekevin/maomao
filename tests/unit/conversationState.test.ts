@@ -134,7 +134,7 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     const spy = vi.spyOn(contentStore, 'contentSet');
     flushPersist();
     // contentSet 拿到的是【降级后】的投影：正文被截断，序列化字节回到预算内
-    const persisted = spy.mock.calls[0][1]; // contentSet(key, value) → value 即 toStore 数组
+    const persisted = spy.mock.calls[0][1] as Array<{ messages: Array<{ content: string }> }>; // contentSet(key, value) → value 即 toStore 数组
     expect(JSON.stringify(persisted).length).toBeLessThan(SAFE_BUDGET_BYTES);
     const downgradedContent = persisted[0].messages[0].content;
     expect(downgradedContent.length).toBeLessThan(hugeContent.length);
@@ -150,7 +150,7 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     const many = Array.from({ length: 100 }, (_, i) => ({ role: 'user', content: `m${i}` }));
     patchCurrentMessages(many);
     expect(getCurrentSnapshot().messages).toHaveLength(60);
-    expect(getCurrentSnapshot().messages.at(-1).content).toBe('m99');
+    expect(getCurrentSnapshot().messages.at(-1)!.content).toBe('m99');
   });
 
   it('pending 引用契约（P1a）：makePendingRef 不存 text 副本、保留原始 attachments；set/get 往返一致', () => {
@@ -160,7 +160,7 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     setCurrentPending(
       makePendingRef({ conversationId: id, messageId: 'm-42', attachments: rawAtt }),
     );
-    const p = getCurrentPending();
+    const p = getCurrentPending()!;
     expect(p.messageId).toBe('m-42');
     // text 不入 pending（由 messageId 引用找回），避免用户消息双副本
     expect(p.text).toBeUndefined();
@@ -168,7 +168,7 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     expect(p.attachments).toEqual(rawAtt);
     // 兼容旧形态：遗留 text 仍保留（迁移期可恢复）
     setCurrentPending({ conversationId: id, text: 'legacy' });
-    expect(getCurrentPending().text).toBe('legacy');
+    expect(getCurrentPending()!.text).toBe('legacy');
   });
 });
 
@@ -180,7 +180,7 @@ describe('conversationState · normalizeWorkflow 的 L1 限容', () => {
     const w = normalizeWorkflow({
       ...base,
       steerQueue: Array.from({ length: total }, (_, i) => ({ text: `t${i}` })),
-    });
+    })!;
     expect(w.steerQueue.length).toBe(STEER_QUEUE_MAX);
     // 保最近：末位是最新的那条；最早的 5 条被挤掉
     expect(w.steerQueue[w.steerQueue.length - 1]).toEqual({ text: `t${total - 1}` });
@@ -189,7 +189,7 @@ describe('conversationState · normalizeWorkflow 的 L1 限容', () => {
 
   it('未超上限原样保留', () => {
     const q = [{ text: 'a' }, { text: 'b' }];
-    const w = normalizeWorkflow({ ...base, steerQueue: q });
+    const w = normalizeWorkflow({ ...base, steerQueue: q })!;
     expect(w.steerQueue).toEqual(q);
   });
 });

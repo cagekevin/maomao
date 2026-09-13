@@ -18,8 +18,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 // 捕获 setNodes/setEdges 传入的 updater 并执行，得到更新后的 nodes/edges（供断言 data 变更）
+type MockNode = { id: string; data: Record<string, unknown> };
+type MockEdge = { source: string; target: string; id: string };
 const h = vi.hoisted(() => {
-  const state = { nodes: [], edges: [] };
+  const state: { nodes: MockNode[]; edges: MockEdge[] } = { nodes: [], edges: [] };
   const setNodesMock = vi.fn((updater) => {
     state.nodes = typeof updater === 'function' ? updater(state.nodes) : updater;
   });
@@ -114,7 +116,7 @@ vi.mock('../../src/components/base/prompt/PromptInput.tsx', async (importOrigina
               typeof asset === 'string'
                 ? asset
                 : (asset && (asset as { label?: string }).label) || '';
-            onChange(value ? `${value} @${label} ` : `@${label} `);
+            onChange?.(value ? `${value} @${label} ` : `@${label} `);
           });
           // eslint-disable-next-line react-hooks/exhaustive-deps
         }, []);
@@ -243,7 +245,7 @@ function setup(data = {}) {
   return render(<VideoGenerate id={nodeId} data={{ ...data }} selected={false} />);
 }
 function nodeData() {
-  return h.state.nodes.find((n) => n.id === nodeId)?.data;
+  return h.state.nodes.find((n) => n.id === nodeId)!.data;
 }
 
 describe('VideoGenerate — 渲染', () => {
@@ -376,7 +378,7 @@ describe('VideoGenerate — 下载 / 删除 / 展开', () => {
   it('点击主显示区 → toggleExpanded 写回 data.expanded', () => {
     const { container } = setup();
     // 主显示区：.group\/display 容器
-    const display = container.querySelector('.group\\/display');
+    const display = container.querySelector('.group\\/display')!;
     fireEvent.click(display);
     expect(nodeData().expanded).toBe(false);
   });

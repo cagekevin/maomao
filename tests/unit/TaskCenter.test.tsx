@@ -220,8 +220,8 @@ describe('TaskCenter — 大图预览', () => {
   it('点击已完成图片缩略图 → 打开预览弹窗', () => {
     h.setTasks([makeTask({ type: 'image', resultUrl: 'http://x/big.png' })]);
     render(<TaskCenter />);
-    const img = document.querySelector('img[src="http://x/big.png"]');
-    fireEvent.click(img.closest('[class*="cursor-pointer"]'));
+    const img = document.querySelector('img[src="http://x/big.png"]')!;
+    fireEvent.click(img.closest('[class*="cursor-pointer"]')!);
     expect(screen.getByText('按住拖到画布添加')).toBeTruthy();
     expect(screen.getByTitle('关闭')).toBeTruthy();
   });
@@ -229,8 +229,8 @@ describe('TaskCenter — 大图预览', () => {
   it('预览弹窗关闭按钮 → 关闭弹窗', () => {
     h.setTasks([makeTask({ type: 'image', resultUrl: 'http://x/big.png' })]);
     render(<TaskCenter />);
-    const img = document.querySelector('img[src="http://x/big.png"]');
-    fireEvent.click(img.closest('[class*="cursor-pointer"]'));
+    const img = document.querySelector('img[src="http://x/big.png"]')!;
+    fireEvent.click(img.closest('[class*="cursor-pointer"]')!);
     fireEvent.click(screen.getByTitle('关闭'));
     expect(screen.queryByText('按住拖到画布添加')).toBeNull();
   });

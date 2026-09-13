@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 /**
- * 架构闸统一运行器（分区/disjoint 模型，2026-09-13 二次重构）
+ * 架构闸统一运行器（单一验证阶段模型，2026-09-13 三次重构）
  *
- * 【为什么分区】此前用『累积式分层』（build⊂commit⊂push），低层闸在高层被原样重跑；
- * 而提交与推送常连着来 → 同一闸重复跑。改为**分区**：每道闸只属一个 phase，phase 只跑自己名下的闸，
- * 互不重叠 → build/commit/push 各跑不同的事，且连发不重复。重型 tsc/arch 收敛到 push（最不频繁）。
+ * 【为什么合并】最早用『累积式分层』（build⊂commit⊂push），低层闸在高层被原样重跑；二次重构改**分区**
+ * （每闸只属一个 phase、互不重叠）后虽不重复，但一次「提交 → 推送」仍要等**两轮**闸。
+ * 用户裁定（2026-09-13）：「提交和推送这两个我可以看成一个。只要最后推送不出去…就可以了，
+ * 不需要反反复复把这两个东西一起跑」→ 合并为**单一验证阶段**：代码闸全归 push，
+ * 本地 pre-push 与 CI 各跑一次；commit 阶段不再跑闸（只留 lint-staged + 改动相关测试）。
  *
  * 分组（scripts/gates.manifest.json::phases）：
- *   build   → 7 道廉价构建契约（无 tsc）
- *   commit  → 3 道廉价代码卫生闸（无 tsc）
- *   push    → 2 道重型终闸（strict-src 综合类型闸 / arch 全图扫描）
+ *   build   → 7 道廉价构建契约（无 tsc），只在 npm run build 时跑
+ *   push    → 7 道代码闸（合并原 commit+push：type-check/any/catch/events + strict-src/arch/dead-code）
  *   health  → 全量巡检 = 所有闸 + healthOnly
  *
- * 用法：node scripts/gates-run.mjs build | commit | push | health | list
+ * 用法：node scripts/gates-run.mjs build | push | health | list
  * 退出码：任一闸失败 → 非 0（fail-fast）。
  */
 import { readFileSync } from 'node:fs';
@@ -37,7 +38,7 @@ const phase = process.argv[2] || '';
 // ── 自检（fail-loud）：manifest 自身也需护栏 ──
 function selfCheck() {
   const problems = [];
-  for (const req of ['build', 'commit', 'push', 'health']) {
+  for (const req of ['build', 'push', 'health']) {
     if (!PHASES.includes(req)) problems.push(`phases 缺少必需分组: ${req}`);
   }
   const ids = new Set();

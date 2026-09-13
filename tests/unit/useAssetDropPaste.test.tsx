@@ -598,7 +598,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
   afterEach(() => downloadRemoteMock.mockReset());
 
   it('拖入网页图 → 先用原 URL 建节点 + 触发后台本地化；成功后替换节点 assetUrl', async () => {
-    downloadRemoteMock.mockResolvedValue('http://127.0.0.1:18080/files/web/abc.png');
+    downloadRemoteMock.mockResolvedValue('http://127.0.0.1:18080/files/web/abc.png' as never);
     const patchNodeData = vi.fn();
     const opts = makeOpts({ addNode: vi.fn(() => 'node-web-1'), patchNodeData });
     const { result } = renderHook(() => useAssetDropPaste(opts));
@@ -648,7 +648,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
   });
 
   it('本地化结果与原 URL 相同 → 不重复替换', async () => {
-    downloadRemoteMock.mockResolvedValue('https://x/cat.png');
+    downloadRemoteMock.mockResolvedValue('https://x/cat.png' as never);
     const patchNodeData = vi.fn();
     const opts = makeOpts({ addNode: vi.fn(() => 'node-web-3'), patchNodeData });
     const { result } = renderHook(() => useAssetDropPaste(opts));

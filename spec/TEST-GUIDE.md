@@ -60,7 +60,7 @@
 |------|---------|-----------|
 | **价值** | 测的是真实契约还是自证式断言？ | 逻辑层好；部分组件测试自证式（低价值） |
 | **速度** | 整包多久？单个测试多久？ | 全量含覆盖约 20s；另有 `test:unit:logic` 逻辑快速面（see §二） |
-| **守门** | 提交/CI 时测试是否被强制跑？ | pre-commit `--changed` + pre-push 全量；CI 分层（logic→coverage） |
+| **守门** | 提交/CI 时测试是否被强制跑？ | pre-commit `--changed` + `test:coverage`（全量）由 CI 跑；代码闸 = pre-push 与 CI 各跑一次同一份 `check:push` |
 | **确定性** | 有 flaky（偶发红）吗？定时器/真实网络是否隔离？ | fetch 已【响铃】隔离；定时器统一 `useFakeTimers` / `fastPollTimers` 两种语义（see §六） |
 | **依赖一致** | package-lock 锁定？换机可复现？ | ✅ 已锁定 |
 | **输出卫生** | 产物进 test-results/？不污染 git？ | ✅ 已规范 |
@@ -73,14 +73,16 @@
 | 守门点 | 现状 | 说明 |
 |--------|------|------|
 | **手动全量** `npm run test:all` | ✅ 有效 | 冒烟 + vitest 单测 + SSR 回归 + Agent 工具，全绿才过 |
-| **提交钩子** `.husky/pre-commit` | ✅ 跑 `lint-staged` + `type-check` + `test-affected` + 3 个 SSR 门禁 | 提交前快速校验：暂存文件 lint/format（~1s）+ 类型检查 + **只跑改动相关**的单测（`scripts/test-affected.cjs`，~2-3s）+ `smoke`/`regression`/`tools` 秒级门禁。**不跑全量单测**（留给 CI） |
-| **推送钩子** `.husky/pre-push` | ✅ 跑 `npm run lint`（全量 ESLint） | push 前全量 lint 兜底（约 4s，当前 0 error / 0 warning）。**不跑全量单测**——全量由 CI 负责，避免 push 每次等 20s。紧急可 `git push --no-verify` 绕过 |
+| **提交钩子** `.husky/pre-commit` | ✅ 跑 `lint-staged` + `test-affected` + 3 个 SSR 门禁 | 提交前快速校验：暂存文件 lint/format（~1s）+ **只跑改动相关**的单测（`scripts/test-affected.cjs`，~2-3s）+ `smoke`/`regression`/`tools` 秒级门禁。**不跑闸、不跑全量单测**——代码闸统一在 pre-push/CI（2026-09-13 合并为单一验证阶段） |
+| **推送钩子** `.husky/pre-push` | ✅ 跑 `npm run lint`（全量 ESLint）+ `npm run check:push`（7 道代码闸） | push 前**一次**跑完全量 lint 与全部代码闸（type-check / any / catch / events / strict-src / arch / dead-code；约 10s）。**不跑全量单测**——全量由 CI 负责，避免 push 每次等 20s。紧急可 `git push --no-verify` 绕过 |
 | **e2e 纳入门禁** | ⚠️ `test:all` **不含 e2e** | e2e 需单独 `npm run test:e2e`（慢），默认不在统一门禁 |
-| **CI**`.github/workflows/ci.yml` | ✅ `type-check` → `test:coverage`（全量+覆盖率） | 【2026-09-10 去重】原「logic 快速面 → 全量」两层已合并：logic 的 1932 用例是全量 2332 的**真子集**，纯重复执行；且因瓶颈在 vitest 收集开销，只省 5.5s（13.5s vs 19.0s），总时长反而更久。现单条 coverage 兜住，语义等价 |
+| **CI**`.github/workflows/ci.yml` | ✅ `check:push`（与本地 pre-push **同一份** 7 道闸）→ `test:coverage`（全量+覆盖率） | 【2026-09-13】此前 CI 只跑 `type-check` + 单测，**闸在云端不可达**（架构/契约/死代码闸不生效）；现改跑与本地 pre-push 同一份闸清单（**各一次、不重复**），再加全量覆盖率测试。原「logic 快速面 → 全量」两层已在 2026-09-10 合并（logic 用例是全量真子集，纯重复） |
 
 > 🔍 **门禁失败排查**：`scripts/health-check.cjs` 的 `runGate()` 在**失败时打印子进程完整 stdout + stderr**（2026-09-10 修）。此前用 `stdio:'pipe'` + `e.stdout.slice(0, 100)` 只留首部 100 字符，而 vitest/eslint 的失败摘要与断言差异都在**末尾** → 被精准切除，排查者只能靠 grep 源码反推。现直接给出完整报错与位置；`maxBuffer` 提到 32MB 防「输出过大」假错误。
 
 > 📌 **历史变更（2026-09-10）**：① 全量 lint 曾在 2026-09 被移出门禁（当时理由「跑得慢 + 报错多」），实测重估后该理由已不成立（全量 4s、0 error/0 warning），遂**重新接入 pre-push**；② 上表此前误记 `pre-push` 跑 `test:unit`（全量单测）——该做法更早已被删除（与 CI 重叠），现以「push 只跑 lint、全量交 CI」为准。以本节为准，勿再按旧记忆操作。
+
+> 📌 **变更（2026-09-13 · 闸时机合并）**：原 `commit`＋`push` 两阶段闸（一次「提交→推送」要等两轮）**合并为单一验证阶段** —— 代码闸全归 `check:push`（7 道），本地 pre-push 与 CI **各跑一次**；`pre-commit` 不再跑闸、`pretest` 已删（`npm test` 不再附带跑闸）。用户裁定：「提交和推送可以看成一个，只要最后推不出去就够」。
 
 > **判断**：测试要有"活门禁"才有守门价值。设计取舍（2026-08-21）：commit 阶段用 `vitest run --changed` 早抓「本次改动」回归（快），全量单测移到 `pre-push` 兜底（安全网不丢）。若想 commit 时也全量守门，把 pre-commit 的 `npx vitest run --changed` 换回 `npm run test:unit` 即可，代价是每次 commit 多等 ~20s。
 

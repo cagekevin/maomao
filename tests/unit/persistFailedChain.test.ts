@@ -68,7 +68,7 @@ describe('KV 降级链 → persist:failed（兼容真实 storageAdapter 行为�
     await contentSetAsync(CONTENT_STATE_KEY, { nodes: [{ id: '1' }] });
     // storageSet 的 { ok, degraded } 返回值随中间层消失 → 改为断言「降级副本确实落到 localStorage」。
     // 注意 storageAdapter.sSet 带 yimao: 前缀，故按拼接后的真实 key 读。
-    expect(JSON.parse(localStorage.getItem('yimao:' + CONTENT_STATE_KEY))).toEqual({
+    expect(JSON.parse(localStorage.getItem('yimao:' + CONTENT_STATE_KEY)!)).toEqual({
       nodes: [{ id: '1' }],
     });
     expect(persistEvts).toHaveLength(0); // 数据落 local 成功，不报失败

@@ -35,8 +35,8 @@ function installImageMock() {
       return '';
     }
     crossOrigin = null;
-    onload = null;
-    onerror = null;
+    onload: (() => void) | null = null;
+    onerror: ((e: Error) => void) | null = null;
     naturalWidth = 0;
     naturalHeight = 0;
   };
@@ -46,9 +46,9 @@ function installImageMock() {
 let createdCanvases = [];
 function installCanvasMock() {
   createdCanvases = [];
-  HTMLCanvasElement.prototype.getContext = function () {
-    if (!this._w) this._w = this.width;
-    if (!this._h) this._h = this.height;
+  HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement) {
+    const cw = this.width;
+    const ch = this.height;
     return {
       fillStyle: '',
       fillRect() {},
@@ -63,7 +63,7 @@ function installCanvasMock() {
       },
       getImageData() {
         // 返回一个可写的像素缓冲（锐化要 putImageData 回写）
-        const len = this.width * this.height * 4 || 16;
+        const len = cw * ch * 4 || 16;
         return { data: new Uint8ClampedArray(len) };
       },
       putImageData() {},

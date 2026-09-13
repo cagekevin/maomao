@@ -129,7 +129,7 @@ describe('scriptBoxEngine · 纯导出函数', () => {
       expect(out).toContain('环境音/动作音：风声');
     });
     it('无参考资源 → 回退提示句', () => {
-      const out = assembleShotUser({ index: 2, description: 'x' }, [], undefined);
+      const out = assembleShotUser({ index: 2, description: 'x' }, [], '');
       expect(out).toContain('本分镜未引用具体资源');
     });
     it('P2-4：imageNegative 仅作用 prompt、videoNegative 仅作用 videoPrompt', () => {
@@ -353,8 +353,8 @@ describe('scriptBoxEngine · 引擎编排', () => {
     expect(call.images).toEqual(['http://127.0.0.1:18080/files/p.png', '/files/q.png']);
     // 上游文本并入剧情
     const userMsg = call.messages.find((m) => m.role === 'user');
-    expect(userMsg.content).toContain('为产品拍一支广告');
-    expect(userMsg.content).toContain('产品是一款无线耳机');
+    expect(userMsg!.content).toContain('为产品拍一支广告');
+    expect(userMsg!.content).toContain('产品是一款无线耳机');
     // story 只写回用户手填部分，上游文本留在 upstreamStory（只读素材区展示，避免重复）
     expect(store.story).toBe('为产品拍一支广告');
     expect(store.upstreamStory).toBe('产品是一款无线耳机');

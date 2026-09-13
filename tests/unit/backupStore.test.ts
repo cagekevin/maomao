@@ -12,10 +12,12 @@ import {
   contentClearCache,
 } from '../../src/components/base/core/contentStore.ts';
 
-// ── stub projectStore：内存画布快照 + 当前项目（内存真相）──
+// ── stub projectStore：内存画布快照 + 当前项目 + 项目列表（内存真相）──
 const canvasStore = new Map();
 /** 当前项目「内存真相」（TD-02-4 后 backupStore 委托 getCurrentProject，不再从存储重推导） */
 let currentProject: { id: string; name?: string } = { id: 'default', name: '默认项目' };
+/** 项目列表「内存真相」（TD-15-2 后 exportAll 枚举项目取此，不再只读 localStorage 副本） */
+let memoryProjects: { id: string; name?: string }[] = [];
 vi.mock('../../src/components/base/store/projectStore.ts', () => ({
   loadCanvasState: vi.fn(async (id) => canvasStore.get(id) || null),
   saveCanvasState: vi.fn(async (id, nodes, edges) => {
@@ -23,6 +25,7 @@ vi.mock('../../src/components/base/store/projectStore.ts', () => ({
     return { ok: true };
   }),
   getCurrentProject: vi.fn(() => currentProject),
+  getAllProjects: vi.fn(() => memoryProjects),
 }));
 
 // ── 账号/会话 KV stub：exportAll 经 contentGetAsync('yimao_accounts')/会话键走 KV。
@@ -52,6 +55,7 @@ beforeEach(() => {
   kvStore.clear();
   contentClearCache();
   currentProject = { id: 'default', name: '默认项目' };
+  memoryProjects = [];
 });
 
 describe('backupStore — 导出 exportAll', () => {
@@ -91,6 +95,26 @@ describe('backupStore — 导出 exportAll', () => {
     expect(getCurrentProject).toHaveBeenCalled();
     expect(Object.keys(backup.canvas)).toEqual(['p2']);
     expect(backup.canvas.p2).toEqual({ nodes: [{ id: 'n2' }], edges: [] });
+  });
+
+  it('项目枚举以 projectStore 内存真相为准（防抖窗内新建项目不漏备，TD-15-2）', async () => {
+    // 存储副本只有 p1；内存真相多出 p2（模拟 300ms 防抖窗内刚新建项目）
+    contentSet('projects', [{ id: 'p1', name: 'P1' }]);
+    memoryProjects = [
+      { id: 'p1', name: 'P1' },
+      { id: 'p2', name: '新项目' },
+    ];
+    canvasStore.set('p2', { nodes: [{ id: 'n2' }], edges: [] });
+
+    const backup = await exportAll();
+
+    // p2 的画布被导出（旧实现只读 ls.projects 副本 → 漏 p2）
+    expect(backup.canvas).toEqual({ p2: { nodes: [{ id: 'n2' }], edges: [] } });
+    // 备份包内项目列表同时补上 p2（枚举与列表同源，导入后自洽）
+    expect(backup.ls.projects).toEqual([
+      { id: 'p1', name: 'P1' },
+      { id: 'p2', name: '新项目' },
+    ]);
   });
 
   it('动态收集 AI 会话键（按项目隔离）', async () => {
@@ -138,6 +162,7 @@ describe('backupStore — 导入 importAll', () => {
     expect(res.ok).toBe(true);
     expect(res.ls).toBe(2);
     expect(res.canvas).toBe(1);
+    expect(res.failed).toEqual([]); // TD-15-3：无失败项
     expect(contentGet('app_settings')).toEqual({ theme: 'light' });
     expect(canvasStore.get('pa')).toEqual({ nodes: [{ id: 'x' }], edges: [{ id: 'e' }] });
   });
@@ -154,6 +179,41 @@ describe('backupStore — 导入 importAll', () => {
     expect(res.ok).toBe(false);
     expect(res.error).toContain('无效');
     expect(res.ls).toBe(0);
+  });
+
+  // ── 【TD-15-3】格式/版本守卫 + 诚实失败（先红后绿：改前恒返 ok:true / 无守卫）──
+  it('拒绝非 yimao 备份（type 不符）且不写入任何数据', async () => {
+    const res = await importAll({ type: 'other-backup', ls: { app_settings: { theme: 'x' } } });
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('不是 yimao');
+    expect(contentGet('app_settings')).toBeUndefined(); // 预检拒绝 → 未写入
+  });
+
+  it('拒绝高于当前支持的备份版本（防新版数据被旧版静默错读）', async () => {
+    const res = await importAll({ type: 'yimao-backup', version: 99, ls: {} });
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('高于当前支持');
+  });
+
+  it('缺 type/version 的旧包放行（宽松向后兼容，不误拒合法数据）', async () => {
+    const res = await importAll({ ls: {}, canvas: {} });
+    expect(res.ok).toBe(true);
+  });
+
+  it('单个画布写失败 → 不再假成功：ok=false + failed 列明（TD-15-3）', async () => {
+    const { saveCanvasState } = await import('../../src/components/base/store/projectStore.ts');
+    vi.mocked(saveCanvasState).mockImplementationOnce(async () => {
+      throw new Error('磁盘满');
+    });
+    const res = await importAll({
+      type: 'yimao-backup',
+      version: 2,
+      ls: {},
+      canvas: { bad: { nodes: [], edges: [] } },
+    });
+    expect(res.ok).toBe(false);
+    expect(res.failed).toEqual([{ projectId: 'bad', error: '磁盘满' }]);
+    expect(res.error).toContain('1 项导入失败');
   });
 
   it('canvas 快照 saveCanvasState 返回 skipped 时不计入 canvas 计数', async () => {

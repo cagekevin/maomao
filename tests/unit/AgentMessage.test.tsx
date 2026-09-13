@@ -38,7 +38,7 @@ describe('AgentMessage — 图片 URL 判定与文本切图', () => {
     render(
       <AgentMessage message={{ role: 'assistant', content: '看这张图：![alt](http://x/a.png)' }} />,
     );
-    const img = document.querySelector('img');
+    const img = document.querySelector('img')!;
     expect(img).toBeTruthy();
     expect(img.getAttribute('src')).toBe('http://x/a.png');
     // 前后文本仍保留
@@ -158,7 +158,7 @@ describe('AgentMessage — assistant 消息（思考/工具/步骤卡片）', ()
       />,
     );
     // 注意：getByText 命中的是内层文本 span，title 在外层 .agent-toolchip 上（closest 需带自身选择器）
-    const chip = screen.getByText('generate_node').closest('.agent-toolchip');
+    const chip = screen.getByText('generate_node').closest('.agent-toolchip')!;
     expect(chip).toBeTruthy();
     expect(chip.getAttribute('title')).toContain('nodeType=assetNode');
     expect(chip.getAttribute('title')).toContain('prompt=猫');

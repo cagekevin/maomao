@@ -30,7 +30,8 @@ export const API_BASE =
  *  ⚠️ 演进规则（见 spec/CONTEXT.md §二）：
  *   - 这是「第 2 个模块（agent）加入」后由单模块 DEBUG_ASSET 升级而来——触发条件就是
  *     「≥2 个无关模块要排查日志」，此时不再新增 DEBUG_XXX 散开关，统一走本 DEBUG。
- *   - DEBUG_ASSET 保留为别名（向后兼容既有引用），等价于 DEBUG 的 asset 模块位。 */
+ *   - 模块位统一走 isDebugModuleOn('asset') 实时读；不要再引入顶层缓存的 DEBUG_XXX 常量
+ *     （缓存会使运行时 window.__DEBUG_<MODULE> 切换失效，见下方 isDebugModuleOn 注释）。 */
 export const DEBUG_MODULES = ['asset', 'agent', 'image', 'text', 'project', 'http', 'depth']; // 支持的模块位（新增模块在此登记）；'text'=文本节点复制/落盘链路；'project'=项目切换/快照/备份/同步；'http'=统一请求层(httpClient)传输日志；'depth'=深度转视频（模型加载/生成链路）
 
 /** 运行时调试开关所在 window 形状：`__DEBUG_<MODULE>` / `__DEBUG_ALL` 由前端运行时注入，
@@ -62,10 +63,6 @@ export function isDebugModuleOn(module?: string) {
   if (DEBUG_MODULES.includes(module)) return _debugOn(upper);
   return false;
 }
-
-/** [兼容别名] 素材库模块位是否开启（DEBUG_MODULES 里的 'asset'），等价 isDebugModuleOn('asset')。
- *  旧代码引用 DEBUG_ASSET 处无需改动。 */
-export const DEBUG_ASSET = isDebugModuleOn('asset');
 
 // ── director3d 调试日志开关 ────────────────────────────────────────
 /** director3d 调试日志开关（原散落在 director3d/log.ts 的裸 import.meta 读取，已收口至此）。

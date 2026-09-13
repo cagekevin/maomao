@@ -48,7 +48,7 @@ interface AxisSliderProps {
   onToggleLock?: () => void;
 }
 
-export function AxisSlider({
+function AxisSlider({
   label,
   title,
   value,

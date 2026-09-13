@@ -37,7 +37,7 @@ describe('eventBus §基础设施 订阅/发布', () => {
   });
 
   it('非法参数（空事件/非函数）返回安全的 noop 取消函数', () => {
-    const off = subscribe('', null);
+    const off = subscribe('', null as never);
     expect(typeof off).toBe('function');
     expect(() => off()).not.toThrow();
   });

@@ -27,6 +27,6 @@ describe('idGen — generateId', () => {
 
   it('空前缀回落为 id', () => {
     expect(generateId('')).toMatch(/^id_/);
-    expect(generateId(null)).toMatch(/^id_/);
+    expect(generateId(null as never)).toMatch(/^id_/);
   });
 });

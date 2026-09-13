@@ -568,10 +568,10 @@ export async function executePlan({
       const res = await runNodeGeneration(nodeId);
       // 【未触发（false）】：节点未注册 / 或并发已达上限被跳过——都视为「待生成」，不报失败，
       // 节点保持 ready（画布上就是「还没生成」的自然样子，用户可手动点触发）。
-      if (!res || res === true) return { status: 'ready', error: '' };
-      if (typeof res === 'object' && res.ok === false)
-        return { status: 'failed', error: res.error || '生成失败' };
-      const resultUrl = (typeof res === 'object' ? res.resultUrl : '') || '';
+      // 【TD-01-6】返回类型已收敛为 `false | NodeGenerationRunResult`（旧 `true` 一态删除）→ 判 falsy 即可。
+      if (!res) return { status: 'ready', error: '' };
+      if (res.ok === false) return { status: 'failed', error: res.error || '生成失败' };
+      const resultUrl = res.resultUrl || '';
       // 【live 节点防悬空（对齐大雄 liveNodeById）】await 完成后重新查节点，
       // 防节点在生成期间被删除/合并（409）导致对悬空对象写回。节点已消失则跳过写回。
       const live = host.getNode(nodeId);

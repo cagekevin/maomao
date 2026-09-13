@@ -36,7 +36,7 @@ describe('promptChips 序列化往返', () => {
     const metaMap = new Map([['img-1', { kind: 'image', url: 'http://x/a.png' }]]);
     const root = renderToDom(input, metaMap);
     // 反序列化应生成芯片元素
-    const chip = root.querySelector('[data-ref-id="img-1"]');
+    const chip = root.querySelector('[data-ref-id="img-1"]')!;
     expect(chip).not.toBeNull();
     // 序列化把缩略图 URL 编码进字符串（|url 段，经 encodeURIComponent）
     const out = serializeDOM(root);
@@ -48,7 +48,7 @@ describe('promptChips 序列化往返', () => {
     const serialized = '参考 @{img-1:人物|http%3A%2F%2Fx%2Fa.png} 生成';
     // 关键：传入 null metaMap，验证缩略图靠字符串自带恢复（刷新/重建场景）
     const root = renderToDom(serialized, null);
-    const chip = root.querySelector('[data-ref-id="img-1"]');
+    const chip = root.querySelector('[data-ref-id="img-1"]')!;
     expect(chip).not.toBeNull();
     const img = chip.querySelector('.prompt-chip-thumb') as HTMLImageElement | null;
     expect(img).not.toBeNull();
@@ -59,7 +59,7 @@ describe('promptChips 序列化往返', () => {
   it('旧格式（无 url 段）仍正确解析，向后兼容', () => {
     const input = '参考 @{img-1:人物} 生成';
     const root = renderToDom(input, null);
-    const chip = root.querySelector('[data-ref-id="img-1"]');
+    const chip = root.querySelector('[data-ref-id="img-1"]')!;
     expect(chip).not.toBeNull();
     expect(chip.getAttribute('data-ref-thumb')).toBeNull();
     expect(serializeDOM(root)).toBe(input);
@@ -68,7 +68,7 @@ describe('promptChips 序列化往返', () => {
   it('文本芯片（无缩略图）显示 @ 图标而非缩略图', () => {
     const metaMap = new Map([['t-1', { kind: 'text' }]]);
     const root = renderToDom('@{t-1:参考文本}', metaMap);
-    const chip = root.querySelector('[data-ref-id="t-1"]');
+    const chip = root.querySelector('[data-ref-id="t-1"]')!;
     expect(chip).not.toBeNull();
     expect(chip.querySelector('img')).toBeNull();
   });
@@ -84,7 +84,7 @@ describe('promptChips 序列化往返', () => {
     const input = '参考 @{img-1:人物|http%3A%2F%2Fx%2Fa.png} 生成';
     const metaMap = new Map([['img-1', { kind: 'image', url: 'http://x/a.png', label: '主角' }]]);
     const root = renderToDom(input, metaMap);
-    const chip = root.querySelector('[data-ref-id="img-1"]');
+    const chip = root.querySelector('[data-ref-id="img-1"]')!;
     expect(chip).not.toBeNull();
     expect(chip.getAttribute('data-ref-label')).toBe('主角');
     // 序列化时以 chip 上最新 label 为准 → 字符串名也更新为「主角」
@@ -95,7 +95,7 @@ describe('promptChips 序列化往返', () => {
     const input = '参考 @{img-1:人物|http%3A%2F%2Fx%2Fa.png} 生成';
     const metaMap = new Map([['img-1', { kind: 'image', url: 'http://x/a.png' }]]);
     const root = renderToDom(input, metaMap);
-    const chip = root.querySelector('[data-ref-id="img-1"]');
+    const chip = root.querySelector('[data-ref-id="img-1"]')!;
     expect(chip.getAttribute('data-ref-label')).toBe('人物');
     expect(serializeDOM(root)).toBe(input);
   });
@@ -342,7 +342,7 @@ describe('commitOccurrencesInRun（就地 DOM 手术，§8.4）', () => {
     const run = document.createTextNode(text);
     root.appendChild(run);
     if (caretOffset != null) {
-      const sel = window.getSelection();
+      const sel = window.getSelection()!;
       const range = document.createRange();
       range.setStart(run, caretOffset);
       range.collapse(true);
@@ -394,9 +394,9 @@ describe('commitOccurrencesInRun（就地 DOM 手术，§8.4）', () => {
   it('光标映射：手术后光标落到 run 转换流末尾（chip 后）', () => {
     const { root, run } = setup('参考@猫 生成', 7);
     commitOccurrencesInRun(run, assets, { frontierOffset: 7 });
-    const sel = window.getSelection();
+    const sel = window.getSelection()!;
     const range = sel.getRangeAt(0);
-    const chip = root.querySelector('[data-ref-id="img-1"]');
+    const chip = root.querySelector('[data-ref-id="img-1"]')!;
     // 光标在 chip 之后的剩余文本「 生成」内：相对原末尾 7 - end 4 = 3（after 文本长 3，落点即其末尾）
     expect(chip).toBeTruthy();
     expect(range.startContainer.nodeType).toBe(Node.TEXT_NODE);

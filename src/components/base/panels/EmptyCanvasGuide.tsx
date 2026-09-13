@@ -1,4 +1,3 @@
-import 'react';
 import { FileText, Image as ImageIcon, Clapperboard } from 'lucide-react';
 
 /**

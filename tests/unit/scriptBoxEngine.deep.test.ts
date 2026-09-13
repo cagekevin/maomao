@@ -21,14 +21,22 @@ vi.mock('../../src/components/base/core/logger.ts', () => ({
 // 此前未 mock 时 onGenerateAssetImage 会触发真实 reportGenerate → saveTask 落库 fetch，被测试基建响铃
 // fetch 记为 logger.warn('task','persist-fail')（噪音，曾污染 T6/T7 的 logger.warn 断言）。
 vi.mock('../../src/components/base/store/taskStore.ts', () => ({
-  reportGenerate: () => ({ taskId: 't-task', progress: vi.fn(), done: vi.fn(), fail: vi.fn() }),
+  reportGenerate: vi.fn(() => ({
+    taskId: 't-task',
+    progress: vi.fn(),
+    done: vi.fn(),
+    fail: vi.fn(),
+  })),
 }));
 
 import { chatCompletions, generateImage } from '@/components/base/api/generate.ts';
 import { showToast } from '../../src/components/base/core/toastStore.ts';
 import { logger } from '../../src/components/base/core/logger.ts';
 import { localizeAndStoreToResourceLibrary } from '../../src/components/base/store/resourceStore.ts';
+import { reportGenerate } from '../../src/components/base/store/taskStore.ts';
 import { createScriptBoxEngine } from '@/components/scriptbox/scriptBoxEngine.ts';
+
+const reportGenerateMock = vi.mocked(reportGenerate);
 
 const loggerWarnMock = vi.mocked(logger.warn);
 const loggerErrorMock = vi.mocked(logger.error);
@@ -492,8 +500,18 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     // 错位到第 2 位时，imageProxy 首句 onProgress?.(10,…) 会对 AbortSignal 对象发起调用而
     // TypeError（对象非 nullish，?.() 不短路）→ 请求发出前即失败，综合图永远拿不到结果。
     // 本用例用 vi.fn 记录全部实参，故能拦住该错位（_nodeMocks 的默认 mock 只记 a[0]，拦不住）。
-    expect(generateImageMock.mock.calls[0][1]).toBeUndefined();
+    // 【TD-01-12】第 2 位现为任务中心进度回调（原语提供）→ 任务中心有真实进度（此前传 undefined）。
+    expect(generateImageMock.mock.calls[0][1]).toBeTypeOf('function');
     expect(generateImageMock.mock.calls[0][2]).toBeInstanceOf(AbortSignal);
+    // 【TD-01-12】任务中心可见：以「每镜一卡」伪 nodeId `{nodeId}-tailframe-{shotId}` 上报
+    //（此前完全裸绕任务中心：无卡片、无进度、失败无分类），并 done 收敛。
+    expect(reportGenerateMock).toHaveBeenCalledWith(
+      'sb-1-tailframe-s2',
+      'image',
+      expect.any(String),
+      expect.objectContaining({ modelName: expect.any(String) }),
+    );
+    expect(reportGenerateMock.mock.results[0]?.value?.done).toHaveBeenCalled();
     // 最终写回［原版 + composed］、自动选中 composed、关 loading
     const last = patches[patches.length - 1];
     const shot = last.shots.find((s) => s.id === 's2');
@@ -645,5 +663,20 @@ describe('剧本盒引擎深度业务 §2.7', () => {
       expect.anything(),
     );
     expect(loggerErrorMock).toHaveBeenCalled();
+  });
+
+  // ── 【TD-01-10】幽灵中止：资产图必须把 signal 贯穿到 generateImage 第 3 参 ──
+  it('T8 signal 贯穿：onGenerateAssetImage → generateImage(opts, onProgress, signal)，第 3 参为 AbortSignal（改前为 undefined）', async () => {
+    generateImageMock.mockResolvedValueOnce({ ok: true, url: 'https://upstream/x.png' });
+    localizeMock.mockResolvedValueOnce(null as never);
+    data = {
+      assets: [{ id: 'a1', category: 'character', name: '角色1', assetUrl: '' }],
+      shots: [],
+    };
+    const eng = createScriptBoxEngine(ctx());
+    await eng.onGenerateAssetImage('a1');
+    const call = generateImageMock.mock.calls.at(-1);
+    expect(call?.[1]).toBeTypeOf('function'); // 第 2 参 = onProgress
+    expect(call?.[2]).toBeInstanceOf(AbortSignal); // 第 3 参 = signal（TD-01-10 修复点）
   });
 });

@@ -121,12 +121,12 @@ scripts/report-chunks.json
 Temp/
 tmp/
 
-# ── 代码审计工具箱 audit/（oxlint/depcruise/madge/knip/jscpd/ast-grep）──
-# 更新(2026-09-09)：原 `download/` 语义误导（像浏览器下载目录）且整体被忽略，导致工具规则配置
-#   无法入库共享 —— 已重构为 audit/：外层放「规则资产」（scripts + 配置 + 文档，入库），
-#   内层 audit/download/ 放「依赖沙盒 + 产物」（node_modules / out / ai-relay，不入库）。
-# 依赖装在内层沙盒：cd audit/download && npm install（不进主工程 package.json 依赖）。
-audit/download/
+# ── 代码审计：audit/ 沙盒已退役（2026-09-13 · TD-17-1）──
+# 原 audit/ 把 knip/jscpd/oxlint/depcruise/madge 装在 .gitignore 的沙盒 → CI 装不到、工具不生效。
+# 现把唯一主工程未覆盖的能力（死代码 knip）并进主工程：devDependency + 根 knip.json +
+# scripts/check-dead-code.mjs（挂 gates.manifest push 层，CI 同跑）。其余工具不并：架构规则已在
+# scripts/check-arch.mjs 自包含实现、oxlint 与 eslint 重叠、jscpd 无迫切性、ast-grep 是重写器非闸。
+# 历史报告归档 docs/audit-archive/。
 
 # ── 外部学习仓库 / 第三方工具（他人仓库与嵌套 git 仓库，仅本地参考用，不入库）──
 infinite-canvas别人仓库学习专用/

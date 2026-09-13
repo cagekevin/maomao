@@ -30,7 +30,7 @@ describe('useNodeRename — 写回 data.label', () => {
     act(() => result.current('新名'));
     expect(typeof updater).toBe('function');
 
-    const next = (updater as (ns: unknown) => typeof ns)(ns);
+    const next = updater!(ns) as typeof ns;
     expect(next).not.toBe(ns);
     expect(next[0]).toEqual({ id: 'n1', data: { label: '新名', prompt: 'p' } });
     expect(next[1]).toBe(ns[1]); // 其它节点元素引用不动
@@ -45,7 +45,7 @@ describe('useNodeRename — 写回 data.label', () => {
     const { result } = renderHook(() => useNodeRename('missing'));
 
     act(() => result.current('新名'));
-    const next = (updater as (ns: unknown) => typeof ns)(ns);
+    const next = updater!(ns) as typeof ns;
     expect(next).toEqual(ns);
     expect(next[0]).toBe(ns[0]);
   });

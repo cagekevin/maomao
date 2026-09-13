@@ -25,6 +25,7 @@ const {
   registerTaskRetry,
   unregisterTaskRetry,
   isNodeRegistered,
+  runNodeGeneration,
   reportGenerate,
   getTasks,
 } = await import('../../src/components/base/store/taskStore.ts');
@@ -110,6 +111,37 @@ describe('taskStore §2.6 重试注册/触发', () => {
   });
 });
 
+// ── 【TD-01-6】runNodeGeneration 返回语义：false=未触发 · 对象=结果（旧 `true` 一态已删）──
+describe('taskStore §2.6 runNodeGeneration 返回语义（TD-01-6）', () => {
+  it('节点未注册回调 → 返回 false（未触发，非失败）', async () => {
+    await expect(runNodeGeneration('no-such-node')).resolves.toBe(false);
+  });
+
+  it('回调抛错 → 返回 { ok:false, error }（已触发但失败）', async () => {
+    registerTaskRetry('boom', async () => {
+      throw new Error('炸了');
+    });
+    const r = await runNodeGeneration('boom');
+    expect(r).toMatchObject({ ok: false, error: '炸了' });
+    unregisterTaskRetry('boom');
+  });
+
+  it('回调返回 promise → 透传其结果（对象原样，供 await 拿 resultUrl）', async () => {
+    registerTaskRetry('ok1', async () => ({ ok: true, resultUrl: 'http://r/1.png' }));
+    const r = await runNodeGeneration('ok1');
+    expect(r).toEqual({ ok: true, resultUrl: 'http://r/1.png' });
+    unregisterTaskRetry('ok1');
+  });
+
+  it('【先红锚点】非 thenable 回调返回值一律透传：不再伪造 true（旧兼容分支已删）', async () => {
+    // 旧实现 `thenable ? await thenable : true` 对同步/非 promise 返回值一律返回 true（伪造「已触发」）；
+    // 现直接 `await fn()` → 原样透传 false（未触发语义不再被伪造）。
+    registerTaskRetry('sync-false', () => false);
+    await expect(runNodeGeneration('sync-false')).resolves.toBe(false);
+    unregisterTaskRetry('sync-false');
+  });
+});
+
 describe('taskStore §P4 进度落库节流', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -128,7 +160,7 @@ describe('taskStore §P4 进度落库节流', () => {
     expect(saveTask).toHaveBeenCalledTimes(1); // 窗口内未落
     vi.advanceTimersByTime(200);
     expect(saveTask).toHaveBeenCalledTimes(2); // 合并落 1 次，写最终态
-    const last = vi.mocked(saveTask).mock.calls.at(-1)[0] as Task;
+    const last = vi.mocked(saveTask).mock.calls.at(-1)![0] as Task;
     expect(last.id).toBe(handle.taskId);
     expect(last.progress).toBe(70);
     // stageLabel 是纯运行时展示字段，落库前已被 persist 剥离（后端 tasks 表无此列），
@@ -143,7 +175,7 @@ describe('taskStore §P4 进度落库节流', () => {
     handle.progress(30, '阶段');
     handle.done('/result.png');
     expect(saveTask).toHaveBeenCalledTimes(1);
-    const last = vi.mocked(saveTask).mock.calls.at(-1)[0] as Task;
+    const last = vi.mocked(saveTask).mock.calls.at(-1)![0] as Task;
     expect(last.status).toBe('completed');
     expect(last.progress).toBe(100);
     expect(last.resultUrl).toBe('/result.png');
@@ -158,7 +190,7 @@ describe('taskStore §P4 进度落库节流', () => {
     handle.progress(50, '阶段');
     handle.fail('网络错误');
     expect(saveTask).toHaveBeenCalledTimes(1);
-    const last = vi.mocked(saveTask).mock.calls.at(-1)[0] as Task;
+    const last = vi.mocked(saveTask).mock.calls.at(-1)![0] as Task;
     expect(last.status).toBe('failed');
     expect(last.errorMsg).toBe('网络错误');
     vi.advanceTimersByTime(400);

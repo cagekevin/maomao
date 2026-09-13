@@ -1,6 +1,9 @@
 import React, { useState, useRef, type ReactNode } from 'react';
 import { Coins, LayoutGrid } from 'lucide-react';
 import { useOutsideClick } from '../core/uiHooks.ts';
+// 【TD-19-1】面板/行 chrome 与定位收口到共用窄原语（与 Select 同一份）
+import DropdownPanel from './DropdownPanel.tsx';
+import DropdownRow from './DropdownRow.tsx';
 
 /**
  * 模型 badge 元信息：
@@ -85,19 +88,10 @@ function ModelSelect({
   };
 
   const renderModelRow = (m: ModelItem) => {
-    const selected = value === m.id;
     const itemBadge = badgeMeta(m.badge || 'builtin');
     const cost = costMap[m.id];
     return (
-      <div
-        key={m.id}
-        role="button"
-        className={`flex items-center gap-1.5 mb-1 last:mb-0 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors cursor-pointer ${selected ? 'bg-surface-hover-strong text-white' : 'text-secondary hover:bg-surface-hover hover:text-primary'}`}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          choose(m);
-        }}
-      >
+      <DropdownRow key={m.id} selected={value === m.id} onSelect={() => choose(m)}>
         <span
           className={`shrink-0 px-1 rounded text-meta leading-[14px] border bg-white/10 ${itemBadge.className}`}
         >
@@ -110,7 +104,7 @@ function ModelSelect({
             {cost}
           </span>
         )}
-      </div>
+      </DropdownRow>
     );
   };
 
@@ -164,10 +158,7 @@ function ModelSelect({
       )}
 
       {open && (
-        <div
-          className={`absolute ${popupTo === 'down' ? 'top-full left-0 mt-1' : 'bottom-full left-0 mb-1'} min-w-[17rem] w-max max-w-[29rem] bg-surface-1 border border-edge rounded-lg shadow-xl p-2 z-50 block max-h-60 overflow-y-auto custom-scrollbar nowheel nopan nodrag`}
-          onClick={(e) => e.stopPropagation()}
-        >
+        <DropdownPanel popupTo={popupTo} widthClass="min-w-[17rem] w-max max-w-[29rem]">
           {models.length === 0 ? (
             <div className="px-2 py-1 text-caption-sm text-muted whitespace-nowrap">
               无可用模型（请在服务商设置中配置）
@@ -175,7 +166,7 @@ function ModelSelect({
           ) : (
             models.map(renderModelRow)
           )}
-        </div>
+        </DropdownPanel>
       )}
     </div>
   );

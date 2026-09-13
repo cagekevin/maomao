@@ -73,7 +73,7 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
     await act(async () => {
       ok = await result.current.start();
     });
-    expect(ok.ok).toBe(true);
+    expect(ok!.ok).toBe(true);
     expect(patchDataMock).not.toHaveBeenCalled();
   });
 
@@ -97,12 +97,24 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
     await act(async () => {
       expect(busState.handler).toEqual(expect.any(Function));
       // 非本节点 → 忽略
-      busState.handler({ nodeId: 'other', status: 'completed', resultUrl: 'http://x/ignored.png' });
+      (busState.handler as unknown as (...a: any[]) => void)({
+        nodeId: 'other',
+        status: 'completed',
+        resultUrl: 'http://x/ignored.png',
+      });
       // 非 completed → 忽略
-      busState.handler({ nodeId: 'n1', status: 'running', resultUrl: 'http://x/ignored2.png' });
+      (busState.handler as unknown as (...a: any[]) => void)({
+        nodeId: 'n1',
+        status: 'running',
+        resultUrl: 'http://x/ignored2.png',
+      });
       expect(patchDataMock).not.toHaveBeenCalled();
       // 本节点 + completed → 自动回填
-      busState.handler({ nodeId: 'n1', status: 'completed', resultUrl: 'http://x/rec.png' });
+      (busState.handler as unknown as (...a: any[]) => void)({
+        nodeId: 'n1',
+        status: 'completed',
+        resultUrl: 'http://x/rec.png',
+      });
     });
     expect(patchDataMock).toHaveBeenCalledTimes(1);
     expect(patchDataMock).toHaveBeenCalledWith({ assetUrl: 'http://x/rec.png' });
@@ -123,7 +135,7 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
     });
     expect(busState.logger.error).toHaveBeenCalledWith(
       '生成',
-      'fail',
+      'contract·error',
       expect.objectContaining({ errType: 'network', retryable: true, error: 'Failed to fetch' }),
     );
   });
@@ -138,7 +150,7 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
     });
     expect(busState.logger.error).toHaveBeenCalledWith(
       '生成',
-      'fail',
+      'contract·fail',
       expect.objectContaining({ errType: 'business', retryable: false, error: '模型限流' }),
     );
   });

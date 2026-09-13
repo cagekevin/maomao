@@ -688,7 +688,11 @@ function makeMultipartReq(parts) {
 
 test('[files/multipart] TD-03-8：无扩展名 filename + image/png 的 mimeType → 落盘应带 .png（非无后缀）', async () => {
   // 回归锁：原实现只用 filename 推 ext，故 'upload'（无后缀）→ 落成无扩展名文件 → octet-stream + 跳过缩略图。
-  const pngBytes = Buffer.from(TINY_PNG.split(',')[1], 'base64');
+  // 【TD-12-5】用独立字节，避开与上面 tasks 用例的 contentId 去重。
+  const pngBytes = Buffer.concat([
+    Buffer.from(TINY_PNG.split(',')[1], 'base64'),
+    Buffer.from('mime'),
+  ]);
   const res = makeRes();
   await handleUpload(
     makeMultipartReq([
@@ -704,7 +708,12 @@ test('[files/multipart] TD-03-8：无扩展名 filename + image/png 的 mimeType
 });
 
 test('[files/multipart] TD-03-8：filename 已带扩展名时优先用文件名后缀（mimeType 不覆盖）', async () => {
-  const pngBytes = Buffer.from(TINY_PNG.split(',')[1], 'base64');
+  // 【TD-12-5】用独立字节：上传现已登记 resource 行（写 project_id），若复用 TINY_PNG 会与
+  // 上面 tasks 用例的 contentId 去重命中 → 返回既有 url，测不到本用例的「命名后缀优先」路径。
+  const pngBytes = Buffer.concat([
+    Buffer.from(TINY_PNG.split(',')[1], 'base64'),
+    Buffer.from('sfx'),
+  ]);
   const res = makeRes();
   await handleUpload(
     makeMultipartReq([
@@ -718,8 +727,13 @@ test('[files/multipart] TD-03-8：filename 已带扩展名时优先用文件名�
 });
 
 test('[files/dataUri] 子目录缺省回退 canvas / 嵌套目录合法', async () => {
+  // 【TD-12-5】用独立字节，避开与上面 tasks 用例的 contentId 去重（否则返回既有 tasks url、测不到缺省 canvas）
+  const uniq = `data:image/png;base64,${Buffer.concat([
+    Buffer.from(TINY_PNG.split(',')[1], 'base64'),
+    Buffer.from('canvas-default'),
+  ]).toString('base64')}`;
   const res = makeRes();
-  await handleUpload(makeJsonReq({ dataUri: TINY_PNG }), res);
+  await handleUpload(makeJsonReq({ dataUri: uniq }), res);
   const url = parseResBody(res).data.url;
   assert.ok(url.startsWith(`${uploadBase}/canvas/`), '缺省应落 canvas，实际: ' + url);
 });

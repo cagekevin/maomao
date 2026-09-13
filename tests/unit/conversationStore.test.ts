@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { ConversationMessage } from '../../src/components/agent/conversation/conversationTypes.ts';
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 import {
   resetConversationCache,
@@ -55,7 +56,7 @@ beforeEach(() => {
 
 /** 在每个项目（agentKey）之间切换前，重置内存缓存，模拟「从未初始化该项目」的干净状态。
  * 会话键已迁 KV，水化为异步：切后等水化完成再返回，确保读到的是一次性重新水化的真实数据。 */
-async function switchToProject(projectId) {
+async function switchToProject(projectId: string) {
   flushPersist(); // P4 落盘节流：切项目前先把上一个项目的待落盘变更刷下去
   resetConversationCache();
   setAgentKey(`canvas-assistant-${projectId}`);
@@ -127,10 +128,10 @@ describe('会话隔离数据层 §2.15', () => {
   it('patchCurrentWorkflow 补丁 workflow（归一 status/steerQueue）', () => {
     const id = ensureActiveConversation();
     applyConversation(id);
-    const wf = patchCurrentWorkflow({ status: 'running', nodeIds: ['n1'] });
+    const wf = patchCurrentWorkflow({ status: 'running', nodeIds: ['n1'] })!;
     expect(wf.status).toBe('running');
     expect(wf.steerQueue).toEqual([]);
-    const cur = getCurrentWorkflow();
+    const cur = getCurrentWorkflow()!;
     expect(cur.nodeIds).toEqual(['n1']);
   });
 
@@ -138,7 +139,7 @@ describe('会话隔离数据层 §2.15', () => {
     const id = ensureActiveConversation();
     applyConversation(id);
     setCurrentPending({ conversationId: id, text: '待恢复任务', attachments: [] });
-    const p = getCurrentPending();
+    const p = getCurrentPending()!;
     expect(p.text).toBe('待恢复任务');
   });
 
@@ -149,13 +150,13 @@ describe('会话隔离数据层 §2.15', () => {
     const stack = getActiveAiUndoStack();
     expect(stack).toHaveLength(20);
     expect((stack.at(-1) as Record<string, unknown>).i).toBe(24);
-    const popped = popActiveAiUndo();
+    const popped = popActiveAiUndo()!;
     expect(popped.i).toBe(24);
     expect(getActiveAiUndoStack()).toHaveLength(19);
   });
 
   it('normalizeConversation 补齐全字段', () => {
-    const c = normalizeConversation({ title: 'X' });
+    const c = normalizeConversation({ title: 'X' })!;
     expect(c.id).toBeTruthy();
     expect(c.messages).toEqual([]);
     expect(c.memory.summary).toBe('');
@@ -170,13 +171,13 @@ describe('会话隔离数据层 §2.15', () => {
         { role: 'user', content: 'a' },
         { role: 'assistant', content: 'b', id: 'keep-me' },
       ],
-    });
+    })!;
     // 无 id 的消息被补上唯一 id；已有 id 的消息保留
     expect(c.messages[0].id).toBeTruthy();
     expect(c.messages[1].id).toBe('keep-me');
     expect(c.messages[0].id).not.toBe(c.messages[1].id);
     // 幂等：二次归一化不改变已补的 id（保证列表 key 稳定）
-    const again = normalizeConversation(c);
+    const again = normalizeConversation(c)!;
     expect(again.messages[0].id).toBe(c.messages[0].id);
     expect(again.messages[1].id).toBe('keep-me');
   });
@@ -266,7 +267,7 @@ describe('按项目隔离会话（project 作为最顶层）', () => {
 });
 
 describe('跨轮图引用数据源（对齐大雄 agentLastUserAttachments / agentLastResults / agentCurrentImageMap）', () => {
-  function setup(msgs) {
+  function setup(msgs: ConversationMessage[]) {
     const id = ensureActiveConversation();
     applyConversation(id);
     setCurrentSnapshot({ messages: msgs });

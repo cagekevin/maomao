@@ -104,13 +104,13 @@ describe('bakeObjectPath 对象路径烘焙', () => {
     expect(transform).toEqual([0, 24, 120, 240]); // 旧路径帧 0/60 被删，新增 120/240，手动帧 24 保留
     // 路径帧只留 position 来源标识（M3-C2/C5），绝无姿态/动作/骨骼残留
     for (const frame of [0, 120, 240]) {
-      const key = next['actor-lead'].transform.find((k) => k.frame === frame);
-      expect(Object.keys(key.fields)).toEqual(['position']);
+      const key = next['actor-lead'].transform.find((k) => k.frame === frame)!;
+      expect(Object.keys(key.fields!)).toEqual(['position']);
     }
     // 手动帧完整拆进 transform/action/skeleton，动作/骨骼通道不被路径帧触碰
     expect(next['actor-lead'].action).toHaveLength(1);
-    expect(next['actor-lead'].action[0].fields.pose).toBe('run');
-    expect(next['actor-lead'].skeleton[0].fields.joints).toEqual(runJoints); // 写入口保留快照 joints 原值
+    expect(next['actor-lead'].action[0].fields!.pose).toBe('run');
+    expect(next['actor-lead'].skeleton[0].fields!.joints).toEqual(runJoints); // 写入口保留快照 joints 原值
   });
 
   it('空 removeFrames 时仅插新帧（首次烘焙无旧路径帧）', () => {
@@ -138,7 +138,7 @@ describe('bakeCameraPath 相机路径烘焙', () => {
     const camera = { focalLength: 42 };
     const next = bakeCameraPath(
       tracks,
-      straightPath,
+      straightPath!,
       camera,
       [
         { frame: 0, position: [0, 0, 0] },
@@ -149,10 +149,10 @@ describe('bakeCameraPath 相机路径烘焙', () => {
 
     const transformFrames = next.transform.map((key) => key.frame).sort((a, b) => a - b);
     expect(transformFrames).toEqual([0, 24, 120]); // 旧路径帧 0/60 被删，新增 0/120，手动帧 24 保留
-    const baked = next.transform.find((k) => k.frame === 120);
-    expect(baked.fields.position).toEqual([5, 0, 0]);
-    expect(Array.isArray(baked.fields.rotation)).toBe(true); // 视线朝切线方向
-    expect(next.lens.find((k) => k.frame === 120).fields.focalLength).toBe(42);
+    const baked = next.transform.find((k) => k.frame === 120)!;
+    expect(baked.fields!.position).toEqual([5, 0, 0]);
+    expect(Array.isArray(baked.fields!.rotation)).toBe(true); // 视线朝切线方向
+    expect(next.lens.find((k) => k.frame === 120)!.fields!.focalLength).toBe(42);
   });
 });
 
@@ -202,8 +202,8 @@ describe('duplicateObjectTrack / clearObjectTrack', () => {
   it('复制轨道：仅 transform.position 偏移，动作/骨骼原样，原轨不变', () => {
     const tracks = sampleTracks();
     const next = duplicateObjectTrack(tracks, 'actor-lead', 'actor-copy', 0.6);
-    expect(next['actor-copy'].transform[0].fields.position).toEqual([0.6, 0, 0.6]);
-    expect(next['actor-copy'].transform[1].fields.position).toEqual([1.6, 0, 0.6]);
+    expect(next['actor-copy'].transform[0].fields!.position).toEqual([0.6, 0, 0.6]);
+    expect(next['actor-copy'].transform[1].fields!.position).toEqual([1.6, 0, 0.6]);
     expect(next['actor-copy'].action).toEqual(tracks['actor-lead'].action);
     expect(next['actor-copy'].skeleton).toEqual(tracks['actor-lead'].skeleton);
     expect(next['actor-lead']).toEqual(tracks['actor-lead']); // 原轨不被改动
@@ -240,7 +240,7 @@ describe('薄封装写操作冒烟', () => {
   it('相机轨：upsert → move → interpolation → remove', () => {
     let tracks = upsertCameraSnapshot({}, camSnapshot(10, [1, 0, 0], 35));
     expect(tracks.transform[0].frame).toBe(10);
-    expect(tracks.lens[0].fields.focalLength).toBe(35);
+    expect(tracks.lens[0].fields!.focalLength).toBe(35);
 
     tracks = moveCameraFrame(tracks, 10, 30);
     expect(tracks.transform[0].frame).toBe(30);

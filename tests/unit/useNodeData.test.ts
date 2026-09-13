@@ -32,7 +32,7 @@ describe('useNodeData — patchData', () => {
     // setNodes 应收到「函数式更新器」，才能做不可变局部更新
     expect(typeof updater).toBe('function');
 
-    const next = updater(ns);
+    const next = updater!(ns);
     expect(next).not.toBe(ns);
     expect(next[0]).toEqual({ id: 'n1', data: { a: 1, b: 2 } });
     expect(next[1].data).toBe(ns[1].data); // 其它节点 data 引用不动
@@ -59,6 +59,6 @@ describe('useNodeData — patchDebounced', () => {
 
     act(() => result.current.patchDebounced.flush());
     expect(typeof updater).toBe('function');
-    expect(updater(ns)[0].data).toEqual({ a: 3 }); // 只写最后一次
+    expect(updater!(ns)[0].data).toEqual({ a: 3 }); // 只写最后一次
   });
 });

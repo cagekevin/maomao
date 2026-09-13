@@ -1060,14 +1060,13 @@ const triggerGenerationTool = {
         nodeId: id,
       };
     }
-    // res 跨代不统一（见 taskStore.runNodeGeneration）：旧回调版返回 true（无结果对象），
-    // 新版返回 { ok, resultUrl }。先剥掉 true 分支，后面才读得动 ok / resultUrl。
-    const run = res === true ? null : res;
-    if (run?.ok === false) {
-      return { ok: false, error: run.error || '生成失败', nodeId: id };
+    // 【TD-01-6】返回类型已收敛为 `false | NodeGenerationRunResult`（旧 `true` 一态删除）：
+    // 上方 `!res` 已滤掉 `false`（未触发），此处 res 即结果对象，直接读 ok / resultUrl。
+    if (res.ok === false) {
+      return { ok: false, error: res.error || '生成失败', nodeId: id };
     }
-    // res 可能是 { ok:true, resultUrl }（新版 start，await 到生成完成）或 true（旧回调）→ resultUrl 兜底空串
-    const resultUrl = run?.resultUrl || '';
+    // res = { ok:true, resultUrl }（await 到生成完成）；resultUrl 兜底空串
+    const resultUrl = res.resultUrl || '';
     // 【收敛信号】对齐参考项目（daxiong canvas-agent）：给 AI 明确的「完成/进行中」状态，
     // 而不是一律写死"已提交等待完成"（那会误导 AI 以为没生成完 → 重复触发/重复建节点）。
     // - resultUrl 非空 → 生成已完成，明确告知"已生成"，不再需要任何重复操作。

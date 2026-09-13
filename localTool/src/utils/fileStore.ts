@@ -8,8 +8,10 @@
  *
  * 更新(2026-09-12 · docs/122 文件管理收口 #1/#6 · Content 维度)：
  *  - writeUploadBuffer 命名由 `${Date.now()}-${filename}` 时间戳前缀改为内容寻址
- *    `sha1(buffer)`（contentHashName）。同字节 → 同一初始物理文件名；仅决定首次落盘的
- *    初始文件名，applyResourceIdentityChange 改名后再失效。
+ *    `sha1(buffer)`（contentHashName）。同字节 → 同一物理文件名。
+ *    【TD-12-6 更正 2026-09-13】改名/移动已收口为 context-only（只改 resource 行的 name/folder，
+ *    不碰磁盘）→ 该内容寻址名即**永久物理名**，不会因改名再失效（原「改名后再失效」注释基于
+ *    已退役的 applyResourceIdentityChange 物理改名机制，语义已反转）。
  *  - 新增 contentIdOf / findDedupUrl（按 contentId 去重的纯判定，folder 无关）与
  *    writeUploadDedup（按 contentId 查重的去重感知落盘编排）。
  *  -「同字节 → 1 物理文件」去重真源 = Content 维度 identity = contentId(`<alg>:<hex>`)；

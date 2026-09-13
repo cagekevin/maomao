@@ -18,7 +18,7 @@
     "scripts/**",
     "docs/**",
     ".codebuddy/**",
-    "download/**",
+    "audit/**",
     "mockup/**",
     "packaging/**",
     "logs/**",

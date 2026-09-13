@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Node, Edge } from '@xyflow/react';
 
 // 多步编排执行器：隔离 runNodeGeneration（真实生图 → 落盘 resultUrl）与 isNodeRegistered
 vi.mock('../../src/components/base/store/taskStore.ts', () => ({
@@ -15,19 +16,31 @@ const runNodeGenerationMock = vi.mocked(runNodeGeneration);
 
 // 最小 ctx：addNodes 记录、addEdges 记录、setNodes 写回 assetUrl、getNodes 反映最新
 // P7：executor 的 live 检查用 ctx.getNode（O(1)），mock 需提供（返回当前节点或 undefined）
-function makeCtx(initialNodes = []) {
-  let nodes = [...initialNodes];
-  let edges = [];
+interface TestCtx {
+  nodes: () => Node[];
+  edges: () => Edge[];
+  getNodes: () => Node[];
+  getNode: (id: string) => Node | undefined;
+  getEdges: () => Edge[];
+  addNodes: (ns: Node[]) => void;
+  addEdges: (es: Edge[]) => void;
+  setNodes: (fn: Node[] | ((ns: Node[]) => Node[])) => void;
+  setEdges: (fn: Edge[] | ((es: Edge[]) => Edge[])) => void;
+}
+
+function makeCtx(initialNodes: Node[] = []): TestCtx {
+  let nodes: Node[] = [...initialNodes];
+  let edges: Edge[] = [];
   return {
     nodes: () => nodes,
     edges: () => edges,
     getNodes: () => nodes,
-    getNode: (id) => nodes.find((n) => n.id === id),
+    getNode: (id: string) => nodes.find((n) => n.id === id),
     getEdges: () => edges,
-    addNodes: (ns) => {
+    addNodes: (ns: Node[]) => {
       nodes = [...nodes, ...ns];
     },
-    addEdges: (es) => {
+    addEdges: (es: Edge[]) => {
       edges = [...edges, ...es];
     },
     setNodes: (fn) => {
@@ -60,8 +73,8 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
 
   it('全局单飞锁：已有计划执行中，再次 executePlan 被拒绝（防重复计费/重复建节点）', async () => {
     // 让第一个 executePlan 挂起（runNodeGeneration 不 resolve），锁保持持有
-    let release;
-    const gate = new Promise((res) => {
+    let release!: () => void;
+    const gate = new Promise<void>((res) => {
       release = res;
     });
     runNodeGenerationMock.mockReturnValueOnce(
@@ -152,6 +165,16 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
     expect(ctx.edges()).toHaveLength(0);
   });
 
+  it('【TD-01-6】runNodeGeneration 返回 false（未触发）→ 步骤标 ready 而非 failed，且不写回 assetUrl', async () => {
+    runNodeGenerationMock.mockResolvedValueOnce(false);
+    const ctx = makeCtx();
+    const r = await executePlan({ ctx, generations: [{ id: 'g1', prompt: '猫' }] });
+    // 未触发（未注册 / 并发上限）按「待生成」处理，不算失败
+    expect(r.entries[0].status).toBe('ready');
+    expect(r.entries[0].error).toBe('');
+    expect(ctx.nodes()[0].data.assetUrl).toBeUndefined();
+  });
+
   it('autoRun=false：只建节点不触发，status=ready', async () => {
     const ctx = makeCtx();
     const r = await executePlan({
@@ -173,7 +196,7 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
       generations: [{ id: 'g1', prompt: '猫' }],
       referenceImages: ['http://r/ref.png'],
     });
-    const imgs = ctx.nodes()[0].data.images;
+    const imgs = ctx.nodes()[0]!.data.images as Array<{ url: string }>;
     expect(imgs).toHaveLength(1);
     expect(imgs[0].url).toBe('http://r/ref.png');
   });
@@ -191,7 +214,7 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
     });
     const byId = Object.fromEntries(
       r.entries.map((e) => [e.id, ctx.nodes().find((n) => n.id === e.nodeId)]),
-    );
+    ) as Record<string, Node>;
     expect(byId.explicit.data.aspectRatio).toBe('3:4'); // portrait→3:4
     expect(byId.explicit.data.imageSize).toBe('4K');
     expect(byId.explicit.data.selectedModel).toBe('gpt-image-2');
@@ -203,7 +226,7 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
 describe('TASK-009 逐步进度日志 onLog + 跳过文案带数字', () => {
   it('onLog 收集：计划开始 / 每步开始挂载参考图数 / 每步完成', async () => {
     const ctx = makeCtx();
-    const logs = [];
+    const logs: Array<{ level: string; message: string }> = [];
     await executePlan({
       ctx,
       generations: [
@@ -230,7 +253,7 @@ describe('TASK-009 逐步进度日志 onLog + 跳过文案带数字', () => {
 
   it('带参考图时，每步开始日志标注挂载参考图数', async () => {
     const ctx = makeCtx();
-    const logs = [];
+    const logs: Array<{ level: string; message: string }> = [];
     await executePlan({
       ctx,
       generations: [{ id: 'g1', prompt: '猫' }],
@@ -243,7 +266,7 @@ describe('TASK-009 逐步进度日志 onLog + 跳过文案带数字', () => {
   it('依赖批失败：跳过文案带「成功 X / 共 Y」且日志含 warn', async () => {
     const ctx = makeCtx();
     runNodeGenerationMock.mockImplementationOnce(async () => ({ ok: false, error: '生成失败' }));
-    const logs = [];
+    const logs: Array<{ level: string; message: string }> = [];
     const r = await executePlan({
       ctx,
       generations: [
@@ -268,7 +291,7 @@ describe('TASK-009 逐步进度日志 onLog + 跳过文案带数字', () => {
 
   it('依赖批成功：记录连接前序节点数 + 完成日志', async () => {
     const ctx = makeCtx();
-    const logs = [];
+    const logs: Array<{ level: string; message: string }> = [];
     const r = await executePlan({
       ctx,
       generations: [
@@ -293,7 +316,7 @@ describe('TASK-009 逐步进度日志 onLog + 跳过文案带数字', () => {
 
   it('autoRun=false：日志提示等待确认，不触发', async () => {
     const ctx = makeCtx();
-    const logs = [];
+    const logs: Array<{ level: string; message: string }> = [];
     await executePlan({
       ctx,
       autoRun: false,
@@ -308,7 +331,7 @@ describe('TASK-009 逐步进度日志 onLog + 跳过文案带数字', () => {
     const ctx = makeCtx();
     // 2 个独立批：第一个失败、第二个成功 → 无依赖批
     runNodeGenerationMock.mockImplementationOnce(async () => ({ ok: false, error: '生成失败' }));
-    const logs = [];
+    const logs: Array<{ level: string; message: string }> = [];
     await executePlan({
       ctx,
       generations: [
@@ -419,7 +442,7 @@ describe('Gap B 依赖批 DAG 拓扑调度（兄弟依赖步并行）', () => {
 
   it('存在真实依赖链（b 依赖 a）时仍按拓扑序等待，不提前触发，b 只连 a', async () => {
     const ctx = makeCtx();
-    const order = [];
+    const order: string[] = [];
     runNodeGenerationMock.mockImplementation(async (nodeId) => {
       order.push(nodeId);
       return { ok: true, resultUrl: 'http://r/ok.png' };

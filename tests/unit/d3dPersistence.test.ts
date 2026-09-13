@@ -84,9 +84,9 @@ describe('externalizeProjectImages — 写入外置', () => {
       .mockResolvedValueOnce(FILES('c'));
     const r = await externalizeProjectImages(baseProject(), save);
     expect(save).toHaveBeenCalledTimes(3);
-    expect(r.project.reference.image).toBe(FILES('a'));
-    expect(r.project.shots[0].thumbnail).toBe(FILES('b'));
-    expect(r.project.shots[1].thumbnail).toBe(FILES('c'));
+    expect(r.project!.reference!.image).toBe(FILES('a'));
+    expect(r.project!.shots![0].thumbnail).toBe(FILES('b'));
+    expect(r.project!.shots![1].thumbnail).toBe(FILES('c'));
     expect(r.droppedCount).toBe(3);
     // 无 data: 残留（R4）
     expect(JSON.stringify(r.project)).not.toContain('data:');
@@ -108,7 +108,7 @@ describe('externalizeProjectImages — 写入外置', () => {
     const r = await externalizeProjectImages(proj, save);
     expect(save).not.toHaveBeenCalled();
     expect(r.droppedCount).toBe(0);
-    expect(r.project.reference.image).toBe(FILES('already'));
+    expect(r.project!.reference!.image).toBe(FILES('already'));
   });
 });
 
@@ -121,15 +121,15 @@ describe('externalizeProjectImages — 后端不可达降级', () => {
       shots: [{ id: 's1', thumbnail: 'data:image/png;base64,t' }],
     };
     const r = await externalizeProjectImages(proj, save);
-    expect(r.project.reference.image).toBe(png);
-    expect(r.project.shots[0].thumbnail).toBe('data:image/png;base64,t');
+    expect(r.project!.reference!.image).toBe(png);
+    expect(r.project!.shots![0].thumbnail).toBe('data:image/png;base64,t');
     expect(r.droppedCount).toBe(0);
   });
 
   it('saveInline 返回原值视为失败 → 保留', async () => {
     const save = vi.fn().mockResolvedValue(png);
     const r = await externalizeProjectImages({ reference: { image: png }, shots: [] }, save);
-    expect(r.project.reference.image).toBe(png);
+    expect(r.project!.reference!.image).toBe(png);
     expect(r.droppedCount).toBe(0);
   });
 });
@@ -145,7 +145,7 @@ describe('pickProjectSource — 源选择与迁移判定', () => {
     const pick = pickProjectSource(null, { shots: [{ id: 'ls' }] });
     expect(pick.from).toBe('local');
     expect(pick.migrateToKv).toBe(true);
-    expect(pick.project.shots[0].id).toBe('ls');
+    expect(pick.project!.shots![0].id).toBe('ls');
   });
   it('都空 → null，不回写', () => {
     const pick = pickProjectSource(null, null);

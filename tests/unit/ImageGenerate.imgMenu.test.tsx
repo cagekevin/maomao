@@ -7,14 +7,29 @@
 import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import type { ReactNode } from 'react';
+
+type TestNode = { id: string; type?: string; data: Record<string, unknown> };
+
+interface GenConfigLike {
+  run?: (opts: {
+    progress: () => void;
+    signal: { aborted: boolean };
+  }) => Promise<{ url?: string; doneUrl?: string } | undefined> | undefined;
+  onSuccess?: (r: unknown) => void;
+  onRecover?: (d: { resultUrl: string }) => void;
+  recoverable?: boolean;
+  resultKey?: string;
+  nodeId?: string;
+}
 
 // ---- 稳定的 ReactFlow mock（组件与测试共享同一实例）----
 const mockSetNodes = vi.fn();
-const mockGetNodes = vi.fn(() => []);
+const mockGetNodes = vi.fn(() => [] as Array<{ id: string }>);
 const mockAddNodes = vi.fn();
 
 // 捕获 useNodeGeneration 的 config（含 run/onSuccess/onRecover），供测试触发生成链路
-let genConfig = null;
+let genConfig: GenConfigLike | null = null;
 
 // ---- 可交互子组件 / 可控 hooks ----
 vi.mock('@xyflow/react', () => ({
@@ -29,17 +44,17 @@ vi.mock('@xyflow/react', () => ({
 }));
 
 vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
-  useNodeGeneration: (config) => {
+  useNodeGeneration: (config: GenConfigLike) => {
     genConfig = config;
     // 复刻真实 hook 的广播 handler：recoverable + resultKey 时自动写回（先于 onRecover），
     // 以对齐 P0-2-b 声明式写回（节点不再手写 patchData）。先保存原 onRecover 避免覆盖造成递归。
     const originalOnRecover = config.onRecover;
-    genConfig.onRecover = (d) => {
+    genConfig.onRecover = (d: { resultUrl: string }) => {
       if (config.recoverable && config.resultKey && d?.resultUrl) {
-        mockSetNodes((ns) =>
-          ns.map((n) =>
+        mockSetNodes((ns: TestNode[]) =>
+          ns.map((n: TestNode) =>
             n.id === config.nodeId
-              ? { ...n, data: { ...n.data, [config.resultKey]: d.resultUrl } }
+              ? { ...n, data: { ...n.data, [config.resultKey!]: d.resultUrl } }
               : n,
           ),
         );
@@ -55,9 +70,9 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
         const r = await config.run?.({ progress: () => {}, signal: { aborted: false } });
         if (config.resultKey && (r?.url || r?.doneUrl)) {
           const url = r.url || r.doneUrl;
-          mockSetNodes((ns) =>
-            ns.map((n) =>
-              n.id === config.nodeId ? { ...n, data: { ...n.data, [config.resultKey]: url } } : n,
+          mockSetNodes((ns: TestNode[]) =>
+            ns.map((n: TestNode) =>
+              n.id === config.nodeId ? { ...n, data: { ...n.data, [config.resultKey!]: url } } : n,
             ),
           );
         }
@@ -69,7 +84,7 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
 }));
 
 vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({
-  default: ({ value, onChange }) => (
+  default: ({ value, onChange }: { value?: string; onChange: (v: string) => void }) => (
     <button type="button" data-testid="model-select" onClick={() => onChange('model-x')}>
       {value || '选择模型'}
     </button>
@@ -77,7 +92,7 @@ vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({
 }));
 
 vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({
-  default: ({ onGenerate }) => (
+  default: ({ onGenerate }: { onGenerate?: () => void }) => (
     <button type="button" onClick={onGenerate}>
       生成
     </button>
@@ -85,13 +100,13 @@ vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({
 }));
 
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
-  default: ({ children }) => children,
+  default: ({ children }: { children?: ReactNode }) => children,
 }));
 vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
-  default: ({ children }) => children,
+  default: ({ children }: { children?: ReactNode }) => children,
 }));
 vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
-  default: ({ children }) => children,
+  default: ({ children }: { children?: ReactNode }) => children,
 }));
 vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: () => null }));
@@ -119,12 +134,14 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
 }));
 vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {} }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  toAbsoluteFileUrl: (x) => x,
+  toAbsoluteFileUrl: (x: string) => x,
   saveResultToTasks: vi.fn(async () => undefined),
 }));
 
 // 带 rest 参数声明：保证 mock 工厂可无损透传调用参数，无需 as any 强转
-const mockFetchTasks = vi.fn(async (..._a: unknown[]) => ({ data: { items: [] } }));
+const mockFetchTasks = vi.fn(async (..._a: unknown[]) => ({
+  data: { items: [] as Array<{ nodeId: string; status: string; resultUrl: string }> },
+}));
 vi.mock('../../src/components/base/store/providerStore.ts', () => ({
   useProviders: () => ({ providers: [] }),
   load: vi.fn(() => Promise.resolve()),
@@ -325,7 +342,7 @@ describe('ImageGenerate 异步任务恢复（onRecover）', () => {
     mockGetNodes.mockReturnValue([{ id: 'n1' }]);
     setup({});
     act(() => {
-      genConfig.onRecover({ resultUrl: 'http://poll.local/done.png' });
+      genConfig!.onRecover!({ resultUrl: 'http://poll.local/done.png' });
     });
     const data = lastPatchData();
     expect(data.assetUrl).toBe('http://poll.local/done.png');
@@ -338,16 +355,16 @@ describe('ImageGenerate 异步任务恢复（onRecover）', () => {
     mockSetNodes.mockClear();
     setup({ prompt: '一只猫', label: '生图' });
     act(() => {
-      genConfig.onRecover({ resultUrl: 'http://poll.local/rebuild.png' });
+      genConfig!.onRecover!({ resultUrl: 'http://poll.local/rebuild.png' });
     });
     // TD-04-2：重建走 commitNewNodes（setNodes 函数式追加），不再走裸 addNodes。
     // 行为断言：把最后一次 setNodes 的 updater 应用到空画布，应得到带 resultUrl 的重建节点。
     const updater = mockSetNodes.mock.calls.at(-1)?.[0];
     expect(typeof updater).toBe('function');
     const next = updater([]);
-    const added = next.find((n) => n.id === 'n1');
+    const added = next.find((n: TestNode) => n.id === 'n1');
     expect(added).toBeTruthy();
-    expect(added.type).toBe('imageGenerateNode');
-    expect(added.data.assetUrl).toBe('http://poll.local/rebuild.png');
+    expect(added!.type).toBe('imageGenerateNode');
+    expect(added!.data.assetUrl).toBe('http://poll.local/rebuild.png');
   });
 });
