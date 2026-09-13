@@ -87,7 +87,8 @@ import {
   useEditorSources,
 } from '../../hooks/useEditorSources.ts';
 import { useEditorFilmstrips } from '../../hooks/useEditorFilmstrips.ts';
-import { filmstripBackground } from './filmstripView.ts';
+import { useEditorWaveforms } from '../../hooks/useEditorWaveforms.ts';
+import { filmstripBackground, waveformPath, waveformSpan } from './clipSourceView.ts';
 import { useEditorProject } from './useEditorProject.ts';
 
 /** 基座时间轴的固定缩放（像素/秒）。缩放交互属后续加粗功能；这里过 `clampZoom` 走同一取值域。 */
@@ -189,7 +190,22 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
   );
   const strips = useEditorFilmstrips(stripEntries, CLIP_STRIP_HEIGHT);
 
-  /** 片段 → 画面上该显示什么（胶片条 / 图片本体 / 都没有）。 */
+  /** 音频素材的**真实波形**（C11.7b：峰值数组，禁止用固定图案冒充）。 */
+  const audioUrls = useMemo(
+    () =>
+      allClips
+        .map((clip) => {
+          const state = sources.byClipId.get(clip.id);
+          return clip.kind === 'audio' && state?.resolved.status === 'ok'
+            ? state.resolved.url
+            : null;
+        })
+        .filter((u): u is string => u !== null),
+    [allClips, sources.byClipId],
+  );
+  const waveforms = useEditorWaveforms(audioUrls);
+
+  /** 片段 → 画面上该显示什么（胶片条 / 图片本体 / 波形 / 都没有）。 */
   const visuals = useMemo(() => {
     const map = new Map<string, ClipVisual>();
     for (const clip of allClips) {
@@ -199,10 +215,11 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
         url: state.resolved.url,
         sourceDuration: state.duration ?? clipDuration(clip),
         stripUrl: strips.get(state.resolved.url),
+        peaks: waveforms.get(state.resolved.url),
       });
     }
     return map;
-  }, [allClips, sources.byClipId, strips]);
+  }, [allClips, sources.byClipId, strips, waveforms]);
 
   /* ════════════════════════════════════════════════════════════════
    * C11 · 入轨：在画布上点选素材节点 → 追加到对应类型轨尾
@@ -716,11 +733,12 @@ const EMPTY_CLIPS: Clip[] = [];
 /** 探测画像的窄类型（`MediaProfile` 的形状；此处不自造新类型，只做局部别名便于可空收窄）。 */
 type ClipProfile = { width?: number; height?: number; mimeType?: string };
 
-/** 片段在时间轴上的画面素材（胶片条 / 图片本体）。 */
+/** 片段在时间轴上的画面素材（胶片条 / 图片本体 / 波形）。 */
 interface ClipVisual {
   url: string;
   sourceDuration: number;
   stripUrl?: string;
+  peaks?: Float32Array;
 }
 
 /**
@@ -750,6 +768,9 @@ function clipStripStyle(clip: Clip, visual: ClipVisual | undefined): CSSProperti
   }
   return {};
 }
+
+/** 音频片段的波形底色（深蓝，C11.7b 形态；波形本体叠加其上）。 */
+const WAVEFORM_BG = 'rgb(22 58 92)';
 
 /** 工带按钮：不可用时**置灰 + tooltip 说明为什么**（`docs/123` §一.5 O3：不可用状态 ≠ 刚发生的动作）。 */
 function DockAction({
@@ -867,12 +888,38 @@ function TrackRow({
               >
                 {clip.name ?? clip.kind}
               </span>
-              {/* 胶片条 / 图片本体占剩余高度并随之缩放（C11.10c） */}
-              <span
-                className="min-h-0 flex-1 bg-no-repeat"
-                style={clipStripStyle(clip, visual)}
-                data-clip-strip
-              />
+              {/* 胶片条 / 波形 / 图片本体占剩余高度并随之缩放（C11.10c） */}
+              {clip.kind === 'audio' ? (
+                <span
+                  className="min-h-0 flex-1 relative overflow-hidden"
+                  style={{ backgroundColor: WAVEFORM_BG }}
+                  data-clip-waveform
+                >
+                  {visual?.peaks && visual.peaks.length > 0 && (
+                    // 波形与胶片条**共用同一映射**（`waveformSpan`）——
+                    // 若各自实现，就会出现「胶片条是裁剪后的、波形却是整段」这种不报错的漂
+                    <span
+                      className="absolute inset-y-0"
+                      style={waveformSpan(clip, visual.sourceDuration)}
+                    >
+                      <svg
+                        className="w-full h-full"
+                        viewBox={`0 0 ${visual.peaks.length} 100`}
+                        preserveAspectRatio="none"
+                        aria-hidden
+                      >
+                        <path d={waveformPath(visual.peaks)} fill="currentColor" />
+                      </svg>
+                    </span>
+                  )}
+                </span>
+              ) : (
+                <span
+                  className="min-h-0 flex-1 bg-no-repeat text-sky-300"
+                  style={clipStripStyle(clip, visual)}
+                  data-clip-strip
+                />
+              )}
             </div>
           );
         })}
