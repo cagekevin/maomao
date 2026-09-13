@@ -154,6 +154,22 @@ export function hasModalLayer(): boolean {
   return layers.size > 0;
 }
 
+/**
+ * 画布「激活位」判据 —— **唯一真源**：画布快捷键 / 画布内置快捷键是否应让位。
+ *
+ * 现在 = `hasModalLayer()`；将来剪辑器（或任何"激活位"域）接入时，**只在这里 `||` 一项**，
+ * 全部消费方自动跟随：
+ *  - 查询式：`useCanvasShortcuts` / `AssistantTablePanel`（执行前问一次）
+ *  - 订阅式：`App` 的 React Flow `deleteKeyCode`（`useSyncExternalStore(subscribeModalLayer, isCanvasSuppressed)`）
+ *
+ * 【为什么不把两套机制合并】查询 vs 订阅的差异在**机制层**——查询式宿主有机会在执行前再问一次；
+ * 把开关声明成 props 的宿主（`deleteKeyCode`）没有这个机会，只能订阅。见上方 `subscribeModalLayer`
+ * 与 `modalLayer.ts:48-59` 的裁决。**能单点的只有「判据」本身**（`docs/120` C10 · `docs/123` G-3）。
+ */
+export function isCanvasSuppressed(): boolean {
+  return hasModalLayer();
+}
+
 /** 调试用：列出当前所有已登记的层（含登记时长与调用栈）。控制台可直接调用排查。 */
 export function debugModalLayers(): Array<{ openSec: number; stack?: string }> {
   const now = Date.now();

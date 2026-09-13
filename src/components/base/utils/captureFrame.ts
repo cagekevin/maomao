@@ -1,0 +1,205 @@
+/**
+ * 视频抽帧原语（唯一实现）——从 `<video>` / 视频 URL 取一帧。
+ *
+ * 【两层结构（`126` 卡 1 硬边界③ 的"最小共同签名"提案）】
+ *  - **底层探测原语** `drawVideoFrame(video, { atTime, maxSize?, willReadFrequently?, errors? }) → Promise<HTMLCanvasElement>`
+ *    = 「seek + drawImage → canvas」这唯一一件"怎么读一帧"的事。
+ *  - **宿主薄包装**：各域只决定「怎么拿 video 元素 / 输出什么格式 / 是否降采样 / 什么质量 / 失败文案」。
+ *    本文件内已有 `captureFrame`（URL → JPEG Blob）；`scriptBoxEngine.captureVideoFrame`（URL+比例 → dataURL/max480）
+ *    与 `nodes/VideoExtractNode.seekTo`（已有元素 → dataURL/max800）已改为调它；其余见下方"待迁"。
+ *
+ * 【为什么不是一个签名通吃（Step 3：先分清重复的种类）】5 处的**输入**（URL vs 已有元素）、**输出**
+ * （Blob / dataURL / canvas）、**尺寸策略**（原尺寸 / 480 / 800）、**质量**（0.55 / 0.7 / 0.8）都不同 —— 属
+ * **判据层差异**，硬合并会削掉某一域的必要能力。可收口的只有底层探测原语。**禁止**再把 5 处并成一个函数。
+ *
+ * ════════════════════════════════════════════════════════════════
+ * 【同机制清单（2026-09-13 取证·份数按「输入/输出形态」判定，不按名称）】
+ * 本轮结论：**同机制 = ①③⑤（3 处，已全部收口到本模块）**；**② 待迁**；**④ 经步 2 取证改判为异类**（理由见文末异类段）。
+ *
+ * | # | 位置 | 输入 | 输出 | 尺寸 | 质量 | 状态 |
+ * |---|------|------|------|------|------|------|
+ * | ① | `nodes/VideoProcessNode.tsx`（原本地 `captureFrame`） | URL | Blob | 原尺寸 | jpeg 0.55 | ✅ 已下沉（本文件 `captureFrame`） |
+ * | ② | `hooks/useVideoPoster.ts:19` | URL | dataURL | 原尺寸 | jpeg 0.7 | ⏳ 待迁（hook：`seek 0.05` + 失败静默回退 `''` 须逐字保留） |
+ * | ③ | `scriptbox/scriptBoxEngine.ts` `captureVideoFrame` | URL + 比例 | dataURL | max 480 | jpeg 0.8 | ✅ 已迁（本文件 `drawVideoFrame`） |
+ * | ④ | `base/utils/clipboard.ts` `drawVideoFrameToCanvas` | **已有 `<video>`** | **canvas** | 原尺寸 | 由调用方定（png） | ❌ **异类（2026-09-13 步 2 取证改判，理由见下）** |
+ * | ⑤ | `nodes/VideoExtractNode.tsx` `seekTo` | **已有 `<video>`** | dataURL | max 800 | jpeg 0.8 | ✅ 已迁（本文件 `drawVideoFrame`） |
+ *
+ * 【异类登记 —— 看着像抽帧、其实不是，禁止并入本模块（防下一个人再统一一次）】
+ *  - `director3d/thumbnails.ts:12 thumbnailFromCanvas(source: HTMLCanvasElement)`：
+ *    输入是 **已画好的 canvas**（3D 监视器截图，`director3d/App.tsx:1218` 传 `monitorCanvasRef.current`），
+ *    是「canvas → 缩略图」的图像缩放，**不涉及视频 seek / decode**。并入会削掉其无视频源的能力。
+ *  - `base/ui/VideoThumbnail.tsx:49`：**显示侧组件**（`<video preload="metadata">` + 悬浮播放按钮），
+ *    **根本不抽帧**，靠浏览器渲染首帧。它没有可提取的帧数据。
+ *  - `base/utils/videoEngine.ts:568`：GIF 逐帧编码循环内的 `ctx.drawImage(video, …)`
+ *    （`videoToGif` 的一部分），逐帧 `getImageData → quantize → writeFrame`，**不是"取一帧"API**，
+ *    帧数据直接进编码器、不产出单帧图。抽出来会打断编码循环。
+ *  - `nodes/VideoExtractNode.tsx` 的 `smartCapture`（16×16 像素差）：只取 16×16 像素做画面变化检测，
+ *    **不产出帧图**（`getImageData` 而非 `toDataURL`），与"抽一帧"不同类。
+ *  - `base/utils/clipboard.ts:103 drawVideoFrameToCanvas`（**2026-09-13 步 2 改判：从"待迁"改为异类**）：
+ *    它与 ③⑤ 的交集**只有 `drawImage` 那两行**，其余全是**它自己的判据**：
+ *    ① **就绪度预检** `videoWidth/Height > 0` 否则抛「视频尚未加载，无法截屏」（③⑤ 靠事件等就绪，判据相反）；
+ *    ② **尾帧策略不同**（`max(0, min(dur-0.1, dur*0.5))` —— "极短视频兜底到中段"，③ 的是"至少 0.001"）；
+ *    ③ **`video.pause()`**（防止 seek 后被播放推进，只有它需要）；
+ *    ④ **`withTimeout(…, 5000, '尾帧定位超时')`**（③⑤ 无超时）；
+ *    ⑤ **等两帧 rAF**（预览框在实时显示，seeked 后渲染面未必更新到解码帧）；
+ *    且 **`last=false` 时完全同步、根本不 seek** —— 与本原语「seek→draw 原子」模型相反。
+ *    → 硬塞进来要么削掉它 5 条判据，要么把本原语撑成宽接口（宽接口 + 薄实现 = 泄漏）。
+ *    唯一重叠处（`drawImage` 到同尺寸 canvas）不值得为它把原语变宽，故**登记为异类，不并入**。
+ */
+
+/** 底层原语可替换的错误文案（各宿主保留自己的排障文案，见"失败语义逐字保留"要求）。 */
+export interface DrawVideoFrameErrors {
+  /** 视频加载失败（`error` 事件） */
+  load?: string;
+  /** 视频尺寸不可用（`videoWidth/videoHeight` 为 0） */
+  dimensions?: string;
+  /** 2d context 不可用 */
+  context?: string;
+}
+
+/** `drawVideoFrame` 入参。 */
+export interface DrawVideoFrameOptions {
+  /**
+   * 目标时间（秒），或「按已加载时长算目标」的函数（按比例取帧的宿主需要，如 ③）。
+   * 与当前 `currentTime` 差值 < 1ms 时**不 seek，直接绘制** —— 否则"目标=0 且本就停在 0"会等不到
+   * `seeked` 事件而永久挂起（③ 原先就存在这个悬挂面）。
+   */
+  atTime: number | ((duration: number) => number);
+  /** 最长边像素上限；不传 / <=0 → 原尺寸。只在超限时按比例缩小（不放大）。 */
+  maxSize?: number;
+  /**
+   * 是否等 `loadeddata` 再开始（默认 true = 新建元素的情形，①③ 用）。
+   * **宿主已自备、且已等过元数据的元素**（⑤ 的 `<video>`）传 `false`：
+   * ⑤ 原实现根本不等 `loadeddata`（它只挂 `seeked/error` 后直接 seek），
+   * 收口时若强行加这道门槛，宿主在 `loadeddata` 不再触发时会**永久挂起**
+   * —— 这是收口越界（`126` §八：既有测试变红 = 既有语义被破坏），故保留为显式开关。
+   * **理由（谁需要它、为什么）**：①③ 新建元素 → 需要等；⑤ 的元素由宿主在 `loadedmetadata` 后自备 → 不能等。
+   */
+  waitForLoad?: boolean;
+  // 更新(2026-09-13)：曾带的 `willReadFrequently` 已**删除**——③⑤ 的 canvas 只「画一次 + 导出一次」，
+  // 从不 `getImageData`（⑤ 唯一读像素的 `smartCapture` 用的是它自己那块 16×16 canvas），
+  // 该 hint 找不到需要它的宿主 → 按「给不出理由就删」（宽接口 + 薄实现 = 泄漏）摘掉。
+  // 将来真有宿主需要读像素，再由**该宿主**按需传入（不预置在唯一原语上）。
+  /** 覆盖默认错误文案；未覆盖的走默认值。 */
+  errors?: DrawVideoFrameErrors;
+}
+
+/** 默认错误文案（= ① 下沉前的原文案，逐字保留）。 */
+const DEFAULT_FRAME_ERRORS: Required<DrawVideoFrameErrors> = {
+  load: 'captureFrame: load error',
+  dimensions: 'captureFrame: zero dimensions',
+  context: 'captureFrame: no 2d context',
+};
+
+/**
+ * 底层探测原语：把 `<video>` 定位到 `atTime` 并画进 canvas。
+ *
+ * - `waitForLoad !== false` → 等 `loadeddata` 再开始（新建元素的情形，①③）；
+ *   宿主已自备元素（⑤）→ `waitForLoad: false`，直接 seek，**不空等事件**（保原语义）。
+ * - 事件一律用 `addEventListener` + 结算时 `removeEventListener`，**不占用 `onxxx` 属性**——
+ *   ⑤ 的元素由调用方持有，改属性会踩到宿主的处理器。
+ * - 只做「seek + drawImage」；**夹取（clamp）与"取哪一帧"是宿主的判据**，不并入本函数。
+ */
+export function drawVideoFrame(
+  video: HTMLVideoElement,
+  { atTime, maxSize, waitForLoad, errors }: DrawVideoFrameOptions,
+): Promise<HTMLCanvasElement> {
+  const errFor = (kind: keyof DrawVideoFrameErrors) =>
+    new Error(errors?.[kind] ?? DEFAULT_FRAME_ERRORS[kind]);
+  return new Promise<HTMLCanvasElement>((resolve, reject) => {
+    let done = false;
+    const cleanup = () => {
+      video.removeEventListener('loadeddata', begin);
+      video.removeEventListener('seeked', draw);
+      video.removeEventListener('error', onError);
+    };
+    const fail = (e: Error) => {
+      if (done) return;
+      done = true;
+      cleanup();
+      reject(e);
+    };
+    const draw = () => {
+      if (done) return;
+      try {
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        if (!vw || !vh) return fail(errFor('dimensions'));
+        let w = vw;
+        let h = vh;
+        if (maxSize && maxSize > 0 && (w > maxSize || h > maxSize)) {
+          if (w > h) {
+            h = Math.round((h * maxSize) / w);
+            w = maxSize;
+          } else {
+            w = Math.round((w * maxSize) / h);
+            h = maxSize;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return fail(errFor('context'));
+        ctx.drawImage(video, 0, 0, w, h);
+        done = true;
+        cleanup();
+        resolve(canvas);
+      } catch (e) {
+        fail(e instanceof Error ? e : new Error(String(e)));
+      }
+    };
+    const begin = () => {
+      const duration = video.duration || 0;
+      const target = typeof atTime === 'function' ? atTime(duration) : atTime;
+      if (Math.abs(video.currentTime - target) < 0.001) draw();
+      else {
+        video.addEventListener('seeked', draw, { once: true });
+        try {
+          video.currentTime = target;
+        } catch {
+          draw();
+        }
+      }
+    };
+    const onError = () => fail(errFor('load'));
+
+    video.addEventListener('error', onError, { once: true });
+    if (waitForLoad === false) begin();
+    else video.addEventListener('loadeddata', begin, { once: true });
+  });
+}
+
+/**
+ * 宿主薄包装 ①：URL → seek → drawImage → JPEG `Blob`（原 `nodes/VideoProcessNode.tsx` 本地 `captureFrame` 下沉）。
+ * 消费方：时间线胶片条抽缩略图；视频剪辑器可直接复用。
+ */
+export function captureFrame(url: string, atTime: number, quality = 0.55): Promise<Blob> {
+  const video = document.createElement('video');
+  video.crossOrigin = 'anonymous';
+  video.preload = 'auto';
+  video.muted = true;
+  video.playsInline = true;
+  video.src = url;
+  const release = () => {
+    video.removeAttribute('src');
+    try {
+      video.load();
+    } catch {} // catch-ok: video.load() 释放 src 失败不阻断结果回调
+  };
+  return drawVideoFrame(video, {
+    // 原实现：target = min(atTime, max(0, (duration || atTime) - 0.01))（夹取是 ① 的判据，留在宿主）
+    atTime: (duration) => Math.min(atTime, Math.max(0, (duration || atTime) - 0.01)),
+  })
+    .then(
+      (canvas) =>
+        new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob(
+            (b) => (b ? resolve(b) : reject(new Error('captureFrame: toBlob null'))),
+            'image/jpeg',
+            quality,
+          );
+        }),
+    )
+    .finally(release);
+}

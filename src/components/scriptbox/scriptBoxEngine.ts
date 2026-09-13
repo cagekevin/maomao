@@ -48,6 +48,7 @@ import {
 } from '../base/core/config.ts';
 // 任务级总耗时兜底（R2 边界守卫）：给整段生成任务加超时，杜绝「转圈永不结束」
 import { withTimeout } from '../base/utils/asyncGuard.ts';
+import { drawVideoFrame } from '../base/utils/captureFrame.ts';
 // 【L3c】中止判定统一走 classifyError（唯一入口 genErrors.ts:24），替代原 /abort/i message 关键词判点（脆依赖）
 import { classifyError } from '../base/utils/genErrors.ts';
 import type { Shot, ScriptAsset, Dialogue } from './scriptBoxPrompts.ts';
@@ -2080,8 +2081,10 @@ export function assembleShotUser(
 }
 
 /**
- * 抽视频尾帧 → JPEG dataURL（P1-2）。复用 VideoExtractNode 的 canvas.drawImage 抽帧思路，
- * 独立成模块顶层函数（纯浏览器实现）便于单测注入 mock；非浏览器环境直接抛错，由调用方降级/提示。
+ * 抽视频尾帧 → JPEG dataURL（P1-2）。**宿主薄包装**：底层 seek+drawImage 已收口到
+ * `base/utils/captureFrame.ts` 的 `drawVideoFrame`（唯一"怎么读一帧"实现）。
+ * 本函数只负责「按比例算目标时间 + max480 降采样 + jpeg 0.8 + 本域的失败文案」这些**判据**。
+ * 非浏览器环境直接抛错，由调用方降级/提示。
  * @param {string} src  视频 URL（VideoGenerate.data.videoUrl，已持久化 /files/...）
  * @param {number} [atFraction=1]  抽帧时刻（1 = 尾帧；0~1 按时长比例）
  * @returns {Promise<string>} dataURL
@@ -2090,63 +2093,20 @@ export async function captureVideoFrame(src: string, atFraction = 1): Promise<st
   if (typeof document === 'undefined' || typeof HTMLVideoElement === 'undefined') {
     throw new Error('浏览器环境不支持抽帧');
   }
-  return new Promise<string>((resolve, reject) => {
-    const video = document.createElement('video');
-    video.muted = true;
-    video.playsInline = true;
-    video.crossOrigin = 'anonymous';
-    video.preload = 'auto';
-    video.src = String(src || '');
-    let done = false;
-    const finish = (err?: Error | null, dataUrl?: string) => {
-      if (done) return;
-      done = true;
-      video.removeEventListener('loadeddata', onLoaded);
-      video.removeEventListener('error', onErr);
-      video.removeEventListener('seeked', onSeeked);
-      if (err) reject(err);
-      else resolve(dataUrl);
-    };
-    const onErr = () => finish(new Error('视频加载失败'));
-    const onSeeked = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (!ctx) return finish(new Error('Canvas 不可用'));
-        let w = video.videoWidth;
-        let h = video.videoHeight;
-        if (!w || !h) return finish(new Error('视频尺寸不可用'));
-        if (w > 480 || h > 480) {
-          if (w > h) {
-            h = Math.round((h * 480) / w);
-            w = 480;
-          } else {
-            w = Math.round((w * 480) / h);
-            h = 480;
-          }
-        }
-        canvas.width = w;
-        canvas.height = h;
-        ctx.drawImage(video, 0, 0, w, h);
-        finish(null, canvas.toDataURL('image/jpeg', 0.8));
-      } catch (e) {
-        finish(e);
-      }
-    };
-    const onLoaded = () => {
-      try {
-        const duration = video.duration || 0;
-        const t =
-          Number.isFinite(duration) && duration > 0
-            ? Math.min(Math.max(duration * atFraction - 0.05, 0), Math.max(duration - 0.05, 0.001))
-            : 0;
-        video.currentTime = t;
-      } catch (e) {
-        finish(e);
-      }
-    };
-    video.addEventListener('loadeddata', onLoaded, { once: true });
-    video.addEventListener('seeked', onSeeked, { once: true });
-    video.addEventListener('error', onErr, { once: true });
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.crossOrigin = 'anonymous';
+  video.preload = 'auto';
+  video.src = String(src || '');
+  const canvas = await drawVideoFrame(video, {
+    // 原实现：t = min(max(duration*atFraction - 0.05, 0), max(duration - 0.05, 0.001))（夹取=本域判据）
+    atTime: (duration) =>
+      Number.isFinite(duration) && duration > 0
+        ? Math.min(Math.max(duration * atFraction - 0.05, 0), Math.max(duration - 0.05, 0.001))
+        : 0,
+    maxSize: 480,
+    errors: { load: '视频加载失败', dimensions: '视频尺寸不可用', context: 'Canvas 不可用' },
   });
+  return canvas.toDataURL('image/jpeg', 0.8);
 }

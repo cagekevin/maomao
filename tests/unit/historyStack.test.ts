@@ -42,6 +42,22 @@ describe('HistoryStack MAX=15 上限', () => {
     expect(s.history[0].i).toBe(6);
     expect(s.history.at(-1)!.i).toBe(20);
   });
+
+  it('默认上限为 15（不传 max；画布复用者的既有契约，不得漂移）', () => {
+    const s = new HistoryStack<Snap>();
+    expect(s.max).toBe(15);
+    pushN(s, 20);
+    expect(s.history).toHaveLength(15);
+  });
+
+  it('自定义上限生效（max:50，供剪辑器工程级撤销复用）', () => {
+    const s = new HistoryStack<Snap>({ max: 50 });
+    pushN(s, 60);
+    expect(s.history).toHaveLength(50);
+    // 最早的 10 条被挤出
+    expect(s.history[0].i).toBe(11);
+    expect(s.history.at(-1)!.i).toBe(60);
+  });
 });
 
 describe('HistoryStack undo/redo', () => {

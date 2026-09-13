@@ -7,7 +7,9 @@
  *  - hook 用 ref 持有实例，仅做「状态变化 → setState」的 React 桥接
  *
  * 【机制】对齐 H_.jsx:475-478,881-925 的 fn/hn/_n/vn：
- *  - MAX=15：历史最多保留 15 条
+ *  - 上限可配置：构造参数 `{ max }`，**默认 15**（画布复用者的既有契约，不得漂移）。
+ *    更新(2026-09-13)：原描述「MAX=15 写死」是误读——构造已是 `{ max = 15 }`，`push` 全程用 `this.max`。
+ *    剪辑器等工程级撤销可直接 `new HistoryStack({ max: 50 })` 复用本类，**不要再写第 N 套历史栈**。
  *  - push 时若正在 suppress（undo/redo 抑制期）则忽略
  *  - push 截断被 redo 覆盖的分支（branchRef 之后清空）
  *  - undo/redo 移动 index，并进入 suppress（600ms 窗口防重复记录）

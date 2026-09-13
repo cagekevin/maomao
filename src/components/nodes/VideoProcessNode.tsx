@@ -46,6 +46,8 @@ import previewUrls from '../base/utils/previewUrl.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
 import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/core/config.ts';
 import { createRafBatch } from '../base/core/utils.ts';
+import { sourceTimeAt, timelineTimeAt } from '../base/utils/timeline/sourceTime.ts';
+import { captureFrame } from '../base/utils/captureFrame.ts';
 
 /* ════════════════════════════════════════════════════════════════
  * 视频处理节点（复刻官方 Gc.jsx + fc.jsx 合并的 videoProcessNode）
@@ -137,70 +139,6 @@ const sourceName = (node: Node, url: string): string => {
   const n = d?.sourceVideoName || d?.videoName || d?.fileName || d?.label || node?.id;
   return typeof n === 'string' && n ? n : nameFromUrl(url);
 };
-
-/** canvas 抽一帧（复刻官方 _cmp_mc） */
-function captureFrame(url: string, atTime: number, quality = 0.55): Promise<Blob> {
-  return new Promise<Blob>((resolve, reject) => {
-    const video = document.createElement('video');
-    video.crossOrigin = 'anonymous';
-    video.preload = 'auto';
-    video.muted = true;
-    video.playsInline = true;
-    video.src = url;
-    let done = false;
-    const fail = (msg: string) => {
-      if (done) return;
-      done = true;
-      video.removeAttribute('src');
-      try {
-        video.load();
-      } catch {} // catch-ok: video.load() 释放 src 失败不阻断 fail 回调
-      reject(new Error(msg));
-    };
-    const ok = (blob: Blob) => {
-      if (done) return;
-      done = true;
-      video.removeAttribute('src');
-      try {
-        video.load();
-      } catch {} // catch-ok: video.load() 释放 src 失败不阻断 ok 回调
-      resolve(blob);
-    };
-    const grab = () => {
-      try {
-        const w = video.videoWidth;
-        const h = video.videoHeight;
-        if (!w || !h) return fail('captureFrame: zero dimensions');
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return fail('captureFrame: no 2d context');
-        ctx.drawImage(video, 0, 0, w, h);
-        canvas.toBlob(
-          (b) => (b ? ok(b) : fail('captureFrame: toBlob null')),
-          'image/jpeg',
-          quality,
-        );
-      } catch (e) {
-        fail(e instanceof Error ? e.message : String(e));
-      }
-    };
-    video.onerror = () => fail('captureFrame: load error');
-    video.onloadeddata = () => {
-      const target = Math.min(atTime, Math.max(0, (video.duration || atTime) - 0.01));
-      if (Math.abs(video.currentTime - target) < 0.001) grab();
-      else {
-        video.onseeked = grab;
-        try {
-          video.currentTime = target;
-        } catch {
-          grab();
-        }
-      }
-    };
-  });
-}
 
 /** GIF 生成结果信息（官方 fc.jsx resultInfo） */
 interface GifResultInfo {
@@ -331,7 +269,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
 
   /* ---------- 状态（复刻官方 1-41 行） ---------- */
-  const [mode, setMode] = useState(() => normalizeMode(data.mode));
+  const [mode, setMode] = useState(() => normalizeMode(data.mode ?? ''));
   const [audioFormat, setAudioFormat] = useState(data.audioFormat || 'm4a');
   const [resizeWidth, setResizeWidth] = useState(data.resizeWidth ?? 1280);
   const [resizeHeight, setResizeHeight] = useState(data.resizeHeight ?? 720);
@@ -445,9 +383,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       const clips = (tr.clips || tr.segments || []).map((cl) => {
         const src = sourceMap.get(cl.sourceId);
         const dur =
-          sourceMetadata[cl.sourceId]?.duration || cl.duration || cl.sourceEnd || cl.end || 0;
+          sourceMetadata[cl.sourceId ?? '']?.duration || cl.duration || cl.sourceEnd || cl.end || 0;
         const start = Math.max(0, cl.sourceStart ?? cl.start ?? 0);
-        let end = cl.sourceEnd ?? cl.end;
+        let end = cl.sourceEnd ?? cl.end ?? 0;
         if ((end === 0 || end === cl.duration) && dur > 0 && (cl.duration || 0) === 0) end = dur;
         const validEnd =
           Number.isFinite(end) && end < Number.MAX_SAFE_INTEGER ? Math.min(end, dur || end) : dur;
@@ -523,8 +461,8 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         .filter((t) => t.kind === 'video')
         .flatMap((t) =>
           [...t.clips]
-            .sort((a, b) => a.timelineStart - b.timelineStart)
-            .filter((c) => c.url && c.duration > 0)
+            .sort((a, b) => (a.timelineStart ?? 0) - (b.timelineStart ?? 0))
+            .filter((c) => c.url && (c.duration ?? 0) > 0)
             .map((c) => ({ ...c, muted: !!t.muted || c.muted })),
         ),
     [tracks],
@@ -534,7 +472,8 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   const currentClip = selectedClipInfo?.clip || firstVideoClip; // H
   const currentUrl = currentClip?.url || sources[0]?.url || '';
   const currentName = currentClip?.name || sources[0]?.name || '';
-  const currentMeta = currentClip ? sourceMetadata[currentClip.sourceId] : undefined; // U
+  const currentMeta =
+    currentClip && currentClip.sourceId != null ? sourceMetadata[currentClip.sourceId] : undefined; // U
   const totalDuration = currentMeta?.duration || currentClip?.sourceEnd || 0; // W
 
   /* ---------- 写回 data（复刻官方 128-162 行） ---------- */
@@ -653,11 +592,20 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           try {
             const blob = await captureFrame(
               s.url,
-              Math.max(0.05, (meta.duration * (i + 0.5)) / 6),
+              Math.max(0.05, ((meta.duration ?? 0) * (i + 0.5)) / 6),
               0.55,
             );
             if (cancelled) return;
             const u = previewUrls.create(blob);
+            if (!u) {
+              // 【混线修正 2026-09-13】降级跳过（非异常）—— 但"静默跳过一帧"不可观测（Step 4）。
+              // 用 debug 级（不是 warn）：属预期降级，不该打扰用户；但排查"少了几帧"时必须查得到。
+              logger.debug('videoProcess', '抽缩略图：previewUrls.create 返回空，跳过该帧', {
+                sourceId: s.sourceId,
+                index: i,
+              });
+              continue;
+            }
             thumbUrls.current.push(u);
             urls.push(u);
           } catch {
@@ -693,7 +641,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   const updateClip = useCallback(
     (clipId: string, patch: Partial<VClip>) => {
       mutateTracks((t) => {
-        let clip;
+        let clip: VClip | undefined;
         let track;
         for (const tr of t) {
           const idx = tr.clips.findIndex((c) => c.id === clipId);
@@ -703,8 +651,14 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
             break;
           }
         }
+        if (!clip) {
+          // 【混线修正 2026-09-13】原实现 `let clip;` 无类型，找不到片段时 `Object.assign(undefined, patch)` 会抛；
+          // 严格类型化那条线把它改成了静默 return（Step 4 禁静默吞）→ 补可见信号，控制流不变。
+          logger.warn('videoProcess', 'updateClip: 未找到目标片段，本次补丁被忽略', { clipId });
+          return;
+        }
         Object.assign(clip, patch);
-        clip.duration = Math.max(0, clip.sourceEnd - clip.sourceStart);
+        clip.duration = Math.max(0, (clip.sourceEnd ?? 0) - (clip.sourceStart ?? 0));
         if (clip && track && patch.trackId && patch.trackId !== track.id) {
           const target = t.find((e) => e.id === patch.trackId);
           if (target) {
@@ -719,22 +673,23 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
 
   const setInPoint = useCallback(() => {
     if (!currentClip) return;
-    const v = round2(Math.max(0, Math.min(playheadTime, currentClip.sourceEnd - 0.05)));
+    const v = round2(Math.max(0, Math.min(playheadTime, (currentClip.sourceEnd ?? 0) - 0.05)));
     updateClip(currentClip.id, { sourceStart: v });
   }, [currentClip, playheadTime, updateClip]);
 
   const setOutPoint = useCallback(() => {
     if (!currentClip) return;
-    const meta = sourceMetadata[currentClip.sourceId]?.duration || currentClip.sourceEnd;
-    const v = round2(Math.min(meta, Math.max(playheadTime, currentClip.sourceStart + 0.05)));
+    const meta =
+      sourceMetadata[currentClip.sourceId ?? '']?.duration || (currentClip.sourceEnd ?? 0);
+    const v = round2(Math.min(meta, Math.max(playheadTime, (currentClip.sourceStart ?? 0) + 0.05)));
     updateClip(currentClip.id, { sourceEnd: v });
   }, [currentClip, playheadTime, sourceMetadata, updateClip]);
 
   const splitAtPlayhead = useCallback(() => {
     if (
       !currentClip ||
-      playheadTime <= currentClip.sourceStart + 0.01 ||
-      playheadTime >= currentClip.sourceEnd - 0.01
+      playheadTime <= (currentClip.sourceStart ?? 0) + 0.01 ||
+      playheadTime >= (currentClip.sourceEnd ?? 0) - 0.01
     )
       return;
     const v = round2(playheadTime);
@@ -743,12 +698,12 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       if (!track) return;
       const idx = track.clips.findIndex((c) => c.id === currentClip.id);
       const original = track.clips[idx];
-      const a = { ...original, sourceEnd: v, duration: v - original.sourceStart };
+      const a = { ...original, sourceEnd: v, duration: v - (original.sourceStart ?? 0) };
       const b = {
         ...original,
         id: makeId('clip'),
         sourceStart: v,
-        duration: original.sourceEnd - v,
+        duration: (original.sourceEnd ?? 0) - v,
       };
       track.clips.splice(idx, 1, a, b);
       setSelectedClipId(b.id);
@@ -807,7 +762,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
 
   const setPlayhead = useCallback(
     (v: number) => {
-      const targets = currentClip ? [currentClip.sourceStart, currentClip.sourceEnd] : [];
+      const targets = currentClip ? [currentClip.sourceStart ?? 0, currentClip.sourceEnd ?? 0] : [];
       const clamped = Math.max(0, Math.min(totalDuration, snapTo(v, targets)));
       setPlayheadTime(clamped);
       if (videoRef.current && videoRef.current.src === currentUrl)
@@ -853,8 +808,8 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         ),
       );
       if (side === 'start')
-        updateClip(clip.id, { sourceStart: Math.min(v, clip.sourceEnd - 0.05) });
-      else updateClip(clip.id, { sourceEnd: Math.max(v, clip.sourceStart + 0.05) });
+        updateClip(clip.id, { sourceStart: Math.min(v, (clip.sourceEnd ?? 0) - 0.05) });
+      else updateClip(clip.id, { sourceEnd: Math.max(v, (clip.sourceStart ?? 0) + 0.05) });
     });
     const move = (ev: PointerEvent) => batch(ev.clientX);
     const up = () => {
@@ -876,7 +831,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     const clip = tracks.flatMap((t) => t.clips).find((c) => c.id === clipId);
     if (!clip) return;
     const startX = e.clientX;
-    const startTimeline = clip.timelineStart;
+    const startTimeline = clip.timelineStart ?? 0;
     // P3：move 高频 → rAF 合并（elementsFromPoint + updateClip 从每事件一次降到每帧一次）
     const batch = createRafBatch((clientX, clientY) => {
       const dx = (clientX - startX) / PX_PER_SEC;
@@ -887,15 +842,15 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         ...tracks.flatMap((t) =>
           t.clips
             .filter((c) => c.id !== clipId)
-            .flatMap((c) => [c.timelineStart, c.timelineStart + c.duration]),
+            .flatMap((c) => [c.timelineStart ?? 0, (c.timelineStart ?? 0) + (c.duration ?? 0)]),
         ),
       ];
       const a = snapTo(candidate, snapTargets);
-      const b = snapTo(candidate + clip.duration, snapTargets);
+      const b = snapTo(candidate + (clip.duration ?? 0), snapTargets);
       const moved =
-        Math.abs(a - candidate) <= Math.abs(b - (candidate + clip.duration))
+        Math.abs(a - candidate) <= Math.abs(b - (candidate + (clip.duration ?? 0)))
           ? a
-          : b - clip.duration;
+          : b - (clip.duration ?? 0);
       const el = document
         .elementsFromPoint(clientX, clientY)
         .find((n) => n.getAttribute('data-track-id'));
@@ -943,7 +898,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     if (localUrl) previewUrls.release(localUrl);
     const url = previewUrls.create(file);
     setLocalFile(file);
-    setLocalUrl(url);
+    setLocalUrl(url ?? '');
     patchNodeDataById(setNodes, id, {
       sourceVideoUrl: url,
       sourceVideoName: file.name,
@@ -983,7 +938,13 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         ],
         { sourceHandle: 'main-output' },
       );
-      spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
+      spawnAndCommit(spawned, {
+        getNodes,
+        getEdges,
+        setNodes,
+        setEdges,
+        history: history ?? undefined,
+      });
     },
     [id, getNode, getNodes, getEdges, setNodes, setEdges, history],
   );
@@ -1008,7 +969,13 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         ],
         { sourceHandle: 'main-output' },
       );
-      spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
+      spawnAndCommit(spawned, {
+        getNodes,
+        getEdges,
+        setNodes,
+        setEdges,
+        history: history ?? undefined,
+      });
     },
     [id, getNode, getNodes, getEdges, setNodes, setEdges, history],
   );
@@ -1033,7 +1000,13 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         ],
         { sourceHandle: 'main-output' },
       );
-      spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
+      spawnAndCommit(spawned, {
+        getNodes,
+        getEdges,
+        setNodes,
+        setEdges,
+        history: history ?? undefined,
+      });
     },
     [id, getNode, getNodes, getEdges, setNodes, setEdges, history],
   );
@@ -1134,7 +1107,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           const blob =
             localFile && clip.url === localUrl
               ? localFile
-              : await httpRequest(clip.url, {
+              : await httpRequest(clip.url!, {
                   parseJson: false,
                   retries: 0,
                   timeoutMs: VIDEO_DOWNLOAD_TIMEOUT,
@@ -1183,7 +1156,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         };
         let opts: ProcessVideoOptions;
         if (mode === 'trim')
-          opts = { mode, start: clip.sourceStart, end: clip.sourceEnd, ...baseOpts };
+          opts = { mode, start: clip!.sourceStart, end: clip!.sourceEnd, ...baseOpts };
         else if (mode === 'extractAudio')
           opts = { mode, format: audioFormat as ProcessVideoOptions['format'], ...baseOpts };
         else
@@ -1247,7 +1220,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       const cls = classifyError(e);
       if (isTimeoutError(e)) {
         logger.error('VideoProcessNode', 'process timeout', {
-          error: e?.message,
+          error: (e as { message?: string })?.message,
           errType: cls.type,
           retryable: cls.retryable,
         });
@@ -1257,7 +1230,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         patchNodeDataById(setNodes, id, { errorMessage: undefined });
       } else {
         logger.error('VideoProcessNode', 'process failed', {
-          error: e?.message,
+          error: (e as { message?: string })?.message,
           errType: cls.type,
           retryable: cls.retryable,
         });
@@ -1307,8 +1280,10 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     'nodrag h-7 min-w-7 px-1.5 rounded border border-edge-raised bg-surface-hover text-secondary flex items-center justify-center hover:text-white disabled:opacity-30';
 
   const playheadPct = totalDuration ? (playheadTime / totalDuration) * 100 : 0;
-  const inPct = totalDuration && currentClip ? (currentClip.sourceStart / totalDuration) * 100 : 0;
-  const outPct = totalDuration && currentClip ? (currentClip.sourceEnd / totalDuration) * 100 : 100;
+  const inPct =
+    totalDuration && currentClip ? ((currentClip.sourceStart ?? 0) / totalDuration) * 100 : 0;
+  const outPct =
+    totalDuration && currentClip ? ((currentClip.sourceEnd ?? 0) / totalDuration) * 100 : 100;
   const canRun =
     mode === 'concat'
       ? exportClips.length >= 2
@@ -1321,7 +1296,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     let max = 0;
     for (const t of tracks)
       for (const c of t.clips) {
-        const end = c.timelineStart + c.duration;
+        const end = (c.timelineStart ?? 0) + (c.duration ?? 0);
         if (end > max) max = end;
       }
     return max;
@@ -1347,13 +1322,15 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     const t = Math.max(0, (e.clientX - rect.left) / PX_PER_SEC);
     for (const tr of tracks) {
       if (tr.kind !== 'video') continue;
-      const clip = tr.clips.find((c) => t >= c.timelineStart && t <= c.timelineStart + c.duration);
+      const clip = tr.clips.find(
+        (c) => t >= (c.timelineStart ?? 0) && t <= (c.timelineStart ?? 0) + (c.duration ?? 0),
+      );
       if (clip) {
         if (selectedClipId !== clip.id) {
           setSelectedClipId(clip.id);
-          const srcT = clip.sourceStart + (t - clip.timelineStart);
+          const srcT = sourceTimeAt(t, clip);
           if (videoRef.current.src !== clip.url) {
-            videoRef.current.src = clip.url;
+            videoRef.current.src = clip.url!;
             const setTime = () => {
               if (videoRef.current) {
                 videoRef.current.currentTime = srcT;
@@ -1365,7 +1342,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
             videoRef.current.currentTime = srcT;
           }
         } else {
-          videoRef.current.currentTime = clip.sourceStart + (t - clip.timelineStart);
+          videoRef.current.currentTime = sourceTimeAt(t, clip);
         }
         setPlayheadTime(t);
         return;
@@ -1381,7 +1358,10 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       <div
         key={clip.id}
         className="absolute top-1 h-12 z-10"
-        style={{ left: clip.timelineStart * PX_PER_SEC, width: clip.duration * PX_PER_SEC }}
+        style={{
+          left: (clip.timelineStart ?? 0) * PX_PER_SEC,
+          width: (clip.duration ?? 0) * PX_PER_SEC,
+        }}
         onPointerDown={(e) => {
           e.stopPropagation();
           setSelectedClipId(clip.id);
@@ -1412,7 +1392,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           </div>
           <div className="absolute inset-x-0 bottom-0 h-5 px-1 flex items-center gap-1 bg-black/70 text-meta text-white">
             <span className="truncate">{clip.name}</span>
-            <span className="ml-auto shrink-0 tabular-nums">{clip.duration.toFixed(1)}s</span>
+            <span className="ml-auto shrink-0 tabular-nums">
+              {(clip.duration ?? 0).toFixed(1)}s
+            </span>
           </div>
         </div>
       </div>
@@ -1484,9 +1466,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         </div>
       </div>
       <div className="mt-1 flex justify-between text-meta text-muted tabular-nums">
-        <span>入点 {currentClip.sourceStart.toFixed(2)}s</span>
-        <span>片段 {currentClip.duration.toFixed(2)}s</span>
-        <span>出点 {currentClip.sourceEnd.toFixed(2)}s</span>
+        <span>入点 {(currentClip.sourceStart ?? 0).toFixed(2)}s</span>
+        <span>片段 {(currentClip.duration ?? 0).toFixed(2)}s</span>
+        <span>出点 {(currentClip.sourceEnd ?? 0).toFixed(2)}s</span>
       </div>
     </div>
   );
@@ -1546,8 +1528,11 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
                     if (mode === 'concat') {
                       if (isPlaying && currentClip)
                         setPlayheadTime(
-                          currentClip.timelineStart +
-                            Math.max(0, e.currentTarget.currentTime - currentClip.sourceStart),
+                          // 夹取到片段源起点（等价原内联 Math.max(0, cur - sourceStart)）
+                          timelineTimeAt(
+                            Math.max(currentClip.sourceStart ?? 0, e.currentTarget.currentTime),
+                            currentClip,
+                          ),
                         );
                     } else {
                       setPlayheadTime(e.currentTarget.currentTime);
@@ -1585,7 +1570,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
             <span className="truncate">{currentName}</span>
             <span className="shrink-0 tabular-nums">
               {currentMeta
-                ? `${formatDuration(currentMeta.duration)} · ${currentMeta.width}×${currentMeta.height} · ${currentMeta.fps.toFixed(2)} fps`
+                ? `${formatDuration(currentMeta.duration ?? 0)} · ${currentMeta.width}×${currentMeta.height} · ${(currentMeta.fps ?? 0).toFixed(2)} fps`
                 : '读取信息中...'}
             </span>
           </div>
@@ -1730,8 +1715,8 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
               <div className="h-9 px-2 border-t border-edge flex items-center gap-2 text-meta text-secondary">
                 <span className="truncate max-w-32">{selectedClipInfo.clip.name}</span>
                 <span className="tabular-nums">
-                  {selectedClipInfo.clip.sourceStart.toFixed(2)} -{' '}
-                  {selectedClipInfo.clip.sourceEnd.toFixed(2)}s
+                  {(selectedClipInfo.clip.sourceStart ?? 0).toFixed(2)} -{' '}
+                  {(selectedClipInfo.clip.sourceEnd ?? 0).toFixed(2)}s
                 </span>
                 <button
                   className="ml-auto"

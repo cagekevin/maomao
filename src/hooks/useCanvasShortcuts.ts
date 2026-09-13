@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { isEditableTarget } from '../components/base/core/uiHooks.ts';
-import { hasModalLayer } from '../components/base/core/modalLayer.ts';
+import { isCanvasSuppressed } from '../components/base/core/modalLayer.ts';
 
 /** 快捷键回调集合；未提供的快捷键自动不响应 */
 export interface CanvasShortcutHandlers {
@@ -29,7 +29,7 @@ export interface CanvasShortcutHandlers {
  *
  * 守卫条件与源码一致：
  *  - `e.repeat`：长按连发直接忽略（防 Q/W/E 爆发式建节点）
- *  - `hasModalLayer()`：全屏模态层打开时整体让位（⌘Z / Q/W/E 不得落到画布）
+ *  - `isCanvasSuppressed()`：画布被压制时整体让位（当前 = 全屏模态层打开；⌘Z / Q/W/E 不得落到画布）
  *  - `isEditableTarget(e)`：焦点在 INPUT/TEXTAREA/contenteditable 内一律跳过
  *  - `hasSelectionText()`：无修饰键（Q/W/E）与 Ctrl+A/D/L 在有文本选中时跳过
  *    （Ctrl+G / Ctrl+Shift+G 编组除外——画布操作任意时刻可触发）
@@ -77,7 +77,7 @@ export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
       // 否则用户在编辑器里撤销或切工具，实际动的是画布上的节点。
       // 不能用 stopImmediatePropagation 代替：同一 target 上多个 listener 全部执行、
       // 且依赖注册顺序；只有"画布自己不执行"才是确定性的。
-      if (hasModalLayer()) return;
+      if (isCanvasSuppressed()) return;
 
       // 输入框内一律跳过
       if (isEditableTarget(e)) return;

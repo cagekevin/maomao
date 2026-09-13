@@ -67,7 +67,7 @@ import { useCanvasHistory } from './hooks/useCanvasHistory.ts';
 import { patchNodeDataById } from './hooks/useNodeData.ts';
 import { CanvasEdgesProvider } from './components/base/canvas/CanvasEdgesContext.tsx';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts.ts';
-import { hasModalLayer, subscribeModalLayer } from './components/base/core/modalLayer.ts';
+import { isCanvasSuppressed, subscribeModalLayer } from './components/base/core/modalLayer.ts';
 import { buildNodeTypeComponents } from './components/base/canvas/NodePalette.ts';
 import { defaultNodeData } from './components/base/canvas/nodeDataSchema.ts';
 import LodProvider, { useLod } from './components/base/canvas/lod.tsx';
@@ -1121,13 +1121,14 @@ function Canvas() {
     );
   }, [setNodes]);
 
-  // 全屏模态层是否打开（响应式订阅）。
-  // useCanvasShortcuts 走「查询式」让位（执行前查 hasModalLayer），所以它天然安全；
+  // 画布是否被压制（响应式订阅；判据真源 = modalLayer 的 `isCanvasSuppressed()`）。
+  // useCanvasShortcuts 走「查询式」让位（执行前查 isCanvasSuppressed），所以它天然安全；
   // 但 React Flow 的 deleteKeyCode 是「声明式」的——它在内部用 useKeyPress 自挂 window 监听，
-  // 没有机会查询 hasModalLayer。若不让位，用户在 3D 导演台/图片编辑等全屏层里按 Delete，
+  // 没有机会查询。若不让位，用户在 3D 导演台/图片编辑等全屏层里按 Delete，
   // 删掉的会是**画布上选中的节点**（2026-09-10 真实事故）。
-  // 唯一可靠的做法：模态层开合时把 deleteKeyCode 换成 null，从源头拆掉那个监听。
-  const modalLayerOpen = useSyncExternalStore(subscribeModalLayer, hasModalLayer);
+  // 唯一可靠的做法：压制开合时把 deleteKeyCode 换成 null，从源头拆掉那个监听。
+  // 机制（订阅）与查询不同，但**判据同源**——将来剪辑器只需改 isCanvasSuppressed 一处。
+  const modalLayerOpen = useSyncExternalStore(subscribeModalLayer, isCanvasSuppressed);
 
   // 键盘快捷键（基座 useCanvasShortcuts）
   useCanvasShortcuts({

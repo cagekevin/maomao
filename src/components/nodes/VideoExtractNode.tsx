@@ -24,6 +24,7 @@ import { downloadUrl } from '../base/utils/clipboard.ts';
 import { logger } from '../base/core/logger.ts';
 import { classifyError } from '../base/utils/genErrors.ts';
 import previewUrls from '../base/utils/previewUrl.ts';
+import { drawVideoFrame } from '../base/utils/captureFrame.ts';
 
 /** 多窗口剪贴板存储键（contracts.ts STORAGE_KEYS 登记，集中避免裸键） */
 const MULTIWINDOW_CLIPBOARD_KEY = 'mutiwindow-clipboard';
@@ -186,50 +187,20 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
   };
 
   // 抽一帧（seek 后 drawImage 到 canvas → base64）
+  // 宿主薄包装：底层 seek+drawImage 已收口到 base/utils/captureFrame 的 drawVideoFrame；
+  // 本域只定「max800 降采样 + jpeg 0.8 + 本域失败文案」；元素由调用方持有（原样传入，不重建）。
   const seekTo = useCallback((video: HTMLVideoElement, time: number) => {
-    return new Promise<string>((resolve, reject) => {
-      let done = false;
-      const onSeeked = () => {
-        if (done) return;
-        done = true;
-        video.removeEventListener('seeked', onSeeked);
-        video.removeEventListener('error', onErr);
-        try {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d', { willReadFrequently: true });
-          if (!ctx) throw new Error('Canvas not supported');
-          let w = video.videoWidth;
-          let h = video.videoHeight;
-          if (w === 0 || h === 0) throw new Error('Video dimensions not available');
-          // 限制最大 800，保持比例
-          if (w > 800 || h > 800) {
-            if (w > h) {
-              h = Math.round((h * 800) / w);
-              w = 800;
-            } else {
-              w = Math.round((w * 800) / h);
-              h = 800;
-            }
-          }
-          canvas.width = w;
-          canvas.height = h;
-          ctx.drawImage(video, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/jpeg', 0.8));
-        } catch (err) {
-          reject(err);
-        }
-      };
-      const onErr = () => {
-        if (done) return;
-        done = true;
-        video.removeEventListener('seeked', onSeeked);
-        video.removeEventListener('error', onErr);
-        reject(new Error('Video load failed'));
-      };
-      video.addEventListener('seeked', onSeeked);
-      video.addEventListener('error', onErr);
-      video.currentTime = time;
-    });
+    return drawVideoFrame(video, {
+      atTime: time,
+      maxSize: 800,
+      // 元素由调用方自备且已等过 loadedmetadata → 不等 loadeddata（原语义，不挂起）
+      waitForLoad: false,
+      errors: {
+        load: 'Video load failed',
+        dimensions: 'Video dimensions not available',
+        context: 'Canvas not supported',
+      },
+    }).then((canvas) => canvas.toDataURL('image/jpeg', 0.8));
   }, []);
 
   // 智能检测：16×16 缩略图像素差

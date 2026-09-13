@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import 'react';
 import { render, act } from '@testing-library/react';
 import { useCanvasShortcuts } from '../../src/hooks/useCanvasShortcuts.ts';
+import { useFullscreenEditorKeys } from '../../src/components/base/core/modalLayer.ts';
 
 /**
  * 这些回归测试锁定 useCanvasShortcuts 的「守卫」行为，
@@ -14,6 +15,12 @@ import { useCanvasShortcuts } from '../../src/hooks/useCanvasShortcuts.ts';
 // 挂载 hook 的测试组件
 function Harness({ handlers }) {
   useCanvasShortcuts(handlers);
+  return null;
+}
+
+// 登记一个全屏模态层（模拟编辑器打开 → 画布应整体让位）
+function ModalHarness({ enabled }) {
+  useFullscreenEditorKeys({ enabled });
   return null;
 }
 
@@ -117,5 +124,25 @@ describe('useCanvasShortcuts 守卫（防回退）', () => {
     setSelectionText('selected');
     fireKeyDown({ key: 'g', ctrlKey: true });
     expect(onGroup).toHaveBeenCalledTimes(1);
+  });
+
+  it('【回归点】画布被压制（全屏层打开）时 Ctrl+Z 整体让位，关闭后恢复', () => {
+    const onUndo = vi.fn();
+    // 让位判据 = modalLayer.isCanvasSuppressed()（卡 9：激活位判据唯一真源）
+    const { unmount } = render(
+      <>
+        <Harness handlers={{ onUndo }} />
+        <ModalHarness enabled={true} />
+      </>,
+    );
+    setSelectionText('');
+    fireKeyDown({ key: 'z', ctrlKey: true });
+    expect(onUndo).not.toHaveBeenCalled();
+
+    // 关闭全屏层 → 快捷键恢复（行为逐条保持）
+    unmount();
+    render(<Harness handlers={{ onUndo }} />);
+    fireKeyDown({ key: 'z', ctrlKey: true });
+    expect(onUndo).toHaveBeenCalledTimes(1);
   });
 });

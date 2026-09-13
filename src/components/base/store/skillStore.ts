@@ -51,7 +51,7 @@ export function repairMojibakeText(text: string): string {
   let latinHigh = 0;
   let cp1252 = 0;
   for (const ch of s) {
-    const c = ch.codePointAt(0);
+    const c = ch.codePointAt(0) ?? 0;
     if (c >= 0x4e00 && c <= 0x9fff) cjk++;
     else if ((c >= 0xc0 && c <= 0x024f) || (c >= 0x1e00 && c <= 0x1eff)) latinHigh++;
     else if (CP1252.includes(c)) cp1252++;
@@ -74,7 +74,7 @@ export function repairMojibakeText(text: string): string {
     if (!/[\u4e00-\u9fff]/.test(decoded)) return s;
     return decoded;
   } catch (e) {
-    logger.warn('skillStore', '乱码反解失败，保留原文', e?.message || e);
+    logger.warn('skillStore', '乱码反解失败，保留原文', (e as { message?: string })?.message || e);
     return s;
   }
 }
@@ -143,7 +143,7 @@ export function readCustomSkills(): SkillResult {
   try {
     raw = contentGet(SKILLS_KEY);
   } catch (e) {
-    return { ok: false, list: [], error: e?.message || String(e) };
+    return { ok: false, list: [], error: (e as { message?: string })?.message || String(e) };
   }
   if (Array.isArray(raw)) return { ok: true, list: raw, error: '' };
   // 未存过（undefined/null）属于「确无数据」，不是错误
@@ -183,7 +183,7 @@ export function saveCustomSkills(list: Skill[]): { ok: boolean; error?: string }
   try {
     contentSet(SKILLS_KEY, payload);
   } catch (e) {
-    return { ok: false, error: e?.message || String(e) };
+    return { ok: false, error: (e as { message?: string })?.message || String(e) };
   }
   // 落盘确认：比对持久化后的真值，防止「以为存上了其实没存上」
   // 2026-09-04 折叠治理：裸调 sGet 改走 contentReadThrough（同一「跳过缓存直读底层」语义，收口裸调点）
@@ -201,7 +201,10 @@ export function saveCustomSkills(list: Skill[]): { ok: boolean; error?: string }
   try {
     persisted = JSON.parse(raw);
   } catch (e) {
-    return { ok: false, error: `写入后回读数据损坏：${e?.message || String(e)}` };
+    return {
+      ok: false,
+      error: `写入后回读数据损坏：${(e as { message?: string })?.message || String(e)}`,
+    };
   }
   if (!Array.isArray(persisted)) {
     return { ok: false, error: `写入未生效（回读非数组，实际 ${typeof persisted}）` };
@@ -265,7 +268,11 @@ function getUsageMap(): Record<string, number> {
     const m = contentGet(USAGE_KEY);
     return m && typeof m === 'object' ? (m as Record<string, number>) : {};
   } catch (e) {
-    logger.warn('skillStore', '读取 Skill 使用次数失败', e?.message || String(e));
+    logger.warn(
+      'skillStore',
+      '读取 Skill 使用次数失败',
+      (e as { message?: string })?.message || String(e),
+    );
     return {};
   }
 }
@@ -278,7 +285,11 @@ export function markSkillUsed(id: string): number {
     contentSet(USAGE_KEY, m);
   } catch (e) {
     // 统计类数据可降级，但禁止静默——透传原始原因便于排查 Key/配额问题
-    logger.warn('skillStore', '写入 Skill 使用次数失败', e?.message || String(e));
+    logger.warn(
+      'skillStore',
+      '写入 Skill 使用次数失败',
+      (e as { message?: string })?.message || String(e),
+    );
   }
   return next;
 }
@@ -296,7 +307,11 @@ function getEnabledMap(): Record<string, boolean> {
     const m = contentGet(ENABLED_KEY);
     return m && typeof m === 'object' ? (m as Record<string, boolean>) : {};
   } catch (e) {
-    logger.warn('skillStore', '读取 Skill 启用状态失败', e?.message || String(e));
+    logger.warn(
+      'skillStore',
+      '读取 Skill 启用状态失败',
+      (e as { message?: string })?.message || String(e),
+    );
     return {};
   }
 }
@@ -304,7 +319,11 @@ function saveEnabledMap(map: Record<string, boolean>): void {
   try {
     contentSet(ENABLED_KEY, map);
   } catch (e) {
-    logger.warn('skillStore', '写入 Skill 启用状态失败', e?.message || String(e));
+    logger.warn(
+      'skillStore',
+      '写入 Skill 启用状态失败',
+      (e as { message?: string })?.message || String(e),
+    );
   }
 }
 

@@ -842,13 +842,16 @@ button,input,select{font-family:inherit;}
 }
 /* 开关类控件用图标 toggle（对齐剪映的磁铁图标）：激活时高亮。
  * 这不是"省字"，而是"它本来就是个开关" —— 开关用 图标 + 状态色，
- * 比一个写着「吸附」的按钮更一眼可判（开着还是关着）。 */
+ * 比一个写着「吸附」的按钮更一眼可判（开着还是关着）。
+ * 形态照剪映：**关闭 = 无底色**（就是一颗图标）；**开启 = 一个"按下去"的暗块 + accent 图标**。 */
 .ve-tgl{
-  width:26px;height:26px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
-  border-radius:var(--r-sm);border:1px solid var(--edge-muted);background:var(--input);
-  color:var(--t-faint);cursor:pointer;
+  width:28px;height:26px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+  border:none;background:transparent;border-radius:7px;color:var(--t-body);cursor:pointer;
+  transition:background .15s,color .15s;
 }
-.ve-tgl.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
+.ve-tgl:hover{background:var(--surface-hover);color:#fff;}
+.ve-tgl.on{background:rgba(0,0,0,.42);color:var(--accent);}
+.ve-tgl.on:hover{background:rgba(0,0,0,.55);color:var(--accent);}
 /* 工具带上的「禁用」必须有可见样式，否则就是"假禁用"（点了没反应、也看不出为什么）。 */
 .ve-tgl.dis,.ve-sel.dis{opacity:.4;cursor:not-allowed;}
 
@@ -1319,8 +1322,8 @@ button,input,select{font-family:inherit;}
  * 滑块不是"多余的一个控件"：**它的位置本身就是一条信息** —— 一眼看出当前缩到多小。
  * 这是上轮"只留一个「自适应」"被推翻的原因。 */
 .ve-zoom{display:inline-flex;align-items:center;gap:5px;padding:0 2px;}
-.ve-zbtn{width:22px;height:22px;flex:0 0 22px;display:flex;align-items:center;justify-content:center;
-  border:none;background:transparent;color:var(--t-body);cursor:pointer;border-radius:5px;padding:0;}
+.ve-zbtn{width:26px;height:26px;flex:0 0 26px;display:flex;align-items:center;justify-content:center;
+  border:none;background:transparent;color:var(--t-body);cursor:pointer;border-radius:7px;padding:0;}
 .ve-zbtn:hover{background:var(--surface-hover);color:#fff;}
 .ve-zoom .track{width:96px;height:3px;border-radius:2px;background:var(--edge);position:relative;}
 .ve-zoom .track i{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;
@@ -1328,14 +1331,31 @@ button,input,select{font-family:inherit;}
 
 /* O5f 工具带左侧的「编辑动作组」：与走带组之间一条 vline，组内不堆线。
  * 撤销 / 重做 / 分割 / 裁左 / 裁右 / 定格 全部**恒常渲染**；不可用时**置灰**（不是隐藏）。 */
-.ve-ebtn{height:26px;min-width:26px;padding:0 6px;flex-shrink:0;
-  display:inline-flex;align-items:center;justify-content:center;gap:4px;
-  border:1px solid transparent;border-radius:var(--r-sm);background:transparent;
-  color:var(--t-body);font-size:11px;cursor:pointer;}
-.ve-ebtn:hover{background:var(--surface-hover);}
-.ve-ebtn.icon{min-width:0;padding:0 5px;}
-.ve-ebtn.dis{opacity:.34;cursor:not-allowed;}
-.ve-ebtn.dis:hover{background:transparent;}
+/* 编辑动作**图标化**（对齐剪映：工具带是图标行，不是文字行）。
+ * 图标化的代价是"看不出这是什么" —— 所以**每个图标必须有 tooltip**，
+ * 且 hover 要有可见反馈；这不是锦上添花，是图标方案能成立的前提。 */
+/* 基类：无边框、无底色（`.right` 里不套 `.seg` 的按钮也要用，例如「更多」） */
+.ve-ebtn{
+  border:none;background:transparent;border-radius:7px;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  color:var(--t-body);font-size:11px;
+}
+.ve-ebtn:hover{background:var(--surface-hover);color:#fff;}
+
+/* ⚠ 特异性：`.seg button`（0,1,1）会盖掉 `.ve-ebtn`（0,1,0）—— 必须再写一遍 `.seg .ve-ebtn`。
+ * 否则按钮会带上工具带里「文字按钮」的边框与底色，看起来就又重又不精致。 */
+.seg .ve-ebtn{
+  width:28px;min-width:28px;height:26px;padding:0;gap:3px;flex-shrink:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  border:none;background:transparent;border-radius:7px;
+  color:var(--t-body);cursor:pointer;
+}
+.seg .ve-ebtn:hover{background:var(--surface-hover);color:#fff;}
+.seg .ve-ebtn.has-menu{width:auto;min-width:0;padding:0 5px 0 6px;}
+.seg .ve-ebtn .caret{width:9px;height:9px;flex:0 0 9px;opacity:.6;}
+.seg .ve-ebtn.dis{opacity:.32;cursor:not-allowed;color:var(--t-faint);}
+.seg .ve-ebtn.dis:hover{background:transparent;color:var(--t-faint);}
+.seg .ve-ebtn svg{display:block;}
 
 /* O6 折叠态：底部【零痕迹】—— 这里故意没有样式。
  * 「折叠 = 未激活 = 不接受画布素材」（docs/120 §0.1 红线），所以折叠态什么都不画：

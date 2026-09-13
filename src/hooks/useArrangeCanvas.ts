@@ -71,8 +71,8 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
    */
   const arrange = useCallback(
     ({
-      nodes,
-      edges,
+      nodes = [],
+      edges = [],
       viewport,
       maxZoom,
       onArrange,
@@ -254,7 +254,9 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
             ...node,
             position: { x, y },
             // 只对有输入面板的节点收起配置面板（Tab 与 Ctrl+L 同范围）；其余 data 原样透传
-            data: collapseTypes.has(node.type) ? { ...node.data, expanded: false } : node.data,
+            data: collapseTypes.has(node.type ?? '')
+              ? { ...node.data, expanded: false }
+              : node.data,
             // group 节点写回真实尺寸（外接矩形，否则框大小对不上内部子节点）。
             // ⚠️ 必须同时写 width/height（与 style 一致）：NodeShell 根 div 读 `n.width ?? n.style?.width`
             // 是 width 优先，只写 style 会让 root 尺寸与 React Flow wrapper(style) 错位 → 端口/环绕错位，
@@ -277,7 +279,9 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
             laid.push({
               ...node,
               position: { ...node.position },
-              data: collapseTypes.has(node.type) ? { ...node.data, expanded: false } : node.data,
+              data: collapseTypes.has(node.type ?? '')
+                ? { ...node.data, expanded: false }
+                : node.data,
             });
           });
       });

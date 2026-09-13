@@ -1,11 +1,16 @@
 import { useCallback, useMemo } from 'react';
 import { useReactFlow, type Node, type Edge } from '@xyflow/react';
-import { registerTool, getTools, type ToolResult } from '../../base/canvas/toolRegistry.ts';
+import {
+  registerTool,
+  getTools,
+  type ToolResult,
+  type ToolDef,
+} from '../../base/canvas/toolRegistry.ts';
 import { defaultNodeData } from '@/components/base/canvas/nodeDataSchema';
 import { runNodeGeneration } from '../../base/store/taskStore.ts';
 import '@/components/base/canvas/groupNodes';
 import { createCanvasHost, type CanvasHostCtx } from './canvasHost.ts';
-import { executePlan } from './canvasPlanExecutor.ts';
+import { executePlan, type GenerationStep } from './canvasPlanExecutor.ts';
 import {
   patchCurrentWorkflow,
   setCurrentMemory,
@@ -375,7 +380,12 @@ function computeCreatePosition(
  * @param currentNodes 当前节点快照（批量时传「虚拟增长」的数组，保持横向自动布局）
  * @returns { error? } 或 { id, newNode, edges }
  */
-function buildCreateNode(args: Record<string, unknown>, ctx: CanvasAgentCtx, currentNodes: Node[]) {
+type BuildCreateNodeResult = { error: string } | { id: string; newNode: Node; edges: Edge[] };
+function buildCreateNode(
+  args: Record<string, unknown>,
+  ctx: CanvasAgentCtx,
+  currentNodes: Node[],
+): BuildCreateNodeResult {
   const type = str(args.type);
   // agent 可创建的节点类型白名单（不含剧本盒等复合节点）。
   // 用白名单而非 getPaletteNode：即使调色板里新增了剧本盒等类型，agent 也不会被允许创建。
@@ -491,7 +501,7 @@ const createNodeTool = {
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const host = createCanvasHost(ctx);
     const built = buildCreateNode(args, ctx, ctx.getNodes());
-    if (built.error) return { ok: false, error: built.error };
+    if ('error' in built) return { ok: false, error: built.error };
     host.appendNode(built.newNode);
     if (built.edges.length) host.appendEdges(built.edges);
     return {
@@ -561,7 +571,7 @@ const batchCreateNodesTool = {
     let lastError = null;
     for (const one of args.nodes) {
       const built = buildCreateNode(one, ctx, virtual);
-      if (built.error) {
+      if ('error' in built) {
         lastError = built.error;
         continue;
       }
@@ -723,11 +733,13 @@ const updateNodeRawTool = {
  * @param currentEdges 当前边快照（批量时传「虚拟增长」数组，保证去重语义与逐条一致）
  * @returns { status: 'created', edge } | { status: 'already' } | { status: 'error', error }
  */
+type BuildConnectResult =
+  { status: 'error'; error: string } | { status: 'already' } | { status: 'created'; edge: Edge };
 function buildConnect(
   conn: { source?: unknown; target?: unknown },
   ctx: CanvasAgentCtx,
   currentEdges: Edge[],
-) {
+): BuildConnectResult {
   const source = str(conn.source);
   const target = str(conn.target);
   if (!ctx.getNodes().some((n) => n.id === source))
@@ -1511,8 +1523,10 @@ const executePlanTool = {
       return { ok: true, data: { workflow: result.workflow, entries: result.entries, logs } };
     } catch (e) {
       patchCurrentWorkflow({ status: 'failed', updatedAt: Date.now() });
-      logger.error('AI助手', '[plan] execute_plan 异常', { message: e?.message || String(e) });
-      return { ok: false, error: `计划执行异常：${e?.message || e}` };
+      logger.error('AI助手', '[plan] execute_plan 异常', {
+        message: (e as { message?: string })?.message || String(e),
+      });
+      return { ok: false, error: `计划执行异常：${(e as { message?: string })?.message || e}` };
     }
   },
 };
@@ -1532,7 +1546,7 @@ export async function runExistingPlanTool(ctx: CanvasHostCtx) {
   }
   const result = await executePlan({
     ctx,
-    generations: Array.isArray(gate.gens) ? gate.gens : [],
+    generations: Array.isArray(gate.gens) ? (gate.gens as GenerationStep[]) : [],
     autoRun: true,
     mode: 'runExisting',
     nodeMappings: gate.map,
@@ -1724,7 +1738,7 @@ const AGENT_TOOLS = (() => {
   ];
   for (const def of defs) {
     // mutating 从 MUTATING_TOOLS 派生入注册条目（唯一真源）；write 工具统一压 AI 撤销栈
-    registerTool({ ...def, mutating: MUTATING_TOOLS.has(def.name) });
+    registerTool({ ...def, mutating: MUTATING_TOOLS.has(def.name) } as ToolDef);
   }
   return getTools();
 })();
@@ -1782,7 +1796,10 @@ export function buildCanvasAgentTools(ctx: CanvasAgentCtx): CanvasAgentTools {
         // args 为 unknown，按实际用法（工具内部 str(args.xx) 读字段）转成 Record<string,unknown>。
         return execute(args as Record<string, unknown>, ctx) as ToolResult;
       } catch (e) {
-        return { ok: false, error: `${t.name} 执行异常：${e?.message || e}` };
+        return {
+          ok: false,
+          error: `${t.name} 执行异常：${(e as { message?: string })?.message || e}`,
+        };
       }
     };
   }

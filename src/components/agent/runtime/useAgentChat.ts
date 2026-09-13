@@ -36,7 +36,7 @@ import {
   buildIntentHint,
   INTENT_HINT,
 } from './agentCore.ts';
-import type { ToolCall, ChatMessage, AgentMemory } from './agentCore.ts';
+import type { ToolCall, ChatMessage, AgentMemory, SkillItem } from './agentCore.ts';
 // 运行时逻辑（依赖注入版本）。hook 内以 const roundTrip 等同名闭包封装调用，
 // 故此处用别名避免与 hook 内的函数名冲突。
 import {
@@ -460,7 +460,7 @@ export function useAgentChat({
             content: '正在恢复上次未完成的操作…',
             createdAt: Date.now(),
           });
-          sendRef.current?.(rec.text, rec.attachments || []);
+          sendRef.current?.(rec.text ?? '', rec.attachments || []);
         });
       } else if (rec.action === 'drop') {
         // dangling-safe：被引用用户消息已被 AGENT_MSG_MAX 裁剪或尚未建成（崩溃窗口）→ 清 pending 提示重发
@@ -511,7 +511,7 @@ export function useAgentChat({
         {
           model,
           toolSchemas,
-          provider,
+          provider: provider!,
           logger,
           loadAgentChatModel,
           parseAgentError,
@@ -536,7 +536,14 @@ export function useAgentChat({
   const runToolCalls = useCallback(
     async (tools: ToolCall[], callIdFor: (tc: ToolCall) => string = () => '') => {
       return agentRuntimeRunToolCalls(
-        { callTool, appendMsg, model, logger, getActivePendingGenerations },
+        {
+          callTool: (name: string | undefined, args: Record<string, unknown>) =>
+            callTool(name ?? '', args ?? {}),
+          appendMsg,
+          model,
+          logger,
+          getActivePendingGenerations,
+        },
         tools,
         callIdFor,
       );
@@ -551,16 +558,16 @@ export function useAgentChat({
   const lastSummaryCompressTsRef = useRef(0);
   const COMPRESS_THROTTLE_MS = 60_000;
   const maybeCompressSummary = useCallback(() => {
-    const messages = (getCurrentSnapshot().messages || []) as Parameters<
-      typeof compressToSummary
-    >[0]['messages'];
+    const messages = (getCurrentSnapshot().messages || []) as NonNullable<
+      Parameters<typeof compressToSummary>[0]['messages']
+    >;
     const now = Date.now();
     if (messages.length <= RECENT_KEEP_COUNT) return;
     if (now - lastSummaryCompressTsRef.current < COMPRESS_THROTTLE_MS) return;
     lastSummaryCompressTsRef.current = now;
     const prevSummary = getCurrentMemory()?.summary || '';
     const conversationId = getActiveConversationId();
-    compressToSummary({ provider, model, messages, previousSummary: prevSummary })
+    compressToSummary({ provider: provider!, model, messages, previousSummary: prevSummary })
       .then((summary) => {
         if (!summary) return;
         // 只写回本对话（防竞态：若用户已切走对话则不覆盖别人的 summary）
@@ -605,7 +612,9 @@ export function useAgentChat({
         try {
           captureActiveConversation();
         } catch (e) {
-          logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) });
+          logger.warn('AI助手', '会话落盘失败', {
+            error: (e as { message?: string })?.message || String(e),
+          });
         } // 落盘队列，切对话不丢
         return;
       }
@@ -643,7 +652,7 @@ export function useAgentChat({
           userMsg.refCatalog = buildRefCatalog(imgAtts);
         }
         // 参考图 URL 池写入模块级：execute_plan 工具按 AI 的 attachment_indices 精确取用（对齐大雄）
-        setCurrentReferenceImages(imgAtts.map((a) => a.url).filter(Boolean));
+        setCurrentReferenceImages(imgAtts.map((a) => a.url ?? '').filter(Boolean));
       }
       setHistory([...getCurrentSnapshot().messages, userMsg]);
       // 【P1a 去重】pending 不再存 text 副本，改引用 userMsg.id；保留【原始】attachments（恢复重发经 send 归一化一次，
@@ -710,7 +719,7 @@ export function useAgentChat({
               getCurrentSnapshot().messages as ChatMessage[],
               systemRef.current,
               true,
-              skillsRef.current,
+              skillsRef.current as SkillItem[],
               getCurrentMemory() as AgentMemory,
               getCurrentImageMap(),
               loadAgentHistoryTurns(),
@@ -735,7 +744,7 @@ export function useAgentChat({
             forcedCompressed = true;
             logger.info('AI助手', '[预算] 触发强制压缩', { round });
             const summary = await compressToSummary({
-              provider,
+              provider: provider!,
               model,
               messages: getCurrentSnapshot().messages as Parameters<
                 typeof compressToSummary
@@ -794,7 +803,7 @@ export function useAgentChat({
 
           // 执行工具并回填结果（TASK-006 #1：await 异步工具，确保回填真实结果而非 Promise）。
           // 返回 creditHeld：本轮是否「execute_plan 命中积分闸」（awaited:'credit'）。
-          const { creditHeld } = await runToolCalls(assistant.tool_calls, (tc) => tc.id);
+          const { creditHeld } = await runToolCalls(assistant.tool_calls, (tc) => tc.id!);
 
           // 门禁停循环（仅两类「本轮真走到待确认临界点」才停）——
           //   ① 分步确认（show_plan_for_confirm）→ awaitingConfirm=true。
@@ -808,7 +817,12 @@ export function useAgentChat({
           }
         }
         // 多轮工具循环走满上限仍未收敛（LLM 反复调工具不自收敛）→ 提示用户，避免"停住但无说明"
-        if (round === MAX_TOOL_ROUNDS && assistant.tool_calls && assistant.tool_calls.length > 0) {
+        if (
+          round === MAX_TOOL_ROUNDS &&
+          assistant &&
+          assistant.tool_calls &&
+          assistant.tool_calls.length > 0
+        ) {
           appendMsg({
             role: 'assistant',
             content: `已连续执行 ${MAX_TOOL_ROUNDS} 轮工具调用仍未完成，已自动停止（避免死循环）。你可以告诉我下一步，或继续补充指令。`,
@@ -818,12 +832,12 @@ export function useAgentChat({
         }
       } catch (e) {
         ok = false;
-        if (e?.name === 'AbortError') {
+        if ((e as { name?: string })?.name === 'AbortError') {
           aborted = true;
           setError('已停止');
           stateMachineRef.current.setStatus('idle');
         } else {
-          setError(e?.message || '发送失败');
+          setError((e as { message?: string })?.message || '发送失败');
           stateMachineRef.current.setStatus('failed'); // #7 失败态 → 可重试（retry）
         }
         // 清理所有 streaming 残留占位（不只最后一个）：循环中途出错可能残留多轮 streaming:true 占位
@@ -844,7 +858,9 @@ export function useAgentChat({
           try {
             captureActiveConversation();
           } catch (e) {
-            logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) });
+            logger.warn('AI助手', '会话落盘失败', {
+              error: (e as { message?: string })?.message || String(e),
+            });
           }
           stateMachineRef.current.setStatus('awaiting_confirm');
           setSending(false);
@@ -869,7 +885,9 @@ export function useAgentChat({
           try {
             captureActiveConversation();
           } catch (e) {
-            logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) });
+            logger.warn('AI助手', '会话落盘失败', {
+              error: (e as { message?: string })?.message || String(e),
+            });
           }
           stateMachineRef.current.setStatus(ok ? 'idle' : 'failed');
           setSending(false);
@@ -882,7 +900,9 @@ export function useAgentChat({
           try {
             captureActiveConversation();
           } catch (e) {
-            logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) });
+            logger.warn('AI助手', '会话落盘失败', {
+              error: (e as { message?: string })?.message || String(e),
+            });
           }
           if (next) sendRef.current?.(next.text, next.attachments);
         }
@@ -1061,10 +1081,10 @@ export function useAgentChat({
   // 【TD-17 修正】只传 messages：本函数职责是「改消息字段」，**不应顺带清草稿**（无理由的副作用）。
   // HINT 里若传了 draft 等字段仍会照常覆盖（patch 语义保留），但默认不碰。
   const updateMessageByContent = useCallback(
-    (assistantContent: string, patch: Record<string, unknown>) => {
+    (assistantContent: string, patch?: Record<string, unknown>) => {
       if (!assistantContent) return;
       const next = getCurrentSnapshot().messages.map((m) =>
-        m.role === 'assistant' && m.content === assistantContent ? { ...m, ...patch } : m,
+        m.role === 'assistant' && m.content === assistantContent ? { ...m, ...(patch ?? {}) } : m,
       );
       setHistory(next);
       setCurrentMessages(next);
@@ -1093,10 +1113,11 @@ export function useAgentChat({
   // 避免取消后 execute_plan 被永久拒、也避免残留 pendingMemorySuggest 导致下次确认误判成「记忆确认」。
   // 不通知 LLM（用户放弃本次策划/记忆，可重新输入指令）。
   const cancelPendingConfirm = useCallback(
-    (assistantContent: string) => {
+    (assistantContent?: unknown) => {
       setActivePendingMemorySuggest(null);
       setAwaitingConfirm(false);
-      if (assistantContent) updateMessageByContent(assistantContent, { awaiting_confirm: false });
+      if (assistantContent)
+        updateMessageByContent(assistantContent as string, { awaiting_confirm: false });
     },
     // setActivePendingMemorySuggest/setAwaitingConfirm 为稳定 setter，无需声明依赖
     [updateMessageByContent],

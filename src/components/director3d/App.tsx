@@ -236,6 +236,7 @@ import { writeJson } from './storage.ts';
 import { hydrateProject } from './d3dPersistence.ts';
 import { useToast } from './useToast.ts';
 import { thumbnailFromCanvas } from './thumbnails.ts';
+import { probeEncoders } from '../base/utils/encoderProbe.ts';
 import { useConfirm } from './ConfirmDialog.tsx';
 
 const nextPaint = () =>
@@ -1916,26 +1917,28 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
     exportCanvasRef.current = null;
 
     try {
-      if (typeof VideoEncoder === 'undefined')
-        throw new Error('当前浏览器不支持视频编码，请使用最新版 Chrome 或 Edge');
-      const {
-        BufferTarget,
-        CanvasSource,
-        Mp4OutputFormat,
-        Output,
-        QUALITY_HIGH,
-        getFirstEncodableVideoCodec,
-      } = await import('mediabunny');
+      const { BufferTarget, CanvasSource, Mp4OutputFormat, Output, QUALITY_HIGH } =
+        await import('mediabunny');
       const { width, height } = exportDimensions;
       const backgroundCanvas = await referenceCanvasForExport(reference, width, height);
       setExportReferenceBackground(backgroundCanvas);
       setExporting(true);
-      const codec = await getFirstEncodableVideoCodec(['avc', 'av1', 'vp9'], {
+      // 编码器能力探针收口到 base/utils/encoderProbe（唯一实现，剪辑器导出共用同一份）；
+      // 候选与参数是 3D 的导出策略，原样保留；缺失时仍抛原文案（行为不变）。
+      const probe = await probeEncoders({
+        videoCodecs: ['avc', 'av1', 'vp9'],
         width,
         height,
         quality: QUALITY_HIGH,
       });
-      if (!codec) throw new Error('当前设备没有可用的 MP4 视频编码器');
+      // 用 `in` 收窄（本仓 tsconfig strict:false，boolean 字面量判别收窄不生效）
+      if ('missing' in probe)
+        throw new Error(
+          probe.missing === 'webcodecs'
+            ? '当前浏览器不支持视频编码，请使用最新版 Chrome 或 Edge'
+            : '当前设备没有可用的 MP4 视频编码器',
+        );
+      const codec = probe.videoCodec;
 
       let canvas = null;
       for (let attempt = 0; attempt < 120; attempt += 1) {

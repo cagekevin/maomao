@@ -97,7 +97,7 @@ export function ensureActiveConversation(): string {
     messages: [],
     skills: [],
     draft: '',
-  });
+  })!;
   commit({ conversations: [conv], activeId: conv.id });
   materializeAssistantTabs(); // SSOT-7：新会话即落空表基线，杜绝「读时才造 id」
   return conv.id;
@@ -126,7 +126,7 @@ export function applyConversation(id: string): ConversationSnapshot {
       targetId: id,
       fallbackId: active?.id ?? '（无）',
     });
-    conv = active || null;
+    conv = active;
   }
   if (!conv) {
     conv = normalizeConversation({
@@ -135,7 +135,7 @@ export function applyConversation(id: string): ConversationSnapshot {
       messages: [],
       skills: [],
       draft: '',
-    });
+    })!;
     commit({ conversations: [conv], activeId: conv.id });
   }
   markHydrated(); // 已从存储恢复，此后允许落盘
@@ -153,7 +153,7 @@ export function newConversation(): { id: string; snapshot: ConversationSnapshot 
     messages: [],
     skills: [],
     draft: '',
-  });
+  })!;
   commit({ conversations: [conv, ...st.conversations], activeId: conv.id });
   materializeAssistantTabs(); // SSOT-7：新对话即落空表基线，杜绝「读时才造 id」
   return { id: conv.id, snapshot: getCurrentSnapshot() };
@@ -183,7 +183,7 @@ export function deleteConversation(id: string): {
     messages: [],
     skills: [],
     draft: '',
-  });
+  })!;
   commit({ conversations: [conv], activeId: conv.id });
   materializeAssistantTabs(); // SSOT-7：删空后新建的会话，新建必未落盘
   return { activeId: conv.id, snapshot: getCurrentSnapshot() };
@@ -236,7 +236,7 @@ export function importLegacy({
     workflow: null,
     pending: null,
     memory: emptyMemory(),
-  });
+  })!;
   markHydrated();
   commit({ conversations: [conv], activeId: conv.id });
   materializeAssistantTabs(); // SSOT-7：旧数据迁移新建的会话，新建必未落盘

@@ -362,6 +362,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
     // rotate 的 rect 已在 beginDrag（pointerdown）缓存，move 内不再 getBoundingClientRect。
     const batch = createRafBatch((clientX, clientY) => {
       const d = dragRef.current;
+      if (!d) return;
       const dx = (clientX - d.startX) / display.scale;
       const dy = (clientY - d.startY) / display.scale;
       if (d.mode === 'move') {
@@ -580,6 +581,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
       raf ??= requestAnimationFrame(() => {
         raf = null;
         const p = pending;
+        if (!p) return;
         if (pointerRef.current) {
           drawStroke(pointerRef.current.x, pointerRef.current.y, p.x, p.y);
         }
@@ -667,7 +669,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
       onClick={(e) => {
         e.stopPropagation();
         if (!disabled) {
-          onClick();
+          onClick?.();
           setMenu(null);
         }
       }}

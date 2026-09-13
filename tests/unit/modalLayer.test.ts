@@ -15,6 +15,7 @@ import { render, renderHook, cleanup } from '@testing-library/react';
 import { createElement } from 'react';
 import {
   hasModalLayer,
+  isCanvasSuppressed,
   describeKey,
   debugModalLayers,
   useFullscreenEditorKeys,
@@ -181,6 +182,25 @@ describe('modalLayer — 「常驻误登记」告警只在层不可见时才喊'
     unmount();
     vi.advanceTimersByTime(60_000);
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe('modalLayer — isCanvasSuppressed（画布激活位判据唯一真源）', () => {
+  it('与 hasModalLayer 同源：无层 false，有层 true，注销后回 false', () => {
+    expect(isCanvasSuppressed()).toBe(false);
+    const { unmount } = renderHook(() => useFullscreenEditorKeys({ enabled: true }));
+    expect(isCanvasSuppressed()).toBe(true);
+    unmount();
+    expect(isCanvasSuppressed()).toBe(false);
+  });
+
+  it('让位消费方认的是同一判据（useCanvasShortcuts 走 isCanvasSuppressed）', async () => {
+    // 结构断言：让位守卫不得绕过唯一判据（防将来各写一份 `|| 剪辑器激活`）
+    const src = await import('node:fs').then((fs) =>
+      fs.readFileSync('src/hooks/useCanvasShortcuts.ts', 'utf8'),
+    );
+    expect(src).toContain('isCanvasSuppressed()');
+    expect(src).not.toContain('hasModalLayer()');
   });
 });
 

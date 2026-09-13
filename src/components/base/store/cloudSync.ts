@@ -89,7 +89,7 @@ const CloudSyncEngine = {
       if (onSuccess) onSuccess(res.msg || '同步成功');
       return true;
     } catch (e) {
-      if (onError) onError(e.message);
+      if (onError) onError((e as { message?: string }).message ?? String(e));
       return false;
     }
   },
@@ -105,7 +105,7 @@ const CloudSyncEngine = {
       if (onSuccess) onSuccess('拉取成功');
       return res.data;
     } catch (e) {
-      if (onError) onError(e.message);
+      if (onError) onError((e as { message?: string }).message ?? String(e));
       return null;
     }
   },
@@ -525,7 +525,7 @@ async function collectLocalData(): Promise<{ ls: Record<string, unknown>; skippe
     // [F-云A] 读取失败=未纳入本次上传，记录并上浮，不再静默当"无 providers"
     skipped.push('providers');
     logger.warn('同步', '[上传] providers 读取失败，本次不上传 API 配置', {
-      error: e?.message || '未知',
+      error: (e as { message?: string })?.message || '未知',
     });
   }
   // 3) 账号环境：走 KV（backend:'kv'，不在 LS_KEYS），领域开关开则专门收集上传
@@ -536,7 +536,9 @@ async function collectLocalData(): Promise<{ ls: Record<string, unknown>; skippe
     }
   } catch (e) {
     skipped.push('accounts');
-    logger.warn('同步', '[上传] 账号读取失败，本次不上传账号', { error: e?.message || '未知' });
+    logger.warn('同步', '[上传] 账号读取失败，本次不上传账号', {
+      error: (e as { message?: string })?.message || '未知',
+    });
   }
 
   return { ls, skipped };
@@ -578,7 +580,10 @@ async function restoreLocal(cloud: CloudSnapshot): Promise<{ written: number; fa
         written++;
       } catch (e) {
         failed.push(syncLabel(k));
-        logger.warn('同步', '[下载] 本地键写回失败', { key: k, error: e?.message || '未知' });
+        logger.warn('同步', '[下载] 本地键写回失败', {
+          key: k,
+          error: (e as { message?: string })?.message || '未知',
+        });
       }
     }
   }
@@ -589,7 +594,9 @@ async function restoreLocal(cloud: CloudSnapshot): Promise<{ written: number; fa
       written++;
     } catch (e) {
       failed.push(syncLabel('providers'));
-      logger.warn('同步', '[下载] providers 写回失败', { error: e?.message || '未知' });
+      logger.warn('同步', '[下载] providers 写回失败', {
+        error: (e as { message?: string })?.message || '未知',
+      });
     }
   }
   // 4) 账号环境：走 KV（backend:'kv'），领域开关开则恢复写回 KV
@@ -600,7 +607,9 @@ async function restoreLocal(cloud: CloudSnapshot): Promise<{ written: number; fa
     }
   } catch (e) {
     failed.push(syncLabel('accounts'));
-    logger.warn('同步', '[下载] 账号写入失败', { error: e?.message || '未知' });
+    logger.warn('同步', '[下载] 账号写入失败', {
+      error: (e as { message?: string })?.message || '未知',
+    });
   }
   return { written, failed };
 }
@@ -653,7 +662,9 @@ export async function uploadConfig(
     cloud = normalizeCloudPayload(raw);
   } catch (e) {
     cloudReadable = false;
-    logger.warn('同步', '[上传] 读取云端版本失败，降级为未知', { error: e?.message || '未知' });
+    logger.warn('同步', '[上传] 读取云端版本失败，降级为未知', {
+      error: (e as { message?: string })?.message || '未知',
+    });
   }
 
   // 2) 判冲突 → 需要提示就问用户（取消则到此为止，绝不发起 push）
@@ -732,8 +743,10 @@ export async function uploadConfig(
       partial: skippedUp.length ? { skipped: skippedUp.map(syncLabel) } : undefined,
     };
   } catch (e) {
-    logger.warn('同步', '[上传] 异常', { error: e?.message || '同步失败' });
-    return { ok: false, count: 0, error: e?.message || '同步失败' };
+    logger.warn('同步', '[上传] 异常', {
+      error: (e as { message?: string })?.message || '同步失败',
+    });
+    return { ok: false, count: 0, error: (e as { message?: string })?.message || '同步失败' };
   }
 }
 
@@ -765,8 +778,15 @@ export async function downloadConfig(
     );
     cloud = normalizeCloudPayload(raw);
   } catch (e) {
-    logger.warn('同步', '[下载] 拉取异常', { error: e?.message || '拉取失败' });
-    return { ok: false, count: 0, hasCloud: false, error: e?.message || '拉取失败' };
+    logger.warn('同步', '[下载] 拉取异常', {
+      error: (e as { message?: string })?.message || '拉取失败',
+    });
+    return {
+      ok: false,
+      count: 0,
+      hasCloud: false,
+      error: (e as { message?: string })?.message || '拉取失败',
+    };
   }
   if (cloud == null) {
     logger.debug('同步', '[下载] 云端无数据', {}, { module: 'project' });
@@ -823,7 +843,9 @@ export async function downloadConfig(
     logger.info('同步', '[下载] 成功', { count: written, rev: cloud.rev });
     return { ok: true, count: written, hasCloud: true };
   } catch (e) {
-    logger.warn('同步', '[下载] 解析失败', { error: e?.message || '云端数据解析失败' });
+    logger.warn('同步', '[下载] 解析失败', {
+      error: (e as { message?: string })?.message || '云端数据解析失败',
+    });
     return { ok: false, count: 0, hasCloud: true, error: '云端数据解析失败' };
   }
 }

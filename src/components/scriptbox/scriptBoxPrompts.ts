@@ -147,7 +147,9 @@ export function ZgPrompt(
   style?: string,
   customTemplates?: Record<string, string> | null,
 ): string {
-  const cat = ['character', 'scene', 'prop'].includes(category) ? category : 'character';
+  const cat = ['character', 'scene', 'prop'].includes(category ?? '')
+    ? (category ?? 'character')
+    : 'character';
   const d = (desc || '').trim();
   const tpl = (customTemplates && customTemplates[cat]) || ASSET_TEMPLATES[cat];
   const body = `${d}${d && !/[。.!!？?]$/.test(d) ? '。' : ''}${tpl}`;
@@ -201,7 +203,7 @@ export function dlgToText(arr?: Dialogue[] | null): string {
 /** 长段提示词一键排版：每个句号类标点（。！？；）后补换行，标点留在行尾，合并多余空行。
  *  纯字符串处理，不破坏 @资产名 引用。供 StepPrompt 编辑弹窗打开时预格式化。 */
 export function formatLineBreaks(text?: string | null): string {
-  if (!text) return text;
+  if (!text) return text as string;
   return String(text)
     .replace(/([。！？；])(?!\s*\n)/g, '$1\n') // 句号后补换行（若后面不是已有换行）
     .replace(/\n{3,}/g, '\n\n') // 合并多余空行
@@ -415,7 +417,7 @@ export function matchAsset(text?: string | null, name?: string | null): boolean 
  *  返回的 name 用函数返回值注入，规避 String.replace 对 `$` 的特殊转义。 */
 export function stripAtRef(text?: string | null, name?: string | null): string | null {
   // 空 text / 空 name → 原样返回（null 保持 null，测试契约断言 `toBe(null)`）
-  if (!text || !name) return text;
+  if (!text || !name) return text as string | null;
   const re = new RegExp(
     `@${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\u4e00-\\u9fa5A-Za-z0-9])`,
     'g',
@@ -506,7 +508,7 @@ export function collectAssets(shot?: Shot | null, assets?: ScriptAsset[] | null)
   const text = `${shot.description || ''} ${shot.prompt || ''} ${shot.videoPrompt || ''} ${shot.dialogue || ''}`;
   const refNames = matchAssetNames(
     text,
-    list.map((a) => a.name),
+    list.map((a) => a.name ?? ''),
   );
   const out: CollectedAsset[] = [];
   list.forEach((a) => {
@@ -710,7 +712,8 @@ export function buildShotImageUser(
   type?: string,
   { globalStyle = '', assets = [] }: { globalStyle?: string; assets?: ScriptAsset[] } = {},
 ): string {
-  const t = IMAGE_GEN_TYPES[type] || IMAGE_GEN_TYPES[IMAGE_GEN_DEFAULT];
+  if (!shot) return '';
+  const t = IMAGE_GEN_TYPES[type ?? IMAGE_GEN_DEFAULT] || IMAGE_GEN_TYPES[IMAGE_GEN_DEFAULT];
   const dlg = dialogueText(shot.dialogue);
   const assetNames = (assets || [])
     .map((a) => a.name)

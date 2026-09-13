@@ -197,9 +197,9 @@
              编辑动作放左组，是因为它们都作用于【当前时间点】；顺带把"布局抖一下"消掉了
              —— 右组内容恒定，不随选中增减。 -->
         <div class="seg">
-          <button title="上一片段边界"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 18V6l-8 6z"/><path d="M20 18V6l-8 6z"/></svg></button>
-          <button title="播放 / 暂停（M1 只出声，无画面）"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
-          <button title="下一片段边界"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 6v12l8-6z"/><path d="M4 6v12l8-6z"/></svg></button>
+          <button class="ve-ebtn" title="上一片段边界"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5.6 5v14"/><path d="M20 5.6v12.8L9.6 12z" fill="currentColor" stroke="none"/></svg></button>
+          <button class="ve-ebtn" title="播放 / 暂停（M1 只出声，无画面）"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M7.6 5.2v13.6L19.4 12z" fill="currentColor" stroke="none"/></svg></button>
+          <button class="ve-ebtn" title="下一片段边界"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18.4 5v14"/><path d="M4 5.6v12.8L14.4 12z" fill="currentColor" stroke="none"/></svg></button>
         </div>
         <div class="tc">00:00:08:12 <span class="tot">/ 00:00:22:27</span></div>
         <span class="vline sm"></span>
@@ -207,32 +207,34 @@
         <!-- 编辑动作组。**恒常渲染**；不可用时**置灰**（不是隐藏）——
              用户要靠"它在那儿但灰着"来判断"这个动作存在，只是现在不能做"。 -->
         <div class="seg">
-          <button class="ve-ebtn icon" title="撤销时间轴编辑 ⌘Z"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg></button>
-          <button class="ve-ebtn icon dis" title="重做 ⌘⇧Z"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg></button>
+          <button class="ve-ebtn icon" title="撤销时间轴编辑 ⌘Z"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4.2 7.8h9.6a5.4 5.4 0 0 1 0 10.8H10"/><path d="M7.6 4.4 4.2 7.8l3.4 3.4"/></svg></button>
+          <button class="ve-ebtn icon dis" title="重做 ⌘⇧Z"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M19.8 7.8h-9.6a5.4 5.4 0 0 0 0 10.8H14"/><path d="M16.4 4.4l3.4 3.4-3.4 3.4"/></svg></button>
+        </div>
+        <!-- 编辑动作全部**图标化**（对齐剪映：工具带是图标行，不是文字行）。
+             图标化的代价是"看不出是什么"，所以**每个图标必须有 tooltip**（见下方说明）。 -->
+        <div class="seg">
+          <button class="ve-ebtn icon" title="分割：在【播放头位置】切开，总长不变"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 2.8v18.4"/><path d="M8.2 6.4H2.6v11.2h5.6"/><path d="M15.8 6.4h5.6v11.2h-5.6"/></svg></button>
+          <button class="ve-ebtn icon" title="裁掉左侧：保留播放头右边的部分，前面的砍掉（总长变短）"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12.6 3v18" stroke-dasharray="2.2 2.6"/><path d="M16.6 5.8h4.8v12.4h-4.8"/></svg></button>
+          <button class="ve-ebtn icon" title="裁掉右侧：保留播放头左边的部分，后面的砍掉（总长变短）"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6.6 5.8H1.8v12.4h4.8"/><path d="M11.4 3v18" stroke-dasharray="2.2 2.6"/></svg></button>
+          <button class="ve-ebtn icon" title="定格：把播放头这一帧抽成一段静止片段（默认 3s）"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M2.8 5.4h18.4"/><path d="M7.2 5.4v13.2h13.6V5.4"/></svg></button>
         </div>
         <div class="seg">
-          <button class="ve-ebtn" title="分割：在【播放头位置】切开，总长不变">分割</button>
-          <button class="ve-ebtn" title="裁掉左侧：保留播放头右边的部分，前面的砍掉（总长变短）">裁左</button>
-          <button class="ve-ebtn" title="裁掉右侧：保留播放头左边的部分，后面的砍掉（总长变短）">裁右</button>
-          <button class="ve-ebtn" title="定格：把播放头这一帧抽成一段静止片段（默认 3s）">定格</button>
-        </div>
-        <div class="seg">
-          <button class="ve-ebtn" title="删除选中片段（留洞 · 波纹）">删除 ▾</button>
+          <button class="ve-ebtn icon has-menu" title="删除选中片段：留洞（位置留空）· 波纹删除（后续前移）"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 6.6h16"/><path d="M9.4 6.6V4.3h5.2v2.3"/><path d="M6.7 6.6v13h10.6v-13"/></svg><svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m6 9 6 6 6-6"/></svg></button>
         </div>
 
         <!-- 右组 = 全局开关与视图：内容恒定，不随选中增减 -->
         <div class="right">
-          <button class="ve-tgl on" title="磁吸：吸附到片段头 / 片段尾 / 播放头；吸附时高亮那条对齐边"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v8a6 6 0 0 0 12 0V3"/><path d="M6 3h4v8"/><path d="M14 3h4v8"/></svg></button>
+          <button class="ve-tgl on" title="磁吸：吸附到片段头 / 片段尾 / 播放头；吸附时高亮那条对齐边"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M7 3.4v8.2a5 5 0 0 0 10 0V3.4"/><path d="M7 3.4h4.2"/><path d="M12.8 3.4H17"/></svg></button>
           <button class="ve-sel" title="工程参数 —— 比例决定画布尺寸，帧率决定时间基准；初值取首个入轨片段，可随时改">16:9 · 30fps ▾</button>
           <span class="vline sm"></span>
           <!-- 缩放 = ⊖ + 长滑块 + ⊕。滑块不是"多余的一个控件"：它的位置本身就是信息
                —— 一眼看出当前缩到多小。这是"只留一个「自适应」"被推翻的原因。 -->
           <div class="ve-zoom">
-            <button class="ve-zbtn" title="缩小时间轴"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12h7"/></svg></button>
+            <button class="ve-zbtn" title="缩小时间轴"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="8.6"/><path d="M8 12h8"/></svg></button>
             <div class="track" title="时间轴缩放"><i style="left:38%"></i></div>
-            <button class="ve-zbtn" title="放大时间轴"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12h7M12 8.5v7"/></svg></button>
+            <button class="ve-zbtn" title="放大时间轴"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="8.6"/><path d="M8 12h8M12 8v8"/></svg></button>
           </div>
-          <button class="ve-sel" title="更多：低频 / 一次性动作收在这里（清空工程 · 导出到本地 · 键盘说明…）">⋮</button>
+          <button class="ve-ebtn" title="更多：低频 / 一次性动作收在这里（清空工程 · 导出到本地 · 键盘说明…）">⋮</button>
           <button class="btn" title="M2：大预览 + 检查器 + 精剪">展开工作台</button>
           <button class="btn primary">导出</button>
         </div>
@@ -308,6 +310,8 @@
     参照实现踩过的坑：工具栏写成 <code>hasSelection ? … : null</code>，一选中就变长、右侧按钮全体位移；所以编辑动作一律<b>恒常渲染</b>，
     不可用时 <b>置灰（不是隐藏）</b> + tooltip 说明原因 —— 用户靠"它在那儿但灰着"来判断"这个动作存在，只是现在不能做"。<br />
     <b>「裁左 / 裁右」是新加的两个动作</b>：粗排最高频的就是"砍头去尾"。没有它们，用户得走「分割 → 选中那段 → 删除 → 闭合空隙」四步。<br />
+    <b>编辑动作一律用图标，不用文字</b>（工具带是<b>图标行</b>，不是文字行）。图标语义：<b>分割</b> = 两块中间一条切线 · <b>裁左 / 裁右</b> = <b>虚线的一半会被砍掉、实心的一半保留</b> · <b>定格</b> = 画框里一个暂停 · <b>删除</b> = 垃圾桶 + 展开小箭头。<br />
+    图标化的代价是"看不出这是什么"，所以<b>每个图标都必须有 tooltip</b> —— 这不是锦上添花，是图标方案能成立的前提。另有<b>尺寸分两层</b>：工具带图标 15px（动作），轨道头图标 13px（状态）。<br />
     <b>缩放 = ⊖ + 长滑块 + ⊕</b>（不是单个按钮）：<b>滑块的位置本身就是信息</b> —— 一眼看出当前缩到多小。上轮"只留一个「自适应」"是减配，已推翻。<br />
     <b>比例 · 帧率就在这一行</b>：<code>16:9 · 30fps ▾</code> —— 比例决定画布尺寸、帧率决定时间基准；初值取首个入轨片段，可随时改（横竖屏混剪必然发生）。<br />
     <b>片段名条独立在片段顶部</b>：名字不压缩略图 / 波形，且<b>不带序号</b>（分割后序号会变成 <code>1. 1. 1.</code>，反而误导）。<br />
@@ -363,31 +367,33 @@
       <div class="vd-bar">
         <span class="t">时间轴</span>
         <div class="seg">
-          <button title="上一片段边界"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 18V6l-8 6z"/><path d="M20 18V6l-8 6z"/></svg></button>
-          <button title="播放 / 暂停"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
-          <button title="下一片段边界"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 6v12l8-6z"/><path d="M4 6v12l8-6z"/></svg></button>
+          <button class="ve-ebtn" title="上一片段边界"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5.6 5v14"/><path d="M20 5.6v12.8L9.6 12z" fill="currentColor" stroke="none"/></svg></button>
+          <button class="ve-ebtn" title="播放 / 暂停"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M7.6 5.2v13.6L19.4 12z" fill="currentColor" stroke="none"/></svg></button>
+          <button class="ve-ebtn" title="下一片段边界"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18.4 5v14"/><path d="M4 5.6v12.8L14.4 12z" fill="currentColor" stroke="none"/></svg></button>
         </div>
         <div class="tc">00:00:08:12 <span class="tot">/ 00:00:14:18</span></div>
         <span class="vline sm"></span>
         <div class="seg">
-          <button class="ve-ebtn icon" title="撤销刚入轨的这一步 ⌘Z"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg></button>
-          <button class="ve-ebtn icon dis" title="重做 ⌘⇧Z"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg></button>
+          <button class="ve-ebtn icon" title="撤销刚入轨的这一步 ⌘Z"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4.2 7.8h9.6a5.4 5.4 0 0 1 0 10.8H10"/><path d="M7.6 4.4 4.2 7.8l3.4 3.4"/></svg></button>
+          <button class="ve-ebtn icon dis" title="重做 ⌘⇧Z"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M19.8 7.8h-9.6a5.4 5.4 0 0 0 0 10.8H14"/><path d="M16.4 4.4l3.4 3.4-3.4 3.4"/></svg></button>
         </div>
         <div class="seg">
-          <button class="ve-ebtn" title="分割：在播放头位置切开">分割</button>
-          <button class="ve-ebtn" title="裁掉左侧">裁左</button>
-          <button class="ve-ebtn" title="裁掉右侧">裁右</button>
-          <button class="ve-ebtn" title="定格">定格</button>
+          <button class="ve-ebtn icon" title="分割：在播放头位置切开"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 2.8v18.4"/><path d="M8.2 6.4H2.6v11.2h5.6"/><path d="M15.8 6.4h5.6v11.2h-5.6"/></svg></button>
+          <button class="ve-ebtn icon" title="裁掉左侧：保留播放头右边的部分"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12.6 3v18" stroke-dasharray="2.2 2.6"/><path d="M16.6 5.8h4.8v12.4h-4.8"/></svg></button>
+          <button class="ve-ebtn icon" title="裁掉右侧：保留播放头左边的部分"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6.6 5.8H1.8v12.4h4.8"/><path d="M11.4 3v18" stroke-dasharray="2.2 2.6"/></svg></button>
+          <button class="ve-ebtn icon" title="定格：把播放头这一帧抽成一段静止片段"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M2.8 5.4h18.4"/><path d="M7.2 5.4v13.2h13.6V5.4"/></svg></button>
         </div>
-        <div class="seg"><button class="ve-ebtn" title="删除（留洞 · 波纹）">删除 ▾</button></div>
+        <div class="seg">
+          <button class="ve-ebtn icon has-menu" title="删除：留洞 / 波纹删除"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 6.6h16"/><path d="M9.4 6.6V4.3h5.2v2.3"/><path d="M6.7 6.6v13h10.6v-13"/></svg><svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m6 9 6 6 6-6"/></svg></button>
+        </div>
         <div class="right">
-          <button class="ve-tgl on" title="磁吸"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v8a6 6 0 0 0 12 0V3"/><path d="M6 3h4v8"/><path d="M14 3h4v8"/></svg></button>
+          <button class="ve-tgl on" title="磁吸"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M7 3.4v8.2a5 5 0 0 0 10 0V3.4"/><path d="M7 3.4h4.2"/><path d="M12.8 3.4H17"/></svg></button>
           <div class="ve-zoom">
-            <button class="ve-zbtn" title="缩小"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12h7"/></svg></button>
+            <button class="ve-zbtn" title="缩小"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="8.6"/><path d="M8 12h8"/></svg></button>
             <div class="track" title="时间轴缩放"><i style="left:38%"></i></div>
-            <button class="ve-zbtn" title="放大"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12h7M12 8.5v7"/></svg></button>
+            <button class="ve-zbtn" title="放大"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="8.6"/><path d="M8 12h8M12 8v8"/></svg></button>
           </div>
-          <button class="ve-sel" title="更多">⋮</button>
+          <button class="ve-ebtn" title="更多">⋮</button>
           <button class="btn">展开工作台</button>
           <button class="btn primary">导出</button>
         </div>
@@ -603,7 +609,11 @@
         <div class="vd-grip"><i></i></div>
         <div class="vd-bar">
           <span class="t">时间轴</span>
-          <div class="seg"><button class="on" title="播放：按钮，不绑空格">播放</button><button title="分割：按钮，不绑 S">分割</button><button title="删除：唯一绑键的操作（Delete）">删除 ⌫</button></div>
+          <div class="seg">
+            <button class="on" title="播放 / 暂停：按钮，不绑空格"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M7.6 5.2v13.6L19.4 12z" fill="currentColor" stroke="none"/></svg></button>
+            <button title="分割：按钮，不绑 S"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 2.8v18.4"/><path d="M8.2 6.4H2.6v11.2h5.6"/><path d="M15.8 6.4h5.6v11.2h-5.6"/></svg></button>
+            <button title="删除：唯一绑键的操作（Delete）"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 6.6h16"/><path d="M9.4 6.6V4.3h5.2v2.3"/><path d="M6.7 6.6v13h10.6v-13"/></svg></button>
+          </div>
           <div class="right"><button class="btn primary">导出</button></div>
         </div>
         <div class="vd-info">合成重编码 · 无黑边 · 1920×1080 / 30fps · 含音轨 → <b>点导出直接开始</b></div>
@@ -883,21 +893,21 @@
 /* 波形：仅为 mockup 表达形态，用确定性伪随机生成。
    实现里峰值来自解码音频后降采样（docs/120 C11.7b），并按行高派生绘制高度（C7.5）。 */
 (function(){
+  /* 波形：仅为 mockup 表达形态，确定性伪随机生成。
+     实现里峰值来自解码音频后降采样（docs/120 C11.7b），绘制高度按轨道行高派生（C7.5）。 */
   function h(n){var x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x);}
   var k=0;
   document.querySelectorAll("svg.wave").forEach(function(sv){
     k++;
     var w=sv.getBoundingClientRect().width||360;
-    var cols=Math.max(28,Math.round(w/3.2)), top=1.15;
-    var d="";
+    var cols=Math.max(60,Math.round(w/2.2)), base=1.16, d="";
     for(var i=0;i<cols;i++){
-      var r=h(i*0.7+k*37.3);
-      var a=0.10+Math.pow(r,1.6)*0.92;
-      if(i%11===0)a*=0.45;
-      var y=top-a, hh=a;
-      d+="M"+i+" "+y.toFixed(2)+"h0.62v"+hh.toFixed(2)+"h-0.62z";
+      var r=h(i*0.63+k*37.3);
+      var amp=0.08+Math.pow(r,1.5)*0.98;
+      if(i%13===0)amp*=0.42;
+      d+="M"+i+" "+(base-amp).toFixed(2)+"h0.8v"+amp.toFixed(2)+"h-0.8z";
     }
-    sv.setAttribute("viewBox","0 0 "+cols+" 2");
+    sv.setAttribute("viewBox","0 0 "+cols+" 1.2");
     sv.innerHTML='<path d="'+d+'"/>';
   });
 })();

@@ -558,7 +558,7 @@ export function channelsToSnapshotKeys(
       if (!key || key.frame === undefined) continue;
       const entry = merged.get(key.frame) || {
         frame: key.frame,
-        interpolation: normalizeInterpolation(key.interpolation),
+        interpolation: normalizeInterpolation(key.interpolation ?? ''),
         fields: undefined,
       };
       if (key.interpolation) entry.interpolation = normalizeInterpolation(key.interpolation);
@@ -813,7 +813,7 @@ function normalizeCamera(camera: Partial<ProjectCamera> = {}): ProjectCamera {
     aspectRatio:
       ASPECT_RATIOS.some((option) => option.ratio && option.value === camera.aspectRatio) ||
       CUSTOM_ASPECT_PATTERN.test(String(camera.aspectRatio || ''))
-        ? camera.aspectRatio
+        ? (camera.aspectRatio ?? initialCamera.aspectRatio)
         : initialCamera.aspectRatio,
     // 始终面向对象：targetMode 'object' 时摄像机旋转自动朝向 targetId 对象（参考 director3d 的 C4D Target）
     targetMode: camera.targetMode === 'object' ? 'object' : 'manual',
@@ -857,13 +857,13 @@ export function normalizeCameraKeyframes(
     const list = (Array.isArray(channels[channel]) ? channels[channel].filter(Boolean) : [])
       .map((key) => ({
         frame: normalizeFrameNumber(key.frame),
-        interpolation: normalizeInterpolation(key.interpolation),
+        interpolation: normalizeInterpolation(key.interpolation ?? ''),
         fields: Object.fromEntries(
           fields
             .filter((field) => key.fields?.[field] !== undefined)
             .map((field) => [
               field,
-              normalizeCameraField(field, key.fields[field], fallbackCamera),
+              normalizeCameraField(field, key.fields?.[field], fallbackCamera),
             ]),
         ),
       }))
@@ -911,11 +911,16 @@ export function normalizeProjectSettings(settings: Partial<ProjectSettings> = {}
 }
 
 export function normalizeLighting(lighting: Partial<ProjectLighting> = {}): ProjectLighting {
-  const numeric = (value: number, fallback: number, minimum: number, maximum: number) => {
+  const numeric = (
+    value: number | undefined,
+    fallback: number,
+    minimum: number,
+    maximum: number,
+  ) => {
     const parsed = Number(value);
     return clamp(Number.isFinite(parsed) ? parsed : fallback, minimum, maximum);
   };
-  const color = (value: string, fallback: string) =>
+  const color = (value: string | undefined, fallback: string) =>
     /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value) : fallback;
   return {
     ambientIntensity: numeric(lighting.ambientIntensity, DEFAULT_LIGHTING.ambientIntensity, 0, 3),
@@ -1030,11 +1035,11 @@ const normalizeObjectTrack = (
     const list = (Array.isArray(channels[channel]) ? channels[channel].filter(Boolean) : [])
       .map((key) => ({
         frame: normalizeFrameNumber(key.frame),
-        interpolation: normalizeInterpolation(key.interpolation),
+        interpolation: normalizeInterpolation(key.interpolation ?? ''),
         fields: Object.fromEntries(
           fields
             .filter((field) => key.fields?.[field] !== undefined)
-            .map((field) => [field, normalizeObjectField(entityType, field, key.fields[field])]),
+            .map((field) => [field, normalizeObjectField(entityType, field, key.fields?.[field])]),
         ),
       }))
       .filter((key) => Object.keys(key.fields).length);
@@ -1357,8 +1362,15 @@ function locateChannelKey(keys: ChannelKey[], frame: number) {
   if (exact) return { exact, left: exact, right: exact, t: 0, bounds: 'exact' };
   if (frame <= keys[0].frame)
     return { exact: null, left: keys[0], right: keys[0], t: 0, bounds: 'before' };
-  if (frame >= keys.at(-1).frame)
-    return { exact: null, left: keys.at(-1), right: keys.at(-1), t: 1, bounds: 'after' };
+  const lastKey = keys.at(-1);
+  if (frame >= (lastKey?.frame ?? 0))
+    return {
+      exact: null,
+      left: lastKey ?? keys[0],
+      right: lastKey ?? keys[0],
+      t: 1,
+      bounds: 'after',
+    };
   const rightIndex = keys.findIndex((key) => key.frame >= frame);
   const left = keys[rightIndex - 1];
   const right = keys[rightIndex];
@@ -1385,13 +1397,13 @@ function evaluateNumericChannel(
   if (bounds === 'empty') return null;
   const fields: Record<string, unknown> = {};
   if (bounds !== 'segment') {
-    for (const field of Object.keys(left.fields || {})) {
-      fields[field] = cloneProjectValue(left.fields[field]);
+    for (const field of Object.keys(left!.fields || {})) {
+      fields[field] = cloneProjectValue(left!.fields?.[field]);
     }
     return fields;
   }
-  const leftFields = left.fields || {};
-  const rightFields = right.fields || {};
+  const leftFields = left!.fields || {};
+  const rightFields = right!.fields || {};
   const allFields = new Set([...Object.keys(leftFields), ...Object.keys(rightFields)]);
   for (const field of allFields) {
     const a = leftFields[field];
@@ -1445,12 +1457,12 @@ function evaluateActionChannel(
   };
   const { exact, left, right, t, bounds } = locateChannelKey(keys, frame);
   const key = exact || left;
-  const interpolateState = bounds === 'segment' ? sameState(left, right) : true;
+  const interpolateState = bounds === 'segment' ? sameState(left!, right!) : true;
   return {
-    pose: normalizePoseId(poseOf(key)),
-    poseTime: interpolateState ? lerp(poseTimeOf(left), poseTimeOf(right), t) : poseTimeOf(left),
-    continuousMotion: motionEnabled(key),
-    motionStartTime: stateStartFrame(key) / fps,
+    pose: normalizePoseId(poseOf(key!)),
+    poseTime: interpolateState ? lerp(poseTimeOf(left!), poseTimeOf(right!), t) : poseTimeOf(left!),
+    continuousMotion: motionEnabled(key!),
+    motionStartTime: stateStartFrame(key!) / fps,
     interpolateState, // 派生上下文：骨骼通道据此决定插值 or 硬切（M2-C7）
   };
 }
@@ -1482,13 +1494,13 @@ function evaluateSkeletonChannel(
   };
   const interpolate = actionContext ? actionContext.interpolateState : true;
   if (bounds !== 'segment' || !interpolate) {
-    return { rigRoot: [...rootOf(key)], joints: cloneJointPose(jointsOf(key)) };
+    return { rigRoot: [...rootOf(key!)], joints: cloneJointPose(jointsOf(key!)) };
   }
   return {
-    rigRoot: rootOf(left).map((value: number, index: number) =>
-      lerp(value, rootOf(right)[index], t),
+    rigRoot: rootOf(left!).map((value: number, index: number) =>
+      lerp(value, rootOf(right!)[index], t),
     ),
-    joints: interpolateJointPose(jointsOf(left), jointsOf(right), t),
+    joints: interpolateJointPose(jointsOf(left!), jointsOf(right!), t),
   };
 }
 
@@ -1536,7 +1548,7 @@ function synthesizeObjectState(
   }
   // L2：对象级开关（objectState）勾选即生效，永远从基线取，覆盖任何求值结果。
   // continuousMotion/footLock 由此统一沿基线；targetMode/targetId 走 cameraAtFrame + setCameraAtFrame 特判（47 §4.5）。
-  for (const field of OBJECT_STATE_FIELDS[object.type] || []) result[field] = object[field];
+  for (const field of OBJECT_STATE_FIELDS[object.type ?? ''] || []) result[field] = object[field];
   return result;
 }
 
@@ -1632,9 +1644,9 @@ export function objectKeyframeFromObject(object: ProjectObject, frame: number) {
   return {
     frame,
     interpolation: 'smooth',
-    position: [...object.position],
-    rotation: [...object.rotation],
-    scale: [...object.scale],
+    position: [...(object.position ?? [])],
+    rotation: [...(object.rotation ?? [])],
+    scale: [...(object.scale ?? [])],
     pose: normalizePoseId(object.pose),
     poseTime: Number.isFinite(object.poseTime) ? object.poseTime : presetPhase(object.pose),
     rigRoot: [...rig.root],
@@ -1652,7 +1664,7 @@ export function objectAtFrame(
   if (!object) return object;
   // M2：keyframes 兼容「旧整快照数组」与「已通道化结构」；旧数组按实体类型经幂等归一化转通道。
   const channels = Array.isArray(keyframes)
-    ? normalizeObjectTrack(keyframes, object.type)
+    ? normalizeObjectTrack(keyframes, object.type ?? 'object')
     : keyframes || {};
   // M3：path 为可选的运动路径（独立位置来源，见 synthesizeObjectState）
   return synthesizeObjectState(object, channels, frame, fps, path);
@@ -2008,7 +2020,7 @@ export function referenceImageFromFile(file: File): Promise<string> {
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(image.naturalWidth * ratio));
         canvas.height = Math.max(1, Math.round(image.naturalHeight * ratio));
-        const context = canvas.getContext('2d');
+        const context = canvas.getContext('2d')!;
         context.fillStyle = '#e8e6df';
         context.fillRect(0, 0, canvas.width, canvas.height);
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -2033,7 +2045,7 @@ export function referenceCanvasForExport(
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
-      const context = canvas.getContext('2d');
+      const context = canvas.getContext('2d')!;
       context.fillStyle = '#9b9c98';
       context.fillRect(0, 0, width, height);
       context.imageSmoothingEnabled = true;

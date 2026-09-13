@@ -55,7 +55,7 @@ import { useTableSelection } from './useTableSelection.ts';
 import type { AssistantTable, TableRow, TableTab } from './assistantTable.ts';
 import { showToast } from '@/components/base/core/toastStore.ts';
 import { askConfirm } from '@/components/base/core/confirmStore.ts';
-import { hasModalLayer } from '@/components/base/core/modalLayer.ts';
+import { isCanvasSuppressed } from '@/components/base/core/modalLayer.ts';
 import { isEditableTarget } from '@/components/base/core/uiHooks.ts';
 import {
   useTableWorkspace,
@@ -438,7 +438,7 @@ export default function AssistantTablePanel({
       // focusedCell 非空且不会自动清 → 打开图片编辑器用文字工具输字 → 按退格想删字，
       // 实际删掉的是表格里选中的行。所以这里必须自查两件事：
       // ① 上方有全屏模态层 → 整体让位，不抢
-      if (hasModalLayer()) return;
+      if (isCanvasSuppressed()) return;
       // ② 焦点在任何输入框/可编辑元素内 → 退格是「删一个字符」，不是「删表格行」。
       //    表格自身的编辑态由下方 editingCell 分支覆盖，这里补的是外部输入框的情况。
       if (isEditableTarget(e)) return;
