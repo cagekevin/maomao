@@ -8,9 +8,6 @@ import { useSyncNodeData } from './useSyncNodeData.ts';
 import { useNodeGeneration } from './useNodeGeneration.ts';
 import type { NodeGenerationRunArgs } from './useNodeGeneration.ts';
 
-/** 生成回调注入的进度/中断参数（直接复用 useNodeGeneration 契约，避免两处各定义一份） */
-export type GenerateRunArgs = NodeGenerationRunArgs;
-
 /**
  * 注入给节点回调的 provider 管理态。
  * 节点自有生成参数（imageSize/aspectRatio/…）仍走节点闭包，不进 ctx。
@@ -28,7 +25,7 @@ export interface GenerateNodeCtx {
 export type GenerateValidate = (ctx: GenerateNodeCtx) => string | undefined | null;
 /** run({progress,signal}, ctx) → 结果信封 */
 export type GenerateRun = (
-  args: GenerateRunArgs,
+  args: NodeGenerationRunArgs,
   ctx: GenerateNodeCtx,
 ) => Promise<GenerationResult>;
 export type GenerateSuccess = (result: GenerationResult, ctx: GenerateNodeCtx) => void;
@@ -156,9 +153,9 @@ export function useGenerateNode({
     nodeId,
     type: { type: reportType || type, prompt, modelName: selectedModel },
     validate: () => validateRef.current?.(ctx),
-    run: (args: GenerateRunArgs) => runRef.current?.(args, ctx),
+    run: (args) => runRef.current!(args, ctx),
     onSuccess: (r: GenerationResult) => onSuccessRef.current?.(r, ctx),
-    onRecover: (d: Record<string, unknown>) => onRecoverRef.current?.(d, ctx),
+    onRecover: (d) => onRecoverRef.current!(d as Record<string, unknown>, ctx),
     resultKey: resultField,
     recoverable,
   });
