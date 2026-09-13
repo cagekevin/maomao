@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import { Image as ImageIcon, Plus, ZoomIn, Download } from 'lucide-react';
+import { Image as ImageIcon, Download } from 'lucide-react';
 // ═══ 基座组件（统一入口，禁止手写外壳/端口/背景）═══
 import NodeShell from '../../base/ui/NodeShell.tsx';
 import HoverToolbar from '../../base/panels/HoverToolbar.tsx';
@@ -224,7 +224,6 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   const insertMention = (asset: unknown) => {
     if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset);
   };
-  const fileRef = useRef<HTMLInputElement | null>(null); // 隐藏 file input
   const { onMainBoxResize, onInputResize } = useNodeResize(id); // 主框/输入框尺寸写回 ReactFlow
 
   // 断连线：点击素材缩略图红色 ×，删除该素材来源节点 → 本节点的连线（通用）
@@ -304,19 +303,6 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   // 【模板】换成你的按钮：{ key, icon, title, show, onClick }
   const toolbarButtons = [
     {
-      key: 'upload',
-      icon: <Plus size={12} />,
-      title: '上传',
-      onClick: () => fileRef.current?.click(),
-    },
-    {
-      key: 'zoom',
-      icon: <ZoomIn size={12} />,
-      title: '放大',
-      show: !!assetUrl,
-      onClick: () => showToast('放大预览'),
-    },
-    {
       key: 'download',
       icon: <Download size={12} />,
       title: '下载',
@@ -348,15 +334,6 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
     >
       {/* 顶部 hover 操作栏（通用；不需要删掉） */}
       <HoverToolbar buttons={toolbarButtons} />
-
-      {/* 隐藏文件输入（通用；不需要上传删掉） */}
-      <input
-        type="file"
-        ref={fileRef}
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={() => showToast('上传处理')}
-      />
 
       {/* 主显示框（唯一必须 children；用 flex-1 填满，别用 h-full） */}
       <div className="relative flex flex-col w-full flex-1 min-h-0" onClick={toggleExpanded}>

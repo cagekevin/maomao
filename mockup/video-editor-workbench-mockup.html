@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>视频剪辑器 · M2 工作台（画面 + 检查器）· Mockup</title>
+<link rel="stylesheet" href="./mockup-kit.css" />
+<style>
+  /* 本屏独有：工作台骨架沿用旧 video-editor-mockup.html 的四段划分
+     （抬头 / 监视器 + 检查器 / 时间轴），M1 基座的 .vd-* / .ve-* 轨道件直接复用 ——
+     基座与工作台是同一份 tracks 的两个视图，样式必须共用一套（docs/120 §0.2 / C7.4）。 */
+  .editor.ve{width:1280px;height:900px;}
+  .ve-mid{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--surface-sunken);}
+  .ve-stage{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;padding:16px;}
+  .ve-frame{position:relative;width:720px;height:405px;background:#000;overflow:hidden;
+    border:1px solid var(--edge-strong);box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  /* 描边文字：白字黑边。text-shadow 八向堆叠模拟 2px 描边 ——
+     mockup 用它表达「描边颜色」控件的视觉效果；实现里描边属于 clip.textStyle.stroke，
+     预览与导出走同一条 renderFrameAt（C8），所见即所得。 */
+  .vw-txt{
+    position:absolute;left:0;right:0;bottom:34px;text-align:center;
+    font-size:22px;font-weight:700;color:#fff;letter-spacing:2px;
+    text-shadow:
+      -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000,
+      -2px 0 0 #000, 2px 0 0 #000, 0 -2px 0 #000, 0 2px 0 #000;
+  }
+  .vw-logo{position:absolute;right:34px;top:26px;width:96px;height:34px;border-radius:4px;
+    background:linear-gradient(160deg,#f2eee4,#c9c5ba);}
+  /* 时间码可输入（沿用旧 mockup 定稿） */
+  .tc-in{
+    width:82px;height:26px;text-align:center;border-radius:var(--r-sm);background:var(--input);
+    border:1px solid var(--edge-muted);color:var(--t-primary);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
+  }
+  .tc-in:focus{outline:none;border-color:var(--accent-line);}
+  /* 导出 split button（沿用旧 mockup 审计定稿） */
+  .ve-export{position:relative;display:flex;}
+  .ve-export>.btn.primary:first-child{border-top-right-radius:0;border-bottom-right-radius:0;}
+  .ve-export-caret{border-top-left-radius:0;border-bottom-left-radius:0;padding:0 7px;
+    border-left:1px solid rgba(255,255,255,.28);}
+  .ve-export .menu{left:0;right:0;min-width:0;top:calc(100% + 2px);bottom:auto;display:none;}
+  .ve-export:hover .menu{display:block;}
+  /* 检查器表单：label 一律 56px（「描边宽度」4 字放得下；kit 默认 38px 太窄） */
+  .fld.w56>span{width:56px;}
+  /* 描边组：开关行 + 展开体（缩进 10px，读起来是从属于「描边」的子项） */
+  .vw-stroke-body{padding:2px 0 2px 10px;border-left:2px solid var(--edge-faint);margin:6px 0 2px 12px;}
+  /* 时间轴头「+」菜单（静态展示用）：贴图 / 文字 / 新建叠加轨 */
+  .vw-addmenu{left:0;top:calc(100% + 6px);bottom:auto;display:none;min-width:190px;}
+  .vw-dd:hover .vw-addmenu{display:block;}
+  /* 舞台 3：独立示意画框（不与主舞台播放头时刻绑定） */
+  .vw-demo{position:relative;width:520px;height:293px;overflow:hidden;
+    border:1px solid var(--edge-strong);box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  .vw-demo .vw-txt{font-size:19px;bottom:26px;}
+  .vw-cap-list{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--t-muted);line-height:1.7;}
+  .vw-cap-list b{color:var(--t-body);font-weight:600;}
+  /* 交互审计表（沿用旧 mockup 的样式约定） */
+  .audit{width:100%;border-collapse:collapse;font-size:11px;}
+  .audit th{
+    text-align:left;font-weight:600;color:var(--t-secondary);white-space:nowrap;
+    padding:6px 8px;border-bottom:1px solid var(--edge);
+  }
+  .audit td{padding:5px 8px;border-bottom:1px solid var(--edge-faint);color:var(--t-muted);
+    vertical-align:top;line-height:1.65;}
+  .audit td.k{color:var(--t-body);white-space:nowrap;}
+  .audit code{
+    background:#1d1d1d;border:1px solid #292929;border-radius:5px;
+    padding:1px 4px;font-size:10px;color:#c9c9c9;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+</style>
+</head>
+<body>
+
+<div class="mk-head">
+  <h1>视频剪辑器 · M2 工作台（画面 + 检查器）· Mockup</h1>
+  <p>
+    <b>M1 基座已落地</b>（装配与试听：素材从画布点选入轨 / 播放出声 / 导出）。本图是 <b>M2 工作台</b>的第一张图。
+    按 docs/120 §0.8 的定论：<span class="hl">M2 的真正定义是「画面」，不是「窗口」</span> ——
+    M1 缺的正是画面（M1 没有监视器，只能盲剪），所以 M2 = <b>大监视器</b> + <b>检查器（能改的东西）</b> +
+    <b>精轨（叠加轨 / 文字轨）</b>；基座收成时间轴，仍是<b>同一份 tracks 的两个视图</b>（不修改 M1 数据契约）。<br />
+    <b>本轮检查器范围（用户圈定的最基本件）</b>：
+    ① 文字 —— <b>描边（颜色 + 宽度）</b>· 字号 · 字间距 · 颜色 · 位置；② 贴图 / 图片 —— <b>大小 · 位置</b>；
+    ③ <b>透明度</b>（文字 / 贴图 / 视频通用）。旋转顺带进变换组（同一份数据，不加面板成本）。<br />
+    全页四屏：① 主形态（监视器 + 文字检查器 + 四轨时间轴）· ② 检查器三面板（贴图 / 视频片段 / 描边交互细节）·
+    ③ 画布直接操作（所见即所得）· ④ 数据契约与范围表。<br />
+    <b>两条纪律不改</b>：素材仍从画布来（贴图入口 = 画布图片节点清单，守 C11）；
+    预览与导出走同一条 <code>renderFrameAt</code>（C8）—— 描边 / 透明度在导出里长什么样，预览里就是什么样。
+  </p>
+</div>
+
+<!-- ══════════ 舞台 1：主形态（监视器 + 文字检查器 + 时间轴） ══════════ -->
+<div class="mk-stage">
+  <div class="mk-cap">
+    <span class="tag new">新</span><b>主形态 —— 点基座「展开工作台」后的样子。</b>
+    抬头左 = <b>收起工作台</b>（回基座，工程不丢）；右 = 导出 split button（沿用 M1 定稿，导出不被工作台扣为人质）。
+    中间 = <b>监视器</b>（画面来源 / scrub / 走带三层，沿用旧 mockup 审计定稿）；右栏 = <b>检查器</b>（属性 / 文字 / 转场）；
+    底部 = <b>四轨时间轴</b>（V1 主视频 · V2 叠加 · T1 文字 · A1 音频，轨道头沿用 C7.4 图标网格）。<br />
+    本屏定格在：<b>标题字幕选中</b> → 检查器自动切到「文字」面板 —— <span class="hl">选中什么，检查器就给什么</span>。
+  </div>
+
+  <div class="editor ve">
+
+    <!-- 抬头：离开（收起）靠左 · 产出（导出）靠右 —— 与 M1/旧 mockup 的动作分组一致 -->
+    <div class="eh">
+      <div class="eh-left">
+        <button class="btn">收起工作台</button>
+        <div class="vline sm"></div>
+        <div class="eh-title">工作台 <span>开场镜头_v3 · 1920×1080 · 30fps · 22.90s</span></div>
+      </div>
+      <div class="eh-right">
+        <div class="ve-export">
+          <button class="btn primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            导出为新节点
+          </button>
+          <button class="btn primary ve-export-caret" title="更多导出方式">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="menu">
+            <button class="menu-item">导出到本地</button>
+            <button class="menu-item">导出当前帧为图片</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cbody">
+
+      <!-- ── 中：监视器 ── -->
+      <div class="ve-mid">
+        <div class="ve-info">
+          <span>画面来源</span><b>中景_跟拍.mp4</b>
+          <span>·</span><span>画布</span><b>1920 × 1080</b>
+          <span>·</span><span>叠加 2</span><b>标题 · logo</b>
+        </div>
+
+        <div class="ve-stage">
+          <div class="checker"></div>
+          <div class="ve-frame photo2">
+            <!-- 标题字幕：白字黑描边（描边颜色 #000 / 宽 2px / 字距 2px —— 与右栏数值一致）。
+                 选中态：变换框 + 就近操作（双击改内容 / 复制 / 删除）。
+                 拖动 = 位置 · 角柄 = 大小 —— 数值与右栏「变换」双向同步（见舞台 3）。 -->
+            <div class="vw-txt">CHAPTER 01 · 城市苏醒</div>
+            <div class="tr" style="left:130px;bottom:20px;width:460px;height:44px;top:auto">
+              <div class="box"></div>
+              <div class="stick" style="top:auto;bottom:100%;"></div>
+              <div class="rot" style="top:auto;bottom:calc(100% + 12px);"></div>
+              <div class="h tl"></div><div class="h tr"></div><div class="h bl"></div><div class="h br"></div>
+            </div>
+            <div class="tr-act" style="right:126px;bottom:66px;top:auto">
+              <button title="编辑文字（双击同效）"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>
+              <button title="复制片段"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+              <button class="del" title="删除片段"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4h8v2"/></svg></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="ve-prog scrub" title="点击 / 拖动跳转（粗定位）；精确卡点用时间码或 ← → 帧步进">
+          <div class="fill" style="width:34%"></div>
+          <div class="thumb" style="left:34%"></div>
+        </div>
+
+        <div class="ve-transport">
+          <div class="ve-tc">
+            <input class="tc-in" value="00:00:08:12" /><span class="tot">/ 00:00:22:27</span>
+          </div>
+          <div class="ve-play">
+            <button class="ib" title="上一片段边界（⇧←）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 18V6l-8 6z"/><path d="M20 18V6l-8 6z"/></svg></button>
+            <button class="ib" title="上一帧（←）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 6l-8 6 8 6z"/><path d="M17 6v12"/></svg></button>
+            <button class="big" title="播放（空格）"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+            <button class="ib" title="下一帧（→）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 6v12"/><path d="M11 6l8 6-8 6z"/></svg></button>
+            <button class="ib" title="下一片段边界（⇧→）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 6v12l8-6z"/><path d="M4 6v12l8-6z"/></svg></button>
+            <button class="ib" title="循环播放（调字幕落位 / 转场时反复看同一段）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></button>
+          </div>
+          <div class="ve-view">
+            <span class="ve-sel" style="display:flex;align-items:center;padding:0 6px">适应 · 46% ▾</span>
+            <button class="ib" title="专注模式：隐藏检查器，画面最大化"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 右：检查器（文字面板 · 选中文字片段） ── -->
+      <div class="cright" style="width:264px">
+        <div class="ve-itabs">
+          <button title="视频 / 贴图片段的变换与取景">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+            属性
+          </button>
+          <button class="on">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v16"/><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/><path d="M9 20h6"/></svg>
+            文字
+          </button>
+          <button>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6"/><path d="M15 15a6 6 0 0 0 0-12"/></svg>
+            转场
+          </button>
+        </div>
+
+        <!-- 文字内容：唯一入口在这里改，不在画面上直接打字（双击 = 定位到这里并聚焦） -->
+        <div class="sect">
+          <div class="sect-t"><span>文字内容</span></div>
+          <div style="min-height:48px;padding:6px 8px;border-radius:var(--r-sm);background:var(--input);
+                      border:1px solid var(--edge-muted);font-size:11px;color:var(--t-body);line-height:1.6">CHAPTER 01 · 城市苏醒</div>
+        </div>
+
+        <!-- 字体样式：用户圈定的「最基本」—— 字号 / 颜色 / 字间距 / 对齐。字体下拉给默认项即可。 -->
+        <div class="sect">
+          <div class="sect-t"><span>样式</span></div>
+          <div class="fld"><span>字体</span><select class="sel"><option>PingFang SC</option><option>思源黑体</option><option>宋体</option></select></div>
+          <div class="fld"><span>字号</span><input class="range" type="range" min="12" max="120" step="1" value="22" /><span class="val">22</span></div>
+          <div class="fld"><span>颜色</span><input class="swatch" type="color" value="#ffffff" style="background:#fff" /><span class="val">#FFFFFF</span></div>
+          <div class="fld"><span>字间距</span><input class="range" type="range" min="0" max="20" step="0.5" value="2" /><span class="val">2.0</span></div>
+          <div class="fld"><span>对齐</span>
+            <div class="seg" style="flex:1">
+              <button title="左对齐"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h14"/></svg></button>
+              <button class="on" title="居中"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M7 12h10M5 18h14"/></svg></button>
+              <button title="右对齐"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M10 12h10M6 18h14"/></svg></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 描边组（用户圈定第 1 条）：开关行 + 展开体（宽度 / 颜色 / 预设）。
+             开关关掉 = 整组收起只留开关行 —— 低频组合不该常驻占一屏。 -->
+        <div class="sect">
+          <div class="sect-t"><span>描边</span><em>白字黑边 · 视频字幕最常用</em></div>
+          <div class="fld w56" style="margin-bottom:0"><span>描边</span>
+            <button class="ve-tgl on" title="开启 / 关闭描边（关闭后整组收起）" style="margin-right:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="3.4"/></svg></button>
+            <span class="val" style="flex:1;text-align:left;color:var(--t-faint)">已开启</span>
+          </div>
+          <div class="vw-stroke-body">
+            <div class="fld w56"><span>描边宽度</span><input class="range" type="range" min="0" max="10" step="0.5" value="2" /><span class="val">2.0</span></div>
+            <div class="fld w56"><span>描边颜色</span><input class="swatch" type="color" value="#000000" style="background:#000" /><span class="val">#000000</span></div>
+            <div class="swatches" style="padding-left:64px">
+              <span class="sw on" style="background:#000" title="黑（默认）"></span>
+              <span class="sw" style="background:#fff" title="白"></span>
+              <span class="sw" style="background:#4b5563" title="深灰"></span>
+              <span class="sw" style="background:#ef4444" title="红"></span>
+              <span class="sw" style="background:#3b82f6" title="蓝"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 变换组：位置 + 透明度（用户圈定第 3 条）。文字 / 贴图 / 视频三态共用同组控件，
+             落点都是 clip.transform —— M1 留的 unknown 字段在 M2 收窄（见舞台 4）。 -->
+        <div class="sect" style="border-bottom:none">
+          <div class="sect-t"><span>变换</span><em>与画面拖动双向同步</em></div>
+          <div class="numgrid">
+            <div class="nwrap"><i>X</i><input class="num" type="number" value="960" /></div>
+            <div class="nwrap"><i>Y</i><input class="num" type="number" value="880" /></div>
+          </div>
+          <div class="fld w56"><span>不透明度</span><input class="range" type="range" min="0" max="1" step="0.01" value="1" /><span class="val">100%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 底部：四轨时间轴 ── -->
+    <div class="ve-tl">
+      <div class="ve-tl-head">
+        <span class="ve-tl-title">时间轴</span>
+        <!-- 「+」= 本轮新增的两个创建入口：贴图（来自画布图片节点）/ 文字（凭空创建的唯一素材） -->
+        <div class="dd vw-dd">
+          <button class="ve-ebtn has-menu" title="添加：贴图（画布图片节点）· 文字 · 新建叠加轨">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="menu vw-addmenu">
+            <button class="menu-item">贴图 · 画布图片节点（6）</button>
+            <button class="menu-item">文字</button>
+            <div class="menu-sep"></div>
+            <button class="menu-item">新建叠加轨</button>
+          </div>
+        </div>
+        <div class="seg">
+          <button title="在播放头处分割选中片段">分割</button>
+          <button title="删除：留洞 / 波纹删除">删除 ▾</button>
+        </div>
+        <div class="seg">
+          <button class="on" title="边界吸附">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v8a6 6 0 0 0 12 0V4h-4v8a2 2 0 0 1-4 0V4z"/><path d="M6 4H4M18 4h2"/></svg>
+            吸附
+          </button>
+        </div>
+        <div class="spacer"></div>
+        <div class="ve-tc" style="font-size:11px"><span class="tot">空隙：无</span></div>
+        <div class="vline sm"></div>
+        <div class="seg">
+          <button title="撤销 ⌘Z"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg></button>
+          <button class="dis" title="重做 ⌘⇧Z"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg></button>
+        </div>
+        <div class="ve-zoom">
+          <button class="ve-zbtn" title="缩小时间轴"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="8.6"/><path d="M8 12h8"/></svg></button>
+          <div class="track" title="时间轴缩放"><i style="left:38%"></i></div>
+          <button class="ve-zbtn" title="放大时间轴"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="8.6"/><path d="M8 12h8M12 8v8"/></svg></button>
+        </div>
+      </div>
+
+      <div class="ve-tl-body">
+        <div class="ve-labels" style="width:132px">
+          <div class="ve-ruler-sp"></div>
+          <!-- 轨道头沿用 C7.4 固定列图标网格：[类型][锁][眼][喇叭]，缺列留空占位 -->
+          <div class="ve-thead"><button class="ve-ico type" title="视频轨"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M10 9.6v4.8l4-2.4z"/></svg></button><button class="ve-ico" title="锁定"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg></button><button class="ve-ico on" title="显示中"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/></svg></button><button class="ve-ico" title="关闭原声"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3l4-3.5v12l-4-3.5H4z"/><path d="M15 8.6a4.5 4.5 0 0 1 0 6.8"/></svg></button></div>
+          <div class="ve-thead"><button class="ve-ico type" title="叠加轨（贴图 / 画中画）"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></button><button class="ve-ico" title="锁定"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg></button><button class="ve-ico on" title="显示中"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/></svg></button><button class="ve-ico blank" tabindex="-1"></button></div>
+          <div class="ve-thead"><button class="ve-ico type" title="文字轨（字幕 / 标题）" style="font-size:10px;font-weight:700">T</button><button class="ve-ico" title="锁定"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg></button><button class="ve-ico on" title="显示中"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/></svg></button><button class="ve-ico blank" tabindex="-1"></button></div>
+          <div class="ve-thead"><button class="ve-ico type" title="音频轨"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17V7l8-2.2v10"/><circle cx="7.2" cy="17" r="2.1"/><circle cx="15.2" cy="15.2" r="2.1"/></svg></button><button class="ve-ico" title="锁定"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg></button><button class="ve-ico blank" tabindex="-1"></button><button class="ve-ico" title="关闭配乐"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3l4-3.5v12l-4-3.5H4z"/><path d="M15 8.6a4.5 4.5 0 0 1 0 6.8"/><path d="M17.6 6.2a8 8 0 0 1 0 11.6"/></svg></button></div>
+        </div>
+
+        <div class="ve-scroll">
+          <div class="ve-ruler">
+            <i style="left:0"></i><em style="left:4px">0s</em>
+            <i style="left:180px"></i><em style="left:184px">4s</em>
+            <i style="left:360px"></i><em style="left:364px">8s</em>
+            <i style="left:540px"></i><em style="left:544px">12s</em>
+            <i style="left:720px"></i><em style="left:724px">16s</em>
+            <i style="left:900px"></i><em style="left:904px">20s</em>
+          </div>
+
+          <!-- V1 主视频轨（磁吸压实，沿用 M1 三段） -->
+          <div class="ve-lane">
+            <div class="ve-clip" style="left:0;width:378px">
+              <div class="thumbs"><span class="photo"></span><span class="photo2"></span><span class="photo"></span><span class="photo2"></span><span class="photo"></span><span class="photo2"></span><span class="photo"></span><span class="photo2"></span><span class="photo"></span></div>
+              <span class="nm">开场镜头_v3.mp4</span>
+              <span class="aud" title="带原声">🔊</span>
+            </div>
+            <div class="ve-clip" style="left:378px;width:279px">
+              <div class="thumbs"><span class="photo2"></span><span class="photo4"></span><span class="photo2"></span><span class="photo4"></span><span class="photo2"></span><span class="photo4"></span><span class="photo2"></span></div>
+              <span class="nm">中景_跟拍.mp4</span>
+              <span class="aud" title="带原声">🔊</span>
+            </div>
+            <div class="ve-clip" style="left:657px;width:374px">
+              <div class="thumbs"><span class="photo4"></span><span class="photo3"></span><span class="photo4"></span><span class="photo3"></span><span class="photo4"></span><span class="photo3"></span><span class="photo4"></span><span class="photo3"></span></div>
+              <span class="nm">空镜_城市.mp4</span>
+              <span class="aud" title="带原声">🔊</span>
+            </div>
+            <div class="ve-seam" style="left:378px" title="加转场（M2 · 接缝入口）">＋</div>
+            <div class="ve-seam" style="left:657px" title="加转场（M2 · 接缝入口）">＋</div>
+          </div>
+
+          <!-- V2 叠加轨：贴图自由摆放（不磁吸） -->
+          <div class="ve-lane">
+            <div class="ve-clip image" style="left:729px;width:180px">
+              <span class="nm">logo_白.png</span>
+            </div>
+          </div>
+
+          <!-- T1 文字轨：标题（选中 = 检查器文字面板）/ 片尾字幕 -->
+          <div class="ve-lane text">
+            <div class="ve-clip text on" style="left:90px;width:315px">
+              <div class="nm" style="bottom:auto;top:50%;transform:translateY(-50%)">CHAPTER 01 · 城市苏醒</div>
+            </div>
+            <div class="ve-clip text" style="left:855px;width:176px">
+              <div class="nm" style="bottom:auto;top:50%;transform:translateY(-50%)">出品 · 猫猫画布</div>
+            </div>
+          </div>
+
+          <!-- A1 音频轨（真实波形，C11.7b） -->
+          <div class="ve-lane">
+            <div class="ve-clip audio" style="left:0;width:1031px">
+              <svg class="wave" preserveAspectRatio="none"></svg>
+              <span class="nm">旁白_v2.m4a</span>
+              <span class="dur">22.9s</span>
+            </div>
+          </div>
+
+          <div class="ve-ph" style="left:378px"><i></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-note">
+    <b>为什么检查器三 Tab 是「属性 / 文字 / 转场」：</b>它按<b>选中的东西是什么</b>分，不按「功能模块」分 ——
+    选中视频或贴图 → 「属性」（变换 / 取景 / 音量）；选中文字 → 「文字」（内容 / 样式 / 描边）；点时间轴接缝 → 「转场」。
+    没有选中时 Tab 显示但面板是空态提示（「选中一个片段开始编辑」），不预填第一个片段的属性（旧 mockup 审计结论：那会误导「改了只影响一个」）。<br />
+    <b>「+」菜单里贴图为什么还是从画布来：</b>C11 的「素材从画布来」不随 M2 改 —— 贴图的来源就是<b>画布上的图片节点清单</b>，
+    点选后落<b>叠加轨</b>（而不是 M1 的主视频轨）。文字是<b>唯一凭空创建</b>的素材（画面上本来就没有的东西），默认 3s、落在播放头处。
+  </div>
+</div>
+
+<!-- ══════════ 舞台 2：检查器三面板对照 ══════════ -->
+<div class="mk-stage">
+  <div class="mk-cap">
+    <span class="tag keep">沿用</span><b>检查器的另外三态。</b>
+    主屏画的是「文字片段选中」；这一屏补齐：选中<b>贴图</b>（属性面板）、选中<b>视频片段</b>（属性面板 · 取景解决黑边 C12.2）、
+    以及<b>描边开关的收合交互</b>（关掉时整组只剩一行，不常驻占一屏）。
+  </div>
+
+  <div class="mini">
+
+    <!-- B1 贴图面板 -->
+    <div class="mini-card" style="width:300px">
+      <div class="mini-title">检查器 · 属性 → 选中「贴图」（logo_白.png）</div>
+      <div class="sect-t" style="margin-bottom:6px"><span>变换</span><em>与画面拖动双向同步</em></div>
+      <!-- 大小：缩放滑杆（用户圈定「改大小」）。不暴露宽高两个数 ——
+           等比缩放是贴图的默认语义，非要拉伸的场景交给 fit（视频片段才有）。 -->
+      <div class="fld w56"><span>大小</span><input class="range" type="range" min="0.05" max="3" step="0.01" value="1" /><span class="val">100%</span></div>
+      <div class="numgrid">
+        <div class="nwrap"><i>X</i><input class="num" type="number" value="1640" /></div>
+        <div class="nwrap"><i>Y</i><input class="num" type="number" value="160" /></div>
+      </div>
+      <div class="fld w56"><span>旋转</span><input class="range" type="range" min="-180" max="180" step="1" value="0" /><span class="val">0°</span></div>
+      <div class="fld w56"><span>不透明度</span><input class="range" type="range" min="0" max="1" step="0.01" value="0.9" /><span class="val">90%</span></div>
+      <div class="mk-note" style="border-top:none;padding-top:4px">
+        贴图落在<b>叠加轨</b>：位置 / 大小自由摆（不磁吸），<b>时间位置在轨道上拖</b>。
+        来源仍是画布图片节点（C11）。
+      </div>
+    </div>
+
+    <!-- B2 视频片段面板（取景 = 黑边的 M2 解） -->
+    <div class="mini-card" style="width:300px">
+      <div class="mini-title">检查器 · 属性 → 选中「视频片段」</div>
+      <div class="sect-t" style="margin-bottom:6px"><span>取景</span><em>C12.2：黑边在这里解决</em></div>
+      <div class="fld w56"><span>适应画面</span>
+        <div class="seg" style="flex:1">
+          <button class="on" title="contain：完整显示，可能有黑边">适应</button>
+          <button title="cover：裁满画框，无黑边">裁满</button>
+          <button title="stretch：拉伸铺满（会变形）">拉伸</button>
+        </div>
+      </div>
+      <div class="sect-t" style="margin:10px 0 6px"><span>变换</span></div>
+      <div class="fld w56"><span>大小</span><input class="range" type="range" min="0.05" max="3" step="0.01" value="1" /><span class="val">100%</span></div>
+      <div class="fld w56"><span>不透明度</span><input class="range" type="range" min="0" max="1" step="0.01" value="1" /><span class="val">100%</span></div>
+      <div class="sect-t" style="margin:10px 0 6px"><span>音频</span></div>
+      <div class="fld w56"><span>音量</span><input class="range" type="range" min="0" max="1" step="0.01" value="0.8" /><span class="val">80%</span></div>
+      <div class="mk-note" style="border-top:none;padding-top:4px">
+        改比例（16:9 ↔ 竖屏）产生的黑边，在 M1 只能「如实显示」；M2 给<b>裁满</b>一条路就能吃掉它。
+        音量先给<b>常数滑杆</b>，包络（关键帧音量曲线）是 M2 后续项，不在本轮。
+      </div>
+    </div>
+
+    <!-- B3 描边开关的收合交互 -->
+    <div class="mini-card" style="width:300px">
+      <div class="mini-title">描边组 · 开关收合（两个状态）</div>
+      <div class="sect-t"><span>描边 · 关闭（只留一行）</span></div>
+      <div class="fld w56" style="margin-bottom:2px"><span>描边</span>
+        <button class="ve-tgl" title="开启描边"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.6"/></svg></button>
+        <span class="val" style="flex:1;text-align:left;color:var(--t-faint)">已关闭</span>
+      </div>
+      <div class="sect-t" style="margin-top:12px"><span>描边 · 开启（宽度 + 颜色 + 预设）</span></div>
+      <div class="fld w56"><span>描边</span>
+        <button class="ve-tgl on" title="关闭描边"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="3.4"/></svg></button>
+        <span class="val" style="flex:1;text-align:left;color:var(--t-faint)">已开启</span>
+      </div>
+      <div class="vw-stroke-body">
+        <div class="fld w56"><span>描边宽度</span><input class="range" type="range" min="0" max="10" step="0.5" value="2" /><span class="val">2.0</span></div>
+        <div class="fld w56"><span>描边颜色</span><input class="swatch" type="color" value="#000000" style="background:#000" /><span class="val">#000000</span></div>
+      </div>
+      <div class="mk-note" style="border-top:none;padding-top:4px">
+        白字 + 黑描边是视频字幕的<b>默认样式</b>（任何底色上都读得清）—— 新建文字自带这组值，
+        用户第一次改的往往是颜色而不是「要不要描边」。
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-note">
+    <b>控件口径三条：</b>
+    ① <b>大小用「缩放百分比」不用宽高两格</b> —— 等比是默认语义，拉伸场景只属于视频 fit；
+    ② <b>位置用画布归一化坐标（X/Y）</b>，与工程分辨率解耦 —— 改工程比例时贴图位置不漂移；
+    ③ <b>不透明度三态共用一条滑杆</b>（0 = 全隐，等同于隐藏该片段），它是变换的一部分，不单独立「效果」组。
+  </div>
+</div>
+
+<!-- ══════════ 舞台 3：画布直接操作（所见即所得） ══════════ -->
+<div class="mk-stage">
+  <div class="mk-cap">
+    <span class="tag new">新</span><b>画布直接操作 —— 检查器数值与画面手柄双向同步。</b>
+    「改位置 / 改大小」的最高频路径是<b>直接在画面上拖</b>，检查器是精调与精确数值的第二路径 ——
+    两者改的是同一个 <code>clip.transform</code>，不存在「两处不同步」。
+    与旧 mockup 舞台 2 的定稿一致：<b>变换也能在画面上直接做，数值与画布双向同步</b>。
+  </div>
+
+  <div style="display:flex;gap:24px;flex-wrap:wrap">
+
+    <!-- C1 文字：拖动 / 角柄 / 双击 -->
+    <div>
+      <div class="vw-demo photo2">
+        <div class="vw-txt">CHAPTER 01 · 城市苏醒</div>
+        <div class="tr" style="left:36px;bottom:12px;width:448px;height:42px;top:auto">
+          <div class="box"></div>
+          <div class="stick" style="top:auto;bottom:100%;"></div>
+          <div class="rot" style="top:auto;bottom:calc(100% + 12px);"></div>
+          <div class="h tl"></div><div class="h tr"></div><div class="h bl"></div><div class="h br"></div>
+        </div>
+        <div class="tr-act" style="right:24px;bottom:36px;top:auto">
+          <button title="编辑文字（双击同效）"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>
+          <button title="复制片段"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+          <button class="del" title="删除片段"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4h8v2"/></svg></button>
+        </div>
+        <div class="size-tag" style="left:36px;bottom:-26px">拖动 = 位置 · 角柄 = 大小 · 顶部圆柄 = 旋转 · 双击 = 改内容</div>
+      </div>
+      <div class="vw-cap-list" style="margin-top:34px">
+        <div><b>角柄拖大 = 字号变大</b>：框高直接映射字号（22px → 拖到 44px 框即 44 号），
+          检查器「字号」数值跟着走 —— 用户不需要理解「缩放 vs 字号」两个概念。</div>
+        <div><b>双击进入编辑</b>：光标落在文字上，输入即改「文字内容」；
+          Esc / 点空白退出。不在画面上放常驻输入框。</div>
+      </div>
+    </div>
+
+    <!-- C2 贴图：拖动 / 角柄 -->
+    <div>
+      <div class="vw-demo photo4">
+        <div class="vw-logo" style="right:56px;top:44px;width:120px;height:42px"></div>
+        <div class="tr" style="right:56px;top:44px;width:120px;height:42px">
+          <div class="box"></div>
+          <div class="stick"></div>
+          <div class="rot"></div>
+          <div class="h tl"></div><div class="h tr"></div><div class="h bl"></div><div class="h br"></div>
+        </div>
+        <div class="tr-act" style="right:54px;top:14px">
+          <button title="复制片段"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+          <button class="del" title="删除片段"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4h8v2"/></svg></button>
+        </div>
+        <div class="size-tag" style="left:24px;bottom:-26px">拖动 = 位置 · 角柄 = 大小 · 不透明度在检查器</div>
+      </div>
+      <div class="vw-cap-list" style="margin-top:34px">
+        <div><b>贴图无「字号」概念</b>：角柄映射的是<b>缩放</b>（等比），与检查器「大小 100%」同源 ——
+          同一套手柄，文字映射字号、图片映射缩放，交互手感染不到差异。</div>
+        <div><b>拖出画框不裁剪</b>：贴图允许停在画框外（半出画是常见构图），
+          选中时画框外部分降透明度提示，导出自然裁掉。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-note">
+    <b>为什么「旋转」顺手进了变换组而不单独立项：</b>旋转柄已经在变换框上（kit 的 <code>.rot</code>），
+    数据上与位置 / 大小同属一份 <code>transform</code>；不给它一个检查器行，用户就得用柄凭手感转 —— 半行成本换精确数值，值。
+    <b>描边没有画布手柄</b>：它是「样式」不是「几何」，画面上没有自然的拖拽隐喻 —— 一律在检查器里改（这也是它被圈定为核心需求却没有画布交互的原因）。
+  </div>
+</div>
+
+<!-- ══════════ 舞台 4：数据契约与范围表 ══════════ -->
+<div class="mk-stage">
+  <div class="mini-card" style="width:1240px">
+    <div class="mini-title" style="margin-bottom:6px">数据契约对齐 —— 每个检查器控件落到哪份工程数据（M1 留的 unknown 字段在 M2 收窄，只改类型、无数据迁移）</div>
+    <table class="audit">
+      <tr>
+        <th style="width:150px">能力</th>
+        <th style="width:230px">入口</th>
+        <th style="width:300px">数据落点（core/types.ts）</th>
+        <th>说明</th>
+      </tr>
+      <tr>
+        <td class="k">描边（文字）</td>
+        <td>文字 Tab · 描边组（开关 / 宽度 / 颜色 / 预设）</td>
+        <td><code>clip.textStyle.stroke = {enabled, width, color}</code></td>
+        <td>M2 新增字段。白字黑边为新建文字的默认值；预览与导出走同一条 <code>renderFrameAt</code>（C8），描边所见即所得</td>
+      </tr>
+      <tr>
+        <td class="k">字号 / 颜色 / 字间距 / 对齐</td>
+        <td>文字 Tab · 样式组</td>
+        <td><code>clip.textStyle = {content, font, size, color, letterSpacing, align}</code></td>
+        <td>字号同时被画布角柄映射（框高 = 字号）；行高暂不暴露（用户未圈定，需要时加一行即可）</td>
+      </tr>
+      <tr>
+        <td class="k">大小 / 位置 / 旋转 / 透明度</td>
+        <td>画布直接操作 + 属性 / 文字 Tab · 变换组</td>
+        <td><code>clip.transform = {scale, x, y, rotation, opacity}</code>（M1 存的 <code>unknown</code> 字段，M2 收窄为该形状）</td>
+        <td>文字 / 贴图 / 视频三态共用同一份形状；预览用 CSS transform 叠加，导出走 <code>computeDrawRect</code> 同源换算（C8.1）</td>
+      </tr>
+      <tr>
+        <td class="k">取景（黑边）</td>
+        <td>属性 Tab · 取景（适应 / 裁满 / 拉伸）</td>
+        <td><code>clip.transform.fit = 'contain' | 'cover' | 'stretch'</code></td>
+        <td>C12.2 的 M2 解；默认 contain（与 M1 行为一致），改比例后的黑边用「裁满」吃掉</td>
+      </tr>
+      <tr>
+        <td class="k">贴图</td>
+        <td>时间轴「+ ▾」→ 画布图片节点清单</td>
+        <td><code>kind:'image'</code> 片段 → 叠加轨（自由时间位置，不磁吸）</td>
+        <td>来源仍是画布节点（C11 / C3：URL 走 <code>resolveClipSource</code> 唯一出口）；M1 的「图片入主视频轨」规则不变，叠加轨是<b>显式动作</b></td>
+      </tr>
+      <tr>
+        <td class="k">文字</td>
+        <td>时间轴「+ ▾」→ 文字（或文字 Tab 空态按钮）</td>
+        <td><code>kind:'text'</code> 片段 → 文字轨（紧凑轨 26px）</td>
+        <td><b>唯一凭空创建</b>的素材；新建即选中（直接开始打字），默认 3s、时长在轨道上拖，不在面板里填秒数</td>
+      </tr>
+      <tr>
+        <td class="k">轨道头三态</td>
+        <td>沿用 C7.4 图标网格（锁 / 眼 / 喇叭）</td>
+        <td><code>track.locked / hidden / muted</code>（M1 已有）</td>
+        <td>叠加轨 / 文字轨同样吃三态；「锁定轨拒绝编辑变换」由 <code>isClipLocked</code> 统一判（C7.3）</td>
+      </tr>
+      <tr>
+        <td class="k">历史栈</td>
+        <td>—</td>
+        <td>整份 tracks 快照（C6 沿用）</td>
+        <td>拖动变换 = <code>begin()</code> 于 pointerdown、<code>end()</code> 于 pointerup —— 一次拖动只落一张快照，不炸栈</td>
+      </tr>
+    </table>
+
+    <div class="mk-note" style="margin-top:10px">
+      <b>本轮不做（有位置，后补不返工）：</b>
+      文字阴影 / 背景框 / 气泡样式 · 入场出场动画 · 关键帧（位置 / 透明度随时间变化）· 音量包络 · 变速 · 滤镜调色 ·
+      多选批量变换。<br />
+      <b>为什么这些不做也不堵路：</b>它们全是「往 <code>textStyle</code> / <code>transform</code> / clip 上<b>加字段</b>」或「加面板分区」，
+      不动轨道结构与渲染管线 —— 检查器的 Tab 骨架（属性 / 文字 / 转场）和「选中什么给什么」的规则先立住，后续是填空不是翻修。<br />
+      <b>渲染红线：</b>描边 / 透明度 / 叠加顺序在<b>预览与导出必须是同一份代码</b>（C8）——
+      预览走 DOM/CSS 叠加、导出走 <code>renderFrameAt</code>，两者共享 <code>computeDrawRect</code> / <code>evaluateTransitionAlpha</code> 与本表的同一份数据，禁止出现「预览有描边、导出没有」。
+    </div>
+  </div>
+</div>
+
+<script>
+/* 波形：确定性伪随机生成（与 M1 mockup 同款；实现里峰值来自解码音频后按行高降采样绘制） */
+(function(){
+  function h(n){var x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x);}
+  var k=0;
+  document.querySelectorAll("svg.wave").forEach(function(sv){
+    k++;
+    var w=sv.getBoundingClientRect().width||360;
+    var cols=Math.max(60,Math.round(w/2.2)), base=1.16, d="";
+    for(var i=0;i<cols;i++){
+      var r=h(i*0.63+k*37.3);
+      var amp=0.08+Math.pow(r,1.5)*0.98;
+      if(i%13===0)amp*=0.42;
+      d+="M"+i+" "+(base-amp).toFixed(2)+"h0.8v"+amp.toFixed(2)+"h-0.8z";
+    }
+    sv.setAttribute("viewBox","0 0 "+cols+" 1.2");
+    sv.innerHTML='<path d="'+d+'"/>';
+  });
+})();
+</script>
+</body>
+</html>

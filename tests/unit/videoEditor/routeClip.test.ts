@@ -88,6 +88,37 @@ describe('needsCompositing — 导出路径唯一判据（docs/120 C5.1 / C12.1�
   it('入参收成单个 Project（不是 tracks + size 两参）', () => {
     expect(needsCompositing.length).toBe(1);
   });
+
+  it('多轨（M2）：主视频轨之外的视频轨上有内容 → 必须合成（直通只搬一条视频流）', () => {
+    const p = createEmptyProject();
+    // 第二条视频轨 = 叠加轨
+    p.tracks.splice(1, 0, {
+      id: 'v2',
+      name: '视频',
+      kind: 'video',
+      overlay: true,
+      locked: false,
+      hidden: false,
+      muted: false,
+      clips: [clip('b', 0, 2)],
+    });
+    expect(needsCompositing(p)).toBe(true);
+  });
+
+  it('多轨（M2）：新增的视频轨空着 → 仍可无损直通（不因"有两条轨"就多编码一次）', () => {
+    const p = createEmptyProject();
+    p.tracks.splice(1, 0, {
+      id: 'v2',
+      name: '视频',
+      kind: 'video',
+      overlay: true,
+      locked: false,
+      hidden: false,
+      muted: false,
+      clips: [],
+    });
+    expect(needsCompositing(p)).toBe(false);
+  });
 });
 
 describe('hasMixedSources — 异构素材判据', () => {

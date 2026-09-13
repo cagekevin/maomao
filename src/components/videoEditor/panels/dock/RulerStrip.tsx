@@ -23,6 +23,38 @@ export const RULER_HEIGHT = 22;
  */
 const PLAYHEAD_HIT_HALF_PX = 5;
 
+/** 播放头红线的**视觉宽度**（px）。 */
+export const PLAYHEAD_LINE_WIDTH_PX = 2;
+
+/**
+ * 播放头拖动命中区的半宽（px）—— 导出给轨道区那一段用。
+ *
+ * 【为什么两段必须同宽】用户在标尺上试出的"手感"会直接迁移到轨道区：
+ * 若上下两段命中宽度不同，就会出现「上面好点、下面点不中」的割裂体验。
+ * 故宽度与红线定位一样，**只有这一处定义**，两段都读它。
+ */
+export const PLAYHEAD_HIT_HALF_WIDTH_PX = PLAYHEAD_HIT_HALF_PX;
+
+/**
+ * 播放头红线的定位样式 —— **全工程唯一出处**（标尺段 与 轨道区段 共用）。
+ *
+ * 【为什么必须收成一个函数（这不是过度抽象，是修一个真实 bug）】
+ * 红线被拆成两段绘制（标尺在 `sticky` 行里只有 22px 高，轨道区那段在另一个容器里），
+ * 两段必须落在**同一像素列**。原先两处各写一遍 `left: timeToX(...)`，
+ * 结果一段写了 `-ml-px`、另一段没写 ⇒ **上下错开 1px**（用户实测报出的偏移）。
+ * 同一真相抄两处必漂 —— 故把「x 怎么算」收成这一个函数，两段都调它。
+ *
+ * 【为什么是 `x - 宽/2`】`timeToX(t)` 给出的是**时刻本身的位置**（数学上是一条零宽线）。
+ * 红线有实际宽度（2px），要让它**以该位置为中心**，须左移半个线宽。
+ * 两段都自带 `translateX(-50%)` 的话会把宽度算两次，故这里直接算像素、不用 transform。
+ */
+export function playheadLineStyle(
+  timeToX: (t: number) => number,
+  head: number,
+): { left: number; width: number } {
+  return { left: timeToX(head) - PLAYHEAD_LINE_WIDTH_PX / 2, width: PLAYHEAD_LINE_WIDTH_PX };
+}
+
 export interface RulerStripProps {
   /** 工程是否已加载（无工程则不渲染标尺与播放头）。 */
   hasProject: boolean;
@@ -30,10 +62,19 @@ export interface RulerStripProps {
   totalDuration: number;
   displayHead: number;
   onPlayheadPointerDown: (e: ReactPointerEvent) => void;
+  /**
+   * 本轮可用宽度（px）。
+   *
+   * 【为什么必须显式传进来】修正后的标尺住在 `sticky` 行里、由父级 `translateX` 跟随横滚，
+   * 它**自己不是滚动容器** ⇒ `flex-1` 之类的自适应宽度在这里失效（内容全是 `absolute`，
+   * 撑不开宽度）。故由父级把「轨道区可视宽 + 总内容宽」中较大的那个算好传进来，
+   * 标尺才知道自己要铺多长、横滚多少像素才够。
+   */
+  contentWidth: number;
 }
 
 export function RulerStrip(p: RulerStripProps) {
-  const { hasProject, pps, totalDuration, displayHead, onPlayheadPointerDown } = p;
+  const { hasProject, pps, totalDuration, displayHead, onPlayheadPointerDown, contentWidth } = p;
 
   /** 标尺刻度 —— 共用原语（`rulerTicks`）：步长只由缩放定，刻度点由总长定。 */
   const ticks = useMemo(
@@ -43,11 +84,12 @@ export function RulerStrip(p: RulerStripProps) {
 
   return (
     <>
-      {/* ── 标尺（data-timeline-ruler）── 共用原语 `rulerTicks`，与片段同区同原点 */}
+      {/* ── 标尺（data-timeline-ruler）── 共用原语 `rulerTicks`，与片段同区同原点。
+          宽度取父级算好的 `contentWidth`（与轨道行内容同宽），故刻度与片段的像素位置严格一致。 */}
       {hasProject && (
         <div
           className="relative border-b border-edge-faint"
-          style={{ height: RULER_HEIGHT }}
+          style={{ height: RULER_HEIGHT, width: contentWidth }}
           data-timeline-ruler
         >
           {ticks.map((t) => (
@@ -77,14 +119,18 @@ export function RulerStrip(p: RulerStripProps) {
           结果「只有拖把手才能移动」，线本身完全没反应（正是用户报的问题）。
           解法：线本体继续 `pointer-events-none`（纯视觉，不抢事件），**另起一层贯穿整条的命中区**，
           宽度给到左右各 `HIT_HALF_PX`（≈ 5px，共 10px）—— 明显好点中，又不足以大面积挡住片段。
-          层级：命中区 z-[21]（片段在 lane 内 z 更低），只有紧贴红线的窄带优先于片段，
-          片段其余区域照常可拖 —— 与剪映 / Premiere 的「playhead 细窄命中带」同款做法。 */}
+
+          ⚠️ 命中区**只在标尺行内**（本件住在 `sticky top-0` 行里，高只有 `RULER_HEIGHT`）。
+          它负责「点标尺上的红线」这一路；**轨道区那一大段的拖动命中由 VideoEditorDock 承担**
+          （见那里的 `data-playhead-hit`）—— 因为本件根本伸不到轨道区的高度里。
+          两段命中区调的是**同一个** `onPlayheadPointerDown`，所以行为一致。 */}
       {hasProject && (
         <>
           <div
-            className="absolute top-0 bottom-0 w-[2px] -ml-px z-[20] pointer-events-none"
+            className="absolute top-0 h-full z-[20] pointer-events-none"
             style={{
-              left: timeToX(displayHead, pps, 0),
+              // 定位走唯一出处 `playheadLineStyle`（含 -半宽居中），**不再各写 `-ml-px`**
+              ...playheadLineStyle((t) => timeToX(t, pps, 0), displayHead),
               background: 'rgb(var(--mao-danger) / 1)',
             }}
           />
@@ -95,7 +141,7 @@ export function RulerStrip(p: RulerStripProps) {
             aria-valuemax={Math.round(totalDuration)}
             aria-valuenow={Math.round(displayHead)}
             title="拖动播放头"
-            className="absolute top-0 bottom-0 z-[21] cursor-ew-resize touch-none"
+            className="absolute top-0 h-full z-[21] cursor-ew-resize touch-none"
             style={{ left: timeToX(displayHead, pps, 0), marginLeft: -PLAYHEAD_HIT_HALF_PX }}
             onPointerDown={onPlayheadPointerDown}
           >

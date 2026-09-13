@@ -1,14 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import {
-  Image as ImageIcon,
-  Plus,
-  ZoomIn,
-  Send,
-  Download,
-  AlertCircle,
-  Camera,
-} from 'lucide-react';
+import { Image as ImageIcon, Send, Download, AlertCircle, Camera } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import ExpandablePanel from '../base/ui/ExpandablePanel.tsx';
@@ -32,7 +24,7 @@ import { useNodeField } from '../../hooks/useNodeField.ts';
 import PromptLibraryButton from '../base/prompt/PromptLibraryButton.tsx';
 import { downloadUrl, resolveDownloadFilename } from '../base/utils/clipboard.ts';
 import JianyingIcon from '../base/ui/JianyingIcon.tsx';
-import { showToast, toastError } from '../base/core/toastStore.ts';
+import { showToast } from '../base/core/toastStore.ts';
 import { sendToResourceLibrary } from '../base/store/resourceStore.ts';
 import { openResourceLibrary } from '../base/store/taskStore.ts';
 import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts';
@@ -42,7 +34,7 @@ import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
 import { useFitNodeRatio } from '../../hooks/useFitNodeRatio.ts';
 import '../base/api/index.ts';
 import { logger } from '../base/core/logger.ts';
-import { fetchTasks, generateImage, resolveNodeAssetUrl } from '../base/api/index.ts';
+import { fetchTasks, generateImage } from '../base/api/index.ts';
 import { useNodePrefs, injectNodePrefs, PREFS_DEFAULTS } from '../base/canvas/nodePrefs.ts';
 import { commitNewNodes } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
@@ -55,7 +47,6 @@ import CameraSettingsSelector from '../base/editors/cameraParams/CameraSettingsS
 import { applyCameraSettingsToPrompt } from '../base/editors/cameraParams/cameraPrompt.ts';
 import type { CameraGenerationSettings } from '../base/editors/cameraParams/types.ts';
 import { generateId } from '../base/core/idGen.ts';
-import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
 import type { CameraStudioResult } from '../base/editors/cameraStudio.ts';
 
 /**
@@ -215,7 +206,6 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
 
   // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
   const rename = useNodeRename(id);
-  const fileRef = useRef<HTMLInputElement | null>(null);
   const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
   // 双击大图：原生 <dialog> 弹窗（无外框、无背景容器，只显示图片）
   const zoomRef = useRef<HTMLDialogElement | null>(null);
@@ -514,43 +504,11 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     },
   });
 
-  // 「上传参考图」：本地文件 → 统一落盘策略（File 直传 → 落盘失败内联兜底，见 filesApi.resolveNodeAssetUrl）
-  // → 追加进 data.images 作为参考图（refImages = 连线上游 + data.images 合并）。
-  // 【修死按钮】此前该 input 只有 ref 没有 onChange：点「上传参考图」弹出文件框，选完什么都不发生
-  // （与 AssetNode 曾修过的「选完不读」同一类缺陷）。
-  const handleRefFileSelect = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const f = e.target.files?.[0];
-      e.target.value = '';
-      if (!f) return;
-      const url = await resolveNodeAssetUrl(f, UPLOAD_DIRS.canvasDrop, f.name);
-      if (!url) {
-        toastError('上传失败');
-        return;
-      }
-      patchData({
-        images: [...(data.images || []), { id: generateId('img'), url, label: f.name }],
-      });
-    },
-    [data.images, patchData],
-  );
-
   // hover 操作栏按钮：图片类共享能力(crop/edit/compress)走 useImageHoverActions（带 onClick，修死按钮），
   // zoom/upload/send/jianying/download 按生图节点语义各自声明。
   const toolbarButtons = [
-    ...(refImages.length === 0
-      ? [
-          {
-            key: 'upload',
-            icon: <Plus size={14} />,
-            title: '上传参考图',
-            onClick: () => fileRef.current?.click(),
-          },
-        ]
-      : []),
     ...(hasImage
       ? [
-          { key: 'zoom', icon: <ZoomIn size={14} />, title: '放大' },
           {
             key: 'cameraStudio',
             icon: <Camera size={14} />,
@@ -611,14 +569,6 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       >
         {/* hover 操作栏（loading 时隐藏） */}
         {!loading && <HoverToolbar buttons={toolbarButtons} />}
-
-        <input
-          type="file"
-          ref={fileRef}
-          style={{ display: 'none' }}
-          accept="image/*"
-          onChange={handleRefFileSelect}
-        />
 
         {/* 就地裁剪浮层：挂在「主框层级」（与图片区同级），absolute inset-0 覆盖整个节点内容区，
           取消/裁剪按钮栏 top-full 以「主框底边 = 节点底边」为基准，稳定落在节点正下方、

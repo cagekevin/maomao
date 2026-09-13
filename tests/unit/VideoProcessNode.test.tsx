@@ -117,15 +117,15 @@ describe('VideoProcessNode — 模式挂载与切换', () => {
 });
 
 describe('VideoProcessNode — 视频来源', () => {
-  it('无视频 → 显示上传占位提示', () => {
+  it('无视频 → 显示「连接视频节点以导入」占位（本地文件上传已移除）', () => {
     setup();
-    expect(screen.getByText('上传视频或连接视频节点')).toBeTruthy();
+    expect(screen.getByText('连接视频节点以导入')).toBeTruthy();
   });
 
   it('data.sourceVideoUrl → 显示视频预览与文件名', () => {
     setup({ data: { sourceVideoUrl: 'http://x/v.mp4', sourceVideoName: 'v.mp4' } });
     expect(screen.getByText('v.mp4')).toBeTruthy();
-    expect(screen.queryByText('上传视频或连接视频节点')).toBeNull();
+    expect(screen.queryByText('连接视频节点以导入')).toBeNull();
   });
 
   it('上游连接 .mp4 → 自动取链并显示名称', () => {

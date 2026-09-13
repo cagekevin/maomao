@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>视频剪辑器 · M2 工作台（长在 M1 之上）· Mockup</title>
+<link rel="stylesheet" href="./mockup-kit.css" />
+<style>
+  /* ═══════════════════════════════════════════════════════════════
+     本图的唯一立场：M1 基座（工具带 / 轨道区 / 状态条）按
+     panels/dock/ 实测 1:1 还原，一颗按钮不增不减不改位；
+     M2 = 在它上方新增的一块（监视器 + 检查器），允许盖住顶栏与画布。
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* ── 宿主：M2 打开时 = 工作台(上) + M1 基座(下) 的纵向排列。
+        工作台可以一直顶到窗口最顶端（用户口径：可以挡住 nav）。 ── */
+  .m2-app{
+    width:1280px;height:830px;display:flex;flex-direction:column;overflow:hidden;
+    background:var(--canvas);border:1px solid var(--edge-muted);border-radius:var(--r-card);
+    box-shadow:var(--sh-card);
+  }
+
+  /* ── M2 · 工作台抬头（新增件，M1 没有）：收起入口靠左 —— 回基座 = 离开类动作。 ── */
+  .m2-head{
+    height:44px;flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 12px;
+    background:var(--surface-deep);border-bottom:1px solid var(--edge-faint);
+  }
+  .m2-head .ttl{font-size:13px;font-weight:600;color:var(--t-strong);display:flex;align-items:center;gap:7px;}
+  .m2-head .ttl span{font-size:11px;color:var(--t-faint);font-weight:400;}
+
+  /* ── M2 · 监视器（新增件） ── */
+  .m2-body{flex:1;min-height:0;display:flex;}
+  .m2-mid{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--surface-sunken);}
+  .m2-stage{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;padding:14px;}
+  .m2-frame{position:relative;width:684px;height:385px;background:#000;overflow:hidden;
+    border:1px solid var(--edge-strong);box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  /* 描边文字：白字黑边（描边颜色 #000 / 宽 2 / 字距 2 —— 与右栏数值一致）。
+     实现属 clip.textStyle.stroke；预览与导出同走 renderFrameAt（C8），所见即所得。 */
+  .m2-txt{
+    position:absolute;left:0;right:0;bottom:30px;text-align:center;
+    font-size:21px;font-weight:700;color:#fff;letter-spacing:2px;
+    text-shadow:-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000,2px 2px 0 #000,
+                -2px 0 0 #000,2px 0 0 #000,0 -2px 0 #000,0 2px 0 #000;
+  }
+  .m2-logo{position:absolute;right:32px;top:24px;width:92px;height:33px;border-radius:4px;
+    background:linear-gradient(160deg,#f2eee4,#c9c5ba);}
+  /* 走带行只剩两件与 M1 不重复的：循环（M1 没有）· 画面适应（画面自己的事）。
+     播放 / 片段边界 / 时间码 / scrub 全部只在 M1 工具带一处 —— 不复制第二份。 */
+  .m2-transport{
+    height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 12px;background:var(--surface-deep);border-top:1px solid var(--edge-faint);
+  }
+  .m2-transport .ib{width:28px;height:26px;display:flex;align-items:center;justify-content:center;
+    border:none;background:transparent;border-radius:7px;color:var(--t-muted);cursor:pointer;}
+  .m2-transport .ib:hover{background:var(--surface-hover);color:var(--t-strong);}
+  .m2-view{display:flex;align-items:center;gap:6px;justify-self:end;color:var(--t-faint);font-size:10px;}
+  .m2-sel{height:26px;padding:0 6px;display:flex;align-items:center;border-radius:var(--r-sm);
+    background:var(--input);border:1px solid var(--edge-muted);color:var(--t-body);font-size:11px;}
+
+  /* ── M2 · 检查器（新增件） ── */
+  .m2-right{width:264px;flex-shrink:0;background:var(--surface-deep);border-left:1px solid var(--edge-faint);
+    display:flex;flex-direction:column;overflow:auto;}
+  .m2-itabs{display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid var(--edge-faint);}
+  .m2-itabs button{
+    flex:1;height:28px;display:inline-flex;align-items:center;justify-content:center;gap:5px;
+    border-radius:var(--r-sm);border:1px solid transparent;background:transparent;
+    color:var(--t-secondary);font-size:11px;cursor:pointer;
+  }
+  .m2-itabs button:hover{background:var(--surface-hover);color:#fff;}
+  .m2-itabs button.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
+  .fld.w56>span{width:56px;}
+  .m2-panel{padding:10px;}
+  .m2-contentbox{min-height:46px;padding:6px 8px;border-radius:var(--r-sm);background:var(--input);
+    border:1px solid var(--edge-muted);font-size:11px;color:var(--t-body);line-height:1.6;}
+  /* 「添加」菜单里的画布图片缩略图（点一张落一张） */
+  .m2-thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:2px 2px 4px;}
+  .m2-thumbs .th{height:34px;border-radius:5px;border:1px solid var(--edge-muted);cursor:pointer;}
+  .m2-thumbs .th:hover{border-color:var(--accent-line);}
+  .m2-menu .foot{font-size:10px;color:var(--t-faint);padding:2px 4px 0;}
+  /* ═══════════════════════════════════════════════════════════════
+     M1 基座 —— 按 VideoEditorDock.tsx / DockToolbar.tsx / RulerStrip.tsx /
+     DockStatusBar.tsx 实测还原。只复刻，不发挥。
+     ═══════════════════════════════════════════════════════════════ */
+  .m1-dock{flex-shrink:0;display:flex;flex-direction:column;
+    border-top:1px solid var(--edge-strong);background:var(--surface-deep);}
+  /* 工具带：h-9(36px) px-2.5 text-xs（DockToolbar header 原参数） */
+  .m1-bar{
+    height:36px;flex-shrink:0;display:flex;align-items:center;gap:1px;padding:0 10px;
+    border-bottom:1px solid var(--edge-faint);font-size:12px;color:var(--t-primary);
+  }
+  .m1-bar .lbl{font-size:11px;color:var(--t-secondary);margin-right:3px;}
+  /* 动作按钮：p-1.5 rounded，hover 底色；可用 text-secondary，禁用 opacity-50（DockAction 原样式） */
+  .m1-btn{
+    width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;
+    border:none;background:transparent;border-radius:4px;color:var(--t-secondary);cursor:pointer;padding:0;
+  }
+  .m1-btn:hover{background:var(--surface-hover);color:var(--t-primary);}
+  .m1-btn.accent{color:var(--accent);}
+  .m1-btn.accent:hover{color:var(--accent);background:var(--surface-hover);}
+  .m1-btn.dis{opacity:.5;cursor:not-allowed;}
+  .m1-btn.dis:hover{background:transparent;color:var(--t-secondary);}
+  /* 分隔线：w-px h-4 bg-edge mx-1（实现原参数） */
+  .m1-sep{width:1px;height:16px;background:var(--edge);margin:0 4px;flex-shrink:0;}
+  /* 时间码：mono 11px tabular（formatTickLabel(t,1) → `0:08`） */
+  .m1-tc{font-size:11px;color:var(--t-primary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-variant-numeric:tabular-nums;margin:0 4px;}
+  .m1-tc .tot{color:var(--t-muted);}
+  .m1-tc .sl{color:var(--t-muted);margin:0 2px;}
+  /* 工具带正中的收起拖柄：绝对定位 left-1/2（DockToolbar 原实现 ——
+     一物两用：点一下收起基座 / 按住上下拖调高度）。M2 打开时原样保留。 */
+  .m1-collapse{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:44px;height:18px;display:flex;align-items:center;justify-content:center;
+    border:none;background:transparent;border-radius:999px;cursor:pointer;padding:0;
+  }
+  .m1-collapse i{display:block;width:32px;height:3px;border-radius:999px;background:var(--edge-strong);opacity:.7;}
+  .m1-collapse:hover{background:var(--surface-hover);}
+  .m1-collapse:hover i{opacity:1;}
+  /* 缩放滑块（实现：input range w-20 accent-current） */
+  .m1-zoom{width:80px;accent-color:var(--accent);}
+  /* 导出文字按钮（实现：px-2.5 py-1 rounded，无 primary 底 —— 就是文字按钮） */
+  .m1-export{
+    height:24px;padding:0 10px;border:none;border-radius:4px;background:transparent;
+    color:var(--t-body);font-size:12px;cursor:pointer;
+  }
+  .m1-export:hover{background:var(--surface-hover);color:#fff;}
+
+  /* 轨道区：固定左列 78px（TRACK_LABEL_PX）+ 右侧滚动区（同高逐行对齐） */
+  .m1-tracks{display:flex;min-height:0;}
+  .m1-labels{width:78px;flex-shrink:0;display:flex;flex-direction:column;
+    border-right:1px solid var(--edge-faint);background:var(--surface-deep);}
+  .m1-ruler-sp{height:22px;flex-shrink:0;border-bottom:1px solid var(--edge-faint);}
+  .m1-lane-sp{height:1px;flex-shrink:0;background:var(--edge-faint);}
+  /* 轨道头：四列图标 13px，无底色，状态靠文字颜色（TrackHead 原实现：
+     正常态全部 muted 灰；锁定/隐藏/静音 = accent。锁定钮常态显示 LockOpen） */
+  .m1-thead{height:38px;flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:2px;}
+  .m1-thead.sm{height:24px;}
+  .m1-ico{width:17px;height:17px;display:flex;align-items:center;justify-content:center;
+    border:none;background:transparent;color:var(--t-muted);cursor:pointer;border-radius:3px;padding:0;}
+  .m1-ico:hover{color:var(--t-secondary);}
+  .m1-ico.on{color:var(--accent);}
+  .m1-ico.type{cursor:default;opacity:.6;}
+  .m1-ico.type:hover{color:var(--t-muted);}
+  /* 标尺：22px，小刻度 1s 重复渐变 + 大刻度带秒数标签（RulerStrip 原样式） */
+  .m1-scroll{flex:1;min-width:0;position:relative;overflow:hidden;}
+  .m1-ruler{position:relative;height:22px;border-bottom:1px solid var(--edge-faint);
+    background-image:repeating-linear-gradient(to right,var(--edge) 0 1px,transparent 1px 45px);
+    background-size:100% 10px;background-repeat:repeat-x;background-position:0 100%;}
+  .m1-ruler i{position:absolute;bottom:0;width:1px;height:10px;background:var(--t-muted);opacity:.7;}
+  .m1-ruler em{position:absolute;top:2px;font-style:normal;font-size:9px;color:var(--t-secondary);
+    font-variant-numeric:tabular-nums;transform:translateX(3px);}
+  /* 轨道行：默认 38px（DEFAULT_ROW_HEIGHT）；每条下方独立 1px 分隔线（无条件渲染） */
+  .m1-lane{position:relative;height:38px;border-radius:6px;background:var(--surface-sunken);}
+  .m1-lane.sm{height:24px;border-radius:5px;}
+  /* 片段：rounded-[5px] border；常态 border-white/10 bg-surface-1；
+     选中 = accent 边 + 同色光圈；左右各一条 w-1 accent/50 边缘把手（常显） */
+  .m1-clip{position:absolute;top:2px;bottom:2px;overflow:hidden;border-radius:5px;
+    border:1px solid rgba(255,255,255,.10);background:var(--surface-1);cursor:grab;}
+  .m1-clip.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);}
+  .m1-clip .nm{
+    height:15px;display:flex;align-items:center;gap:3px;padding:0 4px;
+    font-size:9px;line-height:15px;color:#fff;background:rgba(0,0,0,.45);
+    white-space:nowrap;overflow:hidden;
+  }
+  .m1-clip .nm .aud{color:#7dd3fc;flex-shrink:0;}
+  .m1-clip .nm span.t{overflow:hidden;text-overflow:ellipsis;}
+  .m1-clip .strip{position:absolute;left:0;right:0;top:15px;bottom:0;}
+  .m1-clip .hd-l,.m1-clip .hd-r{position:absolute;top:0;bottom:0;width:4px;background:rgba(59,130,246,.5);z-index:2;}
+  .m1-clip .hd-l{left:0;border-radius:4px 0 0 4px;}
+  .m1-clip .hd-r{right:0;border-radius:0 4px 4px 0;}
+  /* 音频片段：蓝渐变底 + sky 波形（实现原配色） */
+  .m1-clip.audio{background:linear-gradient(180deg,rgba(59,130,246,.20),rgba(59,130,246,.07));}
+  .m1-clip.audio .wave{position:absolute;left:0;right:0;top:15px;bottom:0;width:100%;color:#7dd3fc;display:block;}
+  .m1-clip.audio .wave path{fill:currentColor;}
+  /* 文字片段（M2 新增轨的片段形态）：accent 淡底 + 内容直读 —— 名条省去（内容本身就是名字） */
+  .m1-clip.text{
+    background:rgba(59,130,246,.22);border-color:rgba(59,130,246,.55);
+    display:flex;align-items:center;justify-content:center;padding:0 6px;
+  }
+  .m1-clip.text .t{font-size:10px;color:#dbeafe;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* 播放头：2px 红线 + 顶部抓手（RulerStrip 原样式）+ 整线命中 */
+  .m1-ph{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;z-index:6;
+    background:var(--danger);cursor:ew-resize;}
+  .m1-ph i{position:absolute;top:0;left:-7px;width:16px;height:11px;background:var(--danger);
+    border-radius:3px 3px 1px 1px;box-shadow:0 1px 3px rgba(0,0,0,.5);}
+  .m1-ph i::after{content:"";position:absolute;left:5px;top:9px;
+    border-left:3px solid transparent;border-right:3px solid transparent;
+    border-top:5px solid var(--danger);}
+  /* 状态条：h-6 10px（DockStatusBar 原参数，贴底） */
+  .m1-status{height:24px;flex-shrink:0;display:flex;align-items:center;gap:4px;padding:0 12px;
+    background:var(--surface-sunken);font-size:10px;color:var(--t-muted);
+    white-space:nowrap;overflow:hidden;border-top:1px solid var(--edge-faint);}
+  .m1-status b{color:var(--t-body);font-weight:500;}
+
+  /* 抬头「添加 ▾」菜单（M2 新增入口） */
+  .m2-dd{position:relative;display:inline-flex;}
+  .m2-menu{
+    position:absolute;top:calc(100% + 6px);right:0;z-index:40;min-width:200px;padding:6px;display:none;
+    background:var(--surface-raised);border:1px solid var(--edge);border-radius:10px;box-shadow:var(--sh-pop);
+  }
+  .m2-dd:hover .m2-menu{display:block;}
+
+  /* 说明浮签 */
+  .m2-note{position:absolute;font-size:10px;line-height:1.5;color:var(--t-secondary);
+    background:rgba(20,20,20,.9);border:1px solid var(--edge);border-radius:var(--r-sm);padding:4px 8px;z-index:9;}
+  .m2-note.b{border-color:var(--accent-line);color:var(--accent-text);}
+
+  /* 变换框（kit .tr 在本图重新声明方向变体：选中件在画面下沿时手柄朝上） */
+  .m2-frame .tr .stick{top:auto;bottom:100%;}
+  .m2-frame .tr .rot{top:auto;bottom:calc(100% + 12px);}
+
+  /* 交互审计表 */
+  .audit{width:100%;border-collapse:collapse;font-size:11px;}
+  .audit th{text-align:left;font-weight:600;color:var(--t-secondary);white-space:nowrap;
+    padding:6px 8px;border-bottom:1px solid var(--edge);}
+  .audit td{padding:5px 8px;border-bottom:1px solid var(--edge-faint);color:var(--t-muted);
+    vertical-align:top;line-height:1.65;}
+  .audit td.k{color:var(--t-body);white-space:nowrap;}
+  .audit code{background:#1d1d1d;border:1px solid #292929;border-radius:5px;padding:1px 4px;
+    font-size:10px;color:#c9c9c9;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+</style>
+</head>
+<body>
+
+<div class="mk-head">
+  <h1>视频剪辑器 · M2 工作台（长在 M1 之上）· Mockup</h1>
+  <p>
+    <b>立场（用户口径）</b>：M1 基座里的按钮<b>一颗都不动</b> —— 本图下方的工具带 / 轨道区 / 状态条按
+    <code>DockToolbar.tsx</code> · <code>VideoEditorDock.tsx</code> · <code>RulerStrip.tsx</code> · <code>DockStatusBar.tsx</code>
+    <span class="hl">实测 1:1 还原</span>（按钮顺序、图标、置灰、正中收起拖柄、贴底状态条全部照抄）。
+    M2 只做一件事：<b>在 M1 的上面长出新增内容</b> —— 监视器 + 检查器 + 两条新轨（叠加 / 文字），
+    <b>允许盖住顶栏（nav）与画布</b>；收起工作台 = 回到现在的 M1，工程不丢。<br />
+    <b>M2 检查器范围（用户圈定的最基本件）</b>：文字 —— <b>描边颜色 / 宽度</b> · 字号 · 字间距 · 颜色 · 位置 · 透明度；
+    贴图 —— <b>大小 · 位置</b> · 透明度。旋转顺带进变换组（同一份 <code>clip.transform</code>，M1 已留 <code>unknown</code> 字段）。<br />
+    全页三屏：① 主形态（工作台 + 原样 M1 基座）· ② 检查器其余面板与添加入口 · ③ 契约对齐表。
+  </p>
+</div>
+
+<!-- ══════════ 舞台 1：主形态 ══════════ -->
+<div class="mk-stage">
+  <div class="mk-cap">
+    <span class="tag new">新增</span><b>M2 = 上方新增区（抬头 + 监视器 + 检查器），下方 M1 基座原样。</b>
+    工作台打开时盖住顶栏与画布；<b>M1 工具带 15 颗按钮 / 正中收起拖柄 / 贴底状态条一颗不少、一位不移</b>；
+    轨道区只是<b>多出两条新轨</b>（叠加 · 文字），原视频轨 / 音频轨的行高、名条、胶片条、波形、边缘把手全部照旧。
+    播放头是同一个（监视器与基座共用同一 playhead 单一真相源）。
+  </div>
+
+  <div class="m2-app">
+
+    <!-- ── M2 · 工作台抬头（唯一新增的"壳"）── -->
+    <div class="m2-head">
+      <button class="btn" title="整个工作台关掉，画布与顶栏恢复">收起</button>
+      <div class="vline sm"></div>
+      <div class="ttl">工作台 <span>开场镜头_v3 · 1280×720 · 30fps · 22.90s</span></div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:4px">
+        <!-- 添加入口（M2 新增）：贴图仍来自画布图片节点（守 C11「素材从画布来」）；文字是唯一凭空创建的素材 -->
+        <div class="m2-dd">
+          <button class="btn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            添加
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="m2-menu">
+            <!-- 顺畅原则（用户口径）：点开即所见 —— 不做二级页。
+                 文字：一次点击 = 落轨 + 选中 + 检查器聚焦，落下即可打字；
+                 贴图：画布图片缩略图直接摊在菜单里，点一张落一张（选中即入叠加轨）。 -->
+            <button class="menu-item" style="font-weight:600">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v16"/><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/><path d="M9 20h6"/></svg>
+              <span>文字 —— 落在播放头，落下即可打字</span>
+            </button>
+            <div class="menu-sep"></div>
+            <div class="m2-thumbs">
+              <span class="th photo" title="开场镜头首帧"></span>
+              <span class="th photo2" title="中景首帧"></span>
+              <span class="th photo3" title="空镜"></span>
+              <span class="th photo4" title="夜景"></span>
+              <span class="th" style="background:linear-gradient(160deg,#f2eee4,#c9c5ba)" title="logo_白.png"></span>
+              <span class="th" style="background:linear-gradient(160deg,#2b3a52,#111827)" title="光斑_叠加.png"></span>
+            </div>
+            <div class="foot">贴图 · 来自画布图片节点 —— 点一张即落叠加轨</div>
+          </div>
+        </div>
+        <button class="ib" title="专注模式：隐藏检查器，画面最大化"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+      </div>
+    </div>
+
+    <!-- ── M2 · 监视器 + 检查器 ── -->
+    <div class="m2-body">
+
+      <!-- 监视器 -->
+      <div class="m2-mid">
+        <div class="m2-stage">
+          <div class="checker"></div>
+          <div class="m2-frame photo2">
+            <div class="m2-txt">CHAPTER 01 · 城市苏醒</div>
+            <!-- 选中态：accent 变换框（拖动=位置 · 角柄=大小/字号 · 圆柄=旋转 · 双击=改内容） -->
+            <div class="tr" style="left:112px;bottom:16px;width:460px;height:42px">
+              <div class="box"></div>
+              <div class="stick"></div>
+              <div class="rot"></div>
+              <div class="h tl"></div><div class="h tr"></div><div class="h bl"></div><div class="h br"></div>
+            </div>
+            <div class="tr-act" style="right:110px;bottom:44px">
+              <button title="编辑文字（双击同效）"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>
+              <button title="复制片段"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+              <button class="del" title="删除片段"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4h8v2"/></svg></button>
+            </div>
+          </div>
+          <div class="m2-note" style="left:14px;top:12px">
+            工作台<b>盖住</b>顶栏与画布；<b>收起 = 整个工作台关掉</b>（不留任何痕迹）。
+          </div>
+        </div>
+
+        <div class="m2-transport">
+          <button class="ib" title="循环播放（调字幕落位时反复看同一段）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></button>
+          <span class="m2-sel">适应 · 46% ▾</span>
+        </div>
+      </div>
+
+      <!-- 检查器（选中文字片段 → 文字 Tab） -->
+      <div class="m2-right">
+        <div class="m2-itabs">
+          <!-- 两个 Tab（用户口径）：属性 + 动画。不再有「文字」Tab ——
+               属性面板的内容随选中对象变化（文字给文字属性、贴图给贴图属性、视频给取景音量）；
+               动画统一是渐隐渐现，视频片段多一项叠化。 -->
+          <button class="on" title="选中对象的属性">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+            属性
+          </button>
+          <button title="入场 / 出场（渐隐渐现）；视频片段这里是淡入淡出与叠化">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="12" r="5" fill="currentColor" stroke="none" opacity=".4"/><circle cx="15.5" cy="12" r="5"/></svg>
+            动画
+          </button>
+        </div>
+
+        <!-- 无分区标题（用户口径）：控件即面板，从上到下一条流；组间距只靠留白。 -->
+        <div class="m2-panel">
+          <div class="m2-contentbox">CHAPTER 01 · 城市苏醒</div>
+          <div class="fld" style="margin-top:9px"><span>字体</span><select class="sel"><option>PingFang SC</option><option>思源黑体</option><option>宋体</option></select></div>
+          <div class="fld"><span>字号</span><input class="range" type="range" min="12" max="120" step="1" value="21" /><span class="val">21</span></div>
+          <div class="fld"><span>颜色</span><input class="swatch" type="color" value="#ffffff" style="background:#fff" /><span class="val">#FFFFFF</span></div>
+          <div class="fld"><span>字间距</span><input class="range" type="range" min="0" max="20" step="0.5" value="2" /><span class="val">2.0</span></div>
+          <div class="fld"><span>对齐</span>
+            <div class="seg" style="flex:1">
+              <button title="左对齐"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h14"/></svg></button>
+              <button class="on" title="居中"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M7 12h10M5 18h14"/></svg></button>
+              <button title="右对齐"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M10 12h10M6 18h14"/></svg></button>
+            </div>
+          </div>
+          <!-- 描边：宽度 0 = 无描边（新建默认就是 0），不为它设开关 —— 宽度即真相；
+               宽度为 0 时颜色行置灰。本例 2px（用户拉过），黑边白字。 -->
+          <div class="fld w56" style="margin-top:9px"><span>描边宽度</span><input class="range" type="range" min="0" max="10" step="0.5" value="2" /><span class="val">2.0</span></div>
+          <div class="fld w56"><span>描边颜色</span><input class="swatch" type="color" value="#000000" style="background:#000" /><span class="val">#000000</span></div>
+          <div class="swatches" style="padding-left:64px">
+            <span class="sw on" style="background:#000" title="黑"></span>
+            <span class="sw" style="background:#fff" title="白"></span>
+            <span class="sw" style="background:#4b5563" title="深灰"></span>
+            <span class="sw" style="background:#ef4444" title="红"></span>
+            <span class="sw" style="background:#3b82f6" title="蓝"></span>
+          </div>
+          <div class="numgrid" style="margin:9px 0 8px">
+            <div class="nwrap"><i>X</i><input class="num" type="number" value="640" /></div>
+            <div class="nwrap"><i>Y</i><input class="num" type="number" value="600" /></div>
+          </div>
+          <div class="fld w56" style="margin-bottom:0"><span>不透明度</span><input class="range" type="range" min="0" max="1" step="0.01" value="1" /><span class="val">100%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         M1 基座 —— 实测还原，一颗按钮不增不减。
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="m1-dock">
+
+      <!-- 工具带（DockToolbar.tsx 顺序：走带 → 时间码 → 撤销/重做 → 分割/裁左/裁右/定格 → 删除/复制
+           → [正中收起拖柄] → 吸附 → 缩放 → 齿轮 → 导出） -->
+      <div class="m1-bar" style="position:relative">
+        <span class="lbl">时间轴</span>
+        <div style="display:flex;align-items:center;gap:2px">
+          <button class="m1-btn" title="上一片段边界"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg></button>
+          <button class="m1-btn accent" title="播放 / 暂停（M1 只出声）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg></button>
+          <button class="m1-btn" title="下一片段边界"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg></button>
+        </div>
+        <span class="m1-tc">0:08<span class="sl">/</span><span class="tot">0:22</span></span>
+        <span class="m1-sep"></span>
+        <button class="m1-btn" title="撤销"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4.2 7.8h9.6a5.4 5.4 0 0 1 0 10.8H10"/><path d="M7.6 4.4 4.2 7.8l3.4 3.4"/></svg></button>
+        <button class="m1-btn dis" title="没有可重做的编辑"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M19.8 7.8h-9.6a5.4 5.4 0 0 0 0 10.8H14"/><path d="M16.4 4.4l3.4 3.4-3.4 3.4"/></svg></button>
+        <span class="m1-sep"></span>
+        <button class="m1-btn" title="分割：把播放头移到片段内部再分割"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 2.8v18.4"/><path d="M8.2 6.4H2.6v11.2h5.6"/><path d="M15.8 6.4h5.6v11.2h-5.6"/></svg></button>
+        <button class="m1-btn" title="裁左：把播放头移到片段内部"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12.6 3v18" stroke-dasharray="2.2 2.6"/><path d="M16.6 5.8h4.8v12.4h-4.8"/></svg></button>
+        <button class="m1-btn" title="裁右：把播放头移到片段内部"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6.6 5.8H1.8v12.4h4.8"/><path d="M11.4 3v18" stroke-dasharray="2.2 2.6"/></svg></button>
+        <button class="m1-btn" title="定格：把播放头移到片段内部"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M2.8 5.4h18.4"/><path d="M7.2 5.4v13.2h13.6V5.4"/></svg></button>
+        <span class="m1-sep"></span>
+        <button class="m1-btn" title="删除（留洞 / 自动补齐由吸附开关决定）"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 6.6h16"/><path d="M9.4 6.6V4.3h5.2v2.3"/><path d="M6.7 6.6v13h10.6v-13"/></svg></button>
+        <button class="m1-btn" title="复制片段"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H15"/></svg></button>
+
+        <!-- 正中收起拖柄（实现原位：绝对 left-1/2；点一下收起 · 拖动调高度）—— M2 打开时原样保留 -->
+        <button class="m1-collapse" title="点一下收起 · 按住上下拖动可调高度"><i></i></button>
+
+        <span style="flex:1"></span>
+        <button class="m1-btn accent" title="吸附已开：片段之间不留空隙（拖拽 / 删除都会自动对齐）"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/></svg></button>
+        <span class="m1-sep"></span>
+        <button class="m1-btn" title="缩小时间轴"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+        <input class="m1-zoom" type="range" min="8" max="200" value="45" title="时间轴缩放" />
+        <button class="m1-btn" title="放大时间轴"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></svg></button>
+        <button class="m1-btn" title="缩放到一屏看全"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-15"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button>
+        <span class="m1-sep"></span>
+        <button class="m1-btn" title="工程参数与轨道高度"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v2.2M12 19.8V22M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2 12h2.2M19.8 12H22M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/></svg></button>
+        <span class="m1-sep"></span>
+        <button class="m1-export" title="导出为画布节点">导出</button>
+      </div>
+
+      <!-- 轨道区：左列 78px 图标网格（TrackHead 原样式：常态 muted 灰，激活 accent）+ 右侧滚动区 -->
+      <div class="m1-tracks">
+        <div class="m1-labels">
+          <div class="m1-ruler-sp"></div>
+          <!-- 视频轨（M1 原轨） -->
+          <div class="m1-thead">
+            <span class="m1-ico type" title="视频"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></span>
+            <button class="m1-ico" title="锁定"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
+            <button class="m1-ico" title="隐藏"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="m1-ico" title="静音"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg></button>
+          </div>
+          <div class="m1-lane-sp"></div>
+          <!-- 叠加轨（M2 新增） -->
+          <div class="m1-thead">
+            <span class="m1-ico type" title="叠加"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></span>
+            <button class="m1-ico" title="锁定"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
+            <button class="m1-ico" title="隐藏"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="m1-ico" title="静音"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg></button>
+          </div>
+          <div class="m1-lane-sp"></div>
+          <!-- 文字轨（M2 新增 · 紧凑行高 24px） -->
+          <div class="m1-thead sm">
+            <span class="m1-ico type" title="文字" style="font-size:10px;font-weight:700">T</span>
+            <button class="m1-ico" title="锁定"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
+            <button class="m1-ico" title="隐藏"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="m1-ico" title="静音" style="visibility:hidden"></button>
+          </div>
+          <div class="m1-lane-sp"></div>
+          <!-- 音频轨（M1 原轨） -->
+          <div class="m1-thead">
+            <span class="m1-ico type" title="音频"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg></span>
+            <button class="m1-ico" title="锁定"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
+            <button class="m1-ico" title="隐藏"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="m1-ico" title="静音"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg></button>
+          </div>
+          <div class="m1-lane-sp"></div>
+        </div>
+
+        <div class="m1-scroll">
+          <!-- 标尺（RulerStrip 原样式；刻度步长 5s，末刻度 = 总长） -->
+          <div class="m1-ruler">
+            <i style="left:0"></i><em style="left:0">0:00</em>
+            <i style="left:225px"></i><em style="left:225px">0:05</em>
+            <i style="left:450px"></i><em style="left:450px">0:10</em>
+            <i style="left:675px"></i><em style="left:675px">0:15</em>
+            <i style="left:900px"></i><em style="left:900px">0:20</em>
+            <i style="left:1031px"></i><em style="left:1031px">0:22</em>
+          </div>
+
+          <!-- 视频轨（M1 原样：名条 15px + 胶片条 + 左右边缘把手 + 原声角标） -->
+          <div class="m1-lane">
+            <div class="m1-clip" style="left:0;width:378px">
+              <span class="nm"><svg class="aud" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg><span class="t">开场镜头_v3.mp4</span></span>
+              <span class="strip photo"></span>
+              <span class="hd-l"></span><span class="hd-r"></span>
+            </div>
+            <div class="m1-clip" style="left:378px;width:279px">
+              <span class="nm"><svg class="aud" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg><span class="t">中景_跟拍.mp4</span></span>
+              <span class="strip photo2"></span>
+              <span class="hd-l"></span><span class="hd-r"></span>
+            </div>
+            <div class="m1-clip" style="left:657px;width:374px">
+              <span class="nm"><svg class="aud" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg><span class="t">空镜_城市.mp4</span></span>
+              <span class="strip photo4"></span>
+              <span class="hd-l"></span><span class="hd-r"></span>
+            </div>
+          </div>
+          <div class="m1-lane-sp"></div>
+
+          <!-- 叠加轨（M2 新增）：贴图自由摆放 -->
+          <div class="m1-lane">
+            <div class="m1-clip" style="left:729px;width:180px">
+              <span class="nm"><span class="t">logo_白.png</span></span>
+              <span class="strip" style="background:linear-gradient(160deg,#f2eee4,#c9c5ba) no-repeat center/contain"></span>
+              <span class="hd-l"></span><span class="hd-r"></span>
+            </div>
+          </div>
+          <div class="m1-lane-sp"></div>
+
+          <!-- 文字轨（M2 新增 · 紧凑 24px）：选中「标题」→ 检查器文字面板 -->
+          <div class="m1-lane sm">
+            <div class="m1-clip text sel" style="left:90px;width:315px">
+              <span class="t">CHAPTER 01 · 城市苏醒</span>
+              <span class="hd-l"></span><span class="hd-r"></span>
+            </div>
+            <div class="m1-clip text" style="left:855px;width:176px">
+              <span class="t">出品 · 猫猫画布</span>
+              <span class="hd-l"></span><span class="hd-r"></span>
+            </div>
+          </div>
+          <div class="m1-lane-sp"></div>
+
+          <!-- 音频轨（M1 原样：真实波形 + 边缘把手） -->
+          <div class="m1-lane">
+            <div class="m1-clip audio" style="left:0;width:1031px">
+              <span class="nm"><span class="t">旁白_v2.m4a</span></span>
+              <svg class="wave" preserveAspectRatio="none"></svg>
+              <span class="hd-l"></span><span class="hd-r"></span>
+            </div>
+          </div>
+          <div class="m1-lane-sp"></div>
+
+          <!-- 播放头（RulerStrip 原样式：红线 + 抓手；监视器与基座共用同一 playhead） -->
+          <div class="m1-ph" style="left:378px"><i></i></div>
+        </div>
+      </div>
+
+      <!-- 状态条（DockStatusBar 原样：贴底 · 常驻导出信息） -->
+      <div class="m1-status">
+        合成重编码（有片段分辨率不一致）<span>·</span><b>1280×720</b><span>·</span><b>30fps</b><span>·</span>无黑边<span>·</span>音频出口 AAC 48kHz
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-note">
+    <b>M1 原样清单（逐项对照实现，M2 打开时零改动）：</b>
+    工具带 36px：走带三键（播放键 accent）→ 时间码 <code>0:08 / 0:22</code>（mono，formatTickLabel 原格式）→ 撤销 / 重做（恒常渲染、不可用置灰）→
+    分割 / 裁左 / 裁右 / 定格 → 删除 / 复制 → <b>正中收起拖柄</b>（点一下收起 · 拖动调高度，绝对定位 left-1/2）→
+    吸附（accent = 开）→ ⊖ 滑块 ⊕ 一屏看全 → 齿轮（工程参数浮层）→ 导出（文字按钮）。<br />
+    轨道区：左列 78px 四列图标网格（<b>常态全部 muted 灰、激活 = accent</b>，锁定钮常态即 LockOpen）·
+    标尺 22px · 行高 38px · 名条 15px 黑底 · 胶片条 / 波形 · 左右 4px accent 边缘把手 · 每轨下方 1px 分隔线 · 播放头红线 + 抓手。<br />
+    状态条 24px 贴底：导出路径 · 1280×720 · 30fps · 黑边 · 音频出口（C5.6 常驻）。<br />
+    <b>M2 只新增（不动上面任何一颗）</b>：抬头（收起 / 添加 ▾ / 专注）·
+    监视器（<b>纯画面 + 循环 / 适应</b> —— 播放、时间码、片段边界、scrub 一律不复制第二份，都在下面那处）·
+    检查器（<b>无分区标题</b>，控件一条流）·
+    叠加轨与文字轨两条新轨（视频 / 音频轨的行高、样式原样；文字轨用紧凑行高 24px）。
+  </div>
+</div>
+
+<!-- ══════════ 舞台 2：检查器其余面板 + 添加入口 ══════════ -->
+<div class="mk-stage">
+  <div class="mk-cap">
+    <span class="tag keep">沿用</span><b>检查器只有两个 Tab：属性 | 动画，内容随选中对象变化。</b>
+    主屏是文字的属性面板；这里补：选中<b>贴图</b>的属性、选中<b>视频片段</b>的属性（取景 = C12.2 黑边的 M2 解）、
+    以及第二个 Tab <b>动画</b>（渐隐渐现；视频片段另有叠化与<b>变速</b> —— 固定倍速 / 曲线）与抬头「添加 ▾」的入口语义。
+  </div>
+
+  <div class="mini">
+    <div class="mini-card" style="width:300px">
+      <div class="mini-title">检查器 · 属性 → 选中「贴图」（logo_白.png）</div>
+      <!-- 大小 = 等比缩放（不暴露宽高两格）；位置 = 画布归一化坐标，改工程比例不漂移 -->
+      <div class="fld w56"><span>大小</span><input class="range" type="range" min="0.05" max="3" step="0.01" value="1" /><span class="val">100%</span></div>
+      <div class="numgrid">
+        <div class="nwrap"><i>X</i><input class="num" type="number" value="1094" /></div>
+        <div class="nwrap"><i>Y</i><input class="num" type="number" value="107" /></div>
+      </div>
+      <div class="fld w56"><span>旋转</span><input class="range" type="range" min="-180" max="180" step="1" value="0" /><span class="val">0°</span></div>
+      <div class="fld w56"><span>不透明度</span><input class="range" type="range" min="0" max="1" step="0.01" value="0.9" /><span class="val">90%</span></div>
+      <div class="mk-note" style="border-top:none;padding-top:4px">
+        贴图落<b>叠加轨</b>（自由时间位置）；来源仍是<b>画布图片节点</b>（C11 / C3 不破）。
+      </div>
+    </div>
+
+    <div class="mini-card" style="width:300px">
+      <div class="mini-title">检查器 · 属性 → 选中「视频片段」</div>
+      <div class="fld w56"><span>适应画面</span>
+        <div class="seg" style="flex:1">
+          <button class="on" title="完整显示，可能有黑边">适应</button>
+          <button title="裁满画框，无黑边">裁满</button>
+          <button title="拉伸铺满（会变形）">拉伸</button>
+        </div>
+      </div>
+      <div class="fld w56" style="margin-top:12px"><span>大小</span><input class="range" type="range" min="0.05" max="3" step="0.01" value="1" /><span class="val">100%</span></div>
+      <div class="fld w56"><span>不透明度</span><input class="range" type="range" min="0" max="1" step="0.01" value="1" /><span class="val">100%</span></div>
+      <div class="fld w56" style="margin-top:12px"><span>音量</span><input class="range" type="range" min="0" max="1" step="0.01" value="0.8" /><span class="val">80%</span></div>
+      <div class="mk-note" style="border-top:none;padding-top:4px">
+        音量先给<b>常数滑杆</b>（写 <code>volumePoints</code> 的单点形态）；包络曲线是后续项，字段已留。
+      </div>
+    </div>
+
+    <div class="mini-card" style="width:300px">
+      <div class="mini-title">检查器 · 动画 → 选中「文字 / 贴图」</div>
+      <!-- 渐隐渐现 = 片段头尾 N 秒透明度曲线；不做动画库（弹跳 / 打字机等后补） -->
+      <div class="fld w56"><span>入场</span>
+        <div class="seg" style="flex:1">
+          <button title="无入场动画">无</button>
+          <button class="on" title="淡入（从头一个字到整行渐显）">淡入</button>
+        </div>
+      </div>
+      <div class="fld w56"><span>入场时长</span><input class="range" type="range" min="0.1" max="3" step="0.1" value="0.5" /><span class="val">0.5s</span></div>
+      <div class="fld w56" style="margin-top:12px"><span>出场</span>
+        <div class="seg" style="flex:1">
+          <button title="无出场动画">无</button>
+          <button title="淡出">淡出</button>
+        </div>
+      </div>
+      <div class="fld w56"><span>出场时长</span><input class="range" type="range" min="0.1" max="3" step="0.1" value="0.5" /><span class="val">0.5s</span></div>
+      <div class="mk-note" style="border-top:none;padding-top:4px">
+        渐隐渐现 = 片段<b>头尾 N 秒的透明度曲线</b>，随播放头实时预览；预设只有 无 / 淡入 / 淡出，
+        不堆动画库（弹跳 / 打字机等是后补项，加选项不加结构）。<b>变速不在这里</b> —— 只有视频片段有变速。
+      </div>
+    </div>
+
+    <div class="mini-card" style="width:300px">
+      <div class="mini-title">检查器 · 动画 → 选中「视频片段」</div>
+      <div class="fld w56"><span>淡入</span><input class="range" type="range" min="0" max="3" step="0.1" value="0.5" /><span class="val">0.5s</span></div>
+      <div class="fld w56"><span>淡出</span><input class="range" type="range" min="0" max="3" step="0.1" value="0" /><span class="val">0s</span></div>
+      <div class="fld w56" style="margin-top:12px"><span>叠化</span>
+        <div class="seg" style="flex:1">
+          <button title="与前一段硬切">硬切</button>
+          <button class="on" title="与前一段叠化（交叉溶解 0.6s）">叠化</button>
+        </div>
+      </div>
+      <div class="fld w56"><span>叠化时长</span><input class="range" type="range" min="0.1" max="3" step="0.1" value="0.6" /><span class="val">0.6s</span></div>
+
+      <!-- 变速（只有视频有，用户口径）：固定 = 一挡倍速；曲线 = 开始 / 中间 / 结束三个滑块
+           （剪映 / AE 式「只调速度」—— 不做任意控制点曲线编辑器） -->
+      <div class="fld w56" style="margin-top:12px"><span>变速</span>
+        <div class="seg" style="flex:1">
+          <button class="on" title="整段一个速度">固定</button>
+          <button title="开始 / 中间 / 结束各自的速度">曲线</button>
+        </div>
+      </div>
+      <div class="fld w56"><span>倍速</span><input class="range" type="range" min="0.5" max="4" step="0.1" value="1" /><span class="val">1.0x</span></div>
+
+      <div style="font-size:10px;color:var(--t-faint);margin-top:12px">曲线 —— 三个滑块定速（开始 → 中间 → 结束）</div>
+      <svg width="100%" height="36" viewBox="0 0 276 36" preserveAspectRatio="none" style="border:1px solid var(--edge-faint);border-radius:var(--r-sm);background:var(--surface-sunken)">
+        <line x1="0" y1="30" x2="276" y2="30" stroke="rgba(255,255,255,.12)"/>
+        <path d="M4 27 C 60 27 80 9 138 9 S 216 20 272 20" fill="none" stroke="var(--accent)" stroke-width="1.6"/>
+        <circle cx="4" cy="27" r="3" fill="#fff" stroke="var(--accent)"/>
+        <circle cx="138" cy="9" r="3" fill="#fff" stroke="var(--accent)"/>
+        <circle cx="272" cy="20" r="3" fill="#fff" stroke="var(--accent)"/>
+      </svg>
+      <div class="fld w56" style="margin-top:8px"><span>开始</span><input class="range" type="range" min="0.5" max="4" step="0.1" value="0.6" /><span class="val">0.6x</span></div>
+      <div class="fld w56"><span>中间</span><input class="range" type="range" min="0.5" max="4" step="0.1" value="2.0" /><span class="val">2.0x</span></div>
+      <div class="fld w56"><span>结束</span><input class="range" type="range" min="0.5" max="4" step="0.1" value="1.4" /><span class="val">1.4x</span></div>
+
+      <div class="mk-note" style="border-top:none;padding-top:4px">
+        淡入 / 淡出作用在<b>本片段的头尾</b>；叠化作用在<b>与前一段的接缝</b> —— 同一份
+        <code>transitionIn / transitionOut</code> 字段（M1 已留），时间轴接缝的圆点与这里改的是同一个值。<br />
+        <b>变速只属于视频片段</b>（文字 / 贴图的动画 Tab 没有这项）。变速会<b>改变片段时长</b>
+        （2x = 时长减半，轨道上片段实时变短）；曲线 = 三点之间线性插值，不做任意控制点编辑器。
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-note">
+    <b>添加入口的语义（抬头「添加 ▾」）：</b>
+    ① <b>文字</b> —— 唯一凭空创建的素材：落在播放头、默认 3s、新建即选中（检查器直接打字）；时长在轨道上拖，不在面板里填秒数。
+    ② <b>贴图 · 画布图片节点</b> —— 列出画布上的图片节点，点选落<b>叠加轨</b>（不进主视频轨；M1「图片入主视频轨」的规则不变，叠加是显式动作）。
+    ③ <b>新建叠加轨</b> —— <code>createTrack</code> 是 M2 才暴露的原语（M1 只定义不实现）。
+  </div>
+</div>
+
+<!-- ══════════ 舞台 3：契约对齐表 ══════════ -->
+<div class="mk-stage">
+  <div class="mini-card" style="width:1240px">
+    <div class="mini-title" style="margin-bottom:6px">契约对齐 —— 每个新增件落到哪份数据 / 哪条 M1 纪律（M1 的 <code>unknown</code> 字段在 M2 收窄，只改类型、无数据迁移）</div>
+    <table class="audit">
+      <tr>
+        <th style="width:150px">新增件</th>
+        <th style="width:300px">数据落点（core/types.ts）</th>
+        <th>说明</th>
+      </tr>
+      <tr>
+        <td class="k">描边（文字）</td>
+        <td><code>clip.textStyle.stroke = {width, color}</code>（M2 新增字段；<code>ClipKind</code> 增 <code>'text'</code>）</td>
+        <td><b>宽度 0 = 无描边（新建默认就是 0），不设开关</b> —— 宽度即真相；预览与导出同走 <code>renderFrameAt</code>（C8），所见即所得</td>
+      </tr>
+      <tr>
+        <td class="k">字号 / 颜色 / 字间距 / 对齐</td>
+        <td><code>clip.textStyle = {content, font, size, color, letterSpacing, align}</code></td>
+        <td>画布角柄直接映射字号（框高 = 字号）；行高暂不暴露（未圈定，加一行即可）</td>
+      </tr>
+      <tr>
+        <td class="k">大小 / 位置 / 旋转 / 透明度</td>
+        <td><code>clip.transform = {scale, x, y, rotation, opacity}</code>（M1 的 <code>unknown</code> 字段收窄）</td>
+        <td>文字 / 贴图 / 视频共用同一形状；预览 CSS transform 与导出 <code>computeDrawRect</code> 同源换算（C8.1）</td>
+      </tr>
+      <tr>
+        <td class="k">取景（黑边）</td>
+        <td><code>clip.transform.fit = 'contain' | 'cover' | 'stretch'</code></td>
+        <td>默认 contain（与 M1 行为一致）；<code>needsCompositing</code> 判据不变</td>
+      </tr>
+      <tr>
+        <td class="k">动画（渐隐渐现 / 叠化）</td>
+        <td><code>clip.transitionIn / transitionOut = {type: 'none' | 'fade', duration}</code>（M1 的 <code>unknown</code> 字段收窄）</td>
+        <td>淡入 / 淡出作用在<b>片段头尾</b>；<b>叠化 = 与前一段的接缝转场，同一份字段</b> —— 时间轴接缝圆点与动画 Tab 改的是同一个值，预览经 <code>evaluateTransitionAlpha</code> 同源换算</td>
+      </tr>
+      <tr>
+        <td class="k">变速（仅视频）</td>
+        <td><code>clip.speed = number | {start, mid, end}</code>（M2 新增字段：数字 = 固定倍速；三值 = 曲线，段间线性插值）</td>
+        <td><b>只有视频片段有</b>（文字 / 贴图动画 Tab 无此项）。变速<b>改变片段时长</b>（2x = 时长减半），轨道宽度实时变短；
+            变速片段必然走合成重编码（无法直通）；音调保持，变声不做</td>
+      </tr>
+      <tr>
+        <td class="k">叠加轨 / 文字轨</td>
+        <td><code>Track.overlay: true</code>（M1 已有的显式标记，M2 开始出现 <code>overlay === true</code> 的视频类轨）</td>
+        <td><code>routeClipToTrack</code> 判据不变；贴图 / 文字经<b>显式动作</b>进叠加 / 文字轨；自由轨保留自由时间位置（C1.2）</td>
+      </tr>
+      <tr>
+        <td class="k">文字轨行高</td>
+        <td>紧凑行高常量（24px），不写进 <code>ui.rowHeight</code></td>
+        <td><code>ui.rowHeight</code> 仍是视频 / 音频轨的单一出处（C7.5 不破）；文字轨是展示型轨道，固定紧凑</td>
+      </tr>
+      <tr>
+        <td class="k">播放头 / 选中</td>
+        <td><code>project.playhead</code>（M1 已有，单一真相源）</td>
+        <td>监视器 scrub / 走带 / 基座播放头同一值；选中片段在检查器与轨道光圈间联动</td>
+      </tr>
+      <tr>
+        <td class="k">历史栈</td>
+        <td>整份 tracks 快照（C6 沿用）</td>
+        <td>拖动变换 = <code>begin()</code> 于 pointerdown、<code>end()</code> 于 pointerup —— 一次拖动一张快照</td>
+      </tr>
+    </table>
+
+    <div class="mk-note" style="margin-top:10px">
+      <b>收起 = 整个工作台关掉</b>（画布与顶栏恢复；工程随改随存，不丢）；M1 的按钮、轨道、状态条在 M2 打开 / 收起两个状态下<b>逐像素一致</b> ——
+      这是本图的第一验收项。<br />
+      <b>本轮不做</b>：文字阴影 / 背景框 / 气泡 · 更多动画预设（弹跳 / 打字机等）· 关键帧 · 音量包络曲线 ·
+      任意控制点的速度曲线（本轮只做固定倍速 / 三点曲线）· 滤镜调色 · 多选批量变换
+      —— 全是「加字段 / 加面板分区」的填空，不动骨架与渲染管线。
+    </div>
+  </div>
+</div>
+
+<script>
+/* 波形：确定性伪随机生成（实现里峰值来自解码音频后按行高降采样，C11.7b） */
+(function(){
+  function h(n){var x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x);}
+  document.querySelectorAll("svg.wave").forEach(function(sv){
+    var w=sv.getBoundingClientRect().width||360;
+    var cols=Math.max(60,Math.round(w/2.2)), base=1.16, d="";
+    for(var i=0;i<cols;i++){
+      var r=h(i*0.63+37.3);
+      var amp=0.08+Math.pow(r,1.5)*0.98;
+      if(i%13===0)amp*=0.42;
+      d+="M"+i+" "+(base-amp).toFixed(2)+"h0.8v"+amp.toFixed(2)+"h-0.8z";
+    }
+    sv.setAttribute("viewBox","0 0 "+cols+" 1.2");
+    sv.innerHTML='<path d="'+d+'"/>';
+  });
+})();
+</script>
+</body>
+</html>

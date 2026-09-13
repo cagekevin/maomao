@@ -161,22 +161,18 @@ beforeEach(() => {
 });
 
 describe('VideoExtractNode — 空态与视频来源', () => {
-  it('无视频 → 显示上传占位，且无提取结果', () => {
+  it('无视频 → 显示「连接视频节点以导入」占位，且无提取结果', () => {
     setup();
-    expect(screen.getByText('点击上传视频或连接节点')).toBeTruthy();
+    // 本地文件上传已移除：唯一来源是上游连接，故占位文案改为引导连线
+    expect(screen.getByText('连接视频节点以导入')).toBeTruthy();
     expect(screen.getByText('等待提取')).toBeTruthy();
     expect(screen.queryByText('复制全部')).toBeNull();
   });
 
-  it('上传视频 → 显示视频名与替换按钮', () => {
-    const { container } = setup();
-    const input = container.querySelector('input[type="file"]')!;
-    fireEvent.change(input, {
-      target: { files: [new File(['x'], 'myvideo.mp4', { type: 'video/mp4' })] },
-    });
+  it('data.videoUrl 预置 → 显示视频名', () => {
+    setup({ data: { videoUrl: 'http://x/myvideo.mp4', videoName: 'myvideo.mp4' } });
     expect(screen.getByText('myvideo.mp4')).toBeTruthy();
-    expect(screen.getByText('替换视频')).toBeTruthy();
-    expect(h.previewCreate).toHaveBeenCalled();
+    expect(screen.queryByText('连接视频节点以导入')).toBeNull();
   });
 
   it('上游连接视频 → 自动获取并显示视频名', async () => {
@@ -218,10 +214,11 @@ describe('VideoExtractNode — 配置面板与模式切换', () => {
 });
 
 describe('VideoExtractNode — 开始处理校验', () => {
-  it('无视频点开始处理 → toast 提示先上传或连接', () => {
+  it('无视频点开始处理 → toast 提示先连接视频节点', () => {
     setup();
     fireEvent.click(screen.getByText('开始处理'));
-    expect(h.showToast).toHaveBeenCalledWith('请先上传或连接视频');
+    // 无视频时由按钮的 onGenerate 守卫直接拦截并 toast（不会走到 startExtract 的同一判据）
+    expect(h.showToast).toHaveBeenCalledWith('请先连接视频节点');
   });
 });
 
@@ -360,15 +357,6 @@ describe('VideoExtractNode — 结果落盘 node.data（刷新不丢）', () => 
     expect(
       finalCall!.extractedImages!.every((f: string) => f === 'data:image/jpeg;base64,frame'),
     ).toBe(true);
-  });
-
-  it('上传新视频 → 清空 data.extractedImages（旧帧不残留）', () => {
-    setup({ data: { extractedImages: ['data:image/jpeg;base64,old'] } });
-    const input = document.querySelector('input[type="file"]')!;
-    fireEvent.change(input, {
-      target: { files: [new File(['x'], 'new.mp4', { type: 'video/mp4' })] },
-    });
-    expect(h.patchData).toHaveBeenCalledWith({ extractedImages: [] });
   });
 
   it('手动截取 → 逐帧追加到 node.data', () => {

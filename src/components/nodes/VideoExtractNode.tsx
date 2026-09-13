@@ -1,14 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import {
-  Clapperboard,
-  Copy,
-  Download,
-  Settings,
-  Camera,
-  AlertCircle,
-  Upload,
-  Loader2,
-} from 'lucide-react';
+import { Clapperboard, Copy, Download, Settings, Camera, AlertCircle, Loader2 } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import { useContentHeightSync } from '../base/core/uiHooks.ts';
 import GenerateButton from '../base/ui/GenerateButton.tsx';
@@ -34,7 +25,6 @@ const MULTIWINDOW_CLIPBOARD_KEY = 'mutiwindow-clipboard';
  *
  * 结构（外壳统一到 NodeShell，业务内容放在 children）：
  *   <NodeShell minWidth=280 minHeight=mode-dependent handleVariant=small>  ← 标题/端口/背景/缩放/尺寸订阅全内置
- *     <input type=file hidden />
  *     <div flex-1 flex flex-col overflow-hidden relative>         ← 内容+底部 一体（Component1462）
  *       <div flex-1 bg-surface-black p-4 ...>                     ← 内容区（Component1428）
  *       <div p-4 bg-surface ...>                                  ← 底部（Component1461）
@@ -42,7 +32,7 @@ const MULTIWINDOW_CLIPBOARD_KEY = 'mutiwindow-clipboard';
  *   </NodeShell>
  *
  * 功能：
- *  - 视频来源：上传视频文件 或 从直接上游节点自动获取（videoUrl / assetUrl / text 里的视频链接）
+ *  - 视频来源：从直接上游节点自动获取（videoUrl / assetUrl / text 里的视频链接）
  *  - 5 种抽帧模式：固定数量 / 等距 / 智能转场 / 首尾帧 / 手动截取
  *  - 用 canvas.drawImage 抽帧，输出 JPEG base64 缩略图网格
  *  - 单帧/全部复制（mutiwindow-images 格式，可 Ctrl+V 粘贴成图片节点）
@@ -58,9 +48,9 @@ interface VideoExtractNodeData {
   /**
    * 视频源 —— **外部注入通道**（只读入口，非本节点产出）。
    * 可被 Agent `update_node_any_field` / 快照 / 测试预置；本节点**自己不写回**这两个字段：
-   * 上传走 `previewUrls.create`（`blob:` 不可持久）、上游视频经 `useConnectedInputs` 实时读。
+   * 上游视频经 `useConnectedInputs` 实时读。
    * 【2026-09-11 数据体检】确认全库（含 TS 迁移前 .jsx）零写入方，判定为"注入入口"而非"幽灵结果字段"，
-   * 故保留声明与读取；上传物不落盘这点见 spec/TECH-DEBT.md TD-9 附件口径。
+   * 故保留声明与读取。
    */
   videoUrl?: string;
   videoName?: string;
@@ -99,10 +89,7 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
   const [intervalSec, setIntervalSec] = useState(data.intervalSec || 2);
   const [sensitivity, setSensitivity] = useState(data.sensitivity || 30);
 
-  // 视频来源
-  const [file, setFile] = useState<File | null>(null); // 上传的 File
-  // 视频源三来源：① 外部注入（data.videoUrl，Agent/快照/测试预置，见 interface 注释）
-  // ② 会话内上传（blob: 预览，不落盘）③ 上游连线（useConnectedInputs 实时读）。
+  // 视频来源：连接上游含视频的节点（assetNode/videoProcessNode 等，经 useConnectedInputs 实时读）
   const [videoUrl, setVideoUrl] = useState(data.videoUrl || '');
   const [videoName, setVideoName] = useState(data.videoName || '');
 
@@ -147,12 +134,10 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [showConfig, setShowConfig] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // 从上游自动获取视频链接（对齐官方 ec.jsx 的连接检测）
   const upstreamVideo = connected.videos?.[0]?.url || '';
   useEffect(() => {
-    if (file) return; // 手动上传优先
     const detected = upstreamVideo || '';
     if (detected && detected !== videoUrl) {
       setVideoUrl(detected);
@@ -172,20 +157,6 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
       return url;
     }
   }
-
-  const onUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setFile(f);
-    previewUrls.release(videoUrl); // 替换前释放旧预览，避免计数错位
-    setVideoUrl(previewUrls.create(f) ?? '');
-    setVideoName(f.name);
-    setErrorMessage('');
-    setExtractedImages([]);
-    patchData({ extractedImages: [] }); // 换素材清空落盘结果，防旧帧残留
-    setProgress(0);
-    e.target.value = '';
-  };
 
   // 抽一帧（seek 后 drawImage 到 canvas → base64）
   // 宿主薄包装：底层 seek+drawImage 已收口到 base/utils/captureFrame 的 drawVideoFrame；
@@ -266,17 +237,16 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
   }
 
   const startExtract = async () => {
-    if (!videoUrl && !file) {
-      showToast('请先上传视频或连接包含视频的节点');
+    if (!videoUrl) {
+      showToast('请先连接包含视频的节点');
       return;
     }
     // 【防重入】同步 ref 原子防重：快速双击时第二次立即被拒，避免并发抽帧（对齐 useNodeGeneration R4）
     if (extractingRef.current) return;
     extractingRef.current = true;
-    // 仅当本次用上传 File 现场创建预览 URL 时才需在收尾释放；否则 src 即为状态里的 videoUrl，
-    // 生命周期已由组件卸载/替换素材时的 release 管理，此处不重复 revoke。
-    const ownUrl = file ? previewUrls.create(file) : null;
-    const src = ownUrl || videoUrl;
+    // src 即为状态里的 videoUrl（上游连线注入），生命周期由组件卸载时的 release 管理。
+    const ownUrl = null;
+    const src = videoUrl;
     setLoading(true);
     setErrorMessage('');
     setProgress(0);
@@ -367,8 +337,6 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
         (err as { message?: string }).message || '抽帧失败，可能是视频格式或跨域限制',
       );
     } finally {
-      // 收尾释放本次现场创建的预览 URL，避免重复上传/抽帧累积泄漏（P2-5）
-      if (ownUrl) previewUrls.release(ownUrl);
       extractingRef.current = false; // 防重入复位
     }
   };
@@ -455,15 +423,6 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
       className="min-w-[280px]"
       style={{ minHeight: mode === 'manual' ? 380 : 220 }}
     >
-      {/* 隐藏文件输入 */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        accept="video/*"
-        style={{ display: 'none' }}
-        onChange={onUpload}
-      />
-
       {/* 内容+底部 一体容器（对齐官方 Component1462）。
           参照 ImageBoxNode 成熟范式：NodeShell 主容器不加 overflow-hidden，
           children 主容器负责 overflow 裁剪，圆角由内部内容区/底部块各自提供：
@@ -630,22 +589,10 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
                   {videoName || '已连接视频'}
                 </span>
               </div>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="text-caption-sm text-body hover:text-white flex-shrink-0 ml-2 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded transition-colors cursor-pointer"
-              >
-                替换视频
-              </button>
             </div>
           ) : (
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full py-6 rounded-xl border-2 border-dashed border-edge bg-surface-black hover:bg-surface hover:border-edge-strong flex flex-col items-center justify-center gap-3 cursor-pointer transition-colors"
-            >
-              <div className="p-3 bg-surface-1 rounded-full">
-                <Upload size={18} className="text-secondary" />
-              </div>
-              <span className="text-xs text-secondary font-medium">点击上传视频或连接节点</span>
+            <div className="w-full py-6 rounded-xl border-2 border-dashed border-edge bg-surface-black flex flex-col items-center justify-center gap-3">
+              <span className="text-xs text-secondary font-medium">连接视频节点以导入</span>
             </div>
           )}
 
@@ -731,7 +678,7 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
                 loading={loading}
                 onGenerate={() => {
                   if (videoUrl && !loading) startExtract();
-                  else if (!videoUrl) showToast('请先上传或连接视频');
+                  else if (!videoUrl) showToast('请先连接视频节点');
                 }}
                 onStop={() => setLoading(false)}
               />

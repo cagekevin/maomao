@@ -100,7 +100,10 @@ import { externalizeInlineData } from './components/base/utils/externalizeInline
 import { saveInlineToLocal } from './components/base/api/index.ts';
 import { generateId } from './components/base/core/idGen.ts';
 import { resolveDragGrouping, normalizeNodeParents } from './components/base/canvas/groupNodes.ts';
-import { buildNodesFromClipboard } from './components/base/utils/clipboard.ts';
+import {
+  buildNodesFromClipboard,
+  copyNodesToClipboard,
+} from './components/base/utils/clipboard.ts';
 import {
   applyNodeTypeDefaults,
   INPUT_PANEL_NODE_TYPES,
@@ -794,6 +797,9 @@ function Canvas() {
   // 复制选中节点组到系统剪贴板。
   // 格式 {type:'mutiwindow-nodes', nodes, edges, originalIds}，data 去掉函数与运行时字段，
   // 粘贴时（onPaste）解析 JSON 重建节点组（含连线），与官方完全一致。
+  // 复制选中节点组到系统剪贴板。
+  // 复用 clipboard.copyNodesToClipboard（与节点 hover 栏「复制」同一套 mutiwindow-nodes 格式），
+  // 粘贴时（onPaste）由 buildNodesFromClipboard 解析 JSON 重建节点组（含连线），与官方完全一致。
   const copySelectedNodes = useCallback(async (onlyId?: string) => {
     let t = nodesRef.current.filter((n) => n.selected);
     // 若右键的是某个 node 且不在选中集合内，则只复制该节点
@@ -802,34 +808,8 @@ function Canvas() {
       if (single) t = [single];
     }
     if (t.length === 0) return;
-    // 只复制「选中节点之间互连」的边
-    const innerEdges = edgesRef.current.filter(
-      (e) => t.some((n) => n.id === e.source) && t.some((n) => n.id === e.target),
-    );
-    const payload = {
-      type: 'mutiwindow-nodes',
-      nodes: t.map((n) => {
-        const data = { ...n.data };
-        Object.keys(data).forEach((k) => {
-          if (typeof data[k] === 'function') delete data[k];
-        });
-        delete data.loading;
-        delete data.progress;
-        delete data.errorMessage;
-        delete data.assetUrlRef;
-        delete data.assetUrlThumbRef;
-        delete data.assetUrlUploaded;
-        return { ...n, data };
-      }),
-      edges: innerEdges,
-      originalIds: t.map((n) => n.id),
-    };
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(payload));
-      showToast(`已复制 ${t.length} 个节点`);
-    } catch {
-      showToast('复制失败，请检查浏览器权限', { type: 'error' });
-    }
+    const res = await copyNodesToClipboard(t, edgesRef.current);
+    showToast(res.msg, { type: res.ok ? 'success' : 'error' });
   }, []);
 
   // 复制节点图片本身到剪贴板：与「复制节点」不同，

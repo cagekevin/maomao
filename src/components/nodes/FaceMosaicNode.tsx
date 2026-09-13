@@ -1,14 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import {
-  Upload,
-  ScanFace,
-  Loader2,
-  AlertCircle,
-  Image as ImageIcon,
-  Wand2,
-  Shuffle,
-} from 'lucide-react';
+import { ScanFace, Loader2, AlertCircle, Image as ImageIcon, Wand2, Shuffle } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
@@ -35,7 +27,7 @@ import { dataUrlToBlob } from '../base/core/utils.ts';
  * 人脸打码节点（完整复刻官方 Cl.jsx / faceMosaicNode）。
  *
  * 功能：
- *  - 输入：上传图片 或 连接上游含图片的节点（assetNode/imageGenerateNode/imageBoxNode 等，经 useConnectedInputs 收集）
+ *  - 输入：连接上游含图片的节点（assetNode/imageGenerateNode/imageBoxNode 等，经 useConnectedInputs 收集）
  *  - 模式：马赛克 / 黑条 / 网格 / 模糊（MOSAIC_MODES）
  *  - AI打码：MediaPipe 人脸检测 → 按模式打码 → 结果网格 → spawn assetNode 输出
  *  - 手动：打开 FaceMosaicEditor 全屏编辑器，拖拽框选 + 自动识别人脸
@@ -62,8 +54,7 @@ interface FaceMosaicNodeData {
   strength?: number;
   color?: string;
   /**
-   * 手动上传的图片源（palette 默认 `[]`）。
-   * 【TD-9 口径 A，2026-09-11】`onUpload` 现在把落盘成功的持久 `/files/` URL 写回本字段（刷新不丢）；
+   * 图片源（palette 默认 `[]`，由上游连线注入，刷新不丢）。
    * 落盘失败退回的 `blob:` 预览不入 data（刷新即死链，写进快照等于存垃圾）。
    * 上游连线来的图不在此字段（每次实时读 `connected`）。
    */
@@ -76,23 +67,21 @@ interface FaceMosaicNodeProps {
 }
 function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
   const { setNodes, getNodes: _getNodes, getNode } = useReactFlow();
-  // data 写回唯一入口（收口）：模式参数 + 上传图源都走它（§5.4.9 节点样板收口 hook）
+  // data 写回唯一入口（收口）：模式参数 + 图源都走它（§5.4.9 节点样板收口 hook）
   const { patchData } = useNodeData(id);
   // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
   const rename = useNodeRename(id);
   // 旧的 `const { hideMedia: _hideMedia } = useAssetDegrade()` 已删：本节点未落地降级隐藏，纯死调用
   // （保留会在"谁真正响应性能降级"的排查里误导）。要加降级时再按需引入。
-  const fileRef = useRef<HTMLInputElement | null>(null);
-
   // 模式与参数（复刻官方 o/c/u）
   const [mode, setMode] = useState(data.mode || 'mosaic');
   const [strength, setStrength] = useState(data.strength ?? 0.5);
   const [color, setColor] = useState(data.color || '#000000');
   const [manualOpen, setManualOpen] = useState(false);
 
-  // 图片来源：手动上传的 assetUrl + 连接上游收集的图片 URL（复刻官方 Sl）
+  // 图片来源：连接上游收集的图片 URL（复刻官方 Sl）
   const connected = useConnectedInputs(id);
-  const [localImages, setLocalImages] = useState(data.assetUrls || []);
+  const [localImages] = useState(data.assetUrls || []);
   const render = useRenderAssetResolver();
 
   // 卸载时释放所有预览 Blob URL，避免内存泄漏（对齐 VideoProcessNode / AgentPanel）
@@ -129,37 +118,6 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, strength, color, patchData]);
 
-  // 上传文件 → localImages（预览）+ 写回 data.assetUrls（持久 URL，刷新不丢）
-  //
-  // 【TD-9 口径 A，2026-09-11】此前只 setLocalImages、从不写回 → 刷新后手动上传的图全丢
-  // （上游连线来的图不受影响，因为每次实时读 connected）。现在：落盘成功（uploadFileToLocal
-  // 返回 /files/ 持久 URL）才写回 data.assetUrls；失败退回的 `blob:` 预览**不写回**
-  // （blob: 刷新即死链，写进快照等于存垃圾）。
-  const onUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const list = Array.from(files); // 先物化：清空 input.value 后 FileList 会失效
-    e.target.value = '';
-    void (async () => {
-      const previews: string[] = [];
-      const persisted: string[] = [];
-      for (const file of list) {
-        try {
-          const url = await uploadFileToLocal(file, 'canvas/face_mosaic');
-          const target = url ?? previewUrls.create(file) ?? '';
-          previews.push(target);
-          if (url) persisted.push(url);
-        } catch {
-          // catch-ok: 单个文件上传失败跳过（批量容错）
-          /* ignore */
-        }
-      }
-      if (previews.length) setLocalImages((prev) => [...prev, ...previews]);
-      // 串行累加后一次性写回：避免多文件并发各自读旧 data.assetUrls 互相覆盖
-      if (persisted.length) patchData({ assetUrls: [...(data.assetUrls || []), ...persisted] });
-    })();
-  };
-
   // 输出结果（复刻官方 y）：spawn assetNode（原型无 imageBox 直连，统一 spawn）
   const outputResults = useCallback(
     (items: Array<{ url: string; label: string }>) => {
@@ -182,7 +140,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
   const handleAI = async () => {
     const urls = assetUrls();
     if (urls.length === 0) {
-      toastWarning('请先上传图片或连接包含图片的节点');
+      toastWarning('请先连接包含图片的节点');
       return;
     }
     setLoading(true);
@@ -257,14 +215,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
 
   const count = assetUrls().length;
 
-  const toolbarButtons = [
-    {
-      key: 'upload',
-      icon: <Upload size={14} />,
-      title: '上传图片',
-      onClick: () => fileRef.current?.click(),
-    },
-  ];
+  const toolbarButtons: never[] = [];
 
   return (
     <NodeShell
@@ -279,31 +230,19 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
       onRename={rename}
     >
       <HoverToolbar buttons={toolbarButtons} />
-      <input
-        type="file"
-        ref={fileRef}
-        multiple
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={onUpload}
-      />
 
       <div className="flex-1 p-3 flex flex-col gap-2.5 nowheel">
-        {/* 图片源状态 + 输入图预览（上传/连接后立即可见，避免「图片消失」） */}
+        {/* 图片源状态 + 输入图预览（连接后立即可见，避免「图片消失」） */}
         {count === 0 ? (
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="nodrag flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg border border-dashed border-edge-raised text-muted hover:text-blue-400 hover:border-blue-500/50 transition-colors cursor-pointer"
-          >
-            <Upload size={20} />
-            <span className="text-[11px]">上传图片 或 左侧连接图片节点</span>
-          </button>
+          <div className="nodrag flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg border border-dashed border-edge-raised text-muted">
+            <span className="text-[11px]">左侧连接图片节点以导入</span>
+          </div>
         ) : (
           <div className="flex flex-col gap-1.5">
             <div className="text-[11px] text-secondary">
               已连接 <span className="text-blue-400">{count}</span> 张图片
             </div>
-            {/* 输入图缩略图：上传的图片立即在此显示 */}
+            {/* 输入图缩略图：连接的图片立即在此显示 */}
             <div className="grid grid-cols-4 gap-1.5">
               {assetUrls().map((u, i) => (
                 <div
@@ -425,16 +364,9 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
         {/* 操作按钮 */}
         <div className="mt-auto flex items-center gap-2">
           <button
-            onClick={() => fileRef.current?.click()}
-            className="nodrag flex items-center justify-center h-8 w-8 rounded-md text-body bg-surface-hover hover:bg-surface-hover-strong border border-edge transition-colors cursor-pointer"
-            title="上传图片"
-          >
-            <Upload size={14} />
-          </button>
-          <button
             onClick={() => {
               if (count === 0) {
-                toastWarning('请先上传或连接图片');
+                toastWarning('请先连接图片节点');
                 return;
               }
               setManualOpen(true);

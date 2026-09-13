@@ -5,7 +5,6 @@ import {
   Pause,
   Scissors,
   Trash2,
-  Upload,
   Loader2,
   X,
   Volume2,
@@ -297,8 +296,6 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   const [isPlaying, setIsPlaying] = useState(false); // N
   const [thumbnails, setThumbnails] = useState<Record<string, string[]>>({}); // ee {sourceId:[url]}
   const [editingClipId, setEditingClipId] = useState<string | null>(null); // k
-  const [localFile, setLocalFile] = useState<File | null>(null); // o
-  const [localUrl, setLocalUrl] = useState(''); // s
   const [timelineTracks, setTimelineTracks] = useState(data.timelineTracks || []);
   const [errorMessage, setErrorMessage] = useState(data.errorMessage || '');
 
@@ -310,7 +307,6 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     batch: ((x: number) => void) & { flush: () => void };
     rect?: DOMRect;
   } | null>(null);
-  const fileRef = useRef<HTMLInputElement | null>(null); // a
   const metaInFlight = useRef<Set<string>>(new Set()); // f
   const thumbUrls = useRef<string[]>([]); // p
   const isScrubbing = useRef(false); // m
@@ -361,9 +357,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     return Array.from(map.values());
   }, [connectedSources, connected.videos, connected.images, getNodes]);
 
-  // 本地上传源（复刻官方 B）
+  // 注入视频源（外部预置 data.sourceVideoUrl，无上游连线时生效）
   const localSource = useMemo(() => {
-    if (data.sourceVideoUrl && (localUrl || ne.length === 0)) {
+    if (data.sourceVideoUrl && ne.length === 0) {
       return {
         sourceId: `local-${id}`,
         url: data.sourceVideoUrl,
@@ -371,7 +367,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       };
     }
     return null;
-  }, [data.sourceVideoUrl, data.sourceVideoName, localUrl, ne.length, id]);
+  }, [data.sourceVideoUrl, data.sourceVideoName, ne.length, id]);
 
   // 全部源
   const sources = useMemo(() => {
@@ -638,11 +634,10 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     return () => {
       abortRef.current?.abort();
       controllerRef.current?.cancel();
-      if (localUrl) previewUrls.release(localUrl);
       // eslint-disable-next-line react-hooks/exhaustive-deps -- cleanup 读 ref.current 取「卸载时刻最新值」；若在 effect 内捕获旧数组会漏释放后添加的 thumbUrls，规则对 ref 属误报
       thumbUrls.current.forEach((u) => previewUrls.release(u));
     };
-  }, [localUrl]);
+  }, []);
 
   /* ---------- 片段操作（复刻官方 267-362 行） ---------- */
   const updateClip = useCallback(
@@ -894,21 +889,6 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     ]);
   };
 
-  const onUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (localUrl) previewUrls.release(localUrl);
-    const url = previewUrls.create(file);
-    setLocalFile(file);
-    setLocalUrl(url ?? '');
-    patchNodeDataById(setNodes, id, {
-      sourceVideoUrl: url,
-      sourceVideoName: file.name,
-      errorMessage: undefined,
-    });
-    e.target.value = '';
-  };
-
   /* ---------- 处理（复刻官方 546-707 行） ---------- */
   const fail = useCallback(
     (msg: string) => {
@@ -1028,7 +1008,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       return;
     }
     if (mode !== 'concat' && mode !== 'trim' && !currentUrl) {
-      fail('请先上传视频或连接包含视频的节点');
+      fail('请先连接包含视频的节点');
       return;
     }
     if (mode === 'sizeFrameRate' && (resizeWidth <= 0 || resizeHeight <= 0 || targetFps <= 0)) {
@@ -1037,7 +1017,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     }
     if (mode === 'toGif') {
       if (!currentUrl) {
-        fail('请先上传视频或连接包含视频的节点');
+        fail('请先连接包含视频的节点');
         return;
       }
       if (gifCrop && gifStart >= gifEnd) {
@@ -1112,16 +1092,13 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         const blobs = [];
         for (let i = 0; i < clips.length; i++) {
           const clip = clips[i];
-          const blob =
-            localFile && clip.url === localUrl
-              ? localFile
-              : await httpRequest(clip.url!, {
-                  parseJson: false,
-                  retries: 0,
-                  timeoutMs: VIDEO_DOWNLOAD_TIMEOUT,
-                  label: 'downloadClip',
-                  signal: abort.signal,
-                }).then((r) => r.blob());
+          const blob = await httpRequest(clip.url!, {
+            parseJson: false,
+            retries: 0,
+            timeoutMs: VIDEO_DOWNLOAD_TIMEOUT,
+            label: 'downloadClip',
+            signal: abort.signal,
+          }).then((r) => r.blob());
           blobs.push(blob);
           updateNodeRuntime(id, { progress: Math.round(((i + 1) / clips.length) * 20) });
         }
@@ -1148,16 +1125,13 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       } else {
         const clip = mode === 'trim' ? clips[0] : undefined;
         const src = currentUrl;
-        const blob =
-          localFile && src === localUrl
-            ? localFile
-            : await httpRequest(src, {
-                parseJson: false,
-                retries: 0,
-                timeoutMs: VIDEO_DOWNLOAD_TIMEOUT,
-                label: 'downloadVideo',
-                signal: abort.signal,
-              }).then((r) => r.blob());
+        const blob = await httpRequest(src, {
+          parseJson: false,
+          retries: 0,
+          timeoutMs: VIDEO_DOWNLOAD_TIMEOUT,
+          label: 'downloadVideo',
+          signal: abort.signal,
+        }).then((r) => r.blob());
         const baseOpts = {
           controller,
           onProgress: (p: number) => updateNodeRuntime(id, { progress: Math.round(p * 100) }),
@@ -1270,8 +1244,6 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     gifCrop,
     gifStart,
     gifEnd,
-    localFile,
-    localUrl,
     currentName,
     id,
     setNodes,
@@ -1508,7 +1480,6 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       syncSize={false}
       onRename={rename}
     >
-      <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={onUpload} />
       <div
         ref={contentRef}
         className="flex-1 min-h-0 p-3 flex flex-col gap-3 overflow-y-auto custom-scrollbar nowheel"
@@ -1558,24 +1529,11 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
                 className="nodrag nowheel w-full aspect-video object-contain"
               />
             )}
-            {mode !== 'concat' && (
-              <button
-                onClick={() => fileRef.current?.click()}
-                title="替换视频"
-                className="nodrag absolute top-2 right-2 h-7 w-7 flex items-center justify-center rounded bg-black/75 text-primary"
-              >
-                <Upload size={13} />
-              </button>
-            )}
           </div>
         ) : (
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="nodrag aspect-video rounded-md border border-dashed border-edge-raised flex items-center justify-center gap-2 text-muted hover:text-primary"
-          >
-            <Upload size={18} />
-            <span className="text-caption-sm">上传视频或连接视频节点</span>
-          </button>
+          <div className="nodrag aspect-video rounded-md border border-dashed border-edge-raised flex items-center justify-center gap-2 text-muted">
+            <span className="text-caption-sm">连接视频节点以导入</span>
+          </div>
         )}
 
         {/* 视频信息 */}

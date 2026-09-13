@@ -4,7 +4,6 @@ import {
   Box,
   Plus,
   Link as LinkIcon,
-  ZoomIn,
   Copy,
   Download,
   Check,
@@ -21,8 +20,9 @@ import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import LazyImage from '../base/ui/LazyImage.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
-import { toastError, toastWarning } from '../base/core/toastStore.ts';
+import { toastWarning, toastError } from '../base/core/toastStore.ts';
 import { loadImageWithTimeout } from '../base/utils/asyncGuard.ts';
+import { useCopyNode } from '../../hooks/useCopyNode.ts';
 import { generateId } from '../base/core/idGen.ts';
 import { downloadUrl as clipboardDownload } from '../base/utils/clipboard.ts';
 
@@ -103,6 +103,8 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
   const { patchData: updateData } = useNodeData(id);
   // TD-04-13：标题双击改名 → 写回 data.label（此前渲染 data.label 却漏接 onRename，与兄弟节点不一致）。
   const rename = useNodeRename(id);
+  // 复制节点（Ctrl+V 粘贴到画布）；与右键菜单「复制」共用同一套 mutiwindow-nodes 格式。
+  const copyNode = useCopyNode();
 
   // ---- 缩略图生成（对齐官方 _cmp_Tr(url, 256, 0.7)：canvas 等比缩到 max 256，jpg 0.7）----
   const makeThumb = useCallback(async (url: string, max = 256, quality = 0.7) => {
@@ -517,16 +519,6 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
           <div className="flex items-center gap-1 px-3 py-2 bg-surface-raised/90 backdrop-blur-md border border-edge rounded-full shadow-lg">
             <button
               className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none"
-              title="从连线图一键导入"
-              onClick={(e) => {
-                e.stopPropagation();
-                importFromConnection();
-              }}
-            >
-              <LinkIcon size={14} />
-            </button>
-            <button
-              className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none"
               title="添加本地图片"
               onClick={(e) => {
                 e.stopPropagation();
@@ -535,25 +527,25 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
             >
               <Plus size={14} />
             </button>
+            <button
+              className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none"
+              title="从连线图一键导入"
+              onClick={(e) => {
+                e.stopPropagation();
+                importFromConnection();
+              }}
+            >
+              <LinkIcon size={14} />
+            </button>
             {!expanded && current && (
               <>
                 <div className="w-px h-4 bg-surface-hover-strong mx-1" />
                 <button
                   className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none"
-                  title="放大"
+                  title="复制节点（Ctrl+V 粘贴到画布）"
                   onClick={(e) => {
                     e.stopPropagation();
-                    openZoom(current.url);
-                  }}
-                >
-                  <ZoomIn size={14} />
-                </button>
-                <button
-                  className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none"
-                  title="复制当前图片到剪贴板"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (current) copyImage(current.url);
+                    copyNode(id);
                   }}
                 >
                   <Copy size={14} />
@@ -834,16 +826,6 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
                   >
                     <Download size={11} className="text-secondary" />
                     <span>下载</span>
-                  </button>
-                  <button
-                    className="w-full text-left px-2 py-1.5 text-caption-sm text-body hover:bg-surface-hover-strong hover:text-white rounded flex items-center gap-2 cursor-pointer"
-                    onClick={() => {
-                      openZoom(img.url);
-                      close();
-                    }}
-                  >
-                    <ZoomIn size={11} className="text-secondary" />
-                    <span>放大查看</span>
                   </button>
                   {idx !== activeIndex && (
                     <button

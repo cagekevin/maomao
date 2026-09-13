@@ -7,8 +7,14 @@
  *
  * 本文件零外部依赖（只 import 本目录的类型），符合 `docs/123` §二 铁律。
  */
-import { hasOverlap } from './timelineOps.ts';
+import { findTrackOfClip, hasOverlap } from './timelineOps.ts';
 import type { Clip, ClipKind, Project, Track, TrackKind } from './types.ts';
+
+/* `findTrackOfClip` 的**唯一实现**已按「查询归 A 组」下移到 `timelineOps.ts::findTrackOfClip`
+ * （原因：编辑层也要用它，留在本文件会与 `timelineOps → routeClip` 成环）。
+ * 此处 re-export 只为**保持既有消费方零改动**（`import { findTrackOfClip } from './routeClip'`），
+ * 不是第二份实现。 */
+export { findTrackOfClip };
 
 /* ────────────────────────────────────────────────────────────────
  * 分轨唯一判据（docs/120 C11.1）
@@ -22,6 +28,21 @@ import type { Clip, ClipKind, Project, Track, TrackKind } from './types.ts';
  */
 export function routeClipToTrack(kind: ClipKind): TrackKind {
   return kind === 'audio' ? 'audio' : 'video';
+}
+
+/**
+ * 工程的主视频轨 = **第一条视频类轨**（`kind === 'video'`）—— 唯一判据。
+ *
+ * 【为什么不是 `!overlay`】`overlay` 回答的是「压不压实 / 是不是叠加层」，**不回答「是不是主视频流」**：
+ * M2 允许加轨后，一条工程完全可能**没有** `overlay:false` 的视频轨（用户把主轨删了、只剩叠加轨），
+ * 也可能有两条（理论上，已被 `normalize.ts::enforceSingleMainTrack` 在加载期收敛）。
+ * 「无损直通要拼哪一条流」「编辑动作无选中时回落哪条轨」问的都是**主视频流**，
+ * 故判据必须是 `kind === 'video'` 的**第一条**，与 `renderFrameAt` 自下而上的叠加底层同源。
+ *
+ * 空工程（无视频轨）→ `undefined`，调用方各自处置（直通报「主视频轨上没有片段」）。
+ */
+export function mainVideoTrackOf(project: Project): Track | undefined {
+  return project.tracks.find((t) => t.kind === 'video');
 }
 
 /* ────────────────────────────────────────────────────────────────
@@ -45,6 +66,15 @@ export function routeClipToTrack(kind: ClipKind): TrackKind {
  */
 export function needsCompositing(project: Project): boolean {
   const { tracks, settings } = project;
+
+  // ⓪ **直通只搬运一条视频流**（`pipeline.ts::runDirect` 取 `mainVideoTrackOf` = 第一条视频轨），
+  //    故除它之外的**任何视频轨上有内容都必须合成** —— 否则那些层的画面会被直通静默丢掉。
+  //
+  // 【为什么不能只靠 ① 的 `overlay`】M2 加轨后「叠加轨」是 `overlay: true` 的**视频轨**，
+  //    ① 能拦住它们；但 ① 拦不住「主视频轨之后还排着别的视频轨」这类顺序变化 ——
+  //    这里用「视频轨中**非第一条**的那些是否有内容」把话说完整，与轨道顺序无关地成立。
+  const firstVideo = tracks.find((t) => t.kind === 'video');
+  if (tracks.some((t) => t.kind === 'video' && t !== firstVideo && t.clips.length > 0)) return true;
 
   for (const track of tracks) {
     // ① 自由轨（叠加 / 音频）上有内容 → 需要叠加或混音 → 合成。
@@ -145,11 +175,6 @@ export function audibleClipsOf(tracks: Track[]): Clip[] {
 
 function findTrack(tracks: Track[], trackId: string): Track | undefined {
   return tracks.find((t) => t.id === trackId);
-}
-
-/** 按片段 id 找所属轨（`docs/120` C1.1：一切改写都先经它定位）。 */
-export function findTrackOfClip(tracks: Track[], clipId: string): Track | undefined {
-  return tracks.find((t) => t.clips.some((c) => c.id === clipId));
 }
 
 /**

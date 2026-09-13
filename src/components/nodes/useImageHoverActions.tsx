@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react';
-import { Crop, Pencil, Maximize2, Minimize2 } from 'lucide-react';
+import { Crop, Pencil, Maximize2, Minimize2, Copy } from 'lucide-react';
 import ImageEditor from '../base/editors/ImageEditor.tsx';
 import InlineImageCropper from '../base/editors/InlineImageCropper.tsx';
 import { compressImage } from '../base/utils/imageCompress.ts';
 import { upscaleImage } from '../base/utils/imageUpscale.ts';
+import { useCopyNode } from '../../hooks/useCopyNode.ts';
 import { showThenPersistInline } from '../base/api/filesApi.ts';
 import { showToast, toastError } from '../base/core/toastStore.ts';
 
@@ -60,7 +61,7 @@ interface UseImageHoverActionsArgs {
 }
 
 export function useImageHoverActions({
-  id: _id,
+  id,
   url,
   hasImage,
   label: _label,
@@ -70,6 +71,8 @@ export function useImageHoverActions({
   const [cropping, setCropping] = useState(false); // 就地裁剪浮层
   const [compressing, setCompressing] = useState(false);
   const [upscaling, setUpscaling] = useState(false);
+  // 复制节点（Ctrl+V 粘贴到画布）；与右键菜单「复制」共用 clipboard.copyNodesToClipboard。
+  const copyNode = useCopyNode();
 
   // 编辑器保存（裁剪/标记/扩图）→ 写回节点图片，并透传画布真实尺寸让节点自适应。
   // ★ 与压缩/放大**完全同构**：① 立即写回 dataURL（不等网络）；② 落盘换 /files/ 持久 URL（sha1 幂等）；
@@ -164,6 +167,13 @@ export function useImageHoverActions({
       title: '压缩图片（80%）',
       onClick: handleCompress,
       show: hasImage && !!url,
+    },
+    {
+      key: 'copy',
+      icon: <Copy size={14} />,
+      title: '复制节点（Ctrl+V 粘贴到画布）',
+      onClick: () => copyNode(id),
+      show: true,
     },
   ];
 

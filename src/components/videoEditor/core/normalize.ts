@@ -62,10 +62,13 @@ class ProjectDataError extends Error {}
  * ──────────────────────────────────────────────────────────── */
 
 /**
- * 空工程：fps 30 / playhead 0 / **固定双轨**（视频 ×1 磁吸 + 音频 ×1 自由）。
+ * 空工程：fps 30 / playhead 0 / **初始双轨**（视频 ×1 主轨磁吸 + 音频 ×1 自由）。
  *
- * 为什么固定双轨而不是空数组：`docs/123` §一.9 Q3 裁定 M1 轨道集合固定；
- * 增删轨（`createTrack`/`removeTrack`）属 M2，**只定义不暴露**。
+ * 【M2 起轨道集合不再是固定的】`docs/123` §一.9 Q3 的「M1 轨道集合固定」已被 M2 取代：
+ * 用户可经轨道头加/删轨（`core/timelineOps.ts::appendTrack` / `removeTrack`）。
+ * `createEmptyProject` 只负责给出**开箱可用的最小集合**（一条主视频轨 + 一条音频轨），
+ * 它不是「轨道数上限」的判据 —— 那个判据在 `MAX_TRACKS_PER_KIND`。
+ *
  * 空工程是合法状态（`docs/120` C11.9：不设最少片段数），故 `clips` 为空数组。
  */
 export function createEmptyProject(): Project {
@@ -79,14 +82,24 @@ export function createEmptyProject(): Project {
   };
 }
 
-/** 建一条空轨（主视频轨 `overlay:false` 磁吸；音频轨 `overlay:true` 自由）。 */
-function createEmptyTrack(kind: TrackKind): Track {
+/**
+ * 建一条空轨 —— **新建轨道的唯一出处**（`createEmptyProject` 与「加轨」动作共用它）。
+ *
+ * `overlay` 缺省 = `kind === 'audio'`：音频轨天然自由；**首个**视频轨是主轨（磁吸）。
+ * 新增的**第二条及以后**视频轨必须是叠加轨（`overlay: true`）—— 主轨只能有一条，
+ * 否则「主轨压实」与直通导出都会有两条轨同时声称自己是主轨（判据说谎）。
+ * 故「加轨」的调用方**必须显式传 `overlay`**，见 `core/timelineOps.ts::appendTrack`。
+ */
+export function createEmptyTrack(kind: TrackKind, overlay = kind === 'audio'): Track {
   return {
     id: generateId(kind === 'video' ? 'track-v' : 'track-a'),
+    // 新轨名与既有轨重名是常态（都叫「视频」），此处**不做去重编号**：
+    // 编号要读全量 tracks 才能算，而它是**显示名**（`name` 不参与任何判据，见 types.ts），
+    // 为显示名引入「读全集合」的耦合不值得。UI 侧按位置显示 V1/V2/A1/A2，名字只作 fallback。
     name: kind === 'video' ? DEFAULT_VIDEO_TRACK_NAME : DEFAULT_AUDIO_TRACK_NAME,
     kind,
-    // 音频轨天然是自由轨（不压实）；视频轨是主轨（磁吸）。
-    overlay: kind === 'audio',
+    // 音频轨天然是自由轨（不压实）；**首个**视频轨是主轨（磁吸），新增视频轨是叠加轨（自由）。
+    overlay,
     locked: false,
     hidden: false,
     muted: false,
@@ -159,6 +172,11 @@ function fromRecord(raw: Record<string, unknown>): Project {
   }
   const trackList: unknown[] = Array.isArray(tracksRaw) ? tracksRaw : [];
   const tracks = trackList.map((t, i) => fromTrack(t, i));
+  // 多轨不变量（加载期唯一入口负责）：**主轨（`overlay:false` 的视频轨）至多一条**。
+  // 旧工程 / 手工编辑的 JSON 里可能出现两条 `overlay:false` 视频轨（M1 时代不可能、M2 可能被写坏），
+  // 若放行，「主轨压实」与直通导出会各有两条轨声称是主轨（判据说谎）。故**加载期收敛**：
+  // 保留第一条主轨，其余降级为叠加轨 —— 且这不改任何 `clips` 数据（只是压实行为不再作用其上）。
+  const normalizedTracks = enforceSingleMainTrack(tracks);
 
   const settingsRaw = isPlainObject(raw.settings) ? raw.settings : {};
   const uiRaw = isPlainObject(raw.ui) ? raw.ui : {};
@@ -167,7 +185,7 @@ function fromRecord(raw: Record<string, unknown>): Project {
     schemaVersion: VIDEO_EDITOR_SCHEMA_VERSION,
     fps: num(raw.fps, DEFAULT_FPS),
     playhead: Math.max(0, num(raw.playhead, 0)),
-    tracks,
+    tracks: normalizedTracks,
     /** 工程参数（导出唯一基准）。 */
     settings: {
       width: num(settingsRaw.width, DEFAULT_PROJECT_WIDTH),
@@ -186,6 +204,27 @@ function fromRecord(raw: Record<string, unknown>): Project {
       magnetic: typeof uiRaw.magnetic === 'boolean' ? uiRaw.magnetic : undefined,
     },
   };
+}
+
+/**
+ * 主轨至多一条（加载期不变量，见 `fromRecord` 调用处说明）。
+ * 视频轨里**第一条** `overlay:false` 保留为主轨，其余 `overlay:false` 的视频轨降为叠加轨。
+ * 音频轨不受影响（它们恒为自由轨，`overlay` 语义不参与压实判断之外的任何东西）。
+ * 已经合法（0 或 1 条主轨）→ 返回**原数组引用**（I4 同精神：无变化不动）。
+ */
+function enforceSingleMainTrack(tracks: Track[]): Track[] {
+  let mainSeen = false;
+  let changed = false;
+  const next = tracks.map((track) => {
+    if (track.kind !== 'video' || track.overlay) return track;
+    if (!mainSeen) {
+      mainSeen = true;
+      return track;
+    }
+    changed = true;
+    return { ...track, overlay: true };
+  });
+  return changed ? next : tracks;
 }
 
 function fromTrack(raw: unknown, index: number): Track {

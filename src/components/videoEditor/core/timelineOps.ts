@@ -19,8 +19,9 @@
  *  另立别名 = 两名指一物（7 步法 Step 6 明禁）。UI 的空隙提示按钮直接调 `relayoutSequential`。
  */
 import { generateId } from '../../base/core/idGen.ts';
-import { EPS } from './constants.ts';
-import type { Clip, Track } from './types.ts';
+import { EPS, MAX_TRACKS_PER_KIND } from './constants.ts';
+import { createEmptyTrack } from './normalize.ts';
+import type { Clip, Track, TrackKind } from './types.ts';
 
 /* ════════════════════════════════════════════════════════════════
  * A 组 · 查询（只读）
@@ -361,6 +362,146 @@ export function freezeFrameAt(
 }
 
 /**
+ * 自由轨定位（**不压实**）：把片段起点挪到 `t`（夹 `>= 0`）。
+ * 未变 → 原引用（I4）。
+ */
+export function placeClipAt(clips: Clip[], id: string, t: number): Clip[] {
+  const start = Math.max(0, t);
+  let changed = false;
+  const next = clips.map((clip) => {
+    if (clip.id !== id || Math.abs(clip.timelineStart - start) <= EPS) return clip;
+    changed = true;
+    return { ...clip, timelineStart: start };
+  });
+  return changed ? next : clips;
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * C 组 · 轨道集合（增删 / 跨轨搬移）—— 与 B 组同性质：输入 → 新数组
+ * ════════════════════════════════════════════════════════════════
+ * 【为什么收在这里而不新开 trackOps.ts】
+ * 这些函数与 `moveClipTo` / `placeClipAt` 一样，都是「对 tracks 的纯变换」，
+ * 且**唯一真源仍是 `tracks` 数组本身**。分居两文件会长出「同一真相两处维护」，
+ * 正是 7 步法 Step 2 的 M3 母体（SSOT 第二份）。故与片段原语同居 B/C 组。
+ */
+
+/**
+ * 该轨能否作为**入轨目标**（`routeClipToTrack` 之后的第一条可用同类轨）。
+ *
+ * 不可用 = 锁定（C7.3 禁止一切编辑）或隐藏（隐藏轨上入轨 = 用户看不见东西进去了）。
+ * 「第一条可用同类轨」这条落轨规则由 `routeClipToTrack` + 本函数共同定义，
+ * **不允许各调用点各写一遍 `!locked && !hidden`**（判据重复必漂）。
+ */
+export function trackAccepts(track: Track): boolean {
+  return !track.locked && !track.hidden;
+}
+
+/**
+ * 把片段搬到**另一条轨**（跨轨拖拽的落位语义，`docs/120` C1.1 的改写路径之一）。
+ *
+ * 语义分两支，与同轨拖拽保持同一套规则（不另立第二套）：
+ *  - 目标轨是**主轨**（`!overlay`）且吸附开 → 压实（磁吸 I1，拖不出缝）；
+ *  - 其余（自由轨 / 吸附关）→ 自由摆位（`placeClipAt`，可留空）。
+ *
+ * 类型校验在**调用方**（宿主手里才有轨道集合与用户意图）：本函数只负责「搬」，
+ * 不做「该不该搬」的判断 —— 但**找不到片段 / 找不到目标轨 → 返回原引用**（I4，不猜）。
+ *
+ * 【为什么同时收口「顺序真相」】跨轨搬运必须**先摘出再插入**目标轨数组：
+ * 片段在目标轨的位置真相是「数组顺序」（I2），故删除侧返 `null` 表示「不知道怎么搬」。
+ */
+export function moveClipAcrossTracks(
+  tracks: Track[],
+  clipId: string,
+  toTrackId: string,
+  t: number,
+  magnetic = true,
+): Track[] {
+  const from = findTrackOfClip(tracks, clipId);
+  const to = tracks.find((t2) => t2.id === toTrackId);
+  if (!from || !to || from.id === to.id) return tracks;
+  const moved = from.clips.find((c) => c.id === clipId);
+  if (!moved) return tracks;
+
+  let changed = false;
+  const next = tracks.map((track) => {
+    if (track.id === from.id) {
+      changed = true;
+      return { ...track, clips: track.clips.filter((c) => c.id !== clipId) };
+    }
+    if (track.id === to.id) {
+      changed = true;
+      const dropped = { ...moved, timelineStart: Math.max(0, t) };
+      const clips = [...track.clips, dropped];
+      return { ...track, clips: track.overlay ? clips : settle(clips, magnetic) };
+    }
+    return track;
+  });
+  return changed ? next : tracks;
+}
+
+/**
+ * 按片段 id 找所属轨 —— **全工程唯一实现**（`docs/120` C1.1：一切改写都先经它定位）。
+ *
+ * 【为什么从 `routeClip.ts` 搬到这里】原实现在 `routeClip.ts`，但本文件（编辑层）也要用它，
+ * 而 `routeClip.ts` 已经 `import` 本文件 ⇒ 反向 import 成环。故按「查询归 A 组」下移到本文件，
+ * `routeClip.ts` 改为**在此 re-export**（消费方 `import { findTrackOfClip } from './routeClip'`
+ * 全部零改动，`isClipLocked` 等的调用点不受影响）—— 一份实现、两个入口名，不是两份真相。
+ */
+export function findTrackOfClip(tracks: Track[], clipId: string): Track | undefined {
+  return tracks.find((t) => t.clips.some((c) => c.id === clipId));
+}
+
+/**
+ * 追加一条新轨（「加轨」动作的唯一原语）。
+ *
+ * 【新轨插在哪】插在**同类轨的末尾**（新视频轨紧跟现有视频轨之后、新音频轨紧跟现有音频轨之后），
+ * 而不是简单 `push` 到数组尾。理由：`tracks` 数组顺序 = **画面自下而上的叠加顺序**
+ * （`export/composite.ts::renderFrameAt` 依序绘制），把新视频轨推到音频轨之后会让
+ * 「音频轨的层序」变成一个无意义的中间态；按类别分组也让轨道头的视觉分块与层序一致。
+ *
+ * 【`overlay` 由调用方显式给】主轨（`overlay:false`）**全工程只能有一条**：
+ * 新增视频轨必须是叠加轨（自由、可留空），否则「主轨压实」与直通导出都会出现
+ * 两条轨同时声称自己是主轨（判据说谎）。音频轨无主次之分，恒为自由轨。
+ *
+ * 超上限 → 返回原引用（I4 + `MAX_TRACKS_PER_KIND`），调用方据此置灰并说明原因。
+ */
+
+export function appendTrack(tracks: Track[], kind: TrackKind): Track[] {
+  const sameKind = tracks.filter((t) => t.kind === kind);
+  if (sameKind.length >= MAX_TRACKS_PER_KIND) return tracks;
+
+  // 视频：第一条是主轨，其余皆是叠加轨；音频：恒自由轨。
+  const isFirstVideo = kind === 'video' && sameKind.length === 0;
+  const track = createEmptyTrack(kind, !isFirstVideo);
+
+  // 插在最后一条同类轨之后；没有同类轨（不可能是视频）则落到数组尾。
+  const lastIndex = tracks.reduce((acc, t, i) => (t.kind === kind ? i : acc), -1);
+  const at = lastIndex < 0 ? tracks.length : lastIndex + 1;
+  const next = tracks.slice();
+  next.splice(at, 0, track);
+  return next;
+}
+
+/**
+ * 删除一条轨。
+ *
+ * 【非空轨为什么拒删】`removeClips` 的 `lift`/`ripple` 是**片段级**语义；轨道级删除若
+ * 顺手连片段一起丢，就是「一次点击毁掉用户若干片段且不可预期」。故非空轨**返回原引用**，
+ * 由调用方 toast 明说「请先删掉轨道上的片段」（7 步法 Step 4：不静默吞、不假成功）。
+ *
+ * 【最后一条同类轨不删】全工程没有视频轨（或没有音频轨）时，`routeClipToTrack` 的落轨目标
+ * 就不存在了 —— 入轨会变成静默丢弃。保留底部一条是最小惊奇。
+ */
+export function removeTrack(tracks: Track[], trackId: string): Track[] {
+  const target = tracks.find((t) => t.id === trackId);
+  if (!target) return tracks;
+  if (target.clips.length > 0) return tracks;
+  const sameKind = tracks.filter((t) => t.kind === target.kind);
+  if (sameKind.length <= 1) return tracks;
+  return tracks.filter((t) => t.id !== trackId);
+}
+
+/**
  * 按 id 更新片段所属轨（`docs/120` C1.1 的唯一改写路径）。
  *
  * 主轨更新后**按吸附开关决定压不压实**（吸附开 = 磁吸 I1；关 = 保留用户摆出的空隙）；
@@ -383,19 +524,4 @@ export function updateClip(
   });
   if (!touched) return tracks;
   return unchanged(next, tracks) ? tracks : next;
-}
-
-/**
- * 自由轨定位（**不压实**）：把片段起点挪到 `t`（夹 `>= 0`）。
- * 未变 → 原引用（I4）。
- */
-export function placeClipAt(clips: Clip[], id: string, t: number): Clip[] {
-  const start = Math.max(0, t);
-  let changed = false;
-  const next = clips.map((clip) => {
-    if (clip.id !== id || Math.abs(clip.timelineStart - start) <= EPS) return clip;
-    changed = true;
-    return { ...clip, timelineStart: start };
-  });
-  return changed ? next : clips;
 }

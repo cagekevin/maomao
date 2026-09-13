@@ -24,7 +24,7 @@ import { showToast } from '../../../base/core/toastStore.ts';
 import { loadEditorSource } from '../../hooks/useEditorSources.ts';
 import { DEFAULT_IMAGE_CLIP_DURATION } from '../../core/constants.ts';
 import { routeClipToTrack } from '../../core/routeClip.ts';
-import { appendTime } from '../../core/timelineOps.ts';
+import { appendTime, trackAccepts } from '../../core/timelineOps.ts';
 import type { Clip, ClipKind } from '../../core/types.ts';
 import type { EditorProjectStore } from './useEditorProject.ts';
 
@@ -102,19 +102,25 @@ export function useEditorIngest(opts: {
         timelineStart: 0,
       };
 
-      const target = routeClipToTrack(clip.kind); // C11.1 分轨唯一判据
+      const target = routeClipToTrack(clip.kind); // C11.1 分轨唯一判据（片段该进哪一类轨）
       let rejection: string | null = null;
-      storeRef.current.applyTracks((tracks) =>
-        tracks.map((t) => {
-          if (t.kind !== target) return t;
-          // C7.3：锁定轨禁止一切编辑 —— 入轨是编辑，故拒绝（且**明说**，不静默丢弃）
-          if (t.locked) {
-            rejection = `「${t.name}」已锁定，未入轨`;
-            return t;
-          }
-          return { ...t, clips: [...t.clips, { ...clip, timelineStart: appendTime(t) }] };
-        }),
-      );
+      storeRef.current.applyTracks((tracks) => {
+        // 落轨规则（M2 多轨，用户口径）：「**第一条可用的同类轨**」。
+        // 可用 = 未锁定且未隐藏（判据单点在 `core/timelineOps.ts::trackAccepts`，不在此重写）。
+        // 为什么不是「最后一条 / 新增的那条」：用户点选素材时并不预期"落到哪条"，
+        // 落到第一条可用轨是最小惊奇；要换轨就把片段拖过去（跨轨拖拽已支持）。
+        const chosen = tracks.find((t) => t.kind === target && trackAccepts(t));
+        if (!chosen) {
+          // 同类轨全不可用 → 明说原因（C7.3：不静默丢弃）
+          rejection = `没有可用的${target === 'audio' ? '音频' : '视频'}轨（全部锁定或隐藏），未入轨`;
+          return tracks;
+        }
+        return tracks.map((t) =>
+          t.id === chosen.id
+            ? { ...t, clips: [...t.clips, { ...clip, timelineStart: appendTime(t) }] }
+            : t,
+        );
+      });
       if (rejection) showToast(rejection);
     },
     // 依赖 = 宿主传入的稳定存活 ref（非 useRef 创建，故显式列出以消 lint）+ 本 hook 内 refs。

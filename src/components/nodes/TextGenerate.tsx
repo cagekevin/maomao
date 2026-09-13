@@ -1,6 +1,6 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import { FileText, Plus, Copy, Loader2, AlertCircle, Lock, LockOpen } from 'lucide-react';
+import { FileText, Copy, Loader2, AlertCircle, Lock, LockOpen } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import ExpandablePanel from '../base/ui/ExpandablePanel.tsx';
@@ -30,7 +30,6 @@ import { resolveProviderModel } from '../base/utils/providerModels.ts';
 import { resolvePromptChips } from '../base/prompt/promptChips.ts';
 import { logger } from '../base/core/logger.ts';
 import { reportDegrade } from '../base/core/degrade.ts';
-import previewUrls from '../base/utils/previewUrl.ts';
 
 /**
  * 文本节点（复刻原 Co.jsx / textGenerateNode）
@@ -47,8 +46,7 @@ interface TextGenerateData {
   inputLocked?: boolean;
   selectedModel?: string;
   /**
-   * 自身上传的参考图 —— **输入类字段的外部注入通道**（可被 Agent / 快照 / 测试预置）。
-   * 本节点自己不写回：上传走 `previewUrls.create`（`blob:` 不可持久，见 TD-9 附件口径）。
+   * 外部注入的参考图（可被 Agent / 快照 / 测试预置）。
    * 上游参考图不在此字段（走 `useConnectedInputs` 实时读）。
    */
   images?: string[];
@@ -80,7 +78,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   const [prompt, setPrompt] = useNodeField('prompt', data.prompt || '', patchDebounced);
   const [text, setText] = useNodeField('text', data.text || '', patchDebounced);
 
-  // 参考输入：自身上传图片（在 images 定义后并入）+ 连线上游产出。
+  // 参考输入：连线上游产出。
   // refTexts / effectivePrompt 不依赖 images，先定义在 useNodeGeneration 之前，避免 TDZ。
   // useMemo 稳定化：`connected.texts || []` 每渲染生成新空数组引用，作依赖会导致下游 useMemo 每渲染重算
   const refTexts = useMemo(() => connected.texts || [], [connected.texts]);
@@ -115,26 +113,10 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   );
   // 记忆只影响新建（见 App.addNode 注入）；存量初始化只读 data，缺字段用纯常量。
   const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? 'gpt-4o-mini');
-  // 参考图三来源：① 外部注入（data.images，见 interface 注释）② 会话内上传（blob: 预览，不落盘）
-  // ③ 上游连线（useConnectedInputs 实时读）。
-  const [images, setImages] = useState(data.images || []);
-  // 卸载时释放所有预览 Blob URL，避免内存泄漏（对齐 VideoProcessNode / AgentPanel）
-  useEffect(
-    () => () => {
-      images.forEach((u) => previewUrls.release(u));
-    },
-    [images],
-  );
-  // 自身上传图片 + 连线上游图片，多上游图片节点自动合并
+  // 参考图来源：上游连线（useConnectedInputs 实时读）。
   // 【memo 优化】用 useMemo 稳定 refImages 引用：否则每次 render 新建数组，传给 memo 子组件
   // （ResourceStrip/PromptInput）会失效导致每次重渲染。
-  const refImages = useMemo(
-    () => [
-      ...(connected.images || []),
-      ...images.map((u, i) => ({ id: `img-${i}`, url: u, label: `图片${i + 1}` })),
-    ],
-    [connected.images, images],
-  );
+  const refImages = useMemo(() => [...(connected.images || [])], [connected.images]);
   // 【富文本芯片解析】prompt/text 里可能含 `@{id:label}` 素材芯片（图片 → 参考图 + 文本占位，文本 → 纯文本）。
   // 与生图/视频节点一致：chipResolved.text 是发给 AI 的纯文本；chipResolved.refImages 是用户显式 @ 的参考图。
   // 必须在 refImages 定义之后、useGenerateNode 之前（其 run 闭包引用本值，防 TDZ）。
@@ -149,7 +131,6 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     setEditingText(true);
     setTimeout(() => textAreaRef.current?.focus(), 0);
   }, [editingText]);
-  const fileRef = useRef<HTMLInputElement | null>(null);
   const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
   const wrapperRef = useRef<HTMLDivElement | null>(null); // NodeShell 根 div ref（主框手柄拖拽改整体尺寸）
   const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 ResourceStrip 共用）
@@ -294,30 +275,11 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     },
   });
 
-  const uploadImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) {
-      const url = previewUrls.create(f);
-      if (url) setImages((prev) => [...prev, url]);
-    }
-    e.target.value = '';
-  };
-
   const loadingIcon = (
     <Loader2 size={12} className="animate-spin flex-shrink-0" style={{ color: 'rgb(210,2,7)' }} />
   );
 
   const toolbarButtons = [
-    ...(images.length === 0
-      ? [
-          {
-            key: 'upload',
-            icon: <Plus size={12} />,
-            title: '上传图片',
-            onClick: () => fileRef.current?.click(),
-          },
-        ]
-      : []),
     {
       key: 'copy',
       icon: <Copy size={12} />,
@@ -365,15 +327,6 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     >
       {/* hover 操作栏 */}
       <HoverToolbar buttons={toolbarButtons} loading={loading} loadingIcon={loadingIcon} />
-
-      {/* 隐藏文件上传（复刻 Co.jsx:250） */}
-      <input
-        type="file"
-        ref={fileRef}
-        style={{ display: 'none' }}
-        accept="image/*"
-        onChange={uploadImage}
-      />
 
       {/* 主容器：flex-1 填满 wrapper（wrapper 高度由 useSizeSync defaultHeight=420 同步），
           与生图/视频生成节点一致，避免 wrapper≠主框导致端口/面板位置错位。

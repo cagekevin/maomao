@@ -13,6 +13,7 @@
  * 复制「链接」用 copyText 即可。
  */
 
+import type { Node, Edge } from '@xyflow/react';
 import { logger } from '../core/logger.ts';
 import { httpRequest } from '../api/httpClient.ts';
 import { DOWNLOAD_TIMEOUT } from '../core/config.ts';
@@ -185,6 +186,57 @@ export async function copyVideoFrameToClipboard(
           : `截屏失败：${err.message || '未知错误'}`;
     logger.warn('clipboard', '复制视频帧失败', err?.message);
     return { ok: false, msg };
+  }
+}
+
+/**
+ * 把单个节点 data 清洗为可序列化形态：去掉函数字段与运行时字段（loading/progress/
+ * errorMessage/assetUrlRef 等），避免把这些不可 JSON 化的内容写进剪贴板。纯函数，单测友好。
+ * @param {Node} node React Flow 节点
+ * @returns 清洗后的节点副本（不修改入参）
+ */
+export function serializeNodeForClipboard(node: Node): Node {
+  const data = { ...(node.data || {}) };
+  Object.keys(data).forEach((k) => {
+    if (typeof data[k] === 'function') delete data[k];
+  });
+  [
+    'loading',
+    'progress',
+    'errorMessage',
+    'assetUrlRef',
+    'assetUrlThumbRef',
+    'assetUrlUploaded',
+  ].forEach((k) => delete data[k]);
+  return { ...node, data };
+}
+
+/**
+ * 复制一组节点到系统剪贴板（「复制节点」能力单源，对齐 App.copySelectedNodes）。
+ * 格式 {type:'mutiwindow-nodes', nodes, edges, originalIds}，粘贴时由
+ * buildNodesFromClipboard 解析重建（含内部连线）。用户自行 Ctrl+V 粘贴到画布。
+ * 仅复制「组内互连」的边（两端都在复制集合内的边），避免粘出悬空连线。
+ * @param {Node[]} nodes 要复制的节点（单选传 [node]）
+ * @param {Edge[]} edges 画布全部边（函数内部筛出组内边）
+ * @returns {ClipResult} { ok, msg }，调用方负责 toast
+ */
+export async function copyNodesToClipboard(nodes: Node[], edges: Edge[]): Promise<ClipResult> {
+  if (!nodes || nodes.length === 0) return { ok: false, msg: '没有可复制的节点' };
+  const ids = new Set(nodes.map((n) => String(n.id)));
+  const innerEdges = (edges || []).filter(
+    (e) => ids.has(String(e.source)) && ids.has(String(e.target)),
+  );
+  const payload = {
+    type: 'mutiwindow-nodes',
+    nodes: nodes.map(serializeNodeForClipboard),
+    edges: innerEdges,
+    originalIds: nodes.map((n) => n.id),
+  };
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(payload));
+    return { ok: true, msg: `已复制 ${nodes.length} 个节点` };
+  } catch {
+    return { ok: false, msg: '复制失败，请检查浏览器权限' };
   }
 }
 

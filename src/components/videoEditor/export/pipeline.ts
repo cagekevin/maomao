@@ -38,7 +38,12 @@ import type {
   LosslessSegment,
 } from '../../base/utils/videoEngine.ts';
 import type { OpResult } from '../core/result.ts';
-import { audibleClipsOf, hasMixedSources, needsCompositing } from '../core/routeClip.ts';
+import {
+  audibleClipsOf,
+  hasMixedSources,
+  mainVideoTrackOf,
+  needsCompositing,
+} from '../core/routeClip.ts';
 import type { MediaProfile } from '../core/routeClip.ts';
 import type { Clip, Project } from '../core/types.ts';
 import { exportComposite, openTimelineSources } from './composite.ts';
@@ -250,9 +255,15 @@ async function runDirect(
 ): Promise<ExportArtifact> {
   // 【只取**主轨**的片段】直通拼的是「一条视频流」。`request.sources` 是「参与导出的全部片段」
   // （合成路要按它解析所有素材），若照单搬运，音频轨上的片段会被当成视频段塞进同一条流。
-  // 主轨判据 = `!overlay`，与 `core/types.ts` 的轨道二分同源，不另立判断。
+  //
+  // 【为什么是"第一条视频轨"而不是"所有 !overlay 的轨"】M2 多轨后 `!overlay` 只说明
+  // "不是叠加轨"，它**不再**唯一确定主轨（一条工程可能有 0 条主轨：删轨后全变叠加轨）。
+  // 直通需要的是「那条承载主视频流的轨」，即**第一条视频轨**（与 `renderFrameAt` 自下而上
+  // 叠加时的底层同一条）。判据单点收在 `core/routeClip.ts::mainVideoTrackOf`，
+  // 本文件不重写 `kind === 'video'` 这类二分（那会长出第二份判据，迟早与合成路漂）。
   const onlySource = new Map(request.sources.map((s) => [s.clip.id, s.url]));
-  const mainClips = request.project.tracks.filter((t) => !t.overlay).flatMap((t) => t.clips);
+  const mainTrack = mainVideoTrackOf(request.project);
+  const mainClips = mainTrack?.clips ?? [];
 
   // 同一素材被多个片段使用时只取一次字节（素材复用是常态，见 `docs/120` C11.4）。
   const blobs = new Map<string, Blob>();
@@ -273,7 +284,7 @@ async function runDirect(
       label: clip.name ?? clip.id,
     });
   }
-  if (segments.length === 0) throw new Error('主轨上没有可直通的片段');
+  if (segments.length === 0) throw new Error('主视频轨上没有可直通的片段');
 
   callbacks.onStage?.('video');
   const result = await ports.lossless(segments, {

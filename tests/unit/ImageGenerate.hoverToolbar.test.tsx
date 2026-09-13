@@ -172,9 +172,11 @@ describe('ImageGenerate hover 工具栏 — 共享图片能力', () => {
     expect(screen.getByTitle('压缩图片（80%）')).toBeTruthy();
   });
 
-  it('有生图结果时仍保留生图节点专属按钮（放大/发送到剪映素材库）', () => {
+  it('有生图结果时仍保留生图节点专属按钮（摄影棚/发送到剪映素材库），且放大按钮已移除', () => {
     render(<ImageGenerate id="pn1" data={{ assetUrl: 'http://x/result.png' }} selected={false} />);
-    expect(screen.getByTitle('放大')).toBeTruthy();
+    // 放大靠双击，hover 栏放大按钮已移除（避免死按钮 + 与双击语义重复）
+    expect(screen.queryByTitle('放大')).toBeNull();
+    expect(screen.getByTitle('摄影棚')).toBeTruthy();
     expect(screen.getByTitle('发送到剪映素材库')).toBeTruthy();
   });
 });

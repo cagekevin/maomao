@@ -30,6 +30,12 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => ({
   showToast: () => {},
   toastError: () => {},
 }));
+// useCopyNode 内部调用 useReactFlow（需 ReactFlowProvider 上下文）；此处桩替身提供最小实现，
+// 与生产环境（节点组件天然在 ReactFlow 内）行为一致，避免测试渲染必需真实 canvas 画布。
+vi.mock('@xyflow/react', () => ({
+  ReactFlowProvider: ({ children }: any) => children,
+  useReactFlow: () => ({ getNode: () => undefined, getEdges: () => [] }),
+}));
 
 const findBtn = (btns: any, key: any) => btns.find((b: any) => b.key === key);
 

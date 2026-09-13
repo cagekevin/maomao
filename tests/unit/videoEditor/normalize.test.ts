@@ -126,6 +126,37 @@ describe('normalizeProject — 缺字段补全（旧版本有已知语义，补�
     expect(p.tracks[0].locked).toBe(false);
   });
 
+  it('多轨工程（M2）：任意条数的轨道都能原样读回，数量与顺序都不丢', () => {
+    const r = normalizeProject({
+      schemaVersion: VIDEO_EDITOR_SCHEMA_VERSION,
+      tracks: [
+        { id: 'v1', kind: 'video', clips: [] },
+        { id: 'v2', kind: 'video', overlay: true, clips: [] },
+        { id: 'v3', kind: 'video', overlay: true, clips: [] },
+        { id: 'a1', kind: 'audio', clips: [] },
+        { id: 'a2', kind: 'audio', clips: [] },
+      ],
+    });
+    expect(r.status).toBe('ok');
+    if (r.status !== 'ok') return;
+    expect(r.value.tracks.map((t) => t.id)).toEqual(['v1', 'v2', 'v3', 'a1', 'a2']);
+  });
+
+  it('两条 overlay:false 的视频轨（写坏的记录）→ 加载期收敛为「只有第一条是主轨」', () => {
+    const r = normalizeProject({
+      schemaVersion: VIDEO_EDITOR_SCHEMA_VERSION,
+      tracks: [
+        { id: 'v1', kind: 'video', clips: [] },
+        // 第二条也声称自己是主轨：放行会让「主轨压实」与直通导出各指一条轨（判据说谎）
+        { id: 'v2', kind: 'video', clips: [] },
+      ],
+    });
+    expect(r.status).toBe('ok');
+    if (r.status !== 'ok') return;
+    expect(r.value.tracks[0].overlay).toBe(false);
+    expect(r.value.tracks[1].overlay).toBe(true);
+  });
+
   it('轨道行高是工程 UI 记忆：持久化回读保留（C7.5，刷新不丢）', () => {
     const r = normalizeProject({
       schemaVersion: VIDEO_EDITOR_SCHEMA_VERSION,

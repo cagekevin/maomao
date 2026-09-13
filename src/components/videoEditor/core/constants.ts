@@ -55,6 +55,16 @@ export const DEFAULT_VIDEO_TRACK_NAME = '视频';
 export const DEFAULT_AUDIO_TRACK_NAME = '音频';
 
 /**
+ * 轨道数量上限（视频 / 音频**各自**计算）。
+ *
+ * 为什么设上限：`tracks` 每次编辑都是整份快照入撤销栈（`useEditorProject`），
+ * 轨道数不封顶时，一次误操作点几十下「加轨」会把撤销栈撑成几十份大数组。
+ * 40 条远超真实剪辑需求（专业 NLE 的时间轴可容纳轨道数亦在几十量级），
+ * 且不设上限的「无限」在 UI 上没有意义（轨道区滚不了那么多还看得清）。
+ */
+export const MAX_TRACKS_PER_KIND = 40;
+
+/**
  * 吸附容差（**像素**，不是秒）。
  *
  * 首次被消费处（2026-09-13 · G5）：播放头落点吸附（`docs/123` §二.9 第 4 行的「地基解」——

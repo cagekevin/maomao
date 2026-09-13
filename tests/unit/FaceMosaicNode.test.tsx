@@ -124,7 +124,8 @@ function spawnedNodes() {
 describe('FaceMosaicNode — 空态与图片源', () => {
   it('无图 → 显示引导文案', () => {
     setup();
-    expect(screen.getByText('上传图片 或 左侧连接图片节点')).toBeTruthy();
+    // 本地文件上传已移除：唯一来源是上游连接，故文案改为引导连线
+    expect(screen.getByText('左侧连接图片节点以导入')).toBeTruthy();
   });
 
   it('连接上游图片 → 显示张数与输入缩略图', () => {
@@ -227,30 +228,18 @@ describe('FaceMosaicNode — AI打码', () => {
   });
 });
 
-describe('FaceMosaicNode — 上传图源落盘（TD-9 口径 A）', () => {
-  function uploadFile(name = 'a.png') {
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { files: [new File(['x'], name, { type: 'image/png' })] } });
-  }
-
-  it('落盘成功 → 持久 URL 写回 data.assetUrls（刷新不丢）', async () => {
-    h.uploadMock.mockResolvedValue('http://local/files/canvas/face_mosaic/a.png');
-    setup();
-    uploadFile();
-    await waitFor(() => {
-      expect(lastData().assetUrls).toEqual(['http://local/files/canvas/face_mosaic/a.png']);
-    });
-    // 同一张图也进了输入预览（张数 0 → 1）
+describe('FaceMosaicNode — 图源（本地文件上传已移除）', () => {
+  it('上游连接图片 → 作为唯一输入来源（不再有本地上传入口）', () => {
+    setup({}, { images: [{ url: 'http://x/in1.png' }] });
     expect(screen.getByText(/已连接/)).toBeTruthy();
+    expect(document.querySelectorAll('img[alt^="input-"]')).toHaveLength(1);
+    expect(document.querySelector('input[type="file"]')).toBeNull();
   });
 
-  it('落盘失败（退回 blob 预览）→ 不写回 data.assetUrls，但预览仍在', async () => {
-    h.uploadMock.mockResolvedValue(null as never);
+  it('无连接 → 显示连线引导，且无上传入口', () => {
     setup();
-    uploadFile();
-    // 预览出现即说明走完了上传流程（blob 兜底不进 data）
-    await waitFor(() => expect(screen.getByText(/已连接/)).toBeTruthy());
-    expect(lastData().assetUrls).toBeUndefined();
+    expect(screen.getByText('左侧连接图片节点以导入')).toBeTruthy();
+    expect(document.querySelector('input[type="file"]')).toBeNull();
   });
 });
 
