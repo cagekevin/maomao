@@ -20,6 +20,13 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { patchNodeDataById } from '../../hooks/useNodeData.ts';
 import { classifyAssetUrlKind } from '../base/utils/assetType.ts';
+import {
+  pxDeltaToTime,
+  snapTime,
+  timeDeltaToPx,
+  timeToX,
+  xToTime,
+} from '../base/utils/timeline/timeScale.ts';
 import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { useNodeResize } from '../base/core/uiHooks.ts';
 import { showToast } from '../base/core/toastStore.ts';
@@ -746,17 +753,12 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   }, [mode, setInPoint, setOutPoint, splitAtPlayhead, removeClip]);
 
   /* ---------- 播放头 / scrubber（复刻官方 389-454 行） ---------- */
+  // 容差由本宿主决定（秒级、随总长放宽），换算成像素后交给共用原语。
+  // 分工（7 步法 Step 3）：**容差多大**是本域判据（保留在此）；**在容差内找最近候选**是共用运算（`snapTime`）。
   const snapTolerance = Math.max(0.08, totalDuration * 0.012);
   const snapTo = useCallback(
-    (v: number, targets: number[]) => {
-      let best = null;
-      for (const t of targets) {
-        const dist = Math.abs(t - v);
-        if (!best || dist < best.distance) best = { value: t, distance: dist };
-      }
-      if (best && best.distance <= snapTolerance) return best.value;
-      return v;
-    },
+    (v: number, targets: number[]) =>
+      snapTime(v, targets, PX_PER_SEC, timeDeltaToPx(snapTolerance, PX_PER_SEC)),
     [snapTolerance],
   );
 
@@ -834,7 +836,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     const startTimeline = clip.timelineStart ?? 0;
     // P3：move 高频 → rAF 合并（elementsFromPoint + updateClip 从每事件一次降到每帧一次）
     const batch = createRafBatch((clientX, clientY) => {
-      const dx = (clientX - startX) / PX_PER_SEC;
+      const dx = pxDeltaToTime(clientX - startX, PX_PER_SEC);
       const candidate = Math.max(0, startTimeline + dx);
       const snapTargets = [
         0,
@@ -1302,8 +1304,8 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     return max;
   }, [tracks]);
 
-  const timelineWidth = Math.max(100, timelineTotal * PX_PER_SEC + 100);
-  const playheadX = playheadTime * PX_PER_SEC;
+  const timelineWidth = Math.max(100, timeDeltaToPx(timelineTotal, PX_PER_SEC) + 100);
+  const playheadX = timeToX(playheadTime, PX_PER_SEC, 0);
 
   /* 同步横向滚动（复刻官方 Pe） */
   const syncScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -1319,7 +1321,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   const onTimelinePointer = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!videoRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const t = Math.max(0, (e.clientX - rect.left) / PX_PER_SEC);
+    const t = Math.max(0, xToTime(e.clientX - rect.left, PX_PER_SEC, 0));
     for (const tr of tracks) {
       if (tr.kind !== 'video') continue;
       const clip = tr.clips.find(
@@ -1359,8 +1361,8 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         key={clip.id}
         className="absolute top-1 h-12 z-10"
         style={{
-          left: (clip.timelineStart ?? 0) * PX_PER_SEC,
-          width: (clip.duration ?? 0) * PX_PER_SEC,
+          left: timeToX(clip.timelineStart ?? 0, PX_PER_SEC, 0),
+          width: timeDeltaToPx(clip.duration ?? 0, PX_PER_SEC),
         }}
         onPointerDown={(e) => {
           e.stopPropagation();

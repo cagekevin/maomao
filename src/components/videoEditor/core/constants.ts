@@ -1,0 +1,57 @@
+/**
+ * 视频剪辑器 · 领域常量**单一出处**（docs/123 §一.4 末）。
+ *
+ * 纪律：
+ *  - 一律从本文件引用，**禁止在调用处就地写魔法数**（否则「同一容差两处不同值」必漂）；
+ *  - 本文件零依赖（纯常量），落 `core/` 符合「零 React / 零 IO」。
+ *
+ * ── 视图层常量为什么不在这里（**依赖方向 + 机器守卫强制**）──
+ * `docs/123` §一.4 原把视图换算常量（`MIN/MAX_PIXELS_PER_SECOND` · `SNAP_TOLERANCE_PX`）
+ * 也列进本文件。但那批常量属于 **D 组（视图换算）**，而 D 组已由审核裁定落 `base/utils/timeline/`
+ * （跨 3 域共用，见 `docs/124`）：
+ *  - `base/` **不许**反向依赖业务域（`check-arch` G-1 反向判据）→ base 不能 import 本文件；
+ *  - `videoEditor/core/**` 只准 import `core/**` 与 `base/core/idGen.ts`（G-2 白名单）→ core 不能 import base。
+ * 两条合起来 ⇒ 视图层常量与领域常量**必须分居两层**，各自在自己的唯一出处。
+ *
+ * 另一条通用纪律：**常量在「首次被消费处」落地，不预置**（7 步法附录 A8 + `check:dead-code`）。
+ * 声明一个零消费方的常量 = 死代码，且它会以「将来可能要用」为名长期滞留。
+ * 故此文件只收录**此刻真有消费者**的领域常量；`SNAP_TOLERANCE_PX` 等将在其调用点（G3/G5）到来时补入。
+ */
+
+/**
+ * 浮点比较容差（docs/123 §一.1 T3）。
+ *
+ * 时间单位是秒（float），`a + b - c` 这类运算必然带舍入误差，故：
+ *  - **比较走 `|a - b| <= EPS`**，不用 `===`；
+ *  - 吸附（`snapTime`）归到**离散候选值**，禁止就地 `±=` 累积误差。
+ */
+export const EPS = 1e-3;
+
+/**
+ * 图片片段 / 定格帧的默认时长（秒）——与「图片素材入轨」共用同一常量，
+ * 避免长出第二个「图片默认几秒」的常量（docs/123 §一.9 Q4）。
+ */
+export const DEFAULT_IMAGE_CLIP_DURATION = 3;
+
+/** 工程默认帧率（帧率只影响渲染与导出采样，**不进任何时间戳存储**：docs/123 §一.1 T1 / §一.9 Q2）。 */
+export const DEFAULT_FPS = 30;
+
+/** 新工程默认画布尺寸（16:9 · 720p）。首个入轨视频/图片片段的尺寸会覆盖它（docs/120 C12）。 */
+export const DEFAULT_PROJECT_WIDTH = 1280;
+export const DEFAULT_PROJECT_HEIGHT = 720;
+
+/** 基座默认高度（px）。属 UI 记忆，随工程落盘（docs/120 C2 的 `ui.dockHeight`）。 */
+export const DEFAULT_DOCK_HEIGHT = 280;
+
+/** 轨道默认显示名（工程只有一条视频轨 + 一条音频轨：docs/123 §一.9 Q3）。 */
+export const DEFAULT_VIDEO_TRACK_NAME = '视频';
+export const DEFAULT_AUDIO_TRACK_NAME = '音频';
+
+/**
+ * 工程记录结构版本（`docs/120` C1/C2 的 schemaVersion 守卫基准）。
+ *
+ * 只在**改变 `tracks` / `settings` 结构**（新增/重命名影响旧数据可读性的字段）时抬升，并补迁移分支。
+ * 读取端语义（`normalizeProject`）：低于本值 → 迁移；**等于** → 直用；
+ * **缺失 / 高于本值 / 结构损坏 → 拒载并明示**（绝不按缺字段渲染出半截工程）。
+ */
+export const VIDEO_EDITOR_SCHEMA_VERSION = 1;
