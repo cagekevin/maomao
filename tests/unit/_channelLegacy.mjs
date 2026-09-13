@@ -25,25 +25,25 @@ import {
 import { lerp, segmentAmount } from '../../src/components/director3d/project.ts';
 
 /** 旧整快照求值（复刻现网 objectAtFrame，仅作对照基准，M4-C4 / M2-C3）。 */
-export function legacyObjectAtFrame(object, keyframes, frame, fps) {
+export function legacyObjectAtFrame(/** @type {any} */ object, /** @type {any} */ keyframes, /** @type {any} */ frame, /** @type {any} */ fps) {
   if (!object) return object;
   const sorted = [...keyframes].sort((a, b) => a.frame - b.frame);
   if (!sorted.length) return object;
-  const motionEnabled = (key) =>
+  const motionEnabled = (/** @type {any} */ key) =>
     poseCanLoop(key.pose || object.pose) &&
     (key.continuousMotion === undefined
       ? Boolean(object.continuousMotion)
       : Boolean(key.continuousMotion));
-  const sameState = (leftKey, rightKey) =>
+  const sameState = (/** @type {any} */ leftKey, /** @type {any} */ rightKey) =>
     normalizePoseId(leftKey.pose || object.pose) ===
       normalizePoseId(rightKey.pose || object.pose) &&
     motionEnabled(leftKey) === motionEnabled(rightKey);
-  const stateStartFrame = (key) => {
+  const stateStartFrame = (/** @type {any} */ key) => {
     let index = sorted.indexOf(key);
     while (index > 0 && sameState(sorted[index - 1], sorted[index])) index -= 1;
     return sorted[index]?.frame ?? key.frame;
   };
-  const applyKey = (key) => ({
+  const applyKey = (/** @type {any} */ key) => ({
     ...object,
     position: [...key.position],
     rotation: [...key.rotation],
@@ -78,15 +78,15 @@ export function legacyObjectAtFrame(object, keyframes, frame, fps) {
   const interpolateState = sameState(left, right);
   return {
     ...object,
-    position: left.position.map((value, index) => lerp(value, right.position[index], t)),
-    rotation: left.rotation.map((value, index) => lerp(value, right.rotation[index], t)),
-    scale: left.scale.map((value, index) => lerp(value, right.scale[index], t)),
+    position: left.position.map((/** @type {any} */ value, /** @type {any} */ index) => lerp(value, right.position[index], t)),
+    rotation: left.rotation.map((/** @type {any} */ value, /** @type {any} */ index) => lerp(value, right.rotation[index], t)),
+    scale: left.scale.map((/** @type {any} */ value, /** @type {any} */ index) => lerp(value, right.scale[index], t)),
     pose: normalizePoseId(left.pose || object.pose),
     poseTime: interpolateState ? lerp(leftPoseTime, rightPoseTime, t) : leftPoseTime,
     continuousMotion: motionEnabled(left),
     motionStartTime: stateStartFrame(left) / fps,
     rigRoot: interpolateState
-      ? leftRoot.map((value, index) => lerp(value, rightRoot[index], t))
+      ? leftRoot.map((/** @type {any} */ value, /** @type {any} */ index) => lerp(value, rightRoot[index], t))
       : [...leftRoot],
     joints: interpolateState
       ? interpolateJointPose(

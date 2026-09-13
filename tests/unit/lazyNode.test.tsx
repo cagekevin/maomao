@@ -23,7 +23,7 @@ const { lazyNode, HEAVY_NODE_LOADERS, prefetchHeavyNode } =
   await import('../../src/components/base/canvas/lazyNode.tsx');
 
 // 测试源码文本（用于拦截「静态 import 回归」）
-const readSrc = (rel) => fs.readFileSync(path.resolve(__dirname, '../../', rel), 'utf-8');
+const readSrc = (rel: any) => fs.readFileSync(path.resolve(__dirname, '../../', rel), 'utf-8');
 
 describe('lazyNode · 占位与失败降级', () => {
   it('未就绪时显示加载占位（而非空白）', () => {
@@ -89,11 +89,11 @@ describe('prefetchHeavyNode', () => {
 // 源码级护栏：静态 import 一旦回来，首屏立刻 +1.7MB
 // ══════════════════════════════════════════════════════════════
 describe('按需加载 · 静态 import 回归拦截', () => {
-  const staticImportsOf = (src) => src.split('\n').filter((l) => /^\s*import\s.+from\s/.test(l));
+  const staticImportsOf = (src: any) => src.split('\n').filter((l: any) => /^\s*import\s.+from\s/.test(l));
 
   it('NodePalette 不得静态 import 重依赖节点（否则 vendor-3d/media 进首屏）', () => {
     const imports = staticImportsOf(readSrc('src/components/base/canvas/NodePalette.ts'));
-    const offenders = imports.filter((l) => /VideoProcessNode|PanoramaNode|Director3DNode/.test(l));
+    const offenders = imports.filter((l: any) => /VideoProcessNode|PanoramaNode|Director3DNode/.test(l));
     expect(
       offenders,
       `NodePalette 静态 import 了重依赖节点：${offenders.join(' | ')}\n` +
@@ -103,7 +103,7 @@ describe('按需加载 · 静态 import 回归拦截', () => {
 
   it('App.tsx 不得静态 import Director3DNode', () => {
     const imports = staticImportsOf(readSrc('src/App.tsx'));
-    const offenders = imports.filter((l) => /Director3DNode/.test(l));
+    const offenders = imports.filter((l: any) => /Director3DNode/.test(l));
     expect(offenders, `App.tsx 静态 import 了 Director3DNode：${offenders.join(' | ')}`).toEqual(
       [],
     );
@@ -113,7 +113,7 @@ describe('按需加载 · 静态 import 回归拦截', () => {
     const src = readSrc('src/components/base/canvas/lazyNode.tsx');
     // 先剥离注释：文档里会写「禁止的反例」（import(`../nodes/${type}.jsx`)），
     // 不剥离会被下面的检测误判成违规。
-    const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+    const stripComments = (s: any) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
     const loaderBlock = stripComments(
       src.slice(
         src.indexOf('HEAVY_NODE_LOADERS'),

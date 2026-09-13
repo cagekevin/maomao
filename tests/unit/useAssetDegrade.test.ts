@@ -15,7 +15,7 @@ import { createElement } from 'react';
 const { useAssetDegrade } = await import('../../src/hooks/useAssetDegrade.ts');
 const { LodContext } = await import('../../src/components/base/canvas/lod.tsx');
 
-function renderWithLod(lodLevel) {
+function renderWithLod(lodLevel: any) {
   return renderHook(() => useAssetDegrade(), {
     wrapper: ({ children }) =>
       createElement(

@@ -39,7 +39,7 @@ beforeEach(() => {
   removeAttrArgs = [];
   loadCalls = 0;
   handlers.clear();
-  document.createElement = function (tag) {
+  document.createElement = function (tag: any) {
     if (tag === 'video') {
       const v = nativeCreate('video');
       let curTime = 0;

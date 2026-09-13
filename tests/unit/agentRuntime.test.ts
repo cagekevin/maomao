@@ -45,7 +45,7 @@ function mockFetchOnce({
   status?: number;
   headers?: Record<string, string>;
 }) {
-  const fetchMock = vi.fn(async (url, opts) => {
+  const fetchMock = vi.fn(async (_url, opts) => {
     const body = JSON.parse(opts.body);
     if (assertBody) assertBody(body);
     // 实际代码用 res.text() + safeParseNonStreamJSON 解析非流式响应
@@ -53,7 +53,7 @@ function mockFetchOnce({
       ok: status >= 200 && status < 300,
       status,
       text: async () => JSON.stringify(jsonResp),
-      headers: { get: (k) => headers[k] || null },
+      headers: { get: (k: any) => headers[k] || null },
       body: null,
     };
   });
@@ -147,12 +147,12 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
     let captured;
     // 流式响应：构造可读流
     const streamText = 'data: {"choices":[{"delta":{"content":"hello"}}]}\n\n';
-    const fetchMock = vi.fn(async (url, opts) => {
+    const fetchMock = vi.fn(async (_url, opts) => {
       captured = JSON.parse(opts.body);
       return {
         ok: true,
         status: 200,
-        headers: { get: (k) => (k === 'content-type' ? 'text/event-stream' : null) },
+        headers: { get: (k: any) => (k === 'content-type' ? 'text/event-stream' : null) },
         body: {
           getReader: () => {
             let done = false;
@@ -206,7 +206,7 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
     const fetchMock = vi.fn(async (_url, _opts) => ({
       ok: true,
       status: 200,
-      headers: { get: (_k) => null },
+      headers: { get: (_k: any) => null },
       body: {
         getReader: () => {
           let done = false;
@@ -260,7 +260,7 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
     const fetchMock = vi.fn(async (_url, _opts) => ({
       ok: true,
       status: 200,
-      headers: { get: (_k) => null },
+      headers: { get: (_k: any) => null },
       body: {
         getReader: () => {
           let done = false;

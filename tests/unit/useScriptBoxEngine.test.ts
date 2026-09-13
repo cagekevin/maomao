@@ -46,8 +46,8 @@ vi.mock('../../src/components/scriptbox/scriptBoxEngine.ts', () => ({
 // 只让 key 命中 'yimao_node_prefs' 时返回，避免牵动 contentStore 的真实注册/后端逻辑。
 let prefsStore = {};
 vi.mock('../../src/components/base/core/contentStore.ts', () => ({
-  contentGet: (k) => (k === 'yimao_node_prefs' ? prefsStore : null),
-  contentSet: (k, v) => {
+  contentGet: (k: any) => (k === 'yimao_node_prefs' ? prefsStore : null),
+  contentSet: (k: any, v: any) => {
     if (k === 'yimao_node_prefs') prefsStore = v;
   },
 }));
@@ -144,7 +144,7 @@ describe('useScriptBoxEngine', () => {
     expect(typeof updater).toBe('function');
     const next = updater(getNodes());
     // 新节点是 concat 到末尾的那个（id 以 'x' 为准）
-    return next.find((n) => n.id === 'x');
+    return next.find((n: any) => n.id === 'x');
   }
 
   it('addNodes 经 screenToFlowPosition 偏移落点', () => {
@@ -284,13 +284,13 @@ describe('useScriptBoxEngine', () => {
         },
       ],
     });
-    const s2 = data.shots.find((s) => s.id === 's2');
+    const s2 = data.shots.find((s: any) => s.id === 's2');
     expect(s2.tailFrameVariantsLoading).toBe(false);
     expect(s2.selectedTailFrameVariantId).toBe('composed');
     expect(s2.prevShotImageRefUrls).toEqual([
       'http://127.0.0.1:18080/files/migrated/脚本/尾帧变体/x.png',
     ]);
-    expect(s2.prevTailFrameVariants.find((v) => v.id === 'composed')).toMatchObject({
+    expect(s2.prevTailFrameVariants.find((v: any) => v.id === 'composed')).toMatchObject({
       assetUrl: 'http://127.0.0.1:18080/files/migrated/脚本/尾帧变体/x.png',
       thumbnailUrl: 'http://127.0.0.1:18080/files/migrated/脚本/尾帧变体/x.png',
       loading: false,
@@ -308,8 +308,8 @@ describe('useScriptBoxEngine', () => {
     const data = applyLatestUpdater({
       shots: [{ id: 's9', prevTailFrameVariants: [{ id: 'original', assetUrl: 'orig' }] }],
     });
-    const s9 = data.shots.find((s) => s.id === 's9');
-    expect(s9.prevTailFrameVariants.map((v) => v.id)).toEqual(['original', 'composed']);
+    const s9 = data.shots.find((s: any) => s.id === 's9');
+    expect(s9.prevTailFrameVariants.map((v: any) => v.id)).toEqual(['original', 'composed']);
     expect(s9.prevTailFrameVariants[1]).toMatchObject({ assetUrl: 'u9', loading: false });
     unmount();
   });

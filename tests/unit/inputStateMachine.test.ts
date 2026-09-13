@@ -15,8 +15,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { InputStateMachine } from '../../src/components/agent/runtime/inputStateMachine.ts';
 
 describe('InputStateMachine', () => {
-  let sm;
-  let onChange;
+  let sm: any;
+  let onChange: any;
   beforeEach(() => {
     onChange = vi.fn();
     sm = new InputStateMachine({ onChange });

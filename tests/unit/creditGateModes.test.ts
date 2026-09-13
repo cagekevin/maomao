@@ -15,7 +15,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * 通过控制 creditSwitch 断言 autoRun 传参、creditGate 置位、返回语义。
  */
 // 可控 creditSwitch：getX 读 __credit，setX 写 __credit（contentStore 的 contentGet/contentSet 也被 mock 到同一状态）
-let __creditState;
+let __creditState: any;
 let __genParamsState;
 vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal) => {
   // importOriginal 在 vitest 类型里返回 unknown（类型限制），断言回具体模块命名空间以保留 .contentGet 等调用
@@ -102,7 +102,7 @@ type ConvMock = typeof convStore & {
 const convMock = convStore as unknown as ConvMock;
 
 function makeCtx() {
-  let nodes = [];
+  let nodes: any = [];
   return {
     getNodes: () => nodes,
     setNodes: vi.fn((fn) => {
@@ -110,10 +110,10 @@ function makeCtx() {
     }),
     getEdges: () => [],
     setEdges: vi.fn(),
-    addNodes: (ns) => {
+    addNodes: (ns: any) => {
       nodes = [...nodes, ...ns];
     },
-    screenToFlowPosition: (p) => p || { x: 0, y: 0 },
+    screenToFlowPosition: (p: any) => p || { x: 0, y: 0 },
     fitView: vi.fn(),
     zoomIn: vi.fn(),
     zoomOut: vi.fn(),

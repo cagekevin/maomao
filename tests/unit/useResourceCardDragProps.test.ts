@@ -42,10 +42,10 @@ function fakeDataTransfer() {
   return {
     data,
     effectAllowed: '',
-    setData: (type, val) => {
+    setData: (type: any, val: any) => {
       data[type] = String(val);
     },
-    getData: (type) => data[type] || '',
+    getData: (type: any) => data[type] || '',
   };
 }
 

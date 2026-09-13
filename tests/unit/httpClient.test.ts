@@ -13,7 +13,7 @@ import {
 } from '@/components/base/api/httpClient.ts';
 import { TimeoutError } from '../../src/components/base/utils/asyncGuard.ts';
 
-let mockFetch;
+let mockFetch: any;
 
 beforeEach(() => {
   mockFetch = vi.fn();

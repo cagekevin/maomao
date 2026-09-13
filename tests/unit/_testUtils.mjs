@@ -28,7 +28,7 @@ import { vi } from 'vitest';
 /** JSON 假响应：同时暴露 ok/status、json() 与 text()，避免意外触达真实网络路径。
  *  部分调用方走 res.json()（imageApi/chatApi），部分走 res.text()+JSON.parse（cloudSync callGateway），
  *  两者语义等价（text 即 json 的序列化），故一个工厂通用。 */
-export function jsonResp(obj, ok = true, status = 200) {
+export function jsonResp(/** @type {any} */ obj, ok = true, status = 200) {
   return { ok, status, json: async () => obj, text: async () => JSON.stringify(obj) };
 }
 
@@ -36,9 +36,9 @@ export function jsonResp(obj, ok = true, status = 200) {
  * SSE 假响应：把一个 data 行数组编码成可顺序读取的流
  * （fetch mock 需返回带 body.getReader().read() 的响应）。
  */
-export function sseResp(lines) {
+export function sseResp(/** @type {any} */ lines) {
   let i = 0;
-  const chunks = lines.map((l) => new TextEncoder().encode(l + '\n'));
+  const chunks = lines.map((/** @type {any} */ l) => new TextEncoder().encode(l + '\n'));
   return {
     ok: true,
     body: {
@@ -79,7 +79,7 @@ export function fastPollTimers() {
   // 立即微任务）。测试要的是「回调被调度」，无人断言句柄；收紧成 Timeout 反而要伪造句柄对象。
   return vi
     .spyOn(global, 'setTimeout')
-    .mockImplementation(/** @type {any} */ ((fn) => Promise.resolve().then(fn)));
+    .mockImplementation(/** @type {any} */ ((/** @type {any} */ fn) => Promise.resolve().then(fn)));
 }
 
 /**
@@ -92,12 +92,12 @@ export function createKvMem() {
   const memKV = new Map();
   return {
     memKV,
-    kvGet: async (key) => (memKV.has(key) ? memKV.get(key) : null),
-    kvSet: async (key, value) => {
+    kvGet: async (/** @type {any} */ key) => (memKV.has(key) ? memKV.get(key) : null),
+    kvSet: async (/** @type {any} */ key, /** @type {any} */ value) => {
       memKV.set(key, value);
       return { ok: true };
     },
-    kvDelete: async (key) => {
+    kvDelete: async (/** @type {any} */ key) => {
       memKV.delete(key);
       return { ok: true };
     },

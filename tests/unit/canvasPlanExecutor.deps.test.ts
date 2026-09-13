@@ -31,22 +31,22 @@ type GenStep = {
 
 type MockCtx = CanvasHostCtx & { nodes: () => Node[]; edges: () => Edge[] };
 function makeCtx(): MockCtx {
-  let nodes = [];
-  let edges = [];
+  let nodes: any = [];
+  let edges: any = [];
   return {
     nodes: () => nodes,
     edges: () => edges,
     getNodes: () => nodes,
-    addNodes: (ns) => {
+    addNodes: (ns: any) => {
       nodes = [...nodes, ...ns];
     },
-    addEdges: (es) => {
+    addEdges: (es: any) => {
       edges = [...edges, ...es];
     },
-    setNodes: (fn) => {
+    setNodes: (fn: any) => {
       nodes = typeof fn === 'function' ? fn(nodes) : fn;
     },
-    setEdges: (fn) => {
+    setEdges: (fn: any) => {
       edges = typeof fn === 'function' ? fn(edges) : fn;
     },
   } as unknown as MockCtx;

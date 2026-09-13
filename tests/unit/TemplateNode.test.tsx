@@ -19,7 +19,7 @@ const h = vi.hoisted(() => {
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
     setNodes: (...a: unknown[]) => (h.setNodes as unknown as (...x: unknown[]) => void)(...a),
-    setEdges: (...a) => a[0],
+    setEdges: (...a: any[]) => a[0],
     getNodes: () => h.state.nodes,
     getEdges: () => [],
   }),
@@ -61,17 +61,17 @@ vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
 // useNodeGeneration：记录 config，复刻真实 hook 的声明式写回（resultKey + recoverable）以对齐 P0-2-c。
 // 桩经 h.setNodes 写入 node.data，供断言「成功/广播回填」后 data 自动更新（不再依赖节点手写 patchData）。
-let genConfig = null;
+let genConfig: any = null;
 const getGenConfig = () => genConfig;
 vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
-  useNodeGeneration: (config) => {
+  useNodeGeneration: (config: any) => {
     genConfig = config;
     // 复刻真实的广播 handler：recoverable + resultKey 且广播带 resultUrl 时先自动写回，再透传原 onRecover
     const originalOnRecover = config.onRecover;
-    genConfig.onRecover = (d) => {
+    genConfig.onRecover = (d: any) => {
       if (config.recoverable && config.resultKey && d?.resultUrl) {
-        h.setNodes((ns) =>
-          ns.map((n) =>
+        h.setNodes((ns: any) =>
+          ns.map((n: any) =>
             n.id === config.nodeId
               ? { ...n, data: { ...n.data, [config.resultKey]: d.resultUrl } }
               : n,
@@ -88,8 +88,8 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
         const r = await config?.run?.({ progress: () => {}, signal: { aborted: false } });
         if (config.resultKey && (r?.url || r?.doneUrl)) {
           const url = r.url || r.doneUrl;
-          h.setNodes((ns) =>
-            ns.map((n) =>
+          h.setNodes((ns: any) =>
+            ns.map((n: any) =>
               n.id === config.nodeId ? { ...n, data: { ...n.data, [config.resultKey]: url } } : n,
             ),
           );

@@ -16,10 +16,10 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  toAbsoluteFileUrl: (u) => `ABS:${u}`,
+  toAbsoluteFileUrl: (u: any) => `ABS:${u}`,
 }));
 vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({
-  default: ({ src }) => React.createElement('img', { src }),
+  default: ({ src }: any) => React.createElement('img', { src }),
 }));
 
 import AgentMessage from '../../src/components/panels/AgentMessage.tsx';

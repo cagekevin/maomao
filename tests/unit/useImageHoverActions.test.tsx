@@ -14,10 +14,10 @@ import { useImageHoverActions } from '../../src/components/nodes/useImageHoverAc
 // 依赖 stub（hook 内部 import 的真实模块，测试中用轻量替身）
 vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/utils/imageCompress.ts', () => ({
-  compressImage: async (_url) => ({ dataUrl: 'data:compressed', size: 1, originalSize: 2 }),
+  compressImage: async (_url: any) => ({ dataUrl: 'data:compressed', size: 1, originalSize: 2 }),
 }));
 vi.mock('../../src/components/base/utils/imageUpscale.ts', () => ({
-  upscaleImage: async (_url) => ({ dataUrl: 'data:upscaled' }),
+  upscaleImage: async (_url: any) => ({ dataUrl: 'data:upscaled' }),
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   // 落盘+写回收口为 showThenPersistInline：先 show(dataUrl) 即时写回，再落盘得 'local://saved' 后 show(持久URL)
@@ -31,7 +31,7 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => ({
   toastError: () => {},
 }));
 
-const findBtn = (btns, key) => btns.find((b) => b.key === key);
+const findBtn = (btns: any, key: any) => btns.find((b: any) => b.key === key);
 
 describe('useImageHoverActions — 图片共享 hover 能力', () => {
   beforeEach(() => {});

@@ -16,12 +16,12 @@ const h = vi.hoisted(() => ({
   mockHttpRequest: vi.fn(),
 }));
 vi.mock('../../src/components/base/api/httpClient.ts', () => ({
-  httpRequest: (...a) => h.mockHttpRequest(...a),
+  httpRequest: (...a: any[]) => h.mockHttpRequest(...a),
 }));
 
 import { relayAttachUntilDone, relayGenerate } from '../../src/components/base/api/relayProxy.ts';
 
-function envResp(data) {
+function envResp(data: any) {
   // httpRequest parseJson:true 真实返回纯信封对象 { code, data }（无 .json）
   return { code: 0, data };
 }

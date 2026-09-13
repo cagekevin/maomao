@@ -198,7 +198,7 @@ vi.mock('../../src/components/base/utils/asyncGuard.ts', () => ({
     return { naturalWidth: mockImage.naturalWidth, naturalHeight: mockImage.naturalHeight };
   }),
   TimeoutError: class TimeoutError extends Error {},
-  isTimeoutError: (e) => e instanceof Error && e.name === 'TimeoutError',
+  isTimeoutError: (e: any) => e instanceof Error && e.name === 'TimeoutError',
 }));
 import { compressImage } from '../../src/components/base/utils/imageCompress.ts';
 
@@ -288,7 +288,7 @@ describe('imageCompress —— 压缩（含浏览器依赖，部分 mock）', ()
 });
 
 // ── 辅助：mock jsdom 的 canvas（drawImage 为空操作，toDataURL 返回预设）──
-function setupCanvasMock(w, h, toDataUrlReturn) {
+function setupCanvasMock(_w: any, h: any, toDataUrlReturn: any) {
   globalThis.document.createElement = vi.fn((tag) => {
     if (tag === 'canvas') {
       return {

@@ -36,7 +36,7 @@ vi.mock('@xyflow/react', () => ({
   Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
   NodeResizer: () => null,
   useStore: () => () => ({}),
-  ReactFlowProvider: ({ children }) => children,
+  ReactFlowProvider: ({ children }: any) => children,
 }));
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
 vi.mock('../../src/components/base/ui/CustomHandle.tsx', () => ({ default: mocks.CustomHandle }));
@@ -154,7 +154,7 @@ describe('ImageBoxNode — 展开/折叠与选择', () => {
     ];
     setup({ images: imgs, activeIndex: 2, expanded: true, selectedIds: ['a', 'c'] });
     fireEvent.click(screen.getByTitle('删除已选'));
-    expect(lastData().images.map((i) => i.id)).toEqual(['b']);
+    expect(lastData().images.map((i: any) => i.id)).toEqual(['b']);
     expect(lastData().selectedIds).toEqual([]);
     expect(lastData().activeIndex).toBe(0);
   });

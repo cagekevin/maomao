@@ -15,10 +15,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 
 const h = vi.hoisted(() => {
-  const calls = [];
+  const calls: any = [];
   return {
     calls,
-    CometParticlesMock: (props) => {
+    CometParticlesMock: (props: any) => {
       h.calls.push(props);
       return <g data-testid="comet-particles" />;
     },
@@ -26,7 +26,7 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock('../../src/components/base/ui/CometParticles.tsx', () => ({
-  default: (props) => h.CometParticlesMock(props),
+  default: (props: any) => h.CometParticlesMock(props),
 }));
 
 import Comet from '../../src/components/edges/Comet.tsx';
@@ -36,7 +36,7 @@ describe('Comet', () => {
     h.calls.length = 0;
   });
 
-  function setup(props) {
+  function setup(props: any) {
     const view = render(<Comet {...props} />);
     const g = view.container.querySelector('g')!;
     return { view, g };

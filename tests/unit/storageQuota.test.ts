@@ -15,7 +15,7 @@ import {
 } from '@/components/base/storage/storageQuota.ts';
 
 /** 可控的 chrome 全局（模拟 普通网页 / 真实扩展 两种环境） */
-let chromeGlobal = null;
+let chromeGlobal: any = null;
 beforeEach(() => {
   chromeGlobal = null;
   if ('chrome' in globalThis) delete (globalThis as { chrome?: unknown }).chrome;
@@ -37,7 +37,7 @@ function makeExtensionChrome(store = {}) {
     runtime: { id: 'test-ext-id', lastError: null },
     storage: {
       local: {
-        get: (keys, cb) => {
+        get: (keys: any, cb: any) => {
           const out = {};
           if (keys === null) {
             for (const [k, v] of Object.entries(store)) out[k] = v;

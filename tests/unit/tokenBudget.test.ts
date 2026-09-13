@@ -25,10 +25,10 @@ const { resolveInputBudget, decideContextCompression, estimateMessagesTokens } =
 const MSG_OVERHEAD = 8;
 
 /** 单段估算 = 整组估算 − 单条开销。用于在不依赖私有符号的前提下验证估算口径 */
-const estimateOne = (s) => estimateMessagesTokens([{ role: 'user', content: s }]) - MSG_OVERHEAD;
+const estimateOne = (s: any) => estimateMessagesTokens([{ role: 'user', content: s }]) - MSG_OVERHEAD;
 
 /** 构造单条消息，使其估算总 token 恰为 n（content 全 CJK → 1 字符 1 token） */
-const tokensOf = (n) => [{ role: 'user', content: '长'.repeat(Math.max(0, n - MSG_OVERHEAD)) }];
+const tokensOf = (n: any) => [{ role: 'user', content: '长'.repeat(Math.max(0, n - MSG_OVERHEAD)) }];
 
 describe('估算口径（经 estimateMessagesTokens 验证）', () => {
   it('空/非字符串内容 → 0', () => {

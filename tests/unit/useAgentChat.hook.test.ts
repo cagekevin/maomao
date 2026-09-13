@@ -521,7 +521,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
 
   it('stop 中止：进行中调 stop → error=已停止，sending 回 false', async () => {
     fetchMock.mockImplementation(
-      (url, opts) =>
+      (_url, opts) =>
         new Promise((_resolve, reject) => {
           const sig = opts?.signal;
           if (sig)

@@ -35,13 +35,13 @@ const h = vi.hoisted(() => {
     activeConversationId: 'c1',
   };
   // Skill 列表
-  let skills = [];
-  const skillsSetter = (s) => {
+  let skills: any = [];
+  const skillsSetter = (s: any) => {
     skills = s;
   };
   // 记录 setCurrentSnapshot 调用
-  const snapshots = [];
-  const snapshotSetter = (s) => {
+  const snapshots: any = [];
+  const snapshotSetter = (s: any) => {
     snapshots.push(s);
   };
 
@@ -89,7 +89,7 @@ const h = vi.hoisted(() => {
   }));
   // contentStore 订阅桩：记录已注册的 key→cb，供测试触发「设置变更」回调
   let subscribeCbs = {};
-  const subscribeUnsubs = [];
+  const subscribeUnsubs: any = [];
   const contentSubscribe = vi.fn((key, cb) => {
     subscribeCbs[key] = cb;
     subscribeUnsubs.push(vi.fn());
@@ -99,7 +99,7 @@ const h = vi.hoisted(() => {
   // loadAgentChatModel 返回值（可覆盖，默认空=未配置）
   let agentModelCfg = {};
   // useProviders 返回值（可覆盖，默认空）
-  let providers = [];
+  let providers: any = [];
   // 订阅键常量：与 mock 的 AGENT_CHAT_MODEL_KEY 同源，避免 fireAgentModelChange 硬编码漂移
   const AGENT_CHAT_MODEL_KEY = 'agent_chat_model';
 
@@ -113,7 +113,7 @@ const h = vi.hoisted(() => {
     switchChat,
     deleteChat,
     askConfirm,
-    setConfirmAnswer: (a) => {
+    setConfirmAnswer: (a: any) => {
       confirmAnswer = a;
     },
     markSkillUsed,
@@ -126,28 +126,28 @@ const h = vi.hoisted(() => {
     contentSubscribe,
     subscribeCbs,
     AGENT_CHAT_MODEL_KEY,
-    setSubscribeCbs: (c) => {
+    setSubscribeCbs: (c: any) => {
       subscribeCbs = c;
     },
-    fireAgentModelChange: (cfg) => {
+    fireAgentModelChange: (cfg: any) => {
       subscribeCbs[AGENT_CHAT_MODEL_KEY]?.(cfg);
     },
     get agentModelCfg() {
       return agentModelCfg;
     },
-    setAgentModelCfg: (c) => {
+    setAgentModelCfg: (c: any) => {
       agentModelCfg = c;
     },
     get providers() {
       return providers;
     },
-    setProviders: (p) => {
+    setProviders: (p: any) => {
       providers = p;
     },
     get agentState() {
       return agentState;
     },
-    setAgentState: (s) => {
+    setAgentState: (s: any) => {
       agentState = { ...agentState, ...s };
     },
     get skills() {
@@ -187,7 +187,7 @@ vi.mock('../../src/components/base/store/skillStore.ts', () => ({
   getAllSkills: () => h.skills,
   markSkillUsed: h.markSkillUsed,
   isSkillEnabled: () => true,
-  repairMojibakeText: (t) => t,
+  repairMojibakeText: (t: any) => t,
   // AgentPanel 订阅「设置页改 Skill/开关启用态」用的两键（resync 里 contentSubscribe 用）。
   SKILLS_KEY: 'agent_skills',
   ENABLED_KEY: 'agent_skill_enabled',
@@ -204,7 +204,7 @@ vi.mock('../../src/components/base/core/contentStore.ts', () => ({
     cancel: vi.fn(),
   }),
 }));
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: (u) => u }));
+vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: (u: any) => u }));
 vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   setCurrentSnapshot: h.setCurrentSnapshot,
   setAwaitingConfirm: vi.fn(),
@@ -212,7 +212,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
 }));
 vi.mock('../../src/components/base/store/taskStore.ts', () => ({ runNodeGeneration: vi.fn() }));
 vi.mock('../../src/components/base/core/toastStore.ts', () => ({
-  showToast: (...a) => h.showToast(...a),
+  showToast: (...a: any[]) => h.showToast(...a),
 }));
 // 确认统一走 confirmStore（D8 收敛 window.confirm）：这里给可控答案，替代真实弹窗
 vi.mock('../../src/components/base/core/confirmStore.ts', () => ({ askConfirm: h.askConfirm }));
@@ -230,7 +230,7 @@ vi.mock('../../src/components/base/utils/previewUrl.ts', () => ({
 }));
 // AgentMessage 子组件用最小桩
 vi.mock('../../src/components/panels/AgentMessage.tsx', () => ({
-  default: ({ message }) =>
+  default: ({ message }: any) =>
     React.createElement('div', { 'data-testid': `msg-${message.role}` }, message.content || null),
 }));
 vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({

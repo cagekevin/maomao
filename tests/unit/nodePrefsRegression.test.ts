@@ -23,7 +23,7 @@ const TARGETS = {
 const SUBDIR = { TemplateNode: '_template' };
 
 /** 按 .jsx → .tsx 顺序探测节点文件（迁移期两者皆可能存在；蓝本在 _template/ 子目录） */
-function resolveNodeFile(name) {
+function resolveNodeFile(name: any) {
   const dir = SUBDIR[name] ? resolve(root, SUBDIR[name]) : root;
   for (const ext of ['.jsx', '.tsx']) {
     const p = resolve(dir, name + ext);

@@ -47,13 +47,13 @@ vi.mock('@xyflow/react', () => ({
 }));
 
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
-  default: ({ children }) => children,
+  default: ({ children }: any) => children,
 }));
 // HoverToolbar：渲染按钮数组，供点击下载/删除/发送到剪映
 vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({
-  default: ({ buttons }) => (
+  default: ({ buttons }: any) => (
     <div data-testid="hover-toolbar">
-      {buttons.map((b) => (
+      {buttons.map((b: any) => (
         <button key={b.key} type="button" title={b.title} onClick={b.onClick}>
           {b.title}
         </button>
@@ -62,11 +62,11 @@ vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({
   ),
 }));
 vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
-  default: ({ children }) => children,
+  default: ({ children }: any) => children,
 }));
 // ResourceStrip：渲染可点的「插入素材」与「断开连线」按钮，透传回调
 vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
-  default: ({ onInsert, onDisconnect }) => (
+  default: ({ onInsert, onDisconnect }: any) => (
     <div data-testid="material-strip">
       <button type="button" data-testid="insert" onClick={() => onInsert('素材A')}>
         插入素材A
@@ -78,7 +78,7 @@ vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
   ),
 }));
 vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({
-  default: ({ onGenerate }) => (
+  default: ({ onGenerate }: any) => (
     <button type="button" onClick={onGenerate}>
       生成
     </button>
@@ -138,7 +138,7 @@ vi.mock('../../src/components/base/prompt/PromptLibraryButton.tsx', () => ({
 vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({
-  default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null),
+  default: ({ open, children }: any) => (open ? <div data-testid="fullscreen">{children}</div> : null),
 }));
 vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({
   default: () => <div data-testid="video-thumb" />,
@@ -162,7 +162,7 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
   ...(await importOriginal<typeof import('../../src/components/base/canvas/nodePrefs.ts')>()),
   useNodePrefs: () => ({
     prefs: { model: '', size: '', resolution: '', seconds: '' },
-    set: (...a) => h.vidPrefsSet(...a),
+    set: (...a: any[]) => h.vidPrefsSet(...a),
   }),
 }));
 vi.mock('../../src/components/base/store/providerStore.ts', () => ({
@@ -174,7 +174,7 @@ vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   resolveProviderModel: () => ({ provider: {}, modelId: 'm' }),
 }));
 vi.mock('../../src/components/base/core/logger.ts', () => ({
-  logger: { info: (...a) => h.loggerInfo(...a), warn: () => {} },
+  logger: { info: (...a: any[]) => h.loggerInfo(...a), warn: () => {} },
 }));
 vi.mock('../../src/components/base/utils/clipboard.ts', async (importOriginal) => {
   // importOriginal 返回 unknown，直接 spread 报 TS2698
@@ -191,14 +191,14 @@ vi.mock('../../src/components/base/api/generate.ts', () => ({
 let genConfig = null;
 let genLoading = false;
 vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
-  useNodeGeneration: (config) => {
+  useNodeGeneration: (config: any) => {
     genConfig = config;
     // 复刻真实 hook 的广播 handler：recoverable + resultKey 且广播带 resultUrl 时自动写回 node.data
     const originalOnRecover = config.onRecover;
-    genConfig.onRecover = (d) => {
+    genConfig.onRecover = (d: any) => {
       if (config.recoverable && config.resultKey && d?.resultUrl) {
-        h.setNodesMock((ns) =>
-          ns.map((n) =>
+        h.setNodesMock((ns: any) =>
+          ns.map((n: any) =>
             n.id === config.nodeId
               ? { ...n, data: { ...n.data, [config.resultKey]: d.resultUrl } }
               : n,
@@ -216,8 +216,8 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
         const r = await config.run?.({ progress: () => {}, signal: { aborted: false } });
         if (config.resultKey && (r?.url || r?.doneUrl)) {
           const url = r.url || r.doneUrl;
-          h.setNodesMock((ns) =>
-            ns.map((n) =>
+          h.setNodesMock((ns: any) =>
+            ns.map((n: any) =>
               n.id === config.nodeId ? { ...n, data: { ...n.data, [config.resultKey]: url } } : n,
             ),
           );

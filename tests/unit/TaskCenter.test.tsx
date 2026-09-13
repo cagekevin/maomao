@@ -19,9 +19,9 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 // 内存状态：任务列表
 const h = vi.hoisted(() => {
-  let tasks = [];
+  let tasks: any = [];
   const useTasks = vi.fn(() => tasks);
-  const setTasks = (list) => {
+  const setTasks = (list: any) => {
     tasks = list;
   };
   const removeTask = vi.fn();
@@ -49,19 +49,19 @@ const h = vi.hoisted(() => {
 
 // jsdom 无 navigator.clipboard；复制提示词逻辑依赖它，固定为一个可断言 mock
 Object.defineProperty(globalThis.navigator, 'clipboard', {
-  value: { writeText: (...a) => h.clipboardWrite(...a) },
+  value: { writeText: (...a: any[]) => h.clipboardWrite(...a) },
   configurable: true,
 });
 
 vi.mock('../../src/components/base/store/taskStore.ts', () => ({
   useTasks: () => h.useTasks(),
   // 纯函数按真实实现兜底，不改组件行为
-  statusDotClass: (status) => {
+  statusDotClass: (status: any) => {
     if (status === 'completed') return 'bg-emerald-400';
     if (status === 'failed') return 'bg-red-400';
     return 'bg-blue-400';
   },
-  statusLabel: (status, progress = 0) => {
+  statusLabel: (status: any, progress = 0) => {
     if (status === 'completed') return '已完成';
     if (status === 'failed') return '失败';
     if (status === 'pending') return '生成中';
@@ -99,10 +99,10 @@ vi.mock('../../src/hooks/useAssetDragToCanvas.ts', () => ({
 }));
 vi.mock('../../src/components/base/core/uiHooks.ts', () => ({ useOutsideClick: () => {} }));
 vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
-  useRenderAssetResolver: () => (u) => (u && u.startsWith('/files/') ? `THUMB${u}` : u || ''),
+  useRenderAssetResolver: () => (u: any) => (u && u.startsWith('/files/') ? `THUMB${u}` : u || ''),
 }));
 vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({
-  default: ({ src, onActivate }) =>
+  default: ({ src, onActivate }: any) =>
     React.createElement('div', { 'data-testid': 'video-thumbnail', onClick: onActivate }, src),
 }));
 

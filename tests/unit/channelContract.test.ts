@@ -284,7 +284,7 @@ describe('M1-C6 旧整快照无损迁移 → 播放逐帧一致', () => {
     const migratedResults = sampleFrames.map((frame) => objectAtFrame(box, flatBack, frame, 24));
     // 物体无姿态语义（M1-C1 只留 transform 通道），求值回退的 poseTime 等字段不影响渲染；
     // 断言对渲染真正生效的 transform 字段逐帧一致即可。
-    const pickTransform = (result) => ({
+    const pickTransform = (result: any) => ({
       position: result.position,
       rotation: result.rotation,
       scale: result.scale,

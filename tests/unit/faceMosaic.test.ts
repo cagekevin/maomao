@@ -97,7 +97,7 @@ describe('loadFaceDetector', () => {
 });
 
 describe('drawMosaicOnBox', () => {
-  let spy;
+  let spy: any;
   beforeEach(() => {
     spy = installOffscreenCanvasSpy();
   });

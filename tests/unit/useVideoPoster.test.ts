@@ -15,7 +15,7 @@ const { useVideoPoster } = await import('../../src/hooks/useVideoPoster.ts');
 
 // 仅取一次原生 createElement，避免 beforeEach 重复包装使 orig 指向 wrapper 造成递归
 const nativeCreate = document.createElement.bind(document);
-let lastVideo = null;
+let lastVideo: any = null;
 /** 让 `currentTime` 赋值抛异常（模拟"不可 seek"的媒体），用于锁定迁移声明的那处差异。 */
 let throwOnSeek = false;
 
@@ -41,7 +41,7 @@ beforeEach(() => {
     return `data:${type || 'image/jpeg'};base64,${btoa('posterframe')}`;
   };
   // video 工厂：元素创建后，在下一 tick **派发真实事件**（loadeddata → seeked）
-  document.createElement = function (tag) {
+  document.createElement = function (tag: any) {
     if (tag === 'video') {
       const v = nativeCreate('video');
       // 真实抽帧路径里 seeked 触发时尺寸必然 > 0（原语对 0 尺寸按 dimensions 错误拒绝 →

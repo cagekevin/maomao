@@ -94,8 +94,8 @@ describe('commitNewNodes / spawnAndCommit（建节点唯一原语，TD-04-2/04-1
     expect(handles.setEdges).toHaveBeenCalledTimes(1);
     expect(handles.history.record).toHaveBeenCalledTimes(1);
     const snap = handles.history.record.mock.calls[0][0];
-    expect(snap.nodes.map((n) => n.id)).toEqual(['old', 'n1']);
-    expect(snap.edges.map((e) => e.id)).toEqual(['e-n1']);
+    expect(snap.nodes.map((n: any) => n.id)).toEqual(['old', 'n1']);
+    expect(snap.edges.map((e: any) => e.id)).toEqual(['e-n1']);
   });
 
   it('无 history 时不读 getEdges、不 record（剧本盒等不纳 undo 的场景）', () => {

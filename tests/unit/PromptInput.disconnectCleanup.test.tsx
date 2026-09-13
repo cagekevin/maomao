@@ -14,10 +14,10 @@ import { render, act } from '@testing-library/react';
 import PromptInput from '../../src/components/base/prompt/PromptInput.tsx';
 
 /** 双实例中省略；这里单实例：value 已含 img1 芯片串，refImages 提供该素材，可随时断开 */
-function DisconnectHarness({ onChangeOut }) {
+function DisconnectHarness({ onChangeOut }: any) {
   const [value, setValue] = useState('@{img1:上游图|a.png}');
   const [refImages, setRefImages] = useState([{ id: 'img1', label: '上游图', url: 'a.png' }]);
-  const change = (v) => {
+  const change = (v: any) => {
     setValue(v);
     onChangeOut?.(v);
   };
@@ -43,7 +43,7 @@ describe('PromptInput 上游素材消失清理', () => {
     let lastValue = null;
     const { container } = render(
       <DisconnectHarness
-        onChangeOut={(v) => {
+        onChangeOut={(v: any) => {
           lastValue = v;
         }}
       />,

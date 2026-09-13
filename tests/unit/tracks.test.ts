@@ -29,7 +29,7 @@ import { normalizeCameraPath } from '../../src/components/director3d/project.ts'
 // ---- 样本（与 channelWrite.test.js 一致，保证可比） ----
 const runJoints = { mixamorigHips: [0.2, 0.18, 0.25], mixamorigRightUpLeg: [0.45, 0.05, 0.1] };
 
-const manualSnapshot = (frame, position, pose = 'run') => ({
+const manualSnapshot = (frame: any, position: any, pose = 'run') => ({
   frame,
   interpolation: 'smooth',
   position,
@@ -54,7 +54,7 @@ const straightPath = normalizeCameraPath({
   sourceKeyframeFrames: [0, 60, 120, 180, 240],
 });
 
-const camSnapshot = (frame, position, focalLength = 42) => ({
+const camSnapshot = (frame: any, position: any, focalLength = 42) => ({
   frame,
   interpolation: 'linear',
   position,

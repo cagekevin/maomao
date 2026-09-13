@@ -44,21 +44,21 @@ import {
 
 // ---- 相机轨「收口前」的手写实现（逐字复刻，作为对照组）----
 
-const legacyUpsertCameraSnapshot = (tracks, snapshot) =>
+const legacyUpsertCameraSnapshot = (tracks: any, snapshot: any) =>
   upsertChannelKeys(
     tracks,
     snapshotToChannelKeys('camera', snapshot, snapshot.frame, snapshot.interpolation),
   );
 
-const legacyRemoveCameraFrames = (tracks, frames) =>
+const legacyRemoveCameraFrames = (tracks: any, frames: any) =>
   removeChannelFrames(tracks, Array.isArray(frames) ? frames : [frames]);
 
-const legacyMoveCameraFrame = (tracks, from, to) => moveChannelFrames(tracks, from, to);
+const legacyMoveCameraFrame = (tracks: any, from: any, to: any) => moveChannelFrames(tracks, from, to);
 
-const legacySetCameraInterpolation = (tracks, frame, value) =>
+const legacySetCameraInterpolation = (tracks: any, frame: any, value: any) =>
   setChannelInterpolation(tracks, frame, value);
 
-function legacyMoveCameraFrames(channels, frameMap) {
+function legacyMoveCameraFrames(channels: any, frameMap: any) {
   const entries = Object.entries(frameMap);
   if (!entries.length) return channels;
   const fromFrames = entries.map(([from]) => Number(from));
@@ -74,7 +74,7 @@ function legacyMoveCameraFrames(channels, frameMap) {
   return upsertChannelKeys(next, keys);
 }
 
-function legacyBakeCameraPath(tracks, path, camera, bakedFrames, removeFrames: number[] = []) {
+function legacyBakeCameraPath(tracks: any, path: any, camera: any, bakedFrames: any, removeFrames: number[] = []) {
   let next = removeChannelFrames(tracks, [...removeFrames]);
   for (const frame of bakedFrames) {
     const u = (frame.frame - path.startFrame) / Math.max(1, path.endFrame - path.startFrame);
@@ -101,7 +101,7 @@ function legacyBakeCameraPath(tracks, path, camera, bakedFrames, removeFrames: n
 
 // ---- 样本 ----
 
-const camSnapshot = (frame, position, focalLength = 42) => ({
+const camSnapshot = (frame: any, position: any, focalLength = 42) => ({
   frame,
   interpolation: 'linear',
   position,
@@ -121,9 +121,9 @@ const straightPath = normalizeCameraPath({
   sourceKeyframeFrames: [0, 120, 240],
 })!;
 
-const buildCamTrack = (frames) =>
+const buildCamTrack = (frames: any) =>
   frames.reduce(
-    (acc, [f, pos, focal]) => legacyUpsertCameraSnapshot(acc, camSnapshot(f, pos, focal)),
+    (acc: any, [f, pos, focal]) => legacyUpsertCameraSnapshot(acc, camSnapshot(f, pos, focal)),
     {},
   );
 

@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 /** 写自定义 playbook 到 localStorage（模拟另存为/编辑后落盘）。 */
-function seedCustom(list) {
+function seedCustom(list: any) {
   localStorage.setItem(LKEY, JSON.stringify(list));
 }
 

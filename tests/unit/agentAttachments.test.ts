@@ -13,7 +13,7 @@ vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
     async (url, opts) => `norm:${url}${opts?.preferBase64 ? ':b64' : ''}`,
   ),
   summarizeAssetUrls: vi.fn((urls) => {
-    const list = (urls || []).filter((u) => typeof u === 'string' && u);
+    const list = (urls || []).filter((u: any) => typeof u === 'string' && u);
     let base64s = 0;
     for (const u of list) if (u.startsWith('data:')) base64s++;
     return { count: list.length, urls: list.length - base64s, base64s };

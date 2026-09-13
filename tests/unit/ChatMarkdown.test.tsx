@@ -12,7 +12,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({
-  default: ({ src }) => React.createElement('img', { src }),
+  default: ({ src }: any) => React.createElement('img', { src }),
 }));
 
 import ChatMarkdown from '../../src/components/panels/ChatMarkdown.tsx';

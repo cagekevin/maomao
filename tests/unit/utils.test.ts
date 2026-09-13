@@ -63,7 +63,7 @@ describe('safeFileName（文件名安全化统一出口）', () => {
 
 describe('dataUrlToBlob（dataURL → Blob 统一出口）', () => {
   // jsdom 的 Blob 无 arrayBuffer()，用 FileReader.readAsText 精确读回字节核对
-  const blobToText = (bl) =>
+  const blobToText = (bl: any) =>
     new Promise((resolve, reject) => {
       const r = new FileReader();
       r.onload = () => resolve(String(r.result));

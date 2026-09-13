@@ -96,7 +96,7 @@ const buildCameraTrack = () => {
  * 「收口前」的摄像机求值——从 App.tsx 的两个实现点还原。
  * 保留它作为**对照组**：新单入口的输出必须与它逐帧完全一致。
  */
-function legacyCameraAtFrame(camera, keyframes, path, frame, totalFrames) {
+function legacyCameraAtFrame(camera: any, keyframes: any, path: any, frame: any, totalFrames: any) {
   // 分支1：路径
   if (path && Array.isArray(path.points) && path.points.length >= 2) {
     const start = Math.max(0, Math.round(Number(path.startFrame) || 0));
@@ -131,7 +131,7 @@ describe('cameraAtFrameWithPath · 摄像机单入口求值护栏', () => {
   describe('分支1 · 路径启用', () => {
     it('位置来自曲线（弧长匀速），且在起止帧上钳制', () => {
       const path = buildPath(0, 100);
-      const at = (f) => cameraAtFrameWithPath(baseCamera, null, path, f, TOTAL);
+      const at = (f: any) => cameraAtFrameWithPath(baseCamera, null, path, f, TOTAL);
 
       // 起点：控制点 (0,1,0)；终点：(10,1,0)
       const start = at(0);

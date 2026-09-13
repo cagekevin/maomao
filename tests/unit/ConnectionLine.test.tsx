@@ -15,15 +15,15 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 
 const h = vi.hoisted(() => {
-  const particles = [];
+  const particles: any = [];
   let lodLevel = 0;
   return {
     particles,
-    CometParticlesMock: (props) => {
+    CometParticlesMock: (props: any) => {
       h.particles.push(props);
       return <g data-testid="comet-particles" />;
     },
-    setLodLevel: (v) => {
+    setLodLevel: (v: any) => {
       lodLevel = v;
     },
     useLodMock: () => ({ lodLevel }),
@@ -36,7 +36,7 @@ vi.mock('@xyflow/react', () => ({
 }));
 
 vi.mock('../../src/components/base/ui/CometParticles.tsx', () => ({
-  default: (props) => h.CometParticlesMock(props),
+  default: (props: any) => h.CometParticlesMock(props),
 }));
 
 vi.mock('../../src/components/base/canvas/lod.tsx', () => ({
@@ -104,7 +104,7 @@ describe('ConnectionLine — LOD 性能降级（lodLevel >= 2）', () => {
     h.setLodLevel(0);
   });
 
-  function setup(lod) {
+  function setup(lod: any) {
     h.setLodLevel(lod);
     const view = render(
       React.createElement(

@@ -14,7 +14,7 @@ const runNodeGenerationMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@xyflow/react', () => ({ useReactFlow: () => ({ getEdges: () => rfState.edges }) }));
 vi.mock('../../src/components/base/core/eventBus.ts', () => ({
-  subscribe: (evt, cb) => {
+  subscribe: (_evt: any, cb: any) => {
     busState.handler = cb;
     return () => {};
   },

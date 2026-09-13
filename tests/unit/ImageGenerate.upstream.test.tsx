@@ -11,7 +11,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 const mockSetNodes = vi.fn();
 const mockGetNodes = vi.fn(() => []);
 const mockAddNodes = vi.fn();
-let genConfig = null;
+let genConfig: any = null;
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
@@ -25,7 +25,7 @@ vi.mock('@xyflow/react', () => ({
 }));
 
 vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
-  useNodeGeneration: (config) => {
+  useNodeGeneration: (config: any) => {
     genConfig = config;
     return {
       loading: false,
@@ -41,27 +41,27 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
 }));
 
 vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({
-  default: ({ value, onChange }) => (
+  default: ({ value, onChange }: any) => (
     <button type="button" data-testid="model-select" onClick={() => onChange('model-x')}>
       {value || '选择模型'}
     </button>
   ),
 }));
 vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({
-  default: ({ onGenerate }) => (
+  default: ({ onGenerate }: any) => (
     <button type="button" onClick={onGenerate}>
       生成
     </button>
   ),
 }));
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
-  default: ({ children }) => children,
+  default: ({ children }: any) => children,
 }));
 vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
-  default: ({ children }) => children,
+  default: ({ children }: any) => children,
 }));
 vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
-  default: ({ children }) => children,
+  default: ({ children }: any) => children,
 }));
 vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: () => null }));
@@ -94,7 +94,7 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
 }));
 vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {} }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  toAbsoluteFileUrl: (x) => x,
+  toAbsoluteFileUrl: (x: any) => x,
   saveResultToTasks: vi.fn(async () => undefined),
 }));
 vi.mock('../../src/components/base/store/providerStore.ts', () => ({
@@ -110,7 +110,7 @@ const mockGenerateImage = vi.fn(async (..._args: unknown[]) => ({
   url: 'http://gen.local/img.png',
 }));
 vi.mock('../../src/components/base/api/generate.ts', () => ({
-  generateImage: (...a) => mockGenerateImage(...a),
+  generateImage: (...a: any[]) => mockGenerateImage(...a),
 }));
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   buildAllModels: vi.fn(() => []),

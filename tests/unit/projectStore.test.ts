@@ -266,8 +266,8 @@ describe('项目系统 §2.8', () => {
     // as any：同上——快照节点 Record<string,unknown>，本用例验证编组字段持久化往返，非类型校验
     const loaded = (await loadCanvasState('default')) as any;
     expect(loaded.nodes).toHaveLength(2);
-    const g = loaded.nodes.find((n) => n.type === 'group');
-    const c = loaded.nodes.find((n) => n.id === 'a');
+    const g = loaded.nodes.find((n: any) => n.type === 'group');
+    const c = loaded.nodes.find((n: any) => n.id === 'a');
     // 尺寸保真：width/height/style/initialWidth 必须保留（否则刷新后 group 大小塌成 0）
     expect(g.width).toBe(780);
     expect(g.height).toBe(530);

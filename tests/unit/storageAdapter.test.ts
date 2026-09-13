@@ -4,7 +4,7 @@ import { flushAsync } from './_testUtils.mjs';
 // mock eventBus.publish：捕获 persist:failed 事件
 const publishMock = vi.fn();
 vi.mock('../../src/components/base/core/eventBus.ts', () => ({
-  publish: (...args) => publishMock(...args),
+  publish: (...args: any[]) => publishMock(...args),
   subscribe: () => () => {},
 }));
 
@@ -19,7 +19,7 @@ import {
 } from '@/components/base/storage/storageAdapter.ts';
 
 /** 可控的 chrome 全局（模拟 普通网页 / 真实扩展 两种环境） */
-let chromeGlobal = null;
+let chromeGlobal: any = null;
 // 通过 defineProperty 注入全局 chrome，避免 jsdom 没有该对象
 beforeEach(() => {
   publishMock.mockClear();
@@ -45,7 +45,7 @@ function makeExtensionChrome() {
     runtime: { id: 'test-ext-id', lastError: null },
     storage: {
       local: {
-        get: (keys, cb) => {
+        get: (keys: any, cb: any) => {
           const out = {};
           if (keys === null) {
             for (const [k, v] of store) out[k] = v;
@@ -55,11 +55,11 @@ function makeExtensionChrome() {
           }
           cb?.(out);
         },
-        set: (items, cb) => {
+        set: (items: any, cb: any) => {
           for (const [k, v] of Object.entries(items)) store.set(k, v);
           cb?.();
         },
-        remove: (keys, cb) => {
+        remove: (keys: any, cb: any) => {
           const arr = Array.isArray(keys) ? keys : [keys];
           for (const k of arr) store.delete(k);
           cb?.();
@@ -193,7 +193,7 @@ describe('storageAdapter 双端兼容加固', () => {
   });
 
   it('扩展异步回调 chrome.runtime.lastError 非空：发布 persist:failed 且带 key/error（异步失败可感知）', async () => {
-    let lastError = null;
+    let lastError: any = null;
     chromeGlobal = {
       runtime: {
         id: 'test-ext-id',
@@ -203,12 +203,12 @@ describe('storageAdapter 双端兼容加固', () => {
       },
       storage: {
         local: {
-          get: (keys, cb) => cb?.({}),
-          set: (items, cb) => {
+          get: (_keys: any, cb: any) => cb?.({}),
+          set: (_items: any, cb: any) => {
             lastError = { message: 'chrome.storage quota exceeded' };
             cb?.();
           },
-          remove: (keys, cb) => cb?.(),
+          remove: (_keys: any, cb: any) => cb?.(),
         },
       },
     };

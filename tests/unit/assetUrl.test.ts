@@ -197,7 +197,7 @@ describe('assetUrl · resolveAssetUrl（统一出口，render 按需小图 / sen
     expect(toRelativeFileUrl('')).toBeNull();
   });
 
-  const thumb = (u) => new URL(resolveAssetUrl(u, { scope: 'render' }));
+  const thumb = (u: any) => new URL(resolveAssetUrl(u, { scope: 'render' }));
 
   it('render：本地 /files/ 相对 → 按需出图端点（url+maxDim 缺省 640）', () => {
     const url = thumb('/files/a.png');

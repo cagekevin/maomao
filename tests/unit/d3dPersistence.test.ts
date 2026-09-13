@@ -19,7 +19,7 @@ import {
 } from '../../src/components/director3d/d3dPersistence.ts';
 
 const png = 'data:image/png;base64,iVBORw0KGgo=';
-const FILES = (n) => `http://127.0.0.1:18080/files/director3d/${n}.png`;
+const FILES = (n: any) => `http://127.0.0.1:18080/files/director3d/${n}.png`;
 
 // ── T5 键映射 ──────────────────────────────────────────
 describe('projectKvKey — 键映射', () => {

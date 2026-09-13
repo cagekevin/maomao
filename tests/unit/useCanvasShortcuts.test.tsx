@@ -13,18 +13,18 @@ import { useFullscreenEditorKeys } from '../../src/components/base/core/modalLay
  */
 
 // 挂载 hook 的测试组件
-function Harness({ handlers }) {
+function Harness({ handlers }: any) {
   useCanvasShortcuts(handlers);
   return null;
 }
 
 // 登记一个全屏模态层（模拟编辑器打开 → 画布应整体让位）
-function ModalHarness({ enabled }) {
+function ModalHarness({ enabled }: any) {
   useFullscreenEditorKeys({ enabled });
   return null;
 }
 
-function fireKeyDown(init) {
+function fireKeyDown(init: any) {
   const e = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
   act(() => {
     window.dispatchEvent(e);

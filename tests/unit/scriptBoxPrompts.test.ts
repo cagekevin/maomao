@@ -507,7 +507,7 @@ describe('剧本盒纯函数 · 合并生成视频', () => {
 
   /* ═══ 边界用例：暴露隐藏 bug（先测当前行为，再决定是否修） ═══ */
   describe('mergeShotsForVideo · 时长脏数据边界', () => {
-    const s = (duration) => ({ id: 'x', index: 1, duration, description: 'a', videoPrompt: 'v' });
+    const s = (duration: any) => ({ id: 'x', index: 1, duration, description: 'a', videoPrompt: 'v' });
 
     it('正常字符串时长累加', () => {
       expect(mergeShotsForVideo([s('3s'), s('4s')], []).seconds).toBe(7);

@@ -26,10 +26,10 @@ function fakeDataTransfer() {
   const store = {};
   // 仅 mock 被测用到的 setData/getData/setDragImage/effectAllowed；cast 成 DataTransfer 以满足 onDragStart 入参类型
   return {
-    setData: (k, v) => {
+    setData: (k: any, v: any) => {
       store[k] = v;
     },
-    getData: (k) => store[k],
+    getData: (k: any) => store[k],
     setDragImage: vi.fn(),
     effectAllowed: '',
     _store: store,

@@ -19,7 +19,7 @@ import {
  * 于是 `fetchMock.mock.calls[0]` 解构出的 `[url, init]` 双双报 TS2493 / TS18048。
  * 写成 `(..._args: unknown[])` 后 calls 元素类型为 unknown[]，断言处用 as unknown as 收窄即可正常访问。
  */
-function mockFetchOnce(body, { ok = true, status = 200 } = {}) {
+function mockFetchOnce(body: any, { ok = true, status = 200 } = {}) {
   const res = { ok, status, json: async () => body, text: async () => JSON.stringify(body) };
   const fetchMock = vi.fn(async (..._args: unknown[]) => res);
   vi.stubGlobal('fetch', fetchMock);

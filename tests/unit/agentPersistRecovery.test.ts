@@ -80,7 +80,7 @@ describe('AI 助手会话刷新恢复（真实 store）', () => {
     expect(persisted).toBeTruthy();
     // 关键：assistant 消息（AI 回复）也应完整落盘，而非只保留 user
     const parsed = persisted;
-    const roles = parsed[0].messages.map((m) => m.role);
+    const roles = parsed[0].messages.map((m: any) => m.role);
     expect(roles).toContain('assistant');
 
     const r2 = renderHook(() =>

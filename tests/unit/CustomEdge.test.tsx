@@ -17,19 +17,19 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 const h = vi.hoisted(() => {
   const deleteElements = vi.fn();
-  const cometProps = [];
+  const cometProps: any = [];
   return { deleteElements, cometProps };
 });
 
 vi.mock('@xyflow/react', () => ({
   getBezierPath: vi.fn(() => ['M0,0 C10,10 90,10 100,100', 50, 50]),
   Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
-  EdgeLabelRenderer: ({ children }) => <div data-testid="edge-label">{children}</div>,
-  useReactFlow: () => ({ deleteElements: (...a) => h.deleteElements(...a) }),
+  EdgeLabelRenderer: ({ children }: any) => <div data-testid="edge-label">{children}</div>,
+  useReactFlow: () => ({ deleteElements: (...a: any[]) => h.deleteElements(...a) }),
 }));
 
 vi.mock('../../src/components/edges/Comet.tsx', () => ({
-  default: (props) => {
+  default: (props: any) => {
     h.cometProps.push(props);
     return <g data-testid="comet" />;
   },

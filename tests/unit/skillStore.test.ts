@@ -135,12 +135,12 @@ describe('Skill 错误透传（禁止静默）', () => {
       expect(badRes.error).toBeTruthy(); // 必须有可读原因，禁止空 error
       // 磁盘真值：删除未生效，d2 仍在（sGet 绕过 contentStore 的 cache 直读底层）
       const disk = JSON.parse(sGet('agent_skills') || '[]');
-      expect(disk.some((s) => s.id === 'd2')).toBe(true);
+      expect(disk.some((s: any) => s.id === 'd2')).toBe(true);
       // ⚠️ 同时钉死一个真实陷阱：写失败后 cache 与磁盘会不一致——
       //    UI（走 cache）会显示「已删除」，磁盘上其实还在。刷新页面即「复活」。
       //    正因如此，落盘确认必须用 sGet 而非 contentGet，否则永远检测不到失败。
       expect(findSkill('d2')).toBeFalsy(); // cache 视角：已删除
-      expect(disk.some((s) => s.id === 'd2')).toBe(true); // 磁盘视角：仍在 → 不一致
+      expect(disk.some((s: any) => s.id === 'd2')).toBe(true); // 磁盘视角：仍在 → 不一致
     } finally {
       spy.mockRestore();
     }
@@ -154,7 +154,7 @@ describe('Skill 错误透传（禁止静默）', () => {
 
   it('repairMojibakeText：真实乱码仍被修复（防护不得误杀功能本身）', () => {
     // 样本程序生成：UTF-8 字节被误当 Latin-1 解码 = 真实的乱码形态，不手写避免造假
-    const mojibake = (text) =>
+    const mojibake = (text: any) =>
       Array.from(new TextEncoder().encode(text))
         .map((b) => String.fromCharCode(b))
         .join('');

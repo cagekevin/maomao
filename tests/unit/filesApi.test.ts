@@ -14,7 +14,7 @@ const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
 
 const api = await import('@/components/base/api/filesApi.ts');
 
-function uploadResp(url) {
+function uploadResp(url: any) {
   return { ok: true, status: 200, json: async () => ({ code: 0, data: { url } }) };
 }
 function failResp() {
@@ -88,7 +88,7 @@ describe('filesApi — saveResultToTasks', () => {
 describe('filesApi — saveResultToTasks 类型→扩展名映射', () => {
   const DATA_PNG = 'data:image/png;base64,iVBORw0KGgo=';
   /** 从上传请求的 FormData 里取 file 的原始文件名 */
-  function fdFilename(opts) {
+  function fdFilename(opts: any) {
     const fd = opts.body;
     for (const [k, v] of fd.entries()) {
       if (k === 'file') return v.name;
@@ -306,20 +306,20 @@ describe('filesApi — resolveNodeAssetUrl（File 源统一落盘策略）', () 
 describe('filesApi — showThenPersistInline（dataURL 源统一落盘策略）', () => {
   it('立即上屏 → 落盘成功 → 二次上屏换持久 URL（顺序即策略）', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/canvas/abc.png'));
-    const seen = [];
+    const seen: any = [];
     await api.showThenPersistInline(DATA_PNG, (u) => seen.push(u));
     expect(seen).toEqual([DATA_PNG, 'http://127.0.0.1:18080/files/canvas/abc.png']);
   });
 
   it('落盘失败 → 只上屏内联一次（保留内联、不回滚、不抛）', async () => {
     fetchMock.mockResolvedValue(failResp());
-    const seen = [];
+    const seen: any = [];
     await api.showThenPersistInline(DATA_PNG, (u) => seen.push(u));
     expect(seen).toEqual([DATA_PNG]);
   });
 
   it('空 dataURL → 既不上屏也不发请求', async () => {
-    const seen = [];
+    const seen: any = [];
     await api.showThenPersistInline('', (u) => seen.push(u));
     expect(seen).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();

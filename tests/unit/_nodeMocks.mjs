@@ -10,21 +10,21 @@ import React from 'react';
 const xyflowCalls = { setNodes: 0, setEdges: 0, addNodes: 0, addEdges: 0 };
 const xyflow = {
   useReactFlow: () => ({
-    setNodes: (...a) => {
+    setNodes: (/** @type {any[]} */ ...a) => {
       xyflowCalls.setNodes++;
       return a[0];
     },
-    setEdges: (...a) => {
+    setEdges: (/** @type {any[]} */ ...a) => {
       xyflowCalls.setEdges++;
       return a[0];
     },
     getNodes: () => [],
     getEdges: () => [],
-    addNodes: (...a) => {
+    addNodes: (/** @type {any[]} */ ...a) => {
       xyflowCalls.addNodes++;
       return a[0];
     },
-    addEdges: (...a) => {
+    addEdges: (/** @type {any[]} */ ...a) => {
       xyflowCalls.addEdges++;
       return a[0];
     },
@@ -35,11 +35,11 @@ const xyflow = {
   NodeResizer: () => null,
   useStore: () => () => {},
   useUpdateNodeInternals: () => () => {}, // NodeShell/useSizeSync 依赖；jsdom 下 no-op
-  ReactFlowProvider: ({ children }) => children,
+  ReactFlowProvider: (/** @type {any} */ { children }) => children,
 };
 
 // ── 通用 UI 基座（透传 children，便于断言渲染内容）──
-const Passthrough = ({ children, label, titleRight, title, testId, ...rest }) => {
+const Passthrough = (/** @type {any} */ { children, label, titleRight, title, testId, ...rest }) => {
   const attrs = {};
   if (label !== undefined) attrs['data-label'] = label;
   if (title !== undefined) attrs['data-title'] = title;
@@ -49,7 +49,7 @@ const Passthrough = ({ children, label, titleRight, title, testId, ...rest }) =>
 Passthrough.displayName = 'Passthrough';
 
 // NodeShell 专属：始终暴露 data-testid="shell" 与 data-label（便于测试查询外壳标题）
-const ShellPassthrough = ({ children, label, titleRight, defaultTitle, title, ...rest }) => {
+const ShellPassthrough = (/** @type {any} */ { children, label, titleRight, defaultTitle, title, ...rest }) => {
   const attrs = { 'data-testid': 'shell' };
   attrs['data-label'] = label ?? defaultTitle ?? title ?? '';
   return React.createElement('div', attrs, children, titleRight);
@@ -74,14 +74,14 @@ const OverlayEditor = NullComp;
 const LazyImage = NullComp;
 const CustomHandle = NullComp;
 const NodeTitle = Passthrough;
-const GenerateButton = ({ onGenerate, children }) =>
+const GenerateButton = (/** @type {any} */ { onGenerate, children }) =>
   React.createElement('button', { type: 'button', onClick: onGenerate }, children || '生成');
 const renderOverlayCanvas = () => ({});
 
 // ── hooks ──
 let connectedInputsState = { images: [], texts: [] };
 const useConnectedInputs = () => connectedInputsState;
-const setConnectedInputs = (v) => {
+const setConnectedInputs = (/** @type {any} */ v) => {
   connectedInputsState = v;
 };
 // AssetNode 用 useAssetDegrade().hideMedia 直接做 includes 判断（'' / [] 等"不隐藏"空值）；
@@ -96,8 +96,8 @@ const useNodePrefs = () => ({ prefs: {}, set: () => {} });
 const useSyncNodeData = () => {};
 
 // useNodeGeneration：记录最近一次 config 供测试断言/触发 onSuccess/onRecover
-let lastGenConfig = null;
-const useNodeGeneration = (config) => {
+let /** @type {any} */ lastGenConfig = null;
+const useNodeGeneration = (/** @type {any} */ config) => {
   lastGenConfig = config;
   return {
     loading: false,
@@ -125,7 +125,7 @@ const toastError = () => {
   toastCalls.error++;
 };
 
-const toAbsoluteFileUrl = (x) => x;
+const toAbsoluteFileUrl = (/** @type {any} */ x) => x;
 const saveResultToTasks = async () => undefined;
 const saveTextToTasks = async () => undefined;
 const saveInlineToLocal = async () => 'local://x';
@@ -139,31 +139,31 @@ const buildAllModels = () => [];
 const resolveProviderModel = () => ({ provider: {}, modelId: 'm' });
 
 const generateImageCalls = { n: 0, last: null };
-const generateImage = async (...a) => {
+const generateImage = async (/** @type {any[]} */ ...a) => {
   generateImageCalls.n++;
   generateImageCalls.last = a[0];
   return { url: 'http://gen.local/i.png' };
 };
 
 const chatCompletionsCalls = { n: 0, last: null };
-const chatCompletions = async (...a) => {
+const chatCompletions = async (/** @type {any[]} */ ...a) => {
   chatCompletionsCalls.n++;
   chatCompletionsCalls.last = a[0];
   return { choices: [{ message: { content: '{"ok":true}' } }] };
 };
 
 const detectAssetType = () => ({ type: 'image' });
-const compressImage = async (url) => url;
+const compressImage = async (/** @type {any} */ url) => url;
 
 const publish = () => {};
-const withTimeout = (fn) => fn;
+const withTimeout = (/** @type {any} */ fn) => fn;
 const isTimeoutError = () => false;
 
 const readVideoMetadata = async () => ({ duration: 1, width: 100, height: 100 });
 const processVideo = async () => ({ url: 'http://v/x.mp4' });
 const concatVideos = async () => ({ url: 'http://v/c.mp4' });
 const videoToGif = async () => ({ url: 'http://v/g.gif' });
-const formatBytes = (b) => `${b}B`;
+const formatBytes = (/** @type {any} */ b) => `${b}B`;
 const uploadResult = async () => 'http://v/r';
 class ProgressController {
   constructor() {}
@@ -178,9 +178,9 @@ const ConversionCanceled = class extends Error {};
 const PanoViewer = NullComp;
 const FaceMosaicEditor = NullComp;
 const Director3DOverlay = NullComp;
-const applyMosaic = async (...a) => ({ url: 'http://mosaic.local/x.png' });
+const applyMosaic = async (/** @type {any[]} */ ...a) => ({ url: 'http://mosaic.local/x.png' });
 const MOSAIC_MODES = ['mosaic', 'blur', 'grid', 'bar'];
-const MOSAIC_PALETTE = [];
+const /** @type {any} */ MOSAIC_PALETTE = [];
 const sSet = () => {};
 const StorageKeys = { DONE_TASKS: 'done_tasks', IMAGE_TASKS: 'image_tasks' };
 const Canvas = () => null;

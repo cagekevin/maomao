@@ -12,7 +12,7 @@ const { buildNodeTypeComponents, paletteNodes, builtinNodeTypes } = mod;
 
 // React.memo/forwardRef 在 React 19 返回带 $$typeof 标记的对象而非裸函数，
 // P1 节点 memo 化后 nodeTypes 值仍是合法 React 组件类型，故用「函数 或 React 元素类型」判断。
-const isReactComponent = (v) =>
+const isReactComponent = (v: any) =>
   typeof v === 'function' ||
   (typeof v === 'object' && v !== null && typeof v.$$typeof === 'symbol');
 

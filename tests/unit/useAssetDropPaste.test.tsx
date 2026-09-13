@@ -25,8 +25,8 @@ import type { ClipboardEvent as ReactClipboardEvent, DragEvent as ReactDragEvent
 const uploadMock = vi.fn(async (file, _folder) => 'http://local/' + (file?.name || 'drag'));
 const downloadRemoteMock = vi.fn(async (_url, _opts) => null);
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  resolveNodeAssetUrl: (file, folder) => uploadMock(file, folder),
-  downloadRemoteToLocal: (url, opts) => downloadRemoteMock(url, opts),
+  resolveNodeAssetUrl: (file: any, folder: any) => uploadMock(file, folder),
+  downloadRemoteToLocal: (url: any, opts: any) => downloadRemoteMock(url, opts),
   WEB_DROP_SUBFOLDER: 'web',
 }));
 const toastMock = vi.fn();
@@ -34,7 +34,7 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: toas
 
 const { useAssetDropPaste } = await import('../../src/hooks/useAssetDropPaste.ts');
 
-function makeFile(name, type) {
+function makeFile(name: any, type: any) {
   return { name, type, size: 10 };
 }
 
@@ -67,10 +67,10 @@ function installClipboard({
 }
 
 // 造 ClipboardItem（navigator.clipboard.read 返回的实时剪贴板项）
-function clipboardItem(types, dataMap) {
+function clipboardItem(types: any, dataMap: any) {
   return {
     types,
-    getType: (t) => dataMap[t],
+    getType: (t: any) => dataMap[t],
   };
 }
 
@@ -80,7 +80,7 @@ function imageBlobItem(blob = new Blob(['img'], { type: 'image/png' })) {
 }
 
 // 构造纯文本 ClipboardItem
-function textItem(text, type = 'text/plain') {
+function textItem(text: any, type = 'text/plain') {
   return clipboardItem([type], { [type]: text });
 }
 
@@ -248,7 +248,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       preventDefault: vi.fn(),
       target: ce,
       clipboardData: {
-        getData: (k) => (k === 'text/plain' ? 'hello' : null),
+        getData: (k: any) => (k === 'text/plain' ? 'hello' : null),
         items,
       },
     };
@@ -281,7 +281,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     const e = {
       preventDefault: vi.fn(),
       target: document.createElement('div'),
-      clipboardData: { getData: (k) => (k === 'text/plain' ? 'fallback text' : null), items: [] },
+      clipboardData: { getData: (k: any) => (k === 'text/plain' ? 'fallback text' : null), items: [] },
     };
     await act(async () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
@@ -372,7 +372,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       target: document.createElement('div'),
       // items 里有 text/plain 项，但 getAsString 永远不回调（模拟事件回收）
       clipboardData: {
-        getData: (k) => (k === 'text/plain' ? json : null),
+        getData: (k: any) => (k === 'text/plain' ? json : null),
         items: [{ kind: 'string', type: 'text/plain', getAsString: () => {} }],
       },
     };
@@ -413,7 +413,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       preventDefault: vi.fn(),
       target: ce,
       clipboardData: {
-        getData: (k) => (k === 'text/plain' ? json : null),
+        getData: (k: any) => (k === 'text/plain' ? json : null),
         items: [{ kind: 'string', type: 'text/plain', getAsString: () => {} }],
       },
     };
@@ -431,7 +431,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       preventDefault: vi.fn(),
       target: document.createElement('input'),
       clipboardData: {
-        getData: (k) => (k === 'text/plain' ? json : null),
+        getData: (k: any) => (k === 'text/plain' ? json : null),
         items: [{ kind: 'string', type: 'text/plain', getAsString: () => {} }],
       },
     };
@@ -452,12 +452,12 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
   //       （用户核心诉求：粘贴表格/富文本时绝不当图片/带样式贴进来，必须清晰纯文本）；
   //       A 粘贴到 textarea 走原生插入；B 无论焦点在哪都放行建节点组。
   // ════════════════════════════════════════════════════════════════
-  function plainEvent(text, target): ReactClipboardEvent {
+  function plainEvent(text: any, target: any): ReactClipboardEvent {
     return {
       preventDefault: vi.fn(),
       target,
       clipboardData: {
-        getData: (k) => (k === 'text/plain' ? text : null),
+        getData: (k: any) => (k === 'text/plain' ? text : null),
         items: [{ kind: 'string', type: 'text/plain', getAsString: () => {} }],
       },
     } as unknown as ReactClipboardEvent;
@@ -527,7 +527,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       preventDefault: vi.fn(),
       dataTransfer: {
         files: [],
-        getData: (k) =>
+        getData: (k: any) =>
           k === 'text/uri-list' ? 'https://www.qq.com/img/cat.png' : k === 'text/plain' ? '' : '',
       },
     };
@@ -548,7 +548,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       preventDefault: vi.fn(),
       dataTransfer: {
         files: [],
-        getData: (k) => (k === 'text/uri-list' ? 'hello world' : k === 'text/plain' ? '' : ''),
+        getData: (k: any) => (k === 'text/uri-list' ? 'hello world' : k === 'text/plain' ? '' : ''),
       },
     };
     result.current.onDrop(e as unknown as ReactDragEvent);
@@ -565,7 +565,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       preventDefault: vi.fn(),
       dataTransfer: {
         files: [],
-        getData: (k) =>
+        getData: (k: any) =>
           k === 'text/uri-list' ? '' : k === 'text/plain' ? 'https://cdn/x/1.jpg' : '',
       },
     };
@@ -606,7 +606,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
       preventDefault: vi.fn(),
       dataTransfer: {
         files: [],
-        getData: (k) => (k === 'text/uri-list' ? 'https://x/cat.png' : ''),
+        getData: (k: any) => (k === 'text/uri-list' ? 'https://x/cat.png' : ''),
       },
     };
     result.current.onDrop(e as unknown as ReactDragEvent);
@@ -634,7 +634,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
       preventDefault: vi.fn(),
       dataTransfer: {
         files: [],
-        getData: (k) => (k === 'text/uri-list' ? 'https://x/cat.png' : ''),
+        getData: (k: any) => (k === 'text/uri-list' ? 'https://x/cat.png' : ''),
       },
     };
     result.current.onDrop(e as unknown as ReactDragEvent);
@@ -656,7 +656,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
       preventDefault: vi.fn(),
       dataTransfer: {
         files: [],
-        getData: (k) => (k === 'text/uri-list' ? 'https://x/cat.png' : ''),
+        getData: (k: any) => (k === 'text/uri-list' ? 'https://x/cat.png' : ''),
       },
     };
     result.current.onDrop(e as unknown as ReactDragEvent);
@@ -671,7 +671,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
       preventDefault: vi.fn(),
       dataTransfer: {
         files: [],
-        getData: (k) => (k === 'text/uri-list' ? 'https://x/cat.png' : ''),
+        getData: (k: any) => (k === 'text/uri-list' ? 'https://x/cat.png' : ''),
       },
     };
     result.current.onDrop(e as unknown as ReactDragEvent);

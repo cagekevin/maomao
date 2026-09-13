@@ -21,7 +21,7 @@ import type { NodeGenerationResult } from '@/hooks/useNodeGeneration.ts';
 vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
   normalizeAssetUrlsForSend: vi.fn(async () => []),
   toImageContentBlocks: vi.fn((urls) =>
-    (urls || []).map((url) => ({ type: 'image_url', image_url: { url } })),
+    (urls || []).map((url: any) => ({ type: 'image_url', image_url: { url } })),
   ),
   toAbsoluteFileUrl: vi.fn((u) => u),
   normalizeAssetUrl: vi.fn((u) => u),
@@ -34,9 +34,9 @@ const h = vi.hoisted(() => ({
   mockRelayChatStream: vi.fn(),
 }));
 vi.mock('../../src/components/base/api/relayProxy.ts', () => ({
-  relayGenerate: (...a) => h.mockRelayGenerate(...a),
-  relayChat: (...a) => h.mockRelayChat(...a),
-  relayChatStream: (...a) => h.mockRelayChatStream(...a),
+  relayGenerate: (...a: any[]) => h.mockRelayGenerate(...a),
+  relayChat: (...a: any[]) => h.mockRelayChat(...a),
+  relayChatStream: (...a: any[]) => h.mockRelayChatStream(...a),
 }));
 
 const api = await import('@/components/base/api/generate.ts');

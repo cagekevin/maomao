@@ -39,7 +39,7 @@ vi.mock('@xyflow/react', () => ({
     setNodes: (...a: unknown[]) => (h.setNodesMock as unknown as (...x: unknown[]) => void)(...a),
     getNodes: () => h.state.nodes,
     // P7：FaceMosaicNode 输出用 getNode(id) 读自身位置（替 getNodes().find），mock 需同步提供
-    getNode: (id) => h.state.nodes.find((n) => n.id === id),
+    getNode: (id: any) => h.state.nodes.find((n) => n.id === id),
     addNodes: () => {},
     addEdges: () => {},
   }),
@@ -47,7 +47,7 @@ vi.mock('@xyflow/react', () => ({
   Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
   NodeResizer: () => null,
   useStore: () => () => ({}),
-  ReactFlowProvider: ({ children }) => children,
+  ReactFlowProvider: ({ children }: any) => children,
 }));
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
 vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({
@@ -60,7 +60,7 @@ vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.us
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   uploadFileToLocal: (...a: unknown[]) =>
     (h.uploadMock as unknown as (...x: unknown[]) => void)(...a),
-  toAbsoluteFileUrl: (u) => `ABS:${u}`,
+  toAbsoluteFileUrl: (u: any) => `ABS:${u}`,
 }));
 vi.mock('../../src/components/base/core/toastStore.ts', () => ({
   showToast: mocks.showToast,
@@ -79,7 +79,7 @@ vi.mock('../../src/components/base/utils/faceMosaic.ts', () => ({
   MOSAIC_PALETTE: ['#000000', '#ffffff'],
 }));
 vi.mock('../../src/components/base/editors/FaceMosaicEditor.tsx', () => ({
-  default: ({ assetUrl: _assetUrl, onSave, onClose }) =>
+  default: ({ assetUrl: _assetUrl, onSave, onClose }: any) =>
     React.createElement(
       'div',
       { 'data-testid': 'mosaic-editor' },

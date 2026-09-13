@@ -39,7 +39,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({
 }));
 vi.mock('../../src/components/base/core/degrade.ts', () => ({ reportDegrade: reportDegradeMock }));
 vi.mock('../../src/components/base/core/eventBus.ts', () => ({
-  subscribe: (evt, cb) => {
+  subscribe: (_evt: any, cb: any) => {
     busState.handler = cb;
     return () => {};
   },

@@ -10,12 +10,12 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { cameraRotationToward } from '../../src/components/director3d/project.ts';
 
-const forwardAfter = (position, target, order) => {
+const forwardAfter = (position: any, target: any, order: any) => {
   const rotation = cameraRotationToward(position, target);
   return new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(...rotation, order));
 };
 
-const toTarget = (position, target) =>
+const toTarget = (position: any, target: any) =>
   new THREE.Vector3(...target).sub(new THREE.Vector3(...position)).normalize();
 
 describe('cameraRotationToward 欧拉约定', () => {

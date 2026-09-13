@@ -18,7 +18,7 @@ vi.mock('../../src/components/base/api/generate.ts', () => ({
 }));
 // 统一出口：toAbsoluteFileUrl 把相对 /files/ 补全为绝对原图（与 assetUrl.js 真实行为一致，注入 data.images 前收口）
 vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
-  toAbsoluteFileUrl: (u) => (u && u.startsWith('/files/') ? `http://127.0.0.1:18080${u}` : u || ''),
+  toAbsoluteFileUrl: (u: any) => (u && u.startsWith('/files/') ? `http://127.0.0.1:18080${u}` : u || ''),
 }));
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   resolveProviderModel: vi.fn(() => ({ provider: 'openai', modelId: 'gpt-4o-mini' })),
@@ -261,7 +261,7 @@ describe('scriptBoxSchema · normalizeScriptBoxData（P0-0）', () => {
 });
 
 describe('scriptBoxEngine · 引擎编排', () => {
-  function makeEngine(initial) {
+  function makeEngine(initial: any) {
     const store = { ...initial };
     const addNodes = vi.fn();
     const getData = vi.fn(
@@ -596,11 +596,11 @@ describe('scriptBoxEngine · 引擎编排', () => {
 // 契约：① 合并生效（updateData/setNodes 调用次数显著少于 N×2）；
 //       ② 合并不丢数据（所有分镜 prompt 最终都完整写回）。
 describe('scriptBoxEngine · P11 批量写回合并', () => {
-  function makeBatchEngine(shots, assets = []) {
-    const store = { shots: shots.map((s) => ({ ...s })), assets };
+  function makeBatchEngine(shots: any, assets = []) {
+    const store = { shots: shots.map((s: any) => ({ ...s })), assets };
     // 真实记录每次 setNodes 调用（函数式补丁也计一次）；不直接应用，留给 flush 统一应用，
     // 以模拟 ReactFlow 的「一次 setNodes = 一次全图重建」代价。
-    const setNodesCalls = [];
+    const setNodesCalls: any = [];
     const getData = vi.fn(
       () => store as unknown as import('@/components/scriptbox/scriptBoxSchema.ts').ScriptBoxData,
     );

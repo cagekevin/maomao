@@ -51,7 +51,7 @@ import type { AutoConflictHandler } from '../../src/components/base/store/cloudS
  * 不能假定 calls[0]：① collectLocal 会先走 KV 读账号；② 【防覆盖】上传前会先 pull 一次云端读版本，
  * 即一次上传 = pull + push 两次 GAS 请求。按 action 精确定位才稳。
  */
-function gasCalls(action) {
+function gasCalls(action: any) {
   return fetchMock.mock.calls.filter((c) => {
     if (!String(c[0]).startsWith('https://script.google.com')) return false;
     try {

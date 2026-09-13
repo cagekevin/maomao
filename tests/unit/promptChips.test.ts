@@ -14,7 +14,7 @@ import {
 } from '../../src/components/base/prompt/promptChips.ts';
 
 /** 把 renderPromptToNodes 的 Node[] append 到一个根 div */
-function renderToDom(text, metaMap) {
+function renderToDom(text: any, metaMap: any) {
   const root = document.createElement('div');
   for (const node of renderPromptToNodes(text, metaMap)) root.appendChild(node);
   return root;
@@ -239,7 +239,7 @@ describe('findAutoLinkOccurrences（统一命中源，§8.5）', () => {
     { id: 'img-1', label: '猫', url: 'http://x/cat.png', kind: 'image' },
     { id: 'img-2', label: '狗', url: 'http://x/dog.png', kind: 'image' },
   ];
-  const shape = (occs) => occs.map((o) => ({ start: o.start, end: o.end, name: o.name }));
+  const shape = (occs: any) => occs.map((o: any) => ({ start: o.start, end: o.end, name: o.name }));
 
   it('单个命中：返回相对文本的 [start,end)（end 不含 @）', () => {
     const occs = findAutoLinkOccurrences('一只@猫在跑', assets);
@@ -336,7 +336,7 @@ describe('commitOccurrencesInRun（就地 DOM 手术，§8.4）', () => {
   const assets = [{ id: 'img-1', label: '猫', url: 'http://x/cat.png', kind: 'image' }];
 
   /** 建一个含单个文本节点 run 的根 div（挂到 body，jsdom 的 Selection.addRange 对未连接文档的节点静默丢弃），可选把光标放到 run 内 offset */
-  function setup(text, caretOffset) {
+  function setup(text: any, caretOffset: any) {
     const root = document.createElement('div');
     document.body.appendChild(root);
     const run = document.createTextNode(text);

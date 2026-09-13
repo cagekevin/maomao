@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // 这些 store 的快照读取通过 useSyncExternalStore 暴露，但纯逻辑测试不需要 React 渲染。
 // mock react 的 useSyncExternalStore 直接返回 getSnapshot()，即可在 node 下读取模块级 state。
 vi.mock('react', () => ({
-  useSyncExternalStore: (subscribe, getSnapshot) => getSnapshot(),
+  useSyncExternalStore: (_subscribe: any, getSnapshot: any) => getSnapshot(),
 }));
 
 // providerStore 依赖 settingsApi.providerApi（网络）与 kvStore.kvSet（落盘）。
@@ -20,16 +20,16 @@ const h = vi.hoisted(() => ({
 
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
   providerApi: {
-    getProviders: (...a) => h.mockGetProviders(...a),
-    testConnection: (...a) => h.mockTestConnection(...a),
-    probeAsync: (...a) => h.mockProbeAsync(...a),
-    fetchModels: (...a) => h.mockFetchModels(...a),
-    saveProviders: (...a) => h.mockSaveProviders(...a),
+    getProviders: (...a: any[]) => h.mockGetProviders(...a),
+    testConnection: (...a: any[]) => h.mockTestConnection(...a),
+    probeAsync: (...a: any[]) => h.mockProbeAsync(...a),
+    fetchModels: (...a: any[]) => h.mockFetchModels(...a),
+    saveProviders: (...a: any[]) => h.mockSaveProviders(...a),
   },
   // 2026-09-04 中间层折叠：contentStore 直接调 localToolApi 的 kv 三件套。
   // kvSet 断言钩子自原 kvStore mock 的 storageSet 迁来（providerStore 落盘走 contentSet → writeKvWithFallback → kvSet）。
   kvGet: vi.fn(),
-  kvSet: (...a) => h.mockKvSet(...a),
+  kvSet: (...a: any[]) => h.mockKvSet(...a),
   kvDelete: vi.fn(),
 }));
 vi.mock('../../src/components/base/storage/kvStore.ts', () => ({
@@ -37,10 +37,10 @@ vi.mock('../../src/components/base/storage/kvStore.ts', () => ({
 }));
 
 describe('providerStore §4 供应商数据层（新时代配置型）', () => {
-  let mod;
+  let mod: any;
 
   /** 用 mock 的 /api/providers 种种子（配置型厂商），返回拉取后的 state。 */
-  async function seed(providers) {
+  async function seed(providers: any) {
     h.mockGetProviders.mockResolvedValue({ data: { providers } });
     await mod.load();
     return mod.useProviders();
@@ -93,8 +93,8 @@ describe('providerStore §4 供应商数据层（新时代配置型）', () => {
       ]);
       mod.setPrimary('b');
       const s = mod.useProviders();
-      expect(s.providers.filter((p) => p.primary)).toHaveLength(1);
-      expect(s.providers.find((p) => p.id === 'b').primary).toBe(true);
+      expect(s.providers.filter((p: any) => p.primary)).toHaveLength(1);
+      expect(s.providers.find((p: any) => p.id === 'b').primary).toBe(true);
       expect(s.dirty).toBe(true);
     });
   });
@@ -173,13 +173,13 @@ describe('providerStore §4 供应商数据层（新时代配置型）', () => {
         chat_models: [{ id: 'c1' }, { id: 'c2' }],
         video_models: [],
       });
-      expect(mod.useProviders().providers.find((x) => x.id === 'a').image_models).toEqual([]);
+      expect(mod.useProviders().providers.find((x: any) => x.id === 'a').image_models).toEqual([]);
       mod.applyFetchedModels('a', {
         image_models: st.image_models,
         chat_models: st.chat_models,
         video_models: st.video_models,
       });
-      const p = mod.useProviders().providers.find((x) => x.id === 'a');
+      const p = mod.useProviders().providers.find((x: any) => x.id === 'a');
       expect(p.image_models).toEqual([{ id: 'i1' }]);
       expect(p.chat_models).toEqual([{ id: 'c1' }, { id: 'c2' }]);
       expect(p.video_models).toEqual([]);
@@ -205,7 +205,7 @@ describe('providerStore §4 供应商数据层（新时代配置型）', () => {
       expect(res.ok).toBe(true);
       const sent = h.mockSaveProviders.mock.calls[0][0];
       expect(Array.isArray(sent)).toBe(true);
-      const me = sent.find((p) => p.id === 'a');
+      const me = sent.find((p: any) => p.id === 'a');
       // 透传保留模型等字段，且不带任何 key 通道
       expect(me.image_models).toEqual([{ id: 'm1' }]);
       expect(me.api_key).toBeUndefined();

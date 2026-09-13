@@ -18,7 +18,7 @@ import { kvGet, kvSet, kvDelete } from '@/components/base/storage/kvStore.ts';
 const API_BASE = 'http://127.0.0.1:18080';
 
 // 可变 fetch mock，每个用例自行设置实现
-let fetchImpl;
+let fetchImpl: any;
 beforeEach(() => {
   fetchImpl = vi.fn();
   vi.stubGlobal('fetch', fetchImpl);
@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 /** 构造一个 ok 的 fetch 响应 */
-function okJson(body) {
+function okJson(body: any) {
   return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
 }
 /** 构造一个非 ok 的 fetch 响应（无 json 方法也安全，因为 kv 层只判 res.ok） */

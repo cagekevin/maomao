@@ -4,14 +4,14 @@ import { flushAsync } from './_testUtils.mjs';
 // 这些 store 的快照读取通过 useSyncExternalStore 暴露，但纯逻辑测试不需要 React 渲染。
 // mock react 的 useSyncExternalStore 直接返回 getSnapshot()，即可在 node 下读取模块级 state。
 vi.mock('react', () => ({
-  useSyncExternalStore: (subscribe, getSnapshot) => getSnapshot(),
+  useSyncExternalStore: (_subscribe: any, getSnapshot: any) => getSnapshot(),
 }));
 
 // 模块级单例 + 内存 localStorage（tests/setup.mjs 已注入）。
 // node 下 chrome 未定义 → isExtensionEnv()=false → 走浏览器端降级分支，状态机纯逻辑可测。
 // 用 resetModules 隔离；测试间 localStorage 清空 + 通过重新导入重置模块级 state。
 describe('accountsStore §4 多开账号管理', () => {
-  let mod;
+  let mod: any;
   beforeEach(async () => {
     try {
       localStorage.clear();
@@ -138,26 +138,26 @@ describe('accountsStore §4 多开账号管理', () => {
   describe('收藏/排序/删除', () => {
     it('toggleFavorite 翻转 isFavorite 且不改其他字段', async () => {
       const env = await createEnv('即梦小号');
-      const before = mod.useAccounts().envs.find((e) => e.id === env.id);
+      const before = mod.useAccounts().envs.find((e: any) => e.id === env.id);
       expect(before.isFavorite).toBeUndefined();
       mod.toggleFavorite(env.id);
-      const after = mod.useAccounts().envs.find((e) => e.id === env.id);
+      const after = mod.useAccounts().envs.find((e: any) => e.id === env.id);
       expect(after.isFavorite).toBe(true);
       expect(after.name).toBe('即梦小号');
     });
     it('moveEnv 调换顺序', async () => {
       await createEnv('A');
       await createEnv('B');
-      const ids0 = mod.useAccounts().envs.map((e) => e.id);
+      const ids0 = mod.useAccounts().envs.map((e: any) => e.id);
       mod.moveEnv(0, 1);
-      const ids1 = mod.useAccounts().envs.map((e) => e.id);
+      const ids1 = mod.useAccounts().envs.map((e: any) => e.id);
       expect(ids1[0]).toBe(ids0[1]);
       expect(ids1[1]).toBe(ids0[0]);
     });
     it('moveEnv from===to 不变', () => {
-      const ids0 = mod.useAccounts().envs.map((e) => e.id);
+      const ids0 = mod.useAccounts().envs.map((e: any) => e.id);
       mod.moveEnv(0, 0);
-      expect(mod.useAccounts().envs.map((e) => e.id)).toEqual(ids0);
+      expect(mod.useAccounts().envs.map((e: any) => e.id)).toEqual(ids0);
     });
     it('requestDelete 二次确认才真正删除', async () => {
       const env = await createEnv('即梦小号');
@@ -169,7 +169,7 @@ describe('accountsStore §4 多开账号管理', () => {
       const s = mod.useAccounts();
       expect(s.confirmDeleteId).toBeNull();
       expect(s.envs).toHaveLength(n0 - 1);
-      expect(s.envs.find((e) => e.id === env.id)).toBeUndefined();
+      expect(s.envs.find((e: any) => e.id === env.id)).toBeUndefined();
     });
     it('requestDelete 删除当前激活环境会清 activeId', async () => {
       const env = await createEnv('即梦小号');
@@ -229,7 +229,7 @@ describe('accountsStore §4 多开账号管理', () => {
   describe('结构对齐官方（doc31 §一）', () => {
     it('保存环境对象含 id/name/siteName/siteUrl/avatar/cookies 六字段', async () => {
       const env = await createEnv('即梦小号');
-      const e = mod.useAccounts().envs.find((x) => x.id === env.id);
+      const e = mod.useAccounts().envs.find((x: any) => x.id === env.id);
       for (const f of ['id', 'name', 'siteName', 'siteUrl', 'avatar', 'cookies']) {
         expect(f in e, `环境对象应含 ${f} 字段`).toBe(true);
       }
@@ -286,7 +286,7 @@ describe('accountsStore §4 多开账号管理', () => {
 
 // ── 扩展端场景：保存环境时连带抓取当前页面 localStorage 快照（登录态 token 一并保存）──
 describe('accountsStore §4 扩展端 · localStorage 隔离', () => {
-  let mod;
+  let mod: any;
   beforeEach(async () => {
     try {
       localStorage.clear();

@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 /** 触发一次 onmessage（模拟跨窗口广播） */
-function emit(data) {
+function emit(data: any) {
   if (!latestChannel?.onmessage) throw new Error('无 onmessage 处理器');
   // 仅 hook 读取 ev.data，故只补该字段（踩坑记录 #11 的 DOM mock 收尾惯例）
   latestChannel.onmessage({ data } as MessageEvent);

@@ -158,7 +158,7 @@ const camChannels = normalizeCameraKeyframes(legacyCamKeys, initialCamera);
 // 仅作对照基准，M2 引擎落地后若此基准与现网一致、新引擎与基准全等，即证明「换内构、行为不变」。
 // legacyObjectAtFrame 已抽到 tests/unit/_channelLegacy.mjs 共享（channelWrite 同用），见顶部 import。
 
-function legacyCameraAtFrame(keyframes, frame, aspectRatio = '16:9') {
+function legacyCameraAtFrame(keyframes: any, frame: any, aspectRatio = '16:9') {
   const sorted = [...keyframes].sort((a, b) => a.frame - b.frame);
   if (!sorted.length) return { ...initialCamera, aspectRatio };
   const exact = sorted.find((key) => key.frame === frame);
@@ -170,8 +170,8 @@ function legacyCameraAtFrame(keyframes, frame, aspectRatio = '16:9') {
   const right = sorted[rightIndex];
   const t = segmentAmount(left, (frame - left.frame) / Math.max(1, right.frame - left.frame));
   return {
-    position: left.position.map((value, index) => lerp(value, right.position[index], t)),
-    rotation: left.rotation.map((value, index) => lerpAngle(value, right.rotation[index], t)),
+    position: left.position.map((value: any, index: any) => lerp(value, right.position[index], t)),
+    rotation: left.rotation.map((value: any, index: any) => lerpAngle(value, right.rotation[index], t)),
     focalLength: lerp(left.focalLength, right.focalLength, t),
     aspectRatio,
   };
@@ -180,7 +180,7 @@ function legacyCameraAtFrame(keyframes, frame, aspectRatio = '16:9') {
 // ---- 断言工具 ----
 
 // 递归容差比较：数值在容差内视为相等，数组逐元素比，对象按 expected 的键子集比。
-function compareSubset(actual, expected, fields, tolerance = 1e-9) {
+function compareSubset(actual: any, expected: any, fields: any, tolerance = 1e-9) {
   for (const field of fields) {
     const a = actual[field];
     const e = expected[field];

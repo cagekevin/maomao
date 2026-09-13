@@ -21,7 +21,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 // 统一出口：resolveAssetUrl(render) — 本地 /files/ → 缩略图端点；http 原样/补绝对；空/非字符串原样
 vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
-  useRenderAssetResolver: () => (u) => {
+  useRenderAssetResolver: () => (u: any) => {
     if (!u || typeof u !== 'string') return u;
     if (u.startsWith('/files/')) return `THUMB${u}`;
     if (u.startsWith('http://127.0.0.1:18080/files/'))
@@ -42,7 +42,7 @@ const h = vi.hoisted(() => {
   class FakeIO {
     cb: (entries: unknown, observer: unknown) => void;
     static instances: FakeIO[] = [];
-    constructor(cb) {
+    constructor(cb: any) {
       this.cb = cb;
       FakeIO.instances.push(this);
     }
@@ -53,7 +53,7 @@ const h = vi.hoisted(() => {
   return { FakeIO };
 });
 
-const triggerIntersect = (entries) => {
+const triggerIntersect = (entries: any) => {
   act(() => {
     for (const io of h.FakeIO.instances) io.cb(entries, io);
   });

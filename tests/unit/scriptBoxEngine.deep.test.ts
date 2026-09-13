@@ -68,10 +68,10 @@ const providerState = {
 };
 
 describe('剧本盒引擎深度业务 §2.7', () => {
-  let data, patches, addNodes;
+  let data: any, patches, addNodes;
   const ctx = () => ({
     getData: () => data,
-    updateData: (p) => {
+    updateData: (p: any) => {
       const patch = typeof p === 'function' ? p(data) : p;
       data = { ...data, ...patch };
       patches.push(patch);
@@ -83,7 +83,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     // 使得下游网格的实时占用扫描（scriptboxParent/Slot 打标）与真实画布行为一致。
     getNodes: () =>
       [{ id: 'sb-1', position: { x: 0, y: 0 }, width: 900, data }].concat(addNodes.flat()),
-    addNodes: (ns) => {
+    addNodes: (ns: any) => {
       addNodes.push?.(ns) ?? addNodes.push(ns);
       data = { ...data };
     },
@@ -137,9 +137,9 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     expect(firstCall.messages[1].content).not.toContain('慢镜头');
     // 写回：两个分镜都拿到 prompt/videoPrompt
     const last = patches[patches.length - 1];
-    expect(last.shots.find((s) => s.id === 's1').prompt).toBe('分镜画面提示词');
-    expect(last.shots.find((s) => s.id === 's1').videoPrompt).toContain('【时长 5秒】');
-    expect(last.shots.find((s) => s.id === 's2').prompt).toBe('分镜画面提示词');
+    expect(last.shots.find((s: any) => s.id === 's1').prompt).toBe('分镜画面提示词');
+    expect(last.shots.find((s: any) => s.id === 's1').videoPrompt).toContain('【时长 5秒】');
+    expect(last.shots.find((s: any) => s.id === 's2').prompt).toBe('分镜画面提示词');
   });
 
   it('onGenerateShotPrompts：开启上一镜尾帧时，@图片1 缺失则后处理强制补写', async () => {
@@ -172,10 +172,10 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     await eng.onGenerateShotPrompts();
     // 模型输出不含 @图片1 → 强制补写；s1 未开启则保持原样
     const last = patches[patches.length - 1];
-    const s2 = last.shots.find((x) => x.id === 's2');
+    const s2 = last.shots.find((x: any) => x.id === 's2');
     expect(s2.prompt).toContain('@图片1');
     expect(s2.videoPrompt).toContain('@图片1');
-    const s1 = last.shots.find((x) => x.id === 's1');
+    const s1 = last.shots.find((x: any) => x.id === 's1');
     expect(s1.prompt).not.toContain('@图片1');
     // 承接/钩子上下文也注入（s2 是结尾镜，只有上一镜承接，无下一镜钩子）
     const s2Call = chatCompletionsMock.mock.calls[1][0] as unknown as {
@@ -215,7 +215,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     const eng = createScriptBoxEngine(ctx());
     await eng.onGenerateShotPrompts();
     const last = patches[patches.length - 1];
-    const s2 = last.shots.find((x) => x.id === 's2');
+    const s2 = last.shots.find((x: any) => x.id === 's2');
     // videoPrompt 已含 @视频1 → 不再追加，仍是模型原输出
     expect(s2.videoPrompt).toBe('@视频1 从尾帧延续');
     // 但 prompt 缺失 @图片1 → 仍补写（prompt 只认 @图片1）
@@ -237,8 +237,8 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     await eng.onGenerateShotPrompts(['s2']);
     expect(chatCompletions).toHaveBeenCalledTimes(1);
     const last = patches[patches.length - 1];
-    expect(last.shots.find((s) => s.id === 's2').prompt).toBe('P');
-    expect(last.shots.find((s) => s.id === 's1').prompt).toBe(''); // 未动
+    expect(last.shots.find((s: any) => s.id === 's2').prompt).toBe('P');
+    expect(last.shots.find((s: any) => s.id === 's1').prompt).toBe(''); // 未动
   });
 
   it('onGenerateShotPrompts：chat 失败 → 该分镜复位 promptLoading', async () => {
@@ -280,8 +280,8 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     await eng.onGenerateAllAssetImages(['a1']);
     expect(generateImage).toHaveBeenCalledTimes(1);
     const last = patches[patches.length - 1];
-    expect(last.assets.find((a) => a.id === 'a1').has).toBe(true);
-    expect(last.assets.find((a) => a.id === 'a2').has).toBeUndefined(); // 未生成
+    expect(last.assets.find((a: any) => a.id === 'a1').has).toBe(true);
+    expect(last.assets.find((a: any) => a.id === 'a2').has).toBeUndefined(); // 未生成
   });
 
   it('onGenerateAllAssetImages：undefined → 生成全部无图资产', async () => {
@@ -514,10 +514,10 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     expect(reportGenerateMock.mock.results[0]?.value?.done).toHaveBeenCalled();
     // 最终写回［原版 + composed］、自动选中 composed、关 loading
     const last = patches[patches.length - 1];
-    const shot = last.shots.find((s) => s.id === 's2');
+    const shot = last.shots.find((s: any) => s.id === 's2');
     expect(shot.tailFrameVariantsLoading).toBe(false);
     expect(shot.tailFrameVariantsError).toBeUndefined();
-    expect(shot.prevTailFrameVariants.map((v) => v.id)).toEqual(['original', 'composed']);
+    expect(shot.prevTailFrameVariants.map((v: any) => v.id)).toEqual(['original', 'composed']);
     expect(shot.prevTailFrameVariants[0]).toMatchObject({
       id: 'original',
       assetUrl: 'data:image/jpeg;base64,FRAME',
@@ -567,8 +567,8 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     const eng = createScriptBoxEngine(ctx());
     await eng.onRetryAssetImageUpload('a1');
     // 中间有一次 uploading 标记
-    expect(patches.some((p) => p.assets?.[0]?.imageStatus === 'uploading')).toBe(true);
-    const final = patches[patches.length - 1].assets.find((a) => a.id === 'a1');
+    expect(patches.some((p: any) => p.assets?.[0]?.imageStatus === 'uploading')).toBe(true);
+    const final = patches[patches.length - 1].assets.find((a: any) => a.id === 'a1');
     expect(final.imageStatus).toBe('uploaded');
     expect(final.imageError).toBeUndefined();
     expect(final.assetUrl).toBe('/files/migrated/人物/主角.png');
@@ -584,7 +584,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     };
     const eng = createScriptBoxEngine(ctx());
     await eng.onRetryAssetImageUpload('a1');
-    const final = patches[patches.length - 1].assets.find((a) => a.id === 'a1');
+    const final = patches[patches.length - 1].assets.find((a: any) => a.id === 'a1');
     expect(final.imageStatus).toBe('failed');
     expect(final.imageError).toBe('落盘失败');
   });
@@ -598,7 +598,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     };
     const eng = createScriptBoxEngine(ctx());
     await eng.onGenerateAssetImage('a1');
-    const final = patches[patches.length - 1].assets.find((a) => a.id === 'a1');
+    const final = patches[patches.length - 1].assets.find((a: any) => a.id === 'a1');
     expect(final.has).toBe(true);
     expect(final.loading).toBe(false);
     expect(final.assetUrl).toBe('/files/migrated/人物/角色1.png');

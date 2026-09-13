@@ -8,7 +8,7 @@ import { API_BASE } from '../../src/components/base/core/config.ts';
 import * as ra from '@/components/base/api/localToolApi.ts';
 import * as fl from '@/components/base/api/filesApi.ts';
 
-function mockFetchOnce(body, { ok = true, status = 200 } = {}) {
+function mockFetchOnce(body: any, { ok = true, status = 200 } = {}) {
   const res = { ok, status, json: async () => body, text: async () => JSON.stringify(body) };
   // vi.fn() 的 mock.calls 会被推断为无参空元组（[]），导致 calls[0][0]/[1] 报 TS2493/TS18048；
   // 测试需按调用实参断言 URL 与 init，故标注为 any 保留完整调用记录访问。

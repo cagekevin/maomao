@@ -26,7 +26,7 @@ describe('createDebouncedPersist（P4 落盘节流原语）', () => {
   it('窗口内多次变更合并为最终态（flush 时读最新状态）', () => {
     let state = 'v1';
     const write = vi.fn(() => seen.push(state));
-    const seen = [];
+    const seen: any = [];
     const p = createDebouncedPersist(write, 300);
     p.schedule(); // state=v1
     state = 'v2';

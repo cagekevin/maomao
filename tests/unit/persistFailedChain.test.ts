@@ -42,9 +42,9 @@ function notOk(status = 500) {
   };
 }
 
-let fetchImpl;
-let persistEvts = [];
-let offPersist;
+let fetchImpl: any;
+let persistEvts: any = [];
+let offPersist: any;
 
 const CONTENT_STATE_KEY = CANVAS_STATE_PREFIX + 'proj_1';
 

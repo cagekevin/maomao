@@ -21,11 +21,11 @@ function makeFakeUrl() {
   };
 }
 
-const makeBlob = (tag) => ({ _tag: tag || 'b', name: `b_${tag || 'b'}.png`, type: 'image/png' });
+const makeBlob = (tag: any) => ({ _tag: tag || 'b', name: `b_${tag || 'b'}.png`, type: 'image/png' });
 
 describe('previewUrl — createPreviewUrlManager', () => {
-  let fake;
-  let mgr;
+  let fake: any;
+  let mgr: any;
 
   beforeEach(() => {
     fake = makeFakeUrl();

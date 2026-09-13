@@ -20,7 +20,7 @@ const getNode = vi.fn((id) => getNodes().find((n) => n.id === id));
 const updateNodeInternals = vi.fn();
 
 vi.mock('@xyflow/react', () => ({
-  useReactFlow: () => ({ getNodes, getNode, setNodes, screenToFlowPosition: (p) => p }),
+  useReactFlow: () => ({ getNodes, getNode, setNodes, screenToFlowPosition: (p: any) => p }),
   useUpdateNodeInternals: () => updateNodeInternals,
 }));
 

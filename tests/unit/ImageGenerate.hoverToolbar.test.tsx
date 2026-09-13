@@ -43,10 +43,10 @@ vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({
   ),
 }));
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
-  default: ({ children }) => children,
+  default: ({ children }: any) => children,
 }));
 vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
-  default: ({ children }) => children,
+  default: ({ children }: any) => children,
 }));
 vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: () => null }));
@@ -72,7 +72,7 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
   useNodePrefs: () => ({ prefs: {}, set: vi.fn() }),
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  toAbsoluteFileUrl: (x) => x,
+  toAbsoluteFileUrl: (x: any) => x,
   saveResultToTasks: vi.fn(async () => undefined),
 }));
 vi.mock('../../src/components/base/store/providerStore.ts', () => ({
@@ -95,9 +95,9 @@ vi.mock('../../src/components/base/utils/clipboard.ts', async (importOriginal) =
 });
 
 // ImageEditor：记录最近渲染的 assetUrl，便于断言「打开编辑器」
-let lastEditorUrl = null;
+let lastEditorUrl: any = null;
 vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({
-  default: ({ assetUrl, onSave: _onSave, onClose: _onClose }) => {
+  default: ({ assetUrl, onSave: _onSave, onClose: _onClose }: any) => {
     lastEditorUrl = assetUrl;
     return <div data-testid="image-editor" data-url={assetUrl} />;
   },
@@ -105,7 +105,7 @@ vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({
 // InlineImageCropper：记录是否打开（就地裁剪浮层）
 let inlineCropperOpen = false;
 vi.mock('../../src/components/base/editors/InlineImageCropper.tsx', () => ({
-  default: ({ assetUrl, onSave: _onSave, onClose: _onClose }) => {
+  default: ({ assetUrl, onSave: _onSave, onClose: _onClose }: any) => {
     inlineCropperOpen = true;
     return <div data-testid="inline-cropper" data-url={assetUrl} />;
   },

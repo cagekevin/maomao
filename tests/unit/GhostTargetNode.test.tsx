@@ -13,10 +13,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 
 const h = vi.hoisted(() => {
-  const handleProps = [];
+  const handleProps: any = [];
   return {
     handleProps,
-    HandleMock: (props) => {
+    HandleMock: (props: any) => {
       h.handleProps.push(props);
       return null;
     },
@@ -24,7 +24,7 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock('@xyflow/react', () => ({
-  Handle: (props) => h.HandleMock(props),
+  Handle: (props: any) => h.HandleMock(props),
 }));
 
 import GhostTargetNode from '../../src/components/nodes/GhostTargetNode.tsx';

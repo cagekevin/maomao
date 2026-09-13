@@ -22,7 +22,7 @@ let node = {
 const mockSetNodes = vi.fn();
 const mockGetNodes = vi.fn(() => [node]);
 const mockUpdateInternals = vi.fn();
-let lastEditorSave = null;
+let lastEditorSave: any = null;
 
 // 真实 React Flow：getNode 返回当前 node；setNodes 执行 updater 真正更新 node
 vi.mock('@xyflow/react', () => ({

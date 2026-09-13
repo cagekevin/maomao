@@ -38,7 +38,7 @@ function ExternalChangeHarness() {
   );
 }
 
-const placeCaretAtEnd = (el) => {
+const placeCaretAtEnd = (el: any) => {
   const range = document.createRange();
   range.selectNodeContents(el);
   range.collapse(false);
@@ -48,7 +48,7 @@ const placeCaretAtEnd = (el) => {
 };
 
 /** 模拟在 contentEditable 里敲一个字：插入文本 + 光标后移 + 派发 input */
-const typeInto = (el, ch) => {
+const typeInto = (el: any, ch: any) => {
   const sel = document.getSelection()!;
   const range = sel.getRangeAt(0);
   const node = document.createTextNode(ch);

@@ -12,7 +12,7 @@ vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({ setNodes: () => {} }),
 }));
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
-  default: ({ children, titleRight, label }) => (
+  default: ({ children, titleRight, label }: any) => (
     <div data-testid="shell" data-label={label}>
       {titleRight}
       {children}

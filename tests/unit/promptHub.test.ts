@@ -3,8 +3,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // 隔离 contentStore（避免真实写 localStorage / 触发未登记 warning）
 const cache = {};
 vi.mock('../../src/components/base/core/contentStore.ts', () => ({
-  contentGet: (key) => cache[key],
-  contentSet: (key, val) => {
+  contentGet: (key: any) => cache[key],
+  contentSet: (key: any, val: any) => {
     cache[key] = val;
   },
 }));
@@ -23,11 +23,11 @@ describe('提示词社区库 §2.19 数据源', () => {
 });
 
 describe('提示词社区库 §2.19 数据层', () => {
-  let fetchImpl;
+  let fetchImpl: any;
   beforeEach(() => {
     Object.keys(cache).forEach((k) => delete cache[k]);
     fetchImpl = null;
-    vi.stubGlobal('fetch', (url) =>
+    vi.stubGlobal('fetch', (url: any) =>
       fetchImpl ? fetchImpl(url) : Promise.reject(new Error('no fetch mock')),
     );
   });
@@ -44,7 +44,7 @@ describe('提示词社区库 §2.19 数据层', () => {
       { title: 'D', prompt: 'p4' }, // 缺 id → 两条都自动补，保留
     ];
     // 仅该源 url 返回数据，其余源 reject → 解析为空数组，不污染
-    fetchImpl = (url) =>
+    fetchImpl = (url: any) =>
       url === src.url
         ? Promise.resolve({ ok: true, json: () => Promise.resolve(raw) })
         : Promise.reject(new Error('skip'));
@@ -71,7 +71,7 @@ describe('提示词社区库 §2.19 数据层', () => {
         referenceAssetUrls: ['ref1.png', 'https://x.com/r2.jpg'],
       },
     ];
-    fetchImpl = (url) =>
+    fetchImpl = (url: any) =>
       url === src.url
         ? Promise.resolve({ ok: true, json: () => Promise.resolve(raw) })
         : Promise.reject(new Error('skip'));
@@ -97,7 +97,7 @@ describe('提示词社区库 §2.19 数据层', () => {
     const src = getPromptHubSources()[0];
     const raw = [{ title: 'A', prompt: 'p' }];
     let calls = 0;
-    const okJson = (url) =>
+    const okJson = (url: any) =>
       url === src.url
         ? ((calls += 1), Promise.resolve({ ok: true, json: () => Promise.resolve(raw) }))
         : Promise.reject(new Error('skip'));
@@ -105,7 +105,7 @@ describe('提示词社区库 §2.19 数据层', () => {
     const { loadPromptHub } = await import('../../src/components/base/prompt/promptHubStore.ts');
     await loadPromptHub();
     // 第二次：缓存命中，该源不再 fetch（其余源仍 reject，不算 calls）
-    fetchImpl = (url) =>
+    fetchImpl = (url: any) =>
       url === src.url
         ? ((calls += 1), Promise.resolve({ ok: true, json: () => Promise.resolve(raw) }))
         : Promise.reject(new Error('skip'));
@@ -118,7 +118,7 @@ describe('提示词社区库 §2.19 数据层', () => {
       await import('../../src/components/base/prompt/promptHubStore.ts');
     const src = getPromptHubSources()[0];
     const raw = [{ title: 'A', prompt: 'p' }];
-    fetchImpl = (url) =>
+    fetchImpl = (url: any) =>
       url === src.url
         ? Promise.resolve({ ok: true, json: () => Promise.resolve(raw) })
         : Promise.reject(new Error('skip'));

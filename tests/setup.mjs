@@ -22,19 +22,19 @@ class MemStorage {
   constructor() {
     this.map = new Map();
   }
-  getItem(k) {
+  getItem(/** @type {any} */ k) {
     return this.map.has(k) ? this.map.get(k) : null;
   }
-  setItem(k, v) {
+  setItem(/** @type {any} */ k, /** @type {any} */ v) {
     this.map.set(k, String(v));
   }
-  removeItem(k) {
+  removeItem(/** @type {any} */ k) {
     this.map.delete(k);
   }
   clear() {
     this.map.clear();
   }
-  key(i) {
+  key(/** @type {any} */ i) {
     return Array.from(this.map.keys())[i] ?? null;
   }
   get length() {
@@ -134,8 +134,8 @@ if (typeof globalThis.fetch === 'function' || globalThis.fetch === undefined) {
 // 重复手写同一份覆盖（TextGenerate/ImageGenerate/TemplateNode/VideoGenerate.upstream 等），现收口于此。
 // shim：rAF 契约是「返回 number 句柄」，Node 的 setTimeout 返回 Timeout 对象。测试只做
 //「注册→触发→取消」，无一处断言句柄类型，故放行返回值差异（cancelAnimationFrame 同侧消费）。
-globalThis.requestAnimationFrame = shim((cb) => setTimeout(() => cb(Date.now()), 0));
-globalThis.cancelAnimationFrame = shim((id) => clearTimeout(id));
+globalThis.requestAnimationFrame = shim((/** @type {any} */ cb) => setTimeout(() => cb(Date.now()), 0));
+globalThis.cancelAnimationFrame = shim((/** @type {any} */ id) => clearTimeout(id));
 
 // jsdom 不实现 Element.prototype.scrollTo / scrollIntoView，
 // 聊天面板、节点面板等组件在 effect 里调用会抛 "not implemented" 导致测试崩。
@@ -167,7 +167,7 @@ if (typeof globalThis.HTMLAnchorElement !== 'undefined' && !anchorClick?.__stubb
 // 业务用 logger.error 记录「为何失败」的根因；若一并滤掉，出错时只能翻日志 grep 才找得到，
 // 违反「失败可见」原则。断言失败由 vitest 单独捕获，且此处只动 console 不影响它。
 // logger 前缀形如 `[info] 11:24:10 | 分类 | 动作 | {...}`（格式见 src/components/base/logger.js）。
-const __isLoggerNoise = (args) =>
+const __isLoggerNoise = (/** @type {any} */ args) =>
   typeof args?.[0] === 'string' && /^\[(log|info|warn|debug)\]\s+\d{2}:\d{2}:\d{2}/.test(args[0]);
 
 // 已知良性测试噪音（jsdom / 测试隔离产物，非真实失败；断言失败由 vitest 单独捕获，
@@ -176,13 +176,13 @@ const __isLoggerNoise = (args) =>
 //    waitFor 或同步断言收口（VideoProcessNode 的 <video>、agentPersistRecovery 的 store 异步）。
 // 2) jsdom 不识别 SVG 命名空间标签 <g>/<path>（CustomEdge/ConnectionLine/Comet）——React 渲染正确，仅 jsdom 日志噪音。
 // 3) THREE.WARNING 多实例——vitest fork 每 worker 独立进程各载一份 three，隔离造成的假阳性。
-const __isBenignNoise = (s) =>
+const __isBenignNoise = (/** @type {any} */ s) =>
   /was not wrapped in act\(/u.test(s) ||
   /is unrecognized in this browser/u.test(s) ||
   /THREE\.WARNING: Multiple instances of Three\.js/u.test(s);
 
 const __consoleIO = { log: console.log, warn: console.warn, error: console.error };
-const __pass = (level, ...a) => {
+const __pass = (/** @type {any} */ level, /** @type {any[]} */ ...a) => {
   const msg = a
     .map((x) => (typeof x === 'string' ? x : x instanceof Error ? x.message : String(x)))
     .join(' ');

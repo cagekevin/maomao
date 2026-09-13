@@ -29,7 +29,7 @@ beforeEach(() => {
 
 describe('taskStore 生图并发上限（最多 6 个同时跑，超出跳过）', () => {
   it('第 7 个并发请求返回 skipped，不触发、不排队', async () => {
-    const callOrder = [];
+    const callOrder: any = [];
     const resolvers = [];
     // 注册 7 个节点，每个 fn 返回一个「挂起」的 promise（模拟生成进行中）
     for (let i = 0; i < 7; i++) {

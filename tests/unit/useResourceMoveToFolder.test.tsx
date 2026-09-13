@@ -34,7 +34,7 @@ vi.mock('../../src/components/base/core/eventBus.ts', () => ({
   clearEvent: mocks.clearEvent ?? (() => {}),
 }));
 
-function payload(item) {
+function payload(item: any) {
   return JSON.stringify({
     folder: item.folder || '',
     name: item.name,
@@ -47,7 +47,7 @@ function payload(item) {
  * 拖拽事件 mock：只实现被测用到的字段（preventDefault/stopPropagation/dataTransfer），
  * 缺 DragEvent 的其余必填成员 → 统一 as unknown as 收尾（踩坑记录 #11）。
  */
-function makeDropEvent(data) {
+function makeDropEvent(data: any) {
   return {
     preventDefault: vi.fn(),
     stopPropagation: vi.fn(),
