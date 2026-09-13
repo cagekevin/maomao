@@ -14,7 +14,7 @@ import * as pm from '../../src/components/base/prompt/promptManager.ts';
 const STORAGE_KEY = 'yimao_preset_prompts'; // 对齐 promptManager.js 内部 STORAGE_KEY
 // 对齐 promptManager.js 内部 RECENT_KEY
 
-const readStored = (key: any) => {
+const readStored = (key: any): any => {
   return contentGet(key) ?? null;
 };
 

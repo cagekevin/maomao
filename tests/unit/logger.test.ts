@@ -5,7 +5,7 @@ import { API_BASE } from '../../src/components/base/core/config.ts';
 
 // logger 内部有模块级单例去重状态 _lastReport，跨测试会污染。
 // 每个测试前 resetModules + 动态 import 拿干净实例，保证去重计时从零开始。
-let log: any, logger;
+let log: any, logger: any;
 beforeEach(async () => {
   vi.resetModules();
   const mod = await import('../../src/components/base/core/logger.ts');
@@ -51,7 +51,7 @@ describe('config.ts §API_BASE 日志与配置', () => {
 });
 
 describe('logger §日志格式', () => {
-  let infoSpy: any, warnSpy, errorSpy, fetchMock;
+  let infoSpy: any, warnSpy: any, errorSpy: any, fetchMock: any;
 
   beforeEach(() => {
     infoSpy = vi.spyOn(console, 'log').mockImplementation(() => {});

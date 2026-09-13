@@ -88,8 +88,8 @@ const h = vi.hoisted(() => {
     clearCreditGate: vi.fn(),
   }));
   // contentStore 订阅桩：记录已注册的 key→cb，供测试触发「设置变更」回调
-  let subscribeCbs = {};
-  const subscribeUnsubs: any = [];
+  let subscribeCbs: Record<string, any> = {};
+  const subscribeUnsubs: any[] = [];
   const contentSubscribe = vi.fn((key, cb) => {
     subscribeCbs[key] = cb;
     subscribeUnsubs.push(vi.fn());

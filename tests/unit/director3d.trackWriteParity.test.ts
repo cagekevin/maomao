@@ -53,7 +53,8 @@ const legacyUpsertCameraSnapshot = (tracks: any, snapshot: any) =>
 const legacyRemoveCameraFrames = (tracks: any, frames: any) =>
   removeChannelFrames(tracks, Array.isArray(frames) ? frames : [frames]);
 
-const legacyMoveCameraFrame = (tracks: any, from: any, to: any) => moveChannelFrames(tracks, from, to);
+const legacyMoveCameraFrame = (tracks: any, from: any, to: any) =>
+  moveChannelFrames(tracks, from, to);
 
 const legacySetCameraInterpolation = (tracks: any, frame: any, value: any) =>
   setChannelInterpolation(tracks, frame, value);
@@ -64,7 +65,7 @@ function legacyMoveCameraFrames(channels: any, frameMap: any) {
   const fromFrames = entries.map(([from]) => Number(from));
   const toFrames = new Map(entries.map(([from, to]) => [Number(from), Number(to)]));
   const next = removeChannelFrames(channels, fromFrames);
-  const keys = {};
+  const keys: Record<string, any> = {};
   for (const [channel, list] of Object.entries(channels)) {
     const moved = (Array.isArray(list) ? list : [])
       .filter((key) => toFrames.has(key.frame))
@@ -74,7 +75,13 @@ function legacyMoveCameraFrames(channels: any, frameMap: any) {
   return upsertChannelKeys(next, keys);
 }
 
-function legacyBakeCameraPath(tracks: any, path: any, camera: any, bakedFrames: any, removeFrames: number[] = []) {
+function legacyBakeCameraPath(
+  tracks: any,
+  path: any,
+  camera: any,
+  bakedFrames: any,
+  removeFrames: number[] = [],
+) {
   let next = removeChannelFrames(tracks, [...removeFrames]);
   for (const frame of bakedFrames) {
     const u = (frame.frame - path.startFrame) / Math.max(1, path.endFrame - path.startFrame);
@@ -123,7 +130,8 @@ const straightPath = normalizeCameraPath({
 
 const buildCamTrack = (frames: any) =>
   frames.reduce(
-    (acc: any, [f, pos, focal]) => legacyUpsertCameraSnapshot(acc, camSnapshot(f, pos, focal)),
+    (acc: any, [f, pos, focal]: [number, number[], number]) =>
+      legacyUpsertCameraSnapshot(acc, camSnapshot(f, pos, focal)),
     {},
   );
 

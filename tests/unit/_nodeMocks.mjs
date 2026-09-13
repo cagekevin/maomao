@@ -39,7 +39,7 @@ const xyflow = {
 };
 
 // ── 通用 UI 基座（透传 children，便于断言渲染内容）──
-const Passthrough = (/** @type {any} */ { children, label, titleRight, title, testId, ...rest }) => {
+const Passthrough = (/** @type {any} */ { children, label, titleRight, title, testId }) => {
   const attrs = {};
   if (label !== undefined) attrs['data-label'] = label;
   if (title !== undefined) attrs['data-title'] = title;
@@ -49,8 +49,8 @@ const Passthrough = (/** @type {any} */ { children, label, titleRight, title, te
 Passthrough.displayName = 'Passthrough';
 
 // NodeShell 专属：始终暴露 data-testid="shell" 与 data-label（便于测试查询外壳标题）
-const ShellPassthrough = (/** @type {any} */ { children, label, titleRight, defaultTitle, title, ...rest }) => {
-  const attrs = { 'data-testid': 'shell' };
+const ShellPassthrough = (/** @type {any} */ { children, label, titleRight, defaultTitle, title }) => {
+  const attrs = /** @type {Record<string, any>} */ ({ 'data-testid': 'shell' });
   attrs['data-label'] = label ?? defaultTitle ?? title ?? '';
   return React.createElement('div', attrs, children, titleRight);
 };
@@ -178,7 +178,7 @@ const ConversionCanceled = class extends Error {};
 const PanoViewer = NullComp;
 const FaceMosaicEditor = NullComp;
 const Director3DOverlay = NullComp;
-const applyMosaic = async (/** @type {any[]} */ ...a) => ({ url: 'http://mosaic.local/x.png' });
+const applyMosaic = async (/** @type {any[]} */ ..._a) => ({ url: 'http://mosaic.local/x.png' });
 const MOSAIC_MODES = ['mosaic', 'blur', 'grid', 'bar'];
 const /** @type {any} */ MOSAIC_PALETTE = [];
 const sSet = () => {};

@@ -15,8 +15,13 @@ vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
   default: ({
     images = [] as Array<{ sourceNodeId: string }>,
     texts = [],
-    readOnly,
-    onDisconnect,
+    readOnly = false,
+    onDisconnect = (_id: string) => {},
+  }: {
+    images?: Array<{ sourceNodeId: string }>;
+    texts?: unknown[];
+    readOnly?: boolean;
+    onDisconnect?: (id: string) => void;
   }) => (
     <div data-testid="upstream-strip" data-readonly={String(!!readOnly)}>
       <span data-testid="strip-imgs">{images.length}</span>

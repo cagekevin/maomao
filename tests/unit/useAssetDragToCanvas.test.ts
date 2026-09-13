@@ -23,7 +23,7 @@ const {
 const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
 
 function fakeDataTransfer() {
-  const store = {};
+  const store: Record<string, any> = {};
   // 仅 mock 被测用到的 setData/getData/setDragImage/effectAllowed；cast 成 DataTransfer 以满足 onDragStart 入参类型
   return {
     setData: (k: any, v: any) => {

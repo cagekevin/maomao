@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // 隔离 contentStore（避免真实写 localStorage / 触发未登记 warning）
-const cache = {};
+const cache: Record<string, any> = {};
 vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   contentGet: (key: any) => cache[key],
   contentSet: (key: any, val: any) => {

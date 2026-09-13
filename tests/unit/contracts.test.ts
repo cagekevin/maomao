@@ -13,7 +13,7 @@ import {
  * ════════════════════════════════════════════════════════════════ */
 
 describe('STORAGE_KEYS 结构完整性', () => {
-  const REQUIRED_FIELDS = ['domain', 'store', 'backend', 'note'];
+  const REQUIRED_FIELDS = ['domain', 'store', 'backend', 'note'] as const;
 
   it('每条记录包含所有必需字段', () => {
     const entries = Object.entries(STORAGE_KEYS);
@@ -211,7 +211,7 @@ describe('getKvKeyPatterns', () => {
  * ════════════════════════════════════════════════════════════════ */
 
 describe('EVENTS 结构完整性', () => {
-  const REQUIRED_FIELDS = ['from', 'to', 'payload', 'note'];
+  const REQUIRED_FIELDS = ['from', 'to', 'payload', 'note'] as const;
 
   it('每条事件记录包含所有必需字段', () => {
     const entries = Object.entries(EVENTS);

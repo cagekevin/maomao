@@ -182,7 +182,7 @@ const __isBenignNoise = (/** @type {any} */ s) =>
   /THREE\.WARNING: Multiple instances of Three\.js/u.test(s);
 
 const __consoleIO = { log: console.log, warn: console.warn, error: console.error };
-const __pass = (/** @type {any} */ level, /** @type {any[]} */ ...a) => {
+const __pass = (/** @type {'log' | 'warn' | 'error'} */ level, /** @type {any[]} */ ...a) => {
   const msg = a
     .map((x) => (typeof x === 'string' ? x : x instanceof Error ? x.message : String(x)))
     .join(' ');

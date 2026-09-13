@@ -32,13 +32,13 @@ afterEach(() => {
 });
 
 /** 构造「真实扩展」的 chrome：storage.local.get 是函数 */
-function makeExtensionChrome(store = {}) {
+function makeExtensionChrome(store: Record<string, any> = {}) {
   return {
     runtime: { id: 'test-ext-id', lastError: null },
     storage: {
       local: {
         get: (keys: any, cb: any) => {
-          const out = {};
+          const out: Record<string, any> = {};
           if (keys === null) {
             for (const [k, v] of Object.entries(store)) out[k] = v;
           } else {

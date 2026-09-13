@@ -288,7 +288,7 @@ describe('imageCompress —— 压缩（含浏览器依赖，部分 mock）', ()
 });
 
 // ── 辅助：mock jsdom 的 canvas（drawImage 为空操作，toDataURL 返回预设）──
-function setupCanvasMock(_w: any, h: any, toDataUrlReturn: any) {
+function setupCanvasMock(_w: any, _h: any, toDataUrlReturn: any) {
   globalThis.document.createElement = vi.fn((tag) => {
     if (tag === 'canvas') {
       return {

@@ -20,7 +20,7 @@ const TARGETS = {
 };
 
 /** TemplateNode 是参考蓝本，已迁至 _template/ 子目录（2026-09-11，TD-04-5） */
-const SUBDIR = { TemplateNode: '_template' };
+const SUBDIR: Record<string, string> = { TemplateNode: '_template' };
 
 /** 按 .jsx → .tsx 顺序探测节点文件（迁移期两者皆可能存在；蓝本在 _template/ 子目录） */
 function resolveNodeFile(name: any) {

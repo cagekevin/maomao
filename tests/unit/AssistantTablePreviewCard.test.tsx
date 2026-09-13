@@ -9,7 +9,6 @@
  * 【本测试断言】两列同名、同行两格取不同值 → 渲染出两个独立 <td>，值均保留。
  * 若有人把 rows 改回 `Record<label,string>` 或渲染改回按列名取，此用例必红。
  */
-import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import AssistantTablePreviewCard from '../../src/components/agent/assistantTable/AssistantTablePreviewCard.tsx';

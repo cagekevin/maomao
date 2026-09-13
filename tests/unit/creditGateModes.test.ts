@@ -16,7 +16,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  */
 // 可控 creditSwitch：getX 读 __credit，setX 写 __credit（contentStore 的 contentGet/contentSet 也被 mock 到同一状态）
 let __creditState: any;
-let __genParamsState;
 vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal) => {
   // importOriginal 在 vitest 类型里返回 unknown（类型限制），断言回具体模块命名空间以保留 .contentGet 等调用
   const actual =

@@ -38,7 +38,7 @@ const ASSET: ResourceMoveItem = {
 
 /** 模拟 DataTransfer：只记录 setData 的键值对与 effectAllowed */
 function fakeDataTransfer() {
-  const data = {};
+  const data: Record<string, any> = {};
   return {
     data,
     effectAllowed: '',

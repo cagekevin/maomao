@@ -68,7 +68,9 @@ const providerState = {
 };
 
 describe('剧本盒引擎深度业务 §2.7', () => {
-  let data: any, patches, addNodes;
+  let data: any,
+    patches: any[] = [],
+    addNodes: any[] = [];
   const ctx = () => ({
     getData: () => data,
     updateData: (p: any) => {

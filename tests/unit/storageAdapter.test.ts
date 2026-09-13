@@ -46,7 +46,7 @@ function makeExtensionChrome() {
     storage: {
       local: {
         get: (keys: any, cb: any) => {
-          const out = {};
+          const out: Record<string, any> = {};
           if (keys === null) {
             for (const [k, v] of store) out[k] = v;
           } else {

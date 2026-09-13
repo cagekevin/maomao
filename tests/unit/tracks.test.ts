@@ -66,7 +66,7 @@ const camSnapshot = (frame: any, position: any, focalLength = 42) => ({
 
 describe('bakeObjectPath 对象路径烘焙', () => {
   const seedTracks = () => {
-    let tracks = {};
+    let tracks: Record<string, any> = {};
     tracks = upsertObjectSnapshot(
       tracks,
       'actor-lead',
@@ -130,7 +130,7 @@ describe('bakeObjectPath 对象路径烘焙', () => {
 
 describe('bakeCameraPath 相机路径烘焙', () => {
   it('先删旧路径帧、再按曲线逐帧写 transform.position/rotation + lens.focalLength', () => {
-    let tracks = {};
+    let tracks: Record<string, any> = {};
     tracks = upsertCameraSnapshot(tracks, camSnapshot(0, [0, 0, 0], 42));
     tracks = upsertCameraSnapshot(tracks, camSnapshot(60, [2.5, 0, 0], 42));
     tracks = upsertCameraSnapshot(tracks, camSnapshot(24, [3, 4, 5], 50)); // 手动帧
@@ -160,7 +160,7 @@ describe('bakeCameraPath 相机路径烘焙', () => {
 
 describe('批量平移（先删旧帧再整批插新，防丢帧）', () => {
   it('对象轨相邻帧同量平移不丢帧（目标被另一移动帧占据时也完整）', () => {
-    let tracks = {};
+    let tracks: Record<string, any> = {};
     tracks = upsertObjectSnapshot(tracks, 'actor-lead', 'person', manualSnapshot(10, [1, 0, 0]));
     tracks = upsertObjectSnapshot(tracks, 'actor-lead', 'person', manualSnapshot(15, [2, 0, 0]));
     const next = moveObjectFrames(tracks, 'actor-lead', { 10: 15, 15: 20 });
@@ -188,7 +188,7 @@ describe('批量平移（先删旧帧再整批插新，防丢帧）', () => {
 
 describe('duplicateObjectTrack / clearObjectTrack', () => {
   const sampleTracks = () => {
-    let tracks = {};
+    let tracks: Record<string, any> = {};
     tracks = upsertObjectSnapshot(
       tracks,
       'actor-lead',
