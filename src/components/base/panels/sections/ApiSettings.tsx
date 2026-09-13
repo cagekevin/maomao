@@ -214,9 +214,10 @@ export default function ApiSettings() {
                   </div>
                   <input
                     value={
-                      selected.base_url ||
-                      (selected._relay &&
-                        (selected._relay as { defaultBaseUrl?: string })?.defaultBaseUrl) ||
+                      (selected.base_url as string) ||
+                      (selected._relay
+                        ? ((selected._relay as { defaultBaseUrl?: string })?.defaultBaseUrl ?? '')
+                        : '') ||
                       ''
                     }
                     onChange={(e) => updateProviderField(selected.id, 'base_url', e.target.value)}

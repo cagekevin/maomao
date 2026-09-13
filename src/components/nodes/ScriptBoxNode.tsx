@@ -96,7 +96,7 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
     const curImgs = d.upstreamImages || [];
     const sameImgs =
       imgList.length === curImgs.length &&
-      imgList.every((im, i) => curImgs[i] && curImgs[i].url === im.url);
+      imgList.every((im, i) => im != null && curImgs[i] && curImgs[i].url === im.url);
     if (!sameImgs) patch.upstreamImages = imgList;
     const txtList = (connected.texts || [])
       .map((t, i) =>
@@ -113,7 +113,7 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
     const curTxts = d.upstreamTexts || [];
     const sameTxts =
       txtList.length === curTxts.length &&
-      txtList.every((t, i) => curTxts[i] && curTxts[i].text === t.text);
+      txtList.every((t, i) => t != null && curTxts[i] && curTxts[i].text === t.text);
     if (!sameTxts) patch.upstreamTexts = txtList;
     if (Object.keys(patch).length) updateData(patch);
   }, [upstreamTexts, d.upstreamStory, d.upstreamImages, d.upstreamTexts, connected, updateData]);
@@ -192,7 +192,7 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
       selected={selected}
       handleVariant="small"
       showHandles={false}
-      aspectRatio={null}
+      aspectRatio={undefined}
       minWidth={900}
       minHeight={600}
       className="min-w-[900px]"

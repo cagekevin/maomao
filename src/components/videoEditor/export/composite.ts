@@ -34,6 +34,7 @@ import type { VideoSample } from 'mediabunny';
 import { ConversionCanceled } from '../../base/utils/videoEngine.ts';
 import type { AudioOutcome } from '../../base/utils/videoEngine.ts';
 import { activeClipsAt, clipDuration, timelineDuration } from '../core/timelineOps.ts';
+import { audibleClipsOf } from '../core/routeClip.ts';
 import type { Clip, Project, Track } from '../core/types.ts';
 
 /**
@@ -307,17 +308,10 @@ async function mixClip(
 }
 
 /**
- * 时间轴上**可闻**的片段（`docs/120` C11.7：M1 走带必须真出声）。
- *
- * **判据单点**：混音（本文件）与「导出是否需要音频编码器」（`pipeline.ts` 的探针请求）
- * 都问这一个函数。各写一遍 `!hidden && !muted` 必漂 —— 一处说「有声音」、另一处说「没有」，
- * 结果就是「明明有音频却没探音频编码器」。
+ * 时间轴上**可闻**的片段 —— 判据单点（`audibleClipsOf`）已收在 `core/routeClip.ts`（领域判据层）。
+ * 混音（本文件）/ 导出探针（`pipeline`）/ 预览播放（`panels/dock/PlaybackSink`）共用它，
+ * 避免各写一遍 `!hidden && !muted` 必漂（一处说有声、另一处说没有）。
  */
-export function audibleClipsOf(tracks: Track[]): Clip[] {
-  return tracks
-    .filter((track) => !track.hidden && !track.muted)
-    .flatMap((track) => track.clips.filter((clip) => clip.kind !== 'image'));
-}
 
 /** 混音产物 + 覆盖度（`missing > 0` 表示有片段的声音没进得来，必须告知）。 */
 interface MixedTimelineAudio {

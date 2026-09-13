@@ -71,7 +71,34 @@
  *    取的是不是当前显示的那一帧"的**判据层**，由宿主决定（7 步法 Step 3：收口探测、保留判据）。
  */
 
-/** 底层原语可替换的错误文案（各宿主保留自己的排障文案，见"失败语义逐字保留"要求）；当前仅内部使用，故不导出。 */
+/**
+ * 一个媒体 URL 是否**跨源**（需要 `crossOrigin='anonymous'` / 让 canvas 可读）？
+ *
+ * 【为什么抽帧必须按同源/跨源分情况（2026-09-13 取证修正）】
+ * 本模块的素材 = 本地 `/files/`（经 `toAbsoluteFileUrl` → `API_BASE + /files/…`）。
+ * 生产发布时页面**部署在 localTool 18080 端口可与 /files/ 同源**（`config.ts:17`）。
+ * 若对**同源** URL 设了 `crossOrigin='anonymous'`：元素会走 CORS 模式请求，而网关对
+ * `/files/*` 未必回 `Access-Control-Allow-Origin` ⇒ 该媒体成为"不透明（opaque）"、
+ * canvas **被污染**、`toBlob` 拿到的回调是 `null` ⇒ 抽帧静默失败 ⇒ 时间轴视频无缩略图。
+ * 故：**同源不设**（读像素无需 CORS），**真跨源才设 anonymous**。这同时是旧实现（恒设）
+ * 在"页面内嵌到 localTool 同源"部署形态下的错误修正 —— 不是兜底，是让抽帧一次到位。
+ */
+function setCrossOriginForReadable(video: HTMLVideoElement, url: string) {
+  if (sameOriginUrl(url)) return; // 同源：不强制 CORS，canvas 可读
+  video.crossOrigin = 'anonymous';
+}
+
+/** URL 与当前页面是否同源（相对路径 / blob: / 同 origin 绝对地址 → 同源）。 */
+function sameOriginUrl(url: string): boolean {
+  if (!url) return true;
+  if (url.startsWith('/') || url.startsWith('blob:') || url.startsWith('data:')) return true;
+  try {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return new URL(url, origin || undefined).origin === origin;
+  } catch {
+    return false;
+  }
+}
 interface DrawVideoFrameErrors {
   /** 视频加载失败（`error` 事件） */
   load?: string;
@@ -248,7 +275,7 @@ export async function buildFilmstrip(url: string, options: FilmstripOptions): Pr
   const height = Math.max(1, Math.round(frameHeight));
 
   const video = document.createElement('video');
-  video.crossOrigin = 'anonymous';
+  setCrossOriginForReadable(video, url);
   video.preload = 'auto';
   video.muted = true;
   video.playsInline = true;
@@ -311,7 +338,7 @@ export async function buildFilmstrip(url: string, options: FilmstripOptions): Pr
  */
 export function captureFrame(url: string, atTime: number, quality = 0.55): Promise<Blob> {
   const video = document.createElement('video');
-  video.crossOrigin = 'anonymous';
+  setCrossOriginForReadable(video, url);
   video.preload = 'auto';
   video.muted = true;
   video.playsInline = true;

@@ -140,7 +140,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
     id,
     url,
     hasImage: type === 'image',
-    label: data.label,
+    label: data.label ?? '',
     onImageReplaced: replaceImage,
   });
 
@@ -220,7 +220,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       // 原裸 addNodes/addEdges 不补结构默认（手写 420 与 nodeDefaults 漂移）、不进 history（Ctrl+Z 撤不掉）。
       commitNewNodes(
         { nodes: [newNode], edges: [newEdge] },
-        { getNodes, getEdges, setNodes, setEdges, history },
+        { getNodes, getEdges, setNodes, setEdges, history: history ?? undefined },
       );
       setIsCameraStudioOpen(false);
     },
@@ -358,7 +358,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
         selected={selected}
         handleVariant="small"
         sourceHandleId="main-output"
-        aspectRatio={mediaRatio}
+        aspectRatio={mediaRatio ?? undefined}
         sizeMode="area-fixed"
         baseSize={NODE_AREA_FIXED_BASE_SIZE}
         onRename={rename}
@@ -498,12 +498,12 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
           onClose={() => setDepthOpen(false)}
           onSave={(outUrl, outName) => {
             spawnDepthVideoNode(id, outUrl, outName, {
-              getNode,
+              getNode: (nid: string) => getNode(nid) ?? null,
               getNodes,
               getEdges,
               setNodes,
               setEdges,
-              history,
+              history: history ?? undefined,
             });
             setDepthOpen(false);
           }}

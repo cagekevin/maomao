@@ -62,7 +62,7 @@ window.addEventListener('unhandledrejection', (e) =>
   reportGlobalError('unhandledRejection', e.reason),
 );
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <App />

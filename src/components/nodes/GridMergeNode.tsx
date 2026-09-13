@@ -193,7 +193,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
     const n: string[] = [];
     // connected.images 是 {id, url}[]，原型 useConnectedInputs 不区分 targetHandle，
     // 这里所有上游图片按 default 顺序填充 grid / 全部进 longList
-    const urls = (connected.images || []).map((x) => x.url).filter(Boolean);
+    const urls = (connected.images || []).map((x) => x.url).filter((u): u is string => !!u);
     urls.forEach((u, i) => {
       if (i < total) z[i] = u;
       n.push(u);
@@ -261,7 +261,9 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
         if (mergeMode === 'longImage') {
           const list = longList;
           if (list.length === 0) return null;
-          const imgs = (await Promise.all(list.map((u) => loadImageOrNull(u)))).filter(Boolean);
+          const imgs = (await Promise.all(list.map((u) => loadImageOrNull(u)))).filter(
+            (img): img is HTMLImageElement => img != null,
+          );
           if (imgs.length === 0) return null;
           const vertical = longDirection === 'vertical';
           const base = longAutoSize ? (vertical ? imgs[0].width : imgs[0].height) : longTargetSize;
@@ -458,7 +460,13 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
         ],
         { sourceHandle: 'merged-output' },
       );
-      spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
+      spawnAndCommit(spawned, {
+        getNodes,
+        getEdges,
+        setNodes,
+        setEdges,
+        history: history ?? undefined,
+      });
     },
     [id, getNode, getNodes, getEdges, setNodes, setEdges, history],
   );
@@ -599,7 +607,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
               style={{ minHeight: 160, maxHeight: 360 }}
               onDoubleClick={(e) => {
                 e.stopPropagation();
-                openZoom(preview);
+                openZoom(preview ?? '');
               }}
             >
               {preview && (
@@ -937,7 +945,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
       </NodeShell>
 
       {/* 预览大图：共享 ImageZoomDialog */}
-      <ImageZoomDialog ref={zoomRef} url={zoomUrl} />
+      <ImageZoomDialog ref={zoomRef} url={zoomUrl ?? undefined} />
     </>
   );
 }

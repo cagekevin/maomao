@@ -96,7 +96,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
         const boxNode = getNode(boxId);
         const existing = (boxNode?.data?.images as Array<{ url?: string }> | undefined) || [];
         const existingUrls = new Set(existing.map((x) => x.url));
-        const fresh = newImages.filter((x) => !existingUrls.has(x.url));
+        const fresh = newImages.filter((x) => !existingUrls.has(x.url ?? undefined));
         const merged = [...existing, ...fresh];
         patchNodeDataById(setNodes, boxId, { images: merged, activeIndex: merged.length - 1 });
       } else {
@@ -127,10 +127,16 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
               },
             },
           ],
-          { targetHandle: null },
+          { targetHandle: undefined },
         );
         // TD-04-11：统一走 spawnAndCommit（原子提交三连收口），不再手写 applySpawnSnapshot+setNodes/setEdges/record。
-        spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
+        spawnAndCommit(spawned, {
+          getNodes,
+          getEdges,
+          setNodes,
+          setEdges,
+          history: history ?? undefined,
+        });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -198,10 +204,16 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
               },
             },
           ],
-          { targetHandle: null },
+          { targetHandle: undefined },
         );
         // TD-04-11：统一走 spawnAndCommit（原子提交三连收口），不再手写 applySpawnSnapshot+setNodes/setEdges/record。
-        spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
+        spawnAndCommit(spawned, {
+          getNodes,
+          getEdges,
+          setNodes,
+          setEdges,
+          history: history ?? undefined,
+        });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -210,20 +222,13 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
 
   // 退出导演台：缩略图落盘 /files/ 写节点 assetUrl，彻底删除旧 directorProject；
   // 图片截图 → 图片盒子，视频 → AssetNode（有则写，无则新建并连线）
-  interface Director3DCapture {
-    type: 'image' | 'video';
-    blob?: Blob;
-    dataUrl?: string;
-    url?: string;
-    fileName?: string;
-  }
   const handleExit = useCallback(
     async ({
       thumbnailDataUrl,
       captures,
     }: {
-      thumbnailDataUrl?: string;
-      captures?: Director3DCapture[];
+      thumbnailDataUrl: string | null;
+      captures: { type: 'image' | 'video'; blob: Blob; fileName: string }[];
     }) => {
       setOpen(false);
       // 缩略图 URL 化：blob:/data: 落盘成 /files/ 绝对 URL（刷新不破图）

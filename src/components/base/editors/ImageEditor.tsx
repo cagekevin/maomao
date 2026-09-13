@@ -530,8 +530,8 @@ export default function ImageEditor({
         setTextInput({
           x,
           y,
-          left: vpRect ? e.clientX - vpRect.left + (vp.scrollLeft || 0) : e.clientX,
-          top: vpRect ? e.clientY - vpRect.top + (vp.scrollTop || 0) : e.clientY,
+          left: vpRect ? e.clientX - vpRect.left + (vp?.scrollLeft || 0) : e.clientX,
+          top: vpRect ? e.clientY - vpRect.top + (vp?.scrollTop || 0) : e.clientY,
           text: '',
         });
         return;
@@ -577,7 +577,7 @@ export default function ImageEditor({
           ctx.beginPath();
           ctx.arc(x, y, lineWidth * 3, 0, Math.PI * 2);
           ctx.clip();
-          ctx.clearRect(0, 0, d.width, d.height);
+          ctx.clearRect(0, 0, d!.width, d!.height);
           ctx.restore();
         }
       }

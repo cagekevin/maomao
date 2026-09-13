@@ -13,7 +13,7 @@ import { API_BASE } from './config.ts';
  * 且 `assetUrl` 保持同名 re-export（40+ 消费方零改动）。
  */
 export function toAbsoluteFileUrl(url: string | null | undefined): string {
-  if (!url || typeof url !== 'string') return url;
+  if (!url || typeof url !== 'string') return url ?? '';
   return url.startsWith('/files/') ? `${API_BASE}${url}` : url;
 }
 
@@ -44,7 +44,7 @@ type RafBatchFn<T extends (...args: any[]) => void> = {
 
 /** JSON 深拷贝（通用业务对象；含函数/Date/循环引用者请勿用） */
 export function deepClone<T>(value: T): T {
-  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+  return (value === undefined ? undefined : JSON.parse(JSON.stringify(value))) as T;
 }
 
 /** data: URL → Blob（base64 编码）。缺省 MIME 从 data: meta 段解析（失败回退 octet-stream）。

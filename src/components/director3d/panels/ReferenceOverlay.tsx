@@ -39,7 +39,7 @@ export function ReferenceOverlay({
     if (!editing) return;
     event.preventDefault();
     event.stopPropagation();
-    const bounds = event.currentTarget.parentElement.getBoundingClientRect();
+    const bounds = event.currentTarget.parentElement!.getBoundingClientRect();
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,

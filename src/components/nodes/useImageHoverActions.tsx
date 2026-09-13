@@ -111,7 +111,7 @@ export function useImageHoverActions({
         type: 'success',
       });
     } catch (e) {
-      toastError(e?.message || '压缩失败');
+      toastError((e as { message?: string })?.message || '压缩失败');
     } finally {
       setCompressing(false);
     }
@@ -128,7 +128,7 @@ export function useImageHoverActions({
       await showThenPersistInline(dataUrl, (u) => onImageReplaced?.(u));
       showToast('已放大 2 倍', { type: 'success' });
     } catch (e) {
-      toastError(e?.message || '放大失败');
+      toastError((e as { message?: string })?.message || '放大失败');
     } finally {
       setUpscaling(false);
     }

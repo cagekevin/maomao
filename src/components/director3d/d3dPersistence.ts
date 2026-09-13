@@ -169,12 +169,12 @@ export async function externalizeProjectImages(
   };
 
   if (out?.reference && isProjectAssetUrl(out.reference.image)) {
-    out.reference.image = await maybeReplace(out.reference.image);
+    out.reference.image = await maybeReplace(out.reference.image!);
   }
   if (Array.isArray(out?.shots)) {
     for (const shot of out.shots) {
       if (shot && isProjectAssetUrl(shot.thumbnail)) {
-        shot.thumbnail = await maybeReplace(shot.thumbnail);
+        shot.thumbnail = await maybeReplace(shot.thumbnail!);
       }
     }
   }
@@ -273,7 +273,7 @@ export async function hydrateProject(storageKey?: string): Promise<D3dProject | 
       await writeProject(key, res.fallback as D3dProject);
     } catch (err) {
       logger.warn('d3dPersistence', '本地→KV 迁移写回失败（不影响读）', {
-        reason: err?.message || err,
+        reason: (err as { message?: string })?.message || err,
       });
     }
   }

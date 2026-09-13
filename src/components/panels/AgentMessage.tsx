@@ -140,7 +140,9 @@ const ToolCallChip = memo(function ToolCallChip({ name, args }: { name?: string;
       .map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`)
       .join(', ');
   } catch (e) {
-    logger.warn('AI助手', '工具调用参数非 JSON，按原文展示', { error: e?.message || String(e) });
+    logger.warn('AI助手', '工具调用参数非 JSON，按原文展示', {
+      error: (e as { message?: string })?.message || String(e),
+    });
   }
   return (
     <span title={display ? `${name}(${display})` : name} className="agent-toolchip">
@@ -300,7 +302,7 @@ function AgentMessage({
     setZoomUrl(url);
     requestAnimationFrame(() => zoomRef.current?.showModal());
   }, []);
-  const zoomDialog = <ImageZoomDialog ref={zoomRef} url={zoomUrl} kind={zoomKind} />;
+  const zoomDialog = <ImageZoomDialog ref={zoomRef} url={zoomUrl ?? undefined} kind={zoomKind} />;
 
   /** 复制整段回复（navigator.clipboard 在非安全上下文不可用，降级为提示而非静默失败） */
   const copyContent = useCallback(async () => {
@@ -522,7 +524,7 @@ function AgentMessage({
     }
     let failedEntries: PlanFailedEntry[] = [];
     try {
-      const r = JSON.parse(message.content);
+      const r = JSON.parse(message.content ?? '');
       ok = !!r.ok;
       nodeId = r.nodeId || '';
       text = r.error || (r.ok ? `操作成功${r.nodeId ? `：${r.nodeId}` : ''}` : '操作失败');
@@ -535,7 +537,7 @@ function AgentMessage({
       }
     } catch (e) {
       logger.warn('AI助手', '工具消息 JSON 解析失败，按原文展示', {
-        error: e?.message || String(e),
+        error: (e as { message?: string })?.message || String(e),
       });
     }
     // 失败且带 nodeId（generate_node 失败已回传）→ 显示「重试此步骤」；execute_plan 多失败步 → 逐项重试
@@ -608,7 +610,7 @@ function AgentMessage({
                   <span className="agent-failed-msg">{e.error || '生成失败'}</span>
                   <button
                     type="button"
-                    onClick={() => onRetryStep(e.nodeId)}
+                    onClick={() => onRetryStep(e.nodeId ?? '')}
                     className="agent-retry"
                     title={`重试此步（${e.id || ''}）`}
                   >

@@ -3,6 +3,9 @@ import type { RefObject, MouseEvent as ReactMouseEvent } from 'react';
 import type { Connection, Node } from '@xyflow/react';
 import { isEditableTarget } from '../components/base/core/uiHooks.ts';
 
+/** ReactFlow 的 onPaneContextMenu 既可能是原生 DOM MouseEvent，也可能是 React 合成事件 */
+type PaneMouseEvent = MouseEvent | ReactMouseEvent;
+
 /** 菜单定位用的容器相对坐标（top/left 直接取值） */
 export interface ContextMenuPos {
   x: number;
@@ -24,7 +27,7 @@ export interface ContextMenuState extends ContextMenuPos {
 export interface ContextMenuApi {
   state: ContextMenuState | null;
   containerRef: RefObject<HTMLDivElement | null>;
-  onPaneContextMenu: (e: ReactMouseEvent) => void;
+  onPaneContextMenu: (e: PaneMouseEvent) => void;
   onNodeContextMenu: (e: ReactMouseEvent, node: Node) => void;
   onSelectionContextMenu: (e: ReactMouseEvent, nodes: Node[]) => void;
   onSelectionEnd: (e: ReactMouseEvent, nodes?: Node[]) => void;
@@ -63,7 +66,7 @@ export function useContextMenu(): ContextMenuApi {
   }, []);
 
   const open = useCallback(
-    (type: string, nodeId: string | null, e: ReactMouseEvent) => {
+    (type: string, nodeId: string | null, e: PaneMouseEvent) => {
       if (isEditableTarget(e)) return;
       e.preventDefault();
       e.stopPropagation();
@@ -86,7 +89,7 @@ export function useContextMenu(): ContextMenuApi {
   );
 
   // 空白处右键
-  const onPaneContextMenu = useCallback((e: ReactMouseEvent) => open('canvas', null, e), [open]);
+  const onPaneContextMenu = useCallback((e: PaneMouseEvent) => open('canvas', null, e), [open]);
   // 节点右键
   const onNodeContextMenu = useCallback(
     (e: ReactMouseEvent, node: Node) => open('node', node.id, e),

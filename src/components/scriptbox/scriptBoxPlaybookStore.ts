@@ -64,7 +64,9 @@ function loadCustom(): Record<string, Playbook> {
       ? (obj as Record<string, Playbook>)
       : {};
   } catch (e) {
-    logger.warn('scriptbox', '自定义 playbook 解析失败，降级为空', { error: e?.message });
+    logger.warn('scriptbox', '自定义 playbook 解析失败，降级为空', {
+      error: (e as { message?: string })?.message,
+    });
     return {};
   }
 }
@@ -75,7 +77,9 @@ function persist(obj: unknown) {
     contentSet(PLAYBOOKS_KEY, obj);
   } catch (e) {
     // contentStore/sSet 失败会经 persist:failed 事件上报；此处仅留日志兜底
-    logger.warn('scriptbox', '自定义 playbook 保存失败', { error: e?.message });
+    logger.warn('scriptbox', '自定义 playbook 保存失败', {
+      error: (e as { message?: string })?.message,
+    });
   }
 }
 
@@ -162,8 +166,12 @@ export function createCustomFrom(
     label: label || `${src.label} 副本`,
     builtin: false,
   };
-  // negative.common 若源是旧结构缺位则补空，保证统一结构
-  merged.negative = { common: '', image: '', video: '', ...src.negative, ...override.negative };
+  // negative.common 若源是旧结构缺位则补空，保证统一结构（override 优先于 src）
+  merged.negative = {
+    common: override.negative?.common ?? src.negative?.common ?? '',
+    image: override.negative?.image ?? src.negative?.image ?? '',
+    video: override.negative?.video ?? src.negative?.video ?? '',
+  };
   saveCustomPlaybook(merged);
   return id;
 }

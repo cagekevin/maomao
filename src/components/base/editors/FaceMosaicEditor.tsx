@@ -130,14 +130,14 @@ export default function FaceMosaicEditor({ assetUrl, onSave, onClose }: FaceMosa
 
   // 屏幕坐标 → 图片坐标（复刻官方 k）
   const toCanvasPos = (cx: number, cy: number) => {
-    const rect = canvasRef.current.getBoundingClientRect();
+    const rect = canvasRef.current!.getBoundingClientRect();
     const x = (cx - rect.left) / scale;
     const y = (cy - rect.top) / scale;
     return { x: Math.max(0, Math.min(dims.w, x)), y: Math.max(0, Math.min(dims.h, y)) };
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
-    const rect = canvasRef.current.getBoundingClientRect();
+    const rect = canvasRef.current!.getBoundingClientRect();
     const p = toCanvasPos(e.clientX, e.clientY);
     // 起点写入 ref：rAF 回调直接读本次起点，避免 state 异步更新导致的 stale closure
     dragStartRef.current = p;
@@ -211,7 +211,7 @@ export default function FaceMosaicEditor({ assetUrl, onSave, onClose }: FaceMosa
     if (!c || !ctx || !src) return;
     setRecognizing(true);
     try {
-      const boxes = await detectFaces(assetUrl);
+      const boxes = await detectFaces(assetUrl!);
       if (boxes.length === 0) return;
       const shape = mode === 'mosaic' || mode === 'blur' ? 'ellipse' : 'rect';
       for (const b of boxes) {
@@ -271,7 +271,7 @@ export default function FaceMosaicEditor({ assetUrl, onSave, onClose }: FaceMosa
           <button
             onClick={() => {
               const c = canvasRef.current;
-              if (c) onSave(c.toDataURL('image/png'));
+              if (c) onSave?.(c.toDataURL('image/png'));
             }}
             className="flex items-center gap-1 px-3 h-7 rounded-md text-[12px] font-medium bg-white text-[#141414] hover:bg-gray-200 cursor-pointer border-none"
           >

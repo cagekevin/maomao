@@ -81,7 +81,7 @@ export async function copyImageToClipboard(url: string): Promise<ClipResult> {
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
     return { ok: true, msg: '图片已复制，可在画布或其它软件中粘贴' };
   } catch (e) {
-    logger.warn('clipboard', '复制图片失败（canvas 跨域等）', e?.message);
+    logger.warn('clipboard', '复制图片失败（canvas 跨域等）', (e as { message?: string })?.message);
     // 退化为复制链接（对齐官方 fallback 思路）
     try {
       await navigator.clipboard.writeText(url);
@@ -299,7 +299,7 @@ export async function downloadBlob(blob: Blob | null, filename?: string): Promis
     URL.revokeObjectURL(objUrl);
     return { ok: true, msg: '已开始下载' };
   } catch (e) {
-    logger.warn('clipboard', '下载失败', e?.message);
+    logger.warn('clipboard', '下载失败', (e as { message?: string })?.message);
     return { ok: false, msg: '下载失败' };
   }
 }
@@ -316,7 +316,7 @@ export async function downloadUrl(url: string, filename?: string): Promise<ClipR
     const blob = await res.blob();
     return await downloadBlob(blob, filename);
   } catch (e) {
-    logger.warn('clipboard', '下载失败', e?.message);
+    logger.warn('clipboard', '下载失败', (e as { message?: string })?.message);
     return { ok: false, msg: '下载失败' };
   }
 }

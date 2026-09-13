@@ -88,7 +88,7 @@ export async function compressImage(
   // 保持原格式：推断原图 MIME 作为输出格式（推断不出回退 png，避免 JPEG 丢透明/变黑底）
   let outFormat = format;
   if (keepOriginalFormat) {
-    outFormat = MIME_TO_FORMAT[inferMime(src)] || 'image/png';
+    outFormat = MIME_TO_FORMAT[inferMime(src) ?? ''] || 'image/png';
   }
 
   // 加载图片（跨域允许 canvas 不污染；blob/data 本地直接可用）。用统一入口带超时，避免失效图永久挂起（R2）
@@ -125,7 +125,7 @@ export async function compressImage(
     dataUrl = canvas.toDataURL(outFormat, quality);
   } catch (e) {
     throw new Error(
-      `图片压缩失败：画布被跨域污染（${e?.name || 'SecurityError'}），请改用本地文件或允许跨域`,
+      `图片压缩失败：画布被跨域污染（${(e as { name?: string })?.name || 'SecurityError'}），请改用本地文件或允许跨域`,
     );
   }
   const blob = dataUrlToBlob(dataUrl);

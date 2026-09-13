@@ -121,7 +121,7 @@ export async function loadProjectMemories(
       list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       cache.set(cacheKey(agentKey), list);
     } catch (e) {
-      logger.error('AI助手', '[记忆] 读取失败', { err: e?.message });
+      logger.error('AI助手', '[记忆] 读取失败', { err: (e as { message?: string })?.message });
       return [];
     }
   }
@@ -151,9 +151,10 @@ export async function saveProjectMemory(
   memory: ProjectMemoryInput,
 ): Promise<ProjectMemory> {
   const key = memoryKey(agentKey);
+  const memKind = memory?.kind;
   const record: ProjectMemory = {
     id: memory?.id || generateId('mem'),
-    kind: PROJECT_MEMORY_KINDS.includes(memory?.kind) ? memory.kind : 'fact',
+    kind: memKind && PROJECT_MEMORY_KINDS.includes(memKind) ? memKind : 'fact',
     content: String(memory?.content || '').slice(0, PROJECT_MEMORY_CONTENT_LIMIT),
     enabled: memory?.enabled !== false,
     createdAt: memory?.createdAt || Date.now(),

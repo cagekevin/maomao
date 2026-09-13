@@ -469,8 +469,11 @@ async function runNodeGenerationNow(nodeId: string): Promise<NodeGenerationOutco
       // 兼容分支已删（死代码：无同步注册方；且 await 非 promise 亦安全，不会抛）。
       return (await fn()) as NodeGenerationOutcome;
     } catch (e) {
-      logger.error('gen', 'run-trigger-fail', { nodeId, error: e?.message });
-      return { ok: false, error: e?.message || '触发失败' };
+      logger.error('gen', 'run-trigger-fail', {
+        nodeId,
+        error: (e as { message?: string })?.message,
+      });
+      return { ok: false, error: (e as { message?: string })?.message || '触发失败' };
     }
   }
   logger.warn('gen', 'run-callback-missing', { nodeId });
@@ -623,7 +626,10 @@ export function ensurePolling(taskId: string, opts: EnsurePollingOptions): Polle
       if (done || entry.stopped) entry.stop();
     } catch (e) {
       // 单轮异常(网络抖动等)：不误判失败，下轮再试；连续异常仍受总超时约束
-      logger.warn('task', 'poll-round-error', { taskId, error: e?.message });
+      logger.warn('task', 'poll-round-error', {
+        taskId,
+        error: (e as { message?: string })?.message,
+      });
     }
   };
 

@@ -93,7 +93,7 @@ function ResourceStrip({
                 title="断开连线"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDisconnect?.(img.sourceNodeId);
+                  onDisconnect?.(img.sourceNodeId ?? '');
                 }}
               >
                 <X size={10} className="text-white" />
@@ -130,7 +130,7 @@ function ResourceStrip({
                 title="断开连线"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDisconnect?.(t.sourceNodeId);
+                  onDisconnect?.(t.sourceNodeId ?? '');
                 }}
               >
                 <X size={10} className="text-white" />

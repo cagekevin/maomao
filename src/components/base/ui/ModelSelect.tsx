@@ -80,7 +80,7 @@ function ModelSelect({
 
   const badge = (id: string) => models.find((m) => m.id === id)?.badge || 'builtin';
   const selectedItem = models.find((m) => m.id === value);
-  const selectedBadge = badgeMeta(badge(value));
+  const selectedBadge = badgeMeta(badge(value ?? ''));
 
   const choose = (m: ModelItem) => {
     onChange(m.id);

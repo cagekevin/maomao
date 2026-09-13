@@ -8,7 +8,7 @@
  * 本文件零外部依赖（只 import 本目录的类型），符合 `docs/123` §二 铁律。
  */
 import { hasOverlap } from './timelineOps.ts';
-import type { ClipKind, Project, Track, TrackKind } from './types.ts';
+import type { Clip, ClipKind, Project, Track, TrackKind } from './types.ts';
 
 /* ────────────────────────────────────────────────────────────────
  * 分轨唯一判据（docs/120 C11.1）
@@ -117,6 +117,26 @@ export function hasMixedSources(profiles: MediaProfile[]): boolean {
       (p.height !== undefined && first.height !== undefined && p.height !== first.height) ||
       (p.mimeType !== undefined && first.mimeType !== undefined && p.mimeType !== first.mimeType),
   );
+}
+
+/* ────────────────────────────────────────────────────────────────
+ * 可闻判据（docs/120 C11.7 · M1 走带必须真出声）
+ * ──────────────────────────────────────────────────────────────── */
+
+/**
+ * 时间轴上**可闻**的片段（`docs/120` C11.7：M1 走带必须真出声）。
+ *
+ * **判据单点**：导出混音（`export/composite`）、导出探针（`export/pipeline`）、
+ * 预览播放（`panels/dock/PlaybackSink`）都问这一个函数。各写一遍 `!hidden && !muted` 必漂 ——
+ * 一处说「有声音」、另一处说「没有」，结果就是「明明有音频却没探音频编码器」/「预览有、导出没有」。
+ *
+ * 落点：判据属**领域真相（纯、零 IO）**，故收在 `core/`（判据层），不躺在导出域——
+ * 否则播放域为了取一个纯函数会反向依赖导出域。
+ */
+export function audibleClipsOf(tracks: Track[]): Clip[] {
+  return tracks
+    .filter((track) => !track.hidden && !track.muted)
+    .flatMap((track) => track.clips.filter((clip) => clip.kind !== 'image'));
 }
 
 /* ────────────────────────────────────────────────────────────────

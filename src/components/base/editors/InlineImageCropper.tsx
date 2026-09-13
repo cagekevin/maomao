@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import ReactCrop from 'react-image-crop';
+import ReactCrop, { type Crop, type PercentCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { toastError } from '../core/toastStore.ts';
 import { loadImageWithTimeout } from '../utils/asyncGuard.ts';
@@ -105,16 +105,16 @@ export function cropRectFromPercent({
 
 export default function InlineImageCropper({ assetUrl, onSave, onClose }: InlineImageCropperProps) {
   const imgRef = useRef<HTMLImageElement | null>(null);
-  const [crop, setCrop] = useState(undefined);
+  const [crop, setCrop] = useState<Crop | undefined>(undefined);
   // 百分比选区：保存用它（相对图片本身，布局无关，最稳）；onChange 第二个参数即 PercentCrop
-  const [percentCrop, setPercentCrop] = useState(undefined);
+  const [percentCrop, setPercentCrop] = useState<PercentCrop | undefined>(undefined);
 
   // 图片加载 → 默认整图选区（100%），即初始尺寸 = 图片尺寸
   const onImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     imgRef.current = e.currentTarget;
-    const full = { unit: '%', x: 0, y: 0, width: 100, height: 100 };
+    const full: Crop = { unit: '%', x: 0, y: 0, width: 100, height: 100 };
     setCrop(full);
-    setPercentCrop(full);
+    setPercentCrop(full as PercentCrop);
   }, []);
 
   // 确认裁剪：把选区换算成原图像素 → 用干净绘制源 canvas 裁切 → 回传 dataURL。
@@ -162,7 +162,7 @@ export default function InlineImageCropper({ assetUrl, onSave, onClose }: Inline
       onSave?.({ dataUrl: canvas.toDataURL(outFormat, 0.9) });
       onClose?.();
     } catch (e) {
-      toastError(`裁剪保存失败：${e?.message || '图片加载失败'}`);
+      toastError(`裁剪保存失败：${(e as { message?: string })?.message || '图片加载失败'}`);
     }
   }, [assetUrl, percentCrop, onSave, onClose]);
 

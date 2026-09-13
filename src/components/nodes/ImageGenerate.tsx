@@ -283,11 +283,11 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     setSelectedModel,
     // 收编 useSyncNodeData：Agent(update_node) 改 data 字段 → 同步本地 state（替原手写字段映射）
     sync: {
-      aspectRatio: setAspectRatio,
-      selectedModel: setSelectedModel,
-      quality: setQuality,
-      imageSize: setImageSize,
-      cameraSettings: setCameraSettings,
+      aspectRatio: (v: unknown) => setAspectRatio(v as string),
+      selectedModel: (v: unknown) => setSelectedModel(v as string),
+      quality: (v: unknown) => setQuality(v as string),
+      imageSize: (v: unknown) => setImageSize(v as string),
+      cameraSettings: (v: unknown) => setCameraSettings(v as CameraGenerationSettings | undefined),
     },
     resultField: 'assetUrl',
     recoverable: true,
@@ -305,7 +305,9 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       // 图生图：把参考图传下去（网关 image_urls 字段）；signal 支持真取消（Step C）
       const chipUrls = chipResolved.refImages.map((im) => im.url);
       const upstreamUrls = refImages.map((img) => img.url);
-      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])];
+      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])].filter(
+        (u): u is string => u != null,
+      );
       // 摄影参数 → 提示词片段（仅在本节点为生图时生效）：拼接在最终提示词末尾
       // （"Camera settings: <英文片段>."），与参考项目 AINodeDialog 完全一致。
       const finalPrompt = applyCameraSettingsToPrompt(
@@ -314,7 +316,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       );
       return generateImage(
         {
-          provider: useProvider,
+          provider: useProvider!,
           // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）+ 摄影参数片段
           prompt: finalPrompt,
           model: modelId,
@@ -334,7 +336,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       // 落盘后 useNodeGeneration 主落盘再把持久 /files/ URL 覆盖写回 node.data[resultKey]，
       // 经 useSyncNodeData 同步回本节点 state → 节点显示持久 URL。此处不再二次 saveResultToTasks
       // (旧逻辑为补"落盘持久 URL 未回写 node.data"的洞而多落一次 → 双落盘)，S3 统一由主落盘出口承接。
-      setAssetUrl(r.url); // 即时反馈(可能短暂显示原始 URL，data 同步后覆盖为持久 URL)
+      setAssetUrl(r.url ?? ''); // 即时反馈(可能短暂显示原始 URL，data 同步后覆盖为持久 URL)
       // 记忆本次参数（模型/比例/尺寸），供新建节点复用
       setImgPrefs({ model: selectedModel, aspectRatio, imageSize });
     },
@@ -363,7 +365,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
               },
             ],
           },
-          { getNodes, getEdges, setNodes, setEdges, history },
+          { getNodes, getEdges, setNodes, setEdges, history: history ?? undefined },
         );
         return;
       }
@@ -415,7 +417,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     // 无 label 时由 resolveDownloadFilename 从 URL 推导文件名。
     downloadUrl(
       assetUrl,
-      resolveDownloadFilename(data.label, assetUrl, {
+      resolveDownloadFilename(data.label ?? '', assetUrl, {
         ext: 'png',
         fallback: 'generated.png',
       }),
@@ -469,7 +471,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       // 替代原裸 addNodes/addEdges（不补结构默认、Ctrl+Z 撤不掉）。
       commitNewNodes(
         { nodes: [newNode], edges: [newEdge] },
-        { getNodes, getEdges, setNodes, setEdges, history },
+        { getNodes, getEdges, setNodes, setEdges, history: history ?? undefined },
       );
       setIsCameraStudioOpen(false);
     },
@@ -488,7 +490,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     id,
     url: assetUrl,
     hasImage,
-    label: data.label,
+    label: data.label ?? '',
     onImageReplaced: (dataUrl, dims) => {
       // 本地 state 立即生效（渲染读 state，先于节点 data 落盘）。
       setAssetUrl(dataUrl);
@@ -873,7 +875,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
             node.data.inputWidth/inputHeight，PromptInput 的 textarea 读这个 data 渲染。
             输入框是面板里的部件，不参与端口定位，所以只写 data，不改 node.width/height。 */}
             <ResizeFullscreenHandle
-              targetRef={promptInputRef}
+              targetRef={promptInputRef as React.RefObject<HTMLElement>}
               minWidth={200}
               maxWidth={900}
               minHeight={60}
@@ -900,7 +902,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         />
 
         {/* 双击大图：共享 ImageZoomDialog */}
-        <ImageZoomDialog ref={zoomRef} url={zoomUrl} />
+        <ImageZoomDialog ref={zoomRef} url={zoomUrl ?? undefined} />
 
         {/* 图片编辑器（裁剪/标记/压缩）：统一机制渲染，editor 关闭时返回 null */}
         {renderEditor()}

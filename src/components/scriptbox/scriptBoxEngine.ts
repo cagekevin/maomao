@@ -290,8 +290,11 @@ export function createScriptBoxEngine({
       if (classifyError(e).type === 'abort') {
         logger.warn('scriptBox', `${info.logLabel}·已中止`, info.ctx);
       } else {
-        toast(e?.message || info.toastFail);
-        logger.error('scriptBox', `${info.logLabel}·异常`, { ...info.ctx, error: e?.message });
+        toast((e as { message?: string })?.message || info.toastFail);
+        logger.error('scriptBox', `${info.logLabel}·异常`, {
+          ...info.ctx,
+          error: (e as { message?: string })?.message,
+        });
       }
     } finally {
       abortMap.delete(key);
@@ -1132,7 +1135,7 @@ export function createScriptBoxEngine({
       toast(`已上传「${asset.name || '素材'}」到素材库`);
       logger.info('scriptBox', '素材上传·成功', { nodeId, assetId, url: localized });
     } catch (e) {
-      const msg = e?.message || '素材上传失败';
+      const msg = (e as { message?: string })?.message || '素材上传失败';
       updateData({
         assets: getData().assets.map((a) =>
           a.id === assetId ? { ...a, imageStatus: 'failed', imageError: msg } : a,
@@ -1210,7 +1213,7 @@ export function createScriptBoxEngine({
       toast(`已将「${asset.name || '资产'}」设为本地参考图`);
       logger.info('scriptBox', '上传本地资产图·成功', { nodeId, assetId, url: assetUrl });
     } catch (e) {
-      const msg = e?.message || '图片上传失败';
+      const msg = (e as { message?: string })?.message || '图片上传失败';
       updateData({
         assets: getData().assets.map((a) =>
           a.id === assetId ? { ...a, loading: false, imageStatus: 'failed', imageError: msg } : a,
@@ -1353,7 +1356,7 @@ export function createScriptBoxEngine({
       scriptboxParent: nodeId,
       scriptboxSlot: slot,
     };
-    addNodes([
+    addNodes?.([
       isImage
         ? {
             id: nodeId2,
@@ -1412,7 +1415,7 @@ export function createScriptBoxEngine({
     ids.forEach((id) => {
       const shot = shots.find((s) => s.id === id);
       if (!shot) return;
-      connectShotNode(shot, id, target !== 'video', alloc, d);
+      connectShotNode(shot, id ?? '', target !== 'video', alloc, d);
     });
   };
 
@@ -1486,7 +1489,7 @@ export function createScriptBoxEngine({
           return;
         }
         const nodeId2 = `script-video-merge-${Date.now()}`;
-        addNodes([
+        addNodes?.([
           {
             id: nodeId2,
             type: 'videoGenerateNode',
@@ -1512,7 +1515,7 @@ export function createScriptBoxEngine({
             {
               id: `e-${nodeId}-${nodeId2}`,
               source: nodeId,
-              sourceHandle: shotHandleId(picked[0].id),
+              sourceHandle: shotHandleId(picked[0].id ?? ''),
               target: nodeId2,
               type: 'default',
               animated: false,
@@ -1599,7 +1602,7 @@ export function createScriptBoxEngine({
           logger.warn('scriptBox', '尾帧本地化失败，保留原 dataURL', {
             nodeId,
             shotId,
-            error: e?.message,
+            error: (e as { message?: string })?.message,
           });
         }
         const original: TailFrameVariant = {
@@ -1679,16 +1682,17 @@ export function createScriptBoxEngine({
             settle: (url) => {
               patchShot((s) => ({
                 ...s,
-                prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v: TailFrameVariant) =>
-                  v.id === 'composed'
-                    ? {
-                        ...v,
-                        assetUrl: url,
-                        thumbnailUrl: url,
-                        loading: false,
-                        errorMsg: undefined,
-                      }
-                    : v,
+                prevTailFrameVariants: ((s.prevTailFrameVariants || []) as TailFrameVariant[]).map(
+                  (v: TailFrameVariant) =>
+                    v.id === 'composed'
+                      ? {
+                          ...v,
+                          assetUrl: url,
+                          thumbnailUrl: url,
+                          loading: false,
+                          errorMsg: undefined,
+                        }
+                      : v,
                 ),
                 selectedTailFrameVariantId: 'composed',
                 prevShotImageRefUrls: url ? [url] : s.prevShotImageRefUrls,
@@ -1698,8 +1702,9 @@ export function createScriptBoxEngine({
             onFail: (msg) => {
               patchShot((s) => ({
                 ...s,
-                prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v: TailFrameVariant) =>
-                  v.id === 'composed' ? { ...v, loading: false, errorMsg: msg } : v,
+                prevTailFrameVariants: ((s.prevTailFrameVariants || []) as TailFrameVariant[]).map(
+                  (v: TailFrameVariant) =>
+                    v.id === 'composed' ? { ...v, loading: false, errorMsg: msg } : v,
                 ),
                 tailFrameVariantsError: msg,
               }));
@@ -1707,8 +1712,8 @@ export function createScriptBoxEngine({
             onAbort: () =>
               patchShot((s) => ({
                 ...s,
-                prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v: TailFrameVariant) =>
-                  v.id === 'composed' ? { ...v, loading: false } : v,
+                prevTailFrameVariants: ((s.prevTailFrameVariants || []) as TailFrameVariant[]).map(
+                  (v: TailFrameVariant) => (v.id === 'composed' ? { ...v, loading: false } : v),
                 ),
               })),
             toastFail: '综合图生成失败，可重试',

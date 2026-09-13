@@ -81,7 +81,9 @@ export default function StorageMonitor() {
       setBrowser(b);
       setReport(r);
     } catch (e) {
-      showToast('存储扫描失败：' + (e?.message || '未知错误'), { type: 'error' });
+      showToast('存储扫描失败：' + ((e as { message?: string })?.message || '未知错误'), {
+        type: 'error',
+      });
     } finally {
       setScanning(false);
     }
@@ -109,7 +111,9 @@ export default function StorageMonitor() {
           showToast('删除失败', { type: 'error' });
         }
       } catch (e) {
-        showToast('删除失败：' + (e?.message || '未知错误'), { type: 'error' });
+        showToast('删除失败：' + ((e as { message?: string })?.message || '未知错误'), {
+          type: 'error',
+        });
       } finally {
         setDeleting((prev) => {
           const next = new Set(prev);

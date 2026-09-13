@@ -119,7 +119,7 @@ export function Director3DOverlay({ nodeId, onExit }: Director3DOverlayProps) {
     >
       <ErrorBoundary label="Director3D">
         <Director3DApp
-          storageKey={storageKey}
+          storageKey={storageKey ?? undefined}
           onExport={handleExport}
           onExit={handleExit}
           onThumbnail={handleThumbnail}

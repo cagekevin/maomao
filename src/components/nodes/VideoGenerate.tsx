@@ -199,7 +199,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
     selectedModel,
     setSelectedModel,
     // 收编外部同步：Agent 更新 / 视频处理 spawn 写回 data.videoUrl → 同步本地 state（替手写 effect）
-    sync: { videoUrl: setVideoUrl },
+    sync: { videoUrl: (v: unknown) => setVideoUrl(v as string) },
     resultField: 'videoUrl',
     recoverable: true,
     // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生成
@@ -215,11 +215,11 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
       // 参考图 = 用户显式 @ 的芯片图（顺序对应 prompt 里的「图片N」）+ 其余连线上游图（去重）
       const chipUrls = chipResolved.refImages.map((im) => im.url);
       const upstreamUrls = connectedImages.map((img) => img.url);
-      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])];
+      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])].filter((u): u is string => !!u);
       // signal 支持真取消（Step C）
       return generateVideo(
         {
-          provider: useProvider,
+          provider: useProvider!,
           // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）
           prompt: chipResolved.text || effectivePrompt || '',
           model: modelId,
@@ -234,7 +234,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
       );
     },
     onSuccess: (r) => {
-      setVideoUrl(r.url);
+      setVideoUrl(r.url ?? '');
       // 【真相源契约】data.videoUrl 写回由声明式 resultField:'videoUrl' 自动完成（经 useNodeData，随画布快照落盘）。
       // 此回调只负责本地 state 同步与业务记忆。
       setVidPrefs({ model: selectedModel, size: ratio, resolution, seconds });
@@ -250,7 +250,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
     if (!videoUrl) return;
     downloadUrl(
       videoUrl,
-      resolveDownloadFilename(data.label, videoUrl, { ext: 'mp4', fallback: 'video.mp4' }),
+      resolveDownloadFilename(data.label ?? '', videoUrl, { ext: 'mp4', fallback: 'video.mp4' }),
     );
   };
 
@@ -515,7 +515,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
             注意：视频 textarea 外层不能设固定 height（否则纵向拖不动），
             高度完全由 data.inputHeight 驱动。输入框不参与端口定位，只写 data。 */}
         <ResizeFullscreenHandle
-          targetRef={promptInputRef}
+          targetRef={promptInputRef as React.RefObject<HTMLElement>}
           minWidth={200}
           maxWidth={900}
           minHeight={60}
@@ -551,12 +551,12 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
           onClose={() => setDepthOpen(false)}
           onSave={(url, outName) => {
             spawnDepthVideoNode(id, url, outName, {
-              getNode,
+              getNode: (nid: string) => getNode(nid) ?? null,
               getNodes,
               getEdges,
               setNodes,
               setEdges,
-              history,
+              history: history ?? undefined,
             });
             setDepthOpen(false);
           }}

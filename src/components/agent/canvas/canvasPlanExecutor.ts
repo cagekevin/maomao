@@ -330,7 +330,12 @@ function normalizeQuality(q: unknown) {
 }
 
 /** 放置新节点的锚点：就近放到已有节点右侧（简单实现；复杂可对齐大雄 getViewportAnchor） */
-function nextAnchor(ctx: CanvasHostCtx, base: { x: number; y: number }, index: number, perRow = 3) {
+function nextAnchor(
+  _ctx: CanvasHostCtx,
+  base: { x: number; y: number },
+  index: number,
+  perRow = 3,
+) {
   const col = index % perRow;
   const row = Math.floor(index / perRow);
   // 纵向间距 750，与 Ctrl+D 复制偏移对齐（图片节点高 + 抽屉高，避免重叠）
@@ -901,10 +906,9 @@ export async function executePlan({
         const { di, k, nodeId, step, entry } = job;
         // 前序依赖：把「已成功且有节点」的前序节点连到本步（下游 useConnectedInputs 自动读其 assetUrl 当参考图）。
         // 只取本步的前序（显式 depends_on_steps 或链式前序），已失败的 / 无节点的排除在连线之外。
-        const prevOk = predIdxOfIdx
-          .get(di)
+        const prevOk = (predIdxOfIdx.get(di) ?? [])
           .map((j) => resolved.get(j))
-          .filter((r) => r && r.status === 'completed' && r.nodeId);
+          .filter((r): r is NonNullable<typeof r> => !!r && r.status === 'completed' && !!r.nodeId);
         const indepTotal = independent.length;
         log('info', `依赖步 ${k + 1}「${entry.id}」开始，连接前序成功节点 ${prevOk.length} 个`);
         if (independentFailedCount > 0 || prevOk.length === 0) {

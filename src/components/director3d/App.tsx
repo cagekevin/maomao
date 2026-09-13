@@ -220,6 +220,7 @@ import { LeftSidebar } from './panels/Sidebar.tsx';
 import { Inspector } from './panels/Inspector.tsx';
 import { CameraAnglePanel } from './panels/CameraAnglePanel.tsx';
 import { Timeline } from './panels/Timeline.tsx';
+import type { KeyframeMove } from './panels/Timeline.tsx';
 import { ReferenceOverlay } from './panels/ReferenceOverlay.tsx';
 import {
   consumeDefer,
@@ -300,13 +301,6 @@ interface KeyframeSelection {
   kind: 'camera' | 'object';
   frame: number;
   trackId: string | null;
-}
-
-interface KeyframeMove {
-  kind: 'camera' | 'object';
-  fromFrame: number;
-  toFrame: number;
-  trackId?: string;
 }
 
 interface MoveKeyframeArg {
@@ -463,7 +457,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
       setToast(`参考图"${file.name}"已加入 · 可切换到"摄像机视角"核对导出构图`);
     } catch (error) {
       log.error('参考图上传失败', error);
-      setToast(error.message || '参考图上传失败', 'error');
+      setToast((error as { message?: string }).message || '参考图上传失败', 'error');
     } finally {
       input.value = '';
     }
@@ -536,8 +530,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
       selectedKeyframe.kind === 'camera'
         ? snapshotKeysForTrack(keyframes, 'camera')
         : snapshotKeysForTrack(
-            characterKeyframes[selectedKeyframe.trackId],
-            entityTypeFor(selectedKeyframe.trackId),
+            characterKeyframes[selectedKeyframe.trackId ?? ''],
+            entityTypeFor(selectedKeyframe.trackId ?? ''),
           );
     const key = track?.find((item) => item.frame === selectedKeyframe.frame);
     return key
@@ -666,14 +660,14 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
       history.last = currentProject;
       return;
     }
-    clearTimeout(history.timer);
+    clearTimeout(history.timer ?? undefined);
     const previous = history.last;
     history.timer = setTimeout(() => {
       if (latestProjectRef.current === previous) return;
       recordChange(history, previous, latestProjectRef.current);
       setHistoryVersion((version) => version + 1);
     }, HISTORY_DEBOUNCE_MS);
-    return () => clearTimeout(history.timer);
+    return () => clearTimeout(history.timer ?? undefined);
   }, [currentProject]);
 
   useEffect(() => {
@@ -692,7 +686,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
     if (!normalized) return;
     setSettings(normalized.settings);
     setShots(normalized.shots);
-    setActiveShotId(normalized.activeShotId);
+    setActiveShotId(normalized.activeShotId ?? '');
     setObjects(normalized.objects);
     setCamera(normalized.camera);
     setLighting(normalized.lighting);
@@ -762,7 +756,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
 
   const flushHistory = useCallback(() => {
     const history = historyRef.current;
-    clearTimeout(history.timer);
+    clearTimeout(history.timer ?? undefined);
     history.timer = null;
     flushChange(history, latestProjectRef.current);
   }, []);
@@ -930,6 +924,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
   useEffect(() => {
     if (editMode !== 'path' || !pathDraft || pathDraft.points.length < 2) return;
     const next = applyTimingToPath(pathDraft);
+    if (!next) return;
     applyPathBake(next);
     setPathDraft(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1103,7 +1098,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName ?? '')) return;
       if (event.key.toLowerCase() === 'w') {
         setTransformMode('translate');
         event.stopImmediatePropagation();
@@ -1216,7 +1211,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
   // 镜头缩略图唯一入口：从监视器画面截取。监视器小窗默认关闭时无画面可截（缩略图保持原样），
   // 打开监视器后即可正常更新。绘制逻辑收敛到 thumbnails.js（纯函数），此处仅以 ref 注入命令式取数，
   // 解耦跨组件取画布边界。刻意不为此创建额外 WebGL 上下文——避免每次镜头操作挂载/销毁画布导致黑屏。
-  const thumbnailFromMonitor = () => thumbnailFromCanvas(monitorCanvasRef.current);
+  const thumbnailFromMonitor = () => thumbnailFromCanvas(monitorCanvasRef.current!);
 
   const liveShotRecord = (shot: DirectorShot, thumbnail = shot?.thumbnail || '') => ({
     ...shot,
@@ -1482,7 +1477,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
       setToast(scale === 1 ? '模型已加入场景' : '模型已加入场景 · 已自动适配尺寸');
     } catch (error) {
       log.error('模型导入失败', error);
-      setToast(error?.message || '模型导入失败', 'error');
+      setToast((error as { message?: string })?.message || '模型导入失败', 'error');
     }
     event.target.value = '';
   };
@@ -1509,7 +1504,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
       const source =
         drafts[id] ||
         objectAtFrame(
-          objects.find((object) => object.id === id),
+          objects.find((object) => object.id === id)!,
           characterKeyframes[id],
           currentFrame,
           fps,
@@ -1638,11 +1633,12 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
     const source = objects.find((object) => object.id === selectedId);
     if (!source) return;
     const id = uid();
+    const position = source.position ?? [0, 0, 0];
     const duplicate = {
       ...source,
       id,
       name: `${source.name} 副本`,
-      position: [source.position[0] + 0.6, source.position[1], source.position[2] + 0.6],
+      position: [position[0] + 0.6, position[1], position[2] + 0.6],
     };
     setObjects((list) => [...list, duplicate]);
     // 复制轨道到副本：仅 transform.position 偏移 0.6 错开站位，动作/骨骼原样（tracks.js）
@@ -1718,7 +1714,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
     // 通道结构下逐通道整体平移该帧，保证各通道同帧一致（tracks.js）
     if (kind === 'camera')
       setKeyframes((channels) => moveCameraFrame(channels, fromFrame, toFrame));
-    else setCharacterKeyframes((tracks) => moveObjectFrame(tracks, trackId, fromFrame, toFrame));
+    else setCharacterKeyframes((tracks) => moveObjectFrame(tracks, trackId!, fromFrame, toFrame));
     setSelectedKeyframe({ kind, trackId, frame: toFrame });
     seekToFrame(toFrame);
     setToast(`关键帧已移动到第 ${toFrame} 帧`);
@@ -1767,7 +1763,9 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
     if (kind === 'camera')
       setKeyframes((channels) => setCameraInterpolation(channels, frame, normalized));
     else
-      setCharacterKeyframes((tracks) => setObjectInterpolation(tracks, trackId, frame, normalized));
+      setCharacterKeyframes((tracks) =>
+        setObjectInterpolation(tracks, trackId!, frame, normalized),
+      );
   };
   const copySelectedKeyframe = () => {
     if (!selectedKeyframeInfo) return;
@@ -1776,8 +1774,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
       selectedKeyframeInfo.kind === 'camera'
         ? snapshotKeysForTrack(keyframes, 'camera')
         : snapshotKeysForTrack(
-            characterKeyframes[selectedKeyframeInfo.trackId],
-            entityTypeFor(selectedKeyframeInfo.trackId),
+            characterKeyframes[selectedKeyframeInfo.trackId ?? ''],
+            entityTypeFor(selectedKeyframeInfo.trackId ?? ''),
           );
     const key = track?.find((item) => item.frame === selectedKeyframeInfo.frame);
     if (!key) return;
@@ -1848,11 +1846,14 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
       const backgroundCanvas = await referenceCanvasForExport(reference, width, height);
       setExportReferenceBackground(backgroundCanvas);
       setCapturingImage(true);
-      let canvas = null;
+      let canvas: HTMLCanvasElement | null = null;
       for (let attempt = 0; attempt < 90; attempt += 1) {
         await nextPaint();
-        canvas = imageCaptureCanvasRef.current;
-        if (canvas?.width === width && canvas?.height === height) break;
+        const current = imageCaptureCanvasRef.current as HTMLCanvasElement | null;
+        if (current && current.width === width && current.height === height) {
+          canvas = current;
+          break;
+        }
       }
       if (!canvas || canvas.width !== width || canvas.height !== height)
         throw new Error('截图画面初始化失败');
@@ -1888,7 +1889,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
       }
     } catch (error) {
       log.error('摄像机截图失败', error);
-      setToast(error?.message || '摄像机截图失败', 'error');
+      setToast((error as { message?: string })?.message || '摄像机截图失败', 'error');
     } finally {
       setCapturingImage(false);
       setExportReferenceBackground(null);
@@ -1940,11 +1941,14 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
         );
       const codec = probe.videoCodec;
 
-      let canvas = null;
+      let canvas: HTMLCanvasElement | null = null;
       for (let attempt = 0; attempt < 120; attempt += 1) {
         await nextPaint();
-        canvas = exportCanvasRef.current;
-        if (canvas?.width === width && canvas?.height === height) break;
+        const current = exportCanvasRef.current as HTMLCanvasElement | null;
+        if (current && current.width === width && current.height === height) {
+          canvas = current;
+          break;
+        }
       }
       if (!canvas || canvas.width !== width || canvas.height !== height)
         throw new Error('导出画面初始化失败');
@@ -1993,7 +1997,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
     } catch (error) {
       log.error('MP4 导出失败', error);
       if (output && output.state !== 'finalized') await output.cancel().catch(() => {}); // catch-ok: 渲染器 output.cancel 已终态/异常时释放失败不阻断卸载
-      setToast(error?.message || 'MP4 导出失败', 'error');
+      setToast((error as { message?: string })?.message || 'MP4 导出失败', 'error');
     } finally {
       setCurrentFrame(originalFrame);
       currentFrameRef.current = originalFrame;
@@ -2015,7 +2019,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
         if (!loaded) throw new Error('invalid project');
         setSettings(loaded.settings);
         setShots(loaded.shots);
-        setActiveShotId(loaded.activeShotId);
+        setActiveShotId(loaded.activeShotId ?? '');
         setObjects(loaded.objects);
         setCamera(loaded.camera);
         setLighting(loaded.lighting);
@@ -2417,14 +2421,14 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
                 cameraAspect={previewAspect}
                 editorCameraData={editorView}
                 onEditorCameraChange={captureEditorView}
-                onGizmoReady={(api: (mode: string) => void) => {
+                onGizmoReady={(api: ((mode: string) => void) | null) => {
                   gizmoApiRef.current = api;
                 }}
                 objects={animatedObjects}
                 animationTime={currentFrame / fps}
                 selectedId={selectedId}
                 activeJoint={selectedJoint}
-                onSelect={setSelectedId}
+                onSelect={(id: string | null) => setSelectedId(id ?? '')}
                 onJointSelect={(objectId: string, jointId: string) => {
                   setSelectedId(objectId);
                   setSelectedJoint(jointId);
@@ -2522,7 +2526,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
           </div>
         </section>
         <MemoInspector
-          selected={inspectorSelected}
+          selected={inspectorSelected ?? null}
           objects={objects}
           camera={camera}
           cameraAspect={camera.aspectRatio}
@@ -2567,8 +2571,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
             activeObject
               ? {
                   id: activeObject.id,
-                  name: activeObject.name,
-                  type: activeObject.type,
+                  name: activeObject.name ?? '',
+                  type: activeObject.type ?? 'object',
                   continuousMotion: Boolean(activeObject.continuousMotion),
                   keyframes: snapshotKeysForTrack(
                     characterKeyframes[activeObject.id],

@@ -127,8 +127,8 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
           {/* 上游接入只读素材区（位置在剧情框上方）：展示连入的上游文本/图片，内容只读不可改，仅可断线。
               素材来自 node.data.upstreamTexts / upstreamImages（ScriptBoxNode 经 useConnectedInputs 同步）；
               多个时 flex-wrap 自动换行。 */}
-          {((d.upstreamImages as ResourceStripProps['images'])?.length > 0 ||
-            (d.upstreamTexts as ResourceStripProps['texts'])?.length > 0) && (
+          {(((d.upstreamImages as ResourceStripProps['images']) ?? []).length > 0 ||
+            ((d.upstreamTexts as ResourceStripProps['texts']) ?? []).length > 0) && (
             <div className="mb-1.5">
               <ResourceStrip
                 images={(d.upstreamImages as ResourceStripProps['images']) ?? []}
@@ -268,14 +268,14 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
                   <td className="px-1.5 py-1.5 whitespace-nowrap">
                     <DropTable
                       opts={SHOT_TYPES}
-                      val={s.shotType}
+                      val={s.shotType ?? ''}
                       onPick={(v) => patchShot(i, 'shotType', v)}
                     />
                   </td>
                   <td className="px-1.5 py-1.5 whitespace-nowrap">
                     <DropTable
                       opts={LIGHTS}
-                      val={s.lighting}
+                      val={s.lighting ?? ''}
                       onPick={(v) => patchShot(i, 'lighting', v)}
                     />
                   </td>
@@ -300,7 +300,7 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
                   <td className="px-1.5 py-1.5 whitespace-nowrap">
                     <DropTable
                       opts={MOTIONS}
-                      val={s.motion}
+                      val={s.motion ?? ''}
                       onPick={(v) => patchShot(i, 'motion', v)}
                     />
                   </td>
@@ -314,7 +314,7 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
                               ? '视觉起点已锁定于上一镜尾帧'
                               : '生成/查看尾帧变体'
                           }
-                          onClick={() => openTailFrame(s.id)}
+                          onClick={() => openTailFrame(s.id ?? '')}
                         >
                           {s.tailFrameVariantsLoading ? (
                             <Loader2 size={12} className="animate-spin" />

@@ -79,7 +79,7 @@ interface AssetMenuProps {
 export function AssetMenu({ onAddPerson, onAddPrimitive, onImport }: AssetMenuProps) {
   const [open, setOpen] = useState(false);
   // path 记录当前展开路径，例如 [2] 表示展开了"场景粗模"那一列。列数 = path.length + 1，自适应数据深度。
-  const [path, setPath] = useState([]);
+  const [path, setPath] = useState<number[]>([]);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -105,8 +105,8 @@ export function AssetMenu({ onAddPerson, onAddPrimitive, onImport }: AssetMenuPr
   };
 
   const pick = (node: AssetNode) => {
-    if (node.kind === 'person') onAddPerson(node.value);
-    else if (node.kind === 'primitive') onAddPrimitive(node.value);
+    if (node.kind === 'person') onAddPerson(node.value ?? '');
+    else if (node.kind === 'primitive') onAddPrimitive(node.value ?? '');
     else if (node.kind === 'import') fileRef.current?.click();
     close();
   };

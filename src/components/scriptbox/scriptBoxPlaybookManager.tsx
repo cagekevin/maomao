@@ -75,7 +75,7 @@ export default function ScriptBoxPlaybookManager({
 
   const commitRename = (pb: Playbook) => {
     const t = String(renameVal || '').trim();
-    if (!t || nameTaken(t, pb.id)) return;
+    if (!t || nameTaken(t, pb.id ?? '')) return;
     saveCustomPlaybook({ ...pb, label: t });
     setRenameId(null);
   };
@@ -109,7 +109,7 @@ export default function ScriptBoxPlaybookManager({
     try {
       const text = await f.text();
       const r = parseImport(text);
-      if (!('playbook' in r)) {
+      if (!r.ok) {
         toastError(r.error);
         return;
       }
@@ -122,7 +122,7 @@ export default function ScriptBoxPlaybookManager({
       saveCustomPlaybook({ ...playbook, id, label, builtin: false });
       toastSuccess(`已导入工作流「${label}」`);
     } catch (err) {
-      toastError(err?.message || '导入失败');
+      toastError((err as { message?: string })?.message || '导入失败');
     }
   };
 
@@ -132,7 +132,7 @@ export default function ScriptBoxPlaybookManager({
     return (
       <div
         key={pb.id}
-        onClick={() => pick(pb.id)}
+        onClick={() => pick(pb.id ?? '')}
         className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 cursor-pointer transition-colors group ${using ? 'bg-surface-hover-strong text-white' : 'text-secondary hover:bg-surface-hover hover:text-primary'}`}
       >
         <span className="flex-1 whitespace-nowrap overflow-hidden text-ellipsis text-caption-sm">
@@ -189,7 +189,7 @@ export default function ScriptBoxPlaybookManager({
                 <button
                   className="text-muted hover:text-white"
                   onClick={() => {
-                    setRenameId(pb.id);
+                    setRenameId(pb.id ?? '');
                     setRenameVal(pb.label);
                   }}
                   title="编辑"
@@ -198,7 +198,7 @@ export default function ScriptBoxPlaybookManager({
                 </button>
                 <button
                   className="text-muted hover:text-red-400"
-                  onClick={() => setConfirmDel({ id: pb.id, label: pb.label })}
+                  onClick={() => setConfirmDel({ id: pb.id ?? '', label: pb.label })}
                   title="删除"
                 >
                   <Trash2 size={13} />

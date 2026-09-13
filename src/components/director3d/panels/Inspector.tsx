@@ -194,7 +194,7 @@ export function Inspector({
   const jointRotation = rigPose?.joints[selectedJoint] || [0, 0, 0];
   const updateJoint = (rotation: number[]) =>
     updateObject({
-      joints: { ...rigPose.joints, [selectedJoint]: rotation },
+      joints: { ...rigPose?.joints, [selectedJoint]: rotation },
     });
   const applyPreset = (pose: string) =>
     updateObject({
@@ -247,7 +247,7 @@ export function Inspector({
           </div>
           <VectorFields
             title="位置"
-            value={position}
+            value={position ?? []}
             onChange={(value) =>
               isCamera ? updateCamera({ position: value }) : updateObject({ position: value })
             }
@@ -263,7 +263,7 @@ export function Inspector({
           ) : (
             <VectorFields
               title={selected.type === 'person' ? '整体旋转 · X 纵向 / Y 水平 / Z 翻滚' : '旋转'}
-              value={selected.rotation}
+              value={selected.rotation ?? []}
               degrees
               onChange={(rotation) => updateObject({ rotation })}
               disabled={selected.locked}
@@ -273,7 +273,7 @@ export function Inspector({
             <VectorFields
               title="缩放"
               kind="scale"
-              value={selected.scale}
+              value={selected.scale ?? []}
               proportionalScale={Boolean(selected.proportionalScale)}
               scaleAxisLocks={
                 Array.isArray(selected.scaleAxisLocks)
@@ -435,9 +435,9 @@ export function Inspector({
                 />
                 <output>
                   {Math.round(
-                    (Number.isFinite(selected.poseTime)
-                      ? selected.poseTime
-                      : presetPhase(selected.pose)) * 100,
+                    (Number.isFinite(selected?.poseTime)
+                      ? (selected?.poseTime as number)
+                      : presetPhase(selected?.pose ?? '')) * 100,
                   )}
                   %
                 </output>

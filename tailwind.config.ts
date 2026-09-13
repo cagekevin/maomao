@@ -110,6 +110,13 @@ const config: Config = {
         'surface-raised-2': 'rgb(var(--mao-surface-raised-2) / <alpha-value>)',
         'surface-active-2': 'rgb(var(--mao-surface-active-2) / <alpha-value>)',
         'surface-hover-2b': 'rgb(var(--mao-surface-hover-2b) / <alpha-value>)',
+        // 语义强调色（状态/交互，值取自 :root 的 --mao-accent / --mao-danger / --mao-live）。
+        // 此前 :root 定义了三者，但 config 未暴露成 Tailwind 类 → `bg-danger`/`text-accent` 等类
+        // 一直不生成样式（红线、选中框、断链红标全是透明的）。此处补齐映射，集中一处。
+        accent: 'rgb(var(--mao-accent) / <alpha-value>)',
+        'accent-strong': 'rgb(var(--mao-accent-strong) / <alpha-value>)',
+        danger: 'rgb(var(--mao-danger) / <alpha-value>)',
+        live: 'rgb(var(--mao-live) / <alpha-value>)',
       },
       fontSize: {
         '2xs': ['8px', { lineHeight: '1.2' }],

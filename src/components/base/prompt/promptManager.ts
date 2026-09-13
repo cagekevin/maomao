@@ -83,7 +83,7 @@ export function loadPresets(): Preset[] {
     return seeded;
   }
   const withIds = ensureIds(stored);
-  if (withIds.some((p, i) => !stored[i]?.id)) {
+  if (withIds.some((_p, i) => !stored[i]?.id)) {
     writeJSON(STORAGE_KEY, withIds);
   }
   return withIds;

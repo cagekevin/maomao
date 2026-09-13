@@ -38,10 +38,10 @@ import type {
   LosslessSegment,
 } from '../../base/utils/videoEngine.ts';
 import type { OpResult } from '../core/result.ts';
-import { hasMixedSources, needsCompositing } from '../core/routeClip.ts';
+import { audibleClipsOf, hasMixedSources, needsCompositing } from '../core/routeClip.ts';
 import type { MediaProfile } from '../core/routeClip.ts';
 import type { Clip, Project } from '../core/types.ts';
-import { audibleClipsOf, exportComposite, openTimelineSources } from './composite.ts';
+import { exportComposite, openTimelineSources } from './composite.ts';
 import type { BlobFetcher, CompositeExportResult, ExportStage } from './composite.ts';
 
 /** 阶段类型归属 `composite.ts`（真正产出三阶段的地方）；此处转发以保持「导出公共词汇表 = pipeline」的入口单一。 */

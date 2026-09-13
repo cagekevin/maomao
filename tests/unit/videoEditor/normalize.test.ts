@@ -33,6 +33,8 @@ describe('createEmptyProject', () => {
     expect(p.tracks[1].overlay).toBe(true); // 自由轨 = 可留空
     expect(p.tracks[0].clips).toEqual([]);
     expect(p.tracks[1].clips).toEqual([]);
+    expect(p.ui.rowHeight).toBe(38);
+    expect(p.ui.dockHeight).toBeGreaterThan(0);
   });
 
   it('轨道 id 唯一且由 generateId 生成（非时间基后缀）', () => {
@@ -122,6 +124,36 @@ describe('normalizeProject — 缺字段补全（旧版本有已知语义，补�
     expect(p.tracks[0].overlay).toBe(false);
     expect(p.tracks[1].overlay).toBe(true);
     expect(p.tracks[0].locked).toBe(false);
+  });
+
+  it('轨道行高是工程 UI 记忆：持久化回读保留（C7.5，刷新不丢）', () => {
+    const r = normalizeProject({
+      schemaVersion: VIDEO_EDITOR_SCHEMA_VERSION,
+      tracks: [],
+      ui: { dockHeight: 280, rowHeight: 56 },
+    });
+    expect(r.status).toBe('ok');
+    if (r.status !== 'ok') return;
+    expect(r.value.ui.rowHeight).toBe(56);
+  });
+
+  it('持久化边界守卫：视图快变量（pps/选中/开合）即使误写进 ui 也会被模型拒收', () => {
+    // 「缩放 / 选中 / 面板开合」是这次的屏幕此刻，不该进工程真源。`fromRecord` 用字段白名单读 ui，
+    // 所以哪怕调用方误把它写进原始 ui，读取端也只会保留 dockHeight/rowHeight —— 模型不被污染。
+    const r = normalizeProject({
+      schemaVersion: VIDEO_EDITOR_SCHEMA_VERSION,
+      tracks: [],
+      ui: {
+        dockHeight: 400,
+        rowHeight: 44,
+        pps: 1.7, // 视图快变量：缩放
+        selectedClipId: 'c1', // 视图快变量：选中
+        settingsOpen: true, // 视图快变量：面板开合
+      },
+    });
+    expect(r.status).toBe('ok');
+    if (r.status !== 'ok') return;
+    expect(r.value.ui).toEqual({ dockHeight: 400, rowHeight: 44 });
   });
 
   it('NaN / Infinity 时间被回默认值（NaN 会静默污染所有时间运算）', () => {

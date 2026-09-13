@@ -130,7 +130,7 @@ function TaskCenter() {
                 }}
                 onPreview={(task) => {
                   setPreviewDims(null);
-                  setPreview({ url: task.resultUrl, type: task.type });
+                  setPreview({ url: task.resultUrl ?? '', type: task.type });
                 }}
               />
             ))}
@@ -235,7 +235,7 @@ const TaskCard = React.memo(function TaskCard({
       if (res?.ok) showToast('已开始下载', { type: 'success' });
       else showToast('下载失败', { type: 'error' });
     } catch (err) {
-      logger.warn('TaskCenter', '下载失败', err?.message);
+      logger.warn('TaskCenter', '下载失败', (err as { message?: string })?.message);
       showToast('下载失败', { type: 'error' });
     }
   };

@@ -44,7 +44,7 @@ function GroupNode({ id, data, selected }: GroupNodeProps) {
       minWidth={120}
       minHeight={80}
       keepAspect={false}
-      aspectRatio={null}
+      aspectRatio={undefined}
       defaultHeight={200}
       syncSize={false}
       handleVariant="small"

@@ -350,9 +350,12 @@ function PromptInput({
     if (!range.collapsed) return;
     const node = range.startContainer;
     const offset = range.startOffset;
-    if (node.nodeType === Node.TEXT_NODE && offset === 0 && isChipEl(node.previousSibling)) {
-      node.previousSibling.remove();
-      return true;
+    if (node.nodeType === Node.TEXT_NODE && offset === 0) {
+      const prev = node.previousSibling;
+      if (prev && isChipEl(prev)) {
+        prev.remove();
+        return true;
+      }
     }
     if (
       node.nodeType === Node.ELEMENT_NODE &&
@@ -367,8 +370,11 @@ function PromptInput({
       offset === (node.textContent || '').length &&
       isChipEl(node.nextSibling)
     ) {
-      node.nextSibling.remove();
-      return true;
+      const next = node.nextSibling;
+      if (next) {
+        next.remove();
+        return true;
+      }
     }
     return false;
   }, []);
@@ -457,7 +463,7 @@ function PromptInput({
           sel.addRange(range);
         }
       }
-      const chip = buildChipEl(item.id, item.label, item.kind, item.url);
+      const chip = buildChipEl(item.id ?? '', item.label ?? '', item.kind, item.url ?? '');
       range.insertNode(chip);
       ensureCaretSlotBeforeChip(chip);
       range.setStartAfter(chip);
@@ -646,6 +652,7 @@ function PromptInput({
   );
 
   const renderMentionPopup = () => {
+    if (!mentionPos) return null;
     const popup = (
       <div
         ref={popRef}

@@ -1,4 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+/** 对话面板里「已引用媒体附件」的形状（与画布资源节点一一对应）。 */
+interface AgentAttachment {
+  type: string;
+  url: string;
+  localUrl: string | null;
+  label: string;
+  nodeId: string;
+  nodeType: string;
+  x: number;
+  y: number;
+  [k: string]: unknown;
+}
+
+/** 画布选中的资源节点，先进入「待确认」列表，用户确认后才并入正式附件。 */
+interface PendingMediaNode {
+  type: string;
+  url: string;
+  label: string;
+  nodeId: string;
+  nodeType: string;
+  x: number;
+  y: number;
+  [k: string]: unknown;
+}
 // AI 助手专属样式表（agent-* 前缀，只服务本面板与 AgentMessage；AgentMessage 复用同一套类，无需重复 import）
 import './agent-panel.css';
 import {
@@ -95,7 +120,17 @@ function AttMediaChip({
   removeTitle,
   onRemove,
 }: {
-  item: { type?: string; url?: string; [k: string]: unknown };
+  item: {
+    type?: string;
+    url?: string;
+    localUrl?: string | null;
+    label?: string;
+    nodeId?: string;
+    nodeType?: string;
+    x?: number;
+    y?: number;
+    [k: string]: unknown;
+  };
   removeTitle: string;
   onRemove: () => void;
 }) {
@@ -318,7 +353,9 @@ export default function AgentPanel({
   const [allSkills, setAllSkills] = useState(() =>
     getAllSkills().filter((s) => isSkillEnabled(s.id)),
   );
-  const [activeSkills, setActiveSkills] = useState([]);
+  const [activeSkills, setActiveSkills] = useState<
+    { id: string; name: string; description: string; content: string }[]
+  >([]);
   const [skillSlashOpen, setSkillSlashOpen] = useState(false);
   const skillSlashRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(skillSlashRef, skillSlashOpen, () => setSkillSlashOpen(false));
@@ -374,8 +411,11 @@ export default function AgentPanel({
   }, []);
 
   const handleConversationChange = useCallback((snap: SnapshotPatch) => {
-    if (snap?.skills) setActiveSkills(snap.skills);
-    if (Array.isArray(snap?.attachments)) setAttachments(snap.attachments);
+    if (snap?.skills)
+      setActiveSkills(
+        snap.skills as { id: string; name: string; description: string; content: string }[],
+      );
+    if (Array.isArray(snap?.attachments)) setAttachments(snap.attachments as AgentAttachment[]);
     // 【TD-17】草稿跟随对话：只同步到 UI state，不再手动「也写一次存储键」——
     // 真源就是该对话自己的 draft 快照，回写自己等于制造第二份副本。
     if (typeof snap?.draft === 'string') {
@@ -531,7 +571,7 @@ export default function AgentPanel({
 
   // 【TD-17】草稿初值 = 当前对话快照的 draft（useAgentChat 首渲前该值即会话内存态；不读独立存储键，杜绝双源）
   const [input, setInput] = useState<string>(() => String(getCurrentSnapshot().draft || ''));
-  const [attachments, setAttachments] = useState([]);
+  const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   // 【2026-09-05 精简】执行模型收敛恒 auto（完全自主）+ credit 积分闸：三态选择器（direct/step-confirm/auto）已删，
   // AI 助手只走 auto 完全自主。真正烧积分那下由全局积分闸 creditSwitch 拦截（见 useCanvasAgentTools.executePlanTool），
@@ -631,7 +671,7 @@ export default function AgentPanel({
   // 【选中媒体→待确认引用】（对齐大雄 ghost 语义，防误触）：用户选中画布带媒体节点（图/视频/音频）时，
   // 媒体先进「待确认」列表（pendingMediaNodes），不直接进正式附件。用户点输入框/发送时才
   // 确认转正式（confirmPendingMedia），此时按输入框顺序定编号。避免拖动/查看画布误塞附件。
-  const [pendingMediaNodes, setPendingMediaNodes] = useState([]);
+  const [pendingMediaNodes, setPendingMediaNodes] = useState<PendingMediaNode[]>([]);
   useEffect(() => {
     if (!Array.isArray(selectedAssetNodes)) return;
     setPendingMediaNodes(
@@ -681,7 +721,8 @@ export default function AgentPanel({
   const modelRef = useRef<HTMLDivElement | null>(null);
   // 上传 input 的 ref：上传 UI 当前被注释（见下方「图片上传：暂时隐藏」块），取消注释即可恢复
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- fileRef 仅在被注释的上传 UI 中引用
-  const fileRef = useRef<HTMLInputElement | null>(null);
+  const _fileRef = useRef<HTMLInputElement | null>(null);
+  void _fileRef;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   // 「回到底部」按钮：atBottom 驱动显隐；atBottomRef 供滚动副作用同步读取最新值（避免闭包读到过期 state）
@@ -991,7 +1032,7 @@ export default function AgentPanel({
 
   // 图片上传（对应 UI 已被注释，见下方「图片上传：暂时隐藏」块；保留实现以便取消注释即恢复）
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- handleFiles 仅在被注释的上传 UI 中引用
-  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const _handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setUploading(true);
@@ -1021,10 +1062,24 @@ export default function AgentPanel({
         const localUrl = previewUrls.create(f);
         try {
           const dataUrl = await fileToDataUrl(f);
-          setAttachments((prev) => [...prev, { type: 'image', url: dataUrl, localUrl }]);
+          setAttachments((prev) => [
+            ...prev,
+            {
+              type: 'image',
+              url: dataUrl,
+              localUrl,
+              label: '',
+              nodeId: '',
+              nodeType: '',
+              x: 0,
+              y: 0,
+            },
+          ]);
         } catch (err) {
           previewUrls.release(localUrl);
-          showToast(`图片读取失败：${err?.message || err}`, { type: 'error' });
+          showToast(`图片读取失败：${(err as { message?: string })?.message || String(err)}`, {
+            type: 'error',
+          });
         }
       }
     } finally {
@@ -1032,9 +1087,10 @@ export default function AgentPanel({
       e.target.value = '';
     }
   };
+  void _handleFiles;
 
   // 释放本地预览 blob 的 url（幂等：非 blob 预览 url 未登记，release 安全返回）
-  const releaseAttachmentUrls = (list: { localUrl?: string }[]) => {
+  const releaseAttachmentUrls = (list: { localUrl?: string | null }[]) => {
     (list || []).forEach((a) => {
       if (a?.localUrl) previewUrls.release(a.localUrl);
     });
@@ -1097,7 +1153,7 @@ export default function AgentPanel({
 
   /** 顶栏标题 = 当前会话标题（首条用户消息优先，未命名则回退 c.title / “新对话”） */
   // 会话显示名：用户显式重命名过（titleCustom）→ 用自定义 c.title；否则沿用「首条用户消息 / 标题」自动标题
-  const convDisplayTitle = (c: Conversation) => {
+  const convDisplayTitle = (c: Conversation | undefined) => {
     if (!c) return '新对话';
     if (c.titleCustom && c.title) return c.title;
     const firstUser = (c.messages || []).find((m) => m?.role === 'user' && m?.content);

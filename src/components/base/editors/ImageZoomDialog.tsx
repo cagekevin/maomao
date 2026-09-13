@@ -196,7 +196,7 @@ function ImageZoomDialog({
     // 视频模式下 imgRef 挂的是 <video>：用 instanceof 收窄（不再 `as unknown as`）
     const el = imgRef.current;
     const video = el instanceof HTMLVideoElement ? el : null;
-    const { ok } = await copyVideoFrameToClipboard(video, { last });
+    const { ok } = await copyVideoFrameToClipboard(video!, { last });
     setCaptureState({ which, status: ok ? 'ok' : 'err' });
     if (captureTimer.current) clearTimeout(captureTimer.current);
     captureTimer.current = window.setTimeout(() => setCaptureState(null), 2000);

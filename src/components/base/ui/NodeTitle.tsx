@@ -41,7 +41,7 @@ function NodeTitle({
   const commit = (text: string) => {
     const next = text.trim() || defaultTitle;
     setVal(next);
-    if (typeof onRename === 'function') onRename(next);
+    if (typeof onRename === 'function') onRename(next ?? '');
   };
 
   return (

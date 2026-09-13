@@ -878,7 +878,7 @@ const listNodesTool = {
     properties: {},
     required: [] as string[],
   },
-  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
+  execute(_args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const nodes = ctx.getNodes().map((n) => ({
       id: n.id,
       type: n.type,
@@ -899,7 +899,7 @@ const listEdgesTool = {
     properties: {},
     required: [] as string[],
   },
-  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
+  execute(_args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const edges = ctx.getEdges().map((e) => ({
       id: e.id,
       source: e.source,
@@ -940,7 +940,7 @@ const readCanvasTool = {
     properties: {},
     required: [] as string[],
   },
-  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
+  execute(_args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const nodes = ctx.getNodes().map((n) => ({
       id: n.id,
       type: n.type,
@@ -1315,7 +1315,7 @@ const executePlanTool = {
             let prompt = String(g.prompt || '');
             prompt = prompt.replace(
               /图\s*([一二三四五六七八九十])/g,
-              (m: string, cn: string) => `图${(CN_TO_ARABIC as Record<string, string>)[cn] || cn}`,
+              (_m: string, cn: string) => `图${(CN_TO_ARABIC as Record<string, string>)[cn] || cn}`,
             );
             const roleDescs: string[] = [];
             refs.forEach((ref: { url?: unknown }, i: number) => {
@@ -1583,7 +1583,7 @@ const runExistingPlanToolDef = {
     properties: {},
     required: [] as string[],
   },
-  execute: (args: Record<string, unknown>, ctx: CanvasAgentCtx) => runExistingPlanTool(ctx),
+  execute: (_args: Record<string, unknown>, ctx: CanvasAgentCtx) => runExistingPlanTool(ctx),
 };
 
 /** 定位/聚焦某节点（focus_node）—— 居中视口到指定节点 */
@@ -1627,7 +1627,7 @@ const undoAiTool = {
     properties: {},
     required: [] as string[],
   },
-  execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
+  execute(_args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const snap = popActiveAiUndo(); // 当前对话的 AI 撤销栈（Step D，多对话不串）
     if (!snap) return { ok: false, error: '没有可撤回的 AI 操作' };
     // 整体恢复快照（undo_ai 是整数组替换，走 host.restoreNodesAndEdges，收口裸 ctx.setNodes/setEdges，见 M1 C1-1）

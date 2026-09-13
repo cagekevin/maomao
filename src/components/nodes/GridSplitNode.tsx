@@ -452,7 +452,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
     const s = new Set();
     getEdges()
       .filter((e) => e.source === id && e.sourceHandle?.startsWith('cell-'))
-      .forEach((e) => s.add(parseInt(e.sourceHandle.replace('cell-', ''), 10)));
+      .forEach((e) => s.add(parseInt(e.sourceHandle!.replace('cell-', ''), 10)));
     return s;
   }, [getEdges, id]);
 
@@ -626,7 +626,13 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
           };
         }),
       );
-      return spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
+      return spawnAndCommit(spawned, {
+        getNodes,
+        getEdges,
+        setNodes,
+        setEdges,
+        history: history ?? undefined,
+      });
     },
     [id, getNode, getNodes, getEdges, setNodes, setEdges, history],
   );

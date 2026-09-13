@@ -977,7 +977,7 @@ export function readCustomPoses() {
 
 // 对象/人物通道字段归一化（M1）：与旧整快照归一化规则一一对应，保证迁移后播放逐帧一致。
 // 字段清单见 ENTITY_CHANNELS；新增通道字段时在此补一条归一化规则。
-function normalizeObjectField(entityType: string, field: string, value: unknown) {
+function normalizeObjectField(_entityType: string, field: string, value: unknown) {
   if (field === 'position' || field === 'rotation') return finiteVector3(value, [0, 0, 0]);
   if (field === 'scale') return finiteVector3(value, [1, 1, 1]);
   if (field === 'pose') return normalizePoseId(value as string);

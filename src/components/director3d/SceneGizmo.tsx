@@ -43,7 +43,7 @@ function AxisHead({
     const canvas = document.createElement('canvas');
     canvas.width = 64;
     canvas.height = 64;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d')!;
     ctx.beginPath();
     ctx.arc(32, 32, 16, 0, 2 * Math.PI);
     ctx.closePath();

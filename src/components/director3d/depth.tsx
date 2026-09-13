@@ -65,7 +65,7 @@ function DepthMeshModel({ url, settings = {}, color, selected }: DepthMeshModelP
       const canvas = document.createElement('canvas');
       canvas.width = columns;
       canvas.height = rows;
-      const context = canvas.getContext('2d', { willReadFrequently: true });
+      const context = canvas.getContext('2d', { willReadFrequently: true })!;
       context.drawImage(image, 0, 0, columns, rows);
       const pixels = context.getImageData(0, 0, columns, rows).data;
       let depthValues = new Float32Array(columns * rows);

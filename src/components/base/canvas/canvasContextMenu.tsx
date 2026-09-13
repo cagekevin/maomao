@@ -122,7 +122,7 @@ export function buildCanvasMenuItems(ctx: MenuActionCtx): ContextMenuItem[] {
         items: catNodes.map(toolItem),
       };
     })
-    .filter(Boolean);
+    .filter((s): s is NonNullable<typeof s> => s != null);
 
   // 固定到一级的节点，直接渲染在菜单第一层（常用，一眼可见）。二级里也仍显示（承载取消图钉）。
   const pinnedItems = pinnedTools

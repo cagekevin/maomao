@@ -248,7 +248,7 @@ export function pushActiveAiUndo(snapshot: Record<string, unknown>): void {
 /** 弹出最近 AI 撤销快照 */
 export function popActiveAiUndo(): Record<string, unknown> | undefined {
   const conv = requireActiveConv('popActiveAiUndo');
-  if (!conv || !(conv.aiUndoStack || []).length) return null;
+  if (!conv || !(conv.aiUndoStack || []).length) return undefined;
   const stack = [...conv.aiUndoStack];
   const popped = stack.pop() as Record<string, unknown> | undefined;
   commit({

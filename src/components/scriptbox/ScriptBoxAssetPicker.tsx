@@ -63,7 +63,7 @@ export default function ScriptBoxAssetPicker({
         // UI 红字已提示；再补 logger 便于排查本地引擎/后端问题
         const errMsg = (e as { message?: string }).message || String(e);
         logger.warn('scriptBox', '素材库加载失败', { folder, error: errMsg });
-        setErr(e?.message || '素材库加载失败');
+        setErr((e as { message?: string })?.message || '素材库加载失败');
       } finally {
         setLoading(false);
       }
@@ -112,7 +112,7 @@ export default function ScriptBoxAssetPicker({
                 key={a.id}
                 type="button"
                 className="group relative aspect-square rounded-lg overflow-hidden border border-edge-faint hover:border-emerald-400/60 cursor-pointer bg-surface-strong transition-colors"
-                onClick={() => onPick?.(a.url)}
+                onClick={() => onPick?.(a.url ?? '')}
                 title={a.name}
               >
                 <img

@@ -344,7 +344,7 @@ async function blobToDataUrl(u: string): Promise<string> {
       fr.readAsDataURL(blob);
     });
   } catch (e) {
-    logger.warn('assetUrl', 'blob 转 dataURL 失败', e.message);
+    logger.warn('assetUrl', 'blob 转 dataURL 失败', (e as { message?: string })?.message);
     return '';
   }
 }
@@ -374,7 +374,7 @@ async function urlToDataUrl(u: string): Promise<string> {
       fr.readAsDataURL(blob);
     });
   } catch (e) {
-    logger.warn('assetUrl', 'URL 转 base64 失败', e.message);
+    logger.warn('assetUrl', 'URL 转 base64 失败', (e as { message?: string })?.message);
     return '';
   }
 }
@@ -441,7 +441,7 @@ export async function normalizeAssetUrlForSend(
   } catch (e) {
     logger.warn('assetUrl', '发送前压缩失败，回退原样发送', {
       url: String(u).slice(0, 80),
-      error: e?.message,
+      error: (e as { message?: string })?.message,
     });
   }
 

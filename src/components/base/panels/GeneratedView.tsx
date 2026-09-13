@@ -184,7 +184,11 @@ function GeneratedView() {
         setTotal(d?.total || 0);
         setTotalPages(d?.totalPages || 1);
       } catch (e) {
-        logger.warn('GeneratedView', '加载失败（localTool 未连？）', e?.message);
+        logger.warn(
+          'GeneratedView',
+          '加载失败（localTool 未连？）',
+          (e as { message?: string })?.message,
+        );
         if (token === resetTokenRef.current) setItems([]);
       } finally {
         if (token === resetTokenRef.current) setLoading(false);
@@ -214,7 +218,7 @@ function GeneratedView() {
         setTotalPages(d?.totalPages || 1);
         setPage(d?.page || target);
       } catch (e) {
-        logger.warn('GeneratedView', '翻页加载失败', e?.message);
+        logger.warn('GeneratedView', '翻页加载失败', (e as { message?: string })?.message);
       } finally {
         if (token === resetTokenRef.current) setLoading(false);
       }
@@ -240,15 +244,21 @@ function GeneratedView() {
   };
 
   const handleOpenLocal = () => {
-    if (!connected) return showToast('请先连接本地引擎', { type: 'warning' });
+    if (!connected) {
+      showToast('请先连接本地引擎', { type: 'warning' });
+      return;
+    }
     openLocalFolder(folder === 'tasks' ? 'tasks' : folder)
       .then((r) => showToast(`已在文件管理器中打开: ${r?.data?.path}`, { type: 'success' }))
       .catch(() => showToast('打开本地目录失败', { type: 'error' }));
   };
 
   const handleOpenFileDir = (item: ResourceItem) => {
-    const rel = relativePathFromUrl(item.url);
-    if (!rel) return showToast('打开所在目录失败', { type: 'error' });
+    const rel = relativePathFromUrl(item.url ?? '');
+    if (!rel) {
+      showToast('打开所在目录失败', { type: 'error' });
+      return;
+    }
     openFileDir(rel).catch(() => showToast('打开所在目录失败', { type: 'error' }));
   };
 
@@ -270,10 +280,10 @@ function GeneratedView() {
             x.id === renameTarget.id ? { ...x, id: d.id, url: d.url, name: d.name } : x,
           ),
         );
-      textCache.delete(renameTarget.url);
+      textCache.delete(renameTarget.url ?? '');
       showToast('重命名成功', { type: 'success' });
     } catch (e) {
-      showToast(e?.message || '重命名失败', { type: 'error' });
+      showToast((e as { message?: string })?.message || '重命名失败', { type: 'error' });
     }
     setRenameTarget(null);
     setRenameName('');
@@ -335,7 +345,10 @@ function GeneratedView() {
               label: '打开本地目录',
               icon: FolderOpen,
               onClick: () => {
-                if (!connected) return showToast('请先连接本地引擎', { type: 'warning' });
+                if (!connected) {
+                  showToast('请先连接本地引擎', { type: 'warning' });
+                  return;
+                }
                 handleOpenLocal();
               },
             },
@@ -344,7 +357,10 @@ function GeneratedView() {
               label: '新建文件夹',
               icon: FolderPlus,
               onClick: () => {
-                if (!connected) return showToast('请先连接本地引擎', { type: 'warning' });
+                if (!connected) {
+                  showToast('请先连接本地引擎', { type: 'warning' });
+                  return;
+                }
                 setCreating(true);
                 setNewFolderName('新建文件夹');
               },
@@ -433,7 +449,7 @@ function GeneratedView() {
           <>
             <div className="grid grid-cols-3 gap-2">
               {items.map((a) => {
-                const badge = TYPE_BADGE[a.type] || TYPE_BADGE.image;
+                const badge = TYPE_BADGE[a.type ?? 'image'] || TYPE_BADGE.image;
                 const BadgeIcon = badge.icon;
                 const audio = isAudio(a.type, a.url);
                 const isFolder = a.type === 'folder';
@@ -464,7 +480,7 @@ function GeneratedView() {
                         </span>
                       </div>
                     ) : a.type === 'text' ? (
-                      <TextResourceCell url={a.url} name={a.name} />
+                      <TextResourceCell url={a.url ?? ''} name={a.name} />
                     ) : a.type === 'video' || (a.type && a.type.startsWith('video')) ? (
                       a.url ? (
                         <VideoThumbnail src={a.url} size="sm" className="w-full h-full" />
@@ -509,7 +525,7 @@ function GeneratedView() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setRenameTarget(a);
-                            setRenameName(a.name);
+                            setRenameName(a.name ?? '');
                           }}
                         >
                           <Pencil size={10} />
@@ -581,7 +597,7 @@ function GeneratedView() {
             onClick={(e) => e.stopPropagation()}
           >
             {preview.type === 'text' ? (
-              <TextPreview url={preview.url} name={preview.name} />
+              <TextPreview url={preview.url ?? ''} name={preview.name} />
             ) : isAudio(preview.type, preview.url) ? (
               <div className="w-[300px] bg-surface-2 rounded-xl p-6 flex flex-col items-center gap-3">
                 <Music size={40} className="text-green-400" />

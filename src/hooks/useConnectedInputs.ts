@@ -402,7 +402,7 @@ export function aggregateUpstream(upstream: UpstreamRef[]): NodeOutputGroup {
   const out: NodeOutputGroup = { images: [], texts: [], videos: [], audios: [] };
   for (const item of upstream) {
     const src = item.node;
-    const r = getNodeOutput(src, item.sourceHandle);
+    const r = getNodeOutput(src, item.sourceHandle ?? undefined);
     if (item.fromGroup) {
       // 编组出口子节点：保持既有行为——不补 sourceNodeId（下游断连线/溯源按非编组来源处理）
       out.images.push(...r.images);

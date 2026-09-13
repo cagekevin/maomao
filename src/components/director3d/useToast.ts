@@ -15,8 +15,14 @@ type ToastLevel = 'info' | 'success' | 'warning' | 'error';
 /**
  * 队列化 Toast 状态。渲染层消费 toasts；业务层 setToast(text[, level]) 入队；dismiss(id) 手动关闭。
  */
+interface ToastItem {
+  id: string;
+  text: string;
+  level: ToastLevel;
+}
+
 export function useToast() {
-  const [toasts, setToasts] = useState([]);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const notify = useCallback((text: string, level: ToastLevel = 'info') => {
     if (text == null || text === '') return;

@@ -84,7 +84,7 @@ export default function FullscreenModal({
       const move = (ev: MouseEvent) => {
         setSize({
           w: Math.max(480, Math.min(window.innerWidth - 40, baseW + (ev.clientX - startX))),
-          h: Math.max(320, Math.min(window.innerHeight - 40, baseH + (ev.clientY - startY))),
+          h: Math.max(320, Math.min(window.innerHeight - 40, (baseH ?? 0) + (ev.clientY - startY))),
         });
       };
       const up = () => {

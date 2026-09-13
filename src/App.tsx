@@ -20,7 +20,7 @@ import {
   useStoreApi,
 } from '@xyflow/react';
 import type { Node, Edge, Connection, Viewport } from '@xyflow/react';
-import { Zap, RefreshCw } from 'lucide-react';
+import { Zap, ChevronUp, RefreshCw } from 'lucide-react';
 import CanvasToolbar from './components/base/panels/CanvasToolbar.tsx';
 import ArrangeConfirm from './components/base/canvas/ArrangeConfirm.tsx';
 import { useArrangeCanvas } from './hooks/useArrangeCanvas.ts';
@@ -147,12 +147,12 @@ const edgeTypes = {
 // 去 handleBounds 取「第一个口」，多口或无口时取不到即报 code-008、边静默不渲染。
 // 新增节点若声明 targetHandleId/sourceHandleId，登记到 contracts.NODE_HANDLE_CONTRACT
 // （由 scripts/check-node-handles.mjs 对账节点文件声明 ⊄ 契约表，漏登记即红）。
-const TARGET_HANDLE_BY_NODE_TYPE: Record<string, string> = Object.fromEntries(
+const TARGET_HANDLE_BY_NODE_TYPE: Record<string, string | undefined> = Object.fromEntries(
   Object.entries(NODE_HANDLE_CONTRACT)
     .filter(([, h]) => h.targetHandleId)
     .map(([type, h]) => [type, h.targetHandleId]),
 );
-const SOURCE_HANDLE_BY_NODE_TYPE: Record<string, string> = Object.fromEntries(
+const SOURCE_HANDLE_BY_NODE_TYPE: Record<string, string | undefined> = Object.fromEntries(
   Object.entries(NODE_HANDLE_CONTRACT)
     .filter(([, h]) => h.sourceHandleId)
     .map(([type, h]) => [type, h.sourceHandleId]),
@@ -196,8 +196,8 @@ function Canvas() {
   // 项目系统：画布状态按当前项目初始化/持久化。
   // 画布快照走 localTool KV（异步）：挂载后从 KV 读当前项目快照，有值（含空画布）则覆盖；
   // 无快照（首次）保持空画布 → 触发 EmptyCanvasGuide 空状态引导（完整复刻官方）。
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   // P2-G 拓扑触发安全网：上游完成可选自动触发直接下游（AUTO_TRIGGER_DOWNSTREAM 默认关）
   useUpstreamAutoTrigger();
@@ -623,11 +623,13 @@ function Canvas() {
         const shotId = parseShotHandle(connection.sourceHandle);
         const shot =
           shotId && src?.type === 'scriptBoxNode'
-            ? (src.data?.shots || []).find((s: { id: string }) => s.id === shotId)
+            ? ((src.data?.shots as { id: string; duration?: string }[] | undefined) ?? []).find(
+                (s: { id: string; duration?: string }) => s.id === shotId,
+              )
             : null;
         if (shot) {
-          const ar = String(src.data?.aspectRatio || '16:9');
-          const o = ar === 'custom' ? String(src.data?.customAspectRatio || '16:9') : ar;
+          const ar = String(src?.data?.aspectRatio || '16:9');
+          const o = ar === 'custom' ? String(src?.data?.customAspectRatio || '16:9') : ar;
           if (type === 'imageGenerateNode') {
             nodeData.aspectRatio = o === '4:4' ? '1:1' : o;
           } else if (type === 'videoGenerateNode') {
@@ -652,7 +654,7 @@ function Canvas() {
 
       const newNode = { id, type, position: { ...position }, data: nodeData };
       // 复用 nodeDefaults.js 单源表，与「快照加载还原」保持一致（见加载 effect）
-      const nodeWithDefaults = applyNodeTypeDefaults(newNode);
+      const nodeWithDefaults = applyNodeTypeDefaults(newNode) as unknown as Node;
       const nextNodes = [...nodesRef.current, nodeWithDefaults];
       // 若带 connection：自动创建 source→新节点 的边。
       // 目标端口走模块级单源表 TARGET_HANDLE_BY_NODE_TYPE（见文件头【区 1】）：
@@ -770,8 +772,8 @@ function Canvas() {
     }
     const res = createGroupFromNodes(nodesRef.current, selectedIds);
     if (res.ok) {
-      setNodes(res.nodes);
-      history.record({ nodes: res.nodes, edges: edgesRef.current });
+      setNodes(res.nodes!);
+      history.record({ nodes: res.nodes!, edges: edgesRef.current });
       showToast('已编组', { type: 'success' });
     } else {
       showToast(res.error || '编组失败', { type: 'warning' });
@@ -784,8 +786,8 @@ function Canvas() {
     if (!selected) return;
     const res = ungroupNodes(nodesRef.current, selected.id);
     if (res.ok) {
-      setNodes(res.nodes);
-      history.record({ nodes: res.nodes, edges: edgesRef.current });
+      setNodes(res.nodes!);
+      history.record({ nodes: res.nodes!, edges: edgesRef.current });
     }
   }, [setNodes, history]);
 
@@ -834,7 +836,8 @@ function Canvas() {
   // 这是把图片以 image/png 写进剪贴板，可粘到微信/PS 等其它软件。复用公共 clipboard.copyImageToClipboard。
   const copyNodeImage = useCallback(async (nodeId: string) => {
     const node = nodesRef.current.find((n) => n.id === nodeId);
-    const imgUrl = node?.data?.assetUrl || node?.data?.url;
+    const imgUrl =
+      (node?.data?.assetUrl as string | undefined) ?? (node?.data?.url as string | undefined);
     if (!imgUrl) {
       showToast('该节点没有图片', { type: 'warning' });
       return;
@@ -1074,16 +1077,16 @@ function Canvas() {
     applyUngroup: (groupId) => {
       const res = ungroupNodes(nodesRef.current, groupId);
       if (res.ok) {
-        setNodes(res.nodes);
-        history.record({ nodes: res.nodes, edges: edgesRef.current });
+        setNodes(res.nodes!);
+        history.record({ nodes: res.nodes!, edges: edgesRef.current });
       }
     },
     applyGroup: () => {
       const selectedIds = nodesRef.current.filter((n) => n.selected).map((n) => n.id);
       const res = createGroupFromNodes(nodesRef.current, selectedIds);
       if (res.ok) {
-        setNodes(res.nodes);
-        history.record({ nodes: res.nodes, edges: edgesRef.current });
+        setNodes(res.nodes!);
+        history.record({ nodes: res.nodes!, edges: edgesRef.current });
       }
     },
     applyDeleteSelected: () => {
@@ -1187,6 +1190,8 @@ function Canvas() {
       if (clientX == null) return;
 
       const rect = menu.containerRef.current?.getBoundingClientRect();
+      const fromNodeId = t.fromNode.id;
+      const fromHandleId = t.fromHandle.id;
       const pos = screenToFlowPosition({ x: clientX, y: clientY });
       // 建 ghost-target（不可见占位节点）
       setNodes((ns) =>
@@ -1211,8 +1216,8 @@ function Canvas() {
           .filter((e) => !e.id.startsWith('ghost-edge-'))
           .concat({
             id: 'ghost-edge-' + Date.now(),
-            source: t.fromNode.id,
-            sourceHandle: t.fromHandle.id || null,
+            source: fromNodeId,
+            sourceHandle: fromHandleId || null,
             target: 'ghost-target',
             type: 'default',
           }),
@@ -1221,8 +1226,8 @@ function Canvas() {
       setTimeout(() => {
         menu.openConnection(
           {
-            source: t.fromNode.id,
-            sourceHandle: t.fromHandle.id || null,
+            source: fromNodeId,
+            sourceHandle: fromHandleId || null,
             dropPosition: pos,
           } as unknown as Connection,
           clientX - (rect?.left || 0),
@@ -1253,7 +1258,7 @@ function Canvas() {
 
   // 双击连线删除
   const onEdgeDoubleClick = useCallback(
-    (event: React.MouseEvent, edge: Edge) => {
+    (_event: React.MouseEvent, edge: Edge) => {
       removeEdge(edge.id);
     },
     [removeEdge],
@@ -1343,7 +1348,7 @@ function Canvas() {
   return (
     <LodProvider enablePerformanceMode={performanceMode}>
       {/* 顶层：flex 纵向布局*/}
-      <div className="flex flex-col h-screen bg-canvas font-sans text-primary">
+      <div className="relative flex flex-col h-screen bg-canvas font-sans text-primary">
         {/* 本地引擎未连接全屏提醒 */}
         <LocalToolConnectModal
           isVisible={connectWarn}
@@ -1362,8 +1367,6 @@ function Canvas() {
           onPushToCloud={handlePushToCloud}
           onPullFromCloud={handlePullFromCloud}
           agentOpen={agentOpen}
-          videoEditorOpen={videoEditorOpen}
-          onToggleVideoEditor={() => setSetting('videoEditorOpen', !videoEditorOpen)}
           onToggleAgent={() => {
             // 在非画布视图（设置/多开）点 AI 助手按钮：【阶段1C】AgentPanel 现已任意视图常驻挂载
             //（open 控 CSS 显隐）。点按钮统一切回画布并打开面板，让用户回到画布看到面板。画布内则正常 toggle。
@@ -1570,6 +1573,22 @@ function Canvas() {
           projectId={activeProjectId}
           onClose={() => setSetting('videoEditorOpen', false)}
         />
+
+        {/* 折叠态入口（mockup `.vd-handle`）：画布底部居中的半圆 + 上箭头，点击展开时间轴。
+          展开态由工具带的收起按钮接管（折叠态才显示本把手，避免两个入口并存）。 */}
+        {!videoEditorOpen && (
+          <button
+            type="button"
+            title="展开时间轴"
+            onClick={() => setSetting('videoEditorOpen', true)}
+            className="absolute bottom-0 left-1/2 -translate-x-1/2 z-float w-14 h-7 flex items-center justify-center
+                       rounded-t-full border border-b-0 border-edge bg-surface-1 text-secondary
+                       shadow-[0_-6px_18px_rgba(0,0,0,0.45)] hover:bg-surface-hover hover:text-strong
+                       cursor-pointer transition-colors"
+          >
+            <ChevronUp size={17} />
+          </button>
+        )}
       </div>
     </LodProvider>
   );

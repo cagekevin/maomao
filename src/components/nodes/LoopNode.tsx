@@ -148,7 +148,7 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
   useOutsideClick(splitMenuRef, showSplitMenu, () => setShowSplitMenu(false));
 
   // 同步 Agent(update_node) 外部写入
-  useSyncNodeData(data, { splitMethod: setSplitMethod });
+  useSyncNodeData(data, { splitMethod: (v: unknown) => setSplitMethod(v as string) });
 
   // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
   const rename = useNodeRename(id);
@@ -255,7 +255,13 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
         });
       });
       const spawned = buildSpawnNodes({ id, position: { x: baseX, y: baseY } }, specs);
-      spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
+      spawnAndCommit(spawned, {
+        getNodes,
+        getEdges,
+        setNodes,
+        setEdges,
+        history: history ?? undefined,
+      });
       // 下游节点已生成在画布，结果可见，无需 toast
     } finally {
       busyRef.current = false;
@@ -277,7 +283,7 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
       handleVariant="small"
       minWidth={240}
       minHeight={180}
-      aspectRatio={null}
+      aspectRatio={undefined}
       defaultHeight={280}
       onRename={rename}
       titleRight={

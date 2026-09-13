@@ -171,7 +171,7 @@ export function VectorFields({
           accent="#d7675b"
           disabled={disabled}
           locked={kind === 'scale' && Boolean(scaleAxisLocks[0])}
-          onToggleLock={kind === 'scale' ? () => onToggleScaleAxis?.(0) : null}
+          onToggleLock={kind === 'scale' ? () => onToggleScaleAxis?.(0) : undefined}
           {...settings}
         />
         <AxisSlider
@@ -182,7 +182,7 @@ export function VectorFields({
           accent="#76a96c"
           disabled={disabled}
           locked={kind === 'scale' && Boolean(scaleAxisLocks[1])}
-          onToggleLock={kind === 'scale' ? () => onToggleScaleAxis?.(1) : null}
+          onToggleLock={kind === 'scale' ? () => onToggleScaleAxis?.(1) : undefined}
           {...settings}
         />
         <AxisSlider
@@ -193,7 +193,7 @@ export function VectorFields({
           accent="#5d87c7"
           disabled={disabled}
           locked={kind === 'scale' && Boolean(scaleAxisLocks[2])}
-          onToggleLock={kind === 'scale' ? () => onToggleScaleAxis?.(2) : null}
+          onToggleLock={kind === 'scale' ? () => onToggleScaleAxis?.(2) : undefined}
           {...settings}
         />
       </div>

@@ -126,7 +126,7 @@ export function useScriptBoxEngine(
         const prepared = nodes.map((raw) => {
           const nd = raw as Node;
           const data = { ...nd.data };
-          injectNodePrefs(nd.type, data);
+          injectNodePrefs(nd.type ?? '', data);
           return {
             ...nd,
             data,

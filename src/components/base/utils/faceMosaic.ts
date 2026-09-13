@@ -204,7 +204,7 @@ function mosaic(
   const c = document.createElement('canvas');
   c.width = o;
   c.height = s;
-  const l = c.getContext('2d');
+  const l = c.getContext('2d')!;
   l.imageSmoothingEnabled = false;
   l.drawImage(srcImg, box.x, box.y, box.w, box.h, 0, 0, o, s);
   ctx.save();

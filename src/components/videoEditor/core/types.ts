@@ -138,9 +138,11 @@ interface ProjectSettings {
   height: number;
 }
 
-/** 基座 UI 记忆（随工程落盘，docs/120 C2 的 `ui.dockHeight`）。 */
+/** 基座 UI 记忆（随工程落盘，docs/120 C2 的 `ui.dockHeight`、C7.5 的 `ui.rowHeight`）。 */
 interface ProjectUI {
   dockHeight: number;
+  /** 轨道行高（px，C7.5）。可选 = 兼容旧工程无此字段 → 回落默认。 */
+  rowHeight?: number;
 }
 
 /**

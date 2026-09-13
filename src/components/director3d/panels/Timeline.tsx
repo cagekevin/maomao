@@ -36,7 +36,7 @@ interface SelectedKeyframeInfo {
   interpolation?: string;
 }
 
-interface KeyframeMove {
+export interface KeyframeMove {
   kind: TrackKind;
   trackId: string | null;
   fromFrame: number;
@@ -245,7 +245,7 @@ export function Timeline({
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    const rect = event.currentTarget.parentElement.getBoundingClientRect(); // .track
+    const rect = event.currentTarget.parentElement!.getBoundingClientRect(); // .track
     const frameAt = (clientX: number) =>
       clamp(Math.round((clientX - rect.left) / pxPerFrame), 0, totalFrames);
     let raf: number | null = null;
@@ -280,7 +280,7 @@ export function Timeline({
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    const rect = event.currentTarget.parentElement.getBoundingClientRect();
+    const rect = event.currentTarget.parentElement!.getBoundingClientRect();
     const isSelected = selection.some(
       (item) => item.kind === kind && item.trackId === trackId && item.frame === key.frame,
     );
@@ -431,12 +431,12 @@ export function Timeline({
           kind === 'object' && objectTrack?.type === 'person'
             ? ` · ${poseLabel(key.pose as string)}${objectTrack.continuousMotion ? '（持续）' : ''}`
             : '';
-        const title = `第 ${key.frame} 帧${stateCopy} · ${normalizeInterpolation(key.interpolation) === 'smooth' ? '平滑' : normalizeInterpolation(key.interpolation) === 'linear' ? '线性' : '保持'} · 拖动可移动，单击改插值/删除`;
+        const title = `第 ${key.frame} 帧${stateCopy} · ${normalizeInterpolation(key.interpolation ?? '') === 'smooth' ? '平滑' : normalizeInterpolation(key.interpolation ?? '') === 'linear' ? '线性' : '保持'} · 拖动可移动，单击改插值/删除`;
         return (
           <button
             key={key.frame}
             className={`keyframe ${kind} ${key.frame === currentFrame ? 'is-current' : ''} ${isSelected ? 'is-selected' : ''}`}
-            data-interpolation={normalizeInterpolation(key.interpolation)}
+            data-interpolation={normalizeInterpolation(key.interpolation ?? '')}
             style={{ left: `${displayFrame * pxPerFrame}px` }}
             title={title}
             aria-label={title}

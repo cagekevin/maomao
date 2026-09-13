@@ -72,7 +72,8 @@ export default function ProjectSelector({ onSwitch, onCreate }: ProjectSelectorP
       showToast('项目名称不能为空', { type: 'warning' });
       return;
     }
-    renameProject(modal.id, trimmed);
+    if (!modal) return;
+    renameProject(modal.id ?? '', trimmed);
     setModal(null);
     showToast('项目名称已更新', { type: 'success' });
   };

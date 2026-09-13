@@ -209,9 +209,10 @@ export async function roundTrip(
     {
       count: requestMessages.length,
       roles: requestMessages.map((m) => m.role),
-      firstContentHead: requestMessages.find((m) => m.role === 'user')?.content
-        ? String(requestMessages.find((m) => m.role === 'user').content).slice(0, 120)
-        : '',
+      firstContentHead: (() => {
+        const u = requestMessages.find((m) => m.role === 'user');
+        return u?.content ? String(u.content).slice(0, 120) : '';
+      })(),
     },
     { module: 'agent' },
   );
@@ -230,10 +231,17 @@ export async function roundTrip(
       tools: withTools ? toolSchemas : undefined,
       stream: !isNonStream,
       signal,
-      parseAgentError,
+      parseAgentError: parseAgentError as unknown as (
+        res: { status: number; text: () => Promise<string> },
+        fallback: string,
+      ) => Promise<string>,
     });
   } catch (e) {
-    logger.error('AI助手', '请求失败', { via: 'relay', error: e?.message, model });
+    logger.error('AI助手', '请求失败', {
+      via: 'relay',
+      error: (e as { message?: string })?.message,
+      model,
+    });
     throw e;
   }
   // 【链路日志】到网关成功拿到响应头（HTTP 状态；非 2xx 已在 chatStream 归一抛错，能到这即 2xx）
@@ -350,7 +358,7 @@ async function resolveBody(
               }
             : null,
         )
-        .filter(Boolean);
+        .filter((c): c is NonNullable<typeof c> => c != null);
       if (calls.length > 0) assistant.tool_calls = calls;
     }
     // 【链路日志】截断告警：原始文本非空但未能解析出正常 message，提示可能丢内容。
@@ -365,7 +373,7 @@ async function resolveBody(
       toolCalls: assistant.tool_calls || [],
     });
     logger.info('AI助手', '非流式结果', {
-      contentLen: assistant.content.length,
+      contentLen: (assistant.content ?? '').length,
       rawLen: rawText.length,
       toolCallCount: (assistant.tool_calls || []).length,
     });
@@ -373,7 +381,7 @@ async function resolveBody(
   }
 
   // ── 流式：SSE 逐块解析 ──
-  const reader = res.body.getReader();
+  const reader = res.body!.getReader();
   const decoder = new TextDecoder('utf-8');
   let buffer = '';
   const acc: SSEAccumulator = { content: '', reasoning: '', toolCalls: [] };
@@ -485,7 +493,7 @@ async function resolveBody(
   if (realCalls.length > 0) assistant.tool_calls = realCalls;
   // 【链路日志】流式响应完成：内容长度 + 触发的工具调用
   logger.info('AI助手', '流式结果', {
-    contentLen: assistant.content.length,
+    contentLen: (assistant.content ?? '').length,
     toolCallCount: realCalls.length,
     toolNames: realCalls.map((t) => t.function?.name),
   });
@@ -494,7 +502,7 @@ async function resolveBody(
     '[流式] 完成',
     {
       bytes: _totalBytes,
-      contentLen: assistant.content.length,
+      contentLen: (assistant.content ?? '').length,
       reasoningLen: (assistant.reasoning || '').length,
       toolNames: realCalls.map((t) => t.function?.name),
     },

@@ -164,7 +164,7 @@ export default function GearSettings({ data, updateData, onClose }: GearSettings
           <Select<string>
             value={playbookId}
             onChange={setPlaybookId}
-            options={allPlaybooks.map((p) => ({ value: p.id, label: p.label }))}
+            options={allPlaybooks.map((p) => ({ value: p.id ?? '', label: p.label }))}
             placeholder="选择工作流"
           />
           <span className="shrink-0 text-2xs text-muted-2">

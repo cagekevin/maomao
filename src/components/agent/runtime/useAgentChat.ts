@@ -385,7 +385,7 @@ export function useAgentChat({
   // 输入状态机（#7）：推导 send/stop/steer/retry/idle；每次状态变化回写 action
   const stateMachineRef = useRef(
     new InputStateMachine({
-      onChange: (snap, action) => {
+      onChange: (_snap, action) => {
         setStateAction(action);
       },
     }),

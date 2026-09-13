@@ -76,7 +76,7 @@ function PromptLibrary({
 
   // 监听外部 presets-changed 广播（经 eventBus），保持同步
   useEffect(() => {
-    const onChanged = (next?: Preset[] | null) => setPresets(next || loadPresets());
+    const onChanged = (next: unknown) => setPresets((next as Preset[] | null) || loadPresets());
     return subscribe('presets-changed', onChanged);
   }, []);
 
@@ -115,12 +115,12 @@ function PromptLibrary({
     recordRecent(card.id);
     refreshRecent(); // TD-05-8：写入后刷新「最近使用」
     if (onUse) {
-      onUse(card.content);
+      onUse(card.content ?? '');
       onClose();
     } else {
       showToast('已复制到剪贴板');
       try {
-        navigator.clipboard.writeText(card.content);
+        navigator.clipboard.writeText(card.content ?? '');
       } catch {
         // catch-ok: clipboard 写失败不阻断（已 showToast 提示）
         /* ignore */
@@ -133,7 +133,7 @@ function PromptLibrary({
     recordRecent(card.id);
     refreshRecent(); // TD-05-8：写入后刷新「最近使用」
     if (onAppend) {
-      onAppend(card.content);
+      onAppend(card.content ?? '');
       onClose();
     }
   };
@@ -341,7 +341,7 @@ function PromptLibrary({
                       </p>
                       <div className="flex items-center justify-between mt-1">
                         <span
-                          className={`px-2 py-0.5 rounded-md text-caption-sm font-medium ${TYPE_TAG_CLASS[card.category] || 'bg-white/10 text-secondary'}`}
+                          className={`px-2 py-0.5 rounded-md text-caption-sm font-medium ${TYPE_TAG_CLASS[card.category ?? ''] || 'bg-white/10 text-secondary'}`}
                         >
                           {card.category ? TYPE_LABEL[card.category] : '通用'}
                         </span>

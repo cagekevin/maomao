@@ -301,7 +301,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
           .then((url) => (url ? { url, label: f.name } : null))
           .catch((): null => null),
       ),
-    ).then((r) => r.filter(Boolean));
+    ).then((r) => r.filter((x): x is { url: string; label: string } => x != null));
   }, []);
 
   const onFileInput = useCallback(
@@ -326,7 +326,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
       const files = Array.from(e.clipboardData.items)
         .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
         .map((it) => it.getAsFile())
-        .filter(Boolean);
+        .filter((it): it is File => it != null);
       if (files.length > 0) {
         e.preventDefault();
         e.stopPropagation();
@@ -876,7 +876,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
         )}
 
       {/* 放大查看大图：共享 ImageZoomDialog */}
-      <ImageZoomDialog ref={zoomRef} url={zoomUrl} />
+      <ImageZoomDialog ref={zoomRef} url={zoomUrl ?? undefined} />
     </>
   );
 }

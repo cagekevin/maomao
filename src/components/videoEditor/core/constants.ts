@@ -43,6 +43,13 @@ export const DEFAULT_PROJECT_HEIGHT = 720;
 /** 基座默认高度（px）。属 UI 记忆，随工程落盘（docs/120 C2 的 `ui.dockHeight`）。 */
 export const DEFAULT_DOCK_HEIGHT = 280;
 
+/** 轨道行高默认（px）。属 UI 记忆，随工程落盘（docs/120 C7.5 轨道高度可调，`ui.rowHeight`）。 */
+export const DEFAULT_ROW_HEIGHT = 38;
+
+/** 轨道行高可调范围（px，C7.5）。 */
+export const ROW_HEIGHT_MIN = 24;
+export const ROW_HEIGHT_MAX = 96;
+
 /** 轨道默认显示名（工程只有一条视频轨 + 一条音频轨：docs/123 §一.9 Q3）。 */
 export const DEFAULT_VIDEO_TRACK_NAME = '视频';
 export const DEFAULT_AUDIO_TRACK_NAME = '音频';

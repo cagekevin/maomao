@@ -31,7 +31,7 @@ export function useConfirm() {
     danger?: boolean;
   } | null>(null);
   // 持有当前弹窗的 resolver，避免 setState 异步回调作用域丢失
-  const resolverRef = useState({ cur: null })[0];
+  const resolverRef = useState<{ cur: ((v: unknown) => void) | null }>({ cur: null })[0];
 
   const ask = useCallback(
     (message: string, opts: ConfirmDialogOpts) => {

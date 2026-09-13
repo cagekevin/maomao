@@ -205,7 +205,7 @@ export function presetPhase(pose = 'idle') {
 
 export function poseCanLoop(pose = 'idle') {
   const preset = presetDefinition(pose);
-  return Boolean(preset.loopable && preset.duration > 0);
+  return Boolean(preset.loopable && (preset.duration ?? 0) > 0);
 }
 
 export const RIG_PRESET_OPTIONS = Object.entries(RIG_PRESETS).map(([id, preset]) => [

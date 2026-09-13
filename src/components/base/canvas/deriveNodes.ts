@@ -78,7 +78,7 @@ export function buildSpawnNodes(
 
   const edges: Edge[] = childNodes.map((c) => ({
     id: edgeOpts.id ? `${edgeOpts.id}-${c.id}` : `e-${parentId}-${c.id}`,
-    source: parentId,
+    source: parentId ?? '',
     target: c.id,
     ...(edgeOpts.sourceHandle !== undefined ? { sourceHandle: edgeOpts.sourceHandle } : {}),
     ...(edgeOpts.targetHandle !== undefined ? { targetHandle: edgeOpts.targetHandle } : {}),

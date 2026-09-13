@@ -23,6 +23,7 @@ import {
   DEFAULT_IMAGE_CLIP_DURATION,
   DEFAULT_PROJECT_HEIGHT,
   DEFAULT_PROJECT_WIDTH,
+  DEFAULT_ROW_HEIGHT,
   DEFAULT_VIDEO_TRACK_NAME,
   VIDEO_EDITOR_SCHEMA_VERSION,
 } from './constants.ts';
@@ -74,7 +75,7 @@ export function createEmptyProject(): Project {
     playhead: 0,
     tracks: [createEmptyTrack('video'), createEmptyTrack('audio')],
     settings: { width: DEFAULT_PROJECT_WIDTH, height: DEFAULT_PROJECT_HEIGHT },
-    ui: { dockHeight: DEFAULT_DOCK_HEIGHT },
+    ui: { dockHeight: DEFAULT_DOCK_HEIGHT, rowHeight: DEFAULT_ROW_HEIGHT },
   };
 }
 
@@ -167,11 +168,20 @@ function fromRecord(raw: Record<string, unknown>): Project {
     fps: num(raw.fps, DEFAULT_FPS),
     playhead: Math.max(0, num(raw.playhead, 0)),
     tracks,
+    /** 工程参数（导出唯一基准）。 */
     settings: {
       width: num(settingsRaw.width, DEFAULT_PROJECT_WIDTH),
       height: num(settingsRaw.height, DEFAULT_PROJECT_HEIGHT),
     },
-    ui: { dockHeight: num(uiRaw.dockHeight, DEFAULT_DOCK_HEIGHT) },
+    // ── 持久化边界（docs/120 C2 · C7.5 · C12）──
+    // `ui` 只承载**工程 UI 记忆**（dockHeight / rowHeight）：它随工程落盘、跨刷新/切项目保留。
+    // **视图快变量**（缩放 pps / 选中 / 面板开合 / 播放态）永不在模型里 —— 它们是"这次的屏幕此刻"，不该是工程真源。
+    // 这里用**字段白名单**读取：即便调用方误把某个视图快变量写进了原始 `ui`，`fromRecord` 也不认它，
+    // 读取端即把它丢弃 → 模型不会被有害字段污染（靠结构，不靠自觉）。
+    ui: {
+      dockHeight: num(uiRaw.dockHeight, DEFAULT_DOCK_HEIGHT),
+      rowHeight: num(uiRaw.rowHeight, DEFAULT_ROW_HEIGHT),
+    },
   };
 }
 

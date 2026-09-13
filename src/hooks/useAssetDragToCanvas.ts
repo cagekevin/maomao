@@ -42,7 +42,7 @@ export interface CanvasAssetLike {
 // 文字素材内容缓存（模块级，面板间共享）：url → text。避免每次拖拽都重新 fetch。
 const textCache = new Map<string, string>();
 function fetchText(url: string): Promise<string> {
-  if (textCache.has(url)) return Promise.resolve(textCache.get(url));
+  if (textCache.has(url)) return Promise.resolve(textCache.get(url) ?? '');
   return httpRequest(url, { timeoutMs: LOCAL_TOOL_PING_TIMEOUT, retries: 0, parseJson: false })
     .then((r) => (r.ok ? r.text() : ''))
     .then((t) => {
@@ -73,17 +73,18 @@ export function makeAssetDragProps(
   asset: CanvasAssetLike,
   opts: { disable?: boolean } = {},
 ): ResourceDragSourceProps {
-  const dragEnabled = !opts.disable && asset && asset.url;
+  const dragEnabled = !!asset && !!(!opts.disable && asset.url);
   return {
     draggable: dragEnabled,
     onDragStart: (e: ReactDragEvent) => {
       if (!dragEnabled) return;
-      const text = textCache.get(asset.url);
+      const url = asset.url!;
+      const text = textCache.get(url);
       e.dataTransfer.setData('application/x-yimao-asset', assetPayload(asset, text));
       e.dataTransfer.effectAllowed = 'copy';
       // 文字内容异步补全（dataTransfer 在拖拽期间可多次 setData）
       if (asset.type === 'text' && !text) {
-        fetchText(asset.url).then((t) => {
+        fetchText(url).then((t) => {
           if (t) e.dataTransfer.setData('application/x-yimao-asset', assetPayload(asset, t));
         });
       }

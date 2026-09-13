@@ -7,148 +7,67 @@
  *    登记一次 → 画布快捷键全废、「画布点选素材入轨」这个**主入口**直接死掉。
  * 2. **非模态**：基座展开时画布仍可点选/拖节点（`docs/123` G3 人工验收项）。
  * 3. **键盘只让位三组键**（`docs/120` C10「关键区分」表）：Delete/Backspace · ⌘Z · ⌘⇧Z(⌘Y)。
- *    其余画布快捷键（Q/W/E、⌘A/D/G/L…）照旧 —— 判据与 `useCanvasShortcuts` **共用同一个
- *    `editorKeyAction()`**（判据单点，`docs/123` §二.6 G-3）。
+ *    其余画布快捷键照旧 —— 判据与 `useCanvasShortcuts` **共用同一个 `editorKeyAction()`**。
  *
  * ── 两条入口（`docs/120` C4）──
  * · **顶栏按钮**（`TopNav`）：展开 / 收起基座。
- * · **画布上点选素材节点**（本文件 C11 段）：**仅基座展开时**生效，选中即落轨尾；
- *   折叠态点选**不产生任何动作**（C11.5 激活门 —— 「禁止静默副作用」的最终防线）。
+ * · **画布上点选素材节点**（C11）：**仅基座展开时**生效，选中即落轨尾；折叠态点选**不产生任何动作**。
  *
- * ── 未做的部分（诚实清单，别读成已完成；详见区域日志 §十六）──
- * 缩略图胶片条（C11.10）/ 真实波形（C11.7b）/ 走带出声（C11.7）/ 拖拽调长度（§0.4 粗档）/
- * 吸附（`snapTime` 已就位，但**没有拖拽消费方**）/ 带原声视频的 🔊 角标（C4.7 配套）。
+ * ── 本文件是什么（拆分后，`docs/128` §3）──
+ * **纯编排层**：状态声明 + hook 调用 + 组件组装 + 回调绑定。**不含领域逻辑**，各自归位：
+ *   · 入轨 → `useEditorIngest` · 走带/播放头 → `useEditorTransport` · 拖拽/编辑/键盘 → `useTimelineDrag`
+ *   · 导出 → `useEditorExport` · 工带 → `DockToolbar` · 常驻/设置条 → `DockStatusBar` · 标尺/播放头 → `RulerStrip` · 出声 → `PlaybackSink`
+ * 留在本文件的：C4.5 挂载硬断言、派生（allClips/visuals）、轨道渲染（Lane/TrackHead）、基座高度拖柄。
+ *
+ * ── 未做的部分（诚实清单，别读成已完成）──
+ * 多选 + 框选批量删除（C11.8）· 右键集（C15，用户裁定不做）。走带出声未真机验收。
  */
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
-} from 'react';
-import { useReactFlow, useStore, type Node } from '@xyflow/react';
-import {
-  ChevronDown,
-  Lock,
-  LockOpen,
-  Redo2,
-  Copy,
-  Scissors,
-  Trash2,
-  Undo2,
-  Volume2,
-  VolumeX,
-  Eye,
-  EyeOff,
-} from 'lucide-react';
-import { isEditableTarget } from '../../../base/core/uiHooks.ts';
-import { editorKeyAction } from '../../../base/core/modalLayer.ts';
-import { showToast } from '../../../base/core/toastStore.ts';
-import { generateId } from '../../../base/core/idGen.ts';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useReactFlow } from '@xyflow/react';
+import { AudioLines, Eye, EyeOff, Lock, LockOpen, Video, Volume2, VolumeX } from 'lucide-react';
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import { useCanvasEdges } from '../../../base/canvas/CanvasEdgesContext.tsx';
 import {
-  deriveSelectedAssets,
-  selectedAssetSig,
-  selectedNodeIdsOfSig,
-} from '../../../base/canvas/nodeMedia.ts';
-import { spawnAndCommit } from '../../../base/canvas/deriveNodes.ts';
-import { uploadResult } from '../../../base/utils/videoEngine.ts';
-import { UPLOAD_DIRS } from '../../../base/utils/uploadDirs.ts';
-import {
   clampZoom,
-  dropIndexAt,
-  fitZoom,
-  MAX_PIXELS_PER_SECOND,
-  MIN_PIXELS_PER_SECOND,
-  pxDeltaToTime,
   snapTime,
   timeDeltaToPx,
   timeToX,
   xToTime,
 } from '../../../base/utils/timeline/timeScale.ts';
-import { formatTickLabel } from '../../../base/utils/timeline/rulerTicks.ts';
-import {
-  appendTime,
-  clipDuration,
-  clipEdges,
-  duplicateClip,
-  freezeFrameAt,
-  moveClipTo,
-  placeClipAt,
-  removeClips,
-  splitAt,
-  timelineDuration,
-  trimLeftAt,
-  trimRightAt,
-  updateClip,
-} from '../../core/timelineOps.ts';
-import { routeClipToTrack } from '../../core/routeClip.ts';
-import {
-  DEFAULT_IMAGE_CLIP_DURATION,
-  EPS,
-  SNAP_TOLERANCE_PX,
-  ZOOM_STEP,
-} from '../../core/constants.ts';
-import type { Clip, ClipKind, Track } from '../../core/types.ts';
-import {
-  planExport,
-  runExport,
-  type ExportRequest,
-  type ExportStage,
-} from '../../export/pipeline.ts';
-import {
-  loadEditorSource,
-  readSourceBlob,
-  useEditorSources,
-} from '../../hooks/useEditorSources.ts';
+import { DEFAULT_ROW_HEIGHT, SNAP_TOLERANCE_PX } from '../../core/constants.ts';
+import { clipDuration, clipEdges } from '../../core/timelineOps.ts';
+import type { Clip, Track } from '../../core/types.ts';
 import { useEditorFilmstrips } from '../../hooks/useEditorFilmstrips.ts';
+import { useEditorSources } from '../../hooks/useEditorSources.ts';
 import { useEditorWaveforms } from '../../hooks/useEditorWaveforms.ts';
 import { filmstripBackground, waveformPath, waveformSpan } from './clipSourceView.ts';
+import { DockStatusBar } from './DockStatusBar.tsx';
+import { DockToolbar } from './DockToolbar.tsx';
+import { PlaybackSink } from './PlaybackSink.tsx';
+import { RulerStrip, RULER_HEIGHT } from './RulerStrip.tsx';
+import { useEditorExport } from './useEditorExport.ts';
+import { useEditorIngest } from './useEditorIngest.ts';
 import { useEditorProject } from './useEditorProject.ts';
+import { useEditorTransport } from './useEditorTransport.ts';
+import { useTimelineDrag } from './useTimelineDrag.ts';
 
 /** 基座时间轴的初始缩放（像素/秒）。用户可用工具带的 ⊖ / 滑块 / ⊕ 改（C12/工具带形态）。 */
 const INITIAL_PPS = clampZoom(40);
 
 /**
- * 一次拖拽的进行时状态。
- *
- * `origin` 存**拖拽开始时**的片段字段（不是实时读）——增量一律相对起点算，
- * 否则每次 pointermove 都在上一帧的结果上累加，误差会越拖越大。
- */
-interface ClipDrag {
-  mode: 'move' | 'trimLeft' | 'trimRight';
-  clipId: string;
-  trackId: string;
-  originX: number;
-  origin: { timelineStart: number; sourceStart: number; sourceEnd: number };
-}
-
-/**
- * 轨道行高与片段内部件高度（**单一出处**）。
- *
+ * 轨道行高与片段内部件高度。
  * `docs/120` C11.10c 红线：「胶片条 / 波形占剩余高度并**随之缩放**」「禁止写死像素」。
- * 三者由行高**派生**，于是 C7.5（轨道高度可调）只需改 `ROW_HEIGHT` 一处。
+ * 三者由行高**派生**；行高是**工程 UI 记忆**（`ui.rowHeight`，随工程落盘，`docs/120` C7.5）。
  */
-const ROW_HEIGHT = 48;
+const TRACK_LABEL_PX = 78;
 /** 片段名条高度（C11.10b：名字**不压在缩略图上**，独立一条窄条）。 */
-const CLIP_NAME_BAR = 16;
-/** 片段在行内的上下边距（`inset-y-1` = 4px ×2）。 */
-const CLIP_INSET = 4;
-/** 胶片条 / 波形可用高度 = 行高 − 上下边距 − 名条。 */
-const CLIP_STRIP_HEIGHT = ROW_HEIGHT - CLIP_INSET * 2 - CLIP_NAME_BAR;
+const CLIP_NAME_BAR = 15;
+/** 片段在行内的上下边距。 */
+const CLIP_INSET = 2;
 
-/** 导出产物的节点尺寸（与 `VideoProcessNode` 的产物同款，C4.8「同型」）。 */
-const EXPORT_NODE_STYLE = { width: 420, height: 380 };
-
-/** 导出阶段的用户可读名（`docs/123` §一.5 O2 的三阶段）。 */
-const STAGE_LABEL: Record<ExportStage, string> = {
-  audio: '混音中',
-  video: '渲染画面中',
-  mux: '写入中',
-};
+/** 基座高度可拖范围（C7.5）：上限够看全、下限保住工具带 + 至少一行轨道。 */
+const DOCK_MIN_HEIGHT = 120;
+const DOCK_MAX_HEIGHT = 520;
 
 interface VideoEditorDockProps {
   open: boolean;
@@ -166,8 +85,7 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
 
   /* ── C4.5 硬断言：必须在 ReactFlowProvider 子树内 ──
    * 挂到 provider 之外时，导出回写（`spawnAndCommit`）会**静默失败且无任何报错**。
-   * 故在挂载期就断言，不递延到「用户点了导出才发现没反应」。
-   * （正常情况下 `useReactFlow()` 自己会先抛；本段是为了让失败**可读**：报出本仓的原因。） */
+   * 故在挂载期就断言，不递延到「用户点了导出才发现没反应」。 */
   const flow = useReactFlow();
   if (typeof flow?.setNodes !== 'function' || typeof flow?.getNodes !== 'function') {
     throw new Error(
@@ -182,30 +100,32 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
 
   /** 缩放（像素/秒）—— 工具带 ⊖ / 滑块 / ⊕ 可改（经 `clampZoom` 走同一取值域）。 */
   const [pps, setPps] = useState(INITIAL_PPS);
+  /** 轨道行高（`docs/120` C7.5）—— **工程 UI 记忆**，来自 `project.ui.rowHeight`（随工程落盘）。 */
+  const rowHeight = project?.ui.rowHeight ?? DEFAULT_ROW_HEIGHT;
+  /** 胶片条 / 波形可用高度 = 行高 − 边距 − 名条（随行高派生，filmstrip 键含此高 → 改行高自动重抽）。 */
+  const stripHeight = Math.max(8, rowHeight - CLIP_INSET * 2 - CLIP_NAME_BAR);
 
-  /* ── 拖拽（`docs/120` §0.4 粗档：拖序 / 调片段长度）── */
-  const dragRef = useRef<ClipDrag | null>(null);
-  const [dragging, setDragging] = useState(false);
+  /** 工程参数 / 轨道高度编辑面板开关（`docs/120` C12.2 · C7.5）。 */
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const openRef = useRef(open);
+  /* ── 生命周期 refs（挂载期存活；导出/入轨异步回写前要复核，坑 §五.1：真收紧不重挂）── */
   const aliveRef = useRef(true);
-  useEffect(() => {
-    openRef.current = open;
-  }, [open]);
   useEffect(() => {
     aliveRef.current = true;
     return () => {
       aliveRef.current = false;
     };
   }, []);
+  /** 基座高度拖柄要读**最新** store（`store` 每次渲染换身份 → 经 ref，见坑 §五.1）。 */
+  const storeRef = useRef(store);
+  useEffect(() => {
+    storeRef.current = store;
+  });
 
-  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
-
-  const mainTrack = project?.tracks.find((t) => !t.overlay) ?? null;
-  const mainClips = mainTrack?.clips ?? EMPTY_CLIPS;
+  /* ── 派生（纯 React 视图态，非领域逻辑）── */
   const allClips = useMemo(() => project?.tracks.flatMap((t) => t.clips) ?? [], [project]);
   const playhead = project?.playhead ?? 0;
-  const totalDuration = project ? timelineDuration(project.tracks) : 0;
+
   const brokenIds = useMemo(() => {
     const ids = new Set<string>();
     for (const [id, state] of sources.byClipId) {
@@ -214,8 +134,7 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
     return ids;
   }, [sources.byClipId]);
 
-  /* ── 胶片条（`docs/120` C11.10）：**一条图**共享给所有同源片段，片段按源区间映射显示 ── */
-
+  // 胶片条（C11.10：一条图共享所有同源片段）
   const stripEntries = useMemo(
     () =>
       allClips
@@ -227,9 +146,9 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
         .filter((e): e is { url: string; duration: number } => e !== null),
     [allClips, sources.byClipId],
   );
-  const strips = useEditorFilmstrips(stripEntries, CLIP_STRIP_HEIGHT);
+  const strips = useEditorFilmstrips(stripEntries, stripHeight);
 
-  /** 音频素材的**真实波形**（C11.7b：峰值数组，禁止用固定图案冒充）。 */
+  // 音频素材的真实波形（C11.7b：峰值数组）
   const audioUrls = useMemo(
     () =>
       allClips
@@ -244,7 +163,7 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
   );
   const waveforms = useEditorWaveforms(audioUrls);
 
-  /** 片段 → 画面上该显示什么（胶片条 / 图片本体 / 波形 / 都没有）。 */
+  // 片段 → 画面该显示什么（胶片条 / 图片本体 / 波形 / 都没有）
   const visuals = useMemo(() => {
     const map = new Map<string, ClipVisual>();
     for (const clip of allClips) {
@@ -255,689 +174,209 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
         sourceDuration: state.duration ?? clipDuration(clip),
         stripUrl: strips.get(state.resolved.url),
         peaks: waveforms.get(state.resolved.url),
+        hasAudio: state.hasAudio,
       });
     }
     return map;
   }, [allClips, sources.byClipId, strips, waveforms]);
 
-  /* ════════════════════════════════════════════════════════════════
-   * C11 · 入轨：在画布上点选素材节点 → 追加到对应类型轨尾
-   * ════════════════════════════════════════════════════════════════ */
+  /* ── 单项职责 hook（纯编排接线；各自持有领域逻辑，见文件头归属清单）── */
+  useEditorIngest({ flow, open, store, aliveRef });
+  const transport = useEditorTransport({ store, project, pps });
+  const drag = useTimelineDrag({ store, project, pps, playhead, open });
+  const exp = useEditorExport({ flow, history, project, allClips, sources, aliveRef });
 
-  /**
-   * 选中集的**内容签名**（`base/canvas/nodeMedia` 既有原语，不含坐标 —— 拖动不触发重算）。
-   *
-   * 为什么用签名而不是订阅「选中事件」：入轨只在**选中集真变了**的那一次发生。
-   * 签名比较天然满足 C11.4「点几次就上几条」——**取消选中再点它 = 签名变了 = 再上一条**。
-   */
-  const selectedSig = useStore((s) => selectedAssetSig(deriveSelectedAssets(s.nodes)));
-
-  /**
-   * 让入轨逻辑拿到**最新**的 flow / store，同时**不让它们进入 effect 依赖**。
-   *
-   * 为什么必须这样：`useEditorProject` **每次渲染都返回新的 store 对象** ⇒ 任何以它为依赖的
-   * `useCallback` 每次都换身份 ⇒ 入轨 effect 每次渲染都跑。那正是下面这个缺陷的放大器。
-   * 用 ref 传递「最新值」后，effect 的依赖只剩**选中集**与**开合**，运行次数与语义对上。
-   */
-  const flowRef = useRef(flow);
-  const storeRef = useRef(store);
-  useEffect(() => {
-    flowRef.current = flow;
-    storeRef.current = store;
-  });
-
-  /**
-   * **已处理的选中集** —— 「已经为它入过轨」的 nodeId。
-   *
-   * 存「集合」而不是「上一个签名」：集合语义与「签名变没变」解耦，于是
-   * `fresh = 本次签名里的 id − 已处理集合` 是**幂等**的 —— 多跑几次 effect 也只会入一次。
-   */
-  const handledRef = useRef<ReadonlySet<string>>(new Set());
-
-  const enqueue = useCallback(
-    async (nodeId: string) => {
-      const asset = deriveSelectedAssets(flowRef.current.getNodes()).find(
-        (a) => a.nodeId === nodeId,
-      );
-      if (!asset) return;
-      const kind: ClipKind =
-        asset.type === 'audio' ? 'audio' : asset.type === 'video' ? 'video' : 'image';
-
-      // 时长必须先知道：**没有时长就没有片段** —— 这不是产品取舍，是数据结构的事实
-      // （片段在时间轴上**只**由 `timelineStart + clipDuration` 存在）。
-      const probed = await loadEditorSource(asset.url, kind);
-      if (probed.source.resolved.status !== 'ok') {
-        // 读不到就不入轨，并**明说原因**（C13：不静默产坏片）
-        showToast(`素材读不到，未入轨：${probed.source.resolved.reason}`);
-        return;
-      }
-      // 等待期间可能已折叠/切项目 —— 折叠态点选**不留痕**（C11.5），故此处直接放弃
-      if (!aliveRef.current || !openRef.current) return;
-
-      const clip: Clip = {
-        id: generateId('clip'),
-        kind,
-        sourceUrl: asset.url,
-        // `nodeId` 只作**只读溯源**，不参与寻址（`docs/123` §一.2 R2）
-        nodeId: asset.nodeId,
-        name: asset.label || undefined,
-        size:
-          probed.source.profile?.width !== undefined && probed.source.profile?.height !== undefined
-            ? { width: probed.source.profile.width, height: probed.source.profile.height }
-            : undefined,
-        // C11.6：落轨用**源素材整段**（精确入出点是工作台的事）
-        sourceStart: 0,
-        sourceEnd: probed.source.duration ?? DEFAULT_IMAGE_CLIP_DURATION,
-        timelineStart: 0,
-      };
-
-      const target = routeClipToTrack(clip.kind); // C11.1 分轨唯一判据
-      let rejection: string | null = null;
-      storeRef.current.applyTracks((tracks) =>
-        tracks.map((t) => {
-          if (t.kind !== target) return t;
-          // C7.3：锁定轨禁止一切编辑 —— 入轨是编辑，故拒绝（且**明说**，不静默丢弃）
-          if (t.locked) {
-            rejection = `「${t.name}」已锁定，未入轨`;
-            return t;
-          }
-          return { ...t, clips: [...t.clips, { ...clip, timelineStart: appendTime(t) }] };
-        }),
-      );
-      if (rejection) showToast(rejection);
-    },
-    // 依赖为空 = 身份稳定 = 入轨 effect 只在**选中集真的变了**时跑（见文件头「点一次出两条」）
-    [],
-  );
-
-  useEffect(() => {
-    // **唯一真源**：该不该入轨，只看「本次签名声明的 id」与「已处理集合」的差。
-    // 不再用 `flow.getNodes()` 另读一次当前选中集 —— 那次读与渲染期快照可能不一致，
-    // 正是「同一次点选入轨两遍」的成因（回归测试 `dockEnqueue.test.tsx`）。
-    const ids = selectedNodeIdsOfSig(selectedSig);
-    const fresh = ids.filter((id) => !handledRef.current.has(id));
-    // 折叠与否都要**跟上**已处理集，否则展开瞬间会把「折叠期间选中过」的节点补入轨
-    handledRef.current = new Set(ids);
-    // C11.5 激活门：折叠态**不留痕**
-    if (!open) return;
-    for (const id of fresh) void enqueue(id);
-  }, [selectedSig, open, enqueue]);
-
-  /* ════════════════════════════════════════════════════════════════
-   * 拖拽（`docs/120` §0.4 粗档：拖序 / 调片段长度）
-   * ════════════════════════════════════════════════════════════════ */
-
-  /** 拖拽起点：记下片段的**原始**字段（增量相对起点算，见 `ClipDrag`）。 */
-  const beginClipDrag = useCallback(
-    (e: ReactPointerEvent, clip: Clip, track: Track, mode: ClipDrag['mode']) => {
-      if (track.locked) {
-        // C7.3：锁定轨禁止一切编辑 —— 拖动是编辑，明说（不静默吞掉这次拖拽）
-        showToast(`「${track.name}」已锁定，不可拖动`);
-        return;
-      }
-      e.stopPropagation();
-      setSelectedClipId(clip.id);
-      dragRef.current = {
-        mode,
-        clipId: clip.id,
-        trackId: track.id,
-        originX: e.clientX,
-        origin: {
-          timelineStart: clip.timelineStart,
-          sourceStart: clip.sourceStart,
-          sourceEnd: clip.sourceEnd,
-        },
-      };
-      setDragging(true);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!dragging) return;
-    const onMove = (e: PointerEvent) => {
-      const drag = dragRef.current;
-      if (!drag || !project) return;
-      const track = project.tracks.find((t) => t.id === drag.trackId);
-      const clip = track?.clips.find((c) => c.id === drag.clipId);
-      if (!track || !clip) return;
-      const dt = pxDeltaToTime(e.clientX - drag.originX, pps);
-
-      if (drag.mode === 'move') {
-        // 目标时刻 = 起点时刻 + 指针位移，再吸附到**本轨其它片段**的边界
-        // （候选从哪来是宿主判据；`snapTime` 只回答"最近的候选是哪条"）
-        const raw = Math.max(0, drag.origin.timelineStart + dt);
-        const t = snapTime(
-          raw,
-          clipEdges(track.clips.filter((c) => c.id !== clip.id)),
-          pps,
-          SNAP_TOLERANCE_PX,
-        );
-        store.applyTracks((tracks) =>
-          tracks.map((tr) => {
-            if (tr.id !== track.id) return tr;
-            // 主轨是磁吸的：横向拖 = **拖序**（落点序号由 `dropIndexAt` 给，重排后压实）
-            // 自由轨（音频）：横向拖 = 自由摆位（`placeClipAt`，不压实 —— 会毁掉用户摆的空隙）
-            return tr.overlay
-              ? { ...tr, clips: placeClipAt(tr.clips, clip.id, t) }
-              : { ...tr, clips: moveClipTo(tr.clips, clip.id, dropIndexAt(tr.clips, t, clip.id)) };
-          }),
-        );
-        return;
-      }
-
-      // 调片段长度（粗档）：只改**源端点**。磁吸轨由 `updateClip` 内部的压实收尾，自由轨保留位置。
-      // 不做吸附：两种轨上「边缘」都不是自由变量（磁吸轨边缘由压实决定，自由轨边缘不动）——
-      // 硬吸会把边缘吸到一条它根本到不了的位置上。
-      const isLeft = drag.mode === 'trimLeft';
-      const next = isLeft ? drag.origin.sourceStart + dt : drag.origin.sourceEnd + dt;
-      store.applyTracks((tracks) =>
-        updateClip(tracks, clip.id, (c) =>
-          isLeft
-            ? { ...c, sourceStart: Math.max(0, Math.min(next, c.sourceEnd - EPS)) }
-            : { ...c, sourceEnd: Math.max(c.sourceStart + EPS, next) },
-        ),
-      );
-    };
-    const onUp = () => {
-      dragRef.current = null;
-      setDragging(false);
-    };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
-    };
-  }, [dragging, project, pps, store]);
-
-  /* ════════════════════════════════════════════════════════════════
-   * 编辑动作（工带）—— 全部经 `core/` 原语，能力判据直接问原语
-   * ════════════════════════════════════════════════════════════════ */
-
-  const applyMain = useCallback(
-    (fn: (clips: Clip[]) => Clip[] | null) => {
-      store.applyTracks((tracks) =>
-        tracks.map((t) => {
-          if (t.overlay) return t;
-          const next = fn(t.clips);
-          return next ? { ...t, clips: next } : t;
-        }),
-      );
-    },
-    [store],
-  );
-
-  const setPlayhead = useCallback(
-    (t: number) => {
-      store.applyProjectPatch({ playhead: Math.max(0, Math.min(totalDuration, t)) });
-    },
-    [store, totalDuration],
-  );
-
-  /** C15.2 复制：主轨 = 紧随其后并压实（`duplicateClip`）；自由轨 = 落到轨尾（不压实毁位置）。 */
-  const duplicateSelected = useCallback(() => {
-    if (!selectedClipId) return;
-    store.applyTracks((tracks) =>
-      tracks.map((t) => {
-        const source = t.clips.find((c) => c.id === selectedClipId);
-        if (!source) return t;
-        if (!t.overlay) return { ...t, clips: duplicateClip(t.clips, selectedClipId) };
-        return {
-          ...t,
-          clips: [...t.clips, { ...source, id: generateId('clip'), timelineStart: appendTime(t) }],
-        };
-      }),
-    );
-  }, [selectedClipId, store]);
-
-  const onKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (!open) return;
-      // 输入框内不劫键（时间码输入框等）；Esc 不接管（C10.2）
-      if (isEditableTarget(e)) return;
-      const action = editorKeyAction(e);
-      if (!action) return;
+  /* ── 基座高度拖柄（C7.5，`Project.ui.dockHeight` 落盘）。点一下无拖动不做，拖过阈值才收起。 */
+  const dockResizeRef = useRef<{ startY: number; startH: number; lastY: number } | null>(null);
+  const beginDockResize = useCallback(
+    (e: ReactPointerEvent) => {
+      if (e.button !== 0) return;
       e.preventDefault();
-      if (action === 'undo') store.undo();
-      else if (action === 'redo') store.redo();
-      else if (action === 'delete' && selectedClipId) {
-        applyMain((clips) => removeClips(clips, [selectedClipId], 'lift'));
-      }
-    },
-    [open, store, selectedClipId, applyMain],
-  );
-
-  useEffect(() => {
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onKeyDown]);
-
-  // 能力判据：**直接问原语**（不做第二套「能不能切」的推断），不可用即置灰 + tooltip（O3）
-  const canSplit = splitAt(mainClips, playhead) !== null;
-  const canTrimLeft = trimLeftAt(mainClips, playhead) !== null;
-  const canTrimRight = trimRightAt(mainClips, playhead) !== null;
-  const canDelete = selectedClipId !== null && mainClips.some((c) => c.id === selectedClipId);
-
-  /* ════════════════════════════════════════════════════════════════
-   * 导出（`docs/120` C4 / C5.6）—— G4 产出在此获得**生产消费者**
-   * ════════════════════════════════════════════════════════════════ */
-
-  /** 参与导出的片段 + 画像。**断链片段不入清单** —— 由 C13 预检条让用户知情，不静默跳过。 */
-  const exportRequest = useMemo((): ExportRequest | null => {
-    if (!project) return null;
-    const sources2: ExportRequest['sources'] = [];
-    const profiles = new Map<string, NonNullable<ClipProfile>>();
-    for (const clip of allClips) {
-      const state = sources.byClipId.get(clip.id);
-      if (!state || state.resolved.status !== 'ok') continue;
-      sources2.push({ clip, url: state.resolved.url });
-      if (state.profile) profiles.set(clip.id, state.profile);
-    }
-    return { project, sources: sources2, profiles };
-  }, [project, allClips, sources]);
-
-  /** C5.1 / C5.6：走哪条路 + 为什么 —— **常驻可见**（不「悄悄掉画质」）。 */
-  const plan = useMemo(() => (exportRequest ? planExport(exportRequest) : null), [exportRequest]);
-
-  /** C12.2：M1 只做「如实显示」黑边，不假装能消掉（消黑边是 M2 的 fit 模式）。 */
-  const letterbox = useMemo(() => {
-    if (!project) return 'unknown' as const;
-    const target = project.settings.width / Math.max(1, project.settings.height);
-    const sized = allClips
-      .map((c) => sources.byClipId.get(c.id)?.profile)
-      .filter((p): p is ClipProfile => p?.width !== undefined && p?.height !== undefined);
-    if (sized.length === 0) return 'unknown' as const;
-    return sized.some(
-      (p) => Math.abs((p.width as number) / Math.max(1, p.height as number) - target) > 0.01,
-    )
-      ? ('yes' as const)
-      : ('no' as const);
-  }, [project, allClips, sources]);
-
-  /** url → 素材类别（导出端口取字节时需要，用于命中/补建探测缓存）。 */
-  const kindByUrl = useMemo(() => {
-    const map = new Map<string, ClipKind>();
-    for (const clip of allClips) {
-      const state = sources.byClipId.get(clip.id);
-      if (state?.resolved.status === 'ok') map.set(state.resolved.url, clip.kind);
-    }
-    return map;
-  }, [allClips, sources]);
-
-  const [exporting, setExporting] = useState(false);
-  const [exportStage, setExportStage] = useState<ExportStage | null>(null);
-  const [exportProgress, setExportProgress] = useState(0);
-  const abortRef = useRef<AbortController | null>(null);
-
-  /** C4.1：导出**新建节点**（剪辑是破坏性的，覆盖会让原始素材在画布上无从找回）。 */
-  const spawnAssetNode = useCallback(
-    (url: string, name: string) => {
-      // 落点 = 当前视窗中心（C4：**不依赖任何「锚点节点」**）
-      const center = flow.screenToFlowPosition({
-        x: window.innerWidth / 2,
-        y: window.innerHeight / 2,
-      });
-      const node: Node = {
-        id: `export-${generateId('n')}`,
-        type: 'assetNode',
-        position: center,
-        // C4.8：必须是**既有、可被下游消费**的节点形态 —— 与 `VideoProcessNode` 产物同款。
-        // 字段名用 `assetUrl` 而非 `videoUrl`：`nodeMedia.getNodeMedia` 两者都认，
-        // 但 `assetNode` 与全仓产物用的是 `assetUrl`；并存两个名就是「两名指一物」。
-        data: { assetUrl: url, assetType: 'video', label: name, expanded: true },
-        style: EXPORT_NODE_STYLE,
+      e.stopPropagation();
+      const projectNow = storeRef.current.project;
+      if (!projectNow) return;
+      dockResizeRef.current = {
+        startY: e.clientY,
+        startH: projectNow.ui?.dockHeight ?? 280,
+        lastY: e.clientY,
       };
-      spawnAndCommit(
-        { childNodes: [node], edges: [] },
-        {
-          getNodes: flow.getNodes,
-          getEdges: flow.getEdges,
-          setNodes: flow.setNodes,
-          setEdges: flow.setEdges,
-          history: history ?? undefined,
-        },
-      );
+      const onMove = (ev: PointerEvent) => {
+        const d = dockResizeRef.current;
+        if (!d) return;
+        d.lastY = ev.clientY;
+        const next = Math.min(
+          DOCK_MAX_HEIGHT,
+          Math.max(DOCK_MIN_HEIGHT, d.startH + (d.startY - ev.clientY)),
+        );
+        storeRef.current.applyProjectPatch({
+          ui: { ...(storeRef.current.project?.ui ?? {}), dockHeight: next },
+        });
+      };
+      const onUp = () => {
+        const d = dockResizeRef.current;
+        if (d && d.lastY - d.startY > 60) onClose(); // 大幅度往下拖才收起
+        dockResizeRef.current = null;
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
     },
-    [flow, history],
+    [onClose],
   );
-
-  const onExport = useCallback(async () => {
-    if (!exportRequest || !plan) return;
-    if (exportRequest.sources.length === 0) {
-      showToast('时间轴上没有可导出的片段');
-      return;
-    }
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setExporting(true);
-    setExportStage(null);
-    setExportProgress(0);
-    try {
-      const outcome = await runExport(exportRequest, {
-        signal: controller.signal,
-        callbacks: { onStage: setExportStage, onProgress: setExportProgress },
-        // 复用探测缓存里的字节（探测已读过一遍，导出不该再下一遍）
-        ports: { fetchBlob: (url) => readSourceBlob(url, kindByUrl.get(url) ?? 'video') },
-      });
-      if (controller.signal.aborted) {
-        showToast('导出已取消');
-        return;
-      }
-      if (outcome.status === 'reject') {
-        showToast(outcome.reason);
-        return;
-      }
-      // C4.2：导出是异步的，期间用户可能切项目 / 关基座 —— 回写前复核，失效则丢弃并告知
-      if (!aliveRef.current) {
-        showToast('工程已切换，本次导出结果已丢弃');
-        return;
-      }
-      const uploaded = await uploadResult(outcome.value.blob, {
-        subfolder: UPLOAD_DIRS.videoEditor,
-      });
-      if (!aliveRef.current) {
-        showToast('工程已切换，本次导出结果已丢弃');
-        return;
-      }
-      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-      spawnAssetNode(uploaded.url, `剪辑_${stamp}.mp4`);
-      // C4.3：如实告知音频去向，不让用户自己发现「怎么没声音」
-      showToast(outcome.status === 'degraded' ? `导出完成，但${outcome.reason}` : '导出完成');
-    } catch (e) {
-      if (controller.signal.aborted) showToast('导出已取消');
-      else showToast(`导出失败：${e instanceof Error ? e.message : '未知原因'}`);
-    } finally {
-      abortRef.current = null;
-      setExporting(false);
-      setExportStage(null);
-    }
-  }, [exportRequest, plan, kindByUrl, spawnAssetNode]);
-
-  const trackAreaRef = useRef<HTMLDivElement | null>(null);
 
   return (
     <section
       aria-label="视频剪辑器"
       data-video-editor-dock
-      className={`relative flex flex-col border-t border-border bg-surface-panel-2 text-primary ${open ? '' : 'hidden'}`}
+      className={`relative flex flex-col border-t border-edge bg-surface-deep text-primary ${open ? '' : 'hidden'}`}
       style={{ height: project?.ui.dockHeight ?? 280 }}
     >
-      {/* ── 工带 ── */}
-      <header className="flex items-center gap-2 px-3 h-10 border-b border-border text-xs">
-        <button
-          type="button"
-          className="px-2 py-1 rounded hover:bg-surface-hover"
-          title="收起剪辑器"
-          onClick={onClose}
+      {/* 走带真出声（docs/120 C11.7 · M1）：随播放头对齐的隐藏媒体元素 */}
+      <PlaybackSink
+        open={open}
+        playing={transport.playing}
+        playhead={transport.displayHead}
+        tracks={project?.tracks ?? EMPTY_TRACKS}
+        sources={sources.byClipId}
+      />
+      {/* 顶部拖柄（mockup `.vd-grip`）：竖直拖动调基座高度 */}
+      <div
+        role="separator"
+        aria-label="拖动调整剪辑器高度"
+        title="拖动调整高度"
+        className="h-1.5 shrink-0 flex items-center justify-center cursor-ns-resize touch-none hover:bg-surface-hover"
+        onPointerDown={beginDockResize}
+      >
+        <span className="w-9 h-[3px] rounded bg-edge" />
+      </div>
+
+      {/* 工带（mockup `.vd-bar`）—— DockToolbar 纯渲染 */}
+      <DockToolbar
+        displayHead={transport.displayHead}
+        totalDuration={transport.totalDuration}
+        playing={transport.playing}
+        pps={pps}
+        canUndo={store.canUndo}
+        canRedo={store.canRedo}
+        onTogglePlay={transport.onTogglePlay}
+        stepToBoundary={transport.stepToBoundary}
+        undo={store.undo}
+        redo={store.redo}
+        editing={drag.editing}
+        duplicateEnabled={
+          !!drag.selectedClipId && allClips.some((c) => c.id === drag.selectedClipId)
+        }
+        canExport={allClips.length > 0}
+        exporting={exp.exporting}
+        exportStage={exp.exportStage}
+        exportProgress={exp.exportProgress}
+        onExport={exp.onExport}
+        abortExport={exp.abortExport}
+        settingsOpen={settingsOpen}
+        onToggleSettings={() => setSettingsOpen((o) => !o)}
+        onPpsChange={setPps}
+        trackAreaRef={transport.trackAreaRef}
+      />
+
+      {/* 常驻信息 / 设置条 / 断链 / 冲突失败 —— DockStatusBar 纯渲染 */}
+      <DockStatusBar
+        settingsOpen={settingsOpen}
+        project={project}
+        rowHeight={rowHeight}
+        applyProjectPatch={store.applyProjectPatch}
+        brokenCount={brokenIds.size}
+        conflict={store.conflict}
+        reload={store.reload}
+        failed={store.status === 'failed'}
+        reason={store.reason}
+        exportInfoReason={exp.plan?.reason ?? null}
+        letterbox={exp.letterbox}
+      />
+
+      {/* ── 轨道区（mockup O5：固定左列图标网格 + 右侧滚动区，二者同高逐行对齐）── */}
+      <div className="relative flex-1 flex min-h-0">
+        {/* 固定左列：标尺占位 + 每条轨的图标网格头（锁定 / 隐藏 / 静音用颜色状态） */}
+        <div
+          className="shrink-0 flex flex-col border-r border-edge-faint bg-surface-deep"
+          style={{ width: TRACK_LABEL_PX }}
         >
-          <ChevronDown size={14} />
-        </button>
-        <span className="tabular-nums font-medium">{formatTickLabel(playhead, 1)}</span>
-        <span className="opacity-50">/</span>
-        <span className="tabular-nums opacity-70">{formatTickLabel(totalDuration, 1)}</span>
+          <div className="shrink-0 border-b border-edge-faint" style={{ height: RULER_HEIGHT }} />
+          {project?.tracks.map((track) => (
+            <TrackHead
+              key={track.id}
+              track={track}
+              rowHeight={rowHeight}
+              onToggle={(patch) =>
+                store.applyTracks((tracks) =>
+                  tracks.map((t) => (t.id === track.id ? { ...t, ...patch } : t)),
+                )
+              }
+            />
+          ))}
+        </div>
 
-        <span className="w-px h-4 bg-border mx-1" />
-
-        <DockAction
-          icon={<Scissors size={14} />}
-          label="分割"
-          enabled={canSplit}
-          disabledHint="把播放头移到片段内部再分割"
-          onClick={() => applyMain((clips) => splitAt(clips, playhead))}
-        />
-        <DockAction
-          icon={<Scissors size={14} className="-scale-x-100" />}
-          label="裁左"
-          enabled={canTrimLeft}
-          disabledHint="把播放头移到片段内部"
-          onClick={() => applyMain((clips) => trimLeftAt(clips, playhead))}
-        />
-        <DockAction
-          icon={<Scissors size={14} />}
-          label="裁右"
-          enabled={canTrimRight}
-          disabledHint="把播放头移到片段内部"
-          onClick={() => applyMain((clips) => trimRightAt(clips, playhead))}
-        />
-        <DockAction
-          icon={<span className="text-[11px]">⏸</span>}
-          label="定格"
-          enabled={canSplit}
-          disabledHint="把播放头移到片段内部"
-          onClick={() =>
-            applyMain(
-              (clips) => freezeFrameAt(clips, playhead, DEFAULT_IMAGE_CLIP_DURATION)?.clips ?? null,
-            )
-          }
-        />
-
-        <span className="w-px h-4 bg-border mx-1" />
-
-        <DockAction
-          icon={<Trash2 size={14} />}
-          label="删除(留洞)"
-          enabled={canDelete}
-          disabledHint="先选中一个片段"
-          onClick={() =>
-            applyMain((clips) =>
-              selectedClipId ? removeClips(clips, [selectedClipId], 'lift') : null,
-            )
-          }
-        />
-        <DockAction
-          icon={<Trash2 size={14} />}
-          label="删除(波纹)"
-          enabled={canDelete}
-          disabledHint="先选中一个片段"
-          onClick={() =>
-            applyMain((clips) =>
-              selectedClipId ? removeClips(clips, [selectedClipId], 'ripple') : null,
-            )
-          }
-        />
-
-        <span className="ml-auto" />
-
-        {/* C15.2 复制片段：复用已修剪物料（"再点一次节点"只会拿到完整素材） */}
-        <DockAction
-          icon={<Copy size={14} />}
-          label="复制"
-          enabled={selectedClipId !== null && allClips.some((c) => c.id === selectedClipId)}
-          disabledHint="先选中一个片段"
-          onClick={duplicateSelected}
-        />
-
-        <DockAction
-          icon={<Undo2 size={14} />}
-          label="撤销"
-          enabled={store.canUndo}
-          disabledHint="没有可撤销的编辑"
-          onClick={store.undo}
-        />
-        <DockAction
-          icon={<Redo2 size={14} />}
-          label="重做"
-          enabled={store.canRedo}
-          disabledHint="没有可重做的编辑"
-          onClick={store.redo}
-        />
-
-        <span className="w-px h-4 bg-border mx-1" />
-
-        {/* 时间轴缩放（⊖ + 滑块 + ⊕ + 自适应）—— `clampZoom` 走同一取值域，`fitZoom` 管"一屏看全" */}
-        <button
-          type="button"
-          className="px-2 py-1 rounded hover:bg-surface-hover"
-          title="缩小时间轴"
-          onClick={() => setPps(clampZoom(pps / ZOOM_STEP))}
-        >
-          ⊖
-        </button>
-        <input
-          type="range"
-          min={MIN_PIXELS_PER_SECOND}
-          max={MAX_PIXELS_PER_SECOND}
-          step={1}
-          value={Math.round(pps)}
-          title="时间轴缩放"
-          className="w-24 accent-current"
-          onChange={(e) => setPps(clampZoom(Number(e.target.value)))}
-        />
-        <button
-          type="button"
-          className="px-2 py-1 rounded hover:bg-surface-hover"
-          title="放大时间轴"
-          onClick={() => setPps(clampZoom(pps * ZOOM_STEP))}
-        >
-          ⊕
-        </button>
-        <button
-          type="button"
-          className="px-1.5 py-1 rounded hover:bg-surface-hover"
-          title="缩放到一屏看全"
-          onClick={() => {
-            const el = trackAreaRef.current;
-            if (el) setPps(fitZoom(totalDuration, el.clientWidth));
+        {/* 右侧滚动区：标尺 + 轨道行 + 播放头（同一时间原点 = 本区左缘，无左列偏移） */}
+        <div
+          ref={transport.trackAreaRef}
+          className="relative flex-1 overflow-x-auto text-primary"
+          onPointerDown={(e) => {
+            // 点轨道区 = 移动播放头（D 组换算原语的消费点），并**吸附到片段边界**
+            const rect = e.currentTarget.getBoundingClientRect();
+            if (rect.width <= 0) return;
+            const raw = xToTime(e.clientX - rect.left + e.currentTarget.scrollLeft, pps, 0);
+            transport.setPlayhead(
+              snapTime(
+                raw,
+                clipEdges(project?.tracks.flatMap((t) => t.clips) ?? []),
+                pps,
+                SNAP_TOLERANCE_PX,
+              ),
+            );
           }}
         >
-          ⤢
-        </button>
-
-        <span className="w-px h-4 bg-border mx-1" />
-
-        {/* 导出 + 阶段进度（`docs/123` §一.5 O2：长任务要能看出卡在哪一步） */}
-        <div className="flex items-center gap-2">
-          {exporting && (
-            <span className="tabular-nums opacity-70">
-              {STAGE_LABEL[exportStage ?? 'audio']} {Math.round(exportProgress * 100)}%
-            </span>
+          {store.status === 'loading' && (
+            <div className="p-3 text-xs opacity-60">正在加载工程…</div>
           )}
-          <button
-            type="button"
-            disabled={exporting || allClips.length === 0}
-            title={exporting ? '导出中…' : '导出为画布节点'}
-            onClick={() => void onExport()}
-            className={`px-2 py-1 rounded ${
-              exporting || allClips.length === 0
-                ? 'opacity-40 cursor-not-allowed'
-                : 'hover:bg-surface-hover'
-            }`}
-          >
-            导出
-          </button>
-          {exporting && (
-            <button
-              type="button"
-              className="px-2 py-1 rounded hover:bg-surface-hover"
-              onClick={() => abortRef.current?.abort()}
-            >
-              取消
-            </button>
-          )}
-        </div>
-      </header>
 
-      {/* ── C5.6：导出前信息**常驻**（路径 / 工程参数 / 黑边 / 音频出口），不弹预检窗 ── */}
-      {project && (
-        <div className="px-3 py-1 text-[11px] opacity-70 truncate" data-export-info>
-          {plan?.reason ?? '正在判断导出路径…'}
-          <span className="mx-1">·</span>
-          {project.settings.width}×{project.settings.height}
-          <span className="mx-1">·</span>
-          {project.fps}fps
-          <span className="mx-1">·</span>
-          {letterbox === 'yes'
-            ? '成片会有黑边（片段比例 ≠ 工程比例）'
-            : letterbox === 'no'
-              ? '无黑边'
-              : '片段尺寸未探测，可能带黑边'}
-          <span className="mx-1">·</span>
-          音频出口 AAC 48kHz
-        </div>
-      )}
-
-      {/* ── C13：断链预检 —— 只有**真的需要决策**时才拦一次（其余信息常驻，见上） ── */}
-      {brokenIds.size > 0 && (
-        <div className="px-3 py-1 text-xs bg-danger/15 text-danger" data-broken-banner>
-          有 {brokenIds.size} 个片段素材读不到 —— 导出会**跳过**这些片段，其余照常。
-        </div>
-      )}
-
-      {/* ── 状态条：冲突 / 失败 / 加载（诚实可见，不静默）── */}
-      {store.conflict && (
-        <div className="px-3 py-1 text-xs bg-danger/15 text-danger flex items-center gap-2">
-          工程已在别处更新，本次改动**未落盘**（本地改动保留）。
-          <button type="button" className="underline" onClick={store.reload}>
-            重新加载
-          </button>
-        </div>
-      )}
-      {store.status === 'failed' && (
-        <div className="px-3 py-1 text-xs bg-danger/15 text-danger">
-          工程读取失败：{store.reason ?? '未知原因'}
-        </div>
-      )}
-
-      {/* ── 轨道区 ── */}
-      <div
-        ref={trackAreaRef}
-        className="relative flex-1 overflow-x-auto"
-        onPointerDown={(e) => {
-          // 点轨道区 = 移动播放头（D 组换算原语的消费点），并**吸附到片段边界**
-          // （`docs/123` §二.9 第 4 行的地基解：「落在边界」由此成为明确状态）
-          const rect = e.currentTarget.getBoundingClientRect();
-          if (rect.width <= 0) return;
-          const raw = xToTime(e.clientX - rect.left + e.currentTarget.scrollLeft, pps, 0);
-          setPlayhead(
-            snapTime(
-              raw,
-              clipEdges(project?.tracks.flatMap((t) => t.clips) ?? []),
-              pps,
-              SNAP_TOLERANCE_PX,
-            ),
-          );
-        }}
-      >
-        {store.status === 'loading' && <div className="p-3 text-xs opacity-60">正在加载工程…</div>}
-
-        {project?.tracks.map((track) => (
-          <TrackRow
-            key={track.id}
-            track={track}
+          <RulerStrip
+            hasProject={!!project}
             pps={pps}
-            selectedClipId={selectedClipId}
-            brokenIds={brokenIds}
-            visuals={visuals}
-            onClipPointerDown={beginClipDrag}
-            onSelectClip={setSelectedClipId}
-            onToggle={(patch) =>
-              store.applyTracks((tracks) =>
-                tracks.map((t) => (t.id === track.id ? { ...t, ...patch } : t)),
-              )
-            }
+            totalDuration={transport.totalDuration}
+            displayHead={transport.displayHead}
+            onPlayheadPointerDown={transport.beginPlayheadDrag}
           />
-        ))}
 
-        {/* 播放头 */}
-        {project && (
-          <div
-            className="absolute top-0 bottom-0 w-px bg-danger pointer-events-none"
-            style={{ left: timeToX(playhead, pps, 0) }}
-          />
-        )}
+          {/* 空态提示（mockup `.vd-hollow`）：轨道还空着时给一句引导 */}
+          {project && transport.totalDuration <= 0 && (
+            <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted pointer-events-none">
+              在画布上点选素材即可入轨
+            </div>
+          )}
+
+          {project?.tracks.map((track) => (
+            <Lane
+              key={track.id}
+              track={track}
+              pps={pps}
+              rowHeight={rowHeight}
+              selectedClipId={drag.selectedClipId}
+              brokenIds={brokenIds}
+              visuals={visuals}
+              onClipPointerDown={drag.beginClipDrag}
+              onSelectClip={drag.setSelectedClipId}
+            />
+          ))}
+        </div>
       </div>
     </section>
   );
 }
 
-/** 空片段数组的稳定引用（避免每次渲染新建数组导致下游 memo 失效）。 */
-const EMPTY_CLIPS: Clip[] = [];
-
-/** 探测画像的窄类型（`MediaProfile` 的形状；此处不自造新类型，只做局部别名便于可空收窄）。 */
-type ClipProfile = { width?: number; height?: number; mimeType?: string };
+/** 空轨道数组的稳定引用（供 PlaybackSink 等无工程时占位）。 */
+const EMPTY_TRACKS: Track[] = [];
 
 /** 片段在时间轴上的画面素材（胶片条 / 图片本体 / 波形）。 */
 interface ClipVisual {
@@ -945,18 +384,14 @@ interface ClipVisual {
   sourceDuration: number;
   stripUrl?: string;
   peaks?: Float32Array;
+  /** 是否含内联音轨（🔊 角标；缺省=未知，仅 `true` 显示）。 */
+  hasAudio?: boolean;
 }
 
 /**
  * 片段「画面区」的 CSS。
- *
- * 三种素材三种处理，且都**不是「随便找个图填上」**：
- *  · 视频片段：用**共享的那一条**胶片图 + `filmstripBackground` 映射到本片段取用的源区间（裁剪即所见，C11.10）；
- *  · 图片片段：没有时间维度，直接显示素材本体（`contain`，**不裁切** —— C11.10 明确不要 `object-cover`）；
- *  · 其余（胶片条还没抽出来 / 音频轨）：**留空**。
- *
- * 【为什么宁可留空也不填占位图案】C11.7b 的原话：「用固定图案冒充波形会被读成真实音量，属于撒谎」。
- * 同理，给视频填一张假缩略图会被读成「这一镜就是这个画面」—— 空着至少是诚实的「还没抽出来」。
+ * 视频：共享胶片图 + `filmstripBackground` 映射到本片段源区间（裁剪即所见，C11.10）；
+ * 图片：显示素材本体（`contain`，不裁切）；其余：**留空**（不编占位，见 C11.7b「不撒谎」）。
  */
 function clipStripStyle(clip: Clip, visual: ClipVisual | undefined): CSSProperties {
   if (clip.kind === 'image' && visual) {
@@ -975,52 +410,67 @@ function clipStripStyle(clip: Clip, visual: ClipVisual | undefined): CSSProperti
   return {};
 }
 
-/** 音频片段的波形底色（深蓝，C11.7b 形态；波形本体叠加其上）。 */
-const WAVEFORM_BG = 'rgb(22 58 92)';
-
-/** 工带按钮：不可用时**置灰 + tooltip 说明为什么**（`docs/123` §一.5 O3：不可用状态 ≠ 刚发生的动作）。 */
-function DockAction({
-  icon,
-  label,
-  enabled,
-  disabledHint,
-  onClick,
+/** 轨道头（mockup `.ve-thead`）：`[类型][锁][眼][喇叭]` 四列固定图标网格，跨轨列位对齐；状态靠颜色。 */
+function TrackHead({
+  track,
+  rowHeight,
+  onToggle,
 }: {
-  icon: ReactNode;
-  label: string;
-  enabled: boolean;
-  disabledHint: string;
-  onClick: () => void;
+  track: Track;
+  rowHeight: number;
+  onToggle: (patch: Partial<Pick<Track, 'locked' | 'hidden' | 'muted'>>) => void;
 }) {
   return (
-    <button
-      type="button"
-      disabled={!enabled}
-      title={enabled ? label : disabledHint}
-      onClick={onClick}
-      className={`flex items-center gap-1 px-2 py-1 rounded ${
-        enabled ? 'hover:bg-surface-hover' : 'opacity-40 cursor-not-allowed'
-      }`}
+    <div
+      className="shrink-0 flex items-center justify-center gap-0.5"
+      style={{ height: rowHeight }}
+      data-track-id={track.id}
     >
-      {icon}
-      <span>{label}</span>
-    </button>
+      <span className="opacity-60" title={track.name}>
+        {track.kind === 'audio' ? <AudioLines size={13} /> : <Video size={13} />}
+      </span>
+      <button
+        type="button"
+        className={track.locked ? 'text-accent' : 'text-muted hover:text-secondary'}
+        title={track.locked ? '解锁' : '锁定'}
+        onClick={() => onToggle({ locked: !track.locked })}
+      >
+        {track.locked ? <Lock size={13} /> : <LockOpen size={13} />}
+      </button>
+      <button
+        type="button"
+        className={track.hidden ? 'text-accent' : 'text-muted hover:text-secondary'}
+        title={track.hidden ? '显示' : '隐藏'}
+        onClick={() => onToggle({ hidden: !track.hidden })}
+      >
+        {track.hidden ? <EyeOff size={13} /> : <Eye size={13} />}
+      </button>
+      <button
+        type="button"
+        className={track.muted ? 'text-accent' : 'text-muted hover:text-secondary'}
+        title={track.muted ? '取消静音' : '静音'}
+        onClick={() => onToggle({ muted: !track.muted })}
+      >
+        {track.muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+      </button>
+    </div>
   );
 }
 
-/** 一条轨：轨道头（名 + 三状态）+ 片段条。 */
-function TrackRow({
+/** 一条轨道行（滚动区内，mockup `.ve-lane`）：只放片段，左列已由固定列 `TrackHead` 承担。 */
+function Lane({
   track,
   pps,
+  rowHeight,
   selectedClipId,
   brokenIds,
   visuals,
   onClipPointerDown,
   onSelectClip,
-  onToggle,
 }: {
   track: Track;
   pps: number;
+  rowHeight: number;
   selectedClipId: string | null;
   brokenIds: Set<string>;
   visuals: ReadonlyMap<string, ClipVisual>;
@@ -1031,126 +481,109 @@ function TrackRow({
     mode: 'move' | 'trimLeft' | 'trimRight',
   ) => void;
   onSelectClip: (id: string) => void;
-  onToggle: (patch: Partial<Pick<Track, 'locked' | 'hidden' | 'muted'>>) => void;
 }) {
   return (
-    <div className="flex items-stretch border-b border-border" data-track-id={track.id}>
-      <div className="w-28 shrink-0 flex items-center gap-1 px-2 py-1 text-xs border-r border-border">
-        <span className="truncate">{track.name}</span>
-        <button
-          type="button"
-          className="ml-auto opacity-70 hover:opacity-100"
-          title={track.locked ? '解锁' : '锁定'}
-          onClick={() => onToggle({ locked: !track.locked })}
-        >
-          {track.locked ? <Lock size={12} /> : <LockOpen size={12} />}
-        </button>
-        <button
-          type="button"
-          className="opacity-70 hover:opacity-100"
-          title={track.hidden ? '显示' : '隐藏'}
-          onClick={() => onToggle({ hidden: !track.hidden })}
-        >
-          {track.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
-        </button>
-        <button
-          type="button"
-          className="opacity-70 hover:opacity-100"
-          title={track.muted ? '取消静音' : '静音'}
-          onClick={() => onToggle({ muted: !track.muted })}
-        >
-          {track.muted ? <VolumeX size={12} /> : <Volume2 size={12} />}
-        </button>
-      </div>
-
-      <div className="relative flex-1 min-w-full" style={{ height: ROW_HEIGHT }}>
-        {track.clips.map((clip) => {
-          const broken = brokenIds.has(clip.id);
-          const visual = visuals.get(clip.id);
-          return (
-            <div
-              key={clip.id}
-              role="button"
-              tabIndex={0}
-              onPointerDown={(e) => onClipPointerDown(e, clip, track, 'move')}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectClip(clip.id);
-              }}
-              className={`absolute flex flex-col overflow-hidden rounded border ${
-                broken
-                  ? 'border-danger bg-danger/30 text-danger'
-                  : selectedClipId === clip.id
-                    ? 'border-danger bg-danger/20'
-                    : 'border-border bg-surface-panel'
-              } cursor-grab active:cursor-grabbing`}
-              style={{
-                left: timeToX(clip.timelineStart, pps, 0),
-                width: Math.max(2, timeDeltaToPx(clipDuration(clip), pps)),
-                top: CLIP_INSET,
-                bottom: CLIP_INSET,
-              }}
-              // C13：断链是**持续状态**（红标 + 原因），不是一次性 toast
-              title={
-                broken
-                  ? `${clip.name ?? clip.id} · 素材已失效`
-                  : `${clip.name ?? clip.id} · ${clipDuration(clip).toFixed(2)}s`
-              }
+    <div
+      className="relative rounded-md bg-surface-sunken"
+      style={{ height: rowHeight }}
+      data-lane-id={track.id}
+    >
+      {track.clips.map((clip) => {
+        const broken = brokenIds.has(clip.id);
+        const visual = visuals.get(clip.id);
+        return (
+          <div
+            key={clip.id}
+            role="button"
+            tabIndex={0}
+            onPointerDown={(e) => onClipPointerDown(e, clip, track, 'move')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectClip(clip.id);
+            }}
+            className={`absolute flex flex-col overflow-hidden rounded-[5px] border cursor-grab active:cursor-grabbing ${
+              broken
+                ? 'border-danger/60 bg-danger/15'
+                : selectedClipId === clip.id
+                  ? 'bg-surface-1'
+                  : 'border-white/10 bg-surface-1 hover:border-white/25'
+            }`}
+            style={{
+              left: timeToX(clip.timelineStart, pps, 0),
+              width: Math.max(2, timeDeltaToPx(clipDuration(clip), pps)),
+              top: CLIP_INSET,
+              bottom: CLIP_INSET,
+              // 选中：accent 光圈（内联读变量，不依赖 Tailwind 是否生成类）
+              ...(selectedClipId === clip.id
+                ? {
+                    borderColor: 'rgb(var(--mao-accent) / 1)',
+                    boxShadow: '0 0 0 1px rgb(var(--mao-accent) / 1)',
+                  }
+                : {}),
+            }}
+            // C13：断链是**持续状态**（红标 + 原因），不是一次性 toast
+            title={
+              broken
+                ? `${clip.name ?? clip.id} · 素材已失效`
+                : `${clip.name ?? clip.id} · ${clipDuration(clip).toFixed(2)}s`
+            }
+          >
+            {/* C11.10b：素材名**不压在缩略图上** —— 独立的顶部窄条 */}
+            <span
+              className="shrink-0 truncate px-1 text-[9px] leading-[15px] text-white bg-black/45 flex items-center gap-1"
+              style={{ height: CLIP_NAME_BAR }}
             >
-              {/* C11.10b：素材名**不压在缩略图上** —— 独立的顶部窄条（高度写死由 C11.10c 禁，故用常量） */}
-              <span
-                className="shrink-0 truncate px-1 text-[10px] leading-4 bg-surface-panel"
-                style={{ height: CLIP_NAME_BAR }}
-              >
-                {clip.name ?? clip.kind}
-              </span>
-              {/* 胶片条 / 波形 / 图片本体占剩余高度并随之缩放（C11.10c） */}
-              {clip.kind === 'audio' ? (
-                <span
-                  className="min-h-0 flex-1 relative overflow-hidden"
-                  style={{ backgroundColor: WAVEFORM_BG }}
-                  data-clip-waveform
-                >
-                  {visual?.peaks && visual.peaks.length > 0 && (
-                    // 波形与胶片条**共用同一映射**（`waveformSpan`）——
-                    // 若各自实现，就会出现「胶片条是裁剪后的、波形却是整段」这种不报错的漂
-                    <span
-                      className="absolute inset-y-0"
-                      style={waveformSpan(clip, visual.sourceDuration)}
-                    >
-                      <svg
-                        className="w-full h-full"
-                        viewBox={`0 0 ${visual.peaks.length} 100`}
-                        preserveAspectRatio="none"
-                        aria-hidden
-                      >
-                        <path d={waveformPath(visual.peaks)} fill="currentColor" />
-                      </svg>
-                    </span>
-                  )}
-                </span>
-              ) : (
-                <span
-                  className="min-h-0 flex-1 bg-no-repeat text-sky-300"
-                  style={clipStripStyle(clip, visual)}
-                  data-clip-strip
-                />
+              {/* 🔊 角标（docs/120 C4.7）：视频片段含内联音轨才显示；缺省(未知)=不显示，不谎称没声音 */}
+              {clip.kind === 'video' && visual?.hasAudio && (
+                <Volume2 size={9} className="shrink-0 text-sky-300" aria-label="含原声音轨" />
               )}
-              {/* 调片段长度的两个**边缘把手**（§0.4 粗档）。stopPropagation：别把「拖动主体」也触发 */}
+              <span className="truncate">{clip.name ?? clip.kind}</span>
+            </span>
+            {/* 胶片条 / 波形 / 图片本体占剩余高度并随之缩放（C11.10c） */}
+            {clip.kind === 'audio' ? (
               <span
-                aria-label="调左边缘"
-                className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize bg-transparent hover:bg-white/30"
-                onPointerDown={(e) => onClipPointerDown(e, clip, track, 'trimLeft')}
-              />
+                className="min-h-0 flex-1 relative overflow-hidden bg-[linear-gradient(180deg,rgba(59,130,246,.20),rgba(59,130,246,.07))]"
+                data-clip-waveform
+              >
+                {visual?.peaks && visual.peaks.length > 0 && (
+                  // 波形与胶片条**共用同一映射**（`waveformSpan`）
+                  <span
+                    className="absolute inset-y-0"
+                    style={waveformSpan(clip, visual.sourceDuration)}
+                  >
+                    <svg
+                      className="w-full h-full"
+                      viewBox={`0 0 ${visual.peaks.length} 100`}
+                      preserveAspectRatio="none"
+                      aria-hidden
+                    >
+                      <path d={waveformPath(visual.peaks)} fill="currentColor" />
+                    </svg>
+                  </span>
+                )}
+              </span>
+            ) : (
               <span
-                aria-label="调右边缘"
-                className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize bg-transparent hover:bg-white/30"
-                onPointerDown={(e) => onClipPointerDown(e, clip, track, 'trimRight')}
+                className="min-h-0 flex-1 bg-no-repeat text-sky-300"
+                style={clipStripStyle(clip, visual)}
+                data-clip-strip
               />
-            </div>
-          );
-        })}
-      </div>
+            )}
+            {/* 调片段长度的两个**边缘把手**（§0.4 粗档，mockup `.ve-clip .trim`：accent 细条）。
+              stopPropagation：别把「拖动主体」也触发 */}
+            <span
+              aria-label="调左边缘"
+              className="absolute inset-y-0 left-0 w-1 cursor-ew-resize bg-accent/70 hover:bg-accent"
+              onPointerDown={(e) => onClipPointerDown(e, clip, track, 'trimLeft')}
+            />
+            <span
+              aria-label="调右边缘"
+              className="absolute inset-y-0 right-0 w-1 cursor-ew-resize bg-accent/70 hover:bg-accent"
+              onPointerDown={(e) => onClipPointerDown(e, clip, track, 'trimRight')}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }

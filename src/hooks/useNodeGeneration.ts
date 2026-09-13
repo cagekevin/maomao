@@ -249,7 +249,7 @@ export function useNodeGeneration({
         prompt: t.prompt,
         modelName: t.modelName,
         signal: ctl.signal,
-        run: (args) => runRef.current(args),
+        run: (args) => runRef.current!(args),
         // 首写：resultKey 自动 patchData + 节点 onSuccess 特化（与旧实现同序：先写回、后落盘）
         settle: (url, r, taskCtl) => {
           const resultKey = resultKeyRef.current;

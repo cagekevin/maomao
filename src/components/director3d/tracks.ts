@@ -126,11 +126,11 @@ export function duplicateObjectTrack(
               ...key.fields,
               position: offset
                 ? [
-                    (key.fields.position as number[])[0] + offset,
-                    (key.fields.position as number[])[1],
-                    (key.fields.position as number[])[2] + offset,
+                    (key.fields?.position as number[])[0] + offset,
+                    (key.fields?.position as number[])[1],
+                    (key.fields?.position as number[])[2] + offset,
                   ]
-                : (key.fields.position as number[]),
+                : (key.fields?.position as number[]),
             },
           }
         : key,
@@ -156,7 +156,7 @@ export function moveObjectFrames(
     const moved = (Array.isArray(list) ? list : [])
       .filter((key: ChannelKey) => frameMap[key.frame] !== undefined)
       .map((key: ChannelKey) => ({ ...key, frame: frameMap[key.frame] }));
-    if (moved.length) keys[channel] = moved;
+    if (moved.length) keys[channel] = moved as ChannelKey[];
   }
   return writeObjectTrack(tracks, target, {
     op: 'batch',
@@ -182,7 +182,7 @@ export function moveCameraFrames(
     const moved = (Array.isArray(list) ? list : [])
       .filter((key: ChannelKey) => toFrames.has(key.frame))
       .map((key: ChannelKey) => ({ ...key, frame: toFrames.get(key.frame) }));
-    if (moved.length) keys[channel] = moved;
+    if (moved.length) keys[channel] = moved as ChannelKey[];
   }
   return applyTrackOperation(channels, {
     op: 'batch',

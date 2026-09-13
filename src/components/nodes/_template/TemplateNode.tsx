@@ -250,7 +250,11 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
     selectedModel,
     setSelectedModel,
     // 【模板】把所有「由 data 初始化的 state」都放进 sync（外部变更同步，直接读 useGenerateNode 文档）
-    sync: { prompt: setPrompt, aspectRatio: setAspectRatio, selectedModel: setSelectedModel },
+    sync: {
+      prompt: (v: unknown) => setPrompt(v as string),
+      aspectRatio: (v: unknown) => setAspectRatio(v as string),
+      selectedModel: (v: unknown) => setSelectedModel(v as string),
+    },
     resultField: 'assetUrl', // 成功 / 广播恢复自动 patchData({ assetUrl })
     recoverable: true,
     // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生图
@@ -272,7 +276,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
       return generateImage(
         {
           // 真执行器（换成你的 API）
-          provider: useProvider,
+          provider: useProvider!,
           // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）
           prompt: chipResolved.text || effectivePrompt || '',
           model: modelId,
@@ -385,7 +389,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
 
         {/* 右下角手柄：拖拽改主框尺寸 + 双击全屏查看结果（通用） */}
         <ResizeFullscreenHandle
-          targetRef={wrapperRef}
+          targetRef={wrapperRef as React.RefObject<HTMLElement>}
           minWidth={320}
           minHeight={200}
           onRequestFullscreen={() => setFullscreenResult(true)}
@@ -443,7 +447,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
 
         {/* 面板右下角手柄：拖拽改输入框尺寸 + 双击全屏编辑提示词（通用；PromptInput 的 textarea 做 targetRef） */}
         <ResizeFullscreenHandle
-          targetRef={promptInputRef}
+          targetRef={promptInputRef as React.RefObject<HTMLElement>}
           minWidth={360}
           minHeight={80}
           onRequestFullscreen={() => setFullscreenPrompt(true)}

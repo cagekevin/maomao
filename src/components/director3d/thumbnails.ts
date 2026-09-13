@@ -16,6 +16,7 @@ export function thumbnailFromCanvas(source: HTMLCanvasElement) {
     canvas.width = 240;
     canvas.height = 135;
     const context = canvas.getContext('2d');
+    if (!context) return '';
     context.fillStyle = '#11110f';
     context.fillRect(0, 0, canvas.width, canvas.height);
     const scale = Math.min(canvas.width / source.width, canvas.height / source.height);

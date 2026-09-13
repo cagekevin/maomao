@@ -154,9 +154,8 @@ export function patchCurrentMessages(messages?: ConversationMessage[] | null): v
 
 /** 读当前对话的 workflow（副本；无则 null） */
 export function getCurrentWorkflow(): WorkflowState | null {
-  return getActiveConv()?.workflow
-    ? { ...getActiveConv().workflow, steerQueue: [...(getActiveConv().workflow.steerQueue || [])] }
-    : null;
+  const wf = getActiveConv()?.workflow;
+  return wf ? ({ ...wf, steerQueue: [...(wf.steerQueue || [])] } as WorkflowState) : null;
 }
 
 /** 原地补丁当前对话的 workflow（运行时状态；更新后落盘） */
@@ -207,7 +206,8 @@ export function setCurrentPending(p: unknown): void {
 
 /** 读当前对话的 memory（副本；无则空记忆） */
 export function getCurrentMemory(): ConversationMemory {
-  return getActiveConv()?.memory ? normalizeMemory(getActiveConv().memory) : emptyMemory();
+  const mem = getActiveConv()?.memory;
+  return mem ? normalizeMemory(mem) : emptyMemory();
 }
 
 /** 更新当前对话的 memory（提炼 lastPlan 等；【P1b】facts/artifacts 限容） */

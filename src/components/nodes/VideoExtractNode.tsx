@@ -134,7 +134,8 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
   // 必须传 wrapperRef（NodeShell 根 div，含标题栏）作测量基准——若只绑内容区会漏标题栏，
   // 写回的 node.height 比视觉框矮（停在最后内容底部）。syncWidth 保持宽度贴合。
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  useContentHeightSync(null, id, {
+  const contentRef = useRef<HTMLElement | null>(null);
+  useContentHeightSync(contentRef, id, {
     minHeight: mode === 'manual' ? 380 : 220,
     fallbackWidth: 420,
     syncWidth: true,
@@ -177,7 +178,7 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
     if (!f) return;
     setFile(f);
     previewUrls.release(videoUrl); // 替换前释放旧预览，避免计数错位
-    setVideoUrl(previewUrls.create(f));
+    setVideoUrl(previewUrls.create(f) ?? '');
     setVideoName(f.name);
     setErrorMessage('');
     setExtractedImages([]);
@@ -357,12 +358,14 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
       // 分类结果进日志供排查；message 原样透传（错误透传铁律），UI 错误态仍走 errorMessage 节点展示。
       const cls = classifyError(err);
       logger.error('VideoExtractNode', 'Frame extraction failed', {
-        error: err?.message,
+        error: (err as { message?: string })?.message,
         errType: cls.type,
         retryable: cls.retryable,
       });
       setLoading(false);
-      setErrorMessage(err.message || '抽帧失败，可能是视频格式或跨域限制');
+      setErrorMessage(
+        (err as { message?: string }).message || '抽帧失败，可能是视频格式或跨域限制',
+      );
     } finally {
       // 收尾释放本次现场创建的预览 URL，避免重复上传/抽帧累积泄漏（P2-5）
       if (ownUrl) previewUrls.release(ownUrl);

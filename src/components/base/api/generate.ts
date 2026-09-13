@@ -181,7 +181,7 @@ async function generate(
   const intent: RelayIntent = {
     frontTaskId: req.taskId || '',
     type: capability,
-    providerId: provider.id,
+    providerId: provider.id ?? '',
     capability,
     model,
     prompt: req.prompt,
@@ -189,7 +189,9 @@ async function generate(
   };
   if (capability === 'image') {
     const hasRatio = req.aspectRatio && req.aspectRatio !== 'Auto' && req.aspectRatio !== 'auto';
-    const pixel = hasRatio ? resolveImagePixel(req.aspectRatio, req.size || '1K') : req.size || '';
+    const pixel = hasRatio
+      ? resolveImagePixel(req.aspectRatio ?? '', req.size || '1K')
+      : req.size || '';
     intent.size = hasRatio ? pixel : undefined;
   } else {
     intent.size = req.size && req.size !== 'Auto' ? req.size : undefined;

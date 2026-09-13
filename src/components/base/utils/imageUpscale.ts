@@ -120,7 +120,7 @@ export async function upscaleImage(
     dataUrl = canvas.toDataURL(format);
   } catch (e) {
     throw new Error(
-      `图片放大失败：画布被跨域污染（${e?.name || 'SecurityError'}），请改用本地文件或允许跨域`,
+      `图片放大失败：画布被跨域污染（${(e as { name?: string })?.name || 'SecurityError'}），请改用本地文件或允许跨域`,
     );
   }
   const blob = dataUrlToBlob(dataUrl);

@@ -14,11 +14,9 @@ import type {
 } from '../../../src/components/base/utils/encoderProbe.ts';
 import type { LosslessExportResult } from '../../../src/components/base/utils/videoEngine.ts';
 import { createEmptyProject } from '../../../src/components/videoEditor/core/normalize.ts';
+import { audibleClipsOf } from '../../../src/components/videoEditor/core/routeClip.ts';
 import type { Clip, Project, Track } from '../../../src/components/videoEditor/core/types.ts';
-import {
-  audibleClipsOf,
-  computeDrawRect,
-} from '../../../src/components/videoEditor/export/composite.ts';
+import { computeDrawRect } from '../../../src/components/videoEditor/export/composite.ts';
 import {
   planExport,
   runExport,

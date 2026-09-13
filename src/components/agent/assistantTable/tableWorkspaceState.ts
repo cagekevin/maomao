@@ -77,7 +77,9 @@ function loadWidth(): number {
     const n = t ? Number(t) : NaN;
     if (Number.isFinite(n)) return Math.min(WIDTH_MAX, Math.max(WIDTH_MIN, n));
   } catch (e) {
-    logger.warn('AI助手', '表格宽度记忆读取失败，用默认宽', { error: e?.message || String(e) });
+    logger.warn('AI助手', '表格宽度记忆读取失败，用默认宽', {
+      error: (e as { message?: string })?.message || String(e),
+    });
   }
   return WIDTH_DEFAULT;
 }
@@ -193,7 +195,9 @@ export function setTableWorkspaceWidth(px: number): void {
     contentSet(WIDTH_KEY, String(w));
   } catch (e) {
     // 宽度记忆非关键路径：写失败不阻断交互，但要留痕可查（禁静默吞错）
-    logger.warn('AI助手', '表格宽度记忆写入失败', { error: e?.message || String(e) });
+    logger.warn('AI助手', '表格宽度记忆写入失败', {
+      error: (e as { message?: string })?.message || String(e),
+    });
   }
 }
 

@@ -142,7 +142,7 @@ function dominantBoneNameFromHit(event: ThreeEvent<PointerEvent>) {
   return skeleton.bones[bestIndex]?.name || null;
 }
 
-const IK_CHAINS = {
+const IK_CHAINS: Record<string, string[]> = {
   mixamorigLeftHand: ['mixamorigLeftForeArm', 'mixamorigLeftArm'],
   mixamorigRightHand: ['mixamorigRightForeArm', 'mixamorigRightArm'],
   mixamorigLeftFoot: ['mixamorigLeftLeg', 'mixamorigLeftUpLeg'],
@@ -339,13 +339,14 @@ function MixamoPersonModel({
       action.clampWhenFinished = true;
       action.play();
       const basePhase = THREE.MathUtils.clamp(
-        Number.isFinite(poseTime) ? poseTime : preset.phase,
+        Number.isFinite(poseTime) ? poseTime! : preset.phase,
         0,
         1,
       );
+      const duration = preset.duration ?? 0;
       const phase =
-        continuousMotion && preset.loopable && preset.duration > 0
-          ? (((basePhase + animationTime / preset.duration) % 1) + 1) % 1
+        continuousMotion && preset.loopable && duration > 0
+          ? (((basePhase + animationTime / duration) % 1) + 1) % 1
           : basePhase;
       mixer.setTime(clip.duration * phase);
     }
@@ -401,8 +402,8 @@ function MixamoPersonModel({
   const beginIKDrag = useCallback(
     (event: ThreeEvent<PointerEvent>, jointId: string) => {
       const effectorId = ikEffectorForJoint(jointId);
-      const chainIds = IK_CHAINS[effectorId];
-      const effector = bones[effectorId];
+      const chainIds = IK_CHAINS[effectorId ?? ''];
+      const effector = bones[effectorId ?? ''];
       if (
         !selected ||
         !showBoneGizmo ||
@@ -414,18 +415,18 @@ function MixamoPersonModel({
       event.stopPropagation();
       event.nativeEvent?.stopImmediatePropagation?.();
       (event.target as Element | null)?.setPointerCapture?.(event.pointerId);
-      onSelectJoint?.(effectorId);
+      onSelectJoint?.(effectorId ?? '');
       scene.updateMatrixWorld(true);
       const startTarget = effector.getWorldPosition(new THREE.Vector3());
-      const distance = Math.max(0.5, camera.position.distanceTo(startTarget));
-      const fov = THREE.MathUtils.degToRad(camera.fov || 42);
+      const distance = Math.max(0.5, camera!.position.distanceTo(startTarget));
+      const fov = THREE.MathUtils.degToRad(camera!.fov || 42);
       const worldPerPixel = (2 * Math.tan(fov / 2) * distance) / Math.max(1, viewportSize.height);
-      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).normalize();
-      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1).normalize();
+      const right = new THREE.Vector3().setFromMatrixColumn(camera!.matrixWorld, 0).normalize();
+      const up = new THREE.Vector3().setFromMatrixColumn(camera!.matrixWorld, 1).normalize();
       boneDrag.current = {
         kind: 'ik',
         pointerId: event.pointerId,
-        jointId: effectorId,
+        jointId: effectorId ?? '',
         chainIds,
         startX: event.clientX,
         startY: event.clientY,
@@ -433,7 +434,7 @@ function MixamoPersonModel({
         worldPerPixel,
         right,
         up,
-        lockHeight: footLock && effectorId.includes('Foot'),
+        lockHeight: Boolean(footLock && effectorId?.includes('Foot')),
         startQuaternions: Object.fromEntries(
           chainIds.map((id) => [id, bones[id].quaternion.clone()]),
         ),
@@ -496,6 +497,15 @@ function MixamoPersonModel({
       if (!drag || event.pointerId !== drag.pointerId) return;
       event.stopPropagation();
       if (drag.kind === 'ik') {
+        if (
+          !drag.chainIds ||
+          !drag.startTarget ||
+          !drag.worldPerPixel ||
+          !drag.startQuaternions ||
+          !drag.right ||
+          !drag.up
+        )
+          return;
         for (const jointId of drag.chainIds)
           bones[jointId].quaternion.copy(drag.startQuaternions[jointId]);
         scene.updateMatrixWorld(true);
@@ -526,7 +536,7 @@ function MixamoPersonModel({
             currentDirection.normalize();
             targetDirection.normalize();
             worldDelta.setFromUnitVectors(currentDirection, targetDirection);
-            joint.parent.getWorldQuaternion(parentWorld);
+            joint.parent!.getWorldQuaternion(parentWorld);
             localDelta.copy(parentWorld).invert().multiply(worldDelta).multiply(parentWorld);
             joint.quaternion.premultiply(localDelta).normalize();
             scene.updateMatrixWorld(true);
@@ -540,6 +550,7 @@ function MixamoPersonModel({
       }
       const dx = event.clientX - drag.startX;
       const dy = event.clientY - drag.startY;
+      if (!drag.startRotation) return;
       const twist = Boolean(event.shiftKey || event.nativeEvent?.shiftKey);
       const nextRotation = twist
         ? [drag.startRotation[0], drag.startRotation[1], drag.startRotation[2] + dx * 0.012]
@@ -573,6 +584,7 @@ function MixamoPersonModel({
       if (orbitControls) orbitControls.enabled = true;
       document.body.style.cursor = '';
       if (drag.kind === 'ik') {
+        if (!drag.chainIds) return;
         const rotations: Record<string, [number, number, number]> = {};
         const inverseSampled = new THREE.Quaternion();
         const delta = new THREE.Quaternion();
@@ -588,7 +600,7 @@ function MixamoPersonModel({
         }
         onRotateJoints?.(rotations);
       } else {
-        onRotateJoint?.(drag.jointId, drag.nextRotation);
+        onRotateJoint?.(drag.jointId, drag.nextRotation ?? []);
       }
     },
     [bones, onRotateJoint, onRotateJoints, orbitControls],
@@ -654,7 +666,7 @@ function MixamoPersonModel({
               bone={bone}
               jointId={jointId}
               selected={selectedJoint === jointId}
-              modelRoot={modelRoot}
+              modelRoot={modelRoot as React.RefObject<THREE.Group>}
               onSelectJoint={onSelectJoint}
               onBeginDrag={beginBoneDrag}
               onDrag={dragBone}
@@ -669,7 +681,7 @@ function MixamoPersonModel({
               bone={bones[jointId]}
               jointId={jointId}
               selected={selectedJoint === jointId}
-              modelRoot={modelRoot}
+              modelRoot={modelRoot as React.RefObject<THREE.Group>}
               onBeginDrag={beginIKDrag}
               onDrag={dragBone}
               onEndDrag={endBoneDrag}

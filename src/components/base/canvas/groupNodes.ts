@@ -385,7 +385,7 @@ export function duplicateSelectedWithEdges(
       const clonedData = n.data ? { ...n.data } : n.data;
       return {
         ...n,
-        id: newId,
+        id: newId!,
         data: clonedData,
         ...(n.parentId && idMap.has(String(n.parentId))
           ? { parentId: idMap.get(String(n.parentId)) }
@@ -408,8 +408,8 @@ export function duplicateSelectedWithEdges(
     remappedEdges.push({
       ...e,
       id: `${e.id}-dup-${generateId('d')}`,
-      source: sIn ? idMap.get(String(e.source)) : e.source,
-      target: tIn ? idMap.get(String(e.target)) : e.target,
+      source: sIn ? (idMap.get(String(e.source)) ?? e.source) : e.source,
+      target: tIn ? (idMap.get(String(e.target)) ?? e.target) : e.target,
       selected: true,
     });
   }

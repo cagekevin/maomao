@@ -432,7 +432,7 @@ async function kvWriteOp(key: string, value: unknown): Promise<KvOpOutcome<unkno
     reportDegrade({
       layer: 'kvStore',
       key,
-      e,
+      e: e as Error | undefined,
       toast: '本地引擎存储暂不可用，数据已暂存本地（跨设备同步可能丢失）',
     });
     return { value, source: 'local' };
@@ -457,7 +457,12 @@ async function kvReadOp(key: string): Promise<KvOpOutcome<unknown>> {
       // 4xx 业务拒收：不服务本地副本、不降级——原样上抛（TD-02-15/25 根因）
       throw e;
     }
-    reportDegrade({ layer: 'kvStore', key, e, toast: '本地引擎存储暂不可用，已回退读取本地缓存' });
+    reportDegrade({
+      layer: 'kvStore',
+      key,
+      e: e as Error | undefined,
+      toast: '本地引擎存储暂不可用，已回退读取本地缓存',
+    });
     const raw = sGet(key);
     return { value: raw === null ? null : tryParse(raw), source: 'local' };
   }

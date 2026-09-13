@@ -199,7 +199,11 @@ function ResourceLibrary() {
         setTotal(d?.total || 0);
         setHasMore((d?.items || []).length < (d?.total || 0));
       } catch (e) {
-        logger.warn('ResourceLibrary', '加载失败（localTool 未连？）', e?.message);
+        logger.warn(
+          'ResourceLibrary',
+          '加载失败（localTool 未连？）',
+          (e as { message?: string })?.message,
+        );
         if (token === resetTokenRef.current) setItems([]);
       } finally {
         if (token === resetTokenRef.current) setLoading(false);
@@ -246,7 +250,7 @@ function ResourceLibrary() {
       }
       pageRef.current = d.page || next;
       setTotal(d.total || 0);
-      setHasMore((d.items || []).length > 0 && d.page < (d.totalPages || 1));
+      setHasMore((d.items || []).length > 0 && (d.page ?? 0) < (d.totalPages || 1));
       mergeResourcesFromBackend(d.items || []);
     } catch {
       /* 忽略下一页失败 */
@@ -265,7 +269,11 @@ function ResourceLibrary() {
   // 上传文件到后端（落盘当前目录 + rescan 收录）
   const handleFiles = useCallback(
     async (files: FileList | File[] | null) => {
-      if (!connected) return showToast('请先连接本地引擎', { type: 'warning' });
+      if (!connected) {
+        showToast('请先连接本地引擎', { type: 'warning' });
+        return;
+      }
+      if (!files) return;
       const list = Array.from(files);
       if (list.length === 0) return;
       let ok = 0;
@@ -305,15 +313,21 @@ function ResourceLibrary() {
   };
 
   const handleOpenLocal = () => {
-    if (!connected) return showToast('请先连接本地引擎', { type: 'warning' });
+    if (!connected) {
+      showToast('请先连接本地引擎', { type: 'warning' });
+      return;
+    }
     openLocalFolder(currentFolder)
       .then((r) => showToast(`已在文件管理器中打开: ${r?.data?.path}`, { type: 'success' }))
       .catch(() => showToast('打开本地目录失败', { type: 'error' }));
   };
 
   const handleOpenFileDir = (item: ResourceItem) => {
-    const rel = relativePathFromUrl(item.url);
-    if (!rel) return showToast('打开所在目录失败', { type: 'error' });
+    const rel = relativePathFromUrl(item.url ?? '');
+    if (!rel) {
+      showToast('打开所在目录失败', { type: 'error' });
+      return;
+    }
     openFileDir(rel).catch(() => showToast('打开所在目录失败', { type: 'error' }));
   };
 
@@ -334,10 +348,10 @@ function ResourceLibrary() {
             x.id === renameTarget.id ? { ...x, id: d.id, url: d.url, name: d.name } : x,
           ),
         );
-      textCache.delete(renameTarget.url);
+      textCache.delete(renameTarget.url ?? '');
       showToast('重命名成功', { type: 'success' });
     } catch (e) {
-      showToast(e?.message || '重命名失败', { type: 'error' });
+      showToast((e as { message?: string })?.message || '重命名失败', { type: 'error' });
     }
     setRenameTarget(null);
     setRenameName('');
@@ -399,7 +413,10 @@ function ResourceLibrary() {
               label: '打开本地目录',
               icon: FolderOpen,
               onClick: () => {
-                if (!connected) return showToast('请先连接本地引擎', { type: 'warning' });
+                if (!connected) {
+                  showToast('请先连接本地引擎', { type: 'warning' });
+                  return;
+                }
                 handleOpenLocal();
               },
             },
@@ -408,7 +425,10 @@ function ResourceLibrary() {
               label: '新建文件夹',
               icon: FolderPlus,
               onClick: () => {
-                if (!connected) return showToast('请先连接本地引擎', { type: 'warning' });
+                if (!connected) {
+                  showToast('请先连接本地引擎', { type: 'warning' });
+                  return;
+                }
                 setCreating(true);
                 setNewFolderName('新建文件夹');
               },
@@ -522,7 +542,7 @@ function ResourceLibrary() {
           <>
             <div className="grid grid-cols-3 gap-2">
               {items.map((a) => {
-                const badge = TYPE_BADGE[a.type] || TYPE_BADGE.image;
+                const badge = TYPE_BADGE[a.type ?? 'image'] || TYPE_BADGE.image;
                 const BadgeIcon = badge.icon;
                 const audio = isAudio(a.type, a.url);
                 const isFolder = a.type === 'folder';
@@ -550,7 +570,7 @@ function ResourceLibrary() {
                         </span>
                       </div>
                     ) : a.type === 'text' ? (
-                      <TextAssetCell url={a.url} name={a.name} />
+                      <TextAssetCell url={a.url ?? ''} name={a.name} />
                     ) : audio ? (
                       <div className="w-full h-full bg-surface-black flex flex-col items-center justify-center gap-1.5 p-2">
                         <Music size={22} className="text-green-400" />
@@ -607,7 +627,7 @@ function ResourceLibrary() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setRenameTarget(a);
-                            setRenameName(a.name);
+                            setRenameName(a.name ?? '');
                           }}
                         >
                           <Pencil size={10} />
@@ -665,7 +685,7 @@ function ResourceLibrary() {
             onClick={(e) => e.stopPropagation()}
           >
             {preview.type === 'text' ? (
-              <TextPreview url={preview.url} name={preview.name} />
+              <TextPreview url={preview.url ?? ''} name={preview.name} />
             ) : isAudio(preview.type, preview.url) ? (
               <div className="w-[300px] bg-surface-2 rounded-xl p-6 flex flex-col items-center gap-3">
                 <Music size={40} className="text-green-400" />

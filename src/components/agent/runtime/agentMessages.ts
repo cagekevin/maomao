@@ -41,7 +41,9 @@ export function appendMsg(msg: Record<string, unknown>): void {
 
 /** 整体替换历史（低频；落盘）。统一补稳定消息 id。 */
 export function setHistory(next: unknown[] | null): void {
-  const normalized = (Array.isArray(next) ? next : []).map(withMsgId);
+  const normalized = (Array.isArray(next) ? next : []).map((m) =>
+    withMsgId(m as Record<string, unknown>),
+  );
   setCurrentSnapshot({ messages: normalized });
 }
 
@@ -53,7 +55,7 @@ export function updateLastStreaming(delta: StreamDelta): void {
   const next = cur.map((m, i) => {
     if (i !== cur.length - 1 || m.role !== 'assistant' || !m.streaming) return m;
     // 只保留真实 tool_calls（name 非空）；为空则不设该字段，杜绝空数组进历史 → LLM 报 Empty tool_calls
-    const realCalls = delta.toolCalls.filter((t) => t.function?.name);
+    const realCalls = (delta.toolCalls ?? []).filter((t) => t.function?.name);
     return {
       ...m,
       content: delta.content,

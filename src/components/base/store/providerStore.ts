@@ -224,7 +224,7 @@ export async function reloadProviders(): Promise<void> {
     const primary = list.find((p) => p.primary) || list[0];
     setState({ providers: list, selectedId: primary ? primary.id : null, dirty: false });
   } catch (e) {
-    logger.warn('provider', 'reload-fail', { error: e?.message });
+    logger.warn('provider', 'reload-fail', { error: (e as { message?: string })?.message });
   }
 }
 
@@ -360,7 +360,7 @@ export async function test(id: string): Promise<void> {
     }
     setState({ testResult: data });
   } catch (e) {
-    setState({ testResult: { ok: false, error: e.message } });
+    setState({ testResult: { ok: false, error: (e as { message?: string })?.message } });
   } finally {
     setState({ testingId: null });
   }
@@ -399,7 +399,7 @@ export async function fetchModels(
     }
     return { ok: false, warning: m.warning };
   } catch (e) {
-    return { ok: false, error: e.message };
+    return { ok: false, error: (e as { message?: string })?.message };
   } finally {
     setState({ fetchingId: null });
   }
@@ -478,7 +478,7 @@ export async function save(): Promise<{ ok: boolean; error?: string }> {
     }
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e.message };
+    return { ok: false, error: (e as { message?: string })?.message };
   } finally {
     setState({ saving: false });
   }

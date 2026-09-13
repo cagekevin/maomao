@@ -146,7 +146,13 @@ export async function compressToSummary({
     // 上下文压缩是内部工具调用，不需要打字机：走 chatCompletions 同步快路径（不传 stream，
     // 修订 7 —— stream 是死参数，真透传会把同步变 SSE、与 withTimeout 的非流式解析冲突）。
     res = await withTimeout(
-      chatCompletions({ provider, messages: body, model, temperature: 0.1, signal: signal.signal }),
+      chatCompletions({
+        provider,
+        messages: body,
+        model: model ?? '',
+        temperature: 0.1,
+        signal: signal.signal,
+      }),
       SUMMARY_TIMEOUT_MS,
       '对话摘要压缩超时',
       signal.signal,
@@ -154,7 +160,7 @@ export async function compressToSummary({
   } catch (e) {
     // 失败必须可见：记 ERROR 日志，不静默吞错，但不影响主流程（保留旧摘要即可）
     logger.error('AI助手', '[记] 压缩失败（保留旧摘要）', {
-      err: e?.message,
+      err: (e as { message?: string })?.message,
       timeout: isTimeoutError(e),
     });
     return null;

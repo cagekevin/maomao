@@ -135,8 +135,14 @@ export default function SkillSettings() {
   const handleSave = () => {
     const name = form.name.trim();
     const content = form.content.trim();
-    if (!name) return showToast('请填写 Skill 名称', { type: 'warning' });
-    if (!content) return showToast('请填写 Skill 内容', { type: 'warning' });
+    if (!name) {
+      showToast('请填写 Skill 名称', { type: 'warning' });
+      return;
+    }
+    if (!content) {
+      showToast('请填写 Skill 内容', { type: 'warning' });
+      return;
+    }
     const saved = upsertCustomSkill({
       id: form.id || undefined,
       name,
@@ -254,8 +260,10 @@ export default function SkillSettings() {
   // .md 导出
   const handleMdExport = () => {
     const target = selected || (isNew && form.name ? form : null);
-    if (!target || !target.content)
-      return showToast('请先选择一个有内容的 Skill', { type: 'warning' });
+    if (!target || !target.content) {
+      showToast('请先选择一个有内容的 Skill', { type: 'warning' });
+      return;
+    }
     const blob = new Blob([target.content], { type: 'text/markdown;charset=utf-8' });
     const filename = `${target.name || 'skill'}.md`;
     downloadBlob(blob, filename);
@@ -503,7 +511,7 @@ export default function SkillSettings() {
                         {selected?.builtin ? '官方内置' : '自定义'}
                       </span>
                       <span className="text-[11px] text-muted">
-                        {getEnabled(selected?.id) ? '已启用' : '已关闭'}
+                        {getEnabled(selected?.id ?? '') ? '已启用' : '已关闭'}
                       </span>
                     </div>
                   </div>

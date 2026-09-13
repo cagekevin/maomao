@@ -216,9 +216,10 @@ export function parseSSEChunk(line: string, acc: SSEAccumulator): boolean {
           type: 'function',
           function: { name: '', arguments: '' },
         };
-        if (tc.id) acc.toolCalls[idx].id = tc.id;
-        if (tc.function?.name) acc.toolCalls[idx].function.name += tc.function.name;
-        if (tc.function?.arguments) acc.toolCalls[idx].function.arguments += tc.function.arguments;
+        const call = acc.toolCalls[idx]!;
+        if (tc.id) call.id = tc.id;
+        if (tc.function?.name) call.function!.name += tc.function.name;
+        if (tc.function?.arguments) call.function!.arguments += tc.function.arguments;
       }
     }
   } catch {

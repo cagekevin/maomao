@@ -48,10 +48,6 @@ export interface TopNavProps {
   agentOpen: boolean;
   /** 切换 AI 助手回调 */
   onToggleAgent: () => void;
-  /** 视频剪辑器基座开关（与 AI 助手同款：顶栏图标按钮；默认值由设置项管） */
-  videoEditorOpen: boolean;
-  /** 切换视频剪辑器基座回调 */
-  onToggleVideoEditor: () => void;
   /** 推送到云端（CloudSyncEngine.push），未接入时可为空 */
   onPushToCloud?: () => Promise<SyncResult>;
   /** 从云端拉取（CloudSyncEngine.pull） */
@@ -65,8 +61,6 @@ function TopNav({
   onCreateProject,
   agentOpen,
   onToggleAgent,
-  videoEditorOpen,
-  onToggleVideoEditor,
   onPushToCloud,
   onPullFromCloud,
 }: TopNavProps) {
@@ -94,7 +88,7 @@ function TopNav({
         showToast(`以下未上传（读取失败）：${r.partial.skipped.join('、')}`, { type: 'warning' });
       }
     } catch (e) {
-      showToast(e?.message || '推送失败', { type: 'error' });
+      showToast((e as { message?: string })?.message || '推送失败', { type: 'error' });
     }
   };
 
@@ -117,7 +111,7 @@ function TopNav({
         showToast(`部分未恢复：${r.partial.failed.join('、')}`, { type: 'warning' });
       }
     } catch (e) {
-      showToast(e?.message || '拉取失败', { type: 'error' });
+      showToast((e as { message?: string })?.message || '拉取失败', { type: 'error' });
     }
   };
 
@@ -276,32 +270,6 @@ function TopNav({
           >
             <circle cx="12" cy="12" r="3" />
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-        </button>
-
-        {/* 视频剪辑器按钮（与 AI 助手同款图标按钮样式；docs/120 C4 的顶栏入口） */}
-        <button
-          type="button"
-          onClick={onToggleVideoEditor}
-          style={{ marginLeft: '-7px' }}
-          className={`relative text-secondary hover:text-white transition-colors p-2 rounded-full hover:bg-surface-active cursor-pointer border-none bg-transparent ${videoEditorOpen ? 'bg-surface-active text-white' : ''}`}
-          title={videoEditorOpen ? '收起视频剪辑器' : '打开视频剪辑器'}
-        >
-          {/* 场记板图标 */}
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z" />
-            <path d="m6.2 5.3 3.1 3.9" />
-            <path d="m12.4 3.4 3.1 4" />
-            <path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
           </svg>
         </button>
 

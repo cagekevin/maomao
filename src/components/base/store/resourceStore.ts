@@ -282,7 +282,7 @@ export function buildResourceRecord(item: NewResourceItem, folder: string, now: 
     id: item.id || genId(),
     folder: item.folder || folder,
     type: item.type || 'image',
-    url: item.url,
+    url: item.url ?? '',
     name: item.name || '未命名',
     size: item.size || 0,
     ts: item.ts || now,
@@ -492,7 +492,11 @@ async function persistUrlToBackend(
           module: 'resource',
         });
       } catch (blobErr) {
-        logger.warn('resourceStore', 'blob 转文件失败，跳过落盘', blobErr?.message);
+        logger.warn(
+          'resourceStore',
+          'blob 转文件失败，跳过落盘',
+          (blobErr as { message?: string })?.message,
+        );
       }
     } else {
       // http(s) 上游 url → 模仿链路 A（面板上传）：先把远程内容 fetch 成 Blob，
@@ -518,7 +522,7 @@ async function persistUrlToBackend(
     }
   } catch (e) {
     // 落盘阶段异常（fetch / 上传 / 编码）——不弹 toast（避免与「已发送」提示矛盾），红日志留痕
-    const msg = e?.message || String(e);
+    const msg = (e as { message?: string })?.message || String(e);
     logger.error('resourceStore', '发送到素材库落盘失败', msg);
     return { ok: false, reason: 'exception' };
   }
@@ -531,7 +535,11 @@ async function persistUrlToBackend(
     await rescanResources();
     logger.debug('resourceStore', '[PERSIST] rescan 完成', null, { module: 'resource' });
   } catch (e) {
-    logger.warn('resourceStore', '[PERSIST] rescan 失败（图已落盘，面板稍后自动刷新）', e?.message);
+    logger.warn(
+      'resourceStore',
+      '[PERSIST] rescan 失败（图已落盘，面板稍后自动刷新）',
+      (e as { message?: string })?.message,
+    );
   }
   return { ok: true, url: localized };
 }

@@ -31,6 +31,8 @@ export interface EditorClipSource {
   profile?: MediaProfile;
   /** 源素材时长（秒）。**入轨「用源素材整段」必需**（C11.6）；图片为默认图片时长。 */
   duration?: number;
+  /** 是否含内联音轨（docs/120 C4.7，🔊 角标真源）。缺省=未知（探测未落定）；**未知≠无声音**。 */
+  hasAudio?: boolean;
 }
 
 /** 缓存里的条目（缓存 promise，见文件头）。 */
@@ -92,6 +94,7 @@ export function loadEditorSource(url: string, kind: ClipKind): Promise<Probed> {
               ? { width: probe.width, height: probe.height, mimeType: blob.type || undefined }
               : undefined,
           duration: probe.duration,
+          hasAudio: probe.hasAudioTrack,
         },
       };
     } catch (e) {
@@ -212,6 +215,7 @@ export function useEditorSources(project: Project | null): {
         resolved: base.resolved.status === 'ok' ? source.resolved : base.resolved,
         profile: source.profile ?? base.profile,
         duration: source.duration ?? base.duration,
+        hasAudio: source.hasAudio ?? base.hasAudio,
       });
     }
     return merged;

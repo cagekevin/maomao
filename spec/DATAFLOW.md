@@ -284,6 +284,20 @@ prompt/promptChips · prompt/promptMention（纯函数）
 
 ***
 
+## 视频（横切）链路
+
+> 更新(2026-09-13, refs实证)：新增本段（区域 22 首审）。深度视频 `base/depthVideo/*` 见「3D/深度视频」段（区域 07）；剪辑器 `videoEditor/*` 见区域 21（执行中）。本段只画**区域 22 新审的跨切边界**：引擎 ↔ 上层契约。审计视角 `daily/架构日志/22-视频-横切全量-2026-09-13.md`。
+
+```
+base/utils/videoEngine.ts 🔴（TD-22-2：uploadResult 持久/临时 URL 合并单字段、失败仅 warn）
+base/utils/captureFrame.ts 🟢（跨源读取策略 setCrossOriginForReadable 收口于此；TD-21-3 已结项）
+base/utils/encoderProbe.ts 🟢 · base/utils/audioPeaks.ts 🟢
+hooks/useVideoPoster.ts 🔴（TD-22-1：跨源策略与 captureFrame 相反）
+base/ui/VideoThumbnail.tsx 🟢（显示组件，preload=metadata 取首帧，不抽帧）
+nodes/VideoGenerate.tsx 🔴（TD-22-3：data.poster 死字段零写入；videoUrl 落盘受 01/02 守护非债）
+videoEditor/panels/dock/useEditorExport.ts 🔴（TD-22-2：不判别 uploadResult.persisted）
+```
+
 ## 配置 / 账户 / 事件总线（横切契约域）
 
 > 更新(2026-09-13, refs+grep实证)：新增本段。此前配置/账户类 store + 横切契约登记表（EVENTS/STORAGE_KEYS）+ eventBus 不在这张进度地图上（属「其他领域」，区域 13 首审）。审计视角见 `daily/架构日志/13-配置账户与事件总线-2026-09-13.md`。

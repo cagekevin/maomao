@@ -36,7 +36,7 @@ function grayOfPixel(data: ArrayLike<number>, i: number, channels: number): numb
 /** 归一化 float tensor（{data, dims}）→ 每像素 0..255 灰度（min-max 归一化；全等不除零） */
 export function grayFromTensor(
   data: ArrayLike<number>,
-  dims: number[],
+  _dims: number[],
   options: { contrast: number; invert: boolean },
 ): Float32Array {
   let min = Infinity;

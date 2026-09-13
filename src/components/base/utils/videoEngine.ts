@@ -254,7 +254,7 @@ export async function readVideoMetadata(blob: Blob): Promise<VideoMetadata> {
  *    调用方（素材入轨 / 断链判定）需要的是「能不能读 + 多长」，而不是「读不到就炸」。
  */
 export type MediaProbe =
-  | { status: 'ok'; width?: number; height?: number; duration: number }
+  | { status: 'ok'; width?: number; height?: number; duration: number; hasAudioTrack?: boolean }
   | { status: 'failed'; reason: string };
 
 /**
@@ -277,15 +277,25 @@ export async function probeMediaTrack(blob: Blob): Promise<MediaProbe> {
 
     const video = await input.getPrimaryVideoTrack();
     if (video) {
+      // `hasAudioTrack`：视频片段音轨**内联**在片段里（docs/120 C4.7），
+      // 是否取到音频轨决定 🔊 角标 —— 一次探测给出，不另读第二次文件。
+      let hasAudioTrack = false;
+      try {
+        const audio = await input.getPrimaryAudioTrack();
+        hasAudioTrack = !!audio;
+      } catch {
+        hasAudioTrack = false;
+      }
       return {
         status: 'ok',
         width: await video.getDisplayWidth(),
         height: await video.getDisplayHeight(),
         duration,
+        hasAudioTrack,
       };
     }
     const audio = await input.getPrimaryAudioTrack();
-    if (audio) return { status: 'ok', duration };
+    if (audio) return { status: 'ok', duration, hasAudioTrack: true };
     return { status: 'failed', reason: '文件里没有可用的视频或音频轨' };
   } catch (e) {
     return { status: 'failed', reason: e instanceof Error ? e.message : '媒体探测失败' };
@@ -370,14 +380,15 @@ export async function processVideo(
 
     const duration =
       t.mode === 'trim'
-        ? t.end - t.start
+        ? (t.end ?? 0) - (t.start ?? 0)
         : ((await input.getDurationFromMetadata()) ?? (await input.computeDuration()));
-    const width = t.mode === 'sizeFrameRate' ? t.width : await videoTrack.getDisplayWidth();
-    const height = t.mode === 'sizeFrameRate' ? t.height : await videoTrack.getDisplayHeight();
+    const width = (t.mode === 'sizeFrameRate' ? t.width : await videoTrack.getDisplayWidth()) ?? 0;
+    const height =
+      (t.mode === 'sizeFrameRate' ? t.height : await videoTrack.getDisplayHeight()) ?? 0;
     const fps = Cc(
       (await videoTrack.computePacketStats(120).catch((): null => null))?.averagePacketRate ?? 0,
     );
-    const finalFps = t.mode === 'sizeFrameRate' ? t.fps : fps;
+    const finalFps = (t.mode === 'sizeFrameRate' ? t.fps : fps) ?? 0;
     const mimeType =
       t.mode === 'extractAudio'
         ? t.format === 'm4a'
@@ -388,10 +399,10 @@ export async function processVideo(
         : 'video/mp4';
     const extension = t.mode === 'extractAudio' ? t.format : 'mp4';
     return {
-      blob: new Blob([target.buffer], { type: mimeType }),
+      blob: new Blob([target.buffer], { type: mimeType ?? 'video/mp4' }),
       metadata: { duration, width, height, fps: finalFps },
-      mimeType,
-      extension,
+      mimeType: mimeType ?? 'video/mp4',
+      extension: extension ?? 'mp4',
     };
   } catch (e) {
     throw e instanceof ConversionCanceledError ? new ConversionCanceled(e.message) : e;

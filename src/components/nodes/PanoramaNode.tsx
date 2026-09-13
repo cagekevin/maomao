@@ -423,9 +423,15 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
               ],
               // 显式声明出口契约：与 NodeShell sourceHandleId="main-output" 成对
               // （原为只写 targetHandle、sourceHandle 留空，属隐式巧合匹配）。
-              { sourceHandle: 'main-output', targetHandle: null },
+              { sourceHandle: 'main-output', targetHandle: undefined },
             );
-            spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
+            spawnAndCommit(spawned, {
+              getNodes,
+              getEdges,
+              setNodes,
+              setEdges,
+              history: history ?? undefined,
+            });
           }
           logger.info('panoNode', '截图完成', { count: shots.length, nodeId: id });
           toastSuccess('截图完成，已存入图片盒子');

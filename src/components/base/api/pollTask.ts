@@ -73,7 +73,7 @@ async function pollOneTaskAttach(task: PollableTask): Promise<boolean> {
     logger.debug(
       '任务',
       '[恢复轮询] 网络失败，下轮重试',
-      { taskId: task.id, error: e?.message },
+      { taskId: task.id, error: (e as { message?: string })?.message },
       { module: 'image' },
     );
     return false;

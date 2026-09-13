@@ -62,7 +62,7 @@ export function useCanvasSync(getProjectId: () => string): CanvasSyncApi {
         }
       };
     } catch (err) {
-      logger.warn('Canvas', 'BroadcastChannel 不可用', err?.message);
+      logger.warn('Canvas', 'BroadcastChannel 不可用', (err as { message?: string })?.message);
     }
     return () => {
       try {

@@ -38,11 +38,12 @@ export function createThrottledPersistHandler({
   throttleMs = THROTTLE_MS,
   onToast,
   onLog,
-}: ThrottledPersistOptions = {}): (payload: PersistFailPayload | null | undefined) => void {
+}: ThrottledPersistOptions = {}): (payload: unknown) => void {
   const lastByKey = new Map<string, number>();
   return (payload) => {
-    const key = payload?.key ?? '(未知键)';
-    const error = payload?.error ?? '';
+    const p = payload as PersistFailPayload | null | undefined;
+    const key = p?.key ?? '(未知键)';
+    const error = p?.error ?? '';
     const t = now();
     const last = lastByKey.get(key);
     const suppressed = last !== undefined && t - last < throttleMs;

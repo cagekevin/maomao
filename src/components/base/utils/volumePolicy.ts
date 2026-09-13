@@ -225,9 +225,11 @@ export function applyConversationBudget(
   if (!Array.isArray(conversations) || conversations.length === 0) {
     return { conversations, downgraded: false };
   }
-  let projected = conversations.map((c) =>
-    downgradeConversation(c, { dropStreaming: true, dropPending: true, dropSteerQueue: true }),
-  );
+  let projected: Conversation[] = conversations
+    .map((c) =>
+      downgradeConversation(c, { dropStreaming: true, dropPending: true, dropSteerQueue: true }),
+    )
+    .filter((c): c is Conversation => c != null);
   let bytes = estimateConversationsBytes(projected);
   // downgraded 沿用原语义：① 剥离瞬时字段后仍超预算即视为发生降级（供日志/告警）
   const downgraded = bytes > budget;
@@ -263,15 +265,19 @@ export function applyConversationBudget(
       if (conv === best.conv) {
         const c: Conversation = { ...conv, messages: [...(conv.messages || [])] };
         if (best.kind === 'content') {
-          c.messages = c.messages.map((m) =>
+          c.messages = (c.messages ?? []).map((m) =>
             m === best.msg
-              ? { ...m, content: truncateTo(m.content, Math.floor(m.content.length / 2)) }
+              ? {
+                  ...m,
+                  content: truncateTo(m.content ?? '', Math.floor((m.content ?? '').length / 2)),
+                }
               : m,
           );
         } else if (best.kind === 'summary') {
+          const summary = c.memory?.summary ?? '';
           c.memory = {
             ...c.memory,
-            summary: truncateTo(c.memory.summary, Math.floor(c.memory.summary.length / 2)),
+            summary: truncateTo(summary, Math.floor(summary.length / 2)),
           };
         }
         return c;

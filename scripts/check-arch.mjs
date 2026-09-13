@@ -281,6 +281,80 @@ console.log(
 if (!veCoreViol) console.log('  ✅ core 依赖未越界（仅 core/** 与 base/core/idGen.ts）');
 
 // ─────────────────────────────────────────────────────────────────
+// 规则 6（2026-09-13）：`videoEditor/hooks/**` 禁依赖 `videoEditor/export/**` —— 播放/探测域不得反向依赖导出域。
+//
+// 【为什么】（docs/123 §二 的依赖方向 + 亲历教训）判据/探测/预览是**读/领域**，导出是**写/环境**。
+//   hooks（useEditorSources / useEditorFilmstrips / useEditorWaveforms）若为取一个
+//   判据或工具去 import `export/composite`，就会把「它要一个纯函数」变成「拉进整个导出域（含 mediabunny）」
+//   —— 既制造播放→导出倒挂，又放大依赖半径。判据一律收在 `core/`（见 `routeClip.audibleClipsOf` 上移）。
+// 【判定】只拦「相对/`@/` import 解析后落在 `videoEditor/export/`」；裸 spec（react 等）不禁（hooks 可用外部库）。
+// 【防回潮】将来 hooks 需要"可闻/某判据" → 从 `core/routeClip.ts` 取，不许 import export。
+// ─────────────────────────────────────────────────────────────────
+const VE_HOOKS_REL = 'src/components/videoEditor/hooks/';
+const VE_EXPORT_REL = 'src/components/videoEditor/export/';
+let veHooksExportViol = 0;
+let veHooksScanned = 0;
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  if (!rel.startsWith(VE_HOOKS_REL)) continue;
+  veHooksScanned++;
+  let ast;
+  try {
+    ast = parse(readFileSync(f, 'utf8'), {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: true,
+    });
+  } catch {
+    continue;
+  }
+  const bad = [];
+  const judge = (spec, line) => {
+    if (!spec) return;
+    let relDep = null;
+    if (spec.startsWith('.')) {
+      const abs = resolveSourceFile(resolve(dirname(f), spec));
+      if (abs) relDep = abs.slice(root.length + 1).replace(/\\/g, '/');
+    } else if (spec.startsWith('@/')) {
+      const abs = resolveSourceFile(resolve(root, 'src', spec.slice(2)));
+      if (abs) relDep = abs.slice(root.length + 1).replace(/\\/g, '/');
+    } else {
+      return; // 裸 spec（npm 库）不加限制
+    }
+    if (relDep && relDep.startsWith(VE_EXPORT_REL)) bad.push({ spec: relDep, line });
+  };
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (
+      (n.type === 'ImportDeclaration' ||
+        n.type === 'ExportNamedDeclaration' ||
+        n.type === 'ExportAllDeclaration') &&
+      n.source?.value
+    ) {
+      judge(n.source.value, n.loc?.start?.line);
+    }
+    if (n.type === 'ImportExpression' && n.source?.type === 'StringLiteral') {
+      judge(n.source.value, n.loc?.start?.line);
+    }
+    for (const k in n)
+      if (k !== 'loc' && k !== 'range' && typeof n[k] === 'object' && n[k] !== null) walk(n[k]);
+  };
+  walk(ast.program);
+  for (const b of bad) {
+    veHooksExportViol++;
+    fail(
+      `videoEditor/hooks 反向依赖导出域: ${rel}:${b.line} → ${b.spec}` +
+        `（hooks 是播放/探测域，不许 import export/**；判据一律从 core/ 取）`,
+    );
+  }
+}
+console.log(
+  `\n📴 videoEditor/hooks 禁依赖 export（播放/探测 ≠ 导出）· 已扫描 ${veHooksScanned} 个 hooks 文件`,
+);
+if (!veHooksExportViol) console.log('  ✅ hooks 未反向依赖导出域');
+
+// ─────────────────────────────────────────────────────────────────
 // 规则 5（docs/123 G-3，2026-09-13）：激活位判据单点 —— 外部禁直调底层 `hasModalLayer()`。
 //
 // 【取证（Step 1 证伪）】该需求**已由前置收口卡 9 完成**，不是待建：

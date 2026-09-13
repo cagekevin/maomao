@@ -64,6 +64,7 @@ export default defineConfig({
             if (id.includes('dagre')) return 'vendor-layout';
             if (id.includes('react')) return 'vendor-react';
           }
+          return undefined;
         },
       },
     },

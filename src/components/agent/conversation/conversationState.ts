@@ -116,9 +116,9 @@ const persistDebounced = createDebouncedPersist(() => {
   // 【P4 自愈·2026-09-11】用浅拷贝喂 normalizeConversation：该函数就地改写入参（归一字段），
   // 若不拷贝会污染内存态——尤其流式途中会把 live 消息的 streaming 标志抹掉，致 UI 提前停 typing / 冻结流式增量。
   // streaming 在归一时被清为 false（见 normalizeConversation 内 P4 自愈），落盘永不带 streaming:true。
-  const normalized = next.conversations.map((conv) =>
-    normalizeConversation({ ...conv, messages: conv.messages }),
-  );
+  const normalized = next.conversations
+    .map((conv) => normalizeConversation({ ...conv, messages: conv.messages }))
+    .filter((c): c is Conversation => c != null);
   // 【批2 · 落盘前写前校验】dev 下对硬约束（error）违规告警——把「假成功」在写时就抓住，不等用户踩。
   // 只作用于内存归一副本，与落盘投影降级互不影响；P1 体积仍由下方 applyConversationBudget 强制。
   if (import.meta.env.DEV !== false) {
@@ -156,13 +156,13 @@ const persistDebounced = createDebouncedPersist(() => {
     // 后端成立。会话键已登记 backend:'kv'，走 storageSet→kvSet(网络)，不经过 sSet，
     // 故 KV 路径的同步抛错不会触发 persist:failed 事件，必须在此显式透传。
     const key = convKey(currentAgentKey);
-    const msg = e?.message || String(e);
+    const msg = (e as { message?: string })?.message || String(e);
     logger.warn('AI助手', '会话落盘失败', { key, error: msg });
     // 透传给降级上报（其 toast 为可选表现层，非判定依据；真实判定看返回值与 logger）
     reportDegrade({
       layer: 'conversationState',
       key,
-      e,
+      e: e instanceof Error ? e : undefined,
       toast: '会话保存失败，本次对话内容可能未存上',
     });
   }
@@ -222,7 +222,7 @@ function hydrate(k: string): Promise<void> {
     .catch((e) =>
       logger.warn('AI助手', '会话水化失败，按空态继续（下次进入会重新读取）', {
         key: convKey(k),
-        error: e?.message || String(e),
+        error: (e as { message?: string })?.message || String(e),
       }),
     )
     .finally(() => {
@@ -308,7 +308,7 @@ async function hydrateAsync(k: string): Promise<void> {
   } catch (e) {
     logger.warn('AI助手', '水化读会话 KV 失败，回退本地存量', {
       key: convKey(k),
-      error: e?.message || String(e),
+      error: (e as { message?: string })?.message || String(e),
     });
   }
   let kvActiveId = '';
@@ -318,7 +318,7 @@ async function hydrateAsync(k: string): Promise<void> {
   } catch (e) {
     logger.warn('AI助手', '水化读活跃会话 id 失败', {
       key: activeKey(k),
-      error: e?.message || String(e),
+      error: (e as { message?: string })?.message || String(e),
     });
   }
 
@@ -362,7 +362,7 @@ async function hydrateAsync(k: string): Promise<void> {
     } catch (e) {
       logger.warn('AI助手', '存量会话迁 KV 失败，沿用内存态', {
         key: convKey(k),
-        error: e?.message || String(e),
+        error: (e as { message?: string })?.message || String(e),
       });
     }
   } else {
@@ -408,7 +408,9 @@ function migrateLegacyGlobal(): { conversations: Conversation[]; activeId: strin
   let conversations: Conversation[] = [];
   try {
     const arr = contentGet(LEGACY_CONV_KEY);
-    conversations = (Array.isArray(arr) ? arr : []).map(normalizeConversation).filter(Boolean);
+    conversations = (Array.isArray(arr) ? arr : [])
+      .map(normalizeConversation)
+      .filter((c): c is Conversation => c != null);
   } catch {
     conversations = [];
   }

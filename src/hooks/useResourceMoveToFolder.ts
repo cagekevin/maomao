@@ -126,7 +126,7 @@ export function useResourceMoveToFolder({ connected, onRefreshed }: ResourceMove
           showToast(`已移动到「${target}」`, { type: 'success' });
           onRefreshed?.();
         } catch (err) {
-          showToast(err?.message || '移动失败', { type: 'error' });
+          showToast((err as { message?: string })?.message || '移动失败', { type: 'error' });
         }
       },
     }),

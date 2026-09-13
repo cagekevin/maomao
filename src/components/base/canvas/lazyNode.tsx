@@ -85,7 +85,7 @@ function NodeLoading({
  * @param opts.type  节点类型键（用于查 LAZY_NODE_HANDLE_CONTRACT 给占位骨架声明端口）
  */
 export function lazyNode(
-  loader: () => Promise<{ default: React.ComponentType }>,
+  loader: () => Promise<{ default: React.ComponentType<any> }>,
   { label, type }: { label?: string; type?: string } = {},
 ) {
   const Lazy = React.lazy(() =>
@@ -134,8 +134,8 @@ export const HEAVY_NODE_LOADERS = {
  * 让"真正渲染"时 chunk 已在模块缓存里，骨架屏一闪而过甚至不出现。
  * 预取失败无需处理：真正渲染时会走 ErrorBoundary 可见降级。
  */
-export function prefetchHeavyNode(type: keyof typeof HEAVY_NODE_LOADERS) {
-  const load = HEAVY_NODE_LOADERS[type];
+export function prefetchHeavyNode(type: string) {
+  const load = HEAVY_NODE_LOADERS[type as keyof typeof HEAVY_NODE_LOADERS];
   if (!load) return;
   // 【失败可见 TD-02-16】预取失败不阻断（真正渲染走 ErrorBoundary），但须留痕：预取失败=渲染时会卡
   load().catch((e) => {

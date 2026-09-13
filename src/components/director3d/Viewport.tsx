@@ -23,15 +23,15 @@ const normalizeNum = (value: number | string) =>
   Number.isFinite(Number(value)) ? Number(value) : 0;
 
 function sceneObjectIdFromIntersection(intersection: THREE.Intersection) {
-  let object = intersection?.object;
+  let object: THREE.Object3D | null = intersection?.object;
   while (object && !object.userData?.sceneObjectId) object = object.parent;
   return object?.userData?.sceneObjectId || null;
 }
 
 function shouldKeepCurrentSelection(
   event: ThreeEvent<PointerEvent>,
-  selectedId: string | null,
-  selected: boolean,
+  selectedId: string | null | undefined,
+  selected: boolean | undefined,
   transformMode: 'select' | 'translate' | 'rotate' | 'scale',
 ) {
   // 当前没有选中目标 → 允许点击选中任意物体
@@ -120,7 +120,7 @@ function SceneObject({
     if (!Number.isFinite(bounds.min.y)) return;
     appliedGroundRequest.current = requestKey;
     object.position.y -= bounds.min.y;
-    onUpdate(data.id, { position: object.position.toArray() });
+    onUpdate?.(data.id, { position: object.position.toArray() });
   }, [data.id, data.locked, groundRequest, onUpdate, preview]);
   const syncTransform = useCallback(() => {
     const object = groupRef.current;
@@ -151,7 +151,7 @@ function SceneObject({
         );
       object.scale.fromArray(nextScale);
     }
-    onUpdate(data.id, {
+    onUpdate?.(data.id, {
       position: object.position.toArray(),
       rotation: [object.rotation.x, object.rotation.y, object.rotation.z],
       scale: nextScale,
@@ -159,9 +159,9 @@ function SceneObject({
   }, [data.id, data.proportionalScale, data.scaleAxisLocks, onUpdate, transformMode]);
   const beginObjectInteraction = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
-      if (shouldKeepCurrentSelection(event, selectedId, selected, transformMode)) return;
+      if (shouldKeepCurrentSelection(event, selectedId, selected, transformMode!)) return;
       event.stopPropagation();
-      onSelect(data.id);
+      onSelect?.(data.id);
       if (data.locked) return;
       if (!selected || transformMode !== 'rotate' || !groupRef.current) return;
       event.nativeEvent?.stopImmediatePropagation?.();
@@ -247,16 +247,16 @@ function SceneObject({
           footLock={data.footLock as boolean}
           color={data.color}
           selected={selected}
-          selectedJoint={activeJoint}
+          selectedJoint={activeJoint ?? undefined}
           showBoneGizmo={!preview && transformMode === 'select'}
           onSelectJoint={(jointId: string) => onJointSelect?.(data.id, jointId)}
           onRotateJoint={(jointId: string, rotation: number[]) =>
-            onUpdate(data.id, {
+            onUpdate?.(data.id, {
               joints: { ...(data.joints as object), [jointId]: rotation },
             })
           }
           onRotateJoints={(rotations: Record<string, number[]>) =>
-            onUpdate(data.id, {
+            onUpdate?.(data.id, {
               joints: { ...(data.joints as object), ...rotations },
             })
           }
@@ -307,7 +307,7 @@ function SceneObject({
       {content}
       {selected && !data.locked && !preview && transformMode !== 'select' && (
         <TransformControls
-          object={groupRef}
+          object={groupRef as unknown as React.RefObject<THREE.Object3D>}
           mode={transformMode}
           space={transformSpace}
           size={0.8}
@@ -502,7 +502,7 @@ function CameraModel({
       {rig}
       {selected && ['translate', 'rotate'].includes(transformMode) && (
         <TransformControls
-          object={groupRef}
+          object={groupRef as unknown as React.RefObject<THREE.Object3D>}
           mode={transformMode as 'translate' | 'rotate'}
           space={transformSpace}
           size={0.8}
@@ -814,7 +814,7 @@ function PathEditor({
   const controls = useThree((state) => state.controls) as unknown as { enabled: boolean } | null;
   const [points, setPoints] = useState<{ x: number; y: number; z: number }[]>([]);
   const activeMode = useRef<number | 'draw' | null>(null); // null | 'draw' | grab 的索引
-  const trailRef = useRef([]); // 绘制态进行中的笔画轨迹
+  const trailRef = useRef<{ x: number; y: number; z: number }[]>([]); // 绘制态进行中的笔画轨迹
   const [selectedDot, setSelectedDot] = useState(-1);
   const [hoveredDot, setHoveredDot] = useState(-1);
   const [curveHover, setCurveHover] = useState(false); // 鼠标是否落在曲线附近（可加点）
@@ -922,14 +922,14 @@ function PathEditor({
       const trail = trailRef.current;
       if (trail.length >= 2) {
         setPoints(trail);
-        onPathChange(trail.map((p) => ({ x: p.x, y: p.y, z: p.z })));
+        onPathChange?.(trail.map((p) => ({ x: p.x, y: p.y, z: p.z })));
       } else {
         setPoints([]);
       }
       trailRef.current = [];
     } else {
       setPoints((list) => {
-        onPathChange(list.map((p) => ({ x: p.x, y: p.y, z: p.z })));
+        onPathChange?.(list.map((p) => ({ x: p.x, y: p.y, z: p.z })));
         return list;
       });
       setSelectedDot(-1);
@@ -1002,7 +1002,7 @@ function PathEditor({
       const segment = Math.min(Math.floor(nearest.index / CURVE_SAMPLES), points.length - 2);
       setPoints((list) => {
         const next = [...list.slice(0, segment + 1), point, ...list.slice(segment + 1)];
-        onPathChange(next.map((p) => ({ x: p.x, y: p.y, z: p.z })));
+        onPathChange?.(next.map((p) => ({ x: p.x, y: p.y, z: p.z })));
         return next;
       });
       invalidate();
@@ -1017,7 +1017,7 @@ function PathEditor({
       if (!point) return;
       setPoints((list) => {
         const next = [...list, point];
-        onPathChange(next.map((p) => ({ x: p.x, y: p.y, z: p.z })));
+        onPathChange?.(next.map((p) => ({ x: p.x, y: p.y, z: p.z })));
         return next;
       });
       invalidate();
@@ -1197,7 +1197,7 @@ function EditorScene({
         plain={performanceMode}
         surfaceColor={seamlessBackground ? null : '#4b4b48'}
       />
-      {objects.map((object) => (
+      {objects?.map((object) => (
         <MemoSceneObject
           key={object.id}
           data={object}
@@ -1216,14 +1216,14 @@ function EditorScene({
       ))}
       {!cameraView && (
         <CameraModel
-          data={cameraData}
+          data={cameraData!}
           selected={selectedId === CAMERA_ID}
-          selectedId={selectedId}
+          selectedId={selectedId ?? null}
           transformMode={transformMode as 'select' | 'translate' | 'rotate' | 'scale'}
           transformSpace={transformSpace as 'local' | 'world'}
           snapEnabled={snapEnabled}
-          onSelect={onSelect}
-          onUpdate={onUpdateObject}
+          onSelect={(id: string) => onSelect?.(id)}
+          onUpdate={(id: string, patch: Record<string, unknown>) => onUpdateObject?.(id, patch)}
         />
       )}
       {pathEditing && !cameraView && (
@@ -1240,7 +1240,7 @@ function EditorScene({
         <ContactShadows position={[0, 0.01, 0]} opacity={0.42} scale={18} blur={2.4} far={9} />
       )}
       {cameraView ? (
-        <PreviewCameraController cameraData={cameraData} cameraAspect={cameraAspect} />
+        <PreviewCameraController cameraData={cameraData!} cameraAspect={cameraAspect ?? 1} />
       ) : (
         <OrbitControls
           makeDefault
@@ -1250,8 +1250,11 @@ function EditorScene({
           maxPolarAngle={Math.PI}
         />
       )}
-      <EditorCameraReporter enabled={!cameraView} onChange={onEditorCameraChange} />
-      {!cameraView && <ViewFocusController request={focusRequest} />}
+      <EditorCameraReporter
+        enabled={!cameraView}
+        onChange={onEditorCameraChange ?? (() => undefined)}
+      />
+      {!cameraView && <ViewFocusController request={focusRequest ?? null} />}
       {!cameraView && !performanceMode && <SceneGizmo onReady={onGizmoReady} />}
     </>
   );
@@ -1356,27 +1359,28 @@ function PreviewScene({
         plain={performanceMode}
         surfaceColor={seamlessBackground || backgroundCanvas ? null : '#4b4b48'}
       />
-      {objects.map((object) => (
+      {objects?.map((object) => (
         <MemoSceneObject key={object.id} data={object} animationTime={animationTime} preview />
       ))}
       {!performanceMode && !lightweight && (
         <ContactShadows position={[0, 0.01, 0]} opacity={0.35} scale={18} blur={2.2} far={9} />
       )}
-      <PreviewCameraController cameraData={cameraData} cameraAspect={cameraAspect} />
+      <PreviewCameraController cameraData={cameraData!} cameraAspect={cameraAspect ?? 1} />
     </>
   );
 }
 
 export function MainViewport(props: EditorSceneProps) {
   const editorCamera = props.editorCameraData || {};
+  const cameraData = props.cameraData;
   // 摄像机视角的初始相机朝向用 'YXZ'：与 cameraRotationToward 生成约定一致（见 PreviewCameraController）
   const shotCameraRotation = useMemo(() => {
-    const rotation = props.cameraData.rotation || [0, 0, 0];
+    const rotation = cameraData?.rotation || [0, 0, 0];
     return new THREE.Euler(rotation[0] || 0, rotation[1] || 0, rotation[2] || 0, 'YXZ');
-  }, [props.cameraData.rotation]);
+  }, [cameraData?.rotation]);
   const cameraSettings = props.cameraView
     ? {
-        position: props.cameraData.position as [number, number, number],
+        position: cameraData!.position as [number, number, number],
         rotation: shotCameraRotation,
         fov: 42,
         near: 0.05,
@@ -1397,7 +1401,7 @@ export function MainViewport(props: EditorSceneProps) {
       dpr={props.performanceMode ? 1 : [1, 1.75]}
       frameloop="demand"
       camera={cameraSettings}
-      onPointerMissed={() => props.onSelect(null)}
+      onPointerMissed={() => props.onSelect?.(null)}
       gl={{
         alpha: true,
         antialias: true,
@@ -1444,7 +1448,7 @@ export function CameraPreview({
       dpr={1}
       frameloop="demand"
       camera={{
-        position: cameraData.position as [number, number, number],
+        position: cameraData!.position as [number, number, number],
         fov: 40,
         aspect: cameraAspect,
         near: 0.05,

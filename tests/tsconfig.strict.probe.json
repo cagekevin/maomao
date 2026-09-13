@@ -10,5 +10,5 @@
     "noImplicitThis": true,
     "useUnknownInCatchVariables": true
   },
-  "include": ["./unit/**/*.ts", "./unit/**/*.tsx"]
+  "include": ["./unit/**/*.ts", "./unit/**/*.tsx", "../src/types/**/*.d.ts"]
 }

@@ -376,7 +376,11 @@ export async function loadCanvasState(projectId: string): Promise<CanvasSnapshot
     );
     return result;
   } catch (e) {
-    logger.warn('projectStore', '读取画布快照失败（KV 不可用？）', e?.message);
+    logger.warn(
+      'projectStore',
+      '读取画布快照失败（KV 不可用？）',
+      (e as { message?: string })?.message,
+    );
     return null;
   }
 }
@@ -465,9 +469,9 @@ export async function saveCanvasState(
           projectId: pid,
           version,
           nodeCount: nodes.length,
-          savedNodeCount: sanitizedNodes.length,
-          edgeCount: edges.length,
-          savedEdgeCount: sanitizedEdges.length,
+          savedNodeCount: sanitizedNodes?.length ?? 0,
+          edgeCount: edges?.length ?? 0,
+          savedEdgeCount: sanitizedEdges?.length ?? 0,
         },
         { module: 'project' },
       );
@@ -489,7 +493,11 @@ export async function saveCanvasState(
         });
         return { success: false, skipped: true, conflict: true, conflictVersion: remote };
       }
-      logger.warn('projectStore', '保存画布快照失败（KV 不可用？）', e?.message);
+      logger.warn(
+        'projectStore',
+        '保存画布快照失败（KV 不可用？）',
+        (e as { message?: string })?.message,
+      );
       recordCanvasWrite({ at: Date.now(), projectId: pid, ifVersion, result: 'fail' });
       return { success: false, skipped: false };
     }

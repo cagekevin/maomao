@@ -201,7 +201,9 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
       // 之前漏了解析：@ 插入的图芯片既不入参考图、又以 @{...|url} 噪音原样发给 LLM。
       const chipUrls = chipResolved.refImages.map((im) => im.url);
       const upstreamUrls = refImages.map((img) => img.url);
-      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])];
+      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])].filter(
+        (u): u is string => u != null,
+      );
       // 文本为非流式请求：上报「连接本地服务」→「上游生成中」两阶段（30% 在 await 前触发，否则被 100 覆盖不可见）
       progress?.(10, '正在连接本地服务…');
       // 对齐官方 H_.jsx Lr（6141-6152）：只有勾选「自动拆分」才把 system 换成
@@ -212,7 +214,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
         : 'You are a helpful assistant.';
       progress?.(30, '上游生成中…');
       const r = await chatCompletions({
-        provider: useProvider,
+        provider: useProvider!,
         messages: [
           { role: 'system', content: sysContent },
           { role: 'user', content: chipResolved.text || effectivePrompt || '' },
@@ -260,7 +262,13 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
             })),
             { sourceHandle: 'main-output' },
           );
-          spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
+          spawnAndCommit(spawned, {
+            getNodes,
+            getEdges,
+            setNodes,
+            setEdges,
+            history: history ?? undefined,
+          });
           return;
         }
       }
@@ -275,7 +283,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
         },
         { module: 'text' },
       );
-      setText(r.content);
+      setText(r.content ?? '');
       // 文本结果落盘成 txt → 生成面板「文本」tab 收录（异步，失败不影响节点显示）
       // P1-3：统一经 reportDegrade 记录，避免只 catch 不提示（内网/权限问题时用户感知保存降级）
       if (typeof r.content === 'string' && r.content.trim()) {
@@ -288,7 +296,10 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
 
   const uploadImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) setImages((prev) => [...prev, previewUrls.create(f)]);
+    if (f) {
+      const url = previewUrls.create(f);
+      if (url) setImages((prev) => [...prev, url]);
+    }
     e.target.value = '';
   };
 
@@ -347,7 +358,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
       icon={<FileText size={11} className="text-muted" />}
       selected={selected}
       handleVariant="small"
-      aspectRatio={null}
+      aspectRatio={undefined}
       defaultHeight={320}
       wrapperRef={wrapperRef}
       onRename={rename}
@@ -437,7 +448,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
                     logger.debug(
                       'TextGenerate',
                       'copy selection read fail',
-                      { error: e?.message },
+                      { error: (e as { message?: string })?.message },
                       { module: 'text' },
                     );
                   }
@@ -452,7 +463,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
             onResizeEnd 写回 ReactFlow node.width/height + updateNodeInternals，
             让 ReactFlow wrapper 跟随 → 端口基于 wrapper 中点不错位 */}
         <ResizeFullscreenHandle
-          targetRef={wrapperRef}
+          targetRef={wrapperRef as React.RefObject<HTMLElement>}
           minWidth={320}
           minHeight={180}
           onRequestFullscreen={() => setFullscreenText(true)}
@@ -537,7 +548,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
             注意：输入框是面板里的「部件」，不参与节点端口定位，所以只写 data，
             不走 onMainBoxResize 那种 node.width/height 写回。 */}
         <ResizeFullscreenHandle
-          targetRef={promptInputRef}
+          targetRef={promptInputRef as React.RefObject<HTMLElement>}
           minWidth={200}
           maxWidth={900}
           minHeight={60}

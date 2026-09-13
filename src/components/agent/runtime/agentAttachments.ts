@@ -69,7 +69,7 @@ export async function normalizeAttachmentsForSend(
   // 【带图可观测】记录本次附件的媒体形态：几张图片（URL/Base64）+ 多少个视频/音频。
   // 与 normalizeAssetUrlsForSend 的日志语义一致，只记形态不携带内容。
   if (items.length > 0) {
-    const imgUrls = items.filter((a) => !a.type || a.type === 'image').map((a) => a.url);
+    const imgUrls = items.filter((a) => !a.type || a.type === 'image').map((a) => a.url ?? '');
     const mediaCounts = items.reduce(
       (acc, a) => {
         if (a.type === 'video' || a.type === 'audio') acc[a.type] = (acc[a.type] || 0) + 1;
@@ -89,7 +89,7 @@ export async function normalizeAttachmentsForSend(
       url:
         a?.type === 'video' || a?.type === 'audio'
           ? normalizeMediaUrlForSend(a?.url)
-          : await normalizeAssetUrlForSend(a?.url, { preferBase64 }),
+          : await normalizeAssetUrlForSend(a?.url ?? '', { preferBase64 }),
     })),
   );
 }

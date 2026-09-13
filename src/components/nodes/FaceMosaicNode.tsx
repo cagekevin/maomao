@@ -146,7 +146,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
       for (const file of list) {
         try {
           const url = await uploadFileToLocal(file, 'canvas/face_mosaic');
-          const target = url || previewUrls.create(file);
+          const target = url ?? previewUrls.create(file) ?? '';
           previews.push(target);
           if (url) persisted.push(url);
         } catch {
@@ -205,11 +205,11 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
         // 【R7 错误分类记录】单张打码失败不中断（部分成功继续处理后续），分类结果进日志供排查；message 原样透传（错误透传铁律）。
         const cls = classifyError(e);
         logger.warn('FaceMosaicNode', 'mosaic single failed', {
-          error: e?.message,
+          error: (e as { message?: string })?.message,
           errType: cls.type,
           retryable: cls.retryable,
         });
-        firstErr ||= e?.message || '打码失败';
+        firstErr ||= (e as { message?: string })?.message || '打码失败';
       }
       setProgress(Math.round(((i + 1) / urls.length) * 100));
     }
@@ -274,7 +274,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
       icon={<Shuffle size={11} className="text-muted" />}
       selected={selected}
       handleVariant="small"
-      aspectRatio={null}
+      aspectRatio={undefined}
       className="min-w-[320px] min-h-[250px]"
       onRename={rename}
     >

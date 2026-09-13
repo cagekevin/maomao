@@ -163,7 +163,7 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
           <div className="flex flex-col gap-1.5 min-w-0">
             <PromptBox
               label="生图提示词"
-              text={s.prompt}
+              text={s.prompt ?? ''}
               loading={s.promptLoading}
               onEdit={() => openField(i, 'prompt', '生图提示词')}
               assetNames={(d.assets || []).map((a) => a.name)}
@@ -189,7 +189,7 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
                   <button
                     className="flex items-center gap-1 px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded"
                     onClick={() =>
-                      callbacks.onGenerateShotImage?.(s.id, genType[i] || genDefaultType)
+                      callbacks.onGenerateShotImage?.(s.id ?? '', genType[i] || genDefaultType)
                     }
                   >
                     <Wand2 size={10} /> 生成提示词
@@ -198,7 +198,7 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
                 {/* 生成完提示词 → 生图（连生图下游） */}
                 <button
                   className="flex items-center gap-1 px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded"
-                  onClick={() => callbacks.onConnectShot?.(s.id, 'image')}
+                  onClick={() => callbacks.onConnectShot?.(s.id ?? '', 'image')}
                 >
                   <ImageIcon size={10} /> 生图
                 </button>
@@ -259,7 +259,7 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
           <div className="flex flex-col gap-1.5 min-w-0">
             <PromptBox
               label="生视频提示词"
-              text={s.videoPrompt}
+              text={s.videoPrompt ?? ''}
               loading={s.promptLoading}
               onEdit={() => openField(i, 'videoPrompt', '生视频提示词')}
               assetNames={(d.assets || []).map((a) => a.name)}
@@ -268,13 +268,13 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
               <button
                 className="flex items-center gap-1 px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded"
                 title="重新生成此镜头提示词（双击提示词文本可打开「AI 按意见优化审计」）"
-                onClick={() => callbacks.onGenerateShotPrompts?.([s.id])}
+                onClick={() => callbacks.onGenerateShotPrompts?.([s.id ?? ''])}
               >
                 <RefreshCw size={10} /> 重新生成
               </button>
               <button
                 className="flex items-center gap-1 px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded"
-                onClick={() => callbacks.onConnectShot?.(s.id, 'video')}
+                onClick={() => callbacks.onConnectShot?.(s.id ?? '', 'video')}
               >
                 <Video size={10} /> 生视频
               </button>
@@ -322,7 +322,9 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
               ? `为选中的 ${selShots.size} 镜批量生成提示词`
               : '为全部镜头批量生成提示词'
           }
-          onClick={() => callbacks.onGenerateShotPrompts?.([...selShots].map((i) => shots[i].id))}
+          onClick={() =>
+            callbacks.onGenerateShotPrompts?.([...selShots].map((i) => shots[i].id ?? ''))
+          }
         >
           <RefreshCw size={11} /> 批量生成提示词{selShots.size ? `(${selShots.size})` : ''}
         </button>
@@ -331,7 +333,7 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
           title={selShots.size ? `为选中的 ${selShots.size} 镜批量生图` : '为全部镜头批量生图'}
           onClick={() =>
             callbacks.onConnectShots?.(
-              [...selShots].map((i) => shots[i].id),
+              [...selShots].map((i) => shots[i].id ?? ''),
               'image',
             )
           }
@@ -353,7 +355,7 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
           onClick={async () => {
             setMergeLoading(true);
             try {
-              await callbacks.onGenerateMergedVideo?.([...selShots].map((i) => shots[i].id));
+              await callbacks.onGenerateMergedVideo?.([...selShots].map((i) => shots[i].id ?? ''));
             } finally {
               setMergeLoading(false);
             }
@@ -400,7 +402,7 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
             {/* 当前镜头操作：生成提示词 / 生图 / 生视频（统一深色按钮，与整体设计语言一致） */}
             <button
               className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-primary bg-surface-hover hover:bg-surface-hover-strong rounded"
-              onClick={() => callbacks.onGenerateShotPrompts?.([shots[singleIdx].id])}
+              onClick={() => callbacks.onGenerateShotPrompts?.([shots[singleIdx].id ?? ''])}
             >
               <RefreshCw size={11} />{' '}
               {shots[singleIdx]?.prompt || shots[singleIdx]?.videoPrompt
@@ -409,13 +411,13 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
             </button>
             <button
               className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-primary bg-surface-hover hover:bg-surface-hover-strong border border-edge rounded"
-              onClick={() => callbacks.onConnectShot?.(shots[singleIdx].id, 'image')}
+              onClick={() => callbacks.onConnectShot?.(shots[singleIdx].id ?? '', 'image')}
             >
               <ImageIcon size={11} /> 生图
             </button>
             <button
               className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-primary bg-surface-hover hover:bg-surface-hover-strong border border-edge rounded"
-              onClick={() => callbacks.onConnectShot?.(shots[singleIdx].id, 'video')}
+              onClick={() => callbacks.onConnectShot?.(shots[singleIdx].id ?? '', 'video')}
             >
               <Video size={11} /> 生视频
             </button>

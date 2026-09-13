@@ -47,6 +47,6 @@ export function broadcastCanvasSaved(projectId: string): void {
     channel.postMessage(msg);
     channel.close();
   } catch (err) {
-    logger.warn('Canvas', '广播画布同步失败', err?.message);
+    logger.warn('Canvas', '广播画布同步失败', (err as { message?: string })?.message);
   }
 }
