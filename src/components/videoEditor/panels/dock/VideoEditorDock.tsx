@@ -998,12 +998,16 @@ function Lane({
               stopPropagation：别把「拖动主体」也触发 */}
             <span
               aria-label="调左边缘"
-              className="absolute inset-y-0 left-0 w-1 cursor-ew-resize bg-accent/50 hover:bg-accent/80"
+              className={`absolute inset-y-0 left-0 w-1 cursor-ew-resize hover:bg-accent/80 ${
+                selectedClipId === clip.id ? 'bg-accent/50' : ''
+              }`}
               onPointerDown={(e) => onClipPointerDown(e, clip, track, 'trimLeft')}
             />
             <span
               aria-label="调右边缘"
-              className="absolute inset-y-0 right-0 w-1 cursor-ew-resize bg-accent/50 hover:bg-accent/80"
+              className={`absolute inset-y-0 right-0 w-1 cursor-ew-resize hover:bg-accent/80 ${
+                selectedClipId === clip.id ? 'bg-accent/50' : ''
+              }`}
               onPointerDown={(e) => onClipPointerDown(e, clip, track, 'trimRight')}
             />
           </div>
