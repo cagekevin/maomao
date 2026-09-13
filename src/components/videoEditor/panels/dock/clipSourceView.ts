@@ -53,10 +53,11 @@ export function sourceWindow(clip: SourceRange, sourceDuration: number): SourceW
   return { widthPercent: (sourceDuration / d) * 100, leftPercent: -((start / d) * 100) };
 }
 
-/** CSS `background-size` / `background-position`（喂胶片条）。 */
+/** CSS `background-size` / `background-position` / `background-repeat`（喂胶片条）。 */
 export interface FilmstripPlacement {
   backgroundSize: string;
   backgroundPosition: string;
+  backgroundRepeat: string;
 }
 
 /**
@@ -64,6 +65,11 @@ export interface FilmstripPlacement {
  *
  * 百分比定位语义：`P%` = 图的 `P%` 点对齐容器的 `P%` 点，位移 `x = (W − W')·P/100`。
  * 要 `x = leftPercent/100 · W` ⇒ `P = leftPercent / (1 − widthPercent/100)`。
+ *
+ * 【为什么竖向也必须给足余量】`background-size` 的竖向 `100%` 与横向 `>100%` 是**独立缩放**：
+ * 裁过的片段横向被放大到 `widthPercent%`，浏览器对横向超大值（`>1000%`）做像素取整，
+ * 会在容器左右缘露出**一条底色缝**（透出片段底色 / 轨道底色 = 用户看到的"黑缝"）。
+ * 故这里 `repeat-x` 兜底：任何像素级缝隙由图案自身重复补上，杜绝露底（视觉上任一像素都有画面）。
  */
 export function filmstripBackground(clip: SourceRange, sourceDuration: number): FilmstripPlacement {
   const { widthPercent, leftPercent } = sourceWindow(clip, sourceDuration);
@@ -73,6 +79,8 @@ export function filmstripBackground(clip: SourceRange, sourceDuration: number): 
     // 竖向拉满：`buildFilmstrip` 已按目标行高拼图，再按比例缩放只会留出黑边
     backgroundSize: `${widthPercent}% 100%`,
     backgroundPosition: `${position}% 50%`,
+    // 横向平铺兜底（见上）：未裁片段 `widthPercent === 100` 时平铺是**无操作**，不改变现有观感
+    backgroundRepeat: 'repeat-x',
   };
 }
 

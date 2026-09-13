@@ -83,7 +83,7 @@
  * 故：**同源不设**（读像素无需 CORS），**真跨源才设 anonymous**。这同时是旧实现（恒设）
  * 在"页面内嵌到 localTool 同源"部署形态下的错误修正 —— 不是兜底，是让抽帧一次到位。
  */
-function setCrossOriginForReadable(video: HTMLVideoElement, url: string) {
+export function setCrossOriginForReadable(video: HTMLVideoElement, url: string) {
   if (sameOriginUrl(url)) return; // 同源：不强制 CORS，canvas 可读
   video.crossOrigin = 'anonymous';
 }

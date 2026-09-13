@@ -164,9 +164,14 @@ describe('源码护栏 — 图片写回只有一个门', () => {
       /typeof d\.assetUrl === 'string'/.test(readSrc('src/components/base/utils/assetUrl.ts')),
       'resolveAssetDisplayUrl 必须保留 assetUrl 存量兜底（无 resourceId/url 时退回 assetUrl）',
     ).toBe(true);
+    // 【2026-09-13 更新】并行「严格类型化」线把 `||` 改为 `??` + `as string | undefined` 显式标注
+    // （语义更准：空串不该被兜底）。护栏容忍两侧类型标注、认两运算符，防实现再演进时护栏过期
+    //（本轮全量回归发现其因旧正则只认 `||` 而恒红——属护栏过期，非兜底被删）。
     expect(
-      /node\?\.data\?\.assetUrl\s*\|\|\s*node\?\.data\?\.url/.test(readSrc('src/App.tsx')),
-      'App.copyNodeImage 必须保留 assetUrl || url 兜底',
+      /node\?\.data\?\.assetUrl.{0,60}(\?\?|\|\|).{0,60}node\?\.data\?\.url/.test(
+        readSrc('src/App.tsx'),
+      ),
+      'App.copyNodeImage 必须保留 assetUrl 兜底 url（?? / || 均可，容忍 as 标注）',
     ).toBe(true);
     // 【2026-09-13 修正】getNodeAssetUrl 已下沉 base/canvas/nodeMedia.ts（TD-04-25）；
     // 旧断言仍指向 agent/canvas/useCanvasAgentTools.ts（该文件已不再实现、仅转发注释）→ 恒红。

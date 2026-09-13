@@ -68,6 +68,15 @@ export const SNAP_TOLERANCE_PX = 8;
 export const ZOOM_STEP = 1.4;
 
 /**
+ * 顶部拖柄「点按 vs 拖动」的判定容差（px，C7.5 收起出口）。
+ *
+ * 拖柄一物两用：位移 ≤ 本值 = 用户只是**点了一下** → 收起基座；超过则视为在**调高度**。
+ * 取 6px 与 tab 拖拽的 `MOVE_THRESHOLD`（`assistantTable/useTabDragSort.ts`，同为 4-6px 档）
+ * 同一量级：小于此值多是手抖 / 触控板轻触，不该被当成拖动。
+ */
+export const DOCK_CLICK_TOLERANCE_PX = 6;
+
+/**
  * 工程记录结构版本（`docs/120` C1/C2 的 schemaVersion 守卫基准）。
  *
  * 只在**改变 `tracks` / `settings` 结构**（新增/重命名影响旧数据可读性的字段）时抬升，并补迁移分支。

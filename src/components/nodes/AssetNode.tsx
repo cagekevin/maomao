@@ -64,7 +64,6 @@ interface AssetNodeData {
   /** docs/122 #4：文件型持稳定 contentId（sha1:<hex>，与后端同源）；内联 dataURL/blob 无此字段 */
   contentId?: string;
   assetType?: AssetType;
-  poster?: string;
   demoImage?: string;
   text?: string;
 }
@@ -292,7 +291,6 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   // 画布内显示地址：图片走按需小图（END 收口治全分辨率解码卡顿），缩放弹层/发送仍用原图 url。
   // render scope 仅对本地 /files/ 出小图；外部 http/data/blob 回退原图，绝不破图。
   const renderUrl = type === 'image' ? render(url) : '';
-  const displayUrl = type === 'image' ? url : data.poster || '';
 
   // hover 操作栏按钮：图片类共享能力(crop/edit/compress)走 useImageHoverActions，
   // upload/send/download 按本节点多类型语义各自声明。
@@ -486,7 +484,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
         图片→kind="image" 看海报/大图；视频→kind="video" 统一走视频播放预览（含截屏按钮） */}
       <ImageZoomDialog
         ref={dialogRef}
-        url={type === 'video' ? url : displayUrl}
+        url={url}
         kind={type === 'video' ? 'video' : 'image'}
       />
 

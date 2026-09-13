@@ -15,6 +15,14 @@ const EMPTY_TICKS: Tick[] = [];
 /** 顶部刻度标尺行高（与 `mockup-kit.css:1273` `.ve-ruler` 高度对齐）；左列占位用它同高对齐。 */
 export const RULER_HEIGHT = 22;
 
+/**
+ * 播放头**拖动命中带**的半宽（px，视觉线宽仍为 2px）。
+ *
+ * 红线只有 2px，直接点它命中率极低 —— 故命中区左右各外扩本值（共 10px 宽）。
+ * 取 5px 是折中：够好点中，又窄到不会大面积压住片段（片段在红线附近仍以自身拖拽为主）。
+ */
+const PLAYHEAD_HIT_HALF_PX = 5;
+
 export interface RulerStripProps {
   /** 工程是否已加载（无工程则不渲染标尺与播放头）。 */
   hasProject: boolean;
@@ -61,8 +69,16 @@ export function RulerStrip(p: RulerStripProps) {
         </div>
       )}
 
-      {/* 播放头（mockup `.ve-ph`）：2px 红竖线 + 顶部抓手。
-          红一律内联读 `rgb(var(--mao-danger))` —— 不依赖 Tailwind 是否生成 `.bg-danger`（避免编译滞后导致红不出）。 */}
+      {/* 播放头（mockup `.ve-ph`）：2px 红竖线 + 顶部抓手 + **整线可拖的命中区**。
+          红一律内联读 `rgb(var(--mao-danger))` —— 不依赖 Tailwind 是否生成 `.bg-danger`（避免编译滞后导致红不出）。
+
+          【为什么拆成「线 / 命中区」两层】
+          红线视觉只有 2px，若只让这 2px 可点，用户极难命中 —— 原实现因此只在**顶部**给了一个小把手，
+          结果「只有拖把手才能移动」，线本身完全没反应（正是用户报的问题）。
+          解法：线本体继续 `pointer-events-none`（纯视觉，不抢事件），**另起一层贯穿整条的命中区**，
+          宽度给到左右各 `HIT_HALF_PX`（≈ 5px，共 10px）—— 明显好点中，又不足以大面积挡住片段。
+          层级：命中区 z-[21]（片段在 lane 内 z 更低），只有紧贴红线的窄带优先于片段，
+          片段其余区域照常可拖 —— 与剪映 / Premiere 的「playhead 细窄命中带」同款做法。 */}
       {hasProject && (
         <>
           <div
@@ -79,20 +95,25 @@ export function RulerStrip(p: RulerStripProps) {
             aria-valuemax={Math.round(totalDuration)}
             aria-valuenow={Math.round(displayHead)}
             title="拖动播放头"
-            className="absolute top-0 z-[30] cursor-ew-resize touch-none"
-            style={{ left: timeToX(displayHead, pps, 0) }}
+            className="absolute top-0 bottom-0 z-[21] cursor-ew-resize touch-none"
+            style={{ left: timeToX(displayHead, pps, 0), marginLeft: -PLAYHEAD_HIT_HALF_PX }}
             onPointerDown={onPlayheadPointerDown}
           >
+            {/* 加宽的透明命中带（整条贯穿）：`-ml` 让红线落在这条带的正中 */}
+            <span style={{ width: PLAYHEAD_HIT_HALF_PX * 2 }} className="absolute inset-y-0" />
+            {/* 顶部抓手（视觉）：只作为"这里能拖"的视觉提示，命中交给上面那条带 */}
             <i
-              className="absolute top-0 -left-[7px] w-[16px] h-[11px] rounded-[3px_3px_1px_1px] shadow-[0_1px_3px_rgba(0,0,0,.5)]"
-              style={{ background: 'rgb(var(--mao-danger) / 1)' }}
+              className="absolute top-0 w-[16px] h-[11px] rounded-[3px_3px_1px_1px] shadow-[0_1px_3px_rgba(0,0,0,.5)]"
+              style={{
+                left: PLAYHEAD_HIT_HALF_PX - 8,
+                background: 'rgb(var(--mao-danger) / 1)',
+              }}
             >
               <span
                 className="absolute left-[5px] top-[9px] w-0 h-0 border-x-[3px] border-t-[5px] border-x-transparent"
                 style={{ borderTopColor: 'rgb(var(--mao-danger) / 1)' }}
               />
             </i>
-            <span className="absolute -top-0.5 -left-1 bottom-0 w-2 bg-transparent" />
           </div>
         </>
       )}

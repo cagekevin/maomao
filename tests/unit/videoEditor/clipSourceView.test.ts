@@ -19,6 +19,7 @@ describe('sourceWindow / filmstripBackground —— 源区间映射到胶片图�
     expect(filmstripBackground({ sourceStart: 0, sourceEnd: 10 }, 10)).toEqual({
       backgroundSize: '100% 100%',
       backgroundPosition: '0% 50%',
+      backgroundRepeat: 'repeat-x',
     });
   });
 
@@ -27,6 +28,7 @@ describe('sourceWindow / filmstripBackground —— 源区间映射到胶片图�
     expect(filmstripBackground({ sourceStart: 5, sourceEnd: 10 }, 10)).toEqual({
       backgroundSize: '200% 100%',
       backgroundPosition: '100% 50%',
+      backgroundRepeat: 'repeat-x',
     });
   });
 
@@ -35,7 +37,18 @@ describe('sourceWindow / filmstripBackground —— 源区间映射到胶片图�
     expect(filmstripBackground({ sourceStart: 10, sourceEnd: 20 }, 30)).toEqual({
       backgroundSize: '300% 100%',
       backgroundPosition: '50% 50%',
+      backgroundRepeat: 'repeat-x',
     });
+  });
+
+  it('横向恒为 repeat-x（兜住放大取整产生的缝隙，杜绝露底黑缝）', () => {
+    for (const clip of [
+      { sourceStart: 0, sourceEnd: 10 },
+      { sourceStart: 5, sourceEnd: 10 },
+      { sourceStart: 5, sourceEnd: 2 }, // 脏数据
+    ]) {
+      expect(filmstripBackground(clip, 10).backgroundRepeat).toBe('repeat-x');
+    }
   });
 
   it('放大倍率与偏移成正比：起始越靠后，越靠右（单调性，防公式写反）', () => {
@@ -60,10 +73,12 @@ describe('sourceWindow / filmstripBackground —— 源区间映射到胶片图�
     expect(filmstripBackground({ sourceStart: 5, sourceEnd: 2 }, 10)).toEqual({
       backgroundSize: '100% 100%',
       backgroundPosition: '0% 50%',
+      backgroundRepeat: 'repeat-x',
     });
     expect(filmstripBackground({ sourceStart: 0, sourceEnd: 5 }, 0)).toEqual({
       backgroundSize: '100% 100%',
       backgroundPosition: '0% 50%',
+      backgroundRepeat: 'repeat-x',
     });
   });
 

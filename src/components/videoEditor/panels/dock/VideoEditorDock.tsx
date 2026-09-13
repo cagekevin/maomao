@@ -22,7 +22,7 @@
  * ── 未做的部分（诚实清单，别读成已完成）──
  * 多选 + 框选批量删除（C11.8）· 右键集（C15，用户裁定不做）。走带出声未真机验收。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { AudioLines, Eye, EyeOff, Lock, LockOpen, Video, Volume2, VolumeX } from 'lucide-react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
@@ -34,8 +34,12 @@ import {
   timeToX,
   xToTime,
 } from '../../../base/utils/timeline/timeScale.ts';
-import { DEFAULT_ROW_HEIGHT, SNAP_TOLERANCE_PX } from '../../core/constants.ts';
-import { clipDuration, clipEdges } from '../../core/timelineOps.ts';
+import {
+  DEFAULT_ROW_HEIGHT,
+  DOCK_CLICK_TOLERANCE_PX,
+  SNAP_TOLERANCE_PX,
+} from '../../core/constants.ts';
+import { clipDuration, clipEdges, magneticOf } from '../../core/timelineOps.ts';
 import type { Clip, Track } from '../../core/types.ts';
 import { useEditorFilmstrips } from '../../hooks/useEditorFilmstrips.ts';
 import { useEditorSources } from '../../hooks/useEditorSources.ts';
@@ -107,6 +111,9 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
 
   /** 工程参数 / 轨道高度编辑面板开关（`docs/120` C12.2 · C7.5）。 */
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  /** 吸附开关（`project.ui.magnetic`，缺省 = 开）—— 随工程落盘、不进撤销栈。 */
+  const magnetic = magneticOf(project?.ui);
 
   /* ── 生命周期 refs（挂载期存活；导出/入轨异步回写前要复核，坑 §五.1：真收紧不重挂）── */
   const aliveRef = useRef(true);
@@ -186,18 +193,26 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
   const drag = useTimelineDrag({ store, project, pps, playhead, open });
   const exp = useEditorExport({ flow, history, project, allClips, sources, aliveRef });
 
-  /* ── 基座高度拖柄（C7.5，`Project.ui.dockHeight` 落盘）。点一下无拖动不做，拖过阈值才收起。 */
+  /* ── 顶部拖柄 = **收起按钮 + 高度拖柄**二合一（都在正中，入口/出口对称）──
+   *
+   * 交互设计（用户口径：基座从中间展开，关闭也该在中间）：
+   *  · **点一下**（位移 < 阈值）→ **收起基座**（明确的关闭出口，可发现性远高于"往下拖"）；
+   *  · **按住上下拖** → 调整基座高度（C7.5，落盘 `ui.dockHeight`）。
+   * 两条动作共用同一命中区，靠"松手时有没有真的拖动"区分 —— 与 tab 拖拽的 `MOVE_THRESHOLD`
+   * 同一套判据（`assistantTable/useTabDragSort.ts`），不另立第二套。
+   *
+   * ⚠️ 原实现只有"拖过 60px 才收起"，没有任何提示 → 用户根本不知道能关（可发现性事故）。
+   */
   const dockResizeRef = useRef<{ startY: number; startH: number; lastY: number } | null>(null);
   const beginDockResize = useCallback(
     (e: ReactPointerEvent) => {
       if (e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
-      const projectNow = storeRef.current.project;
-      if (!projectNow) return;
+      if (!storeRef.current.project) return;
       dockResizeRef.current = {
         startY: e.clientY,
-        startH: projectNow.ui?.dockHeight ?? 280,
+        startH: storeRef.current.project.ui?.dockHeight ?? 280,
         lastY: e.clientY,
       };
       const onMove = (ev: PointerEvent) => {
@@ -214,11 +229,14 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
       };
       const onUp = () => {
         const d = dockResizeRef.current;
-        if (d && d.lastY - d.startY > 60) onClose(); // 大幅度往下拖才收起
         dockResizeRef.current = null;
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         window.removeEventListener('pointercancel', onUp);
+        if (!d) return;
+        // 位移 ≤ 阈值 = 用户只是**点了一下**（没想调高度）→ 收起基座。
+        // 这比「拖过 60px 才收起」好得多：关闭入口变成**明确的一次点击**，人人都会用。
+        if (Math.abs(d.lastY - d.startY) <= DOCK_CLICK_TOLERANCE_PX) onClose();
       };
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
@@ -231,7 +249,9 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
     <section
       aria-label="视频剪辑器"
       data-video-editor-dock
-      className={`relative flex flex-col border-t border-edge bg-surface-deep text-primary ${open ? '' : 'hidden'}`}
+      /* 编辑器整体 `select-none`：这里拖拽操作密集（片段 / 手柄 / 播放头），
+         不禁止选中就会在拖拽时顺手刷出一片蓝底文字。 */
+      className={`relative flex flex-col border-t border-edge bg-surface-deep text-primary select-none ${open ? '' : 'hidden'}`}
       style={{ height: project?.ui.dockHeight ?? 280 }}
     >
       {/* 走带真出声（docs/120 C11.7 · M1）：随播放头对齐的隐藏媒体元素 */}
@@ -242,18 +262,8 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
         tracks={project?.tracks ?? EMPTY_TRACKS}
         sources={sources.byClipId}
       />
-      {/* 顶部拖柄（mockup `.vd-grip`）：竖直拖动调基座高度 */}
-      <div
-        role="separator"
-        aria-label="拖动调整剪辑器高度"
-        title="拖动调整高度"
-        className="h-1.5 shrink-0 flex items-center justify-center cursor-ns-resize touch-none hover:bg-surface-hover"
-        onPointerDown={beginDockResize}
-      >
-        <span className="w-9 h-[3px] rounded bg-edge" />
-      </div>
-
-      {/* 工带（mockup `.vd-bar`）—— DockToolbar 纯渲染 */}
+      {/* 工带（mockup `.vd-bar`）—— DockToolbar 纯渲染。
+          收起按钮（横线）已**并入工具带正中间**，不再单独占一行（省一行高度）。 */}
       <DockToolbar
         displayHead={transport.displayHead}
         totalDuration={transport.totalDuration}
@@ -277,23 +287,16 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
         abortExport={exp.abortExport}
         settingsOpen={settingsOpen}
         onToggleSettings={() => setSettingsOpen((o) => !o)}
-        onPpsChange={setPps}
-        trackAreaRef={transport.trackAreaRef}
-      />
-
-      {/* 常驻信息 / 设置条 / 断链 / 冲突失败 —— DockStatusBar 纯渲染 */}
-      <DockStatusBar
-        settingsOpen={settingsOpen}
         project={project}
         rowHeight={rowHeight}
         applyProjectPatch={store.applyProjectPatch}
-        brokenCount={brokenIds.size}
-        conflict={store.conflict}
-        reload={store.reload}
-        failed={store.status === 'failed'}
-        reason={store.reason}
-        exportInfoReason={exp.plan?.reason ?? null}
-        letterbox={exp.letterbox}
+        magnetic={magnetic}
+        onToggleMagnetic={() =>
+          project && store.applyProjectPatch({ ui: { ...project.ui, magnetic: !magnetic } })
+        }
+        onDockResizePointerDown={beginDockResize}
+        onPpsChange={setPps}
+        trackAreaRef={transport.trackAreaRef}
       />
 
       {/* ── 轨道区（mockup O5：固定左列图标网格 + 右侧滚动区，二者同高逐行对齐）── */}
@@ -305,16 +308,19 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
         >
           <div className="shrink-0 border-b border-edge-faint" style={{ height: RULER_HEIGHT }} />
           {project?.tracks.map((track) => (
-            <TrackHead
-              key={track.id}
-              track={track}
-              rowHeight={rowHeight}
-              onToggle={(patch) =>
-                store.applyTracks((tracks) =>
-                  tracks.map((t) => (t.id === track.id ? { ...t, ...patch } : t)),
-                )
-              }
-            />
+            <Fragment key={track.id}>
+              <TrackHead
+                track={track}
+                rowHeight={rowHeight}
+                onToggle={(patch) =>
+                  store.applyTracks((tracks) =>
+                    tracks.map((t) => (t.id === track.id ? { ...t, ...patch } : t)),
+                  )
+                }
+              />
+              {/* 与右侧轨道区**逐行同高对齐**：每条轨道头下方同样一条底边，让分隔线横向贯通整行 */}
+              <div className="h-px shrink-0 bg-edge-faint" aria-hidden />
+            </Fragment>
           ))}
         </div>
 
@@ -357,20 +363,39 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
           )}
 
           {project?.tracks.map((track) => (
-            <Lane
-              key={track.id}
-              track={track}
-              pps={pps}
-              rowHeight={rowHeight}
-              selectedClipId={drag.selectedClipId}
-              brokenIds={brokenIds}
-              visuals={visuals}
-              onClipPointerDown={drag.beginClipDrag}
-              onSelectClip={drag.setSelectedClipId}
-            />
+            <Fragment key={track.id}>
+              <Lane
+                track={track}
+                pps={pps}
+                rowHeight={rowHeight}
+                selectedClipId={drag.selectedClipId}
+                draggingClipId={drag.draggingClipId}
+                brokenIds={brokenIds}
+                visuals={visuals}
+                onClipPointerDown={drag.beginClipDrag}
+                onSelectClip={drag.setSelectedClipId}
+              />
+              {/* **每条轨道下方**的底边线：独立 1px 元素，**无条件渲染** ——
+                  不依赖轨道自身高度/内容，空轨道（如还没放音频的音频轨）同样有线；
+                  末轨下方也保留（用户口径：每条都要有一条 border，不分首末）。 */}
+              <div className="h-px shrink-0 bg-edge-faint" aria-hidden />
+            </Fragment>
           ))}
         </div>
       </div>
+
+      {/* 常驻信息 / 设置条 / 断链 / 冲突失败 —— DockStatusBar 纯渲染。
+          置于**轨道区之下**（贴底）：导出前信息是「结论行」，放在画面最下方一栏，不占轨道可视高度。 */}
+      <DockStatusBar
+        project={project}
+        brokenCount={brokenIds.size}
+        conflict={store.conflict}
+        reload={store.reload}
+        failed={store.status === 'failed'}
+        reason={store.reason}
+        exportInfoReason={exp.plan?.reason ?? null}
+        letterbox={exp.letterbox}
+      />
     </section>
   );
 }
@@ -399,6 +424,7 @@ function clipStripStyle(clip: Clip, visual: ClipVisual | undefined): CSSProperti
       backgroundImage: `url(${visual.url})`,
       backgroundSize: 'contain',
       backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
     };
   }
   if (clip.kind === 'video' && visual?.stripUrl) {
@@ -463,6 +489,7 @@ function Lane({
   pps,
   rowHeight,
   selectedClipId,
+  draggingClipId,
   brokenIds,
   visuals,
   onClipPointerDown,
@@ -472,6 +499,8 @@ function Lane({
   pps: number;
   rowHeight: number;
   selectedClipId: string | null;
+  /** 正在被拖拽的片段 id（无拖拽 = `null`）—— 命中时才加「正在拖」的视觉反馈。 */
+  draggingClipId: string | null;
   brokenIds: Set<string>;
   visuals: ReadonlyMap<string, ClipVisual>;
   onClipPointerDown: (
@@ -484,13 +513,19 @@ function Lane({
 }) {
   return (
     <div
-      className="relative rounded-md bg-surface-sunken"
-      style={{ height: rowHeight }}
+      className="relative rounded-md"
+      style={{
+        height: rowHeight,
+        // 隐藏轨的虚线框用 **inset box-shadow** 而非 `border`：border 占盒内 1px，
+        // 会把轨道内容整体推移 1px（用户会看到「一开隐藏就抖一下」）。box-shadow 不参与布局。
+        ...(track.hidden ? { boxShadow: 'inset 0 0 0 1px rgb(var(--mao-edge-strong) / 0.7)' } : {}),
+      }}
       data-lane-id={track.id}
     >
       {track.clips.map((clip) => {
         const broken = brokenIds.has(clip.id);
         const visual = visuals.get(clip.id);
+        const isDragging = draggingClipId === clip.id;
         return (
           <div
             key={clip.id}
@@ -509,10 +544,21 @@ function Lane({
                   : 'border-white/10 bg-surface-1 hover:border-white/25'
             }`}
             style={{
+              // 隐藏轨：整轨内容**去色 + 变淡**（与轨道头的 EyeOff 呼应）；静音轨：只**降饱和**（画面还在、声音不出）。
+              // 用内联 `filter` 而非 Tailwind `grayscale`/`saturate-50`：前者与仓内既有做法一致，且不赌
+              // 「该工具类是否被生成」。filter / opacity **不参与布局** ⇒ 开关时不产生任何位移。
+              ...(track.hidden
+                ? { opacity: 0.3, filter: 'grayscale(1) saturate(0)' }
+                : track.muted
+                  ? { filter: 'saturate(0.45)' }
+                  : {}),
               left: timeToX(clip.timelineStart, pps, 0),
               width: Math.max(2, timeDeltaToPx(clipDuration(clip), pps)),
               top: CLIP_INSET,
               bottom: CLIP_INSET,
+              // 「正在拖」反馈：半透明 + 浮起阴影 + 抬到最上层（一眼看出这一段在跟手）。
+              // 全部是 paint-only（opacity/box-shadow/z-index），**不改尺寸** ⇒ 拖拽中不抖。
+              ...(isDragging ? { opacity: 0.85, zIndex: 20 } : {}),
               // 选中：accent 光圈（内联读变量，不依赖 Tailwind 是否生成类）
               ...(selectedClipId === clip.id
                 ? {
@@ -520,6 +566,7 @@ function Lane({
                     boxShadow: '0 0 0 1px rgb(var(--mao-accent) / 1)',
                   }
                 : {}),
+              ...(isDragging ? { boxShadow: '0 6px 18px rgb(0 0 0 / 0.55)' } : {}),
             }}
             // C13：断链是**持续状态**（红标 + 原因），不是一次性 toast
             title={
@@ -573,17 +620,34 @@ function Lane({
               stopPropagation：别把「拖动主体」也触发 */}
             <span
               aria-label="调左边缘"
-              className="absolute inset-y-0 left-0 w-1 cursor-ew-resize bg-accent/70 hover:bg-accent"
+              className="absolute inset-y-0 left-0 w-1 cursor-ew-resize bg-accent/50 hover:bg-accent/80"
               onPointerDown={(e) => onClipPointerDown(e, clip, track, 'trimLeft')}
             />
             <span
               aria-label="调右边缘"
-              className="absolute inset-y-0 right-0 w-1 cursor-ew-resize bg-accent/70 hover:bg-accent"
+              className="absolute inset-y-0 right-0 w-1 cursor-ew-resize bg-accent/50 hover:bg-accent/80"
               onPointerDown={(e) => onClipPointerDown(e, clip, track, 'trimRight')}
             />
           </div>
         );
       })}
+
+      {/* 轨道三态（锁定 / 隐藏 / 静音）的**轨道级视觉反馈** ——
+          光靠轨道头图标变色不够：用户视线在轨道上时，看不出这一轨处于什么状态。
+          遮罩层在片段**之上**且 `pointer-events-none`（不拦片段的拖拽 / 选中），
+          **纯灰调、不占布局**（无 border / 无尺寸位移）：锁定 = 斜条纹灰罩（「这一片被锁住，不可编辑」）。 */}
+      {track.locked && (
+        <div
+          className="absolute inset-0 rounded-md pointer-events-none z-10"
+          data-lane-locked
+          style={{
+            backgroundColor: 'rgb(0 0 0 / 0.42)',
+            backgroundImage:
+              'repeating-linear-gradient(-45deg, transparent 0 6px, rgb(255 255 255 / 0.14) 6px 8px)',
+            boxShadow: 'inset 0 0 0 1px rgb(var(--mao-edge-strong) / 0.9)',
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -4,11 +4,20 @@
  *  - ProgressController：取消状态、attach/attachOutput 的取消传播
  *  - ConversionCanceled：错误类型
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+// TD-22-2 探针：mock 落盘基座（uploadResult 的唯一 IO 依赖），驱动「成功 / 失败 / 异常」三分支。
+// 契约（用户裁定·错误透传）：失败必须返 null 让消费方显式报错，禁止伪造临时 blob: URL 冒充成功。
+vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+  uploadFileToLocal: vi.fn(),
+}));
 import {
   ProgressController,
   ConversionCanceled,
+  uploadResult,
 } from '../../src/components/base/utils/videoEngine.ts';
+import { uploadFileToLocal } from '../../src/components/base/api/filesApi.ts';
+
+const mockUpload = vi.mocked(uploadFileToLocal);
 
 describe('ConversionCanceled', () => {
   it('是 Error 子类且可携带信息', () => {
@@ -65,5 +74,34 @@ describe('ProgressController - attach 取消传播', () => {
     expect(conv.cancel).toHaveBeenCalled();
     expect(out.cancel).toHaveBeenCalled();
     expect(c.isCanceled).toBe(true);
+  });
+});
+
+describe('uploadResult - 落盘契约（TD-22-2：失败诚实返 null，禁止伪造临时 blob: 冒充成功）', () => {
+  beforeEach(() => {
+    mockUpload.mockReset();
+  });
+
+  it('落盘成功 → 返回持久 /files/ URL', async () => {
+    const persisted = 'http://127.0.0.1:18080/files/canvas/video-process/a.mp4';
+    mockUpload.mockResolvedValue(persisted);
+    const blob = new Blob(['x'], { type: 'video/mp4' });
+    await expect(uploadResult(blob)).resolves.toEqual({ url: persisted });
+    expect(mockUpload).toHaveBeenCalledWith(blob, 'canvas/video-process', expect.any(String));
+  });
+
+  it('字符串输入（已是 URL）→ 原样返回，不触发上传', async () => {
+    await expect(uploadResult('/files/already.mp4')).resolves.toEqual({ url: '/files/already.mp4' });
+    expect(mockUpload).not.toHaveBeenCalled();
+  });
+
+  it('落盘失败（基座返 null）→ 返回 null（旧实现此处伪造 blob: URL —— 先红点）', async () => {
+    mockUpload.mockResolvedValue(null);
+    await expect(uploadResult(new Blob(['x'], { type: 'video/mp4' }))).resolves.toBeNull();
+  });
+
+  it('落盘抛异常 → 返回 null（错误经 logger 留痕，不伪装成成功）', async () => {
+    mockUpload.mockRejectedValue(new Error('network down'));
+    await expect(uploadResult(new Blob(['x'], { type: 'video/mp4' }))).resolves.toBeNull();
   });
 });

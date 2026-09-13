@@ -12,10 +12,12 @@ import {
   findClipAt,
   freezeFrameAt,
   hasOverlap,
+  magneticOf,
   moveClipTo,
   placeClipAt,
   relayoutSequential,
   removeClips,
+  settle,
   splitAt,
   timelineDuration,
   trimLeftAt,
@@ -145,13 +147,29 @@ describe('B 组 · 编辑（I4：无变化必须返回入参本身）', () => {
     expect(next.map((c) => c.timelineStart)).toEqual([0, 2, 4]);
   });
 
-  it('removeClips：lift 留洞（唯一允许产生空隙的动作）/ ripple 前移', () => {
+  it('removeClips：吸附开 → 一律波纹前移（即使 mode=lift）；吸附关 → 才按 mode 留洞', () => {
     const clips = [clip('a', 0, 2), clip('b', 2, 2), clip('c', 4, 2)];
-    const lifted = removeClips(clips, ['b'], 'lift');
+    // 吸附开（缺省）：mode 被忽略，强制补齐（否则「开了吸附却留洞」自相矛盾）
+    const forced = removeClips(clips, ['b'], 'lift');
+    expect(forced.map((c) => c.timelineStart)).toEqual([0, 2]); // 前移压实
+    // 吸附关：显式 lift / ripple 才各有其义
+    const lifted = removeClips(clips, ['b'], 'lift', false);
     expect(lifted.map((c) => c.timelineStart)).toEqual([0, 4]); // 洞保留
-    const rippled = removeClips(clips, ['b'], 'ripple');
+    const rippled = removeClips(clips, ['b'], 'ripple', false);
     expect(rippled.map((c) => c.timelineStart)).toEqual([0, 2]); // 前移压实
     expect(removeClips(clips, ['不存在'], 'lift')).toBe(clips); // I4
+  });
+
+  it('【吸附开关】magnetic=false 时主轨原语保留空隙（settle 不压实）', () => {
+    const gapped = [clip('a', 0, 2), clip('b', 5, 3)];
+    // 吸附关：settle 原样返回（同引用，I4）
+    expect(settle(gapped, false)).toBe(gapped);
+    // 吸附开：压实
+    expect(settle(gapped, true).map((c) => c.timelineStart)).toEqual([0, 2]);
+    // magneticOf：缺省 = 开（旧工程字段缺失 → 回到历史行为）
+    expect(magneticOf(undefined)).toBe(true);
+    expect(magneticOf({})).toBe(true);
+    expect(magneticOf({ magnetic: false })).toBe(false);
   });
 
   it('removeClips：删空是合法结果（不引入「至少保留一个片段」）', () => {
@@ -197,6 +215,22 @@ describe('B 组 · 编辑（I4：无变化必须返回入参本身）', () => {
     expect(timelineDuration([track(out)])).toBe(7); // 4 + 3
     expectMagnetic(out);
     expect(freezeFrameAt(clips, 0, 3)).toBeNull();
+  });
+
+  it('updateClip 左裁（手柄左柄）：只改入点，主轨压实 → 右缘随之自动前移（波纹）', () => {
+    const main = track([clip('a', 0, 2), clip('b', 2, 3), clip('c', 5, 1)]);
+    const tracks = [main];
+
+    // 把 b 的入点从 0 推到 1（左裁 1s）：只改 sourceStart，不动 timelineStart
+    const cut = updateClip(tracks, 'b', (c) => ({ ...c, sourceStart: 1 }));
+    const clips = cut[0].clips;
+
+    expect(clips[1].sourceStart).toBe(1); // 入点前进
+    expect(clips[1].sourceEnd).toBe(3); // 出点不动
+    expect(clipDuration(clips[1])).toBe(2); // 时长 3 → 2
+    expect(clips[1].timelineStart).toBe(2); // 左缘仍贴前一片段末尾（压实）
+    expect(clips[2].timelineStart).toBe(4); // 后续片段前移（波纹前移）
+    expectMagnetic(clips); // I1 仍成立，无空隙
   });
 
   it('updateClip：主轨更新后顺排、自由轨保留位置；无变化 → 同引用（I4）', () => {

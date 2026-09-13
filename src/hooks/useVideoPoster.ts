@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
-import { drawVideoFrame } from '../components/base/utils/captureFrame.ts';
+import {
+  drawVideoFrame,
+  setCrossOriginForReadable,
+} from '../components/base/utils/captureFrame.ts';
 
 /**
  * 视频首帧封面 hook。
@@ -15,7 +18,8 @@ import { drawVideoFrame } from '../components/base/utils/captureFrame.ts';
  *
  * 更新(2026-09-13)：seek+drawImage 已收口到 `base/utils/captureFrame.ts` 的 `drawVideoFrame`
  * （抽帧唯一原语，见其文件头「同机制清单」）。本 hook 退化为**宿主薄包装**，只保留自己的判据：
- *  - `crossOrigin` **仅对 http(s) 源**设置（dataURL 同源，设了也无害但没必要）；
+ *  - `crossOrigin` 走 `setCrossOriginForReadable` 单点裁决（TD-22-1：同源不设 / 真跨源设 anonymous；
+ *    替换本 hook 原有的 `startsWith('http')` 第二判据 —— 它在同源绝对地址下会误设、污染 canvas）；
  *  - `preload='metadata'`（首帧海报要快，不预载整片）；
  *  - 抓帧时刻 `0.05`（部分视频首帧是黑的，微调一帧）；
  *  - 输出 **原尺寸** `toDataURL('image/jpeg', 0.7)`；
@@ -39,10 +43,10 @@ export function useVideoPoster(url: string, enabled: boolean) {
     v.preload = 'metadata';
     v.muted = true;
     v.playsInline = true;
-    // 对跨域 URL（如 localTool 的 http://127.0.0.1:18080/files/...）必须设 anonymous，
-    // 否则 canvas 抓帧会被「Tainted canvases」污染导致 toDataURL 抛错、封面失败。
-    // localTool 已返回 Access-Control-Allow-Origin:*；dataURL 同源加此属性无副作用。
-    if (typeof url === 'string' && url.startsWith('http')) v.crossOrigin = 'anonymous';
+    // TD-22-1：crossOrigin 单点裁决（同源不设 / 真跨源设 anonymous）。
+    // 旧实现 startsWith('http') 在**生产同源部署**下会把同源 /files/ 绝对地址也设成 anonymous
+    // → 走 CORS 模式 → 网关不回 ACAO 时 canvas 被污染 → toDataURL 失败。统一到单点后消除该坑。
+    setCrossOriginForReadable(v, url);
     v.src = url;
     v.load();
     drawVideoFrame(v, { atTime: 0.05 })

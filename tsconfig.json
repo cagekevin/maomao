@@ -16,7 +16,8 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
 
-    // ✅ 2026-09-13 起 src 全量启用严格模式（tests 经 exclude 保持原宽松态，由其他 AI 专项收口）。
+    // ✅ 2026-09-13 起 src 全量启用严格模式；同日 tests 也全量纳入本配置（strict 全开、零放宽），
+    // 存量约 866 处报错（隐式 any 系为主，见 `npm run type-check`）按文件逐个收口。
     // 全开 strict 总开关 + noImplicitAny + strictNullChecks + noUnusedLocals / noUnusedParameters / noImplicitReturns。
     "strict": true,
     "noImplicitAny": true,
@@ -51,5 +52,5 @@
     "tests/**/*.tsx",
     "tests/**/*.mjs"
   ],
-  "exclude": ["node_modules", "dist", "dev", "tests"]
+  "exclude": ["node_modules", "dist", "dev"]
 }

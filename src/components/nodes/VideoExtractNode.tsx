@@ -24,7 +24,7 @@ import { downloadUrl } from '../base/utils/clipboard.ts';
 import { logger } from '../base/core/logger.ts';
 import { classifyError } from '../base/utils/genErrors.ts';
 import previewUrls from '../base/utils/previewUrl.ts';
-import { drawVideoFrame } from '../base/utils/captureFrame.ts';
+import { drawVideoFrame, setCrossOriginForReadable } from '../base/utils/captureFrame.ts';
 
 /** 多窗口剪贴板存储键（contracts.ts STORAGE_KEYS 登记，集中避免裸键） */
 const MULTIWINDOW_CLIPBOARD_KEY = 'mutiwindow-clipboard';
@@ -286,8 +286,8 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
     logger.debug('抽帧', 'start', { nodeId: id, mode, source: ownUrl ? 'file' : 'url' });
     try {
       const video = document.createElement('video');
+      setCrossOriginForReadable(video, src); // TD-22-1：单点裁决（getImageData 读回依赖 canvas 可读）
       video.src = src;
-      video.crossOrigin = 'anonymous';
       video.muted = true;
       video.playsInline = true;
       await new Promise((res, rej) => {

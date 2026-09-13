@@ -6,7 +6,11 @@
  * 断言真实分支（尺寸夹取 / 降采样 / readyState 分支 / 错误文案 / 各失败路径），不是自证式断言。
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { captureFrame, drawVideoFrame } from '../../src/components/base/utils/captureFrame.ts';
+import {
+  captureFrame,
+  drawVideoFrame,
+  setCrossOriginForReadable,
+} from '../../src/components/base/utils/captureFrame.ts';
 
 const nativeCreate = document.createElement.bind(document);
 let lastVideo: HTMLVideoElement | null = null;
@@ -305,5 +309,21 @@ describe('drawVideoFrame — 底层原语（宿主薄包装共用的"怎么读�
     const assertion = expect(p).rejects.toThrow('Video load failed');
     fire(v, 'error');
     await assertion;
+  });
+});
+
+describe('setCrossOriginForReadable - crossOrigin 单点裁决（TD-22-1：同源不设 / 真跨源才设）', () => {
+  it('同源（相对路径 / blob: / data:）→ 不设 crossOrigin（canvas 保持可读）', () => {
+    for (const url of ['/files/a.mp4', 'blob:abc', 'data:video/mp4;base64,xx']) {
+      const v = document.createElement('video');
+      setCrossOriginForReadable(v, url);
+      expect(v.crossOrigin).toBeFalsy(); // 旧实现（恒设 anonymous）在此先红：污染 canvas
+    }
+  });
+
+  it('真跨源（绝对 http 外链）→ 设 anonymous（读像素需 CORS）', () => {
+    const v = document.createElement('video');
+    setCrossOriginForReadable(v, 'https://example.com/v.mp4');
+    expect(v.crossOrigin).toBe('anonymous');
   });
 });

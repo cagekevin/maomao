@@ -40,6 +40,7 @@ import { withTimeout, isTimeoutError } from '../utils/asyncGuard.ts';
 import { classifyError } from '../utils/genErrors.ts';
 import { showToast } from '../core/toastStore.ts';
 import { logger } from '../core/logger.ts';
+import { setCrossOriginForReadable } from '../utils/captureFrame.ts';
 
 export interface DepthVideoModalProps {
   /** 本节点当前视频 URL（绝对 URL，已是 toAbsoluteFileUrl 后） */
@@ -125,8 +126,10 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
     }
     const video = videoRef.current;
     if (!video) return;
-    // 跨域读回（画布 getImageData）需 anonymous；localTool 全开 CORS（*）
-    video.crossOrigin = 'anonymous';
+    // TD-22-1：crossOrigin 单点裁决（同源 /files/ 不设 → canvas 可读；真跨源才设 anonymous）。
+    // 旧注释「localTool 全开 CORS(*)」与 captureFrame 的取证（网关对 /files/* 未必回 ACAO）矛盾
+    // —— 统一单点后同源请求不走 CORS 模式，该矛盾连同「是否回 ACAO」的猜疑一起消失。
+    setCrossOriginForReadable(video, videoUrl);
     video.src = videoUrl;
     video.load();
     try {
@@ -668,8 +671,9 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
           </div>
         </div>
 
-        {/* 源视频（隐藏，仅用于抽帧） */}
-        <video ref={videoRef} className="hidden" crossOrigin="anonymous"></video>
+        {/* 源视频（隐藏，仅用于抽帧）：crossOrigin 由 loadVideoAndPreview 里 setCrossOriginForReadable
+            统一裁决（TD-22-1）—— JSX 上恒设 anonymous 与单点判据冲突，删（同源部署下会污染 canvas） */}
+        <video ref={videoRef} className="hidden"></video>
         <canvas ref={sourceCanvasRef} className="hidden nodrag nowheel"></canvas>
 
         {/* 进度条 + 操作 */}

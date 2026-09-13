@@ -171,6 +171,11 @@ export function useEditorExport(opts: {
       const uploaded = await uploadResult(outcome.value.blob, {
         subfolder: UPLOAD_DIRS.videoEditor,
       });
+      // TD-22-2：落盘失败（null）显式报错 —— 不再静默产出「刷新即失效」的 blob: 节点
+      if (!uploaded) {
+        showToast('导出失败：结果未能保存到本地（本地服务未启动？）');
+        return;
+      }
       if (!aliveRef.current) {
         showToast('工程已切换，本次导出结果已丢弃');
         return;

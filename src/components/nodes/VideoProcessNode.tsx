@@ -47,7 +47,7 @@ import {
 import { generateId } from '../base/core/idGen.ts';
 import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
-import { httpRequest } from '../base/api/index.ts';
+import { httpRequest, uploadFileToLocal } from '../base/api/index.ts';
 import { updateNodeRuntime, useNodeRuntime } from '../base/store/nodeRuntimeStore.ts';
 import previewUrls from '../base/utils/previewUrl.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
@@ -1079,9 +1079,15 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
             } catch {} // catch-ok: 浏览器 API 释放失败不阻断帧处理主流程
           },
         );
-        // GIF 产物 URL 喂给 spawnGifNode 作持久节点源，非「组件预览」，不收进 previewUrl（见 CONTEXT §二⑤）
-        const url = URL.createObjectURL(gif.blob);
+        // TD-22-5：GIF 产物也走唯一落盘基座（旧实现 createObjectURL 临时 URL 直接喂节点 → 刷新即失效）。
+        // outputName 提前派生（落盘文件名 = 展示名，同源一致）；失败显式报错，不伪造成功。
         const outputName = `${stripExt(currentName || 'video')}_gif.gif`;
+        const url = await uploadFileToLocal(gif.blob, UPLOAD_DIRS.videoProcess, outputName);
+        if (!url) {
+          updateNodeRuntime(id, { loading: false });
+          fail('GIF 保存失败（本地服务未启动？），请重试');
+          return;
+        }
         updateNodeRuntime(id, { loading: false, progress: 100 });
         patchNodeDataById(setNodes, id, {
           errorMessage: undefined,
@@ -1184,6 +1190,12 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       }
 
       const uploaded = await uploadResult(result.blob, { subfolder: UPLOAD_DIRS.videoProcess });
+      // TD-22-2：落盘失败（null）显式报错 —— 不再静默 spawn「刷新即失效」的 blob: 节点
+      if (!uploaded) {
+        updateNodeRuntime(id, { loading: false, progress: 100 });
+        fail('产物保存失败（本地服务未启动？），请重试');
+        return;
+      }
       const count = clips.length;
       const suffix =
         mode === 'trim'

@@ -284,18 +284,25 @@ prompt/promptChips · prompt/promptMention（纯函数）
 
 ***
 
-## 视频（横切）链路
+## 视频（全量重审）链路
 
-> 更新(2026-09-13, refs实证)：新增本段（区域 22 首审）。深度视频 `base/depthVideo/*` 见「3D/深度视频」段（区域 07）；剪辑器 `videoEditor/*` 见区域 21（执行中）。本段只画**区域 22 新审的跨切边界**：引擎 ↔ 上层契约。审计视角 `daily/架构日志/22-视频-横切全量-2026-09-13.md`。
+> 更新(2026-09-13, refs实证)：第三轮**全量重审**（区域 22）。前两轮把 Process/Extract/Editor 标「借 21/07 不重审」已推翻——消费/契约层债（跨源、落盘 `persisted`）在 21 引擎内部收口范围之外，须本区独立登记；`base/depthVideo/*`（07）实查健康（刻意用 `filesApi.uploadFileToLocal` 避开 `uploadResult` 坑）。审计视角 `daily/架构日志/22-视频-横切全量-2026-09-13.md`。
+> 更新(2026-09-13, 清偿轮·§十四)：TD-22-1/2/3/5 四债结清。`setCrossOriginForReadable` 已导出（crossOrigin 判据 5→1）；`uploadResult` 失败返 **null**（错误透传，删 blob 伪造），消费方 null → 显式报错不 spawn；GIF 产物走 `uploadFileToLocal` 落盘；`data.poster` 死字段已删。全链路灯转绿。
 
 ```
-base/utils/videoEngine.ts 🔴（TD-22-2：uploadResult 持久/临时 URL 合并单字段、失败仅 warn）
-base/utils/captureFrame.ts 🟢（跨源读取策略 setCrossOriginForReadable 收口于此；TD-21-3 已结项）
+base/utils/videoEngine.ts 🟢（uploadResult 失败返 null（TD-22-2 已清）；crossOrigin 走 setCrossOriginForReadable（TD-22-1 已清））
+base/utils/captureFrame.ts 🟢（跨源读取策略 setCrossOriginForReadable 收口于此且已导出供全树复用；TD-21-3 已结项）
 base/utils/encoderProbe.ts 🟢 · base/utils/audioPeaks.ts 🟢
-hooks/useVideoPoster.ts 🔴（TD-22-1：跨源策略与 captureFrame 相反）
+hooks/useVideoPoster.ts 🟢（crossOrigin 接回单点原语，删第二判据；TD-22-1 已清）
 base/ui/VideoThumbnail.tsx 🟢（显示组件，preload=metadata 取首帧，不抽帧）
-nodes/VideoGenerate.tsx 🔴（TD-22-3：data.poster 死字段零写入；videoUrl 落盘受 01/02 守护非债）
-videoEditor/panels/dock/useEditorExport.ts 🔴（TD-22-2：不判别 uploadResult.persisted）
+nodes/VideoGenerate.tsx 🟢（data.poster 死字段已删（TD-22-3 已清）；videoUrl 落盘受 01/02 守护非债）
+nodes/VideoProcessNode.tsx 🟢（uploadResult null → fail 显式报错（TD-22-2 已清）；GIF 分支走 uploadFileToLocal 落盘（TD-22-5 已清））
+nodes/VideoExtractNode.tsx 🟢（crossOrigin 接回单点原语；TD-22-1 已清）
+videoEditor/export/pipeline.ts 🟢（单入口 + 判别联合 OpResult/AudioOutcome，设计健康）
+videoEditor/data/projectRepository.ts 🟢（CAS + 判别联合 SaveProjectResult，版本冲突暴露 UI）
+videoEditor/panels/dock/useEditorExport.ts 🟢（uploadResult null → toast「导出失败」不 spawn（TD-22-2 已清））
+base/depthVideo/* 🟢（上传落盘走 filesApi.uploadFileToLocal）
+director3d/App.tsx · director3d/panels/Timeline.tsx 🟢（MP4 导出走 uploadFileToLocal；Timeline 与 timeScale 边界约定一致非债）
 ```
 
 ## 配置 / 账户 / 事件总线（横切契约域）

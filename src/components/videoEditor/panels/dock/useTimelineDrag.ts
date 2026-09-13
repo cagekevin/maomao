@@ -19,6 +19,7 @@ import {
   clipEdges,
   duplicateClip,
   freezeFrameAt,
+  magneticOf,
   moveClipTo,
   placeClipAt,
   removeClips,
@@ -57,15 +58,16 @@ export interface TimelineEditing {
   trimLeft: () => void;
   trimRight: () => void;
   freeze: () => void;
-  deleteLift: () => void;
-  deleteRipple: () => void;
+  /** 删除（单一动作）：留洞 / 波纹由**吸附开关**决定，不做成两个按钮。 */
+  delete: () => void;
   duplicate: () => void;
 }
 
 export interface EditorDrag {
   selectedClipId: string | null;
   setSelectedClipId: (id: string) => void;
-  dragging: boolean;
+  /** 正在被拖拽的片段 id（无拖拽 = `null`）。UI 据此给该片段「正在拖」的视觉反馈。 */
+  draggingClipId: string | null;
   beginClipDrag: (
     e: ReactPointerEvent,
     clip: Clip,
@@ -87,6 +89,12 @@ export function useTimelineDrag(opts: {
 
   const mainTrack = project?.tracks.find((t) => !t.overlay) ?? null;
   const mainClips = mainTrack?.clips ?? EMPTY_CLIPS;
+
+  /**
+   * 吸附开关（`project.ui.magnetic`，缺省 = 开）。**唯一读值处** —— 下面所有编辑都经它，
+   * 不在各调用点各写一遍 `project?.ui.magnetic ?? true`（那会长出多个判据、迟早漂）。
+   */
+  const magnetic = magneticOf(project?.ui);
 
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
 
@@ -122,13 +130,24 @@ export function useTimelineDrag(opts: {
 
   useEffect(() => {
     if (!dragging) return;
-    const onMove = (e: PointerEvent) => {
+
+    /**
+     * 一次 pointermove 的**实际计算与落盘**。
+     *
+     * 【为什么把它单拎出来，而不是直接把逻辑写在 onMove 里】
+     * 指针事件在 120Hz 触控板 / 高刷屏上可达每秒上百次，而每次 `applyTracks` 都是一轮
+     * 全量 tracks 重算 + React 重渲染。裸挂 `onMove` = 拖一次炸几十上百次渲染（卡顿来源）。
+     * 故 onMove 只**记下最新坐标**，真正的计算交给 `requestAnimationFrame`：
+     * 同一帧内无论来多少次 move，只算一次「最新位置」—— 帧率上限即真实刷新率，
+     * 且**不丢最后一帧**（用最新坐标算，不是队列回放）。范式与 `ImageZoomDialog` 的 rAF 合帧一致。
+     */
+    const apply = (clientX: number) => {
       const drag = dragRef.current;
       if (!drag || !project) return;
       const track = project.tracks.find((t) => t.id === drag.trackId);
       const clip = track?.clips.find((c) => c.id === drag.clipId);
       if (!track || !clip) return;
-      const dt = pxDeltaToTime(e.clientX - drag.originX, pps);
+      const dt = pxDeltaToTime(clientX - drag.originX, pps);
 
       if (drag.mode === 'move') {
         // 目标时刻 = 起点时刻 + 指针位移，再吸附到**本轨其它片段**的边界
@@ -143,36 +162,72 @@ export function useTimelineDrag(opts: {
         store.applyTracks((tracks) =>
           tracks.map((tr) => {
             if (tr.id !== track.id) return tr;
-            // 主轨是磁吸的：横向拖 = **拖序**（落点序号由 `dropIndexAt` 给，重排后压实）
-            // 自由轨（音频）：横向拖 = 自由摆位（`placeClipAt`，不压实 —— 会毁掉用户摆的空隙）
-            return tr.overlay
-              ? { ...tr, clips: placeClipAt(tr.clips, clip.id, t) }
-              : { ...tr, clips: moveClipTo(tr.clips, clip.id, dropIndexAt(tr.clips, t, clip.id)) };
+            // 主轨吸附开：横向拖 = **拖序**（落点序号由 `dropIndexAt` 给，重排后压实，拖不出缝）；
+            // 主轨吸附关：横向拖 = **自由摆位**（`placeClipAt`，可拖出空隙，与音频轨同款）；
+            // 自由轨（音频）：始终自由摆位（不压实 —— 会毁掉用户摆的空隙）。
+            if (tr.overlay || !magnetic) {
+              return { ...tr, clips: placeClipAt(tr.clips, clip.id, t) };
+            }
+            return { ...tr, clips: moveClipTo(tr.clips, clip.id, dropIndexAt(tr.clips, t, clip.id)) };
           }),
         );
         return;
       }
 
-      // 调片段长度（粗档）：只改**源端点**。磁吸轨由 `updateClip` 内部的压实收尾，自由轨保留位置。
+      // 调片段长度（粗档）：只改**源端点**，时间轴落位交给压实（磁吸轨）或自行右移（自由轨）。
+      // 语义：左柄右拖 = 裁掉片段开头（右缘随之自动前移 = 波纹）；右柄右拖 = 加长出点。
       // 不做吸附：两种轨上「边缘」都不是自由变量（磁吸轨边缘由压实决定，自由轨边缘不动）。
       const isLeft = drag.mode === 'trimLeft';
       const next = isLeft ? drag.origin.sourceStart + dt : drag.origin.sourceEnd + dt;
       store.applyTracks((tracks) =>
-        updateClip(tracks, clip.id, (c) => {
-          if (isLeft) {
-            const s = Math.max(0, Math.min(next, c.sourceEnd - EPS));
-            // `timelineStart` 与源入点同量右移：右缘（timelineStart+duration）钉住，左缘=timelineStart 跟手柄走。
-            return {
-              ...c,
-              sourceStart: s,
-              timelineStart: Math.max(0, c.timelineStart + (s - c.sourceStart)),
-            };
-          }
-          return { ...c, sourceEnd: Math.max(c.sourceStart + EPS, next) };
-        }),
+        updateClip(
+          tracks,
+          clip.id,
+          (c) => {
+            if (isLeft) {
+              const s = Math.max(0, Math.min(next, c.sourceEnd - EPS));
+              // 吸附开 + 主轨：`timelineStart` 的真源是**压实**（`relayoutSequential`），此处**不得**手动位移，
+              // 否则「先右移再被压回」会闪一帧。入点前进后压实自动把左缘拉回前一片段末尾
+              // —— 视觉即「右缘自动往前」（波纹前移），符合磁吸不变量 I1。
+              // 其余两条（自由轨 / 吸附关的主轨）：不压实，用户摆好的空隙要保留，
+              // 故起点须与入点同量右移（右缘钉住，左缘跟手柄）。
+              if (!track.overlay && magnetic) return { ...c, sourceStart: s };
+              return {
+                ...c,
+                sourceStart: s,
+                timelineStart: Math.max(0, c.timelineStart + (s - c.sourceStart)),
+              };
+            }
+            return { ...c, sourceEnd: Math.max(c.sourceStart + EPS, next) };
+          },
+          magnetic,
+        ),
       );
     };
+
+    // 合帧状态：pending 存「本帧最新坐标」，raf 为待执行的帧回调 id（0 = 无待执行）。
+    let pending: number | null = null;
+    let raf = 0;
+    const onMove = (e: PointerEvent) => {
+      pending = e.clientX;
+      if (raf) return; // 本帧已有待执行回调 → 只更新坐标，不再排一帧
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        if (pending === null) return;
+        const x = pending;
+        pending = null;
+        apply(x);
+      });
+    };
     const onUp = () => {
+      // 取消未执行的帧并补最后一帧：否则「松手时那一次 move」可能被丢掉 → 落点差一点
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      if (pending !== null) {
+        const x = pending;
+        pending = null;
+        apply(x);
+      }
       dragRef.current = null;
       setDragging(false);
     };
@@ -180,11 +235,12 @@ export function useTimelineDrag(opts: {
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
     return () => {
+      if (raf) cancelAnimationFrame(raf);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [dragging, project, pps, store]);
+  }, [dragging, project, pps, store, magnetic]);
 
   /* ── 编辑动作（工带）—— 全部经 `core/` 原语，能力判据直接问原语 ── */
   const applyMain = useCallback(
@@ -200,21 +256,36 @@ export function useTimelineDrag(opts: {
     [store],
   );
 
-  /** C15.2 复制：主轨 = 紧随其后并压实（`duplicateClip`）；自由轨 = 落到轨尾（不压实毁位置）。 */
+  /**
+   * C15.2 复制：主轨 = 紧随其后（吸附开压实、关则保留空隙）；自由轨 = 落到轨尾（不压实毁位置）。
+   */
   const duplicateSelected = useCallback(() => {
     if (!selectedClipId) return;
     store.applyTracks((tracks) =>
       tracks.map((t) => {
         const source = t.clips.find((c) => c.id === selectedClipId);
         if (!source) return t;
-        if (!t.overlay) return { ...t, clips: duplicateClip(t.clips, selectedClipId) };
+        if (!t.overlay) return { ...t, clips: duplicateClip(t.clips, selectedClipId, magnetic) };
         return {
           ...t,
           clips: [...t.clips, { ...source, id: generateId('clip'), timelineStart: appendTime(t) }],
         };
       }),
     );
-  }, [selectedClipId, store]);
+  }, [selectedClipId, store, magnetic]);
+
+  /**
+   * 删除（**单一动作**）：留洞还是波纹，完全由**吸附开关**决定 ——
+   * 吸附开 → 自动左移补上空（波纹）；吸附关 → 留洞。
+   *
+   * 【为什么不做成两个按钮】「留洞 / 波纹」是剪辑软件的专业术语，普通用户看到两个
+   * 一模一样的垃圾桶图标只会困惑；而吸附开关本就是这个选择的上层语义，交给它即可。
+   */
+  const deleteSelected = useCallback(() => {
+    applyMain((clips) =>
+      selectedClipId ? removeClips(clips, [selectedClipId], 'lift', magnetic) : null,
+    );
+  }, [selectedClipId, applyMain, magnetic]);
 
   const onKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -225,11 +296,10 @@ export function useTimelineDrag(opts: {
       e.preventDefault();
       if (action === 'undo') store.undo();
       else if (action === 'redo') store.redo();
-      else if (action === 'delete' && selectedClipId) {
-        applyMain((clips) => removeClips(clips, [selectedClipId], 'lift'));
-      }
+      // 键盘 Delete 与工带删除**同一个动作**：随吸附开关（吸附开自动补齐 → 修掉「删中间不左移」）
+      else if (action === 'delete') deleteSelected();
     },
-    [open, store, selectedClipId, applyMain],
+    [open, store, deleteSelected],
   );
 
   useEffect(() => {
@@ -239,8 +309,8 @@ export function useTimelineDrag(opts: {
 
   // 能力判据：**直接问原语**（不做第二套「能不能切」的推断），不可用即置灰 + tooltip（O3）
   const canSplit = splitAt(mainClips, playhead) !== null;
-  const canTrimLeft = trimLeftAt(mainClips, playhead) !== null;
-  const canTrimRight = trimRightAt(mainClips, playhead) !== null;
+  const canTrimLeft = trimLeftAt(mainClips, playhead, magnetic) !== null;
+  const canTrimRight = trimRightAt(mainClips, playhead, magnetic) !== null;
   const canDelete = selectedClipId !== null && mainClips.some((c) => c.id === selectedClipId);
 
   const editing: TimelineEditing = {
@@ -249,25 +319,21 @@ export function useTimelineDrag(opts: {
     canTrimRight,
     canDelete,
     split: () => applyMain((clips) => splitAt(clips, playhead)),
-    trimLeft: () => applyMain((clips) => trimLeftAt(clips, playhead)),
-    trimRight: () => applyMain((clips) => trimRightAt(clips, playhead)),
+    trimLeft: () => applyMain((clips) => trimLeftAt(clips, playhead, magnetic)),
+    trimRight: () => applyMain((clips) => trimRightAt(clips, playhead, magnetic)),
     freeze: () =>
       applyMain(
-        (clips) => freezeFrameAt(clips, playhead, DEFAULT_IMAGE_CLIP_DURATION)?.clips ?? null,
+        (clips) =>
+          freezeFrameAt(clips, playhead, DEFAULT_IMAGE_CLIP_DURATION, magnetic)?.clips ?? null,
       ),
-    deleteLift: () =>
-      applyMain((clips) => (selectedClipId ? removeClips(clips, [selectedClipId], 'lift') : null)),
-    deleteRipple: () =>
-      applyMain((clips) =>
-        selectedClipId ? removeClips(clips, [selectedClipId], 'ripple') : null,
-      ),
+    delete: deleteSelected,
     duplicate: duplicateSelected,
   };
 
   return {
     selectedClipId,
     setSelectedClipId,
-    dragging,
+    draggingClipId: dragRef.current?.clipId ?? null,
     beginClipDrag,
     applyMain,
     editing,

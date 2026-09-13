@@ -153,7 +153,41 @@ describe('normalizeProject — 缺字段补全（旧版本有已知语义，补�
     });
     expect(r.status).toBe('ok');
     if (r.status !== 'ok') return;
-    expect(r.value.ui).toEqual({ dockHeight: 400, rowHeight: 44 });
+    expect(r.value.ui.dockHeight).toBe(400);
+    expect(r.value.ui.rowHeight).toBe(44);
+    // 三个视图快变量都**没有**进模型（白名单靠结构，不靠自觉）
+    expect(Object.keys(r.value.ui)).toEqual(['dockHeight', 'rowHeight', 'magnetic']);
+  });
+
+  it('吸附开关（ui.magnetic）随工程往返：读回 false 保留；缺省 / 脏值 → 回落 undefined（= 视为开）', () => {
+    const withOff = normalizeProject({
+      schemaVersion: VIDEO_EDITOR_SCHEMA_VERSION,
+      tracks: [],
+      ui: { dockHeight: 280, rowHeight: 38, magnetic: false },
+    });
+    expect(withOff.status).toBe('ok');
+    if (withOff.status !== 'ok') return;
+    expect(withOff.value.ui.magnetic).toBe(false); // 落盘 → 读回不丢（白名单已登记）
+
+    // 缺省 = `undefined`（`magneticOf` 视为开）
+    const absent = normalizeProject({
+      schemaVersion: VIDEO_EDITOR_SCHEMA_VERSION,
+      tracks: [],
+      ui: { dockHeight: 280, rowHeight: 38 },
+    });
+    expect(absent.status).toBe('ok');
+    if (absent.status !== 'ok') return;
+    expect(absent.value.ui.magnetic).toBeUndefined();
+
+    // 脏值（字符串 "false"）不认，回落 undefined，不当真
+    const dirty = normalizeProject({
+      schemaVersion: VIDEO_EDITOR_SCHEMA_VERSION,
+      tracks: [],
+      ui: { dockHeight: 280, rowHeight: 38, magnetic: 'false' },
+    });
+    expect(dirty.status).toBe('ok');
+    if (dirty.status !== 'ok') return;
+    expect(dirty.value.ui.magnetic).toBeUndefined();
   });
 
   it('NaN / Infinity 时间被回默认值（NaN 会静默污染所有时间运算）', () => {

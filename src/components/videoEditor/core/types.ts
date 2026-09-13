@@ -143,6 +143,17 @@ interface ProjectUI {
   dockHeight: number;
   /** 轨道行高（px，C7.5）。可选 = 兼容旧工程无此字段 → 回落默认。 */
   rowHeight?: number;
+  /**
+   * **吸附开关**（工具带「吸附」按钮）：`true` / 缺省 = 主轨磁吸（无空隙、删除自动补齐）；
+   * `false` = 主轨允许留空隙（拖拽可拖出缝、删除留洞）。
+   *
+   * 【为什么属于 UI 而非 Track/Clip】它是一条**编辑行为偏好**（用户怎么排片），
+   * 不是轨道或片段自身的属性 —— 存进 Track 会让「同一轨在不同工程里语义不同」。
+   * 【为什么落 ui 而非顶层】它与 `dockHeight` / `rowHeight` 同类：**随工程落盘、不进撤销栈**，
+   * 故复用 `applyProjectPatch` 这一条写者（`docs/120` C2.2）。
+   * 缺省视为 `true`（磁吸）：旧工程无此字段 → 回到历史行为，不会突然变得可留缝。
+   */
+  magnetic?: boolean;
 }
 
 /**

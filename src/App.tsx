@@ -1574,19 +1574,21 @@ function Canvas() {
           onClose={() => setSetting('videoEditorOpen', false)}
         />
 
-        {/* 折叠态入口（mockup `.vd-handle`）：画布底部居中的半圆 + 上箭头，点击展开时间轴。
-          展开态由工具带的收起按钮接管（折叠态才显示本把手，避免两个入口并存）。 */}
+        {/* 折叠态入口（mockup `.vd-handle`）：画布底部**居中**的半圆把手，点击展开时间轴。
+          与展开态「顶部中央的收起按钮」同一条中轴 —— 展开/收起都在视线中心，空间上对称。
+          折叠态才显示本把手（展开态由拖柄接管），避免两个入口并存。 */}
         {!videoEditorOpen && (
           <button
             type="button"
             title="展开时间轴"
             onClick={() => setSetting('videoEditorOpen', true)}
-            className="absolute bottom-0 left-1/2 -translate-x-1/2 z-float w-14 h-7 flex items-center justify-center
-                       rounded-t-full border border-b-0 border-edge bg-surface-1 text-secondary
-                       shadow-[0_-6px_18px_rgba(0,0,0,0.45)] hover:bg-surface-hover hover:text-strong
-                       cursor-pointer transition-colors"
+            className="group absolute bottom-0 left-1/2 -translate-x-1/2 z-float flex items-center justify-center
+                       w-12 h-6 rounded-t-xl border border-b-0 border-edge-strong/60
+                       bg-surface-1 text-secondary shadow-[0_-6px_18px_rgba(0,0,0,0.45)]
+                       hover:text-primary hover:border-edge-strong hover:bg-surface-hover
+                       cursor-pointer transition-all"
           >
-            <ChevronUp size={17} />
+            <ChevronUp size={14} className="transition-transform group-hover:-translate-y-0.5" />
           </button>
         )}
       </div>

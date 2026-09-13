@@ -180,18 +180,38 @@ export function relayoutSequential(clips: Clip[]): Clip[] {
 }
 
 /**
+ * 「按磁吸开关决定压不压实」的收口（**唯一判据处**，`docs/123` §一.4）。
+ *
+ * 吸附开（缺省）→ 压实（历史 I1 行为）；吸附关 → 原样返回（保留用户摆出的空隙）。
+ * 所有内嵌压实的主轨原语都经此收口，避免「各写一遍 `magnetic ? … : …`」导致漂移。
+ */
+export function settle(clips: Clip[], magnetic: boolean): Clip[] {
+  return magnetic ? relayoutSequential(clips) : clips;
+}
+
+/**
+ * 吸附开关的读值（**唯一出处**）：`project.magnetic` 缺省 = `true`（磁吸）。
+ *
+ * 取 `Project['ui']` 的窄结构而非整个 `Project`，让纯函数不必认识工程全貌。
+ */
+export function magneticOf(ui: { magnetic?: boolean } | undefined): boolean {
+  return ui?.magnetic ?? true;
+}
+
+/**
  * 拖序：把 `id` 片段挪到 `index` 位置（`index` 夹取到合法范围），随后压实。
  *
  * 未发生变化（同位置 / 找不到 id）→ 返回**原数组引用**（I4）。
  */
 /**
- * ⚠️ **本函数（及 `duplicateClip` / `trimLeftAt` / `trimRightAt` / `freezeFrameAt`）内嵌了
- * 「压实」动作，因此只适用于磁吸轨（主视频轨）。** 对自由轨（`overlay: true`）调用会**错误地
- * 合掉用户摆好的空隙**。判据（这条轨是不是磁吸轨）在**宿主**手里 —— 只有 `updateClip` 接收
- * `tracks`、能自己判 `overlay`；clips 级原语拿不到这个信息，故这里不做判断、由调用方保证。
- * （`docs/123` §一.4：`relayoutSequential` 的语义就是「**主轨**压实」。）
+ * ⚠️ **本函数（及 `duplicateClip` / `trimLeftAt` / `trimRightAt` / `freezeFrameAt`）会按
+ * `magnetic` 决定压不压实，因此只适用于「吸附开的主视频轨 / 或显式传 `magnetic=false`」。**
+ * 对自由轨（`overlay: true`）调用（且不传 `magnetic=false`）会**错误地合掉用户摆好的空隙**。
+ * 判据（这条轨是不是自由轨、吸附开不开）在**宿主**手里 —— 只有 `updateClip` 接收 `tracks`
+ * 能自己判 `overlay`；clips 级原语拿不到这些信息，故这里不做判断、由调用方保证。
+ * （`docs/123` §一.4：`relayoutSequential` 的语义就是「主轨压实」，而 `settle` 是它的开关收口。）
  */
-export function moveClipTo(clips: Clip[], id: string, index: number): Clip[] {
+export function moveClipTo(clips: Clip[], id: string, index: number, magnetic = true): Clip[] {
   const from = clips.findIndex((c) => c.id === id);
   if (from < 0) return clips;
   const to = Math.max(0, Math.min(clips.length - 1, Math.trunc(index)));
@@ -199,21 +219,21 @@ export function moveClipTo(clips: Clip[], id: string, index: number): Clip[] {
   const next = clips.slice();
   const [moved] = next.splice(from, 1);
   next.splice(to, 0, moved);
-  return relayoutSequential(next);
+  return settle(next, magnetic);
 }
 
 /**
  * 复制片段：副本**紧随其后**，复用已修剪物料（`docs/120` C15.2 —— 不重新 trim）。
  * id 一律 `generateId()`；**禁时间基后缀**（`docs/123` §二.5：那正是 N 仓库串改事故的根因）。
  */
-export function duplicateClip(clips: Clip[], id: string): Clip[] {
+export function duplicateClip(clips: Clip[], id: string, magnetic = true): Clip[] {
   const index = clips.findIndex((c) => c.id === id);
   if (index < 0) return clips;
   const source = clips[index];
   const copy: Clip = { ...source, id: generateId('clip') };
   const next = clips.slice();
   next.splice(index + 1, 0, copy);
-  return relayoutSequential(next);
+  return settle(next, magnetic);
 }
 
 /** 删除模式：`lift` = 留洞（保留其它片段位置）；`ripple` = 波纹前移（删后压实）。 */
@@ -229,10 +249,18 @@ export type RemoveMode = 'lift' | 'ripple';
  * 参考实现那句「强制保留一个」已按拒绝清单剔除。
  * 无命中 → 返回**原数组引用**（I4）。
  */
-export function removeClips(clips: Clip[], ids: readonly string[], mode: RemoveMode): Clip[] {
+export function removeClips(
+  clips: Clip[],
+  ids: readonly string[],
+  mode: RemoveMode,
+  magnetic = true,
+): Clip[] {
   const kill = new Set(ids);
   const kept = clips.filter((c) => !kill.has(c.id));
   if (kept.length === clips.length) return clips;
+  // 吸附开 = 一定不留缝（强制波纹）；吸附关 = 仍按显式 mode（默认 lift 留洞）。
+  // 这条优先级是刻意的：用户开了吸附却点「留洞」是自相矛盾，以吸附为准（吸附是主开关）。
+  if (magnetic) return relayoutSequential(kept);
   return mode === 'ripple' ? relayoutSequential(kept) : kept;
 }
 
@@ -266,26 +294,28 @@ export function splitAt(clips: Clip[], t: number): Clip[] | null {
 }
 
 /** 裁掉播放头**左侧**、保留右半（片段的左边界移到 `t`）。不可裁 → `null`。 */
-export function trimLeftAt(clips: Clip[], t: number): Clip[] | null {
+export function trimLeftAt(clips: Clip[], t: number, magnetic = true): Clip[] | null {
   const hit = findClipAt(clips, t);
   if (!hit) return null;
   const { clip } = hit;
   if (t <= clip.timelineStart + EPS || t >= clipEnd(clip) - EPS) return null;
   const cutSource = clip.sourceStart + (t - clip.timelineStart);
-  return relayoutSequential(
+  return settle(
     clips.map((c) => (c.id === clip.id ? { ...c, sourceStart: cutSource, timelineStart: t } : c)),
+    magnetic,
   );
 }
 
 /** 裁掉播放头**右侧**、保留左半（片段的右边界移到 `t`）。不可裁 → `null`。 */
-export function trimRightAt(clips: Clip[], t: number): Clip[] | null {
+export function trimRightAt(clips: Clip[], t: number, magnetic = true): Clip[] | null {
   const hit = findClipAt(clips, t);
   if (!hit) return null;
   const { clip } = hit;
   if (t <= clip.timelineStart + EPS || t >= clipEnd(clip) - EPS) return null;
   const cutSource = clip.sourceStart + (t - clip.timelineStart);
-  return relayoutSequential(
+  return settle(
     clips.map((c) => (c.id === clip.id ? { ...c, sourceEnd: cutSource } : c)),
+    magnetic,
   );
 }
 
@@ -301,6 +331,7 @@ export function freezeFrameAt(
   clips: Clip[],
   t: number,
   dur: number,
+  magnetic = true,
 ): { clips: Clip[]; frameAt: number } | null {
   const hit = findClipAt(clips, t);
   if (!hit) return null;
@@ -324,24 +355,30 @@ export function freezeFrameAt(
   const next = clips.slice();
   next.splice(index, 1, left, frame, right);
   // 主轨压实：右半自动被推到定格帧之后（`frameAt` 也因此是**压实后**的时刻，
-  // 轨上有空隙时它会与入参 `t` 不同 —— 这正是返回值存在的意义）。
-  const settled = relayoutSequential(next);
+  // 轨上有空隙时它会与入参 `t` 不同 —— 这正是返回值存在的意义）。吸附关 → 原样保留空隙。
+  const settled = settle(next, magnetic);
   return { clips: settled, frameAt: t };
 }
 
 /**
  * 按 id 更新片段所属轨（`docs/120` C1.1 的唯一改写路径）。
  *
- * 主轨更新后**压实**（磁吸不变量 I1）；自由轨保留位置。
+ * 主轨更新后**按吸附开关决定压不压实**（吸附开 = 磁吸 I1；关 = 保留用户摆出的空隙）；
+ * 自由轨始终保留位置（它们本来就可留空）。
  * `fn` 返回**同一个片段引用**（或整个 tracks 没有任何引用变化）→ 返回入参 `tracks`（I4）。
  */
-export function updateClip(tracks: Track[], clipId: string, fn: (clip: Clip) => Clip): Track[] {
+export function updateClip(
+  tracks: Track[],
+  clipId: string,
+  fn: (clip: Clip) => Clip,
+  magnetic = true,
+): Track[] {
   let touched = false;
   const next = tracks.map((track) => {
     if (!track.clips.some((c) => c.id === clipId)) return track;
     touched = true;
     const clips = track.clips.map((c) => (c.id === clipId ? fn(c) : c));
-    const settled = track.overlay ? clips : relayoutSequential(clips);
+    const settled = track.overlay ? clips : settle(clips, magnetic);
     return unchanged(settled, track.clips) ? track : { ...track, clips: settled };
   });
   if (!touched) return tracks;

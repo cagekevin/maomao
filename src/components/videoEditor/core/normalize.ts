@@ -174,13 +174,16 @@ function fromRecord(raw: Record<string, unknown>): Project {
       height: num(settingsRaw.height, DEFAULT_PROJECT_HEIGHT),
     },
     // ── 持久化边界（docs/120 C2 · C7.5 · C12）──
-    // `ui` 只承载**工程 UI 记忆**（dockHeight / rowHeight）：它随工程落盘、跨刷新/切项目保留。
+    // `ui` 只承载**工程 UI 记忆**（dockHeight / rowHeight / magnetic）：它随工程落盘、跨刷新/切项目保留。
     // **视图快变量**（缩放 pps / 选中 / 面板开合 / 播放态）永不在模型里 —— 它们是"这次的屏幕此刻"，不该是工程真源。
     // 这里用**字段白名单**读取：即便调用方误把某个视图快变量写进了原始 `ui`，`fromRecord` 也不认它，
     // 读取端即把它丢弃 → 模型不会被有害字段污染（靠结构，不靠自觉）。
+    // ⚠️ **新增 `ui` 字段必须在此登记**，否则落盘后会被静默丢弃（`magnetic` 首版就踩过这个坑）。
     ui: {
       dockHeight: num(uiRaw.dockHeight, DEFAULT_DOCK_HEIGHT),
       rowHeight: num(uiRaw.rowHeight, DEFAULT_ROW_HEIGHT),
+      // 吸附开关：缺省 = `true`（磁吸）。非布尔一律回落缺省（不认 "false" 字符串这种脏值）。
+      magnetic: typeof uiRaw.magnetic === 'boolean' ? uiRaw.magnetic : undefined,
     },
   };
 }

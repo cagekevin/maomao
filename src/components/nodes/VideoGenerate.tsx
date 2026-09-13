@@ -60,12 +60,13 @@ interface RefText {
   sourceNodeId?: string;
 }
 
-/** 视频生成节点 data 契约 */
+/** 视频生成节点 data 契约
+ *  （poster 已删 2026-09-13·TD-22-3：定义+读取但全仓零写入的死字段 —— 运行时封面由 useVideoPoster
+ *   重抽承担；若将来要持久化封面，须走 filesApi 落盘成 /files/ URL，禁止把大 dataURL 写进 data 快照） */
 interface VideoGenerateData {
   label?: string;
   prompt?: string;
   videoUrl?: string;
-  poster?: string;
   size?: string;
   resolution?: string;
   selectedSeconds?: string | number;
@@ -347,7 +348,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
             <VideoThumbnail
               videoRef={videoRef}
               src={videoUrl}
-              poster={posterUrl || data.poster || ''}
+              poster={posterUrl}
               muted={false}
               fit="contain"
               size="lg"

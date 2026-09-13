@@ -7,7 +7,8 @@
  *  - Dc     → 单输入处理：trim / extractAudio / sizeFrameRate
  *  - Oc     → 多输入拼接（多轨视频 + 音频，按片段区间 + 静音）
  *  - bc     → 进度控制器（attach conversion/output，cancel）
- *  - hi     → 上传；原型无后端，改为 URL.createObjectURL 生成本地 URL
+ *  - hi     → 上传（update 2026-09-13：真实落盘 localTool 返回持久 /files/ URL；失败返 null，
+ *             不再是原型时代的 URL.createObjectURL 临时地址 —— 见 uploadResult JSDoc / TD-22-2）
  *
  * 用法与官方保持一致：返回 { blob, metadata:{duration,width,height,fps}, mimeType, extension }。
  */
@@ -39,6 +40,8 @@ import { logger } from '../core/logger.ts';
 import { uploadFileToLocal } from '../api/filesApi.ts';
 import { UPLOAD_DIRS } from './uploadDirs.ts';
 import { safeFileName } from '../core/utils.ts';
+// TD-22-1：crossOrigin 单点裁决（同源不设 / 真跨源才设 anonymous），不再就地恒设
+import { setCrossOriginForReadable } from './captureFrame.ts';
 
 /** 进度/结果公共形状 */
 interface ProgressOptions {
@@ -796,7 +799,7 @@ export async function exportLossless(
 function loadVideoElement(url: string, timeoutMs = 15000): Promise<HTMLVideoElement> {
   return new Promise<HTMLVideoElement>((resolve, reject) => {
     const video = document.createElement('video');
-    video.crossOrigin = 'anonymous';
+    setCrossOriginForReadable(video, url); // TD-22-1：单点裁决（videoToGif 会 getImageData 读回）
     video.preload = 'auto';
     video.muted = true;
     video.playsInline = true;
@@ -913,15 +916,20 @@ export async function videoToGif(
  * 上传/持久化（官方 hi）。
  * 【修复】此前原型直接 URL.createObjectURL 生成临时地址，刷新即失效 → 视频处理产物丢失。
  * 现在真正落盘到 localTool（POST /api/files/upload），返回持久 /files/ URL。
- * 落盘失败返回临时 blob URL 兜底（绝不阻塞/抛错，主流程不受影响）。
+ *
+ * 【TD-22-2 修复（2026-09-13·错误透传铁律）】落盘失败**返回 null**，不再伪造临时 blob: URL
+ * 冒充成功 —— 旧兜底让消费方拿到"刷新即失效的节点"却弹「完成」toast（假成功）。
+ * 与 `filesApi.uploadFileToLocal`（失败返 null）同一纪律：失败可见，由消费方显式报错。
+ * 深审实证（22 区第七轮）：同仓 depthVideo / director3d 均已避开此兜底，本处是最后一处反模式。
+ *
  * @param {Blob|string} blob 处理后的文件（Blob）或已持久 URL（字符串原样返回）
  * @param {{ subfolder?: string }} [opts] 落盘子目录（默认 canvas/video-process）
- * @returns {{ url: string, thumbnailUrl?: string }}
+ * @returns {Promise<{ url: string } | null>} 成功 = 持久 URL；落盘失败/异常 = null（调用方必须处理）
  */
 export async function uploadResult(
   blob: Blob | string,
   _opts: { subfolder?: string } = {},
-): Promise<{ url: string }> {
+): Promise<{ url: string } | null> {
   if (typeof blob === 'string') return { url: blob };
   const subfolder = _opts?.subfolder || UPLOAD_DIRS.videoProcess;
   try {
@@ -931,10 +939,10 @@ export async function uploadResult(
     );
     const url = await uploadFileToLocal(blob, subfolder, name);
     if (url) return { url };
-    logger.warn('videoEngine', '视频产物落盘失败，降级为临时 URL（刷新后不可用）');
-    return { url: URL.createObjectURL(blob) };
+    logger.warn('videoEngine', '视频产物落盘失败（本地服务未启动？）—— 不再降级为临时 blob URL');
+    return null;
   } catch (e) {
-    logger.warn('videoEngine', '视频产物落盘异常，降级为临时 URL', e);
-    return { url: URL.createObjectURL(blob) };
+    logger.warn('videoEngine', '视频产物落盘异常 —— 不再降级为临时 blob URL', e);
+    return null;
   }
 }
