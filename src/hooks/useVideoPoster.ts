@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { drawVideoFrame } from '../components/base/utils/captureFrame.ts';
 
 /**
  * 视频首帧封面 hook。
@@ -11,6 +12,15 @@ import { useState, useEffect } from 'react';
  * 【跨域注意】
  * 对无 CORS 头的跨域视频，canvas.toDataURL 会抛「Tainted canvases」→ 抓帧失败，此时
  * 返回空串，调用方回退到视频图标占位。本地上传的 dataURL 视频无此问题。
+ *
+ * 更新(2026-09-13)：seek+drawImage 已收口到 `base/utils/captureFrame.ts` 的 `drawVideoFrame`
+ * （抽帧唯一原语，见其文件头「同机制清单」）。本 hook 退化为**宿主薄包装**，只保留自己的判据：
+ *  - `crossOrigin` **仅对 http(s) 源**设置（dataURL 同源，设了也无害但没必要）；
+ *  - `preload='metadata'`（首帧海报要快，不预载整片）；
+ *  - 抓帧时刻 `0.05`（部分视频首帧是黑的，微调一帧）；
+ *  - 输出 **原尺寸** `toDataURL('image/jpeg', 0.7)`；
+ *  - **失败静默回退空串**（跨域污染是浏览器预期限制，不是缺陷 —— 保持原判据，勿改成抛错/提示）；
+ *  - 卸载/换源时 `cancelled` 短路 + 清 `src`。
  *
  * @param {string} url 视频 URL
  * @param {boolean} enabled 是否启用（如视频且非播放态时才抓）
@@ -33,25 +43,16 @@ export function useVideoPoster(url: string, enabled: boolean) {
     // 否则 canvas 抓帧会被「Tainted canvases」污染导致 toDataURL 抛错、封面失败。
     // localTool 已返回 Access-Control-Allow-Origin:*；dataURL 同源加此属性无副作用。
     if (typeof url === 'string' && url.startsWith('http')) v.crossOrigin = 'anonymous';
-    v.onloadeddata = () => {
-      try {
-        v.currentTime = 0.05; /* 微调到首帧，部分视频首帧是黑的 */
-      } catch {} // catch-ok: 视频时钟设置失败不阻断取帧（部分浏览器首帧限制）
-    };
-    v.onseeked = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = v.videoWidth;
-        canvas.height = v.videoHeight;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        if (!cancelled && dataUrl) setPosterUrl(dataUrl);
-      } catch {} // 跨域 canvas 污染时静默失败，回退占位  // catch-ok: canvas 取帧失败回退占位（跨域污染为浏览器预期限制）
-    };
     v.src = url;
     v.load();
+    drawVideoFrame(v, { atTime: 0.05 })
+      .then((canvas) => {
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        if (!cancelled && dataUrl) setPosterUrl(dataUrl);
+      })
+      .catch(() => {
+        // catch-ok: canvas 取帧失败回退占位（跨域污染为浏览器预期限制，非缺陷）
+      });
     return () => {
       cancelled = true;
       v.src = '';

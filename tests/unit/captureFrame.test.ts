@@ -266,6 +266,39 @@ describe('drawVideoFrame — 底层原语（宿主薄包装共用的"怎么读�
     await assertion;
   });
 
+  it('currentTime 赋值抛异常 + 尺寸可用 → 直接绘制当前帧（catch → draw，不是静默失败）', async () => {
+    const v = makeVideo({ vw: 640, vh: 360 });
+    Object.defineProperty(v, 'currentTime', {
+      get: () => 0,
+      set: () => {
+        throw new Error('seek not allowed');
+      },
+      configurable: true,
+    });
+    const p = drawVideoFrame(v, { atTime: 2 });
+    fire(v, 'loadeddata');
+    await p;
+    expect(lastCanvas!.width).toBe(640);
+    expect(lastCanvas!.height).toBe(360);
+    expect(lastCanvas!.drawImageArgs).toHaveLength(1);
+  });
+
+  it('currentTime 抛异常 + 尺寸为 0 → 以 dimensions 拒绝（缺口证据：无"就绪但 0 尺寸"防御）', async () => {
+    const v = makeVideo({ vw: 0, vh: 0 });
+    Object.defineProperty(v, 'currentTime', {
+      get: () => 0,
+      set: () => {
+        throw new Error('seek not allowed');
+      },
+      configurable: true,
+    });
+    const p = drawVideoFrame(v, { atTime: 2 });
+    const assertion = expect(p).rejects.toThrow('captureFrame: zero dimensions');
+    fire(v, 'loadeddata');
+    await assertion;
+    expect(lastCanvas).toBeNull();
+  });
+
   it('load error 文案可覆盖（⑤ 的 "Video load failed"）', async () => {
     const v = makeVideo({ vw: 100, vh: 100 });
     const p = drawVideoFrame(v, { atTime: 1, errors: { load: 'Video load failed' } });
