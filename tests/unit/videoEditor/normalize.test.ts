@@ -157,6 +157,52 @@ describe('normalizeProject — 缺字段补全（旧版本有已知语义，补�
     expect(r.value.tracks[1].overlay).toBe(true);
   });
 
+  it('★层序收敛：文字轨排在视频轨【之后】的工程 → 加载期提到最前（文字必须在最上层）', () => {
+    // 数组 index 越小 = 轨道区越靠上 **且** 画面越靠上（renderFrameAt 倒序绘制）。
+    // 若放行「文字轨在视频之后」，文字会被视频**盖住**（且无任何提示）。
+    const r = normalizeProject({
+      schemaVersion: VIDEO_EDITOR_SCHEMA_VERSION,
+      tracks: [
+        { id: 'v1', kind: 'video', clips: [] },
+        { id: 'a1', kind: 'audio', clips: [] },
+        { id: 't1', kind: 'text', overlay: true, clips: [] }, // 写在最后 = 会被视频盖住
+      ],
+    });
+    expect(r.status).toBe('ok');
+    if (r.status !== 'ok') return;
+    expect(r.value.tracks.map((t) => t.id)).toEqual(['t1', 'v1', 'a1']);
+  });
+
+  it('★层序收敛：已合规时返回**原数组引用**（I4，不制造新数组以免误触发落盘）', () => {
+    const r = normalizeProject({
+      schemaVersion: VIDEO_EDITOR_SCHEMA_VERSION,
+      tracks: [
+        { id: 't1', kind: 'text', overlay: true, clips: [] },
+        { id: 'v1', kind: 'video', clips: [] },
+        { id: 'a1', kind: 'audio', clips: [] },
+      ],
+    });
+    expect(r.status).toBe('ok');
+    if (r.status !== 'ok') return;
+    // 顺序不变（文字本来就在最前）
+    expect(r.value.tracks.map((t) => t.id)).toEqual(['t1', 'v1', 'a1']);
+  });
+
+  it('★层序收敛：音频轨的前后位置**不被触碰**（它无画面、不参与层序）', () => {
+    const r = normalizeProject({
+      schemaVersion: VIDEO_EDITOR_SCHEMA_VERSION,
+      tracks: [
+        { id: 'a1', kind: 'audio', clips: [] },
+        { id: 'v1', kind: 'video', clips: [] },
+        { id: 't1', kind: 'text', overlay: true, clips: [] },
+      ],
+    });
+    expect(r.status).toBe('ok');
+    if (r.status !== 'ok') return;
+    // 文字提到最前，其余（含音频在视频之前这种非常规序）**原样保留**
+    expect(r.value.tracks.map((t) => t.id)).toEqual(['t1', 'a1', 'v1']);
+  });
+
   it('轨道行高是工程 UI 记忆：持久化回读保留（C7.5，刷新不丢）', () => {
     const r = normalizeProject({
       schemaVersion: VIDEO_EDITOR_SCHEMA_VERSION,

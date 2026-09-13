@@ -9,6 +9,10 @@
  * 不做成底部通栏设置条：那是「表单」不是「命令」，通栏横跨整个底部、字号被迫与轨道区齐大，很扎眼；
  * 浮层可压到 11px 紧凑排布，且不占轨道可视高度。
  */
+
+/** 「常驻层」声明（`dockContract.test.ts` 按此标记禁用 portal / FullscreenShell）：本目录的文件都挂在 App 根 flex 列内、常驻不 portal，故不许登记 modalLayer。 */
+// DOCK_IS_PERSISTENT（常驻层声明 · dockContract.test.ts 按此标记禁用 portal）
+
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react';
 import { Cog, Magnet, Maximize2, Minus, Pause, Play, Plus, SkipBack, SkipForward } from 'lucide-react';
@@ -555,10 +559,12 @@ function SettingsMenu({
               value={project.fps}
               commit={(v) => (v > 0 ? applyProjectPatch({ fps: v }) : showToast('帧率须为正数'))}
             />
-            {/* 轨道高度（C7.5）：行高单一出处 → 改这一处，胶片/波形/名条同步派生化（键含帧高自动重抽） */}
+            {/* **视频轨**高度（C7.5）：行高单一出处 → 改这一处，胶片/名条同步派生化（键含帧高自动重抽）。
+                ⚠️ 标签必须写明「视频轨」—— 该滑块**只作用于视频轨**（用户裁定 2026-09-14），
+                音频/文字轨用固定行高。写「轨道高度」会让人以为它能改所有轨（与事实不符 = 撒谎）。 */}
             <label className="flex flex-col gap-1 col-span-2 text-[10px] text-muted">
               <span className="flex items-center justify-between">
-                轨道高度
+                视频轨高度
                 <span className="tabular-nums">{Math.round(rowHeight)}px</span>
               </span>
               <input

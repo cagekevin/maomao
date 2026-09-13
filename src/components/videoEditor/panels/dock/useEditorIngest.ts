@@ -11,6 +11,10 @@
  * useCallback 每次都换身份 ⇒ 入轨 effect 每次渲染都跑。故 flow/store 经 ref 传递，effect 依赖只剩
  * 选中集 + 开合，运行次数与语义对上。
  */
+
+/** 「常驻层」声明（`dockContract.test.ts` 按此标记禁用 portal / FullscreenShell）：本目录的文件都挂在 App 根 flex 列内、常驻不 portal，故不许登记 modalLayer。 */
+// DOCK_IS_PERSISTENT（常驻层声明 · dockContract.test.ts 按此标记禁用 portal）
+
 import { useCallback, useEffect, useRef } from 'react';
 import { useStore } from '@xyflow/react';
 import type { ReactFlowInstance } from '@xyflow/react';

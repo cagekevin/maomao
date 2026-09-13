@@ -7,6 +7,10 @@
  * 【ownership】选中态（selectedClipId）归本 hook —— 拖拽要改它、工带/键盘要读它、Lane 要高亮它，
  * Docker 统一从本 hook 取并下发给 DockToolbar / Lane。
  */
+
+/** 「常驻层」声明（`dockContract.test.ts` 按此标记禁用 portal / FullscreenShell）：本目录的文件都挂在 App 根 flex 列内、常驻不 portal，故不许登记 modalLayer。 */
+// DOCK_IS_PERSISTENT（常驻层声明 · dockContract.test.ts 按此标记禁用 portal）
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { isEditableTarget } from '../../../base/core/uiHooks.ts';
@@ -14,6 +18,7 @@ import { editorKeyAction } from '../../../base/core/modalLayer.ts';
 import { showToast } from '../../../base/core/toastStore.ts';
 import { generateId } from '../../../base/core/idGen.ts';
 import { dropIndexAt, pxDeltaToTime, snapTime } from '../../../base/utils/timeline/timeScale.ts';
+import { routeClipToTrack } from '../../core/routeClip.ts';
 import {
   appendTime,
   appendTrack,
@@ -45,12 +50,16 @@ import type { EditorProjectStore } from './useEditorProject.ts';
 const EMPTY_CLIPS: Clip[] = [];
 
 /**
- * 片段类别 → 可落轨的轨道类别。与 `core/routeClip.ts::routeClipToTrack` 是**同一个二分**，
- * 但此处用于「跨轨拖拽时目标轨收不收得下」（含 `image` → `video`）。
- * 直接复用 `routeClipToTrack` 而不是重写 `kind === 'audio' ? … : …`（判据单点）。
+ * 片段类别能否落进该类别轨道（跨轨拖拽的收放判据）。
+ *
+ * ★改（2026-09-14）：原实现**重写了一遍**分轨二分（`(clipKind === 'audio' ? 'audio' : 'video')`），
+ * 而 `core/routeClip.ts::routeClipToTrack` **已经是**这条判据的唯一真源 ——
+ * 两处各写一份 = 判据重复（`docs/123` §一.4 C 组的纪律：「UI 里不许内联 `kind === 'audio' ? …`」）。
+ * 当时之所以没调它，只是因为本文件当时没 import 该模块；**判据本身没有任何不同**。
+ * 现改为**直接复用**：加 `ClipKind` 时只需改 `TRACK_OF_CLIP` 一处（`Record` 缺失即编译报错）。
  */
 function kindFitsTrack(clipKind: ClipKind, trackKind: TrackKind): boolean {
-  return (clipKind === 'audio' ? 'audio' : 'video') === trackKind;
+  return routeClipToTrack(clipKind) === trackKind;
 }
 
 /**

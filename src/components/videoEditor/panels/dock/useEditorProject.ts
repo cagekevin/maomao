@@ -14,6 +14,10 @@
  * 本 Gate 的编辑动作都是**离散点击**（分割/裁/定格/删除），逐次落盘即天然节流；
  * 真要做拖拽期节流，必须由「能拿到冲突结果」的调用方实现（留待后续 Gate）。
  */
+
+/** 「常驻层」声明（`dockContract.test.ts` 按此标记禁用 portal / FullscreenShell）：本目录的文件都挂在 App 根 flex 列内、常驻不 portal，故不许登记 modalLayer。 */
+// DOCK_IS_PERSISTENT（常驻层声明 · dockContract.test.ts 按此标记禁用 portal）
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { HistoryStack } from '../../../base/canvas/historyStack.ts';
 import { logger } from '../../../base/core/logger.ts';

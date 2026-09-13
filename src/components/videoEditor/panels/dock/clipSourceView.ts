@@ -13,6 +13,10 @@
  * 【为什么这条值得独立成文件并单测】映射算错不崩、不破闸，只显示**别的时间**的画面/波形，
  * 看起来还很正常。人工点一遍几乎发现不了（除非恰好剪过又记得原片）。
  */
+
+/** 「常驻层」声明（`dockContract.test.ts` 按此标记禁用 portal / FullscreenShell）：本目录的文件都挂在 App 根 flex 列内、常驻不 portal，故不许登记 modalLayer。 */
+// DOCK_IS_PERSISTENT（常驻层声明 · dockContract.test.ts 按此标记禁用 portal）
+
 import { EPS } from '../../core/constants.ts';
 
 /** 片段取用的源区间（`Clip` 的窄结构，刻意不依赖完整 `Clip`：本函数只关心这两个字段）。 */

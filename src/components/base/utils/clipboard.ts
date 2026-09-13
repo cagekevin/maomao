@@ -192,10 +192,15 @@ export async function copyVideoFrameToClipboard(
 /**
  * 把单个节点 data 清洗为可序列化形态：去掉函数字段与运行时字段（loading/progress/
  * errorMessage/assetUrlRef 等），避免把这些不可 JSON 化的内容写进剪贴板。纯函数，单测友好。
+ *
+ * 【为什么不是 `export`】唯一消费者是同文件的 `copyNodesToClipboard`。
+ * 摘 `export` 保实现：`check:dead-code` 曾报「基线外新增死导出」——
+ * 那是「内部实现被写成了公共 API」，不是「有人在用」（7 步法 A8：接口不预支）。
+ *
  * @param {Node} node React Flow 节点
  * @returns 清洗后的节点副本（不修改入参）
  */
-export function serializeNodeForClipboard(node: Node): Node {
+function serializeNodeForClipboard(node: Node): Node {
   const data = { ...(node.data || {}) };
   Object.keys(data).forEach((k) => {
     if (typeof data[k] === 'function') delete data[k];

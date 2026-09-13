@@ -11,6 +11,10 @@
  * 【deps 原样保留】`setPlayhead` 依赖 `store`（每次渲染换身份）⇒ 播放期的 rAF effect 逐帧重挂 ——
  * 这与拆分前 Docker 里的行为**完全一致**（每帧从 base+startedAt 重算，仍然正确推进）；不顺手"优化"它。
  */
+
+/** 「常驻层」声明（`dockContract.test.ts` 按此标记禁用 portal / FullscreenShell）：本目录的文件都挂在 App 根 flex 列内、常驻不 portal，故不许登记 modalLayer。 */
+// DOCK_IS_PERSISTENT（常驻层声明 · dockContract.test.ts 按此标记禁用 portal）
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { clipEdges, timelineDuration } from '../../core/timelineOps.ts';

@@ -22,6 +22,10 @@
  * ── 未做的部分（诚实清单，别读成已完成）──
  * 多选 + 框选批量删除（C11.8）· 右键集（C15，用户裁定不做）。走带出声未真机验收。
  */
+
+/** 「常驻层」声明（`dockContract.test.ts` 按此标记禁用 portal / FullscreenShell）：本目录的文件都挂在 App 根 flex 列内、常驻不 portal，故不许登记 modalLayer。 */
+// DOCK_IS_PERSISTENT（常驻层声明 · dockContract.test.ts 按此标记禁用 portal）
+
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { Eye, EyeOff, Lock, LockOpen, Trash2, Volume2, VolumeX } from 'lucide-react';
@@ -40,8 +44,9 @@ import {
   MAX_TRACKS_PER_KIND,
   SNAP_TOLERANCE_PX,
 } from '../../core/constants.ts';
+import { rowHeightOf, trackHasAudio } from '../../core/routeClip.ts';
 import { clipDuration, clipEdges, magneticOf } from '../../core/timelineOps.ts';
-import type { Clip, Track } from '../../core/types.ts';
+import type { Clip, Track, TrackKind } from '../../core/types.ts';
 import { useEditorFilmstrips } from '../../hooks/useEditorFilmstrips.ts';
 import { useEditorSources } from '../../hooks/useEditorSources.ts';
 import { useEditorWaveforms } from '../../hooks/useEditorWaveforms.ts';
@@ -130,10 +135,20 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
 
   /** 缩放（像素/秒）—— 工具带 ⊖ / 滑块 / ⊕ 可改（经 `clampZoom` 走同一取值域）。 */
   const [pps, setPps] = useState(INITIAL_PPS);
-  /** 轨道行高（`docs/120` C7.5）—— **工程 UI 记忆**，来自 `project.ui.rowHeight`（随工程落盘）。 */
-  const rowHeight = project?.ui.rowHeight ?? DEFAULT_ROW_HEIGHT;
-  /** 胶片条 / 波形可用高度 = 行高 − 边距 − 名条（随行高派生，filmstrip 键含此高 → 改行高自动重抽）。 */
-  const stripHeight = Math.max(8, rowHeight - CLIP_INSET * 2 - CLIP_NAME_BAR);
+  /**
+   * **视频轨**行高（`docs/120` C7.5）—— **工程 UI 记忆**，来自 `project.ui.rowHeight`（随工程落盘）。
+   *
+   * ⚠️ 它**只作用于视频轨**（用户裁定 2026-09-14：「放大缩小轨道只针对视频轨道」）。
+   * 音频轨 / 文字轨用固定值 —— 实际取值一律经 `rowHeightOf(track, videoRowHeight)` 获取，
+   * **不得在渲染处直接用它**（那会让音频轨跟着缩放，即本次要修的 bug）。
+   */
+  const videoRowHeight = project?.ui.rowHeight ?? DEFAULT_ROW_HEIGHT;
+  /**
+   * 胶片条 / 波形可用高度 —— 按**视频轨**行高派生（只有视频轨有胶片条，见 C11.10c；
+   * filmstrip 键含此高 → 改行高自动重抽）。音频/文字轨虽共用这套内部件高度，
+   * 但它们的波形/文字是「占剩余高度」自适应的，不受本值影响正确性。
+   */
+  const stripHeight = Math.max(8, videoRowHeight - CLIP_INSET * 2 - CLIP_NAME_BAR);
 
   /** 工程参数 / 轨道高度编辑面板开关（`docs/120` C12.2 · C7.5）。 */
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -361,7 +376,9 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
         settingsOpen={settingsOpen}
         onToggleSettings={() => setSettingsOpen((o) => !o)}
         project={project}
-        rowHeight={rowHeight}
+        // 齿轮里的「轨道高度」滑块改的是**视频轨**行高（`ui.rowHeight`）——
+        // 音频/文字轨用固定值，不随它变化（`rowHeightOf` 是唯一判据处）
+        rowHeight={videoRowHeight}
         applyProjectPatch={store.applyProjectPatch}
         magnetic={magnetic}
         onToggleMagnetic={() =>
@@ -438,7 +455,9 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
                     track.clips.length === 0 &&
                     project.tracks.filter((t) => t.kind === track.kind).length > 1
                   }
-                  rowHeight={rowHeight}
+                  // 行高经**唯一判据** `rowHeightOf`（视频轨=可调值；音频/文字=固定值）——
+                  // 与右侧 `Lane` 用同一函数，保证左列与右列**逐像素同高对齐**
+                  rowHeight={rowHeightOf(track, videoRowHeight)}
                   onToggle={(patch) =>
                     store.applyTracks((tracks) =>
                       tracks.map((t) => (t.id === track.id ? { ...t, ...patch } : t)),
@@ -493,7 +512,7 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
                 <Lane
                   track={track}
                   pps={pps}
-                  rowHeight={rowHeight}
+                  rowHeight={rowHeightOf(track, videoRowHeight)}
                   selectedClipId={drag.selectedClipId}
                   draggingClipId={drag.draggingClipId}
                   brokenIds={brokenIds}
@@ -570,6 +589,9 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
         letterbox={exp.letterbox}
         onAddTrack={drag.addTrack}
         // 可用性判据与 `appendTrack` 的上限同源（`MAX_TRACKS_PER_KIND`），不在这里另算一套
+        canAddText={
+          (project?.tracks.filter((t) => t.kind === 'text').length ?? 0) < MAX_TRACKS_PER_KIND
+        }
         canAddVideo={
           (project?.tracks.filter((t) => t.kind === 'video').length ?? 0) < MAX_TRACKS_PER_KIND
         }
@@ -598,24 +620,96 @@ interface ClipVisual {
 /**
  * 片段「画面区」的 CSS。
  * 视频：共享胶片图 + `filmstripBackground` 映射到本片段源区间（裁剪即所见，C11.10）；
- * 图片：显示素材本体（`contain`，不裁切）；其余：**留空**（不编占位，见 C11.7b「不撒谎」）。
+ * 图片：显示素材本体（`contain`，不裁切）；
+ * **其余：留空**（不编占位，见 C11.7b「不撒谎」）—— 文字片段属于此列（见下方说明）。
+ *
+ * ★改（2026-09-14）：原来判 `clip.kind === 'video'` / `'image'` 两个 if 后 `return {}`。
+ * 加 `'text'` 后它**静默掉进 `return {}`**（画面区全空）——
+ * 但**文字片段恰好本该如此**：它的内容由 `laneClipBody` 的**文字分支**直接渲染
+ * （不靠背景图），故此处「留空」是**正确语义**，不是漏判。
+ * 为免后人误读成漏判，下面用显式 `switch` 把「哪些类别在这里有背景」写全。
  */
 function clipStripStyle(clip: Clip, visual: ClipVisual | undefined): CSSProperties {
-  if (clip.kind === 'image' && visual) {
-    return {
-      backgroundImage: `url(${visual.url})`,
-      backgroundSize: 'contain',
-      backgroundPosition: 'center',
-      backgroundRepeat: 'no-repeat',
-    };
+  switch (clip.kind) {
+    case 'image':
+      if (!visual) return {};
+      return {
+        backgroundImage: `url(${visual.url})`,
+        backgroundSize: 'contain',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      };
+    case 'video':
+      if (!visual?.stripUrl) return {};
+      return {
+        backgroundImage: `url(${visual.stripUrl})`,
+        ...filmstripBackground(clip, visual.sourceDuration),
+      };
+    case 'audio':
+    case 'text':
+      // 音频走波形分支（在 `laneClipBody` 里、不进本函数）；文字由文字分支直接绘制。
+      return {};
   }
-  if (clip.kind === 'video' && visual?.stripUrl) {
-    return {
-      backgroundImage: `url(${visual.stripUrl})`,
-      ...filmstripBackground(clip, visual.sourceDuration),
-    };
+}
+
+/**
+ * 片段行内「画面区」的渲染 —— **按类别穷举**（★新增 2026-09-14）。
+ *
+ * 【为什么从「二分」改成「穷举」】原写法是 `clip.kind === 'audio' ? <波形/> : <胶片条/>`。
+ * 加 `'text'` 后它**不报错**，而是把文字片段静默塞进 `else` —— 渲染成一条**空的胶片条**，
+ * 文字内容**完全看不见**（用户只看到一条空片段，无从理解）。
+ * 改为 `switch` + `never` 兜底：新增 `ClipKind` 时**本函数就是编译错误**，
+ * 强制在这里表态「它长什么样」（与 `routeClipToTrack` 的 `Record` 同一套手法）。
+ *
+ * 各类别的画面区：
+ *  - `video` / `image` → 胶片条 / 图片本体（背景图，随 `clipStripStyle`）；
+ *  - `audio`          → 真实波形（`peaks`，占满剩余高度）；
+ *  - `text`           → **直接显示文字内容**（名条已省去：内容本身就是名字）。
+ */
+function laneClipBody(clip: Clip, visual: ClipVisual | undefined): ReactNode {
+  switch (clip.kind) {
+    case 'audio':
+      return (
+        <span
+          className="min-h-0 flex-1 relative overflow-hidden bg-[linear-gradient(180deg,rgba(59,130,246,.20),rgba(59,130,246,.07))]"
+          data-clip-waveform
+        >
+          {visual?.peaks && visual.peaks.length > 0 && (
+            // 波形与胶片条**共用同一映射**（`waveformSpan`）
+            <span className="absolute inset-y-0" style={waveformSpan(clip, visual.sourceDuration)}>
+              <svg
+                className="w-full h-full"
+                viewBox={`0 0 ${visual.peaks.length} 100`}
+                preserveAspectRatio="none"
+                aria-hidden
+              >
+                <path d={waveformPath(visual.peaks)} fill="currentColor" />
+              </svg>
+            </span>
+          )}
+        </span>
+      );
+    case 'text':
+      // 文字片段：内容直读（`textStyle` 形状在 M2 定稿前是 `unknown`，此处**不解释**它 ——
+      // 只取 `clip.name` 作为显示文案；M2 定稿后改为读 textStyle.content）。
+      return (
+        <span
+          className="min-h-0 flex-1 flex items-center justify-center px-1.5 overflow-hidden"
+          data-clip-text
+        >
+          <span className="truncate text-[10px] text-violet-100">{clip.name ?? '文字'}</span>
+        </span>
+      );
+    case 'video':
+    case 'image':
+      return (
+        <span
+          className="min-h-0 flex-1 bg-no-repeat text-sky-300"
+          style={clipStripStyle(clip, visual)}
+          data-clip-strip
+        />
+      );
   }
-  return {};
 }
 
 /**
@@ -662,7 +756,7 @@ function TrackHead({
           宽度由常量 `TRACK_LABEL_PX` 的算式定为 30px，此处只给样式不写死宽度。 */}
       <span
         className={`w-[30px] shrink-0 text-center text-[10px] font-medium tabular-nums ${
-          track.kind === 'audio' ? 'text-emerald-400/70' : 'text-sky-400/70'
+          TRACK_ORDINAL_CLASS[track.kind]
         }`}
         title={`${ordinal} · ${track.name}`}
       >
@@ -684,14 +778,22 @@ function TrackHead({
       >
         {track.hidden ? <EyeOff size={13} /> : <Eye size={13} />}
       </TrackIconButton>
-      <TrackIconButton
-        active={track.muted}
-        activeClass="text-accent"
-        title={track.muted ? '取消静音' : '静音'}
-        onClick={() => onToggle({ muted: !track.muted })}
-      >
-        {track.muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
-      </TrackIconButton>
+      {/* 静音：★只在**有音源的轨**上渲染（文字轨没有音源 —— 给它静音按钮是误导）。
+          判据问 `trackHasAudio`（与「可闻片段」同一套类别真源，不是另判一次），
+          保留**占位空格**（与 mockup 一致：静音格 `visibility:hidden`）——
+          这样四格列位在所有轨之间保持对齐，不会因为「这条没有静音钮」而整列错位。 */}
+      {trackHasAudio(track.kind) ? (
+        <TrackIconButton
+          active={track.muted}
+          activeClass="text-accent"
+          title={track.muted ? '取消静音' : '静音'}
+          onClick={() => onToggle({ muted: !track.muted })}
+        >
+          {track.muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+        </TrackIconButton>
+      ) : (
+        <span className="w-[22px] h-full shrink-0" aria-hidden />
+      )}
       {/* 删轨：**常显**（不是 hover 才出现）—— 可用性靠颜色表达，不靠可见性。
           判别：可删 = 常态 muted 灰 / 悬停转 danger 红；不可删 = 40% 透明 + not-allowed。 */}
       <TrackIconButton
@@ -757,14 +859,26 @@ function TrackIconButton({
 }
 
 /**
- * 同类别内的序号（`V1` / `V2` / `A1` / `A2`）—— **纯显示派生**。
+ * 同类别内的序号（`V1` / `V2` / `A1` / `A2` / `T1`）—— **纯显示派生**。
  *
  * 为什么不用 `track.name`：所有视频轨的默认名都是「视频」（`normalize.ts::createEmptyTrack`
  * 刻意不做重名编号，见那里的注释），用户无法靠名字区分两条视频轨。序号按**同类别出现次序**
  * 现算，永远与轨道头的实际排列一致（不落盘 = 不可能与 `tracks` 漂移）。
+ *
+ * ★改（2026-09-14）：前缀由三元表达式改为 `Record` —— 加 `'text'` 时三元会**静默全部产出 `V`**
+ * （文字轨显示成 `V1`，与视频轨序号撞名，用户无从区分）。`Record` 缺键即编译错误。
  */
+const ORDINAL_PREFIX: Record<TrackKind, string> = { video: 'V', audio: 'A', text: 'T' };
+
+/** 各类轨序号格的颜色（`Record` 而非三元 —— 理由同 `ORDINAL_PREFIX`，加类别时必须表态）。 */
+const TRACK_ORDINAL_CLASS: Record<TrackKind, string> = {
+  video: 'text-sky-400/70',
+  audio: 'text-emerald-400/70',
+  text: 'text-violet-400/70',
+};
+
 function ordinalOf(tracks: Track[], track: Track, index: number): string {
-  const prefix = track.kind === 'audio' ? 'A' : 'V';
+  const prefix = ORDINAL_PREFIX[track.kind];
   let n = 0;
   for (let i = 0; i <= index && i < tracks.length; i++) {
     if (tracks[i].kind === track.kind) n++;
@@ -875,36 +989,11 @@ function Lane({
               )}
               <span className="truncate">{clip.name ?? clip.kind}</span>
             </span>
-            {/* 胶片条 / 波形 / 图片本体占剩余高度并随之缩放（C11.10c） */}
-            {clip.kind === 'audio' ? (
-              <span
-                className="min-h-0 flex-1 relative overflow-hidden bg-[linear-gradient(180deg,rgba(59,130,246,.20),rgba(59,130,246,.07))]"
-                data-clip-waveform
-              >
-                {visual?.peaks && visual.peaks.length > 0 && (
-                  // 波形与胶片条**共用同一映射**（`waveformSpan`）
-                  <span
-                    className="absolute inset-y-0"
-                    style={waveformSpan(clip, visual.sourceDuration)}
-                  >
-                    <svg
-                      className="w-full h-full"
-                      viewBox={`0 0 ${visual.peaks.length} 100`}
-                      preserveAspectRatio="none"
-                      aria-hidden
-                    >
-                      <path d={waveformPath(visual.peaks)} fill="currentColor" />
-                    </svg>
-                  </span>
-                )}
-              </span>
-            ) : (
-              <span
-                className="min-h-0 flex-1 bg-no-repeat text-sky-300"
-                style={clipStripStyle(clip, visual)}
-                data-clip-strip
-              />
-            )}
+            {/* 胶片条 / 波形 / 图片本体 / 文字内容 —— 占剩余高度并随之缩放（C11.10c）。
+                ★改（2026-09-14）：由「audio ? 波形 : 胶片条」二分改为**按类别穷举**
+                （`laneClipBody`）。原二分在加 `'text'` 后会把它**静默塞进 else 分支**
+                （渲染成一条空的胶片条），文字内容**看不见** —— 正是要消灭的静默错分支。 */}
+            {laneClipBody(clip, visual)}
             {/* 调片段长度的两个**边缘把手**（§0.4 粗档，mockup `.ve-clip .trim`：accent 细条）。
               stopPropagation：别把「拖动主体」也触发 */}
             <span

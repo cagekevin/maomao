@@ -43,16 +43,41 @@ export const DEFAULT_PROJECT_HEIGHT = 720;
 /** 基座默认高度（px）。属 UI 记忆，随工程落盘（docs/120 C2 的 `ui.dockHeight`）。 */
 export const DEFAULT_DOCK_HEIGHT = 280;
 
-/** 轨道行高默认（px）。属 UI 记忆，随工程落盘（docs/120 C7.5 轨道高度可调，`ui.rowHeight`）。 */
+/** **视频轨**行高默认（px）。属 UI 记忆，随工程落盘（`docs/120` C7.5 轨道高度可调，`ui.rowHeight`）。 */
 export const DEFAULT_ROW_HEIGHT = 38;
 
-/** 轨道行高可调范围（px，C7.5）。 */
+/** 视频轨行高可调范围（px，C7.5）。 */
 export const ROW_HEIGHT_MIN = 24;
 export const ROW_HEIGHT_MAX = 96;
 
-/** 轨道默认显示名（工程只有一条视频轨 + 一条音频轨：docs/123 §一.9 Q3）。 */
+/**
+ * **音频轨 / 文字轨的固定行高**（px）—— **不随「轨道高度」滑块缩放**（用户裁定 2026-09-14）。
+ *
+ * 【★规则变更（用户口径）】「我们放大缩小轨道，**只针对视频轨道**」。
+ * 原实现把 `ui.rowHeight` 一个值发给**所有轨**（`TrackHead` / `Lane` 同收一个 `rowHeight`），
+ * 于是调大视频轨时**音频轨也跟着变高** —— 与用户意图相反。
+ *
+ * 【为什么音频轨不该跟着变】
+ *  - 音频轨没有**胶片条**（C11.10 的「胶片条随行高缩放」这条理由对它不成立）——
+ *    它的波形是「占剩余高度」派生的，行高变大只是把波形拉得更扁长，**不增加任何信息**；
+ *  - 它高度变大只会挤占视频轨（用户的注意力所在）的可视面积。
+ *
+ * 【为什么文字轨更该固定】文字片段是**展示型**（内容即文字），行高一味放大只是浪费纵向空间，
+ * 且 mockup 明确要求紧凑（24px）。
+ */
+export const AUDIO_TRACK_ROW_HEIGHT = 30;
+export const TEXT_TRACK_ROW_HEIGHT = 24;
+
+/** 轨道默认显示名（按 `TrackKind` 一一对应，新增类别时必须在此表态）。 */
 export const DEFAULT_VIDEO_TRACK_NAME = '视频';
 export const DEFAULT_AUDIO_TRACK_NAME = '音频';
+/** 文字轨默认名（★新增 2026-09-14：与 `TrackKind: 'text'` 同批）。 */
+export const DEFAULT_TEXT_TRACK_NAME = '文字';
+
+/* 注：文字轨的**固定紧凑行高**（24px，不纳入 `ui.rowHeight`，用户裁定 2026-09-14）
+ * 尚未落地为常量 —— 它的**首次消费方**是 M2 的轨道渲染（`Lane`/`TrackHead` 按类别取行高）。
+ * 按纪律「常量在首次被消费处落地，不预置」（7 步法 A8 + `check:dead-code`）：
+ * 现在加会是一个**零消费的死常量**（已被死代码闸当场抓过一次），故留到 M2 接 UI 时再加。 */
 
 /**
  * 轨道数量上限（视频 / 音频**各自**计算）。

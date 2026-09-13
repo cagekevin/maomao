@@ -28,5 +28,6 @@
   ],
   "ignoreDependencies": ["three-stdlib", "zustand"],
   "ignoreBinaries": [],
-  "exclude": ["duplicates"]
+  "exclude": ["duplicates"],
+  "ignoreExportsUsedInFile": true
 }

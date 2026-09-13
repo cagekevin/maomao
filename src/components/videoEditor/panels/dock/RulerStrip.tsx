@@ -4,6 +4,10 @@
  * 【职责边界】**纯渲染**：刻度用共用原语 `rulerTicks`（不自己发明步长序列），与片段同区同原点；
  * 播放头红竖线 + 顶部拖动抓手。拖动逻辑（seek 吸附）在 `useEditorTransport`，本件只绑事件。
  */
+
+/** 「常驻层」声明（`dockContract.test.ts` 按此标记禁用 portal / FullscreenShell）：本目录的文件都挂在 App 根 flex 列内、常驻不 portal，故不许登记 modalLayer。 */
+// DOCK_IS_PERSISTENT（常驻层声明 · dockContract.test.ts 按此标记禁用 portal）
+
 import { useMemo } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { buildTicks, pickTickStep, type Tick } from '../../../base/utils/timeline/rulerTicks.ts';
@@ -23,8 +27,15 @@ export const RULER_HEIGHT = 22;
  */
 const PLAYHEAD_HIT_HALF_PX = 5;
 
-/** 播放头红线的**视觉宽度**（px）。 */
-export const PLAYHEAD_LINE_WIDTH_PX = 2;
+/**
+ * 播放头红线的**视觉宽度**（px）。
+ *
+ * 【为什么不是 `export`】它只有本文件内的 `playheadLineStyle` 一个消费者
+ * （标尺段与轨道区段读的是**函数**，不是这个常量）。
+ * 摘 `export` 保实现：`check:dead-code` 曾报「基线外新增死导出」——
+ * 那不是有人在用，只是把内部常量写成了公共 API（7 步法 A8：状态/接口不预支）。
+ */
+const PLAYHEAD_LINE_WIDTH_PX = 2;
 
 /**
  * 播放头拖动命中区的半宽（px）—— 导出给轨道区那一段用。

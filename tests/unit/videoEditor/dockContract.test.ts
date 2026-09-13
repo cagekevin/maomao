@@ -32,16 +32,82 @@ function readLayer(): string {
   return files.map((f) => readFileStripped(f)).join('\n');
 }
 
-describe('基座不得登记 modalLayer（docs/120 C10.1 红线 · 全层禁用）', () => {
-  it('不用 FullscreenShell / useFullscreenEditorKeys / registerLayer（登记一次画布快捷键全废）', () => {
-    const code = readLayer();
+/* ────────────────────────────────────────────────────────────────
+ * ★改：全层禁用 → **按形态禁用**（2026-09-14 · docs/132 §二.3 / P-4）
+ *
+ * 【为什么改】本守卫的 describe 名一直是「**基座**不得登记 modalLayer」——
+ * 它想守的是「**常驻**层不许 portal」，因为 portal ⇒ 登记 ⇒ 画布快捷键全废 ⇒
+ * 「在画布上点选素材入轨」这个**主入口**死掉。
+ * 但它的**实现**是「扫 `dock/` 整个目录」。M2 工作台（`panels/workbench/`）**需要** portal
+ * （要盖住顶栏），若把它放进 `dock/` 就会撞这条守卫 —— 而它**并不常驻**，本不该受此约束。
+ *
+ * 【为什么不是「换目录名单」】那是手写清单母体（7 步法附录 A4）：
+ * 每来一个新目录都要回来改一次。改为**按性质判** —— 文件自己声明「我是常驻层」，
+ * 守卫只约束**带该声明**的文件，新目录不声明即自动不受约束。
+ *
+ * 【守的东西没变弱】约束对象从「某目录的全部文件」变成「声明为常驻的全部文件」，
+ * 而当前 `dock/` 的每个文件都带声明（下方有断言锁这一点）⇒ 覆盖面等价，且不会误伤非常驻层。
+ * ──────────────────────────────────────────────────────────────── */
+
+/** 「常驻层」声明标记 —— 带它的文件禁止 portal / FullscreenShell / document.body。 */
+const PERSISTENT_MARKER = 'DOCK_IS_PERSISTENT';
+
+/** 递归收集 `src/components/videoEditor/` 下所有 ts/tsx（排除测试）。 */
+function collectEditorFiles(dir = 'src/components/videoEditor'): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...collectEditorFiles(full));
+    else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) out.push(full);
+  }
+  return out;
+}
+
+/**
+ * 判断文件是否声明为常驻层。
+ *
+ * 【为什么在**注释里**找标记，且不 strip】
+ * 标记必须**零运行时成本**（不是变量 —— 否则 `noUnusedLocals` 报 TS6133、或 knip 报死导出；
+ * 两条都试过，都被闸拦住）。故它是**文件头注释里的一枚 token**，守卫直接读原文匹配。
+ * 这也让标记是**纯声明**：不改任何运行时代码，删除它也不会影响行为。
+ */
+function isPersistent(file: string): boolean {
+  return readFileSync(file, 'utf8').includes(PERSISTENT_MARKER);
+}
+
+/** 「声明为常驻」的文件（标记在注释里，见 `isPersistent`）。 */
+function persistentFiles(): string[] {
+  return collectEditorFiles().filter(isPersistent);
+}
+
+/** 拼接「声明为常驻」的文件源码（去掉注释后再做「不许出现 X」断言）。 */
+function readPersistentStripped(): string {
+  return persistentFiles()
+    .map((f) =>
+      readFileSync(f, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/.*$/gm, ''),
+    )
+    .join('\n');
+}
+
+describe('常驻层不得登记 modalLayer（docs/120 C10.1 红线 · 按形态禁用）', () => {
+  it('【守卫自身有效性】dock 层每个文件都带常驻声明（否则本守卫形同虚设）', () => {
+    const dockFiles = collectEditorFiles(DOCK_DIR);
+    expect(dockFiles.length).toBeGreaterThan(0); // 目录非空（防路径写错→空扫→假绿）
+    const missing = dockFiles.filter((f) => !isPersistent(f));
+    expect(missing).toEqual([]);
+  });
+
+  it('声明为常驻的文件不用 FullscreenShell / useFullscreenEditorKeys / registerLayer', () => {
+    const code = readPersistentStripped();
     expect(code).not.toContain('FullscreenShell');
     expect(code).not.toContain('useFullscreenEditorKeys');
     expect(code).not.toContain('registerLayer');
   });
 
-  it('不用 portal（常驻底部层，挂 App 根 flex 列）', () => {
-    const code = readLayer();
+  it('声明为常驻的文件不用 portal（常驻底部层，挂 App 根 flex 列）', () => {
+    const code = readPersistentStripped();
     expect(code).not.toContain('createPortal');
     expect(code).not.toContain('document.body');
   });

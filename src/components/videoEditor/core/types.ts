@@ -27,11 +27,22 @@
 /** 时间原语别名：一切时间字段都是「秒」的 float（仅为可读性，非新单位）。 */
 type Seconds = number;
 
-/** 片段媒体类别。`image` 用于图片素材与定格帧产物（docs/120 C15.3：定格不新增 clip 类型）。 */
-export type ClipKind = 'video' | 'audio' | 'image';
+/**
+ * 片段媒体类别。
+ *  - `image` 用于图片素材与定格帧产物（`docs/120` C15.3：定格不新增 clip 类型）；
+ *  - `text` 是**唯一凭空创建的片段**（M2）：文字没有源素材，其内容/样式在 `textStyle`。
+ *    ★新增(2026-09-14)：类型先行、UI 后到（用户裁定「现在加上，省得 M2 再来加一次」）。
+ */
+export type ClipKind = 'video' | 'audio' | 'image' | 'text';
 
-/** 轨道类别（docs/120 C11.1 的分轨唯一判据据此二分）。 */
-export type TrackKind = 'video' | 'audio';
+/**
+ * 轨道类别（`docs/120` C11.1 的分轨唯一判据据此分轨）。
+ *
+ * `text` = **文字轨**（M2）：专装文字片段，固定紧凑行高（不纳入 `ui.rowHeight`，见 `constants.ts`）。
+ * ★新增(2026-09-14)：与 `ClipKind: 'text'` 同批加入 —— 只加片段类别而不加轨道类别
+ * 会得到「文字片段只能混在视频轨上」的半成品（= 数据看不清），故两者必须同时到位。
+ */
+export type TrackKind = 'video' | 'audio' | 'text';
 
 /* ────────────────────────────────────────────────────────────────
  * M2 预留字段（docs/123 §一.4 里程碑过滤）
@@ -100,6 +111,17 @@ export interface Clip {
   /** 转场（M2）。 */
   transitionIn?: unknown;
   transitionOut?: unknown;
+  /**
+   * 文字片段的内容与样式（M2；仅 `kind: 'text'` 有意义）。
+   *
+   * ★新增(2026-09-14)：形状刻意留 `unknown` —— 与上面四个 M2 字段同一条纪律：
+   * **「留字段」指序列化位置，不是 M1 替 M2 定型**。若此处写死猜测形状（如 `{content,size}`），
+   * 加载时就会拿这个猜测去「校验」，M2 真实形状一旦不同 → 字段被**静默过滤** = 数据丢失（假成功）。
+   * M2 定稿时把 `unknown` 收窄成真实类型即可 —— **只改类型、无数据迁移成本**。
+   *
+   * 它同时是 `needsCompositing` ⑤ 的触发字段（文字必须渲染进画面，无法无损直通）。
+   */
+  textStyle?: unknown;
 }
 
 /**

@@ -258,9 +258,12 @@ async function runDirect(
   //
   // 【为什么是"第一条视频轨"而不是"所有 !overlay 的轨"】M2 多轨后 `!overlay` 只说明
   // "不是叠加轨"，它**不再**唯一确定主轨（一条工程可能有 0 条主轨：删轨后全变叠加轨）。
-  // 直通需要的是「那条承载主视频流的轨」，即**第一条视频轨**（与 `renderFrameAt` 自下而上
-  // 叠加时的底层同一条）。判据单点收在 `core/routeClip.ts::mainVideoTrackOf`，
-  // 本文件不重写 `kind === 'video'` 这类二分（那会长出第二份判据，迟早与合成路漂）。
+  // 直通需要的是「那条承载主视频流的轨」，即**第一条视频轨**。
+  // ⚠️ 该判据**与绘制顺序无关**（直通只搬一条流，不关心谁盖谁）——
+  // 2026-09-14 起 `renderFrameAt` 改为**倒序**绘制（数组第一项在最上层），
+  // 故这句不再写「与叠加底层同一条」（那是倒序前的描述）。判据单点收在
+  // `core/routeClip.ts::mainVideoTrackOf`，本文件不重写 `kind === 'video'` 这类二分
+  // （那会长出第二份判据，迟早与合成路漂）。
   const onlySource = new Map(request.sources.map((s) => [s.clip.id, s.url]));
   const mainTrack = mainVideoTrackOf(request.project);
   const mainClips = mainTrack?.clips ?? [];

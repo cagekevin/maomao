@@ -12,6 +12,8 @@
  *    **天然支持叠声**（主轨视频原声 + 音频轨配乐同一时刻同时出声）。
  *  - 每次帧同步（播放头每帧变）调用 `PlaybackSink` 内部 effect：把每个元素 `currentTime` 对齐到
  *    `sourceTimeAt(playhead, clip)`（共用映射原语），覆盖率不足即暂停。
+ *    ★更新(2026-09-14)：此前本行**名不副实** —— 实现写的是内联
+ *    `clip.sourceStart + (playhead - clip.timelineStart)`，并未调用该原语。现已改调 `sourceTimeAt`。
  *  - `M1 不求无缝/精确同步`：元素用自身时钟走，偏差超过容差再对齐 —— 接受少量口红偏移，注释如实标注。
  *
  * ── 命名说明（§四.1 收尾）──
@@ -22,7 +24,12 @@
  * 本文件无真实媒体样本 / 无浏览器运行时验证；`syncAll` 的媒体行为（play/pause/seek）**未在真实浏览器跑过**，
  * 只承诺逻辑正确（纯函数 `audibleClipsAt` 有单测）。接手方须真机过一遍再宣称可用。
  */
+
+/** 「常驻层」声明（`dockContract.test.ts` 按此标记禁用 portal / FullscreenShell）：本目录的文件都挂在 App 根 flex 列内、常驻不 portal，故不许登记 modalLayer。 */
+// DOCK_IS_PERSISTENT（常驻层声明 · dockContract.test.ts 按此标记禁用 portal）
+
 import { useEffect, useMemo, useRef } from 'react';
+import { sourceTimeAt } from '../../../base/utils/timeline/sourceTime.ts';
 import { audibleClipsOf } from '../../core/routeClip.ts';
 import { EPS } from '../../core/constants.ts';
 import { clipEnd } from '../../core/timelineOps.ts';
@@ -110,7 +117,8 @@ export function PlaybackSink({ open, playing, playhead, tracks, sources }: Playb
     for (const a of active) {
       const el = els.get(a.clip.id);
       if (!el) continue;
-      const target = a.clip.sourceStart + (playhead - a.clip.timelineStart);
+      // 时间轴播放头 → 源媒体时刻（**共用映射原语**；见文件头「★更新(2026-09-14)」）
+      const target = sourceTimeAt(playhead, a.clip);
       if (Math.abs(el.currentTime - target) > RESYNC_TOLERANCE_SEC) {
         try {
           el.currentTime = Math.max(0, target);

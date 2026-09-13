@@ -71,6 +71,23 @@ describe('appendTrack · 加轨', () => {
     const withVideo = appendTrack(empty.tracks, 'video');
     expect(withVideo.filter((t) => t.kind === 'video')).toHaveLength(2);
   });
+
+  it('★新增文字轨插到**数组最前**（用户口径：文字在视频之上）', () => {
+    // 数组 index 越小 = 轨道区越靠上 **且** 画面越靠上（renderFrameAt 倒序绘制）——
+    // 故文字轨必须在所有视频类轨之前，才能同时「显示最上」且「盖住视频」。
+    const tracks = [track('v1', 'video', false), track('a1', 'audio', true)];
+    const next = appendTrack(tracks, 'text');
+    expect(next).toHaveLength(3);
+    expect(next[0].kind).toBe('text'); // 插在最前
+    expect(next.slice(1).map((t) => t.id)).toEqual(['v1', 'a1']); // 其余相对顺序不变
+  });
+
+  it('★第二条文字轨仍与第一条文字轨相邻（插在它之后，不抢占 v1 之前的位置）', () => {
+    let tracks: Track[] = [track('v1', 'video', false), track('a1', 'audio', true)];
+    tracks = appendTrack(tracks, 'text'); // → [t, v1, a1]
+    tracks = appendTrack(tracks, 'text'); // → [t, t2, v1, a1]（同类相邻）
+    expect(tracks.map((t) => t.kind)).toEqual(['text', 'text', 'video', 'audio']);
+  });
 });
 
 describe('removeTrack · 删轨', () => {

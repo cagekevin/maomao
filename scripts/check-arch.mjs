@@ -207,14 +207,28 @@ if (!baseViol) console.log('  ✅ base/ 无反向依赖业务域');
 // 任何新库）；白名单是**补集**形态——只留两条出路，其余一律违规，一条规则覆盖全部外来依赖。
 //
 // 【判定】`src/components/videoEditor/core/**` 的每个 import / export-from / 动态 import 的 specifier：
-//   · 相对或 `@/` 路径 → 解析后必须落在 `videoEditor/core/` 内，或恰为 `base/core/idGen.ts`；
+//   · 相对或 `@/` 路径 → 解析后必须落在 `videoEditor/core/` 内，或落在下面白名单目录内；
 //   · 裸 specifier（npm 包：react / @xyflow/react / mediabunny …）→ 一律违规。
 //   含 `import type`：type-only 虽编译期擦除，但「core 零 React」是**认知边界**，不许靠擦除绕过。
 //
-// 【生效时机】G0b 先于 G1 —— core/ 此刻尚不存在（扫描 0 文件 = 0 违规），G1 落码起自动生效。
+// 【★改：文件白名单 → 目录白名单（2026-09-14，附取证）】
+// 原实现是「一个具体文件」白名单（只放行 `base/core/idGen.ts`），后果是：
+//   `core/timelineOps.ts` **无法复用**已下沉的映射原语 `base/utils/timeline/sourceTime.ts`，
+//   于是它在文件头写着「直接复用、严禁在此重写」，正文却**内联重写了 4 遍**同一公式
+//   （`:284/303/316/342`）—— 闸把作者逼成了自己禁止的样子。
+// 原想放宽整个 `base/utils/`，**取证后否决**：该目录**不是**纯函数层 ——
+//   `assetUrl.ts` import react（useCallback）、`audioPeaks.ts`/`videoEngine.ts` import mediabunny。
+//   放行整个目录 = 把 React 与重编码器也放进来，闸真废。
+// 故收窄为**只放行 `base/utils/timeline/`**：实测该目录三个文件（sourceTime / timeScale / rulerTicks）
+//   **零 import**（`rg '^import' → 0 命中`），是真正的零依赖纯函数层，正是本闸要放行的对象。
+// 判据从「白名单某个文件」改为「白名单某个**层**」⇒ 该层新增纯函数模块**不必再回来手改清单**
+//   （消除「加一个合法模块就要改一次闸」这条母体，与规则 2 改反向判据同款手法）。
 // ─────────────────────────────────────────────────────────────────
 const VE_CORE_REL = 'src/components/videoEditor/core/';
-const VE_CORE_ALLOW = new Set(['src/components/base/core/idGen.ts']);
+// 白名单**目录**（纯函数层）。理由见上方「★改」段：timeline/ 实测零 import。
+const VE_CORE_ALLOW_DIRS = ['src/components/base/core/', 'src/components/base/utils/timeline/'];
+// 白名单**文件**（层不成目录、或该目录非纯函数层时逐个登记）。
+const VE_CORE_ALLOW = new Set([]);
 let veCoreViol = 0;
 let veCoreScanned = 0;
 for (const f of files) {
@@ -245,7 +259,13 @@ for (const f of files) {
       bad.push({ spec: `${spec}（外部依赖）`, line });
       return;
     }
-    if (relDep && (relDep.startsWith(VE_CORE_REL) || VE_CORE_ALLOW.has(relDep))) return;
+    if (
+      relDep &&
+      (relDep.startsWith(VE_CORE_REL) ||
+        VE_CORE_ALLOW.has(relDep) ||
+        VE_CORE_ALLOW_DIRS.some((dir) => relDep.startsWith(dir)))
+    )
+      return;
     bad.push({ spec: relDep ? `${spec} → ${relDep}` : spec, line });
   };
   const walk = (n) => {
@@ -270,7 +290,7 @@ for (const f of files) {
     veCoreViol++;
     fail(
       `videoEditor/core 越界依赖: ${rel}:${b.line} → ${b.spec}` +
-        `（core 只准 import videoEditor/core/** 与 base/core/idGen.ts；零 React / 零存储 / 零网络）`,
+        `（core 只准 import videoEditor/core/** 与 base/core/ · base/utils/timeline/；零 React / 零存储 / 零网络）`,
     );
   }
 }
@@ -278,7 +298,8 @@ console.log(
   `\n🧱 videoEditor/core 导入白名单（零 React / 零 IO）· 已扫描 ${veCoreScanned} 个 core 文件` +
     (veCoreScanned === 0 ? '（core/ 尚未创建，G1 落码起生效）' : ''),
 );
-if (!veCoreViol) console.log('  ✅ core 依赖未越界（仅 core/** 与 base/core/idGen.ts）');
+if (!veCoreViol)
+  console.log('  ✅ core 依赖未越界（仅 core/** 与 base/core/ · base/utils/timeline/）');
 
 // ─────────────────────────────────────────────────────────────────
 // 规则 6（2026-09-13）：`videoEditor/hooks/**` 禁依赖 `videoEditor/export/**` —— 播放/探测域不得反向依赖导出域。

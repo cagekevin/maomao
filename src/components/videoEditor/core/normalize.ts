@@ -24,6 +24,7 @@ import {
   DEFAULT_PROJECT_HEIGHT,
   DEFAULT_PROJECT_WIDTH,
   DEFAULT_ROW_HEIGHT,
+  DEFAULT_TEXT_TRACK_NAME,
   DEFAULT_VIDEO_TRACK_NAME,
   VIDEO_EDITOR_SCHEMA_VERSION,
 } from './constants.ts';
@@ -85,20 +86,44 @@ export function createEmptyProject(): Project {
 /**
  * 建一条空轨 —— **新建轨道的唯一出处**（`createEmptyProject` 与「加轨」动作共用它）。
  *
- * `overlay` 缺省 = `kind === 'audio'`：音频轨天然自由；**首个**视频轨是主轨（磁吸）。
+ * `overlay` 缺省由 `DEFAULT_OVERLAY_OF` 决定：音频/文字轨天然自由；**首个**视频轨是主轨（磁吸）。
  * 新增的**第二条及以后**视频轨必须是叠加轨（`overlay: true`）—— 主轨只能有一条，
  * 否则「主轨压实」与直通导出都会有两条轨同时声称自己是主轨（判据说谎）。
  * 故「加轨」的调用方**必须显式传 `overlay`**，见 `core/timelineOps.ts::appendTrack`。
+ *
+ * ★改（2026-09-14）：轨道的 id 前缀 / 默认名 / overlay 缺省三件事，
+ * 从「一个个三元表达式」收成**三张 `Record<TrackKind, …>` 表**。
+ * 理由与 `routeClipToTrack` 同源：三元表达式在新增 `TrackKind` 时**不报错、静默归位**，
+ * 而 `Record` 缺键即编译错误 —— 加 `'text'` 那天编译器会点名这三张表（实测有效）。
  */
-export function createEmptyTrack(kind: TrackKind, overlay = kind === 'audio'): Track {
+const TRACK_ID_PREFIX: Record<TrackKind, string> = {
+  video: 'track-v',
+  audio: 'track-a',
+  text: 'track-t',
+};
+
+const TRACK_DEFAULT_NAME: Record<TrackKind, string> = {
+  video: DEFAULT_VIDEO_TRACK_NAME,
+  audio: DEFAULT_AUDIO_TRACK_NAME,
+  text: DEFAULT_TEXT_TRACK_NAME,
+};
+
+/** 各类轨在**缺省**时是不是自由轨（`overlay: true`）。主视频轨的例外由「首条」规则另判。 */
+const DEFAULT_OVERLAY_OF: Record<TrackKind, boolean> = {
+  video: false,
+  audio: true,
+  text: true,
+};
+
+export function createEmptyTrack(kind: TrackKind, overlay = DEFAULT_OVERLAY_OF[kind]): Track {
   return {
-    id: generateId(kind === 'video' ? 'track-v' : 'track-a'),
+    id: generateId(TRACK_ID_PREFIX[kind]),
     // 新轨名与既有轨重名是常态（都叫「视频」），此处**不做去重编号**：
     // 编号要读全量 tracks 才能算，而它是**显示名**（`name` 不参与任何判据，见 types.ts），
     // 为显示名引入「读全集合」的耦合不值得。UI 侧按位置显示 V1/V2/A1/A2，名字只作 fallback。
-    name: kind === 'video' ? DEFAULT_VIDEO_TRACK_NAME : DEFAULT_AUDIO_TRACK_NAME,
+    name: TRACK_DEFAULT_NAME[kind],
     kind,
-    // 音频轨天然是自由轨（不压实）；**首个**视频轨是主轨（磁吸），新增视频轨是叠加轨（自由）。
+    // 音频/文字轨天然是自由轨（不压实）；**首个**视频轨是主轨（磁吸），新增视频轨是叠加轨（自由）。
     overlay,
     locked: false,
     hidden: false,
@@ -176,7 +201,7 @@ function fromRecord(raw: Record<string, unknown>): Project {
   // 旧工程 / 手工编辑的 JSON 里可能出现两条 `overlay:false` 视频轨（M1 时代不可能、M2 可能被写坏），
   // 若放行，「主轨压实」与直通导出会各有两条轨声称是主轨（判据说谎）。故**加载期收敛**：
   // 保留第一条主轨，其余降级为叠加轨 —— 且这不改任何 `clips` 数据（只是压实行为不再作用其上）。
-  const normalizedTracks = enforceSingleMainTrack(tracks);
+  const normalizedTracks = enforceLayerOrder(enforceSingleMainTrack(tracks));
 
   const settingsRaw = isPlainObject(raw.settings) ? raw.settings : {};
   const uiRaw = isPlainObject(raw.ui) ? raw.ui : {};
@@ -227,6 +252,41 @@ function enforceSingleMainTrack(tracks: Track[]): Track[] {
   return changed ? next : tracks;
 }
 
+/**
+ * 层序不变量（**加载期收敛**）—— 文字轨必须**排在所有视频类轨之前**（用户口径 2026-09-14）。
+ *
+ * ── 数组序的确切语义（★2026-09-14 起，两处方向已对齐）──
+ * ```
+ * 数组 index 越小  ⇒  轨道区显示越靠上  ⇒  画面里越靠上（renderFrameAt 倒序绘制）
+ * ```
+ * 故「**文字在视频之上**（不管是轨道还是画面）」= 文字轨的 index 必须**小于**任何视频类轨。
+ * 音频轨不参与画面层序（无画面），故**保持原位**、不强行搬迁。
+ *
+ * 【为什么必须在加载期收敛，而不是靠「加轨时插对位置」】
+ * `appendTrack` 只在**新建轨**时决定位置；而 `tracks` 顺序还会从**别处**进来：
+ * 加载旧工程 JSON、手工编辑的工程记录、将来可能的「拖拽重排轨道」——
+ * 那些路径都**不经过** `appendTrack`。若只靠新建时插对，就会出现「旧工程里文字被视频盖住」，
+ * 且**没有任何提示**（用户只看到文字不见了）。改在**加载期唯一入口**收敛，
+ * 与 `enforceSingleMainTrack` 同一手法：**不管顺序从哪来，进来就合规**。
+ *
+ * 【为什么是「重排」而不是「拒载」】它是**顺序偏好**，不是数据损坏 ——
+ * 重排不丢任何片段、不改任何 clips，故按结构性收敛处理（拒载会让用户打不开自己的工程，代价过大）。
+ *
+ * 【已合规 → 返回原数组引用】（I4 同精神：无变化不动）
+ */
+function enforceLayerOrder(tracks: Track[]): Track[] {
+  // 稳定分区：文字类轨在前，其余（视频类 + 音频类）**保持原有相对顺序**。
+  // 用「分区」而非「排序」：排序会改变同类轨之间的既有次序（那是有意义的用户编排），
+  // 而分区只把文字轨整体前移，**不触碰其它任何轨的相对顺序**。
+  const texts = tracks.filter((t) => t.kind === 'text');
+  if (texts.length === 0) return tracks; // 无文字轨 → 无需收敛（I4）
+  const others = tracks.filter((t) => t.kind !== 'text');
+  const next = [...texts, ...others];
+  // 逐元素引用比较：全等 = 本来就在前 → 返回原引用（不制造新数组，避免误触发落盘）
+  const same = next.length === tracks.length && next.every((t, i) => t === tracks[i]);
+  return same ? tracks : next;
+}
+
 function fromTrack(raw: unknown, index: number): Track {
   if (!isPlainObject(raw)) throw new ProjectDataError(`第 ${index + 1} 条轨道不是对象`);
   const clipsRaw = raw.clips;
@@ -234,7 +294,7 @@ function fromTrack(raw: unknown, index: number): Track {
     throw new ProjectDataError(`轨道 ${str(raw.id, `#${index + 1}`)} 的 clips 不是数组`);
   }
   const clipList: unknown[] = Array.isArray(clipsRaw) ? clipsRaw : [];
-  const kind: TrackKind = raw.kind === 'audio' ? 'audio' : 'video';
+  const kind = requireTrackKind(raw.kind, `轨道 #${index + 1}`);
   return {
     id: requireId(raw.id, `轨道 #${index + 1}`),
     name: str(raw.name, kind === 'video' ? DEFAULT_VIDEO_TRACK_NAME : DEFAULT_AUDIO_TRACK_NAME),
@@ -250,7 +310,7 @@ function fromTrack(raw: unknown, index: number): Track {
 
 function fromClip(raw: unknown, index: number): Clip {
   if (!isPlainObject(raw)) throw new ProjectDataError(`第 ${index + 1} 个片段不是对象`);
-  const kind: ClipKind = raw.kind === 'audio' ? 'audio' : raw.kind === 'image' ? 'image' : 'video';
+  const kind = requireClipKind(raw.kind, `片段 #${index + 1}`);
 
   const sourceStart = Math.max(0, num(raw.sourceStart, 0));
   // 出点缺失/倒挂 → 落到「零长片段」而不是丢弃：丢弃会静默改变时间轴长度（假成功）。
@@ -290,4 +350,127 @@ function fromClip(raw: unknown, index: number): Clip {
 function requireId(v: unknown, what: string): string {
   if (typeof v === 'string' && v.length > 0) return v;
   throw new ProjectDataError(`${what} 缺少 id`);
+}
+
+/* ────────────────────────────────────────────────────────────
+ * 类别的**唯一取值域**（★新增 2026-09-14 · 用户裁定「不要兜底，直接报错」）
+ *
+ * 【为什么是「拒载」而不是「回落默认」】
+ * 原实现把未知 kind **静默归位**：`raw.kind === 'audio' ? 'audio' : 'video'`。
+ * 失效模式是**最坏的一种** —— 数据被**改写**且**无人知晓**：
+ *   · 一个损坏/未来的 `kind: 'text'` 轨道，会被**当作视频轨**加载 → 用户看到它进了错误的层；
+ *   · 一个 `kind: 'gif'` 片段会被**当作视频片段** → 时间轴长度/渲染/导出全按错的语义走；
+ *   · 而且**永远不会报错**（因为「归位」看起来总是成功的）。
+ * 用户口径：**「我不喜欢有错误他不报，走了兜底，导致后面数据不清楚」** —— 说的正是这条。
+ *
+ * 故改为**白名单校验 + 拒载**（`ProjectDataError` → 上层 `normalizeProject` 转 `reject`，
+ * 由 `projectRepository` 按「无工程」处理并向用户明示，`docs/120` C1/C2）。
+ * 拒载的代价是「这个工程读不出来」，但**数据不会被悄悄改坏** ——
+ * 宁可让用户看见「读不出来」，也不让他带着被篡改的数据继续编辑（正确性优先）。
+ *
+ * ⚠️ **新增类别时这里必须同步**：`CLIP_KINDS` / `TRACK_KINDS` 是**唯一取值域**，
+ * 加进 `ClipKind` / `TrackKind` 类型却漏加进集合 → 该类别的新数据**读不出来**（响亮失败，非静默）。
+ * ──────────────────────────────────────────────────────────── */
+
+/* ── `ClipKind` / `TrackKind` 的运行时取值域 ──
+ *
+ * ⚠️⚠️ **必须用 `as const` 数组保留字面量**（三种 `Set` 写法实测**全部宽化**、对账因此失效）：
+ *   · `new Set<ClipKind>([...])` → 推出 `Set<ClipKind>` = **全集** ⇒ 差集恒空
+ *   · `new Set([...])`           → 推出 `Set<string>` ⇒ 同样宽化
+ *   · `: ReadonlySet<string>`    → 显式标注直接擦掉字面量
+ * 故取值域的**真源**是下面两个 `as const` 数组（窄字面量联合），
+ * 运行时 `Set` 由 `kindSetOf()` 派生（只为 `.has()` 校验）。
+ * 与 `ClipKind` / `TrackKind` 的**相等性**由 `KindSetsInSync` 在使用点断言（编译期强制）。
+ */
+const CLIP_KIND_LIST = ['video', 'audio', 'image', 'text'] as const;
+const TRACK_KIND_LIST = ['video', 'audio', 'text'] as const;
+
+/** `as const` 数组 → 运行时 `Set`（唯一消费点是 `.has()` 校验）。 */
+const kindSetOf = <T extends string>(list: readonly T[]): ReadonlySet<T> => new Set<T>(list);
+
+const CLIP_KINDS = kindSetOf(CLIP_KIND_LIST);
+const TRACK_KINDS = kindSetOf(TRACK_KIND_LIST);
+
+/**
+ * **类型守卫**版的白名单校验：命中即把 `unknown` 收窄成该集合的成员类型。
+ *
+ * 【为什么必须是类型谓词，不能靠 `has()` + `as`】
+ * `Set.has()` **不是**类型守卫，TS 不会因它收窄 —— 所以 `return v as ClipKind` 里的
+ * `as` 是**假收窄**（断言掉的是编译器本该帮我们证的东西）。
+ * 写成 `v is T` 后，收窄由**一次真实判断**（`typeof` + `has`）支撑，调用方拿到的是真类型。
+ * （本仓 `strict:false`，但这与 strict 无关 —— 收窄逻辑本身要成立。）
+ */
+function isMemberOf<T extends string>(v: unknown, allowed: ReadonlySet<T>): v is T {
+  return typeof v === 'string' && allowed.has(v as T);
+}
+
+/* ── ★运行时集合必须与类型声明**恰好相等**（编译期强制，零运行时成本）──
+ *
+ * 【为什么需要它】`Set` 是**运行时**取值域，而 `ClipKind` 是**编译期**类型 ——
+ * 两者若不同步，编译器**不会报错**（`Set` 的 `.has()` 看不到少了一个成员）。
+ * 后果：新类别的新数据被**拒载**（读不出来），而开发者以为「类型加完了就完事了」。
+ *
+ * 【⚠️ 断言形态踩坑：三次试错，前两次都是「看起来有守卫、实测不报」】
+ *  ① `type X<T,S> = [MissingFrom<T,S>[], ExtraIn<T,S>[]]` + `const x: X<…> = [[], []]`
+ *     → **漏报**：空数组字面量 `[]` 对任何 `Y[]` 都合法，"差集非空"也照样通过。
+ *  ② 对象字面量 `{ missing: [], extra: [] }` → **同样漏报**（同一原因）。
+ *  ③ **反向断言**（本版）：把「差集」赋给 `never` 的位置 —— 差集非空即不可赋值 ⇒ **报错**。
+ * 且错误信息里**带着差集本身**（探针实测：`Type '"text"' is not assignable to 'never'`），
+ * 直接告诉开发者缺哪个成员。
+ * ⚠️ **另一个前提**：断言有效的前提是集合**不被宽化** —— 故上面必须用 `as const` 数组
+ * （见 `CLIP_KIND_LIST` 处的说明）。
+ */
+type MissingFrom<T extends string, S extends ReadonlySet<string>> = Exclude<T, SetMember<S>>;
+type ExtraIn<T extends string, S extends ReadonlySet<string>> = Exclude<SetMember<S>, T>;
+type SetMember<S> = S extends ReadonlySet<infer U> ? U : never;
+
+/**
+ * 编译期对账：断言「类型联合 `T`」与「运行时集合 `S`」**恰好相等**。
+ * 求值成 `true` = 相等；否则求值成**元组**（`'漏成员' | '多余成员'`, 差集）⇒ 赋给 `true` 即报错。
+ *
+ * 【为什么用反向断言而不是「差集数组 = 空数组」】见上方「⚠️ 断言形态踩坑」。
+ * 【为什么 `T extends string`】让它只接受字符串联合（`ClipKind` / `TrackKind` 都满足）。
+ */
+type AssertKindSetExact<T extends string, S extends ReadonlySet<string>> =
+  MissingFrom<T, S> extends never
+    ? ExtraIn<T, S> extends never
+      ? true
+      : ['多余成员（类型里没有、集合里有）', ExtraIn<T, S>]
+    : ['漏成员（类型里有、集合里没有）', MissingFrom<T, S>];
+
+/**
+ * 片段的 `kind` 必须是已知类别 —— 未知即**拒载**（不静默归位，见上方说明）。
+ *
+ * 【★编译期对账】`CLIP_KINDS` 必须与 `ClipKind` **恰好相等**（不等则下面那行报错）。
+ * 这是「类型声明」与「运行时取值域」之间唯一的同步机制 —— 缺了它，
+ * 新增 `ClipKind` 时集合会静默漏成员（实测过：编译器与测试都不报）。
+ */
+function requireClipKind(v: unknown, what: string): ClipKind {
+  // ★编译期对账（反向断言）：`CLIP_KINDS` 必须与 `ClipKind` **恰好相等**；
+  //   不等则**本行**报错，且错误信息里直接列出差集（漏/多了哪个类别）。
+  const sync: true = null as unknown as AssertKindSetExact<ClipKind, typeof CLIP_KINDS>;
+  void sync; // 纯类型层（运行时被消除）
+  // 类型谓词收窄（真判断支撑，非 `as` 假收窄 —— 见 `isMemberOf` 说明）
+  if (!isMemberOf(v, CLIP_KINDS)) {
+    throw new ProjectDataError(
+      `${what} 的 kind 无法识别（读到 ${JSON.stringify(v)}，已知取值：${[...CLIP_KINDS].join(' / ')}）`,
+    );
+  }
+  return v;
+}
+
+/**
+ * 轨道的 `kind` 必须是已知类别 —— 未知即**拒载**（不静默归位，见上方说明）。
+ * 【★编译期对账】同 `requireClipKind`：`TRACK_KINDS` 必须与 `TrackKind` 恰好相等。
+ */
+function requireTrackKind(v: unknown, what: string): TrackKind {
+  // ★编译期对账（反向断言）：同 `requireClipKind`
+  const sync: true = null as unknown as AssertKindSetExact<TrackKind, typeof TRACK_KINDS>;
+  void sync; // 纯类型层（运行时被消除）
+  if (!isMemberOf(v, TRACK_KINDS)) {
+    throw new ProjectDataError(
+      `${what} 的 kind 无法识别（读到 ${JSON.stringify(v)}，已知取值：${[...TRACK_KINDS].join(' / ')}）`,
+    );
+  }
+  return v;
 }

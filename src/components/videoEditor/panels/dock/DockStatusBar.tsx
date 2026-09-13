@@ -11,6 +11,10 @@
  *  - C2.7：版本冲突未落盘（本地改动保留，给"重新加载"）；
  *  - 读取失败红字。
  */
+
+/** 「常驻层」声明（`dockContract.test.ts` 按此标记禁用 portal / FullscreenShell）：本目录的文件都挂在 App 根 flex 列内、常驻不 portal，故不许登记 modalLayer。 */
+// DOCK_IS_PERSISTENT（常驻层声明 · dockContract.test.ts 按此标记禁用 portal）
+
 import { Plus } from 'lucide-react';
 import type { Project } from '../../core/types.ts';
 
@@ -25,7 +29,7 @@ export interface DockStatusBarProps {
   exportInfoReason: string | null;
   letterbox: 'yes' | 'no' | 'unknown';
   /**
-   * 加轨操作（「＋ 视频 / ＋ 音频」）—— **与下面那行小字同排**（用户口径）。
+   * 加轨操作（「＋ 文字 / ＋ 视频 / ＋ 音频」）—— **与下面那行小字同排**（用户口径）。
    *
    * 【为什么把加轨并进信息行，而不是它自己独占一行】
    * 两者都是「基座底部的常驻元信息/操作区」：一个是**操作**（加轨）、一个是**状态**
@@ -35,9 +39,11 @@ export interface DockStatusBarProps {
    *
    * 【为什么把动作以回调传进来，而不是在这里 import 领域逻辑】
    * DockStatusBar 的职责边界是**纯渲染**（见文件头）。加轨的判据与动作都在 `useTimelineDrag`，
-   * 故这里只收「两个动作 + 各自的可用性 + 上限说明」，不自己算轨道数。
+   * 故这里只收「三个动作 + 各自的可用性 + 上限说明」，不自己算轨道数。
    */
-  onAddTrack: (kind: 'video' | 'audio') => void;
+  onAddTrack: (kind: 'text' | 'video' | 'audio') => void;
+  /** ★新增 2026-09-14：文字轨入口（用户口径：最左边加一个「文字」就好）。 */
+  canAddText: boolean;
   canAddVideo: boolean;
   canAddAudio: boolean;
   addTrackLimit: number;
@@ -54,6 +60,7 @@ export function DockStatusBar(p: DockStatusBarProps) {
     exportInfoReason,
     letterbox,
     onAddTrack,
+    canAddText,
     canAddVideo,
     canAddAudio,
     addTrackLimit,
@@ -67,8 +74,20 @@ export function DockStatusBar(p: DockStatusBarProps) {
           className="px-3 h-7 flex items-center gap-1.5 text-[10px] text-muted bg-surface-sunken"
           data-export-info
         >
-          {/* 左组：加轨（低频操作，放在行的最左端，与右侧状态信息拉开） */}
+          {/* 左组：加轨（低频操作，放在行的最左端，与右侧状态信息拉开）。
+              顺序按**层序**排列：文字（最上层轨）→ 视频 → 音频（用户口径 2026-09-14：
+              「最左边加一个文字就好了」）。按钮顺序与轨道区自上而下的显示顺序一致。 */}
           <span className="shrink-0 select-none text-muted/80">添加轨道</span>
+          <AddTrackButton
+            label="文字"
+            enabled={canAddText}
+            hint={
+              canAddText
+                ? '新增一条文字轨（位于最上层，盖住视频）'
+                : `文字轨已达上限（${addTrackLimit} 条）`
+            }
+            onClick={() => onAddTrack('text')}
+          />
           <AddTrackButton
             label="视频"
             enabled={canAddVideo}

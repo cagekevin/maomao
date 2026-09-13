@@ -378,4 +378,26 @@ describe('audibleClipsOf —— 可闻判据单点（docs/120 C11.7）', () => {
     );
     expect(audibleClipsOf(muted).map((c) => c.id)).toEqual(['v1']);
   });
+
+  it('★文字片段不算可闻（无音源）—— 防「假降级：明明没丢音频却被告知丢失」', () => {
+    // 背景：原判据 `kind !== 'image'` 是否定式，加 `'text'` 后会把文字**当成可闻**：
+    //  ① 导出探针会因它去探音频编码器（不必要）；
+    //  ② 混音对它取不到音轨 → 计入 missing → 导出被判 `lost`（假降级）。
+    // 本用例锁住「文字不在可闻集合内」这条行为契约（先红后绿：改回 `!== 'image'` 即红）。
+    const project = createEmptyProject();
+    const textTrack: Track = {
+      id: 't1',
+      name: '文字',
+      kind: 'text',
+      overlay: true,
+      locked: false,
+      hidden: false,
+      muted: false,
+      clips: [clipOf({ id: 'txt1', kind: 'text' })],
+    };
+    project.tracks.push(textTrack);
+    project.tracks[0].clips.push(clipOf({ id: 'v1' }));
+
+    expect(audibleClipsOf(project.tracks).map((c) => c.id)).toEqual(['v1']);
+  });
 });

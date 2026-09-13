@@ -9,16 +9,22 @@
  *  **纯函数**：不 import React / 存储 / 网络；失败要么返回 `null`（调用处转「置灰 + tooltip」，§一.5 O3），
  *      要么返回原数组。**不给它们套 `OpResult`**（§一.5 O4：宽接口 + 薄实现 = 泄漏）。
  *
- * ── 跨域部分在共用层，不在本文件 ──
+ * ── 跨域部分在共用层，且**本文件现在真的在复用它**（★更新 2026-09-14）──
  *  `sourceTimeAt` / `timelineTimeAt`（时间轴↔源媒体）已由前置收口下沉到
- *  `base/utils/timeline/sourceTime.ts`，**直接复用、严禁在此重写**
- *  （`Clip` 结构上就是它的 `ClipTimeWindow`，可直接传入）。
+ *  `base/utils/timeline/sourceTime.ts`。**此前本文件的正文违背了自己的这段注释**：
+ *  原 `splitAt`/`trimLeftAt`/`trimRightAt`/`freezeFrameAt` 各自内联重写了同一公式
+ *  （`clip.sourceStart + (t - clip.timelineStart)` ×4）—— 根因不是偷懒，是 `check-arch` 规则 4 的
+ *  导入白名单当时**只放行 `base/core/idGen.ts`**，本文件**调不到**那个原语，只能就地重写。
+ *  该白名单已于 2026-09-14 放宽为「按层放行」（`base/core/` · `base/utils/timeline/`，
+ *  取证：`timeline/` 三个文件零 import = 真纯函数层），故四处内联**已改为调用 `sourceTimeAt`**。
+ *  ⇒ 这四处再漂移已不可能（同一实现）；M2 变速只需改 `sourceTimeAt` 一处。
  *
  * ── 恢复磁吸（「闭合空隙」按钮）为什么不另立 `closeGaps` ──
  *  `docs/123` §一.4 自己写明它的「语义入口 = `relayoutSequential`」。两者是**同一件事**，
  *  另立别名 = 两名指一物（7 步法 Step 6 明禁）。UI 的空隙提示按钮直接调 `relayoutSequential`。
  */
 import { generateId } from '../../base/core/idGen.ts';
+import { sourceTimeAt } from '../../base/utils/timeline/sourceTime.ts';
 import { EPS, MAX_TRACKS_PER_KIND } from './constants.ts';
 import { createEmptyTrack } from './normalize.ts';
 import type { Clip, Track, TrackKind } from './types.ts';
@@ -280,8 +286,8 @@ export function splitAt(clips: Clip[], t: number): Clip[] | null {
   const end = clipEnd(clip);
   if (t <= clip.timelineStart + EPS || t >= end - EPS) return null;
 
-  // 源时间 = 入点 + 已播放时长（共用映射原语的同一条公式；此处直接算，避免为了一个减法再绕一层）
-  const cutSource = clip.sourceStart + (t - clip.timelineStart);
+  // 源时间 = 时间轴时刻 → 源媒体时刻（**共用映射原语**，不再就地重写公式 —— 见文件头说明）
+  const cutSource = sourceTimeAt(t, clip);
   const left: Clip = { ...clip, sourceEnd: cutSource };
   const right: Clip = {
     ...clip,
@@ -300,7 +306,7 @@ export function trimLeftAt(clips: Clip[], t: number, magnetic = true): Clip[] | 
   if (!hit) return null;
   const { clip } = hit;
   if (t <= clip.timelineStart + EPS || t >= clipEnd(clip) - EPS) return null;
-  const cutSource = clip.sourceStart + (t - clip.timelineStart);
+  const cutSource = sourceTimeAt(t, clip); // 共用映射原语
   return settle(
     clips.map((c) => (c.id === clip.id ? { ...c, sourceStart: cutSource, timelineStart: t } : c)),
     magnetic,
@@ -313,7 +319,7 @@ export function trimRightAt(clips: Clip[], t: number, magnetic = true): Clip[] |
   if (!hit) return null;
   const { clip } = hit;
   if (t <= clip.timelineStart + EPS || t >= clipEnd(clip) - EPS) return null;
-  const cutSource = clip.sourceStart + (t - clip.timelineStart);
+  const cutSource = sourceTimeAt(t, clip); // 共用映射原语
   return settle(
     clips.map((c) => (c.id === clip.id ? { ...c, sourceEnd: cutSource } : c)),
     magnetic,
@@ -339,7 +345,7 @@ export function freezeFrameAt(
   const { clip, index } = hit;
   if (t <= clip.timelineStart + EPS || t >= clipEnd(clip) - EPS) return null;
 
-  const cutSource = clip.sourceStart + (t - clip.timelineStart);
+  const cutSource = sourceTimeAt(t, clip); // 共用映射原语
   const left: Clip = { ...clip, sourceEnd: cutSource };
   // 定格帧继承被切片的素材身份（sourceUrl/assetId/nodeId 指同一个源），
   // 但只取用该时刻的**一帧** —— 故它是 `kind: 'image'`，走图片片段同一条渲染/合成路径。
@@ -455,9 +461,10 @@ export function findTrackOfClip(tracks: Track[], clipId: string): Track | undefi
  * 追加一条新轨（「加轨」动作的唯一原语）。
  *
  * 【新轨插在哪】插在**同类轨的末尾**（新视频轨紧跟现有视频轨之后、新音频轨紧跟现有音频轨之后），
- * 而不是简单 `push` 到数组尾。理由：`tracks` 数组顺序 = **画面自下而上的叠加顺序**
- * （`export/composite.ts::renderFrameAt` 依序绘制），把新视频轨推到音频轨之后会让
- * 「音频轨的层序」变成一个无意义的中间态；按类别分组也让轨道头的视觉分块与层序一致。
+ * 而不是简单 `push` 到数组尾。理由：`tracks` 数组顺序 = **轨道区自上而下的显示顺序**
+ * （`VideoEditorDock` 正序 `map` 渲染）**且**被 `renderFrameAt` **倒序**消费为画面层序
+ * （⚠️ 2026-09-14 改：倒序后**数组第一项显示在屏幕最上、且位于画面最上层**，两处方向一致）。
+ * 按类别分组让轨道头的视觉分块与层序一致；把新视频轨推到音频轨之后会让「同类别不再相邻」。
  *
  * 【`overlay` 由调用方显式给】主轨（`overlay:false`）**全工程只能有一条**：
  * 新增视频轨必须是叠加轨（自由、可留空），否则「主轨压实」与直通导出都会出现
@@ -470,13 +477,21 @@ export function appendTrack(tracks: Track[], kind: TrackKind): Track[] {
   const sameKind = tracks.filter((t) => t.kind === kind);
   if (sameKind.length >= MAX_TRACKS_PER_KIND) return tracks;
 
-  // 视频：第一条是主轨，其余皆是叠加轨；音频：恒自由轨。
+  // 视频：第一条是主轨，其余皆是叠加轨；音频 / 文字：恒自由轨（从不做主轨）。
+  // ★2026-09-14：`kind === 'video'` 是**有意的精确语义**（只有视频轨能当主轨），
+  // 不是「没考虑其他类别」—— 故保留字面量而非 `Record`：新增类别时本行**不需要**改，
+  // 因为「谁能当主轨」的答案恒为「视频」（主轨的定义就是承载主视频流的那一条）。
   const isFirstVideo = kind === 'video' && sameKind.length === 0;
   const track = createEmptyTrack(kind, !isFirstVideo);
 
-  // 插在最后一条同类轨之后；没有同类轨（不可能是视频）则落到数组尾。
+  // 插在最后一条同类轨之后；没有同类轨时落点**按类别不同**（见下）。
+  //
+  // ★规则（2026-09-14 · 用户口径「文字在视频之上」）：**没有同类轨时，文字轨插到数组最前**。
+  // 理由见 `normalize.ts::enforceLayerOrder`：数组 index 越小 = 轨道区越靠上 **且** 画面越靠上，
+  // 故文字轨必须排在所有视频类轨之前，才能「盖住视频」。
+  // 其余类别（无同类轨时）插到数组尾 —— 与历史行为一致（新视频/音频轨排在既有内容之后）。
   const lastIndex = tracks.reduce((acc, t, i) => (t.kind === kind ? i : acc), -1);
-  const at = lastIndex < 0 ? tracks.length : lastIndex + 1;
+  const at = lastIndex >= 0 ? lastIndex + 1 : kind === 'text' ? 0 : tracks.length;
   const next = tracks.slice();
   next.splice(at, 0, track);
   return next;

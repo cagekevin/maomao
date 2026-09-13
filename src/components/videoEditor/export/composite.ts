@@ -31,10 +31,11 @@ import {
   VideoSampleSink,
 } from 'mediabunny';
 import type { VideoSample } from 'mediabunny';
+import { sourceTimeAt, timelineTimeAt } from '../../base/utils/timeline/sourceTime.ts';
 import { ConversionCanceled } from '../../base/utils/videoEngine.ts';
 import type { AudioOutcome } from '../../base/utils/videoEngine.ts';
 import { activeClipsAt, clipDuration, timelineDuration } from '../core/timelineOps.ts';
-import { audibleClipsOf } from '../core/routeClip.ts';
+import { audibleClipsOf, isRenderableTrack } from '../core/routeClip.ts';
 import type { Clip, Project, Track } from '../core/types.ts';
 
 /**
@@ -115,7 +116,19 @@ async function drawClipAt(
 /**
  * 渲染某一时刻的一帧（预览与合成共用的**同一条路径**，`docs/120` C8）。
  *
- * 规则：轨道按数组顺序自下而上叠加；**隐藏轨跳过**（C7.1：隐藏只影响渲染，不动数据）；
+ * ── 叠加方向（★改 2026-09-14 · 用户口径「不管轨道还是画面，文字都在最上面」）──
+ * **按 `tracks` 数组【倒序】绘制**：数组**最后一个先画**（→ 位于画面最下层），
+ * 数组**第一个最后画**（→ 盖在最上层）。
+ *
+ * 【为什么必须倒序 —— 原实现方向与轨道区相反，是个真问题】
+ *  - 轨道区显示 = `tracks.map(...)` **正序** ⇒ 数组第一项显示在**屏幕最上方**；
+ *  - 原渲染 = `for (…of tracks)` **正序** ⇒ 数组第一项**先画** ⇒ 位于**画面最下层**。
+ * 两处方向相反 ⇒ 「屏幕上排在最上面的那条轨」反而是「画面里被压在底下的层」——
+ * 与用户直觉相反（通行剪辑软件都是「上面 = 上层」）。
+ * 倒序后两处对齐：**屏幕上最上面的轨 = 画面里最上层**，且数组第一项即「最上层」
+ * ⇒ 文字轨只要排在数组靠前，就**同时**在轨道区最上、画面最上（用户目标）。
+ *
+ * **隐藏轨跳过**（C7.1：隐藏只影响渲染，不动数据）；
  * 每个轨上取 `activeClipsAt`（自由轨允许同刻多条，全部画上）。
  *
  * **为什么不导出**：M1 没有监视器（`docs/120` §0.8 把「画面」判给 M2），所以它此刻的消费者
@@ -135,18 +148,23 @@ async function renderFrameAt(
 
   const samplesToClose: VideoSample[] = [];
   try {
-    for (const track of tracks) {
-      if (track.hidden || track.kind !== 'video') continue;
+    // 倒序：数组第一项**最后**绘制（盖在最上层）。见函数头「叠加方向」。
+    // 用 `[...tracks].reverse()` 而不 `tracks.reverse()`：**不得改写入参数组**
+    // （`project.tracks` 是工程真源，原地反转会污染模型且不进撤销栈）。
+    for (const track of [...tracks].reverse()) {
+      // 只渲染**画面类**轨（视频轨 / 文字轨；音频轨无画面）。
+      //
+      // ★改（2026-09-14）：原写 `track.kind !== 'video'` —— 一个**否定式**判据。
+      // 加 `TrackKind` 新成员（M2 的 `'text'` 文字轨）时它**不会报错**，
+      // 而是把新轨**静默跳过** ⇒ 文字层**不入成片**，且导出照常「成功」。
+      // 这正是用户口径里最忌的那种失败（「走了兜底，导致后面数据不清楚」）。
+      // 改为**肯定式穷举**：显式列出「有画面、要参与渲染」的轨道类别，
+      // 新增类别时**必须回来表态**（见 `RENDERABLE_TRACK_KINDS` 的说明），否则类型/常量处就可见。
+      if (track.hidden || !isRenderableTrack(track.kind)) continue;
       for (const clip of activeClipsAt(track, time)) {
-        // 素材时刻 = 入点 + 片段内已播时长（`sourceStart` + (t - timelineStart)）。
-        await drawClipAt(
-          context,
-          canvas,
-          clip,
-          clip.sourceStart + (time - clip.timelineStart),
-          resolve,
-          samplesToClose,
-        );
+        // 素材时刻 = 时间轴时刻 → 源媒体时刻（**共用映射原语** `sourceTimeAt`，
+        // 与预览 / 播放头反算同一条公式；此前此处内联重写，见 core/timelineOps.ts 文件头说明）。
+        await drawClipAt(context, canvas, clip, sourceTimeAt(time, clip), resolve, samplesToClose);
       }
     }
   } finally {
@@ -284,10 +302,21 @@ async function mixClip(
 
   const sink = new AudioBufferSink(audioTrack);
   for await (const wrapped of sink.buffers(clip.sourceStart, clip.sourceEnd)) {
-    const timeInClip = wrapped.timestamp - clip.sourceStart;
-    if (timeInClip >= duration) break;
+    // 本消费方真正要的是「**源媒体时刻 → 时间轴落点**」这一条映射（`timelineTimeAt`），
+    // 因为它要算的是「这一块音频应该写进输出缓冲的哪个样本位」。
+    //
+    // 【为什么不拆成 `- timelineStart` 再 `+ timelineStart`】那是纯噪音（自己抵消），
+    // 且**在 M2 变速下会算错**：`duration` 是**时间轴侧**的量，而 `timestamp - sourceStart`
+    // 是**源侧**的量 —— 变速后两者不再相等（时间轴 1s ≠ 源 1s，差一个倍率）。
+    // 故必须**整段走时间轴侧**：源时刻 → 时间轴时刻（唯一映射），再直接落样本位。
+    // 变速时只需改 `timelineTimeAt` 一处，此处自动正确（见 core/timelineOps.ts 文件头）。
+    const timelineTime = timelineTimeAt(wrapped.timestamp, clip);
 
-    const startSample = Math.round((clip.timelineStart + timeInClip) * MIX_SAMPLE_RATE);
+    // 越界判定也整段走时间轴侧：超出片段末尾即停（等价于原 `timeInClip >= duration`，
+    // 但变速下仍成立 —— 因为它比较的是同一侧的量）。
+    if (timelineTime >= clip.timelineStart + duration) break;
+
+    const startSample = Math.round(timelineTime * MIX_SAMPLE_RATE);
     const ratio = wrapped.buffer.sampleRate / MIX_SAMPLE_RATE;
     const span = Math.round(wrapped.buffer.duration * MIX_SAMPLE_RATE);
 

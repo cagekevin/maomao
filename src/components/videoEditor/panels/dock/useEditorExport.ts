@@ -12,6 +12,10 @@
  * 只需读到**最新**的 exportRequest/plan/kindByUrl —— 直接从本 hook 的闭包取即可（它们在每次渲染
  * 重建，onExport 绑定最新的那次）。
  */
+
+/** 「常驻层」声明（`dockContract.test.ts` 按此标记禁用 portal / FullscreenShell）：本目录的文件都挂在 App 根 flex 列内、常驻不 portal，故不许登记 modalLayer。 */
+// DOCK_IS_PERSISTENT（常驻层声明 · dockContract.test.ts 按此标记禁用 portal）
+
 import { useMemo, useRef, useState } from 'react';
 import { type Node } from '@xyflow/react';
 import type { ReactFlowInstance } from '@xyflow/react';
