@@ -524,3 +524,210 @@ npx vitest run tests/unit/taskStore.test.ts tests/unit/InlineImageCropper.cropRe
 - 白名单：<是否新增目录>
 - ⚠️ 待确认：<若有拿不准的，列出来，别硬猜>
 ```
+
+---
+
+## 8.5.9 test 侧严格收口行动计划（2026-09-13 续作 · 供后续 AI 接手）
+
+> **本作战对象**：`npm run type-check`（= `tsc --noEmit`，根 `tsconfig.json` 已 `strict:true` 且 `include` 现已含 `tests/**`）在 tests 侧报出的 **866 处**错误。src 侧已 0 错（已实测 `grep '^src/'` = 0），本战役**只动 tests，绝不碰 src**。
+> **目标**：让 `tsc --noEmit` 全仓库 exit 0；行为零变化（`vitest` 实跑仍全过）。
+> **本段为「计划 + 现状快照」，不含已实施改动**（动手请另开会话，按 §9 模板记账）。
+
+### 8.5.9.1 现状快照（2026-09-13 实测）
+
+| 维度 | 数值 |
+| - | - |
+| 总错误 | **866** |
+| 涉及文件 | **90**（`tests/unit/**` + 4 个 `.mjs` 底座） |
+| src 侧错误 | **0 ✅**（已收口，勿动） |
+| 真门禁 | `npm run type-check` → `tsc --noEmit`（现已含 tests） |
+
+### 8.5.9.2 错误码分布（作战地图）
+
+| 错误码 | 数量 | 含义 / 标准修法指向 |
+| - | - | - |
+| **TS7005** | 363 | 变量（常是 `let mod`）被推成 `any` → §8.5.9.3 根因 A |
+| **TS7006** | 313 | 函数/箭头参数隐式 `any` → 根因 B / E |
+| **TS7031** | 61 | 解构绑定（`{ children, label }`）隐式 `any` → 根因 D |
+| **TS7034** | 55 | 变量在部分位置无法定型的 `any` → 根因 A 伴生 |
+| **TS7053** | 30 | 索引访问（字符串键）隐式 `any` → 根因 F |
+| **TS7019** | 27 | rest 参数 `(...a)` 隐式 `any[]` → 根因 C / E |
+| **TS6133** | 17 | 声明但未使用（unused）→ 根因 G |
+
+> 注：旧 `strict-report.mjs` / `tests/tsconfig.strict.probe.json` 探针**不再作为权威门禁**——根 `tsconfig` 现已全量 strict 且含 tests，直接用 `npx tsc --noEmit` 看真实数字。探针可当「更严一档」可选复检，但权威以 `type-check` 为准。
+
+### 8.5.9.3 根因分组与标准修法（按根因聚类，比按文件更高效）
+
+#### 根因 A — 动态 import 句柄 `let mod;`（清掉 363 TS7005 + 伴生 55 TS7034 + 大部分 TS7006）
+
+`accountsStore.test.ts` 等大量文件用 `let mod; mod = await import('...')` 拿模块句柄。`mod` 被推成 `any` 后，所有 `mod.xxx` 访问与回调参数连带报 `any`。**一处注解清一整簇**：
+
+```ts
+// ❌ before
+let mod;
+beforeEach(async () => { mod = await import('../../src/components/base/store/accountsStore.ts'); });
+
+// ✅ after（精确模块类型，零 any）
+let mod: Awaited<typeof import('../../src/components/base/store/accountsStore.ts')>;
+beforeEach(async () => { mod = await import('../../src/components/base/store/accountsStore.ts'); });
+```
+
+> 这是**杠杆最高**的一招：每个文件只需标一次类型，`mod` 下的 TS7005/7034 与众多 TS7006 一并消失。涉及文件含 `accountsStore`(96)、`providerStore`(42)、`previewUrl`(37)、`httpClient`(20)、`kvStore`(17)、`storageAdapter`(22)、`agentRuntime`(6) 等所有有此模式的文件。
+
+#### 根因 B — `vi.mock` 工厂内联箭头参数（TS7006）
+
+```ts
+// ❌ before
+vi.mock('react', () => ({ useSyncExternalStore: (subscribe, getSnapshot) => getSnapshot() }));
+
+// ✅ after（标真实形参；未用的标 _ 前缀顺带清 TS6133）
+vi.mock('react', () => ({
+  useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => getSnapshot(),
+}));
+```
+
+#### 根因 C — `.mjs` 底座的 rest 参数 `(...a)`（TS7019，27 处）
+
+4 个 `.mjs` 在 `checkJs:true` 下被查。`.mjs` **不能写 TS 语法**，用 JSDoc：
+
+```js
+// ❌ before
+const mockNode = (...a) => h.x(...a);
+
+// ✅ after（JSDoc rest 注解）
+/** @param {...any} a */
+const mockNode = (...a) => h.x(...a);
+```
+
+涉及：`_nodeMocks.mjs`(34)、`_channelLegacy.mjs`(17)、`setup.mjs`(12)、`_testUtils.mjs`(8)。**先打这 4 个底座**，它们被大量测试 import，清掉能顺带消很多下游报错。
+
+#### 根因 D — `.mjs` mock 组件解构 `({ children, label })`（TS7031，61 处中大部分在 `.mjs`）
+
+```js
+// ❌ before
+const MockNode = ({ children, label, title, testId }) => <div data-testid={testId}>{children}</div>;
+
+// ✅ after（JSDoc props 形状）
+/** @param {{children?: any, label?: string, title?: string, testId?: string}} props */
+const MockNode = ({ children, label, title, testId }) => <div data-testid={testId}>{children}</div>;
+```
+
+> `.tsx` 内的解构（如 `AgentPanel.test.tsx`、`CustomEdge.test.tsx`）同因，直接给组件 props 标接口/内联类型即可（不必 JSDoc）。
+
+#### 根因 E — `vi.fn` 工厂 / mock 回调参数（TS7006 / TS7019 散兵）
+
+测试 mock 回调本就只实现被测用到的字段，参数无可指摘的「真实类型」时，用前辈三板斧之一（§8.5.3 #3）：
+
+```ts
+// ❌ before
+const fn = vi.fn(async () => 1);
+
+// ✅ after（rest 标 any[]，一处消 TS7019/TS2493/TS18048/TS2532）
+const fn = vi.fn(async (..._args: any[]) => 1);
+```
+
+#### 根因 F — 索引访问 `obj[key]`（TS7053，30 处）
+
+- `STORAGE_KEYS[key]` / `EVENTS[key]`：`key` 是 `string` 去索引 `StorageKeyMeta`/`EventRegistryEntry`（无索引签名）。优先把 `key` 收窄成 `keyof typeof STORAGE_KEYS`；若确为动态键，给常量补 `[k: string]: ...` 索引签名或 `as Record<string, X>`。
+- `obj['data-label']` 去索引 `{'data-testid': string}`：给 mock props 类型补索引签名或加该具体键。
+- 通用：索引键是 `any` 时，先回去修那个 `any`（多半是根因 A/B 的伴生），不要只给对象补 `Record` 掩盖源头。
+
+#### 根因 G — 未使用声明 TS6133（17 处）
+
+- 未使用的**参数** → 改名加 `_` 前缀（`noUnusedParameters` 自动忽略）。
+- 未使用的**局部变量**（含解构 `...rest`）→ `noUnusedLocals` **不**认 `_` 前缀，需删除该绑定；若解构 rest 必须保留，用 `void rest;` 或直接从模式中删掉。
+- `import React` 未用（react-jsx 转换无需它）→ 删掉 import，或改 `import type React`。
+- `.mjs` 同样受 `checkJs` 的 unused 检查约束，规则一致。
+
+### 8.5.9.4 铁律澄清（test 侧 `any` 容忍边界，避免接手者 confusion）
+
+- §1「禁止 `any`」是**针对生产代码（src）**的硬律，src 已守住、勿动。
+- **test 侧（`.test.*` + 4 个 `.mjs` 底座）明确豁免**（依据 §8.5.3 / §8.5.6 前辈体系）：mock 工厂 / mock 回调 / 测试夹具里无可指摘真实类型时，允许 `(..._args: any[])` / `as unknown as X` / `(_: any)`。
+- **优先用精确类型**：根因 A 的 `Awaited<typeof import('...')>`、根因 B 的具名形参都零 `any` 且更优——能免 `any` 就免。
+- **绝不**用 `any` 去粉饰一个「本该由 src 收窄」的真实类型问题（那才是 §1 违规）。若某报错根在 src 类型太宽，本战役只在 test 侧对齐，**不回头改 src**（与 §8.5.4 同原则）。
+
+### 8.5.9.5 建议执行顺序（按根因聚类，簇内按文件密度从高到低）
+
+1. **打 4 个 `.mjs` 底座**（根因 C/D，71 处）→ 顺带消大量下游。
+2. **根因 A 簇**（`let mod` 动态 import，约 350+ 处）→ 每文件一处注解，杠杆最高。
+3. **根因 B / E 簇**（`vi.mock` 工厂 + `vi.fn` 回调）。
+4. **根因 G**（TS6133 散兵，17 处，纯机械）。
+5. **根因 F**（TS7053 索引，30 处，逐处判）。
+6. **剩余 TS7006/TS7031/TS7019 散兵**（各 `.test.ts(x)` 内）→ 按根因 B/D/E 套用。
+7. 每清完一个根因/一批文件 → 跑 §8.5.9.7 三道验证 → 绿了进下一批（小步可回滚）。
+
+### 8.5.9.6 完整按文件清单（90 文件，数字 = 该文件错误数）
+
+```
+  96  tests/unit/accountsStore.test.ts          37  tests/unit/previewUrl.test.ts
+  62  tests/unit/logger.test.ts                 34  tests/unit/_nodeMocks.mjs
+  52  tests/unit/scriptBoxEngine.deep.test.ts    25  tests/unit/useAssetDropPaste.test.tsx
+  48  tests/unit/inputStateMachine.test.ts       24  tests/unit/director3d.trackWriteParity.test.ts
+  42  tests/unit/providerStore.test.ts           23  tests/unit/AgentPanel.test.tsx
+  22  tests/unit/storageAdapter.test.ts          20  tests/unit/httpClient.test.ts
+  17  tests/unit/kvStore.test.ts                 17  tests/unit/_channelLegacy.mjs
+  17  tests/unit/VideoGenerate.test.tsx          14  tests/unit/promptHub.test.ts
+  13  tests/unit/canvasPlanExecutor.deps.test.ts 12  tests/unit/ImageGenerate.upstream.test.tsx
+  12  tests/unit/ImageGenerate.hoverToolbar.test.tsx 12 tests/unit/setup.mjs
+  10  tests/unit/creditGateModes.test.ts         10  tests/unit/VideoGenerate.upstream.test.tsx
+   9  tests/unit/persistFailedChain.test.ts       9  tests/unit/channelEvaluation.test.ts
+   9  tests/unit/TemplateNode.test.tsx            9  tests/unit/TaskCenter.test.tsx
+   8  tests/unit/useScriptBoxEngine.test.ts       8  tests/unit/useResourceCardDragProps.test.ts
+   8  tests/unit/filesApi.test.ts                8  tests/unit/_testUtils.mjs
+   7  tests/unit/tracks.test.ts                   7  tests/unit/storageQuota.test.ts
+   7  tests/unit/ImageGenerate.saveRatioSync.test.tsx
+   6  tests/unit/scriptBoxEngine.test.ts          6  tests/unit/promptChips.test.ts
+   6  tests/unit/lazyNode.test.tsx               6  tests/unit/director3d.cameraAtFrameWithPath.test.ts
+   6  tests/unit/assetTools.test.ts              6  tests/unit/agentRuntime.test.ts
+   6  tests/unit/FaceMosaicNode.test.tsx         6  tests/unit/ConnectionLine.test.tsx
+   5  tests/unit/useImageHoverActions.test.tsx    5  tests/unit/useAssetDragToCanvas.test.ts
+   5  tests/unit/cameraLook.test.ts              5  tests/unit/CustomEdge.test.tsx
+   5  tests/unit/Comet.test.tsx
+   4  tests/unit/promptManager.test.ts           4  tests/unit/generate.test.ts
+   4  tests/unit/GhostTargetNode.test.tsx
+   3  tests/unit/useVideoPoster.test.ts          3  tests/unit/useNodeGeneration.test.ts
+   3  tests/unit/useCanvasShortcuts.test.tsx      3  tests/unit/upstreamLink.test.ts
+   3  tests/unit/skillStore.test.ts              3  tests/unit/nodePrefsRegression.test.ts
+   3  tests/unit/PromptInput.sharedValue.test.tsx 3 tests/unit/PromptInput.disconnectCleanup.test.tsx
+   3  tests/unit/LazyImage.test.tsx              3  tests/unit/GroupNode.test.tsx
+   2  tests/unit/useResourceMoveToFolder.test.tsx 2 tests/unit/tokenBudget.test.ts
+   2  tests/unit/taskStore.concurrency.test.ts   2  tests/unit/relayProxy.test.ts
+   2  tests/unit/projectStore.test.ts            2  tests/unit/faceMosaic.test.ts
+   2  tests/unit/deriveNodes.test.ts             2  tests/unit/debouncedPersist.test.ts
+   2  tests/unit/contracts.test.ts               2  tests/unit/StepShots.upstream.test.tsx
+   2  tests/unit/ImageBoxNode.test.tsx           2  tests/unit/AgentMessage.test.tsx
+   1  tests/unit/utils.test.ts                   1  tests/unit/useFitNodeRatio.test.ts
+   1  tests/unit/useCanvasSync.test.ts           1  tests/unit/useAssetDegrade.test.ts
+   1  tests/unit/useAgentChat.hook.test.ts       1  tests/unit/scriptBoxPrompts.test.ts
+   1  tests/unit/scriptBoxPromptResolver.test.ts 1  tests/unit/resourcesApi.test.ts
+   1  tests/unit/nodeTypes.test.ts               1  tests/unit/d3dPersistence.test.ts
+   1  tests/unit/cloudSync.test.ts               1  tests/unit/channelContract.test.ts
+   1  tests/unit/captureFrame.test.ts            1  tests/unit/assetUrl.test.ts
+   1  tests/unit/assetMove.test.ts              1  tests/unit/agentPersistRecovery.test.ts
+   1  tests/unit/agentAttachments.test.ts       1  tests/unit/ChatMarkdown.test.tsx
+   1  tests/unit/AssistantTablePreviewCard.test.tsx
+```
+> 实时重算：`npx tsc --noEmit 2>&1 | grep -E '^tests/' | sed -E 's#\(.*##' | sort | uniq -c | sort -rn`
+
+### 8.5.9.7 验证三道（每批必跑，全绿才算完）
+
+```bash
+npx tsc --noEmit                                  # ✅ 权威门禁：全仓库（含 tests）exit 0；866 → 0
+npx vitest run <本批所碰测试文件>                  # ✅ 行为零变化，实跑仍全过（改的只是类型标注/未用声明）
+npm run check:strict-src                          # ✅ 顺带确认：src 白名单仍 0 报（证明没误伤 src）
+```
+> ⚠️ **绝不**为过类型而改测试断言/返回值（§8.5.7 第 6 点 `formatLineBreaks`/`stripAtRef` 教训）。本战役只加类型标注、删未用声明、给 mock 补形状——逻辑、断言、运行时一律不动。
+
+### 8.5.9.8 进度记账模板（接手者每批提交时用，套 §9 格式）
+
+```
+[strict-tests] <根因/文件>：N 处 → 0 处
+- 修改：<文件> —— <错误码> × <数量>（简述，如"let mod 补 Awaited<typeof import> 定型" / ".mjs rest 补 JSDoc @param {...any}"）
+- 验证：
+  - npx tsc --noEmit → ✅ 0
+  - npx vitest run <相关> → ✅ N passed
+  - npm run check:strict-src → ✅ 白名单 0 报
+- ⚠️ 待确认：<拿不准的列出来>
+```
+
+> **终态判据**：`npx tsc --noEmit` 输出为空、exit 0，且 `tests/**` 与 `src/**` 同绿 → test 侧严格收口结案。
