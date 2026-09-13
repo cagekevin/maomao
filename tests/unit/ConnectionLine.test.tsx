@@ -94,7 +94,7 @@ describe('ConnectionLine — 正常渲染（lodLevel < 2）', () => {
     const view = setup();
     const d = 'M0,0 C10,10 90,10 100,100';
     expect(view.container.querySelector('.cust-edge-base')!.getAttribute('d')).toBe(d);
-    expect(view.container.querySelector('.cust-edge-glow').getAttribute('d')).toBe(d);
+    expect(view.container.querySelector('.cust-edge-glow')!.getAttribute('d')).toBe(d);
   });
 });
 

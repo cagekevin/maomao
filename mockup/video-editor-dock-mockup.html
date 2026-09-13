@@ -281,9 +281,10 @@
           </div>
 
           <div class="ve-lane">
-            <!-- 音频片段的视觉 = 秒格（docs/120 C11.7b），**不是伪波形**。
-                 固定图案会被用户读成真实音量（"图案平=静音"），那是撒谎，比没有更糟；
-                 真实波形是 M2 项（剪映把它做得非常突出，但那是精剪工具的选择）。 -->
+            <!-- 音频轨 = **真实波形**（docs/120 C11.7b）：它是音频在时间轴上唯一的信息载体，
+                 定位靠它、判断"这段有没有声音"也靠它。上一稿降为 P1 换成"秒格"，已反转。
+                 实现里峰值来自解码音频后降采样，并按行高派生绘制高度（C7.5）；
+                 本图用脚本生成确定性伪波形，只为表达形态。 -->
             <div class="ve-clip audio" style="left:0;width:1031px">
               <svg class="wave" preserveAspectRatio="none"></svg>
               <span class="nm">旁白_v2.m4a</span>
@@ -300,7 +301,7 @@
   </div>
 
   <div class="mk-note">
-    <b>轨道区直接复用工作台的样式类</b>（<code>.ve-lane / .ve-clip / .ve-flag / .ve-ruler</code>），基座只把轨道压矮。
+    <b>轨道区直接复用工作台的样式类</b>（<code>.ve-lane / .ve-clip / .ve-ruler</code>）；轨道头换成新的 <code>.ve-thead / .ve-ico</code> 图标网格（C7.4）。
     这不是省事，是红线：<b>基座与工作台是同一份 tracks 的两个视图</b>，样式与数据都必须共用一套，否则必然漂移成「两个编辑器」。<br />
     <b>工具带分左右两组</b>（2026-09-13 依剪映对照重排）：<b>左组 = 走带 + 时间码 + 编辑动作</b>（它们都作用于<b>当前时间点</b>）；
     <b>右组 = 全局开关与视图</b>（内容恒定）。这样还顺带把"布局抖一下"消掉了 —— 右组不随选中增减。<br />
@@ -464,7 +465,7 @@
         </div>
       </div>
       <div class="vd-canvas">
-        <div class="vd-hollow">基座刚展开，还没有素材<br />去画布点选素材 → 自动进上面的待加入区</div>
+        <div class="vd-hollow">基座刚展开，还没有素材<br />去画布上点选素材 → 自动接到对应轨道的末尾</div>
       </div>
       <div class="vd-dock">
         <div class="vd-grip"><i></i></div>

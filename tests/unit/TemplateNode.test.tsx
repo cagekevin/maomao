@@ -165,6 +165,6 @@ describe('TemplateNode', () => {
     const cfg = getGenConfig();
     expect(cfg).toBeTruthy();
     act(() => cfg.onRecover({ resultUrl: 'http://127.0.0.1:18080/files/tasks/x.png' }));
-    expect(nodeData().assetUrl).toBe('http://127.0.0.1:18080/files/tasks/x.png');
+    expect(nodeData()!.assetUrl).toBe('http://127.0.0.1:18080/files/tasks/x.png');
   });
 });
