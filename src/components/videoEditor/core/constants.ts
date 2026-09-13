@@ -48,6 +48,19 @@ export const DEFAULT_VIDEO_TRACK_NAME = '视频';
 export const DEFAULT_AUDIO_TRACK_NAME = '音频';
 
 /**
+ * 吸附容差（**像素**，不是秒）。
+ *
+ * 首次被消费处（2026-09-13 · G5）：播放头落点吸附（`docs/123` §二.9 第 4 行的「地基解」——
+ * 「落在片段边界」由此变成**明确状态**，`splitAt` 才得以不设魔法容差）与自由轨拖拽落位。
+ * 容差必须以像素给：用户感知的是「鼠标离那条线多近」，同一秒数在不同缩放下像素距离不同
+ * （详见 `base/utils/timeline/timeScale.ts::snapTime` 的说明）。
+ */
+export const SNAP_TOLERANCE_PX = 8;
+
+/** 缩放步进：每次 ⊖ / ⊕ 按此倍率乘除（再经 `clampZoom` 夹取）。 */
+export const ZOOM_STEP = 1.4;
+
+/**
  * 工程记录结构版本（`docs/120` C1/C2 的 schemaVersion 守卫基准）。
  *
  * 只在**改变 `tracks` / `settings` 结构**（新增/重命名影响旧数据可读性的字段）时抬升，并补迁移分支。

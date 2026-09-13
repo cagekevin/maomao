@@ -26,6 +26,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
 import { useReactFlow, useStore, type Node } from '@xyflow/react';
@@ -34,6 +35,7 @@ import {
   Lock,
   LockOpen,
   Redo2,
+  Copy,
   Scissors,
   Trash2,
   Undo2,
@@ -57,6 +59,12 @@ import { uploadResult } from '../../../base/utils/videoEngine.ts';
 import { UPLOAD_DIRS } from '../../../base/utils/uploadDirs.ts';
 import {
   clampZoom,
+  dropIndexAt,
+  fitZoom,
+  MAX_PIXELS_PER_SECOND,
+  MIN_PIXELS_PER_SECOND,
+  pxDeltaToTime,
+  snapTime,
   timeDeltaToPx,
   timeToX,
   xToTime,
@@ -65,15 +73,25 @@ import { formatTickLabel } from '../../../base/utils/timeline/rulerTicks.ts';
 import {
   appendTime,
   clipDuration,
+  clipEdges,
+  duplicateClip,
   freezeFrameAt,
+  moveClipTo,
+  placeClipAt,
   removeClips,
   splitAt,
   timelineDuration,
   trimLeftAt,
   trimRightAt,
+  updateClip,
 } from '../../core/timelineOps.ts';
 import { routeClipToTrack } from '../../core/routeClip.ts';
-import { DEFAULT_IMAGE_CLIP_DURATION } from '../../core/constants.ts';
+import {
+  DEFAULT_IMAGE_CLIP_DURATION,
+  EPS,
+  SNAP_TOLERANCE_PX,
+  ZOOM_STEP,
+} from '../../core/constants.ts';
 import type { Clip, ClipKind, Track } from '../../core/types.ts';
 import {
   planExport,
@@ -91,8 +109,22 @@ import { useEditorWaveforms } from '../../hooks/useEditorWaveforms.ts';
 import { filmstripBackground, waveformPath, waveformSpan } from './clipSourceView.ts';
 import { useEditorProject } from './useEditorProject.ts';
 
-/** 基座时间轴的固定缩放（像素/秒）。缩放交互属后续加粗功能；这里过 `clampZoom` 走同一取值域。 */
-const DOCK_PPS = clampZoom(40);
+/** 基座时间轴的初始缩放（像素/秒）。用户可用工具带的 ⊖ / 滑块 / ⊕ 改（C12/工具带形态）。 */
+const INITIAL_PPS = clampZoom(40);
+
+/**
+ * 一次拖拽的进行时状态。
+ *
+ * `origin` 存**拖拽开始时**的片段字段（不是实时读）——增量一律相对起点算，
+ * 否则每次 pointermove 都在上一帧的结果上累加，误差会越拖越大。
+ */
+interface ClipDrag {
+  mode: 'move' | 'trimLeft' | 'trimRight';
+  clipId: string;
+  trackId: string;
+  originX: number;
+  origin: { timelineStart: number; sourceStart: number; sourceEnd: number };
+}
 
 /**
  * 轨道行高与片段内部件高度（**单一出处**）。
@@ -147,6 +179,13 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
   const store = useEditorProject(projectId, everOpened);
   const project = store.project;
   const sources = useEditorSources(project);
+
+  /** 缩放（像素/秒）—— 工具带 ⊖ / 滑块 / ⊕ 可改（经 `clampZoom` 走同一取值域）。 */
+  const [pps, setPps] = useState(INITIAL_PPS);
+
+  /* ── 拖拽（`docs/120` §0.4 粗档：拖序 / 调片段长度）── */
+  const dragRef = useRef<ClipDrag | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   const openRef = useRef(open);
   const aliveRef = useRef(true);
@@ -325,6 +364,96 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
   }, [selectedSig, open, enqueue]);
 
   /* ════════════════════════════════════════════════════════════════
+   * 拖拽（`docs/120` §0.4 粗档：拖序 / 调片段长度）
+   * ════════════════════════════════════════════════════════════════ */
+
+  /** 拖拽起点：记下片段的**原始**字段（增量相对起点算，见 `ClipDrag`）。 */
+  const beginClipDrag = useCallback(
+    (e: ReactPointerEvent, clip: Clip, track: Track, mode: ClipDrag['mode']) => {
+      if (track.locked) {
+        // C7.3：锁定轨禁止一切编辑 —— 拖动是编辑，明说（不静默吞掉这次拖拽）
+        showToast(`「${track.name}」已锁定，不可拖动`);
+        return;
+      }
+      e.stopPropagation();
+      setSelectedClipId(clip.id);
+      dragRef.current = {
+        mode,
+        clipId: clip.id,
+        trackId: track.id,
+        originX: e.clientX,
+        origin: {
+          timelineStart: clip.timelineStart,
+          sourceStart: clip.sourceStart,
+          sourceEnd: clip.sourceEnd,
+        },
+      };
+      setDragging(true);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag || !project) return;
+      const track = project.tracks.find((t) => t.id === drag.trackId);
+      const clip = track?.clips.find((c) => c.id === drag.clipId);
+      if (!track || !clip) return;
+      const dt = pxDeltaToTime(e.clientX - drag.originX, pps);
+
+      if (drag.mode === 'move') {
+        // 目标时刻 = 起点时刻 + 指针位移，再吸附到**本轨其它片段**的边界
+        // （候选从哪来是宿主判据；`snapTime` 只回答"最近的候选是哪条"）
+        const raw = Math.max(0, drag.origin.timelineStart + dt);
+        const t = snapTime(
+          raw,
+          clipEdges(track.clips.filter((c) => c.id !== clip.id)),
+          pps,
+          SNAP_TOLERANCE_PX,
+        );
+        store.applyTracks((tracks) =>
+          tracks.map((tr) => {
+            if (tr.id !== track.id) return tr;
+            // 主轨是磁吸的：横向拖 = **拖序**（落点序号由 `dropIndexAt` 给，重排后压实）
+            // 自由轨（音频）：横向拖 = 自由摆位（`placeClipAt`，不压实 —— 会毁掉用户摆的空隙）
+            return tr.overlay
+              ? { ...tr, clips: placeClipAt(tr.clips, clip.id, t) }
+              : { ...tr, clips: moveClipTo(tr.clips, clip.id, dropIndexAt(tr.clips, t, clip.id)) };
+          }),
+        );
+        return;
+      }
+
+      // 调片段长度（粗档）：只改**源端点**。磁吸轨由 `updateClip` 内部的压实收尾，自由轨保留位置。
+      // 不做吸附：两种轨上「边缘」都不是自由变量（磁吸轨边缘由压实决定，自由轨边缘不动）——
+      // 硬吸会把边缘吸到一条它根本到不了的位置上。
+      const isLeft = drag.mode === 'trimLeft';
+      const next = isLeft ? drag.origin.sourceStart + dt : drag.origin.sourceEnd + dt;
+      store.applyTracks((tracks) =>
+        updateClip(tracks, clip.id, (c) =>
+          isLeft
+            ? { ...c, sourceStart: Math.max(0, Math.min(next, c.sourceEnd - EPS)) }
+            : { ...c, sourceEnd: Math.max(c.sourceStart + EPS, next) },
+        ),
+      );
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      setDragging(false);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [dragging, project, pps, store]);
+
+  /* ════════════════════════════════════════════════════════════════
    * 编辑动作（工带）—— 全部经 `core/` 原语，能力判据直接问原语
    * ════════════════════════════════════════════════════════════════ */
 
@@ -347,6 +476,22 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
     },
     [store, totalDuration],
   );
+
+  /** C15.2 复制：主轨 = 紧随其后并压实（`duplicateClip`）；自由轨 = 落到轨尾（不压实毁位置）。 */
+  const duplicateSelected = useCallback(() => {
+    if (!selectedClipId) return;
+    store.applyTracks((tracks) =>
+      tracks.map((t) => {
+        const source = t.clips.find((c) => c.id === selectedClipId);
+        if (!source) return t;
+        if (!t.overlay) return { ...t, clips: duplicateClip(t.clips, selectedClipId) };
+        return {
+          ...t,
+          clips: [...t.clips, { ...source, id: generateId('clip'), timelineStart: appendTime(t) }],
+        };
+      }),
+    );
+  }, [selectedClipId, store]);
 
   const onKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -596,6 +741,15 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
 
         <span className="ml-auto" />
 
+        {/* C15.2 复制片段：复用已修剪物料（"再点一次节点"只会拿到完整素材） */}
+        <DockAction
+          icon={<Copy size={14} />}
+          label="复制"
+          enabled={selectedClipId !== null && allClips.some((c) => c.id === selectedClipId)}
+          disabledHint="先选中一个片段"
+          onClick={duplicateSelected}
+        />
+
         <DockAction
           icon={<Undo2 size={14} />}
           label="撤销"
@@ -610,6 +764,47 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
           disabledHint="没有可重做的编辑"
           onClick={store.redo}
         />
+
+        <span className="w-px h-4 bg-border mx-1" />
+
+        {/* 时间轴缩放（⊖ + 滑块 + ⊕ + 自适应）—— `clampZoom` 走同一取值域，`fitZoom` 管"一屏看全" */}
+        <button
+          type="button"
+          className="px-2 py-1 rounded hover:bg-surface-hover"
+          title="缩小时间轴"
+          onClick={() => setPps(clampZoom(pps / ZOOM_STEP))}
+        >
+          ⊖
+        </button>
+        <input
+          type="range"
+          min={MIN_PIXELS_PER_SECOND}
+          max={MAX_PIXELS_PER_SECOND}
+          step={1}
+          value={Math.round(pps)}
+          title="时间轴缩放"
+          className="w-24 accent-current"
+          onChange={(e) => setPps(clampZoom(Number(e.target.value)))}
+        />
+        <button
+          type="button"
+          className="px-2 py-1 rounded hover:bg-surface-hover"
+          title="放大时间轴"
+          onClick={() => setPps(clampZoom(pps * ZOOM_STEP))}
+        >
+          ⊕
+        </button>
+        <button
+          type="button"
+          className="px-1.5 py-1 rounded hover:bg-surface-hover"
+          title="缩放到一屏看全"
+          onClick={() => {
+            const el = trackAreaRef.current;
+            if (el) setPps(fitZoom(totalDuration, el.clientWidth));
+          }}
+        >
+          ⤢
+        </button>
 
         <span className="w-px h-4 bg-border mx-1" />
 
@@ -691,10 +886,19 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
         ref={trackAreaRef}
         className="relative flex-1 overflow-x-auto"
         onPointerDown={(e) => {
-          // 点轨道区 = 移动播放头（D 组换算原语的消费点）
+          // 点轨道区 = 移动播放头（D 组换算原语的消费点），并**吸附到片段边界**
+          // （`docs/123` §二.9 第 4 行的地基解：「落在边界」由此成为明确状态）
           const rect = e.currentTarget.getBoundingClientRect();
           if (rect.width <= 0) return;
-          setPlayhead(xToTime(e.clientX - rect.left + e.currentTarget.scrollLeft, DOCK_PPS, 0));
+          const raw = xToTime(e.clientX - rect.left + e.currentTarget.scrollLeft, pps, 0);
+          setPlayhead(
+            snapTime(
+              raw,
+              clipEdges(project?.tracks.flatMap((t) => t.clips) ?? []),
+              pps,
+              SNAP_TOLERANCE_PX,
+            ),
+          );
         }}
       >
         {store.status === 'loading' && <div className="p-3 text-xs opacity-60">正在加载工程…</div>}
@@ -703,9 +907,11 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
           <TrackRow
             key={track.id}
             track={track}
+            pps={pps}
             selectedClipId={selectedClipId}
             brokenIds={brokenIds}
             visuals={visuals}
+            onClipPointerDown={beginClipDrag}
             onSelectClip={setSelectedClipId}
             onToggle={(patch) =>
               store.applyTracks((tracks) =>
@@ -719,7 +925,7 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
         {project && (
           <div
             className="absolute top-0 bottom-0 w-px bg-danger pointer-events-none"
-            style={{ left: timeToX(playhead, DOCK_PPS, 0) }}
+            style={{ left: timeToX(playhead, pps, 0) }}
           />
         )}
       </div>
@@ -805,16 +1011,25 @@ function DockAction({
 /** 一条轨：轨道头（名 + 三状态）+ 片段条。 */
 function TrackRow({
   track,
+  pps,
   selectedClipId,
   brokenIds,
   visuals,
+  onClipPointerDown,
   onSelectClip,
   onToggle,
 }: {
   track: Track;
+  pps: number;
   selectedClipId: string | null;
   brokenIds: Set<string>;
   visuals: ReadonlyMap<string, ClipVisual>;
+  onClipPointerDown: (
+    e: ReactPointerEvent,
+    clip: Clip,
+    track: Track,
+    mode: 'move' | 'trimLeft' | 'trimRight',
+  ) => void;
   onSelectClip: (id: string) => void;
   onToggle: (patch: Partial<Pick<Track, 'locked' | 'hidden' | 'muted'>>) => void;
 }) {
@@ -857,20 +1072,21 @@ function TrackRow({
               key={clip.id}
               role="button"
               tabIndex={0}
+              onPointerDown={(e) => onClipPointerDown(e, clip, track, 'move')}
               onClick={(e) => {
                 e.stopPropagation();
                 onSelectClip(clip.id);
               }}
-              className={`absolute flex flex-col overflow-hidden rounded border cursor-pointer ${
+              className={`absolute flex flex-col overflow-hidden rounded border ${
                 broken
                   ? 'border-danger bg-danger/30 text-danger'
                   : selectedClipId === clip.id
                     ? 'border-danger bg-danger/20'
                     : 'border-border bg-surface-panel'
-              }`}
+              } cursor-grab active:cursor-grabbing`}
               style={{
-                left: timeToX(clip.timelineStart, DOCK_PPS, 0),
-                width: Math.max(2, timeDeltaToPx(clipDuration(clip), DOCK_PPS)),
+                left: timeToX(clip.timelineStart, pps, 0),
+                width: Math.max(2, timeDeltaToPx(clipDuration(clip), pps)),
                 top: CLIP_INSET,
                 bottom: CLIP_INSET,
               }}
@@ -920,6 +1136,17 @@ function TrackRow({
                   data-clip-strip
                 />
               )}
+              {/* 调片段长度的两个**边缘把手**（§0.4 粗档）。stopPropagation：别把「拖动主体」也触发 */}
+              <span
+                aria-label="调左边缘"
+                className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize bg-transparent hover:bg-white/30"
+                onPointerDown={(e) => onClipPointerDown(e, clip, track, 'trimLeft')}
+              />
+              <span
+                aria-label="调右边缘"
+                className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize bg-transparent hover:bg-white/30"
+                onPointerDown={(e) => onClipPointerDown(e, clip, track, 'trimRight')}
+              />
             </div>
           );
         })}
