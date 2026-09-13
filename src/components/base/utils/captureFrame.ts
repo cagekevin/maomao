@@ -71,8 +71,8 @@
  *    取的是不是当前显示的那一帧"的**判据层**，由宿主决定（7 步法 Step 3：收口探测、保留判据）。
  */
 
-/** 底层原语可替换的错误文案（各宿主保留自己的排障文案，见"失败语义逐字保留"要求）。 */
-export interface DrawVideoFrameErrors {
+/** 底层原语可替换的错误文案（各宿主保留自己的排障文案，见"失败语义逐字保留"要求）；当前仅内部使用，故不导出。 */
+interface DrawVideoFrameErrors {
   /** 视频加载失败（`error` 事件） */
   load?: string;
   /** 视频尺寸不可用（`videoWidth/videoHeight` 为 0） */
