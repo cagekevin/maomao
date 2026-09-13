@@ -184,6 +184,13 @@ export function relayoutSequential(clips: Clip[]): Clip[] {
  *
  * 未发生变化（同位置 / 找不到 id）→ 返回**原数组引用**（I4）。
  */
+/**
+ * ⚠️ **本函数（及 `duplicateClip` / `trimLeftAt` / `trimRightAt` / `freezeFrameAt`）内嵌了
+ * 「压实」动作，因此只适用于磁吸轨（主视频轨）。** 对自由轨（`overlay: true`）调用会**错误地
+ * 合掉用户摆好的空隙**。判据（这条轨是不是磁吸轨）在**宿主**手里 —— 只有 `updateClip` 接收
+ * `tracks`、能自己判 `overlay`；clips 级原语拿不到这个信息，故这里不做判断、由调用方保证。
+ * （`docs/123` §一.4：`relayoutSequential` 的语义就是「**主轨**压实」。）
+ */
 export function moveClipTo(clips: Clip[], id: string, index: number): Clip[] {
   const from = clips.findIndex((c) => c.id === id);
   if (from < 0) return clips;

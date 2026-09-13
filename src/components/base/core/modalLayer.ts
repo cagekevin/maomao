@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { isEditableTarget } from './uiHooks.ts';
+import { getSetting } from '../store/appSettings.ts';
 
 /**
  * 全屏模态层登记处 —— 画布全局快捷键的「让位」依据。
@@ -168,6 +169,47 @@ export function hasModalLayer(): boolean {
  */
 export function isCanvasSuppressed(): boolean {
   return hasModalLayer();
+}
+
+/**
+ * 常驻基座（视频剪辑器）是否处于**激活位** —— `docs/120` C10.3「键盘归属由激活位派生，不由焦点派生」。
+ *
+ * 判据单点：`videoEditorOpen` 这个设置**只在本函数里被读**（`docs/123` §二.6 G-3 / §二.7 P8）。
+ * `App` 的 `deleteKeyCode` 与 `useCanvasShortcuts` 的 undo/redo 让位、以及基座自己的 keydown，
+ * 全部经本函数 / `editorKeyAction()` 判断，不许在别处再抄一遍。
+ *
+ * 【为什么不像模态层那样整体让位】基座是**非模态常驻底部层**（不登记 `modalLayer`，见 C10.1）：
+ * 画布仍在被正常操作（主入口就是「在画布上点选素材 → 入轨」），把画布快捷键整体掐掉会直接毁掉主入口。
+ * 故只让位**归属剪辑器的那组键**（见 `editorKeyAction`）。
+ */
+export function isEditorActive(): boolean {
+  return getSetting('videoEditorOpen') === true;
+}
+
+/** 归属剪辑器的动作（`docs/120` C10：只这三个语义，C10.4 禁止再扩）。 */
+export type EditorKeyAction = 'delete' | 'undo' | 'redo';
+
+/**
+ * 该按键是否归剪辑器 —— **与「基座自己的 keydown」共用同一判据**（判据单点）。
+ *
+ * 让位清单（`docs/120` C10 的「关键区分」表）：
+ *  - `Delete` / `Backspace`（无修饰键）→ `delete`：删选中片段。
+ *  - `⌘/Ctrl+Z` → `undo`；`⌘/Ctrl+Shift+Z` **与** `⌘/Ctrl+Y` → `redo`：
+ *    `Y` 是 redo 的另一种写法，**同一动作**。若只让位 `⌘⇧Z` 而不让 `⌘Y`，
+ *    用户在剪辑态按 `⌘Y` 会**撤销/重做画布**——正是 C10 要防的「静默误伤」。
+ *  - 其余键（含空格 / ←→ / S / I / O / ⌘C / ⌘V / Q/W/E / ⌘A/D/G/L）→ `null`（不归剪辑器，照旧）。
+ */
+export function editorKeyAction(e: KeyboardEvent): EditorKeyAction | null {
+  const mod = e.ctrlKey || e.metaKey;
+  const key = e.key.toLowerCase();
+  if (mod && !e.altKey) {
+    if (key === 'z') return e.shiftKey ? 'redo' : 'undo';
+    if (key === 'y') return 'redo';
+  }
+  if (!mod && !e.altKey && !e.shiftKey && (key === 'delete' || key === 'backspace')) {
+    return 'delete';
+  }
+  return null;
 }
 
 /** 调试用：列出当前所有已登记的层（含登记时长与调用栈）。控制台可直接调用排查。 */

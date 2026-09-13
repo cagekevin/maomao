@@ -16,6 +16,8 @@ import { createElement } from 'react';
 import {
   hasModalLayer,
   isCanvasSuppressed,
+  isEditorActive,
+  editorKeyAction,
   describeKey,
   debugModalLayers,
   useFullscreenEditorKeys,
@@ -228,5 +230,36 @@ describe('FullscreenShell — 成品外壳的开放/关闭语义', () => {
     expect(el?.textContent).toBe('正文');
     unmount();
     expect(document.body.querySelector('.probe-shell')).toBeNull();
+  });
+});
+
+describe('modalLayer — 剪辑器键盘归属（docs/120 C10 · 判据单点 · docs/123 §二.6 G-3）', () => {
+  it('只认三组键：Delete/Backspace · ⌘Z · ⌘⇧Z（与 redo 的另一种写法 ⌘Y）', () => {
+    expect(editorKeyAction(keyEvent({ key: 'Delete' }))).toBe('delete');
+    expect(editorKeyAction(keyEvent({ key: 'Backspace' }))).toBe('delete');
+    expect(editorKeyAction(keyEvent({ key: 'z', metaKey: true }))).toBe('undo');
+    expect(editorKeyAction(keyEvent({ key: 'z', ctrlKey: true }))).toBe('undo');
+    expect(editorKeyAction(keyEvent({ key: 'z', metaKey: true, shiftKey: true }))).toBe('redo');
+    // ⌘Y 与 ⌘⇧Z 是**同一动作**的两种写法：只让一种会让另一种漏回画布（静默误撤销/重做）
+    expect(editorKeyAction(keyEvent({ key: 'y', metaKey: true }))).toBe('redo');
+    expect(editorKeyAction(keyEvent({ key: 'y', ctrlKey: true }))).toBe('redo');
+  });
+
+  it('其余键一律不归剪辑器（基座展开时画布快捷键照旧可用）', () => {
+    for (const k of ['q', 'w', 'e', 'a', 'd', 'g', 'l', ' ', 'ArrowLeft', 's', 'i', 'o']) {
+      expect(editorKeyAction(keyEvent({ key: k }))).toBeNull();
+      expect(editorKeyAction(keyEvent({ key: k, ctrlKey: true }))).toBeNull();
+    }
+    expect(editorKeyAction(keyEvent({ key: 'c', metaKey: true }))).toBeNull();
+    expect(editorKeyAction(keyEvent({ key: 'v', metaKey: true }))).toBeNull();
+  });
+
+  it('带修饰键的 Delete 不算剪辑器的键（Shift+Delete / ⌘+Delete 不被劫）', () => {
+    expect(editorKeyAction(keyEvent({ key: 'Delete', shiftKey: true }))).toBeNull();
+    expect(editorKeyAction(keyEvent({ key: 'Delete', metaKey: true }))).toBeNull();
+  });
+
+  it('默认不激活（设置 videoEditorOpen 默认 false）→ 无归属、画布不让位（C10.5）', () => {
+    expect(isEditorActive()).toBe(false);
   });
 });

@@ -1,6 +1,10 @@
 import { useEffect, useCallback } from 'react';
 import { isEditableTarget } from '../components/base/core/uiHooks.ts';
-import { isCanvasSuppressed } from '../components/base/core/modalLayer.ts';
+import {
+  editorKeyAction,
+  isCanvasSuppressed,
+  isEditorActive,
+} from '../components/base/core/modalLayer.ts';
 
 /** 快捷键回调集合；未提供的快捷键自动不响应 */
 export interface CanvasShortcutHandlers {
@@ -29,7 +33,9 @@ export interface CanvasShortcutHandlers {
  *
  * 守卫条件与源码一致：
  *  - `e.repeat`：长按连发直接忽略（防 Q/W/E 爆发式建节点）
- *  - `isCanvasSuppressed()`：画布被压制时整体让位（当前 = 全屏模态层打开；⌘Z / Q/W/E 不得落到画布）
+ *  - `isCanvasSuppressed()`：画布被压制时**整体**让位（= 全屏模态层打开；⌘Z / Q/W/E 不得落到画布）
+ *  - `isEditorActive() && editorKeyAction(e)`：视频剪辑器基座激活时，**只让位归属它的那组键**
+ *    （Delete / undo / redo；见 `docs/120` C10）。其余画布快捷键照旧 —— 基座是非模态层，画布仍在被操作
  *  - `isEditableTarget(e)`：焦点在 INPUT/TEXTAREA/contenteditable 内一律跳过
  *  - `hasSelectionText()`：无修饰键（Q/W/E）与 Ctrl+A/D/L 在有文本选中时跳过
  *    （Ctrl+G / Ctrl+Shift+G 编组除外——画布操作任意时刻可触发）
@@ -78,6 +84,12 @@ export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
       // 不能用 stopImmediatePropagation 代替：同一 target 上多个 listener 全部执行、
       // 且依赖注册顺序；只有"画布自己不执行"才是确定性的。
       if (isCanvasSuppressed()) return;
+
+      // 常驻基座（视频剪辑器）激活位：让位**只覆盖**归属剪辑器的那组键（Delete / undo / redo）。
+      // 其余画布快捷键（Q/W/E、⌘A/D/G/L）保持可用 —— 基座是**非模态底部层**，
+      // 画布仍在被正常操作（主入口就是「在画布上点选素材 → 入轨」），整体掐掉会毁掉主入口。
+      // 判据与基座自己的 keydown **共用同一函数**（docs/120 C10.3/C10.4 · docs/123 §二.6 G-3）。
+      if (isEditorActive() && editorKeyAction(e)) return;
 
       // 输入框内一律跳过
       if (isEditableTarget(e)) return;

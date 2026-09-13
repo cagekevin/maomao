@@ -68,6 +68,7 @@ import { patchNodeDataById } from './hooks/useNodeData.ts';
 import { CanvasEdgesProvider } from './components/base/canvas/CanvasEdgesContext.tsx';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts.ts';
 import { isCanvasSuppressed, subscribeModalLayer } from './components/base/core/modalLayer.ts';
+import VideoEditorDock from './components/videoEditor/panels/dock/VideoEditorDock.tsx';
 import { buildNodeTypeComponents } from './components/base/canvas/NodePalette.ts';
 import { defaultNodeData } from './components/base/canvas/nodeDataSchema.ts';
 import LodProvider, { useLod } from './components/base/canvas/lod.tsx';
@@ -328,7 +329,7 @@ function Canvas() {
 
   // 应用设置单一订阅（读写唯一入口 appSettings）：agentOpen/minimapOn/performanceMode/pinnedTools 从此快照解构。
   // 默认值/类型由 settingRegistry.ts 单一真源派生；写统一走 setSetting（内存+持久化+通知），不再用 useState+useEffect 镜像回写。
-  const { agentOpen, minimapOn, performanceMode, pinnedTools } = useAppSettings();
+  const { agentOpen, videoEditorOpen, minimapOn, performanceMode, pinnedTools } = useAppSettings();
 
   // 视图切换：canvas（画布）/ accounts（多开整页）/ settings（独立设置框架：侧栏 + 舞台）
   const [view, setView] = React.useState<'canvas' | 'accounts' | 'settings'>('canvas');
@@ -1361,6 +1362,8 @@ function Canvas() {
           onPushToCloud={handlePushToCloud}
           onPullFromCloud={handlePullFromCloud}
           agentOpen={agentOpen}
+          videoEditorOpen={videoEditorOpen}
+          onToggleVideoEditor={() => setSetting('videoEditorOpen', !videoEditorOpen)}
           onToggleAgent={() => {
             // 在非画布视图（设置/多开）点 AI 助手按钮：【阶段1C】AgentPanel 现已任意视图常驻挂载
             //（open 控 CSS 显隐）。点按钮统一切回画布并打开面板，让用户回到画布看到面板。画布内则正常 toggle。
@@ -1398,7 +1401,7 @@ function Canvas() {
               onError={handleReactFlowError}
               connectionLineComponent={ConnectionLine}
               connectionRadius={60}
-              deleteKeyCode={modalLayerOpen ? null : DELETE_KEY_CODE}
+              deleteKeyCode={modalLayerOpen || videoEditorOpen ? null : DELETE_KEY_CODE}
               onPaneContextMenu={menu.onPaneContextMenu}
               onNodeContextMenu={menu.onNodeContextMenu}
               onSelectionContextMenu={menu.onSelectionContextMenu}
@@ -1557,6 +1560,16 @@ function Canvas() {
           {/* 设置层：覆盖画布，右上角齿轮常驻可切换 */}
           {view === 'settings' && <SettingsFrame />}
         </div>
+
+        {/* 视频剪辑器基座：**常驻底部层**（非 portal、不覆盖画布、不登记 modalLayer）。
+          key=activeProjectId：工程随项目走（docs/120 C2.6），切项目强制重挂载换工程。
+          open 控显隐（与 AgentPanel 同款：常驻挂载，折叠不丢状态）。 */}
+        <VideoEditorDock
+          key={activeProjectId}
+          open={videoEditorOpen}
+          projectId={activeProjectId}
+          onClose={() => setSetting('videoEditorOpen', false)}
+        />
       </div>
     </LodProvider>
   );
