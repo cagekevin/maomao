@@ -13,6 +13,7 @@ import {
   deriveSelectedAssets,
   selectedAssetSig,
   selectedNodeIdSig,
+  selectedNodeIdsOfSig,
 } from '../../src/components/base/canvas/nodeMedia.ts';
 
 const mkNode = (data: Record<string, unknown> = {}, over: Partial<Node> = {}): Node => ({
@@ -145,5 +146,42 @@ describe('selectedAssetSig / selectedNodeIdSig（短路签名）', () => {
     ];
     expect(selectedNodeIdSig(nodes)).toBe('a|b');
     expect(selectedNodeIdSig([mkNode({}, { id: 'a', selected: false })])).toBe('');
+  });
+});
+
+/**
+ * `selectedAssetSig` 的逆运算 —— 剪辑器入轨用它把「本次新选中的节点」从签名里取出来。
+ * 与签名是**一对**（格式变了两处必须同时改），故测试也放在一起。
+ */
+describe('selectedNodeIdsOfSig（selectedAssetSig 的逆）', () => {
+  it('往返一致：签名 → id 列表，保序', () => {
+    const list = [
+      { nodeId: 'a', nodeType: 'x', label: '', type: 'video' as const, url: 'u1', x: 0, y: 0 },
+      { nodeId: 'b', nodeType: 'x', label: '', type: 'audio' as const, url: 'u2', x: 0, y: 0 },
+    ];
+    expect(selectedNodeIdsOfSig(selectedAssetSig(list))).toEqual(['a', 'b']);
+  });
+
+  it('空签名 → 空数组（不是 [""]）', () => {
+    expect(selectedNodeIdsOfSig('')).toEqual([]);
+  });
+
+  it('url 里的 `:`（http://…）不会被误当成 nodeId 的一部分', () => {
+    const list = [
+      {
+        nodeId: 'n1',
+        nodeType: 'x',
+        label: '',
+        type: 'video' as const,
+        url: 'http://127.0.0.1:18080/files/a.mp4',
+        x: 0,
+        y: 0,
+      },
+    ];
+    expect(selectedNodeIdsOfSig(selectedAssetSig(list))).toEqual(['n1']);
+  });
+
+  it('同一节点在签名里出现两次 → 只算一个（幂等，防重复入轨）', () => {
+    expect(selectedNodeIdsOfSig('n1:video:u|n1:video:u')).toEqual(['n1']);
   });
 });

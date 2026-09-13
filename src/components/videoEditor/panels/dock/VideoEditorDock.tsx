@@ -39,7 +39,11 @@ import { editorKeyAction } from '../../../base/core/modalLayer.ts';
 import { showToast } from '../../../base/core/toastStore.ts';
 import { generateId } from '../../../base/core/idGen.ts';
 import { useCanvasEdges } from '../../../base/canvas/CanvasEdgesContext.tsx';
-import { deriveSelectedAssets, selectedAssetSig } from '../../../base/canvas/nodeMedia.ts';
+import {
+  deriveSelectedAssets,
+  selectedAssetSig,
+  selectedNodeIdsOfSig,
+} from '../../../base/canvas/nodeMedia.ts';
 import { spawnAndCommit } from '../../../base/canvas/deriveNodes.ts';
 import { uploadResult } from '../../../base/utils/videoEngine.ts';
 import { UPLOAD_DIRS } from '../../../base/utils/uploadDirs.ts';
@@ -157,11 +161,34 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
    * 签名比较天然满足 C11.4「点几次就上几条」——**取消选中再点它 = 签名变了 = 再上一条**。
    */
   const selectedSig = useStore((s) => selectedAssetSig(deriveSelectedAssets(s.nodes)));
-  const lastSigRef = useRef(selectedSig);
+
+  /**
+   * 让入轨逻辑拿到**最新**的 flow / store，同时**不让它们进入 effect 依赖**。
+   *
+   * 为什么必须这样：`useEditorProject` **每次渲染都返回新的 store 对象** ⇒ 任何以它为依赖的
+   * `useCallback` 每次都换身份 ⇒ 入轨 effect 每次渲染都跑。那正是下面这个缺陷的放大器。
+   * 用 ref 传递「最新值」后，effect 的依赖只剩**选中集**与**开合**，运行次数与语义对上。
+   */
+  const flowRef = useRef(flow);
+  const storeRef = useRef(store);
+  useEffect(() => {
+    flowRef.current = flow;
+    storeRef.current = store;
+  });
+
+  /**
+   * **已处理的选中集** —— 「已经为它入过轨」的 nodeId。
+   *
+   * 存「集合」而不是「上一个签名」：集合语义与「签名变没变」解耦，于是
+   * `fresh = 本次签名里的 id − 已处理集合` 是**幂等**的 —— 多跑几次 effect 也只会入一次。
+   */
+  const handledRef = useRef<ReadonlySet<string>>(new Set());
 
   const enqueue = useCallback(
     async (nodeId: string) => {
-      const asset = deriveSelectedAssets(flow.getNodes()).find((a) => a.nodeId === nodeId);
+      const asset = deriveSelectedAssets(flowRef.current.getNodes()).find(
+        (a) => a.nodeId === nodeId,
+      );
       if (!asset) return;
       const kind: ClipKind =
         asset.type === 'audio' ? 'audio' : asset.type === 'video' ? 'video' : 'image';
@@ -196,7 +223,7 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
 
       const target = routeClipToTrack(clip.kind); // C11.1 分轨唯一判据
       let rejection: string | null = null;
-      store.applyTracks((tracks) =>
+      storeRef.current.applyTracks((tracks) =>
         tracks.map((t) => {
           if (t.kind !== target) return t;
           // C7.3：锁定轨禁止一切编辑 —— 入轨是编辑，故拒绝（且**明说**，不静默丢弃）
@@ -209,24 +236,22 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
       );
       if (rejection) showToast(rejection);
     },
-    [flow, store],
+    // 依赖为空 = 身份稳定 = 入轨 effect 只在**选中集真的变了**时跑（见文件头「点一次出两条」）
+    [],
   );
 
   useEffect(() => {
-    const prev = new Set(
-      lastSigRef.current
-        .split('|')
-        .filter(Boolean)
-        .map((s) => s.split(':')[0]),
-    );
-    lastSigRef.current = selectedSig;
-    // C11.5 激活门：折叠态**不留痕**。签名仍照常跟上 —— 否则展开瞬间会把「折叠期间选中过」
-    // 的节点补入轨，那正是这条门要防的静默副作用。
+    // **唯一真源**：该不该入轨，只看「本次签名声明的 id」与「已处理集合」的差。
+    // 不再用 `flow.getNodes()` 另读一次当前选中集 —— 那次读与渲染期快照可能不一致，
+    // 正是「同一次点选入轨两遍」的成因（回归测试 `dockEnqueue.test.tsx`）。
+    const ids = selectedNodeIdsOfSig(selectedSig);
+    const fresh = ids.filter((id) => !handledRef.current.has(id));
+    // 折叠与否都要**跟上**已处理集，否则展开瞬间会把「折叠期间选中过」的节点补入轨
+    handledRef.current = new Set(ids);
+    // C11.5 激活门：折叠态**不留痕**
     if (!open) return;
-    for (const asset of deriveSelectedAssets(flow.getNodes())) {
-      if (!prev.has(asset.nodeId)) void enqueue(asset.nodeId);
-    }
-  }, [selectedSig, open, flow, enqueue]);
+    for (const id of fresh) void enqueue(id);
+  }, [selectedSig, open, enqueue]);
 
   /* ════════════════════════════════════════════════════════════════
    * 编辑动作（工带）—— 全部经 `core/` 原语，能力判据直接问原语
