@@ -27,7 +27,7 @@
  * 原因：原裁定导致 pinnedTools 类型卡在 unknown、默认值硬编码在 App.tsx，属设置域 Seam 泄漏（接口宽如实现、
  * 默认值双真源）。注册表现支持 string[] 型项。余下 3 项（node_prefs/provider/account/agentModel）维持不进门。
  */
-import { Zap, Map, Bot, Image, Bug, Pin, Cloud, type LucideIcon } from 'lucide-react';
+import { Zap, Map, Bot, Image, Bug, Pin, Cloud, Film, type LucideIcon } from 'lucide-react';
 
 /** 设置项定义（声明式表的一行；icon 为 lucide-react 图标组件）。
  *  type 判别字段：'boolean' 为设置页开关；'string[]' 为功能性数组偏好（无 UI 开关行）。
@@ -125,6 +125,16 @@ export const SETTING_DEFS = [
     icon: Cloud,
     title: '自动同步到云端',
     desc: '开＝每 45 分钟自动把本地配置推送到云端（无改动不推、不打扰）；云端有更新时弹窗让你三选一，绝不静默覆盖。',
+  },
+  {
+    key: 'videoEditorOpen',
+    type: 'boolean',
+    default: false,
+    ui: false, // 画布顶栏已有开合入口，不在设置页重复（保留注册表管默认值/云同步）；照 agentOpen 先例
+    group: '画布显示', // 复用既有 group（它是画布底部常驻层，不新开 group）
+    icon: Film,
+    title: '视频剪辑器',
+    desc: '开＝画布底部常驻展开视频剪辑器基座；关＝收起。',
   },
 ] as const;
 

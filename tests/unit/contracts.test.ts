@@ -104,8 +104,10 @@ describe('STORAGE_KEYS 语义检查', () => {
 });
 
 describe('STORAGE_KEYS 内容验证', () => {
-  it('当前共有 34 个登记键', () => {
-    expect(Object.keys(STORAGE_KEYS).length).toBe(34);
+  it('当前共有 35 个登记键', () => {
+    // 计数护栏：登记表增删键时必须同步此处（G0 新增 video-editor-project-{projectId} → 34→35）。
+    // 它是有意保留的"变更需被看见"金丝雀，非行为契约——不要改成派生计数（派生即失效）。
+    expect(Object.keys(STORAGE_KEYS).length).toBe(35);
   });
 
   it('云同步台账键已登记（防覆盖保护的本地基线，不进云端）', () => {

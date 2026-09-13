@@ -17,4 +17,5 @@ export const UPLOAD_DIRS = {
   videoProcess: 'canvas/video-process', // 视频帧处理（嵌套，保持）
   migrated: 'migrated', // 迁移 / 导入
   director3d: 'director3d', // 新增：director3d 工程素材（docs/45 批次A）
+  videoEditor: 'canvas/video-editor', // 视频剪辑器（影片编辑）产物：与 videoProcess（帧处理）语义不同，故不复用；混目录后无法按目录清理/迁移
 };

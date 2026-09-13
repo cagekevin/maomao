@@ -217,7 +217,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     domain: 'settings',
     store: 'appSettings.ts',
     backend: 'local',
-    note: '应用设置：{ thumbnailOn, minimapOn, agentOpen, performanceMode, debugOn, pinnedTools }——整键随云端同步（手工 note，改动 settingRegistry 须同步，防漂移）',
+    note: '应用设置：{ thumbnailOn, minimapOn, agentOpen, performanceMode, debugOn, pinnedTools, autoSyncEnabled, videoEditorOpen }——整键随云端同步（手工 note，改动 settingRegistry 须同步，防漂移）',
   },
   scriptbox_playbooks: {
     domain: 'settings',
@@ -445,6 +445,16 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   },
   // 注：故 hideFromViewportCapture 曾登记为 native（2026-08-22 移除）——它实为 3D object.userData
   // 属性（SceneRoot.tsx / DirectorCanvas.tsx），并非存储键，登记纯属误导。此键不影响存储读写。
+
+  // ── 视频剪辑器工程（videoEditor）【G0 登记 · docs/123 §一.7】──────────
+  // 注：不复用 director3d-project-{nodeId}——对象（tracks 时间轴 ≠ 3D 场景）与写者（projectRepository）均不同。
+  'video-editor-project-{projectId}': {
+    domain: 'videoEditor',
+    store: 'videoEditor/data/projectRepository.ts', // 待建约定路径（G2 落地）；照实填，不指向假文件
+    backend: 'kv',
+    pattern: true, // 动态键模板：按 projectId 隔离（入口全局、无锚点节点）
+    note: '视频剪辑器工程 {settings, tracks, playhead, ui.dockHeight}——**tracks 唯一真相源**（120 C2.4），经 projectRepository 独写。与 canvas-state-v1-{projectId} 同粒度、独立键',
+  },
 
   // ── 备份/云同步清单（backupStore.ts / cloudSync.ts）──────────────
   // 已统一从本表 getLocalKeys() 生成，禁止再手写清单（防漂移漏备份）：
