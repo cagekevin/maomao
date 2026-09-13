@@ -183,6 +183,15 @@ export interface StorageKeyMeta {
   note: string;
 }
 
+/**
+ * 视频剪辑器工程 KV 键前缀（G2 收口，模板照 `CANVAS_STATE_PREFIX`）。
+ *
+ * 为什么抽常量：写者 `videoEditor/data/projectRepository.ts` 必须拼 `…-<projectId>`，
+ * 若在那里手写 `'video-editor-project-'` 字面量，就等于**同一键名两份**（登记表与写者），
+ * 改键时必漏一处。抽成常量后：登记表与写者同源。
+ */
+export const VIDEO_EDITOR_PROJECT_PREFIX = 'video-editor-project-';
+
 export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   // ── 项目（projectStore）────────────────────────────────────────────
   projects: {
@@ -448,7 +457,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
 
   // ── 视频剪辑器工程（videoEditor）【G0 登记 · docs/123 §一.7】──────────
   // 注：不复用 director3d-project-{nodeId}——对象（tracks 时间轴 ≠ 3D 场景）与写者（projectRepository）均不同。
-  'video-editor-project-{projectId}': {
+  [`${VIDEO_EDITOR_PROJECT_PREFIX}{projectId}`]: {
     domain: 'videoEditor',
     store: 'videoEditor/data/projectRepository.ts', // 待建约定路径（G2 落地）；照实填，不指向假文件
     backend: 'kv',
