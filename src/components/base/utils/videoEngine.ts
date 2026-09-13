@@ -26,9 +26,14 @@ import {
   WavOutputFormat,
   AudioBufferSource,
   AudioSampleSink,
+  EncodedAudioPacketSource,
+  EncodedPacketSink,
+  EncodedVideoPacketSource,
   VideoSampleSink,
   VideoSampleSource,
 } from 'mediabunny';
+// `Rotation` / `VideoCodec` / `AudioCodec` 只作类型（`import type` 编译期擦除，不产生运行时依赖）。
+import type { AudioCodec, Rotation, VideoCodec } from 'mediabunny';
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 import { logger } from '../core/logger.ts';
 import { uploadFileToLocal } from '../api/filesApi.ts';
@@ -92,6 +97,49 @@ interface VideoProcessResult {
   metadata: VideoMetadata;
   mimeType: string;
   extension: string;
+}
+
+/** 无损直通的一段：原始素材 + 取用区间（秒）。 */
+export interface LosslessSegment {
+  blob: Blob;
+  /** 源入点。**会被吸附到其前方最近的关键帧**（代价：入点精度受关键帧间隔限制，导出后如实回传 `actualStart`）。 */
+  start: number;
+  /** 源出点（秒）。 */
+  end: number;
+  /** 显示名，只用于报错文案（让用户知道是哪个片段出了问题）。 */
+  label: string;
+}
+
+/** 无损直通选项。 */
+export interface LosslessExportOptions extends ProgressOptions {
+  /** 取消信号（`docs/120` C5.4：全程可中断）。 */
+  signal?: AbortSignal;
+}
+
+/**
+ * 导出产物的**音轨结局**（判别联合）—— 供上层区分「能不能说这是干净的导出」。
+ *
+ * 三态而不是 `audioKept: boolean` + `reason: string`：真值是三分的 ——
+ * 「本来就没有声音」（`none`，不是损失）、「有声音但没能完整带出来」（`lost`，是损失，必须告知）、
+ * 「完整带出来了」（`kept`）。用 boolean + 可空原因表达它，调用方只能靠**嗅探原因字符串**判断
+ * 「到底算不算降级」—— 那就是把判据写在文案里（`docs/120` C5：如实告知，不静默）。
+ *
+ * `lost` 不分「整条丢」与「丢一部分」：两者对调用方的处置完全一样（降级 + 把 `reason` 给用户看），
+ * 再分一档就是一个**没人读的**状态位（7 步法 A8：状态不预支）。`reason` 里会写明是哪一种。
+ */
+export type AudioOutcome =
+  { status: 'kept' } | { status: 'lost'; reason: string } | { status: 'none' };
+
+/** 无损直通结果。 */
+export interface LosslessExportResult {
+  blob: Blob;
+  metadata: VideoMetadata;
+  mimeType: string;
+  extension: string;
+  /** 入点被吸附到的**真实**起点（秒）—— 关键帧对齐的代价，**如实告知、不假装精确**（`docs/120` C5 继承点 1）。 */
+  actualStart: number;
+  /** 音轨结局，见 `AudioOutcome`。 */
+  audio: AudioOutcome;
 }
 
 /** clamp：保证是偶数且 ≥2 */
@@ -463,6 +511,222 @@ export async function concatVideos(
       await outputTarget.cancel().catch((): undefined => undefined);
     }
     throw t.controller?.isCanceled ? new ConversionCanceled() : e;
+  } finally {
+    for (const i of inputs) i.dispose();
+  }
+}
+
+/**
+ * 无损直通导出（分组搬运，**绕开编解码器**）—— `docs/120` C5 继承点 1 · `docs/123` §一.6 P1。
+ *
+ * ── 为什么不能用 `Conversion`（trim 模式）──
+ * 入点不在关键帧上时，mediabunny 的 `Conversion` 会**强制重编码**（`firstTimestamp < startTimestamp`）；
+ * 这就把「无损」卖掉了，还白白跑一遍编码器（4K 上足以让导出不可用）。
+ * 故这里直接搬已编码分组：从入点前最近的关键帧开始，把分组原样写进新容器、时间戳平移到零点。
+ * 全程不碰编解码器 ⇒ 又快又不掉画质；**代价是入点精度受关键帧间隔限制**，返回值里的
+ * `actualStart` 就是这个代价的诚实回执（UI 据此提示，不假装精确）。
+ *
+ * ── 单段与多段是同一件事 ──
+ * 只暴露**一个**入口（不是 `exportLosslessTrim` + `exportLosslessConcat` 两个名）：
+ * 「一段」只是「多段」的退化情形，两个入口会逼调用方各自判一次「该调哪个」= 同一真相两处判。
+ *
+ * ── 多段的前提是解码参数一致 ──
+ * 直通复制要求各段共用同一套解码参数（编码 + 尺寸）。不一致时**明确报错**，
+ * 宁可让调用方改走合成重编码，也不产出一个播不动的文件（`docs/120` C5）。
+ *
+ * ── 音轨的两条出口 ──
+ * 编码被目标容器接受**且**各段解码参数一致 → `EncodedAudioPacketSource` 原样搬（零 CPU、零损）；
+ * 否则**丢弃音轨**并在 `audioDropReason` 里如实说明 —— 丢一条音轨，总比整个导出失败好。
+ *
+ * @param segments 按导出顺序排列的片段（≥1）
+ * @param t        进度 / 取消
+ */
+export async function exportLossless(
+  segments: LosslessSegment[],
+  t: LosslessExportOptions = {},
+): Promise<LosslessExportResult> {
+  if (segments.length === 0) throw new Error('没有可导出的片段');
+  const inputs: Input[] = [];
+  let output: Output | null = null;
+  const cancels = () => t.controller?.isCanceled === true || t.signal?.aborted === true;
+  const throwIfAborted = () => {
+    if (cancels()) throw new ConversionCanceled();
+  };
+
+  try {
+    interface Prepared {
+      seg: LosslessSegment;
+      video: InputVideoTrack;
+      codec: VideoCodec;
+      width: number;
+      height: number;
+      rotation: Rotation;
+      audio: InputAudioTrack | null;
+      audioCodec: AudioCodec | null;
+      /** 音频解码参数签名；各段一致才允许直通搬运音轨。 */
+      audioSignature: string | null;
+    }
+
+    for (const seg of segments) inputs.push(await xc(seg.blob));
+
+    const prepared: Prepared[] = [];
+    for (let i = 0; i < inputs.length; i++) {
+      throwIfAborted();
+      const input = inputs[i];
+      const seg = segments[i];
+      if (!Number.isFinite(seg.start) || !Number.isFinite(seg.end) || seg.end <= seg.start) {
+        throw new Error(`片段「${seg.label}」的区间无效：出点必须大于入点`);
+      }
+      if (!(await input.canRead())) throw new Error(`片段「${seg.label}」格式无法识别`);
+      const video = await input.getPrimaryVideoTrack();
+      if (!video) throw new Error(`片段「${seg.label}」没有视频轨`);
+      const codec = await video.getCodec();
+      if (!codec)
+        throw new Error(`片段「${seg.label}」无法识别源编码，无法直通（请改走合成重编码）`);
+      const audio = await input.getPrimaryAudioTrack();
+      const audioCodec = audio ? await audio.getCodec() : null;
+      const audioConfig = audio ? await audio.getDecoderConfig() : null;
+      prepared.push({
+        seg,
+        video,
+        codec,
+        width: await video.getDisplayWidth(),
+        height: await video.getDisplayHeight(),
+        rotation: await video.getRotation(),
+        audio,
+        audioCodec,
+        audioSignature: audioConfig
+          ? `${audioConfig.codec}|${audioConfig.sampleRate}|${audioConfig.numberOfChannels}`
+          : null,
+      });
+    }
+
+    const first = prepared[0];
+    const mismatched = prepared.find(
+      (p) => p.codec !== first.codec || p.width !== first.width || p.height !== first.height,
+    );
+    if (mismatched) {
+      throw new Error(
+        `片段「${mismatched.seg.label}」的编码或分辨率与首个片段不一致，无法无损直通` +
+          `（${mismatched.codec} ${mismatched.width}×${mismatched.height} vs ` +
+          `${first.codec} ${first.width}×${first.height}）—— 请改走合成重编码`,
+      );
+    }
+
+    const target = new BufferTarget();
+    output = new Output({ format: new Mp4OutputFormat({ fastStart: 'in-memory' }), target });
+    t.controller?.attachOutput(output);
+
+    if (!output.format.getSupportedVideoCodecs().includes(first.codec)) {
+      throw new Error(`MP4 容器不支持源视频编码 ${first.codec}，无法无损直通`);
+    }
+    const videoSource = new EncodedVideoPacketSource(first.codec);
+    // 旋转走容器元数据（不烤进帧）：这是「无损」的一部分 —— 重编码会把旋转烤进像素。
+    output.addVideoTrack(videoSource, { rotation: first.rotation });
+
+    const keepAudio =
+      first.audioCodec !== null &&
+      first.audioSignature !== null &&
+      output.format.getSupportedAudioCodecs().includes(first.audioCodec) &&
+      prepared.every((p) => p.audioSignature === first.audioSignature);
+    const audioSource =
+      keepAudio && first.audioCodec ? new EncodedAudioPacketSource(first.audioCodec) : null;
+    if (audioSource) output.addAudioTrack(audioSource);
+
+    await output.start();
+
+    let timelineCursor = 0;
+    let firstVideoPacket = true;
+    let firstAudioPacket = true;
+    let actualStart = 0;
+    const totalSpan = prepared.reduce((sum, p) => sum + (p.seg.end - p.seg.start), 0);
+
+    for (const [index, p] of prepared.entries()) {
+      throwIfAborted();
+      // 入点吸附到前一个关键帧：否则解码器拿不到参考帧，画面会花。
+      const videoSink = new EncodedPacketSink(p.video);
+      const startPacket =
+        (await videoSink.getKeyPacket(p.seg.start)) ?? (await videoSink.getFirstKeyPacket());
+      if (!startPacket) throw new Error(`片段「${p.seg.label}」没有可用的关键帧`);
+      if (index === 0) actualStart = startPacket.timestamp;
+      // 画面与声音共用同一个基准点，拼接点上两轨才对齐。
+      const base = startPacket.timestamp;
+      const videoDecoderConfig = await p.video.getDecoderConfig();
+
+      for await (const packet of videoSink.packets(startPacket)) {
+        throwIfAborted();
+        if (packet.timestamp >= p.seg.end) break;
+        await videoSource.add(
+          packet.clone({ timestamp: timelineCursor + (packet.timestamp - base) }),
+          firstVideoPacket && videoDecoderConfig
+            ? { decoderConfig: videoDecoderConfig }
+            : undefined,
+        );
+        firstVideoPacket = false;
+        if (totalSpan > 0) {
+          const done = timelineCursor + Math.max(0, packet.timestamp - base);
+          t.onProgress?.(Math.min(1, done / totalSpan));
+        }
+      }
+
+      if (audioSource && p.audio) {
+        const audioSink = new EncodedPacketSink(p.audio);
+        const audioStart = (await audioSink.getPacket(base)) ?? undefined;
+        const audioDecoderConfig = await p.audio.getDecoderConfig();
+        for await (const packet of audioSink.packets(audioStart)) {
+          throwIfAborted();
+          if (packet.timestamp >= p.seg.end) break;
+          const shifted = timelineCursor + (packet.timestamp - base);
+          // 音频分组可能早于入点，平移后为负会被容器拒绝
+          if (shifted < 0) continue;
+          await audioSource.add(
+            packet.clone({ timestamp: shifted }),
+            firstAudioPacket && audioDecoderConfig
+              ? { decoderConfig: audioDecoderConfig }
+              : undefined,
+          );
+          firstAudioPacket = false;
+        }
+      }
+      timelineCursor += p.seg.end - base;
+    }
+
+    videoSource.close();
+    audioSource?.close();
+    await output.finalize();
+    if (!target.buffer) throw new Error('无损导出未产生有效数据');
+    t.onProgress?.(1);
+
+    const stats = await first.video.computePacketStats(120).catch((): null => null);
+    let audio: AudioOutcome;
+    if (audioSource) audio = { status: 'kept' };
+    else if (!first.audio) audio = { status: 'none' };
+    else if (!first.audioCodec) audio = { status: 'lost', reason: '无法识别源音频编码' };
+    else {
+      audio = {
+        status: 'lost',
+        reason: `MP4 不接受源音频编码 ${first.audioCodec}，或各段音频参数不一致`,
+      };
+    }
+    return {
+      blob: new Blob([target.buffer], { type: 'video/mp4' }),
+      metadata: {
+        duration: timelineCursor,
+        width: first.width,
+        height: first.height,
+        fps: Cc(stats?.averagePacketRate ?? 0),
+      },
+      mimeType: 'video/mp4',
+      extension: 'mp4',
+      actualStart,
+      audio,
+    };
+  } catch (e) {
+    if (output && output.state !== 'canceled' && output.state !== 'finalized') {
+      await output.cancel().catch((): undefined => undefined);
+    }
+    if (cancels()) throw new ConversionCanceled();
+    throw e instanceof ConversionCanceledError ? new ConversionCanceled(e.message) : e;
   } finally {
     for (const i of inputs) i.dispose();
   }
