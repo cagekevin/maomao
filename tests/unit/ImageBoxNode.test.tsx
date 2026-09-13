@@ -39,7 +39,7 @@ vi.mock('@xyflow/react', () => ({
   ReactFlowProvider: ({ children }) => children,
 }));
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
-vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({ default: mocks.CustomHandle }));
+vi.mock('../../src/components/base/ui/CustomHandle.tsx', () => ({ default: mocks.CustomHandle }));
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
   useConnectedInputs: mocks.useConnectedInputs,
 }));

@@ -173,28 +173,155 @@ function dfs(node) {
 for (const node of graph.keys()) if (!color.get(node)) dfs(node);
 if (!circularFound) console.log('  ✅ 未发现循环依赖');
 
-// ── 2. base/ 禁反向依赖业务域（nodes/scriptbox/agent/panels）──
-console.log('\n🏗 分层边界：base/ 禁止反向依赖业务域');
+// ── 2. base/ 禁反向依赖业务域（**反向判据**，非手写域名清单）· docs/123 G-1 ──
+// 【为什么改成反向判据（7 步法附录 A4）】原实现用 BUSINESS_RE 手写域名（nodes|scriptbox|agent|panels）。
+// 「每来一个业务域就要记得加一次」**本身就是母体**：下一个业务域（videoEditor / edges / …）必然重演同一坑。
+// 实测已漏：`src/components/edges/` 不在名单内 → `base/ui/NodeShell.tsx → edges/CustomHandle.tsx` 长期无守卫
+//   （该边已修：CustomHandle 下沉 `base/ui/`，2026-09-13 —— 反向判据上线即抓出它，正是本改法的价值证明）。
+// 反向判据 = base/ 不得 import `src/components/` 下**任何非 base/ 目录**：一次改完，自动覆盖未来所有业务域。
+console.log('\n🏗 分层边界：base/ 禁止反向依赖业务域（反向判据）');
 // 豁免：NodePalette 节点注册表单源、lazyNode 重节点懒加载包装（刻意引用 nodes，已验证无环）
 const BASE_ALLOWLIST = new Set([
   join(SRC, 'components/base/canvas/NodePalette.ts'),
   join(SRC, 'components/base/canvas/lazyNode.tsx'),
 ]);
-const BUSINESS_RE = /^src\/components\/(nodes|scriptbox|agent|panels)\//;
 let baseViol = 0;
 for (const [from, deps] of graph) {
-  const relFrom = from.slice(root.length + 1);
+  const relFrom = from.slice(root.length + 1).replace(/\\/g, '/');
   if (!relFrom.startsWith('src/components/base/')) continue;
   if (BASE_ALLOWLIST.has(from)) continue;
   for (const dep of deps) {
-    const relDep = dep.slice(root.length + 1);
-    if (BUSINESS_RE.test(relDep)) {
+    const relDep = dep.slice(root.length + 1).replace(/\\/g, '/');
+    if (relDep.startsWith('src/components/') && !relDep.startsWith('src/components/base/')) {
       baseViol++;
       fail(`base 反向依赖业务域: ${relFrom} → ${relDep}`);
     }
   }
 }
 if (!baseViol) console.log('  ✅ base/ 无反向依赖业务域');
+
+// ─────────────────────────────────────────────────────────────────
+// 规则 4（docs/123 G-2，2026-09-13）：videoEditor/core 导入白名单 ——「零 React / 零 IO」的结构守卫。
+//
+// 【为什么是一条白名单而不是三条禁令】写「禁 React / 禁 IO / 禁 fetch」必漏（漏掉 lucide、zustand、
+// 任何新库）；白名单是**补集**形态——只留两条出路，其余一律违规，一条规则覆盖全部外来依赖。
+//
+// 【判定】`src/components/videoEditor/core/**` 的每个 import / export-from / 动态 import 的 specifier：
+//   · 相对或 `@/` 路径 → 解析后必须落在 `videoEditor/core/` 内，或恰为 `base/core/idGen.ts`；
+//   · 裸 specifier（npm 包：react / @xyflow/react / mediabunny …）→ 一律违规。
+//   含 `import type`：type-only 虽编译期擦除，但「core 零 React」是**认知边界**，不许靠擦除绕过。
+//
+// 【生效时机】G0b 先于 G1 —— core/ 此刻尚不存在（扫描 0 文件 = 0 违规），G1 落码起自动生效。
+// ─────────────────────────────────────────────────────────────────
+const VE_CORE_REL = 'src/components/videoEditor/core/';
+const VE_CORE_ALLOW = new Set(['src/components/base/core/idGen.ts']);
+let veCoreViol = 0;
+let veCoreScanned = 0;
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  if (!rel.startsWith(VE_CORE_REL)) continue;
+  veCoreScanned++;
+  let ast;
+  try {
+    ast = parse(readFileSync(f, 'utf8'), {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: true,
+    });
+  } catch {
+    continue;
+  }
+  const bad = [];
+  const judge = (spec, line) => {
+    if (!spec) return;
+    let relDep = null;
+    if (spec.startsWith('.')) {
+      const abs = resolveSourceFile(resolve(dirname(f), spec));
+      if (abs) relDep = abs.slice(root.length + 1).replace(/\\/g, '/');
+    } else if (spec.startsWith('@/')) {
+      const abs = resolveSourceFile(resolve(root, 'src', spec.slice(2)));
+      if (abs) relDep = abs.slice(root.length + 1).replace(/\\/g, '/');
+    } else {
+      bad.push({ spec: `${spec}（外部依赖）`, line });
+      return;
+    }
+    if (relDep && (relDep.startsWith(VE_CORE_REL) || VE_CORE_ALLOW.has(relDep))) return;
+    bad.push({ spec: relDep ? `${spec} → ${relDep}` : spec, line });
+  };
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (
+      (n.type === 'ImportDeclaration' ||
+        n.type === 'ExportNamedDeclaration' ||
+        n.type === 'ExportAllDeclaration') &&
+      n.source?.value
+    ) {
+      judge(n.source.value, n.loc?.start?.line);
+    }
+    if (n.type === 'ImportExpression' && n.source?.type === 'StringLiteral') {
+      judge(n.source.value, n.loc?.start?.line);
+    }
+    for (const k in n)
+      if (k !== 'loc' && k !== 'range' && typeof n[k] === 'object' && n[k] !== null) walk(n[k]);
+  };
+  walk(ast.program);
+  for (const b of bad) {
+    veCoreViol++;
+    fail(
+      `videoEditor/core 越界依赖: ${rel}:${b.line} → ${b.spec}` +
+        `（core 只准 import videoEditor/core/** 与 base/core/idGen.ts；零 React / 零存储 / 零网络）`,
+    );
+  }
+}
+console.log(
+  `\n🧱 videoEditor/core 导入白名单（零 React / 零 IO）· 已扫描 ${veCoreScanned} 个 core 文件` +
+    (veCoreScanned === 0 ? '（core/ 尚未创建，G1 落码起生效）' : ''),
+);
+if (!veCoreViol) console.log('  ✅ core 依赖未越界（仅 core/** 与 base/core/idGen.ts）');
+
+// ─────────────────────────────────────────────────────────────────
+// 规则 5（docs/123 G-3，2026-09-13）：激活位判据单点 —— 外部禁直调底层 `hasModalLayer()`。
+//
+// 【取证（Step 1 证伪）】该需求**已由前置收口卡 9 完成**，不是待建：
+//   · 唯一真源：`modalLayer.ts:169 isCanvasSuppressed()`；
+//   · 查询式消费：`useCanvasShortcuts.ts:80`；
+//   · 订阅式消费：`App.tsx:1131 useSyncExternalStore(subscribeModalLayer, isCanvasSuppressed)`；
+//   · 单测：`tests/unit/modalLayer.test.ts:188-202`（「让位消费方认的是同一判据」）。
+// 故本规则不新建判据，只做**防回潮**：`hasModalLayer()` 是底层原语，外部一旦直调 = 自建第二处判据（必漂）。
+// 将来剪辑器接入「激活位」→ **只在 `isCanvasSuppressed()` 里 `||` 一项**，本规则保证没有第二个落点。
+// ─────────────────────────────────────────────────────────────────
+const MODAL_LAYER_REL = 'src/components/base/core/modalLayer.ts';
+let suppressionJudgeViol = 0;
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  if (rel === MODAL_LAYER_REL) continue;
+  if (!rel.startsWith('src/')) continue;
+  let ast;
+  try {
+    ast = parse(readFileSync(f, 'utf8'), {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: true,
+    });
+  } catch {
+    continue;
+  }
+  for (const st of ast.program.body) {
+    if (st.type !== 'ImportDeclaration') continue;
+    for (const s of st.specifiers || []) {
+      if ((s.imported?.name || s.local?.name) === 'hasModalLayer') {
+        suppressionJudgeViol++;
+        fail(
+          `激活位判据被复制: ${rel}:${st.loc?.start?.line} → import { hasModalLayer } from '${st.source.value}'` +
+            `（外部只准用唯一真源 isCanvasSuppressed()；要加新让位条件请改 modalLayer.ts 内的 isCanvasSuppressed）`,
+        );
+      }
+    }
+  }
+}
+if (!suppressionJudgeViol)
+  console.log('  ✅ 激活位判据单点（外部无直调 hasModalLayer 的第二处判据）');
 
 // ── 3. 结果信封单一真源：禁另立 interface（L3c）──
 console.log('\n📦 结果信封单一真源：禁另立 interface（L3c）');

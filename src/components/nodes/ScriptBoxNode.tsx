@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Clapperboard, Settings, Maximize2, Loader2 } from 'lucide-react';
 import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
 import NodeShell from '../base/ui/NodeShell.tsx';
-import CustomHandle from '../edges/CustomHandle.tsx';
+import CustomHandle from '../base/ui/CustomHandle.tsx';
 import { useScriptBoxEngine } from '../../hooks/useScriptBoxEngine.ts';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useDisconnectSource } from '../../hooks/useDisconnectSource.ts';

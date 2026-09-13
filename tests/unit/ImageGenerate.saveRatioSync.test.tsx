@@ -80,7 +80,7 @@ vi.mock('../../src/components/base/prompt/PromptLibraryButton.tsx', () => ({
 }));
 vi.mock('../../src/components/base/ui/JianyingIcon.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/ui/CustomHandle.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/NodeTitle.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/ErrorBoundary.tsx', () => ({
   default: ({ children }: any) => children,

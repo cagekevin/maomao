@@ -30,7 +30,9 @@ vi.mock('@xyflow/react', () => ({
   Handle: (props: CustomHandleProps) => h.HandleMock(props),
 }));
 
-import CustomHandle, { type CustomHandleProps } from '../../src/components/edges/CustomHandle.tsx';
+import CustomHandle, {
+  type CustomHandleProps,
+} from '../../src/components/base/ui/CustomHandle.tsx';
 
 describe('CustomHandle — 变体与定位', () => {
   afterEach(() => {

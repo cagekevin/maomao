@@ -1,11 +1,16 @@
 import React, { useEffect, useRef, type CSSProperties } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { createRafBatch } from '../base/core/utils.ts';
+import { createRafBatch } from '../core/utils.ts';
 
 /**
  * 自定义连接端口（复刻原 _Component12.jsx）
  * 大号（48px）用于视频生成节点，小号（32px）用于文本/图片节点。
  * position: 'left' | 'right'
+ *
+ * 【为什么住在 base/ui（2026-09-13 · docs/123 G-1 修存量）】本组件依赖只有
+ * `react` + `@xyflow/react` + `base/core/utils` —— **零业务域依赖**，且 `base/ui/NodeShell`
+ * 按设计必须渲染节点端口 → base 必须能引用它。原住在 `edges/`（业务域）时构成
+ * `base → 业务域` 反向依赖（机器守卫 G-1 抓出）。故下沉至此，**别再搬回 `edges/`**。
  */
 type CustomHandleVariant = 'large' | 'small';
 

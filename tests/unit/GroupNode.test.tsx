@@ -19,7 +19,7 @@ vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
     </div>
   ),
 }));
-vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/ui/CustomHandle.tsx', () => ({ default: () => null }));
 
 import GroupNode from '../../src/components/nodes/GroupNode.tsx';
 
