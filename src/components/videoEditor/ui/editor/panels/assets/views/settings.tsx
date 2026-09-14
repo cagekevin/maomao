@@ -278,7 +278,7 @@ const BlurPreview = memo(
         loading="eager"
       />
       <div className="absolute right-1 bottom-1 left-1 text-center">
-        <span className="rounded bg-black/50 px-1 text-xs text-white">{blur.label}</span>
+        <span className="ve-veil-badge text-[10px]">{blur.label}</span>
       </div>
     </button>
   ),

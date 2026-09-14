@@ -174,23 +174,6 @@ export function getIconSvgUrl(
   return buildIconSvgUrl(currentHost, iconName, params);
 }
 
-export async function downloadSvgAsText(
-  iconName: string,
-  params?: Parameters<typeof getIconSvgUrl>[1],
-): Promise<string> {
-  const url = getIconSvgUrl(iconName, params);
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to download SVG: ${response.statusText}`);
-  }
-  return await response.text();
-}
-
-export function svgToFile(svgText: string, fileName: string): File {
-  const blob = new Blob([svgText], { type: 'image/svg+xml' });
-  return new File([blob], fileName, { type: 'image/svg+xml' });
-}
-
 export const POPULAR_COLLECTIONS = {
   general: [
     { prefix: 'mdi', name: 'Material Design Icons' },
@@ -218,13 +201,3 @@ export const POPULAR_COLLECTIONS = {
     { prefix: 'openmoji', name: 'OpenMoji' },
   ],
 };
-
-export function getCategoriesFromCollections(collections: Record<string, IconSet>): string[] {
-  const categories = new Set<string>();
-  Object.values(collections).forEach((collection) => {
-    if (collection.category) {
-      categories.add(collection.category);
-    }
-  });
-  return Array.from(categories).sort();
-}

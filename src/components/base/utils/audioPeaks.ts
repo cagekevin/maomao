@@ -16,7 +16,6 @@
  * 两者对称：那是「视频 → 一帧图 / 一条胶片」，这是「音频 → 一列峰值」。都住在 `base/utils/`
  * （与领域无关的媒体操作），都不认 `Track` / `Clip`。
  */
-import { ALL_FORMATS, AudioBufferSink, BlobSource, Input } from 'mediabunny';
 
 /**
  * 把一段单声道采样**降采样**成 `columns` 列的峰值（每列取其**时间窗内**采样的绝对值最大）。
@@ -103,32 +102,3 @@ export interface AudioPeaksOptions {
  * @returns 峰值数组；素材没有可解码音轨时返回 **`null`**（调用方据此回落到"无波形"，
  *          而不是拿到一片 0 —— 那会被读成"这段是静音"，是撒谎）
  */
-export async function extractAudioPeaks(
-  blob: Blob,
-  options: AudioPeaksOptions,
-): Promise<Float32Array | null> {
-  const columns = Math.max(1, Math.floor(options.columns));
-  const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) });
-  try {
-    const track = await input.getPrimaryAudioTrack();
-    if (!track) return null;
-    const total =
-      options.end !== undefined && options.start !== undefined
-        ? options.end - options.start
-        : ((await input.getDurationFromMetadata()) ?? (await input.computeDuration()));
-    if (!Number.isFinite(total) || total <= 0) return null;
-
-    const peaks = new Float32Array(columns);
-    const sink = new AudioBufferSink(track);
-    const from = options.start ?? 0;
-    for await (const wrapped of sink.buffers(from, options.end)) {
-      if (options.signal?.aborted) return null;
-      const data = wrapped.buffer.getChannelData(0);
-      // 多声道取第 0 声道即可：波形是**信息载体**（有无内容 / 位置），不是混音电平表
-      mergeIntoPeaks(peaks, data, wrapped.timestamp - from, wrapped.buffer.sampleRate, total);
-    }
-    return peaks;
-  } finally {
-    input.dispose();
-  }
-}

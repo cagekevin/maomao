@@ -17,12 +17,6 @@ export interface TranscriptionChunk {
   offset: number;
 }
 
-export interface TranscriptionStreamingData {
-  text: string;
-  chunks: TranscriptionChunk[];
-  tps: number;
-}
-
 export interface TranscriptionResult {
   text: string;
   segments: TranscriptionSegment[];

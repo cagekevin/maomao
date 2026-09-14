@@ -118,21 +118,6 @@ export function parseTimeCode({
   }
 }
 
-export function guessTimeCodeFormat({ timeCode }: { timeCode: string }): TTimeCode | null {
-  if (!timeCode || typeof timeCode !== 'string') return null;
-
-  const numbers = timeCode.split(':');
-
-  if (!numbers.every((n) => !Number.isNaN(Number(n)))) return null;
-
-  if (numbers.length === 2) return 'MM:SS';
-  if (numbers.length === 3) return 'HH:MM:SS';
-  // todo: how to tell frames apart from cs?
-  if (numbers.length === 4) return 'HH:MM:SS:FF';
-
-  return null;
-}
-
 export function timeToFrame({ time, fps }: { time: number; fps: number }): number {
   return Math.round(time * fps);
 }

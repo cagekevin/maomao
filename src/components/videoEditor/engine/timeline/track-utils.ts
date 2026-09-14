@@ -8,7 +8,7 @@ import type {
   TextTrack,
   TimelineElement,
 } from '@videoEditor/types/timeline';
-import { TRACK_COLORS, TRACK_HEIGHTS, TRACK_GAP } from '@videoEditor/constants/timeline-constants';
+import { TRACK_HEIGHTS, TRACK_GAP } from '@videoEditor/constants/timeline-constants';
 import { generateUUID } from '@videoEditor/utils/id';
 
 export function canTracktHaveAudio(track: TimelineTrack): track is VideoTrack | AudioTrack {
@@ -21,13 +21,9 @@ export function canTrackBeHidden(
   return track.type !== 'audio';
 }
 
-export function getTrackColor({ type }: { type: TrackType }) {
-  return TRACK_COLORS[type];
-}
-
 export function getTrackClasses({ type }: { type: TrackType }) {
-  const colors = TRACK_COLORS[type];
-  return `${colors.background}`.trim();
+  // 轨道底色视觉已收敛到 ve-theme.css §8（.ve-clip-bg-*）
+  return `ve-clip-bg-${type}`;
 }
 
 export function getTrackHeight({ type }: { type: TrackType }): number {

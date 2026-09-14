@@ -16,11 +16,7 @@
  *
  * 【脱敏】写入前统一脱敏密钥/凭据/绝对路径并截断，禁止文件全文/网页全文/临时结果进入长期记忆。
  */
-import {
-  contentGetAsync,
-  contentSetAsync,
-  contentDeleteAsync,
-} from '../../base/core/contentStore.ts';
+import { contentGetAsync, contentSetAsync } from '../../base/core/contentStore.ts';
 import { withTimeout } from '../../base/utils/asyncGuard.ts';
 import { generateId } from '../../base/core/idGen.ts';
 import { logger } from '../../base/core/logger.ts';
@@ -196,9 +192,3 @@ export function __resetProjectMemoryCacheForTest(): void {
 }
 
 /** 备用：清空某 agentKey 的全部记忆（供清理用；本模块未直接使用，保留导出以便未来接入） */
-export async function deleteProjectMemories(agentKey: string, _projectId?: string): Promise<void> {
-  await contentDeleteAsync(memoryKey(agentKey)).catch((e) =>
-    logger.warn('AI助手', '[记忆] 批量删除失败', { err: e?.message }),
-  );
-  cache.delete(cacheKey(agentKey));
-}

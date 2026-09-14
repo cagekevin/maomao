@@ -283,15 +283,6 @@ export function resolveAssetDisplayUrl(
  * @param {Array<{contentId?:string|null; url?:string|null}>} resources
  * @returns {(contentId:string)=>string|null}
  */
-export function buildContentUrlResolver(
-  resources: Array<{ contentId?: string | null; url?: string | null }>,
-): (contentId: string) => string | null {
-  const map = new Map<string, string>();
-  for (const r of resources) {
-    if (r?.contentId && r?.url) map.set(r.contentId, r.url);
-  }
-  return (cid: string) => map.get(cid) ?? null;
-}
 
 /**
  * 互斥双形态校验（docs/122 #4）：返回「同时存在的字段」列表。

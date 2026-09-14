@@ -32,8 +32,6 @@ export function transformProjectV2ToV3({
   return { project: migratedProject, skipped: false };
 }
 
-export { getProjectId } from './utils';
-
 function getScenes({ project }: { project: ProjectRecord }): TScene[] {
   const scenesValue = project.scenes;
   if (!Array.isArray(scenesValue)) {

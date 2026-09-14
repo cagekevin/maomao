@@ -620,7 +620,3 @@ export const parseGradient = ({ code }: { code: string }): Array<GradientAst> =>
   }
   return getAst();
 };
-
-export const GradientParser = {
-  parse: parseGradient,
-};

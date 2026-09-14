@@ -42,7 +42,6 @@ export function DraggableItem({
   containerClassName,
   shouldShowPlusOnDrag = true,
   shouldShowLabel = true,
-  isRounded = true,
   variant = 'card',
   isDraggable = true,
   isHighlighted = false,
@@ -53,8 +52,8 @@ export function DraggableItem({
   const dragRef = useRef<HTMLDivElement>(null);
   const didDragRef = useRef(false);
   const editor = useEditor();
-  const highlightClassName = `ring-2 ring-primary bg-primary/10 ${isRounded ? 'rounded-sm' : ''}`;
-  const selectedClassName = `ring-2 ring-primary ${isRounded ? 'rounded-sm' : ''}`;
+  // mockup 口径：选中/高亮 = 仅缩略图 2px 描边（offset 1px），无底色、不套整卡
+  // 视觉定义已收敛到 ve-theme.css §8（.ve-card-selected）
 
   const handleAddToTimeline = () => {
     onAddToTimeline?.({ currentTime: editor.playback.getCurrentTime() });
@@ -121,15 +120,13 @@ export function DraggableItem({
             className={cn(
               'relative flex h-auto w-full cursor-default flex-col gap-1 p-1',
               className,
-              isHighlighted && highlightClassName,
-              isSelected && selectedClassName,
             )}
           >
             <AspectRatio
               ratio={aspectRatio}
               className={cn(
-                'bg-accent relative overflow-hidden',
-                isRounded && 'rounded-sm',
+                've-card-thumb',
+                (isHighlighted || isSelected) && 've-card-selected',
                 isDraggable && '[&::-webkit-drag-ghost]:opacity-0',
               )}
               draggable={isDraggable}
@@ -145,10 +142,7 @@ export function DraggableItem({
               )}
             </AspectRatio>
             {shouldShowLabel && (
-              <span
-                className="text-muted-foreground w-full truncate text-left text-[0.7rem]"
-                title={name}
-              >
+              <span className="ve-card-name w-full truncate text-left" title={name}>
                 <span className="sr-only">{name}</span>
                 <span aria-hidden="true">
                   {name.length > 8 ? `${name.slice(0, 16)}...${name.slice(-3)}` : name}
@@ -158,14 +152,7 @@ export function DraggableItem({
           </div>
         </div>
       ) : (
-        <div
-          ref={dragRef}
-          className={cn(
-            'group relative w-full',
-            isHighlighted && highlightClassName,
-            isSelected && selectedClassName,
-          )}
-        >
+        <div ref={dragRef} className="group relative w-full">
           <button
             type="button"
             className={cn(
@@ -178,7 +165,14 @@ export function DraggableItem({
             onDragEnd={isDraggable ? handleDragEnd : undefined}
             onClick={handleClick}
           >
-            <div className="size-6 flex-shrink-0 overflow-hidden rounded-[0.35rem]">{preview}</div>
+            <div
+              className={cn(
+                'size-6 flex-shrink-0 overflow-hidden rounded-[0.35rem]',
+                (isHighlighted || isSelected) && 've-card-selected',
+              )}
+            >
+              {preview}
+            </div>
             <span className="w-full flex-1 truncate text-sm text-left">{name}</span>
           </button>
         </div>
@@ -230,10 +224,7 @@ function PlusButton({
   const button = (
     <Button
       size="icon"
-      className={cn(
-        'bg-background hover:bg-background text-foreground absolute right-2 bottom-2 size-5',
-        className,
-      )}
+      className={cn('ve-card-plus', className)}
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();

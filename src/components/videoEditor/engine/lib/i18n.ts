@@ -1,10 +1,6 @@
 type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 
-let _t: TranslateFn = (key) => key;
-
-export function _setGlobalTranslation({ t }: { t: TranslateFn }) {
-  _t = t;
-}
+const _t: TranslateFn = (key) => key;
 
 export const i18next = {
   t(key: string, options?: Record<string, unknown>): string {

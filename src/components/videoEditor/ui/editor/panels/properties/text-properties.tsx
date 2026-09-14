@@ -458,7 +458,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                         }}
                         onChange={(e) => handleFontSizeChange({ value: e.target.value })}
                         onBlur={handleFontSizeBlur}
-                        className="bg-accent h-7 w-12 [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="ve-num w-12"
                       />
                     </div>
                   </PropertyItemValue>
@@ -580,7 +580,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                         }}
                         onChange={(e) => handleOpacityChange({ value: e.target.value })}
                         onBlur={handleOpacityBlur}
-                        className="bg-accent h-7 w-12 [appearance:textfield] rounded-sm text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="ve-num w-12"
                       />
                     </div>
                   </PropertyItemValue>
@@ -1149,7 +1149,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                         posXDraft.current = '';
                         forceRender();
                       }}
-                      className="bg-accent h-7 w-full [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      className="ve-num w-full"
                     />
                   </PropertyItemValue>
                 </PropertyItem>
@@ -1213,7 +1213,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                         posYDraft.current = '';
                         forceRender();
                       }}
-                      className="bg-accent h-7 w-full [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      className="ve-num w-full"
                     />
                   </PropertyItemValue>
                 </PropertyItem>
@@ -1299,7 +1299,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                           scaleDraft.current = '';
                           forceRender();
                         }}
-                        className="bg-accent h-7 w-14 [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="ve-num w-14"
                       />
                     </div>
                   </PropertyItemValue>
@@ -1383,7 +1383,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                           rotationDraft.current = '';
                           forceRender();
                         }}
-                        className="bg-accent h-7 w-14 [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="ve-num w-14"
                       />
                     </div>
                   </PropertyItemValue>

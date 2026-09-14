@@ -37,15 +37,3 @@ export function formatSpeedLabel({ rate }: { rate: number }): string {
   const rounded = Math.round(rate * 100) / 100;
   return rounded.toString();
 }
-
-export function computeDurationAfterSpeedChange({
-  currentDuration,
-  oldRate,
-  newRate,
-}: {
-  currentDuration: number;
-  oldRate: number;
-  newRate: number;
-}): number {
-  return currentDuration * (oldRate / newRate);
-}

@@ -16,13 +16,6 @@ export const CANVAS_SIZE_PRESETS: CanvasSizePreset[] = [
   { label: '2K', width: 2560, height: 1440 },
 ];
 
-export const DEFAULT_CANVAS_PRESETS: TCanvasSize[] = [
-  { width: 1920, height: 1080 },
-  { width: 1080, height: 1920 },
-  { width: 1080, height: 1080 },
-  { width: 1440, height: 1080 },
-];
-
 export const FPS_PRESETS = [
   { value: '24', label: '24 fps' },
   { value: '25', label: '25 fps' },

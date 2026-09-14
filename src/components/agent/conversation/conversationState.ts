@@ -18,7 +18,6 @@
  * 调用方 import 路径与符号名都不变。
  * ════════════════════════════════════════════════════════════════
  */
-import { useSyncExternalStore } from 'react';
 import {
   contentGet,
   contentSet,
@@ -181,14 +180,7 @@ export function subscribe(cb: () => void): () => void {
   listeners.add(cb);
   return () => listeners.delete(cb);
 }
-function getSnapshot(): ConversationStoreState {
-  return states[currentAgentKey] || { conversations: [], activeId: '', sending: false };
-}
-
 /** useConversationStore()：订阅当前 agentKey 的会话状态（对齐 taskStore 的 useTasks 用法） */
-export function useConversationStore() {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-}
 
 /**
  * 【会话存储迁移至 KV】（AI助手会话存储迁移-KV收口事实记录.md）

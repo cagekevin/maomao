@@ -43,7 +43,7 @@ function extractPeaks({
   return peaks;
 }
 
-export function AudioWaveform({
+function AudioWaveform({
   audioUrl,
   audioBlob,
   audioBuffer,

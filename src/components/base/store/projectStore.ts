@@ -87,10 +87,6 @@ function recordCanvasWrite(rec: CanvasWriteRecord): void {
   canvasWriteLog.push(rec);
   if (canvasWriteLog.length > WRITE_LOG_MAX) canvasWriteLog.shift();
 }
-/** 调试导出：最近 N 次画布快照写入记录（对齐 debugModalLayers() 惯例）。 */
-export function debugCanvasWrites(): CanvasWriteRecord[] {
-  return canvasWriteLog.slice();
-}
 
 let projects: Project[] = loadProjects();
 let currentProjectId: string = loadLastOpened();
@@ -203,13 +199,6 @@ function persist(): void {
   contentSet(PROJECTS_KEY, projects);
   contentSet(LAST_OPENED_KEY, currentProjectId);
   saveBackendDebounced.schedule();
-}
-
-/** 强制立即落盘（页面卸载兜底 / 测试用） */
-export function flushPersist(): void {
-  contentSet(PROJECTS_KEY, projects);
-  contentSet(LAST_OPENED_KEY, currentProjectId);
-  saveBackendDebounced.flush();
 }
 
 /**

@@ -56,7 +56,6 @@
  *   新增对外符号 → 在此追加 re-export，勿在外部直接 import 子目录深层路径。
  */
 export { useAgentChat } from './runtime/useAgentChat.ts';
-export type { UseAgentChatReturn } from './runtime/useAgentChat.ts';
 export {
   setGenParams,
   getGenParams,
@@ -64,5 +63,4 @@ export {
   setCreditSwitch,
 } from './canvas/useCanvasAgentTools.ts';
 // getNodeAssetUrl / getNodeMedia 已下沉 base/canvas（TD-04-25）。此处转发以保持对外聚合入口契约。
-export { getNodeAssetUrl, getNodeMedia } from '../base/canvas/nodeMedia.ts';
 export { setAgentKey } from './conversation/conversationStore.ts';

@@ -63,17 +63,7 @@ export const FONT_OPTIONS: FontOption[] = [
   },
 ] as const;
 
-export const DEFAULT_FONT = 'Arial';
-
 // Type-safe font family union
 export type FontFamily = (typeof FONT_OPTIONS)[number]['value'];
 
 // Helper functions
-export const getFontByValue = (value: string): FontOption | undefined =>
-  FONT_OPTIONS.find((font) => font.value === value);
-
-export const getGoogleFonts = (): FontOption[] =>
-  FONT_OPTIONS.filter((font) => font.category === 'google');
-
-export const getSystemFonts = (): FontOption[] =>
-  FONT_OPTIONS.filter((font) => font.category === 'system');

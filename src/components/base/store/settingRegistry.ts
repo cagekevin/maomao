@@ -27,32 +27,11 @@
  * 原因：原裁定导致 pinnedTools 类型卡在 unknown、默认值硬编码在 App.tsx，属设置域 Seam 泄漏（接口宽如实现、
  * 默认值双真源）。注册表现支持 string[] 型项。余下 3 项（node_prefs/provider/account/agentModel）维持不进门。
  */
-import { Zap, Map, Bot, Image, Bug, Pin, Cloud, Film, type LucideIcon } from 'lucide-react';
+import { Zap, Map, Bot, Image, Bug, Pin, Cloud, Film } from 'lucide-react';
 
 /** 设置项定义（声明式表的一行；icon 为 lucide-react 图标组件）。
  *  type 判别字段：'boolean' 为设置页开关；'string[]' 为功能性数组偏好（无 UI 开关行）。
  *  由 type + key 派生 SettingKey 联合 / 每键值类型 SettingValue，读写口子据此收窄（见 appSettings.ts）。 */
-export type SettingDef =
-  | {
-      key: string;
-      type: 'boolean';
-      default: boolean;
-      ui: boolean;
-      group: string;
-      icon: LucideIcon;
-      title: string;
-      desc: string;
-    }
-  | {
-      key: string;
-      type: 'string[]';
-      default: string[];
-      ui: boolean;
-      group: string;
-      icon: LucideIcon;
-      title: string;
-      desc: string;
-    };
 
 /** 全部设置定义（顺序即「其他设置」页展示顺序） */
 export const SETTING_DEFS = [

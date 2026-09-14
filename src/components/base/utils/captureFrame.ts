@@ -271,66 +271,6 @@ export interface Filmstrip {
  * 它不是「某个域怎么显示缩略图」，而是**抽帧能力的第二种输出形态**（拼成一条）。
  * 放在这里，`drawVideoFrame` 依旧是「seek + drawImage」的**唯一**实现，本函数只是它的组合用法。
  */
-export async function buildFilmstrip(url: string, options: FilmstripOptions): Promise<Filmstrip> {
-  const { duration, frameHeight, frames = 8, maxFrameSize = 160, quality = 0.6, signal } = options;
-  const count = Math.max(1, Math.floor(frames));
-  const height = Math.max(1, Math.round(frameHeight));
-
-  const video = document.createElement('video');
-  setCrossOriginForReadable(video, url);
-  video.preload = 'auto';
-  video.muted = true;
-  video.playsInline = true;
-  video.src = url;
-  const release = () => {
-    video.removeAttribute('src');
-    releaseQuietly(() => video.load());
-  };
-
-  try {
-    const shots: HTMLCanvasElement[] = [];
-    for (let i = 0; i < count; i++) {
-      if (signal?.aborted) break;
-      // 取每格**中点**：格首/格尾常在镜切处，中点更能代表这一格（也是 ① 的取法）
-      const at = Math.max(0, duration * ((i + 0.5) / count));
-      const shot = await drawVideoFrame(video, {
-        atTime: Math.min(at, Math.max(0, (duration || at) - 0.01)),
-        maxSize: maxFrameSize,
-        // 首帧等 loadeddata（元素刚建）；其后视频已在内存里，不能再等一个不会再触发的事件
-        waitForLoad: i === 0,
-      });
-      shots.push(shot);
-    }
-    if (shots.length === 0) throw new Error('buildFilmstrip: 一帧都没抽到');
-
-    // 等高拼接：每张按自身宽高比缩到 height，宽度随之
-    const widths = shots.map((s) =>
-      Math.max(1, Math.round((s.width * height) / Math.max(1, s.height))),
-    );
-    const total = widths.reduce((sum, w) => sum + w, 0);
-    const sheet = document.createElement('canvas');
-    sheet.width = total;
-    sheet.height = height;
-    const ctx = sheet.getContext('2d');
-    if (!ctx) throw new Error(DEFAULT_FRAME_ERRORS.context);
-    let x = 0;
-    for (let i = 0; i < shots.length; i++) {
-      ctx.drawImage(shots[i], x, 0, widths[i], height);
-      x += widths[i];
-    }
-
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      sheet.toBlob(
-        (b) => (b ? resolve(b) : reject(new Error('buildFilmstrip: toBlob null'))),
-        'image/jpeg',
-        quality,
-      );
-    });
-    return { blob, frameCount: shots.length, width: total, height };
-  } finally {
-    release();
-  }
-}
 
 /**
  * 宿主薄包装 ①：URL → seek → drawImage → JPEG `Blob`（原 `nodes/VideoProcessNode.tsx` 本地 `captureFrame` 下沉）。

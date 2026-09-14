@@ -184,9 +184,7 @@ export function Timeline() {
 
   return (
     <section
-      className={
-        'panel bg-background relative flex h-full flex-col overflow-hidden rounded-sm border'
-      }
+      className={'panel bg-background relative flex h-full flex-col overflow-hidden border'}
       {...dragProps}
       aria-label="Timeline"
     >
@@ -259,7 +257,7 @@ export function Timeline() {
                           />
                           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
                             {IS_DEV && isMainTrack(track) && (
-                              <div className="bg-red-500 size-1.5 rounded-full" />
+                              <div className="bg-destructive size-1.5 rounded-full" />
                             )}
                             {canTracktHaveAudio(track) && (
                               <TrackToggleIcon

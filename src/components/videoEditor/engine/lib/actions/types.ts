@@ -31,8 +31,4 @@ export type TActionFunc<A extends TAction> = A extends TActionWithArgs
 
 export type TInvocationTrigger = 'keypress' | 'mouseclick';
 
-export type TBoundActionList = {
-  [A in TAction]?: Array<TActionFunc<A>>;
-};
-
 export type TActionHandlerOptions = MutableRefObject<boolean> | boolean | undefined;

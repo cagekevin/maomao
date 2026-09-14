@@ -125,9 +125,6 @@ export function getCurrentReferenceImages() {
  * 保留 setPendingGenerations/getPendingGenerations/clearPendingGenerations 导出兼容调用方，
  * 内部改走 conversationStore。
  */
-export function setPendingGenerations(gens: unknown) {
-  setActivePendingGenerations(Array.isArray(gens) && gens.length ? gens : null);
-}
 export function getPendingGenerations() {
   return getActivePendingGenerations();
 }
@@ -1739,15 +1736,8 @@ const AGENT_TOOLS = (() => {
 export type CanvasAgentTools = Record<string, (args?: unknown) => ToolResult>;
 
 /** 画布节点最小形态（getNodes 返回；字段宽松可空 + 索引签名，兼容测试 mock 与真实 Node） */
-export type CanvasNodeLike = { id?: unknown; data?: Record<string, unknown>; [k: string]: unknown };
 
 /** 画布边最小形态（getEdges 返回；字段宽松可空 + 索引签名） */
-export type CanvasEdgeLike = {
-  id?: unknown;
-  source?: unknown;
-  target?: unknown;
-  [k: string]: unknown;
-};
 
 /**
  * 构建画布工具所需的 useReactFlow() 能力（或测试 mock 的最小形态）。

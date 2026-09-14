@@ -504,7 +504,7 @@ function AudioItem({ sound, isPlaying, onPlay }: AudioItemProps) {
           variant="text"
           size="icon"
           className={`hover:text-foreground w-auto !opacity-100 ${
-            isSaved ? 'text-red-500 hover:text-red-600' : 'text-muted-foreground'
+            isSaved ? 'text-destructive hover:opacity-80' : 'text-muted-foreground'
           }`}
           onClick={handleSaveClick}
           title={isSaved ? '从已保存中移除' : '保存音效'}

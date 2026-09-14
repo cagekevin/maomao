@@ -46,6 +46,7 @@ import {
   buildUploadAudioElement,
   buildVideoElement,
 } from '@videoEditor/engine/timeline/element-utils';
+import { RemoveMediaAssetCommand } from '@videoEditor/engine/commands';
 import { useAssetsPanelStore } from '@videoEditor/stores/assets-panel-store';
 import { useMediaPreviewStore } from '@videoEditor/stores/media-preview-store';
 import type { MediaAsset } from '@videoEditor/types/assets';
@@ -151,9 +152,8 @@ export function MediaView() {
       return;
     }
 
-    await editor.media.removeMediaAsset({
-      projectId: activeProject.metadata.id,
-      id,
+    editor.command.execute({
+      command: new RemoveMediaAssetCommand(activeProject.metadata.id, id),
     });
   };
 
@@ -638,11 +638,7 @@ const formatDuration = ({ duration }: { duration: number }) => {
 function MediaDurationBadge({ duration }: { duration?: number }) {
   if (!duration) return null;
 
-  return (
-    <div className="absolute right-1 bottom-1 rounded bg-black/70 px-1 text-xs text-white">
-      {formatDuration({ duration })}
-    </div>
-  );
+  return <div className="ve-card-badge">{formatDuration({ duration })}</div>;
 }
 
 function MediaDurationLabel({ duration }: { duration?: number }) {

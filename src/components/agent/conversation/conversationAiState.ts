@@ -23,20 +23,13 @@ import type { AssistantTable } from '../assistantTable/assistantTable.ts';
 import {
   normalizeAssistantTabs,
   getActiveTab,
-  getTab,
   updateTab,
   setActiveTabId,
   setTabGlobalStyle,
-  setTabTable,
 } from '../assistantTable/assistantTable.ts';
 import { validateTabs } from '../assistantTable/tableInvariants.ts';
 import { logger } from '../../base/core/logger.ts';
-import type {
-  AssistantTableTabs,
-  TableTab,
-  TableColumn,
-  TableRow,
-} from '../assistantTable/assistantTable.ts';
+import type { AssistantTableTabs } from '../assistantTable/assistantTable.ts';
 
 /* ── 统一风格契约 global_contract + 跨步成果 artifact（对齐大雄，per-conversation）── */
 
@@ -156,17 +149,6 @@ export function setCurrentTableGlobalStyle(style: string): void {
   setCurrentAssistantTabs(setTabGlobalStyle(tabs, tabs.activeTabId, style));
 }
 
-/** 读某 tab；不存在返回 null */
-export function getTableTab(tabId: string): TableTab | null {
-  return getTab(getCurrentAssistantTabs(), tabId);
-}
-
-/** 整表替换某 tab（预览确认写回目标表用；源表不动） */
-export function setTableTab(tabId: string, sb: { columns: TableColumn[]; rows: TableRow[] }): void {
-  const tabs = getCurrentAssistantTabs();
-  setCurrentAssistantTabs(setTabTable(tabs, tabId, sb));
-}
-
 /** 给某条消息打「表格预览处理态」标记（confirmed=已写入 / cancelled=已取消），随消息落盘。
  *  背景（2026-09-06 持久化修复）：AI 返回表格 JSON 会被 AgentPanel 变成「待确认表格预览」；
  *  用户确认/取消后，表格数据已写回 memory.assistantTables（持久），但「这条消息已被处理」这个
@@ -201,27 +183,6 @@ export type Artifact = ArtifactShape;
 
 export function getCurrentArtifacts(): Artifact[] | null {
   return getActiveConv()?.memory?.artifacts || null;
-}
-
-/** 写当前对话的跨步成果资产（[{id,type,title,description,nodeId?,url?}]） */
-export function setCurrentArtifacts(arr: Artifact[] | null): void {
-  const conv = requireActiveConv('setCurrentArtifacts');
-  if (!conv) return;
-  commit({
-    ...getState(),
-    conversations: getState().conversations.map((x) =>
-      x.id === conv.id
-        ? {
-            ...x,
-            memory: normalizeMemory({
-              ...x.memory,
-              artifacts: Array.isArray(arr) && arr.length ? arr : null,
-            }),
-            updatedAt: Date.now(),
-          }
-        : x,
-    ),
-  });
 }
 
 /* ── 工作流运行时状态（per-conversation，Step D；替代模块级 aiUndoStack/pendingGenerations）── */

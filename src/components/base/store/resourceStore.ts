@@ -19,7 +19,6 @@
  *   ② 归位：把 resource 行认到目标目录（context-only，复用 filesApi.moveFile）
  *   ③ 广播 `resource:sent` → 面板 rescan 拉取（此刻文件/行/目录三件齐备）
  */
-import { useMemo, useSyncExternalStore } from 'react';
 import { contentGet, contentSet, createDebouncedPersist } from '../core/contentStore.ts';
 import { isStorageReady, onStorageReady } from '../storage/index.ts';
 import { generateId } from '../core/idGen.ts';
@@ -38,7 +37,7 @@ import { tryParse } from '../utils/asyncGuard.ts';
 import { detectFileType } from '../utils/assetType.ts';
 import { logger } from '../core/logger.ts';
 import { publish, subscribe } from '../core/eventBus.ts';
-import { getCurrentProject, useCurrentProjectId } from './projectStore.ts';
+import { getCurrentProject } from './projectStore.ts';
 import type { AssetType } from '@/types';
 
 /** 落盘结果契约由**拥有真相的那一层**（文件域 filesApi）定义，本 store 只转出（消费方零改动）。 */
@@ -201,17 +200,6 @@ onStorageReady(() => {
 /** 强制立即落盘（页面卸载兜底 / 测试用）；createDebouncedPersist 已自动注册 pagehide 兜底 */
 export function flushPersist(): void {
   persistDebounced.flush();
-}
-
-function storeSubscribe(cb: () => void): () => void {
-  listeners.add(cb);
-  return () => {
-    listeners.delete(cb);
-  };
-}
-
-function getSnapshot(): Resource[] {
-  return resources;
 }
 
 /** 读取当前内存素材列表（供测试/非 React 场景） */
@@ -524,14 +512,6 @@ export function __resetForTest(): Resource[] {
 }
 
 // React hook：订阅素材列表
-export function useResources(): Resource[] {
-  const all = useSyncExternalStore(storeSubscribe, getSnapshot, getSnapshot);
-  // docs/122 #7：按当前项目投影过滤（legacy 无 projectId 全项目可见；显式 projectId 仅其项目）。
-  // memo 化关键：getSnapshot 返回的 `all` 只在 resources 变更时换引用、currentProjectId 只在切项目时变，
-  // 投影数组仅当二者之一变化才重建 → 不破坏 useSyncExternalStore 引用相等、无重渲染循环。
-  const projectId = useCurrentProjectId();
-  return useMemo(() => resourcesOfProject(all, projectId), [all, projectId]);
-}
 
 // ── 发送成功事件（P1-D 收口：平行裸回调桥改为 eventBus 事件 resource:sent）──
 // 问题背景：resourceStore（落盘）与 ResourceLibrary（读后端 /api/resources）是两套独立模块，

@@ -296,7 +296,7 @@ function ElementInner({
 }) {
   return (
     <div
-      className={`relative h-full cursor-pointer overflow-hidden rounded-[4px] ${getTrackClasses({
+      className={`ve-clip relative h-full cursor-pointer overflow-hidden ${getTrackClasses({
         type: track.type,
       })} ${isBeingDragged ? 'z-30' : 'z-10'} ${canElementBeHidden(element) && element.hidden ? 'opacity-50' : ''}`}
     >
@@ -316,20 +316,20 @@ function ElementInner({
         </div>
 
         {canElementBeHidden(element) && element.hidden && (
-          <div className="bg-opacity-50 pointer-events-none absolute inset-0 flex items-center justify-center bg-black">
-            <HugeiconsIcon icon={ViewOffSlashIcon} className="size-6 text-white" />
+          <div className="ve-veil pointer-events-none">
+            <HugeiconsIcon icon={ViewOffSlashIcon} className="size-6" />
           </div>
         )}
         {hasAudio && isMuted && (
-          <div className="pointer-events-none absolute right-1 bottom-1 flex items-center justify-center rounded bg-black/60 p-0.5">
-            <HugeiconsIcon icon={VolumeOffIcon} className="size-3.5 text-white" />
+          <div className="pointer-events-none ve-veil-badge">
+            <HugeiconsIcon icon={VolumeOffIcon} className="size-3.5" />
           </div>
         )}
       </button>
 
       {isSelected && (
         <>
-          <div className="border-primary pointer-events-none absolute inset-0 z-20 rounded-[4px] border-2" />
+          <div className="ve-clip-selected pointer-events-none absolute inset-0" />
           <ResizeHandle side="left" elementId={element.id} handleResizeStart={handleResizeStart} />
           <ResizeHandle side="right" elementId={element.id} handleResizeStart={handleResizeStart} />
         </>
@@ -355,7 +355,7 @@ function ResizeHandle({
   return (
     <button
       type="button"
-      className={`bg-primary absolute top-0 bottom-0 z-50 flex w-[0.6rem] items-center justify-center ${isLeft ? 'left-0 cursor-w-resize' : 'right-0 cursor-e-resize'}`}
+      className={`absolute top-0 bottom-0 z-50 flex w-[0.6rem] items-center justify-center ${isLeft ? 'left-0 cursor-w-resize' : 'right-0 cursor-e-resize'}`}
       onMouseDown={(e) => handleResizeStart({ e, elementId, side })}
       aria-label={`${isLeft ? 'Left' : 'Right'} resize handle`}
     >
@@ -378,7 +378,7 @@ function ElementContent({
   if (element.type === 'text') {
     return (
       <div className="flex size-full items-center justify-start pl-2">
-        <span className="truncate text-xs text-white">{element.content}</span>
+        <span className="ve-clip-text truncate">{element.content}</span>
       </div>
     );
   }
@@ -393,7 +393,7 @@ function ElementContent({
           width={20}
           height={20}
         />
-        <span className="truncate text-xs text-white">{element.name}</span>
+        <span className="ve-clip-text truncate">{element.name}</span>
       </div>
     );
   }

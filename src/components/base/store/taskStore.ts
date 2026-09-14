@@ -498,32 +498,6 @@ export interface AwaitTaskResult {
   errorMsg: string;
 }
 
-export function awaitTask(nodeId: string, timeout = 60000): Promise<AwaitTaskResult> {
-  return new Promise((resolve) => {
-    let unsub: (() => void) | null = null;
-    let done = false;
-    const finish = (r: AwaitTaskResult) => {
-      if (done) return;
-      done = true;
-      if (unsub) unsub();
-      resolve(r);
-    };
-    const startedAt = Date.now();
-    const check = () => {
-      const t = tasks.find((x) => x.nodeId === nodeId);
-      if (t && (t.status === 'completed' || t.status === 'failed')) {
-        finish({ status: t.status, resultUrl: t.resultUrl || '', errorMsg: t.errorMsg || '' });
-        return;
-      }
-      if (Date.now() - startedAt > timeout) {
-        finish({ status: 'timeout', resultUrl: '', errorMsg: '等待生成超时' });
-      }
-    };
-    unsub = subscribe(check);
-    check();
-  });
-}
-
 /* ──────────────────────────────────────────────────────────────
  * 轮询调度注册表（S2 · ensurePolling）—— 消双轮询的地基（2026-09-03 后接 pollTask 恢复消费）
  *

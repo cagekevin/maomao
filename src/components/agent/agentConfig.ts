@@ -53,11 +53,6 @@ export const MAX_TOOL_ROUNDS = 8;
  *  一键切换，改这一处即可。 */
 export const ENABLE_TOOLS_ON_NON_STREAM = false;
 
-/** LLM 聊天请求温度（/v1/chat/completions 分支用；responses 端点不支持 temperature 不传）。
- *  后端对称 env：LLM_CHAT_TEMPERATURE（localTool/.env，默认 0.6；前端传 temperature 时以前端为准）。
- *  见 docs/66 §4.3 前后端映射表。 */
-export const AGENT_TEMPERATURE = 0.6;
-
 // ── B. 内置 system prompt（P1 迁入，来自 agentCore）──────────────
 // 「值」收口到本文件；agentCore 以别名 re-export 保 useAgentChat/单测 import 契约。
 export const AGENT_PROMPTS = Object.freeze({

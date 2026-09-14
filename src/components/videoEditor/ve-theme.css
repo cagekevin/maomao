@@ -314,9 +314,32 @@
   border-radius: 10px;
 }
 
-/* ── 按钮：统一 6px 角、ghost 悬停中性 ── */
+/* ── 按钮：统一 4px 角（组件里的 rounded-* 已删，这里自然生效） ── */
 .ve-scope button {
-  border-radius: 6px;
+  border-radius: 4px;
+}
+
+/* ── 数字输入（.ve-num）：属性面板数值框的统一样式 ── */
+.ve-scope .ve-num {
+  height: 1.75rem;
+  background-color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 8px;
+  text-align: center;
+  font-size: 12px;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.ve-scope .ve-num::-webkit-inner-spin-button,
+.ve-scope .ve-num::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.ve-scope .ve-num:focus-visible {
+  border-color: hsl(0, 0%, 45%);
+  box-shadow: 0 0 0 3px hsl(0, 0%, 100%, 0.08);
+  outline: none;
 }
 
 /* ── 分隔线：统一最弱档发丝 ── */
@@ -342,4 +365,266 @@
 }
 .ve-scope ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* ══════════════════════════════════════════════════════════════
+ * 8. 语义组件层 —— 组件只留结构类（flex/定位/尺寸），视觉全部在这里。
+ *    命名：.ve-*；状态用 data-active 或组合类。改样式只改这里。
+ * ══════════════════════════════════════════════════════════════ */
+
+/* ── Tab 栏按钮 ── */
+.ve-scope .ve-tab {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  color: var(--muted-foreground);
+}
+.ve-scope .ve-tab:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.ve-scope .ve-tab[data-active='true'] {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+/* ── 媒体卡片 ── */
+.ve-scope .ve-card-thumb {
+  background: var(--accent);
+  border-radius: 5px;
+  overflow: hidden;
+  position: relative;
+}
+.ve-scope .ve-card-selected {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.ve-scope .ve-card-name {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.ve-scope .ve-card-badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.ve-scope .ve-card-plus {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* ── 时间线片段 ── */
+.ve-scope .ve-clip {
+  border-radius: 4px;
+  overflow: hidden;
+}
+.ve-scope .ve-clip-selected {
+  outline: 2px solid var(--primary);
+  outline-offset: 0;
+  z-index: 5;
+}
+.ve-scope .ve-clip-text {
+  font-size: 11px;
+  color: #fff;
+}
+/* 轨道类型底色（数据色，mockup 同值） */
+.ve-scope .ve-clip-bg-video {
+  background: transparent;
+}
+.ve-scope .ve-clip-bg-text {
+  background: #5dbaa0;
+}
+.ve-scope .ve-clip-bg-audio {
+  background: rgba(145, 93, 190, 0.16);
+  border: 1px solid rgba(145, 93, 190, 0.5);
+}
+.ve-scope .ve-clip-bg-sticker {
+  background: #f59e0b;
+}
+
+/* ── 遮罩（隐藏片段/静音角标/加载态）── */
+.ve-scope .ve-veil {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+.ve-scope .ve-veil svg,
+.ve-scope .ve-veil-badge svg {
+  color: #fff;
+}
+.ve-scope .ve-veil-badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+/* ── 圆角归一：组件里残留的 rounded-* 在此统一（rounded-full 除外）── */
+.ve-scope .rounded-sm,
+.ve-scope .rounded {
+  border-radius: 4px;
+}
+.ve-scope .rounded-md {
+  border-radius: 6px;
+}
+.ve-scope .rounded-lg {
+  border-radius: 8px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+ * 9. 字号/字重/字体归一层 —— 编辑器内出现的每一种排版类都在此定义，
+ *    组件里写什么都不重要，渲染结果永远从这里出（一处改，全局变）：
+ *    基准 12px / 标题 14px / 辅助 11px / 小字 10.5px / 极小 10px
+ * ══════════════════════════════════════════════════════════════ */
+.ve-scope {
+  font-size: 12px;
+  line-height: 1.45;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* 基准与辅助 */
+.ve-scope .text-sm,
+.ve-scope .text-base,
+.ve-scope .md\:text-sm {
+  font-size: 12px;
+}
+.ve-scope .text-xs {
+  font-size: 11px;
+}
+.ve-scope .text-lg {
+  font-size: 14px;
+}
+
+/* 任意值写法（历史遗留，全部收编） */
+.ve-scope .text-\[0\.9rem\] {
+  font-size: 13px;
+}
+.ve-scope .text-\[0\.7rem\],
+.ve-scope .text-\[0\.60rem\] {
+  font-size: 10.5px;
+}
+.ve-scope .text-\[10px\],
+.ve-scope .text-\[11px\] {
+  font-size: 10.5px;
+}
+
+/* 字重 */
+.ve-scope .font-medium {
+  font-weight: 500;
+}
+.ve-scope .font-semibold {
+  font-weight: 600;
+}
+.ve-scope .font-bold {
+  font-weight: 700;
+}
+
+/* 等宽（时间码/时长角标） */
+.ve-scope .font-mono {
+  font-family: var(--font-mono);
+}
+
+/* 行高随密度收紧 */
+.ve-scope .text-sm,
+.ve-scope .text-xs,
+.ve-scope .text-base {
+  line-height: 1.45;
+}
+
+/* 控件高度统一：默认按钮/输入 30px（mockup 刻度） */
+.ve-scope .h-9\.5 {
+  height: 30px;
+}
+.ve-scope .h-9 {
+  height: 30px;
+}
+
+/* ── 属性面板 ── */
+.ve-scope .ve-pg {
+  display: flex;
+  flex-direction: column;
+}
+.ve-scope .ve-pg[data-border-top='true'] {
+  border-top: 1px solid var(--border);
+}
+.ve-scope .ve-pg-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 6px;
+  cursor: pointer;
+}
+.ve-scope .ve-pg-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.ve-scope .ve-pg-toggle[aria-expanded='true'] .ve-pg-title,
+.ve-scope .ve-pg-static .ve-pg-title {
+  color: var(--foreground);
+}
+.ve-scope .ve-pg-toggle svg {
+  width: 12px;
+  height: 12px;
+  color: var(--muted-foreground);
+}
+.ve-scope .ve-pg-toggle[aria-expanded='true'] svg {
+  color: var(--foreground);
+}
+.ve-scope .ve-pg-static {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+.ve-scope .ve-pg-body {
+  padding: 10px 14px 14px;
+}
+
+/* 属性行：label 左 / 控件右；col 变体 = label 在上 */
+.ve-scope .ve-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ve-scope .ve-row-col {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.ve-scope .ve-row-label {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+.ve-scope .ve-row-value {
+  flex: 1;
+  font-size: 12px;
+  min-width: 0;
 }

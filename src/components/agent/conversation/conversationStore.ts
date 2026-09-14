@@ -22,7 +22,6 @@ import {
   commit,
   uid,
   getActiveConv,
-  requireActiveConv,
   markHydrated,
   normalizeConversation,
   normalizeWorkflow,
@@ -206,11 +205,6 @@ export function renameConversation(id: string, title: string): void {
 }
 
 /** 重命名当前（active）会话标题（旧兼容入口，委托通用 renameConversation） */
-export function renameActiveConversation(title: string): void {
-  const conv = requireActiveConv('renameActiveConversation');
-  if (!conv) return;
-  renameConversation(conv.id, title);
-}
 
 /** 从旧单会话数据迁移：conversations 为空且有旧 messages/skills 时，迁成一个对话 */
 export function importLegacy({
@@ -248,16 +242,12 @@ export function importLegacy({
 // conversationState：底座公开 API（useConversationStore / setAgentKey / flushPersist /
 // resetConversationCache + 归一化 normalizeConversation / normalizeWorkflow / normalizePending / normalizeMemory）
 export {
-  useConversationStore,
   setAgentKey,
   setSending,
   flushPersist,
   resetConversationCache,
   waitHydrated,
   normalizeConversation,
-  normalizeWorkflow,
-  normalizePending,
-  normalizeMemory,
   makePendingRef,
 } from './conversationState.ts';
 // conversationSnapshot：当前对话快照（D 类）
@@ -288,12 +278,9 @@ export {
   setCurrentAssistantTabs,
   materializeAssistantTabs,
   setActiveTableTab,
-  getTableTab,
-  setTableTab,
   setCurrentTableGlobalStyle,
   markMessageTableResolved,
   getCurrentArtifacts,
-  setCurrentArtifacts,
   getActiveAiUndoStack,
   pushActiveAiUndo,
   popActiveAiUndo,

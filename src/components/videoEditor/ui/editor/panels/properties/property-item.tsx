@@ -3,6 +3,11 @@ import { cn } from '@videoEditor/utils/ui';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { MinusSignIcon, PlusSignIcon } from '@hugeicons/core-free-icons';
 
+/**
+ * 属性面板原语 —— 视觉全部定义在 ve-theme.css §8（.ve-pg-* / .ve-row-*）。
+ * 组件里只保留结构类；开关状态通过 aria-expanded 交给 CSS。
+ */
+
 interface PropertyItemProps {
   direction?: 'row' | 'column';
   children: React.ReactNode;
@@ -11,13 +16,7 @@ interface PropertyItemProps {
 
 export function PropertyItem({ direction = 'row', children, className }: PropertyItemProps) {
   return (
-    <div
-      className={cn(
-        'flex gap-2',
-        direction === 'row' ? 'items-center justify-between gap-6' : 'flex-col gap-1.5',
-        className,
-      )}
-    >
+    <div className={cn('ve-row', direction === 'column' && 've-row-col', className)}>
       {children}
     </div>
   );
@@ -30,7 +29,7 @@ export function PropertyItemLabel({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <span className={cn('text-muted-foreground text-xs', className)}>{children}</span>;
+  return <span className={cn('ve-row-label', className)}>{children}</span>;
 }
 
 export function PropertyItemValue({
@@ -40,7 +39,7 @@ export function PropertyItemValue({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <div className={cn('flex-1 text-sm', className)}>{children}</div>;
+  return <div className={cn('ve-row-value', className)}>{children}</div>;
 }
 
 interface PropertyGroupProps {
@@ -69,53 +68,28 @@ export function PropertyGroup({
 
   return (
     <div
-      className={cn(
-        'flex flex-col',
-        hasBorderTop && 'border-t',
-        hasBorderBottom && 'last:border-b',
-        className,
-      )}
+      data-border-top={hasBorderTop || undefined}
+      className={cn('ve-pg', hasBorderBottom && 'last:border-b', className)}
     >
       {showHeader &&
         (collapsible ? (
           <button
             type="button"
-            className="flex items-center justify-between p-3.5 cursor-pointer"
+            aria-expanded={isExpanded}
+            className="ve-pg-toggle"
             onClick={() => setIsExpanded(!isExpanded)}
           >
-            <PropertyGroupTitle isExpanded={isExpanded}>{title}</PropertyGroupTitle>
-            <HugeiconsIcon
-              icon={isExpanded ? MinusSignIcon : PlusSignIcon}
-              className={cn('size-3', isExpanded ? 'text-foreground' : 'text-muted-foreground')}
-            />
+            <span className="ve-pg-title">{title}</span>
+            <HugeiconsIcon icon={isExpanded ? MinusSignIcon : PlusSignIcon} />
           </button>
         ) : (
-          <div className="flex items-center justify-between p-4">
-            <PropertyGroupTitle isExpanded>{title}</PropertyGroupTitle>
+          <div className="ve-pg-static">
+            <span className="ve-pg-title">{title}</span>
           </div>
         ))}
       {(showHeader && collapsible ? isExpanded : true) && (
-        <div className={cn(showHeader ? 'p-3 pt-0' : 'p-3')}>{children}</div>
+        <div className="ve-pg-body">{children}</div>
       )}
     </div>
-  );
-}
-
-function PropertyGroupTitle({
-  children,
-  isExpanded = false,
-}: {
-  children: React.ReactNode;
-  isExpanded?: boolean;
-}) {
-  return (
-    <span
-      className={cn(
-        'text-xs font-medium',
-        isExpanded ? 'text-foreground' : 'text-muted-foreground',
-      )}
-    >
-      {children}
-    </span>
   );
 }

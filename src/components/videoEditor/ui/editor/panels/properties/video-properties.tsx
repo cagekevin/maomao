@@ -187,7 +187,7 @@ export function VideoProperties({
                     posXDraft.current = '';
                     forceRender();
                   }}
-                  className="bg-accent h-7 w-full [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  className="ve-num w-full"
                 />
               </PropertyItemValue>
             </PropertyItem>
@@ -242,7 +242,7 @@ export function VideoProperties({
                     posYDraft.current = '';
                     forceRender();
                   }}
-                  className="bg-accent h-7 w-full [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  className="ve-num w-full"
                 />
               </PropertyItemValue>
             </PropertyItem>
@@ -326,7 +326,7 @@ export function VideoProperties({
                       scaleDraft.current = '';
                       forceRender();
                     }}
-                    className="bg-accent h-7 w-14 [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    className="ve-num w-14"
                   />
                 </div>
               </PropertyItemValue>
@@ -409,7 +409,7 @@ export function VideoProperties({
                       rotationDraft.current = '';
                       forceRender();
                     }}
-                    className="bg-accent h-7 w-14 [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    className="ve-num w-14"
                   />
                 </div>
               </PropertyItemValue>
@@ -534,7 +534,7 @@ export function VideoProperties({
                       opacityDraft.current = '';
                       forceRender();
                     }}
-                    className="bg-accent h-7 w-14 [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    className="ve-num w-14"
                   />
                 </div>
               </PropertyItemValue>
@@ -666,7 +666,7 @@ export function VideoProperties({
                         speedDraft.current = '';
                         forceRender();
                       }}
-                      className="bg-accent h-7 w-14 [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      className="ve-num w-14"
                     />
                     <span className="text-muted-foreground text-xs">x</span>
                   </div>

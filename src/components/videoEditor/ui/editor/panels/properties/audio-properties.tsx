@@ -155,7 +155,7 @@ export function AudioProperties({
                       volumeDraft.current = '';
                       forceRender();
                     }}
-                    className="bg-accent h-7 w-14 [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    className="ve-num w-14"
                   />
                 </div>
               </PropertyItemValue>
@@ -286,7 +286,7 @@ export function AudioProperties({
                       speedDraft.current = '';
                       forceRender();
                     }}
-                    className="bg-accent h-7 w-14 [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    className="ve-num w-14"
                   />
                   <span className="text-muted-foreground text-xs">x</span>
                 </div>

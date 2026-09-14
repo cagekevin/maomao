@@ -37,7 +37,7 @@ export function PropertiesPanel() {
   const grouped = useMemo(() => groupByType(elementsWithTracks), [elementsWithTracks]);
 
   return (
-    <div className="panel bg-background h-full rounded-sm border overflow-hidden">
+    <div className="panel bg-background h-full border overflow-hidden">
       {selectedElements.length > 0 ? (
         <ScrollArea className="h-full">
           {grouped.text && grouped.text.length > 0 && (

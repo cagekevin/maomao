@@ -49,7 +49,9 @@ export function DeleteProjectDialog({
             </AlertDescription>
           </Alert>
           <div className="flex flex-col gap-3">
-            <Label className="text-xs font-semibold text-slate-500">{'输入 "DELETE" 以确认'}</Label>
+            <Label className="text-xs font-semibold text-muted-foreground">
+              {'输入 "DELETE" 以确认'}
+            </Label>
             <Input type="text" placeholder="DELETE" size="lg" variant="destructive" />
           </div>
         </DialogBody>

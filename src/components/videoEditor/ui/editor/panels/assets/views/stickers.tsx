@@ -560,8 +560,8 @@ function StickerItem({ iconName, onAdd, isAdding, capSize = false }: StickerItem
             containerClassName="w-full"
           />
           {isAdding && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-black/60">
-              <Spinner className="size-6 text-white" />
+            <div className="ve-veil rounded-md">
+              <Spinner className="size-6" />
             </div>
           )}
         </div>

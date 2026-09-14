@@ -54,5 +54,3 @@ export function transformProjectV0ToV1({
 
   return { project: updatedProject, skipped: false };
 }
-
-export { getProjectId } from './utils';
