@@ -50,7 +50,7 @@ export function subscribeBackendLogStream(): void {
       // 断线/后端不可达：EventSource 按服务端 retry 自动重连，这里不额外动作、不抛错
     };
   } catch {
-    // catch-ok: PARSE_FALLBACK
-    // 订阅失败静默，绝不影响主链路
+    // catch-ok: NON_BLOCKING
+    // 订阅失败（EventSource 不可达）非阻塞，绝不影响主链路
   }
 }

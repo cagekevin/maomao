@@ -27,7 +27,7 @@ import { logger } from '../core/logger.ts';
 import FullscreenShell from '../panels/FullscreenShell.tsx';
 import { createRafBatch } from '../core/utils.ts';
 import { compressImage } from '../utils/imageCompress.ts';
-import { loadImageWithTimeout } from '../utils/asyncGuard.ts';
+import { loadImageWithTimeout, releaseQuietly } from '../utils/asyncGuard.ts';
 import '../core/toastStore.ts';
 
 /**
@@ -228,9 +228,7 @@ export default function ImageEditor({
 
   const eraseUndoAll = useCallback(() => {
     drawSnapshotsRef.current.forEach((b) => {
-      try {
-        b.close?.();
-      } catch {} // catch-ok: RELEASE_FAIL
+      releaseQuietly(() => b.close?.());
     });
     drawSnapshotsRef.current = [];
     setUndoSteps(0);
@@ -245,9 +243,7 @@ export default function ImageEditor({
         drawSnapshotsRef.current.push(bmp);
         if (drawSnapshotsRef.current.length > 10) {
           const dropped = drawSnapshotsRef.current.shift()!;
-          try {
-            dropped.close?.();
-          } catch {} // catch-ok: RELEASE_FAIL
+          releaseQuietly(() => dropped.close?.());
         }
         setUndoSteps(drawSnapshotsRef.current.length);
       } catch {
@@ -279,9 +275,7 @@ export default function ImageEditor({
       ctx?.clearRect(0, 0, d.width, d.height);
       ctx?.drawImage(bmp, 0, 0);
     }
-    try {
-      bmp.close?.();
-    } catch {} // catch-ok: RELEASE_FAIL
+    releaseQuietly(() => bmp.close?.());
     setUndoSteps(drawSnapshotsRef.current.length);
     renderView();
   }, [renderView]);

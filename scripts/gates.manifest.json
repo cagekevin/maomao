@@ -5,11 +5,11 @@
     "why": "用户裁定（2026-09-13）：「提交和推送这两个我可以看成一个。只要最后推送不出去…就可以了，不需要反反复复把这两个东西一起跑」。原 commit+push 两阶段虽已是 disjoint（不同闸不重复），但一次「提交→推送」要等两轮闸、CI 若同时接两类闸也会跑两遍。合并为单一阶段后：每个闸在一次 push / 一次 CI 里**各跑一次**，无重复。",
     "assignment": {
       "build": "7 道廉价构建契约（无 tsc）：api/node-types/node-handles/node-data/keys/upload-dirs/jsx。只在 npm run build 时跑，与 git 流无关。",
-      "push": "7 道代码闸（合并原 commit + push）：type-check(tsc --noEmit) + any/catch/events(代码卫生) + strict-src(白名单 0 隐式 any) + arch(全图扫描) + dead-code(knip 死代码)。只在 pre-push 与 CI 各跑一次。",
+      "push": "8 道代码闸（合并原 commit + push）：type-check(tsc --noEmit) + any/catch/events(代码卫生) + strict-src(白名单 0 隐式 any) + arch(全图扫描) + dead-code(knip 死代码) + gates(元层：闸自述自洽 —— 让「申诉口」这条规定不只是注释)。只在 pre-push 与 CI 各跑一次。",
       "health": "全量巡检 = 所有闸 + healthOnly，仅 check:health 用。"
     },
     "tsc": "push 阶段内两次 tsc，标志与职责不同、互不重叠、不可合并：type-check（不带 --noImplicitAny，通用类型错误）与 strict-src（带 --noImplicitAny，白名单目录隐式 any 收口）。标志会改变对无类型 .mjs mock 等的推断，强行合并会引入伪错误。",
-    "gateCost": "闸的成本守恒（2026-09-14 入规 → 架构师心法 §零.4）：任何闸的『合法通过成本』必须 ≤ 『绕行成本』，否则它在生产它本要禁止的行为（本仓三实证：假守卫/假豁免 · 账本撞号被静默遮蔽 · videoEditor/core 内联重复 7 份）。配套三条：① 每个闸脚本头部须有【申诉口】三问 —— 守什么（红线闸 or 结构偏好闸）· 什么时候该改它 · 怎么改；② 新增闸前置评审 —— 会不会拦住『让同一语义份数下降』的动作（收口/下沉/去重）？会 → 用反向判据，别用清单白名单（清单必漏，且『加一个合法模块就要改闸』本身是母体）；③ 闸拦住正确动作时【改闸不绕行】—— 裁决三步见心法 §零.4.3，改完跑闸探针先红后绿（node scripts/probe.mjs，正例精确红 + 反例仍红）。"
+    "gateCost": "闸的成本守恒（2026-09-14 入规 → 架构师心法 §零.4）：任何闸的『合法通过成本』必须 ≤ 『绕行成本』，否则它在生产它本要禁止的行为（本仓三实证：假守卫/假豁免 · 账本撞号被静默遮蔽 · videoEditor/core 内联重复 7 份）。配套三条：① 每个闸脚本头部须有【申诉口】三问 —— 守什么（红线闸 or 结构偏好闸）· 什么时候该改它 · 怎么改（**可 grep 锚点 = `★闸的申诉口`**，2026-09-14 起 14 道闸全部带此段）；② 新增闸前置评审 —— 会不会拦住『让同一语义份数下降』的动作（收口/下沉/去重）？会 → 用反向判据，别用清单白名单（清单必漏，且『加一个合法模块就要改闸』本身是母体）；③ 闸拦住正确动作时【改闸不绕行】—— 裁决三步见心法 §零.4.3，改完跑闸探针先红后绿（node scripts/probe.mjs，正例精确红 + 反例仍红）。"
   },
   "phases": ["build", "push", "health"],
   "gates": [
@@ -96,6 +96,12 @@
       "cmd": "node scripts/check-dead-code.mjs",
       "phase": "push",
       "desc": "死代码闸（knip · 基线「永不复涨」· TD-17-1：把 audit/ 孤岛能力并进主工程）"
+    },
+    {
+      "id": "gates",
+      "cmd": "node scripts/check-gates.mjs",
+      "phase": "push",
+      "desc": "闸自洽（元层）：在册闸脚本头部必须带【申诉口】三问（守什么 · 何时该改 · 怎么改）"
     }
   ],
   "healthOnly": [

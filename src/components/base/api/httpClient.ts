@@ -134,13 +134,13 @@ async function readErrorBody(res: Response): Promise<unknown> {
   try {
     return await res.json();
   } catch {
-    // catch-ok: ALREADY_REPORTED
+    // catch-ok: PARSE_FALLBACK
     /* 非 JSON 错误体 */
   }
   try {
     return { message: await res.text() };
   } catch {
-    // catch-ok: ALREADY_REPORTED
+    // catch-ok: PARSE_FALLBACK
     /* 无 body */
   }
   return {};

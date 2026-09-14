@@ -23,6 +23,7 @@ import { CANVAS_STATE_PREFIX } from '../components/base/core/contracts.ts';
 import { contentKvGetVersion } from '../components/base/core/contentStore.ts';
 import { getLoadedVersion } from '../components/base/store/projectStore.ts';
 import { logger } from '../components/base/core/logger.ts';
+import { releaseQuietly } from '../components/base/utils/asyncGuard.ts';
 
 export interface CanvasSyncApi {
   /** 其他窗口保存了同一项目 → true（App 据此显示红色警告条） */
@@ -65,12 +66,7 @@ export function useCanvasSync(getProjectId: () => string): CanvasSyncApi {
       logger.warn('Canvas', 'BroadcastChannel 不可用', (err as { message?: string })?.message);
     }
     return () => {
-      try {
-        channel?.close();
-      } catch {
-        // catch-ok: NON_BLOCKING
-        /* ignore */
-      }
+      releaseQuietly(() => channel?.close());
     };
   }, []);
 

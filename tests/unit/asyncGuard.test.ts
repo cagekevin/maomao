@@ -4,6 +4,11 @@ import {
   isTimeoutError,
   TimeoutError,
   loadImageWithTimeout,
+  releaseQuietly,
+  releaseQuietlyAsync,
+  tryParse,
+  attemptQuietly,
+  attemptQuietlyAsync,
 } from '../../src/components/base/utils/asyncGuard.ts';
 
 describe('asyncGuard.withTimeout（R2 统一异步超时）', () => {
@@ -145,5 +150,121 @@ describe('asyncGuard.loadImageWithTimeout（统一图片加载入口）', () => 
     global.Image = vi.fn(() => img) as unknown as typeof Image;
     loadImageWithTimeout('http://x/a.png');
     expect(img.crossOrigin).toBe('anonymous');
+  });
+});
+
+describe('asyncGuard.releaseQuietly / releaseQuietlyAsync（RELEASE_FAIL 唯一实现 · TD-02-26 成本层收口）', () => {
+  it('同步：act 正常 → 执行一次、返回 undefined', () => {
+    const act = vi.fn();
+    expect(releaseQuietly(act)).toBeUndefined();
+    expect(act).toHaveBeenCalledTimes(1);
+  });
+
+  it('同步：act 抛错 → 吞掉不外抛（释放失败不阻断主流程）', () => {
+    // 真实场景：ImageBitmap.close 对已关闭对象抛 InvalidStateError
+    const boom = () => {
+      throw new DOMException('already closed', 'InvalidStateError');
+    };
+    expect(() => releaseQuietly(boom)).not.toThrow();
+  });
+
+  it('异步：act 正常 → resolve，且等待 act 完成', async () => {
+    let done = false;
+    await releaseQuietlyAsync(async () => {
+      await Promise.resolve();
+      done = true;
+    });
+    expect(done).toBe(true);
+  });
+
+  it('异步：act reject → 吞掉不外抛', async () => {
+    await expect(
+      releaseQuietlyAsync(async () => {
+        throw new Error('cancel failed');
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('异步：act 同步抛错同样被吞（形态容错）', async () => {
+    await expect(
+      releaseQuietlyAsync(() => {
+        throw new Error('sync throw');
+      }),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe('asyncGuard.tryParse（PARSE_FALLBACK 唯一实现 · TD-02-26 成本层收口）', () => {
+  it('解析成功 → 返回解析结果', () => {
+    expect(tryParse(() => JSON.parse('{"a":1}').a)).toBe(1);
+  });
+
+  it('解析抛错 → 返回 fallback（落默认分支）', () => {
+    expect(tryParse(() => JSON.parse('不是json'), 'def')).toBe('def');
+  });
+
+  it('未传 fallback → 解析失败返回 undefined', () => {
+    expect(tryParse(() => JSON.parse('{bad') as unknown)).toBeUndefined();
+  });
+
+  it('同步抛错不外抛（不阻断主流程）', () => {
+    expect(() =>
+      tryParse(() => {
+        throw new Error('boom');
+      }),
+    ).not.toThrow();
+  });
+
+  it('真实场景：URL 解析失败回退默认文件名', () => {
+    const fromUrl = tryParse(
+      () => decodeURIComponent(new URL('http://x/%E4%B8%AD').pathname.split('/').pop() || ''),
+      '',
+    );
+    expect(fromUrl).toBe('中');
+    const bad = tryParse(
+      () => decodeURIComponent(new URL('::::bad').pathname.split('/').pop() || ''),
+      '',
+    );
+    expect(bad).toBe('');
+  });
+
+  it('真实场景：正则编译失败回退 undefined（不抛）', () => {
+    const badPattern = '('; // 拆分构造，避开 eslint 对字面量非法正则的静态校验
+    const re = tryParse(() => new RegExp(badPattern));
+    expect(re).toBeUndefined();
+  });
+});
+
+describe('asyncGuard.attemptQuietly / attemptQuietlyAsync（NON_BLOCKING 主实现 · TD-02-26 成本层收口）', () => {
+  it('同步：act 成功则原样执行', () => {
+    let ran = false;
+    attemptQuietly(() => {
+      ran = true;
+    });
+    expect(ran).toBe(true);
+  });
+
+  it('同步：act 抛错被吞（不阻断主流程）', () => {
+    expect(() =>
+      attemptQuietly(() => {
+        throw new Error('boom');
+      }),
+    ).not.toThrow();
+  });
+
+  it('异步：act 成功则执行', async () => {
+    let ran = false;
+    await attemptQuietlyAsync(async () => {
+      ran = true;
+    });
+    expect(ran).toBe(true);
+  });
+
+  it('异步：act 抛错被吞（resolves undefined，不阻断）', async () => {
+    await expect(
+      attemptQuietlyAsync(async () => {
+        throw new Error('async boom');
+      }),
+    ).resolves.toBeUndefined();
   });
 });

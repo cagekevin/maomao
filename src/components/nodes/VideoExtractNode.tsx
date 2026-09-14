@@ -542,11 +542,10 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
                         <Copy size={16} />
                       </button>
                       <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          try {
-                            downloadUrl(img, `frame-${idx + 1}.jpg`);
-                          } catch {} // catch-ok: CLIPBOARD
+                          const res = await downloadUrl(img, `frame-${idx + 1}.jpg`);
+                          if (!res.ok) showToast(res.msg, { type: 'error' });
                         }}
                         className="p-2 bg-surface-1 hover:bg-white rounded-full text-body hover:text-black transition-all shadow-lg cursor-pointer border-none"
                         title="下载"

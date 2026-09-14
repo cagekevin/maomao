@@ -83,6 +83,8 @@
  * 故：**同源不设**（读像素无需 CORS），**真跨源才设 anonymous**。这同时是旧实现（恒设）
  * 在"页面内嵌到 localTool 同源"部署形态下的错误修正 —— 不是兜底，是让抽帧一次到位。
  */
+import { releaseQuietly } from './asyncGuard.ts';
+
 export function setCrossOriginForReadable(video: HTMLVideoElement, url: string) {
   if (sameOriginUrl(url)) return; // 同源：不强制 CORS，canvas 可读
   video.crossOrigin = 'anonymous';
@@ -282,9 +284,7 @@ export async function buildFilmstrip(url: string, options: FilmstripOptions): Pr
   video.src = url;
   const release = () => {
     video.removeAttribute('src');
-    try {
-      video.load();
-    } catch {} // catch-ok: RELEASE_FAIL
+    releaseQuietly(() => video.load());
   };
 
   try {
@@ -345,9 +345,7 @@ export function captureFrame(url: string, atTime: number, quality = 0.55): Promi
   video.src = url;
   const release = () => {
     video.removeAttribute('src');
-    try {
-      video.load();
-    } catch {} // catch-ok: RELEASE_FAIL
+    releaseQuietly(() => video.load());
   };
   return drawVideoFrame(video, {
     // 原实现：target = min(atTime, max(0, (duration || atTime) - 0.01))（夹取是 ① 的判据，留在宿主）

@@ -25,7 +25,7 @@ const h = vi.hoisted(() => {
   let connected: { videos: unknown[] } = { videos: [] };
   const showToast = vi.fn();
   const contentSet = vi.fn();
-  const downloadUrl = vi.fn();
+  const downloadUrl = vi.fn((..._a: unknown[]) => ({ ok: true, msg: '' }));
   const clipboardWrite = vi.fn();
   const previewCreate = vi.fn(() => 'blob:upload');
   const patchData = vi.fn();

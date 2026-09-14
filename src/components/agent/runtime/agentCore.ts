@@ -40,6 +40,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { contentGet } from '../../base/core/contentStore.ts';
+import { tryParse } from '../../base/utils/asyncGuard.ts';
 import { logger } from '../../base/core/logger.ts';
 // 【TD-15-1】agentKey 前缀单源（禁本地拼字面量）
 import { AGENT_KEY_PREFIX } from '../../base/core/agentKeys.ts';
@@ -202,29 +203,26 @@ export function parseSSEChunk(line: string, acc: SSEAccumulator): boolean {
   if (!line.startsWith('data:')) return false;
   const payload = line.slice(5).trim();
   if (!payload || payload === '[DONE]') return true;
-  try {
-    const delta = JSON.parse(payload).choices?.[0]?.delta;
-    if (!delta) return true;
-    if (delta.content) acc.content += delta.content;
-    if (delta.reasoning_content) acc.reasoning += delta.reasoning_content;
-    else if (delta.reasoning) acc.reasoning += delta.reasoning;
-    if (Array.isArray(delta.tool_calls)) {
-      for (const tc of delta.tool_calls) {
-        const idx = tc.index ?? 0;
-        acc.toolCalls[idx] ||= {
-          id: tc.id || '',
-          type: 'function',
-          function: { name: '', arguments: '' },
-        };
-        const call = acc.toolCalls[idx]!;
-        if (tc.id) call.id = tc.id;
-        if (tc.function?.name) call.function!.name += tc.function.name;
-        if (tc.function?.arguments) call.function!.arguments += tc.function.arguments;
-      }
+  const parsed = tryParse(() => JSON.parse(payload));
+  if (!parsed) return true;
+  const delta = parsed.choices?.[0]?.delta;
+  if (!delta) return true;
+  if (delta.content) acc.content += delta.content;
+  if (delta.reasoning_content) acc.reasoning += delta.reasoning_content;
+  else if (delta.reasoning) acc.reasoning += delta.reasoning;
+  if (Array.isArray(delta.tool_calls)) {
+    for (const tc of delta.tool_calls) {
+      const idx = tc.index ?? 0;
+      acc.toolCalls[idx] ||= {
+        id: tc.id || '',
+        type: 'function',
+        function: { name: '', arguments: '' },
+      };
+      const call = acc.toolCalls[idx]!;
+      if (tc.id) call.id = tc.id;
+      if (tc.function?.name) call.function!.name += tc.function.name;
+      if (tc.function?.arguments) call.function!.arguments += tc.function.arguments;
     }
-  } catch {
-    // catch-ok: PARSE_FALLBACK
-    /* 忽略单条解析失败 */
   }
   return true;
 }
@@ -606,13 +604,10 @@ export async function parseAgentError(
   fallback: string = '调用失败',
 ): Promise<string> {
   let msg = `${fallback} (${res.status})`;
-  try {
-    const text = await res.text();
-    const parsed = JSON.parse(text);
+  const text = await res.text().catch(() => '');
+  const parsed = tryParse(() => JSON.parse(text));
+  if (parsed !== undefined) {
     msg = parsed?.error?.message || parsed?.error || (typeof parsed === 'string' ? parsed : text);
-  } catch {
-    // catch-ok: ALREADY_REPORTED
-    /* 保留默认文案 */
   }
   return msg;
 }

@@ -47,7 +47,7 @@ import {
   SCRIPT_IMAGE_TIMEOUT,
 } from '../base/core/config.ts';
 // 任务级总耗时兜底（R2 边界守卫）：给整段生成任务加超时，杜绝「转圈永不结束」
-import { withTimeout } from '../base/utils/asyncGuard.ts';
+import { withTimeout, releaseQuietly } from '../base/utils/asyncGuard.ts';
 import { drawVideoFrame, setCrossOriginForReadable } from '../base/utils/captureFrame.ts';
 // 【L3c】中止判定统一走 classifyError（唯一入口 genErrors.ts:24），替代原 /abort/i message 关键词判点（脆依赖）
 import { classifyError } from '../base/utils/genErrors.ts';
@@ -1060,12 +1060,7 @@ export function createScriptBoxEngine({
     if (!key) {
       // 全停：中止所有
       abortMap.forEach((ac, _k) => {
-        try {
-          ac.abort();
-        } catch {
-          // catch-ok: RELEASE_FAIL
-          /* ignore */
-        }
+        releaseQuietly(() => ac.abort());
       });
       abortMap.clear();
       const d = getData();
@@ -1078,12 +1073,7 @@ export function createScriptBoxEngine({
     }
     const ac = abortMap.get(key);
     if (ac) {
-      try {
-        ac.abort();
-      } catch {
-        // catch-ok: RELEASE_FAIL
-        /* ignore */
-      }
+      releaseQuietly(() => ac.abort());
       abortMap.delete(key);
     }
     const d = getData();

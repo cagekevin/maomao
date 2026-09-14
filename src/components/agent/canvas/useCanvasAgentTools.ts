@@ -1431,12 +1431,7 @@ const executePlanTool = {
         globalContract: gc,
         artifacts: artifactTable,
         onLog: (it) => {
-          try {
-            logs.push(it);
-          } catch {
-            // catch-ok: READ_FALLBACK
-            /* 忽略 */
-          }
+          logs.push(it);
         },
         userText,
       });

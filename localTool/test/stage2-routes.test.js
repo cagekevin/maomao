@@ -745,6 +745,118 @@ test('[files/dataUri] 非法 base64 → 400（Node 宽容解码被 isValidBase64
   assert.match(parseResBody(res).error, /Invalid dataUri/);
 });
 
+// 【2026-09-14 失败诚实化】写盘系统故障 ≠ 输入非法：此前两者同返 null → 一律 400 Invalid dataUri
+// （把"写不进去"报成"格式不对"，排查被引偏，与 TD-03-12 错误归因同族）→ 现为 500。
+test('[files/dataUri] 写盘失败 → 500（系统故障不得归因为 400 Invalid dataUri）', async (t) => {
+  const uniq = `data:image/png;base64,${Buffer.concat([
+    Buffer.from(TINY_PNG.split(',')[1], 'base64'),
+    Buffer.from('disk-fail-500'),
+  ]).toString('base64')}`;
+  t.mock.method(fs, 'writeFileSync', () => {
+    throw new Error('disk full');
+  });
+  const res = makeRes();
+  await handleUpload(makeJsonReq({ dataUri: uniq }), res);
+  assert.equal(res.status, 500);
+  assert.match(parseResBody(res).error, /Failed to persist dataUri/);
+});
+
+// ── TD-12-11 / TD-12-12 裁决（2026-09-14）：上传的「成功」= 这份内容现在可在请求的 subfolder 下被看到 ──
+// 改前：contentId 去重命中即**跳过登记** → 行留旧目录（调用方被告知成功、请求的目录里却没有它 = 假成功），
+//       且行 `name` 恒为磁盘内容寻址名（哈希名，素材库里认不出是哪张）。
+const { getDb, queryOne } = await importSrc(path.join('db', 'database.ts'));
+
+test('[files/multipart] TD-12-11：同内容二次上传到新 subfolder → 行 folder 归位到本次请求，物理 url 不变', async () => {
+  // 走 **multipart 分支**：只有它走 writeUploadDedup（`deduped` 跳过语义所在），dataUri 分支的
+  // saveBase64ToFile 无此分支 → 用 dataUri 测不到本缺陷（本用例曾被探针证伪过一次，故注明）。
+  const pngBytes = Buffer.concat([
+    Buffer.from(TINY_PNG.split(',')[1], 'base64'),
+    Buffer.from('td1211m'),
+  ]);
+  const parts = (sub, fname) => [
+    { name: 'subfolder', data: sub },
+    { name: 'file', filename: fname, contentType: 'image/png', data: pngBytes },
+  ];
+
+  const a = makeRes();
+  await handleUpload(makeMultipartReq(parts('tasks', 'first.png')), a);
+  const url1 = parseResBody(a).data.url;
+
+  const b = makeRes();
+  await handleUpload(makeMultipartReq(parts('migrated', '我的猫.png')), b);
+  const url2 = parseResBody(b).data.url;
+  assert.equal(url2, url1, '同内容 → 复用同一物理 url（不新建第二份 / 不改物理位置）');
+
+  const hex = url1
+    .split('/')
+    .pop()
+    .replace(/\.png$/, '');
+  const db = await getDb();
+  const row = queryOne(db, 'SELECT folder, name FROM resources WHERE sha1 = ?', [`sha1:${hex}`]);
+  assert.ok(row, '同内容应恰有一行（Content 维度全局唯一）');
+  assert.equal(row.folder, 'migrated', '行 folder 应归位到本次请求的 subfolder（改前留 tasks）');
+  // 显示名：首次上传已给出非哈希名 'first.png' → 保留（十一轮裁决：显式/先到者命名优先）。
+  // 「未命名（仍是磁盘哈希名）→ 采用本次声明名」由 display-name-merge.test.js 的纯函数用例覆盖。
+  assert.equal(row.name, 'first.png', '已命名的行不被再次上传覆盖（folder 才随最近声明）');
+});
+
+test('[files/dataUri] TD-12-12：displayName → 行 name 用声明名（改前 = 磁盘内容寻址哈希名）', async () => {
+  const bytes = Buffer.concat([
+    Buffer.from(TINY_PNG.split(',')[1], 'base64'),
+    Buffer.from('td1212d'),
+  ]);
+  const dataUri = `data:image/png;base64,${bytes.toString('base64')}`;
+  const res = makeRes();
+  await handleUpload(makeJsonReq({ dataUri, subfolder: 'migrated', displayName: '猫.png' }), res);
+  const url = parseResBody(res).data.url;
+  const hex = url
+    .split('/')
+    .pop()
+    .replace(/\.png$/, '');
+  const db = await getDb();
+  const row = queryOne(db, 'SELECT name, folder FROM resources WHERE sha1 = ?', [`sha1:${hex}`]);
+  assert.equal(row.name, '猫.png', '行 name 应为 displayName');
+  assert.equal(row.folder, 'migrated');
+});
+
+test('[files/dataUri] 归属保护（十轮补）：跨项目再上传同内容 → 行 project_id 保持原归属，不被搬到新项目', async () => {
+  const bytes = Buffer.concat([
+    Buffer.from(TINY_PNG.split(',')[1], 'base64'),
+    Buffer.from('ownership'),
+  ]);
+  const dataUri = `data:image/png;base64,${bytes.toString('base64')}`;
+
+  const a = makeRes();
+  await handleUpload(
+    makeJsonReq({ dataUri, subfolder: 'migrated', projectId: 'projA', displayName: 'A图' }),
+    a,
+  );
+  const url = parseResBody(a).data.url;
+
+  const b = makeRes();
+  await handleUpload(
+    makeJsonReq({ dataUri, subfolder: 'canvas', projectId: 'projB', displayName: 'B图' }),
+    b,
+  );
+
+  const hex = url
+    .split('/')
+    .pop()
+    .replace(/\.png$/, '');
+  const db = await getDb();
+  const row = queryOne(db, 'SELECT project_id, name, folder FROM resources WHERE sha1 = ?', [
+    `sha1:${hex}`,
+  ]);
+  assert.equal(
+    row.project_id,
+    'projA',
+    '归属应保持首次声明的项目（改前会被 projB 覆盖 → 回项目 A 时该素材直接不可见）',
+  );
+  // 显示名：首次声明已非哈希名 → 保留（十一轮裁决：**显式/先到者命名优先**，不被再次上传覆盖）
+  assert.equal(row.name, 'A图', '显示名应保留首次声明名（不被再次上传覆盖）');
+  assert.equal(row.folder, 'canvas', '呈现层 folder 仍随最近声明');
+});
+
 // ════════════════════════════════════════════════════════════════════════
 // routes/generate.ts —— 统一生成入口（Step 6：/api/relay 并入，chat 同步快路径）
 // ════════════════════════════════════════════════════════════════════════

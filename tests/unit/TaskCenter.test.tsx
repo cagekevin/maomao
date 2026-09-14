@@ -90,6 +90,11 @@ vi.mock('../../src/components/base/core/logger.ts', () => ({
 }));
 vi.mock('../../src/components/base/utils/clipboard.ts', () => ({
   downloadUrl: (...a: unknown[]) => h.downloadUrl(...a),
+  // copyText 走真实信封；这里仅在测试环境把底层 navigator.clipboard.writeText 接到可断言 mock
+  copyText: (...a: unknown[]) => {
+    h.clipboardWrite(...a);
+    return { ok: true, msg: '已复制' };
+  },
 }));
 vi.mock('../../src/components/base/core/toastStore.ts', () => ({
   showToast: (...a: unknown[]) => h.showToast(...a),
@@ -184,11 +189,13 @@ describe('TaskCenter — 任务列表渲染', () => {
 });
 
 describe('TaskCenter — 更多菜单操作', () => {
-  it('点击 ⋮ 打开菜单，点「复制提示词」→ showToast 提示已复制（校验副作用参数）', () => {
+  it('点击 ⋮ 打开菜单，点「复制提示词」→ showToast 提示已复制（校验副作用参数）', async () => {
     h.setTasks([makeTask()]);
     render(<TaskCenter />);
     const menus = document.querySelectorAll('button[title="复制提示词"]');
     fireEvent.click(menus[0]);
+    // copyPrompt 现走 copyText 异步信封，toast 在微任务后触发，需 flush
+    await new Promise((r) => setTimeout(r, 0));
     expect(h.showToast).toHaveBeenCalledWith('已复制提示词', { type: 'success' });
   });
 

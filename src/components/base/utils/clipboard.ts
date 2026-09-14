@@ -19,7 +19,7 @@ import { httpRequest } from '../api/httpClient.ts';
 import { DOWNLOAD_TIMEOUT } from '../core/config.ts';
 import { generateId } from '../core/idGen.ts';
 import { deepClone } from '../core/utils.ts';
-import { withTimeout, TimeoutError } from './asyncGuard.ts';
+import { withTimeout, TimeoutError, tryParse } from './asyncGuard.ts';
 
 /** 剪贴板操作统一返回信封：{ ok, msg }，调用方负责 toast。 */
 type ClipResult = { ok: boolean; msg: string };
@@ -393,10 +393,11 @@ export function resolveDownloadFilename(
   { ext = 'png', fallback = 'generated.png' }: { ext?: string; fallback?: string } = {},
 ): string {
   let filename = label || '';
-  try {
-    const fromUrl = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
-    if (fromUrl && !/^blob:|^data:/.test(url)) filename = filename || fromUrl;
-  } catch {} // catch-ok: PARSE_FALLBACK
+  const fromUrl = tryParse(
+    () => decodeURIComponent(new URL(url).pathname.split('/').pop() || ''),
+    '',
+  );
+  if (fromUrl && !/^blob:|^data:/.test(url)) filename = filename || fromUrl;
   // 先兜底再补扩展名：空 label + blob/data 等无来源名时用 fallback（原实现「先补扩展名后判空」使该兜底成为死代码，产生残缺文件名 'png'）
   if (!filename) filename = fallback;
   if (!/\.[a-z0-9]{2,5}$/i.test(filename)) filename += (filename ? '.' : '') + ext;

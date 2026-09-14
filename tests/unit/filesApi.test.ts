@@ -303,6 +303,101 @@ describe('filesApi — resolveNodeAssetUrl（File 源统一落盘策略）', () 
   });
 });
 
+// ── 「URL → uploads」唯一原语：分流判据收口在文件域（上层用例不得再抄一份）──
+describe('filesApi — persistUrlToUploads', () => {
+  it('data: → inline 分支（folder 落子目录 + name 作为行显示名）', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/migrated/a.png'));
+    const out = await api.persistUrlToUploads(DATA_PNG, { folder: 'migrated', name: '猫' });
+    expect(out).toEqual({
+      ok: true,
+      url: 'http://127.0.0.1:18080/files/migrated/a.png',
+      source: 'inline',
+    });
+    const [, opts] = fetchMock.mock.calls[0];
+    // displayName：行 name = 用户命名（TD-12-12）；磁盘名仍是内容寻址（后端决定）
+    expect(JSON.parse(opts.body)).toMatchObject({ subfolder: 'migrated', displayName: '猫' });
+  });
+
+  it('已是本机 /files/ → already-local：原样返回且不发任何请求（不重传）', async () => {
+    const rel = await api.persistUrlToUploads('/files/tasks/a.png', { folder: 'migrated' });
+    expect(rel).toEqual({ ok: true, url: '/files/tasks/a.png', source: 'already-local' });
+    const abs = 'http://127.0.0.1:18080/files/tasks/a.png';
+    const absOut = await api.persistUrlToUploads(abs, { folder: 'migrated' });
+    expect(absOut).toEqual({ ok: true, url: abs, source: 'already-local' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('blob: → 前端 fetch 取 Blob 后 multipart 上传（后端拿不到 blob:）', async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        blob: async () => new Blob(['x'], { type: 'image/png' }),
+        json: async () => ({}),
+      })
+      .mockResolvedValueOnce(uploadResp('http://127.0.0.1:18080/files/migrated/n.png'));
+    const out = await api.persistUrlToUploads('blob:http://x/y', {
+      folder: 'migrated',
+      name: '猫',
+    });
+    expect(out.ok && out.source).toBe('uploaded');
+    expect(out.ok && out.url).toBe('http://127.0.0.1:18080/files/migrated/n.png');
+    const [upUrl, opts] = fetchMock.mock.calls[1];
+    expect(upUrl).toContain('/api/files/upload');
+    for (const [k, v] of opts.body.entries()) {
+      if (k === 'file') expect(v.name).toBe('猫.png');
+    }
+  });
+
+  it('远程 http(s) → 交后端唯一下载点（JSON fileUrl），不在前端 fetch 原图', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/migrated/r.png'));
+    const out = await api.persistUrlToUploads('https://cdn/x.png', {
+      folder: 'migrated',
+      name: '猫',
+    });
+    expect(out.ok && out.url).toBe('http://127.0.0.1:18080/files/migrated/r.png');
+    const [reqUrl, opts] = fetchMock.mock.calls[0];
+    expect(reqUrl).toContain('/api/files/upload');
+    expect(JSON.parse(opts.body)).toMatchObject({
+      fileUrl: 'https://cdn/x.png',
+      subfolder: 'migrated',
+    });
+  });
+
+  it('不支持的协议 → unsupported（明确失败，不猜也不兜底）', async () => {
+    expect(await api.persistUrlToUploads('ftp://x/a.png')).toEqual({
+      ok: false,
+      reason: 'unsupported',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('空 url → empty（且不登记、不发请求）', async () => {
+    expect(await api.persistUrlToUploads('')).toEqual({ ok: false, reason: 'empty' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('落盘失败（!res.ok）→ upload-failed（判别联合，不归一 null）', async () => {
+    fetchMock.mockResolvedValue(failResp());
+    expect(await api.persistUrlToUploads(DATA_PNG)).toEqual({
+      ok: false,
+      reason: 'upload-failed',
+    });
+  });
+
+  it('异常 → exception 且带原始 message（不抛，也不伪装成 upload-failed）', async () => {
+    fetchMock
+      .mockImplementationOnce(async () => {
+        throw new Error('net');
+      })
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+    const out = await api.persistUrlToUploads('blob:http://x/y');
+    expect(out.ok).toBe(false);
+    expect(out.ok ? '' : out.reason).toBe('exception');
+    expect(out.ok ? '' : out.message).toContain('net');
+  });
+});
+
 describe('filesApi — showThenPersistInline（dataURL 源统一落盘策略）', () => {
   it('立即上屏 → 落盘成功 → 二次上屏换持久 URL（顺序即策略）', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/canvas/abc.png'));

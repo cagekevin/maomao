@@ -12,6 +12,7 @@ import {
 import { contentIdOfBytes } from '../components/base/utils/assetUrl.ts';
 import { UPLOAD_DIRS } from '../components/base/utils/uploadDirs.ts';
 import { logger } from '../components/base/core/logger.ts';
+import { tryParse } from '../components/base/utils/asyncGuard.ts';
 
 /** 画布坐标（screenToFlowPosition 的输出 / addNode 的入参） */
 export interface FlowPosition {
@@ -277,41 +278,39 @@ export function useAssetDropPaste({
       // 素材库素材拖入（ResourceLibrary 写 application/x-yimao-asset）：用素材 url 建节点
       const assetRaw = e.dataTransfer?.getData('application/x-yimao-asset');
       if (assetRaw) {
-        try {
-          const asset = JSON.parse(assetRaw) as {
-            url?: string;
-            type?: string;
-            text?: string;
-            name?: string;
-            contentId?: string;
-          };
-          if (asset?.url) {
-            // 文字素材 → textGenerateNode（把 data:text 内容解码成文本）；图片/视频/音频 → assetNode
-            if (asset.type === 'text') {
-              let content = asset.text || '';
-              if (!content && asset.url.startsWith('data:text')) {
-                try {
-                  content = decodeURIComponent(asset.url.slice(asset.url.indexOf(',') + 1));
-                } catch {
-                  content = asset.name || '';
-                }
+        const asset = tryParse(
+          () =>
+            JSON.parse(assetRaw) as {
+              url?: string;
+              type?: string;
+              text?: string;
+              name?: string;
+              contentId?: string;
+            },
+        );
+        if (asset?.url) {
+          // 文字素材 → textGenerateNode（把 data:text 内容解码成文本）；图片/视频/音频 → assetNode
+          if (asset.type === 'text') {
+            let content = asset.text || '';
+            if (!content && asset.url.startsWith('data:text')) {
+              try {
+                content = decodeURIComponent(asset.url.slice(asset.url.indexOf(',') + 1));
+              } catch {
+                content = asset.name || '';
               }
-              addNode('textGenerateNode', pos, { text: content, label: asset.name || '文字素材' });
-              showToast(`已添加文字素材「${asset.name || '文字素材'}」`);
-            } else {
-              // docs/122 #4：素材库拖入建 asset → 带稳定 contentId（来自后端资源 sha1），与 assetUrl 同存
-              addNode('assetNode', pos, {
-                assetUrl: asset.url,
-                label: asset.name || '素材',
-                ...(asset.contentId ? { contentId: asset.contentId } : {}),
-              });
-              showToast(`已添加素材「${asset.name || '素材'}」`);
             }
-            return;
+            addNode('textGenerateNode', pos, { text: content, label: asset.name || '文字素材' });
+            showToast(`已添加文字素材「${asset.name || '文字素材'}」`);
+          } else {
+            // docs/122 #4：素材库拖入建 asset → 带稳定 contentId（来自后端资源 sha1），与 assetUrl 同存
+            addNode('assetNode', pos, {
+              assetUrl: asset.url,
+              label: asset.name || '素材',
+              ...(asset.contentId ? { contentId: asset.contentId } : {}),
+            });
+            showToast(`已添加素材「${asset.name || '素材'}」`);
           }
-        } catch {
-          // catch-ok: PARSE_FALLBACK
-          /* 非法数据忽略 */
+          return;
         }
       }
 
@@ -345,36 +344,34 @@ export function useAssetDropPaste({
   const handleTextPaste = useCallback(
     (rawText: string, pos: FlowPosition) => {
       if (!rawText || !rawText.trim()) return;
-      try {
-        const parsedRaw: unknown = JSON.parse(rawText);
-        // 剪贴板 JSON 逐字段读取（type 需 string、images 需数组），不做整体形状假断言（F7）
-        const d =
-          parsedRaw && typeof parsedRaw === 'object'
-            ? (parsedRaw as { type?: unknown; images?: unknown })
-            : null;
-        if (d?.type === 'mutiwindow-nodes') {
-          // 粘贴节点组（含连线），交由宿主（App）解析重建
-          if (typeof onPasteNodeGroup === 'function') onPasteNodeGroup(rawText, pos);
-          return;
-        }
-        if (d?.type === 'mutiwindow-images') {
-          const images = (Array.isArray(d.images) ? d.images : []).filter(
-            (x): x is string => typeof x === 'string',
+      const parsedRaw = tryParse(() => JSON.parse(rawText));
+      // 剪贴板 JSON 逐字段读取（type 需 string、images 需数组），不做整体形状假断言（F7）
+      const d =
+        parsedRaw && typeof parsedRaw === 'object'
+          ? (parsedRaw as { type?: unknown; images?: unknown })
+          : null;
+      if (d?.type === 'mutiwindow-nodes') {
+        // 粘贴节点组（含连线），交由宿主（App）解析重建
+        if (typeof onPasteNodeGroup === 'function') onPasteNodeGroup(rawText, pos);
+        return;
+      }
+      if (d?.type === 'mutiwindow-images') {
+        const images = (Array.isArray(d.images) ? d.images : []).filter(
+          (x): x is string => typeof x === 'string',
+        );
+        if (images.length === 0) return;
+        images.forEach((img, i) => {
+          const col = i % 6;
+          const row = Math.floor(i / 6);
+          addNode(
+            'assetNode',
+            { x: pos.x + col * 150, y: pos.y + row * 150 },
+            { assetUrl: img, label: `提取帧 ${i + 1}` },
           );
-          if (images.length === 0) return;
-          images.forEach((img, i) => {
-            const col = i % 6;
-            const row = Math.floor(i / 6);
-            addNode(
-              'assetNode',
-              { x: pos.x + col * 150, y: pos.y + row * 150 },
-              { assetUrl: img, label: `提取帧 ${i + 1}` },
-            );
-          });
-          showToast(`已粘贴 ${images.length} 张提取的图片`);
-          return;
-        }
-      } catch {} // catch-ok: PARSE_FALLBACK
+        });
+        showToast(`已粘贴 ${images.length} 张提取的图片`);
+        return;
+      }
       // 普通文本 → textGenerateNode：经 sanitizePastedText 彻底清洗（压缩连续空格/空行、去行首行尾空格、
       // 统一换行、去不可见脏字符）。用户核心诉求：粘贴表格/富文本时绝不能被当成图片或带样式贴进来，
       // 必须压成干净纯文本，这里按用户要求更强清洗。
@@ -388,11 +385,9 @@ export function useAssetDropPaste({
   const extractImgFromHtml = useCallback((html: string): string => {
     if (!html) return '';
     // 用 DOMParser 解析（不依赖挂在 DOM 上），jsdom 可用；解析失败则正则兜底
-    try {
-      const doc = new DOMParser().parseFromString(String(html), 'text/html');
-      const img = doc.querySelector('img[src]');
-      if (img) return img.getAttribute('src') || '';
-    } catch {} // catch-ok: PARSE_FALLBACK
+    const doc = tryParse(() => new DOMParser().parseFromString(String(html), 'text/html'));
+    const img = doc?.querySelector('img[src]');
+    if (img) return img.getAttribute('src') || '';
     const m = String(html).match(/<img[^>]*\ssrc=["']([^"']+)["']/i);
     return m ? m[1] : '';
   }, []);

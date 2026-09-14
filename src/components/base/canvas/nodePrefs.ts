@@ -33,6 +33,7 @@
  */
 import { useState, useCallback, useRef } from 'react';
 import { contentGet, contentSet } from '../core/contentStore.ts';
+import { attemptQuietly } from '../utils/asyncGuard.ts';
 
 const STORAGE_KEY = 'yimao_node_prefs';
 
@@ -123,15 +124,13 @@ export function mergeNodePrefs(
   prev: NodePrefsMap,
   patch: NodePrefsMap,
 ): NodePrefsMap {
-  try {
+  // 记忆写入失败不影响节点本次参数生效：contentSet 是写入（非读），改走 NON_BLOCKING 原语
+  attemptQuietly(() => {
     const all = loadAll();
     const stored = (all[type] as NodePrefsMap | undefined) ?? {};
     all[type] = { ...stored, ...patch };
     contentSet(STORAGE_KEY, all);
-  } catch {
-    // catch-ok: READ_FALLBACK
-    /* ignore：记忆写入失败不影响节点本次参数生效 */
-  }
+  });
   return { ...prev, ...patch };
 }
 

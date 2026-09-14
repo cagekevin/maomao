@@ -47,6 +47,7 @@
 import { isChromeExtension, KEY_PREFIX } from './storageAdapter.ts';
 import { STORAGE_KEYS } from '../core/contracts.ts';
 import { compilePatternRegex } from '../core/utils.ts';
+import { tryParse } from '../utils/asyncGuard.ts';
 
 /**
  * chrome 扩展全局的类型声明（与 storageAdapter.ts 同步的模块级最小声明）。
@@ -164,12 +165,8 @@ export function mapKeyToDomain(key: string): string {
   if (entry) return entry.domain;
   for (const [k, v] of Object.entries(STORAGE_KEYS)) {
     if (!v.pattern) continue;
-    try {
-      if (compilePatternRegex(k).test(key)) return v.domain;
-    } catch {
-      // catch-ok: PARSE_FALLBACK
-      /* 忽略无效正则模板 */
-    }
+    const re = tryParse(() => compilePatternRegex(k));
+    if (re?.test(key)) return v.domain;
   }
   return 'unknown';
 }

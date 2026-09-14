@@ -18,6 +18,7 @@ import {
   ensureThumbnailTarget,
   resizeImage,
   normalizeSubfolder,
+  resolveUploadFile,
   contentIdOf,
 } from '../utils/fileStore.js';
 import {
@@ -121,13 +122,15 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
     });
     // DB 既有 url 为绝对形式（http://.../files/...），转相对供 `BASE_URL + urlPath` 统一拼接
     const fileUrlPath = dedup.urlPath.replace(/^https?:\/\/[^/]+/, '');
-    // 【TD-12-5】本次真落盘（非 contentId 去重复用）时登记行并写 projectId。
-    // 去重命中说明**行已存在**（命中依据正是既有行的 sha1）→ 无需重复登记；
-    // 既有行归属哪个项目属 content 全局去重策略（docs/122 #6：同内容跨入口/跨 folder 只一行），不在本次扩建范围。
-    if (!dedup.deduped) {
-      const relPath = fileUrlPath.replace(/^\/files\//, '');
-      await recordUploadedFileRow(relPath, { projectId });
-    }
+    // 【TD-12-11 / TD-12-12 裁决 · 2026-09-14】**去重命中也要登记**：
+    // 命中去重时这一步的作用是**刷新既有行的 context**（folder = 本次请求的 subfolder、
+    // name = 本次声明名、project_id = 本次项目）→ 让「上传成功」诚实等价于
+    // 「这份内容现在可在请求的 subfolder 下被看到」。
+    // 改前 `if (!dedup.deduped)` 命中即跳过 → 行留旧目录，而调用方（发送到素材库 / 面板上传）
+    // 已被回以成功 = **假成功**（用户：点了却库里没有）；且行 name 恒为磁盘哈希名。
+    // 物理 url / contentId / id 均不动（docs/122 context-only：id 跟磁盘、folder/name 跟声明）。
+    const relPath = fileUrlPath.replace(/^\/files\//, '');
+    await recordUploadedFileRow(relPath, { projectId, folder: subfolder, name: saveName });
     const thumbnailUrl = dedup.savedPath
       ? await tryGenerateThumbnail(dedup.savedPath, fileUrlPath)
       : undefined;
@@ -151,9 +154,9 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
     // fileUrl 模式：下载远程文件保存（幂等：同一远程 URL → 同一本地文件名，已存在则跳过下载）
     try {
       const result = await saveRemoteUrl(subfolder, fileUrl, filename);
-      // 【TD-12-5】登记行并写 projectId
+      // 【TD-12-5】登记行并写 projectId；【TD-12-11/12-12】folder/name 取**本次声明**
       const rel = result?.url ? relativePathFromFileUrl(result.url) : null;
-      if (rel) await recordUploadedFileRow(rel, { projectId });
+      if (rel) await recordUploadedFileRow(rel, { projectId, folder: subfolder, name: filename });
       uploadLog(200, `fileUrl ${fileUrl}`);
       return json(res, { code: 0, data: result });
     } catch (e) {
@@ -172,6 +175,8 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
     dataUri?: string;
     subfolder?: string;
     filename?: string;
+    /** 行显示名（context 维度：发起方声明的用户命名；不参与磁盘命名 —— 磁盘名是内容寻址） */
+    displayName?: string;
     projectId?: string;
   } | null;
   if (!body) {
@@ -188,14 +193,25 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
   // 单一实现杜绝前端另造一套 hash/校验导致的不一致。非法 dataUri 返回 400，由前端 catch → null 降级保留原 base64。
   if (body.dataUri) {
     const db = await getDb();
-    const url = saveBase64ToFile(body.dataUri, subfolder, db);
+    let url: string | null;
+    try {
+      url = saveBase64ToFile(body.dataUri, subfolder, db);
+    } catch (e) {
+      // 【2026-09-14 失败诚实化】写盘系统故障（磁盘满/权限）≠ 输入非法 —— 不得回 400 Invalid dataUri
+      // （那是错误归因，会把排查引偏）；系统故障就该是 5xx。
+      uploadLog(500, `dataUri 落盘失败: ${(e as Error).message}`);
+      return sendError(res, 'Failed to persist dataUri', 500);
+    }
     if (!url) {
       uploadLog(400, 'dataUri 非法/不可解码');
       return sendError(res, 'Invalid dataUri', 400);
     }
     // 【TD-12-5】登记行并写 projectId（否则行由 rescan 建、project_id 恒 NULL）
+    // 【TD-12-12】行显示名取发起方声明的 `displayName`（base64 落盘名是内容寻址，不能当显示名）
     const rel = relativePathFromFileUrl(url);
-    if (rel) await recordUploadedFileRow(rel, { projectId });
+    if (rel) {
+      await recordUploadedFileRow(rel, { projectId, folder: subfolder, name: body.displayName });
+    }
     uploadLog(200, `dataUri -> ${url}`);
     return json(res, { code: 0, data: { url } });
   }
@@ -209,9 +225,9 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
 
   try {
     const result = await saveRemoteUrl(subfolder, body.fileUrl, filename);
-    // 【TD-12-5】登记行并写 projectId
+    // 【TD-12-5】登记行并写 projectId；【TD-12-11/12-12】folder/name 取**本次声明**
     const rel = result?.url ? relativePathFromFileUrl(result.url) : null;
-    if (rel) await recordUploadedFileRow(rel, { projectId });
+    if (rel) await recordUploadedFileRow(rel, { projectId, folder: subfolder, name: filename });
     uploadLog(200, `fileUrl ${body.fileUrl}`);
     return json(res, { code: 0, data: result });
   } catch (e) {
@@ -472,8 +488,15 @@ export async function handleMkdir(req: IncomingMessage, res: ServerResponse): Pr
     return sendError(res, 'Missing folder field', 400);
   }
 
-  const uploadDir = getUploadDir();
-  const dirPath = path.join(uploadDir, body.folder);
+  // 【2026-09-14 越根守卫】建目录必须过「相对路径 + 越根」校验 —— 此前直接 `path.join(uploadDir, body.folder)`，
+  // 不拒 `..`：`{"folder":"../../x"}` 可写到 uploads 之外（唯一缺守卫的目录写入口）。
+  // 复用既有原语 `resolveUploadFile`（拒空 / `.` / `..`，且 resolve 后必须仍在 uploadDir 内），
+  // **不额外收紧**为顶层根白名单：mkdir 只建空目录（后续落盘仍受 normalizeSubfolder 白名单约束，
+  // 那份判据只该住在落盘处），以免改动既有 mkdir 契约。
+  const dirPath = resolveUploadFile(body.folder);
+  if (!dirPath) {
+    return sendError(res, 'Invalid folder path', 400);
+  }
   ensureDir(dirPath);
 
   return json(res, { code: 0, data: { ok: true } });

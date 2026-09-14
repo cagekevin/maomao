@@ -14,6 +14,13 @@
  * 【机制】白名单**渐进收口**：`WHITELIST` 内目录必须零 noImplicitAny 错误（不达标即红）；
  * 白名单外暂不阻塞（存量债，属 TD-09-1「待翻新」）。
  *
+ * 【★闸的申诉口 · 三问（2026-09-14 入规 → 架构师心法 §零.4.2）】
+ *   Q1 守什么：**结构偏好闸** —— `noImplicitAny` 渐进收口 = **债务清单**，不是物理红线。
+ *   Q2 何时该改：**"加白名单" = 加约束（越加越严）** → 它天然免疫"为过闸而放松"（本仓健康样本）；
+ *               某目录长期无法达标 → **记债**，不放宽。
+ *   Q3 怎么改：改 `scripts/strict-src-whitelist.json`（真源数据，与 `strict-report.mjs` 共用）；
+ *               **方向只允许收窄** —— 新目录收口后加进去；禁止移除已达标的目录（那是放松）。
+ *
  * 用法：`node scripts/check-strict-src.mjs`（挂 `npm run check:strict-src` / pre-push）
  */
 import { execSync } from 'node:child_process';

@@ -36,7 +36,7 @@ import {
 import { ensureModel, disposeModel, ensureRuntimeImportMap } from './loader.ts';
 import { uploadFileToLocal } from '../api/filesApi.ts';
 import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
-import { withTimeout, isTimeoutError } from '../utils/asyncGuard.ts';
+import { withTimeout, isTimeoutError, releaseQuietly } from '../utils/asyncGuard.ts';
 import { classifyError } from '../utils/genErrors.ts';
 import { showToast } from '../core/toastStore.ts';
 import { logger } from '../core/logger.ts';
@@ -447,13 +447,10 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
       setConverting(false);
       // G3：释放模型运行时与录像流句柄
       disposeModel();
-      try {
-        // 原为 `a && b()` 惯用短路语句（结果本就被丢弃，oxlint no-unused-expressions 误报），改 if 更直白
+      // 原为 `a && b()` 惯用短路语句（结果本就被丢弃，oxlint no-unused-expressions 误报），改 if 更直白
+      releaseQuietly(() => {
         if (rec?.recorder.state === 'recording') rec.recorder.stop();
-      } catch {
-        // catch-ok: RELEASE_FAIL
-        /* 忽略 */
-      }
+      });
     }
   }
 

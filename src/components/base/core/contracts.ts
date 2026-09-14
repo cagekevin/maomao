@@ -98,10 +98,10 @@ export const EVENTS: Record<string, EventRegistryEntry> = {
   },
   // 素材发送成功事件（P1-D 收口：原 resourceStore 裸回调桥 → eventBus；resourceStore 保留薄封装 onResourceSent/emitResourceSent）
   'resource:sent': {
-    from: ['resourceStore.ts:668'],
-    to: ['resourceStore.ts:665'],
+    from: ['resourceStore.ts:537'],
+    to: ['resourceStore.ts:534'],
     payload: '{ folder }',
-    note: '【TD-12-10 语义=「素材已落盘可用」】发送方 sendToResourceLibrary 在**落盘完成且成功**后才广播（此前在发起处同步广播 → 面板 rescan 时后端还没有该文件 = 用户报障「点了却库里没有」）。订阅方：ResourceLibrary 经薄封装 onResourceSent 消费（ResourceLibrary.tsx 内无 subscribe 字面量，故本表 to 只列真实 subscribe 点），收到后切目录并强制重拉（同目录也重拉，见其 reloadTick）。生产使用',
+    note: '【TD-12-10 语义=「素材已落盘**且已归位到目标目录**，可用」】发送方 sendToResourceLibrary 在三段（落盘 → 归位 context-only 改行 folder → 广播）全部成功后才发（此前在发起处同步广播 → 面板 rescan 时后端还没有该文件/行 = 用户报障「点了却库里没有」）。订阅方：ResourceLibrary 经薄封装 onResourceSent 消费（该文件内无 subscribe 字面量，故本表 to 只列真实 subscribe 点），收到后切目录并重拉（同目录也重拉，见其 refreshSignal）。生产使用',
   },
   // 'resource:renamed' 已于 2026-09-12 删除：四态 url 改写广播随 context-only 改名已无订阅方（发布点亦被守卫为 no-op），
   // 改名/移动改由 contentId 模型处理，属「第二机制」死脚手架（见 docs/122）。

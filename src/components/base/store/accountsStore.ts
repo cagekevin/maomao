@@ -13,6 +13,7 @@ import { useSyncExternalStore } from 'react';
 import { contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
 import { askConfirm } from '../core/confirmStore.ts';
 import { generateId } from '../core/idGen.ts';
+import { attemptQuietly, attemptQuietlyAsync } from '../utils/asyncGuard.ts';
 
 const STORAGE_KEY = 'yimao_accounts';
 
@@ -337,24 +338,18 @@ async function collectAllCookies(url: string): Promise<AccountCookie[]> {
   };
 
   // 1) 当前 url 域（含父域）兜底
-  try {
+  await attemptQuietlyAsync(async () => {
     const base = await chrome.cookies!.getAll({ url });
     base.forEach(push);
-  } catch {
-    // catch-ok: NON_BLOCKING
-    /* 忽略 */
-  }
+  });
 
   // 2) 逐级上溯域名 getAll({domain})，覆盖其它子域/顶级域的登录 cookie
   const host = hostOf(url);
   for (const dom of domainAscendants(host)) {
-    try {
+    await attemptQuietlyAsync(async () => {
       const list = await chrome.cookies!.getAll({ domain: dom });
       list.forEach(push);
-    } catch {
-      // catch-ok: NON_BLOCKING
-      /* 忽略 */
-    }
+    });
   }
   return out;
 }
@@ -438,15 +433,12 @@ async function writeTabLocalStorage(
       target: { tabId: tab.id },
       world: 'MAIN',
       func: (store) => {
-        try {
-          localStorage.clear();
-          if (store && typeof store === 'object') {
-            const rec = store as Record<string, string>;
+        localStorage.clear();
+        if (store && typeof store === 'object') {
+          const rec = store as Record<string, string>;
+          attemptQuietly(() => {
             for (const k of Object.keys(rec)) localStorage.setItem(k, rec[k]);
-          }
-        } catch {
-          // catch-ok: NON_BLOCKING
-          /* 忽略 */
+          });
         }
       },
       args: [data],
@@ -579,13 +571,10 @@ export async function activateEnv(envId: string): Promise<void> {
   if (!env) return;
   await syncCookies(env);
   if (isExtensionEnv() && env.siteUrl) {
-    try {
+    await attemptQuietlyAsync(async () => {
       const [tab] = await chrome.tabs!.query({ active: true, currentWindow: true });
       if (tab) chrome.tabs!.update(tab.id, { url: env.siteUrl });
-    } catch {
-      // catch-ok: NON_BLOCKING
-      /* ignore */
-    }
+    });
   }
   setState({ activeId: envId });
 }
@@ -601,16 +590,13 @@ async function syncCookies(env: AccountEnv): Promise<void> {
     const envNames = new Set<string>((env.cookies || []).map((e) => e.name));
     for (const c of current) {
       if (!envNames.has(c.name)) {
-        try {
+        await attemptQuietlyAsync(async () => {
           await chrome.cookies!.remove({ url, name: c.name, storeId: c.storeId });
-        } catch {
-          // catch-ok: NON_BLOCKING
-          /* ignore */
-        }
+        });
       }
     }
     for (const t of env.cookies || []) {
-      try {
+      await attemptQuietlyAsync(async () => {
         // 出站体含条件追加字段，显式标注为可索引记录
         const setOpts: Record<string, unknown> = { url, name: t.name, value: t.value };
         if (t.domain !== undefined) setOpts.domain = t.domain;
@@ -621,10 +607,7 @@ async function syncCookies(env: AccountEnv): Promise<void> {
         if (t.storeId) setOpts.storeId = t.storeId;
         if (t.sameSite) setOpts.sameSite = t.sameSite;
         await chrome.cookies!.set(setOpts);
-      } catch {
-        // catch-ok: NON_BLOCKING
-        /* ignore */
-      }
+      });
     }
     // 连带写回该环境的 localStorage 快照（登录态 token 常存这里，一并恢复免重登）
     await writeTabLocalStorage(env.localStorage);
@@ -655,22 +638,17 @@ export async function clearCookies(
     let cleared = 0;
     for (const c of current) {
       if (all || LOGIN_COOKIE_WHITELIST.includes(c.name)) {
-        try {
+        await attemptQuietlyAsync(async () => {
           await chrome.cookies!.remove({ url, name: c.name, storeId: c.storeId });
           cleared++;
-        } catch {
-          // catch-ok: NON_BLOCKING
-          /* ignore */
-        }
+        });
       }
     }
     if (tab.id) {
-      try {
-        await chrome.tabs!.reload(tab.id);
-      } catch {
-        // catch-ok: NON_BLOCKING
-        /* ignore */
-      }
+      const tid = tab.id;
+      await attemptQuietlyAsync(async () => {
+        await chrome.tabs!.reload(tid);
+      });
     }
     return { ok: true, count: cleared, error: '' };
   } catch {

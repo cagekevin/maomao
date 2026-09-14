@@ -68,6 +68,7 @@ import { STORAGE_KEYS } from './contracts.ts';
 import type { StorageKeyMeta } from './contracts.ts';
 import { logger } from './logger.ts';
 import { compilePatternRegex } from './utils.ts';
+import { tryParse as tryParseSafe } from '../utils/asyncGuard.ts';
 import { withTimeout } from '../utils/asyncGuard.ts';
 
 /** 存储后端：local(localStorage) / kv(云端 KV) / native(原生桥) */
@@ -189,12 +190,8 @@ function matchPatternEntry(
   for (const [k, v] of Object.entries(KEYS)) {
     if (!v.pattern) continue;
     if (predicate && !predicate(v)) continue;
-    try {
-      if (compilePatternRegex(k).test(key)) return v;
-    } catch {
-      // catch-ok: NON_BLOCKING
-      /* 忽略无效正则 */
-    }
+    const re = tryParseSafe(() => compilePatternRegex(k));
+    if (re?.test(key)) return v;
   }
   return null;
 }

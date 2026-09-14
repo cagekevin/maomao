@@ -49,7 +49,8 @@ describe('clamp（通用数值钳制）', () => {
 });
 
 describe('safeFileName（文件名安全化统一出口）', () => {
-  // 行为与 resourceStore.safeResourceBase 同源（stripExt + 空白归一 + 非法字符 + 回退）
+  // 全库唯一实现（stripExt + 空白归一 + 非法字符 + 回退）；filesApi.persistUrlToUploads 亦用它
+  // （store 侧原同源包装 safeResourceBase 已随落盘判据收口删除，零生产调用方）
   it('后续非法字符替换、空白归一', () => {
     expect(safeFileName('a/b\\c')).toBe('a_b_c');
     expect(safeFileName('猫 狗')).toBe('猫_狗');

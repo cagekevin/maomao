@@ -42,6 +42,7 @@ import { UPLOAD_DIRS } from './uploadDirs.ts';
 import { safeFileName } from '../core/utils.ts';
 // TD-22-1：crossOrigin 单点裁决（同源不设 / 真跨源才设 anonymous），不再就地恒设
 import { setCrossOriginForReadable } from './captureFrame.ts';
+import { releaseQuietly } from './asyncGuard.ts';
 
 /** 进度/结果公共形状 */
 interface ProgressOptions {
@@ -902,9 +903,7 @@ export async function videoToGif(
   }
   encoder.finish();
   video.removeAttribute('src');
-  try {
-    video.load();
-  } catch {} // catch-ok: RELEASE_FAIL
+  releaseQuietly(() => video.load());
   const bytes = encoder.bytes();
   const arr = new Uint8Array(bytes.length);
   arr.set(bytes);

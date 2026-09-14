@@ -160,7 +160,6 @@ function GeneratedView() {
   const [newFolderName, setNewFolderName] = useState('');
   const [renameTarget, setRenameTarget] = useState<ResourceItem | null>(null); // 正在重命名的资源
   const [renameName, setRenameName] = useState('');
-  const [_menuItemId, _setMenuItemId] = useState<string | null>(null); // 卡片「⋯」菜单打开的卡片 id
 
   const resetTokenRef = useRef(0);
 

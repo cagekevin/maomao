@@ -156,13 +156,14 @@ function ResourceLibrary() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
-  // 【TD-12-10】「同类刷新」计数器：收不到 onResourceSent 时同值 setFolder 不触发重跑，用它强制重拉一次
-  const [reloadTick, setReloadTick] = useState(0);
+  // 外部事件驱动的**重拉信号**（机制，不是兜底）：`resource:sent` 自带目标目录，而目标目录可能与
+  // 本面板当前目录**相同** —— setFolder 同值不触发上面的 effect，故需这个单调递增信号保证
+  // 「同目录再发送也重拉」。两 state 各司其职（目录 / 重拉信号），React 批处理合并为一次 effect。
+  const [refreshSignal, setRefreshSignal] = useState(0);
   const [creating, setCreating] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [renameTarget, setRenameTarget] = useState<ResourceItem | null>(null); // 正在重命名的资源
   const [renameName, setRenameName] = useState('');
-  const [_menuItemId, _setMenuItemId] = useState<string | null>(null); // 卡片「⋯」菜单打开的卡片 id
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -214,22 +215,20 @@ function ResourceLibrary() {
     [connected, currentFolder, projectId],
   );
 
-  // 首次挂载 + 目录变化 + 项目切换 → 重置到第 1 页并 rescan
+  // 首次挂载 + 目录变化 + 项目切换 + 重拉信号 → 重置到第 1 页并 rescan
   useEffect(() => {
     if (!connected) return;
     reset(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, currentFolder, projectId, reloadTick]);
+  }, [connected, currentFolder, projectId, refreshSignal]);
 
-  // 订阅「素材已落盘」事件：自动切到落盘目录并重新 rescan 拉取，
-  // 解决此前「点完要切目录/点别处才刷新」的体感问题（resourceStore 与面板互不相通）。
-  // 【TD-12-10】该事件现由**落盘完成**发出（此前在落盘前发出 → 拉到的还是旧列表）；
-  // 且已在目标目录时 setFolder 传同值不触发上面的 effect —— 用 reloadTick 兜底强制重拉。
+  // 订阅「素材已落盘可用」事件（`resource:sent`）：切到落盘目录 + 触发重拉。
+  // 该事件由发送方在**落盘 + 归位之后**发出（见 resourceStore.sendToResourceLibrary）——
+  // 收到即代表后端「文件 + 行 + 目录」已齐备，此刻 rescan 才拉得到它。
   useEffect(() => {
     return onResourceSent((sentFolder: string) => {
-      const target = sentFolder || 'migrated';
-      setFolder(target);
-      setReloadTick((t) => t + 1);
+      setFolder(sentFolder || 'migrated');
+      setRefreshSignal((n) => n + 1);
     });
   }, []);
 

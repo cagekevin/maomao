@@ -27,6 +27,14 @@
  * 【守卫 vs catch 职责边界】守卫只管「契约违约 → fail-fast」；catch 管「运行时可预期失败 → 留痕
  *   或标 catch-ok 结构性豁免」。用前置守卫防运行时意外 = 假守卫。详见 spec/CONTEXT.md §三。
  *
+ * 【★闸的申诉口 · 三问（2026-09-14 入规 → 架构师心法 §零.4.2）】
+ *   Q1 守什么：**红线闸** —— "失败必须可见" + 守卫/catch 职责边界（已写入 `spec/CONTEXT.md §三`）。
+ *   Q2 何时该改：**同一 CODE 被 ≥3 处使用且语义相同时 → 该升级为「收口原语」**（调用点不再需要豁免），
+ *               而不是往 `catchOk.ts` 加第 12 个码。**码数应单调下降**：码表膨胀 = 闸在退化成文本通道
+ *               （TD-02-26 的病理会以"更贵的形式"复发）。
+ *   Q3 怎么改：优先在 `base/utils/asyncGuard.ts`（或 `guardKit`）新增**原语**（唯一实现 + 自带理由 + 配测试）；
+ *               `catchOk.ts` **只收窄**（新增码须写明"为什么不能收口成原语"）。
+ *
  * 用法：node scripts/check-silent-catch.mjs（挂 npm run check:catch，经 scripts/gates-run.mjs
  *   在 pre-push 与 CI 各跑一次，单一验证阶段 push；不进 build/commit 阶段）。
  */

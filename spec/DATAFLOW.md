@@ -259,7 +259,19 @@ api/filesApi 🟢（全站文件域单点：upload[FormData/JSON 双模式] / mo
 **磁盘定位真源**：不可变 `resources.url` 派生（后端 `relativePathFromFileUrl` / 前端 `relativePathFromUrl`，口径一致）。
 **改名 / 移动**：一律 context-only（只 `UPDATE name/folder`，不碰磁盘 / 不改 url / contentId）；无 row → 404 明确失败（不假成功）。
 **项目隔离**：上传落盘即写 resource 行 `project_id`（`recordUploadedFileRow`，四分支均接 projectId）。
-**反馈权**：`sendToResourceLibrary` 返回 `PersistOutcome`，调用方按 `ok` 决定 toast 时机与真伪；`emitResourceSent` 在**落盘成功之后**广播。
+**上传「成功」的含义（2026-09-14 十轮裁决）**：= **「这份内容现在可在请求的 subfolder 下被看到」** —— 命中去重（内容已存在）时**也要**刷新既有行的 context；物理 `url` / `contentId` / `id` 一律不动。
+**context 三列的不变式（十一轮收敛 · 唯一真源）**：
+
+| 列 | 随什么变 | 为什么 |
+| --- | --- | --- |
+| `folder`（UI 分类） | **最近声明** | 上传/归类到哪它就在哪（「点了却库里没有」的解药） |
+| `name`（显示名） | **显式/先到者优先** | 已命名（非空且 ≠ 磁盘哈希名）→ 不被再次上传覆盖（`resolveDisplayName`）；未命名 → 采用本次声明名 |
+| `project_id`（归属） | **首次声明，不随最近声明漂移** | 否则「在项目 B 再上传项目 A 已有的同内容图」会把素材搬走 → 回 A 时直接不可见 |
+
+`id` / `url` 由磁盘 `rel` 派生（`id` 跟磁盘、context 跟声明）；磁盘名仍是内容寻址 `sha1.<ext>`，改名/归类一律不碰磁盘。
+
+**上传/扫描的失败语义（十二轮）**：非法输入 → `400`（`Invalid dataUri`）· **写盘系统故障 → `500`**（`Failed to persist dataUri`）——两者**不得压成同一响应**（错误归因）；`POST /api/resources/rescan` 读不到 uploads 目录 → `500`（不再假报 `ok:0` 条）；`POST /api/files/mkdir` 过**越根守卫**（复用 `resolveUploadFile`，与其它目录入口同源）。
+**发送到素材库 = 三段顺序（2026-09-14 九轮收口）**：① 落盘 `filesApi.persistUrlToUploads`（**判据唯一**：data: / blob: / http(s) / 已是本机 `/files/`——后者 `already-local` **不重传**）→ ② `rescanResources`（resource 行由后端建）→ ③ **归位** `filesApi.moveFile`（context-only 改行 `folder` 到目标目录；**缺这一步 = 只落盘不入库**，素材库目录下拉不到）→ ④ 广播 `emitResourceSent`。返回 `PersistOutcome`（判别联合，失败词表含 `relocate-failed`），调用方按 `ok` 决定 toast 时机与真伪。
 
 ### 关键边
 
@@ -514,6 +526,9 @@ scripts/check-arch.mjs 🟢（架构规则**唯一落点**：循环依赖/分层
 scripts/check-silent-catch.mjs 🟢（静默吞闸 · 豁免通道收口为 catchOk.ts 登记表白名单）
 scripts/debt.mjs 🟢（债务账本读写唯一入口）
 scripts/probe.mjs 🟢（先红后绿探针执行器：注入 → 跑 → 断言 → 自动还原）
+scripts/check-gates.mjs 🟢（元层闸：在册闸脚本必须带【申诉口】三问）
+scripts/check-node-handles.mjs 🔴（端口豁免 · 与真源重复表述且半漂移）
+scripts/check-node-data.mjs 🟢（闸内豁免表 1 条 · 带原因 + 过期自检）
 docs/audit-archive/*.md ⚪（历史报告归档保留，非活配置）
 ```
 

@@ -10,7 +10,7 @@
  *
  * 分组（scripts/gates.manifest.json::phases）：
  *   build   → 7 道廉价构建契约（无 tsc），只在 npm run build 时跑
- *   push    → 7 道代码闸（合并原 commit+push：type-check/any/catch/events + strict-src/arch/dead-code）
+ *   push    → 8 道代码闸（合并原 commit+push：type-check/any/catch/events + strict-src/arch/dead-code + gates 元层）
  *   health  → 全量巡检 = 所有闸 + healthOnly
  *
  * 用法：node scripts/gates-run.mjs build | push | health | list

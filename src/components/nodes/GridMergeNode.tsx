@@ -23,7 +23,7 @@ import { logger } from '../base/core/logger.ts';
 import { generateId } from '../base/core/idGen.ts';
 // 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
 // 替代本文件原有的无超时私有实现（图片挂起会让宫格合成永久卡住）。
-import { loadImageOrNull } from '../base/utils/asyncGuard.ts';
+import { loadImageOrNull, releaseQuietly } from '../base/utils/asyncGuard.ts';
 
 /* ════════════════════════════════════════════════════════════════
  * 图片拼图节点（复刻官方 Yo.jsx / gridMergeNode）
@@ -518,9 +518,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
       document.body.appendChild(ghost);
       e.dataTransfer.setDragImage(ghost, 0, 0);
       setTimeout(() => {
-        try {
-          document.body.removeChild(ghost);
-        } catch {} // catch-ok: PARSE_FALLBACK
+        releaseQuietly(() => document.body.removeChild(ghost));
       }, 0);
     },
     onDragEnter: (e: React.DragEvent<HTMLDivElement>) => {

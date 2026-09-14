@@ -31,7 +31,7 @@ import { useNodeResize } from '../base/core/uiHooks.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { logger } from '../base/core/logger.ts';
 import { classifyError } from '../base/utils/genErrors.ts';
-import { withTimeout, isTimeoutError } from '../base/utils/asyncGuard.ts';
+import { withTimeout, isTimeoutError, releaseQuietly } from '../base/utils/asyncGuard.ts';
 import type { ProcessVideoOptions } from '../base/utils/videoEngine.ts';
 import {
   readVideoMetadata,
@@ -1054,9 +1054,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           'GIF 生成超时（可能解码卡死）',
           abort.signal,
           () => {
-            try {
-              controller.cancel();
-            } catch {} // catch-ok: RELEASE_FAIL
+            releaseQuietly(() => controller.cancel());
           },
         );
         // TD-22-5：GIF 产物也走唯一落盘基座（旧实现 createObjectURL 临时 URL 直接喂节点 → 刷新即失效）。
@@ -1117,9 +1115,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           '视频拼接超时（可能解码卡死）',
           abort.signal,
           () => {
-            try {
-              controller.cancel();
-            } catch {} // catch-ok: RELEASE_FAIL
+            releaseQuietly(() => controller.cancel());
           },
         );
       } else {
@@ -1156,9 +1152,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           '视频处理超时（可能编码卡死）',
           abort.signal,
           () => {
-            try {
-              controller.cancel();
-            } catch {} // catch-ok: RELEASE_FAIL
+            releaseQuietly(() => controller.cancel());
           },
         );
       }

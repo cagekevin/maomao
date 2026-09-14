@@ -28,7 +28,7 @@
 import { chatStream } from '@/components/base/api/index.ts';
 import type { GenerationProvider } from '@/types';
 import type { ChatMessage as ApiChatMessage } from '@/components/base/api/generate.ts';
-import { withTimeout } from '../../base/utils/asyncGuard.ts';
+import { withTimeout, releaseQuietly } from '../../base/utils/asyncGuard.ts';
 import { CHAT_TIMEOUT } from '../../base/core/config.ts';
 // 复用 agentCore 的权威消息/工具调用类型（同 runtime 目录，避免重定义漂移）
 import type { ChatMessage, ToolCall, SSEAccumulator } from './agentCore.ts';
@@ -262,12 +262,7 @@ export async function roundTrip(
     'AI助手响应超时',
     signal,
     () => {
-      try {
-        res?.body?.cancel?.();
-      } catch {
-        // catch-ok: PARSE_FALLBACK
-        /* 中断响应流 */
-      }
+      releaseQuietly(() => res?.body?.cancel?.());
     },
   );
 }

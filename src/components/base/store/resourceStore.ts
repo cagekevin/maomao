@@ -12,26 +12,37 @@
  * 素材字段：{ id, folder, type, url, name, size, ts }
  *  type: 'image' | 'video' | 'audio'
  *
- * 接真系统：本 store 是前端本地缓存（localStorage）；
- * 「发送到素材库」（sendToResourceLibrary）现已同时把 URL 素材落盘到 localTool
- * （POST /api/files/upload，subfolder=folder）并 rescan，素材库面板（读 /api/resources）可读到。
+ * 接真系统：本 store 是前端本地缓存（localStorage），后端 `resources` 表才是落盘真相
+ * （素材库面板读 /api/resources，画布 asset 经 contentId → 本 store 解析）。
+ * 「发送到素材库」（sendToResourceLibrary）三段顺序 —— 缺一段即用户报障「点了却库里没有」：
+ *   ① 落盘 URL → uploads（判据唯一在 `filesApi.persistUrlToUploads`；已在 uploads 的不重传）
+ *   ② 归位：把 resource 行认到目标目录（context-only，复用 filesApi.moveFile）
+ *   ③ 广播 `resource:sent` → 面板 rescan 拉取（此刻文件/行/目录三件齐备）
  */
 import { useMemo, useSyncExternalStore } from 'react';
 import { contentGet, contentSet, createDebouncedPersist } from '../core/contentStore.ts';
 import { isStorageReady, onStorageReady } from '../storage/index.ts';
 import { generateId } from '../core/idGen.ts';
-import { httpRequest } from '../api/httpClient.ts';
 import '../core/config.ts';
 import { rescanResources } from '../api/localToolApi.ts';
 import type { ResourceItem } from '../api/localToolApi.ts';
-import { saveInlineToLocal, uploadFileToLocal, EXT_BY_TYPE } from '../api/filesApi.ts';
+import {
+  persistUrlToUploads,
+  moveFile,
+  resolveMovePaths,
+  relativePathFromUrl,
+} from '../api/filesApi.ts';
+import type { PersistOutcome } from '../api/filesApi.ts';
 import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
+import { tryParse } from '../utils/asyncGuard.ts';
 import { detectFileType } from '../utils/assetType.ts';
-import { safeFileName } from '../core/utils.ts';
 import { logger } from '../core/logger.ts';
 import { publish, subscribe } from '../core/eventBus.ts';
 import { getCurrentProject, useCurrentProjectId } from './projectStore.ts';
 import type { AssetType } from '@/types';
+
+/** 落盘结果契约由**拥有真相的那一层**（文件域 filesApi）定义，本 store 只转出（消费方零改动）。 */
+export type { PersistOutcome };
 
 /** 素材记录 */
 export interface Resource {
@@ -260,19 +271,6 @@ export function filterByFolder(list: Resource[], folder: string | null): Resourc
 export type NewResourceItem = Partial<Resource>;
 
 /**
- * `persistUrlToBackend` 的结果 —— **判别联合**（禁把「成功」与「失败」压成一个 `null`）。
- * 【TD-12-2】此前返回 `string | null`：消费方无法区分「落盘失败」与「无需校正」，
- * 且 `rescan` 失败会被外层 catch **重分类**成「落盘失败」，连已落盘成功的 url 一起丢弃。
- *
- * 注：两侧**各带对方的键（可选 `undefined`）**是本仓 tsconfig 的硬约束 —— `strictNullChecks: false`
- * 下 TS 不对 `boolean` 判别属性做收窄（实测：`{ok:true;url} | {ok:false;reason}` 访问 `.reason` 报
- * TS2339）。写成双方都带键后，`ok` 仍是判别位、语义不变。
- */
-export type PersistOutcome =
-  | { ok: true; url: string; reason?: undefined }
-  | { ok: false; url?: undefined; reason: 'upload-failed' | 'exception' | 'empty' };
-
-/**
  * 把一条「缺字段的素材入参」规范化为完整 Resource 记录（纯函数，供 addResources 复用）。
  * - id 缺省 genId()；folder 缺省取入参 folder；type 缺省 'image'；name 缺省 '未命名'；size/ts 缺省 0/now。
  * - 不 mutate item、不触发任何副作用；返回新对象（登记语义，无共享可变态）。
@@ -349,18 +347,21 @@ export function addResources(
  * - 自动按 URL/文件名推断类型（detectAssetType）；
  * - 默认落入「素材库(migrated)」目录；可传 folder 覆盖（如 'tasks'）；
  * - 名称优先用传入 name，否则用 URL 文件名，再否则「未命名」。
- * 【结果契约 · TD-12-10】返回落盘结果（`PersistOutcome` 判别联合）——**「成功」由落盘完成层说了算**：
- * 此前本函数 `void` 掉落盘 Promise、并在落盘**之前**同步 `emitResourceSent`，于是
- *   ① 调用方只能提前弹「已发送」成功 toast（落盘失败也宣告成功 = 假成功）；
- *   ② 面板收到刷新信号时文件还没落盘 → rescan 拉不到新素材（用户报障「点了却库里没有」）。
- * 现在：占位项仍**同步**登记（store 立即可见）→ `await` 落盘 → **成功才**校正 url 并广播刷新。
- * 调用方按返回结果决定 toast 时机与真伪（见 AssetNode / ImageGenerate）。
  *
- * 【后端落盘】素材经 localTool 落盘到对应 folder 目录（幂等 sha1 去重）后 rescan，面板即可读到。
- * data: → multipart；http(s) → 下载成 Blob 后 multipart；blob: → fetch 成 File 后 multipart。
+ * 【三段顺序 = 真相顺序（TD-12-10 收口轮）】「发送到素材库」= 让素材**在素材库目录下可用**，
+ * 而不只是「文件落到了磁盘某处」——三段缺一即用户报障：
+ *   ① 落盘（必要时）：URL → uploads 持久 url。判据唯一在 `filesApi.persistUrlToUploads`；
+ *      已是本机 /files/ 的**不重传**（重传会撞后端 contentId 去重、行留旧目录 = 假成功）。
+ *   ② 归位：把该素材的**资源行**认到目标目录（`relocateToFolder` → filesApi.moveFile 的
+ *      context-only 移动原语）。只落盘不归位 → 素材库目录下拉不到它（「点了却库里没有」的结构根因）。
+ *   ③ 广播：此刻后端「文件 + 行 + 目录」三件齐备，面板 rescan 才拉得到。
+ * 三段的结果如实返回（判别联合），调用方据此决定 toast 真伪与时机（AssetNode / ImageGenerate）。
  *
- * @returns {Promise<PersistOutcome>} 落盘结果；调用方按 `ok` 决定成功/失败反馈。
- *   `reason:'empty'` = 无 url 可发送（调用方一般已提前判空）。
+ * 【登记】仅在落盘成功后登记一条**带后端权威 url** 的行（改前：先登记占位行、成功后打补丁校正、
+ * 失败则永久残留一条假素材）。登记 id 由 store 生成、与后端路径 id 不同 →
+ * `mergeResourcesFromBackend` 按 url 归并去重（既有机制，本函数不改其语义）。
+ *
+ * @returns {Promise<PersistOutcome>} 结果；`ok:false` 的 `reason` 词表见 filesApi.PersistFailReason。
  */
 export async function sendToResourceLibrary(
   url: string,
@@ -370,190 +371,96 @@ export async function sendToResourceLibrary(
     type,
   }: { name?: string; folder?: string; type?: AssetType } = {},
 ): Promise<PersistOutcome> {
-  logger.debug(
-    'resourceStore',
-    '[SEND] sendToResourceLibrary 进入',
-    { urlPrefix: String(url).slice(0, 60), folder, name },
-    { module: 'resource' },
-  );
   if (!url) return { ok: false, reason: 'empty' };
-  let fname = '未命名';
-  try {
-    const fromUrl = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
-    if (fromUrl && !/^blob:|^data:/.test(url)) fname = fromUrl;
-  } catch {} // catch-ok: PARSE_FALLBACK
+  const fromUrl = tryParse(
+    () => decodeURIComponent(new URL(url).pathname.split('/').pop() || ''),
+    '',
+  );
+  const fname = fromUrl && !/^blob:|^data:/.test(url) ? fromUrl : '未命名';
   const resourceName = (name && String(name).trim()) || fname;
   const detectedType = type || detectAssetType({ name: fname, type: '' });
-  // docs/122 #3：发送到素材库登记时带上当前 projectId（resource 逻辑引用层按项目隔离；渲染过滤见 resourcesOfProject）
-  const added = addResources(
-    [{ url, name: resourceName, type: detectedType, projectId: currentProjectId() || undefined }],
-    folder,
-  );
+  // docs/122 #3：登记带当前 projectId（resource 逻辑引用层按项目隔离；渲染过滤见 resourcesOfProject）
+  const projectId = currentProjectId() || undefined;
 
-  // 【名字保留】落盘文件名用用户起的 resourceName（安全化），使素材库面板读到的资源名 = 用户起的名，
-  // 从素材库拖回画布时 label 即该名，@名 匹配不再丢名字（见 docs/70 问题2）。
-  logger.debug(
-    'resourceStore',
-    '[SEND] 准备落盘',
-    { urlPrefix: String(url).slice(0, 60), folder, name: resourceName },
-    { module: 'resource' },
-  );
-  const outcome = await persistUrlToBackend(url, folder, resourceName, detectedType);
-  if (outcome.ok) {
-    // 【TD-12-2】落盘成功后把「本地占位项」url 校正为后端持久 url：
-    // 面板拉取合并（mergeResourcesFromBackend）按 url 归并 → 同一素材不再并存两行。
-    const placeholderId = added[0]?.id;
-    if (placeholderId) patchResource(placeholderId, { url: outcome.url });
-    // 【TD-12-10】广播放在**落盘完成之后**：此刻后端已有该文件，面板 rescan 才能拉到。
-    // （此前在落盘前广播 → 面板刷新时后端无文件 = 「点了却库里没有」的直接机制。）
-    emitResourceSent(folder);
-  } else {
-    // 落盘未成功 → 占位项**保留原 url**（本会话不与后端归并），且**不广播刷新**：
-    // 后端没有该素材，刷新只会让面板白跑一趟；失败可见性由调用方按本结果提示。
-    // 原因已在 persistUrlToBackend 内 logger.error 留痕。
-    logger.debug('resourceStore', '[SEND] 落盘未成功：占位项保留原 url，不广播刷新', {
-      reason: outcome.reason,
-      folder,
-    });
+  const outcome = await persistUrlToUploads(url, {
+    folder,
+    name: resourceName,
+    type: detectedType,
+    projectId,
+  });
+  if (!outcome.ok) {
+    // 失败不登记、不广播（前端不留假素材；失败可见性由调用方按本结果提示）
+    logger.error(
+      'resourceStore',
+      '发送到素材库失败',
+      `${outcome.reason}${outcome.message ? `: ${outcome.message}` : ''} | ${String(url).slice(0, 80)}`,
+    );
+    return outcome;
   }
+  await rescanUploads('发送到素材库');
+  const relocated = await relocateToFolder(outcome.url, folder);
+  if (!relocated.ok) return relocated;
+  // 登记放在**全链路成功之后**（归位失败时不在本地留下「已进素材库」的假行）
+  addResources([{ url: outcome.url, name: resourceName, type: detectedType, projectId }], folder);
+  emitResourceSent(folder);
   return outcome;
 }
 
-/** 文件名安全化：去掉非法字符/空白，返回「可作磁盘文件名的 base」，空则回退 'asset'。
- *  后缀由调用方按类型拼接，避免名字带已有扩展名造成歧义（如「猫.png」存成「猫.png.png」）。
- *  行为与 utils.safeFileName(stripExt, fallback:'asset') 逐字节一致（有单测钉住）。
- *  @param {string} [name] 用户起的名字
- *  @returns {string} 安全文件名 base */
-export function safeResourceBase(name?: string): string {
-  return safeFileName(name, { stripExt: true, fallback: 'asset' });
-}
-
-/** 把单个 URL 素材落盘到后端指定 folder 目录，成功后 rescan。
- *  @param {string} url
- *  @param {string} folder
- *  @param {string} [name] 用户起的名字（用于落盘文件名，保留给素材库面板/拖回画布）
- *  @param {string} [type] 素材类型（image/video/audio/text，推扩展名）
- *  @returns {Promise<PersistOutcome>} `{ok:true,url}` 本地持久 url / `{ok:false,reason}` 失败原因。
- *    【TD-12-2】调用方据此把本地占位项的 url 校正为后端持久 url，使面板合并时可按 url 归并。 */
-async function persistUrlToBackend(
+/**
+ * 把一条素材**归位**到目标目录（context-only：只改 resource 行的 folder，磁盘文件与 url 均不动）。
+ *
+ * 【为什么必须有这一步】落盘只保证「磁盘上有这个文件」，不保证「资源行属于目标目录」：
+ * 内容已在库时上传会命中后端 contentId 去重（`files.ts` 命中即不登记/不刷新行），
+ * 于是行留在旧目录（如 tasks）→ 素材库目录下拉不到 → 用户看到「发送了，库里没有」。
+ * 归位复用**既有的** context-only 移动原语（`filesApi.moveFile` → 后端 applyResourceContextMove），
+ * 不新造第二条改 folder 的路径。
+ *
+ * 【前提】调用方须先 `rescanUploads()`：行由后端扫描/上传登记建立，否则移动会 404（「资源未同步」）。
+ * @returns 成功（含「已在目标目录」的幂等短路）/ 失败（`relocate-failed`，不改写落盘结论）
+ */
+async function relocateToFolder(
   url: string,
   folder: string,
-  name: string,
-  _type: AssetType,
-): Promise<PersistOutcome> {
-  logger.debug(
-    'resourceStore',
-    '[PERSIST] 开始',
-    {
-      kind: url.startsWith('data:') ? 'data' : url.startsWith('blob:') ? 'blob' : 'http',
-      folder,
-      name,
-    },
-    { module: 'resource' },
-  );
-  let localized: string | null = null;
-  try {
-    if (url.startsWith('data:')) {
-      // 本地 base64 → multipart 上传（复用 filesApi 的 dataURL 落盘，subfolder 传 folder）。
-      // data 分支用 sha1 hash 作文件名（幂等去重，filesApi 内部行为），不传自定义名；
-      // 素材库面板的名字仍以 store 的 name 为准（前端已有），不依赖此文件名。
-      logger.debug('resourceStore', '[PERSIST] 走 data 分支 saveInlineToLocal', null, {
-        module: 'resource',
-      });
-      localized = await saveInlineToLocal(url, folder, currentProjectId() || undefined);
-      logger.debug('resourceStore', '[PERSIST] data 分支完成', null, { module: 'resource' });
-    } else if (url.startsWith('blob:')) {
-      // 修复：blob: 是本地临时对象 URL，不能通过 fileUrl 下载（new URL 报错 / 浏览器回收）。
-      // 改为 fetch 取 Blob 后作为文件上传，走与链路 A 一致的上传入口，保证「发送到素材库」对任意来源都落盘。
-      try {
-        logger.debug('resourceStore', '[PERSIST] 走 blob 分支 fetch', url, { module: 'resource' });
-        const resp = await httpRequest(url, {
-          parseJson: false,
-          retries: 0,
-          label: 'resourceStore.persistBlob',
-        });
-        logger.debug(
-          'resourceStore',
-          '[PERSIST] blob fetch 响应',
-          { ok: resp.ok, status: resp.status },
-          { module: 'resource' },
-        );
-        const blob = await resp.blob();
-        const mime = blob.type || 'image/png';
-        const ext =
-          EXT_BY_TYPE[detectAssetType({ name: '', type: mime })] || mime.split('/')[1] || 'png';
-        const file = new File([blob], `${safeResourceBase(name)}.${ext}`, { type: mime });
-        localized = await uploadFileToLocal(
-          file,
-          folder,
-          file.name,
-          currentProjectId() || undefined,
-        );
-        logger.debug('resourceStore', '[PERSIST] blob 分支 uploadFileToLocal 完成', null, {
-          module: 'resource',
-        });
-      } catch (blobErr) {
-        logger.warn(
-          'resourceStore',
-          'blob 转文件失败，跳过落盘',
-          (blobErr as { message?: string })?.message,
-        );
-      }
-    } else {
-      // http(s) 上游 url → 模仿链路 A（面板上传）：先把远程内容 fetch 成 Blob，
-      // 再用 uploadFileToLocal 走 multipart（file + subfolder）落盘，
-      // 不再走 JSON fileUrl 的 saveRemoteUrl 分支（避免 data:/异常态/内部地址等坑）。
-      logger.debug('resourceStore', '[PERSIST] 走 http 分支 fetch', url, { module: 'resource' });
-      const resp = await httpRequest(url, { parseJson: false, label: 'resourceStore.persistHttp' });
-      logger.debug(
-        'resourceStore',
-        '[PERSIST] http fetch 响应',
-        { ok: resp.ok, status: resp.status },
-        { module: 'resource' },
-      );
-      const blob = await resp.blob();
-      const mime = blob.type || 'image/png';
-      const ext =
-        EXT_BY_TYPE[detectAssetType({ name: '', type: mime })] || mime.split('/')[1] || 'png';
-      const file = new File([blob], `${safeResourceBase(name)}.${ext}`, { type: mime });
-      localized = await uploadFileToLocal(file, folder, file.name, currentProjectId() || undefined);
-      logger.debug('resourceStore', '[PERSIST] http 分支 uploadFileToLocal 完成', null, {
-        module: 'resource',
-      });
-    }
-  } catch (e) {
-    // 落盘阶段异常（fetch / 上传 / 编码）——不弹 toast（避免与「已发送」提示矛盾），红日志留痕
-    const msg = (e as { message?: string })?.message || String(e);
-    logger.error('resourceStore', '发送到素材库落盘失败', msg);
-    return { ok: false, reason: 'exception' };
+): Promise<{ ok: true } | { ok: false; reason: 'relocate-failed'; message: string }> {
+  if (!relativePathFromUrl(url)) {
+    // 非本机 /files/ 形态：无磁盘相对路径可定位 → 无行可归位（不改写落盘结论）
+    return { ok: true };
   }
-  // 落盘接口返回空 / blob 分支被吞 → 未取得持久 url：**明确失败，不伪装成功**（禁假成功）
-  if (!localized) return { ok: false, reason: 'upload-failed' };
-  // 【TD-12-2 · 禁重分类】rescan 只决定「面板何时看到」，**不决定「这是哪个文件」** → 它的失败
-  // 不得改写落盘结论（此前 rescan 在 try 内，抛错被归为「落盘失败」，把已到手的持久 url 一起丢掉）。
-  logger.debug('resourceStore', '[PERSIST] 落盘成功，准备 rescan', null, { module: 'resource' });
+  const { src, dst, sameDir } = resolveMovePaths({ url }, folder);
+  if (sameDir) return { ok: true };
+  try {
+    await moveFile(src, dst);
+    return { ok: true };
+  } catch (e) {
+    const message = (e as { message?: string })?.message || String(e);
+    logger.error('resourceStore', '素材归位到目标目录失败', `${folder} | ${message}`);
+    return { ok: false, reason: 'relocate-failed', message };
+  }
+}
+
+/**
+ * 重扫后端 upload 目录，让刚落盘的文件在 resources 表有行。
+ * 失败只留痕、**不改写落盘结论**（TD-12-2 禁重分类）：rescan 决定「面板何时看到」，
+ * 不决定「这是哪个文件」——落盘已成功就不该因扫目录失败而报落盘失败。
+ */
+async function rescanUploads(reason: string): Promise<void> {
   try {
     await rescanResources();
-    logger.debug('resourceStore', '[PERSIST] rescan 完成', null, { module: 'resource' });
   } catch (e) {
     logger.warn(
       'resourceStore',
-      '[PERSIST] rescan 失败（图已落盘，面板稍后自动刷新）',
+      `重扫 upload 目录失败（${reason}）`,
       (e as { message?: string })?.message,
     );
   }
-  return { ok: true, url: localized };
 }
 
 /**
  * 剧本盒资产「真上传」通道（P0-2）：把任意来源素材图真正落盘并返回本地化 /files/ URL。
- * 区别 sendToResourceLibrary（异步尽力落盘，不返回 URL）：本函数同步 await 落盘成功后返回
- * `http://127.0.0.1:18080/files/<folder>/<name>`；失败 throw（调用方据此置 imageStatus='failed'）。
- *  - data:           → saveInlineToLocal（sha1 幂等）
- *  - blob: / http(s) → fetch 转 File 后 uploadFileToLocal
- *  - 已是 /files/     → 原样返回
- * 落盘成功后登记进素材库 store + 广播（ResourceLibrary 面板自动刷新），与 sendToResourceLibrary 一致。
- * @returns {Promise<string>} 本地化后的持久 URL
+ * 与 sendToResourceLibrary 的差别**只在失败表达**（本函数 throw，调用方据此置 imageStatus='failed'）
+ * —— 落盘判据与顺序与它同源：同一 `persistUrlToUploads`（判据唯一在文件域）+ 同一归位/广播顺序。
+ * （改前：本函数内**又抄了一份** data:/blob:/http 分流，与 sendToResourceLibrary 各写各的 → 短路口径漂移。）
+ * @returns {Promise<string>} 本地化后的持久 URL（已在 uploads 的素材原样返回，不重传）
  */
 export async function localizeAndStoreToResourceLibrary(
   url: string,
@@ -561,58 +468,28 @@ export async function localizeAndStoreToResourceLibrary(
 ): Promise<string> {
   const src = String(url || '');
   if (!src) throw new Error('无素材可上传');
-  let localized = null;
   const pid = currentProjectId() || undefined;
-  if (src.startsWith('data:')) {
-    localized = await saveInlineToLocal(src, folder, pid);
-  } else if (src.startsWith('blob:') || /^https?:/i.test(src)) {
-    const resp = await httpRequest(src, {
-      parseJson: false,
-      retries: 0,
-      label: 'resourceStore.localize',
-    });
-    const blob = await resp.blob();
-    const mime = blob.type || 'image/png';
-    const ext =
-      EXT_BY_TYPE[detectAssetType({ name: '', type: mime })] || mime.split('/')[1] || 'png';
-    const file = new File([blob], `${name || 'asset'}.${ext}`, { type: mime });
-    localized = await uploadFileToLocal(file, folder, undefined, pid);
-  } else if (src.startsWith('/files/') || /^https?:\/\/127\.0\.0\.1:\d+\/files\//.test(src)) {
-    localized = src; // 已是本地持久 URL
-  } else {
-    throw new Error('不支持的素材来源');
+  const outcome = await persistUrlToUploads(src, { folder, name, projectId: pid });
+  if (!outcome.ok) {
+    logger.error(
+      'resourceStore',
+      '素材落盘失败',
+      `${outcome.reason}${outcome.message ? `: ${outcome.message}` : ''} | ${src.slice(0, 80)}`,
+    );
+    throw new Error(outcome.message || '素材落盘失败');
   }
-  if (!localized) throw new Error('素材落盘失败');
-  // docs/122 #3：本地化落盘登记带当前 projectId（逻辑引用层按项目隔离）
+  await rescanUploads('素材入库后');
+  // 归位失败只留痕：调用方要的是「可用的持久 url」，图已可用 → 不以 throw 回退它的既有承诺
+  const relocated = await relocateToFolder(outcome.url, folder);
+  if (!relocated.ok) {
+    logger.warn('resourceStore', '素材归位失败（图已可用，仅目录归类未生效）', relocated.message);
+  }
   addResources(
-    [
-      {
-        url: localized,
-        name: name || '剧本资产',
-        type: 'image',
-        folder,
-        projectId: currentProjectId() || undefined,
-      },
-    ],
+    [{ url: outcome.url, name: name || '剧本资产', type: 'image', projectId: pid }],
     folder,
   );
   emitResourceSent(folder);
-  // 【失败可见 TD-02-16】素材入库后重扫失败不得静默：列表可能与后端不一致
-  rescanResources().catch((e) => {
-    logger.warn('resourceStore', '素材入库后重扫失败（列表可能与后端不一致）', {
-      reason: e?.message || e,
-    });
-  });
-  return localized;
-}
-
-/**
- * 就地校正一条素材（按 id 打补丁）。用于「本地占位项拿到后端身份后对齐」（TD-12-2）：
- * 落盘成功后把占位项 url 换成后端持久 url，使其与 backend 项在合并时可按 url 归并。
- */
-function patchResource(id: string, patch: Partial<Resource>): void {
-  resources = resources.map((r) => (r.id === id ? { ...r, ...patch } : r));
-  notify();
+  return outcome.url;
 }
 
 export function removeResource(id: string): void {

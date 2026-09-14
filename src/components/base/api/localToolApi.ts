@@ -190,8 +190,11 @@ export async function fetchResources({
   projectId?: string;
 } = {}): Promise<ApiEnvelope<PagedResult<ResourceItem>>> {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-  const filters: Record<string, string> = {};
-  if (folder) filters.folder = folder; // 精确等值匹配当前层级
+  // folder 用 `{eqOrPrefix}`（精确 + 前缀）而不是等值：pill「全部」以 `migrated` 为根，
+  // 等值查询不返回 `migrated/人物|场景|道具` 等子目录行 → 归类进子目录的素材在「全部」下消失
+  // （TD-12-13 实测：等值时 migrated 仅 5 条；前端 `matchesFolder` 本就是前缀语义，两套判据必漂移）。
+  const filters: Record<string, string | { eqOrPrefix: string }> = {};
+  if (folder) filters.folder = { eqOrPrefix: folder };
   if (type) filters.type = type;
   if (Object.keys(filters).length) params.set('filters', JSON.stringify(filters));
   if (projectId) params.set('projectId', projectId);

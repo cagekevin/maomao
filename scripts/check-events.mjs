@@ -31,6 +31,13 @@
  *  - 仅 eventBus.js 导出的 publish/subscribe/subscribeOnce 视为事件总线入口；
  *    其余模块内部同名 subscribe(cb) 第一个参数是回调非事件名，正则会排除。
  *
+ * 【★闸的申诉口 · 三问（2026-09-14 入规 → 架构师心法 §零.4.2）】
+ *   Q1 守什么：**红线闸** —— EVENTS 登记表 + 双向校验（CLAUDE §5.4.6 P0 红线）。
+ *   Q2 何时该改：新增事件 → **登记真源、并让 `from`/`to` 与代码实测自洽**；
+ *               若表 `to: []` 而代码实测有 `subscribe` → 是**登记表滞后，先修表**；
+ *               **禁止**据此判"死事件"并删发布逻辑（这正是本闸存在的理由，见文件头 ①b/②）。
+ *   Q3 怎么改：改 `src/components/base/core/contracts.ts::EVENTS`；本闸**无豁免清单**（动态拼接由运行时自洽）。
+ *
  * 用法：
  *   node scripts/check-events.mjs                 # 校验全部 components
  *   node scripts/check-events.mjs src/App.jsx     # 指定文件

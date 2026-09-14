@@ -619,12 +619,7 @@ export default function AgentPanel({
     const unsub = subscribe(CREDIT_GATE_EVENT, (payload) => {
       const p = payload as { pending?: boolean } | null;
       if (p && p.pending === true) {
-        try {
-          setCreditGatePreview(getCreditGate());
-        } catch {
-          // catch-ok: READ_FALLBACK
-          /* ignore */
-        }
+        setCreditGatePreview(getCreditGate());
         setCreditGateDismissed(false);
       } else {
         setCreditGatePreview(null);

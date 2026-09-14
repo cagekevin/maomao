@@ -129,8 +129,12 @@ export async function handleResourcesRescan(
       .readdirSync(uploadDir, { withFileTypes: true })
       .filter((e) => e.isDirectory() && e.name !== '.thumbnails')
       .map((e) => e.name);
-  } catch {
-    return json(res, { code: 0, data: { ok: true, count: 0 } });
+  } catch (e) {
+    // 【2026-09-14 失败诚实化】读不到 uploads 目录（权限/磁盘/被删）**不得报成「扫描成功、0 条」**：
+    // 那会让面板显示成"空库"、发送链路以为没事，把真实故障掩盖成正常态。
+    // 明确失败（500）→ 前端 reset 的 catch 分支留痕、发送链路的 rescanUploads 只 warn 不改写落盘结论。
+    console.error(`[rescan] 读取 uploads 目录失败：${(e as Error).message}`);
+    return sendError(res, 'rescan 失败：无法读取上传目录', 500);
   }
 
   // 递归扫描 upload 下某目录，把文件与子目录元数据同步进 resources 表。
@@ -307,6 +311,66 @@ function resourceToRow(resource: Record<string, unknown>) {
 }
 
 /**
+ * 上传登记的 **context 计算**（纯函数 · 唯一实现）——把「物理身份」与「本次声明」彻底分开：
+ *  - `id` / `url` 跟**磁盘 rel** 派生（不可变物理身份：再次上传 / 改名 / 归类都不改它）；
+ *  - `folder` / `name` 跟**本次声明**（请求的 subfolder / 发起方给的名字），缺省回退磁盘值（兼容旧调用方）。
+ *
+ * 【为什么必须分开（TD-12-11 / TD-12-12 裁决 · 2026-09-14）】此前 `name` 直接取磁盘 basename
+ * （= 内容寻址 `sha1.ext`）、`folder` 直接取磁盘目录，于是出现两个用户可见缺陷：
+ *   ① 素材库把用户的命名显示成**哈希名**（认不出是哪张）；
+ *   ② 内容命中去重时行留在旧目录 → 调用方被告知「上传成功」，请求的目录里却没有它（假成功）。
+ * 磁盘名/磁盘目录是 **Content 维度**的事实；显示名/UI 分类是 **context 维度**的声明 —— 唯一来源不同。
+ *
+ * @param rel 相对 uploadDir 的磁盘路径（由落盘结果 / 去重复用 url 派生）
+ * @param opts.folder 请求的 UI 分类目录（subfolder）；缺省 = 磁盘目录
+ * @param opts.name   请求的显示名（用户命名）；缺省 = 磁盘 basename（两侧均做最简清洗）
+ */
+export function contextOfUpload(
+  rel: string,
+  opts: { folder?: string; name?: string } = {},
+): { id: string; diskFolder: string; folder: string; name: string; type: string } {
+  const diskDir = path.posix.dirname(rel);
+  const diskFolder = !diskDir || diskDir === '.' ? '' : diskDir;
+  // UI 分类：去首尾路径分隔符 + 去 `..` + 合并重复分隔符（防脏 folder 污染面板）；缺省回退磁盘目录
+  const rawFolder = opts.folder === undefined ? diskFolder : String(opts.folder || '');
+  const folder = rawFolder
+    .replace(/^\/+|\/+$/g, '')
+    .replace(/\.{2,}/g, '')
+    .replace(/\/{2,}/g, '/');
+  // 显示名：单行化 + 去首尾空白；缺省回退磁盘 basename（哈希名，仅作兼容）
+  const rawName = String(opts.name ?? '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .trim();
+  const name = rawName || path.posix.basename(rel);
+  // type 由**磁盘名扩展名**推（显示名可能没后缀）—— Content 维度的事实，不由显示名决定
+  const type = extToFileType(path.extname(rel)) || 'image';
+  return { id: resourceIdOf(rel), diskFolder, folder, name, type };
+}
+
+/**
+ * 合并显示名（纯函数 · 唯一实现）：**显式命名优先于隐式声明**。
+ *
+ * 【为什么（2026-09-14 十一轮裁决）】上传时带的 `name`（节点 label / 文件名）是**默认名**，
+ * 而用户手动「重命名」是**显式意图** —— 后者不该被"同一内容再上传一次"静默覆盖。
+ * 判据：既有显示名**非空且不等于磁盘哈希名**（即已被命名过）→ 保留；否则采用本次声明。
+ * 两种场景因此同时成立：①「上传后库里显示哈希名」被修（未命名 → 用声明名）；
+ * ②「用户改的名字被再次上传冲掉」不再发生（已命名 → 保留）。
+ *
+ * @param prevName 既有行的显示名（可能为 null/空 = 未命名）
+ * @param declaredName 本次上传声明的名字（contextOfUpload 已清洗；兜底为磁盘名）
+ * @param diskName 磁盘 basename（= 内容寻址名，用于判定"是否仍是未命名的哈希名"）
+ */
+export function resolveDisplayName(
+  prevName: string | null | undefined,
+  declaredName: string,
+  diskName: string,
+): string {
+  const prev = String(prevName ?? '').trim();
+  if (prev && prev !== diskName) return prev;
+  return declaredName;
+}
+
+/**
  * 【TD-12-5】上传落盘时登记/刷新 resource 行，并**写入 projectId**（项目隔离写入链闭环）。
  *
  * 【为什么需要】此前上传只写文件、不建行，行**全靠后续 rescan 目录扫描**创建 ——
@@ -314,23 +378,34 @@ function resourceToRow(resource: Record<string, unknown>) {
  * → 新素材跨项目可见（隔离失效；且刷新后依旧，因后端行无归属）。
  * 故上传成功时须由**发起方**（唯知当前项目）把 projectId 落进行里。
  *
+ * 【TD-12-11/12-12 裁决（2026-09-14）】本函数不再"只有真落盘才调"：
+ * **命中去重（内容已存在）时同样要调** —— 此刻它的作用是**刷新既有行的 context**
+ * （`folder` = 本次请求的 subfolder、`name` = 本次声明名、`project_id` = 本次项目），
+ * 使「上传成功」诚实地等价于「这份内容现在可在请求的 subfolder 下被看到」。
+ * 物理 url / contentId / id 一律不动（docs/122 context-only：id 跟磁盘、folder/name 跟声明）。
+ *
  * 幂等与去重：按 `sha1 = contentId` 走 `upsertResource`（同内容命中既有行 → 复用并刷新
  * project_id/folder/name，不新建第二行、绝不改物理 url）；无 contentId 时按 id 覆盖。
  * rescan 之后扫到同 id 走 `exist → skip` 分支 → **自然保留**这里写入的 project_id。
  *
  * @param rel 相对 uploadDir 的磁盘路径（由落盘结果派生；id 由 resourceIdOf 单源生成）
  * @param opts.projectId 当前项目 id（缺省/空 → 不写，保持 legacy）
+ * @param opts.name 本次声明的显示名（缺省 = 磁盘 basename）
+ * @param opts.folder 本次请求的 UI 分类目录（缺省 = 磁盘目录）
  */
 export async function recordUploadedFileRow(
   rel: string,
-  opts: { projectId?: string | null; type?: string; source?: string } = {},
+  opts: {
+    projectId?: string | null;
+    type?: string;
+    source?: string;
+    name?: string;
+    folder?: string;
+  } = {},
 ): Promise<void> {
   if (!rel) return;
   const db = await getDb();
-  const id = resourceIdOf(rel);
-  const name = path.posix.basename(rel);
-  const dir = path.posix.dirname(rel);
-  const folder = !dir || dir === '.' ? '' : dir;
+  const ctx = contextOfUpload(rel, { folder: opts.folder, name: opts.name });
   const absPath = path.join(getUploadDir(), rel);
   let sha1: string | null = null;
   try {
@@ -338,18 +413,36 @@ export async function recordUploadedFileRow(
   } catch {
     sha1 = null; // 读不到文件（已被并发删除等）→ 不写 contentId，仍登记基本行
   }
+  // 同 id / 同内容既有行若存在：读取其「用户态/归属/显示名」列
+  // —— 既避免 upsertResource 的 delete+insert 清掉它们，也据此做「显式改名优先」的显示名合并
+  const prev = (
+    sha1
+      ? queryOne(
+          db,
+          'SELECT is_favorite, project_id, name FROM resources WHERE id = ? OR sha1 = ? LIMIT 1',
+          [ctx.id, sha1],
+        )
+      : queryOne(db, 'SELECT is_favorite, project_id, name FROM resources WHERE id = ?', [ctx.id])
+  ) as { is_favorite?: number; project_id?: string | null; name?: string | null } | undefined;
+  const finalName = resolveDisplayName(prev?.name, ctx.name, path.posix.basename(rel));
   const resource: Record<string, unknown> = {
-    id,
+    id: ctx.id,
     url: toAbsoluteFileUrl(`/files/${rel}`),
-    type: opts.type || extToFileType(path.extname(name)) || 'image',
+    type: opts.type || ctx.type,
     source: opts.source || 'local-tool',
-    folder,
-    name,
+    folder: ctx.folder,
+    name: finalName,
     sha1,
     timestamp: Date.now(),
   };
-  // projectId 仅在显式提供时写入（null/undefined = 保持 legacy，不写列）
-  if (opts.projectId) resource.projectId = opts.projectId;
+  if (prev?.is_favorite !== undefined) resource.isFavorite = Boolean(prev.is_favorite);
+  // 【归属保护（2026-09-14 十轮补 · 修十轮自身引入的缺陷）】
+  // 既有行**已有归属**时不得被本次覆盖：否则「在项目 B 再上传一张项目 A 已有的图（同内容）」
+  // 会把该素材搬到 B → 回到 A 时它**直接不可见**（比"分类漂移"严重得多的用户可见后果）。
+  // 不变式：**归属（project_id）不随最近声明漂移；呈现层（folder/name）才随最近声明**。
+  // 无归属（legacy NULL）时写入本次项目 —— 这正是 TD-12-5「让 legacy 行获得归属」的初衷。
+  if (prev?.project_id) resource.projectId = prev.project_id;
+  else if (opts.projectId) resource.projectId = opts.projectId;
   upsertResource(db, resourceToRow(resource));
   debouncedSaveDb();
 }
@@ -469,12 +562,17 @@ export async function handleResourcesBatchSave(
   if (!body || !Array.isArray(body)) return sendError(res, 'Body must be an array', 400);
 
   const db = await getDb();
+  // 无 id 的项**不静默跳过**：返回 skipped 计数，让调用方知道"我没全存进去"
+  let skipped = 0;
   for (const resource of body) {
-    if (!resource.id) continue;
+    if (!resource || typeof resource !== 'object' || !resource.id) {
+      skipped++;
+      continue;
+    }
     upsertResource(db, resourceToRow(resource));
   }
   debouncedSaveDb();
-  return json(res, { code: 0, data: { ok: true } });
+  return json(res, { code: 0, data: { ok: true, saved: body.length - skipped, skipped } });
 }
 
 export async function handleResourcesDelete(

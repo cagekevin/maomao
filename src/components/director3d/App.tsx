@@ -238,6 +238,7 @@ import { hydrateProject } from './d3dPersistence.ts';
 import { useToast } from './useToast.ts';
 import { thumbnailFromCanvas } from './thumbnails.ts';
 import { probeEncoders } from '../base/utils/encoderProbe.ts';
+import { releaseQuietlyAsync } from '../base/utils/asyncGuard.ts';
 import { useConfirm } from './ConfirmDialog.tsx';
 
 const nextPaint = () =>
@@ -1996,7 +1997,11 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
       }
     } catch (error) {
       log.error('MP4 导出失败', error);
-      if (output && output.state !== 'finalized') await output.cancel().catch(() => {}); // catch-ok: RELEASE_FAIL
+      if (output && output.state !== 'finalized') {
+        // 先落到 const：闭包内 TS 不保留 `let` 的窄化（否则 output 变 maybe-null）
+        const out = output;
+        await releaseQuietlyAsync(() => out.cancel());
+      }
       setToast((error as { message?: string })?.message || 'MP4 导出失败', 'error');
     } finally {
       setCurrentFrame(originalFrame);

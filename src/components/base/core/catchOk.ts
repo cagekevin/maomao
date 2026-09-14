@@ -33,9 +33,21 @@ export const CATCH_OK = {
   RECURSION_GUARD: 'RECURSION_GUARD',
   /** 浏览器 API 预期不可用（autoplay 拒绝 / 跨域污染 / 浏览器兼容）：失败属环境预期，非缺陷。 */
   BROWSER_API: 'BROWSER_API',
-  /** 析构 / 释放失败不阻断主流程（close / stop / abort / dispose 异常）。 */
+  /**
+   * 析构 / 释放失败不阻断主流程（close / stop / abort / cancel / 媒体释源 异常）。
+   * **唯一实现 = `base/utils/asyncGuard.ts` 的 `releaseQuietly` / `releaseQuietlyAsync`** ——
+   * 2026-09-14 起调用点一律走该原语、不再逐处贴本码（码面上只剩原语内部那 2 处豁免）。
+   * **再出现"手写 RELEASE_FAIL 豁免标记" = 回潮信号**（应改调原语，别复制粘贴）。
+   */
   RELEASE_FAIL: 'RELEASE_FAIL',
-  /** 解析失败兜底（JSON / DOMParser / 错误体解析失败 → 落下一分支 / 默认文案）。 */
+  /**
+   * 解析失败兜底（JSON / DOMParser / URL 解析 / 正则编译失败 → 落下一分支 / 默认文案）。
+   * **唯一实现 = `base/utils/asyncGuard.ts` 的 `tryParse`** —— 2026-09-14 起调用点一律走该原语、
+   * 不再逐处贴本码（码面上只剩原语内部那 1 处豁免）。
+   * **再出现"手写 PARSE_FALLBACK 豁免标记" = 回潮信号**（应改调 `tryParse`，别复制粘贴）。
+   * 注：原 11 处标记里 2 处实为「释放/取消」误标（GridMergeNode.removeChild / agentRuntime.res.body.cancel）
+   * → 已改判 `RELEASE_FAIL`；1 处为「订阅失败」（backendLogStream）→ 属 `NON_BLOCKING`，待该批重标。
+   */
   PARSE_FALLBACK: 'PARSE_FALLBACK',
   /** 读取失败回退默认 / 容错（配置 / 偏好 / 订阅回调读不到 → 用默认值）。 */
   READ_FALLBACK: 'READ_FALLBACK',
@@ -43,7 +55,18 @@ export const CATCH_OK = {
   ALREADY_REPORTED: 'ALREADY_REPORTED',
   /** 存量迁移 / 旧键兜底语义（旧键迁移超时等一次性迁移）。 */
   MIGRATION: 'MIGRATION',
-  /** 有意的非阻塞副作用（fire-and-forget / 清理 / 轮询失败不阻断主链路）。仅当确有留痕或幂等。 */
+  /**
+   * 有意的非阻塞副作用（fire-and-forget / 清理 / 轮询失败不阻断主链路）。仅当确有留痕或幂等。
+   * **主实现 = `base/utils/asyncGuard.ts` 的 `attemptQuietly` / `attemptQuietlyAsync`** —— 2026-09-14 起
+   * 批量单步失败（如 `accountsStore` 的 chrome API 调用、`useAgentChat` 的会话落盘）一律走该原语、
+   * 不再逐处贴本码（码面上只剩原语内部那 2 处豁免）。
+   * **再出现"手写 NON_BLOCKING 豁免标记" = 回潮信号**（应改调 `attemptQuietly`，别复制粘贴）。
+   * 注：原 31 处标记里 3 处实为非本语义误标 —— `useCanvasSync.channel.close` /
+   *   `OverlayEditor.releasePointerCapture` / `asyncGuard.sig.abort`（均为 teardown）→ 已改判 `RELEASE_FAIL`；
+   *   `contentStore.compilePatternRegex`（正则编译）→ 已改判 `PARSE_FALLBACK`；`backendLogStream`
+   *   （EventSource 订阅失败）经重标归位本码。其余**语义性非阻塞**（轮询 / 跨标签页广播 / 可选增强 /
+   *   落盘回退 / 建文件夹返回 false 由 UI 呈现）因形态各异仍手写标记并注明原因，不强行收口。
+   */
   NON_BLOCKING: 'NON_BLOCKING',
   /** 落盘 / 回传失败保留原值（降级不阻断，原值已是最新可用状态）。 */
   KEEP_ORIGINAL: 'KEEP_ORIGINAL',

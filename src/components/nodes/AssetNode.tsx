@@ -17,6 +17,7 @@ import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
 import { replaceNodeImage } from '../base/nodeImage.ts';
 import { detectAssetType } from '../base/utils/assetType.ts';
+import { tryParse } from '../base/utils/asyncGuard.ts';
 import type { AssetType } from '@/types';
 import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { NODE_AREA_FIXED_BASE_SIZE } from '../base/core/config.ts';
@@ -154,10 +155,11 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       text: 'txt',
     };
     let filename = data.label || '';
-    try {
-      const fromUrl = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
-      if (fromUrl && !/^blob:|^data:/.test(url)) filename = filename || fromUrl;
-    } catch {} // catch-ok: PARSE_FALLBACK
+    const fromUrl = tryParse(
+      () => decodeURIComponent(new URL(url).pathname.split('/').pop() || ''),
+      '',
+    );
+    if (fromUrl && !/^blob:|^data:/.test(url)) filename = filename || fromUrl;
     const ext =
       (filename.match(/\.[a-z0-9]{2,5}$/i) || [])[0] ||
       (type !== 'image' ? `.${extMap[type] || 'bin'}` : '');

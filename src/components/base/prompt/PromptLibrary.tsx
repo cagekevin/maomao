@@ -17,6 +17,7 @@ import {
 } from './promptManager.ts';
 import type { Preset, LibraryCard } from './promptManager.ts';
 import { showToast } from '../core/toastStore.ts';
+import { copyText } from '../utils/clipboard.ts';
 import { subscribe } from '../core/eventBus.ts';
 import { createImeInput } from '../core/utils.ts';
 import type { ImeInput } from '../core/utils.ts';
@@ -111,20 +112,15 @@ function PromptLibrary({
   }, [activeTab, recentCards, cards, selectedCategory, debouncedKeyword]);
 
   // 点「新建节点」→ 把预设提示词新建为文本节点
-  const handleNewNode = (card: LibraryCard) => {
+  const handleNewNode = async (card: LibraryCard) => {
     recordRecent(card.id);
     refreshRecent(); // TD-05-8：写入后刷新「最近使用」
     if (onUse) {
       onUse(card.content ?? '');
       onClose();
     } else {
-      showToast('已复制到剪贴板');
-      try {
-        navigator.clipboard.writeText(card.content ?? '');
-      } catch {
-        // catch-ok: CLIPBOARD
-        /* ignore */
-      }
+      const res = await copyText(card.content ?? '');
+      showToast(res.ok ? '已复制到剪贴板' : res.msg, { type: res.ok ? 'success' : 'error' });
     }
   };
 

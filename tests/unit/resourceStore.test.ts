@@ -12,30 +12,44 @@ import {
   __resetForTest,
   getResources,
   flushPersist,
-  safeResourceBase,
   mergeResourcesFromBackend,
   sendToResourceLibrary,
   onResourceSent,
 } from '../../src/components/base/store/resourceStore.ts';
-import { saveInlineToLocal } from '../../src/components/base/api/filesApi.ts';
+import { persistUrlToUploads, moveFile } from '../../src/components/base/api/filesApi.ts';
 import { rescanResources } from '../../src/components/base/api/localToolApi.ts';
 
-// ── TD-12-2：落盘链隔离（sendToResourceLibrary 会异步调 filesApi + rescanResources）──
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  saveInlineToLocal: vi.fn(async () => 'http://127.0.0.1:18080/files/migrated/recon.png'),
-  uploadFileToLocal: vi.fn(async () => 'http://127.0.0.1:18080/files/migrated/recon.png'),
-  EXT_BY_TYPE: { image: 'png', video: 'mp4', audio: 'mp3', text: 'txt' },
-}));
+// ── 落盘链隔离：sendToResourceLibrary 会调 filesApi（落盘 / 归位）+ rescanResources ──
+// 只桩掉两个**有副作用的原语**；纯函数（resolveMovePaths / relativePathFromUrl）保留真实实现 ——
+// 它们是「同目录短路 / 跨目录归位」的判据，桩掉会让断言失去意义。
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    persistUrlToUploads: vi.fn(),
+    moveFile: vi.fn(),
+  };
+});
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
   rescanResources: vi.fn(async () => ({ ok: true })),
 }));
 
 const STORAGE_KEY = 'yimao:yimao_asset_library'; // storageAdapter 对键加 yimao: 前缀
+/** 桩的落盘结果：模拟「已落盘到 migrated」的持久 url */
+const PERSISTED = 'http://127.0.0.1:18080/files/migrated/recon.png';
 
 beforeEach(() => {
   clearResources();
   localStorage.clear();
   __resetForTest(); // 重新 seed 默认素材（测试出口；生产侧 reloadFromStorage 由 onStorageReady 调用）
+  vi.mocked(persistUrlToUploads).mockReset();
+  vi.mocked(persistUrlToUploads).mockImplementation(
+    async () => ({ ok: true, url: PERSISTED, source: 'inline' }) as never,
+  );
+  vi.mocked(moveFile).mockReset();
+  vi.mocked(moveFile).mockImplementation(async () => ({ code: 0 }) as never);
+  vi.mocked(rescanResources).mockReset();
+  vi.mocked(rescanResources).mockImplementation(async () => ({ ok: true }) as never);
 });
 
 describe('素材库数据层 §2.18', () => {
@@ -203,26 +217,9 @@ describe('resourceStore P4 落盘节流', () => {
   });
 });
 
-describe('safeResourceBase（发送到素材库落盘文件名安全化）', () => {
-  it('中文名保留（无非法字符）', () => {
-    expect(safeResourceBase('猫')).toBe('猫');
-  });
-  it('去非法字符 /\\:*?"<>| → 下划线', () => {
-    expect(safeResourceBase('a/b\\c')).toBe('a_b_c');
-  });
-  it('空白 → 下划线', () => {
-    expect(safeResourceBase('猫 狗')).toBe('猫_狗');
-  });
-  it('去掉尾部扩展名，避免「猫.png.png」', () => {
-    expect(safeResourceBase('猫.png')).toBe('猫');
-    expect(safeResourceBase('photo.123')).toBe('photo');
-  });
-  it('空/纯空白 → 回退 asset', () => {
-    expect(safeResourceBase('')).toBe('asset');
-    expect(safeResourceBase('   ')).toBe('asset');
-    expect(safeResourceBase()).toBe('asset');
-  });
-});
+// 注：原 `safeResourceBase` 及其用例已随「落盘判据收口」删除 —— 文件名安全化只剩一处实现
+// （filesApi.persistUrlToUploads 内调 core/utils.safeFileName，行为由 utils.test.ts 钉住），
+// store 侧不再保留零生产调用方的同源包装（死抽象，TD-02-8 同款）。
 
 // ── 【TD-12-2】双注册表残留收口：占位项与后端项按 url 归并（消除「同一素材并存两行」）──
 describe('TD-12-2 占位项与后端项按 url 归并', () => {
@@ -267,96 +264,120 @@ describe('TD-12-2 占位项与后端项按 url 归并', () => {
         .sort(),
     ).toEqual(['/files/keep.png', '/files/other.png']);
   });
+});
 
-  it('sendToResourceLibrary 落盘成功后把占位项 url 校正为后端持久 url', async () => {
+// ── TD-12-10 收口轮：「发送到素材库」三段顺序（落盘 → 归位 → 广播） ──
+// 旧用例钉的是「先登记占位行 → 成功后打补丁校正 → 失败则永久残留」这套兜底；
+// 收口后：失败不登记；成功登记的就是后端权威 url（无占位行、无补丁、无归并特例）。
+describe('sendToResourceLibrary：落盘 → 归位 → 广播', () => {
+  it('落盘成功 → 登记后端权威 url 与名字（不再先占位后校正）', async () => {
     clearResources();
-    sendToResourceLibrary('data:image/png;base64,AAAA', { name: '猫', folder: 'migrated' });
-    // 立即：占位项 url 仍是原始 data:（改前会一直如此 → 合并时与后端项 url 不同 → 永久两行）
-    expect(String(getResources()[0].url).startsWith('data:')).toBe(true);
-    // 落盘为异步：等微任务推进后应被校正为后端持久 url
-    for (let i = 0; i < 12 && String(getResources()[0].url).startsWith('data:'); i++) {
-      await Promise.resolve();
-    }
-    expect(getResources()[0].url).toBe('http://127.0.0.1:18080/files/migrated/recon.png');
-  });
-
-  // ── 判别联合契约（TD-12-2 · Step 4）：落盘失败 ≠ 重扫失败，各自语义独立 ──
-
-  it('落盘接口返回空（失败）→ 占位项保留原 url，不校正（禁假成功）', async () => {
-    clearResources();
-    vi.mocked(saveInlineToLocal).mockResolvedValueOnce(null);
-    sendToResourceLibrary('data:image/png;base64,BBBB', { name: '狗', folder: 'migrated' });
-    for (let i = 0; i < 12; i++) await Promise.resolve();
-    expect(String(getResources()[0].url).startsWith('data:')).toBe(true);
-  });
-
-  it('落盘抛异常 → 占位项保留原 url（reason=exception）', async () => {
-    clearResources();
-    vi.mocked(saveInlineToLocal).mockRejectedValueOnce(new Error('boom'));
-    sendToResourceLibrary('data:image/png;base64,CCCC', { name: '鸟', folder: 'migrated' });
-    for (let i = 0; i < 12; i++) await Promise.resolve();
-    expect(String(getResources()[0].url).startsWith('data:')).toBe(true);
-  });
-
-  it('【先红锚点 · 禁重分类】rescan 失败不丢弃已落盘的持久 url（仍校正占位项）', async () => {
-    clearResources();
-    vi.mocked(rescanResources).mockRejectedValueOnce(new Error('rescan down'));
-    sendToResourceLibrary('data:image/png;base64,DDDD', { name: '鱼', folder: 'migrated' });
-    for (let i = 0; i < 12; i++) await Promise.resolve();
-    // 图已落盘 → 持久 url 必须到手；rescan 失败只影响「面板何时看到」，不得改写落盘结论
-    expect(getResources()[0].url).toBe('http://127.0.0.1:18080/files/migrated/recon.png');
-  });
-
-  // ── TD-12-10：结果契约回传 + 刷新挂「落盘完成」（禁假成功 / 禁面板白刷）──
-
-  it('【先红锚点 · 禁假成功】调用方拿到的是落盘真实结果（成功 ok:true / 失败 ok:false）', async () => {
-    clearResources();
-    const okOutcome = await sendToResourceLibrary('data:image/png;base64,AAAA', {
+    const outcome = await sendToResourceLibrary('data:image/png;base64,AAAA', {
       name: '猫',
       folder: 'migrated',
     });
-    expect(okOutcome.ok).toBe(true);
-    expect(okOutcome.ok ? okOutcome.url : '').toBe(
-      'http://127.0.0.1:18080/files/migrated/recon.png',
-    );
-
-    clearResources();
-    vi.mocked(saveInlineToLocal).mockResolvedValueOnce(null);
-    const failOutcome = await sendToResourceLibrary('data:image/png;base64,BBBB', {
-      name: '狗',
-      folder: 'migrated',
-    });
-    // 改前：本函数返回 Resource[]（调用方只能提前弹「已发送」）→ 此处拿不到失败真相
-    expect(failOutcome.ok).toBe(false);
-    expect(failOutcome.ok ? '' : failOutcome.reason).toBe('upload-failed');
+    expect(outcome.ok).toBe(true);
+    expect(outcome.ok ? outcome.url : '').toBe(PERSISTED);
+    const list = getResources();
+    expect(list).toHaveLength(1);
+    expect(list[0].url).toBe(PERSISTED);
+    expect(list[0].name).toBe('猫');
+    expect(list[0].folder).toBe('migrated');
   });
 
-  it('【先红锚点】落盘失败不得广播 resource:sent（面板不该为不存在的素材白刷）', async () => {
+  it('本机素材已在目标目录 → 幂等短路：不做归位（不产生多余的上下文写）', async () => {
+    clearResources();
+    vi.mocked(persistUrlToUploads).mockResolvedValueOnce({
+      ok: true,
+      url: PERSISTED,
+      source: 'already-local',
+    } as never);
+    await sendToResourceLibrary(PERSISTED, { folder: 'migrated' });
+    expect(vi.mocked(moveFile)).not.toHaveBeenCalled();
+  });
+
+  it('本机素材在别的目录（tasks）→ 归位到目标目录（磁盘路径由 url 派生）', async () => {
+    clearResources();
+    vi.mocked(persistUrlToUploads).mockResolvedValueOnce({
+      ok: true,
+      url: 'http://127.0.0.1:18080/files/tasks/gen.png',
+      source: 'already-local',
+    } as never);
+    const outcome = await sendToResourceLibrary('http://127.0.0.1:18080/files/tasks/gen.png', {
+      folder: 'migrated',
+    });
+    expect(outcome.ok).toBe(true);
+    expect(vi.mocked(moveFile)).toHaveBeenCalledWith('tasks/gen.png', 'migrated/gen.png');
+  });
+
+  it('落盘失败 → 不登记、不归位、不广播（禁假素材 / 禁面板白刷）', async () => {
     clearResources();
     const seen: string[] = [];
     const off = onResourceSent((f) => seen.push(f));
-    vi.mocked(saveInlineToLocal).mockResolvedValueOnce(null);
-    await sendToResourceLibrary('data:image/png;base64,BBBB', { name: '狗', folder: 'migrated' });
+    vi.mocked(persistUrlToUploads).mockResolvedValueOnce({
+      ok: false,
+      reason: 'upload-failed',
+    } as never);
+    const outcome = await sendToResourceLibrary('data:image/png;base64,BBBB', { name: '狗' });
     off();
-    // 改前：无论成败都在函数尾部同步 emit → 此处为 ['migrated']（红）
+    expect(outcome.ok).toBe(false);
+    expect(outcome.ok ? '' : outcome.reason).toBe('upload-failed');
+    expect(getResources()).toHaveLength(0);
+    expect(vi.mocked(moveFile)).not.toHaveBeenCalled();
     expect(seen).toEqual([]);
   });
 
-  it('【先红锚点】广播发生在落盘完成之后（面板 rescan 时后端已有该文件）', async () => {
+  it('归位失败 → relocate-failed（文件已落盘但未进目标目录：不得宣告成功，也不留本地假行）', async () => {
     clearResources();
-    const order: string[] = [];
-    const off = onResourceSent(() => order.push('emit'));
-    vi.mocked(saveInlineToLocal).mockImplementationOnce(async () => {
-      order.push('persist');
-      return 'http://127.0.0.1:18080/files/migrated/recon.png';
-    });
-    await sendToResourceLibrary('data:image/png;base64,AAAA', { name: '猫', folder: 'migrated' });
-    off();
-    // 改前：emit 在落盘之前 → ['emit','persist']（红），正是「点了却库里没有」的成因
-    expect(order).toEqual(['persist', 'emit']);
+    vi.mocked(persistUrlToUploads).mockResolvedValueOnce({
+      ok: true,
+      url: 'http://127.0.0.1:18080/files/tasks/gen.png',
+      source: 'uploaded',
+    } as never);
+    vi.mocked(moveFile).mockRejectedValueOnce(new Error('资源未同步，请刷新后重试'));
+    const outcome = await sendToResourceLibrary('data:image/png;base64,AAAA', { name: '猫' });
+    expect(outcome.ok).toBe(false);
+    expect(outcome.ok ? '' : outcome.reason).toBe('relocate-failed');
+    expect(getResources()).toHaveLength(0);
   });
 
-  it('无 url → 返回 empty 失败结果，不登记占位、不广播', async () => {
+  it('【先红锚点】顺序 = 落盘 → rescan → 归位 → 广播（广播时后端三件齐备）', async () => {
+    clearResources();
+    const order: string[] = [];
+    vi.mocked(persistUrlToUploads).mockImplementationOnce(async () => {
+      order.push('persist');
+      return {
+        ok: true,
+        url: 'http://127.0.0.1:18080/files/tasks/gen.png',
+        source: 'uploaded',
+      } as never;
+    });
+    vi.mocked(rescanResources).mockImplementationOnce(async () => {
+      order.push('rescan');
+      return { ok: true } as never;
+    });
+    vi.mocked(moveFile).mockImplementationOnce(async () => {
+      order.push('relocate');
+      return { code: 0 } as never;
+    });
+    const off = onResourceSent(() => order.push('emit'));
+    await sendToResourceLibrary('data:image/png;base64,AAAA', { name: '猫', folder: 'migrated' });
+    off();
+    expect(order).toEqual(['persist', 'rescan', 'relocate', 'emit']);
+  });
+
+  it('【先红锚点 · 禁重分类】rescan 失败不改写落盘结论（仍归位并广播）', async () => {
+    clearResources();
+    const seen: string[] = [];
+    const off = onResourceSent((f) => seen.push(f));
+    vi.mocked(rescanResources).mockRejectedValueOnce(new Error('rescan down'));
+    const outcome = await sendToResourceLibrary('data:image/png;base64,DDDD', { name: '鱼' });
+    off();
+    expect(outcome.ok).toBe(true);
+    expect(seen).toEqual(['migrated']);
+  });
+
+  it('无 url → empty 失败，不登记不广播', async () => {
     clearResources();
     const seen: string[] = [];
     const off = onResourceSent((f) => seen.push(f));

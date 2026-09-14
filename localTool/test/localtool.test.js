@@ -608,6 +608,19 @@ test('Resources·rescan 扫描 upload 目录', async () => {
   assert.ok(page.items.some((r) => r.name === 'vid.mp4' && r.type === 'video'));
 });
 
+// 【2026-09-14 失败诚实化】此前读不到 uploads 目录时返回 `{ok:true, count:0}` = **假成功**
+// （面板显示成"空库"，把权限/磁盘故障掩盖成正常态）→ 现明确失败。
+test('Resources·rescan 读不到 uploads 目录 → 明确失败（不假报 ok:0 条）', async (t) => {
+  // 直接让 readdir 失败（跨平台可靠；移走目录在 Windows 上会被 getUploadDir() 重建 + rename EPERM）
+  t.mock.method(fs, 'readdirSync', () => {
+    throw new Error('EACCES: permission denied');
+  });
+  const res = makeRes();
+  await resourcesMod.handleResourcesRescan(makeJsonReq(), res);
+  assert.equal(res.status, 500);
+  assert.match(parseResBody(res).error, /无法读取上传目录/);
+});
+
 // ══════════════════════════════════════════════════════════════
 // Admin 路由
 // ══════════════════════════════════════════════════════════════
@@ -1284,6 +1297,17 @@ test('Files·mkdir 创建目录', async () => {
   await filesMod.handleMkdir(makeJsonReq({ folder: 'newdir/sub' }), res);
   assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
   assert.ok(fs.existsSync(target));
+});
+
+// 【2026-09-14 越根守卫】此前 handleMkdir 直接 path.join(uploadDir, folder)，不拒 `..`
+// → `{"folder":"../../x"}` 能把目录建到 uploads 之外（唯一缺守卫的目录写入口）。
+test('Files·mkdir 拒绝越根路径（不得把目录建到 uploads 之外）', async () => {
+  const escaped = path.join(TEST_DIR, 'escaped-by-mkdir');
+  const res = makeRes();
+  await filesMod.handleMkdir(makeJsonReq({ folder: '../escaped-by-mkdir' }), res);
+  assert.equal(res.status, 400);
+  assert.match(parseResBody(res).error, /Invalid folder path/);
+  assert.ok(!fs.existsSync(escaped), '不得在 uploads 之外创建目录');
 });
 
 // ══════════════════════════════════════════════════════════════

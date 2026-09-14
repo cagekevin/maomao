@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { toAbsoluteFileUrl } from '../api/filesApi.ts';
+import { releaseQuietly } from '../utils/asyncGuard.ts';
 
 /* ════════════════════════════════════════════════════════════════
  * 叠加图层编辑器
@@ -596,9 +597,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
         saveHistory();
         applyMask();
       }
-      try {
-        board.releasePointerCapture?.(e.pointerId);
-      } catch {} // catch-ok: NON_BLOCKING
+      releaseQuietly(() => board.releasePointerCapture?.(e.pointerId));
     };
     board.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove);

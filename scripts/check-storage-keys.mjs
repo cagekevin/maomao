@@ -14,6 +14,12 @@
  * 白名单：非存储函数（如 resolveAsset 资源路径）不扫；动态拼接/变量 key 无法静态
  * 判定，由 runtime throw 兜底，本脚本不拦。
  *
+ * 【★闸的申诉口 · 三问（2026-09-14 入规 → 架构师心法 §零.4.2）】
+ *   Q1 守什么：**红线闸** —— STORAGE_KEYS 登记表是 P0 红线（CLAUDE §5.4.5「存储键禁止裸字符串」）。
+ *   Q2 何时该改：新增存储键 → **登记真源一行，本闸不必改**；若"非存储函数"被误扫 → 是白名单判据该修。
+ *   Q3 怎么改：改 `src/components/base/core/contracts.ts::STORAGE_KEYS`；**禁止为本闸加 key 豁免**
+ *               （动态拼接不拦已由运行时 `contentStore.checkRegistered` 兜底，豁免面已压到 0）。
+ *
  * 用法：
  *   node scripts/check-storage-keys.mjs                 # 校验全部 components
  *   node scripts/check-storage-keys.mjs src/components/base/contentStore.js  # 指定文件

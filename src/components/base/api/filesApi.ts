@@ -28,12 +28,17 @@
  * · 本模块不碰后端 SQLite/DB，只做文件落盘 + 供 rescan 收录。
  * ════════════════════════════════════════════════════════════════
  *
- * 落盘函数一览（全部返回 url 或 null）：
- *  - saveInlineToLocal(dataUrl, subfolder?)   dataURL → multipart，sha1 内容哈希幂等去重
+ * 落盘函数一览：
+ *  - persistUrlToUploads(url, {folder,name,type,projectId})  ★「任意来源 URL → uploads」唯一原语：
+ *      内部分流 data:/blob:/http(s)/已是本机 /files/，返回判别联合 PersistOutcome（不抛、不归一 null）。
+ *      上层用例（发送到素材库 / 剧本盒本地化）一律走它，**禁止再抄一份分流判据**。
+ *  - saveInlineToLocal(dataUrl, subfolder?)   dataURL → multipart，sha1 内容哈希幂等去重（返回 url|null）
  *  - uploadFileToLocal(file, subfolder?, name)  原始 File/Blob → multipart（避免大文件两段内存拷贝）
  *  - downloadRemoteToLocal(url, {folder,name})  网页远程图 → JSON fileUrl 后台代下载（先拦本地 URL）
  *  - saveResultToTasks(url, type)  生成结果 → tasks（data:→multipart；http→fileUrl 代下载）
  *  - saveTextToTasks(text, name)  纯文本结果 → tasks/*.txt（后端 rescan 识别 type='text'）
+ * 注：`url|null` 系函数是「落盘失败即降级（保留内联）」语义的原语，null 是它们**诚实**的契约；
+ *    需要「成败可判别 / 不得静默降级」的用例用 persistUrlToUploads 的判别联合。
  */
 import { API_BASE } from '../core/config.ts';
 import { httpRequest } from './httpClient.ts';
@@ -46,6 +51,8 @@ import type { ApiEnvelope } from './localToolApi.ts';
 export { toAbsoluteFileUrl } from '../utils/assetUrl.ts';
 export { EXT_BY_TYPE };
 import { isLocalFileUrl, fileToDataUrl } from '../utils/assetUrl.ts';
+import { detectAssetType, detectFileType } from '../utils/assetType.ts';
+import type { AssetType } from '@/types';
 
 // ─────────────────────────── files 域（候选 C 收口：全站文件域单点可查）───────────────────────────
 // 此前文件域被劈成两半：落盘在 filesApi，move/mkdir/open + 3 个纯函数却住在 localToolApi
@@ -198,12 +205,14 @@ function safeName(base: string, ext: string): string {
  * 两种文件名互不去重，且残缺 base64 会落盘成损坏文件；收口后两链路一致并堵住损坏文件缺陷。
  * @param {string} dataUrl 形如 data:image/png;base64,xxxx
  * @param {string} [subfolder] 落盘子目录，默认 canvas（与官方 base64Externalize 一致）
+ * @param {string} [displayName] 行显示名（context 维度；不参与磁盘命名 —— 磁盘名是内容寻址 sha1）
  * @returns {Promise<string|null>} 落盘 URL（http://127.0.0.1:18080/files/<subfolder>/<name>）；失败返回 null（调用方保留原 base64）
  */
 export async function saveInlineToLocal(
   dataUrl: string,
   subfolder: string = UPLOAD_DIRS.canvas,
   projectId?: string,
+  displayName?: string,
 ): Promise<string | null> {
   if (!dataUrl || !dataUrl.startsWith('data:')) return null;
   try {
@@ -211,7 +220,8 @@ export async function saveInlineToLocal(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       // 【TD-12-5】携当前项目 id → 后端落盘时写 resource 行 project_id（项目隔离写入链闭环）
-      body: JSON.stringify({ dataUri: dataUrl, subfolder, projectId }),
+      // 【TD-12-12】携 displayName → 后端行的 name = 用户命名（改前恒为磁盘哈希名，素材库里认不出）
+      body: JSON.stringify({ dataUri: dataUrl, subfolder, projectId, displayName }),
       ...UPLOAD_OPTS,
     });
     return data?.data?.url || null;
@@ -400,7 +410,7 @@ export async function downloadRemoteToLocal(
 
 /**
  * 【内部】http(s) 远程 URL → 落盘本地 /files/ URL（fileUrl 模式，后端 saveRemoteUrl 幂等下载）。
- * downloadRemoteToLocal 与 saveResultToTasks 的 http 分支共用的唯一下载入口，禁止调用方另写 JSON 上传。
+ * downloadRemoteToLocal / saveResultToTasks / persistUrlToUploads 共用的唯一下载入口，禁止调用方另写 JSON 上传。
  * @param {string} fileUrl http(s) 远程 URL
  * @param {string} subfolder 落盘子目录
  * @param {string} [filename] 可选文件名
@@ -422,6 +432,121 @@ async function uploadRemoteUrl(
   } catch (e) {
     logger.warn('filesApi', '远程 URL 落盘失败', e);
     return null;
+  }
+}
+
+// ─────────────────────── 「URL → uploads」落盘唯一原语 ───────────────────────
+// 【为什么收口（TD-12-10 收口轮）】「按来源协议分流（data: / blob: / http(s) / 已是本机 /files/）」
+// 这一**判据**此前被抄成 ≥4 份，且短路口径各不相同：
+//   · resourceStore.persistUrlToBackend        —— 无「已是本机」短路 → 把 uploads 里的文件再 fetch + 重传
+//   · resourceStore.localizeAndStoreToResourceLibrary —— 有短路，但整体与上式重复（同一能力两份）
+//   · filesApi.saveResultToTasks / downloadRemoteToLocal —— 各有短路，各自维护
+// 判据属**文件域**（本模块 = 全站文件域单点），不属于任何上层用例 → 收口到此处唯一一份。
+// 其中「无短路」不是风格问题而是正确性问题：本机文件重传会撞后端 contentId 去重
+// （files.ts:124-130 命中即不登记/不刷新 resource 行）→ 行留在旧目录 → 素材库目录下拉不到
+// → 用户看到「发送了，库里没有」的假成功。
+
+/** 落盘来源（成功侧）：inline=data URL；uploaded=经上传落盘；already-local=本就在 uploads（未上传）。 */
+export type PersistSource = 'inline' | 'uploaded' | 'already-local';
+
+/**
+ * 落盘失败原因（唯一词表）。
+ * - empty：无 url 可落
+ * - unsupported：既非 data:/blob:/http(s)、也非本机 /files/（不猜、不兜底）
+ * - upload-failed：上传/落盘接口明确失败（后端 4xx/5xx 或返回空）
+ * - exception：fetch/编码等抛错（message 带原始信息，不上报为笼统失败）
+ * - relocate-failed：**由用例层（发送到素材库）产生**——文件已落盘，但资源行未能归位到目标目录
+ */
+export type PersistFailReason =
+  'empty' | 'unsupported' | 'upload-failed' | 'exception' | 'relocate-failed';
+
+/**
+ * 「URL → uploads 落盘」结果 —— **判别联合**（禁把「失败」压成 `null`，也禁把
+ * 「本就在 uploads，无需落盘」与「落盘失败」混为一谈 —— 两者对调用方是**相反**的动作）。
+ *
+ * 注：两侧各带对方的键（可选 `undefined`）是本仓 tsconfig 的历史约束（`strictNullChecks: false`
+ * 下 TS 不对 boolean 判别属性做收窄）——`ok` 仍是判别位，语义不变。
+ */
+export type PersistOutcome =
+  | { ok: true; url: string; source: PersistSource; reason?: undefined; message?: undefined }
+  | { ok: false; url?: undefined; source?: undefined; reason: PersistFailReason; message?: string };
+
+/** 落盘文件名的扩展名（按调用方声明类型优先，其次由 mime / URL 推断；未知按 png）。 */
+function extOf(kind: AssetType | 'other', fallback = 'png'): string {
+  return EXT_BY_TYPE[kind] || fallback;
+}
+
+/**
+ * 把任意来源 URL 落盘到 uploads 指定子目录，返回**持久 /files/ URL 或明确失败**。
+ *
+ * 【分流判据（唯一实现，禁止上层再抄）】
+ *  1. `data:`            → saveInlineToLocal（后端 base64Externalize 校验 + 内容寻址）
+ *  2. 已是本机 /files/   → **不落盘**（`already-local`）——它本就在 uploads，重传只会撞 contentId 去重
+ *  3. `blob:`            → 浏览器 fetch 取 Blob（后端拿不到 blob:）→ multipart 上传
+ *  4. `http(s):`         → 交后端唯一「下载归属点」uploadRemoteUrl（免浏览器 CORS/防盗链、大文件不进前端内存）
+ *  5. 其它                → `unsupported`（明确失败，不猜协议）
+ *
+ * @param {string} url 来源 URL（data: / blob: / http(s) / 本机 /files/）
+ * @param {object} [opts]
+ *   - folder    落盘子目录（相对 uploads，如 'migrated'）
+ *   - name      期望的落盘文件名（安全化后使用；不含扩展名，扩展名由类型推断）
+ *   - type      调用方声明的素材类型（优先于推断）
+ *   - projectId 当前项目 id（后端据此写 resource 行的 project_id）
+ * @returns {Promise<PersistOutcome>} 判别联合；**不抛**（异常也归为 `exception` 并留痕）
+ */
+export async function persistUrlToUploads(
+  url: string,
+  {
+    folder = UPLOAD_DIRS.canvas,
+    name,
+    type,
+    projectId,
+  }: { folder?: string; name?: string; type?: AssetType; projectId?: string } = {},
+): Promise<PersistOutcome> {
+  const src = String(url || '');
+  if (!src) return { ok: false, reason: 'empty' };
+  const base = safeFileName(name, { stripExt: true, fallback: 'asset' });
+  try {
+    if (src.startsWith('data:')) {
+      const saved = await saveInlineToLocal(src, folder, projectId, name);
+      return saved
+        ? { ok: true, url: saved, source: 'inline' }
+        : { ok: false, reason: 'upload-failed' };
+    }
+    if (isLocalFileUrl(src)) {
+      // 原样返回：保持调用方既有 URL 形态（相对仍相对），不做归一（归一属渲染/发送出口的职责）
+      return { ok: true, url: src, source: 'already-local' };
+    }
+    if (src.startsWith('blob:')) {
+      const resp = await httpRequest(src, {
+        parseJson: false,
+        retries: 0,
+        label: 'persistUrlToUploads.blob',
+      });
+      const blob = await resp.blob();
+      const mime = blob.type || 'image/png';
+      const ext = extOf(
+        type || detectFileType({ name: '', type: mime }),
+        mime.split('/')[1] || 'png',
+      );
+      const file = new File([blob], `${base}.${ext}`, { type: mime });
+      const saved = await uploadFileToLocal(file, folder, file.name, projectId);
+      return saved
+        ? { ok: true, url: saved, source: 'uploaded' }
+        : { ok: false, reason: 'upload-failed' };
+    }
+    if (/^https?:/i.test(src)) {
+      const ext = extOf(type || detectAssetType(src));
+      const saved = await uploadRemoteUrl(src, folder, `${base}.${ext}`);
+      return saved
+        ? { ok: true, url: saved, source: 'uploaded' }
+        : { ok: false, reason: 'upload-failed' };
+    }
+    return { ok: false, reason: 'unsupported' };
+  } catch (e) {
+    const message = (e as { message?: string })?.message || String(e);
+    logger.warn('filesApi', '[PERSIST] URL 落盘失败', `${src.slice(0, 80)} | ${message}`);
+    return { ok: false, reason: 'exception', message };
   }
 }
 

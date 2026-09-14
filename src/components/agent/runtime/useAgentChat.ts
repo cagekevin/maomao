@@ -6,6 +6,7 @@ import { InputStateMachine } from './inputStateMachine.ts';
 import { generateId } from '../../base/core/idGen.ts';
 // 【TD-15-1】agentKey 前缀单源（禁本地拼字面量）
 import { AGENT_KEY_PREFIX } from '../../base/core/agentKeys.ts';
+import { attemptQuietly } from '../../base/utils/asyncGuard.ts';
 
 /**
  * 【过渡方案·2026-08-18 决策注释】回传给 LLM 的「历史纯文字」轮数（由 AI 助手设置控制，不硬编码）。
@@ -936,12 +937,7 @@ export function useAgentChat({
     // 落盘当前对话为空（语义动作；字段清单收敛到 resetCurrentConversationToEmpty 一处，
     // 原就地手写 11 字段 = 复制 emptyMemory 定义，加字段必漏 —— TD-11-5）
     resetCurrentConversationToEmpty(skillsRef.current);
-    try {
-      captureActiveConversation();
-    } catch {
-      // catch-ok: NON_BLOCKING
-      /* ignore */
-    }
+    attemptQuietly(() => captureActiveConversation());
     stateMachineRef.current.setStatus('idle');
     // agentKey/setHistory/setAwaitingConfirm/clearCreditGate 均为稳定/模块级引用，非渲染依赖
   }, []);
@@ -968,12 +964,7 @@ export function useAgentChat({
       model,
       createdAt: Date.now(),
     });
-    try {
-      captureActiveConversation();
-    } catch {
-      // catch-ok: NON_BLOCKING
-      /* ignore */
-    }
+    attemptQuietly(() => captureActiveConversation());
     logger.info('AI助手', '[记] 确认落库', {
       kind: saved.kind,
       contentLen: (saved.content || '').length,
@@ -1088,12 +1079,7 @@ export function useAgentChat({
       );
       setHistory(next);
       setCurrentMessages(next);
-      try {
-        captureActiveConversation();
-      } catch {
-        // catch-ok: NON_BLOCKING
-        /* ignore */
-      }
+      attemptQuietly(() => captureActiveConversation());
     },
     [], // setHistory 是模块级 import 函数（稳定），非渲染依赖
   );

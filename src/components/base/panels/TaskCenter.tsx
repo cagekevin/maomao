@@ -21,7 +21,7 @@ import {
   statusDotClass,
 } from '../store/taskStore.ts';
 import { logger } from '../core/logger.ts';
-import { downloadUrl } from '../utils/clipboard.ts';
+import { downloadUrl, copyText } from '../utils/clipboard.ts';
 import { showToast } from '../core/toastStore.ts';
 import { makeAssetDragProps } from '../../../hooks/useAssetDragToCanvas.ts';
 import VideoThumbnail from '../ui/VideoThumbnail.tsx';
@@ -70,14 +70,9 @@ function TaskCenter() {
   const runningCount = counts.running;
   const failedCount = counts.failed;
 
-  const copyPrompt = (t: Task) => {
-    try {
-      navigator.clipboard.writeText(t.prompt || '');
-      showToast('已复制提示词', { type: 'success' });
-    } catch {
-      // catch-ok: CLIPBOARD
-      /* ignore */
-    }
+  const copyPrompt = async (t: Task) => {
+    const res = await copyText(t.prompt || '');
+    showToast(res.ok ? '已复制提示词' : res.msg, { type: res.ok ? 'success' : 'error' });
   };
 
   return (

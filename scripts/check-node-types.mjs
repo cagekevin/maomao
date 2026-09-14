@@ -11,6 +11,12 @@
  *  - 动态拼接/变量命名空间无法静态判定，由运行时自洽，本脚本不拦（与存储键白名单一致）。
  *  - 纯注释行整行跳过（借鉴 check-events），避免文档示例因滞后于登记表误报红。
  *
+ * 【★闸的申诉口 · 三问（2026-09-14 入规 → 架构师心法 §零.4.2）】
+ *   Q1 守什么：**红线闸** —— `NODE_TYPES` 是 P0 登记表（与 `STORAGE_KEYS`/`EVENTS` 同构：新增必须先登记）。
+ *   Q2 何时该改：新增节点类型 → **登记一行真源即可，本闸不必改**；若合法命名空间被判红 → 是登记表缺项，补真源。
+ *   Q3 怎么改：改 `src/components/base/core/contracts.ts::NODE_TYPES`。**本闸零白名单，不得新增豁免**
+ *               （文件头已定调：动态拼接不拦、由运行时自洽，已把豁免面压到 0）。
+ *
  * 用法：
  *   node scripts/check-node-types.mjs                 # 校验全部 components
  *   node scripts/check-node-types.mjs src/App.jsx     # 指定文件

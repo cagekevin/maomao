@@ -21,7 +21,7 @@ import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import LazyImage from '../base/ui/LazyImage.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import { toastWarning, toastError } from '../base/core/toastStore.ts';
-import { loadImageWithTimeout } from '../base/utils/asyncGuard.ts';
+import { loadImageWithTimeout, attemptQuietly } from '../base/utils/asyncGuard.ts';
 import { useCopyNode } from '../../hooks/useCopyNode.ts';
 import { generateId } from '../base/core/idGen.ts';
 import { downloadUrl as clipboardDownload } from '../base/utils/clipboard.ts';
@@ -659,9 +659,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
                         onDragStart={(e) => {
                           e.stopPropagation();
                           e.dataTransfer.effectAllowed = 'move';
-                          try {
-                            e.dataTransfer.setData('text/plain', String(index));
-                          } catch {} // catch-ok: CLIPBOARD
+                          attemptQuietly(() => e.dataTransfer.setData('text/plain', String(index)));
                           setDragFrom(index);
                         }}
                         onDragEnter={(e) => {

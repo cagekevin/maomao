@@ -34,14 +34,16 @@ describe('fetchResources', () => {
     expect(r).toEqual(data);
   });
 
-  it('folder/type 写入 filters JSON（folder 精确匹配当前层级，不含子孙目录）', async () => {
+  it('folder/type 写入 filters JSON（folder 走 eqOrPrefix：目录及其子孙目录，TD-12-13）', async () => {
     const fetchMock = mockFetchOnce({ items: [] });
     await ra.fetchResources({ folder: 'tasks', type: 'image', page: 2, pageSize: 10 });
     const url = fetchMock.mock.calls[0][0];
     expect(url).toContain('page=2&pageSize=10');
     const m = url.match(/filters=([^&]+)/);
     const filters = JSON.parse(decodeURIComponent(m[1]));
-    expect(filters.folder).toBe('tasks');
+    // 改前为等值 `'tasks'` → 后端 `folder = 'tasks'`，不返回 `migrated/人物` 这类子目录行，
+    // 与前端 matchesFolder 的前缀语义漂移（「全部」pill 看不到子目录素材）
+    expect(filters.folder).toEqual({ eqOrPrefix: 'tasks' });
     expect(filters.type).toBe('image');
   });
 

@@ -11,6 +11,13 @@
  *   的**顶层根集合**必须与之一致（前端可含嵌套子目录如 canvas/drop，其顶层根仍为 canvas）。
  *   本脚本静态读取两端常量做**集合对账**，不引入运行期跨端依赖（前端不 import 后端）。
  *
+ * 【★闸的申诉口 · 三问（2026-09-14 入规 → 架构师心法 §零.4.2）】
+ *   Q1 守什么：**红线闸** —— 跨端契约（前端 `UPLOAD_DIRS` ↔ 后端 `UPLOAD_ROOT_ALLOW`），漂移即线上故障
+ *               （前端加根后端未加 = 落盘静默失败；后端加根前端未加 = 功能死）。
+ *   Q2 何时该改：新增 uploads 顶层根 → **先改后端真源、再同步前端**（本闸只做集合对账，不承载业务判断）。
+ *   Q3 怎么改：改 `localTool/src/utils/fileStore.ts::UPLOAD_ROOT_ALLOW`（**真源**，它是执行校验的一方）
+ *               + `src/components/base/utils/uploadDirs.ts::UPLOAD_DIRS` 的**顶层根集合**；本闸无豁免清单。
+ *
  * 用法：`node scripts/check-upload-dirs.mjs`（挂 `npm run check:upload-dirs`）
  */
 import { readFileSync } from 'node:fs';

@@ -74,7 +74,7 @@ function VideoThumbnail({
     try {
       const v = (effectiveVideoRef as React.RefObject<HTMLVideoElement | null>)?.current;
       v?.play?.();
-    } catch {} // catch-ok: RELEASE_FAIL
+    } catch {} // catch-ok: BROWSER_API —— 媒体控制被浏览器拒绝属策略预期（autoplay 政策），非"释放失败"（改判 2026-09-14）
   };
 
   // playable 模式：双击容器 → 拦截原生双击全屏 + 开大图
@@ -85,7 +85,7 @@ function VideoThumbnail({
     try {
       const v = (effectiveVideoRef as React.RefObject<HTMLVideoElement | null>)?.current;
       v?.pause?.();
-    } catch {} // catch-ok: RELEASE_FAIL
+    } catch {} // catch-ok: BROWSER_API —— 媒体控制被浏览器拒绝属策略预期（autoplay 政策），非"释放失败"（改判 2026-09-14）
     setPlaying(false);
     onContainerDoubleClick?.();
   };
