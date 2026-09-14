@@ -254,7 +254,7 @@ export class AudioManager {
     for (const source of this.queuedSources) {
       try {
         source.stop();
-      } catch {}
+      } catch {} // catch-ok: RELEASE_FAIL
       source.disconnect();
     }
     this.queuedSources.clear();

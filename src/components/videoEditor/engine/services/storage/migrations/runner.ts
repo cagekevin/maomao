@@ -33,6 +33,7 @@ export async function runStorageMigrations({
     try {
       await deleteDatabase({ dbName: 'video-editor-meta' });
     } catch {
+      // catch-ok: MIGRATION
       // Ignore errors - DB might not exist
     }
     hasCleanedUpMetaDb = true;

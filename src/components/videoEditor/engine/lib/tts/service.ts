@@ -41,7 +41,7 @@ export async function generateSpeechFromText({
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => null);
+    const error = await response.json().catch(() => null); // catch-ok: PARSE_FALLBACK
     throw new Error(error?.error ?? `TTS request failed: ${response.status}`);
   }
 

@@ -67,7 +67,8 @@ export function TabBar() {
                   variant={activeTab === tabKey ? 'secondary' : 'text'}
                   aria-label={tab.label}
                   className={cn(
-                    'flex-col !p-1.5 !rounded-sm !h-auto [&_svg]:size-4.5',
+                    'flex-col !p-1.5 !rounded-sm !h-auto [&_svg]:size-3.5',
+                    activeTab === tabKey && 'text-foreground',
                     activeTab !== tabKey && 'border border-transparent text-muted-foreground',
                   )}
                   onClick={() => setActiveTab(tabKey)}

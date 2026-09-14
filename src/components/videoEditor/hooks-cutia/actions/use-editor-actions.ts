@@ -503,7 +503,7 @@ export function useEditorActions() {
                 projectId: activeProject.metadata.id,
                 id: assetId,
               })
-              .catch(() => undefined);
+              .catch(() => undefined); // catch-ok: RELEASE_FAIL
           }
           if (!committed && objectUrl) URL.revokeObjectURL(objectUrl);
           toast.error(i18next.t('Failed to create freeze frame'), {

@@ -10,7 +10,7 @@ export async function uploadReferenceImage({ file }: { file: File }): Promise<st
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
+    const errorData = await response.json().catch(() => null); // catch-ok: PARSE_FALLBACK
     const message = errorData?.error ?? `Upload failed with status ${response.status}`;
     throw new Error(message);
   }

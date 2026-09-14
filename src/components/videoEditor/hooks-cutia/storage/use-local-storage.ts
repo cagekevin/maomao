@@ -21,6 +21,7 @@ export function useLocalStorage<T>({
         setValue(parsedValue);
       }
     } catch {
+      // catch-ok: READ_FALLBACK
       // localstorage might be unavailable
     }
     setIsReady(true);
@@ -33,6 +34,7 @@ export function useLocalStorage<T>({
     try {
       localStorage.setItem(key, JSON.stringify(value));
     } catch {
+      // catch-ok: READ_FALLBACK
       // localstorage might be full or disabled
     }
   }, [key, value, isReady]);

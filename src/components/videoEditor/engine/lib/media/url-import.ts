@@ -37,6 +37,7 @@ function extractFilename({ url }: { url: string }): string {
       return decodeURIComponent(lastSegment);
     }
   } catch {
+    // catch-ok: PARSE_FALLBACK
     // fall through to default
   }
 

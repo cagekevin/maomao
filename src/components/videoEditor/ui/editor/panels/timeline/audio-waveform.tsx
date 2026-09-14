@@ -71,7 +71,7 @@ export function AudioWaveform({
 
       try {
         currentWaveSurfer.destroy();
-      } catch {}
+      } catch {} // catch-ok: RELEASE_FAIL
     };
 
     const initWaveSurfer = async () => {
@@ -99,7 +99,7 @@ export function AudioWaveform({
         } else {
           try {
             newWaveSurfer.destroy();
-          } catch {}
+          } catch {} // catch-ok: RELEASE_FAIL
           return;
         }
 
