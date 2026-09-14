@@ -85,16 +85,6 @@ export function mergeIntoPeaks(
   }
 }
 
-export interface AudioPeaksOptions {
-  /** 峰值列数（宿主按容器宽度给）。 */
-  columns: number;
-  /** 取用区间（秒）；缺省 = 整段。 */
-  start?: number;
-  end?: number;
-  /** 取消信号。 */
-  signal?: AbortSignal;
-}
-
 /**
  * 抽一条音频素材的波形峰值（`0..1`，长度 = `columns`）。
  *

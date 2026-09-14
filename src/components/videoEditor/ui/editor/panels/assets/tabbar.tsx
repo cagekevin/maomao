@@ -64,7 +64,7 @@ export function TabBar() {
             <Tooltip key={tabKey} delayDuration={10}>
               <TooltipTrigger asChild>
                 <Button
-                  variant={activeTab === tabKey ? 'secondary' : 'text'}
+                  variant="text"
                   aria-label={tab.label}
                   data-active={activeTab === tabKey || undefined}
                   className="ve-tab flex-col h-auto p-1.5 [&_svg]:size-3.5"

@@ -1,57 +1,62 @@
 /**
- * cutia 编辑器主题色（Tailwind v3 颜色表扩展）
+ * cutia 编辑器主题色（Tailwind v3 颜色表扩展）—— v3 扁平映射版
  *
- * 【定位】本文件是**编辑器区（改造区之外的引擎区资产）**，与 `src/index.css` 的
- * `--mao-*` 令牌体系**分离**——本仓令牌唯一真相源仍是 `tailwind.config.ts` 正文
- * （`CLAUDE.md` §七.1），cutia 令牌独立于此，由 `tailwind.config.ts` spread 引入。
- *
- * 【为什么这样写】cutia 用 Tailwind v4 的 shadcn 颜色名（`primary`/`muted`/`accent`/
- * `border`/`foreground`…），与本仓语义 token **同名但含义不同**
- * （本仓 `text-primary` = 灰色正文；cutia `text-primary` = 蓝色主色调）。
- *
- * 【隔离手法】值写成 `var(--ve-x, <本仓默认>)`：
- *   · 编辑器容器 `.ve-scope` 内定义了 `--ve-x` → 取 cutia 值；
- *   · 容器外（画布/节点/面板）→ 回落本仓默认值，**观感零变化**。
- * 因此 cutia 组件**无需改类名**（零 JSX 改动），本仓也不受影响。
- *
- * 【变量来源】`ve-theme.css` 的 `.ve-scope` / `.ve-scope.dark`。
- *
- * ⚠️ 注意：`primary` / `muted` / `body` / `secondary` / `accent` 等**本仓已占用**的名字
- * **不在此重定义**（由 `ve-theme.css` 在 `.ve-scope` 内覆盖其 `--mao-*` 上游变量
- * —— 见该文件 §6「上游变量覆盖」）。此处只补 cutia 独有、本仓没有的名字。
+ * 【架构】tailwind 颜色名 → `rgb(var(--ve-*) / <alpha-value>)` → ve-theme.css 定义终值。
+ *   · 无桥接中转：每个名字在此**显式**映射，缺一个就是 bug（bg-secondary 白底白字事故的教训）；
+ *   · token 是 RGB 三元组 → `<alpha-value>` 有效，`bg-primary/15` 这类透明度修饰可用；
+ *   · 回落值 = 宿主原定义（`.ve-scope` 外渲染零变化，隔离不破坏）。
+ * 【对照表】token 定义见 ve-theme.css §1（亮）/ §2（暗）/ 面板层覆盖。
  */
 export const videoEditorThemeColors: Record<string, string> = {
-  // ── 本仓原本没有、cutia 需要的新名字（直接可用 var 回落）──
-  background: 'var(--ve-background, rgb(var(--mao-canvas)))',
-  foreground: 'var(--ve-foreground, rgb(var(--mao-text-primary)))',
-  border: 'var(--ve-border, rgb(var(--mao-edge)))',
-  input: 'var(--ve-input, rgb(var(--mao-input)))',
-  ring: 'var(--ve-ring, rgb(var(--mao-accent)))',
-  'primary-foreground': 'var(--ve-primary-foreground, #ffffff)',
-  'secondary-foreground': 'var(--ve-secondary-foreground, #d4d4d4)',
-  'secondary-border': 'var(--ve-secondary-border, rgb(var(--mao-edge)))',
-  'accent-foreground': 'var(--ve-accent-foreground, rgb(var(--mao-text-primary)))',
-  'muted-foreground': 'var(--ve-muted-foreground, rgb(var(--mao-text-muted)))',
-  destructive: 'var(--ve-destructive, rgb(var(--mao-danger)))',
-  'destructive-foreground': 'var(--ve-destructive-foreground, #ffffff)',
-  constructive: 'var(--ve-constructive, #22c55e)',
-  'constructive-foreground': 'var(--ve-constructive-foreground, #ffffff)',
-  card: 'var(--ve-card, rgb(var(--mao-surface-1)))',
-  'card-foreground': 'var(--ve-card-foreground, rgb(var(--mao-text-primary)))',
-  popover: 'var(--ve-popover, rgb(var(--mao-surface-raised)))',
-  'popover-hover': 'var(--ve-popover-hover, rgb(var(--mao-surface-hover)))',
-  'popover-foreground': 'var(--ve-popover-foreground, rgb(var(--mao-text-strong)))',
-  'sidebar-background': 'var(--ve-sidebar-background, rgb(var(--mao-surface)))',
-  'sidebar-foreground': 'var(--ve-sidebar-foreground, rgb(var(--mao-text-primary)))',
-  'sidebar-primary': 'var(--ve-sidebar-primary, rgb(var(--mao-accent)))',
-  'sidebar-primary-foreground': 'var(--ve-sidebar-primary-foreground, #ffffff)',
-  'sidebar-accent': 'var(--ve-sidebar-accent, rgb(var(--mao-surface-hover)))',
-  'sidebar-accent-foreground': 'var(--ve-sidebar-accent-foreground, rgb(var(--mao-text-primary)))',
-  'sidebar-border': 'var(--ve-sidebar-border, rgb(var(--mao-edge)))',
-  'sidebar-ring': 'var(--ve-sidebar-ring, rgb(var(--mao-accent)))',
-  'chart-1': 'var(--ve-chart-1, #3b82f6)',
-  'chart-2': 'var(--ve-chart-2, #22c55e)',
-  'chart-3': 'var(--ve-chart-3, #f59e0b)',
-  'chart-4': 'var(--ve-chart-4, #a855f7)',
-  'chart-5': 'var(--ve-chart-5, #ef4444)',
+  /* ── 面 ── */
+  background: 'rgb(var(--ve-bg, var(--mao-canvas)) / <alpha-value>)',
+  foreground: 'rgb(var(--ve-fg, var(--mao-text-primary)) / <alpha-value>)',
+  card: 'rgb(var(--ve-bg, var(--mao-surface-1)) / <alpha-value>)',
+  'card-foreground': 'rgb(var(--ve-fg, var(--mao-text-primary)) / <alpha-value>)',
+  popover: 'rgb(var(--ve-popover, var(--mao-surface-raised)) / <alpha-value>)',
+  'popover-hover': 'rgb(var(--ve-popover-hover, var(--mao-surface-hover)) / <alpha-value>)',
+  'popover-foreground': 'rgb(var(--ve-popover-fg, var(--mao-text-strong)) / <alpha-value>)',
+
+  /* ── 主操作（编辑器内 = 苹果白/近黑；宿主回落 = 文字灰）── */
+  primary: 'rgb(var(--ve-primary, var(--mao-text-primary)) / <alpha-value>)',
+  'primary-foreground': 'rgb(var(--ve-on-primary, 255 255 255) / <alpha-value>)',
+
+  /* ── 次级/悬停面（★ 之前漏映射导致激活态白底白字的就是 secondary）── */
+  secondary: 'rgb(var(--ve-secondary, var(--mao-text-secondary)) / <alpha-value>)',
+  'secondary-foreground': 'rgb(var(--ve-on-secondary, 212 212 212) / <alpha-value>)',
+  'secondary-border': 'rgb(var(--ve-border, var(--mao-edge)) / <alpha-value>)',
+
+  /* ── 静默/悬停 ── */
+  muted: 'rgb(var(--ve-muted, var(--mao-text-muted)) / <alpha-value>)',
+  'muted-foreground': 'rgb(var(--ve-muted-fg, var(--mao-text-muted)) / <alpha-value>)',
+  accent: 'rgb(var(--ve-accent, var(--mao-accent)) / <alpha-value>)',
+  'accent-foreground': 'rgb(var(--ve-on-accent, var(--mao-text-primary)) / <alpha-value>)',
+
+  /* ── 状态 ── */
+  destructive: 'rgb(var(--ve-danger, var(--mao-danger)) / <alpha-value>)',
+  'destructive-foreground': 'rgb(var(--ve-on-danger, 255 255 255) / <alpha-value>)',
+  constructive: 'rgb(var(--ve-ok, 34 197 94) / <alpha-value>)',
+  'constructive-foreground': 'rgb(var(--ve-on-ok, 255 255 255) / <alpha-value>)',
+
+  /* ── 线/输入/环 ── */
+  border: 'rgb(var(--ve-border, var(--mao-edge)) / <alpha-value>)',
+  input: 'rgb(var(--ve-input, var(--mao-input)) / <alpha-value>)',
+  ring: 'rgb(var(--ve-ring, var(--mao-accent)) / <alpha-value>)',
+
+  /* ── 侧栏族（编辑器内等同主面）── */
+  'sidebar-background': 'rgb(var(--ve-bg, var(--mao-surface)) / <alpha-value>)',
+  'sidebar-foreground': 'rgb(var(--ve-fg, var(--mao-text-primary)) / <alpha-value>)',
+  'sidebar-primary': 'rgb(var(--ve-primary, var(--mao-accent)) / <alpha-value>)',
+  'sidebar-primary-foreground': 'rgb(var(--ve-on-primary, 255 255 255) / <alpha-value>)',
+  'sidebar-accent': 'rgb(var(--ve-accent, var(--mao-surface-hover)) / <alpha-value>)',
+  'sidebar-accent-foreground': 'rgb(var(--ve-fg, var(--mao-text-primary)) / <alpha-value>)',
+  'sidebar-border': 'rgb(var(--ve-border, var(--mao-edge)) / <alpha-value>)',
+  'sidebar-ring': 'rgb(var(--ve-ring, var(--mao-accent)) / <alpha-value>)',
+
+  /* ── 图表/数据色 ── */
+  'chart-1': 'rgb(var(--ve-chart-1, 59 130 246) / <alpha-value>)',
+  'chart-2': 'rgb(var(--ve-chart-2, 34 197 94) / <alpha-value>)',
+  'chart-3': 'rgb(var(--ve-chart-3, 245 158 11) / <alpha-value>)',
+  'chart-4': 'rgb(var(--ve-chart-4, 168 85 247) / <alpha-value>)',
+  'chart-5': 'rgb(var(--ve-chart-5, 239 68 68) / <alpha-value>)',
 };

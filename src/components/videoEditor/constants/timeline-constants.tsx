@@ -6,21 +6,6 @@ import { HugeiconsIcon } from '@hugeicons/react';
 // → 搬入其源码（ui/cutia-ui-icons，仅 3 个 SVG 图标，48 行）。
 import { OcVideoIcon } from '@videoEditor/ui/cutia-ui-icons';
 
-export const TRACK_COLORS: Record<TrackType, { background: string }> = {
-  video: {
-    background: 'transparent',
-  },
-  text: {
-    background: 'bg-[#5DBAA0]',
-  },
-  audio: {
-    background: 'bg-[#915DBE]',
-  },
-  sticker: {
-    background: 'bg-amber-500',
-  },
-} as const;
-
 export const TRACK_HEIGHTS: Record<TrackType, number> = {
   video: 60,
   text: 25,

@@ -1,286 +1,133 @@
 /**
- * cutia 编辑器主题 —— 作用域隔离版（docs/130-cutia搬迁计划书）
+ * cutia 编辑器主题 v3 —— 扁平单层 token，无桥接
  *
- * 【为什么需要这个文件】
- * cutia 用 Tailwind v4（CSS-first：`@import "tailwindcss"` + `@theme inline`），
- * 而本仓用 Tailwind v3（JS config）。两者的颜色名（`primary`/`muted`/`border`…）
- * 与语义**不同**（例：本仓 `text-primary` = 灰色正文；cutia `text-primary` = 主色调）。
- *
- * 【隔离策略】所有 cutia 变量只在 `.ve-scope` 后代生效：
- *   · 不污染本仓全局（画布/节点/面板零影响）；
- *   · 编辑器容器加 `ve-scope dark` 两个类即获得完整主题。
- *
- * 【来源】cutia `src/app/globals.css`（289 行）的 `:root` / `.dark` / `.dark .panel` 三段，
- * 映射其 `@theme inline` 的语义名。
- * 【纪律】本文件是**引擎区资产**，改它 = 改 cutia 主题；本仓自身配色请改 `src/index.css`。
+ * 【架构】
+ *   · 本文件用 `.ve-scope` / `.ve-scope.dark` 直接定义**终值** `--ve-*` token（一层，无中转）；
+ *   · `ve-tailwind-colors.ts` 把 tailwind 颜色名逐个映射到 `--ve-*`（带宿主回落值，隔离不破坏）；
+ *   · 组件里只允许：结构类（flex/定位/尺寸）+ 语义类（.ve-*）+ token 引用类（bg-primary 等）。
+ * 【真相源】mockup/video-editor-current-mockup.html —— 苹果式极简：黑白灰、发丝线、白主色。
+ * 【改样式的唯一入口】本文件。找不到的视觉 → 在 §4/§6/§7 加规则，不要回组件里加颜色类。
  */
 
 /* ══════════════════════════════════════════════════════════════
- * 1. 亮色（cutia :root，通常不用 —— cutia 默认 dark）
+ * 1. token —— 亮色（编辑器默认暗色，亮色仅兜底）
  * ══════════════════════════════════════════════════════════════ */
 .ve-scope {
-  --background: hsl(0, 0%, 100%);
-  --foreground: hsl(0 0% 11%);
-  --card: hsl(0, 0%, 100%);
-  --card-foreground: hsl(0 0% 11%);
-  --popover: hsl(0, 0%, 100%);
-  --popover-hover: hsl(0, 0%, 96%);
-  --popover-foreground: hsl(0 0% 2%);
-  /* 苹果式极简：亮色模式主色 = 近黑（Apple 系统按钮做法），不再用蓝色 */
-  --primary: hsl(0, 0%, 11%);
-  --primary-foreground: hsl(0, 0%, 100%);
-  --secondary: hsl(0, 0%, 96%);
-  --secondary-border: hsl(0, 0%, 90%);
-  --secondary-foreground: hsl(0, 0%, 35%);
-  --muted: hsl(0 0% 85.1%);
-  --muted-foreground: hsl(0 0% 50%);
-  --accent: hsl(0, 0%, 96%);
-  --accent-foreground: hsl(0 0% 2%);
-  --destructive: hsl(0, 83%, 50%);
-  --destructive-foreground: hsl(0, 0%, 100%);
-  --constructive: hsl(141, 71%, 48%);
-  --constructive-foreground: hsl(0, 0%, 100%);
-  --border: hsl(0 0% 91%);
-  --input: hsl(0 0% 85.1%);
-  --ring: hsl(0, 0%, 55%);
-  --chart-1: hsl(220 70% 50%);
-  --chart-2: hsl(160 60% 45%);
-  --chart-3: hsl(30 80% 55%);
-  --chart-4: hsl(280 65% 60%);
-  --chart-5: hsl(340 75% 55%);
-  --sidebar-background: hsl(0 0% 96.1%);
-  --sidebar-foreground: hsl(0 0% 2%);
-  --sidebar-primary: hsl(0 0% 10%);
-  --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(0 0% 96.1%);
-  --sidebar-accent-foreground: hsl(0 0% 10%);
-  --sidebar-border: hsl(0 0% 91%);
-  --sidebar-ring: hsl(0 0% 83.1%);
-  --sidebar: hsl(0, 0%, 98%);
-
-  /* ── 字号（cutia @theme 覆写，转 v3 config 无法覆盖默认 scale，用变量兜底）── */
-  --ve-radius-lg: 0.82rem;
-  --ve-radius-md: 0.65rem;
-  --ve-radius-sm: 0.35rem;
+  /* 面 */
+  --ve-bg: hsl(0, 0%, 100%);
+  --ve-fg: hsl(0, 0%, 11%);
+  --ve-popover: hsl(0, 0%, 100%);
+  --ve-popover-hover: hsl(0, 0%, 96%);
+  --ve-popover-fg: hsl(0, 0%, 2%);
+  /* 主操作：亮色模式 = 近黑（Apple 亮色按钮做法） */
+  --ve-primary: hsl(0, 0%, 11%);
+  --ve-on-primary: hsl(0, 0%, 100%);
+  /* 次级面 / 悬停面 */
+  --ve-secondary: hsl(0, 0%, 96%);
+  --ve-on-secondary: hsl(0, 0%, 35%);
+  --ve-accent: hsl(0, 0%, 96%);
+  --ve-on-accent: hsl(0, 0%, 11%);
+  --ve-muted: hsl(0, 0%, 85.1%);
+  --ve-muted-fg: hsl(0, 0%, 45%);
+  /* 线与输入 */
+  --ve-border: hsl(0, 0%, 91%);
+  --ve-input: hsl(0, 0%, 85.1%);
+  --ve-ring: hsl(0, 0%, 55%);
+  /* 状态 */
+  --ve-danger: hsl(0, 83%, 50%);
+  --ve-on-danger: hsl(0, 0%, 100%);
+  --ve-ok: hsl(141, 71%, 48%);
+  --ve-on-ok: hsl(0, 0%, 100%);
+  /* 图表/数据 */
+  --ve-chart-1: hsl(220, 70%, 50%);
+  --ve-chart-2: hsl(160, 60%, 45%);
+  --ve-chart-3: hsl(30, 80%, 55%);
+  --ve-chart-4: hsl(280, 65%, 60%);
+  --ve-chart-5: hsl(340, 75%, 55%);
 }
 
 /* ══════════════════════════════════════════════════════════════
- * 2. 暗色（cutia .dark —— 编辑器默认主题）
+ * 2. token —— 暗色（编辑器主主题）
+ *    主色 = 苹果白 #f5f5f7（激活/选中=白），按钮文字=近黑。
  * ══════════════════════════════════════════════════════════════ */
 .ve-scope.dark {
-  --background: hsl(0, 0%, 7%);
-  --foreground: hsl(0 0% 87%);
-  --card: hsl(0, 0%, 7%);
-  --card-foreground: hsl(0 0% 87%);
-  --popover: hsl(0, 0%, 16%);
-  --popover-hover: hsl(0, 0%, 22%);
-  --popover-foreground: hsl(0 0% 95%);
-  /* 苹果式极简（暗色）：主色 = 苹果白 #f5f5f7，激活/选中用「白」而非彩色；
-     亮色段遗留的 #009dff 蓝主色在此被覆盖为白。 */
-  --primary: hsl(0, 0%, 96%);
-  --primary-foreground: hsl(0, 0%, 11%);
-  --secondary: hsl(0, 0%, 14%);
-  --secondary-border: hsl(0, 0%, 20%);
-  --secondary-foreground: hsl(0, 0%, 85%);
-  --muted: hsl(0 0% 20%);
-  --muted-foreground: hsl(0 0% 55%);
-  --accent: hsl(0, 0%, 14%);
-  --accent-foreground: hsl(0 0% 95%);
-  --destructive: hsl(0, 83%, 50%);
-  --destructive-foreground: hsl(0, 0%, 100%);
-  --constructive: hsl(141, 71%, 52%);
-  --constructive-foreground: hsl(0, 0%, 100%);
-  --border: hsl(0 0% 16%);
-  --input: hsl(0 0% 20%);
-  --ring: hsl(0, 0%, 50%);
-  --sidebar-background: hsl(0 0% 8%);
-  --sidebar-foreground: hsl(0 0% 95%);
-  --sidebar-primary: hsl(0 0% 95%);
-  --sidebar-primary-foreground: hsl(0 0% 15%);
-  --sidebar-accent: hsl(0 0% 20%);
-  --sidebar-accent-foreground: hsl(0 0% 95%);
-  --sidebar-border: hsl(0 0% 20%);
-  --sidebar-ring: hsl(0 0% 83.1%);
-  --sidebar: hsl(0 0% 6%);
+  --ve-bg: hsl(0, 0%, 7%);
+  --ve-fg: hsl(0, 0%, 87%);
+  --ve-popover: hsl(0, 0%, 16%);
+  --ve-popover-hover: hsl(0, 0%, 22%);
+  --ve-popover-fg: hsl(0, 0%, 95%);
+  --ve-primary: hsl(0, 0%, 96%);
+  --ve-on-primary: hsl(0, 0%, 11%);
+  --ve-secondary: hsl(0, 0%, 14%);
+  --ve-on-secondary: hsl(0, 0%, 85%);
+  --ve-accent: hsl(0, 0%, 14%);
+  --ve-on-accent: hsl(0, 0%, 95%);
+  --ve-muted: hsl(0, 0%, 20%);
+  --ve-muted-fg: hsl(0, 0%, 55%);
+  --ve-border: hsl(0, 0%, 16%);
+  --ve-input: hsl(0, 0%, 20%);
+  --ve-ring: hsl(0, 0%, 50%);
+  --ve-danger: hsl(0, 83%, 50%);
+  --ve-on-danger: hsl(0, 0%, 100%);
+  --ve-ok: hsl(141, 71%, 52%);
+  --ve-on-ok: hsl(0, 0%, 100%);
 }
 
-/* 面板层（cutia `.dark .panel` —— 比 .dark 略亮一档） */
+/* 面板层：比底面亮一档 */
 .ve-scope.dark .panel {
-  --background: hsl(0 0% 10%);
-  --foreground: hsl(0 0% 85%);
-  --card: hsl(0, 0%, 10%);
-  --card-foreground: hsl(0 0% 85%);
-  --secondary: hsl(0, 0%, 14%);
-  --secondary-border: hsl(0, 0%, 20%);
-  --secondary-foreground: hsl(0, 0%, 85%);
-  --muted: hsl(0 0% 22%);
-  --accent: hsl(0, 0%, 15%);
-  --accent-foreground: hsl(0 0% 93%);
-  --constructive: hsl(141, 71%, 52%);
-  --border: hsl(0 0% 18%);
-  --input: hsl(0 0% 22%);
-  --ring: hsl(0, 0%, 52%);
+  --ve-bg: hsl(0, 0%, 10%);
+  --ve-fg: hsl(0, 0%, 85%);
+  --ve-border: hsl(0, 0%, 18%);
+  --ve-accent: hsl(0, 0%, 15%);
+  --ve-on-accent: hsl(0, 0%, 93%);
+  --ve-secondary: hsl(0, 0%, 14%);
+  --ve-on-secondary: hsl(0, 0%, 85%);
+  --ve-muted: hsl(0, 0%, 22%);
+  --ve-input: hsl(0, 0%, 22%);
+  --ve-ring: hsl(0, 0%, 52%);
 }
 
 /* ══════════════════════════════════════════════════════════════
- * 2.5 ★--ve-* 变量桥接（关键）
- *
- * `tailwind.config.ts` 里 cutia 的颜色写成 `var(--ve-x, <本仓默认>)`。
- * **这些 --ve-* 必须在这里赋值**，否则会全部回落到本仓值（编辑器不生效 cutia 主题）。
- *
- * 命名对应关系（tailwind 类名 → --ve-*）：
- *   text-primary / bg-primary          → --ve-text-primary
- *   text-secondary                     → --ve-text-secondary
- *   text-muted / bg-muted              → --ve-muted
- *   text-muted-foreground              → --ve-muted-foreground
- *   bg-accent / text-accent            → --ve-accent
- *   bg-background                      → --ve-background
- *   text-foreground                    → --ve-foreground
- *   border-border / border             → --ve-border
- *   ...（其余见下方）
+ * 3. 基础层
  * ══════════════════════════════════════════════════════════════ */
 .ve-scope {
-  --ve-background: var(--background);
-  --ve-foreground: var(--foreground);
-  --ve-border: var(--border);
-  --ve-input: var(--input);
-  --ve-ring: var(--ring);
-  --ve-card: var(--card);
-  --ve-card-foreground: var(--card-foreground);
-  --ve-popover: var(--popover);
-  --ve-popover-hover: var(--popover-hover);
-  --ve-popover-foreground: var(--popover-foreground);
-  --ve-primary-foreground: var(--primary-foreground);
-  --ve-secondary-foreground: var(--secondary-foreground);
-  --ve-secondary-border: var(--secondary-border);
-  --ve-accent-foreground: var(--accent-foreground);
-  --ve-muted-foreground: var(--muted-foreground);
-  --ve-destructive: var(--destructive);
-  --ve-destructive-foreground: var(--destructive-foreground);
-  --ve-constructive: var(--constructive);
-  --ve-constructive-foreground: var(--constructive-foreground);
-  --ve-sidebar-background: var(--sidebar-background);
-  --ve-sidebar-foreground: var(--sidebar-foreground);
-  --ve-sidebar-primary: var(--sidebar-primary);
-  --ve-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --ve-sidebar-accent: var(--sidebar-accent);
-  --ve-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --ve-sidebar-border: var(--sidebar-border);
-  --ve-sidebar-ring: var(--sidebar-ring);
-  --ve-chart-1: var(--chart-1);
-  --ve-chart-2: var(--chart-2);
-  --ve-chart-3: var(--chart-3);
-  --ve-chart-4: var(--chart-4);
-  --ve-chart-5: var(--chart-5);
-
-  /* ── 与本仓**同名**的 4 个（语义不同，按 cutia 原语义定值）──
-   * 本仓 `primary` = 灰白正文；cutia `primary` = 品牌蓝。
-   * 类名共用，故此处**以 cutia 语义为准**（编辑器内自洽优先）：
-   *   · bg-primary / border-primary / text-primary → cutia 的 --primary
-   */
-  --ve-text-primary: var(--primary);
-  --ve-text-secondary: var(--secondary-foreground);
-  --ve-muted: var(--muted);
-  --ve-accent: var(--accent);
-}
-
-/* ══════════════════════════════════════════════════════════════
- * 3. 基础层（cutia @layer base 的核心两条）
- *    仅作用在 .ve-scope 内 —— 不影响本仓其它区域。
- * ══════════════════════════════════════════════════════════════ */
-.ve-scope {
-  color: var(--foreground);
-  background-color: var(--background);
+  color: var(--ve-fg);
+  background-color: var(--ve-bg);
+  font-size: 12px;
+  line-height: 1.45;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .ve-scope *,
 .ve-scope *::before,
 .ve-scope *::after {
-  border-color: var(--border);
+  border-color: var(--ve-border);
 }
 .ve-scope ::selection {
-  background-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  background-color: color-mix(in srgb, var(--ve-primary) 25%, transparent);
 }
 
 /* ══════════════════════════════════════════════════════════════
- * 4. cutia 的 @utility（v4）→ v3 普通类
+ * 4. 原语精修层 —— 按钮 / 输入 / 数值框（组件里已无对抗类，自然生效）
  * ══════════════════════════════════════════════════════════════ */
-.ve-scope .scrollbar-hidden {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.ve-scope .scrollbar-hidden::-webkit-scrollbar {
-  display: none;
-}
-.ve-scope .scrollbar-x-hidden {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.ve-scope .scrollbar-x-hidden::-webkit-scrollbar:horizontal {
-  display: none;
-}
-.ve-scope .scrollbar-y-hidden {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.ve-scope .scrollbar-y-hidden::-webkit-scrollbar:vertical {
-  display: none;
-}
-.ve-scope .scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 8px;
-}
-.ve-scope .scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-.ve-scope .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: var(--border);
+
+/* 按钮：统一 4px 角 */
+.ve-scope button {
   border-radius: 4px;
 }
-.ve-scope .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: var(--muted-foreground);
+.ve-scope button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ve-primary) 60%, transparent);
+  outline-offset: 1px;
+}
+.ve-scope button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
-/* ══════════════════════════════════════════════════════════════
- * 5. 动画（cutia @theme 的 accordion keyframes）
- * ══════════════════════════════════════════════════════════════ */
-@keyframes ve-accordion-down {
-  from {
-    height: 0;
-  }
-  to {
-    height: var(--radix-accordion-content-height);
-  }
-}
-@keyframes ve-accordion-up {
-  from {
-    height: var(--radix-accordion-content-height);
-  }
-  to {
-    height: 0;
-  }
-}
-.ve-scope .animate-accordion-down {
-  animation: ve-accordion-down 0.2s ease-out;
-}
-.ve-scope .animate-accordion-up {
-  animation: ve-accordion-up 0.2s ease-out;
-}
-
-/* ══════════════════════════════════════════════════════════════
- * 7. 苹果式极简 · 全局精修层（真相源：mockup/video-editor-current-mockup.html）
- *    面（深灰面板/弹层）、边（1px 发丝线）、角（小圆角）、距（紧凑行高）统一收口。
- * ══════════════════════════════════════════════════════════════ */
-
-/* ── 面板：统一小圆角 ── */
-.ve-scope .panel {
-  border-radius: 4px;
-}
-
-/* ── 输入类：深灰底 + 6px 角 + 聚焦发丝高光（不再用大蓝环）── */
+/* 输入类：深灰底 + 发丝边 + 6px 角 + 聚焦白晕（无彩色环） */
 .ve-scope input:not([type='checkbox']):not([type='radio']):not([type='range']),
 .ve-scope textarea {
-  background-color: var(--accent);
-  border: 1px solid var(--border);
+  background-color: var(--ve-accent);
+  border: 1px solid var(--ve-border);
   border-radius: 6px;
 }
 .ve-scope input:focus-visible,
@@ -291,39 +138,14 @@
 }
 .ve-scope input::placeholder,
 .ve-scope textarea::placeholder {
-  color: var(--muted-foreground);
+  color: var(--ve-muted-fg);
 }
 
-/* ── 菜单/下拉项：32px 行高 + 5px 角（radix 菜单/右键/子菜单通用）── */
-.ve-scope [role='menuitem'] {
-  min-height: 32px;
-  border-radius: 5px;
-}
-
-/* ── 弹层容器（菜单/popover/下拉）：8px 角 + 发丝边 + 深投影 ── */
-.ve-scope [data-radix-popper-content-wrapper] > * {
-  border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
-}
-
-/* ── 对话框：弹层同调（比页面底亮一档）+ 10px 角 ── */
-.ve-scope [role='dialog'],
-.ve-scope [role='alertdialog'] {
-  background-color: var(--popover);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-/* ── 按钮：统一 4px 角（组件里的 rounded-* 已删，这里自然生效） ── */
-.ve-scope button {
-  border-radius: 4px;
-}
-
-/* ── 数字输入（.ve-num）：属性面板数值框的统一样式 ── */
+/* 数字输入（属性面板数值框） */
 .ve-scope .ve-num {
   height: 1.75rem;
-  background-color: var(--accent);
-  border: 1px solid var(--border);
+  background-color: var(--ve-accent);
+  border: 1px solid var(--ve-border);
   border-radius: 4px;
   padding: 0 8px;
   text-align: center;
@@ -342,13 +164,90 @@
   outline: none;
 }
 
-/* ── 分隔线：统一最弱档发丝 ── */
-.ve-scope [role='separator']:not([orientation='vertical']) {
-  height: 1px;
-  background-color: var(--border);
+/* ══════════════════════════════════════════════════════════════
+ * 5. 工具类（cutia @utility → v3 普通类）
+ * ══════════════════════════════════════════════════════════════ */
+.ve-scope .scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.ve-scope .scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+.ve-scope .scrollbar-x-hidden {
+  scrollbar-width: none;
+}
+.ve-scope .scrollbar-x-hidden::-webkit-scrollbar:horizontal {
+  display: none;
+}
+.ve-scope .scrollbar-y-hidden {
+  scrollbar-width: none;
+}
+.ve-scope .scrollbar-y-hidden::-webkit-scrollbar:vertical {
+  display: none;
+}
+.ve-scope .scrollbar-thin {
+  scrollbar-width: thin;
+}
+.ve-scope .scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.ve-scope .scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ve-scope .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(0, 0%, 30%);
+  border-radius: 999px;
+}
+.ve-scope .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: hsl(0, 0%, 38%);
 }
 
-/* ── 滚动条：更窄更淡 ── */
+@keyframes ve-accordion-down {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+@keyframes ve-accordion-up {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+.ve-scope .animate-accordion-down {
+  animation: ve-accordion-down 0.2s ease-out;
+}
+.ve-scope .animate-accordion-up {
+  animation: ve-accordion-up 0.2s ease-out;
+}
+
+/* ══════════════════════════════════════════════════════════════
+ * 6. 弹层 / 对话框 / 滚动条
+ * ══════════════════════════════════════════════════════════════ */
+.ve-scope [role='menuitem'] {
+  min-height: 32px;
+  border-radius: 5px;
+}
+.ve-scope [data-radix-popper-content-wrapper] > * {
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+.ve-scope [role='dialog'],
+.ve-scope [role='alertdialog'] {
+  background-color: var(--ve-popover);
+  border: 1px solid var(--ve-border);
+  border-radius: 10px;
+}
+.ve-scope [role='separator']:not([orientation='vertical']) {
+  height: 1px;
+  background-color: var(--ve-border);
+}
 .ve-scope ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -368,40 +267,58 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
- * 8. 语义组件层 —— 组件只留结构类（flex/定位/尺寸），视觉全部在这里。
- *    命名：.ve-*；状态用 data-active 或组合类。改样式只改这里。
+ * 7. 语义组件层 —— 组件只留结构类，视觉全部在这里。
  * ══════════════════════════════════════════════════════════════ */
 
-/* ── Tab 栏按钮 ── */
+/* 面板 */
+.ve-scope .panel {
+  border-radius: 4px;
+  border-color: var(--ve-border);
+}
+
+/* Tab 栏按钮 */
 .ve-scope .ve-tab {
   width: 26px;
   height: 26px;
   border-radius: 4px;
-  color: var(--muted-foreground);
+  color: var(--ve-muted-fg);
 }
 .ve-scope .ve-tab:hover {
-  background: var(--accent);
-  color: var(--foreground);
+  background: var(--ve-accent);
+  color: var(--ve-fg);
 }
 .ve-scope .ve-tab[data-active='true'] {
-  background: var(--accent);
-  color: var(--foreground);
+  background: var(--ve-accent);
+  color: var(--ve-fg);
 }
 
-/* ── 媒体卡片 ── */
+/* 时间线工具栏按钮（data-active = 激活态） */
+.ve-scope .ve-tbtn {
+  color: var(--ve-muted-fg);
+}
+.ve-scope .ve-tbtn:hover {
+  background: var(--ve-accent);
+  color: var(--ve-fg);
+}
+.ve-scope .ve-tbtn[data-active='true'] {
+  background: var(--ve-accent);
+  color: var(--ve-fg);
+}
+
+/* 媒体卡片 */
 .ve-scope .ve-card-thumb {
-  background: var(--accent);
+  background: var(--ve-accent);
   border-radius: 5px;
   overflow: hidden;
   position: relative;
 }
 .ve-scope .ve-card-selected {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--ve-primary);
   outline-offset: 1px;
 }
 .ve-scope .ve-card-name {
   font-size: 11px;
-  color: var(--muted-foreground);
+  color: var(--ve-muted-fg);
 }
 .ve-scope .ve-card-badge {
   position: absolute;
@@ -412,7 +329,7 @@
   background: rgba(0, 0, 0, 0.7);
   color: #fff;
   font-size: 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 .ve-scope .ve-card-plus {
   position: absolute;
@@ -422,21 +339,21 @@
   width: 26px;
   height: 26px;
   border-radius: 999px;
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: var(--ve-primary);
+  color: var(--ve-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
-/* ── 时间线片段 ── */
+/* 时间线片段 */
 .ve-scope .ve-clip {
   border-radius: 4px;
   overflow: hidden;
 }
 .ve-scope .ve-clip-selected {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--ve-primary);
   outline-offset: 0;
   z-index: 5;
 }
@@ -459,7 +376,7 @@
   background: #f59e0b;
 }
 
-/* ── 遮罩（隐藏片段/静音角标/加载态）── */
+/* 遮罩（隐藏片段/静音角标/加载态/模糊标签） */
 .ve-scope .ve-veil {
   position: absolute;
   inset: 0;
@@ -484,93 +401,13 @@
   background: rgba(0, 0, 0, 0.6);
 }
 
-/* ── 圆角归一：组件里残留的 rounded-* 在此统一（rounded-full 除外）── */
-.ve-scope .rounded-sm,
-.ve-scope .rounded {
-  border-radius: 4px;
-}
-.ve-scope .rounded-md {
-  border-radius: 6px;
-}
-.ve-scope .rounded-lg {
-  border-radius: 8px;
-}
-
-/* ══════════════════════════════════════════════════════════════
- * 9. 字号/字重/字体归一层 —— 编辑器内出现的每一种排版类都在此定义，
- *    组件里写什么都不重要，渲染结果永远从这里出（一处改，全局变）：
- *    基准 12px / 标题 14px / 辅助 11px / 小字 10.5px / 极小 10px
- * ══════════════════════════════════════════════════════════════ */
-.ve-scope {
-  font-size: 12px;
-  line-height: 1.45;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-/* 基准与辅助 */
-.ve-scope .text-sm,
-.ve-scope .text-base,
-.ve-scope .md\:text-sm {
-  font-size: 12px;
-}
-.ve-scope .text-xs {
-  font-size: 11px;
-}
-.ve-scope .text-lg {
-  font-size: 14px;
-}
-
-/* 任意值写法（历史遗留，全部收编） */
-.ve-scope .text-\[0\.9rem\] {
-  font-size: 13px;
-}
-.ve-scope .text-\[0\.7rem\],
-.ve-scope .text-\[0\.60rem\] {
-  font-size: 10.5px;
-}
-.ve-scope .text-\[10px\],
-.ve-scope .text-\[11px\] {
-  font-size: 10.5px;
-}
-
-/* 字重 */
-.ve-scope .font-medium {
-  font-weight: 500;
-}
-.ve-scope .font-semibold {
-  font-weight: 600;
-}
-.ve-scope .font-bold {
-  font-weight: 700;
-}
-
-/* 等宽（时间码/时长角标） */
-.ve-scope .font-mono {
-  font-family: var(--font-mono);
-}
-
-/* 行高随密度收紧 */
-.ve-scope .text-sm,
-.ve-scope .text-xs,
-.ve-scope .text-base {
-  line-height: 1.45;
-}
-
-/* 控件高度统一：默认按钮/输入 30px（mockup 刻度） */
-.ve-scope .h-9\.5 {
-  height: 30px;
-}
-.ve-scope .h-9 {
-  height: 30px;
-}
-
-/* ── 属性面板 ── */
+/* 属性面板 */
 .ve-scope .ve-pg {
   display: flex;
   flex-direction: column;
 }
 .ve-scope .ve-pg[data-border-top='true'] {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--ve-border);
 }
 .ve-scope .ve-pg-toggle {
   display: flex;
@@ -582,19 +419,19 @@
 .ve-scope .ve-pg-title {
   font-size: 12px;
   font-weight: 500;
-  color: var(--muted-foreground);
+  color: var(--ve-muted-fg);
 }
 .ve-scope .ve-pg-toggle[aria-expanded='true'] .ve-pg-title,
 .ve-scope .ve-pg-static .ve-pg-title {
-  color: var(--foreground);
+  color: var(--ve-fg);
 }
 .ve-scope .ve-pg-toggle svg {
   width: 12px;
   height: 12px;
-  color: var(--muted-foreground);
+  color: var(--ve-muted-fg);
 }
 .ve-scope .ve-pg-toggle[aria-expanded='true'] svg {
-  color: var(--foreground);
+  color: var(--ve-fg);
 }
 .ve-scope .ve-pg-static {
   display: flex;
@@ -605,8 +442,6 @@
 .ve-scope .ve-pg-body {
   padding: 10px 14px 14px;
 }
-
-/* 属性行：label 左 / 控件右；col 变体 = label 在上 */
 .ve-scope .ve-row {
   display: flex;
   align-items: center;
@@ -620,11 +455,58 @@
 }
 .ve-scope .ve-row-label {
   font-size: 11px;
-  color: var(--muted-foreground);
+  color: var(--ve-muted-fg);
   flex-shrink: 0;
 }
 .ve-scope .ve-row-value {
   flex: 1;
   font-size: 12px;
   min-width: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+ * 8. 字号/字重/字体归一层 —— 每一种排版类都在此定义渲染结果：
+ *    基准 12px / 标题 14px / 辅助 11px / 小字 10.5px
+ * ══════════════════════════════════════════════════════════════ */
+.ve-scope .text-sm,
+.ve-scope .text-base,
+.ve-scope .md\:text-sm {
+  font-size: 12px;
+}
+.ve-scope .text-xs {
+  font-size: 11px;
+}
+.ve-scope .text-lg {
+  font-size: 14px;
+}
+.ve-scope .text-\[0\.9rem\] {
+  font-size: 13px;
+}
+.ve-scope .text-\[0\.7rem\],
+.ve-scope .text-\[0\.60rem\] {
+  font-size: 10.5px;
+}
+.ve-scope .text-\[10px\],
+.ve-scope .text-\[11px\] {
+  font-size: 10.5px;
+}
+.ve-scope .font-medium {
+  font-weight: 500;
+}
+.ve-scope .font-semibold {
+  font-weight: 600;
+}
+.ve-scope .font-bold {
+  font-weight: 700;
+}
+.ve-scope .font-mono {
+  font-family: var(--font-mono);
+}
+
+/* 控件高度统一：默认按钮/输入 30px（mockup 刻度） */
+.ve-scope .h-9\.5 {
+  height: 30px;
+}
+.ve-scope .h-9 {
+  height: 30px;
 }

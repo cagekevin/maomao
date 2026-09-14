@@ -99,49 +99,6 @@ interface VideoProcessResult {
   extension: string;
 }
 
-/** 无损直通的一段：原始素材 + 取用区间（秒）。 */
-export interface LosslessSegment {
-  blob: Blob;
-  /** 源入点。**会被吸附到其前方最近的关键帧**（代价：入点精度受关键帧间隔限制，导出后如实回传 `actualStart`）。 */
-  start: number;
-  /** 源出点（秒）。 */
-  end: number;
-  /** 显示名，只用于报错文案（让用户知道是哪个片段出了问题）。 */
-  label: string;
-}
-
-/** 无损直通选项。 */
-export interface LosslessExportOptions extends ProgressOptions {
-  /** 取消信号（`docs/120` C5.4：全程可中断）。 */
-  signal?: AbortSignal;
-}
-
-/**
- * 导出产物的**音轨结局**（判别联合）—— 供上层区分「能不能说这是干净的导出」。
- *
- * 三态而不是 `audioKept: boolean` + `reason: string`：真值是三分的 ——
- * 「本来就没有声音」（`none`，不是损失）、「有声音但没能完整带出来」（`lost`，是损失，必须告知）、
- * 「完整带出来了」（`kept`）。用 boolean + 可空原因表达它，调用方只能靠**嗅探原因字符串**判断
- * 「到底算不算降级」—— 那就是把判据写在文案里（`docs/120` C5：如实告知，不静默）。
- *
- * `lost` 不分「整条丢」与「丢一部分」：两者对调用方的处置完全一样（降级 + 把 `reason` 给用户看），
- * 再分一档就是一个**没人读的**状态位（7 步法 A8：状态不预支）。`reason` 里会写明是哪一种。
- */
-export type AudioOutcome =
-  { status: 'kept' } | { status: 'lost'; reason: string } | { status: 'none' };
-
-/** 无损直通结果。 */
-export interface LosslessExportResult {
-  blob: Blob;
-  metadata: VideoMetadata;
-  mimeType: string;
-  extension: string;
-  /** 入点被吸附到的**真实**起点（秒）—— 关键帧对齐的代价，**如实告知、不假装精确**（`docs/120` C5 继承点 1）。 */
-  actualStart: number;
-  /** 音轨结局，见 `AudioOutcome`。 */
-  audio: AudioOutcome;
-}
-
 /** clamp：保证是偶数且 ≥2 */
 function Sc(v: number): number {
   return Math.max(2, Math.round(v / 2) * 2);
@@ -253,9 +210,6 @@ export async function readVideoMetadata(blob: Blob): Promise<VideoMetadata> {
  *  - 本函数是**探测**：三态可判别（`ok` / `failed` + 原因）、**纯音频也认**、**不抛**。
  *    调用方（素材入轨 / 断链判定）需要的是「能不能读 + 多长」，而不是「读不到就炸」。
  */
-export type MediaProbe =
-  | { status: 'ok'; width?: number; height?: number; duration: number; hasAudioTrack?: boolean }
-  | { status: 'failed'; reason: string };
 
 /**
  * 探测一个媒体文件（视频 / 音频）的可读性、时长与尺寸。

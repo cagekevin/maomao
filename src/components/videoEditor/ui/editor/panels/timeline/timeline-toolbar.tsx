@@ -232,12 +232,13 @@ function ToolbarButton({
     <Tooltip delayDuration={200}>
       <TooltipTrigger asChild>
         <Button
-          variant={isActive ? 'secondary' : 'text'}
+          variant="text"
           size="icon"
           type="button"
+          data-active={isActive || undefined}
           disabled={disabled}
           onClick={(event) => onClick({ event })}
-          className={cn('rounded-sm', disabled ? 'cursor-not-allowed opacity-50' : '')}
+          className={cn('ve-tbtn', disabled && 'cursor-not-allowed opacity-50')}
         >
           {icon}
         </Button>

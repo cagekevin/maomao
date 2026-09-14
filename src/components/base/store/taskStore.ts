@@ -491,12 +491,6 @@ async function runNodeGenerationNow(nodeId: string): Promise<NodeGenerationOutco
  * @param {number} [timeout] 超时 ms，默认 60s
  * @returns {Promise<{status:'completed'|'failed'|'timeout', resultUrl:string, errorMsg:string}>}
  */
-/** awaitTask 的等待结果：completed / failed / timeout 三态 */
-export interface AwaitTaskResult {
-  status: 'completed' | 'failed' | 'timeout';
-  resultUrl: string;
-  errorMsg: string;
-}
 
 /* ──────────────────────────────────────────────────────────────
  * 轮询调度注册表（S2 · ensurePolling）—— 消双轮询的地基（2026-09-03 后接 pollTask 恢复消费）

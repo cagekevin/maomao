@@ -223,37 +223,6 @@ export function drawVideoFrame(
   });
 }
 
-/** `buildFilmstrip` 入参。 */
-export interface FilmstripOptions {
-  /**
-   * 源素材时长（秒）。
-   *
-   * **必传**（不从元素现读）：调用方（剪辑器）本来就知道它 —— 它正是「这个片段有多长」的同一件事实。
-   * 让本函数再读一次 = 同一事实第二个来源，且两者不一致时无法判断谁对。
-   */
-  duration: number;
-  /** 每张缩略图的**显示高度**（px）。胶片条的真高 = 它（C11.10c：由行高派生，禁写死）。 */
-  frameHeight: number;
-  /** 抽几帧（≥1）。**固定值**而不是"按片段宽度算"—— 见文件头「为什么一条一起抽」。 */
-  frames?: number;
-  /** 每帧最长边上限（默认 160）—— 胶片条是**缩略**，不是原图。 */
-  maxFrameSize?: number;
-  /** JPEG 质量（默认 0.6）。 */
-  quality?: number;
-  /** 取消信号：宿主卸载 / 换素材时别继续抽。 */
-  signal?: AbortSignal;
-}
-
-/** 一条横向胶片（`docs/120` C11.10 的「一次抽帧拼成一条横向胶片 jpg」）。 */
-export interface Filmstrip {
-  blob: Blob;
-  /** 实际帧数（可能少于请求数：源太短 / 个别帧抽失败）。 */
-  frameCount: number;
-  /** 整条的画布尺寸（px）。 */
-  width: number;
-  height: number;
-}
-
 /**
  * 宿主薄包装 ⑥：把一条素材**一次抽 N 帧拼成一条横向胶片**（`docs/120` C11.10 规定的形态）。
  *
