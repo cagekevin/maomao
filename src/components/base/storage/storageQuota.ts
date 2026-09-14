@@ -167,7 +167,7 @@ export function mapKeyToDomain(key: string): string {
     try {
       if (compilePatternRegex(k).test(key)) return v.domain;
     } catch {
-      // catch-ok: 无效正则模板忽略（统计口径，非关键链路）
+      // catch-ok: PARSE_FALLBACK
       /* 忽略无效正则模板 */
     }
   }

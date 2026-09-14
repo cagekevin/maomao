@@ -85,7 +85,7 @@ function announceSaved(key: string): void {
   try {
     channel.postMessage({ type: 'D3D_SAVED', key, tabId, at: Date.now() });
   } catch {
-    // catch-ok: BroadcastChannel 广播失败不影响保存
+    // catch-ok: NON_BLOCKING
     /* 广播失败忽略，不影响保存 */
   }
 }

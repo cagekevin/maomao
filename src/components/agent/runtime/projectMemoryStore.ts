@@ -70,14 +70,14 @@ function withLock(key: string, fn: () => Promise<unknown>): Promise<unknown> {
   const next = prev.then(fn, fn);
   locks.set(
     key,
-    next.catch(() => {}), // catch-ok: 写锁链防断：catch 令 locks promise 永不 reject（结构性必需）
+    next.catch(() => {}), // catch-ok: LOCK_CHAIN
   );
   try {
     next.finally(() => {
       if (locks.get(key) === next) locks.delete(key);
     });
   } catch {
-    // catch-ok: finally 清理隐患忽略（不影响锁语义）
+    // catch-ok: LOCK_CHAIN
     /* 忽略 finally 隐患 */
   }
   return next;

@@ -143,7 +143,7 @@ export async function compressImage(
   } catch {
     try {
       originalSize = atob(src.split(',')[1] || '').length;
-    } catch {} // catch-ok: blob 取 size 失败 → 回退 base64 长度估算
+    } catch {} // catch-ok: NON_BLOCKING
   }
 
   return { dataUrl, blob, width: w, height: h, size: blob.size, originalSize };

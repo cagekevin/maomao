@@ -511,7 +511,7 @@ knip（死代码检测）→ 并进主工程 🟢
   ├→ scripts/gates.manifest.json::dead-code（phase=push → 本地 pre-push 自动跑） 🟢
   └→ .github/workflows/ci.yml `npm run check:push` 🟢（本地 pre-push 与 CI 跑同一份清单、各一次）
 scripts/check-arch.mjs 🟢（架构规则**唯一落点**：循环依赖/分层/唯一入口/裸写 node 字段/KV 同步读/深路径）
-scripts/check-silent-catch.mjs 🔴（静默吞闸 · 豁免通道）
+scripts/check-silent-catch.mjs 🟢（静默吞闸 · 豁免通道收口为 catchOk.ts 登记表白名单）
 scripts/debt.mjs 🟢（债务账本读写唯一入口）
 scripts/probe.mjs 🟢（先红后绿探针执行器：注入 → 跑 → 断言 → 自动还原）
 docs/audit-archive/*.md ⚪（历史报告归档保留，非活配置）

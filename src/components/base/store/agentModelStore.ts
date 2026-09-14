@@ -35,7 +35,7 @@ export function loadAgentChatModel(): AgentChatModelConfig | null {
     }
   } catch {
     /* 忽略损坏数据 */
-    // catch-ok: 存储值损坏时回退 null（读取侧容错，非失败吞没）
+    // catch-ok: READ_FALLBACK
   }
   return null;
 }
@@ -69,7 +69,7 @@ export function loadAgentHistoryTurns(): number {
     if (Number.isFinite(n) && n >= 0) return Math.floor(n); // 支持 0、任意非负整数（含大值≈不限）
   } catch {
     /* 忽略损坏数据 */
-    // catch-ok: 存储值损坏时回退默认轮数（读取侧容错）
+    // catch-ok: READ_FALLBACK
   }
   return AGENT_HISTORY_TURNS_DEFAULT;
 }

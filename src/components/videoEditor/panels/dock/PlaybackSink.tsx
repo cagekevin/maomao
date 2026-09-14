@@ -126,7 +126,7 @@ export function PlaybackSink({ open, playing, playhead, tracks, sources }: Playb
           el.currentTime = 0;
         }
       }
-      if (el.paused) void el.play().catch(() => undefined); // catch-ok: 浏览器 autoplay 策略拒绝属预期；每帧会重试 play/resync，静默合理
+      if (el.paused) void el.play().catch(() => undefined); // catch-ok: BROWSER_API
     }
     for (const [id, el] of els) {
       if (!activeIds.has(id) && !el.paused) el.pause();

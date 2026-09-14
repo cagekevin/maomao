@@ -116,7 +116,7 @@ export async function saveProject(
       });
       return { status: 'conflict', expected };
     }
-    // catch-ok: 非 409（网络 / 5xx / 代码 bug）必须**原样炸开** —— 重分类会把代码 bug
+    // 非 409（网络 / 5xx / 代码 bug）必须**原样炸开** —— 重分类会把代码 bug
     // 当成"可重试的网络错误"，也会静默吞掉真问题（7 步法 Step 4 禁重分类 / 禁静默吞）。
     throw e;
   }

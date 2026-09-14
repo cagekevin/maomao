@@ -68,7 +68,7 @@ export function useCanvasSync(getProjectId: () => string): CanvasSyncApi {
       try {
         channel?.close();
       } catch {
-        // catch-ok: BroadcastChannel.close 清理失败不阻断卸载
+        // catch-ok: NON_BLOCKING
         /* ignore */
       }
     };
@@ -84,7 +84,7 @@ export function useCanvasSync(getProjectId: () => string): CanvasSyncApi {
         const remote = await contentKvGetVersion(CANVAS_STATE_PREFIX + pid);
         if (remote > getLoadedVersion()) setCanvasConflict(true);
       } catch {
-        // catch-ok: 3s 版本轮询失败静默（有意设计，不打扰主链路）
+        // catch-ok: NON_BLOCKING
         /* 轮询失败静默：不打扰主链路 */
       }
     };

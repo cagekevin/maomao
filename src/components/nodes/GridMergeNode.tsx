@@ -520,7 +520,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
       setTimeout(() => {
         try {
           document.body.removeChild(ghost);
-        } catch {} // catch-ok: URL 解析失败回退占位名
+        } catch {} // catch-ok: PARSE_FALLBACK
       }, 0);
     },
     onDragEnter: (e: React.DragEvent<HTMLDivElement>) => {

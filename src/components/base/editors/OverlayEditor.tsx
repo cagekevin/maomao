@@ -598,7 +598,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
       }
       try {
         board.releasePointerCapture?.(e.pointerId);
-      } catch {} // catch-ok: releasePointerCapture 未持有捕获时抛错不阻断
+      } catch {} // catch-ok: NON_BLOCKING
     };
     board.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove);

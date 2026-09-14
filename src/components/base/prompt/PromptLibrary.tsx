@@ -122,7 +122,7 @@ function PromptLibrary({
       try {
         navigator.clipboard.writeText(card.content ?? '');
       } catch {
-        // catch-ok: clipboard 写失败不阻断（已 showToast 提示）
+        // catch-ok: CLIPBOARD
         /* ignore */
       }
     }

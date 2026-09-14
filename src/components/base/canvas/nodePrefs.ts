@@ -129,7 +129,7 @@ export function mergeNodePrefs(
     all[type] = { ...stored, ...patch };
     contentSet(STORAGE_KEY, all);
   } catch {
-    // catch-ok: 读取失败回退默认（节点偏好容错）
+    // catch-ok: READ_FALLBACK
     /* ignore：记忆写入失败不影响节点本次参数生效 */
   }
   return { ...prev, ...patch };

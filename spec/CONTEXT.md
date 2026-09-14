@@ -140,6 +140,8 @@
 
 * **自动重试**：仅网络/超时最多 3 次指数退避，上游业务失败绝不自动重试（防封号）。
 
+* **catch 豁免契约（TD-02-26）**：空 catch 必须标 `// catch-ok: <CODE>`，CODE 取自 `src/components/base/core/catchOk.ts` 单一登记表（有限面、可审计、不可自由文本绕过——原豁免通道是自由文本 + 只判存在性，可一句话绕过、理由永不验证）。**职责边界（最高优先，违反即回潮）**：**守卫只管「契约违约 → fail-fast（抛错）」**；**catch 只管「运行时可预期失败（IO / 网络 / 解析 / 浏览器 API 预期不可用）→ 必须留痕（`logger.warn` / `reportDegrade`）或标 catch-ok 结构性豁免」**。用前置守卫去防运行时意外 = **假守卫**（代价更高、还防不住）。`scripts/check-silent-catch.mjs` 做双向校验（空 catch 无合法 CODE 即违规）。
+
 * **幂等 / 去重 / 唯一键纪律（P0 全局收口红线）**：任何"可能重复触发"的写操作（提交生图、落盘、webhook 收结果、事件入库、外部回调）必须带全局唯一键并幂等落库——同一键重复到达只生效一次，禁止重复建任务 / 重复写 / 重复副作用。规则：① 全局唯一键统一来源（如 `base/idGen.ts` 的 `generateId`、上游 `task_id`/`thread_id`），禁止业务各处手写 `Date.now()` 当幂等键；② 落库前先按唯一键查重，命中即返回既有结果而非新建；③ 去重逻辑收口到**唯一入口**（如 `useNodeGeneration` 提交 Seam、localTool `/files/` 落盘），禁止散落各调用方各自判重；④ webhook / 重试 / 刷新回填等"至少一次"语义的入口默认按唯一键去重。项目 R1\~R4 方法论即此纪律落地：存储事件化、子图事务、防重入 UUID、统一超时——新增同类能力优先复用既有机制，不另起一套。
 
 * **类型契约：判别联合的写法（`strictNullChecks:false` 约束）**：本仓 `strict:false` / `strictNullChecks:false`，TS 对 `boolean` 判别位**只在「真分支 / 显式 `=== false`」收窄**——`else`、`!x.ok`、三元假支访问失败分支字段报 **TS2339**（**字符串/数字判别位不受影响**；实测矩阵见 `daily/架构日志/21-跨区-判别联合boolean窄化约定-2026-09-13.md`）。故「成功/失败」联合写成二者之一：① **双方各带对方的键（可选 `undefined`）**——`{ ok:true; url:string; reason?:undefined } | { ok:false; url?:undefined; reason:'x' }`（`ok` 仍是判别位、语义不变，且两分支字段都可直接读）；② 改用**字符串/数字判别位**（`kind:'a'|'b'`）。**🚫 严禁用 `as` / `!` 绕墙**（把编译期问题埋成运行时不诚实）——需要 boolean 分支时按 ① 改形状，而不是加断言。

@@ -1063,7 +1063,7 @@ export function createScriptBoxEngine({
         try {
           ac.abort();
         } catch {
-          // catch-ok: AbortController.abort 已中止/异常态不阻断全停
+          // catch-ok: RELEASE_FAIL
           /* ignore */
         }
       });
@@ -1081,7 +1081,7 @@ export function createScriptBoxEngine({
       try {
         ac.abort();
       } catch {
-        // catch-ok: AbortController.abort 异常态不阻断单项停止
+        // catch-ok: RELEASE_FAIL
         /* ignore */
       }
       abortMap.delete(key);

@@ -184,7 +184,7 @@ export function normalizeProject(raw: unknown): OpResult<Project> {
     if (e instanceof ProjectDataError) {
       return { status: 'reject', reason: e.message, expected: '结构完整的工程记录' };
     }
-    // catch-ok: 非 ProjectDataError = 本函数的代码 bug，必须原样炸开（重抛），不静默吞、不重分类。
+    // 非 ProjectDataError 必须原样炸开（重抛），不静默吞、不重分类
     throw e;
   }
 }

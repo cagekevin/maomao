@@ -55,7 +55,7 @@ export function useVideoPoster(url: string, enabled: boolean) {
         if (!cancelled && dataUrl) setPosterUrl(dataUrl);
       })
       .catch(() => {
-        // catch-ok: canvas 取帧失败回退占位（跨域污染为浏览器预期限制，非缺陷）
+        // catch-ok: BROWSER_API
       });
     return () => {
       cancelled = true;

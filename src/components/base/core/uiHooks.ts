@@ -352,7 +352,7 @@ export function useContentHeightSync(
       try {
         ro.observe(el);
       } catch {
-        // catch-ok: ResizeObserver.observe 元素已卸载时抛错不阻断
+        // catch-ok: RELEASE_FAIL
         /* noop */
       }
     };

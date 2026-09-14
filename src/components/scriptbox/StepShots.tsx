@@ -188,7 +188,7 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
             try {
               await callbacks.onGenerateScript?.();
             } catch {
-              // catch-ok: 引擎内部已 toast，此处仅防 unhandled rejection
+              // catch-ok: ALREADY_REPORTED
               /* 引擎内部已 toast；此处仅防 unhandled rejection */
             }
           }}

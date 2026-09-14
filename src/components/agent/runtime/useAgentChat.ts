@@ -939,7 +939,7 @@ export function useAgentChat({
     try {
       captureActiveConversation();
     } catch {
-      // catch-ok: captureActiveConversation 失败不阻断清空对话流程
+      // catch-ok: NON_BLOCKING
       /* ignore */
     }
     stateMachineRef.current.setStatus('idle');
@@ -971,7 +971,7 @@ export function useAgentChat({
     try {
       captureActiveConversation();
     } catch {
-      // catch-ok: captureActiveConversation 失败不阻断记忆确认
+      // catch-ok: NON_BLOCKING
       /* ignore */
     }
     logger.info('AI助手', '[记] 确认落库', {
@@ -1091,7 +1091,7 @@ export function useAgentChat({
       try {
         captureActiveConversation();
       } catch {
-        // catch-ok: captureActiveConversation 失败不阻断消息更新
+        // catch-ok: NON_BLOCKING
         /* ignore */
       }
     },

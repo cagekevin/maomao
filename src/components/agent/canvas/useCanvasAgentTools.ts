@@ -1434,7 +1434,7 @@ const executePlanTool = {
           try {
             logs.push(it);
           } catch {
-            // catch-ok: 读取失败回退默认（配置容错）
+            // catch-ok: READ_FALLBACK
             /* 忽略 */
           }
         },

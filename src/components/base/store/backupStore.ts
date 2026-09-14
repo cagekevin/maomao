@@ -82,7 +82,7 @@ function writeLS(k: string, v: unknown): boolean {
     contentSet(k, v);
     return true;
   } catch {
-    // catch-ok: 单键写入失败不阻断其余导入；失败由 importAll 计入 failed 清单（不静默吞）
+    // 写入失败返回 false（由调用方处理）
     return false;
   }
 }

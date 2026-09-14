@@ -1056,7 +1056,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           () => {
             try {
               controller.cancel();
-            } catch {} // catch-ok: 浏览器 API 释放失败不阻断帧处理主流程
+            } catch {} // catch-ok: RELEASE_FAIL
           },
         );
         // TD-22-5：GIF 产物也走唯一落盘基座（旧实现 createObjectURL 临时 URL 直接喂节点 → 刷新即失效）。
@@ -1119,7 +1119,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           () => {
             try {
               controller.cancel();
-            } catch {} // catch-ok: 浏览器 API 释放失败不阻断帧处理主流程
+            } catch {} // catch-ok: RELEASE_FAIL
           },
         );
       } else {
@@ -1158,7 +1158,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           () => {
             try {
               controller.cancel();
-            } catch {} // catch-ok: 浏览器 API 释放失败不阻断帧处理主流程
+            } catch {} // catch-ok: RELEASE_FAIL
           },
         );
       }

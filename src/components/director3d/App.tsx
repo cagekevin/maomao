@@ -1873,7 +1873,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
         try {
           onThumbnail?.(URL.createObjectURL(blob));
         } catch {
-          // catch-ok: 缩略图回传失败不影响截图导出
+          // catch-ok: KEEP_ORIGINAL
           /* 缩略图生成失败不影响截图导出 */
         }
         setToast(`摄像机截图已生成 · ${width} × ${height}`);
@@ -1996,7 +1996,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
       }
     } catch (error) {
       log.error('MP4 导出失败', error);
-      if (output && output.state !== 'finalized') await output.cancel().catch(() => {}); // catch-ok: 渲染器 output.cancel 已终态/异常时释放失败不阻断卸载
+      if (output && output.state !== 'finalized') await output.cancel().catch(() => {}); // catch-ok: RELEASE_FAIL
       setToast((error as { message?: string })?.message || 'MP4 导出失败', 'error');
     } finally {
       setCurrentFrame(originalFrame);

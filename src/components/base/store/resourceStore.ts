@@ -381,7 +381,7 @@ export async function sendToResourceLibrary(
   try {
     const fromUrl = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
     if (fromUrl && !/^blob:|^data:/.test(url)) fname = fromUrl;
-  } catch {} // catch-ok: URL 解析失败回退占位文件名（data:/blob: 无 pathname）
+  } catch {} // catch-ok: PARSE_FALLBACK
   const resourceName = (name && String(name).trim()) || fname;
   const detectedType = type || detectAssetType({ name: fname, type: '' });
   // docs/122 #3：发送到素材库登记时带上当前 projectId（resource 逻辑引用层按项目隔离；渲染过滤见 resourcesOfProject）

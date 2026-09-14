@@ -256,7 +256,7 @@ export function useAssetDropPaste({
                 const cid = await contentIdOfBytes(buf);
                 if (cid) patch.contentId = cid;
               } catch {
-                // catch-ok: contentId 为可选稳定身份，缺失不阻断显示
+                // catch-ok: NON_BLOCKING
                 /* 本地化成功即满足显示；contentId 为可选稳定身份，缺失不阻断 */
               }
               patchNodeData(id, patch);
@@ -310,7 +310,7 @@ export function useAssetDropPaste({
             return;
           }
         } catch {
-          // catch-ok: 非法 JSON 数据忽略（落下一识别分支）
+          // catch-ok: PARSE_FALLBACK
           /* 非法数据忽略 */
         }
       }
@@ -374,7 +374,7 @@ export function useAssetDropPaste({
           showToast(`已粘贴 ${images.length} 张提取的图片`);
           return;
         }
-      } catch {} // catch-ok: 图片/节点组识别失败 → 落纯文本分支（顺序探测）
+      } catch {} // catch-ok: PARSE_FALLBACK
       // 普通文本 → textGenerateNode：经 sanitizePastedText 彻底清洗（压缩连续空格/空行、去行首行尾空格、
       // 统一换行、去不可见脏字符）。用户核心诉求：粘贴表格/富文本时绝不能被当成图片或带样式贴进来，
       // 必须压成干净纯文本，这里按用户要求更强清洗。
@@ -392,7 +392,7 @@ export function useAssetDropPaste({
       const doc = new DOMParser().parseFromString(String(html), 'text/html');
       const img = doc.querySelector('img[src]');
       if (img) return img.getAttribute('src') || '';
-    } catch {} // catch-ok: DOMParser 解析失败 → 正则兜底提取 img
+    } catch {} // catch-ok: PARSE_FALLBACK
     const m = String(html).match(/<img[^>]*\ssrc=["']([^"']+)["']/i);
     return m ? m[1] : '';
   }, []);

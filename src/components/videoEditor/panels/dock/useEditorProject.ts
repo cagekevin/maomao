@@ -90,7 +90,7 @@ export function useEditorProject(projectId: string, enabled: boolean): EditorPro
     } catch (e) {
       setStatus('failed');
       setReason(e instanceof Error ? e.message : String(e));
-      // catch-ok: 读取失败必须**可见**（status='failed' + 一行红字），不是静默吞。
+      // 读取失败必须**可见**（status='failed' + 一行红字），不是静默吞。
     }
   }, [projectId]);
 

@@ -11,16 +11,24 @@
  * 【核心区分：吞错误 vs 结构性空 catch】不能一刀切禁空 catch——有些 catch 空块是**结构性必需**：
  *   · 锁链防断（`next.catch(() => {})` 保证 locks 里的 promise 永不 reject）
  *   · logger 自身防递归（上报失败不能调 logger 报错）
- *   · 浏览器 API 预期不可用（`new URL(data:...)` 抛、`video.load()` 抛、`ImageBitmap.close()` 抛）
+ *   · 浏览器 API 预期不可用（new URL(data:...) 抛、video.load() 抛、ImageBitmap.close() 抛）
  *   · 兜底解析（DOMParser 失败回退正则）
  *   对这类，「加日志」是噪音。故本闸**不用白名单**（白名单=假护栏，本仓已批过），
- *   而用**显式标记 `// catch-ok: <理由>`**：标记本身是代码（AST/正则可查），理由另说。
+ *   而用**显式标记 `// catch-ok: <CODE>`**，CODE 须来自单一真源登记表
+ *   `src/components/base/core/catchOk.ts`（TD-02-26 偿还：原豁免通道是自由文本 + 只判存在性，
+ *   可一句话绕过、理由永不验证；现收紧为「有限面登记表项 + 闸双向校验」，与本仓
+ *   STORAGE_KEYS/EVENTS/NODE_TYPES 同款 SSOT 模式）。
  *
- * 【判定】空 catch（含 `.catch(() => {})` 简写）**必须**带 `// catch-ok:` 标记；无标记 → 违规。
+ * 【判定】空 catch（含 `.catch(() => {})` 简写）**必须**带 `// catch-ok: <CODE>`，且 CODE 在
+ *   `catchOk.ts` 白名单内；无标记 / 标记 CODE 不在表内 → 违规。
  *   「空」定义：块内仅注释/空白，或 `.catch` 回调体仅 `{}`/`null`/`undefined`/`0`/`void 0`。
  *   真债修法：改为经 `reportDegrade(...)` 或 `logger.warn(...)` 留痕（失败必须可见）。
  *
- * 用法：`node scripts/check-silent-catch.mjs`（挂 `npm run check:catch`，进 prebuild/pretest）
+ * 【守卫 vs catch 职责边界】守卫只管「契约违约 → fail-fast」；catch 管「运行时可预期失败 → 留痕
+ *   或标 catch-ok 结构性豁免」。用前置守卫防运行时意外 = 假守卫。详见 spec/CONTEXT.md §三。
+ *
+ * 用法：node scripts/check-silent-catch.mjs（挂 npm run check:catch，经 scripts/gates-run.mjs
+ *   在 pre-push 与 CI 各跑一次，单一验证阶段 push；不进 build/commit 阶段）。
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +36,45 @@ import { dirname, join, relative } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'src');
+const REGISTRY = join(ROOT, 'src/components/base/core/catchOk.ts');
+
+/** 从单一真源登记表抽取合法 CODE 白名单（fail-loud：抽不到即报错退出，防路径/格式失效后静默「0 违规」）。 */
+function loadCatchOkCodes() {
+  let text;
+  try {
+    text = readFileSync(REGISTRY, 'utf8');
+  } catch (e) {
+    console.error(`❌ 静默 catch 门禁无法读取理由登记表：${REGISTRY}\n   ${e.message}`);
+    process.exit(1);
+  }
+  const block = text.match(/export const CATCH_OK\s*=\s*\{([\s\S]*?)\}\s*as const/);
+  if (!block) {
+    console.error('❌ 无法从 catchOk.ts 解析 CATCH_OK 登记表（期望 `export const CATCH_OK = { ... } as const`）');
+    process.exit(1);
+  }
+  const codes = new Set();
+  const re = /(\w+)\s*:\s*'([^']+)'/g;
+  let m;
+  while ((m = re.exec(block[1]))) codes.add(m[2]); // key 与 value 同名，值即 CODE 令牌
+  if (codes.size === 0) {
+    console.error('❌ CATCH_OK 登记表为空，闸无从校验（这会放行任意标记）');
+    process.exit(1);
+  }
+  return codes;
+}
+
+const CODES = loadCatchOkCodes();
+
+/** 抽取一行/一段文本里的 catch-ok CODE 令牌（无标记返回 null）。 */
+function extractCode(text) {
+  const m = text.match(/\/\/\s*catch-ok:\s*(\S+)/);
+  return m ? m[1] : null;
+}
+/** 标记是否「存在且 CODE 合法」（= 闸认可的结构性豁免）。 */
+function isValidMark(text) {
+  const c = extractCode(text);
+  return c !== null && CODES.has(c);
+}
 
 /** 递归收集 src 下所有 .ts/.tsx */
 const files = [];
@@ -72,13 +119,13 @@ for (const file of files) {
     const trimmed = raw.trim();
     // 跳过整行注释
     if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) return;
-    // 剥行尾注释后再判（避免注释里的 catch 文字误报）；同行的 `// catch-ok:` 标记另判
+    // 剥行尾注释后再判（避免注释里的 catch 文字误报）；标记须写在 `// catch-ok: <CODE>` 且 CODE 合法
     const code = raw.replace(/\s\/\/.*$/, '');
-    const hasMark = /\/\/\s*catch-ok:/.test(raw);
+    const validMark = isValidMark(raw);
     for (const rule of INLINE_PATTERNS) {
-      if (rule.re.test(code) && !hasMark) {
+      if (rule.re.test(code) && !validMark) {
         violations.push(
-          `${relative(ROOT, file)}:${i + 1}  [${rule.name}]  ${trimmed.slice(0, 120)}`,
+          `${relative(ROOT, file)}:${i + 1}  [${rule.name} 缺合法 catch-ok 码]  ${trimmed.slice(0, 120)}`,
         );
       }
     }
@@ -108,11 +155,11 @@ for (const file of files) {
       break;
     }
     if (onlyComments && closedAt !== -1) {
-      // 标记可写在 `catch {` 行尾，或块内注释行
+      // 标记可写在 `catch {` 行尾，或块内注释行；必须存在且 CODE 合法
       const bodyText = lines.slice(i, closedAt + 1).join('\n');
-      if (!/\/\/\s*catch-ok:/.test(bodyText)) {
+      if (!isValidMark(bodyText)) {
         violations.push(
-          `${relative(ROOT, file)}:${i + 1}  [catch{ 仅注释/空块]  ${trimmed.slice(0, 120)}`,
+          `${relative(ROOT, file)}:${i + 1}  [catch{ 仅注释/空块 缺合法 catch-ok 码]  ${trimmed.slice(0, 120)}`,
         );
       }
     }
@@ -121,16 +168,17 @@ for (const file of files) {
 
 console.log('🔒 静默 catch 门禁（失败必须可见）');
 console.log(
-  `   扫描 src 共 ${files.length} 个 .ts/.tsx · 判定：空 catch 必须带 \`// catch-ok: <理由>\` 标记`,
+  `   扫描 src 共 ${files.length} 个 .ts/.tsx · 判定：空 catch 必须带 \`// catch-ok: <CODE>\`（CODE ∈ catchOk.ts 白名单，共 ${CODES.size} 项）`,
 );
 
 if (violations.length > 0) {
-  console.error(`\n❌ 发现 ${violations.length} 处静默吞错误（无标记）：`);
+  console.error(`\n❌ 发现 ${violations.length} 处静默吞错误（无合法标记）：`);
   for (const v of violations) console.error('   ' + v);
   console.error(
     '\n修法二选一：\n' +
       '  ① 失败应可见 → 改为 `reportDegrade({ layer, key, e })` 或 `logger.warn(category, msg, e)` 留痕；\n' +
-      '  ② 确属结构性空 catch（锁链防断 / logger 防递归 / 浏览器 API 预期不可用）→ 行尾加 `// catch-ok: <理由>`。',
+      '  ② 确属结构性空 catch（锁链防断 / 防递归 / 浏览器 API 预期不可用 / 解析兜底 / 释放失败 / 读取回退默认 …）→\n' +
+      '     行尾加 `// catch-ok: <CODE>`，CODE 取自 src/components/base/core/catchOk.ts，禁止自由文本。',
   );
   process.exit(1);
 }

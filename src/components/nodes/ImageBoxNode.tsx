@@ -661,7 +661,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
                           e.dataTransfer.effectAllowed = 'move';
                           try {
                             e.dataTransfer.setData('text/plain', String(index));
-                          } catch {} // catch-ok: 剪贴板写入失败不阻断（已有 toast 提示路径）
+                          } catch {} // catch-ok: CLIPBOARD
                           setDragFrom(index);
                         }}
                         onDragEnter={(e) => {

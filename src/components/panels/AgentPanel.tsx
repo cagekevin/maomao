@@ -207,7 +207,7 @@ function loadWidth() {
     const n = t ? Number(t) : NaN;
     if (Number.isFinite(n)) return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, n));
   } catch {
-    // catch-ok: 面板宽度读取失败回退默认
+    // catch-ok: READ_FALLBACK
     /* ignore */
   }
   return DEFAULT_WIDTH;
@@ -622,7 +622,7 @@ export default function AgentPanel({
         try {
           setCreditGatePreview(getCreditGate());
         } catch {
-          // catch-ok: creditGate 读取失败忽略（订阅回调容错）
+          // catch-ok: READ_FALLBACK
           /* ignore */
         }
         setCreditGateDismissed(false);

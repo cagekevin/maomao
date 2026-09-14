@@ -21,9 +21,17 @@
  * 【禁止】新增死代码一律**先删**；确为"有意保留的公共 API / 运行时动态使用"→ 在 `knip.json` 配置
  * 豁免（`ignore` / `ignoreExportsUsedInFile` / entry），**不要**直接塞进基线（那是把闸弄瞎）。
  *
+ * 【★改：`--update-baseline` 加「不许涨」守卫（2026-09-14）】
+ * 原实现**无条件重生成**基线 → 于是"过闸"最便宜的动作就是它（一条命令 = 把违规洗成"存量"），
+ * 而正道（删死代码 / 加 knip.json 豁免 + 理由）更贵 ⇒ **违反「闸的成本守恒」（架构师心法 §零.4.1）：
+ * 闸会生产它本要禁止的行为**。原实现只有一句注释劝阻（"不要直接 --update-baseline"）—— 注释不是机器约束。
+ * 现改为：**当前存在"基线外新增"（= 回归）时拒绝写盘**（exit 1），除非显式 `--allow-new`
+ * （仅供"整体重生成确实必要"的场合，如 knip 版本跃迁；届时打印新增清单供 review）。
+ *
  * 用法：
  *   node scripts/check-dead-code.mjs                    # 校验（新增死代码 → 退出码 1）
- *   node scripts/check-dead-code.mjs --update-baseline  # 清偿/改名后重生成基线（须 review diff）
+ *   node scripts/check-dead-code.mjs --update-baseline  # 清偿/改名后重生成（**有新增则拒绝**；须 review diff）
+ *   node scripts/check-dead-code.mjs --update-baseline --allow-new   # 显式放行（打印本次新增 N 条）
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -32,6 +40,8 @@ import { join } from 'node:path';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const BASELINE_PATH = fileURLToPath(new URL('./dead-code-baseline.json', import.meta.url));
+/** 显式放行"基线外新增"（默认禁止 —— 见文件头【★改：不许涨】） */
+const ALLOW_NEW = process.argv.includes('--allow-new');
 /** 与 knip 输出对齐的 issue 类别（knip --reporter json 的 issues[].{files,exports,...}） */
 const KINDS = [
   'files',
@@ -88,6 +98,23 @@ function collect(text) {
 const current = collect(raw);
 
 if (UPDATE) {
+  // ── 「闸的成本守恒」守卫（2026-09-14）：有"基线外新增"= 回归 → 拒绝写盘，把绕行成本抬回正道之上 ──
+  const prior = existsSync(BASELINE_PATH)
+    ? JSON.parse(readFileSync(BASELINE_PATH, 'utf8')).items ?? []
+    : [];
+  const priorSet = new Set(prior);
+  const newOnes = current.filter((x) => !priorSet.has(x));
+  if (newOnes.length && !ALLOW_NEW) {
+    console.error(`\n❌ 拒绝重生成基线：当前有 ${newOnes.length} 条**基线外新增**（这是回归，不是存量）：`);
+    for (const x of newOnes.slice(0, 10)) console.error('   + ' + x);
+    if (newOnes.length > 10) console.error(`   … 另 ${newOnes.length - 10} 条`);
+    console.error(
+      '\n处理：① 删除该死代码（首选）；② 确为有意保留（公共 API / 运行时动态使用）→ 在 knip.json 加豁免；\n' +
+        '     ③ 仅当"整体重生成确实必要"（如 knip 版本跃迁）→ 显式加 `--allow-new` 并 review 上面的新增清单。',
+    );
+    process.exit(1);
+  }
+  if (newOnes.length) console.log(`⚠️  --allow-new 已放行 ${newOnes.length} 条基线外新增（请确认它们不是回归）`);
   const out = {
     _comment:
       '死代码闸基线（scripts/check-dead-code.mjs 消费）。基线内=存量（不阻塞，可逐步清偿）；基线外新增=闸红。重生成：node scripts/check-dead-code.mjs --update-baseline',

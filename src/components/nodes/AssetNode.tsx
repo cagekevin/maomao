@@ -157,7 +157,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
     try {
       const fromUrl = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
       if (fromUrl && !/^blob:|^data:/.test(url)) filename = filename || fromUrl;
-    } catch {} // catch-ok: URL 解析失败回退 label/fallback 下载名
+    } catch {} // catch-ok: PARSE_FALLBACK
     const ext =
       (filename.match(/\.[a-z0-9]{2,5}$/i) || [])[0] ||
       (type !== 'image' ? `.${extMap[type] || 'bin'}` : '');

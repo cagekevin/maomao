@@ -904,7 +904,7 @@ export async function videoToGif(
   video.removeAttribute('src');
   try {
     video.load();
-  } catch {} // catch-ok: video.load() 释放 src 时浏览器抛错不阻断 GIF 产出
+  } catch {} // catch-ok: RELEASE_FAIL
   const bytes = encoder.bytes();
   const arr = new Uint8Array(bytes.length);
   arr.set(bytes);

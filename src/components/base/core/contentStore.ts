@@ -192,7 +192,7 @@ function matchPatternEntry(
     try {
       if (compilePatternRegex(k).test(key)) return v;
     } catch {
-      // catch-ok: assertPatternRegExpsValid 已在加载时 fail-loud，此处仅防运行期炸主流程
+      // catch-ok: NON_BLOCKING
       /* 忽略无效正则 */
     }
   }

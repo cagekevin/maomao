@@ -134,13 +134,13 @@ async function readErrorBody(res: Response): Promise<unknown> {
   try {
     return await res.json();
   } catch {
-    // catch-ok: 错误体非 JSON → 落 text 分支（降级链，非吞没）
+    // catch-ok: ALREADY_REPORTED
     /* 非 JSON 错误体 */
   }
   try {
     return { message: await res.text() };
   } catch {
-    // catch-ok: 错误体无 text → 兜底空对象（已尽力保留）
+    // catch-ok: ALREADY_REPORTED
     /* 无 body */
   }
   return {};

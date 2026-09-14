@@ -284,7 +284,7 @@ export async function buildFilmstrip(url: string, options: FilmstripOptions): Pr
     video.removeAttribute('src');
     try {
       video.load();
-    } catch {} // catch-ok: 释放 src 失败不阻断已抽到的结果
+    } catch {} // catch-ok: RELEASE_FAIL
   };
 
   try {
@@ -347,7 +347,7 @@ export function captureFrame(url: string, atTime: number, quality = 0.55): Promi
     video.removeAttribute('src');
     try {
       video.load();
-    } catch {} // catch-ok: video.load() 释放 src 失败不阻断结果回调
+    } catch {} // catch-ok: RELEASE_FAIL
   };
   return drawVideoFrame(video, {
     // 原实现：target = min(atTime, max(0, (duration || atTime) - 0.01))（夹取是 ① 的判据，留在宿主）
