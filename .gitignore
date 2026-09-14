@@ -1,5 +1,5 @@
 # ════════════════════════════════════════════════════════════════
-# .gitignore · 一毛AI画布多端合一（自研后端替代版）
+# .gitignore · 猫猫AI画布多端合一（自研后端替代版）
 # 依据 CLAUDE.md §四 开发红线与分层铁律整理：
 #   - 运行只读 dist/，src/bundle/ 是可编辑工程源码（应入库）
 #   - localTool/dist/ 是 tsc 产物（不入库）
@@ -109,6 +109,9 @@ tests/type_migration_report.csv
 tests/TYPE_MIGRATION_TODO.md
 # safety-net.cjs --save 的 dist 基线快照
 scripts/dist-snapshot.json
+# 探针 journal（scripts/probe.mjs 运行期生成：临时注入前的原文备份，正常用完即删；
+# 残留 = 上次探针被 Ctrl+C/崩溃打断 → 下次启动 recoverStale() 自愈还原）
+scripts/.probe/
 # verify-ext.cjs 真机验收结果
 scripts/report.json
 # verify-chunks.cjs 异步 chunk 验收结果

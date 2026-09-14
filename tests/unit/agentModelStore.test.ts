@@ -129,3 +129,36 @@ describe('agentModelStore §4.5 历史回传轮数 load/save', () => {
     expect(m.loadAgentHistoryTurns()).toBe(2);
   });
 });
+
+// 【TD-02-27 偿还·探针】写入路径不得静默吞 bug 级异常：contentSet 抛错应 fail-fast 上抛。
+// 先红：修复前 catch 静默吞 → 此处 toThrow 失败；修复后（删空 catch）→ 上抛 → 通过。
+describe('TD-02-27: contentSet 写入路径不得静默吞 bug 级异常（fail-fast）', () => {
+  beforeEach(() => {
+    try {
+      localStorage.clear();
+    } catch {
+      /* ignore */
+    }
+    vi.resetModules();
+  });
+
+  it('saveAgentChatModel: contentSet 抛错应上抛（不静默吞）', async () => {
+    const cs = await import('../../src/components/base/core/contentStore.ts');
+    vi.spyOn(cs, 'contentSet').mockImplementation(() => {
+      throw new Error('boom');
+    });
+    const { saveAgentChatModel } =
+      await import('../../src/components/base/store/agentModelStore.ts');
+    expect(() => saveAgentChatModel({ providerId: 'p', modelId: 'm' })).toThrow('boom');
+  });
+
+  it('saveAgentHistoryTurns: contentSet 抛错应上抛（不静默吞）', async () => {
+    const cs = await import('../../src/components/base/core/contentStore.ts');
+    vi.spyOn(cs, 'contentSet').mockImplementation(() => {
+      throw new Error('boom');
+    });
+    const { saveAgentHistoryTurns } =
+      await import('../../src/components/base/store/agentModelStore.ts');
+    expect(() => saveAgentHistoryTurns(3)).toThrow('boom');
+  });
+});

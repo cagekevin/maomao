@@ -38,12 +38,8 @@ function load(): SettingState {
 // 订阅（供 useAppSettings）
 const listeners = new Set<() => void>();
 function save(): void {
-  try {
-    contentSet(KEY, settings);
-  } catch {
-    // catch-ok: 写入失败不阻断设置交互（contentSet 内部已分类/留痕）
-    /* ignore */
-  }
+  // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
+  contentSet(KEY, settings);
 }
 function notify(): void {
   listeners.forEach((l) => l());

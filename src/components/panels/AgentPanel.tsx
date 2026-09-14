@@ -737,12 +737,8 @@ export default function AgentPanel({
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
-    try {
-      contentSet(PANEL_WIDTH_KEY, String(width));
-    } catch {
-      // catch-ok: 面板宽度写入失败不阻断（contentSet 内部已分类）
-      /* ignore */
-    }
+    // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
+    contentSet(PANEL_WIDTH_KEY, String(width));
   }, [width]);
   useEffect(() => {
     if (open) onWidthChange?.(width);

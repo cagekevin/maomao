@@ -60,12 +60,8 @@ function readJSON<T>(key: string, fallback: T): T {
 }
 
 function writeJSON(key: string, val: unknown): void {
-  try {
-    contentSet(key, val);
-  } catch {
-    // catch-ok: 写入失败忽略（隐私模式等，contentSet 内部已分类）
-    // 忽略（隐私模式等）
-  }
+  // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
+  contentSet(key, val);
 }
 
 // 补齐 id（旧数据可能没 id）

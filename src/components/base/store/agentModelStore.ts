@@ -41,17 +41,13 @@ export function loadAgentChatModel(): AgentChatModelConfig | null {
 }
 
 export function saveAgentChatModel(cfg?: Partial<AgentChatModelConfig>): void {
-  try {
-    const cur: Partial<AgentChatModelConfig> = loadAgentChatModel() || {};
-    contentSet(AGENT_CHAT_MODEL_KEY, {
-      providerId: cfg?.providerId ?? cur.providerId ?? '',
-      modelId: cfg?.modelId ?? cur.modelId ?? '',
-      streamMode: cfg?.streamMode ?? cur.streamMode ?? 'stream',
-    });
-  } catch {
-    /* 忽略 */
-    // catch-ok: 写入失败不阻断配置交互（contentSet 内部已分类/留痕）
-  }
+  const cur: Partial<AgentChatModelConfig> = loadAgentChatModel() || {};
+  // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
+  contentSet(AGENT_CHAT_MODEL_KEY, {
+    providerId: cfg?.providerId ?? cur.providerId ?? '',
+    modelId: cfg?.modelId ?? cur.modelId ?? '',
+    streamMode: cfg?.streamMode ?? cur.streamMode ?? 'stream',
+  });
 }
 
 // ── 历史回传轮数（过渡方案·2026-08-18）──
@@ -80,12 +76,8 @@ export function loadAgentHistoryTurns(): number {
 
 /** 写历史回传轮数（非负整数；非法输入忽略）。 */
 export function saveAgentHistoryTurns(n: number | string): void {
-  try {
-    const v = typeof n === 'number' ? n : Number(n);
-    if (!Number.isFinite(v) || v < 0) return;
-    contentSet(AGENT_HISTORY_TURNS_KEY, Math.floor(v));
-  } catch {
-    /* 忽略 */
-    // catch-ok: 写入失败不阻断（contentSet 内部已分类/留痕）
-  }
+  const v = typeof n === 'number' ? n : Number(n);
+  if (!Number.isFinite(v) || v < 0) return;
+  // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
+  contentSet(AGENT_HISTORY_TURNS_KEY, Math.floor(v));
 }

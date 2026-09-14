@@ -525,6 +525,14 @@ export function contentGet(key: string): unknown {
  * 同步写入键值。
  * - local/native 键：同步写缓存 + localStorage
  * - KV 键：同步写缓存 + 异步写 KV（fire-and-forget，失败仅 warning）
+ *
+ * 【失败契约·TD-02-27】本函数**永不因持久化失败而抛错**：
+ *   - KV 写入走 fire-and-forget（`.catch(logger.warn)`），失败只留日志不重抛；
+ *   - local 写入走 `storageAdapter.sSet`，内部 `reportPersistFailure` 留痕、不重抛。
+ * 仅以下**契约违规**会抛错（属 bug，调用方**不应静默吞**，应 fail-fast 暴露）：
+ *   ① 键未在 STORAGE_KEYS 登记（dev 下 `checkRegistered` 抛）；
+ *   ② 值无法 `JSON.stringify`（如循环引用）；
+ *   ③ 订阅者回调（notify）抛错。
  */
 export function contentSet(key: string, value: unknown): void {
   checkRegistered(key);

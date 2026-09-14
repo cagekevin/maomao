@@ -72,12 +72,8 @@ function loadGenParams() {
 let genParams = loadGenParams();
 export function setGenParams(patch = {}) {
   genParams = { ...genParams, ...patch };
-  try {
-    contentSet(GEN_PARAMS_KEY, genParams);
-  } catch {
-    // catch-ok: 持久化失败仅降级为内存（contentSet 内部已分类）
-    /* 持久化失败仅降级为内存 */
-  }
+  // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
+  contentSet(GEN_PARAMS_KEY, genParams);
 }
 export function getGenParams() {
   return genParams;
@@ -99,12 +95,8 @@ export function getCreditSwitch() {
   }
 }
 export function setCreditSwitch(v: unknown) {
-  try {
-    contentSet(CREDIT_SWITCH_KEY, !!v);
-  } catch {
-    // catch-ok: 持久化失败仅降级为内存（contentSet 内部已分类）
-    /* 持久化失败仅降级为内存 */
-  }
+  // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
+  contentSet(CREDIT_SWITCH_KEY, !!v);
 }
 
 /* ════════════════════════════════════════════════════════════════

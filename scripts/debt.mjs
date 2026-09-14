@@ -12,6 +12,13 @@
  * 【活账 / 死账分离】`archive` 把已完成项移入 `债务-归档.md` → 主表只剩待办（实测 146KB/182 条 → 4.9KB/8 条）。
  *   读命令**默认跨两者**：查历史债用 `--all` / `--area` / `search`，不必手读归档文件。
  *
+ * 【取号口径 = 主表 ∪ 归档】（2026-09-14 修复）`add` 的"区内 max 序号"与"区域名"都取自 `loadAll()`，
+ *   与读命令**同一口径**；并在落盘前加**取号自检**（新 ID 已存在 → 拒写）。
+ *   ⚠️ 旧实现只查主表 → 某区历史债**全部归档后** `maxN` 归零 → 下次登记必得 `TD-<NN>-1` 撞已归档 ID；
+ *   又因 `loadAll()` 按 ID 去重（主表优先），撞号会**静默遮蔽**归档同名债 = 账本静默腐坏。
+ *   实证：2026-09-14 02 区登记被误分配 `TD-02-1`/`TD-02-2`（均已于首轮存在并归档），区域名同时退化成裸 `02`。
+ *   → 见 TD-17-2（已解决）。
+ *
  * 【列错位为什么能无损解析】`line.split('|')` 与 `join('|')` 互逆：只要重新定出正确列边界，描述里的裸 `|`
  *   会被逐字还原。靠**四级校验**（标准 / A 尾部多余段 / B 右锚定 / C 左锚定状态起点），任一级不过就报 `manual`，**绝不猜**。
  *
@@ -342,13 +349,21 @@ function cmdAdd(argv) {
   const anchor = argVal(argv, '--anchor') || '', refs = argVal(argv, '--refs') || '', status = argVal(argv, '--status') || '待还';
   if (!area || !summary) fail('用法：add --area 22 --summary "…" [--class 增债] [--rate 中] [--anchor <区域文件>]');
   validate({ cls, rate, owner, summary, anchor });
-  const { text, rows } = loadLedger();
+  const { text } = loadLedger(); // 只为拿"可写主表"原文；**取号 / 区域名不吃它**
   const nn = String(area);
-  const same = rows.filter((r) => r.fields.kind === 'TD' && r.fields.id.match(/^TD-(\d+)-/)?.[1] === nn);
-  if (same.some((r) => r.mode === 'manual')) fail('本区存在"列错位需人工"的行 → 先修，否则新 ID 可能撞号');
+  // 取号 + 区域名口径 = 主表 ∪ 归档（与 list/area/search/show 同源）。旧实现只查主表，
+  // 某区历史债全部 archive 后 maxN 归零 → 必撞已归档 ID（详见文件头【取号口径】）。
+  const allTd = loadAll().filter((r) => r.fields.kind === 'TD');
+  const same = allTd.filter((r) => r.fields.id.match(/^TD-(\d+)-/)?.[1] === nn);
+  if (same.some((r) => r.src === 'main' && r.mode === 'manual')) fail('本区主表存在"列错位需人工"的行 → 先修，否则新 ID 可能撞号');
   const maxN = same.reduce((mx, r) => Math.max(mx, idSeq(r.fields.id)), 0);
   const id = `TD-${nn}-${maxN + 1}`;
-  const areaText = same.length ? same[0].fields.area : `${nn}`;
+  // 取号自检（fail-loud）：撞号即拒写，防"归档新增行 / 手工残留"再破口径
+  const dup = allTd.find((r) => r.fields.id === id);
+  if (dup) fail(`取号自检失败：${id} 已存在于${dup.src === 'archive' ? '归档' : '主表'} → 拒写（撞号会被 loadAll 静默遮蔽）`);
+  // 区域名：优先主表既有写法（"活的"），退化取归档写法，并剥"（@见 …）"跨区后缀（新债跨区引用各自标）
+  const areaRaw = (same.find((r) => r.src === 'main') ?? same[0])?.fields.area ?? '';
+  const areaText = areaRaw.replace(/（@见[^）]*）/g, '').trim() || `${nn}`;
   const anchorText = anchor ? `[${anchor}](./${anchor})` : '—';
   const row = `| ${id} | ${areaText}${refs ? `（${refs}）` : ''} | ${summary} | ${cls} | ${rate} | [${status}] | ${anchorText} |`;
   writeFileSync(LEDGER, text.replace(/\s*$/, '') + '\n' + row + '\n');

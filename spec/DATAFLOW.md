@@ -169,7 +169,7 @@ memory_suggest 工具 → conversationSkillState.setActivePendingMemorySuggest�
 ### 现状
 
 ```
-core/contentStore（STORAGE_KEYS 路由 + resolveBackend 唯一判定 + 失败分类 isEngineUnavailable，dev 校验裸 key）
+core/contentStore 🔴（STORAGE_KEYS 路由 + resolveBackend 唯一判定 + 失败分类 isEngineUnavailable，dev 校验裸 key）
    ├→ storage/storageAdapter（sGet/sSet/sRemove，local/native 落地 + isStorageReady/onStorageReady 就绪度原语）
    ├→ api/localToolApi（kvGet/kvSet/kvDelete，KV 云端；不经 kvStore 中间层）
    ├→ storage/storageQuota · storage/persistFailureBus（旁路工具，不参与读写主链）
@@ -191,7 +191,7 @@ kvStore.ts = re-export 壳（仅 CANVAS_STATE_PREFIX + kvGet/kvSet/kvDelete 转�
 唯一例外：conversationState.ts 的 1 处裸 sGet（KV 迁移回读旧 local）
 ```
 
-**fan-in**：`contentStore` ← **41 处**（22 src 业务模块 + 19 测试）——几乎全部 store（task/asset/project/backup/cloudSync/skill/appSettings/accounts/agentModel/provider…）+ canvas/nodePrefs + prompt/* + agent/* + panels/AgentPanel。它是横切唯一入口，见 `base/README` §一红线说明。
+**fan-in**：`contentStore` ← **45 处**（src 业务模块 + 测试，`refs` 实测）——几乎全部 store（task/asset/project/backup/cloudSync/skill/appSettings/accounts/agentModel/provider…）+ canvas/nodePrefs + prompt/* + agent/* + panels/AgentPanel。它是横切唯一入口，见 `base/README` §一红线说明。
 **防回潮闸**：`check:arch` 规则 6（禁绕过 contentStore 直调底层）· 规则 7（KV 键同步读无守卫）· 规则 9（projects 唯一 module 写点 + 禁外部直读 cache）。
 
 ---
@@ -511,6 +511,9 @@ knip（死代码检测）→ 并进主工程 🟢
   ├→ scripts/gates.manifest.json::dead-code（phase=push → 本地 pre-push 自动跑） 🟢
   └→ .github/workflows/ci.yml `npm run check:push` 🟢（本地 pre-push 与 CI 跑同一份清单、各一次）
 scripts/check-arch.mjs 🟢（架构规则**唯一落点**：循环依赖/分层/唯一入口/裸写 node 字段/KV 同步读/深路径）
+scripts/check-silent-catch.mjs 🔴（静默吞闸 · 豁免通道）
+scripts/debt.mjs 🟢（债务账本读写唯一入口）
+scripts/probe.mjs 🟢（先红后绿探针执行器：注入 → 跑 → 断言 → 自动还原）
 docs/audit-archive/*.md ⚪（历史报告归档保留，非活配置）
 ```
 
