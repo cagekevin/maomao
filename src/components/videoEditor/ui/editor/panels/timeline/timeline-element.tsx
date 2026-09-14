@@ -296,11 +296,9 @@ function ElementInner({
 }) {
   return (
     <div
-      className={`relative h-full cursor-pointer overflow-hidden rounded-[0.5rem] ${getTrackClasses(
-        {
-          type: track.type,
-        },
-      )} ${isBeingDragged ? 'z-30' : 'z-10'} ${canElementBeHidden(element) && element.hidden ? 'opacity-50' : ''}`}
+      className={`relative h-full cursor-pointer overflow-hidden rounded-[4px] ${getTrackClasses({
+        type: track.type,
+      })} ${isBeingDragged ? 'z-30' : 'z-10'} ${canElementBeHidden(element) && element.hidden ? 'opacity-50' : ''}`}
     >
       <button
         type="button"
@@ -331,7 +329,7 @@ function ElementInner({
 
       {isSelected && (
         <>
-          <div className="border-primary pointer-events-none absolute inset-0 z-20 rounded-[0.5rem] border-2" />
+          <div className="border-primary pointer-events-none absolute inset-0 z-20 rounded-[4px] border-2" />
           <ResizeHandle side="left" elementId={element.id} handleResizeStart={handleResizeStart} />
           <ResizeHandle side="right" elementId={element.id} handleResizeStart={handleResizeStart} />
         </>

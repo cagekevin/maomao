@@ -282,7 +282,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
         </TabsList>
         <TabsContent value="style" className="mt-0 flex-1 overflow-auto">
           <PanelBaseView className="p-0">
-            <PropertyGroup title={'内容'} hasBorderTop={false} collapsible={false}>
+            <PropertyGroup hasBorderTop={false}>
               <Textarea
                 placeholder="Name"
                 value={contentDisplay}
@@ -329,8 +329,8 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                 }}
               />
             </PropertyGroup>
-            <PropertyGroup title={'字体排版'} collapsible={false}>
-              <div className="space-y-6">
+            <PropertyGroup>
+              <div className="space-y-4">
                 <PropertyItem direction="column">
                   <PropertyItemLabel>{'字体'}</PropertyItemLabel>
                   <PropertyItemValue>
@@ -465,7 +465,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                 </PropertyItem>
               </div>
             </PropertyGroup>
-            <PropertyGroup title={'预设'} collapsible={false}>
+            <PropertyGroup>
               <div className="flex flex-wrap gap-1.5">
                 {TEXT_STYLE_PRESETS.map((preset) => (
                   <PresetButton
@@ -480,8 +480,8 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                 ))}
               </div>
             </PropertyGroup>
-            <PropertyGroup title={'外观'} collapsible={false}>
-              <div className="space-y-6">
+            <PropertyGroup>
+              <div className="space-y-4">
                 <PropertyItem direction="column">
                   <PropertyItemLabel>{'颜色'}</PropertyItemLabel>
                   <PropertyItemValue>
@@ -588,7 +588,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
               </div>
             </PropertyGroup>
             <PropertyGroup title={'背景'} defaultExpanded={backgroundEnabled}>
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <PropertyItem>
                   <PropertyItemLabel>{'启用'}</PropertyItemLabel>
                   <PropertyItemValue>
@@ -811,7 +811,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
               </div>
             </PropertyGroup>
             <PropertyGroup title={'描边'} defaultExpanded={strokeEnabled}>
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <PropertyItem>
                   <PropertyItemLabel>{'启用'}</PropertyItemLabel>
                   <PropertyItemValue>
@@ -908,7 +908,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
               </div>
             </PropertyGroup>
             <PropertyGroup title={'阴影'} defaultExpanded={shadowEnabled}>
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <PropertyItem>
                   <PropertyItemLabel>{'启用'}</PropertyItemLabel>
                   <PropertyItemValue>
@@ -1087,8 +1087,8 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                 )}
               </div>
             </PropertyGroup>
-            <PropertyGroup title={'变换'}>
-              <div className="space-y-6">
+            <PropertyGroup>
+              <div className="space-y-4">
                 <PropertyItem>
                   <PropertyItemLabel>{'位置 X'}</PropertyItemLabel>
                   <PropertyItemValue>
@@ -1217,7 +1217,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                     />
                   </PropertyItemValue>
                 </PropertyItem>
-                <PropertyItem direction="column">
+                <PropertyItem>
                   <PropertyItemLabel>{'缩放'}</PropertyItemLabel>
                   <PropertyItemValue>
                     <div className="flex items-center gap-2">
@@ -1304,7 +1304,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                     </div>
                   </PropertyItemValue>
                 </PropertyItem>
-                <PropertyItem direction="column">
+                <PropertyItem>
                   <PropertyItemLabel>{'旋转'}</PropertyItemLabel>
                   <PropertyItemValue>
                     <div className="flex items-center gap-2">

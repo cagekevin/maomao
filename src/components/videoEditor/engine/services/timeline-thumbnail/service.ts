@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import { Input, ALL_FORMATS, BlobSource, VideoSampleSink } from 'mediabunny';
 
 interface SinkData {
@@ -183,7 +184,7 @@ class TimelineThumbnailCache {
         }
       }
     } catch (error) {
-      console.warn(`Batch thumbnail load failed for ${mediaId}:`, error);
+      logger.warn(`Batch thumbnail load failed for ${mediaId}:`, error);
     }
   }
 
@@ -241,7 +242,7 @@ class TimelineThumbnailCache {
         sample.close();
       }
     } catch (error) {
-      console.warn(`Failed to get thumbnail for ${mediaId} at ${time}:`, error);
+      logger.warn(`Failed to get thumbnail for ${mediaId} at ${time}:`, error);
       return null;
     }
   }
@@ -366,7 +367,7 @@ class TimelineThumbnailCache {
       this.sinks.set(mediaId, data);
       return data;
     } catch (error) {
-      console.error(`Failed to init thumbnail sink for ${mediaId}:`, error);
+      logger.error(`Failed to init thumbnail sink for ${mediaId}:`, error);
       return null;
     }
   }

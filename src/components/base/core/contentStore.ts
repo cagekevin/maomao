@@ -735,6 +735,55 @@ export interface KvCasWriteResult {
 }
 
 /**
+ * 「读内容 + 取配对版本」结果（`contentKvReadWithVersion` 返回）。
+ *
+ * `value === null` 是**合法状态**（键不存在），不是失败 —— 失败一律上抛。
+ * 要 CAS 安全写入，必须持有本次读到的 `(value, version)` **配对**：
+ * 版本 ≥ 内容版本（见下），最坏是【假冲突】（拒绝写 + 提示刷新）；
+ * 反过来（先读内容后读版本）会出现「把别人的新写入当成自己的基线 → CAS 通过 → 覆盖别人」，
+ * 那是【静默丢数据】。
+ */
+export interface KvVersionedRead<T> {
+  value: T | null;
+  /** 与服务端版本对齐的 CAS 基线（可安全用于下次 `contentKvSetCas({ifVersion})`）。 */
+  version: number;
+}
+
+/**
+ * KV「读内容 + 配对版本」原语（严格族 · fail-closed）—— CAS 读的半套协议。
+ *
+ * 【为什么存在（2026-09-14 收口 · TD-02-29）】本仓曾有 **3 份同构副本**各自手写这段读法：
+ *   · `base/store/projectStore.ts` 画布快照（三段读，重试 ≤3）
+ *   · `videoEditor/engine/services/storage/service.ts` 剪辑工程（重试 ≤2）
+ *   · 自建 videoEditor 的一份（已随 `_legacy/` 整体删除，曾是上一份的口径来源）
+ * 三者只在「重试次数」上不同 —— 那是**调用方判据**，不是协议本身。
+ * 故把**协议**（怎么读才能拿到配对）收口到此处唯一一份；**判据**（重试几次、失败怎么办）留给调用方。
+ *
+ * 【读法】版本 → 内容 → 版本（三段）：期间被别人改过（v1 !== v2）→ 重读 `retries` 次；
+ * 仍不稳则取**最新 v2**（宁假冲突，不假通过）。
+ *
+ * 【边界】只做探测，不做判据 ——
+ *   · 不做任何降级（与严格族一致）：读失败原样上抛，调用方自行决定 fail-closed 呈现；
+ *   · 不硬编码重试次数（`retries` 由调用方按场景给：单次加载 2 次、高频交互 3 次）；
+ *   · 不解析业务结构（返回 unknown，归一化属各域自己的 `normalize*`）。
+ */
+export async function contentKvReadWithVersion<T = unknown>(
+  key: string,
+  { retries = 2 }: { retries?: number } = {},
+): Promise<KvVersionedRead<T>> {
+  checkRegistered(key);
+  let version = await contentKvGetVersion(key);
+  let value = (await contentGetAsync(key)) as T | null;
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const after = await contentKvGetVersion(key);
+    if (after === version) break;
+    version = after;
+    value = (await contentGetAsync(key)) as T | null;
+  }
+  return { value, version };
+}
+
+/**
  * KV 条件写（CAS）—— 严格族写入原语。
  * - `opts.ifVersion` 传入 = 乐观并发：服务端当前版本不符 → 抛 HttpError(409) 且**一个字节都不写**；
  *   缺省 = 无条件写（备份导入/强制覆盖，服务端仍会自增版本）。

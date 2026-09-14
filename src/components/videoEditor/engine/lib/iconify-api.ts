@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 export const ICONIFY_HOSTS = [
   'https://api.iconify.design',
   'https://api.simplesvg.com',
@@ -17,7 +18,7 @@ async function fetchWithFallback(path: string): Promise<Response> {
         return response;
       }
     } catch (error) {
-      console.warn(`Failed to fetch from ${host}:`, error);
+      logger.warn(`Failed to fetch from ${host}:`, error);
     }
   }
   throw new Error('All API hosts failed');
@@ -73,7 +74,7 @@ export async function getCollections(category?: string): Promise<Record<string, 
 
     return data;
   } catch (error) {
-    console.error('Failed to fetch collections:', error);
+    logger.error('Failed to fetch collections:', error);
     return {};
   }
 }
@@ -83,7 +84,7 @@ export async function getCollection(prefix: string): Promise<CollectionInfo | nu
     const response = await fetchWithFallback(`/collection?prefix=${prefix}&pretty=1`);
     return await response.json();
   } catch (error) {
-    console.error(`Failed to fetch collection ${prefix}:`, error);
+    logger.error(`Failed to fetch collection ${prefix}:`, error);
     return null;
   }
 }
@@ -112,7 +113,7 @@ export async function searchIcons(
     const response = await fetchWithFallback(`/search?${params}`);
     return await response.json();
   } catch (error) {
-    console.error('Failed to search icons:', error);
+    logger.error('Failed to search icons:', error);
     return {
       icons: [],
       total: 0,

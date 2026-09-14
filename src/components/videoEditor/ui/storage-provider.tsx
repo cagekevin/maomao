@@ -1,7 +1,8 @@
 'use client';
+import { logger } from '@videoEditor/lib/logger';
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@videoEditor/lib/toast';
 import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
 import { storageService } from '@videoEditor/engine/services/storage/service';
 
@@ -60,7 +61,7 @@ export function StorageProvider({ children }: StorageProviderProps) {
           error: null,
         });
       } catch (error) {
-        console.error('Failed to initialize storage:', error);
+        logger.error('Failed to initialize storage:', error);
         setStatus({
           isInitialized: false,
           isLoading: false,

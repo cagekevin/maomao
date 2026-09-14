@@ -1,8 +1,9 @@
 'use client';
+import { logger } from '@videoEditor/lib/logger';
 
 import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@videoEditor/lib/toast';
 import { DraggableItem } from '@videoEditor/ui/editor/panels/assets/draggable-item';
 import { PanelBaseView as BaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
 import { Button } from '@videoEditor/ui/ui/button';
@@ -245,7 +246,7 @@ function StickersContentView({ category }: { category: StickerCategory }) {
     try {
       await addStickerToTimeline({ iconName });
     } catch (error) {
-      console.error('Failed to add sticker:', error);
+      logger.error('Failed to add sticker:', error);
       toast.error('贴纸添加到时间轴失败');
     }
   };

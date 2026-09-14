@@ -1,9 +1,11 @@
+import { logger } from '@videoEditor/lib/logger';
 import type { EditorCore } from '@videoEditor/engine/core';
 import type { MediaAsset } from '@videoEditor/types/assets';
 import { storageService } from '@videoEditor/engine/services/storage/service';
 import { generateUUID } from '@videoEditor/utils/id';
 import { videoCache } from '@videoEditor/engine/services/video-cache/service';
 import { hasMediaId } from '@videoEditor/engine/timeline/element-utils';
+import { toast } from '@videoEditor/lib/toast';
 
 export class MediaManager {
   private assets: MediaAsset[] = [];
@@ -30,9 +32,16 @@ export class MediaManager {
     try {
       await storageService.saveMediaAsset({ projectId, mediaAsset: newAsset });
     } catch (error) {
-      console.error('Failed to save media asset:', error);
+      // ── 修复(2026-09-14 · 假成功)：保存失败必须**回滚 + 用户可见**。
+      // 回滚：本地 assets 里刚加的那条要撤回，否则 UI 显示"素材在"但刷新后消失（假成功）。
+      // 可见：拖入素材是用户瞬时动作 → 失败给 toast（与 409 提示同reader）。
       this.assets = this.assets.filter((asset) => asset.id !== newAsset.id);
       this.notify();
+      logger.error('Failed to save media asset:', error);
+      toast.error('素材保存失败', {
+        description: error instanceof Error ? error.message : '本地服务可能未启动，素材未能落盘。',
+        duration: 8000,
+      });
     }
 
     return newAsset.id;
@@ -71,7 +80,7 @@ export class MediaManager {
     try {
       await storageService.deleteMediaAsset({ projectId, id });
     } catch (error) {
-      console.error('Failed to delete media asset:', error);
+      logger.error('Failed to delete media asset:', error);
     }
   }
 
@@ -86,7 +95,7 @@ export class MediaManager {
       this.assets = mediaAssets;
       this.notify();
     } catch (error) {
-      console.error('Failed to load media assets:', error);
+      logger.error('Failed to load media assets:', error);
     } finally {
       this.isLoading = false;
       this.notify();
@@ -110,7 +119,7 @@ export class MediaManager {
     try {
       await Promise.all(mediaIds.map((id) => storageService.deleteMediaAsset({ projectId, id })));
     } catch (error) {
-      console.error('Failed to clear media assets from storage:', error);
+      logger.error('Failed to clear media assets from storage:', error);
     }
   }
 

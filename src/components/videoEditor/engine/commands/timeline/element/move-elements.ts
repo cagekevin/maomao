@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import { Command } from '@videoEditor/engine/commands/base-command';
 import { EditorCore } from '@videoEditor/engine/core';
 import type {
@@ -35,7 +36,7 @@ export class MoveElementCommand extends Command {
     const element = sourceTrack?.elements.find((el) => el.id === this.elementId);
 
     if (!sourceTrack || !element) {
-      console.error('Source track or element not found');
+      logger.error('Source track or element not found');
       return;
     }
 
@@ -51,7 +52,7 @@ export class MoveElementCommand extends Command {
       targetTrack = newTrack;
     }
     if (!targetTrack) {
-      console.error('Target track not found');
+      logger.error('Target track not found');
       return;
     }
 
@@ -61,7 +62,7 @@ export class MoveElementCommand extends Command {
     });
 
     if (!validation.isValid) {
-      console.error(validation.errorMessage);
+      logger.error(validation.errorMessage);
       return;
     }
 

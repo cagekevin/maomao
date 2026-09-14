@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import { Command } from '@videoEditor/engine/commands/base-command';
 import { EditorCore } from '@videoEditor/engine/core';
 import type { TScene } from '@videoEditor/types/timeline';
@@ -23,13 +24,13 @@ export class DeleteSceneCommand extends Command {
     this.deletedScene = scenes.find((s) => s.id === this.sceneId) ?? null;
 
     if (!this.deletedScene) {
-      console.error('Scene not found:', this.sceneId);
+      logger.error('Scene not found:', this.sceneId);
       return;
     }
 
     const { canDelete, reason } = canDeleteScene({ scene: this.deletedScene });
     if (!canDelete) {
-      console.error('Cannot delete scene:', reason);
+      logger.error('Cannot delete scene:', reason);
       return;
     }
 

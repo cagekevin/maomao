@@ -25,12 +25,17 @@ import {
 import {
   contentGetAsync,
   contentKvGetVersion,
+  contentKvReadWithVersion,
   contentKvSetCas,
   contentSetAsync,
   contentDeleteAsync,
 } from '../../../../base/core/contentStore.ts';
-import { HttpError } from '../../../../base/core/httpClient.ts';
+import { HttpError } from '../../../../base/api/httpClient.ts';
 import { logger } from '../../../../base/core/logger.ts';
+// ── T4（docs/134）：素材二进制改走 localTool /files/（docs/133 §3.2 D-3），元数据留 IndexedDB。
+import { uploadFileToLocal } from '../../../../base/api/filesApi.ts';
+import { deleteResource, fetchResources } from '../../../../base/api/localToolApi.ts';
+import { UPLOAD_DIRS } from '../../../../base/utils/uploadDirs.ts';
 
 /**
  * 工程列表条目（轻）存于 KV 列表键（videoEditorProjectsKey 构造，docs/133 §2.3）。
@@ -50,18 +55,32 @@ export interface ProjectListItem {
  */
 interface EditorContext {
   canvasProjectId: string;
-  editorId: string;
+  editorId: string | null;
 }
 let editorContext: EditorContext | null = null;
 
-/** 由 EditorProvider 在挂载时调用（docs/134 T5 ②）。editorId 必为 UUID（docs/133 §2.1 M-4）。 */
+/**
+ * 由 EditorProvider 在挂载时调用（docs/134 T5 ②）。
+ *
+ * 【两段式（T5-A）】挂载时 editorId 尚不可知（它要从 KV 的 active 键读出来，而读键本身
+ * 就需要先有 canvasProjectId）。故：
+ *   ① 先 `setEditorContext({ canvasProjectId, editorId: null })` —— 允许只为读列表/active 键；
+ *   ② 定出 editorId 后再次调用补全 —— 此后工程本体读写才放行。
+ * `editorId` 为 null 时，**列表/active 键**读写可用（它们只依赖 canvasProjectId），
+ * 但**工程本体**（videoEditorProjectKey 需双占位）会被 requireEditorContext 拦下。
+ */
 export function setEditorContext(ctx: EditorContext): void {
-  if (!ctx.canvasProjectId || !ctx.editorId) {
+  if (!ctx.canvasProjectId) {
     throw new Error(
-      `[StorageService] setEditorContext 需要完整的 {canvasProjectId, editorId}，收到: ${JSON.stringify(ctx)}`,
+      `[StorageService] setEditorContext 至少需要 canvasProjectId，收到: ${JSON.stringify(ctx)}`,
     );
   }
-  editorContext = ctx;
+  editorContext = { canvasProjectId: ctx.canvasProjectId, editorId: ctx.editorId ?? null };
+}
+
+/** 清空上下文（EditorProvider 卸载时调用；避免切画布后残留旧 id 造成错键）。 */
+export function clearEditorContext(): void {
+  editorContext = null;
 }
 
 /** 读取并校验上下文已设置（任何工程读写前调用）。 */
@@ -72,6 +91,45 @@ function requireEditorContext(): EditorContext {
     );
   }
   return editorContext;
+}
+
+/**
+ * 写工程本体用的 editorId 解析（T5-A 关键）：
+ *   · 上下文已有 editorId（补全后）→ 用它；
+ *   · 否则用 `project.metadata.id` 兜底并**顺手补全上下文**。
+ *
+ * 【为什么允许兜底】`createNewProject` 的流程是「生成 id → 立刻 saveProject」，
+ * 而 id 是它自己生成的——注入上下文必然发生在 save 之后。若此处死等上下文补全，
+ * 首开流程必崩（先有鸡还是先有蛋）。而 `project.metadata.id` **就是 editorId**
+ * （docs/133 §2.1 M-4：editorId = TProject.metadata.id），用它兜底语义等价、无歧义；
+ * 且补全后，后续写入自愈为上下文驱动，不残留隐式状态。
+ * 冲突保护：上下文已有 editorId 且与 project.metadata.id **不一致** → 说明张冠李戴，直接抛错。
+ */
+function resolveEditorIdFor(projectMetadataId: string): string {
+  const ctx = requireEditorContext();
+  if (!ctx.editorId) {
+    editorContext = { canvasProjectId: ctx.canvasProjectId, editorId: projectMetadataId };
+    return projectMetadataId;
+  }
+  if (ctx.editorId !== projectMetadataId) {
+    throw new Error(
+      `[StorageService] 工程本体写入 editorId 冲突：上下文=${ctx.editorId}，project.metadata.id=${projectMetadataId}`,
+    );
+  }
+  return ctx.editorId;
+}
+
+/**
+ * 取「画布 projectId」（媒体域用）。
+ *
+ * 【为什么单独一个读取器（T5-B）】媒体域的 `projectId` 有两层语义：
+ *   · 引擎/媒体管理器传入的 `projectId` = **editorId**（同一片子内媒体即片子资产，粒度对齐片子）；
+ *   · 后端 `resource.project_id` 要的是 **画布项目 id**（项目隔离写入链，TD-12-5）。
+ * 二者在「一个画布项目挂多个片子」时**不再相等**，故此处显式暴露画布 id 供落盘链使用，
+ * 禁止下游再拿 editorId 冒充画布 id（docs/133 §3.2 D-3）。
+ */
+function canvasProjectIdOrNull(): string | null {
+  return editorContext?.canvasProjectId ?? null;
 }
 
 class StorageService {
@@ -160,8 +218,9 @@ class StorageService {
     };
 
     // ── T3：写单工程本体走 KV 严格族 CAS（docs/133 §3.5 D-4，禁静默覆盖）。
-    // 键 = (canvasProjectId, editorId)；editorId 即 project.metadata.id。
-    const { canvasProjectId, editorId } = requireEditorContext();
+    // 键 = (canvasProjectId, editorId)；editorId 即 project.metadata.id（两者必一致，见 resolveEditorIdFor）。
+    const { canvasProjectId } = requireEditorContext();
+    const editorId = resolveEditorIdFor(project.metadata.id);
     const key = videoEditorProjectKey(canvasProjectId, editorId);
     const baseline = await contentKvGetVersion(key);
     try {
@@ -189,19 +248,15 @@ class StorageService {
 
   async loadProject({ id }: { id: string }): Promise<{ project: TProject } | null> {
     await this.ensureMigrations();
-    // ── T3：读单工程本体走 KV（读前后各取一次版本，不一致重读 —— 照 _legacy/projectRepository.ts）。
+    // ── T3：读单工程本体走 KV（严格族 · 读内容+配对版本）。
+    // 读法收口到 contentKvReadWithVersion（2026-09-14）：本处原为第 3 份手写副本（TD-02-29）。
+    // 重试 2 次是**本域判据**（单次加载），协议本身在原语里。
+    // 注：此处 `id` 即 editorId，**来自调用方**（EditorProvider 已定出 editorId 后才调），
+    // 故不再要求上下文 editorId 已补全（首次载入时它正是本次 loadProject 之后才补全）。
     const { canvasProjectId } = requireEditorContext();
     const key = videoEditorProjectKey(canvasProjectId, id);
 
-    let version = await contentKvGetVersion(key);
-    let raw = (await contentGetAsync(key)) as SerializedProject | null;
-    // 最多重试 2 次：期间被别人改过 → 版本不一致 → 重读，避免「配错对」的 (内容,版本) 致后续 CAS 假冲突。
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const after = await contentKvGetVersion(key);
-      if (after === version) break;
-      version = after;
-      raw = (await contentGetAsync(key)) as SerializedProject | null;
-    }
+    const { value: raw } = await contentKvReadWithVersion<SerializedProject>(key, { retries: 2 });
 
     if (raw === undefined || raw === null) return null;
 
@@ -274,7 +329,7 @@ class StorageService {
   }
 
   async deleteProject({ id }: { id: string }): Promise<void> {
-    // 删单工程本体（KV 严格族，禁静默降级）。
+    // 删单工程本体（KV 严格族，禁静默降级）。`id` 即 editorId（调用方明确给出）。
     const { canvasProjectId } = requireEditorContext();
     await contentDeleteAsync(videoEditorProjectKey(canvasProjectId, id));
     // 从列表移除该项。
@@ -315,10 +370,16 @@ class StorageService {
     await contentSetAsync(videoEditorProjectsKey(canvasProjectId), next);
   }
 
-  /** 写当前活跃剪辑工程 id（T5 切换器调用；刷新后恢复）。 */
+  /**
+   * 写当前活跃剪辑工程 id（T5 切换器调用；刷新后恢复）。
+   * 【同时同步上下文】—— 切工程后，后续工程本体读写（saveProject 等）必须指向**新** editorId，
+   * 否则会写回旧片子（键双占位里的 editorId 仍是旧的）。此处把"写 active 键"与"切上下文"
+   * 收拢为一个原子动作，杜绝两处各写一次造成的不一致。
+   */
   async saveActiveEditorId({ editorId }: { editorId: string }): Promise<void> {
     const { canvasProjectId } = requireEditorContext();
     await contentSetAsync(videoEditorActiveProjectKey(canvasProjectId), editorId);
+    editorContext = { canvasProjectId, editorId };
   }
 
   /** 读当前活跃剪辑工程 id；无则返回 null。 */
@@ -336,11 +397,31 @@ class StorageService {
     projectId: string;
     mediaAsset: MediaAsset;
   }): Promise<void> {
-    const { mediaMetadataAdapter, mediaAssetsAdapter } = this.getProjectMediaAdapters({
-      projectId,
-    });
+    const { mediaMetadataAdapter } = this.getProjectMediaAdapters({ projectId });
 
-    await mediaAssetsAdapter.set(mediaAsset.id, mediaAsset.file);
+    // ── T5-B①：ephemeral（临时预览素材）**不落盘**——它本就随会话生灭，上传只会留孤儿文件。
+    // 仅在元数据里留一条记录（无 url），loadMediaAsset 见无 url 即返回 null（不误导下游以为是持久素材）。
+    // ── T4/T5-B②：持久素材的二进制改走 localTool /files/（docs/133 §3.2 D-3）。
+    // 第 4 参必须传**画布 projectId**（后端写 resource 行 project_id；传 editorId 会让项目隔离错位）。
+    const canvasProjectId = canvasProjectIdOrNull();
+    const fileUrl = mediaAsset.ephemeral
+      ? null
+      : await uploadFileToLocal(
+          mediaAsset.file,
+          UPLOAD_DIRS.videoEditor,
+          mediaAsset.name,
+          canvasProjectId ?? undefined,
+        );
+
+    // ── 修复(2026-09-14 · 假成功)：持久素材上传失败 = **本次没存住**，必须炸开，
+    // 不能"写一条无 url 的元数据"假装成功（那会：刷新后素材变空壳、且 /files/ 无对应文件）。
+    // 【为什么与 ephemeral 分开判】ephemeral 的 fileUrl 是**故意** null（合法状态），
+    // 不能用 `!fileUrl` 一刀切——那会把正常的临时素材也当失败。故只在"本应上传"的分支判。
+    if (!mediaAsset.ephemeral && !fileUrl) {
+      throw new Error(
+        `[StorageService] 素材上传失败（本地服务不可用？）：${mediaAsset.name}（id=${mediaAsset.id}）`,
+      );
+    }
 
     const metadata: MediaAssetData = {
       id: mediaAsset.id,
@@ -353,6 +434,7 @@ class StorageService {
       duration: mediaAsset.duration,
       thumbnailUrl: mediaAsset.thumbnailUrl,
       ephemeral: mediaAsset.ephemeral,
+      url: fileUrl ?? undefined,
     };
 
     await mediaMetadataAdapter.set(mediaAsset.id, metadata);
@@ -365,16 +447,25 @@ class StorageService {
     projectId: string;
     id: string;
   }): Promise<MediaAsset | null> {
-    const { mediaMetadataAdapter, mediaAssetsAdapter } = this.getProjectMediaAdapters({
-      projectId,
-    });
+    const { mediaMetadataAdapter } = this.getProjectMediaAdapters({ projectId });
 
-    const [file, metadata] = await Promise.all([
-      mediaAssetsAdapter.get(id),
-      mediaMetadataAdapter.get(id),
-    ]);
+    const metadata = await mediaMetadataAdapter.get(id);
+    if (!metadata) return null;
 
-    if (!file || !metadata) return null;
+    // ── T4：从 /files/ URL 拉回 Blob（上传失败致 url 缺失 → 无法还原，返回 null）。
+    if (!metadata.url) return null;
+    let file: File;
+    try {
+      const res = await fetch(metadata.url);
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      // fetch 回的是 Blob，MediaAsset.file 要求 File（保留 name/type 供下游使用）。
+      file = new File([blob], metadata.name || id, {
+        type: blob.type || String(metadata.type),
+      });
+    } catch {
+      return null;
+    }
 
     let url: string;
     if (metadata.type === 'image' && (!file.type || file.type === '')) {
@@ -425,10 +516,64 @@ class StorageService {
     return mediaItems;
   }
 
+  /**
+   * 解除一批 /files/ 素材对后端 resources 表的引用（T5-B③）。
+   *
+   * 【为什么不是直接删文件】后端 delete-file 明确**只删「全库无引用」的文件**，
+   * 被引用即 `skipped:'referenced'` 不删；而我们的素材上传时带了 projectId → 必然登记了 resource 行
+   * → 直接删文件**永远失败**（已实测确认）。后端既定纪律是「只删记录，删盘交给引用感知 GC
+   * （runReferenceGc 查 resources + tasks + **KV** 三处引用）」。故正确姿势：
+   *   ① 按 url 反查该素材的 resource 行 → ② 删记录（deleteResource 内部触发 GC 裁决回收）。
+   *
+   * 反查用 `fetchResources({ folder, projectId })`（folder 取素材落盘目录、projectId 取画布 id），
+   * 再按 url 精确匹配（资源列表是分页的，故按落盘目录 + 本项目过滤把候选压到最小）。
+   * 任一步失败**不阻断**元数据清理：残留的 resource 行会被后续 GC 兜底，比"删不掉就卡死"更安全。
+   */
+  private async releaseResourceRefs(
+    urls: string[],
+    { folder, projectId }: { folder: string; projectId: string | null },
+  ): Promise<void> {
+    const targets = new Set(urls.filter(Boolean));
+    if (targets.size === 0) return;
+
+    try {
+      // 资源可能跨多页（素材多了以后），逐页扫到没有再停；通常一页足够。
+      for (let page = 1; page <= 20; page++) {
+        const res = await fetchResources({
+          folder,
+          page,
+          pageSize: 200,
+          projectId: projectId ?? undefined,
+        });
+        const items = res?.data?.items ?? [];
+        if (items.length === 0) break;
+
+        const hits = items.filter((it) => it.url && targets.has(it.url));
+        await Promise.all(hits.map((hit) => deleteResource(String(hit.id))));
+
+        if (items.length < 200) break; // 最后一页
+      }
+    } catch (e) {
+      logger.warn('视频剪辑器', '素材资源引用解除失败（交后续 GC 兜底）', {
+        count: targets.size,
+        error: String(e),
+      });
+    }
+  }
+
   async deleteMediaAsset({ projectId, id }: { projectId: string; id: string }): Promise<void> {
     const { mediaMetadataAdapter, mediaAssetsAdapter } = this.getProjectMediaAdapters({
       projectId,
     });
+
+    // ── T5-B③：先解除 /files/ 素材的后端资源引用（否则删一次素材留一个孤儿文件）。
+    const metadata = await mediaMetadataAdapter.get(id);
+    if (metadata?.url) {
+      await this.releaseResourceRefs([metadata.url], {
+        folder: UPLOAD_DIRS.videoEditor,
+        projectId: canvasProjectIdOrNull(),
+      });
+    }
 
     await Promise.all([mediaAssetsAdapter.remove(id), mediaMetadataAdapter.remove(id)]);
   }
@@ -437,6 +582,13 @@ class StorageService {
     const { mediaMetadataAdapter, mediaAssetsAdapter } = this.getProjectMediaAdapters({
       projectId,
     });
+
+    // ── T5-B③：整个工程的媒体一起删时，批量解除资源引用后再 clear 元数据。
+    const allMedia = await mediaMetadataAdapter.getAll();
+    await this.releaseResourceRefs(
+      allMedia.map((m) => m.url).filter((u): u is string => Boolean(u)),
+      { folder: UPLOAD_DIRS.videoEditor, projectId: canvasProjectIdOrNull() },
+    );
 
     await Promise.all([mediaMetadataAdapter.clear(), mediaAssetsAdapter.clear()]);
   }
@@ -544,7 +696,7 @@ class StorageService {
         }
       );
     } catch (error) {
-      console.error('Failed to load saved sounds:', error);
+      logger.error('videoEditor', 'load-sounds', (error as { message?: string })?.message);
       return { sounds: [], lastModified: new Date().toISOString() };
     }
   }
@@ -576,7 +728,7 @@ class StorageService {
 
       await this.savedSoundsAdapter.set('user-sounds', updatedData);
     } catch (error) {
-      console.error('Failed to save sound effect:', error);
+      logger.error('videoEditor', 'save-sound', (error as { message?: string })?.message);
       throw error;
     }
   }
@@ -592,7 +744,7 @@ class StorageService {
 
       await this.savedSoundsAdapter.set('user-sounds', updatedData);
     } catch (error) {
-      console.error('Failed to remove saved sound:', error);
+      logger.error('videoEditor', 'remove-sound', (error as { message?: string })?.message);
       throw error;
     }
   }
@@ -602,7 +754,7 @@ class StorageService {
       const currentData = await this.loadSavedSounds();
       return currentData.sounds.some((sound) => sound.id === soundId);
     } catch (error) {
-      console.error('Failed to check if sound is saved:', error);
+      logger.error('videoEditor', 'check-sound', (error as { message?: string })?.message);
       return false;
     }
   }
@@ -611,7 +763,7 @@ class StorageService {
     try {
       await this.savedSoundsAdapter.remove('user-sounds');
     } catch (error) {
-      console.error('Failed to clear saved sounds:', error);
+      logger.error('videoEditor', 'clear-sounds', (error as { message?: string })?.message);
       throw error;
     }
   }

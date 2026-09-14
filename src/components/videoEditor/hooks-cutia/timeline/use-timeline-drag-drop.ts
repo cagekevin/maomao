@@ -1,7 +1,8 @@
+import { logger } from '@videoEditor/lib/logger';
 import { useState, useCallback, type RefObject } from 'react';
 import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
 import { processMediaAssets } from '@videoEditor/engine/lib/media/processing';
-import { toast } from 'sonner';
+import { toast } from '@videoEditor/lib/toast';
 import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
 import { snapTimeToFrame } from '@videoEditor/engine/lib/time';
 import {
@@ -404,7 +405,7 @@ export function useTimelineDragDrop({
           });
         }
       } catch (err) {
-        console.error('Failed to process drop:', err);
+        logger.error('Failed to process drop:', err);
         toast.error('Failed to process drop');
       }
     },

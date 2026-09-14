@@ -1546,28 +1546,17 @@ function Canvas() {
           {view === 'settings' && <SettingsFrame />}
         </div>
 
-        {/* 视频剪辑器基座：**常驻底部层**（非 portal、不覆盖画布、不登记 modalLayer）。
-          key=activeProjectId：工程随项目走（docs/120 C2.6），切项目强制重挂载换工程。
-          open 控显隐（与 AgentPanel 同款：常驻挂载，折叠不丢状态）。
-          ── 更新(2026-09-14)：自建 VideoEditorDock 已退役（旧码移至 videoEditor/_legacy/，
-             见 docs/130-cutia搬迁计划书-2026-09-14.md）。此处待接入 cutia 版本 EditorShell。 */}
-        {/* <VideoEditorDock
-          key={activeProjectId}
-          open={videoEditorOpen}
-          projectId={activeProjectId}
-          onClose={() => setSetting('videoEditorOpen', false)}
-        /> */}
-
         {/* cutia 版编辑器（docs/130-cutia搬迁计划书 §S5）：一期**全屏**挂载先跑通，
             接画布（常驻底部层 / 点选入轨 / 出片回写）是后续 §S6。
-            key=activeProjectId：工程随项目走，切项目强制重挂载换工程。 */}
+            key=activeProjectId：工程随项目走，切项目强制重挂载换工程。
+            ── 更新(2026-09-14)：自建 VideoEditorDock 那条路径（含 _legacy 归档）已整体删除。 */}
         {videoEditorOpen && (
           // ve-scope：cutia 主题作用域（样式隔离，不污染画布 token）；
           // dark：cutia 默认暗色主题（见 ve-theme.css）。
           <div className="ve-scope dark fixed inset-0 z-ceiling">
             <EditorShell
               key={activeProjectId}
-              projectId={activeProjectId}
+              canvasProjectId={activeProjectId}
               onClose={() => setSetting('videoEditorOpen', false)}
             />
           </div>

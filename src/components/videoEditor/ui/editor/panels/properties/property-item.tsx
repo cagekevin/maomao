@@ -44,7 +44,9 @@ export function PropertyItemValue({
 }
 
 interface PropertyGroupProps {
-  title: string;
+  /** 可选：语义化分组才需要标题（如导出弹层的「格式/质量」、文字的「背景/描边/阴影」）。
+   *  自解释型分组（变换/外观/速度…）不传 title，直接省掉整行标题，不再占一行。 */
+  title?: string;
   children: React.ReactNode;
   defaultExpanded?: boolean;
   collapsible?: boolean;
@@ -63,6 +65,7 @@ export function PropertyGroup({
   hasBorderBottom = true,
 }: PropertyGroupProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const showHeader = Boolean(title);
 
   return (
     <div
@@ -73,24 +76,27 @@ export function PropertyGroup({
         className,
       )}
     >
-      {collapsible ? (
-        <button
-          type="button"
-          className="flex items-center justify-between p-3.5 cursor-pointer"
-          onClick={() => setIsExpanded(!isExpanded)}
-        >
-          <PropertyGroupTitle isExpanded={isExpanded}>{title}</PropertyGroupTitle>
-          <HugeiconsIcon
-            icon={isExpanded ? MinusSignIcon : PlusSignIcon}
-            className={cn('size-3', isExpanded ? 'text-foreground' : 'text-muted-foreground')}
-          />
-        </button>
-      ) : (
-        <div className="flex items-center justify-between p-4">
-          <PropertyGroupTitle isExpanded>{title}</PropertyGroupTitle>
-        </div>
+      {showHeader &&
+        (collapsible ? (
+          <button
+            type="button"
+            className="flex items-center justify-between p-3.5 cursor-pointer"
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
+            <PropertyGroupTitle isExpanded={isExpanded}>{title}</PropertyGroupTitle>
+            <HugeiconsIcon
+              icon={isExpanded ? MinusSignIcon : PlusSignIcon}
+              className={cn('size-3', isExpanded ? 'text-foreground' : 'text-muted-foreground')}
+            />
+          </button>
+        ) : (
+          <div className="flex items-center justify-between p-4">
+            <PropertyGroupTitle isExpanded>{title}</PropertyGroupTitle>
+          </div>
+        ))}
+      {(showHeader && collapsible ? isExpanded : true) && (
+        <div className={cn(showHeader ? 'p-3 pt-0' : 'p-3')}>{children}</div>
       )}
-      {(collapsible ? isExpanded : true) && <div className="p-3 pt-0">{children}</div>}
     </div>
   );
 }

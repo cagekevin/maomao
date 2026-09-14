@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import { Button } from '@videoEditor/ui/ui/button';
 import { PanelBaseView as BaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
 import {
@@ -122,7 +123,7 @@ export function Captions() {
         });
       }
     } catch (error) {
-      console.error('Transcription failed:', error);
+      logger.error('Transcription failed:', error);
       setError(error instanceof Error ? error.message : '发生意外错误');
     } finally {
       setIsProcessing(false);

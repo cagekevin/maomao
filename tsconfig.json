@@ -53,7 +53,7 @@
     "tests/**/*.tsx",
     "tests/**/*.mjs"
   ],
-  // _legacy：2026-09-14 自建 videoEditor 退役归档（docs/130-cutia搬迁计划书）。
-  // 它是**只读留痕**，不参与编译/测试——引用的旧路径已不复存在，纳入会让 type-check 全红。
-  "exclude": ["node_modules", "dist", "dev", "src/components/videoEditor/_legacy"]
+  // 更新(2026-09-14)：原 exclude 的 `src/components/videoEditor/_legacy`（自建 videoEditor 退役归档）
+  // 已整体删除 —— 用户裁定「legacy 包括 test legacy 全删」。删前已证死：全库活引用 0（仅注释提及）。
+  "exclude": ["node_modules", "dist", "dev"]
 }

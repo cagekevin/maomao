@@ -1,4 +1,5 @@
-import { toast } from 'sonner';
+import { logger } from '@videoEditor/lib/logger';
+import { toast } from '@videoEditor/lib/toast';
 import type { MediaAsset } from '@videoEditor/types/assets';
 import { getMediaTypeFromFile } from '@videoEditor/engine/lib/media/media-utils';
 import { getVideoInfo } from './mediabunny';
@@ -236,7 +237,7 @@ export async function processMediaAssets({
             timeInSeconds: 1,
           });
         } catch (error) {
-          console.warn('Video processing failed', error);
+          logger.warn('Video processing failed', error);
         }
       } else if (fileType === 'audio') {
         // For audio, we don't set width/height/fps (they'll be undefined)
@@ -263,7 +264,7 @@ export async function processMediaAssets({
         onProgress({ progress: percent });
       }
     } catch (error) {
-      console.error('Error processing file:', file.name, error);
+      logger.error('Error processing file:', file.name, error);
       toast.error(`Failed to process ${file.name}`);
       URL.revokeObjectURL(url); // Clean up on error
     }

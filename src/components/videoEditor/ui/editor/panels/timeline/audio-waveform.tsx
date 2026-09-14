@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import { useEffect, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 
@@ -118,7 +119,7 @@ export function AudioWaveform({
         }
       } catch (err) {
         if (mounted) {
-          console.error('Failed to initialize WaveSurfer:', err);
+          logger.error('Failed to initialize WaveSurfer:', err);
           setError(true);
           setIsLoading(false);
         }

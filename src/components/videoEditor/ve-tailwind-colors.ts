@@ -28,7 +28,7 @@ export const videoEditorThemeColors: Record<string, string> = {
   input: 'var(--ve-input, rgb(var(--mao-input)))',
   ring: 'var(--ve-ring, rgb(var(--mao-accent)))',
   'primary-foreground': 'var(--ve-primary-foreground, #ffffff)',
-  'secondary-foreground': 'var(--ve-secondary-foreground, #38bdf8)',
+  'secondary-foreground': 'var(--ve-secondary-foreground, #d4d4d4)',
   'secondary-border': 'var(--ve-secondary-border, rgb(var(--mao-edge)))',
   'accent-foreground': 'var(--ve-accent-foreground, rgb(var(--mao-text-primary)))',
   'muted-foreground': 'var(--ve-muted-foreground, rgb(var(--mao-text-muted)))',

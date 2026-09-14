@@ -1,33 +1,29 @@
 'use client';
 
-import { Button } from '../ui/button';
-import { useRef, useState } from 'react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
+import { useState } from 'react';
 import { RenameProjectDialog } from './dialogs/rename-project-dialog';
 import { DeleteProjectDialog } from './dialogs/delete-project-dialog';
 import { ExportButton } from './export-button';
 import { DEFAULT_LOGO_URL } from '@videoEditor/constants/site-constants';
-import { toast } from 'sonner';
+import { toast } from '@videoEditor/lib/toast';
 import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { ArrowLeft02Icon, CommandIcon } from '@hugeicons/core-free-icons';
+import { ArrowLeft02Icon, CommandIcon, PlusSignIcon } from '@hugeicons/core-free-icons';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ShortcutsDialog } from './dialogs/shortcuts-dialog';
 import { cn } from '@videoEditor/utils/ui';
+import { storageService } from '@videoEditor/engine/services/storage/service';
 
 // 更新(2026-09-14)：agent-store 已随 AI 域删除。
 
-export function EditorHeader() {
+export function EditorHeader({ onExit }: { onExit?: () => void }) {
   return (
-    <header className="bg-background flex h-[3.4rem] items-center justify-between px-3 pt-0.5">
+    <header className="bg-background flex h-10 items-center justify-between px-3">
+      {/* 更新(2026-09-14)：顶栏 3.4rem→h-10（40px）——「返回画布 + 导出」这一行占地太大，整体压扁。 */}
       <div className="flex items-center gap-1">
-        <ProjectDropdown />
-        <EditableProjectName />
+        {/* 更新(2026-09-14 T5-C)：原为「logo 下拉 + 独立可编辑名字」两块并列。
+				    现合并为**一个触发器**（logo + 作品名 + 下拉箭头），点它出作品列表（含重命名）。
+				    原因：原 UV 里独立 input 与下拉抢同一块位置，且宿主关闭按钮浮在左上角。 */}
+        <ProjectDropdown onExit={onExit} />
       </div>
       <nav className="flex items-center gap-2">
         {/* 更新(2026-09-14)：FeedbackTrigger 属整站壳已移除；
@@ -38,27 +34,65 @@ export function EditorHeader() {
   );
 }
 
-function ProjectDropdown() {
+function ProjectDropdown({ onExit }: { onExit?: () => void }) {
   const [openDialog, setOpenDialog] = useState<'delete' | 'rename' | 'shortcuts' | null>(null);
-  const [isExiting, setIsExiting] = useState(false);
+  const [isSwitching, setIsSwitching] = useState(false);
+  // 受控面板开关（替代 Radix DropdownMenu，见下方注释）。
+  const [menuOpen, setMenuOpen] = useState(false);
   // 更新(2026-09-14)：Next router 已移除；退出项目改为由宿主（画布）决定。
   const editor = useEditor();
   const activeProject = editor.project.getActive();
+  // T5-C：本画布的片子列表（EditorProvider 挂载时已 loadAllProjects 填充）。
+  const savedProjects = editor.project.getSavedProjects();
 
-  const handleExit = async () => {
-    if (isExiting) return;
-    setIsExiting(true);
-
+  /**
+   * 切换到另一部片子（T5-C）。
+   *
+   * 【顺序不可颠倒】close → 写 active 键 → load。
+   *  · 先 closeProject 释放引擎旧态（媒体/场景清空）；
+   *  · 再 saveActiveEditorId（内部同时补全存储上下文 editorId）——**必须在 load 之前**，
+   *    否则 loadProject 仍按旧 editorId 组键，读回的还是上一部；
+   *  · 最后 loadProject，引擎重新填充媒体/场景。
+   */
+  const handleSwitchProject = async (editorId: string) => {
+    if (isSwitching || editorId === activeProject?.metadata.id) return;
+    setIsSwitching(true);
     try {
       await editor.project.prepareExit();
       editor.project.closeProject();
+      await storageService.saveActiveEditorId({ editorId });
+      await editor.project.loadProject({ id: editorId });
+      await editor.project.loadAllProjects();
     } catch (error) {
-      console.error('Failed to prepare project exit:', error);
+      toast.error('切换作品失败', {
+        description: error instanceof Error ? error.message : '请重试',
+      });
     } finally {
-      editor.project.closeProject();
-      // 退出目标由宿主控制（原为 next router.push("/projects")）
+      setIsSwitching(false);
     }
   };
+
+  /** 新建一部片子（T5-C）：建 → 记为活跃 → 刷新列表。 */
+  const handleCreateProject = async () => {
+    if (isSwitching) return;
+    setIsSwitching(true);
+    try {
+      await editor.project.prepareExit();
+      editor.project.closeProject();
+      const newId = await editor.project.createNewProject({ name: '未命名作品' });
+      await storageService.saveActiveEditorId({ editorId: newId });
+      await editor.project.loadAllProjects();
+    } catch (error) {
+      toast.error('新建作品失败', {
+        description: error instanceof Error ? error.message : '请重试',
+      });
+    } finally {
+      setIsSwitching(false);
+    }
+  };
+
+  // 退出善后（prepareExit + closeProject）已收口到 EditorShell 的 exitEditorToCanvas，
+  // 此处只触发宿主回调；onExit 缺省时整个入口不渲染（下方按钮条件）。
 
   const handleSaveProjectName = async (newName: string) => {
     if (activeProject && newName.trim() && newName !== activeProject.metadata.name) {
@@ -96,40 +130,128 @@ function ProjectDropdown() {
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="p-1 rounded-sm size-8">
-            {/* 更新(2026-09-14)：原为 next/image 的 <Image>，改原生 <img>
-						    （next 依赖已全清，见 docs/130-cutia搬迁计划书）。 */}
-            <img
-              src={DEFAULT_LOGO_URL}
-              alt="Project thumbnail"
-              width={32}
-              height={32}
-              className="dark:invert size-5"
-            />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="z-100 w-52">
-          <DropdownMenuItem
-            className="flex items-center gap-1.5"
-            onClick={handleExit}
-            disabled={isExiting}
+      {/* 更新(2026-09-14 T5-C)：原用 Radix DropdownMenu，其在 ve-scope 覆盖层内点击不展开
+          （aria-expanded 恒 false）。改用**受控面板**：button + 绝对定位 div，行为完全可控。 */}
+      <div className="relative">
+        {/* 触发器：logo + 作品名 + 下拉箭头（整块可点）。 */}
+        <button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+          className="hover:bg-accent flex cursor-pointer items-center gap-1.5 rounded-sm px-1 py-0.5 transition-colors"
+        >
+          <img
+            src={DEFAULT_LOGO_URL}
+            alt="Project thumbnail"
+            width={32}
+            height={32}
+            className="dark:invert size-5"
+          />
+          <span className="max-w-[14rem] truncate text-[0.9rem]">
+            {activeProject?.metadata.name || '未命名作品'}
+          </span>
+          <svg
+            viewBox="0 0 24 24"
+            className={cn('size-3.5 opacity-60 transition-transform', menuOpen && 'rotate-180')}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
           >
-            <HugeiconsIcon icon={ArrowLeft02Icon} className="size-4" />
-            {'退出项目'}
-          </DropdownMenuItem>
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
 
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="flex items-center gap-1.5"
-            onClick={() => setOpenDialog('shortcuts')}
-          >
-            <HugeiconsIcon icon={CommandIcon} className="size-4" />
-            {'键盘快捷键'}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        {menuOpen && (
+          <>
+            {/* 点击外部关闭：透明遮罩铺满视口 */}
+            <div className="fixed inset-0 z-[99]" onClick={() => setMenuOpen(false)} />
+            <div
+              role="menu"
+              className="bg-popover text-popover-foreground border-border absolute top-9 left-0 z-[100] w-56 overflow-hidden rounded-lg border p-2 shadow-lg"
+            >
+              {/* ── T5-C：本画布的作品（片子）列表 ── */}
+              <div className="text-muted-foreground px-2 py-1 text-[0.7rem]">本项目的作品</div>
+              {savedProjects.map((project) => {
+                const isActive = project.id === activeProject?.metadata.id;
+                return (
+                  <button
+                    key={project.id}
+                    type="button"
+                    disabled={isSwitching}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void handleSwitchProject(project.id);
+                    }}
+                    className="hover:bg-accent flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-sm disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    <span
+                      className={cn(
+                        'size-1.5 shrink-0 rounded-full',
+                        isActive ? 'bg-primary' : 'bg-transparent',
+                      )}
+                    />
+                    <span className="truncate">{project.name || '未命名作品'}</span>
+                  </button>
+                );
+              })}
+
+              <div className="bg-border/60 mx-1 my-2 h-px" />
+              <button
+                type="button"
+                disabled={isSwitching}
+                onClick={() => {
+                  setMenuOpen(false);
+                  void handleCreateProject();
+                }}
+                className="hover:bg-accent flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-sm disabled:pointer-events-none disabled:opacity-50"
+              >
+                <HugeiconsIcon icon={PlusSignIcon} className="size-4" />
+                {'新建作品'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setOpenDialog('rename');
+                }}
+                className="hover:bg-accent flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-sm"
+              >
+                <HugeiconsIcon icon={CommandIcon} className="size-4" />
+                {'重命名作品'}
+              </button>
+
+              <div className="bg-border/60 mx-1 my-2 h-px" />
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setOpenDialog('shortcuts');
+                }}
+                className="hover:bg-accent flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-sm"
+              >
+                <HugeiconsIcon icon={CommandIcon} className="size-4" />
+                {'键盘快捷键'}
+              </button>
+
+              <div className="bg-border/60 mx-1 my-2 h-px" />
+              {onExit && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onExit();
+                  }}
+                  className="hover:bg-accent flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-sm disabled:pointer-events-none disabled:opacity-50"
+                >
+                  <HugeiconsIcon icon={ArrowLeft02Icon} className="size-4" />
+                  {'退出项目'}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
       <RenameProjectDialog
         isOpen={openDialog === 'rename'}
         onOpenChange={(isOpen) => setOpenDialog(isOpen ? 'rename' : null)}
@@ -150,80 +272,9 @@ function ProjectDropdown() {
   );
 }
 
-function EditableProjectName() {
-  const editor = useEditor();
-  const activeProject = editor.project.getActive();
-  const [isEditing, setIsEditing] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const originalNameRef = useRef('');
+/* 更新(2026-09-14 T5-C)：`EditableProjectName`（header 内联可编辑名字输入框）已移除——
+   它与「作品切换」触发器抢同一块位置。重命名改由下拉菜单的「重命名作品」项
+   打开 RenameProjectDialog 完成，交互更清晰。
 
-  const projectName = activeProject?.metadata.name || '';
-
-  const startEditing = () => {
-    if (isEditing) return;
-    originalNameRef.current = projectName;
-    setIsEditing(true);
-
-    requestAnimationFrame(() => {
-      inputRef.current?.select();
-    });
-  };
-
-  const saveEdit = async () => {
-    if (!inputRef.current || !activeProject) return;
-    const newName = inputRef.current.value.trim();
-    setIsEditing(false);
-
-    if (!newName) {
-      inputRef.current.value = originalNameRef.current;
-      return;
-    }
-
-    if (newName !== originalNameRef.current) {
-      try {
-        await editor.project.renameProject({
-          id: activeProject.metadata.id,
-          name: newName,
-        });
-      } catch (error) {
-        toast.error('重命名项目失败', {
-          description: error instanceof Error ? error.message : '请重试',
-        });
-      }
-    }
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      inputRef.current?.blur();
-    } else if (event.key === 'Escape') {
-      event.preventDefault();
-      if (inputRef.current) {
-        inputRef.current.value = originalNameRef.current;
-      }
-      setIsEditing(false);
-      inputRef.current?.blur();
-    }
-  };
-
-  return (
-    <input
-      ref={inputRef}
-      type="text"
-      defaultValue={projectName}
-      readOnly={!isEditing}
-      onClick={startEditing}
-      onBlur={saveEdit}
-      onKeyDown={handleKeyDown}
-      style={{ fieldSizing: 'content' }}
-      className={cn(
-        'text-[0.9rem] h-8 px-2 py-1 rounded-sm bg-transparent outline-none cursor-pointer hover:bg-accent hover:text-accent-foreground',
-        isEditing && 'ring-1 ring-ring cursor-text hover:bg-transparent',
-      )}
-    />
-  );
-}
-
-/* 更新(2026-09-14)：AgentToggle 已移除 —— 它依赖 agent-store，
+   更新(2026-09-14)：AgentToggle 已移除 —— 它依赖 agent-store，
    该 store 随 AI 域（docs/130-cutia搬迁计划书）一并删除。 */

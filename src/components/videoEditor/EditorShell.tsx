@@ -23,53 +23,92 @@ import { EditorHeader } from '@videoEditor/ui/editor/editor-header';
 import { EditorProvider } from '@videoEditor/ui/providers/editor-provider';
 import { X } from 'lucide-react';
 import { TooltipProvider } from '@videoEditor/ui/ui/tooltip';
-import { Toaster } from '@videoEditor/ui/ui/sonner';
 import { usePanelStore } from '@videoEditor/stores/panel-store';
 // 更新(2026-09-14)：agent 侧栏未搬入，useAgentStore 依赖已移除（见 EditorLayout）。
 import { cn } from '@videoEditor/utils/ui';
+import { EditorCore } from '@videoEditor/engine/core';
+
+/**
+ * 退出编辑器（返回画布）——**唯一协议**，所有退出入口（右上角 X、header 菜单「退出项目」）共用。
+ *
+ * 顺序死约定（不可颠倒）：
+ *   ① prepareExit   — flush 落盘（脏数据不丢）；内部已 catch 留痕，失败不阻断退出（退出是用户意志）；
+ *   ② closeProject  — 清引擎内存态（active=null、媒体/场景清空）；
+ *   ③ onExit        — 宿主关层 → 卸载本组件（unmount cleanup 清存储上下文）。
+ *
+ * closeProject 之后必须立刻卸载——不存在「退出了还挂着」的停留态。
+ * （反例：header 里旧的 handleExit 做完 ①② 就停，active=null 触发 Provider 的
+ *  「正在退出工程…」分支且无人接力关层 → 永久卡死。已删。）
+ */
+let isExiting = false;
+async function exitEditorToCanvas(onExit: () => void): Promise<void> {
+  if (isExiting) return;
+  isExiting = true;
+  try {
+    const editor = EditorCore.getInstance();
+    await editor.project.prepareExit();
+    editor.project.closeProject();
+  } finally {
+    isExiting = false;
+    onExit();
+  }
+}
 
 export interface EditorShellProps {
-  /** 工程 id（对应存储键 video-editor-project-{projectId}）。 */
-  projectId: string;
+  /**
+   * 画布项目 id（`useCurrentProjectId()`）。
+   *
+   * 【T5-A 语义修正】此 prop 旧名 `projectId` 且注释指向已废弃的存储键
+   * `video-editor-project-{projectId}`（单工程时代的化石）。实际它一直是**画布项目 id**；
+   * 剪辑工程（片子）的 id = **editorId**，由 EditorProvider 从画布项目的 active 键读出
+   * （docs/133 §2：一个画布项目可挂多个片子）。
+   */
+  canvasProjectId: string;
   /** 关闭编辑器（返回画布）。宿主传入；缺省时不渲染关闭按钮。 */
   onClose?: () => void;
   className?: string;
 }
 
-export function EditorShell({ projectId, onClose, className }: EditorShellProps) {
+export function EditorShell({ canvasProjectId, onClose, className }: EditorShellProps) {
   return (
-    <EditorProvider projectId={projectId}>
+    <EditorProvider canvasProjectId={canvasProjectId}>
       {/* TooltipProvider：cutia 原在整站 layout 提供（app/[locale]/layout.tsx:35）；
 			    我们无整站壳 → 由编辑器自己的根提供（否则 TabBar 等 Tooltip 抛错）。 */}
       <TooltipProvider>
-        {/* Toaster：cutia 原在整站 layout 提供；编辑器大量用 toast() 报错/提示，必须存在。 */}
-        <Toaster />
-        {/* 关闭按钮（左上角）：cutia 原无此交互（它是整站路由页面），
-				    本仓编辑器是**画布内的全屏层**，需要显式出口。见 docs/130-cutia搬迁计划书。 */}
+        {/* 统一 toast：编辑器 toast 现统一走 base/core/toastStore，由 App 根的 ToastContainer 顶部渲染，
+            不再自带 Toaster（ui/ui/sonner.tsx 已删除）。 */}
+        {/* 关闭按钮（**右上角**）：cutia 原无此交互（它是整站路由页面），
+				    本仓编辑器是**画布内的全屏层**，需要显式出口。见 docs/130-cutia搬迁计划书。
+				    更新(2026-09-14)：原在 `left-3` 且 `z-[60]` 浮在最上层，把 header 左上角的
+				    「作品切换」触发器盖住（用户反馈"左上角第一个按钮是返回画布"）→ 移到 `right-3`。 */}
         {onClose && (
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => void exitEditorToCanvas(onClose)}
             title="关闭编辑器（返回画布）"
             aria-label="关闭编辑器"
-            className="text-muted-foreground hover:text-foreground hover:bg-accent absolute top-3 left-3 z-[60] flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors"
+            className="text-muted-foreground hover:text-foreground hover:bg-accent absolute top-3 right-3 z-[60] flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors"
           >
             <X className="size-4" />
           </button>
         )}
-        <EditorLayout className={className} />
+        <EditorLayout
+          className={className}
+          // 统一走同一份退出协议；onClose 缺省时 header 不渲染退出入口（消灭断头退出）。
+          onExit={onClose ? () => void exitEditorToCanvas(onClose) : undefined}
+        />
       </TooltipProvider>
     </EditorProvider>
   );
 }
 
-function EditorLayout({ className }: { className?: string }) {
+function EditorLayout({ className, onExit }: { className?: string; onExit?: () => void }) {
   const { panels, setPanel } = usePanelStore();
   // 更新(2026-09-14)：agent 侧栏未搬入（见下方槽位说明），故移除 useAgentStore 依赖。
 
   return (
     <div className={cn('bg-background flex h-full w-full flex-col overflow-hidden', className)}>
-      <EditorHeader />
+      <EditorHeader onExit={onExit} />
       <div className="min-h-0 min-w-0 flex-1 px-3 pb-3">
         <ResizablePanelGroup direction="horizontal" className="size-full gap-[0.19rem]">
           <ResizablePanel defaultSize={100} minSize={50} className="min-w-0">

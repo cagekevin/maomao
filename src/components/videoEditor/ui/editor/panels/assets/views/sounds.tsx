@@ -1,4 +1,5 @@
 'use client';
+import { logger } from '@videoEditor/lib/logger';
 
 import { useEffect, useState } from 'react';
 import { Button } from '@videoEditor/ui/ui/button';
@@ -136,7 +137,7 @@ function SoundEffectsView() {
         }
       } catch (error) {
         if (!shouldIgnore) {
-          console.error('Failed to fetch top sounds:', error);
+          logger.error('Failed to fetch top sounds:', error);
           setError({
             error: error instanceof Error ? error.message : 'Failed to load sounds',
           });
@@ -206,7 +207,7 @@ function SoundEffectsView() {
       });
       audio.play().catch((error: DOMException) => {
         if (error.name === 'AbortError') return;
-        console.error('Failed to play sound preview:', error);
+        logger.error('Failed to play sound preview:', error);
         setPlayingId(null);
       });
 
@@ -317,7 +318,7 @@ function SavedSoundsView() {
       });
       audio.play().catch((error: DOMException) => {
         if (error.name === 'AbortError') return;
-        console.error('Failed to play sound preview:', error);
+        logger.error('Failed to play sound preview:', error);
         setPlayingId(null);
       });
 

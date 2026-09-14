@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import type { EditorCore } from '@videoEditor/engine/core';
 import type { RootNode } from '@videoEditor/engine/services/renderer/nodes/root-node';
 import type { ExportOptions, ExportResult } from '@videoEditor/types/export';
@@ -146,7 +147,7 @@ export class RendererManager {
         clearInterval(cancelInterval);
       }
     } catch (error) {
-      console.error('Export failed:', error);
+      logger.error('Export failed:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown export error',

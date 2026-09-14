@@ -9,7 +9,12 @@ import { PropertyGroup, PropertyItem, PropertyItemLabel, PropertyItemValue } fro
 import { clamp } from '@videoEditor/utils/math';
 import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
 import type { ImageElement, VideoElement } from '@videoEditor/types/timeline';
-import { SPEED_PRESETS, formatSpeedLabel } from '@videoEditor/engine/timeline/speed-utils';
+import {
+  SPEED_PRESETS,
+  formatSpeedLabel,
+  sliderPosToSpeed,
+  speedToSliderPos,
+} from '@videoEditor/engine/timeline/speed-utils';
 
 export function VideoProperties({
   _element: element,
@@ -130,8 +135,8 @@ export function VideoProperties({
   return (
     <div className="flex h-full flex-col">
       <PanelBaseView className="p-0">
-        <PropertyGroup title={'变换'} hasBorderTop={false} collapsible={false}>
-          <div className="space-y-6">
+        <PropertyGroup hasBorderTop={false}>
+          <div className="space-y-4">
             {/* Position X */}
             <PropertyItem>
               <PropertyItemLabel>{'位置 X'}</PropertyItemLabel>
@@ -243,7 +248,7 @@ export function VideoProperties({
             </PropertyItem>
 
             {/* Scale */}
-            <PropertyItem direction="column">
+            <PropertyItem>
               <PropertyItemLabel>{'缩放'}</PropertyItemLabel>
               <PropertyItemValue>
                 <div className="flex items-center gap-2">
@@ -328,7 +333,7 @@ export function VideoProperties({
             </PropertyItem>
 
             {/* Rotation */}
-            <PropertyItem direction="column">
+            <PropertyItem>
               <PropertyItemLabel>{'旋转'}</PropertyItemLabel>
               <PropertyItemValue>
                 <div className="flex items-center gap-2">
@@ -412,10 +417,10 @@ export function VideoProperties({
           </div>
         </PropertyGroup>
 
-        <PropertyGroup title={'外观'} collapsible={false}>
-          <div className="space-y-6">
+        <PropertyGroup>
+          <div className="space-y-4">
             {/* Opacity */}
-            <PropertyItem direction="column">
+            <PropertyItem>
               <PropertyItemLabel>{'不透明度'}</PropertyItemLabel>
               <PropertyItemValue>
                 <div className="flex items-center gap-2">
@@ -538,8 +543,8 @@ export function VideoProperties({
         </PropertyGroup>
 
         {isVideoElement && (
-          <PropertyGroup title={'速度'} collapsible={false}>
-            <div className="space-y-6">
+          <PropertyGroup>
+            <div className="space-y-4">
               <PropertyItem direction="column">
                 <PropertyItemLabel>{'播放速度'}</PropertyItemLabel>
                 <PropertyItemValue>
@@ -585,7 +590,36 @@ export function VideoProperties({
               <PropertyItem>
                 <PropertyItemLabel>{'自定义'}</PropertyItemLabel>
                 <PropertyItemValue>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
+                    <Slider
+                      value={[speedToSliderPos({ rate: currentSpeed })]}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      onValueChange={([value]) => {
+                        if (initialSpeedRef.current === null) {
+                          initialSpeedRef.current = currentSpeed;
+                        }
+                        applySpeedChange({
+                          newRate: sliderPosToSpeed({ pos: value }),
+                          pushHistory: false,
+                        });
+                      }}
+                      onValueCommit={([value]) => {
+                        if (initialSpeedRef.current !== null) {
+                          applySpeedChange({
+                            newRate: initialSpeedRef.current,
+                            pushHistory: false,
+                          });
+                          applySpeedChange({
+                            newRate: sliderPosToSpeed({ pos: value }),
+                            pushHistory: true,
+                          });
+                          initialSpeedRef.current = null;
+                        }
+                      }}
+                      className="w-full"
+                    />
                     <Input
                       type="number"
                       value={speedDisplay}
@@ -632,7 +666,7 @@ export function VideoProperties({
                         speedDraft.current = '';
                         forceRender();
                       }}
-                      className="bg-accent h-7 w-full [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      className="bg-accent h-7 w-14 [appearance:textfield] rounded-sm px-2 text-center !text-xs [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
                     <span className="text-muted-foreground text-xs">x</span>
                   </div>

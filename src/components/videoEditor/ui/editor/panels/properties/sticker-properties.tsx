@@ -101,8 +101,8 @@ export function StickerProperties({
   return (
     <div className="flex h-full flex-col">
       <PanelBaseView className="p-0">
-        <PropertyGroup title={'变换'} hasBorderTop={false} collapsible={false}>
-          <div className="space-y-6">
+        <PropertyGroup hasBorderTop={false}>
+          <div className="space-y-4">
             <PropertyItem>
               <PropertyItemLabel>{'位置 X'}</PropertyItemLabel>
               <PropertyItemValue>
@@ -231,7 +231,7 @@ export function StickerProperties({
               </PropertyItemValue>
             </PropertyItem>
 
-            <PropertyItem direction="column">
+            <PropertyItem>
               <PropertyItemLabel>{'缩放'}</PropertyItemLabel>
               <PropertyItemValue>
                 <div className="flex items-center gap-2">
@@ -319,7 +319,7 @@ export function StickerProperties({
               </PropertyItemValue>
             </PropertyItem>
 
-            <PropertyItem direction="column">
+            <PropertyItem>
               <PropertyItemLabel>{'旋转'}</PropertyItemLabel>
               <PropertyItemValue>
                 <div className="flex items-center gap-2">
@@ -407,9 +407,9 @@ export function StickerProperties({
           </div>
         </PropertyGroup>
 
-        <PropertyGroup title={'外观'} collapsible={false}>
-          <div className="space-y-6">
-            <PropertyItem direction="column">
+        <PropertyGroup>
+          <div className="space-y-4">
+            <PropertyItem>
               <PropertyItemLabel>{'不透明度'}</PropertyItemLabel>
               <PropertyItemValue>
                 <div className="flex items-center gap-2">

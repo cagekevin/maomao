@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import { Command } from '@videoEditor/engine/commands/base-command';
 import type { TimelineTrack } from '@videoEditor/types/timeline';
 import { EditorCore } from '@videoEditor/engine/core';
@@ -80,7 +81,7 @@ export class DeleteElementsCommand extends Command {
 
     for (const asset of ephemeralToRemove) {
       storageService.deleteMediaAsset({ projectId, id: asset.id }).catch((error) => {
-        console.error('Failed to cleanup ephemeral media:', error);
+        logger.error('Failed to cleanup ephemeral media:', error);
       });
     }
   }
@@ -100,7 +101,7 @@ export class DeleteElementsCommand extends Command {
         if (projectId) {
           for (const asset of this.removedEphemeralAssets) {
             storageService.saveMediaAsset({ projectId, mediaAsset: asset }).catch((error) => {
-              console.error('Failed to restore ephemeral media on undo:', error);
+              logger.error('Failed to restore ephemeral media on undo:', error);
             });
           }
         }

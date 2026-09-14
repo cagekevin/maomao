@@ -1,8 +1,9 @@
+import { logger } from '@videoEditor/lib/logger';
 import { i18next } from '@videoEditor/engine/lib/i18n';
 import { create } from 'zustand';
 import type { SoundEffect, SavedSound } from '@videoEditor/types/sounds';
 import { storageService } from '@videoEditor/engine/services/storage/service';
-import { toast } from 'sonner';
+import { toast } from '@videoEditor/lib/toast';
 import { EditorCore } from '@videoEditor/engine/core';
 import { buildLibraryAudioElement } from '@videoEditor/engine/timeline/element-utils';
 
@@ -130,7 +131,7 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
         savedSoundsError: errorMessage,
         isLoadingSavedSounds: false,
       });
-      console.error('Failed to load saved sounds:', error);
+      logger.error('Failed to load saved sounds:', error);
     }
   },
 
@@ -144,7 +145,7 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
       const errorMessage = error instanceof Error ? error.message : 'Failed to save sound';
       set({ savedSoundsError: errorMessage });
       toast.error(i18next.t('Failed to save sound'));
-      console.error('Failed to save sound:', error);
+      logger.error('Failed to save sound:', error);
     }
   },
 
@@ -159,7 +160,7 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
       const errorMessage = error instanceof Error ? error.message : 'Failed to remove sound';
       set({ savedSoundsError: errorMessage });
       toast.error(i18next.t('Failed to remove sound'));
-      console.error('Failed to remove sound:', error);
+      logger.error('Failed to remove sound:', error);
     }
   },
 
@@ -189,7 +190,7 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
       const errorMessage = error instanceof Error ? error.message : 'Failed to clear saved sounds';
       set({ savedSoundsError: errorMessage });
       toast.error(i18next.t('Failed to clear saved sounds'));
-      console.error('Failed to clear saved sounds:', error);
+      logger.error('Failed to clear saved sounds:', error);
     }
   },
 
@@ -225,7 +226,7 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
       });
       return true;
     } catch (error) {
-      console.error('Failed to add sound to timeline:', error);
+      logger.error('Failed to add sound to timeline:', error);
       toast.error(
         error instanceof Error ? error.message : i18next.t('Failed to add sound to timeline'),
         { id: `sound-${sound.id}` },

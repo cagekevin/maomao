@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import { Input, ALL_FORMATS, BlobSource, AudioBufferSink } from 'mediabunny';
 import { collectAudioMixSources } from '@videoEditor/engine/lib/media/audio';
 import type { TimelineTrack } from '@videoEditor/types/timeline';
@@ -78,7 +79,7 @@ export const extractTimelineAudio = async ({
         totalSamples,
       });
     } catch (error) {
-      console.warn(`Failed to process audio source ${source.file.name}:`, error);
+      logger.warn(`Failed to process audio source ${source.file.name}:`, error);
     }
   }
 

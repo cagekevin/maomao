@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import { Command } from '@videoEditor/engine/commands/base-command';
 import { EditorCore } from '@videoEditor/engine/core';
 import type { MediaAsset } from '@videoEditor/types/assets';
@@ -42,7 +43,7 @@ export class AddMediaAssetCommand extends Command {
         }),
       )
       .catch((error) => {
-        console.error('Failed to save media item:', error);
+        logger.error('Failed to save media item:', error);
       });
   }
 
@@ -62,7 +63,7 @@ export class AddMediaAssetCommand extends Command {
         }),
       )
       .catch((error) => {
-        console.error('Failed to delete media item on undo:', error);
+        logger.error('Failed to delete media item on undo:', error);
       });
   }
 

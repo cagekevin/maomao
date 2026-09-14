@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import { Command } from '@videoEditor/engine/commands/base-command';
 import { EditorCore } from '@videoEditor/engine/core';
 import type {
@@ -48,7 +49,7 @@ export class InsertElementCommand extends Command {
     this.savedState = editor.timeline.getTracks();
 
     if (!this.savedState) {
-      console.error('Tracks not available');
+      logger.error('Tracks not available');
       return;
     }
 
@@ -133,22 +134,22 @@ export class InsertElementCommand extends Command {
 
   private validateElementBasics({ element }: { element: CreateTimelineElement }): boolean {
     if (requiresMediaId({ element }) && !('mediaId' in element)) {
-      console.error('Element requires mediaId');
+      logger.error('Element requires mediaId');
       return false;
     }
 
     if (element.type === 'audio' && element.sourceType === 'library' && !element.sourceUrl) {
-      console.error('Library audio element must have sourceUrl');
+      logger.error('Library audio element must have sourceUrl');
       return false;
     }
 
     if (element.type === 'sticker' && !element.iconName) {
-      console.error('Sticker element must have iconName');
+      logger.error('Sticker element must have iconName');
       return false;
     }
 
     if (element.type === 'text' && !element.content) {
-      console.error('Text element must have content');
+      logger.error('Text element must have content');
       return false;
     }
 
@@ -168,7 +169,7 @@ export class InsertElementCommand extends Command {
       const targetTrack = tracks.find((track) => track.id === placement.trackId);
 
       if (!targetTrack) {
-        console.error('Track not found:', placement.trackId);
+        logger.error('Track not found:', placement.trackId);
         return null;
       }
 
@@ -178,7 +179,7 @@ export class InsertElementCommand extends Command {
       });
 
       if (!validation.isValid) {
-        console.error(validation.errorMessage);
+        logger.error(validation.errorMessage);
         return null;
       }
 
@@ -209,7 +210,7 @@ export class InsertElementCommand extends Command {
         trackType,
       })
     ) {
-      console.error(`${element.type} elements cannot be placed on ${trackType} tracks`);
+      logger.error(`${element.type} elements cannot be placed on ${trackType} tracks`);
       return null;
     }
 

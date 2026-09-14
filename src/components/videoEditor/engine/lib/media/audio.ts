@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import type {
   AudioElement,
   LibraryAudioElement,
@@ -159,7 +160,7 @@ async function resolveVideoAudioBuffer({
     const arrayBuffer = await file.arrayBuffer();
     return await audioContext.decodeAudioData(arrayBuffer.slice(0));
   } catch (error) {
-    console.warn('Failed to decode video audio:', error);
+    logger.warn('Failed to decode video audio:', error);
     return null;
   }
 }
@@ -192,7 +193,7 @@ async function resolveAudioBufferForElement({
     const arrayBuffer = await response.arrayBuffer();
     return await audioContext.decodeAudioData(arrayBuffer.slice(0));
   } catch (error) {
-    console.warn('Failed to decode audio:', error);
+    logger.warn('Failed to decode audio:', error);
     return null;
   }
 }
@@ -244,7 +245,7 @@ async function fetchLibraryAudioSource({
       playbackRate: element.playbackRate ?? 1,
     };
   } catch (error) {
-    console.warn('Failed to fetch library audio:', error);
+    logger.warn('Failed to fetch library audio:', error);
     return null;
   }
 }
@@ -280,7 +281,7 @@ async function fetchLibraryAudioClip({
       playbackRate: element.playbackRate ?? 1,
     };
   } catch (error) {
-    console.warn('Failed to fetch library audio:', error);
+    logger.warn('Failed to fetch library audio:', error);
     return null;
   }
 }

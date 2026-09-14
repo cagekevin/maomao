@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import type { EditorCore } from '@videoEditor/engine/core';
 import type { AudioClipSource } from '@videoEditor/engine/lib/media/audio';
 import { createAudioContext, collectAudioClips } from '@videoEditor/engine/lib/media/audio';
@@ -174,7 +175,7 @@ export class AudioManager {
 
         this.scheduleClipNode({ clip, buffer, time });
       } catch (error) {
-        console.warn('Failed to schedule audio clip:', clip.id, error);
+        logger.warn('Failed to schedule audio clip:', clip.id, error);
       }
     }
   }
@@ -244,7 +245,7 @@ export class AudioManager {
       this.decodedBuffers.set(clip.sourceKey, buffer);
       return buffer;
     } catch (error) {
-      console.warn('Failed to decode audio:', clip.sourceKey, error);
+      logger.warn('Failed to decode audio:', clip.sourceKey, error);
       return null;
     }
   }

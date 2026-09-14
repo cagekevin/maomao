@@ -18,7 +18,7 @@
     --bg:#121212; --panel:#1a1a1a; --pop:#292929; --pop-hover:#333333;
     --accentbg:#242424; --border:#2e2e2e; --border-faint:#262626; --input:#333333;
     --fg:#dedede; --fg-strong:#ffffff; --muted:#8c8c8c; --faint:#666666;
-    --blue:#009dff; --blue-soft:rgba(0,157,255,.14); --blue-line:rgba(0,157,255,.55);
+    --blue:#f5f5f7; --blue-soft:rgba(245,245,247,.12); --blue-line:rgba(245,245,247,.4);
     --red:#ef4444; --green:#22c55e; --amber:#f59e0b;
     --tk-text:#5DBAA0; --tk-audio:#915DBE; --tk-sticker:#f59e0b;
     --r:8px; --r-sm:4px;
@@ -126,7 +126,7 @@
   .pill{height:24px;padding:0 9px;display:inline-flex;align-items:center;border-radius:5px;border:1px solid transparent;
     background:var(--accentbg);color:var(--fg);font-size:11px;cursor:pointer;}
   .pill:hover{border-color:var(--border);}
-  .pill.on{background:var(--blue-soft);border-color:var(--blue-line);color:#7cc9ff;}
+  .pill.on{background:var(--blue-soft);border-color:var(--blue-line);color:#e8e8ed;}
   .sw{width:34px;height:19px;border-radius:999px;background:#3d3d3d;position:relative;flex:none;cursor:pointer;}
   .sw::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:left .15s;}
   .sw.on{background:var(--blue);}
@@ -139,7 +139,7 @@
   .tl-bar .grp{display:flex;align-items:center;gap:1px;}
   .ib24{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:var(--muted);}
   .ib24:hover{background:var(--accentbg);color:var(--fg-strong);}
-  .ib24.acc{color:#7cc9ff;background:var(--blue-soft);}
+  .ib24.acc{color:#e8e8ed;background:var(--blue-soft);}
   .ib24.dis{opacity:.4;cursor:not-allowed;}
   .ib24.dis:hover{background:none;color:var(--muted);}
   .hsep{width:1px;height:16px;background:var(--border);margin:0 5px;flex:none;}
@@ -184,12 +184,12 @@
   .snapi{position:absolute;top:0;bottom:0;width:2px;background:var(--blue);opacity:.4;z-index:25;}
 
   /* 数字标注 / 图例 */
-  .n{position:absolute;z-index:40;width:17px;height:17px;border-radius:50%;background:var(--blue);color:#fff;
+  .n{position:absolute;z-index:40;width:17px;height:17px;border-radius:50%;background:var(--blue);color:#1d1d1f;
     font-size:10.5px;font-weight:600;display:flex;align-items:center;justify-content:center;
-    box-shadow:0 0 0 2px rgba(0,157,255,.22),0 2px 6px rgba(0,0,0,.45);cursor:default;font-style:normal;}
+    box-shadow:0 0 0 2px rgba(245,245,247,.25),0 2px 6px rgba(0,0,0,.45);cursor:default;font-style:normal;}
   .legend{display:grid;grid-template-columns:1fr 1fr;gap:4px 26px;font-size:11px;color:var(--t-muted);line-height:1.8;max-width:1440px;}
   .legend b{color:var(--t-body);font-weight:500;}
-  .legend .nn{display:inline-flex;width:16px;height:16px;border-radius:50%;background:#1c4a6e;color:#7cc9ff;font-size:10px;
+  .legend .nn{display:inline-flex;width:16px;height:16px;border-radius:50%;background:#3a3a3c;color:#e8e8ed;font-size:10px;
     align-items:center;justify-content:center;margin-right:6px;flex:none;font-weight:600;font-style:normal;}
   .legend .f{color:#5b8db8;font-family:ui-monospace,Menlo,monospace;font-size:10px;}
 
@@ -217,7 +217,7 @@
   .seg button.on{background:var(--accentbg);color:#fff;box-shadow:inset 0 0 0 1px #383838;}
   .pill2{height:24px;padding:0 10px;display:inline-flex;align-items:center;gap:4px;border-radius:999px;background:#222;
     border:1px solid #2e2e2e;color:var(--t-secondary);font-size:11px;cursor:pointer;}
-  .pill2.on{background:var(--blue-soft);border-color:var(--blue-line);color:#7cc9ff;}
+  .pill2.on{background:var(--blue-soft);border-color:var(--blue-line);color:#e8e8ed;}
   .strow{display:flex;align-items:center;gap:10px;padding:0 14px;height:38px;}
   .strow>label{width:58px;flex:none;font-size:11px;color:var(--muted);}
   .selbox{height:30px;flex:1;display:flex;align-items:center;gap:6px;padding:0 9px;background:var(--accentbg);
@@ -227,7 +227,7 @@
     box-shadow:var(--sh-pop);padding:4px;font-size:12px;}
   .opt{display:flex;align-items:center;height:28px;padding:0 9px;border-radius:5px;color:var(--fg);cursor:pointer;gap:6px;}
   .opt:hover{background:var(--pop-hover);}
-  .opt.on{background:var(--blue-soft);color:#7cc9ff;}
+  .opt.on{background:var(--blue-soft);color:#e8e8ed;}
   .opt.on::after{content:"✓";margin-left:auto;font-size:11px;}
 
   /* 转场卡 / 贴纸格 / 背景卡 */
@@ -254,7 +254,7 @@
   .radio{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--fg);cursor:pointer;}
   .rd{width:15px;height:15px;border-radius:50%;border:1.5px solid #4a4a4a;position:relative;flex:none;}
   .rd.on{border-color:var(--blue);} .rd.on::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--blue);}
-  .cb{width:15px;height:15px;border-radius:4px;border:1.5px solid #4a4a4a;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;}
+  .cb{width:15px;height:15px;border-radius:4px;border:1.5px solid #4a4a4a;flex:none;display:flex;align-items:center;justify-content:center;color:#1d1d1f;}
   .cb.on{background:var(--blue);border-color:var(--blue);}
   .pbar{height:7px;border-radius:999px;background:#333;overflow:hidden;}
   .pbar i{display:block;height:100%;width:64%;background:var(--blue);border-radius:999px;}
@@ -263,7 +263,10 @@
   .krow .kbd{margin-left:auto;display:flex;gap:4px;}
   kbd{font-size:10px;color:#cfcfcf;background:#242424;border:1px solid #343434;border-bottom-width:2px;border-radius:4px;
     padding:1px 5px;font-family:ui-monospace,Menlo,monospace;white-space:nowrap;}
-  .krow.rec{border:1.5px dashed var(--blue-line);background:var(--blue-soft);color:#7cc9ff;}
+  .krow.rec{border:1.5px dashed var(--blue-line);background:var(--blue-soft);color:#e8e8ed;}
+  /* 苹果式极简：主按钮=白底近黑字（覆盖 mockup-kit 的蓝主按钮） */
+  .ve .btn.primary{background:#f5f5f7;border-color:#f5f5f7;color:#1d1d1f;}
+  .ve .btn.primary:hover{background:#e8e8ed;border-color:#e8e8ed;}
   .kcat{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);margin:13px 0 4px;}
 </style>
 </head>
@@ -272,7 +275,7 @@
 <header class="mk-head">
   <h1>视频编辑器 · 现状全景（EditorShell 五面板）· Mockup</h1>
   <p>这不是新方案，是 <b>现状 1:1 还原</b>：布局照抄 <code>EditorShell.tsx</code> 的五面板 Resizable 骨架（左素材库 / 中预览 / 右属性 / 下时间线，右 AI 槽位<b>已移除</b>）；
-     主题照抄 <code>ve-theme.css</code> 暗色（主色 <code>#009dff</code>）。<span class="hl">蓝点编号 = 现有功能锚点</span>，图例对应下方文件。</p>
+     主题 = ve-theme.css 暗色改苹果式极简（白主色 / 黑白灰 / 发丝线）。<span class="hl">白点编号 = 现有功能锚点</span>，图例对应下方文件。</p>
 </header>
 
 <svg style="display:none" xmlns="http://www.w3.org/2000/svg">
@@ -473,6 +476,7 @@
                     <button class="pill">2x</button><button class="pill">4x</button>
                   </div>
                 </div>
+                <div class="pi"><label>滑杆<span class="tag new" style="margin-left:6px;">建议</span></label><div class="sl" style="--v:25%"><i><b></b></i></div><input class="inp mini" value="1"></div>
                 <div class="pi"><label>自定义</label><input class="inp" value="1"></div>
               </div>
             </div>
@@ -682,7 +686,7 @@
             <div class="clip sticker" style="left:100px;width:100px;">🌴</div>
             <div class="clip sticker" style="left:300px;width:125px;">☀️</div>
           </div>
-          <div style="position:absolute;left:290px;top:88px;width:170px;height:114px;border:1px solid var(--blue-line);background:rgba(0,157,255,.09);z-index:8;"></div>
+          <div style="position:absolute;left:290px;top:88px;width:170px;height:114px;border:1px solid var(--blue-line);background:rgba(245,245,247,.08);z-index:8;"></div>
           <div class="snapi" style="left:261px;"></div>
           <div class="ph" style="left:150px;"><b></b></div>
         </div>
@@ -705,7 +709,7 @@
             <div class="mi red"><svg class="ic s"><use href="#i-trash"/></svg>删除<span class="kbd">⌫</span></div>
           </div>
           <div class="menu" style="width:150px;align-self:center;">
-            <div class="mi"><svg class="ic s"><use href="#i-flip"/></svg>镜像<svg class="ic s f" style="margin-left:auto;color:#7cc9ff"><use href="#i-check"/></svg></div>
+            <div class="mi"><svg class="ic s"><use href="#i-flip"/></svg>镜像<svg class="ic s f" style="margin-left:auto;color:#e8e8ed"><use href="#i-check"/></svg></div>
             <div class="mi"><svg class="ic s"><use href="#i-rot"/></svg>倒放</div>
           </div>
         </div>
@@ -741,9 +745,9 @@
       <div class="tgrid">
         <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><circle cx="35" cy="17" r="14" fill="#39536b"/></svg></div><div class="lb">Fade</div></div>
         <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><rect x="10" y="4" width="50" height="26" rx="3" fill="#39536b" opacity=".55"/><rect x="14" y="8" width="42" height="18" rx="2" fill="#5b7d99"/></svg></div><div class="lb">Dissolve</div></div>
-        <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><rect x="30" y="0" width="40" height="34" fill="#39536b"/><path d="M30 0v34" stroke="#7cc9ff" stroke-width="1.5"/></svg></div><div class="lb">Wipe Left</div></div>
-        <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><rect x="0" y="0" width="40" height="34" fill="#39536b"/><path d="M40 0v34" stroke="#7cc9ff" stroke-width="1.5"/></svg></div><div class="lb">Wipe Right</div></div>
-        <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><rect x="26" y="0" width="44" height="34" fill="#39536b"/><path d="M14 17h22m0 0-5-4m5 4-5 4" stroke="#7cc9ff" stroke-width="1.5" fill="none"/></svg></div><div class="lb">Slide Left</div></div>
+        <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><rect x="30" y="0" width="40" height="34" fill="#39536b"/><path d="M30 0v34" stroke="#e8e8ed" stroke-width="1.5"/></svg></div><div class="lb">Wipe Left</div></div>
+        <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><rect x="0" y="0" width="40" height="34" fill="#39536b"/><path d="M40 0v34" stroke="#e8e8ed" stroke-width="1.5"/></svg></div><div class="lb">Wipe Right</div></div>
+        <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><rect x="26" y="0" width="44" height="34" fill="#39536b"/><path d="M14 17h22m0 0-5-4m5 4-5 4" stroke="#e8e8ed" stroke-width="1.5" fill="none"/></svg></div><div class="lb">Slide Left</div></div>
         <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><rect x="22" y="2" width="26" height="30" fill="#39536b"/><path d="M22 2 8-6M48 2l14-8M22 32 8 40M48 32l14 8" stroke="#5b7d99" stroke-width="1.2"/></svg></div><div class="lb">Zoom In</div></div>
       </div>
       <div style="padding:0 12px 11px;font-size:10.5px;color:var(--t-faint);line-height:1.7;">
@@ -925,10 +929,42 @@
               <button class="pill">2x</button><button class="pill">4x</button>
             </div>
           </div>
+          <div class="pi"><label>滑杆<span class="tag new" style="margin-left:6px;">建议</span></label><div class="sl" style="--v:25%"><i><b></b></i></div><input class="inp mini" value="1"></div>
           <div class="pi"><label>自定义</label><input class="inp" value="1"></div>
         </div>
       </div>
-      <div style="padding:0 14px 13px;font-size:10.5px;color:var(--t-faint);line-height:1.7;">调速度时长联动（duration × 旧速 / 新速）· 静音与分离音频在右键菜单 / 轨道头</div>
+      <div style="padding:0 14px 13px;font-size:10.5px;color:var(--t-faint);line-height:1.7;"><b style="color:#d1d1d6;">现状无滑块</b>（仅预设 + 自定义输入）；滑杆为新增建议，见右卡 → · 调速度时长联动（duration × 旧速 / 新速）· 静音与分离音频在右键菜单 / 轨道头</div>
+    </div>
+
+    <div class="vcard" style="width:320px;">
+      <div class="vh">速度 · 为什么没滑块 / 建议怎么补<span class="st"><span class="tag new">新增建议</span></span></div>
+      <div style="padding:12px 14px 4px;font-size:11px;color:var(--t-muted);line-height:1.8;">
+        <b style="color:#9a9a9a;">现状（本图零新增的依据）</b>：代码里速度组只有两件东西 ——
+        8 个预设 pill + 「自定义」数字输入（0.25–4，step 0.05，边输边预览、失焦入历史），
+        见 <code style="font-size:10px;">video-properties.tsx:541</code>。所以屏 1 / 屏 4 的速度组原本没有滑块。
+      </div>
+      <div class="pg first"><div class="t">建议补法：对数滑杆，与预设 / 输入三层联动</div>
+        <div class="bd">
+          <div class="pi col">
+            <div class="sl" style="--v:50%"><i><b></b></i></div>
+            <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--faint);font-family:ui-monospace,Menlo,monospace;padding:0 2px;">
+              <span>0.25x</span><span>0.5x</span><span style="color:#e8e8ed;">1x</span><span>2x</span><span>4x</span>
+            </div>
+          </div>
+          <div class="pillrow">
+            <button class="pill">0.25x</button><button class="pill">0.5x</button><button class="pill">0.75x</button>
+            <button class="pill on">1x</button><button class="pill">1.25x</button><button class="pill">1.5x</button>
+            <button class="pill">2x</button><button class="pill">4x</button>
+          </div>
+          <div class="pi"><label>自定义</label><input class="inp" value="1"></div>
+        </div>
+      </div>
+      <div style="padding:0 14px 13px;font-size:10.5px;color:var(--t-faint);line-height:1.9;">
+        ① <b style="color:#9a9a9a;">对数映射</b>：0.25–4× 按 log₂ 均匀分档（0.25 / 0.5 / 1 / 2 / 4 刻度等距），线性滑杆会把 0.25–1x 挤成一条缝；<br>
+        ② 步进 0.05；拖动实时预览（不进历史）、松手 commit —— 与自定义输入同一套提交规则；<br>
+        ③ <b style="color:#9a9a9a;">三层同步</b>：滑杆 ↔ 预设 pill ↔ 自定义输入，值落在预设上时对应 pill 同步高亮；<br>
+        ④ 调速时长联动：duration × 旧速 ÷ 新速；视频 / 音频属性共用此组件。
+      </div>
     </div>
 
     <div class="vcard" style="width:290px;">

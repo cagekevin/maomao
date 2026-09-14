@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import type { EditorCore } from '@videoEditor/engine/core';
 import type { TimelineTrack, TScene } from '@videoEditor/types/timeline';
 import { storageService } from '@videoEditor/engine/services/storage/service';
@@ -146,7 +147,7 @@ export class ScenesManager {
         }
       }
     } catch (error) {
-      console.error('Failed to load project scenes:', error);
+      logger.error('Failed to load project scenes:', error);
       this.list = [];
       this.active = null;
       this.notify();

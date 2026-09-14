@@ -39,7 +39,7 @@ export function ExportButton() {
         <button
           type="button"
           className={cn(
-            'flex items-center gap-1.5 rounded-lg border border-border bg-white px-3.5 py-1.5 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100',
+            'flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1 text-xs font-medium text-gray-800 shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100',
             hasProject ? 'cursor-pointer' : 'cursor-not-allowed opacity-50',
           )}
           onClick={hasProject ? handleExport : undefined}

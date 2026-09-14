@@ -1,7 +1,8 @@
 'use client';
+import { logger } from '@videoEditor/lib/logger';
 
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@videoEditor/lib/toast';
 import { MediaDragOverlay } from '@videoEditor/ui/editor/panels/assets/drag-overlay';
 import { DraggableItem } from '@videoEditor/ui/editor/panels/assets/draggable-item';
 import { Button } from '@videoEditor/ui/ui/button';
@@ -102,7 +103,7 @@ export function MediaView() {
         });
       }
     } catch (error) {
-      console.error('Error processing files:', error);
+      logger.error('Error processing files:', error);
       toast.error('处理文件失败');
     } finally {
       setIsProcessing(false);
@@ -129,7 +130,7 @@ export function MediaView() {
       setUrlInput('');
       toast.success('素材导入成功');
     } catch (error) {
-      console.error('Error importing from URL:', error);
+      logger.error('Error importing from URL:', error);
       toast.error(error instanceof Error ? error.message : '从 URL 导入素材失败');
     } finally {
       setIsUrlImporting(false);
@@ -168,7 +169,7 @@ export function MediaView() {
       setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
       toast.success('片段已下载');
     } catch (error) {
-      console.error('Failed to export clip:', error);
+      logger.error('Failed to export clip:', error);
       toast.error('下载片段失败');
     }
   };
@@ -542,9 +543,9 @@ function GridView({
 }) {
   return (
     <div
-      className="grid gap-1.5"
+      className="grid gap-2.5"
       style={{
-        gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
       }}
     >
       {items.map((item) => (

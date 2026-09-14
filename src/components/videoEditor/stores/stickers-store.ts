@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import { create } from 'zustand';
 import {
   getCollections,
@@ -88,7 +89,7 @@ export const useStickersStore = create<StickersStore>((set, get) => ({
       const collections = await getCollections();
       set({ collections });
     } catch (error) {
-      console.error('Failed to load collections:', error);
+      logger.error('Failed to load collections:', error);
     } finally {
       set({ isLoadingCollections: false });
     }
@@ -100,7 +101,7 @@ export const useStickersStore = create<StickersStore>((set, get) => ({
       const collection = await getCollection(prefix);
       set({ currentCollection: collection });
     } catch (error) {
-      console.error(`Failed to load collection ${prefix}:`, error);
+      logger.error(`Failed to load collection ${prefix}:`, error);
       set({ currentCollection: null });
     } finally {
       set({ isLoadingCollection: false });
@@ -121,7 +122,7 @@ export const useStickersStore = create<StickersStore>((set, get) => ({
       const results = await searchIcons(query, 100, undefined, category);
       set({ searchResults: results });
     } catch (error) {
-      console.error('Search failed:', error);
+      logger.error('Search failed:', error);
       set({ searchResults: null });
     } finally {
       set({ isSearching: false });

@@ -11,7 +11,7 @@ import {
   type TransitionPreset,
 } from '@videoEditor/constants/transition-constants';
 import type { TransitionType, VideoTrack } from '@videoEditor/types/timeline';
-import { toast } from 'sonner';
+import { toast } from '@videoEditor/lib/toast';
 import { cn } from '@videoEditor/utils/ui';
 import {
   Tooltip,

@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import { Command } from '@videoEditor/engine/commands/base-command';
 import { EditorCore } from '@videoEditor/engine/core';
 import type { TScene } from '@videoEditor/types/timeline';
@@ -22,7 +23,7 @@ export class RenameSceneCommand extends Command {
 
     const scene = scenes.find((s) => s.id === this.sceneId);
     if (!scene) {
-      console.error('Scene not found:', this.sceneId);
+      logger.error('Scene not found:', this.sceneId);
       return;
     }
 

@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import { Command } from '@videoEditor/engine/commands/base-command';
 import { EditorCore } from '@videoEditor/engine/core';
 import type { MediaAsset } from '@videoEditor/types/assets';
@@ -28,7 +29,7 @@ export class RemoveMediaAssetCommand extends Command {
     this.removedAsset = assets.find((media) => media.id === this.assetId) ?? null;
 
     if (!this.removedAsset) {
-      console.error('Media asset not found:', this.assetId);
+      logger.error('Media asset not found:', this.assetId);
       return;
     }
 
@@ -55,7 +56,7 @@ export class RemoveMediaAssetCommand extends Command {
     storageService
       .deleteMediaAsset({ projectId: this.projectId, id: this.assetId })
       .catch((error) => {
-        console.error('Failed to delete media item:', error);
+        logger.error('Failed to delete media item:', error);
       });
   }
 
@@ -77,7 +78,7 @@ export class RemoveMediaAssetCommand extends Command {
           mediaAsset: this.removedAsset,
         })
         .catch((error) => {
-          console.error('Failed to restore media item on undo:', error);
+          logger.error('Failed to restore media item on undo:', error);
         });
     }
   }

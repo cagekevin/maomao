@@ -26,11 +26,12 @@
   --popover: hsl(0, 0%, 100%);
   --popover-hover: hsl(0, 0%, 96%);
   --popover-foreground: hsl(0 0% 2%);
-  --primary: #009dff;
+  /* 苹果式极简：亮色模式主色 = 近黑（Apple 系统按钮做法），不再用蓝色 */
+  --primary: hsl(0, 0%, 11%);
   --primary-foreground: hsl(0, 0%, 100%);
-  --secondary: hsl(204, 100%, 97%);
-  --secondary-border: hsl(204, 100%, 94%);
-  --secondary-foreground: hsl(200, 98%, 39%);
+  --secondary: hsl(0, 0%, 96%);
+  --secondary-border: hsl(0, 0%, 90%);
+  --secondary-foreground: hsl(0, 0%, 35%);
   --muted: hsl(0 0% 85.1%);
   --muted-foreground: hsl(0 0% 50%);
   --accent: hsl(0, 0%, 96%);
@@ -74,9 +75,13 @@
   --popover: hsl(0, 0%, 16%);
   --popover-hover: hsl(0, 0%, 22%);
   --popover-foreground: hsl(0 0% 95%);
-  --secondary: hsl(204, 100%, 12%);
-  --secondary-border: hsl(204, 100%, 15%);
-  --secondary-foreground: hsl(200, 98%, 61%);
+  /* 苹果式极简（暗色）：主色 = 苹果白 #f5f5f7，激活/选中用「白」而非彩色；
+     亮色段遗留的 #009dff 蓝主色在此被覆盖为白。 */
+  --primary: hsl(0, 0%, 96%);
+  --primary-foreground: hsl(0, 0%, 11%);
+  --secondary: hsl(0, 0%, 14%);
+  --secondary-border: hsl(0, 0%, 20%);
+  --secondary-foreground: hsl(0, 0%, 85%);
   --muted: hsl(0 0% 20%);
   --muted-foreground: hsl(0 0% 55%);
   --accent: hsl(0, 0%, 14%);
@@ -105,9 +110,9 @@
   --foreground: hsl(0 0% 85%);
   --card: hsl(0, 0%, 10%);
   --card-foreground: hsl(0 0% 85%);
-  --secondary: hsl(204, 100%, 12%);
-  --secondary-border: hsl(204, 100%, 17%);
-  --secondary-foreground: hsl(200, 98%, 63%);
+  --secondary: hsl(0, 0%, 14%);
+  --secondary-border: hsl(0, 0%, 20%);
+  --secondary-foreground: hsl(0, 0%, 85%);
   --muted: hsl(0 0% 22%);
   --accent: hsl(0, 0%, 15%);
   --accent-foreground: hsl(0 0% 93%);
@@ -259,4 +264,82 @@
 }
 .ve-scope .animate-accordion-up {
   animation: ve-accordion-up 0.2s ease-out;
+}
+
+/* ══════════════════════════════════════════════════════════════
+ * 7. 苹果式极简 · 全局精修层（真相源：mockup/video-editor-current-mockup.html）
+ *    面（深灰面板/弹层）、边（1px 发丝线）、角（小圆角）、距（紧凑行高）统一收口。
+ * ══════════════════════════════════════════════════════════════ */
+
+/* ── 面板：统一小圆角 ── */
+.ve-scope .panel {
+  border-radius: 4px;
+}
+
+/* ── 输入类：深灰底 + 6px 角 + 聚焦发丝高光（不再用大蓝环）── */
+.ve-scope input:not([type='checkbox']):not([type='radio']):not([type='range']),
+.ve-scope textarea {
+  background-color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.ve-scope input:focus-visible,
+.ve-scope textarea:focus-visible {
+  border-color: hsl(0, 0%, 45%);
+  box-shadow: 0 0 0 3px hsl(0, 0%, 100%, 0.08);
+  outline: none;
+}
+.ve-scope input::placeholder,
+.ve-scope textarea::placeholder {
+  color: var(--muted-foreground);
+}
+
+/* ── 菜单/下拉项：32px 行高 + 5px 角（radix 菜单/右键/子菜单通用）── */
+.ve-scope [role='menuitem'] {
+  min-height: 32px;
+  border-radius: 5px;
+}
+
+/* ── 弹层容器（菜单/popover/下拉）：8px 角 + 发丝边 + 深投影 ── */
+.ve-scope [data-radix-popper-content-wrapper] > * {
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* ── 对话框：弹层同调（比页面底亮一档）+ 10px 角 ── */
+.ve-scope [role='dialog'],
+.ve-scope [role='alertdialog'] {
+  background-color: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+/* ── 按钮：统一 6px 角、ghost 悬停中性 ── */
+.ve-scope button {
+  border-radius: 6px;
+}
+
+/* ── 分隔线：统一最弱档发丝 ── */
+.ve-scope [role='separator']:not([orientation='vertical']) {
+  height: 1px;
+  background-color: var(--border);
+}
+
+/* ── 滚动条：更窄更淡 ── */
+.ve-scope ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.ve-scope ::-webkit-scrollbar-thumb {
+  background: hsl(0, 0%, 26%);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.ve-scope ::-webkit-scrollbar-thumb:hover {
+  background: hsl(0, 0%, 34%);
+  background-clip: content-box;
+}
+.ve-scope ::-webkit-scrollbar-track {
+  background: transparent;
 }

@@ -20,9 +20,8 @@ import { broadcastCanvasSaved } from '../core/canvasSyncBus.ts';
 import {
   contentGet,
   contentSet,
-  contentGetAsync,
   contentDeleteAsync,
-  contentKvGetVersion,
+  contentKvReadWithVersion,
   contentKvSetCas,
   createDebouncedPersist,
 } from '../core/contentStore.ts';
@@ -330,19 +329,12 @@ function genId(): string {
 export async function loadCanvasState(projectId: string): Promise<CanvasSnapshot | null> {
   try {
     const key = CANVAS_STATE_PREFIX + (projectId || currentProjectId);
-    // ★ 三段读「版本 → 快照 → 版本」（docs/118 §五 C1）：
-    //   这样 loadedVersion ≤ 我持有的内容版本 → 最坏是【假冲突】（拒绝写 + 提示刷新）。
-    //   反过来（先读内容后读版本）会出现「我把别人的新写入当成自己的基线 → CAS 通过 → 又覆盖别人」，
-    //   那是【静默丢数据】，比假冲突严重得多。
-    //   读期间若被人改过（v1 !== v2）→ 重读（≤3 次）；仍不稳则取最新 v2（宁假冲突不假通过）。
-    let v1 = await contentKvGetVersion(key);
-    let v = await contentGetAsync(key);
-    let v2 = await contentKvGetVersion(key);
-    for (let i = 0; i < 3 && v1 !== v2; i++) {
-      v1 = v2;
-      v = await contentGetAsync(key);
-      v2 = await contentKvGetVersion(key);
-    }
+    // ★ 三段读「版本 → 快照 → 版本」的**协议**已收口到 contentKvReadWithVersion（2026-09-14）：
+    //   本处原为 3 份同构副本之一。收口的只是**读法**；
+    //   「重试 3 次」（高频交互场景比单次加载更需稳定）与「写 loadedVersion」是**本域判据**，故留在本地。
+    //   语义不变：loadedVersion ≤ 我持有的内容版本 → 最坏是【假冲突】（拒绝写 + 提示刷新）；
+    //   反过来（先读内容后读版本）会出现「把别人的新写入当成基线 → CAS 通过 → 又覆盖别人」= 静默丢数据。
+    const { value: v, version: v2 } = await contentKvReadWithVersion(key, { retries: 3 });
     loadedVersion = v2;
     if (!v || typeof v !== 'object') return null;
     // P0-4 兼容读取：旧快照无 schemaVersion（视为版本 1 + 缺字段），统一返回 { nodes, edges, schemaVersion }。

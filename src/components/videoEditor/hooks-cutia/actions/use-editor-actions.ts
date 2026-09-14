@@ -1,4 +1,5 @@
 'use client';
+import { logger } from '@videoEditor/lib/logger';
 
 import { useRef } from 'react';
 import { useTimelineStore } from '@videoEditor/stores/timeline-store';
@@ -11,7 +12,7 @@ import { getElementsAtTime } from '@videoEditor/engine/timeline';
 const generateAndInsertSpeech = async (): Promise<never> => {
   throw new Error('语音生成未移植（tts 域已移除）');
 };
-import { toast } from 'sonner';
+import { toast } from '@videoEditor/lib/toast';
 import { i18next } from '@videoEditor/engine/lib/i18n';
 import { DEFAULT_EXPORT_OPTIONS } from '@videoEditor/constants/export-constants';
 import { getExportMimeType, getSelectedClipExportFilename } from '@videoEditor/engine/lib/export';
@@ -355,7 +356,7 @@ export function useEditorActions() {
 
         toast.success(i18next.t('Clip exported'), { id: toastId });
       })().catch((error) => {
-        console.error('Failed to export selected clip:', error);
+        logger.error('Failed to export selected clip:', error);
         toast.error(i18next.t('Failed to export clip'), { id: toastId });
       });
     },
@@ -494,7 +495,7 @@ export function useEditorActions() {
           });
           toast.success(i18next.t('Freeze frame created'), { id: toastId });
         } catch (error) {
-          console.error('Failed to create freeze frame:', error);
+          logger.error('Failed to create freeze frame:', error);
           if (commandStarted && !committed) batchCommand?.undo();
           if (!committed && assetId) {
             await storageService
@@ -565,7 +566,7 @@ export function useEditorActions() {
             await generateAndInsertSpeech();
             successCount++;
           } catch (error) {
-            console.error('TTS conversion failed for element:', error);
+            logger.error('TTS conversion failed for element:', error);
             failCount++;
           }
         }

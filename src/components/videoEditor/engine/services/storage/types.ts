@@ -24,6 +24,8 @@ export interface MediaAssetData {
   fps?: number;
   ephemeral?: boolean;
   thumbnailUrl?: string;
+  /** T4（docs/134）：素材二进制落 localTool /files/ 后的可访问 URL（替代 OPFS 二进制存储）。 */
+  url?: string;
 }
 
 export type SerializedScene = Omit<TScene, 'createdAt' | 'updatedAt'> & {

@@ -1,3 +1,4 @@
+import { logger } from '@videoEditor/lib/logger';
 import type { EditorCore } from '@videoEditor/engine/core';
 import type {
   TProject,
@@ -10,7 +11,9 @@ import type {
 import type { ExportOptions, ExportResult } from '@videoEditor/types/export';
 // 更新(2026-09-14)：agent-store 已随 AI 域删除，agentMessages 相关读写一并移除。
 import { storageService } from '@videoEditor/engine/services/storage/service';
-import { toast } from 'sonner';
+// 409 判别（T3 验收②）：版本冲突必须 UI 可见，见 saveCurrentProject 的 catch。
+import { HttpError } from '../../../../base/api/httpClient.ts';
+import { toast } from '@videoEditor/lib/toast';
 import { generateUUID } from '@videoEditor/utils/id';
 import { UpdateProjectSettingsCommand } from '@videoEditor/engine/commands/project';
 import {
@@ -158,7 +161,7 @@ export class ProjectManager {
         }
       }
     } catch (error) {
-      console.error('Failed to load project:', error);
+      logger.error('Failed to load project:', error);
       throw error;
     } finally {
       this.isLoading = false;
@@ -187,7 +190,18 @@ export class ProjectManager {
       this.active = updatedProject;
       this.updateMetadata(updatedProject);
     } catch (error) {
-      console.error('Failed to save project:', error);
+      // ── 409（版本冲突）必须**在 UI 侧可见**（docs/134 T3 验收② / docs/133 §3.5 D-4）：
+      // 服务端拒收 = 本次一个字节都没写，用户必须知道"改动没保存"，绝不能只 console.error 静默吞掉。
+      // 非 409（网络/5xx/代码 bug）保持原样：只记日志，不弹误导性的"冲突"提示。
+      if (error instanceof HttpError && error.status === 409) {
+        logger.warn('视频剪辑器：工程保存被拒（版本冲突，本次未写入）', error);
+        toast.error('作品已在别处被修改', {
+          description: '本次改动未保存。请刷新后重试，避免覆盖他人修改。',
+          duration: 8000,
+        });
+      } else {
+        logger.error('Failed to save project:', error);
+      }
     }
   }
 
@@ -207,7 +221,7 @@ export class ProjectManager {
       this.savedProjects = metadata;
       this.notify();
     } catch (error) {
-      console.error('Failed to load projects:', error);
+      logger.error('Failed to load projects:', error);
     } finally {
       this.isLoading = false;
       this.isInitialized = true;
@@ -242,7 +256,7 @@ export class ProjectManager {
 
       this.notify();
     } catch (error) {
-      console.error('Failed to delete projects:', error);
+      logger.error('Failed to delete projects:', error);
     }
   }
 
@@ -282,7 +296,7 @@ export class ProjectManager {
 
       this.updateMetadata(updatedProject);
     } catch (error) {
-      console.error('Failed to rename project:', error);
+      logger.error('Failed to rename project:', error);
       toast.error('Failed to rename project', {
         description: error instanceof Error ? error.message : 'Please try again',
       });
@@ -401,7 +415,7 @@ export class ProjectManager {
 
       return duplicationPlans.map((plan) => plan.newProjectId);
     } catch (error) {
-      console.error('Failed to duplicate projects:', error);
+      logger.error('Failed to duplicate projects:', error);
       toast.error('Failed to duplicate projects', {
         description: error instanceof Error ? error.message : 'Please try again',
       });
@@ -449,7 +463,7 @@ export class ProjectManager {
         await this.editor.save.flush();
       }
     } catch (error) {
-      console.error('Failed to generate project thumbnail on exit:', error);
+      logger.error('Failed to generate project thumbnail on exit:', error);
     }
   }
 

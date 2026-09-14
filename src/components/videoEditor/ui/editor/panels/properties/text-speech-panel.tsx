@@ -1,9 +1,10 @@
 'use client';
+import { logger } from '@videoEditor/lib/logger';
 
 import { useState } from 'react';
 
 // 更新(2026-09-14)：i18next 已随直写中文移除（文案已中文化）。
-import { toast } from 'sonner';
+import { toast } from '@videoEditor/lib/toast';
 import { Button } from '@videoEditor/ui/ui/button';
 import { Checkbox } from '@videoEditor/ui/ui/checkbox';
 import {
@@ -61,7 +62,7 @@ export function TextSpeechPanel({ elements: elementRefs }: { elements: TextEleme
 
         successCount++;
       } catch (error) {
-        console.error('TTS generation failed:', error);
+        logger.error('TTS generation failed:', error);
         failCount++;
       }
     }

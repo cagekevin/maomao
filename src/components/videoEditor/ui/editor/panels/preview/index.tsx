@@ -241,7 +241,7 @@ function PreviewToolbar({
   const fps = editor.project.getActive().settings.fps;
 
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center pb-3 pt-5 px-5">
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center px-5 py-2">
       <div className="flex items-center mt-1">
         <EditableTimecode
           time={currentTime}
