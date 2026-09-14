@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>视频编辑器 · 现状全景（EditorShell 五面板）· Mockup</title>
+<link rel="stylesheet" href="./mockup-kit.css" />
+<style>
+  /* ═══════════════════════════════════════════════════════════════
+     立场：本图是**现状 1:1 全景还原**，不是新方案。
+     布局 = src/components/videoEditor/EditorShell.tsx（五面板 Resizable）；
+     主题 token = ve-theme.css（.ve-scope.dark / .panel）；
+     每一颗按钮、每一条右键菜单项都来自实测代码，不增不减。
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* ── ve 编辑器主题 token（对齐 ve-theme.css 暗色 + .panel）── */
+  .ve{
+    --bg:#121212; --panel:#1a1a1a; --pop:#292929; --pop-hover:#333333;
+    --accentbg:#242424; --border:#2e2e2e; --border-faint:#262626; --input:#333333;
+    --fg:#dedede; --fg-strong:#ffffff; --muted:#8c8c8c; --faint:#666666;
+    --blue:#009dff; --blue-soft:rgba(0,157,255,.14); --blue-line:rgba(0,157,255,.55);
+    --red:#ef4444; --green:#22c55e; --amber:#f59e0b;
+    --tk-text:#5DBAA0; --tk-audio:#915DBE; --tk-sticker:#f59e0b;
+    --r:8px; --r-sm:4px;
+    font-size:12px; color:var(--fg);
+  }
+  .ve *{box-sizing:border-box;margin:0;padding:0;}
+  .ve button{font-family:inherit;background:none;border:none;color:inherit;cursor:pointer;}
+
+  .ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+  .ic.s{width:14px;height:14px;}
+  .ic.xs{width:12px;height:12px;}
+  .ic.f{fill:currentColor;stroke:none;}
+
+  /* ── 屏 1 · 宿主壳 ── */
+  .ve-app{width:1440px;height:900px;position:relative;display:flex;flex-direction:column;overflow:hidden;
+    background:var(--bg);border:1px solid #333;border-radius:var(--r-card);box-shadow:var(--sh-card);}
+  .ve-x{position:absolute;top:12px;left:12px;z-index:60;width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+    border-radius:6px;color:var(--muted);cursor:pointer;}
+  .ve-x:hover{background:var(--accentbg);color:var(--fg-strong);}
+  .ve-header{height:54px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 54px;}
+  .ve-header .lft{display:flex;align-items:center;gap:2px;min-width:0;}
+  .ve-logo{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:6px;flex:none;}
+  .ve-logo:hover{background:var(--accentbg);}
+  .ve-logo i{display:block;width:20px;height:20px;border-radius:4px;background:linear-gradient(140deg,#37b6ff,#7a5cff 70%,#ff7ab6);}
+  .ve-name{font-size:14.5px;color:var(--fg);padding:4px 8px;border-radius:4px;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ve-name:hover{background:var(--accentbg);}
+  .ve-export{display:flex;align-items:center;gap:6px;height:30px;padding:0 14px;border-radius:8px;
+    background:#ffffff;color:#262626;font-size:13px;font-weight:500;cursor:pointer;border:1px solid #e5e5e5;}
+  .ve-export:hover{background:#f2f2f2;}
+
+  .ve-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:3px;padding:0 12px 12px;}
+  .ve-main{flex:1;min-height:0;display:flex;gap:3px;}
+  .ve-panel{background:var(--panel);border:1px solid var(--border);border-radius:3px;overflow:hidden;}
+  .vsep{width:1px;background:var(--border-faint);flex:none;}
+
+  /* ── 素材库 ── */
+  .as{display:flex;height:100%;}
+  .as-tab{width:42px;flex:none;position:relative;padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .as-tab button{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:var(--muted);}
+  .as-tab button:hover{background:var(--accentbg);color:var(--fg);}
+  .as-tab button.on{background:var(--accentbg);color:var(--fg-strong);}
+  .as-tab .fade{position:absolute;left:0;right:0;height:20px;pointer-events:none;}
+  .as-tab .fade.b{bottom:0;background:linear-gradient(0deg,var(--panel),transparent);}
+  .as-view{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .as-bar{height:48px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 12px;border-bottom:1px solid var(--border-faint);}
+  .as-bar .ttl{font-size:13px;color:var(--muted);margin-right:auto;}
+  .tbtn{height:28px;padding:0 8px;display:inline-flex;align-items:center;gap:5px;border-radius:6px;color:var(--muted);font-size:12px;}
+  .tbtn:hover{background:var(--accentbg);color:var(--fg);}
+  .tbtn.on{color:var(--fg-strong);}
+  .tbtn.imp{border:1px solid var(--border);color:var(--fg);}
+  .as-grid{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px 12px;align-content:start;}
+  .mcard{border-radius:6px;overflow:hidden;cursor:pointer;position:relative;}
+  .mcard .th{position:relative;aspect-ratio:16/9;border-radius:5px;border:1px solid var(--border);}
+  .mcard.sel .th{outline:2px solid var(--blue);outline-offset:1px;}
+  .mcard .dur{position:absolute;right:4px;bottom:4px;padding:1px 5px;border-radius:4px;background:rgba(0,0,0,.72);color:#fff;font-size:10px;font-family:ui-monospace,Menlo,monospace;}
+  .mcard .nm{display:flex;align-items:center;gap:5px;margin-top:5px;font-size:11px;color:var(--fg);white-space:nowrap;overflow:hidden;}
+  .mcard .nm span{color:var(--muted);font-size:10px;flex:none;}
+  .mcard .plus{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;
+    background:var(--blue);color:#fff;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.5);}
+  .mcard:hover .plus{display:flex;}
+  .g1{background:linear-gradient(160deg,#8fc7de,#3d7d99 60%,#27566c);}
+  .g2{background:linear-gradient(150deg,#9ec98f,#4d8a52 60%,#2e5a3a);}
+  .g3{background:linear-gradient(160deg,#f0b26b,#c96f3a 55%,#6e3b2c);}
+  .g4{background:linear-gradient(150deg,#c3c9d4,#7d8aa0 55%,#46506b);}
+  .g5{background:linear-gradient(160deg,#e6d3a7,#b09468 60%,#6b583d);}
+  .g6{background:linear-gradient(150deg,#d9a7c7,#9a5c8a 60%,#5c3355);}
+
+  /* ── 预览 ── */
+  .pv{display:flex;flex-direction:column;height:100%;}
+  .pv-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px 8px 0;}
+  .pv-frame{position:relative;width:620px;height:349px;background:#000;border:1px solid #3a3a3a;overflow:hidden;
+    background:linear-gradient(180deg,#8cc3e2 0%,#b7d9ea 46%,#2e7391 46.2%,#1c4f66 100%);}
+  .pv-sun{position:absolute;right:110px;top:56px;width:52px;height:52px;border-radius:50%;background:radial-gradient(circle,#ffe9a8,#f7c65a 70%);opacity:.95;}
+  .pv-boat{position:absolute;left:150px;top:196px;width:56px;height:14px;border-radius:3px;background:#5a4636;opacity:.85;}
+  .pv-txt{position:absolute;left:0;right:0;bottom:26px;text-align:center;font-size:21px;font-weight:700;color:#fff;letter-spacing:2px;
+    text-shadow:-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000,2px 2px 0 #000,-2px 0 0 #000,2px 0 0 #000,0 -2px 0 #000,0 2px 0 #000;}
+  .pv-sel{position:absolute;inset:7px;border:1.5px solid var(--blue);}
+  .pv-sel i{position:absolute;width:8px;height:8px;background:#fff;border:1.5px solid var(--blue);border-radius:1px;}
+  .pv-transport{height:52px;flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 20px 8px;}
+  .tc{display:flex;align-items:center;gap:8px;font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .tc .cur{padding:2px 7px;border-radius:5px;border:1px solid transparent;color:var(--fg-strong);}
+  .tc .cur:hover{border-color:var(--border);background:var(--accentbg);}
+  .pv-play{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:7px;color:var(--fg);}
+  .pv-play:hover{background:var(--accentbg);}
+  .pv-right{display:flex;align-items:center;gap:2px;justify-self:end;}
+  /* ── 属性面板 ── */
+  .pp{height:100%;overflow-y:auto;padding-bottom:10px;}
+  .pg{border-top:1px solid var(--border-faint);}
+  .pg.first{border-top:none;}
+  .pg .t{display:flex;align-items:center;justify-content:space-between;padding:11px 14px 0;font-size:12px;font-weight:600;color:var(--fg);}
+  .pg .bd{padding:9px 14px 13px;display:flex;flex-direction:column;gap:12px;}
+  .pi{display:flex;align-items:center;gap:10px;}
+  .pi>label{width:58px;flex:none;font-size:11px;color:var(--muted);}
+  .pi.col{flex-direction:column;align-items:stretch;gap:6px;}
+  .inp{height:30px;background:var(--accentbg);border:1px solid var(--border);border-radius:6px;color:var(--fg);
+    font-size:12px;padding:0 8px;width:100%;outline:none;font-family:inherit;}
+  .inp:focus{border-color:var(--blue-line);}
+  .inp.mini{width:56px;flex:none;text-align:center;padding:0 4px;}
+  .sl{flex:1;height:16px;display:flex;align-items:center;}
+  .sl i{display:block;position:relative;height:4px;border-radius:999px;background:#3d3d3d;flex:1;}
+  .sl i::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--v,50%);background:var(--blue);border-radius:999px;}
+  .sl b{position:absolute;left:var(--v,50%);top:50%;transform:translate(-50%,-50%);width:12px;height:12px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.55);}
+  .pillrow{display:flex;flex-wrap:wrap;gap:5px;}
+  .pill{height:24px;padding:0 9px;display:inline-flex;align-items:center;border-radius:5px;border:1px solid transparent;
+    background:var(--accentbg);color:var(--fg);font-size:11px;cursor:pointer;}
+  .pill:hover{border-color:var(--border);}
+  .pill.on{background:var(--blue-soft);border-color:var(--blue-line);color:#7cc9ff;}
+  .sw{width:34px;height:19px;border-radius:999px;background:#3d3d3d;position:relative;flex:none;cursor:pointer;}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:left .15s;}
+  .sw.on{background:var(--blue);}
+  .sw.on::after{left:17px;}
+  .csw{width:22px;height:22px;border-radius:5px;border:1px solid rgba(255,255,255,.14);cursor:pointer;flex:none;display:inline-block;}
+
+  /* ── 时间线 ── */
+  .tl{height:408px;flex:none;display:flex;flex-direction:column;}
+  .tl-bar{height:40px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 8px;border-bottom:1px solid var(--border-faint);}
+  .tl-bar .grp{display:flex;align-items:center;gap:1px;}
+  .ib24{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:var(--muted);}
+  .ib24:hover{background:var(--accentbg);color:var(--fg-strong);}
+  .ib24.acc{color:#7cc9ff;background:var(--blue-soft);}
+  .ib24.dis{opacity:.4;cursor:not-allowed;}
+  .ib24.dis:hover{background:none;color:var(--muted);}
+  .hsep{width:1px;height:16px;background:var(--border);margin:0 5px;flex:none;}
+  .tl-body{flex:1;min-height:0;display:flex;}
+  .tl-labels{width:132px;flex:none;padding-top:40px;}
+  .tl-labels .row{display:flex;align-items:center;padding:0 5px 0 4px;margin-bottom:4px;}
+  .tl-labels .row .k{color:rgba(140,140,140,.5);cursor:grab;}
+  .tl-labels .row .r{margin-left:auto;display:flex;align-items:center;gap:6px;color:var(--muted);}
+  .tl-scroll{flex:1;min-width:0;position:relative;overflow:hidden;}
+  .ruler{position:relative;height:24px;border-bottom:1px solid var(--border-faint);}
+  .ruler .tk{position:absolute;bottom:0;width:1px;height:5px;background:#4a4a4a;}
+  .ruler .tk.big{height:9px;background:#5a5a5a;}
+  .ruler .lb{position:absolute;bottom:9px;transform:translateX(3px);font-size:9.5px;color:var(--muted);font-family:ui-monospace,Menlo,monospace;}
+  .bmrow{position:relative;height:16px;}
+  .bm{position:absolute;top:2px;color:var(--amber);}
+  .tl-tracks{position:relative;}
+  .track{position:absolute;left:0;border-radius:3px;}
+  .clip{position:absolute;top:2px;bottom:2px;border-radius:3px;background:#1f1f1f;border:1px solid var(--border);overflow:hidden;}
+  .clip.video .strip{position:absolute;inset:0;background-size:auto 100%;background-repeat:no-repeat;}
+  .clip .cn{position:absolute;left:4px;bottom:3px;font-size:9px;color:rgba(255,255,255,.85);background:rgba(0,0,0,.45);padding:0 4px;border-radius:3px;line-height:14px;}
+  .clip.sel{outline:2px solid var(--blue);outline-offset:0;z-index:5;}
+  .clip.sel .hd{position:absolute;top:50%;transform:translateY(-50%);width:4px;height:16px;background:#fff;border-radius:2px;}
+  .clip.sel .hd.l{left:2px;} .clip.sel .hd.r{right:2px;}
+  .strip1{background-image:linear-gradient(160deg,#8fc7de,#3d7d99 60%,#27566c);}
+  .strip2{background-image:linear-gradient(150deg,#9ec98f,#4d8a52 60%,#2e5a3a);}
+  .strip3{background-image:linear-gradient(160deg,#f0b26b,#c96f3a 55%,#6e3b2c);}
+  .framelines{position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(255,255,255,.08) 0 1px,transparent 1px 50px);}
+  .clip.text{background:var(--tk-text);border-color:transparent;display:flex;align-items:center;padding:0 6px;
+    font-size:10.5px;font-weight:600;color:#0b241c;white-space:nowrap;overflow:hidden;}
+  .clip.audio{background:rgba(145,93,190,.16);border-color:rgba(145,93,190,.5);}
+  .clip.audio .wave{position:absolute;inset:3px 2px;
+    background:repeating-linear-gradient(90deg,#b57ce0 0 2px,transparent 2px 5px);
+    -webkit-mask-image:linear-gradient(180deg,transparent 4%,#000 42%,#000 58%,transparent 96%);
+    mask-image:linear-gradient(180deg,transparent 4%,#000 42%,#000 58%,transparent 96%);}
+  .clip.sticker{background:var(--tk-sticker);border-color:transparent;display:flex;align-items:center;justify-content:center;font-size:15px;}
+  .trans{position:absolute;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.9);
+    background:linear-gradient(90deg,rgba(0,0,0,.72),transparent 45%,transparent 55%,rgba(0,0,0,.72));}
+  .trans .tip{position:absolute;top:-20px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:9.5px;
+    background:#000;border:1px solid #3a3a3a;border-radius:4px;padding:1px 6px;color:#ddd;}
+  .ph{position:absolute;top:0;bottom:0;width:2px;background:#fff;z-index:20;}
+  .ph b{position:absolute;top:4px;left:50%;transform:translateX(-50%);width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid rgba(255,255,255,.5);box-shadow:0 1px 4px rgba(0,0,0,.5);}
+  .snapi{position:absolute;top:0;bottom:0;width:2px;background:var(--blue);opacity:.4;z-index:25;}
+
+  /* 数字标注 / 图例 */
+  .n{position:absolute;z-index:40;width:17px;height:17px;border-radius:50%;background:var(--blue);color:#fff;
+    font-size:10.5px;font-weight:600;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 0 0 2px rgba(0,157,255,.22),0 2px 6px rgba(0,0,0,.45);cursor:default;font-style:normal;}
+  .legend{display:grid;grid-template-columns:1fr 1fr;gap:4px 26px;font-size:11px;color:var(--t-muted);line-height:1.8;max-width:1440px;}
+  .legend b{color:var(--t-body);font-weight:500;}
+  .legend .nn{display:inline-flex;width:16px;height:16px;border-radius:50%;background:#1c4a6e;color:#7cc9ff;font-size:10px;
+    align-items:center;justify-content:center;margin-right:6px;flex:none;font-weight:600;font-style:normal;}
+  .legend .f{color:#5b8db8;font-family:ui-monospace,Menlo,monospace;font-size:10px;}
+
+  /* ── 浮层（菜单 / popover / dialog 卡）── */
+  .menu{width:256px;background:var(--pop);border:1px solid #3a3a3a;border-radius:8px;box-shadow:var(--sh-pop);padding:5px;z-index:30;}
+  .mi{display:flex;align-items:center;gap:9px;height:32px;padding:0 10px;border-radius:5px;font-size:12px;color:var(--fg);cursor:pointer;position:relative;}
+  .mi:hover{background:var(--pop-hover);}
+  .mi .ic{color:var(--muted);}
+  .mi .kbd{margin-left:auto;font-size:10.5px;color:var(--faint);font-family:ui-monospace,Menlo,monospace;}
+  .mi .chev{margin-left:auto;color:var(--faint);}
+  .mi.dis{opacity:.45;cursor:not-allowed;}
+  .mi.dis:hover{background:none;}
+  .mi.red{color:var(--red);} .mi.red .ic{color:var(--red);}
+  .msep{height:1px;background:#3a3a3a;margin:5px 7px;}
+
+  /* 卡片屏通用 */
+  .row-cards{display:flex;gap:26px;align-items:flex-start;}
+  .vcard{background:var(--bg);border:1px solid #2b2b2b;border-radius:12px;overflow:hidden;flex:none;position:relative;}
+  .vcard .vh{height:38px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid #242424;
+    font-size:12px;font-weight:600;color:var(--t-strong);}
+  .vcard .vh .st{margin-left:auto;display:flex;gap:5px;align-items:center;}
+  .seg{display:inline-flex;padding:3px;gap:2px;background:#1f1f1f;border:1px solid #2a2a2a;border-radius:8px;}
+  .seg button{height:24px;padding:0 11px;border-radius:6px;font-size:11.5px;color:var(--t-secondary);cursor:pointer;}
+  .seg button:hover{color:#fff;}
+  .seg button.on{background:var(--accentbg);color:#fff;box-shadow:inset 0 0 0 1px #383838;}
+  .pill2{height:24px;padding:0 10px;display:inline-flex;align-items:center;gap:4px;border-radius:999px;background:#222;
+    border:1px solid #2e2e2e;color:var(--t-secondary);font-size:11px;cursor:pointer;}
+  .pill2.on{background:var(--blue-soft);border-color:var(--blue-line);color:#7cc9ff;}
+  .strow{display:flex;align-items:center;gap:10px;padding:0 14px;height:38px;}
+  .strow>label{width:58px;flex:none;font-size:11px;color:var(--muted);}
+  .selbox{height:30px;flex:1;display:flex;align-items:center;gap:6px;padding:0 9px;background:var(--accentbg);
+    border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--fg);cursor:pointer;}
+  .selbox .chev{margin-left:auto;color:var(--faint);}
+  .droplist{position:absolute;z-index:35;width:200px;background:var(--pop);border:1px solid #3a3a3a;border-radius:8px;
+    box-shadow:var(--sh-pop);padding:4px;font-size:12px;}
+  .opt{display:flex;align-items:center;height:28px;padding:0 9px;border-radius:5px;color:var(--fg);cursor:pointer;gap:6px;}
+  .opt:hover{background:var(--pop-hover);}
+  .opt.on{background:var(--blue-soft);color:#7cc9ff;}
+  .opt.on::after{content:"✓";margin-left:auto;font-size:11px;}
+
+  /* 转场卡 / 贴纸格 / 背景卡 */
+  .tgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px;}
+  .tcard{border:1px solid #2b2b2b;border-radius:8px;padding:6px;cursor:pointer;background:#181818;}
+  .tcard:hover{border-color:var(--blue-line);}
+  .tcard .prev{height:52px;border-radius:5px;background:#101010;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+  .tcard .lb{margin-top:5px;text-align:center;font-size:10.5px;color:var(--t-secondary);}
+  .sgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;padding:9px 12px;}
+  .stile{aspect-ratio:1;border-radius:7px;background:#20242b;border:1px solid #2c313a;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;}
+  .stile:hover{border-color:var(--blue-line);}
+  .stile.pk{background:#2a2331;border-color:#41364d;}
+  .blurrow{display:flex;gap:8px;padding:0 14px;}
+  .blurcard{flex:1;border-radius:8px;border:1px solid #2b2b2b;overflow:hidden;cursor:pointer;}
+  .blurcard.on{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue-line);}
+  .blurcard .bimg{height:52px;background:linear-gradient(160deg,#7fb2d9,#27566c);}
+  .blurcard.b1 .bimg{filter:blur(1.5px);} .blurcard.b2 .bimg{filter:blur(4px);} .blurcard.b3 .bimg{filter:blur(8px);}
+  .blurcard .bl{padding:4px 0;text-align:center;font-size:10.5px;color:var(--t-secondary);}
+  .grads{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:0 14px;}
+  .grad{height:26px;border-radius:6px;border:1px solid rgba(255,255,255,.1);cursor:pointer;}
+  .vlab{padding:11px 14px 6px;font-size:11px;color:var(--muted);}
+
+  /* 屏 5 · 导出 / 快捷键 */
+  .radio{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--fg);cursor:pointer;}
+  .rd{width:15px;height:15px;border-radius:50%;border:1.5px solid #4a4a4a;position:relative;flex:none;}
+  .rd.on{border-color:var(--blue);} .rd.on::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--blue);}
+  .cb{width:15px;height:15px;border-radius:4px;border:1.5px solid #4a4a4a;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;}
+  .cb.on{background:var(--blue);border-color:var(--blue);}
+  .pbar{height:7px;border-radius:999px;background:#333;overflow:hidden;}
+  .pbar i{display:block;height:100%;width:64%;background:var(--blue);border-radius:999px;}
+  .krow{display:flex;align-items:center;gap:10px;height:29px;padding:0 4px;border-radius:6px;font-size:12px;color:var(--fg);cursor:pointer;}
+  .krow:hover{background:var(--accentbg);}
+  .krow .kbd{margin-left:auto;display:flex;gap:4px;}
+  kbd{font-size:10px;color:#cfcfcf;background:#242424;border:1px solid #343434;border-bottom-width:2px;border-radius:4px;
+    padding:1px 5px;font-family:ui-monospace,Menlo,monospace;white-space:nowrap;}
+  .krow.rec{border:1.5px dashed var(--blue-line);background:var(--blue-soft);color:#7cc9ff;}
+  .kcat{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);margin:13px 0 4px;}
+</style>
+</head>
+<body>
+
+<header class="mk-head">
+  <h1>视频编辑器 · 现状全景（EditorShell 五面板）· Mockup</h1>
+  <p>这不是新方案，是 <b>现状 1:1 还原</b>：布局照抄 <code>EditorShell.tsx</code> 的五面板 Resizable 骨架（左素材库 / 中预览 / 右属性 / 下时间线，右 AI 槽位<b>已移除</b>）；
+     主题照抄 <code>ve-theme.css</code> 暗色（主色 <code>#009dff</code>）。<span class="hl">蓝点编号 = 现有功能锚点</span>，图例对应下方文件。</p>
+</header>
+
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></symbol>
+  <symbol id="i-cut" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M20 4 8.1 15.9M20 20 8.1 8.1"/></symbol>
+  <symbol id="i-triml" viewBox="0 0 24 24"><path d="M15 4v16M15 8H7M10 5 7 8l3 3"/></symbol>
+  <symbol id="i-trimr" viewBox="0 0 24 24"><path d="M9 4v16M9 8h8M14 5l3 3-3 3"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+  <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M4.9 4.9l14.2 14.2M19.1 4.9 4.9 19.1"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></symbol>
+  <symbol id="i-bkmk" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-magnet" viewBox="0 0 24 24"><path d="M6 4v7a6 6 0 0 0 12 0V4M3 4h7M14 4h7"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+  <symbol id="i-zo" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6"/></symbol>
+  <symbol id="i-zi" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-eyeoff" viewBox="0 0 24 24"><path d="M10.5 5.2A10.6 10.6 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-2.2 3M6.2 6.2A16.6 16.6 0 0 0 2 12s3.5 7 10 7a10.7 10.7 0 0 0 4.3-.9M3 3l18 18"/></symbol>
+  <symbol id="i-vol" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></symbol>
+  <symbol id="i-voloff" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M23 9l-6 6M17 9l6 6"/></symbol>
+  <symbol id="i-full" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></symbol>
+  <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 10h4M3 14h4M17 10h4M17 14h4"/></symbol>
+  <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+  <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8L10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></symbol>
+  <symbol id="i-phones" viewBox="0 0 24 24"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1v-7h1a2 2 0 0 1 2 2zM3 19a2 2 0 0 0 2 2h1v-7H5a2 2 0 0 0-2 2z"/></symbol>
+  <symbol id="i-wand" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9z"/></symbol>
+  <symbol id="i-dchev" viewBox="0 0 24 24"><path d="M6 17l5-5-5-5M13 17l5-5-5-5"/></symbol>
+  <symbol id="i-cc" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7.5 11h3.5M13 11h3.5M7.5 14.5h9"/></symbol>
+  <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 2s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M2 14h4M10 8h4M18 16h4"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><circle cx="19" cy="5" r="1"/><circle cx="5" cy="19" r="1"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24"><path d="M3 6h13M3 12h9M3 18h5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></symbol>
+  <symbol id="i-chevd" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-chevr" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zM19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></symbol>
+  <symbol id="i-flip" viewBox="0 0 24 24"><path d="M8 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h2M16 3h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2M12 4v16"/></symbol>
+  <symbol id="i-rot" viewBox="0 0 24 24"><path d="M3 2v6h6M3 8a9 9 0 1 1-2 5"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 15V3M7 10l5 5 5-5M4 21h16"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+  <symbol id="i-drag" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="18" r="1.3"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 7h11l-3-3M20 17H9l3 3M4 7l3-3M20 17l-3 3"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><rect x="7" y="7" width="14" height="14" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></symbol>
+  <symbol id="i-cmd" viewBox="0 0 24 24"><path d="M9 9V6a3 3 0 1 0-3 3h3zm0 0v6m0-6h6m-6 6H6a3 3 0 1 0 3 3v-3zm6-6h3a3 3 0 1 0-3-3v3zm0 0v6m0 0h3a3 3 0 1 1-3 3v-3z"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M20 12H4M10 18l-6-6 6-6"/></symbol>
+  <symbol id="i-pc" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+  <symbol id="i-img" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></symbol>
+</svg>
+
+<!-- ══════════════ 屏 1 · 主界面全景 ══════════════ -->
+<section class="mk-stage">
+  <div class="ve ve-app">
+
+    <!-- 关闭编辑器（宿主注入） -->
+    <div class="ve-x" title="关闭编辑器（返回画布）"><svg class="ic"><use href="#i-x"/></svg></div>
+    <i class="n" style="top:8px;left:52px;">1</i>
+
+    <!-- 顶栏 -->
+    <div class="ve-header">
+      <div class="lft">
+        <button class="ve-logo"><i></i></button>
+        <i class="n" style="top:18px;left:56px;">2</i>
+        <div class="ve-name">夏日海边 · 旅行 vlog</div>
+        <i class="n" style="top:18px;left:96px;">3</i>
+      </div>
+      <button class="ve-export"><svg class="ic s"><use href="#i-up"/></svg>导出</button>
+      <i class="n" style="top:18px;right:76px;">4</i>
+    </div>
+
+    <div class="ve-body">
+      <div class="ve-main">
+
+        <!-- ① 素材库 -->
+        <div class="ve-panel" style="width:352px;flex:none;">
+          <div class="as">
+            <div class="as-tab">
+              <button class="on" title="素材"><svg class="ic s"><use href="#i-folder"/></svg></button>
+              <button title="音效"><svg class="ic s"><use href="#i-phones"/></svg></button>
+              <button title="文字"><svg class="ic s"><use href="#i-text"/></svg></button>
+              <button title="贴纸"><svg class="ic s"><use href="#i-smile"/></svg></button>
+              <button title="效果"><svg class="ic s"><use href="#i-wand"/></svg></button>
+              <button title="转场"><svg class="ic s"><use href="#i-dchev"/></svg></button>
+              <button title="字幕"><svg class="ic s"><use href="#i-cc"/></svg></button>
+              <button title="滤镜"><svg class="ic s"><use href="#i-drop"/></svg></button>
+              <button title="调整"><svg class="ic s"><use href="#i-sliders"/></svg></button>
+              <button title="AI"><svg class="ic s"><use href="#i-spark"/></svg></button>
+              <button title="设置"><svg class="ic s"><use href="#i-gear"/></svg></button>
+              <div class="fade b"></div>
+            </div>
+            <i class="n" style="top:10px;left:368px;">5</i>
+            <div class="vsep"></div>
+            <div class="as-view">
+              <div class="as-bar">
+                <span class="ttl">素材</span>
+                <button class="tbtn on"><svg class="ic s"><use href="#i-grid"/></svg></button>
+                <button class="tbtn"><svg class="ic s"><use href="#i-list"/></svg></button>
+                <button class="tbtn"><svg class="ic s"><use href="#i-sort"/></svg>名称<svg class="ic xs" style="transform:rotate(180deg)"><use href="#i-chevd"/></svg></button>
+                <button class="tbtn imp"><svg class="ic s"><use href="#i-upload"/></svg>导入<svg class="ic xs"><use href="#i-chevd"/></svg></button>
+                <i class="n" style="top:44px;left:396px;">6</i>
+              </div>
+              <div class="as-grid">
+                <div class="mcard sel">
+                  <div class="th g1"><span class="dur">00:05</span></div>
+                  <div class="nm"><svg class="ic xs"><use href="#i-film"/></svg>海边散步.mp4</div>
+                </div>
+                <div class="mcard">
+                  <div class="th g2"><span class="dur">00:05</span></div>
+                  <div class="nm"><svg class="ic xs"><use href="#i-film"/></svg>无人机航拍.mp4</div>
+                  <div class="plus"><svg class="ic s"><use href="#i-plus"/></svg></div>
+                </div>
+                <div class="mcard">
+                  <div class="th g3"><span class="dur">00:02</span></div>
+                  <div class="nm"><svg class="ic xs"><use href="#i-film"/></svg>日落延时.mp4</div>
+                </div>
+                <div class="mcard">
+                  <div class="th g4"><span class="dur">03:12</span></div>
+                  <div class="nm"><svg class="ic s"><use href="#i-music"/></svg>BGM-summer.wav</div>
+                </div>
+                <div class="mcard">
+                  <div class="th g5"><span class="dur">00:01</span></div>
+                  <div class="nm"><svg class="ic xs"><use href="#i-img"/></svg>封面.png</div>
+                </div>
+                <div class="mcard">
+                  <div class="th g6"><span class="dur">00:04</span></div>
+                  <div class="nm"><svg class="ic xs"><use href="#i-film"/></svg>泳池派对.mp4</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ② 预览 -->
+        <div class="ve-panel" style="flex:1;min-width:0;">
+          <div class="pv">
+            <div class="pv-stage">
+              <div class="pv-frame">
+                <i class="pv-sun"></i><i class="pv-boat"></i>
+                <div class="pv-txt">夏日海边 · DAY 1</div>
+                <div class="pv-sel">
+                  <i style="left:-5px;top:-5px"></i><i style="right:-5px;top:-5px"></i>
+                  <i style="left:-5px;bottom:-5px"></i><i style="right:-5px;bottom:-5px"></i>
+                  <i style="left:50%;top:-5px;transform:translateX(-50%)"></i><i style="left:50%;bottom:-5px;transform:translateX(-50%)"></i>
+                  <i style="left:-5px;top:50%;transform:translateY(-50%)"></i><i style="right:-5px;top:50%;transform:translateY(-50%)"></i>
+                </div>
+              </div>
+            </div>
+            <i class="n" style="top:170px;left:372px;">7</i>
+            <div class="pv-transport">
+              <div class="tc"><span class="cur">00:00:03:00</span><span>/</span><span>00:00:12:00</span></div>
+              <i class="n" style="top:16px;left:400px;">8</i>
+              <button class="pv-play"><svg class="ic f"><use href="#i-pause"/></svg></button>
+              <div class="pv-right">
+                <button class="ib24"><svg class="ic s"><use href="#i-full"/></svg></button>
+                <button class="ib24"><svg class="ic s f"><use href="#i-more"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ③ 属性面板（选中视频片段） -->
+        <div class="ve-panel" style="width:352px;flex:none;">
+          <i class="n" style="top:12px;right:76px;">9</i>
+          <div class="pp">
+            <div class="pg first">
+              <div class="t">变换</div>
+              <div class="bd">
+                <div class="pi"><label>位置 X</label><input class="inp" value="0"></div>
+                <div class="pi"><label>位置 Y</label><input class="inp" value="0"></div>
+                <div class="pi"><label>缩放</label><div class="sl" style="--v:100%"><i><b></b></i></div><input class="inp mini" value="100"></div>
+                <div class="pi"><label>旋转</label><div class="sl" style="--v:50%"><i><b></b></i></div><input class="inp mini" value="0"></div>
+              </div>
+            </div>
+            <div class="pg">
+              <div class="t">外观</div>
+              <div class="bd">
+                <div class="pi"><label>不透明度</label><div class="sl" style="--v:100%"><i><b></b></i></div><input class="inp mini" value="100"></div>
+              </div>
+            </div>
+            <div class="pg">
+              <div class="t">速度</div>
+              <div class="bd">
+                <div class="pi col">
+                  <label style="width:auto">播放速度</label>
+                  <div class="pillrow">
+                    <button class="pill">0.25x</button><button class="pill">0.5x</button><button class="pill">0.75x</button>
+                    <button class="pill on">1x</button><button class="pill">1.25x</button><button class="pill">1.5x</button>
+                    <button class="pill">2x</button><button class="pill">4x</button>
+                  </div>
+                </div>
+                <div class="pi"><label>自定义</label><input class="inp" value="1"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ 时间线 -->
+      <div class="ve-panel tl">
+        <div class="tl-bar">
+          <div class="grp">
+            <button class="ib24" title="分割元素 (S)"><svg class="ic s"><use href="#i-cut"/></svg></button>
+            <button class="ib24" title="裁左 (Q)"><svg class="ic s"><use href="#i-triml"/></svg></button>
+            <button class="ib24" title="裁右 (W)"><svg class="ic s"><use href="#i-trimr"/></svg></button>
+            <button class="ib24 dis" title="即将推出"><svg class="ic s"><use href="#i-snow"/></svg></button>
+            <button class="ib24" title="复制元素 (⌘D)"><svg class="ic s"><use href="#i-copy"/></svg></button>
+            <button class="ib24" title="定格"><svg class="ic s"><use href="#i-snow"/></svg></button>
+            <button class="ib24" title="删除元素 (⌫)"><svg class="ic s"><use href="#i-trash"/></svg></button>
+            <div class="hsep"></div>
+            <button class="ib24 acc" title="移除书签"><svg class="ic s f"><use href="#i-bkmk"/></svg></button>
+          </div>
+          <div class="grp">
+            <button class="ib24 acc" title="自动吸附 (N)"><svg class="ic s"><use href="#i-magnet"/></svg></button>
+            <button class="ib24" title="波纹编辑"><svg class="ic s"><use href="#i-link"/></svg></button>
+            <div class="hsep"></div>
+            <button class="ib24"><svg class="ic s"><use href="#i-zo"/></svg></button>
+            <div class="sl" style="width:112px;flex:none;--v:42%"><i><b></b></i></div>
+            <button class="ib24"><svg class="ic s"><use href="#i-zi"/></svg></button>
+          </div>
+          <i class="n" style="top:12px;left:392px;">10</i>
+        </div>
+        <div class="tl-body">
+          <div class="tl-labels">
+            <div class="row" style="height:60px;">
+              <svg class="ic xs k"><use href="#i-drag"/></svg>
+              <div class="r"><svg class="ic xs"><use href="#i-vol"/></svg><svg class="ic xs"><use href="#i-eye"/></svg><svg class="ic xs"><use href="#i-film"/></svg></div>
+            </div>
+            <div class="row" style="height:25px;">
+              <svg class="ic xs k"><use href="#i-drag"/></svg>
+              <div class="r"><svg class="ic xs"><use href="#i-eye"/></svg><svg class="ic xs"><use href="#i-text"/></svg></div>
+            </div>
+            <div class="row" style="height:50px;">
+              <svg class="ic xs k"><use href="#i-drag"/></svg>
+              <div class="r"><svg class="ic xs"><use href="#i-voloff"/></svg><svg class="ic xs"><use href="#i-music"/></svg></div>
+            </div>
+            <div class="row" style="height:50px;">
+              <svg class="ic xs k"><use href="#i-drag"/></svg>
+              <div class="r"><svg class="ic xs"><use href="#i-eye"/></svg><svg class="ic xs"><use href="#i-smile"/></svg></div>
+            </div>
+          </div>
+          <i class="n" style="top:130px;left:120px;">11</i>
+          <div class="tl-scroll">
+            <div class="ruler">
+              <span class="lb" style="left:0">0s</span><span class="lb" style="left:100px">2s</span>
+              <span class="lb" style="left:200px">4s</span><span class="lb" style="left:300px">6s</span>
+              <span class="lb" style="left:400px">8s</span><span class="lb" style="left:500px">10s</span><span class="lb" style="left:600px">12s</span>
+              <i class="tk" style="left:50px"></i><i class="tk big" style="left:100px"></i><i class="tk" style="left:150px"></i>
+              <i class="tk big" style="left:200px"></i><i class="tk" style="left:250px"></i><i class="tk big" style="left:300px"></i>
+              <i class="tk" style="left:350px"></i><i class="tk big" style="left:400px"></i><i class="tk" style="left:450px"></i>
+              <i class="tk big" style="left:500px"></i><i class="tk" style="left:550px"></i><i class="tk big" style="left:600px"></i>
+              <i class="tk big" style="left:700px"></i><i class="tk big" style="left:800px"></i><i class="tk big" style="left:900px"></i>
+              <i class="tk big" style="left:1000px"></i><i class="tk big" style="left:1100px"></i><i class="tk big" style="left:1200px"></i>
+            </div>
+            <i class="n" style="top:2px;left:656px;">14</i>
+            <div class="bmrow">
+              <svg class="ic xs f bm" style="left:144px"><use href="#i-bkmk"/></svg>
+              <svg class="ic xs f bm" style="left:474px"><use href="#i-bkmk"/></svg>
+            </div>
+            <div class="tl-tracks" style="height:197px;">
+              <div class="track" style="top:0;height:60px;">
+                <div class="clip video sel" style="left:0;width:250px;">
+                  <div class="strip strip1"></div><div class="framelines"></div><span class="cn">海边散步.mp4</span>
+                  <i class="hd l"></i><i class="hd r"></i>
+                </div>
+                <div class="clip video" style="left:250px;width:230px;">
+                  <div class="strip strip2"></div><div class="framelines"></div><span class="cn">无人机航拍.mp4</span>
+                </div>
+                <div class="trans" style="left:480px;width:25px;height:56px;">
+                  <svg class="ic xs"><use href="#i-dchev"/></svg><span class="tip">fade · 0.5s（可拖拽调节）</span>
+                </div>
+                <div class="clip video" style="left:505px;width:95px;">
+                  <div class="strip strip3"></div><div class="framelines"></div><span class="cn">日落延时.mp4</span>
+                </div>
+              </div>
+              <div class="track" style="top:64px;height:25px;">
+                <div class="clip text" style="left:50px;width:175px;">夏日海边 ☀</div>
+              </div>
+              <div class="track" style="top:93px;height:50px;">
+                <div class="clip audio" style="left:0;width:525px;"><div class="wave"></div></div>
+              </div>
+              <div class="track" style="top:147px;height:50px;">
+                <div class="clip sticker" style="left:100px;width:100px;">🌴</div>
+                <div class="clip sticker" style="left:300px;width:125px;">☀️</div>
+              </div>
+              <div class="ph" style="left:150px;"><b></b></div>
+              <i class="n" style="top:60px;left:146px;">12</i>
+              <i class="n" style="top:0;left:498px;">13</i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend" style="margin-top:2px;">
+    <span><i class="nn">1</i><b>关闭编辑器</b>（画布内全屏层的出口，宿主注入 <span class="f">EditorShell.tsx</span>）</span>
+    <span><i class="nn">8</i><b>可编辑时间码</b> HH:MM:SS:FF，点击输入直接 seek；全屏；更多菜单 →「导出当前帧 PNG」<span class="f">editable-timecode / preview</span></span>
+    <span><i class="nn">2</i><b>项目菜单</b>：退出项目 / 键盘快捷键（重命名、删除对话框挂载于此）<span class="f">editor-header.tsx</span></span>
+    <span><i class="nn">9</i><b>属性面板</b>：按选中类型出「变换 / 外观 / 速度」组；滑杆拖动实时预览、松手入历史<span class="f">video-properties.tsx</span></span>
+    <span><i class="nn">3</i><b>项目名内联编辑</b>：点击改名，Enter 保存 / Esc 还原</span>
+    <span><i class="nn">10</i><b>时间线工具栏</b>：分割 S / 裁左 Q / 裁右 W / 复制 / 定格 / 删除 / 书签 ｜ 吸附 N / 波纹编辑 ｜ 缩放<span class="f">timeline-toolbar.tsx</span></span>
+    <span><i class="nn">4</i><b>导出</b>：格式 × 质量 × 含音频 → 进度 / 失败重试（屏 5）<span class="f">export-button.tsx</span></span>
+    <span><i class="nn">11</i><b>轨道头</b>：拖拽重排 + 音量 / 显示隐藏 / 轨道类型图标；右键轨道 = 粘贴 / 静音 / 隐藏 / 删除<span class="f">timeline/index.tsx</span></span>
+    <span><i class="nn">5</i><b>素材库 11 Tab</b>：竖排图标 + 右侧 Tooltip；5 个已实现、6 个占位（屏 3）<span class="f">assets/index.tsx</span></span>
+    <span><i class="nn">12</i><b>播放头</b>：白色 2px + 圆点手柄，键盘 ←→ 逐帧；点击标尺 / 拖拽 seek<span class="f">timeline-playhead.tsx</span></span>
+    <span><i class="nn">6</i><b>素材视图</b>：网格 / 列表、排序（名称·类型·时长·大小）、导入（本机 / URL）、拖拽上传、点击素材 → 预览面板单独播放<span class="f">views/media.tsx</span></span>
+    <span><i class="nn">13</i><b>转场叠层</b>：接缝处 fade 卡，左右拖拽调时长（默认 0.5s）<span class="f">timeline-transition-overlay</span></span>
+    <span><i class="nn">7</i><b>预览画布</b>：CanvasRenderer 实时渲染；画布内直接拖拽 / 变换元素（InteractionOverlay + 选中框手柄）<span class="f">panels/preview</span></span>
+    <span><i class="nn">14</i><b>书签行</b>：标尺上方 16px，添加 / 点击跳转<span class="f">bookmarks.tsx</span></span>
+  </div>
+  <p class="mk-cap" style="margin-top:8px;"><b>与 cutia 原版的差异</b>：① AI 侧栏（第 6 槽位）随 AI 域移除，<code>panel-store</code> 保留尺寸键待接回；② 素材库 <b>音效 / 字幕 / AI</b> 三个 Tab 变成「未移植」占位，<b>效果 / 滤镜 / 调整</b> 为 coming soon；③ 导出按钮是<b>白底</b>（代码原样）；④ 时间线宽度超出内容时长时，空白区仍可点击 seek。</p>
+</section>
+
+<!-- ══════════════ 屏 2 · 时间线交互细节 ══════════════ -->
+<section class="mk-stage" style="margin-top:34px;">
+  <p class="mk-cap"><b>屏 2 · 时间线交互细节</b> —— 同一条时间线的四种「进行中」状态 + 全量右键菜单。<span class="tag keep">现状还原</span></p>
+
+  <div class="ve ve-panel" style="width:1440px;height:430px;position:relative;border-radius:12px;">
+    <div class="tl-bar" style="border-radius:12px 12px 0 0;">
+      <div class="grp">
+        <button class="ib24"><svg class="ic s"><use href="#i-cut"/></svg></button>
+        <button class="ib24"><svg class="ic s"><use href="#i-triml"/></svg></button>
+        <button class="ib24"><svg class="ic s"><use href="#i-trimr"/></svg></button>
+        <button class="ib24 dis"><svg class="ic s"><use href="#i-snow"/></svg></button>
+        <button class="ib24"><svg class="ic s"><use href="#i-copy"/></svg></button>
+        <button class="ib24 dis" title="定格（播放头须在选中视频片段内才可用）"><svg class="ic s"><use href="#i-snow"/></svg></button>
+        <button class="ib24"><svg class="ic s"><use href="#i-trash"/></svg></button>
+        <div class="hsep"></div>
+        <button class="ib24"><svg class="ic s"><use href="#i-bkmk"/></svg></button>
+      </div>
+      <div class="grp">
+        <button class="ib24 acc"><svg class="ic s"><use href="#i-magnet"/></svg></button>
+        <button class="ib24 acc" title="波纹编辑开启：删除 / 裁切后后段自动前移补位"><svg class="ic s"><use href="#i-link"/></svg></button>
+        <div class="hsep"></div>
+        <button class="ib24"><svg class="ic s"><use href="#i-zo"/></svg></button>
+        <div class="sl" style="width:112px;flex:none;--v:42%"><i><b></b></i></div>
+        <button class="ib24"><svg class="ic s"><use href="#i-zi"/></svg></button>
+      </div>
+    </div>
+    <div class="tl-body" style="height:388px;">
+      <div class="tl-labels" style="width:132px;padding-top:40px;position:relative;">
+        <div class="row" style="height:60px;">
+          <svg class="ic xs k"><use href="#i-drag"/></svg>
+          <div class="r"><svg class="ic xs"><use href="#i-vol"/></svg><svg class="ic xs"><use href="#i-eyeoff"/></svg><svg class="ic xs"><use href="#i-film"/></svg></div>
+        </div>
+        <div class="row" style="height:25px;border-top:2px solid var(--blue);margin-top:-1px;">
+          <svg class="ic xs k" style="color:var(--blue)"><use href="#i-drag"/></svg>
+          <div class="r"><svg class="ic xs"><use href="#i-eye"/></svg><svg class="ic xs"><use href="#i-text"/></svg></div>
+        </div>
+        <div class="row" style="height:50px;">
+          <svg class="ic xs k"><use href="#i-drag"/></svg>
+          <div class="r"><svg class="ic xs"><use href="#i-vol"/></svg><svg class="ic xs"><use href="#i-music"/></svg></div>
+        </div>
+        <div class="row" style="height:50px;">
+          <svg class="ic xs k"><use href="#i-drag"/></svg>
+          <div class="r"><svg class="ic xs"><use href="#i-eye"/></svg><svg class="ic xs"><use href="#i-smile"/></svg></div>
+        </div>
+        <div class="menu" style="position:absolute;left:96px;top:112px;width:172px;">
+          <div class="mi"><svg class="ic s"><use href="#i-clip"/></svg>粘贴元素<span class="kbd">⌘V</span></div>
+          <div class="mi"><svg class="ic s"><use href="#i-voloff"/></svg>静音轨道</div>
+          <div class="mi"><svg class="ic s"><use href="#i-eyeoff"/></svg>隐藏轨道</div>
+          <div class="msep"></div>
+          <div class="mi red dis"><svg class="ic s"><use href="#i-trash"/></svg>删除轨道</div>
+          <div style="padding:3px 10px 4px;font-size:9.5px;color:var(--faint);">主轨不可删除 · 右键轨道空白处</div>
+        </div>
+      </div>
+
+      <div class="tl-scroll">
+        <div class="ruler">
+          <span class="lb" style="left:0">0s</span><span class="lb" style="left:100px">2s</span><span class="lb" style="left:200px">4s</span>
+          <span class="lb" style="left:300px">6s</span><span class="lb" style="left:400px">8s</span><span class="lb" style="left:500px">10s</span><span class="lb" style="left:600px">12s</span>
+          <i class="tk big" style="left:100px"></i><i class="tk big" style="left:200px"></i><i class="tk big" style="left:300px"></i>
+          <i class="tk" style="left:150px"></i><i class="tk" style="left:250px"></i><i class="tk" style="left:350px"></i>
+          <i class="tk big" style="left:400px"></i><i class="tk big" style="left:500px"></i><i class="tk big" style="left:600px"></i>
+          <i class="tk big" style="left:700px"></i><i class="tk big" style="left:800px"></i><i class="tk big" style="left:900px"></i>
+        </div>
+        <div class="bmrow"><svg class="ic xs f bm" style="left:144px"><use href="#i-bkmk"/></svg></div>
+        <div class="tl-tracks" style="height:197px;">
+          <div class="track" style="top:0;height:60px;">
+            <div class="clip video" style="left:0;width:250px;opacity:.55;">
+              <div class="strip strip1"></div><div class="framelines"></div><span class="cn">海边散步.mp4</span>
+            </div>
+            <div class="clip video" style="left:262px;width:218px;">
+              <div class="strip strip2"></div><div class="framelines"></div><span class="cn">无人机航拍.mp4</span>
+            </div>
+            <div class="clip video" style="left:480px;width:120px;">
+              <div class="strip strip3"></div><div class="framelines"></div><span class="cn">日落延时.mp4</span>
+            </div>
+          </div>
+          <div class="track" style="top:64px;height:25px;">
+            <div class="clip text" style="left:50px;width:175px;">夏日海边 ☀</div>
+          </div>
+          <div class="track" style="top:93px;height:50px;">
+            <div class="clip audio" style="left:0;width:525px;"><div class="wave"></div></div>
+          </div>
+          <div class="track" style="top:147px;height:50px;">
+            <div class="clip sticker" style="left:100px;width:100px;">🌴</div>
+            <div class="clip sticker" style="left:300px;width:125px;">☀️</div>
+          </div>
+          <div style="position:absolute;left:290px;top:88px;width:170px;height:114px;border:1px solid var(--blue-line);background:rgba(0,157,255,.09);z-index:8;"></div>
+          <div class="snapi" style="left:261px;"></div>
+          <div class="ph" style="left:150px;"><b></b></div>
+        </div>
+
+        <div style="position:absolute;right:36px;top:52px;display:flex;gap:6px;z-index:30;">
+          <div class="menu">
+            <div class="mi"><svg class="ic s"><use href="#i-cut"/></svg>分割<span class="kbd">S</span></div>
+            <div class="mi"><svg class="ic s"><use href="#i-snow"/></svg>定格</div>
+            <div class="mi"><svg class="ic s"><use href="#i-copy"/></svg>复制<span class="kbd">⌘C</span></div>
+            <div class="mi"><svg class="ic s"><use href="#i-dl"/></svg>导出选中片段</div>
+            <div class="mi"><svg class="ic s"><use href="#i-voloff"/></svg>静音</div>
+            <div class="mi"><svg class="ic s"><use href="#i-music"/></svg>分离音频</div>
+            <div class="mi" style="background:var(--pop-hover);"><svg class="ic s"><use href="#i-edit"/></svg>基础编辑<svg class="ic xs chev"><use href="#i-chevr"/></svg></div>
+            <div class="mi"><svg class="ic s"><use href="#i-mic"/></svg>转换为语音</div>
+            <div class="mi"><svg class="ic s"><use href="#i-eyeoff"/></svg>隐藏<span class="kbd">1 个元素</span></div>
+            <div class="mi"><svg class="ic s"><use href="#i-copy"/></svg>复制一份<span class="kbd">⌘D</span></div>
+            <div class="mi"><svg class="ic s"><use href="#i-search"/></svg>显示素材</div>
+            <div class="mi dis"><svg class="ic s"><use href="#i-swap"/></svg>替换素材</div>
+            <div class="msep"></div>
+            <div class="mi red"><svg class="ic s"><use href="#i-trash"/></svg>删除<span class="kbd">⌫</span></div>
+          </div>
+          <div class="menu" style="width:150px;align-self:center;">
+            <div class="mi"><svg class="ic s"><use href="#i-flip"/></svg>镜像<svg class="ic s f" style="margin-left:auto;color:#7cc9ff"><use href="#i-check"/></svg></div>
+            <div class="mi"><svg class="ic s"><use href="#i-rot"/></svg>倒放</div>
+          </div>
+        </div>
+        <div style="position:absolute;right:40px;top:22px;font-size:10.5px;color:var(--t-faint);">元素右键菜单 · 视频片段选中时（多选时合并为批量项）</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><b>框选</b>：空白处拖出 SelectionBox，跨轨多选；Del 批量删除、右键出批量项（静音 / 隐藏 / 删除 N 个）<span class="f">selection-box.tsx</span></span>
+    <span><b>吸附</b>：拖动片段缘 / 播放头时对齐相邻边缘与播放头，蓝线 = 吸附指示（40% 主色）<span class="f">snap-indicator.tsx</span></span>
+    <span><b>跨轨拖拽</b>：拖起元素时目标轨顶部出现蓝色 2px 落点线（DragLine）；贴纸落点自动建轨<span class="f">use-timeline-drag-drop</span></span>
+    <span><b>波纹编辑</b>：开启后删除 / 裁切 / 调长自动补位；关闭则留空洞<span class="f">timeline-store</span></span>
+    <span><b>定格</b>：仅当播放头落在<b>选中的视频片段内</b>时可用（屏 1 可用，此屏禁用为示意）<span class="f">timeline-toolbar.tsx:84</span></span>
+    <span><b>轨道重排</b>：按住轨道头拖拽手柄上下移动，落点行顶边高亮；主轨固定首位<span class="f">use-track-reorder</span></span>
+    <span><b>元素右键</b>：菜单项随类型 / 选择数变化 —— 视频（定格·分离音频·基础编辑·导出片段）、文字（转换为语音）、有音频者（静音）、有 mediaId 者（显示 / 替换素材）<span class="f">timeline-element.tsx:194</span></span>
+    <span><b>隐藏 / 静音轨道</b>：轨道头眼睛 / 音量开关 + 右键菜单双入口<span class="f">timeline/index.tsx</span></span>
+  </div>
+</section>
+
+<!-- ══════════════ 屏 3 · 素材库 11 Tab 群像 ══════════════ -->
+<section class="mk-stage" style="margin-top:34px;">
+  <p class="mk-cap"><b>屏 3 · 素材库 11 Tab 群像</b> —— 5 个已实现视图 + 6 个占位。<span class="tag keep">已实现</span><span class="tag warn">coming soon</span><span class="tag cut">未移植（AI 域已移除）</span></p>
+
+  <div class="ve row-cards">
+
+    <div class="vcard" style="width:336px;">
+      <div class="vh">转场<span class="st"><span class="tag keep">已实现</span></span></div>
+      <div style="display:flex;gap:5px;padding:10px 12px 0;flex-wrap:wrap;">
+        <button class="pill2 on">全部</button><button class="pill2">淡入淡出</button>
+        <button class="pill2">擦除</button><button class="pill2">滑动</button><button class="pill2">缩放</button>
+      </div>
+      <div class="tgrid">
+        <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><circle cx="35" cy="17" r="14" fill="#39536b"/></svg></div><div class="lb">Fade</div></div>
+        <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><rect x="10" y="4" width="50" height="26" rx="3" fill="#39536b" opacity=".55"/><rect x="14" y="8" width="42" height="18" rx="2" fill="#5b7d99"/></svg></div><div class="lb">Dissolve</div></div>
+        <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><rect x="30" y="0" width="40" height="34" fill="#39536b"/><path d="M30 0v34" stroke="#7cc9ff" stroke-width="1.5"/></svg></div><div class="lb">Wipe Left</div></div>
+        <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><rect x="0" y="0" width="40" height="34" fill="#39536b"/><path d="M40 0v34" stroke="#7cc9ff" stroke-width="1.5"/></svg></div><div class="lb">Wipe Right</div></div>
+        <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><rect x="26" y="0" width="44" height="34" fill="#39536b"/><path d="M14 17h22m0 0-5-4m5 4-5 4" stroke="#7cc9ff" stroke-width="1.5" fill="none"/></svg></div><div class="lb">Slide Left</div></div>
+        <div class="tcard"><div class="prev"><svg width="70" height="34" viewBox="0 0 70 34"><rect x="22" y="2" width="26" height="30" fill="#39536b"/><path d="M22 2 8-6M48 2l14-8M22 32 8 40M48 32l14 8" stroke="#5b7d99" stroke-width="1.2"/></svg></div><div class="lb">Zoom In</div></div>
+      </div>
+      <div style="padding:0 12px 11px;font-size:10.5px;color:var(--t-faint);line-height:1.7;">
+        点击卡片 = 应用到<b style="color:var(--t-secondary)">当前所有视频轨相邻片段接缝</b>（默认 0.5s）·共 12 预设：fade / dissolve / wipe ×4 / slide ×4 / zoom ×2
+      </div>
+    </div>
+
+    <div class="vcard" style="width:336px;">
+      <div class="vh">贴纸<span class="st"><span class="tag keep">已实现</span></span></div>
+      <div style="position:relative;padding:10px 12px 0;">
+        <input class="inp" style="padding-left:28px;" placeholder="搜索所有贴纸" readonly>
+        <svg class="ic s" style="position:absolute;left:21px;top:17px;color:var(--faint);"><use href="#i-search"/></svg>
+      </div>
+      <div style="display:flex;gap:5px;padding:8px 12px 0;">
+        <button class="pill2 on">全部</button><button class="pill2">图标</button>
+        <button class="pill2">品牌</button><button class="pill2">表情</button>
+      </div>
+      <div class="vlab" style="display:flex;align-items:center;gap:6px;">最近
+        <svg class="ic xs" style="margin-left:auto;color:var(--faint);"><use href="#i-trash"/></svg>
+        <span style="font-size:9.5px;">清空最近贴纸</span>
+      </div>
+      <div class="sgrid" style="padding-top:2px;">
+        <div class="stile pk">⭐</div><div class="stile pk">🔥</div><div class="stile pk">💯</div><div class="stile pk">🎉</div><div class="stile pk">👀</div>
+      </div>
+      <div class="sgrid">
+        <div class="stile">😀</div><div class="stile">🌴</div><div class="stile">☀️</div><div class="stile">🌊</div><div class="stile">🐧</div>
+        <div class="stile">🚀</div><div class="stile">🎧</div><div class="stile">🍩</div><div class="stile">⚽</div><div class="stile">🌈</div>
+      </div>
+      <div style="padding:2px 12px 11px;font-size:10.5px;color:var(--t-faint);line-height:1.7;">
+        点击 / 拖拽 → 时间线（<b style="color:var(--t-secondary)">自动新建贴纸轨</b>）· 图标集网格浏览 · 最近使用 ≤ 50 · 无限滚动
+      </div>
+    </div>
+
+    <div class="vcard" style="width:336px;position:relative;">
+      <div class="vh">设置 · 项目信息<span class="st"><span class="tag keep">已实现</span></span></div>
+      <div style="padding:10px 12px 0;"><div class="seg" style="width:100%;"><button class="on" style="flex:1">项目信息</button><button style="flex:1">背景</button></div></div>
+      <div class="strow"><label>名称</label><span style="font-size:12px;color:var(--fg);">夏日海边 · 旅行 vlog</span></div>
+      <div class="strow" style="position:relative;"><label>画布尺寸</label>
+        <div class="selbox">Fit（原始尺寸）<svg class="ic xs chev"><use href="#i-chevd"/></svg></div>
+        <div class="droplist" style="right:14px;top:96px;">
+          <div class="opt on">Fit（原始尺寸）</div>
+          <div class="opt">480p · 854×480</div><div class="opt">720p · 1280×720</div><div class="opt">768p · 1366×768</div>
+          <div class="opt">1080p · 1920×1080</div><div class="opt">720p 竖屏 · 720×1280</div><div class="opt">1080p 竖屏 · 1080×1920</div>
+          <div class="opt">2K · 2560×1440</div><div class="opt">自定义…</div>
+        </div>
+      </div>
+      <div class="strow"><label>帧率</label>
+        <div class="selbox">30 fps<svg class="ic xs chev"><use href="#i-chevd"/></svg></div>
+      </div>
+      <div style="padding:4px 14px 11px;font-size:10.5px;color:var(--t-faint);line-height:1.7;">
+        选「自定义」展开宽 / 高输入（最小 1，四舍五入）· 帧率 24 / 25 / 30 / 60 / 120 · 画布尺寸即时生效于预览与导出
+      </div>
+    </div>
+
+    <div class="vcard" style="width:336px;">
+      <div class="vh">设置 · 背景<span class="st"><span class="tag keep">已实现</span></span></div>
+      <div style="padding:10px 12px 0;"><div class="seg" style="width:100%;"><button style="flex:1">项目信息</button><button class="on" style="flex:1">背景</button></div></div>
+      <div class="vlab">模糊强度（视频未铺满画布时的底）</div>
+      <div class="blurrow">
+        <div class="blurcard b1"><div class="bimg"></div><div class="bl">轻</div></div>
+        <div class="blurcard b2 on"><div class="bimg"></div><div class="bl">中</div></div>
+        <div class="blurcard b3"><div class="bimg"></div><div class="bl">重</div></div>
+      </div>
+      <div class="vlab">纯色</div>
+      <div style="display:flex;gap:6px;padding:0 14px;">
+        <i class="csw on" style="background:#000"></i><i class="csw" style="background:#fff"></i>
+        <i class="csw" style="background:#1d4ed8"></i><i class="csw" style="background:#166534"></i>
+        <i class="csw" style="background:#7f1d1d"></i><i class="csw" style="background:#a16207"></i>
+        <i class="csw" style="background:#581c87"></i><i class="csw" style="background:conic-gradient(#f66,#fc6,#6cf,#f66)"></i>
+      </div>
+      <div class="vlab">渐变 · PatternCraft / SyntaxUI</div>
+      <div class="grads">
+        <i class="grad" style="background:linear-gradient(135deg,#667eea,#764ba2)"></i>
+        <i class="grad" style="background:linear-gradient(135deg,#f093fb,#f5576c)"></i>
+        <i class="grad" style="background:linear-gradient(135deg,#4facfe,#00f2fe)"></i>
+        <i class="grad" style="background:linear-gradient(135deg,#43e97b,#38f9d7)"></i>
+        <i class="grad" style="background:linear-gradient(135deg,#fa709a,#fee140)"></i>
+        <i class="grad" style="background:linear-gradient(135deg,#30cfd0,#330867)"></i>
+        <i class="grad" style="background:linear-gradient(135deg,#a8edea,#fed6e3)"></i>
+        <i class="grad" style="background:linear-gradient(135deg,#ff9a9e,#fecfef)"></i>
+      </div>
+      <div style="padding:10px 14px 11px;font-size:10.5px;color:var(--t-faint);">背景类型：纯色 / 渐变 / 模糊（轻 4 · 中 8 · 重 18）</div>
+    </div>
+  </div>
+
+  <div class="ve row-cards" style="margin-top:24px;">
+    <div class="vcard" style="width:220px;">
+      <div class="vh">文字<span class="st"><span class="tag keep">已实现</span></span></div>
+      <div style="padding:14px;">
+        <div style="display:flex;align-items:center;gap:9px;padding:10px;border:1px dashed #3a3a3a;border-radius:8px;cursor:grab;">
+          <svg class="ic s" style="color:var(--muted)"><use href="#i-text"/></svg>
+          <span style="font-size:12px;color:var(--fg);">默认文字</span>
+          <svg class="ic xs" style="margin-left:auto;color:var(--faint)"><use href="#i-plus"/></svg>
+        </div>
+        <div style="margin-top:9px;font-size:10.5px;color:var(--t-faint);line-height:1.7;">点击 / 拖拽 → 播放头处插入文本元素（样式在属性面板改）</div>
+      </div>
+    </div>
+    <div class="vcard" style="width:200px;">
+      <div class="vh">音效<span class="st"><span class="tag cut">未移植</span></span></div>
+      <div style="padding:14px;font-size:11px;color:var(--t-muted);line-height:1.8;">「音效 未移植（AI 域已移除）」<br>依赖 AI 音频域，<b style="color:#9a9a9a">明确占位</b>，不静默空白</div>
+    </div>
+    <div class="vcard" style="width:200px;">
+      <div class="vh">字幕<span class="st"><span class="tag cut">未移植</span></span></div>
+      <div style="padding:14px;font-size:11px;color:var(--t-muted);line-height:1.8;">「字幕 未移植（AI 域已移除）」<br>同上，待 AI 域迁入后接回</div>
+    </div>
+    <div class="vcard" style="width:200px;">
+      <div class="vh">AI<span class="st"><span class="tag cut">未移植</span></span></div>
+      <div style="padding:14px;font-size:11px;color:var(--t-muted);line-height:1.8;">「AI 未移植（AI 域已移除）」<br>原 cutia AgentPanel 槽位同样移除</div>
+    </div>
+    <div class="vcard" style="width:220px;">
+      <div class="vh">效果 / 滤镜 / 调整<span class="st"><span class="tag warn">coming soon</span></span></div>
+      <div style="padding:14px;font-size:11px;color:var(--t-muted);line-height:1.8;">三个 Tab 均显示<br>「Effects / Filters / Adjustment view coming soon...」</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ 屏 4 · 属性面板形态 ══════════════ -->
+<section class="mk-stage" style="margin-top:34px;">
+  <p class="mk-cap"><b>屏 4 · 属性面板四种形态 + 多选分组</b> —— 按选中元素类型渲染对应属性组；多选时按类型分组、组内批量改。<span class="tag keep">现状还原</span></p>
+
+  <div class="ve row-cards">
+
+    <div class="vcard" style="width:330px;">
+      <div class="vh">属性 · 文字元素</div>
+      <div style="max-height:470px;overflow:hidden;">
+        <div class="pg first"><div class="t">内容</div>
+          <div class="bd"><textarea class="inp" rows="2" style="height:auto;padding:6px 8px;resize:none;">夏日海边 ☀</textarea></div>
+        </div>
+        <div class="pg"><div class="t">字体</div>
+          <div class="bd"><div class="pi"><label>字体</label><div class="selbox">默认字体<svg class="ic xs chev"><use href="#i-chevd"/></svg></div></div>
+            <div class="pi"><label>字号</label><div class="sl" style="--v:30%"><i><b></b></i></div><input class="inp mini" value="24"></div>
+          </div>
+        </div>
+        <div class="pg"><div class="t">颜色</div>
+          <div class="bd">
+            <div class="pi"><label>文字颜色</label>
+              <i class="csw on" style="background:#fff"></i><i class="csw" style="background:#ff0"></i>
+              <i class="csw" style="background:#000"></i><i class="csw" style="background:#ff69b4"></i>
+              <input class="inp mini" style="width:74px" value="#FFFFFF">
+            </div>
+          </div>
+        </div>
+        <div class="pg"><div class="t">背景<div class="sw on" style="width:28px;height:16px;"></div></div>
+          <div class="bd">
+            <div class="pi"><label>不透明度</label><div class="sl" style="--v:40%"><i><b></b></i></div><input class="inp mini" value="40"></div>
+            <div class="pi"><label>圆角</label><div class="sl" style="--v:16%"><i><b></b></i></div><input class="inp mini" value="8"></div>
+            <div class="pi"><label>内边距</label><input class="inp mini" value="12"><input class="inp mini" value="6"></div>
+          </div>
+        </div>
+        <div class="pg"><div class="t">描边<div class="sw" style="width:28px;height:16px;"></div></div></div>
+        <div class="pg"><div class="t">阴影<div class="sw" style="width:28px;height:16px;"></div></div></div>
+        <div class="pg"><div class="t">样式预设</div>
+          <div class="bd">
+            <div class="pillrow">
+              <button class="pill">清除全部</button><button class="pill">白字黑边</button><button class="pill">黑字白边</button>
+              <button class="pill">黄字黑边</button><button class="pill">白字粉边</button><button class="pill">…</button>
+            </div>
+          </div>
+        </div>
+        <div class="pg"><div class="t">变换<svg class="ic xs" style="color:var(--faint)"><use href="#i-chevr"/></svg></div></div>
+      </div>
+    </div>
+
+    <div class="vcard" style="width:290px;">
+      <div class="vh">属性 · 音频元素</div>
+      <div class="pg first"><div class="t">音量</div>
+        <div class="bd">
+          <div class="pi col"><label style="width:auto">音量（0–200%）</label>
+            <div class="pi" style="gap:8px;"><div class="sl" style="--v:40%"><i><b></b></i></div><input class="inp mini" value="80"></div>
+          </div>
+        </div>
+      </div>
+      <div class="pg"><div class="t">速度</div>
+        <div class="bd">
+          <div class="pi col"><label style="width:auto">播放速度</label>
+            <div class="pillrow">
+              <button class="pill">0.25x</button><button class="pill">0.5x</button><button class="pill">0.75x</button>
+              <button class="pill on">1x</button><button class="pill">1.25x</button><button class="pill">1.5x</button>
+              <button class="pill">2x</button><button class="pill">4x</button>
+            </div>
+          </div>
+          <div class="pi"><label>自定义</label><input class="inp" value="1"></div>
+        </div>
+      </div>
+      <div style="padding:0 14px 13px;font-size:10.5px;color:var(--t-faint);line-height:1.7;">调速度时长联动（duration × 旧速 / 新速）· 静音与分离音频在右键菜单 / 轨道头</div>
+    </div>
+
+    <div class="vcard" style="width:290px;">
+      <div class="vh">属性 · 贴纸元素</div>
+      <div class="pg first"><div class="t">变换</div>
+        <div class="bd">
+          <div class="pi"><label>位置 X</label><input class="inp" value="120"></div>
+          <div class="pi"><label>位置 Y</label><input class="inp" value="80"></div>
+          <div class="pi"><label>缩放</label><div class="sl" style="--v:65%"><i><b></b></i></div><input class="inp mini" value="65"></div>
+          <div class="pi"><label>旋转</label><div class="sl" style="--v:50%"><i><b></b></i></div><input class="inp mini" value="0"></div>
+        </div>
+      </div>
+      <div class="pg"><div class="t">外观</div>
+        <div class="bd">
+          <div class="pi"><label>不透明度</label><div class="sl" style="--v:100%"><i><b></b></i></div><input class="inp mini" value="100"></div>
+          <div class="pi"><label>颜色</label>
+            <i class="csw on" style="background:#f59e0b"></i><i class="csw" style="background:#fff"></i>
+            <i class="csw" style="background:#000"></i><i class="csw" style="background:conic-gradient(#f66,#fc6,#6cf,#f66)"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="vcard" style="width:290px;">
+      <div class="vh">多选 · 按类型分组</div>
+      <div style="padding:12px 14px 0;font-size:11px;color:var(--t-muted);line-height:1.7;">
+        框选「1 视频 + 2 文字」时，面板按类型出<b style="color:#9a9a9a">两个分组</b>；文字组展开，组内改动<b style="color:#9a9a9a">批量写入</b>所有选中文字。
+      </div>
+      <div class="pg first" style="margin:10px 14px 0;border:1px solid #2a2a2a;border-radius:8px 8px 0 0;border-bottom:none;">
+        <div class="t">视频 × 1<svg class="ic xs" style="color:var(--faint)"><use href="#i-chevd"/></svg></div>
+      </div>
+      <div class="pg" style="margin:0 14px 13px;border:1px solid #2a2a2a;border-radius:0 0 8px 8px;">
+        <div class="t">文字 × 2<svg class="ic xs" style="color:var(--faint)"><use href="#i-chevr"/></svg></div>
+        <div class="bd">
+          <div class="pi"><label>字号</label><div class="sl" style="--v:30%"><i><b></b></i></div><input class="inp mini" value="24"></div>
+          <div class="pi"><label>颜色</label><i class="csw on" style="background:#fff"></i><i class="csw" style="background:#ff0"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="vcard" style="width:250px;display:flex;flex-direction:column;">
+      <div class="vh">空态</div>
+      <div style="flex:1;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px;text-align:center;">
+        <svg class="ic" style="width:38px;height:38px;color:#5c5c5c;stroke-width:1;"><use href="#i-gear"/></svg>
+        <div>
+          <div style="font-size:16px;font-weight:500;color:var(--fg);">这里空空如也</div>
+          <div style="margin-top:6px;font-size:12.5px;color:var(--muted);">点击时间轴上的元素以编辑其属性</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="mk-cap" style="margin-top:10px;">数值输入均为「<b>聚焦改草稿、失焦/回车提交入历史</b>」；滑杆拖动实时预览（不进历史）、松手 commit。视频 / 图片共用同一套属性组件；文字多选时内容不批量覆盖，其余属性批量。</p>
+</section>
+
+<!-- ══════════════ 屏 5 · 导出 / 快捷键 / 入口菜单 ══════════════ -->
+<section class="mk-stage" style="margin-top:34px;">
+  <p class="mk-cap"><b>屏 5 · 导出三态 + 快捷键对话框 + 入口菜单</b>。<span class="tag keep">现状还原</span></p>
+
+  <div class="ve row-cards">
+
+    <div class="vcard" style="width:320px;background:var(--pop);border-radius:10px;">
+      <div class="vh" style="border-color:#3a3a3a;">导出项目</div>
+      <div style="padding:4px 0 0;">
+        <div class="pg first"><div class="t" style="padding-left:14px;">格式<svg class="ic xs" style="color:var(--faint)"><use href="#i-chevd"/></svg></div>
+          <div class="bd" style="gap:9px;">
+            <label class="radio"><i class="rd on"></i>MP4 (H.264) - 兼容性更好</label>
+            <label class="radio"><i class="rd"></i>WebM (VP9) - 文件更小</label>
+          </div>
+        </div>
+        <div class="pg"><div class="t" style="padding-left:14px;">质量<svg class="ic xs" style="color:var(--faint)"><use href="#i-chevd"/></svg></div>
+          <div class="bd" style="gap:9px;">
+            <label class="radio"><i class="rd"></i>低 - 文件最小</label>
+            <label class="radio"><i class="rd"></i>中 - 均衡</label>
+            <label class="radio"><i class="rd on"></i>高 - 推荐</label>
+            <label class="radio"><i class="rd"></i>极高 - 文件最大</label>
+          </div>
+        </div>
+        <div class="pg"><div class="t" style="padding-left:14px;">音频<svg class="ic xs" style="color:var(--faint)"><use href="#i-chevd"/></svg></div>
+          <div class="bd"><label class="radio"><i class="cb on"><svg class="ic xs" style="stroke-width:3"><use href="#i-check"/></svg></i>导出时包含音频</label></div>
+        </div>
+      </div>
+      <div style="padding:12px 14px 14px;">
+        <button class="btn primary" style="width:100%;justify-content:center;"><svg class="ic s"><use href="#i-dl"/></svg>导出</button>
+      </div>
+    </div>
+
+    <div class="vcard" style="width:320px;background:var(--pop);border-radius:10px;">
+      <div class="vh" style="border-color:#3a3a3a;">正在导出项目</div>
+      <div style="padding:18px 14px;display:flex;flex-direction:column;gap:14px;">
+        <div style="text-align:center;font-size:13px;color:var(--muted);">64%</div>
+        <div class="pbar"><i></i></div>
+        <button class="btn" style="width:100%;justify-content:center;">取消</button>
+      </div>
+    </div>
+
+    <div class="vcard" style="width:320px;background:var(--pop);border-radius:10px;">
+      <div style="padding:18px 14px;display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--red);">导出失败</div>
+          <div style="margin-top:5px;font-size:11px;color:var(--muted);line-height:1.6;">EncoderError: video track ended unexpectedly</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn" style="flex:1;justify-content:center;"><svg class="ic s"><use href="#i-copy"/></svg>复制</button>
+          <button class="btn" style="flex:1;justify-content:center;"><svg class="ic s"><use href="#i-rot"/></svg>重试</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ve row-cards" style="margin-top:24px;">
+    <div class="vcard" style="width:640px;background:var(--pop);border-radius:12px;">
+      <div class="vh" style="border-color:#3a3a3a;padding:0 16px;height:44px;">键盘快捷键
+        <span style="margin-left:auto;font-size:10.5px;font-weight:400;color:var(--faint);">点击任意行录制新键位 · 冲突会被拦截</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 26px;padding:4px 16px 14px;">
+        <div>
+          <div class="kcat">播放</div>
+          <div class="krow">播放 / 暂停<span class="kbd"><kbd>Space</kbd><kbd>K</kbd></span></div>
+          <div class="krow">后退 / 前进 1 秒<span class="kbd"><kbd>J</kbd><kbd>L</kbd></span></div>
+          <div class="kcat">导航</div>
+          <div class="krow">逐帧后退 / 前进<span class="kbd"><kbd>←</kbd><kbd>→</kbd></span></div>
+          <div class="krow">跳 5 秒<span class="kbd"><kbd>⇧←</kbd><kbd>⇧→</kbd></span></div>
+          <div class="krow">回到开头<span class="kbd"><kbd>Home</kbd><kbd>Enter</kbd></span></div>
+          <div class="krow">跳到结尾<span class="kbd"><kbd>End</kbd></span></div>
+          <div class="kcat">历史</div>
+          <div class="krow">撤销 / 重做<span class="kbd"><kbd>⌘Z</kbd><kbd>⇧⌘Z</kbd></span></div>
+          <div class="krow rec">正在录制「分割」… 按下任意组合键</div>
+        </div>
+        <div>
+          <div class="kcat">编辑</div>
+          <div class="krow">分割<span class="kbd"><kbd>S</kbd></span></div>
+          <div class="krow">裁左 / 裁右<span class="kbd"><kbd>Q</kbd><kbd>W</kbd></span></div>
+          <div class="krow">删除选中<span class="kbd"><kbd>⌫</kbd><kbd>Del</kbd></span></div>
+          <div class="krow">复制 / 粘贴<span class="kbd"><kbd>⌘C</kbd><kbd>⌘V</kbd></span></div>
+          <div class="krow">复制一份<span class="kbd"><kbd>⌘D</kbd></span></div>
+          <div class="krow">自动吸附<span class="kbd"><kbd>N</kbd></span></div>
+          <div class="krow">全选<span class="kbd"><kbd>⌘A</kbd></span></div>
+          <div class="krow">静音 / 显示隐藏（无默认键）<span class="kbd" style="color:var(--faint);font-size:10px;">可录制</span></div>
+          <div style="display:flex;justify-content:flex-end;padding-top:16px;">
+            <button class="btn danger">恢复默认</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:22px;flex-wrap:wrap;max-width:720px;">
+      <div class="vcard" style="width:210px;background:var(--pop);border-radius:10px;height:fit-content;">
+        <div class="vh">项目菜单（Logo ▾）</div>
+        <div style="padding:5px;">
+          <div class="mi"><svg class="ic s"><use href="#i-back"/></svg>退出项目</div>
+          <div class="msep"></div>
+          <div class="mi"><svg class="ic s"><use href="#i-cmd"/></svg>键盘快捷键</div>
+          <div style="padding:4px 10px 6px;font-size:9.5px;color:var(--faint);">重命名 / 删除对话框亦挂载于此</div>
+        </div>
+      </div>
+      <div class="vcard" style="width:210px;background:var(--pop);border-radius:10px;height:fit-content;">
+        <div class="vh">导入菜单（素材 ▾）</div>
+        <div style="padding:5px;">
+          <div class="mi"><svg class="ic s"><use href="#i-pc"/></svg>本机<span class="kbd">拖拽亦可</span></div>
+          <div class="mi"><svg class="ic s"><use href="#i-link"/></svg>URL</div>
+          <div style="padding:4px 10px 6px;font-size:9.5px;color:var(--faint);">URL → Dialog「从 URL 导入」</div>
+        </div>
+      </div>
+      <div class="vcard" style="width:210px;background:var(--pop);border-radius:10px;height:fit-content;">
+        <div class="vh">素材右键</div>
+        <div style="padding:5px;">
+          <div class="mi"><svg class="ic s"><use href="#i-dl"/></svg>导出片段</div>
+          <div class="mi"><svg class="ic s"><use href="#i-copy"/></svg>复制素材 ID</div>
+          <div class="msep"></div>
+          <div class="mi red"><svg class="ic s"><use href="#i-trash"/></svg>删除</div>
+        </div>
+      </div>
+      <div class="vcard" style="width:210px;background:var(--pop);border-radius:10px;height:fit-content;">
+        <div class="vh">预览 · 更多（⋮）</div>
+        <div style="padding:5px;">
+          <div class="mi"><svg class="ic s"><use href="#i-img"/></svg>导出当前帧</div>
+          <div style="padding:4px 10px 6px;font-size:9.5px;color:var(--faint);">另存 PNG（当前渲染帧）</div>
+        </div>
+      </div>
+      <div class="vcard" style="width:210px;background:var(--pop);border-radius:10px;height:fit-content;">
+        <div class="vh">新手引导 · 3 步 Dialog</div>
+        <div style="padding:12px 14px;font-size:11px;color:var(--t-muted);line-height:1.8;">
+          首次进入展示（localStorage <code style="font-size:10px;">hasSeenOnboarding</code>）· 另有存储迁移进度 Dialog、脏检查 beforeunload 提示
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ 对账表 ══════════════ -->
+<div class="mk-note" style="margin-top:30px;">
+  <b>现状对账（mockup 锚点 → 源码）</b> —— 本图零新增：任何画不出来的功能都说明实现还不存在。
+  <div class="note-grid">
+    <span><b>五面板布局 / 关闭按钮</b> <span class="f">EditorShell.tsx</span></span>
+    <span><b>顶栏 / 项目菜单 / 内联改名</b> <span class="f">ui/editor/editor-header.tsx</span></span>
+    <span><b>导出三态（格式×质量×音频）</b> <span class="f">ui/editor/export-button.tsx</span></span>
+    <span><b>素材库 11 Tab / 占位策略</b> <span class="f">assets/index.tsx + stores/assets-panel-store</span></span>
+    <span><b>素材视图（排序/导入/右键/预览）</b> <span class="f">assets/views/media.tsx</span></span>
+    <span><b>转场 12 预设 / 类目</b> <span class="f">constants/transition-constants.ts</span></span>
+    <span><b>贴纸（分类/最近/搜索）</b> <span class="f">assets/views/stickers.tsx</span></span>
+    <span><b>画布 / 帧率 / 背景预设</b> <span class="f">constants/project-constants.ts</span></span>
+    <span><b>预览走带 / 导出当前帧</b> <span class="f">panels/preview/index.tsx</span></span>
+    <span><b>属性四形态 / 批量编辑</b> <span class="f">panels/properties/*</span></span>
+    <span><b>速度 0.25–4×</b> <span class="f">engine/timeline/speed-utils.ts</span></span>
+    <span><b>时间线工具栏 / 吸附 / 波纹</b> <span class="f">panels/timeline/timeline-toolbar.tsx + timeline-store</span></span>
+    <span><b>轨道类型 / 高度 / 颜色</b> <span class="f">constants/timeline-constants.tsx</span></span>
+    <span><b>元素右键全量项</b> <span class="f">panels/timeline/timeline-element.tsx</span></span>
+    <span><b>书签 / 吸附线 / 框选 / 转场叠层</b> <span class="f">bookmarks / snap-indicator / selection-box / timeline-transition-overlay</span></span>
+    <span><b>动作与默认快捷键</b> <span class="f">engine/lib/actions/definitions.ts</span></span>
+    <span><b>快捷键自定义 / 冲突检测</b> <span class="f">dialogs/shortcuts-dialog.tsx</span></span>
+    <span><b>新手引导 / 空态文案</b> <span class="f">onboarding.tsx / properties/empty-view.tsx</span></span>
+  </div>
+  <b>还没画、也不存在的</b>：AI 侧栏、音效 / 字幕视图、效果 / 滤镜 / 调整视图、替换素材、工具栏第 4 颗「即将推出」按钮 —— 与代码中的占位一致，接到功能后本图再补。
+</div>
+
+</body>
+</html>

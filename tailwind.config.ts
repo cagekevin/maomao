@@ -1,4 +1,6 @@
 import type { Config } from 'tailwindcss';
+// cutia 编辑器主题色（独立文件，避免污染本仓令牌表；见 docs/130-cutia搬迁计划书）。
+import { videoEditorThemeColors } from './src/components/videoEditor/ve-tailwind-colors';
 
 /**
  * 样式令牌唯一真相源（CLAUDE.md §七.1 指定；禁裸色值，勿再引用已删的 tailwind-tokens.md）。
@@ -8,6 +10,10 @@ import type { Config } from 'tailwindcss';
  * src 已全 TS 化，content glob 里的 .js/.jsx 保留作兜底（万一有人新建，样式仍能被提取）。
  */
 const config: Config = {
+  // 更新(2026-09-14)：新增 `class` 模式 —— cutia 编辑器主题用 `.ve-scope.dark` 驱动。
+  // 实测全库 `dark:` 前缀仅 18 处且**全在 videoEditor 内**（本仓自身不用该前缀），
+  // 故本项对本仓现有观感零影响。见 docs/130-cutia搬迁计划书。
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   theme: {
     extend: {
@@ -85,10 +91,14 @@ const config: Config = {
         'inverse-strong': 'rgb(var(--mao-inverse-strong) / <alpha-value>)',
         // 文字层级（text-*）
         strong: 'rgb(var(--mao-text-strong) / <alpha-value>)',
-        primary: 'rgb(var(--mao-text-primary) / <alpha-value>)',
+        // 更新(2026-09-14)：`primary`/`secondary`/`accent`/`muted` 四个名字 cutia 也用，
+        // 语义不同（本仓=文字/强调色；cutia=主题色/悬浮底色）。
+        // 值改为 `var(--ve-x, <本仓默认>)` —— 编辑器容器 `.ve-scope` 内取 cutia 值，
+        // 容器外回落本仓默认（行为等价，观感零变化）。见 docs/130-cutia搬迁计划书。
+        primary: 'var(--ve-text-primary, rgb(var(--mao-text-primary) / <alpha-value>))',
         body: 'rgb(var(--mao-text-body) / <alpha-value>)',
-        secondary: 'rgb(var(--mao-text-secondary) / <alpha-value>)',
-        muted: 'rgb(var(--mao-text-muted) / <alpha-value>)',
+        secondary: 'var(--ve-text-secondary, rgb(var(--mao-text-secondary) / <alpha-value>))',
+        muted: 'var(--ve-muted, rgb(var(--mao-text-muted) / <alpha-value>))',
         faint: 'rgb(var(--mao-text-faint) / <alpha-value>)',
         subtle: 'rgb(var(--mao-text-subtle) / <alpha-value>)',
         'muted-2': 'rgb(var(--mao-text-muted-2) / <alpha-value>)',
@@ -117,6 +127,10 @@ const config: Config = {
         'accent-strong': 'rgb(var(--mao-accent-strong) / <alpha-value>)',
         danger: 'rgb(var(--mao-danger) / <alpha-value>)',
         live: 'rgb(var(--mao-live) / <alpha-value>)',
+
+        // cutia 编辑器主题色 —— 独立文件（见 docs/130-cutia搬迁计划书 · 作用域隔离）。
+        // 本文件是「本仓样式令牌唯一真相源」（CLAUDE.md §七.1），故 cutia 令牌**不写在这里**。
+        ...videoEditorThemeColors,
       },
       fontSize: {
         '2xs': ['8px', { lineHeight: '1.2' }],

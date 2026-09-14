@@ -29,7 +29,8 @@
     "types": ["node", "vite/client", "vitest/globals"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@videoEditor/*": ["./src/components/videoEditor/*"]
     }
   },
   "include": [
@@ -52,5 +53,7 @@
     "tests/**/*.tsx",
     "tests/**/*.mjs"
   ],
-  "exclude": ["node_modules", "dist", "dev"]
+  // _legacy：2026-09-14 自建 videoEditor 退役归档（docs/130-cutia搬迁计划书）。
+  // 它是**只读留痕**，不参与编译/测试——引用的旧路径已不复存在，纳入会让 type-check 全红。
+  "exclude": ["node_modules", "dist", "dev", "src/components/videoEditor/_legacy"]
 }

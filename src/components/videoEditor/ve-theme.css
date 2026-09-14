@@ -1,0 +1,262 @@
+/**
+ * cutia 编辑器主题 —— 作用域隔离版（docs/130-cutia搬迁计划书）
+ *
+ * 【为什么需要这个文件】
+ * cutia 用 Tailwind v4（CSS-first：`@import "tailwindcss"` + `@theme inline`），
+ * 而本仓用 Tailwind v3（JS config）。两者的颜色名（`primary`/`muted`/`border`…）
+ * 与语义**不同**（例：本仓 `text-primary` = 灰色正文；cutia `text-primary` = 主色调）。
+ *
+ * 【隔离策略】所有 cutia 变量只在 `.ve-scope` 后代生效：
+ *   · 不污染本仓全局（画布/节点/面板零影响）；
+ *   · 编辑器容器加 `ve-scope dark` 两个类即获得完整主题。
+ *
+ * 【来源】cutia `src/app/globals.css`（289 行）的 `:root` / `.dark` / `.dark .panel` 三段，
+ * 映射其 `@theme inline` 的语义名。
+ * 【纪律】本文件是**引擎区资产**，改它 = 改 cutia 主题；本仓自身配色请改 `src/index.css`。
+ */
+
+/* ══════════════════════════════════════════════════════════════
+ * 1. 亮色（cutia :root，通常不用 —— cutia 默认 dark）
+ * ══════════════════════════════════════════════════════════════ */
+.ve-scope {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(0 0% 11%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(0 0% 11%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-hover: hsl(0, 0%, 96%);
+  --popover-foreground: hsl(0 0% 2%);
+  --primary: #009dff;
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(204, 100%, 97%);
+  --secondary-border: hsl(204, 100%, 94%);
+  --secondary-foreground: hsl(200, 98%, 39%);
+  --muted: hsl(0 0% 85.1%);
+  --muted-foreground: hsl(0 0% 50%);
+  --accent: hsl(0, 0%, 96%);
+  --accent-foreground: hsl(0 0% 2%);
+  --destructive: hsl(0, 83%, 50%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --constructive: hsl(141, 71%, 48%);
+  --constructive-foreground: hsl(0, 0%, 100%);
+  --border: hsl(0 0% 91%);
+  --input: hsl(0 0% 85.1%);
+  --ring: hsl(0, 0%, 55%);
+  --chart-1: hsl(220 70% 50%);
+  --chart-2: hsl(160 60% 45%);
+  --chart-3: hsl(30 80% 55%);
+  --chart-4: hsl(280 65% 60%);
+  --chart-5: hsl(340 75% 55%);
+  --sidebar-background: hsl(0 0% 96.1%);
+  --sidebar-foreground: hsl(0 0% 2%);
+  --sidebar-primary: hsl(0 0% 10%);
+  --sidebar-primary-foreground: hsl(0 0% 98%);
+  --sidebar-accent: hsl(0 0% 96.1%);
+  --sidebar-accent-foreground: hsl(0 0% 10%);
+  --sidebar-border: hsl(0 0% 91%);
+  --sidebar-ring: hsl(0 0% 83.1%);
+  --sidebar: hsl(0, 0%, 98%);
+
+  /* ── 字号（cutia @theme 覆写，转 v3 config 无法覆盖默认 scale，用变量兜底）── */
+  --ve-radius-lg: 0.82rem;
+  --ve-radius-md: 0.65rem;
+  --ve-radius-sm: 0.35rem;
+}
+
+/* ══════════════════════════════════════════════════════════════
+ * 2. 暗色（cutia .dark —— 编辑器默认主题）
+ * ══════════════════════════════════════════════════════════════ */
+.ve-scope.dark {
+  --background: hsl(0, 0%, 7%);
+  --foreground: hsl(0 0% 87%);
+  --card: hsl(0, 0%, 7%);
+  --card-foreground: hsl(0 0% 87%);
+  --popover: hsl(0, 0%, 16%);
+  --popover-hover: hsl(0, 0%, 22%);
+  --popover-foreground: hsl(0 0% 95%);
+  --secondary: hsl(204, 100%, 12%);
+  --secondary-border: hsl(204, 100%, 15%);
+  --secondary-foreground: hsl(200, 98%, 61%);
+  --muted: hsl(0 0% 20%);
+  --muted-foreground: hsl(0 0% 55%);
+  --accent: hsl(0, 0%, 14%);
+  --accent-foreground: hsl(0 0% 95%);
+  --destructive: hsl(0, 83%, 50%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --constructive: hsl(141, 71%, 52%);
+  --constructive-foreground: hsl(0, 0%, 100%);
+  --border: hsl(0 0% 16%);
+  --input: hsl(0 0% 20%);
+  --ring: hsl(0, 0%, 50%);
+  --sidebar-background: hsl(0 0% 8%);
+  --sidebar-foreground: hsl(0 0% 95%);
+  --sidebar-primary: hsl(0 0% 95%);
+  --sidebar-primary-foreground: hsl(0 0% 15%);
+  --sidebar-accent: hsl(0 0% 20%);
+  --sidebar-accent-foreground: hsl(0 0% 95%);
+  --sidebar-border: hsl(0 0% 20%);
+  --sidebar-ring: hsl(0 0% 83.1%);
+  --sidebar: hsl(0 0% 6%);
+}
+
+/* 面板层（cutia `.dark .panel` —— 比 .dark 略亮一档） */
+.ve-scope.dark .panel {
+  --background: hsl(0 0% 10%);
+  --foreground: hsl(0 0% 85%);
+  --card: hsl(0, 0%, 10%);
+  --card-foreground: hsl(0 0% 85%);
+  --secondary: hsl(204, 100%, 12%);
+  --secondary-border: hsl(204, 100%, 17%);
+  --secondary-foreground: hsl(200, 98%, 63%);
+  --muted: hsl(0 0% 22%);
+  --accent: hsl(0, 0%, 15%);
+  --accent-foreground: hsl(0 0% 93%);
+  --constructive: hsl(141, 71%, 52%);
+  --border: hsl(0 0% 18%);
+  --input: hsl(0 0% 22%);
+  --ring: hsl(0, 0%, 52%);
+}
+
+/* ══════════════════════════════════════════════════════════════
+ * 2.5 ★--ve-* 变量桥接（关键）
+ *
+ * `tailwind.config.ts` 里 cutia 的颜色写成 `var(--ve-x, <本仓默认>)`。
+ * **这些 --ve-* 必须在这里赋值**，否则会全部回落到本仓值（编辑器不生效 cutia 主题）。
+ *
+ * 命名对应关系（tailwind 类名 → --ve-*）：
+ *   text-primary / bg-primary          → --ve-text-primary
+ *   text-secondary                     → --ve-text-secondary
+ *   text-muted / bg-muted              → --ve-muted
+ *   text-muted-foreground              → --ve-muted-foreground
+ *   bg-accent / text-accent            → --ve-accent
+ *   bg-background                      → --ve-background
+ *   text-foreground                    → --ve-foreground
+ *   border-border / border             → --ve-border
+ *   ...（其余见下方）
+ * ══════════════════════════════════════════════════════════════ */
+.ve-scope {
+  --ve-background: var(--background);
+  --ve-foreground: var(--foreground);
+  --ve-border: var(--border);
+  --ve-input: var(--input);
+  --ve-ring: var(--ring);
+  --ve-card: var(--card);
+  --ve-card-foreground: var(--card-foreground);
+  --ve-popover: var(--popover);
+  --ve-popover-hover: var(--popover-hover);
+  --ve-popover-foreground: var(--popover-foreground);
+  --ve-primary-foreground: var(--primary-foreground);
+  --ve-secondary-foreground: var(--secondary-foreground);
+  --ve-secondary-border: var(--secondary-border);
+  --ve-accent-foreground: var(--accent-foreground);
+  --ve-muted-foreground: var(--muted-foreground);
+  --ve-destructive: var(--destructive);
+  --ve-destructive-foreground: var(--destructive-foreground);
+  --ve-constructive: var(--constructive);
+  --ve-constructive-foreground: var(--constructive-foreground);
+  --ve-sidebar-background: var(--sidebar-background);
+  --ve-sidebar-foreground: var(--sidebar-foreground);
+  --ve-sidebar-primary: var(--sidebar-primary);
+  --ve-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --ve-sidebar-accent: var(--sidebar-accent);
+  --ve-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --ve-sidebar-border: var(--sidebar-border);
+  --ve-sidebar-ring: var(--sidebar-ring);
+  --ve-chart-1: var(--chart-1);
+  --ve-chart-2: var(--chart-2);
+  --ve-chart-3: var(--chart-3);
+  --ve-chart-4: var(--chart-4);
+  --ve-chart-5: var(--chart-5);
+
+  /* ── 与本仓**同名**的 4 个（语义不同，按 cutia 原语义定值）──
+   * 本仓 `primary` = 灰白正文；cutia `primary` = 品牌蓝。
+   * 类名共用，故此处**以 cutia 语义为准**（编辑器内自洽优先）：
+   *   · bg-primary / border-primary / text-primary → cutia 的 --primary
+   */
+  --ve-text-primary: var(--primary);
+  --ve-text-secondary: var(--secondary-foreground);
+  --ve-muted: var(--muted);
+  --ve-accent: var(--accent);
+}
+
+/* ══════════════════════════════════════════════════════════════
+ * 3. 基础层（cutia @layer base 的核心两条）
+ *    仅作用在 .ve-scope 内 —— 不影响本仓其它区域。
+ * ══════════════════════════════════════════════════════════════ */
+.ve-scope {
+  color: var(--foreground);
+  background-color: var(--background);
+}
+.ve-scope *,
+.ve-scope *::before,
+.ve-scope *::after {
+  border-color: var(--border);
+}
+.ve-scope ::selection {
+  background-color: color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════
+ * 4. cutia 的 @utility（v4）→ v3 普通类
+ * ══════════════════════════════════════════════════════════════ */
+.ve-scope .scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.ve-scope .scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+.ve-scope .scrollbar-x-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.ve-scope .scrollbar-x-hidden::-webkit-scrollbar:horizontal {
+  display: none;
+}
+.ve-scope .scrollbar-y-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.ve-scope .scrollbar-y-hidden::-webkit-scrollbar:vertical {
+  display: none;
+}
+.ve-scope .scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 8px;
+}
+.ve-scope .scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ve-scope .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.ve-scope .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* ══════════════════════════════════════════════════════════════
+ * 5. 动画（cutia @theme 的 accordion keyframes）
+ * ══════════════════════════════════════════════════════════════ */
+@keyframes ve-accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+@keyframes ve-accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+.ve-scope .animate-accordion-down {
+  animation: ve-accordion-down 0.2s ease-out;
+}
+.ve-scope .animate-accordion-up {
+  animation: ve-accordion-up 0.2s ease-out;
+}

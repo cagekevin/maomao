@@ -184,13 +184,17 @@ export interface StorageKeyMeta {
 }
 
 /**
- * 视频剪辑器工程 KV 键前缀（G2 收口，模板照 `CANVAS_STATE_PREFIX`）。
+ * 视频剪辑器工程 KV 键前缀（G2 收口，模板照 `CANVAS_STATE_PREFIX` / `agentKeys.ts`）。
  *
- * 为什么抽常量：写者 `videoEditor/data/projectRepository.ts` 必须拼 `…-<projectId>`，
- * 若在那里手写 `'video-editor-project-'` 字面量，就等于**同一键名两份**（登记表与写者），
- * 改键时必漏一处。抽成常量后：登记表与写者同源。
+ * 为什么抽常量：写者 `videoEditorKeys.ts`（键构造唯一真源）必须拼 `…-<projectId>` /
+ * `…-<projectId>_<editorId>`，若在那里手写 `'video_editor_'` 字面量，就等于**同一键名两份**
+ * （登记表与写者），改键时必漏一处。抽成常量后：登记表与写者同源（docs/133 §2.2）。
+ *
+ * 三前缀对应三类键：列表（轻）/ 活跃 id / 单工程本体（重）。禁任何模块再拼 `video_editor_` 字面量。
  */
-export const VIDEO_EDITOR_PROJECT_PREFIX = 'video-editor-project-';
+export const VIDEO_EDITOR_PROJECTS_PREFIX = 'video_editor_projects_';
+export const VIDEO_EDITOR_ACTIVE_PREFIX = 'video_editor_active_project_';
+export const VIDEO_EDITOR_PROJECT_PREFIX = 'video_editor_project_';
 
 export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   // ── 项目（projectStore）────────────────────────────────────────────
@@ -455,14 +459,30 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   // 注：故 hideFromViewportCapture 曾登记为 native（2026-08-22 移除）——它实为 3D object.userData
   // 属性（SceneRoot.tsx / DirectorCanvas.tsx），并非存储键，登记纯属误导。此键不影响存储读写。
 
-  // ── 视频剪辑器工程（videoEditor）【G0 登记 · docs/123 §一.7】──────────
-  // 注：不复用 director3d-project-{nodeId}——对象（tracks 时间轴 ≠ 3D 场景）与写者（projectRepository）均不同。
-  [`${VIDEO_EDITOR_PROJECT_PREFIX}{projectId}`]: {
+  // ── 视频剪辑器工程（videoEditor）【docs/133 §2.2 / §2.3 收口】──────────
+  // 三键全部 kv（localTool KV 严格族 CAS，docs/133 §3.5 D-4），禁静默覆盖。
+  // 键构造唯一真源 = base/core/videoEditorKeys.ts（禁手拼 video_editor_ 字面量，见 T2 验收）。
+  // 不复用 director3d-project-{nodeId}：对象（tracks 时间轴 ≠ 3D 场景）与写族（严格族 vs director3d 双通道）均不同。
+  [`${VIDEO_EDITOR_PROJECTS_PREFIX}{projectId}`]: {
     domain: 'videoEditor',
-    store: 'videoEditor/data/projectRepository.ts', // 待建约定路径（G2 落地）；照实填，不指向假文件
+    store: 'videoEditor/engine/services/storage/service.ts',
     backend: 'kv',
-    pattern: true, // 动态键模板：按 projectId 隔离（入口全局、无锚点节点）
-    note: '视频剪辑器工程 {settings, tracks, playhead, ui.dockHeight}——**tracks 唯一真相源**（120 C2.4），经 projectRepository 独写。与 canvas-state-v1-{projectId} 同粒度、独立键',
+    pattern: true, // 动态键模板：按画布 projectId 隔离（一个画布项目 = 多个剪辑工程）
+    note: '剪辑工程**列表**（轻）：[{id, name, createdAt, updatedAt}]。切换器读取；保存单工程时同步更新其 updatedAt。与单工程本体分键（docs/133 §2.3 体积修正：保存 02 不触碰 01/03）',
+  },
+  [`${VIDEO_EDITOR_ACTIVE_PREFIX}{projectId}`]: {
+    domain: 'videoEditor',
+    store: 'videoEditor/engine/services/storage/service.ts',
+    backend: 'kv',
+    pattern: true, // 动态键模板：按画布 projectId 隔离
+    note: '当前活跃剪辑工程 editorId（UUID，docs/133 §2.1 M-4）。刷新后恢复（不变式 I-3 配合 EditorShell key={editorId}）',
+  },
+  [`${VIDEO_EDITOR_PROJECT_PREFIX}{projectId}_{editorId}`]: {
+    domain: 'videoEditor',
+    store: 'videoEditor/engine/services/storage/service.ts',
+    backend: 'kv',
+    pattern: true, // 动态键模板：双占位（画布 projectId + 工程 editorId）
+    note: '**单个剪辑工程本体**（重）：完整 TProject（docs/133 §一.1，禁镜像）。严格族 CAS 独写；409 由 UI 显式消费（D-4 禁静默重试）',
   },
 
   // ── 备份/云同步清单（backupStore.ts / cloudSync.ts）──────────────

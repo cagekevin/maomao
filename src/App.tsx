@@ -68,7 +68,9 @@ import { patchNodeDataById } from './hooks/useNodeData.ts';
 import { CanvasEdgesProvider } from './components/base/canvas/CanvasEdgesContext.tsx';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts.ts';
 import { isCanvasSuppressed, subscribeModalLayer } from './components/base/core/modalLayer.ts';
-import VideoEditorDock from './components/videoEditor/panels/dock/VideoEditorDock.tsx';
+// 更新(2026-09-14)：自建 VideoEditorDock 退役，改为挂载 cutia 版 EditorShell（docs/130-cutia搬迁计划书）。
+// import VideoEditorDock from './components/videoEditor/panels/dock/VideoEditorDock.tsx';
+import { EditorShell } from './components/videoEditor/EditorShell.tsx';
 import { buildNodeTypeComponents } from './components/base/canvas/NodePalette.ts';
 import { defaultNodeData } from './components/base/canvas/nodeDataSchema.ts';
 import LodProvider, { useLod } from './components/base/canvas/lod.tsx';
@@ -1546,13 +1548,30 @@ function Canvas() {
 
         {/* 视频剪辑器基座：**常驻底部层**（非 portal、不覆盖画布、不登记 modalLayer）。
           key=activeProjectId：工程随项目走（docs/120 C2.6），切项目强制重挂载换工程。
-          open 控显隐（与 AgentPanel 同款：常驻挂载，折叠不丢状态）。 */}
-        <VideoEditorDock
+          open 控显隐（与 AgentPanel 同款：常驻挂载，折叠不丢状态）。
+          ── 更新(2026-09-14)：自建 VideoEditorDock 已退役（旧码移至 videoEditor/_legacy/，
+             见 docs/130-cutia搬迁计划书-2026-09-14.md）。此处待接入 cutia 版本 EditorShell。 */}
+        {/* <VideoEditorDock
           key={activeProjectId}
           open={videoEditorOpen}
           projectId={activeProjectId}
           onClose={() => setSetting('videoEditorOpen', false)}
-        />
+        /> */}
+
+        {/* cutia 版编辑器（docs/130-cutia搬迁计划书 §S5）：一期**全屏**挂载先跑通，
+            接画布（常驻底部层 / 点选入轨 / 出片回写）是后续 §S6。
+            key=activeProjectId：工程随项目走，切项目强制重挂载换工程。 */}
+        {videoEditorOpen && (
+          // ve-scope：cutia 主题作用域（样式隔离，不污染画布 token）；
+          // dark：cutia 默认暗色主题（见 ve-theme.css）。
+          <div className="ve-scope dark fixed inset-0 z-ceiling">
+            <EditorShell
+              key={activeProjectId}
+              projectId={activeProjectId}
+              onClose={() => setSetting('videoEditorOpen', false)}
+            />
+          </div>
+        )}
 
         {/* 折叠态入口（mockup `.vd-handle`）：画布底部**居中**的半圆把手，点击展开时间轴。
           与展开态「顶部中央的收起按钮」同一条中轴 —— 展开/收起都在视线中心，空间上对称。

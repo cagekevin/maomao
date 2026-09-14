@@ -862,3 +862,11 @@ select::placeholder {
   transform: translateX(14px);
   background: rgb(var(--mao-accent-strong));
 }
+
+/* ════════════════════════════════════════════════════════════════
+ * cutia 编辑器主题（作用域隔离 · docs/130-cutia搬迁计划书）
+ *
+ * ⚠️ 这里**不写** `@import`：CSS 规范要求 @import 必须在文件最顶部，
+ * 放在 @tailwind 之后会被浏览器忽略。
+ * 改由 `src/main.tsx` 在 `index.css` 之后 `import`（Vite 会正确合并并保序）。
+ * ════════════════════════════════════════════════════════════════ */
