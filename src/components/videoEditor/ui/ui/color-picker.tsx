@@ -221,7 +221,7 @@ const ColorPicker = forwardRef<HTMLDivElement, ColorPickerProps>(
         };
       }
       return undefined;
-    }, [isDragging, displayHue, s, v, onChange]);
+    }, [isDragging, displayHue, s, v, onChange, onChangeEnd]);
 
     const handleSaturationMouseDown = (e: React.MouseEvent) => {
       e.preventDefault();

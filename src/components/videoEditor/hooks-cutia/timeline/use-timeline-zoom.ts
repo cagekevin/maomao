@@ -160,7 +160,6 @@ export function useTimelineZoom({
     });
   }, [zoomLevel, editor, tracksScrollRef, rulerScrollRef, minZoom]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: tracksScrollRef is a stable ref
   const saveScrollPosition = useCallback(() => {
     if (scrollSaveTimeoutRef.current) {
       clearTimeout(scrollSaveTimeoutRef.current);
@@ -177,9 +176,8 @@ export function useTimelineZoom({
         });
       }
     }, 300);
-  }, [zoomLevel, editor]);
+  }, [zoomLevel, editor, tracksScrollRef]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refs are stable
   useEffect(() => {
     if (initialScrollLeft === undefined) return;
     if (hasRestoredScrollRef.current) return;
@@ -208,7 +206,7 @@ export function useTimelineZoom({
       observer.observe(scrollElement);
       return () => observer.disconnect();
     }
-  }, [initialScrollLeft]);
+  }, [initialScrollLeft, rulerScrollRef, tracksScrollRef]);
 
   useEffect(() => {
     if (initialPlayheadTime !== undefined && !hasRestoredPlayheadRef.current) {
