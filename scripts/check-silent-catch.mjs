@@ -23,9 +23,10 @@
  * 用法：`node scripts/check-silent-catch.mjs`（挂 `npm run check:catch`，进 prebuild/pretest）
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { dirname, join, relative } from 'node:path';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'src');
 
 /** 递归收集 src 下所有 .ts/.tsx */

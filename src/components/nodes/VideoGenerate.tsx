@@ -517,7 +517,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
             高度完全由 data.inputHeight 驱动。输入框不参与端口定位，只写 data。 */}
         <ResizeFullscreenHandle
           targetRef={promptInputRef as React.RefObject<HTMLElement>}
-          minWidth={200}
+          minWidth={380}
           maxWidth={900}
           minHeight={60}
           maxHeight={400}

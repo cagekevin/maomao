@@ -826,7 +826,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
             输入框是面板里的部件，不参与端口定位，所以只写 data，不改 node.width/height。 */}
             <ResizeFullscreenHandle
               targetRef={promptInputRef as React.RefObject<HTMLElement>}
-              minWidth={200}
+              minWidth={420}
               maxWidth={900}
               minHeight={60}
               maxHeight={400}

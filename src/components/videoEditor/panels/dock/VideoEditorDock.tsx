@@ -500,13 +500,6 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
               <div className="p-3 text-xs opacity-60">正在加载工程…</div>
             )}
 
-            {/* 空态提示（mockup `.vd-hollow`）：轨道还空着时给一句引导 */}
-            {project && transport.totalDuration <= 0 && (
-              <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted pointer-events-none">
-                在画布上点选素材即可入轨
-              </div>
-            )}
-
             {project?.tracks.map((track) => (
               <Fragment key={track.id}>
                 <Lane
@@ -578,28 +571,31 @@ export default function VideoEditorDock({ open, onClose, projectId }: VideoEdito
       {/* 常驻信息 / 设置条 / 断链 / 冲突失败 + **加轨操作** —— DockStatusBar 纯渲染。
           置于**轨道区之下**（贴底）：导出前信息是「结论行」，放在画面最下方一栏，不占轨道可视高度。
           加轨按钮与这行小字**同排**（用户口径）；加轨是低频操作，放在这行最左端，不与状态信息混读。 */}
-      <DockStatusBar
-        project={project}
-        brokenCount={brokenIds.size}
-        conflict={store.conflict}
-        reload={store.reload}
-        failed={store.status === 'failed'}
-        reason={store.reason}
-        exportInfoReason={exp.plan?.reason ?? null}
-        letterbox={exp.letterbox}
-        onAddTrack={drag.addTrack}
-        // 可用性判据与 `appendTrack` 的上限同源（`MAX_TRACKS_PER_KIND`），不在这里另算一套
-        canAddText={
-          (project?.tracks.filter((t) => t.kind === 'text').length ?? 0) < MAX_TRACKS_PER_KIND
-        }
-        canAddVideo={
-          (project?.tracks.filter((t) => t.kind === 'video').length ?? 0) < MAX_TRACKS_PER_KIND
-        }
-        canAddAudio={
-          (project?.tracks.filter((t) => t.kind === 'audio').length ?? 0) < MAX_TRACKS_PER_KIND
-        }
-        addTrackLimit={MAX_TRACKS_PER_KIND}
-      />
+      {/* `relative` 提供警告浮层的定位上下文；`shrink-0` 让状态条永远不被 dock 高度拖拽压扁 */}
+      <div className="relative shrink-0">
+        <DockStatusBar
+          project={project}
+          brokenCount={brokenIds.size}
+          conflict={store.conflict}
+          reload={store.reload}
+          failed={store.status === 'failed'}
+          reason={store.reason}
+          exportInfoReason={exp.plan?.reason ?? null}
+          letterbox={exp.letterbox}
+          onAddTrack={drag.addTrack}
+          // 可用性判据与 `appendTrack` 的上限同源（`MAX_TRACKS_PER_KIND`），不在这里另算一套
+          canAddText={
+            (project?.tracks.filter((t) => t.kind === 'text').length ?? 0) < MAX_TRACKS_PER_KIND
+          }
+          canAddVideo={
+            (project?.tracks.filter((t) => t.kind === 'video').length ?? 0) < MAX_TRACKS_PER_KIND
+          }
+          canAddAudio={
+            (project?.tracks.filter((t) => t.kind === 'audio').length ?? 0) < MAX_TRACKS_PER_KIND
+          }
+          addTrackLimit={MAX_TRACKS_PER_KIND}
+        />
+      </div>
     </section>
   );
 }

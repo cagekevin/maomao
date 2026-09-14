@@ -502,7 +502,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
             不走 onMainBoxResize 那种 node.width/height 写回。 */}
         <ResizeFullscreenHandle
           targetRef={promptInputRef as React.RefObject<HTMLElement>}
-          minWidth={200}
+          minWidth={420}
           maxWidth={900}
           minHeight={60}
           maxHeight={400}

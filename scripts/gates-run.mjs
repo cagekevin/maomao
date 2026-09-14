@@ -17,10 +17,11 @@
  * 退出码：任一闸失败 → 非 0（fail-fast）。
  */
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { execSync } from 'node:child_process';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MANIFEST = join(ROOT, 'scripts/gates.manifest.json');
 
 let manifest;

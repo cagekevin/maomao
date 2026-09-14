@@ -127,27 +127,33 @@ export function DockStatusBar(p: DockStatusBarProps) {
         </div>
       )}
 
-      {/* ── C13：断链预检 —— 只有**真的需要决策**时才拦一次（其余信息常驻，见上） ── */}
-      {brokenCount > 0 && (
-        <div className="px-3 py-1 text-xs bg-danger/15 text-danger" data-broken-banner>
-          有 {brokenCount} 个片段素材读不到 —— 导出会**跳过**这些片段，其余照常。
-        </div>
-      )}
-
-      {/* ── 状态条：冲突 / 失败（诚实可见，不静默）── */}
-      {conflict && (
-        <div className="px-3 py-1 text-xs bg-danger/15 text-danger flex items-center gap-2">
-          工程已在别处更新，本次改动**未落盘**（本地改动保留）。
-          <button type="button" className="underline" onClick={reload}>
-            重新加载
-          </button>
-        </div>
-      )}
-      {failed && (
-        <div className="px-3 py-1 text-xs bg-danger/15 text-danger">
-          工程读取失败：{reason ?? '未知原因'}
-        </div>
-      )}
+      {/* ── 警告浮层：absolute 浮在状态条（加轨行）正上方 ──
+          根因：这三个 banner 原本是 dock flex 列的子项，默认会被 flex-shrink 压扁，
+          拖拽基座高度时争空间 → 横幅被裁切/不显示 → 忽隐忽现。
+          现改为绝对定位浮层（相对外层 `relative` 容器），脱离 flex 压缩，
+          且多个同时触发时向上整齐堆叠、互不重叠。 */}
+      <div className="absolute left-0 right-0 bottom-full z-20 flex flex-col">
+        {/* ── C13：断链预检 ── */}
+        {brokenCount > 0 && (
+          <div className="px-3 py-1 text-xs bg-danger/15 text-danger" data-broken-banner>
+            有 {brokenCount} 个片段素材读不到 —— 导出会**跳过**这些片段，其余照常。
+          </div>
+        )}
+        {/* ── 冲突（诚实可见，不静默）── */}
+        {conflict && (
+          <div className="px-3 py-1 text-xs bg-danger/15 text-danger flex items-center gap-2">
+            工程已在别处更新，本次改动**未落盘**（本地改动保留）。
+            <button type="button" className="underline" onClick={reload}>
+              重新加载
+            </button>
+          </div>
+        )}
+        {failed && (
+          <div className="px-3 py-1 text-xs bg-danger/15 text-danger">
+            工程读取失败：{reason ?? '未知原因'}
+          </div>
+        )}
+      </div>
     </>
   );
 }

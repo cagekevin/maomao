@@ -14,9 +14,10 @@
  * 用法：`node scripts/check-upload-dirs.mjs`（挂 `npm run check:upload-dirs`）
  */
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const FRONTEND = join(ROOT, 'src/components/base/utils/uploadDirs.ts');
 const BACKEND = join(ROOT, 'localTool/src/utils/fileStore.ts');
 
