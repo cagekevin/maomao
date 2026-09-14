@@ -156,6 +156,8 @@ function ResourceLibrary() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  // 【TD-12-10】「同类刷新」计数器：收不到 onResourceSent 时同值 setFolder 不触发重跑，用它强制重拉一次
+  const [reloadTick, setReloadTick] = useState(0);
   const [creating, setCreating] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [renameTarget, setRenameTarget] = useState<ResourceItem | null>(null); // 正在重命名的资源
@@ -217,14 +219,17 @@ function ResourceLibrary() {
     if (!connected) return;
     reset(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, currentFolder, projectId]);
+  }, [connected, currentFolder, projectId, reloadTick]);
 
-  // 订阅「发送到素材库」成功事件：自动切到落盘目录并重新 rescan 拉取，
+  // 订阅「素材已落盘」事件：自动切到落盘目录并重新 rescan 拉取，
   // 解决此前「点完要切目录/点别处才刷新」的体感问题（resourceStore 与面板互不相通）。
+  // 【TD-12-10】该事件现由**落盘完成**发出（此前在落盘前发出 → 拉到的还是旧列表）；
+  // 且已在目标目录时 setFolder 传同值不触发上面的 effect —— 用 reloadTick 兜底强制重拉。
   useEffect(() => {
     return onResourceSent((sentFolder: string) => {
       const target = sentFolder || 'migrated';
-      setFolder(target); // 触发 currentFolder 变化 → 上面的 reset(true) 自动 rescan 刷新
+      setFolder(target);
+      setReloadTick((t) => t + 1);
     });
   }, []);
 

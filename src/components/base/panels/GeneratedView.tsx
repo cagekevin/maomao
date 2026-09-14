@@ -32,6 +32,7 @@ import {
 } from '../api/filesApi.ts';
 import { PanelSubBar, PanelPills, PanelMoreMenu } from './PanelBar.tsx';
 import { logger } from '../core/logger.ts';
+import { subscribe } from '../core/eventBus.ts';
 import { isAudio } from '../utils/assetType.ts';
 import VideoThumbnail from '../ui/VideoThumbnail.tsx';
 import LazyImage from '../ui/LazyImage.tsx';
@@ -232,6 +233,19 @@ function GeneratedView() {
     reset(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, folder, typeFilter]);
+
+  // 【TD-12-10 同母体】订阅「生成任务完成」→ 刷新生成列表。
+  // 结果此刻已落盘 tasks 目录（runGenerationContract 的 done 在 saveResultToTasks 之后广播），
+  // 但本面板只在挂载/切目录时拉取 → 用户停在「生成」tab 时看不到刚生成的结果，
+  // 与「素材库面板收不到落盘完成信号」是同一条母体：**结果就绪信号没被当前可见的消费方收到**。
+  // （面板是条件渲染：不可见时本 effect 不挂载，天然只在可见时订阅。）
+  const resetRef = useRef(reset);
+  resetRef.current = reset;
+  useEffect(() => {
+    return subscribe('agent:task-completed', () => {
+      resetRef.current(true);
+    });
+  }, []);
 
   const handleDelete = async (item: ResourceItem) => {
     setItems((list) => list.filter((x) => x.id !== item.id));

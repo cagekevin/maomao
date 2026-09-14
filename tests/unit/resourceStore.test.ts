@@ -15,6 +15,7 @@ import {
   safeResourceBase,
   mergeResourcesFromBackend,
   sendToResourceLibrary,
+  onResourceSent,
 } from '../../src/components/base/store/resourceStore.ts';
 import { saveInlineToLocal } from '../../src/components/base/api/filesApi.ts';
 import { rescanResources } from '../../src/components/base/api/localToolApi.ts';
@@ -304,5 +305,66 @@ describe('TD-12-2 占位项与后端项按 url 归并', () => {
     for (let i = 0; i < 12; i++) await Promise.resolve();
     // 图已落盘 → 持久 url 必须到手；rescan 失败只影响「面板何时看到」，不得改写落盘结论
     expect(getResources()[0].url).toBe('http://127.0.0.1:18080/files/migrated/recon.png');
+  });
+
+  // ── TD-12-10：结果契约回传 + 刷新挂「落盘完成」（禁假成功 / 禁面板白刷）──
+
+  it('【先红锚点 · 禁假成功】调用方拿到的是落盘真实结果（成功 ok:true / 失败 ok:false）', async () => {
+    clearResources();
+    const okOutcome = await sendToResourceLibrary('data:image/png;base64,AAAA', {
+      name: '猫',
+      folder: 'migrated',
+    });
+    expect(okOutcome.ok).toBe(true);
+    expect(okOutcome.ok ? okOutcome.url : '').toBe(
+      'http://127.0.0.1:18080/files/migrated/recon.png',
+    );
+
+    clearResources();
+    vi.mocked(saveInlineToLocal).mockResolvedValueOnce(null);
+    const failOutcome = await sendToResourceLibrary('data:image/png;base64,BBBB', {
+      name: '狗',
+      folder: 'migrated',
+    });
+    // 改前：本函数返回 Resource[]（调用方只能提前弹「已发送」）→ 此处拿不到失败真相
+    expect(failOutcome.ok).toBe(false);
+    expect(failOutcome.ok ? '' : failOutcome.reason).toBe('upload-failed');
+  });
+
+  it('【先红锚点】落盘失败不得广播 resource:sent（面板不该为不存在的素材白刷）', async () => {
+    clearResources();
+    const seen: string[] = [];
+    const off = onResourceSent((f) => seen.push(f));
+    vi.mocked(saveInlineToLocal).mockResolvedValueOnce(null);
+    await sendToResourceLibrary('data:image/png;base64,BBBB', { name: '狗', folder: 'migrated' });
+    off();
+    // 改前：无论成败都在函数尾部同步 emit → 此处为 ['migrated']（红）
+    expect(seen).toEqual([]);
+  });
+
+  it('【先红锚点】广播发生在落盘完成之后（面板 rescan 时后端已有该文件）', async () => {
+    clearResources();
+    const order: string[] = [];
+    const off = onResourceSent(() => order.push('emit'));
+    vi.mocked(saveInlineToLocal).mockImplementationOnce(async () => {
+      order.push('persist');
+      return 'http://127.0.0.1:18080/files/migrated/recon.png';
+    });
+    await sendToResourceLibrary('data:image/png;base64,AAAA', { name: '猫', folder: 'migrated' });
+    off();
+    // 改前：emit 在落盘之前 → ['emit','persist']（红），正是「点了却库里没有」的成因
+    expect(order).toEqual(['persist', 'emit']);
+  });
+
+  it('无 url → 返回 empty 失败结果，不登记占位、不广播', async () => {
+    clearResources();
+    const seen: string[] = [];
+    const off = onResourceSent((f) => seen.push(f));
+    const outcome = await sendToResourceLibrary('');
+    off();
+    expect(outcome.ok).toBe(false);
+    expect(outcome.ok ? '' : outcome.reason).toBe('empty');
+    expect(getResources().filter((r) => r.folder === 'migrated')).toHaveLength(0);
+    expect(seen).toEqual([]);
   });
 });

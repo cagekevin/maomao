@@ -268,9 +268,9 @@ export type NewResourceItem = Partial<Resource>;
  * 下 TS 不对 `boolean` 判别属性做收窄（实测：`{ok:true;url} | {ok:false;reason}` 访问 `.reason` 报
  * TS2339）。写成双方都带键后，`ok` 仍是判别位、语义不变。
  */
-type PersistOutcome =
+export type PersistOutcome =
   | { ok: true; url: string; reason?: undefined }
-  | { ok: false; url?: undefined; reason: 'upload-failed' | 'exception' };
+  | { ok: false; url?: undefined; reason: 'upload-failed' | 'exception' | 'empty' };
 
 /**
  * 把一条「缺字段的素材入参」规范化为完整 Resource 记录（纯函数，供 addResources 复用）。
@@ -349,28 +349,34 @@ export function addResources(
  * - 自动按 URL/文件名推断类型（detectAssetType）；
  * - 默认落入「素材库(migrated)」目录；可传 folder 覆盖（如 'tasks'）；
  * - 名称优先用传入 name，否则用 URL 文件名，再否则「未命名」。
- * 返回新增的素材数组（供调用方 toast / 其它联动）。
+ * 【结果契约 · TD-12-10】返回落盘结果（`PersistOutcome` 判别联合）——**「成功」由落盘完成层说了算**：
+ * 此前本函数 `void` 掉落盘 Promise、并在落盘**之前**同步 `emitResourceSent`，于是
+ *   ① 调用方只能提前弹「已发送」成功 toast（落盘失败也宣告成功 = 假成功）；
+ *   ② 面板收到刷新信号时文件还没落盘 → rescan 拉不到新素材（用户报障「点了却库里没有」）。
+ * 现在：占位项仍**同步**登记（store 立即可见）→ `await` 落盘 → **成功才**校正 url 并广播刷新。
+ * 调用方按返回结果决定 toast 时机与真伪（见 AssetNode / ImageGenerate）。
  *
- * 【后端落盘】此前只写前端 localStorage，素材库面板读的是后端 /api/resources，两套割裂导致
- * 「已发送但面板看不到」。现补上：把 URL 素材经 localTool 落盘到对应 folder 目录（幂等 sha1 去重），
- * 落盘成功后 rescan，素材库面板即可读到。data: → multipart；http(s) → 下载成 Blob 后 multipart。
- * blob: 是本地临时地址，不落盘（调用方应传 data:/http）。
+ * 【后端落盘】素材经 localTool 落盘到对应 folder 目录（幂等 sha1 去重）后 rescan，面板即可读到。
+ * data: → multipart；http(s) → 下载成 Blob 后 multipart；blob: → fetch 成 File 后 multipart。
+ *
+ * @returns {Promise<PersistOutcome>} 落盘结果；调用方按 `ok` 决定成功/失败反馈。
+ *   `reason:'empty'` = 无 url 可发送（调用方一般已提前判空）。
  */
-export function sendToResourceLibrary(
+export async function sendToResourceLibrary(
   url: string,
   {
     name,
     folder = UPLOAD_DIRS.migrated,
     type,
   }: { name?: string; folder?: string; type?: AssetType } = {},
-): Resource[] {
+): Promise<PersistOutcome> {
   logger.debug(
     'resourceStore',
     '[SEND] sendToResourceLibrary 进入',
     { urlPrefix: String(url).slice(0, 60), folder, name },
     { module: 'resource' },
   );
-  if (!url) return [];
+  if (!url) return { ok: false, reason: 'empty' };
   let fname = '未命名';
   try {
     const fromUrl = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
@@ -384,38 +390,33 @@ export function sendToResourceLibrary(
     folder,
   );
 
-  // 异步后端落盘（不阻塞、失败不抛——前端 store 仍保留，只是面板稍后 rescan 可见）。
-  // 修复：blob: 是本地临时对象 URL，此前被直接短路丢弃（「发送到素材库」静默不落盘）。
-  // 现改为用 filesApi.uploadFileToLocal 直接把 blob 作为文件上传落盘，与 data:/http 分支一致。
   // 【名字保留】落盘文件名用用户起的 resourceName（安全化），使素材库面板读到的资源名 = 用户起的名，
   // 从素材库拖回画布时 label 即该名，@名 匹配不再丢名字（见 docs/70 问题2）。
-  if (url) {
-    logger.debug(
-      'resourceStore',
-      '[SEND] 准备落盘',
-      { urlPrefix: String(url).slice(0, 60), folder, name: resourceName },
-      { module: 'resource' },
-    );
+  logger.debug(
+    'resourceStore',
+    '[SEND] 准备落盘',
+    { urlPrefix: String(url).slice(0, 60), folder, name: resourceName },
+    { module: 'resource' },
+  );
+  const outcome = await persistUrlToBackend(url, folder, resourceName, detectedType);
+  if (outcome.ok) {
     // 【TD-12-2】落盘成功后把「本地占位项」url 校正为后端持久 url：
     // 面板拉取合并（mergeResourcesFromBackend）按 url 归并 → 同一素材不再并存两行。
     const placeholderId = added[0]?.id;
-    void persistUrlToBackend(url, folder, resourceName, detectedType).then((outcome) => {
-      if (outcome.ok) {
-        // 落盘成功 → 把占位项 url 校正为后端持久 url（供面板合并时按 url 归并，同一素材不并存两行）
-        if (placeholderId) patchResource(placeholderId, { url: outcome.url });
-      } else {
-        // 落盘未成功 → 占位项**保留原 url**（本会话不与后端归并）；原因已在 persistUrlToBackend 内留痕
-        logger.debug('resourceStore', '[SEND] 落盘未成功，占位项保留原 url', {
-          reason: outcome.reason,
-          folder,
-        });
-      }
+    if (placeholderId) patchResource(placeholderId, { url: outcome.url });
+    // 【TD-12-10】广播放在**落盘完成之后**：此刻后端已有该文件，面板 rescan 才能拉到。
+    // （此前在落盘前广播 → 面板刷新时后端无文件 = 「点了却库里没有」的直接机制。）
+    emitResourceSent(folder);
+  } else {
+    // 落盘未成功 → 占位项**保留原 url**（本会话不与后端归并），且**不广播刷新**：
+    // 后端没有该素材，刷新只会让面板白跑一趟；失败可见性由调用方按本结果提示。
+    // 原因已在 persistUrlToBackend 内 logger.error 留痕。
+    logger.debug('resourceStore', '[SEND] 落盘未成功：占位项保留原 url，不广播刷新', {
+      reason: outcome.reason,
+      folder,
     });
   }
-  // 广播「已发送」事件：素材库面板（resourceStore 与 ResourceLibrary 互不相通）订阅后
-  // 自动切到落盘目录并重新 rescan 拉取，避免「点别处才刷新」的假象。
-  emitResourceSent(folder);
-  return added;
+  return outcome;
 }
 
 /** 文件名安全化：去掉非法字符/空白，返回「可作磁盘文件名的 base」，空则回退 'asset'。

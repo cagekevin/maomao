@@ -94,7 +94,7 @@
   --mao-live: 52 211 153; /* #34d399 绿 */
   --mao-danger: 239 68 68; /* #ef4444 红 */
   /* 滚动条（全局覆盖系统默认条，黑色背景下细灰条 + hover 提亮） */
-  --mao-scrollbar-size: 8px;
+  --mao-scrollbar-size: 6px;
   --mao-scrollbar-track: transparent;
   --mao-scrollbar-thumb: 58 58 57; /* #3a3a3a 默认细灰条 */
   --mao-scrollbar-thumb-hover: 74 74 73; /* #4a4a4a hover 提亮 */
@@ -373,7 +373,7 @@ body,
 *::-webkit-scrollbar-thumb {
   background: rgb(var(--mao-scrollbar-thumb));
   border-radius: 999px;
-  border: 2px solid transparent;
+  border: 1px solid transparent;
   background-clip: padding-box;
 }
 *::-webkit-scrollbar-thumb:hover {

@@ -332,9 +332,13 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
           type === 'image' || type === 'video' || type === 'audio' || type === 'text'
             ? type
             : undefined;
-        sendToResourceLibrary(url, { name, type: assetType });
         openResourceLibrary();
-        showToast('已发送到素材库', { type: 'success' });
+        // 【TD-12-10】成功 toast 必须等落盘完成（唯一知道真相的那层）再弹：
+        // 此前在发起处同步宣告成功 → 落盘失败也显示「已发送」，用户只见成功、库里无物、零报错。
+        void sendToResourceLibrary(url, { name, type: assetType }).then((outcome) => {
+          if (outcome.ok) showToast('已发送到素材库', { type: 'success' });
+          else showToast('发送到素材库失败，请稍后重试', { type: 'error' });
+        });
       },
     },
     {
@@ -482,11 +486,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
 
       {/* 查看大图：共享 ImageZoomDialog。
         图片→kind="image" 看海报/大图；视频→kind="video" 统一走视频播放预览（含截屏按钮） */}
-      <ImageZoomDialog
-        ref={dialogRef}
-        url={url}
-        kind={type === 'video' ? 'video' : 'image'}
-      />
+      <ImageZoomDialog ref={dialogRef} url={url} kind={type === 'video' ? 'video' : 'image'} />
 
       {/* 深度转视频弹窗：视频态可转，产出落盘后 spawn 下游深度视频节点（链式） */}
       {depthOpen && type === 'video' && url && (

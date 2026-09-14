@@ -19,8 +19,8 @@
  * 两者互补，不重复。
  *
  * 【当前事件注册表】改代码前先查这份全量清单（发布/订阅均须存在，避免"只监听未发布"）：
- *  - agent:task-completed   taskCompletionBus.publishTaskCompleted 发布 → useNodeGeneration:210 订阅（任务完成→精准回填节点）
- *  - resource:sent             resourceStore.onResourceSent/emitResourceSent（薄封装）→ ResourceLibrary 刷新（P1-D 收口裸回调桥）
+ *  - agent:task-completed   taskCompletionBus.publishTaskCompleted 发布 → useNodeGeneration（精准回填节点）/ useScriptBoxEngine（资产图）/ GeneratedView（刷新「生成」面板）
+ *  - resource:sent             resourceStore.onResourceSent/emitResourceSent（薄封装，语义=「素材已落盘可用」）→ ResourceLibrary 刷新（P1-D 收口裸回调桥；TD-12-10 起改为落盘完成后才广播）
  *  - presets-changed        promptManager 发布 → PromptLibrary 订阅（预设库跨节点同步）
  *  - project:import         ProjectSelector:99 发布 → App:343 订阅（导入按钮→App 处理文件）
  *  - project:export         ProjectSelector:103 发布 → App:344 订阅（导出按钮→App 下载）

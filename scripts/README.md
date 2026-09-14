@@ -27,6 +27,7 @@
 | `check-strict-src.mjs` | 隐式 any 渐进闸（TD-09-1 选项 A）：按 `strict-src-whitelist.json` 白名单逐目录清零，红 = 未达标 | `npm run check:strict-src` |
 | `check-targets.mjs` | 各 `check-*` 共享的**默认扫描根唯一事实源**（被上面几个脚本 require，不单独跑） | — |
 | `mv-sync-refs.mjs` | **改名/移动文件 + AST 全库同步 import 说明符**（CLAUDE §5.4.8 强制：改名/搬文件一律用它，禁手写 import 漂移） | 手动 |
+| `debt.mjs` | **债务账本读写唯一入口**（主表 `daily/架构日志/债务.md` 只留待办 + `债务-归档.md` 存历史；2026-09-14 收口：原 2 个手写点 → 1 个写入者）。**读**：`list`（默认待办；`--all`/`--area`/`--status` 跨主表+归档）· `area <NN>` 某区全部历史 · `search <词>` 跨区找同类（**状态列即"当时怎么解的"**）· `show <ID>` 单条 + **解法入口**· `audit` 只读体检（**不是闸**）。**写**：`add`/`resolve`（入口校验非法枚举 / 摘要含 `\|` / 锚点不存在 → 当场拒，**刻意不挂闸**）。**维护**：`archive` 把已完成项移入归档（主表只留待办） | 手动 |
 | `strict-report.mjs` | strict 类型收口报告（只读、不 fail）：全仓概览 + 建议下一步，供渐进消除隐式 any 使用 | 手动 |
 | `extract-tailwind.mjs` | 从 `src/` 抽取 Tailwind 类到 `src/index.css` 白名单 | `npm run extract:tw` |
 | `ts-tests.mjs` | 测试类型消化作战系统：`check`/`verify` 单文件、`status` 全局进度、`add/rm-nocheck`。**`status` 已修复可放心用**（批量剥 nocheck → tsc → finally 还原；早期恢复不可靠的历史问题已不再复现） | — |

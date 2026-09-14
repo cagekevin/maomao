@@ -528,9 +528,12 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                 return;
               }
               const name = (data.label && String(data.label).trim()) || '';
-              sendToResourceLibrary(assetUrl, { name, type: 'image' });
               openResourceLibrary();
-              showToast('已发送到素材库', { type: 'success' });
+              // 【TD-12-10】成功 toast 必须等落盘完成（唯一知道真相的那层）再弹（同 AssetNode）。
+              void sendToResourceLibrary(assetUrl, { name, type: 'image' }).then((outcome) => {
+                if (outcome.ok) showToast('已发送到素材库', { type: 'success' });
+                else showToast('发送到素材库失败，请稍后重试', { type: 'error' });
+              });
             },
           },
           {

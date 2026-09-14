@@ -73,9 +73,9 @@ export interface EventRegistryEntry {
 export const EVENTS: Record<string, EventRegistryEntry> = {
   'agent:task-completed': {
     from: ['taskCompletionBus.ts:30'],
-    to: ['useNodeGeneration.ts:328', 'useScriptBoxEngine.ts'],
+    to: ['useNodeGeneration.ts:328', 'useScriptBoxEngine.ts', 'GeneratedView.tsx'],
     payload: '{ taskId, nodeId, resultUrl, type, status: "completed" }',
-    note: '任务完成 → 精准回填节点（刷新不丢图）。现统一经 taskCompletionBus.publishTaskCompleted 唯一发布（P1-D）；done 已去落盘（P0-C），广播直接用持久 resultUrl。两个订阅者判据不同：节点侧按 nodeId 等值（useNodeGeneration）；剧本盒资产图按伪 nodeId 前缀反解（useScriptBoxEngine，TD-01-9）',
+    note: '任务完成 → 精准回填节点（刷新不丢图）+ 刷新「生成」面板。现统一经 taskCompletionBus.publishTaskCompleted 唯一发布（P1-D）；done 已去落盘（P0-C），广播直接用持久 resultUrl。订阅者判据各不同：节点侧按 nodeId 等值（useNodeGeneration）；剧本盒资产图按伪 nodeId 前缀反解（useScriptBoxEngine，TD-01-9）；生成面板只关心「有新结果落 tasks」→ 全量刷新（GeneratedView，TD-12-10 同母体：结果就绪信号须被当前可见消费方收到）',
   },
   // 上游节点完成 → 直接下游可视需要自动触发（P2-G 安全网，AUTO_TRIGGER_DOWNSTREAM 默认关）
   'upstream:updated': {
@@ -98,10 +98,10 @@ export const EVENTS: Record<string, EventRegistryEntry> = {
   },
   // 素材发送成功事件（P1-D 收口：原 resourceStore 裸回调桥 → eventBus；resourceStore 保留薄封装 onResourceSent/emitResourceSent）
   'resource:sent': {
-    from: ['resourceStore.ts:364'],
-    to: ['resourceStore.ts:361'],
+    from: ['resourceStore.ts:668'],
+    to: ['resourceStore.ts:665'],
     payload: '{ folder }',
-    note: '素材落盘成功 → 素材库面板刷新（ResourceLibrary 经 onResourceSent 订阅）。生产使用',
+    note: '【TD-12-10 语义=「素材已落盘可用」】发送方 sendToResourceLibrary 在**落盘完成且成功**后才广播（此前在发起处同步广播 → 面板 rescan 时后端还没有该文件 = 用户报障「点了却库里没有」）。订阅方：ResourceLibrary 经薄封装 onResourceSent 消费（ResourceLibrary.tsx 内无 subscribe 字面量，故本表 to 只列真实 subscribe 点），收到后切目录并强制重拉（同目录也重拉，见其 reloadTick）。生产使用',
   },
   // 'resource:renamed' 已于 2026-09-12 删除：四态 url 改写广播随 context-only 改名已无订阅方（发布点亦被守卫为 no-op），
   // 改名/移动改由 contentId 模型处理，属「第二机制」死脚手架（见 docs/122）。
