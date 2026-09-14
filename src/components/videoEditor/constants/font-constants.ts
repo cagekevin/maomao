@@ -66,9 +66,6 @@ export const FONT_OPTIONS: FontOption[] = [
  */
 export type FontFamily = string;
 
-/** 默认字体（新建文字元素用）。也用于"数据里的字体不认识时"回退。 */
-export const DEFAULT_FONT_FAMILY = 'Arial';
-
 /**
  * 取某字体的回落链 —— **唯一定义处**。
  * 未知字体（如旧数据里的幽灵字体名）返回通用无衬线链，
