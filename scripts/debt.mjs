@@ -19,6 +19,18 @@
  *   实证：2026-09-14 02 区登记被误分配 `TD-02-1`/`TD-02-2`（均已于首轮存在并归档），区域名同时退化成裸 `02`。
  *   → 见 TD-17-2（已解决）。
  *
+ * 【摘要 / note 里别用 ASCII 双引号 `"`】（2026-09-14 实证 · PowerShell）PowerShell 5.1 传实参给原生
+ *   命令时会把 `"` 当**引号边界**处理 ⇒ 参数被截断（实测：一条 note 只进到 `…必须是` 就没了）。
+ *   规范：正文用中文引号 `「」`，**不要**用 `"`。这条对 `--summary`/`--note`/`--status` 都成立。
+ *
+ * 【锚点口径 = 只认区域日志】（2026-09-14 · TD-22-17 收口）原校验只有 `existsSync(join(LOG_DIR, anchor))`
+ *   ⇒ `../docs/132-….md` 这类**逃逸路径**同样"存在"故通过。实证后果：6 条债锚在 `docs/132`，
+ *   区域日志里根本没有探债段（违反 §七.3「债明细真源 = 每区架构日志」），
+ *   且 `show` 会把入口拼成 `daily/架构日志/132-M2 计划 §八` 这种**不存在的路径**。
+ *   新判据（`anchorProblem()`，写入前 + `audit` 只读巡检**共用同一份**）：
+ *   锚点必须是无路径分隔符的区域日志命名 `<NN>-…-<日期>.md`（跨区轮次 `20-跨区-…` 同样匹配）。
+ *   明细搬家后改锚点用 `reanchor`（**禁手写表格行**）。
+ *
  * 【列错位为什么能无损解析】`line.split('|')` 与 `join('|')` 互逆：只要重新定出正确列边界，描述里的裸 `|`
  *   会被逐字还原。靠**四级校验**（标准 / A 尾部多余段 / B 右锚定 / C 左锚定状态起点），任一级不过就报 `manual`，**绝不猜**。
  *
@@ -33,6 +45,7 @@
  *   node scripts/debt.mjs add --area 22 --summary "…" [--class 增债] [--rate 中] [--owner 结构债]
  *                              [--anchor 22-视频-横切全量-2026-09-13.md] [--refs "@见 TD-xx"]
  *   node scripts/debt.mjs resolve <TD-ID> [--status 已解决] [--note "…"] [--date YYYY-MM-DD]
+ *   node scripts/debt.mjs reanchor <TD-ID> --anchor 22-视频-剪辑器-M2计划审计-2026-09-14.md
  *   node scripts/debt.mjs archive [--dry]
  */
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
@@ -327,6 +340,25 @@ function readFullArchive(id) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 写命令（唯一写入者）
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * 锚点合法性的**唯一判据** —— 写入前校验（`add`/`reanchor`）与只读巡检（`audit`）**共用同一份**。
+ *
+ * 【为什么必须收窄】见文件头【锚点口径】。判据三条，缺一不可：
+ *  ① 不含路径分隔符（`/` `\`）—— 这一条就堵死 `../docs/…` 逃逸；
+ *  ② 命名是区域日志 `<NN>-…-<日期>.md`（排除 `债务.md` / `index.md` / `_template.md`）；
+ *  ③ 文件真的存在（防手抄错名）。
+ * 返回 `''` = 合法；否则返回**人话原因**（供 `add`/`reanchor` 直接报错、`audit` 直接列出）。
+ */
+const REGION_ANCHOR_RE = /^\d{2}-[^/\\|]+\.md$/;
+function anchorProblem(anchor) {
+  const a = String(anchor ?? '').trim();
+  if (!a || a === '—') return '锚点为空（明细必须落区域日志，禁 `—`）';
+  if (/[/\\]/.test(a)) return `锚点含路径分隔符（只准写 \`daily/架构日志/\` 下的文件名）：\`${a}\``;
+  if (!REGION_ANCHOR_RE.test(a)) return `锚点不是区域日志命名（\`<NN>-<区域>-<日期>.md\`）：\`${a}\``;
+  if (!existsSync(join(LOG_DIR, a))) return `锚点文件不存在：daily/架构日志/${a}`;
+  return '';
+}
+
 function validate({ cls, rate, owner, summary, anchor }) {
   const errs = [];
   if (!CLASSES.includes(cls)) errs.push(`归类 \`${cls}\` 不在白名单 [${CLASSES.join(' / ')}]`);
@@ -335,7 +367,7 @@ function validate({ cls, rate, owner, summary, anchor }) {
   if (!summary) errs.push('摘要为空');
   if (/[|｜]/.test(summary || '')) errs.push('摘要含竖线 → 用「／」代替（裸 `|` 会撑破表格列，本仓已有 14 行因此错位）');
   if (summary && summary.length > 120) errs.push(`摘要 ${summary.length} 字 > 120（一行一债，长叙述写区域文件）`);
-  if (anchor && !existsSync(join(LOG_DIR, anchor))) errs.push(`锚点文件不存在：daily/架构日志/${anchor}`);
+  if (anchor) { const p = anchorProblem(anchor); if (p) errs.push(p); }
   if (errs.length) {
     console.error('❌ 登记被拒（写入口校验，**不是闸**）：');
     for (const e of errs) console.error('   · ' + e);
@@ -377,19 +409,75 @@ function cmdResolve(argv) {
   const status = argVal(argv, '--status') || '已解决';
   if (!STATUS_WORDS.includes(status)) fail(`状态 \`${status}\` 不在白名单 [${STATUS_WORDS.join(' / ')}]`);
   const note = argVal(argv, '--note') || '', date = argVal(argv, '--date') || today();
-  const { lines, rows } = loadLedger();
-  const hit = rows.filter((r) => r.fields.id === id);
-  if (!hit.length) fail(`主表中无 ${id}${existsSync(ARCHIVE) && parseText(readFileSync(ARCHIVE, 'utf8'), 'a').some((r) => r.fields.id === id) ? '（它在归档里 = 已处理完）' : ''}`);
-  if (hit.length > 1) fail(`${id} 在主表出现 ${hit.length} 次（重复 ID）→ 先手工合并`);
-  const r = hit[0], C = MAP[r.kind];
-  const parts = r.line.split('|');
-  const newStatus = `[${status} ${date}${note ? ' · ' + note : ''}]`;
-  parts[1 + C.status] = ` ${newStatus} `;
-  lines[r.li] = parts.join('|');
-  writeFileSync(LEDGER, lines.join('\n'));
-  console.log(`✅ ${id} → ${newStatus}`);
-  console.log(`   旧状态：${r.fields.status}`);
-  console.log('   ↳ 收尾别忘了 `node scripts/debt.mjs archive`（把已完成项移入归档，主表只留待办）');
+  // ── 目标 = 主表优先，**归档也允许改**（2026-09-14）──
+  // 【为什么】`archive` 之后才发现状态文案要修（实证：note 被 PowerShell 的 ASCII 双引号截断）时，
+  //   旧实现**直接硬失败且没有替代路径** ⇒ 人只能手改表格行 = 破「唯一写入者」这条红线。
+  //   归档只是「主表只留待办」的取舍，**不是「不可改」**（成本守恒：合法通过成本必须 ≤ 绕行成本）。
+  const main = loadLedger();
+  const targets = [{ file: LEDGER, label: '主表', lines: main.lines, rows: main.rows }];
+  if (existsSync(ARCHIVE)) {
+    const archText = readFileSync(ARCHIVE, 'utf8');
+    targets.push({ file: ARCHIVE, label: '归档', lines: archText.split(/\r?\n/), rows: parseText(archText, 'archive') });
+  }
+  for (const t of targets) {
+    const hit = t.rows.filter((r) => r && !r.broken && r.fields && r.fields.id === id);
+    if (!hit.length) continue;
+    if (hit.length > 1) fail(`${id} 在${t.label}出现 ${hit.length} 次（重复 ID）→ 先处理重复`);
+    const r = hit[0];
+    if (r.mode === 'manual') fail(`${id} 在${t.label}是「列错位需人工」行 → 先修列，再改状态`);
+    const C = MAP[r.kind];
+    const parts = t.lines[r.li].split('|');
+    const newStatus = `[${status} ${date}${note ? ' · ' + note : ''}]`;
+    parts[1 + C.status] = ` ${newStatus} `;
+    t.lines[r.li] = parts.join('|');
+    writeFileSync(t.file, t.lines.join('\n'));
+    console.log(`✅ ${id} → ${newStatus}`);
+    console.log(`   旧状态：${r.fields.status}`);
+    if (t.label === '主表') console.log('   ↳ 收尾别忘了 `node scripts/debt.mjs archive`（把已完成项移入归档，主表只留待办）');
+    else console.log('   ↳ 改的是**归档**行（主表已无此 ID）；若只是修状态文案，无需再 `archive`');
+    return;
+  }
+  fail(`主表与归档中均无 ${id}`);
+}
+
+/**
+ * reanchor —— 改某条债的**锚点**（明细真源搬家 / 修陈旧锚点）。
+ *
+ * 【为什么需要它】债 ID 永久绑区域（§七.3），但区域日志**按日期分片** —— 同一区每次新审计写新文件，
+ * 于是"明细搬家"是**必然事件**，而本仓红线是**禁手写表格行**（写入者唯一 = 本脚本）。
+ * 没有这个命令时，唯一的出路就是手改 `债务-归档.md`（= 自己破自己的红线）。
+ * 实证：2026-09-14 六条债（TD-22-7~12）因缺此命令而被锚在 `docs/132`（TD-22-17）。
+ *
+ * 【纪律】与 `resolve` 同款：**就地替换锚点列**，不新增行；可改主表**或**归档里的行（自动找）。
+ *  用法：reanchor <TD-ID> --anchor 22-视频-剪辑器-M2计划审计-2026-09-14.md
+ */
+function cmdReanchor(argv) {
+  const id = argv.find((a) => /^TD-\d+-\d+|^MD-\d+-\d+/.test(a));
+  const anchor = argVal(argv, '--anchor');
+  if (!id || !anchor) fail('用法：reanchor <TD-ID> --anchor <区域文件>（如 22-视频-剪辑器-M2计划审计-2026-09-14.md）');
+  const problem = anchorProblem(anchor);
+  if (problem) fail(`锚点被拒（写入口校验，**不是闸**）：\n   · ${problem}`);
+  const files = [{ file: LEDGER, src: '主表', lines: loadLedger().lines }];
+  if (existsSync(ARCHIVE)) files.push({ file: ARCHIVE, src: '归档', lines: readFileSync(ARCHIVE, 'utf8').split(/\r?\n/) });
+  for (const f of files) {
+    const hits = f.lines.map((l, i) => [readRow(l), i]).filter(([r]) => r && !r.broken && r.fields && r.fields.id === id);
+    if (!hits.length) continue;
+    const hit = hits.find(([r]) => r.mode !== 'manual');
+    if (!hit) fail(`${id} 在${f.src}是「列错位需人工」行 → 先修列，再改锚点`);
+    const [r, li] = hit;
+    const C = MAP[r.kind];
+    const parts = f.lines[li].split('|');
+    const old = r.fields.anchor;
+    parts[1 + C.anchor] = ` [${anchor}](./${anchor}) `;
+    f.lines[li] = parts.join('|');
+    writeFileSync(f.file, f.lines.join('\n'));
+    console.log(`✅ ${id} 锚点已改（${f.src}）`);
+    console.log(`   旧：${old}`);
+    console.log(`   新：[${anchor}](./${anchor})`);
+    console.log('   ↳ 别忘了在新锚点文件的「探债」段补该债的明细（叙述不进账本）');
+    return;
+  }
+  fail(`主表与归档中均无 ${id}`);
 }
 
 /**
@@ -458,6 +546,13 @@ function cmdAudit() {
       if (r.mode === 'C') issues.push({ at, kind: '列错位·可自动修', detail: `${f.id}：状态含裸 \`|\`（段数 ${r.inner.length}）` });
       if (r.mode === 'manual') issues.push({ at, kind: '列错位·需人工', detail: `${f.id}：段数 ${r.inner.length}，四级校验均不通过 → 不猜` });
       if (r.mode !== 'manual' && !isAnchorish(f.anchor)) issues.push({ at, kind: '锚点异常', detail: `${f.id}：\`${String(f.anchor).slice(0, 48)}\`` });
+      // 锚点**目标**巡检（2026-09-14 · TD-22-17）：形状对 ≠ 位置对 —— `../docs/…` 形状合法却逃出架构日志。
+      // 判据与写入口**共用** `anchorProblem()`（同一份，防两处漂移）。
+      if (r.mode !== 'manual' && isAnchorish(f.anchor)) {
+        const target = (String(f.anchor).match(/^\*{0,2}\[[^\]]*\]\(([^)]*)\)/)?.[1] ?? '').replace(/^\.\//, '');
+        const p = target ? anchorProblem(target) : '';
+        if (p) issues.push({ at, kind: '锚点非区域文件', detail: `${f.id}：${p}` });
+      }
       const c = normClass(f.class);
       if (c.unknown) issues.push({ at, kind: '归类未知', detail: `${f.id}：\`${f.class}\`` });
       else if (c.from) issues.push({ at, kind: '归类非规范', detail: `${f.id}：\`${c.from}\` → \`${c.value}\`` });
@@ -498,12 +593,13 @@ switch (cmd) {
   case 'show': cmdShow(rest); break;
   case 'add': cmdAdd(rest); break;
   case 'resolve': cmdResolve(rest); break;
+  case 'reanchor': cmdReanchor(rest); break;
   case 'archive': cmdArchive(rest); break;
   case 'audit': cmdAudit(); break;
   default:
     console.log('债务账本读写唯一入口（详见文件头注释）');
     console.log('  读：list [--area NN] [--status X] [--all] | area <NN> | search <关键词> | show <TD-ID>');
-    console.log('  写：add --area NN --summary "…" | resolve <TD-ID> --note "…"');
+    console.log('  写：add --area NN --summary "…" | resolve <TD-ID> --note "…" | reanchor <TD-ID> --anchor <区域文件>');
     console.log('  维护：archive [--dry] | audit');
     process.exit(cmd ? 1 : 0);
 }

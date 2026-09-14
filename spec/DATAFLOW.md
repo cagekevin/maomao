@@ -384,6 +384,7 @@ prompt/promptChips · prompt/promptMention（纯函数）
 base/utils/videoEngine.ts 🟢（uploadResult 失败返 null；crossOrigin 走 setCrossOriginForReadable）
 base/utils/captureFrame.ts 🟢（跨源读取策略 setCrossOriginForReadable 收口于此且已导出供全树复用）
 base/utils/encoderProbe.ts 🟢 · base/utils/audioPeaks.ts 🟢
+base/utils/timeline/sourceTime.ts 🟢（跨域唯一映射原语：时间轴 ↔ 源时刻；剪辑器 8 处采纳、内联 0 处）
 hooks/useVideoPoster.ts 🟢（crossOrigin 接回单点原语，删第二判据）
 base/ui/VideoThumbnail.tsx 🟢（显示组件，preload=metadata 取首帧，不抽帧）
 nodes/VideoGenerate.tsx 🟢（videoUrl 落盘受 01/02 守护，非债）

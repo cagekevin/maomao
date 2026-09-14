@@ -210,3 +210,49 @@ describe('C11 时间轴标尺用共用原语（不要第二份刻度）· 归属
     expect(code).toContain('snapTime(');
   });
 });
+
+/* ────────────────────────────────────────────────────────────────
+ * 媒体元素宿主唯一（2026-09-14 · `docs/132` §九 P-7 · 债 `TD-22-13` 的前半）
+ *
+ * 【守什么（红线闸 / 结构偏好闸）】**结构偏好闸** —— 它钉一条`docs/132` §3.2b 的契约，
+ * 不是 `CLAUDE.md` 级物理红线 ⇒ 证据充分时可改（改法见下）。
+ *
+ * 【为什么要有这条】M2 监视器要「看画面」、走带要「出声」。最省事的错误做法是**再挂一份媒体宿主**：
+ *   ① 工作台里再写一个 `<PlaybackSink />`；或 ② 工作台直接 `document.createElement('video')`
+ *      / 自己 JSX 一个 `<video>`。
+ * 两种做法的后果都是同一素材**双份解码 + 双份出声**，而**没有任何一处会红**
+ * （用户只会听到声音重了一遍 / 机器发烫，且不会把它归因到「宿主挂了两份」）。
+ * 这正是本仓最忌的失败型态：**静默**（`docs/132` §十 F1）。
+ *
+ * 【判据】全 `videoEditor/**` 内**渲染** `<video>` / `<audio>` 的文件**恰好一处**
+ * （现状 = `panels/dock/PlaybackSink.tsx` = 走带元素池）。
+ * 断言「恰好这一处」而不是「不含某文件」：**挂第二个宿主也会变成 2 条** ⇒ 命中的是行为，不是名单。
+ *
+ * 【为什么现在立（守卫先于代码）】`docs/123` §二.6 的教训：闸要在写码前立，否则回潮。
+ * 本条**今天就是绿的**（只有一处宿主），到 M2 工作台落地那天才真正生效。
+ *
+ * 【什么时候该改它 / 怎么改】若将来**真**需要第二个媒体宿主（例如可拖出的独立预览窗）：
+ *   先证明「不会双份出声」（宿主单例被两处**引用**，而非各自 `new`），再把本条改成**反向判据**
+ *   （「声明为媒体宿主的文件不得自建 `<video>`/`<audio>`」，与 §二.3 的按形态禁 portal 同款手法）
+ *   —— **不要直接删掉本条**，那等于把静默失败的口子重新打开。
+ * ──────────────────────────────────────────────────────────────── */
+
+/** 渲染中的媒体标签（`<video ` / `<audio ` / `<video>` / `<video/`）。 */
+const MEDIA_TAG_RE = /<(video|audio)[\s/>]/;
+
+/** 唯一的媒体元素宿主（改判据时同步改它 + 上面那段说明）。 */
+const EXPECTED_MEDIA_HOST = 'src/components/videoEditor/panels/dock/PlaybackSink.tsx';
+
+/** 去注释：正文里写「不用 `<video>`」的说明文字不能算用了它（与 `readFileStripped` 同款）。 */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+}
+
+describe('媒体元素宿主唯一（防双份解码 / 双份出声）· docs/132 §九 P-7', () => {
+  it('全 videoEditor 层只有一个文件渲染 <video>／<audio>（= 走带元素池）', () => {
+    const hosts = collectEditorFiles()
+      .filter((f) => MEDIA_TAG_RE.test(stripComments(readFileSync(f, 'utf8'))))
+      .map((f) => f.replace(/\\/g, '/'));
+    expect(hosts).toEqual([EXPECTED_MEDIA_HOST]);
+  });
+});
