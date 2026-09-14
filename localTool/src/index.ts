@@ -451,7 +451,7 @@ async function main(): Promise<void> {
     console.log('           /api/files/open-dir  /api/files/list');
     console.log('    任务:   /api/tasks  /api/tasks/save  /api/tasks/batch-save');
     console.log('           /api/tasks/delete  /api/tasks/batch-delete  /api/tasks/clear');
-    console.log('    资源:   /api/resources  /api/resources/batch-save');
+    console.log('    资源:   /api/resources');
     console.log('           /api/resources/delete  /api/resources/clear');
     console.log('    管理:   /api/admin/stats  /api/admin/cleanup');
     console.log('           /api/admin/export  /api/admin/import');

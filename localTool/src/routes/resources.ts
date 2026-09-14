@@ -554,27 +554,6 @@ export async function handleResourcesGet(
   });
 }
 
-export async function handleResourcesBatchSave(
-  req: IncomingMessage,
-  res: ServerResponse,
-): Promise<void> {
-  const body = (await parseJsonBody(req)) as Record<string, unknown>[] | null;
-  if (!body || !Array.isArray(body)) return sendError(res, 'Body must be an array', 400);
-
-  const db = await getDb();
-  // 无 id 的项**不静默跳过**：返回 skipped 计数，让调用方知道"我没全存进去"
-  let skipped = 0;
-  for (const resource of body) {
-    if (!resource || typeof resource !== 'object' || !resource.id) {
-      skipped++;
-      continue;
-    }
-    upsertResource(db, resourceToRow(resource));
-  }
-  debouncedSaveDb();
-  return json(res, { code: 0, data: { ok: true, saved: body.length - skipped, skipped } });
-}
-
 export async function handleResourcesDelete(
   req: IncomingMessage,
   res: ServerResponse,

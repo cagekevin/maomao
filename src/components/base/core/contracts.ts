@@ -600,14 +600,16 @@ export function parseShotHandle(handle?: string | null) {
  *   - **与节点文件真源一致性由静态闸守护**：`node scripts/check-node-handles.mjs` 已扩展为
  *     对账「节点文件 NodeShell prop ⊆ 本表」，漏登记即红（防回潮，见脚本头）。
  *
- * 【唯一豁免】scriptBoxNode 的 target `in` 走 overlayHandles（非 NodeShell prop），
- *   因其输入口挂在节点根 div 上（showHandles=false + overlayHandles，见 ScriptBoxNode.tsx）；
- *   其 source 口为动态多口（shot-*），不属「固定一进一出」，由 SHOT_HANDLE_PREFIX 契约表达。
- *   GridMerge 的多输出口当前收敛为单一 'merged-output'（历史多口已下线），故仍登记固定口。
+ * 【非标端口豁免 · 机器可读（TD-17-4）】本表中 `customHandles: true` 的条目 = 该节点手写端口
+ *   （overlayHandles / 动态多口），合法豁免「端口渲染硬门禁」规则 1 的 `showHandles=false` + `<CustomHandle>` 组合。
+ *   唯一实例：scriptBoxNode 的 target `in` 经 overlayHandles（非 NodeShell prop）挂在节点根 div 上
+ *   （showHandles=false + overlayHandles，见 ScriptBoxNode.tsx）；其 source 口为动态多口（shot-*），
+ *   由 SHOT_HANDLE_PREFIX 契约表达。该豁免**只在本表声明一份**，闸 `check-node-handles.mjs` 运行时派生，
+ *   禁止在闸内再手抄（SSOT：漂移根因）。GridMerge 多输出口已收敛为单一 'merged-output'，故仍登记固定口。
  */
 export const NODE_HANDLE_CONTRACT: Record<string, NodeHandleContract> = {
   /** 剧本盒子：输入口 'in' 经 overlayHandles 注册（非 NodeShell prop）；出口为动态 shot-* 多口，不在此登记 */
-  scriptBoxNode: { targetHandleId: 'in' },
+  scriptBoxNode: { targetHandleId: 'in', customHandles: true },
   /** 全景图（懒加载）：固定一进一出（three 重依赖） */
   panoramaNode: { targetHandleId: 'in', sourceHandleId: 'main-output' },
   /** 视频处理（懒加载）：固定一进一出 */
@@ -630,6 +632,8 @@ export const NODE_HANDLE_CONTRACT: Record<string, NodeHandleContract> = {
 export interface NodeHandleContract {
   targetHandleId?: string;
   sourceHandleId?: string;
+  /** 该节点手写端口（overlayHandles / 动态多口），合法豁免端口渲染硬门禁规则 1；仅真源在此声明 */
+  customHandles?: boolean;
 }
 
 /**
@@ -1102,13 +1106,6 @@ export const apiRegistry = {
     fn: '(别名 handler=handleUpload)',
     method: 'POST',
     path: '/api/upload/app-asset',
-    envelope: 'code-data',
-    status: 'RESERVED',
-  },
-  resourcesBatchSave: {
-    fn: '(前端零消费)',
-    method: 'POST',
-    path: '/api/resources/batch-save',
     envelope: 'code-data',
     status: 'RESERVED',
   },

@@ -18,16 +18,16 @@
  *   1. 一个节点文件里若同时出现 `showHandles={false}`，说明作者显式接管了端口渲染，
  *      此时禁止在 JSX 里裸写 <CustomHandle .../>（应改用 NodeShell 的
  *      targetHandleId / sourceHandleId prop 声明，让端口走标准渲染路径）。
- *   2. 例外白名单 HANLE_EXEMPT：确实需要「非标位置/多端口」的复合节点
- *      （如 ScriptBoxNode 每镜头一个口、GridMergeNode 多输出口），
- *      逐个登记并注明原因，禁止默默新增。
+ *   2. 例外（规则 1）：节点级「非标端口」豁免由真源 `contracts.ts::NODE_HANDLE_CONTRACT[].customHandles`
+ *      机器可读声明、本脚本运行时派生（见 `customHandleNodeFiles`），**不在本闸手抄**；
+ *      仅「实现定义文件」NodeShell（非 node type）留在此处。禁止真源与闸两处重复维护（SSOT）。
  *
  * 【★闸的申诉口 · 三问（2026-09-14 入规 → 架构师心法 §零.4.2）】
  *   Q1 守什么：**结构偏好闸**（端口渲染路径 = 写法/分层偏好），但守的后果是正确性（漏口 = 边静默不渲染）。
  *   Q2 何时该改：**净新增"合法复合节点"被拦时，先问"能否让端口从 `NODE_HANDLE_CONTRACT` 派生"**；
- *               `HANLE_EXEMPT` 出现**第 3 条同型例外** → 判据该改（例外成堆 = 规则没描述真实语义）。
- *   Q3 怎么改：优先改**真源** `contracts.ts::NODE_HANDLE_CONTRACT`（端口真源，App/lazyNode 只允许派生）；
- *               `HANLE_EXEMPT`（**本闸内清单**）**只收窄**，新增须逐条注明原因。
+ *               `HANDLE_EXEMPT` 出现**第 3 条同型例外**（非 node type 的实现文件）→ 判据该改。
+ *   Q3 怎么改：优先改**真源** `contracts.ts::NODE_HANDLE_CONTRACT`（加 `customHandles: true`，端口真源，App/lazyNode 只允许派生）；
+ *               `HANDLE_EXEMPT`（**本闸内清单，仅非 node type 文件**）**只收窄**，新增须逐条注明原因。
  *
  * 边界：
  *  - 只做文件级文本扫描（零新依赖），不做 AST；注释行整行跳过。
@@ -45,7 +45,10 @@ import { defaultTargets } from './check-targets.mjs';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const root = resolve(__dirname, '..');
 
-// ── 合理特例白名单（复合节点：非标位置 / 动态多端口，必须走手写口）──
+// ── 闸内「显式豁免」只保留**非 node type** 的实现定义文件 ──
+// 节点级的「非标端口」豁免（如 ScriptBoxNode 走 overlayHandles）由真源
+// `src/components/base/core/contracts.ts::NODE_HANDLE_CONTRACT[].customHandles` 机器可读声明、
+// 本脚本扫描前运行时派生（见 `customHandleNodeFiles`），**本闸不再手抄**（SSOT：仅真源一份，TD-17-4）。
 // key = 相对仓库根的路径（不带扩展名），value = 豁免原因（文档化，禁止裸加）。
 //
 // 收紧原则（2026-09-10 端口收口）：只有「端口数量/位置随数据动态变化，无法用单个
@@ -54,10 +57,7 @@ const root = resolve(__dirname, '..');
 // 不得进白名单。历史教训：GridMerge/GridSplit/ImageBox/Group 都曾被错误豁免，掩盖了
 // children 手写口定位基准错误（建边成功但线不显示）的真实隐患。
 const HANDLE_EXEMPT = {
-  'src/components/nodes/ScriptBoxNode':
-    '每镜头一个 source 口（shot-*）+ 左侧 in 口，端口数量随 data.shots 动态变化，非标一格；' +
-    '且必须走 overlayHandles（挂根 div 基准正确），不能用 children（code-008）',
-  'src/components/base/ui/NodeShell': '端口渲染的唯一标准实现，本身即定义处',
+  'src/components/base/ui/NodeShell': '端口渲染的唯一标准实现，本身即定义处（非 node type，不属 NODE_HANDLE_CONTRACT）',
 };
 
 const SHOW_HANDLES_OFF_RE = /showHandles\s*=\s*\{\s*false\s*\}/;
@@ -65,6 +65,35 @@ const CUSTOM_HANDLE_RE = /<CustomHandle\b/;
 
 const args = process.argv.slice(2);
 const targets = args.length > 0 ? args.map((a) => resolve(root, a)) : defaultTargets(root);
+
+// ── 加载端口真源（NODE_HANDLE_CONTRACT）并派生三组集合（规则 1/3 共用，须在扫描前就绪）──
+// TD-17-4 · SSOT 收口：节点级「非标端口」豁免由真源 `customHandles: true` 机器可读声明，
+// 此处运行时派生其节点文件路径，闸内不再手抄（避免漂移 → 闸与真源两处维护的债）。
+let contractTargets = new Set();
+let contractSources = new Set();
+let customHandleNodeFiles = new Set();
+try {
+  const contracts = await import(
+    pathToFileURL(resolve(root, 'src/components/base/core/contracts.ts')).href
+  );
+  for (const [type, h] of Object.entries(contracts.NODE_HANDLE_CONTRACT || {})) {
+    if (h.targetHandleId) contractTargets.add(h.targetHandleId);
+    if (h.sourceHandleId) contractSources.add(h.sourceHandleId);
+    if (h.customHandles) {
+      const pascal = type.charAt(0).toUpperCase() + type.slice(1);
+      const rel = `src/components/nodes/${pascal}`;
+      try {
+        readFileSync(resolve(root, `${rel}.tsx`), 'utf8');
+        customHandleNodeFiles.add(rel);
+      } catch {
+        // 推导不到 / 文件缺失 → 不豁免，交由规则 1 红出后回真源补（fail-safe）
+      }
+    }
+  }
+} catch (e) {
+  console.error('  ✖ 无法加载 contracts.NODE_HANDLE_CONTRACT：', e.message);
+  process.exit(1);
+}
 
 let violations = 0;
 
@@ -91,7 +120,7 @@ for (const file of targets) {
   }
 
   if (offLines.length === 0 || handleLines.length === 0) continue;
-  if (HANDLE_EXEMPT[relNoExt]) continue; // 已登记特例
+  if (HANDLE_EXEMPT[relNoExt] || customHandleNodeFiles.has(relNoExt)) continue; // 已登记特例（含真源派生的非标端口节点）
 
   violations++;
   console.error(
@@ -111,20 +140,7 @@ for (const file of targets) {
 // 了非默认口但契约表漏登记），App 恢复存量边/建边时补不正 handle → 边静默不渲染 / code-008。
 // 本规则对账「节点文件里出现的每个 targetHandleId/sourceHandleId 字面量值，必须在契约表对应侧存在」，
 // 漏登记即红（防漂移回潮）。
-let contractTargets = new Set();
-let contractSources = new Set();
-try {
-  const contracts = await import(
-    pathToFileURL(resolve(root, 'src/components/base/core/contracts.ts')).href
-  );
-  for (const h of Object.values(contracts.NODE_HANDLE_CONTRACT || {})) {
-    if (h.targetHandleId) contractTargets.add(h.targetHandleId);
-    if (h.sourceHandleId) contractSources.add(h.sourceHandleId);
-  }
-} catch (e) {
-  console.error('  ✖ 无法加载 contracts.NODE_HANDLE_CONTRACT：', e.message);
-  process.exit(1);
-}
+
 
 // 节点文件里的 NodeShell handle prop 字面量（只扫节点目录，排除注释行）
 const NODE_DIR = resolve(root, 'src/components/nodes');
@@ -165,7 +181,7 @@ for (const file of defaultTargets(root)) {
 }
 
 if (violations === 0) {
-  console.log(`\n节点端口契约校验通过 ✔（已扫描 ${targets.length} 个文件，特例 ${Object.keys(HANDLE_EXEMPT).length} 个已登记；契约表 target ${contractTargets.size} / source ${contractSources.size}）`);
+  console.log(`\n节点端口契约校验通过 ✔（已扫描 ${targets.length} 个文件，特例 ${Object.keys(HANDLE_EXEMPT).length + customHandleNodeFiles.size} 个已登记（含真源派生）；契约表 target ${contractTargets.size} / source ${contractSources.size}）`);
   process.exit(0);
 } else {
   console.error(`\n发现 ${violations} 处端口契约问题（会导致连线不渲染 / 补边漏 handle）✖`);
