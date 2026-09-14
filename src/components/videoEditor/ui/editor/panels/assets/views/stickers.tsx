@@ -26,17 +26,8 @@ import {
 import { useStickersStore } from '@videoEditor/stores/stickers-store';
 import type { StickerCategory } from '@videoEditor/types/stickers';
 import { cn } from '@videoEditor/utils/ui';
-import {
-  ArrowRightIcon,
-  HappyIcon,
-  ClockIcon,
-  LayoutGridIcon,
-  MultiplicationSignIcon,
-  SparklesIcon,
-  HashtagIcon,
-} from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
 import { Spinner } from '@videoEditor/ui/ui/spinner';
+import { LayoutGrid, Sparkles, Hash, Smile, Clock, X, ArrowRight } from 'lucide-react';
 
 function isStickerCategory(value: string): value is StickerCategory {
   return STICKER_CATEGORIES.includes(value as StickerCategory);
@@ -57,25 +48,25 @@ export function StickersView() {
         {
           value: 'all',
           label: '全部',
-          icon: <HugeiconsIcon icon={LayoutGridIcon} className="size-3" />,
+          icon: <LayoutGrid className="size-3" />,
           content: <StickersContentView category="all" />,
         },
         {
           value: 'general',
           label: '图标',
-          icon: <HugeiconsIcon icon={SparklesIcon} className="size-3" />,
+          icon: <Sparkles className="size-3" />,
           content: <StickersContentView category="general" />,
         },
         {
           value: 'brands',
           label: '品牌',
-          icon: <HugeiconsIcon icon={HashtagIcon} className="size-3" />,
+          icon: <Hash className="size-3" />,
           content: <StickersContentView category="brands" />,
         },
         {
           value: 'emoji',
           label: '表情',
-          icon: <HugeiconsIcon icon={HappyIcon} className="size-3" />,
+          icon: <Smile className="size-3" />,
           content: <StickersContentView category="emoji" />,
         },
       ]}
@@ -150,7 +141,7 @@ function CollectionGrid({
 function EmptyView({ message }: { message: string }) {
   return (
     <div className="bg-background flex h-full flex-col items-center justify-center gap-3 p-4">
-      <HugeiconsIcon icon={HappyIcon} className="text-muted-foreground size-10" />
+      <Smile className="text-muted-foreground size-10" />
       <div className="flex flex-col gap-2 text-center">
         <p className="text-lg font-medium">{'未找到贴纸'}</p>
         <p className="text-muted-foreground text-sm text-balance">{message}</p>
@@ -321,7 +312,7 @@ function StickersContentView({ category }: { category: StickerCategory }) {
             {recentStickers.length > 0 && viewMode === 'browse' && (
               <div className="h-full">
                 <div className="mb-2 flex items-center gap-2">
-                  <HugeiconsIcon icon={ClockIcon} className="text-muted-foreground size-4" />
+                  <Clock className="text-muted-foreground size-4" />
                   <span className="text-sm font-medium">{'最近'}</span>
                   <TooltipProvider>
                     <Tooltip>
@@ -331,10 +322,7 @@ function StickersContentView({ category }: { category: StickerCategory }) {
                           onClick={clearRecentStickers}
                           className="hover:bg-accent ml-auto flex size-5 items-center justify-center rounded p-0"
                         >
-                          <HugeiconsIcon
-                            icon={MultiplicationSignIcon}
-                            className="text-muted-foreground size-3"
-                          />
+                          <X className="text-muted-foreground size-3" />
                         </button>
                       </TooltipTrigger>
                       <TooltipContent>
@@ -470,7 +458,7 @@ function CollectionItem({ title, subtitle, onClick }: CollectionItemProps) {
         <p className="font-medium">{title}</p>
         <p className="text-muted-foreground text-xs">{subtitle}</p>
       </div>
-      <HugeiconsIcon icon={ArrowRightIcon} className="size-4" />
+      <ArrowRight className="size-4" />
     </Button>
   );
 }

@@ -68,6 +68,12 @@ import { patchNodeDataById } from './hooks/useNodeData.ts';
 import { CanvasEdgesProvider } from './components/base/canvas/CanvasEdgesContext.tsx';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts.ts';
 import { isCanvasSuppressed, subscribeModalLayer } from './components/base/core/modalLayer.ts';
+// 剪辑器开合 = 会话态（不持久化）。见模块头：这是"界面开没开"，不是"用户偏好"。
+import {
+  isEditorSessionOpen,
+  setEditorSessionOpen,
+  subscribeEditorSession,
+} from './components/base/core/editorSession.ts';
 // 更新(2026-09-14)：自建 VideoEditorDock 退役，改为挂载 cutia 版 EditorShell（docs/130-cutia搬迁计划书）。
 // import VideoEditorDock from './components/videoEditor/panels/dock/VideoEditorDock.tsx';
 import { EditorShell } from './components/videoEditor/EditorShell.tsx';
@@ -334,7 +340,12 @@ function Canvas() {
 
   // 应用设置单一订阅（读写唯一入口 appSettings）：agentOpen/minimapOn/performanceMode/pinnedTools 从此快照解构。
   // 默认值/类型由 settingRegistry.ts 单一真源派生；写统一走 setSetting（内存+持久化+通知），不再用 useState+useEffect 镜像回写。
-  const { agentOpen, videoEditorOpen, minimapOn, performanceMode, pinnedTools } = useAppSettings();
+  const { agentOpen, minimapOn, performanceMode, pinnedTools } = useAppSettings();
+
+  // 剪辑器开合 = **会话态**（`base/core/editorSession.ts`），不是 appSettings 设置项。
+  // 【为什么】设置项会持久化 + 同步云端 → 「打开过一次就永远自动开」（2026-09-15 用户报障）。
+  // 这里用订阅式读法（React Flow 的 deleteKeyCode 需要它在开合时变化）。
+  const videoEditorOpen = React.useSyncExternalStore(subscribeEditorSession, isEditorSessionOpen);
 
   // 视图切换：canvas（画布）/ accounts（多开整页）/ settings（独立设置框架：侧栏 + 舞台）
   const [view, setView] = React.useState<'canvas' | 'accounts' | 'settings'>('canvas');
@@ -1553,11 +1564,15 @@ function Canvas() {
         {videoEditorOpen && (
           // ve-scope：cutia 主题作用域（样式隔离，不污染画布 token）；
           // dark：cutia 默认暗色主题（见 ve-theme.css）。
-          <div className="ve-scope dark fixed inset-0 z-ceiling">
+          // z-modal：编辑器是**一个全屏弹窗**，归体系里 `modal 9999` 位 ——
+          // 不用 z-ceiling（那是 Toast/错误屏这类"最后手段"的位；
+          // 顶格还有个恶果：Portal 到 body 的弹层(10000)必须"比最大值还高"才盖得住它 = 不可能，
+          // 于是编辑器内的下拉/菜单/对话框全体被自家面板盖住（字体下拉"根本没显示出来"的根因）。
+          <div className="ve-scope dark fixed inset-0 z-modal">
             <EditorShell
               key={activeProjectId}
               canvasProjectId={activeProjectId}
-              onClose={() => setSetting('videoEditorOpen', false)}
+              onClose={() => setEditorSessionOpen(false)}
             />
           </div>
         )}
@@ -1569,7 +1584,7 @@ function Canvas() {
           <button
             type="button"
             title="展开时间轴"
-            onClick={() => setSetting('videoEditorOpen', true)}
+            onClick={() => setEditorSessionOpen(true)}
             className="group absolute bottom-0 left-1/2 -translate-x-1/2 z-float flex items-center justify-center
                        w-12 h-6 rounded-t-xl border border-b-0 border-edge-strong/60
                        bg-surface-1 text-secondary shadow-[0_-6px_18px_rgba(0,0,0,0.45)]

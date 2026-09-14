@@ -84,7 +84,7 @@ const SelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
-        'bg-popover text-popover-foreground z-50 max-h-96 min-w-32 overflow-hidden rounded-2xl border p-2 shadow-lg',
+        'bg-popover text-popover-foreground z-modal-raise max-h-96 min-w-32 overflow-hidden rounded-2xl border p-2 shadow-lg',
         className,
       )}
       position={position}
@@ -95,11 +95,16 @@ const SelectContent = React.forwardRef<
       {...props}
     >
       <SelectScrollUpButton />
+      {/*
+        ⚠️ 这里曾是 `h-(--radix-select-trigger-height)` —— 它把**列表视口锁成触发器的高度**
+        （触发器 h-8 = 32px）。后果：下拉里只能露出一条缝，9 个字体项看起来像"根本点不开/
+        选不了"（用户 2026-09-15："字体不能选择"）。
+        popper 下只需要约束**最小宽度**（跟触发器同宽，避免短项把弹层缩瘦）；
+        高度必须让内容自己撑开，再由 `SelectContent` 的 `max-h-96` 封顶 + 出现滚动条。
+        `min-w-` 用 `--radix-select-trigger-width`，`h-` 一律不要出现在这里。
+      */}
       <SelectPrimitive.Viewport
-        className={cn(
-          position === 'popper' &&
-            'h-(--radix-select-trigger-height) w-full min-w-(--radix-select-trigger-width)',
-        )}
+        className={cn(position === 'popper' && 'w-full min-w-(--radix-select-trigger-width)')}
       >
         {children}
       </SelectPrimitive.Viewport>

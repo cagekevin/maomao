@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { isEditableTarget } from './uiHooks.ts';
-import { getSetting } from '../store/appSettings.ts';
+import { isEditorSessionOpen } from './editorSession.ts';
 
 /**
  * 全屏模态层登记处 —— 画布全局快捷键的「让位」依据。
@@ -174,16 +174,20 @@ export function isCanvasSuppressed(): boolean {
 /**
  * 常驻基座（视频剪辑器）是否处于**激活位** —— `docs/120` C10.3「键盘归属由激活位派生，不由焦点派生」。
  *
- * 判据单点：`videoEditorOpen` 这个设置**只在本函数里被读**（`docs/123` §二.6 G-3 / §二.7 P8）。
+ * 判据单点：剪辑器的开合状态**只在本函数里被读**（`docs/123` §二.6 G-3 / §二.7 P8）。
  * `App` 的 `deleteKeyCode` 与 `useCanvasShortcuts` 的 undo/redo 让位、以及基座自己的 keydown，
  * 全部经本函数 / `editorKeyAction()` 判断，不许在别处再抄一遍。
+ *
+ * 【状态的真相源】`editorSession.ts`（**会话态**，不持久化）。
+ * 改前它读 `getSetting('videoEditorOpen')` —— 那是持久化设置项，导致
+ * 「打开过一次 → 刷新后自动再开」（2026-09-15 用户报障）。开合是**会话态**不是偏好，已迁出。
  *
  * 【为什么不像模态层那样整体让位】基座是**非模态常驻底部层**（不登记 `modalLayer`，见 C10.1）：
  * 画布仍在被正常操作（主入口就是「在画布上点选素材 → 入轨」），把画布快捷键整体掐掉会直接毁掉主入口。
  * 故只让位**归属剪辑器的那组键**（见 `editorKeyAction`）。
  */
 export function isEditorActive(): boolean {
-  return getSetting('videoEditorOpen') === true;
+  return isEditorSessionOpen();
 }
 
 /** 归属剪辑器的动作（`docs/120` C10：只这三个语义，C10.4 禁止再扩）。 */

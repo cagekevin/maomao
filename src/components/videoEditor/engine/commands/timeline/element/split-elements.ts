@@ -53,12 +53,26 @@ export class SplitElementsCommand extends Command {
           const leftVisibleDuration = relativeTime;
           const rightVisibleDuration = element.duration - relativeTime;
 
+          // ⚠️ trim 换算必须过 playbackRate（与渲染判据同源，见 `getVisualSourceTime`）：
+          //   源时间 = trimStart + (时间轴时间 - startTime) × rate
+          //   → 时间轴上的切开偏移 Δ 在**源素材域**对应 Δ × rate。
+          //   变速后按 1:1 算 trim 偏移，右半的源入点就错位（画面从错的位置继续播）。
+          // 【trimEnd 不变式】trimEnd = trimStart + duration × rate（渲染与导出解码
+          //   `mediabunny` 都按这个式子自算上界，从不直接读 trimEnd —— 写者必须维持它一致，
+          //   否则就是给未来"按源出点直觉消费 trimEnd"的人埋雷）。
+          //   故左半 trimEnd 显式按不变式重算，而不是在旧 trimEnd 上加减。
+          const rate =
+            'playbackRate' in element && typeof element.playbackRate === 'number'
+              ? element.playbackRate
+              : 1;
+          const leftSourceDuration = leftVisibleDuration * rate;
+
           if (this.retainSide === 'left') {
             return [
               {
                 ...element,
                 duration: leftVisibleDuration,
-                trimEnd: element.trimEnd + rightVisibleDuration,
+                trimEnd: element.trimStart + leftSourceDuration,
                 name: `${element.name} (left)`,
               },
             ];
@@ -76,7 +90,7 @@ export class SplitElementsCommand extends Command {
                 id: newId,
                 startTime: this.splitTime,
                 duration: rightVisibleDuration,
-                trimStart: element.trimStart + leftVisibleDuration,
+                trimStart: element.trimStart + leftSourceDuration,
                 name: `${element.name} (right)`,
               },
             ];
@@ -93,7 +107,7 @@ export class SplitElementsCommand extends Command {
             {
               ...element,
               duration: leftVisibleDuration,
-              trimEnd: element.trimEnd + rightVisibleDuration,
+              trimEnd: element.trimStart + leftSourceDuration,
               name: `${element.name} (left)`,
             },
             {
@@ -101,7 +115,7 @@ export class SplitElementsCommand extends Command {
               id: secondElementId,
               startTime: this.splitTime,
               duration: rightVisibleDuration,
-              trimStart: element.trimStart + leftVisibleDuration,
+              trimStart: element.trimStart + leftSourceDuration,
               name: `${element.name} (right)`,
             },
           ];

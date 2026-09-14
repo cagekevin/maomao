@@ -1,98 +1,56 @@
 /**
- * cutia 编辑器主题 v3 —— 扁平单层 token，无桥接
+ * cutia 编辑器主题 v4 —— 单一背景值版
  *
- * 【架构】
- *   · 本文件用 `.ve-scope` / `.ve-scope.dark` 直接定义**终值** `--ve-*` token（一层，无中转）；
- *   · `ve-tailwind-colors.ts` 把 tailwind 颜色名逐个映射到 `--ve-*`（带宿主回落值，隔离不破坏）；
- *   · 组件里只允许：结构类（flex/定位/尺寸）+ 语义类（.ve-*）+ token 引用类（bg-primary 等）。
- * 【真相源】mockup/video-editor-current-mockup.html —— 苹果式极简：黑白灰、发丝线、白主色。
- * 【改样式的唯一入口】本文件。找不到的视觉 → 在 §4/§6/§7 加规则，不要回组件里加颜色类。
+ * 【铁律】全编辑器**只有一个背景值** `--ve-bg`：
+ *   · 顶栏 / 面板 / 时间线 / 菜单 / 对话框 / 输入框 —— 全部同一个底；
+ *   · 区分层级只靠：1px 发丝线 + 投影；
+ *   · 悬停/激活反馈 = 前景色薄纱（rgb(var(--ve-fg) / α)），不是第二种背景色。
+ * 【真相源】mockup/video-editor-current-mockup.html —— 苹果式极简。
  */
 
 /* ══════════════════════════════════════════════════════════════
  * 1. token —— 亮色（编辑器默认暗色，亮色仅兜底）
  * ══════════════════════════════════════════════════════════════ */
 .ve-scope {
-  /* 面 */
-  --ve-bg: hsl(0, 0%, 100%);
-  --ve-fg: hsl(0, 0%, 11%);
-  --ve-popover: hsl(0, 0%, 100%);
-  --ve-popover-hover: hsl(0, 0%, 96%);
-  --ve-popover-fg: hsl(0, 0%, 2%);
-  /* 主操作：亮色模式 = 近黑（Apple 亮色按钮做法） */
-  --ve-primary: hsl(0, 0%, 11%);
-  --ve-on-primary: hsl(0, 0%, 100%);
-  /* 次级面 / 悬停面 */
-  --ve-secondary: hsl(0, 0%, 96%);
-  --ve-on-secondary: hsl(0, 0%, 35%);
-  --ve-accent: hsl(0, 0%, 96%);
-  --ve-on-accent: hsl(0, 0%, 11%);
-  --ve-muted: hsl(0, 0%, 85.1%);
-  --ve-muted-fg: hsl(0, 0%, 45%);
-  /* 线与输入 */
-  --ve-border: hsl(0, 0%, 91%);
-  --ve-input: hsl(0, 0%, 85.1%);
-  --ve-ring: hsl(0, 0%, 55%);
-  /* 状态 */
-  --ve-danger: hsl(0, 83%, 50%);
-  --ve-on-danger: hsl(0, 0%, 100%);
-  --ve-ok: hsl(141, 71%, 48%);
-  --ve-on-ok: hsl(0, 0%, 100%);
-  /* 图表/数据 */
-  --ve-chart-1: hsl(220, 70%, 50%);
-  --ve-chart-2: hsl(160, 60%, 45%);
-  --ve-chart-3: hsl(30, 80%, 55%);
-  --ve-chart-4: hsl(280, 65%, 60%);
-  --ve-chart-5: hsl(340, 75%, 55%);
+  /* 唯一背景值 */
+  --ve-bg: 255 255 255;
+  /* 前景（文字 + 交互薄纱的来源） */
+  --ve-fg: 28 28 28;
+  /* 主操作 = 前景同值（Apple：亮色黑钮 / 暗色白钮） */
+  --ve-primary: 28 28 30;
+  --ve-on-primary: 255 255 255;
+  /* 线与状态 */
+  --ve-border: 232 232 232;
+  --ve-ring: 140 140 140;
+  --ve-danger: 239 68 68;
+  --ve-on-danger: 255 255 255;
+  --ve-ok: 36 209 96;
+  --ve-on-ok: 255 255 255;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* ══════════════════════════════════════════════════════════════
  * 2. token —— 暗色（编辑器主主题）
- *    主色 = 苹果白 #f5f5f7（激活/选中=白），按钮文字=近黑。
  * ══════════════════════════════════════════════════════════════ */
 .ve-scope.dark {
-  --ve-bg: hsl(0, 0%, 7%);
-  --ve-fg: hsl(0, 0%, 87%);
-  --ve-popover: hsl(0, 0%, 16%);
-  --ve-popover-hover: hsl(0, 0%, 22%);
-  --ve-popover-fg: hsl(0, 0%, 95%);
-  --ve-primary: hsl(0, 0%, 96%);
-  --ve-on-primary: hsl(0, 0%, 11%);
-  --ve-secondary: hsl(0, 0%, 14%);
-  --ve-on-secondary: hsl(0, 0%, 85%);
-  --ve-accent: hsl(0, 0%, 14%);
-  --ve-on-accent: hsl(0, 0%, 95%);
-  --ve-muted: hsl(0, 0%, 20%);
-  --ve-muted-fg: hsl(0, 0%, 55%);
-  --ve-border: hsl(0, 0%, 16%);
-  --ve-input: hsl(0, 0%, 20%);
-  --ve-ring: hsl(0, 0%, 50%);
-  --ve-danger: hsl(0, 83%, 50%);
-  --ve-on-danger: hsl(0, 0%, 100%);
-  --ve-ok: hsl(141, 71%, 52%);
-  --ve-on-ok: hsl(0, 0%, 100%);
-}
-
-/* 面板层：比底面亮一档 */
-.ve-scope.dark .panel {
-  --ve-bg: hsl(0, 0%, 10%);
-  --ve-fg: hsl(0, 0%, 85%);
-  --ve-border: hsl(0, 0%, 18%);
-  --ve-accent: hsl(0, 0%, 15%);
-  --ve-on-accent: hsl(0, 0%, 93%);
-  --ve-secondary: hsl(0, 0%, 14%);
-  --ve-on-secondary: hsl(0, 0%, 85%);
-  --ve-muted: hsl(0, 0%, 22%);
-  --ve-input: hsl(0, 0%, 22%);
-  --ve-ring: hsl(0, 0%, 52%);
+  --ve-bg: 18 18 18;
+  --ve-fg: 222 222 222;
+  --ve-primary: 245 245 247;
+  --ve-on-primary: 18 18 18;
+  --ve-border: 46 46 46;
+  --ve-ring: 128 128 128;
+  --ve-danger: 239 68 68;
+  --ve-on-danger: 255 255 255;
+  --ve-ok: 38 179 92;
+  --ve-on-ok: 255 255 255;
 }
 
 /* ══════════════════════════════════════════════════════════════
  * 3. 基础层
  * ══════════════════════════════════════════════════════════════ */
 .ve-scope {
-  color: var(--ve-fg);
-  background-color: var(--ve-bg);
+  color: rgb(var(--ve-fg));
+  background-color: rgb(var(--ve-bg));
   font-size: 12px;
   line-height: 1.45;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -100,22 +58,20 @@
 .ve-scope *,
 .ve-scope *::before,
 .ve-scope *::after {
-  border-color: var(--ve-border);
+  border-color: rgb(var(--ve-border));
 }
 .ve-scope ::selection {
-  background-color: color-mix(in srgb, var(--ve-primary) 25%, transparent);
+  background-color: rgb(var(--ve-fg) / 0.15);
 }
 
 /* ══════════════════════════════════════════════════════════════
- * 4. 原语精修层 —— 按钮 / 输入 / 数值框（组件里已无对抗类，自然生效）
+ * 4. 原语精修层
  * ══════════════════════════════════════════════════════════════ */
-
-/* 按钮：统一 4px 角 */
 .ve-scope button {
   border-radius: 4px;
 }
 .ve-scope button:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--ve-primary) 60%, transparent);
+  outline: 2px solid rgb(var(--ve-fg) / 0.5);
   outline-offset: 1px;
 }
 .ve-scope button:disabled {
@@ -123,31 +79,35 @@
   cursor: not-allowed;
 }
 
-/* 输入类：深灰底 + 发丝边 + 6px 角 + 聚焦白晕（无彩色环） */
+/* 输入：透明底 + 发丝边（同一背景上只靠边和聚焦薄纱区分） */
 .ve-scope input:not([type='checkbox']):not([type='radio']):not([type='range']),
 .ve-scope textarea {
-  background-color: var(--ve-accent);
-  border: 1px solid var(--ve-border);
+  background-color: transparent;
+  border: 1px solid rgb(var(--ve-border));
   border-radius: 6px;
 }
 .ve-scope input:focus-visible,
 .ve-scope textarea:focus-visible {
-  border-color: hsl(0, 0%, 45%);
-  box-shadow: 0 0 0 3px hsl(0, 0%, 100%, 0.08);
+  border-color: rgb(var(--ve-fg) / 0.45);
+  background-color: rgb(var(--ve-fg) / 0.04);
+  box-shadow: none;
   outline: none;
 }
 .ve-scope input::placeholder,
 .ve-scope textarea::placeholder {
-  color: var(--ve-muted-fg);
+  color: rgb(var(--ve-fg) / 0.4);
 }
 
-/* 数字输入（属性面板数值框） */
+/* 属性面板的数字输入框 —— 24px（行内主控件档，见 §7 控件规格）。
+   【为什么是 24 而不是 22 或 28】它经常与滑杆、± 图标钮同排：24 比图标钮(22)略高、
+   比默认控件(30)明显矮，于是"输入框是主控件、图标钮是点缀"这层关系从尺寸上就读得出来。
+   不能更矮的原因：11px 的标签文字在 22px 里已经贴边，再压就显局促。 */
 .ve-scope .ve-num {
-  height: 1.75rem;
-  background-color: var(--ve-accent);
-  border: 1px solid var(--ve-border);
+  height: 24px;
+  background-color: transparent;
+  border: 1px solid rgb(var(--ve-border));
   border-radius: 4px;
-  padding: 0 8px;
+  padding: 0 6px;
   text-align: center;
   font-size: 12px;
   appearance: textfield;
@@ -159,13 +119,13 @@
   margin: 0;
 }
 .ve-scope .ve-num:focus-visible {
-  border-color: hsl(0, 0%, 45%);
-  box-shadow: 0 0 0 3px hsl(0, 0%, 100%, 0.08);
+  border-color: rgb(var(--ve-fg) / 0.45);
+  background-color: rgb(var(--ve-fg) / 0.04);
   outline: none;
 }
 
 /* ══════════════════════════════════════════════════════════════
- * 5. 工具类（cutia @utility → v3 普通类）
+ * 5. 工具类
  * ══════════════════════════════════════════════════════════════ */
 .ve-scope .scrollbar-hidden {
   -ms-overflow-style: none;
@@ -197,11 +157,11 @@
   background: transparent;
 }
 .ve-scope .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: hsl(0, 0%, 30%);
+  background: rgb(var(--ve-fg) / 0.18);
   border-radius: 999px;
 }
 .ve-scope .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: hsl(0, 0%, 38%);
+  background: rgb(var(--ve-fg) / 0.3);
 }
 
 @keyframes ve-accordion-down {
@@ -228,52 +188,76 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
- * 6. 弹层 / 对话框 / 滚动条
+ * 6. 弹层 / 对话框 —— 同一背景 + 发丝边 + 投影分层
  * ══════════════════════════════════════════════════════════════ */
 .ve-scope [role='menuitem'] {
   min-height: 32px;
   border-radius: 5px;
 }
-.ve-scope [data-radix-popper-content-wrapper] > * {
+/* ── 下拉（Radix Select）在编辑器里的形态 ─────────────────────
+ * 【为什么必须在这里显式管，而不是让组件自带的工具类说了算】
+ * Radix 的 SelectContent/Item 是 **Portal 到 document.body** 的 —— 它已经不在 `.ve-scope` 里，
+ * 于是组件上写的 `bg-popover`（→ `--ve-popover`，**没人定义**）和 `rounded-2xl`、`p-2`
+ * 在编辑器里拿到的是宿主画布色与宿主圆角，看起来就是"面板没出来/出来了但不认识"。
+ * 这里按 `.ve-scope` 的规格统一：同一个底（`--ve-bg`）+ 发丝边 + 8px 圆角，
+ * 条目 28px 高、hover 用前景薄纱（与菜单、属性面板同一套语义）。
+ * ⚠️ 用 `[data-radix-*]` 选择器而不是给每个调用点传 className：
+ *   全编辑器 6 处下拉共用这一套，逐个传 className = 下一次新建下拉又会漏。 */
+.ve-scope [data-radix-popper-content-wrapper] > [data-radix-select-content],
+[role='listbox'][data-radix-select-content] {
+  background-color: rgb(var(--ve-bg));
+  border: 1px solid rgb(var(--ve-border));
   border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.32);
+}
+.ve-scope [role='option'] {
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: rgb(var(--ve-fg) / 0.85);
+}
+.ve-scope [role='option'][data-highlighted] {
+  background-color: rgb(var(--ve-fg) / 0.08);
+  color: rgb(var(--ve-fg));
 }
 .ve-scope [role='dialog'],
 .ve-scope [role='alertdialog'] {
-  background-color: var(--ve-popover);
-  border: 1px solid var(--ve-border);
+  background-color: rgb(var(--ve-bg));
+  border: 1px solid rgb(var(--ve-border));
   border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
 .ve-scope [role='separator']:not([orientation='vertical']) {
   height: 1px;
-  background-color: var(--ve-border);
+  background-color: rgb(var(--ve-border));
 }
 .ve-scope ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 .ve-scope ::-webkit-scrollbar-thumb {
-  background: hsl(0, 0%, 26%);
+  background: rgb(var(--ve-fg) / 0.18);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 .ve-scope ::-webkit-scrollbar-thumb:hover {
-  background: hsl(0, 0%, 34%);
+  background: rgb(var(--ve-fg) / 0.3);
   background-clip: content-box;
 }
 .ve-scope ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 /* ══════════════════════════════════════════════════════════════
- * 7. 语义组件层 —— 组件只留结构类，视觉全部在这里。
+ * 7. 语义组件层 —— 交互反馈统一为前景薄纱
  * ══════════════════════════════════════════════════════════════ */
 
 /* 面板 */
 .ve-scope .panel {
   border-radius: 4px;
-  border-color: var(--ve-border);
+  border-color: rgb(var(--ve-border));
 }
 
 /* Tab 栏按钮 */
@@ -281,44 +265,44 @@
   width: 26px;
   height: 26px;
   border-radius: 4px;
-  color: var(--ve-muted-fg);
+  color: rgb(var(--ve-fg) / 0.5);
 }
 .ve-scope .ve-tab:hover {
-  background: var(--ve-accent);
-  color: var(--ve-fg);
+  background: rgb(var(--ve-fg) / 0.06);
+  color: rgb(var(--ve-fg));
 }
 .ve-scope .ve-tab[data-active='true'] {
-  background: var(--ve-accent);
-  color: var(--ve-fg);
+  background: rgb(var(--ve-fg) / 0.1);
+  color: rgb(var(--ve-fg));
 }
 
-/* 时间线工具栏按钮（data-active = 激活态） */
+/* 时间线工具栏按钮 */
 .ve-scope .ve-tbtn {
-  color: var(--ve-muted-fg);
+  color: rgb(var(--ve-fg) / 0.5);
 }
 .ve-scope .ve-tbtn:hover {
-  background: var(--ve-accent);
-  color: var(--ve-fg);
+  background: rgb(var(--ve-fg) / 0.06);
+  color: rgb(var(--ve-fg));
 }
 .ve-scope .ve-tbtn[data-active='true'] {
-  background: var(--ve-accent);
-  color: var(--ve-fg);
+  background: rgb(var(--ve-fg) / 0.1);
+  color: rgb(var(--ve-fg));
 }
 
 /* 媒体卡片 */
 .ve-scope .ve-card-thumb {
-  background: var(--ve-accent);
+  background: rgb(var(--ve-fg) / 0.04);
   border-radius: 5px;
   overflow: hidden;
   position: relative;
 }
 .ve-scope .ve-card-selected {
-  outline: 2px solid var(--ve-primary);
+  outline: 2px solid rgb(var(--ve-primary));
   outline-offset: 1px;
 }
 .ve-scope .ve-card-name {
   font-size: 11px;
-  color: var(--ve-muted-fg);
+  color: rgb(var(--ve-fg) / 0.55);
 }
 .ve-scope .ve-card-badge {
   position: absolute;
@@ -331,20 +315,70 @@
   font-size: 10px;
   font-family: var(--font-mono);
 }
-.ve-scope .ve-card-plus {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 26px;
-  height: 26px;
-  border-radius: 999px;
-  background: var(--ve-primary);
-  color: var(--ve-on-primary);
+/* 素材「加 / 减」动作钮 —— **一套形状，两种位置**
+   ══════════════════════════════════════════════════════════════
+   · `.ve-act-btn`          = 形状 + 配色（唯一真源）
+   · `.ve-act-btn-danger`   = 减号（危险色，仅 hover 时上色 —— 见下）
+   · `.ve-card-plus/-minus` = 卡片态的**浮层定位**（浮在缩略图角上）
+   · 列表态 = 同一 `.ve-act-btn` 直接参与行内 flex（不套 `.ve-card-*`）
+   ══════════════════════════════════════════════════════════════
+   【为什么拆】早先把形状与卡片定位写死在同一组类 → 列表态复用被迫带上
+   `position:absolute; top:6px` → **溢出面板**；改用画布 Tailwind token 救急 →
+   **白底白字 + 格格不入**（`ve-scope` 只认 `--ve-*`，不吃画布 token）。
+   根因 = 形状与定位耦合。拆开后形状一处定义，两种形态各自只声明"放哪"。
+
+   【配色：素净，不用实心彩底】（2026-09-15 用户三次反馈后定稿）
+   最初是"半透明实心圆钮"（白 / 红），用户评："一白一红的也很丑"。改素净图标钮：
+     · 常态 = 只有图标（中性前景色）· 悬停 = 一层极淡薄纱 + 图标转实色；
+     · **加号不上色**（加入是顺向操作，中性即可）；
+     · **减号只在悬停时转 `--ve-danger`** —— 危险色留给"真正要对它动手"的那一刻，
+       常态不喊叫（既素净，又比常红更符合"危险操作需要确认"的直觉）。
+   【卡片态为什么要一层底】它浮在**画面**上（缩略图内容），纯图标会糊在画面里读不出，
+   故给中性半透明底 + 轻微压暗；列表态背景是纯面板色，无需底。 */
+.ve-scope .ve-act-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: transparent;
+  color: rgb(var(--ve-fg) / 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.ve-scope .ve-act-btn:hover {
+  background: rgb(var(--ve-fg) / 0.12);
+  color: rgb(var(--ve-fg));
+}
+.ve-scope .ve-act-btn-danger:hover {
+  background: rgb(var(--ve-danger) / 0.16);
+  color: rgb(var(--ve-danger));
+}
+
+/* 卡片态：两个钮**都在左下角、横向并排**（2026-09-15 用户裁定；原先是一左一右两角）。
+   浮在画面上 → 自带中性半透明底（`backdrop-blur` 让底下的画面不干扰图标可读性）。
+   横向位置按"钮宽 22px + 间距 4px"排布，故第二颗在 `left: 32px`；改宽度时这里要同步。 */
+.ve-scope .ve-card-plus,
+.ve-scope .ve-card-minus {
+  position: absolute;
+  bottom: 6px;
+  background: rgb(0 0 0 / 0.45);
+  color: rgb(255 255 255 / 0.92);
+  backdrop-filter: blur(4px);
+}
+.ve-scope .ve-card-plus:hover,
+.ve-scope .ve-card-minus:hover {
+  background: rgb(0 0 0 / 0.68);
+  color: #fff;
+}
+.ve-scope .ve-card-plus {
+  left: 6px;
+}
+.ve-scope .ve-card-minus {
+  left: 32px;
 }
 
 /* 时间线片段 */
@@ -353,7 +387,7 @@
   overflow: hidden;
 }
 .ve-scope .ve-clip-selected {
-  outline: 2px solid var(--ve-primary);
+  outline: 2px solid rgb(var(--ve-primary));
   outline-offset: 0;
   z-index: 5;
 }
@@ -366,17 +400,17 @@
   background: transparent;
 }
 .ve-scope .ve-clip-bg-text {
-  background: #5dbaa0;
+  background: rgb(93 186 160);
 }
 .ve-scope .ve-clip-bg-audio {
-  background: rgba(145, 93, 190, 0.16);
-  border: 1px solid rgba(145, 93, 190, 0.5);
+  background: rgb(145 93 190 / 0.16);
+  border: 1px solid rgb(145 93 190 / 0.5);
 }
 .ve-scope .ve-clip-bg-sticker {
-  background: #f59e0b;
+  background: rgb(245 158 11);
 }
 
-/* 遮罩（隐藏片段/静音角标/加载态/模糊标签） */
+/* 遮罩（盖在视频内容上，黑色半透明是功能需要） */
 .ve-scope .ve-veil {
   position: absolute;
   inset: 0;
@@ -401,52 +435,150 @@
   background: rgba(0, 0, 0, 0.6);
 }
 
-/* 属性面板 */
+/* 交互薄纱语义类 */
+.ve-scope .ve-pill {
+  background: rgb(var(--ve-fg) / 0.06);
+}
+.ve-scope .ve-pill:hover {
+  background: rgb(var(--ve-fg) / 0.1);
+}
+.ve-scope .ve-drop-active {
+  background: rgb(var(--ve-fg) / 0.1);
+}
+.ve-scope .ve-drag-handle {
+  color: rgb(var(--ve-fg) / 0.25);
+}
+.ve-scope .ve-tick {
+  border-color: rgb(var(--ve-fg) / 0.25);
+}
+
+/* ══════════════════════════════════════════════════════════════
+ * 7. 属性面板 —— **一套规格式的版式，不是逐处调间距**
+ * ────────────────────────────────────────────────────────────
+ * 【这一节为什么被整个重写】（2026-09-15 用户）
+ *   "你都没有想好从全局定义去设计，而是只是用打补丁的思维打来打去，把补丁打得越来越丑。"
+ *   之前的做法是：用户说太稀疏 → 把 16px 改 8px；说某个按钮丑 → 单独给它加一组规则。
+ *   每一条改动局部看都对，但**没有任何一处回答"这个面板的网格是什么"** ——
+ *   于是间距是"补出来的数值"，控件是"各自长出来的形状"，改到第 N 轮就互相打架。
+ *
+ * 【间距不是一串数字，是一个比值】**节奏 = 11 / 13 / 12**（真源 `mockup/video-editor-current-mockup.html`
+ *   的 `.pg .t` / `.pg .bd` / `.bd{gap}` 就是这个比值）。三处都落在 11–13 这一档，
+ *   于是"组头→组体→行间距→下一组头"看起来是同一个呼吸，而不是四个不相干的数字。
+ *   上一版给的 10 / 6 / 6 / 12 问题就在这：单个看都不难看，**彼此没有比值**，
+ *   扫一遍眼睛接不上拍 → 就是用户说的"间距还是不合理"。
+ *   ⚠️ 要动这里的任何一个数，请把这一组一起看；不要只调其中一个。
+ *
+ * 【这一节只回答三件事，其余一切从它们推导】
+ *   ① 节奏    ：11 / 13 / 12（上下内边距与行距同档，见上）
+ *   ② 字级    ：3 级（组头 12/500 · 小节 11/400 · 行标签 11/400），字号与字重同时定
+ *   ③ 控件规格：行高 ≥30、主控件 24、点缀 18、圆角 6 / 4 / 全圆三种，无第四种
+ *   面板里任何一处觉得"怪"，先看它是否偏离了这三条；偏离就是这里漏了定义，回到这里改。
+ *
+ * 【关于"紧凑"】紧凑来自**控件矮 + 节奏一致**，不来自把间距压到 6px。
+ *   压到 6px 的后果是行与行粘在一起、组与组分不开 —— 那是"挤"，不是"紧"。
+ * ══════════════════════════════════════════════════════════════ */
+
+/* ── ① 栅格与节奏 ───────────────────────────────────────────── */
 .ve-scope .ve-pg {
   display: flex;
   flex-direction: column;
 }
 .ve-scope .ve-pg[data-border-top='true'] {
-  border-top: 1px solid var(--ve-border);
+  border-top: 1px solid rgb(var(--ve-border));
 }
-.ve-scope .ve-pg-toggle {
+
+/* ── ② 字级（三级，字重随字号一起定）───────────────────────────
+ * L0 组头 12px / 500 / fg.85  —— 唯一允许"加粗"的一层，它就是分区标题
+ * L1 小节 11px / 400 / fg.45  —— 组内并列段落（背景 / 描边 / 阴影）
+ * L2 行标签 11px / 400 / fg.55 —— 最弱，安静地标注它右边那个控件
+ * 强调：**不给字号，只给字重** —— 面板里"重要"是加粗，不是变大
+ *   （用户口径："千万不要让标题比正文大"；变大的重要感会和组头打架）。 */
+.ve-scope .ve-pg-toggle,
+.ve-scope .ve-pg-static {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px 6px;
+  /* ⚠️ **上下必须对称，不能靠组体来补**（2026-09-15 用户："折叠之后它跟下边的间距是 0"）
+     上一版写的是 `padding: 11px 14px 0` + 组体 `padding-top: 9px`，想法是"留白由两者合成、
+     不重复给"。**但收起时组体根本不渲染** → 组头的下边距就是 0 →
+     "标题文字 → 下一组的分隔线"贴死，而上一组有组体时是 9px。
+     一排组头间距忽大忽小，就是这里来的。
+     正确做法：**组头是一个自带完整上下留白的整体**（9 / 14 / 9），
+     组体只管自己与它的间距（下面 8px），两者互不代偿。 */
+  padding: 9px 14px;
+}
+.ve-scope .ve-pg-toggle {
   cursor: pointer;
 }
 .ve-scope .ve-pg-title {
   font-size: 12px;
   font-weight: 500;
-  color: var(--ve-muted-fg);
+  color: rgb(var(--ve-fg) / 0.85);
 }
-.ve-scope .ve-pg-toggle[aria-expanded='true'] .ve-pg-title,
-.ve-scope .ve-pg-static .ve-pg-title {
-  color: var(--ve-fg);
-}
-.ve-scope .ve-pg-toggle svg {
-  width: 12px;
-  height: 12px;
-  color: var(--ve-muted-fg);
-}
-.ve-scope .ve-pg-toggle[aria-expanded='true'] svg {
-  color: var(--ve-fg);
-}
-.ve-scope .ve-pg-static {
+/* 组头标记 —— **一个固定的方形槽位，右对齐**。
+   ⚠️ 用槽位（`flex: 0 0 16px` + 居中）而不是直接给 svg 定尺寸：
+   组头右侧要么是 svg（lucide 的 ＋/－），要么是 Switch（「背景」那种"组头即开关"）。
+   两者尺寸不同（11–12 vs 34×19），若让它们各自撑开，**每个组头的标题起始位置都会不一样** ——
+   这正是"折叠台非常不和谐"的来源：一排组头扫下来，图标不在同一列、标题长度也读不出规律。
+   有了 16px 槽位后：所有组头的右边界在同一条竖线上，标题左边界也统一在 14px。 */
+.ve-scope .ve-pg-mark {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
+  justify-content: flex-end;
+  flex: 0 0 16px;
+  min-height: 16px;
 }
+.ve-scope .ve-pg-mark svg {
+  width: 14px;
+  height: 14px;
+  color: rgb(var(--ve-fg) / 0.4);
+}
+.ve-scope .ve-pg-toggle:hover .ve-pg-mark svg {
+  color: rgb(var(--ve-fg) / 0.8);
+}
+/* 展开态让标记稍微实一点：它是"这里能收起来"的唯一提示。 */
+.ve-scope .ve-pg-toggle[aria-expanded='true'] .ve-pg-mark svg {
+  color: rgb(var(--ve-fg) / 0.6);
+}
+/* 组体：只管自己 —— 上 8（= 与组头标题的间距，组头已自带 9px 下边距）· 左右 14 · 下 9。
+   下 9 = 组头的上边距：于是"内容 → 下一组的标题"与"标题 → 内容"读起来是同一种间隔。 */
 .ve-scope .ve-pg-body {
-  padding: 10px 14px 14px;
+  padding: 8px 14px 9px;
 }
+/* 组内行距统一由此给 —— 组件里不再手写 `space-y-*`。
+   12 = 节奏档（真源 `.pg .bd{gap:12px}`）：行与行的呼吸 = 组与组的呼吸，
+   于是"组内"和"组间"读起来是同一个拍子，不会一边挤一边松。 */
+.ve-scope .ve-pg-body > * + * {
+  margin-top: 12px;
+}
+/* 组内**小节标题**（`PropertySubsection`）——
+   一个折叠头下的并列段落标个名字，**不可折叠**（无图标、无点击态，不像开关）。
+   段与段之间靠一条 1px 线分层，线本身吃掉 13+11 的留白（同档节奏）。 */
+.ve-scope .ve-pg-sub {
+  margin: 13px 0 0;
+  padding-top: 11px;
+  border-top: 1px solid rgb(var(--ve-border));
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  color: rgb(var(--ve-fg) / 0.45);
+  user-select: none;
+}
+/* 小节标题正好是组的第一行时，上方不需要分隔线（否则组头下多一道）。 */
+.ve-scope .ve-pg-body > .ve-pg-sub:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* ── ③ 行与控件规格 ───────────────────────────────────────────
+ * 行高不写死数值：由行内那个 24px 控件撑开（+ 行距 12 = 行与行的中心距 36px）。
+ * 写成 `min-height` 只是兜底，防止某一行全是纯文本而塌下去。 */
 .ve-scope .ve-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
+  min-height: 30px;
 }
 .ve-scope .ve-row-col {
   flex-direction: column;
@@ -455,7 +587,8 @@
 }
 .ve-scope .ve-row-label {
   font-size: 11px;
-  color: var(--ve-muted-fg);
+  line-height: 1.3;
+  color: rgb(var(--ve-fg) / 0.55);
   flex-shrink: 0;
 }
 .ve-scope .ve-row-value {
@@ -464,9 +597,94 @@
   min-width: 0;
 }
 
+/* 行内控件 —— 三档封顶，不许再出现第四种高度（各自的完整定义在别处，这里只对齐尺寸）。
+   24px = 输入框（`.ve-num`，§4）· 下拉 / 分段控件
+   22px = 图标钮（`.ve-act-btn`，§6；22px 盒子里只有 ~12px 的图标墨）
+   18px = 色块（`.ve-swatch`，见下 —— 它为什么不能是 22px） */
+.ve-scope .ve-act-btn {
+  width: 22px;
+  height: 22px;
+}
+/* 【色块为什么是 18px，而不是跟图标钮一样 22px】
+   图标钮的 22px 是**盒子**，里面只有 ~12px 的图标墨；色块是**整块实心**。
+   同样是 22px 的盒子，实心块的视觉重量远大于一个细图标 —— 一排 7 个实心圆
+   在 14px 内缩的面板里会盖过同排的输入框和滑杆，这就是"圆圈太大"的来源。
+   18px 配 10px 间距：一排 7 个共 186px，比一行主控件的视觉重量略轻，恰好是"可选的一张色卡"。 */
+.ve-scope .ve-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  flex: none;
+  cursor: pointer;
+  padding: 0;
+  border: 1px solid rgb(var(--ve-fg) / 0.2);
+  transition: border-color 0.15s ease;
+}
+.ve-scope .ve-swatch:hover {
+  border-color: rgb(var(--ve-fg) / 0.5);
+}
+/* 【当前选中态为什么要靠 `--ve-bg` 的底垫】色块本身可能是纯白或纯黑，
+   紧贴它的描边会淹没在色块里；外环与色块之间垫 2px 面板底色，任何颜色上都读得出选中。
+   ⚠️ 这段阴影在组件里由 `swatchStyle()` 给 —— 因为"选中"是**数据状态**（当前值 == 这一格），
+   不是这个 DOM 上可被 CSS 单独判定的东西。规则放在这里只作文档：别在别处再写一份。 */
+
+/* 面板流内展开的选择列表（FontPicker —— 不 Portal，就在面板里展开）。
+   【为什么列表项样式在这里，触发器却用 Tailwind】
+   触发器与 `.ve-num` 同规格（透明底+发丝边），复用全局规则即可；
+   列表项是**新形态**（28px 条目 + 薄纱 hover + 选中态），属于 §7 控件规格的一员，
+   定义在这里让下一个"面板内展开"的选择器直接复用，而不是各写一份 hover。 */
+.ve-scope .ve-pick-item {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  width: 100%;
+  padding: 0 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+  color: rgb(var(--ve-fg) / 0.85);
+}
+.ve-scope .ve-pick-item:hover {
+  background: rgb(var(--ve-fg) / 0.08);
+  color: rgb(var(--ve-fg));
+}
+.ve-scope .ve-pick-item[data-active] {
+  background: rgb(var(--ve-fg) / 0.1);
+  color: rgb(var(--ve-fg));
+}
+
+/* 开关规格 —— 34×19，拇指 15px。
+   面板里的开关是"一个字段的开关"，与 24px 输入框同排 → 它必须比输入框**矮**才不抢视线；
+   旧 Radix 默认（20×36 + 16px 拇指 + 双层 border/shadow）在这个尺度里显得又大又肿。 */
+.ve-scope .ve-switch {
+  width: 34px;
+  height: 19px;
+  border: none;
+  border-radius: 999px;
+  background: rgb(var(--ve-fg) / 0.2);
+  transition: background 0.15s ease;
+}
+.ve-scope .ve-switch[data-state='checked'] {
+  background: rgb(var(--ve-primary));
+}
+.ve-scope .ve-switch > span {
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: rgb(var(--ve-bg));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  transition: transform 0.15s ease;
+}
+.ve-scope .ve-switch[data-state='unchecked'] > span {
+  transform: translateX(2px);
+}
+.ve-scope .ve-switch[data-state='checked'] > span {
+  transform: translateX(17px);
+}
+
 /* ══════════════════════════════════════════════════════════════
- * 8. 字号/字重/字体归一层 —— 每一种排版类都在此定义渲染结果：
- *    基准 12px / 标题 14px / 辅助 11px / 小字 10.5px
+ * 8. 字号/字重/字体归一层
  * ══════════════════════════════════════════════════════════════ */
 .ve-scope .text-sm,
 .ve-scope .text-base,
@@ -490,6 +708,10 @@
 .ve-scope .text-\[11px\] {
   font-size: 10.5px;
 }
+/* ⚠️ 这里曾有一条"凡 11–12px 标注文字一律 400 !important"的批量规则（2026-09-15 当天加的补丁）。
+   已删除 —— 它是典型的补丁思维：不问"层级是什么"，只把出问题的几个类按住。
+   正确做法在 §7 的字级里：每一级的字号**和字重**一起定义（L0=500 / L1·L2=400），
+   于是不存在"某一级偷偷变粗"的可能。用 `!important` 按住症状，等于把真正的定义留空。 */
 .ve-scope .font-medium {
   font-weight: 500;
 }
@@ -503,7 +725,7 @@
   font-family: var(--font-mono);
 }
 
-/* 控件高度统一：默认按钮/输入 30px（mockup 刻度） */
+/* 控件高度统一：默认按钮/输入 30px */
 .ve-scope .h-9\.5 {
   height: 30px;
 }

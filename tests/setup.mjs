@@ -128,6 +128,45 @@ if (typeof globalThis.fetch === 'function' || globalThis.fetch === undefined) {
   });
 }
 
+// jsdom 不实现 Pointer Events —— `PointerEvent` 构造器与捕获族都缺失。
+// Radix（菜单 / 下拉 / 弹层）完全靠 pointerdown 驱动开关：没有 PointerEvent 构造器时
+// `fireEvent.pointerDown` 无法构造出带 pointer 属性的事件，Radix 的判定分支走不到
+// → **菜单静默不打开** → 任何「指针驱动的 Radix 组件」在 jsdom 里不可测。
+// 这里补齐两件（收口一处，所有此类组件共用）：
+//   ① `PointerEvent` 构造器（继承 MouseEvent，补 pointer 专有字段）；
+//   ② 捕获族（setPointerCapture / hasPointerCapture / releasePointerCapture）。
+// 取舍：只满足「存在且不抛 + 字段可读」，不模拟真实指针命中/捕获路由
+// （测试不断言捕获行为，补全接口既无断言价值又会随 lib.dom 漂移）。
+if (typeof globalThis.PointerEvent === 'undefined' && typeof globalThis.MouseEvent !== 'undefined') {
+  class PointerEventShim extends globalThis.MouseEvent {
+    constructor(/** @type {string} */ type, /** @type {any} */ params = {}) {
+      super(type, params);
+      this.pointerId = params.pointerId ?? 1;
+      this.pointerType = params.pointerType ?? 'mouse';
+      this.isPrimary = params.isPrimary ?? true;
+      this.width = params.width ?? 1;
+      this.height = params.height ?? 1;
+      this.pressure = params.pressure ?? 0;
+      this.tiltX = params.tiltX ?? 0;
+      this.tiltY = params.tiltY ?? 0;
+      this.twist = params.twist ?? 0;
+    }
+  }
+  // shim：构造器签名与 lib.dom 的 PointerEventInit 天然不完全对齐（不实现全部可选字段语义）
+  globalThis.PointerEvent = shim(PointerEventShim);
+}
+if (typeof globalThis.Element !== 'undefined') {
+  const proto = globalThis.Element.prototype;
+  if (!proto.setPointerCapture || !proto.hasPointerCapture || !proto.releasePointerCapture) {
+    // shim：仅满足「存在且不抛」，不模拟真实捕获路由（测试不断言捕获行为）
+    proto.setPointerCapture = function () {};
+    proto.releasePointerCapture = function () {};
+    proto.hasPointerCapture = function () {
+      return true;
+    };
+  }
+}
+
 // requestAnimationFrame / cancelAnimationFrame 统一垫片：jsdom 默认 rAF 不保证触发时效，
 // 组件里用 rAF 做动画/自适应测量时（node 环境无 rAF，jsdom 的 rAF 又常滞后）回调可能永不执行。
 // 统一用 setTimeout(cb,0) 可靠地立即触发，并回传时间戳。此前散落在 6 个 .jsx 测试文件里

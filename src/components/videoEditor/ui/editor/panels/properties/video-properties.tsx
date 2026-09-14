@@ -2,6 +2,8 @@
 
 import { Slider } from '@videoEditor/ui/ui/slider';
 import { Input } from '@videoEditor/ui/ui/input';
+import { Button } from '@videoEditor/ui/ui/button';
+import { Minus, Plus } from 'lucide-react';
 import { useReducer, useRef } from 'react';
 
 import { PanelBaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
@@ -10,10 +12,12 @@ import { clamp } from '@videoEditor/utils/math';
 import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
 import type { ImageElement, VideoElement } from '@videoEditor/types/timeline';
 import {
-  SPEED_PRESETS,
+  MAX_PLAYBACK_RATE,
+  MIN_PLAYBACK_RATE,
+  PLAYBACK_RATE_STEP,
+  clampPlaybackRate,
   formatSpeedLabel,
-  sliderPosToSpeed,
-  speedToSliderPos,
+  stepPlaybackRate,
 } from '@videoEditor/engine/timeline/speed-utils';
 
 export function VideoProperties({
@@ -136,9 +140,14 @@ export function VideoProperties({
     <div className="flex h-full flex-col">
       <PanelBaseView className="p-0">
         <PropertyGroup hasBorderTop={false}>
-          <div className="space-y-4">
-            {/* Position X */}
-            <PropertyItem>
+          {/*
+            位置 X / Y —— **标签 + 窄框，横排在同一行**（与 text / sticker 面板同一形态）。
+            【为什么不并排两个"撑满"的输入框】`flex-1` 会把每个框撑到 130px+，
+            去装一个 -20~20 的数字 —— 宽度全是空的；而且它和同面板的缩放/旋转（48px）
+            成了两种尺寸：同一类控件、同一个面板，尺寸不一致说不过去。
+          */}
+          <div className="flex items-center gap-4">
+            <PropertyItem className="flex-1">
               <PropertyItemLabel>{'位置 X'}</PropertyItemLabel>
               <PropertyItemValue>
                 <Input
@@ -187,13 +196,11 @@ export function VideoProperties({
                     posXDraft.current = '';
                     forceRender();
                   }}
-                  className="ve-num w-full"
+                  className="ve-num w-12"
                 />
               </PropertyItemValue>
             </PropertyItem>
-
-            {/* Position Y */}
-            <PropertyItem>
+            <PropertyItem className="flex-1">
               <PropertyItemLabel>{'位置 Y'}</PropertyItemLabel>
               <PropertyItemValue>
                 <Input
@@ -242,197 +249,219 @@ export function VideoProperties({
                     posYDraft.current = '';
                     forceRender();
                   }}
-                  className="ve-num w-full"
+                  className="ve-num w-12"
                 />
               </PropertyItemValue>
             </PropertyItem>
+          </div>
 
-            {/* Scale */}
-            <PropertyItem>
-              <PropertyItemLabel>{'缩放'}</PropertyItemLabel>
-              <PropertyItemValue>
-                <div className="flex items-center gap-2">
-                  <Slider
-                    value={[scalePercent]}
-                    min={10}
-                    max={500}
-                    step={1}
-                    onValueChange={([value]) => {
-                      if (initialScaleRef.current === null) {
-                        initialScaleRef.current = element.transform.scale;
-                      }
+          {/* Scale */}
+          <PropertyItem>
+            <PropertyItemLabel>{'缩放'}</PropertyItemLabel>
+            <PropertyItemValue>
+              <div className="flex items-center gap-2">
+                <Slider
+                  value={[scalePercent]}
+                  min={10}
+                  max={500}
+                  step={1}
+                  onValueChange={([value]) => {
+                    if (initialScaleRef.current === null) {
+                      initialScaleRef.current = element.transform.scale;
+                    }
+                    updateTransform({
+                      updates: { scale: value / 100 },
+                      pushHistory: false,
+                    });
+                  }}
+                  onValueCommit={([value]) => {
+                    if (initialScaleRef.current !== null) {
+                      updateTransform({
+                        updates: { scale: initialScaleRef.current },
+                        pushHistory: false,
+                      });
                       updateTransform({
                         updates: { scale: value / 100 },
+                        pushHistory: true,
+                      });
+                      initialScaleRef.current = null;
+                    }
+                  }}
+                  className="w-full"
+                />
+                <Input
+                  type="number"
+                  value={scaleDisplay}
+                  min={10}
+                  max={500}
+                  onFocus={() => {
+                    isEditingScale.current = true;
+                    scaleDraft.current = scalePercent.toString();
+                    forceRender();
+                  }}
+                  onChange={(e) => {
+                    scaleDraft.current = e.target.value;
+                    forceRender();
+                    if (initialScaleRef.current === null) {
+                      initialScaleRef.current = element.transform.scale;
+                    }
+                    const parsed = parseInt(e.target.value, 10);
+                    if (!Number.isNaN(parsed)) {
+                      const clamped = clamp({ value: parsed, min: 10, max: 500 });
+                      updateTransform({
+                        updates: { scale: clamped / 100 },
                         pushHistory: false,
                       });
-                    }}
-                    onValueCommit={([value]) => {
-                      if (initialScaleRef.current !== null) {
-                        updateTransform({
-                          updates: { scale: initialScaleRef.current },
-                          pushHistory: false,
-                        });
-                        updateTransform({
-                          updates: { scale: value / 100 },
-                          pushHistory: true,
-                        });
-                        initialScaleRef.current = null;
-                      }
-                    }}
-                    className="w-full"
-                  />
-                  <Input
-                    type="number"
-                    value={scaleDisplay}
-                    min={10}
-                    max={500}
-                    onFocus={() => {
-                      isEditingScale.current = true;
-                      scaleDraft.current = scalePercent.toString();
-                      forceRender();
-                    }}
-                    onChange={(e) => {
-                      scaleDraft.current = e.target.value;
-                      forceRender();
-                      if (initialScaleRef.current === null) {
-                        initialScaleRef.current = element.transform.scale;
-                      }
-                      const parsed = parseInt(e.target.value, 10);
-                      if (!Number.isNaN(parsed)) {
-                        const clamped = clamp({ value: parsed, min: 10, max: 500 });
-                        updateTransform({
-                          updates: { scale: clamped / 100 },
-                          pushHistory: false,
-                        });
-                      }
-                    }}
-                    onBlur={() => {
-                      if (initialScaleRef.current !== null) {
-                        const parsed = parseInt(scaleDraft.current, 10);
-                        const clamped = Number.isNaN(parsed)
-                          ? scalePercent
-                          : clamp({ value: parsed, min: 10, max: 500 });
-                        updateTransform({
-                          updates: { scale: initialScaleRef.current },
-                          pushHistory: false,
-                        });
-                        updateTransform({
-                          updates: { scale: clamped / 100 },
-                          pushHistory: true,
-                        });
-                        initialScaleRef.current = null;
-                      }
-                      isEditingScale.current = false;
-                      scaleDraft.current = '';
-                      forceRender();
-                    }}
-                    className="ve-num w-14"
-                  />
-                </div>
-              </PropertyItemValue>
-            </PropertyItem>
+                    }
+                  }}
+                  onBlur={() => {
+                    if (initialScaleRef.current !== null) {
+                      const parsed = parseInt(scaleDraft.current, 10);
+                      const clamped = Number.isNaN(parsed)
+                        ? scalePercent
+                        : clamp({ value: parsed, min: 10, max: 500 });
+                      updateTransform({
+                        updates: { scale: initialScaleRef.current },
+                        pushHistory: false,
+                      });
+                      updateTransform({
+                        updates: { scale: clamped / 100 },
+                        pushHistory: true,
+                      });
+                      initialScaleRef.current = null;
+                    }
+                    isEditingScale.current = false;
+                    scaleDraft.current = '';
+                    forceRender();
+                  }}
+                  className="ve-num w-12"
+                />
+              </div>
+            </PropertyItemValue>
+          </PropertyItem>
 
-            {/* Rotation */}
-            <PropertyItem>
-              <PropertyItemLabel>{'旋转'}</PropertyItemLabel>
-              <PropertyItemValue>
-                <div className="flex items-center gap-2">
-                  <Slider
-                    value={[element.transform.rotate]}
-                    min={-180}
-                    max={180}
-                    step={1}
-                    onValueChange={([value]) => {
-                      if (initialRotationRef.current === null) {
-                        initialRotationRef.current = element.transform.rotate;
-                      }
+          {/* Rotation */}
+          <PropertyItem>
+            <PropertyItemLabel>{'旋转'}</PropertyItemLabel>
+            <PropertyItemValue>
+              <div className="flex items-center gap-2">
+                <Slider
+                  value={[element.transform.rotate]}
+                  min={-180}
+                  max={180}
+                  step={1}
+                  onValueChange={([value]) => {
+                    if (initialRotationRef.current === null) {
+                      initialRotationRef.current = element.transform.rotate;
+                    }
+                    updateTransform({
+                      updates: { rotate: value },
+                      pushHistory: false,
+                    });
+                  }}
+                  onValueCommit={([value]) => {
+                    if (initialRotationRef.current !== null) {
+                      updateTransform({
+                        updates: { rotate: initialRotationRef.current },
+                        pushHistory: false,
+                      });
                       updateTransform({
                         updates: { rotate: value },
+                        pushHistory: true,
+                      });
+                      initialRotationRef.current = null;
+                    }
+                  }}
+                  className="w-full"
+                />
+                <Input
+                  type="number"
+                  value={rotationDisplay}
+                  min={-360}
+                  max={360}
+                  onFocus={() => {
+                    isEditingRotation.current = true;
+                    rotationDraft.current = Math.round(element.transform.rotate).toString();
+                    forceRender();
+                  }}
+                  onChange={(e) => {
+                    rotationDraft.current = e.target.value;
+                    forceRender();
+                    if (initialRotationRef.current === null) {
+                      initialRotationRef.current = element.transform.rotate;
+                    }
+                    const parsed = Number.parseFloat(e.target.value);
+                    if (!Number.isNaN(parsed)) {
+                      updateTransform({
+                        updates: { rotate: parsed },
                         pushHistory: false,
                       });
-                    }}
-                    onValueCommit={([value]) => {
-                      if (initialRotationRef.current !== null) {
+                    }
+                  }}
+                  onBlur={() => {
+                    commitNumberField({
+                      draft: rotationDraft.current,
+                      initial: initialRotationRef,
+                      apply: (value) => {
                         updateTransform({
-                          updates: { rotate: initialRotationRef.current },
+                          updates: { rotate: initialRotationRef.current ?? 0 },
                           pushHistory: false,
                         });
                         updateTransform({
                           updates: { rotate: value },
                           pushHistory: true,
                         });
-                        initialRotationRef.current = null;
-                      }
-                    }}
-                    className="w-full"
-                  />
-                  <Input
-                    type="number"
-                    value={rotationDisplay}
-                    min={-360}
-                    max={360}
-                    onFocus={() => {
-                      isEditingRotation.current = true;
-                      rotationDraft.current = Math.round(element.transform.rotate).toString();
-                      forceRender();
-                    }}
-                    onChange={(e) => {
-                      rotationDraft.current = e.target.value;
-                      forceRender();
-                      if (initialRotationRef.current === null) {
-                        initialRotationRef.current = element.transform.rotate;
-                      }
-                      const parsed = Number.parseFloat(e.target.value);
-                      if (!Number.isNaN(parsed)) {
-                        updateTransform({
-                          updates: { rotate: parsed },
-                          pushHistory: false,
-                        });
-                      }
-                    }}
-                    onBlur={() => {
-                      commitNumberField({
-                        draft: rotationDraft.current,
-                        initial: initialRotationRef,
-                        apply: (value) => {
-                          updateTransform({
-                            updates: { rotate: initialRotationRef.current ?? 0 },
-                            pushHistory: false,
-                          });
-                          updateTransform({
-                            updates: { rotate: value },
-                            pushHistory: true,
-                          });
-                        },
-                      });
-                      isEditingRotation.current = false;
-                      rotationDraft.current = '';
-                      forceRender();
-                    }}
-                    className="ve-num w-14"
-                  />
-                </div>
-              </PropertyItemValue>
-            </PropertyItem>
-          </div>
+                      },
+                    });
+                    isEditingRotation.current = false;
+                    rotationDraft.current = '';
+                    forceRender();
+                  }}
+                  className="ve-num w-12"
+                />
+              </div>
+            </PropertyItemValue>
+          </PropertyItem>
         </PropertyGroup>
 
-        <PropertyGroup>
-          <div className="space-y-4">
-            {/* Opacity */}
-            <PropertyItem>
-              <PropertyItemLabel>{'不透明度'}</PropertyItemLabel>
-              <PropertyItemValue>
-                <div className="flex items-center gap-2">
-                  <Slider
-                    value={[element.opacity * 100]}
-                    min={0}
-                    max={100}
-                    step={1}
-                    onValueChange={([value]) => {
-                      if (initialOpacityRef.current === null) {
-                        initialOpacityRef.current = element.opacity;
-                      }
+        <PropertyGroup hasBorderTop>
+          {/* Opacity */}
+          <PropertyItem>
+            <PropertyItemLabel>{'不透明度'}</PropertyItemLabel>
+            <PropertyItemValue>
+              <div className="flex items-center gap-2">
+                <Slider
+                  value={[element.opacity * 100]}
+                  min={0}
+                  max={100}
+                  step={1}
+                  onValueChange={([value]) => {
+                    if (initialOpacityRef.current === null) {
+                      initialOpacityRef.current = element.opacity;
+                    }
+                    editor.timeline.updateElements({
+                      updates: [
+                        {
+                          trackId,
+                          elementId: element.id,
+                          updates: { opacity: value / 100 },
+                        },
+                      ],
+                      pushHistory: false,
+                    });
+                  }}
+                  onValueCommit={([value]) => {
+                    if (initialOpacityRef.current !== null) {
+                      editor.timeline.updateElements({
+                        updates: [
+                          {
+                            trackId,
+                            elementId: element.id,
+                            updates: { opacity: initialOpacityRef.current },
+                          },
+                        ],
+                        pushHistory: false,
+                      });
                       editor.timeline.updateElements({
                         updates: [
                           {
@@ -441,238 +470,218 @@ export function VideoProperties({
                             updates: { opacity: value / 100 },
                           },
                         ],
+                        pushHistory: true,
+                      });
+                      initialOpacityRef.current = null;
+                    }
+                  }}
+                  className="w-full"
+                />
+                <Input
+                  type="number"
+                  value={opacityDisplay}
+                  min={0}
+                  max={100}
+                  onFocus={() => {
+                    isEditingOpacity.current = true;
+                    opacityDraft.current = Math.round(element.opacity * 100).toString();
+                    forceRender();
+                  }}
+                  onChange={(e) => {
+                    opacityDraft.current = e.target.value;
+                    forceRender();
+                    if (initialOpacityRef.current === null) {
+                      initialOpacityRef.current = element.opacity;
+                    }
+                    const parsed = parseInt(e.target.value, 10);
+                    if (!Number.isNaN(parsed)) {
+                      const opacityPercent = clamp({ value: parsed, min: 0, max: 100 });
+                      editor.timeline.updateElements({
+                        updates: [
+                          {
+                            trackId,
+                            elementId: element.id,
+                            updates: { opacity: opacityPercent / 100 },
+                          },
+                        ],
+                        pushHistory: false,
+                      });
+                    }
+                  }}
+                  onBlur={() => {
+                    if (initialOpacityRef.current !== null) {
+                      const parsed = parseInt(opacityDraft.current, 10);
+                      const opacityPercent = Number.isNaN(parsed)
+                        ? Math.round(element.opacity * 100)
+                        : clamp({ value: parsed, min: 0, max: 100 });
+                      editor.timeline.updateElements({
+                        updates: [
+                          {
+                            trackId,
+                            elementId: element.id,
+                            updates: { opacity: initialOpacityRef.current },
+                          },
+                        ],
+                        pushHistory: false,
+                      });
+                      editor.timeline.updateElements({
+                        updates: [
+                          {
+                            trackId,
+                            elementId: element.id,
+                            updates: { opacity: opacityPercent / 100 },
+                          },
+                        ],
+                        pushHistory: true,
+                      });
+                      initialOpacityRef.current = null;
+                    }
+                    isEditingOpacity.current = false;
+                    opacityDraft.current = '';
+                    forceRender();
+                  }}
+                  className="ve-num w-12"
+                />
+              </div>
+            </PropertyItemValue>
+          </PropertyItem>
+        </PropertyGroup>
+
+        {isVideoElement && (
+          <PropertyGroup hasBorderTop>
+            {/*
+                【播放速度（2026-09-15 用户裁定）】
+                · 删掉原来那一排预设按钮（0.25x / 0.5x / … / 4x）——用户："不要那些 0.25、0.5、1 倍之类的东西"；
+                · 滑杆改为**直接绑速度值**（`min/max/step` = 0.25 / 4 / 0.1），
+                  弃用旧的 log₂ 位置映射 —— 那个映射让步进不均匀（低速 0.01 / 高速 0.1），
+                  与用户"每一次调整的幅度都是 0.1"的要求冲突；
+                · 加 ± 两个按钮，每次正好一步（`PLAYBACK_RATE_STEP`，不在组件里写 0.1 字面量）；
+                · 数字输入框保留（能直接键入精确值），步进同步为 0.1。
+              */}
+            <PropertyItem>
+              <PropertyItemLabel>{'变速'}</PropertyItemLabel>
+              <PropertyItemValue>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="text"
+                    size="icon"
+                    aria-label={'减小播放速度'}
+                    title={`-${PLAYBACK_RATE_STEP}`}
+                    disabled={currentSpeed <= MIN_PLAYBACK_RATE}
+                    onClick={() => {
+                      initialSpeedRef.current = currentSpeed;
+                      applySpeedChange({
+                        newRate: stepPlaybackRate({ rate: currentSpeed, delta: -1 }),
+                        pushHistory: true,
+                      });
+                      initialSpeedRef.current = null;
+                    }}
+                    className="ve-act-btn"
+                  >
+                    <Minus />
+                  </Button>
+                  <Slider
+                    value={[currentSpeed]}
+                    min={MIN_PLAYBACK_RATE}
+                    max={MAX_PLAYBACK_RATE}
+                    step={PLAYBACK_RATE_STEP}
+                    onValueChange={([value]) => {
+                      if (initialSpeedRef.current === null) {
+                        initialSpeedRef.current = currentSpeed;
+                      }
+                      applySpeedChange({
+                        newRate: clampPlaybackRate({ value }),
                         pushHistory: false,
                       });
                     }}
                     onValueCommit={([value]) => {
-                      if (initialOpacityRef.current !== null) {
-                        editor.timeline.updateElements({
-                          updates: [
-                            {
-                              trackId,
-                              elementId: element.id,
-                              updates: { opacity: initialOpacityRef.current },
-                            },
-                          ],
+                      if (initialSpeedRef.current !== null) {
+                        applySpeedChange({
+                          newRate: initialSpeedRef.current,
                           pushHistory: false,
                         });
-                        editor.timeline.updateElements({
-                          updates: [
-                            {
-                              trackId,
-                              elementId: element.id,
-                              updates: { opacity: value / 100 },
-                            },
-                          ],
+                        applySpeedChange({
+                          newRate: clampPlaybackRate({ value }),
                           pushHistory: true,
                         });
-                        initialOpacityRef.current = null;
+                        initialSpeedRef.current = null;
                       }
                     }}
                     className="w-full"
                   />
+                  <Button
+                    type="button"
+                    variant="text"
+                    size="icon"
+                    aria-label={'增大播放速度'}
+                    title={`+${PLAYBACK_RATE_STEP}`}
+                    disabled={currentSpeed >= MAX_PLAYBACK_RATE}
+                    onClick={() => {
+                      initialSpeedRef.current = currentSpeed;
+                      applySpeedChange({
+                        newRate: stepPlaybackRate({ rate: currentSpeed, delta: 1 }),
+                        pushHistory: true,
+                      });
+                      initialSpeedRef.current = null;
+                    }}
+                    className="ve-act-btn"
+                  >
+                    <Plus />
+                  </Button>
+                  {/* 数字输入框与滑杆**同一行**（原来它在下面单独一行、label 叫「自定义」——
+                        现在滑杆与输入框表达同一件事，拆两行反而割裂）。 */}
                   <Input
                     type="number"
-                    value={opacityDisplay}
-                    min={0}
-                    max={100}
+                    value={speedDisplay}
+                    min={MIN_PLAYBACK_RATE}
+                    max={MAX_PLAYBACK_RATE}
+                    step={PLAYBACK_RATE_STEP}
                     onFocus={() => {
-                      isEditingOpacity.current = true;
-                      opacityDraft.current = Math.round(element.opacity * 100).toString();
+                      isEditingSpeed.current = true;
+                      speedDraft.current = formatSpeedLabel({ rate: currentSpeed });
                       forceRender();
                     }}
-                    onChange={(e) => {
-                      opacityDraft.current = e.target.value;
+                    onChange={(event) => {
+                      speedDraft.current = event.target.value;
                       forceRender();
-                      if (initialOpacityRef.current === null) {
-                        initialOpacityRef.current = element.opacity;
+                      if (initialSpeedRef.current === null) {
+                        initialSpeedRef.current = currentSpeed;
                       }
-                      const parsed = parseInt(e.target.value, 10);
+                      const parsed = Number.parseFloat(event.target.value);
                       if (!Number.isNaN(parsed)) {
-                        const opacityPercent = clamp({ value: parsed, min: 0, max: 100 });
-                        editor.timeline.updateElements({
-                          updates: [
-                            {
-                              trackId,
-                              elementId: element.id,
-                              updates: { opacity: opacityPercent / 100 },
-                            },
-                          ],
+                        applySpeedChange({
+                          newRate: clampPlaybackRate({ value: parsed }),
                           pushHistory: false,
                         });
                       }
                     }}
                     onBlur={() => {
-                      if (initialOpacityRef.current !== null) {
-                        const parsed = parseInt(opacityDraft.current, 10);
-                        const opacityPercent = Number.isNaN(parsed)
-                          ? Math.round(element.opacity * 100)
-                          : clamp({ value: parsed, min: 0, max: 100 });
-                        editor.timeline.updateElements({
-                          updates: [
-                            {
-                              trackId,
-                              elementId: element.id,
-                              updates: { opacity: initialOpacityRef.current },
-                            },
-                          ],
+                      if (initialSpeedRef.current !== null) {
+                        const parsed = Number.parseFloat(speedDraft.current);
+                        const next = Number.isNaN(parsed)
+                          ? currentSpeed
+                          : clampPlaybackRate({ value: parsed });
+                        applySpeedChange({
+                          newRate: initialSpeedRef.current,
                           pushHistory: false,
                         });
-                        editor.timeline.updateElements({
-                          updates: [
-                            {
-                              trackId,
-                              elementId: element.id,
-                              updates: { opacity: opacityPercent / 100 },
-                            },
-                          ],
+                        applySpeedChange({
+                          newRate: next,
                           pushHistory: true,
                         });
-                        initialOpacityRef.current = null;
+                        initialSpeedRef.current = null;
                       }
-                      isEditingOpacity.current = false;
-                      opacityDraft.current = '';
+                      isEditingSpeed.current = false;
+                      speedDraft.current = '';
                       forceRender();
                     }}
-                    className="ve-num w-14"
+                    className="ve-num w-12"
                   />
+                  <span className="text-muted-foreground text-xs">x</span>
                 </div>
               </PropertyItemValue>
             </PropertyItem>
-          </div>
-        </PropertyGroup>
-
-        {isVideoElement && (
-          <PropertyGroup>
-            <div className="space-y-4">
-              <PropertyItem direction="column">
-                <PropertyItemLabel>{'播放速度'}</PropertyItemLabel>
-                <PropertyItemValue>
-                  <div className="flex flex-wrap gap-1.5">
-                    {SPEED_PRESETS.map((preset) => {
-                      const isActive = Math.abs(currentSpeed - preset.value) < 0.001;
-                      return (
-                        <button
-                          key={preset.value}
-                          type="button"
-                          className={`rounded-sm px-2 py-0.5 text-xs transition-colors ${
-                            isActive
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-accent hover:bg-accent/80'
-                          }`}
-                          onClick={() => {
-                            initialSpeedRef.current = currentSpeed;
-                            applySpeedChange({
-                              newRate: preset.value,
-                              pushHistory: true,
-                            });
-                            initialSpeedRef.current = null;
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              initialSpeedRef.current = currentSpeed;
-                              applySpeedChange({
-                                newRate: preset.value,
-                                pushHistory: true,
-                              });
-                              initialSpeedRef.current = null;
-                            }
-                          }}
-                        >
-                          {preset.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </PropertyItemValue>
-              </PropertyItem>
-
-              <PropertyItem>
-                <PropertyItemLabel>{'自定义'}</PropertyItemLabel>
-                <PropertyItemValue>
-                  <div className="flex items-center gap-2">
-                    <Slider
-                      value={[speedToSliderPos({ rate: currentSpeed })]}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      onValueChange={([value]) => {
-                        if (initialSpeedRef.current === null) {
-                          initialSpeedRef.current = currentSpeed;
-                        }
-                        applySpeedChange({
-                          newRate: sliderPosToSpeed({ pos: value }),
-                          pushHistory: false,
-                        });
-                      }}
-                      onValueCommit={([value]) => {
-                        if (initialSpeedRef.current !== null) {
-                          applySpeedChange({
-                            newRate: initialSpeedRef.current,
-                            pushHistory: false,
-                          });
-                          applySpeedChange({
-                            newRate: sliderPosToSpeed({ pos: value }),
-                            pushHistory: true,
-                          });
-                          initialSpeedRef.current = null;
-                        }
-                      }}
-                      className="w-full"
-                    />
-                    <Input
-                      type="number"
-                      value={speedDisplay}
-                      min={0.25}
-                      max={4}
-                      step={0.05}
-                      onFocus={() => {
-                        isEditingSpeed.current = true;
-                        speedDraft.current = formatSpeedLabel({ rate: currentSpeed });
-                        forceRender();
-                      }}
-                      onChange={(event) => {
-                        speedDraft.current = event.target.value;
-                        forceRender();
-                        if (initialSpeedRef.current === null) {
-                          initialSpeedRef.current = currentSpeed;
-                        }
-                        const parsed = Number.parseFloat(event.target.value);
-                        if (!Number.isNaN(parsed)) {
-                          const clamped = clamp({ value: parsed, min: 0.25, max: 4 });
-                          applySpeedChange({
-                            newRate: clamped,
-                            pushHistory: false,
-                          });
-                        }
-                      }}
-                      onBlur={() => {
-                        if (initialSpeedRef.current !== null) {
-                          const parsed = Number.parseFloat(speedDraft.current);
-                          const clamped = Number.isNaN(parsed)
-                            ? currentSpeed
-                            : clamp({ value: parsed, min: 0.25, max: 4 });
-                          applySpeedChange({
-                            newRate: initialSpeedRef.current,
-                            pushHistory: false,
-                          });
-                          applySpeedChange({
-                            newRate: clamped,
-                            pushHistory: true,
-                          });
-                          initialSpeedRef.current = null;
-                        }
-                        isEditingSpeed.current = false;
-                        speedDraft.current = '';
-                        forceRender();
-                      }}
-                      className="ve-num w-14"
-                    />
-                    <span className="text-muted-foreground text-xs">x</span>
-                  </div>
-                </PropertyItemValue>
-              </PropertyItem>
-            </div>
           </PropertyGroup>
         )}
       </PanelBaseView>

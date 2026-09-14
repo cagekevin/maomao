@@ -1,19 +1,18 @@
 import type { ElementType } from 'react';
 import { create } from 'zustand';
 import {
-  AiBrain01Icon,
-  ArrowRightDoubleIcon,
-  ClosedCaptionIcon,
-  Folder03Icon,
-  Happy01Icon,
-  HeadphonesIcon,
-  MagicWand05Icon,
-  TextIcon,
-  Settings01Icon,
-  SlidersHorizontalIcon,
-  ColorsIcon,
-} from '@hugeicons/core-free-icons';
-import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
+  Folder,
+  Headphones,
+  Type,
+  Smile,
+  Wand2,
+  ChevronsRight,
+  Captions,
+  Palette,
+  SlidersHorizontal,
+  Brain,
+  Settings,
+} from 'lucide-react';
 
 export const TAB_KEYS = [
   'media',
@@ -31,9 +30,9 @@ export const TAB_KEYS = [
 
 export type Tab = (typeof TAB_KEYS)[number];
 
-const createHugeiconsIcon =
-  ({ icon }: { icon: IconSvgElement }) =>
-  ({ className }: { className?: string }) => <HugeiconsIcon icon={icon} className={className} />;
+const createIcon =
+  (Icon: ElementType<{ className?: string }>) =>
+  ({ className }: { className?: string }) => <Icon className={className} />;
 
 const TAB_LABELS: Record<Tab, string> = {
   media: '素材',
@@ -51,47 +50,47 @@ const TAB_LABELS: Record<Tab, string> = {
 
 export const tabs = {
   media: {
-    icon: createHugeiconsIcon({ icon: Folder03Icon }),
+    icon: createIcon(Folder),
     label: TAB_LABELS.media,
   },
   sounds: {
-    icon: createHugeiconsIcon({ icon: HeadphonesIcon }),
+    icon: createIcon(Headphones),
     label: TAB_LABELS.sounds,
   },
   text: {
-    icon: createHugeiconsIcon({ icon: TextIcon }),
+    icon: createIcon(Type),
     label: TAB_LABELS.text,
   },
   stickers: {
-    icon: createHugeiconsIcon({ icon: Happy01Icon }),
+    icon: createIcon(Smile),
     label: TAB_LABELS.stickers,
   },
   effects: {
-    icon: createHugeiconsIcon({ icon: MagicWand05Icon }),
+    icon: createIcon(Wand2),
     label: TAB_LABELS.effects,
   },
   transitions: {
-    icon: createHugeiconsIcon({ icon: ArrowRightDoubleIcon }),
+    icon: createIcon(ChevronsRight),
     label: TAB_LABELS.transitions,
   },
   captions: {
-    icon: createHugeiconsIcon({ icon: ClosedCaptionIcon }),
+    icon: createIcon(Captions),
     label: TAB_LABELS.captions,
   },
   filters: {
-    icon: createHugeiconsIcon({ icon: ColorsIcon }),
+    icon: createIcon(Palette),
     label: TAB_LABELS.filters,
   },
   adjustment: {
-    icon: createHugeiconsIcon({ icon: SlidersHorizontalIcon }),
+    icon: createIcon(SlidersHorizontal),
     label: TAB_LABELS.adjustment,
   },
   ai: {
-    icon: createHugeiconsIcon({ icon: AiBrain01Icon }),
+    icon: createIcon(Brain),
     label: TAB_LABELS.ai,
   },
   settings: {
-    icon: createHugeiconsIcon({ icon: Settings01Icon }),
+    icon: createIcon(Settings),
     label: TAB_LABELS.settings,
   },
 } satisfies Record<Tab, { icon: ElementType<{ className?: string }>; label: string }>;

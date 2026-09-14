@@ -77,7 +77,7 @@ export function TimelinePlayhead({
       aria-valuemax={duration}
       aria-valuenow={playheadPosition}
       tabIndex={0}
-      className="pointer-events-auto absolute z-60 will-change-transform"
+      className="pointer-events-auto absolute z-[60] will-change-transform"
       style={{
         left: `${timelinePosition}px`,
         top: 0,

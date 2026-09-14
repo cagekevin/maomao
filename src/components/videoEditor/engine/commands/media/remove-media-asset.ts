@@ -4,7 +4,7 @@ import { EditorCore } from '@videoEditor/engine/core';
 import type { MediaAsset } from '@videoEditor/types/assets';
 import { storageService } from '@videoEditor/engine/services/storage/service';
 import { videoCache } from '@videoEditor/engine/services/video-cache/service';
-import { hasMediaId } from '@videoEditor/engine/timeline/element-utils';
+import { collectElementsByMediaId } from '@videoEditor/engine/timeline/element-utils';
 import type { TimelineTrack } from '@videoEditor/types/timeline';
 
 export class RemoveMediaAssetCommand extends Command {
@@ -39,15 +39,10 @@ export class RemoveMediaAssetCommand extends Command {
       assets: assets.filter((media) => media.id !== this.assetId),
     });
 
-    const elementsToRemove: Array<{ trackId: string; elementId: string }> = [];
-
-    for (const track of this.savedTracks) {
-      for (const element of track.elements) {
-        if (hasMediaId(element) && element.mediaId === this.assetId) {
-          elementsToRemove.push({ trackId: track.id, elementId: element.id });
-        }
-      }
-    }
+    const elementsToRemove = collectElementsByMediaId({
+      tracks: this.savedTracks,
+      mediaId: this.assetId,
+    });
 
     if (elementsToRemove.length > 0) {
       editor.timeline.deleteElements({ elements: elementsToRemove });

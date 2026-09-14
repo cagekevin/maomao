@@ -388,13 +388,13 @@ base/utils/timeline/sourceTime.ts 🟢（跨域唯一映射原语：时间轴 �
 hooks/useVideoPoster.ts 🟢（crossOrigin 接回单点原语，删第二判据）
 base/ui/VideoThumbnail.tsx 🟢（显示组件，preload=metadata 取首帧，不抽帧）
 nodes/VideoGenerate.tsx 🟢（videoUrl 落盘受 01/02 守护，非债）
-nodes/VideoProcessNode.tsx 🟢（uploadResult null → fail 显式报错；GIF 分支走 uploadFileToLocal 落盘）
+nodes/VideoProcessNode.tsx 🔴（uploadResult null → fail 显式报错；GIF 分支走 uploadFileToLocal 落盘；TD-22-19 键盘门）
 nodes/VideoExtractNode.tsx 🟢（crossOrigin 接回单点原语）
 videoEditor/export/pipeline.ts 🟢（单入口 + 判别联合 OpResult/AudioOutcome）
 videoEditor/data/projectRepository.ts 🟢（CAS + 判别联合 SaveProjectResult，版本冲突暴露 UI）
 videoEditor/panels/dock/useEditorExport.ts 🟢（uploadResult null → toast「导出失败」不 spawn）
 base/depthVideo/* 🟢（上传落盘走 filesApi.uploadFileToLocal）
-director3d/App.tsx · director3d/panels/Timeline.tsx 🟢（MP4 导出走 uploadFileToLocal）
+director3d/App.tsx · director3d/panels/Timeline.tsx 🔴（MP4 导出走 uploadFileToLocal；TD-22-19 键盘门）
 ```
 
 ---

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import useDeepCompareEffect from 'use-deep-compare-effect';
-import { X } from 'lucide-react';
+import { X, Music, Maximize, MoreVertical, Pause, Play } from 'lucide-react';
 import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
 import { useRafLoop } from '@videoEditor/hooks-cutia/use-raf-loop';
 import { useContainerSize } from '@videoEditor/hooks-cutia/use-container-size';
@@ -21,14 +21,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@videoEditor/ui/ui/dropdown-menu';
-import {
-  FullScreenIcon,
-  MoreVerticalIcon,
-  MusicNote03Icon,
-  PauseIcon,
-  PlayIcon,
-} from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
 import {
   handleMediaPreviewKeyDown,
   useMediaPreviewStore,
@@ -106,7 +98,7 @@ export function PreviewPanel() {
     <div
       ref={containerRef}
       className={cn(
-        'panel bg-background relative flex h-full min-h-0 w-full min-w-0 flex-col border',
+        'panel bg-background relative flex h-full min-h-0 w-full min-w-0 flex-col border-x border-t',
         isFullscreen && 'bg-background',
       )}
     >
@@ -178,7 +170,7 @@ function AssetPreviewPlayer({ asset }: { asset: MediaAsset }) {
   if (asset.type === 'audio') {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-4">
-        <HugeiconsIcon icon={MusicNote03Icon} className="text-muted-foreground size-16" />
+        <Music className="text-muted-foreground size-16" />
         <span className="text-muted-foreground text-sm">{asset.name}</span>
         {/* biome-ignore lint/a11y/useMediaCaption: preview playback */}
         <audio key={asset.id} src={url} controls autoPlay className="w-64" />
@@ -268,7 +260,7 @@ function PreviewToolbar({
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => invokeAction('toggle-play')}
       >
-        <HugeiconsIcon icon={isPlaying ? PauseIcon : PlayIcon} />
+        {isPlaying ? <Pause /> : <Play />}
       </Button>
 
       <div className="flex items-center gap-1 justify-self-end">
@@ -280,7 +272,7 @@ function PreviewToolbar({
           onClick={onToggleFullscreen}
           title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         >
-          <HugeiconsIcon icon={FullScreenIcon} />
+          <Maximize />
         </Button>
 
         <DropdownMenu>
@@ -292,7 +284,7 @@ function PreviewToolbar({
               onMouseDown={(event) => event.preventDefault()}
               title={'更多选项'}
             >
-              <HugeiconsIcon icon={MoreVerticalIcon} />
+              <MoreVertical />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" side="top">

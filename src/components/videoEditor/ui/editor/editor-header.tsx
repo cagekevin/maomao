@@ -7,11 +7,10 @@ import { ExportButton } from './export-button';
 import { DEFAULT_LOGO_URL } from '@videoEditor/constants/site-constants';
 import { toast } from '@videoEditor/lib/toast';
 import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { ArrowLeft02Icon, CommandIcon, PlusSignIcon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
 import { ShortcutsDialog } from './dialogs/shortcuts-dialog';
 import { cn } from '@videoEditor/utils/ui';
 import { storageService } from '@videoEditor/engine/services/storage/service';
+import { Plus, Command, ArrowLeft } from 'lucide-react';
 
 // 更新(2026-09-14)：agent-store 已随 AI 域删除。
 
@@ -206,7 +205,7 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
                 }}
                 className="hover:bg-accent flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-sm disabled:pointer-events-none disabled:opacity-50"
               >
-                <HugeiconsIcon icon={PlusSignIcon} className="size-4" />
+                <Plus className="size-4" />
                 {'新建作品'}
               </button>
               <button
@@ -217,7 +216,7 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
                 }}
                 className="hover:bg-accent flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-sm"
               >
-                <HugeiconsIcon icon={CommandIcon} className="size-4" />
+                <Command className="size-4" />
                 {'重命名作品'}
               </button>
 
@@ -230,7 +229,7 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
                 }}
                 className="hover:bg-accent flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-sm"
               >
-                <HugeiconsIcon icon={CommandIcon} className="size-4" />
+                <Command className="size-4" />
                 {'键盘快捷键'}
               </button>
 
@@ -244,7 +243,7 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
                   }}
                   className="hover:bg-accent flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-sm disabled:pointer-events-none disabled:opacity-50"
                 >
-                  <HugeiconsIcon icon={ArrowLeft02Icon} className="size-4" />
+                  <ArrowLeft className="size-4" />
                   {'退出项目'}
                 </button>
               )}

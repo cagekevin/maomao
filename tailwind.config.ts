@@ -24,7 +24,7 @@ const config: Config = {
        *   base 0 < canvas-tools 5 < node-inner 10/20 < dropdown 50 < float 100 < topnav 200
        *   < sidebar 800 < popover 1000 < modal 9999
        *   < modal-raise 10000 < modal-action 10001 < overlay-error 99999
-       *   < ceiling 2147483647（全屏编辑器 / Toast / 错误全屏）
+       *   < ceiling 2147483647（Toast / 错误全屏 —— 最后手段，不给"全屏视图"用）
        *
        * 关键约定：
        *   - 侧边栏(sidebar 800) 必须盖过左下角小地图与工具栏(canvas-tools 5)，

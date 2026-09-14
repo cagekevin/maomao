@@ -1,10 +1,6 @@
 import type { TTimelineViewState } from '@videoEditor/types/project';
 import type { TrackType } from '@videoEditor/types/timeline';
-import { Happy01Icon, MusicNote03Icon, TextIcon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
-// 更新(2026-09-14)：原为 `@cutia/ui/icons`（cutia monorepo workspace 包，本仓不可解析）
-// → 搬入其源码（ui/cutia-ui-icons，仅 3 个 SVG 图标，48 行）。
-import { OcVideoIcon } from '@videoEditor/ui/cutia-ui-icons';
+import { Music, Smile, Type, Video } from 'lucide-react';
 
 export const TRACK_HEIGHTS: Record<TrackType, number> = {
   video: 60,
@@ -32,8 +28,8 @@ export const DEFAULT_TIMELINE_VIEW_STATE: TTimelineViewState = {
 };
 
 export const TRACK_ICONS: Record<TrackType, React.ReactNode> = {
-  video: <OcVideoIcon className="text-muted-foreground size-4 shrink-0" />,
-  text: <HugeiconsIcon icon={TextIcon} className="text-muted-foreground size-4 shrink-0" />,
-  audio: <HugeiconsIcon icon={MusicNote03Icon} className="text-muted-foreground size-4 shrink-0" />,
-  sticker: <HugeiconsIcon icon={Happy01Icon} className="text-muted-foreground size-4 shrink-0" />,
+  video: <Video className="text-muted-foreground size-4 shrink-0" />,
+  text: <Type className="text-muted-foreground size-4 shrink-0" />,
+  audio: <Music className="text-muted-foreground size-4 shrink-0" />,
+  sticker: <Smile className="text-muted-foreground size-4 shrink-0" />,
 } as const;

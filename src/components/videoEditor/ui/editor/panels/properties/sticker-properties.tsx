@@ -102,8 +102,13 @@ export function StickerProperties({
     <div className="flex h-full flex-col">
       <PanelBaseView className="p-0">
         <PropertyGroup hasBorderTop={false}>
-          <div className="space-y-4">
-            <PropertyItem>
+          {/*
+            位置 X / Y —— **标签 + 窄框，横排在同一行**（与 text / video 面板同一形态）。
+            `flex-1` + 撑满的输入框会把每个框做到 130px+ 去装 -20~20 的数字，
+            宽度全空着，还和同面板的缩放/旋转（48px）成了两种尺寸。
+          */}
+          <div className="flex items-center gap-4">
+            <PropertyItem className="flex-1">
               <PropertyItemLabel>{'位置 X'}</PropertyItemLabel>
               <PropertyItemValue>
                 <Input
@@ -162,12 +167,11 @@ export function StickerProperties({
                     posXDraft.current = '';
                     forceRender();
                   }}
-                  className="ve-num w-full"
+                  className="ve-num w-12"
                 />
               </PropertyItemValue>
             </PropertyItem>
-
-            <PropertyItem>
+            <PropertyItem className="flex-1">
               <PropertyItemLabel>{'位置 Y'}</PropertyItemLabel>
               <PropertyItemValue>
                 <Input
@@ -226,122 +230,167 @@ export function StickerProperties({
                     posYDraft.current = '';
                     forceRender();
                   }}
-                  className="ve-num w-full"
+                  className="ve-num w-12"
                 />
               </PropertyItemValue>
             </PropertyItem>
+          </div>
 
-            <PropertyItem>
-              <PropertyItemLabel>{'缩放'}</PropertyItemLabel>
-              <PropertyItemValue>
-                <div className="flex items-center gap-2">
-                  <Slider
-                    value={[scalePercent]}
-                    min={10}
-                    max={500}
-                    step={1}
-                    onValueChange={([value]) => {
-                      if (initialScaleRef.current === null) {
-                        initialScaleRef.current = element.transform.scale;
-                      }
+          <PropertyItem>
+            <PropertyItemLabel>{'缩放'}</PropertyItemLabel>
+            <PropertyItemValue>
+              <div className="flex items-center gap-2">
+                <Slider
+                  value={[scalePercent]}
+                  min={10}
+                  max={500}
+                  step={1}
+                  onValueChange={([value]) => {
+                    if (initialScaleRef.current === null) {
+                      initialScaleRef.current = element.transform.scale;
+                    }
+                    updateTransform({
+                      updates: { scale: value / 100 },
+                      pushHistory: false,
+                    });
+                  }}
+                  onValueCommit={([value]) => {
+                    if (initialScaleRef.current !== null) {
+                      updateTransform({
+                        updates: { scale: initialScaleRef.current },
+                        pushHistory: false,
+                      });
                       updateTransform({
                         updates: { scale: value / 100 },
+                        pushHistory: true,
+                      });
+                      initialScaleRef.current = null;
+                    }
+                  }}
+                  className="w-full"
+                />
+                <Input
+                  type="number"
+                  value={scaleDisplay}
+                  min={10}
+                  max={500}
+                  onFocus={() => {
+                    isEditingScale.current = true;
+                    scaleDraft.current = scalePercent.toString();
+                    forceRender();
+                  }}
+                  onChange={(event) => {
+                    scaleDraft.current = event.target.value;
+                    forceRender();
+                    if (initialScaleRef.current === null) {
+                      initialScaleRef.current = element.transform.scale;
+                    }
+                    const parsed = Number.parseInt(event.target.value, 10);
+                    if (!Number.isNaN(parsed)) {
+                      const clamped = clamp({
+                        value: parsed,
+                        min: 10,
+                        max: 500,
+                      });
+                      updateTransform({
+                        updates: { scale: clamped / 100 },
                         pushHistory: false,
                       });
-                    }}
-                    onValueCommit={([value]) => {
-                      if (initialScaleRef.current !== null) {
-                        updateTransform({
-                          updates: { scale: initialScaleRef.current },
-                          pushHistory: false,
-                        });
-                        updateTransform({
-                          updates: { scale: value / 100 },
-                          pushHistory: true,
-                        });
-                        initialScaleRef.current = null;
-                      }
-                    }}
-                    className="w-full"
-                  />
-                  <Input
-                    type="number"
-                    value={scaleDisplay}
-                    min={10}
-                    max={500}
-                    onFocus={() => {
-                      isEditingScale.current = true;
-                      scaleDraft.current = scalePercent.toString();
-                      forceRender();
-                    }}
-                    onChange={(event) => {
-                      scaleDraft.current = event.target.value;
-                      forceRender();
-                      if (initialScaleRef.current === null) {
-                        initialScaleRef.current = element.transform.scale;
-                      }
-                      const parsed = Number.parseInt(event.target.value, 10);
-                      if (!Number.isNaN(parsed)) {
-                        const clamped = clamp({
-                          value: parsed,
-                          min: 10,
-                          max: 500,
-                        });
-                        updateTransform({
-                          updates: { scale: clamped / 100 },
-                          pushHistory: false,
-                        });
-                      }
-                    }}
-                    onBlur={() => {
-                      if (initialScaleRef.current !== null) {
-                        const parsed = Number.parseInt(scaleDraft.current, 10);
-                        const clamped = Number.isNaN(parsed)
-                          ? scalePercent
-                          : clamp({ value: parsed, min: 10, max: 500 });
-                        updateTransform({
-                          updates: { scale: initialScaleRef.current },
-                          pushHistory: false,
-                        });
-                        updateTransform({
-                          updates: { scale: clamped / 100 },
-                          pushHistory: true,
-                        });
-                        initialScaleRef.current = null;
-                      }
-                      isEditingScale.current = false;
-                      scaleDraft.current = '';
-                      forceRender();
-                    }}
-                    className="ve-num w-14"
-                  />
-                </div>
-              </PropertyItemValue>
-            </PropertyItem>
+                    }
+                  }}
+                  onBlur={() => {
+                    if (initialScaleRef.current !== null) {
+                      const parsed = Number.parseInt(scaleDraft.current, 10);
+                      const clamped = Number.isNaN(parsed)
+                        ? scalePercent
+                        : clamp({ value: parsed, min: 10, max: 500 });
+                      updateTransform({
+                        updates: { scale: initialScaleRef.current },
+                        pushHistory: false,
+                      });
+                      updateTransform({
+                        updates: { scale: clamped / 100 },
+                        pushHistory: true,
+                      });
+                      initialScaleRef.current = null;
+                    }
+                    isEditingScale.current = false;
+                    scaleDraft.current = '';
+                    forceRender();
+                  }}
+                  className="ve-num w-12"
+                />
+              </div>
+            </PropertyItemValue>
+          </PropertyItem>
 
-            <PropertyItem>
-              <PropertyItemLabel>{'旋转'}</PropertyItemLabel>
-              <PropertyItemValue>
-                <div className="flex items-center gap-2">
-                  <Slider
-                    value={[element.transform.rotate]}
-                    min={-180}
-                    max={180}
-                    step={1}
-                    onValueChange={([value]) => {
-                      if (initialRotationRef.current === null) {
-                        initialRotationRef.current = element.transform.rotate;
-                      }
+          <PropertyItem>
+            <PropertyItemLabel>{'旋转'}</PropertyItemLabel>
+            <PropertyItemValue>
+              <div className="flex items-center gap-2">
+                <Slider
+                  value={[element.transform.rotate]}
+                  min={-180}
+                  max={180}
+                  step={1}
+                  onValueChange={([value]) => {
+                    if (initialRotationRef.current === null) {
+                      initialRotationRef.current = element.transform.rotate;
+                    }
+                    updateTransform({
+                      updates: { rotate: value },
+                      pushHistory: false,
+                    });
+                  }}
+                  onValueCommit={([value]) => {
+                    if (initialRotationRef.current !== null) {
+                      updateTransform({
+                        updates: {
+                          rotate: initialRotationRef.current,
+                        },
+                        pushHistory: false,
+                      });
                       updateTransform({
                         updates: { rotate: value },
+                        pushHistory: true,
+                      });
+                      initialRotationRef.current = null;
+                    }
+                  }}
+                  className="w-full"
+                />
+                <Input
+                  type="number"
+                  value={rotationDisplay}
+                  min={-360}
+                  max={360}
+                  onFocus={() => {
+                    isEditingRotation.current = true;
+                    rotationDraft.current = Math.round(element.transform.rotate).toString();
+                    forceRender();
+                  }}
+                  onChange={(event) => {
+                    rotationDraft.current = event.target.value;
+                    forceRender();
+                    if (initialRotationRef.current === null) {
+                      initialRotationRef.current = element.transform.rotate;
+                    }
+                    const parsed = Number.parseFloat(event.target.value);
+                    if (!Number.isNaN(parsed)) {
+                      updateTransform({
+                        updates: { rotate: parsed },
                         pushHistory: false,
                       });
-                    }}
-                    onValueCommit={([value]) => {
-                      if (initialRotationRef.current !== null) {
+                    }
+                  }}
+                  onBlur={() => {
+                    commitNumberField({
+                      draft: rotationDraft.current,
+                      initial: initialRotationRef,
+                      apply: (value) => {
                         updateTransform({
                           updates: {
-                            rotate: initialRotationRef.current,
+                            rotate: initialRotationRef.current ?? 0,
                           },
                           pushHistory: false,
                         });
@@ -349,197 +398,154 @@ export function StickerProperties({
                           updates: { rotate: value },
                           pushHistory: true,
                         });
-                        initialRotationRef.current = null;
-                      }
-                    }}
-                    className="w-full"
-                  />
-                  <Input
-                    type="number"
-                    value={rotationDisplay}
-                    min={-360}
-                    max={360}
-                    onFocus={() => {
-                      isEditingRotation.current = true;
-                      rotationDraft.current = Math.round(element.transform.rotate).toString();
-                      forceRender();
-                    }}
-                    onChange={(event) => {
-                      rotationDraft.current = event.target.value;
-                      forceRender();
-                      if (initialRotationRef.current === null) {
-                        initialRotationRef.current = element.transform.rotate;
-                      }
-                      const parsed = Number.parseFloat(event.target.value);
-                      if (!Number.isNaN(parsed)) {
-                        updateTransform({
-                          updates: { rotate: parsed },
-                          pushHistory: false,
-                        });
-                      }
-                    }}
-                    onBlur={() => {
-                      commitNumberField({
-                        draft: rotationDraft.current,
-                        initial: initialRotationRef,
-                        apply: (value) => {
-                          updateTransform({
-                            updates: {
-                              rotate: initialRotationRef.current ?? 0,
-                            },
-                            pushHistory: false,
-                          });
-                          updateTransform({
-                            updates: { rotate: value },
-                            pushHistory: true,
-                          });
-                        },
-                      });
-                      isEditingRotation.current = false;
-                      rotationDraft.current = '';
-                      forceRender();
-                    }}
-                    className="ve-num w-14"
-                  />
-                </div>
-              </PropertyItemValue>
-            </PropertyItem>
-          </div>
+                      },
+                    });
+                    isEditingRotation.current = false;
+                    rotationDraft.current = '';
+                    forceRender();
+                  }}
+                  className="ve-num w-12"
+                />
+              </div>
+            </PropertyItemValue>
+          </PropertyItem>
         </PropertyGroup>
 
-        <PropertyGroup>
-          <div className="space-y-4">
-            <PropertyItem>
-              <PropertyItemLabel>{'不透明度'}</PropertyItemLabel>
-              <PropertyItemValue>
-                <div className="flex items-center gap-2">
-                  <Slider
-                    value={[element.opacity * 100]}
-                    min={0}
-                    max={100}
-                    step={1}
-                    onValueChange={([value]) => {
-                      if (initialOpacityRef.current === null) {
-                        initialOpacityRef.current = element.opacity;
-                      }
-                      updateElement({
-                        updates: { opacity: value / 100 },
-                        pushHistory: false,
-                      });
-                    }}
-                    onValueCommit={([value]) => {
-                      if (initialOpacityRef.current !== null) {
-                        updateElement({
-                          updates: {
-                            opacity: initialOpacityRef.current,
-                          },
-                          pushHistory: false,
-                        });
-                        updateElement({
-                          updates: { opacity: value / 100 },
-                          pushHistory: true,
-                        });
-                        initialOpacityRef.current = null;
-                      }
-                    }}
-                    className="w-full"
-                  />
-                  <Input
-                    type="number"
-                    value={opacityDisplay}
-                    min={0}
-                    max={100}
-                    onFocus={() => {
-                      isEditingOpacity.current = true;
-                      opacityDraft.current = Math.round(element.opacity * 100).toString();
-                      forceRender();
-                    }}
-                    onChange={(event) => {
-                      opacityDraft.current = event.target.value;
-                      forceRender();
-                      if (initialOpacityRef.current === null) {
-                        initialOpacityRef.current = element.opacity;
-                      }
-                      const parsed = Number.parseInt(event.target.value, 10);
-                      if (!Number.isNaN(parsed)) {
-                        const opacityPercent = clamp({
-                          value: parsed,
-                          min: 0,
-                          max: 100,
-                        });
-                        updateElement({
-                          updates: {
-                            opacity: opacityPercent / 100,
-                          },
-                          pushHistory: false,
-                        });
-                      }
-                    }}
-                    onBlur={() => {
-                      if (initialOpacityRef.current !== null) {
-                        const parsed = Number.parseInt(opacityDraft.current, 10);
-                        const opacityPercent = Number.isNaN(parsed)
-                          ? Math.round(element.opacity * 100)
-                          : clamp({
-                              value: parsed,
-                              min: 0,
-                              max: 100,
-                            });
-                        updateElement({
-                          updates: {
-                            opacity: initialOpacityRef.current,
-                          },
-                          pushHistory: false,
-                        });
-                        updateElement({
-                          updates: {
-                            opacity: opacityPercent / 100,
-                          },
-                          pushHistory: true,
-                        });
-                        initialOpacityRef.current = null;
-                      }
-                      isEditingOpacity.current = false;
-                      opacityDraft.current = '';
-                      forceRender();
-                    }}
-                    className="ve-num w-14"
-                  />
-                </div>
-              </PropertyItemValue>
-            </PropertyItem>
-
-            <PropertyItem>
-              <PropertyItemLabel>{'颜色'}</PropertyItemLabel>
-              <PropertyItemValue>
-                <ColorPicker
-                  value={element.color ?? '#000000'}
-                  onChange={(value) => {
-                    if (initialColorRef.current === null) {
-                      initialColorRef.current = element.color ?? '#000000';
+        <PropertyGroup hasBorderTop>
+          <PropertyItem>
+            <PropertyItemLabel>{'不透明度'}</PropertyItemLabel>
+            <PropertyItemValue>
+              <div className="flex items-center gap-2">
+                <Slider
+                  value={[element.opacity * 100]}
+                  min={0}
+                  max={100}
+                  step={1}
+                  onValueChange={([value]) => {
+                    if (initialOpacityRef.current === null) {
+                      initialOpacityRef.current = element.opacity;
                     }
                     updateElement({
-                      updates: { color: value },
+                      updates: { opacity: value / 100 },
                       pushHistory: false,
                     });
                   }}
-                  onChangeEnd={(value) => {
-                    if (initialColorRef.current !== null) {
+                  onValueCommit={([value]) => {
+                    if (initialOpacityRef.current !== null) {
                       updateElement({
-                        updates: { color: initialColorRef.current },
+                        updates: {
+                          opacity: initialOpacityRef.current,
+                        },
                         pushHistory: false,
                       });
                       updateElement({
-                        updates: { color: value },
+                        updates: { opacity: value / 100 },
                         pushHistory: true,
                       });
-                      initialColorRef.current = null;
+                      initialOpacityRef.current = null;
                     }
                   }}
+                  className="w-full"
                 />
-              </PropertyItemValue>
-            </PropertyItem>
-          </div>
+                <Input
+                  type="number"
+                  value={opacityDisplay}
+                  min={0}
+                  max={100}
+                  onFocus={() => {
+                    isEditingOpacity.current = true;
+                    opacityDraft.current = Math.round(element.opacity * 100).toString();
+                    forceRender();
+                  }}
+                  onChange={(event) => {
+                    opacityDraft.current = event.target.value;
+                    forceRender();
+                    if (initialOpacityRef.current === null) {
+                      initialOpacityRef.current = element.opacity;
+                    }
+                    const parsed = Number.parseInt(event.target.value, 10);
+                    if (!Number.isNaN(parsed)) {
+                      const opacityPercent = clamp({
+                        value: parsed,
+                        min: 0,
+                        max: 100,
+                      });
+                      updateElement({
+                        updates: {
+                          opacity: opacityPercent / 100,
+                        },
+                        pushHistory: false,
+                      });
+                    }
+                  }}
+                  onBlur={() => {
+                    if (initialOpacityRef.current !== null) {
+                      const parsed = Number.parseInt(opacityDraft.current, 10);
+                      const opacityPercent = Number.isNaN(parsed)
+                        ? Math.round(element.opacity * 100)
+                        : clamp({
+                            value: parsed,
+                            min: 0,
+                            max: 100,
+                          });
+                      updateElement({
+                        updates: {
+                          opacity: initialOpacityRef.current,
+                        },
+                        pushHistory: false,
+                      });
+                      updateElement({
+                        updates: {
+                          opacity: opacityPercent / 100,
+                        },
+                        pushHistory: true,
+                      });
+                      initialOpacityRef.current = null;
+                    }
+                    isEditingOpacity.current = false;
+                    opacityDraft.current = '';
+                    forceRender();
+                  }}
+                  className="ve-num w-12"
+                />
+              </div>
+            </PropertyItemValue>
+          </PropertyItem>
+
+          <PropertyItem>
+            <PropertyItemLabel>{'颜色'}</PropertyItemLabel>
+            <PropertyItemValue>
+              <ColorPicker
+                value={element.color ?? '#000000'}
+                onChange={(value) => {
+                  if (initialColorRef.current === null) {
+                    initialColorRef.current = element.color ?? '#000000';
+                  }
+                  // ⚠️ 写回必须补 `#`：ColorPicker 契约是不带 `#` 的 hex，
+                  // 而全仓颜色存储（text.color / stroke / shadow / background）一律带 `#`。
+                  // 曾原样写回 → sticker.color 变成 'ff0000'，同一字段两种格式
+                  // （渲染 URL 与存储脱节，靠显示端的 normalizeHex 容错掩盖）。
+                  updateElement({
+                    updates: { color: `#${value}` },
+                    pushHistory: false,
+                  });
+                }}
+                onChangeEnd={(value) => {
+                  if (initialColorRef.current !== null) {
+                    updateElement({
+                      updates: { color: initialColorRef.current },
+                      pushHistory: false,
+                    });
+                    updateElement({
+                      updates: { color: `#${value}` },
+                      pushHistory: true,
+                    });
+                    initialColorRef.current = null;
+                  }
+                }}
+              />
+            </PropertyItemValue>
+          </PropertyItem>
         </PropertyGroup>
       </PanelBaseView>
     </div>

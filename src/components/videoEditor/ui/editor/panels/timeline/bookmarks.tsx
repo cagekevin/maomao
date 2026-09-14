@@ -1,8 +1,7 @@
 import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
 import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
 import { getSnappedSeekTime } from '@videoEditor/engine/lib/time';
-import { Bookmark02Icon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { Bookmark } from 'lucide-react';
 
 interface TimelineBookmarksRowProps {
   zoomLevel: number;
@@ -88,7 +87,7 @@ export function TimelineBookmark({ time, zoomLevel }: { time: number; zoomLevel:
       }}
     >
       <div className="text-primary absolute top-[-1px] left-[-5px]">
-        <HugeiconsIcon icon={Bookmark02Icon} aria-hidden="true" className="fill-primary size-3" />
+        <Bookmark aria-hidden="true" className="fill-primary size-3" />
       </div>
     </button>
   );

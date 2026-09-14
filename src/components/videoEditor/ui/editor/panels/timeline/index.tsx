@@ -2,15 +2,15 @@
 
 import { ScrollArea } from '@videoEditor/ui/ui/scroll-area';
 import {
-  DragDropIcon,
-  Delete02Icon,
-  TaskAdd02Icon,
-  ViewIcon,
-  ViewOffSlashIcon,
-  VolumeHighIcon,
-  VolumeOffIcon,
-} from '@hugeicons/core-free-icons';
-import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
+  GripVertical,
+  Volume2,
+  VolumeX,
+  Eye,
+  EyeOff,
+  ListPlus,
+  Trash2,
+  type LucideIcon,
+} from 'lucide-react';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -184,7 +184,9 @@ export function Timeline() {
 
   return (
     <section
-      className={'panel bg-background relative flex h-full flex-col overflow-hidden border'}
+      className={
+        'panel bg-background relative flex h-full flex-col overflow-hidden border-x border-b'
+      }
       {...dragProps}
       aria-label="Timeline"
     >
@@ -206,7 +208,7 @@ export function Timeline() {
         />
         <div className="flex flex-1 overflow-hidden">
           <div className="bg-background flex w-28 shrink-0 flex-col border-r">
-            <div className="bg-background flex h-4 items-center justify-between px-3">
+            <div className="bg-background flex h-6 items-center justify-between px-3">
               <span className="opacity-0">.</span>
             </div>
             <div className="bg-background flex h-4 items-center justify-between px-3">
@@ -240,9 +242,8 @@ export function Timeline() {
                             height: `${getTrackHeight({ type: track.type })}px`,
                           }}
                         >
-                          <HugeiconsIcon
-                            icon={DragDropIcon}
-                            className="text-muted-foreground/50 group-hover:text-muted-foreground size-3.5 shrink-0 cursor-grab active:cursor-grabbing"
+                          <GripVertical
+                            className="ve-drag-handle group-hover:text-muted-foreground size-3.5 shrink-0 cursor-grab active:cursor-grabbing"
                             onMouseDown={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
@@ -263,8 +264,8 @@ export function Timeline() {
                               <TrackToggleIcon
                                 isOff={track.muted}
                                 icons={{
-                                  on: VolumeHighIcon,
-                                  off: VolumeOffIcon,
+                                  on: Volume2,
+                                  off: VolumeX,
                                 }}
                                 onClick={() =>
                                   editor.timeline.toggleTrackMute({
@@ -277,8 +278,8 @@ export function Timeline() {
                               <TrackToggleIcon
                                 isOff={track.hidden}
                                 icons={{
-                                  on: ViewIcon,
-                                  off: ViewOffSlashIcon,
+                                  on: Eye,
+                                  off: EyeOff,
                                 }}
                                 onClick={() =>
                                   editor.timeline.toggleTrackVisibility({
@@ -435,9 +436,9 @@ export function Timeline() {
                               />
                             </div>
                           </ContextMenuTrigger>
-                          <ContextMenuContent className="z-200 w-40">
+                          <ContextMenuContent className="z-[200] w-40">
                             <ContextMenuItem
-                              icon={<HugeiconsIcon icon={TaskAdd02Icon} />}
+                              icon={<ListPlus />}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 invokeAction('paste-copied');
@@ -453,7 +454,7 @@ export function Timeline() {
                                 });
                               }}
                             >
-                              <HugeiconsIcon icon={VolumeHighIcon} />
+                              <Volume2 />
                               <span>
                                 {canTracktHaveAudio(track) && track.muted
                                   ? '取消静音轨道'
@@ -468,7 +469,7 @@ export function Timeline() {
                                 });
                               }}
                             >
-                              <HugeiconsIcon icon={ViewIcon} />
+                              <Eye />
                               <span>
                                 {canTrackBeHidden(track) && track.hidden ? '显示轨道' : '隐藏轨道'}
                               </span>
@@ -483,7 +484,7 @@ export function Timeline() {
                               variant="destructive"
                               disabled={isMainTrack(track)}
                             >
-                              <HugeiconsIcon icon={Delete02Icon} />
+                              <Trash2 />
                               {'删除轨道'}
                             </ContextMenuItem>
                           </ContextMenuContent>
@@ -512,25 +513,17 @@ function TrackToggleIcon({
 }: {
   isOff: boolean;
   icons: {
-    on: IconSvgElement;
-    off: IconSvgElement;
+    on: LucideIcon;
+    off: LucideIcon;
   };
   onClick: () => void;
 }) {
   return (
     <>
       {isOff ? (
-        <HugeiconsIcon
-          icon={icons.off}
-          className="text-destructive size-4 cursor-pointer"
-          onClick={onClick}
-        />
+        <icons.off className="text-destructive size-4 cursor-pointer" onClick={onClick} />
       ) : (
-        <HugeiconsIcon
-          icon={icons.on}
-          className="text-muted-foreground size-4 cursor-pointer"
-          onClick={onClick}
-        />
+        <icons.on className="text-muted-foreground size-4 cursor-pointer" onClick={onClick} />
       )}
     </>
   );

@@ -1,5 +1,4 @@
-import { HugeiconsIcon } from '@hugeicons/react';
-import { UploadIcon } from '@hugeicons/core-free-icons';
+import { Upload } from 'lucide-react';
 
 interface MediaDragOverlayProps {
   isVisible: boolean;
@@ -16,8 +15,15 @@ export function MediaDragOverlay({
 }: MediaDragOverlayProps) {
   if (!isVisible) return null;
 
+  /**
+   * 【不因 isProcessing 而禁用】——本组件是**导入入口**，任何时刻都必须可点。
+   * 处理中只把文案/进度条切到进度态（见下方），不阻断再次导入：
+   *   · `disabled` 会让 `pointer-events: none` 指针穿透，用户以为"点了没反应"；
+   *   · 且用户有权随时导下一批（每批独立处理）。
+   * 仅在**没有回调**时禁用（那是真的不可用）。
+   */
   const handleClick = ({ event }: { event: React.MouseEvent<HTMLButtonElement> }) => {
-    if (isProcessing || !onClick) return;
+    if (!onClick) return;
     event.preventDefault();
     event.stopPropagation();
     onClick();
@@ -27,11 +33,12 @@ export function MediaDragOverlay({
     <button
       className="bg-foreground/5 hover:bg-foreground/10 flex size-full flex-col items-center justify-center gap-4 rounded-lg p-8 text-center"
       type="button"
-      disabled={isProcessing || !onClick}
+      disabled={!onClick}
+      aria-busy={isProcessing}
       onClick={(event) => handleClick({ event })}
     >
       <div className="flex items-center justify-center">
-        <HugeiconsIcon icon={UploadIcon} className="text-foreground size-10" />
+        <Upload className="text-foreground size-10" />
       </div>
 
       <div className="space-y-2">

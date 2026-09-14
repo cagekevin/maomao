@@ -4,7 +4,7 @@ import type { MediaAsset } from '@videoEditor/types/assets';
 import { storageService } from '@videoEditor/engine/services/storage/service';
 import { generateUUID } from '@videoEditor/utils/id';
 import { videoCache } from '@videoEditor/engine/services/video-cache/service';
-import { hasMediaId } from '@videoEditor/engine/timeline/element-utils';
+import { collectElementsByMediaId } from '@videoEditor/engine/timeline/element-utils';
 import { toast } from '@videoEditor/lib/toast';
 
 export class MediaManager {
@@ -62,16 +62,10 @@ export class MediaManager {
     this.assets = this.assets.filter((asset) => asset.id !== id);
     this.notify();
 
-    const tracks = this.editor.timeline.getTracks();
-    const elementsToRemove: Array<{ trackId: string; elementId: string }> = [];
-
-    for (const track of tracks) {
-      for (const element of track.elements) {
-        if (hasMediaId(element) && element.mediaId === id) {
-          elementsToRemove.push({ trackId: track.id, elementId: element.id });
-        }
-      }
-    }
+    const elementsToRemove = collectElementsByMediaId({
+      tracks: this.editor.timeline.getTracks(),
+      mediaId: id,
+    });
 
     if (elementsToRemove.length > 0) {
       this.editor.timeline.deleteElements({ elements: elementsToRemove });

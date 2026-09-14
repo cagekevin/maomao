@@ -39,7 +39,14 @@ export function AssetsPanel() {
     <div className="panel bg-background flex h-full border overflow-hidden">
       <TabBar />
       <Separator orientation="vertical" />
-      <div className="flex-1 overflow-hidden">{viewMap[activeTab]}</div>
+      {/*
+        【高度链修正 2026-09-15】原为 `flex-1 overflow-hidden`（只声明了宽度伸缩）。
+        父容器是 `flex`（row 方向），子视图（如 `MediaView`）根元素用 `h-full` —— 其百分比
+        高度需要父元素有**确定高度**。原写法下高度依赖 stretch 隐式推断，在各视图内容为空时
+        容易塌成 0 → **整块面板看起来"什么都没有"**（用户实测：看不到素材区的拖放提示）。
+        这里显式给 `h-full min-h-0`（`min-h-0` 防 flex 子项被内容顶破），把高度链钉死。
+      */}
+      <div className="flex-1 h-full min-h-0 overflow-hidden">{viewMap[activeTab]}</div>
     </div>
   );
 }

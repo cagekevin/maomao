@@ -61,8 +61,6 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
-    "@hugeicons/core-free-icons": "^4.3.3",
-    "@hugeicons/react": "^1.1.10",
     "@mediapipe/tasks-vision": "^1.0.1",
     "@radix-ui/react-separator": "^1.1.15",
     "@react-three/drei": "^10.7.8",

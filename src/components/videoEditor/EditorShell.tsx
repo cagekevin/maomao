@@ -14,6 +14,7 @@
  * 依赖方向：`EditorShell`（改造区）→ `ui/` → `engine/`（引擎区）。不得反向。
  */
 
+import { useEffect } from 'react';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@videoEditor/ui/ui/resizable';
 import { AssetsPanel } from '@videoEditor/ui/editor/panels/assets';
 import { PropertiesPanel } from '@videoEditor/ui/editor/panels/properties';
@@ -70,6 +71,16 @@ export interface EditorShellProps {
 }
 
 export function EditorShell({ canvasProjectId, onClose, className }: EditorShellProps) {
+  // Radix 弹层（菜单/对话框/Popover/Tooltip）渲染在 document.body —— 在编辑器根节点的
+  // .ve-scope 之外，拿不到 --ve-* token（背景/文字全部回落宿主值，色调错乱）。
+  // 编辑器打开期间把主题类挂到 body；卸载时移除，宿主不受影响。
+  useEffect(() => {
+    document.body.classList.add('ve-scope', 'dark');
+    return () => {
+      document.body.classList.remove('ve-scope', 'dark');
+    };
+  }, []);
+
   return (
     <EditorProvider canvasProjectId={canvasProjectId}>
       {/* TooltipProvider：cutia 原在整站 layout 提供（app/[locale]/layout.tsx:35）；

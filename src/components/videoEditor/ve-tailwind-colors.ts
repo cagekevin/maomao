@@ -21,16 +21,16 @@ export const videoEditorThemeColors: Record<string, string> = {
   primary: 'rgb(var(--ve-primary, var(--mao-text-primary)) / <alpha-value>)',
   'primary-foreground': 'rgb(var(--ve-on-primary, 255 255 255) / <alpha-value>)',
 
-  /* ── 次级/悬停面（★ 之前漏映射导致激活态白底白字的就是 secondary）── */
-  secondary: 'rgb(var(--ve-secondary, var(--mao-text-secondary)) / <alpha-value>)',
-  'secondary-foreground': 'rgb(var(--ve-on-secondary, 212 212 212) / <alpha-value>)',
+  /* ── 次级/悬停面：v4 无独立背景 token，= 前景薄纱（静态色，不支持 /alpha 修饰）── */
+  secondary: 'rgb(var(--ve-fg) / 0.1)',
+  'secondary-foreground': 'rgb(var(--ve-fg))',
   'secondary-border': 'rgb(var(--ve-border, var(--mao-edge)) / <alpha-value>)',
 
   /* ── 静默/悬停 ── */
-  muted: 'rgb(var(--ve-muted, var(--mao-text-muted)) / <alpha-value>)',
-  'muted-foreground': 'rgb(var(--ve-muted-fg, var(--mao-text-muted)) / <alpha-value>)',
-  accent: 'rgb(var(--ve-accent, var(--mao-accent)) / <alpha-value>)',
-  'accent-foreground': 'rgb(var(--ve-on-accent, var(--mao-text-primary)) / <alpha-value>)',
+  muted: 'rgb(var(--ve-fg) / 0.08)',
+  'muted-foreground': 'rgb(var(--ve-fg) / 0.55)',
+  accent: 'rgb(var(--ve-fg) / 0.06)',
+  'accent-foreground': 'rgb(var(--ve-fg))',
 
   /* ── 状态 ── */
   destructive: 'rgb(var(--ve-danger, var(--mao-danger)) / <alpha-value>)',

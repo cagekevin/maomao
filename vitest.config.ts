@@ -73,6 +73,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(rootDir, './src'),
+      // 2026-09-15：与 vite.config.ts 对齐——cutia 搬迁代码用 `@videoEditor` 前缀。
+      // 此前 vitest 缺此别名 → 任何 videoEditor 相关测试都无法 import（= 该模块不可测）。
+      '@videoEditor': path.resolve(rootDir, './src/components/videoEditor'),
     },
   },
 });

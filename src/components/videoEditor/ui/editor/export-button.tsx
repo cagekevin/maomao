@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { TransitionTopIcon } from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
 import { Popover, PopoverContent, PopoverTrigger } from '@videoEditor/ui/ui/popover';
 import { Button } from '@videoEditor/ui/ui/button';
 import { Label } from '@videoEditor/ui/ui/label';
@@ -11,7 +9,7 @@ import { Progress } from '@videoEditor/ui/ui/progress';
 import { Checkbox } from '@videoEditor/ui/ui/checkbox';
 import { cn } from '@videoEditor/utils/ui';
 import { getExportMimeType, getExportFileExtension } from '@videoEditor/engine/lib/export';
-import { Check, Copy, Download, RotateCcw } from 'lucide-react';
+import { Check, Copy, Download, RotateCcw, Replace } from 'lucide-react';
 import {
   EXPORT_FORMAT_VALUES,
   EXPORT_QUALITY_VALUES,
@@ -51,7 +49,7 @@ export function ExportButton() {
             }
           }}
         >
-          <HugeiconsIcon icon={TransitionTopIcon} className="size-4" />
+          <Replace className="size-4" />
           <span>{'导出'}</span>
         </button>
       </PopoverTrigger>

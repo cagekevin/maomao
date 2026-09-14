@@ -43,6 +43,39 @@ export function requiresMediaId({ element }: { element: CreateTimelineElement })
   );
 }
 
+/**
+ * 按素材 id 收集它在时间轴上**全部**元素（跨轨）。
+ *
+ * 【为什么收口】「按 mediaId 找时间轴元素」这段判据此前被抄成 2 份
+ * （`managers/media-manager.removeMediaAsset` 与 `commands/media/remove-media-asset`），
+ * 且每份都要自己写「遍历 tracks → 遍历 elements → hasMediaId 判定 → 收集」这一套。
+ * 现在「素材减号（从时间轴移除该素材的全部片段）」是第 3 个消费者 —— 故收口在此唯一实现。
+ *
+ * 【唯一实现的好处】`hasMediaId` 的收窄、跨轨遍历、返回形状都由这一处决定；
+ * 消费方只拿到 `{ trackId, elementId }[]`（`timeline.deleteElements` 的入参形状）。
+ *
+ * @param tracks 时间轴轨道
+ * @param mediaId 素材 id
+ * @returns 该素材在时间轴上的全部元素定位（无 → 空数组）
+ */
+export function collectElementsByMediaId({
+  tracks,
+  mediaId,
+}: {
+  tracks: TimelineTrack[];
+  mediaId: string;
+}): Array<{ trackId: string; elementId: string }> {
+  const found: Array<{ trackId: string; elementId: string }> = [];
+  for (const track of tracks) {
+    for (const element of track.elements) {
+      if (hasMediaId(element) && element.mediaId === mediaId) {
+        found.push({ trackId: track.id, elementId: element.id });
+      }
+    }
+  }
+  return found;
+}
+
 export function wouldElementOverlap({
   elements,
   startTime,

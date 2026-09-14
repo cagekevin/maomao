@@ -14,21 +14,11 @@ import {
   ContextMenuTrigger,
 } from '@videoEditor/ui/ui/context-menu';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogBody,
-  DialogFooter,
-  DialogTitle,
-  DialogDescription,
-} from '@videoEditor/ui/ui/dialog';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@videoEditor/ui/ui/dropdown-menu';
-import { Input } from '@videoEditor/ui/ui/input';
 import {
   Tooltip,
   TooltipContent,
@@ -40,7 +30,6 @@ import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
 import { useFileUpload } from '@videoEditor/hooks-cutia/use-file-upload';
 import { useRevealItem } from '@videoEditor/hooks-cutia/use-reveal-item';
 import { processMediaAssets } from '@videoEditor/engine/lib/media/processing';
-import { fetchRemoteMediaAsFile } from '@videoEditor/engine/lib/media/url-import';
 import {
   buildImageElement,
   buildUploadAudioElement,
@@ -53,17 +42,15 @@ import type { MediaAsset } from '@videoEditor/types/assets';
 import type { CreateTimelineElement } from '@videoEditor/types/timeline';
 import { cn } from '@videoEditor/utils/ui';
 import {
-  CloudUploadIcon,
-  GridViewIcon,
-  LeftToRightListDashIcon,
-  SortingOneNineIcon,
-  Image02Icon,
-  MusicNote03Icon,
-  Video01Icon,
-  Link04Icon,
-  ComputerIcon,
-} from '@hugeicons/core-free-icons';
-import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
+  Image,
+  Music,
+  Video,
+  List,
+  LayoutGrid,
+  ListOrdered,
+  UploadCloud,
+  type LucideIcon,
+} from 'lucide-react';
 
 export function MediaView() {
   const editor = useEditor();
@@ -78,10 +65,6 @@ export function MediaView() {
   const [progress, setProgress] = useState(0);
   const [sortBy, setSortBy] = useState<'name' | 'type' | 'duration' | 'size'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-
-  const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false);
-  const [urlInput, setUrlInput] = useState('');
-  const [isUrlImporting, setIsUrlImporting] = useState(false);
 
   const processFiles = async ({ files }: { files: FileList | File[] }) => {
     if (!files || files.length === 0) return;
@@ -109,32 +92,6 @@ export function MediaView() {
     } finally {
       setIsProcessing(false);
       setProgress(0);
-    }
-  };
-
-  const handleUrlImport = async () => {
-    const trimmedUrl = urlInput.trim();
-    if (!trimmedUrl) return;
-
-    try {
-      new URL(trimmedUrl);
-    } catch {
-      toast.error('请输入有效的 URL');
-      return;
-    }
-
-    setIsUrlImporting(true);
-    try {
-      const file = await fetchRemoteMediaAsFile({ url: trimmedUrl });
-      await processFiles({ files: [file] });
-      setIsUrlDialogOpen(false);
-      setUrlInput('');
-      toast.success('素材导入成功');
-    } catch (error) {
-      logger.error('Error importing from URL:', error);
-      toast.error(error instanceof Error ? error.message : '从 URL 导入素材失败');
-    } finally {
-      setIsUrlImporting(false);
     }
   };
 
@@ -259,134 +216,138 @@ export function MediaView() {
       <input {...fileInputProps} />
 
       <div
-        className={`relative flex h-full flex-col gap-1 ${isDragOver ? 'bg-accent/30' : ''}`}
+        className={`relative flex h-full flex-col gap-1 ${isDragOver ? 've-drop-active' : ''}`}
         {...dragProps}
       >
         <div className="bg-background h-12 px-4 pr-2 flex items-center justify-between border-b">
           <span className="text-muted-foreground text-sm">{'素材'}</span>
           <div className="flex items-center gap-0">
             <TooltipProvider>
+              {/* 【结构修正 2026-09-15】原先「排序」的 Tooltip 被**嵌在**「切换视图」Tooltip 的
+                  children 里（`<Tooltip><TooltipTrigger/><TooltipContent/><Tooltip>…</Tooltip></Tooltip>`）。
+                  Radix `Tooltip` 的 children 只接受 Trigger / Content —— 多余的嵌套属于非法结构，
+                  其内部子树（排序 DropdownMenu）渲染行为未定义。此处改为**两个并列的独立 Tooltip**。 */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     size="icon"
                     variant="text"
                     onClick={() => setMediaViewMode(mediaViewMode === 'grid' ? 'list' : 'grid')}
-                    disabled={isProcessing}
                     className="items-center justify-center"
                   >
-                    {mediaViewMode === 'grid' ? (
-                      <HugeiconsIcon icon={LeftToRightListDashIcon} />
-                    ) : (
-                      <HugeiconsIcon icon={GridViewIcon} />
-                    )}
+                    {mediaViewMode === 'grid' ? <List /> : <LayoutGrid />}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>{mediaViewMode === 'grid' ? '切换到列表视图' : '切换到网格视图'}</p>
                 </TooltipContent>
-                <Tooltip>
-                  <DropdownMenu>
-                    <TooltipTrigger asChild>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          size="icon"
-                          variant="text"
-                          disabled={isProcessing}
-                          className="items-center justify-center"
-                        >
-                          <HugeiconsIcon icon={SortingOneNineIcon} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                    </TooltipTrigger>
-                    <DropdownMenuContent align="end">
-                      <SortMenuItem
-                        label={'名称'}
-                        sortKey="name"
-                        currentSortBy={sortBy}
-                        currentSortOrder={sortOrder}
-                        onSort={({ key }) => {
-                          if (sortBy === key) {
-                            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                          } else {
-                            setSortBy(key);
-                            setSortOrder('asc');
-                          }
-                        }}
-                      />
-                      <SortMenuItem
-                        label={'类型'}
-                        sortKey="type"
-                        currentSortBy={sortBy}
-                        currentSortOrder={sortOrder}
-                        onSort={({ key }) => {
-                          if (sortBy === key) {
-                            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                          } else {
-                            setSortBy(key);
-                            setSortOrder('asc');
-                          }
-                        }}
-                      />
-                      <SortMenuItem
-                        label={'时长'}
-                        sortKey="duration"
-                        currentSortBy={sortBy}
-                        currentSortOrder={sortOrder}
-                        onSort={({ key }) => {
-                          if (sortBy === key) {
-                            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                          } else {
-                            setSortBy(key);
-                            setSortOrder('asc');
-                          }
-                        }}
-                      />
-                      <SortMenuItem
-                        label={'文件大小'}
-                        sortKey="size"
-                        currentSortBy={sortBy}
-                        currentSortOrder={sortOrder}
-                        onSort={({ key }) => {
-                          if (sortBy === key) {
-                            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                          } else {
-                            setSortBy(key);
-                            setSortOrder('asc');
-                          }
-                        }}
-                      />
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <TooltipContent>
-                    <p>{`按 ${sortBy} 排序（${sortOrder === 'asc' ? '升序' : '降序'}）`}</p>
-                  </TooltipContent>
-                </Tooltip>
+              </Tooltip>
+
+              <Tooltip>
+                <DropdownMenu>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      {/* 同「导入」按钮：菜单 trigger **不得** disabled（disabled → pointer-events:none
+                          → 指针穿透 → Radix 收不到 pointerdown → 菜单打不开）。排序项随时可点。 */}
+                      <Button size="icon" variant="text" className="items-center justify-center">
+                        <ListOrdered />
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <DropdownMenuContent align="end">
+                    <SortMenuItem
+                      label={'名称'}
+                      sortKey="name"
+                      currentSortBy={sortBy}
+                      currentSortOrder={sortOrder}
+                      onSort={({ key }) => {
+                        if (sortBy === key) {
+                          setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy(key);
+                          setSortOrder('asc');
+                        }
+                      }}
+                    />
+                    <SortMenuItem
+                      label={'类型'}
+                      sortKey="type"
+                      currentSortBy={sortBy}
+                      currentSortOrder={sortOrder}
+                      onSort={({ key }) => {
+                        if (sortBy === key) {
+                          setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy(key);
+                          setSortOrder('asc');
+                        }
+                      }}
+                    />
+                    <SortMenuItem
+                      label={'时长'}
+                      sortKey="duration"
+                      currentSortBy={sortBy}
+                      currentSortOrder={sortOrder}
+                      onSort={({ key }) => {
+                        if (sortBy === key) {
+                          setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy(key);
+                          setSortOrder('asc');
+                        }
+                      }}
+                    />
+                    <SortMenuItem
+                      label={'文件大小'}
+                      sortKey="size"
+                      currentSortBy={sortBy}
+                      currentSortOrder={sortOrder}
+                      onSort={({ key }) => {
+                        if (sortBy === key) {
+                          setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy(key);
+                          setSortOrder('asc');
+                        }
+                      }}
+                    />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <TooltipContent>
+                  <p>{`按 ${sortBy} 排序（${sortOrder === 'asc' ? '升序' : '降序'}）`}</p>
+                </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  disabled={isProcessing}
-                  size="sm"
-                  className="items-center justify-center gap-1.5 ml-1.5 hover:bg-accent px-3"
-                >
-                  <HugeiconsIcon icon={CloudUploadIcon} />
-                  {'导入'}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={openFilePicker} className="gap-2">
-                  <HugeiconsIcon icon={ComputerIcon} className="size-4" />
-                  {'本机'}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsUrlDialogOpen(true)} className="gap-2">
-                  <HugeiconsIcon icon={Link04Icon} className="size-4" />
-                  {'URL'}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/*
+              【设计修正 2026-09-15】**「导入」直连 `openFilePicker()`，不经任何菜单。**
+
+              `openFilePicker()` 内部是 `input.click()`，属**需要用户手势的命令式动作**。
+              若挂在 Radix 菜单项上，Radix 在选中时会**同步**执行「关层 + FocusScope 归还焦点」，
+              该动作随即被判为不在手势栈内 → 浏览器**静默丢弃**（正是本轮缺陷根因）。
+              直连后链路只剩「按钮 click → input.click()」两步，无中介。
+
+              ⚠️ 另一个必须避开的坑：`Button` 基类含 `disabled:pointer-events-none` ——
+              入口按钮**一律不得加 `disabled`**（禁用即指针穿透，连 pointerdown 都收不到，
+              而 `opacity-50` 在深色主题下又几乎看不出 → 表现为「点了毫无变化」）。
+
+              【「URL」入口已删（2026-09-15）】原 URL 导入走
+              `fetchRemoteMediaAsFile` → `fetchWithProxyFallback`，其代理回退打的是
+              `/api/proxy/download` —— **该后端端点在搬迁到本仓时就不存在**（cutia/Next 路由，
+              本仓多处注释已记「旧 /api/proxy 已退役」）→ 跨域场景**必然 404**，是个死功能。
+              本仓「远程 URL → 本地」的正确入口是 `localTool` 后端代下载
+              （`filesApi.uploadFileToLocal` 的 fileUrl 模式 → `saveRemoteUrl` + `fetchWithProxy`，
+              绕 CORS + sha1 幂等）；将来若真需要 URL 导入，**按那条路重做**，
+              不要复活这份依赖已退役端点的实现。
+            */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openFilePicker}
+              className="items-center justify-center gap-1.5 ml-1.5 px-3"
+            >
+              <UploadCloud />
+              {'导入'}
+            </Button>
           </div>
         </div>
 
@@ -439,47 +400,6 @@ export function MediaView() {
           </div>
         </div>
       </div>
-
-      <Dialog open={isUrlDialogOpen} onOpenChange={setIsUrlDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{'从 URL 导入'}</DialogTitle>
-            <DialogDescription>
-              {'Enter a URL to import a remote media file (image, video, or audio).'}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            <Input
-              placeholder={'输入素材 URL'}
-              value={urlInput}
-              onChange={(event) => setUrlInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !isUrlImporting) {
-                  handleUrlImport();
-                }
-              }}
-              disabled={isUrlImporting}
-            />
-          </DialogBody>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsUrlDialogOpen(false)}
-              disabled={isUrlImporting}
-            >
-              {'取消'}
-            </Button>
-            <Button
-              type="button"
-              onClick={handleUrlImport}
-              disabled={isUrlImporting || !urlInput.trim()}
-            >
-              {isUrlImporting ? '正在导入…' : '导入'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
@@ -564,6 +484,9 @@ function GridView({
               onAddToTimeline={({ currentTime }) =>
                 onAddToTimeline({ asset: item, startTime: currentTime })
               }
+              // 减号 = 删除该素材（连带移除它在时间轴上的片段，见 handleRemove）。
+              onRemoveFromTimeline={({ event }) => onRemove({ event, id: item.id })}
+              removeTooltipText={'删除素材（同时从时间轴移除）'}
               onClick={() => onSelect({ asset: item })}
               isRounded={false}
               variant="card"
@@ -617,6 +540,9 @@ function ListView({
               onAddToTimeline={({ currentTime }) =>
                 onAddToTimeline({ asset: item, startTime: currentTime })
               }
+              // 减号 = 删除该素材（连带移除它在时间轴上的片段，见 handleRemove）。
+              onRemoveFromTimeline={({ event }) => onRemove({ event, id: item.id })}
+              removeTooltipText={'删除素材（同时从时间轴移除）'}
               onClick={() => onSelect({ asset: item })}
               variant="compact"
               isHighlighted={highlightedId === item.id}
@@ -653,11 +579,12 @@ function MediaTypePlaceholder({
   duration,
   variant,
 }: {
-  icon: IconSvgElement;
+  icon: LucideIcon;
   label: string;
   duration?: number;
   variant: 'muted' | 'bordered';
 }) {
+  const Icon = icon;
   const iconClassName = cn('size-6', variant === 'bordered' && 'mb-1');
 
   return (
@@ -667,7 +594,7 @@ function MediaTypePlaceholder({
         variant === 'muted' ? 'bg-muted/30' : 'border',
       )}
     >
-      <HugeiconsIcon icon={icon} className={iconClassName} />
+      <Icon className={iconClassName} />
       <span className="text-xs">{label}</span>
       <MediaDurationLabel duration={duration} />
     </div>
@@ -707,19 +634,14 @@ function MediaPreview({
     }
 
     return (
-      <MediaTypePlaceholder
-        icon={Video01Icon}
-        label={'视频'}
-        duration={item.duration}
-        variant="muted"
-      />
+      <MediaTypePlaceholder icon={Video} label={'视频'} duration={item.duration} variant="muted" />
     );
   }
 
   if (item.type === 'audio') {
     return (
       <MediaTypePlaceholder
-        icon={MusicNote03Icon}
+        icon={Music}
         label={'音频'}
         duration={item.duration}
         variant="bordered"
@@ -727,7 +649,7 @@ function MediaPreview({
     );
   }
 
-  return <MediaTypePlaceholder icon={Image02Icon} label={'未知'} variant="muted" />;
+  return <MediaTypePlaceholder icon={Image} label={'未知'} variant="muted" />;
 }
 
 function SortMenuItem({

@@ -27,7 +27,7 @@
  * 原因：原裁定导致 pinnedTools 类型卡在 unknown、默认值硬编码在 App.tsx，属设置域 Seam 泄漏（接口宽如实现、
  * 默认值双真源）。注册表现支持 string[] 型项。余下 3 项（node_prefs/provider/account/agentModel）维持不进门。
  */
-import { Zap, Map, Bot, Image, Bug, Pin, Cloud, Film } from 'lucide-react';
+import { Zap, Map, Bot, Image, Bug, Pin, Cloud } from 'lucide-react';
 
 /** 设置项定义（声明式表的一行；icon 为 lucide-react 图标组件）。
  *  type 判别字段：'boolean' 为设置页开关；'string[]' 为功能性数组偏好（无 UI 开关行）。
@@ -104,19 +104,6 @@ export const SETTING_DEFS = [
     icon: Cloud,
     title: '自动同步到云端',
     desc: '开＝每 45 分钟自动把本地配置推送到云端（无改动不推、不打扰）；云端有更新时弹窗让你三选一，绝不静默覆盖。',
-  },
-  {
-    key: 'videoEditorOpen',
-    type: 'boolean',
-    default: false,
-    // 入口在画布底部把手 / 出口在基座顶部中央的收起按钮（都在中轴），不设设置页开关。
-    // ⚠️ 修 2026-09-13：旧注释称「画布顶栏已有开合入口」，但 TopNav 里**从来没有**该按钮（假注释），
-    // 已按事实改口 —— 顶栏入口经用户裁定不做（"用户不可能跑到右上角去打开它"）。
-    ui: false,
-    group: '画布显示', // 复用既有 group（它是画布底部常驻层，不新开 group）
-    icon: Film,
-    title: '视频剪辑器',
-    desc: '开＝画布底部常驻展开视频剪辑器基座；关＝收起。入口/出口都在屏幕中轴（底部半圆把手 / 基座顶部中央）。',
   },
 ] as const;
 

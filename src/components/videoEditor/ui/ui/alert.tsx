@@ -1,8 +1,7 @@
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@videoEditor/utils/ui';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { Alert02Icon } from '@hugeicons/core-free-icons';
+import { AlertTriangle } from 'lucide-react';
 
 const alertVariants = cva(
   'relative w-full rounded-lg border p-5 py-4.5 text-sm [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-destructive [&>svg~*]:pl-7',
@@ -25,9 +24,7 @@ const Alert = React.forwardRef<
   React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>
 >(({ className, variant, children, ...props }, ref) => (
   <div ref={ref} role="alert" className={cn(alertVariants({ variant }), className)} {...props}>
-    {variant === 'destructive' && (
-      <HugeiconsIcon icon={Alert02Icon} className="size-5 text-destructive mt-0.5" />
-    )}
+    {variant === 'destructive' && <AlertTriangle className="size-5 text-destructive mt-0.5" />}
     {children}
   </div>
 ));

@@ -34,30 +34,28 @@ import type { MediaAsset } from '@videoEditor/types/assets';
 import { mediaSupportsAudio } from '@videoEditor/engine/lib/media/media-utils';
 import { getActionDefinition, type TAction, invokeAction } from '@videoEditor/engine/lib/actions';
 import { useElementSelection } from '@videoEditor/hooks-cutia/timeline/element/use-element-selection';
-import {
-  ScissorIcon,
-  Delete02Icon,
-  Copy01Icon,
-  ViewIcon,
-  ViewOffSlashIcon,
-  VolumeHighIcon,
-  VolumeOffIcon,
-  VolumeMute02Icon,
-  Search01Icon,
-  Exchange01Icon,
-  MusicNote03Icon,
-  FlipHorizontalIcon,
-  ArrowTurnBackwardIcon,
-  Edit02Icon,
-  AiVoiceGeneratorIcon,
-  SnowIcon,
-} from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
 import { uppercase } from '@videoEditor/utils/string';
 
 import type { ComponentProps } from 'react';
 import { VideoThumbnailStrip } from './video-thumbnail-strip';
-import { Download } from 'lucide-react';
+import {
+  Download,
+  Scissors,
+  Snowflake,
+  Music,
+  AudioLines,
+  Copy,
+  Search,
+  ArrowLeftRight,
+  EyeOff,
+  VolumeX,
+  Volume2,
+  Eye,
+  Trash2,
+  Pencil,
+  FlipHorizontal2,
+  Undo2,
+} from 'lucide-react';
 
 function getDisplayShortcut(action: TAction) {
   const { defaultShortcuts } = getActionDefinition(action);
@@ -177,13 +175,13 @@ export function TimelineElement({
           />
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent className="z-200 w-64">
-        <ActionMenuItem action="split" icon={<HugeiconsIcon icon={ScissorIcon} />}>
+      <ContextMenuContent className="z-[200] w-64">
+        <ActionMenuItem action="split" icon={<Scissors />}>
           {'分割'}
         </ActionMenuItem>
         {element.type === 'video' && (
           <ContextMenuItem
-            icon={<HugeiconsIcon icon={SnowIcon} />}
+            icon={<Snowflake />}
             onClick={(event) => {
               event.stopPropagation();
               invokeAction('freeze-frame', {
@@ -209,7 +207,7 @@ export function TimelineElement({
               isMuted={isMuted}
             />
             {element.type === 'video' && (
-              <ActionMenuItem action="detach-audio" icon={<HugeiconsIcon icon={MusicNote03Icon} />}>
+              <ActionMenuItem action="detach-audio" icon={<Music />}>
                 {'分离音频'}
               </ActionMenuItem>
             )}
@@ -219,10 +217,7 @@ export function TimelineElement({
           <VideoEditSubmenu element={element as VideoElement} trackId={track.id} />
         )}
         {element.type === 'text' && (
-          <ActionMenuItem
-            action="convert-to-speech"
-            icon={<HugeiconsIcon icon={AiVoiceGeneratorIcon} />}
-          >
+          <ActionMenuItem action="convert-to-speech" icon={<AudioLines />}>
             {selectedElements.length > 1
               ? `Convert ${selectedElements.length} to speech`
               : '转换为语音'}
@@ -236,19 +231,16 @@ export function TimelineElement({
           />
         )}
         {selectedElements.length === 1 && (
-          <ActionMenuItem action="duplicate-selected" icon={<HugeiconsIcon icon={Copy01Icon} />}>
+          <ActionMenuItem action="duplicate-selected" icon={<Copy />}>
             {'复制一份'}
           </ActionMenuItem>
         )}
         {selectedElements.length === 1 && hasMediaId(element) && (
           <>
-            <ContextMenuItem
-              icon={<HugeiconsIcon icon={Search01Icon} />}
-              onClick={(event) => handleRevealInMedia({ event })}
-            >
+            <ContextMenuItem icon={<Search />} onClick={(event) => handleRevealInMedia({ event })}>
               {'显示素材'}
             </ContextMenuItem>
-            <ContextMenuItem icon={<HugeiconsIcon icon={Exchange01Icon} />} disabled>
+            <ContextMenuItem icon={<ArrowLeftRight />} disabled>
               {'替换素材'}
             </ContextMenuItem>
           </>
@@ -317,12 +309,12 @@ function ElementInner({
 
         {canElementBeHidden(element) && element.hidden && (
           <div className="ve-veil pointer-events-none">
-            <HugeiconsIcon icon={ViewOffSlashIcon} className="size-6" />
+            <EyeOff className="size-6" />
           </div>
         )}
         {hasAudio && isMuted && (
           <div className="pointer-events-none ve-veil-badge">
-            <HugeiconsIcon icon={VolumeOffIcon} className="size-3.5" />
+            <VolumeX className="size-3.5" />
           </div>
         )}
       </button>
@@ -479,7 +471,7 @@ function ElementContent({
 
 function CopyMenuItem() {
   return (
-    <ActionMenuItem action="copy-selected" icon={<HugeiconsIcon icon={Copy01Icon} />}>
+    <ActionMenuItem action="copy-selected" icon={<Copy />}>
       {'复制'}
     </ActionMenuItem>
   );
@@ -496,13 +488,9 @@ function MuteMenuItem({
 }) {
   const getIcon = () => {
     if (isMultipleSelected && isCurrentElementSelected) {
-      return <HugeiconsIcon icon={VolumeMute02Icon} />;
+      return <VolumeX />;
     }
-    return isMuted ? (
-      <HugeiconsIcon icon={VolumeHighIcon} />
-    ) : (
-      <HugeiconsIcon icon={VolumeOffIcon} />
-    );
+    return isMuted ? <Volume2 /> : <VolumeX />;
   };
 
   return (
@@ -525,9 +513,9 @@ function VisibilityMenuItem({
 
   const getIcon = () => {
     if (isMultipleSelected && isCurrentElementSelected) {
-      return <HugeiconsIcon icon={ViewOffSlashIcon} />;
+      return <EyeOff />;
     }
-    return isHidden ? <HugeiconsIcon icon={ViewIcon} /> : <HugeiconsIcon icon={ViewOffSlashIcon} />;
+    return isHidden ? <Eye /> : <EyeOff />;
   };
 
   return (
@@ -549,11 +537,7 @@ function DeleteMenuItem({
   selectedCount: number;
 }) {
   return (
-    <ActionMenuItem
-      action="delete-selected"
-      variant="destructive"
-      icon={<HugeiconsIcon icon={Delete02Icon} />}
-    >
+    <ActionMenuItem action="delete-selected" variant="destructive" icon={<Trash2 />}>
       {isMultipleSelected && isCurrentElementSelected
         ? `Delete ${selectedCount} elements`
         : `Delete ${elementType === 'text' ? '文字' : '片段'}`}
@@ -601,7 +585,7 @@ function VideoEditSubmenu({ element, trackId }: { element: VideoElement; trackId
   return (
     <ContextMenuSub>
       <ContextMenuSubTrigger>
-        <HugeiconsIcon icon={Edit02Icon} className="size-4" />
+        <Pencil className="size-4" />
         {'基础编辑'}
       </ContextMenuSubTrigger>
       <ContextMenuSubContent className="w-48">
@@ -615,7 +599,7 @@ function VideoEditSubmenu({ element, trackId }: { element: VideoElement; trackId
             }
           }}
         >
-          <HugeiconsIcon icon={FlipHorizontalIcon} className="size-4" />
+          <FlipHorizontal2 className="size-4" />
           {'镜像'}
         </ContextMenuCheckboxItem>
         <ContextMenuCheckboxItem
@@ -628,7 +612,7 @@ function VideoEditSubmenu({ element, trackId }: { element: VideoElement; trackId
             }
           }}
         >
-          <HugeiconsIcon icon={ArrowTurnBackwardIcon} className="size-4" />
+          <Undo2 className="size-4" />
           {'倒放'}
         </ContextMenuCheckboxItem>
       </ContextMenuSubContent>

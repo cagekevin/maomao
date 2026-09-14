@@ -1,7 +1,8 @@
 import type { CanvasRenderer } from '../canvas-renderer';
 import { BaseNode } from './base-node';
 import type { TextElement } from '@videoEditor/types/timeline';
-import { FONT_SIZE_SCALE_REFERENCE } from '@videoEditor/constants/text-constants';
+import { FONT_SIZE_SCALE_REFERENCE, hasTextStroke } from '@videoEditor/constants/text-constants';
+import { buildFontFamilyStack } from '../font-stack';
 
 type RenderContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -102,7 +103,11 @@ export class TextNode extends BaseNode<TextNodeParams> {
       fontSize: this.params.fontSize,
       canvasHeight: this.params.canvasHeight,
     });
-    renderer.context.font = `${fontStyle} ${fontWeight} ${scaledFontSize}px ${this.params.fontFamily}`;
+    // 字体族走 `buildFontFamilyStack` 拼完整回落链 —— **不要在这里直接插 fontFamily**：
+    // 原样丢给浏览器时，不认识的字体名会被静默回落（画布无报错、用户以为"选了没生效"）。
+    // 定义与理由见 `../font-stack.ts`。
+    const fontFamilyStack = buildFontFamilyStack({ fontFamily: this.params.fontFamily });
+    renderer.context.font = `${fontStyle} ${fontWeight} ${scaledFontSize}px ${fontFamilyStack}`;
     renderer.context.textAlign = this.params.textAlign;
     renderer.context.textBaseline = textBaseline;
     renderer.context.fillStyle = this.params.color;
@@ -190,7 +195,7 @@ export class TextNode extends BaseNode<TextNodeParams> {
       context.shadowBlur = this.params.shadow.blur;
     }
 
-    if (this.params.stroke && this.params.stroke.width > 0) {
+    if (hasTextStroke(this.params.stroke)) {
       context.strokeStyle = this.params.stroke.color;
       context.lineWidth = this.params.stroke.width * 2;
       context.lineJoin = 'round';
@@ -280,7 +285,7 @@ export class TextNode extends BaseNode<TextNodeParams> {
         context.shadowBlur = this.params.shadow.blur;
       }
 
-      if (this.params.stroke && this.params.stroke.width > 0) {
+      if (hasTextStroke(this.params.stroke)) {
         context.strokeStyle = this.params.stroke.color;
         context.lineWidth = this.params.stroke.width * 2;
         context.lineJoin = 'round';

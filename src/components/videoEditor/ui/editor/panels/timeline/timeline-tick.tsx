@@ -17,7 +17,7 @@ export function TimelineTick({ time, zoomLevel, fps, showLabel }: TimelineTickPr
     const label = formatRulerLabel({ timeInSeconds: time, fps });
     return (
       <span
-        className="text-muted-foreground/85 absolute bottom-0 select-none text-[10px] leading-none"
+        className="text-muted-foreground absolute bottom-0.5 select-none text-[10px] leading-none"
         style={{ left: `${leftPosition}px` }}
       >
         {label}
@@ -26,9 +26,6 @@ export function TimelineTick({ time, zoomLevel, fps, showLabel }: TimelineTickPr
   }
 
   return (
-    <div
-      className="border-muted-foreground/25 absolute bottom-0.5 h-1.5 border-l"
-      style={{ left: `${leftPosition}px` }}
-    />
+    <div className="ve-tick absolute bottom-0 h-2 border-l" style={{ left: `${leftPosition}px` }} />
   );
 }

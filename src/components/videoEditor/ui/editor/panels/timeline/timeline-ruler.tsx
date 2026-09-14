@@ -88,7 +88,7 @@ export function TimelineRuler({
       aria-valuemin={0}
       aria-valuemax={effectiveDuration}
       aria-valuenow={0}
-      className="relative h-4 flex-1 overflow-x-visible"
+      className="relative h-6 flex-1 overflow-x-visible"
       onWheel={handleWheel}
       onClick={handleTimelineContentClick}
       onMouseDown={handleRulerTrackingMouseDown}

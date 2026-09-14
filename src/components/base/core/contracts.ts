@@ -230,7 +230,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     domain: 'settings',
     store: 'appSettings.ts',
     backend: 'local',
-    note: '应用设置：{ thumbnailOn, minimapOn, agentOpen, performanceMode, debugOn, pinnedTools, autoSyncEnabled, videoEditorOpen }——整键随云端同步（手工 note，改动 settingRegistry 须同步，防漂移）',
+    note: '应用设置：{ thumbnailOn, minimapOn, agentOpen, performanceMode, debugOn, pinnedTools, autoSyncEnabled }——整键随云端同步（手工 note，改动 settingRegistry 须同步，防漂移）。注：videoEditorOpen 已于 2026-09-15 **迁出**（它是界面开合的会话态，不该持久化/sync → base/core/editorSession.ts）',
   },
   scriptbox_playbooks: {
     domain: 'settings',

@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo } from 'react';
-import { ScrollArea } from '@videoEditor/ui/ui/scroll-area';
 import { AudioProperties } from './audio-properties';
 import { VideoProperties } from './video-properties';
 import { TextProperties } from './text-properties';
@@ -37,9 +36,11 @@ export function PropertiesPanel() {
   const grouped = useMemo(() => groupByType(elementsWithTracks), [elementsWithTracks]);
 
   return (
+    // 【不再外包 ScrollArea】（2026-09-15）里层每个面板（`PanelBaseView`）**自己就有**
+    // 一个滚动容器 —— 两层 ScrollArea 嵌套会让内容滚两次、并各带一份内边距（稀疏感来源之一）。
     <div className="panel bg-background h-full border overflow-hidden">
       {selectedElements.length > 0 ? (
-        <ScrollArea className="h-full">
+        <>
           {grouped.text && grouped.text.length > 0 && (
             <TextProperties
               elements={grouped.text.map((item) => ({
@@ -80,7 +81,7 @@ export function PropertiesPanel() {
               trackId={grouped.sticker[0].track.id}
             />
           )}
-        </ScrollArea>
+        </>
       ) : (
         <EmptyView />
       )}

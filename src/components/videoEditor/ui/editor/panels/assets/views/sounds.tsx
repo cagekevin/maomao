@@ -27,14 +27,7 @@ import { useSoundSearch } from '@videoEditor/hooks-cutia/use-sound-search';
 import { useSoundsStore } from '@videoEditor/stores/sounds-store';
 import type { SavedSound, SoundEffect } from '@videoEditor/types/sounds';
 import { cn } from '@videoEditor/utils/ui';
-import {
-  FavouriteIcon,
-  FilterMailIcon,
-  PauseIcon,
-  PlayIcon,
-  PlusSignIcon,
-} from '@hugeicons/core-free-icons';
-import { HugeiconsIcon } from '@hugeicons/react';
+import { Filter, Star, Pause, Play, Plus } from 'lucide-react';
 
 export function SoundsView() {
   return (
@@ -231,7 +224,7 @@ function SoundEffectsView() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="text" size="icon" className={cn(showCommercialOnly && 'text-primary')}>
-              <HugeiconsIcon icon={FilterMailIcon} />
+              <Filter />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
@@ -369,7 +362,7 @@ function SavedSoundsView() {
   if (savedSounds.length === 0) {
     return (
       <div className="bg-background flex h-full flex-col items-center justify-center gap-3 p-4">
-        <HugeiconsIcon icon={FavouriteIcon} className="text-muted-foreground size-10" />
+        <Star className="text-muted-foreground size-10" />
         <div className="flex flex-col gap-2 text-center">
           <p className="text-lg font-medium">{'没有已保存的音效'}</p>
           <p className="text-muted-foreground text-sm text-balance">
@@ -477,11 +470,7 @@ function AudioItem({ sound, isPlaying, onPlay }: AudioItemProps) {
       >
         <div className="bg-accent relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md">
           <div className="from-primary/20 absolute inset-0 bg-gradient-to-br to-transparent" />
-          {isPlaying ? (
-            <HugeiconsIcon icon={PauseIcon} className="size-5" />
-          ) : (
-            <HugeiconsIcon icon={PlayIcon} className="size-5" />
-          )}
+          {isPlaying ? <Pause className="size-5" /> : <Play className="size-5" />}
         </div>
 
         <div className="min-w-0 flex-1 overflow-hidden">
@@ -498,7 +487,7 @@ function AudioItem({ sound, isPlaying, onPlay }: AudioItemProps) {
           onClick={handleAddToTimeline}
           title={'添加到时间轴'}
         >
-          <HugeiconsIcon icon={PlusSignIcon} />
+          <Plus />
         </Button>
         <Button
           variant="text"
@@ -509,7 +498,7 @@ function AudioItem({ sound, isPlaying, onPlay }: AudioItemProps) {
           onClick={handleSaveClick}
           title={isSaved ? '从已保存中移除' : '保存音效'}
         >
-          <HugeiconsIcon icon={FavouriteIcon} className={`${isSaved ? 'fill-current' : ''}`} />
+          <Star className={`${isSaved ? 'fill-current' : ''}`} />
         </Button>
       </div>
     </div>

@@ -1,11 +1,9 @@
-import { HugeiconsIcon, type HugeiconsIconProps } from '@hugeicons/react';
-import { Loading03Icon } from '@hugeicons/core-free-icons';
+import { Loader2, type LucideProps } from 'lucide-react';
 import { cn } from '@videoEditor/utils/ui';
 
-function Spinner({ className, ...props }: Omit<HugeiconsIconProps, 'icon'>) {
+function Spinner({ className, ...props }: LucideProps) {
   return (
-    <HugeiconsIcon
-      icon={Loading03Icon}
+    <Loader2
       role="status"
       aria-label="Loading"
       className={cn('size-4 animate-spin', className)}

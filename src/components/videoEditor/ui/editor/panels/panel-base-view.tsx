@@ -18,10 +18,19 @@ interface PanelBaseViewProps {
   ref?: React.Ref<HTMLDivElement>;
 }
 
+/**
+ * 面板内容壳。
+ *
+ * 【内边距为什么这么小】（2026-09-15 用户："整体看起来要紧凑，不要这么稀疏"）
+ * 原为 `p-5`（四周各 20px）—— 而里层每个分区（`.ve-pg-toggle` / `.ve-pg-body`）
+ * **自己还有 12px 左右内边距** → 实际文字离面板边 32px，纵向也被上下各吃掉 20px。
+ * 留白应由**最贴近内容的层**（分区头/体）给，外壳只留最小呼吸：
+ * 横向 `px-1`（分区自带的 12px 已足够，加起来 16px 是舒服的读距）、纵向 `py-2`。
+ */
 function ViewContent({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <ScrollArea className="flex-1 scrollbar-hidden">
-      <div className={cn('p-5', className)}>{children}</div>
+      <div className={cn('px-1 py-2', className)}>{children}</div>
     </ScrollArea>
   );
 }
