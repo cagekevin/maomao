@@ -549,6 +549,17 @@ export const NODE_TYPES = {
   videoGenerateNode: 'videoGenerateNode',
   ghostTarget: 'ghostTarget',
 };
+
+/**
+ * 节点类型值集合（check-node-types 比对用）。
+ *
+ * 【2026-09-15 修复】`check-node-types.mjs` 第 48 行读的是 `mod.NODE_TYPE_SET`，
+ * 但本文件历史上 `NODE_TYPE_SET` 导出被死代码清理误删（见 scripts/dead-code-baseline.json
+ * 的 `contracts.ts::exports::NODE_TYPE_SET`），脚本从此永远拿到空 Set，导致所有
+ * `useNodePrefs` 裸调用（含 TemplateNode 示例命名空间 imageGenerateNode）一律误报「未登记」。
+ * 在此从权威表 NODE_TYPES 派生补回该集合，恢复闸的正确性（不改闸脚本、只补真源侧）。
+ */
+export const NODE_TYPE_SET = new Set(Object.values(NODE_TYPES));
 // 注：原 templateNode 登记项已于 2026-09-11 删除（TD-04-5）——TemplateNode 是「新建节点参考蓝本」，
 // 非活节点，已迁至 src/components/nodes/_template/ 且不再占用 registry（详见该文件头 JSDoc）。
 
@@ -719,3 +730,255 @@ export const API_ENDPOINTS = {
  * ⚠️ RESERVED 组（后端已 handle、前端零消费）登记 admin/official/platform/workflow/sync/assets
  *   /batch-save/clear/move/list/jianying，校验脚本标 info 待补，勿误判白实现或误删。
  */
+
+/** 单条端点登记的形状（check-api-contract.cjs 强校验 fn 形态、method、envelope 与后端一致）。 */
+export interface ApiRegistryEntry {
+  /** 前端消费点（模块.符号[.符号]，须真实导出，禁止夹描述） */
+  fn: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | '*';
+  /** 后端 route pattern（字符串全等或正则源文本转 {x}，与 localTool/src/router.ts 一致） */
+  path: string;
+  /** 信封形态：ok | code-data | items | success-data | raw | stream | sse | probe | stub */
+  envelope:
+    'ok' | 'code-data' | 'items' | 'success-data' | 'raw' | 'stream' | 'sse' | 'probe' | 'stub';
+  status: 'ACTIVE' | 'RESERVED';
+  note?: string;
+  /** 门面消费链（fn 是底层原语时登记上层门面，check:api 双查） */
+  consumer?: string;
+}
+
+/**
+ * 中央端点登记表（apiRegistry）—— 前端函数 ↔ 后端 route 唯一真源（docs/26-M2-a/C1）。
+ *
+ * 2026-09-15 补全：此前 apiRegistry 为空表，导致 check:api 反向差集把所有源码 httpRequest
+ * 调用点判为 ERROR（32 条），prebuild 闸失败。现按 router.ts 路由表 + 实际调用点补齐 ACTIVE 组。
+ * 形态以各 handler 实际返回为准（kv/tasks/files/projects/resources/admin 均 code-data；status 为 {status:'ok'}）。
+ */
+export const apiRegistry: Record<string, ApiRegistryEntry> = {
+  // ── 系统 ────────────────────────────────────────────────────────────
+  status: {
+    fn: 'useLocalToolStatus.useLocalToolStatus',
+    method: 'GET',
+    path: '/api/status',
+    envelope: 'ok',
+    status: 'ACTIVE',
+    note: '本地工具连通性 ping（useLocalToolStatus hook 内 runCheck 调用）',
+  },
+
+  // ── Generate（relayProxy 门面：submit → 轮询 attach；chat 出站统一走此处）──
+  generateSubmit: {
+    fn: 'relayProxy.relaySubmit',
+    method: 'POST',
+    path: '/api/generate',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    consumer: 'relayProxy.relayGenerate',
+    note: '统一生成提交入口（聊天/图片/视频），返回 taskId',
+  },
+  generateGet: {
+    fn: 'relayProxy.relayPoll',
+    method: 'GET',
+    path: '/api/generate/{x}',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    consumer: 'relayProxy.relayAttachUntilDone',
+    note: '按 taskId 拉取生成结果（常驻轮询 attach）',
+  },
+  generateCancel: {
+    fn: 'relayProxy.relayCancel',
+    method: 'POST',
+    path: '/api/generate/{x}/cancel',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '按 taskId 取消生成',
+  },
+
+  // ── KV（localToolApi 薄壳）──────────────────────────────────────────
+  kvGet: {
+    fn: 'localToolApi.kvGet',
+    method: 'GET',
+    path: '/api/kv/get',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: 'KV 读取（键值跨端共享）',
+  },
+  kvSet: {
+    fn: 'localToolApi.kvSet',
+    method: 'POST',
+    path: '/api/kv/set',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: 'KV 写入（CAS 版本保护）',
+  },
+  kvDelete: {
+    fn: 'localToolApi.kvDelete',
+    method: 'POST',
+    path: '/api/kv/delete',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: 'KV 删除',
+  },
+
+  // ── 文件操作（filesApi 收口，唯一落盘归属点）─────────────────────────
+  filesOpen: {
+    fn: 'filesApi.openLocalFolder',
+    method: 'GET',
+    path: '/api/files/open',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '打开子目录所在文件夹（open?subfolder=）',
+  },
+  filesOpenDir: {
+    fn: 'filesApi.openFileDir',
+    method: 'GET',
+    path: '/api/files/open-dir',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '打开指定文件所在目录（open-dir?filepath=）',
+  },
+  filesMove: {
+    fn: 'filesApi.moveFile',
+    method: 'POST',
+    path: '/api/files/move',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '移动/归类素材（move {src,dst}）',
+  },
+  filesMkdir: {
+    fn: 'filesApi.createFolder',
+    method: 'POST',
+    path: '/api/files/mkdir',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '创建本地文件夹（mkdir {folder}）',
+  },
+  filesUpload: {
+    fn: 'filesApi.uploadFileToLocal',
+    method: 'POST',
+    path: '/api/files/upload',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    consumer: 'filesApi.saveInlineToLocal|persistUrlToUploads|downloadRemoteToLocal',
+    note: '上传落盘唯一端点（dataUri / fileUrl / 远程下载三模式）',
+  },
+
+  // ── Tasks（localToolApi 收口 CRUD）──────────────────────────────────
+  tasksGet: {
+    fn: 'localToolApi.fetchTasks',
+    method: 'GET',
+    path: '/api/tasks',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '分页拉取任务列表（tasks?page&pageSize&keyword）',
+  },
+  tasksSave: {
+    fn: 'localToolApi.saveTask',
+    method: 'POST',
+    path: '/api/tasks/save',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '单条 upsert 任务',
+  },
+  tasksBatchSave: {
+    fn: 'localToolApi.batchSaveTasks',
+    method: 'POST',
+    path: '/api/tasks/batch-save',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '批量 upsert 任务',
+  },
+  tasksDelete: {
+    fn: 'localToolApi.deleteTask',
+    method: 'POST',
+    path: '/api/tasks/delete',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '删除单条任务（delete?id=）',
+  },
+  tasksBatchDelete: {
+    fn: 'localToolApi.batchDeleteTasks',
+    method: 'POST',
+    path: '/api/tasks/batch-delete',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '批量删除任务（{ids}）',
+  },
+  tasksClear: {
+    fn: 'localToolApi.clearAllTasksApi',
+    method: 'POST',
+    path: '/api/tasks/clear',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '清空所有任务',
+  },
+
+  // ── Projects（localToolApi 收口）────────────────────────────────────
+  projectsGet: {
+    fn: 'localToolApi.fetchProjects',
+    method: 'GET',
+    path: '/api/projects',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '拉取项目列表（projects/lastOpened）',
+  },
+  projectsSave: {
+    fn: 'localToolApi.saveProjects',
+    method: 'POST',
+    path: '/api/projects/save',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '全量覆盖保存项目（版本并发保护）',
+  },
+
+  // ── Resources（localToolApi 收口）───────────────────────────────────
+  resourcesGet: {
+    fn: 'localToolApi.fetchResources',
+    method: 'GET',
+    path: '/api/resources',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '分页拉取素材库（resources?page&pageSize&filters）',
+  },
+  resourcesRescan: {
+    fn: 'localToolApi.rescanResources',
+    method: 'POST',
+    path: '/api/resources/rescan',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '重扫磁盘 upload 目录进素材表',
+  },
+  resourcesDelete: {
+    fn: 'localToolApi.deleteResource',
+    method: 'POST',
+    path: '/api/resources/delete',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '删除素材（delete?id=）',
+  },
+  resourcesRename: {
+    fn: 'localToolApi.renameResource',
+    method: 'POST',
+    path: '/api/resources/rename',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '重命名素材（rename?id=&name=）',
+  },
+
+  // ── Admin（localToolApi 收口，前端实际消费的健康/删除文件）──────────
+  adminStorageHealth: {
+    fn: 'localToolApi.fetchStorageHealth',
+    method: 'GET',
+    path: '/api/admin/storage-health',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '存储健康总报表（只读）',
+  },
+  adminDeleteFile: {
+    fn: 'localToolApi.deleteStorageFile',
+    method: 'POST',
+    path: '/api/admin/delete-file',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '安全删除单个 uploads 文件（孤儿/重复副本共用）',
+  },
+};
