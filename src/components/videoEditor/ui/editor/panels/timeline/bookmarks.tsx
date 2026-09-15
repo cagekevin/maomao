@@ -30,7 +30,7 @@ export function TimelineBookmarksRow({
         style={{
           width: `${dynamicTimelineWidth}px`,
         }}
-        aria-label="Timeline ruler"
+        aria-label="时间轴标尺"
         type="button"
         onWheel={handleWheel}
         onClick={handleTimelineContentClick}

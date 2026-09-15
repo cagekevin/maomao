@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { cn } from '@videoEditor/utils/ui';
+import { LayerPortal } from './layer/layer-root';
 
 interface ColorPickerProps {
   /**
@@ -346,9 +346,12 @@ const ColorPicker = forwardRef<HTMLDivElement, ColorPickerProps>(
           `bg-popover` / `border-border` 在编辑器外层拿到的是宿主画布色（深色），
           在亮色编辑器里就是一块格格不入的深色浮片。故这里的颜色全部显式取 `--ve-*`
           （带宿主回落值，见 `ve-tailwind-colors.ts` 的约定）。
+          更新(2026-09-15 · docs/135)：Portal 目标从 `document.body` 改为**编辑器层根**
+          （`LayerPortal`）—— 它从此活在 `.ve-scope` 内，`--ve-*` 天然命中；
+          上面的显式 token 与回落值因此成了"双保险"（保留：换了宿主也不会错色）。
         */}
-        {isOpen &&
-          createPortal(
+        {isOpen && (
+          <LayerPortal>
             <div
               ref={pickerRef}
               className="fixed z-modal-raise rounded-xl border p-3 shadow-xl select-none"
@@ -390,9 +393,9 @@ const ColorPicker = forwardRef<HTMLDivElement, ColorPickerProps>(
                   color={`#${hsvToHex(displayHue, 1, 1)}`}
                 />
               </button>
-            </div>,
-            document.body,
-          )}
+            </div>
+          </LayerPortal>
+        )}
       </div>
     );
   },

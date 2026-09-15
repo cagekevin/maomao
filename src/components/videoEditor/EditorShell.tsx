@@ -14,7 +14,6 @@
  * 依赖方向：`EditorShell`（改造区）→ `ui/` → `engine/`（引擎区）。不得反向。
  */
 
-import { useEffect } from 'react';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@videoEditor/ui/ui/resizable';
 import { AssetsPanel } from '@videoEditor/ui/editor/panels/assets';
 import { PropertiesPanel } from '@videoEditor/ui/editor/panels/properties';
@@ -24,6 +23,7 @@ import { EditorHeader } from '@videoEditor/ui/editor/editor-header';
 import { EditorProvider } from '@videoEditor/ui/providers/editor-provider';
 import { X } from 'lucide-react';
 import { TooltipProvider } from '@videoEditor/ui/ui/tooltip';
+import { LayerRoot } from '@videoEditor/ui/ui/layer/layer-root';
 import { usePanelStore } from '@videoEditor/stores/panel-store';
 // 更新(2026-09-14)：agent 侧栏未搬入，useAgentStore 依赖已移除（见 EditorLayout）。
 import { cn } from '@videoEditor/utils/ui';
@@ -73,16 +73,14 @@ export interface EditorShellProps {
 }
 
 export function EditorShell({ canvasProjectId, onClose, className }: EditorShellProps) {
-  // Radix 弹层（菜单/对话框/Popover/Tooltip）渲染在 document.body —— 在编辑器根节点的
-  // .ve-scope 之外，拿不到 --ve-* token（背景/文字全部回落宿主值，色调错乱）。
-  // 编辑器打开期间把主题类挂到 body；卸载时移除，宿主不受影响。
-  useEffect(() => {
-    document.body.classList.add('ve-scope', 'dark');
-    return () => {
-      document.body.classList.remove('ve-scope', 'dark');
-    };
-  }, []);
-
+  /* 更新(2026-09-15 · docs/135 自研弹层)：这里原有一段补丁 ——
+     `document.body.classList.add('ve-scope', 'dark')`。
+     【它当初为什么存在】弹层（菜单/对话框/Popover/Tooltip）Portal 到 `document.body`，
+     落在编辑器根节点的 `.ve-scope` **之外** ⇒ 拿不到 `--ve-*` token（背景/文字回落宿主值，色调错乱）。
+     挂主题类到 body 是**用附随复杂度补，而不是源头收敛**：宿主 body 被编辑器改了类，
+     且每个弹层都活在"靠 body 上有类"的隐式前提里。
+     【现在为什么能删】所有弹层改为渲染进**编辑器自己的层根**（`<LayerRoot />`，见下），
+     层根是 `.ve-scope` 的后代 ⇒ 弹层天生拿得到全部 token。补丁的前提消失，补丁删除。 */
   return (
     <EditorProvider canvasProjectId={canvasProjectId}>
       {/* TooltipProvider：cutia 原在整站 layout 提供（app/[locale]/layout.tsx:35）；
@@ -110,6 +108,9 @@ export function EditorShell({ canvasProjectId, onClose, className }: EditorShell
           // 统一走同一份退出协议；onClose 缺省时 header 不渲染退出入口（消灭断头退出）。
           onExit={onClose ? () => void exitEditorToCanvas(onClose) : undefined}
         />
+        {/* 层根（**全编辑器唯一一个**）：自研弹层（Popover/菜单/对话框/Tooltip）都渲染进这里，
+            见 ui/ui/layer/layer-root.tsx 头注。 */}
+        <LayerRoot />
       </TooltipProvider>
     </EditorProvider>
   );

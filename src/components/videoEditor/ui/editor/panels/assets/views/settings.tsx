@@ -35,8 +35,8 @@ export function SettingsView() {
 }
 
 function ProjectSettingsTabs() {
-  // 分区/滚动/内边距**全部**由壳（`PanelBaseView`）拥有 —— 这里只给出 tab 与其内容，
-  // 不再包 `p-5` / `justify-between` / `flex-1`（那些是 2026-09-15 重写前"区块前空一截"的成因）。
+  // 分区/滚动/内边距**全部**归壳（`PanelBaseView`）—— 这里只给出 tab 与其内容。
+  // 每个 tab 的 content 是**纯内容**（`PropertyGroup` 序列），不是第二个壳。
   return (
     <BaseView
       defaultTab="project-info"
@@ -174,43 +174,24 @@ function ProjectInfoView() {
       </PropertyItem>
 
       {isCustom && (
-        <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            min={1}
-            value={customWidth}
-            onChange={(event) => {
-              const value = Number(event.target.value);
-              setCustomWidth(value);
-            }}
-            onBlur={() => applyCustomSize({ width: customWidth, height: customHeight })}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                applyCustomSize({ width: customWidth, height: customHeight });
-              }
-            }}
-            className="w-0 flex-1"
-            aria-label={'画布宽度'}
-          />
-          <span className="text-muted-foreground text-xs">×</span>
-          <Input
-            type="number"
-            min={1}
-            value={customHeight}
-            onChange={(event) => {
-              const value = Number(event.target.value);
-              setCustomHeight(value);
-            }}
-            onBlur={() => applyCustomSize({ width: customWidth, height: customHeight })}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                applyCustomSize({ width: customWidth, height: customHeight });
-              }
-            }}
-            className="w-0 flex-1"
-            aria-label={'画布高度'}
-          />
-        </div>
+        <PropertyItem direction="column">
+          <PropertyItemLabel>{'自定义尺寸'}</PropertyItemLabel>
+          <div className="flex items-center gap-2">
+            <DimensionInput
+              value={customWidth}
+              onValueChange={setCustomWidth}
+              onCommit={() => applyCustomSize({ width: customWidth, height: customHeight })}
+              ariaLabel={'画布宽度'}
+            />
+            <span className="text-muted-foreground text-xs">×</span>
+            <DimensionInput
+              value={customHeight}
+              onValueChange={setCustomHeight}
+              onCommit={() => applyCustomSize({ width: customWidth, height: customHeight })}
+              ariaLabel={'画布高度'}
+            />
+          </div>
+        </PropertyItem>
       )}
 
       <PropertyItem direction="column">
@@ -231,6 +212,34 @@ function ProjectInfoView() {
         </PropertyItemValue>
       </PropertyItem>
     </PropertyGroup>
+  );
+}
+
+/** 画布宽 / 高输入框 —— **同一形态两处**（宽、高），故只写一份：提交时机（失焦 / 回车）也归它。 */
+function DimensionInput({
+  value,
+  onValueChange,
+  onCommit,
+  ariaLabel,
+}: {
+  value: number;
+  onValueChange: (value: number) => void;
+  onCommit: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <Input
+      type="number"
+      min={1}
+      value={value}
+      className="flex-1"
+      aria-label={ariaLabel}
+      onChange={(event) => onValueChange(Number(event.target.value))}
+      onBlur={onCommit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') onCommit();
+      }}
+    />
   );
 }
 

@@ -1,8 +1,8 @@
 import * as React from 'react';
-import { Slot as SlotPrimitive } from 'radix-ui';
 import { cva, type VariantProps } from 'class-variance-authority';
 
 import { cn } from '@videoEditor/utils/ui';
+import { Slot } from './slot';
 
 const buttonVariants = cva(
   'inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
@@ -42,7 +42,9 @@ export interface ButtonProps
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? SlotPrimitive.Slot : 'button';
+    /* `asChild` = 把按钮的 props/类名/ref **合到调用点给的那个元素**上（`<a>` / `<Link>` / 自家 button）。
+       自研 `Slot` 取代 `radix-ui` 的 `Slot.Root`（本仓 18 处 `asChild` 全靠它）。 */
+    const Comp: React.ElementType = asChild ? Slot : 'button';
     const effectiveSize = size ?? (variant === 'text' ? 'text' : 'default');
     return (
       <Comp

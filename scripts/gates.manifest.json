@@ -44,18 +44,6 @@
       "desc": "存储键登记表（STORAGE_KEYS）单一真源"
     },
     {
-      "id": "upload-dirs",
-      "cmd": "node scripts/check-upload-dirs.mjs",
-      "phase": "build",
-      "desc": "uploads 顶层根白名单对账（后端 UPLOAD_ROOT_ALLOW 为真源）"
-    },
-    {
-      "id": "jsx",
-      "cmd": "node scripts/check-jsx.mjs",
-      "phase": "build",
-      "desc": "JSX/TSX 文件规范"
-    },
-    {
       "id": "type-check",
       "cmd": "npm run type-check",
       "phase": "push",

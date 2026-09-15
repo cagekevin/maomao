@@ -5,7 +5,10 @@ import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@videoEditor/lib/toast';
 import { DraggableItem } from '@videoEditor/ui/editor/panels/assets/draggable-item';
-import { PanelBaseView as BaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
+import {
+  PanelBaseView as BaseView,
+  PanelState,
+} from '@videoEditor/ui/editor/panels/panel-base-view';
 import { Button } from '@videoEditor/ui/ui/button';
 import { InputWithBack } from '@videoEditor/ui/ui/input-with-back';
 import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
@@ -155,17 +158,7 @@ function CollectionGrid({
   );
 }
 
-function EmptyView({ message }: { message: string }) {
-  return (
-    <div className="bg-background flex h-full flex-col items-center justify-center gap-3 p-4">
-      <Smile className="text-muted-foreground size-10" />
-      <div className="flex flex-col gap-2 text-center">
-        <p className="text-lg font-medium">{'未找到贴纸'}</p>
-        <p className="text-muted-foreground text-sm text-balance">{message}</p>
-      </div>
-    </div>
-  );
-}
+/* 空态不再自造（原 `EmptyView` 是第四个"h-full 占位"实现）—— 统一走契约的 `PanelState`。 */
 
 function StickersContentView({
   category,
@@ -331,7 +324,6 @@ function StickersContentView({
           }
           value={localSearchQuery}
           onChange={setLocalSearchQuery}
-          disableAnimation={true}
         />
       </PropertyGroup>
 
@@ -386,50 +378,50 @@ function StickersContentView({
         </PropertyGroup>
       )}
 
-      {viewMode === 'search' && (
-        <PropertyGroup>
-          {isSearching ? (
-            <div className="flex items-center justify-center py-8">
-              <Spinner className="text-muted-foreground size-6" />
+      {viewMode === 'search' &&
+        (isSearching ? (
+          <PropertyGroup grow>
+            <PanelState text={'正在搜索…'} />
+          </PropertyGroup>
+        ) : searchResults?.icons.length ? (
+          <PropertyGroup>
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-muted-foreground text-sm">
+                {`${searchResults.total} results`}
+              </span>
             </div>
-          ) : searchResults?.icons.length ? (
-            <>
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-muted-foreground text-sm">
-                  {`${searchResults.total} results`}
-                </span>
-              </div>
-              <StickerGrid
-                icons={iconsToDisplay}
-                onAdd={handleAddSticker}
-                addingSticker={addingSticker}
-                capSize
-              />
-            </>
-          ) : searchQuery ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-8">
-              <EmptyView message={`No stickers found for "${searchQuery}"`} />
-              {category !== 'all' && (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    const q = localSearchQuery || searchQuery;
-                    if (q) {
-                      setSearchQuery({ query: q });
+            <StickerGrid
+              icons={iconsToDisplay}
+              onAdd={handleAddSticker}
+              addingSticker={addingSticker}
+              capSize
+            />
+          </PropertyGroup>
+        ) : searchQuery ? (
+          <PropertyGroup grow>
+            <PanelState
+              text={'未找到匹配的贴纸'}
+              hint={`没有与「${searchQuery}」匹配的结果`}
+              action={
+                category === 'all'
+                  ? undefined
+                  : {
+                      label: '在所有图标中搜索',
+                      onClick: () => {
+                        const q = localSearchQuery || searchQuery;
+                        if (q) {
+                          setSearchQuery({ query: q });
+                        }
+                        setSelectedCategory({ category: 'all' });
+                        if (q) {
+                          searchStickers({ query: q });
+                        }
+                      },
                     }
-                    setSelectedCategory({ category: 'all' });
-                    if (q) {
-                      searchStickers({ query: q });
-                    }
-                  }}
-                >
-                  {'在所有图标中搜索'}
-                </Button>
-              )}
-            </div>
-          ) : null}
-        </PropertyGroup>
-      )}
+              }
+            />
+          </PropertyGroup>
+        ) : null)}
 
       {viewMode === 'browse' && !selectedCollection && (
         <PropertyGroup>

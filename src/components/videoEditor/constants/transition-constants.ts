@@ -7,18 +7,18 @@ export interface TransitionPreset {
 }
 
 export const TRANSITION_PRESETS: TransitionPreset[] = [
-  { type: 'fade', label: 'Fade', category: 'fade' },
-  { type: 'dissolve', label: 'Dissolve', category: 'fade' },
-  { type: 'wipe-left', label: 'Wipe Left', category: 'wipe' },
-  { type: 'wipe-right', label: 'Wipe Right', category: 'wipe' },
-  { type: 'wipe-up', label: 'Wipe Up', category: 'wipe' },
-  { type: 'wipe-down', label: 'Wipe Down', category: 'wipe' },
-  { type: 'slide-left', label: 'Slide Left', category: 'slide' },
-  { type: 'slide-right', label: 'Slide Right', category: 'slide' },
-  { type: 'slide-up', label: 'Slide Up', category: 'slide' },
-  { type: 'slide-down', label: 'Slide Down', category: 'slide' },
-  { type: 'zoom-in', label: 'Zoom In', category: 'zoom' },
-  { type: 'zoom-out', label: 'Zoom Out', category: 'zoom' },
+  { type: 'fade', label: '淡入淡出', category: 'fade' },
+  { type: 'dissolve', label: '溶解', category: 'fade' },
+  { type: 'wipe-left', label: '左擦除', category: 'wipe' },
+  { type: 'wipe-right', label: '右擦除', category: 'wipe' },
+  { type: 'wipe-up', label: '上擦除', category: 'wipe' },
+  { type: 'wipe-down', label: '下擦除', category: 'wipe' },
+  { type: 'slide-left', label: '左滑', category: 'slide' },
+  { type: 'slide-right', label: '右滑', category: 'slide' },
+  { type: 'slide-up', label: '上滑', category: 'slide' },
+  { type: 'slide-down', label: '下滑', category: 'slide' },
+  { type: 'zoom-in', label: '放大', category: 'zoom' },
+  { type: 'zoom-out', label: '缩小', category: 'zoom' },
 ];
 
 export const DEFAULT_TRANSITION_DURATION = 0.5;

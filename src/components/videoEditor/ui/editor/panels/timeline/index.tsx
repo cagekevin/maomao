@@ -188,7 +188,7 @@ export function Timeline() {
         'panel bg-background relative flex h-full flex-col overflow-hidden border-x border-b'
       }
       {...dragProps}
-      aria-label="Timeline"
+      aria-label="时间轴"
     >
       <TimelineToolbar
         zoomLevel={zoomLevel}

@@ -164,28 +164,13 @@
   background: rgb(var(--ve-fg) / 0.3);
 }
 
-@keyframes ve-accordion-down {
-  from {
-    height: var(--radix-accordion-content-height);
-  }
-  to {
-    height: 0;
-  }
-}
-@keyframes ve-accordion-up {
-  from {
-    height: 0;
-  }
-  to {
-    height: var(--radix-accordion-content-height);
-  }
-}
-.ve-scope .animate-accordion-down {
-  animation: ve-accordion-down 0.2s ease-out;
-}
-.ve-scope .animate-accordion-up {
-  animation: ve-accordion-up 0.2s ease-out;
-}
+/* 【已删 · 退役留痕（2026-09-15 · docs/135）】此处原有两个折叠动画关键帧
+   （`ve-accordion-down/up`，配 `.animate-accordion-down/up` 两条类规则），
+   高度取自 `var(--radix-accordion-content-height)` —— 那是 **Radix Accordion 运行时注入的变量**。
+   本仓 `src/` 内 0 处使用 `.animate-accordion-*`（grep 实证），且 Accordion 从来就没搬进来：
+   这两个关键帧在删 Radix 之后，会变成"引用一个永不存在的变量"的纯死代码（假绿式的存在）。
+   若将来真要做折叠动画，正确做法是量元素自身高度（`ResizeObserver` / `scrollHeight`），
+   而不是依赖某个第三方组件在行内挂的 CSS 变量。 */
 
 /* ══════════════════════════════════════════════════════════════
  * 6. 弹层 / 对话框 —— 同一背景 + 发丝边 + 投影分层
@@ -194,17 +179,21 @@
   min-height: 32px;
   border-radius: 5px;
 }
-/* ── 下拉（Radix Select）在编辑器里的形态 ─────────────────────
- * 【为什么必须在这里显式管，而不是让组件自带的工具类说了算】
- * Radix 的 SelectContent/Item 是 **Portal 到 document.body** 的 —— 它已经不在 `.ve-scope` 里，
- * 于是组件上写的 `bg-popover`（→ `--ve-popover`，**没人定义**）和 `rounded-2xl`、`p-2`
- * 在编辑器里拿到的是宿主画布色与宿主圆角，看起来就是"面板没出来/出来了但不认识"。
- * 这里按 `.ve-scope` 的规格统一：同一个底（`--ve-bg`）+ 发丝边 + 8px 圆角，
- * 条目 28px 高、hover 用前景薄纱（与菜单、属性面板同一套语义）。
- * ⚠️ 用 `[data-radix-*]` 选择器而不是给每个调用点传 className：
- *   全编辑器 6 处下拉共用这一套，逐个传 className = 下一次新建下拉又会漏。 */
-.ve-scope [data-radix-popper-content-wrapper] > [data-radix-select-content],
-[role='listbox'][data-radix-select-content] {
+/* ── 下拉（自研 Select）在编辑器里的形态 ─────────────────────
+* 【为什么必须在这里显式管，而不是让组件自带的工具类说了算】
+* 组件自带的工具类来自画布侧组件库（`rounded-2xl` / `p-2` / `bg-popover`）：
+* 前两个在编辑器里是"另一种设计语言"，第三个（`--ve-popover`）**在 ve-theme 里从未定义** →
+* 静默回落宿主画布色，看起来就是"面板没出来/出来了但不认识"。
+* 这里按 `.ve-scope` 的规格统一：同一个底（`--ve-bg`）+ 发丝边 + 8px 圆角，
+* 条目 28px 高、hover 用前景薄纱（与菜单、属性面板同一套语义）。
+* ⚠️ 用**语义类**（`.ve-select-content`）而不是给每个调用点传 className：
+*   全编辑器 6 处下拉共用这一套，逐个传 className = 下一次新建下拉又会漏。
+*
+* 更新(2026-09-15 · docs/135 自研 Select)：选择器从 `[data-radix-select-content]` 改为
+*   `.ve-select-content`（自研原语自己挂的类）。**声明一字未改** —— 因为原来这条规则在编辑器里
+*   本来就压过组件的 `rounded-2xl`/`p-2`（`.ve-scope .x` 特异性 0,2,0 > 单类 0,1,0），
+*   换成自研后仍由它说了算，观感零变化。 */
+.ve-scope .ve-select-content {
   background-color: rgb(var(--ve-bg));
   border: 1px solid rgb(var(--ve-border));
   border-radius: 8px;
@@ -668,8 +657,13 @@
 
 /* 开关规格 —— 34×19，拇指 15px。
    面板里的开关是"一个字段的开关"，与 24px 输入框同排 → 它必须比输入框**矮**才不抢视线；
-   旧 Radix 默认（20×36 + 16px 拇指 + 双层 border/shadow）在这个尺度里显得又大又肿。 */
+   旧 Radix 默认（20×36 + 16px 拇指 + 双层 border/shadow）在这个尺度里显得又大又肿。
+   `inline-flex + align-items:center` 不是装饰：19 − 15 = 4，拇指上下各留 2px 才叫"居中"，
+   而 2px/17px 两个位移量（2+15+2=19 横向对称）也是按这个内缩算的。 */
 .ve-scope .ve-switch {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
   width: 34px;
   height: 19px;
   border: none;
@@ -677,9 +671,11 @@
   background: rgb(var(--ve-fg) / 0.2);
   transition: background 0.15s ease;
 }
-.ve-scope .ve-switch[data-state='checked'] {
+.ve-scope .ve-switch[data-active] {
   background: rgb(var(--ve-primary));
 }
+/* 状态属性：**自有 `data-active`**（原 Radix 的 `data-state=checked|unchecked`）。
+   未选中 = 属性缺席 → 用默认值表达，不为"缺席"再写一条规则（少一条规则少一处漂移）。 */
 .ve-scope .ve-switch > span {
   width: 15px;
   height: 15px;
@@ -687,12 +683,73 @@
   background: rgb(var(--ve-bg));
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
   transition: transform 0.15s ease;
-}
-.ve-scope .ve-switch[data-state='unchecked'] > span {
   transform: translateX(2px);
 }
-.ve-scope .ve-switch[data-state='checked'] > span {
+.ve-scope .ve-switch[data-active] > span {
   transform: translateX(17px);
+}
+
+/* ── 滑杆规格 —— 原生 range 上色（自研，取代 Radix Slider）────────────
+   【为什么用原生 range】拖拽/键盘/step 吸附/触摸全是浏览器自带且正确；视觉用
+   `::-webkit-slider-*` / `::-moz-range-*` 接管，不需要额外 DOM（见 ui/ui/slider.tsx 头注）。
+   【已填充段怎么画】原生 range 没有跨浏览器的"已填充段"伪元素，故用
+   `linear-gradient` + `--ve-slider-fill`（0–100%，由组件按当前值算出）——
+   Chromium 走第一条，Firefox 有真 `::-moz-range-progress`，两者观感一致。
+   尺寸沿用原 Radix 版：4px 轨道 + 12px 拇指，`bg-muted`(fg.08) 底 / `bg-primary` 填充。 */
+.ve-scope .ve-slider {
+  width: 100%;
+  height: 12px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.ve-scope .ve-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    rgb(var(--ve-primary)) var(--ve-slider-fill, 0%),
+    rgb(var(--ve-fg) / 0.08) var(--ve-slider-fill, 0%)
+  );
+}
+.ve-scope .ve-slider::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border: none;
+  border-radius: 999px;
+  background: rgb(var(--ve-primary));
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
+  appearance: none;
+  -webkit-appearance: none;
+}
+.ve-scope .ve-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgb(var(--ve-fg) / 0.08);
+}
+.ve-scope .ve-slider::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: rgb(var(--ve-primary));
+}
+.ve-scope .ve-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 999px;
+  background: rgb(var(--ve-primary));
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
+}
+.ve-scope .ve-slider:focus-visible {
+  outline: 2px solid rgb(var(--ve-fg) / 0.5);
+  outline-offset: 2px;
+}
+.ve-scope .ve-slider:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* ══════════════════════════════════════════════════════════════

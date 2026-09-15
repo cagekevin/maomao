@@ -188,7 +188,7 @@ function TransitionJunctionOverlay({
             <button
               type="button"
               className="bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground flex size-6 items-center justify-center rounded-sm transition-colors"
-              title="Add transition"
+              title="添加转场"
             >
               <PlusIcon />
             </button>
@@ -225,7 +225,7 @@ function TransitionJunctionOverlay({
         aria-valuenow={displayDuration}
         aria-valuemin={MIN_TRANSITION_DURATION}
         aria-valuemax={maxDuration}
-        aria-label="Resize transition left"
+        aria-label="向左调整转场时长"
         tabIndex={0}
         onKeyDown={() => {}}
       />
@@ -245,7 +245,7 @@ function TransitionJunctionOverlay({
               marginLeft: `${handleWidth}px`,
               marginRight: `${handleWidth}px`,
             }}
-            title={`${transition.type} (${displayDuration.toFixed(1)}s)`}
+            title={`${TRANSITION_PRESETS.find((p) => p.type === transition.type)?.label ?? transition.type} (${displayDuration.toFixed(1)}s)`}
           >
             <TransitionDiamondIcon />
             {overlayWidthPx > 50 && (
@@ -275,7 +275,7 @@ function TransitionJunctionOverlay({
         aria-valuenow={displayDuration}
         aria-valuemin={MIN_TRANSITION_DURATION}
         aria-valuemax={maxDuration}
-        aria-label="Resize transition right"
+        aria-label="向右调整转场时长"
         tabIndex={0}
         onKeyDown={() => {}}
       />
@@ -295,7 +295,7 @@ function TransitionPicker({
   return (
     <div className="flex flex-col">
       <div className="border-b px-3 py-2">
-        <span className="text-xs font-medium">Transitions</span>
+        <span className="text-xs font-medium">转场</span>
       </div>
       <ScrollArea className="max-h-48">
         <div className="grid grid-cols-2 gap-1 p-2">
@@ -323,7 +323,7 @@ function TransitionPicker({
             className="hover:bg-destructive/10 text-destructive w-full rounded-sm px-2 py-1.5 text-xs"
             onClick={onRemove}
           >
-            Remove transition
+            移除转场
           </button>
         </div>
       )}
@@ -334,7 +334,7 @@ function TransitionPicker({
 function TransitionDiamondIcon() {
   return (
     <svg viewBox="0 0 12 12" className="size-3">
-      <title>Transition</title>
+      <title>转场</title>
       <path d="M6 1 L11 6 L6 11 L1 6 Z" fill="currentColor" opacity="0.9" />
     </svg>
   );
@@ -343,7 +343,7 @@ function TransitionDiamondIcon() {
 function PlusIcon() {
   return (
     <svg viewBox="0 0 12 12" className="size-3">
-      <title>Add transition</title>
+      <title>添加转场</title>
       <path
         d="M6 2 V10 M2 6 H10"
         stroke="currentColor"

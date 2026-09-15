@@ -42,9 +42,9 @@ export function TransitionsView() {
 
   return (
     <BaseView>
-      {/* 说明 + 分类 = 静态段（不传 title ⇒ 不可折叠）：它是"这一页在讲什么"，不是可收起来的分组。 */}
-      <PropertyGroup>
-        <h3 className="text-sm font-medium">{'转场'}</h3>
+      {/* 说明 + 分类 = 一页的"导语"：标题走分区契约的组头（**唯一的标题形态**，
+          此前是自写 `<h3>` —— 它是面板里第二个标题语言，字号/留白都跟组头对不上）。 */}
+      <PropertyGroup title={'转场'}>
         <p className="text-muted-foreground text-xs">
           {junctionCount > 0
             ? `共有 ${junctionCount} 个可加转场的片段交界。点下方任意转场即可全部应用；也可以点时间轴交界处的图标单独设置时长。`

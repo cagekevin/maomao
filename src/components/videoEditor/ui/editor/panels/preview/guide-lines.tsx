@@ -27,7 +27,7 @@ export function GuideLines({
       height={displaySize.height}
       style={{ zIndex: 999 }}
     >
-      <title>Alignment guides</title>
+      <title>对齐参考线</title>
       {guides.map((guide) => {
         const key = `${guide.orientation}-${guide.type}-${guide.position}`;
 

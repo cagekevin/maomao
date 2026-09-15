@@ -5,7 +5,10 @@ import { useMemo, useState } from 'react';
 import { toast } from '@videoEditor/lib/toast';
 import { MediaDragOverlay } from '@videoEditor/ui/editor/panels/assets/drag-overlay';
 import { DraggableItem } from '@videoEditor/ui/editor/panels/assets/draggable-item';
-import { PanelBaseView as BaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
+import {
+  PanelBaseView as BaseView,
+  PanelState,
+} from '@videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
 import { Button } from '@videoEditor/ui/ui/button';
 import {
@@ -220,7 +223,9 @@ export function MediaView() {
     <>
       <input {...fileInputProps} />
 
-      <div className={`h-full ${isDragOver ? 've-drop-active' : ''}`} {...dragProps}>
+      {/* 拖放是**宿主行为**（面板要接住落下的文件并给高亮），不属于分区语言 ——
+          这一层只透传拖放属性与高亮底色，高度链原样交给 `BaseView`。 */}
+      <div className={cn('h-full min-h-0', isDragOver && 've-drop-active')} {...dragProps}>
         <BaseView>
           <PropertyGroup>
             <div className="flex items-center justify-between">
@@ -360,73 +365,63 @@ export function MediaView() {
             </div>
           </PropertyGroup>
 
-          {/* biome-ignore lint: deselect on empty space click */}
+          {/* 内容区 = 一个 grow 分区（高度链由契约钉死）；"点空白取消选择"挂在这一层。 */}
           <PropertyGroup grow>
             <div
-              className="flex-1"
+              className="flex min-h-0 flex-1 flex-col"
               onClick={(event) => {
                 if (event.target === event.currentTarget) handleClearSelection();
               }}
             >
-              {/* biome-ignore lint: deselect on empty space click */}
-              <div
-                className="w-full flex-1"
-                onClick={(event) => {
-                  if (event.target === event.currentTarget) handleClearSelection();
-                }}
-              >
-                {loadError && filteredMediaItems.length === 0 ? (
-                  /* ── 失败可见性（2026-09-15 · TD-22-43②）：素材加载失败原来只记 logger →
-                 用户看到的是**静默空面板**（以为"这个工程没素材"）。持续状态给对读者 = 面板错误态
-                 （不是 toast——toast 逝去即失明，而"面板是空的"是持续状态）。 */
-                  <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-                    <p className="text-destructive text-sm">{'素材加载失败'}</p>
-                    <p className="text-muted-foreground text-xs break-all">{loadError}</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        void editor.media.loadProjectMedia({
-                          projectId: activeProject.metadata.id,
-                        });
-                      }}
-                    >
-                      {'重试'}
-                    </Button>
-                  </div>
-                ) : isDragOver || filteredMediaItems.length === 0 ? (
-                  <MediaDragOverlay
-                    isVisible={true}
-                    isProcessing={isProcessing}
-                    progress={progress}
-                    onClick={openFilePicker}
-                  />
-                ) : mediaViewMode === 'grid' ? (
-                  <GridView
-                    items={filteredMediaItems}
-                    renderPreview={renderPreview}
-                    onRemove={handleRemove}
-                    onExportClip={handleExportClip}
-                    onAddToTimeline={addElementAtTime}
-                    onSelect={handleSelectMedia}
-                    selectedMediaId={selectedMediaId}
-                    highlightedId={highlightedId}
-                    registerElement={registerElement}
-                  />
-                ) : (
-                  <ListView
-                    items={filteredMediaItems}
-                    renderPreview={renderCompactPreview}
-                    onRemove={handleRemove}
-                    onExportClip={handleExportClip}
-                    onAddToTimeline={addElementAtTime}
-                    onSelect={handleSelectMedia}
-                    selectedMediaId={selectedMediaId}
-                    highlightedId={highlightedId}
-                    registerElement={registerElement}
-                  />
-                )}
-              </div>
+              {loadError && filteredMediaItems.length === 0 ? (
+                /* ── 失败可见性（TD-22-43②）：素材加载失败原来只记 logger →
+                用户看到的是**静默空面板**（以为"这个工程没素材"）。持续状态给对读者 = 面板错误态
+                （不是 toast——toast 逝去即失明，而"面板是空的"是持续状态）。 */
+                <PanelState
+                  tone="error"
+                  text={'素材加载失败'}
+                  hint={loadError}
+                  action={{
+                    label: '重试',
+                    onClick: () => {
+                      void editor.media.loadProjectMedia({
+                        projectId: activeProject.metadata.id,
+                      });
+                    },
+                  }}
+                />
+              ) : isDragOver || filteredMediaItems.length === 0 ? (
+                <MediaDragOverlay
+                  isVisible={true}
+                  isProcessing={isProcessing}
+                  progress={progress}
+                  onClick={openFilePicker}
+                />
+              ) : mediaViewMode === 'grid' ? (
+                <GridView
+                  items={filteredMediaItems}
+                  renderPreview={renderPreview}
+                  onRemove={handleRemove}
+                  onExportClip={handleExportClip}
+                  onAddToTimeline={addElementAtTime}
+                  onSelect={handleSelectMedia}
+                  selectedMediaId={selectedMediaId}
+                  highlightedId={highlightedId}
+                  registerElement={registerElement}
+                />
+              ) : (
+                <ListView
+                  items={filteredMediaItems}
+                  renderPreview={renderCompactPreview}
+                  onRemove={handleRemove}
+                  onExportClip={handleExportClip}
+                  onAddToTimeline={addElementAtTime}
+                  onSelect={handleSelectMedia}
+                  selectedMediaId={selectedMediaId}
+                  highlightedId={highlightedId}
+                  registerElement={registerElement}
+                />
+              )}
             </div>
           </PropertyGroup>
         </BaseView>

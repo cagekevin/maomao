@@ -784,12 +784,17 @@ export const apiRegistry: Record<string, ApiRegistryEntry> = {
     note: '扫描 uploads/sounds/{effects,music} 返回清单（替代 cutia 时代未实现的 /api/sounds/search）',
   },
   iconifyProxy: {
-    fn: 'iconifyApi.buildIconSvgUrl',
+    /* fn 形态：**裸导出符号**（非 `模块.符号`）。
+       修(2026-09-15)：原写 `iconifyApi.buildIconSvgUrl` —— 而 `iconifyApi` **不是任何模块名**
+       （真身在 `src/components/videoEditor/engine/lib/iconify-api.ts`，导出 `buildIconSvgUrl`），
+       于是 `check:api` 的 R5 模块发现判它 `fn 模块未映射`（info，永不拦）。
+       自动发现支持两种形态（`base/api/*.ts` 文件名 + 全仓 src 导出符号），本符号全仓唯一 ⇒ 用后一种。 */
+    fn: 'buildIconSvgUrl',
     method: 'GET',
     path: '/api/iconify/{x}',
     envelope: 'raw',
     status: 'ACTIVE',
-    note: '贴纸图标唯一出站口（原样透传；上游 api.iconify.design→simplesvg→unisvg 三家回落收在后端）',
+    note: '贴纸图标唯一出站口（原样透传；上游 api.iconify.design→simplesvg→unisvg 三家回落收在后端）。实现在 videoEditor/engine/lib/iconify-api.ts',
   },
 
   // ── Generate（relayProxy 门面：submit → 轮询 attach；chat 出站统一走此处）──

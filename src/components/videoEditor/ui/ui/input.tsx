@@ -102,7 +102,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
               onClear?.();
             }}
             className="text-muted-foreground absolute top-0 right-0 h-full px-3 !opacity-100"
-            aria-label="Clear input"
+            aria-label="清除输入"
           >
             <X className="!size-[0.85]" />
           </Button>

@@ -18,6 +18,12 @@
  *                      RESERVED 条目 fn 指向的模块无该导出（保留待实现，R5）；fn 模块未映射/读取失败（R5，不脆断）；
  *                      源码调用点路径变量化无法静态解析（反向差集 D，如 localToolApi.request() 泛化 helper）
  *
+ * 修(2026-09-15)：`consumer` 是**字符串**（`contracts.ts` 的 `consumer?: string`），一个字段可用 `|` 列多条链；
+ *   原实现 `for (const c of entry.consumer || [])` 对字符串即**逐字符遍历** ⇒ 单次刷出 **123 条** info
+ *   （157 条 info 里 123 条是噪音），而**门面存在性一次都没被真正校验过**（假守卫）。
+ *   已改为按 `|` 拆 + 非字符串脏数据显式报形态非法；修后 info 157 → 33，且探针证明它现在真会拦
+ *   （把 `relayProxy.relayGenerate` 改成 `…TYPO` → `consumer 缺失` + exit 1）。
+ *
  * 豁免：`stream`/`sse`/`raw`/`probe`/`stub` 类型端点跳过信封形态检查（其形态本非统一信封，见 T3.1 豁免清单）。
  * 信封形态的「权威校验」由 B0 冻结测试承担；本脚本的检测为登记面的一致性防线，判定不了就 info，不脆断误伤。
  *
@@ -220,7 +226,26 @@ function checkFnExists(entry, key) {
     }
   }
   // 4.4 consumer 门面链双查（校验原语存在 ≠ 前端仍走门面）
-  for (const c of entry.consumer || []) {
+  /*
+   * ⚠️ 修(2026-09-15)：`consumer` 是**字符串**（见 `contracts.ts` 的 `consumer?: string`），
+   *   一个字段里可用 `|` 列**多条链**（如 `'filesApi.saveInlineToLocal|persistUrlToUploads|downloadRemoteToLocal'`）。
+   *   原实现写 `for (const c of entry.consumer || [])` —— 对字符串即**逐字符遍历**：
+   *   每个字母、`.`、`|` 都被当成一条"门面链"去解析 ⇒ 一次性刷出 **123 条**
+   *   `consumer 模块未映射 / 形态非法` 的 info 噪音（157 条 info 里 123 条是它），
+   *   而**真正的门面存在性一次都没被校验**（判据说在查、实际全进 info = 假守卫）。
+   *   同时后果不止"吵"：info 不拦，于是真问题（如 29 条"后端有、前端未登记"）被埋在噪音里没人看。
+   *   修法 = 按 `|` 拆；`consumer` 不是字符串（脏数据）时**不静默跳过**，显式报形态非法。
+   */
+  const consumerChains =
+    typeof entry.consumer === 'string'
+      ? entry.consumer
+          .split('|')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : entry.consumer === undefined
+        ? []
+        : [null]; // 非字符串的脏数据 → 走下面"形态非法"分支，不静默
+  for (const c of consumerChains) {
     if (!c || !FN_CHAIN_RE.test(c)) {
       add('info', `consumer 形态非法: ${key} consumer='${c}'`);
       continue;

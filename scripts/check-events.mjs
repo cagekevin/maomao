@@ -163,7 +163,8 @@ for (const file of targets) {
       logLevel: 'silent',
     });
   } catch {
-    /* 语法问题交给 check-jsx，本脚本不重复报错 */
+    /* 语法问题交给 tsc（type-check）与 test:smoke 的 esbuild 检查，本脚本不重复报错。
+       （原写「交给 check-jsx」——该闸 2026-09-15 已删：判据被上面两者完全覆盖，属冗余闸。） */
   }
 
   const lines = src.split('\n');

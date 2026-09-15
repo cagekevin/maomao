@@ -146,7 +146,7 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
         >
           <img
             src={DEFAULT_LOGO_URL}
-            alt="Project thumbnail"
+            alt="项目缩略图"
             width={32}
             height={32}
             className="dark:invert size-5"

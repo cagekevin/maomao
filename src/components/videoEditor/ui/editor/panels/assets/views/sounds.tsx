@@ -12,7 +12,10 @@ import {
   DialogTrigger,
 } from '@videoEditor/ui/ui/dialog';
 import { Input } from '@videoEditor/ui/ui/input';
-import { PanelBaseView as BaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
+import {
+  PanelBaseView as BaseView,
+  PanelState,
+} from '@videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
 import {
   Tooltip,
@@ -31,7 +34,7 @@ import type { SavedSound, SoundEffect } from '@videoEditor/types/sounds';
 import { Pause, Play, Plus, RefreshCw, Star } from 'lucide-react';
 
 export function SoundsView() {
-  // 三个 tab 交给壳（与「设置」同一套 tabs 语言）—— 不再自造 Tabs / Separator / `p-5 pt-0`。
+  // 三个 tab 交给壳（与「设置」同一套 tabs 语言）：tab 的 content 是**纯内容**，不是第二个壳。
   return (
     <BaseView
       defaultTab="sound-effects"
@@ -71,18 +74,24 @@ function SoundLibraryPanel({ kind }: { kind: SoundKind }) {
   }, [items, query]);
 
   if (isLoading) {
-    return <PanelHint text={`正在加载${label}库…`} />;
+    return (
+      <PropertyGroup grow>
+        <PanelState text={`正在加载${label}库…`} />
+      </PropertyGroup>
+    );
   }
 
   if (error) {
     // TD-22-47 的**失败可见**：旧实现是 `response.ok` 为假 → 静默空面板（用户分不清"没有"与"坏了"）。
     return (
-      <PanelHint
-        tone="error"
-        text={`${label}库加载失败`}
-        hint={error}
-        action={{ label: '重试', onClick: reload }}
-      />
+      <PropertyGroup grow>
+        <PanelState
+          tone="error"
+          text={`${label}库加载失败`}
+          hint={error}
+          action={{ label: '重试', onClick: reload }}
+        />
+      </PropertyGroup>
     );
   }
 
@@ -119,57 +128,30 @@ function SoundLibraryPanel({ kind }: { kind: SoundKind }) {
         </div>
       </PropertyGroup>
 
-      <PropertyGroup>
-        {items.length === 0 ? (
-          /* 空库 = **合法状态**（不是错误）：告诉用户"放哪儿"。`dir` 是后端给的真源，前端不拼路径。 */
-          <PanelHint
+      {items.length === 0 ? (
+        /* 空库 = **合法状态**（不是错误）：告诉用户"放哪儿"。`dir` 是后端给的真源，前端不拼路径。 */
+        <PropertyGroup grow>
+          <PanelState
             text={`${label}库是空的`}
             hint={dir ? `把音频文件放进 uploads/${dir}/ 后点右上角刷新` : undefined}
           />
-        ) : (
-          <>
-            {filtered.map((item) => (
-              <AudioItem
-                key={item.id}
-                sound={toSoundEffect(item)}
-                isPlaying={playingId === item.id}
-                onPlay={togglePreview}
-              />
-            ))}
-            {filtered.length === 0 && (
-              <div className="text-muted-foreground text-sm">{`未找到匹配的${label}`}</div>
-            )}
-          </>
-        )}
-      </PropertyGroup>
-    </>
-  );
-}
-
-/** 面板级占位（加载 / 错误 / 空库）—— 三态视觉一致，避免"空的"和"坏的"长得一样。 */
-function PanelHint({
-  text,
-  hint,
-  tone,
-  action,
-}: {
-  text: string;
-  hint?: string;
-  tone?: 'error';
-  action?: { label: string; onClick: () => void };
-}) {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
-      <p className={tone === 'error' ? 'text-destructive text-sm' : 'text-lg font-medium'}>
-        {text}
-      </p>
-      {hint && <p className="text-muted-foreground text-balance text-sm">{hint}</p>}
-      {action && (
-        <Button variant="outline" size="sm" onClick={action.onClick}>
-          {action.label}
-        </Button>
+        </PropertyGroup>
+      ) : (
+        <PropertyGroup>
+          {filtered.map((item) => (
+            <AudioItem
+              key={item.id}
+              sound={toSoundEffect(item)}
+              isPlaying={playingId === item.id}
+              onPlay={togglePreview}
+            />
+          ))}
+          {filtered.length === 0 && (
+            <div className="text-muted-foreground text-sm">{`未找到匹配的${label}`}</div>
+          )}
+        </PropertyGroup>
       )}
-    </div>
+    </>
   );
 }
 
@@ -240,31 +222,25 @@ function SavedSoundsView() {
 
   if (isLoadingSavedSounds) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-muted-foreground text-sm">{'正在加载已保存音效…'}</div>
-      </div>
+      <PropertyGroup grow>
+        <PanelState text={'正在加载已保存音效…'} />
+      </PropertyGroup>
     );
   }
 
   if (savedSoundsError) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-destructive text-sm">{`Error: ${savedSoundsError}`}</div>
-      </div>
+      <PropertyGroup grow>
+        <PanelState tone="error" text={'已保存音效加载失败'} hint={savedSoundsError} />
+      </PropertyGroup>
     );
   }
 
   if (savedSounds.length === 0) {
     return (
-      <div className="bg-background flex h-full flex-col items-center justify-center gap-3 p-4">
-        <Star className="text-muted-foreground size-10" />
-        <div className="flex flex-col gap-2 text-center">
-          <p className="text-lg font-medium">{'没有已保存的音效'}</p>
-          <p className="text-muted-foreground text-sm text-balance">
-            {'点击任意音效上的爱心图标即可保存到此处'}
-          </p>
-        </div>
-      </div>
+      <PropertyGroup grow>
+        <PanelState text={'没有已保存的音效'} hint={'点击任意音效上的爱心图标即可保存到此处'} />
+      </PropertyGroup>
     );
   }
 

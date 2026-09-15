@@ -132,7 +132,7 @@ function PreviewHeader({ assetName, onClose }: { assetName: string; onClose: () 
         type="button"
         className="size-6"
         onClick={onClose}
-        title="Close preview"
+        title="关闭预览"
       >
         <X className="size-3.5" />
       </Button>

@@ -72,7 +72,7 @@ export function TimelinePlayhead({
     <div
       ref={playheadRef}
       role="slider"
-      aria-label="Timeline playhead"
+      aria-label="时间轴播放头"
       aria-valuemin={0}
       aria-valuemax={duration}
       aria-valuenow={playheadPosition}

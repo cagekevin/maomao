@@ -6,6 +6,18 @@ import { Button } from '@videoEditor/ui/ui/button';
 import { cn } from '@videoEditor/utils/ui';
 import { TAB_KEYS, tabs, useAssetsPanelStore } from '@videoEditor/stores/assets-panel-store';
 
+/**
+ * 素材面板左栏（图标 tab 竖列）。
+ *
+ * 【结构】一列图标 + **一层**渐隐提示：
+ *   · 列自己滚（`overflow-y-auto`），宽度由内容决定（26px 图标 + 8px 内边距），
+ *     所以外面这层必须是 `shrink-0` —— 它是固定宽度的一栏，不参与横向分配；
+ *   · 高度由父（`AssetsPanel` 的 `h-full` 行）拉伸给出，故列用 `h-full`。
+ *
+ * 【渐隐只能有一层】此前渲染了**两个** `FadeOverlay` 节点，未显示的那个也会落到
+ * `bottom-0` → 上下两层渐变叠在同一位置（互相遮挡）。正确形态：一个节点，
+ * 位置与可见性都由状态决定；不显示时 `opacity-0`，不占视觉。
+ */
 export function TabBar() {
   const { activeTab, setActiveTab } = useAssetsPanelStore();
 
@@ -52,11 +64,17 @@ export function TabBar() {
     };
   }, [checkScrollPosition]);
 
+  const fade = showTopFade
+    ? 'top-0 bg-gradient-to-b from-background to-transparent'
+    : showBottomFade
+      ? 'bottom-0 bg-gradient-to-t from-background to-transparent'
+      : 'opacity-0';
+
   return (
-    <div className="relative flex">
+    <div className="relative flex h-full shrink-0">
       <div
         ref={scrollRef}
-        className="scrollbar-hidden relative flex size-full p-2 flex-col items-center justify-start gap-1.5 overflow-y-auto"
+        className="scrollbar-hidden flex h-full flex-col items-center justify-start gap-1.5 overflow-y-auto p-2"
       >
         {TAB_KEYS.map((tabKey) => {
           const tab = tabs[tabKey];
@@ -81,21 +99,7 @@ export function TabBar() {
         })}
       </div>
 
-      <FadeOverlay direction="top" show={showTopFade} />
-      <FadeOverlay direction="bottom" show={showBottomFade} />
+      <div className={cn('pointer-events-none absolute inset-x-0 h-6', fade)} />
     </div>
-  );
-}
-
-function FadeOverlay({ direction, show }: { direction: 'top' | 'bottom'; show: boolean }) {
-  return (
-    <div
-      className={cn(
-        'pointer-events-none absolute right-0 left-0 h-6',
-        direction === 'top' && show
-          ? 'from-background top-0 bg-gradient-to-b to-transparent'
-          : 'from-background bottom-0 bg-gradient-to-t to-transparent',
-      )}
-    />
   );
 }

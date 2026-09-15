@@ -51,6 +51,13 @@ export function sanitizeFilename(name: string): string {
  * ⚠️ 不能做成「精确值全量禁止」：素材库有动态分类目录（migrated/人物、migrated/脚本/尾帧变体 等），
  * 且 canvas、migrated 下可嵌套（canvas/drop、canvas/video-process）——故白名单针对【顶层根】，
  * 只拒绝未知顶层根与目录逃逸，放行既有所有合法用法（这与前端 uploadDirs.js 的常量根一致）。
+ *
+ * ⚠️ **改这里之前先读**：本集合是「uploads 顶层根」的**真源**（执行校验的一方）。
+ * 新增/删除顶层根时必须**同时**改前端 `src/components/base/utils/uploadDirs.ts::UPLOAD_DIRS`：
+ * 后端加了前端没加 ⇒ 前端永远传不出该根（功能死）；反之前端加了后端没加 ⇒ 落盘被拒（静默失败）。
+ *
+ * 更新(2026-09-15)：原由闸 `scripts/check-upload-dirs.mjs` 对账两端，已按用户裁定删除（实测常绿）。
+ * 判据改由**此处注释 + 前端同款注释**承担；顶层根若开始频繁增删，应恢复该闸而不是靠注释。
  */
 export const UPLOAD_ROOT_ALLOW = new Set(['tasks', 'web', 'canvas', 'migrated', 'director3d']);
 

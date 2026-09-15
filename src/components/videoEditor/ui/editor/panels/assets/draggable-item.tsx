@@ -2,8 +2,8 @@
 
 import { Minus, Plus } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { AspectRatio } from '@videoEditor/ui/ui/aspect-ratio';
+import { LayerPortal } from '@videoEditor/ui/ui/layer/layer-root';
 import { Button } from '@videoEditor/ui/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@videoEditor/ui/ui/tooltip';
 import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
@@ -211,10 +211,11 @@ export function DraggableItem({
         </div>
       )}
 
-      {isDraggable &&
-        isDragging &&
-        typeof document !== 'undefined' &&
-        createPortal(
+      {isDraggable && isDragging && (
+        /* 拖拽预览：渲染进**编辑器层根**（原 `createPortal(document.body)`）。
+           为什么要跟着改：它用的 `ve-card-thumb` / `ring-primary` 都来自 `.ve-scope` 作用域，
+           落在 body 上只能靠"给 body 挂主题类"的补丁活着（见 docs/135 收尾三件）。 */
+        <LayerPortal>
           <div
             className="pointer-events-none fixed z-[9999]"
             style={{
@@ -239,9 +240,9 @@ export function DraggableItem({
                 )}
               </AspectRatio>
             </div>
-          </div>,
-          document.body,
-        )}
+          </div>
+        </LayerPortal>
+      )}
     </>
   );
 }
