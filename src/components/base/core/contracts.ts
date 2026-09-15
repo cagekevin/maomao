@@ -86,7 +86,7 @@ export const EVENTS: Record<string, EventRegistryEntry> = {
   },
   'presets-changed': {
     from: ['promptManager.ts:105'],
-    to: ['PromptLibrary.tsx:80'],
+    to: ['PromptPresetView.tsx:61'],
     payload: '{ presets }',
     note: '提示词库跨节点同步。生产使用',
   },

@@ -21,7 +21,8 @@ import { useDisconnectSource } from '../../hooks/useDisconnectSource.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { useNodeExpanded } from '../../hooks/useNodeExpanded.ts';
 import { useNodeField } from '../../hooks/useNodeField.ts';
-import PromptLibraryButton from '../base/prompt/PromptLibraryButton.tsx';
+import CreativeLibraryButton from '../base/creative/CreativeLibraryButton.tsx';
+import type { CreativeApplyItem } from '../base/creative/CreativeLibrary.tsx';
 import { downloadUrl, resolveDownloadFilename } from '../base/utils/clipboard.ts';
 import JianyingIcon from '../base/ui/JianyingIcon.tsx';
 import { showToast } from '../base/core/toastStore.ts';
@@ -88,6 +89,8 @@ interface ImageGenerateData {
   texts?: RefText[];
   /** 摄影参数（焦距/快门效果/光圈/曝光时间）；缺省 = 全自动，不写入提示词 */
   cameraSettings?: CameraGenerationSettings;
+  /** 创作库预设字典（Record<id,{kind,name,prompt}>，键 = cp_ 前缀 id）；生成时按正文胶囊替换 */
+  creativePresets?: Record<string, { kind: string; name?: string; prompt: string }>;
 }
 
 /** 上游产出（来自 useConnectedInputs）的共享返回类型真相源：src/hooks/useConnectedInputs.ts NodeOutputGroup。
@@ -141,8 +144,8 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   // 生成前统一解析：chipResolved.text 是发给 AI 的纯文本；chipResolved.refImages 是用户显式 @ 的参考图
   // （其顺序对应 text 里的「图片N」序号）。memo 稳定引用，避免每次 render 重算。
   const chipResolved = useMemo(
-    () => resolvePromptChips(effectivePrompt, refImages, refTexts),
-    [effectivePrompt, refImages, refTexts],
+    () => resolvePromptChips(effectivePrompt, refImages, refTexts, data.creativePresets ?? {}),
+    [effectivePrompt, refImages, refTexts, data.creativePresets],
   );
   // 提示词输入框双击全屏编辑（复刻 TextGenerate 的交互：ResizeFullscreenHandle 双击 → 弹层）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
@@ -394,6 +397,22 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     if (typeof insertAssetRef.current === 'function') {
       insertAssetRef.current(asset);
     }
+  };
+  // 创作库预设应用：落胶囊（有 preview 显示缩略图）+ 写 data.creativePresets 字典（键 = item.id）。
+  const handleCreativeApply = (item: CreativeApplyItem) => {
+    const hasPreview = !!item.preview;
+    insertMention({
+      id: item.id,
+      label: item.name,
+      kind: hasPreview ? 'image' : 'text',
+      ...(hasPreview ? { url: item.preview } : {}),
+    });
+    patchData({
+      creativePresets: {
+        ...(data.creativePresets ?? {}),
+        [item.id]: { kind: item.kind, name: item.name, prompt: item.prompt },
+      },
+    });
   };
   const hasImage = !!assetUrl;
   const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false);
@@ -765,11 +784,8 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                     placeholder="选择模型"
                   />
 
-                  {/* 预设：打开提示词库弹窗 → 可追加到当前提示词或新建文本节点 */}
-                  <PromptLibraryButton
-                    category="image"
-                    onAppend={(p) => setPrompt((prev) => (prev ? `${prev}\n${p}` : p))}
-                  />
+                  {/* 预设：打开创作库面板（风格/滤镜/运镜/MJ码图/提示词）→ 落胶囊到当前提示词 */}
+                  <CreativeLibraryButton initialTab="style" onApply={handleCreativeApply} />
 
                   {/* 摄影参数：焦距/快门效果/光圈/曝光时间 → 生成时拼进提示词。
                       仅收集参数，界面不回显拼接后的片段；有参数时按钮变蓝并显示角标数量。 */}

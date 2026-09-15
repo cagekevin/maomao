@@ -89,9 +89,9 @@ export const NODE_DATA_DEFAULTS: Record<string, Record<string, unknown>> = {
   scriptBoxNode: { step: 1, story: '', globalStyle: '', shots: [], assets: [] },
 
   // ── 顶部快捷（Q/W/E）──
-  textGenerateNode: { text: '' },
-  imageGenerateNode: { prompt: '' },
-  videoGenerateNode: { prompt: '' },
+  textGenerateNode: { text: '', creativePresets: {} },
+  imageGenerateNode: { prompt: '', creativePresets: {} },
+  videoGenerateNode: { prompt: '', creativePresets: {} },
 };
 
 /**

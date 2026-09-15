@@ -144,6 +144,67 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 .rcard.add:hover{border-color:rgb(var(--mao-accent) / .5);color:rgb(var(--mao-accent-strong));}
 .cl-empty{grid-column:1/-1;padding:28px 0;font-size:11px;color:rgb(var(--mao-text-subtle));text-align:center;}
 
+/* 提示词预设：纯文字简约卡，一排 3 格（无图、无渐变） */
+.pk-grid.three{grid-template-columns:repeat(3,1fr);gap:11px;align-items:stretch;}
+.rcard.txt.preset{position:relative;background:rgb(var(--mao-surface));
+  border:1px solid rgb(var(--mao-edge-faint));border-radius:12px;padding:13px 13px 12px;
+  min-height:110px;display:flex;flex-direction:column;gap:9px;justify-content:flex-start;
+  cursor:pointer;transition:border-color .15s,background .15s,box-shadow .15s;}
+.rcard.txt.preset::before{display:none;}
+.rcard.txt.preset .ptop{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0;}
+.rcard.txt.preset .ptitle{margin:0;font-size:12px;font-weight:600;line-height:1.4;color:rgb(var(--mao-text-strong));
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rcard.txt.preset .ptag{flex-shrink:0;font-size:10px;line-height:1;padding:3px 7px;border-radius:5px;
+  color:rgb(var(--mao-text-secondary));background:rgb(var(--mao-surface-2));border:1px solid rgb(var(--mao-edge-faint));}
+.rcard.txt.preset .pdesc{margin:0;font-size:10.5px;line-height:1.65;color:rgb(var(--mao-text-muted));
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex:1;}
+/* 卡片右上角「⋯」：默认隐藏，hover/选中浮现 → 编辑 / 删除 */
+.rcard.txt.preset .pk-more{position:absolute;top:7px;right:7px;width:22px;height:22px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;
+  color:rgb(var(--mao-text-faint));cursor:pointer;opacity:0;transition:opacity .15s,background .15s;}
+.rcard.txt.preset:hover .pk-more,.rcard.txt.preset.on .pk-more{opacity:1;}
+.rcard.txt.preset .pk-more:hover{background:rgb(var(--mao-surface-2));color:rgb(var(--mao-text-primary));}
+.rcard.txt.preset:hover{border-color:rgb(var(--mao-edge-raised));background:rgb(var(--mao-surface-hover));}
+.rcard.txt.preset.on{border-color:rgb(var(--mao-accent));background:rgb(var(--mao-accent) / .05);
+  box-shadow:inset 0 0 0 1px rgb(var(--mao-accent) / .5);}
+
+/* 「新增预设」按钮（提示词 tab，置于「⋯」旁） */
+.pk-btn.ghost{background:transparent;border-color:rgb(var(--mao-edge));color:rgb(var(--mao-text-primary));}
+.pk-btn.ghost:hover{border-color:rgb(var(--mao-accent) / .5);color:rgb(var(--mao-accent-strong));
+  background:rgb(var(--mao-accent) / .06);}
+.pk-btn.add-ico{width:28px;height:28px;padding:0;flex:none;border-radius:8px;justify-content:center;
+  border-color:rgb(var(--mao-edge));color:rgb(var(--mao-text-faint));background:transparent;}
+.pk-btn.add-ico:hover{border-color:rgb(var(--mao-edge-strong));color:rgb(var(--mao-text-primary));background:rgb(var(--mao-surface-hover));}
+.pk-btn.danger{color:#ef4444;border-color:rgba(239,68,68,.4);background:transparent;}
+.pk-btn.danger:hover{background:rgba(239,68,68,.1);border-color:#ef4444;}
+
+/* 编辑器浮层：新增 / 编辑提示词 */
+.pk-editor{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;
+  background:rgb(var(--mao-input));border-radius:16px;padding:16px 18px;}
+.pk-editor .ehd{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+.pk-editor .ehd h3{font-size:13px;font-weight:600;color:rgb(var(--mao-text-strong));}
+.pk-editor .ehd .sp{flex:1;}
+.pk-editor .efield{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
+.pk-editor .erow2{display:flex;gap:10px;align-items:flex-start;}
+.pk-editor .efield label{font-size:11px;color:rgb(var(--mao-text-muted));}
+.pk-editor .efield input,.pk-editor .efield textarea,.pk-editor .efield select{
+  border:1px solid rgb(var(--mao-edge));border-radius:8px;background:rgb(var(--mao-surface));
+  color:rgb(var(--mao-text-body));font:inherit;font-size:12px;padding:8px 10px;outline:none;}
+.pk-editor .efield input:focus,.pk-editor .efield textarea:focus,.pk-editor .efield select:focus{border-color:rgb(var(--mao-accent) / .5);}
+.pk-editor .efield textarea{resize:none;flex:1;min-height:96px;line-height:1.6;}
+.pk-editor .erow{display:flex;gap:8px;align-items:center;margin-top:6px;}
+.pk-editor .erow .sp{flex:1;}
+
+/* 卡片「⋯」菜单：编辑 / 删除 */
+.pk-menu{position:absolute;z-index:40;min-width:108px;padding:4px;
+  background:rgb(var(--mao-input));border:1px solid rgb(var(--mao-edge-strong));
+  border-radius:9px;box-shadow:0 12px 30px rgba(0,0,0,.5);}
+.pk-menu button{display:flex;align-items:center;gap:7px;width:100%;padding:7px 9px;border:0;
+  background:transparent;border-radius:6px;cursor:pointer;color:rgb(var(--mao-text-primary));font-size:12px;text-align:left;}
+.pk-menu button:hover{background:rgb(var(--mao-surface-hover-strong));}
+.pk-menu button.danger{color:#ef4444;}
+.pk-menu button.danger:hover{background:rgba(239,68,68,.12);}
+
 /* MJ 详情态：左大图 + 右信息（4 种插入模式 + textarea + 复制/插入正文） */
 .mj-detail{flex:1;min-height:0;display:flex;gap:14px;padding:12px 14px;overflow:auto;}
 .mj-detail .big{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;}
@@ -189,6 +250,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 .prow{display:flex;align-items:center;gap:4px;margin-top:8px;padding-top:8px;
   border-top:1px solid rgb(var(--mao-edge-faint));}
 .prow .plbl{font-size:10px;color:rgb(var(--mao-text-subtle));margin-right:4px;}
+/* 唯一入口:预设按钮,按下态与面板选中语义一致(accent 描边) */
+.prow .pk-btn[aria-pressed='true']{border-color:rgb(var(--mao-accent) / .55);
+  background:rgb(var(--mao-accent) / .12);color:rgb(var(--mao-accent-strong));}
 
 /* 富文本胶囊：逐字复制 src/index.css:717-779 */
 .prompt-chip{display:inline-flex;align-items:center;gap:4px;max-width:180px;margin:0 2px;padding:2px 6px 2px 6px;
@@ -217,8 +281,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
   <p>
     样式全部自带（不引 panel-kit.css，mockup 独立演进）；胶囊逐字复制 <b>index.css:717-779</b>。
     分类名、条目数、点击行为全部取自 AIFISHER 真实源码。
-    三个舞台按真实使用顺序排：<b>① 在创作库选中 → ② 胶囊落入节点 → ③ 生成前展开成完整提示词</b>。
-    可直接点：搜索可过滤、卡片可选中/再点取消、运镜卡悬停播放 mp4、MJ 卡进详情页。
+    三个舞台按真实使用顺序排：<b>① 点节点上的「预设」按钮打开创作库 → ② 选中后胶囊落入节点 → ③ 生成前展开成完整提示词</b>。
+    入口只有一个「预设」按钮，风格/滤镜/运镜/MJ/提示词的切换全部收进面板内 tab。
+    可直接点：节点「预设」按钮开/关面板、搜索可过滤、卡片可选中/再点取消、运镜卡悬停播放 mp4、MJ 卡进详情页。
   </p>
 </div>
 
@@ -248,6 +313,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
       </label>
       <div class="subrow">
         <div class="pk-pills" id="pills"></div>
+        <span class="pk-head-spacer"></span>
+        <button type="button" class="pk-btn add-ico" id="addPrompt" hidden title="新增预设" aria-label="新增预设">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
         <button type="button" class="pk-icon-btn" title="更多操作">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
         </button>
@@ -264,6 +333,42 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 
     <div class="pk-list-foot" id="foot"></div>
     <div id="toastHost"></div>
+
+    <!-- 编辑器浮层：新增 / 编辑提示词 -->
+    <div class="pk-editor" id="editor" hidden>
+      <div class="ehd">
+        <h3 id="edHd">新增提示词</h3>
+        <span class="sp"></span>
+        <button type="button" class="pk-icon-btn" id="edClose" title="关闭">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="erow2">
+        <div class="efield" style="flex:1;min-width:0">
+          <label>标题</label>
+          <input id="edTitle" placeholder="例如：面部变真实" />
+        </div>
+        <div class="efield" style="width:118px;flex:none">
+          <label>类型</label>
+          <select id="edType">
+            <option value="text">文本</option>
+            <option value="image">生图</option>
+            <option value="video">视频</option>
+          </select>
+        </div>
+      </div>
+      <div class="efield" style="flex:1;min-height:0">
+        <label>提示词</label>
+        <textarea id="edPrompt" placeholder="粘贴或撰写提示词内容…"></textarea>
+      </div>
+      <div class="erow">
+        <button type="button" class="pk-btn danger" id="edDel" hidden>删除</button>
+        <span class="sp"></span>
+        <button type="button" class="pk-btn" id="edCancel">取消</button>
+        <button type="button" class="pk-btn primary" id="edSave">保存</button>
+      </div>
+    </div>
+    <div class="pk-menu" id="cardMenu" hidden></div>
   </div>
 
   <div class="cap" id="behavior"></div>
@@ -273,7 +378,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 
 <!-- ═══════════ 舞台 ②：节点侧 ═══════════ -->
 <div class="stage">
-  <div class="cap"><span class="step">2</span><b>节点底栏</b> · 选中项以胶囊（<b>.prompt-chip</b>）落进正文</div>
+  <div class="cap"><span class="step">2</span><b>节点底栏</b> · 唯一入口「预设」按钮 · 选中项以胶囊（<b>.prompt-chip</b>）落进正文</div>
 
   <div class="nodemock">
     <div class="hd"><span class="d"></span>生成图片<span class="m">Gemini</span></div>
@@ -282,20 +387,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
     </div>
     <div class="prow">
       <span class="plbl">入口：</span>
-      <div class="pk-pills" style="flex:none">
-        <button type="button" class="pk-pill" aria-pressed="true">风格</button>
-        <button type="button" class="pk-pill">滤镜</button>
-        <button type="button" class="pk-pill">MJ码图</button>
-        <button type="button" class="pk-pill">提示词</button>
-      </div>
+      <button type="button" class="pk-btn" id="entryPreset" aria-pressed="false">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        预设
+      </button>
       <span class="pk-head-spacer"></span>
       <button type="button" class="pk-icon-btn" title="摄影参数">◉</button>
     </div>
   </div>
 
   <div class="cap" style="color:rgb(var(--mao-text-faint));font-size:11px">
-    ↑ 上面面板里每选中一项，这里就多一枚胶囊（缩略图是那件预设的真实预览图）；在面板里再点一次可取消，胶囊同步消失。
-    视频节点把「运镜」排进入口，图片节点把「MJ码图」排进来。
+    ↑ 入口收敛成一个「预设」按钮：点它才打开上面的创作库面板，再点一次关闭。面板里每选中一项，这里就多一枚胶囊（缩略图是那件预设的真实预览图）；在面板里再点一次可取消，胶囊同步消失。
+    风格/滤镜/运镜/MJ/提示词不再各设入口，统一收进面板内的 tab。
   </div>
 </div>
 
@@ -309,12 +412,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 
 <div class="mk-note">
   <b>结构和行为说明。</b><br />
+  <b>⓪ 入口：</b>节点底栏只保留一个「预设」按钮，点击才打开创作库面板（再点关闭）；不再按类型设多个入口，风格/滤镜/运镜/MJ/提示词的切换全部收进面板顶部 tab。<br />
   <b>① 分类：</b>风格 3 类（真人73 / 2D92 / 3D52）、滤镜 2 类（通用11 / 人像质感6）、运镜 3 类（基础22 / 组合14 / 高阶15）→ 一级 pills 够用。
   <b>MJ 是两级</b>：3 组（角色人像185 / 场景环境201 / 巨物怪兽107）× 组内 34 个分类 → pills 扛不住，必须是左栏分类列表；左栏按题材分 6 大组方便扫读，副条 pills 是"素材类型"轴，两轴交叉过滤。<br />
-  <b>② 点击之后（三个 tab 三种行为，都不是"没反应"）：</b>
-  风格/滤镜/运镜 → 卡片加选中描边 + <b>立即插入</b>（真实实现插入即关闭面板；mockup 保留面板以便连续预览）；再点一次取消选中；
-  MJ → <b>进详情页</b>（大图 + medium + 4 种插入模式 + textarea + 复制/插入正文），点「插入正文」才插入；
-  提示词 → 整段写进正文。<br />
+  <b>② 点击之后（四种类型统一行为，都不是"没反应"）：</b>
+  风格/滤镜/运镜/提示词 → 卡片加选中描边 + <b>立即插入一枚胶囊</b>（真实实现插入即关闭面板；mockup 保留面板以便连续预览）；再点一次取消选中；
+  提示词另支持管理：副条「新增预设」新建，卡片 hover 出右上角「⋯」可<b>编辑 / 删除</b>（编辑器为面板内浮层，含标题 / 类型 / 提示词）。
+  MJ → <b>进详情页</b>（大图 + medium + 4 种插入模式 + textarea + 复制/插入正文），点「插入正文」才插入。<br />
   <b>素材：</b>真实预览图 223 个 / 16.9 MB（全量 107 MB 只挑被引用的）。运镜 mp4 只有部分分类携带，悬停有 mp4 的卡会播放。
 </div>
 
@@ -327,18 +431,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
     filter: { name: '滤镜', unit: '个滤镜预设', behavior: '同风格：点击即插入；滤镜与风格可叠加，生成时按 风格 → 滤镜 顺序拼' },
     motion: { name: '运镜', unit: '个运镜预设', behavior: '同风格：点击即插入；卡片悬停播放 mp4（仅部分分类携带 mp4）' },
     mj:     { name: 'MJ码图', unit: '组码图', behavior: '点击卡片 → 进详情页（4 种插入模式）→ 点「插入正文」才插入；二级分类在左栏' },
+    prompt: { name: '提示词', unit: '条文本预设', behavior: '同风格/滤镜：点击卡片 → 加选中描边 → 立即插入一枚胶囊（真实实现中面板随即关闭）；再点一次取消选中' },
   };
+  /* 真实「我的提示词」预设(对齐 promptManager.ts 的 {id,title,type,prompt})。
+     首条即真实出厂默认值(DEFAULT_PRESETS[0])，其余为本仓合理示例，type ∈ text|image|video。 */
   var PROMPTS = [
-    { id: 'p1', name: '黄昏逆光人像', category: '人像', text: '一位年轻女性侧身站在落地窗前，黄昏逆光勾勒出发丝轮廓，暖橘色天光，浅景深，85mm 人像镜头，皮肤保留自然纹理，胶片颗粒感。' },
-    { id: 'p2', name: '雪山晨雾', category: '风景', text: '清晨雪山，云海翻涌，低角度侧逆光，冷调，超广角，前景岩石带霜，空气通透，8K 微距质感。' },
-    { id: 'p3', name: '香水静物台', category: '产品', text: '香水瓶置于亚克力台面，单侧柔光箱打轮廓，背景渐隐，微距，玻璃折射细节清晰，商业广告质感。' },
-    { id: 'p4', name: '赛博夜景自拍', category: '人像', text: '夜晚赛博街区，霓虹招牌，手持自拍视角，青紫双色补光，浅景深，电影颗粒。' },
-    { id: 'p5', name: '老巷烟火气', category: '风景', text: '老城巷子黄昏，炊烟与暖灯，生活流抓拍，35mm，轻微手持晃动。' },
-    { id: 'p6', name: '轻奢暖调浴室', category: '产品', text: '暖调浴室，大理石台面，水汽氤氲，侧窗自然光，画面统一顺滑，高级感。' },
+    { id: 'pp_face_real', title: '面部变真实', type: 'image', prompt: '超写实人像；自然不均匀的皮肤纹理，可见毛孔，细微的汗毛，鼻翼周围淡淡的泛红，轻微的眼下阴影，真实的皮肤通透感；无磨皮，无美颜效果，纪实写实风格；中性深色背景，柔和虚化；侧方柔和定向光，凸显皮肤纹理与面部轮廓；真实自然的色调，电影感但自然的对比度；使用高端85mm人像镜头拍摄，浅景深，眼睛部分极致清晰；照片级真实感，无CGI渲染' },
+    { id: 'pp_dusk', title: '黄昏逆光人像', type: 'image', prompt: '一位年轻女性侧身站在落地窗前，黄昏逆光勾勒出发丝轮廓，暖橘色天光，浅景深，85mm 人像镜头，皮肤保留自然纹理，胶片颗粒感。' },
+    { id: 'pp_snow', title: '雪山晨雾', type: 'video', prompt: '清晨雪山，云海翻涌，低角度侧逆光，冷调，超广角，前景岩石带霜，空气通透，8K 微距质感。' },
+    { id: 'pp_perfume', title: '香水静物台', type: 'image', prompt: '香水瓶置于亚克力台面，单侧柔光箱打轮廓，背景渐隐，微距，玻璃折射细节清晰，商业广告质感。' },
+    { id: 'pp_cyber', title: '赛博夜景自拍', type: 'text', prompt: '夜晚赛博街区，霓虹招牌，手持自拍视角，青紫双色补光，浅景深，电影颗粒。' },
+    { id: 'pp_lane', title: '老巷烟火气', type: 'text', prompt: '老城巷子黄昏，炊烟与暖灯，生活流抓拍，35mm，轻微手持晃动。' },
   ];
-  var CAT_CLASS = { '人像': 'c-portrait', '风景': 'c-scene', '产品': 'c-product', '最近使用': 'c-recent' };
+  /* 分类标签(对齐 promptManager.ts 的 TYPE_LABEL) */
+  var TYPE_LABEL = { text: '文本', image: '生图', video: '视频' };
 
-  var state = { tab: 'style', cat: null, mjGroup: 'char', mjCat: null, selected: {}, detail: null, q: '' };
+  var state = { tab: 'style', cat: null, mjGroup: 'char', mjCat: null, selected: {}, detail: null, q: '', editIdx: null };
   var $ = function (id) { return document.getElementById(id); };
   var toastTimer = null;
 
@@ -365,10 +473,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
   function cats(tab) {
     if (tab === 'mj') return [];
     if (tab === 'prompt') return [
-      { category: '最近使用', total: PROMPTS.length },
-      { category: '人像', total: PROMPTS.filter(function (p) { return p.category === '人像'; }).length },
-      { category: '风景', total: PROMPTS.filter(function (p) { return p.category === '风景'; }).length },
-      { category: '产品', total: PROMPTS.filter(function (p) { return p.category === '产品'; }).length },
+      { key: '__all', label: '全部', total: PROMPTS.length },
+      { key: 'text', label: '文本', total: PROMPTS.filter(function (p) { return p.type === 'text'; }).length },
+      { key: 'image', label: '生图', total: PROMPTS.filter(function (p) { return p.type === 'image'; }).length },
+      { key: 'video', label: '视频', total: PROMPTS.filter(function (p) { return p.type === 'video'; }).length },
     ];
     return D[tab] || [];
   }
@@ -380,7 +488,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
       if (state.mjGroup && e.g !== state.mjGroup) return [];
       list = e.items;
     } else if (tab === 'prompt') {
-      list = state.cat ? PROMPTS.filter(function (p) { return p.category === state.cat; }) : PROMPTS.slice();
+      list = state.cat ? PROMPTS.filter(function (p) { return p.type === state.cat; }) : PROMPTS.slice();
     } else {
       list = [];
       (D[tab] || []).forEach(function (x) {
@@ -471,14 +579,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
       return;
     }
     var list = cats(state.tab);
-    var all = list.reduce(function (n, c) { return n + c.total; }, 0);
     var cur = state.cat;
-    $('pills').innerHTML =
-      '<button type="button" class="pk-pill" data-p="__all" aria-pressed="' + (cur === null) + '">全部 ' + all + '</button>' +
-      list.map(function (c) {
-        return '<button type="button" class="pk-pill" data-p="' + c.category + '" aria-pressed="' + (cur === c.category) + '">' +
-          c.category + ' ' + c.total + '</button>';
-      }).join('');
+    $('pills').innerHTML = list.map(function (c) {
+      var k = c.key !== undefined ? c.key : c.category;
+      var lbl = c.label !== undefined ? c.label : c.category;
+      return '<button type="button" class="pk-pill" data-p="' + k + '" aria-pressed="' + (cur === k) + '">' +
+        lbl + ' ' + c.total + '</button>';
+    }).join('');
     $('pills').querySelectorAll('.pk-pill').forEach(function (b) {
       b.onclick = function () {
         var v = b.getAttribute('data-p');
@@ -493,9 +600,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
   function card(it, tab, idx) {
     var on = state.selected[tab] && state.selected[tab].id === it.id ? ' on' : '';
     if (tab === 'prompt') {
-      return '<article class="rcard txt ' + (CAT_CLASS[it.category] || '') + on + '" data-i="' + idx + '" title="' + it.text + '">' +
-        '<span class="catlbl">' + it.category + '</span>' +
-        '<div class="name"><p>' + it.name + '</p></div></article>';
+      return '<article class="rcard txt preset' + on + '" data-i="' + idx + '" title="' + (it.prompt || '').replace(/"/g, '&quot;') + '">' +
+        '<div class="ptop"><p class="ptitle">' + it.title + '</p>' +
+        '<span class="ptag">' + (TYPE_LABEL[it.type] || '通用') + '</span></div>' +
+        '<p class="pdesc">' + it.prompt + '</p>' +
+        '<button type="button" class="pk-more" aria-label="编辑或删除" data-i="' + idx + '">⋯</button>' +
+        '</article>';
     }
     var src = it.thumb || it.poster || it.preview || '';
     var isVideo = !!(it.poster || it.video);
@@ -518,6 +628,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
     if (state.tab === 'mj' && state.detail) { renderDetail(state.detail); return; }
     $('detail').hidden = true;
     $('grid').hidden = false;
+    $('grid').classList.toggle('three', state.tab === 'prompt');
+    $('addPrompt').hidden = state.tab !== 'prompt';
 
     var list = itemsOf(state.tab);
     if (state.tab === 'mj' && !state.mjCat) {
@@ -525,11 +637,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
     } else if (!list.length) {
       $('grid').innerHTML = '<p class="cl-empty">没有匹配「' + state.q + '」的结果</p>';
     } else {
-      $('grid').innerHTML = list.map(function (it, i) { return card(it, state.tab, i); }).join('') +
-        (state.tab === 'prompt' ? '<button type="button" class="rcard add">' + SVG.add + '新增预设</button>' : '');
+      $('grid').innerHTML = list.map(function (it, i) { return card(it, state.tab, i); }).join('');
     }
     $('grid').querySelectorAll('.rcard[data-i]').forEach(function (el) {
       el.onclick = function () { pick(list[+el.getAttribute('data-i')]); };
+    });
+    $('grid').querySelectorAll('.rcard.txt.preset .pk-more').forEach(function (el) {
+      el.onclick = function (e) {
+        e.stopPropagation();
+        openCardMenu(el, +el.getAttribute('data-i'));
+      };
     });
     /* 运镜卡：悬停播放 mp4，移出暂停复位 */
     $('grid').querySelectorAll('.rcard[data-i] video[data-v]').forEach(function (v) {
@@ -550,7 +667,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
     } else if (state.tab === 'prompt') {
       $('foot').textContent = state.q
         ? '搜索「' + state.q + '」· 匹配 ' + list.length + ' 条'
-        : '共 ' + PROMPTS.length + ' 条提示词（示例集）';
+        : (state.cat ? (TYPE_LABEL[state.cat] || state.cat) + ' · 共 ' + list.length + ' 条' : '共 ' + PROMPTS.length + ' 条提示词');
     } else {
       var sum = cats(state.tab).reduce(function (n, c) { return n + c.total; }, 0);
       $('foot').textContent = state.q
@@ -619,12 +736,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
     var tab = state.tab;
     if (tab === 'mj') { state.detail = it; renderDetail(it); return; }
     if (tab === 'prompt') {
-      if (state.selected.preset && state.selected.preset.id === it.id) {
-        delete state.selected.preset;
-        toast('已移除 <b>' + it.name + '</b>');
+      if (state.selected[tab] && state.selected[tab].id === it.id) {
+        delete state.selected[tab];
+        toast('已移除 <b>' + it.title + '</b>');
       } else {
-        state.selected.preset = { id: it.id, name: it.name, prompt: it.text };
-        toast('整段提示词 <b>' + it.name + '</b> 已写入正文');
+        state.selected[tab] = { id: it.id, name: it.title, prompt: it.prompt };
+        toast('已插入 <b>' + it.title + '</b> · 真实实现中面板会随即关闭');
       }
       render(); renderChips(); return;
     }
@@ -641,7 +758,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 
   function renderChips() {
     var html = '';
-    ['style', 'filter', 'motion', 'mj', 'preset'].forEach(function (k) {
+    ['style', 'filter', 'motion', 'mj', 'prompt'].forEach(function (k) {
       var s = state.selected[k];
       if (!s) return;
       html += '<span class="prompt-chip">' +
@@ -650,12 +767,73 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
     });
     $('chips').innerHTML = html || '';
     var lines = ['cinematic cold tone, teal and orange grade', '黄昏的海边礁石，一个背影，长焦压缩'];
-    ['style', 'filter', 'motion', 'mj', 'preset'].forEach(function (k) {
+    ['style', 'filter', 'motion', 'mj', 'prompt'].forEach(function (k) {
       var s = state.selected[k];
       if (s) lines.push('<em>' + s.name + '：' + String(s.prompt || '').split('\n')[0].slice(0, 60) + '…</em>');
     });
     lines.push('', 'Camera settings: 85mm portrait lens, f/1.8 wide aperture.');
     $('final').innerHTML = lines.join('\n');
+  }
+
+  /* ── 提示词：新增 / 编辑 / 删除 ── */
+  function openEditor(idx) {
+    state.editIdx = (idx === undefined || idx === null) ? null : idx;
+    var p = state.editIdx === null ? null : PROMPTS[state.editIdx];
+    $('edHd').textContent = p ? '编辑提示词' : '新增提示词';
+    $('edTitle').value = p ? p.title : '';
+    $('edType').value = p ? p.type : 'text';
+    $('edPrompt').value = p ? p.prompt : '';
+    $('edDel').hidden = !p;
+    $('editor').hidden = false;
+  }
+  function closeEditor() { $('editor').hidden = true; state.editIdx = null; }
+  function saveEditor() {
+    var title = $('edTitle').value.trim() || '未命名提示词';
+    var type = $('edType').value;
+    var prompt = $('edPrompt').value.trim();
+    if (!prompt) { toast('提示词内容不能为空'); return; }
+    if (state.editIdx === null) {
+      PROMPTS.push({ id: 'pp_' + Date.now(), title: title, type: type, prompt: prompt });
+      toast('已新增 <b>' + title + '</b>');
+    } else {
+      var p = PROMPTS[state.editIdx];
+      p.title = title; p.type = type; p.prompt = prompt;
+      toast('已保存 <b>' + title + '</b>');
+    }
+    closeEditor();
+    render();
+  }
+  function deletePrompt(idx) {
+    var p = PROMPTS[idx];
+    if (!p) return;
+    PROMPTS.splice(idx, 1);
+    if (state.selected.prompt && state.selected.prompt.id === p.id) delete state.selected.prompt;
+    toast('已删除 <b>' + p.title + '</b>');
+    render();
+    renderChips();
+  }
+  function openCardMenu(el, idx) {
+    var menu = $('cardMenu');
+    menu.innerHTML = '<button type="button" data-act="edit">编辑</button>' +
+      '<button type="button" class="danger" data-act="del">删除</button>';
+    menu.hidden = false;
+    var cardRect = el.getBoundingClientRect();
+    var host = document.querySelector('.pk-card').getBoundingClientRect();
+    menu.style.top = (cardRect.bottom - host.top + 4) + 'px';
+    menu.style.right = (host.right - cardRect.right) + 'px';
+    menu.querySelectorAll('button').forEach(function (b) {
+      b.onclick = function (e) {
+        e.stopPropagation();
+        menu.hidden = true;
+        if (b.getAttribute('data-act') === 'edit') openEditor(idx);
+        else deletePrompt(idx);
+      };
+    });
+    setTimeout(function () {
+      document.addEventListener('click', function close(e) {
+        if (!menu.contains(e.target)) { menu.hidden = true; document.removeEventListener('click', close); }
+      });
+    }, 0);
   }
 
   $('tabs').querySelectorAll('.pk-seg-item').forEach(function (b) {
@@ -665,6 +843,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
       state.tab = b.getAttribute('data-tab');
       state.detail = null;
       state.q = ''; $('q').value = '';
+      closeEditor();
       toast('');
       if (state.tab === 'mj' && !state.mjCat) {
         var g = D.mj.find(function (x) { return x.key === state.mjGroup; }) || D.mj[0];
@@ -677,6 +856,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
     };
   });
   $('q').oninput = function () { state.q = this.value.trim(); render(); };
+
+  /* 提示词管理：副条「新增预设」+ 编辑器浮层按钮 */
+  $('addPrompt').onclick = function () { openEditor(); };
+  $('edClose').onclick = closeEditor;
+  $('edCancel').onclick = closeEditor;
+  $('edSave').onclick = saveEditor;
+  $('edDel').onclick = function () { if (state.editIdx !== null) deletePrompt(state.editIdx); };
+
+  /* 节点底栏唯一入口:「预设」按钮 → 开/关创作库面板(mockup 里面板常驻演示,这里切换按下态并滚到面板) */
+  $('entryPreset').onclick = function () {
+    var open = this.getAttribute('aria-pressed') !== 'true';
+    this.setAttribute('aria-pressed', open ? 'true' : 'false');
+    document.querySelector('.pk-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    toast(open ? '已打开创作库面板' : '已关闭创作库面板');
+  };
 
   state.mjCat = D.mj[0].categories[0].category;
   render();

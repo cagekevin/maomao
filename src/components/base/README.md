@@ -68,7 +68,8 @@
 
 ## 十、prompt/ （提示词域）
 
-UI：`PromptInput.tsx` `PromptLibrary.tsx` `PromptLibraryButton.tsx` `PromptHub.tsx`
+UI：`PromptInput.tsx` `PromptHub.tsx`
+（提示词库 UI 已由 `prompt/PromptLibraryButton.tsx` → `creative/CreativeLibraryButton.tsx` 代位，A 类归并后旧 `PromptLibrary.tsx`/`PromptLibraryButton.tsx` 两文件已删）
 纯函数：`promptChips.ts` `promptMention.ts`
 数据层：`promptHubStore.ts` `promptManager.ts`
 （`promptFlow.ts` 已于 2026-09-05 奥卡姆精简删除，prompts 逐条确认通道不再保留）

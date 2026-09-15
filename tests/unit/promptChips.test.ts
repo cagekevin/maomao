@@ -177,6 +177,52 @@ describe('resolvePromptChips（生成端解析）', () => {
     expect(text).toBe('普通提示词');
     expect(out).toHaveLength(0);
   });
+
+  it('创作库预设：命中 → 替换为该条 prompt 片段，原地插入（位置即语义）', () => {
+    const presets = {
+      'cp_style-643': { prompt: '视觉风格：暖阳赛璐璐CG。' },
+      'cp_mj-char1': { prompt: '--sref 410525033' },
+    };
+    const { text, refImages: out } = resolvePromptChips(
+      '主体描述 @{cp_style-643:暖阳} 加 @{cp_mj-char1:MJ} 收尾',
+      refImages,
+      refTexts,
+      presets,
+    );
+    expect(text).toBe('主体描述 视觉风格：暖阳赛璐璐CG。 加 --sref 410525033 收尾');
+    expect(out).toHaveLength(0);
+  });
+
+  it('创作库预设：prompt 片段含换行/标签头原文照搬，不 trim 不剥头', () => {
+    const presets = { 'cp_motion-694': { prompt: '运镜要求：固定镜头。\n固定机位，无镜头运动。' } };
+    const { text } = resolvePromptChips(
+      '先看 @{cp_motion-694:固定机位} 再拍',
+      refImages,
+      refTexts,
+      presets,
+    );
+    // 原文照搬：标签头 + 换行保留（I2/一.4）
+    expect(text).toBe('先看 运镜要求：固定镜头。\n固定机位，无镜头运动。 再拍');
+  });
+
+  it('创作库预设：未命中 → 置空但留 ⚠ 可见标记（I2，不走静默吞）', () => {
+    const presets = { 'cp_style-643': { prompt: 'x' } };
+    const { text } = resolvePromptChips(
+      '有关 @{cp_style-999:已删预设} 的说明',
+      refImages,
+      refTexts,
+      presets,
+    );
+    expect(text).toContain('⚠缺失预设「已删预设」');
+  });
+
+  it('I3：三参调用输出与今天逐字节一致（cp_ 芯片不传 presets 时回退非空逻辑）', () => {
+    // 无 presets：cp_ id 不在 img/text 表 → 旧行为替换为空
+    const { text } = resolvePromptChips('@{cp_style-643:暖阳}', refImages, refTexts);
+    expect(text).toBe('');
+    // 纯文本三参原样
+    expect(resolvePromptChips('普通', refImages, refTexts).text).toBe('普通');
+  });
 });
 
 describe('autoLinkAssetsByName（@名 自动转芯片，唯一入口）', () => {

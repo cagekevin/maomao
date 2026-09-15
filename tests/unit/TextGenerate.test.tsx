@@ -28,7 +28,7 @@ vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({
 vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({
   default: mocks.GeneratingOverlay,
 }));
-vi.mock('../../src/components/base/prompt/PromptLibraryButton.tsx', () => ({
+vi.mock('../../src/components/base/creative/CreativeLibraryButton.tsx', () => ({
   default: mocks.PromptLibraryButton,
 }));
 vi.mock('../../src/components/base/core/uiHooks.ts', () => ({

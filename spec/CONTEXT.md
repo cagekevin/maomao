@@ -108,6 +108,29 @@
 
 * **收口硬性豁免**：只有面临性能独占、领域硬隔离、上游契约钉死或安全隔离时允许不收口，且必须在代码处注释原因。
 
+## 一·六、创作库（5 分区：风格 / 滤镜 / 运镜 / MJ码图 / 我的提示词）
+
+> **决策日期 2026-09-15**。架构施工图 `mockup/创作库-架构定义与落地施工图-2026-09-15.md`（只读契约，视觉基准 `mockup/panel-kit-card/index.html`）。
+
+**落点**：`src/components/base/creative/`（壳 + 5 分区视图 + 纯逻辑 + catalog 数据）。
+
+| 维度 | 决策 | 落点 |
+| --- | --- | --- |
+| **唯一实体** | `CreativePreset { id, kind, category, name, prompt, preview? }`（kind ∈ style/filter/motion/mj/prompt）。5 个不落盘字段（description/medium/codes/parameters/vibe）只在面板内用，**禁进快照**（I4，经 `trimPreset` 裁剪） | `creative/creativePresets.ts` |
+| **id 命名空间** | 统一 `cp_<kind>-<n>`（`cp_style-643`/`cp_mj-char1`），**下划线前缀不冒号**——复用既有 `promptChipRe` 的 `@{id:label}` 正则 group1（`[^:]+` 禁冒号），三处（serializeDOM/renderPromptToNodes/resolvePromptChips）零改动。catalog 原始 id 无前缀（`style-643`/`char1`），归一化时补全 | `creative/creativePresets.ts` `presetIdFor` · `creative/creativeCatalog.ts` |
+| **数据真值** | 4 类 catalog = `creative/creativeCatalog.json`（217 style / 17 filter / 51 motion）+ `mjStyleCatalog.json`（493）静态 import、只读；「我的提示词」= `creative/promptManager`（localStorage 可写） | `creative/data/*.json` · `creative/creativeCatalog.ts` |
+| **唯一入口（胶囊序列化）** | 沿用 `prompt/promptChips.ts`，不另起。`resolvePromptChips` 加第 4 参 `presets`（`Record<id,{prompt}>`）；id 以 `cp_` 开头 → 命中替换该条 `prompt`（原文照搬，不 trim/剥标签头），未命中 → 置空但留 `⚠缺失预设「名」` + 红日志（I1/I2，禁静默吞） | `prompt/promptChips.ts` |
+| **选中态真源** | 唯一真源 = 富文本胶囊（`data.prompt` 正文里的 `@{cp_id:name}`），**不设** AIFISHER 那套 slot 结构 | 无 slot；节点 `handleCreativeApply` 经 PromptInput 插胶囊 |
+| **字典** | `node.data.creativePresets: Record<id,{kind,name,prompt}>`，删胶囊由 `syncCreativePresets` GC 清孤儿 | 节点 + `creative/creativePresets.ts` |
+| **入口收敛** | 节点底栏只保留一个「预设」按钮（`CreativeLibraryButton`）开创作库，分区切换收进面板内 tab；取代旧 `PromptLibraryButton` | `creative/CreativeLibraryButton.tsx` |
+| **MJ 落点** | **4 模式全可用、不加复杂度/不禁字段**（用户 2026-09-15 裁决）；本仓无 MJ 模型，codes 可复制但不本地消费 | `creative/views/MjStyleBrowser.tsx` |
+| **素材分发（P-1）** | 路线 C：目录+样图打包，其余懒加载（用户 2026-09-15 裁决）。真值源 `/Users/kevin/Downloads/AIFISHER`（本机） | G5 待落 public/ |
+| **存储键/事件** | 复用既有（`yimao_preset_prompts`/`yimao_preset_recent`/`presets-changed`）；**未新增 STORAGE_KEYS/EVENTS** | `contracts.ts` 不变 |
+
+**⚠️ 待办（G5 未落地）**：
+- 素材真值（catalog 静态 import 已落，107MB 样图/全量）尚未分发进 `public/creative-presets` / `public/mj-styles`——若目录下文件缺席，网格/胶囊的 preview 图会破图（catalog 引用路径 `/creative-presets/x.webp`）。落地后再验「图片显示」。
+- 旧 `prompt/promptManager.ts` 已迁至 `creative/promptManager.ts`；旧 `PromptLibrary/PromptLibraryButton` 生产已 0 import，因单测仍 `vi.mock` 旧路径而**暂留**，迁移 mock 后删。
+
 ***
 
 ## 二、横切机制（各模块唯一入口）

@@ -22,7 +22,8 @@ import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { DepthVideoModal } from '../base/depthVideo/DepthVideoModal.tsx';
 import { spawnDepthVideoNode } from '../base/depthVideo/spawn.ts';
 import { downloadUrl, resolveDownloadFilename } from '../base/utils/clipboard.ts';
-import PromptLibraryButton from '../base/prompt/PromptLibraryButton.tsx';
+import CreativeLibraryButton from '../base/creative/CreativeLibraryButton.tsx';
+import type { CreativeApplyItem } from '../base/creative/CreativeLibrary.tsx';
 import JianyingIcon from '../base/ui/JianyingIcon.tsx';
 import ResourceStrip from '../base/panels/ResourceStrip.tsx';
 import PromptInput from '../base/prompt/PromptInput.tsx';
@@ -75,6 +76,8 @@ interface VideoGenerateData {
   inputWidth?: number;
   inputHeight?: number;
   texts?: RefText[];
+  /** 创作库预设字典（Record<id,{kind,name,prompt}>，键 = cp_ 前缀 id）；生成时按正文胶囊替换 */
+  creativePresets?: Record<string, { kind: string; name?: string; prompt: string }>;
 }
 
 interface VideoGenerateProps {
@@ -105,7 +108,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   // TD-04-12：收口到 useDisconnectSource（原先 4 节点逐字重复）。
   const disconnectSource = useDisconnectSource(id);
   // 提示词落盘：本地 state + 防抖写回 node.data（唯一入口 useNodeField；卸载 flush 由 useNodeData 承接）
-  const { patchDebounced } = useNodeData(id);
+  const { patchData, patchDebounced } = useNodeData(id);
   const [prompt, setPrompt] = useNodeField('prompt', data.prompt || '', patchDebounced);
   // 有效提示词 = 本地 prompt + 上游文本，两者都参与生成
   const effectivePrompt = buildEffectivePrompt(prompt, refTexts);
@@ -113,8 +116,9 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   // 生成前统一解析：chipResolved.text 是发给 AI 的纯文本；chipResolved.refImages 是用户显式 @ 的参考图。
   const connectedImages = useMemo(() => connected.images || [], [connected.images]);
   const chipResolved = useMemo(
-    () => resolvePromptChips(effectivePrompt, connectedImages, refTexts),
-    [effectivePrompt, connectedImages, refTexts],
+    () =>
+      resolvePromptChips(effectivePrompt, connectedImages, refTexts, data.creativePresets ?? {}),
+    [effectivePrompt, connectedImages, refTexts, data.creativePresets],
   );
   // 提示词输入框双击全屏编辑（复刻 TextGenerate 的交互：ResizeFullscreenHandle 双击 → 弹层）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
@@ -145,6 +149,22 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 ResourceStrip 共用）
   const insertMention = (asset: unknown) => {
     if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset);
+  };
+  // 创作库预设应用：落胶囊（有 preview 显示缩略图）+ 写 data.creativePresets 字典（键 = item.id）。
+  const handleCreativeApply = (item: CreativeApplyItem) => {
+    const hasPreview = !!item.preview;
+    insertMention({
+      id: item.id,
+      label: item.name,
+      kind: hasPreview ? 'image' : 'text',
+      ...(hasPreview ? { url: item.preview } : {}),
+    });
+    patchData({
+      creativePresets: {
+        ...(data.creativePresets ?? {}),
+        [item.id]: { kind: item.kind, name: item.name, prompt: item.prompt },
+      },
+    });
   };
   // 双击视频查看大图（原生 <dialog> + 原生 <video> 播放器）
   const [zoomUrl, setZoomUrl] = useState('');
@@ -493,11 +513,8 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
               {/* 模型选择（基座 ModelSelect） */}
               <ModelSelect value={selectedModel} onChange={setSelectedModel} models={models} />
 
-              {/* 预设提示词：打开提示词库弹窗 → 可追加到当前提示词或新建文本节点 */}
-              <PromptLibraryButton
-                category="video"
-                onAppend={(p) => setPrompt((prev) => (prev ? `${prev}\n${p}` : p))}
-              />
+              {/* 预设：打开创作库面板（风格/滤镜/运镜/MJ码图/提示词）→ 落胶囊到当前提示词 */}
+              <CreativeLibraryButton initialTab="style" onApply={handleCreativeApply} />
             </div>
 
             {/* 生成 / 停止（基座 GenerateButton） */}

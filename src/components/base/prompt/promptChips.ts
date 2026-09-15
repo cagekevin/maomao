@@ -27,6 +27,7 @@
  */
 
 import { BREAK } from './promptMention.ts';
+import { logger } from '../core/logger.ts';
 
 /** 芯片 token 的素材元信息（renderPromptToNodes 的 metaMap 值形态；导出供调用方标注 Map 泛型） */
 export interface ChipMeta {
@@ -240,16 +241,22 @@ export function renderPromptToNodes(text: string, metaMap?: Map<string, ChipMeta
  *   - 图片素材芯片 → 其 url 加入 refImages 参考图列表（同一 id 去重），位置替换为显式垫图引用
  *     `[img=图片N]`（seedance 富文本垫图语法，避免裸词「图片N」被模型当成画面描述词汇而忽略垫图）；
  *   - 文本素材芯片 → 替换为其 label（作为纯文本随 prompt 发出）；
- *   - 找不到对应素材 → 替换为空（不产生垃圾字符）。
+ *   - 创作库预设芯片（id 以 `cp_` 开头，第 4 参 `presets` 提供）→ 命中则替换为该条 `prompt`
+ *     片段（**原文照搬，不 trim / 不压换行 / 不剥标签头**，§一.4）；未命中 → 置空但留可见标记
+ *     `⚠缺失预设「名称」` 并打红日志（I2，诚实结果契约，禁静默吞）；
+ *   - 其它找不到对应素材 → 替换为空（不产生垃圾字符）。
  * @param {string} rawPrompt 含 `@{id:label}` 的原始 prompt
  * @param {Array<{id?:string,url?:string}>} refImages 可用图片素材（按 id 查 url；id/url 缺省的项忽略）
  * @param {Array<{id?:string,label?:string}>} refTexts 可用文本素材（按 id 查 label；id/label 缺省的项忽略）
+ * @param {Record<string,{prompt?:string}>} [presets] 创作库预设字典 `cp_<kind>-<n>` → {prompt}。
+ *   缺省 = 行为与今天完全一致（三参调用向后兼容，I3）。仅当传入时才启用 `cp_` 分支。
  * @returns {{ text: string, refImages: Array<{id:string,url:string}> }}
  */
 export function resolvePromptChips(
   rawPrompt: string,
   refImages: Array<{ id?: string; url?: string }> = [],
   refTexts: Array<{ id?: string; label?: string }> = [],
+  presets?: Record<string, { prompt?: string }>,
 ): { text: string; refImages: Array<{ id: string; url: string }> } {
   const imgById = new Map<string, string>();
   for (const im of refImages) if (im && im.id && im.url) imgById.set(im.id, im.url);
@@ -261,7 +268,7 @@ export function resolvePromptChips(
 
   const text = String(rawPrompt || '').replace(
     promptChipRe(), // TD-05-5：replace 传新实例（replace 内部会用完重置，但独占更稳）
-    (_match: string, id: string, _label: string) => {
+    (_match: string, id: string, label: string) => {
       const imgUrl = imgById.get(id);
       if (imgUrl) {
         let idx = imageKeyToIndex.get(id);
@@ -270,12 +277,23 @@ export function resolvePromptChips(
           imageKeyToIndex.set(id, idx);
           resolvedRefImages.push({ id, url: imgUrl });
         }
-        // seedance 富文本垫图语法：显式 `[img=图片N]` 声明垫图引用，而非裸词「图片N」，
+        // seedance 富文本垫图语法：显式 `[img=图片N]` 声明垫图引用，而非裸词「图片1」，
         // 避免模型把「图片1」当成画面描述词汇而忽略垫图 / 凭空重画。
         return `[img=图片${idx}]`;
       }
       const textLabel = textById.get(id);
       if (textLabel) return textLabel;
+      // 创作库预设分支（I2）：id 以 cp_ 开头且传入 presets 才启用；缺省时本分支不触，保持三参逐字节兼容。
+      if (presets && id.startsWith('cp_')) {
+        const preset = presets[id];
+        // 命中 → 原文照搬 prompt 片段（位置即语义，不 trim / 不压换行 / 不剥标签头）。
+        if (preset && typeof preset.prompt === 'string' && preset.prompt.length > 0) {
+          return preset.prompt;
+        }
+        // 未命中 → 置空但留可见标记（⚠ + 缺失预设名）+ 红日志（禁静默吞用户可见内容）。
+        logger.error('创作库', '预设未命中置空', { id, label });
+        return `⚠缺失预设「${label || id}」`;
+      }
       return '';
     },
   );

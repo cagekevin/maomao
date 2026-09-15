@@ -326,12 +326,28 @@ canvas/useCanvasEventSubscriptions（3 全局订阅收拢）
 ## 七 · 提示词链路
 
 ```
-prompt/PromptInput · PromptLibrary · PromptLibraryButton · PromptHub（UI）
-prompt/promptManager · prompt/promptHubStore（数据层）
-prompt/promptChips · prompt/promptMention（纯函数）
+提示词输入/引用：prompt/PromptInput · prompt/PromptHub（UI）· prompt/promptMention（纯函数）
+  prompt/promptChips（芯片序列化唯一入口；生成端 resolvePromptChips 把 @{id:label} 解析回纯文本+参考图）
+创作库（5 分区：风格/滤镜/运镜/MJ码图/我的提示词）：
+  creative/CreativeLibrary.tsx（半屏壳 + 分区切换）· CreativeLibraryButton.tsx（节点薄入口）
+  creative/views/PresetGridView.tsx · MjStyleBrowser.tsx · PromptPresetView.tsx
+  creative/creativePresets.ts（纯逻辑：命名空间/字典GC/裁剪）· creative/creativeCatalog.ts（catalog 归一化）
+  creative/creativeCatalog.json · creative/mjStyleCatalog.json（数据真值，随包只读）
+  creative/promptManager.ts（「我的提示词」本地库，可增删）
 ```
 
-**关键边**：`promptManager` ← `prompt/PromptLibrary`。
+**关键边**：
+- `prompt/PromptInput` ← 节点（PromptInput.onReady 上抛 `handleExternalInsert`，创作库胶囊经它在**光标处**插入）。
+- `creative/creativePresets.ts` ← `creative/creativeCatalog.ts`（catalog JSON → `CreativePreset`，补 `cp_` 前缀）。
+- `creative/promptManager` ← `creative/views/PromptPresetView`（第 5 分区，复用既有存储键 `yimao_preset_prompts`）。
+- 合成替换：生成端 `resolvePromptChips(raw, refImages, refTexts, data.creativePresets)`——胶囊 `@{cp_id:name}` → 命中替换为该条 `prompt` 片段；未命中置空但留 `⚠缺失预设「名」` + 红日志（I1/I2，禁静默吞）。
+- 落字典：节点 `handleCreativeApply` → `insertMention`（落胶囊）+ `patchData({ creativePresets })`（写 node.data）。
+- 字典 GC：`syncCreativePresets(prompt, dict)` 只留被 `cp_*` 胶囊引用的键。
+
+**⚠️ 边界**：
+- 「我的提示词」唯一可写源是 `creative/promptManager`（localStorage）；4 类 catalog 只读、UI 不暴露增删。
+- 胶囊序列化复用 `promptChipRe`（`@{id:label}`）；创作库 id 统一 `cp_` 前缀（下划线，非冒号），与既有素材芯片共用同一正则、零改动。
+- 跨模块决策见 `spec/CONTEXT.md` §创作库。
 
 ---
 

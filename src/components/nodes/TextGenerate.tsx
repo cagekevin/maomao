@@ -11,7 +11,8 @@ import ResourceStrip from '../base/panels/ResourceStrip.tsx';
 import ResizeFullscreenHandle from '../base/ui/ResizeFullscreenHandle.tsx';
 import FullscreenEditor from '../base/panels/FullscreenEditor.tsx';
 import GeneratingOverlay from '../base/ui/GeneratingOverlay.tsx';
-import PromptLibraryButton from '../base/prompt/PromptLibraryButton.tsx';
+import CreativeLibraryButton from '../base/creative/CreativeLibraryButton.tsx';
+import type { CreativeApplyItem } from '../base/creative/CreativeLibrary.tsx';
 import { useNodeResize } from '../base/core/uiHooks.ts';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
@@ -52,6 +53,8 @@ interface TextGenerateData {
   images?: string[];
   inputWidth?: number;
   inputHeight?: number;
+  /** 创作库预设字典（Record<id,{kind,name,prompt}>，键 = cp_ 前缀 id）；生成时按正文胶囊替换 */
+  creativePresets?: Record<string, { kind: string; name?: string; prompt: string }>;
 }
 
 interface TextGenerateProps {
@@ -121,8 +124,8 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   // 与生图/视频节点一致：chipResolved.text 是发给 AI 的纯文本；chipResolved.refImages 是用户显式 @ 的参考图。
   // 必须在 refImages 定义之后、useGenerateNode 之前（其 run 闭包引用本值，防 TDZ）。
   const chipResolved = useMemo(
-    () => resolvePromptChips(effectivePrompt, refImages, refTexts),
-    [effectivePrompt, refImages, refTexts],
+    () => resolvePromptChips(effectivePrompt, refImages, refTexts, data.creativePresets ?? {}),
+    [effectivePrompt, refImages, refTexts, data.creativePresets],
   );
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   // 进入文字编辑（集中入口）：锁住时单击、解锁时双击都走这里，便于统一回退。
@@ -136,6 +139,22 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 ResourceStrip 共用）
   const insertMention = (asset: unknown) => {
     if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset);
+  };
+  // 创作库预设应用：落胶囊（有 preview 显示缩略图）+ 写 data.creativePresets 字典（键 = item.id）。
+  const handleCreativeApply = (item: CreativeApplyItem) => {
+    const hasPreview = !!item.preview;
+    insertMention({
+      id: item.id,
+      label: item.name,
+      kind: hasPreview ? 'image' : 'text',
+      ...(hasPreview ? { url: item.preview } : {}),
+    });
+    patchData({
+      creativePresets: {
+        ...(data.creativePresets ?? {}),
+        [item.id]: { kind: item.kind, name: item.name, prompt: item.prompt },
+      },
+    });
   };
   // 全屏编辑状态（复刻 Co.jsx:33,35 的 m/y → 主框/输入框全屏）
   const [fullscreenText, setFullscreenText] = useState(false);
@@ -477,11 +496,8 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
                 models={models}
               />
 
-              {/* 预设提示词：打开提示词库弹窗 → 可追加到当前提示词或新建文本节点 */}
-              <PromptLibraryButton
-                category="text"
-                onAppend={(p) => setPrompt((prev) => (prev ? `${prev}\n${p}` : p))}
-              />
+              {/* 预设：打开创作库面板（风格/滤镜/运镜/MJ码图/提示词）→ 落胶囊到当前提示词 */}
+              <CreativeLibraryButton initialTab="prompt" onApply={handleCreativeApply} />
             </div>
 
             {/* 生成 / 停止（基座 GenerateButton） */}

@@ -14,7 +14,12 @@ import {
 
 describe('nodeDataSchema.defaultNodeData', () => {
   it('有输入面板的节点注入 expanded:false，并合并该类型登记项', () => {
-    expect(defaultNodeData('textGenerateNode')).toEqual({ expanded: false, text: '' });
+    // creativePresets 为创作库字典登记（TD-创作库，2026-09-15）
+    expect(defaultNodeData('textGenerateNode')).toEqual({
+      expanded: false,
+      text: '',
+      creativePresets: {},
+    });
   });
 
   it('非输入面板节点不注入 expanded', () => {

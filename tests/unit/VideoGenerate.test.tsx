@@ -132,13 +132,14 @@ vi.mock('../../src/components/base/prompt/PromptInput.tsx', async (importOrigina
     ),
   };
 });
-vi.mock('../../src/components/base/prompt/PromptLibraryButton.tsx', () => ({
+vi.mock('../../src/components/base/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,
 }));
 vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({
-  default: ({ open, children }: any) => (open ? <div data-testid="fullscreen">{children}</div> : null),
+  default: ({ open, children }: any) =>
+    open ? <div data-testid="fullscreen">{children}</div> : null,
 }));
 vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({
   default: () => <div data-testid="video-thumb" />,
