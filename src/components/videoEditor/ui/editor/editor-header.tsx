@@ -10,7 +10,7 @@ import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
 import { ShortcutsDialog } from './dialogs/shortcuts-dialog';
 import { cn } from '@videoEditor/utils/ui';
 import { storageService } from '@videoEditor/engine/services/storage/service';
-import { Plus, Command, ArrowLeft } from 'lucide-react';
+import { Plus, Command, ArrowLeft, Pencil } from 'lucide-react';
 
 // 更新(2026-09-14)：agent-store 已随 AI 域删除。
 
@@ -51,8 +51,10 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
    *  · 先 releaseProjectContext 放弃引擎旧态（命令栈/选择/音频/播放/媒体/场景一并重置）——
    *    必须在写 active 键之前：此后若 load 失败，旧项目已被显式放弃，界面是诚实的空态，
    *    而不是「留着 A 的画面、active 键却指向 B」的错位；
-   *  · 再 saveActiveEditorId（内部同时补全存储上下文 editorId）——**必须在 load 之前**，
-   *    否则 loadProject 仍按旧 editorId 组键，读回的还是上一部；
+   *  · 再 saveActiveEditorId —— **必须在 load 之前**：它的语义是"这部片子是我当前要开的"，
+   *    load 失败时 active 键已如实指向 B（刷新会再试 B），而不是留在 A 上撒谎。
+   *    【2026-09-15 修正】原注释称"否则 loadProject 仍按旧 editorId 组键，读回的还是上一部" ——
+   *    该机制**不存在**：loadProject 一直按传入 `id` 组键（见 storage/service.ts 的 loadProject）。
    *  · 最后 loadProject，引擎重新填充媒体/场景（其内部会再收口一次，幂等）。
    */
   const handleSwitchProject = async (editorId: string) => {
@@ -172,7 +174,7 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
               className="bg-popover text-popover-foreground border-border absolute top-9 left-0 z-[100] w-56 overflow-hidden rounded-lg border p-2 shadow-lg"
             >
               {/* ── T5-C：本画布的作品（片子）列表 ── */}
-              <div className="text-muted-foreground px-2 py-1 text-[0.7rem]">本项目的作品</div>
+              <div className="text-muted-foreground px-2 py-1 text-[0.7rem]">我的作品</div>
               {savedProjects.map((project) => {
                 const isActive = project.id === activeProject?.metadata.id;
                 return (
@@ -218,11 +220,10 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
                 }}
                 className="hover:bg-accent flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-sm"
               >
-                <Command className="size-4" />
+                <Pencil className="size-4" />
                 {'重命名作品'}
               </button>
 
-              <div className="bg-border/60 mx-1 my-2 h-px" />
               <button
                 type="button"
                 onClick={() => {
@@ -246,7 +247,7 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
                   className="hover:bg-accent flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-sm disabled:pointer-events-none disabled:opacity-50"
                 >
                   <ArrowLeft className="size-4" />
-                  {'退出项目'}
+                  {'退出作品'}
                 </button>
               )}
             </div>

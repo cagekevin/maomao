@@ -1,7 +1,6 @@
 import type { ShortcutKey } from '@videoEditor/types/keybinding';
 
-export type TActionCategory =
-  'playback' | 'navigation' | 'editing' | 'selection' | 'history' | 'timeline' | 'controls';
+export type TActionCategory = '回放' | '导航' | '编辑' | '选择' | '历史' | '时间轴' | '控制';
 
 export interface TActionDefinition {
   description: string;
@@ -16,135 +15,135 @@ export interface TActionDefinition {
 
 export const ACTIONS = {
   'toggle-play': {
-    description: 'Play/Pause',
-    category: 'playback',
+    description: '播放/暂停',
+    category: '回放',
     defaultShortcuts: ['space', 'k'],
   },
   'stop-playback': {
-    description: 'Stop playback',
-    category: 'playback',
+    description: '停止播放',
+    category: '回放',
   },
   'seek-forward': {
-    description: 'Seek forward 1 second',
-    category: 'playback',
+    description: '快进 1 秒',
+    category: '回放',
     defaultShortcuts: ['l'],
   },
   'seek-backward': {
-    description: 'Seek backward 1 second',
-    category: 'playback',
+    description: '快退 1 秒',
+    category: '回放',
     defaultShortcuts: ['j'],
   },
   'frame-step-forward': {
-    description: 'Frame step forward',
-    category: 'navigation',
+    description: '逐帧前进',
+    category: '导航',
     defaultShortcuts: ['right'],
   },
   'frame-step-backward': {
-    description: 'Frame step backward',
-    category: 'navigation',
+    description: '逐帧后退',
+    category: '导航',
     defaultShortcuts: ['left'],
   },
   'jump-forward': {
-    description: 'Jump forward 5 seconds',
-    category: 'navigation',
+    description: '跳转 5 秒',
+    category: '导航',
     defaultShortcuts: ['shift+right'],
   },
   'jump-backward': {
-    description: 'Jump backward 5 seconds',
-    category: 'navigation',
+    description: '回退 5 秒',
+    category: '导航',
     defaultShortcuts: ['shift+left'],
   },
   'goto-start': {
-    description: 'Go to timeline start',
-    category: 'navigation',
+    description: '跳到时间轴开头',
+    category: '导航',
     defaultShortcuts: ['home', 'enter'],
   },
   'goto-end': {
-    description: 'Go to timeline end',
-    category: 'navigation',
+    description: '跳到时间轴结尾',
+    category: '导航',
     defaultShortcuts: ['end'],
   },
   split: {
-    description: 'Split elements at playhead',
-    category: 'editing',
+    description: '在播放头处分割',
+    category: '编辑',
     defaultShortcuts: ['s'],
   },
   'split-left': {
-    description: 'Split and remove left',
-    category: 'editing',
+    description: '分割并删除左侧',
+    category: '编辑',
     defaultShortcuts: ['q'],
   },
   'split-right': {
-    description: 'Split and remove right',
-    category: 'editing',
+    description: '分割并删除右侧',
+    category: '编辑',
     defaultShortcuts: ['w'],
   },
   'delete-selected': {
-    description: 'Delete selected elements',
-    category: 'editing',
+    description: '删除选中元素',
+    category: '编辑',
     defaultShortcuts: ['backspace', 'delete'],
   },
   'copy-selected': {
-    description: 'Copy selected elements',
-    category: 'editing',
+    description: '复制选中元素',
+    category: '编辑',
     defaultShortcuts: ['ctrl+c'],
   },
   'export-selected-clip': {
-    description: 'Export selected clip',
-    category: 'editing',
+    description: '导出选中片段',
+    category: '编辑',
   },
   'freeze-frame': {
-    description: 'Freeze frame',
-    category: 'editing',
+    description: '冻结帧',
+    category: '编辑',
   },
   'paste-copied': {
-    description: 'Paste elements at playhead',
-    category: 'editing',
+    description: '在播放头处粘贴',
+    category: '编辑',
     defaultShortcuts: ['ctrl+v'],
   },
   'toggle-snapping': {
-    description: 'Toggle snapping',
-    category: 'editing',
+    description: '切换吸附',
+    category: '编辑',
     defaultShortcuts: ['n'],
   },
   'select-all': {
-    description: 'Select all elements',
-    category: 'selection',
+    description: '全选元素',
+    category: '选择',
     defaultShortcuts: ['ctrl+a'],
   },
   'duplicate-selected': {
-    description: 'Duplicate selected element',
-    category: 'selection',
+    description: '复制选中元素副本',
+    category: '选择',
     defaultShortcuts: ['ctrl+d'],
   },
   'toggle-elements-muted-selected': {
-    description: 'Mute/unmute selected elements',
-    category: 'selection',
+    description: '静音/取消静音选中元素',
+    category: '选择',
   },
   'toggle-elements-visibility-selected': {
-    description: 'Show/hide selected elements',
-    category: 'selection',
+    description: '显示/隐藏选中元素',
+    category: '选择',
   },
   'detach-audio': {
-    description: 'Detach audio from video',
-    category: 'editing',
+    description: '分离视频中的音频',
+    category: '编辑',
   },
   'convert-to-speech': {
-    description: 'Convert text to speech',
-    category: 'editing',
+    description: '文字转语音',
+    category: '编辑',
   },
   'toggle-bookmark': {
-    description: 'Toggle bookmark at playhead',
-    category: 'timeline',
+    description: '在播放头处切换书签',
+    category: '时间轴',
   },
   undo: {
-    description: 'Undo',
-    category: 'history',
+    description: '撤销',
+    category: '历史',
     defaultShortcuts: ['ctrl+z'],
   },
   redo: {
-    description: 'Redo',
-    category: 'history',
+    description: '重做',
+    category: '历史',
     defaultShortcuts: ['ctrl+shift+z', 'ctrl+y'],
   },
 } as const satisfies Record<string, TActionDefinition>;

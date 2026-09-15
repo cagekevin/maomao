@@ -10,8 +10,10 @@
  *   · props `projectId` → `canvasProjectId`（语义修正）：它一直是**画布项目 id**，
  *     而引擎/存储层的工程 id 是 **editorId**（一个画布项目可挂多个片子，docs/133 §2）。
  *     旧代码把画布 id 直接当 editorId 传给 loadProject → 多工程模型退化成单工程。
- *   · 新增**三段式载入**（docs/133 §2.3 三键）：注入画布上下文 → 读 active 键定 editorId
- *     → 补全上下文 → 载入该片子（无则创建首个）。见下方 loadProject 注释。
+ *   · 新增**载入三段**（docs/133 §2.3 三键）：注入画布上下文 → 读 active 键定 editorId
+ *     → 载入该片子（无则创建首个）。见下方 loadProject 注释。
+ *     （2026-09-15 修正：原为"两段式上下文注入"，第二步只为补 editorId 而存在 —— editorId 是
+ *      工程实体自带真相，已从存储上下文删除，故注入只剩一次。）
  */
 
 import { useEffect, useState } from 'react';
@@ -22,7 +24,7 @@ import {
   useKeybindingDisabler,
 } from '@videoEditor/hooks-cutia/use-keybindings';
 import { useEditorActions } from '@videoEditor/hooks-cutia/actions/use-editor-actions';
-// ── T5-A：上下文注入（docs/134）+ active 键读取（storageService 已封装为领域方法）。
+// ── T5：上下文注入（docs/134）+ active 键读取（storageService 已封装为领域方法）。
 import { setEditorContext, clearEditorContext } from '@videoEditor/engine/services/storage/service';
 import { storageService } from '@videoEditor/engine/services/storage/service';
 
@@ -54,8 +56,8 @@ export function EditorProvider({ canvasProjectId, children }: EditorProviderProp
       try {
         setIsLoading(true);
 
-        // ── ① 注入画布上下文（editorId 暂缺）：让 storage 能读「列表 / active」键（它们只依赖画布 id）。
-        setEditorContext({ canvasProjectId, editorId: null });
+        // ── ① 注入画布上下文（本层唯一需要的注入值）：之后 storage 才能组出三把键。
+        setEditorContext({ canvasProjectId });
 
         // ── ② 读 active 键定出本画布当前该开哪个片子。
         const activeEditorId = await storageService.loadActiveEditorId();
@@ -68,8 +70,7 @@ export function EditorProvider({ canvasProjectId, children }: EditorProviderProp
         if (cancelled) return;
 
         if (activeEditorId) {
-          // ── ③ 有活跃片子 → 补全上下文 → 载入它。
-          setEditorContext({ canvasProjectId, editorId: activeEditorId });
+          // ── ③ 有活跃片子 → 载入它（目标槽位由传入 id 决定，无需先"补全上下文"）。
           await editor.project.loadProject({ id: activeEditorId });
           if (cancelled) return;
           setIsLoading(false);
@@ -77,13 +78,12 @@ export function EditorProvider({ canvasProjectId, children }: EditorProviderProp
         }
 
         // ── ③′ 无活跃片子（首开）→ 就地新建首个片子。
-        // 顺序死结：createNewProject 内部 saveProject 需要 editorId，而 id 由它自己生成。
-        // 解法在存储层：saveProject 以 `project.metadata.id` 兜底补全上下文（语义等价，
-        // editorId 本就等于 TProject.metadata.id，docs/133 §2.1 M-4），故此处可直接建。
-        const createdId = await editor.project.createNewProject({ name: '未命名项目' });
+        // 【为什么这里不再有"顺序死结"】存储层已不持有 editorId：工程本体的写盘槽位
+        // = `project.metadata.id`（工程自带，docs/133 §2.1 M-4）⇒ createNewProject 内部
+        // saveProject 天然写对键，与调用顺序无关。
+        const createdId = await editor.project.createNewProject({ name: '未命名作品' });
         if (cancelled) return;
-        // 补全上下文 + 记为活跃（saveActiveEditorId 内部同步上下文，原子完成）。
-        setEditorContext({ canvasProjectId, editorId: createdId });
+        // 只记"该开哪部"（刷新后恢复用）——它不再兼职切存储上下文。
         await storageService.saveActiveEditorId({ editorId: createdId });
         setIsLoading(false);
       } catch (err) {
@@ -97,7 +97,7 @@ export function EditorProvider({ canvasProjectId, children }: EditorProviderProp
 
     return () => {
       cancelled = true;
-      // 卸载清空上下文：避免画布切换/关闭后残留旧 (画布, 片子) 造成错键写入。
+      // 卸载清空上下文：避免画布切换/关闭后残留旧画布 id 造成错键写入。
       clearEditorContext();
       // 卸载 = 放弃当前项目上下文（**引擎是长驻单例，不是每次挂载新建**）。
       // 宿主切换画布项目时走的是 `key={activeProjectId}` 触发的卸载/重挂，

@@ -103,7 +103,7 @@ describe('TD-22-36 · 动作参数契约只有一份', () => {
 
   it('仍保留动作本身的元数据（描述/分类/默认键位不受影响）', () => {
     expect(ACTIONS['seek-forward'].defaultShortcuts).toEqual(['l']);
-    expect(ACTIONS['freeze-frame'].category).toBe('editing');
+    expect(ACTIONS['freeze-frame'].category).toBe('编辑');
   });
 });
 

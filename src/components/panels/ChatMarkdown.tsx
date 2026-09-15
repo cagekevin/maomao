@@ -12,7 +12,7 @@
  */
 import { memo, useState } from 'react';
 import type { ReactNode } from 'react';
-import LazyImage from '../base/ui/LazyImage.tsx';
+import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { extractImageSpans, type ImageSpan } from './markdownImages.ts';
 
 /** 行内匹配模式（含 markdown 图片，由外层切图先处理） */
@@ -120,6 +120,7 @@ function InlineWithImages({
   value: string;
   onOpenImage?: (url: string) => void;
 }) {
+  const resolve = useRenderAssetResolver();
   const spans = extractImageSpans(value);
   if (spans.length === 0) return <InlineContent value={value} />;
   const nodes: ReactNode[] = [];
@@ -128,20 +129,16 @@ function InlineWithImages({
     if (s.start > last)
       nodes.push(<InlineContent key={`t${i}`} value={value.slice(last, s.start)} />);
     nodes.push(
-      <button
+      <img
         key={`i${i}`}
-        type="button"
+        src={resolve(s.url)}
+        alt=""
+        loading="lazy"
+        decoding="async"
         onClick={() => onOpenImage?.(s.url)}
-        className="my-1 block w-full max-w-[280px] overflow-hidden rounded-md border border-white/15 p-0 text-left transition-colors hover:border-white/40 cursor-zoom-in"
+        className="my-1 block w-full max-w-[280px] h-auto max-h-[240px] object-contain cursor-zoom-in"
         title="点击查看大图"
-      >
-        <LazyImage
-          src={s.url}
-          alt=""
-          className="w-full bg-black/30"
-          imgClassName="w-full h-auto max-h-[240px] object-contain"
-        />
-      </button>,
+      />,
     );
     last = s.end;
   });

@@ -50,32 +50,39 @@ export interface ProjectListItem {
 
 /**
  * 模块级编辑上下文（方案 X，docs/134 T3）：StorageService 的方法签名**保持不动**（X2，不牵动引擎），
- * 由 EditorProvider 挂载时调 `setEditorContext` 注入当前（画布 projectId, editorId）。
- * 之后键构造一律用这两个值。未设置时拒绝工程读写（fail-fast，而非落到 default 键错配）。
+ * 由 EditorProvider 挂载时调 `setEditorContext` 注入当前**画布 projectId**。
+ * 之后键构造一律用它。未设置时拒绝工程读写（fail-fast，而非落到 default 键错配）。
+ *
+ * 【为什么这里**只有** canvasProjectId（2026-09-15 修正）】判据只有一条：**谁拥有这份真相**。
+ *   · `canvasProjectId` —— 引擎**不携带**（`TProject` 里没有它），只有"编辑器挂载在哪个画布项目上"
+ *     这一层知道 ⇒ 必须由外部注入。
+ *   · `editorId` —— **工程实体自带**（`TProject.metadata.id`，`ProjectManager.createNewProject` 生成）
+ *     ⇒ 存储层再存一格 = 同一真相的第二份，必然漂移。
+ *
+ * 原实现多存了这一格 `editorId`，并加守卫「上下文 editorId ≠ project.metadata.id → 抛『张冠李戴』」。
+ * 那是**假守卫**：它拦的是**合法操作**，两个实测症状——
+ *   ① 用户报「新建作品失败」：新建 = 生成新 uuid ⇒ 必然 ≠ 旧上下文 ⇒ **必抛**；
+ *   ② `duplicateProjects` 一次落 N 个新 id，而上下文只有一格 ⇒ **结构上就表达不了**。
+ * 于是守卫强制各调用点"补一次上下文"，而调用点是手写清单（编辑器挂载 / 新建 / 复制 / 未来入口…）
+ * ⇒ 必漂移。正解是**删掉第二份真相与这条守卫**，写盘槽位由实体自带 id 决定。
  */
 interface EditorContext {
   canvasProjectId: string;
-  editorId: string | null;
 }
 let editorContext: EditorContext | null = null;
 
 /**
- * 由 EditorProvider 在挂载时调用（docs/134 T5 ②）。
- *
- * 【两段式（T5-A）】挂载时 editorId 尚不可知（它要从 KV 的 active 键读出来，而读键本身
- * 就需要先有 canvasProjectId）。故：
- *   ① 先 `setEditorContext({ canvasProjectId, editorId: null })` —— 允许只为读列表/active 键；
- *   ② 定出 editorId 后再次调用补全 —— 此后工程本体读写才放行。
- * `editorId` 为 null 时，**列表/active 键**读写可用（它们只依赖 canvasProjectId），
- * 但**工程本体**（videoEditorProjectKey 需双占位）会被 requireEditorContext 拦下。
+ * 由 EditorProvider 在挂载时调用（docs/134 T5）。
+ * 【为什么只注入一次】它只需要一个值（画布 id）——挂载即已知，无先后依赖。
+ * （原为"两段式"：先注入画布 id、读出 active 键后再补 editorId。editorId 已不在此层，故两步并一步。）
  */
-export function setEditorContext(ctx: EditorContext): void {
+export function setEditorContext(ctx: { canvasProjectId: string }): void {
   if (!ctx.canvasProjectId) {
     throw new Error(
       `[StorageService] setEditorContext 至少需要 canvasProjectId，收到: ${JSON.stringify(ctx)}`,
     );
   }
-  editorContext = { canvasProjectId: ctx.canvasProjectId, editorId: ctx.editorId ?? null };
+  editorContext = { canvasProjectId: ctx.canvasProjectId };
 }
 
 /** 清空上下文（EditorProvider 卸载时调用；避免切画布后残留旧 id 造成错键）。 */
@@ -91,32 +98,6 @@ function requireEditorContext(): EditorContext {
     );
   }
   return editorContext;
-}
-
-/**
- * 写工程本体用的 editorId 解析（T5-A 关键）：
- *   · 上下文已有 editorId（补全后）→ 用它；
- *   · 否则用 `project.metadata.id` 兜底并**顺手补全上下文**。
- *
- * 【为什么允许兜底】`createNewProject` 的流程是「生成 id → 立刻 saveProject」，
- * 而 id 是它自己生成的——注入上下文必然发生在 save 之后。若此处死等上下文补全，
- * 首开流程必崩（先有鸡还是先有蛋）。而 `project.metadata.id` **就是 editorId**
- * （docs/133 §2.1 M-4：editorId = TProject.metadata.id），用它兜底语义等价、无歧义；
- * 且补全后，后续写入自愈为上下文驱动，不残留隐式状态。
- * 冲突保护：上下文已有 editorId 且与 project.metadata.id **不一致** → 说明张冠李戴，直接抛错。
- */
-function resolveEditorIdFor(projectMetadataId: string): string {
-  const ctx = requireEditorContext();
-  if (!ctx.editorId) {
-    editorContext = { canvasProjectId: ctx.canvasProjectId, editorId: projectMetadataId };
-    return projectMetadataId;
-  }
-  if (ctx.editorId !== projectMetadataId) {
-    throw new Error(
-      `[StorageService] 工程本体写入 editorId 冲突：上下文=${ctx.editorId}，project.metadata.id=${projectMetadataId}`,
-    );
-  }
-  return ctx.editorId;
 }
 
 /**
@@ -217,9 +198,10 @@ class StorageService {
     };
 
     // ── T3：写单工程本体走 KV 严格族 CAS（docs/133 §3.5 D-4，禁静默覆盖）。
-    // 键 = (canvasProjectId, editorId)；editorId 即 project.metadata.id（两者必一致，见 resolveEditorIdFor）。
+    // 键 = (canvasProjectId, editorId)，其中 editorId **就是** `project.metadata.id`
+    // （docs/133 §2.1 M-4）—— 取自实体自带真相，不经任何"当前活跃"缓存裁决（2026-09-15 修正，见 EditorContext 头注）。
     const { canvasProjectId } = requireEditorContext();
-    const editorId = resolveEditorIdFor(project.metadata.id);
+    const editorId = project.metadata.id;
     const key = videoEditorProjectKey(canvasProjectId, editorId);
     const baseline = await contentKvGetVersion(key);
     try {
@@ -250,8 +232,8 @@ class StorageService {
     // ── T3：读单工程本体走 KV（严格族 · 读内容+配对版本）。
     // 读法收口到 contentKvReadWithVersion（2026-09-14）：本处原为第 3 份手写副本（TD-02-29）。
     // 重试 2 次是**本域判据**（单次加载），协议本身在原语里。
-    // 注：此处 `id` 即 editorId，**来自调用方**（EditorProvider 已定出 editorId 后才调），
-    // 故不再要求上下文 editorId 已补全（首次载入时它正是本次 loadProject 之后才补全）。
+    // 注：此处 `id` 即 editorId，**由调用方给出**（读/写/删同源：目标槽位一律取自实参或实体自带 id，
+    // 不经任何"当前活跃"缓存）；本方法只问上下文要 `canvasProjectId`（它才是这一层独有的真相）。
     const { canvasProjectId } = requireEditorContext();
     const key = videoEditorProjectKey(canvasProjectId, id);
 
@@ -370,14 +352,13 @@ class StorageService {
 
   /**
    * 写当前活跃剪辑工程 id（T5 切换器调用；刷新后恢复）。
-   * 【同时同步上下文】—— 切工程后，后续工程本体读写（saveProject 等）必须指向**新** editorId，
-   * 否则会写回旧片子（键双占位里的 editorId 仍是旧的）。此处把"写 active 键"与"切上下文"
-   * 收拢为一个原子动作，杜绝两处各写一次造成的不一致。
+   * 【只写这一格】它只服务「刷新后恢复该开哪部」；**不再兼职切存储上下文**
+   * （2026-09-15 修正：原实现顺带把上下文 editorId 改掉，是为了喂 saveProject 的冲突守卫——
+   * 守卫已删，兼职也随之取消；工程本体的写盘槽位由 `project.metadata.id` 自带决定）。
    */
   async saveActiveEditorId({ editorId }: { editorId: string }): Promise<void> {
     const { canvasProjectId } = requireEditorContext();
     await contentSetAsync(videoEditorActiveProjectKey(canvasProjectId), editorId);
-    editorContext = { canvasProjectId, editorId };
   }
 
   /** 读当前活跃剪辑工程 id；无则返回 null。 */
