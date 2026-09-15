@@ -390,11 +390,13 @@ base/ui/VideoThumbnail.tsx 🟢（显示组件，preload=metadata 取首帧，�
 nodes/VideoGenerate.tsx 🟢（videoUrl 落盘受 01/02 守护，非债）
 nodes/VideoProcessNode.tsx 🔴（uploadResult null → fail 显式报错；GIF 分支走 uploadFileToLocal 落盘；TD-22-19 键盘门）
 nodes/VideoExtractNode.tsx 🟢（crossOrigin 接回单点原语）
+videoEditor/engine/core/index.ts 🟢（**项目上下文生命周期唯一入口** `releaseProjectContext()`：切/关/新建项目、切场景、退出编辑器、编辑器卸载一律走它，一次重置命令栈/选择/音频/播放/渲染树/媒体/场景/活跃项目）
 videoEditor/export/pipeline.ts 🟢（单入口 + 判别联合 OpResult/AudioOutcome）
 videoEditor/data/projectRepository.ts 🟢（CAS + 判别联合 SaveProjectResult，版本冲突暴露 UI）
 videoEditor/panels/dock/useEditorExport.ts 🟢（uploadResult null → toast「导出失败」不 spawn）
-videoEditor/ui/editor/panels/assets/views/{stickers,sounds}.tsx 🔴（素材数据源未接入：/api/sounds 后端 0 路由 + iconify 公网直连无代理 + 音乐 tab 死占位；TD-22-47 待用户拍板）
-videoEditor/engine/timeline/transition-utils.ts · ui/editor/panels/assets/views/transitions.tsx 🔴（转场应用失败：邻接阈值 ADJACENCY_EPSILON=0.05s 过严 + 英文提示未本地化；TD-22-49 待用户拍板）
+videoEditor/ui/editor/panels/assets/views/{stickers,sounds}.tsx 🟢（素材数据源已收口：iconify → localTool `/api/iconify/*` 代理（3 处手拼直连收为唯一构造函数 `buildIconSvgUrl`）；音效/音乐 = **自建本地库** `GET /api/sounds/library` 扫 `uploads/sounds/{effects,music}`）
+videoEditor/engine/commands/timeline/transition/{add,remove,update}-transition.ts 🟢（转场增/删/改走命令栈可 undo/redo；判据单点在 TimelineManager，无效操作不入栈）
+videoEditor/engine/timeline/transition-utils.ts · ui/editor/panels/assets/views/transitions.tsx 🔴（转场应用失败：邻接阈值 ADJACENCY_EPSILON=0.05s 过严 + 英文提示未本地化；TD-22-49 待用户拍板。批量应用粒度 TD-22-51）
 base/depthVideo/* 🟢（上传落盘走 filesApi.uploadFileToLocal）
 director3d/App.tsx · director3d/panels/Timeline.tsx 🔴（MP4 导出走 uploadFileToLocal；TD-22-19 键盘门）
 videoEditor/ui/editor/panels/timeline/timeline-element.tsx 🔴

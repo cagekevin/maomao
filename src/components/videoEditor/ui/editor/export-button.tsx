@@ -63,9 +63,10 @@ function ExportPopover({ onOpenChange }: { onOpenChange: (open: boolean) => void
   const activeProject = editor.project.getActive();
   const [format, setFormat] = useState<ExportFormat>(DEFAULT_EXPORT_OPTIONS.format);
   const [quality, setQuality] = useState<ExportQuality>(DEFAULT_EXPORT_OPTIONS.quality);
-  const [includeAudio, setIncludeAudio] = useState<boolean>(
-    DEFAULT_EXPORT_OPTIONS.includeAudio || true,
-  );
+  // 【TD-22-38① 收口】原为 `DEFAULT_EXPORT_OPTIONS.includeAudio || true` —— 左侧是 `satisfies`
+  // 推断出的 `boolean`，`|| true` 是**恒真死表达式**：一旦常量改成 `false`（"默认不含音频"），
+  // 会被静默吞掉且无任何报错。默认值归常量所有，此处直接引用。
+  const [includeAudio, setIncludeAudio] = useState<boolean>(DEFAULT_EXPORT_OPTIONS.includeAudio);
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
@@ -92,32 +93,34 @@ function ExportPopover({ onOpenChange }: { onOpenChange: (open: boolean) => void
 
     setIsExporting(false);
 
-    if (result.cancelled) {
-      setExportResult(null);
-      setProgress(0);
+    if (!result.ok) {
+      // 取消不是错误：静默复原（原 `result.cancelled` 语义）。
+      if (result.reason === 'cancelled') {
+        setExportResult(null);
+        setProgress(0);
+        return;
+      }
+      setExportResult(result);
       return;
     }
 
-    setExportResult(result);
+    // 成功支由判别联合保证 `buffer` 必在（TD-22-38②：原 `success && buffer` 双检已消除）。
+    const mimeType = getExportMimeType({ format });
+    const extension = getExportFileExtension({ format });
+    const blob = new Blob([result.buffer], { type: mimeType });
+    const url = URL.createObjectURL(blob);
 
-    if (result.success && result.buffer) {
-      const mimeType = getExportMimeType({ format });
-      const extension = getExportFileExtension({ format });
-      const blob = new Blob([result.buffer], { type: mimeType });
-      const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${activeProject.metadata.name}${extension}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${activeProject.metadata.name}${extension}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      onOpenChange(false);
-      setExportResult(null);
-      setProgress(0);
-    }
+    onOpenChange(false);
+    setExportResult(null);
+    setProgress(0);
   };
 
   const handleCancel = () => {
@@ -126,9 +129,9 @@ function ExportPopover({ onOpenChange }: { onOpenChange: (open: boolean) => void
 
   return (
     <PopoverContent className="bg-background mr-4 flex w-80 flex-col p-0">
-      {exportResult && !exportResult.success ? (
+      {exportResult && !exportResult.ok ? (
         <ExportError
-          error={exportResult.error || 'Unknown error occurred'}
+          error={exportResult.message || 'Unknown error occurred'}
           onRetry={handleExport}
         />
       ) : (

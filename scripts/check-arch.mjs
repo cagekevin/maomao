@@ -1041,5 +1041,90 @@ if (!projectsSSoTViol)
     '\n  ✅ projects 键 SSOT 成立（module 态唯一真源；外部无直读 cache、store 内无绕过 writeProjects 的赋值）',
   );
 
+// ─────────────────────────────────────────────────────────────────
+// videoEditor 引用纪律（TD-22-27，2026-09-15）：禁对 tracks / elements / transitions 数组**原地变异**。
+//
+// 【为什么】命令栈的 undo 靠 `savedState`（= `getTracks()` 的返回值）回写。若快照与 store 共享引用，
+//   undo 的正确性就**完全依赖「所有写路径都不可变重建」这条纪律** —— 任何一处原地变异
+//   （`track.elements.push(...)` / `tracks.sort(...)`）= 快照被同步污染 = **undo 静默失效**
+//   （用户按撤销没反应，而数据已经错了）。纪律没有守卫 → 必然回潮（本仓 M2 母体：红线只在注释里）。
+// 【判据】videoEditor 域内**禁止**对 `*.elements` / `*.transitions` / `*.tracks` 调数组变异方法。
+//   合法写法 = **先复制再变异**：`[...track.elements].sort(...)`（`transition-utils.ts` 的 `findAdjacentPairs` 正是此形）。
+// 【诚实边界】本闸只覆盖**数组级**原地变异（可静态判定、零误报）；
+//   元素**属性级**改写（`el.startTime = x`）与对象字面量赋值无法机械区分，仍靠不可变重建纪律 ——
+//   本闸**不假装覆盖它**（假覆盖比不覆盖更坏：会让后人以为已有守卫）。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n🔒 videoEditor 引用纪律：快照与 store 隔离，禁数组原地变异（TD-22-27）');
+const VE_ARRAY_MUTATORS = new Set([
+  'push',
+  'pop',
+  'splice',
+  'sort',
+  'reverse',
+  'shift',
+  'unshift',
+  'fill',
+  'copyWithin',
+]);
+const VE_ARRAY_TAILS = new Set(['elements', 'transitions', 'tracks']);
+const VE_IMMUTABLE_SCOPE = 'src/components/videoEditor/';
+let veImmutableViol = 0;
+let veImmutableScanned = 0;
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  if (!rel.startsWith(VE_IMMUTABLE_SCOPE)) continue;
+  if (rel.startsWith('src/components/videoEditor/types/')) continue; // 纯类型层，无运行时代码
+  veImmutableScanned++;
+  let ast;
+  try {
+    ast = parse(readFileSync(f, 'utf8'), {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: true,
+    });
+  } catch {
+    continue;
+  }
+  const hits = [];
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) {
+      n.forEach(walk);
+      return;
+    }
+    if (n.type === 'CallExpression' && n.callee?.type === 'MemberExpression') {
+      const method = n.callee.property?.name;
+      const obj = n.callee.object;
+      if (
+        VE_ARRAY_MUTATORS.has(method) &&
+        obj?.type === 'MemberExpression' &&
+        VE_ARRAY_TAILS.has(obj.property?.name)
+      ) {
+        hits.push({ line: n.loc?.start?.line, tail: obj.property.name, method });
+      }
+    }
+    for (const k in n)
+      if (k !== 'loc' && k !== 'range' && typeof n[k] === 'object' && n[k] !== null) walk(n[k]);
+  };
+  walk(ast.program);
+  for (const h of hits) {
+    veImmutableViol++;
+    fail(
+      `对 \`${h.tail}\` 数组原地变异: ${rel}:${h.line} → .${h.method}()` +
+        `（会同步污染命令栈快照 → undo 静默失效；改「先复制再变异」：\`[...x.${h.tail}].${h.method}(…)\`）`,
+    );
+  }
+}
+// 解析源自检（fail-loud）：扫到 0 个文件时上面的「✅」不可信（本仓 TD-02-9「假护栏恒绿」同款教训）。
+if (veImmutableScanned === 0) {
+  fail(
+    'videoEditor 引用纪律规则未生效：未扫到任何 videoEditor 文件（解析源为空，勿当通过）',
+  );
+} else if (!veImmutableViol) {
+  console.log(
+    `  ✅ 无数组原地变异（扫 ${veImmutableScanned} 文件；快照与 store 隔离的纪律成立）`,
+  );
+}
+
 console.log(`\n${errors === 0 ? '✅ 架构校验通过' : `❌ ${errors} 处架构违规`}`);
 process.exit(errors === 0 ? 0 : 1);

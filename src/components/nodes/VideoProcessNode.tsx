@@ -28,6 +28,7 @@ import {
 } from '../base/utils/timeline/timeScale.ts';
 import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { useNodeResize } from '../base/core/uiHooks.ts';
+import { useCanvasKeydown } from '../base/core/canvasHotkeys.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { logger } from '../base/core/logger.ts';
 import { classifyError } from '../base/utils/genErrors.ts';
@@ -724,9 +725,11 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   }, [selectedClipInfo, mutateTracks]);
 
   /* ---------- 键盘快捷键（复刻官方 363-388 行） ---------- */
-  useEffect(() => {
-    if (mode !== 'trim' && mode !== 'concat') return;
-    const onKey = (e: KeyboardEvent) => {
+  // 走画布侧键盘注册的**唯一入口**：画布被全屏层 / 视频剪辑器压制时自动让位。
+  // 【为什么必须】本节点在画布上可见、随时可被盖住：用户在剪辑器里按 Delete 想删片段，
+  // 若这里不判让位，删掉的会是**本节点里被盖住的片段**（静默破坏，TD-22-19）。
+  useCanvasKeydown(
+    (e) => {
       const tgt = e.target as HTMLElement | null;
       if (tgt?.matches('input, textarea, select')) return;
       if (e.key === '[') {
@@ -742,10 +745,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         e.preventDefault();
         removeClip();
       }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [mode, setInPoint, setOutPoint, splitAtPlayhead, removeClip]);
+    },
+    { enabled: mode === 'trim' || mode === 'concat' },
+  );
 
   /* ---------- 播放头 / scrubber（复刻官方 389-454 行） ---------- */
   // 容差由本宿主决定（秒级、随总长放宽），换算成像素后交给共用原语。

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { isEditableTarget } from './uiHooks.ts';
-import { isEditorSessionOpen } from './editorSession.ts';
+import { isEditorSessionOpen, subscribeEditorSession } from './editorSession.ts';
 
 /**
  * 全屏模态层登记处 —— 画布全局快捷键的「让位」依据。
@@ -156,64 +156,44 @@ export function hasModalLayer(): boolean {
 }
 
 /**
- * 画布「激活位」判据 —— **唯一真源**：画布快捷键 / 画布内置快捷键是否应让位。
+ * 画布「激活位」判据 —— **唯一真源**：画布快捷键 / 画布内组件的键盘监听是否应让位。
  *
- * 现在 = `hasModalLayer()`；将来剪辑器（或任何"激活位"域）接入时，**只在这里 `||` 一项**，
- * 全部消费方自动跟随：
- *  - 查询式：`useCanvasShortcuts` / `AssistantTablePanel`（执行前问一次）
- *  - 订阅式：`App` 的 React Flow `deleteKeyCode`（`useSyncExternalStore(subscribeModalLayer, isCanvasSuppressed)`）
+ * 两个来源，都在这里合并（**只在这里 `||`，别处不得再抄**）：
+ *  · `hasModalLayer()` —— 全屏模态层（图片编辑 / 3D 导演台 / 各弹窗）；
+ *  · `isEditorSessionOpen()` —— **视频剪辑器**。更新(2026-09-15)：它已从
+ *    「非模态常驻底部基座」改为**全屏层**（`App` 里 `fixed inset-0 z-modal` 盖住画布），
+ *    形态变了判据就得跟着变 —— 全屏盖住时画布既看不到也点不到，**整体让位**才是对的。
+ *    原先那套「只让 Delete/undo/redo 三个键」（`editorKeyAction`）是给底部基座的，
+ *    基座形态不复存在，已删（它会让 Q/W/E、⌘A/D/G/L 在剪辑器里误落到画布）。
  *
- * 【为什么不把两套机制合并】查询 vs 订阅的差异在**机制层**——查询式宿主有机会在执行前再问一次；
- * 把开关声明成 props 的宿主（`deleteKeyCode`）没有这个机会，只能订阅。见上方 `subscribeModalLayer`
- * 与 `modalLayer.ts:48-59` 的裁决。**能单点的只有「判据」本身**（`docs/120` C10 · `docs/123` G-3）。
+ * 消费方（两类机制，判据同源）：
+ *  · **查询式** —— 执行前问一次：`useCanvasShortcuts` · `AssistantTablePanel`
+ *    · **画布内组件的键盘监听统一入口 `canvasHotkeys.ts::useCanvasKeydown`**（本轮的收口点）；
+ *  · **订阅式** —— 把开关声明成 props 的宿主（React Flow 的 `deleteKeyCode`），
+ *    用 `useSyncExternalStore(subscribeCanvasSuppressed, isCanvasSuppressed)`。
+ *
+ * 【为什么两套机制不合并】查询 vs 订阅的差异在**机制层**（见 `subscribeModalLayer` 的裁决）；
+ * **能单点的只有「判据」本身**（`docs/120` C10 · `docs/123` G-3）。
  */
 export function isCanvasSuppressed(): boolean {
-  return hasModalLayer();
+  return hasModalLayer() || isEditorSessionOpen();
 }
 
 /**
- * 常驻基座（视频剪辑器）是否处于**激活位** —— `docs/120` C10.3「键盘归属由激活位派生，不由焦点派生」。
+ * 订阅「画布是否被压制」的变化 —— **两个来源合并后的**订阅口，供 `deleteKeyCode` 这类
+ * 无法主动查询的宿主使用。
  *
- * 判据单点：剪辑器的开合状态**只在本函数里被读**（`docs/123` §二.6 G-3 / §二.7 P8）。
- * `App` 的 `deleteKeyCode` 与 `useCanvasShortcuts` 的 undo/redo 让位、以及基座自己的 keydown，
- * 全部经本函数 / `editorKeyAction()` 判断，不许在别处再抄一遍。
- *
- * 【状态的真相源】`editorSession.ts`（**会话态**，不持久化）。
- * 改前它读 `getSetting('videoEditorOpen')` —— 那是持久化设置项，导致
- * 「打开过一次 → 刷新后自动再开」（2026-09-15 用户报障）。开合是**会话态**不是偏好，已迁出。
- *
- * 【为什么不像模态层那样整体让位】基座是**非模态常驻底部层**（不登记 `modalLayer`，见 C10.1）：
- * 画布仍在被正常操作（主入口就是「在画布上点选素材 → 入轨」），把画布快捷键整体掐掉会直接毁掉主入口。
- * 故只让位**归属剪辑器的那组键**（见 `editorKeyAction`）。
+ * 【为什么必须有它】`isCanvasSuppressed()` 有 2 个来源，若订阅方只订 `subscribeModalLayer`，
+ * 剪辑器开合就不会触发它 —— 表现为「剪辑器打开后按 Delete 仍删画布节点」（正是 TD-22-19）。
+ * 让**订阅口与判据同源**，订阅方就不需要知道有几种压制来源。
  */
-export function isEditorActive(): boolean {
-  return isEditorSessionOpen();
-}
-
-/** 归属剪辑器的动作（`docs/120` C10：只这三个语义，C10.4 禁止再扩）。 */
-export type EditorKeyAction = 'delete' | 'undo' | 'redo';
-
-/**
- * 该按键是否归剪辑器 —— **与「基座自己的 keydown」共用同一判据**（判据单点）。
- *
- * 让位清单（`docs/120` C10 的「关键区分」表）：
- *  - `Delete` / `Backspace`（无修饰键）→ `delete`：删选中片段。
- *  - `⌘/Ctrl+Z` → `undo`；`⌘/Ctrl+Shift+Z` **与** `⌘/Ctrl+Y` → `redo`：
- *    `Y` 是 redo 的另一种写法，**同一动作**。若只让位 `⌘⇧Z` 而不让 `⌘Y`，
- *    用户在剪辑态按 `⌘Y` 会**撤销/重做画布**——正是 C10 要防的「静默误伤」。
- *  - 其余键（含空格 / ←→ / S / I / O / ⌘C / ⌘V / Q/W/E / ⌘A/D/G/L）→ `null`（不归剪辑器，照旧）。
- */
-export function editorKeyAction(e: KeyboardEvent): EditorKeyAction | null {
-  const mod = e.ctrlKey || e.metaKey;
-  const key = e.key.toLowerCase();
-  if (mod && !e.altKey) {
-    if (key === 'z') return e.shiftKey ? 'redo' : 'undo';
-    if (key === 'y') return 'redo';
-  }
-  if (!mod && !e.altKey && !e.shiftKey && (key === 'delete' || key === 'backspace')) {
-    return 'delete';
-  }
-  return null;
+export function subscribeCanvasSuppressed(listener: () => void): () => void {
+  const unsubscribeModal = subscribeModalLayer(listener);
+  const unsubscribeEditor = subscribeEditorSession(listener);
+  return () => {
+    unsubscribeModal();
+    unsubscribeEditor();
+  };
 }
 
 /** 调试用：列出当前所有已登记的层（含登记时长与调用栈）。控制台可直接调用排查。 */

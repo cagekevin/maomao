@@ -99,6 +99,12 @@ export function EditorProvider({ canvasProjectId, children }: EditorProviderProp
       cancelled = true;
       // 卸载清空上下文：避免画布切换/关闭后残留旧 (画布, 片子) 造成错键写入。
       clearEditorContext();
+      // 卸载 = 放弃当前项目上下文（**引擎是长驻单例，不是每次挂载新建**）。
+      // 宿主切换画布项目时走的是 `key={activeProjectId}` 触发的卸载/重挂，
+      // **不经过** `exitEditorToCanvas`；此处不释放 → 命令栈/选择/音频跨项目存活，
+      // 就是 TD-22-45（B 项目 Ctrl+Z 写回 A 快照）与 TD-22-46（选择/音频残留）的入口。
+      // 与 ① 同一次 cleanup 内完成，顺序无关：两者清的是不同层的状态。
+      editor.releaseProjectContext();
     };
   }, [canvasProjectId, editor]);
 
@@ -112,9 +118,9 @@ export function EditorProvider({ canvasProjectId, children }: EditorProviderProp
     );
   }
 
-  // 「无活跃工程」只有一种真实形态：切换/新建作品瞬态（closeProject → loadProject 之间）。
+  // 「无活跃工程」只有一种真实形态：切换/新建作品瞬态（releaseProjectContext → loadProject 之间）。
   // 与「载入中」同属一个占位（一份渲染，不写两份分支）；退出路径（exitEditorToCanvas）
-  // closeProject 与宿主卸载同批提交，不会停留在此。
+  // 的释放与宿主卸载同批提交，不会停留在此。
   if (isLoading || !activeProject) {
     return (
       <div className="bg-background flex h-screen w-screen items-center justify-center">

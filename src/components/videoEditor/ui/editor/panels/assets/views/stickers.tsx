@@ -17,12 +17,7 @@ import {
 } from '@videoEditor/ui/ui/tooltip';
 import { STICKER_CATEGORIES } from '@videoEditor/constants/stickers-constants';
 import { useInfiniteScroll } from '@videoEditor/hooks-cutia/use-infinite-scroll';
-import {
-  buildIconSvgUrl,
-  getIconSvgUrl,
-  ICONIFY_HOSTS,
-  POPULAR_COLLECTIONS,
-} from '@videoEditor/engine/lib/iconify-api';
+import { buildIconSvgUrl, POPULAR_COLLECTIONS } from '@videoEditor/engine/lib/iconify-api';
 import { useStickersStore } from '@videoEditor/stores/stickers-store';
 import type { StickerCategory } from '@videoEditor/types/stickers';
 import { cn } from '@videoEditor/utils/ui';
@@ -472,14 +467,12 @@ interface StickerItemProps {
 
 function StickerItem({ iconName, onAdd, isAdding, capSize = false }: StickerItemProps) {
   const [imageError, setImageError] = useState(false);
-  const [hostIndex, setHostIndex] = useState(0);
 
   useEffect(() => {
     if (!iconName) {
       return;
     }
     setImageError(false);
-    setHostIndex(0);
   }, [iconName]);
 
   const displayName = iconName.split(':')[1] || iconName;
@@ -492,15 +485,8 @@ function StickerItem({ iconName, onAdd, isAdding, capSize = false }: StickerItem
   ) : (
     <div className="flex size-full items-center justify-center p-4">
       <img
-        src={
-          hostIndex === 0
-            ? getIconSvgUrl(iconName, { width: 64, height: 64 })
-            : buildIconSvgUrl(
-                ICONIFY_HOSTS[Math.min(hostIndex, ICONIFY_HOSTS.length - 1)],
-                iconName,
-                { width: 64, height: 64 },
-              )
-        }
+        /* 唯一 URL 构造函数（上游回落链已收进 localTool 代理，前端不再自己试三家）—— TD-22-47 */
+        src={buildIconSvgUrl(iconName, { width: 64, height: 64 })}
         alt={displayName}
         width={64}
         height={64}
@@ -513,14 +499,7 @@ function StickerItem({ iconName, onAdd, isAdding, capSize = false }: StickerItem
               }
             : undefined
         }
-        onError={() => {
-          const next = hostIndex + 1;
-          if (next < ICONIFY_HOSTS.length) {
-            setHostIndex(next);
-          } else {
-            setImageError(true);
-          }
-        }}
+        onError={() => setImageError(true)}
         loading="lazy"
       />
     </div>

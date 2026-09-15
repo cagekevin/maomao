@@ -222,6 +222,39 @@ export async function renameResource(id: string, name: string): Promise<ApiEnvel
   );
 }
 
+// ─────────────────────────── 声音库（剪辑器「音效 / 音乐」· 自建本地库）───────────────────────────
+/**
+ * 声音库条目（后端 `GET /api/sounds/library` 的 `data.items` 元素）。
+ *
+ * 【为什么是自建库（TD-22-47）】cutia 原版打第三方代理端点 `/api/sounds/search`（上游 Freesound），
+ * 本仓后端从未实现 → 请求落到 catch-all 透传 → 前端 `response.ok` 为假 → **静默空面板**。
+ * 现改为扫描本地目录（见 `localTool/src/routes/sounds.ts`），零第三方依赖。
+ */
+export interface SoundLibraryItem {
+  /** 稳定数字 id（后端按路径做 FNV-1a）—— 前端 `SoundEffect.id` 是 number，存档也用它做键。 */
+  id: number;
+  name: string;
+  kind: 'effect' | 'music';
+  /** 可直接喂 `<audio>` / 入轨的 `/files/...` URL。 */
+  url: string;
+  ext: string;
+  size: number;
+}
+
+/**
+ * GET /api/sounds/library?kind=effect|music → 本地声音库清单（自建）。
+ * `data.dir` = 该 kind 对应的磁盘相对目录；**空库时前端据此引导用户放文件**（空库是合法状态，不是错误）。
+ */
+export async function fetchSoundLibrary({
+  kind,
+}: {
+  kind: 'effect' | 'music';
+}): Promise<ApiEnvelope<{ kind: string; dir: string; items: SoundLibraryItem[] }>> {
+  return httpRequest(`${API_BASE}/api/sounds/library?kind=${encodeURIComponent(kind)}`, {
+    label: 'fetchSoundLibrary',
+  });
+}
+
 // ─────────────────────────── 存储健康（管理端报表 + 安全删除）───────────────────────────
 /**
  * GET /api/admin/storage-health — 存储健康总报表（只读）。

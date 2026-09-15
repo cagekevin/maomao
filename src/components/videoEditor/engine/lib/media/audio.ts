@@ -185,10 +185,9 @@ async function resolveAudioBufferForElement({
 
     if (element.buffer) return element.buffer;
 
-    const response = await fetch(element.sourceUrl);
-    if (!response.ok) {
-      throw new Error(`Library audio fetch failed: ${response.status}`);
-    }
+    // 与 `fetchLibraryAudioSource/Clip` 共用同一个取字节原语（TD-22-39）。
+    const response = await fetchLibraryAudioResponse({ sourceUrl: element.sourceUrl });
+    if (!response) return null;
 
     const arrayBuffer = await response.arrayBuffer();
     return await audioContext.decodeAudioData(arrayBuffer.slice(0));
@@ -220,34 +219,64 @@ export interface AudioClipSource {
   playbackRate: number;
 }
 
+/**
+ * 库音频的**唯一取字节原语**：`sourceUrl` → 已校验 `ok` 的 `Response`（失败返 null + 一次 warn）。
+ *
+ * 【为什么抽它、抽到哪一层（TD-22-39）】库音频的取字节骨架在本文件里曾被抄成 **3 份**
+ * （`fetchLibraryAudioSource` / `fetchLibraryAudioClip` / `resolveAudioBufferForElement` 的
+ * 库分支），三处的 `fetch → 校验 ok → 抛同一条错误文案 → catch warn 返 null` **逐字相同**，
+ * 只有「拿到字节之后做什么」不同（转 `File` / 转 `arrayBuffer` 解码）。
+ * 按 Step 3 的「重复种类」判别：
+ *   · 「怎么把字节取回来」（fetch / 校验 / 失败策略）= **探测重复** → 收口到本函数；
+ *   · 「取回来之后干什么」（组装形状 / 解码）= **用途差异** → 各自保留在上层。
+ * 参数取**最小契约** `{ sourceUrl }`（本原语只依赖它），不绑 `LibraryAudioElement`。
+ */
+async function fetchLibraryAudioResponse({
+  sourceUrl,
+}: {
+  sourceUrl: string;
+}): Promise<Response | null> {
+  try {
+    const response = await fetch(sourceUrl);
+    if (!response.ok) {
+      throw new Error(`Library audio fetch failed: ${response.status}`);
+    }
+    return response;
+  } catch (error) {
+    logger.warn('Failed to fetch library audio:', error);
+    return null;
+  }
+}
+
+/** 库音频 → `File`（由上面的取字节原语派生）。 */
+async function fetchLibraryAudioFile({
+  element,
+}: {
+  element: LibraryAudioElement;
+}): Promise<File | null> {
+  const response = await fetchLibraryAudioResponse({ sourceUrl: element.sourceUrl });
+  if (!response) return null;
+
+  const blob = await response.blob();
+  return new File([blob], `${element.name}.mp3`, { type: 'audio/mpeg' });
+}
+
 async function fetchLibraryAudioSource({
   element,
 }: {
   element: LibraryAudioElement;
 }): Promise<AudioMixSource | null> {
-  try {
-    const response = await fetch(element.sourceUrl);
-    if (!response.ok) {
-      throw new Error(`Library audio fetch failed: ${response.status}`);
-    }
+  const file = await fetchLibraryAudioFile({ element });
+  if (!file) return null;
 
-    const blob = await response.blob();
-    const file = new File([blob], `${element.name}.mp3`, {
-      type: 'audio/mpeg',
-    });
-
-    return {
-      file,
-      startTime: element.startTime,
-      duration: element.duration,
-      trimStart: element.trimStart,
-      trimEnd: element.trimEnd,
-      playbackRate: element.playbackRate ?? 1,
-    };
-  } catch (error) {
-    logger.warn('Failed to fetch library audio:', error);
-    return null;
-  }
+  return {
+    file,
+    startTime: element.startTime,
+    duration: element.duration,
+    trimStart: element.trimStart,
+    trimEnd: element.trimEnd,
+    playbackRate: element.playbackRate ?? 1,
+  };
 }
 
 async function fetchLibraryAudioClip({
@@ -257,33 +286,21 @@ async function fetchLibraryAudioClip({
   element: LibraryAudioElement;
   muted: boolean;
 }): Promise<AudioClipSource | null> {
-  try {
-    const response = await fetch(element.sourceUrl);
-    if (!response.ok) {
-      throw new Error(`Library audio fetch failed: ${response.status}`);
-    }
+  const file = await fetchLibraryAudioFile({ element });
+  if (!file) return null;
 
-    const blob = await response.blob();
-    const file = new File([blob], `${element.name}.mp3`, {
-      type: 'audio/mpeg',
-    });
-
-    return {
-      id: element.id,
-      sourceKey: element.id,
-      file,
-      startTime: element.startTime,
-      duration: element.duration,
-      trimStart: element.trimStart,
-      trimEnd: element.trimEnd,
-      muted,
-      volume: element.volume ?? 1,
-      playbackRate: element.playbackRate ?? 1,
-    };
-  } catch (error) {
-    logger.warn('Failed to fetch library audio:', error);
-    return null;
-  }
+  return {
+    id: element.id,
+    sourceKey: element.id,
+    file,
+    startTime: element.startTime,
+    duration: element.duration,
+    trimStart: element.trimStart,
+    trimEnd: element.trimEnd,
+    muted,
+    volume: element.volume ?? 1,
+    playbackRate: element.playbackRate ?? 1,
+  };
 }
 
 function getElementPlaybackRate({ element }: { element: TimelineElement }): number {

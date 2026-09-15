@@ -7,7 +7,11 @@ export interface TActionDefinition {
   description: string;
   category: TActionCategory;
   defaultShortcuts?: ShortcutKey[];
-  args?: Record<string, unknown>;
+  // 【此处原有 `args?: Record<string, unknown>`，已删（TD-22-36）】
+  // 「哪些动作带参、参数是什么」的契约**只有一份** = `actions/types.ts` 的 `TActionArgsMap`
+  // （它被 `TActionWithArgs` / `TArgOfAction` / `TActionFunc` 消费，是编译器强制的那份）。
+  // 这里那份是平行手抄副本，且**全库零消费者**（`getActionDefinition(...).args` 无人读）——
+  // 留着它只是让「新增带参动作」多一处要记得同步的地方。
 }
 
 export const ACTIONS = {
@@ -24,13 +28,11 @@ export const ACTIONS = {
     description: 'Seek forward 1 second',
     category: 'playback',
     defaultShortcuts: ['l'],
-    args: { seconds: 'number' },
   },
   'seek-backward': {
     description: 'Seek backward 1 second',
     category: 'playback',
     defaultShortcuts: ['j'],
-    args: { seconds: 'number' },
   },
   'frame-step-forward': {
     description: 'Frame step forward',
@@ -46,13 +48,11 @@ export const ACTIONS = {
     description: 'Jump forward 5 seconds',
     category: 'navigation',
     defaultShortcuts: ['shift+right'],
-    args: { seconds: 'number' },
   },
   'jump-backward': {
     description: 'Jump backward 5 seconds',
     category: 'navigation',
     defaultShortcuts: ['shift+left'],
-    args: { seconds: 'number' },
   },
   'goto-start': {
     description: 'Go to timeline start',
@@ -96,7 +96,6 @@ export const ACTIONS = {
   'freeze-frame': {
     description: 'Freeze frame',
     category: 'editing',
-    args: { trackId: 'string', elementId: 'string' },
   },
   'paste-copied': {
     description: 'Paste elements at playhead',

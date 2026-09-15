@@ -225,12 +225,13 @@ export function Captions() {
             <span
               style={{
                 fontSize: 14,
-                fontFamily: selectedTemplate.fontFamily,
-                color: selectedTemplate.color,
-                backgroundColor: selectedTemplate.backgroundColor,
-                fontWeight: selectedTemplate.fontWeight,
-                fontStyle: selectedTemplate.fontStyle,
-                textDecoration: selectedTemplate.textDecoration,
+                // 样式字段在 `template.styles` 里（覆盖差形状，见 subtitle-constants.ts）
+                fontFamily: selectedTemplate.styles.fontFamily,
+                color: selectedTemplate.styles.color,
+                backgroundColor: selectedTemplate.styles.backgroundColor,
+                fontWeight: selectedTemplate.styles.fontWeight,
+                fontStyle: selectedTemplate.styles.fontStyle,
+                textDecoration: selectedTemplate.styles.textDecoration,
                 padding: '2px 6px',
                 borderRadius: 2,
               }}

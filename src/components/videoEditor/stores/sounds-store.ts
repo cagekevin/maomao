@@ -7,46 +7,22 @@ import { toast } from '@videoEditor/lib/toast';
 import { EditorCore } from '@videoEditor/engine/core';
 import { buildLibraryAudioElement } from '@videoEditor/engine/timeline/element-utils';
 
+/**
+ * 剪辑器「已保存音效」store。
+ *
+ * 【2026-09-15 清理（TD-22-47）】此处原有 22 个成员服务于**第三方搜索 / 分页 / 授权过滤 /
+ * 滚动位置**（`topSoundEffects` / `searchResults` / `showCommercialOnly` / `currentPage` /
+ * `scrollPosition` …）。数据源改「自建本地库」后（见 `useSoundLibrary`）这些概念**全部不再存在**：
+ * 库是一次性全量清单、过滤在前端内存里做。它们已成零引用死代码，故整体删除 ——
+ * 留着会让后人以为"这里还能搜第三方"，正是本仓反复清理的"幽灵预留"。
+ */
 interface SoundsStore {
-  topSoundEffects: SoundEffect[];
-  isLoading: boolean;
-  error: string | null;
-  hasLoaded: boolean;
-  showCommercialOnly: boolean;
-  toggleCommercialFilter: () => void;
-  searchQuery: string;
-  searchResults: SoundEffect[];
-  isSearching: boolean;
-  searchError: string | null;
-  lastSearchQuery: string;
-  scrollPosition: number;
-  currentPage: number;
-  hasNextPage: boolean;
-  totalCount: number;
-  isLoadingMore: boolean;
   savedSounds: SavedSound[];
   isSavedSoundsLoaded: boolean;
   isLoadingSavedSounds: boolean;
   savedSoundsError: string | null;
 
   addSoundToTimeline: ({ sound }: { sound: SoundEffect }) => Promise<boolean>;
-  setTopSoundEffects: ({ sounds }: { sounds: SoundEffect[] }) => void;
-  setLoading: ({ loading }: { loading: boolean }) => void;
-  setError: ({ error }: { error: string | null }) => void;
-  setHasLoaded: ({ loaded }: { loaded: boolean }) => void;
-  setSearchQuery: ({ query }: { query: string }) => void;
-  setSearchResults: ({ results }: { results: SoundEffect[] }) => void;
-  setSearching: ({ searching }: { searching: boolean }) => void;
-  setSearchError: ({ error }: { error: string | null }) => void;
-  setLastSearchQuery: ({ query }: { query: string }) => void;
-  setScrollPosition: ({ position }: { position: number }) => void;
-  setCurrentPage: ({ page }: { page: number }) => void;
-  setHasNextPage: ({ hasNext }: { hasNext: boolean }) => void;
-  setTotalCount: ({ count }: { count: number }) => void;
-  setLoadingMore: ({ loading }: { loading: boolean }) => void;
-  appendSearchResults: ({ results }: { results: SoundEffect[] }) => void;
-  appendTopSounds: ({ results }: { results: SoundEffect[] }) => void;
-  resetPagination: () => void;
   loadSavedSounds: () => Promise<void>;
   saveSoundEffect: ({ soundEffect }: { soundEffect: SoundEffect }) => Promise<void>;
   removeSavedSound: ({ soundId }: { soundId: number }) => Promise<void>;
@@ -56,63 +32,10 @@ interface SoundsStore {
 }
 
 export const useSoundsStore = create<SoundsStore>((set, get) => ({
-  topSoundEffects: [],
-  isLoading: false,
-  error: null,
-  hasLoaded: false,
-  showCommercialOnly: true,
-
-  toggleCommercialFilter: () => {
-    set((state) => ({ showCommercialOnly: !state.showCommercialOnly }));
-  },
-
-  searchQuery: '',
-  searchResults: [],
-  isSearching: false,
-  searchError: null,
-  lastSearchQuery: '',
-  scrollPosition: 0,
-  currentPage: 1,
-  hasNextPage: false,
-  totalCount: 0,
-  isLoadingMore: false,
   savedSounds: [],
   isSavedSoundsLoaded: false,
   isLoadingSavedSounds: false,
   savedSoundsError: null,
-
-  setTopSoundEffects: ({ sounds }) => set({ topSoundEffects: sounds }),
-  setLoading: ({ loading }) => set({ isLoading: loading }),
-  setError: ({ error }) => set({ error }),
-  setHasLoaded: ({ loaded }) => set({ hasLoaded: loaded }),
-  setSearchQuery: ({ query }) => set({ searchQuery: query }),
-  setSearchResults: ({ results }) => set({ searchResults: results, currentPage: 1 }),
-  setSearching: ({ searching }) => set({ isSearching: searching }),
-  setSearchError: ({ error }) => set({ searchError: error }),
-  setLastSearchQuery: ({ query }) => set({ lastSearchQuery: query }),
-  setScrollPosition: ({ position }) => set({ scrollPosition: position }),
-  setCurrentPage: ({ page }) => set({ currentPage: page }),
-  setHasNextPage: ({ hasNext }) => set({ hasNextPage: hasNext }),
-  setTotalCount: ({ count }) => set({ totalCount: count }),
-  setLoadingMore: ({ loading }) => set({ isLoadingMore: loading }),
-
-  appendSearchResults: ({ results }) =>
-    set((state) => ({
-      searchResults: [...state.searchResults, ...results],
-    })),
-
-  appendTopSounds: ({ results }) =>
-    set((state) => ({
-      topSoundEffects: [...state.topSoundEffects, ...results],
-    })),
-
-  resetPagination: () =>
-    set({
-      currentPage: 1,
-      hasNextPage: false,
-      totalCount: 0,
-      isLoadingMore: false,
-    }),
 
   loadSavedSounds: async () => {
     if (get().isSavedSoundsLoaded) return;
@@ -215,7 +138,10 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
       const element = buildLibraryAudioElement({
         sourceUrl: audioUrl,
         name: sound.name,
-        duration: sound.duration,
+        // 【时长真源 = 刚解码出来的 buffer（TD-22-47）】原用 `sound.duration`（第三方清单里的字段）；
+        // 自建本地库的清单不含音频元数据（后端不读时长）→ 必须用解码结果的真实时长，
+        // 否则入轨会得到一个 0 长的片段。此值对旧来源同样正确（解码结果即真相）。
+        duration: buffer.duration,
         startTime: currentTime,
         buffer,
       });

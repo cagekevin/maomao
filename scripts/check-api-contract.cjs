@@ -325,12 +325,17 @@ function extractBackendRoutes() {
         if (ch === inStr) inStr = null;
         continue;
       }
-      if (ch === '/' && nxt === '/') {
+      // 【2026-09-15 修】`\/` 是**转义斜杠**：正则字面量里 `\/\//`（如 `/^\/api\/iconify\//`）
+      // 会出现「转义斜杠 + 正则结束斜杠」= 字面上的 `//`。旧实现直接判成行注释 →
+      // **该路由之后的整张路由表被吞**（实测：新增一条含 `\/\//` 的正则路由后，
+      // 连 `admin/*` 都报「白实现(前端有、后端无)」—— 假阳性把真实结论盖住）。
+      // 故此处排除「该 `/` 自身属于转义序列」的情形（真注释的 `/` 前面不可能是 `\`）。
+      if (ch === '/' && nxt === '/' && body[j - 1] !== '\\') {
         inLineComment = true;
         j++;
         continue;
       }
-      if (ch === '/' && nxt === '*') {
+      if (ch === '/' && nxt === '*' && body[j - 1] !== '\\') {
         inBlockComment = true;
         j++;
         continue;

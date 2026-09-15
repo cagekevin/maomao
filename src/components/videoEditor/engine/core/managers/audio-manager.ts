@@ -30,12 +30,39 @@ export class AudioManager {
     }
   }
 
-  dispose(): void {
+  /**
+   * 重置音频上下文（**重置，不是销毁**）：停掉在途调度 + 清解码缓存与片段表。
+   * 实例继续服务下一个项目 —— 订阅、`AudioContext`、window 监听一律保留。
+   *
+   * 由 `EditorCore.releaseProjectContext()` 在「切换 / 关闭 / 新建项目、退出编辑器」时调用。
+   * 不清的后果：切项目后旧项目的 `AudioBuffer` 与 `queuedSources` 仍在，
+   * 旧片段继续被调度（与 TD-22-42「切 Tab 不暂停试听」同源，维度是切项目）。
+   *
+   * 【sessionId++ 的必要性】`startPlayback` / `scheduleAllClips` 是 async，
+   * 重置瞬间可能有在途 await；递增会让它醒来后 fail-fast
+   * （`sessionId !== this.playbackSessionId`），防止旧项目的 clips 写回新上下文。
+   */
+  reset(): void {
+    this.playbackSessionId++;
     this.stopPlayback();
+    this.clips = [];
+    this.decodedBuffers.clear();
     if (this.timelineChangeTimer !== null) {
       window.clearTimeout(this.timelineChangeTimer);
       this.timelineChangeTimer = null;
     }
+  }
+
+  /**
+   * 销毁音频上下文（**终止实例**，不可复用）：重置 + 解订阅 + 关 `AudioContext`。
+   *
+   * 【为什么不与 reset 合并】两者语义不同：项目切换要的是「可继续服务的重置」，
+   * 关掉 `AudioContext` 后再播放会重建（多一次设备握手），切项目不该付这个代价。
+   * 当前 `EditorCore` 是**长驻单例**（永不销毁实例），故暂无调用者；
+   * 保留它是为了「实例终结」这条路径有唯一正确的出口，而不是让后人各写一份。
+   */
+  dispose(): void {
+    this.reset();
     for (const unsub of this.unsubscribers) {
       unsub();
     }
@@ -43,7 +70,6 @@ export class AudioManager {
     if (typeof window !== 'undefined') {
       window.removeEventListener('playback-seek', this.handleSeek);
     }
-    this.decodedBuffers.clear();
     if (this.audioContext) {
       void this.audioContext.close();
       this.audioContext = null;

@@ -106,7 +106,7 @@ export async function generateAndInsertSpeech({
   const url = URL.createObjectURL(result.blob);
   const projectId = editor.project.getActive().metadata.id;
 
-  const mediaId = await editor.media.addMediaAsset({
+  const added = await editor.media.addMediaAsset({
     projectId,
     asset: {
       name,
@@ -118,8 +118,16 @@ export async function generateAndInsertSpeech({
     },
   });
 
+  // ── 修复(2026-09-15 · TD-22-37)：原直接拿返回的 id 去插时间轴 —— 素材保存失败时
+  // 会插入一个**指向不存在素材的幽灵片段**（播放/渲染时断链，且刷新后素材消失）。
+  // 现在按判别结果中止（MediaManager 已 toast + 回滚，此处只需不产出幽灵）。
+  if (!added.ok) {
+    URL.revokeObjectURL(url);
+    throw new Error(`语音素材保存失败：${added.message ?? added.reason}`);
+  }
+
   const audioElement = buildUploadAudioElement({
-    mediaId,
+    mediaId: added.id,
     name,
     duration: result.duration,
     startTime,

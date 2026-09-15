@@ -16,12 +16,16 @@ import { createElement } from 'react';
 import {
   hasModalLayer,
   isCanvasSuppressed,
-  isEditorActive,
-  editorKeyAction,
+  subscribeCanvasSuppressed,
   describeKey,
   debugModalLayers,
   useFullscreenEditorKeys,
 } from '../../src/components/base/core/modalLayer.ts';
+import {
+  isEditorSessionOpen,
+  setEditorSessionOpen,
+} from '../../src/components/base/core/editorSession.ts';
+import { useCanvasKeydown } from '../../src/components/base/core/canvasHotkeys.ts';
 import FullscreenShell from '../../src/components/base/panels/FullscreenShell.tsx';
 
 /** 造一个只含必要字段的 KeyboardEvent（describeKey 只读这几个标志位与 key）。 */
@@ -233,33 +237,77 @@ describe('FullscreenShell — 成品外壳的开放/关闭语义', () => {
   });
 });
 
-describe('modalLayer — 剪辑器键盘归属（docs/120 C10 · 判据单点 · docs/123 §二.6 G-3）', () => {
-  it('只认三组键：Delete/Backspace · ⌘Z · ⌘⇧Z（与 redo 的另一种写法 ⌘Y）', () => {
-    expect(editorKeyAction(keyEvent({ key: 'Delete' }))).toBe('delete');
-    expect(editorKeyAction(keyEvent({ key: 'Backspace' }))).toBe('delete');
-    expect(editorKeyAction(keyEvent({ key: 'z', metaKey: true }))).toBe('undo');
-    expect(editorKeyAction(keyEvent({ key: 'z', ctrlKey: true }))).toBe('undo');
-    expect(editorKeyAction(keyEvent({ key: 'z', metaKey: true, shiftKey: true }))).toBe('redo');
-    // ⌘Y 与 ⌘⇧Z 是**同一动作**的两种写法：只让一种会让另一种漏回画布（静默误撤销/重做）
-    expect(editorKeyAction(keyEvent({ key: 'y', metaKey: true }))).toBe('redo');
-    expect(editorKeyAction(keyEvent({ key: 'y', ctrlKey: true }))).toBe('redo');
+describe('modalLayer — 视频剪辑器接入全屏收口（TD-22-19 · 判据单点）', () => {
+  afterEach(() => {
+    // 会话态是模块级单例：用例间必须复位，否则污染后续用例
+    setEditorSessionOpen(false);
   });
 
-  it('其余键一律不归剪辑器（基座展开时画布快捷键照旧可用）', () => {
-    for (const k of ['q', 'w', 'e', 'a', 'd', 'g', 'l', ' ', 'ArrowLeft', 's', 'i', 'o']) {
-      expect(editorKeyAction(keyEvent({ key: k }))).toBeNull();
-      expect(editorKeyAction(keyEvent({ key: k, ctrlKey: true }))).toBeNull();
-    }
-    expect(editorKeyAction(keyEvent({ key: 'c', metaKey: true }))).toBeNull();
-    expect(editorKeyAction(keyEvent({ key: 'v', metaKey: true }))).toBeNull();
+  it('剪辑器打开 ⇒ 画布被压制（整体让位）；关闭 ⇒ 恢复', () => {
+    expect(isCanvasSuppressed()).toBe(false);
+
+    setEditorSessionOpen(true);
+    expect(isEditorSessionOpen()).toBe(true);
+    expect(isCanvasSuppressed()).toBe(true);
+
+    setEditorSessionOpen(false);
+    expect(isCanvasSuppressed()).toBe(false);
   });
 
-  it('带修饰键的 Delete 不算剪辑器的键（Shift+Delete / ⌘+Delete 不被劫）', () => {
-    expect(editorKeyAction(keyEvent({ key: 'Delete', shiftKey: true }))).toBeNull();
-    expect(editorKeyAction(keyEvent({ key: 'Delete', metaKey: true }))).toBeNull();
+  it('与全屏层叠加：任一来源都压制，全部退出后才恢复', () => {
+    const layer = renderHook(() => useFullscreenEditorKeys({ enabled: true }));
+    expect(isCanvasSuppressed()).toBe(true);
+
+    setEditorSessionOpen(true);
+    layer.unmount();
+    // 全屏层已关，但剪辑器还开着 → 仍然压制（判据是「或」，不是「最后一个谁赢」）
+    expect(isCanvasSuppressed()).toBe(true);
+
+    setEditorSessionOpen(false);
+    expect(isCanvasSuppressed()).toBe(false);
   });
 
-  it('默认不激活（设置 videoEditorOpen 默认 false）→ 无归属、画布不让位（C10.5）', () => {
-    expect(isEditorActive()).toBe(false);
+  it('subscribeCanvasSuppressed 合并两个来源（只订 modalLayer 会漏掉剪辑器开合 → TD-22-19）', () => {
+    const onChange = vi.fn();
+    const unsubscribe = subscribeCanvasSuppressed(onChange);
+
+    setEditorSessionOpen(true);
+    expect(onChange).toHaveBeenCalledTimes(1);
+
+    setEditorSessionOpen(false);
+    expect(onChange).toHaveBeenCalledTimes(2);
+
+    // 注销后不再收到通知
+    unsubscribe();
+    setEditorSessionOpen(true);
+    expect(onChange).toHaveBeenCalledTimes(2);
+  });
+
+  it('画布内组件的按键：剪辑器打开时不落到画布，关闭后恢复（TD-22-19 行为证据）', () => {
+    const onKey = vi.fn();
+    renderHook(() => useCanvasKeydown(onKey));
+    const pressDelete = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete' }));
+
+    pressDelete();
+    expect(onKey).toHaveBeenCalledTimes(1);
+
+    setEditorSessionOpen(true);
+    pressDelete();
+    // ← 剪辑器全屏盖住画布时，画布内组件（如 VideoProcessNode）的 Delete 必须不生效，
+    //   否则用户在剪辑器里删片段，删掉的是被盖住的画布节点内容。
+    expect(onKey).toHaveBeenCalledTimes(1);
+
+    setEditorSessionOpen(false);
+    pressDelete();
+    expect(onKey).toHaveBeenCalledTimes(2);
+  });
+
+  it('画布内组件的键盘入口认的是同一判据（useCanvasKeydown 不得另写条件）', async () => {
+    const src = await import('node:fs').then((fs) =>
+      fs.readFileSync('src/components/base/core/canvasHotkeys.ts', 'utf8'),
+    );
+    expect(src).toContain('isCanvasSuppressed()');
+    expect(src).not.toContain('hasModalLayer()');
+    expect(src).not.toContain('isEditorSessionOpen()');
   });
 });

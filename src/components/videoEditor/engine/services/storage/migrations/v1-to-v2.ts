@@ -4,7 +4,7 @@ import {
 } from '@videoEditor/engine/services/storage/indexeddb-adapter';
 import type { MediaAssetData } from '@videoEditor/engine/services/storage/types';
 import { StorageMigration } from './base';
-import type { ProjectRecord } from './transformers/types';
+import type { MigrationResult, ProjectRecord } from './transformers/types';
 import {
   getProjectId,
   transformProjectV1ToV2,
@@ -15,11 +15,8 @@ export class V1toV2Migration extends StorageMigration {
   from = 1;
   to = 2;
 
-  async transform(project: ProjectRecord): Promise<{
-    project: ProjectRecord;
-    skipped: boolean;
-    reason?: string;
-  }> {
+  // 返回形状复用 `transformers/types.ts` 的 `MigrationResult<T>`（唯一真源，同 TD-22-35）。
+  async transform(project: ProjectRecord): Promise<MigrationResult<ProjectRecord>> {
     const projectId = getProjectId({ project });
     if (!projectId) {
       return { project, skipped: true, reason: 'no project id' };

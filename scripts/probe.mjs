@@ -190,6 +190,17 @@ try {
   unlinkSync(journalPath);
 }
 
+/**
+ * 去 ANSI 色码 —— **必须**在比对与打印前做。
+ *
+ * 【为什么（2026-09-15 实测）】vitest 会给「期望值 / 实际值 / 路径行号」着色，ESC 序列会把
+ * 目标子串**切断**（如 `to have a length of \x1b[31m0\x1b[39m`）。后果：`--expect-out` 明明
+ * 该命中却报「未命中」→ 把「探针没测到」的假象扣在真实结论上。本仓 TD-22-51 的探针因此
+ * 连续两次假红、白跑两轮 —— 这不是"测试不红"，是**工具的眼睛被蒙了一层**。
+ */
+const stripAnsi = (s) => s.replace(/\u001b\[[0-9;]*m/g, '');
+const clean = stripAnsi(output);
+
 /** ── 断言（观测 == 期望 才算"命中"） ── */
 const checks = [];
 if (expectExitRaw !== '') {
@@ -197,10 +208,10 @@ if (expectExitRaw !== '') {
   checks.push({ name: `退出码 == ${want}`, ok: exitCode === want, got: `实际 ${exitCode}` });
 }
 if (expectOut) {
-  checks.push({ name: `输出含「${expectOut}」`, ok: output.includes(expectOut), got: output.includes(expectOut) ? '命中' : '未命中' });
+  checks.push({ name: `输出含「${expectOut}」`, ok: clean.includes(expectOut), got: clean.includes(expectOut) ? '命中' : '未命中' });
 }
 if (expectNotOut) {
-  checks.push({ name: `输出**不含**「${expectNotOut}」`, ok: !output.includes(expectNotOut), got: output.includes(expectNotOut) ? '出现了' : '未出现' });
+  checks.push({ name: `输出**不含**「${expectNotOut}」`, ok: !clean.includes(expectNotOut), got: clean.includes(expectNotOut) ? '出现了' : '未出现' });
 }
 if (!checks.length) {
   console.log(`\n⚠️  未给任何断言（--expect-exit / --expect-out / --expect-not-out）→ 只报观测值，**不构成探针证据**。`);
@@ -211,7 +222,7 @@ const pass = checks.every((c) => c.ok);
 console.log(`\n🔬 探针结论｜${label}`);
 console.log(`   文件   : ${relative(ROOT, target)}（命中 ${hitCount} 处，已还原 sha=${originalSha}）`);
 console.log(`   命令   : ${run}`);
-console.log(`   观测   : exit=${exitCode}${output ? `｜输出 ${output.split(/\r?\n/).filter(Boolean).length} 行` : ''}`);
+console.log(`   观测   : exit=${exitCode}${clean ? `｜输出 ${clean.split(/\r?\n/).filter(Boolean).length} 行` : ''}`);
 for (const c of checks) console.log(`   ${c.ok ? '✅' : '❌'} ${c.name} — ${c.got}`);
 
 if (!checks.length) process.exit(pass ? 0 : 1);
@@ -222,6 +233,6 @@ if (pass) {
 console.log(`\n❌ 探针未命中（观测 ≠ 期望）—— 探针本身没问题，是"你修的那点"没被测到；回去改断言或改探针，别跳过。`);
 if (output) {
   console.log('   ── 输出尾部（定位用）──');
-  for (const l of output.split(/\r?\n/).filter(Boolean).slice(-12)) console.log(`   | ${l.slice(0, 160)}`);
+  for (const l of clean.split(/\r?\n/).filter(Boolean).slice(-12)) console.log(`   | ${l.slice(0, 160)}`);
 }
 process.exit(1);

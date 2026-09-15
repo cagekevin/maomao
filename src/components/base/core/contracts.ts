@@ -765,6 +765,24 @@ export const apiRegistry: Record<string, ApiRegistryEntry> = {
     note: '本地工具连通性 ping（useLocalToolStatus hook 内 runCheck 调用）',
   },
 
+  // ── 声音库（剪辑器「音效 / 音乐」· **自建**本地库，TD-22-47）────────────────
+  soundLibrary: {
+    fn: 'localToolApi.fetchSoundLibrary',
+    method: 'GET',
+    path: '/api/sounds/library',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '扫描 uploads/sounds/{effects,music} 返回清单（替代 cutia 时代未实现的 /api/sounds/search）',
+  },
+  iconifyProxy: {
+    fn: 'iconifyApi.buildIconSvgUrl',
+    method: 'GET',
+    path: '/api/iconify/{x}',
+    envelope: 'raw',
+    status: 'ACTIVE',
+    note: '贴纸图标唯一出站口（原样透传；上游 api.iconify.design→simplesvg→unisvg 三家回落收在后端）',
+  },
+
   // ── Generate（relayProxy 门面：submit → 轮询 attach；chat 出站统一走此处）──
   generateSubmit: {
     fn: 'relayProxy.relaySubmit',

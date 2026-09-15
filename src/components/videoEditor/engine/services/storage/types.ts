@@ -1,9 +1,6 @@
 import type { MediaType } from '@videoEditor/types/assets';
 import type { TProject, TProjectMetadata, TTimelineViewState } from '@videoEditor/types/project';
 import type { TScene } from '@videoEditor/types/timeline';
-// 更新(2026-09-14)：AI 域已删，AgentMessage 改本地占位（保持持久化字段兼容）。
-type AgentMessage = unknown;
-
 export interface StorageAdapter<T> {
   get(key: string): Promise<T | null>;
   set(key: string, value: T): Promise<void>;
@@ -42,7 +39,6 @@ export type SerializedProject = Omit<TProject, 'metadata' | 'scenes'> & {
   metadata: SerializedProjectMetadata;
   scenes: SerializedScene[];
   timelineViewState?: TTimelineViewState;
-  agentMessages?: AgentMessage[];
 };
 
 export interface StorageConfig {

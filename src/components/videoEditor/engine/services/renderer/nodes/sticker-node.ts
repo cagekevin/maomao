@@ -1,5 +1,6 @@
 import type { CanvasRenderer } from '../canvas-renderer';
 import { VisualNode, type VisualNodeParams } from './visual-node';
+import { buildIconSvgUrl } from '../../../lib/iconify-api';
 
 export interface StickerNodeParams extends VisualNodeParams {
   iconName: string;
@@ -19,8 +20,12 @@ export class StickerNode extends VisualNode<StickerNodeParams> {
     const image = new Image();
     image.crossOrigin = 'anonymous';
     this.image = image;
-    const color = this.params.color ? `&color=${encodeURIComponent(this.params.color)}` : '';
-    const url = `https://api.iconify.design/${this.params.iconName}.svg?width=200&height=200${color}`;
+    // 走唯一 URL 构造函数（经 localTool 代理出站，不再直连公网）—— TD-22-47。
+    const url = buildIconSvgUrl(this.params.iconName, {
+      width: 200,
+      height: 200,
+      color: this.params.color,
+    });
 
     await new Promise<void>((resolve, reject) => {
       image.onload = () => resolve();

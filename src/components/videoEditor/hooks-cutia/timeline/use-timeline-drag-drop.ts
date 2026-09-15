@@ -293,72 +293,73 @@ export function useTimelineDragDrop({
       const processedAssets = await processMediaAssets({ files });
 
       for (const asset of processedAssets) {
-        await editor.media.addMediaAsset({
+        const result = await editor.media.addMediaAsset({
           projectId: activeProject.metadata.id,
           asset,
         });
 
-        const added = editor.media
-          .getAssets()
-          .find((m) => m.name === asset.name && m.url === asset.url);
+        // ── 修复(2026-09-15 · TD-22-37)：判别联合直接判成败。
+        // 原为「addMediaAsset 返回 id（失败也返）→ `getAssets().find(name+url)` 二次探测」，
+        // 且探测不中时**静默跳过**（用户拖进来了却什么都没发生，零提示）。
+        // 现在：成败由结果给出（失败时 MediaManager 已回滚 + 已 toast），此处只跳过插入。
+        if (!result.ok) continue;
 
-        if (added) {
-          const duration = added.duration ?? TIMELINE_CONSTANTS.DEFAULT_ELEMENT_DURATION;
-          const currentTracks = editor.timeline.getTracks();
-          const dropTarget = computeDropTarget({
-            elementType: added.type,
-            mouseX,
-            mouseY,
-            tracks: currentTracks,
-            playheadTime: currentTime,
-            isExternalDrop: true,
-            elementDuration: duration,
-            pixelsPerSecond: TIMELINE_CONSTANTS.PIXELS_PER_SECOND,
-            zoomLevel,
+        const mediaAsset = result.asset;
+        const duration = mediaAsset.duration ?? TIMELINE_CONSTANTS.DEFAULT_ELEMENT_DURATION;
+        const currentTracks = editor.timeline.getTracks();
+        const dropTarget = computeDropTarget({
+          elementType: mediaAsset.type,
+          mouseX,
+          mouseY,
+          tracks: currentTracks,
+          playheadTime: currentTime,
+          isExternalDrop: true,
+          elementDuration: duration,
+          pixelsPerSecond: TIMELINE_CONSTANTS.PIXELS_PER_SECOND,
+          zoomLevel,
+        });
+
+        const trackType: TrackType = mediaAsset.type === 'audio' ? 'audio' : 'video';
+        const trackId = dropTarget.isNewTrack
+          ? editor.timeline.addTrack({
+              type: trackType,
+              index: dropTarget.trackIndex,
+            })
+          : currentTracks[dropTarget.trackIndex]?.id;
+
+        if (!trackId) return;
+
+        if (mediaAsset.type === 'audio') {
+          editor.timeline.insertElement({
+            placement: { mode: 'explicit', trackId },
+            element: buildUploadAudioElement({
+              mediaId: mediaAsset.id,
+              name: mediaAsset.name,
+              duration,
+              startTime: dropTarget.xPosition,
+              buffer: new AudioBuffer({ length: 1, sampleRate: 44100 }),
+            }),
           });
-
-          const trackType: TrackType = added.type === 'audio' ? 'audio' : 'video';
-          const trackId = dropTarget.isNewTrack
-            ? editor.timeline.addTrack({
-                type: trackType,
-                index: dropTarget.trackIndex,
-              })
-            : currentTracks[dropTarget.trackIndex]?.id;
-
-          if (!trackId) return;
-
-          if (added.type === 'audio') {
-            editor.timeline.insertElement({
-              placement: { mode: 'explicit', trackId },
-              element: buildUploadAudioElement({
-                mediaId: added.id,
-                name: added.name,
-                duration,
-                startTime: dropTarget.xPosition,
-                buffer: new AudioBuffer({ length: 1, sampleRate: 44100 }),
-              }),
-            });
-          } else if (added.type === 'video') {
-            editor.timeline.insertElement({
-              placement: { mode: 'explicit', trackId },
-              element: buildVideoElement({
-                mediaId: added.id,
-                name: added.name,
-                duration,
-                startTime: dropTarget.xPosition,
-              }),
-            });
-          } else {
-            editor.timeline.insertElement({
-              placement: { mode: 'explicit', trackId },
-              element: buildImageElement({
-                mediaId: added.id,
-                name: added.name,
-                duration,
-                startTime: dropTarget.xPosition,
-              }),
-            });
-          }
+        } else if (mediaAsset.type === 'video') {
+          editor.timeline.insertElement({
+            placement: { mode: 'explicit', trackId },
+            element: buildVideoElement({
+              mediaId: mediaAsset.id,
+              name: mediaAsset.name,
+              duration,
+              startTime: dropTarget.xPosition,
+            }),
+          });
+        } else {
+          editor.timeline.insertElement({
+            placement: { mode: 'explicit', trackId },
+            element: buildImageElement({
+              mediaId: mediaAsset.id,
+              name: mediaAsset.name,
+              duration,
+              startTime: dropTarget.xPosition,
+            }),
+          });
         }
       }
     },

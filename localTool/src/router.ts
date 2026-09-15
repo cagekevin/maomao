@@ -78,6 +78,8 @@ import {
   handleProviderProbeAsync,
   handleProviderFetchModels,
 } from './routes/providers.js';
+import { handleSoundsLibrary } from './routes/sounds.js';
+import { handleIconifyProxy } from './routes/iconify.js';
 import { handlePassthrough } from './routes/passthrough.js';
 import {
   handleLocalPatchCrop,
@@ -188,6 +190,14 @@ export const routes: Route[] = [
   { method: 'POST', pattern: '/api/resources/clear', handler: handleResourcesClear },
   { method: 'POST', pattern: '/api/resources/rescan', handler: handleResourcesRescan },
   { method: 'POST', pattern: '/api/resources/rename', handler: handleResourcesRename },
+
+  // ── 声音库（剪辑器「音效 / 音乐」面板的**自建**数据源：扫描 uploads/sounds/*，见 routes/sounds.ts）──
+  // 替代 cutia 时代的第三方端点 /api/sounds/search（本仓从未实现 → 404 静默空，TD-22-47）。
+  { method: 'GET', pattern: '/api/sounds/library', handler: handleSoundsLibrary },
+
+  // ── 贴纸图标代理（iconify 唯一出站口；前端三处直连公网收口于此，TD-22-47）──
+  // 前缀路由：原样透传 /api/iconify/<iconify 原路径>（含 query），上游三家回落收在后端一份。
+  { method: 'GET', pattern: /^\/api\/iconify\//, handler: handleIconifyProxy },
 
   // ── 剪映 ──
   { method: 'POST', pattern: '/api/jianying/send', handler: handleJianyingSend },

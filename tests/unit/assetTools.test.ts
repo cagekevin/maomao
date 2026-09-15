@@ -192,14 +192,20 @@ describe('nodePrefs —— 节点上次参数记忆', () => {
 // TODO: 浏览器依赖未测 —— 真实 canvas drawImage/toDataURL 的像素输出未在 node 环境断言
 // ───────────────────────────────────────────────────────────
 const mockImage = { naturalWidth: 0, naturalHeight: 0 };
-vi.mock('../../src/components/base/utils/asyncGuard.ts', () => ({
-  loadImageWithTimeout: vi.fn(async () => {
-    // 返回带尺寸的对象，缩放逻辑可在此验证
-    return { naturalWidth: mockImage.naturalWidth, naturalHeight: mockImage.naturalHeight };
-  }),
-  TimeoutError: class TimeoutError extends Error {},
-  isTimeoutError: (e: any) => e instanceof Error && e.name === 'TimeoutError',
-}));
+// 【部分 mock（2026-09-15 修正）】原实现把整个模块**整体替换**成 3 个导出 ——
+// `asyncGuard.ts` 随后新增了 `attemptQuietly` / `releaseQuietly` 等（02 区「静默豁免成本层」收口），
+// 本文件里 `nodePrefs` 的消费者随即拿到 `undefined` → 3 例莫名变红。
+// 改成「保留真实导出 + 只覆盖被测的那一个」，此后模块新增导出不会再打断本文件。
+vi.mock('../../src/components/base/utils/asyncGuard.ts', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    loadImageWithTimeout: vi.fn(async () => {
+      // 返回带尺寸的对象，缩放逻辑可在此验证
+      return { naturalWidth: mockImage.naturalWidth, naturalHeight: mockImage.naturalHeight };
+    }),
+  };
+});
 import { compressImage } from '../../src/components/base/utils/imageCompress.ts';
 
 describe('imageCompress —— 压缩（含浏览器依赖，部分 mock）', () => {

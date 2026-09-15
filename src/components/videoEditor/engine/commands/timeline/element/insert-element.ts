@@ -18,6 +18,7 @@ import {
   enforceMainTrackStart,
 } from '@videoEditor/engine/timeline/track-utils';
 import type { MediaAsset } from '@videoEditor/types/assets';
+import type { TProjectSettings } from '@videoEditor/types/project';
 import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
 
 type InsertElementPlacement =
@@ -33,6 +34,10 @@ export class InsertElementCommand extends Command {
   private elementId: string;
   private savedState: TimelineTrack[] | null = null;
   private targetTrackId: string | null = null;
+  // 插入首个可视元素时会**顺带**改 project.settings（画布尺寸 / 帧率，见 execute 内注释）。
+  // 那次改动以 `pushHistory:false` 提交、不产生独立命令，故必须由本命令自捕并回滚（TD-22-34）。
+  private savedSettings: TProjectSettings | null = null;
+  private savedSettingsUpdatedAt: Date | null = null;
 
   constructor({ element, placement }: InsertElementParams) {
     super();
@@ -83,6 +88,16 @@ export class InsertElementCommand extends Command {
       const activeProject = editor.project.getActive();
       const asset = mediaAssets.find((item: MediaAsset) => item.id === newElement.mediaId);
 
+      // 首次插入可视元素 = 用素材尺寸/帧率初始化画布：改 settings 但 `pushHistory:false`
+      //（不需要独立撤销步 —— 用户撤销"插入"时应当一起回滚，而不是留下被改过的画布）。
+      // 故这里先捕获，交给本命令的 undo 还原（TD-22-34）。
+      const willChangeCanvasSize = !!(asset?.width && asset?.height);
+      const willChangeFps = asset?.type === 'video' && !!asset?.fps;
+      if (willChangeCanvasSize || willChangeFps) {
+        this.savedSettings = activeProject.settings;
+        this.savedSettingsUpdatedAt = activeProject.metadata.updatedAt;
+      }
+
       if (asset?.width && asset?.height) {
         const nextCanvasSize = { width: asset.width, height: asset.height };
         const shouldSetOriginalCanvasSize = !activeProject?.settings.originalCanvasSize;
@@ -110,6 +125,26 @@ export class InsertElementCommand extends Command {
     if (this.savedState) {
       const editor = EditorCore.getInstance();
       editor.timeline.updateTracks(this.savedState);
+    }
+
+    // 回滚 execute 里那次 `pushHistory:false` 的 settings 变更（TD-22-34）。
+    // 与上一段顺序无关：tracks 与 project.settings 是两处独立状态。
+    if (this.savedSettings) {
+      const editor = EditorCore.getInstance();
+      const activeProject = editor.project.getActiveOrNull();
+      if (activeProject) {
+        editor.project.setActiveProject({
+          project: {
+            ...activeProject,
+            settings: this.savedSettings,
+            metadata: {
+              ...activeProject.metadata,
+              updatedAt: this.savedSettingsUpdatedAt ?? activeProject.metadata.updatedAt,
+            },
+          },
+        });
+        editor.save.markDirty();
+      }
     }
   }
 

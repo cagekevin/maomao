@@ -71,6 +71,14 @@ export class ScenesManager {
       throw new Error('Scene not found');
     }
 
+    // 切场景 = 切编辑上下文（与切项目同根，TD-22-32/45）。
+    // 命令栈里的 `savedState` 快照属于**上一个场景**的 tracks；撤销时不区分场景，
+    // 会把 A 场景的快照整体写进 B 场景。全局单栈无法表达「跨场景撤销」，
+    // 故清栈是唯一正确解（而不是让每个命令去猜自己属于哪个场景）。
+    // 选择同理：`{trackId, elementId}` 在新场景里已无对应元素 → 幽灵选择。
+    this.editor.command.clear();
+    this.editor.selection.clearSelection();
+
     const activeProject = this.editor.project.getActive();
 
     if (activeProject) {
@@ -201,11 +209,20 @@ export class ScenesManager {
     this.notify();
   }
 
+  /**
+   * 活跃场景（**可能为空**）。与 `ProjectManager.getActiveOrNull()` 同惯例。
+   * 「选择有效性」等**只读派生**用它（无活跃场景 = 没有有效选择），不要用会抛错的版本。
+   */
+  getActiveSceneOrNull(): TScene | null {
+    return this.active;
+  }
+
   getActiveScene(): TScene {
-    if (!this.active) {
+    const scene = this.getActiveSceneOrNull();
+    if (!scene) {
       throw new Error('No active scene.');
     }
-    return this.active;
+    return scene;
   }
 
   getScenes(): TScene[] {

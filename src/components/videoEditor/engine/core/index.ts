@@ -1,3 +1,13 @@
+/**
+ * EditorCore —— 剪辑器引擎总装（**长驻单例**）。
+ *
+ * 【两个生命周期，别混用】
+ *   · `releaseProjectContext()` —— **上下文生命周期**：切换 / 关闭 / 新建项目、
+ *     退出编辑器、编辑器卸载时调用。重置一切「跨项目存活」的状态，实例继续复用。
+ *     **唯一入口**：禁止各调用点再手写零散清理（见下方方法头，TD-22-32/45/46 的成因）。
+ *   · `EditorCore.reset()`（静态）—— **测试隔离**：丢弃单例，让下一次 `getInstance()`
+ *     重新构造。只用测试；生产不销毁实例（销毁要成对调各 manager 的 `dispose()`）。
+ */
 import { PlaybackManager } from './managers/playback-manager';
 import { TimelineManager } from './managers/timeline-manager';
 import { ScenesManager } from './managers/scenes-manager';
@@ -42,6 +52,38 @@ export class EditorCore {
       EditorCore.instance = new EditorCore();
     }
     return EditorCore.instance;
+  }
+
+  /**
+   * 释放「当前项目上下文」—— 所有**跨项目存活**的状态在此统一重置。
+   *
+   * ════════════════════════════════════════════════════════════════
+   * 【唯一入口】切项目 / 关项目 / 新建项目 / 切场景 / 退出编辑器 / 编辑器卸载 —— 一律走这里。
+   *
+   * 【为什么必须收口】此项此前被散写成 4 处「`media.clearAllAssets()` + `scenes.clearScenes()`」
+   * 两行，且**每处都记不全**：命令栈、选择、音频、播放、渲染树没有一个被清。
+   * 后果（TD-22-45/46/32，均为高息）：
+   *   · B 项目按 Ctrl+Z → 弹出 A 项目的命令，其 `undo()` 把 **A 的 tracks 快照写回 B**；
+   *   · 选择残留旧 trackId/elementId → 属性面板错乱 + 误删；
+   *   · 旧项目音频继续调度；播放时间码停在旧位置。
+   * 根因不是「漏调某个 API」，而是**没有一个人拥有这件事** —— 谁调用的谁就得记全 10 项，
+   * 于是必然漏。本方法是这个「唯一拥有者」。
+   * ════════════════════════════════════════════════════════════════
+   *
+   * 【语义 = 重置，不是销毁】实例继续复用：订阅、`AudioContext`、事件监听一律保留
+   * （对照 `AudioManager.dispose()` 的销毁语义）。
+   *
+   * 【顺序】先停「会产生副作用的」（播放 → 音频在途调度），再清缓存、栈与项目本体。
+   */
+  releaseProjectContext(): void {
+    this.playback.reset();
+    this.audio.reset();
+    this.renderer.setRenderTree({ renderTree: null });
+    this.command.clear();
+    this.selection.clearSelection();
+    this.media.clearAllAssets();
+    this.scenes.clearScenes();
+    this.project.clearActive();
   }
 
   static reset(): void {

@@ -44,7 +44,7 @@ export class RendererManager {
       selection,
     });
     if (!clip) {
-      return { success: false, error: 'Selected element is not a video' };
+      return { ok: false, reason: 'not-video', message: 'Selected element is not a video' };
     }
 
     return this.exportTracks({
@@ -70,14 +70,17 @@ export class RendererManager {
 
     try {
       const mediaAssets = this.editor.media.getAssets();
-      const activeProject = this.editor.project.getActive();
+      // ── 修复(2026-09-15 · 假守卫)：原用 `getActive()`（**无项目时 throw**）再判 `!activeProject`
+      // —— 该分支永远不成立、真正兜住它的是外层 catch（把「没项目」误报成 unknown 导出错误）。
+      // 改用 `getActiveOrNull()` 让**判据成立且结果诚实**（明确的 no-active-project）。
+      const activeProject = this.editor.project.getActiveOrNull();
 
       if (!activeProject) {
-        return { success: false, error: 'No active project' };
+        return { ok: false, reason: 'no-active-project', message: 'No active project' };
       }
 
       if (duration === 0) {
-        return { success: false, error: emptyError };
+        return { ok: false, reason: 'empty-timeline', message: emptyError };
       }
 
       const exportFps = fps || activeProject.settings.fps;
@@ -132,15 +135,15 @@ export class RendererManager {
         clearInterval(cancelInterval);
 
         if (cancelled) {
-          return { success: false, cancelled: true };
+          return { ok: false, reason: 'cancelled' };
         }
 
         if (!buffer) {
-          return { success: false, error: 'Export failed to produce buffer' };
+          return { ok: false, reason: 'no-buffer', message: 'Export failed to produce buffer' };
         }
 
         return {
-          success: true,
+          ok: true,
           buffer,
         };
       } finally {
@@ -149,8 +152,9 @@ export class RendererManager {
     } catch (error) {
       logger.error('Export failed:', error);
       return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown export error',
+        ok: false,
+        reason: 'unknown',
+        message: error instanceof Error ? error.message : 'Unknown export error',
       };
     }
   }

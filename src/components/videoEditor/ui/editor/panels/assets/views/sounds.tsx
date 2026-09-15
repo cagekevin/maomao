@@ -1,7 +1,6 @@
 'use client';
-import { logger } from '@videoEditor/lib/logger';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@videoEditor/ui/ui/button';
 import {
   Dialog,
@@ -12,22 +11,25 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@videoEditor/ui/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@videoEditor/ui/ui/dropdown-menu';
 import { Input } from '@videoEditor/ui/ui/input';
 import { ScrollArea } from '@videoEditor/ui/ui/scroll-area';
 import { Separator } from '@videoEditor/ui/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@videoEditor/ui/ui/tabs';
-import { useInfiniteScroll } from '@videoEditor/hooks-cutia/use-infinite-scroll';
-import { useSoundSearch } from '@videoEditor/hooks-cutia/use-sound-search';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@videoEditor/ui/ui/tooltip';
+import {
+  useSoundLibrary,
+  type SoundKind,
+  type SoundLibraryItem,
+} from '@videoEditor/hooks-cutia/use-sound-library';
+import { useSoundPreview } from '@videoEditor/hooks-cutia/use-sound-preview';
 import { useSoundsStore } from '@videoEditor/stores/sounds-store';
 import type { SavedSound, SoundEffect } from '@videoEditor/types/sounds';
-import { cn } from '@videoEditor/utils/ui';
-import { Filter, Star, Pause, Play, Plus } from 'lucide-react';
+import { Pause, Play, Plus, RefreshCw, Star } from 'lucide-react';
 
 export function SoundsView() {
   return (
@@ -42,283 +44,189 @@ export function SoundsView() {
         </div>
         <Separator className="my-4" />
         <TabsContent value="sound-effects" className="mt-0 flex min-h-0 flex-1 flex-col p-5 pt-0">
-          <SoundEffectsView />
+          <SoundLibraryPanel kind="effect" />
         </TabsContent>
         <TabsContent value="saved" className="mt-0 flex min-h-0 flex-1 flex-col p-5 pt-0">
           <SavedSoundsView />
         </TabsContent>
         <TabsContent value="songs" className="mt-0 flex min-h-0 flex-1 flex-col p-5 pt-0">
-          <SongsView />
+          <SoundLibraryPanel kind="music" />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function SoundEffectsView() {
-  const {
-    topSoundEffects,
-    isLoading,
-    searchQuery,
-    setSearchQuery,
-    scrollPosition,
-    setScrollPosition,
-    loadSavedSounds,
-    showCommercialOnly,
-    toggleCommercialFilter,
-    hasLoaded,
-    setTopSoundEffects,
-    setLoading,
-    setError,
-    setHasLoaded,
-    setCurrentPage,
-    setHasNextPage,
-    setTotalCount,
-  } = useSoundsStore();
-  const {
-    results: searchResults,
-    isLoading: isSearching,
-    loadMore,
-    hasNextPage,
-    isLoadingMore,
-  } = useSoundSearch({
-    query: searchQuery,
-    commercialOnly: showCommercialOnly,
-  });
+/**
+ * 声音库面板 —— 音效 / 音乐**共用一份**展示逻辑（自建本地库）。
+ *
+ * 【为什么音效与音乐合用一个组件（TD-22-47）】两者除「读哪个目录」外完全同构
+ * （搜索 → 列表 → 试听 / 入轨 / 收藏）。原 `SongsView` 是 `return <div>音乐</div>` 空壳、
+ * `SoundEffectsView` 自成一套 —— 若各写一份，第三个分类出现时必然是第三份。
+ */
+function SoundLibraryPanel({ kind }: { kind: SoundKind }) {
+  const { items, isLoading, error, dir, reload } = useSoundLibrary({ kind });
+  const [query, setQuery] = useState('');
+  const { playingId, toggle: togglePreview } = useSoundPreview();
+  const { loadSavedSounds } = useSoundsStore();
 
-  const [playingId, setPlayingId] = useState<number | null>(null);
-  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
-
-  const { scrollAreaRef, handleScroll } = useInfiniteScroll({
-    onLoadMore: loadMore,
-    hasMore: hasNextPage,
-    isLoading: isLoadingMore || isSearching,
-  });
-
+  // 收藏（爱心）状态依赖已保存列表 —— 与「库」本身无关，但同一面板要显示它。
   useEffect(() => {
     loadSavedSounds();
   }, [loadSavedSounds]);
 
-  useEffect(() => {
-    if (hasLoaded) {
-      return;
-    }
+  const label = kind === 'music' ? '音乐' : '音效';
 
-    let shouldIgnore = false;
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((item) => item.name.toLowerCase().includes(q));
+  }, [items, query]);
 
-    const fetchTopSounds = async () => {
-      try {
-        if (!shouldIgnore) {
-          setLoading({ loading: true });
-          setError({ error: null });
-        }
+  if (isLoading) {
+    return <PanelHint text={`正在加载${label}库…`} />;
+  }
 
-        const response = await fetch('/api/sounds/search?page_size=50&sort=downloads');
-
-        if (!shouldIgnore) {
-          if (!response.ok) {
-            throw new Error(`Failed to fetch: ${response.status}`);
-          }
-
-          const data = await response.json();
-          setTopSoundEffects({ sounds: data.results });
-          setHasLoaded({ loaded: true });
-
-          setCurrentPage({ page: 1 });
-          setHasNextPage({ hasNext: !!data.next });
-          setTotalCount({ count: data.count });
-        }
-      } catch (error) {
-        if (!shouldIgnore) {
-          logger.error('Failed to fetch top sounds:', error);
-          setError({
-            error: error instanceof Error ? error.message : 'Failed to load sounds',
-          });
-        }
-      } finally {
-        if (!shouldIgnore) {
-          setLoading({ loading: false });
-        }
-      }
-    };
-
-    const timeoutId = setTimeout(fetchTopSounds, 100, {});
-
-    return () => {
-      shouldIgnore = true;
-      clearTimeout(timeoutId);
-    };
-  }, [
-    hasLoaded,
-    setTopSoundEffects,
-    setLoading,
-    setError,
-    setHasLoaded,
-    setCurrentPage,
-    setHasNextPage,
-    setTotalCount,
-  ]);
-
-  useEffect(() => {
-    if (!scrollAreaRef.current || scrollPosition <= 0) {
-      return;
-    }
-
-    const restoreScrollPosition = () => {
-      scrollAreaRef.current?.scrollTo({ top: scrollPosition });
-    };
-
-    const timeoutId = setTimeout(restoreScrollPosition, 100, {});
-
-    return () => clearTimeout(timeoutId);
-  }, [scrollPosition, scrollAreaRef]);
-
-  const handleScrollWithPosition = ({ currentTarget }: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop } = currentTarget;
-    setScrollPosition({ position: scrollTop });
-    handleScroll({ currentTarget } as React.UIEvent<HTMLDivElement>);
-  };
-
-  const displayedSounds = searchQuery ? searchResults : topSoundEffects;
-
-  const playSound = ({ sound }: { sound: SoundEffect }) => {
-    if (playingId === sound.id) {
-      audioElement?.pause();
-      setPlayingId(null);
-      return;
-    }
-
-    audioElement?.pause();
-
-    if (sound.previewUrl) {
-      const audio = new Audio(sound.previewUrl);
-      audio.addEventListener('ended', () => {
-        setPlayingId(null);
-      });
-      audio.addEventListener('error', () => {
-        setPlayingId(null);
-      });
-      audio.play().catch((error: DOMException) => {
-        if (error.name === 'AbortError') return;
-        logger.error('Failed to play sound preview:', error);
-        setPlayingId(null);
-      });
-
-      setAudioElement(audio);
-      setPlayingId(sound.id);
-    }
-  };
+  if (error) {
+    // TD-22-47 的**失败可见**：旧实现是 `response.ok` 为假 → 静默空面板（用户分不清"没有"与"坏了"）。
+    return (
+      <PanelHint
+        tone="error"
+        text={`${label}库加载失败`}
+        hint={error}
+        action={{ label: '重试', onClick: reload }}
+      />
+    );
+  }
 
   return (
-    <div className="mt-1 flex h-full flex-col gap-5">
-      <div className="flex items-center gap-3">
+    <div className="mt-1 flex h-full flex-col gap-3">
+      <div className="flex items-center gap-2">
         <Input
-          placeholder={'搜索音效'}
+          placeholder={`搜索${label}`}
           className="bg-accent w-full"
           containerClassName="w-full"
-          value={searchQuery}
-          onChange={({ currentTarget }) => setSearchQuery({ query: currentTarget.value })}
+          value={query}
+          onChange={({ currentTarget }) => setQuery(currentTarget.value)}
           showClearIcon
-          onClear={() => setSearchQuery({ query: '' })}
+          onClear={() => setQuery('')}
         />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="text" size="icon" className={cn(showCommercialOnly && 'text-primary')}>
-              <Filter />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuCheckboxItem
-              checked={showCommercialOnly}
-              onCheckedChange={() => toggleCommercialFilter()}
-            >
-              {'仅显示商业授权'}
-            </DropdownMenuCheckboxItem>
-            <div className="text-muted-foreground px-2 py-1.5 text-xs">
-              {showCommercialOnly ? '仅显示可用于商业用途的音效' : '显示所有音效（不限授权）'}
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="text"
+                size="icon"
+                className="items-center justify-center"
+                onClick={reload}
+              >
+                <RefreshCw />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{'重新扫描本地声音目录'}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
-      <div className="relative h-full overflow-hidden">
-        <ScrollArea
-          className="h-full flex-1"
-          ref={scrollAreaRef}
-          onScrollCapture={handleScrollWithPosition}
-        >
-          <div className="flex flex-col gap-4">
-            {isLoading && !searchQuery && (
-              <div className="text-muted-foreground text-sm">{'正在加载音效…'}</div>
-            )}
-            {isSearching && searchQuery && (
-              <div className="text-muted-foreground text-sm">{'搜索中…'}</div>
-            )}
-            {displayedSounds.map((sound) => (
-              <AudioItem
-                key={sound.id}
-                sound={sound}
-                isPlaying={playingId === sound.id}
-                onPlay={playSound}
-              />
-            ))}
-            {!isLoading && !isSearching && displayedSounds.length === 0 && (
-              <div className="text-muted-foreground text-sm">
-                {searchQuery ? '未找到音效' : '没有可用音效'}
-              </div>
-            )}
-            {isLoadingMore && (
-              <div className="text-muted-foreground py-4 text-center text-sm">
-                {'正在加载更多音效…'}
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-      </div>
+      {items.length === 0 ? (
+        /* 空库 = **合法状态**（不是错误）：告诉用户"放哪儿"。`dir` 是后端给的真源，前端不拼路径。 */
+        <PanelHint
+          text={`${label}库是空的`}
+          hint={dir ? `把音频文件放进 uploads/${dir}/ 后点右上角刷新` : undefined}
+        />
+      ) : (
+        <div className="relative h-full overflow-hidden">
+          <ScrollArea className="h-full flex-1">
+            <div className="flex flex-col gap-4">
+              {filtered.map((item) => (
+                <AudioItem
+                  key={item.id}
+                  sound={toSoundEffect(item)}
+                  isPlaying={playingId === item.id}
+                  onPlay={togglePreview}
+                />
+              ))}
+              {filtered.length === 0 && (
+                <div className="text-muted-foreground text-sm">{`未找到匹配的${label}`}</div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
     </div>
   );
+}
+
+/** 面板级占位（加载 / 错误 / 空库）—— 三态视觉一致，避免"空的"和"坏的"长得一样。 */
+function PanelHint({
+  text,
+  hint,
+  tone,
+  action,
+}: {
+  text: string;
+  hint?: string;
+  tone?: 'error';
+  action?: { label: string; onClick: () => void };
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
+      <p className={tone === 'error' ? 'text-destructive text-sm' : 'text-lg font-medium'}>
+        {text}
+      </p>
+      {hint && <p className="text-muted-foreground text-balance text-sm">{hint}</p>}
+      {action && (
+        <Button variant="outline" size="sm" onClick={action.onClick}>
+          {action.label}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 本地库条目 → 面板与存档沿用的 `SoundEffect` 形状。
+ * 第三方时代的字段（username/downloads/rating…）给**中性默认值**，不伪造数据。
+ */
+function toSoundEffect(item: SoundLibraryItem): SoundEffect {
+  return {
+    id: item.id,
+    name: item.name,
+    description: '',
+    url: item.url,
+    previewUrl: item.url,
+    downloadUrl: item.url,
+    // 时长不在清单里（后端不读音频元数据）；入轨时由 addSoundToTimeline 解出的真实 buffer 提供。
+    duration: 0,
+    filesize: item.size,
+    type: 'audio',
+    channels: 0,
+    bitrate: 0,
+    bitdepth: 0,
+    samplerate: 0,
+    username: '本地库',
+    tags: [],
+    license: '',
+    created: '',
+    downloads: 0,
+    rating: 0,
+    ratingCount: 0,
+  };
 }
 
 function SavedSoundsView() {
   const { savedSounds, isLoadingSavedSounds, savedSoundsError, loadSavedSounds, clearSavedSounds } =
     useSoundsStore();
 
-  const [playingId, setPlayingId] = useState<number | null>(null);
-  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const { playingId, toggle: togglePreview } = useSoundPreview();
 
   const [showClearDialog, setShowClearDialog] = useState(false);
 
   useEffect(() => {
     loadSavedSounds();
   }, [loadSavedSounds]);
-
-  const playSound = ({ sound }: { sound: SoundEffect }) => {
-    if (playingId === sound.id) {
-      audioElement?.pause();
-      setPlayingId(null);
-      return;
-    }
-
-    audioElement?.pause();
-
-    if (sound.previewUrl) {
-      const audio = new Audio(sound.previewUrl);
-      audio.addEventListener('ended', () => {
-        setPlayingId(null);
-      });
-      audio.addEventListener('error', () => {
-        setPlayingId(null);
-      });
-      audio.play().catch((error: DOMException) => {
-        if (error.name === 'AbortError') return;
-        logger.error('Failed to play sound preview:', error);
-        setPlayingId(null);
-      });
-
-      setAudioElement(audio);
-      setPlayingId(sound.id);
-    }
-  };
 
   const convertToSoundEffect = ({ savedSound }: { savedSound: SavedSound }): SoundEffect => ({
     id: savedSound.id,
@@ -423,7 +331,7 @@ function SavedSoundsView() {
                 key={sound.id}
                 sound={convertToSoundEffect({ savedSound: sound })}
                 isPlaying={playingId === sound.id}
-                onPlay={playSound}
+                onPlay={togglePreview}
               />
             ))}
           </div>
@@ -431,10 +339,6 @@ function SavedSoundsView() {
       </div>
     </div>
   );
-}
-
-function SongsView() {
-  return <div>{'音乐'}</div>;
 }
 
 interface AudioItemProps {

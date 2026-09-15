@@ -214,7 +214,6 @@ class StorageService {
       settings: project.settings,
       version: project.version,
       timelineViewState: project.timelineViewState,
-      agentMessages: project.agentMessages,
     };
 
     // ── T3：写单工程本体走 KV 严格族 CAS（docs/133 §3.5 D-4，禁静默覆盖）。
@@ -291,7 +290,6 @@ class StorageService {
       settings: serializedProject.settings,
       version: serializedProject.version,
       timelineViewState: serializedProject.timelineViewState,
-      agentMessages: serializedProject.agentMessages ?? [],
     };
 
     return { project };

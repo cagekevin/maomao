@@ -25,7 +25,6 @@ import {
 import {
   AddMediaAssetCommand,
   AddTrackCommand,
-  BatchCommand,
   type Command,
   InsertElementCommand,
 } from '@videoEditor/engine/commands';
@@ -226,7 +225,10 @@ export function useEditorActions() {
       editor.timeline.deleteElements({
         elements: selectedElements,
       });
-      editor.selection.clearSelection();
+      // 【此处原有一句 `selection.clearSelection()`，已删】选择的有效性由
+      // SelectionManager 读取侧与 tracks 求交决定 —— 被删元素自动失效，
+      // 撤销后元素回来选择也自动恢复。手写清理是「谁删除谁记得清」的散落判据，
+      // 且它恰好漏掉了素材连带删除 / 删轨道 / 删场景三条路径（TD-22-26）。
     },
     undefined,
   );
@@ -329,10 +331,12 @@ export function useEditorActions() {
           options: DEFAULT_EXPORT_OPTIONS,
         });
 
-        if (!result.success || !result.buffer) {
+        // 判别联合：单判 `ok` 即可（原 `!success || !buffer` 双检已消除，TD-22-38②）。
+        // 注：本调用未传 `onCancel`（DEFAULT_EXPORT_OPTIONS 无它），故 cancelled 分支实际不可达。
+        if (!result.ok) {
           toast.error(i18next.t('Failed to export clip'), {
             id: toastId,
-            description: result.error,
+            description: result.reason === 'cancelled' ? undefined : result.message,
           });
           return;
         }
@@ -408,7 +412,7 @@ export function useEditorActions() {
       (async () => {
         let assetId: string | undefined;
         let objectUrl: string | undefined;
-        let batchCommand: BatchCommand | undefined;
+        let batchCommand: Command | null = null;
         let commandStarted = false;
         let committed = false;
 
@@ -480,9 +484,9 @@ export function useEditorActions() {
             placement: { mode: 'explicit', trackId: targetTrackId },
           });
           commands.push(insertCommand);
-          batchCommand = new BatchCommand(commands);
-          commandStarted = true;
-          editor.command.execute({ command: batchCommand });
+          // 一次动作 = 一条历史条目；0/1/N 的打包判据收口在 executeBatch（TD-22-51）。
+          batchCommand = editor.command.executeBatch({ commands });
+          commandStarted = batchCommand !== null;
           committed = true;
 
           setElementSelection({

@@ -1,6 +1,7 @@
 import { logger } from '@videoEditor/lib/logger';
 import type { EditorCore } from '@videoEditor/engine/core';
 import type {
+  SaveOutcome,
   TProject,
   TProjectMetadata,
   TProjectSortKey,
@@ -11,7 +12,7 @@ import type {
 import type { ExportOptions, ExportResult } from '@videoEditor/types/export';
 // 更新(2026-09-14)：agent-store 已随 AI 域删除，agentMessages 相关读写一并移除。
 import { storageService } from '@videoEditor/engine/services/storage/service';
-// 409 判别（T3 验收②）：版本冲突必须 UI 可见，见 saveCurrentProject 的 catch。
+// 409 判别（T3 验收②）：版本冲突必须如实分类（saveCurrentProject 的 catch）。
 import { HttpError } from '../../../../base/api/httpClient.ts';
 import { toast } from '@videoEditor/lib/toast';
 import { generateUUID } from '@videoEditor/utils/id';
@@ -99,10 +100,12 @@ export class ProjectManager {
       version: CURRENT_PROJECT_VERSION,
     };
 
+    // 新建 = 换到一份空上下文：先释放旧项目的一切（走唯一入口），再落新项目。
+    this.editor.releaseProjectContext();
+
     this.active = newProject;
     this.notify();
 
-    this.editor.media.clearAllAssets();
     this.editor.scenes.initializeScenes({
       scenes: newProject.scenes,
       currentSceneId: newProject.currentSceneId,
@@ -126,7 +129,14 @@ export class ProjectManager {
     }
 
     if (this.active) {
-      await this.editor.save.flush();
+      // 切工程前必须**真正**落盘 —— flush 现在先等掉在途保存、再保存一次并返回真实结果（TD-22-33）。
+      // 失败不阻断切换（用户已通过 SaveManager 的提示知道"本次改动没保存"），但要留痕。
+      const saveOutcome = await this.editor.save.flush();
+      if (!saveOutcome.ok) {
+        logger.warn('视频剪辑器：切工程前保存未成功，旧工程可能丢失最后一次改动', {
+          reason: saveOutcome.reason,
+        });
+      }
     }
     this.editor.save.pause();
     await this.ensureStorageMigrations();
@@ -139,8 +149,9 @@ export class ProjectManager {
 
       const project = result.project;
 
-      this.editor.media.clearAllAssets();
-      this.editor.scenes.clearScenes();
+      // 加载成功之后才释放旧上下文 —— 加载失败时保留当前项目（见下方 catch）。
+      // 释放走唯一入口（原为手写的 media+scenes 两行，漏了命令栈/选择/音频 → TD-22-45/46）。
+      this.editor.releaseProjectContext();
 
       this.active = project;
       this.notify();
@@ -152,11 +163,18 @@ export class ProjectManager {
         });
       }
 
-      await this.editor.media.loadProjectMedia({ projectId: id });
+      // 素材加载失败**不阻断**工程加载（场景/时间轴仍可用），但必须对用户可见：
+      // 可见性真源 = `media.loadError`（持续状态 → 素材面板渲染错误态，TD-22-43②）；
+      // `superseded` 是正常并发丢弃（更新的加载已接手），**不**提示。
+      const mediaOutcome = await this.editor.media.loadProjectMedia({ projectId: id });
+      if (!mediaOutcome.ok && mediaOutcome.reason === 'load-failed') {
+        logger.warn('视频剪辑器：素材加载失败，素材面板将显示错误态', mediaOutcome.message);
+      }
 
       if (!project.metadata.thumbnail) {
         const didUpdateThumbnail = await this.updateThumbnailFromTimeline();
         if (didUpdateThumbnail) {
+          // 缩略图落盘失败不阻断工程加载（附属信息）；失败已由 saveCurrentProject 留痕。
           await this.saveCurrentProject();
         }
       }
@@ -170,8 +188,16 @@ export class ProjectManager {
     }
   }
 
-  async saveCurrentProject(): Promise<void> {
-    if (!this.active) return;
+  /**
+   * 保存当前工程。
+   *
+   * 【为什么返回判别、且失败**不再吞**（TD-22-33 根因的另一半）】原实现在此 `catch` 里吞掉失败
+   * （非 409 只 `logger.error`、**不 rethrow**、`return` void）→ `SaveManager.saveNow` 的 `await`
+   * 无论成败都"成功返回" → **脏数据被当作已保存**（`hasPendingSave` 被清、`beforeunload` 也不再拦），
+   * 用户零感知。现在如实返回判别；**可见性由唯一读者 `SaveManager` 给**（它知道"自动保存失败"这件事）。
+   */
+  async saveCurrentProject(): Promise<SaveOutcome> {
+    if (!this.active) return { ok: false, reason: 'no-project', message: '没有活跃工程' };
 
     try {
       const scenes = this.editor.scenes.getScenes();
@@ -189,19 +215,20 @@ export class ProjectManager {
       await storageService.saveProject({ project: updatedProject });
       this.active = updatedProject;
       this.updateMetadata(updatedProject);
+      return { ok: true };
     } catch (error) {
-      // ── 409（版本冲突）必须**在 UI 侧可见**（docs/134 T3 验收② / docs/133 §3.5 D-4）：
-      // 服务端拒收 = 本次一个字节都没写，用户必须知道"改动没保存"，绝不能只 console.error 静默吞掉。
-      // 非 409（网络/5xx/代码 bug）保持原样：只记日志，不弹误导性的"冲突"提示。
+      // ── 409（版本冲突）：服务端拒收 = 本次一个字节都没写 —— 单独一类（docs/134 T3 验收② /
+      // docs/133 §3.5 D-4）。此处只**如实分类 + 留痕**，用户提示交给 SaveManager（同一读者层）。
       if (error instanceof HttpError && error.status === 409) {
         logger.warn('视频剪辑器：工程保存被拒（版本冲突，本次未写入）', error);
-        toast.error('作品已在别处被修改', {
-          description: '本次改动未保存。请刷新后重试，避免覆盖他人修改。',
-          duration: 8000,
-        });
-      } else {
-        logger.error('Failed to save project:', error);
+        return { ok: false, reason: 'conflict', message: '本次改动未保存，请刷新后重试' };
       }
+      logger.error('Failed to save project:', error);
+      return {
+        ok: false,
+        reason: 'save-failed',
+        message: error instanceof Error ? error.message : '保存失败',
+      };
     }
   }
 
@@ -248,10 +275,10 @@ export class ProjectManager {
 
       const shouldClearActive = this.active && idSet.has(this.active.metadata.id);
 
+      // 删掉的正是当前项目 → 释放整个上下文（唯一入口）。
+      // 删的是别的项目时**不动**当前会话 —— 它没被影响。
       if (shouldClearActive) {
-        this.active = null;
-        this.editor.media.clearAllAssets();
-        this.editor.scenes.clearScenes();
+        this.editor.releaseProjectContext();
       }
 
       this.notify();
@@ -260,12 +287,19 @@ export class ProjectManager {
     }
   }
 
-  closeProject(): void {
+  /**
+   * 清空「活跃项目」这一项（**只动 active**）。
+   *
+   * 【为什么只有这一项】项目列表 / 无效 id 集 / 初始化标记都是**跨项目**状态，
+   * 不属于「当前项目上下文」，不能连坐清掉。
+   * 【调用方】`EditorCore.releaseProjectContext()` —— 上下文释放的唯一编排点，
+   * 本方法只是它在 ProjectManager 上的一格。
+   * 【历史】原方法名 `closeProject()` 且顺手清了 media+scenes —— 那种「一个方法清一半」
+   * 正是 4 处散写、处处漏记的来源（命令栈/选择/音频无人清 → TD-22-45/46）。已删名。
+   */
+  clearActive(): void {
     this.active = null;
     this.notify();
-
-    this.editor.media.clearAllAssets();
-    this.editor.scenes.clearScenes();
   }
 
   async renameProject({ id, name }: { id: string; name: string }): Promise<void> {
@@ -458,13 +492,17 @@ export class ProjectManager {
     if (!this.active) return;
 
     try {
-      const didUpdateThumbnail = await this.updateThumbnailFromTimeline();
-      if (didUpdateThumbnail) {
-        await this.editor.save.flush();
-      }
+      await this.updateThumbnailFromTimeline();
     } catch (error) {
+      // 缩略图是附属信息：失败不阻断退出（退出是用户意志），留痕后继续落盘。
       logger.error('Failed to generate project thumbnail on exit:', error);
     }
+
+    // 【为什么**无条件** flush（TD-22-33）】原实现把 flush 放在 `if (didUpdateThumbnail)` 里 ——
+    // 退出时若没有更新缩略图，防抖队列里的**最后变更根本不落盘**（退出 = 丢改动）。
+    // flush 现在返回真实结果（先等掉在途保存、再真正保存一次），失败也已由 SaveManager
+    // 给用户可见提示（自动保存的唯一读者），故此处的失败不阻断退出。
+    await this.editor.save.flush();
   }
 
   getFilteredAndSortedProjects({

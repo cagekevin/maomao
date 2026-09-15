@@ -2,6 +2,7 @@
 
 import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
 import { useAssetsPanelStore } from '@videoEditor/stores/assets-panel-store';
+import { buildIconSvgUrl } from '@videoEditor/engine/lib/iconify-api';
 import AudioWaveform from './audio-waveform';
 import { useTimelineElementResize } from '@videoEditor/hooks-cutia/timeline/element/use-element-resize';
 import type { SnapPoint } from '@videoEditor/hooks-cutia/timeline/use-timeline-snapping';
@@ -379,7 +380,7 @@ function ElementContent({
     return (
       <div className="flex size-full items-center gap-2 pl-2">
         <img
-          src={`https://api.iconify.design/${element.iconName}.svg?width=20&height=20`}
+          src={buildIconSvgUrl(element.iconName, { width: 20, height: 20 })}
           alt={element.name}
           className="size-5 shrink-0"
           width={20}

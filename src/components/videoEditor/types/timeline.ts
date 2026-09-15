@@ -105,7 +105,18 @@ interface BaseTimelineElement {
   duration: number;
   startTime: number;
   trimStart: number;
-  trimEnd: number;
+  // ── 【没有 `trimEnd`（2026-09-15 删除 · TD-22-21）】────────────────────
+  // 它曾是「源素材右侧还剩多少没用」的**冗余副本**：
+  //     素材总长 = trimStart + duration × playbackRate + trimEnd
+  // 而素材总长的**真源**是 media asset 的 `duration`（上传时读元数据得到，见 processing.ts）。
+  // 删除依据（逐条取证）：
+  //   · 真正读它的只有 **1 处** —— `use-element-resize` 的拖拽边界（现已改问 media.duration）；
+  //   · 渲染取帧 / 导出解码 / 音频混音**从不读它**（都自算 `trimStart + duration × rate`），
+  //     只是把它在 `AudioMixSource` / `VisualNodeParams` 里搬来搬去（无消费者）；
+  //   · 且两处对它的**语义理解互相矛盾**：resize 按 `+ trimEnd` 反推素材总长，
+  //     而 `split-elements` 的注释按 `= trimStart + duration×rate` 当"源出点"用 —— 一字段两义。
+  // 冗余副本 + 语义漂移 = 拖拽边界会算错（split 就漂过），删掉即根治。
+  // 兼容：旧工程存档里的该字段成为未知字段，反序列化时被忽略（无人读 → 无行为变化）。
 }
 
 export interface VideoElement extends BaseTimelineElement {

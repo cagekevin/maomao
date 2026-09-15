@@ -47,18 +47,20 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
   /**
    * 切换到另一部片子（T5-C）。
    *
-   * 【顺序不可颠倒】close → 写 active 键 → load。
-   *  · 先 closeProject 释放引擎旧态（媒体/场景清空）；
+   * 【顺序不可颠倒】release → 写 active 键 → load。
+   *  · 先 releaseProjectContext 放弃引擎旧态（命令栈/选择/音频/播放/媒体/场景一并重置）——
+   *    必须在写 active 键之前：此后若 load 失败，旧项目已被显式放弃，界面是诚实的空态，
+   *    而不是「留着 A 的画面、active 键却指向 B」的错位；
    *  · 再 saveActiveEditorId（内部同时补全存储上下文 editorId）——**必须在 load 之前**，
    *    否则 loadProject 仍按旧 editorId 组键，读回的还是上一部；
-   *  · 最后 loadProject，引擎重新填充媒体/场景。
+   *  · 最后 loadProject，引擎重新填充媒体/场景（其内部会再收口一次，幂等）。
    */
   const handleSwitchProject = async (editorId: string) => {
     if (isSwitching || editorId === activeProject?.metadata.id) return;
     setIsSwitching(true);
     try {
       await editor.project.prepareExit();
-      editor.project.closeProject();
+      editor.releaseProjectContext();
       await storageService.saveActiveEditorId({ editorId });
       await editor.project.loadProject({ id: editorId });
       await editor.project.loadAllProjects();
@@ -77,7 +79,7 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
     setIsSwitching(true);
     try {
       await editor.project.prepareExit();
-      editor.project.closeProject();
+      editor.releaseProjectContext();
       const newId = await editor.project.createNewProject({ name: '未命名作品' });
       await storageService.saveActiveEditorId({ editorId: newId });
       await editor.project.loadAllProjects();
@@ -90,7 +92,7 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
     }
   };
 
-  // 退出善后（prepareExit + closeProject）已收口到 EditorShell 的 exitEditorToCanvas，
+  // 退出善后（prepareExit + releaseProjectContext）已收口到 EditorShell 的 exitEditorToCanvas，
   // 此处只触发宿主回调；onExit 缺省时整个入口不渲染（下方按钮条件）。
 
   const handleSaveProjectName = async (newName: string) => {

@@ -33,11 +33,13 @@ import { EditorCore } from '@videoEditor/engine/core';
  * 退出编辑器（返回画布）——**唯一协议**，所有退出入口（右上角 X、header 菜单「退出项目」）共用。
  *
  * 顺序死约定（不可颠倒）：
- *   ① prepareExit   — flush 落盘（脏数据不丢）；内部已 catch 留痕，失败不阻断退出（退出是用户意志）；
- *   ② closeProject  — 清引擎内存态（active=null、媒体/场景清空）；
- *   ③ onExit        — 宿主关层 → 卸载本组件（unmount cleanup 清存储上下文）。
+ *   ① prepareExit            — **无条件** flush 落盘（脏数据不丢；TD-22-33 已修：原来只在更新了
+ *                              缩略图时才 flush，退出时会丢掉队列里的最后变更）。flush 不抛，
+ *                              失败已由 SaveManager 给用户可见提示，故不阻断退出（退出是用户意志）；
+ *   ② releaseProjectContext  — 重置引擎内存态（命令栈/选择/音频/播放/媒体/场景/活跃项目，**唯一入口**）；
+ *   ③ onExit                 — 宿主关层 → 卸载本组件（unmount cleanup 清存储上下文）。
  *
- * closeProject 之后必须立刻卸载——不存在「退出了还挂着」的停留态。
+ * ② 之后必须立刻卸载——不存在「退出了还挂着」的停留态。
  * （反例：header 里旧的 handleExit 做完 ①② 就停，active=null 触发 Provider 的
  *  「正在退出工程…」分支且无人接力关层 → 永久卡死。已删。）
  */
@@ -48,7 +50,7 @@ async function exitEditorToCanvas(onExit: () => void): Promise<void> {
   try {
     const editor = EditorCore.getInstance();
     await editor.project.prepareExit();
-    editor.project.closeProject();
+    editor.releaseProjectContext();
   } finally {
     isExiting = false;
     onExit();

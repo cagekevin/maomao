@@ -56,6 +56,8 @@ export function MediaView() {
   const editor = useEditor();
   const mediaFiles = editor.media.getAssets();
   const activeProject = editor.project.getActive();
+  // TD-22-43②：加载失败的持续状态真源（重渲染由 use-editor 对 media.subscribe 驱动）。
+  const loadError = editor.media.getLoadError();
 
   const { mediaViewMode, setMediaViewMode, highlightMediaId, clearHighlight } =
     useAssetsPanelStore();
@@ -81,6 +83,7 @@ export function MediaView() {
         onProgress: (progress: { progress: number }) => setProgress(progress.progress),
       });
       for (const asset of processedAssets) {
+        // 判别联合：失败时 MediaManager 已回滚该条并已逐条 toast（TD-22-37），此处无需二次判。
         await editor.media.addMediaAsset({
           projectId: activeProject.metadata.id,
           asset,
@@ -365,7 +368,26 @@ export function MediaView() {
               if (event.target === event.currentTarget) handleClearSelection();
             }}
           >
-            {isDragOver || filteredMediaItems.length === 0 ? (
+            {loadError && filteredMediaItems.length === 0 ? (
+              /* ── 失败可见性（2026-09-15 · TD-22-43②）：素材加载失败原来只记 logger →
+                 用户看到的是**静默空面板**（以为"这个工程没素材"）。持续状态给对读者 = 面板错误态
+                 （不是 toast——toast 逝去即失明，而"面板是空的"是持续状态）。 */
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+                <p className="text-destructive text-sm">{'素材加载失败'}</p>
+                <p className="text-muted-foreground text-xs break-all">{loadError}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    void editor.media.loadProjectMedia({
+                      projectId: activeProject.metadata.id,
+                    });
+                  }}
+                >
+                  {'重试'}
+                </Button>
+              </div>
+            ) : isDragOver || filteredMediaItems.length === 0 ? (
               <MediaDragOverlay
                 isVisible={true}
                 isProcessing={isProcessing}

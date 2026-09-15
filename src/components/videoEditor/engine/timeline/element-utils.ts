@@ -1,6 +1,7 @@
 import { DEFAULT_TEXT_ELEMENT } from '@videoEditor/constants/text-constants';
 import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
 import type {
+  CreateTextElement,
   CreateTimelineElement,
   CreateVideoElement,
   CreateImageElement,
@@ -144,13 +145,22 @@ export function getVisualSourceTime({
   return elapsed === 0 ? Math.max(trimStart, sourceTime - 1e-6) : sourceTime;
 }
 
+/**
+ * 文本元素构造函数（**唯一**路径；`DEFAULT_TEXT_ELEMENT` 单源的消费方）。
+ *
+ * 【返回类型 = `CreateTextElement`，不是 `CreateTimelineElement`（2026-09-15 收窄）】
+ * 本函数**恒定**产出 `type:'text'`，此前声明为 `CreateTimelineElement`（5 支联合）属**过宽**：
+ * 消费方（`createSubtitleFromTemplate` 及其调用方 captions.tsx / 测试）拿到联合类型后，
+ * 访问 `.content` / `.fontSize` 等文本字段全部报「不存在于 CreateUploadAudioElement」——
+ * 把本该由**产出者**保证的形态，变成消费方的类型噪音。
+ */
 export function buildTextElement({
   raw,
   startTime,
 }: {
   raw: Partial<Omit<TextElement, 'type' | 'id'>>;
   startTime: number;
-}): CreateTimelineElement {
+}): CreateTextElement {
   const t = raw as Partial<TextElement>;
 
   return {
@@ -160,7 +170,6 @@ export function buildTextElement({
     duration: t.duration ?? TIMELINE_CONSTANTS.DEFAULT_ELEMENT_DURATION,
     startTime,
     trimStart: 0,
-    trimEnd: 0,
     fontSize: typeof t.fontSize === 'number' ? t.fontSize : DEFAULT_TEXT_ELEMENT.fontSize,
     fontFamily: t.fontFamily ?? DEFAULT_TEXT_ELEMENT.fontFamily,
     color: t.color ?? DEFAULT_TEXT_ELEMENT.color,
@@ -190,7 +199,6 @@ export function buildStickerElement({
     duration: TIMELINE_CONSTANTS.DEFAULT_ELEMENT_DURATION,
     startTime,
     trimStart: 0,
-    trimEnd: 0,
     transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
     opacity: 1,
   };
@@ -202,14 +210,12 @@ export function buildVideoElement({
   duration,
   startTime,
   trimStart = 0,
-  trimEnd = 0,
 }: {
   mediaId: string;
   name: string;
   duration: number;
   startTime: number;
   trimStart?: number;
-  trimEnd?: number;
 }): CreateVideoElement {
   return {
     type: 'video',
@@ -218,7 +224,6 @@ export function buildVideoElement({
     duration,
     startTime,
     trimStart,
-    trimEnd,
     muted: false,
     hidden: false,
     transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
@@ -244,7 +249,6 @@ export function buildImageElement({
     duration,
     startTime,
     trimStart: 0,
-    trimEnd: 0,
     hidden: false,
     transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
     opacity: 1,
@@ -272,7 +276,6 @@ export function buildUploadAudioElement({
     duration,
     startTime,
     trimStart: 0,
-    trimEnd: 0,
     volume: 1,
     muted: false,
   };
@@ -303,7 +306,6 @@ export function buildLibraryAudioElement({
     duration,
     startTime,
     trimStart: 0,
-    trimEnd: 0,
     volume: 1,
     muted: false,
   };

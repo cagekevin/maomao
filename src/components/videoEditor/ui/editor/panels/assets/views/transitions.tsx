@@ -10,7 +10,7 @@ import {
   DEFAULT_TRANSITION_DURATION,
   type TransitionPreset,
 } from '@videoEditor/constants/transition-constants';
-import type { TransitionType, VideoTrack } from '@videoEditor/types/timeline';
+import type { TransitionType } from '@videoEditor/types/timeline';
 import { toast } from '@videoEditor/lib/toast';
 import { cn } from '@videoEditor/utils/ui';
 import {
@@ -19,7 +19,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@videoEditor/ui/ui/tooltip';
-import { findAdjacentPairs } from '@videoEditor/engine/timeline/transition-utils';
 
 export function TransitionsView() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -94,10 +93,19 @@ function TransitionPresetCard({ preset }: { preset: TransitionPreset }) {
   const editor = useEditor();
 
   const handleApplyTransition = () => {
-    applyTransitionToAdjacentPairs({
-      editor,
-      transitionType: preset.type,
+    // 批量应用 = **一次调用**：判据（轨道是不是 video / 元素在不在 / 是否相邻）与命令构造
+    // 都在 `TimelineManager`，且整批只入栈**一条**历史条目（撤销一次全回）—— TD-22-51。
+    // UI 只负责「表达意图 + 报结果」。
+    const { applied } = editor.timeline.addTransitionsToAdjacentPairs({
+      type: preset.type,
+      duration: DEFAULT_TRANSITION_DURATION,
     });
+
+    if (applied === 0) {
+      toast.info('No adjacent clips found. Place clips next to each other on a video track first.');
+      return;
+    }
+    toast.success(`Applied ${preset.type} to ${applied} junction(s)`);
   };
 
   return (
@@ -304,37 +312,10 @@ function getArrowPath({ direction }: { direction: string }): string {
   }
 }
 
-function applyTransitionToAdjacentPairs({
-  editor,
-  transitionType,
-}: {
-  editor: ReturnType<typeof useEditor>;
-  transitionType: TransitionType;
-}) {
-  const tracks = editor.timeline.getTracks();
-  let applied = 0;
-
-  for (const track of tracks) {
-    if (track.type !== 'video') continue;
-
-    const videoTrack = track as VideoTrack;
-    const pairs = findAdjacentPairs({ track: videoTrack });
-
-    for (const pair of pairs) {
-      const result = editor.timeline.addTransition({
-        trackId: track.id,
-        fromElementId: pair.from.id,
-        toElementId: pair.to.id,
-        type: transitionType,
-        duration: DEFAULT_TRANSITION_DURATION,
-      });
-      if (result) applied++;
-    }
-  }
-
-  if (applied === 0) {
-    toast.info('No adjacent clips found. Place clips next to each other on a video track first.');
-  } else {
-    toast.success(`Applied ${transitionType} to ${applied} junction(s)`);
-  }
-}
+// 【已删：`applyTransitionToAdjacentPairs`（2026-09-15 · TD-22-51）】
+// 它原先在本文件里循环调 `editor.timeline.addTransition` N 次 —— 三条错：
+//   ① 一次点击入栈 N 条历史条目（撤销要按 N 次，用户以为撤销坏了）；
+//   ② UI 层重复了「轨道是不是 video / 元素在不在 / 是否相邻」的判据（判据第二份）；
+//   ③ 判据与命令构造被拆在两个文件里。
+// 现整体下沉为 `TimelineManager.addTransitionsToAdjacentPairs`（判据单点 + 整批一条历史条目，
+// 经 `CommandManager.executeBatch`）。**不要**在本层再拼一次。

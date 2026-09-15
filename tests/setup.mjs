@@ -167,6 +167,71 @@ if (typeof globalThis.Element !== 'undefined') {
   }
 }
 
+// jsdom 至今不实现 URL.createObjectURL / revokeObjectURL。
+// 剪辑器媒体层会在清理素材时**无条件**调 `URL.revokeObjectURL(asset.url)`
+// （`MediaManager.clearAllAssets` / `removeMediaAsset`），缺垫片即抛
+// "URL.revokeObjectURL is not a function" —— 任何「造 @videoEditor 媒体上下文」的用例
+// 都跑不起来（= 该层在 jsdom 下不可测）。与上面的 PointerEvent 同性质：jsdom 缺标准 API。
+// 取舍：只满足「存在、返回可辨识字符串、不抛」，不做真实 blob↔URL 映射
+// （测试不断言对象 URL 可被 fetch 解析；真实语义由浏览器内核保证）。
+if (typeof globalThis.URL !== 'undefined') {
+  let __objectUrlSeq = 0;
+  if (!globalThis.URL.createObjectURL) {
+    // shim：真实签名是 (Blob|MediaSource)=>string，测试只关心「有个稳定字符串」
+    globalThis.URL.createObjectURL = shim(() => `blob:test/${++__objectUrlSeq}`);
+  }
+  if (!globalThis.URL.revokeObjectURL) {
+    globalThis.URL.revokeObjectURL = shim(() => {});
+  }
+}
+
+// jsdom 不实现 Web Audio（`AudioContext` / `webkitAudioContext` 双缺失）。
+// 剪辑器的 `PlaybackManager.play()` → `AudioManager.handlePlaybackChange` → `startPlayback`
+// → `createAudioContext()`（`engine/lib/media/audio.ts`）会 `new AudioContextConstructor()`，
+// 双缺失时抛 "AudioContextConstructor is not a constructor" 的**未处理 rejection**
+// —— 任何「让剪辑器进入播放态」的用例都会挂上这个噪音（vitest 会标 Unhandled Error）。
+// 与上面的 PointerEvent / URL.createObjectURL 同性质：jsdom 缺标准 API。
+// 取舍：只满足该层真正调用到的方法（state/currentTime/destination/resume/close/
+// createGain/createBufferSource/decodeAudioData），不模拟音频时序
+// （测试不断言声音，只断言「不抛 + 状态机正确」）。
+if (typeof globalThis.AudioContext === 'undefined') {
+  class AudioContextStub {
+    constructor() {
+      this.state = 'running';
+      this.currentTime = 0;
+      this.destination = {};
+    }
+    resume() {
+      return Promise.resolve();
+    }
+    close() {
+      return Promise.resolve();
+    }
+    createGain() {
+      return { gain: { value: 1 }, connect() {}, disconnect() {} };
+    }
+    createBufferSource() {
+      return {
+        buffer: null,
+        playbackRate: { value: 1 },
+        connect() {},
+        disconnect() {},
+        start() {},
+        stop() {},
+        addEventListener() {},
+        removeEventListener() {},
+      };
+    }
+    decodeAudioData() {
+      return Promise.resolve({ duration: 0, length: 0, sampleRate: 44100, numberOfChannels: 1 });
+    }
+  }
+  // shim：签名与 lib.dom 的 AudioContext 天然不完全对齐（不实现全部节点族/事件）
+  globalThis.AudioContext = shim(AudioContextStub);
+  // webkitAudioContext 是旧 Safari 前缀别名，**不在 lib.dom 类型里** → 需显式放宽（否则 TS7017）。
+  /** @type {any} */ (globalThis).webkitAudioContext = globalThis.AudioContext;
+}
+
 // requestAnimationFrame / cancelAnimationFrame 统一垫片：jsdom 默认 rAF 不保证触发时效，
 // 组件里用 rAF 做动画/自适应测量时（node 环境无 rAF，jsdom 的 rAF 又常滞后）回调可能永不执行。
 // 统一用 setTimeout(cb,0) 可靠地立即触发，并回传时间戳。此前散落在 6 个 .jsx 测试文件里

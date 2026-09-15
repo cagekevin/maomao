@@ -67,7 +67,10 @@ import { useCanvasHistory } from './hooks/useCanvasHistory.ts';
 import { patchNodeDataById } from './hooks/useNodeData.ts';
 import { CanvasEdgesProvider } from './components/base/canvas/CanvasEdgesContext.tsx';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts.ts';
-import { isCanvasSuppressed, subscribeModalLayer } from './components/base/core/modalLayer.ts';
+import {
+  isCanvasSuppressed,
+  subscribeCanvasSuppressed,
+} from './components/base/core/modalLayer.ts';
 // 剪辑器开合 = 会话态（不持久化）。见模块头：这是"界面开没开"，不是"用户偏好"。
 import {
   isEditorSessionOpen,
@@ -1121,11 +1124,12 @@ function Canvas() {
   // 画布是否被压制（响应式订阅；判据真源 = modalLayer 的 `isCanvasSuppressed()`）。
   // useCanvasShortcuts 走「查询式」让位（执行前查 isCanvasSuppressed），所以它天然安全；
   // 但 React Flow 的 deleteKeyCode 是「声明式」的——它在内部用 useKeyPress 自挂 window 监听，
-  // 没有机会查询。若不让位，用户在 3D 导演台/图片编辑等全屏层里按 Delete，
-  // 删掉的会是**画布上选中的节点**（2026-09-10 真实事故）。
+  // 没有机会查询。若不让位，用户在 3D 导演台/图片编辑/视频剪辑器里按 Delete，
+  // 删掉的会是**画布上选中的节点**（2026-09-10 真实事故 · TD-22-19 同族）。
   // 唯一可靠的做法：压制开合时把 deleteKeyCode 换成 null，从源头拆掉那个监听。
-  // 机制（订阅）与查询不同，但**判据同源**——将来剪辑器只需改 isCanvasSuppressed 一处。
-  const modalLayerOpen = useSyncExternalStore(subscribeModalLayer, isCanvasSuppressed);
+  // 订阅口用 `subscribeCanvasSuppressed`（= 全屏层 + 剪辑器**两源合并**）：
+  // 只订 modalLayer 会让「剪辑器打开」不触发本订阅 —— 正是 TD-22-19 的形态。
+  const canvasSuppressed = useSyncExternalStore(subscribeCanvasSuppressed, isCanvasSuppressed);
 
   // 键盘快捷键（基座 useCanvasShortcuts）
   useCanvasShortcuts({
@@ -1397,7 +1401,7 @@ function Canvas() {
               onError={handleReactFlowError}
               connectionLineComponent={ConnectionLine}
               connectionRadius={60}
-              deleteKeyCode={modalLayerOpen || videoEditorOpen ? null : DELETE_KEY_CODE}
+              deleteKeyCode={canvasSuppressed ? null : DELETE_KEY_CODE}
               onPaneContextMenu={menu.onPaneContextMenu}
               onNodeContextMenu={menu.onNodeContextMenu}
               onSelectionContextMenu={menu.onSelectionContextMenu}

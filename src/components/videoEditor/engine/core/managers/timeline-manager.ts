@@ -10,11 +10,8 @@ import type {
 } from '@videoEditor/types/timeline';
 import { calculateTotalDuration } from '@videoEditor/engine/timeline';
 import {
-  buildTrackTransition,
-  addTransitionToTrack,
-  removeTransitionFromTrack,
-  cleanupTransitionsForTrack,
   areElementsAdjacent,
+  findAdjacentPairs,
 } from '@videoEditor/engine/timeline/transition-utils';
 import {
   AddTrackCommand,
@@ -36,8 +33,10 @@ import {
   UpdateElementStartTimeCommand,
   MoveElementCommand,
   DetachAudioCommand,
+  AddTransitionCommand,
+  RemoveTransitionCommand,
+  UpdateTransitionCommand,
 } from '@videoEditor/engine/commands/timeline';
-import { BatchCommand } from '@videoEditor/engine/commands';
 import type { InsertElementParams } from '@videoEditor/engine/commands/timeline/element/insert-element';
 
 export class TimelineManager {
@@ -232,12 +231,8 @@ export class TimelineManager {
       ({ trackId, elementId, updates: elementUpdates }) =>
         new UpdateElementCommand(trackId, elementId, elementUpdates),
     );
-    const command = commands.length === 1 ? commands[0] : new BatchCommand(commands);
-    if (pushHistory) {
-      this.editor.command.execute({ command });
-    } else {
-      command.execute();
-    }
+    // 「0/1/N 条怎么进场」的判据收口在 CommandManager.executeBatch（TD-22-51），本处只声明意图。
+    this.editor.command.executeBatch({ commands, pushHistory });
   }
 
   duplicateElements({
@@ -270,6 +265,13 @@ export class TimelineManager {
   }
 
   // ---- Transition management ----
+  // 转场的增 / 删 / 改与元素、轨道**同级**：一律走命令栈（可撤销）。见 TD-22-40。
+  // 【判据归属】「能不能做」（轨道是不是 video / 元素在不在 / 是否相邻 / 转场在不在）
+  // 在本层裁决 —— 它同时决定**是否发起命令**：无效操作直接返回、不入栈
+  // （否则撤销历史里会多出一条按下去没反应的命令，用户以为撤销坏了）。
+  // 【转场失效清理】不在这里：`MoveElementCommand` 执行时随主命令调
+  // `cleanupTransitionsForTrack`，由该命令的 `savedState` 一并兜回；原先这里那个
+  // `cleanupTransitions` 全库 0 调用（死方法）已删。
 
   addTransition({
     trackId,
@@ -284,6 +286,73 @@ export class TimelineManager {
     type: TransitionType;
     duration: number;
   }): TrackTransition | null {
+    const command = this.buildAddTransitionCommand({
+      trackId,
+      fromElementId,
+      toElementId,
+      type,
+      duration,
+    });
+    if (!command) return null;
+
+    this.editor.command.execute({ command });
+    return command.getTransition();
+  }
+
+  /**
+   * 把转场**一次**应用到所有 video 轨上的相邻片段对（批量）。
+   *
+   * 【为什么在 manager 层而不是 UI 层（TD-22-51）】
+   *   ① 判据（轨道是不是 video / 元素在不在 / 是否相邻）归 `addTransition` 这层裁决，
+   *      UI 不该重复它 —— 否则「什么算能加」会出现第二份判据（本项目已吃过多次 SSOT 第二份的亏）；
+   *   ② 一次用户点击必须 = **一条历史条目**：原实现（`transitions.tsx` 里循环调 N 次
+   *      `addTransition`）会入栈 N 条，**撤销要按 N 次**；现统一走 `CommandManager.executeBatch`。
+   *
+   * @returns `applied` = 实际加上的转场数；`0` 表示没有相邻片段对（调用方据此提示用户）。
+   */
+  addTransitionsToAdjacentPairs({ type, duration }: { type: TransitionType; duration: number }): {
+    applied: number;
+  } {
+    const commands: AddTransitionCommand[] = [];
+
+    for (const track of this.getTracks()) {
+      if (track.type !== 'video') continue;
+
+      // `TimelineTrack` 非判别联合（type 是宽枚举），TS 收窄不到 `VideoTrack` → 显式断言，
+      // 安全前提是上面那行 `track.type !== 'video'` 的守卫。
+      for (const pair of findAdjacentPairs({ track: track as VideoTrack })) {
+        const command = this.buildAddTransitionCommand({
+          trackId: track.id,
+          fromElementId: pair.from.id,
+          toElementId: pair.to.id,
+          type,
+          duration,
+        });
+        if (command) commands.push(command);
+      }
+    }
+
+    this.editor.command.executeBatch({ commands });
+    return { applied: commands.length };
+  }
+
+  /**
+   * 「能不能加转场」的判据 + 命令构造 —— **单点**（`addTransition` 与批量应用共用）。
+   * 返回 `null` = 无效操作（**不入栈**：否则撤销历史里会多一条按下去没反应的命令）。
+   */
+  private buildAddTransitionCommand({
+    trackId,
+    fromElementId,
+    toElementId,
+    type,
+    duration,
+  }: {
+    trackId: string;
+    fromElementId: string;
+    toElementId: string;
+    type: TransitionType;
+    duration: number;
+  }): AddTransitionCommand | null {
     const track = this.getTrackById({ trackId });
     if (!track || track.type !== 'video') return null;
 
@@ -295,34 +364,18 @@ export class TimelineManager {
       return null;
     }
 
-    const transition = buildTrackTransition({
-      type,
-      duration,
-      fromElementId,
-      toElementId,
-    });
-
-    const updatedTrack = addTransitionToTrack({
-      track: track as VideoTrack,
-      transition,
-    });
-
-    const updatedTracks = this.getTracks().map((t) => (t.id === trackId ? updatedTrack : t));
-    this.updateTracks(updatedTracks);
-    return transition;
+    return new AddTransitionCommand({ trackId, fromElementId, toElementId, type, duration });
   }
 
   removeTransition({ trackId, transitionId }: { trackId: string; transitionId: string }): void {
     const track = this.getTrackById({ trackId });
     if (!track || track.type !== 'video') return;
 
-    const updatedTrack = removeTransitionFromTrack({
-      track: track as VideoTrack,
-      transitionId,
-    });
+    const exists = (track.transitions ?? []).some((item) => item.id === transitionId);
+    if (!exists) return;
 
-    const updatedTracks = this.getTracks().map((t) => (t.id === trackId ? updatedTrack : t));
-    this.updateTracks(updatedTracks);
+    const command = new RemoveTransitionCommand({ trackId, transitionId });
+    this.editor.command.execute({ command });
   }
 
   updateTransition({
@@ -337,29 +390,11 @@ export class TimelineManager {
     const track = this.getTrackById({ trackId });
     if (!track || track.type !== 'video') return;
 
-    const updatedTracks = this.getTracks().map((t) => {
-      if (t.id !== trackId || t.type !== 'video') return t;
-      return {
-        ...t,
-        transitions: (t.transitions ?? []).map((tr) =>
-          tr.id === transitionId ? { ...tr, ...updates } : tr,
-        ),
-      };
-    });
-    this.updateTracks(updatedTracks);
-  }
+    const exists = (track.transitions ?? []).some((item) => item.id === transitionId);
+    if (!exists) return;
 
-  cleanupTransitions({ trackId }: { trackId: string }): void {
-    const track = this.getTrackById({ trackId });
-    if (!track || track.type !== 'video') return;
-
-    const cleaned = cleanupTransitionsForTrack({
-      track: track as VideoTrack,
-    });
-    if (cleaned === track) return;
-
-    const updatedTracks = this.getTracks().map((t) => (t.id === trackId ? cleaned : t));
-    this.updateTracks(updatedTracks);
+    const command = new UpdateTransitionCommand({ trackId, transitionId, updates });
+    this.editor.command.execute({ command });
   }
 
   getTracks(): TimelineTrack[] {
