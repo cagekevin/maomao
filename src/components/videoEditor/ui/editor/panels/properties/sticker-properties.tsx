@@ -99,8 +99,8 @@ export function StickerProperties({
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <PanelBaseView className="p-0">
+    <>
+      <PanelBaseView>
         <PropertyGroup hasBorderTop={false}>
           {/*
             位置 X / Y —— **标签 + 窄框，横排在同一行**（与 text / video 面板同一形态）。
@@ -548,6 +548,6 @@ export function StickerProperties({
           </PropertyItem>
         </PropertyGroup>
       </PanelBaseView>
-    </div>
+    </>
   );
 }

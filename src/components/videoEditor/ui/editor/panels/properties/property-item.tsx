@@ -61,6 +61,12 @@ interface PropertyGroupProps {
   hasBorderTop?: boolean;
   /** 是否在本组**下方画分隔线**。默认 false（同上）。 */
   hasBorderBottom?: boolean;
+  /**
+   * **撑满剩余高度** —— 只给"整块占位"型分区用（空态 / 拖放区）。
+   * 它把高度一路传给 `.ve-pg-body`，块内容自己用 `flex-1` 铺满。
+   * 折叠分区不要用它：一个可折叠的组没有"必须占满"的理由。
+   */
+  grow?: boolean;
 }
 
 export function PropertyGroup({
@@ -71,6 +77,7 @@ export function PropertyGroup({
   className,
   hasBorderTop = false,
   hasBorderBottom = false,
+  grow = false,
 }: PropertyGroupProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const showHeader = Boolean(title);
@@ -92,6 +99,7 @@ export function PropertyGroup({
   return (
     <div
       data-border-top={hasBorderTop || undefined}
+      data-grow={grow || undefined}
       className={cn('ve-pg', hasBorderBottom && 'last:border-b', className)}
     >
       {showHeader &&

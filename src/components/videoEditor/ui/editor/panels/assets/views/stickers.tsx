@@ -2,13 +2,13 @@
 import { logger } from '@videoEditor/lib/logger';
 
 import type { CSSProperties } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@videoEditor/lib/toast';
 import { DraggableItem } from '@videoEditor/ui/editor/panels/assets/draggable-item';
 import { PanelBaseView as BaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
 import { Button } from '@videoEditor/ui/ui/button';
 import { InputWithBack } from '@videoEditor/ui/ui/input-with-back';
-import { ScrollArea } from '@videoEditor/ui/ui/scroll-area';
+import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
 import {
   Tooltip,
   TooltipContent,
@@ -31,6 +31,20 @@ function isStickerCategory(value: string): value is StickerCategory {
 export function StickersView() {
   const { selectedCategory, setSelectedCategory } = useStickersStore();
 
+  /**
+   * 无限滚动的处理函数由**当前活跃 tab** 注册上来（每个 tab 有自己的分页状态），
+   * 再挂到**壳那一个**滚动容器上 —— 于是视图不必自建第二个滚动容器（统一语言 ①）。
+   * 用 ref 承载而非 state：`handleScroll` 每次渲染都可能重新创建，走 state 会触发
+   * "注册 → 渲染 → 注册" 的循环。
+   */
+  const scrollHandlerRef = useRef<React.UIEventHandler<HTMLDivElement> | null>(null);
+  const registerScrollHandler = useCallback(
+    (handler: React.UIEventHandler<HTMLDivElement> | null) => {
+      scrollHandlerRef.current = handler;
+    },
+    [],
+  );
+
   return (
     <BaseView
       value={selectedCategory}
@@ -39,33 +53,41 @@ export function StickersView() {
           setSelectedCategory({ category: v });
         }
       }}
+      onScrollCapture={(event) => scrollHandlerRef.current?.(event)}
       tabs={[
         {
           value: 'all',
           label: '全部',
           icon: <LayoutGrid className="size-3" />,
-          content: <StickersContentView category="all" />,
+          content: (
+            <StickersContentView category="all" registerScrollHandler={registerScrollHandler} />
+          ),
         },
         {
           value: 'general',
           label: '图标',
           icon: <Sparkles className="size-3" />,
-          content: <StickersContentView category="general" />,
+          content: (
+            <StickersContentView category="general" registerScrollHandler={registerScrollHandler} />
+          ),
         },
         {
           value: 'brands',
           label: '品牌',
           icon: <Hash className="size-3" />,
-          content: <StickersContentView category="brands" />,
+          content: (
+            <StickersContentView category="brands" registerScrollHandler={registerScrollHandler} />
+          ),
         },
         {
           value: 'emoji',
           label: '表情',
           icon: <Smile className="size-3" />,
-          content: <StickersContentView category="emoji" />,
+          content: (
+            <StickersContentView category="emoji" registerScrollHandler={registerScrollHandler} />
+          ),
         },
       ]}
-      className="flex h-full flex-col overflow-hidden p-0"
     />
   );
 }
@@ -145,7 +167,13 @@ function EmptyView({ message }: { message: string }) {
   );
 }
 
-function StickersContentView({ category }: { category: StickerCategory }) {
+function StickersContentView({
+  category,
+  registerScrollHandler,
+}: {
+  category: StickerCategory;
+  registerScrollHandler: (handler: React.UIEventHandler<HTMLDivElement> | null) => void;
+}) {
   const {
     searchQuery,
     selectedCollection,
@@ -202,12 +230,18 @@ function StickersContentView({ category }: { category: StickerCategory }) {
     }>;
   }, [collections, category]);
 
-  const { scrollAreaRef, handleScroll } = useInfiniteScroll({
+  const { handleScroll } = useInfiniteScroll({
     onLoadMore: () => setCollectionsToShow((prev) => prev + 20),
     hasMore: filteredCollections.length > collectionsToShow,
     isLoading: isLoadingCollections,
     enabled: viewMode === 'browse' && !selectedCollection && category === 'all',
   });
+
+  // 把「滚到底加载更多」注册给**壳那一个**滚动容器（统一语言 ①）。
+  // 每次渲染都重注册：`handleScroll` 的依赖会变，用 ref 承载不会触发"注册 → 渲染"循环。
+  useEffect(() => {
+    registerScrollHandler(handleScroll);
+  }, [registerScrollHandler, handleScroll]);
 
   useEffect(() => {
     if (Object.keys(collections).length === 0) {
@@ -277,8 +311,8 @@ function StickersContentView({ category }: { category: StickerCategory }) {
   }, [isInCollection]);
 
   return (
-    <div className="mt-1 flex h-full flex-col gap-5 p-4">
-      <div className="space-y-3">
+    <>
+      <PropertyGroup>
         <InputWithBack
           isExpanded={isInCollection}
           setIsExpanded={(expanded) => {
@@ -299,144 +333,130 @@ function StickersContentView({ category }: { category: StickerCategory }) {
           onChange={setLocalSearchQuery}
           disableAnimation={true}
         />
-      </div>
+      </PropertyGroup>
 
-      <div className="relative h-full overflow-hidden">
-        <ScrollArea className="h-full flex-1" ref={scrollAreaRef} onScrollCapture={handleScroll}>
-          <div className="flex h-full flex-col gap-4">
-            {recentStickers.length > 0 && viewMode === 'browse' && (
-              <div className="h-full">
-                <div className="mb-2 flex items-center gap-2">
-                  <Clock className="text-muted-foreground size-4" />
-                  <span className="text-sm font-medium">{'最近'}</span>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={clearRecentStickers}
-                          className="hover:bg-accent ml-auto flex size-5 items-center justify-center rounded p-0"
-                        >
-                          <X className="text-muted-foreground size-3" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{'清空最近贴纸'}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <StickerGrid
-                  icons={recentStickers.slice(0, 12)}
-                  onAdd={handleAddSticker}
-                  addingSticker={addingSticker}
-                  capSize
-                />
-              </div>
-            )}
-
-            {viewMode === 'collection' && selectedCollection && (
-              <div className="h-full">
-                {isLoadingCollection ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Spinner className="text-muted-foreground size-6" />
-                  </div>
-                ) : showCollectionItems ? (
-                  <StickerGrid
-                    icons={iconsToDisplay}
-                    onAdd={handleAddSticker}
-                    addingSticker={addingSticker}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center py-8">
-                    <Spinner className="text-muted-foreground size-6" />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {viewMode === 'search' && (
-              <div className="h-full">
-                {isSearching ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Spinner className="text-muted-foreground size-6" />
-                  </div>
-                ) : searchResults?.icons.length ? (
-                  <>
-                    <div className="mb-3 flex items-center justify-between">
-                      <span className="text-muted-foreground text-sm">
-                        {`${searchResults.total} results`}
-                      </span>
-                    </div>
-                    <StickerGrid
-                      icons={iconsToDisplay}
-                      onAdd={handleAddSticker}
-                      addingSticker={addingSticker}
-                      capSize
-                    />
-                  </>
-                ) : searchQuery ? (
-                  <div className="flex flex-col items-center justify-center gap-3 py-8">
-                    <EmptyView message={`No stickers found for "${searchQuery}"`} />
-                    {category !== 'all' && (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          const q = localSearchQuery || searchQuery;
-                          if (q) {
-                            setSearchQuery({ query: q });
-                          }
-                          setSelectedCategory({ category: 'all' });
-                          if (q) {
-                            searchStickers({ query: q });
-                          }
-                        }}
-                      >
-                        {'在所有图标中搜索'}
-                      </Button>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            {viewMode === 'browse' && !selectedCollection && (
-              <div className="h-full space-y-4">
-                {isLoadingCollections ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Spinner className="text-muted-foreground size-6" />
-                  </div>
-                ) : (
-                  <>
-                    {category !== 'all' && (
-                      <div className="h-full">
-                        <CollectionGrid
-                          collections={filteredCollections}
-                          onSelectCollection={({ prefix }) =>
-                            setSelectedCollection({ collection: prefix })
-                          }
-                        />
-                      </div>
-                    )}
-
-                    {category === 'all' && filteredCollections.length > 0 && (
-                      <div className="h-full">
-                        <CollectionGrid
-                          collections={filteredCollections.slice(0, collectionsToShow)}
-                          onSelectCollection={({ prefix }) =>
-                            setSelectedCollection({ collection: prefix })
-                          }
-                        />
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
+      {recentStickers.length > 0 && viewMode === 'browse' && (
+        <PropertyGroup>
+          <div className="flex items-center gap-2">
+            <Clock className="text-muted-foreground size-4" />
+            <span className="text-sm font-medium">{'最近'}</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={clearRecentStickers}
+                    className="hover:bg-accent ml-auto flex size-5 items-center justify-center rounded p-0"
+                  >
+                    <X className="text-muted-foreground size-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{'清空最近贴纸'}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
-        </ScrollArea>
-      </div>
-    </div>
+          <StickerGrid
+            icons={recentStickers.slice(0, 12)}
+            onAdd={handleAddSticker}
+            addingSticker={addingSticker}
+            capSize
+          />
+        </PropertyGroup>
+      )}
+
+      {viewMode === 'collection' && selectedCollection && (
+        <PropertyGroup>
+          {isLoadingCollection ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner className="text-muted-foreground size-6" />
+            </div>
+          ) : showCollectionItems ? (
+            <StickerGrid
+              icons={iconsToDisplay}
+              onAdd={handleAddSticker}
+              addingSticker={addingSticker}
+            />
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <Spinner className="text-muted-foreground size-6" />
+            </div>
+          )}
+        </PropertyGroup>
+      )}
+
+      {viewMode === 'search' && (
+        <PropertyGroup>
+          {isSearching ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner className="text-muted-foreground size-6" />
+            </div>
+          ) : searchResults?.icons.length ? (
+            <>
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-muted-foreground text-sm">
+                  {`${searchResults.total} results`}
+                </span>
+              </div>
+              <StickerGrid
+                icons={iconsToDisplay}
+                onAdd={handleAddSticker}
+                addingSticker={addingSticker}
+                capSize
+              />
+            </>
+          ) : searchQuery ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-8">
+              <EmptyView message={`No stickers found for "${searchQuery}"`} />
+              {category !== 'all' && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const q = localSearchQuery || searchQuery;
+                    if (q) {
+                      setSearchQuery({ query: q });
+                    }
+                    setSelectedCategory({ category: 'all' });
+                    if (q) {
+                      searchStickers({ query: q });
+                    }
+                  }}
+                >
+                  {'在所有图标中搜索'}
+                </Button>
+              )}
+            </div>
+          ) : null}
+        </PropertyGroup>
+      )}
+
+      {viewMode === 'browse' && !selectedCollection && (
+        <PropertyGroup>
+          {isLoadingCollections ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner className="text-muted-foreground size-6" />
+            </div>
+          ) : (
+            <>
+              {category !== 'all' && (
+                <CollectionGrid
+                  collections={filteredCollections}
+                  onSelectCollection={({ prefix }) => setSelectedCollection({ collection: prefix })}
+                />
+              )}
+
+              {category === 'all' && filteredCollections.length > 0 && (
+                <CollectionGrid
+                  collections={filteredCollections.slice(0, collectionsToShow)}
+                  onSelectCollection={({ prefix }) => setSelectedCollection({ collection: prefix })}
+                />
+              )}
+            </>
+          )}
+        </PropertyGroup>
+      )}
+    </>
   );
 }
 

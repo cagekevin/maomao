@@ -1,5 +1,6 @@
 import { DraggableItem } from '@videoEditor/ui/editor/panels/assets/draggable-item';
 import { PanelBaseView as BaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
+import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
 import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
 import { DEFAULT_TEXT_ELEMENT } from '@videoEditor/constants/text-constants';
 import { buildTextElement } from '@videoEditor/engine/timeline/element-utils';
@@ -22,9 +23,10 @@ export function TextView() {
     });
   };
 
+  // 统一语言：`<BaseView>` + 分区。原先的 `space-y-3` 是"自己排纵向节奏"的第二套语言。
   return (
     <BaseView>
-      <div className="space-y-3">
+      <PropertyGroup>
         <DraggableItem
           name={'默认文字'}
           preview={
@@ -42,7 +44,7 @@ export function TextView() {
           onAddToTimeline={handleAddDefaultText}
           shouldShowLabel={false}
         />
-      </div>
+      </PropertyGroup>
     </BaseView>
   );
 }

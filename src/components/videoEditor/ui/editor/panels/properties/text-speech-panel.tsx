@@ -77,7 +77,7 @@ export function TextSpeechPanel({ elements: elementRefs }: { elements: TextEleme
   };
 
   return (
-    <PanelBaseView className="p-0">
+    <PanelBaseView>
       <PropertyGroup title={'文字转语音'} hasBorderTop={false} collapsible={false}>
         <div className="space-y-6">
           <PropertyItem direction="column">

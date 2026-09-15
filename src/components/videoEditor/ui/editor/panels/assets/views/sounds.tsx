@@ -12,9 +12,8 @@ import {
   DialogTrigger,
 } from '@videoEditor/ui/ui/dialog';
 import { Input } from '@videoEditor/ui/ui/input';
-import { ScrollArea } from '@videoEditor/ui/ui/scroll-area';
-import { Separator } from '@videoEditor/ui/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@videoEditor/ui/ui/tabs';
+import { PanelBaseView as BaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
+import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
 import {
   Tooltip,
   TooltipContent,
@@ -32,28 +31,16 @@ import type { SavedSound, SoundEffect } from '@videoEditor/types/sounds';
 import { Pause, Play, Plus, RefreshCw, Star } from 'lucide-react';
 
 export function SoundsView() {
+  // 三个 tab 交给壳（与「设置」同一套 tabs 语言）—— 不再自造 Tabs / Separator / `p-5 pt-0`。
   return (
-    <div className="flex h-full flex-col">
-      <Tabs defaultValue="sound-effects" className="flex h-full flex-col">
-        <div className="px-3 pt-4 pb-0">
-          <TabsList>
-            <TabsTrigger value="sound-effects">{'音效'}</TabsTrigger>
-            <TabsTrigger value="songs">{'音乐'}</TabsTrigger>
-            <TabsTrigger value="saved">{'已保存'}</TabsTrigger>
-          </TabsList>
-        </div>
-        <Separator className="my-4" />
-        <TabsContent value="sound-effects" className="mt-0 flex min-h-0 flex-1 flex-col p-5 pt-0">
-          <SoundLibraryPanel kind="effect" />
-        </TabsContent>
-        <TabsContent value="saved" className="mt-0 flex min-h-0 flex-1 flex-col p-5 pt-0">
-          <SavedSoundsView />
-        </TabsContent>
-        <TabsContent value="songs" className="mt-0 flex min-h-0 flex-1 flex-col p-5 pt-0">
-          <SoundLibraryPanel kind="music" />
-        </TabsContent>
-      </Tabs>
-    </div>
+    <BaseView
+      defaultTab="sound-effects"
+      tabs={[
+        { value: 'sound-effects', label: '音效', content: <SoundLibraryPanel kind="effect" /> },
+        { value: 'songs', label: '音乐', content: <SoundLibraryPanel kind="music" /> },
+        { value: 'saved', label: '已保存', content: <SavedSoundsView /> },
+      ]}
+    />
   );
 }
 
@@ -100,62 +87,62 @@ function SoundLibraryPanel({ kind }: { kind: SoundKind }) {
   }
 
   return (
-    <div className="mt-1 flex h-full flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <Input
-          placeholder={`搜索${label}`}
-          className="bg-accent w-full"
-          containerClassName="w-full"
-          value={query}
-          onChange={({ currentTarget }) => setQuery(currentTarget.value)}
-          showClearIcon
-          onClear={() => setQuery('')}
-        />
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="text"
-                size="icon"
-                className="items-center justify-center"
-                onClick={reload}
-              >
-                <RefreshCw />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{'重新扫描本地声音目录'}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </div>
-
-      {items.length === 0 ? (
-        /* 空库 = **合法状态**（不是错误）：告诉用户"放哪儿"。`dir` 是后端给的真源，前端不拼路径。 */
-        <PanelHint
-          text={`${label}库是空的`}
-          hint={dir ? `把音频文件放进 uploads/${dir}/ 后点右上角刷新` : undefined}
-        />
-      ) : (
-        <div className="relative h-full overflow-hidden">
-          <ScrollArea className="h-full flex-1">
-            <div className="flex flex-col gap-4">
-              {filtered.map((item) => (
-                <AudioItem
-                  key={item.id}
-                  sound={toSoundEffect(item)}
-                  isPlaying={playingId === item.id}
-                  onPlay={togglePreview}
-                />
-              ))}
-              {filtered.length === 0 && (
-                <div className="text-muted-foreground text-sm">{`未找到匹配的${label}`}</div>
-              )}
-            </div>
-          </ScrollArea>
+    <>
+      <PropertyGroup>
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder={`搜索${label}`}
+            className="bg-accent w-full"
+            containerClassName="w-full"
+            value={query}
+            onChange={({ currentTarget }) => setQuery(currentTarget.value)}
+            showClearIcon
+            onClear={() => setQuery('')}
+          />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="text"
+                  size="icon"
+                  className="items-center justify-center"
+                  onClick={reload}
+                >
+                  <RefreshCw />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{'重新扫描本地声音目录'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
-      )}
-    </div>
+      </PropertyGroup>
+
+      <PropertyGroup>
+        {items.length === 0 ? (
+          /* 空库 = **合法状态**（不是错误）：告诉用户"放哪儿"。`dir` 是后端给的真源，前端不拼路径。 */
+          <PanelHint
+            text={`${label}库是空的`}
+            hint={dir ? `把音频文件放进 uploads/${dir}/ 后点右上角刷新` : undefined}
+          />
+        ) : (
+          <>
+            {filtered.map((item) => (
+              <AudioItem
+                key={item.id}
+                sound={toSoundEffect(item)}
+                isPlaying={playingId === item.id}
+                onPlay={togglePreview}
+              />
+            ))}
+            {filtered.length === 0 && (
+              <div className="text-muted-foreground text-sm">{`未找到匹配的${label}`}</div>
+            )}
+          </>
+        )}
+      </PropertyGroup>
+    </>
   );
 }
 
@@ -282,62 +269,60 @@ function SavedSoundsView() {
   }
 
   return (
-    <div className="mt-1 flex h-full flex-col gap-5">
-      <div className="flex items-center justify-between">
-        <p className="text-muted-foreground text-sm">
-          {`${savedSounds.length} saved ${savedSounds.length === 1 ? '音效' : '音效'}`}
-        </p>
-        <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
-          <DialogTrigger asChild>
-            <Button
-              variant="text"
-              size="sm"
-              className="text-muted-foreground hover:text-destructive h-auto !opacity-100"
-            >
-              {'全部清除'}
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{'清空所有已保存音效？'}</DialogTitle>
-              <DialogDescription>
-                {`This will permanently remove all ${savedSounds.length} saved sounds from your collection. This action cannot be undone.`}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="text" onClick={() => setShowClearDialog(false)}>
-                {'取消'}
-              </Button>
+    <>
+      <PropertyGroup>
+        <div className="flex items-center justify-between">
+          <p className="text-muted-foreground text-sm">
+            {`${savedSounds.length} saved ${savedSounds.length === 1 ? '音效' : '音效'}`}
+          </p>
+          <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+            <DialogTrigger asChild>
               <Button
-                variant="destructive"
-                onClick={async ({ stopPropagation }: React.MouseEvent<HTMLButtonElement>) => {
-                  stopPropagation();
-                  await clearSavedSounds();
-                  setShowClearDialog(false);
-                }}
+                variant="text"
+                size="sm"
+                className="text-muted-foreground hover:text-destructive h-auto !opacity-100"
               >
-                {'清空所有音效'}
+                {'全部清除'}
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{'清空所有已保存音效？'}</DialogTitle>
+                <DialogDescription>
+                  {`This will permanently remove all ${savedSounds.length} saved sounds from your collection. This action cannot be undone.`}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="text" onClick={() => setShowClearDialog(false)}>
+                  {'取消'}
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={async ({ stopPropagation }: React.MouseEvent<HTMLButtonElement>) => {
+                    stopPropagation();
+                    await clearSavedSounds();
+                    setShowClearDialog(false);
+                  }}
+                >
+                  {'清空所有音效'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </PropertyGroup>
 
-      <div className="relative h-full overflow-hidden">
-        <ScrollArea className="h-full flex-1">
-          <div className="flex flex-col gap-4">
-            {savedSounds.map((sound) => (
-              <AudioItem
-                key={sound.id}
-                sound={convertToSoundEffect({ savedSound: sound })}
-                isPlaying={playingId === sound.id}
-                onPlay={togglePreview}
-              />
-            ))}
-          </div>
-        </ScrollArea>
-      </div>
-    </div>
+      <PropertyGroup>
+        {savedSounds.map((sound) => (
+          <AudioItem
+            key={sound.id}
+            sound={convertToSoundEffect({ savedSound: sound })}
+            isPlaying={playingId === sound.id}
+            onPlay={togglePreview}
+          />
+        ))}
+      </PropertyGroup>
+    </>
   );
 }
 

@@ -18,14 +18,12 @@
  *  - eventBus：管理"事件"（瞬时动作：workflow 开始/确认/某步骤完成），一次性广播，不存状态。
  * 两者互补，不重复。
  *
- * 【当前事件注册表】改代码前先查这份全量清单（发布/订阅均须存在，避免"只监听未发布"）：
- *  - agent:task-completed   taskCompletionBus.publishTaskCompleted 发布 → useNodeGeneration（精准回填节点）/ useScriptBoxEngine（资产图）/ GeneratedView（刷新「生成」面板）
- *  - resource:sent             resourceStore.onResourceSent/emitResourceSent（薄封装，语义=「素材已落盘可用」）→ ResourceLibrary 刷新（P1-D 收口裸回调桥；TD-12-10 起改为落盘完成后才广播）
- *  - presets-changed        promptManager 发布 → PromptLibrary 订阅（预设库跨节点同步）
- *  - project:import         ProjectSelector:99 发布 → App:343 订阅（导入按钮→App 处理文件）
- *  - project:export         ProjectSelector:103 发布 → App:344 订阅（导出按钮→App 下载）
- *  - persist:failed        storageAdapter 发布（sSet/sRemove 持久化失败）→ App 订阅（节流 toast「部分数据保存失败」）
- * 详细说明见 docs/实时总线-Event-Bus-全解-2026-08-16.md。新增事件统一用「领域:动作」命名。
+ * 【当前有哪些事件？】唯一真源 = `base/core/contracts.ts` 的 `EVENTS` 登记表
+ * （每条含 from / to / payload / note），由 `check:events` **双向校验**与代码自洽
+ * （发布/订阅须成对，避免"只监听未发布"；表与代码不一致即红）。
+ * 此处**刻意不再复述清单**：这里曾有的副本已漂移（实测漏登记 `upstream:updated` /
+ * `agent:credit-gate`），手写清单 = 同一真相的第二份（母体 M3）。
+ * 新增事件统一用「领域:动作」命名，并登记进 EVENTS。另见 docs/实时总线-Event-Bus-全解-2026-08-16.md。
  *
  * 【用法】
  *   import { publish, subscribe } from './eventBus.ts'

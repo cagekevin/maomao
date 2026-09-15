@@ -1,4 +1,5 @@
 import type { EditorCore } from '@videoEditor/engine/core';
+import { publish } from '../../../../base/core/eventBus.ts';
 
 export class PlaybackManager {
   private isPlaying = false;
@@ -65,12 +66,7 @@ export class PlaybackManager {
     const duration = this.editor.timeline.getTotalDuration();
     this.currentTime = Math.max(0, Math.min(duration, time));
     this.notify();
-
-    window.dispatchEvent(
-      new CustomEvent('playback-seek', {
-        detail: { time: this.currentTime },
-      }),
-    );
+    this.notifySeek();
   }
 
   setVolume({ volume }: { volume: number }): void {
@@ -176,12 +172,7 @@ export class PlaybackManager {
       this.pause();
       this.currentTime = duration;
       this.notify();
-
-      window.dispatchEvent(
-        new CustomEvent('playback-seek', {
-          detail: { time: duration },
-        }),
-      );
+      this.notifySeek();
       // 已到末尾 / 已变空：`pause()` 已停表，显式 return 不再续帧
       // （原实现无条件续帧，靠下一帧开头的 `!isPlaying` 早退兜住 —— 那是隐式依赖）。
       return;
@@ -190,12 +181,31 @@ export class PlaybackManager {
     this.currentTime = newTime;
     this.notify();
 
-    window.dispatchEvent(
-      new CustomEvent('playback-update', {
-        detail: { time: newTime },
-      }),
-    );
-
     this.playbackTimer = requestAnimationFrame(this.updateTime);
   };
+
+  /**
+   * 通知「播放头**跳转**了」—— 离散事件，与 `notify()` 的状态快照**语义不同，不可合并**：
+   *   · `notify()`（`subscribe()` 通道）＝「状态变了」，**每帧**都会触发（UI 靠 `useSyncExternalStore` 消费）；
+   *   · 本方法（eventBus 通道）＝「发生了一次跳转」，只有 `seek()` 与「播到末尾」触发（音频侧按新位置重排）。
+   * 判据必须在源头分开：跳转幅度与正常播放推进在 `currentTime` 上**不可区分**，
+   * 若让音频侧改从 `subscribe()` 里 diff `currentTime`，会被每帧误判成 seek。
+   * （7步法 Step 3：**探测重复可收口，判据重复不可合并**。）
+   *
+   * 【为什么走 eventBus 而不是 window】原实现是
+   * `window.dispatchEvent(new CustomEvent('playback-seek', { detail }))`，违反
+   * `base/core/eventBus.ts` 的唯一通道红线（"禁止自建第二套广播（window.dispatchEvent）"）——
+   * 全局广播还会被页面上任何代码监听 / 伪造。现走唯一通道 + `EVENTS['videoeditor:seek']` 登记
+   * （`check:events` 双向校验发布/订阅成对）。
+   * （事件名全小写是 `contracts.test.ts` 的既定契约 —— 域标识 `videoEditor` 在事件名里小写化为
+   * `videoeditor`，不与代码里的 camelCase 目录名冲突。）
+   *
+   * 【同处删掉的死事件（TD-22-23）】`updateTime` 原本还每帧
+   * `window.dispatchEvent('playback-update')`，全仓（含 tests）**零消费者** ——
+   * 每帧白发一次全局事件，且让读代码的人以为"有人在听"。`currentTime` 的状态通知
+   * 由 `notify()` 独家承担，不需要第二条。
+   */
+  private notifySeek(): void {
+    publish('videoeditor:seek', { time: this.currentTime });
+  }
 }

@@ -35,33 +35,16 @@ export function SettingsView() {
 }
 
 function ProjectSettingsTabs() {
+  // 分区/滚动/内边距**全部**由壳（`PanelBaseView`）拥有 —— 这里只给出 tab 与其内容，
+  // 不再包 `p-5` / `justify-between` / `flex-1`（那些是 2026-09-15 重写前"区块前空一截"的成因）。
   return (
     <BaseView
       defaultTab="project-info"
       tabs={[
-        {
-          value: 'project-info',
-          label: '项目信息',
-          content: (
-            <div className="p-5">
-              <ProjectInfoView />
-            </div>
-          ),
-        },
-        {
-          value: 'background',
-          label: '背景',
-          content: (
-            <div className="flex h-full flex-col justify-between">
-              <div className="flex-1">
-                <BackgroundView />
-              </div>
-            </div>
-          ),
-        },
+        { value: 'project-info', label: '项目信息', content: <ProjectInfoView /> },
+        { value: 'background', label: '背景', content: <BackgroundView /> },
         /* 更新(2026-09-14)：AI 设置 tab 随 AI 域移除（docs/130-cutia搬迁计划书）。 */
       ]}
-      className="flex h-full flex-col justify-between p-0"
     />
   );
 }
@@ -157,7 +140,7 @@ function ProjectInfoView() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <PropertyGroup>
       <PropertyItem direction="column">
         <PropertyItemLabel>{'名称'}</PropertyItemLabel>
         <PropertyItemValue>{activeProject.metadata.name}</PropertyItemValue>
@@ -247,7 +230,7 @@ function ProjectInfoView() {
           </Select>
         </PropertyItemValue>
       </PropertyItem>
-    </div>
+    </PropertyGroup>
   );
 }
 
@@ -393,7 +376,7 @@ function BackgroundView() {
   ];
 
   return (
-    <div className="flex h-full flex-col">
+    <>
       <PropertyGroup title={'模糊'} hasBorderTop={false} defaultExpanded={false}>
         <div className="flex flex-wrap gap-2">{blurPreviews}</div>
       </PropertyGroup>
@@ -411,7 +394,7 @@ function BackgroundView() {
           </div>
         </PropertyGroup>
       ))}
-    </div>
+    </>
   );
 }
 

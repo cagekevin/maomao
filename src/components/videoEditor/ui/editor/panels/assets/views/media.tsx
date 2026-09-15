@@ -5,6 +5,8 @@ import { useMemo, useState } from 'react';
 import { toast } from '@videoEditor/lib/toast';
 import { MediaDragOverlay } from '@videoEditor/ui/editor/panels/assets/drag-overlay';
 import { DraggableItem } from '@videoEditor/ui/editor/panels/assets/draggable-item';
+import { PanelBaseView as BaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
+import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
 import { Button } from '@videoEditor/ui/ui/button';
 import {
   ContextMenu,
@@ -218,110 +220,113 @@ export function MediaView() {
     <>
       <input {...fileInputProps} />
 
-      <div
-        className={`relative flex h-full flex-col gap-1 ${isDragOver ? 've-drop-active' : ''}`}
-        {...dragProps}
-      >
-        <div className="bg-background h-12 px-4 pr-2 flex items-center justify-between border-b">
-          <span className="text-muted-foreground text-sm">{'素材'}</span>
-          <div className="flex items-center gap-0">
-            <TooltipProvider>
-              {/* 【结构修正 2026-09-15】原先「排序」的 Tooltip 被**嵌在**「切换视图」Tooltip 的
+      <div className={`h-full ${isDragOver ? 've-drop-active' : ''}`} {...dragProps}>
+        <BaseView>
+          <PropertyGroup>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-sm">{'素材'}</span>
+              <div className="flex items-center gap-0">
+                <TooltipProvider>
+                  {/* 【结构修正 2026-09-15】原先「排序」的 Tooltip 被**嵌在**「切换视图」Tooltip 的
                   children 里（`<Tooltip><TooltipTrigger/><TooltipContent/><Tooltip>…</Tooltip></Tooltip>`）。
                   Radix `Tooltip` 的 children 只接受 Trigger / Content —— 多余的嵌套属于非法结构，
                   其内部子树（排序 DropdownMenu）渲染行为未定义。此处改为**两个并列的独立 Tooltip**。 */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="text"
-                    onClick={() => setMediaViewMode(mediaViewMode === 'grid' ? 'list' : 'grid')}
-                    className="items-center justify-center"
-                  >
-                    {mediaViewMode === 'grid' ? <List /> : <LayoutGrid />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{mediaViewMode === 'grid' ? '切换到列表视图' : '切换到网格视图'}</p>
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <DropdownMenu>
-                  <TooltipTrigger asChild>
-                    <DropdownMenuTrigger asChild>
-                      {/* 同「导入」按钮：菜单 trigger **不得** disabled（disabled → pointer-events:none
-                          → 指针穿透 → Radix 收不到 pointerdown → 菜单打不开）。排序项随时可点。 */}
-                      <Button size="icon" variant="text" className="items-center justify-center">
-                        <ListOrdered />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="text"
+                        onClick={() => setMediaViewMode(mediaViewMode === 'grid' ? 'list' : 'grid')}
+                        className="items-center justify-center"
+                      >
+                        {mediaViewMode === 'grid' ? <List /> : <LayoutGrid />}
                       </Button>
-                    </DropdownMenuTrigger>
-                  </TooltipTrigger>
-                  <DropdownMenuContent align="end">
-                    <SortMenuItem
-                      label={'名称'}
-                      sortKey="name"
-                      currentSortBy={sortBy}
-                      currentSortOrder={sortOrder}
-                      onSort={({ key }) => {
-                        if (sortBy === key) {
-                          setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                        } else {
-                          setSortBy(key);
-                          setSortOrder('asc');
-                        }
-                      }}
-                    />
-                    <SortMenuItem
-                      label={'类型'}
-                      sortKey="type"
-                      currentSortBy={sortBy}
-                      currentSortOrder={sortOrder}
-                      onSort={({ key }) => {
-                        if (sortBy === key) {
-                          setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                        } else {
-                          setSortBy(key);
-                          setSortOrder('asc');
-                        }
-                      }}
-                    />
-                    <SortMenuItem
-                      label={'时长'}
-                      sortKey="duration"
-                      currentSortBy={sortBy}
-                      currentSortOrder={sortOrder}
-                      onSort={({ key }) => {
-                        if (sortBy === key) {
-                          setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                        } else {
-                          setSortBy(key);
-                          setSortOrder('asc');
-                        }
-                      }}
-                    />
-                    <SortMenuItem
-                      label={'文件大小'}
-                      sortKey="size"
-                      currentSortBy={sortBy}
-                      currentSortOrder={sortOrder}
-                      onSort={({ key }) => {
-                        if (sortBy === key) {
-                          setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                        } else {
-                          setSortBy(key);
-                          setSortOrder('asc');
-                        }
-                      }}
-                    />
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <TooltipContent>
-                  <p>{`按 ${sortBy} 排序（${sortOrder === 'asc' ? '升序' : '降序'}）`}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            {/*
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{mediaViewMode === 'grid' ? '切换到列表视图' : '切换到网格视图'}</p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <DropdownMenu>
+                      <TooltipTrigger asChild>
+                        <DropdownMenuTrigger asChild>
+                          {/* 同「导入」按钮：菜单 trigger **不得** disabled（disabled → pointer-events:none
+                          → 指针穿透 → Radix 收不到 pointerdown → 菜单打不开）。排序项随时可点。 */}
+                          <Button
+                            size="icon"
+                            variant="text"
+                            className="items-center justify-center"
+                          >
+                            <ListOrdered />
+                          </Button>
+                        </DropdownMenuTrigger>
+                      </TooltipTrigger>
+                      <DropdownMenuContent align="end">
+                        <SortMenuItem
+                          label={'名称'}
+                          sortKey="name"
+                          currentSortBy={sortBy}
+                          currentSortOrder={sortOrder}
+                          onSort={({ key }) => {
+                            if (sortBy === key) {
+                              setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                            } else {
+                              setSortBy(key);
+                              setSortOrder('asc');
+                            }
+                          }}
+                        />
+                        <SortMenuItem
+                          label={'类型'}
+                          sortKey="type"
+                          currentSortBy={sortBy}
+                          currentSortOrder={sortOrder}
+                          onSort={({ key }) => {
+                            if (sortBy === key) {
+                              setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                            } else {
+                              setSortBy(key);
+                              setSortOrder('asc');
+                            }
+                          }}
+                        />
+                        <SortMenuItem
+                          label={'时长'}
+                          sortKey="duration"
+                          currentSortBy={sortBy}
+                          currentSortOrder={sortOrder}
+                          onSort={({ key }) => {
+                            if (sortBy === key) {
+                              setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                            } else {
+                              setSortBy(key);
+                              setSortOrder('asc');
+                            }
+                          }}
+                        />
+                        <SortMenuItem
+                          label={'文件大小'}
+                          sortKey="size"
+                          currentSortBy={sortBy}
+                          currentSortOrder={sortOrder}
+                          onSort={({ key }) => {
+                            if (sortBy === key) {
+                              setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                            } else {
+                              setSortBy(key);
+                              setSortOrder('asc');
+                            }
+                          }}
+                        />
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <TooltipContent>
+                      <p>{`按 ${sortBy} 排序（${sortOrder === 'asc' ? '升序' : '降序'}）`}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                {/*
               【设计修正 2026-09-15】**「导入」直连 `openFilePicker()`，不经任何菜单。**
 
               `openFilePicker()` 内部是 `input.click()`，属**需要用户手势的命令式动作**。
@@ -342,85 +347,89 @@ export function MediaView() {
               绕 CORS + sha1 幂等）；将来若真需要 URL 导入，**按那条路重做**，
               不要复活这份依赖已退役端点的实现。
             */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={openFilePicker}
-              className="items-center justify-center gap-1.5 ml-1.5 px-3"
-            >
-              <UploadCloud />
-              {'导入'}
-            </Button>
-          </div>
-        </div>
-
-        {/* biome-ignore lint: deselect on empty space click */}
-        <div
-          className="scrollbar-thin size-full overflow-y-auto"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) handleClearSelection();
-          }}
-        >
-          {/* biome-ignore lint: deselect on empty space click */}
-          <div
-            className="w-full flex-1 p-2 pt-1"
-            onClick={(event) => {
-              if (event.target === event.currentTarget) handleClearSelection();
-            }}
-          >
-            {loadError && filteredMediaItems.length === 0 ? (
-              /* ── 失败可见性（2026-09-15 · TD-22-43②）：素材加载失败原来只记 logger →
-                 用户看到的是**静默空面板**（以为"这个工程没素材"）。持续状态给对读者 = 面板错误态
-                 （不是 toast——toast 逝去即失明，而"面板是空的"是持续状态）。 */
-              <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-                <p className="text-destructive text-sm">{'素材加载失败'}</p>
-                <p className="text-muted-foreground text-xs break-all">{loadError}</p>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    void editor.media.loadProjectMedia({
-                      projectId: activeProject.metadata.id,
-                    });
-                  }}
+                  onClick={openFilePicker}
+                  className="items-center justify-center gap-1.5 ml-1.5 px-3"
                 >
-                  {'重试'}
+                  <UploadCloud />
+                  {'导入'}
                 </Button>
               </div>
-            ) : isDragOver || filteredMediaItems.length === 0 ? (
-              <MediaDragOverlay
-                isVisible={true}
-                isProcessing={isProcessing}
-                progress={progress}
-                onClick={openFilePicker}
-              />
-            ) : mediaViewMode === 'grid' ? (
-              <GridView
-                items={filteredMediaItems}
-                renderPreview={renderPreview}
-                onRemove={handleRemove}
-                onExportClip={handleExportClip}
-                onAddToTimeline={addElementAtTime}
-                onSelect={handleSelectMedia}
-                selectedMediaId={selectedMediaId}
-                highlightedId={highlightedId}
-                registerElement={registerElement}
-              />
-            ) : (
-              <ListView
-                items={filteredMediaItems}
-                renderPreview={renderCompactPreview}
-                onRemove={handleRemove}
-                onExportClip={handleExportClip}
-                onAddToTimeline={addElementAtTime}
-                onSelect={handleSelectMedia}
-                selectedMediaId={selectedMediaId}
-                highlightedId={highlightedId}
-                registerElement={registerElement}
-              />
-            )}
-          </div>
-        </div>
+            </div>
+          </PropertyGroup>
+
+          {/* biome-ignore lint: deselect on empty space click */}
+          <PropertyGroup grow>
+            <div
+              className="flex-1"
+              onClick={(event) => {
+                if (event.target === event.currentTarget) handleClearSelection();
+              }}
+            >
+              {/* biome-ignore lint: deselect on empty space click */}
+              <div
+                className="w-full flex-1"
+                onClick={(event) => {
+                  if (event.target === event.currentTarget) handleClearSelection();
+                }}
+              >
+                {loadError && filteredMediaItems.length === 0 ? (
+                  /* ── 失败可见性（2026-09-15 · TD-22-43②）：素材加载失败原来只记 logger →
+                 用户看到的是**静默空面板**（以为"这个工程没素材"）。持续状态给对读者 = 面板错误态
+                 （不是 toast——toast 逝去即失明，而"面板是空的"是持续状态）。 */
+                  <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+                    <p className="text-destructive text-sm">{'素材加载失败'}</p>
+                    <p className="text-muted-foreground text-xs break-all">{loadError}</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        void editor.media.loadProjectMedia({
+                          projectId: activeProject.metadata.id,
+                        });
+                      }}
+                    >
+                      {'重试'}
+                    </Button>
+                  </div>
+                ) : isDragOver || filteredMediaItems.length === 0 ? (
+                  <MediaDragOverlay
+                    isVisible={true}
+                    isProcessing={isProcessing}
+                    progress={progress}
+                    onClick={openFilePicker}
+                  />
+                ) : mediaViewMode === 'grid' ? (
+                  <GridView
+                    items={filteredMediaItems}
+                    renderPreview={renderPreview}
+                    onRemove={handleRemove}
+                    onExportClip={handleExportClip}
+                    onAddToTimeline={addElementAtTime}
+                    onSelect={handleSelectMedia}
+                    selectedMediaId={selectedMediaId}
+                    highlightedId={highlightedId}
+                    registerElement={registerElement}
+                  />
+                ) : (
+                  <ListView
+                    items={filteredMediaItems}
+                    renderPreview={renderCompactPreview}
+                    onRemove={handleRemove}
+                    onExportClip={handleExportClip}
+                    onAddToTimeline={addElementAtTime}
+                    onSelect={handleSelectMedia}
+                    selectedMediaId={selectedMediaId}
+                    highlightedId={highlightedId}
+                    registerElement={registerElement}
+                  />
+                )}
+              </div>
+            </div>
+          </PropertyGroup>
+        </BaseView>
       </div>
     </>
   );

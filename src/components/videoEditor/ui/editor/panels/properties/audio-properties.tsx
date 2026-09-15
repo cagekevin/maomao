@@ -77,8 +77,8 @@ export function AudioProperties({
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <PanelBaseView className="p-0">
+    <>
+      <PanelBaseView>
         <PropertyGroup hasBorderTop={false}>
           <PropertyItem direction="column">
             <PropertyItemLabel>{'音量'}</PropertyItemLabel>
@@ -297,6 +297,6 @@ export function AudioProperties({
           </PropertyItem>
         </PropertyGroup>
       </PanelBaseView>
-    </div>
+    </>
   );
 }

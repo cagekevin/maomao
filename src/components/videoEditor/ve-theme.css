@@ -486,6 +486,18 @@
 .ve-scope .ve-pg[data-border-top='true'] {
   border-top: 1px solid rgb(var(--ve-border));
 }
+/* 撑满剩余高度的分区（空态 / 拖放区这类"整块占位"）—— 折叠分区不用。
+   把高度一路交给 body，块内容自己用 `flex-1` 铺满。 */
+.ve-scope .ve-pg[data-grow='true'] {
+  flex: 1;
+  min-height: 0;
+}
+.ve-scope .ve-pg[data-grow='true'] > .ve-pg-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 
 /* ── ② 字级（三级，字重随字号一起定）───────────────────────────
  * L0 组头 12px / 500 / fg.85  —— 唯一允许"加粗"的一层，它就是分区标题

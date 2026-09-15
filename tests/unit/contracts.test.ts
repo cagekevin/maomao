@@ -253,10 +253,12 @@ describe('EVENTS 结构完整性', () => {
 });
 
 describe('EVENTS 内容验证', () => {
-  it('当前共有 8 个登记事件', () => {
+  it('当前共有 9 个登记事件', () => {
     // 2026-09-11：由 10 → 9（删 'yimao:remove-edge'，TD-04-8，只有订阅无发布的死事件）
     // 2026-09-12：由 9 → 8（删 'resource:renamed'，四态 url 改写广播随 context-only 改名废弃，无订阅方）
-    expect(Object.keys(EVENTS).length).toBe(8);
+    // 2026-09-15：由 8 → 9（增 'videoeditor:seek'，TD-22-23：把 playback-manager 的
+    //   `window.dispatchEvent('playback-seek')` 私通道收进 eventBus 唯一通道；同处删掉零消费者的 'playback-update'）
+    expect(Object.keys(EVENTS).length).toBe(9);
   });
 
   it('包含所有核心事件', () => {
@@ -272,6 +274,8 @@ describe('EVENTS 内容验证', () => {
     expect(keys).toContain('resource:sent');
     // P2-G 新增：上游完成 → 直接下游可自动触发（安全网）
     expect(keys).toContain('upstream:updated');
+    // TD-22-23 新增：剪辑器播放头跳转（window 私通道 → eventBus 唯一通道）
+    expect(keys).toContain('videoeditor:seek');
     // 注：'resource:renamed' 已于 2026-09-12 删除（四态 url 改写广播随 contentId 模型 / context-only 改名废弃）
   });
 });

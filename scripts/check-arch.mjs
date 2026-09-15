@@ -8,6 +8,8 @@
  *   1. no-circular —— 模块循环依赖（CLAUDE.md §5.4.2 TDZ 红线）
  *   2. base/ 禁反向依赖业务域（nodes/scriptbox/agent/panels）—— 通用地基必须单向，业务依赖 base 才正确
  *   （另含：结果信封 / 工具层写操作 / 裸写 node 字段 / 存储唯一入口 / KV 同步读 / 深路径，见下方各规则）
+ *   ★ 扫目录型规则一律经 `assertScanned()` 做**扫描基数自检**：0 扫描 = 红灯（"没扫"≠"干净"），
+ *     禁假绿 —— 本仓 TD-02-9 / TD-22-53 两次踩过。新增此类规则时第一件事是核对输出里的「已扫描 N」不是 0。
  *
  * 【与 audit/ 的关系（2026-09-13 · TD-17-1）】audit/ 沙盒已退役，本文件即架构规则的**唯一落点**
  * （原「全量图/可视化另用 dependency-cruiser」的补充形态随之取消——不留孤岛）。
@@ -19,9 +21,11 @@
  *   Q3 怎么改：① 清单式白名单 → **反向判据**（清单必漏：漏一个目录就要再改一次闸，这本身是母体）；
  *               ② **只收窄不放宽**（取证掉"放宽整个目录"的诱惑）；③ 改完跑**闸探针先红后绿**
  *               （注入正例 → 精确红；注入反例 → **仍红**，证明没放过头）。统一走 `node scripts/probe.mjs`。
- *   先例与实证：规则 2 与规则 4 的两次「清单 → 反向判据」；规则 4 的【★改】段 —— 原「文件级白名单」
- *               把 `core/` 逼成内联重写 7 遍（文件头写着"严禁在此重写"，正文却只能重写
- *               = **闸把作者逼成了它禁止的样子**）。
+ *   先例与实证：规则 2（base）/ 规则 10（广播）/ 规则 4′（引擎区↔改造区）的「清单 → 反向判据」；
+ *               原规则 4 的【★改】段 —— 「文件级白名单」把 `core/` 逼成内联重写 7 遍（文件头写着
+ *               "严禁在此重写"，正文却只能重写 = **闸把作者逼成了它禁止的样子**）。
+ *               ⚠️ 原规则 4 与规则 6 已于 2026-09-15 **退役删除**（守护两端随 cutia 搬迁消失、空转假绿
+ *               ⇒ TD-22-53，决策源 `docs/130` §4.1）：见下方【已删 · 退役留痕】与规则 4′。
  *
  * 用法: node scripts/check-arch.mjs       （或 npm run check:arch）
  * 退出码: 有违规 → 1；无 → 0
@@ -50,6 +54,25 @@ let errors = 0;
 const fail = (msg) => {
   console.log('  ❌ ' + msg);
   errors++;
+};
+
+/**
+ * 扫目录型规则的**扫描基数自检**（fail-loud）—— 本文件唯一实现，勿在各规则里再手写一遍。
+ *
+ * 【为什么必须有】闸类代码最危险的失败模式是「**不报错、只少扫**」：目标目录改名 / 迁移后规则扫到
+ *   0 个文件，却照样打印 ✅，读起来像"通过"。本仓两次实证：TD-02-9（`check-node-data` 解析被打瞎却长期报 0 缺口）、
+ *   TD-22-53（规则 4/6 目标目录消失、空转假绿，直到有人盯"已扫描 0"才发现）。
+ *   ⇒ **扫到 0 个文件不是"干净"，是"没扫"**，必须红灯，且不能让 CI 绿。
+ *
+ * 【口径】`label` 写清扫的是什么（含两端基数时一并写出）；返回 false 表示已记账（调用方**勿再打印 ✅**）。
+ *   边界型规则（如规则 4′ 引擎区↔改造区）两端都要在 ⇒ 传两端基数的 `min`。
+ */
+const assertScanned = (label, count) => {
+  if (count === 0) {
+    fail(`${label}规则未生效：未扫到任何目标文件（目标目录不存在 / 已改名 ⇒ 本规则空转，勿当通过）`);
+    return false;
+  }
+  return true;
 };
 
 // ── 收集源码文件 ──
@@ -112,10 +135,17 @@ function extractImportAbs(code, filepath) {
   } catch (e) {
     /* 语法错误：交由 build/type-check 兜底，此处跳过该文件依赖追踪 */
   }
-  // 解析为绝对路径（相对 + @/ 别名）
+  // 解析为绝对路径（相对 + `@/` + `@videoEditor/` 两个已登记别名）
+  const VE_ALIAS = '@videoEditor';
   const resolved = out
     .map((spec) => {
       if (spec.startsWith('@/')) return resolve(root, 'src', spec.slice(2));
+      // 【2026-09-15 · TD-22-53 补】原实现只认 `@/`，**`@videoEditor/*` 被当"外部 npm 包"整体丢弃**
+      //   ⇒ 凡以该别名书写的依赖边，对**全部分层规则隐形**（规则 2 base / 规则 4′ 引擎区↔改造区）——
+      //   而 videoEditor 域内代码几乎**全用该别名** ⇒ 判据可被别名绕过 = 又一个假守卫。
+      //   别名已在 `tsconfig.json` / `vite.config.ts` 双向登记，此处按同一映射解析。
+      if (spec === VE_ALIAS || spec.startsWith(VE_ALIAS + '/'))
+        return resolve(root, 'src/components/videoEditor', spec.slice(VE_ALIAS.length + 1));
       if (spec.startsWith('.')) return resolve(dirname(filepath), spec);
       return null; // 外部 npm 包，不参与内部循环/分层
     })
@@ -212,189 +242,73 @@ for (const [from, deps] of graph) {
 if (!baseViol) console.log('  ✅ base/ 无反向依赖业务域');
 
 // ─────────────────────────────────────────────────────────────────
-// 规则 4（docs/123 G-2，2026-09-13）：videoEditor/core 导入白名单 ——「零 React / 零 IO」的结构守卫。
+// 【已删 · 退役留痕（2026-09-15 · TD-22-53）】原规则 4（`videoEditor/core/` 依赖白名单）与
+// 规则 6（`videoEditor/hooks/` 禁依赖 `videoEditor/export/`）**已整体删除**，下面换成规则 4′。
 //
-// 【为什么是一条白名单而不是三条禁令】写「禁 React / 禁 IO / 禁 fetch」必漏（漏掉 lucide、zustand、
-// 任何新库）；白名单是**补集**形态——只留两条出路，其余一律违规，一条规则覆盖全部外来依赖。
+// 【为什么删】两条规则的**守护两端都已随 cutia 版搬迁消失**：
+//   · 规则 4 扫 `videoEditor/core/**` —— 自建 core 已退役（现为 `engine/`）；
+//   · 规则 6 扫 `videoEditor/hooks/**` 并禁其 import `videoEditor/export/**` —— 目录改为 `hooks-cutia/`，
+//     且 `export/` 域整体退役（`src/components/videoEditor/export/` 零文件）。
+//   ⇒ 两条规则**空转**（各扫 0 个文件）却照样打印 ✅ —— 本仓已批过的「假守卫」（闸在假装工作）。
 //
-// 【判定】`src/components/videoEditor/core/**` 的每个 import / export-from / 动态 import 的 specifier：
-//   · 相对或 `@/` 路径 → 解析后必须落在 `videoEditor/core/` 内，或落在下面白名单目录内；
-//   · 裸 specifier（npm 包：react / @xyflow/react / mediabunny …）→ 一律违规。
-//   含 `import type`：type-only 虽编译期擦除，但「core 零 React」是**认知边界**，不许靠擦除绕过。
+// 【决策源（不是本轮发明）】`docs/130-cutia搬迁计划书-2026-09-14.md` §4.1 裁决表：删规则 4/6、
+//   建「引擎区不得 import 改造区」反向判据（对应债 `TD-VE-6`）；验收口径见 `docs/133` §五 不变式 `I-2`。
+//   §4.1 对规则 4 的原话：「守护对象消失，且 cutia 引擎本就 import react/sonner（守不住，硬守只会逼人贴假标记）」。
 //
-// 【★改：文件白名单 → 目录白名单（2026-09-14，附取证）】
-// 原实现是「一个具体文件」白名单（只放行 `base/core/idGen.ts`），后果是：
-//   `core/timelineOps.ts` **无法复用**已下沉的映射原语 `base/utils/timeline/sourceTime.ts`，
-//   于是它在文件头写着「直接复用、严禁在此重写」，正文却**内联重写了 4 遍**同一公式
-//   （`:284/303/316/342`）—— 闸把作者逼成了自己禁止的样子。
-// 原想放宽整个 `base/utils/`，**取证后否决**：该目录**不是**纯函数层 ——
-//   `assetUrl.ts` import react（useCallback）、`audioPeaks.ts`/`videoEngine.ts` import mediabunny。
-//   放行整个目录 = 把 React 与重编码器也放进来，闸真废。
-// 故收窄为**只放行 `base/utils/timeline/`**：实测该目录三个文件（sourceTime / timeScale / rulerTicks）
-//   **零 import**（`rg '^import' → 0 命中`），是真正的零依赖纯函数层，正是本闸要放行的对象。
-// 判据从「白名单某个文件」改为「白名单某个**层**」⇒ 该层新增纯函数模块**不必再回来手改清单**
-//   （消除「加一个合法模块就要改一次闸」这条母体，与规则 2 改反向判据同款手法）。
+// 【若将来重现「纯逻辑叶层零 React / 零 IO」需求（如未来的 `animations/`）】**不要恢复旧形态** ——
+//   旧白名单是**手写目录清单**（"每加一个合法目录就要回来改一次闸" = 本仓母体，规则 2/10/4′ 都因它改过
+//   判据形态）。该语义应由「**禁 npm 裸 specifier**」这类反向判据承载，而不是"允许谁"的清单。
 // ─────────────────────────────────────────────────────────────────
-const VE_CORE_REL = 'src/components/videoEditor/core/';
-// 白名单**目录**（纯函数层）。理由见上方「★改」段：timeline/ 实测零 import。
-const VE_CORE_ALLOW_DIRS = ['src/components/base/core/', 'src/components/base/utils/timeline/'];
-// 【2026-09-14 删】此处原有"白名单**文件**"容器 `VE_CORE_ALLOW = new Set([])` —— 实测**恒空、零填充点**
-//   （唯一加载点只读不写）→ 属本仓已批过的「幽灵预留 / 假接缝」（7步法 铁律 5：只有一种实现的接缝即假接缝；
-//   区域 20 清偿轮清过同类）。它的真实成本是**误导**：让人以为存在"单文件豁免"机制。
-//   将来真出现"该层不成目录 / 或该目录非纯函数层"的合法单文件场景 → **到时有真实消费方再加**，并同步本注释。
-let veCoreViol = 0;
-let veCoreScanned = 0;
-for (const f of files) {
-  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
-  if (!rel.startsWith(VE_CORE_REL)) continue;
-  veCoreScanned++;
-  let ast;
-  try {
-    ast = parse(readFileSync(f, 'utf8'), {
-      sourceType: 'unambiguous',
-      plugins: ['jsx', 'typescript', 'decorators-legacy'],
-      errorRecovery: true,
-    });
-  } catch {
-    continue;
-  }
-  const bad = [];
-  const judge = (spec, line) => {
-    if (!spec) return;
-    let relDep = null;
-    if (spec.startsWith('.')) {
-      const abs = resolveSourceFile(resolve(dirname(f), spec));
-      if (abs) relDep = abs.slice(root.length + 1).replace(/\\/g, '/');
-    } else if (spec.startsWith('@/')) {
-      const abs = resolveSourceFile(resolve(root, 'src', spec.slice(2)));
-      if (abs) relDep = abs.slice(root.length + 1).replace(/\\/g, '/');
-    } else {
-      bad.push({ spec: `${spec}（外部依赖）`, line });
-      return;
-    }
-    if (
-      relDep &&
-      (relDep.startsWith(VE_CORE_REL) ||
-        VE_CORE_ALLOW_DIRS.some((dir) => relDep.startsWith(dir)))
-    )
-      return;
-    bad.push({ spec: relDep ? `${spec} → ${relDep}` : spec, line });
-  };
-  const walk = (n) => {
-    if (!n || typeof n !== 'object') return;
-    if (Array.isArray(n)) return n.forEach(walk);
-    if (
-      (n.type === 'ImportDeclaration' ||
-        n.type === 'ExportNamedDeclaration' ||
-        n.type === 'ExportAllDeclaration') &&
-      n.source?.value
-    ) {
-      judge(n.source.value, n.loc?.start?.line);
-    }
-    if (n.type === 'ImportExpression' && n.source?.type === 'StringLiteral') {
-      judge(n.source.value, n.loc?.start?.line);
-    }
-    for (const k in n)
-      if (k !== 'loc' && k !== 'range' && typeof n[k] === 'object' && n[k] !== null) walk(n[k]);
-  };
-  walk(ast.program);
-  for (const b of bad) {
-    veCoreViol++;
-    fail(
-      `videoEditor/core 越界依赖: ${rel}:${b.line} → ${b.spec}` +
-        `（core 只准 import videoEditor/core/** 与 base/core/ · base/utils/timeline/；零 React / 零存储 / 零网络）`,
-    );
-  }
-}
-console.log(
-  `\n🧱 videoEditor/core 导入白名单（零 React / 零 IO）· 已扫描 ${veCoreScanned} 个 core 文件` +
-    (veCoreScanned === 0 ? '（core/ 尚未创建，G1 落码起生效）' : ''),
-);
-if (!veCoreViol)
-  console.log(
-    veCoreScanned === 0
-      ? '  ⚠️ 目标目录不存在 ⇒ 本规则当前**未生效**（别读成"通过"；目录改名/迁移后要回来对路径 —— TD-22-53）'
-      : '  ✅ core 依赖未越界（仅 core/** 与 base/core/ · base/utils/timeline/）',
-  );
 
 // ─────────────────────────────────────────────────────────────────
-// 规则 6（2026-09-13）：`videoEditor/hooks/**` 禁依赖 `videoEditor/export/**` —— 播放/探测域不得反向依赖导出域。
+// 规则 4′（2026-09-15 · TD-22-53 / docs/130 §4.1）：**引擎区不得 import 改造区**（反向判据）。
 //
-// 【为什么】（docs/123 §二 的依赖方向 + 亲历教训）判据/探测/预览是**读/领域**，导出是**写/环境**。
-//   hooks（useEditorSources / useEditorFilmstrips / useEditorWaveforms）若为取一个
-//   判据或工具去 import `export/composite`，就会把「它要一个纯函数」变成「拉进整个导出域（含 mediabunny）」
-//   —— 既制造播放→导出倒挂，又放大依赖半径。判据一律收在 `core/`（见 `routeClip.audibleClipsOf` 上移）。
-// 【判定】只拦「相对/`@/` import 解析后落在 `videoEditor/export/`」；裸 spec（react 等）不禁（hooks 可用外部库）。
-// 【防回潮】将来 hooks 需要"可闻/某判据" → 从 `core/routeClip.ts` 取，不许 import export。
+// 【为什么守这一条】cutia 版把编辑器切成两个**变化速率截然不同**的区域（docs/130 §2.3）：
+//   · **引擎区** `videoEditor/engine/**` —— cutia 原样搬入、**本版本冻结**，改动需明确理由；
+//   · **改造区** `videoEditor/ui/**` —— 我们的主战场（panels / properties / assets），改动高频。
+//   引擎若反向 import 改造区 ⇒ 每次 UI 重构都会把引擎一起拽动，"冻结"名存实亡。
+//   ⇒ 依赖方向必须单向：`ui/ → engine/` 合法；`engine/ → ui/` 违规。
+//
+// 【为什么用反向判据而非白名单】规则 2（base）与规则 10（广播）已两次实证：「允许谁」的清单必漏，
+//   且"加一个合法模块就要改一次闸"本身是母体。本规则只禁**往上跑的那一条边**，引擎区其余依赖
+//   （base/ · types/ · constants/ · utils/ · lib/ · engine 自身）一概不碰，无需维护清单。
+//   形态对标先例：上方规则 2「base 不得 import 任何非 base 目录」。
+//
+// 【★双端基数自检（本规则对 TD-22-53 母体的关键改进）】边界规则有**两端**。旧规则 4/6 只查自己那一端，
+//   于是"目标目录改名 ⇒ 扫 0 ⇒ 假绿"。此处若只查引擎端，`ui/` 一旦改名，规则会**静默退化成
+//   「引擎不得 import 一个不存在的目录」（恒真空转）**。故两端扫描基数都必须非 0，任一端消失即红灯。
+//   ⇒ 判据取两端基数的 `min`：任一端为 0 则 min=0（边界不成立）。
 // ─────────────────────────────────────────────────────────────────
-const VE_HOOKS_REL = 'src/components/videoEditor/hooks/';
-const VE_EXPORT_REL = 'src/components/videoEditor/export/';
-let veHooksExportViol = 0;
-let veHooksScanned = 0;
-for (const f of files) {
-  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
-  if (!rel.startsWith(VE_HOOKS_REL)) continue;
-  veHooksScanned++;
-  let ast;
-  try {
-    ast = parse(readFileSync(f, 'utf8'), {
-      sourceType: 'unambiguous',
-      plugins: ['jsx', 'typescript', 'decorators-legacy'],
-      errorRecovery: true,
-    });
-  } catch {
-    continue;
-  }
-  const bad = [];
-  const judge = (spec, line) => {
-    if (!spec) return;
-    let relDep = null;
-    if (spec.startsWith('.')) {
-      const abs = resolveSourceFile(resolve(dirname(f), spec));
-      if (abs) relDep = abs.slice(root.length + 1).replace(/\\/g, '/');
-    } else if (spec.startsWith('@/')) {
-      const abs = resolveSourceFile(resolve(root, 'src', spec.slice(2)));
-      if (abs) relDep = abs.slice(root.length + 1).replace(/\\/g, '/');
-    } else {
-      return; // 裸 spec（npm 库）不加限制
+const VE_ENGINE_REL = 'src/components/videoEditor/engine/';
+const VE_UI_REL = 'src/components/videoEditor/ui/';
+let veEngineToUiViol = 0;
+let veEngineScanned = 0;
+let veUiScanned = 0;
+for (const [from, deps] of graph) {
+  const relFrom = from.slice(root.length + 1).replace(/\\/g, '/');
+  if (relFrom.startsWith(VE_UI_REL)) veUiScanned++;
+  if (!relFrom.startsWith(VE_ENGINE_REL)) continue;
+  veEngineScanned++;
+  for (const dep of deps) {
+    const relDep = dep.slice(root.length + 1).replace(/\\/g, '/');
+    if (relDep.startsWith(VE_UI_REL)) {
+      veEngineToUiViol++;
+      fail(
+        `引擎区反向依赖改造区: ${relFrom} → ${relDep}` +
+          `（依赖方向必须单向 ui/ → engine/：引擎区是 cutia 冻结层，不得 import 我们的改造区）`,
+      );
     }
-    if (relDep && relDep.startsWith(VE_EXPORT_REL)) bad.push({ spec: relDep, line });
-  };
-  const walk = (n) => {
-    if (!n || typeof n !== 'object') return;
-    if (Array.isArray(n)) return n.forEach(walk);
-    if (
-      (n.type === 'ImportDeclaration' ||
-        n.type === 'ExportNamedDeclaration' ||
-        n.type === 'ExportAllDeclaration') &&
-      n.source?.value
-    ) {
-      judge(n.source.value, n.loc?.start?.line);
-    }
-    if (n.type === 'ImportExpression' && n.source?.type === 'StringLiteral') {
-      judge(n.source.value, n.loc?.start?.line);
-    }
-    for (const k in n)
-      if (k !== 'loc' && k !== 'range' && typeof n[k] === 'object' && n[k] !== null) walk(n[k]);
-  };
-  walk(ast.program);
-  for (const b of bad) {
-    veHooksExportViol++;
-    fail(
-      `videoEditor/hooks 反向依赖导出域: ${rel}:${b.line} → ${b.spec}` +
-        `（hooks 是播放/探测域，不许 import export/**；判据一律从 core/ 取）`,
-    );
   }
 }
 console.log(
-  `\n📴 videoEditor/hooks 禁依赖 export（播放/探测 ≠ 导出）· 已扫描 ${veHooksScanned} 个 hooks 文件`,
+  `\n🧱 引擎区禁 import 改造区（反向判据）· 已扫描 ${veEngineScanned} 个 engine 文件 / ${veUiScanned} 个 ui 文件`,
 );
-if (!veHooksExportViol)
-  console.log(
-    veHooksScanned === 0
-      ? '  ⚠️ 目标目录不存在 ⇒ 本规则当前**未生效**（别读成"通过"；目录改名/迁移后要回来对路径 —— TD-22-53）'
-      : '  ✅ hooks 未反向依赖导出域',
-  );
+if (!assertScanned('引擎区→改造区边界', Math.min(veEngineScanned, veUiScanned))) {
+  // 已记账（两端任一为 0 ⇒ 边界规则空转），勿再打印 ✅。
+} else if (!veEngineToUiViol) {
+  console.log(`  ✅ 引擎区无反向依赖改造区（扫 ${veEngineScanned} engine / ${veUiScanned} ui 文件）`);
+}
+
 
 // ─────────────────────────────────────────────────────────────────
 // 规则 7（2026-09-15 · TD-22-31）：`videoEditor/types/**` 不得依赖 `videoEditor/engine/**`。
@@ -469,7 +383,10 @@ for (const f of files) {
 console.log(
   `\n🧱 videoEditor/types 禁依赖 engine（层位摆正）· 已扫描 ${veTypesScanned} 个 types 文件`,
 );
-if (!veTypesViol) console.log('  ✅ types 层无反向依赖 engine');
+// 扫描基数自检（共用原语）：`types/` 一旦改名/迁移 ⇒ 本规则空转，不许当通过（TD-22-53 教训）。
+if (assertScanned('videoEditor/types 禁依赖 engine', veTypesScanned) && !veTypesViol) {
+  console.log('  ✅ types 层无反向依赖 engine');
+}
 
 // ─────────────────────────────────────────────────────────────────
 // 规则 5（docs/123 G-3，2026-09-13）：激活位判据单点 —— 外部禁直调底层 `hasModalLayer()`。
@@ -1199,14 +1116,84 @@ for (const f of files) {
     );
   }
 }
-// 解析源自检（fail-loud）：扫到 0 个文件时上面的「✅」不可信（本仓 TD-02-9「假护栏恒绿」同款教训）。
-if (veImmutableScanned === 0) {
-  fail(
-    'videoEditor 引用纪律规则未生效：未扫到任何 videoEditor 文件（解析源为空，勿当通过）',
-  );
-} else if (!veImmutableViol) {
+// 扫描基数自检（共用原语 assertScanned）：扫到 0 个文件时上面的「✅」不可信。
+if (assertScanned('videoEditor 引用纪律', veImmutableScanned) && !veImmutableViol) {
   console.log(
     `  ✅ 无数组原地变异（扫 ${veImmutableScanned} 文件；快照与 store 隔离的纪律成立）`,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 规则 10（TD-22-23，2026-09-15）：事件广播**唯一通道** —— src 内禁 `window.dispatchEvent` 自建广播。
+//
+// 【为什么】`base/core/eventBus.ts` 文件头声明「全项目唯一的事件广播通道…**禁止自建第二套广播
+//   （window.dispatchEvent / 手写 Map 监听）**」，但该红线**只有注释、无机器守卫**（本仓 M2 母体：
+//   红线只在注释里 → 必回潮）。实测漏网：
+//   `videoEditor/engine/core/managers/playback-manager.ts` 每帧 `window.dispatchEvent('playback-update')`
+//   （全仓含 tests **零消费者**）+ seek 时 `window.dispatchEvent('playback-seek')`（绕过总线）——
+//   videoEditor 搬迁时带进来的。同族前例 `yimao:remove-edge`（TD-04-8）与 `resource:renamed`
+//   都按此红线清过，但**都是人工发现的**。本规则把它变成机器判定。
+//
+// 【判据（反向）】src/** 内任何 `window|document|globalThis|self . dispatchEvent(...)` 调用 → 违规。
+//   · 不限定目录 ⇒ 不随模块改名失效（与规则 2/4「清单 → 反向判据」同款手法）；
+//   · DOM 元素上的 `dispatchEvent` **不在判据内**（标准 DOM 事件派发，如
+//     `input.dispatchEvent(new Event('change'))`，不构成第二套广播通道）；
+//   · 【诚实边界】只机器化「dispatchEvent」这一半。红线里的另一半「手写 Map 监听」**不纳入** ——
+//     它与各 manager 的 `listeners Set`（eventBus 文件头明示豁免的「模块内订阅」）静态上不可区分，
+//     强行机器化 = 大面积误报（假守卫比无守卫更坏）。那一半仍靠结构约定 + 本条注释指路。
+//   · 正确写法：`base/core/eventBus.ts` 的 publish/subscribe + `contracts.ts` EVENTS 登记
+//     （`check:events` 校验「发布/订阅成对」）。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n📡 事件广播唯一通道：禁 window/dispatchEvent 自建广播（反向判据）');
+const DISPATCH_GLOBALS = new Set(['window', 'document', 'globalThis', 'self']);
+let globalBroadcastViol = 0;
+let globalBroadcastScanned = 0;
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  globalBroadcastScanned++;
+  let ast;
+  try {
+    ast = parse(readFileSync(f, 'utf8'), {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: true,
+    });
+  } catch {
+    continue;
+  }
+  const hits = [];
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) {
+      n.forEach(walk);
+      return;
+    }
+    if (
+      n.type === 'CallExpression' &&
+      n.callee?.type === 'MemberExpression' &&
+      n.callee.property?.name === 'dispatchEvent' &&
+      n.callee.object?.type === 'Identifier' &&
+      DISPATCH_GLOBALS.has(n.callee.object.name)
+    ) {
+      hits.push({ line: n.loc?.start?.line, obj: n.callee.object.name });
+    }
+    for (const k in n)
+      if (k !== 'loc' && k !== 'range' && typeof n[k] === 'object' && n[k] !== null) walk(n[k]);
+  };
+  walk(ast.program);
+  for (const h of hits) {
+    globalBroadcastViol++;
+    fail(
+      `自建事件广播通道: ${rel}:${h.line} → ${h.obj}.dispatchEvent(...)` +
+        `（唯一通道 = base/core/eventBus.ts 的 publish/subscribe + contracts.ts EVENTS 登记；` +
+        `禁 window/dispatchEvent 第二套广播）`,
+    );
+  }
+}
+// 扫描基数自检（共用原语 assertScanned）：扫到 0 个文件时上面的「✅」不可信。
+if (assertScanned('事件广播唯一通道（src 全域）', globalBroadcastScanned) && !globalBroadcastViol) {
+  console.log(
+    `  ✅ 无自建广播通道（扫 ${globalBroadcastScanned} 文件；均走 eventBus + EVENTS 登记）`,
   );
 }
 

@@ -298,8 +298,8 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
           <TabsTrigger value="style">{'样式'}</TabsTrigger>
           <TabsTrigger value="speech">{'语音'}</TabsTrigger>
         </TabsList>
-        <TabsContent value="style" className="mt-0 flex-1 overflow-auto">
-          <PanelBaseView className="p-0">
+        <TabsContent value="style" className="mt-0 flex-1">
+          <PanelBaseView>
             <PropertyGroup hasBorderTop={false}>
               <Textarea
                 placeholder="输入文字"
@@ -1404,7 +1404,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
             </PropertyGroup>
           </PanelBaseView>
         </TabsContent>
-        <TabsContent value="speech" className="mt-0 flex-1 overflow-auto">
+        <TabsContent value="speech" className="mt-0 flex-1">
           {/* 更新(2026-09-14)：TextSpeechPanel 已恢复（原误判为 AI 相关而删）。
 					    ⚠️ 其 TTS 后端当前为**诚实占位**（localTool 尚无 /api/tts 端点，
 					    调用即明确报错）—— 见 docs/133 §〇.4 与 engine/lib/tts/service.ts 注释。 */}

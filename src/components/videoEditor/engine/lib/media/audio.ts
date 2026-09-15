@@ -26,49 +26,65 @@ export function createAudioContext(): AudioContext {
   return new AudioContextConstructor();
 }
 
-export interface DecodedAudio {
-  samples: Float32Array;
-  sampleRate: number;
+/**
+ * `AudioBuffer` → 单声道 `Float32Array`（"下游只认一串样本"时的唯一转换原语）。
+ *
+ * 【为什么抽它（TD-22-29 档 1）】字幕识别链路原先走
+ * 「混音 → PCM16 WAV 编码（`createWavBlob`）→ 再 `decodeAudioToFloat32` 解码回 samples」，
+ * 中间那一次「编码 → 解码」往返只是为了把 `AudioBuffer` 变成一串样本。
+ * 现改为：混音直接产目标采样率的 `AudioBuffer`，再用本原语取样本（往返整段消失）。
+ *
+ * 【声道口径】与原 `decodeAudioToFloat32` **逐字一致**（不得漂移）：
+ *   立体声 = `√2·(L+R)/2`（power-preserving——L/R 同相时直接取平均会掉 3dB）；其余取声道 0。
+ */
+export function toMonoSamples({ buffer }: { buffer: AudioBuffer }): Float32Array {
+  const length = buffer.length;
+  const samples = new Float32Array(length);
+
+  if (buffer.numberOfChannels === 2) {
+    const SCALING_FACTOR = Math.sqrt(2);
+    const left = buffer.getChannelData(0);
+    const right = buffer.getChannelData(1);
+    for (let i = 0; i < length; i++) {
+      samples[i] = (SCALING_FACTOR * (left[i] + right[i])) / 2;
+    }
+    return samples;
+  }
+
+  samples.set(buffer.getChannelData(0));
+  return samples;
 }
 
-export async function decodeAudioToFloat32({
-  audioBlob,
-  targetSampleRate,
+/**
+ * 倒序副本（`R[i] = S[N−1−i]`，逐声道独立）。
+ *
+ * 【为什么需要（TD-22-29 档 2）】`AudioBufferSourceNode` **不支持负向播放**
+ * （规范未定义 `playbackRate < 0` 的行为），故"倒放"必须在**喂给调度器之前**完成：
+ * 先倒序，再让调度器按**正序**算式播 —— 起点换算见 `AudioManager.scheduleClipNode` 的 `trimStart` 注释。
+ *
+ * 【为什么不原地倒序】同一 `sourceKey` 的素材可能**同时**被正序元素与反转元素引用，
+ * 两者共享一份解码结果 ⇒ 原地倒序会污染另一个消费方，故一律产出**独立副本**。
+ */
+export function reverseAudioBuffer({
+  buffer,
+  audioContext,
 }: {
-  audioBlob: Blob;
-  targetSampleRate?: number;
-}): Promise<DecodedAudio> {
-  const audioContext = targetSampleRate
-    ? new AudioContext({ sampleRate: targetSampleRate })
-    : createAudioContext();
+  buffer: AudioBuffer;
+  audioContext: AudioContext;
+}): AudioBuffer {
+  const channels = buffer.numberOfChannels;
+  const length = buffer.length;
+  const reversed = audioContext.createBuffer(channels, length, buffer.sampleRate);
 
-  try {
-    const arrayBuffer = await audioBlob.arrayBuffer();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-    const numChannels = audioBuffer.numberOfChannels;
-    const length = audioBuffer.length;
-    const samples = new Float32Array(length);
-
-    if (numChannels === 2) {
-      // stereo -> mono with power-preserving scaling
-      const SCALING_FACTOR = Math.sqrt(2);
-      const left = audioBuffer.getChannelData(0);
-      const right = audioBuffer.getChannelData(1);
-      for (let i = 0; i < length; i++) {
-        samples[i] = (SCALING_FACTOR * (left[i] + right[i])) / 2;
-      }
-    } else {
-      const channel = audioBuffer.getChannelData(0);
-      for (let i = 0; i < length; i++) {
-        samples[i] = channel[i];
-      }
+  for (let channel = 0; channel < channels; channel++) {
+    const source = buffer.getChannelData(channel);
+    const target = reversed.getChannelData(channel);
+    for (let i = 0; i < length; i++) {
+      target[i] = source[length - 1 - i];
     }
-
-    return { samples, sampleRate: audioBuffer.sampleRate };
-  } finally {
-    await audioContext.close();
   }
+
+  return reversed;
 }
 
 export async function collectAudioElements({
@@ -198,14 +214,6 @@ async function resolveAudioBufferForElement({
   }
 }
 
-interface AudioMixSource {
-  file: File;
-  startTime: number;
-  duration: number;
-  trimStart: number;
-  playbackRate: number;
-}
-
 export interface AudioClipSource {
   id: string;
   sourceKey: string;
@@ -216,6 +224,11 @@ export interface AudioClipSource {
   muted: boolean;
   volume: number;
   playbackRate: number;
+  /**
+   * 倒放（**仅 video 元素有该字段**，audio 元素不支持反转）。
+   * 调度域不支持负向播放 ⇒ 喂给调度器前取倒序副本，起点随之换算（TD-22-29 档 2）。
+   */
+  reversed: boolean;
 }
 
 /**
@@ -260,23 +273,6 @@ async function fetchLibraryAudioFile({
   return new File([blob], `${element.name}.mp3`, { type: 'audio/mpeg' });
 }
 
-async function fetchLibraryAudioSource({
-  element,
-}: {
-  element: LibraryAudioElement;
-}): Promise<AudioMixSource | null> {
-  const file = await fetchLibraryAudioFile({ element });
-  if (!file) return null;
-
-  return {
-    file,
-    startTime: element.startTime,
-    duration: element.duration,
-    trimStart: element.trimStart,
-    playbackRate: element.playbackRate ?? 1,
-  };
-}
-
 async function fetchLibraryAudioClip({
   element,
   muted,
@@ -297,22 +293,8 @@ async function fetchLibraryAudioClip({
     muted,
     volume: element.volume ?? 1,
     playbackRate: element.playbackRate ?? 1,
-  };
-}
-
-function collectMediaAudioSource({
-  element,
-  mediaAsset,
-}: {
-  element: TimelineElement;
-  mediaAsset: MediaAsset;
-}): AudioMixSource {
-  return {
-    file: mediaAsset.file,
-    startTime: element.startTime,
-    duration: element.duration,
-    trimStart: element.trimStart,
-    playbackRate: getElementPlaybackRate({ element }),
+    // 库音频是 audio 元素，不支持反转（与 `collectMediaAudioClip` 的窄化口径一致）。
+    reversed: false,
   };
 }
 
@@ -342,58 +324,9 @@ function collectMediaAudioClip({
     muted,
     volume: getElementVolume({ element }),
     playbackRate: getElementPlaybackRate({ element }),
+    // 只有 video 元素有 `reversed`（audio 元素类型上就没有该字段）⇒ 窄化后取值，缺省 false。
+    reversed: 'reversed' in element ? (element.reversed ?? false) : false,
   };
-}
-
-export async function collectAudioMixSources({
-  tracks,
-  mediaAssets,
-}: {
-  tracks: TimelineTrack[];
-  mediaAssets: MediaAsset[];
-}): Promise<AudioMixSource[]> {
-  const audioMixSources: AudioMixSource[] = [];
-  const mediaMap = new Map<string, MediaAsset>(mediaAssets.map((asset) => [asset.id, asset]));
-  const pendingLibrarySources: Array<Promise<AudioMixSource | null>> = [];
-
-  for (const track of tracks) {
-    if (canTracktHaveAudio(track) && track.muted) continue;
-
-    for (const element of track.elements) {
-      if (!canElementHaveAudio(element)) continue;
-
-      const isElementMuted = 'muted' in element ? (element.muted ?? false) : false;
-      if (isElementMuted) continue;
-
-      if (element.type === 'audio') {
-        if (element.sourceType === 'upload') {
-          const mediaAsset = mediaMap.get(element.mediaId);
-          if (!mediaAsset) continue;
-
-          audioMixSources.push(collectMediaAudioSource({ element, mediaAsset }));
-        } else {
-          pendingLibrarySources.push(fetchLibraryAudioSource({ element }));
-        }
-        continue;
-      }
-
-      if (element.type === 'video') {
-        const mediaAsset = mediaMap.get(element.mediaId);
-        if (!mediaAsset) continue;
-
-        if (mediaSupportsAudio({ media: mediaAsset })) {
-          audioMixSources.push(collectMediaAudioSource({ element, mediaAsset }));
-        }
-      }
-    }
-  }
-
-  const resolvedLibrarySources = await Promise.all(pendingLibrarySources);
-  for (const source of resolvedLibrarySources) {
-    if (source) audioMixSources.push(source);
-  }
-
-  return audioMixSources;
 }
 
 export async function collectAudioClips({

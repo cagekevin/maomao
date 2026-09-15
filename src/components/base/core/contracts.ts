@@ -125,6 +125,15 @@ export const EVENTS: Record<string, EventRegistryEntry> = {
     payload: '{ key, error }',
     note: '持久化失败广播（sSet/sRemove 失败）。已由 useCanvasEventSubscriptions 全局订阅',
   },
+  // 剪辑器播放头跳转（TD-22-23，2026-09-15）：原为 `window.dispatchEvent('playback-seek')` ——
+  // eventBus 文件头明文禁止的「第二套广播」，videoEditor 搬迁时带进来的漏网（同族前例：TD-04-8 的
+  // 'yimao:remove-edge'、已删的 'resource:renamed'）。现收口进唯一通道。
+  'videoeditor:seek': {
+    from: ['playback-manager.ts:209'],
+    to: ['audio-manager.ts:31'],
+    payload: '{ time }',
+    note: '播放头跳转（拖拽 / 快捷键 / 帧步进 / 播到末尾）→ 音频侧按新位置重排。★不要往里塞每帧的 currentTime / isPlaying / volume —— 那些是**状态**，走 editor.playback.subscribe()（useSyncExternalStore）；本通道只承载**离散动作**（详见 playback-manager.ts::notifySeek 注释）',
+  },
 };
 
 /**

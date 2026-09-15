@@ -31,7 +31,7 @@ export function MediaDragOverlay({
 
   return (
     <button
-      className="bg-foreground/5 hover:bg-foreground/10 flex size-full flex-col items-center justify-center gap-4 rounded-lg p-8 text-center"
+      className="bg-foreground/5 hover:bg-foreground/10 flex w-full flex-1 flex-col items-center justify-center gap-4 rounded-lg p-8 text-center"
       type="button"
       disabled={!onClick}
       aria-busy={isProcessing}

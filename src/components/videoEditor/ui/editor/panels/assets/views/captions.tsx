@@ -10,7 +10,6 @@ import {
 } from '@videoEditor/ui/ui/select';
 import { useState, useRef, useMemo } from 'react';
 import { useLocalStorage } from '@videoEditor/hooks-cutia/storage/use-local-storage';
-import { extractTimelineAudio } from '@videoEditor/engine/lib/media/mediabunny';
 import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
 import {
   TRANSCRIPTION_LANGUAGES,
@@ -27,11 +26,11 @@ import type {
   TranscriptionProgress,
 } from '@videoEditor/types/transcription';
 import { transcriptionService } from '@videoEditor/engine/services/transcription/service';
-import { decodeAudioToFloat32 } from '@videoEditor/engine/lib/media/audio';
+import { createTimelineAudioBuffer, toMonoSamples } from '@videoEditor/engine/lib/media/audio';
 import { buildCaptionChunks } from '@videoEditor/engine/lib/transcription/caption';
 import { Spinner } from '@videoEditor/ui/ui/spinner';
 import { Progress } from '@videoEditor/ui/ui/progress';
-import { Label } from '@videoEditor/ui/ui/label';
+import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
 
 export function Captions() {
   const [selectedLanguage, setSelectedLanguage] = useLocalStorage<TranscriptionLanguage>({
@@ -75,17 +74,24 @@ export function Captions() {
       setProgressValue(0);
       setProcessingStep('正在分离音频…');
 
-      const audioBlob = await extractTimelineAudio({
+      const totalDuration = editor.timeline.getTotalDuration();
+      // 与主导出共用**同一套求值**（TD-22-29 档 1）。此前这里是第二套混音实现
+      // （mediabunny 内联 `decodeAndMixAudioSource` + WAV 编码），产出 Blob 后又要
+      // `decodeAudioToFloat32` 解码回样本 —— 两次转换只为得到"一串样本"，且与主导出**行为漂移**
+      // （不应用 volume / reversed）。现直接产 ASR 需要的采样率，再取单声道样本。
+      const audioBuffer = await createTimelineAudioBuffer({
         tracks: editor.timeline.getTracks(),
         mediaAssets: editor.media.getAssets(),
-        totalDuration: editor.timeline.getTotalDuration(),
+        duration: totalDuration,
+        sampleRate: 16000,
       });
 
       setProcessingStep('正在准备音频…');
-      const { samples } = await decodeAudioToFloat32({
-        audioBlob,
-        targetSampleRate: 16000,
-      });
+      // 无音源 / 空时间轴 ⇒ 给一段静音：ASR 需要可解码的输入，静音得到空转写而不是报错。
+      const samples =
+        audioBuffer && audioBuffer.length > 0
+          ? toMonoSamples({ buffer: audioBuffer })
+          : new Float32Array(Math.ceil(Math.max(1, totalDuration) * 16000));
 
       const result = await transcriptionService.transcribe({
         audioData: samples,
@@ -150,98 +156,93 @@ export function Captions() {
   };
 
   return (
-    <BaseView ref={containerRef} className="flex h-full flex-col justify-between">
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-col gap-3">
-          <Label>{'模型'}</Label>
-          <Select
-            value={selectedModelId}
-            onValueChange={(value) =>
-              setSelectedModelId({
-                value: value as TranscriptionModelId,
-              })
-            }
-            disabled={isProcessing}
+    <BaseView ref={containerRef}>
+      {/* 统一语言：设置项 = 分区（**组头即标签**，不再额外写 `Label` + `gap-3` 包装层）。 */}
+      <PropertyGroup title={'模型'}>
+        <Select
+          value={selectedModelId}
+          onValueChange={(value) =>
+            setSelectedModelId({
+              value: value as TranscriptionModelId,
+            })
+          }
+          disabled={isProcessing}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={'选择模型'} />
+          </SelectTrigger>
+          <SelectContent>
+            {TRANSCRIPTION_MODELS.map((model) => (
+              <SelectItem key={model.id} value={model.id}>
+                {model.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-muted-foreground text-xs">
+          {TRANSCRIPTION_MODELS.find((m) => m.id === selectedModelId)?.description ?? ''}
+        </p>
+      </PropertyGroup>
+
+      <PropertyGroup title={'语言'}>
+        <Select value={selectedLanguage} onValueChange={(value) => handleLanguageChange({ value })}>
+          <SelectTrigger>
+            <SelectValue placeholder={'选择语言'} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">{'自动检测'}</SelectItem>
+            {TRANSCRIPTION_LANGUAGES.map((language) => (
+              <SelectItem key={language.code} value={language.code}>
+                {language.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </PropertyGroup>
+
+      <PropertyGroup title={'字幕样式'}>
+        <Select
+          value={selectedTemplate.templateId}
+          onValueChange={(value) => handleTemplateChange({ value })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={'选择样式'} />
+          </SelectTrigger>
+          <SelectContent>
+            {SUBTITLE_TEMPLATES.map((template) => (
+              <SelectItem key={template.templateId} value={template.templateId}>
+                {template.templateName}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div
+          className="flex items-center justify-center rounded-md border p-4"
+          style={{ backgroundColor: '#1a1a2e', minHeight: 60 }}
+        >
+          <span
+            style={{
+              fontSize: 14,
+              // 样式字段在 `template.styles` 里（覆盖差形状，见 subtitle-constants.ts）
+              fontFamily: selectedTemplate.styles.fontFamily,
+              color: selectedTemplate.styles.color,
+              backgroundColor: selectedTemplate.styles.backgroundColor,
+              fontWeight: selectedTemplate.styles.fontWeight,
+              fontStyle: selectedTemplate.styles.fontStyle,
+              textDecoration: selectedTemplate.styles.textDecoration,
+              padding: '2px 6px',
+              borderRadius: 2,
+            }}
           >
-            <SelectTrigger>
-              <SelectValue placeholder={'选择模型'} />
-            </SelectTrigger>
-            <SelectContent>
-              {TRANSCRIPTION_MODELS.map((model) => (
-                <SelectItem key={model.id} value={model.id}>
-                  {model.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-muted-foreground text-xs">
-            {TRANSCRIPTION_MODELS.find((m) => m.id === selectedModelId)?.description ?? ''}
-          </p>
+            {`${selectedTemplate.templateName} Preview`}
+          </span>
         </div>
+      </PropertyGroup>
 
-        <div className="flex flex-col gap-3">
-          <Label>{'语言'}</Label>
-          <Select
-            value={selectedLanguage}
-            onValueChange={(value) => handleLanguageChange({ value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={'选择语言'} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="auto">{'自动检测'}</SelectItem>
-              {TRANSCRIPTION_LANGUAGES.map((language) => (
-                <SelectItem key={language.code} value={language.code}>
-                  {language.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <Label>{'字幕样式'}</Label>
-          <Select
-            value={selectedTemplate.templateId}
-            onValueChange={(value) => handleTemplateChange({ value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={'选择样式'} />
-            </SelectTrigger>
-            <SelectContent>
-              {SUBTITLE_TEMPLATES.map((template) => (
-                <SelectItem key={template.templateId} value={template.templateId}>
-                  {template.templateName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <div
-            className="flex items-center justify-center rounded-md border p-4"
-            style={{ backgroundColor: '#1a1a2e', minHeight: 60 }}
-          >
-            <span
-              style={{
-                fontSize: 14,
-                // 样式字段在 `template.styles` 里（覆盖差形状，见 subtitle-constants.ts）
-                fontFamily: selectedTemplate.styles.fontFamily,
-                color: selectedTemplate.styles.color,
-                backgroundColor: selectedTemplate.styles.backgroundColor,
-                fontWeight: selectedTemplate.styles.fontWeight,
-                fontStyle: selectedTemplate.styles.fontStyle,
-                textDecoration: selectedTemplate.styles.textDecoration,
-                padding: '2px 6px',
-                borderRadius: 2,
-              }}
-            >
-              {`${selectedTemplate.templateName} Preview`}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-4">
+      {/* 动作区：用分区语言的 `hasBorderTop` 表达"这是另一段"——
+          原先靠 `justify-between` 把上下两段撑到两端，中间那截空白正是"区块前空一截"的来源。 */}
+      <PropertyGroup hasBorderTop>
         {error && (
           <div className="bg-destructive/10 border-destructive/20 rounded-md border p-3">
             <p className="text-destructive text-sm">{error}</p>
@@ -264,7 +265,7 @@ export function Captions() {
           {isProcessing && <Spinner className="mr-1" />}
           {isProcessing ? '处理中…' : '生成文稿'}
         </Button>
-      </div>
+      </PropertyGroup>
     </BaseView>
   );
 }

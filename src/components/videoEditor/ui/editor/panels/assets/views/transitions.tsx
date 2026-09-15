@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { ScrollArea } from '@videoEditor/ui/ui/scroll-area';
+import { PanelBaseView as BaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
+import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
 import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
 import {
   TRANSITION_PRESETS,
@@ -40,10 +41,11 @@ export function TransitionsView() {
   const junctionCount = editor.timeline.countAdjacentJunctions();
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b px-4 pt-3 pb-2">
-        <h3 className="mb-2 text-sm font-medium">{'转场'}</h3>
-        <p className="text-muted-foreground mb-2 text-xs">
+    <BaseView>
+      {/* 说明 + 分类 = 静态段（不传 title ⇒ 不可折叠）：它是"这一页在讲什么"，不是可收起来的分组。 */}
+      <PropertyGroup>
+        <h3 className="text-sm font-medium">{'转场'}</h3>
+        <p className="text-muted-foreground text-xs">
           {junctionCount > 0
             ? `共有 ${junctionCount} 个可加转场的片段交界。点下方任意转场即可全部应用；也可以点时间轴交界处的图标单独设置时长。`
             : '当前还没有可加转场的交界：视频轨道上需要首尾相接的两段片段。把后一段拖到前一段末尾附近（会自动吸附贴齐），这里的数字就会变成 1。'}
@@ -63,15 +65,16 @@ export function TransitionsView() {
             />
           ))}
         </div>
-      </div>
-      <ScrollArea className="flex-1">
-        <div className="grid grid-cols-2 gap-2 p-4">
+      </PropertyGroup>
+
+      <PropertyGroup>
+        <div className="grid grid-cols-2 gap-2">
           {filteredPresets.map((preset) => (
             <TransitionPresetCard key={preset.type} preset={preset} />
           ))}
         </div>
-      </ScrollArea>
-    </div>
+      </PropertyGroup>
+    </BaseView>
   );
 }
 
