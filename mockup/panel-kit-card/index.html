@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>创作库 · 真实分类 + 真实点击行为</title>
+
+<!-- --mao-* 令牌拷贝（src/index.css:37-101）；Tailwind 入口不能直接 link，见该文件头注释 -->
+<link rel="stylesheet" href="./mao-tokens.css" />
+
+<style>
+/* ============================================================
+ * 全部样式自带，不引 panel-kit.css（mockup 独立演进，避免覆盖冲突）。
+ * 结构上仍对应 panel-kit 的 head/sub/pill/foot 四级 + 半屏卡片外壳。
+ * ============================================================ */
+
+/* 关键：作者样式的 display 会盖过浏览器对 [hidden] 的默认处理，
+   不补这条，hidden 的网格/详情会叠在一起（上一版重叠的根因） */
+[hidden]{display:none !important;}
+
+/* ── 页面骨架 ── */
+*{margin:0;padding:0;box-sizing:border-box;}
+button,input,textarea{font:inherit;color:inherit;}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  background:rgb(var(--mao-app-bg));color:rgb(var(--mao-app-text));
+  padding:32px 28px 90px;display:flex;flex-direction:column;align-items:center;}
+.mk-head{width:100%;max-width:800px;display:flex;flex-direction:column;gap:6px;margin-bottom:22px;}
+.mk-head h1{font-size:16px;font-weight:600;color:rgb(var(--mao-text-strong));}
+.mk-head p{font-size:12px;color:rgb(var(--mao-text-muted));line-height:1.85;}
+.mk-head b{color:rgb(var(--mao-text-body));font-weight:600;}
+.stage{display:flex;flex-direction:column;gap:10px;width:100%;max-width:800px;align-items:center;}
+.cap{font-size:12px;color:rgb(var(--mao-text-muted));line-height:1.8;align-self:flex-start;
+  display:flex;align-items:center;gap:8px;}
+.cap b{color:rgb(var(--mao-text-body));font-weight:600;}
+.step{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:20px;height:20px;
+  border-radius:50%;background:rgb(var(--mao-surface-2));border:1px solid rgb(var(--mao-edge));
+  color:rgb(var(--mao-text-secondary));font-size:11px;font-weight:600;}
+.flow{width:100%;max-width:800px;display:flex;align-items:center;gap:10px;
+  margin:26px 0;color:rgb(var(--mao-text-faint));font-size:11px;}
+.flow::before,.flow::after{content:'';flex:1;border-top:1px dashed rgb(var(--mao-edge-faint));}
+.mk-note{width:100%;max-width:800px;border-top:1px dashed rgb(var(--mao-edge-faint));padding-top:12px;margin-top:30px;
+  font-size:11px;line-height:1.95;color:rgb(var(--mao-text-muted));}
+.mk-note b{color:rgb(var(--mao-text-secondary));font-weight:600;}
+
+/* ── 面板外壳 760×560 ── */
+.pk-card{position:relative;width:760px;height:560px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;
+  background:rgb(var(--mao-input));border:1px solid rgb(var(--mao-edge-faint));border-radius:16px;
+  box-shadow:0 24px 60px rgba(0,0,0,.6);}
+
+/* 顶栏：纯文字 tab（参考简洁稿） */
+.pk-head{display:flex;align-items:center;gap:8px;padding:12px 12px 0;}
+.pk-head-spacer{flex:1;}
+.pk-seg{display:flex;align-items:center;gap:2px;}
+.pk-seg-item{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 12px;flex-shrink:0;
+  border:0;border-radius:8px;background:transparent;cursor:pointer;
+  color:rgb(var(--mao-text-muted));font-size:12.5px;}
+.pk-seg-item:hover{background:rgb(var(--mao-surface-hover));color:rgb(var(--mao-text-primary));}
+.pk-seg-item[aria-selected='true']{background:rgb(var(--mao-surface-hover-strong));color:rgb(var(--mao-text-strong));}
+.pk-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;flex-shrink:0;
+  border:0;border-radius:7px;background:transparent;cursor:pointer;color:rgb(var(--mao-text-faint));}
+.pk-icon-btn:hover{background:rgb(var(--mao-surface-hover));color:rgb(var(--mao-text-primary));}
+
+/* 副条：通栏搜索一行 + 分类一行 */
+.pk-sub{display:flex;flex-direction:column;gap:8px;padding:10px 12px 8px;}
+.subrow{display:flex;align-items:center;gap:8px;min-width:0;}
+.pk-search{display:flex;align-items:center;gap:8px;height:32px;width:100%;padding:0 11px;flex-shrink:0;
+  background:rgb(var(--mao-surface));border:1px solid rgb(var(--mao-edge));border-radius:10px;
+  color:rgb(var(--mao-text-faint));}
+.pk-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;
+  color:rgb(var(--mao-text-body));font-size:12.5px;}
+.pk-search input::placeholder{color:rgb(var(--mao-text-faint));}
+.pk-pills{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;}
+.pk-pill{display:inline-flex;align-items:center;height:26px;padding:0 10px;flex-shrink:0;
+  border:0;border-radius:8px;background:transparent;cursor:pointer;white-space:nowrap;
+  color:rgb(var(--mao-text-muted));font-size:12px;}
+.pk-pill:hover{background:rgb(var(--mao-surface-hover));color:rgb(var(--mao-text-primary));}
+.pk-pill[aria-pressed='true']{background:rgb(var(--mao-surface-hover-strong));color:rgb(var(--mao-text-strong));}
+
+/* 底栏计数 */
+.pk-list-foot{flex-shrink:0;padding:6px 14px 9px;border-top:1px solid rgb(var(--mao-edge-faint));
+  font-size:10.5px;color:rgb(var(--mao-text-subtle));}
+
+/* 主体区：左分类栏 + 右内容列 */
+.pk-main{flex:1;min-height:0;display:flex;}
+
+/* MJ 左栏分类列表（面板私有视觉）：组标题 + 分类项 */
+.mj-nav{width:178px;flex-shrink:0;overflow-y:auto;padding:6px;background:rgb(var(--mao-surface-deep));
+  border-right:1px solid rgb(var(--mao-edge-faint));scrollbar-width:thin;}
+.mj-nav .navlbl{font-size:10px;color:rgb(var(--mao-text-subtle));padding:4px 6px 6px;letter-spacing:.04em;}
+.mj-nav .grp{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;
+  height:26px;padding:0 6px;margin-top:2px;border:0;border-radius:6px;background:transparent;
+  color:rgb(var(--mao-text-faint));font-size:11px;cursor:pointer;text-align:left;}
+.mj-nav .grp:hover{background:rgb(var(--mao-surface-hover));color:rgb(var(--mao-text-secondary));}
+.mj-nav .grp .n{font-size:10px;color:rgb(var(--mao-text-subtle));}
+.mj-nav .cat{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;
+  height:24px;padding:0 6px 0 14px;border:0;border-radius:6px;background:transparent;
+  color:rgb(var(--mao-text-muted));font-size:11px;cursor:pointer;text-align:left;}
+.mj-nav .cat:hover{background:rgb(var(--mao-surface-hover));color:rgb(var(--mao-text-primary));}
+.mj-nav .cat[aria-current='true']{background:rgb(var(--mao-surface-hover-strong));
+  box-shadow:inset 0 0 0 1px rgb(var(--mao-edge));color:rgb(var(--mao-text-strong));}
+.mj-nav .cat .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mj-nav .cat .n{font-size:10px;color:rgb(var(--mao-text-subtle));flex-shrink:0;}
+.mj-nav .cat[aria-current='true'] .n{color:rgb(var(--mao-text-faint));}
+
+.pk-col{flex:1;min-width:0;display:flex;flex-direction:column;position:relative;}
+
+/* 卡片网格：双列大横卡（参考简洁稿），图 + 底部渐变名条，无任何角标 */
+.pk-grid{flex:1;min-height:0;overflow-y:auto;padding:4px 14px 12px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+  grid-auto-rows:max-content;gap:12px;align-content:start;
+  scrollbar-width:thin;scrollbar-color:rgb(var(--mao-scrollbar-thumb)) transparent;}
+.rcard{position:relative;overflow:hidden;cursor:pointer;min-width:0;
+  background:rgb(var(--mao-surface));border:1px solid rgb(var(--mao-edge-faint));border-radius:12px;
+  transition:border-color .15s;}
+.rcard:hover{border-color:rgb(var(--mao-edge-raised));}
+/* 已插入：accent 描边（选中语义与 tab/pill 一致） */
+.rcard.on{border-color:rgb(var(--mao-accent));box-shadow:inset 0 0 0 1px rgb(var(--mao-accent) / .55);}
+/* 16:10 用流内 padding 顶出：grid 行高与滚动高度都能算准 */
+.rcard::before{content:'';display:block;padding-bottom:62%;}
+.rcard>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+.rcard>video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+.rcard .name{position:absolute;left:0;right:0;bottom:0;padding:18px 12px 9px;
+  background:linear-gradient(to top,rgba(0,0,0,.72),transparent);}
+.rcard .name p{font-size:12px;line-height:1.4;color:rgba(255,255,255,.92);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rcard .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:32px;height:32px;
+  border-radius:50%;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;color:#fff;
+  pointer-events:none;opacity:0;transition:opacity .15s;}
+.rcard:hover .play{opacity:1;}
+/* 提示词卡：无真实封面，用分类色渐变 + 名称，不借图（借图会图文错位） */
+.rcard.txt{display:flex;flex-direction:column;justify-content:flex-end;padding:12px;}
+.rcard.txt .catlbl{position:absolute;left:10px;top:10px;font-size:10px;padding:1px 7px;border-radius:5px;
+  background:rgba(255,255,255,.14);color:rgba(255,255,255,.85);}
+.rcard.txt .name{background:none;padding:0;}
+.rcard.txt .name p{font-size:13px;color:rgb(var(--mao-text-strong));white-space:normal;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+.rcard.txt.c-portrait{background:linear-gradient(155deg,rgba(245,158,11,.22),rgb(var(--mao-surface)) 70%);}
+.rcard.txt.c-scene{background:linear-gradient(155deg,rgba(20,184,166,.22),rgb(var(--mao-surface)) 70%);}
+.rcard.txt.c-product{background:linear-gradient(155deg,rgba(139,92,246,.22),rgb(var(--mao-surface)) 70%);}
+.rcard.txt.c-recent{background:linear-gradient(155deg,rgba(96,165,250,.18),rgb(var(--mao-surface)) 70%);}
+.rcard.add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  border:1px dashed rgb(var(--mao-edge));background:transparent;color:rgb(var(--mao-text-faint));font-size:11px;}
+.rcard.add::before{display:none;}
+.rcard.add:hover{border-color:rgb(var(--mao-accent) / .5);color:rgb(var(--mao-accent-strong));}
+.cl-empty{grid-column:1/-1;padding:28px 0;font-size:11px;color:rgb(var(--mao-text-subtle));text-align:center;}
+
+/* MJ 详情态：左大图 + 右信息（4 种插入模式 + textarea + 复制/插入正文） */
+.mj-detail{flex:1;min-height:0;display:flex;gap:14px;padding:12px 14px;overflow:auto;}
+.mj-detail .big{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;}
+.mj-detail .big img{width:100%;flex:1;min-height:120px;object-fit:contain;border-radius:10px;
+  background:rgb(var(--mao-surface-sunken));border:1px solid rgb(var(--mao-edge-faint));}
+.mj-detail .big p{font-size:10px;color:rgb(var(--mao-text-faint));}
+.mj-detail .side{width:330px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;min-width:0;}
+.mj-detail h3{font-size:13px;font-weight:600;color:rgb(var(--mao-text-strong));}
+.mj-detail .desc{font-size:11px;color:rgb(var(--mao-text-muted));line-height:1.7;}
+.mj-detail .modelbl{font-size:10px;color:rgb(var(--mao-text-subtle));}
+.mj-detail textarea{flex:1;min-height:96px;width:100%;resize:none;border-radius:8px;padding:8px;
+  background:rgb(var(--mao-input));border:1px solid rgb(var(--mao-edge-muted));
+  color:rgb(var(--mao-text-body));font-family:inherit;font-size:11px;line-height:1.7;outline:none;}
+.mj-detail textarea:focus{border-color:rgb(var(--mao-accent) / .5);}
+.mj-detail .row{display:flex;gap:6px;align-items:center;}
+.mj-detail .row .sp{flex:1;}
+.pk-btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;cursor:pointer;
+  border-radius:8px;border:1px solid rgb(var(--mao-edge));background:rgb(var(--mao-surface-hover));
+  color:rgb(var(--mao-text-primary));font-size:11px;}
+.pk-btn:hover{border-color:rgb(var(--mao-edge-strong));color:rgb(var(--mao-text-strong));}
+.pk-btn.primary{background:rgb(var(--mao-accent));border-color:rgb(var(--mao-accent));color:#fff;}
+.pk-btn.primary:hover{background:rgb(var(--mao-accent) / .88);border-color:rgb(var(--mao-accent));color:#fff;}
+
+/* 提示条：浮动居中，不挤布局，2.4s 自动消失 */
+.pk-toast{position:absolute;left:50%;bottom:46px;transform:translateX(-50%);z-index:20;
+  display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:9px;white-space:nowrap;
+  background:rgb(var(--mao-accent) / .14);border:1px solid rgb(var(--mao-accent) / .4);
+  color:rgb(var(--mao-accent-strong));font-size:11px;box-shadow:0 8px 24px rgba(0,0,0,.5);
+  animation:toastIn .18s ease-out;}
+.pk-toast b{font-weight:600;}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,6px);}to{opacity:1;transform:translate(-50%,0);}}
+
+/* 节点小卡（示意底栏入口） */
+.nodemock{width:760px;background:rgb(var(--mao-surface-panel-2));border:1px solid rgb(var(--mao-edge-faint));
+  border-radius:14px;padding:14px;box-shadow:0 24px 60px rgba(0,0,0,.55);}
+.nodemock .hd{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;
+  color:rgb(var(--mao-text-strong));margin-bottom:10px;}
+.nodemock .hd .d{width:8px;height:8px;border-radius:50%;background:rgb(var(--mao-accent));}
+.nodemock .hd .m{color:rgb(var(--mao-text-muted));font-weight:400;font-size:11px;}
+.pbox{background:rgb(var(--mao-input));border:1px solid rgb(var(--mao-edge-muted));border-radius:8px;
+  padding:8px 10px;font-size:12px;line-height:2.1;color:rgb(var(--mao-text-body));min-height:70px;}
+.pbox .caret{display:inline-block;width:1px;height:13px;background:rgb(var(--mao-accent-strong));vertical-align:-2px;}
+.prow{display:flex;align-items:center;gap:4px;margin-top:8px;padding-top:8px;
+  border-top:1px solid rgb(var(--mao-edge-faint));}
+.prow .plbl{font-size:10px;color:rgb(var(--mao-text-subtle));margin-right:4px;}
+
+/* 富文本胶囊：逐字复制 src/index.css:717-779 */
+.prompt-chip{display:inline-flex;align-items:center;gap:4px;max-width:180px;margin:0 2px;padding:2px 6px 2px 6px;
+  border-radius:6px;background:rgba(59,130,246,.16);border:1px solid rgba(59,130,246,.4);
+  color:rgb(var(--mao-accent-strong) / 1);font-size:12px;line-height:1.4;vertical-align:middle;
+  user-select:none;-webkit-user-select:none;cursor:default;box-sizing:border-box;}
+.prompt-chip-icon{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:18px;height:18px;
+  border-radius:4px;background:rgba(59,130,246,.22);font-size:11px;line-height:1;overflow:hidden;
+  box-sizing:border-box;margin-left:-3px;}
+.prompt-chip-icon.has-thumbnail{background:transparent;width:22px;height:22px;border-radius:4px;padding:0;margin-left:-3px;}
+.prompt-chip-thumb{width:100%;height:100%;object-fit:cover;object-position:center;display:block;
+  border-radius:4px;box-sizing:border-box;}
+.prompt-chip-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgb(var(--mao-text-primary) / 1);}
+.prompt-chip,.prompt-chip *{pointer-events:none;}
+
+.final{background:rgb(var(--mao-code-bg));border:1px solid rgb(var(--mao-edge-faint));border-radius:8px;
+  padding:12px 14px;font-size:11px;line-height:1.9;color:rgb(var(--mao-text-secondary));
+  white-space:pre-wrap;width:760px;}
+.final em{font-style:normal;color:rgb(var(--mao-accent-strong));}
+</style>
+</head>
+<body>
+
+<div class="mk-head">
+  <h1>创作库 · 真实分类 + 真实点击行为</h1>
+  <p>
+    样式全部自带（不引 panel-kit.css，mockup 独立演进）；胶囊逐字复制 <b>index.css:717-779</b>。
+    分类名、条目数、点击行为全部取自 AIFISHER 真实源码。
+    三个舞台按真实使用顺序排：<b>① 在创作库选中 → ② 胶囊落入节点 → ③ 生成前展开成完整提示词</b>。
+    可直接点：搜索可过滤、卡片可选中/再点取消、运镜卡悬停播放 mp4、MJ 卡进详情页。
+  </p>
+</div>
+
+<!-- ═══════════ 舞台 ①：创作库面板 ═══════════ -->
+<div class="stage">
+  <div class="cap"><span class="step">1</span><b>创作库面板</b>（760×560）· 点 tab 换分区 · 点卡片看"点击之后"</div>
+
+  <div class="pk-card">
+    <div class="pk-head">
+      <div class="pk-seg" role="tablist" aria-label="创作库分区" id="tabs">
+        <button type="button" role="tab" class="pk-seg-item" aria-selected="true" data-tab="style">风格</button>
+        <button type="button" role="tab" class="pk-seg-item" aria-selected="false" data-tab="filter">滤镜</button>
+        <button type="button" role="tab" class="pk-seg-item" aria-selected="false" data-tab="motion">运镜</button>
+        <button type="button" role="tab" class="pk-seg-item" aria-selected="false" data-tab="mj">MJ码图</button>
+        <button type="button" role="tab" class="pk-seg-item" aria-selected="false" data-tab="prompt">提示词</button>
+      </div>
+      <span class="pk-head-spacer"></span>
+      <button type="button" class="pk-icon-btn" title="关闭创作库">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="pk-sub">
+      <label class="pk-search">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input placeholder="搜索当前分区" id="q" />
+      </label>
+      <div class="subrow">
+        <div class="pk-pills" id="pills"></div>
+        <button type="button" class="pk-icon-btn" title="更多操作">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="pk-main">
+      <nav class="mj-nav" id="mjNav" hidden aria-label="MJ 码图分类"></nav>
+      <div class="pk-col">
+        <div class="pk-grid" id="grid"></div>
+        <div class="mj-detail" id="detail" hidden></div>
+      </div>
+    </div>
+
+    <div class="pk-list-foot" id="foot"></div>
+    <div id="toastHost"></div>
+  </div>
+
+  <div class="cap" id="behavior"></div>
+</div>
+
+<div class="flow">选中的预设以胶囊落入节点输入框 ↓</div>
+
+<!-- ═══════════ 舞台 ②：节点侧 ═══════════ -->
+<div class="stage">
+  <div class="cap"><span class="step">2</span><b>节点底栏</b> · 选中项以胶囊（<b>.prompt-chip</b>）落进正文</div>
+
+  <div class="nodemock">
+    <div class="hd"><span class="d"></span>生成图片<span class="m">Gemini</span></div>
+    <div class="pbox">
+      黄昏的海边礁石，一个背影，长焦压缩<span id="chips"></span><span class="caret"></span>
+    </div>
+    <div class="prow">
+      <span class="plbl">入口：</span>
+      <div class="pk-pills" style="flex:none">
+        <button type="button" class="pk-pill" aria-pressed="true">风格</button>
+        <button type="button" class="pk-pill">滤镜</button>
+        <button type="button" class="pk-pill">MJ码图</button>
+        <button type="button" class="pk-pill">提示词</button>
+      </div>
+      <span class="pk-head-spacer"></span>
+      <button type="button" class="pk-icon-btn" title="摄影参数">◉</button>
+    </div>
+  </div>
+
+  <div class="cap" style="color:rgb(var(--mao-text-faint));font-size:11px">
+    ↑ 上面面板里每选中一项，这里就多一枚胶囊（缩略图是那件预设的真实预览图）；在面板里再点一次可取消，胶囊同步消失。
+    视频节点把「运镜」排进入口，图片节点把「MJ码图」排进来。
+  </div>
+</div>
+
+<div class="flow">生成时把胶囊展开成片段 ↓</div>
+
+<!-- ═══════════ 舞台 ③：发送前展开 ═══════════ -->
+<div class="stage">
+  <div class="cap"><span class="step">3</span><b>发送前展开</b> · 人家的 <b>composeCreativePrompt</b>：前缀们 → 正文 → 片段们</div>
+  <div class="final" id="final">（先在舞台 ① 点几张卡片，这里会实时拼出最终提示词）</div>
+</div>
+
+<div class="mk-note">
+  <b>结构和行为说明。</b><br />
+  <b>① 分类：</b>风格 3 类（真人73 / 2D92 / 3D52）、滤镜 2 类（通用11 / 人像质感6）、运镜 3 类（基础22 / 组合14 / 高阶15）→ 一级 pills 够用。
+  <b>MJ 是两级</b>：3 组（角色人像185 / 场景环境201 / 巨物怪兽107）× 组内 34 个分类 → pills 扛不住，必须是左栏分类列表；左栏按题材分 6 大组方便扫读，副条 pills 是"素材类型"轴，两轴交叉过滤。<br />
+  <b>② 点击之后（三个 tab 三种行为，都不是"没反应"）：</b>
+  风格/滤镜/运镜 → 卡片加选中描边 + <b>立即插入</b>（真实实现插入即关闭面板；mockup 保留面板以便连续预览）；再点一次取消选中；
+  MJ → <b>进详情页</b>（大图 + medium + 4 种插入模式 + textarea + 复制/插入正文），点「插入正文」才插入；
+  提示词 → 整段写进正文。<br />
+  <b>素材：</b>真实预览图 223 个 / 16.9 MB（全量 107 MB 只挑被引用的）。运镜 mp4 只有部分分类携带，悬停有 mp4 的卡会播放。
+</div>
+
+<script src="./data.js"></script>
+<script>
+(function () {
+  var D = window.__DATA__;
+  var TAB_META = {
+    style:  { name: '风格', unit: '个风格预设', behavior: '点击卡片 → 加选中描边 → 立即插入提示词（真实实现中面板随即关闭）；再点一次取消选中' },
+    filter: { name: '滤镜', unit: '个滤镜预设', behavior: '同风格：点击即插入；滤镜与风格可叠加，生成时按 风格 → 滤镜 顺序拼' },
+    motion: { name: '运镜', unit: '个运镜预设', behavior: '同风格：点击即插入；卡片悬停播放 mp4（仅部分分类携带 mp4）' },
+    mj:     { name: 'MJ码图', unit: '组码图', behavior: '点击卡片 → 进详情页（4 种插入模式）→ 点「插入正文」才插入；二级分类在左栏' },
+  };
+  var PROMPTS = [
+    { id: 'p1', name: '黄昏逆光人像', category: '人像', text: '一位年轻女性侧身站在落地窗前，黄昏逆光勾勒出发丝轮廓，暖橘色天光，浅景深，85mm 人像镜头，皮肤保留自然纹理，胶片颗粒感。' },
+    { id: 'p2', name: '雪山晨雾', category: '风景', text: '清晨雪山，云海翻涌，低角度侧逆光，冷调，超广角，前景岩石带霜，空气通透，8K 微距质感。' },
+    { id: 'p3', name: '香水静物台', category: '产品', text: '香水瓶置于亚克力台面，单侧柔光箱打轮廓，背景渐隐，微距，玻璃折射细节清晰，商业广告质感。' },
+    { id: 'p4', name: '赛博夜景自拍', category: '人像', text: '夜晚赛博街区，霓虹招牌，手持自拍视角，青紫双色补光，浅景深，电影颗粒。' },
+    { id: 'p5', name: '老巷烟火气', category: '风景', text: '老城巷子黄昏，炊烟与暖灯，生活流抓拍，35mm，轻微手持晃动。' },
+    { id: 'p6', name: '轻奢暖调浴室', category: '产品', text: '暖调浴室，大理石台面，水汽氤氲，侧窗自然光，画面统一顺滑，高级感。' },
+  ];
+  var CAT_CLASS = { '人像': 'c-portrait', '风景': 'c-scene', '产品': 'c-product', '最近使用': 'c-recent' };
+
+  var state = { tab: 'style', cat: null, mjGroup: 'char', mjCat: null, selected: {}, detail: null, q: '' };
+  var $ = function (id) { return document.getElementById(id); };
+  var toastTimer = null;
+
+  /* ── MJ 两根轴（人家原版就是两组不同的分组，别混）──
+     · 副工具条 = 素材类型：全部 / 角色人像 / 场景环境 / 巨物怪兽（MjStyleLibrary.tsx 的 groups，493=185+201+107）
+     · 左栏     = 题材六大组 → 34 个分类（mjStyles.ts 的 mjCategoryGroups）
+     一个分类只属于一个类型组，所以两轴可交叉过滤。 */
+  var TOPICS = [
+    { name: '东方古风', cats: ['东方古风·武侠', '东方神话·仙侠奇观', '东方古装·史诗', '古风室内·殿堂楼阁', '古镇村落·俯瞰', '仙侠天宫·奇观', '古建·祠庙宫殿'] },
+    { name: '现代影像', cats: ['现代都市·电影人文', '现代写实人像·生活流', '时尚编辑·商业广告', '日韩系·影像', '现代都市·街景', '现代室内·生活空间'] },
+    { name: '科幻幻想', cats: ['科幻·机甲', '游戏CG·动漫角色', '东方赛博·武侠朋克', '西方奇幻·神话史诗', '科幻·未来场景', '西幻·城堡秘境'] },
+    { name: '自然氛围', cats: ['自然奇观·山水云海', '光影空镜·氛围', '风格化与实验'] },
+    { name: '暗黑废墟', cats: ['国风暗黑·志怪恐怖', '废墟·古代战场', '废墟末世·战场', '暗黑异兽·克苏鲁'] },
+    { name: '巨物传说', cats: ['巨物·尺度压迫', '巨型机甲·超级机器人', '怪兽特摄·哥斯拉系', '超尺度奇观·巨物崇拜', '东方神龙·仙兽', '西方巨龙·翼兽', '深海巨兽·海怪', '上古神祇·泰坦巨人'] },
+  ];
+  var MJ_CAT = {};
+  D.mj.forEach(function (g) {
+    g.categories.forEach(function (c) {
+      MJ_CAT[c.category] = { g: g.key, gLabel: g.label, total: c.total, items: c.items };
+    });
+  });
+  var MJ_TOTAL = D.mj.reduce(function (n, g) { return n + g.total; }, 0);
+
+  function cats(tab) {
+    if (tab === 'mj') return [];
+    if (tab === 'prompt') return [
+      { category: '最近使用', total: PROMPTS.length },
+      { category: '人像', total: PROMPTS.filter(function (p) { return p.category === '人像'; }).length },
+      { category: '风景', total: PROMPTS.filter(function (p) { return p.category === '风景'; }).length },
+      { category: '产品', total: PROMPTS.filter(function (p) { return p.category === '产品'; }).length },
+    ];
+    return D[tab] || [];
+  }
+  function itemsOf(tab) {
+    var list;
+    if (tab === 'mj') {
+      var e = MJ_CAT[state.mjCat];
+      if (!e) return [];
+      if (state.mjGroup && e.g !== state.mjGroup) return [];
+      list = e.items;
+    } else if (tab === 'prompt') {
+      list = state.cat ? PROMPTS.filter(function (p) { return p.category === state.cat; }) : PROMPTS.slice();
+    } else {
+      list = [];
+      (D[tab] || []).forEach(function (x) {
+        if (!state.cat || x.category === state.cat) list = list.concat(x.items);
+      });
+    }
+    /* 搜索过滤：按 name / description 不分大小写匹配 */
+    if (state.q) {
+      var k = state.q.toLowerCase();
+      list = list.filter(function (it) {
+        return (it.name || '').toLowerCase().indexOf(k) >= 0 || (it.description || it.medium || '').toLowerCase().indexOf(k) >= 0;
+      });
+    }
+    return list;
+  }
+
+  var SVG = {
+    play: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7z"/></svg>',
+    add: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>',
+    back: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>',
+  };
+
+  function toast(html) {
+    var host = $('toastHost');
+    host.innerHTML = html ? '<div class="pk-toast">' + html + '</div>' : '';
+    if (toastTimer) clearTimeout(toastTimer);
+    if (html) toastTimer = setTimeout(function () { host.innerHTML = ''; }, 2400);
+  }
+
+  /* 左栏 = 题材六大组 → 分类（可折叠，默认全开）；只列当前类型组里有的分类 */
+  function renderNav() {
+    var nav = $('mjNav');
+    if (state.tab !== 'mj') { nav.hidden = true; nav.innerHTML = ''; return; }
+    nav.hidden = false;
+    var html = '<p class="navlbl">按题材浏览</p>';
+    TOPICS.forEach(function (t) {
+      var vis = t.cats.filter(function (c) { return MJ_CAT[c] && (!state.mjGroup || MJ_CAT[c].g === state.mjGroup); });
+      if (!vis.length) return;
+      var open = !state.closedTopics || state.closedTopics.indexOf(t.name) < 0;
+      var sum = vis.reduce(function (n, c) { return n + MJ_CAT[c].total; }, 0);
+      html += '<button type="button" class="grp" data-t="' + t.name + '"><span>' + (open ? '▾ ' : '▸ ') + t.name + '</span><span class="n">' + sum + '</span></button>';
+      if (open) {
+        html += vis.map(function (c) {
+          return '<button type="button" class="cat" data-c="' + c + '" aria-current="' +
+            (state.mjCat === c ? 'true' : 'false') + '"><span class="t">' + c + '</span><span class="n">' + MJ_CAT[c].total + '</span></button>';
+        }).join('');
+      }
+    });
+    nav.innerHTML = html;
+    nav.querySelectorAll('.grp').forEach(function (b) {
+      b.onclick = function () {
+        var name = b.getAttribute('data-t');
+        if (!state.closedTopics) state.closedTopics = [];
+        var i = state.closedTopics.indexOf(name);
+        if (i >= 0) state.closedTopics.splice(i, 1); else state.closedTopics.push(name);
+        render();
+      };
+    });
+    nav.querySelectorAll('.cat').forEach(function (b) {
+      b.onclick = function () {
+        state.mjCat = b.getAttribute('data-c');
+        state.detail = null;
+        state.q = ''; $('q').value = '';
+        render();
+      };
+    });
+  }
+
+  /* 副条：MJ 放"素材类型"四档（人家的 .af-mj-tabs），其它 tab 放分类 */
+  function renderPills() {
+    if (state.tab === 'mj') {
+      $('pills').innerHTML =
+        '<button type="button" class="pk-pill" data-g="__all" aria-pressed="' + (state.mjGroup === null) + '">全部 ' + MJ_TOTAL + '</button>' +
+        D.mj.map(function (g) {
+          return '<button type="button" class="pk-pill" data-g="' + g.key + '" aria-pressed="' + (state.mjGroup === g.key) + '">' +
+            g.label + ' ' + g.total + '</button>';
+        }).join('');
+      $('pills').querySelectorAll('.pk-pill').forEach(function (b) {
+        b.onclick = function () {
+          var v = b.getAttribute('data-g');
+          state.mjGroup = v === '__all' ? null : v;
+          if (state.mjCat && state.mjGroup && MJ_CAT[state.mjCat].g !== state.mjGroup) state.mjCat = null;
+          state.detail = null;
+          state.q = ''; $('q').value = '';
+          render();
+        };
+      });
+      return;
+    }
+    var list = cats(state.tab);
+    var all = list.reduce(function (n, c) { return n + c.total; }, 0);
+    var cur = state.cat;
+    $('pills').innerHTML =
+      '<button type="button" class="pk-pill" data-p="__all" aria-pressed="' + (cur === null) + '">全部 ' + all + '</button>' +
+      list.map(function (c) {
+        return '<button type="button" class="pk-pill" data-p="' + c.category + '" aria-pressed="' + (cur === c.category) + '">' +
+          c.category + ' ' + c.total + '</button>';
+      }).join('');
+    $('pills').querySelectorAll('.pk-pill').forEach(function (b) {
+      b.onclick = function () {
+        var v = b.getAttribute('data-p');
+        state.cat = v === '__all' ? null : v;
+        state.detail = null;
+        state.q = ''; $('q').value = '';
+        render();
+      };
+    });
+  }
+
+  function card(it, tab, idx) {
+    var on = state.selected[tab] && state.selected[tab].id === it.id ? ' on' : '';
+    if (tab === 'prompt') {
+      return '<article class="rcard txt ' + (CAT_CLASS[it.category] || '') + on + '" data-i="' + idx + '" title="' + it.text + '">' +
+        '<span class="catlbl">' + it.category + '</span>' +
+        '<div class="name"><p>' + it.name + '</p></div></article>';
+    }
+    var src = it.thumb || it.poster || it.preview || '';
+    var isVideo = !!(it.poster || it.video);
+    var video = (isVideo && it.video)
+      ? '<video src="' + it.video + '" poster="' + it.poster + '" muted loop playsinline data-v></video>' +
+        '<span class="play">' + SVG.play + '</span>'
+      : '';
+    return '<article class="rcard' + on + '" data-i="' + idx + '">' +
+      (src ? '<img src="' + src + '" alt="" />' : '') +
+      video +
+      '<div class="name"><p>' + it.name + '</p></div>' +
+      '</article>';
+  }
+
+  function render() {
+    var meta = TAB_META[state.tab];
+    renderNav();
+    renderPills();
+
+    if (state.tab === 'mj' && state.detail) { renderDetail(state.detail); return; }
+    $('detail').hidden = true;
+    $('grid').hidden = false;
+
+    var list = itemsOf(state.tab);
+    if (state.tab === 'mj' && !state.mjCat) {
+      $('grid').innerHTML = '<p class="cl-empty">先在左栏选一个题材分类，或在上方选素材类型</p>';
+    } else if (!list.length) {
+      $('grid').innerHTML = '<p class="cl-empty">没有匹配「' + state.q + '」的结果</p>';
+    } else {
+      $('grid').innerHTML = list.map(function (it, i) { return card(it, state.tab, i); }).join('') +
+        (state.tab === 'prompt' ? '<button type="button" class="rcard add">' + SVG.add + '新增预设</button>' : '');
+    }
+    $('grid').querySelectorAll('.rcard[data-i]').forEach(function (el) {
+      el.onclick = function () { pick(list[+el.getAttribute('data-i')]); };
+    });
+    /* 运镜卡：悬停播放 mp4，移出暂停复位 */
+    $('grid').querySelectorAll('.rcard[data-i] video[data-v]').forEach(function (v) {
+      var box = v.closest('.rcard');
+      var play = box.querySelector('.play');
+      box.addEventListener('mouseenter', function () { v.play(); if (play) play.style.opacity = '0'; });
+      box.addEventListener('mouseleave', function () { v.pause(); v.currentTime = 0; if (play) play.style.opacity = ''; });
+    });
+
+    /* 底栏计数：显示当前过滤口径 */
+    if (state.tab === 'mj') {
+      var e = MJ_CAT[state.mjCat];
+      $('foot').textContent = state.q
+        ? '搜索「' + state.q + '」· 匹配 ' + list.length + ' 组'
+        : e
+          ? state.mjCat + ' · 共 ' + e.total + ' 组 · 本屏示例 ' + list.length + ' 组'
+          : '共 ' + MJ_TOTAL + ' 组码图 · 在左栏选一个分类';
+    } else if (state.tab === 'prompt') {
+      $('foot').textContent = state.q
+        ? '搜索「' + state.q + '」· 匹配 ' + list.length + ' 条'
+        : '共 ' + PROMPTS.length + ' 条提示词（示例集）';
+    } else {
+      var sum = cats(state.tab).reduce(function (n, c) { return n + c.total; }, 0);
+      $('foot').textContent = state.q
+        ? '搜索「' + state.q + '」· 匹配 ' + list.length + ' 个'
+        : (state.cat ? state.cat + ' · ' : '全部 · 共 ' + sum + ' ') + meta.unit + '（本屏示例 ' + list.length + '）';
+    }
+    $('behavior').innerHTML = '<span class="tag fix" style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;margin-right:6px;color:#fcd34d;border:1px solid rgba(234,179,8,.35)">点击之后</span>' + meta.behavior;
+  }
+
+  function renderDetail(it) {
+    $('grid').hidden = true;
+    var d = $('detail');
+    d.hidden = false;
+    var big = it.preview || it.thumb || it.poster || '';
+    d.innerHTML =
+      '<div class="big">' +
+        (big ? '<img src="' + big + '" alt="" />' : '') +
+        '<p>' + (it.medium || '') + ' · ' + it.id.toUpperCase() + (it.mixed ? ' · 混码组合' : ' · 单码') + '</p>' +
+      '</div>' +
+      '<div class="side">' +
+        '<h3>' + it.name + '</h3>' +
+        '<p class="desc">' + (it.mixed ? '这是混码组合，整组使用才能保留示例风格。' : '单码风格，可搭配你自己的主体描述。') + '</p>' +
+        '<p class="modelbl">插入模式（点选切换下方文本）</p>' +
+        '<div class="pk-pills" id="modes">' +
+          '<button type="button" class="pk-pill" data-m="codes" aria-pressed="true">风格码</button>' +
+          '<button type="button" class="pk-pill" data-m="parameters" aria-pressed="false">风格＋参数</button>' +
+          '<button type="button" class="pk-pill" data-m="prompt" aria-pressed="false">完整提示词</button>' +
+          '<button type="button" class="pk-pill" data-m="vibe" aria-pressed="false">色调描述</button>' +
+        '</div>' +
+        '<textarea id="mjText"></textarea>' +
+        '<div class="row">' +
+          '<button type="button" class="pk-btn" id="mjBack">' + SVG.back + '返回列表</button>' +
+          '<span class="sp"></span>' +
+          '<button type="button" class="pk-btn" id="mjCopy">复制</button>' +
+          '<button type="button" class="pk-btn primary" id="mjIns">插入正文</button>' +
+        '</div>' +
+      '</div>';
+    $('foot').textContent = state.mjCat + ' · ' + it.id.toUpperCase();
+    $('behavior').innerHTML = '<span class="tag fix" style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;margin-right:6px;color:#fcd34d;border:1px solid rgba(234,179,8,.35)">点击之后</span>' + TAB_META.mj.behavior;
+
+    var MODE = { codes: it.codes, parameters: it.parameters, prompt: it.prompt, vibe: it.vibe };
+    var setText = function (m) { $('mjText').value = MODE[m] || ''; };
+    setText('codes');
+    d.querySelectorAll('#modes .pk-pill').forEach(function (b) {
+      b.onclick = function () {
+        d.querySelectorAll('#modes .pk-pill').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); });
+        b.setAttribute('aria-pressed', 'true');
+        setText(b.getAttribute('data-m'));
+      };
+    });
+    $('mjBack').onclick = function () { state.detail = null; render(); };
+    $('mjCopy').onclick = function () {
+      try { navigator.clipboard && navigator.clipboard.writeText($('mjText').value); } catch (e) {}
+      toast('已复制到剪贴板');
+    };
+    $('mjIns').onclick = function () {
+      state.selected.mj = { id: it.id, name: 'MJ · ' + it.name, thumb: it.thumb, prompt: it.codes || it.vibe || '' };
+      state.detail = null;
+      toast('已把 <b>' + it.name + '</b> 插入正文');
+      render();
+      renderChips();
+    };
+  }
+
+  function pick(it) {
+    var tab = state.tab;
+    if (tab === 'mj') { state.detail = it; renderDetail(it); return; }
+    if (tab === 'prompt') {
+      if (state.selected.preset && state.selected.preset.id === it.id) {
+        delete state.selected.preset;
+        toast('已移除 <b>' + it.name + '</b>');
+      } else {
+        state.selected.preset = { id: it.id, name: it.name, prompt: it.text };
+        toast('整段提示词 <b>' + it.name + '</b> 已写入正文');
+      }
+      render(); renderChips(); return;
+    }
+    if (state.selected[tab] && state.selected[tab].id === it.id) {
+      delete state.selected[tab];
+      toast('已移除 <b>' + it.name + '</b>');
+    } else {
+      state.selected[tab] = { id: it.id, name: it.name, thumb: it.thumb || it.preview || it.poster, prompt: it.prompt };
+      toast('已插入 <b>' + it.name + '</b> · 真实实现中面板会随即关闭');
+    }
+    render();
+    renderChips();
+  }
+
+  function renderChips() {
+    var html = '';
+    ['style', 'filter', 'motion', 'mj', 'preset'].forEach(function (k) {
+      var s = state.selected[k];
+      if (!s) return;
+      html += '<span class="prompt-chip">' +
+        (s.thumb ? '<span class="prompt-chip-icon has-thumbnail"><img class="prompt-chip-thumb" src="' + s.thumb + '" alt="" /></span>' : '') +
+        '<span class="prompt-chip-label">' + s.name + '</span></span>';
+    });
+    $('chips').innerHTML = html || '';
+    var lines = ['cinematic cold tone, teal and orange grade', '黄昏的海边礁石，一个背影，长焦压缩'];
+    ['style', 'filter', 'motion', 'mj', 'preset'].forEach(function (k) {
+      var s = state.selected[k];
+      if (s) lines.push('<em>' + s.name + '：' + String(s.prompt || '').split('\n')[0].slice(0, 60) + '…</em>');
+    });
+    lines.push('', 'Camera settings: 85mm portrait lens, f/1.8 wide aperture.');
+    $('final').innerHTML = lines.join('\n');
+  }
+
+  $('tabs').querySelectorAll('.pk-seg-item').forEach(function (b) {
+    b.onclick = function () {
+      $('tabs').querySelectorAll('.pk-seg-item').forEach(function (x) { x.setAttribute('aria-selected', 'false'); });
+      b.setAttribute('aria-selected', 'true');
+      state.tab = b.getAttribute('data-tab');
+      state.detail = null;
+      state.q = ''; $('q').value = '';
+      toast('');
+      if (state.tab === 'mj' && !state.mjCat) {
+        var g = D.mj.find(function (x) { return x.key === state.mjGroup; }) || D.mj[0];
+        state.mjGroup = g.key;
+        state.mjCat = g.categories[0].category;
+      } else if (state.tab !== 'mj') {
+        state.cat = null;
+      }
+      render();
+    };
+  });
+  $('q').oninput = function () { state.q = this.value.trim(); render(); };
+
+  state.mjCat = D.mj[0].categories[0].category;
+  render();
+  renderChips();
+})();
+</script>
+</body>
+</html>

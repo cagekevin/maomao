@@ -1,0 +1,73 @@
+/* ============================================================
+ * mao-tokens.css —— 本仓 --mao-* 语义令牌（逐字复制自 src/index.css:37-101）
+ *
+ * 【为什么带一份】panel-kit.css 全篇写的是 rgb(var(--mao-*))，令牌不在它里面。
+ *   mockup 直接 <link> 真正的 src/index.css 不行：那是 Tailwind 入口，
+ *   含 @tailwind/@apply，浏览器会当未知 at-rule 丢掉（文档噪声大、结果不可信）。
+ *
+ * 【漂移警告】这是一份拷贝。src/index.css 改令牌时，本文件会过期 ——
+ *   它只服务「审图」，实现时一律引 src/index.css，禁止把这份搬进产品。
+ * ============================================================ */
+
+:root {
+  /* 背景层级（极淡暖：R 比 B 仅多 1，接近中性，仅保留一丝暖意） */
+  --mao-canvas: 13 13 12;
+  --mao-surface: 27 27 26;
+  --mao-surface-1: 35 35 34;
+  --mao-surface-shell: 27 27 26;
+  --mao-surface-2: 32 32 31;
+  --mao-surface-3: 69 69 67;
+  --mao-surface-raised: 29 29 28;
+  --mao-surface-menu: 29 29 28;
+  --mao-surface-deep: 22 22 21;
+  --mao-surface-hover: 43 43 41;
+  --mao-surface-hover-strong: 52 52 50;
+  --mao-surface-hover-2: 45 45 43;
+  --mao-surface-active: 38 38 37;
+  --mao-surface-subtle: 37 37 36;
+  --mao-surface-faint: 31 31 30;
+  --mao-surface-strong: 23 23 22;
+  --mao-surface-muted: 22 22 21;
+  --mao-surface-black: 18 18 17;
+  --mao-surface-panel: 26 26 25;
+  --mao-surface-panel-2: 28 28 27;
+  --mao-surface-well: 33 33 32;
+  --mao-surface-raised-2: 42 42 40;
+  --mao-surface-active-2: 49 49 47;
+  --mao-surface-hover-2b: 51 51 49;
+  --mao-input: 21 21 20;
+  --mao-inverse: 238 238 236;
+  --mao-inverse-strong: 23 23 22;
+  /* 文字层级（纯中性灰） */
+  --mao-text-strong: 255 255 255;
+  --mao-text-primary: 230 230 230;
+  --mao-text-body: 206 206 206;
+  --mao-text-secondary: 170 170 170;
+  --mao-text-muted: 118 118 118;
+  --mao-text-faint: 103 103 103;
+  --mao-text-subtle: 86 86 86;
+  --mao-text-muted-2: 116 116 116;
+  /* 边框层级（暖灰·克制） */
+  --mao-edge: 52 52 51;
+  --mao-edge-strong: 86 85 83;
+  --mao-edge-faint: 43 43 41;
+  --mao-edge-muted: 69 69 67;
+  --mao-edge-subtle: 35 35 34;
+  --mao-edge-raised: 59 59 57;
+  --mao-surface-sunken: 11 11 10;
+  --mao-surface-sunken-2: 14 14 13;
+  --mao-code-bg: 20 20 19;
+  --mao-app-bg: 15 15 14;
+  --mao-app-text: 230 230 230;
+  /* 语义强调色 */
+  --mao-accent: 59 130 246;
+  --mao-accent-strong: 96 165 250;
+  --mao-accent-ink: 255 255 255;
+  --mao-live: 52 211 153;
+  --mao-danger: 239 68 68;
+  /* 滚动条 */
+  --mao-scrollbar-size: 6px;
+  --mao-scrollbar-track: transparent;
+  --mao-scrollbar-thumb: 58 58 57;
+  --mao-scrollbar-thumb-hover: 74 74 73;
+}
