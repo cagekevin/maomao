@@ -26,6 +26,7 @@
  */
 import type { Node, Edge } from '@xyflow/react';
 import { deleteNodesWithCascade } from '@/components/base/canvas/groupNodes';
+import { normalizeChipFieldWrite } from '@/components/base/creative/creativePresets.ts';
 
 /** 不传 ctx 时的安全空实现（保持「注入 ctx 即可测」语义，避免空 ctx 调用即崩）。 */
 const DEFAULT_CTX: CanvasHostCtx = {
@@ -81,10 +82,16 @@ export function createCanvasHost(ctx: CanvasHostCtx = DEFAULT_CTX): CanvasHost {
     if (edges?.length) ctx.setEdges((es) => [...es, ...edges]);
   };
 
-  // 更新单个节点 data（不可变局部更新，非目标节点引用不变不重渲染）
+  // 更新单个节点 data（不可变局部更新，非目标节点引用不变不重渲染）。
+  // 合并后过一道 `normalizeChipFieldWrite`：Agent 写 prompt/text（典型：改掉带胶囊的提示词）
+  // 时把孤儿 creativePresets 一并裁掉（TD-05-13 · I1）。对无该字段的节点是零成本 no-op。
   const updateNodeData = (id: string, patch: Partial<Node['data']>): void =>
     ctx.setNodes((ns) =>
-      ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)),
+      ns.map((n) => {
+        if (n.id !== id) return n;
+        const merged = { ...n.data, ...patch } as Record<string, unknown>;
+        return { ...n, data: normalizeChipFieldWrite(merged, patch as Record<string, unknown>) };
+      }),
     );
 
   // 只改 position（保留 data/其它字段）

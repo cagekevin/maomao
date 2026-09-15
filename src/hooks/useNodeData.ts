@@ -3,6 +3,8 @@ import { useReactFlow } from '@xyflow/react';
 import type { Node } from '@xyflow/react';
 import { debounce } from '../components/base/core/utils.ts';
 import { NODE_PATCH_DEBOUNCE_MS } from '../components/base/core/config.ts';
+import { normalizeChipFieldWrite } from '../components/base/creative/creativePresets.ts';
+import type { CreativePresetEntry } from '../components/base/creative/creativePresets.ts';
 
 /**
  * 节点级字段不可变写回纯函数（通用：覆盖 node.data 与 node 本体字段 width/height/style/selected/...）。
@@ -91,17 +93,67 @@ type PatchDebouncedFn = {
  *  - patchDebounced 卸载时自动 flush：把窗口内最后一次待提交写出，避免丢数据。
  *  - 必须在 ReactFlowProvider 树内调用（经 useReactFlow 取 setNodes），节点天然满足。
  *  - 纯逻辑不写 UI，可覆盖单测（patchData 不可变更新 / patchDebounced 防抖 + flush）。
+ *  - **字典 GC（TD-05-13 · I1）**：patchData 写 `prompt`/`text` 时，会原子地把
+ *    `data.creativePresets` 裁剪为「仍被胶囊引用」的子集（见 `gcCreativePresets`）。
+ *    调用方无需关心——只要 prompt 经 patchData/patchDebounced 写回，孤儿字典项就不会落盘。
+ *    这使「写字段」与「清孤儿」成为**同一个不可分动作**，避免两处各写一半导致的不一致。
  */
 export function useNodeData(id: string): {
   patchData: (patch: Patch) => void;
   patchDebounced: PatchDebouncedFn;
+  /**
+   * 往 `data.creativePresets` 字典里**原子合并一条**（创作库预设用）。
+   *
+   * 【为什么不直接用 patchData + 展开旧值】调用方写
+   * `patchData({ creativePresets: { ...data.creativePresets, [id]: entry } })`
+   * 时，`data` 是**本次渲染的闭包快照**。创作库是「点一张卡插一枚胶囊」的高频连续操作：
+   * 第一张卡写入后组件立刻重渲，若第二次点击发生在重渲提交前（或与 prompt 的防抖写回竞争），
+   * 第二次的 `data.creativePresets` 仍是旧快照 → 把第一张的键**覆盖掉**。
+   * 后果不是报错而是静默丢数据：生成时字典查不到 → 红日志「预设未命中置空」，
+   * 用户看到的是「胶囊插了但生成时被吞」（2026-09-15 实测）。
+   *
+   * 本函数用 setNodes 的函数式更新，**在 updater 内读最新 n.data**，从结构上消除竞态：
+   * 每次调用都基于「当前真正的 data」合并，连续点 N 张 = N 个键都在。
+   *
+   * entry 形态真源 = `CreativePresetsDict` 的值（`CreativePresetEntry`，TD-05-12 母体收口）：
+   * 调用方一律经 `toDictEntry(preset)` 生产，禁在节点侧手抄字面量。
+   */
+  addCreativePreset: (presetId: string, entry: CreativePresetEntry) => void;
 } {
   const { setNodes } = useReactFlow();
+  // patchData 在通用原语之外补一步「字典归一化」（normalizeChipFieldWrite）：写 prompt/text 时
+  // 原子裁剪孤儿 creativePresets。走 setNodes 函数式更新（updater 内读最新 n.data），与
+  // addCreativePreset 同一竞态防护；对无字典的节点是零成本 no-op。
   const patchData = useCallback<(patch: Patch) => void>(
-    (patch) => patchNodeDataById(setNodes, id, patch),
+    (patch) => {
+      if (!setNodes || !id || !patch) return;
+      setNodes((ns) =>
+        ns.map((n) => {
+          if (n.id !== id) return n;
+          const d = (n.data ?? {}) as Record<string, unknown>;
+          return { ...n, data: normalizeChipFieldWrite({ ...d, ...patch }, patch) };
+        }),
+      );
+    },
     [id, setNodes],
   );
   const patchDebounced = useMemo(() => debounce(patchData, NODE_PATCH_DEBOUNCE_MS), [patchData]);
+
+  const addCreativePreset = useCallback(
+    (presetId: string, entry: CreativePresetEntry) => {
+      if (!setNodes || !id || !presetId) return;
+      setNodes((ns) =>
+        ns.map((n) => {
+          if (n.id !== id) return n;
+          const d = (n.data ?? {}) as Record<string, unknown>;
+          const dict = (d.creativePresets ?? {}) as Record<string, unknown>;
+          return { ...n, data: { ...d, creativePresets: { ...dict, [presetId]: entry } } };
+        }),
+      );
+    },
+    [id, setNodes],
+  );
+
   useEffect(() => () => patchDebounced.flush(), [patchDebounced]);
-  return { patchData, patchDebounced };
+  return { patchData, patchDebounced, addCreativePreset };
 }

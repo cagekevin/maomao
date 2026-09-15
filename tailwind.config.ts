@@ -91,14 +91,7 @@ const config: Config = {
         'inverse-strong': 'rgb(var(--mao-inverse-strong) / <alpha-value>)',
         // 文字层级（text-*）
         strong: 'rgb(var(--mao-text-strong) / <alpha-value>)',
-        // 更新(2026-09-14)：`primary`/`secondary`/`accent`/`muted` 四个名字 cutia 也用，
-        // 语义不同（本仓=文字/强调色；cutia=主题色/悬浮底色）。
-        // 值改为 `var(--ve-x, <本仓默认>)` —— 编辑器容器 `.ve-scope` 内取 cutia 值，
-        // 容器外回落本仓默认（行为等价，观感零变化）。见 docs/130-cutia搬迁计划书。
-        primary: 'var(--ve-text-primary, rgb(var(--mao-text-primary) / <alpha-value>))',
         body: 'rgb(var(--mao-text-body) / <alpha-value>)',
-        secondary: 'var(--ve-text-secondary, rgb(var(--mao-text-secondary) / <alpha-value>))',
-        muted: 'var(--ve-muted, rgb(var(--mao-text-muted) / <alpha-value>))',
         faint: 'rgb(var(--mao-text-faint) / <alpha-value>)',
         subtle: 'rgb(var(--mao-text-subtle) / <alpha-value>)',
         'muted-2': 'rgb(var(--mao-text-muted-2) / <alpha-value>)',
@@ -120,17 +113,32 @@ const config: Config = {
         'surface-raised-2': 'rgb(var(--mao-surface-raised-2) / <alpha-value>)',
         'surface-active-2': 'rgb(var(--mao-surface-active-2) / <alpha-value>)',
         'surface-hover-2b': 'rgb(var(--mao-surface-hover-2b) / <alpha-value>)',
+        // cutia 编辑器主题色 —— 独立文件（见 docs/130-cutia搬迁计划书 · 作用域隔离）。
+        // ⚠️ 必须放在**下面本仓同名令牌之前**：它内部定义了 secondary / muted / accent / primary，
+        //    若放在其后会静默覆盖本仓语义（2026-09-15 实测事故：`text-secondary` 变成
+        //    `rgb(var(--ve-fg) / .1)`，.ve-scope 外 --ve-fg 未定义 → 非法色 → 渲染成黑色，
+        //    「表格一片黑、啥也看不见」即由此而来，波及全仓 70+ 文件）。
+        //    顺序即优先级，勿把本行挪到后面。
+        ...videoEditorThemeColors,
+
+        // ── 本仓语义令牌（必须位于 cutia 之后，夺回被其占用的同名键）──
+        // 【为什么必须放在 cutia 之后 + 为什么值写成 var(--ve-x, --mao-x) 双轨】
+        //   cutia（ve-tailwind-colors）与宿主在 primary/secondary/muted/accent 四个名字上**必然冲突**
+        //   （宿主=文字/强调色；cutia=主操作/悬停薄纱），且两边的调用点都大量存在、都不能改。
+        //   解法 = **同名双值**：默认取宿主 --mao-*，在 .ve-scope 内由 ve-theme.css 把同名 --ve-*
+        //   覆盖成 cutia 值（见 ve-theme.css 的 `--ve-text-primary` 等桥接变量）。
+        //   这样 `text-secondary` 在表格里是 #aaa 灰字、在编辑器里是 cutia 的次级前景，两边都对。
+        //   ⚠️ 桥接变量名必须与 ve-theme.css 一致，改一处必须改两处。
+        primary: 'rgb(var(--ve-text-primary, var(--mao-text-primary)) / <alpha-value>)',
+        secondary: 'rgb(var(--ve-text-secondary, var(--mao-text-secondary)) / <alpha-value>)',
+        muted: 'rgb(var(--ve-muted, var(--mao-text-muted)) / <alpha-value>)',
         // 语义强调色（状态/交互，值取自 :root 的 --mao-accent / --mao-danger / --mao-live）。
         // 此前 :root 定义了三者，但 config 未暴露成 Tailwind 类 → `bg-danger`/`text-accent` 等类
         // 一直不生成样式（红线、选中框、断链红标全是透明的）。此处补齐映射，集中一处。
-        accent: 'rgb(var(--mao-accent) / <alpha-value>)',
+        accent: 'rgb(var(--ve-accent, var(--mao-accent)) / <alpha-value>)',
         'accent-strong': 'rgb(var(--mao-accent-strong) / <alpha-value>)',
         danger: 'rgb(var(--mao-danger) / <alpha-value>)',
         live: 'rgb(var(--mao-live) / <alpha-value>)',
-
-        // cutia 编辑器主题色 —— 独立文件（见 docs/130-cutia搬迁计划书 · 作用域隔离）。
-        // 本文件是「本仓样式令牌唯一真相源」（CLAUDE.md §七.1），故 cutia 令牌**不写在这里**。
-        ...videoEditorThemeColors,
       },
       fontSize: {
         '2xs': ['8px', { lineHeight: '1.2' }],

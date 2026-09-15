@@ -100,7 +100,8 @@
   align-items: center;
   gap: 5px;
   padding-top: 1px;
-  color: rgb(var(--mao-text-faint));
+  /* 「全局风格」标签是这行的语义说明，需可读：text-faint(3.20:1) → text-secondary(7.79:1)。 */
+  color: rgb(var(--mao-text-secondary));
   font-size: 11px;
 }
 .atw-style-input {
@@ -198,7 +199,9 @@
   background: rgb(var(--mao-surface-deep));
   padding: 7px 7px 6px;
   text-align: left;
-  color: rgb(var(--mao-text-faint));
+  /* 列名是必须读的内容，不是装饰：text-faint(#676767) 在 #161615 上只有 3.20:1（低于可读下限），
+     故提到 text-secondary(#aaa) = 7.79:1。同表体正文(border-faint 分隔线)仍保留层级差。 */
+  color: rgb(var(--mao-text-secondary));
   font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
@@ -257,7 +260,9 @@
   color: rgb(var(--mao-accent-strong));
 }
 .atw-grid td.idx {
-  color: rgb(var(--mao-text-faint));
+  /* 行号是「选行」唯一入口（spec §0-7 裁定）：要让人看得出这是个可点的东西，
+     故不用 text-faint(3.20:1)，用 text-muted(3.99:1) 起，hover 再提亮到 accent。 */
+  color: rgb(var(--mao-text-muted));
   font-size: 11px;
   width: 30px;
   /* 行号格 = 唯一的「选行」入口（spec §0-7 裁定），给个可点暗示 */
@@ -478,7 +483,8 @@
 }
 .atw-empty p {
   font-size: 12px;
-  color: rgb(var(--mao-text-faint));
+  /* 空态说明是「告诉用户怎么开始」的正文，必须可读：text-faint(3.20:1) → text-secondary(7.79:1)。 */
+  color: rgb(var(--mao-text-secondary));
   line-height: 1.7;
 }
 .atw-empty .acts {
@@ -540,7 +546,8 @@
 }
 .atw-pv-hd .rows {
   font-size: 10.5px;
-  color: rgb(var(--mao-text-faint));
+  /* 「共 N 行 / 改动 N 行」是卡头要传达的关键信息，用可读档而非 text-faint。 */
+  color: rgb(var(--mao-text-secondary));
 }
 .atw-pv-body {
   /* 表体吃掉整卡的剩余高度（头/尾固定），min-height:0 是 flex 子项可收缩的必需项；
@@ -564,7 +571,9 @@
   background: rgb(var(--mao-surface-sunken));
   padding: 6px 8px;
   text-align: left;
-  color: rgb(var(--mao-text-faint));
+  /* 预览卡的列名同样是要读的内容（用户要据此判断写回哪几列）：
+     text-faint 在 #0b0b0a 上 3.48:1 → 提到 text-secondary(8.48:1)，与正式表 th 口径一致。 */
+  color: rgb(var(--mao-text-secondary));
   font-weight: 500;
   border-bottom: 1px solid rgb(var(--mao-edge-subtle));
   white-space: nowrap;
@@ -598,7 +607,8 @@
 }
 .atw-pv tbody tr.atw-pv-fold td {
   padding: 3px 8px;
-  color: rgb(var(--mao-text-faint));
+  /* 「其余 N 行未改动 · 点击展开」是一句要用户执行的指令，必须看得见 → text-secondary。 */
+  color: rgb(var(--mao-text-secondary));
   text-align: center;
   font-size: 11px;
   letter-spacing: 0.2px;
@@ -661,7 +671,8 @@
 }
 .atw .btn-ghost {
   background: transparent;
-  color: rgb(var(--mao-text-faint));
+  /* 「取消」是按钮文字（要能看清才点得到）：text-faint(3.20:1) → text-secondary(7.79:1)。 */
+  color: rgb(var(--mao-text-secondary));
 }
 .atw .btn-ghost:hover {
   background: rgb(var(--mao-surface-hover));
@@ -725,7 +736,12 @@
   padding: 0 8px;
   border-radius: var(--pk-radius-pill, 7px);
   background: transparent;
-  color: rgb(var(--mao-text-muted));
+  /* 【未选中 tab 必须是可读正文色，不能用 text-muted】
+     条底是 --mao-surface-deep(#161615)。实测对比度（2026-09-15）：
+       text-muted(#767676) = 3.99:1 → 低于可读下限，「未选中的表名几乎看不见」即由此而来；
+       text-secondary(#aaa) = 7.79:1 → 达正文级，且与选中态(#fff) 仍有清晰层级差。
+     故改用 text-secondary：默认可见、选中更亮，层级靠「亮暗」表达而非「看得见/看不见」。 */
+  color: rgb(var(--mao-text-secondary));
   font-size: 12px;
   line-height: 1;
   cursor: pointer;
@@ -782,7 +798,9 @@
   padding: 1px 5px;
   border-radius: 6px;
   background: rgb(var(--mao-surface-2));
-  color: rgb(var(--mao-text-faint));
+  /* 行数角标是「这张表有几行」的唯一提示，属内容不属装饰。
+     实测 text-faint(#676767) 在 surface-2(#20201f) 上仅 2.88:1（不可读）→ 提到 text-secondary = 6.5:1 档。 */
+  color: rgb(var(--mao-text-secondary));
   font-size: 10px;
   line-height: 1.5;
 }
@@ -838,7 +856,9 @@
   border: none;
   border-radius: var(--pk-radius-btn, 8px);
   background: transparent;
-  color: rgb(var(--mao-text-muted));
+  /* 「＋新建 / ⋯更多」是条尾的唯二入口，图标态也需可辨：text-muted(3.99:1) → text-secondary(7.79:1)。
+     它们没有文字兜底，纯靠图标可见性，故不能取更暗的档。 */
+  color: rgb(var(--mao-text-secondary));
   cursor: pointer;
   transition:
     background 0.15s,

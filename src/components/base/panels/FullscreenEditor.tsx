@@ -3,6 +3,7 @@ import { Minimize2 } from 'lucide-react';
 import FullscreenModal from './FullscreenModal';
 import ResourceStrip from './ResourceStrip.tsx';
 import PromptInput from '../prompt/PromptInput.tsx';
+import { PROMPT_PANEL_PAD_X } from '../prompt/promptLayout.ts';
 
 /** 上游连入的素材形状（图片 / 文本），与 ResourceStrip / PromptInput 对齐。 */
 interface RefAsset {
@@ -25,6 +26,7 @@ interface FullscreenEditorProps {
   refTexts?: RefAsset[];
   onInsert?: (label: string) => void;
   onDisconnect?: (sourceNodeId: string) => void;
+  /** 弹层最大宽度（px）。不传 = 不设上限，宽度跟随视口（见 FullscreenModal） */
   maxWidth?: number;
   widthRatio?: number;
   richText?: boolean;
@@ -47,8 +49,8 @@ interface FullscreenEditorProps {
  *  - refTexts      上游文本素材
  *  - onInsert      点击素材 @插入 回调
  *  - onDisconnect  素材断线回调
- *  - maxWidth      弹层最大宽度（默认 1000）
- *  - widthRatio    初始宽度占屏比（默认 0.9）
+ *  - maxWidth      弹层最大宽度（px）。**不传 = 不设上限，全跟视口**；传值才收窄
+ *  - widthRatio    宽度占屏比（默认 0.9）
  *  - richText      false=textarea（默认）| true=富文本芯片（仅生图节点试水时开启）
  */
 export default function FullscreenEditor({
@@ -62,7 +64,7 @@ export default function FullscreenEditor({
   refTexts = [],
   onInsert,
   onDisconnect,
-  maxWidth = 1200,
+  maxWidth, // 不设默认值：全屏层不该有硬编码宽度天花板，交给 FullscreenModal 跟视口
   widthRatio = 0.9,
   richText = false,
 }: FullscreenEditorProps) {
@@ -96,7 +98,10 @@ export default function FullscreenEditor({
         <Minimize2 size={16} />
       </button>
 
-      <div className="flex flex-col gap-2">
+      <div
+        className="flex flex-col gap-2"
+        style={{ paddingLeft: PROMPT_PANEL_PAD_X, paddingRight: PROMPT_PANEL_PAD_X }}
+      >
         {showMaterials && (
           <ResourceStrip
             images={refImages}

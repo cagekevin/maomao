@@ -18,19 +18,24 @@ export const videoEditorThemeColors: Record<string, string> = {
   'popover-foreground': 'rgb(var(--ve-popover-fg, var(--mao-text-strong)) / <alpha-value>)',
 
   /* ── 主操作（编辑器内 = 苹果白/近黑；宿主回落 = 文字灰）── */
-  primary: 'rgb(var(--ve-primary, var(--mao-text-primary)) / <alpha-value>)',
   'primary-foreground': 'rgb(var(--ve-on-primary, 255 255 255) / <alpha-value>)',
 
   /* ── 次级/悬停面：v4 无独立背景 token，= 前景薄纱（静态色，不支持 /alpha 修饰）── */
-  secondary: 'rgb(var(--ve-fg) / 0.1)',
   'secondary-foreground': 'rgb(var(--ve-fg))',
   'secondary-border': 'rgb(var(--ve-border, var(--mao-edge)) / <alpha-value>)',
 
   /* ── 静默/悬停 ── */
-  muted: 'rgb(var(--ve-fg) / 0.08)',
   'muted-foreground': 'rgb(var(--ve-fg) / 0.55)',
-  accent: 'rgb(var(--ve-fg) / 0.06)',
-  'accent-foreground': 'rgb(var(--ve-fg))',
+
+  /* ── ⛔ 以下 4 个名字**刻意不在本文件定义**（2026-09-15 事故根因）──
+   * primary / secondary / muted / accent 与本仓语义令牌同名，而本文件的键会被
+   * `...videoEditorThemeColors` spread 进 tailwind 全局色表 → 会**静默覆盖宿主值**：
+   *   secondary: 'rgb(var(--ve-fg) / .1)'  →  `text-secondary` 在 .ve-scope 外
+   *   --ve-fg 未定义 → 非法色 → 浏览器按初始值渲染 = 黑，表现为「表格一片黑、啥也看不见」，
+   *   波及全仓 70+ 文件（2026-09-15 实测）。
+   * 现改为「宿主默认 + .ve-scope 内覆盖」双轨：定义在 tailwind.config.ts 的
+   * `var(--ve-x, var(--mao-x))`，cutia 值由 ve-theme.css 的 --ve-text-primary 等桥接变量给。
+   * 需要 cutia 语义请用上面带 -foreground 后缀的名字（muted-foreground 等），勿再回收同名键。 */
 
   /* ── 状态 ── */
   destructive: 'rgb(var(--ve-danger, var(--mao-danger)) / <alpha-value>)',

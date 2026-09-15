@@ -23,7 +23,7 @@ export interface Preset {
   enabled?: boolean;
 }
 
-/** 弹窗卡片行（mapToLibraryCards 输出，供 PromptLibrary 渲染） */
+/** 弹窗卡片行（mapToLibraryCards 输出，供 PromptPresetView 渲染） */
 export interface LibraryCard {
   id: string;
   title?: string;
@@ -98,7 +98,7 @@ export function createPreset(): Preset {
 // 保存并广播（跨节点同步提示词库）
 export function saveAndNotify(presets: Preset[]): void {
   savePresets(presets);
-  // 广播预设变化（经 eventBus，解耦 window）：PromptLibrary 等订阅同步
+  // 广播预设变化（经 eventBus，解耦 window）：PromptPresetView 等订阅同步
   publish('presets-changed', presets);
 }
 

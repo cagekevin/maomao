@@ -1,0 +1,932 @@
+/**
+ * ════════════════════════════════════════════════════════════════
+ * 创作库面板样式（creative-library.css）
+ * ════════════════════════════════════════════════════════════════
+ *
+ * 【为什么有这个文件】创作库是「看图选风格」的浏览型面板，卡片是核心资产（16:10 大图 +
+ *   底部渐变名条 + 选中描边），这套卡片语言在 panel-kit.css 里没有（panel-kit 只收
+ *   「多个面板共用的外壳件」），也不该为其单独扩 panel-kit 的职责。故本文件承载
+ *   **创作库私有视觉**，外壳件仍尽量复用 panel-kit。
+ *
+ * 【与 panel-kit 的分工】
+ *   · 复用（不重写）：顶栏 pk-head · 副条 pk-sub · pill 组 pk-pills/pk-pill
+ *     · 浮层 pk-pop · 底栏 pk-list-foot —— 全取自 panel-kit.css。
+ *   · **刻意不复用**（本面板自持一档）：
+ *     - 分区 tab `.cl-tab`：不用 pk-seg-item —— 后者未激活项收起文字只留图标，
+ *       而本面板 5 个分区无图标，套用后未选中分区会全部消失。
+ *     - 图标按钮 `.cl-icon-btn`：不用 pk-icon-btn（30px 标准/26px 紧凑）——
+ *       那是为 330px 窄面板的 48px 顶栏定的尺度，在本面板 40px 顶栏里比搜索框还大。
+ *   · 本文件独有（cl- 前缀）：全屏卡片外壳 · 卡片网格 · 图片卡 · 提示词卡 · 左栏分类 · MJ 详情 · 编辑器浮层。
+ *
+ * 【边框语法 · 只有两档 + 一个例外】（2026-09-15 收敛）
+ *   此前大区域边框有 3 个不同灰度（edge-faint / edge-muted / edge），是逐处凭感觉挑的，
+ *   没有语义依据。现按**角色**分档，新增边框时对号入座，禁止再引入第四档：
+ *     ① `--mao-edge-faint` —— **静态容器**：卡片 / 左栏分隔线 / 详情大图。
+ *        最轻一档，边界只需「看得见」，不与内容抢注意力。
+ *     ② `--mao-edge`       —— **可交互输入控件**：搜索框 / textarea / 虚线新增卡。
+ *        比 ① 明显一档，表达「这里能输入 / 能点」。
+ *     ③ `--mao-edge-strong` —— **例外**：仅用于浮层（下拉菜单），因为浮层要脱离页面、
+ *        必须比所在页面的任何静态边界都更实。
+ *   判据一句话：**静态看 ①，能输入看 ②，浮起来看 ③。**
+ *
+ * 【色值纪律】一律取 `:root` 的 `--mao-*` 语义令牌（index.css 为唯一真相，禁裸色值）。
+ *   唯一例外是「卡片名条渐变」中的 rgba 黑（图片上叠字必须用绝对黑，语义令牌的暖调灰
+ *   在图片上会出现色偏；对照 mockup/panel-kit-card 的 .rcard .name 同做法）。
+ *
+ * 【尺寸纪律】面板**自身不设任何 width/height** —— 尺寸全部由外层 FullscreenModal 决定
+ *   （widthRatio/heightRatio 视口百分比 + 唯一一处显式 maxWidth 天花板），本层只 `flex:1` 填满。
+ *   卡片网格**自适应列数**：面板全宽时 4 列，窗口收窄自动降 3 → 2 → 1（下限 240px/卡）。
+ */
+
+/* ══════════════ 全屏面板内容区 ══════════════
+   【为什么这里没有边框/圆角/阴影/底色】外层 FullscreenModal 已经提供了遮罩 + 唯一圆角卡片
+   （见 FullscreenModal.tsx 的 `${base} bg-surface-raised border border-edge rounded-xl`）。
+   本层再画一遍 = 「框里再画框」：两条圆角边只隔 20px，视觉成双层描边，
+   且自带 box-shadow 落在 85% 黑遮罩之上根本不可见，底色还会与外层打架（露出 surface-raised 边）。
+   故本层只负责「填满外层、纵向四段布局」，视觉全权交给外层。 */
+.cl-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  /* 【全面板唯一底色】2026-09-15 用户裁定：不允许「灰一块黑一块」。
+     此前面板内混用了 5 档深色（surface #1b1b1a / surface-raised #1d1d1c /
+     surface-2 #20201f / surface-deep #161615 / input #151514 / sunken #0b0b0a），
+     顶栏、MJ 左栏、输入框各自一个色，看起来是拼起来的。
+     现统一取 --mao-surface-raised（＝外层 FullscreenModal 卡片同色），
+     本文件后续所有「面」级 background 一律引用 --cl-bg，不再各写各的。 */
+  --cl-bg: var(--mao-surface-raised);
+  background: rgb(var(--cl-bg));
+}
+/* 顶栏：搜索并入后左右留白改为对称（panel-kit 的 pk-head 右留白仅 6px，
+   那是给窄面板图标按钮贴边的尺度；本面板右端是搜索框，需要更从容的呼吸）。 */
+.cl-card > .pk-head {
+  padding: 0 12px;
+  gap: 12px;
+  /* 顶栏不吃自身底色：直接透出 .cl-card 的统一底色（原 pk-head 无底色，
+     但 .cl-sub/.cl-nav/.cl-pv 各带一层，导致上深下浅）。 */
+  background: transparent;
+}
+
+/* ══════════════ 顶栏分区 tab ══════════════
+   【为什么不复用 panel-kit 的 .pk-seg-item】它是为**窄面板(330px)带图标**的场景设计的：
+   未激活项 max-width:0 收起文字、只留图标（见 panel-kit.css 的 .pk-seg-label）。
+   本面板的 5 个分区是**纯文字、无图标**且空间充足（全屏），套用后未激活项会塌成
+   一个 28px 的空胶囊 —— 5 个分区里只剩当前那个看得见，等于没有导航（2026-09-15 实测截图）。
+   故本面板自持一套：文字**恒显**，激活态用中性高亮 + accent 描边表达。 */
+.cl-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.cl-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(var(--mao-text-secondary));
+  font-size: 12.5px;
+  cursor: pointer;
+  transition:
+    background 0.16s,
+    color 0.16s,
+    border-color 0.16s;
+}
+.cl-tab:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-primary));
+}
+/* 激活 = 纯中性高亮（surface-hover-strong + 最亮文字），**无描边、无蓝**
+   （用户裁定 2026-09-15：去掉蓝色边框）。与 panel-kit 的 .pk-seg-item[aria-selected]
+   同一语义：当前项只靠「更亮的底 + 更亮的字」表达，不用颜色抢注意力。 */
+.cl-tab[aria-selected='true'],
+.cl-tab[aria-selected='true']:hover {
+  background: rgb(var(--mao-surface-hover-strong));
+  color: rgb(var(--mao-text-strong));
+}
+
+/* ══════════════ 主体：左分类栏 + 右内容列 ══════════════ */
+.cl-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* 内容列（各分区视图的公共外壳）：左栏之外的那一列。
+   ⚠️ `min-height: 0` 不可省：它是 flex 子项**可收缩**的前提。缺了它，列内的
+   `.cl-grid` 即使写了 `overflow-y: auto` 也拿不到受限高度 → 网格不滚动、
+   直接撑破面板（表现为「样式丢了 / 错乱」）。同一原因也适用于 .cl-main / .cl-mj-body。
+   （2026-09-15：此前 .cl-col 漏了这一条，只有 .cl-mj-body 有，故 PromptPresetView 会溢出。） */
+.cl-col {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ══════════════ 卡片网格 ══════════════
+   **自适应列数**（auto-fill + minmax）：宽度够就 4 列，变窄自动降 3 → 2 → 1 列。
+   `240px` 是「一张卡最低可读宽度」，由面板宽度反推而来（实测，2026-09-15）：
+     1120px → 4 列(每卡 264)   1000px → 3 列   700px → 2 列   500px → 1 列
+   即：面板全宽时正好铺满 4 列，窗口收窄就逐级降列，卡片不会被压扁到读不清。
+   注：`minmax(240px, 1fr)` 的下限写死 240px（不是 0）—— 0 会让列宽塌到内容宽度、
+   窄屏时挤成一条，失去「自适应」的意义。 */
+.cl-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 14px 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-auto-rows: max-content;
+  gap: 12px;
+  align-content: start;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--mao-scrollbar-thumb)) transparent;
+}
+/* 提示词卡：纯文字简约卡，与图片网格同一套自适应列数（切分区时列数不跳） */
+.cl-grid.is-prompt-grid {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 11px;
+  align-items: stretch;
+}
+
+/* ── 卡片底座（图片卡 / 提示词卡共用）── */
+.cl-card-item {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  min-width: 0;
+  background: rgb(var(--cl-bg));
+  border: 1px solid rgb(var(--mao-edge-faint));
+  border-radius: 12px;
+  transition: border-color 0.15s;
+}
+.cl-card-item:hover {
+  border-color: rgb(var(--mao-edge-raised));
+}
+/* 已插入 / 已选中：中性高亮描边（**不用蓝**，2026-09-15 用户裁定去掉蓝色边框）
+   —— 图片卡上蓝色描边会与照片内容打架，且「已选中」在本面板是瞬时态（点完即关面板），
+   不值得用强调色。用 edge-strong + 提亮边框即可辨出。 */
+.cl-card-item.is-on {
+  border-color: rgb(var(--mao-edge-strong));
+  box-shadow: inset 0 0 0 1px rgb(var(--mao-edge-strong) / 0.6);
+}
+/* 16:9 用流内 padding 顶出：grid 行高与滚动高度都能算准 */
+.cl-card-item::before {
+  content: '';
+  display: block;
+  padding-bottom: 56.25%;
+}
+.cl-card-item > img,
+.cl-card-item > video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* 名条：底部渐变（图上看字必须用绝对黑渐变，语义令牌的暖灰在图上会偏色） */
+.cl-card-item .cl-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 18px 12px 9px;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.72), transparent);
+}
+.cl-card-item .cl-name p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgb(255 255 255 / 0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 运镜卡悬停播放提示（无 mp4 时退化为静态封面） */
+.cl-card-item .cl-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.cl-card-item:hover .cl-play {
+  opacity: 1;
+}
+
+/* ── 提示词卡（cl-grid.is-prompt-grid 内）：标题 + 类型标签 + 两行摘要 ── */
+.cl-card-item.is-prompt {
+  background: rgb(var(--cl-bg));
+  border-radius: 12px;
+  padding: 13px 13px 12px;
+  min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  justify-content: flex-start;
+}
+.cl-card-item.is-prompt::before {
+  display: none;
+}
+.cl-card-item.is-prompt:hover {
+  border-color: rgb(var(--mao-edge-raised));
+  background: rgb(var(--mao-surface-hover));
+}
+.cl-card-item.is-prompt.is-on {
+  border-color: rgb(var(--mao-edge-strong));
+  background: rgb(var(--mao-surface-hover));
+  box-shadow: inset 0 0 0 1px rgb(var(--mao-edge-strong) / 0.6);
+}
+.cl-card-item.is-prompt .cl-ptop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  /* 右侧让位给「⋯」按钮：按钮 right:13px + 宽 24px = 从卡片右缘算占 37px，
+     卡片自身 padding-right 是 13px，故本行还要再让 24px 才不重叠。 */
+  padding-right: 26px;
+  min-height: 22px;
+}
+.cl-card-item.is-prompt .cl-ptitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: rgb(var(--mao-text-strong));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cl-card-item.is-prompt .cl-ptag {
+  flex-shrink: 0;
+  /* 与「⋯」按钮等高（22px）等高对齐：首行三个元素（标题/标签/按钮）必须同一条水平线。
+     标签用「内边距 + 行高」凑到 22，而不是加 border（border 会参与盒高、且与按钮不一致）。 */
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 7px;
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 5px;
+  color: rgb(var(--mao-text-secondary));
+  background: rgb(var(--cl-bg));
+  border: 1px solid rgb(var(--mao-edge-faint));
+}
+.cl-card-item.is-prompt .cl-pdesc {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.65;
+  color: rgb(var(--mao-text-muted));
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+/* ── 卡片右上角「⋯」按钮（编辑 / 删除）─────────────────────────────
+   【为什么不加边框、不用 hover 才浮现】（2026-09-15 用户裁定两轮）
+     ① 不透明隐藏 → 用户不知道能点；② 22px 太小点不中；③ 加**边框**会让它比同行
+     类型标签(.cl-ptag)高，首行元素就**不在一条水平线上**（用户明确指出）。
+   故：恒常可见 + 用**纯色底**（不用边框）表达按钮感 + 与标签等高对齐。 */
+.cl-card-item.is-prompt .cl-more {
+  position: absolute;
+  /* 与 .cl-ptop 首行严格同一水平线：卡片 padding-top = 13px，标签高 22px，
+     故按钮 top 也取 13px（不是 6px —— 那会让按钮浮在标签上方，仍是不齐）。 */
+  top: 13px;
+  right: 13px;
+  width: 24px;
+  height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 1px 透明边框（与 .cl-ptag 的实色边框同盒模型）：两者 height 都是 22px 时
+     内容盒高度一致，首行三个元素才能严格齐平。视觉上不画边框（用户要求不要边框）。 */
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: rgb(var(--cl-bg));
+  color: rgb(var(--mao-text-secondary));
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.cl-card-item.is-prompt .cl-more:hover {
+  background: rgb(var(--mao-surface-hover-strong));
+  color: rgb(var(--mao-text-strong));
+}
+
+/* ── 「新增预设」虚线卡（提示词分区）── */
+.cl-card-item.is-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 110px;
+  border: 1px dashed rgb(var(--mao-edge));
+  background: transparent;
+  color: rgb(var(--mao-text-faint));
+  font-size: 11px;
+}
+.cl-card-item.is-add::before {
+  display: none;
+}
+.cl-card-item.is-add:hover {
+  border-color: rgb(var(--mao-edge-strong));
+  color: rgb(var(--mao-text-primary));
+  background: rgb(var(--mao-surface-hover));
+}
+
+/* 空态提示（占满整行） */
+.cl-empty {
+  grid-column: 1 / -1;
+  padding: 28px 0;
+  font-size: 11px;
+  color: rgb(var(--mao-text-subtle));
+  text-align: center;
+}
+
+/* ══════════════ 通用按钮（创作库内自用）══════════════
+   与 panel-kit 的 pk-icon-btn 同级但带边框与文字，故单独一档。 */
+.cl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 10px;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--mao-edge));
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-primary));
+  font-size: 11px;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    background 0.15s;
+}
+.cl-btn:hover {
+  border-color: rgb(var(--mao-edge-strong));
+  color: rgb(var(--mao-text-strong));
+}
+/* 主按钮 = Apple 中性风（**不用蓝**，2026-09-15 用户裁定）
+   参照本仓既有语言：GenerateButton 的 `bg-white text-black`（白底黑字近白钮），
+   cutia 的 `--ve-primary: 245 245 247` + `--ve-on-primary: 18 18 18` 也是同款。
+   故取 :root 的 --mao-inverse（近白 #eeeec）作底、--mao-inverse-strong（近黑 #171716）作字，
+   不用 --mao-accent（蓝）。hover 略降不透明度，与 Apple 按钮的按压反馈一致。 */
+.cl-btn.is-primary {
+  background: rgb(var(--mao-inverse));
+  border-color: rgb(var(--mao-inverse));
+  color: rgb(var(--mao-inverse-strong));
+  font-weight: 500;
+}
+.cl-btn.is-primary:hover {
+  background: rgb(var(--mao-inverse) / 0.88);
+  border-color: rgb(var(--mao-inverse) / 0.88);
+  color: rgb(var(--mao-inverse-strong));
+}
+.cl-btn.is-ghost {
+  background: transparent;
+}
+/* ghost 的 hover 也用中性灰（同全站「hover = 中性、颜色只表达状态」约定） */
+.cl-btn.is-ghost:hover {
+  border-color: rgb(var(--mao-edge-strong));
+  color: rgb(var(--mao-text-strong));
+  background: rgb(var(--mao-surface-hover));
+}
+.cl-btn.is-danger {
+  color: rgb(var(--mao-danger));
+  border-color: rgb(var(--mao-danger) / 0.4);
+  background: transparent;
+}
+.cl-btn.is-danger:hover {
+  background: rgb(var(--mao-danger) / 0.1);
+  border-color: rgb(var(--mao-danger));
+  color: rgb(var(--mao-danger));
+}
+/* 方形纯图标档（副条「新增预设」用）
+   尺寸**必须与同行 .pk-pill 等高（24px）**：此前写死 28×28，比旁边的
+   「全部/文本/生图/视频」pill 高出 4px，视觉上「这个按钮比别的都大」（用户指出）。
+   图标按钮在副条里是 pills 的同级项，不是更高一档的主操作，故等高即可。 */
+.cl-btn.is-icon {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  justify-content: center;
+  /* pill 的圆角令牌（7px），与邻居同族；此前 8px 属按钮档，混在 pills 里不齐 */
+  border-radius: var(--pk-radius-pill, 7px);
+  border-color: transparent;
+  color: rgb(var(--mao-text-muted));
+  background: rgb(var(--mao-surface-2));
+}
+.cl-btn.is-icon:hover {
+  color: rgb(var(--mao-text-primary));
+  background: rgb(var(--mao-surface-hover));
+}
+
+/* ══════════════ 顶栏图标按钮（关闭）══════════════
+   与搜索框同档 28px：本面板顶栏高约 40px，邻居是 30px 的 tab 与 28px 的搜索框。
+   panel-kit 的 .pk-icon-btn 标准档是 30px（为 330px 窄面板的 48px 顶栏定的），
+   放这里会比搜索框高、观感偏大，故本面板自持一档，与搜索框严格等高。 */
+.cl-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(var(--mao-text-muted));
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.cl-icon-btn:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-strong));
+}
+
+/* ══════════════ 搜索框 ══════════════
+   基准态 = 顶栏内联（.cl-search-top）；副条通栏态留给将来需要独立一行的场景。 */
+.cl-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  width: 100%;
+  padding: 0 11px;
+  flex-shrink: 0;
+  background: rgb(var(--cl-bg));
+  border: 1px solid rgb(var(--mao-edge));
+  border-radius: 10px;
+  color: rgb(var(--mao-text-faint));
+}
+/* 顶栏内联态（2026-09-15 用户裁定：搜索并入标题行）：定宽右对齐，
+   与 5 个分区 tab 同处一行；不用 flex:1 铺满，否则会把 tab 挤到左边角落、
+   中间空出一大片，反而不好扫。 */
+.cl-search-top {
+  width: 220px;
+  flex: 0 0 auto;
+  margin-left: auto; /* 顶到右侧（关闭按钮左边），tab 保持左对齐 */
+  height: 28px;
+  background: rgb(var(--cl-bg));
+  border-color: rgb(var(--mao-edge-faint));
+}
+.cl-search-top:focus-within {
+  border-color: rgb(var(--mao-edge-strong));
+  background: rgb(var(--cl-bg));
+}
+.cl-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: rgb(var(--mao-text-body));
+  font-size: 12.5px;
+}
+.cl-search input::placeholder {
+  color: rgb(var(--mao-text-muted-2));
+}
+/* 副条：分类 pills 一行（搜索已并入顶栏，不再是两行） */
+.cl-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px 8px;
+}
+.cl-subrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* ══════════════ 编辑器浮层（新增 / 编辑提示词）══════════════
+   【两条硬约束（2026-09-15 用户裁定，两轮收敛）】
+   ① 必须**盖住整个面板**，包括顶栏 —— 否则顶栏那个关闭「×」与浮层自己的「×」
+      同时可见，出现「上面有两个叉」。故浮层经 portal 挂到 .cl-card 根、inset:0 铺满整卡。
+   ② 底色必须**不透明**（否则下层的表格/卡片会透上来、文字重叠），
+      但取值必须与面板**同一色**（--cl-bg）—— 不允许「一块灰一块黑」。
+      注：这里既要有底色又要同色，所以是 `background: rgb(var(--cl-bg))` 而非「不设背景」，
+      上一轮误删背景导致下层内容透出重叠。 */
+.cl-editor {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  background: rgb(var(--cl-bg)); /* 同面板底色：既不透明可遮挡，又不与面板撞色 */
+  /* 不设 background：随外层 .cl-card 的底色（见外层 FullscreenModal 卡片），保持同色。 */
+  border-radius: 0; /* 外层卡片已有圆角并 overflow:hidden，此处无需再圆 */
+  padding: 16px 18px;
+}
+.cl-editor .cl-ehd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.cl-editor .cl-ehd h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(var(--mao-text-strong));
+}
+.cl-editor .cl-sp {
+  flex: 1;
+}
+.cl-editor .cl-efield {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+/* 字段占位三态（原先各自写内联 style，现收敛为类）：
+   is-grow = 吃剩余宽度（标题框）；is-type = 固定 118px（类型下拉）；is-fill = 吃剩余高度（提示词框）。
+   内联 style 会让布局值散落在 JSX、脱离样式表统一调整，故一律走类。 */
+.cl-editor .cl-efield.is-grow {
+  flex: 1;
+  min-width: 0;
+}
+.cl-editor .cl-efield.is-type {
+  flex: 0 0 118px;
+}
+.cl-editor .cl-efield.is-fill {
+  flex: 1;
+  min-height: 0;
+}
+.cl-editor .cl-erow2 {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.cl-editor .cl-efield label {
+  font-size: 11px;
+  color: rgb(var(--mao-text-muted));
+}
+.cl-editor .cl-efield input,
+.cl-editor .cl-efield textarea,
+.cl-editor .cl-efield select {
+  border: 1px solid rgb(var(--mao-edge));
+  border-radius: 8px;
+  background: rgb(var(--cl-bg));
+  color: rgb(var(--mao-text-body));
+  font: inherit;
+  font-size: 12px;
+  padding: 8px 10px;
+  outline: none;
+}
+.cl-editor .cl-efield input:focus,
+.cl-editor .cl-efield textarea:focus,
+.cl-editor .cl-efield select:focus {
+  border-color: rgb(var(--mao-edge-strong));
+}
+.cl-editor .cl-efield textarea {
+  resize: none;
+  flex: 1;
+  min-height: 140px;
+  line-height: 1.6;
+}
+.cl-editor .cl-erow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+.cl-editor .cl-erow .cl-sp {
+  flex: 1;
+}
+
+/* ══════════════ 卡片「⋯」菜单（编辑 / 删除）══════════════ */
+.cl-menu {
+  position: absolute;
+  /* 坐标由 JSX 以 CSS 自定义属性传入（--menu-top / --menu-left）：
+     值本身是运行期实测的，但**布局规则仍归样式表**，JSX 里不再散落布局声明。
+     变量缺省 0 兜底，避免属性缺失时定位错乱。 */
+  top: var(--menu-top, 0);
+  left: var(--menu-left, 0);
+  z-index: 40;
+  min-width: 108px;
+  padding: 4px;
+  background: rgb(var(--cl-bg));
+  border: 1px solid rgb(var(--mao-edge-strong));
+  border-radius: 9px;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.5);
+}
+.cl-menu button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: rgb(var(--mao-text-primary));
+  font-size: 12px;
+  text-align: left;
+}
+.cl-menu button:hover {
+  background: rgb(var(--mao-surface-hover-strong));
+}
+.cl-menu button.is-danger {
+  color: rgb(var(--mao-danger));
+}
+.cl-menu button.is-danger:hover {
+  background: rgb(var(--mao-danger) / 0.12);
+}
+
+/* ══════════════ 提示条（浮动居中，2.4s 自动消失）══════════════ */
+.cl-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 46px;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 9px;
+  white-space: nowrap;
+  /* 中性提示条（不抢眼、不用蓝）：比面板底色亮一档 + 强描边 + 主文字色，靠层次而非颜色表达。 */
+  background: rgb(var(--mao-surface-3));
+  border: 1px solid rgb(var(--mao-edge-strong));
+  color: rgb(var(--mao-text-strong));
+  font-size: 11px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
+  animation: clToastIn 0.18s ease-out;
+}
+.cl-toast b {
+  font-weight: 600;
+}
+@keyframes clToastIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+ * MJ 码图分区（2026-09-15 全量重写）
+ * ══════════════════════════════════════════════════════════════════
+ *
+ * 【为什么重写】此前这批规则是逐次打补丁堆出来的（补 flex、补 margin、补
+ *   min-height），互相耦合、改一处崩一处。现按 JSX 实际结构从零写，不参考旧实现。
+ *
+ * 【JSX 结构（唯一依据，见 MjStyleBrowser.tsx）】
+ *   列表态 —— 两个兄弟节点，挂在 .cl-main（flex row）下：
+ *     <nav.cl-nav>                  左栏：题材组 → 分类（可折叠）
+ *     <div.cl-col.cl-mj-body>       右列
+ *        <div.cl-subrow>            第一行：素材类型 pills
+ *        <div.cl-grid>              网格：卡片 .cl-card-item
+ *   详情态 —— 替换 .cl-main 全部内容：
+ *     <div.cl-mj-detail>
+ *        <div.cl-big>               左：大图(.cl-big-img) + 说明小字(p)
+ *        <div.cl-side>              右：h3 + 说明 + 模式pills + textarea + 按钮行(.cl-row)
+ *
+ * 【布局总则】
+ *   · 高度全靠 flex 传递：每个"容器"都必须 min-height:0，否则内部滚动区拿不到
+ *     受限高度，会直接撑破面板。
+ *   · 左右两列**上下留白必须一致**（同一屏的两半，留白不同则顶边/底边都错开）。
+ *   · 详情态两列底边对齐靠"下段等高"，见 .cl-big > p 的注释。
+ */
+
+/* ══ 左栏：题材分类 ══ */
+.cl-nav {
+  flex: 0 0 200px; /* 固定宽，不参与伸缩 */
+  min-height: 0; /* 允许内部滚动（缺它会撑破面板） */
+  overflow-y: auto;
+  /* 左右 8 / 上下 10 —— 与右列 .cl-mj-body 取同值，保证两列内容顶/底齐平 */
+  padding: 10px 8px;
+  background: rgb(var(--cl-bg));
+  border-right: 1px solid rgb(var(--mao-edge-faint));
+  scrollbar-width: thin;
+}
+.cl-nav .cl-navlbl {
+  margin: 0 0 6px;
+  padding: 0 8px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: rgb(var(--mao-text-subtle));
+}
+.cl-nav .cl-grp,
+.cl-nav .cl-cat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.14s,
+    color 0.14s;
+}
+/* 组(28px) 比分类(24px) 略高：层级靠字号/颜色表达，不靠缩进堆叠 */
+.cl-nav .cl-grp {
+  height: 28px;
+  padding: 0 8px;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: rgb(var(--mao-text-secondary));
+}
+.cl-nav .cl-grp:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-primary));
+}
+.cl-nav .cl-cat {
+  height: 24px;
+  padding: 0 8px 0 16px; /* 左缩进 8px 表达层级 */
+  font-size: 11px;
+  color: rgb(var(--mao-text-muted));
+}
+.cl-nav .cl-cat:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-primary));
+}
+/* 当前分类：中性高亮 + 内描边（与全站"当前项"语义一致，不用蓝） */
+.cl-nav .cl-cat[aria-current='true'],
+.cl-nav .cl-cat[aria-current='true']:hover {
+  background: rgb(var(--mao-surface-hover-strong));
+  box-shadow: inset 0 0 0 1px rgb(var(--mao-edge));
+  color: rgb(var(--mao-text-strong));
+}
+/* 名称可截断；计数固定宽不压缩 */
+.cl-nav .cl-t {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cl-nav .cl-n {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--mao-text-subtle));
+}
+.cl-nav .cl-cat[aria-current='true'] .cl-n {
+  color: rgb(var(--mao-text-faint));
+}
+
+/* ══ 右列（列表态）：素材类型 pills + 网格 ══
+   .cl-col 已提供 flex:1 / min-height:0 / column 布局，此处只补自身差异。 */
+.cl-mj-body {
+  min-height: 0;
+}
+.cl-mj-body > .cl-subrow {
+  flex-shrink: 0;
+  /* 上 10px 对齐 .cl-nav 的上留白；左右 14px 与 .cl-grid 内边距一致 */
+  padding: 10px 14px 0;
+}
+
+/* ══ 详情态：左大图 + 右信息 ══ */
+.cl-mj-detail {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 16px;
+  padding: 12px 14px;
+}
+/* 左列：大图吃剩余高度，说明小字固定底部 */
+.cl-big {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* 大图容器 = LazyImage 的外层 div。边框/圆角/底色挂这里（不是内部 img） */
+.cl-big-img {
+  flex: 1;
+  min-height: 140px;
+  display: flex;
+  overflow: hidden;
+  border-radius: 10px;
+  background: rgb(var(--cl-bg));
+  border: 1px solid rgb(var(--mao-edge-faint));
+}
+.cl-big-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/* 说明小字（medium · id · 单码/混码）。
+   【高度 = 26px，必须与右列按钮行(.cl-row)等高 —— 这是两框底边齐平的唯一条件】
+   实测（900px 视口，两列可用高 colH=710）：
+     左列下段 = gap(8) + 本行(26) = 34
+     右列下段 = gap(8) + 按钮行(26) = 34   ✔ 相等
+   此前本行写成 28px，导致左下段 36 / 右下段 34，大图的下边框比 textarea 矮 2px
+   （用户报「左框和右框高度不一样」）。**两列的 gap 同为 8px，故只要下段成员等高即可。** */
+.cl-big > p {
+  flex-shrink: 0;
+  margin: 0;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  color: rgb(var(--mao-text-faint));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 右列：固定宽，自上而下顺序排列 */
+.cl-side {
+  flex: 0 0 380px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cl-side h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(var(--mao-text-strong));
+}
+.cl-side .cl-desc {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.7;
+  color: rgb(var(--mao-text-muted));
+}
+/* ⚠️ .pk-pills 在 panel-kit 里是 `flex: 1` —— 那是给**横向**副条设计的（吃剩余宽度）。
+   放进这里这个**纵向**列，同一个 flex:1 会改吃剩余**高度**，把这行按钮纵向拉满，
+   于是「标题↔描述」「模式↔textarea」之间出现大片空白。必须压回内容高度。 */
+.cl-side .pk-pills {
+  flex: 0 0 auto;
+}
+/* textarea 才是该吃剩余高度的那个：内容多在内部滚动，不顶开整列 */
+.cl-side textarea {
+  flex: 1;
+  min-height: 140px;
+  width: 100%;
+  resize: none;
+  padding: 10px 12px;
+  border-radius: 8px;
+  /* ⚠️ 与左侧大图框 .cl-big-img **必须同色**：二者是同一行并排的两个大区域，
+     边框不同就是「一边深一边浅」（2026-09-15 用户报「两种颜色」）。
+     同属静态内容区（本例 textarea 为 readOnly），故同取 --mao-edge-faint。
+     本文件边界语法只有两档：静态内容区 faint / 可交互输入边缘 edge（见文件头说明）。 */
+  border: 1px solid rgb(var(--mao-edge-faint));
+  background: rgb(var(--cl-bg));
+  color: rgb(var(--mao-text-body));
+  font-family: inherit;
+  font-size: 11.5px;
+  line-height: 1.7;
+  outline: none;
+  scrollbar-width: thin;
+}
+.cl-side textarea:focus {
+  border-color: rgb(var(--mao-edge-strong));
+}
+/* 按钮行：26px 高，与左侧说明小字配平（见 .cl-big > p 注释） */
+.cl-side .cl-row {
+  flex-shrink: 0;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* 撑开左右：返回列表 靠左，复制 / 插入正文 靠右 */
+.cl-side .cl-row .cl-sp {
+  flex: 1;
+}

@@ -1,21 +1,19 @@
 /**
  * PromptPresetView —— 创作库「我的提示词」分区（第 5 分区）。
  *
- * 数据源（§一.2.1 SSOT）：本地 `promptManager`（localStorage，可增删），复用既有实现、
- * 已有存储键 `yimao_preset_prompts` / `yimao_preset_recent`、事件 `presets-changed`。
- * 不碰打包 catalog，不新增存储键 / 事件（门禁 2/3 满足）。
- *
- * 交互（§一.6，2026-09-15 第三轮决策）：提示词也统一为胶囊 —— 点卡片 → onApply(preset) 立即追加一枚胶囊、
- * 关闭面板（与风格/滤镜/运镜完全一致）。原 PromptLibrary 的 onUse/onAppend（整段写正文/新建文本节点）本次不沿用；
- * 卡片 hover 出「⋯」提供 编辑 / 删除（mockup 卡片右上角），编辑器为面板内浮层。
- *
- * 类型过滤（mockup）：全部 / 文本 / 生图 / 视频 四档（'all' / text / image / video）。
+ * 交互（§一.6）：提示词也统一为胶囊 —— 点卡片 → onApply(id, name, prompt) 立即追加一枚胶囊、关面板。
+ * 数据源（§一.2.1）：局部 `promptManager`（localStorage），复用既有存储键/事件，不碰打包 catalog。
  * id 统一 `cp_prompt-<id>`（§一.2.1 消除 pp_/cp_ 双命名空间碰撞）。
+ *
+ * 视觉（对照 mockup/panel-kit-card）：纯文字简约卡，一排 3 格（.cl-grid.is-three）；
+ * 卡片 hover 出右上角「⋯」→ 编辑 / 删除；编辑器为面板内浮层（.cl-editor）。
+ *
+ * @param onApply 点卡片回调 (id, name, prompt)
  */
 
-import { useEffect, useMemo, useState } from 'react';
-import { Pencil, Trash2, Plus, Search } from 'lucide-react';
-import { PanelSubBar, PanelPills } from '../../panels/PanelBar.tsx';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { MoreHorizontal, Plus, X } from 'lucide-react';
 import {
   loadPresets,
   saveAndNotify,
@@ -27,21 +25,32 @@ import {
 import type { Preset } from '../promptManager.ts';
 import { isPresetId } from '../creativePresets.ts';
 import { subscribe } from '../../core/eventBus.ts';
+import { useOutsideClick } from '../../core/uiHooks.ts';
 
-/**
- * 「我的提示词」胶囊 id 命名空间（§一.2.1）：`cp_prompt-<id>`。
- * promptManager 的 id 是 `pp_<n>`，插入胶囊时统一补 `cp_prompt-` 前缀对齐 5 分区 `cp_*` 键。
- */
+/** 「我的提示词」胶囊 id 命名空间：`cp_prompt-<id>`（§一.2.1） */
 export const PROMPT_PRESET_PREFIX = 'cp_prompt-';
 
-/** 把 promptManager 条目 id（`pp_*`，可能已带其他前缀）归一为创作库胶囊 id `cp_prompt-<id>`。 */
+/** 把 promptManager 条目 id 归一为创作库胶囊 id `cp_prompt-<id>`。 */
 export function promptPresetChipId(managerId: string): string {
   return isPresetId(managerId) ? managerId : `${PROMPT_PRESET_PREFIX}${managerId}`;
 }
 
 export interface PromptPresetViewProps {
-  /** 点卡片（应用一枚胶囊）回调 */
   onApply: (id: string, name: string, prompt: string) => void;
+  /**
+   * 编辑浮层的 portal 宿主（= 外层 .cl-card 元素）。
+   * 由 CreativeLibrary 传入：浮层要盖住整个面板**含顶栏**，否则顶栏的关闭「×」
+   * 会与本层的「×」同时可见（用户看到「上面有两个叉」）。
+   * 宿主由持有 .cl-card 的父组件给，比子组件自己 closest 查找更可靠
+   *（不依赖挂载时序，也避开回调 ref + setState 的重渲循环）。
+   */
+  editorHost?: HTMLElement | null;
+  /**
+   * 搜索关键词（由外壳 .cl-card 顶栏统一持有并下发）。
+   * 搜索框唯一位置 = 顶栏右上角、5 分区共用，故本视图**不再自渲染搜索框**
+   *（此前每个分区各放一个、位置形态都不同，用户要每页找一遍）。
+   */
+  keyword?: string;
 }
 
 const CATS = [
@@ -51,29 +60,39 @@ const CATS = [
   { key: 'video', label: '视频' },
 ];
 
-export default function PromptPresetView({ onApply }: PromptPresetViewProps) {
+export default function PromptPresetView({
+  onApply,
+  editorHost,
+  keyword = '',
+}: PromptPresetViewProps) {
   const [presets, setPresets] = useState<Preset[]>(() => loadPresets());
   const [cat, setCat] = useState<string>('all');
-  const [kw, setKw] = useState('');
+  const [editing, setEditing] = useState<number | null>(null);
+  const [showEditor, setShowEditor] = useState(false);
+  const [form, setForm] = useState({ title: '', type: 'all', prompt: '' });
+  // 卡片「⋯」菜单：记录当前展开菜单的条目下标（同时只开一个）+ 锚点坐标。
+  // 坐标由被点按钮实测（不再写死 top/right —— 网格列数随宽度变化，写死必错位）。
+  const [menuIdx, setMenuIdx] = useState<number | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  useOutsideClick(menuRef, menuIdx !== null, () => setMenuIdx(null));
 
-  // 监听 presets-changed 同步（与 PromptLibrary 一致）
+  // 复用既有 presets-changed 事件同步
   useEffect(() => {
     return subscribe('presets-changed', (next) => {
       setPresets((next as Preset[] | null) || loadPresets());
     });
   }, []);
 
-  // 编辑器文案（浮层内）
-  const [editing, setEditing] = useState<number | null>(null); // preset index，null=新建
-  const [showEditor, setShowEditor] = useState(false);
-  const [form, setForm] = useState({ title: '', type: 'all', prompt: '' });
-
   const cards = useMemo(() => mapToLibraryCards(presets), [presets]);
   const display = useMemo(() => {
     let list = cards;
     if (cat !== 'all') list = list.filter((c) => c.category === cat);
-    return searchCards(list, kw);
-  }, [cards, cat, kw]);
+    return searchCards(list, keyword);
+  }, [cards, cat, keyword]);
+
+  const countOf = (key: string) =>
+    presets.filter((p) => p.enabled !== false && (key === 'all' || p.type === key)).length;
 
   const openEditor = (idx: number | null) => {
     const p = idx === null ? null : presets[idx];
@@ -83,12 +102,13 @@ export default function PromptPresetView({ onApply }: PromptPresetViewProps) {
         ? { title: p.title || '', type: p.type || 'all', prompt: p.prompt || '' }
         : { title: '', type: cat === 'all' ? 'text' : cat, prompt: '' },
     );
+    setMenuIdx(null);
     setShowEditor(true);
   };
 
   const save = () => {
     const title = form.title.trim() || '未命名提示词';
-    if (!form.prompt.trim()) return; // 空内容不保存
+    if (!form.prompt.trim()) return;
     const next =
       editing === null
         ? [...presets, { ...createPreset(), title, type: form.type, prompt: form.prompt }]
@@ -105,160 +125,186 @@ export default function PromptPresetView({ onApply }: PromptPresetViewProps) {
     saveAndNotify(next);
     setPresets(next);
     setShowEditor(false);
+    setMenuIdx(null);
   };
 
   return (
-    <>
-      <PanelSubBar>
-        <label className="flex items-center gap-1.5 h-[30px] flex-1 px-2.5 bg-surface border border-edge rounded-lg text-faint">
-          <Search size={12} />
-          <input
-            value={kw}
-            onChange={(e) => setKw(e.target.value)}
-            placeholder="搜索标题或内容"
-            className="flex-1 min-w-0 bg-transparent border-0 outline-0 text-xs text-body placeholder:text-faint"
-          />
-        </label>
-        <button
-          type="button"
-          className="pk-btn add-ico"
-          title="新增预设"
-          aria-label="新增预设"
-          onClick={() => openEditor(null)}
-        >
-          <Plus size={14} />
-        </button>
-      </PanelSubBar>
-      <PanelSubBar>
-        <PanelPills
-          items={CATS.map((c) => ({
-            key: c.key,
-            label: `${c.label} ${c.key === 'all' ? presets.filter((p) => p.enabled !== false).length : presets.filter((p) => p.enabled !== false && p.type === c.key).length}`,
-          }))}
-          value={cat}
-          onChange={setCat}
-        />
-      </PanelSubBar>
-
-      {/* 网格：纯文字简约卡，一排 3 格 */}
-      <div className="flex-1 min-h-0 overflow-auto px-3 py-2 grid grid-cols-3 gap-3 align-stretch custom-scrollbar">
-        {display.map((c) => (
+    <div className="cl-col">
+      {/* 副条：分类 pills + 「新增预设」（搜索已统一到外壳顶栏右上角） */}
+      <div className="cl-sub">
+        <div className="cl-subrow">
+          <div className="pk-pills">
+            {CATS.map((c) => (
+              <button
+                key={c.key}
+                type="button"
+                className="pk-pill"
+                aria-pressed={cat === c.key}
+                onClick={() => setCat(c.key)}
+              >
+                {c.label} {countOf(c.key)}
+              </button>
+            ))}
+          </div>
           <button
-            key={c.id}
             type="button"
-            className="relative flex flex-col gap-2 rounded-xl border border-edge bg-surface p-3 text-left cursor-pointer transition-colors hover:border-edge-raised hover:bg-surface-hover min-h-[110px]"
-            onClick={() => {
-              // 应用一枚胶囊：promptManager 条目的 pp_* id → cp_prompt- 命名空间
-              onApply(promptPresetChipId(c.id), c.title || '(未命名)', c.content || '');
-            }}
+            className="cl-btn is-icon"
+            title="新增预设"
+            aria-label="新增预设"
+            onClick={() => openEditor(null)}
           >
-            <span
-              role="presentation"
-              className="opacity-0 group-hover:opacity-100 absolute top-1.5 right-1.5 flex gap-0.5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <span className="w-5 h-5 flex items-center justify-center rounded-md bg-transparent hover:bg-surface-hover-strong text-subtle hover:text-primary cursor-pointer">
-                <Pencil size={12} onClick={() => openEditor(c.presetIndex)} />
-              </span>
-              <span className="w-5 h-5 flex items-center justify-center rounded-md bg-transparent hover:bg-red-500/10 text-subtle hover:text-red-400 cursor-pointer">
-                <Trash2 size={12} onClick={() => remove(c.presetIndex)} />
-              </span>
-            </span>
-            <span className="flex items-baseline justify-between gap-2 min-w-0">
-              <span className="m-0 text-xs font-semibold text-strong leading-[1.4] truncate">
-                {c.title || '(未命名)'}
-              </span>
-              <span className="flex-shrink-0 text-2xs leading-none px-1.5 py-[3px] rounded-md text-secondary bg-surface-2 border border-edge-faint">
+            <Plus size={13} />
+          </button>
+        </div>
+      </div>
+
+      {/* 网格：一排 3 格纯文字卡 */}
+      <div className="cl-grid is-prompt-grid">
+        {display.map((c) => (
+          <article
+            key={c.id}
+            className="cl-card-item is-prompt"
+            title={c.title || '(未命名)'}
+            onClick={() =>
+              onApply(promptPresetChipId(c.id), c.title || '(未命名)', c.content || '')
+            }
+          >
+            <div className="cl-ptop">
+              <p className="cl-ptitle">{c.title || '(未命名)'}</p>
+              <span className="cl-ptag">
                 {c.category && TYPE_LABEL[c.category] ? TYPE_LABEL[c.category] : '通用'}
               </span>
-            </span>
-            <span className="m-0 text-2xs text-muted leading-[1.65] line-clamp-2 break-all">
-              {c.content || ''}
-            </span>
-          </button>
+            </div>
+            <p className="cl-pdesc">{c.content || ''}</p>
+            <button
+              type="button"
+              className="cl-more"
+              aria-label="编辑或删除"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (menuIdx === c.presetIndex) {
+                  setMenuIdx(null);
+                  return;
+                }
+                // 锚到按钮左下角（相对 .cl-col 定位的浮层坐标）
+                const host = e.currentTarget.closest('.cl-col') as HTMLElement | null;
+                const b = e.currentTarget.getBoundingClientRect();
+                const h = host?.getBoundingClientRect();
+                setMenuPos(
+                  h
+                    ? { top: b.bottom - h.top + 4, left: b.right - h.left - 108 }
+                    : { top: 0, left: 0 },
+                );
+                setMenuIdx(c.presetIndex);
+              }}
+            >
+              <MoreHorizontal size={14} />
+            </button>
+          </article>
         ))}
         {display.length === 0 && (
-          <div className="col-span-full py-8 text-center text-faint text-2xs">
-            {kw ? '没有匹配的结果' : '暂无提示词，点右上角「+」新增'}
-          </div>
+          <p className="cl-empty">
+            {keyword ? '没有匹配的结果' : '暂无提示词，点击右上角「+」新增'}
+          </p>
         )}
       </div>
 
-      {/* 编辑器浮层 */}
-      {showEditor && (
-        <div className="absolute inset-0 z-30 flex flex-col bg-input rounded-2xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[13px] font-semibold text-strong m-0">
-              {editing === null ? '新增提示词' : '编辑提示词'}
-            </h3>
-            <button
-              type="button"
-              className="pk-icon-btn"
-              onClick={() => setShowEditor(false)}
-              aria-label="关闭"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <div className="flex gap-2.5 items-start">
-            <label className="flex flex-col gap-1 mb-3 flex-1 min-w-0">
-              <span className="text-2xs text-muted">标题</span>
-              <input
-                value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="例如：面部变真实"
-                className="h-[34px] border border-edge rounded-lg bg-surface px-2.5 text-xs text-body outline-none focus:border-accent/50 box-border"
-              />
-            </label>
-            <label className="flex flex-col gap-1 mb-3 w-[118px] flex-none">
-              <span className="text-2xs text-muted">类型</span>
-              <select
-                value={form.type}
-                onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-                className="h-[34px] border border-edge rounded-lg bg-surface px-2 text-xs text-body outline-none box-border"
-              >
-                {CATS.filter((c) => c.key !== 'all').map((c) => (
-                  <option key={c.key} value={c.key}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <label className="flex flex-col gap-1 flex-1 min-h-0">
-            <span className="text-2xs text-muted">提示词</span>
-            <textarea
-              value={form.prompt}
-              onChange={(e) => setForm((f) => ({ ...f, prompt: e.target.value }))}
-              placeholder="粘贴或撰写提示词内容…"
-              className="flex-1 min-h-[96px] w-full resize-none rounded-lg border border-edge bg-surface p-2.5 text-xs text-body outline-none focus:border-accent/50 leading-[1.6] box-border"
-            />
-          </label>
-          <div className="flex items-center gap-2 mt-2">
-            {editing !== null && (
-              <button type="button" className="pk-btn danger" onClick={() => remove(editing)}>
-                删除
-              </button>
-            )}
-            <span className="flex-1" />
-            <button type="button" className="pk-btn" onClick={() => setShowEditor(false)}>
-              取消
-            </button>
-            <button type="button" className="pk-btn primary" onClick={save}>
-              保存
-            </button>
-          </div>
+      {/* 卡片「⋯」菜单：编辑 / 删除（锚在被点按钮的左下方；坐标实测，不写死 —— 
+          网格列数随面板宽度变化，任何写死的 top/right 都会错位）。
+          坐标经 CSS 自定义属性传入，**不用内联 style** —— 位置仍由 .cl-menu 的
+          top/left 规则消费（样式分层归属清晰，不在 JSX 里散落布局值）。 */}
+      {menuIdx !== null && menuPos && (
+        <div
+          className="cl-menu"
+          ref={(el) => {
+            // 把实测坐标写进 CSS 自定义属性（样式表 `.cl-menu` 的 top/left 消费它们）。
+            // 不用内联 style 对象：布局规则仍归样式表，JS 只负责提供数值。
+            menuRef.current = el;
+            if (el) {
+              el.style.setProperty('--menu-top', `${menuPos.top}px`);
+              el.style.setProperty('--menu-left', `${menuPos.left}px`);
+            }
+          }}
+        >
+          <button type="button" onClick={() => openEditor(menuIdx)}>
+            编辑
+          </button>
+          <button type="button" className="is-danger" onClick={() => remove(menuIdx)}>
+            删除
+          </button>
         </div>
       )}
-    </>
+
+      {/* 编辑器浮层：新增 / 编辑提示词。
+          浮层用 portal 挂到 .cl-card 根部（不是留在 .cl-col 内）—— .cl-col 只覆盖
+          副条以下区域，留它会把顶栏的关闭「×」露在外面，与本层的「×」重复。
+          宿主由 CreativeLibrary 经 editorHost 传入（本组件不再自己 closest 查找）。 */}
+      {showEditor &&
+        editorHost &&
+        createPortal(
+          <div className="cl-editor">
+            <div className="cl-ehd">
+              <h3>{editing === null ? '新增提示词' : '编辑提示词'}</h3>
+              <span className="cl-sp" />
+              {/* 与顶栏关闭按钮同档（.cl-icon-btn 28px）：本面板内所有「×」应同尺寸，
+                  不用 panel-kit 的 pk-icon-btn（30px 标准 / 26px 紧凑）两套尺度混用。 */}
+              <button
+                type="button"
+                className="cl-icon-btn"
+                title="关闭"
+                onClick={() => setShowEditor(false)}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div className="cl-erow2">
+              <div className="cl-efield is-grow">
+                <label>标题</label>
+                <input
+                  value={form.title}
+                  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder="例如：面部变真实"
+                />
+              </div>
+              <div className="cl-efield is-type">
+                <label>类型</label>
+                <select
+                  value={form.type}
+                  onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+                >
+                  {CATS.filter((c) => c.key !== 'all').map((c) => (
+                    <option key={c.key} value={c.key}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="cl-efield is-fill">
+              <label>提示词</label>
+              <textarea
+                value={form.prompt}
+                onChange={(e) => setForm((f) => ({ ...f, prompt: e.target.value }))}
+                placeholder="粘贴或撰写提示词内容…"
+              />
+            </div>
+            <div className="cl-erow">
+              {editing !== null && (
+                <button type="button" className="cl-btn is-danger" onClick={() => remove(editing)}>
+                  删除
+                </button>
+              )}
+              <span className="cl-sp" />
+              <button type="button" className="cl-btn" onClick={() => setShowEditor(false)}>
+                取消
+              </button>
+              <button type="button" className="cl-btn is-primary" onClick={save}>
+                保存
+              </button>
+            </div>
+          </div>,
+          editorHost,
+        )}
+    </div>
   );
 }

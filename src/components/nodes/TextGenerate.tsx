@@ -12,11 +12,13 @@ import ResizeFullscreenHandle from '../base/ui/ResizeFullscreenHandle.tsx';
 import FullscreenEditor from '../base/panels/FullscreenEditor.tsx';
 import GeneratingOverlay from '../base/ui/GeneratingOverlay.tsx';
 import CreativeLibraryButton from '../base/creative/CreativeLibraryButton.tsx';
-import type { CreativeApplyItem } from '../base/creative/CreativeLibrary.tsx';
+import type { CreativePreset, CreativePresetsDict } from '../base/creative/creativePresets.ts';
+import { toDictEntry } from '../base/creative/creativePresets.ts';
 import { useNodeResize } from '../base/core/uiHooks.ts';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
 import { buildEffectivePrompt } from '../base/core/utils.ts';
+import { PROMPT_PANEL_PAD_X } from '../base/prompt/promptLayout.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { useDisconnectSource } from '../../hooks/useDisconnectSource.ts';
@@ -53,8 +55,8 @@ interface TextGenerateData {
   images?: string[];
   inputWidth?: number;
   inputHeight?: number;
-  /** 创作库预设字典（Record<id,{kind,name,prompt}>，键 = cp_ 前缀 id）；生成时按正文胶囊替换 */
-  creativePresets?: Record<string, { kind: string; name?: string; prompt: string }>;
+  /** 创作库预设字典（键 = cp_ 前缀 id；形态真源 = creativePresets.CreativePresetsDict）；生成时按正文胶囊替换 */
+  creativePresets?: CreativePresetsDict;
 }
 
 interface TextGenerateProps {
@@ -77,7 +79,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   // ── 输入落盘（唯一入口 useNodeField）：prompt/text 高频输入走防抖，autoSplit/inputLocked 低频即时 ──
   // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave 只存 node.data，不存组件 useState）
   // → 手动输入的文字随画布快照落盘，刷新/切换项目不丢；卸载 flush 由 useNodeData 承接。
-  const { patchData, patchDebounced } = useNodeData(id);
+  const { patchData, patchDebounced, addCreativePreset } = useNodeData(id);
   const [prompt, setPrompt] = useNodeField('prompt', data.prompt || '', patchDebounced);
   const [text, setText] = useNodeField('text', data.text || '', patchDebounced);
 
@@ -141,7 +143,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset);
   };
   // 创作库预设应用：落胶囊（有 preview 显示缩略图）+ 写 data.creativePresets 字典（键 = item.id）。
-  const handleCreativeApply = (item: CreativeApplyItem) => {
+  const handleCreativeApply = (item: CreativePreset) => {
     const hasPreview = !!item.preview;
     insertMention({
       id: item.id,
@@ -149,12 +151,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
       kind: hasPreview ? 'image' : 'text',
       ...(hasPreview ? { url: item.preview } : {}),
     });
-    patchData({
-      creativePresets: {
-        ...(data.creativePresets ?? {}),
-        [item.id]: { kind: item.kind, name: item.name, prompt: item.prompt },
-      },
-    });
+    addCreativePreset(item.id, toDictEntry(item));
   };
   // 全屏编辑状态（复刻 Co.jsx:33,35 的 m/y → 主框/输入框全屏）
   const [fullscreenText, setFullscreenText] = useState(false);
@@ -447,7 +444,10 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
           手柄不在 ExpandablePanel 内统一渲染，由本节点在面板 children 里渲染，
           targetRef=textarea, onResizeEnd 写回 node.data.inputWidth/inputHeight。 */}
       <ExpandablePanel expanded={expanded} minWidth={420}>
-        <div className="space-y-3">
+        <div
+          className="space-y-3"
+          style={{ paddingLeft: PROMPT_PANEL_PAD_X, paddingRight: PROMPT_PANEL_PAD_X }}
+        >
           {/* 素材缩略图区（通用组件 ResourceStrip，以生图节点为标准） */}
           <ResourceStrip
             images={refImages}

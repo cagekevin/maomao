@@ -707,13 +707,15 @@ function PromptInput({
   };
 
   return (
-    <div className="flex items-start gap-2">
-      <div ref={wrapRef} className="flex-1 relative shrink-0 min-w-0">
+    // 不带任何左侧偏移样式（无 flex gap / 无 paddingLeft）——左边界完全由父容器统一 padding
+    // 决定，与素材引用条 ResourceStrip 共享同一条左基准线（避免各自偏移导致视觉差 1~2px）。
+    <div className="relative">
+      <div ref={wrapRef} className="relative w-full min-w-0">
         <div
           ref={setEditorRef}
           contentEditable
           suppressContentEditableWarning
-          className="w-full bg-transparent text-base-sm text-primary outline-none leading-relaxed font-sans custom-scrollbar nodrag nowheel nopan resize-none"
+          className="prompt-editor w-full bg-transparent text-base-sm text-primary outline-none leading-relaxed font-sans custom-scrollbar nodrag nowheel nopan resize-none"
           style={{
             width: inputWidth ? `${inputWidth}px` : undefined,
             minWidth: 0,
@@ -754,7 +756,7 @@ function PromptInput({
         {!value && (
           <span
             className="pointer-events-none absolute top-0 left-0 text-base-sm text-muted-2"
-            style={{ lineHeight: 1.625, paddingTop: '1px' }}
+            style={{ lineHeight: 1.625 }}
             aria-hidden="true"
           >
             {placeholder}

@@ -1,37 +1,39 @@
 /**
  * MjStyleBrowser —— 创作库「MJ 码图」分区视图（两根轴 + 详情态 4 模式）。
  *
- * 视觉/交互对照 `mockup/panel-kit-card/index.html`（视觉基准）：
- *   - 副条 pills = 素材类型轴（全部 + 角色人像/场景环境/巨物怪兽，即 mj.group char/scene/juwu）
- *   - 左栏 = 题材六大组 → 34 个分类（可折叠）
- *   - 点卡片 → 进详情态：大图 + medium + 4 种插入模式（风格码/风格＋参数/完整提示词/色调描述）
- *     + textarea + 复制 / 插入正文。
+ * - 副条 = 素材类型轴（全部 + 角色人像/场景环境/巨物怪兽，即 mj.group char/scene/juwu）
+ * - 左栏 = 题材六大组 → 分类（可折叠）
+ * - 点卡片 → 详情态：medium + 4 插入模式（风格码/风格＋参数/完整提示词/色调描述）+ textarea + 复制 / 插入正文
  *
- * 两轴交叉过滤（2026-09-15 真值）：34 个分类每个唯一属于一个素材类型组（multigroup=0），
- * 故选中题材分类即确定素材类型；副条 pills 是「素材类型」轴，交叉后左栏只留该组分类。
+ * ⚠️ P-2 裁决（2026-09-15）：4 模式全可用、不加复杂度/不禁字段（本仓无 MJ 模型，codes 可复制不本地消费）。
  *
- * 交互（§一.6）：MJ 点卡片不立即关闭，先进详情；点「插入正文」→ onApply(preset, modeText) 才落胶囊。
- * ⚠️ P-2 裁决（2026-09-15）：本仓无 Midjourney 模型，但用户确认 **4 模式全可用、不加任何复杂度/禁字段**，
- *   故 codes/parameters 照常渲染、可复制可插入，不作置灰。
+ * 视觉：左栏 .cl-nav · 卡片 .cl-grid/.cl-card-item · 详情 .cl-mj-detail（见 creative-library.css）。
+ *
+ * @param mjPresets 归一化后的 MJ 目录
+ * @param onApply   点「插入正文」→ (preset, modeText)
  */
 
-import React, { useMemo, useState } from 'react';
-import { PanelPills, PanelSubBar } from '../../panels/PanelBar.tsx';
+import { useMemo, useState } from 'react';
+import { ArrowLeft, Copy } from 'lucide-react';
+import LazyImage from '../../ui/LazyImage.tsx';
 import type { MjPreset } from '../creativeCatalog.ts';
 
 export interface MjStyleBrowserProps {
   mjPresets: MjPreset[];
   onApply: (preset: MjPreset, modeText: string) => void;
+  /**
+   * 搜索关键词（由外壳顶栏统一持有并下发）。
+   * 搜索框唯一位置 = 顶栏右上角、5 分区共用，故本视图**不再自渲染搜索框**。
+   */
+  keyword?: string;
 }
 
-/** 素材类型组名（mj.group → 展示名，2026-09-15 真值） */
 const GROUP_LABEL: Record<string, string> = {
   char: '角色人像',
   scene: '场景环境',
   juwu: '巨物怪兽',
 };
 
-/** 题材六大组 → 34 分类（mockup TOPICS，逐个数据校验过） */
 const MJ_TOPICS: { name: string; cats: string[] }[] = [
   {
     name: '东方古风',
@@ -95,7 +97,6 @@ const MODES: { key: ModeKey; label: string }[] = [
   { key: 'vibe', label: '色调描述' },
 ];
 
-/** 预处理：group 计数 + category→group 映射 + category→items。 */
 function buildIndex(mjPresets: MjPreset[]) {
   const groupCount: Record<string, number> = {};
   const catGroup: Record<string, string> = {};
@@ -109,116 +110,15 @@ function buildIndex(mjPresets: MjPreset[]) {
   return { groupCount, catGroup, catItems };
 }
 
-/** 卡片（图 + 底部名条） */
-function MjCard({ preset, onClick }: { preset: MjPreset; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      className="relative overflow-hidden cursor-pointer rounded-xl border border-edge hover:border-edge-raised bg-surface text-left"
-      style={{ aspectRatio: '16/12' }}
-      onClick={onClick}
-    >
-      {preset.preview && (
-        <img
-          src={preset.preview}
-          alt=""
-          loading="lazy"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-      )}
-      <div className="absolute inset-x-0 bottom-0 px-3 pt-5 pb-2.5 bg-gradient-to-t from-black/70 to-transparent">
-        <p className="m-0 text-xs text-white/[0.92] truncate">{preset.name}</p>
-      </div>
-    </button>
-  );
-}
-
-/** 详情态 */
-function Detail({
-  preset,
-  onBack,
-  onApply,
-}: {
-  preset: MjPreset;
-  onBack: () => void;
-  onApply: (modeText: string) => void;
-}) {
-  const [mode, setMode] = useState<ModeKey>('codes');
-  const modeText = preset[mode] || '';
-  return (
-    <div className="flex-1 min-h-0 flex gap-3 px-3 py-2 overflow-auto">
-      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-        {(preset.bigPreview || preset.preview) && (
-          <img
-            src={preset.bigPreview || preset.preview}
-            alt={preset.name}
-            className="w-full flex-1 min-h-[120px] object-contain rounded-lg bg-surface-sunken border border-edge-faint"
-          />
-        )}
-        <p className="text-2xs text-faint m-0">
-          {preset.medium || ''} · {preset.id.toUpperCase()}
-          {preset.mixed ? ' · 混码组合' : ' · 单码'}
-        </p>
-      </div>
-      <div className="w-[330px] flex-shrink-0 flex flex-col gap-2 min-w-0">
-        <h3 className="text-sm font-semibold text-strong m-0">{preset.name}</h3>
-        <p className="text-2xs text-muted leading-[1.7] m-0">
-          {preset.mixed
-            ? '这是混码组合，整组使用才能保留示例风格。'
-            : '单码风格，可搭配你自己的主体描述。'}
-        </p>
-        <div className="pk-pills">
-          {MODES.map((m) => (
-            <button
-              key={m.key}
-              type="button"
-              className="pk-pill"
-              aria-pressed={mode === m.key}
-              onClick={() => setMode(m.key)}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-        <textarea
-          className="flex-1 min-h-[96px] w-full resize-none rounded-lg p-2 bg-input border border-edge-muted text-body text-2xs leading-[1.7] outline-none focus:border-accent/50 box-border"
-          value={modeText}
-          readOnly
-        />
-        <div className="flex items-center gap-1.5">
-          <span className="flex-1" />
-          <button type="button" className="pk-btn" onClick={onBack}>
-            返回列表
-          </button>
-          <button
-            type="button"
-            className="pk-btn"
-            onClick={() => {
-              if (navigator.clipboard) void navigator.clipboard.writeText(modeText);
-            }}
-          >
-            复制
-          </button>
-          <button type="button" className="pk-btn primary" onClick={() => onApply(modeText)}>
-            插入正文
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function MjStyleBrowser({ mjPresets, onApply }: MjStyleBrowserProps) {
+export default function MjStyleBrowser({ mjPresets, onApply, keyword = '' }: MjStyleBrowserProps) {
   const { groupCount, catGroup, catItems } = useMemo(() => buildIndex(mjPresets), [mjPresets]);
-  // 两轴：素材类型 group（null=全部）+ 题材分类 cat
   const [group, setGroup] = useState<string | null>(null);
   const [cat, setCat] = useState<string | null>(null);
   const [detail, setDetail] = useState<MjPreset | null>(null);
+  const [mode, setMode] = useState<ModeKey>('codes');
   const [closedGroups, setClosedGroups] = useState<string[]>([]);
+  const [copied, setCopied] = useState(false);
 
-  const mjTotal = mjPresets.length;
-
-  // 当前类型组下可显示的题材分类（交叉过滤：分类唯一属组）
   const topics = useMemo(
     () =>
       MJ_TOPICS.map((t) => ({
@@ -228,107 +128,192 @@ export default function MjStyleBrowser({ mjPresets, onApply }: MjStyleBrowserPro
     [group, catItems, catGroup],
   );
 
-  // 当前显示的条目：详情态直接返回；列表态按「题材分类」过滤（pills 已把类型组纳入交叉）
   const displayItems = useMemo(() => {
     if (detail) return [];
-    if (cat) return catItems[cat] || [];
-    return mjPresets.filter((m) => !group || catGroup[m.category] === group);
-  }, [detail, cat, catItems, mjPresets, group, catGroup]);
+    let list = cat
+      ? catItems[cat] || []
+      : mjPresets.filter((m) => !group || catGroup[m.category] === group);
+    // 搜索：按名称/媒介/分类过滤（顶栏统一搜索，各分区共用同一关键词）
+    const kw = keyword.trim().toLowerCase();
+    if (kw) {
+      list = list.filter(
+        (m) =>
+          m.name.toLowerCase().includes(kw) ||
+          (m.medium || '').toLowerCase().includes(kw) ||
+          m.category.toLowerCase().includes(kw),
+      );
+    }
+    return list;
+  }, [detail, cat, catItems, mjPresets, group, catGroup, keyword]);
 
-  // 详情态
+  // ── 详情态：左大图 + 右信息（4 模式 + textarea + 复制/插入正文）──
   if (detail) {
+    const modeText = detail[mode] || '';
+    const big = detail.bigPreview || detail.preview;
     return (
-      <Detail
-        preset={detail}
-        onBack={() => setDetail(null)}
-        onApply={(modeText) => {
-          onApply(detail, modeText);
-          setDetail(null);
-        }}
-      />
+      <div className="cl-mj-detail">
+        <div className="cl-big">
+          {/* ⚠️ 边框/圆角/底色落在 LazyImage 的**外层 div**（className），不是内部 img：
+              LazyImage 渲染的是 `<div><img/></div>`，内部 img 由 imgClassName 控制 object-fit。
+              此前把 flex-1/border 写在 CSS 的 `.cl-big img` 上，而 img 并非 .cl-big 的直接子级，
+              弹性计算落到了外层 div 上 → 大图高度失控（2026-09-15 用户报「右边全跑下面去了」）。 */}
+          {big ? (
+            <LazyImage
+              src={big}
+              alt={detail.name}
+              className="cl-big-img"
+              imgClassName="w-full h-full object-contain"
+            />
+          ) : null}
+          <p>
+            {detail.medium || ''} · {detail.id.toUpperCase()}
+            {detail.mixed ? ' · 混码组合' : ' · 单码'}
+          </p>
+        </div>
+        <div className="cl-side">
+          <h3>{detail.name}</h3>
+          <p className="cl-desc">
+            {detail.mixed
+              ? '这是混码组合，整组使用才能保留示例风格。'
+              : '单码风格，可搭配你自己的主体描述。'}
+          </p>
+          <div className="pk-pills">
+            {MODES.map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                className="pk-pill"
+                aria-pressed={mode === m.key}
+                onClick={() => setMode(m.key)}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <textarea value={modeText} readOnly />
+          <div className="cl-row">
+            <button type="button" className="cl-btn" onClick={() => setDetail(null)}>
+              <ArrowLeft size={12} />
+              返回列表
+            </button>
+            <span className="cl-sp" />
+            <button
+              type="button"
+              className="cl-btn"
+              onClick={() => {
+                void navigator.clipboard?.writeText(modeText);
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 1600);
+              }}
+            >
+              <Copy size={12} />
+              {copied ? '已复制' : '复制'}
+            </button>
+            <button
+              type="button"
+              className="cl-btn is-primary"
+              onClick={() => onApply(detail, modeText)}
+            >
+              插入正文
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
+  // ── 列表态：左栏题材分类 + 右侧网格 ──
   return (
     <>
-      <PanelSubBar>
-        <PanelPills
-          items={[
-            { key: 'all', label: `全部 ${mjTotal}` },
-            ...Object.keys(groupCount).map((g) => ({
-              key: g,
-              label: `${GROUP_LABEL[g] || g} ${groupCount[g]}`,
-            })),
-          ]}
-          value={group || 'all'}
-          onChange={(k) => {
-            setGroup(k === 'all' ? null : k);
-            setCat(null);
-            setDetail(null);
-          }}
-        />
-      </PanelSubBar>
-      <div className="flex-1 min-h-0 flex">
-        {/* 左栏：题材六大组 → 分类 */}
-        <nav className="w-[178px] flex-shrink-0 overflow-y-auto py-1.5 px-1.5 bg-surface-deep border-r border-edge-faint thin-scroll">
-          {topics.map((t) => {
-            const open = !closedGroups.includes(t.name);
-            const sum = t.cats.reduce((n, c) => n + (catItems[c]?.length || 0), 0);
-            return (
-              <React.Fragment key={t.name}>
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between gap-1.5 h-[26px] px-1.5 mt-0.5 rounded-md bg-transparent text-faint text-2xs cursor-pointer text-left border-none hover:bg-surface-hover hover:text-secondary"
-                  onClick={() =>
-                    setClosedGroups((s) => (open ? [...s, t.name] : s.filter((x) => x !== t.name)))
-                  }
-                >
-                  <span>
-                    {open ? '▾ ' : '▸ '}
-                    {t.name}
-                  </span>
-                  <span className="text-2xs text-subtle">{sum}</span>
-                </button>
-                {open &&
-                  t.cats.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      aria-current={cat === c}
-                      className="flex w-full items-center justify-between gap-1.5 h-6 px-1.5 pl-[14px] rounded-md bg-transparent text-muted text-2xs cursor-pointer text-left border-none hover:bg-surface-hover hover:text-primary"
-                      onClick={() => {
-                        setCat(c);
-                        setDetail(null);
-                      }}
-                    >
-                      <span className="truncate">{c}</span>
-                      <span className="text-2xs text-subtle">{catItems[c]?.length || 0}</span>
-                    </button>
-                  ))}
-              </React.Fragment>
-            );
-          })}
-          {topics.length === 0 && (
-            <div className="py-6 text-center text-faint text-2xs">该素材类型下暂无题材</div>
-          )}
-        </nav>
-        {/* 右列：网格 */}
-        <div className="flex-1 min-w-0 overflow-auto grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3 align-start px-3 py-2 custom-scrollbar">
+      <nav className="cl-nav" aria-label="MJ 码图分类">
+        <p className="cl-navlbl">按题材浏览</p>
+        {topics.map((t) => {
+          const open = !closedGroups.includes(t.name);
+          const sum = t.cats.reduce((n, c) => n + (catItems[c]?.length || 0), 0);
+          return (
+            <div key={t.name}>
+              <button
+                type="button"
+                className="cl-grp"
+                onClick={() =>
+                  setClosedGroups((s) => (open ? [...s, t.name] : s.filter((x) => x !== t.name)))
+                }
+              >
+                <span>
+                  {open ? '▾ ' : '▸ '}
+                  {t.name}
+                </span>
+                <span className="cl-n">{sum}</span>
+              </button>
+              {open &&
+                t.cats.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className="cl-cat"
+                    aria-current={cat === c}
+                    onClick={() => setCat(c)}
+                  >
+                    <span className="cl-t">{c}</span>
+                    <span className="cl-n">{catItems[c]?.length || 0}</span>
+                  </button>
+                ))}
+            </div>
+          );
+        })}
+      </nav>
+      <div className="cl-col cl-mj-body">
+        {/* 素材类型轴（副条位置已由外壳占用，这里作为内容区第一行的 pills）。
+            padding 走 .cl-mj-body > .cl-subrow（样式表），不再内联写死 ——
+            内联值脱离样式表，改左栏留白时这里不跟随，两侧就会错位。 */}
+        <div className="cl-subrow">
+          <div className="pk-pills">
+            <button
+              type="button"
+              className="pk-pill"
+              aria-pressed={!group}
+              onClick={() => {
+                setGroup(null);
+                setCat(null);
+              }}
+            >
+              全部 {mjPresets.length}
+            </button>
+            {Object.keys(groupCount).map((g) => (
+              <button
+                key={g}
+                type="button"
+                className="pk-pill"
+                aria-pressed={group === g}
+                onClick={() => {
+                  setGroup(g);
+                  setCat(null);
+                }}
+              >
+                {GROUP_LABEL[g] || g} {groupCount[g]}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="cl-grid">
           {displayItems.map((m) => (
-            <MjCard
+            <article
               key={m.id}
-              preset={m}
+              className="cl-card-item"
+              title={m.name}
               onClick={() => {
                 setCat(m.category);
                 setDetail(m);
+                setMode('codes');
               }}
-            />
+            >
+              {m.preview && <LazyImage src={m.preview} alt={m.name} className="absolute inset-0" />}
+              <div className="cl-name">
+                <p>{m.name}</p>
+              </div>
+            </article>
           ))}
-          {displayItems.length === 0 && (
-            <div className="col-span-full py-8 text-center text-faint text-2xs">
-              先在左栏选一个题材分类
-            </div>
-          )}
+          {displayItems.length === 0 && <p className="cl-empty">先在左栏选一个题材分类</p>}
         </div>
       </div>
     </>

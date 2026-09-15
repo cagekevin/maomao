@@ -719,6 +719,8 @@ select::placeholder {
   align-items: center;
   gap: 4px;
   max-width: 180px;
+  /* 左右对称的外边距：芯片与相邻文字/芯片之间统一留 2px，左右一致。
+   * 行首例外由下面 :first-child 规则抵消左侧 2px —— 保证「行首芯片左边缘 = 正文文字左边缘」。 */
   margin: 0 2px;
   padding: 2px 6px 2px 6px;
   border-radius: 6px;
@@ -732,6 +734,14 @@ select::placeholder {
   -webkit-user-select: none;
   cursor: default;
   box-sizing: border-box;
+}
+/* 行首例外：正文里芯片前会插一个零宽空格（ZWSP）文本节点（见 promptChips.pushChip），
+ * 故芯片通常不是 :first-child。这里兜住两种行首形态（芯片即首子节点 / 芯片跟在 ZWSP 之后），
+ * 抵消掉左侧 2px 外边距，让「行首芯片左边缘 = 正文文字左边缘」。
+ * 只抵消左侧、右侧 2px 保留 → 左右对称的口径不被破坏。 */
+.prompt-editor > .prompt-chip:first-child,
+.prompt-editor > :first-child + .prompt-chip {
+  margin-left: 0;
 }
 .prompt-chip-icon {
   display: inline-flex;
@@ -747,7 +757,9 @@ select::placeholder {
   color: rgb(var(--mao-accent-strong) / 1);
   overflow: hidden;
   box-sizing: border-box;
-  margin-left: -3px;
+  /* 去掉原先的 margin-left: -3px（它把图标从芯片左内边距处再左推 3px，
+   * 导致缩略图相对正文左边界再次偏移）。图标位置只由芯片自身 padding 决定。 */
+  margin: 0;
 }
 .prompt-chip-icon.has-thumbnail {
   background: transparent;
@@ -755,7 +767,7 @@ select::placeholder {
   height: 22px;
   border-radius: 4px;
   padding: 0;
-  margin-left: -3px;
+  margin: 0;
 }
 .prompt-chip-thumb {
   width: 100%;

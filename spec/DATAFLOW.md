@@ -327,22 +327,23 @@ canvas/useCanvasEventSubscriptions（3 全局订阅收拢）
 
 ```
 提示词输入/引用：prompt/PromptInput · prompt/PromptHub（UI）· prompt/promptMention（纯函数）
-  prompt/promptChips（芯片序列化唯一入口；生成端 resolvePromptChips 把 @{id:label} 解析回纯文本+参考图）
+  prompt/promptChips（芯片序列化唯一入口；生成端 resolvePromptChips 把 @{id:label} 解析回纯文本+参考图）🟢
 创作库（5 分区：风格/滤镜/运镜/MJ码图/我的提示词）：
-  creative/CreativeLibrary.tsx（半屏壳 + 分区切换）· CreativeLibraryButton.tsx（节点薄入口）
-  creative/views/PresetGridView.tsx · MjStyleBrowser.tsx · PromptPresetView.tsx
-  creative/creativePresets.ts（纯逻辑：命名空间/字典GC/裁剪）· creative/creativeCatalog.ts（catalog 归一化）
-  creative/creativeCatalog.json · creative/mjStyleCatalog.json（数据真值，随包只读）
-  creative/promptManager.ts（「我的提示词」本地库，可增删）
+  creative/CreativeLibrary.tsx（半屏壳 + 分区切换）· CreativeLibraryButton.tsx（节点薄入口）🔴
+  creative/views/PresetGridView.tsx 🟢 · MjStyleBrowser.tsx 🟢 · PromptPresetView.tsx 🔴
+  creative/creativePresets.ts（纯逻辑：命名空间/字典GC/裁剪）🔴 · creative/creativeCatalog.ts（catalog 归一化）🔴
+  creative/data/creativeCatalog.json · creative/data/mjStyleCatalog.json（数据真值，随包只读）⚪
+  creative/promptManager.ts（「我的提示词」本地库，可增删）🟢
 ```
 
 **关键边**：
 - `prompt/PromptInput` ← 节点（PromptInput.onReady 上抛 `handleExternalInsert`，创作库胶囊经它在**光标处**插入）。
 - `creative/creativePresets.ts` ← `creative/creativeCatalog.ts`（catalog JSON → `CreativePreset`，补 `cp_` 前缀）。
+- catalog 取用唯一入口：`catalogByKind(kind)`（返回模块级常量引用，可作 memo deps；`CatalogKind` 联合保证穷尽）← `CreativeLibrary`（分类 pills + grid 过滤）· `MjStyleBrowser`。禁再手写等价 `Record<kind, presets>`。
 - `creative/promptManager` ← `creative/views/PromptPresetView`（第 5 分区，复用既有存储键 `yimao_preset_prompts`）。
 - 合成替换：生成端 `resolvePromptChips(raw, refImages, refTexts, data.creativePresets)`——胶囊 `@{cp_id:name}` → 命中替换为该条 `prompt` 片段；未命中置空但留 `⚠缺失预设「名」` + 红日志（I1/I2，禁静默吞）。
-- 落字典：节点 `handleCreativeApply` → `insertMention`（落胶囊）+ `patchData({ creativePresets })`（写 node.data）。
-- 字典 GC：`syncCreativePresets(prompt, dict)` 只留被 `cp_*` 胶囊引用的键。
+- 落字典：节点 `handleCreativeApply(item: CreativePreset)` → `insertMention`（落胶囊）+ `addCreativePreset(id, toDictEntry(item))`（写 node.data，entry 形态唯一真源 = `creativePresets.CreativePresetEntry`）🟢
+- 字典 GC：`normalizeChipFieldWrite(data, patch)`（`creativePresets.ts` 纯函数，内部走 `syncCreativePresets`）只留被 `cp_*` 胶囊引用的键 —— 接在写 data 的**两条**路径（界面 `useNodeData.patchData` / Agent `canvasHost.updateNodeData`）🟢
 
 **⚠️ 边界**：
 - 「我的提示词」唯一可写源是 `creative/promptManager`（localStorage）；4 类 catalog 只读、UI 不暴露增删。
@@ -570,6 +571,9 @@ docs/audit-archive/*.md ⚪（历史报告归档保留，非活配置）
 | `nodes/PromptNode` | `nodes/ImageGenerate` |
 | `nodes/TextNode` | `nodes/TextGenerate` |
 | `nodes/DiscountVideoNode` | `nodes/VideoGenerate` |
+| `prompt/PromptLibrary` | `creative/views/PromptPresetView` |
+| `prompt/PromptLibraryButton` | `creative/CreativeLibraryButton` |
+| `prompt/promptManager` | `creative/promptManager` |
 | `nodes/ImageNode` | `nodes/ImageGenerate` |
 | `panels/AssetLibrary` | `panels/ResourceLibrary` |
 | `panels/MaterialStrip` | `panels/ResourceStrip` |

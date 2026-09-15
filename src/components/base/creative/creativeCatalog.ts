@@ -19,7 +19,7 @@
  * 本层只产 catalog 前 4 类（style/filter/motion/mj）；`cp_prompt-*` 由 promptManager 运行期写入（§一.2.1）。
  */
 
-import type { CreativePreset, PresetKind } from './creativePresets.ts';
+import type { CatalogKind, CreativePreset, PresetKind } from './creativePresets.ts';
 import { presetIdFor } from './creativePresets.ts';
 import creativeData from './data/creativeCatalog.json';
 import mjData from './data/mjStyleCatalog.json';
@@ -36,7 +36,7 @@ interface RawCreative {
   poster?: string;
 }
 
-/** MJ 原始 JSON 的形状（面略字段 = 不落盘字段，I4 裁剪依据）。 */
+/** MJ 原始 JSON 的形状（mixed/medium/codes/parameters/vibe 等 = 不落盘字段，I4 裁剪依据）。 */
 interface RawMj {
   id?: string;
   group?: string;
@@ -65,28 +65,30 @@ export interface MjPreset extends CreativePreset {
   bigPreview?: string;
 }
 
-/** catalog 活类型：风格/滤镜/运镜 = CreativePreset；MJ = MjPreset（带面略字段）。 */
+/** catalog 活类型：风格/滤镜/运镜 = CreativePreset；MJ = MjPreset（带面板详情用的不落盘字段）。 */
 export type CatalogPreset = CreativePreset | MjPreset;
 
-/** 判定是否为 MjPreset（带 codes）。 */
-function isMj(p: CatalogPreset): p is MjPreset {
-  return p.kind === 'mj';
-}
-
-function norPref(kind: PresetKind, rawId?: string): string {
+/** 补齐 `cp_` 前缀的便捷包装（catalog 原始 id 无前缀）。 */
+function normalizedPresetId(kind: PresetKind, rawId?: string): string {
   return presetIdFor(kind, rawId || '');
 }
 
 /** 归一化 风格/滤镜/运镜（构成 preview；motion 带 poster 作封面）。 */
 function normalizeCreative(r: RawCreative): CreativePreset {
   const kind = (r.kind as PresetKind) || 'style';
+  const rawPreview = r.preview || '';
+  // 运镜的 preview 是 .mp4（实测 51/51 全是 mp4 + 独立 poster）。
+  // 若不分开保存，UI 会拿 .mp4 去当 <img> 的 src（破图），且无从判断「这是视频卡」。
+  // 故：video 单独存，preview 统一收敛为**静帧封面**（poster 优先）。
+  const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(rawPreview);
   return {
-    id: norPref(kind, r.id),
+    id: normalizedPresetId(kind, r.id),
     kind,
     category: r.category || '',
     name: r.name || '',
     prompt: r.prompt || '',
-    preview: r.preview || r.poster || undefined,
+    preview: isVideo ? r.poster || undefined : rawPreview || r.poster || undefined,
+    video: isVideo ? rawPreview : undefined,
   };
 }
 
@@ -127,16 +129,15 @@ export const MOTION_PRESETS: CreativePreset[] = (creativeData as RawCreative[])
 /** 全部 MJ 码图预设（493）。 */
 export const MJ_PRESETS: MjPreset[] = (mjData as RawMj[]).map(normalizeMj);
 
-/** 四类目录全量（供外壳一次渲染）。 */
-export const ALL_CATALOG: CatalogPreset[] = [
-  ...STYLE_PRESETS,
-  ...FILTER_PRESETS,
-  ...MOTION_PRESETS,
-  ...MJ_PRESETS,
-];
-
-/** 按 kind 取目录（目录内分类导航的单一入口）。 */
-export function catalogByKind(kind: 'style' | 'filter' | 'motion' | 'mj'): CatalogPreset[] {
+/**
+ * 按 kind 取目录 —— **catalog 分类导航的单一入口**（TD-05-14 接线：原为 0 消费的幽灵 API，
+ * 外壳却手写了等价的 `catalog3` 且组件体内每 render 重建 → `useMemo` deps 恒失效）。
+ *
+ * 返回的是**模块级常量引用**（不是每次新建数组）→ 可安全用作 `useMemo` deps。
+ * 参数类型用 `CATALOG_KINDS` 的联合（4 类，不含运行期才有的 'prompt'）：新增 catalog 类时
+ * 此 switch 会因穷尽性检查报警，防「加了数据忘了接线」。
+ */
+export function catalogByKind(kind: CatalogKind): CatalogPreset[] {
   switch (kind) {
     case 'style':
       return STYLE_PRESETS;
@@ -149,5 +150,4 @@ export function catalogByKind(kind: 'style' | 'filter' | 'motion' | 'mj'): Catal
   }
 }
 
-export { isMj }; // re-export 供 UI 层类型收窄（trimPreset 前判断富字段可用）
 export type { RawCreative, RawMj }; // 供测试/构建脚本引用原始形状

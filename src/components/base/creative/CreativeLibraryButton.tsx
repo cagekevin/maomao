@@ -1,28 +1,29 @@
 /**
- * CreativeLibraryButton —— 创作库「预设」薄入口（入口收敛，§一.6 / 2026-09-15 mockup 第一轮迭代）。
+ * CreativeLibraryButton —— 创作库「预设」薄入口。
  *
- * 节点底栏只保留一个「预设」按钮，点它打开创作库面板（再点关闭）；分区切换收进面板内 tab，
- * 不再按类型各设入口。替代既有 `prompt/PromptLibraryButton`（旧提示词库，A 类归并后移除）。
+ * 【形态裁决 2026-09-15】面板改为**全屏层**（FullscreenModal：portal 到 body + 登记模态层 +
+ *   Esc 关闭），不再是节点内嵌 div。理由见 CreativeLibrary.tsx 头部「形态裁决」。
+ *   为什么要 FullscreenModal 而不是自己 createPortal：它已备好「登记模态层 → 画布快捷键
+ *   （⌘Z / Q / W / E）整体让位」与 Esc 接管，自己写会漏登记、导致画布快捷键静默失效
+ *   （详见 FullscreenShell.tsx 头部记录的真实事故）。
  *
- * 覆为全屏浮层（复用 `FullscreenShell`：portal + 模态登记 + Esc 关闭），半屏卡片壳由 `CreativeLibrary` 负责。
- *
- * 职责：只负责「开关创作库面板」+「把 onApply 上抛给宿主节点」。胶囊落地 / 写 data.creativePresets /
- * 关闭面板 都由宿主（节点）在 onApply 里实现。节点必须自备 `insertAssetRef`（PromptInput.onReady）来落胶囊。
+ * 职责：开关创作库面板 + 把 onApply 上抛给宿主节点。胶囊落地 / 写 data.creativePresets 由宿主节点实现；
+ *   **关面板由本组件完成**（`open` state 在此，onApply 后 `setOpen(false)`；Esc / 关闭按钮亦走此）。
  *
  * @param {object} props
- *  - initialTab  初始分区（'image' 节点 → style，'video' → style，'text' → prompt 等，节点自传）
- *  - onApply     (item, fragment) => void：落胶囊 + 写字典 + 关闭面板
+ *  - initialTab  初始分区
+ *  - onApply     (item: CreativePreset) => void
  */
+
 import { useState } from 'react';
-import { Sparkles } from 'lucide-react';
-import FullscreenShell from '../panels/FullscreenShell.tsx';
+import { LayoutGrid } from 'lucide-react';
+import FullscreenModal from '../panels/FullscreenModal.tsx';
 import CreativeLibrary, { type CreativeLibraryProps } from './CreativeLibrary.tsx';
+import type { CreativePreset } from './creativePresets.ts';
 
 export interface CreativeLibraryButtonProps {
-  /** 初始分区 */
   initialTab?: CreativeLibraryProps['initialTab'];
-  /** 应用回调（落胶囊 + 写字典 + 关闭面板），由节点实现 */
-  onApply: CreativeLibraryProps['onApply'];
+  onApply: (item: CreativePreset) => void;
 }
 
 export default function CreativeLibraryButton({
@@ -33,36 +34,42 @@ export default function CreativeLibraryButton({
 
   return (
     <>
-      <div className="w-[1px] h-3 bg-surface-3 flex-shrink-0 mr-1.5" />
       <button
         type="button"
-        className="flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer"
-        title="预设（创作库：风格 / 滤镜 / 运镜 / MJ码图 / 提示词）"
+        className="node-btn-settings"
         aria-pressed={open}
         onClick={(e) => {
           e.stopPropagation();
           setOpen((v) => !v);
         }}
+        title="预设（创作库）"
       >
-        <Sparkles size={10} className="text-blue-400" />
-        <span>预设</span>
+        <LayoutGrid size={12} />
+        预设
       </button>
-      <FullscreenShell
+      {/* showHeader=false：创作库自带顶栏（5 分区 tab + 关闭），不需要外层标题栏。
+          edgeToEdge=true：内容区去掉 p-5，让创作库自己的四段布局（顶栏/副条/网格/底栏）
+            直接铺满外层卡片——否则外层 p-5 + 内层自留白各加一份，卡片可用宽度被白吃两遍。
+          maxWidth=1120：1560 太宽（2026-09-15 用户裁定收窄）——卡片会被拉成超长横条、
+            单卡信息密度过低，扫读反而变慢。1120 在 300px 最小卡宽下稳定 3 列，是浏览效率的上限。 */}
+      <FullscreenModal
         open={open}
+        showHeader={false}
+        edgeToEdge
+        maxWidth={1120}
+        widthRatio={0.9}
+        heightRatio={0.9}
         onClose={() => setOpen(false)}
-        className="fixed inset-0 z-ceiling bg-black/75 backdrop-blur-sm flex items-center justify-center nowheel nopan nodrag"
-        onClick={() => setOpen(false)}
       >
-        <div onClick={(e) => e.stopPropagation()}>
-          <CreativeLibrary
-            initialTab={initialTab}
-            onApply={(item, fragment) => {
-              onApply(item, fragment);
-              setOpen(false);
-            }}
-          />
-        </div>
-      </FullscreenShell>
+        <CreativeLibrary
+          initialTab={initialTab}
+          onClose={() => setOpen(false)}
+          onApply={(item) => {
+            onApply(item);
+            setOpen(false);
+          }}
+        />
+      </FullscreenModal>
     </>
   );
 }

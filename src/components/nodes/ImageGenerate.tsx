@@ -22,7 +22,8 @@ import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { useNodeExpanded } from '../../hooks/useNodeExpanded.ts';
 import { useNodeField } from '../../hooks/useNodeField.ts';
 import CreativeLibraryButton from '../base/creative/CreativeLibraryButton.tsx';
-import type { CreativeApplyItem } from '../base/creative/CreativeLibrary.tsx';
+import type { CreativePreset, CreativePresetsDict } from '../base/creative/creativePresets.ts';
+import { toDictEntry } from '../base/creative/creativePresets.ts';
 import { downloadUrl, resolveDownloadFilename } from '../base/utils/clipboard.ts';
 import JianyingIcon from '../base/ui/JianyingIcon.tsx';
 import { showToast } from '../base/core/toastStore.ts';
@@ -43,6 +44,7 @@ import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
 import { mergeRefImages, buildEffectivePrompt } from '../base/core/utils.ts';
 import { resolvePromptChips } from '../base/prompt/promptChips.ts';
+import { PROMPT_PANEL_PAD_X } from '../base/prompt/promptLayout.ts';
 import CameraStudioPanel from '../base/editors/CameraStudioPanel.tsx';
 import CameraSettingsSelector from '../base/editors/cameraParams/CameraSettingsSelector.tsx';
 import { applyCameraSettingsToPrompt } from '../base/editors/cameraParams/cameraPrompt.ts';
@@ -89,8 +91,8 @@ interface ImageGenerateData {
   texts?: RefText[];
   /** 摄影参数（焦距/快门效果/光圈/曝光时间）；缺省 = 全自动，不写入提示词 */
   cameraSettings?: CameraGenerationSettings;
-  /** 创作库预设字典（Record<id,{kind,name,prompt}>，键 = cp_ 前缀 id）；生成时按正文胶囊替换 */
-  creativePresets?: Record<string, { kind: string; name?: string; prompt: string }>;
+  /** 创作库预设字典（键 = cp_ 前缀 id；形态真源 = creativePresets.CreativePresetsDict）；生成时按正文胶囊替换 */
+  creativePresets?: CreativePresetsDict;
 }
 
 /** 上游产出（来自 useConnectedInputs）的共享返回类型真相源：src/hooks/useConnectedInputs.ts NodeOutputGroup。
@@ -113,7 +115,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   // 抽屉展开/收起：本地 state + 写回 data.expanded + 外部（Tab/Agent）同步，收口到 useNodeExpanded
   const { expanded, toggleExpanded } = useNodeExpanded(id, data.expanded);
   // 提示词落盘 + 其它 data 字段写回唯一入口（本地 state → node.data；卸载 flush 由 useNodeData 承接）
-  const { patchData, patchDebounced } = useNodeData(id);
+  const { patchData, patchDebounced, addCreativePreset } = useNodeData(id);
   const [prompt, setPrompt] = useNodeField('prompt', data.prompt || '', patchDebounced);
 
   // 参考输入 = 连线上游的产出（useConnectedInputs）+ 自身 data.images/texts。
@@ -399,7 +401,11 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     }
   };
   // 创作库预设应用：落胶囊（有 preview 显示缩略图）+ 写 data.creativePresets 字典（键 = item.id）。
-  const handleCreativeApply = (item: CreativeApplyItem) => {
+  // ⚠️ 字典写入走 `addCreativePreset`（useNodeData 的函数式单点合并），**不读闭包里的 data**：
+  //   本函数可能被连续调用（连点多张卡），且 insertMention 会经 onChange 触发重渲；
+  //   若用 `...(data.creativePresets ?? {})` 这种闭包快照合并，连点第二张时会把
+  //   第一张刚写入的键覆盖掉 → 生成时字典里查不到 → 红日志「预设未命中置空」。
+  const handleCreativeApply = (item: CreativePreset) => {
     const hasPreview = !!item.preview;
     insertMention({
       id: item.id,
@@ -407,12 +413,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       kind: hasPreview ? 'image' : 'text',
       ...(hasPreview ? { url: item.preview } : {}),
     });
-    patchData({
-      creativePresets: {
-        ...(data.creativePresets ?? {}),
-        [item.id]: { kind: item.kind, name: item.name, prompt: item.prompt },
-      },
-    });
+    addCreativePreset(item.id, toDictEntry(item));
   };
   const hasImage = !!assetUrl;
   const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false);
@@ -657,7 +658,10 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
             隐藏面板可让按钮栏有干净空间落在节点下方，不再与面板重叠（见 InlineImageCropper）。 */}
         {!cropping && (
           <ExpandablePanel expanded={expanded} minWidth={500}>
-            <div className="space-y-3">
+            <div
+              className="space-y-3"
+              style={{ paddingLeft: PROMPT_PANEL_PAD_X, paddingRight: PROMPT_PANEL_PAD_X }}
+            >
               {/* 素材缩略图区（通用组件 ResourceStrip，以生图节点为标准：缩略图 + 底部@插入 + 右上×断线） */}
               <ResourceStrip
                 images={refImages}

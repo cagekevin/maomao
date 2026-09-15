@@ -52,7 +52,9 @@ function ResourceStrip({
 }: ResourceStripProps) {
   if (images.length === 0 && texts.length === 0) return null;
   return (
-    <div className="flex flex-wrap gap-2 mb-1">
+    // 不带任何左侧偏移样式（无 mb / 无 paddingLeft）——左边界完全由父容器统一 padding 决定，
+    // 与 PromptInput 正文共享同一条左基准线，避免各自 2px/4px 偏移导致视觉差 1~2px。
+    <div className="flex flex-wrap gap-2">
       {images.map((img, i) => {
         const name = img.label || `图片${i + 1}`;
         const canDisconnect = !!img.sourceNodeId;

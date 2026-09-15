@@ -26,6 +26,23 @@
   --ve-on-danger: 255 255 255;
   --ve-ok: 36 209 96;
   --ve-on-ok: 255 255 255;
+
+  /* ── 同名冲突桥接（2026-09-15）────────────────────────────────
+   * tailwind.config 里 primary/secondary/muted/accent 四个名字**宿主与 cutia 共用**
+   * （宿主=文字/强调色；cutia=主操作/前景薄纱），值写成
+   * `rgb(var(--ve-x, var(--mao-x)) / <alpha>)` 双轨。本段负责在 `.ve-scope` 内
+   * 把 --ve-x 定义成 cutia 值，于是同一批工具类在编辑器内自动切到 cutia 语义，
+   * 在编辑器外回落宿主语义（表格/面板不再被带成黑字）。
+   *
+   * ⚠️ 键名必须与 tailwind.config.ts 里 `var(--ve-x, …)` 的 x 完全一致，改一处须改两处。
+   * 【为什么这些键只在此处定义、不写进 ve-tailwind-colors.ts】
+   *   该文件的键会被 spread 进 tailwind 全局色表，写在里面＝又抢一次宿主同名键；
+   *   桥接变量只在 .ve-scope 内生效，正是我们要的作用域。 */
+  --ve-text-primary: 28 28 28; /* 编辑器内「文字主色」= 前景（= --ve-fg 亮色值） */
+  --ve-text-secondary: 120 120 120; /* 次级文字（亮色） */
+  --ve-muted: 235 235 235; /* 静默面/文字底（亮色，近 --ve-border） */
+  --ve-accent: 28 28 28; /* cutia 的 accent = 前景基色（薄纱由其 /α 派生），非宿主蓝 */
+
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
@@ -43,6 +60,11 @@
   --ve-on-danger: 255 255 255;
   --ve-ok: 38 179 92;
   --ve-on-ok: 255 255 255;
+  /* 同名冲突桥接（暗色）—— 与 §1 的亮色同名键成对，缺一即暗色下回落宿主色。 */
+  --ve-text-primary: 222 222 222; /* = --ve-fg 暗色值 */
+  --ve-text-secondary: 150 150 150;
+  --ve-muted: 40 40 40; /* 静默底：近 --ve-border，比 --ve-bg 亮一档 */
+  --ve-accent: 222 222 222;
 }
 
 /* ══════════════════════════════════════════════════════════════

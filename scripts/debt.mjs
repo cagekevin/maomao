@@ -46,6 +46,7 @@
  *                              [--anchor 22-视频-横切全量-2026-09-13.md] [--refs "@见 TD-xx"]
  *   node scripts/debt.mjs resolve <TD-ID> [--status 已解决] [--note "…"] [--date YYYY-MM-DD]
  *   node scripts/debt.mjs reanchor <TD-ID> --anchor 22-视频-剪辑器-M2计划审计-2026-09-14.md
+ *   node scripts/debt.mjs move <TD-ID> --to <NN>          # 整体迁区（改 ID 区段 + 区名列，其余逐字保留）
  *   node scripts/debt.mjs archive [--dry]
  */
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
@@ -481,6 +482,60 @@ function cmdReanchor(argv) {
 }
 
 /**
+ * move —— 把某条债**整体迁往另一区**（改 ID 区段 + 区名列，其余字段逐字保留）。
+ *
+ * 【为什么需要它】债 ID 永久绑区域（§七.3），但「登记时选错区」是真实会发生的
+ * （实证 2026-09-15：M7 四条债误登 23 区〔仓库卫生〕，明细真源属 02 区〔存储/持久化〕）。
+ * `reanchor` 只改锚点、不改 ID——补不了这个缺口；没有本命令时唯一出路是手改表格行
+ * = 破「唯一写入者」红线（本仓已有 TD-23-6~9 四条因此悬在错误区域）。
+ *
+ * 【语义】`move <TD-ID> --to <NN>`：
+ *   · 新 ID = `TD-<NN>-<区内 max+1>`（取号 / 撞号自检与 `add` **同一口径** = 主表 ∪ 归档）；
+ *   · 区名列取目标区既有写法（主表优先、退化归档、剥「（@见 …）」后缀，与 `add` 同源）；
+ *   · 锚点 / 状态 / 归类 / 利率 / 摘要 **逐字保留**；**就地替换该行**（不新增行、不改行位置）；
+ *   · 主表与归档都可迁（归档迁出后仍在归档——`archive` 语义不受影响）。
+ */
+function cmdMove(argv) {
+  const id = argv.find((a) => /^TD-\d+-\d+|^MD-\d+-\d+/.test(a));
+  const to = argVal(argv, '--to');
+  if (!id || !to) fail('用法：move <TD-ID> --to <NN>（如 move TD-23-6 --to 02）');
+  if (!/^\d{2}$/.test(to)) fail(`目标区号非法：\`${to}\`（两位数字，如 02）`);
+  const files = [{ file: LEDGER, src: '主表', lines: loadLedger().lines }];
+  if (existsSync(ARCHIVE)) files.push({ file: ARCHIVE, src: '归档', lines: readFileSync(ARCHIVE, 'utf8').split(/\r?\n/) });
+  for (const f of files) {
+    const hits = f.lines.map((l, i) => [readRow(l), i]).filter(([r]) => r && !r.broken && r.fields && r.fields.id === id);
+    if (!hits.length) continue;
+    const hit = hits.find(([r]) => r.mode !== 'manual');
+    if (!hit) fail(`${id} 在${f.src}是「列错位需人工」行 → 先修列，再迁移`);
+    const [r, li] = hit;
+    if (r.fields.kind !== 'TD') fail(`${id} 不是 TD 行 → move 仅支持 TD`);
+    if (idNum(r.fields.id) === Number(to)) fail(`${id} 已在区 ${to}，无需迁移`);
+    // 取号 + 区域名：与 cmdAdd 逐字同口径（主表 ∪ 归档；主表有「列错位需人工」行即拒，防撞号）
+    const allTd = loadAll().filter((x) => x.fields.kind === 'TD');
+    const same = allTd.filter((x) => x.fields.id.match(/^TD-(\d+)-/)?.[1] === to);
+    if (same.some((x) => x.src === 'main' && x.mode === 'manual')) fail(`目标区 ${to} 主表存在「列错位需人工」的行 → 先修，否则新 ID 可能撞号`);
+    const maxN = same.reduce((mx, x) => Math.max(mx, idSeq(x.fields.id)), 0);
+    const newId = `TD-${to}-${maxN + 1}`;
+    const dup = allTd.find((x) => x.fields.id === newId);
+    if (dup) fail(`取号自检失败：${newId} 已存在于${dup.src === 'archive' ? '归档' : '主表'} → 拒写（撞号会被 loadAll 静默遮蔽）`);
+    const areaRaw = (same.find((x) => x.src === 'main') ?? same[0])?.fields.area ?? '';
+    const areaText = areaRaw.replace(/（@见[^）]*）/g, '').trim() || `${to}`;
+    const C = MAP[r.kind];
+    const parts = f.lines[li].split('|');
+    const oldId = r.fields.id;
+    const oldArea = r.fields.area;
+    parts[1 + C.id] = ` ${newId} `;
+    parts[1 + C.area] = ` ${areaText} `;
+    f.lines[li] = parts.join('|');
+    writeFileSync(f.file, f.lines.join('\n'));
+    console.log(`✅ ${oldId} → ${newId}（${f.src}；区域列：${oldArea} → ${areaText}）`);
+    console.log('   ↳ 记得同步改区域日志 / index.md 里对该旧 ID 的引用（账本外的叙述不在本脚本管辖内）');
+    return;
+  }
+  fail(`主表与归档中均无 ${id}`);
+}
+
+/**
  * archive —— 把已完成项从主表移入 `债务-归档.md`，主表只留待办。
  * 幂等：归档按 ID 去重，已存在的用最新行替换。惯例：`resolve` 后顺手跑一次。
  */
@@ -673,12 +728,13 @@ switch (cmd) {
   case 'add': cmdAdd(rest); break;
   case 'resolve': cmdResolve(rest); break;
   case 'reanchor': cmdReanchor(rest); break;
+  case 'move': cmdMove(rest); break;
   case 'archive': cmdArchive(rest); break;
   case 'audit': cmdAudit(rest); break;
   default:
     console.log('债务账本读写唯一入口（详见文件头注释）');
     console.log('  读：list [--area NN] [--status X] [--all] | area <NN> | search <关键词> | show <TD-ID>');
-    console.log('  写：add --area NN --summary "…" | resolve <TD-ID> --note "…" | reanchor <TD-ID> --anchor <区域文件>');
+    console.log('  写：add --area NN --summary "…" | resolve <TD-ID> --note "…" | reanchor <TD-ID> --anchor <区域文件> | move <TD-ID> --to <NN>');
     console.log('  维护：archive [--dry] | audit [--liveness]');
     process.exit(cmd ? 1 : 0);
 }

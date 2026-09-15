@@ -23,11 +23,13 @@ import { DepthVideoModal } from '../base/depthVideo/DepthVideoModal.tsx';
 import { spawnDepthVideoNode } from '../base/depthVideo/spawn.ts';
 import { downloadUrl, resolveDownloadFilename } from '../base/utils/clipboard.ts';
 import CreativeLibraryButton from '../base/creative/CreativeLibraryButton.tsx';
-import type { CreativeApplyItem } from '../base/creative/CreativeLibrary.tsx';
+import type { CreativePreset, CreativePresetsDict } from '../base/creative/creativePresets.ts';
+import { toDictEntry } from '../base/creative/creativePresets.ts';
 import JianyingIcon from '../base/ui/JianyingIcon.tsx';
 import ResourceStrip from '../base/panels/ResourceStrip.tsx';
 import PromptInput from '../base/prompt/PromptInput.tsx';
 import { resolvePromptChips } from '../base/prompt/promptChips.ts';
+import { PROMPT_PANEL_PAD_X } from '../base/prompt/promptLayout.ts';
 import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
@@ -76,8 +78,8 @@ interface VideoGenerateData {
   inputWidth?: number;
   inputHeight?: number;
   texts?: RefText[];
-  /** 创作库预设字典（Record<id,{kind,name,prompt}>，键 = cp_ 前缀 id）；生成时按正文胶囊替换 */
-  creativePresets?: Record<string, { kind: string; name?: string; prompt: string }>;
+  /** 创作库预设字典（键 = cp_ 前缀 id；形态真源 = creativePresets.CreativePresetsDict）；生成时按正文胶囊替换 */
+  creativePresets?: CreativePresetsDict;
 }
 
 interface VideoGenerateProps {
@@ -108,7 +110,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   // TD-04-12：收口到 useDisconnectSource（原先 4 节点逐字重复）。
   const disconnectSource = useDisconnectSource(id);
   // 提示词落盘：本地 state + 防抖写回 node.data（唯一入口 useNodeField；卸载 flush 由 useNodeData 承接）
-  const { patchData, patchDebounced } = useNodeData(id);
+  const { patchDebounced, addCreativePreset } = useNodeData(id);
   const [prompt, setPrompt] = useNodeField('prompt', data.prompt || '', patchDebounced);
   // 有效提示词 = 本地 prompt + 上游文本，两者都参与生成
   const effectivePrompt = buildEffectivePrompt(prompt, refTexts);
@@ -151,7 +153,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
     if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset);
   };
   // 创作库预设应用：落胶囊（有 preview 显示缩略图）+ 写 data.creativePresets 字典（键 = item.id）。
-  const handleCreativeApply = (item: CreativeApplyItem) => {
+  const handleCreativeApply = (item: CreativePreset) => {
     const hasPreview = !!item.preview;
     insertMention({
       id: item.id,
@@ -159,12 +161,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
       kind: hasPreview ? 'image' : 'text',
       ...(hasPreview ? { url: item.preview } : {}),
     });
-    patchData({
-      creativePresets: {
-        ...(data.creativePresets ?? {}),
-        [item.id]: { kind: item.kind, name: item.name, prompt: item.prompt },
-      },
-    });
+    addCreativePreset(item.id, toDictEntry(item));
   };
   // 双击视频查看大图（原生 <dialog> + 原生 <video> 播放器）
   const [zoomUrl, setZoomUrl] = useState('');
@@ -396,7 +393,10 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
 
       {/* 展开的提示词面板。手柄由节点在 children 里渲染（targetRef=textarea，写回 data.inputWidth/inputHeight）。 */}
       <ExpandablePanel expanded={expanded} minWidth={500}>
-        <div className="space-y-3">
+        <div
+          className="space-y-3"
+          style={{ paddingLeft: PROMPT_PANEL_PAD_X, paddingRight: PROMPT_PANEL_PAD_X }}
+        >
           {/* 素材缩略图区（通用组件 ResourceStrip，以生图节点为标准） */}
           <ResourceStrip
             images={connected.images}

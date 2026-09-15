@@ -29,6 +29,7 @@ import { useNodeData } from '../../../hooks/useNodeData.ts';
 import { useNodeExpanded } from '../../../hooks/useNodeExpanded.ts';
 import { useNodeField } from '../../../hooks/useNodeField.ts';
 import { resolveProviderModel } from '../../base/utils/providerModels.ts';
+import { PROMPT_PANEL_PAD_X } from '../../base/prompt/promptLayout.ts';
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -376,7 +377,10 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
 
       {/* 底部展开面板（通用；参数区 + 生成按钮） */}
       <ExpandablePanel expanded={expanded} minWidth={420}>
-        <div className="space-y-3">
+        <div
+          className="space-y-3"
+          style={{ paddingLeft: PROMPT_PANEL_PAD_X, paddingRight: PROMPT_PANEL_PAD_X }}
+        >
           {/* 素材缩略图区（通用 ResourceStrip，真实上游连线；空则不渲染） */}
           <ResourceStrip
             images={refImages}
