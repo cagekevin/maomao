@@ -393,8 +393,12 @@ nodes/VideoExtractNode.tsx 🟢（crossOrigin 接回单点原语）
 videoEditor/export/pipeline.ts 🟢（单入口 + 判别联合 OpResult/AudioOutcome）
 videoEditor/data/projectRepository.ts 🟢（CAS + 判别联合 SaveProjectResult，版本冲突暴露 UI）
 videoEditor/panels/dock/useEditorExport.ts 🟢（uploadResult null → toast「导出失败」不 spawn）
+videoEditor/ui/editor/panels/assets/views/{stickers,sounds}.tsx 🔴（素材数据源未接入：/api/sounds 后端 0 路由 + iconify 公网直连无代理 + 音乐 tab 死占位；TD-22-47 待用户拍板）
+videoEditor/engine/timeline/transition-utils.ts · ui/editor/panels/assets/views/transitions.tsx 🔴（转场应用失败：邻接阈值 ADJACENCY_EPSILON=0.05s 过严 + 英文提示未本地化；TD-22-49 待用户拍板）
 base/depthVideo/* 🟢（上传落盘走 filesApi.uploadFileToLocal）
 director3d/App.tsx · director3d/panels/Timeline.tsx 🔴（MP4 导出走 uploadFileToLocal；TD-22-19 键盘门）
+videoEditor/ui/editor/panels/timeline/timeline-element.tsx 🔴
+videoEditor/ui/editor/panels/timeline/video-thumbnail-strip.tsx 🔴
 ```
 
 ---
