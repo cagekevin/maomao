@@ -10,7 +10,6 @@ export interface VisualNodeParams {
   duration: number;
   timeOffset: number;
   trimStart: number;
-  trimEnd: number;
   transform: Transform;
   opacity: number;
   fitCanvasSize?: TCanvasSize;

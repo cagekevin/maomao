@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { TimelineElement, TimelineTrack } from '@videoEditor/types/timeline';
 import { snapTimeToFrame } from '@videoEditor/engine/lib/time';
+import {
+  getElementPlaybackRate,
+  getElementSourceDuration,
+} from '@videoEditor/engine/timeline/element-utils';
 import { EditorCore } from '@videoEditor/engine/core';
 import {
   useTimelineSnapping,
@@ -13,7 +17,6 @@ export interface ResizeState {
   side: 'left' | 'right';
   startX: number;
   initialTrimStart: number;
-  initialTrimEnd: number;
   initialStartTime: number;
   initialDuration: number;
   initialPlaybackRate: number;
@@ -41,13 +44,18 @@ export function useTimelineElementResize({
 
   const [resizing, setResizing] = useState<ResizeState | null>(null);
   const [currentTrimStart, setCurrentTrimStart] = useState(element.trimStart);
-  const [currentTrimEnd, setCurrentTrimEnd] = useState(element.trimEnd);
   const [currentStartTime, setCurrentStartTime] = useState(element.startTime);
   const [currentDuration, setCurrentDuration] = useState(element.duration);
   const currentTrimStartRef = useRef(element.trimStart);
-  const currentTrimEndRef = useRef(element.trimEnd);
   const currentStartTimeRef = useRef(element.startTime);
   const currentDurationRef = useRef(element.duration);
+  /**
+   * 源素材总时长 —— 拖拽**开始时**问一次真源（media asset），整段拖拽共用。
+   *
+   * 【TD-22-21】这个值原先"悄悄藏在 `element.trimEnd` 里"，靠 `trimStart + duration×rate + trimEnd`
+   * 反推；副本一旦漂移（`split-elements` 就漂过），右侧边界就算错。现在直取 media 的 duration。
+   */
+  const sourceDurationRef = useRef(0);
 
   const handleResizeStart = ({
     e,
@@ -61,28 +69,28 @@ export function useTimelineElementResize({
     e.stopPropagation();
     e.preventDefault();
 
-    const rate =
-      (element.type === 'video' || element.type === 'audio') && 'playbackRate' in element
-        ? ((element.playbackRate as number) ?? 1)
-        : 1;
+    const rate = getElementPlaybackRate({ element });
+
+    // 拖拽起点问一次「源素材有多长」（真源 = media asset）：整段拖拽的边界都基于它。
+    sourceDurationRef.current = getElementSourceDuration({
+      element,
+      mediaAssets: editor.media.getAssets(),
+    });
 
     setResizing({
       elementId,
       side,
       startX: e.clientX,
       initialTrimStart: element.trimStart,
-      initialTrimEnd: element.trimEnd,
       initialStartTime: element.startTime,
       initialDuration: element.duration,
       initialPlaybackRate: rate,
     });
 
     setCurrentTrimStart(element.trimStart);
-    setCurrentTrimEnd(element.trimEnd);
     setCurrentStartTime(element.startTime);
     setCurrentDuration(element.duration);
     currentTrimStartRef.current = element.trimStart;
-    currentTrimEndRef.current = element.trimEnd;
     currentStartTimeRef.current = element.startTime;
     currentDurationRef.current = element.duration;
     onResizeStateChange?.({ isResizing: true });
@@ -142,11 +150,19 @@ export function useTimelineElementResize({
       }
       onSnapPointChange?.(resizeSnapPoint);
 
+      // 【TD-22-21】`trimEnd` 字段已删：它 = **源素材右侧剩余**，此处由真源派生（不再持久化、不会漂移）：
+      //   initialTrimEnd = 素材总长 − trimStart − duration × rate
+      const initialTrimEnd = Math.max(
+        0,
+        sourceDurationRef.current -
+          resizing.initialTrimStart -
+          resizing.initialDuration * resizing.initialPlaybackRate,
+      );
+
       if (resizing.side === 'left') {
         const rate = resizing.initialPlaybackRate;
-        const sourceDuration =
-          resizing.initialTrimStart + resizing.initialDuration * rate + resizing.initialTrimEnd;
-        const maxAllowed = sourceDuration - resizing.initialTrimEnd - minDurationSeconds * rate;
+        const sourceDuration = sourceDurationRef.current;
+        const maxAllowed = sourceDuration - initialTrimEnd - minDurationSeconds * rate;
         const calculated = resizing.initialTrimStart + deltaTime * rate;
 
         if (calculated >= 0 && calculated <= maxAllowed) {
@@ -213,50 +229,35 @@ export function useTimelineElementResize({
         }
       } else {
         const rate = resizing.initialPlaybackRate;
-        const sourceDuration =
-          resizing.initialTrimStart + resizing.initialDuration * rate + resizing.initialTrimEnd;
-        const newTrimEnd = resizing.initialTrimEnd - deltaTime * rate;
+        const sourceDuration = sourceDurationRef.current;
+        // `newTrimEnd` 现在只是**临时推演量**（不再持久化）：减小 = 取更多源素材（变长），
+        // 增大 = 裁掉（变短）。片段长度最终由 duration 单独表达。
+        const newTrimEnd = initialTrimEnd - deltaTime * rate;
 
         if (newTrimEnd < 0) {
-          if (canExtendElementDuration()) {
-            const extensionNeeded = Math.abs(newTrimEnd) / rate;
-            const baseDuration = resizing.initialDuration + resizing.initialTrimEnd / rate;
-            const newDuration = snapTimeToFrame({
-              time: baseDuration + extensionNeeded,
-              fps: projectFps,
-            });
+          // 想延长到超出源素材：文本/图片没有"源长度"概念 → 允许；视频/音频 → 停在素材末尾。
+          const baseDuration = resizing.initialDuration + initialTrimEnd / rate;
+          const newDuration = snapTimeToFrame({
+            time: canExtendElementDuration()
+              ? baseDuration + Math.abs(newTrimEnd) / rate
+              : baseDuration,
+            fps: projectFps,
+          });
 
-            setCurrentDuration(newDuration);
-            setCurrentTrimEnd(0);
-            currentDurationRef.current = newDuration;
-            currentTrimEndRef.current = 0;
-          } else {
-            const newDuration = snapTimeToFrame({
-              time: resizing.initialDuration + resizing.initialTrimEnd / rate,
-              fps: projectFps,
-            });
-
-            setCurrentDuration(newDuration);
-            setCurrentTrimEnd(0);
-            currentDurationRef.current = newDuration;
-            currentTrimEndRef.current = 0;
-          }
+          setCurrentDuration(newDuration);
+          currentDurationRef.current = newDuration;
         } else {
           const maxTrimEnd = sourceDuration - resizing.initialTrimStart - minDurationSeconds * rate;
-          const clampedTrimEnd = Math.min(maxTrimEnd, Math.max(0, newTrimEnd));
-          const finalTrimEnd = snapTimeToFrame({
-            time: clampedTrimEnd,
+          const trimmedEnd = snapTimeToFrame({
+            time: Math.min(maxTrimEnd, newTrimEnd),
             fps: projectFps,
           });
-          const sourceTrimDelta = finalTrimEnd - resizing.initialTrimEnd;
           const newDuration = snapTimeToFrame({
-            time: resizing.initialDuration - sourceTrimDelta / rate,
+            time: resizing.initialDuration - (trimmedEnd - initialTrimEnd) / rate,
             fps: projectFps,
           });
 
-          setCurrentTrimEnd(finalTrimEnd);
           setCurrentDuration(newDuration);
-          currentTrimEndRef.current = finalTrimEnd;
           currentDurationRef.current = newDuration;
         }
       }
@@ -279,19 +280,20 @@ export function useTimelineElementResize({
     if (!resizing) return;
 
     const finalTrimStart = currentTrimStartRef.current;
-    const finalTrimEnd = currentTrimEndRef.current;
     const finalStartTime = currentStartTimeRef.current;
     const finalDuration = currentDurationRef.current;
     const trimStartChanged = finalTrimStart !== resizing.initialTrimStart;
-    const trimEndChanged = finalTrimEnd !== resizing.initialTrimEnd;
     const startTimeChanged = finalStartTime !== resizing.initialStartTime;
     const durationChanged = finalDuration !== resizing.initialDuration;
 
-    if (trimStartChanged || trimEndChanged) {
+    // 【TD-22-21】片段形态由「trimStart + duration」唯一确定，不再提交 trimEnd。
+    // 顺带修掉一个**真功能缺陷**：原实现只提交 `trimStart` / `trimEnd` 而**从不提交 `duration`**，
+    // 于是「拖右边缘改时长」在松手后不会落库（UI 预览弹回）—— 因为 `duration` 才是长度的真源。
+    if (trimStartChanged || durationChanged) {
       editor.timeline.updateElementTrim({
         elementId: element.id,
         trimStart: finalTrimStart,
-        trimEnd: finalTrimEnd,
+        duration: finalDuration,
       });
     }
 
@@ -340,7 +342,6 @@ export function useTimelineElementResize({
     isResizing: resizing !== null,
     handleResizeStart,
     currentTrimStart,
-    currentTrimEnd,
     currentStartTime,
     currentDuration,
   };

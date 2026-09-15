@@ -15,10 +15,7 @@ import type { CreateTextElement, TextElement } from '@videoEditor/types/timeline
  * 身份/时间字段（id / type / name / content / startTime / trim*）由工厂决定，不在覆盖面内。
  */
 type SubtitleTemplateStyles = Partial<
-  Omit<
-    TextElement,
-    'id' | 'type' | 'name' | 'content' | 'startTime' | 'trimStart' | 'trimEnd' | 'duration'
-  >
+  Omit<TextElement, 'id' | 'type' | 'name' | 'content' | 'startTime' | 'trimStart' | 'duration'>
 >;
 
 export interface SubtitleTemplate {

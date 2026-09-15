@@ -65,18 +65,24 @@ export class TimelineManager {
     this.editor.command.execute({ command });
   }
 
+  /**
+   * 改片段的「源入点 + 可见时长」。
+   *
+   * 【TD-22-21】去掉了 `trimEnd` 参数 —— 它已不是真源：片段形态由 `trimStart + duration` 唯一确定。
+   * 原实现只提交 `trimStart`/`trimEnd` 而**从不提交 `duration`**，于是「拖右边缘改时长」松手后不落库。
+   */
   updateElementTrim({
     elementId,
     trimStart,
-    trimEnd,
+    duration,
     pushHistory = true,
   }: {
     elementId: string;
     trimStart: number;
-    trimEnd: number;
+    duration?: number;
     pushHistory?: boolean;
   }): void {
-    const command = new UpdateElementTrimCommand(elementId, trimStart, trimEnd);
+    const command = new UpdateElementTrimCommand(elementId, trimStart, undefined, duration);
     if (pushHistory) {
       this.editor.command.execute({ command });
     } else {
@@ -310,6 +316,26 @@ export class TimelineManager {
    *
    * @returns `applied` = 实际加上的转场数；`0` 表示没有相邻片段对（调用方据此提示用户）。
    */
+  /**
+   * 当前有多少个「可加转场的交界」—— 与 `addTransitionsToAdjacentPairs` **同源**的只读查询。
+   *
+   * 【为什么需要"能问"（TD-22-49 的真根因）】原实现只有"写"（点了就试着加）没有"问"：
+   * 用户点转场 → 失败 → 只从一句英文得知「没有相邻片段」，既不知道为什么、
+   * 也不知道该把片段拖到多近才算"相接"。判据**对用户完全不透明**。
+   * 面板现在实时显示这个数：拖片段时能看见 `0 → 1` 的变化，那一步就是"贴好了"。
+   *
+   * 【为什么不下沉到 UI 自己数】"哪些轨道参与转场"（`type === 'video'`）本身就是判据，
+   * UI 再算一遍 = **第二份判据**（本项目已多次栽在这上面）⇒ 必须与写路径同源。
+   */
+  countAdjacentJunctions(): number {
+    let total = 0;
+    for (const track of this.getTracks()) {
+      if (track.type !== 'video') continue;
+      total += findAdjacentPairs({ track: track as VideoTrack }).length;
+    }
+    return total;
+  }
+
   addTransitionsToAdjacentPairs({ type, duration }: { type: TransitionType; duration: number }): {
     applied: number;
   } {

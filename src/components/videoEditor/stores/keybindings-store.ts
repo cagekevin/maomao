@@ -6,7 +6,8 @@ import type { TActionWithOptionalArgs } from '@videoEditor/engine/lib/actions';
 import { getDefaultShortcuts } from '@videoEditor/engine/lib/actions';
 import { isTypableDOMElement } from '@videoEditor/utils/browser';
 import { isAppleDevice } from '@videoEditor/utils/platform';
-import type { KeybindingConfig, ShortcutKey } from '@videoEditor/types/keybinding';
+import type { ShortcutKey } from '@videoEditor/types/keybinding';
+import type { KeybindingConfig } from '@videoEditor/engine/lib/actions';
 import { runMigrations, CURRENT_VERSION } from './keybindings/migrations';
 
 export const defaultKeybindings: KeybindingConfig = getDefaultShortcuts();

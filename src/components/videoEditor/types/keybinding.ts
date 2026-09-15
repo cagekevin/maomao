@@ -1,4 +1,11 @@
-import type { TActionWithOptionalArgs } from '@videoEditor/engine/lib/actions';
+/**
+ * ⚠️ 本文件是 **L0 类型层**，**不得** import `@videoEditor/engine*`（TD-22-31）。
+ *
+ * 原先它 import `TActionWithOptionalArgs` 来定义 `KeybindingConfig` ⇒ **反向依赖 engine**（层位倒置）。
+ * 修法与 `MediaAssetData` 不同：`TActionWithOptionalArgs` 由 engine 里的 action 定义表推导，
+ * **下沉不了**（总不能把整张 action 表拖进类型层）⇒ `KeybindingConfig` **上移**到
+ * `engine/lib/actions/types.ts`。本文件只留零依赖的键位形状。
+ */
 
 /**
  * Alt is also regarded as macOS OPTION (⌥) key
@@ -68,6 +75,4 @@ export type SingleCharacterShortcutKey = `${Key}`;
 
 export type ShortcutKey = ModifierBasedShortcutKey | SingleCharacterShortcutKey;
 
-export type KeybindingConfig = {
-  [key in ShortcutKey]?: TActionWithOptionalArgs;
-};
+/* `KeybindingConfig` 已上移到 `engine/lib/actions/types.ts`（TD-22-31，理由见文件头）。 */

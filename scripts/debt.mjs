@@ -40,7 +40,7 @@
  *   node scripts/debt.mjs area <NN>            # 某区**全部**历史债（含归档）—— 开审前查"这区以前查出过什么"
  *   node scripts/debt.mjs search <关键词> [--area 22]   # 跨区找同类问题（多词 AND）
  *   node scripts/debt.mjs show <TD-ID>         # 单条最新真相 + **解法入口**（锚点区域日志）
- *   node scripts/debt.mjs audit                # 只读体检（**不是闸**）
+ *   node scripts/debt.mjs audit [--liveness]   # 只读体检（**不是闸**）；--liveness 追加"债描述点名的代码文件是否还在"
  * 用法（写 / 维护）：
  *   node scripts/debt.mjs add --area 22 --summary "…" [--class 增债] [--rate 中] [--owner 结构债]
  *                              [--anchor 22-视频-横切全量-2026-09-13.md] [--refs "@见 TD-xx"]
@@ -525,8 +525,86 @@ function cmdArchive(argv) {
 // ─────────────────────────────────────────────────────────────────────────────
 // audit（只读报告 · 不是闸）
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * 落点存在性巡检（`audit --liveness` · 2026-09-15 · 用户授权）。
+ *
+ * 【为什么需要】原先 `audit` 只校验**锚点**（区域日志）在不在 —— 债**描述里点名的代码文件**
+ * 无人校验。实证：`TD-22-13`~`TD-22-16` 的落点（`composite.ts` / `routeClip.ts` /
+ * `PlaybackSink.tsx` …）随 `_legacy` 清理与路线更替**全部消失**，账本却一无所知，
+ * 直到有人去偿债才发现「无处可还」⇒ 债烂在表里空吃利息。
+ *
+ * 【判据】只认 `现象/摘要` 列里**反引号包裹、带代码扩展名**的 token（`composite.ts:108`
+ * 这类带行号的同样命中，行号后缀忽略）。**在仓库里按 basename 找**：只要存在**任何一个**
+ * 同名文件就放过 —— 债描述里的路径常是省略前缀的写法，按全路径匹配会大面积误报。
+ *
+ * 【刻意只报告、不改状态】落点消失有两种成因：① 真随重构/计划改道消失（该结清）；
+ * ② 描述里是笔误（该改描述）。两者处置不同 ⇒ 必须人判，工具不猜。
+ *
+ * 【范围】主表 + 归档都扫（归档里的历史债同样是"重审时的线索"，落点失效会导致误判"这债还在"）。
+ */
+const LIVENESS_FILE_RE = /`([A-Za-z0-9_][\w./-]*\.(?:tsx?|jsx?|mjs|cjs))(?::[\d\-–、]+)?`/g;
+const LIVENESS_SKIP_DIRS = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  '.next',
+  'coverage',
+  '.vite',
+  'release',
+]);
+
+/** 收集仓库内所有文件名（basename 集合，跳过大目录）—— 一次遍历，供全部债行复用。 */
+function collectRepoFileNames() {
+  const names = new Set();
+  const walk = (dir) => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return; // 权限/竞态：跳过即可（只读巡检，不因单目录失败而中断）
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        if (!LIVENESS_SKIP_DIRS.has(entry.name)) walk(join(dir, entry.name));
+      } else {
+        names.add(entry.name);
+      }
+    }
+  };
+  walk(ROOT);
+  return names;
+}
+
+/** 扫一份账本文本，返回"落点疑似失效"问题项。 */
+function livenessIssues({ srcLabel, lines, repoNames }) {
+  const out = [];
+  lines.forEach((line, li) => {
+    const r = readRow(line);
+    if (!r || r.broken || r.mode === 'manual') return;
+    const text = String(r.fields.summary ?? '');
+    const seen = new Set();
+    for (const m of text.matchAll(LIVENESS_FILE_RE)) {
+      const raw = m[1];
+      const base = raw.split('/').pop();
+      if (seen.has(base)) continue; // 同一行重复点名只报一次
+      seen.add(base);
+      if (!repoNames.has(base)) {
+        out.push({
+          at: `${srcLabel}第 ${li + 1} 行`,
+          kind: '落点疑似失效',
+          detail: `${r.fields.id}：\`${raw}\` —— 全仓无此文件（可能已随重构 / 清理 / 计划改道消失；偿债前先确认它还在不在）`,
+        });
+      }
+    }
+  });
+  return out;
+}
+
 const AUTO_KINDS = ['列错位·可自动修', '归类非规范', '利息率非规范', '状态非规范', '多余表头'];
-function cmdAudit() {
+function cmdAudit(argv = []) {
+  const liveness = argv.includes('--liveness');
+  const repoNames = liveness ? collectRepoFileNames() : null;
   const issues = [];
   for (const [file, src] of [[LEDGER, '主表'], [ARCHIVE, '归档']]) {
     if (!existsSync(file)) continue;
@@ -566,6 +644,7 @@ function cmdAudit() {
       else if (s.from) issues.push({ at, kind: '状态非规范', detail: `${f.id}：\`${s.from}\` → \`${s.value}\`` });
     });
     if (headerLines.length > 1) for (const li of headerLines.slice(1)) issues.push({ at: `${src}第 ${li + 1} 行`, kind: '多余表头', detail: '追加时误贴的表头行' });
+    if (liveness) issues.push(...livenessIssues({ srcLabel: src, lines, repoNames }));
   }
   const main = loadLedger().rows.filter((r) => r.fields.kind === 'TD').length;
   const arch = existsSync(ARCHIVE) ? parseText(readFileSync(ARCHIVE, 'utf8'), 'a').filter((r) => r.fields.kind === 'TD').length : 0;
@@ -595,11 +674,11 @@ switch (cmd) {
   case 'resolve': cmdResolve(rest); break;
   case 'reanchor': cmdReanchor(rest); break;
   case 'archive': cmdArchive(rest); break;
-  case 'audit': cmdAudit(); break;
+  case 'audit': cmdAudit(rest); break;
   default:
     console.log('债务账本读写唯一入口（详见文件头注释）');
     console.log('  读：list [--area NN] [--status X] [--all] | area <NN> | search <关键词> | show <TD-ID>');
     console.log('  写：add --area NN --summary "…" | resolve <TD-ID> --note "…" | reanchor <TD-ID> --anchor <区域文件>');
-    console.log('  维护：archive [--dry] | audit');
+    console.log('  维护：archive [--dry] | audit [--liveness]');
     process.exit(cmd ? 1 : 0);
 }

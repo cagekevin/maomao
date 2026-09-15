@@ -94,7 +94,6 @@ export const DEFAULT_TEXT_ELEMENT: Omit<TextElement, 'id'> = {
   duration: TIMELINE_CONSTANTS.DEFAULT_ELEMENT_DURATION,
   startTime: 0,
   trimStart: 0,
-  trimEnd: 0,
   transform: {
     scale: 1,
     position: {

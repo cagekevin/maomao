@@ -2,6 +2,7 @@ import { Command } from '@videoEditor/engine/commands/base-command';
 import type { TimelineTrack } from '@videoEditor/types/timeline';
 import { generateUUID } from '@videoEditor/utils/id';
 import { EditorCore } from '@videoEditor/engine/core';
+import { getElementPlaybackRate } from '@videoEditor/engine/timeline/element-utils';
 
 export class SplitElementsCommand extends Command {
   private savedState: TimelineTrack[] | null = null;
@@ -57,14 +58,14 @@ export class SplitElementsCommand extends Command {
           //   源时间 = trimStart + (时间轴时间 - startTime) × rate
           //   → 时间轴上的切开偏移 Δ 在**源素材域**对应 Δ × rate。
           //   变速后按 1:1 算 trim 偏移，右半的源入点就错位（画面从错的位置继续播）。
-          // 【trimEnd 不变式】trimEnd = trimStart + duration × rate（渲染与导出解码
-          //   `mediabunny` 都按这个式子自算上界，从不直接读 trimEnd —— 写者必须维持它一致，
-          //   否则就是给未来"按源出点直觉消费 trimEnd"的人埋雷）。
-          //   故左半 trimEnd 显式按不变式重算，而不是在旧 trimEnd 上加减。
-          const rate =
-            'playbackRate' in element && typeof element.playbackRate === 'number'
-              ? element.playbackRate
-              : 1;
+          // 【2026-09-15 · TD-22-21】此处原有「trimEnd 不变式」重算，及其一段**自相矛盾**的注释
+          //   （声称 `trimEnd = trimStart + duration × rate`，而真正读它的 `use-element-resize`
+          //    是按 `素材总长 = trimStart + duration×rate + trimEnd` 反推的 —— 一字段两义）。
+          //   该字段已删：源素材总长改问 media asset 的 duration，切开只需给出
+          //   `trimStart + duration`，不再需要任何派生副本。
+          const rate = getElementPlaybackRate({ element });
+          // 右半段的**源入点** = 原入点 + 左半占用的源长度（源域换算）。
+          // 注意：它只用于右半的 `trimStart`；原实现还把同一个值写进了左半的 `trimEnd`（已随字段删除）。
           const leftSourceDuration = leftVisibleDuration * rate;
 
           if (this.retainSide === 'left') {
@@ -72,7 +73,6 @@ export class SplitElementsCommand extends Command {
               {
                 ...element,
                 duration: leftVisibleDuration,
-                trimEnd: element.trimStart + leftSourceDuration,
                 name: `${element.name} (left)`,
               },
             ];

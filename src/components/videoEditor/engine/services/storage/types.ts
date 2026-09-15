@@ -9,21 +9,11 @@ export interface StorageAdapter<T> {
   clear(): Promise<void>;
 }
 
-export interface MediaAssetData {
-  id: string;
-  name: string;
-  type: MediaType;
-  size: number;
-  lastModified: number;
-  width?: number;
-  height?: number;
-  duration?: number;
-  fps?: number;
-  ephemeral?: boolean;
-  thumbnailUrl?: string;
-  /** T4（docs/134）：素材二进制落 localTool /files/ 后的可访问 URL（替代 OPFS 二进制存储）。 */
-  url?: string;
-}
+/**
+ * `MediaAssetData` 已**下沉到 `@videoEditor/types/assets`**（TD-22-31：斩断 types→engine 反向边）。
+ * 此处 re-export 是为让既有消费方（`engine/services/storage/*` 等）**零改动**。
+ */
+export type { MediaAssetData } from '@videoEditor/types/assets';
 
 export type SerializedScene = Omit<TScene, 'createdAt' | 'updatedAt'> & {
   createdAt: string;

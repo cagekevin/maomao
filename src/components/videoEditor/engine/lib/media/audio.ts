@@ -6,7 +6,10 @@ import type {
   TimelineTrack,
 } from '@videoEditor/types/timeline';
 import type { MediaAsset } from '@videoEditor/types/assets';
-import { canElementHaveAudio } from '@videoEditor/engine/timeline/element-utils';
+import {
+  canElementHaveAudio,
+  getElementPlaybackRate,
+} from '@videoEditor/engine/timeline/element-utils';
 import { canTracktHaveAudio } from '@videoEditor/engine/timeline';
 import { mediaSupportsAudio } from '@videoEditor/engine/lib/media/media-utils';
 
@@ -105,7 +108,6 @@ export async function collectAudioElements({
               startTime: element.startTime,
               duration: element.duration,
               trimStart: element.trimStart,
-              trimEnd: element.trimEnd,
               volume,
               muted,
               playbackRate: element.playbackRate ?? 1,
@@ -129,7 +131,6 @@ export async function collectAudioElements({
               startTime: element.startTime,
               duration: element.duration,
               trimStart: element.trimStart,
-              trimEnd: element.trimEnd,
               volume: 1,
               muted,
               playbackRate: element.playbackRate ?? 1,
@@ -202,7 +203,6 @@ interface AudioMixSource {
   startTime: number;
   duration: number;
   trimStart: number;
-  trimEnd: number;
   playbackRate: number;
 }
 
@@ -213,7 +213,6 @@ export interface AudioClipSource {
   startTime: number;
   duration: number;
   trimStart: number;
-  trimEnd: number;
   muted: boolean;
   volume: number;
   playbackRate: number;
@@ -274,7 +273,6 @@ async function fetchLibraryAudioSource({
     startTime: element.startTime,
     duration: element.duration,
     trimStart: element.trimStart,
-    trimEnd: element.trimEnd,
     playbackRate: element.playbackRate ?? 1,
   };
 }
@@ -296,18 +294,10 @@ async function fetchLibraryAudioClip({
     startTime: element.startTime,
     duration: element.duration,
     trimStart: element.trimStart,
-    trimEnd: element.trimEnd,
     muted,
     volume: element.volume ?? 1,
     playbackRate: element.playbackRate ?? 1,
   };
-}
-
-function getElementPlaybackRate({ element }: { element: TimelineElement }): number {
-  if ('playbackRate' in element && typeof element.playbackRate === 'number') {
-    return element.playbackRate;
-  }
-  return 1;
 }
 
 function collectMediaAudioSource({
@@ -322,7 +312,6 @@ function collectMediaAudioSource({
     startTime: element.startTime,
     duration: element.duration,
     trimStart: element.trimStart,
-    trimEnd: element.trimEnd,
     playbackRate: getElementPlaybackRate({ element }),
   };
 }
@@ -350,7 +339,6 @@ function collectMediaAudioClip({
     startTime: element.startTime,
     duration: element.duration,
     trimStart: element.trimStart,
-    trimEnd: element.trimEnd,
     muted,
     volume: getElementVolume({ element }),
     playbackRate: getElementPlaybackRate({ element }),
@@ -533,6 +521,12 @@ function mixAudioChannels({
     reversed = false,
   } = element;
 
+  // 【声画同源（TD-22-14 母体）】下面是"源时间步进"的**样本域**等价实现：
+  //   源窗口 = `[trimStart, trimStart + duration × rate]`（按**源侧**长度，不是时间轴长度），
+  //   每个输出样本让源前进 `sourceStep` 个样本 —— 与 `getVisualSourceTime`
+  //   （时间域：`trimStart + elapsed × rate`）描述的是**同一条源时间线**，改动必须成对。
+  //   此处刻意**不**调那个原语：它是逐样本增量推进，逐样本调函数会把 O(n) 抬成 O(n·常数)
+  //   （导出混音是热路径），故保留闭式步进 + 本注释互指。
   const sourceStartSample = Math.floor(trimStart * buffer.sampleRate);
   const sourceEndSample = Math.min(
     buffer.length - 1,

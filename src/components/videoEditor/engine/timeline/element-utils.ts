@@ -1,5 +1,6 @@
 import { DEFAULT_TEXT_ELEMENT } from '@videoEditor/constants/text-constants';
 import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
+import type { MediaAsset } from '@videoEditor/types/assets';
 import type {
   CreateTextElement,
   CreateTimelineElement,
@@ -143,6 +144,54 @@ export function getVisualSourceTime({
 
   const sourceTime = trimStart + playbackRate * (duration - elapsed);
   return elapsed === 0 ? Math.max(trimStart, sourceTime - 1e-6) : sourceTime;
+}
+
+/**
+ * 元素的**播放倍率**（`playbackRate` 的唯一读取口）。
+ *
+ * 【为什么收口（TD-22-14 的今天形态）】这个三行判据原先在 4 处各自手写：
+ * `use-element-resize`（拖拽边界）· `split-elements`（切开换算）· 本文件的
+ * `getElementSourceDuration` · `lib/media/audio.ts`（混音取源）。
+ * 它们**必须**给出同一个数 —— 否则"画面按一个倍率、声音按另一个"即静默失步。
+ * 判据本身只有一种合法写法（缺省 / 非数字 → 1），故是可收口的**探测重复**（7 步法 Step 3）。
+ *
+ * 【刻意不做的事】不把"非法值"夹进 `MIN/MAX_PLAYBACK_RATE`：取值域校验属**UI 写入侧**
+ * （`engine/timeline/speed-utils.ts` 的 `clampPlaybackRate`），读取侧若也夹，
+ * 就会把"存档里的越界值"悄悄改成别的倍率 —— 渲染与混音应当**如实按存档值播**。
+ */
+export function getElementPlaybackRate({ element }: { element: TimelineElement }): number {
+  if ('playbackRate' in element && typeof element.playbackRate === 'number') {
+    return element.playbackRate;
+  }
+  return 1;
+}
+
+/**
+ * 元素的**源素材总时长** —— 拖拽边界的唯一依据。
+ *
+ * 【为什么要有它（TD-22-21）】删掉 `element.trimEnd` 之后，拖拽把手需要知道的"素材有多长"
+ * 改为**直接问真源**：media asset 的 `duration`（上传时读视频/音频元数据得到，见
+ * `lib/media/processing.ts`）。原实现是用冗余字段反推（`trimStart + duration × rate + trimEnd`）
+ * —— 副本一旦漂移（`split-elements` 就漂过），右侧拖拽的边界随即算错。
+ *
+ * 【素材缺失时】退回"当前已用长度"（即**不允许再裁出源范围**）：断链片段本就播不了，
+ * 保守边界比错误边界安全（不新增损失）。
+ */
+export function getElementSourceDuration({
+  element,
+  mediaAssets,
+}: {
+  element: TimelineElement;
+  mediaAssets: MediaAsset[];
+}): number {
+  const rate = getElementPlaybackRate({ element });
+  const usedSourceLength = element.trimStart + element.duration * rate;
+
+  const mediaId = 'mediaId' in element ? element.mediaId : undefined;
+  if (!mediaId) return usedSourceLength; // 文本 / 贴纸：无源素材概念
+
+  const asset = mediaAssets.find((item) => item.id === mediaId);
+  return asset?.duration ?? usedSourceLength;
 }
 
 /**

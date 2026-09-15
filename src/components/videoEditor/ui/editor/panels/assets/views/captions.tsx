@@ -118,7 +118,6 @@ export function Captions() {
             duration: caption.duration,
             startTime: caption.startTime,
             trimStart: 0,
-            trimEnd: 0,
           },
         });
       }

@@ -311,7 +311,11 @@ console.log(
     (veCoreScanned === 0 ? '（core/ 尚未创建，G1 落码起生效）' : ''),
 );
 if (!veCoreViol)
-  console.log('  ✅ core 依赖未越界（仅 core/** 与 base/core/ · base/utils/timeline/）');
+  console.log(
+    veCoreScanned === 0
+      ? '  ⚠️ 目标目录不存在 ⇒ 本规则当前**未生效**（别读成"通过"；目录改名/迁移后要回来对路径 —— TD-22-53）'
+      : '  ✅ core 依赖未越界（仅 core/** 与 base/core/ · base/utils/timeline/）',
+  );
 
 // ─────────────────────────────────────────────────────────────────
 // 规则 6（2026-09-13）：`videoEditor/hooks/**` 禁依赖 `videoEditor/export/**` —— 播放/探测域不得反向依赖导出域。
@@ -385,7 +389,87 @@ for (const f of files) {
 console.log(
   `\n📴 videoEditor/hooks 禁依赖 export（播放/探测 ≠ 导出）· 已扫描 ${veHooksScanned} 个 hooks 文件`,
 );
-if (!veHooksExportViol) console.log('  ✅ hooks 未反向依赖导出域');
+if (!veHooksExportViol)
+  console.log(
+    veHooksScanned === 0
+      ? '  ⚠️ 目标目录不存在 ⇒ 本规则当前**未生效**（别读成"通过"；目录改名/迁移后要回来对路径 —— TD-22-53）'
+      : '  ✅ hooks 未反向依赖导出域',
+  );
+
+// ─────────────────────────────────────────────────────────────────
+// 规则 7（2026-09-15 · TD-22-31）：`videoEditor/types/**` 不得依赖 `videoEditor/engine/**`。
+//
+// 【为什么】类型契约层是全仓**最底层**：engine（实现层）依赖 types 才对；反向即**层位倒置**，
+//   埋循环依赖隐患（engine 改类型签名时要先想 types 会不会被拉进来）。
+//
+// 【为什么「禁 engine」而不是「白名单放行 types/constants/utils」】types 层实测只依赖
+//   types / constants / utils。用白名单会把"types 能依赖什么"钉死 —— 将来多一个 L0 目录就要回来
+//   改闸（"每加一个目录记得改一次闸"本身就是母体，规则 2/4 都因它改过判据形态）。
+//   反向判据只禁"往上跑"的那一条边，其余不碰。
+//
+// 【含 `import type`】层位是**认知边界**，不许靠编译期擦除绕过（与规则 4 同口径）。
+//
+// 【上线前的实测背景（2 处反向边，两种形态两种修法，{@link 见区域日志}）】
+//   · `types/assets.ts → engine/services/storage/types`（`MediaAssetData`）：它**零 engine 依赖**
+//     ⇒ **下沉**到 `types/assets.ts`，engine 侧改 `export type { … }` re-export（消费方零改动）；
+//   · `types/keybinding.ts → engine/lib/actions`（`TActionWithOptionalArgs`）：它由 action 定义表
+//     推导，**下不去**（总不能把整张表拖进类型层）⇒ 把**消费方类型** `KeybindingConfig` **上移**到
+//     `engine/lib/actions/types.ts`（engine 依赖 types 合法）。
+//   ⇒ 都收敛到同一条不变式：**types 不 import engine**。
+// ─────────────────────────────────────────────────────────────────
+// ⚠️ 这里**不带 `src/` 前缀**：下面用 `join(SRC, VE_TYPES_REL)` 拼绝对路径，
+// 若常量本身含 `src/` 会拼成 `…/src/src/…` ⇒ 永远 0 命中（闸静默失效）。
+const VE_TYPES_REL = 'components/videoEditor/types/';
+let veTypesScanned = 0;
+let veTypesViol = 0;
+for (const f of files) {
+  if (!resolve(f).startsWith(join(SRC, VE_TYPES_REL))) continue;
+  let code;
+  try {
+    code = readFileSync(f, 'utf8');
+  } catch {
+    continue;
+  }
+  veTypesScanned++;
+  const bad = [];
+  const judge = (spec, line) => {
+    if (typeof spec === 'string' && spec.startsWith('@videoEditor/engine')) bad.push({ spec, line });
+  };
+  let ast;
+  try {
+    ast = parse(code, { sourceType: 'module', plugins: ['typescript', 'jsx'] });
+  } catch {
+    continue;
+  }
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (
+      (n.type === 'ImportDeclaration' ||
+        n.type === 'ExportNamedDeclaration' ||
+        n.type === 'ExportAllDeclaration') &&
+      n.source?.value
+    ) {
+      judge(n.source.value, n.loc?.start?.line);
+    }
+    if (n.type === 'ImportExpression' && n.source?.type === 'StringLiteral') {
+      judge(n.source.value, n.loc?.start?.line);
+    }
+    for (const k in n) if (k !== 'loc' && k !== 'range') walk(n[k]);
+  };
+  walk(ast.program);
+  for (const b of bad) {
+    veTypesViol++;
+    fail(
+      `videoEditor/types 反向依赖 engine: ${resolve(f).slice(SRC.length + 1)}:${b.line} → ${b.spec}` +
+        `（类型契约层是最底层，不许 import engine/**；零依赖的类型→下沉到 types，下不去的→把消费方上移到 engine）`,
+    );
+  }
+}
+console.log(
+  `\n🧱 videoEditor/types 禁依赖 engine（层位摆正）· 已扫描 ${veTypesScanned} 个 types 文件`,
+);
+if (!veTypesViol) console.log('  ✅ types 层无反向依赖 engine');
 
 // ─────────────────────────────────────────────────────────────────
 // 规则 5（docs/123 G-3，2026-09-13）：激活位判据单点 —— 外部禁直调底层 `hasModalLayer()`。

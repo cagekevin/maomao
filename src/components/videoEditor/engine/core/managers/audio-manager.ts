@@ -2,6 +2,7 @@ import { logger } from '@videoEditor/lib/logger';
 import type { EditorCore } from '@videoEditor/engine/core';
 import type { AudioClipSource } from '@videoEditor/engine/lib/media/audio';
 import { createAudioContext, collectAudioClips } from '@videoEditor/engine/lib/media/audio';
+import { getVisualSourceTime } from '@videoEditor/engine/timeline/element-utils';
 
 export class AudioManager {
   private audioContext: AudioContext | null = null;
@@ -220,7 +221,17 @@ export class AudioManager {
 
     const rate = clip.playbackRate;
     const elapsed = Math.max(0, time - clip.startTime);
-    const sourceOffset = clip.trimStart + elapsed * rate;
+    // 【声画同源（TD-22-14 母体）】"现在该播源素材的哪一刻"**只允许有一个式子**：
+    //   画面取帧走 `getVisualSourceTime`（`VisualNode.getLocalTime`），
+    //   音频调度前先是**手写**同一式子（`trimStart + elapsed × rate`）—— 改一处忘另一处
+    //   即变速下静默失步（画面 2×、声音 1×）。现改为直接调那个原语。
+    const sourceOffset = getVisualSourceTime({
+      timelineTime: Math.max(clip.startTime, time),
+      startTime: clip.startTime,
+      duration: clip.duration,
+      trimStart: clip.trimStart,
+      playbackRate: rate,
+    });
     const remainingDuration = clip.duration - elapsed;
 
     if (remainingDuration <= 0) return;

@@ -4,6 +4,7 @@ import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
 import { useAssetsPanelStore } from '@videoEditor/stores/assets-panel-store';
 import { buildIconSvgUrl } from '@videoEditor/engine/lib/iconify-api';
 import AudioWaveform from './audio-waveform';
+import { MissingMediaIndicator } from './missing-media-indicator';
 import { useTimelineElementResize } from '@videoEditor/hooks-cutia/timeline/element/use-element-resize';
 import type { SnapPoint } from '@videoEditor/hooks-cutia/timeline/use-timeline-snapping';
 import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
@@ -421,12 +422,15 @@ function ElementContent({
       );
     }
 
-    return <span className="text-foreground/80 truncate text-xs">{element.name}</span>;
+    // audio 既无解码缓冲也无可播 URL —— 源取不到（仍是一句"素材不可用"，不再是一行光秃秃的名字）
+    return <MissingMediaIndicator kind="source-unavailable" name={element.name} />;
   }
 
   const mediaAsset = mediaAssets.find((asset) => asset.id === element.mediaId);
   if (!mediaAsset) {
-    return <span className="text-foreground/80 truncate text-xs">{element.name}</span>;
+    // 素材**记录**都不在了（被删 / 加载失败 / 切项目重置）—— 与"记录在但源取不到"分开表达：
+    // 前者的补救是重新导入，后者是检查本地服务 / 重新上传（TD-22-48）
+    return <MissingMediaIndicator kind="missing-asset" name={element.name} />;
   }
 
   if (mediaAsset.type === 'video' && mediaAsset.file) {
@@ -467,7 +471,8 @@ function ElementContent({
     );
   }
 
-  return <span className="text-foreground/80 truncate text-xs">{element.name}</span>;
+  // video 有 asset 但 `file` 缺 / image 有 asset 但 `url` 缺 —— 记录在、源取不到（TD-22-48）
+  return <MissingMediaIndicator kind="source-unavailable" name={element.name} />;
 }
 
 function CopyMenuItem() {

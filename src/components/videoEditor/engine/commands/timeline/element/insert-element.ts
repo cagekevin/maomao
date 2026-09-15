@@ -162,7 +162,6 @@ export class InsertElementCommand extends Command {
       id: this.elementId,
       startTime: element.startTime,
       trimStart: element.trimStart ?? 0,
-      trimEnd: element.trimEnd ?? 0,
       duration: element.duration ?? TIMELINE_CONSTANTS.DEFAULT_ELEMENT_DURATION,
     } as TimelineElement;
   }

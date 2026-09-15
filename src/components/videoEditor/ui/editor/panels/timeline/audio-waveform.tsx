@@ -1,6 +1,7 @@
 import { logger } from '@videoEditor/lib/logger';
 import { useEffect, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
+import { MissingMediaIndicator } from './missing-media-indicator';
 
 interface AudioWaveformProps {
   audioUrl?: string;
@@ -135,9 +136,11 @@ function AudioWaveform({
   }, [audioUrl, audioBlob, audioBuffer, durationProp, height]);
 
   if (error) {
+    // 【TD-22-48】与时间轴其它"素材不可用"共用同一指示块
+    // （此前是本文件独有的英文 "Audio unavailable" —— 同一种失败两种说法）
     return (
-      <div className={`flex items-center justify-center ${className}`} style={{ height }}>
-        <span className="text-foreground/60 text-xs">Audio unavailable</span>
+      <div className={className} style={{ height }}>
+        <MissingMediaIndicator kind="source-unavailable" />
       </div>
     );
   }

@@ -8,7 +8,6 @@ export class UpdateElementTrimCommand extends Command {
   constructor(
     private elementId: string,
     private trimStart: number,
-    private trimEnd: number,
     private startTime?: number,
     private duration?: number,
   ) {
@@ -28,7 +27,6 @@ export class UpdateElementTrimCommand extends Command {
         return {
           ...element,
           trimStart: this.trimStart,
-          trimEnd: this.trimEnd,
           startTime: this.startTime ?? element.startTime,
           duration: this.duration ?? element.duration,
         };

@@ -21,6 +21,7 @@ import {
 } from '@videoEditor/ui/ui/tooltip';
 
 export function TransitionsView() {
+  const editor = useEditor();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   const filteredPresets =
@@ -28,14 +29,24 @@ export function TransitionsView() {
       ? TRANSITION_PRESETS
       : TRANSITION_PRESETS.filter((preset) => preset.category === selectedCategory);
 
+  /**
+   * 「当前有几个可加转场的交界」—— 判据与批量应用**同源**（`TimelineManager.countAdjacentJunctions`）。
+   *
+   * 【TD-22-49】原先这个数**用户看不见**：点转场 → 失败 → 才知道"没有相邻片段"，
+   * 而"多近才算相邻"更无从得知。现在它实时显示 ⇒ 拖片段时能看到 `0 → 1` 的跳变，
+   * 那一步（吸附生效）就是"贴好了"。
+   * `useEditor()` 订阅了 `timeline`，所以轨道任何变化都会让这里重算。
+   */
+  const junctionCount = editor.timeline.countAdjacentJunctions();
+
   return (
     <div className="flex h-full flex-col">
       <div className="border-b px-4 pt-3 pb-2">
         <h3 className="mb-2 text-sm font-medium">{'转场'}</h3>
         <p className="text-muted-foreground mb-2 text-xs">
-          {
-            'Click a transition to apply it to adjacent clips. You can also click the junction icon between clips on the timeline.'
-          }
+          {junctionCount > 0
+            ? `共有 ${junctionCount} 个可加转场的片段交界。点下方任意转场即可全部应用；也可以点时间轴交界处的图标单独设置时长。`
+            : '当前还没有可加转场的交界：视频轨道上需要首尾相接的两段片段。把后一段拖到前一段末尾附近（会自动吸附贴齐），这里的数字就会变成 1。'}
         </p>
         <div className="flex flex-wrap gap-1">
           <CategoryPill
@@ -102,10 +113,13 @@ function TransitionPresetCard({ preset }: { preset: TransitionPreset }) {
     });
 
     if (applied === 0) {
-      toast.info('No adjacent clips found. Place clips next to each other on a video track first.');
+      // 【TD-22-49】原为英文且只说"没找到"：用户既不知道判据，也不知道怎么修。
+      toast.info(
+        '当前没有可加转场的交界：请在视频轨道上把两段片段拖到首尾相接（靠近会自动吸附贴齐）。',
+      );
       return;
     }
-    toast.success(`Applied ${preset.type} to ${applied} junction(s)`);
+    toast.success(`已为 ${applied} 个片段交界应用转场（${preset.label}）`);
   };
 
   return (
@@ -122,7 +136,7 @@ function TransitionPresetCard({ preset }: { preset: TransitionPreset }) {
           </button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{`Apply ${preset.label} transition to all adjacent clip junctions`}</p>
+          <p>{`把「${preset.label}」应用到全部可加转场的片段交界`}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

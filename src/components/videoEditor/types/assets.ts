@@ -1,7 +1,32 @@
-import type { MediaAssetData } from '@videoEditor/engine/services/storage/types';
 import type { OperationFailure } from './outcome';
 
 export type MediaType = 'image' | 'video' | 'audio';
+
+/**
+ * 素材的**持久化形态**（真正落存储的那些字段）。
+ *
+ * 【为什么定义在本文件（2026-09-15 · TD-22-31）】它原先住在
+ * `engine/services/storage/types.ts`，而 `MediaAsset`（类型层）要 `Omit` 它
+ * ⇒ **types 层反向 import engine 层**（层位倒置、埋循环依赖隐患）。
+ * 它本身**零 engine 依赖**（只用到同层的 `MediaType`）⇒ 移到这里是把层位摆正，
+ * 而 `engine/services/storage/types.ts` 改为 re-export，既有消费方零改动。
+ * ⚠️ 本文件**不得** import `@videoEditor/engine*`（见同目录 `archLayering` 守卫）。
+ */
+export interface MediaAssetData {
+  id: string;
+  name: string;
+  type: MediaType;
+  size: number;
+  lastModified: number;
+  width?: number;
+  height?: number;
+  duration?: number;
+  fps?: number;
+  ephemeral?: boolean;
+  thumbnailUrl?: string;
+  /** T4（docs/134）：素材二进制落 localTool /files/ 后的可访问 URL（替代 OPFS 二进制存储）。 */
+  url?: string;
+}
 
 export interface MediaAsset extends Omit<MediaAssetData, 'size' | 'lastModified'> {
   file: File;

@@ -4,6 +4,7 @@ import {
   DEFAULT_COLOR,
   DEFAULT_FPS,
 } from '@videoEditor/constants/project-constants';
+import { DEFAULT_TEXT_ELEMENT } from '@videoEditor/constants/text-constants';
 import { IndexedDBAdapter } from '@videoEditor/engine/services/storage/indexeddb-adapter';
 import type { MediaAssetData } from '@videoEditor/engine/services/storage/types';
 import type {
@@ -52,6 +53,23 @@ interface LegacyMediaTrack {
 
 export interface TransformV1ToV2Options {
   loadMediaAsset?: ({ mediaId }: { mediaId: string }) => Promise<MediaAssetData | null>;
+  /**
+   * 替换「从 legacy IndexedDB 读轨道」这一步（生产不传 = 真走 IndexedDB）。
+   *
+   * 【为什么要有它】v1 的轨道数据存在**旧 IndexedDB** 里，于是 text 元素的字段转换
+   * （`transformTextTrack`，含全部 fallback）**只在"升级旧工程"时**才跑到 —— 构造纯数据
+   * 测不到，只能 mock 掉 `IndexedDBAdapter`（脆且会破坏模块 import 绑定）。
+   * 给一个注入点后，测试可以走**真实的转换路径**，同时迁移层对 IndexedDB 的硬依赖也变成可替换。
+   */
+  loadLegacyTracks?: ({
+    projectId,
+    sceneId,
+    isMain,
+  }: {
+    projectId: string;
+    sceneId: string;
+    isMain: boolean;
+  }) => Promise<unknown[]>;
 }
 
 export async function transformProjectV1ToV2({
@@ -74,6 +92,7 @@ export async function transformProjectV1ToV2({
     project,
     projectId,
     loadMediaAsset: options.loadMediaAsset,
+    loadLegacyTracks: options.loadLegacyTracks,
   });
   return { project: migratedProject, skipped: false };
 }
@@ -82,10 +101,12 @@ async function migrateProject({
   project,
   projectId,
   loadMediaAsset,
+  loadLegacyTracks,
 }: {
   project: ProjectRecord;
   projectId: string;
   loadMediaAsset?: ({ mediaId }: { mediaId: string }) => Promise<MediaAssetData | null>;
+  loadLegacyTracks?: TransformV1ToV2Options['loadLegacyTracks'];
 }): Promise<ProjectRecord> {
   const createdAt = normalizeDateString({ value: project.createdAt });
   const updatedAt = normalizeDateString({ value: project.updatedAt });
@@ -133,6 +154,7 @@ async function migrateProject({
         projectId,
         sceneId,
         isMain: scene.isMain === true,
+        loadLegacyTracks,
       });
 
       const transformedTracks = await transformTracks({
@@ -202,11 +224,18 @@ async function loadTracksFromLegacyDB({
   projectId,
   sceneId,
   isMain,
+  loadLegacyTracks,
 }: {
   projectId: string;
   sceneId: string;
   isMain: boolean;
+  loadLegacyTracks?: TransformV1ToV2Options['loadLegacyTracks'];
 }): Promise<unknown[]> {
+  // 注入优先（测试 / 将来的非浏览器运行）
+  if (loadLegacyTracks) {
+    return loadLegacyTracks({ projectId, sceneId, isMain });
+  }
+
   if (typeof indexedDB === 'undefined') {
     return [];
   }
@@ -332,7 +361,6 @@ async function transformMediaTrack({
             value: element.trimStart,
             fallback: 0,
           }),
-          trimEnd: getNumberValue({ value: element.trimEnd, fallback: 0 }),
           hidden: false,
           transform: defaultTransform,
           opacity: 1,
@@ -352,7 +380,6 @@ async function transformMediaTrack({
         duration: getNumberValue({ value: element.duration, fallback: 0 }),
         startTime: getNumberValue({ value: element.startTime, fallback: 0 }),
         trimStart: getNumberValue({ value: element.trimStart, fallback: 0 }),
-        trimEnd: getNumberValue({ value: element.trimEnd, fallback: 0 }),
       };
       return videoElement;
     }),
@@ -400,6 +427,15 @@ function transformTextTrack({ track }: { track: Record<string, unknown> }): Time
         rotate: rotation,
       };
 
+      // ── 【TD-22-24】样式字段的 fallback 一律引 `DEFAULT_TEXT_ELEMENT`（**唯一真源**）──
+      // 原先它们在迁移里另写一套字面量，实测**漂移 4 处**：
+      //   fontSize 16↔15 · color #000000↔#ffffff · backgroundColor #FFFFFF↔transparent ·
+      //   textAlign left↔center。
+      // 后果：同一个"用户没设过的文本元素"，走 `buildTextElement`（新建）与走本迁移（升级旧工程）
+      // 会得到**两副长相** —— 旧工程一升级，文字颜色/对齐/字号**整体变样**。
+      // 判据：**样式字段缺失 = "用户没设过" ⇒ 用默认样式**（引常量）；
+      //      而 `content`/`name`/`duration`/`startTime`/`trimStart` 是**数据字段**，
+      //      缺失时保持 `''`/`0` 保真 —— **不猜**（改它们会把旧工程里 duration=0 的片段"复活"）。
       return {
         id: getStringValue({ value: element.id, fallback: '' }),
         name: getStringValue({ value: element.name, fallback: '' }),
@@ -407,43 +443,42 @@ function transformTextTrack({ track }: { track: Record<string, unknown> }): Time
         content: getStringValue({ value: textElement.content, fallback: '' }),
         fontSize: getNumberValue({
           value: textElement.fontSize,
-          fallback: 16,
+          fallback: DEFAULT_TEXT_ELEMENT.fontSize,
         }),
         fontFamily: getStringValue({
           value: textElement.fontFamily,
-          fallback: 'Arial',
+          fallback: DEFAULT_TEXT_ELEMENT.fontFamily,
         }),
         color: getStringValue({
           value: textElement.color,
-          fallback: '#000000',
+          fallback: DEFAULT_TEXT_ELEMENT.color,
         }),
         backgroundColor: getStringValue({
           value: textElement.backgroundColor,
-          fallback: '#FFFFFF',
+          fallback: DEFAULT_TEXT_ELEMENT.backgroundColor,
         }),
         textAlign: (getStringValue({
           value: textElement.textAlign,
-          fallback: 'left',
-        }) || 'left') as 'left' | 'center' | 'right',
+          fallback: DEFAULT_TEXT_ELEMENT.textAlign,
+        }) || DEFAULT_TEXT_ELEMENT.textAlign) as 'left' | 'center' | 'right',
         fontWeight: (getStringValue({
           value: textElement.fontWeight,
-          fallback: 'normal',
-        }) || 'normal') as 'normal' | 'bold',
+          fallback: DEFAULT_TEXT_ELEMENT.fontWeight,
+        }) || DEFAULT_TEXT_ELEMENT.fontWeight) as 'normal' | 'bold',
         fontStyle: (getStringValue({
           value: textElement.fontStyle,
-          fallback: 'normal',
-        }) || 'normal') as 'normal' | 'italic',
+          fallback: DEFAULT_TEXT_ELEMENT.fontStyle,
+        }) || DEFAULT_TEXT_ELEMENT.fontStyle) as 'normal' | 'italic',
         textDecoration: (getStringValue({
           value: textElement.textDecoration,
-          fallback: 'none',
-        }) || 'none') as 'none' | 'underline' | 'line-through',
+          fallback: DEFAULT_TEXT_ELEMENT.textDecoration,
+        }) || DEFAULT_TEXT_ELEMENT.textDecoration) as 'none' | 'underline' | 'line-through',
         hidden: false,
         transform,
         opacity,
         duration: getNumberValue({ value: element.duration, fallback: 0 }),
         startTime: getNumberValue({ value: element.startTime, fallback: 0 }),
         trimStart: getNumberValue({ value: element.trimStart, fallback: 0 }),
-        trimEnd: getNumberValue({ value: element.trimEnd, fallback: 0 }),
       };
     })
     .filter((el): el is TextElement => el !== null);
@@ -482,7 +517,6 @@ function transformAudioTrack({ track }: { track: Record<string, unknown> }): Tim
         duration: getNumberValue({ value: element.duration, fallback: 0 }),
         startTime: getNumberValue({ value: element.startTime, fallback: 0 }),
         trimStart: getNumberValue({ value: element.trimStart, fallback: 0 }),
-        trimEnd: getNumberValue({ value: element.trimEnd, fallback: 0 }),
       };
     })
     .filter((el): el is AudioElement => el !== null);

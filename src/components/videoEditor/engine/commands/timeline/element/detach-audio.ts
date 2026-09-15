@@ -40,7 +40,6 @@ export class DetachAudioCommand extends Command {
         startTime: element.startTime,
         duration: element.duration,
         trimStart: element.trimStart,
-        trimEnd: element.trimEnd,
         volume: 1,
         muted: false,
       };
