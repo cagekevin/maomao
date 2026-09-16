@@ -313,7 +313,7 @@ interface MoveKeyframeArg {
 
 interface KeyframeClipboard {
   kind: 'camera' | 'object';
-  key: unknown;
+  key: ChannelKey;
 }
 
 interface PathContextMenu {
@@ -1783,14 +1783,14 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
           );
     const key = track?.find((item) => item.frame === selectedKeyframeInfo.frame);
     if (!key) return;
-    setKeyframeClipboard({ kind: selectedKeyframeInfo.kind, key: JSON.parse(JSON.stringify(key)) });
+    setKeyframeClipboard({ kind: selectedKeyframeInfo.kind, key: cloneProjectValue(key) });
     setToast('关键帧已复制');
   };
   // 粘贴关键帧（Ctrl+V）：与 Timeline 的「复制关键帧」形成闭环。
   // 2026-09-09：原实现在 TS 迁移（3aff4b7）时丢了绑定变成悬空箭头，现恢复并接上快捷键。
   const pasteKeyframe = () => {
     if (!keyframeClipboard) return;
-    const next = { ...JSON.parse(JSON.stringify(keyframeClipboard.key)), frame: currentFrame };
+    const next = { ...cloneProjectValue(keyframeClipboard.key), frame: currentFrame };
     if (keyframeClipboard.kind === 'camera') {
       // 粘贴整快照 key → 拆进相机 transform/lens 通道（tracks.ts）
       setKeyframes((channels) => upsertCameraSnapshot(channels, next));

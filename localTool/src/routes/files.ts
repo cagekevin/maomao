@@ -32,6 +32,7 @@ import {
   fileNameFromUrl,
 } from '../utils/helpers.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
+import { stableRequest, RETRYABLE_HTTP_STATUSES } from '../ai-relay/httpTransport.js';
 import { logTs } from '../utils/relayHeaders.js';
 import { localToolBaseUrl } from '../utils/localToolBaseUrl.js';
 import { saveBase64ToFile } from '../utils/base64Externalize.js';
@@ -242,7 +243,7 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
  * 远程 URL → 本地文件（【唯一下载归属点】+ 幂等，任何调用方都走这里保证去重）。
  *
  * 本函数是并发协调层：对"同一远程 URL 的并发请求"只真下载一次（见 inflightDownloads 注释），
- * 内部实现委托 doSaveRemoteUrl（原函数体，含 existsSync 文件幂等 + fetchWithProxy 下载）。
+ * 内部实现委托 doSaveRemoteUrl（原函数体，含 existsSync 文件幂等 + stableRequest 下载）。
  * 调用方(handleUploadFormData / handleUploadJson / polling / 迁移)签名不变、不感知锁。
  *
  * 去重键 = subfolder + fileUrl（不含 filename）：filename 只影响落盘命名，不影响"是否同一份下载"。
@@ -311,13 +312,20 @@ async function doSaveRemoteUrl(
     }
   }
 
-  // 直连优先，失败走代理
+  // 【TD-08-25 · 2026-09-17】下载走**中央 stableRequest**（不自写重试循环 —— ADAPTER_SPEC R3 红线）：
+  //   原先单次 `fetchWithProxy` 无重试 ⇒ CDN「已发布但尚未可读」窗口的瞬时 403/超时**直接判失败**。
+  //   本动作是纯下载 GET（天然幂等，重试无副作用）⇒ 交给中央的指数退避 + Retry-After。
+  //   `retryStatuses` 补 403：该码在此场景是「刚发布未就绪」的瞬态，非权限问题；
+  //   中央默认集**不动**（避免把其他场景真正的权限 403 也重试）。
+  //   fetchImpl 注入 fetchWithProxy 保留「直连 → 代理隧道」兜底（CDN 可能需代理）。
   let response: Response;
   try {
-    response = await fetchWithProxy(fileUrl);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+    ({ response } = await stableRequest({
+      method: 'GET',
+      candidates: [fileUrl], // 精确地址，不做 baseUrl 发散探测
+      retryStatuses: [403, ...RETRYABLE_HTTP_STATUSES],
+      fetchImpl: fetchWithProxy as typeof fetch,
+    }));
   } catch (e) {
     console.error(`[download] ${ts()} | FAIL | ${fileUrl} | ${(e as Error).message}`);
     throw new Error(`Failed to download fileUrl: ${(e as Error).message}`);

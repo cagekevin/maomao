@@ -24,9 +24,11 @@ import { showToast } from '../base/core/toastStore.ts';
 // 收编进 contentStore 单一实现；per-key fallback/timeout 由 STORAGE_KEYS（director3d-project*）决定。
 // 不再裸调 kvGet/kvSet/sGet/sSet，消除「收口缺口」（与 kvStore.storageGet 双副本互不可见问题一并消除）。
 import { contentSetKvWithFallback, contentGetKvWithFallback } from '../base/core/contentStore.ts';
+// 键名/前缀真源 = contracts.ts（TD-13-6 收口：原此处与 director3d/project.ts 两份裸写）
+import { KEY_DIRECTOR3D_PROJECT, DIRECTOR3D_PROJECT_PREFIX } from '../base/core/contracts.ts';
 
-/** 工程存储默认键（无 nodeId 独立运行场景，与 director3d/project.ts 一致） */
-const PROJECT_KEY_DEFAULT = 'director3d-project';
+/** 工程存储默认键（无 nodeId 独立运行场景，与 director3d/project.ts 同源） */
+const PROJECT_KEY_DEFAULT = KEY_DIRECTOR3D_PROJECT;
 
 /**
  * ── 多开 / 并发覆盖的可见警示（docs/45 R6，非锁，只把"静默覆盖"变成可见）──
@@ -125,7 +127,7 @@ export function isProjectAssetUrl(url: unknown): boolean {
  * @returns {boolean} 是否进入 KV 工程通道
  */
 export function isProjectPersistenceKey(key: unknown): boolean {
-  return typeof key === 'string' && key.startsWith('director3d-project');
+  return typeof key === 'string' && key.startsWith(DIRECTOR3D_PROJECT_PREFIX);
 }
 
 /**

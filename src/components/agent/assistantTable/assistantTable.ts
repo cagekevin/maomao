@@ -295,8 +295,6 @@ export function renameColumn(sb: AssistantTable, colId: string, label: string): 
 export function estimateColumnWidth(label: string, rows: TableRow[], colIndex: number): number {
   const per = 13; // 每字约 px（12px 字号）
   const pad = 24; // 左右内边距 + 富余
-  const min = 90;
-  const max = 240;
   // 表头与内容统一按「中文 2 字宽 / 其它 1 字宽」计长（避免中文表头被低估、列偏窄）
   const charW = (s: string): number => {
     let n = 0;
@@ -310,7 +308,7 @@ export function estimateColumnWidth(label: string, rows: TableRow[], colIndex: n
     const len = charW(v);
     if (len > longest) longest = len;
   }
-  return Math.max(min, Math.min(max, Math.round(longest * per + pad)));
+  return Math.max(90, Math.min(240, Math.round(longest * per + pad)));
 }
 
 /** 写某列手动宽度（不可变、幂等；width 非法忽略）。用于拖拽落点一次性写回（持久化到会话记忆）。 */

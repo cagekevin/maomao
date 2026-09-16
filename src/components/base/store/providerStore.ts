@@ -18,6 +18,8 @@ import { useStoreSelector } from '../../../hooks/useStoreSelector.ts';
 import { providerApi } from '../api/localToolApi.ts';
 import { contentSetAsync } from '../core/contentStore.ts';
 import { logger } from '../core/logger.ts';
+// 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
+import { KEY_ACTIVE_API_ENDPOINT } from '../core/contracts.ts';
 
 // useSyncExternalStore 要求：数据变化时 getSnapshot 必须返回「新引用」，
 // 否则 React 用 Object.is 判定无变化 → 不触发渲染（表现：按钮没反应、页面空白/卡）。
@@ -463,7 +465,7 @@ export async function save(): Promise<{ ok: boolean; error?: string }> {
     // 对齐官方 active_api_endpoint（KV）：把主供应商写入 localTool KV，供跨端读取当前生效 endpoint
     const primary = savedProviders.find((p) => p.primary) || savedProviders[0];
     if (primary) {
-      contentSetAsync('active_api_endpoint', {
+      contentSetAsync(KEY_ACTIVE_API_ENDPOINT, {
         providerId: primary.id,
         name: primary.name,
         base_url: primary.base_url,

@@ -21,6 +21,8 @@ import { withTimeout } from '../../base/utils/asyncGuard.ts';
 import { generateId } from '../../base/core/idGen.ts';
 import { logger } from '../../base/core/logger.ts';
 import { KV_TIMEOUT } from '../../base/core/config.ts';
+// 键构造真源 = base/core/agentKeys.ts（TD-13-5：本模块不再裸拼模板）
+import { agentProjectMemoryKey } from '../../base/core/agentKeys.ts';
 
 /** 单条记忆正文长度上限 */
 export const PROJECT_MEMORY_CONTENT_LIMIT = 500;
@@ -54,8 +56,8 @@ export interface ProjectMemory {
 /** 保存记忆的入参（id 缺省则新建） */
 export type ProjectMemoryInput = Partial<ProjectMemory> & { content?: string };
 
-/** 记忆归属全局（不分项目），key 仅按 agentKey 区分 */
-const memoryKey = (agentKey: string) => `agent_project_memory_v1_${agentKey}`;
+/** 记忆归属全局（不分项目），key 仅按 agentKey 区分（构造器真源见 agentKeys.ts） */
+const memoryKey = (agentKey: string) => agentProjectMemoryKey(agentKey);
 
 /** 模块级缓存：{ [agentKey]: ProjectMemory[] }，同步注入读取；写后同步更新。 */
 const cache = new Map<string, ProjectMemory[]>();

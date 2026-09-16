@@ -10,6 +10,12 @@
  */
 import { contentGet, contentSet, contentReadThrough } from '../core/contentStore.ts';
 import { logger } from '../core/logger.ts';
+// 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
+import {
+  KEY_AGENT_SKILLS,
+  KEY_AGENT_SKILL_USAGE,
+  KEY_AGENT_SKILL_ENABLED,
+} from '../core/contracts.ts';
 
 /** Skill 结构（对齐大雄 builtin_skills：name/description 供 UI，content 无损注入 LLM） */
 export interface Skill {
@@ -29,9 +35,11 @@ export interface SkillResult {
   error: string;
 }
 
-const SKILLS_KEY: string = 'agent_skills';
-/** 导出供消费方订阅：设置页改 Skill 时 AgentPanel 用此键 contentSubscribe 重读列表（避免裸字符串键） */
-export { SKILLS_KEY };
+/**
+ * 导出供消费方订阅：设置页改 Skill 时 AgentPanel 用此键 contentSubscribe 重读列表（避免裸字符串键）。
+ * 值 = contracts 真源（TD-13-7：本模块不再自持字面量，re-export 让既有消费方零改动）。
+ */
+export const SKILLS_KEY: string = KEY_AGENT_SKILLS;
 
 /**
  * Skill 可导入文件扩展名**白名单 · 唯一实现**（2026-09-16 收口 TD-16-8）。
@@ -284,7 +292,7 @@ export function deleteCustomSkill(id: string): { ok: boolean; error?: string } {
 }
 
 /* ── Skill 使用次数（对齐大雄 usage_count，localStorage 记录）── */
-const USAGE_KEY: string = 'agent_skill_usage'; // { [skillId]: count }
+const USAGE_KEY: string = KEY_AGENT_SKILL_USAGE; // { [skillId]: count }（值 = contracts 真源）
 function getUsageMap(): Record<string, number> {
   try {
     const m = contentGet(USAGE_KEY);
@@ -321,9 +329,8 @@ export function getSkillUsage(id: string): number {
 }
 
 /* ── Skill 启用状态（localStorage 记录，内置 skill 默认启用，自定义默认启用）── */
-const ENABLED_KEY: string = 'agent_skill_enabled'; // { [skillId]: boolean }
-/** 导出供消费方订阅：设置页开关 Skill 启用态时 AgentPanel 用此键 contentSubscribe 重读列表 */
-export { ENABLED_KEY };
+/** 导出供消费方订阅：设置页开关 Skill 启用态时 AgentPanel 用此键 contentSubscribe 重读列表（值 = contracts 真源） */
+export const ENABLED_KEY: string = KEY_AGENT_SKILL_ENABLED; // { [skillId]: boolean }
 function getEnabledMap(): Record<string, boolean> {
   try {
     const m = contentGet(ENABLED_KEY);

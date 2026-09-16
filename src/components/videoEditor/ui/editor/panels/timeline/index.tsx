@@ -30,6 +30,7 @@ import { IS_DEV } from '@/components/videoEditor/constants/editor-constants';
 import {
   TIMELINE_CONSTANTS,
   TRACK_ICONS,
+  clampTrackHeightScale,
 } from '@/components/videoEditor/constants/timeline-constants';
 import { useElementInteraction } from '@/components/videoEditor/hooks-cutia/timeline/element/use-element-interaction';
 import {
@@ -110,6 +111,28 @@ export function Timeline() {
     tracksScrollRef,
     rulerScrollRef: tracksScrollRef,
   });
+
+  // 【TD-21-16 · 轨道高度可调】倍率存 `TTimelineViewState.trackHeightScale`（与 zoomLevel 同一真源、同一持久化）。
+  // 取值经 `clampTrackHeightScale` 夹取（唯一实现），非法/缺省 → 1。
+  const [trackHeightScale, setTrackHeightScaleRaw] = useState(() =>
+    clampTrackHeightScale(savedViewState?.trackHeightScale),
+  );
+  const setTrackHeightScale = useCallback(
+    (next: number) => {
+      const clamped = clampTrackHeightScale(next);
+      setTrackHeightScaleRaw(clamped);
+      // 与缩放一致：变更即写回视图态（markDirty 由 manager 负责），并保留既有 scroll/playhead 值。
+      editor.project.setTimelineViewState({
+        viewState: {
+          zoomLevel,
+          scrollLeft: tracksScrollRef.current?.scrollLeft ?? savedViewState?.scrollLeft ?? 0,
+          playheadTime: editor.playback.getCurrentTime(),
+          trackHeightScale: clamped,
+        },
+      });
+    },
+    [editor, zoomLevel, savedViewState?.scrollLeft, tracksScrollRef],
+  );
 
   const { dragState, dragDropTarget, handleElementMouseDown, handleElementClick, lastMouseXRef } =
     useElementInteraction({
@@ -197,6 +220,8 @@ export function Timeline() {
         zoomLevel={zoomLevel}
         minZoom={minZoomLevel}
         setZoomLevel={({ zoom }) => setZoomLevel(zoom)}
+        trackHeightScale={trackHeightScale}
+        setTrackHeightScale={setTrackHeightScale}
       />
 
       <div className="relative flex flex-1 flex-col overflow-hidden" ref={timelineRef}>
@@ -242,7 +267,7 @@ export function Timeline() {
                             isDragTarget && 'border-primary border-t-2',
                           )}
                           style={{
-                            height: `${getTrackHeight({ type: track.type })}px`,
+                            height: `${getTrackHeight({ type: track.type, scale: trackHeightScale })}px`,
                           }}
                         >
                           <GripVertical
@@ -390,7 +415,10 @@ export function Timeline() {
                   style={{
                     height: `${Math.max(
                       tracksContainerHeight.min,
-                      Math.min(tracksContainerHeight.max, getTotalTracksHeight({ tracks })),
+                      Math.min(
+                        tracksContainerHeight.max,
+                        getTotalTracksHeight({ tracks, scale: trackHeightScale }),
+                      ),
                     )}px`,
                   }}
                 >
@@ -413,9 +441,11 @@ export function Timeline() {
                                 top: `${getCumulativeHeightBefore({
                                   tracks,
                                   trackIndex: index,
+                                  scale: trackHeightScale,
                                 })}px`,
                                 height: `${getTrackHeight({
                                   type: track.type,
+                                  scale: trackHeightScale,
                                 })}px`,
                               }}
                             >

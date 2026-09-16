@@ -1,4 +1,4 @@
-import { generateId } from '../core/idGen.ts';
+import { generateId, generateUUID } from '../core/idGen.ts';
 import { withNodeSize } from './nodeDefaults.ts';
 import type { Node, Edge } from '@xyflow/react';
 
@@ -51,12 +51,10 @@ export function createGroupFromNodes(
   const gy = minY - pad;
   const gw = maxX - minX + pad * 2;
   const gh = maxY - minY + pad * 2;
-  // 【R4】groupId 用 crypto.randomUUID()（无碰撞），替代 Date.now 毫秒 id（Agent 批量并发建组时可能碰撞）。
-  // fallback：老环境/测试无 randomUUID 时用 Date.now + 随机后缀保证不重复。
-  const groupId =
-    typeof crypto !== 'undefined' && crypto.randomUUID
-      ? `group-${crypto.randomUUID()}`
-      : generateId('group');
+  // 【R4】groupId 走 idGen.generateUUID（碰撞安全），替代 Date.now 毫秒 id（Agent 批量并发建组时可能碰撞）。
+  // 收口（TD-18-6）：原先此处手写 crypto.randomUUID + generateId 兜底分支，与 videoEditor/utils/id.ts
+  // 同实现两份；现统一走 idGen 唯一入口的 UUID 变体（其内部自带同款老环境回退）。
+  const groupId = `group-${generateUUID()}`;
 
   // TD-04-28：尺寸三写不变量走唯一实现 withNodeSize（含 initial*，新建节点需要）。
   // 此前本处手抄 width/height/style/initial*，与 uiHooks / useArrangeCanvas 三份。

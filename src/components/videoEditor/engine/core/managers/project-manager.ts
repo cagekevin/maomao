@@ -15,7 +15,7 @@ import { storageService } from '@/components/videoEditor/engine/services/storage
 // 409 判别（T3 验收②）：版本冲突必须如实分类（saveCurrentProject 的 catch）。
 import { HttpError } from '../../../../base/api/httpClient.ts';
 import { toast } from '@/components/videoEditor/lib/toast';
-import { generateUUID } from '@/components/videoEditor/utils/id';
+import { generateUUID } from '@/components/base/core/idGen.ts';
 import { UpdateProjectSettingsCommand } from '@/components/videoEditor/engine/commands/project';
 import {
   DEFAULT_FPS,

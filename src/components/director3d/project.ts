@@ -15,12 +15,17 @@ import {
 import { readJson, writeJson } from './storage.ts';
 import { detectFileType } from '../base/utils/assetType.ts';
 import { isProjectAssetUrl } from './d3dPersistence.ts';
-import { KEY_DIRECTOR3D_CUSTOM_POSES } from '../base/core/contracts.ts';
+import { KEY_DIRECTOR3D_CUSTOM_POSES, KEY_DIRECTOR3D_PROJECT } from '../base/core/contracts.ts';
 // 数值钳制唯一入口（TD-18-5 收口）：本域曾私有复制同签名 clamp，现统一走 core SSOT；
 // 原样 re-export 使既有消费方（如本域 App.tsx）零改动。
-import { clamp } from '../base/core/utils.ts';
+import { clamp, deepClone } from '../base/core/utils.ts';
 
 export { clamp };
+
+// 深拷贝唯一入口（TD-07-8 收口）：本域曾自写 `cloneProjectValue` = JSON.parse(JSON.stringify(…))
+// （core/utils.deepClone 的第二份），且 App.tsx 另有两处内联同公式 —— 全部收口到 core；
+// 原样 re-export 使 3 个消费方（App.tsx / ReferenceOverlay.tsx / 本文件）零改动。
+export const cloneProjectValue = deepClone;
 // 旧 `stageframe-project` 裸键**读/清**改走存储层迁移原语（storage.ts 不再裸访问 localStorage）
 import { readLegacyRawKey, removeLegacyRawKey } from '../base/storage/index.ts';
 
@@ -213,7 +218,8 @@ export interface ProjectObject {
 }
 
 export const CAMERA_ID = '__shot_camera__';
-export const PROJECT_STORAGE_KEY = 'director3d-project';
+/** 工程默认存储键（**键名真源 = contracts.ts**，TD-13-6 收口：原此处与 d3dPersistence.ts 两份裸写） */
+export const PROJECT_STORAGE_KEY = KEY_DIRECTOR3D_PROJECT;
 const LEGACY_PROJECT_STORAGE_KEY = 'stageframe-project';
 /**
  * 姿势库存储键 —— **键名真源 = `base/core/contracts.ts` 的 STORAGE_KEYS 命名导出**（2026-09-16 M7 收口）。
@@ -1083,7 +1089,6 @@ export function normalizeObjectTracks(
   );
 }
 
-export const cloneProjectValue = (value: unknown) => JSON.parse(JSON.stringify(value));
 export const defaultShotName = (index: number) => `镜头 ${String(index + 1).padStart(2, '0')}`;
 
 /**

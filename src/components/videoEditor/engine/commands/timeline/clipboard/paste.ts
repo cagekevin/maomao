@@ -5,7 +5,7 @@ import type {
   TimelineElement,
   ClipboardItem,
 } from '@/components/videoEditor/types/timeline';
-import { generateUUID } from '@/components/videoEditor/utils/id';
+import { generateUUID } from '@/components/base/core/idGen.ts';
 import { wouldElementOverlap } from '@/components/videoEditor/engine/timeline/element-utils';
 import {
   buildEmptyTrack,

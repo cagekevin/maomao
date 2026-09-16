@@ -191,6 +191,10 @@ export async function stableRequest(opts: StableRequestOptions): Promise<StableR
 
   const maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
+  // 【TD-08-25】调用方可显式覆盖重试码集（如 CDN 发布窗口的 403）；缺省不动中央默认集。
+  const retryStatuses = opts.retryStatuses
+    ? new Set<number>(opts.retryStatuses)
+    : DEFAULT_RETRY_STATUSES;
 
   let lastError: unknown;
   for (const candidate of candidates) {
@@ -235,32 +239,21 @@ export async function stableRequest(opts: StableRequestOptions): Promise<StableR
           return { response, resolvedBaseUrl: candidate };
         }
 
-        // 错误响应：抽取上游文案原样透传（上游显示啥，我们就显示啥）
+        // 错误响应：抽取上游文案原样透传（上游显示啥，我们就显示啥）。
+        // 【重试判据唯一】本分支只负责**构造错误对象**，不自行重试 ——
+        //   抛出的 RelayHttpError 立刻由下方 catch 以**同一判据**（retryStatuses / maxRetries / aborted）
+        //   接管决定是否重试。此前两处各写一份重试判据（M3 SSOT 第二份）：
+        //   改一处不改另一处会**静默失效**（探针实测：仅改本处时行为完全不变，被 catch 分支兜住）。
         const text = await response.text().catch(() => '');
-        const retryAfter = parseRetryAfterMs(response.headers.get('retry-after'));
-        const message = text.slice(0, 300) || `${method} ${finalUrl} (${response.status})`;
-        if (
-          DEFAULT_RETRY_STATUSES.has(response.status) &&
-          attempt < maxRetries &&
-          !opts.signal?.aborted
-        ) {
-          const delay =
-            retryAfter && retryAfter > 0
-              ? retryAfter
-              : Math.min(DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_BASE_DELAY_MS * 2 ** attempt);
-          lastError = new RelayHttpError(response.status, message, retryAfter ?? undefined);
-          await sleep(delay);
-          continue;
-        }
-        throw new RelayHttpError(response.status, message, retryAfter ?? undefined);
+        throw new RelayHttpError(
+          response.status,
+          text.slice(0, 300) || `${method} ${finalUrl} (${response.status})`,
+          parseRetryAfterMs(response.headers.get('retry-after')) ?? undefined,
+        );
       } catch (err) {
         if (err instanceof RelayHttpError) {
           lastError = err;
-          if (
-            DEFAULT_RETRY_STATUSES.has(err.status) &&
-            attempt < maxRetries &&
-            !opts.signal?.aborted
-          ) {
+          if (retryStatuses.has(err.status) && attempt < maxRetries && !opts.signal?.aborted) {
             const delay =
               err.retryAfterMs && err.retryAfterMs > 0
                 ? err.retryAfterMs

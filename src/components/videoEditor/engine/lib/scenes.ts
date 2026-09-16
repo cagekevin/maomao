@@ -1,5 +1,5 @@
 import type { TScene } from '@/components/videoEditor/types/timeline';
-import { generateUUID } from '@/components/videoEditor/utils/id';
+import { generateUUID } from '@/components/base/core/idGen.ts';
 import { calculateTotalDuration } from '@/components/videoEditor/engine/timeline';
 import { ensureMainTrack } from '@/components/videoEditor/engine/timeline/track-utils';
 

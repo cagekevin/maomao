@@ -8,8 +8,11 @@
  * 与 agent_input_mode / agent_panel_width 等前端偏好一致，轻量即时，无需网络。
  */
 import { contentGet, contentSet } from '../core/contentStore.ts';
+// 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
+import { KEY_AGENT_CHAT_MODEL, KEY_AGENT_HISTORY_TURNS } from '../core/contracts.ts';
 
-export const AGENT_CHAT_MODEL_KEY = 'agent_chat_model';
+/** 值 = contracts 真源（re-export 让既有消费方零改动） */
+export const AGENT_CHAT_MODEL_KEY = KEY_AGENT_CHAT_MODEL;
 
 /** 流式模式：'stream' 流式（默认） | 'non-stream' 非流式（仅普通 JSON 响应的模型/API） */
 export type AgentStreamMode = 'stream' | 'non-stream';
@@ -57,7 +60,7 @@ export function saveAgentChatModel(cfg?: Partial<AgentChatModelConfig>): void {
 //   1          = 只回传上一轮文字；
 //   N（任意正） = 回传最近 N 轮文字（N≥消息总量时≈不限，buildRequestMessages 会自动回溯到最早）。
 // 图片永远编号化（imageCatalog 图N）不内联，不破坏「反推图一却全反推」安全底线。
-export const AGENT_HISTORY_TURNS_KEY = 'agent_history_turns';
+export const AGENT_HISTORY_TURNS_KEY = KEY_AGENT_HISTORY_TURNS;
 export const AGENT_HISTORY_TURNS_DEFAULT = 6; // 默认回传最近 6 轮
 
 /** 读历史回传轮数：合法返回非负整数；异常/非法回退默认 6。 */

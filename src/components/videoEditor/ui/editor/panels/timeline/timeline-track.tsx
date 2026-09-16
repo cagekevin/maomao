@@ -14,6 +14,8 @@ import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 interface TimelineTrackContentProps {
   track: TimelineTrack;
   zoomLevel: number;
+  /** 轨道高度倍率（TD-21-16）——胶片条等按高度渲染的内容必须与轨道同口径。缺省 = 1。 */
+  trackHeightScale?: number;
   dragState: ElementDragState;
   rulerScrollRef: React.RefObject<HTMLDivElement | null>;
   tracksScrollRef: React.RefObject<HTMLDivElement | null>;
@@ -38,6 +40,7 @@ interface TimelineTrackContentProps {
 export function TimelineTrackContent({
   track,
   zoomLevel,
+  trackHeightScale,
   dragState,
   rulerScrollRef,
   tracksScrollRef,
@@ -99,6 +102,7 @@ export function TimelineTrackContent({
                   element={element}
                   track={track}
                   zoomLevel={zoomLevel}
+                  trackHeightScale={trackHeightScale}
                   isSelected={isSelected}
                   onSnapPointChange={onSnapPointChange}
                   onResizeStateChange={onResizeStateChange}

@@ -380,7 +380,7 @@ test('files·saveRemoteUrl 顺序两请求(无后缀 URL) → 锁不缓存，仍
   assert.equal(b1.data.url, b2.data.url, '同一 URL 顺序两次应返回同一最终 URL');
 });
 
-test('files·saveRemoteUrl 并发同 URL 且首次下载失败 → 两请求都失败，不静默误报成功', async () => {
+test('files·saveRemoteUrl 并发同 URL 且下载失败 → 两请求都失败，不静默误报成功', async () => {
   let calls = 0;
   mockFetchOnce(async () => {
     calls++;
@@ -394,8 +394,11 @@ test('files·saveRemoteUrl 并发同 URL 且首次下载失败 → 两请求都�
     filesMod.handleUpload(makeJsonReq(opts), res1),
     filesMod.handleUpload(makeJsonReq(opts), res2),
   ]);
-  // 两请求共享同一 in-flight Promise → 都失败(HTTP 400)，第二个不得因等锁误报成功
-  assert.equal(calls, 1, '并发失败也只在首次触发一次下载');
+  // 两请求共享同一 in-flight Promise → 都失败(HTTP 400)，第二个不得因等锁误报成功。
+  // 【TD-08-25 语义变更】500 属中央可重试集，下载走 stableRequest 后退避重试至耗尽
+  //   才判失败（1 次首发 + 3 次重试 = 4 次）；断言"复用同一 in-flight、不额外发起第二轮"
+  //   而非固定 1 次 —— 原 `calls===1` 是"无重试"时代的实现细节断言，已过期。
+  assert.equal(calls, 4, '并发失败共享 in-flight：仅首发 1 轮（1+3 重试），第二个请求不另起下载');
   assert.equal(res1.status, 400, '第一个请求应失败');
   assert.equal(res2.status, 400, '第二个请求应拿到同一失败，不得误报成功');
   const e1 = parseResBody(res1);

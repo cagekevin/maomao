@@ -12,6 +12,8 @@ interface UseSelectionBoxProps {
   isEnabled?: boolean;
   tracksScrollRef: React.RefObject<HTMLDivElement | null>;
   zoomLevel: number;
+  /** 轨道高度倍率（TD-21-16）——框选命中区必须与渲染同口径。缺省 = 1。 */
+  trackHeightScale?: number;
   headerRef?: React.RefObject<HTMLElement | null>;
 }
 
@@ -94,6 +96,7 @@ export function useSelectionBox({
   isEnabled = true,
   tracksScrollRef,
   zoomLevel,
+  trackHeightScale,
   headerRef,
 }: UseSelectionBoxProps) {
   const editor = useEditor();
@@ -144,8 +147,9 @@ export function useSelectionBox({
         const trackTop = getCumulativeHeightBefore({
           tracks,
           trackIndex,
+          scale: trackHeightScale,
         });
-        const trackHeight = getTrackHeight({ type: track.type });
+        const trackHeight = getTrackHeight({ type: track.type, scale: trackHeightScale });
         const elementTop = trackTop;
         const elementBottom = trackTop + trackHeight;
 

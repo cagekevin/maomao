@@ -4,7 +4,7 @@ import type {
   VideoElement,
   ImageElement,
 } from '@/components/videoEditor/types/timeline';
-import { generateUUID } from '@/components/videoEditor/utils/id';
+import { generateUUID } from '@/components/base/core/idGen.ts';
 import type { TransitionType } from '@/components/videoEditor/types/timeline';
 
 type VisualElement = VideoElement | ImageElement;

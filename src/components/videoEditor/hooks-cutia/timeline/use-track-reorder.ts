@@ -15,7 +15,7 @@ const INITIAL_STATE: TrackReorderState = {
   dragOverIndex: null,
 };
 
-export function useTrackReorder() {
+export function useTrackReorder({ trackHeightScale }: { trackHeightScale?: number } = {}) {
   const editor = useEditor();
   const [reorderState, setReorderState] = useState<TrackReorderState>(INITIAL_STATE);
   const startYRef = useRef(0);
@@ -31,7 +31,8 @@ export function useTrackReorder() {
 
       let accumulatedHeight = 0;
       for (let i = 0; i < tracks.length; i++) {
-        const trackHeight = getTrackHeight({ type: tracks[i].type }) + 4;
+        // 倍率与渲染同口径（TD-21-16），否则轨道拖拽的落位判定会错行。
+        const trackHeight = getTrackHeight({ type: tracks[i].type, scale: trackHeightScale }) + 4;
         const trackMid = accumulatedHeight + trackHeight / 2;
         if (relativeY < trackMid) {
           return i;
@@ -41,7 +42,7 @@ export function useTrackReorder() {
 
       return tracks.length - 1;
     },
-    [],
+    [trackHeightScale],
   );
 
   const handleTrackDragStart = useCallback(

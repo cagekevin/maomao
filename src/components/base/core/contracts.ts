@@ -189,6 +189,26 @@ export interface StorageKeyMeta {
   fallback?: boolean;
   /** KV 键专用：本次 KV 读写的独立超时（ms）。缺省 = 走全局默认（contentStore 当前非 per-key）。d3d 等需快失败降级的场景置为 KV_TIMEOUT */
   timeout?: number;
+  /**
+   * **云同步**：是否进云端（TD-13-9 收口 · 2026-09-16 用户裁定）。
+   *
+   * 【为什么是本表字段，而不是 cloudSync 里的白名单清单】「要不要同步」= 这个键的**固有属性**，
+   * 与 `backend` / `fallback` / `timeout` 同类，住在键自己的登记里才对。此前它住在
+   * `cloudSync.ts` 的 `SYNC_ALLOW` 集合里 ⇒ **同一件事两处维护**（M3 第二份）：加一个需同步的键
+   * 要改 2 个文件，且"清单型判据必漏"（本仓规则 2/4/10/12 已四次从清单改回反向判据）。
+   * 收口后：cloudSync 只**派生**（`getSyncKeys()`），不再认识任何一个具体键名。
+   *
+   * 【判据（红线）】**缺省 = 不参与云同步**（`undefined` → false，与 2026-09-16 翻转后的
+   * 「默认拒绝」语义一致）。**绝不可改成"默认同步 + 显式排除"** —— 那会把工程数据/UI 偏好
+   * 静默送上云（造第二真相源）。要同步的键必须**显式**写 `sync: true`。
+   */
+  sync?: boolean;
+  /**
+   * **面向用户的可读名**：云同步冲突清单要让人看懂「到底动了什么」（直接甩 `yimao_preset_prompts` 等于没说）。
+   * 与 `sync` 同批下沉（TD-13-9）：原为 `cloudSync.ts` 的 `SYNC_LABELS` 清单——同一份"键的属性"被抄成第二处。
+   * 缺省时由 `getKeyLabel()` 回退键名本身（宁可显示原始 key，也绝不静默省略条目）。
+   */
+  label?: string;
   note: string;
 }
 
@@ -250,6 +270,51 @@ export const KEY_EDITOR_CAPTION_MODEL_ID = 'editor-caption-model-id';
 export const KEY_EDITOR_CAPTION_TEMPLATE_ID = 'editor-caption-template-id';
 export const KEY_VIDEO_EDITOR_SAVED_SOUNDS = 'video-editor-saved-sounds';
 
+/**
+ * 固定存储键的命名常量（第二批 · TD-13-7 收口 · 2026-09-16）。
+ *
+ * 【为什么是第二批】TD-13-4 只导出了 7 把 `yimao_*` + M7 裸写键，剩下这一批**登记了却没导出
+ * 命名 const** → 各消费层只能自己再声明一份同名字面量（`agent_skills` 等 9 键）：
+ *  · store 层：`skillStore.ts` SKILLS/USAGE/ENABLED_KEY · `agentModelStore.ts`
+ *    AGENT_CHAT_MODEL/HISTORY_TURNS_KEY · `scriptBoxPlaybookStore.ts` PLAYBOOKS_KEY
+ *  · 消费层：`VideoExtractNode.tsx` MULTIWINDOW_CLIPBOARD_KEY · `tableWorkspaceState.ts`
+ *    WIDTH_KEY · `AgentPanel.tsx` PANEL_WIDTH_KEY
+ *  · 裸字面量：`providerStore.ts:466` `contentSetAsync('active_api_endpoint', …)` ·
+ *    `cloudSync.ts` 两组清单（SYNC_ALLOW / SYNC_LABELS）里逐字重复键名
+ * ⇒ 同一键名**两份维护**，`getLocalKeys()` 派生的备份/云同步清单会漂移（漏备 / 误还原）。
+ * 注：上述 cloudSync 两组清单已于 **TD-13-9（2026-09-16）整体删除**（改由本表 `sync` / `label` 字段派生）。
+ *
+ * 【收口口径（与 TD-13-4 一致）】键名全仓唯一定义 = 本表；消费方 `import` 引用。
+ * 【更新（2026-09-16 · TD-13-9 收口）】上文原写「唯一例外：cloudSync 的 SYNC_ALLOW / SYNC_LABELS
+ * 是独立关注点，故保留自身的清单结构」—— **该判断已被推翻**：'要不要同步' 与 '怎么显示'
+ * 都是**键的固有属性**（与 `backend`/`fallback`/`timeout` 同类），把键名抄进消费者清单
+ * 就是标准的 M3 第二份（加一个需同步的键要改 2 个文件，清单型判据必漏）。
+ * 现两者均已下沉为登记表字段（`sync` / `label`），cloudSync 只派生（`getSyncKeys()` / `getKeyLabel()`），
+ * **不再认识任何一个具体键名** —— 故本项目内已无「键名清单例外」。
+ */
+export const KEY_SCRIPTBOX_PLAYBOOKS = 'scriptbox_playbooks';
+export const KEY_ACTIVE_API_ENDPOINT = 'active_api_endpoint';
+export const KEY_AGENT_CHAT_MODEL = 'agent_chat_model';
+export const KEY_AGENT_HISTORY_TURNS = 'agent_history_turns';
+export const KEY_AGENT_SKILLS = 'agent_skills';
+export const KEY_AGENT_SKILL_USAGE = 'agent_skill_usage';
+export const KEY_AGENT_SKILL_ENABLED = 'agent_skill_enabled';
+export const KEY_AGENT_PANEL_WIDTH = 'agent_panel_width';
+export const KEY_AGENT_SPLIT_WIDTH = 'agent_split_width';
+export const KEY_MULTIWINDOW_CLIPBOARD = 'mutiwindow-clipboard';
+export const KEY_CANVAS_AGENT_GEN_PARAMS = 'canvasAgentGenParams';
+/**
+ * 3D 导演台工程键**前缀**（含默认键本身）· TD-13-6 收口：原在 project.ts / d3dPersistence.ts 两份裸写。
+ *
+ * ⚠️ **不带尾横线**，这是**既有行为契约**（`d3dPersistence.test.ts` 锁住
+ * `isProjectPersistenceKey('director3d-project') === true`）：默认键 `director3d-project` **本身也算工程键**，
+ * 动态键 `director3d-project-{nodeId}` 亦以它为前缀。收口时必须保持这个**宽前缀**语义——
+ * 若误写成 `'director3d-project-'`（带横线），默认键会被判为非工程键（既有测试当场红）。
+ */
+export const DIRECTOR3D_PROJECT_PREFIX = 'director3d-project';
+/** 3D 导演台工程默认键（无 nodeId 独立运行场景）= 前缀本身 */
+export const KEY_DIRECTOR3D_PROJECT = DIRECTOR3D_PROJECT_PREFIX;
+
 export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   // ── 项目（projectStore）────────────────────────────────────────────
   projects: {
@@ -284,17 +349,21 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     domain: 'settings',
     store: 'appSettings.ts',
     backend: 'local',
+    // 混合桶：含 thumbnailOn/minimapOn/agentOpen/pinnedTools 等 UI 开关 → 整键留本机（2026-09-16 裁定）
+    label: '应用设置',
     note: '应用设置：{ thumbnailOn, minimapOn, agentOpen, performanceMode, debugOn, pinnedTools, autoSyncEnabled }——整键随云端同步（手工 note，改动 settingRegistry 须同步，防漂移）。注：videoEditorOpen 已于 2026-09-15 **迁出**（它是界面开合的会话态，不该持久化/sync → base/core/editorSession.ts）',
   },
-  scriptbox_playbooks: {
+  [KEY_SCRIPTBOX_PLAYBOOKS]: {
     domain: 'settings',
     store: 'scriptBoxPlaybookStore.ts',
     backend: 'local',
+    sync: true,
+    label: '剧本盒子 Playbook',
     note: '剧本盒子自定义 Playbook 列表 { id: playbook }。整键随云同步+备份（内置走代码常量，不在此）',
   },
 
   // ── 供应商配置（providerStore）─────────────────────────────────────
-  active_api_endpoint: {
+  [KEY_ACTIVE_API_ENDPOINT]: {
     domain: 'settings',
     store: 'settings/providerStore.js',
     backend: 'kv',
@@ -302,36 +371,45 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   },
 
   // ── AI 聊天模型（agentModelStore）──────────────────────────────────
-  agent_chat_model: {
+  [KEY_AGENT_CHAT_MODEL]: {
     domain: 'agent',
     store: 'agentModelStore.js',
     backend: 'local',
+    sync: true,
+    label: 'AI 聊天模型配置',
     note: 'AI 聊天模型配置：{ providerId, modelId, streamMode }',
   },
-  agent_history_turns: {
+  [KEY_AGENT_HISTORY_TURNS]: {
     domain: 'agent',
     store: 'agentModelStore.js',
     backend: 'local',
+    sync: true,
+    label: 'AI 历史回传轮数',
     note: 'AI 助手历史回传轮数（默认 6，非负整数）',
   },
 
   // ── Skill（skillStore）─────────────────────────────────────────────
-  agent_skills: {
+  [KEY_AGENT_SKILLS]: {
     domain: 'agent',
     store: 'skillStore.ts',
     backend: 'local',
+    sync: true,
+    label: '自定义 Skill',
     note: '用户自定义 Skill 列表 [{id, name, description, content}]',
   },
-  agent_skill_usage: {
+  [KEY_AGENT_SKILL_USAGE]: {
     domain: 'agent',
     store: 'skillStore.ts',
     backend: 'local',
+    label: 'Skill 使用统计',
     note: 'Skill 使用次数统计：{ [skillId]: count }',
   },
-  agent_skill_enabled: {
+  [KEY_AGENT_SKILL_ENABLED]: {
     domain: 'agent',
     store: 'skillStore.ts',
     backend: 'local',
+    sync: true,
+    label: 'Skill 启用状态',
     note: 'Skill 启用状态：{ [skillId]: boolean }。默认启用',
   },
 
@@ -340,12 +418,15 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     domain: 'preset',
     store: 'promptManager.js',
     backend: 'local',
+    sync: true,
+    label: '提示词预设',
     note: '提示词预设列表 [{id, title, type, prompt, enabled}]',
   },
   [KEY_YIMAO_PRESET_RECENT]: {
     domain: 'preset',
     store: 'promptManager.js',
     backend: 'local',
+    label: '最近使用预设',
     note: '最近使用预设 id 列表（上限 50）',
   },
 
@@ -363,6 +444,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     domain: 'prompthub',
     store: 'promptHubStore.js',
     backend: 'local',
+    label: '提示词社区库缓存',
     note: '提示词社区库各源拉取缓存 { [sourceId]: { items, fetchedAt, signature, lastError } }',
   },
 
@@ -371,6 +453,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     domain: 'pref',
     store: 'nodePrefs.js',
     backend: 'local',
+    label: '节点参数记忆',
     note: '节点「上次参数」记忆：{ [nodeType]: { ...lastParams } }',
   },
 
@@ -379,6 +462,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     domain: 'account',
     store: 'accountsStore.js',
     backend: 'kv',
+    label: '多开账号环境',
     note: '多开账号环境列表 [{id, name, siteName, siteUrl, avatar, cookies}]。走 localTool KV 磁盘持久化（对齐官方 users，关插件/跨设备不丢），仍进云同步',
   },
 
@@ -420,13 +504,14 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   },
 
   // ── AI 面板（AgentPanel.jsx）───────────────────────────────────────
-  agent_panel_width: {
+  [KEY_AGENT_PANEL_WIDTH]: {
     domain: 'agent',
     store: 'AgentPanel.jsx',
     backend: 'local',
+    label: 'AI 面板宽度',
     note: 'AI 助手面板宽度（px）',
   },
-  agent_split_width: {
+  [KEY_AGENT_SPLIT_WIDTH]: {
     domain: 'agent',
     store: 'AgentPanel.jsx',
     backend: 'local',
@@ -436,12 +521,14 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     domain: 'agent',
     store: 'AgentPanel.jsx',
     backend: 'local',
+    label: 'AI 输入模式',
     note: 'AI 助手输入模式兼容字段（2026-09-05 精简后不再产出；agent_input_mode 登记保留，仅历史读兼容）',
   },
   [CREDIT_SWITCH_KEY]: {
     domain: 'agent',
     store: 'AgentPanel.jsx',
     backend: 'local',
+    sync: true,
     note: '高消耗积分确认开关：任何模式真生成图/视频前是否先确认（默认 true = 开/安全）',
   },
 
@@ -455,7 +542,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   },
 
   // ── AI 生图参数（useCanvasAgentTools.ts）───────────────────────────
-  canvasAgentGenParams: {
+  [KEY_CANVAS_AGENT_GEN_PARAMS]: {
     domain: 'agent',
     store: 'useCanvasAgentTools.ts',
     backend: 'local',
@@ -463,7 +550,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   },
 
   // ── 多窗口剪贴板（VideoExtractNode.jsx）────────────────────────────
-  'mutiwindow-clipboard': {
+  [KEY_MULTIWINDOW_CLIPBOARD]: {
     domain: 'clipboard',
     store: 'VideoExtractNode.jsx',
     backend: 'local',
@@ -487,7 +574,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   // 注：director3d 工程经 base/d3dPersistence 收口——主通道写 localTool KV（/api/kv/set），
   // 18080 不可达才降级直写 localStorage。故 backend 标 kv（配下方动态 pattern），与实测一致；
   // 别再标 native（旧"native 空洞语义"，见 contentStore.getBackend 启发式兜底问题）。
-  'director3d-project': {
+  [KEY_DIRECTOR3D_PROJECT]: {
     domain: 'director3d',
     store: 'd3dPersistence.ts',
     backend: 'kv',
@@ -500,10 +587,10 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     domain: 'director3d',
     store: 'director3d/project.ts',
     backend: 'local',
-    migration: 'director3d-project',
+    migration: KEY_DIRECTOR3D_PROJECT,
     note: '3D 导演台旧工程键（stageframe 期）→ 迁移读入 director3d-project 后删除，仅读不写',
   },
-  'director3d-project-{nodeId}': {
+  [`${DIRECTOR3D_PROJECT_PREFIX}-{nodeId}`]: {
     domain: 'director3d',
     store: 'd3dPersistence.ts',
     backend: 'kv',
@@ -566,7 +653,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   //   迁 KV 反而修不成症状」——该理由**已被 TD-02-30 修复推翻**：backupStore 现有 `kv` 段，
   //   按本表模板派生收录**全部** KV 键（含 pattern 动态键）。结论不变（这三者按两分法本就该 local），
   //   但**以后判载体请只用两分法**，不要再拿"备份收不收得到"当理由（那已不是约束）。
-  //   云同步不受影响：cloudSync 仍按 SYNC_ALLOW 白名单**默认拒绝**（用户 2026-09-16 裁定）。
+  //   云同步不受影响：cloudSync 仍按登记表 `sync` 字段**默认拒绝**（用户 2026-09-16 裁定）。
   [KEY_EDITOR_CAPTION_LANGUAGE]: {
     domain: 'videoEditor',
     store: 'videoEditor/hooks-cutia/storage/use-local-storage.ts',
@@ -592,13 +679,12 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     note: '用户收藏音效清单 { sounds[], lastModified }（原仅存 IndexedDB `video-editor-saved-sounds`，不进备份；TD-02-34/40）。键名沿用旧 IndexedDB 库名，便于迁移对照',
   },
 
-  // ── 备份/云同步清单（backupStore.ts / cloudSync.ts）──────────────
-  // 已统一从本表 getLocalKeys() 生成，禁止再手写清单（防漂移漏备份）：
-  //   backupStore 全量导出；cloudSync 用 SYNC_EXCLUDE 显式排除
-  //   （lastOpenedProject / yimao_asset_library / agent_draft / mutiwindow-clipboard）。
-  // 新增本表 local 键即自动进入备份与同步。
-  // 更新(2026-09-16)：本段后两句已过时 —— cloudSync 现用 **SYNC_ALLOW 白名单**（默认拒绝，非 SYNC_EXCLUDE 黑名单），
-  //   且新增 local 键**不再**自动进云同步（只自动进备份）。原文保留供追溯原因（见 cloudSync.ts 文件头）。
+  // ── 备份 / 云同步范围（backupStore.ts / cloudSync.ts）──────────────
+  // 两条范围**均已从本表派生**，禁止再在任何消费者里手写清单（防漂移漏备 / 误把工程数据送上云）：
+  //   · 备份 = `getLocalKeys()`（**全量**，登记即进）；
+  //   · 云同步 = `getSyncKeys()`（= 全量 ∩ **本表显式 `sync: true`**，缺省**不进云**）。
+  // 判据演进：SYNC_EXCLUDE 黑名单（新增键默认进云，危险）→ SYNC_ALLOW 白名单（默认拒绝，
+  //   但清单抄在 cloudSync 里 = M3 第二份）→ **本表 `sync` 字段**（唯一真源，cloudSync 零键名）。
 };
 
 /** 获取所有 localStorage 后端键列表（不含动态键模板、不含已迁移旧键） */
@@ -606,6 +692,43 @@ export function getLocalKeys() {
   return Object.entries(STORAGE_KEYS)
     .filter(([, v]) => v.backend === 'local' && !v.migration && !v.pattern)
     .map(([k]) => k);
+}
+
+/**
+ * 参与**云同步**的 localStorage 键 = `getLocalKeys()` 中**显式声明 `sync: true`** 者。
+ *
+ * 【为什么是派生而非清单（TD-13-9 收口 · 2026-09-16）】此前 `cloudSync.ts` 自持 `SYNC_ALLOW`
+ * 白名单集合 → 同一件事（"这个键进不进云"）在 contracts 与 cloudSync **两处维护**，
+ * 加一个需同步的键要改 2 个文件；且清单型判据必漏（本仓已把规则 2/4/10/12 全部改回反向判据）。
+ * 现判据 = 从本表**派生**：`cloudSync` 不再认识任何一个具体键名。
+ *
+ * ⚠️ **缺省 = 不同步**（`sync` 未写 → 不收）。**这是红线**：反向（默认同步）会把工程数据/UI 偏好
+ * 静默送上云。新增键若需同步 → 在本表显式写 `sync: true`（只改一行，0 个其他文件）。
+ */
+export function getSyncKeys() {
+  return getLocalKeys().filter((k) => STORAGE_KEYS[k]?.sync === true);
+}
+
+/**
+ * **非存储键**的云同步条目显示名（键的属性不在 STORAGE_KEYS 里的那部分）。
+ *
+ * 【为什么需要这张极小的表】云同步范围里有两个条目**不是** `STORAGE_KEYS` 的键：
+ *   · `providers` —— API 供应商配置，走 localTool `/api/providers`（独立真通道，与 localStorage 无关）。
+ * `accounts` 不在此表：它只是 `KEY_YIMAO_ACCOUNTS` 的**短名**，调用点已改传真键（label 在登记表内）。
+ * 故本表的唯一成员是 `providers` —— 它是**真的不存在存储键**的同步条目，需要自己的名字。
+ * 这**不是**第二份清单：`sync`/`label` 的判据仍在登记表，本表只承接"不在登记表内的条目"。
+ */
+const NON_STORAGE_SYNC_LABELS: Record<string, string> = {
+  providers: 'API 供应商配置',
+};
+
+/**
+ * 同步条目 → **面向用户的可读名**（存储键查登记表 `label`；非存储条目查上面的极小表）。
+ * 缺省回退键名本身 —— 宁可显示原始 key，也绝不静默省略条目（漏报比难看危险）。
+ * 判据真源 = 本表 `label` 字段（TD-13-9：原为 cloudSync 的 `SYNC_LABELS` 第二份清单）。
+ */
+export function getKeyLabel(key: string): string {
+  return STORAGE_KEYS[key]?.label ?? NON_STORAGE_SYNC_LABELS[key] ?? key;
 }
 
 /**

@@ -18,14 +18,19 @@
 import { SCRIPT_BOX_WORKFLOWS, DEFAULT_WORKFLOW } from './scriptBoxWorkflows';
 import { contentGet, contentSet, contentClearCache } from '../base/core/contentStore.ts';
 import { logger } from '../base/core/logger.ts';
+// 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
+import { KEY_SCRIPTBOX_PLAYBOOKS } from '../base/core/contracts.ts';
 import type { Playbook } from './scriptBoxPlaybookIO';
 import type { WorkflowSpec } from './scriptBoxWorkflows';
 
 /** normalizeBuiltin 把内置 WorkflowSpec 归一为可存储的 Playbook（补 negative.common，丢弃 constraints.custom）。 */
 type RawWorkflow = WorkflowSpec;
 
-/** 自定义 playbook 的 localStorage 键（已在 contracts.ts STORAGE_KEYS 登记，domain:'settings'，backend:'local'）。 */
-export const PLAYBOOKS_KEY = 'scriptbox_playbooks';
+/**
+ * 自定义 playbook 的 localStorage 键（contracts.ts STORAGE_KEYS 登记，domain:'settings'，backend:'local'）。
+ * 值 = contracts 真源（TD-13-7：本模块不再自持字面量，re-export 让既有消费方零改动）。
+ */
+export const PLAYBOOKS_KEY = KEY_SCRIPTBOX_PLAYBOOKS;
 
 /**
  * 清缓存（仅测试用：重置 contentStore 缓存，配合测试的 localStorage.clear() 达到隔离）。

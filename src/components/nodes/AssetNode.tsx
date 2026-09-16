@@ -16,7 +16,7 @@ import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
 import { replaceNodeImage } from '../base/nodeImage.ts';
-import { detectAssetType } from '../base/utils/assetType.ts';
+import { detectAssetType, detectFileType } from '../base/utils/assetType.ts';
 import { fileNameFromUrl } from '../base/core/utils.ts';
 import type { AssetType } from '@/types';
 import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
@@ -230,7 +230,9 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       const f = e.target.files?.[0];
       e.target.value = '';
       if (!f) return;
-      if (f.type.startsWith('text/') || detectAssetType(f.name) === 'text') {
+      // 判型唯一入口（TD-16-20 收口）：此前 `f.type.startsWith('text/') || detectAssetType(f.name)==='text'`
+      // 是 detectFileType 的手抄（mime 优先 + 扩展名兜底），现走单源。
+      if (detectFileType(f) === 'text') {
         const fr = new FileReader();
         fr.onload = () => {
           patchNodeDataById(setNodes, id, {

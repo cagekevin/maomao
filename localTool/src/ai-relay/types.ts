@@ -145,6 +145,14 @@ export interface StableRequestOptions {
   timeoutMs?: number;
   maxBytes?: number;
   maxRetries?: number;
+  /**
+   * 覆盖「可重试状态码」集合（缺省 = 中央 RETRYABLE_HTTP_STATUSES：408/429/5xx）。
+   *
+   * 【TD-08-25 · 2026-09-17】唯一合法用途：调用方**确知**某码在本场景是瞬态。
+   * 实证 = CDN「已发布但尚未可读」窗口返回 **403**（非权限问题，几秒后自愈）——
+   * 该场景由调用方显式传入，**不动中央默认集**（否则会把真正的权限 403 也重试）。
+   */
+  retryStatuses?: number[];
   /** 底层 fetch 实现；缺省全局 fetch。lovart 等需走代理的域名注入 fetchWithProxy。 */
   fetchImpl?: typeof fetch;
 }

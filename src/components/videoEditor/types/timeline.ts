@@ -239,6 +239,12 @@ export interface ComputeDropTargetParams {
   elementDuration: number;
   pixelsPerSecond: number;
   zoomLevel: number;
+  /**
+   * 轨道高度倍率（TD-21-16）。命中判定的 Y 换算必须与渲染**同口径** ——
+   * 否则"显示按倍率、落点按基准"会错位（拖拽落到相邻轨道）。
+   * 缺省 = 1（与不加此参数前行为一致）。
+   */
+  trackHeightScale?: number;
   verticalDragDirection?: 'up' | 'down' | null;
   startTimeOverride?: number;
   excludeElementId?: string;

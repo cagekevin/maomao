@@ -6,15 +6,17 @@
  *  - 载体：CloudSyncEngine（Google Apps Script，见下方引擎代码）。
  *  - 之前是 localStorage 模拟假数据；现直接替换为真实云端收发（引擎代码原样保留）。
  *
- * 【同步范围白名单（2026-09-16 用户裁定 · 判据翻转）】**只有「设置/配置」类进云同步**
+ * 【同步范围 = 登记表派生（2026-09-16 用户裁定 · TD-13-9 收口）】**只有「设置/配置」类进云同步**
  *   （判据：换了设备也**希望跟着走**的东西）。**工程数据** 与 **UI 相关** 一律不出机器：
- *  - localStorage 侧：`getLocalKeys()` ∩ `SYNC_ALLOW`（白名单，见下方）＝ 仅 7 个设置/配置键；
+ *  - localStorage 侧：`getSyncKeys()` ＝ `STORAGE_KEYS` 中显式 `sync: true` 者（仅设置/配置类）；
  *  - API 配置（providers）：走 localTool /api/providers（独立于 localStorage）；
  *  - 账号环境（yimao_accounts）：KV 后端，由 domain 开关在 collect/restore 单独处理。
  *
- * 【为什么翻转成白名单（原为 SYNC_EXCLUDE 黑名单）】黑名单**新增键默认进同步** → 必须「记得排除」，
- *   漏一个就把工程数据/UI 偏好送上了云。翻转为**默认拒绝**：新增键不显式加进 `SYNC_ALLOW` 就不出机器。
- *   机器守卫 = `check:arch` 规则 12（`src` 内禁绕过本白名单另起同步清单）。
+ * 【判据为什么住在 contracts 而不是本文件（原为 SYNC_ALLOW 白名单）】「要不要同步」= 键的**固有属性**
+ *   （与 `backend`/`fallback`/`timeout` 同类），此前抄在本文件里就是 M3 第二份：加一个需同步的键要改
+ *   2 个文件，且清单型判据必漏（黑名单更糟：新增键默认进同步 → 工程数据被静默送上云）。
+ *   现判据 = `STORAGE_KEYS[k].sync === true`，**缺省 = 不同步**（红线）。
+ *   机器守卫 = `check:arch` 规则 12 + 规则 15（本文件不得出现具体存储键名 / 已登记键禁裸字面量）。
  *
  * 【明确不出机器的东西（用户裁定）】
  *  - **工程数据**：项目列表/画布快照（project）· 剪辑工程（videoEditor）· 3D 工程与姿势库（director3d）
@@ -28,10 +30,11 @@
  * ⚠️ 含用户数据（账号环境/API key 等），同步到云端需注意保密。
  */
 import {
-  getLocalKeys,
+  // 同步范围/显示名一律**派生**自登记表（TD-13-9：本文件不再持有键名清单）
+  getSyncKeys,
+  getKeyLabel,
   STORAGE_KEYS,
   KEY_YIMAO_CLOUD_SYNC_LEDGER,
-  KEY_YIMAO_PRESET_PROMPTS,
   KEY_YIMAO_ACCOUNTS,
 } from '../core/contracts.ts';
 import { providerApi } from '../api/localToolApi.ts';
@@ -137,7 +140,7 @@ const CloudSyncEngine = {
  *  - 先例：画布快照的 `canvas-state-v1-{projectId}_version`（contracts.ts）就是同款单调版本号。
  * ====================================================================== */
 
-/** 本地同步台账存储键（TD-13-4：唯一真源 = contracts.ts KEY_YIMAO_CLOUD_SYNC_LEDGER；**不进云端**，不在 SYNC_ALLOW 内） */
+/** 本地同步台账存储键（TD-13-4：唯一真源 = contracts.ts KEY_YIMAO_CLOUD_SYNC_LEDGER；**不进云端**，登记表未标 `sync:true`） */
 const LEDGER_KEY = KEY_YIMAO_CLOUD_SYNC_LEDGER;
 /**
  * 云端包 data 内的元字段键（双写）。
@@ -199,7 +202,7 @@ export interface UploadDecision {
 /** 单条键级差异 */
 export interface SyncKeyDiff {
   key: string;
-  /** 面向用户的可读名（见 SYNC_LABELS） */
+  /** 面向用户的可读名（见 contracts.getKeyLabel） */
   label: string;
 }
 
@@ -617,7 +620,8 @@ async function restoreLocal(cloud: CloudSnapshot): Promise<{ written: number; fa
       written++;
     }
   } catch (e) {
-    failed.push(syncLabel('accounts'));
+    // 传**真存储键**（非短名 'accounts'）：显示名真源 = 登记表 label（TD-13-9）
+    failed.push(syncLabel(KEY_YIMAO_ACCOUNTS));
     logger.warn('同步', '[下载] 账号写入失败', {
       error: (e as { message?: string })?.message || '未知',
     });
@@ -896,70 +900,37 @@ export function isCloudSyncReady(): boolean {
   return !!url && !url.includes('填入') && !CloudSyncEngine.isSyncing;
 }
 
-/* ── 云同步「设置类」白名单（唯一真源 · 2026-09-16）──
- * 只有「换了设备也希望跟着走」的**设置/配置**类进云；工程数据与 UI 偏好**默认拒绝**（见文件头【同步范围白名单】）。
- * 逐键理由见文件头【明确不出机器的东西】—— 本表只列「进」的，不再维护「不进」的黑名单。 */
-const SYNC_ALLOW = new Set<string>([
-  'scriptbox_playbooks', // 剧本盒子自定义 Playbook
-  'agent_chat_model', // AI 聊天模型配置
-  'agent_history_turns', // AI 历史回传轮数
-  'agent_skills', // 自定义 Skill
-  'agent_skill_enabled', // Skill 启用状态
-  'agent_credit_switch', // 高消耗积分确认开关
-  KEY_YIMAO_PRESET_PROMPTS, // 提示词预设
-]);
-/**
- * 待同步的 localStorage 键 = `getLocalKeys()` 中**在同步白名单内**者。
+/* ── 同步范围：**派生**自 contracts.STORAGE_KEYS 的 `sync` 字段（唯一真源 · TD-13-9 收口）──
+ * 只有「换了设备也希望跟着走」的**设置/配置**类进云；工程数据与 UI 偏好**默认拒绝**
+ * （见文件头【明确不出机器的东西】）。
  *
- * 【为什么是白名单而非黑名单（2026-09-16 翻转）】原实现用 `SYNC_EXCLUDE` 逐个排除，**新增键默认进同步**
- * —— 必须「记得排除」，漏一个就把工程数据/UI 偏好送上了云（用户原话：进云同步很麻烦、不喜欢）。
- * 现翻转为**默认拒绝**：新增任何键都**不会**自动进云，除非显式加进 `SYNC_ALLOW`。
- * 双保险由 `check-arch` 规则 12 机器守卫（`src` 内禁绕过本白名单另起同步清单）。
- *
- * 【为什么工程数据/UI 一律不出机器（用户裁定）】
- *  - **工程数据**（projects / 画布快照 / 剪辑工程 / 3D 工程 / 素材库 / 姿势库）：它们是「数据」不是「设置」，
- *    有各自的跨端真通道（localTool KV / /api/projects），进云同步只会造第二真相源（SSOT 裂痕）。
- *  - **UI 相关**（面板宽度 / 分栏宽 / 缩略图开关 / 小地图 / 折叠态）：跟着**这台机器这个界面**走，
- *    跨设备无意义，同步只会互相污染。
- *  - `app_settings` 是「混合桶」（含 thumbnailOn/minimapOn/agentOpen/pinnedTools 等 UI 开关）→ **整键不同步**
- *    （2026-09-16 裁定：无法只同步其中一半，故整键留本机）。
+ * 【本文件不再持有"谁该同步"的清单（2026-09-16 收口）】此前这里有两份清单：
+ *   `SYNC_ALLOW`（哪些键进云）+ `SYNC_LABELS`（键的可读名）—— 那是把「键的固有属性」
+ *   抄在了消费者手里 ⇒ 与 `contracts.STORAGE_KEYS` **两处维护**（M3 第二份：加一个需同步的键
+ *   要改 2 个文件，且清单型判据必漏）。
+ * 现两件事都下沉为登记表字段（`sync` / `label`），本文件只**派生**：
+ *   · `getSyncKeys()` —— 判据（缺省 = 不同步，红线）
+ *   · `getKeyLabel()` —— 显示名（缺省 = 回退键名）
+ * ⇒ 加一个需同步的键 = **contracts 表里加一行 `sync: true`，本文件 0 改动**（与"备份"那一半
+ *   靠 `getLocalKeys()` 全量派生终于对称）。
  */
-const LS_KEYS = getLocalKeys().filter((k) => SYNC_ALLOW.has(k));
+const LS_KEYS = getSyncKeys();
 
 /**
- * 同步键 → 面向用户的可读名。
- * 冲突清单要让人看懂「到底动了什么」，直接甩存储键名（yimao_preset_prompts）等于没说。
- * 未登记的键兜底显示键名本身——宁可显示原始 key，也绝不静默省略条目（漏报比难看危险）。
+ * 取同步键（或非存储条目 `providers` / `accounts`）的可读名。
+ * 判据真源 = contracts.STORAGE_KEYS 的 `label` 字段；缺省回退键名本身
+ * —— 宁可显示原始 key，也绝不静默省略条目（漏报比难看危险）。
  */
-const SYNC_LABELS: Record<string, string> = {
-  app_settings: '应用设置',
-  scriptbox_playbooks: '剧本盒子 Playbook',
-  agent_chat_model: 'AI 聊天模型配置',
-  agent_history_turns: 'AI 历史回传轮数',
-  agent_skills: '自定义 Skill',
-  agent_skill_usage: 'Skill 使用统计',
-  agent_skill_enabled: 'Skill 启用状态',
-  agent_panel_width: 'AI 面板宽度',
-  agent_input_mode: 'AI 输入模式',
-  yimao_preset_prompts: '提示词预设',
-  yimao_preset_recent: '最近使用预设',
-  yimao_prompt_hub_cache: '提示词社区库缓存',
-  yimao_node_prefs: '节点参数记忆',
-  yimao_accounts: '多开账号环境',
-  providers: 'API 供应商配置',
-};
-
-/** 取同步键的可读名（未登记 → 回退键名） */
 function syncLabel(key: string) {
-  return SYNC_LABELS[key] || key;
+  return getKeyLabel(key);
 }
 
 /**
  * 云同步领域开关（开发者配置常量，集中治理「哪些领域允许进云端」）。
  * KEY 对应 contracts.ts STORAGE_KEYS.entry.domain（如 account，而非存储键名）。
  *  - account：true，账号环境走 KV，需专门上传/下载（见 collectLocal/restoreLocal）。
- *  - 工程数据域（project / videoEditor / director3d / resource）已由 `SYNC_ALLOW` 白名单整体排除，
- *    不经本开关（本开关现仅对 KV 域 accounts 生效）。
+ *  - 工程数据域（project / videoEditor / director3d / resource）已由登记表 `sync` 字段整体排除
+ *    （缺省即不同步），不经本开关（本开关现仅对 KV 域 accounts 生效）。
  * 未在本表登记的领域默认放行（维持既有行为）。
  */
 const SYNC_DOMAIN_SWITCHES: Record<string, boolean> = {

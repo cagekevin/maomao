@@ -1,6 +1,6 @@
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
-import { generateUUID } from '@/components/videoEditor/utils/id';
+import { generateUUID } from '@/components/base/core/idGen.ts';
 import { EditorCore } from '@/components/videoEditor/engine/core';
 import { buildEmptyTrack } from '@/components/videoEditor/engine/timeline/track-utils';
 import { getDefaultInsertIndexForTrack } from '@/components/videoEditor/engine/timeline/track-utils';

@@ -11,7 +11,7 @@ import { useElementSelection } from '@/components/videoEditor/hooks-cutia/timeli
 import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
 import { snapTimeToFrame } from '@/components/videoEditor/engine/lib/time';
 import { computeDropTarget } from '@/components/videoEditor/engine/timeline/drop-utils';
-import { generateUUID } from '@/components/videoEditor/utils/id';
+import { generateUUID } from '@/components/base/core/idGen.ts';
 import { useTimelineSnapping } from '@/components/videoEditor/hooks-cutia/timeline/use-timeline-snapping';
 import type {
   DropTarget,
@@ -25,6 +25,8 @@ const DRAG_THRESHOLD_PX = 5;
 
 interface UseElementInteractionProps {
   zoomLevel: number;
+  /** 轨道高度倍率（TD-21-16）——拖拽落点判定必须与渲染同口径。缺省 = 1。 */
+  trackHeightScale?: number;
   timelineRef: RefObject<HTMLDivElement | null>;
   tracksContainerRef: RefObject<HTMLDivElement | null>;
   tracksScrollRef: RefObject<HTMLDivElement | null>;
@@ -104,6 +106,7 @@ function getDragDropTarget({
   tracksScrollRef,
   headerRef,
   zoomLevel,
+  trackHeightScale,
   snappedTime,
   verticalDragDirection,
 }: {
@@ -116,6 +119,7 @@ function getDragDropTarget({
   tracksScrollRef: RefObject<HTMLDivElement | null>;
   headerRef?: RefObject<HTMLElement | null>;
   zoomLevel: number;
+  trackHeightScale?: number;
   snappedTime: number;
   verticalDragDirection?: 'up' | 'down' | null;
 }): DropTarget | null {
@@ -145,6 +149,7 @@ function getDragDropTarget({
     elementDuration,
     pixelsPerSecond: TIMELINE_CONSTANTS.PIXELS_PER_SECOND,
     zoomLevel,
+    trackHeightScale,
     startTimeOverride: snappedTime,
     excludeElementId: movingElement.id,
     verticalDragDirection,
@@ -161,6 +166,7 @@ interface StartDragParams extends Omit<
 
 export function useElementInteraction({
   zoomLevel,
+  trackHeightScale,
   timelineRef,
   tracksContainerRef,
   tracksScrollRef,
@@ -364,6 +370,7 @@ export function useElementInteraction({
           tracksScrollRef,
           headerRef,
           zoomLevel,
+          trackHeightScale,
           snappedTime,
           verticalDragDirection,
         });
@@ -421,6 +428,7 @@ export function useElementInteraction({
         tracksScrollRef,
         headerRef,
         zoomLevel,
+        trackHeightScale,
         snappedTime: dragState.currentTime,
         verticalDragDirection: getVerticalDragDirection({
           startMouseY: dragState.startMouseY,

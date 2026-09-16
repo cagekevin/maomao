@@ -8,8 +8,12 @@ import type {
   TextTrack,
   TimelineElement,
 } from '@/components/videoEditor/types/timeline';
-import { TRACK_HEIGHTS, TRACK_GAP } from '@/components/videoEditor/constants/timeline-constants';
-import { generateUUID } from '@/components/videoEditor/utils/id';
+import {
+  TRACK_HEIGHTS,
+  TRACK_GAP,
+  clampTrackHeightScale,
+} from '@/components/videoEditor/constants/timeline-constants';
+import { generateUUID } from '@/components/base/core/idGen.ts';
 
 export function canTracktHaveAudio(track: TimelineTrack): track is VideoTrack | AudioTrack {
   return track.type === 'audio' || track.type === 'video';
@@ -26,24 +30,42 @@ export function getTrackClasses({ type }: { type: TrackType }) {
   return `ve-clip-bg-${type}`;
 }
 
-export function getTrackHeight({ type }: { type: TrackType }): number {
-  return TRACK_HEIGHTS[type];
+/**
+ * 轨道高度（基准 × 用户可调倍率）。
+ *
+ * 【TD-21-16 · 2026-09-17】`scale` 缺省 = 1 ⇒ 行为与加此参数前**完全一致**（消费方零改动）。
+ * 倍率由 `TTimelineViewState.trackHeightScale` 提供（用户可调），夹取经 `clampTrackHeightScale`。
+ * 缓存的**只有倍率**，基准高度仍是 `TRACK_HEIGHTS` 单一真源。
+ */
+export function getTrackHeight({ type, scale }: { type: TrackType; scale?: number }): number {
+  return Math.round(TRACK_HEIGHTS[type] * clampTrackHeightScale(scale));
 }
 
 export function getCumulativeHeightBefore({
   tracks,
   trackIndex,
+  scale,
 }: {
   tracks: Array<{ type: TrackType }>;
   trackIndex: number;
+  scale?: number;
 }): number {
   return tracks
     .slice(0, trackIndex)
-    .reduce((sum, track) => sum + getTrackHeight({ type: track.type }) + TRACK_GAP, 0);
+    .reduce((sum, track) => sum + getTrackHeight({ type: track.type, scale }) + TRACK_GAP, 0);
 }
 
-export function getTotalTracksHeight({ tracks }: { tracks: Array<{ type: TrackType }> }): number {
-  const tracksHeight = tracks.reduce((sum, track) => sum + getTrackHeight({ type: track.type }), 0);
+export function getTotalTracksHeight({
+  tracks,
+  scale,
+}: {
+  tracks: Array<{ type: TrackType }>;
+  scale?: number;
+}): number {
+  const tracksHeight = tracks.reduce(
+    (sum, track) => sum + getTrackHeight({ type: track.type, scale }),
+    0,
+  );
   const gapsHeight = Math.max(0, tracks.length - 1) * TRACK_GAP;
   return tracksHeight + gapsHeight;
 }

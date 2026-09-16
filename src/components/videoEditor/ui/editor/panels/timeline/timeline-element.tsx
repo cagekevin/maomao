@@ -80,6 +80,8 @@ interface TimelineElementProps {
   element: TimelineElementType;
   track: TimelineTrack;
   zoomLevel: number;
+  /** 轨道高度倍率（TD-21-16）——胶片条等按高度渲染的内容必须与轨道同口径。缺省 = 1。 */
+  trackHeightScale?: number;
   isSelected: boolean;
   onSnapPointChange?: (snapPoint: SnapPoint | null) => void;
   onResizeStateChange?: (params: { isResizing: boolean }) => void;
@@ -92,6 +94,7 @@ export function TimelineElement({
   element,
   track,
   zoomLevel,
+  trackHeightScale,
   isSelected,
   onSnapPointChange,
   onResizeStateChange,
@@ -172,6 +175,7 @@ export function TimelineElement({
             element={element}
             track={track}
             zoomLevel={zoomLevel}
+            trackHeightScale={trackHeightScale}
             isSelected={isSelected}
             isBeingDragged={isBeingDragged}
             hasAudio={hasAudio}
@@ -269,6 +273,7 @@ function ElementInner({
   element,
   track,
   zoomLevel,
+  trackHeightScale,
   isSelected,
   isBeingDragged,
   hasAudio,
@@ -281,6 +286,8 @@ function ElementInner({
   element: TimelineElementType;
   track: TimelineTrack;
   zoomLevel: number;
+  /** 轨道高度倍率（TD-21-16）——透传给 ElementContent 的胶片条，须与轨道同口径。 */
+  trackHeightScale?: number;
   isSelected: boolean;
   isBeingDragged: boolean;
   hasAudio: boolean;
@@ -311,6 +318,7 @@ function ElementInner({
             element={element}
             track={track}
             zoomLevel={zoomLevel}
+            trackHeightScale={trackHeightScale}
             mediaAssets={mediaAssets}
           />
         </div>
@@ -377,11 +385,14 @@ function ElementContent({
   element,
   track,
   zoomLevel,
+  trackHeightScale,
   mediaAssets,
 }: {
   element: TimelineElementType;
   track: TimelineTrack;
   zoomLevel: number;
+  /** 轨道高度倍率（TD-21-16）——胶片条按此渲染，与轨道同口径。缺省 = 1。 */
+  trackHeightScale?: number;
   mediaAssets: MediaAsset[];
 }) {
   // TD-22-52：片段缩略图走 maomao 统一图片出口（服务端按需出小图 + 尊重「显示缩略图」开关）
@@ -452,7 +463,9 @@ function ElementContent({
   }
 
   if (mediaAsset.type === 'video' && mediaAsset.file) {
-    const trackHeight = getTrackHeight({ type: track.type });
+    // 走 getTrackHeight（唯一高度入口）而非 TRACK_HEIGHTS：轨道高度可调后，
+    // 胶片条必须与轨道同口径，否则"轨道变高了、胶片条还按基准"会错位（TD-21-16）。
+    const trackHeight = getTrackHeight({ type: track.type, scale: trackHeightScale });
     const elementWidth = element.duration * TIMELINE_CONSTANTS.PIXELS_PER_SECOND * zoomLevel;
 
     return (

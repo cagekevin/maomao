@@ -21,6 +21,8 @@ import {
   Link,
   ZoomOut,
   ZoomIn,
+  Rows3,
+  Rows4,
 } from 'lucide-react';
 
 import { Slider } from '@/components/videoEditor/ui/ui/slider';
@@ -37,10 +39,15 @@ export function TimelineToolbar({
   zoomLevel,
   minZoom,
   setZoomLevel,
+  trackHeightScale,
+  setTrackHeightScale,
 }: {
   zoomLevel: number;
   minZoom: number;
   setZoomLevel: ({ zoom }: { zoom: number }) => void;
+  /** 轨道高度倍率（TD-21-16 · 用户可调）。 */
+  trackHeightScale: number;
+  setTrackHeightScale: (scale: number) => void;
 }) {
   const handleZoom = ({ direction }: { direction: 'in' | 'out' }) => {
     const newZoomLevel =
@@ -48,6 +55,15 @@ export function TimelineToolbar({
         ? Math.min(TIMELINE_CONSTANTS.ZOOM_MAX, zoomLevel * TIMELINE_CONSTANTS.ZOOM_BUTTON_FACTOR)
         : Math.max(minZoom, zoomLevel / TIMELINE_CONSTANTS.ZOOM_BUTTON_FACTOR);
     setZoomLevel({ zoom: newZoomLevel });
+  };
+
+  // 高度步进：夹取由 setTrackHeightScale → clampTrackHeightScale 统一负责，此处不重复判边界。
+  const handleTrackHeight = ({ direction }: { direction: 'in' | 'out' }) => {
+    const step =
+      direction === 'in'
+        ? TIMELINE_CONSTANTS.TRACK_HEIGHT_SCALE_STEP
+        : -TIMELINE_CONSTANTS.TRACK_HEIGHT_SCALE_STEP;
+    setTrackHeightScale(trackHeightScale + step);
   };
 
   return (
@@ -60,6 +76,7 @@ export function TimelineToolbar({
           minZoom={minZoom}
           onZoomChange={(zoom) => setZoomLevel({ zoom })}
           onZoom={handleZoom}
+          onTrackHeight={handleTrackHeight}
         />
       </div>
     </ScrollArea>
@@ -145,11 +162,13 @@ function ToolbarRightSection({
   minZoom,
   onZoomChange,
   onZoom,
+  onTrackHeight,
 }: {
   zoomLevel: number;
   minZoom: number;
   onZoomChange: (zoom: number) => void;
   onZoom: (options: { direction: 'in' | 'out' }) => void;
+  onTrackHeight: (options: { direction: 'in' | 'out' }) => void;
 }) {
   const { snappingEnabled, rippleEditingEnabled, toggleSnapping, toggleRippleEditing } =
     useTimelineStore();
@@ -202,6 +221,24 @@ function ToolbarRightSection({
           <ZoomIn />
         </Button>
       </div>
+
+      <div className="bg-border mx-1 h-6 w-px" />
+
+      {/* 【TD-21-16】轨道高度可调：与缩放同形的 ⊖/⊕ 两键步进（夹取在 setter 内统一负责）。 */}
+      <TooltipProvider delayDuration={300}>
+        <div className="flex items-center gap-1">
+          <ToolbarButton
+            icon={<Rows3 />}
+            tooltip={'降低轨道高度'}
+            onClick={() => onTrackHeight({ direction: 'out' })}
+          />
+          <ToolbarButton
+            icon={<Rows4 />}
+            tooltip={'增加轨道高度'}
+            onClick={() => onTrackHeight({ direction: 'in' })}
+          />
+        </div>
+      </TooltipProvider>
     </div>
   );
 }

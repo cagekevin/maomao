@@ -36,6 +36,14 @@ export interface TTimelineViewState {
   zoomLevel: number;
   scrollLeft: number;
   playheadTime: number;
+  /**
+   * 轨道高度倍率（用户可调 · TD-21-16）。
+   *
+   * 存**倍率**而非绝对像素：各 track type 的基准高度是分类型的（video 60 / text 25 / audio·sticker 50，
+   * 见 `TRACK_HEIGHTS`），存倍率可让"同一次拖拽"按各类型等比缩放，且将来改基准不会让存量视图失真。
+   * 缺省 = 1（不写字段即原始高度，与旧工程天然一致）。
+   */
+  trackHeightScale?: number;
 }
 
 /**

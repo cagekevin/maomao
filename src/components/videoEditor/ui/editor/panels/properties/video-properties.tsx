@@ -7,7 +7,7 @@ import { Minus, Plus } from 'lucide-react';
 
 import { PanelBaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup, PropertyItem, PropertyItemLabel, PropertyItemValue } from './property-item';
-import { clamp } from '@/components/videoEditor/utils/math';
+import { clamp } from '@/components/base/core/utils.ts';
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import { useDraftCommit } from './use-draft-commit';
 import type { ImageElement, VideoElement } from '@/components/videoEditor/types/timeline';
@@ -122,7 +122,7 @@ export function VideoProperties({
     format: (v) => v.toString(),
     parse: (raw) => {
       const parsed = parseInt(raw, 10);
-      return Number.isNaN(parsed) ? null : clamp({ value: parsed, min: 10, max: 500 });
+      return Number.isNaN(parsed) ? null : clamp(parsed, 10, 500);
     },
     commit: (percent, pushHistory) =>
       updateTransform({ updates: { scale: percent / 100 }, pushHistory }),
@@ -145,7 +145,7 @@ export function VideoProperties({
     format: (v) => v.toString(),
     parse: (raw) => {
       const parsed = parseInt(raw, 10);
-      return Number.isNaN(parsed) ? null : clamp({ value: parsed, min: 0, max: 100 });
+      return Number.isNaN(parsed) ? null : clamp(parsed, 0, 100);
     },
     commit: (percent, pushHistory) =>
       editor.timeline.updateElements({

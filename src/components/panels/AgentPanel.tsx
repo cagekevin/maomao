@@ -67,9 +67,13 @@ import {
   ENABLED_KEY,
   type Skill,
 } from '../base/store/skillStore.ts';
+// 面板宽度键真源（TD-13-7：本面板不再自持第二份键字面量）
+import { KEY_AGENT_PANEL_WIDTH } from '../base/core/contracts.ts';
 import { contentGet, contentSet, contentSubscribe } from '../base/core/contentStore.ts';
 import { toAbsoluteFileUrl } from '../base/api/index.ts';
 import { fileToDataUrl } from '../base/utils/assetUrl.ts';
+// 判型唯一入口（TD-16-18 收口）：附件筛选曾手写 `f.type.startsWith('image/')`，现走 detectFileType。
+import { detectFileType } from '../base/utils/assetType.ts';
 import { runNodeGeneration } from '../base/store/taskStore.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { askConfirm } from '../base/core/confirmStore.ts';
@@ -190,7 +194,7 @@ function AttMediaChip({
  */
 
 // 模型列表来自所选厂商在设置里实际配置的 chat_models（不再用 AGENT_MODELS 兜底）
-const PANEL_WIDTH_KEY = 'agent_panel_width';
+const PANEL_WIDTH_KEY = KEY_AGENT_PANEL_WIDTH;
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 1180;
 const DEFAULT_WIDTH = 400;
@@ -1052,7 +1056,7 @@ export default function AgentPanel({
           }
           continue;
         }
-        if (!f.type.startsWith('image/')) continue;
+        if (detectFileType(f) !== 'image') continue;
         const localUrl = previewUrls.create(f);
         try {
           const dataUrl = await fileToDataUrl(f);

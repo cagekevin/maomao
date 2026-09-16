@@ -27,6 +27,9 @@ import { generateId } from '../base/core/idGen.ts';
 import { downloadUrl as clipboardDownload } from '../base/utils/clipboard.ts';
 
 import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
+// 判型唯一入口（TD-16-17/18 收口）：本文件曾 5 处手写 `startsWith('http')||startsWith('data:image')`
+// 与 `f.type.startsWith('image/')`，绕过 assetType 真值源 —— 现统一走 isAssetUrl / detectFileType。
+import { isAssetUrl, detectFileType } from '../base/utils/assetType.ts';
 // §5.4.9 图像入节点落盘策略唯一实现：File 源走 resolveNodeAssetUrl（multipart 直传 → /files/ 持久 URL）
 import { resolveNodeAssetUrl } from '../base/api/filesApi.ts';
 
@@ -263,9 +266,11 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
     const list: { id: string; url: string }[] = [];
     // 直接上游 assetUrl（assetNode / imageGenerateNode 等）
     connected.images.forEach((img) => {
+      // 判据 = 同一入口：能作图片源的 URL（http/data/blob）且按扩展名/mime 判为 image。
       if (
         typeof img.url === 'string' &&
-        (img.url.startsWith('http') || img.url.startsWith('data:image'))
+        isAssetUrl(img.url) &&
+        detectFileType({ name: img.url }) === 'image'
       ) {
         list.push({ id: `up-${img.id}`, url: img.url });
       }
@@ -293,7 +298,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
 
   // ---- 文件读取（对齐 §5.4.9 落盘唯一实现：File 源走 resolveNodeAssetUrl，禁止把整图 dataURL 塞进 node.data）----
   const readFiles = useCallback((files: FileList | File[]) => {
-    const list = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    const list = Array.from(files).filter((f) => /\.(png|jpe?g|gif|webp)$/.test(f.name));
     // 委托 filesApi.resolveNodeAssetUrl：multipart 直传 → 持久 /files/ URL；
     // 仅「上传失败且读不出内联」才兜底 dataURL（极端情形，符合契约降级语义）。
     // 这样 node.data.images[].url 只存持久 URL，快照不再内联整图 → 消除 TD-10 快照膨胀。
@@ -326,7 +331,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable))
         return;
       const files = Array.from(e.clipboardData.items)
-        .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
+        .filter((it) => it.kind === 'file' && detectFileType({ type: it.type }) === 'image')
         .map((it) => it.getAsFile())
         .filter((it): it is File => it != null);
       if (files.length > 0) {
@@ -338,7 +343,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
         return;
       }
       const text = e.clipboardData.getData('text/plain').trim();
-      if (text && (text.startsWith('http') || text.startsWith('data:image/'))) {
+      if (text && isAssetUrl(text) && detectFileType({ name: text }) === 'image') {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -368,7 +373,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
         }
       }
       const text = e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('text/uri-list');
-      if (text && (text.startsWith('http') || text.startsWith('data:image/'))) {
+      if (text && isAssetUrl(text) && detectFileType({ name: text }) === 'image') {
         addImages([{ url: text, source: 'drop' }]);
       }
     },

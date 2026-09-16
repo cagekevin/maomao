@@ -6,7 +6,7 @@ import type {
   MediaAsset,
 } from '@/components/videoEditor/types/assets';
 import { storageService } from '@/components/videoEditor/engine/services/storage/service';
-import { generateUUID } from '@/components/videoEditor/utils/id';
+import { generateUUID } from '@/components/base/core/idGen.ts';
 import { videoCache } from '@/components/videoEditor/engine/services/video-cache/service';
 import { collectElementsByMediaId } from '@/components/videoEditor/engine/timeline/element-utils';
 import { toast } from '@/components/videoEditor/lib/toast';

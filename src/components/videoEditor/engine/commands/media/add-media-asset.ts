@@ -2,7 +2,7 @@ import { logger } from '@/components/videoEditor/lib/logger';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import { EditorCore } from '@/components/videoEditor/engine/core';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
-import { generateUUID } from '@/components/videoEditor/utils/id';
+import { generateUUID } from '@/components/base/core/idGen.ts';
 import { storageService } from '@/components/videoEditor/engine/services/storage/service';
 
 export class AddMediaAssetCommand extends Command {

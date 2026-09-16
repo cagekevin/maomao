@@ -54,9 +54,11 @@ import type { AssistantTableJson, AssistantTableTabs, CellRange } from './assist
 export type { CellRange };
 import { pushHistory } from './tableHistory.ts';
 import { showToast } from '../../base/core/toastStore.ts';
+// 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
+import { KEY_AGENT_SPLIT_WIDTH } from '../../base/core/contracts.ts';
 
-/** 左面板宽度记忆键（沿用拆分前「左表 | 右对话」分栏键，避免旧数据丢失；STORAGE_KEYS 已登记） */
-const WIDTH_KEY = 'agent_split_width';
+/** 左面板宽度记忆键（沿用拆分前「左表 | 右对话」分栏键，避免旧数据丢失；值 = contracts 真源） */
+const WIDTH_KEY = KEY_AGENT_SPLIT_WIDTH;
 const WIDTH_MIN = 360;
 const WIDTH_MAX = 1080;
 const WIDTH_DEFAULT = 600;

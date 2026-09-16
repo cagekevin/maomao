@@ -7,7 +7,7 @@ import { Minus, Plus } from 'lucide-react';
 
 import { PanelBaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup, PropertyItem, PropertyItemLabel, PropertyItemValue } from './property-item';
-import { clamp } from '@/components/videoEditor/utils/math';
+import { clamp } from '@/components/base/core/utils.ts';
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import { useDraftCommit } from './use-draft-commit';
 import type { AudioElement } from '@/components/videoEditor/types/timeline';
@@ -69,7 +69,7 @@ export function AudioProperties({
     format: (v) => v.toString(),
     parse: (raw) => {
       const parsed = parseInt(raw, 10);
-      return Number.isNaN(parsed) ? null : clamp({ value: parsed, min: 0, max: 200 });
+      return Number.isNaN(parsed) ? null : clamp(parsed, 0, 200);
     },
     commit: (percent, pushHistory) =>
       updateElement({ updates: { volume: percent / 100 }, pushHistory }),

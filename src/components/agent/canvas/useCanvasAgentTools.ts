@@ -43,7 +43,11 @@ import { contentGet, contentSet } from '../../base/core/contentStore.ts';
 import { generateId } from '../../base/core/idGen.ts';
 import { logger } from '../../base/core/logger.ts';
 import { publish } from '../../base/core/eventBus.ts';
-import { CREDIT_SWITCH_KEY, CREDIT_GATE_EVENT } from '../../base/core/contracts.ts';
+import {
+  CREDIT_SWITCH_KEY,
+  CREDIT_GATE_EVENT,
+  KEY_CANVAS_AGENT_GEN_PARAMS,
+} from '../../base/core/contracts.ts';
 
 /* ════════════════════════════════════════════════════════════════
  * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。
@@ -56,7 +60,7 @@ import { CREDIT_SWITCH_KEY, CREDIT_GATE_EVENT } from '../../base/core/contracts.
  * useAgentChat → useCanvasAgentTools 链路过长、改动大。模块级单例符合 currentTaskId 既有模式。
  * 注：模型 value 用 providerId::modelId（对齐 buildAllModels/resolveProviderModel）。
  */
-const GEN_PARAMS_KEY = 'canvasAgentGenParams';
+const GEN_PARAMS_KEY = KEY_CANVAS_AGENT_GEN_PARAMS;
 const DEFAULT_GEN_PARAMS = { model: '', ratio: 'Auto', resolution: '1K' };
 /** 惰性加载持久化的生图参数（对齐大雄「设为默认」持久化；刷新/重启不丢） */
 function loadGenParams() {

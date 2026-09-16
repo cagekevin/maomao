@@ -33,7 +33,7 @@ import { useReducer, useRef } from 'react';
  *   format: (v) => v.toString(),
  *   parse: (raw) => {
  *     const n = parseInt(raw, 10);
- *     return Number.isNaN(n) ? null : clamp({ value: n, min: MIN_FONT_SIZE, max: MAX_FONT_SIZE });
+ *     return Number.isNaN(n) ? null : clamp(n, MIN_FONT_SIZE, MAX_FONT_SIZE);
  *   },
  *   commit: (fontSize, pushHistory) =>
  *     editor.timeline.updateElements({ updates: buildBatchUpdates({ fontSize }), pushHistory }),

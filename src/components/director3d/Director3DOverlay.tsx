@@ -3,6 +3,8 @@ import { Director3DApp } from './App.tsx';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
 import './styles.css';
 import FullscreenShell from '../base/panels/FullscreenShell.tsx';
+// 键前缀真源（TD-13-6：本处不再裸拼 director3d-project- 字面量）
+import { DIRECTOR3D_PROJECT_PREFIX } from '../base/core/contracts.ts';
 
 /**
  * Director3DOverlay：把 3D 导演台白膜预演作为全屏 overlay 嵌入画布节点。
@@ -32,7 +34,8 @@ export function Director3DOverlay({ nodeId, onExit }: Director3DOverlayProps) {
   const capturesRef = useRef<CaptureItem[]>([]);
   const thumbnailRef = useRef<string | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const storageKey = nodeId ? `director3d-project-${nodeId}` : null;
+  // 动态键 = 前缀 + '-' + nodeId（前缀本身不带横线，默认键即前缀）
+  const storageKey = nodeId ? `${DIRECTOR3D_PROJECT_PREFIX}-${nodeId}` : null;
 
   // 挂载期间：拦截画布的鼠标/滚轮/拖拽/粘贴事件，避免画布被误操作。
   // - pointer/wheel：仅当目标在 overlay 外（画布）时拦截，不影响 3D 导演台内部。

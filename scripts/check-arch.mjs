@@ -1282,7 +1282,7 @@ if (assertScanned('跨源裁决唯一单点（src 全域）', crossOriginScanned
 console.log('\n☁️ 云同步范围白名单：getLocalKeys() 只允许 2 个合法消费者（反向判据）');
 const GETLOCALKEYS_LEGIT = new Set([
   'src/components/base/core/contracts.ts', // 定义处本身（唯一真源）
-  'src/components/base/store/cloudSync.ts', // 云同步范围（∩ SYNC_ALLOW）
+  'src/components/base/store/cloudSync.ts', // 云同步范围（∩ getSyncKeys()）
   'src/components/base/store/backupStore.ts', // 备份范围（全量；备份 ≠ 同步）
 ]);
 let getLocalKeysViol = 0;
@@ -1304,13 +1304,75 @@ for (const f of files) {
     if (/\bgetLocalKeys\s*\(/.test(line)) {
       getLocalKeysViol++;
       fail(
-        `云同步范围第二份: ${rel}:${i + 1} → 调用了 getLocalKeys()（唯一合法消费者 = cloudSync.ts(∩SYNC_ALLOW) / backupStore.ts(全量)）`,
+        `云同步范围第二份: ${rel}:${i + 1} → 调用了 getLocalKeys()（唯一合法消费者 = cloudSync.ts(∩getSyncKeys()) / backupStore.ts(全量)）`,
       );
     }
   }
 }
 if (assertScanned('云同步范围白名单（src 全域）', getLocalKeysScanned) && !getLocalKeysViol) {
   console.log(`  ✅ getLocalKeys() 仅 2 个合法消费者（扫 ${getLocalKeysScanned} 文件）`);
+}
+
+// 规则 12-b（2026-09-16 · TD-13-9 收口）：**cloudSync 内禁出现具体存储键名** —— 同步范围只许派生。
+//
+// 【为什么（这是 TD-13-9 的真解，比规则 12 更强的判据）】原实现把「哪些键进云」抄成
+//   `cloudSync.ts` 的 `SYNC_ALLOW` 白名单集合 + `SYNC_LABELS` 显示名清单：
+//     · 与 `contracts.STORAGE_KEYS` **两处维护**（加一个需同步的键要改 2 个文件）；
+//     · **清单型判据必漏**（本仓规则 2/4/10/12 已四次从清单改回反向判据）。
+//   现判据下沉为登记表字段（`sync` / `label`），cloudSync 只派生（`getSyncKeys()` / `getKeyLabel()`）。
+//   ⇒ **cloudSync 里再出现任何一个具体键名字面量 = 第二份清单在回潮**，本规则当场红。
+//
+// 【判据（反向）】`cloudSync.ts` 源码内出现**已登记固定键的字面量**（照 STORAGE_KEYS 推导，
+//   故新增键自动纳入、无需改本规则）→ 违规。注释里的引用不算（只扫源码文本的字符串字面量）。
+//   · 豁免：本文件头/注释中的举例是**文档**，不是判据 —— 逐行跳过注释行。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n☁️ 云同步只许派生：cloudSync 内禁出现具体存储键名（反向判据）');
+const CLOUDSYNC_REL = 'src/components/base/store/cloudSync.ts';
+// 自持一份「已登记固定键」集合（勿依赖规则 15 的常量 —— 那在本规则之后才初始化）。
+const SYNC_GUARD_FIXED_KEYS = new Set();
+try {
+  const mod = await import(pathToFileURL(join(SRC, 'components/base/core/contracts.ts')).href);
+  for (const [k, v] of Object.entries(mod.STORAGE_KEYS || {})) {
+    if (!v || v.pattern || k.includes('{')) continue;
+    SYNC_GUARD_FIXED_KEYS.add(k);
+  }
+} catch (e) {
+  console.log('  ⚠ 规则 12-b 无法加载 contracts.ts 的 STORAGE_KEYS（' + e.message + '）');
+}
+let cloudKeyViol = 0;
+{
+  const abs = join(root, CLOUDSYNC_REL);
+  if (!existsSync(abs)) {
+    fail(`规则 12-b 目标文件不存在: ${CLOUDSYNC_REL}（文件改名/搬迁 ⇒ 本规则空转，勿当通过）`);
+  } else if (SYNC_GUARD_FIXED_KEYS.size === 0) {
+    fail('规则 12-b 解析源为空：未取到任何已登记固定键 → 本规则未生效（勿当通过）');
+  } else {
+    const lines = readFileSync(abs, 'utf8').split('\n');
+    const KEY_LITERAL_RE = /(['"])([a-zA-Z0-9_.-]+)\1/g;
+    for (const [i, line] of lines.entries()) {
+      const trimmed = line.trim();
+      if (
+        trimmed.startsWith('//') ||
+        trimmed.startsWith('*') ||
+        trimmed.startsWith('/*') ||
+        trimmed.startsWith('*/')
+      )
+        continue;
+      for (const m of line.matchAll(KEY_LITERAL_RE)) {
+        const lit = m[2];
+        if (!SYNC_GUARD_FIXED_KEYS.has(lit)) continue;
+        cloudKeyViol++;
+        fail(
+          `云同步范围第二份回潮: ${CLOUDSYNC_REL}:${i + 1} → 出现具体存储键 '${lit}'` +
+            `（同步范围必须派生 = contracts.STORAGE_KEYS 的 sync/label 字段；` +
+            `本文件只许调 getSyncKeys()/getKeyLabel()，不得持键名清单）`,
+        );
+      }
+    }
+  }
+}
+if (!cloudKeyViol) {
+  console.log(`  ✅ cloudSync 内无具体存储键名（同步范围纯派生自登记表）`);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1406,6 +1468,8 @@ const MEDIA_SSOT = new Set([
 // ① 媒体扩展名「列举」正则：`\.(png|jpe?g|gif|…)` —— ≥2 个分支才算列举（单个 `\.(mp4)$` 不算表）。
 //    ⚠️ 只拦**与 EXT_KIND 真值源重叠**的列举（媒体/文本类）；域专用扩展名（如 3D 模型的 glb/gltf、
 //    推理运行时的 wasm/onnx）**不属**本母体，不算违规 —— 见下方 `EXT_KIND_MEMBERS` 交集判定。
+//    【读法】`\\` = 字面反斜杠，`\.` = 字面点号，`\(` = 字面左括号 ⇒ 本正则 = 「反斜杠 + . + ( 扩展名列举」，
+//    与源码里正则字面量 `/\.(png|jpg)$/` 的写法（单反斜杠）**一致**。
 const MEDIA_EXT_LIST_RE = /\\\.\(([a-z0-9|]{2,})\)/;
 // ② 裸文件名提取：`.pathname.split('/').pop()`（未走原语）
 const RAW_NAME_EXTRACT_RE = /\.pathname\s*\.\s*split\(\s*['"]\/['"]\s*\)\s*\.\s*pop\(/;
@@ -1561,6 +1625,101 @@ if (existsSync(BACKEND_SRC)) {
 }
 if (!backendGuessViol) {
   console.log('  ✅ 后端无「extname(...) || 媒体后缀」静默猜格式');
+}
+
+// 规则 15（2026-09-16 · M7 母体止血 · TD-13-7/11/12）：**已登记存储键禁裸字面量传 contentStore**。
+//
+// 【为什么必须有（这是 TD-13-4/13-7 反复复发的真正原因）】`contracts.ts` 文件头写着
+//   「新增键→先在此登记，禁止散落字符串字面量」，但既有 `check:keys` 只校验**「登记没登记」**，
+//   对「**已登记的键又被消费层抄成第二份字面量 / 本地 const**」完全无感 —— 红线只写在注释里（M2 母体）。
+//   实证：TD-13-4 收口 7 把 `yimao_*` 后，剩下的 `agent_skills` 等 9 把继续散落 8 个模块
+//   （skillStore / agentModelStore / scriptBoxPlaybookStore / providerStore / VideoExtractNode /
+//    tableWorkspaceState / AgentPanel / cloudSync / useCanvasAgentTools）→ 与登记表两份维护。
+//   一旦改名只改一处，`getLocalKeys()` 派生的**备份 / 云同步清单即漂移** → 漏备 / 误还原（数据完整性）。
+//
+// 【判据（反向）】src 全域（contracts.ts 自身豁免）内，凡把**已登记固定键的字面量**直接传给
+//   contentStore 家族（contentGet/Set/Delete(+Async)/contentSubscribe/contentReadThrough）
+//   的第一实参 → 违规。应当 `import` contracts 的命名 const 引用。
+//   · 只拦**已登记的固定键字面量**（照 STORAGE_KEYS 清单推导）⇒ 新增键自动纳入，无需再改本闸；
+//   · 动态模板键（含 `{占位}`）无法导出简单 const，不在判据内（由规则 7 的前缀求值另管）；
+//   · 消费方 re-export 的常量（如 skillStore.SKILLS_KEY）是**合法出口**，不拦 —— 本闸只认字面量本身。
+//   · 「怎么修若被拦」→ 去 contracts.ts 取命名 const，**不要**在消费方再声明一个同值本地 const
+//     （那正是本闸要禁的第二份）。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n🔑 已登记存储键禁裸字面量传 contentStore（反向判据 · M7 止血）');
+const STORAGE_FNS_FOR_KEY = new Set([
+  'contentGet',
+  'contentSet',
+  'contentDelete',
+  'contentHas',
+  'contentGetAsync',
+  'contentSetAsync',
+  'contentDeleteAsync',
+  'contentSubscribe',
+  'contentReadThrough',
+]);
+// 已登记的「固定键」字面量集合（含 pattern 模板但以字面量形态出现的固定段不算；只取真正的固定键名）。
+const REGISTERED_FIXED_KEYS = new Set();
+try {
+  const mod = await import(pathToFileURL(join(SRC, 'components/base/core/contracts.ts')).href);
+  for (const [k, v] of Object.entries(mod.STORAGE_KEYS || {})) {
+    if (!v || v.pattern) continue; // 动态模板键不在本判据（无法导出简单 const）
+    if (k.includes('{')) continue;
+    REGISTERED_FIXED_KEYS.add(k);
+  }
+} catch (e) {
+  console.log('  ⚠ 规则 15 无法加载 contracts.ts 的 STORAGE_KEYS（' + e.message + '）');
+}
+if (REGISTERED_FIXED_KEYS.size === 0) {
+  fail('规则 15 解析源为空：未能从 contacts.ts STORAGE_KEYS 取到任何固定键 → 本规则未生效（勿当通过）');
+}
+const CONTRACTS_REL = 'src/components/base/core/contracts.ts';
+let literalKeyViol = 0;
+let literalKeyScanned = 0;
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  literalKeyScanned++;
+  if (rel === CONTRACTS_REL) continue; // 真源自身豁免
+  let ast;
+  try {
+    ast = parse(readFileSync(f, 'utf8'), {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: true,
+    });
+  } catch {
+    continue;
+  }
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (n.type === 'CallExpression') {
+      const c = n.callee;
+      const name =
+        c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' ? c.property?.name : null;
+      if (name && STORAGE_FNS_FOR_KEY.has(name) && n.arguments?.length) {
+        const a = n.arguments[0];
+        if (a.type === 'StringLiteral' && REGISTERED_FIXED_KEYS.has(a.value)) {
+          literalKeyViol++;
+          fail(
+            `已登记存储键被裸字面量重写: ${rel}:${n.loc?.start?.line} → ${name}('${a.value}')` +
+              `（须 import contracts.ts 的命名 const 引用；禁在消费层再声明第二份同值 const）`,
+          );
+        }
+      }
+    }
+    for (const k in n)
+      if (k !== 'loc' && k !== 'range' && typeof n[k] === 'object' && n[k] !== null) walk(n[k]);
+  };
+  walk(ast.program);
+}
+if (
+  assertScanned('已登记存储键唯一入口（src 全域）', literalKeyScanned) &&
+  !literalKeyViol
+) {
+  console.log(
+    `  ✅ 无裸字面量重写已登记存储键（扫 ${literalKeyScanned} 文件；均引用 contracts 命名 const）`,
+  );
 }
 
 // 规则 14（2026-09-16 · TD-08-19）：**跨栈契约常量对账** —— 前端 / 后端各持一份、值必须相等。

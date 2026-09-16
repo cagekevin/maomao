@@ -17,9 +17,10 @@ import { classifyError } from '../base/utils/genErrors.ts';
 import previewUrls from '../base/utils/previewUrl.ts';
 import { drawVideoFrame, setCrossOriginForReadable } from '../base/utils/captureFrame.ts';
 import { fileNameFromUrl } from '../base/core/utils.ts';
+import { KEY_MULTIWINDOW_CLIPBOARD } from '../base/core/contracts.ts';
 
-/** 多窗口剪贴板存储键（contracts.ts STORAGE_KEYS 登记，集中避免裸键） */
-const MULTIWINDOW_CLIPBOARD_KEY = 'mutiwindow-clipboard';
+/** 多窗口剪贴板存储键（值 = contracts 真源 · TD-13-7：本节点不再自持第二份字面量） */
+const MULTIWINDOW_CLIPBOARD_KEY = KEY_MULTIWINDOW_CLIPBOARD;
 
 /**
  * 视频抽帧节点（复刻官方 ec.jsx / videoExtractNode）。

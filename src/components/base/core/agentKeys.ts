@@ -30,3 +30,11 @@ export function agentConversationsKey(agentKey: string): string {
 export function agentActiveConversationKey(agentKey: string): string {
   return `agent_active_conversation_id_${agentKey}`;
 }
+
+/**
+ * agentKey → 项目长期记忆存储键（契约登记见 contracts.ts `agent_project_memory_v1_{agentKey}`）。
+ * TD-13-5：此前 `projectMemoryStore.ts:58` 本地裸拼模板，绕开本构造器真源（M7 第二份）。
+ */
+export function agentProjectMemoryKey(agentKey: string): string {
+  return `agent_project_memory_v1_${agentKey}`;
+}

@@ -21,12 +21,15 @@ interface UseTimelineDragDropProps {
   containerRef: RefObject<HTMLDivElement | null>;
   headerRef?: RefObject<HTMLElement | null>;
   zoomLevel: number;
+  /** 轨道高度倍率（TD-21-16）——外部拖入的落点判定必须与渲染同口径。缺省 = 1。 */
+  trackHeightScale?: number;
 }
 
 export function useTimelineDragDrop({
   containerRef,
   headerRef,
   zoomLevel,
+  trackHeightScale,
 }: UseTimelineDragDropProps) {
   const editor = useEditor();
   const [isDragOver, setIsDragOver] = useState(false);
@@ -125,6 +128,7 @@ export function useTimelineDragDrop({
         elementDuration: duration,
         pixelsPerSecond: TIMELINE_CONSTANTS.PIXELS_PER_SECOND,
         zoomLevel,
+        trackHeightScale,
       });
 
       target.xPosition = getSnappedTime({ time: target.xPosition });
@@ -318,6 +322,7 @@ export function useTimelineDragDrop({
           elementDuration: duration,
           pixelsPerSecond: TIMELINE_CONSTANTS.PIXELS_PER_SECOND,
           zoomLevel,
+          trackHeightScale,
         });
 
         const trackType: TrackType = mediaAsset.type === 'audio' ? 'audio' : 'video';

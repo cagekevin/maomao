@@ -6,12 +6,20 @@ interface DragLineProps {
   tracks: TimelineTrack[];
   isVisible: boolean;
   headerHeight?: number;
+  /** 轨道高度倍率（TD-21-16）——落点线 Y 必须与渲染同口径。缺省 = 1。 */
+  trackHeightScale?: number;
 }
 
-export function DragLine({ dropTarget, tracks, isVisible, headerHeight = 0 }: DragLineProps) {
+export function DragLine({
+  dropTarget,
+  tracks,
+  isVisible,
+  headerHeight = 0,
+  trackHeightScale,
+}: DragLineProps) {
   if (!isVisible || !dropTarget) return null;
 
-  const y = getDropLineY({ dropTarget, tracks });
+  const y = getDropLineY({ dropTarget, tracks, scale: trackHeightScale });
   const lineTop = y + headerHeight;
 
   return (

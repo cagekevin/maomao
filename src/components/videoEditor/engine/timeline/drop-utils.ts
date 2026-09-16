@@ -1,22 +1,26 @@
 import type { TimelineTrack, ElementType } from '@/components/videoEditor/types/timeline';
-import { TRACK_HEIGHTS, TRACK_GAP } from '@/components/videoEditor/constants/timeline-constants';
+import { TRACK_GAP } from '@/components/videoEditor/constants/timeline-constants';
 import { wouldElementOverlap } from './element-utils';
 import type { ComputeDropTargetParams, DropTarget } from '@/components/videoEditor/types/timeline';
-import { isMainTrack, enforceMainTrackStart } from './track-utils';
+import { isMainTrack, enforceMainTrackStart, getTrackHeight } from './track-utils';
 
 function getTrackAtY({
   mouseY,
   tracks,
   verticalDragDirection,
+  scale,
 }: {
   mouseY: number;
   tracks: TimelineTrack[];
   verticalDragDirection?: 'up' | 'down' | null;
+  scale?: number;
 }): { trackIndex: number; relativeY: number } | null {
   let cumulativeHeight = 0;
 
   for (let i = 0; i < tracks.length; i++) {
-    const trackHeight = TRACK_HEIGHTS[tracks[i].type];
+    // 走 getTrackHeight（唯一高度入口）——不得直连 TRACK_HEIGHTS，
+    // 否则轨道高度可调后"命中区按基准、显示按倍率"会错位。
+    const trackHeight = getTrackHeight({ type: tracks[i].type, scale });
     const trackTop = cumulativeHeight;
     const trackBottom = trackTop + trackHeight;
 
@@ -153,6 +157,7 @@ export function computeDropTarget({
   elementDuration,
   pixelsPerSecond,
   zoomLevel,
+  trackHeightScale,
   verticalDragDirection,
   startTimeOverride,
   excludeElementId,
@@ -178,7 +183,12 @@ export function computeDropTarget({
     return { trackIndex: 0, isNewTrack: true, insertPosition: null, xPosition };
   }
 
-  const trackAtMouse = getTrackAtY({ mouseY, tracks, verticalDragDirection });
+  const trackAtMouse = getTrackAtY({
+    mouseY,
+    tracks,
+    verticalDragDirection,
+    scale: trackHeightScale,
+  });
 
   if (!trackAtMouse) {
     const compatibleIndex = findBestCompatibleTrack({
@@ -236,7 +246,7 @@ export function computeDropTarget({
 
   const { trackIndex, relativeY } = trackAtMouse;
   const track = tracks[trackIndex];
-  const trackHeight = TRACK_HEIGHTS[track.type];
+  const trackHeight = getTrackHeight({ type: track.type, scale: trackHeightScale });
   const isInUpperHalf = relativeY < trackHeight / 2;
 
   const isTrackCompatible = isCompatible({
@@ -319,15 +329,18 @@ export function computeDropTarget({
 export function getDropLineY({
   dropTarget,
   tracks,
+  scale,
 }: {
   dropTarget: DropTarget;
   tracks: TimelineTrack[];
+  /** 轨道高度倍率（TD-21-16）——落点线必须与渲染同口径。 */
+  scale?: number;
 }): number {
   const safeTrackIndex = Math.min(Math.max(dropTarget.trackIndex, 0), tracks.length);
   let y = 0;
 
   for (let i = 0; i < safeTrackIndex; i++) {
-    y += TRACK_HEIGHTS[tracks[i].type] + TRACK_GAP;
+    y += getTrackHeight({ type: tracks[i].type, scale }) + TRACK_GAP;
   }
 
   return y;

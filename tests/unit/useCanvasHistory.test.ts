@@ -66,7 +66,11 @@ describe('useCanvasHistory — 记录与撤销', () => {
     expect(result.current.canUndo).toBe(true);
 
     act(() => result.current.undo());
-    expect(apply).toHaveBeenCalledWith(s1);
+    // 【TD-04-31】apply 收到的是「按结构快照恢复后的画布」（不再原样透传输入快照），
+    // 故断言契约（结构与 s1 一致）而非对象引用相等。
+    const applied = apply.mock.calls.at(-1)![0] as CanvasSnapshot;
+    expect(applied.nodes.map((n) => n.id)).toEqual(['n1']);
+    expect(applied.edges).toEqual([]);
   });
 
   it('redo 在 undo 后可用', () => {
@@ -80,7 +84,8 @@ describe('useCanvasHistory — 记录与撤销', () => {
     act(() => result.current.undo()); // 回到 s1
     expect(result.current.canRedo).toBe(true);
     act(() => result.current.redo()); // 回到 s2
-    expect(apply).toHaveBeenLastCalledWith(s2);
+    const applied = apply.mock.calls.at(-1)![0] as CanvasSnapshot;
+    expect(applied.nodes.map((n) => n.id)).toEqual(['b']);
   });
 
   it('clear 清空历史，canUndo 回到 false', () => {
