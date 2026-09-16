@@ -97,7 +97,7 @@ const ADJUDICATION =
   '        ← 它看得见 knip 看不见的：字符串引用、scripts/ 侧消费\n' +
   '   2. 判死 → 删。⚠️ 先顺链查到底：本仓有多层 re-export 链，只删链尾会把死代码**上移一层**\n' +
   '        （knip 转而报中游）= 打地鼠，下次跑闸反而更红\n' +
-  '   3. 判活、但消费者在 knip 分析边界外（scripts/**、localTool/**）→ 在**声明处**加：\n' +
+  '   3. 判活、但消费者在 knip 分析边界外（scripts 与 localTool 下的闸脚本）→ 在**声明处**加：\n' +
   '        @public 跨边界消费者：<具体路径>   （路径须存在且真含该符号名，本闸会核验）\n' +
   '   4. 有意保留的公开导出 → 同第 3 步。\n' +
   '   ⛔ 禁止：放宽 knip.json 的 ignore（= 致盲更多真导出）· --update-baseline 塞基线（= 把闸弄瞎）';
@@ -121,6 +121,13 @@ try {
   });
 } catch (e) {
   console.error('❌ knip 执行失败：' + (e.stderr || e.message));
+  process.exit(1);
+}
+
+// 基数自检（防「扫 0 却绿灯」——TD-02-9 同款）：knip 正常会打印 JSON 报告（即便 0 issue 也非空）；
+// 输出为空 = 未真正扫描 src（或 knip 静默退出）→ 此处静默通过 = 最危险的失效，拒绝放行。
+if (raw.trim().length === 0) {
+  console.error('❌ knip 无任何输出（未真正扫描 src，扫 0 却绿灯）→ 拒绝放行');
   process.exit(1);
 }
 

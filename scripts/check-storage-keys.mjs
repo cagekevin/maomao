@@ -98,6 +98,12 @@ function isRegistered(key) {
 const args = process.argv.slice(2);
 const targets = args.length > 0 ? args.map((a) => resolve(root, a)) : defaultTargets(root); // 扫描根见 check-targets.mjs（含 src/hooks，避免收口后形成校验盲区）
 
+// 基数自检（防「扫 0 却绿灯」——TD-02-9 同款）：扫描目标为 0 = 闸在守卫 0 个文件，静默通过 = 最危险的失效
+if (targets.length === 0) {
+  console.error('❌ 扫描目标为 0（defaultTargets 未返回任何文件 → 本闸扫 0 却绿灯）→ 拒绝放行');
+  process.exit(1);
+}
+
 let violations = 0;
 
 for (const file of targets) {

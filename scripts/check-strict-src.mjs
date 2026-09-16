@@ -31,6 +31,12 @@ const WHITELIST = JSON.parse(
   readFileSync(new URL('./strict-src-whitelist.json', import.meta.url), 'utf8'),
 ).whitelist;
 
+// 基数自检（防「扫 0 却绿灯」——TD-02-9 同款）：白名单为 0 = 本闸在守卫 0 个目录，inScope 恒为空 → 静默通过 = 最危险的失效
+if (WHITELIST.length === 0) {
+  console.error('❌ strict 白名单为空 → 本闸在守卫 0 个目录（扫 0 却绿灯）→ 拒绝放行');
+  process.exit(1);
+}
+
 let out = '';
 try {
   out = execSync('npx tsc -p tsconfig.json --noEmit --noImplicitAny', {
