@@ -9,25 +9,63 @@
     "tests/e2e/**/*.ts"
   ],
   "project": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "tests/**/*.mjs"],
+  // ═══════════════════════════════════════════════════════════════════════
+  // ignore 分三组，**每条都写理由**（此前是 15 条匿名 glob：读的人分不清
+  // 「产物不该看」与「有意排除但会消费 src」—— 后者才是误报之源）。
+  // knip 支持 JSONC 注释（2026-09-16 实测：knip 接受、prettier 亦保留）。
+  // ═══════════════════════════════════════════════════════════════════════
   "ignore": [
-    "reference-1mao/**",
-    "public/**",
+    // ── A. 产物 / 归档：非手写源码，分析它们只产生噪声 ──────────────────
+    "dist/**", // vite 构建产物（禁手改 · CLAUDE §5.2）
+    "public/**", // 扩展壳静态资源（manifest / background / icon）
     "Temp/**",
-    "dist/**",
-    "localTool/**",
-    "scripts/**",
-    "docs/**",
+    "tmp/**",
+    "logs/**",
+    "test-results/**", // playwright 报告产物
+    "reference-1mao/**",
+    "**/archived/**",
+
+    // ── B. 非源码 / 沙盒：不参与前端构建图 ─────────────────────────────
+    "docs/**", // 含「逆向专用_ai 禁止读」（CLAUDE §5.3）
     ".codebuddy/**",
-    "audit/**",
+    "audit/**", // 已退役沙盒（TD-17-1：能力已并入主工程闸）
     "mockup/**",
     "packaging/**",
-    "logs/**",
-    "tmp/**",
-    "test-results/**",
-    "**/archived/**"
+
+    // ── C. ⚠️ 会消费 src 导出、但有意排除在 knip 引用图外 ────────────────
+    //   ★ 这两条 = 「knip 分析边界」所在，也是本闸**唯一系统性误报**的来源。
+    //     排除它们 ⇒ src 里若有导出**只**被它们消费，knip 会判成死代码（真·误报）。
+    //
+    //   处理办法**不是**放宽 ignore（那只会致盲更多），而是在 src 声明处打标记：
+    //       @public 跨边界消费者：<具体路径>
+    //   该标记由 scripts/check-dead-code.mjs 的元层校验强制：
+    //     ① 必须带「跨边界消费者：」句式　② 路径必须存在　③ 该文件必须真含这个符号名
+    //   （③ 用于堵死「随手贴 @public 洗白」—— 见该脚本头的【假豁免拦截】段）
+    //
+    //   · scripts/**  ：闸脚本以**非字面量动态 import** 读 src 导出
+    //       - check-node-types.mjs:48    → contracts.ts 的 NODE_TYPE_SET
+    //       - check-api-contract.cjs:611 → contracts.ts 的 apiRegistry
+    //     ⚠️ 消费方式是运行时拼路径（import(pathToFileURL(resolve(...)).href)），
+    //        静态分析**原理上**解析不到 ⇒ 把 scripts 放进 entry 也没用，只有 @public 一条路。
+    //   · localTool/** ：独立后端工程（自带 package.json + tsconfig），不属前端构建图。
+    "scripts/**",
+    "localTool/**"
   ],
-  "ignoreDependencies": ["three-stdlib", "zustand"],
+  // ── 依赖豁免：**只准放"确实无法在 package.json 声明"的项** ──────────────
+  // 【2026-09-16 清理取证】原 ["three-stdlib", "zustand"] 两条都是错的：
+  //   · three-stdlib —— src 全库零 import（仅 PanoViewer.tsx:38 注释提到名字），
+  //     它是 @react-three/drei 的传递依赖，knip 本就不报 → 冗余，删。
+  //   · zustand —— src 有 7 处真实 import（videoEditor/stores/*：create + persist），
+  //     但 package.json **未声明**，靠 drei / xyflow 的传递依赖 hoist 才存在。
+  //     原配置用 ignoreDependencies 压住它 = **豁免掩盖真问题**：上游包一更新 zustand
+  //     就可能从顶层消失，videoEditor 7 个 store 直接崩（换机 / npm ci 同风险）。
+  //     已按正道修：package.json 显式声明 "zustand": "^5.0.15"（与实际 resolve 版本一致，
+  //     零行为变化）→ 本表无需再豁免。
+  // ⚠️ **今后 knip 报 unlisted 请去 package.json 补声明，不要往这里加** ——
+  //    这个字段只该用于"确实无法声明"的极少数情况，否则就是拿豁免盖窟窿。
+  "ignoreDependencies": [],
   "ignoreBinaries": [],
   "exclude": ["duplicates"],
+  // 同文件内被使用的导出不算死代码（TD-22-10 取证：开启前 139 条基线里 103 条属此类误报）
   "ignoreExportsUsedInFile": true
 }

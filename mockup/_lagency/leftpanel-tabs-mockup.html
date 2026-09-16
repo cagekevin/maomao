@@ -4,38 +4,39 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>左侧栏 · 4 个 tab 重设计 —— 外观 Mockup</title>
+<link rel="stylesheet" href="../maomao-kit.css" />
 <style>
+  /* 旧 local token 全部别名为真实产品令牌（maomao-kit.css :root），消除发散调色板 */
   :root{
-    /* 对齐项目 tailwind 语义令牌（tailwind.config.ts 注释里的 hex） */
-    --canvas:#0d0c0c;
-    --input:#141414;          /* 左侧面板底（bg-input） */
-    --surface:#1a1a1a;
-    --surface-1:#222222;
-    --surface-2:#1f1f1f;
-    --surface-deep:#151414;
-    --surface-hover:#2a2a2a;
-    --surface-hover-2:#242424;
-    --surface-hover-strong:#333333;
-    --surface-sunken:#121212;
-    --surface-panel:#1c1c1c;
-    --surface-muted:#2b2b2b;
-    --edge:#333333;
-    --edge-strong:#555555;
-    --edge-faint:#2a2a2a;
-    --edge-muted:#444444;
-    --edge-subtle:#222222;
-    --edge-raised:#3a3a3a;
-    --t-strong:#ffffff;
-    --t-primary:#dddddd;
-    --t-body:#cccccc;
-    --t-secondary:#aaaaaa;
-    --t-muted:#888888;
-    --t-faint:#666666;
-    --t-subtle:#555555;
-    --accent:#3b82f6;
-    --accent-text:#8ab4ff;
-    --ok:#22c55e;
-    --danger:#ef4444;
+    --canvas: rgb(var(--mao-canvas));
+    --input: rgb(var(--mao-input));
+    --surface: rgb(var(--mao-surface));
+    --surface-1: rgb(var(--mao-surface-1));
+    --surface-2: rgb(var(--mao-surface-2));
+    --surface-deep: rgb(var(--mao-surface-deep));
+    --surface-hover: rgb(var(--mao-surface-hover));
+    --surface-hover-2: rgb(var(--mao-surface-hover-2));
+    --surface-hover-strong: rgb(var(--mao-surface-hover-strong));
+    --surface-sunken: rgb(var(--mao-surface-sunken));
+    --surface-panel: rgb(var(--mao-surface-panel));
+    --surface-muted: rgb(var(--mao-surface-muted));
+    --edge: rgb(var(--mao-edge));
+    --edge-strong: rgb(var(--mao-edge-strong));
+    --edge-faint: rgb(var(--mao-edge-faint));
+    --edge-muted: rgb(var(--mao-edge-muted));
+    --edge-subtle: rgb(var(--mao-edge-subtle));
+    --edge-raised: rgb(var(--mao-edge-raised));
+    --t-strong: rgb(var(--mao-text-strong));
+    --t-primary: rgb(var(--mao-text-primary));
+    --t-body: rgb(var(--mao-text-body));
+    --t-secondary: rgb(var(--mao-text-secondary));
+    --t-muted: rgb(var(--mao-text-muted));
+    --t-faint: rgb(var(--mao-text-faint));
+    --t-subtle: rgb(var(--mao-text-subtle));
+    --accent: rgb(var(--mao-accent));
+    --accent-text: rgb(var(--mao-accent-strong));
+    --ok: rgb(var(--mao-live));
+    --danger: rgb(var(--mao-danger));
   }
   *{margin:0;padding:0;box-sizing:border-box;}
   /* 不要给 body 定高（height:100% + 列向 wrap 会让超高内容横向换列到视口外，页面只剩抬头可见） */

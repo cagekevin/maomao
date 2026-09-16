@@ -322,4 +322,15 @@
 3. **LazyImage 观察者**：同屏百级图时，评估抽共享 IO 单例（已入 P9，以实测为准）。
 4. **非紧急计算合并**：缩略图等操作评估走 `requestIdleCallback` 而非抢动画帧（需确认 Safari 支持）。
 
+### F. 死代码闸（knip）豁免通道 —— `@public 跨边界消费者`（2026-09-16）
+
+> 机制细节见 `scripts/check-dead-code.mjs` 文件头（元层校验三条件 + 四步裁决路径）与 `knip.json` 的 ignore 分组注释。此处只钉决策。
+
+* **判死前先取证**：`node scripts/mv-sync-refs.mjs refs <file>` 一屏给出「谁 import 它 + 字符串残留引用」——**knip 看不见的（字符串引用、`scripts/**` 侧消费）它看得见**。分工：**knip 负责批量发现（挂闸防回潮），refs 负责单点裁决**；不要在两者之外自建第三套判断。
+* **唯一豁免通道 = 在声明处打标记**：`@public 跨边界消费者：<消费者文件路径>`。闸的元层校验强制三条：① 句式在 ② 路径存在 ③ **该文件真含这个符号名**（③ 专门堵"随手贴 `@public` 洗白"）。**不接受**"公共 API / 有意保留"这类**无坐标**理由。豁免写声明处（随文件移动、带理由），不进基线（基线按路径记账、改名即失配且无理由）。
+* **两类合法例外**（不该删、也不该塞基线）：① 消费者在 knip 分析边界外 —— `scripts/**`（闸脚本以非字面量动态 import 读 src 导出，如 `NODE_TYPE_SET`/`apiRegistry`）、`localTool/**`；② 有意保留的公开导出。
+* **三条禁止**：放宽 `knip.json` 的 `ignore`（致盲更多真导出）· 用 `ignoreDependencies` 掩盖未声明依赖（**去 `package.json` 补声明**，2026-09-16 实例：`zustand` 被 7 处 import 却未声明，靠 drei 传递依赖 hoist 存活）· `--update-baseline` 把回归洗成存量。
+* **删 re-export 前必须顺链查到底**：本仓有多层 re-export 链（`config` → `agentConfig` → `agentCore` → `useAgentChat` → 测试），只删链尾会把死代码**上移一层**（knip 转而报中游）= 打地鼠，下次跑闸反而更红。正确动作：链尾 `re-export` 与中游多余 `export` 关键字一并降为文件内私有。
+* **基线目标 = 0 条**：基线是「**待清偿债务**」清单，**不装永久豁免**（永久豁免走 `@public`）。否则该条永不消失、账本必然失真（历史实证 TD-22-10：曾 139 条里 103 条是口径误报）。
+
 <br />

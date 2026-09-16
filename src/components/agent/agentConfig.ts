@@ -10,7 +10,9 @@
  *   - A 运行时常量（本层定义）——由 agentCore/agentRuntime 迁入：
  *       MAX_TOOL_ROUNDS / ENABLE_TOOLS_ON_NON_STREAM / AGENT_TEMPERATURE
  *   - B 内置 system prompt（占位，P1 迁入）——CANVAS_AGENT_RULES / SKILL_EXECUTION_RULES
- *   - C env 重导出——来自 base/config.ts（env 读取仍归 config.ts，这里只 re-export 不重复定义）
+ *   - C env 重导出——【已删 2026-09-16】原计划由本文件转发 base/config.ts 的 env 常量，
+ *       因零消费者（消费方一直直接 import base/config.ts）已删除 → env 真源恒为 base/config.ts，
+ *       勿在此加回转发（理由见文件内 C 段注释 + 铁律 5 / §5.4.9）
  *   - D 用户持久化偏好透传（占位，后续聚合）——agentModelStore
  *
  * 【不变量】（docs/66 §7）本文件只挪「常量位置」，不触碰 buildRequestMessages /
@@ -40,10 +42,8 @@
  *   agentCore 旁白内的交叉引用（【三、工具操作规范】【通道 B / 通道 C】）须与之同步。
  * ════════════════════════════════════════════════════════════════
  */
-import {
-  AGENT_CONTEXT_WINDOW_DEFAULT,
-  AGENT_CONTEXT_OUTPUT_BUDGET_RATIO,
-} from '../base/core/config.ts';
+// （此处原有 `import { AGENT_CONTEXT_WINDOW_DEFAULT, AGENT_CONTEXT_OUTPUT_BUDGET_RATIO } from
+//   '../base/core/config.ts'` —— 随文件末 C 段空 re-export 一并删除，2026-09-16；原因见该段注释。）
 
 // ── A. 运行时常量 ────────────────────────────────────────────────
 /** 多轮工具循环硬上限（复刻官方 shared.js ur=8，防 AI 死循环） */
@@ -190,7 +190,9 @@ Skill 原文是「让你理解用户需求」的输入，不是强制的生成�
 - 定位键：改【已有】某行时，若确切知道它在现状里的第几行，可在该行对象内加 "_rowIndex"（从 1 起算）便于精准定位、不当列存表；拿不准行号【绝不】乱加（宁缺勿错），前端会按你当前处理的行落入。"`,
 });
 
-// ── C. env 重导出（来自 base/config.ts，避免双源）────────────────
-// 说明：env 读取的单一来源仍是 base/config.ts，此处仅 re-export 供 AI 助手统一入口引用，
-// 不产生第二个定义。当前零消费者（消费方仍走 base/config.ts），无害且为后续切换铺路。
-export { AGENT_CONTEXT_WINDOW_DEFAULT, AGENT_CONTEXT_OUTPUT_BUDGET_RATIO };
+// ── C. env 重导出 —— 已于 2026-09-16 删除 ────────────────────────
+// 【为何删】原为「为后续切换铺路」的空 re-export（注释自认零消费者；实测消费方
+//   useAgentChat.ts:59-62 一直直接 import base/core/config.ts，从未走此处转发）。
+//   死代码闸（knip）+ mv-sync-refs refs 双向取证确认零消费者 → 按铁律 5「不虚构需求」+
+//   CLAUDE §5.4.9「不留 re-export 兼容层」删除：「将来可能会用」不构成保留理由。
+//   真源恒为 base/config.ts，将来要切直接 import 它即可，勿在此加回转发。

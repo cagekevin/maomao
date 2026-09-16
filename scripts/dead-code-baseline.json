@@ -1,14 +1,6 @@
 {
   "_comment": "死代码闸基线（scripts/check-dead-code.mjs 消费）。基线内=存量（不阻塞，可逐步清偿）；基线外新增=闸红。重生成：node scripts/check-dead-code.mjs --update-baseline",
   "knipVersion": "6.35.1",
-  "count": 7,
-  "items": [
-    "src/components/agent/agentConfig.ts::exports::AGENT_CONTEXT_OUTPUT_BUDGET_RATIO",
-    "src/components/agent/agentConfig.ts::exports::AGENT_CONTEXT_WINDOW_DEFAULT",
-    "src/components/agent/runtime/useAgentChat.ts::exports::INTENT_HINT",
-    "src/components/agent/runtime/useAgentChat.ts::exports::SKILL_EXECUTION_RULES",
-    "src/components/agent/runtime/useAgentChat.ts::exports::historyKey",
-    "src/components/base/core/contracts.ts::exports::NODE_TYPE_SET",
-    "src/components/base/core/contracts.ts::exports::apiRegistry"
-  ]
+  "count": 0,
+  "items": []
 }

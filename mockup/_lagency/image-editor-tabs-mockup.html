@@ -4,36 +4,37 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>图片编辑器重构 · 涂鸦 / 裁剪 / 扩图 三 Tab —— 外观 Mockup</title>
+<link rel="stylesheet" href="../maomao-kit.css" />
 <style>
+  /* 旧 local token 全部别名为真实产品令牌（maomao-kit.css :root），消除发散调色板 */
   :root{
-    /* 对齐 NODE-DESIGN-SPEC §〇 与 tailwind 语义 token */
-    --canvas:#0d0c0c;
-    --surface-raised:#1c1c1c;
-    --surface-deep:#151414;
-    --surface:#1a1a1a;
-    --surface-1:#222222;
-    --surface-hover:#2a2a2a;
-    --surface-hover-strong:#333333;
-    --surface-sunken:#121212;
-    --input:#141414;
-    --edge:#333333;
-    --edge-strong:#555555;
-    --edge-muted:#2a2a2a;
-    --edge-faint:#262626;
-    --t-strong:#ffffff;
-    --t-primary:#dddddd;
-    --t-body:#cccccc;
-    --t-secondary:#aaaaaa;
-    --t-muted:#888888;
-    --t-faint:#666666;
-    --t-subtle:#555555;
-    --accent:#3b82f6;
-    --accent-soft:rgba(59,130,246,.15);
-    --accent-line:rgba(59,130,246,.6);
-    --accent-text:#93c5fd;
-    --ok:#22c55e;
-    --danger:#ef4444;
-    --warn:#eab308;
+    --canvas: rgb(var(--mao-canvas));
+    --surface-raised: rgb(var(--mao-surface-raised));
+    --surface-deep: rgb(var(--mao-surface-deep));
+    --surface: rgb(var(--mao-surface));
+    --surface-1: rgb(var(--mao-surface-1));
+    --surface-hover: rgb(var(--mao-surface-hover));
+    --surface-hover-strong: rgb(var(--mao-surface-hover-strong));
+    --surface-sunken: rgb(var(--mao-surface-sunken));
+    --input: rgb(var(--mao-input));
+    --edge: rgb(var(--mao-edge));
+    --edge-strong: rgb(var(--mao-edge-strong));
+    --edge-muted: rgb(var(--mao-edge-muted));
+    --edge-faint: rgb(var(--mao-edge-faint));
+    --t-strong: rgb(var(--mao-text-strong));
+    --t-primary: rgb(var(--mao-text-primary));
+    --t-body: rgb(var(--mao-text-body));
+    --t-secondary: rgb(var(--mao-text-secondary));
+    --t-muted: rgb(var(--mao-text-muted));
+    --t-faint: rgb(var(--mao-text-faint));
+    --t-subtle: rgb(var(--mao-text-subtle));
+    --accent: rgb(var(--mao-accent));
+    --accent-soft: rgb(var(--mao-accent) / 0.15);
+    --accent-line: rgb(var(--mao-accent) / 0.6);
+    --accent-text: rgb(var(--mao-accent-strong));
+    --ok: rgb(var(--mao-live));
+    --danger: rgb(var(--mao-danger));
+    --warn: rgb(var(--mao-gold));
   }
   *{margin:0;padding:0;box-sizing:border-box;}
   html,body{min-height:100%;}

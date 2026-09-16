@@ -234,6 +234,53 @@ function loadAll() {
   for (const r of [...parseText(main, 'main'), ...parseText(arch, 'archive')]) if (!byId.has(r.fields.id)) byId.set(r.fields.id, r);
   return [...byId.values()];
 }
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * stats —— 只读：把「债的形态 / 解法分布」变成一条**随时可重算**的命令。
+ *
+ * 【为什么做成命令，而不是把数字写死在 SOP 文档里】写死的数字**必然过期** ——
+ *   本仓最高频母体恰恰就是 M4「描述层无对账」（276 条债里 41 条是这类）。
+ *   形态的**语义**（检出信号）维护在两份 SOP：`债务登记5步法.md` §3.4 / `架构师改码7步法.md` 附 B；
+ *   本命令只负责**现算一遍**，两边口径靠同一份关键词表对齐。
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+const SHAPES = [
+  ['注释/文档漂移', /注释|漂移|过期|失真|失实/],
+  ['静默吞/失败伪装成功', /静默|伪装|吞/],
+  ['死代码/幽灵预留', /死代码|死参数|零消费|零引用|幽灵|预留|预支/],
+  ['绕过唯一入口', /绕过|旁路|裸调|裸写|直调/],
+  ['SSOT 第二份', /第二份|第二真相|SSOT|双源|同语义两|两份/],
+  ['口径错位', /口径|不一致|对不上|错位/],
+  ['假护栏/假守卫', /假护栏|假守卫|假豁免|恒真|恒绿|恒空/],
+  ['复发/回潮', /复发|回潮|再犯/],
+];
+const FIXES = [
+  ['收口到唯一实现', /收口|唯一实现|下沉|委托|单点|单源/],
+  ['探针先红后绿', /探针|先红后绿/],
+  ['契约钉死', /契约|唯一真相|钉死|判别联合/],
+  ['删除', /已删|删除|删掉|删死/],
+  ['加机器闸', /加闸|补闸|机器守卫|新增规则|闸/],
+  ['改判非债', /改判非债|非债|已裁定/],
+  ['用户裁定', /用户裁定|待用户拍板/],
+];
+
+function cmdStats() {
+  const rows = loadAll();
+  const hit = (re) => rows.filter((r) => re.test(r.line)).length;
+  const cls = (w) => rows.filter((r) => new RegExp('\\|\\s*\\**' + w + '\\s*\\**\\|').test(r.line)).length;
+  console.log(`📊 债务形态统计（主表 ∪ 归档，共 ${rows.length} 条）`);
+  console.log(`   归类：还债 ${cls('还债')} · 持平 ${cls('持平')} · 增债 ${cls('增债')}`);
+  console.log(`   状态：已解决 ${hit(/已解决/)} · 改判非债 ${hit(/非债|已裁定/)} · 待还 ${hit(/待还/)}`);
+  console.log('\n【问题形态】按频次降序 —— 高频的先用 grep 扫（检出信号见 债务登记5步法 §3.4）');
+  for (const [name, re] of SHAPES.slice().sort((a, b) => hit(b[1]) - hit(a[1]))) {
+    console.log(`   ${String(hit(re)).padStart(4)}  ${name}`);
+  }
+  console.log('\n【解法分布】按频次降序 —— 排前的是本仓真正管用的手法（见 架构师改码7步法 附 B）');
+  for (const [name, re] of FIXES.slice().sort((a, b) => hit(b[1]) - hit(a[1]))) {
+    console.log(`   ${String(hit(re)).padStart(4)}  ${name}`);
+  }
+}
 const idNum = (id) => Number((id.match(/^TD-(\d+)-/) ?? [])[1] ?? -1);
 const idSeq = (id) => Number((id.match(/^TD-\d+-(\d+)/) ?? [])[1] ?? 0);
 const idKey = (id) => idNum(id) * 1000 + idSeq(id);
@@ -772,10 +819,12 @@ switch (cmd) {
   case 'move': cmdMove(rest); break;
   case 'archive': cmdArchive(rest); break;
   case 'audit': cmdAudit(rest); break;
+  case 'stats': cmdStats(); break;
   default:
     console.log('债务账本读写唯一入口（详见文件头注释）');
     console.log('  读：list [--area NN] [--status X] [--all] | area <NN> | search <关键词> | show <TD-ID>');
     console.log('  写：add --area NN --summary "…" | resolve <TD-ID> --note "…" | reanchor <TD-ID> --anchor <区域文件> | move <TD-ID> --to <NN>');
     console.log('  维护：archive [--dry] | audit [--liveness]');
+    console.log('  统计：stats（形态/解法分布 —— 供"找债捷径"与"手法排行"，见两份 SOP）');
     process.exit(cmd ? 1 : 0);
 }

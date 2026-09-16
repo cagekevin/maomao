@@ -4,29 +4,30 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AI 助手 · 简洁化改造原型</title>
+<link rel="stylesheet" href="../maomao-kit.css" />
 <style>
+  /* 旧 local token 全部别名为真实产品令牌（maomao-kit.css :root），消除发散调色板 */
   :root{
-    /* 对齐项目 tailwind 语义令牌（tailwind.config.ts 注释里的 hex） */
-    --canvas:#0d0c0c;
-    --surface-deep:#151414;   /* 面板底 */
-    --surface:#1a1a1a;
-    --surface-1:#222222;
-    --surface-hover:#2a2a2a;
-    --surface-hover-strong:#333333;
-    --surface-sunken:#121212;
-    --edge:#333333;
-    --edge-strong:#555555;
-    --edge-faint:#2a2a2a;
-    --edge-subtle:#222222;
-    --t-strong:#ffffff;
-    --t-primary:#dddddd;
-    --t-body:#cccccc;
-    --t-secondary:#aaaaaa;
-    --t-muted:#888888;
-    --t-faint:#666666;
-    --t-subtle:#555555;
-    --accent:#3b82f6;
-    --ok:#22c55e;
+    --canvas: rgb(var(--mao-canvas));
+    --surface-deep: rgb(var(--mao-surface-deep));
+    --surface: rgb(var(--mao-surface));
+    --surface-1: rgb(var(--mao-surface-1));
+    --surface-hover: rgb(var(--mao-surface-hover));
+    --surface-hover-strong: rgb(var(--mao-surface-hover-strong));
+    --surface-sunken: rgb(var(--mao-surface-sunken));
+    --edge: rgb(var(--mao-edge));
+    --edge-strong: rgb(var(--mao-edge-strong));
+    --edge-faint: rgb(var(--mao-edge-faint));
+    --edge-subtle: rgb(var(--mao-edge-subtle));
+    --t-strong: rgb(var(--mao-text-strong));
+    --t-primary: rgb(var(--mao-text-primary));
+    --t-body: rgb(var(--mao-text-body));
+    --t-secondary: rgb(var(--mao-text-secondary));
+    --t-muted: rgb(var(--mao-text-muted));
+    --t-faint: rgb(var(--mao-text-faint));
+    --t-subtle: rgb(var(--mao-text-subtle));
+    --accent: rgb(var(--mao-accent));
+    --ok: rgb(var(--mao-live));
   }
   *{margin:0;padding:0;box-sizing:border-box;}
   html,body{height:100%;}

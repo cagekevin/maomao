@@ -650,6 +650,13 @@ export const NODE_TYPES = {
  * 的 `contracts.ts::exports::NODE_TYPE_SET`），脚本从此永远拿到空 Set，导致所有
  * `useNodePrefs` 裸调用（含 TemplateNode 示例命名空间 imageGenerateNode）一律误报「未登记」。
  * 在此从权威表 NODE_TYPES 派生补回该集合，恢复闸的正确性（不改闸脚本、只补真源侧）。
+ *
+ * @public 跨边界消费者：scripts/check-node-types.mjs
+ *   取用点 :48 `mod.NODE_TYPE_SET`。为何必须显式标记：① `scripts/**` 在 `knip.json` 的 `ignore` 内，
+ *   knip 的引用图看不到该消费方；② 消费方式是 `import(pathToFileURL(resolve(...)).href)` ——
+ *   非字面量说明符，静态分析**原理上**解析不到（把 scripts 放进 entry 也修不好）。
+ *   故豁免写在**声明处**（随文件移动、带理由），**不要**删此导出。
+ *   格式由 scripts/check-dead-code.mjs 的元层校验强制（句式 + 路径存在 + 该文件真含此符号名）。
  */
 export const NODE_TYPE_SET = new Set(Object.values(NODE_TYPES));
 // 注：原 templateNode 登记项已于 2026-09-11 删除（TD-04-5）——TemplateNode 是「新建节点参考蓝本」，
@@ -845,6 +852,10 @@ export interface ApiRegistryEntry {
  * 2026-09-15 补全：此前 apiRegistry 为空表，导致 check:api 反向差集把所有源码 httpRequest
  * 调用点判为 ERROR（32 条），prebuild 闸失败。现按 router.ts 路由表 + 实际调用点补齐 ACTIVE 组。
  * 形态以各 handler 实际返回为准（kv/tasks/files/projects/resources/admin 均 code-data；status 为 {status:'ok'}）。
+ *
+ * @public 跨边界消费者：scripts/check-api-contract.cjs
+ *   取用点 :611 `mod.apiRegistry`。豁免理由同 `NODE_TYPE_SET`：`scripts/**` 被 knip ignore +
+ *   非字面量动态 import，静态图看不到 → 显式标记。本表是前后端唯一契约真源，**不要**删此导出。
  */
 export const apiRegistry: Record<string, ApiRegistryEntry> = {
   // ── 系统 ────────────────────────────────────────────────────────────

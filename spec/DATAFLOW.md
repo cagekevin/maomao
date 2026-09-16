@@ -1,7 +1,7 @@
 # spec/DATAFLOW.md · 数据流链路索引
 
 > **目的**：让 AI 能**在一处读完一整条链路**（谁产生 → 经过谁 → 谁消费 → 落哪），不必在 core/api/store/utils/nodes/panels/hooks 之间乱猜。
-> **本文件只写「当前真相」**：现状链路图 + 关键边 + 节点旁一盏灯。物理归属见 `src/components/base/README.md`，本文件不决定文件位置。
+> **本文件只写「当前真相」**：现状链路图 + 关键边。**不放灯**（灯 = 审计进度，见 `daily/架构日志/index.md`）。物理归属见 `src/components/base/README.md`，本文件不决定文件位置。
 > **实证**：边由 `node scripts/mv-sync-refs.mjs refs <file>` 机械验证（"关键边"段给出 fan-in 数），不凭文件名猜。
 > **省消耗**：改某条链路时，照本文件该链路的文件清单走 + 读文件头注释即可，**不需要**为搞清楚"这条链路在哪几个文件"启动子代理全库乱搜——这张图就是答案。真拿不准单文件归属时才跑 `refs`。
 > **历史**：本文件历次修订的**叙事过程**见 `spec/DATAFLOW-HISTORY.md`（只读留痕）；区域审计明细见 `daily/架构日志/<NN>-<区域>-<日期>.md`。
@@ -13,13 +13,15 @@
 > 本文件被塞满历史叙事的根因 = **同一批规矩散抄在 6 处**且互相矛盾（此处禁写日期/说明，另外 5 处却要求写 `更新(<日期>…)`）。
 > **本段是唯一出口**，其余文件（`架构师心法.md` §七 · `债务登记5步法.md` · `架构师改码7步法.md` Step 7.4 · `daily/架构日志/index.md` · `_template.md`）一律只指向这里，不再各自复述。
 
-**允许写（只有这三样）**：
+**允许写（只有这两样）**：
 
 | 要素 | 形态 |
 | --- | --- |
 | ① 现状链路图 | 代码块里的 `→` / `├→` 箭头，**只描述此刻的真相** |
 | ② 关键边 | 一行，带 `refs` 实证的 fan-in 数（如 `contentStore ← 41 处`） |
-| ③ 灯 | 节点旁一个字符（🟢🟡🔴⚪），一个节点一盏 |
+
+> **③ 灯已移除（2026-09-16）**：灯是「审计进度」而非「数据流」。此前 **146 处**灯散落本文件，而其声称的真源（区域文件 §六 覆盖度表）只有 **9/23 区**存在 → **146 个同步点对 39% 的真源，必然系统性失效**。
+> 现收口为：**细粒度**（文件 → 灯）进轮次文件 §六 覆盖度表（真源）；**粗粒度**（区域 → 灯）由 `daily/架构日志/index.md` **机器生成**。本文件**不再持有任何灯**。
 
 **变更时怎么做**：
 
@@ -27,7 +29,6 @@
 | --- | --- |
 | 链路漂移（新增 / 删除 / 改道） | **就地改**①现状图，让图重新等于现状（**改，不是追加**） |
 | 模块退役 / 改名 | 在 §已退役 · 已改名 表里改一行（旧名 → 新名 / 替代者） |
-| 灯变了 | 就地改③灯字符（真源 = 区域文件的覆盖度表，冲突以覆盖度表为准） |
 | 有理由 / 日期 / TD 号 / 探针 / 测试结果要留 | 写进 `daily/架构日志/<NN>-<区域>-<日期>.md`，**不写在这里** |
 
 **禁写清单**（出现即违规，须当场回退）：
@@ -35,10 +36,12 @@
 - ❌ `> 更新(<日期>, refs实证): ...` 这类**追加式叙事段**（变更叙事一律归 HISTORY / 区域日志）
 - ❌ 日期、TD 编号、`L123` / `:456` 形式的行号、探针结果、测试例数
 - ❌ 债明细（归类 / 利息率 / 爆炸半径 / 偿还计划）、裁定过程、方案比较
+- ❌ **灯（🟢🟡🔴⚪）** —— 审计进度不属数据流，见下方「灯不在这里」
 - ❌ 同一结论在多个段落重复表述（要复用就写指针）
 
-**灯图例**：🟢 已审·无债 · 🟡 已审·持平待裁定 · 🔴 有债待还 · ⚪ 未审
-（判据 / 读灯写灯流程见 `.codebuddy/commands/债务登记5步法.md` §数据流覆盖地图；本文件只放灯的投影。）
+**灯不在这里（2026-09-16 收口）**：本文件**禁写** 🟢🟡🔴⚪ ——
+**细粒度**（文件 → 灯）看轮次文件 §六 覆盖度表；**粗粒度**（区域 → 灯）看 `daily/架构日志/index.md`（机器生成）。
+判据 / 读灯写灯流程见 `.codebuddy/commands/债务登记5步法.md` §数据流覆盖地图。
 
 ---
 
@@ -169,7 +172,7 @@ memory_suggest 工具 → conversationSkillState.setActivePendingMemorySuggest�
 ### 现状
 
 ```
-core/contentStore 🔴（STORAGE_KEYS 路由 + resolveBackend 唯一判定 + 失败分类 isEngineUnavailable，dev 校验裸 key）
+core/contentStore（STORAGE_KEYS 路由 + resolveBackend 唯一判定 + 失败分类 isEngineUnavailable，dev 校验裸 key）
    ├→ storage/storageAdapter（sGet/sSet/sRemove，local/native 落地 + isStorageReady/onStorageReady 就绪度原语）
    ├→ api/localToolApi（kvGet/kvSet/kvDelete，KV 云端；不经 kvStore 中间层）
    ├→ storage/storageQuota · storage/persistFailureBus（旁路工具，不参与读写主链）
@@ -237,22 +240,22 @@ fan-in（refs 实证 4 处 import）：App.tsx（手动按钮 handlePushToCloud/
 ### 现状
 
 ```
-api/filesApi 🟢（全站文件域单点：upload[FormData/JSON 双模式] / move[context-only] / mkdir / open / open-dir + 3 纯函数）
-   ├→ store/resourceStore 🟢（素材库 SSOT：saveInlineToLocal/uploadFileToLocal/EXT_BY_TYPE）
-   ├→ api/localToolApi 🟢（fetchResources?projectId / saveResource / renameResource / deleteResource / rescan）
-   ├→ panels/ResourceLibrary 🔴 · panels/GeneratedView 🔴（openLocalFolder/openFileDir/relativePathFromUrl/createFolder；
+api/filesApi（全站文件域单点：upload[FormData/JSON 双模式] / move[context-only] / mkdir / open / open-dir + 3 纯函数）
+   ├→ store/resourceStore（素材库 SSOT：saveInlineToLocal/uploadFileToLocal/EXT_BY_TYPE）
+   ├→ api/localToolApi（fetchResources?projectId / saveResource / renameResource / deleteResource / rescan）
+   ├→ panels/ResourceLibrary · panels/GeneratedView（openLocalFolder/openFileDir/relativePathFromUrl/createFolder；
    │     前者「落盘完成 → 刷新」含同目录重拉，后者订阅 agent:task-completed 重拉生成列表）
-   ├→ hooks/useAssetDropPaste · hooks/useResourceMoveToFolder 🟢 · hooks/useAssetDragToCanvas 🟢
-   ├→ nodes/ImageBoxNode（resolveNodeAssetUrl）· nodes/useImageHoverActions（showThenPersistInline）· nodes/AssetNode 🟢
+   ├→ hooks/useAssetDropPaste · hooks/useResourceMoveToFolder · hooks/useAssetDragToCanvas
+   ├→ nodes/ImageBoxNode（resolveNodeAssetUrl）· nodes/useImageHoverActions（showThenPersistInline）· nodes/AssetNode
    ├→ scriptbox/scriptBoxEngine（uploadFileToLocal/saveResultToTasks）· hooks/useNodeGeneration（saveResultToTasks）
    ├→ depthVideo/DepthVideoModal · utils/videoEngine（uploadFileToLocal → videoProcess 桶）· director3d/d3dPersistence（saveInlineToLocal）
-   └→ 地基：utils/uploadDirs 🟢（subfolder 中央表）· utils/mediaType（判型）· utils/previewUrl · utils/imageUrl（URL 归一）
+   └→ 地基：utils/uploadDirs（subfolder 中央表）· utils/mediaType（判型）· utils/previewUrl · utils/imageUrl（URL 归一）
 
 后端落盘 / 资源表（localTool，主审见区域 12 / 08）：
-  routes/files.ts 🔴（upload→writeUploadDedup 内容寻址去重 / move→context-only / read·thumbnail·mkdir·open·list）
-    → utils/fileStore.ts 🔴（落盘真源：contentHashName(sha1(bytes)) / writeUploadDedup / UPLOAD_ROOT_ALLOW）
-  routes/resources.ts 🟢（resources 表：rescan 1:1 映射 / GET ?projectId / rename·move 走 context-only）
-    → db/database.ts 🟢（resources 表含 project_id；rescan 行保持 NULL 不分裂）· utils/orphanGc.ts（引用感知 GC）
+  routes/files.ts（upload→writeUploadDedup 内容寻址去重 / move→context-only / read·thumbnail·mkdir·open·list）
+    → utils/fileStore.ts（落盘真源：contentHashName(sha1(bytes)) / writeUploadDedup / UPLOAD_ROOT_ALLOW）
+  routes/resources.ts（resources 表：rescan 1:1 映射 / GET ?projectId / rename·move 走 context-only）
+    → db/database.ts（resources 表含 project_id；rescan 行保持 NULL 不分裂）· utils/orphanGc.ts（引用感知 GC）
 ```
 
 **唯一端点**：`POST /api/files/upload`（multipart `filename` 字段优先于 part 名；contentId=sha1(字节) 全局查重）。
@@ -327,13 +330,13 @@ canvas/useCanvasEventSubscriptions（3 全局订阅收拢）
 
 ```
 提示词输入/引用：prompt/PromptInput · prompt/PromptHub（UI）· prompt/promptMention（纯函数）
-  prompt/promptChips（芯片序列化唯一入口；生成端 resolvePromptChips 把 @{id:label} 解析回纯文本+参考图）🟢
+  prompt/promptChips（芯片序列化唯一入口；生成端 resolvePromptChips 把 @{id:label} 解析回纯文本+参考图）
 创作库（5 分区：风格/滤镜/运镜/MJ码图/我的提示词）：
-  creative/CreativeLibrary.tsx（半屏壳 + 分区切换）· CreativeLibraryButton.tsx（节点薄入口）🔴
-  creative/views/PresetGridView.tsx 🟢 · MjStyleBrowser.tsx 🟢 · PromptPresetView.tsx 🔴
-  creative/creativePresets.ts（纯逻辑：命名空间/字典GC/裁剪）🔴 · creative/creativeCatalog.ts（catalog 归一化）🔴
-  creative/data/creativeCatalog.json · creative/data/mjStyleCatalog.json（数据真值，随包只读）⚪
-  creative/promptManager.ts（「我的提示词」本地库，可增删）🟢
+  creative/CreativeLibrary.tsx（半屏壳 + 分区切换）· CreativeLibraryButton.tsx（节点薄入口）
+  creative/views/PresetGridView.tsx · MjStyleBrowser.tsx · PromptPresetView.tsx
+  creative/creativePresets.ts（纯逻辑：命名空间/字典GC/裁剪） · creative/creativeCatalog.ts（catalog 归一化）
+  creative/data/creativeCatalog.json · creative/data/mjStyleCatalog.json（数据真值，随包只读）
+  creative/promptManager.ts（「我的提示词」本地库，可增删）
 ```
 
 **关键边**：
@@ -342,8 +345,8 @@ canvas/useCanvasEventSubscriptions（3 全局订阅收拢）
 - catalog 取用唯一入口：`catalogByKind(kind)`（返回模块级常量引用，可作 memo deps；`CatalogKind` 联合保证穷尽）← `CreativeLibrary`（分类 pills + grid 过滤）· `MjStyleBrowser`。禁再手写等价 `Record<kind, presets>`。
 - `creative/promptManager` ← `creative/views/PromptPresetView`（第 5 分区，复用既有存储键 `yimao_preset_prompts`）。
 - 合成替换：生成端 `resolvePromptChips(raw, refImages, refTexts, data.creativePresets)`——胶囊 `@{cp_id:name}` → 命中替换为该条 `prompt` 片段；未命中置空但留 `⚠缺失预设「名」` + 红日志（I1/I2，禁静默吞）。
-- 落字典：节点 `handleCreativeApply(item: CreativePreset)` → `insertMention`（落胶囊）+ `addCreativePreset(id, toDictEntry(item))`（写 node.data，entry 形态唯一真源 = `creativePresets.CreativePresetEntry`）🟢
-- 字典 GC：`normalizeChipFieldWrite(data, patch)`（`creativePresets.ts` 纯函数，内部走 `syncCreativePresets`）只留被 `cp_*` 胶囊引用的键 —— 接在写 data 的**两条**路径（界面 `useNodeData.patchData` / Agent `canvasHost.updateNodeData`）🟢
+- 落字典：节点 `handleCreativeApply(item: CreativePreset)` → `insertMention`（落胶囊）+ `addCreativePreset(id, toDictEntry(item))`（写 node.data，entry 形态唯一真源 = `creativePresets.CreativePresetEntry`）
+- 字典 GC：`normalizeChipFieldWrite(data, patch)`（`creativePresets.ts` 纯函数，内部走 `syncCreativePresets`）只留被 `cp_*` 胶囊引用的键 —— 接在写 data 的**两条**路径（界面 `useNodeData.patchData` / Agent `canvasHost.updateNodeData`）
 
 **⚠️ 边界**：
 - 「我的提示词」唯一可写源是 `creative/promptManager`（localStorage）；4 类 catalog 只读、UI 不暴露增删。
@@ -379,8 +382,8 @@ canvas/useCanvasEventSubscriptions（3 全局订阅收拢）
         │            ·AssetMenu·CameraAnglePanel·ReferenceOverlay·controls）
         ├→ project.ts（领域真源：常量/归一化/插值 cameraAtFrame/序列化/路径/宽高比）+ tracks.ts · history.ts
         ├→ rig.ts（骨架/关节定义单源）
-        ├→ log.ts（base/core/logger 薄封装：error/warn 落 /api/logs，debug 受 DIRECTOR3D_DEBUG 门控）🟢
-        └→ storage.ts 🟢 ─ d3dPersistence.ts（工程持久化；contentStore KV + localStorage 回退 + BroadcastChannel）
+        ├→ log.ts（base/core/logger 薄封装：error/warn 落 /api/logs，debug 受 DIRECTOR3D_DEBUG 门控）
+        └→ storage.ts ─ d3dPersistence.ts（工程持久化；contentStore KV + localStorage 回退 + BroadcastChannel）
            · 姿势库 `director3d-custom-poses` → contentStore（backend:local ⇒ 进备份清单；键名真源 = contracts.ts 命名 const；
              原裸 localStorage 直写已收口 2026-09-16，含旧裸键一次性迁移读 · TD-02-36/38/39 已结清）
            · ⚠ 工程键的**同步启动种子读**仍读裸键（降级副本实际在 `yimao:` 前缀下 → 恒空）→ TD-02-42 待还
@@ -401,30 +404,30 @@ canvas/useCanvasEventSubscriptions（3 全局订阅收拢）
 > 本段是**消费 / 契约层**的全量清单（含灯）；`base/depthVideo/*` 刻意用 `filesApi.uploadFileToLocal` 避开 `uploadResult` 坑。
 
 ```
-base/utils/videoEngine.ts 🟢（uploadResult 失败返 null；crossOrigin 走 setCrossOriginForReadable）
-base/utils/captureFrame.ts 🟢（跨源读取策略 setCrossOriginForReadable 已下沉 asyncGuard 并 re-export，供全树复用）
-base/utils/encoderProbe.ts 🟢 · base/utils/audioPeaks.ts 🟢
-base/utils/timeline/sourceTime.ts 🟢（跨域唯一映射原语：时间轴 ↔ 源时刻；剪辑器 8 处采纳、内联 0 处）
-hooks/useVideoPoster.ts 🟢（crossOrigin 接回单点原语，删第二判据）
-base/ui/VideoThumbnail.tsx 🟢（显示组件，preload=metadata 取首帧，不抽帧）
-nodes/VideoGenerate.tsx 🟢（videoUrl 落盘受 01/02 守护，非债）
-nodes/VideoProcessNode.tsx 🔴（uploadResult null → fail 显式报错；GIF 分支走 uploadFileToLocal 落盘；TD-22-19 键盘门）
-nodes/VideoExtractNode.tsx 🟢（crossOrigin 接回单点原语）
-videoEditor/engine/core/index.ts 🟢（**项目上下文生命周期唯一入口** `releaseProjectContext()`：切/关/新建项目、切场景、退出编辑器、编辑器卸载一律走它，一次重置命令栈/选择/音频/播放/渲染树/媒体/场景/活跃项目）
-videoEditor/ui/editor/panels/assets/views/captions.tsx ⚪（字幕转写面板：captions → transcriptionService.transcribe → worker）
-videoEditor/engine/services/transcription/{service,worker}.ts ⚪（transformers.js 浏览器内转写；模型源 huggingface.co 直连，有债待还）
-videoEditor/engine/lib/transcription/caption.ts ⚪（字幕分块纯函数）
-videoEditor/export/pipeline.ts 🟢（单入口 + 判别联合 OpResult/AudioOutcome）
-videoEditor/data/projectRepository.ts 🟢（CAS + 判别联合 SaveProjectResult，版本冲突暴露 UI）
-videoEditor/panels/dock/useEditorExport.ts 🟢（uploadResult null → toast「导出失败」不 spawn）
-videoEditor/ui/editor/panels/assets/views/{stickers,sounds}.tsx 🟢（素材数据源已收口：iconify → localTool `/api/iconify/*` 代理（3 处手拼直连收为唯一构造函数 `buildIconSvgUrl`）；音效/音乐 = **自建本地库** `GET /api/sounds/library` 扫 `uploads/sounds/{effects,music}`）
-videoEditor/engine/commands/timeline/transition/{add,remove,update}-transition.ts 🟢（转场增/删/改走命令栈可 undo/redo；判据单点在 TimelineManager，无效操作不入栈）
-videoEditor/engine/timeline/transition-utils.ts · ui/editor/panels/assets/views/transitions.tsx 🔴（转场应用失败：邻接阈值 ADJACENCY_EPSILON=0.05s 过严 + 英文提示未本地化；TD-22-49 待用户拍板。批量应用粒度 TD-22-51）
-base/depthVideo/* 🟢（上传落盘走 filesApi.uploadFileToLocal）
-director3d/App.tsx · director3d/panels/Timeline.tsx 🔴（MP4 导出走 uploadFileToLocal；TD-22-19 键盘门）
-videoEditor/ui/editor/panels/timeline/timeline-element.tsx 🔴
-videoEditor/ui/editor/panels/timeline/video-thumbnail-strip.tsx 🔴
-videoEditor/engine/services/storage/indexeddb-adapter.ts 🔴
+base/utils/videoEngine.ts（uploadResult 失败返 null；crossOrigin 走 setCrossOriginForReadable）
+base/utils/captureFrame.ts（跨源读取策略 setCrossOriginForReadable 已下沉 asyncGuard 并 re-export，供全树复用）
+base/utils/encoderProbe.ts · base/utils/audioPeaks.ts
+base/utils/timeline/sourceTime.ts（跨域唯一映射原语：时间轴 ↔ 源时刻；剪辑器 8 处采纳、内联 0 处）
+hooks/useVideoPoster.ts（crossOrigin 接回单点原语，删第二判据）
+base/ui/VideoThumbnail.tsx（显示组件，preload=metadata 取首帧，不抽帧）
+nodes/VideoGenerate.tsx（videoUrl 落盘受 01/02 守护，非债）
+nodes/VideoProcessNode.tsx（uploadResult null → fail 显式报错；GIF 分支走 uploadFileToLocal 落盘；TD-22-19 键盘门）
+nodes/VideoExtractNode.tsx（crossOrigin 接回单点原语）
+videoEditor/engine/core/index.ts（**项目上下文生命周期唯一入口** `releaseProjectContext()`：切/关/新建项目、切场景、退出编辑器、编辑器卸载一律走它，一次重置命令栈/选择/音频/播放/渲染树/媒体/场景/活跃项目）
+videoEditor/ui/editor/panels/assets/views/captions.tsx（字幕转写面板：captions → transcriptionService.transcribe → worker）
+videoEditor/engine/services/transcription/{service,worker}.ts（transformers.js 浏览器内转写；模型源 huggingface.co 直连，有债待还）
+videoEditor/engine/lib/transcription/caption.ts（字幕分块纯函数）
+videoEditor/export/pipeline.ts（单入口 + 判别联合 OpResult/AudioOutcome）
+videoEditor/data/projectRepository.ts（CAS + 判别联合 SaveProjectResult，版本冲突暴露 UI）
+videoEditor/panels/dock/useEditorExport.ts（uploadResult null → toast「导出失败」不 spawn）
+videoEditor/ui/editor/panels/assets/views/{stickers,sounds}.tsx（素材数据源已收口：iconify → localTool `/api/iconify/*` 代理（3 处手拼直连收为唯一构造函数 `buildIconSvgUrl`）；音效/音乐 = **自建本地库** `GET /api/sounds/library` 扫 `uploads/sounds/{effects,music}`）
+videoEditor/engine/commands/timeline/transition/{add,remove,update}-transition.ts（转场增/删/改走命令栈可 undo/redo；判据单点在 TimelineManager，无效操作不入栈）
+videoEditor/engine/timeline/transition-utils.ts · ui/editor/panels/assets/views/transitions.tsx（转场应用失败：邻接阈值 ADJACENCY_EPSILON=0.05s 过严 + 英文提示未本地化；TD-22-49 待用户拍板。批量应用粒度 TD-22-51）
+base/depthVideo/*（上传落盘走 filesApi.uploadFileToLocal）
+director3d/App.tsx · director3d/panels/Timeline.tsx（MP4 导出走 uploadFileToLocal；TD-22-19 键盘门）
+videoEditor/ui/editor/panels/timeline/timeline-element.tsx
+videoEditor/ui/editor/panels/timeline/video-thumbnail-strip.tsx
+videoEditor/engine/services/storage/indexeddb-adapter.ts
 ```
 
 ---
@@ -432,15 +435,15 @@ videoEditor/engine/services/storage/indexeddb-adapter.ts 🔴
 ## 十一 · 配置 / 账户 / 事件总线（横切契约域）
 
 ```
-contracts.ts（EVENTS/STORAGE_KEYS/NODE_TYPES/apiRegistry 单一事实来源） 🔴
-settingRegistry.ts（设置声明表·app_settings 默认值/UI/云同步三派生 SSOT） 🟢
-eventBus.ts（subscribe/publish 唯一通道） 🟢
-appSettings.ts（KEY=app_settings, backend:local） 🟢
-accountsStore.ts（KEY=yimao_accounts, backend:kv，仍进云同步） 🟡
-providerStore.ts（save 后回写 active_api_endpoint KV 供后端路由） 🟢
-agentModelStore.ts（agent_chat_model / agent_history_turns, backend:local） 🟢
-skillStore.ts（agent_skills / agent_skill_usage / agent_skill_enabled） ⚪（抽审，欠深审）
-nodeRuntimeStore.ts（纯内存瞬态 map，不落盘） ⚪（抽审，欠深审）
+contracts.ts（EVENTS/STORAGE_KEYS/NODE_TYPES/apiRegistry 单一事实来源）
+settingRegistry.ts（设置声明表·app_settings 默认值/UI/云同步三派生 SSOT）
+eventBus.ts（subscribe/publish 唯一通道）
+appSettings.ts（KEY=app_settings, backend:local）
+accountsStore.ts（KEY=yimao_accounts, backend:kv，仍进云同步）
+providerStore.ts（save 后回写 active_api_endpoint KV 供后端路由）
+agentModelStore.ts（agent_chat_model / agent_history_turns, backend:local）
+skillStore.ts（agent_skills / agent_skill_usage / agent_skill_enabled）（抽审，欠深审）
+nodeRuntimeStore.ts（纯内存瞬态 map，不落盘）（抽审，欠深审）
 ```
 
 **关键边**：`contracts.ts` EVENTS 被全仓 `publish/subscribe('` 配对消费（无第二套广播通道）；
@@ -481,18 +484,18 @@ nodeRuntimeStore.ts（纯内存瞬态 map，不落盘） ⚪（抽审，欠深�
 ## 十三 · hooks 编排层（横切 · 节点 / 画布 / store 写回归口）
 
 ```
-写回唯一入口：hooks/useNodeData.ts 🟢（patchNodeDataById/patchNodeById/computePatch*；24 fan-in）
-订阅基座：    hooks/useStoreSelector.ts 🟢（selector+shallowEqual 记忆化，防连坐重渲）
-跨窗口冲突：  hooks/useCanvasSync.ts 🟢（BroadcastChannel + 3s 版本轮询）
-画布快捷键：  hooks/useCanvasShortcuts.ts 🟢 · hooks/useCanvasHistory.ts 🟢（逻辑下沉纯类）
-工具：        hooks/useVideoPoster.ts 🟢 · hooks/useAssetDegrade.ts 🟢 · hooks/useLocalToolStatus.ts 🟢（ensurePoll 幂等）
-产出契约：    hooks/useConnectedInputs.ts 🟢（33 fan-in，写侧声明，见 §六）
-建边/改名：    hooks/useDisconnectSource.ts 🟢 · hooks/useEdgeData.ts 🟢
-生成链路：    hooks/useGenerateNode.ts 🟢 · hooks/useNodeGeneration.ts 🟢（见 §一）· hooks/useScriptBoxEngine.ts 🟢
-素材落画布：  hooks/useAssetDropPaste.ts 🟢 · hooks/useAssetDragToCanvas.ts 🟢 · hooks/useResourceMoveToFolder.ts 🟢
-改名/重命名： hooks/useNodeRename.ts 🟢
-欠深审：      hooks/useNodeField.ts ⚪ · hooks/useNodeExpanded.ts ⚪
-有债待还：    hooks/useArrangeCanvas.ts 🟢（TD-04-28 已收口：三写走 withNodeSize）· hooks/useFitNodeRatio.ts 🟢（非债）· hooks/useContextMenu.ts 🟢（非债）
+写回唯一入口：hooks/useNodeData.ts（patchNodeDataById/patchNodeById/computePatch*；24 fan-in）
+订阅基座：    hooks/useStoreSelector.ts（selector+shallowEqual 记忆化，防连坐重渲）
+跨窗口冲突：  hooks/useCanvasSync.ts（BroadcastChannel + 3s 版本轮询）
+画布快捷键：  hooks/useCanvasShortcuts.ts · hooks/useCanvasHistory.ts（逻辑下沉纯类）
+工具：        hooks/useVideoPoster.ts · hooks/useAssetDegrade.ts · hooks/useLocalToolStatus.ts（ensurePoll 幂等）
+产出契约：    hooks/useConnectedInputs.ts（33 fan-in，写侧声明，见 §六）
+建边/改名：    hooks/useDisconnectSource.ts · hooks/useEdgeData.ts
+生成链路：    hooks/useGenerateNode.ts · hooks/useNodeGeneration.ts（见 §一）· hooks/useScriptBoxEngine.ts
+素材落画布：  hooks/useAssetDropPaste.ts · hooks/useAssetDragToCanvas.ts · hooks/useResourceMoveToFolder.ts
+改名/重命名： hooks/useNodeRename.ts
+欠深审：      hooks/useNodeField.ts · hooks/useNodeExpanded.ts
+有债待还：    hooks/useArrangeCanvas.ts（TD-04-28 已收口：三写走 withNodeSize）· hooks/useFitNodeRatio.ts（非债）· hooks/useContextMenu.ts（非债）
 ```
 
 **关键边**：`useNodeData` ← 24 处；`useConnectedInputs` ← 33 处；`useStoreSelector` ← 全 store 原子订阅基座；`useCanvasSync` ← App 单点。
@@ -503,10 +506,10 @@ nodeRuntimeStore.ts（纯内存瞬态 map，不落盘） ⚪（抽审，欠深�
 ## 十四 · 导出 / 备份（项目文件导入导出）
 
 ```
-backupStore.exportAll/importAll/backupToBlob 🟢（agentKey 前缀收口 base/core/agentKeys.ts 单源；
+backupStore.exportAll/importAll/backupToBlob（agentKey 前缀收口 base/core/agentKeys.ts 单源；
     项目枚举走 projectStore.getAllProjects() 内存真源；importAll 有 type/version 守卫 + failed 明细，不再恒返 ok:true）
-  → useCanvasEventSubscriptions（project:export/import 事件接线）🟢（区分预检拒绝 / 部分失败）
-  → ProjectSelector（纯触发壳）🟢 · contracts.getLocalKeys（LS_KEYS 备份清单单源）🟢 · projectStore I/O 🟢 · contentStore 🟢
+  → useCanvasEventSubscriptions（project:export/import 事件接线）（区分预检拒绝 / 部分失败）
+  → ProjectSelector（纯触发壳） · contracts.getLocalKeys（LS_KEYS 备份清单单源） · projectStore I/O · contentStore
 ```
 
 ---
@@ -518,49 +521,49 @@ backupStore.exportAll/importAll/backupToBlob 🟢（agentKey 前缀收口 base/c
 ### 15.1 utils 工具层（横切纯函数）
 
 ```
-volumePolicy.ts 🟢 · asyncGuard.ts 🟢（loadImageOrNull 收口私有实现 + **跨源裁决单点 setCrossOriginForReadable**，TD-16-2/22-55 已收口）· clipboard.ts 🟢（复制/清洗/下载统一出口，TD-16-2 已收口）
-providerModels.ts 🟢（buildAllModels/resolveProviderModel 单源）· providerUrlAdapters.ts 🟢（展示名映射，非债）
-refToken.ts 🟢（编解码纯函数）· arrangePack.ts 🟢（packComponents 单消费方）
-assetType.ts 🟢（EXT_KIND 单源）· imagePixel.ts 🟢（RATIO_PIXEL_TABLE 单源）
+volumePolicy.ts · asyncGuard.ts（loadImageOrNull 收口私有实现 + **跨源裁决单点 setCrossOriginForReadable**，TD-16-2/22-55 已收口）· clipboard.ts（复制/清洗/下载统一出口，TD-16-2 已收口）
+providerModels.ts（buildAllModels/resolveProviderModel 单源）· providerUrlAdapters.ts（展示名映射，非债）
+refToken.ts（编解码纯函数）· arrangePack.ts（packComponents 单消费方）
+assetType.ts（EXT_KIND 单源）· imagePixel.ts（RATIO_PIXEL_TABLE 单源）
 ```
 
 ### 15.2 base/core 横切基础设施
 
 ```
-config.ts 🟢 · degrade.ts 🟢（reportDegrade 11 处调用全对象形态）· logger.ts 🟢（87 fan-in 唯一日志出口）
-backendLogStream.ts 🟢 · canvasSyncBus.ts 🟢 · confirmStore.ts 🟢 · toastStore.ts 🟢
-modalLayer.ts 🟢 · idGen.ts 🟢 · uiHooks.ts 🟢（TD-04-28 已收口：三写走 withNodeSize）· utils.ts 🟢
+config.ts · degrade.ts（reportDegrade 11 处调用全对象形态）· logger.ts（87 fan-in 唯一日志出口）
+backendLogStream.ts · canvasSyncBus.ts · confirmStore.ts · toastStore.ts
+modalLayer.ts · idGen.ts · uiHooks.ts（TD-04-28 已收口：三写走 withNodeSize）· utils.ts
 contentStore.ts / contracts.ts / eventBus.ts → 属 §三 / §十一 深审，此处不重复
 ```
 
 ### 15.3 base/ui 叶组件库
 
 ```
-Select.tsx 🟢 · ModelSelect.tsx 🟢（共用 DropdownPanel/DropdownRow 窄原语，单一真源）
-ContextMenu.tsx 🟢 · RenameDialog.tsx 🟢 · ErrorBoundary.tsx 🟢 · LazyImage.tsx 🟢
-Toggle.tsx 🟢（已从两处抽公共）· attachmentCover.tsx 🟢（TD-19-2 已收口：封面走 LazyImage）· InlineNameInput.tsx 🟢（TD-19-3 唯一实现：面板内联改名/建夹输入条）· NodeShell.tsx 🟢
-ConfirmContainer.tsx 🟢 · ToastContainer.tsx 🟢
+Select.tsx · ModelSelect.tsx（共用 DropdownPanel/DropdownRow 窄原语，单一真源）
+ContextMenu.tsx · RenameDialog.tsx · ErrorBoundary.tsx · LazyImage.tsx
+Toggle.tsx（已从两处抽公共）· attachmentCover.tsx（TD-19-2 已收口：封面走 LazyImage）· InlineNameInput.tsx（TD-19-3 唯一实现：面板内联改名/建夹输入条）· NodeShell.tsx
+ConfirmContainer.tsx · ToastContainer.tsx
 NodeTitle · ToolbarButton · GenerateButton · GeneratingOverlay · ExpandablePanel · VideoThumbnail
-  · ResizeFullscreenHandle · CometParticles · JianyingIcon ⚪（抽审，欠深审）
+  · ResizeFullscreenHandle · CometParticles · JianyingIcon（抽审，欠深审）
 ```
 
 ### 15.4 审计工具链治理（元层）
 
 ```
-knip（死代码检测）→ 并进主工程 🟢
-  ├→ package.json devDependency `knip`（随 npm ci 可装） 🟢
-  ├→ 根 knip.json 🟢 · scripts/check-dead-code.mjs（基线「永不复涨」） 🟢
-  ├→ scripts/dead-code-baseline.json（存量基线 · knip 6.33.0） 🟢
-  ├→ scripts/gates.manifest.json::dead-code（phase=push → 本地 pre-push 自动跑） 🟢
-  └→ .github/workflows/ci.yml `npm run check:push` 🟢（本地 pre-push 与 CI 跑同一份清单、各一次）
-scripts/check-arch.mjs 🟢（架构规则**唯一落点**：循环依赖/分层/唯一入口/裸写 node 字段/KV 同步读/深路径）
-scripts/check-silent-catch.mjs 🟢（静默吞闸 · 豁免通道收口为 catchOk.ts 登记表白名单）
-scripts/debt.mjs 🟢（债务账本读写唯一入口）
-scripts/probe.mjs 🟢（先红后绿探针执行器：注入 → 跑 → 断言 → 自动还原）
-scripts/check-gates.mjs 🟢（元层闸：在册闸脚本必须带【申诉口】三问）
-scripts/check-node-handles.mjs 🔴（端口豁免 · 与真源重复表述且半漂移）
-scripts/check-node-data.mjs 🟢（闸内豁免表 1 条 · 带原因 + 过期自检）
-docs/audit-archive/*.md ⚪（历史报告归档保留，非活配置）
+knip（死代码检测）→ 并进主工程
+  ├→ package.json devDependency `knip`（随 npm ci 可装）
+  ├→ 根 knip.json · scripts/check-dead-code.mjs（基线「永不复涨」）
+  ├→ scripts/dead-code-baseline.json（存量基线 · knip 6.33.0）
+  ├→ scripts/gates.manifest.json::dead-code（phase=push → 本地 pre-push 自动跑）
+  └→ .github/workflows/ci.yml `npm run check:push`（本地 pre-push 与 CI 跑同一份清单、各一次）
+scripts/check-arch.mjs（架构规则**唯一落点**：循环依赖/分层/唯一入口/裸写 node 字段/KV 同步读/深路径）
+scripts/check-silent-catch.mjs（静默吞闸 · 豁免通道收口为 catchOk.ts 登记表白名单）
+scripts/debt.mjs（债务账本读写唯一入口）
+scripts/probe.mjs（先红后绿探针执行器：注入 → 跑 → 断言 → 自动还原）
+scripts/check-gates.mjs（元层闸：在册闸脚本必须带【申诉口】三问）
+scripts/check-node-handles.mjs（端口豁免 · 与真源重复表述且半漂移）
+scripts/check-node-data.mjs（闸内豁免表 1 条 · 带原因 + 过期自检）
+docs/audit-archive/*.md（历史报告归档保留，非活配置）
 ```
 
 > 退役边界：depcruise / madge 的能力已被 `check-arch.mjs` 覆盖 → 不并；oxlint 与 eslint 重叠 → 不并；jscpd 无迫切性 → 不并；ast-grep 是重写执行器非闸 → 不并。

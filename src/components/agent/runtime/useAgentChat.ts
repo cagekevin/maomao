@@ -26,8 +26,6 @@ import {
   ENABLE_TOOLS_ON_NON_STREAM,
   CANVAS_AGENT_RULES,
   TABLE_AGENT_RULES,
-  SKILL_EXECUTION_RULES,
-  historyKey,
   loadHistory,
   parseSSEChunk,
   parseGenerationsFromReply,
@@ -35,7 +33,6 @@ import {
   parseAgentError,
   classifyLocalIntent,
   buildIntentHint,
-  INTENT_HINT,
 } from './agentCore.ts';
 import type { ToolCall, ChatMessage, AgentMemory, SkillItem } from './agentCore.ts';
 // 运行时逻辑（依赖注入版本）。hook 内以 const roundTrip 等同名闭包封装调用，
@@ -236,18 +233,25 @@ interface SendUserMessage {
  */
 
 // ── 职责模块化拆分 ──
-// 以下常量/系统提示词/纯函数已下沉到 agentCore.js，本文件保留 re-export 以维持既有测试契约
-// （agentLogic.test.js / useAgentChat.hook.test.js / canvasAgentTools.test.ts 等仍从本文件（re-export）取用）。
-//   · MAX_TOOL_ROUNDS / ENABLE_TOOLS_ON_NON_STREAM / CANVAS_AGENT_RULES / SKILL_EXECUTION_RULES
-//   · historyKey / loadHistory / parseSSEChunk / parseGenerationsFromReply / buildRequestMessages
+// 以下常量/系统提示词/纯函数已下沉到 agentCore.ts，本文件保留 re-export 以维持既有测试契约
+// （agentLogic.test.ts / localIntent.test.ts / useAgentChat.hook.test.ts 仍从本文件（re-export）取用）。
+//   · MAX_TOOL_ROUNDS / ENABLE_TOOLS_ON_NON_STREAM / CANVAS_AGENT_RULES / TABLE_AGENT_RULES
+//   · loadHistory / parseSSEChunk / parseGenerationsFromReply / buildRequestMessages
 //   · parseAgentError / classifyLocalIntent / buildIntentHint
+//
+// 【更新(2026-09-16) · 死代码闸取证：删除 3 条本文件的 re-export】
+//   SKILL_EXECUTION_RULES / historyKey / INTENT_HINT 已从下面的 re-export 列表移除。
+//   【为何删】原注释声称"测试仍从本文件取用"，实测**过期**：全仓（src + tests）零 import，
+//     tests 里仅 useAgentChat.hook.test.ts:905 的**测试标题字符串**出现 SKILL_EXECUTION_RULES 字样
+//     （`it('…并追加 SKILL_EXECUTION_RULES', …)`，不是 import）。knip 报「死代码」+ mv-sync-refs refs
+//     取证一致 → 按 CLAUDE §5.4.9「不留 re-export 兼容层」删除。
+//   【连带】agentCore.ts 侧同步去掉这 3 个的 export（降为文件内私有，同文件内仍被使用）——
+//     只删链尾会让死代码上移一层（打地鼠）：删 re-export 前必须顺着 refs 把链条查到底。
 export {
   MAX_TOOL_ROUNDS,
   ENABLE_TOOLS_ON_NON_STREAM,
   CANVAS_AGENT_RULES,
   TABLE_AGENT_RULES,
-  SKILL_EXECUTION_RULES,
-  historyKey,
   loadHistory,
   parseSSEChunk,
   parseGenerationsFromReply,
@@ -255,7 +259,6 @@ export {
   parseAgentError,
   classifyLocalIntent,
   buildIntentHint,
-  INTENT_HINT,
 };
 
 /**

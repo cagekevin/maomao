@@ -166,7 +166,10 @@ export const TABLE_AGENT_RULES = AGENT_PROMPTS.TABLE_RULES;
 // ── Skill 执行指令（2026-09-05 精简：Skill 仅作理解需求的输入文本，不再引导多步批量编排）──
 // 当对话启用了 Skill 时，把它追加到 system，让 LLM 按 Skill 理解需求并按对话方式自主执行。
 // 值已收口到 ../agentConfig.js 的 AGENT_PROMPTS.SKILL_EXECUTION_RULES；此处别名沿用。
-export const SKILL_EXECUTION_RULES = AGENT_PROMPTS.SKILL_EXECUTION_RULES;
+// 【更新(2026-09-16) · 死代码闸取证】去掉 export：全仓唯一消费者在本文件内（:378 拼接 system）。
+//   原 export 是 re-export 链的中间环（agentCore → useAgentChat → 无人），使用者是 useAgentChat 的转发层，
+//   该转发层已按 §5.4.9 删除 → 此处同步降为文件内私有，勿再加回 export（否则 knip 重新报死代码）。
+const SKILL_EXECUTION_RULES = AGENT_PROMPTS.SKILL_EXECUTION_RULES;
 
 /** auto 执行模型系统提示词（2026-09-05 执行模型精简恒 auto；原 runModeRegistry WORK_MODE_DEFS.AUTO.systemPrompt 提升为常量） */
 export const AUTO_MODE_SYSTEM_PROMPT =
@@ -176,9 +179,10 @@ export const AUTO_MODE_SYSTEM_PROMPT =
 // 待想清楚「同构图多张」的确切语义后，把下面这行加回 CANVAS_AGENT_RULES 模板即可（勿加回 schema 促成模型空口承诺）：
 //   - 数量：默认每步 count=1；只有用户明确要求"一次出 N 张同构图"才在某步 count>1；"5主图+8详情"是多个步骤，不是 count=13。
 
-/** 旧单会话历史键（仅用于首次迁移到多对话；会话隔离后消息存 conversationStore） */
-export const historyKey = (agentKey: string): string =>
-  `agent_history_${agentKey || AGENT_KEY_PREFIX}`;
+/** 旧单会话历史键（仅用于首次迁移到多对话；会话隔离后消息存 conversationStore）
+ *  【更新(2026-09-16) · 死代码闸取证】去掉 export：全仓唯一消费者是本文件的 loadHistory（:186）。
+ *  原 export 是 re-export 链的中间环（经 useAgentChat 转发后无人消费）→ 按 §5.4.9 降为文件内私有。 */
+const historyKey = (agentKey: string): string => `agent_history_${agentKey || AGENT_KEY_PREFIX}`;
 
 /** 从 localStorage 读旧单会话历史（首次启动迁移用，对齐大雄"messages → conversations"迁移） */
 export function loadHistory(agentKey: string): ChatMessage[] {
@@ -647,8 +651,10 @@ export async function parseAgentError(
 /** L1 本地判定的意图（仅覆盖「消歧收益最高」的三类，非全局意图枚举）。 */
 export type LocalIntent = 'chat' | 'content' | 'generate';
 
-/** 命中时注入给 LLM 的提示文案（作为独立 system 消息追加，不拦截任何能力）。 */
-export const INTENT_HINT: Record<LocalIntent, string> = {
+/** 命中时注入给 LLM 的提示文案（作为独立 system 消息追加，不拦截任何能力）。
+ *  【更新(2026-09-16) · 死代码闸取证】去掉 export：全仓唯一消费者是本文件的 buildIntentHint（:731）。
+ *  原 export 是 re-export 链的中间环（经 useAgentChat 转发后无人消费）→ 按 §5.4.9 降为文件内私有。 */
+const INTENT_HINT: Record<LocalIntent, string> = {
   chat: '纯聊天/无操作意图 —— 只做简洁文字回应，不调用任何画布工具',
   content:
     '内容理解/产出文字（反推提示词、描述图片、提取图上文字、翻译润色、起标题等）—— 直接给出文字结果，不需要调用任何画布工具；图片内容已在你的输入里，直接看即可。若用户是在问「怎么写/怎么描述」，给方法说明 + 可直接复制的示例文本即可，同样不动手',
