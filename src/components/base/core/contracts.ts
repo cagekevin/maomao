@@ -223,6 +223,26 @@ export const KEY_YIMAO_PROMPT_HUB_CACHE = 'yimao_prompt_hub_cache';
 export const KEY_YIMAO_NODE_PREFS = 'yimao_node_prefs';
 export const KEY_YIMAO_CLOUD_SYNC_LEDGER = 'yimao_cloud_sync_ledger';
 
+/**
+ * M7 裸写收口命名常量（2026-09-16 · TD-02-33/36/37/40）。
+ *
+ * 【为什么要这几个 const】这批键原先**根本不在本表**：各自模块用**裸 `localStorage` 字面量**直写
+ * （无 `yimao:` 前缀、不经 contentStore）→ 同一键名在「模块本地字面量 + 本表缺登记」间分裂，
+ * `getLocalKeys()` 派生的**备份/云同步清单恒漏收**（换机即丢用户数据）。
+ * 收口动作 = ① 本表登记（backend:'local'）+ 导出命名 const；② 模块 `import` 引用（消第二份，照 TD-13-4）；
+ * ③ 真实写路径一律委托 contentStore。
+ *
+ * ⚠️ **物理键随之改变**：`<裸键>` → `yimao:<键名>`（storageAdapter 统一加前缀）→
+ * 各写者内含**一次性迁移读**（命中旧裸键 → 回填新键 + 删旧键，幂等；见各自模块注释）。
+ * 注：**不给它们填 `migration` 字段** —— `getLocalKeys()` 会过滤掉带 `migration` 的项（那是"仅迁移读、不再写"的
+ * 旧键语义），填了反而进不了备份清单。
+ */
+export const KEY_DIRECTOR3D_CUSTOM_POSES = 'director3d-custom-poses';
+export const KEY_EDITOR_CAPTION_LANGUAGE = 'editor-caption-language';
+export const KEY_EDITOR_CAPTION_MODEL_ID = 'editor-caption-model-id';
+export const KEY_EDITOR_CAPTION_TEMPLATE_ID = 'editor-caption-template-id';
+export const KEY_VIDEO_EDITOR_SAVED_SOUNDS = 'video-editor-saved-sounds';
+
 export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   // ── 项目（projectStore）────────────────────────────────────────────
   projects: {
@@ -485,11 +505,15 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     timeout: KV_TIMEOUT, // 独立超时
     note: '3D 导演台工程（画布节点实例）动态键 → KV 主通道 + localStorage 降级副本（双通道，TD-7 方案A）',
   },
-  'director3d-custom-poses': {
+  [KEY_DIRECTOR3D_CUSTOM_POSES]: {
     domain: 'director3d',
-    store: 'director3d/App.tsx',
-    backend: 'native',
-    note: '3D 导演台自定义姿势库（仅 localStorage 直写，不进 KV，见 isProjectPersistenceKey）',
+    store: 'director3d/storage.ts',
+    // 【2026-09-16 M7 收口 · 原为 backend:'native'】native 与 local 在 contentStore 内**共用同一条
+    // 本地落地路径**（resolveBackend 非 kv → sSet），故改标 local 不改物理行为，只改**治理语义**：
+    // getLocalKeys() 只收 backend==='local' → 标 native 时该键恒不进备份清单（这才是"登记项形同虚设"的真因，
+    // 不是"缺 backend 字段"——原债描述此处有误，见 02 区 2026-09-16 轮次日志）。
+    backend: 'local',
+    note: '3D 导演台自定义姿势库（**用户资产**，非工程本体）→ 经 contentStore 写 localStorage；进 getLocalKeys 备份清单。原写者 director3d/storage.ts 裸 localStorage 直写（TD-02-36/38/39）',
   },
   // 注：故 hideFromViewportCapture 曾登记为 native（2026-08-22 移除）——它实为 3D object.userData
   // 属性（SceneRoot.tsx / DirectorCanvas.tsx），并非存储键，登记纯属误导。此键不影响存储读写。
@@ -520,11 +544,44 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     note: '**单个剪辑工程本体**（重）：完整 TProject（docs/133 §一.1，禁镜像）。严格族 CAS 独写；409 由 UI 显式消费（D-4 禁静默重试）',
   },
 
+  // ── 剪辑器本地偏好 / 用户资产（2026-09-16 M7 裸写收口：TD-02-33/37/40）──────
+  // 载体判据（本轮确立，两分法）：**工程本体**（大、按 projectId 隔离、需跨端）→ `backend:'kv'`（上方三键）；
+  //   **跨项目的小型用户资产 / 偏好** → `backend:'local'`（登记即自动进 getLocalKeys 备份清单）。
+  //   为什么这三者不迁 KV：KV 的 `pattern` 动态键**当前进不了备份**（backupStore 未遍历动态键，TD-02-30），
+  //   迁 KV 反而修不成"不进备份"这一症状；local 登记是本轮唯一能真正闭环的载体。
+  //   云同步不受影响：cloudSync 仍按 SYNC_ALLOW 白名单**默认拒绝**（用户 2026-09-16 裁定）。
+  [KEY_EDITOR_CAPTION_LANGUAGE]: {
+    domain: 'videoEditor',
+    store: 'videoEditor/hooks-cutia/storage/use-local-storage.ts',
+    backend: 'local',
+    note: '字幕识别语言偏好（原 cutia 裸 localStorage 键 editor-caption-language，未登记；TD-02-33/37）',
+  },
+  [KEY_EDITOR_CAPTION_MODEL_ID]: {
+    domain: 'videoEditor',
+    store: 'videoEditor/hooks-cutia/storage/use-local-storage.ts',
+    backend: 'local',
+    note: '字幕识别模型偏好（原 cutia 裸 localStorage 键 editor-caption-model-id，未登记；TD-02-33/37）',
+  },
+  [KEY_EDITOR_CAPTION_TEMPLATE_ID]: {
+    domain: 'videoEditor',
+    store: 'videoEditor/hooks-cutia/storage/use-local-storage.ts',
+    backend: 'local',
+    note: '字幕模板偏好（原 cutia 裸 localStorage 键 editor-caption-template-id，未登记；TD-02-33/37）',
+  },
+  [KEY_VIDEO_EDITOR_SAVED_SOUNDS]: {
+    domain: 'videoEditor',
+    store: 'videoEditor/engine/services/storage/service.ts',
+    backend: 'local',
+    note: '用户收藏音效清单 { sounds[], lastModified }（原仅存 IndexedDB `video-editor-saved-sounds`，不进备份；TD-02-34/40）。键名沿用旧 IndexedDB 库名，便于迁移对照',
+  },
+
   // ── 备份/云同步清单（backupStore.ts / cloudSync.ts）──────────────
   // 已统一从本表 getLocalKeys() 生成，禁止再手写清单（防漂移漏备份）：
   //   backupStore 全量导出；cloudSync 用 SYNC_EXCLUDE 显式排除
   //   （lastOpenedProject / yimao_asset_library / agent_draft / mutiwindow-clipboard）。
   // 新增本表 local 键即自动进入备份与同步。
+  // 更新(2026-09-16)：本段后两句已过时 —— cloudSync 现用 **SYNC_ALLOW 白名单**（默认拒绝，非 SYNC_EXCLUDE 黑名单），
+  //   且新增 local 键**不再**自动进云同步（只自动进备份）。原文保留供追溯原因（见 cloudSync.ts 文件头）。
 };
 
 /** 获取所有 localStorage 后端键列表（不含动态键模板、不含已迁移旧键） */

@@ -706,8 +706,13 @@ if (!nodeDataViol)
 // 【白名单（有意例外，理由见 daily/架构日志/02-存储-持久化-二轮深扫-2026-09-12.md §一.2）】
 //  - contentStore.ts：唯一入口本体，它才是这些底层的合法消费者；
 //  - base/storage/**：底层实现内部互引（storageAdapter / index / storageQuota / kvStore 壳）；
-//  - conversationState.ts：KV 迁移需回读旧 local 存量（键已登记 kv 后端，走 contentStore 会读错后端）；
-//  - director3d/**：第三方域（§五·五 明示例外，不走本项目存储键体系）。
+//  - conversationState.ts：KV 迁移需回读旧 local 存量（键已登记 kv 后端，走 contentStore 会读错后端）。
+// 【更新(2026-09-16 · M7 裸写收口)】原第 4 条「director3d/**：第三方域」**已删除（只收窄，不放宽）**：
+//  ① 豁免理由本身已失效 —— spec/CONTEXT.md §五·五 早于 2026-09-01 就写明「director3d 已解除豁免，
+//     可以动、可以改、可以收口」；此处却仍按"第三方域例外"整目录放行（**守卫的理由比守卫落后了半个月**）；
+//  ② 实证：删掉该条后本规则**零违规** ⇒ 它早已是**死豁免**（director3d 侧无任何直调底层符号的依赖），
+//     留着唯一的效果是让"下一个绕过点"天然落在没人看的角落（M2 母体：整目录豁免 ⇒ 绕过零成本）；
+//  ③ 「不走本项目存储键体系」与事实不符：`director3d-custom-poses` 本就登记在 contracts.STORAGE_KEYS。
 // ─────────────────────────────────────────────────────────────────
 const KV_TRANSPORT_SYMBOLS = new Set(['kvGet', 'kvSet', 'kvDelete', 'kvGetVersion']);
 const LOCAL_ADAPTER_SYMBOLS = new Set(['sGet', 'sSet', 'sRemove']);
@@ -715,8 +720,7 @@ function storageBypassAllowed(rel) {
   return (
     rel === 'src/components/base/core/contentStore.ts' ||
     rel.startsWith('src/components/base/storage/') ||
-    rel === 'src/components/agent/conversation/conversationState.ts' ||
-    rel.startsWith('src/components/director3d/')
+    rel === 'src/components/agent/conversation/conversationState.ts'
   );
 }
 let storageBypassViol = 0;
@@ -780,8 +784,9 @@ if (!storageBypassViol)
 //   → 拼出候选键文本；命中任一 KV 键前缀 / 精确键 → 违规。
 //   求值不到（函数调用等）→ **不猜**（诚实免责，见「已知边界」）。
 //
-// 【豁免】contentStore.ts（入口本体）/ base/storage/**（底层自持原始键语义）/
-//   director3d/**（第三方域，同规则 6 §五·五 例外）。
+// 【豁免】contentStore.ts（入口本体）/ base/storage/**（底层自持原始键语义）。
+//   【更新(2026-09-16)】原第 3 条 `director3d/**` 已随规则 6 一并**只收窄**删除（理由见规则 6 的更新段；
+//   删后本规则零违规）。
 //
 // 【已知边界（诚实标注）】
 //   - 只覆盖**直接出现在调用点**的键文本；经多层变量传递、跨文件函数返回的键无法静态求值（宁漏不猜）；
@@ -793,12 +798,11 @@ if (!storageBypassViol)
  *   本规则管「**可否同步读 KV 键**」，规则 6 管「**可否直调底层存储函数**」—— 语义不同，故例外集也不同：
  *   规则 6 多豁免 `conversationState.ts`（KV 迁移需**回读旧 local 存量**），而它读的是 **local 键、不是 KV 键**
  *   ⇒ 规则 7 本就不会命中它，**无需**在此豁免（少了它 ≠ 漂移，是判据差异）。
- *   三处理由与规则 6 同源：唯一入口本体 / 底层实现互引 / 第三方域（§五·五）。
+ *   理由与规则 6 同源：唯一入口本体 / 底层实现互引。（原「第三方域 §五·五」一并于 2026-09-16 只收窄删除。）
  */
 const KV_SYNC_READ_SCOPE_EXEMPT = (rel) =>
   rel === 'src/components/base/core/contentStore.ts' ||
-  rel.startsWith('src/components/base/storage/') ||
-  rel.startsWith('src/components/director3d/');
+  rel.startsWith('src/components/base/storage/');
 
 const kvKeyPrefixes = new Set();
 const kvKeyExact = new Set();
@@ -1307,6 +1311,65 @@ for (const f of files) {
 }
 if (assertScanned('云同步范围白名单（src 全域）', getLocalKeysScanned) && !getLocalKeysViol) {
   console.log(`  ✅ getLocalKeys() 仅 2 个合法消费者（扫 ${getLocalKeysScanned} 文件）`);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 规则 11（2026-09-16 · M7 裸写收口 · TD-02-33/36/37/39）：本地存储**变更**必须经唯一入口 contentStore。
+//
+// 【为什么存在】`contentStore.ts` 文件头第一句就是红线「所有业务数据读写必须走 contentStore，
+//   禁止直调 storageAdapter / kvStore / **原生 localStorage**」，但机器守卫只覆盖了一半：
+//   规则 6 拦的是「import sSet/sGet/kvSet…」这类**经适配层**的绕过，对
+//   **直接 `localStorage.setItem/removeItem/clear`** 完全无感（本规则上线前全 src 零扫描）。
+//   实证：`director3d/storage.ts` 与 `videoEditor/hooks-cutia/storage/use-local-storage.ts` 两处长期裸写 ——
+//   绕过入口 ⇒ 备份清单 / 存储监控 / 失败上报（persist:failed）对该条数据流**全部失效**，
+//   且键连登记表都没有（换机丢数据）。红线只写在注释里 = 无红线。
+//
+// 【判定（反向判据，不列业务模块清单）】src 全域扫**变更类**裸调用
+//   `localStorage.setItem|removeItem|clear`。（纯「读」不在本规则：读侧另有规则 7「KV 键禁同步读」管辖。）
+//   唯一结构性豁免 = `src/components/base/storage/**` —— **底层实现本体** + 历史裸键迁移原语
+//   （裸访问点全仓收敛在该层，理由见 `legacyRawKey.ts` 文件头）。
+//   其余确需裸访问处（如写**外部站点**的 localStorage）→ 在该行或上一行标 `// storage-raw-ok: <理由>`；
+//   本规则会**打印全部标记使用点**（可观测，防"标记一贴就绕过" —— `catch-ok` 的教训：标记量 ≠ 豁免量）。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n🧱 本地存储变更唯一入口：禁裸写 localStorage（反向判据）');
+const RAW_LS_SCOPE_EXEMPT = (rel) => rel.startsWith('src/components/base/storage/');
+const RAW_LS_MUTATE_RE = /localStorage\s*\.\s*(setItem|removeItem|clear)\s*\(/;
+let rawLsViol = 0;
+let rawLsScanned = 0;
+const rawLsMarkers = [];
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  rawLsScanned++;
+  if (RAW_LS_SCOPE_EXEMPT(rel)) continue;
+  let code;
+  try {
+    code = readFileSync(f, 'utf8');
+  } catch {
+    continue;
+  }
+  const lines = code.split('\n');
+  for (const [i, line] of lines.entries()) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+    if (!RAW_LS_MUTATE_RE.test(line)) continue;
+    const prev = i > 0 ? lines[i - 1] : '';
+    if (/storage-raw-ok:/.test(line) || /storage-raw-ok:/.test(prev)) {
+      rawLsMarkers.push(`${rel}:${i + 1}`);
+      continue;
+    }
+    rawLsViol++;
+    fail(
+      `裸写本地存储绕过唯一入口: ${rel}:${i + 1} → 必须经 contentStore（contentSet/contentSetAsync/contentDelete/contentDeleteAsync）；` +
+        `确需裸访问（如写外部站点）须标 // storage-raw-ok: <理由>`,
+    );
+  }
+}
+if (assertScanned('禁裸写 localStorage（src 全域）', rawLsScanned) && !rawLsViol) {
+  console.log(
+    `  ✅ 无裸写 localStorage（扫 ${rawLsScanned} 文件；storage-raw-ok 标记 ${rawLsMarkers.length} 处${
+      rawLsMarkers.length ? ' → ' + rawLsMarkers.join(' · ') : ''
+    }）`,
+  );
 }
 
 console.log(`\n${errors === 0 ? '✅ 架构校验通过' : `❌ ${errors} 处架构违规`}`);

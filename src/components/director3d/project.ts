@@ -12,8 +12,11 @@ import {
   presetPhase,
   presetRoot,
 } from './rig.ts';
-import { readJson, removeKey, writeJson } from './storage.ts';
+import { readJson, writeJson } from './storage.ts';
 import { isProjectAssetUrl } from './d3dPersistence.ts';
+import { KEY_DIRECTOR3D_CUSTOM_POSES } from '../base/core/contracts.ts';
+// 旧 `stageframe-project` 裸键清理改走存储层迁移原语（storage.ts 不再导出裸删函数）
+import { removeLegacyRawKey } from '../base/storage/index.ts';
 
 // ================================================================
 // 领域类型真相源（3D 导演台）
@@ -206,7 +209,12 @@ export interface ProjectObject {
 export const CAMERA_ID = '__shot_camera__';
 export const PROJECT_STORAGE_KEY = 'director3d-project';
 const LEGACY_PROJECT_STORAGE_KEY = 'stageframe-project';
-export const CUSTOM_POSE_STORAGE_KEY = 'director3d-custom-poses';
+/**
+ * 姿势库存储键 —— **键名真源 = `base/core/contracts.ts` 的 STORAGE_KEYS 命名导出**（2026-09-16 M7 收口）。
+ * 原为模块本地字面量 = 与登记表**两份维护**（TD-13-4 母体）：改名只改一处，该键在
+ * `getLocalKeys()` 派生的备份清单里即漂移 → 漏备。本处 re-export 保消费方（App.tsx 等）零改动。
+ */
+export const CUSTOM_POSE_STORAGE_KEY = KEY_DIRECTOR3D_CUSTOM_POSES;
 const PROJECT_VERSION = 17;
 export const DEFAULT_PROJECT_SETTINGS = {
   name: '未命名场景',
@@ -1282,7 +1290,7 @@ export function readCachedProject(storageKey: string) {
   if (legacy) {
     // legacy 迁移：回写新 key，并清理旧 key 释放存储空间（原实现遗留，长期占用）
     writeJson(key, normalized);
-    removeKey(LEGACY_PROJECT_STORAGE_KEY);
+    removeLegacyRawKey(LEGACY_PROJECT_STORAGE_KEY);
   }
   return normalized;
 }

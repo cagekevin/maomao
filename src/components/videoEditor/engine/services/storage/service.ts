@@ -37,6 +37,9 @@ import {
   contentSetAsync,
   contentDeleteAsync,
 } from '../../../../base/core/contentStore.ts';
+// ── 2026-09-16 M7 收口（TD-02-34/40）：收藏音效由「仅 IndexedDB」改走 contentStore（键已登记 backend:'local'）。
+import { KEY_VIDEO_EDITOR_SAVED_SOUNDS } from '../../../../base/core/contracts.ts';
+import { deleteDatabase } from './indexeddb-adapter';
 import { HttpError } from '../../../../base/api/httpClient.ts';
 import { logger } from '../../../../base/core/logger.ts';
 // ── T4（docs/134）：素材二进制改走 localTool /files/（docs/133 §3.2 D-3），元数据留 IndexedDB。
@@ -121,23 +124,21 @@ function canvasProjectIdOrNull(): string | null {
 }
 
 class StorageService {
-  private savedSoundsAdapter: IndexedDBAdapter<SavedSoundsData>;
   private config: StorageConfig;
   private migrationsPromise: Promise<void> | null = null;
+  /** 收藏音效「旧 IndexedDB → contentStore」一次性迁移是否已尝试（本会话只试一次；失败不反复读旧库）。 */
+  private savedSoundsMigrationAttempted = false;
 
   constructor() {
     this.config = {
       projectsDb: 'video-editor-projects',
       mediaDb: 'video-editor-media',
+      // 【2026-09-16 收口后仅作迁移用】旧收藏音效 IndexedDB 库名（新键名沿用同名字符串，
+      // 见 contracts.KEY_VIDEO_EDITOR_SAVED_SOUNDS）；迁移完成、确认无存量后可随 TD-02-35 四期一并清。
       savedSoundsDb: 'video-editor-saved-sounds',
       version: 1,
     };
-
-    this.savedSoundsAdapter = new IndexedDBAdapter<SavedSoundsData>(
-      this.config.savedSoundsDb,
-      'saved-sounds',
-      this.config.version,
-    );
+    // savedSoundsAdapter 已删（TD-02-34/40）：收藏音效不再走 IndexedDB，改 contentStore。
   }
 
   private async ensureMigrations(): Promise<void> {
@@ -678,23 +679,69 @@ class StorageService {
     return { quota, usage, projects };
   }
 
+  /**
+   * 读收藏音效（含一次性迁移）。
+   *
+   * 【TD-02-40 正确性修复】原实现 `catch → 返回空数组`，把「读不到」伪装成「没有收藏」；
+   * 而 `saveSoundEffect` 是**读-改-写**：读失败 → 基于空数组写回 → **抹掉用户全部已收藏音效**（真数据丢失）。
+   * 现契约：**读失败一律上抛**（消费方 sounds-store 落 `savedSoundsError` + toast），
+   * 只有「确实为空」（新键无值）才返回空集合 —— 区分「未知」与「不存在」。
+   */
   async loadSavedSounds(): Promise<SavedSoundsData> {
-    try {
-      const savedSoundsData = await this.savedSoundsAdapter.get('user-sounds');
-      return (
-        savedSoundsData || {
-          sounds: [],
-          lastModified: new Date().toISOString(),
-        }
-      );
-    } catch (error) {
-      logger.error('videoEditor', 'load-sounds', (error as { message?: string })?.message);
+    await this.migrateSavedSoundsFromIndexedDbOnce();
+    const value = await contentGetAsync(KEY_VIDEO_EDITOR_SAVED_SOUNDS);
+    if (value === null || value === undefined) {
       return { sounds: [], lastModified: new Date().toISOString() };
+    }
+    const data = value as Partial<SavedSoundsData> | null;
+    if (!data || !Array.isArray(data.sounds)) {
+      // 形态异常 ≠ 空：不静默当空（会掩盖损坏），留痕后按空处理（用户可重新收藏）
+      logger.warn('videoEditor', 'saved-sounds-shape', '收藏音效数据形态异常，按空处理');
+      return { sounds: [], lastModified: new Date().toISOString() };
+    }
+    return {
+      sounds: data.sounds,
+      lastModified: data.lastModified || new Date().toISOString(),
+    };
+  }
+
+  /**
+   * 一次性迁移：旧 IndexedDB 库（`video-editor-saved-sounds`）→ contentStore 新键。
+   * 幂等（新键有值即返回）；**新键写成功才删旧库**（写失败保留 = 数据不丢，下次启动再试）；
+   * 迁移自身失败只留痕、不阻断（读侧照常按新键处理，旧数据仍在）。
+   */
+  private async migrateSavedSoundsFromIndexedDbOnce(): Promise<void> {
+    if (this.savedSoundsMigrationAttempted) return;
+    this.savedSoundsMigrationAttempted = true;
+    try {
+      const existing = await contentGetAsync(KEY_VIDEO_EDITOR_SAVED_SOUNDS);
+      if (existing !== null && existing !== undefined) return;
+      const legacyAdapter = new IndexedDBAdapter<SavedSoundsData>(
+        this.config.savedSoundsDb,
+        'saved-sounds',
+        this.config.version,
+      );
+      const legacy = await legacyAdapter.get('user-sounds');
+      if (!legacy) return; // 无存量（新用户）
+      await contentSetAsync(KEY_VIDEO_EDITOR_SAVED_SOUNDS, legacy);
+      try {
+        await deleteDatabase({ dbName: this.config.savedSoundsDb });
+      } catch (error) {
+        // 旧库没删掉不影响正确性（读侧只看新键）；留痕，下次启动重试
+        logger.warn(
+          'videoEditor',
+          'saved-sounds-migrate-cleanup',
+          (error as { message?: string })?.message,
+        );
+      }
+    } catch (error) {
+      logger.warn('videoEditor', 'saved-sounds-migrate', (error as { message?: string })?.message);
     }
   }
 
   async saveSoundEffect({ soundEffect }: { soundEffect: SoundEffect }): Promise<void> {
     try {
+      // 读失败会抛（见 loadSavedSounds）→ 绝不会用「空数组 + 1 条」覆盖用户既有收藏
       const currentData = await this.loadSavedSounds();
 
       if (currentData.sounds.some((sound) => sound.id === soundEffect.id)) {
@@ -718,7 +765,7 @@ class StorageService {
         lastModified: new Date().toISOString(),
       };
 
-      await this.savedSoundsAdapter.set('user-sounds', updatedData);
+      await contentSetAsync(KEY_VIDEO_EDITOR_SAVED_SOUNDS, updatedData);
     } catch (error) {
       logger.error('videoEditor', 'save-sound', (error as { message?: string })?.message);
       throw error;
@@ -734,7 +781,7 @@ class StorageService {
         lastModified: new Date().toISOString(),
       };
 
-      await this.savedSoundsAdapter.set('user-sounds', updatedData);
+      await contentSetAsync(KEY_VIDEO_EDITOR_SAVED_SOUNDS, updatedData);
     } catch (error) {
       logger.error('videoEditor', 'remove-sound', (error as { message?: string })?.message);
       throw error;
@@ -753,7 +800,7 @@ class StorageService {
 
   async clearSavedSounds(): Promise<void> {
     try {
-      await this.savedSoundsAdapter.remove('user-sounds');
+      await contentDeleteAsync(KEY_VIDEO_EDITOR_SAVED_SOUNDS);
     } catch (error) {
       logger.error('videoEditor', 'clear-sounds', (error as { message?: string })?.message);
       throw error;

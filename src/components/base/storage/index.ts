@@ -15,3 +15,5 @@ export * from './storageAdapter.ts';
 export * from './kvStore.ts';
 export * from './storageQuota.ts';
 export * from './persistFailureBus.ts';
+// 历史裸键迁移原语（2026-09-16 M7 收口）：裸访问点全仓收敛在本层，业务只经本 barrel 调其迁移语义 API。
+export * from './legacyRawKey.ts';

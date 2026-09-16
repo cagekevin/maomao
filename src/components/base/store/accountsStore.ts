@@ -435,10 +435,12 @@ async function writeTabLocalStorage(
       target: { tabId: tab.id },
       world: 'MAIN',
       func: (store) => {
+        // storage-raw-ok: chrome.scripting 注入目标站点 MAIN world 执行，写的是**那个站点**的 localStorage（非 maomao 自身存储，contentStore 物理不可达）
         localStorage.clear();
         if (store && typeof store === 'object') {
           const rec = store as Record<string, string>;
           attemptQuietly(() => {
+            // storage-raw-ok: 同上（写目标站点 MAIN world 的 localStorage）
             for (const k of Object.keys(rec)) localStorage.setItem(k, rec[k]);
           });
         }

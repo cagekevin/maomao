@@ -853,7 +853,7 @@ function BrowserQuotaCard({ data, pressure }: BrowserQuotaCardProps) {
       <p className="text-xs text-muted mt-1">
         {under
           ? '配额即将用尽，自动保存可能失败，建议清理下方可释放空间'
-          : 'IndexedDB / Cache 的浏览器分配配额；maomao 业务数据存在 localTool，不使用 IndexedDB，故此处占用通常为 0'}
+          : 'IndexedDB / Cache 的浏览器分配配额。maomao 主体业务数据存在 localTool／localStorage，但剪辑器的素材元数据仍写在 IndexedDB，故此处占用未必为 0'}
       </p>
       {data ? (
         <>
@@ -871,7 +871,7 @@ function BrowserQuotaCard({ data, pressure }: BrowserQuotaCardProps) {
           </div>
           {idleIndexedDb && (
             <p className="text-xs text-muted mt-2">
-              当前未使用 IndexedDB，占用为 0 属正常；真正占用看上方存储健康报表
+              浏览器报告的 IndexedDB 占用为 0（或极小）属常见；真正占用看上方存储健康报表
             </p>
           )}
         </>

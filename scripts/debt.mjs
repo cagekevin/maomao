@@ -40,7 +40,8 @@
  *   node scripts/debt.mjs area <NN>            # 某区**全部**历史债（含归档）—— 开审前查"这区以前查出过什么"
  *   node scripts/debt.mjs search <关键词> [--area 22]   # 跨区找同类问题（多词 AND）
  *   node scripts/debt.mjs show <TD-ID>         # 单条最新真相 + **解法入口**（锚点区域日志）
- *   node scripts/debt.mjs audit [--liveness]   # 只读体检（**不是闸**）；--liveness 追加"债描述点名的代码文件是否还在"
+ *   node scripts/debt.mjs audit [--liveness]   # 只读体检（**不是闸**）；常开"锚点里有没有这个债号"（断链巡检）；
+ *                                              # --liveness 追加"债描述点名的代码文件是否还在"
  * 用法（写 / 维护）：
  *   node scripts/debt.mjs add --area 22 --summary "…" [--class 增债] [--rate 中] [--owner 结构债]
  *                              [--anchor 22-视频-横切全量-2026-09-13.md] [--refs "@见 TD-xx"]
@@ -657,6 +658,44 @@ function livenessIssues({ srcLabel, lines, repoNames }) {
 }
 
 const AUTO_KINDS = ['列错位·可自动修', '归类非规范', '利息率非规范', '状态非规范', '多余表头'];
+
+/**
+ * 锚点连通性：债行指向的区域日志里**必须真的出现该 TD-ID**。
+ *
+ * 【为什么必须有（A10 工具债 · 2026-09-16 当场修）】本轮实证：主表有 TD-02-38 行，`show` 也照常
+ *   打印「↳ 下一跳：该区域日志的「探债」段…（搜 `TD-02-38`）」—— 但那个锚点文件里**全篇 0 处**
+ *   出现 `TD-02-38`（写者把同一条登成了别的号）⇒ 读者会以为"有证据可查"，实际是**断链**。
+ *   同轮还暴露「同一写点被登 2~3 次」（36/38/39 同一处），读命令无法提示这类重复 —— 但
+ *   **"锚点里没有这个号"是可以机器判定的**，就让巡检把它列出来（宁漏不猜，不做语义判重）。
+ * 【成本】只读被引用的锚点文件（集合很小），故**不藏在 `--liveness` 后面**（那是全仓遍历才需要开关）。
+ * 【与 `anchorProblem()` 的分工】那条判命名 / 存在；本函数判**内容连通性**（存在 ≠ 有关）。
+ */
+function anchorIdIssues({ srcLabel, lines }) {
+  const out = [];
+  const textCache = new Map(); // 锚点文件名 -> 文本 | null（不存在）
+  lines.forEach((line, li) => {
+    const r = readRow(line);
+    if (!r || r.broken || r.mode === 'manual') return;
+    const id = r.fields.id;
+    const m = String(r.fields.anchor ?? '').match(/^\**\[([^\]]+)\]\([^)]*\)/);
+    if (!m) return; // 非标准锚点形状（`—` / 手抄）→ 另有类别管，不在此重复报
+    const file = m[1];
+    if (!REGION_ANCHOR_RE.test(file)) return; // 命名 / 存在性由 anchorProblem 管
+    if (!textCache.has(file)) {
+      const p = join(LOG_DIR, file);
+      textCache.set(file, existsSync(p) ? readFileSync(p, 'utf8') : null);
+    }
+    const text = textCache.get(file);
+    if (text && !text.includes(id)) {
+      out.push({
+        at: `${srcLabel}第 ${li + 1} 行`,
+        kind: '锚点断链',
+        detail: `${id}：锚点 ${file} 内没有该债号（\`show\` 会给出「有证据可查」的假象）`,
+      });
+    }
+  });
+  return out;
+}
 function cmdAudit(argv = []) {
   const liveness = argv.includes('--liveness');
   const repoNames = liveness ? collectRepoFileNames() : null;
@@ -700,6 +739,8 @@ function cmdAudit(argv = []) {
     });
     if (headerLines.length > 1) for (const li of headerLines.slice(1)) issues.push({ at: `${src}第 ${li + 1} 行`, kind: '多余表头', detail: '追加时误贴的表头行' });
     if (liveness) issues.push(...livenessIssues({ srcLabel: src, lines, repoNames }));
+    // 锚点连通性：常开（只读被引用的锚点文件，代价极小）；实证见 anchorIdIssues 注释
+    issues.push(...anchorIdIssues({ srcLabel: src, lines }));
   }
   const main = loadLedger().rows.filter((r) => r.fields.kind === 'TD').length;
   const arch = existsSync(ARCHIVE) ? parseText(readFileSync(ARCHIVE, 'utf8'), 'a').filter((r) => r.fields.kind === 'TD').length : 0;

@@ -13,7 +13,9 @@
  * ── 数据流全景（下个 AI 改这前必读）──
  *  StorageMonitor（UI）挂载 → runScan() 三路并行：
  *   ├─ estimateBrowserStorage()  → navigator.storage.estimate()
- *   │     浏览器分配的 IndexedDB/Cache 配额（maomao 不写 IndexedDB，usage 通常为 0）
+ *   │     浏览器分配的 IndexedDB/Cache 配额（maomao 主体不写 IndexedDB；剪辑器**素材元数据**仍写在
+ *   │     IndexedDB，见 videoEditor/engine/services/storage/service.ts → usage 未必为 0。原句「不写 IndexedDB」
+ *   │     是假陈述，2026-09-16 TD-02-32 修正）
  *   ├─ estimateChromeStorage()   → enumerateLocalEntries() 逐键估字节
  *   │     扩展 chrome.storage.local / Web localStorage 的「已存内容」总量
  *   └─ analyzeStorageByKeys()    → enumerateLocalEntries() → 剥 yimao: 前缀

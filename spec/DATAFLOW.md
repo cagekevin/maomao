@@ -380,7 +380,10 @@ canvas/useCanvasEventSubscriptions（3 全局订阅收拢）
         ├→ project.ts（领域真源：常量/归一化/插值 cameraAtFrame/序列化/路径/宽高比）+ tracks.ts · history.ts
         ├→ rig.ts（骨架/关节定义单源）
         ├→ log.ts（base/core/logger 薄封装：error/warn 落 /api/logs，debug 受 DIRECTOR3D_DEBUG 门控）🟢
-        └→ storage.ts 🔴 ─ d3dPersistence.ts（工程持久化；contentStore KV + localStorage 回退 + BroadcastChannel；⚠ `director3d-custom-poses` 裸 localStorage 且不进备份/同步，TD-02-36）
+        └→ storage.ts 🟢 ─ d3dPersistence.ts（工程持久化；contentStore KV + localStorage 回退 + BroadcastChannel）
+           · 姿势库 `director3d-custom-poses` → contentStore（backend:local ⇒ 进备份清单；键名真源 = contracts.ts 命名 const；
+             原裸 localStorage 直写已收口 2026-09-16，含旧裸键一次性迁移读 · TD-02-36/38/39 已结清）
+           · ⚠ 工程键的**同步启动种子读**仍读裸键（降级副本实际在 `yimao:` 前缀下 → 恒空）→ TD-02-42 待还
 
 深度视频（两宿主共用一个 spawn，防漂移）：
   nodes/AssetNode · nodes/VideoGenerate ──→ depthVideo/DepthVideoModal.tsx ─→ depthVideo/spawn.ts（唯一派生出口）

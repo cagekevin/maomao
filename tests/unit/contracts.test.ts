@@ -95,24 +95,41 @@ describe('STORAGE_KEYS 语义检查', () => {
 
   it('native 后端的键不通过 storageAdapter，应手动确认无遗漏', () => {
     const nativeKeys = Object.entries(STORAGE_KEYS).filter(([, v]) => v.backend === 'native');
-    // P2-F2：director3d-project 已迁移为 kv（走 KV 主通道），native 仅剩 director3d-custom-poses
-    expect(nativeKeys.length).toBeGreaterThanOrEqual(1);
+    // 2026-09-16 M7 收口后 native 应为**空**（见下条断言的说明）；若有键回到 native，本循环仍做来源标注检查。
     for (const [key, entry] of nativeKeys) {
       expect(entry.store, `${key} 需标注 store 来源`).toBeTruthy();
     }
   });
+
+  it('native 后端当前无键（2026-09-16 收口：裸写清零）', () => {
+    // 【为什么是 0】`native` 的登记语义 = 「**不经 storageAdapter 的原生 localStorage 直写**」
+    //    （见本文件 STORAGE_KEYS 头部 backend 取值表）。历史最后一个 native 键是
+    //    `director3d-custom-poses`（director3d/storage.ts 裸 localStorage 直写）——
+    //    2026-09-16 M7 收口后它改走 contentStore（物理落地 `yimao:` 前缀、与 local 完全相同）
+    //    ⇒ 语义上也不再是 native。**该 0 是本次收口的证据**，不是"碰巧没有"。
+    // 若将来要恢复 native：恢复的应是**真原生桥**（如 Tauri/原生容器通道），
+    // 而不是把"忘了走 contentStore 的裸写"重新标成 native 来绕开守卫。
+    const nativeKeys = Object.entries(STORAGE_KEYS).filter(([, v]) => v.backend === 'native');
+    expect(
+      nativeKeys.map(([k]) => k),
+      'native 后端有键 → 说明出现了不经 storageAdapter 的直写（必然绕过唯一入口）',
+    ).toEqual([]);
+  });
 });
 
 describe('STORAGE_KEYS 内容验证', () => {
-  it('当前共有 38 个登记键', () => {
+  it('当前共有 42 个登记键', () => {
     // 计数护栏：登记表增删键时必须同步此处。
     //   G0 新增 video-editor-project-{projectId} → 34→35
     //   2026-09-14 多工程改造（docs/134 T1）→ 35→37（删旧键 1：video-editor-project-{projectId}；
     //     加新键 3：video_editor_projects_{projectId} / video_editor_active_project_{projectId} /
     //     video_editor_project_{projectId}_{editorId}，净 +2）
     //   2026-09-16 TD-07-7 → 37→38（加旧键迁移登记 stageframe-project，仅读不写）
+    //   2026-09-16 M7 裸写收口（TD-02-33/37/40）→ 38→42：加 4 个原**未登记**的裸写键
+    //     （editor-caption-language / -model-id / -template-id / video-editor-saved-sounds），
+    //     并把 director3d-custom-poses 由 native 改 local（键数不变，见上条 native 断言）。
     // 它是有意保留的"变更需被看见"金丝雀，非行为契约——不要改成派生计数（派生即失效）。
-    expect(Object.keys(STORAGE_KEYS).length).toBe(38);
+    expect(Object.keys(STORAGE_KEYS).length).toBe(42);
   });
 
   it('云同步台账键已登记（防覆盖保护的本地基线，不进云端）', () => {
