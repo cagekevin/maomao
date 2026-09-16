@@ -716,7 +716,10 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
 
   // docs/45 批次B：启动异步 hydrate（KV 权威覆盖）。
   // 时序安全：写入是 fire-and-forget、读取异步化——此处挂载后一次性拉 KV。
-  //   - 同步种子（startupProject / useMemo readCachedProject）仍走 localStorage，保证降级不丢图；
+  //   - 同步种子（startupProject / useMemo readCachedProject）读的是 contentStore 的**本地镜像**
+  //     （`yimao:` 前缀那份降级副本，见 contentGetLocalMirror）—— **2026-09-16 TD-02-42 修正**：
+  //     原注释写「仍走 localStorage，保证降级不丢图」，但实现读的是**裸键**，而工程键自 TD-7 方案A 起
+  //     镜像在 contentStore 侧 ⇒ 该种子**恒空**（或读到 pre-TD-7 陈旧裸键）。现读位置已摆正；
   //   - hydrate 拉取的是 KV 权威版本（可能比本地种子新），完成后 applyProjectSnapshot 覆盖；
   //   - KV 为空且本地有 → hydrate 内部已写回 KV（一次性迁移），本地照常复用；
   //   - 用 alive 标志，组件卸载 / key 变化时取消过期覆盖。

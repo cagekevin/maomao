@@ -75,8 +75,10 @@ async function main() {
   // 0) 确认 localTool 可达
   let keys;
   try {
-    const d = await api('GET', '/api/admin/kv-list');
-    keys = (d.keys || []).map((r) => r.key);
+    // 【2026-09-16 端点归位】/api/admin/kv-list → /api/kv/keys（KV 键枚举属 kv 域，TD-02-30）。
+    // 运维要看全表（含 `<key>_version` CAS 元数据）→ 必须显式 includeInternal=1（默认口径是"只看用户数据键"）。
+    const d = await api('GET', '/api/kv/keys?includeInternal=1');
+    keys = d.keys || [];
   } catch (e) {
     console.error(`  ❌ localTool 不可达（${BASE}）：${e.message}`);
     console.error(`     请先启动 localTool（packaging/mac/launch-all.command / packaging/windows/launch-all.ps1）。`);

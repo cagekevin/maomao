@@ -57,12 +57,8 @@ export async function handleAdminStats(_req: IncomingMessage, res: ServerRespons
   });
 }
 
-// ── GET /api/admin/kv-list（列出所有 KV 键，供缓存清理脚本精准定位）──
-export async function handleAdminKvList(_req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const db = await getDb();
-  const rows = queryAll(db, 'SELECT key, length(value) as len, updated_at FROM kv ORDER BY key');
-  return json(res, { code: 0, data: { keys: rows } });
-}
+// 注：原 `GET /api/admin/kv-list` 已归位为 `GET /api/kv/keys`（routes/kv.ts，2026-09-16，TD-02-30）——
+//     KV 键枚举属 kv 域，且用户备份（backupStore）已成为它的第二个消费方，不该挂在 admin 前缀下。
 
 // ── POST /api/admin/clear-cache（按缓存前缀精准清理 KV，保留业务数据）──
 // 只删缓存类键（img_* 图片缓存、接入点、同步元数据、画布版本标记等），

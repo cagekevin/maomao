@@ -79,3 +79,44 @@ describe('director3d 姿势库：经 contentStore 落盘（不再裸写）', () 
     expect(localStorage.getItem(PREFIXED_KEY)).toBeNull();
   });
 });
+
+/**
+ * 回归锁（TD-02-42）：工程键的**启动同步种子**必须读 contentStore 的**本地镜像**。
+ *
+ * 【为什么锁它】工程键自 TD-7 方案A 起由 contentStore 双通道托管（`fallback:true` ⇒ KV 写成功后
+ * **保留**镜像在 `yimao:` 前缀下，见 `kvWriteOp`）。原实现读**裸键** ⇒ 新用户**恒空**、老用户读到
+ * pre-TD-7 的**陈旧**工程（拿陈旧数据当首帧种子）。而 App 的注释却写着「保证降级不丢图」= 假陈述。
+ */
+describe('director3d 工程键：启动种子读本地镜像（不读裸键）', () => {
+  const PROJECT_KEY = 'director3d-project';
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('镜像有值 → 同步种子取到它（这是"降级也能首帧出图"的真实来源）', async () => {
+    const project = { version: 17, objects: [{ id: 'a' }] };
+    localStorage.setItem(`yimao:${PROJECT_KEY}`, JSON.stringify(project));
+
+    const { readJson } = await freshStorage();
+
+    expect(readJson(PROJECT_KEY, null)).toEqual(project);
+  });
+
+  it('**只有裸键**（pre-TD-7 陈旧位置）时不再当种子 —— 防用陈旧工程渲染首帧', async () => {
+    localStorage.setItem(PROJECT_KEY, JSON.stringify({ version: 1, objects: [{ id: 'stale' }] }));
+
+    const { readJson } = await freshStorage();
+
+    expect(readJson(PROJECT_KEY, null)).toBeNull();
+  });
+
+  it('节点级工程键（pattern 动态键）同样读镜像', async () => {
+    const project = { version: 17, objects: [{ id: 'n1' }] };
+    localStorage.setItem('yimao:director3d-project-node-7', JSON.stringify(project));
+
+    const { readJson } = await freshStorage();
+
+    expect(readJson('director3d-project-node-7', null)).toEqual(project);
+  });
+});

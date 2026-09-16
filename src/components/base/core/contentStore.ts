@@ -637,6 +637,32 @@ export function contentReadThrough(key: string): string | null {
 }
 
 /**
+ * 读某键的**本地镜像**（localStorage 侧、带 `yimao:` 前缀）—— 与后端路由无关，同步可用。
+ *
+ * 【与三个邻居的区别（别混用）】
+ *  - `contentGet`：按后端路由读（**kv 键会短路**返回缓存/undefined ⇒ 冷启动读不到真值）；
+ *  - `contentReadThrough`：按后端路由**直读底层**（kv 键恒返 null）；
+ *  - `contentGetAsync` / `contentGetKvWithFallback`：KV **权威**读（异步、诚实判别联合）；
+ *  - **本函数**：只读**本地那一份**，明确「这不是 KV 真值」。
+ *
+ * 【存在理由（2026-09-16 · TD-02-42）】`fallback:true` 的双通道键（如 `director3d-project*`，见
+ * `kvWriteOp`：仅 `keepFallback` 为真的键在 KV 成功后**保留**镜像；其余键写成功即被 `sRemove` 清掉）
+ * 的镜像正是「KV 不可达时的降级源」。d3d 的**启动同步种子**（首帧渲染，不闪空白）要读的就是它 ——
+ * 原实现读的是**裸键**（无前缀的历史位置）⇒ 恒空（新用户）/ 读到 pre-TD-7 陈旧工程（老用户）。
+ *
+ * ⚠️ **不写缓存**（刻意）：镜像若入 cache，`contentGet` 对 KV 键的 `cache.has` 会把它当 KV 值返回，
+ *    正是 TD-02-20 批过的「降级副本冒充真值」。本函数**无副作用**，只回答"本地这一份是什么"。
+ * @returns 镜像值（已解析）；无镜像 / 存储未就绪 / 解析失败 → `undefined`（**不区分「未就绪」与「没有」的谎报**：两者都不该当种子）。
+ */
+export function contentGetLocalMirror(key: string): unknown {
+  checkRegistered(key);
+  // 未就绪 ≠ 不存在（TD-02-2）：扩展环境预填完成前 `sGet` 必返 null，那是"还不知道"
+  if (!isStorageReady()) return undefined;
+  const raw = sGet(key);
+  return raw === null ? undefined : tryParse(raw);
+}
+
+/**
  * KV 主通道 + 本地降级副本（双通道）写入原语 —— 供特殊形态键（如 d3d 工程）收编进 contentStore 使用。
  * 行为遵循 STORAGE_KEYS 登记表 per-key 的 `fallback` / `timeout` 选项：
  *  - timeout：KV 读写独立超时（ms），不可达快失败降级；

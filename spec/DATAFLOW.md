@@ -386,7 +386,8 @@ canvas/useCanvasEventSubscriptions（3 全局订阅收拢）
         └→ storage.ts ─ d3dPersistence.ts（工程持久化；contentStore KV + localStorage 回退 + BroadcastChannel）
            · 姿势库 `director3d-custom-poses` → contentStore（backend:local ⇒ 进备份清单；键名真源 = contracts.ts 命名 const；
              原裸 localStorage 直写已收口 2026-09-16，含旧裸键一次性迁移读 · TD-02-36/38/39 已结清）
-           · ⚠ 工程键的**同步启动种子读**仍读裸键（降级副本实际在 `yimao:` 前缀下 → 恒空）→ TD-02-42 待还
+           · 工程键的**同步启动种子读** = `contentGetLocalMirror`（读 `yimao:` 前缀那份本地镜像；不是 KV 真值）；
+             旧 `stageframe-project` 迁移读经 `readLegacyRawKey` ⇒ 本域 storage.ts **零裸 localStorage 访问**（TD-02-42 已结清 2026-09-16）
 
 深度视频（两宿主共用一个 spawn，防漂移）：
   nodes/AssetNode · nodes/VideoGenerate ──→ depthVideo/DepthVideoModal.tsx ─→ depthVideo/spawn.ts（唯一派生出口）

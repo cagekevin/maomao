@@ -417,6 +417,25 @@ export async function kvGetVersion(key: string): Promise<number> {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
+// GET /api/kv/keys → 实际存在的 KV 键名（**已由后端排除** CAS 内部元数据 `<key>_version`）
+//
+// 【TD-02-30 · 为什么需要它】前端只持有**键模板**（`contracts.getKvKeyPatterns()`），
+// 「哪些实例真的存在」只有后端知道。备份（backupStore.exportAll）靠它才能做到
+// 「新工程域在 STORAGE_KEYS 登记 → 自动进备份」，而不给每个域手写一套收集逻辑
+// （那正是 M3「手写清单必漂移」母体：backupStore 收不到剪辑/3D 工程就是这个成因）。
+//
+// 【失败语义 = 上抛，不归零】拿不到键清单 → 备份会**静默缺数据**（比整包失败更危险），
+// 故形状不符一律抛（httpRequest 已保证非 2xx 抛 HttpError）；调用方（exportAll）据此
+// 让本次备份失败可见，而不是产出一个"看起来成功"的残缺包。
+export async function kvKeys(): Promise<string[]> {
+  const res = await httpRequest<{ data?: { keys?: unknown } }>(`${API_BASE}/api/kv/keys`, {
+    label: 'kvKeys',
+  });
+  const keys = res?.data?.keys;
+  if (!Array.isArray(keys)) throw new Error('kvKeys：响应缺少 data.keys 数组（契约不符）');
+  return keys as string[];
+}
+
 // ─────────────────────────── files 域（候选 C 已移出 → filesApi）───────────────────────────
 // 文件域成员（openLocalFolder/openFileDir/relativePathFromUrl/moveFile/canMoveAsset/
 // resolveMovePaths/createFolder + OpenPathData/FileOpResult）已随候选 C 收口到 filesApi.ts

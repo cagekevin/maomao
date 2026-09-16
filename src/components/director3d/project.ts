@@ -15,8 +15,8 @@ import {
 import { readJson, writeJson } from './storage.ts';
 import { isProjectAssetUrl } from './d3dPersistence.ts';
 import { KEY_DIRECTOR3D_CUSTOM_POSES } from '../base/core/contracts.ts';
-// 旧 `stageframe-project` 裸键清理改走存储层迁移原语（storage.ts 不再导出裸删函数）
-import { removeLegacyRawKey } from '../base/storage/index.ts';
+// 旧 `stageframe-project` 裸键**读/清**改走存储层迁移原语（storage.ts 不再裸访问 localStorage）
+import { readLegacyRawKey, removeLegacyRawKey } from '../base/storage/index.ts';
 
 // ================================================================
 // 领域类型真相源（3D 导演台）
@@ -1195,7 +1195,12 @@ function normalizeShot(shot: RawShot, index: number, fallback: ShotFallback) {
   };
 }
 
-export function normalizeProjectData(data: ProjectDataInput) {
+/**
+ * 归一化脏数据为可用的工程数据。
+ * @param data 可能为空（无存档 / 读不到）—— **签名显式接受 null/undefined**：实现首行即 `if (!data) return null`，
+ *   此前只标 `ProjectDataInput` 与该行为不符，逼调用方在"读不到"（本就合法的输入）上加类型断言（2026-09-16 校正）。
+ */
+export function normalizeProjectData(data: ProjectDataInput | null | undefined) {
   if (!data) return null;
   const firstShot = Array.isArray(data.shots) ? data.shots[0] : null;
   const sourceObjects = Array.isArray(data.objects) ? data.objects : firstShot?.objects;
@@ -1282,12 +1287,16 @@ export function normalizeProjectData(data: ProjectDataInput) {
 
 export function readCachedProject(storageKey: string) {
   const key = storageKey || PROJECT_STORAGE_KEY;
-  // 优先读当前 key；无有效缓存时才回退旧版 key 做一次性迁移
-  const current = readJson(key, null);
-  const legacy = current ? null : readJson(LEGACY_PROJECT_STORAGE_KEY, null);
-  const normalized = normalizeProjectData(current || legacy);
+  // 优先读当前 key 的**本地镜像**（contentStore 双通道保留的降级副本）；无有效镜像时才回退旧版 key 做一次性迁移
+  const current = readJson(key, null) as ProjectDataInput | null;
+  // 旧 `stageframe-project` 是**历史裸键**（pre-TD-7 的物理位置，无 `yimao:` 前缀）→ 走迁移原语，不经 contentStore
+  const legacyRead = current
+    ? ({ status: 'missing' } as const)
+    : readLegacyRawKey(LEGACY_PROJECT_STORAGE_KEY);
+  const legacyValue = legacyRead.status === 'ok' ? (legacyRead.value as ProjectDataInput) : null;
+  const normalized = normalizeProjectData(current || legacyValue);
   if (!normalized) return null;
-  if (legacy) {
+  if (legacyRead.status === 'ok') {
     // legacy 迁移：回写新 key，并清理旧 key 释放存储空间（原实现遗留，长期占用）
     writeJson(key, normalized);
     removeLegacyRawKey(LEGACY_PROJECT_STORAGE_KEY);

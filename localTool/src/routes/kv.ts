@@ -6,15 +6,17 @@
  *    `ifVersion` 缺省 = 旧行为（无条件写 + 版本自增）→ 现有调用点零改动、可随时回滚。
  *  - `handleKvVersion`：轻量只读 `<key>_version`（跨源冲突轮询用，绝不拉整包）。
  *  - `handleKvDelete`：**键与版本一并删除**（TD-02-10，2026-09-12）——删除后重建不带旧版本基线。
+ *  - `handleKvKeys`：枚举实际存在的键（备份列举用，TD-02-30）。
  *
  * ★★★ 原子性红线（勿删）★★★
  *   `await getDb()` 之后到 `return` 之间**禁止任何 await**：sql.js 是内存库、API 全同步，
  *   Node 单线程事件循环保证这段不被其它请求插入 → 天然 CAS。
  *   一旦中间插了 await（fetch / 文件 IO / contentSetAsync…），就退化成 TOCTOU，本方案失效。
+ *   （例外：本文件 `handleKvKeys` 是**纯读**，不参与 CAS，不受此红线约束，但也无 await 需要。）
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { getDb, queryOne, run, debouncedSaveDb } from '../db/database.js';
+import { getDb, queryOne, queryAll, run, debouncedSaveDb } from '../db/database.js';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
 import { externalizeBase64InValue } from '../utils/base64Externalize.js';
 
@@ -105,6 +107,39 @@ export async function handleKvVersion(
     { value?: string } | undefined;
   const version = row?.value ? parseInt(String(row.value), 10) || 0 : 0;
   return json(res, { code: 0, data: { version } });
+}
+
+/**
+ * GET /api/kv/keys[?includeInternal=1] → `{ code:0, data:{ keys: string[] } }`
+ *
+ * 【为什么存在（TD-02-30 · M7 方案 A 三期）】KV 是**工程数据的统一载体**，备份
+ * （`backupStore.exportAll`）必须能「枚举**实际存在**的键」才能做到
+ * 「新工程域只要在 `STORAGE_KEYS` 登记 → 自动进备份」，而不用给每个域手写收集逻辑
+ * （那正是 M3「手写清单必漂移」母体）。前端只持有**键模板**
+ * （`contracts.getKvKeyPatterns()`），不知道哪些实例存在 ⇒ 只能问后端。
+ *
+ * 【判据归位：默认不返回 `_version` 键】`<key>_version` 是 CAS 的**服务端内部元数据**
+ * （唯一产出方 = 本文件 `handleKvSet`，客户端不产生、也不该进备份）。
+ * 「它算不算用户数据」只有后端知道 ⇒ 过滤判据放这里，不放消费方（前端写这个后缀判断就是第二份协议知识）。
+ * `includeInternal=1` 供运维取全表。
+ *
+ * 【双消费方（同语义单入口）】① `backupStore.exportAll`（业务 · 默认口径）；
+ * ② `scripts/1mao-scripts/clear-cache.cjs`（运维 · `includeInternal=1`）。
+ * 原为 `/api/admin/kv-list`（只有运维消费）——2026-09-16 归位到 kv 域：
+ * admin 前缀会误导后续「这是运维端点、可随便改」，而用户备份已依赖它（TD-02-30）。
+ *
+ * 【返回形状】只给**键名**（窄接口）：两个消费方都只用键名，`len`/`updated_at` 无消费者即删（防幽灵预留）。
+ */
+export async function handleKvKeys(
+  _req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<void> {
+  const includeInternal = url.searchParams.get('includeInternal') === '1';
+  const db = await getDb();
+  const rows = queryAll(db, 'SELECT key FROM kv ORDER BY key') as Array<{ key: string }>;
+  const keys = rows.map((r) => r.key).filter((k) => includeInternal || !k.endsWith('_version'));
+  return json(res, { code: 0, data: { keys } });
 }
 
 /**

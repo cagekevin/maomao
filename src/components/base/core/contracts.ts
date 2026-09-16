@@ -778,6 +778,11 @@ export const API_ENDPOINTS = {
   /** 画布快照版本号轻量读取：GET {API_BASE}/api/kv/version?key=<key>
    *  3s 跨源冲突轮询专用（只读 <key>_version，不拉整包）。见 docs/118 §三 S1 / §五 C4。 */
   kvVersion: '/api/kv/version',
+  /** KV 键枚举（备份列举）：GET {API_BASE}/api/kv/keys
+   *  备份要能「新工程域登记即自动进备份」，就必须枚举**实际存在**的键（前端只持有模板，
+   *  实例存在性真源在后端）。默认已排除 CAS 内部元数据 `<key>_version` —— 该判据归后端
+   *  （只有它知道哪些是自己的协议元数据）。见 TD-02-30 / M7 方案 A 三期。 */
+  kvKeys: '/api/kv/keys',
 };
 
 /**
@@ -790,13 +795,15 @@ export const API_ENDPOINTS = {
  * 前端【实际调用】的端点（改动需评估前端契约影响）：
  *   GET/POST /api/status、/api/logs、/api/tasks*、/api/projects*、/api/resources*、
  *   /api/files/*（upload/read/thumbnail/mkdir/move/open/open-dir/list）、
- *   /api/providers*、/api/config/base、/api/kv/*。
+ *   /api/providers*、/api/config/base、/api/kv/*（get/set/version/keys）。
  *   （注：旧 /api/proxy 与 /api/agent/:key/chat 均已收口退役——chat 出站统一打 /api/generate，见 L3b。）
  *   → 见 localToolApi.js / filesApi.js / logger.js / useLocalToolStatus.js 等。
  *
  * 后端存在、前端【零调用】= 预留/上游转发（勿当死代码删，勿随前后端契约盲改）：
- *   admin.ts： /api/admin/stats、/api/admin/kv-list、/api/admin/clear-cache、
+ *   admin.ts： /api/admin/stats、/api/admin/clear-cache、
  *              /api/admin/cleanup、/api/admin/export、/api/admin/import
+ *   （注：原 /api/admin/kv-list 已于 2026-09-16 归位为 /api/kv/keys —— 它不再是"前端零调用"，
+ *     用户备份已消费它；归位理由见 routes/kv.ts `handleKvKeys` 注释，TD-02-30。
  *   platform.ts：/plugin/manifest.json、/api/workflow-apps/by-project/:id、
  *              /public/platform/builtin、/public/platform/models
  *   passthrough.ts（isLocalOnlyPath 判定后的上游转发补偿用）
@@ -951,6 +958,14 @@ export const apiRegistry: Record<string, ApiRegistryEntry> = {
     envelope: 'code-data',
     status: 'ACTIVE',
     note: 'KV 删除',
+  },
+  kvKeys: {
+    fn: 'localToolApi.kvKeys',
+    method: 'GET',
+    path: '/api/kv/keys',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: 'KV 键枚举（backupStore 备份列举；后端默认排除 _version 内部元数据）',
   },
 
   // ── 文件操作（filesApi 收口，唯一落盘归属点）─────────────────────────

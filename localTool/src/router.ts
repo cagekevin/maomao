@@ -21,7 +21,13 @@ import fs from 'node:fs';
 import { json } from './utils/helpers.js';
 import { getBaselinePath } from './paths.js';
 
-import { handleKvGet, handleKvSet, handleKvDelete, handleKvVersion } from './routes/kv.js';
+import {
+  handleKvGet,
+  handleKvSet,
+  handleKvDelete,
+  handleKvVersion,
+  handleKvKeys,
+} from './routes/kv.js';
 import {
   handleUpload,
   handleRead,
@@ -61,7 +67,6 @@ import {
   handleAdminCleanup,
   handleAdminExport,
   handleAdminImport,
-  handleAdminKvList,
   handleAdminClearCache,
   handleAdminStorageHealth,
   handleAdminDeleteFile,
@@ -161,6 +166,8 @@ export const routes: Route[] = [
   { method: 'POST', pattern: '/api/kv/set', handler: handleKvSet },
   // 轻量版本读取（3s 跨源冲突轮询用；只读 <key>_version，不拉整包）。见 docs/118 §三 S2。
   { method: 'GET', pattern: '/api/kv/version', handler: handleKvVersion },
+  // 枚举实际存在的键（备份列举 · 运维全表）。默认排除 CAS 内部元数据 `<key>_version`（TD-02-30）。
+  { method: 'GET', pattern: '/api/kv/keys', handler: handleKvKeys },
   { method: 'POST', pattern: '/api/kv/delete', handler: handleKvDelete },
 
   // ── 文件操作 ──
@@ -220,7 +227,6 @@ export const routes: Route[] = [
 
   // ── 管理 ──
   { method: 'GET', pattern: '/api/admin/stats', handler: handleAdminStats },
-  { method: 'GET', pattern: '/api/admin/kv-list', handler: handleAdminKvList },
   { method: 'POST', pattern: '/api/admin/clear-cache', handler: handleAdminClearCache },
   { method: 'POST', pattern: '/api/admin/cleanup', handler: handleAdminCleanup },
   { method: 'GET', pattern: '/api/admin/storage-health', handler: handleAdminStorageHealth },

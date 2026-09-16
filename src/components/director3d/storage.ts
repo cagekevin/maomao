@@ -16,15 +16,17 @@
 // 原文「量小频繁，不进 KV」的**结论仍成立**（确实仍不进 KV），但它当时被实现成「绕过唯一入口直写裸键」——
 // 那是把"不进 KV"误当"不登记、不过入口"：绕过入口 ⇒ 备份/监控/失败上报对该数据流全部失效。
 // 物理键随之变为 `yimao:director3d-custom-poses`（storageAdapter 统一加前缀）→ 读取内含**一次性迁移读**。
-// ⚠️ **未收口项（单独登记，勿在本文件顺手改）**：工程键的 `readJson` 仍读**裸**键当"启动种子"，
-//   而工程键的降级副本由 contentStore 写在 `yimao:` 前缀下 → 该种子读**恒空**（真实权威读是
-//   App 挂载后的 `hydrateProject`/`contentGetKvWithFallback`）。修它要把本函数异步化（KV 键禁同步读，
-//   check:arch 规则 7），会动 App 首帧 → 不属本轮范围。
+// ── 更新(2026-09-16 二轮 · TD-02-42 结清) ──
+// 工程键的「启动同步种子」原读**裸键**（`localStorage.getItem(key)`）—— 而工程键自 TD-7 方案A 起
+// 由 contentStore 双通道托管（`fallback:true` ⇒ 镜像**保留**在 `yimao:` 前缀下）⇒ 该读**恒空**（新用户）
+// 或读到 pre-TD-7 的**陈旧**工程（老用户）。现改读 `contentGetLocalMirror`（本地镜像原语）；
+// 旧 `stageframe-project` 迁移读改走 `readLegacyRawKey`（历史裸键原语）。
+// ⇒ 本文件**零裸 localStorage 访问**（`check:arch` 规则 11 的适配层豁免不再被需要）。
 import { log } from './log.ts';
 import * as d3dPersistence from './d3dPersistence.ts';
 import type { D3dProject } from './d3dPersistence.ts';
 // 【2026-09-16 收口】非工程键改走横切存储唯一入口（contentStore），不再裸写 localStorage。
-import { contentGet, contentSet } from '../base/core/contentStore.ts';
+import { contentGet, contentGetLocalMirror, contentSet } from '../base/core/contentStore.ts';
 import { readLegacyRawKey, removeLegacyRawKey } from '../base/storage/index.ts';
 import { KEY_DIRECTOR3D_CUSTOM_POSES } from '../base/core/contracts.ts';
 
@@ -62,21 +64,13 @@ function migrateLegacyPoseKeyOnce(key: string): void {
 /**
  * 读取并 JSON 解析。key 不存在 / 解析失败均返回 fallback（默认 null）。
  * - **非工程键**（姿势库）：经 contentStore 读（唯一入口，带一次性迁移读）。
- * - **工程键**：保留裸 localStorage 读（启动种子 + 旧 `stageframe-project` 裸键迁移读）——
- *   见文件头「未收口项」。
+ * - **工程键**：读 **contentStore 本地镜像**（同步种子，供首帧渲染）—— 见文件头二轮更新。
  */
 export function readJson(key: string, fallback: unknown = null) {
   if (d3dPersistence.isProjectPersistenceKey(key)) {
-    try {
-      // 工程键的历史物理位置即裸键（`stageframe-project` 迁移读 / 旧降级副本），此处读的是它，
-      // 不是"绕过入口读新键"——新键（yimao: 前缀）由 contentStore 负责，见文件头未收口项。
-      const raw = localStorage.getItem(key);
-      if (raw == null) return fallback;
-      return JSON.parse(raw);
-    } catch (error) {
-      log.error('localStorage 读取/解析失败', { key }, error);
-      return fallback;
-    }
+    // 工程键：读**本地镜像**（双通道降级副本，物理位置带 `yimao:` 前缀），不是 KV 真值 ——
+    // KV 权威由 App 挂载后的 hydrateProject/contentGetKvWithFallback 覆盖。
+    return contentGetLocalMirror(key) ?? fallback;
   }
   migrateLegacyPoseKeyOnce(key);
   const value = contentGet(key);
