@@ -34,18 +34,23 @@ import { buildCaptionChunks } from '@/components/videoEditor/engine/lib/transcri
 import { Spinner } from '@/components/videoEditor/ui/ui/spinner';
 import { Progress } from '@/components/videoEditor/ui/ui/progress';
 import { PropertyGroup } from '@/components/videoEditor/ui/editor/panels/properties/property-item';
+import {
+  KEY_EDITOR_CAPTION_LANGUAGE,
+  KEY_EDITOR_CAPTION_MODEL_ID,
+  KEY_EDITOR_CAPTION_TEMPLATE_ID,
+} from '@/components/base/core/contracts';
 
 export function Captions() {
   const [selectedLanguage, setSelectedLanguage] = useLocalStorage<TranscriptionLanguage>({
-    key: 'editor-caption-language',
+    key: KEY_EDITOR_CAPTION_LANGUAGE,
     defaultValue: 'auto',
   });
   const [selectedModelId, setSelectedModelId] = useLocalStorage<TranscriptionModelId>({
-    key: 'editor-caption-model-id',
+    key: KEY_EDITOR_CAPTION_MODEL_ID,
     defaultValue: DEFAULT_TRANSCRIPTION_MODEL,
   });
   const [selectedTemplateId, setSelectedTemplateId] = useLocalStorage<string>({
-    key: 'editor-caption-template-id',
+    key: KEY_EDITOR_CAPTION_TEMPLATE_ID,
     defaultValue: SUBTITLE_TEMPLATES[0].templateId,
   });
   const selectedTemplate = useMemo(
