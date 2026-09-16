@@ -28,7 +28,7 @@ import { toDictEntry } from '../base/creative/creativePresets.ts';
 import JianyingIcon from '../base/ui/JianyingIcon.tsx';
 import ResourceStrip from '../base/panels/ResourceStrip.tsx';
 import PromptInput from '../base/prompt/PromptInput.tsx';
-import { resolvePromptChips } from '../base/prompt/promptChips.ts';
+import { resolvePromptChips, mergeReferenceImageUrls } from '../base/prompt/promptChips.ts';
 import { PROMPT_PANEL_PAD_X } from '../base/prompt/promptLayout.ts';
 import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
@@ -42,7 +42,7 @@ import { generateVideo } from '../base/api/index.ts';
 import { useNodePrefs, PREFS_DEFAULTS } from '../base/canvas/nodePrefs.ts';
 import { logger } from '../base/core/logger.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
-import { buildEffectivePrompt, clampSeconds } from '../base/core/utils.ts';
+import { buildEffectivePrompt, clampSeconds, fileNameFromUrl } from '../base/core/utils.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
 import { useDisconnectSource } from '../../hooks/useDisconnectSource.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
@@ -231,9 +231,8 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
         primary,
       );
       // 参考图 = 用户显式 @ 的芯片图（顺序对应 prompt 里的「图片N」）+ 其余连线上游图（去重）
-      const chipUrls = chipResolved.refImages.map((im) => im.url);
-      const upstreamUrls = connectedImages.map((img) => img.url);
-      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])].filter((u): u is string => !!u);
+      // 合并去重收口到唯一实现（TD-01-14：四节点曾各写一份且已漂移）
+      const refUrls = mergeReferenceImageUrls(chipResolved.refImages, connectedImages);
       // signal 支持真取消（Step C）
       return generateVideo(
         {
@@ -565,7 +564,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
       {depthOpen && videoUrl && (
         <DepthVideoModal
           videoUrl={videoUrl}
-          name={data.label || videoUrl.split('/').pop() || '视频'}
+          name={data.label || fileNameFromUrl(videoUrl) || '视频'}
           onClose={() => setDepthOpen(false)}
           onSave={(url, outName) => {
             spawnDepthVideoNode(id, url, outName, {

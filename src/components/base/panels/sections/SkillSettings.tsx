@@ -18,6 +18,8 @@ import {
   deleteCustomSkill,
   setSkillEnabled,
   getAllEnabledMap,
+  isSkillImportFile,
+  skillNameFromFile,
   type Skill,
 } from '../../store/skillStore.ts';
 import { showToast } from '../../core/toastStore.ts';
@@ -223,11 +225,12 @@ export default function SkillSettings() {
     if (!files || files.length === 0) return;
     try {
       Array.from(files).forEach((f) => {
-        if (!/\.(md|markdown|txt)$/i.test(f.name)) return;
+        // TD-16-8：白名单/去扩展名收口到 skillStore（唯一实现），禁各处复写正则
+        if (!isSkillImportFile(f.name)) return;
         const reader = new FileReader();
         reader.onload = () => {
           const text = String(reader.result || '');
-          const name = f.name.replace(/\.(md|markdown|txt)$/i, '');
+          const name = skillNameFromFile(f.name);
           const saved = upsertCustomSkill({ name, description: '', content: text });
           if (saved) {
             refreshAll();

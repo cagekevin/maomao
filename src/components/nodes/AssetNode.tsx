@@ -17,7 +17,7 @@ import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
 import { replaceNodeImage } from '../base/nodeImage.ts';
 import { detectAssetType } from '../base/utils/assetType.ts';
-import { tryParse } from '../base/utils/asyncGuard.ts';
+import { fileNameFromUrl } from '../base/core/utils.ts';
 import type { AssetType } from '@/types';
 import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { NODE_AREA_FIXED_BASE_SIZE } from '../base/core/config.ts';
@@ -155,10 +155,8 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       text: 'txt',
     };
     let filename = data.label || '';
-    const fromUrl = tryParse(
-      () => decodeURIComponent(new URL(url).pathname.split('/').pop() || ''),
-      '',
-    );
+    // TD-16-14：URL→文件名统一走 core/utils 唯一原语（URL 解析剥 ?# + decode 一次）
+    const fromUrl = fileNameFromUrl(url);
     if (fromUrl && !/^blob:|^data:/.test(url)) filename = filename || fromUrl;
     const ext =
       (filename.match(/\.[a-z0-9]{2,5}$/i) || [])[0] ||
@@ -494,7 +492,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       {depthOpen && type === 'video' && url && (
         <DepthVideoModal
           videoUrl={url}
-          name={data.label || url.split('/').pop() || '视频'}
+          name={data.label || fileNameFromUrl(url) || '视频'}
           onClose={() => setDepthOpen(false)}
           onSave={(outUrl, outName) => {
             spawnDepthVideoNode(id, outUrl, outName, {

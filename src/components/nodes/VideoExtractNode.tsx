@@ -16,6 +16,7 @@ import { logger } from '../base/core/logger.ts';
 import { classifyError } from '../base/utils/genErrors.ts';
 import previewUrls from '../base/utils/previewUrl.ts';
 import { drawVideoFrame, setCrossOriginForReadable } from '../base/utils/captureFrame.ts';
+import { fileNameFromUrl } from '../base/core/utils.ts';
 
 /** 多窗口剪贴板存储键（contracts.ts STORAGE_KEYS 登记，集中避免裸键） */
 const MULTIWINDOW_CLIPBOARD_KEY = 'mutiwindow-clipboard';
@@ -149,13 +150,10 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
 
   function extractName(url: string) {
     if (url.startsWith('data:video/')) return 'base64_video.mp4';
-    try {
-      const u = new URL(url);
-      const n = u.pathname.split('/').pop();
-      return n && n.includes('.') ? n + u.search : url;
-    } catch {
-      return url;
-    }
+    // TD-16-14：原实现漏 decode 且把 `?search` 拼回文件名（`a.mp4?token=1`）；
+    // 统一走 core/utils 唯一原语（URL 解析剥 ?# + decode 一次）—— 不再自带查询串。
+    const n = fileNameFromUrl(url);
+    return n && n.includes('.') ? n : url;
   }
 
   // 抽一帧（seek 后 drawImage 到 canvas → base64）

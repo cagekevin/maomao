@@ -21,6 +21,7 @@
 
 import type { CatalogKind, CreativePreset, PresetKind } from './creativePresets.ts';
 import { presetIdFor } from './creativePresets.ts';
+import { classifyAssetUrlKind } from '../utils/assetType.ts';
 import creativeData from './data/creativeCatalog.json';
 import mjData from './data/mjStyleCatalog.json';
 
@@ -80,7 +81,9 @@ function normalizeCreative(r: RawCreative): CreativePreset {
   // 运镜的 preview 是 .mp4（实测 51/51 全是 mp4 + 独立 poster）。
   // 若不分开保存，UI 会拿 .mp4 去当 <img> 的 src（破图），且无从判断「这是视频卡」。
   // 故：video 单独存，preview 统一收敛为**静帧封面**（poster 优先）。
-  const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(rawPreview);
+  // 【TD-16-4 收口 2026-09-16】原为内联 `/\.(mp4|webm|mov)(\?|$)/`（漏 mkv/avi/m4v/ogv，
+  // 且 `?` 未剥纯 `#` 锚点）→ 统一走 assetType 真值源（EXT_KIND 全表 + 剥 ?#）。
+  const isVideo = classifyAssetUrlKind(rawPreview) === 'video';
   return {
     id: normalizedPresetId(kind, r.id),
     kind,

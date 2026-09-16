@@ -2,6 +2,7 @@ import { logger } from '@/components/videoEditor/lib/logger';
 import { toast } from '@/components/videoEditor/lib/toast';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import { getMediaTypeFromFile } from '@/components/videoEditor/engine/lib/media/media-utils';
+import { detectFileType } from '@/components/base/utils/assetType';
 import { getVideoInfo } from './mediabunny';
 import { Input, ALL_FORMATS, BlobSource, VideoSampleSink } from 'mediabunny';
 
@@ -281,9 +282,15 @@ const getImageDimensions = ({
 
 const getMediaDuration = ({ file }: { file: File }): Promise<number> => {
   return new Promise((resolve, reject) => {
-    const element = document.createElement(
-      file.type.startsWith('video/') ? 'video' : 'audio',
-    ) as HTMLVideoElement;
+    // 【TD-16-10 收口 2026-09-16】原 `file.type.startsWith('video/') ? 'video' : 'audio'` 是
+    // **静默二分兜底** —— 非音视频文件（如 .txt）被当 audio 建元素、静默走 loadedmetadata 失败路径，
+    // 掩盖了「这不是媒体文件」这一事实。现按真值源判定：只接受 video/audio，其余显式拒绝。
+    const kind = detectFileType(file);
+    if (kind !== 'video' && kind !== 'audio') {
+      reject(new Error(`Not a media file: ${kind}`));
+      return;
+    }
+    const element = document.createElement(kind) as HTMLVideoElement;
     const objectUrl = URL.createObjectURL(file);
 
     element.addEventListener('loadedmetadata', () => {

@@ -15,6 +15,7 @@
  */
 import { uploadLovartFile, type LovartClientDeps } from './lovart_client.js';
 import { LovartError, LOVART_ERR_TYPES } from './lovart_errors.js';
+import { mimeToExt } from '../../../utils/mime.js';
 
 /**
  * 常见媒体 base64 魔数前缀（无 data: 前缀的裸 base64）。照抄 main._B64_MEDIA_MAGIC。
@@ -48,41 +49,49 @@ function looksLikeBase64Media(s: string): boolean {
   return Object.keys(B64_MEDIA_MAGIC).some((pre) => s.startsWith(pre));
 }
 
-/** 从裸 base64 魔数前缀推断扩展名。照抄 main._ext_from_b64_magic。 */
-function extFromB64Magic(s: string): string {
+/**
+ * 从裸 base64 魔数前缀推断扩展名。
+ *
+ * 【TD-08-22 修复 2026-09-16】`B64_MEDIA_MAGIC` 是**域专用魔数表**（base64 前缀 ≠ MIME，
+ * 无法由 `mime.ts` 表达），保留原样；但原末尾 `return 'png'` 是**静默兜底** —— 表外魔数
+ * 会被当 png 上传（Lovart 按 png 解析非 png 字节）。现改为 `null`（诚实「不认识」），
+ * 由调用方丢弃该素材（与文件头「未知格式 → drop」的既定不变量一致）。
+ *
+ * 注：调用点前置 `looksLikeBase64Media`（要求命中某魔数前缀）⇒ 实际上恒有返回值；
+ * `null` 分支是**契约兜底**（防未来有人绕过前置检查）。
+ */
+function extFromB64Magic(s: string): string | null {
   for (const pre of Object.keys(B64_MEDIA_MAGIC)) {
     if (s.startsWith(pre)) return B64_MEDIA_MAGIC[pre];
   }
-  return 'png';
+  return null;
 }
 
-/** 从 data: header（如 image/jpeg）推断扩展名。照抄 main._ext_from_data_header。 */
-function extFromDataHeader(header: string): string {
-  const h = header.toLowerCase();
-  if (h.includes('jpeg') || h.includes('jpg')) return 'jpg';
-  if (h.includes('png')) return 'png';
-  if (h.includes('gif')) return 'gif';
-  if (h.includes('webp')) return 'webp';
-  if (h.includes('bmp')) return 'bmp';
-  if (h.includes('mp4')) return 'mp4';
-  if (h.includes('webm')) return 'webm';
-  if (h.includes('mpeg') || h.includes('mp3') || h.includes('audio')) return 'mp3';
-  return 'png';
-}
-
-/** 从 HTTP 响应的 Content-Type 推断扩展名（本机回环图下载用）。照抄 main._ext_from_content_type。 */
-function extFromContentType(ct: string | null): string {
-  if (!ct) return 'png';
-  const h = ct.toLowerCase();
-  if (h.includes('jpeg') || h.includes('jpg')) return 'jpg';
-  if (h.includes('png')) return 'png';
-  if (h.includes('gif')) return 'gif';
-  if (h.includes('webp')) return 'webp';
-  if (h.includes('bmp')) return 'bmp';
-  if (h.includes('mp4')) return 'mp4';
-  if (h.includes('webm')) return 'webm';
-  if (h.includes('mpeg') || h.includes('mp3') || h.includes('audio')) return 'mp3';
-  return 'png';
+/**
+ * MIME（data: header / Content-Type）→ 扩展名（无点）。**委托 mime.ts 唯一真源**。
+ *
+ * 【TD-08-22 修复 2026-09-16】原 `extFromDataHeader` / `extFromContentType` 各持一份
+ * `includes()` 子串链，绕过后端 SSOT `utils/mime.ts`（2026-09-11 收口的 MIME↔ext 唯一实现），
+ * 且子串匹配实测错判（走 `scripts/probe.mjs` 同款复核）：
+ *   · `audio/aac`·`ogg`·`flac`·`wma`·`opus` → 全因 `includes('audio')` **错归 `.mp3`**；
+ *   · `video/mpeg` → 因 `includes('mpeg')` **错归 `.mp3`**（视频错成音频）；
+ *   · `image/avif`·`svg+xml` 等未列举型 → **静默兜底 `.png`**（上传错扩展名给 Lovart）。
+ * 现统一走 `mimeToExt`（去 `;charset` 参数）—— 与 `files.ts` / `resources.ts` 同口径。
+ *
+ * 【与「照抄 main.py」的关系】文件头原写「照抄 main 1:1 镜像」。**镜像的是流程与分支**（哪些形态走哪条路），
+ * 不是**照抄一个会错判扩展名的子串链** —— 输出扩展名是**本仓正确性责任**，且 main 那边的错判
+ * 同样会让 Lovart 收错格式（属 upstream 缺陷，非「有意设计」）。故本函数不构成「外部对齐豁免」。
+ */
+function extFromMime(mime: string | null): string {
+  if (!mime) return 'png';
+  // 归一化：去 `data:` 前缀（本函数也收 data: URL 的 header 段，如 `data:image/jpeg`）、
+  // 去 `;charset=…` 参数、去空白 —— 只留裸 MIME 再交真值源查表。
+  const bare = mime
+    .replace(/^data:/i, '')
+    .split(';')[0]
+    .trim();
+  const ext = mimeToExt(bare); // 带点（'.png'）或 null
+  return ext ? ext.slice(1) : 'png';
 }
 
 /** 解析 data: URL → 字节 + 扩展名。照 main 分支（header 得 ext，base64 解码）。 */
@@ -90,7 +99,7 @@ function bytesFromDataUrl(dataUrl: string): { bytes: Uint8Array; ext: string } {
   const comma = dataUrl.indexOf(',');
   const header = comma >= 0 ? dataUrl.slice(0, comma) : '';
   const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : '';
-  const ext = extFromDataHeader(header);
+  const ext = extFromMime(header);
   const bytes = Buffer.from(b64, 'base64'); // 非法 base64 在此静默截断，main 亦如此；上传失败会在上游兜底
   return { bytes, ext };
 }
@@ -144,7 +153,7 @@ export async function resolveLovartAttachments(
           const resp = await fetchImpl(u);
           if (!resp.ok) throw new Error(`下载本机回环参考图失败 (${resp.status})`);
           const bytes = new Uint8Array(await resp.arrayBuffer());
-          const ext = extFromContentType(resp.headers.get('content-type'));
+          const ext = extFromMime(resp.headers.get('content-type'));
           const cdn = await uploadLovartFile(deps, bytes, `_local_${randHex()}.${ext}`);
           if (cdn) out.push(cdn);
           else {
@@ -181,10 +190,12 @@ export async function resolveLovartAttachments(
 
     // 3) 无前缀裸 base64 → 识别魔数后上传 CDN
     if (looksLikeBase64Media(u)) {
+      // 魔数表不认识的媒体型 → drop（与下方分支 4 同语义：拿不到正确的类型就不上传错格式）
+      const b64Ext = extFromB64Magic(u);
+      if (!b64Ext) continue;
       try {
-        const ext = extFromB64Magic(u);
         const bytes = Buffer.from(u, 'base64');
-        const cdn = await uploadLovartFile(deps, bytes, `_ref_${randHex()}.${ext}`);
+        const cdn = await uploadLovartFile(deps, bytes, `_ref_${randHex()}.${b64Ext}`);
         if (cdn) out.push(cdn);
         else {
           failedCount += 1;

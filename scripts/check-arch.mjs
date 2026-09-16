@@ -1372,5 +1372,203 @@ if (assertScanned('禁裸写 localStorage（src 全域）', rawLsScanned) && !ra
   );
 }
 
+// 规则 13（2026-09-16 · 母体止血 · TD-16-4~14 / TD-08-16~20）：媒体类型 / URL 解析**真值源唯一入口**
+//   —— src 内禁「就地手写扩展名→类别表/正则」与「裸 URL 文件名提取」（反向判据）。
+//
+// 【为什么存在（这是本轮母体的真正解）】「扩展名/mime → 媒体类别」与「URL → 文件名/磁盘路径」两件事，
+//   全库**早就有唯一真源**（`base/utils/assetType.ts` EXT_KIND / `base/core/utils.ts` fileNameFromUrl），
+//   但两条红线**只写在注释里、零机器守卫**（M2 母体）→ 每遇新需求就就地抄一份，抄的那份必然漂移。
+//   实证（2026-09-16 普查）：A 类内联判定 **10 份**（漏 avif/ogv/aac/json… → `.wmv` 被当图片、
+//   `.json` 被 rescan 丢弃）；B 类内联文件名提取 **13 份**（漏 decode → `my%20clip.png`、
+//   不剥 `?`/`#` → `a.png?token=1`）。`assetType.ts:9` 注释原话「**禁止再就地手写 `\.(mp4|webm…)$` 正则：
+//   此前 5 处各写一份，已漂移出三类不一致**」—— 而正文仍有 10 份 = **注释拦不住任何人**。
+//   ⇒ 前两条收口（清存量）+ 本闸（止血）＝ 母体一收全消；此后新增格式只改真源，第 N+1 份当场红。
+//
+// 【判据（反向）】src/** 内任一文件（真源自身豁免）出现下列**字面**形态之一 → 违规：
+//   ① 扩展名内联表/正则：源码文本含 `\.(png|jpe?g|gif|webp|svg|…)` 或 `\.(mp4|webm|mov|…)`
+//      式**媒体扩展名列举**（≥2 个扩展名的 `\.(a|b)` 组），即「照抄真值源的一张表/正则」；
+//   ② 裸文件名提取：`…pathname.split('/').pop()`（未经 fileNameFromUrl）或 `<x>.split('/').pop()`
+//      之类的**从 URL 末段取名**内联实现。
+//   · 不限定目录 ⇒ 不随模块改名失效（与规则 2/4/10/11/12「清单 → 反向判据」同款手法）；
+//   · 豁免 = 真源实现自身（assetType.ts / core/utils.ts / localTool mime.ts —— 后端另由 tsc 层守）；
+//   · **只收窄不放宽**：若本闸拦住了「让同一语义份数下降」的动作 → 按心法 §零.4.3 改闸，不许就地重写。
+//   · 【诚实边界】只机器化「字面列举/裸 split」两种最常见回潮形态；运行时由变量拼出的扩展名不在此判定
+//     （那类仍靠结构约定）。目标 = 挡住"照抄一行表/正则"这一主流回潮，而非穷尽所有可能。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n🎞 媒体类型/URL 解析真值源唯一入口：禁内联重写判定与文件名提取（反向判据）');
+const MEDIA_SSOT = new Set([
+  'src/components/base/utils/assetType.ts', // EXT_KIND / classifyAssetUrlKind / detectFileType（媒体判定真源）
+  'src/components/base/core/utils.ts', // fileNameFromUrl / relativePathFromFileUrl（URL 提取真源）
+  'src/components/base/api/filesApi.ts', // relativePathFromUrl（薄委托，保留同名导出）
+  'src/components/base/utils/assetUrl.ts', // toRelativeFileUrl 等 URL 归一化出口
+  'src/components/base/store/skillStore.ts', // isSkillImportFile / skillNameFromFile（Skill 白名单真源 TD-16-8）
+]);
+// ① 媒体扩展名「列举」正则：`\.(png|jpe?g|gif|…)` —— ≥2 个分支才算列举（单个 `\.(mp4)$` 不算表）。
+//    ⚠️ 只拦**与 EXT_KIND 真值源重叠**的列举（媒体/文本类）；域专用扩展名（如 3D 模型的 glb/gltf、
+//    推理运行时的 wasm/onnx）**不属**本母体，不算违规 —— 见下方 `EXT_KIND_MEMBERS` 交集判定。
+const MEDIA_EXT_LIST_RE = /\\\.\(([a-z0-9|]{2,})\)/;
+// ② 裸文件名提取：`.pathname.split('/').pop()`（未走原语）
+const RAW_NAME_EXTRACT_RE = /\.pathname\s*\.\s*split\(\s*['"]\/['"]\s*\)\s*\.\s*pop\(/;
+// EXT_KIND 真值源成员（assetType.ts:29-34）—— 只有列举里**命中这些**才算「抄了真值源」。
+// 用集合而非单值：`\.(glb|gltf)` 与真值源零交集 ⇒ 非本母体（域专用，不拦），避免假守卫误报。
+const EXT_KIND_MEMBERS = new Set([
+  'mp4', 'webm', 'mov', 'mkv', 'avi', 'm4v', 'ogv',
+  'mp3', 'wav', 'ogg', 'oga', 'm4a', 'flac', 'aac', 'opus', 'wma', 'aiff',
+  'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg', 'avif',
+  'txt', 'md', 'markdown', 'json', 'log', 'csv', 'srt',
+]);
+/** 提取一行里 `\.(a|b|c)` 列举的扩展名，返回与 EXT_KIND 的交集（空 = 非本母体）。 */
+function mediaExtListOverlap(line) {
+  const m = MEDIA_EXT_LIST_RE.exec(line);
+  if (!m) return [];
+  const alts = m[1]
+    .split('|')
+    .map((s) => s.replace(/[?^$]|\\./g, '').toLowerCase())
+    .filter((s) => /^[a-z0-9]{2,6}$/.test(s));
+  // 至少 2 个可识别扩展名才算「列举成表」
+  if (alts.length < 2) return [];
+  return alts.filter((a) => EXT_KIND_MEMBERS.has(a));
+}
+let mediaInlineViol = 0;
+let mediaInlineScanned = 0;
+const mediaInlineHits = [];
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  mediaInlineScanned++;
+  if (MEDIA_SSOT.has(rel)) continue; // 真源/出口自身豁免
+  const code = readFileSync(f, 'utf8');
+  const lines = code.split('\n');
+  for (const [i, line] of lines.entries()) {
+    const trimmed = line.trim();
+    // 跳过纯注释行（文档里引用旧形态是允许的；本闸只拦真实代码）
+    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+    const overlap = mediaExtListOverlap(line);
+    const isExtList = overlap.length >= 2; // 命中真值源 ≥2 个扩展名 = 抄了表
+    const isRawName = RAW_NAME_EXTRACT_RE.test(line);
+    if (!isExtList && !isRawName) continue;
+    mediaInlineViol++;
+    const form = isExtList
+      ? `内联媒体扩展名列举正则（命中真值源扩展名：${overlap.join('/')}）`
+      : '裸 URL 文件名提取（pathname.split("/").pop()）';
+    mediaInlineHits.push(`${rel}:${i + 1}`);
+    fail(
+      `媒体类型/URL 解析内联重写: ${rel}:${i + 1} → ${form}` +
+        `（真值源 = base/utils/assetType.ts EXT_KIND · base/core/utils.ts fileNameFromUrl；` +
+        `禁就地手写第二份，新增格式只改真源）`,
+    );
+  }
+}
+if (assertScanned('媒体类型/URL 解析真值源（src 全域）', mediaInlineScanned) && !mediaInlineViol) {
+  console.log(`  ✅ 无内联重写媒体判定/文件名提取（扫 ${mediaInlineScanned} 文件；均走真值源）`);
+}
+
+// 规则 13-b（2026-09-16 · 后端对等闸）：**localTool 内禁 MIME→ext 的 `includes()` 子串链**。
+//
+// 【为什么必须有（规则 13 只扫 src ⟹ 后端零守卫，母体必在后端复发）】实证：TD-08-22 ——
+//   `ai-relay/providers/lovart/lovart_attachments.ts` 自持 `extFromDataHeader`/`extFromContentType`
+//   两份 `h.includes('jpeg')||h.includes('jpg')…includes('audio')` 子串链，绕过 `utils/mime.ts`
+//   唯一真源，且实测错判：`audio/aac`·`ogg`·`flac`·`wma`·`opus` 全因 `includes('audio')` 错归 `.mp3`、
+//   `video/mpeg` 错归 `.mp3`、未列举型静默兜底 `.png`。
+//   08 区上游轮已明确记「后端缺机器闸 → 同母复发」—— 本子规则即补这一半。
+//
+// 【判据（反向）】localTool/src/** 内任一行同时含**媒体 MIME 子串白名单**（`includes('jpeg'|'png'|'mp4'|…)`
+//   ≥2 个）且该行参与 ext 返回 → 违规。豁免 = `utils/mime.ts`（唯一真源）。
+//   · 域专用魔数表（如 `B64_MEDIA_MAGIC` 的 base64 前缀）**不拦**：前缀 ≠ MIME，无法由 mime.ts 表达。
+//   · 【诚实边界】只拦「`includes('<媒体 mime 词>')` 链」这一主流回潮形态。
+// ─────────────────────────────────────────────────────────────────
+const BACKEND_SRC = join(root, 'localTool', 'src');
+const BACKEND_MIME_SSOT = 'localTool/src/utils/mime.ts';
+// 媒体 MIME 子串白名单信号（人写 mime→ext 链时的典型 token）
+const MIME_SUBSTR_TOKENS = [
+  'jpeg', 'jpg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'avif', 'svg',
+  'mp4', 'webm', 'quicktime', 'matroska', 'mpeg', 'ogg', 'flac', 'wav',
+];
+const MIME_INCLUDES_RE = /includes\s*\(\s*['"]([a-z0-9/+-]+)['"]\s*\)/gi;
+let backendMediaViol = 0;
+let backendMediaScanned = 0;
+if (existsSync(BACKEND_SRC)) {
+  const backendFiles = collectFiles(BACKEND_SRC);
+  for (const f of backendFiles) {
+    const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+    if (!/\.(ts|tsx)$/.test(rel)) continue;
+    backendMediaScanned++;
+    if (rel === BACKEND_MIME_SSOT) continue; // 真源自身豁免
+    const code = readFileSync(f, 'utf8');
+    const lines = code.split('\n');
+    for (const [i, line] of lines.entries()) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+      // 统计该行 `includes('…')` 命中的媒体 MIME 词数
+      const hits = [];
+      for (const m of line.matchAll(MIME_INCLUDES_RE)) {
+        const tok = m[1].toLowerCase();
+        if (MIME_SUBSTR_TOKENS.includes(tok)) hits.push(tok);
+      }
+      // 该行还须「参与扩展名/类型返回或赋值」（防误报：纯 URI 判断 `includes('http')` 等不在此）
+      const looksLikeExtReturn = /\breturn\b|\bext\b|\btype\b|=\s*['"]/.test(line);
+      if (hits.length >= 2 && looksLikeExtReturn) {
+        backendMediaViol++;
+        fail(
+          `后端 MIME→ext 内联子串链: ${rel}:${i + 1} → includes(${hits.map((h) => `'${h}'`).join(', ')})` +
+            `（真值源 = utils/mime.ts mimeToExt；子串匹配会错判，如 audio/aac 错归 .mp3）`,
+        );
+      }
+    }
+  }
+}
+if (assertScanned('后端 MIME→ext 真值源（localTool/src 全域）', backendMediaScanned) && !backendMediaViol) {
+  console.log(`  ✅ 后端无 MIME→ext 内联子串链（扫 ${backendMediaScanned} 文件；均走 mime.ts）`);
+}
+
+// 规则 14（2026-09-16 · TD-08-19）：**跨栈契约常量对账** —— 前端 / 后端各持一份、值必须相等。
+//
+// 【为什么是「对账」而非「收口」】`MAX_SEND_DIM` 无法只留一份：前端（`src/`，vite/浏览器构建）与
+//   后端（`localTool/`，node + 独立 package.json）是**两个独立构建产物**，无共享模块机制
+//   （抽共用模块需打通两套构建，改动半径远大于收益）。故**双写是结构必然**，不是 SSOT 第二份。
+//   真正的缺口是：**没有任何机器对账** —— 两侧注释互相指向（"勿单边漂移"），但注释拦不住人。
+//   实证风险：任一侧漂移会**静默改变发送图片的压缩上限**（用户可见：图变大/被压糊）。
+//
+// 【判据】从两侧各自的源文件抓 `MAX_SEND_DIM = <数字>` → 必须都存在且相等；任一侧缺失/不等 → 违规。
+//   · 不列「允许谁」的清单（只对这一个跨栈契约，未来新增同类契约按此模式补一行）。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n📐 跨栈契约常量对账：MAX_SEND_DIM 前后端必须相等（反向判据）');
+const CROSS_STACK_CONSTS = [
+  {
+    name: 'MAX_SEND_DIM',
+    fe: 'src/components/base/utils/assetUrl.ts',
+    be: 'localTool/src/utils/resolveLocalImages.ts',
+    why: '发送图片最长边上限（前端压 blob/data、后端压 /files/，两端口径必须一致）',
+  },
+];
+let crossStackViol = 0;
+for (const c of CROSS_STACK_CONSTS) {
+  const grab = (rel) => {
+    const abs = join(root, rel);
+    if (!existsSync(abs)) return null;
+    const m = new RegExp(`\\b${c.name}\\s*=\\s*(\\d+)`).exec(readFileSync(abs, 'utf8'));
+    return m ? m[1] : null;
+  };
+  const feVal = grab(c.fe);
+  const beVal = grab(c.be);
+  if (feVal === null || beVal === null) {
+    crossStackViol++;
+    fail(
+      `跨栈契约常量 ${c.name} 缺失: 前端 ${c.fe} = ${feVal ?? '未找到'} · 后端 ${c.be} = ${beVal ?? '未找到'}` +
+        `（${c.why}；两端都必须显式定义，禁只留一份）`,
+    );
+  } else if (feVal !== beVal) {
+    crossStackViol++;
+    fail(
+      `跨栈契约常量 ${c.name} 已漂移: 前端 ${c.fe} = ${feVal} · 后端 ${c.be} = ${beVal}` +
+        `（${c.why}；必须相等）`,
+    );
+  } else {
+    console.log(`  ✅ ${c.name} = ${feVal}（前端/后端一致）`);
+  }
+}
+if (crossStackViol === 0) {
+  console.log(`  ✅ 跨栈契约常量对账通过（${CROSS_STACK_CONSTS.length} 项）`);
+}
+
 console.log(`\n${errors === 0 ? '✅ 架构校验通过' : `❌ ${errors} 处架构违规`}`);
 process.exit(errors === 0 ? 0 : 1);

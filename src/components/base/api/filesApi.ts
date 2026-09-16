@@ -45,7 +45,7 @@ import { httpRequest } from './httpClient.ts';
 import { logger } from '../core/logger.ts';
 import { reportDegrade } from '../core/degrade.ts';
 import { UPLOAD_TIMEOUT } from '../core/config.ts';
-import { formatTime, dataUrlToBlob, safeFileName } from '../core/utils.ts';
+import { formatTime, dataUrlToBlob, safeFileName, relativePathFromFileUrl } from '../core/utils.ts';
 import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
 import type { ApiEnvelope } from './localToolApi.ts';
 export { toAbsoluteFileUrl } from '../utils/assetUrl.ts';
@@ -95,15 +95,7 @@ export async function openFileDir(
  * 使调用方误以为拿到了本地相对路径）。与后端 `relativePathFromFileUrl` 同口径（同一探测原语）。
  */
 export function relativePathFromUrl(url: string): string | null {
-  if (typeof url !== 'string' || !url) return null;
-  try {
-    const pathname = decodeURIComponent(new URL(url).pathname);
-    if (!pathname.startsWith('/files/')) return null;
-    const rel = pathname.slice('/files/'.length);
-    return rel || null;
-  } catch {
-    return null;
-  }
+  return relativePathFromFileUrl(url);
 }
 
 // POST /api/files/move { src, dst } → { code:0, data:{ ok:true, id, url, name } }

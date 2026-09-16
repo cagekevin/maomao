@@ -52,7 +52,7 @@ import { updateNodeRuntime, useNodeRuntime } from '../base/store/nodeRuntimeStor
 import previewUrls from '../base/utils/previewUrl.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
 import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/core/config.ts';
-import { createRafBatch } from '../base/core/utils.ts';
+import { createRafBatch, fileNameFromUrl } from '../base/core/utils.ts';
 import { sourceTimeAt, timelineTimeAt } from '../base/utils/timeline/sourceTime.ts';
 import { captureFrame } from '../base/utils/captureFrame.ts';
 
@@ -144,11 +144,8 @@ const makeId = (p: string): string => `${p}-${generateId('v')}`;
 const nameFromUrl = (url: string): string => {
   if (url.startsWith('data:')) return 'video.mp4';
   if (url.startsWith('blob:')) return 'local-video.mp4';
-  try {
-    return decodeURIComponent(new URL(url).pathname.split('/').pop() || 'video.mp4');
-  } catch {
-    return 'video.mp4';
-  }
+  // TD-16-14：文件名提取统一走 core/utils 唯一原语（URL 解析自动剥 ?# + decode 一次）
+  return fileNameFromUrl(url) || 'video.mp4';
 };
 
 /** 连接源 → 名称（复刻官方 Lc） */

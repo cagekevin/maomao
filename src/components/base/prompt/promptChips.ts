@@ -302,6 +302,45 @@ export function resolvePromptChips(
 }
 
 /**
+ * 参考图合并去重（**唯一实现**，TD-01-14）—— 「显式 @ 芯片图 + 上游连线图」→ 最终发送的 URL 列表。
+ *
+ * 【为什么要有它】四个生成节点（ImageGenerate / VideoGenerate / TextGenerate / TemplateNode）
+ * 此前各写一份同语义代码：
+ *   `const chipUrls = chipResolved.refImages.map(im => im.url)`
+ *   `const upstreamUrls = <上游>.map(im => im.url)`
+ *   `const refUrls = [...new Set([...chipUrls, ...upstreamUrls])].filter((u): u is string => !!u)`
+ * **且已漂移**：TemplateNode/VideoGenerate 写 `!!u`，ImageGenerate/TextGenerate 写 `u != null`
+ * （`u != null` 会放行空串 `''`，`!!u` 不会 → 同一份"参考图"判定，两种口径）。
+ *
+ * 【顺序语义（勿改）】**芯片图在前、上游图在后**。芯片顺序对应 prompt 里的「图片N」编号
+ * （见 resolvePromptChips 的 `[img=图片N]`），重排会错位垫图引用。
+ *
+ * 【依赖说明】本函数**不 import 任何东西**（保持 promptChips 的可单测纯函数面）；
+ * `resolvePromptChips` 的 refImages 已保证 `url: string` 非空（`if (im && im.id && im.url)`），
+ * 故此处只需处理上游侧与并集去重。
+ *
+ * @param {{ url?: unknown }[]} chipImages 显式 @ 的芯片参考图（顺序敏感，对应「图片N」）
+ * @param {{ url?: unknown }[]} upstreamImages 连线上游图（顺序次之）
+ * @returns {string[]} 去重后的非空 URL 列表（芯片优先，其余按首次出现顺序）
+ */
+export function mergeReferenceImageUrls(
+  chipImages: Array<{ url?: unknown }> = [],
+  upstreamImages: Array<{ url?: unknown }> = [],
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const im of [...chipImages, ...upstreamImages]) {
+    const url = im?.url;
+    // 判据统一为「非空字符串」：空串/非串/缺省一律丢弃（治旧 `u != null` 放行空串的漂移口径）
+    if (typeof url !== 'string' || url === '') continue;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    out.push(url);
+  }
+  return out;
+}
+
+/**
  * 名字匹配统一命中源：找出 text 里所有「@素材名」命中（最长优先、非重叠）。
  * autoLinkAssetsByName（批量全量重建）与 commitOccurrencesInRun（运行期就地提交）
  * 共用本函数，根治两套匹配规则分叉（docs/PromptInput-@名自动转缩略图 §8.5-1）。

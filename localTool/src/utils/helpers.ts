@@ -4,6 +4,58 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
+/**
+ * URL → 文件名（basename）**探测原语 · 后端唯一实现**（2026-09-16 收口 TD-08-20 / TD-08-16）。
+ *
+ * 【为什么收口】后端取「URL 文件名」有两份口径不一致的实现：
+ *   · `files.ts:288` `path.basename(new URL(fileUrl).pathname)` —— **漏 decodeURIComponent**
+ *     → 编码名（`my%20clip.png`）落盘带裸 `%20`，而前端已 decode → 跨栈错位；
+ *   · `resolveLocalImages.ts` 用正则 `(\/files\/.*)$` 捕获 —— **不剥 `?`/`#`**
+ *     → 查询串混进磁盘路径。
+ * 统一为「先用 `URL` 解析（自动剥 `?#`）→ 取 pathname → 末段 → decode 一次 → basename」，
+ * 与前端 `core/utils.fileNameFromUrl` 同口径。
+ *
+ * @param url 任意 URL 字符串；空/非法 → ''
+ * @returns 解码后的文件名；取不到 → ''
+ */
+export function fileNameFromUrl(url: string | null | undefined): string {
+  if (!url || typeof url !== 'string') return '';
+  try {
+    // 带 base 解析（支持相对 `/files/` 与绝对 URL 两种形态，自动剥 `?#`）。
+    const pathname = new URL(url, 'http://localhost').pathname;
+    const seg = pathname.slice(pathname.lastIndexOf('/') + 1);
+    if (!seg) return '';
+    try {
+      return decodeURIComponent(seg);
+    } catch {
+      return seg; // 非法编码保留原样（与 resolveLocalImages 惯例一致）
+    }
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * 相对/绝对 `/files/` URL → 相对 uploadDir 的磁盘相对路径（剥前缀 + decode）。
+ * 【唯一真源】`relativePathFromFileUrl`（resources.ts）是同口径实现，本函数供不 import 路由的
+ * 底层工具复用（如 resolveLocalImages）；两者口径必须一致 —— 改动请同步。
+ *
+ * @param url 任意 URL；非 `/files/` 形态 / 解析失败 → null（调用方须跳过，不得猜）
+ */
+export function relativePathFromFilesUrl(url: string | null | undefined): string | null {
+  if (!url || typeof url !== 'string') return null;
+  try {
+    // 带 base 解析：既支持绝对 URL（`http://127.0.0.1:18080/files/a.png`），
+    // 也支持**相对** `/files/` 路径（出站图片回读的常见形态）；两者都自动剥 `?#`。
+    const pathname = decodeURIComponent(new URL(url, 'http://localhost').pathname);
+    if (!pathname.startsWith('/files/')) return null;
+    const rel = pathname.slice('/files/'.length);
+    return rel || null;
+  } catch {
+    return null;
+  }
+}
+
 export function json(res: ServerResponse, data: unknown, status = 200): void {
   const body = JSON.stringify(data);
   res.writeHead(status, {

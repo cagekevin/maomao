@@ -19,40 +19,13 @@ import {
 import { contentIdOf } from '../utils/fileStore.js';
 import { runReferenceGc } from '../utils/orphanGc.js';
 import { toAbsoluteFileUrl } from '../utils/localToolBaseUrl.js';
+import { extToKind } from '../utils/mime.js';
+import { relativePathFromFilesUrl } from '../utils/helpers.js';
 
 // ── rescan：扫描 upload 目录，把磁盘文件/文件夹元数据同步进 resources 表 ──
-const RESCAN_FILE_TYPE: Record<string, string> = {
-  // 图片
-  '.png': 'image',
-  '.jpg': 'image',
-  '.jpeg': 'image',
-  '.webp': 'image',
-  '.gif': 'image',
-  '.bmp': 'image',
-  '.svg': 'image',
-  // 视频
-  '.mp4': 'video',
-  '.webm': 'video',
-  '.mov': 'video',
-  '.avi': 'video',
-  '.mkv': 'video',
-  '.flv': 'video',
-  '.m4v': 'video',
-  // 音频
-  '.mp3': 'audio',
-  '.wav': 'audio',
-  '.flac': 'audio',
-  '.ogg': 'audio',
-  '.m4a': 'audio',
-  // 文本（md / txt 等统一归为 text，前端有文本渲染分支）
-  '.md': 'text',
-  '.markdown': 'text',
-  '.txt': 'text',
-};
-
-function extToFileType(ext: string): string | null {
-  return RESCAN_FILE_TYPE[ext.toLowerCase()] || null;
-}
+// 【2026-09-16 收口 TD-08-17/18/16-13】原 `RESCAN_FILE_TYPE` 是本文件自持的**第二张** ext→kind 表
+// （与 admin.ts `CATEGORY_BY_EXT` 并行手抄、已漂移：漏 avif/ogv/oga/aac/opus/wma/aiff/json/csv/log 等）。
+// 现统一委托 utils/mime.ts `extToKind`（真源），本文件不再持有任何扩展名清单。
 
 /**
  * 计算文件内容 sha1（去重身份列 A′）。读文件失败返回 null（不阻断 rescan，缺失列可下次回填）。
@@ -102,15 +75,9 @@ export function resourceIdOf(relPath: string): string {
  */
 export function relativePathFromFileUrl(url: unknown): string | null {
   if (typeof url !== 'string' || !url) return null;
-  try {
-    const pathname = decodeURIComponent(new URL(url).pathname);
-    // 必须命中 `/files/` 前缀（远程图 / data URL / 其它路径 → 非本地磁盘文件）
-    if (!pathname.startsWith('/files/')) return null;
-    const rel = pathname.slice('/files/'.length);
-    return rel || null;
-  } catch {
-    return null;
-  }
+  // 【2026-09-16 收口·唯一实现】原为本地 try/catch 内联；现委托 utils/helpers
+  // `relativePathFromFilesUrl`（带 base 解析、剥 ?#、decode 一次）—— 全栈同一探测原语。
+  return relativePathFromFilesUrl(url);
 }
 
 export async function handleResourcesRescan(
@@ -183,9 +150,9 @@ export async function handleResourcesRescan(
         continue;
       }
 
-      // 文件：按扩展名映射类型（图片/视频/音频/文本）
+      // 文件：按扩展名映射类型（图片/视频/音频/文本）—— 委托 utils/mime.ts extToKind（唯一真源）
       const ext = path.extname(entry.name).toLowerCase();
-      const type = extToFileType(ext);
+      const type = extToKind(ext);
       if (!type) continue;
       counters.scanned++;
 
@@ -344,8 +311,10 @@ export function contextOfUpload(
     .replace(/[\r\n\t]+/g, ' ')
     .trim();
   const name = rawName || path.posix.basename(rel);
-  // type 由**磁盘名扩展名**推（显示名可能没后缀）—— Content 维度的事实，不由显示名决定
-  const type = extToFileType(path.extname(rel)) || 'image';
+  // type 由**磁盘名扩展名**推（显示名可能没后缀）—— Content 维度的事实，不由显示名决定。
+  // 【2026-09-16 TD-08-18】表外扩展名回 'other'（诚实「未识别」），不再 `|| 'image'` 静默误判：
+  // 后者把 `.xyz` 之类未知文件标成图片，前端按图片渲染 → 破图，且掩盖了「表该补」的信号。
+  const type = extToKind(path.extname(rel)) || 'other';
   return { id: resourceIdOf(rel), diskFolder, folder, name, type };
 }
 

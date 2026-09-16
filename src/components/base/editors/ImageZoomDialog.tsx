@@ -23,7 +23,7 @@ import {
   copyVideoFrameToClipboard,
   downloadUrl,
 } from '../utils/clipboard.ts';
-import { createRafBatch } from '../core/utils.ts';
+import { createRafBatch, fileNameFromUrl } from '../core/utils.ts';
 import { setCrossOriginForReadable } from '../utils/asyncGuard.ts';
 import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
 
@@ -182,7 +182,8 @@ function ImageZoomDialog({
 
   const handleDownload = useCallback(async () => {
     const abs = toAbsoluteFileUrl(url || '');
-    const name = (url || '').split('/').pop() || 'image.png';
+    // TD-16-14：文件名提取统一走 core/utils 唯一原语（URL 解析剥 ?# + decode 一次）
+    const name = fileNameFromUrl(url) || 'image.png';
     await downloadUrl(abs, name);
   }, [url]);
 

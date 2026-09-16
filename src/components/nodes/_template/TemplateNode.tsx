@@ -8,7 +8,7 @@ import ExpandablePanel from '../../base/ui/ExpandablePanel.tsx';
 import GenerateButton from '../../base/ui/GenerateButton.tsx';
 import ModelSelect from '../../base/ui/ModelSelect.tsx';
 import PromptInput from '../../base/prompt/PromptInput.tsx';
-import { resolvePromptChips } from '../../base/prompt/promptChips.ts';
+import { resolvePromptChips, mergeReferenceImageUrls } from '../../base/prompt/promptChips.ts';
 import ResourceStrip from '../../base/panels/ResourceStrip.tsx';
 import ResizeFullscreenHandle from '../../base/ui/ResizeFullscreenHandle.tsx';
 import FullscreenModal from '../../base/panels/FullscreenModal.tsx';
@@ -270,9 +270,8 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
       );
       // 参考图 = 用户显式 @ 的芯片图（顺序对应 prompt 里的「图片N」）+ 其余上游图（按 url 去重）。
       // generateImage 只收 URL 数组（GenerateImageOptions.images: string[]）。
-      const chipUrls = chipResolved.refImages.map((im) => im?.url);
-      const upstreamUrls = refImages.map((im) => im?.url);
-      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])].filter((u): u is string => !!u);
+      // 合并去重收口到唯一实现（TD-01-14：四节点曾各写一份且已漂移）
+      const refUrls = mergeReferenceImageUrls(chipResolved.refImages, refImages);
       return generateImage(
         {
           // 真执行器（换成你的 API）

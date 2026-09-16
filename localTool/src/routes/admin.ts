@@ -8,6 +8,7 @@ import { getDb, getUploadDir, saveDb, queryAll, queryOne, run } from '../db/data
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
 import { runReferenceGc, collectReferencedRelPaths } from '../utils/orphanGc.js';
 import { extractFilesUrls } from '../utils/base64Externalize.js';
+import { extToCategoryLabel } from '../utils/mime.js';
 
 // ── GET /api/admin/stats ──
 export async function handleAdminStats(_req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -218,41 +219,13 @@ export async function handleAdminImport(req: IncomingMessage, res: ServerRespons
 }
 
 // ── 存储健康 · 文件分类（对齐外部 StorageHealthCenter CATEGORY_LABELS 口径）──
-const CATEGORY_BY_EXT: Record<string, string> = {
-  '.png': '图片',
-  '.jpg': '图片',
-  '.jpeg': '图片',
-  '.gif': '图片',
-  '.webp': '图片',
-  '.svg': '图片',
-  '.bmp': '图片',
-  '.ico': '图片',
-  '.mp4': '视频',
-  '.webm': '视频',
-  '.mov': '视频',
-  '.avi': '视频',
-  '.mkv': '视频',
-  '.flv': '视频',
-  '.wmv': '视频',
-  '.m4v': '视频',
-  '.mp3': '音频',
-  '.wav': '音频',
-  '.ogg': '音频',
-  '.aac': '音频',
-  '.flac': '音频',
-  '.opus': '音频',
-  '.txt': '文本',
-  '.md': '文本',
-  '.json': '文本',
-  '.csv': '文本',
-  '.xml': '文本',
-  '.html': '文本',
-  '.css': '文本',
-  '.log': '文本',
-};
+// 【2026-09-16 收口 TD-08-17】原 `CATEGORY_BY_EXT` 是本文件自持的**第三张** ext→类别表
+// （与 resources.ts `RESCAN_FILE_TYPE` 并行手抄、互相漂移）。现统一委托 utils/mime.ts：
+// `extToKind` 定 kind、`kindLabel` 出中文 —— 中文只是 kind 的显示派生，不再按扩展名手抄第二份。
 function categoryOf(name: string): string {
-  const ext = `.${(name.split('.').pop() || '').toLowerCase()}`;
-  return CATEGORY_BY_EXT[ext] || '其他';
+  const dot = name.lastIndexOf('.');
+  const ext = dot >= 0 ? name.slice(dot).toLowerCase() : '';
+  return extToCategoryLabel(ext);
 }
 
 /** 递归扫描 uploads 目录（跳过 .thumbnails/ 与隐藏文件），返回相对路径+绝对路径+大小。 */

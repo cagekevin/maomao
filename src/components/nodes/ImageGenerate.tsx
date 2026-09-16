@@ -43,7 +43,7 @@ import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
 import { mergeRefImages, buildEffectivePrompt } from '../base/core/utils.ts';
-import { resolvePromptChips } from '../base/prompt/promptChips.ts';
+import { resolvePromptChips, mergeReferenceImageUrls } from '../base/prompt/promptChips.ts';
 import { PROMPT_PANEL_PAD_X } from '../base/prompt/promptLayout.ts';
 import CameraStudioPanel from '../base/editors/CameraStudioPanel.tsx';
 import CameraSettingsSelector from '../base/editors/cameraParams/CameraSettingsSelector.tsx';
@@ -298,11 +298,8 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       );
       // 参考图 = 用户显式 @ 的芯片图（顺序对应 prompt 里的「图片N」）+ 其余连线上游图（去重）。
       // 图生图：把参考图传下去（网关 image_urls 字段）；signal 支持真取消（Step C）
-      const chipUrls = chipResolved.refImages.map((im) => im.url);
-      const upstreamUrls = refImages.map((img) => img.url);
-      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])].filter(
-        (u): u is string => u != null,
-      );
+      // 芯片图在前、上游图在后（顺序对应 prompt 里的「图片N」）；合并去重收口到唯一实现（TD-01-14）
+      const refUrls = mergeReferenceImageUrls(chipResolved.refImages, refImages);
       // 摄影参数 → 提示词片段（仅在本节点为生图时生效）：拼接在最终提示词末尾
       // （"Camera settings: <英文片段>."），与参考项目 AINodeDialog 完全一致。
       const finalPrompt = applyCameraSettingsToPrompt(

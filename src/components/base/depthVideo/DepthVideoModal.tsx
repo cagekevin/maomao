@@ -41,6 +41,7 @@ import { classifyError } from '../utils/genErrors.ts';
 import { showToast } from '../core/toastStore.ts';
 import { logger } from '../core/logger.ts';
 import { setCrossOriginForReadable } from '../utils/captureFrame.ts';
+import { fileNameFromUrl } from '../core/utils.ts';
 
 export interface DepthVideoModalProps {
   /** 本节点当前视频 URL（绝对 URL，已是 toAbsoluteFileUrl 后） */
@@ -411,7 +412,7 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
 
       // ── 上传唯一入口：filesApi.uploadFileToLocal（null 即失败，如实报错，不静默兜底）──
       const ext = rec.format.mimeType.includes('mp4') ? 'mp4' : 'webm';
-      const outName = depthOutputName(name || videoUrl.split('/').pop() || 'video', ext);
+      const outName = depthOutputName(name || fileNameFromUrl(videoUrl) || 'video', ext);
       setStatus(`转换完成，正在上传…`);
       const url = await withTimeout(
         uploadFileToLocal(blob, UPLOAD_DIRS.videoProcess, outName),

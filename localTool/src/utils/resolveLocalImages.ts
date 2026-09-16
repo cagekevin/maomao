@@ -27,29 +27,19 @@ import { getUploadDir } from '../db/database.js';
 // 原为本文件内 `mimeFromExt` switch —— 与 files.ts 的白名单、前端 assetUrl.ts 的 Set 同源三份，
 // 已漂移过一次（见 fileStore.JIMP_MIME_BY_EXT 注释）。此处改为委托，不再自持映射。
 import { jimpMimeForExt } from './fileStore.js';
+// TD-08-16：URL→磁盘相对路径统一走 helpers 唯一原语（URL 解析剥 ?# + decode 一次）。
+import { relativePathFromFilesUrl } from './helpers.js';
 
 /** 发送最长边上限（与前端 assetUrl.ts MAX_SEND_DIM=1920 契约对齐，出站压缩防超大图触碰 API 上限） */
 const MAX_SEND_DIM = 1920;
 
-/** 绝对自指 localTool /files/ URL（127.0.0.1 / localhost / ::1 + 任意端口 + /files/ 路径） */
-const SELF_FILE_URL_RE = /^https?:\/\/(?:127\.0\.0\.1|localhost|::1)(?::\d+)?(\/files\/.*)$/i;
-
 /** 相对 /files/ 或绝对自指 /files/ URL → uploads 磁盘绝对路径；非本机可读图片 URL 返回 null */
 function resolveLocalPath(u: string): string | null {
-  let rel: string | null = null;
-  if (u.startsWith('/files/')) {
-    rel = u.slice('/files/'.length);
-  } else {
-    const m = SELF_FILE_URL_RE.exec(u);
-    if (m) rel = m[1].replace(/^\/files\//, '');
-  }
+  // 【TD-08-16 修复 2026-09-16】原实现用 `SELF_FILE_URL_RE` 正则 `(\/files\/.*)$` 捕获，
+  // **不剥 `?`/`#`** —— `/files/a.png?token=1` 会把查询串当文件名，读不到磁盘 → 静默失败。
+  // 统一走 helpers.relativePathFromFilesUrl（URL 解析剥 ?# + decode 一次，与 resources 同口径）。
+  const rel = relativePathFromFilesUrl(u);
   if (!rel) return null;
-  // URL 编码还原（中文/空格文件名在 /files/ URL 里以 %xx 形态存在，对齐 base64Externalize.extractFilesUrls 惯例）
-  try {
-    rel = decodeURIComponent(rel);
-  } catch {
-    /* 非法编码保留原样，读不到时走失败可见 */
-  }
   return path.join(getUploadDir(), rel);
 }
 

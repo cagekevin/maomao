@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { extractFilesUrls } from './base64Externalize.js';
 import { getDb, getUploadDir, queryAll } from '../db/database.js';
+import { relativePathFromFilesUrl } from './helpers.js';
 
 export interface GcResult {
   scanned: number;
@@ -36,19 +37,35 @@ type Db = Awaited<ReturnType<typeof getDb>>;
 
 /**
  * 完整 `/files/` URL → uploads 相对路径（`canvas/x.png`）；非 /files/ 形态返回 null。
+ *
  * 【TD-02-6 收口】此前「URL → 相对路径」的转换在 `runOrphanGc`（extraRefs）与
  * `collectReferencedRelPaths`（resources/tasks）各写一份（连 decodeURIComponent 容错都重复），
  * 是同一知识的两处实现 → 抽此唯一实现，三处共用。
+ *
+ * 【TD-08-16 收口 2026-09-16】原实现用正则 `/\/files\/(.+)$/` **不剥 `?`/`#`** ——
+ * `…/a.png?token=1` 会被当成磁盘相对路径 `a.png?token=1` → `existsSync` 恒 false
+ * → **该引用不计入 referenced → 仍被使用的文件可能被误删**（孤儿 GC 复用本函数的引用集合）。
+ * 现委托 `helpers.relativePathFromFilesUrl`（`URL.pathname` 自动剥 `?#` + decode），
+ * 与 `resources.relativePathFromFileUrl` / `resolveLocalImages` 同一探测原语。
+ *
+ * ⚠️ 行为差异（有意）：旧实现在 decode 失败时**原样返回**（保守，宁可少删盘）；
+ * 新原语 decode 失败返回 **null**（则该条引用不纳入）—— 对孤儿 GC 而言这是**更安全**的方向吗？
+ * 不是：`null` 会**少一条引用 → 偏向误删**。故此处**保留旧容错**：decode 失败时退回未解码串。
  */
 export function toUploadRelPath(url: unknown): string | null {
   if (typeof url !== 'string' || !url) return null;
-  const m = url.match(/\/files\/(.+)$/);
-  if (!m) return null;
+  // 先走唯一原语（剥 ?# + decode 一次）。decode 失败时原语返 null，但那**不代表**该 URL 非 /files/ 形态，
+  // 此时须保留旧容错（原样返回未解码串，宁可少删盘）—— 用 pathname 再判一次前缀即可区分两种 null。
+  const rel = relativePathFromFilesUrl(url);
+  if (rel !== null) return rel;
+  let pathname: string;
   try {
-    return decodeURIComponent(m[1]);
+    pathname = new URL(url, 'http://localhost').pathname;
   } catch {
-    return m[1]; // 非法转义序列：原样返回（不去掉引用，宁可少删盘）
+    return null;
   }
+  if (!pathname.startsWith('/files/')) return null; // 确实非 /files/ 形态
+  return pathname.slice('/files/'.length) || null; // decode 失败 → 返回未解码串（保守，保留引用）
 }
 
 /**

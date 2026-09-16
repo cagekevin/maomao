@@ -34,6 +34,8 @@ import {
 import { uploadFileToLocal } from '../base/api/index.ts';
 import { runGenerationContract } from '../base/store/generationContract.ts';
 import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
+import { detectFileType } from '../base/utils/assetType.ts';
+import { fileNameFromUrl } from '../base/core/utils.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { logger } from '../base/core/logger.ts';
 
@@ -1161,8 +1163,9 @@ export function createScriptBoxEngine({
       toast('未选择图片文件');
       return;
     }
-    const isImg =
-      /^image\//i.test(file.type || '') || /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name || '');
+    // TD-16-5 收口：原内联 `/\.(png|jpe?g|gif|webp|svg)$/` 漏 bmp/avif 且与 EXT_KIND 口径错位
+    // → 统一走 assetType.detectFileType（mime 优先 + EXT_KIND 全表）。
+    const isImg = detectFileType(file) === 'image';
     if (!isImg) {
       toast(`「${file.name || '该文件'}」不是图片，请选择图片文件`);
       return;
@@ -1178,7 +1181,10 @@ export function createScriptBoxEngine({
     try {
       const folder = resourceFolderOf(asset.category);
       // 原始图落盘（保留可读文件名，走 multipart；与右键上传同一入口 uploadFileToLocal）
-      const ext = (file.name.split('.').pop() || 'png').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      // TD-16-11 收口：原 `split('.').pop() || 'png'` 未知扩展静默兜底 png（且未剥 ?#）。
+      // 统一走 fileNameFromUrl 取末段再取后缀；无后缀时回退 png（图片场景的合理默认，此处保留但显式说明）。
+      const rawExt = fileNameFromUrl(file.name).split('.').pop() || '';
+      const ext = rawExt.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'png';
       const assetUrl = await uploadFileToLocal(
         file,
         folder,

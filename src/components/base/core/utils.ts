@@ -18,6 +18,56 @@ export function toAbsoluteFileUrl(url: string | null | undefined): string {
 }
 
 /**
+ * URL → 文件名（basename）**探测原语 · 全库唯一实现**。
+ *
+ * 【为什么收口（TD-16-14 / TD-08-20 · 2026-09-16）】此前全库有 **12 份**内联手写
+ * `decodeURIComponent(new URL(u).pathname.split('/').pop())` 或更简陋的 `u.split('/').pop()`，
+ * 口径互不统一且已漂移出三类不一致：
+ *   · **漏 decode**：编码名（`my%20clip.png`）显示成裸 `%20`（VideoExtractNode 等）；
+ *   · **漏剥 `?` `#`**：`a.png?token=1` 取到 `a.png?token=1`（imageCompress / ImageZoomDialog）；
+ *   · **裸 split**：相对路径＋查询串下取到查询片段（VideoGenerate / AssetNode 等）。
+ * 统一为「先用 `URL` 解析（自动剥 `?#`）→ 取 pathname → 末段 → decode 一次」。
+ *
+ * @param url 任意 URL（绝对 http / 相对 /files/ / data: / blob:）；空/非法 → ''
+ * @returns 解码后的文件名；取不到 → ''
+ */
+export function fileNameFromUrl(url: string | null | undefined): string {
+  if (!url || typeof url !== 'string') return '';
+  try {
+    const pathname = new URL(url, 'http://localhost').pathname;
+    const seg = pathname.slice(pathname.lastIndexOf('/') + 1);
+    return seg ? decodeURIComponent(seg) : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * URL → 相对 `/files/` 磁盘路径（去前缀 + 解码）**探测原语 · 全库唯一实现**。
+ *
+ * 【为什么必须命中 `/files/` 前缀】非本地 URL（远程 http 图、data URL、其它路径）→ **返回 null**，
+ * 不得返回看似合法的残串（旧实现直接 `replace`，会把 `https://x/y.png` 返回成 `/y.png`，
+ * 让调用方误以为拿到了本地相对路径）。前端与后端 `relativePathFromFileUrl` 同口径（同一探测原语）。
+ *
+ * 【与 fileNameFromUrl 的关系】本函数 = 「前缀校验」+ `fileNameFromUrl`；两者是**不同判据**，
+ * 不可互相替代：取显示名只关心末段（任意 URL 都成立），磁盘定位必须确认是本机 `/files/`。
+ *
+ * @param url 任意 URL；非本地 `/files/` 形态 / 非法 → null
+ * @returns 相对路径（如 `migrated/人物/a.png`）；取不到 → null
+ */
+export function relativePathFromFileUrl(url: string | null | undefined): string | null {
+  if (!url || typeof url !== 'string') return null;
+  try {
+    const pathname = decodeURIComponent(new URL(url, 'http://localhost').pathname);
+    if (!pathname.startsWith('/files/')) return null;
+    const rel = pathname.slice('/files/'.length);
+    return rel || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 通用工具集中实现 —— 唯一入口，禁止散落手写替代。
  *
  * 约定：

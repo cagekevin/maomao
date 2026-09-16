@@ -18,8 +18,8 @@ import { logger } from '../core/logger.ts';
 import { httpRequest } from '../api/httpClient.ts';
 import { DOWNLOAD_TIMEOUT } from '../core/config.ts';
 import { generateId } from '../core/idGen.ts';
-import { deepClone } from '../core/utils.ts';
-import { withTimeout, TimeoutError, tryParse, setCrossOriginForReadable } from './asyncGuard.ts';
+import { deepClone, fileNameFromUrl } from '../core/utils.ts';
+import { withTimeout, TimeoutError, setCrossOriginForReadable } from './asyncGuard.ts';
 
 /** 剪贴板操作统一返回信封：{ ok, msg }，调用方负责 toast。 */
 type ClipResult = { ok: boolean; msg: string };
@@ -395,10 +395,8 @@ export function resolveDownloadFilename(
   { ext = 'png', fallback = 'generated.png' }: { ext?: string; fallback?: string } = {},
 ): string {
   let filename = label || '';
-  const fromUrl = tryParse(
-    () => decodeURIComponent(new URL(url).pathname.split('/').pop() || ''),
-    '',
-  );
+  // TD-16-14：URL→文件名统一走 core/utils 唯一原语（URL 解析剥 ?# + decode 一次）
+  const fromUrl = fileNameFromUrl(url);
   if (fromUrl && !/^blob:|^data:/.test(url)) filename = filename || fromUrl;
   // 先兜底再补扩展名：空 label + blob/data 等无来源名时用 fallback（原实现「先补扩展名后判空」使该兜底成为死代码，产生残缺文件名 'png'）
   if (!filename) filename = fallback;

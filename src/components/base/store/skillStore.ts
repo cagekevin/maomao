@@ -33,6 +33,28 @@ const SKILLS_KEY: string = 'agent_skills';
 /** 导出供消费方订阅：设置页改 Skill 时 AgentPanel 用此键 contentSubscribe 重读列表（避免裸字符串键） */
 export { SKILLS_KEY };
 
+/**
+ * Skill 可导入文件扩展名**白名单 · 唯一实现**（2026-09-16 收口 TD-16-8）。
+ *
+ * 【为什么收口】此前同一白名单（`md`/`markdown`/`txt`）在 `AgentPanel.tsx:1034` 与
+ * `SkillSettings.tsx:226` **逐字重复两份**，且两处各写一次同款正则 —— 加格式要改两处、
+ * 漏一处即两侧行为不一致（典型 SSOT 第二份）。
+ *
+ * @param fileName 文件名（大小写不敏感）
+ * @returns 是否是可导入的 Skill 文件
+ */
+const SKILL_FILE_RE = /\.(md|markdown|txt)$/i;
+
+/** 是否是可导入为 Skill 的文件（按扩展名白名单；唯一判定入口）。 */
+export function isSkillImportFile(fileName: string): boolean {
+  return SKILL_FILE_RE.test(fileName);
+}
+
+/** 由 Skill 文件名去扩展名得到 Skill 名（与 `isSkillImportFile` 同一白名单口径）。 */
+export function skillNameFromFile(fileName: string): string {
+  return fileName.replace(SKILL_FILE_RE, '');
+}
+
 /* ════════════════════════════════════════════════════════════════
  * mojibake 乱码修复（对齐大雄 backend.py `_repair_mojibake_text`）
  * ────────────────────────────────────────────────────────────────

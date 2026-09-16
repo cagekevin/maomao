@@ -34,7 +34,7 @@ import {
 } from '../api/filesApi.ts';
 import type { PersistOutcome } from '../api/filesApi.ts';
 import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
-import { tryParse } from '../utils/asyncGuard.ts';
+import { fileNameFromUrl } from '../core/utils.ts';
 import { detectFileType } from '../utils/assetType.ts';
 import { logger } from '../core/logger.ts';
 import { publish, subscribe } from '../core/eventBus.ts';
@@ -362,10 +362,8 @@ export async function sendToResourceLibrary(
   }: { name?: string; folder?: string; type?: AssetType } = {},
 ): Promise<PersistOutcome> {
   if (!url) return { ok: false, reason: 'empty' };
-  const fromUrl = tryParse(
-    () => decodeURIComponent(new URL(url).pathname.split('/').pop() || ''),
-    '',
-  );
+  // TD-16-14：URL→文件名统一走 core/utils 唯一原语（URL 解析剥 ?# + decode 一次）
+  const fromUrl = fileNameFromUrl(url);
   const fname = fromUrl && !/^blob:|^data:/.test(url) ? fromUrl : '未命名';
   const resourceName = (name && String(name).trim()) || fname;
   const detectedType = type || detectAssetType({ name: fname, type: '' });

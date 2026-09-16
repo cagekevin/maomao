@@ -61,6 +61,8 @@ import {
   markSkillUsed,
   repairMojibakeText,
   isSkillEnabled,
+  isSkillImportFile,
+  skillNameFromFile,
   SKILLS_KEY,
   ENABLED_KEY,
   type Skill,
@@ -1031,10 +1033,11 @@ export default function AgentPanel({
       for (let i = 0; i < files.length; i++) {
         const f = files[i];
         // .md/.markdown/.txt → 导入为 Skill（对齐大雄 setAgentSkillFile：文件名即 Skill 名，content 即文本）
-        if (/\.(md|markdown|txt)$/i.test(f.name)) {
+        // TD-16-8：白名单/去扩展名收口到 skillStore（唯一实现），禁各处复写正则
+        if (isSkillImportFile(f.name)) {
           try {
             const text = await readTextFile(f);
-            const name = f.name.replace(/\.(md|markdown|txt)$/i, '');
+            const name = skillNameFromFile(f.name);
             applySkill({
               id: `skill_file_${Date.now()}_${i}`,
               name,

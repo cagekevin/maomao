@@ -30,7 +30,7 @@ import { saveTextToTasks } from '../base/api/index.ts';
 import { chatCompletions } from '../base/api/index.ts';
 import { useNodePrefs, PREFS_DEFAULTS } from '../base/canvas/nodePrefs.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
-import { resolvePromptChips } from '../base/prompt/promptChips.ts';
+import { resolvePromptChips, mergeReferenceImageUrls } from '../base/prompt/promptChips.ts';
 import { logger } from '../base/core/logger.ts';
 import { reportDegrade } from '../base/core/degrade.ts';
 
@@ -196,11 +196,8 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
       );
       // 参考图 = 用户显式 @ 的芯片图（顺序对应文本里的「图片N」）+ 其余连线上游/上传图（去重）。
       // 之前漏了解析：@ 插入的图芯片既不入参考图、又以 @{...|url} 噪音原样发给 LLM。
-      const chipUrls = chipResolved.refImages.map((im) => im.url);
-      const upstreamUrls = refImages.map((img) => img.url);
-      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])].filter(
-        (u): u is string => u != null,
-      );
+      // 芯片图在前、上游图在后（顺序对应 prompt 里的「图片N」）；合并去重收口到唯一实现（TD-01-14）
+      const refUrls = mergeReferenceImageUrls(chipResolved.refImages, refImages);
       // 文本为非流式请求：上报「连接本地服务」→「上游生成中」两阶段（30% 在 await 前触发，否则被 100 覆盖不可见）
       progress?.(10, '正在连接本地服务…');
       // 对齐官方 H_.jsx Lr（6141-6152）：只有勾选「自动拆分」才把 system 换成

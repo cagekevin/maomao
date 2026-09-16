@@ -28,6 +28,7 @@ import {
   parseJsonBody,
   sendError,
   HttpStatusError,
+  fileNameFromUrl,
 } from '../utils/helpers.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
 import { logTs } from '../utils/relayHeaders.js';
@@ -285,7 +286,10 @@ async function doSaveRemoteUrl(
   filename?: string,
 ): Promise<SaveRemoteResult> {
   const urlHash = crypto.createHash('sha1').update(fileUrl).digest('hex').slice(0, 16);
-  const base = filename || path.basename(new URL(fileUrl).pathname) || 'download';
+  // 【TD-08-20 修复 2026-09-16】原 `path.basename(new URL(fileUrl).pathname)` **漏 decodeURIComponent**
+  // → 编码名（`my%20clip.png`）落盘名带裸 `%20`，而前端 relativePathFromUrl 已 decode → 跨栈口径错位。
+  // 统一走 helpers.fileNameFromUrl（URL 解析剥 ?# + decode 一次），与前端 core/utils 同口径。
+  const base = filename || fileNameFromUrl(fileUrl) || 'download';
   const stableName = sanitizeFilename(`${urlHash}_${base}`);
   // URL basename 是否带扩展名：无后缀时需下载拿 Content-Type 才能定最终文件名
   const needsExt = !path.extname(stableName);
@@ -323,9 +327,11 @@ async function doSaveRemoteUrl(
   // 命中既有 contentId → 复用其 url（不写盘、不新建第二份）→ 内容相同的图（即使来自不同 URL）落同一物理文件。
   const mime = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
   // 【TD-03-8 修复·远程分支】原 `mimeToExt(mime) || ''` 在未知 MIME 且 URL 无后缀时 ext='' → 无扩展名落盘
-  // （octet-stream + 跳过缩略图）。改为回退 `path.extname(fileUrl)`（从 URL 路径再试一次），仍无则留空。
+  // （octet-stream + 跳过缩略图）。改为回退「URL 文件名再取一次后缀」，仍无则留空。
+  // 【TD-08-20 2026-09-16】原 `path.extname(new URL(fileUrl).pathname)` 未剥 `?#`（`a.mp4?token=1` → `.mp4?token=1`）
+  // → 统一经 fileNameFromUrl（剥 ?# + decode）后再 extname。
   const ext = needsExt
-    ? mimeToExt(mime) || path.extname(new URL(fileUrl).pathname) || ''
+    ? mimeToExt(mime) || path.extname(fileNameFromUrl(fileUrl)) || ''
     : path.extname(stableName);
   const db = await getDb();
   const contentId = contentIdOf(crypto.createHash('sha1').update(data).digest('hex'));
@@ -360,9 +366,11 @@ async function doSaveRemoteUrl(
 }
 
 async function tryGenerateThumbnail(filePath: string, _urlPath: string): Promise<string | null> {
-  const ext = path.extname(filePath).toLowerCase();
-  const imageExts = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg'];
-  if (!imageExts.includes(ext)) return null;
+  // 【TD-08-21 修复 2026-09-16】原 `const imageExts = ['.png','.jpg',…,'.svg']` 是本文件内联的
+  // 第二份「哪些格式能缩图」白名单，且**多含 webp/svg**（Jimp 不可编码）→ resize 必失败、
+  // 白走一轮 I/O 后静默返回 null。改为委托同文件已引入的 SSOT `isJimpEncodableExt`（无点扩展名）。
+  const ext = path.extname(filePath).slice(1).toLowerCase();
+  if (!isJimpEncodableExt(ext)) return null;
 
   const { thumbPath, thumbUrl } = ensureThumbnailTarget(filePath);
   try {

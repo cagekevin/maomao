@@ -13,6 +13,7 @@ import {
   presetRoot,
 } from './rig.ts';
 import { readJson, writeJson } from './storage.ts';
+import { detectFileType } from '../base/utils/assetType.ts';
 import { isProjectAssetUrl } from './d3dPersistence.ts';
 import { KEY_DIRECTOR3D_CUSTOM_POSES } from '../base/core/contracts.ts';
 // 旧 `stageframe-project` 裸键**读/清**改走存储层迁移原语（storage.ts 不再裸访问 localStorage）
@@ -2017,9 +2018,10 @@ export function visualCenterForObject(object: ProjectObject): number[] {
 
 export function referenceImageFromFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    const imageExtension = /\.(png|jpe?g|webp|bmp|gif)$/i.test(file?.name || '');
-    if (!file || (!file.type?.startsWith('image/') && !imageExtension)) {
-      reject(new Error('请选择 PNG、JPG、WEBP、BMP 或 GIF 图片'));
+    // TD-16-6 收口：原内联 `/\.(png|jpe?g|webp|bmp|gif)$/` 漏 svg/avif，与 EXT_KIND 口径错位
+    // → 统一走 assetType.detectFileType（mime 优先 + EXT_KIND 全表）。
+    if (!file || detectFileType(file) !== 'image') {
+      reject(new Error('请选择图片文件'));
       return;
     }
     if (file.size > 50 * 1024 * 1024) {

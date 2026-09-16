@@ -18,9 +18,17 @@
 import { loadImageWithTimeout } from './asyncGuard.ts';
 import { httpRequest } from '../api/httpClient.ts';
 import { IMAGE_LOAD_TIMEOUT } from '../core/config.ts';
-import { dataUrlToBlob, toAbsoluteFileUrl } from '../core/utils.ts';
+import { dataUrlToBlob, toAbsoluteFileUrl, fileNameFromUrl } from '../core/utils.ts';
+import { classifyAssetUrlKind } from './assetType.ts';
 
-// 常见图片 MIME → canvas.toDataURL 格式
+/**
+ * 图片 MIME → `canvas.toDataURL()` 可接受格式（**域专用能力表**，非 ext→mime 真值源复制）。
+ *
+ * 【为什么保留这张表（TD-16-12 裁决 2026-09-16）】它不是「扩展名→MIME」的第二份真值源，
+ * 而是**本域能力边界**：只有这些 MIME 能作 canvas 编码输出（tiff/svg/avif 等虽是真值源媒体，
+ * 但 `toDataURL` 不接受）。与后端 `JIMP_MIME_BY_EXT`（Jimp 能编码哪些）属同类「域专用能力表」，
+ * 故**不并入**通用表 —— 强行并入会让「真值源新增格式」被误当成「canvas 也能输出」。
+ */
 const MIME_TO_FORMAT: Record<string, string> = {
   'image/jpeg': 'image/jpeg',
   'image/jpg': 'image/jpeg',
@@ -29,15 +37,23 @@ const MIME_TO_FORMAT: Record<string, string> = {
   'image/gif': 'image/gif',
   'image/bmp': 'image/bmp',
 };
-// 扩展名 → MIME
-const EXT_TO_MIME: Record<string, string> = {
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.jpe': 'image/jpeg',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif',
-  '.bmp': 'image/bmp',
+
+/**
+ * 本域能推断出的「源图扩展名 → MIME」—— **仅覆盖 canvas 可编码的图片格式**。
+ *
+ * 【TD-16-12 收口 2026-09-16】原为独立 `EXT_TO_MIME` 表，与后端 SSOT 口径漂移（缺 tiff/svg/avif）。
+ * 收口方式：**不再自持 ext→mime 表**，改为用真值源 `classifyAssetUrlKind` 判类 + 本域
+ * `MIME_TO_FORMAT` 判「是否 canvas 可编码」。`.jpe` 由真值源 `EXT_KIND` 归 image 后，
+ * 经 `MIME_BY_IMAGE_EXT` 得到 `image/jpeg`（唯一保留的域内别名）。
+ */
+const MIME_BY_IMAGE_EXT: Record<string, string> = {
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  bmp: 'image/bmp',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  jpe: 'image/jpeg',
 };
 
 /** 从 URL / data: header / blob 推断原图 MIME；推断不出返回 null */
@@ -48,11 +64,15 @@ function inferMime(src: string): string | null {
     return m ? m[1] : null;
   }
   if (src.startsWith('blob:')) return null; // blob: 拿不到类型（需 Blob.type，此处未知）
-  const path = src.split('?')[0].toLowerCase();
-  const dot = path.lastIndexOf('.');
+  // TD-16-14：原 `split('?')[0]` 只剥 `?` 不剥 `#`（`a.png#x` 查表失败）；
+  // 统一走 core/utils 的 fileNameFromUrl（URL 解析剥 ?# + decode 一次）再取后缀。
+  const name = fileNameFromUrl(src);
+  const dot = name.lastIndexOf('.');
   if (dot === -1) return null;
-  const ext = path.slice(dot);
-  return EXT_TO_MIME[ext] || null;
+  const ext = name.slice(dot + 1).toLowerCase();
+  // 真值源判类：非图片一律不认（防 audio/video 后缀被误判为可压缩图）
+  if (classifyAssetUrlKind(src) !== 'image') return null;
+  return MIME_BY_IMAGE_EXT[ext] || null;
 }
 
 /** 图片压缩入参（compressImage.opts；均可选，见函数头 JSDoc） */

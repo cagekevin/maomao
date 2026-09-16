@@ -11,6 +11,7 @@ import {
   extendable,
   isTerminatedByBreak,
   commitOccurrencesInRun,
+  mergeReferenceImageUrls,
 } from '../../src/components/base/prompt/promptChips.ts';
 
 /** 把 renderPromptToNodes 的 Node[] append 到一个根 div */
@@ -448,5 +449,48 @@ describe('commitOccurrencesInRun（就地 DOM 手术，§8.4）', () => {
     expect(range.startContainer.nodeType).toBe(Node.TEXT_NODE);
     expect(range.startContainer.textContent).toBe(' 生成');
     expect(range.startOffset).toBe(3);
+  });
+});
+
+describe('mergeReferenceImageUrls（参考图合并去重唯一实现 · TD-01-14）', () => {
+  it('芯片图在前、上游图在后（顺序语义：对应 prompt 里「图片N」编号，不得重排）', () => {
+    const chip = [{ url: '/files/chip1.png' }, { url: '/files/chip2.png' }];
+    const up = [{ url: '/files/up1.png' }];
+    expect(mergeReferenceImageUrls(chip, up)).toEqual([
+      '/files/chip1.png',
+      '/files/chip2.png',
+      '/files/up1.png',
+    ]);
+  });
+
+  it('按 url 去重，保留首次出现位置（上游与芯片重合时不重复）', () => {
+    const r = mergeReferenceImageUrls(
+      [{ url: 'a.png' }, { url: 'b.png' }],
+      [{ url: 'b.png' }, { url: 'c.png' }],
+    );
+    expect(r).toEqual(['a.png', 'b.png', 'c.png']);
+  });
+
+  it('丢弃空串 / 非字符串 / 缺 url —— 治旧 `u != null` 会放行空串的漂移口径', () => {
+    const r = mergeReferenceImageUrls(
+      [{ url: '' }, { url: 123 }, {}, { url: null }],
+      [{ url: 'ok.png' }, { url: undefined }],
+    );
+    expect(r).toEqual(['ok.png']);
+  });
+
+  it('入参缺省安全（两参皆空 / 未传）', () => {
+    expect(mergeReferenceImageUrls()).toEqual([]);
+    expect(mergeReferenceImageUrls([], [])).toEqual([]);
+  });
+
+  it('不修改入参数组（纯函数）', () => {
+    const chip = [{ url: 'a.png' }];
+    const up = [{ url: 'a.png' }, { url: 'b.png' }];
+    const chipCopy = JSON.parse(JSON.stringify(chip));
+    const upCopy = JSON.parse(JSON.stringify(up));
+    mergeReferenceImageUrls(chip, up);
+    expect(chip).toEqual(chipCopy);
+    expect(up).toEqual(upCopy);
   });
 });
