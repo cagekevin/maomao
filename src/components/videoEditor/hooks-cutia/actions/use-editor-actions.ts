@@ -1,34 +1,38 @@
 'use client';
-import { logger } from '@videoEditor/lib/logger';
+import { logger } from '@/components/videoEditor/lib/logger';
 
 import { useRef } from 'react';
-import { useTimelineStore } from '@videoEditor/stores/timeline-store';
-import { useMediaPreviewStore } from '@videoEditor/stores/media-preview-store';
-import { useActionHandler } from '@videoEditor/hooks-cutia/actions/use-action-handler';
+import { useTimelineStore } from '@/components/videoEditor/stores/timeline-store';
+import { useMediaPreviewStore } from '@/components/videoEditor/stores/media-preview-store';
+import { useActionHandler } from '@/components/videoEditor/hooks-cutia/actions/use-action-handler';
 import { useEditor } from '../use-editor';
 import { useElementSelection } from '../timeline/element/use-element-selection';
-import { getElementsAtTime } from '@videoEditor/engine/timeline';
+import { getElementsAtTime } from '@/components/videoEditor/engine/timeline';
 // 更新(2026-09-14)：TTS 域已删，占位为诚实失败。
 const generateAndInsertSpeech = async (): Promise<never> => {
   throw new Error('语音生成未移植（tts 域已移除）');
 };
-import { toast } from '@videoEditor/lib/toast';
-import { i18next } from '@videoEditor/engine/lib/i18n';
-import { DEFAULT_EXPORT_OPTIONS } from '@videoEditor/constants/export-constants';
-import { getExportMimeType, getSelectedClipExportFilename } from '@videoEditor/engine/lib/export';
-import { extractVideoFrame } from '@videoEditor/engine/lib/media/processing';
+import { toast } from '@/components/videoEditor/lib/toast';
+import { i18next } from '@/components/videoEditor/engine/lib/i18n';
+import { DEFAULT_EXPORT_OPTIONS } from '@/components/videoEditor/constants/export-constants';
+import {
+  getExportMimeType,
+  getSelectedClipExportFilename,
+} from '@/components/videoEditor/engine/lib/export';
+import { extractVideoFrame } from '@/components/videoEditor/engine/lib/media/processing';
 import {
   buildImageElement,
   findAvailableVideoTrackAbove,
   getVisualSourceTime,
-} from '@videoEditor/engine/timeline/element-utils';
+} from '@/components/videoEditor/engine/timeline/element-utils';
 import {
   AddMediaAssetCommand,
   AddTrackCommand,
   type Command,
   InsertElementCommand,
-} from '@videoEditor/engine/commands';
-import { storageService } from '@videoEditor/engine/services/storage/service';
+} from '@/components/videoEditor/engine/commands';
+import { storageService } from '@/components/videoEditor/engine/services/storage/service';
+import { releaseQuietlyAsync } from '@/components/base/utils/asyncGuard.ts';
 
 export function useEditorActions() {
   const editor = useEditor();
@@ -502,12 +506,13 @@ export function useEditorActions() {
           logger.error('Failed to create freeze frame:', error);
           if (commandStarted && !committed) batchCommand?.undo();
           if (!committed && assetId) {
-            await storageService
-              .deleteMediaAsset({
-                projectId: activeProject.metadata.id,
-                id: assetId,
-              })
-              .catch(() => undefined); // catch-ok: RELEASE_FAIL
+            // TD-16-3：回滚清理失败走 `RELEASE_FAIL` 唯一实现（原语自带理由），不再手写 catch-ok 标记。
+            // 收窄后的 id 先提为 const：跨函数边界后 TS 不再保留 `assetId` 的类型收窄。
+            const rollbackAssetId = assetId;
+            const projectId = activeProject.metadata.id;
+            await releaseQuietlyAsync(() =>
+              storageService.deleteMediaAsset({ projectId, id: rollbackAssetId }),
+            );
           }
           if (!committed && objectUrl) URL.revokeObjectURL(objectUrl);
           toast.error(i18next.t('Failed to create freeze frame'), {

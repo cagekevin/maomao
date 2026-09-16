@@ -1,9 +1,9 @@
-import { DraggableItem } from '@videoEditor/ui/editor/panels/assets/draggable-item';
-import { PanelBaseView as BaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
-import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { DEFAULT_TEXT_ELEMENT } from '@videoEditor/constants/text-constants';
-import { buildTextElement } from '@videoEditor/engine/timeline/element-utils';
+import { DraggableItem } from '@/components/videoEditor/ui/editor/panels/assets/draggable-item';
+import { PanelBaseView as BaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
+import { PropertyGroup } from '@/components/videoEditor/ui/editor/panels/properties/property-item';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { DEFAULT_TEXT_ELEMENT } from '@/components/videoEditor/constants/text-constants';
+import { buildTextElement } from '@/components/videoEditor/engine/timeline/element-utils';
 
 export function TextView() {
   const editor = useEditor();
@@ -30,7 +30,7 @@ export function TextView() {
         <DraggableItem
           name={'默认文字'}
           preview={
-            <div className="bg-accent flex size-full items-center justify-center rounded">
+            <div className="bg-muted text-foreground flex size-full items-center justify-center rounded">
               <span className="text-xs select-none">{'默认文字'}</span>
             </div>
           }

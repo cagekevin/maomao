@@ -11,6 +11,8 @@
  *  - isTimeoutError(e)：判断是否超时（调用方可据此决定"重试/降级/提示"）。
  *  - loadImageWithTimeout(url, ms?, opts?)：图片加载 + 超时 + crossOrigin + 取消，统一图片入口。
  *  - loadImageOrNull(url, opts?)：宽容版图片加载（坏图降级 null，绝不抛），供批量加载。
+ *  - setCrossOriginForReadable(el, url)：**跨源裁决单点**（同源不设 / 真跨源设 anonymous）——
+ *    TD-16-2 / TD-22-55 收口；`captureFrame.setCrossOriginForReadable` 为本函数的 re-export。
  *  - releaseQuietly(act) / releaseQuietlyAsync(act)：**静默释放原语** —— `RELEASE_FAIL` 豁免码的
  *    **唯一实现**（释放 / 停止 / 取消 / 断开失败一律不阻断主流程）。调用点因此**不再需要贴 `catch-ok`**。
  *  - tryParse(parser, fallback?)：**解析兜底原语** —— `PARSE_FALLBACK` 豁免码的**唯一实现**
@@ -23,6 +25,41 @@
 
 import { IMAGE_LOAD_TIMEOUT } from '../core/config.ts';
 import type { AssetLoadOptions } from '@/types';
+
+/**
+ * 一个媒体 URL 是否**跨源**（需要 `crossOrigin='anonymous'` 才能让 canvas 可读）？
+ *
+ * 【唯一裁决点（TD-16-2 / TD-22-55 收口）】此前该判定散在 `captureFrame.setCrossOriginForReadable`
+ * 与 `asyncGuard` 的默认值 / `clipboard` / 剪辑器 renderer 节点等 ≥6 处各自手写，导致
+ * 「恒设 anonymous」在**同源**场景（页面部署于 localTool 18080、素材 `/files/*` 同源）下
+ * 反而走 CORS 模式 → 媒体成 opaque → canvas 被污染 → `toBlob`/`getImageData` 静默 `null`。
+ * 现收口为本模块的单一原语：**同源不设，真跨源才设**。任何 canvas 回读路径都必须经此。
+ */
+export function sameOriginUrl(url: string): boolean {
+  if (!url) return true;
+  if (url.startsWith('/') || url.startsWith('blob:') || url.startsWith('data:')) return true;
+  try {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return new URL(url, origin || undefined).origin === origin;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 跨源裁决单点（唯一实现）：按 URL 决定媒体元素的 `crossOrigin` ——
+ * **同源不设**（读像素无需 CORS），**真跨源才设 `'anonymous'`**。
+ *
+ * 适用于任何带 `.crossOrigin` 的元素（`HTMLImageElement` / `HTMLVideoElement` / `HTMLAudioElement`）。
+ * `captureFrame.setCrossOriginForReadable` 现为本函数的 re-export（保持 6 处既有消费方零改动）。
+ */
+export function setCrossOriginForReadable(
+  el: HTMLImageElement | HTMLVideoElement,
+  url: string,
+): void {
+  if (sameOriginUrl(url)) return; // 同源：不强制 CORS，canvas 可读
+  el.crossOrigin = 'anonymous';
+}
 
 /** 超时错误（统一类型，便于调用方用 isTimeoutError 区分"超时"与"真实失败"） */
 export class TimeoutError extends Error {
@@ -92,15 +129,23 @@ export function withTimeout<T>(
  * 统一图片加载入口：HTMLImageElement + 超时 + crossOrigin + 可取消。
  * 已替代各模块私有实现：imageCompress / faceMosaic / OverlayEditor / GridMergeNode（原先均无统一超时）。
  * 批量加载请改用 loadImageOrNull（坏图降级 null，不抛错）。
+ *
+ * `crossOrigin` 语义（TD-16-2 收口）：
+ *  - **不传**（默认）→ 走 SSOT 裁决 `sameOriginUrl(url)`：同源不设 / 真跨源设 `'anonymous'`；
+ *  - 传 `null` → 显式去掉 crossOrigin（`loadImageOrNull` 二级重试用）；
+ *  - 传字符串 → 显式覆盖（极少用，仅特殊场景）。
+ * 【为什么默认不再恒设 `'anonymous'`】同源 `/files/*` 走 CORS 模式 → 网关未必回 CORS 头 →
+ * 媒体 opaque → canvas 被污染 → 读像素静默失败（TD-22-1 缺陷重演）。
  */
 export function loadImageWithTimeout(
   url: string,
   opts: AssetLoadOptions = {},
 ): Promise<HTMLImageElement> {
-  const { timeoutMs = IMAGE_LOAD_TIMEOUT, crossOrigin = 'anonymous' } = opts;
+  const { timeoutMs = IMAGE_LOAD_TIMEOUT, crossOrigin } = opts;
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = crossOrigin;
+    if (crossOrigin === undefined) setCrossOriginForReadable(img, url);
+    else img.crossOrigin = crossOrigin;
     const timer = setTimeout(() => {
       img.src = ''; // 打断挂起加载
       reject(new TimeoutError('图片加载超时'));
@@ -123,7 +168,7 @@ export function loadImageWithTimeout(
  * 若沿用 loadImageWithTimeout 的 reject 语义，单张坏图会让整批失败。
  *
  * 两级尝试（收口自原先散落各模块的私有实现，保留其兼容语义）：
- *   1) 带 crossOrigin（canvas 不被污染，可导出）；
+ *   1) 按 SSOT 裁决设 crossOrigin（同源不设 / 真跨源设 anonymous，canvas 不被污染，可导出）；
  *   2) 失败则去掉 crossOrigin 再试一次（跨域图无 CORS 头时的兜底，代价是 canvas 被污染）。
  * 两级都受 IMAGE_LOAD_TIMEOUT 保护——原先的私有实现**没有超时**，图片挂起会让导出/合成永久卡死。
  */

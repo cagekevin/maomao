@@ -29,8 +29,7 @@
     "types": ["node", "vite/client", "vitest/globals"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@videoEditor/*": ["./src/components/videoEditor/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": [

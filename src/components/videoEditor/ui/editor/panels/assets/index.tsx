@@ -1,9 +1,12 @@
 'use client';
 
-import { Separator } from '@videoEditor/ui/ui/separator';
-import { PanelBaseView, PanelState } from '@videoEditor/ui/editor/panels/panel-base-view';
-import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
-import { type Tab, useAssetsPanelStore } from '@videoEditor/stores/assets-panel-store';
+import { Separator } from '@/components/videoEditor/ui/ui/separator';
+import {
+  PanelBaseView,
+  PanelState,
+} from '@/components/videoEditor/ui/editor/panels/panel-base-view';
+import { PropertyGroup } from '@/components/videoEditor/ui/editor/panels/properties/property-item';
+import { type Tab, useAssetsPanelStore } from '@/components/videoEditor/stores/assets-panel-store';
 import { TabBar } from './tabbar';
 import { Captions } from './views/captions';
 import { MediaView } from './views/media';

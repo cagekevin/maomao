@@ -140,6 +140,35 @@ select:focus {
   box-shadow: none !important;
 }
 
+/* ===== 统一取色器：全站自定义颜色只用这一个类 =====
+ * 注意：必须放在 @layer 之外（未分层），否则会被其后导入的 ve-theme.css（未分层）
+ * 以及浏览器对 input[type=color] 的默认渲染覆盖，导致 video editor 里圆角/边框残留。
+ * 原生 <input type="color"> 自带一圈边框+内边距外壳+色块圆角，这里一次性剥干净，
+ * 只留一个纯色方块。位置/大小由调用方显式给（如 w-[22px]），
+ * 其余外观（边框、圆角、内边距）一律在此收口，避免各处瞎加导致不一致。
+ * 用 !important 压过浏览器默认与 ve-theme 的未分层规则。 */
+.mao-color-input {
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  border: none !important;
+  padding: 0 !important;
+  background: none !important;
+  border-radius: 0 !important;
+  cursor: pointer;
+}
+.mao-color-input::-webkit-color-swatch-wrapper {
+  padding: 0 !important;
+}
+.mao-color-input::-webkit-color-swatch {
+  border: none !important;
+  border-radius: 0 !important;
+}
+.mao-color-input::-moz-color-swatch {
+  border: none !important;
+  border-radius: 0 !important;
+}
+
 /* ===== 全局暗色 ===== */
 html,
 body,

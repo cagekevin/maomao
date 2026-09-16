@@ -1,4 +1,4 @@
-import type { SnapGuide } from '@videoEditor/engine/lib/preview/snap';
+import type { SnapGuide } from '@/components/videoEditor/engine/lib/preview/snap';
 
 const GUIDE_COLOR = 'var(--primary)';
 

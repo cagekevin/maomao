@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from 'react';
 
-import { toast } from '@videoEditor/lib/toast';
+import { toast } from '@/components/videoEditor/lib/toast';
 import {
   type KeyboardShortcut,
   useKeyboardShortcutsHelp,
-} from '@videoEditor/hooks-cutia/use-keyboard-shortcuts-help';
-import { useKeybindingsStore } from '@videoEditor/stores/keybindings-store';
-import { Button } from '@videoEditor/ui/ui/button';
+} from '@/components/videoEditor/hooks-cutia/use-keyboard-shortcuts-help';
+import { useKeybindingsStore } from '@/components/videoEditor/stores/keybindings-store';
+import { Button } from '@/components/videoEditor/ui/ui/button';
 import {
   Dialog,
   DialogBody,
@@ -16,7 +16,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@videoEditor/ui/ui/dialog';
+} from '@/components/videoEditor/ui/ui/dialog';
 
 export function ShortcutsDialog({
   isOpen,

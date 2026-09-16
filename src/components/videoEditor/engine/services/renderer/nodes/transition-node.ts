@@ -1,6 +1,6 @@
 import type { CanvasRenderer } from '../canvas-renderer';
 import { BaseNode } from './base-node';
-import type { TransitionType } from '@videoEditor/types/timeline';
+import type { TransitionType } from '@/components/videoEditor/types/timeline';
 
 export interface TransitionNodeParams {
   type: TransitionType;

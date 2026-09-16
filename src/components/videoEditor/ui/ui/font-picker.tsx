@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { FONT_OPTIONS, type FontFamily } from '@videoEditor/constants/font-constants';
+import { FONT_OPTIONS, type FontFamily } from '@/components/videoEditor/constants/font-constants';
 import { ArrowDown, ArrowUp } from 'lucide-react';
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 interface FontPickerProps {
   /** 当前字体（受控：显示值恒等于数据，切换元素/撤销后面板显示不会停在旧值）。 */

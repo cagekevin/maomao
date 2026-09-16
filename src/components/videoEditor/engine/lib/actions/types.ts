@@ -1,5 +1,5 @@
 import type { MutableRefObject } from 'react';
-import type { ShortcutKey } from '@videoEditor/types/keybinding';
+import type { ShortcutKey } from '@/components/videoEditor/types/keybinding';
 import type { TAction } from './definitions';
 
 export type { TAction };

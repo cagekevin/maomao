@@ -20,6 +20,7 @@
  *   ③ 广播 `resource:sent` → 面板 rescan 拉取（此刻文件/行/目录三件齐备）
  */
 import { contentGet, contentSet, createDebouncedPersist } from '../core/contentStore.ts';
+import { KEY_YIMAO_ASSET_LIBRARY } from '../core/contracts.ts';
 import { isStorageReady, onStorageReady } from '../storage/index.ts';
 import { generateId } from '../core/idGen.ts';
 import '../core/config.ts';
@@ -78,7 +79,8 @@ export interface TypeProbe {
   type?: string;
 }
 
-const STORAGE_KEY = 'yimao_asset_library';
+// TD-13-4：键名唯一真源 = contracts.ts 的 KEY_YIMAO_ASSET_LIBRARY（不再本地复刻字面量）。
+const STORAGE_KEY = KEY_YIMAO_ASSET_LIBRARY;
 const listeners = new Set<() => void>();
 
 // 预置演示素材（首次使用/本地为空时 seed，方便直观看到目录效果）

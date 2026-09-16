@@ -6,9 +6,9 @@ import { VideoProperties } from './video-properties';
 import { TextProperties } from './text-properties';
 import { StickerProperties } from './sticker-properties';
 import { EmptyView } from './empty-view';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { useElementSelection } from '@videoEditor/hooks-cutia/timeline/element/use-element-selection';
-import type { TimelineElement, TimelineTrack } from '@videoEditor/types/timeline';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { useElementSelection } from '@/components/videoEditor/hooks-cutia/timeline/element/use-element-selection';
+import type { TimelineElement, TimelineTrack } from '@/components/videoEditor/types/timeline';
 
 interface ElementWithTrack {
   element: TimelineElement;
@@ -44,7 +44,8 @@ export function PropertiesPanel() {
           {grouped.text && grouped.text.length > 0 && (
             <TextProperties
               elements={grouped.text.map((item) => ({
-                element: item.element as import('@videoEditor/types/timeline').TextElement,
+                element:
+                  item.element as import('@/components/videoEditor/types/timeline').TextElement,
                 trackId: item.track.id,
               }))}
             />
@@ -52,7 +53,8 @@ export function PropertiesPanel() {
           {grouped.video && grouped.video.length > 0 && (
             <VideoProperties
               _element={
-                grouped.video[0].element as import('@videoEditor/types/timeline').VideoElement
+                grouped.video[0]
+                  .element as import('@/components/videoEditor/types/timeline').VideoElement
               }
               trackId={grouped.video[0].track.id}
             />
@@ -60,7 +62,8 @@ export function PropertiesPanel() {
           {grouped.image && grouped.image.length > 0 && (
             <VideoProperties
               _element={
-                grouped.image[0].element as import('@videoEditor/types/timeline').ImageElement
+                grouped.image[0]
+                  .element as import('@/components/videoEditor/types/timeline').ImageElement
               }
               trackId={grouped.image[0].track.id}
             />
@@ -68,7 +71,8 @@ export function PropertiesPanel() {
           {grouped.audio && grouped.audio.length > 0 && (
             <AudioProperties
               _element={
-                grouped.audio[0].element as import('@videoEditor/types/timeline').AudioElement
+                grouped.audio[0]
+                  .element as import('@/components/videoEditor/types/timeline').AudioElement
               }
               trackId={grouped.audio[0].track.id}
             />
@@ -76,7 +80,8 @@ export function PropertiesPanel() {
           {grouped.sticker && grouped.sticker.length > 0 && (
             <StickerProperties
               _element={
-                grouped.sticker[0].element as import('@videoEditor/types/timeline').StickerElement
+                grouped.sticker[0]
+                  .element as import('@/components/videoEditor/types/timeline').StickerElement
               }
               trackId={grouped.sticker[0].track.id}
             />

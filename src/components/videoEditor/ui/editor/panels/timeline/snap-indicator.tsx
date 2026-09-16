@@ -1,8 +1,8 @@
 'use client';
 
-import { useSnapIndicatorPosition } from '@videoEditor/hooks-cutia/timeline/use-snap-indicator-position';
-import type { SnapPoint } from '@videoEditor/hooks-cutia/timeline/use-timeline-snapping';
-import type { TimelineTrack } from '@videoEditor/types/timeline';
+import { useSnapIndicatorPosition } from '@/components/videoEditor/hooks-cutia/timeline/use-snap-indicator-position';
+import type { SnapPoint } from '@/components/videoEditor/hooks-cutia/timeline/use-timeline-snapping';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 
 interface SnapIndicatorProps {
   snapPoint: SnapPoint | null;

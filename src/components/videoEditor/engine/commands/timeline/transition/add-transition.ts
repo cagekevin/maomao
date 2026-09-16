@@ -1,15 +1,15 @@
-import { Command } from '@videoEditor/engine/commands/base-command';
-import { EditorCore } from '@videoEditor/engine/core';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import { EditorCore } from '@/components/videoEditor/engine/core';
 import type {
   TimelineTrack,
   TrackTransition,
   TransitionType,
   VideoTrack,
-} from '@videoEditor/types/timeline';
+} from '@/components/videoEditor/types/timeline';
 import {
   addTransitionToTrack,
   buildTrackTransition,
-} from '@videoEditor/engine/timeline/transition-utils';
+} from '@/components/videoEditor/engine/timeline/transition-utils';
 
 export interface AddTransitionParams {
   trackId: string;

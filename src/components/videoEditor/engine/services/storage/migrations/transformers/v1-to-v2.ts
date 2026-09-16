@@ -3,10 +3,10 @@ import {
   DEFAULT_CANVAS_SIZE,
   DEFAULT_COLOR,
   DEFAULT_FPS,
-} from '@videoEditor/constants/project-constants';
-import { DEFAULT_TEXT_ELEMENT } from '@videoEditor/constants/text-constants';
-import { IndexedDBAdapter } from '@videoEditor/engine/services/storage/indexeddb-adapter';
-import type { MediaAssetData } from '@videoEditor/engine/services/storage/types';
+} from '@/components/videoEditor/constants/project-constants';
+import { DEFAULT_TEXT_ELEMENT } from '@/components/videoEditor/constants/text-constants';
+import { IndexedDBAdapter } from '@/components/videoEditor/engine/services/storage/indexeddb-adapter';
+import type { MediaAssetData } from '@/components/videoEditor/engine/services/storage/types';
 import type {
   AudioElement,
   ImageElement,
@@ -14,7 +14,7 @@ import type {
   TimelineTrack,
   Transform,
   VideoElement,
-} from '@videoEditor/types/timeline';
+} from '@/components/videoEditor/types/timeline';
 import type { MigrationResult, ProjectRecord } from './types';
 import { getProjectId, isRecord } from './utils';
 

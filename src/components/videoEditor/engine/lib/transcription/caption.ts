@@ -1,8 +1,11 @@
-import type { TranscriptionSegment, CaptionChunk } from '@videoEditor/types/transcription';
+import type {
+  TranscriptionSegment,
+  CaptionChunk,
+} from '@/components/videoEditor/types/transcription';
 import {
   DEFAULT_WORDS_PER_CAPTION,
   MIN_CAPTION_DURATION_SECONDS,
-} from '@videoEditor/constants/transcription-constants';
+} from '@/components/videoEditor/constants/transcription-constants';
 
 export function buildCaptionChunks({
   segments,

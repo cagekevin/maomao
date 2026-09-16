@@ -1,7 +1,7 @@
-import type { TScene } from '@videoEditor/types/timeline';
-import { generateUUID } from '@videoEditor/utils/id';
-import { calculateTotalDuration } from '@videoEditor/engine/timeline';
-import { ensureMainTrack } from '@videoEditor/engine/timeline/track-utils';
+import type { TScene } from '@/components/videoEditor/types/timeline';
+import { generateUUID } from '@/components/videoEditor/utils/id';
+import { calculateTotalDuration } from '@/components/videoEditor/engine/timeline';
+import { ensureMainTrack } from '@/components/videoEditor/engine/timeline/track-utils';
 
 export function getMainScene({ scenes }: { scenes: TScene[] }): TScene | null {
   return scenes.find((scene) => scene.isMain) || null;

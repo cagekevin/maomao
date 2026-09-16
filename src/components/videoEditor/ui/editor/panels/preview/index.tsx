@@ -3,30 +3,30 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import useDeepCompareEffect from 'use-deep-compare-effect';
 import { X, Music, Maximize, MoreVertical, Pause, Play } from 'lucide-react';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { useRafLoop } from '@videoEditor/hooks-cutia/use-raf-loop';
-import { useContainerSize } from '@videoEditor/hooks-cutia/use-container-size';
-import { useFullscreen } from '@videoEditor/hooks-cutia/use-fullscreen';
-import { CanvasRenderer } from '@videoEditor/engine/services/renderer/canvas-renderer';
-import type { RootNode } from '@videoEditor/engine/services/renderer/nodes/root-node';
-import { buildScene } from '@videoEditor/engine/services/renderer/scene-builder';
-import { formatTimeCode, getLastFrameTime } from '@videoEditor/engine/lib/time';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { useRafLoop } from '@/components/videoEditor/hooks-cutia/use-raf-loop';
+import { useContainerSize } from '@/components/videoEditor/hooks-cutia/use-container-size';
+import { useFullscreen } from '@/components/videoEditor/hooks-cutia/use-fullscreen';
+import { CanvasRenderer } from '@/components/videoEditor/engine/services/renderer/canvas-renderer';
+import type { RootNode } from '@/components/videoEditor/engine/services/renderer/nodes/root-node';
+import { buildScene } from '@/components/videoEditor/engine/services/renderer/scene-builder';
+import { formatTimeCode, getLastFrameTime } from '@/components/videoEditor/engine/lib/time';
 import { PreviewInteractionOverlay } from './preview-interaction-overlay';
-import { EditableTimecode } from '@videoEditor/ui/editable-timecode';
-import { invokeAction } from '@videoEditor/engine/lib/actions';
-import { Button } from '@videoEditor/ui/ui/button';
+import { EditableTimecode } from '@/components/videoEditor/ui/editable-timecode';
+import { invokeAction } from '@/components/videoEditor/engine/lib/actions';
+import { Button } from '@/components/videoEditor/ui/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@videoEditor/ui/ui/dropdown-menu';
+} from '@/components/videoEditor/ui/ui/dropdown-menu';
 import {
   handleMediaPreviewKeyDown,
   useMediaPreviewStore,
-} from '@videoEditor/stores/media-preview-store';
-import type { MediaAsset } from '@videoEditor/types/assets';
-import { cn } from '@videoEditor/utils/ui';
+} from '@/components/videoEditor/stores/media-preview-store';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 function usePreviewSize() {
   const editor = useEditor();

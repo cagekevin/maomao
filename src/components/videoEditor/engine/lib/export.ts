@@ -1,7 +1,7 @@
-import { EXPORT_MIME_TYPES } from '@videoEditor/constants/export-constants';
-import type { ExportFormat } from '@videoEditor/types/export';
-import type { TimelineTrack } from '@videoEditor/types/timeline';
-import { formatTimeCode } from '@videoEditor/engine/lib/time';
+import { EXPORT_MIME_TYPES } from '@/components/videoEditor/constants/export-constants';
+import type { ExportFormat } from '@/components/videoEditor/types/export';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
+import { formatTimeCode } from '@/components/videoEditor/engine/lib/time';
 
 export function getSelectedVideoClip({
   tracks,

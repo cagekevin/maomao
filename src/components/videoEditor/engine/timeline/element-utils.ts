@@ -1,6 +1,6 @@
-import { DEFAULT_TEXT_ELEMENT } from '@videoEditor/constants/text-constants';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
-import type { MediaAsset } from '@videoEditor/types/assets';
+import { DEFAULT_TEXT_ELEMENT } from '@/components/videoEditor/constants/text-constants';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import type {
   CreateTextElement,
   CreateTimelineElement,
@@ -17,7 +17,7 @@ import type {
   ImageElement,
   StickerElement,
   UploadAudioElement,
-} from '@videoEditor/types/timeline';
+} from '@/components/videoEditor/types/timeline';
 
 export function canElementHaveAudio(
   element: TimelineElement,
@@ -259,12 +259,15 @@ export function buildVideoElement({
   duration,
   startTime,
   trimStart = 0,
+  hasAudio,
 }: {
   mediaId: string;
   name: string;
   duration: number;
   startTime: number;
   trimStart?: number;
+  /** TD-21-17：源视频是否含音轨（🔊 角标数据源）；由导入探测随素材带来。 */
+  hasAudio?: boolean;
 }): CreateVideoElement {
   return {
     type: 'video',
@@ -273,6 +276,7 @@ export function buildVideoElement({
     duration,
     startTime,
     trimStart,
+    hasAudio,
     muted: false,
     hidden: false,
     transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },

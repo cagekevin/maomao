@@ -1,4 +1,4 @@
-import type { TimelineTrack } from '@videoEditor/types/timeline';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 
 export * from './track-utils';
 export * from './element-utils';

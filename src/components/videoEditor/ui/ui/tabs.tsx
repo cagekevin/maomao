@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 /**
  * 页签 —— **自研，无依赖**（原 `radix-ui` 的 `Tabs.Root/List/Trigger/Content`）。
@@ -140,7 +140,7 @@ const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
           if (!event.defaultPrevented && !disabled) ctx?.setValue(value);
         }}
         className={cn(
-          'ring-offset-background focus-visible:ring-ring data-[active]:bg-accent data-[active]:text-foreground inline-flex cursor-pointer items-center justify-center rounded-lg px-3 py-1 text-sm font-medium whitespace-nowrap focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50',
+          'ring-offset-background focus-visible:ring-ring data-[active]:bg-primary data-[active]:text-primary-foreground inline-flex cursor-pointer items-center justify-center rounded-lg px-3 py-1 text-sm font-medium whitespace-nowrap focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50',
           className,
         )}
         {...props}

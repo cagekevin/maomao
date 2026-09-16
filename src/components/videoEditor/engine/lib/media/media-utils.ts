@@ -1,4 +1,4 @@
-import type { MediaAsset, MediaType } from '@videoEditor/types/assets';
+import type { MediaAsset, MediaType } from '@/components/videoEditor/types/assets';
 
 export const SUPPORTS_AUDIO: readonly MediaType[] = ['audio', 'video'];
 

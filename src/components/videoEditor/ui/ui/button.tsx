@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 import { Slot } from './slot';
 
 const buttonVariants = cva(
@@ -16,8 +16,8 @@ const buttonVariants = cva(
         'destructive-foreground': 'border bg-background hover:bg-destructive/15 text-destructive',
         outline: 'border border-border bg-transparent hover:bg-accent/50',
         secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        text: 'bg-transparent hover:bg-accent',
-        ghost: 'bg-transparent hover:bg-accent',
+        text: 'bg-transparent hover:bg-accent/50',
+        ghost: 'bg-transparent hover:bg-accent/50',
         link: 'text-primary underline-offset-4 hover:underline p-0 h-auto',
       },
       size: {

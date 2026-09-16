@@ -1,8 +1,8 @@
 import type { CanvasRenderer } from '../canvas-renderer';
 import { BaseNode } from './base-node';
-import { getVisualSourceTime } from '@videoEditor/engine/timeline/element-utils';
-import type { Transform } from '@videoEditor/types/timeline';
-import type { TCanvasSize } from '@videoEditor/types/project';
+import { getVisualSourceTime } from '@/components/videoEditor/engine/timeline/element-utils';
+import type { Transform } from '@/components/videoEditor/types/timeline';
+import type { TCanvasSize } from '@/components/videoEditor/types/project';
 
 const VISUAL_EPSILON = 1 / 1000;
 

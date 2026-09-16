@@ -1,9 +1,9 @@
-import { Command } from '@videoEditor/engine/commands/base-command';
-import type { TimelineTrack } from '@videoEditor/types/timeline';
-import { generateUUID } from '@videoEditor/utils/id';
-import { EditorCore } from '@videoEditor/engine/core';
-import { buildEmptyTrack } from '@videoEditor/engine/timeline/track-utils';
-import { getDefaultInsertIndexForTrack } from '@videoEditor/engine/timeline/track-utils';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
+import { generateUUID } from '@/components/videoEditor/utils/id';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import { buildEmptyTrack } from '@/components/videoEditor/engine/timeline/track-utils';
+import { getDefaultInsertIndexForTrack } from '@/components/videoEditor/engine/timeline/track-utils';
 
 export class DetachAudioCommand extends Command {
   private savedState: TimelineTrack[] | null = null;

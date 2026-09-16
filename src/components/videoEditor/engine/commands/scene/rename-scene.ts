@@ -1,8 +1,8 @@
-import { logger } from '@videoEditor/lib/logger';
-import { Command } from '@videoEditor/engine/commands/base-command';
-import { EditorCore } from '@videoEditor/engine/core';
-import type { TScene } from '@videoEditor/types/timeline';
-import { updateSceneInArray } from '@videoEditor/engine/lib/scenes';
+import { logger } from '@/components/videoEditor/lib/logger';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import type { TScene } from '@/components/videoEditor/types/timeline';
+import { updateSceneInArray } from '@/components/videoEditor/engine/lib/scenes';
 
 export class RenameSceneCommand extends Command {
   private savedScenes: TScene[] | null = null;

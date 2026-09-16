@@ -6,20 +6,20 @@ import {
   type MouseEvent as ReactMouseEvent,
   type RefObject,
 } from 'react';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { useElementSelection } from '@videoEditor/hooks-cutia/timeline/element/use-element-selection';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
-import { snapTimeToFrame } from '@videoEditor/engine/lib/time';
-import { computeDropTarget } from '@videoEditor/engine/timeline/drop-utils';
-import { generateUUID } from '@videoEditor/utils/id';
-import { useTimelineSnapping } from '@videoEditor/hooks-cutia/timeline/use-timeline-snapping';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { useElementSelection } from '@/components/videoEditor/hooks-cutia/timeline/element/use-element-selection';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import { snapTimeToFrame } from '@/components/videoEditor/engine/lib/time';
+import { computeDropTarget } from '@/components/videoEditor/engine/timeline/drop-utils';
+import { generateUUID } from '@/components/videoEditor/utils/id';
+import { useTimelineSnapping } from '@/components/videoEditor/hooks-cutia/timeline/use-timeline-snapping';
 import type {
   DropTarget,
   ElementDragState,
   TimelineElement,
   TimelineTrack,
-} from '@videoEditor/types/timeline';
-import type { SnapPoint } from '@videoEditor/hooks-cutia/timeline/use-timeline-snapping';
+} from '@/components/videoEditor/types/timeline';
+import type { SnapPoint } from '@/components/videoEditor/hooks-cutia/timeline/use-timeline-snapping';
 
 const DRAG_THRESHOLD_PX = 5;
 

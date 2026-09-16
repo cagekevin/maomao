@@ -1,4 +1,4 @@
-import { logger } from '@videoEditor/lib/logger';
+import { logger } from '@/components/videoEditor/lib/logger';
 import { Input, ALL_FORMATS, BlobSource, CanvasSink, type WrappedCanvas } from 'mediabunny';
 
 interface VideoSinkData {

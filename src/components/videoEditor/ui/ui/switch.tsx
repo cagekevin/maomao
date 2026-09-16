@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 /**
  * 开关 —— **形状与配色全部在 ve-theme.css §7 的 `.ve-switch`**（一处定义）。

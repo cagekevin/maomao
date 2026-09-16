@@ -1,8 +1,8 @@
-import { getSnappedSeekTime } from '@videoEditor/engine/lib/time';
+import { getSnappedSeekTime } from '@/components/videoEditor/engine/lib/time';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useEdgeAutoScroll } from '@videoEditor/hooks-cutia/timeline/use-edge-auto-scroll';
+import { useEdgeAutoScroll } from '@/components/videoEditor/hooks-cutia/timeline/use-edge-auto-scroll';
 import { useEditor } from '../use-editor';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
 
 interface UseTimelinePlayheadProps {
   zoomLevel: number;

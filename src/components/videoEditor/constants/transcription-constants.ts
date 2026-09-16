@@ -1,6 +1,9 @@
-import { LANGUAGES } from '@videoEditor/constants/language-constants';
-import type { TranscriptionModel, TranscriptionModelId } from '@videoEditor/types/transcription';
-import type { LanguageCode } from '@videoEditor/types/language';
+import { LANGUAGES } from '@/components/videoEditor/constants/language-constants';
+import type {
+  TranscriptionModel,
+  TranscriptionModelId,
+} from '@/components/videoEditor/types/transcription';
+import type { LanguageCode } from '@/components/videoEditor/types/language';
 
 const SUPPORTED_TRANSCRIPTION_LANGS: ReadonlyArray<LanguageCode> = [
   'en',

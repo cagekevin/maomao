@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, React.ComponentProps<'textarea'>>(
   ({ className, ...props }, ref) => {

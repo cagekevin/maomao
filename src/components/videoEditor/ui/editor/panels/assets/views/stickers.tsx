@@ -1,30 +1,33 @@
 'use client';
-import { logger } from '@videoEditor/lib/logger';
+import { logger } from '@/components/videoEditor/lib/logger';
 
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from '@videoEditor/lib/toast';
-import { DraggableItem } from '@videoEditor/ui/editor/panels/assets/draggable-item';
+import { toast } from '@/components/videoEditor/lib/toast';
+import { DraggableItem } from '@/components/videoEditor/ui/editor/panels/assets/draggable-item';
 import {
   PanelBaseView as BaseView,
   PanelState,
-} from '@videoEditor/ui/editor/panels/panel-base-view';
-import { Button } from '@videoEditor/ui/ui/button';
-import { InputWithBack } from '@videoEditor/ui/ui/input-with-back';
-import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
+} from '@/components/videoEditor/ui/editor/panels/panel-base-view';
+import { Button } from '@/components/videoEditor/ui/ui/button';
+import { InputWithBack } from '@/components/videoEditor/ui/ui/input-with-back';
+import { PropertyGroup } from '@/components/videoEditor/ui/editor/panels/properties/property-item';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@videoEditor/ui/ui/tooltip';
-import { STICKER_CATEGORIES } from '@videoEditor/constants/stickers-constants';
-import { useInfiniteScroll } from '@videoEditor/hooks-cutia/use-infinite-scroll';
-import { buildIconSvgUrl, POPULAR_COLLECTIONS } from '@videoEditor/engine/lib/iconify-api';
-import { useStickersStore } from '@videoEditor/stores/stickers-store';
-import type { StickerCategory } from '@videoEditor/types/stickers';
-import { cn } from '@videoEditor/utils/ui';
-import { Spinner } from '@videoEditor/ui/ui/spinner';
+} from '@/components/videoEditor/ui/ui/tooltip';
+import { STICKER_CATEGORIES } from '@/components/videoEditor/constants/stickers-constants';
+import { useInfiniteScroll } from '@/components/videoEditor/hooks-cutia/use-infinite-scroll';
+import {
+  buildIconSvgUrl,
+  POPULAR_COLLECTIONS,
+} from '@/components/videoEditor/engine/lib/iconify-api';
+import { useStickersStore } from '@/components/videoEditor/stores/stickers-store';
+import type { StickerCategory } from '@/components/videoEditor/types/stickers';
+import { cn } from '@/components/videoEditor/utils/ui';
+import { Spinner } from '@/components/videoEditor/ui/ui/spinner';
 import { LayoutGrid, Sparkles, Hash, Smile, Clock, X, ArrowRight } from 'lucide-react';
 
 function isStickerCategory(value: string): value is StickerCategory {
@@ -338,7 +341,7 @@ function StickersContentView({
                   <button
                     type="button"
                     onClick={clearRecentStickers}
-                    className="hover:bg-accent ml-auto flex size-5 items-center justify-center rounded p-0"
+                    className="hover:bg-accent/50 ml-auto flex size-5 items-center justify-center rounded p-0"
                   >
                     <X className="text-muted-foreground size-3" />
                   </button>

@@ -1,6 +1,6 @@
-import { Command } from '@videoEditor/engine/commands/base-command';
-import { EditorCore } from '@videoEditor/engine/core';
-import type { TProject, TProjectSettings } from '@videoEditor/types/project';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import type { TProject, TProjectSettings } from '@/components/videoEditor/types/project';
 
 export class UpdateProjectSettingsCommand extends Command {
   private savedSettings: TProjectSettings | null = null;

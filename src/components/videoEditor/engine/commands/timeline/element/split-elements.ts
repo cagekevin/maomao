@@ -1,8 +1,8 @@
-import { Command } from '@videoEditor/engine/commands/base-command';
-import type { TimelineTrack } from '@videoEditor/types/timeline';
-import { generateUUID } from '@videoEditor/utils/id';
-import { EditorCore } from '@videoEditor/engine/core';
-import { getElementPlaybackRate } from '@videoEditor/engine/timeline/element-utils';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
+import { generateUUID } from '@/components/videoEditor/utils/id';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import { getElementPlaybackRate } from '@/components/videoEditor/engine/timeline/element-utils';
 
 export class SplitElementsCommand extends Command {
   private savedState: TimelineTrack[] | null = null;

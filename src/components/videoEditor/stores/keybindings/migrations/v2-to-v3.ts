@@ -1,5 +1,8 @@
-import type { ShortcutKey } from '@videoEditor/types/keybinding';
-import type { KeybindingConfig, TActionWithOptionalArgs } from '@videoEditor/engine/lib/actions';
+import type { ShortcutKey } from '@/components/videoEditor/types/keybinding';
+import type {
+  KeybindingConfig,
+  TActionWithOptionalArgs,
+} from '@/components/videoEditor/engine/lib/actions';
 
 interface V2State {
   keybindings: KeybindingConfig;

@@ -1,7 +1,10 @@
 import type { CanvasRenderer } from '../canvas-renderer';
 import { BaseNode } from './base-node';
-import type { TextElement } from '@videoEditor/types/timeline';
-import { FONT_SIZE_SCALE_REFERENCE, hasTextStroke } from '@videoEditor/constants/text-constants';
+import type { TextElement } from '@/components/videoEditor/types/timeline';
+import {
+  FONT_SIZE_SCALE_REFERENCE,
+  hasTextStroke,
+} from '@/components/videoEditor/constants/text-constants';
 import { buildFontFamilyStack } from '../font-stack';
 
 type RenderContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { hasDragData } from '@videoEditor/engine/lib/drag-data';
+import { hasDragData } from '@/components/videoEditor/engine/lib/drag-data';
 
 interface UseFileUploadOptions {
   accept?: string;

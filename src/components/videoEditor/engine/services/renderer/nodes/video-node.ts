@@ -1,6 +1,6 @@
 import type { CanvasRenderer } from '../canvas-renderer';
 import { VisualNode, type VisualNodeParams } from './visual-node';
-import { videoCache } from '@videoEditor/engine/services/video-cache/service';
+import { videoCache } from '@/components/videoEditor/engine/services/video-cache/service';
 
 export interface VideoNodeParams extends VisualNodeParams {
   url: string;

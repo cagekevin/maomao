@@ -1,5 +1,5 @@
 import { Loader2, type LucideProps } from 'lucide-react';
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 function Spinner({ className, ...props }: LucideProps) {
   return (

@@ -124,6 +124,13 @@ export interface VideoElement extends BaseTimelineElement {
   mediaId: string;
   muted?: boolean;
   hidden?: boolean;
+  /**
+   * 源视频**是否含音轨**（TD-21-17）。驱动时间轴上「带原声视频」的 🔊 角标 ——
+   * 让用户一眼看出「这条有声音」，而 C4.7 红线规定音轨**内联**在视频片段里、不拆轨。
+   * 在导入时由 `getVideoInfo` 探测（mediabunny `getPrimaryAudioTrack`）后随素材落到此处；
+   * 存量旧工程缺该字段 → undefined = **不亮角标**（宁可不显示，不撒谎说有声音）。
+   */
+  hasAudio?: boolean;
   transform: Transform;
   opacity: number;
   playbackRate?: number;

@@ -1,9 +1,9 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
-import { useTimelinePlayhead } from '@videoEditor/hooks-cutia/timeline/use-timeline-playhead';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import { useTimelinePlayhead } from '@/components/videoEditor/hooks-cutia/timeline/use-timeline-playhead';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 
 interface TimelinePlayheadProps {
   zoomLevel: number;

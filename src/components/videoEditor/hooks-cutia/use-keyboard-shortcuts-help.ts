@@ -1,9 +1,12 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useKeybindingsStore } from '@videoEditor/stores/keybindings-store';
-import { ACTIONS, type TAction } from '@videoEditor/engine/lib/actions';
-import { getPlatformAlternateKey, getPlatformSpecialKey } from '@videoEditor/utils/platform';
+import { useKeybindingsStore } from '@/components/videoEditor/stores/keybindings-store';
+import { ACTIONS, type TAction } from '@/components/videoEditor/engine/lib/actions';
+import {
+  getPlatformAlternateKey,
+  getPlatformSpecialKey,
+} from '@/components/videoEditor/utils/platform';
 
 export interface KeyboardShortcut {
   id: string;

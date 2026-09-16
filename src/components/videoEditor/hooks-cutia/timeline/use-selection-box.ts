@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
-import { getCumulativeHeightBefore, getTrackHeight } from '@videoEditor/engine/timeline';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import {
+  getCumulativeHeightBefore,
+  getTrackHeight,
+} from '@/components/videoEditor/engine/timeline';
 import { useEditor } from '../use-editor';
 
 interface UseSelectionBoxProps {

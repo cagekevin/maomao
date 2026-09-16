@@ -1,6 +1,6 @@
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
-import { getSnappedSeekTime } from '@videoEditor/engine/lib/time';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import { getSnappedSeekTime } from '@/components/videoEditor/engine/lib/time';
 import { Bookmark } from 'lucide-react';
 
 interface TimelineBookmarksRowProps {

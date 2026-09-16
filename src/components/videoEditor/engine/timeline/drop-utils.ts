@@ -1,7 +1,7 @@
-import type { TimelineTrack, ElementType } from '@videoEditor/types/timeline';
-import { TRACK_HEIGHTS, TRACK_GAP } from '@videoEditor/constants/timeline-constants';
+import type { TimelineTrack, ElementType } from '@/components/videoEditor/types/timeline';
+import { TRACK_HEIGHTS, TRACK_GAP } from '@/components/videoEditor/constants/timeline-constants';
 import { wouldElementOverlap } from './element-utils';
-import type { ComputeDropTargetParams, DropTarget } from '@videoEditor/types/timeline';
+import type { ComputeDropTargetParams, DropTarget } from '@/components/videoEditor/types/timeline';
 import { isMainTrack, enforceMainTrackStart } from './track-utils';
 
 function getTrackAtY({

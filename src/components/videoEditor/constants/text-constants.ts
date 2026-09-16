@@ -1,4 +1,4 @@
-import type { TextElement, TextShadow } from '@videoEditor/types/timeline';
+import type { TextElement, TextShadow } from '@/components/videoEditor/types/timeline';
 import { TIMELINE_CONSTANTS } from './timeline-constants';
 
 export const MIN_FONT_SIZE = 1;

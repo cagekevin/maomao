@@ -722,7 +722,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
                 type="color"
                 value={bgColor === 'transparent' ? '#000000' : bgColor}
                 onChange={(e) => setBgColor(e.target.value)}
-                className="w-6 h-5 rounded border border-edge bg-transparent cursor-pointer"
+                className="mao-color-input w-6 h-5"
                 title="自定义背景色"
               />
               {bgColor !== 'transparent' && <span className="font-mono text-muted">{bgColor}</span>}

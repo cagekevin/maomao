@@ -1,14 +1,17 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Popover, PopoverContent, PopoverTrigger } from '@videoEditor/ui/ui/popover';
-import { Button } from '@videoEditor/ui/ui/button';
-import { Label } from '@videoEditor/ui/ui/label';
-import { RadioGroup, RadioGroupItem } from '@videoEditor/ui/ui/radio-group';
-import { Progress } from '@videoEditor/ui/ui/progress';
-import { Checkbox } from '@videoEditor/ui/ui/checkbox';
-import { cn } from '@videoEditor/utils/ui';
-import { getExportMimeType, getExportFileExtension } from '@videoEditor/engine/lib/export';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/videoEditor/ui/ui/popover';
+import { Button } from '@/components/videoEditor/ui/ui/button';
+import { Label } from '@/components/videoEditor/ui/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/videoEditor/ui/ui/radio-group';
+import { Progress } from '@/components/videoEditor/ui/ui/progress';
+import { Checkbox } from '@/components/videoEditor/ui/ui/checkbox';
+import { cn } from '@/components/videoEditor/utils/ui';
+import {
+  getExportMimeType,
+  getExportFileExtension,
+} from '@/components/videoEditor/engine/lib/export';
 import { Check, Copy, Download, RotateCcw, Replace } from 'lucide-react';
 import {
   EXPORT_FORMAT_VALUES,
@@ -16,10 +19,10 @@ import {
   type ExportFormat,
   type ExportQuality,
   type ExportResult,
-} from '@videoEditor/types/export';
-import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { DEFAULT_EXPORT_OPTIONS } from '@videoEditor/constants/export-constants';
+} from '@/components/videoEditor/types/export';
+import { PropertyGroup } from '@/components/videoEditor/ui/editor/panels/properties/property-item';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { DEFAULT_EXPORT_OPTIONS } from '@/components/videoEditor/constants/export-constants';
 
 export function ExportButton() {
   const [isExportPopoverOpen, setIsExportPopoverOpen] = useState(false);

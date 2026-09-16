@@ -1,4 +1,4 @@
-import { getFontFallbackChain } from '@videoEditor/constants/font-constants';
+import { getFontFallbackChain } from '@/components/videoEditor/constants/font-constants';
 
 /**
  * 字体族 → **可交给 `ctx.font` 的完整回落栈**。

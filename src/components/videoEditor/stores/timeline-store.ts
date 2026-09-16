@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import type { ClipboardItem } from '@videoEditor/types/timeline';
+import type { ClipboardItem } from '@/components/videoEditor/types/timeline';
 
 interface TimelineStore {
   snappingEnabled: boolean;

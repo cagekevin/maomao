@@ -1,19 +1,19 @@
-import { logger } from '@videoEditor/lib/logger';
-import { Command } from '@videoEditor/engine/commands/base-command';
-import { EditorCore } from '@videoEditor/engine/core';
+import { logger } from '@/components/videoEditor/lib/logger';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import { EditorCore } from '@/components/videoEditor/engine/core';
 import type {
   TimelineTrack,
   TimelineElement,
   TrackType,
   VideoTrack,
-} from '@videoEditor/types/timeline';
+} from '@/components/videoEditor/types/timeline';
 import {
   buildEmptyTrack,
   isMainTrack,
   validateElementTrackCompatibility,
   enforceMainTrackStart,
-} from '@videoEditor/engine/timeline/track-utils';
-import { cleanupTransitionsForTrack } from '@videoEditor/engine/timeline/transition-utils';
+} from '@/components/videoEditor/engine/timeline/track-utils';
+import { cleanupTransitionsForTrack } from '@/components/videoEditor/engine/timeline/transition-utils';
 
 export class MoveElementCommand extends Command {
   private savedState: TimelineTrack[] | null = null;

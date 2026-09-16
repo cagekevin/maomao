@@ -1,26 +1,26 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
 import {
   TRANSITION_PRESETS,
   DEFAULT_TRANSITION_DURATION,
-} from '@videoEditor/constants/transition-constants';
+} from '@/components/videoEditor/constants/transition-constants';
 import type {
   VideoTrack,
   TrackTransition,
   VideoElement,
   ImageElement,
   TransitionType,
-} from '@videoEditor/types/timeline';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
+} from '@/components/videoEditor/types/timeline';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import {
   findAdjacentPairs,
   getTransitionForPair,
-} from '@videoEditor/engine/timeline/transition-utils';
-import { cn } from '@videoEditor/utils/ui';
-import { Popover, PopoverContent, PopoverTrigger } from '@videoEditor/ui/ui/popover';
-import { ScrollArea } from '@videoEditor/ui/ui/scroll-area';
+} from '@/components/videoEditor/engine/timeline/transition-utils';
+import { cn } from '@/components/videoEditor/utils/ui';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/videoEditor/ui/ui/popover';
+import { ScrollArea } from '@/components/videoEditor/ui/ui/scroll-area';
 
 type VisualElement = VideoElement | ImageElement;
 
@@ -307,7 +307,7 @@ function TransitionPicker({
                 'rounded-sm px-2 py-1.5 text-xs transition-colors',
                 currentType === preset.type
                   ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-accent',
+                  : 'hover:bg-accent/50 text-foreground',
               )}
               onClick={() => onSelect({ type: preset.type })}
             >

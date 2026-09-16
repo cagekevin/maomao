@@ -1,8 +1,8 @@
 import {
   IndexedDBAdapter,
   deleteDatabase,
-} from '@videoEditor/engine/services/storage/indexeddb-adapter';
-import type { MediaAssetData } from '@videoEditor/engine/services/storage/types';
+} from '@/components/videoEditor/engine/services/storage/indexeddb-adapter';
+import type { MediaAssetData } from '@/components/videoEditor/engine/services/storage/types';
 import { StorageMigration } from './base';
 import type { MigrationResult, ProjectRecord } from './transformers/types';
 import {

@@ -41,6 +41,7 @@
   --ve-text-primary: 28 28 28; /* 编辑器内「文字主色」= 前景（= --ve-fg 亮色值） */
   --ve-text-secondary: 120 120 120; /* 次级文字（亮色） */
   --ve-muted: 235 235 235; /* 静默面/文字底（亮色，近 --ve-border） */
+  /* ⚠️ accent = 前景基色，仅用于 rgb(var(--ve-fg) / α) 薄纱；禁止作为 solid 背景。 */
   --ve-accent: 28 28 28; /* cutia 的 accent = 前景基色（薄纱由其 /α 派生），非宿主蓝 */
 
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -64,6 +65,7 @@
   --ve-text-primary: 222 222 222; /* = --ve-fg 暗色值 */
   --ve-text-secondary: 150 150 150;
   --ve-muted: 40 40 40; /* 静默底：近 --ve-border，比 --ve-bg 亮一档 */
+  /* ⚠️ accent = 前景基色，仅用于 rgb(var(--ve-fg) / α) 薄纱；禁止作为 solid 背景（bg-accent 在暗色下 = 白底白字）。 */
   --ve-accent: 222 222 222;
 }
 

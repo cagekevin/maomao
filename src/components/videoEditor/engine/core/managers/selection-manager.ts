@@ -1,4 +1,4 @@
-import type { EditorCore } from '@videoEditor/engine/core';
+import type { EditorCore } from '@/components/videoEditor/engine/core';
 
 type ElementRef = { trackId: string; elementId: string };
 

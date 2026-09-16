@@ -6,24 +6,34 @@
  *  - 载体：CloudSyncEngine（Google Apps Script，见下方引擎代码）。
  *  - 之前是 localStorage 模拟假数据；现直接替换为真实云端收发（引擎代码原样保留）。
  *
- * 【同步内容】全量配置/用户数据同步（用户确认体积小，全部进云端）：
- *  - localStorage 用户数据/配置：由 contracts.ts STORAGE_KEYS 权威登记生成
- *    （getLocalKeys() 减去下方 SYNC_EXCLUDE 不同步清单；项目、应用设置、自定义 Skill、预设、节点偏好、账号环境等）
- *  - API 配置（providers）：走 localTool /api/providers（独立于 localStorage）
+ * 【同步范围白名单（2026-09-16 用户裁定 · 判据翻转）】**只有「设置/配置」类进云同步**
+ *   （判据：换了设备也**希望跟着走**的东西）。**工程数据** 与 **UI 相关** 一律不出机器：
+ *  - localStorage 侧：`getLocalKeys()` ∩ `SYNC_ALLOW`（白名单，见下方）＝ 仅 7 个设置/配置键；
+ *  - API 配置（providers）：走 localTool /api/providers（独立于 localStorage）；
+ *  - 账号环境（yimao_accounts）：KV 后端，由 domain 开关在 collect/restore 单独处理。
  *
- * 【不同步】画布/会话性/本机临时数据：
- *  - 所有项目画布快照（canvas-state-v1-*）：画布内容属业务数据，仅留在本机 localTool，不同步。
- *  - 项目列表（projects）：有独立跨端真通道（projectStore → localTool /api/projects backend + KV 画布快照），
- *    不进云同步（[F-云B] 2026-09-11：再经 GAS 云同步 = 造第二真相源，SSOT 裂痕）。
- *  - AI 对话历史（agent_conversations）与当前对话 id（agent_active_conversation_id）：含隐私。
- *  - lastOpenedProject（上次打开哪个项目）：本机会话偏好。
- *  - yimao_asset_library（素材库）：存的是本地 URL 引用（http://127.0.0.1:18080/files/...），
- *    指向本机 localTool 磁盘文件，跨设备无意义，不同步。
- *  - agent_draft / mutiwindow-clipboard：临时数据（输入草稿 / 跨窗口剪贴板），不同步。
+ * 【为什么翻转成白名单（原为 SYNC_EXCLUDE 黑名单）】黑名单**新增键默认进同步** → 必须「记得排除」，
+ *   漏一个就把工程数据/UI 偏好送上了云。翻转为**默认拒绝**：新增键不显式加进 `SYNC_ALLOW` 就不出机器。
+ *   机器守卫 = `check:arch` 规则 12（`src` 内禁绕过本白名单另起同步清单）。
+ *
+ * 【明确不出机器的东西（用户裁定）】
+ *  - **工程数据**：项目列表/画布快照（project）· 剪辑工程（videoEditor）· 3D 工程与姿势库（director3d）
+ *    · 素材库（resource）—— 是「数据」不是「设置」，各有跨端真通道（localTool KV / /api/projects），
+ *    进云同步只会造第二真相源（SSOT 裂痕）。
+ *  - **UI 相关**：面板宽度/分栏宽（agent_panel_width / agent_split_width）· 节点参数记忆（pref）
+ *    · 应用设置混合桶 `app_settings`（含 thumbnailOn/minimapOn/agentOpen/pinnedTools 等 UI 开关 → 整键不同步）
+ *    · 跨窗口剪贴板（clipboard）—— 跟着「这台机器这个界面」走，跨设备无意义、同步只会互相污染。
+ *  - **隐私/本机**：AI 会话（含 pattern 键，本就不在 getLocalKeys）· 同步台账（sync，本机基线）· 社区库缓存。
  *
  * ⚠️ 含用户数据（账号环境/API key 等），同步到云端需注意保密。
  */
-import { getLocalKeys, STORAGE_KEYS } from '../core/contracts.ts';
+import {
+  getLocalKeys,
+  STORAGE_KEYS,
+  KEY_YIMAO_CLOUD_SYNC_LEDGER,
+  KEY_YIMAO_PRESET_PROMPTS,
+  KEY_YIMAO_ACCOUNTS,
+} from '../core/contracts.ts';
 import { providerApi } from '../api/localToolApi.ts';
 import { contentGet, contentSet, contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
 import { logger } from '../core/logger.ts';
@@ -127,8 +137,8 @@ const CloudSyncEngine = {
  *  - 先例：画布快照的 `canvas-state-v1-{projectId}_version`（contracts.ts）就是同款单调版本号。
  * ====================================================================== */
 
-/** 本地同步台账存储键（已登记 contracts.ts；不进云端，见 SYNC_EXCLUDE） */
-const LEDGER_KEY = 'yimao_cloud_sync_ledger';
+/** 本地同步台账存储键（TD-13-4：唯一真源 = contracts.ts KEY_YIMAO_CLOUD_SYNC_LEDGER；**不进云端**，不在 SYNC_ALLOW 内） */
+const LEDGER_KEY = KEY_YIMAO_CLOUD_SYNC_LEDGER;
 /**
  * 云端包 data 内的元字段键（双写）。
  *
@@ -511,8 +521,9 @@ async function collectLocalData(): Promise<{ ls: Record<string, unknown>; skippe
   const ls: Record<string, unknown> = {};
   const skipped: string[] = [];
   // 1) localStorage 全量用户数据/配置：复用 backupStore 权威清单，按领域开关过滤
+  // LS_KEYS 已是「同步白名单 ∩ getLocalKeys()」（仅设置类）；domainSwitchEnabled 对 KV 域（accounts）另有其用。
   for (const k of LS_KEYS) {
-    if (!domainSwitchEnabled(k)) continue; // 领域关闭（如 projects）→ 该键不进云端
+    if (!domainSwitchEnabled(k)) continue; // 领域开关关闭 → 该键不进云端
     const v = readLS(k);
     if (v !== undefined) ls[k] = v;
   }
@@ -531,7 +542,7 @@ async function collectLocalData(): Promise<{ ls: Record<string, unknown>; skippe
   // 3) 账号环境：走 KV（backend:'kv'，不在 LS_KEYS），领域开关开则专门收集上传
   try {
     if (SYNC_DOMAIN_SWITCHES.account) {
-      const acc = await contentGetAsync('yimao_accounts');
+      const acc = await contentGetAsync(KEY_YIMAO_ACCOUNTS);
       if (Array.isArray(acc) && acc.length) ls.accounts = acc;
     }
   } catch (e) {
@@ -602,7 +613,7 @@ async function restoreLocal(cloud: CloudSnapshot): Promise<{ written: number; fa
   // 4) 账号环境：走 KV（backend:'kv'），领域开关开则恢复写回 KV
   try {
     if (SYNC_DOMAIN_SWITCHES.account && Array.isArray(ls.accounts)) {
-      await contentSetAsync('yimao_accounts', ls.accounts);
+      await contentSetAsync(KEY_YIMAO_ACCOUNTS, ls.accounts);
       written++;
     }
   } catch (e) {
@@ -885,50 +896,35 @@ export function isCloudSyncReady(): boolean {
   return !!url && !url.includes('填入') && !CloudSyncEngine.isSyncing;
 }
 
-/* ── localStorage 同步清单：由 contracts.ts STORAGE_KEYS 权威登记生成（getLocalKeys()），
- * 显式排除不适合跨设备同步的键（与文件头【不同步】原则一致）：
- *  - lastOpenedProject / agent_draft：本机/临时偏好（不同步）
- *  - projects：项目列表有独立跨端真通道（projectStore → localTool /api/projects backend + KV 画布快照），
- *    再经 GAS 云同步 = 造第二真相源（SSOT 裂痕）→ 从源头排除，不传不收（[F-云B] 2026-09-11）。
- *  - yimao_asset_library：本地 URL 引用，跨设备无意义（不同步）
- *  - mutiwindow-clipboard：跨窗口临时剪贴板（不同步）
- *  - agent_panel_width / agent_split_width：AI 助手面板/表格分栏宽度（本机 UI 偏好，跨设备无意义，不同步）
- *  - agent_input_mode / agent_work_mode：9-05 模式精简后的历史遗留死键（input_mode / work_mode 不再产出），同步无意义（不同步）。
- *  - canvasAgentGenParams：AI 生图默认参数（本机 UI 偏好，跨设备无意义，不同步）
- *  - yimao_node_prefs：节点「上次参数」记忆（domain: 'pref'，本机 UI 偏好，跨设备无意义，不同步）。
- *  - yimao_prompt_hub_cache：提示词社区库缓存（带 fetchedAt/signature，每台机重拉即可，跨设备同步既无意义又可能污染缓存判断，不同步）。
- *  - yimao_preset_recent：最近使用预设（本机使用痕迹，与节点参数记忆同性质，跨设备无意义，不同步）。
- *  AI 会话键含隐私：pattern 键（agent_conversations_{agentKey} / agent_active_conversation_id_{agentKey}）本就不在
- *  getLocalKeys() 内；遗留单数键（agent_conversations / agent_active_conversation_id）虽已迁移不再写入，仍显式列入
- *  下方 SYNC_EXCLUDE 双保险，杜绝明文上云（[TD-14] 2026-09-11）。
- * 账号（yimao_accounts）为 KV 后端，本就不在 getLocalKeys()，由 S4 领域开关在 collect/restore 单独处理。
- * 同步台账（yimao_cloud_sync_ledger）：本机基线，随备份走但**绝不能进云端**（每台机器基线不同，
- *   同步它会互相污染新旧判断）→ 显式排除。 */
-const SYNC_EXCLUDE = new Set([
-  'lastOpenedProject',
-  // projects：项目列表有独立跨端真通道（projectStore → localTool /api/projects backend + KV 画布快照），
-  //   再进云同步 = 造第二真相源（SSOT 裂痕）→ 从源头排除，下载端亦不复写（见 restoreLocal）。[F-云B]
-  'projects',
-  'yimao_asset_library',
-  // agent_draft：**已退役**（TD-17，2026-09-11）。草稿唯一真源 = 会话内 `conv.draft`（随会话走 KV 同步），
-  //   独立键不再有任何读写方、STORAGE_KEYS 登记亦已删。此处置保留仅为「旧机器残留本地键」双保险，勿据此恢复该键。
-  'agent_draft',
-  'mutiwindow-clipboard',
-  'agent_panel_width',
-  'agent_split_width',
-  'agent_input_mode',
-  'canvasAgentGenParams',
-  'agent_skill_usage',
-  'yimao_node_prefs',
-  'yimao_prompt_hub_cache',
-  'yimao_preset_recent',
-  // [TD-14] 遗留单数 AI 会话键：已迁移到 pattern 键、不再写入，但静态登记在 STORAGE_KEYS 且 backend:'local'，
-  // 若旧数据残留会被 getLocalKeys() 纳入云同步（明文上 GAS = 隐私泄漏）→ 显式排除双保险。
-  'agent_conversations',
-  'agent_active_conversation_id',
-  LEDGER_KEY,
+/* ── 云同步「设置类」白名单（唯一真源 · 2026-09-16）──
+ * 只有「换了设备也希望跟着走」的**设置/配置**类进云；工程数据与 UI 偏好**默认拒绝**（见文件头【同步范围白名单】）。
+ * 逐键理由见文件头【明确不出机器的东西】—— 本表只列「进」的，不再维护「不进」的黑名单。 */
+const SYNC_ALLOW = new Set<string>([
+  'scriptbox_playbooks', // 剧本盒子自定义 Playbook
+  'agent_chat_model', // AI 聊天模型配置
+  'agent_history_turns', // AI 历史回传轮数
+  'agent_skills', // 自定义 Skill
+  'agent_skill_enabled', // Skill 启用状态
+  'agent_credit_switch', // 高消耗积分确认开关
+  KEY_YIMAO_PRESET_PROMPTS, // 提示词预设
 ]);
-const LS_KEYS = getLocalKeys().filter((k) => !SYNC_EXCLUDE.has(k));
+/**
+ * 待同步的 localStorage 键 = `getLocalKeys()` 中**在同步白名单内**者。
+ *
+ * 【为什么是白名单而非黑名单（2026-09-16 翻转）】原实现用 `SYNC_EXCLUDE` 逐个排除，**新增键默认进同步**
+ * —— 必须「记得排除」，漏一个就把工程数据/UI 偏好送上了云（用户原话：进云同步很麻烦、不喜欢）。
+ * 现翻转为**默认拒绝**：新增任何键都**不会**自动进云，除非显式加进 `SYNC_ALLOW`。
+ * 双保险由 `check-arch` 规则 12 机器守卫（`src` 内禁绕过本白名单另起同步清单）。
+ *
+ * 【为什么工程数据/UI 一律不出机器（用户裁定）】
+ *  - **工程数据**（projects / 画布快照 / 剪辑工程 / 3D 工程 / 素材库 / 姿势库）：它们是「数据」不是「设置」，
+ *    有各自的跨端真通道（localTool KV / /api/projects），进云同步只会造第二真相源（SSOT 裂痕）。
+ *  - **UI 相关**（面板宽度 / 分栏宽 / 缩略图开关 / 小地图 / 折叠态）：跟着**这台机器这个界面**走，
+ *    跨设备无意义，同步只会互相污染。
+ *  - `app_settings` 是「混合桶」（含 thumbnailOn/minimapOn/agentOpen/pinnedTools 等 UI 开关）→ **整键不同步**
+ *    （2026-09-16 裁定：无法只同步其中一半，故整键留本机）。
+ */
+const LS_KEYS = getLocalKeys().filter((k) => SYNC_ALLOW.has(k));
 
 /**
  * 同步键 → 面向用户的可读名。
@@ -962,7 +958,8 @@ function syncLabel(key: string) {
  * 云同步领域开关（开发者配置常量，集中治理「哪些领域允许进云端」）。
  * KEY 对应 contracts.ts STORAGE_KEYS.entry.domain（如 account，而非存储键名）。
  *  - account：true，账号环境走 KV，需专门上传/下载（见 collectLocal/restoreLocal）。
- *  - projects 域已整体移出云同步（见 SYNC_EXCLUDE，[F-云B] 2026-09-11），不再经本开关。
+ *  - 工程数据域（project / videoEditor / director3d / resource）已由 `SYNC_ALLOW` 白名单整体排除，
+ *    不经本开关（本开关现仅对 KV 域 accounts 生效）。
  * 未在本表登记的领域默认放行（维持既有行为）。
  */
 const SYNC_DOMAIN_SWITCHES: Record<string, boolean> = {

@@ -1,11 +1,11 @@
-import { logger } from '@videoEditor/lib/logger';
-import { i18next } from '@videoEditor/engine/lib/i18n';
+import { logger } from '@/components/videoEditor/lib/logger';
+import { i18next } from '@/components/videoEditor/engine/lib/i18n';
 import { create } from 'zustand';
-import type { SoundEffect, SavedSound } from '@videoEditor/types/sounds';
-import { storageService } from '@videoEditor/engine/services/storage/service';
-import { toast } from '@videoEditor/lib/toast';
-import { EditorCore } from '@videoEditor/engine/core';
-import { buildLibraryAudioElement } from '@videoEditor/engine/timeline/element-utils';
+import type { SoundEffect, SavedSound } from '@/components/videoEditor/types/sounds';
+import { storageService } from '@/components/videoEditor/engine/services/storage/service';
+import { toast } from '@/components/videoEditor/lib/toast';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import { buildLibraryAudioElement } from '@/components/videoEditor/engine/timeline/element-utils';
 
 /**
  * 剪辑器「已保存音效」store。

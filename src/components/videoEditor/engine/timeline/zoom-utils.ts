@@ -1,4 +1,4 @@
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
 
 const PADDING_MAX_RATIO = 0.75;
 const PADDING_MIN_RATIO = 0.15;

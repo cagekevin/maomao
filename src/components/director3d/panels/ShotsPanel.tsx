@@ -1,4 +1,5 @@
 import { Camera, Copy, FileImage, Plus, Trash2 } from 'lucide-react';
+import LazyImage from '../../base/ui/LazyImage.tsx';
 
 /** 镜头卡片所需的最小形状（来自 normalizeShot 产出的完整 shot） */
 interface ShotCard {
@@ -69,7 +70,14 @@ export function ShotsPanel({
               >
                 <span className="shot-thumbnail">
                   {shot.thumbnail ? (
-                    <img src={shot.thumbnail} alt={`${shot.name} 摄像机缩略图`} />
+                    // TD-07-6：走统一图片出口 LazyImage（懒加载 + 破图兜底 + 按需小图）。
+                    // thumbnail 是 /files/ 工程资源，经 useRenderAssetResolver 真获缩略图收益。
+                    <LazyImage
+                      src={shot.thumbnail}
+                      alt={`${shot.name} 摄像机缩略图`}
+                      className="w-full h-full"
+                      imgClassName="w-full h-full object-cover"
+                    />
                   ) : (
                     <span>
                       <Camera size={18} />

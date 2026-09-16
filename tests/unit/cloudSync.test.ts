@@ -183,7 +183,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
   it('uploadConfig 有数据且 push 成功 → ok:true + count', async () => {
     // 写入一些可同步的本地数据
     const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
-    contentSet('app_settings', { theme: 'dark' });
+    contentSet('scriptbox_playbooks', { theme: 'dark' });
     fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }));
     const res = await uploadConfig(() => {});
     expect(res.ok).toBe(true);
@@ -193,56 +193,61 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
   it('localTool 未连（getProviders 抛错）→ collectLocal 跳过 API 配置，仍成功且不含 providers', async () => {
     // 【R6 边角3】localTool 未连的降级路径：catch 静默跳过，不阻塞本地配置上传
     const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
-    contentSet('app_settings', { theme: 'dark' });
+    contentSet('scriptbox_playbooks', { theme: 'dark' });
     vi.mocked(providerApi.getProviders).mockRejectedValue(new Error('ECONNREFUSED'));
     fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }));
     const res = await uploadConfig(() => {});
     expect(res.ok).toBe(true);
     const ls = pushLs(); // push 请求体里 cloud.data 才是 ls 清单
-    expect(ls.app_settings).toEqual({ theme: 'dark' }); // 本地配置仍上传
+    expect(ls.scriptbox_playbooks).toEqual({ theme: 'dark' }); // 本地配置仍上传
     expect(ls.providers).toBeUndefined(); // API 配置跳过
   });
 
   it('同步清单由 contracts.ts getLocalKeys() 生成：真实设置进云，排除本机/临时/本地引用键', async () => {
     const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
-    // 真实设置（收口后应同步）
-    contentSet('app_settings', { theme: 'dark' });
-    // 不同步清单：本机偏好 / 9-05 模式精简后的历史遗留死键 / 本地 URL 素材 / 临时草稿 / 跨窗口剪贴板
+    // 设置类（白名单内，应同步）
+    contentSet('scriptbox_playbooks', { theme: 'dark' });
+    contentSet('agent_chat_model', { providerId: 'p', modelId: 'm' });
+    // UI 相关（**整键 app_settings 含 thumbnailOn/minimapOn 等 UI 开关 → 2026-09-16 裁定整键不同步**）
+    contentSet('app_settings', { theme: 'dark', thumbnailOn: true });
     contentSet('agent_panel_width', '320');
     contentSet('agent_split_width', '420');
     contentSet('agent_input_mode', 'agent');
     contentSet('canvasAgentGenParams', { steps: 30 });
-    contentSet('agent_skill_usage', { foo: 1 });
+    contentSet('agent_skill_usage', { foo: 1 }); // 使用统计（痕迹，非设置）
+    contentSet('yimao_node_prefs', { n: 1 }); // 节点参数记忆（本机 UI 偏好）
+    // 工程数据 / 本机 / 临时
     contentSet('lastOpenedProject', 'p1');
-    contentSet('yimao_asset_library', [{ id: 'a' }]);
-    // 'agent_draft' 已随 TD-17 退役（STORAGE_KEYS 登记已删 → contentSet 会 throw），
-    // 但它仍留在 SYNC_EXCLUDE 作「旧机器残留键」双保险，故用 raw localStorage 写入（绕 contentSet 登记闸）
-    // 验证「即便本地残留也不会进云」。这是残留键唯一合法的测试姿势。
-    localStorage.setItem('agent_draft', '旧机器残留草稿');
+    contentSet('yimao_asset_library', [{ id: 'a' }]); // 素材库：本机 URL 引用
+    localStorage.setItem('agent_draft', '旧机器残留草稿'); // 已退役键，raw 写入绕登记闸
     contentSet('mutiwindow-clipboard', 'clip');
-    contentSet('projects', [{ id: 'p1', name: '项目' }]); // 项目列表：有独立跨端通道，不应进云
+    contentSet('projects', [{ id: 'p1', name: '项目' }]); // 项目列表：有独立跨端通道
     fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }));
     const res = await uploadConfig(() => {});
     expect(res.ok).toBe(true);
     const ls = pushLs(); // push 请求体里 cloud.data 才是 ls 清单
-    expect(ls.app_settings).toEqual({ theme: 'dark' }); // 真实设置仍上传
-    // 本机 UI 偏好 / 历史遗留死键：不进云端
-    expect(ls.agent_panel_width).toBeUndefined();
+    // ── 白名单内（设置/配置）→ 进云 ──
+    expect(ls.scriptbox_playbooks).toEqual({ theme: 'dark' });
+    expect(ls.agent_chat_model).toEqual({ providerId: 'p', modelId: 'm' });
+    // ── 白名单外 → 一律不出机器（2026-09-16 判据翻转为「默认拒绝」）──
+    expect(ls.app_settings).toBeUndefined(); // 混合桶含 UI 开关 → 整键不同步
+    expect(ls.agent_panel_width).toBeUndefined(); // UI 相关
     expect(ls.agent_split_width).toBeUndefined();
     expect(ls.agent_input_mode).toBeUndefined();
     expect(ls.canvasAgentGenParams).toBeUndefined();
     expect(ls.agent_skill_usage).toBeUndefined();
+    expect(ls.yimao_node_prefs).toBeUndefined();
     expect(ls.lastOpenedProject).toBeUndefined();
-    expect(ls.yimao_asset_library).toBeUndefined();
-    expect(ls.agent_draft).toBeUndefined();
+    expect(ls.yimao_asset_library).toBeUndefined(); // 工程数据
+    expect(ls.agent_draft).toBeUndefined(); // 残留键双保险
     expect(ls.mutiwindow_clipboard).toBeUndefined();
-    expect(ls.projects).toBeUndefined(); // 项目列表整体移出云同步（[F-云B]）
+    expect(ls.projects).toBeUndefined(); // 工程数据（有独立跨端通道）
   });
 
   it('account 领域开：账号环境（KV 后端）随上传进入云端', async () => {
     const { contentSet, contentSetAsync } =
       await import('../../src/components/base/core/contentStore.ts');
-    contentSet('app_settings', { theme: 'dark' });
+    contentSet('scriptbox_playbooks', { theme: 'dark' });
     await contentSetAsync('yimao_accounts', [{ id: 'acc1', name: '环境1' }]);
     // 按 URL 分流：KV 读账号 → 返回账号数组；其余（GAS push / kvSet 写）→ 返回成功
     fetchMock.mockImplementation((url, _opt) => {
@@ -275,7 +280,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
 
   it('[F-云A] 上传时 providers 读取失败 → 如实带 partial.skipped，不冒充完整上传', async () => {
     const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
-    contentSet('app_settings', { theme: 'dark' });
+    contentSet('scriptbox_playbooks', { theme: 'dark' });
     vi.mocked(providerApi.getProviders).mockRejectedValue(new Error('ECONNREFUSED'));
     fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }));
     const res = await uploadConfig(() => {});
@@ -285,12 +290,12 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
 
   it('[F-云A] 下载时 providers 写回失败 → ok:true 但带 partial.failed，不掩盖', async () => {
     const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
-    contentSet('app_settings', { theme: 'dark' });
+    contentSet('scriptbox_playbooks', { theme: 'dark' });
     const cloud = {
       type: 'cloud_config',
       version: 5,
       updatedAt: 0,
-      data: { app_settings: { theme: 'dark' }, providers: [{ id: 'p', key: 'k' }] },
+      data: { scriptbox_playbooks: { theme: 'dark' }, providers: [{ id: 'p', key: 'k' }] },
     };
     fetchMock.mockResolvedValueOnce(jsonResp(cloud));
     vi.mocked(providerApi.saveProviders).mockRejectedValue(new Error('boom'));
@@ -496,7 +501,7 @@ describe('cloudSync — 防覆盖保护：弹窗文案', () => {
 describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确认）', () => {
   it('上传遇冲突且用户取消 → cancelled:true，且不发起 push（云端保持原样）', async () => {
     const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
-    contentSet('app_settings', { theme: 'dark' });
+    contentSet('scriptbox_playbooks', { theme: 'dark' });
     // 造台账：上次同步到 rev=1，且本地指纹已变（模拟本地改过）
     contentSet('yimao_cloud_sync_ledger', { rev: 1, syncedAt: 1, localHash: 'stale-hash' });
     // 注意信封：CloudSyncEngine.pull 返回 res.data，故 GAS 回包需是 { data: <完整同步包> }
@@ -507,7 +512,7 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
           version: 5,
           rev: 9,
           updatedAt: Date.now(),
-          data: { app_settings: { theme: 'light' } },
+          data: { scriptbox_playbooks: { theme: 'light' } },
         },
       }),
     );
@@ -519,7 +524,7 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
 
   it('上传遇冲突但用户确认 → 正常推送，且 rev = 云端 rev + 1（单调递增）', async () => {
     const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
-    contentSet('app_settings', { theme: 'dark' });
+    contentSet('scriptbox_playbooks', { theme: 'dark' });
     contentSet('yimao_cloud_sync_ledger', { rev: 1, syncedAt: 1, localHash: 'stale-hash' });
     fetchMock.mockImplementation((_url, opt) => {
       let action = '';
@@ -537,7 +542,7 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
               version: 5,
               rev: 4,
               updatedAt: 1,
-              data: { app_settings: { theme: 'light' } },
+              data: { scriptbox_playbooks: { theme: 'light' } },
             },
           }),
         );
@@ -556,7 +561,7 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
   it('下载有覆盖项且用户取消 → cancelled:true，本地一个字节都没改', async () => {
     const { contentSet, contentGet } =
       await import('../../src/components/base/core/contentStore.ts');
-    contentSet('app_settings', { theme: 'dark' });
+    contentSet('scriptbox_playbooks', { theme: 'dark' });
     // 注意信封：CloudSyncEngine.pull 返回的是 res.data，故 GAS 回包必须是 { data: <完整同步包> }
     fetchMock.mockResolvedValue(
       jsonResp({
@@ -565,19 +570,19 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
           version: 5,
           rev: 3,
           updatedAt: Date.now(),
-          data: { app_settings: { theme: 'light' } },
+          data: { scriptbox_playbooks: { theme: 'light' } },
         },
       }),
     );
     const res = await downloadConfig(() => {}, { onConfirm: async () => false });
     expect(res.cancelled).toBe(true);
-    expect(contentGet('app_settings')).toEqual({ theme: 'dark' }); // 本地原值未被覆盖
+    expect(contentGet('scriptbox_playbooks')).toEqual({ theme: 'dark' }); // 本地原值未被覆盖
   });
 
   it('下载有覆盖项但用户确认 → 正常覆盖本地', async () => {
     const { contentSet, contentGet } =
       await import('../../src/components/base/core/contentStore.ts');
-    contentSet('app_settings', { theme: 'dark' });
+    contentSet('scriptbox_playbooks', { theme: 'dark' });
     // 注意信封：CloudSyncEngine.pull 返回的是 res.data，故 GAS 回包必须是 { data: <完整同步包> }
     fetchMock.mockResolvedValue(
       jsonResp({
@@ -586,18 +591,18 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
           version: 5,
           rev: 3,
           updatedAt: Date.now(),
-          data: { app_settings: { theme: 'light' } },
+          data: { scriptbox_playbooks: { theme: 'light' } },
         },
       }),
     );
     const res = await downloadConfig(() => {}, { onConfirm: async () => true });
     expect(res.ok).toBe(true);
-    expect(contentGet('app_settings')).toEqual({ theme: 'light' }); // 已被云端覆盖
+    expect(contentGet('scriptbox_playbooks')).toEqual({ theme: 'light' }); // 已被云端覆盖
   });
 
   it('下载成功后写台账：下一次上传不再误报冲突（基线已跟上云端 rev）', async () => {
     const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
-    contentSet('app_settings', { theme: 'dark' });
+    contentSet('scriptbox_playbooks', { theme: 'dark' });
     // 注意信封：CloudSyncEngine.pull 返回的是 res.data，故 GAS 回包必须是 { data: <完整同步包> }
     fetchMock.mockResolvedValue(
       jsonResp({
@@ -606,7 +611,7 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
           version: 5,
           rev: 3,
           updatedAt: Date.now(),
-          data: { app_settings: { theme: 'light' } },
+          data: { scriptbox_playbooks: { theme: 'light' } },
         },
       }),
     );
@@ -622,7 +627,7 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
           version: 5,
           rev: 3,
           updatedAt: Date.now(),
-          data: { app_settings: { theme: 'light' } },
+          data: { scriptbox_playbooks: { theme: 'light' } },
         },
       }),
     );
@@ -636,7 +641,7 @@ describe('cloudSync — autoSync 链路（uploadConfig 三态 onAutoConflict + i
   // 造「云端有数据 + 台账 rev 落后 + 本地有改动」→ both-changed 冲突
   async function seedConflict() {
     const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
-    contentSet('app_settings', { theme: 'dark' });
+    contentSet('scriptbox_playbooks', { theme: 'dark' });
     contentSet('yimao_cloud_sync_ledger', { rev: 1, syncedAt: 1, localHash: 'stale-hash' });
     fetchMock.mockResolvedValue(
       jsonResp({
@@ -645,7 +650,7 @@ describe('cloudSync — autoSync 链路（uploadConfig 三态 onAutoConflict + i
           version: 5,
           rev: 9,
           updatedAt: Date.now(),
-          data: { app_settings: { theme: 'light' } },
+          data: { scriptbox_playbooks: { theme: 'light' } },
         },
       }),
     );
@@ -688,7 +693,7 @@ describe('cloudSync — autoSync 链路（uploadConfig 三态 onAutoConflict + i
 
   it('decision.inSync → ok:true + skipped:true 且未发起 push（内容一致零副作用）', async () => {
     const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
-    contentSet('app_settings', { theme: 'dark' });
+    contentSet('scriptbox_playbooks', { theme: 'dark' });
     // 台账 rev 落后（1 < 3）但云端内容与本地一致 → 仅 rev 空转，必须跳过
     contentSet('yimao_cloud_sync_ledger', { rev: 1, syncedAt: 1, localHash: 'anything' });
     fetchMock.mockResolvedValue(
@@ -698,7 +703,7 @@ describe('cloudSync — autoSync 链路（uploadConfig 三态 onAutoConflict + i
           version: 5,
           rev: 3,
           updatedAt: Date.now(),
-          data: { app_settings: { theme: 'dark' } }, // 与本地内容一致
+          data: { scriptbox_playbooks: { theme: 'dark' } }, // 与本地内容一致
         },
       }),
     );

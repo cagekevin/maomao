@@ -1,25 +1,25 @@
 'use client';
-import { logger } from '@videoEditor/lib/logger';
+import { logger } from '@/components/videoEditor/lib/logger';
 
 import { useState } from 'react';
 
 // 更新(2026-09-14)：i18next 已随直写中文移除（文案已中文化）。
-import { toast } from '@videoEditor/lib/toast';
-import { Button } from '@videoEditor/ui/ui/button';
-import { Checkbox } from '@videoEditor/ui/ui/checkbox';
+import { toast } from '@/components/videoEditor/lib/toast';
+import { Button } from '@/components/videoEditor/ui/ui/button';
+import { Checkbox } from '@/components/videoEditor/ui/ui/checkbox';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@videoEditor/ui/ui/select';
-import { PanelBaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
+} from '@/components/videoEditor/ui/ui/select';
+import { PanelBaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup, PropertyItem, PropertyItemLabel, PropertyItemValue } from './property-item';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { generateAndInsertSpeech } from '@videoEditor/engine/lib/tts/service';
-import { VOICE_PACKS, DEFAULT_VOICE_PACK } from '@videoEditor/constants/tts-constants';
-import type { TextElement } from '@videoEditor/types/timeline';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { generateAndInsertSpeech } from '@/components/videoEditor/engine/lib/tts/service';
+import { VOICE_PACKS, DEFAULT_VOICE_PACK } from '@/components/videoEditor/constants/tts-constants';
+import type { TextElement } from '@/components/videoEditor/types/timeline';
 
 interface TextElementRef {
   element: TextElement;
@@ -80,7 +80,7 @@ export function TextSpeechPanel({ elements: elementRefs }: { elements: TextEleme
     <PanelBaseView>
       <PropertyGroup title={'文字转语音'} hasBorderTop={false} collapsible={false}>
         <div className="space-y-6">
-          <PropertyItem direction="column">
+          <PropertyItem>
             <PropertyItemLabel>{'音色'}</PropertyItemLabel>
             <PropertyItemValue>
               <Select value={selectedVoice} onValueChange={setSelectedVoice}>

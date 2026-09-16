@@ -33,9 +33,11 @@
  */
 import { useState, useCallback, useRef } from 'react';
 import { contentGet, contentSet } from '../core/contentStore.ts';
+import { KEY_YIMAO_NODE_PREFS } from '../core/contracts.ts';
 import { attemptQuietly } from '../utils/asyncGuard.ts';
 
-const STORAGE_KEY = 'yimao_node_prefs';
+// TD-13-4：键名唯一真源 = contracts.ts 的 KEY_YIMAO_NODE_PREFS（不再本地复刻字面量）。
+const STORAGE_KEY = KEY_YIMAO_NODE_PREFS;
 
 /** 节点上次参数存储形状：{ [key]: any }（值类型因节点而异，宽松以兼容存量） */
 type NodePrefsMap = Record<string, unknown>;

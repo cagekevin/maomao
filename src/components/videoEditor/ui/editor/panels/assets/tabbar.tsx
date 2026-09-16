@@ -1,10 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@videoEditor/ui/ui/tooltip';
-import { Button } from '@videoEditor/ui/ui/button';
-import { cn } from '@videoEditor/utils/ui';
-import { TAB_KEYS, tabs, useAssetsPanelStore } from '@videoEditor/stores/assets-panel-store';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/videoEditor/ui/ui/tooltip';
+import { Button } from '@/components/videoEditor/ui/ui/button';
+import { cn } from '@/components/videoEditor/utils/ui';
+import {
+  TAB_KEYS,
+  tabs,
+  useAssetsPanelStore,
+} from '@/components/videoEditor/stores/assets-panel-store';
 
 /**
  * 素材面板左栏（图标 tab 竖列）。

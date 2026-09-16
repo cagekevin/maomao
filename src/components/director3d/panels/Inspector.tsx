@@ -390,6 +390,7 @@ export function Inspector({
                   type="color"
                   value={selected.color || '#e8e3d8'}
                   onChange={(e) => updateObject({ color: e.target.value })}
+                  className="mao-color-input w-[18px] h-[18px]"
                 />
                 <output>{selected.color || '#e8e3d8'}</output>
               </label>
@@ -606,6 +607,7 @@ export function Inspector({
                 type="color"
                 value={selected.color || '#d8d3c8'}
                 onChange={(e) => updateObject({ color: e.target.value })}
+                className="mao-color-input w-[18px] h-[18px]"
               />
               <output>{selected.color || '#d8d3c8'}</output>
             </label>

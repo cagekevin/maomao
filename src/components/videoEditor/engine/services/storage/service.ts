@@ -1,6 +1,6 @@
-import type { TProject, TProjectMetadata } from '@videoEditor/types/project';
-import { getProjectDurationFromScenes } from '@videoEditor/engine/lib/scenes';
-import type { MediaAsset } from '@videoEditor/types/assets';
+import type { TProject, TProjectMetadata } from '@/components/videoEditor/types/project';
+import { getProjectDurationFromScenes } from '@/components/videoEditor/engine/lib/scenes';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import { IndexedDBAdapter } from './indexeddb-adapter';
 import { OPFSAdapter } from './opfs-adapter';
 import type {
@@ -12,9 +12,16 @@ import type {
   ProjectStorageStats,
 } from './types';
 // 音效域类型（2026-09-14 恢复：原误判为 AI 相关而删，实测零 AI 依赖 —— docs/133 §〇.4）。
-import type { SavedSoundsData, SavedSound, SoundEffect } from '@videoEditor/types/sounds';
-import { migrations, runStorageMigrations } from '@videoEditor/engine/services/storage/migrations';
-import type { TimelineTrack } from '@videoEditor/types/timeline';
+import type {
+  SavedSoundsData,
+  SavedSound,
+  SoundEffect,
+} from '@/components/videoEditor/types/sounds';
+import {
+  migrations,
+  runStorageMigrations,
+} from '@/components/videoEditor/engine/services/storage/migrations';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 // ── T3（docs/134）：工程本体改走 KV 严格族 CAS（docs/133 §3.5 D-4）。
 // 键构造唯一真源 = videoEditorKeys.ts（禁手拼前缀字面量，X4）。
 import {
@@ -411,6 +418,9 @@ class StorageService {
       width: mediaAsset.width,
       height: mediaAsset.height,
       duration: mediaAsset.duration,
+      fps: mediaAsset.fps,
+      // TD-21-17：音轨存在性随素材落盘（否则刷新后 🔊 角标失效）。
+      hasAudio: mediaAsset.hasAudio,
       thumbnailUrl: mediaAsset.thumbnailUrl,
       ephemeral: mediaAsset.ephemeral,
       url: fileUrl ?? undefined,
@@ -472,6 +482,9 @@ class StorageService {
       width: metadata.width,
       height: metadata.height,
       duration: metadata.duration,
+      fps: metadata.fps,
+      // TD-21-17：音轨存在性随素材还原（🔊 角标在刷新后仍有效）。
+      hasAudio: metadata.hasAudio,
       thumbnailUrl: metadata.thumbnailUrl,
       ephemeral: metadata.ephemeral,
     };

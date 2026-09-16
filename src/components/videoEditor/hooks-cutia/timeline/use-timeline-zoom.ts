@@ -7,9 +7,9 @@ import {
   useRef,
   useState,
 } from 'react';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { zoomToSlider } from '@videoEditor/engine/timeline/zoom-utils';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { zoomToSlider } from '@/components/videoEditor/engine/timeline/zoom-utils';
 
 interface UseTimelineZoomProps {
   containerRef: RefObject<HTMLDivElement | null>;

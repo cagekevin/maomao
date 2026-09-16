@@ -1,14 +1,14 @@
 'use client';
 
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 
 import {
   TooltipProvider,
   Tooltip,
   TooltipTrigger,
   TooltipContent,
-} from '@videoEditor/ui/ui/tooltip';
-import { Button } from '@videoEditor/ui/ui/button';
+} from '@/components/videoEditor/ui/ui/tooltip';
+import { Button } from '@/components/videoEditor/ui/ui/button';
 import {
   SplitSquareHorizontal,
   Scissors,
@@ -24,15 +24,15 @@ import {
   ZoomIn,
 } from 'lucide-react';
 
-import { Slider } from '@videoEditor/ui/ui/slider';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
-import { sliderToZoom, zoomToSlider } from '@videoEditor/engine/timeline/zoom-utils';
+import { Slider } from '@/components/videoEditor/ui/ui/slider';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import { sliderToZoom, zoomToSlider } from '@/components/videoEditor/engine/timeline/zoom-utils';
 
-import { type TAction, invokeAction } from '@videoEditor/engine/lib/actions';
-import { cn } from '@videoEditor/utils/ui';
-import { useTimelineStore } from '@videoEditor/stores/timeline-store';
-import { ScrollArea } from '@videoEditor/ui/ui/scroll-area';
-import { useElementSelection } from '@videoEditor/hooks-cutia/timeline/element/use-element-selection';
+import { type TAction, invokeAction } from '@/components/videoEditor/engine/lib/actions';
+import { cn } from '@/components/videoEditor/utils/ui';
+import { useTimelineStore } from '@/components/videoEditor/stores/timeline-store';
+import { ScrollArea } from '@/components/videoEditor/ui/ui/scroll-area';
+import { useElementSelection } from '@/components/videoEditor/hooks-cutia/timeline/element/use-element-selection';
 
 export function TimelineToolbar({
   zoomLevel,

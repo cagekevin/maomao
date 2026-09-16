@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Circle } from 'lucide-react';
 
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 /**
  * 单选组 —— **原生 `div[role=radiogroup]` + `button[role=radio]`，无依赖**

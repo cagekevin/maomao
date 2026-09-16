@@ -24,7 +24,7 @@
  *   accounts: [...]                             // 账号环境（KV 后端，非空才含）
  * }
  */
-import { getLocalKeys } from '../core/contracts.ts';
+import { getLocalKeys, KEY_YIMAO_ACCOUNTS } from '../core/contracts.ts';
 // 【TD-15-1】agentKey 前缀 / 会话键构造收口到 base/core 单一真源（禁本地再拼字面量）
 import {
   agentKeyForProject,
@@ -151,7 +151,7 @@ export async function exportAll() {
   // 账号环境：走 KV 后端（backend:'kv'，不在 LS_KEYS），单独收集；非空才入包（防写空覆盖）
   let accounts;
   try {
-    const acc = await contentGetAsync('yimao_accounts');
+    const acc = await contentGetAsync(KEY_YIMAO_ACCOUNTS);
     if (Array.isArray(acc) && acc.length) accounts = acc;
   } catch {
     // 【P0 埋点】账号读取失败（排查「导出缺账号」：仍导出其余数据，不阻塞整体备份）
@@ -249,13 +249,13 @@ export async function importAll(backup: unknown): Promise<{
   // 账号环境（走 KV 后端）：备份包内的 accounts 写回 KV；非空数组才写（防写空覆盖丢历史）
   if (Array.isArray(b.accounts)) {
     try {
-      await contentSetAsync('yimao_accounts', b.accounts);
+      await contentSetAsync(KEY_YIMAO_ACCOUNTS, b.accounts);
       lsCount++;
     } catch (e) {
       // 【P0 埋点 + TD-15-3】账号写回失败：计入 failed
       const msg = e instanceof Error ? e.message : String(e);
       logger.warn('backupStore', '导入时写回账号失败', { error: msg });
-      failed.push({ projectId: 'yimao_accounts', error: msg });
+      failed.push({ projectId: KEY_YIMAO_ACCOUNTS, error: msg });
     }
   }
   const ok = failed.length === 0;

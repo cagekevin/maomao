@@ -1,5 +1,6 @@
 import type { CanvasRenderer } from '../canvas-renderer';
 import { VisualNode, type VisualNodeParams } from './visual-node';
+import { setCrossOriginForReadable } from '../../../../../base/utils/asyncGuard.ts';
 
 export interface ImageNodeParams extends VisualNodeParams {
   url: string;
@@ -16,7 +17,9 @@ export class ImageNode extends VisualNode<ImageNodeParams> {
 
   private async load() {
     const image = new Image();
-    image.crossOrigin = 'anonymous';
+    // TD-16-2 / TD-22-55：渲染合成会回读 canvas，crossOrigin 必须走跨源裁决单点
+    // （同源不设 / 真跨源才 anonymous）—— 恒设 'anonymous' 会让同源源被污染。
+    setCrossOriginForReadable(image, this.params.url);
     this.image = image;
 
     await new Promise<void>((resolve, reject) => {

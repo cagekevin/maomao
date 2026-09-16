@@ -1,7 +1,7 @@
 'use client';
 
-import { Button } from '@videoEditor/ui/ui/button';
-import { Input } from '@videoEditor/ui/ui/input';
+import { Button } from '@/components/videoEditor/ui/ui/button';
+import { Input } from '@/components/videoEditor/ui/ui/input';
 import { ArrowLeft, Search } from 'lucide-react';
 
 /**
@@ -50,7 +50,7 @@ export function InputWithBack({
         <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
         <Input
           placeholder={placeholder}
-          className="bg-accent w-full pl-9"
+          className="w-full pl-9"
           value={value}
           onChange={(e) => onChange?.(e.target.value)}
         />

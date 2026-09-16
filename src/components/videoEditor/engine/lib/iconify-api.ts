@@ -1,4 +1,4 @@
-import { logger } from '@videoEditor/lib/logger';
+import { logger } from '@/components/videoEditor/lib/logger';
 import { API_BASE } from '../../../base/core/config.ts';
 
 /**

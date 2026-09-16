@@ -14,20 +14,24 @@
  * 依赖方向：`EditorShell`（改造区）→ `ui/` → `engine/`（引擎区）。不得反向。
  */
 
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@videoEditor/ui/ui/resizable';
-import { AssetsPanel } from '@videoEditor/ui/editor/panels/assets';
-import { PropertiesPanel } from '@videoEditor/ui/editor/panels/properties';
-import { Timeline } from '@videoEditor/ui/editor/panels/timeline';
-import { PreviewPanel } from '@videoEditor/ui/editor/panels/preview';
-import { EditorHeader } from '@videoEditor/ui/editor/editor-header';
-import { EditorProvider } from '@videoEditor/ui/providers/editor-provider';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from '@/components/videoEditor/ui/ui/resizable';
+import { AssetsPanel } from '@/components/videoEditor/ui/editor/panels/assets';
+import { PropertiesPanel } from '@/components/videoEditor/ui/editor/panels/properties';
+import { Timeline } from '@/components/videoEditor/ui/editor/panels/timeline';
+import { PreviewPanel } from '@/components/videoEditor/ui/editor/panels/preview';
+import { EditorHeader } from '@/components/videoEditor/ui/editor/editor-header';
+import { EditorProvider } from '@/components/videoEditor/ui/providers/editor-provider';
 import { X } from 'lucide-react';
-import { TooltipProvider } from '@videoEditor/ui/ui/tooltip';
-import { LayerRoot } from '@videoEditor/ui/ui/layer/layer-root';
-import { usePanelStore } from '@videoEditor/stores/panel-store';
+import { TooltipProvider } from '@/components/videoEditor/ui/ui/tooltip';
+import { LayerRoot } from '@/components/videoEditor/ui/ui/layer/layer-root';
+import { usePanelStore } from '@/components/videoEditor/stores/panel-store';
 // 更新(2026-09-14)：agent 侧栏未搬入，useAgentStore 依赖已移除（见 EditorLayout）。
-import { cn } from '@videoEditor/utils/ui';
-import { EditorCore } from '@videoEditor/engine/core';
+import { cn } from '@/components/videoEditor/utils/ui';
+import { EditorCore } from '@/components/videoEditor/engine/core';
 
 /**
  * 退出编辑器（返回画布）——**唯一协议**，所有退出入口（右上角 X、header 菜单「退出项目」）共用。
@@ -98,7 +102,7 @@ export function EditorShell({ canvasProjectId, onClose, className }: EditorShell
             onClick={() => void exitEditorToCanvas(onClose)}
             title="关闭编辑器（返回画布）"
             aria-label="关闭编辑器"
-            className="text-muted-foreground hover:text-foreground hover:bg-accent absolute top-3 right-3 z-[60] flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors"
+            className="text-muted-foreground hover:text-foreground hover:bg-accent/50 absolute top-3 right-3 z-[60] flex size-8 cursor-pointer items-center justify-center rounded-md transition-colors"
           >
             <X className="size-4" />
           </button>

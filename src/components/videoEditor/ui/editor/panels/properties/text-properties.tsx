@@ -1,27 +1,26 @@
 'use client';
 
-import { Textarea } from '@videoEditor/ui/ui/textarea';
-import { FontPicker } from '@videoEditor/ui/ui/font-picker';
+import { Textarea } from '@/components/videoEditor/ui/ui/textarea';
+import { FontPicker } from '@/components/videoEditor/ui/ui/font-picker';
 
-import type { FontFamily } from '@videoEditor/constants/font-constants';
-import type { TextElement, TextStroke, TextShadow, Transform } from '@videoEditor/types/timeline';
-import { Switch } from '@videoEditor/ui/ui/switch';
-import { Slider } from '@videoEditor/ui/ui/slider';
-import { Input } from '@videoEditor/ui/ui/input';
-import { Button } from '@videoEditor/ui/ui/button';
+import type { FontFamily } from '@/components/videoEditor/constants/font-constants';
+import type {
+  TextElement,
+  TextStroke,
+  TextShadow,
+  Transform,
+} from '@/components/videoEditor/types/timeline';
+import { Switch } from '@/components/videoEditor/ui/ui/switch';
+import { Slider } from '@/components/videoEditor/ui/ui/slider';
+import { Input } from '@/components/videoEditor/ui/ui/input';
+import { Button } from '@/components/videoEditor/ui/ui/button';
 import { useReducer, useRef } from 'react';
-import { PanelBaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
-import {
-  PropertyGroup,
-  PropertyItem,
-  PropertyItemLabel,
-  PropertyItemValue,
-  PropertySubsection,
-} from './property-item';
-import { ColorPicker } from '@videoEditor/ui/ui/color-picker';
-import { clamp } from '@videoEditor/utils/math';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { DEFAULT_COLOR } from '@videoEditor/constants/project-constants';
+import { PanelBaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
+import { PropertyGroup, PropertyItem, PropertyItemLabel, PropertyItemValue } from './property-item';
+import { ColorPicker } from '@/components/videoEditor/ui/ui/color-picker';
+import { clamp } from '@/components/videoEditor/utils/math';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { DEFAULT_COLOR } from '@/components/videoEditor/constants/project-constants';
 import {
   MIN_FONT_SIZE,
   MAX_FONT_SIZE,
@@ -35,13 +34,13 @@ import {
   hasTextStroke,
   hasTextShadow,
   hasTextBackground,
-} from '@videoEditor/constants/text-constants';
+} from '@/components/videoEditor/constants/text-constants';
 import { TextSpeechPanel } from './text-speech-panel';
 import {
   TEXT_STYLE_PRESETS,
   type TextStylePreset,
-} from '@videoEditor/constants/text-style-presets';
-import { cn } from '@videoEditor/utils/ui';
+} from '@/components/videoEditor/constants/text-style-presets';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 interface TextElementRef {
   element: TextElement;
@@ -353,7 +352,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                 />
               </PropertyGroup>
               <PropertyGroup hasBorderTop>
-                <PropertyItem direction="column">
+                <PropertyItem>
                   <PropertyItemLabel>{'字体'}</PropertyItemLabel>
                   <PropertyItemValue>
                     <FontPicker
@@ -368,7 +367,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                     />
                   </PropertyItemValue>
                 </PropertyItem>
-                <PropertyItem direction="column">
+                <PropertyItem>
                   <PropertyItemLabel>{'样式'}</PropertyItemLabel>
                   <PropertyItemValue>
                     <div className="flex items-center gap-2">
@@ -433,7 +432,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                     </div>
                   </PropertyItemValue>
                 </PropertyItem>
-                <PropertyItem direction="column">
+                <PropertyItem>
                   <PropertyItemLabel>{'字号'}</PropertyItemLabel>
                   <PropertyItemValue>
                     <div className="flex items-center gap-2">
@@ -502,7 +501,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                 </div>
               </PropertyGroup>
               <PropertyGroup hasBorderTop>
-                <PropertyItem direction="column">
+                <PropertyItem>
                   <PropertyItemLabel>{'颜色'}</PropertyItemLabel>
                   <PropertyItemValue>
                     <ColorPicker
@@ -547,7 +546,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                     />
                   </PropertyItemValue>
                 </PropertyItem>
-                <PropertyItem direction="column">
+                <PropertyItem>
                   <PropertyItemLabel>{'不透明度'}</PropertyItemLabel>
                   <PropertyItemValue>
                     <div className="flex items-center gap-2">
@@ -609,50 +608,46 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
               给它们设置成一个统一的折叠头，叫样式，而不是一人一个"）。
               · 原先是三个平级折叠头 → 面板被切成三块，用户要分别点开才知道里面有什么；
                 它们本就是同一件事（文字的外观修饰）的三个字段，故收为一个组。
-              · 组内三段用 `PropertySubsection`（不可折叠的小节标题）区分，一眼看出是三段。
+              · 组内三段各以一个**带顶边框的 `PropertyItem`**（分隔行）开头，一眼看出是三段。
               · 展开判据：三段**任一**有值就默认展开（沿用各段原有的"有值即展开"口径，
                 收口在 `hasTextBackground` / `hasTextStroke` / `hasTextShadow`，
                 不再各写一份表达式）。
             */}
               <PropertyGroup title={'样式'} defaultExpanded={hasStyleSection}>
-                <PropertySubsection label={'背景'} />
-                <PropertyItem>
-                  <PropertyItemLabel>{'启用'}</PropertyItemLabel>
+                <PropertyItem className="border-t border-border/50 pt-2 mt-1">
+                  <PropertyItemLabel>{'背景'}</PropertyItemLabel>
                   <PropertyItemValue>
-                    <Switch
-                      checked={backgroundEnabled}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          editor.timeline.updateElements({
-                            updates: buildBatchUpdates({
-                              backgroundColor: lastSelectedColor.current,
-                            }),
-                          });
-                        } else {
-                          editor.timeline.updateElements({
-                            updates: buildBatchUpdates({
-                              backgroundColor: 'transparent',
-                            }),
-                          });
-                        }
-                      }}
-                    />
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={backgroundEnabled}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            editor.timeline.updateElements({
+                              updates: buildBatchUpdates({
+                                backgroundColor: lastSelectedColor.current,
+                              }),
+                            });
+                          } else {
+                            editor.timeline.updateElements({
+                              updates: buildBatchUpdates({
+                                backgroundColor: 'transparent',
+                              }),
+                            });
+                          }
+                        }}
+                      />
+                      <ColorPicker
+                        value={element.backgroundColor}
+                        onChange={(color) => handleColorChange({ color: `#${color}` })}
+                        onChangeEnd={(color) => handleColorChangeEnd({ color })}
+                        containerRef={containerRef}
+                      />
+                    </div>
                   </PropertyItemValue>
                 </PropertyItem>
                 {backgroundEnabled && (
                   <>
-                    <PropertyItem direction="column">
-                      <PropertyItemLabel>{'颜色'}</PropertyItemLabel>
-                      <PropertyItemValue>
-                        <ColorPicker
-                          value={element.backgroundColor}
-                          onChange={(color) => handleColorChange({ color: `#${color}` })}
-                          onChangeEnd={(color) => handleColorChangeEnd({ color })}
-                          containerRef={containerRef}
-                        />
-                      </PropertyItemValue>
-                    </PropertyItem>
-                    <PropertyItem direction="column">
+                    <PropertyItem>
                       <PropertyItemLabel>{'不透明度'}</PropertyItemLabel>
                       <PropertyItemValue>
                         <div className="flex items-center gap-2">
@@ -700,7 +695,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                         </div>
                       </PropertyItemValue>
                     </PropertyItem>
-                    <PropertyItem direction="column">
+                    <PropertyItem>
                       <PropertyItemLabel>{'圆角半径'}</PropertyItemLabel>
                       <PropertyItemValue>
                         <div className="flex items-center gap-2">
@@ -746,7 +741,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                         </div>
                       </PropertyItemValue>
                     </PropertyItem>
-                    <PropertyItem direction="column">
+                    <PropertyItem>
                       <PropertyItemLabel>{'高度'}</PropertyItemLabel>
                       <PropertyItemValue>
                         <div className="flex items-center gap-2">
@@ -792,7 +787,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                         </div>
                       </PropertyItemValue>
                     </PropertyItem>
-                    <PropertyItem direction="column">
+                    <PropertyItem>
                       <PropertyItemLabel>{'宽度'}</PropertyItemLabel>
                       <PropertyItemValue>
                         <div className="flex items-center gap-2">
@@ -845,140 +840,150 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
               滑杆 `0` = 无描边（与渲染侧 `width > 0` 判据同源，见 `hasTextStroke`）。
               颜色始终可编辑 —— 先配色、再拖宽度，顺序由用户定，不必先"启用"。
             */}
-                <PropertySubsection label={'描边'} />
-                <PropertyItem direction="column">
-                  <PropertyItemLabel>{'颜色'}</PropertyItemLabel>
-                  <PropertyItemValue>
-                    <ColorPicker
-                      value={currentStroke.color}
-                      onChange={(color) => {
-                        if (initialStrokeColorRef.current === null) {
-                          initialStrokeColorRef.current = currentStroke.color;
-                        }
-                        updateStroke({
-                          stroke: { ...currentStroke, color: `#${color}` },
-                          pushHistory: false,
-                        });
-                      }}
-                      onChangeEnd={(color) => {
-                        if (initialStrokeColorRef.current !== null) {
-                          updateStroke({
-                            stroke: {
-                              ...currentStroke,
-                              color: initialStrokeColorRef.current,
-                            },
-                            pushHistory: false,
-                          });
-                          updateStroke({
-                            stroke: {
-                              ...currentStroke,
-                              color: `#${color}`,
-                            },
-                          });
-                          initialStrokeColorRef.current = null;
-                        }
-                      }}
-                      containerRef={containerRef}
-                    />
-                  </PropertyItemValue>
-                </PropertyItem>
-                <PropertyItem direction="column">
-                  <PropertyItemLabel>{'宽度'}</PropertyItemLabel>
+                <PropertyItem className="border-t border-border/50 pt-2 mt-1">
+                  <PropertyItemLabel>{'描边'}</PropertyItemLabel>
                   <PropertyItemValue>
                     <div className="flex items-center gap-2">
-                      <Slider
-                        value={[currentStroke.width]}
-                        min={NO_STROKE_WIDTH}
-                        max={MAX_STROKE_WIDTH}
-                        step={1}
-                        onValueChange={([value]) => {
-                          if (initialStrokeRef.current === null) {
-                            initialStrokeRef.current = { ...currentStroke };
+                      <Switch
+                        checked={strokeEnabled}
+                        onCheckedChange={(checked) => {
+                          updateStroke({
+                            stroke: {
+                              ...currentStroke,
+                              width: checked ? 1 : NO_STROKE_WIDTH,
+                            },
+                          });
+                        }}
+                      />
+                      <ColorPicker
+                        value={currentStroke.color}
+                        onChange={(color) => {
+                          if (initialStrokeColorRef.current === null) {
+                            initialStrokeColorRef.current = currentStroke.color;
                           }
                           updateStroke({
-                            stroke: { ...currentStroke, width: value },
+                            stroke: { ...currentStroke, color: `#${color}` },
                             pushHistory: false,
                           });
                         }}
-                        onValueCommit={([value]) => {
-                          if (initialStrokeRef.current !== null) {
+                        onChangeEnd={(color) => {
+                          if (initialStrokeColorRef.current !== null) {
                             updateStroke({
-                              stroke: initialStrokeRef.current,
+                              stroke: {
+                                ...currentStroke,
+                                color: initialStrokeColorRef.current,
+                              },
                               pushHistory: false,
                             });
                             updateStroke({
-                              stroke: { ...currentStroke, width: value },
+                              stroke: {
+                                ...currentStroke,
+                                color: `#${color}`,
+                              },
                             });
-                            initialStrokeRef.current = null;
+                            initialStrokeColorRef.current = null;
                           }
                         }}
-                        className="w-full"
+                        containerRef={containerRef}
                       />
-                      <span className="text-muted-foreground w-8 text-center text-xs">
-                        {currentStroke.width}
-                      </span>
                     </div>
                   </PropertyItemValue>
                 </PropertyItem>
+                {strokeEnabled && (
+                  <PropertyItem>
+                    <PropertyItemLabel>{'宽度'}</PropertyItemLabel>
+                    <PropertyItemValue>
+                      <div className="flex items-center gap-2">
+                        <Slider
+                          value={[currentStroke.width]}
+                          min={1}
+                          max={MAX_STROKE_WIDTH}
+                          step={1}
+                          onValueChange={([value]) => {
+                            if (initialStrokeRef.current === null) {
+                              initialStrokeRef.current = { ...currentStroke };
+                            }
+                            updateStroke({
+                              stroke: { ...currentStroke, width: value },
+                              pushHistory: false,
+                            });
+                          }}
+                          onValueCommit={([value]) => {
+                            if (initialStrokeRef.current !== null) {
+                              updateStroke({
+                                stroke: initialStrokeRef.current,
+                                pushHistory: false,
+                              });
+                              updateStroke({
+                                stroke: { ...currentStroke, width: value },
+                              });
+                              initialStrokeRef.current = null;
+                            }
+                          }}
+                          className="w-full"
+                        />
+                        <span className="text-muted-foreground w-8 text-center text-xs">
+                          {currentStroke.width}
+                        </span>
+                      </div>
+                    </PropertyItemValue>
+                  </PropertyItem>
+                )}
 
                 {/*
               阴影 —— 这里**保留**「启用」开关（与描边不同，不是口径不一致）：
               阴影的"没有"是 `shadow === undefined`，没有一个自然的 0 值能表达"关"——
               X/Y 偏移为 0 只是"正后方投影"，仍是有阴影。所以必须有个布尔来创建/移除对象。
             */}
-                <PropertySubsection label={'阴影'} />
-                <PropertyItem>
-                  <PropertyItemLabel>{'启用'}</PropertyItemLabel>
+                <PropertyItem className="border-t border-border/50 pt-2 mt-1">
+                  <PropertyItemLabel>{'阴影'}</PropertyItemLabel>
                   <PropertyItemValue>
-                    <Switch
-                      checked={shadowEnabled}
-                      onCheckedChange={(checked) => {
-                        updateShadow({
-                          shadow: checked ? { ...DEFAULT_TEXT_SHADOW } : undefined,
-                        });
-                      }}
-                    />
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={shadowEnabled}
+                        onCheckedChange={(checked) => {
+                          updateShadow({
+                            shadow: checked ? { ...DEFAULT_TEXT_SHADOW } : undefined,
+                          });
+                        }}
+                      />
+                      <ColorPicker
+                        value={currentShadow.color}
+                        onChange={(color) => {
+                          if (initialShadowColorRef.current === null) {
+                            initialShadowColorRef.current = currentShadow.color;
+                          }
+                          updateShadow({
+                            shadow: { ...currentShadow, color: `#${color}` },
+                            pushHistory: false,
+                          });
+                        }}
+                        onChangeEnd={(color) => {
+                          if (initialShadowColorRef.current !== null) {
+                            updateShadow({
+                              shadow: {
+                                ...currentShadow,
+                                color: initialShadowColorRef.current,
+                              },
+                              pushHistory: false,
+                            });
+                            updateShadow({
+                              shadow: {
+                                ...currentShadow,
+                                color: `#${color}`,
+                              },
+                            });
+                            initialShadowColorRef.current = null;
+                          }
+                        }}
+                        containerRef={containerRef}
+                      />
+                    </div>
                   </PropertyItemValue>
                 </PropertyItem>
                 {shadowEnabled && (
                   <>
-                    <PropertyItem direction="column">
-                      <PropertyItemLabel>{'颜色'}</PropertyItemLabel>
-                      <PropertyItemValue>
-                        <ColorPicker
-                          value={currentShadow.color}
-                          onChange={(color) => {
-                            if (initialShadowColorRef.current === null) {
-                              initialShadowColorRef.current = currentShadow.color;
-                            }
-                            updateShadow({
-                              shadow: { ...currentShadow, color: `#${color}` },
-                              pushHistory: false,
-                            });
-                          }}
-                          onChangeEnd={(color) => {
-                            if (initialShadowColorRef.current !== null) {
-                              updateShadow({
-                                shadow: {
-                                  ...currentShadow,
-                                  color: initialShadowColorRef.current,
-                                },
-                                pushHistory: false,
-                              });
-                              updateShadow({
-                                shadow: {
-                                  ...currentShadow,
-                                  color: `#${color}`,
-                                },
-                              });
-                              initialShadowColorRef.current = null;
-                            }
-                          }}
-                          containerRef={containerRef}
-                        />
-                      </PropertyItemValue>
-                    </PropertyItem>
-                    <PropertyItem direction="column">
+                    <PropertyItem>
                       <PropertyItemLabel>{'X 偏移'}</PropertyItemLabel>
                       <PropertyItemValue>
                         <div className="flex items-center gap-2">
@@ -1016,7 +1021,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                         </div>
                       </PropertyItemValue>
                     </PropertyItem>
-                    <PropertyItem direction="column">
+                    <PropertyItem>
                       <PropertyItemLabel>{'Y 偏移'}</PropertyItemLabel>
                       <PropertyItemValue>
                         <div className="flex items-center gap-2">
@@ -1054,7 +1059,7 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                         </div>
                       </PropertyItemValue>
                     </PropertyItem>
-                    <PropertyItem direction="column">
+                    <PropertyItem>
                       <PropertyItemLabel>{'模糊'}</PropertyItemLabel>
                       <PropertyItemValue>
                         <div className="flex items-center gap-2">

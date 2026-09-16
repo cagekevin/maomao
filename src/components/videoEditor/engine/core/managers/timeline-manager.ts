@@ -1,4 +1,4 @@
-import type { EditorCore } from '@videoEditor/engine/core';
+import type { EditorCore } from '@/components/videoEditor/engine/core';
 import type {
   TrackType,
   TimelineTrack,
@@ -7,12 +7,12 @@ import type {
   TransitionType,
   TrackTransition,
   VideoTrack,
-} from '@videoEditor/types/timeline';
-import { calculateTotalDuration } from '@videoEditor/engine/timeline';
+} from '@/components/videoEditor/types/timeline';
+import { calculateTotalDuration } from '@/components/videoEditor/engine/timeline';
 import {
   areElementsAdjacent,
   findAdjacentPairs,
-} from '@videoEditor/engine/timeline/transition-utils';
+} from '@/components/videoEditor/engine/timeline/transition-utils';
 import {
   AddTrackCommand,
   RemoveTrackCommand,
@@ -36,8 +36,8 @@ import {
   AddTransitionCommand,
   RemoveTransitionCommand,
   UpdateTransitionCommand,
-} from '@videoEditor/engine/commands/timeline';
-import type { InsertElementParams } from '@videoEditor/engine/commands/timeline/element/insert-element';
+} from '@/components/videoEditor/engine/commands/timeline';
+import type { InsertElementParams } from '@/components/videoEditor/engine/commands/timeline/element/insert-element';
 
 export class TimelineManager {
   private listeners = new Set<() => void>();

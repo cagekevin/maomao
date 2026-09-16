@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Button } from '@videoEditor/ui/ui/button';
+import { Button } from '@/components/videoEditor/ui/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -10,27 +10,27 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@videoEditor/ui/ui/dialog';
-import { Input } from '@videoEditor/ui/ui/input';
+} from '@/components/videoEditor/ui/ui/dialog';
+import { Input } from '@/components/videoEditor/ui/ui/input';
 import {
   PanelBaseView as BaseView,
   PanelState,
-} from '@videoEditor/ui/editor/panels/panel-base-view';
-import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
+} from '@/components/videoEditor/ui/editor/panels/panel-base-view';
+import { PropertyGroup } from '@/components/videoEditor/ui/editor/panels/properties/property-item';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@videoEditor/ui/ui/tooltip';
+} from '@/components/videoEditor/ui/ui/tooltip';
 import {
   useSoundLibrary,
   type SoundKind,
   type SoundLibraryItem,
-} from '@videoEditor/hooks-cutia/use-sound-library';
-import { useSoundPreview } from '@videoEditor/hooks-cutia/use-sound-preview';
-import { useSoundsStore } from '@videoEditor/stores/sounds-store';
-import type { SavedSound, SoundEffect } from '@videoEditor/types/sounds';
+} from '@/components/videoEditor/hooks-cutia/use-sound-library';
+import { useSoundPreview } from '@/components/videoEditor/hooks-cutia/use-sound-preview';
+import { useSoundsStore } from '@/components/videoEditor/stores/sounds-store';
+import type { SavedSound, SoundEffect } from '@/components/videoEditor/types/sounds';
 import { Pause, Play, Plus, RefreshCw, Star } from 'lucide-react';
 
 export function SoundsView() {
@@ -101,7 +101,7 @@ function SoundLibraryPanel({ kind }: { kind: SoundKind }) {
         <div className="flex items-center gap-2">
           <Input
             placeholder={`搜索${label}`}
-            className="bg-accent w-full"
+            className="w-full"
             containerClassName="w-full"
             value={query}
             onChange={({ currentTarget }) => setQuery(currentTarget.value)}
@@ -333,7 +333,7 @@ function AudioItem({ sound, isPlaying, onPlay }: AudioItemProps) {
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
         onClick={handleClick}
       >
-        <div className="bg-accent relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md">
+        <div className="bg-muted text-foreground relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md">
           <div className="from-primary/20 absolute inset-0 bg-gradient-to-br to-transparent" />
           {isPlaying ? <Pause className="size-5" /> : <Play className="size-5" />}
         </div>

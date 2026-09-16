@@ -1,5 +1,5 @@
-import { logger } from '@videoEditor/lib/logger';
-import type { EditorCore } from '@videoEditor/engine/core';
+import { logger } from '@/components/videoEditor/lib/logger';
+import type { EditorCore } from '@/components/videoEditor/engine/core';
 import type {
   SaveOutcome,
   TProject,
@@ -8,30 +8,33 @@ import type {
   TProjectSortOption,
   TProjectSettings,
   TTimelineViewState,
-} from '@videoEditor/types/project';
-import type { ExportOptions, ExportResult } from '@videoEditor/types/export';
+} from '@/components/videoEditor/types/project';
+import type { ExportOptions, ExportResult } from '@/components/videoEditor/types/export';
 // 更新(2026-09-14)：agent-store 已随 AI 域删除，agentMessages 相关读写一并移除。
-import { storageService } from '@videoEditor/engine/services/storage/service';
+import { storageService } from '@/components/videoEditor/engine/services/storage/service';
 // 409 判别（T3 验收②）：版本冲突必须如实分类（saveCurrentProject 的 catch）。
 import { HttpError } from '../../../../base/api/httpClient.ts';
-import { toast } from '@videoEditor/lib/toast';
-import { generateUUID } from '@videoEditor/utils/id';
-import { UpdateProjectSettingsCommand } from '@videoEditor/engine/commands/project';
+import { toast } from '@/components/videoEditor/lib/toast';
+import { generateUUID } from '@/components/videoEditor/utils/id';
+import { UpdateProjectSettingsCommand } from '@/components/videoEditor/engine/commands/project';
 import {
   DEFAULT_FPS,
   DEFAULT_CANVAS_SIZE,
   DEFAULT_COLOR,
-} from '@videoEditor/constants/project-constants';
-import { buildDefaultScene, getProjectDurationFromScenes } from '@videoEditor/engine/lib/scenes';
-import { buildScene } from '@videoEditor/engine/services/renderer/scene-builder';
-import { CanvasRenderer } from '@videoEditor/engine/services/renderer/canvas-renderer';
+} from '@/components/videoEditor/constants/project-constants';
+import {
+  buildDefaultScene,
+  getProjectDurationFromScenes,
+} from '@/components/videoEditor/engine/lib/scenes';
+import { buildScene } from '@/components/videoEditor/engine/services/renderer/scene-builder';
+import { CanvasRenderer } from '@/components/videoEditor/engine/services/renderer/canvas-renderer';
 import {
   CURRENT_PROJECT_VERSION,
   migrations,
   runStorageMigrations,
   type MigrationProgress,
-} from '@videoEditor/engine/services/storage/migrations';
-import { DEFAULT_TIMELINE_VIEW_STATE } from '@videoEditor/constants/timeline-constants';
+} from '@/components/videoEditor/engine/services/storage/migrations';
+import { DEFAULT_TIMELINE_VIEW_STATE } from '@/components/videoEditor/constants/timeline-constants';
 
 export interface MigrationState {
   isMigrating: boolean;

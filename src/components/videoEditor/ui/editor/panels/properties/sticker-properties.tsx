@@ -1,15 +1,15 @@
 'use client';
 
-import { Slider } from '@videoEditor/ui/ui/slider';
-import { Input } from '@videoEditor/ui/ui/input';
+import { Slider } from '@/components/videoEditor/ui/ui/slider';
+import { Input } from '@/components/videoEditor/ui/ui/input';
 import { useReducer, useRef } from 'react';
 
-import { PanelBaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
+import { PanelBaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup, PropertyItem, PropertyItemLabel, PropertyItemValue } from './property-item';
-import { ColorPicker } from '@videoEditor/ui/ui/color-picker';
-import { clamp } from '@videoEditor/utils/math';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import type { StickerElement } from '@videoEditor/types/timeline';
+import { ColorPicker } from '@/components/videoEditor/ui/ui/color-picker';
+import { clamp } from '@/components/videoEditor/utils/math';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import type { StickerElement } from '@/components/videoEditor/types/timeline';
 
 export function StickerProperties({
   _element: element,

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { PANEL_CONFIG } from '@videoEditor/constants/editor-constants';
+import { PANEL_CONFIG } from '@/components/videoEditor/constants/editor-constants';
 
 export interface PanelSizes {
   tools: number;

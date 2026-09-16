@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
-import { EditorCore } from '@videoEditor/engine/core';
+import { EditorCore } from '@/components/videoEditor/engine/core';
 
 export function useEditor(): EditorCore {
   const editor = useMemo(() => EditorCore.getInstance(), []);

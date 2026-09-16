@@ -14,8 +14,10 @@ import { contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
 import { askConfirm } from '../core/confirmStore.ts';
 import { generateId } from '../core/idGen.ts';
 import { attemptQuietly, attemptQuietlyAsync } from '../utils/asyncGuard.ts';
+import { KEY_YIMAO_ACCOUNTS } from '../core/contracts.ts';
 
-const STORAGE_KEY = 'yimao_accounts';
+// TD-13-4：键名唯一真源 = contracts.ts 的 KEY_YIMAO_ACCOUNTS（不再本地复刻字面量）。
+const STORAGE_KEY = KEY_YIMAO_ACCOUNTS;
 
 /** 单个 Cookie 记录（chrome.cookies.Cookie 前端镜像；写入扩展时按 setOpts 缺字段降级） */
 export interface AccountCookie {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowRight } from 'lucide-react';
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 /**
  * 属性面板原语 —— 视觉全部定义在 ve-theme.css §8（.ve-pg-* / .ve-row-*）。
@@ -44,7 +44,7 @@ export function PropertyItemValue({
 interface PropertyGroupProps {
   /** 可选：语义化分组才需要标题（如导出弹层的「格式/质量」、文字的「样式」）。
    *  自解释型分组（变换/外观/速度…）不传 title，直接省掉整行标题，不再占一行。
-   *  ⚠️ 一个组 = 一个折叠头。组内若还有若干并列段落，用 `PropertySubsection` 标小节，
+   *  ⚠️ 一个组 = 一个折叠头。组内若还有若干并列段落，用**带顶边框的 `PropertyItem`** 作分隔行，
    *  不要再套 `PropertyGroup title` —— 那会让面板长出多个需要分别点开的折叠头。 */
   title?: string;
   children: React.ReactNode;
@@ -136,19 +136,7 @@ export function PropertyGroup({
   );
 }
 
-/**
- * 组内**小节标题** —— 给"合在一个折叠头下、但内部还有几段"的组用。
- *
- * 【为什么要它，而不是再套一层 `PropertyGroup title`】
- * 一个折叠头 = 一次开合动作。背景 / 描边 / 阴影三段各自折叠时，
- * 面板出现三个平级折叠头（用户口径："一人一个"），
- * 而它们其实是同一件事（文字的外观修饰）的三个字段 —— 于是收敛成一个「样式」组，
- * 内部这三段改用**不可折叠**的小节标题区分：既保留了"一眼看出这是三段"，
- * 又不会让面板长出三个需要用户分别去点开的开关。
- *
- * 【层次】字号/颜色都比组头更弱：它是"组内的一行字"，不是"分区标题"。
- * 渲染细节在 ve-theme.css §8（`.ve-pg-sub`）。
- */
-export function PropertySubsection({ label }: { label: string }) {
-  return <div className="ve-pg-sub">{label}</div>;
-}
+// 【已删 · 退役留痕（2026-09-16）】原 `PropertySubsection`（组内小节标题，`.ve-pg-sub`）
+// 已被"样式组首行带顶边框的 PropertyItem"取代 —— 背景/描边/阴影三段现在各自以一个
+// `<PropertyItem className="border-t border-border/50 pt-2 mt-1">` 作分隔行（text-properties.tsx），
+// 不再需要独立的小节标题组件。该组件零消费方 → 按 knip 死代码闸删除（勿恢复）。

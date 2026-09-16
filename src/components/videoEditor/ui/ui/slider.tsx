@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 /**
  * 滑杆 —— **原生 `<input type="range">`，无依赖**（原 `radix-ui` 的 `Slider.Root/Track/Range/Thumb`）。

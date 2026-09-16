@@ -1,8 +1,11 @@
-import { logger } from '@videoEditor/lib/logger';
-import { Command } from '@videoEditor/engine/commands/base-command';
-import { EditorCore } from '@videoEditor/engine/core';
-import type { TScene } from '@videoEditor/types/timeline';
-import { canDeleteScene, getFallbackSceneAfterDelete } from '@videoEditor/engine/lib/scenes';
+import { logger } from '@/components/videoEditor/lib/logger';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import type { TScene } from '@/components/videoEditor/types/timeline';
+import {
+  canDeleteScene,
+  getFallbackSceneAfterDelete,
+} from '@/components/videoEditor/engine/lib/scenes';
 
 export class DeleteSceneCommand extends Command {
   private savedScenes: TScene[] | null = null;

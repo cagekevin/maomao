@@ -1,11 +1,11 @@
-import { Command } from '@videoEditor/engine/commands/base-command';
-import type { TrackType, TimelineTrack } from '@videoEditor/types/timeline';
-import { generateUUID } from '@videoEditor/utils/id';
-import { EditorCore } from '@videoEditor/engine/core';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import type { TrackType, TimelineTrack } from '@/components/videoEditor/types/timeline';
+import { generateUUID } from '@/components/videoEditor/utils/id';
+import { EditorCore } from '@/components/videoEditor/engine/core';
 import {
   buildEmptyTrack,
   getDefaultInsertIndexForTrack,
-} from '@videoEditor/engine/timeline/track-utils';
+} from '@/components/videoEditor/engine/timeline/track-utils';
 
 export class AddTrackCommand extends Command {
   private trackId: string;

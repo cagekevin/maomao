@@ -1,5 +1,5 @@
-import { buildTextElement } from '@videoEditor/engine/timeline/element-utils';
-import type { CreateTextElement, TextElement } from '@videoEditor/types/timeline';
+import { buildTextElement } from '@/components/videoEditor/engine/timeline/element-utils';
+import type { CreateTextElement, TextElement } from '@/components/videoEditor/types/timeline';
 
 /**
  * 字幕模板可覆盖的样式字段 —— **相对 `DEFAULT_TEXT_ELEMENT` 的覆盖差**。

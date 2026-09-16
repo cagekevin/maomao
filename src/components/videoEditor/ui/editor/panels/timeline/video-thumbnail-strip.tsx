@@ -1,8 +1,8 @@
 'use client';
 
 import { useLayoutEffect, useRef, useMemo } from 'react';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
-import { timelineThumbnailCache } from '@videoEditor/engine/services/timeline-thumbnail/service';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import { timelineThumbnailCache } from '@/components/videoEditor/engine/services/timeline-thumbnail/service';
 
 const ASYNC_LOAD_DEBOUNCE_MS = 150;
 const MAX_CANVAS_DIMENSION = 8192;

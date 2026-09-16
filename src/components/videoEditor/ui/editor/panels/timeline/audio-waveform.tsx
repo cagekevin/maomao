@@ -1,5 +1,6 @@
-import { logger } from '@videoEditor/lib/logger';
+import { logger } from '@/components/videoEditor/lib/logger';
 import { useEffect, useRef, useState } from 'react';
+import { releaseQuietly } from '@/components/base/utils/asyncGuard.ts';
 import WaveSurfer from 'wavesurfer.js';
 import { MissingMediaIndicator } from './missing-media-indicator';
 
@@ -70,9 +71,8 @@ function AudioWaveform({
 
       if (!currentWaveSurfer) return;
 
-      try {
-        currentWaveSurfer.destroy();
-      } catch {} // catch-ok: RELEASE_FAIL
+      // TD-16-3：释放失败走 `RELEASE_FAIL` 唯一实现（原语自带理由），不再手写 catch-ok 标记。
+      releaseQuietly(() => currentWaveSurfer.destroy());
     };
 
     const initWaveSurfer = async () => {
@@ -98,9 +98,8 @@ function AudioWaveform({
         if (mounted) {
           wavesurfer.current = newWaveSurfer;
         } else {
-          try {
-            newWaveSurfer.destroy();
-          } catch {} // catch-ok: RELEASE_FAIL
+          // TD-16-3：同上，走 releaseQuietly 原语。
+          releaseQuietly(() => newWaveSurfer.destroy());
           return;
         }
 

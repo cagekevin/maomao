@@ -1,5 +1,8 @@
-import type { EditorCore } from '@videoEditor/engine/core';
-import { buildUploadAudioElement, wouldElementOverlap } from '@videoEditor/engine/timeline';
+import type { EditorCore } from '@/components/videoEditor/engine/core';
+import {
+  buildUploadAudioElement,
+  wouldElementOverlap,
+} from '@/components/videoEditor/engine/timeline';
 
 export interface TtsResult {
   duration: number;

@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import dagre from 'dagre';
 import type { Edge, Node } from '@xyflow/react';
-import { INPUT_PANEL_NODE_TYPES } from '../components/base/canvas/nodeDefaults';
+import { INPUT_PANEL_NODE_TYPES, withNodeSize } from '../components/base/canvas/nodeDefaults';
 import { packComponents } from '../components/base/utils/arrangePack';
 
 /** 一次排版的结果：新布局的 nodes + 原样透传的 edges */
@@ -258,17 +258,8 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
               ? { ...node.data, expanded: false }
               : node.data,
             // group 节点写回真实尺寸（外接矩形，否则框大小对不上内部子节点）。
-            // ⚠️ 必须同时写 width/height（与 style 一致）：NodeShell 根 div 读 `n.width ?? n.style?.width`
-            // 是 width 优先，只写 style 会让 root 尺寸与 React Flow wrapper(style) 错位 → 端口/环绕错位，
-            // 且落盘快照 width 与 style 不一致。与 `useNodeResize.onMainBoxResize` 的「width+height+style
-            // 三写」不变量保持一致（TD-04-16 尺寸写回唯一化；此前只写 style 是漏网点，见 TD-04-19）。
-            ...(isGroup
-              ? {
-                  width: pos.width,
-                  height: pos.height,
-                  style: { ...node.style, width: pos.width, height: pos.height },
-                }
-              : {}),
+            // TD-04-28：三写不变量走唯一实现 withNodeSize（此前本处手抄，与 uiHooks / groupNodes 三份）。
+            ...(isGroup ? withNodeSize(node, pos.width, pos.height) : {}),
           });
         });
 

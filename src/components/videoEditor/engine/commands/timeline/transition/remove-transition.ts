@@ -1,7 +1,7 @@
-import { Command } from '@videoEditor/engine/commands/base-command';
-import { EditorCore } from '@videoEditor/engine/core';
-import type { TimelineTrack, VideoTrack } from '@videoEditor/types/timeline';
-import { removeTransitionFromTrack } from '@videoEditor/engine/timeline/transition-utils';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import type { TimelineTrack, VideoTrack } from '@/components/videoEditor/types/timeline';
+import { removeTransitionFromTrack } from '@/components/videoEditor/engine/timeline/transition-utils';
 
 export interface RemoveTransitionParams {
   trackId: string;

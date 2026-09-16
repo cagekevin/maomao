@@ -1,9 +1,9 @@
-import { logger } from '@videoEditor/lib/logger';
-import { Command } from '@videoEditor/engine/commands/base-command';
-import { EditorCore } from '@videoEditor/engine/core';
-import type { MediaAsset } from '@videoEditor/types/assets';
-import { generateUUID } from '@videoEditor/utils/id';
-import { storageService } from '@videoEditor/engine/services/storage/service';
+import { logger } from '@/components/videoEditor/lib/logger';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import { generateUUID } from '@/components/videoEditor/utils/id';
+import { storageService } from '@/components/videoEditor/engine/services/storage/service';
 
 export class AddMediaAssetCommand extends Command {
   private assetId: string;

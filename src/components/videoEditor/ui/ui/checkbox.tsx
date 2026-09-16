@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Check } from 'lucide-react';
 
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 /**
  * 复选框 —— **原生 `<button role="checkbox">`，无依赖**（原 `radix-ui` 的 `Checkbox.Root`）。

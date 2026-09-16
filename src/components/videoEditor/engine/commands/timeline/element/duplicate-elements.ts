@@ -1,11 +1,11 @@
-import { Command } from '@videoEditor/engine/commands/base-command';
-import type { TimelineElement, TimelineTrack } from '@videoEditor/types/timeline';
-import { generateUUID } from '@videoEditor/utils/id';
-import { EditorCore } from '@videoEditor/engine/core';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import type { TimelineElement, TimelineTrack } from '@/components/videoEditor/types/timeline';
+import { generateUUID } from '@/components/videoEditor/utils/id';
+import { EditorCore } from '@/components/videoEditor/engine/core';
 import {
   buildEmptyTrack,
   getHighestInsertIndexForTrack,
-} from '@videoEditor/engine/timeline/track-utils';
+} from '@/components/videoEditor/engine/timeline/track-utils';
 
 interface DuplicateElementsParams {
   elements: { trackId: string; elementId: string }[];

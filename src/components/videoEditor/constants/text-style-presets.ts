@@ -1,4 +1,4 @@
-import type { TextElement, TextStroke, TextShadow } from '@videoEditor/types/timeline';
+import type { TextElement, TextStroke, TextShadow } from '@/components/videoEditor/types/timeline';
 
 export interface TextStylePreset {
   id: string;

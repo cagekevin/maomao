@@ -5,11 +5,11 @@ import type {
   TranscriptionProgress,
   TranscriptionModelId,
   TranscriptionChunk,
-} from '@videoEditor/types/transcription';
+} from '@/components/videoEditor/types/transcription';
 import {
   DEFAULT_TRANSCRIPTION_MODEL,
   TRANSCRIPTION_MODELS,
-} from '@videoEditor/constants/transcription-constants';
+} from '@/components/videoEditor/constants/transcription-constants';
 import type { WorkerMessage, WorkerResponse } from './worker';
 
 type ProgressCallback = (progress: TranscriptionProgress) => void;

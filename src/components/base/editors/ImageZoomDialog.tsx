@@ -24,6 +24,7 @@ import {
   downloadUrl,
 } from '../utils/clipboard.ts';
 import { createRafBatch } from '../core/utils.ts';
+import { setCrossOriginForReadable } from '../utils/asyncGuard.ts';
 import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
 
 interface ImageZoomDialogProps {
@@ -237,12 +238,14 @@ function ImageZoomDialog({
             <video
               ref={(el) => {
                 imgRef.current = el;
+                // TD-22-55：crossOrigin 走跨源裁决单点（同源不设 / 真跨源才 anonymous）。
+                // 「复制当前帧」会回读 canvas，静态恒设 'anonymous' 会让同源源被污染 → toBlob 返 null。
+                if (el) setCrossOriginForReadable(el, src);
               }}
               src={src}
               controls
               playsInline
               preload="metadata"
-              crossOrigin="anonymous"
               onClick={(e) => e.stopPropagation()}
               className="max-w-full max-h-[85vh] object-contain rounded-lg"
             />

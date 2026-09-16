@@ -2,7 +2,7 @@
 
 import { Eye, EyeOff, X } from 'lucide-react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 import { Button } from './button';
 import { forwardRef, type ComponentProps } from 'react';
 import { useState } from 'react';

@@ -3,7 +3,7 @@
 import * as ResizablePrimitive from 'react-resizable-panels';
 import { GripVertical } from 'lucide-react';
 
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 const ResizablePanelGroup = ({
   className,

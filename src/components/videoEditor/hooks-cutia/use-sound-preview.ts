@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { logger } from '@videoEditor/lib/logger';
-import type { SoundEffect } from '@videoEditor/types/sounds';
+import { logger } from '@/components/videoEditor/lib/logger';
+import type { SoundEffect } from '@/components/videoEditor/types/sounds';
 
 type PreviewableSound = Pick<SoundEffect, 'id' | 'previewUrl'>;
 

@@ -1,4 +1,4 @@
-import { Button } from '@videoEditor/ui/ui/button';
+import { Button } from '@/components/videoEditor/ui/ui/button';
 import {
   Dialog,
   DialogBody,
@@ -6,10 +6,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@videoEditor/ui/ui/dialog';
-import { Alert, AlertDescription, AlertTitle } from '@videoEditor/ui/ui/alert';
-import { Label } from '@videoEditor/ui/ui/label';
-import { Input } from '@videoEditor/ui/ui/input';
+} from '@/components/videoEditor/ui/ui/dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/videoEditor/ui/ui/alert';
+import { Label } from '@/components/videoEditor/ui/ui/label';
+import { Input } from '@/components/videoEditor/ui/ui/input';
 
 export function DeleteProjectDialog({
   isOpen,

@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { formatTimeCode, parseTimeCode } from '@videoEditor/engine/lib/time';
-import type { TTimeCode } from '@videoEditor/types/time';
-import { cn } from '@videoEditor/utils/ui';
+import { formatTimeCode, parseTimeCode } from '@/components/videoEditor/engine/lib/time';
+import type { TTimeCode } from '@/components/videoEditor/types/time';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 interface EditableTimecodeProps {
   time: number;

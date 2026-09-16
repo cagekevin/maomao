@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import type { TimelineTrack } from '@videoEditor/types/timeline';
-import { getTrackHeight } from '@videoEditor/engine/timeline/track-utils';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
+import { getTrackHeight } from '@/components/videoEditor/engine/timeline/track-utils';
 
 export interface TrackReorderState {
   isDragging: boolean;

@@ -12,6 +12,7 @@
  */
 
 import { contentGet, contentSet } from '../core/contentStore.ts';
+import { KEY_YIMAO_PROMPT_HUB_CACHE } from '../core/contracts.ts';
 // 【出口回收】所有网络请求统一走 httpRequest（自带超时/取消/错误分类），禁止裸写 fetch
 import { httpRequest } from '../api/httpClient.ts';
 
@@ -102,7 +103,8 @@ export function getPromptHubSources(): PromptSource[] {
   return DEFAULT_PROMPT_HUB_SOURCES;
 }
 
-const CACHE_KEY = 'yimao_prompt_hub_cache';
+// TD-13-4：键名唯一真源 = contracts.ts 的 KEY_YIMAO_PROMPT_HUB_CACHE（不再本地复刻字面量）。
+const CACHE_KEY = KEY_YIMAO_PROMPT_HUB_CACHE;
 const CACHE_TTL_MS = 1000 * 60 * 60; // 1 小时
 
 /**

@@ -1,13 +1,14 @@
-import { logger } from '@videoEditor/lib/logger';
+import { logger } from '@/components/videoEditor/lib/logger';
 import { subscribe } from '../../../../base/core/eventBus.ts';
-import type { EditorCore } from '@videoEditor/engine/core';
-import type { AudioClipSource } from '@videoEditor/engine/lib/media/audio';
+import { releaseQuietly } from '../../../../base/utils/asyncGuard.ts';
+import type { EditorCore } from '@/components/videoEditor/engine/core';
+import type { AudioClipSource } from '@/components/videoEditor/engine/lib/media/audio';
 import {
   createAudioContext,
   collectAudioClips,
   reverseAudioBuffer,
-} from '@videoEditor/engine/lib/media/audio';
-import { getVisualSourceTime } from '@videoEditor/engine/timeline/element-utils';
+} from '@/components/videoEditor/engine/lib/media/audio';
+import { getVisualSourceTime } from '@/components/videoEditor/engine/timeline/element-utils';
 
 export class AudioManager {
   private audioContext: AudioContext | null = null;
@@ -308,9 +309,8 @@ export class AudioManager {
 
   private stopPlayback(): void {
     for (const source of this.queuedSources) {
-      try {
-        source.stop();
-      } catch {} // catch-ok: RELEASE_FAIL
+      // TD-16-3：`stop()` 失败走 `RELEASE_FAIL` 唯一实现（原语自带理由），不再手写 catch-ok 标记。
+      releaseQuietly(() => source.stop());
       source.disconnect();
     }
     this.queuedSources.clear();

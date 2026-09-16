@@ -205,6 +205,24 @@ export const VIDEO_EDITOR_PROJECTS_PREFIX = 'video_editor_projects_';
 export const VIDEO_EDITOR_ACTIVE_PREFIX = 'video_editor_active_project_';
 export const VIDEO_EDITOR_PROJECT_PREFIX = 'video_editor_project_';
 
+/**
+ * 固定存储键的**可 import 命名常量**（TD-13-4 收口 · 母体 M7「SSOT 第二份」）。
+ *
+ * 【为什么必须导出命名 const，而不是让各模块本地复刻】`STORAGE_KEYS` 登记表自述为「持久化层
+ * 单一事实来源」，但拥有这些键的 store 模块此前各自又声明一份本地 `const STORAGE_KEY = '...'`
+ * —— 同一键名**两份维护**（登记表 + 模块本地），且模块那份被真实读写。一旦改名只改一处，
+ * 该键在 `getLocalKeys()` 生成的**备份 / 云同步清单**里即漂移 → 漏备 / 误还原（数据完整性风险）。
+ * ⇒ 正解 = 登记表导出命名 const，模块 `import` 引用，键名全仓唯一定义。
+ * （模板照 `CANVAS_STATE_PREFIX` / `VIDEO_EDITOR_*_PREFIX` / `agentKeys.AGENT_KEY_PREFIX`。）
+ */
+export const KEY_YIMAO_ASSET_LIBRARY = 'yimao_asset_library';
+export const KEY_YIMAO_PRESET_RECENT = 'yimao_preset_recent';
+export const KEY_YIMAO_ACCOUNTS = 'yimao_accounts';
+export const KEY_YIMAO_PRESET_PROMPTS = 'yimao_preset_prompts';
+export const KEY_YIMAO_PROMPT_HUB_CACHE = 'yimao_prompt_hub_cache';
+export const KEY_YIMAO_NODE_PREFS = 'yimao_node_prefs';
+export const KEY_YIMAO_CLOUD_SYNC_LEDGER = 'yimao_cloud_sync_ledger';
+
 export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   // ── 项目（projectStore）────────────────────────────────────────────
   projects: {
@@ -291,13 +309,13 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   },
 
   // ── 提示词预设（promptManager）─────────────────────────────────────
-  yimao_preset_prompts: {
+  [KEY_YIMAO_PRESET_PROMPTS]: {
     domain: 'preset',
     store: 'promptManager.js',
     backend: 'local',
     note: '提示词预设列表 [{id, title, type, prompt, enabled}]',
   },
-  yimao_preset_recent: {
+  [KEY_YIMAO_PRESET_RECENT]: {
     domain: 'preset',
     store: 'promptManager.js',
     backend: 'local',
@@ -305,7 +323,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   },
 
   // ── 素材库（resourceStore）────────────────────────────────────────────
-  yimao_asset_library: {
+  [KEY_YIMAO_ASSET_LIBRARY]: {
     domain: 'resource',
     store: 'resourceStore.ts',
     backend: 'local',
@@ -314,7 +332,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
 
   // ── 提示词社区库（promptHubStore.js，联网 GitHub 源，非本地预设）──
   // 注意：与 promptManager.js 的 yimao_preset_prompts（我的预设）是两回事。
-  yimao_prompt_hub_cache: {
+  [KEY_YIMAO_PROMPT_HUB_CACHE]: {
     domain: 'prompthub',
     store: 'promptHubStore.js',
     backend: 'local',
@@ -322,7 +340,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   },
 
   // ── 节点偏好（nodePrefs）───────────────────────────────────────────
-  yimao_node_prefs: {
+  [KEY_YIMAO_NODE_PREFS]: {
     domain: 'pref',
     store: 'nodePrefs.js',
     backend: 'local',
@@ -330,7 +348,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   },
 
   // ── 账号环境（accountsStore）───────────────────────────────────────
-  yimao_accounts: {
+  [KEY_YIMAO_ACCOUNTS]: {
     domain: 'account',
     store: 'accountsStore.js',
     backend: 'kv',
@@ -431,7 +449,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   // ⚠️ 绝不能进云端：每台机器基线不同，同步它会互相污染判断 → 已由 cloudSync.ts 的
   //    SYNC_EXCLUDE 显式排除（domain 标 sync 只为归类，不依赖 SYNC_DOMAIN_SWITCHES）。
   // 进备份是自洽的：备份恢复时台账随数据一并还原，不会误报冲突。
-  yimao_cloud_sync_ledger: {
+  [KEY_YIMAO_CLOUD_SYNC_LEDGER]: {
     domain: 'sync',
     store: 'cloudSync.ts',
     backend: 'local',
@@ -449,6 +467,14 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     fallback: true, // TD-7 方案A：双通道镜像，KV 成功后保留本地降级副本
     timeout: KV_TIMEOUT, // 独立超时，KV 不可达快失败降级（不挂起编辑）
     note: '3D 导演台工程默认 key（独立运行时）→ KV 主通道 + localStorage 降级副本（双通道，TD-7 方案A 收编 contentStore）',
+  },
+  // TD-07-7：旧键（stageframe 期命名），仅迁移读 + 读后删，不再写。登记以消除「裸 localStorage 闸扫不到」盲区。
+  'stageframe-project': {
+    domain: 'director3d',
+    store: 'director3d/project.ts',
+    backend: 'local',
+    migration: 'director3d-project',
+    note: '3D 导演台旧工程键（stageframe 期）→ 迁移读入 director3d-project 后删除，仅读不写',
   },
   'director3d-project-{nodeId}': {
     domain: 'director3d',
@@ -795,6 +821,14 @@ export const apiRegistry: Record<string, ApiRegistryEntry> = {
     envelope: 'raw',
     status: 'ACTIVE',
     note: '贴纸图标唯一出站口（原样透传；上游 api.iconify.design→simplesvg→unisvg 三家回落收在后端）。实现在 videoEditor/engine/lib/iconify-api.ts',
+  },
+  hfProxy: {
+    fn: 'applyHfProxyHost',
+    method: 'GET',
+    path: '/api/hf/{x}',
+    envelope: 'raw',
+    status: 'ACTIVE',
+    note: '转写模型唯一出站口（huggingface 原样透传：/api/hf/<model>/resolve/<rev>/<file> → huggingface.co）。实现在 videoEditor/engine/services/transcription/hf-proxy.ts，由 transcription/worker.ts 在 pipeline 前调用设为 env.remoteHost',
   },
 
   // ── Generate（relayProxy 门面：submit → 轮询 attach；chat 出站统一走此处）──

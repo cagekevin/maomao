@@ -221,7 +221,9 @@ class SphereErrorBoundary extends React.Component<
     return { failed: true };
   }
   componentDidCatch(error: unknown) {
-    console.error('[Pano] 全景球体渲染失败', error);
+    // TD-04-29：崩溃须走 logger（可查 + 上报 /api/logs），与同文件他处一致；
+    // 裸 console.error 只进浏览器控制台，用户侧崩溃不可追溯。
+    logger.error('panoNode', '全景球体渲染失败', error);
   }
   render() {
     if (this.state.failed) {

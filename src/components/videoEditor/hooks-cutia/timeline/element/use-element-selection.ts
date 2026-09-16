@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 
 type ElementRef = { trackId: string; elementId: string };
 

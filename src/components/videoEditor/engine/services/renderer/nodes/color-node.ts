@@ -1,4 +1,4 @@
-import { drawCssBackground } from '@videoEditor/engine/lib/gradients';
+import { drawCssBackground } from '@/components/videoEditor/engine/lib/gradients';
 import type { CanvasRenderer } from '../canvas-renderer';
 import { BaseNode } from './base-node';
 

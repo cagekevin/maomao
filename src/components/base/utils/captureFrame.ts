@@ -72,35 +72,24 @@
  */
 
 /**
- * 一个媒体 URL 是否**跨源**（需要 `crossOrigin='anonymous'` / 让 canvas 可读）？
+ * 跨源裁决单点（**唯一实现已下沉 `asyncGuard.ts`** · TD-16-2 / TD-22-55 收口）。
  *
- * 【为什么抽帧必须按同源/跨源分情况（2026-09-13 取证修正）】
+ * 【为什么必须按同源/跨源分情况（2026-09-13 取证修正）】
  * 本模块的素材 = 本地 `/files/`（经 `toAbsoluteFileUrl` → `API_BASE + /files/…`）。
  * 生产发布时页面**部署在 localTool 18080 端口可与 /files/ 同源**（`config.ts:17`）。
  * 若对**同源** URL 设了 `crossOrigin='anonymous'`：元素会走 CORS 模式请求，而网关对
  * `/files/*` 未必回 `Access-Control-Allow-Origin` ⇒ 该媒体成为"不透明（opaque）"、
  * canvas **被污染**、`toBlob` 拿到的回调是 `null` ⇒ 抽帧静默失败 ⇒ 时间轴视频无缩略图。
- * 故：**同源不设**（读像素无需 CORS），**真跨源才设 anonymous**。这同时是旧实现（恒设）
- * 在"页面内嵌到 localTool 同源"部署形态下的错误修正 —— 不是兜底，是让抽帧一次到位。
+ * 故：**同源不设**（读像素无需 CORS），**真跨源才设 anonymous**。
+ *
+ * 【为什么是 re-export 而不是本文件自己实现】该判决此前只服务抽帧，但 `clipboard` / `asyncGuard`
+ * / 剪辑器 renderer 都需同一裁决却各自手写（恒设 anonymous → 重演上述缺陷）。
+ * 唯一实现下沉到 `asyncGuard.ts`（更底层，且 `captureFrame → asyncGuard` 已有单向依赖），
+ * 本文件 re-export 保持 6 处既有视频链路消费方**零改动**。
  */
-import { releaseQuietly } from './asyncGuard.ts';
+import { releaseQuietly, setCrossOriginForReadable } from './asyncGuard.ts';
 
-export function setCrossOriginForReadable(video: HTMLVideoElement, url: string) {
-  if (sameOriginUrl(url)) return; // 同源：不强制 CORS，canvas 可读
-  video.crossOrigin = 'anonymous';
-}
-
-/** URL 与当前页面是否同源（相对路径 / blob: / 同 origin 绝对地址 → 同源）。 */
-function sameOriginUrl(url: string): boolean {
-  if (!url) return true;
-  if (url.startsWith('/') || url.startsWith('blob:') || url.startsWith('data:')) return true;
-  try {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    return new URL(url, origin || undefined).origin === origin;
-  } catch {
-    return false;
-  }
-}
+export { setCrossOriginForReadable };
 interface DrawVideoFrameErrors {
   /** 视频加载失败（`error` 事件） */
   load?: string;

@@ -321,6 +321,14 @@ export default function FaceMosaicEditor({ assetUrl, onSave, onClose }: FaceMosa
                   title={c}
                 />
               ))}
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                className="mao-color-input w-4 h-4"
+                title="自定义颜色"
+                aria-label="自定义颜色"
+              />
             </div>
           </>
         )}

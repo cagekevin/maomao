@@ -1,5 +1,5 @@
-import { generateUUID } from '@videoEditor/utils/id';
-import type { SerializedScene } from '@videoEditor/engine/services/storage/types';
+import { generateUUID } from '@/components/videoEditor/utils/id';
+import type { SerializedScene } from '@/components/videoEditor/engine/services/storage/types';
 import type { MigrationResult, ProjectRecord } from './types';
 import { isRecord } from './utils';
 

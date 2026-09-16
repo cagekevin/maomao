@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Check, ChevronRight, Circle } from 'lucide-react';
 import { cva, type VariantProps } from 'class-variance-authority';
 
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 import { MenuItemBase, MenuRoot, MenuSubTriggerBase, MenuSurface, MenuTrigger } from './menu/menu';
 
 /**

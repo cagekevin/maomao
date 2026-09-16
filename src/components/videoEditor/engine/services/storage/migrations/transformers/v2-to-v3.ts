@@ -1,5 +1,5 @@
-import { getProjectDurationFromScenes } from '@videoEditor/engine/lib/scenes';
-import type { TScene } from '@videoEditor/types/timeline';
+import { getProjectDurationFromScenes } from '@/components/videoEditor/engine/lib/scenes';
+import type { TScene } from '@/components/videoEditor/types/timeline';
 import type { MigrationResult, ProjectRecord } from './types';
 import { getProjectId, isRecord } from './utils';
 

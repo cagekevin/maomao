@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { cva, type VariantProps } from 'class-variance-authority';
 
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 import { composeRefs } from './layer/compose-refs';
 import { LayerPortal } from './layer/layer-root';
 import {
@@ -287,8 +287,8 @@ const SelectTrigger = React.forwardRef<
         setOpen(true);
       }}
       className={cn(
-        'bg-accent ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-8 w-auto cursor-pointer items-center justify-between gap-1 rounded-md px-3 py-2 text-sm whitespace-nowrap focus:ring-1 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1',
-        'focus:border-primary focus:ring-4 focus:ring-primary/10 border-transparent transition-none',
+        'bg-muted text-foreground ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-8 w-auto cursor-pointer items-center justify-between gap-1 rounded-md px-3 py-2 text-sm whitespace-nowrap focus:ring-1 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1',
+        'focus:border-primary focus:ring-4 focus:ring-primary/10 border border-border transition-none',
         className,
       )}
       {...props}

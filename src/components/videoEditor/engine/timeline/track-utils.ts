@@ -7,9 +7,9 @@ import type {
   StickerTrack,
   TextTrack,
   TimelineElement,
-} from '@videoEditor/types/timeline';
-import { TRACK_HEIGHTS, TRACK_GAP } from '@videoEditor/constants/timeline-constants';
-import { generateUUID } from '@videoEditor/utils/id';
+} from '@/components/videoEditor/types/timeline';
+import { TRACK_HEIGHTS, TRACK_GAP } from '@/components/videoEditor/constants/timeline-constants';
+import { generateUUID } from '@/components/videoEditor/utils/id';
 
 export function canTracktHaveAudio(track: TimelineTrack): track is VideoTrack | AudioTrack {
   return track.type === 'audio' || track.type === 'video';

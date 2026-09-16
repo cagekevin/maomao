@@ -1,21 +1,21 @@
-import { logger } from '@videoEditor/lib/logger';
+import { logger } from '@/components/videoEditor/lib/logger';
 import { useState, useCallback, type RefObject } from 'react';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { processMediaAssets } from '@videoEditor/engine/lib/media/processing';
-import { toast } from '@videoEditor/lib/toast';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
-import { snapTimeToFrame } from '@videoEditor/engine/lib/time';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { processMediaAssets } from '@/components/videoEditor/engine/lib/media/processing';
+import { toast } from '@/components/videoEditor/lib/toast';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import { snapTimeToFrame } from '@/components/videoEditor/engine/lib/time';
 import {
   buildTextElement,
   buildStickerElement,
   buildUploadAudioElement,
   buildVideoElement,
   buildImageElement,
-} from '@videoEditor/engine/timeline/element-utils';
-import { computeDropTarget } from '@videoEditor/engine/timeline/drop-utils';
-import { getDragData, hasDragData } from '@videoEditor/engine/lib/drag-data';
-import type { TrackType, DropTarget, ElementType } from '@videoEditor/types/timeline';
-import type { MediaDragData, StickerDragData } from '@videoEditor/types/drag';
+} from '@/components/videoEditor/engine/timeline/element-utils';
+import { computeDropTarget } from '@/components/videoEditor/engine/timeline/drop-utils';
+import { getDragData, hasDragData } from '@/components/videoEditor/engine/lib/drag-data';
+import type { TrackType, DropTarget, ElementType } from '@/components/videoEditor/types/timeline';
+import type { MediaDragData, StickerDragData } from '@/components/videoEditor/types/drag';
 
 interface UseTimelineDragDropProps {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -269,6 +269,7 @@ export function useTimelineDragDrop({
             name: mediaAsset.name,
             duration,
             startTime: target.xPosition,
+            hasAudio: mediaAsset.hasAudio, // TD-21-17：🔊 角标数据源
           }),
         });
       } else {
@@ -348,6 +349,7 @@ export function useTimelineDragDrop({
               name: mediaAsset.name,
               duration,
               startTime: dropTarget.xPosition,
+              hasAudio: mediaAsset.hasAudio, // TD-21-17：🔊 角标数据源
             }),
           });
         } else {

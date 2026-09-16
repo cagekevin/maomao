@@ -1,9 +1,9 @@
-// 【为何直引文件而非 barrel】`@videoEditor/engine/commands`（barrel）会拉进
+// 【为何直引文件而非 barrel】`@/components/videoEditor/engine/commands`（barrel）会拉进
 // `timeline/transition/add-transition.ts` → `engine/core` → 本文件，形成**模块环**
 // （本文件是 `EditorCore` 构造期就 new 的，环会在加载序上埋 TDZ 风险）。
 // `batch-command.ts` 只依赖 `base-command.ts`（零依赖）→ 直引它是无环的。
-import { BatchCommand } from '@videoEditor/engine/commands/batch-command';
-import type { Command } from '@videoEditor/engine/commands/base-command';
+import { BatchCommand } from '@/components/videoEditor/engine/commands/batch-command';
+import type { Command } from '@/components/videoEditor/engine/commands/base-command';
 
 export class CommandManager {
   private history: Command[] = [];

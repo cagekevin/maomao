@@ -151,6 +151,32 @@ describe('asyncGuard.loadImageWithTimeout（统一图片加载入口）', () => 
     loadImageWithTimeout('http://x/a.png');
     expect(img.crossOrigin).toBe('anonymous');
   });
+
+  // TD-16-2 收口：默认不再恒设 anonymous —— 同源 URL 走 SSOT 裁决（同源不设）。
+  // 旧实现（`crossOrigin = 'anonymous'` 恒设）在此先红：同源 `/files/*` 走 CORS 模式 → 污染 canvas。
+  it('同源 URL（默认）→ 不设 crossOrigin（SSOT 裁决，canvas 保持可读）', () => {
+    const img: {
+      src: string;
+      crossOrigin: string;
+      onload: (() => void) | null;
+      onerror: (() => void) | null;
+    } = { src: '', crossOrigin: '', onload: null, onerror: null };
+    global.Image = vi.fn(() => img) as unknown as typeof Image;
+    loadImageWithTimeout('/files/a.png');
+    expect(img.crossOrigin).toBeFalsy();
+  });
+
+  it('显式 crossOrigin: null → 去掉 crossOrigin（loadImageOrNull 二级重试用）', () => {
+    const img: {
+      src: string;
+      crossOrigin: string;
+      onload: (() => void) | null;
+      onerror: (() => void) | null;
+    } = { src: '', crossOrigin: 'anonymous', onload: null, onerror: null };
+    global.Image = vi.fn(() => img) as unknown as typeof Image;
+    loadImageWithTimeout('/files/a.png', { crossOrigin: null });
+    expect(img.crossOrigin).toBeFalsy();
+  });
 });
 
 describe('asyncGuard.releaseQuietly / releaseQuietlyAsync（RELEASE_FAIL 唯一实现 · TD-02-26 成本层收口）', () => {

@@ -80,6 +80,7 @@ import {
 } from './routes/providers.js';
 import { handleSoundsLibrary } from './routes/sounds.js';
 import { handleIconifyProxy } from './routes/iconify.js';
+import { handleHfProxy } from './routes/hf.js';
 import { handlePassthrough } from './routes/passthrough.js';
 import {
   handleLocalPatchCrop,
@@ -198,6 +199,10 @@ export const routes: Route[] = [
   // ── 贴纸图标代理（iconify 唯一出站口；前端三处直连公网收口于此，TD-22-47）──
   // 前缀路由：原样透传 /api/iconify/<iconify 原路径>（含 query），上游三家回落收在后端一份。
   { method: 'GET', pattern: /^\/api\/iconify\//, handler: handleIconifyProxy },
+
+  // ── 转写模型代理（huggingface 唯一出站口；transformers.js 直连收口于此，TD-22-57）──
+  // 前缀路由：原样透传 /api/hf/<model>/resolve/<rev>/<file>（含 query）。
+  { method: 'GET', pattern: /^\/api\/hf\//, handler: handleHfProxy },
 
   // ── 剪映 ──
   { method: 'POST', pattern: '/api/jianying/send', handler: handleJianyingSend },

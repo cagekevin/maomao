@@ -1,5 +1,5 @@
-import type { TTimelineViewState } from '@videoEditor/types/project';
-import type { TrackType } from '@videoEditor/types/timeline';
+import type { TTimelineViewState } from '@/components/videoEditor/types/project';
+import type { TrackType } from '@/components/videoEditor/types/timeline';
 import { Music, Smile, Type, Video } from 'lucide-react';
 
 export const TRACK_HEIGHTS: Record<TrackType, number> = {

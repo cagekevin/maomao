@@ -10,7 +10,7 @@ export type MediaType = 'image' | 'video' | 'audio';
  * ⇒ **types 层反向 import engine 层**（层位倒置、埋循环依赖隐患）。
  * 它本身**零 engine 依赖**（只用到同层的 `MediaType`）⇒ 移到这里是把层位摆正，
  * 而 `engine/services/storage/types.ts` 改为 re-export，既有消费方零改动。
- * ⚠️ 本文件**不得** import `@videoEditor/engine*`（见同目录 `archLayering` 守卫）。
+ * ⚠️ 本文件**不得** import `@/components/videoEditor/engine*`（见同目录 `archLayering` 守卫）。
  */
 export interface MediaAssetData {
   id: string;
@@ -22,6 +22,8 @@ export interface MediaAssetData {
   height?: number;
   duration?: number;
   fps?: number;
+  /** 视频文件是否含音轨（TD-21-17：贴「带原声视频」🔊 角标用；非视频/未探测到 → undefined）。 */
+  hasAudio?: boolean;
   ephemeral?: boolean;
   thumbnailUrl?: string;
   /** T4（docs/134）：素材二进制落 localTool /files/ 后的可访问 URL（替代 OPFS 二进制存储）。 */

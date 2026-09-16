@@ -1,7 +1,11 @@
-import type { TimelineTrack, TimelineElement, Transform } from '@videoEditor/types/timeline';
-import type { MediaAsset } from '@videoEditor/types/assets';
-import type { TCanvasSize } from '@videoEditor/types/project';
-import { isMainTrack } from '@videoEditor/engine/timeline';
+import type {
+  TimelineTrack,
+  TimelineElement,
+  Transform,
+} from '@/components/videoEditor/types/timeline';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { TCanvasSize } from '@/components/videoEditor/types/project';
+import { isMainTrack } from '@/components/videoEditor/engine/timeline';
 import { getElementHalfSize, getElementCenterInCanvas } from './element-bounds';
 
 export interface HitResult {

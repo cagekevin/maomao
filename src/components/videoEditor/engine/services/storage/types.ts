@@ -1,6 +1,10 @@
-import type { MediaType } from '@videoEditor/types/assets';
-import type { TProject, TProjectMetadata, TTimelineViewState } from '@videoEditor/types/project';
-import type { TScene } from '@videoEditor/types/timeline';
+import type { MediaType } from '@/components/videoEditor/types/assets';
+import type {
+  TProject,
+  TProjectMetadata,
+  TTimelineViewState,
+} from '@/components/videoEditor/types/project';
+import type { TScene } from '@/components/videoEditor/types/timeline';
 export interface StorageAdapter<T> {
   get(key: string): Promise<T | null>;
   set(key: string, value: T): Promise<void>;
@@ -10,10 +14,10 @@ export interface StorageAdapter<T> {
 }
 
 /**
- * `MediaAssetData` 已**下沉到 `@videoEditor/types/assets`**（TD-22-31：斩断 types→engine 反向边）。
+ * `MediaAssetData` 已**下沉到 `@/components/videoEditor/types/assets`**（TD-22-31：斩断 types→engine 反向边）。
  * 此处 re-export 是为让既有消费方（`engine/services/storage/*` 等）**零改动**。
  */
-export type { MediaAssetData } from '@videoEditor/types/assets';
+export type { MediaAssetData } from '@/components/videoEditor/types/assets';
 
 export type SerializedScene = Omit<TScene, 'createdAt' | 'updatedAt'> & {
   createdAt: string;

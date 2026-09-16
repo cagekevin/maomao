@@ -1,4 +1,4 @@
-import type { TCanvasSize } from '@videoEditor/types/project';
+import type { TCanvasSize } from '@/components/videoEditor/types/project';
 
 export interface CanvasSizePreset {
   label: string;

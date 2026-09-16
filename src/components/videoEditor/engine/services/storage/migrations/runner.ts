@@ -1,7 +1,7 @@
 import {
   IndexedDBAdapter,
   deleteDatabase,
-} from '@videoEditor/engine/services/storage/indexeddb-adapter';
+} from '@/components/videoEditor/engine/services/storage/indexeddb-adapter';
 import type { StorageMigration } from './base';
 import type { ProjectRecord } from './transformers/types';
 import { getProjectId, isRecord } from './transformers/utils';

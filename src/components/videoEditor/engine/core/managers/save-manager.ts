@@ -1,7 +1,7 @@
-import { logger } from '@videoEditor/lib/logger';
-import type { EditorCore } from '@videoEditor/engine/core';
-import type { SaveFailure, SaveOutcome } from '@videoEditor/types/project';
-import { toast } from '@videoEditor/lib/toast';
+import { logger } from '@/components/videoEditor/lib/logger';
+import type { EditorCore } from '@/components/videoEditor/engine/core';
+import type { SaveFailure, SaveOutcome } from '@/components/videoEditor/types/project';
+import { toast } from '@/components/videoEditor/lib/toast';
 // 更新(2026-09-14)：agent-store 已随 AI 域删除。
 
 type SaveManagerOptions = {

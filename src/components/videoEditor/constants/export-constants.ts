@@ -1,4 +1,4 @@
-import type { ExportOptions } from '@videoEditor/types/export';
+import type { ExportOptions } from '@/components/videoEditor/types/export';
 
 export const DEFAULT_EXPORT_OPTIONS = {
   format: 'mp4',

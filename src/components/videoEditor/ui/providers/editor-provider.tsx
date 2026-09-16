@@ -18,15 +18,18 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import {
   useKeybindingsListener,
   useKeybindingDisabler,
-} from '@videoEditor/hooks-cutia/use-keybindings';
-import { useEditorActions } from '@videoEditor/hooks-cutia/actions/use-editor-actions';
+} from '@/components/videoEditor/hooks-cutia/use-keybindings';
+import { useEditorActions } from '@/components/videoEditor/hooks-cutia/actions/use-editor-actions';
 // ── T5：上下文注入（docs/134）+ active 键读取（storageService 已封装为领域方法）。
-import { setEditorContext, clearEditorContext } from '@videoEditor/engine/services/storage/service';
-import { storageService } from '@videoEditor/engine/services/storage/service';
+import {
+  setEditorContext,
+  clearEditorContext,
+} from '@/components/videoEditor/engine/services/storage/service';
+import { storageService } from '@/components/videoEditor/engine/services/storage/service';
 
 interface EditorProviderProps {
   /** 画布项目 id（`useCurrentProjectId()`）——非 editorId。 */

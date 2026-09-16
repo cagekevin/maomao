@@ -1,15 +1,15 @@
 'use client';
 
-import { useElementSelection } from '@videoEditor/hooks-cutia/timeline/element/use-element-selection';
+import { useElementSelection } from '@/components/videoEditor/hooks-cutia/timeline/element/use-element-selection';
 import { TimelineElement } from './timeline-element';
 import { TrackTransitionOverlays } from './timeline-transition-overlay';
-import type { TimelineTrack, VideoTrack } from '@videoEditor/types/timeline';
-import type { TimelineElement as TimelineElementType } from '@videoEditor/types/timeline';
-import type { SnapPoint } from '@videoEditor/hooks-cutia/timeline/use-timeline-snapping';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
-import { useEdgeAutoScroll } from '@videoEditor/hooks-cutia/timeline/use-edge-auto-scroll';
-import type { ElementDragState } from '@videoEditor/types/timeline';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
+import type { TimelineTrack, VideoTrack } from '@/components/videoEditor/types/timeline';
+import type { TimelineElement as TimelineElementType } from '@/components/videoEditor/types/timeline';
+import type { SnapPoint } from '@/components/videoEditor/hooks-cutia/timeline/use-timeline-snapping';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import { useEdgeAutoScroll } from '@/components/videoEditor/hooks-cutia/timeline/use-edge-auto-scroll';
+import type { ElementDragState } from '@/components/videoEditor/types/timeline';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 
 interface TimelineTrackContentProps {
   track: TimelineTrack;

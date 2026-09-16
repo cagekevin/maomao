@@ -3,8 +3,8 @@ import type {
   VideoElement,
   ImageElement,
   VideoTrack,
-} from '@videoEditor/types/timeline';
-import type { MediaAsset } from '@videoEditor/types/assets';
+} from '@/components/videoEditor/types/timeline';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import { RootNode } from './nodes/root-node';
 import { VideoNode } from './nodes/video-node';
 import { ImageNode } from './nodes/image-node';
@@ -14,10 +14,10 @@ import { ColorNode } from './nodes/color-node';
 import { BlurBackgroundNode } from './nodes/blur-background-node';
 import { TransitionNode } from './nodes/transition-node';
 import type { BaseNode } from './nodes/base-node';
-import type { TBackground, TCanvasSize } from '@videoEditor/types/project';
-import { DEFAULT_BLUR_INTENSITY } from '@videoEditor/constants/project-constants';
-import { isMainTrack } from '@videoEditor/engine/timeline';
-import { isBottomAlignedSubtitleText } from '@videoEditor/engine/timeline/text-utils';
+import type { TBackground, TCanvasSize } from '@/components/videoEditor/types/project';
+import { DEFAULT_BLUR_INTENSITY } from '@/components/videoEditor/constants/project-constants';
+import { isMainTrack } from '@/components/videoEditor/engine/timeline';
+import { isBottomAlignedSubtitleText } from '@/components/videoEditor/engine/timeline/text-utils';
 
 export type BuildSceneParams = {
   canvasSize: TCanvasSize;

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { invokeAction } from '@videoEditor/engine/lib/actions';
-import { useKeybindingsStore } from '@videoEditor/stores/keybindings-store';
+import { invokeAction } from '@/components/videoEditor/engine/lib/actions';
+import { useKeybindingsStore } from '@/components/videoEditor/stores/keybindings-store';
 
 /**
  * a composable that hooks to the caller component's

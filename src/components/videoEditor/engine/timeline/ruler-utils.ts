@@ -1,4 +1,4 @@
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
 
 /**
  * frame intervals for labels - starts at 2 so there's always at least

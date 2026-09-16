@@ -1,6 +1,6 @@
 'use client';
 
-import { ScrollArea } from '@videoEditor/ui/ui/scroll-area';
+import { ScrollArea } from '@/components/videoEditor/ui/ui/scroll-area';
 import {
   GripVertical,
   Volume2,
@@ -17,18 +17,21 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '../../../ui/context-menu';
-import { useTimelineZoom } from '@videoEditor/hooks-cutia/timeline/use-timeline-zoom';
+import { useTimelineZoom } from '@/components/videoEditor/hooks-cutia/timeline/use-timeline-zoom';
 import { useState, useRef, useCallback } from 'react';
 import { TimelineTrackContent } from './timeline-track';
 import { TimelinePlayhead } from './timeline-playhead';
 import { SelectionBox } from '../../selection-box';
-import { useSelectionBox } from '@videoEditor/hooks-cutia/timeline/use-selection-box';
+import { useSelectionBox } from '@/components/videoEditor/hooks-cutia/timeline/use-selection-box';
 import { SnapIndicator } from './snap-indicator';
-import type { SnapPoint } from '@videoEditor/hooks-cutia/timeline/use-timeline-snapping';
-import type { TimelineTrack } from '@videoEditor/types/timeline';
-import { IS_DEV } from '@videoEditor/constants/editor-constants';
-import { TIMELINE_CONSTANTS, TRACK_ICONS } from '@videoEditor/constants/timeline-constants';
-import { useElementInteraction } from '@videoEditor/hooks-cutia/timeline/element/use-element-interaction';
+import type { SnapPoint } from '@/components/videoEditor/hooks-cutia/timeline/use-timeline-snapping';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
+import { IS_DEV } from '@/components/videoEditor/constants/editor-constants';
+import {
+  TIMELINE_CONSTANTS,
+  TRACK_ICONS,
+} from '@/components/videoEditor/constants/timeline-constants';
+import { useElementInteraction } from '@/components/videoEditor/hooks-cutia/timeline/element/use-element-interaction';
 import {
   getTrackHeight,
   getCumulativeHeightBefore,
@@ -38,21 +41,21 @@ import {
   getTimelineZoomMin,
   getTimelinePaddingPx,
   isMainTrack,
-} from '@videoEditor/engine/timeline';
+} from '@/components/videoEditor/engine/timeline';
 import { TimelineToolbar } from './timeline-toolbar';
-import { useScrollSync } from '@videoEditor/hooks-cutia/timeline/use-scroll-sync';
-import { useElementSelection } from '@videoEditor/hooks-cutia/timeline/element/use-element-selection';
-import { useTimelineSeek } from '@videoEditor/hooks-cutia/timeline/use-timeline-seek';
-import { useTimelineDragDrop } from '@videoEditor/hooks-cutia/timeline/use-timeline-drag-drop';
+import { useScrollSync } from '@/components/videoEditor/hooks-cutia/timeline/use-scroll-sync';
+import { useElementSelection } from '@/components/videoEditor/hooks-cutia/timeline/element/use-element-selection';
+import { useTimelineSeek } from '@/components/videoEditor/hooks-cutia/timeline/use-timeline-seek';
+import { useTimelineDragDrop } from '@/components/videoEditor/hooks-cutia/timeline/use-timeline-drag-drop';
 import { TimelineRuler } from './timeline-ruler';
 import { TimelineBookmarksRow } from './bookmarks';
-import { useTimelineStore } from '@videoEditor/stores/timeline-store';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { useTimelinePlayhead } from '@videoEditor/hooks-cutia/timeline/use-timeline-playhead';
+import { useTimelineStore } from '@/components/videoEditor/stores/timeline-store';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { useTimelinePlayhead } from '@/components/videoEditor/hooks-cutia/timeline/use-timeline-playhead';
 import { DragLine } from './drag-line';
-import { invokeAction } from '@videoEditor/engine/lib/actions';
-import { useTrackReorder } from '@videoEditor/hooks-cutia/timeline/use-track-reorder';
-import { cn } from '@videoEditor/utils/ui';
+import { invokeAction } from '@/components/videoEditor/engine/lib/actions';
+import { useTrackReorder } from '@/components/videoEditor/hooks-cutia/timeline/use-track-reorder';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 export function Timeline() {
   const tracksContainerHeight = { min: 0, max: 800 };

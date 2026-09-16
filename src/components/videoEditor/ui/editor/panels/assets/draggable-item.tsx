@@ -2,14 +2,14 @@
 
 import { Minus, Plus } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { AspectRatio } from '@videoEditor/ui/ui/aspect-ratio';
-import { LayerPortal } from '@videoEditor/ui/ui/layer/layer-root';
-import { Button } from '@videoEditor/ui/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@videoEditor/ui/ui/tooltip';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { setDragData } from '@videoEditor/engine/lib/drag-data';
-import type { TimelineDragData } from '@videoEditor/types/drag';
-import { cn } from '@videoEditor/utils/ui';
+import { AspectRatio } from '@/components/videoEditor/ui/ui/aspect-ratio';
+import { LayerPortal } from '@/components/videoEditor/ui/ui/layer/layer-root';
+import { Button } from '@/components/videoEditor/ui/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/videoEditor/ui/ui/tooltip';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { setDragData } from '@/components/videoEditor/engine/lib/drag-data';
+import type { TimelineDragData } from '@/components/videoEditor/types/drag';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 export interface DraggableItemProps {
   name: string;

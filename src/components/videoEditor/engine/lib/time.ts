@@ -1,4 +1,4 @@
-import type { TTimeCode } from '@videoEditor/types/time';
+import type { TTimeCode } from '@/components/videoEditor/types/time';
 
 export function roundToFrame({ time, fps }: { time: number; fps: number }): number {
   return Math.round(time * fps) / fps;

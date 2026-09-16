@@ -1,19 +1,22 @@
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import type {
   Transform,
   TimelineTrack,
   TimelineElement,
   TextElement,
-} from '@videoEditor/types/timeline';
-import { hitTestElements } from '@videoEditor/engine/lib/preview/hit-test';
-import { FONT_SIZE_SCALE_REFERENCE } from '@videoEditor/constants/text-constants';
+} from '@/components/videoEditor/types/timeline';
+import { hitTestElements } from '@/components/videoEditor/engine/lib/preview/hit-test';
+import { FONT_SIZE_SCALE_REFERENCE } from '@/components/videoEditor/constants/text-constants';
 import {
   getElementHalfSize,
   getElementCenterInCanvas,
   type ElementHalfSize,
-} from '@videoEditor/engine/lib/preview/element-bounds';
-import { computePreviewSnap, type SnapGuide } from '@videoEditor/engine/lib/preview/snap';
+} from '@/components/videoEditor/engine/lib/preview/element-bounds';
+import {
+  computePreviewSnap,
+  type SnapGuide,
+} from '@/components/videoEditor/engine/lib/preview/snap';
 
 type ScaleHandle = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 type ResizeHandle = 'left' | 'right';

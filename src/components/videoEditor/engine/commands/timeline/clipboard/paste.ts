@@ -1,14 +1,18 @@
-import { Command } from '@videoEditor/engine/commands/base-command';
-import { EditorCore } from '@videoEditor/engine/core';
-import type { TimelineTrack, TimelineElement, ClipboardItem } from '@videoEditor/types/timeline';
-import { generateUUID } from '@videoEditor/utils/id';
-import { wouldElementOverlap } from '@videoEditor/engine/timeline/element-utils';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import type {
+  TimelineTrack,
+  TimelineElement,
+  ClipboardItem,
+} from '@/components/videoEditor/types/timeline';
+import { generateUUID } from '@/components/videoEditor/utils/id';
+import { wouldElementOverlap } from '@/components/videoEditor/engine/timeline/element-utils';
 import {
   buildEmptyTrack,
   getHighestInsertIndexForTrack,
   isMainTrack,
   enforceMainTrackStart,
-} from '@videoEditor/engine/timeline/track-utils';
+} from '@/components/videoEditor/engine/timeline/track-utils';
 
 export class PasteCommand extends Command {
   private savedState: TimelineTrack[] | null = null;

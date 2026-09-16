@@ -1,13 +1,18 @@
 import {
   pipeline,
   WhisperTextStreamer,
+  env,
   type AutomaticSpeechRecognitionPipeline,
 } from '@huggingface/transformers';
-import type { TranscriptionSegment, TranscriptionChunk } from '@videoEditor/types/transcription';
+import { applyHfProxyHost } from './hf-proxy';
+import type {
+  TranscriptionSegment,
+  TranscriptionChunk,
+} from '@/components/videoEditor/types/transcription';
 import {
   DEFAULT_CHUNK_LENGTH_SECONDS,
   DEFAULT_STRIDE_SECONDS,
-} from '@videoEditor/constants/transcription-constants';
+} from '@/components/videoEditor/constants/transcription-constants';
 
 export type WorkerMessage =
   | {
@@ -94,6 +99,8 @@ async function handleInit({
   fileBytes.clear();
 
   try {
+    // TD-22-57：模型出站统一走 localTool 代理（必须在 pipeline 之前设，否则库已用默认 host 发请求）。
+    applyHfProxyHost(env);
     transcriber = (await pipeline('automatic-speech-recognition', modelId, {
       dtype: {
         encoder_model: encoderDtype,

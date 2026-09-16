@@ -1,6 +1,6 @@
 import { useSyncExternalStore, useMemo } from 'react';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { cn } from '@videoEditor/utils/ui';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { cn } from '@/components/videoEditor/utils/ui';
 import type {
   TimelineElement,
   VideoElement,
@@ -8,10 +8,10 @@ import type {
   TextElement,
   StickerElement,
   ElementType,
-} from '@videoEditor/types/timeline';
-import type { MediaAsset } from '@videoEditor/types/assets';
-import { FONT_SIZE_SCALE_REFERENCE } from '@videoEditor/constants/text-constants';
-import { isBottomAlignedSubtitleText } from '@videoEditor/engine/timeline/text-utils';
+} from '@/components/videoEditor/types/timeline';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import { FONT_SIZE_SCALE_REFERENCE } from '@/components/videoEditor/constants/text-constants';
+import { isBottomAlignedSubtitleText } from '@/components/videoEditor/engine/timeline/text-utils';
 
 type ScaleHandle = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 type ResizeHandle = 'left' | 'right';

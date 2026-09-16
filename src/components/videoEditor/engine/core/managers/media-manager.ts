@@ -1,15 +1,15 @@
-import { logger } from '@videoEditor/lib/logger';
-import type { EditorCore } from '@videoEditor/engine/core';
+import { logger } from '@/components/videoEditor/lib/logger';
+import type { EditorCore } from '@/components/videoEditor/engine/core';
 import type {
   AddMediaAssetOutcome,
   LoadProjectMediaOutcome,
   MediaAsset,
-} from '@videoEditor/types/assets';
-import { storageService } from '@videoEditor/engine/services/storage/service';
-import { generateUUID } from '@videoEditor/utils/id';
-import { videoCache } from '@videoEditor/engine/services/video-cache/service';
-import { collectElementsByMediaId } from '@videoEditor/engine/timeline/element-utils';
-import { toast } from '@videoEditor/lib/toast';
+} from '@/components/videoEditor/types/assets';
+import { storageService } from '@/components/videoEditor/engine/services/storage/service';
+import { generateUUID } from '@/components/videoEditor/utils/id';
+import { videoCache } from '@/components/videoEditor/engine/services/video-cache/service';
+import { collectElementsByMediaId } from '@/components/videoEditor/engine/timeline/element-utils';
+import { toast } from '@/components/videoEditor/lib/toast';
 
 export class MediaManager {
   private assets: MediaAsset[] = [];

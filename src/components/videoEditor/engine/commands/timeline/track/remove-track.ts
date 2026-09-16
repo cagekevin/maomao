@@ -1,7 +1,7 @@
-import { Command } from '@videoEditor/engine/commands/base-command';
-import { EditorCore } from '@videoEditor/engine/core';
-import type { TimelineTrack } from '@videoEditor/types/timeline';
-import { getMainTrack } from '@videoEditor/engine/timeline';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
+import { getMainTrack } from '@/components/videoEditor/engine/timeline';
 
 export class RemoveTrackCommand extends Command {
   private savedState: TimelineTrack[] | null = null;

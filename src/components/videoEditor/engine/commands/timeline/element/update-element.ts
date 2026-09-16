@@ -1,6 +1,6 @@
-import { Command } from '@videoEditor/engine/commands/base-command';
-import type { TimelineTrack } from '@videoEditor/types/timeline';
-import { EditorCore } from '@videoEditor/engine/core';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
+import { EditorCore } from '@/components/videoEditor/engine/core';
 
 export class UpdateElementCommand extends Command {
   private savedState: TimelineTrack[] | null = null;

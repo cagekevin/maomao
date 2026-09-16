@@ -1,8 +1,8 @@
 import { useCallback, useRef } from 'react';
 import type { MutableRefObject, RefObject } from 'react';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
-import { getSnappedSeekTime } from '@videoEditor/engine/lib/time';
-import { useMediaPreviewStore } from '@videoEditor/stores/media-preview-store';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import { getSnappedSeekTime } from '@/components/videoEditor/engine/lib/time';
+import { useMediaPreviewStore } from '@/components/videoEditor/stores/media-preview-store';
 import { useEditor } from '../use-editor';
 
 interface UseTimelineSeekProps {

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 
 /**
  * 进度条 —— **原生 div + ARIA，无依赖**（原 `radix-ui` 的 `Progress.Root/Indicator`）。
@@ -29,7 +29,7 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
       aria-valuemin={0}
       aria-valuemax={max}
       aria-valuenow={typeof value === 'number' ? value : undefined}
-      className={cn('bg-accent relative h-2 w-full overflow-hidden rounded-full', className)}
+      className={cn('bg-muted relative h-2 w-full overflow-hidden rounded-full', className)}
       {...props}
     >
       <div

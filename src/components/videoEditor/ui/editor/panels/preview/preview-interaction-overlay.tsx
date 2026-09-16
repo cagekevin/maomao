@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { usePreviewInteraction } from '@videoEditor/hooks-cutia/use-preview-interaction';
+import { usePreviewInteraction } from '@/components/videoEditor/hooks-cutia/use-preview-interaction';
 import { SelectionOverlay } from './selection-overlay';
 import { GuideLines } from './guide-lines';
 

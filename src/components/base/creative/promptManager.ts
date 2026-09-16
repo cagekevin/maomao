@@ -11,6 +11,7 @@
  *   recordRecent(id) / getRecent()
  */
 import { contentGet, contentSet } from '../core/contentStore.ts';
+import { KEY_YIMAO_PRESET_PROMPTS, KEY_YIMAO_PRESET_RECENT } from '../core/contracts.ts';
 import { publish } from '../core/eventBus.ts';
 import { generateId } from '../core/idGen.ts';
 
@@ -33,8 +34,9 @@ export interface LibraryCard {
   isLocal: boolean;
 }
 
-const STORAGE_KEY = 'yimao_preset_prompts';
-const RECENT_KEY = 'yimao_preset_recent';
+// TD-13-4：键名唯一真源 = contracts.ts（不再本地复刻字面量）。
+const STORAGE_KEY = KEY_YIMAO_PRESET_PROMPTS;
+const RECENT_KEY = KEY_YIMAO_PRESET_RECENT;
 
 // 内置示例预设（首次使用、或本地清空时兜底展示，方便直观看到效果）
 export const DEFAULT_PRESETS: Preset[] = [

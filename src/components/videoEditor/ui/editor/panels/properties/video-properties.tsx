@@ -1,16 +1,16 @@
 'use client';
 
-import { Slider } from '@videoEditor/ui/ui/slider';
-import { Input } from '@videoEditor/ui/ui/input';
-import { Button } from '@videoEditor/ui/ui/button';
+import { Slider } from '@/components/videoEditor/ui/ui/slider';
+import { Input } from '@/components/videoEditor/ui/ui/input';
+import { Button } from '@/components/videoEditor/ui/ui/button';
 import { Minus, Plus } from 'lucide-react';
 import { useReducer, useRef } from 'react';
 
-import { PanelBaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
+import { PanelBaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup, PropertyItem, PropertyItemLabel, PropertyItemValue } from './property-item';
-import { clamp } from '@videoEditor/utils/math';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import type { ImageElement, VideoElement } from '@videoEditor/types/timeline';
+import { clamp } from '@/components/videoEditor/utils/math';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import type { ImageElement, VideoElement } from '@/components/videoEditor/types/timeline';
 import {
   MAX_PLAYBACK_RATE,
   MIN_PLAYBACK_RATE,
@@ -18,7 +18,7 @@ import {
   clampPlaybackRate,
   formatSpeedLabel,
   stepPlaybackRate,
-} from '@videoEditor/engine/timeline/speed-utils';
+} from '@/components/videoEditor/engine/timeline/speed-utils';
 
 export function VideoProperties({
   _element: element,

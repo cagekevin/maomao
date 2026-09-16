@@ -3,9 +3,9 @@ import type {
   TrackTransition,
   VideoElement,
   ImageElement,
-} from '@videoEditor/types/timeline';
-import { generateUUID } from '@videoEditor/utils/id';
-import type { TransitionType } from '@videoEditor/types/timeline';
+} from '@/components/videoEditor/types/timeline';
+import { generateUUID } from '@/components/videoEditor/utils/id';
+import type { TransitionType } from '@/components/videoEditor/types/timeline';
 
 type VisualElement = VideoElement | ImageElement;
 

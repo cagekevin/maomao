@@ -1,4 +1,4 @@
-import type { TimelineDragData } from '@videoEditor/types/drag';
+import type { TimelineDragData } from '@/components/videoEditor/types/drag';
 
 /**
  * 时间轴拖拽载荷的编解码（**唯一真源**）。

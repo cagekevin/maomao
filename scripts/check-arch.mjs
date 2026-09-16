@@ -135,17 +135,10 @@ function extractImportAbs(code, filepath) {
   } catch (e) {
     /* 语法错误：交由 build/type-check 兜底，此处跳过该文件依赖追踪 */
   }
-  // 解析为绝对路径（相对 + `@/` + `@videoEditor/` 两个已登记别名）
-  const VE_ALIAS = '@videoEditor';
+  // 解析为绝对路径（相对 + `@/` 两个已登记别名）
   const resolved = out
     .map((spec) => {
       if (spec.startsWith('@/')) return resolve(root, 'src', spec.slice(2));
-      // 【2026-09-15 · TD-22-53 补】原实现只认 `@/`，**`@videoEditor/*` 被当"外部 npm 包"整体丢弃**
-      //   ⇒ 凡以该别名书写的依赖边，对**全部分层规则隐形**（规则 2 base / 规则 4′ 引擎区↔改造区）——
-      //   而 videoEditor 域内代码几乎**全用该别名** ⇒ 判据可被别名绕过 = 又一个假守卫。
-      //   别名已在 `tsconfig.json` / `vite.config.ts` 双向登记，此处按同一映射解析。
-      if (spec === VE_ALIAS || spec.startsWith(VE_ALIAS + '/'))
-        return resolve(root, 'src/components/videoEditor', spec.slice(VE_ALIAS.length + 1));
       if (spec.startsWith('.')) return resolve(dirname(filepath), spec);
       return null; // 外部 npm 包，不参与内部循环/分层
     })
@@ -347,7 +340,7 @@ for (const f of files) {
   veTypesScanned++;
   const bad = [];
   const judge = (spec, line) => {
-    if (typeof spec === 'string' && spec.startsWith('@videoEditor/engine')) bad.push({ spec, line });
+    if (typeof spec === 'string' && spec.startsWith('@/components/videoEditor/engine')) bad.push({ spec, line });
   };
   let ast;
   try {
@@ -1195,6 +1188,125 @@ if (assertScanned('事件广播唯一通道（src 全域）', globalBroadcastSca
   console.log(
     `  ✅ 无自建广播通道（扫 ${globalBroadcastScanned} 文件；均走 eventBus + EVENTS 登记）`,
   );
+}
+
+// 规则 11（TD-16-2 / TD-22-55，2026-09-16）：跨源裁决**唯一单点** —— src 内禁裸写 `crossOrigin = 'anonymous'`。
+//
+// 【为什么】`base/utils/captureFrame.ts` 文件头（现下沉 `base/utils/asyncGuard.ts::setCrossOriginForReadable`）
+//   确立了唯一裁决：**同源不设 / 真跨源才设 anonymous**。理由：同源 `/files/*` 若被设 `anonymous`，
+//   元素走 CORS 模式而网关未必回 CORS 头 ⇒ 媒体 opaque ⇒ canvas 被污染 ⇒ `toBlob`/`getImageData`
+//   静默 `null`（TD-22-1 客观缺陷）。该红线**只有注释、无机器守卫**（M2 母体），实测漏网 ≥6 处：
+//   `asyncGuard` 默认值 / `clipboard.toBlob` / 剪辑器 `image-node` `sticker-node` / `ImageZoomDialog`
+//   / `VideoExtractNode` 预览 —— 全部恒设 `'anonymous'`，精确重演缺陷。
+//
+// 【判据（反向）】src/** 内任何 `x.crossOrigin = 'anonymous'` / `<el crossOrigin="anonymous">` → 违规。
+//   · 不限定目录 ⇒ 不随模块改名失效（与规则 2/4/10「清单 → 反向判据」同款手法）；
+//   · 唯一豁免 = 单点实现自身（`asyncGuard.ts`）；其余一律改走 `setCrossOriginForReadable(el, url)`；
+//   · 纯展示态若确无需 canvas 回读，也**不要**静态恒设（直接不写该属性 = 同源默认）。
+//   · 【诚实边界】只机器化「字面量 anonymous」这一半；运行时由变量决定的 crossOrigin 不在此判定
+//     （那类仍靠结构约定）。本规则的目标 = 挡住"照抄一行恒设"这一最常见回潮形态。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n🖼 跨源裁决唯一单点：禁裸写 crossOrigin="anonymous"（反向判据）');
+const CROSSORIGIN_SSOT =
+  'src/components/base/utils/asyncGuard.ts'; // 唯一实现处（setCrossOriginForReadable）
+let crossOriginViol = 0;
+let crossOriginScanned = 0;
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  crossOriginScanned++;
+  if (rel === CROSSORIGIN_SSOT) continue; // 单点实现自身豁免
+  let ast;
+  try {
+    ast = parse(readFileSync(f, 'utf8'), {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: true,
+    });
+  } catch {
+    continue;
+  }
+  const hits = [];
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) {
+      n.forEach(walk);
+      return;
+    }
+    // ① 赋值形态：`el.crossOrigin = 'anonymous'`
+    if (
+      n.type === 'AssignmentExpression' &&
+      n.left?.type === 'MemberExpression' &&
+      n.left.property?.name === 'crossOrigin' &&
+      n.right?.type === 'StringLiteral' &&
+      n.right.value === 'anonymous'
+    ) {
+      hits.push({ line: n.loc?.start?.line, form: "`el.crossOrigin = 'anonymous'`" });
+    }
+    // ② JSX 属性形态：`<video crossOrigin="anonymous">`
+    if (n.type === 'JSXAttribute' && n.name?.name === 'crossOrigin') {
+      const v = n.value;
+      if (v?.type === 'StringLiteral' && v.value === 'anonymous') {
+        hits.push({ line: n.loc?.start?.line, form: '`<el crossOrigin="anonymous">`' });
+      }
+    }
+    for (const k in n)
+      if (k !== 'loc' && k !== 'range' && typeof n[k] === 'object' && n[k] !== null) walk(n[k]);
+  };
+  walk(ast.program);
+  for (const h of hits) {
+    crossOriginViol++;
+    fail(
+      `跨源裁决被绕过: ${rel}:${h.line} → ${h.form}` +
+        `（唯一单点 = base/utils/asyncGuard.ts::setCrossOriginForReadable(el, url)：同源不设 / 真跨源才 anonymous）`,
+    );
+  }
+}
+if (assertScanned('跨源裁决唯一单点（src 全域）', crossOriginScanned) && !crossOriginViol) {
+  console.log(`  ✅ 无裸写 crossOrigin（扫 ${crossOriginScanned} 文件；均走单点裁决）`);
+}
+
+// 规则 12（2026-09-16 · 云同步范围白名单）：`getLocalKeys()` 只允许在 2 处出现。
+//
+// 【为什么】云同步范围真源 = `cloudSync.ts` 的 `SYNC_ALLOW`（白名单默认拒绝，用户裁定：工程数据/UI 一律不出机器）。
+//   `getLocalKeys()` 是「全部 local 后端键」，被它消费的地方都必须**显式决定**同步与否：
+//     · `cloudSync.ts`  —— 云同步范围（∩ SYNC_ALLOW，仅设置类）；
+//     · `backupStore.ts` —— 备份范围（全量，备份 ≠ 同步，故意全收）。
+//   若第三处再 `getLocalKeys()` 起一套清单，就是「同步范围第二份」——新增键到底进不进云将取决于改哪一份，
+//   正是本仓 M7 母体（SSOT 第二份）。本规则把它挡在源头（反向判据：只列 2 个合法消费者，其余一律违规）。
+//   ⚠️ 将来若确需第三个合法消费者（如"清理"），改本清单时**必须同时说明它为何不构成第二份同步范围**。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n☁️ 云同步范围白名单：getLocalKeys() 只允许 2 个合法消费者（反向判据）');
+const GETLOCALKEYS_LEGIT = new Set([
+  'src/components/base/core/contracts.ts', // 定义处本身（唯一真源）
+  'src/components/base/store/cloudSync.ts', // 云同步范围（∩ SYNC_ALLOW）
+  'src/components/base/store/backupStore.ts', // 备份范围（全量；备份 ≠ 同步）
+]);
+let getLocalKeysViol = 0;
+let getLocalKeysScanned = 0;
+for (const f of files) {
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+  getLocalKeysScanned++;
+  if (GETLOCALKEYS_LEGIT.has(rel)) continue;
+  let code;
+  try {
+    code = readFileSync(f, 'utf8');
+  } catch {
+    continue;
+  }
+  // 只认「真调用」：`getLocalKeys(` （排除注释/字符串里的提及——用逐行粗筛 + 去行首注释）
+  for (const [i, line] of code.split('\n').entries()) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+    if (/\bgetLocalKeys\s*\(/.test(line)) {
+      getLocalKeysViol++;
+      fail(
+        `云同步范围第二份: ${rel}:${i + 1} → 调用了 getLocalKeys()（唯一合法消费者 = cloudSync.ts(∩SYNC_ALLOW) / backupStore.ts(全量)）`,
+      );
+    }
+  }
+}
+if (assertScanned('云同步范围白名单（src 全域）', getLocalKeysScanned) && !getLocalKeysViol) {
+  console.log(`  ✅ getLocalKeys() 仅 2 个合法消费者（扫 ${getLocalKeysScanned} 文件）`);
 }
 
 console.log(`\n${errors === 0 ? '✅ 架构校验通过' : `❌ ${errors} 处架构违规`}`);

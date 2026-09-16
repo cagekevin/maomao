@@ -1,4 +1,4 @@
-import { logger } from '@videoEditor/lib/logger';
+import { logger } from '@/components/videoEditor/lib/logger';
 import { create } from 'zustand';
 import {
   getCollections,
@@ -7,11 +7,11 @@ import {
   type IconSet,
   type CollectionInfo,
   type IconSearchResult,
-} from '@videoEditor/engine/lib/iconify-api';
-import { EditorCore } from '@videoEditor/engine/core';
-import { buildStickerElement } from '@videoEditor/engine/timeline/element-utils';
-import { STICKER_CATEGORY_CONFIG } from '@videoEditor/constants/stickers-constants';
-import type { StickerCategory } from '@videoEditor/types/stickers';
+} from '@/components/videoEditor/engine/lib/iconify-api';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import { buildStickerElement } from '@/components/videoEditor/engine/timeline/element-utils';
+import { STICKER_CATEGORY_CONFIG } from '@/components/videoEditor/constants/stickers-constants';
+import type { StickerCategory } from '@/components/videoEditor/types/stickers';
 
 type ViewMode = 'search' | 'browse' | 'collection';
 

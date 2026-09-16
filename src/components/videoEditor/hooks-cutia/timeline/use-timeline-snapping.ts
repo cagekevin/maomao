@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import type { TimelineTrack } from '@videoEditor/types/timeline';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
 
 export interface SnapPoint {
   time: number;

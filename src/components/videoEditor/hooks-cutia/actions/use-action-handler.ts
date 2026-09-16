@@ -5,8 +5,8 @@ import type {
   TActionHandlerOptions,
   TArgOfAction,
   TInvocationTrigger,
-} from '@videoEditor/engine/lib/actions';
-import { bindAction, unbindAction } from '@videoEditor/engine/lib/actions';
+} from '@/components/videoEditor/engine/lib/actions';
+import { bindAction, unbindAction } from '@/components/videoEditor/engine/lib/actions';
 
 export function useActionHandler<A extends TAction>(
   action: A,

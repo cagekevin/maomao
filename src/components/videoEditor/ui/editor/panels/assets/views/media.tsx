@@ -1,51 +1,51 @@
 'use client';
-import { logger } from '@videoEditor/lib/logger';
+import { logger } from '@/components/videoEditor/lib/logger';
 
 import { useMemo, useState } from 'react';
-import { toast } from '@videoEditor/lib/toast';
-import { MediaDragOverlay } from '@videoEditor/ui/editor/panels/assets/drag-overlay';
-import { DraggableItem } from '@videoEditor/ui/editor/panels/assets/draggable-item';
+import { toast } from '@/components/videoEditor/lib/toast';
+import { MediaDragOverlay } from '@/components/videoEditor/ui/editor/panels/assets/drag-overlay';
+import { DraggableItem } from '@/components/videoEditor/ui/editor/panels/assets/draggable-item';
 import {
   PanelBaseView as BaseView,
   PanelState,
-} from '@videoEditor/ui/editor/panels/panel-base-view';
-import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
-import { Button } from '@videoEditor/ui/ui/button';
+} from '@/components/videoEditor/ui/editor/panels/panel-base-view';
+import { PropertyGroup } from '@/components/videoEditor/ui/editor/panels/properties/property-item';
+import { Button } from '@/components/videoEditor/ui/ui/button';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
-} from '@videoEditor/ui/ui/context-menu';
+} from '@/components/videoEditor/ui/ui/context-menu';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@videoEditor/ui/ui/dropdown-menu';
+} from '@/components/videoEditor/ui/ui/dropdown-menu';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@videoEditor/ui/ui/tooltip';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { useFileUpload } from '@videoEditor/hooks-cutia/use-file-upload';
-import { useRevealItem } from '@videoEditor/hooks-cutia/use-reveal-item';
-import { processMediaAssets } from '@videoEditor/engine/lib/media/processing';
+} from '@/components/videoEditor/ui/ui/tooltip';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { useFileUpload } from '@/components/videoEditor/hooks-cutia/use-file-upload';
+import { useRevealItem } from '@/components/videoEditor/hooks-cutia/use-reveal-item';
+import { processMediaAssets } from '@/components/videoEditor/engine/lib/media/processing';
 import {
   buildImageElement,
   buildUploadAudioElement,
   buildVideoElement,
-} from '@videoEditor/engine/timeline/element-utils';
-import { RemoveMediaAssetCommand } from '@videoEditor/engine/commands';
-import { useAssetsPanelStore } from '@videoEditor/stores/assets-panel-store';
-import { useMediaPreviewStore } from '@videoEditor/stores/media-preview-store';
-import type { MediaAsset } from '@videoEditor/types/assets';
-import type { CreateTimelineElement } from '@videoEditor/types/timeline';
-import { cn } from '@videoEditor/utils/ui';
+} from '@/components/videoEditor/engine/timeline/element-utils';
+import { RemoveMediaAssetCommand } from '@/components/videoEditor/engine/commands';
+import { useAssetsPanelStore } from '@/components/videoEditor/stores/assets-panel-store';
+import { useMediaPreviewStore } from '@/components/videoEditor/stores/media-preview-store';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { CreateTimelineElement } from '@/components/videoEditor/types/timeline';
+import { cn } from '@/components/videoEditor/utils/ui';
 import {
   Image,
   Music,
@@ -717,6 +717,7 @@ function createElementFromMedia({
         name: asset.name,
         duration,
         startTime,
+        hasAudio: asset.hasAudio, // TD-21-17：🔊 角标数据源
       });
     case 'image':
       return buildImageElement({

@@ -4,6 +4,7 @@ import { useReactFlow, useUpdateNodeInternals } from '@xyflow/react';
 import { NODE_AREA_FIXED_BASE_SIZE } from './config.ts';
 import { releaseQuietly } from '../utils/asyncGuard.ts';
 import { patchNodeById, patchNodeDataById } from '../../../hooks/useNodeData.ts';
+import { withNodeSize } from '../canvas/nodeDefaults.ts';
 
 /**
  * 判断事件目标是否在可编辑元素内（INPUT / TEXTAREA / contenteditable）。
@@ -228,8 +229,8 @@ export function useNodeResize(id: string): {
 
   const onMainBoxResize = useCallback(
     (w: number, h: number) => {
-      const style = { ...(getNode(id)?.style || {}), width: w, height: h };
-      patchNodeById(setNodes, id, { width: w, height: h, style });
+      // TD-04-28：三写不变量走唯一实现 withNodeSize（此前本处手抄，与 arrange / groupNodes 三份）。
+      patchNodeById(setNodes, id, withNodeSize(getNode(id) || {}, w, h));
       updateNodeInternals(id);
     },
     [id, setNodes, getNode, updateNodeInternals],

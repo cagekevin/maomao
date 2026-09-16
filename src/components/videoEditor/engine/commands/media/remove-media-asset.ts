@@ -1,11 +1,11 @@
-import { logger } from '@videoEditor/lib/logger';
-import { Command } from '@videoEditor/engine/commands/base-command';
-import { EditorCore } from '@videoEditor/engine/core';
-import type { MediaAsset } from '@videoEditor/types/assets';
-import { storageService } from '@videoEditor/engine/services/storage/service';
-import { videoCache } from '@videoEditor/engine/services/video-cache/service';
-import { collectElementsByMediaId } from '@videoEditor/engine/timeline/element-utils';
-import type { TimelineTrack } from '@videoEditor/types/timeline';
+import { logger } from '@/components/videoEditor/lib/logger';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import { storageService } from '@/components/videoEditor/engine/services/storage/service';
+import { videoCache } from '@/components/videoEditor/engine/services/video-cache/service';
+import { collectElementsByMediaId } from '@/components/videoEditor/engine/timeline/element-utils';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 
 export class RemoveMediaAssetCommand extends Command {
   private savedAssets: MediaAsset[] | null = null;

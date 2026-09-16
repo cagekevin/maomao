@@ -1,4 +1,4 @@
-import type { TextElement } from '@videoEditor/types/timeline';
+import type { TextElement } from '@/components/videoEditor/types/timeline';
 
 export function isBottomAlignedSubtitleText({ element }: { element: TextElement }): boolean {
   const normalizedName = element.name.trim().toLowerCase();

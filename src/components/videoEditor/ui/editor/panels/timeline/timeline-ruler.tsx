@@ -1,9 +1,12 @@
 import { type JSX, useLayoutEffect, useRef } from 'react';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
-import { DEFAULT_FPS } from '@videoEditor/constants/project-constants';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { getRulerConfig, shouldShowLabel } from '@videoEditor/engine/timeline/ruler-utils';
-import { useScrollPosition } from '@videoEditor/hooks-cutia/timeline/use-scroll-position';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import { DEFAULT_FPS } from '@/components/videoEditor/constants/project-constants';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import {
+  getRulerConfig,
+  shouldShowLabel,
+} from '@/components/videoEditor/engine/timeline/ruler-utils';
+import { useScrollPosition } from '@/components/videoEditor/hooks-cutia/timeline/use-scroll-position';
 import { TimelineTick } from './timeline-tick';
 
 interface TimelineRulerProps {

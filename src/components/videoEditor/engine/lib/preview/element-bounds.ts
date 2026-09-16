@@ -1,8 +1,8 @@
-import type { TimelineElement, Transform } from '@videoEditor/types/timeline';
-import type { MediaAsset } from '@videoEditor/types/assets';
-import type { TCanvasSize } from '@videoEditor/types/project';
-import { FONT_SIZE_SCALE_REFERENCE } from '@videoEditor/constants/text-constants';
-import { isBottomAlignedSubtitleText } from '@videoEditor/engine/timeline/text-utils';
+import type { TimelineElement, Transform } from '@/components/videoEditor/types/timeline';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { TCanvasSize } from '@/components/videoEditor/types/project';
+import { FONT_SIZE_SCALE_REFERENCE } from '@/components/videoEditor/constants/text-constants';
+import { isBottomAlignedSubtitleText } from '@/components/videoEditor/engine/timeline/text-utils';
 
 export interface ElementHalfSize {
   halfWidth: number;

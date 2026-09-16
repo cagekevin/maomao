@@ -1,4 +1,4 @@
-import type { EditorCore } from '@videoEditor/engine/core';
+import type { EditorCore } from '@/components/videoEditor/engine/core';
 import { publish } from '../../../../base/core/eventBus.ts';
 
 export class PlaybackManager {

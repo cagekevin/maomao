@@ -1,7 +1,7 @@
-import { Command } from '@videoEditor/engine/commands/base-command';
-import type { TimelineTrack } from '@videoEditor/types/timeline';
-import { canElementBeHidden } from '@videoEditor/engine/timeline/element-utils';
-import { EditorCore } from '@videoEditor/engine/core';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
+import { canElementBeHidden } from '@/components/videoEditor/engine/timeline/element-utils';
+import { EditorCore } from '@/components/videoEditor/engine/core';
 
 export class ToggleElementsVisibilityCommand extends Command {
   private savedState: TimelineTrack[] | null = null;

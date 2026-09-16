@@ -36,6 +36,7 @@ import { subscribe } from '../core/eventBus.ts';
 import { isAudio } from '../utils/assetType.ts';
 import VideoThumbnail from '../ui/VideoThumbnail.tsx';
 import LazyImage from '../ui/LazyImage.tsx';
+import InlineNameInput from '../ui/InlineNameInput.tsx';
 import ImageZoomDialog from '../editors/ImageZoomDialog.tsx';
 import type { ResourceItem } from '../api/localToolApi.ts';
 import { toImgDragProps } from '../../../hooks/useAssetDragToCanvas.ts';
@@ -382,64 +383,42 @@ function GeneratedView() {
         />
       </PanelSubBar>
 
-      {/* 新建文件夹输入卡片 */}
+      {/* 新建文件夹输入卡片（TD-19-3：走唯一实现 InlineNameInput） */}
       {creating && (
-        <div className="px-2.5 pt-2 flex-shrink-0">
-          <div className="flex items-center gap-1.5 bg-surface-deep border border-orange-500/40 rounded-lg p-1.5">
-            <input
-              autoFocus
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              onKeyDown={async (e) => {
-                if (e.key === 'Enter') {
-                  const ok = await createFolder(newFolderName.trim());
-                  showToast(ok ? '创建成功' : '创建失败', { type: ok ? 'success' : 'error' });
-                  setCreating(false);
-                } else if (e.key === 'Escape') setCreating(false);
-              }}
-              onBlur={async () => {
-                if (newFolderName.trim() && newFolderName.trim() !== '新建文件夹') {
-                  await createFolder(newFolderName.trim());
-                }
-                setCreating(false);
-              }}
-              className="flex-1 h-7 bg-surface-strong border border-orange-500/40 rounded-md px-2 text-caption-sm text-white outline-none focus:border-orange-500 box-border"
-            />
-            <span className="text-caption text-faint whitespace-nowrap">回车确认</span>
-          </div>
-        </div>
+        <InlineNameInput
+          tone="orange"
+          value={newFolderName}
+          onChange={setNewFolderName}
+          // 回车：无条件建（含默认名）+ toast —— 与旧的 Enter 语义一致
+          onCommit={async () => {
+            const ok = await createFolder(newFolderName.trim());
+            showToast(ok ? '创建成功' : '创建失败', { type: ok ? 'success' : 'error' });
+            setCreating(false);
+          }}
+          // 失焦：仅在改了名时静默建 —— 与旧的 onBlur 语义一致
+          onBlurCommit={async () => {
+            if (newFolderName.trim() && newFolderName.trim() !== '新建文件夹') {
+              await createFolder(newFolderName.trim());
+            }
+            setCreating(false);
+          }}
+          onCancel={() => setCreating(false)}
+        />
       )}
 
-      {/* 重命名输入条 */}
+      {/* 重命名输入条（TD-19-3：走唯一实现 InlineNameInput） */}
       {renameTarget && (
-        <div className="px-2.5 pt-2 flex-shrink-0">
-          <div className="flex items-center gap-1.5 bg-surface-deep border border-blue-500/40 rounded-lg p-1.5">
-            <input
-              autoFocus
-              value={renameName}
-              onChange={(e) => setRenameName(e.target.value)}
-              // 聚焦即自动选中「文件名主体（不含后缀）」，便于直接改；后缀保留以免改错扩展名
-              onFocus={(e) => {
-                const v = e.target.value || '';
-                const dot = v.lastIndexOf('.');
-                const end = dot > 0 ? dot : v.length;
-                e.target.setSelectionRange(0, end);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleRename();
-                } else if (e.key === 'Escape') {
-                  setRenameTarget(null);
-                  setRenameName('');
-                }
-              }}
-              onBlur={handleRename}
-              className="flex-1 h-7 bg-surface-strong border border-blue-500/40 rounded-md px-2 text-caption-sm text-white outline-none focus:border-blue-500 box-border"
-              placeholder="输入新文件名"
-            />
-            <span className="text-caption text-faint whitespace-nowrap">回车确认</span>
-          </div>
-        </div>
+        <InlineNameInput
+          value={renameName}
+          onChange={setRenameName}
+          onCommit={handleRename}
+          onCancel={() => {
+            setRenameTarget(null);
+            setRenameName('');
+          }}
+          placeholder="输入新文件名"
+          onFocusSelectBody
+        />
       )}
 
       {/* 网格（点击翻页，只显示当前页） */}

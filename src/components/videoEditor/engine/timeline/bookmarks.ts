@@ -1,4 +1,4 @@
-import { roundToFrame } from '@videoEditor/engine/lib/time';
+import { roundToFrame } from '@/components/videoEditor/engine/lib/time';
 
 export function findBookmarkIndex({
   bookmarks,

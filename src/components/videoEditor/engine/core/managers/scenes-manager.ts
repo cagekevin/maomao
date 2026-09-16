@@ -1,22 +1,22 @@
-import { logger } from '@videoEditor/lib/logger';
-import type { EditorCore } from '@videoEditor/engine/core';
-import type { TimelineTrack, TScene } from '@videoEditor/types/timeline';
-import { storageService } from '@videoEditor/engine/services/storage/service';
+import { logger } from '@/components/videoEditor/lib/logger';
+import type { EditorCore } from '@/components/videoEditor/engine/core';
+import type { TimelineTrack, TScene } from '@/components/videoEditor/types/timeline';
+import { storageService } from '@/components/videoEditor/engine/services/storage/service';
 import {
   getMainScene,
   ensureMainScene,
   canDeleteScene,
   findCurrentScene,
-} from '@videoEditor/engine/lib/scenes';
-import { getFrameTime, isBookmarkAtTime } from '@videoEditor/engine/timeline/bookmarks';
-import { ensureMainTrack } from '@videoEditor/engine/timeline/track-utils';
+} from '@/components/videoEditor/engine/lib/scenes';
+import { getFrameTime, isBookmarkAtTime } from '@/components/videoEditor/engine/timeline/bookmarks';
+import { ensureMainTrack } from '@/components/videoEditor/engine/timeline/track-utils';
 import {
   CreateSceneCommand,
   DeleteSceneCommand,
   RemoveBookmarkCommand,
   RenameSceneCommand,
   ToggleBookmarkCommand,
-} from '@videoEditor/engine/commands/scene';
+} from '@/components/videoEditor/engine/commands/scene';
 
 export class ScenesManager {
   private active: TScene | null = null;

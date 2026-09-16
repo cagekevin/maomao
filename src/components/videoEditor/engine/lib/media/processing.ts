@@ -1,7 +1,7 @@
-import { logger } from '@videoEditor/lib/logger';
-import { toast } from '@videoEditor/lib/toast';
-import type { MediaAsset } from '@videoEditor/types/assets';
-import { getMediaTypeFromFile } from '@videoEditor/engine/lib/media/media-utils';
+import { logger } from '@/components/videoEditor/lib/logger';
+import { toast } from '@/components/videoEditor/lib/toast';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import { getMediaTypeFromFile } from '@/components/videoEditor/engine/lib/media/media-utils';
 import { getVideoInfo } from './mediabunny';
 import { Input, ALL_FORMATS, BlobSource, VideoSampleSink } from 'mediabunny';
 
@@ -217,6 +217,7 @@ export async function processMediaAssets({
     let width: number | undefined;
     let height: number | undefined;
     let fps: number | undefined;
+    let hasAudio: boolean | undefined;
 
     try {
       if (fileType === 'image') {
@@ -231,6 +232,7 @@ export async function processMediaAssets({
           width = videoInfo.width;
           height = videoInfo.height;
           fps = Number.isFinite(videoInfo.fps) ? Math.round(videoInfo.fps) : undefined;
+          hasAudio = videoInfo.hasAudio; // TD-21-17：带原声视频 🔊 角标的数据源
 
           thumbnailUrl = await generateThumbnail({
             videoFile: file,
@@ -254,6 +256,7 @@ export async function processMediaAssets({
         width,
         height,
         fps,
+        hasAudio,
       });
 
       await new Promise((resolve) => setTimeout(resolve, 0));

@@ -1,34 +1,34 @@
 'use client';
 
 import { memo, useCallback, useMemo, useState } from 'react';
-import { PanelBaseView as BaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
-import { Input } from '@videoEditor/ui/ui/input';
+import { PanelBaseView as BaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
+import { Input } from '@/components/videoEditor/ui/ui/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@videoEditor/ui/ui/select';
+} from '@/components/videoEditor/ui/ui/select';
 import {
   BLUR_INTENSITY_PRESETS,
   CANVAS_SIZE_PRESETS,
   DEFAULT_BLUR_INTENSITY,
   DEFAULT_COLOR,
   FPS_PRESETS,
-} from '@videoEditor/constants/project-constants';
-import { patternCraftGradients } from '@videoEditor/data/colors/pattern-craft';
-import { colors } from '@videoEditor/data/colors/solid';
-import { syntaxUIGradients } from '@videoEditor/data/colors/syntax-ui';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
+} from '@/components/videoEditor/constants/project-constants';
+import { patternCraftGradients } from '@/components/videoEditor/data/colors/pattern-craft';
+import { colors } from '@/components/videoEditor/data/colors/solid';
+import { syntaxUIGradients } from '@/components/videoEditor/data/colors/syntax-ui';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 // 更新(2026-09-14)：AI providers 随 AI 域移除。
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 import {
   PropertyGroup,
   PropertyItem,
   PropertyItemLabel,
   PropertyItemValue,
-} from '@videoEditor/ui/editor/panels/properties/property-item';
+} from '@/components/videoEditor/ui/editor/panels/properties/property-item';
 
 export function SettingsView() {
   return <ProjectSettingsTabs />;
@@ -141,12 +141,12 @@ function ProjectInfoView() {
 
   return (
     <PropertyGroup>
-      <PropertyItem direction="column">
+      <PropertyItem>
         <PropertyItemLabel>{'名称'}</PropertyItemLabel>
         <PropertyItemValue>{activeProject.metadata.name}</PropertyItemValue>
       </PropertyItem>
 
-      <PropertyItem direction="column">
+      <PropertyItem>
         <PropertyItemLabel>{'画布尺寸'}</PropertyItemLabel>
         <PropertyItemValue>
           <Select
@@ -194,7 +194,7 @@ function ProjectInfoView() {
         </PropertyItem>
       )}
 
-      <PropertyItem direction="column">
+      <PropertyItem>
         <PropertyItemLabel>{'帧率'}</PropertyItemLabel>
         <PropertyItemValue>
           <Select value={activeProject.settings.fps.toString()} onValueChange={handleFpsChange}>

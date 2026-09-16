@@ -1,20 +1,20 @@
 'use client';
 
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
-import { useAssetsPanelStore } from '@videoEditor/stores/assets-panel-store';
-import { buildIconSvgUrl } from '@videoEditor/engine/lib/iconify-api';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { useAssetsPanelStore } from '@/components/videoEditor/stores/assets-panel-store';
+import { buildIconSvgUrl } from '@/components/videoEditor/engine/lib/iconify-api';
 import AudioWaveform from './audio-waveform';
 import { MissingMediaIndicator } from './missing-media-indicator';
-import { useTimelineElementResize } from '@videoEditor/hooks-cutia/timeline/element/use-element-resize';
-import type { SnapPoint } from '@videoEditor/hooks-cutia/timeline/use-timeline-snapping';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
+import { useTimelineElementResize } from '@/components/videoEditor/hooks-cutia/timeline/element/use-element-resize';
+import type { SnapPoint } from '@/components/videoEditor/hooks-cutia/timeline/use-timeline-snapping';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
 import {
   getTrackClasses,
   getTrackHeight,
   canElementHaveAudio,
   canElementBeHidden,
   hasMediaId,
-} from '@videoEditor/engine/timeline';
+} from '@/components/videoEditor/engine/timeline';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -31,12 +31,16 @@ import type {
   TimelineTrack,
   ElementDragState,
   VideoElement,
-} from '@videoEditor/types/timeline';
-import type { MediaAsset } from '@videoEditor/types/assets';
-import { mediaSupportsAudio } from '@videoEditor/engine/lib/media/media-utils';
-import { getActionDefinition, type TAction, invokeAction } from '@videoEditor/engine/lib/actions';
-import { useElementSelection } from '@videoEditor/hooks-cutia/timeline/element/use-element-selection';
-import { uppercase } from '@videoEditor/utils/string';
+} from '@/components/videoEditor/types/timeline';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import { mediaSupportsAudio } from '@/components/videoEditor/engine/lib/media/media-utils';
+import {
+  getActionDefinition,
+  type TAction,
+  invokeAction,
+} from '@/components/videoEditor/engine/lib/actions';
+import { useElementSelection } from '@/components/videoEditor/hooks-cutia/timeline/element/use-element-selection';
+import { uppercase } from '@/components/videoEditor/utils/string';
 
 import type { ComponentProps } from 'react';
 import { VideoThumbnailStrip } from './video-thumbnail-strip';
@@ -317,6 +321,15 @@ function ElementInner({
         {hasAudio && isMuted && (
           <div className="pointer-events-none ve-veil-badge">
             <VolumeX className="size-3.5" />
+          </div>
+        )}
+        {/* TD-21-17：视频**真含音轨**（element.hasAudio，导入时探测）且未静音 → 🔊 角标。
+            与上面「静音 🔇」互补：C4.7 红线规定音轨内联在视频片段里、不拆轨，
+            故用户需要「这条有声音」的可见指示。判据用**元素字段**（真实探测结果），
+            不用 `mediaSupportsAudio`（那是「视频类型通常有音轨」的猜测，静音视频会误报）。 */}
+        {element.type === 'video' && element.hasAudio === true && !isMuted && (
+          <div className="pointer-events-none ve-veil-badge">
+            <Volume2 className="size-3.5" />
           </div>
         )}
       </button>

@@ -4,7 +4,7 @@ import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { ArrowRight, Check, Circle } from 'lucide-react';
 
-import { cn } from '@videoEditor/utils/ui';
+import { cn } from '@/components/videoEditor/utils/ui';
 import {
   MenuItemBase,
   MenuRoot,
@@ -42,7 +42,7 @@ const contextMenuItemVariants = cva(
     variants: {
       variant: {
         default:
-          'data-[highlighted]:bg-accent/35 data-[highlighted]:text-accent-foreground [&_svg]:text-muted-foreground',
+          'data-[highlighted]:bg-accent/35 data-[highlighted]:text-foreground [&_svg]:text-muted-foreground',
         destructive:
           'text-destructive data-[highlighted]:bg-destructive/5 data-[highlighted]:text-destructive [&_svg]:text-destructive',
       },
@@ -65,7 +65,7 @@ const ContextMenuSubTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       contextMenuItemVariants({ variant }),
-      'data-[open]:bg-accent data-[open]:text-accent-foreground',
+      'data-[open]:bg-primary data-[open]:text-primary-foreground',
       inset && 'pl-8',
       className,
     )}

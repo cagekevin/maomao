@@ -1,25 +1,28 @@
-import { logger } from '@videoEditor/lib/logger';
-import { Command } from '@videoEditor/engine/commands/base-command';
-import { EditorCore } from '@videoEditor/engine/core';
+import { logger } from '@/components/videoEditor/lib/logger';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import { EditorCore } from '@/components/videoEditor/engine/core';
 import type {
   CreateTimelineElement,
   TimelineTrack,
   TimelineElement,
   TrackType,
   ElementType,
-} from '@videoEditor/types/timeline';
-import { generateUUID } from '@videoEditor/utils/id';
-import { requiresMediaId, wouldElementOverlap } from '@videoEditor/engine/timeline/element-utils';
+} from '@/components/videoEditor/types/timeline';
+import { generateUUID } from '@/components/videoEditor/utils/id';
+import {
+  requiresMediaId,
+  wouldElementOverlap,
+} from '@/components/videoEditor/engine/timeline/element-utils';
 import {
   buildEmptyTrack,
   canElementGoOnTrack,
   getDefaultInsertIndexForTrack,
   validateElementTrackCompatibility,
   enforceMainTrackStart,
-} from '@videoEditor/engine/timeline/track-utils';
-import type { MediaAsset } from '@videoEditor/types/assets';
-import type { TProjectSettings } from '@videoEditor/types/project';
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
+} from '@/components/videoEditor/engine/timeline/track-utils';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { TProjectSettings } from '@/components/videoEditor/types/project';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
 
 type InsertElementPlacement =
   | { mode: 'explicit'; trackId: string }

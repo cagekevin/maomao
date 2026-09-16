@@ -1,4 +1,7 @@
-import { PanelBaseView, PanelState } from '@videoEditor/ui/editor/panels/panel-base-view';
+import {
+  PanelBaseView,
+  PanelState,
+} from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup } from './property-item';
 
 /**

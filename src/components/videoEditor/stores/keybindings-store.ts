@@ -2,12 +2,12 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { TActionWithOptionalArgs } from '@videoEditor/engine/lib/actions';
-import { getDefaultShortcuts } from '@videoEditor/engine/lib/actions';
-import { isTypableDOMElement } from '@videoEditor/utils/browser';
-import { isAppleDevice } from '@videoEditor/utils/platform';
-import type { ShortcutKey } from '@videoEditor/types/keybinding';
-import type { KeybindingConfig } from '@videoEditor/engine/lib/actions';
+import type { TActionWithOptionalArgs } from '@/components/videoEditor/engine/lib/actions';
+import { getDefaultShortcuts } from '@/components/videoEditor/engine/lib/actions';
+import { isTypableDOMElement } from '@/components/videoEditor/utils/browser';
+import { isAppleDevice } from '@/components/videoEditor/utils/platform';
+import type { ShortcutKey } from '@/components/videoEditor/types/keybinding';
+import type { KeybindingConfig } from '@/components/videoEditor/engine/lib/actions';
 import { runMigrations, CURRENT_VERSION } from './keybindings/migrations';
 
 export const defaultKeybindings: KeybindingConfig = getDefaultShortcuts();

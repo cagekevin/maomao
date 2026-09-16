@@ -1,4 +1,4 @@
-import type { TransitionType } from '@videoEditor/types/timeline';
+import type { TransitionType } from '@/components/videoEditor/types/timeline';
 
 export interface TransitionPreset {
   type: TransitionType;

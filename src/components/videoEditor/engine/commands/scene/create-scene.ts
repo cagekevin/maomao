@@ -1,7 +1,7 @@
-import { Command } from '@videoEditor/engine/commands/base-command';
-import { EditorCore } from '@videoEditor/engine/core';
-import type { TScene } from '@videoEditor/types/timeline';
-import { buildDefaultScene } from '@videoEditor/engine/lib/scenes';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import type { TScene } from '@/components/videoEditor/types/timeline';
+import { buildDefaultScene } from '@/components/videoEditor/engine/lib/scenes';
 
 export class CreateSceneCommand extends Command {
   private savedScenes: TScene[] | null = null;

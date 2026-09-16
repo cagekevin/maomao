@@ -13,10 +13,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(rootDir, './src'),
-      // 2026-09-14：cutia 搬迁代码的独立别名（docs/130-cutia搬迁计划书）。
-      // 搬入代码原用 `@/`（cutia 约定 @ → src），改指本前缀可**一次性 sed 完成**，
-      // 且与仓内既有 `@/` 互不干扰（避免逐类映射的漏改风险）。
-      '@videoEditor': path.resolve(rootDir, './src/components/videoEditor'),
     },
   },
   base: './', // 相对路径：兼容 Chrome 插件（side panel 通过 chrome-extension:// 加载）

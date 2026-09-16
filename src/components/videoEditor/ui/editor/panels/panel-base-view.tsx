@@ -1,7 +1,7 @@
-import { Button } from '@videoEditor/ui/ui/button';
-import { ScrollArea } from '@videoEditor/ui/ui/scroll-area';
-import { Separator } from '@videoEditor/ui/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@videoEditor/ui/ui/tabs';
+import { Button } from '@/components/videoEditor/ui/ui/button';
+import { ScrollArea } from '@/components/videoEditor/ui/ui/scroll-area';
+import { Separator } from '@/components/videoEditor/ui/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/videoEditor/ui/ui/tabs';
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════

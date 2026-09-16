@@ -1,5 +1,5 @@
 /**
- * ⚠️ 本文件是 **L0 类型层**，**不得** import `@videoEditor/engine*`（TD-22-31）。
+ * ⚠️ 本文件是 **L0 类型层**，**不得** import `@/components/videoEditor/engine*`（TD-22-31）。
  *
  * 原先它 import `TActionWithOptionalArgs` 来定义 `KeybindingConfig` ⇒ **反向依赖 engine**（层位倒置）。
  * 修法与 `MediaAssetData` 不同：`TActionWithOptionalArgs` 由 engine 里的 action 定义表推导，

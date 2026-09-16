@@ -1,4 +1,4 @@
-import type { ShortcutKey } from '@videoEditor/types/keybinding';
+import type { ShortcutKey } from '@/components/videoEditor/types/keybinding';
 
 export type TActionCategory = '回放' | '导航' | '编辑' | '选择' | '历史' | '时间轴' | '控制';
 

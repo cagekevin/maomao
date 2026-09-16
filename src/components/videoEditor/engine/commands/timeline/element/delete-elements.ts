@@ -1,10 +1,10 @@
-import { logger } from '@videoEditor/lib/logger';
-import { Command } from '@videoEditor/engine/commands/base-command';
-import type { TimelineTrack } from '@videoEditor/types/timeline';
-import { EditorCore } from '@videoEditor/engine/core';
-import { isMainTrack, hasMediaId } from '@videoEditor/engine/timeline';
-import { storageService } from '@videoEditor/engine/services/storage/service';
-import type { MediaAsset } from '@videoEditor/types/assets';
+import { logger } from '@/components/videoEditor/lib/logger';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import { isMainTrack, hasMediaId } from '@/components/videoEditor/engine/timeline';
+import { storageService } from '@/components/videoEditor/engine/services/storage/service';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
 
 export class DeleteElementsCommand extends Command {
   private savedState: TimelineTrack[] | null = null;

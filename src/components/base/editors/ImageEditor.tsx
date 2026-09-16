@@ -1092,7 +1092,7 @@ export default function ImageEditor({
             type="color"
             value={color}
             onChange={(e) => setColor(e.target.value)}
-            className="w-[22px] h-[22px] rounded-md border border-edge-strong p-0 cursor-pointer"
+            className="mao-color-input w-[22px] h-[22px]"
             title="自定义颜色"
           />
           <div className="w-px h-5 bg-surface-3" />

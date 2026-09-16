@@ -1,12 +1,12 @@
-import { logger } from '@videoEditor/lib/logger';
-import type { EditorCore } from '@videoEditor/engine/core';
-import type { RootNode } from '@videoEditor/engine/services/renderer/nodes/root-node';
-import type { ExportOptions, ExportResult } from '@videoEditor/types/export';
-import { SceneExporter } from '@videoEditor/engine/services/renderer/scene-exporter';
-import { buildScene } from '@videoEditor/engine/services/renderer/scene-builder';
-import { createTimelineAudioBuffer } from '@videoEditor/engine/lib/media/audio';
-import { getSelectedVideoClip } from '@videoEditor/engine/lib/export';
-import type { TimelineTrack } from '@videoEditor/types/timeline';
+import { logger } from '@/components/videoEditor/lib/logger';
+import type { EditorCore } from '@/components/videoEditor/engine/core';
+import type { RootNode } from '@/components/videoEditor/engine/services/renderer/nodes/root-node';
+import type { ExportOptions, ExportResult } from '@/components/videoEditor/types/export';
+import { SceneExporter } from '@/components/videoEditor/engine/services/renderer/scene-exporter';
+import { buildScene } from '@/components/videoEditor/engine/services/renderer/scene-builder';
+import { createTimelineAudioBuffer } from '@/components/videoEditor/engine/lib/media/audio';
+import { getSelectedVideoClip } from '@/components/videoEditor/engine/lib/export';
+import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 
 export class RendererManager {
   private renderTree: RootNode | null = null;

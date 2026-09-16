@@ -16,6 +16,8 @@ export async function getVideoInfo({ videoFile }: { videoFile: File }): Promise<
   width: number;
   height: number;
   fps: number;
+  /** 文件是否含音轨（TD-21-17：驱动时间轴上「带原声视频」的 🔊 角标）。 */
+  hasAudio: boolean;
 }> {
   const input = new Input({
     source: new BlobSource(videoFile),
@@ -32,10 +34,15 @@ export async function getVideoInfo({ videoFile }: { videoFile: File }): Promise<
   const packetStats = await videoTrack.computePacketStats(100);
   const fps = packetStats.averagePacketRate;
 
+  // TD-21-17：探测音轨存在性（同一 Input 上，成本极低）——角标只在**确知有音轨**时才亮。
+  const audioTrack = await input.getPrimaryAudioTrack();
+  const hasAudio = audioTrack != null;
+
   return {
     duration,
     width: videoTrack.displayWidth,
     height: videoTrack.displayHeight,
     fps,
+    hasAudio,
   };
 }

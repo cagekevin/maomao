@@ -1,16 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { TimelineElement, TimelineTrack } from '@videoEditor/types/timeline';
-import { snapTimeToFrame } from '@videoEditor/engine/lib/time';
+import type { TimelineElement, TimelineTrack } from '@/components/videoEditor/types/timeline';
+import { snapTimeToFrame } from '@/components/videoEditor/engine/lib/time';
 import {
   getElementPlaybackRate,
   getElementSourceDuration,
-} from '@videoEditor/engine/timeline/element-utils';
-import { EditorCore } from '@videoEditor/engine/core';
+} from '@/components/videoEditor/engine/timeline/element-utils';
+import { EditorCore } from '@/components/videoEditor/engine/core';
 import {
   useTimelineSnapping,
   type SnapPoint,
-} from '@videoEditor/hooks-cutia/timeline/use-timeline-snapping';
-import { useTimelineStore } from '@videoEditor/stores/timeline-store';
+} from '@/components/videoEditor/hooks-cutia/timeline/use-timeline-snapping';
+import { useTimelineStore } from '@/components/videoEditor/stores/timeline-store';
 
 export interface ResizeState {
   elementId: string;

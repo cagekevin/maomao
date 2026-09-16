@@ -19,7 +19,7 @@ import { httpRequest } from '../api/httpClient.ts';
 import { DOWNLOAD_TIMEOUT } from '../core/config.ts';
 import { generateId } from '../core/idGen.ts';
 import { deepClone } from '../core/utils.ts';
-import { withTimeout, TimeoutError, tryParse } from './asyncGuard.ts';
+import { withTimeout, TimeoutError, tryParse, setCrossOriginForReadable } from './asyncGuard.ts';
 
 /** 剪贴板操作统一返回信封：{ ok, msg }，调用方负责 toast。 */
 type ClipResult = { ok: boolean; msg: string };
@@ -65,7 +65,9 @@ export async function copyImageToClipboard(url: string): Promise<ClipResult> {
   try {
     // 画布绘制 → toBlob PNG → 写剪贴板（对齐官方 Ei:10049-10079）
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    // TD-16-2 / TD-22-55：canvas 回读必须走跨源裁决单点（同源不设 / 真跨源才 anonymous）。
+    // 恒设 'anonymous' 会让同源 `/files/*` 走 CORS 模式 → 媒体 opaque → canvas 被污染 → toBlob 返 null。
+    setCrossOriginForReadable(img, url);
     img.src = url;
     await new Promise((res, rej) => {
       img.onload = res;

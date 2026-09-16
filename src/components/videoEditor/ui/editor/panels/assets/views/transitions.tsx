@@ -1,25 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { PanelBaseView as BaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
-import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
+import { PanelBaseView as BaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
+import { PropertyGroup } from '@/components/videoEditor/ui/editor/panels/properties/property-item';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import {
   TRANSITION_PRESETS,
   TRANSITION_CATEGORIES,
   TRANSITION_CATEGORY_LABELS,
   DEFAULT_TRANSITION_DURATION,
   type TransitionPreset,
-} from '@videoEditor/constants/transition-constants';
-import type { TransitionType } from '@videoEditor/types/timeline';
-import { toast } from '@videoEditor/lib/toast';
-import { cn } from '@videoEditor/utils/ui';
+} from '@/components/videoEditor/constants/transition-constants';
+import type { TransitionType } from '@/components/videoEditor/types/timeline';
+import { toast } from '@/components/videoEditor/lib/toast';
+import { cn } from '@/components/videoEditor/utils/ui';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@videoEditor/ui/ui/tooltip';
+} from '@/components/videoEditor/ui/ui/tooltip';
 
 export function TransitionsView() {
   const editor = useEditor();
@@ -94,7 +94,7 @@ function CategoryPill({
         'rounded-full px-3 py-1 text-xs font-medium transition-colors',
         isActive
           ? 'bg-primary text-primary-foreground'
-          : 'bg-muted text-muted-foreground hover:bg-accent',
+          : 'bg-muted text-muted-foreground hover:bg-accent/50',
       )}
       onClick={onClick}
     >
@@ -131,7 +131,7 @@ function TransitionPresetCard({ preset }: { preset: TransitionPreset }) {
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="bg-muted hover:bg-accent flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors"
+            className="bg-muted hover:bg-accent/50 flex flex-col items-center gap-2 rounded-lg border p-3 transition-colors"
             onClick={handleApplyTransition}
           >
             <TransitionPreview type={preset.type} />

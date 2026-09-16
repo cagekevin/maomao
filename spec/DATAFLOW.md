@@ -240,7 +240,7 @@ fan-in（refs 实证 4 处 import）：App.tsx（手动按钮 handlePushToCloud/
 api/filesApi 🟢（全站文件域单点：upload[FormData/JSON 双模式] / move[context-only] / mkdir / open / open-dir + 3 纯函数）
    ├→ store/resourceStore 🟢（素材库 SSOT：saveInlineToLocal/uploadFileToLocal/EXT_BY_TYPE）
    ├→ api/localToolApi 🟢（fetchResources?projectId / saveResource / renameResource / deleteResource / rescan）
-   ├→ panels/ResourceLibrary 🟢 · panels/GeneratedView 🟢（openLocalFolder/openFileDir/relativePathFromUrl/createFolder；
+   ├→ panels/ResourceLibrary 🔴 · panels/GeneratedView 🔴（openLocalFolder/openFileDir/relativePathFromUrl/createFolder；
    │     前者「落盘完成 → 刷新」含同目录重拉，后者订阅 agent:task-completed 重拉生成列表）
    ├→ hooks/useAssetDropPaste · hooks/useResourceMoveToFolder 🟢 · hooks/useAssetDragToCanvas 🟢
    ├→ nodes/ImageBoxNode（resolveNodeAssetUrl）· nodes/useImageHoverActions（showThenPersistInline）· nodes/AssetNode 🟢
@@ -379,8 +379,8 @@ canvas/useCanvasEventSubscriptions（3 全局订阅收拢）
         │            ·AssetMenu·CameraAnglePanel·ReferenceOverlay·controls）
         ├→ project.ts（领域真源：常量/归一化/插值 cameraAtFrame/序列化/路径/宽高比）+ tracks.ts · history.ts
         ├→ rig.ts（骨架/关节定义单源）
-        ├→ log.ts（console 日志，⚠ 未接 base/core/logger 的 /api/logs，见 TD-07-1）
-        └→ storage.ts ─ d3dPersistence.ts（工程持久化；contentStore KV + localStorage 回退 + BroadcastChannel）
+        ├→ log.ts（base/core/logger 薄封装：error/warn 落 /api/logs，debug 受 DIRECTOR3D_DEBUG 门控）🟢
+        └→ storage.ts 🔴 ─ d3dPersistence.ts（工程持久化；contentStore KV + localStorage 回退 + BroadcastChannel；⚠ `director3d-custom-poses` 裸 localStorage 且不进备份/同步，TD-02-36）
 
 深度视频（两宿主共用一个 spawn，防漂移）：
   nodes/AssetNode · nodes/VideoGenerate ──→ depthVideo/DepthVideoModal.tsx ─→ depthVideo/spawn.ts（唯一派生出口）
@@ -399,7 +399,7 @@ canvas/useCanvasEventSubscriptions（3 全局订阅收拢）
 
 ```
 base/utils/videoEngine.ts 🟢（uploadResult 失败返 null；crossOrigin 走 setCrossOriginForReadable）
-base/utils/captureFrame.ts 🟢（跨源读取策略 setCrossOriginForReadable 收口于此且已导出供全树复用）
+base/utils/captureFrame.ts 🟢（跨源读取策略 setCrossOriginForReadable 已下沉 asyncGuard 并 re-export，供全树复用）
 base/utils/encoderProbe.ts 🟢 · base/utils/audioPeaks.ts 🟢
 base/utils/timeline/sourceTime.ts 🟢（跨域唯一映射原语：时间轴 ↔ 源时刻；剪辑器 8 处采纳、内联 0 处）
 hooks/useVideoPoster.ts 🟢（crossOrigin 接回单点原语，删第二判据）
@@ -408,6 +408,9 @@ nodes/VideoGenerate.tsx 🟢（videoUrl 落盘受 01/02 守护，非债）
 nodes/VideoProcessNode.tsx 🔴（uploadResult null → fail 显式报错；GIF 分支走 uploadFileToLocal 落盘；TD-22-19 键盘门）
 nodes/VideoExtractNode.tsx 🟢（crossOrigin 接回单点原语）
 videoEditor/engine/core/index.ts 🟢（**项目上下文生命周期唯一入口** `releaseProjectContext()`：切/关/新建项目、切场景、退出编辑器、编辑器卸载一律走它，一次重置命令栈/选择/音频/播放/渲染树/媒体/场景/活跃项目）
+videoEditor/ui/editor/panels/assets/views/captions.tsx ⚪（字幕转写面板：captions → transcriptionService.transcribe → worker）
+videoEditor/engine/services/transcription/{service,worker}.ts ⚪（transformers.js 浏览器内转写；模型源 huggingface.co 直连，有债待还）
+videoEditor/engine/lib/transcription/caption.ts ⚪（字幕分块纯函数）
 videoEditor/export/pipeline.ts 🟢（单入口 + 判别联合 OpResult/AudioOutcome）
 videoEditor/data/projectRepository.ts 🟢（CAS + 判别联合 SaveProjectResult，版本冲突暴露 UI）
 videoEditor/panels/dock/useEditorExport.ts 🟢（uploadResult null → toast「导出失败」不 spawn）
@@ -418,6 +421,7 @@ base/depthVideo/* 🟢（上传落盘走 filesApi.uploadFileToLocal）
 director3d/App.tsx · director3d/panels/Timeline.tsx 🔴（MP4 导出走 uploadFileToLocal；TD-22-19 键盘门）
 videoEditor/ui/editor/panels/timeline/timeline-element.tsx 🔴
 videoEditor/ui/editor/panels/timeline/video-thumbnail-strip.tsx 🔴
+videoEditor/engine/services/storage/indexeddb-adapter.ts 🔴
 ```
 
 ---
@@ -484,8 +488,8 @@ nodeRuntimeStore.ts（纯内存瞬态 map，不落盘） ⚪（抽审，欠深�
 生成链路：    hooks/useGenerateNode.ts 🟢 · hooks/useNodeGeneration.ts 🟢（见 §一）· hooks/useScriptBoxEngine.ts 🟢
 素材落画布：  hooks/useAssetDropPaste.ts 🟢 · hooks/useAssetDragToCanvas.ts 🟢 · hooks/useResourceMoveToFolder.ts 🟢
 改名/重命名： hooks/useNodeRename.ts 🟢
-欠深审：      hooks/useNodeField.ts ⚪ · hooks/useNodeExpanded.ts ⚪ · hooks/useFitNodeRatio.ts ⚪
-              · hooks/useArrangeCanvas.ts ⚪ · hooks/useContextMenu.ts ⚪
+欠深审：      hooks/useNodeField.ts ⚪ · hooks/useNodeExpanded.ts ⚪
+有债待还：    hooks/useArrangeCanvas.ts 🟢（TD-04-28 已收口：三写走 withNodeSize）· hooks/useFitNodeRatio.ts 🟢（非债）· hooks/useContextMenu.ts 🟢（非债）
 ```
 
 **关键边**：`useNodeData` ← 24 处；`useConnectedInputs` ← 33 处；`useStoreSelector` ← 全 store 原子订阅基座；`useCanvasSync` ← App 单点。
@@ -511,7 +515,7 @@ backupStore.exportAll/importAll/backupToBlob 🟢（agentKey 前缀收口 base/c
 ### 15.1 utils 工具层（横切纯函数）
 
 ```
-volumePolicy.ts 🟢 · asyncGuard.ts 🟢（loadImageOrNull 收口私有实现）· clipboard.ts 🟢（复制/清洗/下载统一出口）
+volumePolicy.ts 🟢 · asyncGuard.ts 🟢（loadImageOrNull 收口私有实现 + **跨源裁决单点 setCrossOriginForReadable**，TD-16-2/22-55 已收口）· clipboard.ts 🟢（复制/清洗/下载统一出口，TD-16-2 已收口）
 providerModels.ts 🟢（buildAllModels/resolveProviderModel 单源）· providerUrlAdapters.ts 🟢（展示名映射，非债）
 refToken.ts 🟢（编解码纯函数）· arrangePack.ts 🟢（packComponents 单消费方）
 assetType.ts 🟢（EXT_KIND 单源）· imagePixel.ts 🟢（RATIO_PIXEL_TABLE 单源）
@@ -522,7 +526,7 @@ assetType.ts 🟢（EXT_KIND 单源）· imagePixel.ts 🟢（RATIO_PIXEL_TABLE 
 ```
 config.ts 🟢 · degrade.ts 🟢（reportDegrade 11 处调用全对象形态）· logger.ts 🟢（87 fan-in 唯一日志出口）
 backendLogStream.ts 🟢 · canvasSyncBus.ts 🟢 · confirmStore.ts 🟢 · toastStore.ts 🟢
-modalLayer.ts 🟢 · idGen.ts 🟢 · uiHooks.ts 🟢 · utils.ts 🟢
+modalLayer.ts 🟢 · idGen.ts 🟢 · uiHooks.ts 🟢（TD-04-28 已收口：三写走 withNodeSize）· utils.ts 🟢
 contentStore.ts / contracts.ts / eventBus.ts → 属 §三 / §十一 深审，此处不重复
 ```
 
@@ -531,7 +535,7 @@ contentStore.ts / contracts.ts / eventBus.ts → 属 §三 / §十一 深审，�
 ```
 Select.tsx 🟢 · ModelSelect.tsx 🟢（共用 DropdownPanel/DropdownRow 窄原语，单一真源）
 ContextMenu.tsx 🟢 · RenameDialog.tsx 🟢 · ErrorBoundary.tsx 🟢 · LazyImage.tsx 🟢
-Toggle.tsx 🟢（已从两处抽公共）· attachmentCover.tsx 🟢 · NodeShell.tsx 🟢
+Toggle.tsx 🟢（已从两处抽公共）· attachmentCover.tsx 🟢（TD-19-2 已收口：封面走 LazyImage）· InlineNameInput.tsx 🟢（TD-19-3 唯一实现：面板内联改名/建夹输入条）· NodeShell.tsx 🟢
 ConfirmContainer.tsx 🟢 · ToastContainer.tsx 🟢
 NodeTitle · ToolbarButton · GenerateButton · GeneratingOverlay · ExpandablePanel · VideoThumbnail
   · ResizeFullscreenHandle · CometParticles · JianyingIcon ⚪（抽审，欠深审）

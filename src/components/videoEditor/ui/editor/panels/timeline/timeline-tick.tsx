@@ -1,7 +1,7 @@
 'use client';
 
-import { TIMELINE_CONSTANTS } from '@videoEditor/constants/timeline-constants';
-import { formatRulerLabel } from '@videoEditor/engine/timeline/ruler-utils';
+import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import { formatRulerLabel } from '@/components/videoEditor/engine/timeline/ruler-utils';
 
 interface TimelineTickProps {
   time: number;

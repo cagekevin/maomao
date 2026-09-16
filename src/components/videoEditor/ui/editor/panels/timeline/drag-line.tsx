@@ -1,5 +1,5 @@
-import { getDropLineY } from '@videoEditor/engine/timeline/drop-utils';
-import type { TimelineTrack, DropTarget } from '@videoEditor/types/timeline';
+import { getDropLineY } from '@/components/videoEditor/engine/timeline/drop-utils';
+import type { TimelineTrack, DropTarget } from '@/components/videoEditor/types/timeline';
 
 interface DragLineProps {
   dropTarget: DropTarget | null;

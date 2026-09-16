@@ -106,6 +106,7 @@ export function GlobalSettingsPanel({
         aria-label={label}
         value={lighting[key]}
         onChange={(event) => updateLighting({ [key]: event.target.value })}
+        className="mao-color-input w-[18px] h-[18px]"
       />
       <output>{lighting[key]}</output>
     </label>

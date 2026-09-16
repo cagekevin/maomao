@@ -1,17 +1,17 @@
-import { logger } from '@videoEditor/lib/logger';
+import { logger } from '@/components/videoEditor/lib/logger';
 import type {
   AudioElement,
   LibraryAudioElement,
   TimelineElement,
   TimelineTrack,
-} from '@videoEditor/types/timeline';
-import type { MediaAsset } from '@videoEditor/types/assets';
+} from '@/components/videoEditor/types/timeline';
+import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import {
   canElementHaveAudio,
   getElementPlaybackRate,
-} from '@videoEditor/engine/timeline/element-utils';
-import { canTracktHaveAudio } from '@videoEditor/engine/timeline';
-import { mediaSupportsAudio } from '@videoEditor/engine/lib/media/media-utils';
+} from '@/components/videoEditor/engine/timeline/element-utils';
+import { canTracktHaveAudio } from '@/components/videoEditor/engine/timeline';
+import { mediaSupportsAudio } from '@/components/videoEditor/engine/lib/media/media-utils';
 
 export type CollectedAudioElement = Omit<
   AudioElement,

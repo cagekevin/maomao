@@ -1,4 +1,5 @@
 import { generateId } from '../core/idGen.ts';
+import { withNodeSize } from './nodeDefaults.ts';
 import type { Node, Edge } from '@xyflow/react';
 
 /**
@@ -57,19 +58,13 @@ export function createGroupFromNodes(
       ? `group-${crypto.randomUUID()}`
       : generateId('group');
 
+  // TD-04-28：尺寸三写不变量走唯一实现 withNodeSize（含 initial*，新建节点需要）。
+  // 此前本处手抄 width/height/style/initial*，与 uiHooks / useArrangeCanvas 三份。
   const groupNode: Node = {
     id: groupId,
     type: 'group',
     position: { x: gx, y: gy },
-    style: { width: gw, height: gh },
-    // ⚠️ 必须同时写 width/height 字段（与 style 一致）：NodeShell.useNodeSize 读尺寸是
-    // `n.width ?? n.style?.width`，width 优先。仅写 style 时，落盘/刷新后若 width 未同步，
-    // 尺寸会塌成默认。写死 width/height + 白名单保存，刷新后尺寸必然保真。
-    width: gw,
-    height: gh,
-    // 官方推荐：父节点有 style 尺寸时同时设 initialWidth/Height，保证首次测量前尺寸确定
-    initialWidth: gw,
-    initialHeight: gh,
+    ...withNodeSize({}, gw, gh, { includeInitial: true }),
     // 覆盖 React Flow 默认 .react-flow__node-group（自带 border/padding/背景 → 两层边框）
     className: 'yimao-group-node',
     // 显示名唯一字段 = data.label（2026-09-12 九轮源头收敛）。

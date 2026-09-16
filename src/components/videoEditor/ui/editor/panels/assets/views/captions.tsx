@@ -1,36 +1,39 @@
-import { logger } from '@videoEditor/lib/logger';
-import { Button } from '@videoEditor/ui/ui/button';
-import { PanelBaseView as BaseView } from '@videoEditor/ui/editor/panels/panel-base-view';
+import { logger } from '@/components/videoEditor/lib/logger';
+import { Button } from '@/components/videoEditor/ui/ui/button';
+import { PanelBaseView as BaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@videoEditor/ui/ui/select';
+} from '@/components/videoEditor/ui/ui/select';
 import { useState, useRef, useMemo } from 'react';
-import { useLocalStorage } from '@videoEditor/hooks-cutia/storage/use-local-storage';
-import { useEditor } from '@videoEditor/hooks-cutia/use-editor';
+import { useLocalStorage } from '@/components/videoEditor/hooks-cutia/storage/use-local-storage';
+import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import {
   TRANSCRIPTION_LANGUAGES,
   TRANSCRIPTION_MODELS,
   DEFAULT_TRANSCRIPTION_MODEL,
-} from '@videoEditor/constants/transcription-constants';
+} from '@/components/videoEditor/constants/transcription-constants';
 import {
   SUBTITLE_TEMPLATES,
   createSubtitleFromTemplate,
-} from '@videoEditor/constants/subtitle-constants';
+} from '@/components/videoEditor/constants/subtitle-constants';
 import type {
   TranscriptionLanguage,
   TranscriptionModelId,
   TranscriptionProgress,
-} from '@videoEditor/types/transcription';
-import { transcriptionService } from '@videoEditor/engine/services/transcription/service';
-import { createTimelineAudioBuffer, toMonoSamples } from '@videoEditor/engine/lib/media/audio';
-import { buildCaptionChunks } from '@videoEditor/engine/lib/transcription/caption';
-import { Spinner } from '@videoEditor/ui/ui/spinner';
-import { Progress } from '@videoEditor/ui/ui/progress';
-import { PropertyGroup } from '@videoEditor/ui/editor/panels/properties/property-item';
+} from '@/components/videoEditor/types/transcription';
+import { transcriptionService } from '@/components/videoEditor/engine/services/transcription/service';
+import {
+  createTimelineAudioBuffer,
+  toMonoSamples,
+} from '@/components/videoEditor/engine/lib/media/audio';
+import { buildCaptionChunks } from '@/components/videoEditor/engine/lib/transcription/caption';
+import { Spinner } from '@/components/videoEditor/ui/ui/spinner';
+import { Progress } from '@/components/videoEditor/ui/ui/progress';
+import { PropertyGroup } from '@/components/videoEditor/ui/editor/panels/properties/property-item';
 
 export function Captions() {
   const [selectedLanguage, setSelectedLanguage] = useLocalStorage<TranscriptionLanguage>({

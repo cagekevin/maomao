@@ -1,8 +1,11 @@
-import { Command } from '@videoEditor/engine/commands/base-command';
-import { EditorCore } from '@videoEditor/engine/core';
-import type { TScene } from '@videoEditor/types/timeline';
-import { updateSceneInArray } from '@videoEditor/engine/lib/scenes';
-import { getFrameTime, toggleBookmarkInArray } from '@videoEditor/engine/timeline/bookmarks';
+import { Command } from '@/components/videoEditor/engine/commands/base-command';
+import { EditorCore } from '@/components/videoEditor/engine/core';
+import type { TScene } from '@/components/videoEditor/types/timeline';
+import { updateSceneInArray } from '@/components/videoEditor/engine/lib/scenes';
+import {
+  getFrameTime,
+  toggleBookmarkInArray,
+} from '@/components/videoEditor/engine/timeline/bookmarks';
 
 export class ToggleBookmarkCommand extends Command {
   private savedScenes: TScene[] | null = null;

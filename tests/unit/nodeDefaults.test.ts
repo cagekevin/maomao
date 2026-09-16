@@ -5,8 +5,41 @@
 import { describe, it, expect } from 'vitest';
 import {
   applyNodeTypeDefaults,
+  withNodeSize,
   NODE_TYPE_DEFAULTS,
 } from '../../src/components/base/canvas/nodeDefaults.ts';
+
+describe('withNodeSize — 尺寸「三写不变量」唯一实现（TD-04-28）', () => {
+  it('同时产出 width/height 字段 + style.width/height（NodeShell 读 width 优先，缺一则塌陷）', () => {
+    const patch = withNodeSize({ id: 'g', type: 'group', style: { background: '#fff' } }, 300, 200);
+    expect(patch.width).toBe(300);
+    expect(patch.height).toBe(200);
+    expect(patch.style.width).toBe(300);
+    expect(patch.style.height).toBe(200);
+    // 既有 style 其余键保留
+    expect(patch.style.background).toBe('#fff');
+  });
+
+  it('不含 initial* —— 已有节点不需要（不覆盖已测量的 initial）', () => {
+    const patch = withNodeSize({ id: 'g' }, 100, 50);
+    expect(patch.initialWidth).toBeUndefined();
+    expect(patch.initialHeight).toBeUndefined();
+  });
+
+  it('includeInitial → 一并产出 initialWidth/Height（仅新建节点需要）', () => {
+    const patch = withNodeSize({}, 300, 200, { includeInitial: true });
+    expect(patch.initialWidth).toBe(300);
+    expect(patch.initialHeight).toBe(200);
+  });
+
+  it('返回尺寸补丁而非整个 node —— 展开式写回不得覆盖 position/data', () => {
+    const patch = withNodeSize({ id: 'g', position: { x: 9, y: 9 }, data: { label: 'A' } }, 10, 10);
+    // 补丁里不应出现 id/position/data 等无关键（否则 `{...node, ...patch}` 会误盖）
+    expect(patch).not.toHaveProperty('id');
+    expect(patch).not.toHaveProperty('position');
+    expect(patch).not.toHaveProperty('data');
+  });
+});
 
 describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
   it('imageGenerateNode 缺宽高/style → 补 420×420', () => {
