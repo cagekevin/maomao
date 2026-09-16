@@ -28,9 +28,9 @@ vi.mock('@xyflow/react', () => ({
 }));
 
 const engineCallbacks = {
-  onGenerate: vi.fn(),
-  onAddNodes: vi.fn(),
-  onUpdate: vi.fn(),
+  onGenerateScript: vi.fn(),
+  onGenerateShotImage: vi.fn(),
+  onGenerateShotPrompts: vi.fn(),
 };
 const createScriptBoxEngine = vi.fn((cfg: ScriptBoxEngineDeps) => ({
   ...engineCallbacks,
@@ -95,9 +95,9 @@ describe('useScriptBoxEngine', () => {
     // 本文件的 createScriptBoxEngine 被 mock 成返回 engineCallbacks（见顶部 mock），
     // 故断言「hook 把引擎实例原样作为 callbacks 下发」= 三个 mock 回调都在返回值上。
     const callbacks = result.current.callbacks;
-    expect(callbacks.onGenerate).toBeTypeOf('function');
-    expect(callbacks.onAddNodes).toBeTypeOf('function');
-    expect(callbacks.onUpdate).toBeTypeOf('function');
+    expect(callbacks.onGenerateScript).toBeTypeOf('function');
+    expect(callbacks.onGenerateShotImage).toBeTypeOf('function');
+    expect(callbacks.onGenerateShotPrompts).toBeTypeOf('function');
     expect(callbacks).toBe(createScriptBoxEngine.mock.results.at(-1)!.value);
   });
 
