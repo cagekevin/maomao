@@ -244,7 +244,9 @@ describe('TaskCenter — 大图预览', () => {
 });
 
 describe('TaskCenter — 清理任务', () => {
-  it('清理下拉 → 清理失败任务 + 清理全部任务', () => {
+  // 【TD-08-24】入口文案由「清理失败任务」改为「清理失败/未知任务」：unknown（提交结果未知）
+  // 与 failed 同归「需用户处理」，清理谓词必须含之，否则 unknown 行会卡在列表里无入口清理。
+  it('清理下拉 → 清理失败/未知任务 + 清理全部任务', () => {
     h.setTasks([
       makeTask({ id: 't1', status: 'failed' }),
       makeTask({ id: 't2', status: 'completed' }),
@@ -253,11 +255,29 @@ describe('TaskCenter — 清理任务', () => {
     // 打开清理下拉（⋮ 顶部按钮）
     const moreBtns = document.querySelectorAll('button[title="清理任务"]');
     fireEvent.click(moreBtns[0]);
-    expect(screen.getByText(/清理失败任务/)).toBeTruthy();
+    expect(screen.getByText(/清理失败\/未知任务/)).toBeTruthy();
     expect(screen.getByText(/清理全部任务/)).toBeTruthy();
 
-    fireEvent.click(screen.getByText(/清理失败任务/));
+    fireEvent.click(screen.getByText(/清理失败\/未知任务/));
     expect(h.clearTasksBy).toHaveBeenCalled();
+  });
+
+  it('unknown 任务：计入失败/未知计数，且清理谓词覆盖 unknown', () => {
+    h.setTasks([
+      makeTask({ id: 'u1', status: 'unknown' }),
+      makeTask({ id: 't2', status: 'completed' }),
+    ]);
+    render(<TaskCenter />);
+    const moreBtns = document.querySelectorAll('button[title="清理任务"]');
+    fireEvent.click(moreBtns[0]);
+    // 计数含 unknown（否则数字对不上行为）
+    expect(screen.getByText(/清理失败\/未知任务 \(1\)/)).toBeTruthy();
+    fireEvent.click(screen.getByText(/清理失败\/未知任务/));
+    // 谓词必须同时接受 failed 与 unknown（此处断言对 unknown 行返回 true）
+    const predicate = h.clearTasksBy.mock.calls.at(-1)![0] as (t: { status: string }) => boolean;
+    expect(predicate({ status: 'unknown' })).toBe(true);
+    expect(predicate({ status: 'failed' })).toBe(true);
+    expect(predicate({ status: 'completed' })).toBe(false);
   });
 });
 

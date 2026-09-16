@@ -1,7 +1,7 @@
 {
   "name": "maomao-localtool",
   "version": "1.0",
-  "description": "猫猫AI画布 — 本地工具服务",
+  "description": "猫猫AI画布 — 本地工具服务 (替代闭源 Go 二进制)",
   "type": "module",
   "main": "dist/index.js",
   "engines": {

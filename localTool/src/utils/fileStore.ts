@@ -20,6 +20,11 @@
  *    【TD-03-10 更正 2026-09-13】此前声称「DB 对 contentId 列加唯一约束 + 冲突回退」不成立——
  *    `database.ts:330` 已显式 `DROP INDEX idx_resources_sha1` 并声明不依赖该约束
  *    （因「同内容被不同路径引用」时 UNIQUE 会误杀合法复用）。原注释 stale，会误导审阅者。
+ *
+ * 更新(2026-09-16 · TD-08-23)：新增「扩展名缺失 → 读字节真相」的唯一原语 `jimpMimeForFile`
+ *  / `jimpExtForFile`（替代两处 `path.extname(...) || 'png'` 静默猜格式）；同时删除 `jimpMimeForExt`
+ *  （改用后零生产消费者）。**新写缩略图/内联编码逻辑一律引用这两个原语，禁再猜格式** ——
+ *  该形态已被 `check:arch` 规则 13-c 机器拦截。
  */
 
 import fs from 'node:fs';
@@ -292,9 +297,62 @@ export function isJimpEncodableExt(ext: unknown): boolean {
   return Object.prototype.hasOwnProperty.call(JIMP_MIME_BY_EXT, String(ext).toLowerCase());
 }
 
-/** 扩展名 → Jimp 编码用 MIME；未登记回退 `image/png`（与历史 `mimeFromExt` 的 default 语义一致）。 */
-export function jimpMimeForExt(ext: unknown): string {
-  return JIMP_MIME_BY_EXT[String(ext).toLowerCase()] ?? Jimp.MIME_PNG;
+/**
+ * 「磁盘文件该配哪个 MIME」唯一原语（2026-09-16 收口 · TD-08-23）。
+ *
+ * 【为什么存在】此前两处（`routes/files.ts` 缩略图端点 / `utils/resolveLocalImages.ts` 内联 base64）
+ * 都写 `path.extname(filePath) || 'png'` —— **无扩展名文件被静默当成 png**，
+ * 真实 JPEG 被 Jimp 重编码为 PNG（体积膨胀 + 格式丢失），且零日志 = 静默。
+ * 而 Jimp 在 `Jimp.read` 时**已按字节解出真实格式**（`img.getMIME()`）——「猜」纯属多余。
+ *
+ * 【口径】扩展名能配 MIME → 用它（尊重用户声明名，与历史行为一致）；否则用**已解码对象的真 MIME**
+ * （字节事实，权威）。二者都不确定才回 `image/png`（Jimp 可编码格式的保底，非静默错标）。
+ *
+ * 【消费方】`routes/files.ts handleThumbnail`（无 format 参数时定输出扩展名）·
+ *   `utils/resolveLocalImages.ts fileToInlineBase64`（内联 base64 选 MIME）。新增消费方一律引用本函数。
+ * @param ext 磁盘文件扩展名（可带/不带点，可空 —— 空即无扩展名）
+ * @param img 已 `Jimp.read` 的图对象（其 `getMIME()` 是字节真相）
+ */
+export function jimpMimeForFile(ext: unknown, img: Jimp): string {
+  const bare = String(ext ?? '')
+    .replace(/^\./, '')
+    .toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(JIMP_MIME_BY_EXT, bare)) {
+    return JIMP_MIME_BY_EXT[bare];
+  }
+  // 扩展名缺失/未登记 → 取已解码对象的字节真相（`getMIME()` 落在 JIMP 可编码集合内才用）。
+  const real = String(img?.getMIME?.() ?? '').toLowerCase();
+  return JIMP_MIME_BY_EXT[DECODED_MIME_BY_EXT[real] ?? ''] ?? Jimp.MIME_PNG;
+}
+
+/**
+ * MIME → 扩展名（`JIMP_MIME_BY_EXT` 的定向反转）—— 只列 Jimp **既有解码器又有编码器**的格式。
+ * 刻意不含 webp/avif（Jimp 0.22 能读不能写）：映射回来会产出「.webp 名 + PNG 字节」的假图（TD-03-7 同坑）。
+ */
+const DECODED_MIME_BY_EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/bmp': 'bmp',
+  'image/x-ms-bmp': 'bmp',
+  'image/tiff': 'tiff',
+};
+
+/**
+ * 无扩展名磁盘文件 → 真实编码格式扩展名（无点，小写）；读不出（非图/不可编码）返回 `null`。
+ *
+ * 【为什么单独成函数】`routes/files.ts handleThumbnail` 需要的是**输出文件名的扩展名**，不是 MIME；
+ * 且它必须拿到「无扩展名时的真相」才能拼出**名实相符**的缩略图文件。仅在扩展名缺失时才真读盘
+ * （正常带扩展名的请求走 `isJimpEncodableExt` 短路，零额外 I/O）。
+ * @param filePath 已确认存在的磁盘文件
+ */
+export async function jimpExtForFile(filePath: string): Promise<string | null> {
+  try {
+    const img = await Jimp.read(filePath);
+    return DECODED_MIME_BY_EXT[String(img.getMIME()).toLowerCase()] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**

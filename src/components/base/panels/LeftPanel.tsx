@@ -49,7 +49,9 @@ export default function LeftPanel() {
     let active = 0;
     let failed = 0;
     for (const t of tasks) {
-      if (t.status === 'failed') {
+      // 【TD-08-24】unknown（提交结果未知·可能已在跑）与 failed 同归「需用户处理」，一并计入角标；
+      // 不能计入 running（它已终态、不再推进），否则角标永远不清。
+      if (t.status === 'failed' || t.status === 'unknown') {
         active++;
         failed++;
       } else if (t.status === 'running' || t.status === 'pending') active++;

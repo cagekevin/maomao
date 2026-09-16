@@ -23,12 +23,14 @@ import type {
 /**
  * 剧本盒子 data 契约。
  * 真源全部外置，本文件只 extends + 声明上游注入的临时字段，禁止逐条重抄（重抄必然漂移）：
- *  - 顶层字段 → `ScriptBoxTop`（step/story/globalStyle/aspectRatio/playbookId…）；
- *  - 引擎注入的回调 → `ScriptBoxCallbacks`（onGenerateScript/onGenerateAssetImage…）。
+ *  - 顶层字段 → `ScriptBoxTop`（step/story/globalStyle/aspectRatio/playbookId…）。
+ * 【TD-09-4 · 2026-09-16】原 `extends ScriptBoxCallbacks` 已删 —— `node.data` 经 `NODE_KEEP`
+ * 整包落盘（`JSON.stringify`），让**持久化类型物理声明函数字段**是类型不诚实（函数序列化即静默丢弃）。
+ * 引擎回调现由 `useScriptBoxEngine` 返回值（`callbacks`）经 React 通道下发，data 里不再有函数。
  * 更新(2026-09-11)：`[key: string]: unknown` 已删——它会把「读写了一个不存在的 data 字段」
  * 变成静默通过（实测漏声明的回调只有在测试 tsconfig 下才暴露）。新增字段请先登记到上述真源。
  */
-interface ScriptBoxNodeData extends Partial<ScriptBoxTop>, ScriptBoxCallbacks {
+interface ScriptBoxNodeData extends Partial<ScriptBoxTop> {
   label?: string;
   projectName?: string;
   shots?: Array<{ id: string; [k: string]: unknown }>;
@@ -48,19 +50,20 @@ interface ScriptBoxNodeProps {
 /**
  * 剧本盒子（scriptBoxNode）—— 复刻 c_.jsx，按 docs/剧本盒子 的职责架构实现。
  *
- * 数据模型：单一数据源 node.data（shots/assets/配置 + 9 个 onXxx 引擎回调）。
+ * 数据模型：单一数据源 node.data（shots/assets/配置）；引擎回调经 useScriptBoxEngine 返回值下发
+ * （TD-09-4：不进 node.data，避免持久化类型含函数 + 落盘静默丢函数）。
  * 职责铁律：
  *  - 本组件只「读 node.data」（直接读 data prop），任何编辑都经 useScriptBoxEngine.updateData 写回；
- *  - 任何「生成/连线」都只调 d.onXxx?.(...)（引擎回调），本组件不做计算；
- *  - 引擎回调由 useScriptBoxEngine 注入 node.data.onXxx（经 setNodes/addNodes/坐标写回）；
+ *  - 任何「生成/连线」都只调 callbacks.onXxx?.(...)（引擎回调），本组件不做计算；
+ *  - 引擎回调由 useScriptBoxEngine 创建（经 setNodes/addNodes/坐标写回）并作为返回值下发；
  *  - 引擎（scriptBoxEngine.js）不依赖 UI，经 setNodes 写回；纯函数（scriptBoxPrompts.js）无副作用。
  *
  * 三步状态机：①确认镜头 ②准备资产 ③合成提示词（可点击切换，不自动连跑）。
  */
 function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
-  // 引擎：创建并注入 node.data.onXxx（含连线，能建下游），并返回统一写回通道 updateData。
-  // 写回经 updateData（对象或函数式 patch，并发安全）；生成/连线只调 d.onXxx?.(...)，本组件不做引擎。
-  const { updateData } = useScriptBoxEngine(id, data);
+  // 引擎：创建回调集合（含连线，能建下游）并经返回值下发，同时返回统一写回通道 updateData。
+  // 写回经 updateData（对象或函数式 patch，并发安全）；生成/连线只调 callbacks.onXxx?.(...)，本组件不做引擎。
+  const { updateData, callbacks } = useScriptBoxEngine(id, data);
 
   const d: ScriptBoxNodeData = data;
 
@@ -174,13 +177,17 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
   const step = d.step || 1;
   const setStep = (n: number) => updateData({ step: n });
 
-  // 三步组件只调 d.onXxx?.(...)（引擎回调，由 useScriptBoxEngine 注入 node.data.onXxx）。
-  // callbacks 追加断线回调（onDisconnectUpstream），供第 1 步 StepShots 的上游只读素材区断线用。
+  // 三步组件只调 callbacks.onXxx?.(...)（引擎回调，由 useScriptBoxEngine 返回值下发，TD-09-4）。
+  // callbacks 追加节点本地提供的断线回调（onDisconnectUpstream），供第 1 步 StepShots 的上游只读素材区断线用。
+  const stepCallbacks: ScriptBoxCallbacks = {
+    ...callbacks,
+    onDisconnectUpstream: disconnectSource,
+  };
   const stepProps = {
     id,
     data: d as ScriptBoxData,
     updateData,
-    callbacks: { ...d, onDisconnectUpstream: disconnectSource } as ScriptBoxCallbacks,
+    callbacks: stepCallbacks,
   };
 
   return (
@@ -300,7 +307,7 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
         title={d.projectName || '剧本盒子'}
         data={d as ScriptBoxData}
         updateData={updateData}
-        callbacks={d as ScriptBoxCallbacks}
+        callbacks={stepCallbacks}
         onClose={() => setFullscreen(false)}
       />
     </NodeShell>

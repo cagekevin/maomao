@@ -16,6 +16,11 @@ import { readJson, writeJson } from './storage.ts';
 import { detectFileType } from '../base/utils/assetType.ts';
 import { isProjectAssetUrl } from './d3dPersistence.ts';
 import { KEY_DIRECTOR3D_CUSTOM_POSES } from '../base/core/contracts.ts';
+// 数值钳制唯一入口（TD-18-5 收口）：本域曾私有复制同签名 clamp，现统一走 core SSOT；
+// 原样 re-export 使既有消费方（如本域 App.tsx）零改动。
+import { clamp } from '../base/core/utils.ts';
+
+export { clamp };
 // 旧 `stageframe-project` 裸键**读/清**改走存储层迁移原语（storage.ts 不再裸访问 localStorage）
 import { readLegacyRawKey, removeLegacyRawKey } from '../base/storage/index.ts';
 
@@ -348,8 +353,6 @@ export function exportDimensionsForAspect(aspectRatio: string) {
 export const uid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 export const radToDeg = (value: number) => Math.round(((value * 180) / Math.PI) * 10) / 10;
 export const degToRad = (value: number) => (Number(value || 0) * Math.PI) / 180;
-export const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value));
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const lerpAngle = (a: number, b: number, t: number) =>
   a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;

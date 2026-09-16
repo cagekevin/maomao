@@ -1520,6 +1520,49 @@ if (assertScanned('后端 MIME→ext 真值源（localTool/src 全域）', backe
   console.log(`  ✅ 后端无 MIME→ext 内联子串链（扫 ${backendMediaScanned} 文件；均走 mime.ts）`);
 }
 
+// ─────────────────────────────────────────────────────────────────
+// 规则 13-c（2026-09-16 · TD-08-23 复发闸）：**localTool 内禁「扩展名缺失 → 静默猜某格式」**。
+//
+// 【为什么必须有（13-b 拦不住这个形态）】13-b 只拦 `includes('<mime词>')` 子串链；而 TD-08-23
+//   的形态是 `path.extname(filePath) || 'png'` —— 扩展名缺失时**静默把文件当成 png**：
+//   真实无扩展名 JPEG 被 Jimp 按 png 重编码（体积膨胀 + 格式丢失），**且零日志**。
+//   该形态在 TD-16-11（前端）修过后**在后端复发**（`routes/files.ts` · `utils/resolveLocalImages.ts`），
+//   正是母体 M5「失败不可见」+「复发债必须有机器闸」的典型（附 B1：5 条复发债全部是"改了但没加闸"）。
+//
+// 【判据（反向）】localTool/src/** 内任一行同时满足：
+//   ① 出现 `extname(`（在读扩展名）；② 该行有 `|| '<某媒体后缀>'` 或 `?? '<某媒体后缀>'` 兜底。
+//   → 违规（应改用 `fileStore.jimpMimeForFile` / `jimpExtForFile`（缺扩展名时读字节真相）
+//     或诚实返回 null/失败，禁「猜一个格式」）。
+//   · 豁免：`utils/fileStore.ts`（该原语自身宿主，其 `?? Jimp.MIME_PNG` 是**表内保底**非静默错标，
+//     且注释已写明读字节真相在前）；纯文本/JSON 等非媒体后缀不在判据内。
+// ─────────────────────────────────────────────────────────────────
+const MEDIA_EXT_GUESS = /(\|\||\?\?)\s*['"](?:png|jpe?g|gif|webp|bmp|tiff|avif|svg|mp4|webm|mov|mp3|wav|ogg)['"]/i;
+const FILE_STORE_HOST = 'localTool/src/utils/fileStore.ts';
+let backendGuessViol = 0;
+if (existsSync(BACKEND_SRC)) {
+  for (const f of collectFiles(BACKEND_SRC)) {
+    const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+    if (!/\.(ts|tsx)$/.test(rel)) continue;
+    if (rel === FILE_STORE_HOST) continue; // 原语宿主豁免（表内保底，非静默错标）
+    const lines = readFileSync(f, 'utf8').split('\n');
+    for (const [i, line] of lines.entries()) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+      if (!line.includes('extname(')) continue;
+      if (MEDIA_EXT_GUESS.test(line)) {
+        backendGuessViol++;
+        fail(
+          `后端「扩展名缺失静默猜格式」: ${rel}:${i + 1} → ${trimmed.slice(0, 100)}` +
+            `（真值源 = fileStore.jimpExtForFile / jimpMimeForFile；缺扩展名应读字节真相或诚实失败，禁猜 png）`,
+        );
+      }
+    }
+  }
+}
+if (!backendGuessViol) {
+  console.log('  ✅ 后端无「extname(...) || 媒体后缀」静默猜格式');
+}
+
 // 规则 14（2026-09-16 · TD-08-19）：**跨栈契约常量对账** —— 前端 / 后端各持一份、值必须相等。
 //
 // 【为什么是「对账」而非「收口」】`MAX_SEND_DIM` 无法只留一份：前端（`src/`，vite/浏览器构建）与

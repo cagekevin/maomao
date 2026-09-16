@@ -20,8 +20,6 @@ import TabTargetMenu from './TabTargetMenu.tsx';
 import { useOutsideClick } from '@/components/base/core/uiHooks.ts';
 
 export interface RowOpsMenuProps {
-  /** 是否有删除行能力（最后一行也可删空——空表由空态接管，此处不限） */
-  disabled?: boolean;
   /** 当前是否还有多选行（>1 删除 = 批量删选中） */
   hasMultiSelect?: boolean;
   onMoveUp: () => void;
@@ -43,7 +41,6 @@ export interface RowOpsMenuProps {
 }
 
 export default function RowOpsMenu({
-  disabled = false,
   hasMultiSelect = false,
   onMoveUp,
   onMoveDown,
@@ -73,7 +70,6 @@ export default function RowOpsMenu({
         type="button"
         className="atw-row-ops-btn"
         title="行操作"
-        disabled={disabled}
         onClick={(e) => {
           e.stopPropagation();
           setOpen((v) => !v);

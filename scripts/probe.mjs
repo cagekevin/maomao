@@ -44,14 +44,21 @@
  *   --find <字面量> | --find-re <正则>   必填，二选一
  *   --replace <替换文本>          必填（正则模式支持 $1..$9）
  *   --run "<shell 命令>"          必填，cwd = 仓库根
- *   --expect-exit <N>            期待退出码（默认：只要求"命令失败"= 非 0？→ 不，默认不校验退出码，显式给才校验）
+ *   --expect-exit <N>            期待退出码（默认不校验退出码，显式给才校验）
  *   --expect-out <子串>          期待命中（stdout+stderr 合并后）
  *   --expect-not-out <子串>      期待不出现（防"红在别处"）
  *   --label <名字>               探针名（进结论块，便粘贴）
  *   --all                        允许注入点出现多处时全部替换
  *   --dry                        只预览注入 diff，不写盘、不跑命令
+ *   --suggest-out                跑**未注入**命令，列出可用作 --expect-out 的候选串（治"凭印象猜关键词"）
+ *   --skip-baseline              跳过"基线必绿"前置检查（默认开启，见下）
  *
- * 【退出码】0 = 观测与期望**一致**（探针命中）；1 = 不一致（探针未命中）；2 = 探针本身无效（参数/注入点/还原失败）。
+ * 【基线必绿（默认开启 · 2026-09-16 加固）】
+ *   注入前先跑一遍**未注入**的同命令；若它本来就失败，则注入后的"红"与你的修复无关
+ *   ⇒ 直接拒跑（exit 2）。本仓 TD-02-41 实证：探针首次 `exit=1` 被当成"先红成立"，
+ *   真因是那条命令**单文件跑不起来**（未注入时就红）—— 写进日志就是一条假证据。
+ *
+ * 【退出码】0 = 观测与期望**一致**（探针命中）；1 = 不一致（探针未命中）；2 = 探针本身无效（参数/注入点/基线不绿/还原失败）。
  * 【界限】临时改文件这一动作**只允许通过本工具做**；用完即还原，**不允许 --keep 式保留**（那是假账的入口）。
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, rmSync } from 'node:fs';
@@ -68,6 +75,16 @@ const fail = (msg, code = 2) => {
   console.error(`❌ 探针无效：${msg}`);
   process.exit(code);
 };
+
+/**
+ * 去 ANSI 色码 —— **必须**在比对与打印前做。
+ *
+ * 【为什么（2026-09-15 实测）】vitest 会给「期望值 / 实际值 / 路径行号」着色，ESC 序列会把
+ * 目标子串**切断**（如 `to have a length of \x1b[31m0\x1b[39m`）。后果：`--expect-out` 明明
+ * 该命中却报「未命中」→ 把「探针没测到」的假象扣在真实结论上。本仓 TD-22-51 的探针因此
+ * 连续两次假红、白跑两轮 —— 这不是"测试不红"，是**工具的眼睛被蒙了一层**。
+ */
+const stripAnsi = (s) => s.replace(/\u001b\[[0-9;]*m/g, '');
 
 /** ── 参数解析 ── */
 const argv = process.argv.slice(2);
@@ -87,6 +104,44 @@ const expectOut = val('--expect-out');
 const expectNotOut = val('--expect-not-out');
 const allowAll = has('--all');
 const dry = has('--dry');
+const skipBaseline = has('--skip-baseline');
+const suggestOut = has('--suggest-out');
+
+if (!run) fail('缺 --run');
+// --suggest-out 只跑"未注入"的命令，不需要注入参数，故在参数校验前短路。
+if (suggestOut) {
+  console.log(`\n🧭 建议断言串｜在**未注入**状态下跑一次，提取可用作 --expect-out 的候选\n   命令: ${run}\n`);
+  let baseOut = '';
+  let baseExit = 0;
+  try {
+    baseOut = execSync(run, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (e) {
+    baseExit = typeof e.status === 'number' ? e.status : 1;
+    baseOut = `${e.stdout ?? ''}${e.stderr ?? ''}`;
+  }
+  const cleanBase = stripAnsi(baseOut);
+  const cands = extractCandidates(cleanBase);
+  if (!cleanBase.trim()) {
+    console.log('   ⚠️  未注入时命令**零输出**。这通常意味着：');
+    console.log('       · 命令本身跑不起来（先确认基线），或');
+    console.log('       · 这组用例会把进程挂死（本仓 TD-21-2 实例：无限渲染循环 ⇒ 永不产出输出）。');
+    console.log('       → 挂死时 probe 不适用，改用受控手工注入 + git diff 核对，并在轮次文件写明口径。');
+  } else if (!cands.length) {
+    console.log('   （未提取到候选——输出里没有 文件:行 / 断言方法名 / 失败标记行）');
+    console.log('   原始输出尾部：');
+    for (const l of cleanBase.split(/\r?\n/).filter(Boolean).slice(-10)) console.log(`   | ${l.slice(0, 160)}`);
+  } else {
+    console.log(`   未注入基线: exit=${baseExit}\n`);
+    console.log('   候选（按出现次数降序；次数高 = 多条失败路径都含它 = 更稳）:');
+    for (const [s, n] of cands) console.log(`     ${String(n).padStart(2)}×  ${s}`);
+    console.log('\n   ⚠️  基线必须为绿（exit=0）才有意义：基线是红的 ⇒ 红的是环境不是你的注入。');
+    if (baseExit !== 0) {
+      console.log(`   ⛔ 实测基线 exit=${baseExit} → **当前命令本来就失败**，不能用它做探针。`);
+      console.log('      换用该测试被设计运行的方式（本仓实例：单文件跑不起来 ⇒ 改用全量 glob 命令）。');
+    }
+  }
+  process.exit(0);
+}
 
 if (!file) fail('缺 --file');
 if (!findLit && !findRe) fail('缺 --find 或 --find-re');
@@ -152,6 +207,72 @@ if (hitCount > 1 && !allowAll) {
 }
 if (injected === original) fail('注入后内容与原文相同（--replace 与 --find 等价）→ 什么都没改，不构成探针');
 
+/**
+ * ── 建议断言串（--suggest-out）─────────────────────────────────────────────
+ * 跑**未注入**的命令，把输出里"适合当 --expect-out 的候选串"列出来。
+ *
+ * 【为什么（本仓真实弯路）】`--expect-out` 被**凭印象猜**导致假红至少 4 次：
+ *   · 猜 `expected 0 to be 4`，而 vitest 2.x 的 `toHaveLength` 失败**只输出 diff**（`- 4 / + 0`）；
+ *   · 猜断言值，而回显只截尾部，第一个失败用例的文案根本没进搜索范围；
+ *   · 猜 `to have a length of 0`——那个串**在输出里根本不存在**。
+ * 教训原话："必须取自实际输出"。本开关把这一步从人肉记忆变成一条命令。
+ */
+function extractCandidates(text) {
+  const lines = text.split(/\r?\n/);
+  const out = new Map(); // 候选串 → 出现次数
+  const bump = (s) => {
+    const t = s.trim();
+    if (t.length < 4 || t.length > 100) return;
+    out.set(t, (out.get(t) ?? 0) + 1);
+  };
+  for (const raw of lines) {
+    const l = raw.trim();
+    if (!l) continue;
+    // ① 文件:行:列 锚点（vitest / tsc 都产出）
+    for (const m of l.matchAll(/([\w./-]+\.(?:ts|tsx|js|jsx|mjs|cjs)):(\d+)(?::\d+)?/g)) {
+      bump(`${m[1]}:${m[2]}`);
+    }
+    // ② 断言方法名（区分度最高，且跨用例稳定）
+    for (const m of l.matchAll(/\b(toHaveBeenCalled\w*|toBe\w*|toEqual|toContain|toMatch\w*|toThrow\w*|rejects)\b/g)) {
+      bump(m[1]);
+    }
+    // ③ vitest / eslint 的失败标记行
+    if (/^[×✕✗]\s/.test(l) || /^(FAIL|✖)\b/.test(l) || /error TS\d+:/.test(l)) bump(l.slice(0, 90));
+  }
+  return [...out.entries()].sort((a, b) => b[1] - a[1]).slice(0, 24);
+}
+
+/**
+ * ── 基线必绿前置（治假红 / 假绿）───────────────────────────────────────────
+ * 跑**未注入**的同一条命令：若它本来就失败，则注入后的"红"与你的修复无关 ——
+ * 那不是"先红成功"，是**环境造成的假红**，写进日志就是一条假证据。
+ *
+ * 【本仓实证】TD-02-41 探针首次 `exit=1` 被当成"先红成立"，真因是
+ * `stage2-routes.test.js` **不能单文件跑**（依赖 `node --test test/*.test.js` 全量 glob 装载），
+ * 未注入时就已经失败。是 `--expect-out` 未命中才暴露了它。
+ */
+if (!dry && run && !skipBaseline) {
+  let baseExit = 0;
+  let baseOut = '';
+  try {
+    baseOut = execSync(run, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (e) {
+    baseExit = typeof e.status === 'number' ? e.status : 1;
+    baseOut = `${e.stdout ?? ''}${e.stderr ?? ''}`;
+  }
+  const cleanBase = stripAnsi(baseOut);
+  if (baseExit !== 0) {
+    console.error(`❌ 探针无效（基线不绿）：未注入时同命令已经 exit=${baseExit} → 注入后的"红"与你的修复无关。\n` +
+      '   → 这不是"先红成功"，是环境造成的**假红**；写进日志就是假证据。\n' +
+      '   → 正确处置：① 换用该测试被设计运行的方式（如全量 glob 命令）；\n' +
+      '                ② 或先用 --suggest-out 看未注入的真实输出/退出码。\n' +
+      '   → 确认这条命令的失败与你的注入无关时，显式加 --skip-baseline 跳过本检查。');
+    console.error('   ── 未注入输出尾部 ──');
+    for (const l of cleanBase.split(/\r?\n/).filter(Boolean).slice(-8)) console.error(`   | ${l.slice(0, 160)}`);
+    process.exit(2);
+  }
+}
+
 /** ── 预览 ── */
 if (dry) {
   const before = original.split(/\r?\n/);
@@ -190,15 +311,6 @@ try {
   unlinkSync(journalPath);
 }
 
-/**
- * 去 ANSI 色码 —— **必须**在比对与打印前做。
- *
- * 【为什么（2026-09-15 实测）】vitest 会给「期望值 / 实际值 / 路径行号」着色，ESC 序列会把
- * 目标子串**切断**（如 `to have a length of \x1b[31m0\x1b[39m`）。后果：`--expect-out` 明明
- * 该命中却报「未命中」→ 把「探针没测到」的假象扣在真实结论上。本仓 TD-22-51 的探针因此
- * 连续两次假红、白跑两轮 —— 这不是"测试不红"，是**工具的眼睛被蒙了一层**。
- */
-const stripAnsi = (s) => s.replace(/\u001b\[[0-9;]*m/g, '');
 const clean = stripAnsi(output);
 
 /** ── 断言（观测 == 期望 才算"命中"） ── */

@@ -10,7 +10,6 @@ import {
 } from '@/components/videoEditor/ui/ui/tooltip';
 import { Button } from '@/components/videoEditor/ui/ui/button';
 import {
-  SplitSquareHorizontal,
   Scissors,
   AlignLeft,
   AlignRight,
@@ -105,13 +104,6 @@ function ToolbarLeftSection() {
           icon={<AlignRight />}
           tooltip={'裁右'}
           onClick={({ event }) => handleAction({ action: 'split-right', event })}
-        />
-
-        <ToolbarButton
-          icon={<SplitSquareHorizontal />}
-          tooltip={'即将推出'}
-          disabled={true}
-          onClick={({ event: _event }) => {}}
         />
 
         <ToolbarButton

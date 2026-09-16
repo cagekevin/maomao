@@ -1,11 +1,16 @@
 /**
- * 统一错误分类 —— 异步/网络错误的单一决策入口（CONTEXT §三）。
+ * 统一错误分类 —— 异步/网络错误的单一分类入口（CONTEXT §三）。
  *
  * 【为什么存在】此前错误判断散落各处（节点自写 if(/网络错误/)、各 API 各写各的），
- * 分类口径不一致。本模块把「错误 → 类型 → 决策依据」集中：
+ * 分类口径不一致。本模块把「错误 → 类型」集中：
  *  - classifyError(e) → { type, message, retryable }
  *  - type ∈ abort | timeout | network | http | business（登记于 contracts.ts GEN_ERRORS）
- *  - retryable：仅 timeout/network 可自动重试（业务失败不重试，防封号）
+ *
+ * 【retryable 的定位 · 2026-09-16 修正（TD-16-16）】它是**观测字段，不是决策依据** ——
+ * 全库消费点均只把它写进 logger 供排查，无任何 `if (retryable)` 分支。
+ * **真正的自动重试决策点**是 `api/httpClient.ts:261`（判据＝NetworkError／TimeoutError／
+ * fetch 网络型 TypeError；HttpError 一律不重试，属主动设计「业务失败不重试·防封号」）。
+ * 若要新增重试行为，改那里，不要改本字段（改本字段对行为零影响）。
  *
  * 【用法】调用方拿到 type 后统一决策（abort 原样上抛 / network·timeout 降级 / 其余按业务
  * 处理），禁止再自写 if(/网络错误/) 之类关键词判断。类型登记/文案在 contracts.ts GEN_ERRORS。

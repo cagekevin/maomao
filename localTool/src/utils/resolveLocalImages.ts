@@ -26,7 +26,10 @@ import { getUploadDir } from '../db/database.js';
 // 「Jimp 可编码格式 → MIME」唯一真源（2026-09-16 收口 · TD-02-41）。
 // 原为本文件内 `mimeFromExt` switch —— 与 files.ts 的白名单、前端 assetUrl.ts 的 Set 同源三份，
 // 已漂移过一次（见 fileStore.JIMP_MIME_BY_EXT 注释）。此处改为委托，不再自持映射。
-import { jimpMimeForExt } from './fileStore.js';
+// 【TD-08-23 修复 2026-09-16】选 MIME 的入口由 `jimpMimeForExt(ext)` 改为 `jimpMimeForFile(ext, img)` ——
+// 原先 `path.extname(...) || 'png'` 把**无扩展名文件静默当 png**，真 JPEG 被重编码为 PNG；
+// 现由该原语在扩展名缺失时读 `img.getMIME()`（字节真相），不再猜。
+import { jimpMimeForFile } from './fileStore.js';
 // TD-08-16：URL→磁盘相对路径统一走 helpers 唯一原语（URL 解析剥 ?# + decode 一次）。
 import { relativePathFromFilesUrl } from './helpers.js';
 
@@ -47,8 +50,10 @@ function resolveLocalPath(u: string): string | null {
 async function fileToInlineBase64(filePath: string): Promise<string | null> {
   try {
     if (!fs.existsSync(filePath)) return null;
-    const ext = path.extname(filePath).toLowerCase().replace('.', '') || 'png';
+    // 【TD-08-23 修复 2026-09-16】不再 `extname || 'png'` 猜（无扩展名真 JPEG 会被错标 png）——
+    // 先 Jimp.read 出字节真相，再由 jimpMimeForFile 决定：扩展名缺省时取 img.getMIME()。
     const img = await Jimp.read(filePath);
+    const ext = path.extname(filePath).toLowerCase().replace('.', '');
     const scale = Math.min(1, MAX_SEND_DIM / Math.max(img.getWidth(), img.getHeight()));
     if (scale < 1) {
       img.resize(
@@ -56,7 +61,7 @@ async function fileToInlineBase64(filePath: string): Promise<string | null> {
         Math.max(1, Math.round(img.getHeight() * scale)),
       );
     }
-    const mime = jimpMimeForExt(ext);
+    const mime = jimpMimeForFile(ext, img);
     const buf = await img.getBufferAsync(mime);
     return `data:${mime};base64,${buf.toString('base64')}`;
   } catch {

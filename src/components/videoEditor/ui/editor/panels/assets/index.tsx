@@ -30,8 +30,10 @@ export function AssetsPanel() {
 
   // 更新(2026-09-14)：sounds / captions **已恢复**（误判为 AI 相关而删除，实测零 AI 依赖 ——
   //   音效库=素材能力；字幕=浏览器内 Whisper 本地转写。见 docs/133 §〇.4）。
-  // 仍缺的只有 ai（真属 AI 域）。
-  // 未实现的视图也走同一套面板语言（`grow` 分区 + `PanelState`），不再自造 `p-4` 占位块。
+  // 更新(2026-09-16)：`ai` tab 已删（AI 域随 docs/130 整体移除，本仓不移植；残留 tab 点击只说
+  //   「未移植」= 死入口，用户裁定删除）。
+  // 未实现的视图（effects / filters / adjustment）也走同一套面板语言（`grow` 分区 + `PanelState`），
+  // 不再自造 `p-4` 占位块。
   const notice = (text: string, hint: string) => (
     <PanelBaseView>
       <PropertyGroup grow>
@@ -50,7 +52,6 @@ export function AssetsPanel() {
     captions: <Captions />,
     filters: notice('滤镜', '该视图尚未实现'),
     adjustment: notice('调整', '该视图尚未实现'),
-    ai: notice('AI', 'AI 域已移除，本仓未移植'),
     settings: <SettingsView />,
   };
 

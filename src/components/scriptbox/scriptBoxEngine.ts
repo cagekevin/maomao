@@ -629,7 +629,10 @@ export function createScriptBoxEngine({
   // ═══════════════════════════════════════════════════════════════
   // 步骤3 分镜提示词（对齐官方 Ir）
   // ═══════════════════════════════════════════════════════════════
-  const onGenerateShotPrompts = async (shotIds?: string[], feedback?: string) => {
+  // 【签名口径 TD-09-4】shotId 收 `string | number` 并**原样透传**：Shot.id 真源是 `string | number`
+  //（createNewShot 产出 Number，见 scriptBoxPrompts.ts:334），下游按 `s.id === shotId` 严格相等匹配，
+  //  故不得 String() 归一（否则 number id 静默匹配不到）。
+  const onGenerateShotPrompts = async (shotIds?: Array<string | number>, feedback?: string) => {
     const d = getData();
     const shots = d.shots || [];
     // 分派目标：单 id / 数组 / 全部（对齐官方 Ir）
@@ -869,7 +872,7 @@ export function createScriptBoxEngine({
   // ═══════════════════════════════════════════════════════════════
   // AI 生成图提示词（关键帧/四宫格/九宫格/俯视调度图）—— 接真 chat
   // ═══════════════════════════════════════════════════════════════
-  const onGenerateShotImage = async (shotId: string, type: string = IMAGE_GEN_DEFAULT) => {
+  const onGenerateShotImage = async (shotId: string | number, type: string = IMAGE_GEN_DEFAULT) => {
     // type 有效性统一由 resolveImageGenSys 对当前 playbook 兜底（未知 type → 默认 keyframe），此处不再持漫剧白名单
     const d = getData();
     const shot = (d.shots || []).find((s) => s.id === shotId);
@@ -960,7 +963,7 @@ export function createScriptBoxEngine({
   //  - 复用 runAbortable + loading + logger/toast，与其它生成回调完全一致
   // ═══════════════════════════════════════════════════════════════
   const onReviewShotPrompt = (
-    shotId: string,
+    shotId: string | number,
     field: string,
     feedback?: string,
   ): Promise<ReviewShotResult> => {
@@ -1387,7 +1390,7 @@ export function createScriptBoxEngine({
     }
   };
 
-  const onConnectShot = (shotId: string, target: string = 'image') => {
+  const onConnectShot = (shotId: string | number, target: string = 'image') => {
     if (!addNodes) return;
     const d = getData();
     const shot = (d.shots || []).find((s) => s.id === shotId);
@@ -1403,7 +1406,10 @@ export function createScriptBoxEngine({
   // 批量连下游（对齐官方 Ir 的「未选则全部」语义，与 onGenerateShotPrompts / onGenerateAllAssetImages 一致）：
   // 未传 / 空数组 → 全部镜头；传入选中 id 数组 → 只连选中的镜头。整批共享一个分配器，
   // 确保批内每镜各占一格（镜头序互异 → 期望格互异），单个点也同一定位逻辑。
-  const onConnectShots = (shotIds: string[] | undefined, target: string = 'image') => {
+  const onConnectShots = (
+    shotIds: Array<string | number> | undefined,
+    target: string = 'image',
+  ) => {
     const d = getData();
     const shots = d.shots || [];
     const ids = Array.isArray(shotIds) && shotIds.length > 0 ? shotIds : shots.map((s) => s.id);
@@ -1421,7 +1427,10 @@ export function createScriptBoxEngine({
   // 思路A：勾选多个镜头 → 调 AI 把各镜资料合并生成「一条序号连贯的合并视频提示词」
   // （"第一个画面…第N个画面"一路排到底，避免直接拼装导致序号重复），再新建 videoGenerateNode。
   // 参考图合并、时长累加（各镜 duration 之和，预选视频节点时长选项）；剧本数据完全不变。
-  const onGenerateMergedVideo = (shotIds: string[] | undefined, _target: string = 'video') => {
+  const onGenerateMergedVideo = (
+    shotIds: Array<string | number> | undefined,
+    _target: string = 'video',
+  ) => {
     if (!addNodes) return;
     const d = getData();
     const shots = d.shots || [];
@@ -1546,7 +1555,7 @@ export function createScriptBoxEngine({
     return String(found?.data?.videoUrl || '');
   };
 
-  const onGenerateTailFrameVariants = async (shotId: string) => {
+  const onGenerateTailFrameVariants = async (shotId: string | number) => {
     const d = getData();
     const shots = d.shots || [];
     const idx = shots.findIndex((s) => s.id === shotId);

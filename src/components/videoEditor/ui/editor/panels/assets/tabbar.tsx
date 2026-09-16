@@ -36,7 +36,6 @@ export function TabBar() {
     ('字幕');
     ('滤镜');
     ('调整');
-    ('AI');
     ('设置');
   }
   const [showTopFade, setShowTopFade] = useState(false);

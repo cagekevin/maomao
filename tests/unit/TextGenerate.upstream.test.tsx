@@ -106,7 +106,7 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
 vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {} }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   toAbsoluteFileUrl: (x: unknown) => x,
-  saveResultToTasks: vi.fn(async () => undefined),
+  saveResultToTasks: vi.fn(async (url) => ({ ok: true, url, skipped: true })),
 }));
 vi.mock('../../src/components/base/store/providerStore.ts', () => ({
   useProviders: () => ({ providers: [] }),

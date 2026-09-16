@@ -338,7 +338,6 @@ export default function AssistantTablePanel({
     const opsRowIds = hasMulti ? selectedRowIds : [row.id];
     return (
       <RowOpsMenu
-        disabled={false}
         hasMultiSelect={hasMulti}
         onMoveUp={() => apply((s) => moveRow(s, row.id, 'up'))}
         onMoveDown={() => apply((s) => moveRow(s, row.id, 'down'))}

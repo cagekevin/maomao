@@ -132,18 +132,25 @@ export async function runGenerationContract({
       }
       // ② 写回「应显示的 URL」
       if (url) settle?.(url, r, taskCtl);
-      // ③ 落盘唯一出口（P0-C）：失败回退原 URL，不把整体判定为失败
+      // ③ 落盘唯一出口（P0-C）：保持「失败不阻断主流程」，但**区分三态**（TD-01-17）——
+      //    落盘成功→用持久 URL；无需落盘→原样；**落盘失败→保留原 URL 降级 + 用户可见**（不再并入"成功"）。
       let finalUrl = url;
       if (saveToTasks && url) {
-        const persisted = await saveResultToTasks(url, type).catch((e: unknown): null => {
-          const err = e instanceof Error ? e : new Error(String(e));
-          reportDegrade({ layer: degradeLayer, key: 'saveResultToTasks', e: err });
-          return null;
-        });
-        if (persisted) {
-          finalUrl = persisted;
-          // ④ 持久 URL 与显示 URL 不同 → 追加写回（节点覆盖外链）
-          if (persisted !== url) onPersisted?.(persisted, r, taskCtl);
+        const outcome = await saveResultToTasks(url, type);
+        if (outcome.ok) {
+          finalUrl = outcome.url;
+          // ④ 持久 URL 与显示 URL 不同 → 追加写回（节点覆盖外链，仅真正落盘成功时）
+          if (!outcome.skipped && outcome.url !== url) onPersisted?.(outcome.url, r, taskCtl);
+        } else {
+          // 生成成功、保存失败：保留原始结果地址（ADR 0005「保留远端产物地址」）+ 分开报告。
+          // 【为什么不把整体判 fail】模型确已生成，结果地址仍可用（可能临时）→ 判 fail 会误导用户"没生成"。
+          // 【为什么必须 toast】原实现只 reportDegrade（无 toast）= 用户不可见 = 假成功（刷新后才丢）。
+          reportDegrade({
+            layer: degradeLayer,
+            key: 'saveResultToTasks',
+            e: outcome.message ? new Error(outcome.message) : undefined,
+            toast: '结果已生成，但未能保存到本地（结果地址已保留，刷新后可能失效）',
+          });
         }
       }
       taskCtl.done(finalUrl);

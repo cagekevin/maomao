@@ -31,8 +31,16 @@ import { publishTaskCompleted } from './taskCompletionBus.ts';
 import { generateId } from '../core/idGen.ts';
 import { GEN_MAX_CONCURRENT } from '../core/config.ts';
 
-/** 任务状态机：pending(待跑) → running(进行中) → completed / failed */
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
+/**
+ * 任务状态机：pending(待跑) → running(进行中) → completed / failed / unknown。
+ *
+ * 【TD-08-24 · 2026-09-16】新增终态 `unknown` = **提交结果未知**（付费任务专属）：
+ * 提交请求已发出但未收到确认（超时/断连/落库失败），**上游可能已创建任务并在跑**。
+ * 【为何必须与 failed 分开】判 failed 会显示「失败」→ 用户直接重提 → **重复计费**（旧任务还在跑）。
+ * 故 unknown 走琥珀色「结果未知」+ 文案引导用户到任务中心确认；**不得自动重试、不得自动回填节点结果**。
+ * 与后端口径对齐：`localTool/src/relay-poll.ts` 的 `RelayTaskStatus`。
+ */
+export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'unknown';
 
 /** 任务记录（对齐官方 Ln.jsx / jn.jsx 字段） */
 export interface Task {
@@ -109,6 +117,8 @@ function persist(task: Task): void {
 export function statusDotClass(status?: string): string {
   if (status === 'completed') return 'bg-emerald-400';
   if (status === 'failed') return 'bg-red-400';
+  // 【TD-08-24】unknown（提交结果未知·可能已在生成）用琥珀色：既非红（确定失败）也非蓝（进行中）
+  if (status === 'unknown') return 'bg-amber-400';
   return 'bg-blue-400';
 }
 
@@ -116,6 +126,8 @@ export function statusDotClass(status?: string): string {
 export function statusLabel(status?: string, progress = 0): string {
   if (status === 'completed') return '已完成';
   if (status === 'failed') return '失败';
+  // 【TD-08-24】提交结果未知：文案必须点明「可能已在生成」，否则用户会当成失败直接重提（重复计费）
+  if (status === 'unknown') return '结果未知';
   if (status === 'pending') return '生成中';
   if (status === 'running') return progress > 0 ? `${Math.round(progress)}%` : '生成中';
   return status || '';

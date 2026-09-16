@@ -112,7 +112,7 @@ vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
 }));
 vi.mock('../../src/components/base/api/index.ts', () => ({
   toAbsoluteFileUrl: (x: string) => x,
-  saveResultToTasks: vi.fn(async () => undefined),
+  saveResultToTasks: vi.fn(async (url) => ({ ok: true, url, skipped: true })),
   fetchTasks: vi.fn(async () => ({ items: [] })),
   generateImage: vi.fn(async () => ({ url: 'http://gen.local/img.png' })),
 }));

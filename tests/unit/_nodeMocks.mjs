@@ -176,7 +176,7 @@ const toastError = () => {
 };
 
 const toAbsoluteFileUrl = (/** @type {any} */ x) => x;
-const saveResultToTasks = async () => undefined;
+const saveResultToTasks = async () => ({ ok: true, url: 'http://x/y.png', skipped: true });
 const saveTextToTasks = async () => undefined;
 const saveInlineToLocal = async () => 'local://x';
 const uploadFileToLocal = async () => 'local://up';

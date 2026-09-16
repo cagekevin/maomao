@@ -135,7 +135,7 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
 vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {} }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   toAbsoluteFileUrl: (x: string) => x,
-  saveResultToTasks: vi.fn(async () => undefined),
+  saveResultToTasks: vi.fn(async (url) => ({ ok: true, url, skipped: true })),
 }));
 
 // 带 rest 参数声明：保证 mock 工厂可无损透传调用参数，无需 as any 强转

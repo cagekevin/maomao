@@ -1508,7 +1508,7 @@ function Canvas() {
                     onRevert={revertArrange}
                     onKeep={keepArrange}
                   />
-                  {/* 占位按钮 onRun/onClearCache 未传：接真系统时在 App 传入（见 CanvasToolbar 注释） */}
+                  {/* onClearCache 已接 handleClearCache；CanvasToolbar 无 onRun 属性（CanvasToolbarProps 无此 prop），故无占位待传项 */}
                   <CanvasToolbar
                     minimapOn={minimapOn}
                     onToggleMinimap={() => setSetting('minimapOn', !minimapOn)}

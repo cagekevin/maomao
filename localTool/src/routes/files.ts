@@ -21,6 +21,7 @@ import {
   resolveUploadFile,
   contentIdOf,
   isJimpEncodableExt,
+  jimpExtForFile,
 } from '../utils/fileStore.js';
 import {
   json,
@@ -451,8 +452,21 @@ export async function handleThumbnail(
   }
 
   // 目标扩展名：仅接受 Jimp 可编码的 format（否则沿用源扩展名），杜绝假 webp/未知编码。
-  const srcExt = path.extname(filePath).toLowerCase().replace(/^\./, '') || 'png';
+  // 【TD-08-23 修复 2026-09-16】源扩展名不再 `|| 'png'` 猜 —— 无扩展名文件（上传链 ext 回退到空所致，
+  // 见 handleUpload 的 `filename → mimeType → ''`）若磁盘是真 JPEG，旧写法会把输出错定成 png
+  // （Jimp 按 png 重编码 = 体积膨胀 + 格式丢失，且无日志）。**仅在扩展名缺失时才读盘定真格式**
+  // （正常请求走 isJimpEncodableExt 短路，零额外 I/O）；读不出（非图/不可编码）才沿用空 → 显式失败。
+  const srcExtRaw = path.extname(filePath).toLowerCase().replace(/^\./, '');
+  const srcExt = isJimpEncodableExt(srcExtRaw)
+    ? srcExtRaw
+    : ((await jimpExtForFile(filePath)) ?? '');
   const outExt = isJimpEncodableExt(formatParam) ? formatParam.toLowerCase() : srcExt;
+
+  if (!outExt) {
+    // 无扩展名且字节不可判（非图/非 Jimp 可编码）→ 不猜格式，显式失败（前端 <img onError> 回退原图）。
+    console.warn(`[thumbnail] 无法判定源格式且无 format 参数: ${filePath}`);
+    return sendError(res, 'Unsupported source format', 415);
+  }
 
   // 缩略图缓存路径：复用 ensureThumbnailTarget 解析的缩略图目录，文件名显式含后缀与扩展名，
   // 使同源同 maxDim/quality/format 只渲染一次（幂等缓存，与 tryGenerateThumbnail 共用缓存目录）。

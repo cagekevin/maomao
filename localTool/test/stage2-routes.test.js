@@ -426,17 +426,47 @@ test('[fileStore] TD-02-41：isJimpEncodableExt 只放行 Jimp 可编码格式�
   }
 });
 
-test('[fileStore] TD-02-41：jimpMimeForExt 与白名单同表派生（未登记回退 png = 历史行为不变）', async () => {
+test('[fileStore] TD-02-41/TD-08-23：jimpMimeForFile 扩展名优先、缺失时取字节真相（不再静默 png）', async () => {
   const Jimp = (await import('jimp')).default;
-  assert.equal(fileStore.jimpMimeForExt('jpg'), Jimp.MIME_JPEG);
-  assert.equal(fileStore.jimpMimeForExt('JPEG'), Jimp.MIME_JPEG);
-  assert.equal(fileStore.jimpMimeForExt('gif'), Jimp.MIME_GIF);
-  assert.equal(fileStore.jimpMimeForExt('bmp'), Jimp.MIME_BMP);
-  assert.equal(fileStore.jimpMimeForExt('tiff'), Jimp.MIME_TIFF);
-  assert.equal(fileStore.jimpMimeForExt('png'), Jimp.MIME_PNG);
-  // 白名单外与未登记一律 png（与历史 mimeFromExt 的 default 分支逐字等价，零行为变化）
-  assert.equal(fileStore.jimpMimeForExt('webp'), Jimp.MIME_PNG);
-  assert.equal(fileStore.jimpMimeForExt(''), Jimp.MIME_PNG);
+  // 夹具必须是「真解码出来的 JPEG」——`new Jimp(w,h)` 无源格式，getMIME() 恒 image/png（测不出本条修复）。
+  const jpegImg = await Jimp.read(
+    await new Jimp(20, 20, 0xff0000ff).getBufferAsync(Jimp.MIME_JPEG),
+  );
+  assert.equal(jpegImg.getMIME(), Jimp.MIME_JPEG, '夹具前提：解码对象真格式 = JPEG');
+  // 扩展名已登记 → 尊重声明名（与历史行为一致）
+  assert.equal(fileStore.jimpMimeForFile('jpg', jpegImg), Jimp.MIME_JPEG);
+  assert.equal(fileStore.jimpMimeForFile('JPEG', jpegImg), Jimp.MIME_JPEG);
+  assert.equal(fileStore.jimpMimeForFile('gif', jpegImg), Jimp.MIME_GIF);
+  assert.equal(fileStore.jimpMimeForFile('.png', jpegImg), Jimp.MIME_PNG);
+  // 【TD-08-23 修复】扩展名缺失/未登记 → 取已解码对象的真 MIME，而非静默 png
+  assert.equal(
+    fileStore.jimpMimeForFile('', jpegImg),
+    Jimp.MIME_JPEG,
+    '无扩展名 JPEG 不得被当成 png',
+  );
+  assert.equal(
+    fileStore.jimpMimeForFile('webp', jpegImg),
+    Jimp.MIME_JPEG,
+    '不可编码扩展名回落字节真相',
+  );
+});
+
+test('[fileStore] TD-08-23：jimpExtForFile 从字节读出真格式扩展名（无扩展名磁盘文件）', async () => {
+  const Jimp = (await import('jimp')).default;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maomao-jimpext-'));
+  // 真 JPEG 字节 + 无扩展名文件名（正是 TD-08-23 的触发形态）
+  const noExt = path.join(dir, 'deadbeef');
+  fs.writeFileSync(noExt, await new Jimp(20, 20, 0xff0000ff).getBufferAsync(Jimp.MIME_JPEG));
+  assert.equal(await fileStore.jimpExtForFile(noExt), 'jpg', '真 JPEG 应读出 jpg 而非 png');
+  // 真 PNG 字节 + 无扩展名
+  const noExtPng = path.join(dir, 'cafebabe');
+  fs.writeFileSync(noExtPng, await new Jimp(20, 20, 0xff0000ff).getBufferAsync(Jimp.MIME_PNG));
+  assert.equal(await fileStore.jimpExtForFile(noExtPng), 'png');
+  // 非图字节 → 读不出 → null（调用方显式失败，不猜）
+  const notImg = path.join(dir, 'notanimage');
+  fs.writeFileSync(notImg, Buffer.from('这不是图片'));
+  assert.equal(await fileStore.jimpExtForFile(notImg), null);
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 // ════════════════════════════════════════════════════════════════════════

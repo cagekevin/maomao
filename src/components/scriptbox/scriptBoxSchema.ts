@@ -80,30 +80,50 @@ export interface ScriptBoxData extends ScriptBoxTop {
 }
 
 /**
- * 引擎注入 node.data 的回调集合（三步组件经 props.callbacks 调用，本组件不做计算）。
- * 由 useScriptBoxEngine 注入 node.data.onXxx；ScriptBoxNode 额外补 onDisconnectUpstream。
+ * 引擎回调集合（三步组件经 props.callbacks 调用，本组件不做计算）。
+ * 由 useScriptBoxEngine 创建并**作为返回值下发**（不经 node.data）；ScriptBoxNode 额外补 onDisconnectUpstream。
+ *
+ * 【TD-09-4 · 2026-09-16】本接口**不得**被任何持久化类型 extends —— `node.data` 经
+ * `canvasSnapshotSchema.NODE_KEEP` 整包落盘（`JSON.stringify`），函数在序列化时会被**静默丢弃**
+ * （`AbortController`/`Map` 甚至静默变 `{}`）。历史形态是 `ScriptBoxNodeData extends ScriptBoxCallbacks`
+ * + 每次挂载 `patchNodeDataById` 重注入，掩盖了「每次落盘都在丢」；现已改为 React 通道下发。
  *
  * 更新(2026-09-11)：`[key: string]: unknown` 索引签名已删——它会让「callbacks 字段名拼错」静默通过。
- * 原先加它是为「{ ...d } 透传」的 cast 兜底（见 ScriptBoxNode 组装 callbacks 处），现在
- * `ScriptBoxNodeData extends ScriptBoxCallbacks` 后该 cast 仍成立，无需索引签名。
- * 同时补上引擎实际注入但本表漏登的 2 个（onGenerateAssetImage / onGenerateAllAssetImages，
- * 见 scriptBoxEngine.ts 的注入点与 StepAssets 的消费点）——回调字段真源只此一处，禁止在别处重抄。
+ * 同时补上引擎实际产出但本表漏登的 2 个（onGenerateAssetImage / onGenerateAllAssetImages，
+ * 见 scriptBoxEngine.ts 的产出点与 StepAssets 的消费点）——回调字段真源只此一处，禁止在别处重抄。
  */
 export interface ScriptBoxCallbacks {
   onGenerateScript?: () => Promise<void> | void;
-  onGenerateShotPrompts?: (ids: Array<string | number>) => void;
-  onGenerateShotImage?: (shotId: string | number, type: string) => void;
-  /** 单个资产生成参考图（引擎注入；StepAssets 消费） */
+  /**
+   * 生成全部/选中分镜的提示词（缺省 = 全部）。
+   * 【签名口径】分镜 id 真源 `Shot.id` 是 `string | number`（`scriptBoxPrompts.ts:442`），
+   * `createNewShot` 产出 `Number`（`scriptBoxPrompts.ts:334`）而旧数据可能是字符串。
+   * 引擎按 `s.id === shotId` **严格相等**匹配（`scriptBoxEngine.ts:875`）→ 回调入参必须**同型透传**，
+   * 不得 `String()` 归一（否则 number id 的镜头匹配不到，静默无反应）。
+   */
+  onGenerateShotPrompts?: (
+    shotIds: Array<string | number>,
+    feedback?: string,
+  ) => Promise<void> | void;
+  /** 单个分镜生图（缺省 type 见引擎 IMAGE_GEN_DEFAULT）。 */
+  onGenerateShotImage?: (shotId: string | number, type?: string) => Promise<void> | void;
+  /** 单个资产生成参考图（引擎产出；StepAssets 消费） */
   onGenerateAssetImage?: (assetId: string) => void;
   /** 批量生成资产参考图（缺省 = 全部无图资产） */
   onGenerateAllAssetImages?: (assetIds?: string[]) => void;
-  onConnectShot?: (shotId: string | number, kind: 'image' | 'video') => void;
-  onConnectShots?: (ids: Array<string | number>, kind: 'image' | 'video') => void;
-  onGenerateMergedVideo?: (ids: Array<string | number>) => Promise<void> | void;
+  /** 连下游（target 缺省 'image'）。 */
+  onConnectShot?: (shotId: string | number, target?: string) => void;
+  /** 批量连下游（缺省 = 全部镜头）。 */
+  onConnectShots?: (shotIds: Array<string | number>, target?: string) => void;
+  /** 合并多条分镜生成一个视频节点（缺省 = 全部）。 */
+  onGenerateMergedVideo?: (
+    shotIds: Array<string | number>,
+    target?: string,
+  ) => Promise<void> | void;
   onReviewShotPrompt?: (
     shotId: string | number,
     field: string,
-    msg: string,
+    feedback?: string,
   ) => Promise<{ ok: boolean; text?: string } | undefined>;
   onGenerateTailFrameVariants?: (shotId: string | number) => void;
   /** 停止某个进行中的剧本盒任务（kind: 'asset' | 'shot'，或直接传 key） */
@@ -243,8 +263,9 @@ export function parseAssetTaskNodeId(nodeId: string, taskNodeId: string): string
   return taskNodeId.startsWith(prefix) ? taskNodeId.slice(prefix.length) : null;
 }
 
-/** 尾帧综合图任务的伪 nodeId（引擎 reportGenerate 上报用；每镜一张卡，互不顶掉）。 */
-export function tailFrameTaskNodeId(nodeId: string, shotId: string): string {
+/** 尾帧综合图任务的伪 nodeId（引擎 reportGenerate 上报用；每镜一张卡，互不顶掉）。
+ * shotId 收 `string | number`（Shot.id 真源，模板串内自动 String 化——此处是**构造键**，非身份匹配）。 */
+export function tailFrameTaskNodeId(nodeId: string, shotId: string | number): string {
   return `${nodeId}-tailframe-${shotId}`;
 }
 

@@ -463,6 +463,28 @@ export type PersistOutcome =
   | { ok: true; url: string; source: PersistSource; reason?: undefined; message?: undefined }
   | { ok: false; url?: undefined; source?: undefined; reason: PersistFailReason; message?: string };
 
+/**
+ * 「生成结果 → tasks 落盘」结果 —— **判别联合**（TD-01-17，2026-09-16）。
+ *
+ * 【为什么从 `string|null` 改为判别联合】原契约用 `null` 同时表达「**无需落盘**（blob:/已是本机 /files/）」
+ * 与「**落盘失败**」—— 这对调用方是**相反**的动作（前者无需报告、后者必须可见），却拿到同一个信号
+ * → 编排层只能把两者都并入「生成成功」报告 = **假成功**（M1 结果契约缺位 / M5 失败不可见）。
+ * 与同文件 `PersistOutcome` 同族（`ok` 为判别位）。
+ *
+ * - `ok: true` + `skipped: true`  —— 无需落盘（blob: 本地临时地址 / url 已是本机 `/files/`），url = 原样返回
+ * - `ok: true` + `skipped: false` —— 落盘成功，url = 新持久 `/files/` URL
+ * - `ok: false`                    —— 落盘失败，**调用方应保留原始 URL 降级并让失败可见**
+ */
+export type SaveTasksOutcome =
+  | { ok: true; url: string; skipped: boolean; reason?: undefined; message?: undefined }
+  | {
+      ok: false;
+      url?: undefined;
+      skipped?: undefined;
+      reason: PersistFailReason;
+      message?: string;
+    };
+
 /** 落盘文件名的扩展名（按调用方声明类型优先，其次由 mime / URL 推断；未知按 png）。 */
 function extOf(kind: AssetType | 'other', fallback = 'png'): string {
   return EXT_BY_TYPE[kind] || fallback;
@@ -544,16 +566,20 @@ export async function persistUrlToUploads(
 
 /**
  * 把生成结果落盘到 localTool 的 tasks 目录。
+ *
+ * 【TD-01-17】返回**判别联合** `SaveTasksOutcome`（不再用 `null` 兼表「无需落盘」与「落盘失败」）——
+ * 编排层须能区分二者：前者无需报告，后者必须**保留原 URL 降级 + 用户可见**（否则=假成功）。
  * @param {string} url 结果 url：data: / blob: / http(s) 上游 url
  * @param {'image'|'text'|'video'|'audio'|string} type 结果类型，决定扩展名
- * @returns {Promise<string|null>} 落盘后的 url（http://127.0.0.1:18080/files/tasks/xxx.png）；失败返回 null（不抛，不影响主流程）
+ * @returns {Promise<SaveTasksOutcome>} 落盘成功 → 新 url；无需落盘 → 原 url + skipped:true；失败 → ok:false（不抛）
  */
-export async function saveResultToTasks(url: string, type: string): Promise<string | null> {
-  if (!url || url.startsWith('blob:')) return null; // blob: 是本地临时地址，上传无意义（调用方应传 data:/http）
+export async function saveResultToTasks(url: string, type: string): Promise<SaveTasksOutcome> {
+  // blob: 是本地临时地址，上传无意义（调用方应传 data:/http）→ 无需落盘（非失败）
+  if (!url || url.startsWith('blob:')) return { ok: true, url, skipped: true };
   // 【relay 后端化】url 已是本机 /files/（relay-poll 后端已落盘 tasks 目录）→ 无需再落盘，直接返回原 url。
   // 否则 uploadRemoteUrl 会把本机文件重新下载一份到 tasks → uploads/tasks 出现重复文件（M4-C4 / P0-C 双落盘洞）。
   if (isLocalFileUrl(url)) {
-    return url;
+    return { ok: true, url, skipped: true };
   }
   const ext = EXT_BY_TYPE[type] || 'bin';
 
@@ -573,14 +599,21 @@ export async function saveResultToTasks(url: string, type: string): Promise<stri
         body: fd,
         ...UPLOAD_OPTS,
       });
-      return data?.data?.url || null;
+      const saved = data?.data?.url;
+      return saved
+        ? { ok: true, url: saved, skipped: false }
+        : { ok: false, reason: 'upload-failed' };
     }
 
     // http(s) 上游 url → fileUrl 幂等下载落盘（走 uploadRemoteUrl 唯一下载入口）
-    return uploadRemoteUrl(url, SUBFOLDER, safeName('generated', ext));
+    const saved = await uploadRemoteUrl(url, SUBFOLDER, safeName('generated', ext));
+    return saved
+      ? { ok: true, url: saved, skipped: false }
+      : { ok: false, reason: 'upload-failed' };
   } catch (e) {
     logger.warn('filesApi', '落盘 tasks 失败', e);
-    return null;
+    const message = (e as { message?: string })?.message || String(e);
+    return { ok: false, reason: 'exception', message };
   }
 }
 

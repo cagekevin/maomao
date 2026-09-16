@@ -34,7 +34,7 @@ interface ScriptBoxFullscreenProps {
  *  - title       标题栏文本（项目名）
  *  - data        节点 node.data（data.read 读全量，含 step/shots/assets）
  *  - updateData  写回通道（来自 useScriptBoxEngine）
- *  - callbacks   引擎回调（node.data.onXxx 生成/连线）
+ *  - callbacks   引擎回调（useScriptBoxEngine 返回值，TD-09-4：不经 node.data 下发）
  *  - onClose     关闭回调（Esc / 关闭按钮）
  */
 export default function ScriptBoxFullscreen({

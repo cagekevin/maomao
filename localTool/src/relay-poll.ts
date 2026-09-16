@@ -19,6 +19,13 @@
  *  - DB 真相：tasks 表按 task_id(=frontTaskId) 行，request_data 内嵌 { _relayPoll }
  *    （含 ResolvedPollConfig 快照 + providerId/capability/baseUrl），供重启恢复重建句柄；
  *    poll_task_id = 上游 task_id；result_url 终态落 /files/。
+ *
+ * 更新(2026-09-16 · TD-08-24)：新增**第三终态 `unknown`**（提交结果未知）——
+ *  - `runDirectSubmit` 拆三级容错：① 前置失败（未出站）→ `failed`；② `submitLovartTask` 失败
+ *    （POST /chat 已发出、响应可能丢失）→ `unknown`；③ 落库失败（上游已受理但本地没记下）→ `unknown`。
+ *  - **提交成功写库的顺序**改为「先落库 thread_id／清 pendingSubmit，再改内存」——
+ *    否则崩溃窗口里 DB 仍留 `pendingSubmit` 快照，重启会**再提交一次**（Lovart 无幂等 → 重复计费）。
+ *  - 恢复扫描（initRelayPoller）仍只接管 `running`/`pending`：`unknown` 是终态，**不得自动重提**。
  */
 
 import { protocol } from './ai-relay/index.js';
@@ -70,6 +77,18 @@ export type RelayTaskStatus =
   | { status: 'running'; progress?: number }
   | { status: 'completed'; url: string; type: string }
   | { status: 'failed'; error: string }
+  /**
+   * 【TD-08-24 · 2026-09-16】提交结果未知（付费任务专属第三终态）。
+   *
+   * 【为什么需要】`sendLovartChat` 是「POST /chat 等响应」——请求**已发出**但响应丢失（超时/断连/
+   * 解析失败）时必抛错，而**上游 thread 可能已创建并在跑**。原实现一律置 `failed` ⇒ 任务中心显示
+   * 「失败」⇒ 用户手动重提 ⇒ **重复计费**（且旧任务仍在跑，白花钱）。
+   * 对齐外部 AIFISHER B.1 铁律：**提交确认丢失绝不直接重提，须 unknown + 远端核对**。
+   *
+   * 【与 failed 的差别（务必区分，勿合并）】`failed` = 确定没跑（本地前置失败/上游明确报错/已取消）；
+   *   `unknown` = **可能已在跑**，判 failed 会诱导重复付费。前端据此给「需确认」语义而非「红失败」。
+   */
+  | { status: 'unknown'; error: string; threadId?: string }
   | { status: 'not-found' };
 
 /**
@@ -406,22 +425,40 @@ export async function submitGenerateTask(
 /**
  * 后台补执行 lovart 原生直连出站（「提交即返回」的落地点，runOnce 首轮调用）。
  * 参考图归一 → submitLovartTask(ensureProject/mode/upload/sendChat) → 回填 thread_id、清 pending、落库。
- * @returns true=提交成功（可继续进入轮询）；false=提交失败（已置 failed + 停句柄，错误原样透传）。
+ *
+ * 【TD-08-24 · 2026-09-16 · 两级 try：失败可归因】本函数的失败分两类，**必须分开处置**：
+ *   ① **前置失败**（参考图归一异常）→ 请求**根本没出站** → 确定没跑 → `failed` 正确；
+ *   ② **`submitLovartTask` 内 `sendLovartChat` 失败** → POST /chat **已发出**、响应可能丢失 →
+ *      **上游 thread 可能已建并在跑** → 判 `unknown`（不判 failed，防诱导用户重提 → 重复计费）。
+ *   注：`submitLovartTask` 内部步骤（setMode / 附件上传 / ensureProject）失败时同样「可能已部分出站」，
+ *   无远端核对手段 ⇒ **一律归入 ② 的 unknown**（宁 unknown 不 failed —— 代价是用户多看一眼，
+ *   而误判 failed 的代价是**重复付费**）。
+ * @returns true=提交成功（可继续进入轮询）；false=提交失败（已置 failed/unknown + 停句柄，错误原样透传）。
  */
 async function runDirectSubmit(handle: PollHandle): Promise<boolean> {
   const p = handle.pendingDirectSubmit;
   if (!p) return true;
+  // 单请求超时兜底（防底层出站单步卡死无限挂；任务总时长仍由 handle 总超时约束）
+  const profile = buildLovartDirectProfile(handle.baseUrl, {
+    timeoutMs: DIRECT_SUBMIT_TIMEOUT_MS,
+  });
+  // ① 前置阶段（纯本机，未出站）：失败 ⇒ 确定没跑 ⇒ failed。
+  let images: string[] | undefined;
   try {
-    // 单请求超时兜底（防底层出站单步卡死无限挂；任务总时长仍由 handle 总超时约束）
-    const profile = buildLovartDirectProfile(handle.baseUrl, {
-      timeoutMs: DIRECT_SUBMIT_TIMEOUT_MS,
-    });
     // 参考图形态按 lovart 直连（cdn）：不预压 base64，转回环可下载 URL 交给 adapter
     // resolveLovartAttachments 自取（下载→传 CDN），省掉 encode→decode 两遍。见 resolveLocalImages.ts 头。
-    const images =
+    images =
       p.images && p.images.length > 0
         ? ((await resolveImagesForEgress(p.images, 'cdn')) as string[])
         : undefined;
+  } catch (e) {
+    stopHandle(handle);
+    await upsertFailed(handle, e instanceof Error ? e.message : String(e));
+    return false;
+  }
+  // ② 提交阶段（可能已出站）：失败 ⇒ unknown（远端可能已在跑），**绝不判 failed**。
+  let threadId: string;
+  try {
     const out = await submitLovartTask(profile, {
       model: p.model,
       prompt: p.prompt,
@@ -431,9 +468,21 @@ async function runDirectSubmit(handle: PollHandle): Promise<boolean> {
       duration: p.duration,
       capability: p.capability,
     });
-    const threadId = out.threadId;
-    handle.taskId = threadId;
-    handle.pendingDirectSubmit = null; // 提交完成，转入轮询阶段
+    threadId = out.threadId;
+  } catch (e) {
+    stopHandle(handle);
+    // 消息里带「可能已提交」+ 原文（上游返回什么就透传什么，不翻译不静默）。
+    await upsertUnknown(handle, e instanceof Error ? e.message : String(e));
+    return false;
+  }
+  try {
+    // 【TD-08-24 修复 2026-09-16 · 顺序即正确性】**先落库（DB 真相），再改内存** —— 原实现反了：
+    //   先进内存(`handle.taskId=…` / `pendingDirectSubmit=null`)→ 再 `await upsertTask`；若在两者之间进程崩溃
+    //   （或被 kill / 断电），DB 里 `pendingSubmit` **快照仍在** ⇒ 重启 `initRelayPoller` 判定「尚未出站」⇒
+    //   **再提交一次**（Lovart 无客户端幂等 → 新 thread → **重复计费**）。
+    //   现改为先写库：崩溃只会发生在「DB 已记 thread_id + 已清 pendingSubmit」之后 ⇒ 重启走**续轮询**分支，
+    //   `core.taskId` 非空且无 `pendingSubmit` ⇒ 绝不重提交。落库本身失败（异常）则由 catch 兜底，
+    //   此时内存未改、句柄已停，语义仍一致（见下方 catch 的 unknown 处置）。
     // 落库回填：thread_id + submit_ack_at + 清 pendingSubmit 快照（DB 真相，供 attach/恢复读取）
     await upsertTask(await getDb(), {
       task_id: handle.frontTaskId,
@@ -454,11 +503,15 @@ async function runDirectSubmit(handle: PollHandle): Promise<boolean> {
       } satisfies RelayPollSnapshot),
     });
     debouncedSaveDb();
+    // 落库成功后才改内存：提交完成，转入轮询阶段
+    handle.taskId = threadId;
+    handle.pendingDirectSubmit = null;
     return true;
   } catch (e) {
-    // 提交失败：透传错误置 failed + 停句柄（前端经 GET attach 读到 failed，失败可见不静默）
+    // ③ 落库失败：**上游已受理**（threadId 已拿到）但本地没记下 ⇒ 也是「结果未知」，
+    //    不能判 failed（那会诱导重提 → 重复计费）。unknown 文案带上 threadId 便于人工核对。
     stopHandle(handle);
-    await upsertFailed(handle, e instanceof Error ? e.message : String(e));
+    await upsertUnknown(handle, e instanceof Error ? e.message : String(e), threadId);
     return false;
   }
 }
@@ -590,6 +643,26 @@ async function upsertFailed(handle: PollHandle, error: string): Promise<void> {
   debouncedSaveDb();
 }
 
+/**
+ * 【TD-08-24 · 2026-09-16】提交结果未知：写库 `unknown` + 用户可读文案 + 原文透传。
+ *
+ * 【与 upsertFailed 的分工（勿合并）】`failed` = 确定没跑（可安全重提）；`unknown` = **可能已在跑**
+ * （重提有重复计费风险）。前端据此显示「需确认」而非红「失败」，并引导用户到任务中心核实后再决定。
+ * @param threadId 已知的上游 thread_id（落库失败分支能拿到；sendChat 失败时未知 → undefined）
+ */
+async function upsertUnknown(handle: PollHandle, error: string, threadId?: string): Promise<void> {
+  const hint = threadId
+    ? `提交结果未知（可能已开始生成，上游任务号 ${threadId}），请到任务中心确认后再决定是否重新生成`
+    : '提交结果未知（请求已发出但未收到确认，可能已开始生成），请到任务中心确认后再决定是否重新生成';
+  await upsertTask(await getDb(), {
+    task_id: handle.frontTaskId,
+    status: 'unknown',
+    progress: 0,
+    error_msg: `${hint}${error ? `｜上游原文：${error}` : ''}`,
+  });
+  debouncedSaveDb();
+}
+
 /** 写进度（进行中）。 */
 async function updateProgress(
   handle: PollHandle,
@@ -622,12 +695,17 @@ export async function getGenerateStatus(frontTaskId: string): Promise<RelayTaskS
     if (row && row.status === 'failed') {
       return { status: 'failed', error: row.error_msg || '生成失败' };
     }
+    // 【TD-08-24】unknown 是终态（句柄已 stopHandle 移除，此处为兜底），必须原样透出 ——
+    // 若折成 running，前端会一直等到超时才报错，把「可能已生成」误导成「还在生成」。
+    if (row && row.status === 'unknown') {
+      return { status: 'unknown', error: row.error_msg || '提交结果未知' };
+    }
     return {
       status: 'running',
       progress: typeof row?.progress === 'number' ? row.progress : undefined,
     };
   }
-  // 句柄不在内存：回库判断（可能是历史已完成/失败，或重启后尚未被扫描接管）
+  // 句柄不在内存：回库判断（可能是历史已完成/失败/未知，或重启后尚未被扫描接管）
   const db = await getDb();
   const row = queryAll(
     db,
@@ -639,6 +717,9 @@ export async function getGenerateStatus(frontTaskId: string): Promise<RelayTaskS
     return { status: 'completed', url: row.result_url, type: row.type || '' };
   }
   if (row.status === 'failed') return { status: 'failed', error: row.error_msg || '生成失败' };
+  if (row.status === 'unknown') {
+    return { status: 'unknown', error: row.error_msg || '提交结果未知' };
+  }
   if (row.status === 'running' && row.poll_task_id) {
     // 在途且句柄不在内存 → 交给扫描（若启动扫描还没跑则提示 running）
     return {

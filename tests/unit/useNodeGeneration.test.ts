@@ -20,7 +20,24 @@ const busState = vi.hoisted(() => ({
   handler: null,
   logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
-const saveResultToTasksMock = vi.hoisted(() => vi.fn(async (url) => url));
+// 【TD-01-17】saveResultToTasks 现返回判别联合 SaveTasksOutcome（不再 string|null）
+const saveResultToTasksMock = vi.hoisted(() =>
+  vi.fn(
+    async (
+      url: string,
+    ): Promise<{
+      ok: boolean;
+      url?: string;
+      skipped?: boolean;
+      reason?: string;
+      message?: string;
+    }> => ({
+      ok: true,
+      url,
+      skipped: true,
+    }),
+  ),
+);
 const reportDegradeMock = vi.hoisted(() => vi.fn());
 const showToastMock = vi.hoisted(() => vi.fn());
 
@@ -155,10 +172,14 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
     );
   });
 
-  it('落盘失败 → reportDegrade 留痕，结果仍回退原始 URL（P0-C 语义不破坏）', async () => {
-    // 【失败可见 + 回退】saveResultToTasks reject 时：必须经 reportDegrade 可见（不得静默吞），
-    //   且保留回退语义 finalUrl = persistedUrl || strUrl → 返回 ok:true + 原始 url。
-    saveResultToTasksMock.mockRejectedValueOnce(new Error('磁盘写入失败'));
+  it('落盘失败 → reportDegrade 留痕（**带用户可见 toast**），结果仍回退原始 URL（TD-01-17 三态）', async () => {
+    // 【失败可见 + 回退】saveResultToTasks 返回 ok:false 时：必须经 reportDegrade **带 toast** 可见
+    //   （不得静默吞），且保留回退语义 → 返回 ok:true + 原始 url。
+    saveResultToTasksMock.mockResolvedValueOnce({
+      ok: false,
+      reason: 'exception',
+      message: '磁盘写入失败',
+    });
     const { result } = renderHook(() => useNodeGeneration(baseProps));
     let r;
     await act(async () => {
@@ -168,8 +189,9 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
       layer: 'useNodeGeneration',
       key: 'saveResultToTasks',
       e: expect.any(Error),
+      toast: expect.stringContaining('未能保存'),
     });
-    // P0-C 回退：落盘失败不得把整体生成判为失败
+    // 回退：落盘失败不得把整体生成判为失败
     expect(r).toEqual({ ok: true, resultUrl: 'http://x/y.png' });
   });
 

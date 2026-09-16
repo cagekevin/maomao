@@ -63,25 +63,53 @@ describe('filesApi — saveInlineToLocal', () => {
   });
 });
 
+// 【TD-01-17】`saveResultToTasks` 契约已由 `string | null` 改为**判别联合** `SaveTasksOutcome`
+// （`null` 曾兼表「无需落盘」与「落盘失败」两种相反语义 → 编排层无法区分，失败被当成功 = 假成功）。
+// 本组断言随之更新为判别联合口径：`ok/skipped/reason` 三态可区分。
 describe('filesApi — saveResultToTasks', () => {
-  it('data: 结果 → 落盘 tasks 目录返回 url', async () => {
+  it('data: 结果 → 落盘 tasks 目录，返回 ok + 持久 url（skipped=false）', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/tasks/gen.png'));
-    expect(await api.saveResultToTasks(DATA_PNG, 'image')).toBe(
-      'http://127.0.0.1:18080/files/tasks/gen.png',
-    );
+    expect(await api.saveResultToTasks(DATA_PNG, 'image')).toEqual({
+      ok: true,
+      url: 'http://127.0.0.1:18080/files/tasks/gen.png',
+      skipped: false,
+    });
   });
-  it('blob: 临时地址 → 直接返回 null（上传无意义）', async () => {
-    expect(await api.saveResultToTasks('blob:http://x/y', 'image')).toBeNull();
+  it('blob: 临时地址 → ok + skipped:true（无需落盘，非失败 —— 与落盘失败必须可区分）', async () => {
+    expect(await api.saveResultToTasks('blob:http://x/y', 'image')).toEqual({
+      ok: true,
+      url: 'blob:http://x/y',
+      skipped: true,
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('http 上游 url → fileUrl 幂等下载落盘', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/tasks/up.png'));
-    expect(await api.saveResultToTasks('http://cdn/x.png', 'image')).toBe(
-      'http://127.0.0.1:18080/files/tasks/up.png',
-    );
+    expect(await api.saveResultToTasks('http://cdn/x.png', 'image')).toEqual({
+      ok: true,
+      url: 'http://127.0.0.1:18080/files/tasks/up.png',
+      skipped: false,
+    });
   });
-  it('空 url → null', async () => {
-    expect(await api.saveResultToTasks('', 'image')).toBeNull();
+  it('空 url → ok + skipped:true（无内容可落，非失败）', async () => {
+    expect(await api.saveResultToTasks('', 'image')).toEqual({ ok: true, url: '', skipped: true });
+  });
+  it('落盘失败 → ok:false + reason（**绝不返回 ok:true**，否则编排层会宣告假成功）', async () => {
+    fetchMock.mockResolvedValue(failResp());
+    const out = await api.saveResultToTasks(DATA_PNG, 'image');
+    expect(out.ok).toBe(false);
+    // 实测口径：httpClient 对 !res.ok 抛 HttpError → 被本函数 catch → reason='exception'（带原始 message）。
+    // （'upload-failed' 是「HTTP 通了但响应里没有 url」分支；500 走的是抛错分支，两者语义不同勿混。）
+    expect(out.ok ? '' : out.reason).toBe('exception');
+  });
+  it('已是本机 /files/ → ok + skipped:true（relay 后端已落盘，防 uploads/tasks 双落盘重复文件）', async () => {
+    const out = await api.saveResultToTasks('http://127.0.0.1:18080/files/tasks/a.png', 'image');
+    expect(out).toEqual({
+      ok: true,
+      url: 'http://127.0.0.1:18080/files/tasks/a.png',
+      skipped: true,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

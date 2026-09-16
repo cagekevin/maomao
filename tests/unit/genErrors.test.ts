@@ -5,7 +5,11 @@ import { TimeoutError } from '../../src/components/base/utils/asyncGuard.ts';
 /**
  * genErrors —— 统一错误分类契约测试。
  * 覆盖 classifyError 全部 5 类识别优先级（abort > timeout > network > http > business）
- * 与 retryable 决策（仅 timeout/network 可自动重试，业务失败不重试防封号）。
+ * 与 retryable **观测字段**的取值（仅 timeout/network 为 true）。
+ *
+ * 【口径修正 2026-09-16 · TD-16-16】此处原写「retryable 决策」易误导：该字段**不驱动重试**，
+ * 只进 logger（全库无 `if (retryable)` 分支；真重试决策点＝api/httpClient.ts:261，
+ * HttpError 一律不重试）。本测试锁的是**字段取值契约**，不是重试行为契约。
  * 代码逻辑一变（如调整识别优先级/漏掉分支）测试必红。
  */
 describe('genErrors.classifyError — 识别优先级', () => {

@@ -63,7 +63,9 @@ function TaskCenter() {
     let failed = 0;
     for (const t of tasks) {
       if (t.status === 'running' || t.status === 'pending') running++;
-      else if (t.status === 'failed') failed++;
+      // 【TD-08-24】unknown 与 failed 同归「需处理」→ 一并计入 failedCount，
+      // 使「清理失败任务」也能清掉 unknown（否则 unknown 卡在列表里无入口清理）。
+      else if (t.status === 'failed' || t.status === 'unknown') failed++;
     }
     return { running, failed };
   }, [tasks]);
@@ -87,11 +89,12 @@ function TaskCenter() {
           items={[
             {
               key: 'clean-failed',
-              label: `清理失败任务 (${failedCount})`,
+              // 【TD-08-24】计数（failedCount）已含 unknown，清理谓词必须同步含之，否则「数字对不上行为」
+              label: `清理失败/未知任务 (${failedCount})`,
               icon: Trash2,
               danger: true,
               disabled: failedCount === 0,
-              onClick: () => clearTasksBy((t) => t.status === 'failed'),
+              onClick: () => clearTasksBy((t) => t.status === 'failed' || t.status === 'unknown'),
             },
             {
               key: 'clean-all',
@@ -244,7 +247,7 @@ const TaskCard = React.memo(function TaskCard({
       <div className="flex items-center gap-1.5 min-w-0">
         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dot}`} />
         <span
-          className={`text-caption-sm flex-shrink-0 ${task.status === 'failed' ? 'text-red-400' : isActive ? 'text-blue-400' : 'text-emerald-400'}`}
+          className={`text-caption-sm flex-shrink-0 ${task.status === 'failed' ? 'text-red-400' : task.status === 'unknown' ? 'text-amber-400' : isActive ? 'text-blue-400' : 'text-emerald-400'}`}
         >
           {statusText}
         </span>
@@ -325,11 +328,17 @@ const TaskCard = React.memo(function TaskCard({
         </div>
       )}
 
-      {/* 错误块 */}
-      {task.status === 'failed' && task.errorMsg && (
-        <div className="flex items-center gap-2 bg-red-500/5 border border-red-500/20 rounded-lg px-2 py-1.5">
+      {/* 错误块 ·【TD-08-24】unknown 必须同样显示文案 —— 它承载「可能已生成，勿直接重提」这一关键指引 */}
+      {(task.status === 'failed' || task.status === 'unknown') && task.errorMsg && (
+        <div
+          className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${task.status === 'unknown' ? 'bg-amber-500/5 border border-amber-500/20' : 'bg-red-500/5 border border-red-500/20'}`}
+        >
           <span className="text-body-xs">⚠️</span>
-          <span className="text-caption-sm text-red-400/90 truncate flex-1">{task.errorMsg}</span>
+          <span
+            className={`text-caption-sm truncate flex-1 ${task.status === 'unknown' ? 'text-amber-400/90' : 'text-red-400/90'}`}
+          >
+            {task.errorMsg}
+          </span>
         </div>
       )}
 

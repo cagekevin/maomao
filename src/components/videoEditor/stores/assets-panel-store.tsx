@@ -10,7 +10,6 @@ import {
   Captions,
   Palette,
   SlidersHorizontal,
-  Brain,
   Settings,
 } from 'lucide-react';
 
@@ -24,7 +23,6 @@ export const TAB_KEYS = [
   'captions',
   'filters',
   'adjustment',
-  'ai',
   'settings',
 ] as const;
 
@@ -44,7 +42,6 @@ const TAB_LABELS: Record<Tab, string> = {
   captions: '字幕',
   filters: '滤镜',
   adjustment: '调整',
-  ai: 'AI',
   settings: '设置',
 };
 
@@ -84,10 +81,6 @@ export const tabs = {
   adjustment: {
     icon: createIcon(SlidersHorizontal),
     label: TAB_LABELS.adjustment,
-  },
-  ai: {
-    icon: createIcon(Brain),
-    label: TAB_LABELS.ai,
   },
   settings: {
     icon: createIcon(Settings),

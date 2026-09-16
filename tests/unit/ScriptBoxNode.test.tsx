@@ -1,12 +1,12 @@
 /**
  * ScriptBoxNode 深度测试。
  *
- * 剧本盒子（复刻 c_.jsx）：三步状态机（确认镜头/准备资产/合成提示词）+ 引擎回调注入
- * （useScriptBoxEngine 把 9 个 onXxx 写回 node.data）+ 齿轮设置/全屏弹窗 + genMask 计时。
+ * 剧本盒子（复刻 c_.jsx）：三步状态机（确认镜头/准备资产/合成提示词）+ 引擎回调**经 hook 返回值下发**
+ * （TD-09-4：不再写进 node.data）+ 齿轮设置/全屏弹窗 + genMask 计时。
  * 此前零测试，本文件断言核心契约：
  *  - 三步切换：点击步骤 → updateData({ step })；data.step 驱动内容渲染
  *  - 步骤完成度描述（镜头数/资产进度）
- *  - 引擎注入：node.data.onXxx 10 个回调被注入且与引擎实例一致
+ *  - 引擎回调经 useScriptBoxEngine 返回值下发、**node.data 不含任何 onXxx 函数**（TD-09-4）
  *  - 步骤子组件通过 callbacks 调用引擎回调（UI 只调回调，不做引擎）
  *  - 设置弹窗打开/保存、全屏弹窗打开
  *  - genMask 生成中计时（秒数递增）
@@ -180,8 +180,9 @@ beforeEach(() => {
 const nodeId = 'sb1';
 // data 入参用宽松的 Record（测试常喂 number id 等偏窄形状，props 处再断言到精确类型）
 function setup(data: Record<string, unknown> = {}) {
-  // 传入含引擎回调的 data（模拟挂载后注入完成状态），使步骤子组件能调 callbacks
-  const nodeData0: Record<string, unknown> = { ...data, ...h.engine };
+  // 【TD-09-4】data 不再含引擎回调（回调经 useScriptBoxEngine 返回值下发）——测试喂**纯净 data**，
+  // 引擎回调由被 mock 的 createScriptBoxEngine（→ h.engine）经真实 hook 返回值提供。
+  const nodeData0: Record<string, unknown> = { ...data };
   h.state.nodes = [{ id: nodeId, data: { ...nodeData0 } }];
   h.updateData.mockClear();
   Object.values(h.engine).forEach((fn) => fn.mockClear());
@@ -255,15 +256,12 @@ describe('ScriptBoxNode — 步骤导航交互', () => {
   });
 });
 
-describe('ScriptBoxNode — 引擎回调注入与调用', () => {
-  it('挂载后 node.data 注入全部 onXxx 引擎回调', () => {
+describe('ScriptBoxNode — 引擎回调下发与调用（TD-09-4）', () => {
+  it('node.data 不含任何 onXxx 函数（回调经 hook 返回值下发，不进持久化容器）', () => {
     setup();
-    expect(nodeData().onGenerateScript).toBe(h.engine.onGenerateScript);
-    expect(nodeData().onGenerateShotPrompts).toBe(h.engine.onGenerateShotPrompts);
-    expect(nodeData().onConnectShot).toBe(h.engine.onConnectShot);
-    expect(nodeData().onGenerateAssetImage).toBe(h.engine.onGenerateAssetImage);
-    expect(nodeData().onGenerateAllAssetImages).toBe(h.engine.onGenerateAllAssetImages);
-    expect(nodeData().onConnectShots).toBe(h.engine.onConnectShots);
+    const data = nodeData() as Record<string, unknown>;
+    const fnFields = Object.keys(h.engine).filter((k) => typeof data[k] === 'function');
+    expect(fnFields).toEqual([]);
   });
 
   it('步骤子组件点击 → 调引擎回调（UI 只调回调，不做引擎）', () => {

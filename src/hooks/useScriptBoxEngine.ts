@@ -16,18 +16,20 @@ import { injectNodePrefs } from '../components/base/canvas/nodePrefs.ts';
 import { commitNewNodes } from '../components/base/canvas/deriveNodes.ts';
 import { useProvidersList, load as loadProviders } from '../components/base/store/providerStore.ts';
 import { logger } from '../components/base/core/logger.ts';
-import { patchNodeDataById } from './useNodeData.ts';
 
 // 写回通道契约收口在 scriptBoxSchema（引擎与 hook 共用同一份，避免两处漂移）
-import type { ScriptBoxUpdateData } from '../components/scriptbox/scriptBoxSchema.ts';
+import type {
+  ScriptBoxUpdateData,
+  ScriptBoxCallbacks,
+} from '../components/scriptbox/scriptBoxSchema.ts';
 export type { ScriptBoxUpdateData };
 
 /**
  * 剧本盒子 —— 引擎回调注入 hook（对应官方 H_.jsx 的注入机制 A/B）。
  *
  * 职责铁律（docs/剧本盒子/剧本盒子职责划分.md）：
- *  - 引擎回调必须由「能拿到 setNodes/getNodes/坐标」的宿主创建，再挂到 node.data.onXxx；
- *  - UI 组件（ScriptBoxNode / scriptbox/*）只调 d.onXxx?.(...)，不做引擎；
+ *  - 引擎回调必须由「能拿到 setNodes/getNodes/坐标」的宿主创建，再经**本 hook 返回值**下发；
+ *  - UI 组件（ScriptBoxNode / scriptbox/*）只调 callbacks.onXxx?.(...)，不做引擎；
  *  - 数据只存 node.data，引擎经 setNodes 写回、UI 编辑经 updateData 写回。
  *
  * 为什么放剧本盒子自己的 hook 而不是 App.jsx：
@@ -37,7 +39,14 @@ export type { ScriptBoxUpdateData };
  *
  * 用法：在 ScriptBoxNode 内调用本 hook。它：
  *  - 创建并缓存一份 createScriptBoxEngine 实例（ref，跨 render 稳定）；
- *  - 通过 useEffect 把 9 个 onXxx 回调写回 node.data.onXxx（复制/分享后回调仍在）。
+ *  - **把 15 个 onXxx 回调作为返回值下发**（不再写进 node.data —— 见下「为什么回调不进 data」）。
+ *
+ * 【为什么回调不进 node.data（TD-09-4 · 2026-09-16）】
+ * 回调是「引擎 ↔ UI 的会话契约」，不是画布数据：node.data 经 `canvasSnapshotSchema.NODE_KEEP`
+ * 以 `data` 整包落盘（`JSON.stringify`）。函数在序列化时被**静默丢弃**（`AbortController`/`Map`
+ * 甚至静默变 `{}`），历史上靠「每次挂载重新注入」掩盖了「每次落盘都在丢」。且
+ * `ScriptBoxNodeData extends ScriptBoxCallbacks` 让**持久化类型物理声明了函数字段**（类型不诚实）。
+ * 现改为经 React 通道下发：data 里不再有函数，类型诚实 + 落盘不再丢 + 删掉重注入兜底。
  *
  * @param nodeId  剧本盒子节点 id
  * @param data    节点当前 data（仅兜底；引擎主要经 getNodes 实时读最新 data）
@@ -48,7 +57,7 @@ export type { ScriptBoxUpdateData };
 export function useScriptBoxEngine(
   nodeId: string,
   data?: object,
-): { updateData: ScriptBoxUpdateData } {
+): { updateData: ScriptBoxUpdateData; callbacks: ScriptBoxCallbacks } {
   const { getNodes, getNode, getEdges, setNodes, setEdges, screenToFlowPosition } = useReactFlow();
 
   // 供应商（多 provider，接真系统）：引擎经 getProviderState 实时读 providers + 主供应商，
@@ -141,14 +150,8 @@ export function useScriptBoxEngine(
     });
   }
 
+  // 引擎回调（引擎实例即回调集合）：经本 hook 返回值下发，**不再写进 node.data**（TD-09-4）。
   const callbacks = engineRef.current;
-
-  // 把引擎全部回调写回 node.data.onXxx（官方注入点语义，含 P1-2 尾帧变体），保证复制/分享后回调仍在
-  useEffect(() => {
-    patchNodeDataById(setNodes, nodeId, callbacks);
-    // 仅挂载时注入一次；nodeId 变化时重新注入
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodeId]);
 
   // 【TD-01-9 / TD-01-12】「生成中刷新」回填：任务中心 pollTask 找回 resultUrl 后，经 eventBus 广播
   // `agent:task-completed`。节点侧 useNodeGeneration 按 nodeId 精准回填；剧本盒此前**不订阅**。
@@ -235,5 +238,5 @@ export function useScriptBoxEngine(
     return subscribe('agent:task-completed', handler);
   }, [nodeId, updateData, getNode]);
 
-  return { updateData };
+  return { updateData, callbacks };
 }

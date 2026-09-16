@@ -54,7 +54,7 @@ describe('runGenerationContract', () => {
   it('成功：localize → settle(显示URL) → 落盘 → onPersisted(持久URL) → done(最终URL)', async () => {
     saveResultToTasksMock.mockImplementation(async () => {
       order.push('save');
-      return '/files/tasks/x.png';
+      return { ok: true, url: '/files/tasks/x.png', skipped: false };
     });
     const out = await runGenerationContract({
       taskNodeId: 'n1',
@@ -93,21 +93,43 @@ describe('runGenerationContract', () => {
     expect(out.resultUrl).toBe('https://up/x.png');
   });
 
-  it('落盘失败 → reportDegrade 留痕 + done(显示URL)，**不**把整体判定为失败', async () => {
-    saveResultToTasksMock.mockRejectedValue(new Error('offline'));
+  it('落盘失败（ok:false）→ 保留原 URL 降级 + **用户可见 toast**（TD-01-17 三态），不判整体失败', async () => {
+    saveResultToTasksMock.mockResolvedValue({ ok: false, reason: 'exception', message: 'offline' });
     const out = await runGenerationContract({
       taskNodeId: 'n1',
       type: 'image',
       signal: sig,
       run: async () => ({ ok: true, url: 'https://up/x.png' }),
     });
+    // 分开报告：生成成功、保存失败 → reportDegrade 带 toast（用户可见），不再静默
     expect(reportDegradeMock).toHaveBeenCalledTimes(1);
+    expect(reportDegradeMock.mock.calls[0][0]).toMatchObject({
+      key: 'saveResultToTasks',
+      toast: expect.stringContaining('未能保存'),
+    });
+    // 保留原始结果地址（ADR 0005），done 仍带可用 URL，不判整体失败
+    expect(taskCtl.done).toHaveBeenCalledWith('https://up/x.png');
+    expect(out.ok).toBe(true);
+  });
+
+  it('落盘无需（skipped:true，如 blob:/已是本机）→ 不报降级、不触发 onPersisted', async () => {
+    saveResultToTasksMock.mockResolvedValue({ ok: true, url: 'https://up/x.png', skipped: true });
+    const onPersisted = vi.fn();
+    const out = await runGenerationContract({
+      taskNodeId: 'n1',
+      type: 'image',
+      signal: sig,
+      onPersisted,
+      run: async () => ({ ok: true, url: 'https://up/x.png' }),
+    });
+    expect(reportDegradeMock).not.toHaveBeenCalled(); // 无需落盘 ≠ 失败，不得误报降级
+    expect(onPersisted).not.toHaveBeenCalled();
     expect(taskCtl.done).toHaveBeenCalledWith('https://up/x.png');
     expect(out.ok).toBe(true);
   });
 
   it('localize 抛错 → 降级保留原 URL（reportDegrade）+ 仍按成功处理', async () => {
-    saveResultToTasksMock.mockResolvedValue(null);
+    saveResultToTasksMock.mockResolvedValue({ ok: true, url: 'https://up/x.png', skipped: true });
     const settleArgs: string[] = [];
     const out = await runGenerationContract({
       taskNodeId: 'n1',
@@ -125,7 +147,7 @@ describe('runGenerationContract', () => {
   });
 
   it('localize 返回空 → 保留原 URL', async () => {
-    saveResultToTasksMock.mockResolvedValue(null);
+    saveResultToTasksMock.mockResolvedValue({ ok: true, url: 'https://up/x.png', skipped: true });
     const settleArgs: string[] = [];
     await runGenerationContract({
       taskNodeId: 'n1',

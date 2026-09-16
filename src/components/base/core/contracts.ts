@@ -623,16 +623,21 @@ export function getKvKeyPatterns() {
 }
 
 /**
- * 错误类型登记区（错误降级/重试的单一事实来源，实现见 genErrors.js classifyError）。
- * ⚠️ 新增错误：先登记 type 与其降级策略，禁止各节点自写 if(/网络错误/) 判断。
- * retryable=true 仅限网络/超时（可自动重试）；业务失败不重试（防封号）。
+ * 错误类型登记区（错误分类与文案的单一事实来源，实现见 genErrors.ts classifyError）。
+ * ⚠️ 新增错误：先登记 type 与其文案，禁止各节点自写 if(/网络错误/) 判断。
+ *
+ * 【为什么不登记 retryable（TD-16-16 · 2026-09-16）】本表曾带 `retryable` 字段，
+ * 但全库**零读者** —— 唯一被消费的是 `label`（见 genErrors.ts timeoutMessage）。
+ * 「能否自动重试」的真决策点在 `api/httpClient.ts:261`（判据＝NetworkError／TimeoutError／
+ * fetch 网络型 TypeError；HttpError 一律不重试，属**主动设计**「业务失败不重试·防封号」）。
+ * 原先「retryable 供『再来一次』入口决策」的设想（docs/27 §四）**从未接线**，故删字段去误导。
  */
 export const GEN_ERRORS = {
-  abort: { label: '已取消', retryable: false },
-  timeout: { label: '请求超时', retryable: true },
-  network: { label: '网络错误', retryable: true },
-  http: { label: '服务错误', retryable: false },
-  business: { label: '上游业务错误', retryable: false },
+  abort: { label: '已取消' },
+  timeout: { label: '请求超时' },
+  network: { label: '网络错误' },
+  http: { label: '服务错误' },
+  business: { label: '上游业务错误' },
 };
 
 /**

@@ -35,7 +35,11 @@ import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 import { logger } from '../core/logger.ts';
 import { uploadFileToLocal } from '../api/filesApi.ts';
 import { UPLOAD_DIRS } from './uploadDirs.ts';
-import { safeFileName } from '../core/utils.ts';
+import { safeFileName, formatBytes } from '../core/utils.ts';
+
+// 体积格式化唯一入口（TD-18-4 收口）：本模块曾私有复制一份仅 B/KB/MB 的退化实现，
+// 现统一走 core SSOT（含 GB + 非法值兜底）；原样 re-export 使既有消费方零改动。
+export { formatBytes };
 // TD-22-1：crossOrigin 单点裁决（同源不设 / 真跨源才设 anonymous），不再就地恒设
 import { setCrossOriginForReadable } from './captureFrame.ts';
 import { releaseQuietly } from './asyncGuard.ts';
@@ -549,13 +553,6 @@ function seekVideo(video: HTMLVideoElement, t: number): Promise<void> {
     video.addEventListener('seeked', onSeeked);
     video.currentTime = t;
   });
-}
-
-/** 格式化文件大小（复刻官方 uc）：B / KB / MB */
-export function formatBytes(e: number): string {
-  if (e < 1024) return `${e} B`;
-  if (e < 1048576) return `${(e / 1024).toFixed(1)} KB`;
-  return `${(e / 1048576).toFixed(2)} MB`;
 }
 
 /**

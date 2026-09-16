@@ -1699,7 +1699,33 @@ if (cmd === 'refs') {
   }
   const abs = resolve(root, fileArg);
   if (!existsSync(abs)) {
-    console.error(`文件不存在：${fileArg}`);
+    // 文件不存在 ≠ 死路。本仓弯路原话：「首轮 grep 得 0 命中，第一反应是"路径写错了、再换几个
+    // 前缀搜搜"。**正确动作是查 git 历史**（--diff-filter=AD）——一句命令就给出
+    // "曾存在、何时被删、在哪个目录"。」故这里不停机，改走历史追溯（比"文件不存在"有用得多）。
+    const relGuess = relative(root, abs).replace(/\\/g, '/');
+    console.error(`⚠️  文件不存在：${fileArg}`);
+    console.log(`\n📜 改走 git 历史追溯（路径：${relGuess}）—— 判断"是路径错了"还是"它被删/改名了"：`);
+    const gitLog = (args) => {
+      const r = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+      return r.status === 0 ? (r.stdout || '').trim() : '';
+    };
+    const hist = gitLog(['log', '--oneline', '--diff-filter=AD', '--', relGuess]);
+    if (hist) {
+      console.log('   该路径的增/删历史（最近在前）：');
+      for (const l of hist.split('\n').slice(0, 8)) console.log(`      ${l}`);
+      const renamed = gitLog(['log', '--oneline', '-M', '--diff-filter=R', '--', relGuess]);
+      if (renamed) {
+        console.log('   ↪ 含重命名（-M）记录 —— 看改名后的新路径：');
+        for (const l of renamed.split('\n').slice(0, 5)) console.log(`      ${l}`);
+      } else {
+        console.log('   ↪ 无重命名记录 ⇒ 它是被**删除**的（不是改名）。');
+        console.log('      查删除它那次提交的完整改动：git show --stat <上面的 commit>');
+      }
+    } else {
+      console.log('   git 无该路径历史 → 也可能只是**路径拼错**（含大小写/目录层数）。');
+      console.log('   试：按 basename 全库找同名文件 →');
+      console.log(`      find src localTool/src scripts -name "${basename(abs)}"`);
+    }
     process.exit(1);
   }
   const graph = buildRefGraph();
@@ -1715,6 +1741,40 @@ if (cmd === 'refs') {
   console.log(`\n② 字符串残留引用 ${strRefs.length} 处（脚本【不】改字符串，需手工同步）：`);
   for (const h of strRefs) console.log(`   - ${h.file}:${h.line}\n       ${h.text}`);
   if (strRefs.length === 0) console.log('   （无）');
+
+  /**
+   * ③ 零引用时的自动历史追溯（2026-09-16 新增）。
+   *
+   * 【为什么】本仓弯路原话：「首轮 grep 得 0 命中，第一反应是"路径写错了、再换几个前缀搜搜"。
+   *   正确动作是查 git 历史（--diff-filter=AD）—— 一句命令就给出"曾存在、何时被删、在哪个目录"。」
+   *   ⇒ 教训：**「0 命中」的下一步是查历史，不是换关键词重搜。**
+   *
+   * 【判据】`refs` ① 与 ② 同时为 0 时，这个文件要么是**入口/叶子**，要么**已被删除或改名**。
+   *   自动跑一次历史查询把答案直接给出来，省掉"换关键词重搜"这一轮。
+   *   ⚠️ 此路是**只读提示**，不改变 refs 的结论，也不退出非 0（0 引用本身可能就是正确答案）。
+   */
+  if (importers.length === 0 && strRefs.length === 0) {
+    const rel = relative(root, abs).replace(/\\/g, '/');
+    console.log('\n③ 零引用 → 自动查 git 历史（防"0 命中就换关键词重搜"）：');
+    const gitLog = (args) => {
+      const r = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+      return r.status === 0 ? (r.stdout || '').trim() : '';
+    };
+    const hist = gitLog(['log', '--oneline', '--diff-filter=AD', '--', rel]);
+    if (hist) {
+      console.log('   📜 该路径的增/删历史（最近在前）—— 看它是不是被删过/改过名：');
+      for (const l of hist.split('\n').slice(0, 8)) console.log(`      ${l}`);
+      const renamed = gitLog(['log', '--oneline', '-M', '--diff-filter=R', '--', rel]);
+      if (renamed) {
+        console.log('   ↪ 含重命名（-M）记录：');
+        for (const l of renamed.split('\n').slice(0, 5)) console.log(`      ${l}`);
+      }
+    } else {
+      console.log('   📜 git 无该路径的历史 → 它可能从未提交过（新增文件），或路径拼错。');
+    }
+    console.log('   ⚠️  另外确认：若本文件经**模块别名**被引用，本命令可能看不到（见 22-视频-剪辑器-别名收口）。');
+    console.log('       实例：`@videoEditor/*` 曾使 check-arch 与 refs 对该域静默失真 —— 一行别名 import 即可绕过判据。');
+  }
 
   printWarnings();
   process.exit(0);

@@ -21,7 +21,7 @@ import ScriptBoxAssetPicker from './ScriptBoxAssetPicker.tsx';
 import type { ScriptBoxData, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema.ts';
 
 /**
- * StepAssets 的 callbacks 就是引擎回调集合（来自 props.callbacks = { ...data, onDisconnectUpstream }）。
+ * StepAssets 的 callbacks 就是引擎回调集合（来自 props.callbacks = useScriptBoxEngine 返回值 + onDisconnectUpstream）。
  * 更新(2026-09-11)：原在本文件另立 `AssetCallbacks`（子集 + 索引签名）属于重抄真源 → 已删，
  * 统一引用 scriptBoxSchema.ScriptBoxCallbacks（此前它漏登 onRetryAssetImageUpload 等，已一并补齐）。
  */

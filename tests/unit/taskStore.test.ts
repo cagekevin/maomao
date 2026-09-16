@@ -36,13 +36,19 @@ beforeEach(() => {
 });
 
 describe('taskStore §2.6 状态映射', () => {
-  it('statusLabel：完成/失败/生成中/带进度百分比', () => {
+  it('statusLabel：完成/失败/未知/生成中/带进度百分比', () => {
     expect(statusLabel('completed')).toBe('已完成');
     expect(statusLabel('failed')).toBe('失败');
     expect(statusLabel('pending')).toBe('生成中');
     expect(statusLabel('running')).toBe('生成中');
     expect(statusLabel('running', 42)).toBe('42%');
-    expect(statusLabel('unknown')).toBe('unknown');
+    // 【TD-08-24】unknown 原为「无映射 → 原样透出英文字符串」；现为**正式终态**（提交结果未知），
+    // 必须有中文文案 —— 否则任务中心显示 "unknown"，用户看不懂，更易误当失败重提（重复计费）。
+    expect(statusLabel('unknown')).toBe('结果未知');
+  });
+
+  it('statusLabel：表外状态仍原样透出（不吞不认识的值）', () => {
+    expect(statusLabel('some-future-state')).toBe('some-future-state');
   });
 });
 

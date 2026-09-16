@@ -56,6 +56,7 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => ({
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   toAbsoluteFileUrl: mocks.toAbsoluteFileUrl,
   saveResultToTasks: mocks.saveResultToTasks,
+  // 注：_nodeMocks 的 saveResultToTasks 已返回 SaveTasksOutcome（TD-01-17）
   saveTextToTasks: mocks.saveTextToTasks,
 }));
 vi.mock('../../src/components/base/store/providerStore.ts', () => ({

@@ -7,7 +7,7 @@
  *      用 /files/ URL 替换，库只剩 URL，体积骤降。前端读 URL 正常渲染（已验证）。
  *
  * 幂等：文件名 = contentHashName(sha1(bytes), ext)（canonical 内容寻址，与 writeUploadBuffer/
- *       writeUploadDedup 同口径，2026-09-13 TD-03-09 统一）。同字节 → 同物理名，重复外置不重复落盘。
+ *       writeUploadDedup 同口径，2026-09-13 TD-03-9 统一）。同字节 → 同物理名，重复外置不重复落盘。
  * 失败降级：单字段外置失败保留原 base64，不拖垮整条 value（docs/41 第2.7节）。
  *
  * 本模块同时暴露 extractFilesUrls，供孤儿文件 GC（docs/41 第2.7节）复用，

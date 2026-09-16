@@ -280,9 +280,12 @@ export function formatTime(
 }
 
 /**
- * 格式化字节大小（存储监控专用，B/KB/MB/GB）。
- * 与 videoEngine.formatBytes（仅 B/KB/MB，视频文件用）语义不同：本版覆盖到 GB 级存储占用，
- * 并做非法值兜底（负数/NaN → '0 B'）。存储占用口径统一走本函数，禁止散落手写。
+ * 格式化字节大小（B/KB/MB/GB）**· 全库唯一实现**。
+ *
+ * 【为什么收口（TD-18-4 · 2026-09-16）】此前 `videoEngine.ts` 私有复制了一份仅 B/KB/MB 的
+ * **退化子集**（`>1GB` 视频显示成 `1536.00 MB`、非法值无兜底），并由 `VideoProcessNode` 引用 →
+ * 生效中的第二份真相源。现两处统一走本函数，`videoEngine` 同名 re-export（消费方零改动）。
+ * 本版：覆盖到 GB 级存储占用，并做非法值兜底（负数/NaN → '0 B'）。
  */
 export function formatBytes(bytes: number): string {
   const n = Number(bytes);

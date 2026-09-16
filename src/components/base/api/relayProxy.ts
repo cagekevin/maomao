@@ -56,7 +56,8 @@ export interface RelayIntent {
 
 /** relay GET attach 返回（/api/generate/:id 的 data 子集） */
 export interface RelayPollData {
-  status: 'running' | 'completed' | 'failed';
+  /** 【TD-08-24】`unknown` = 提交结果未知（**可能已在跑**），与 `failed`（确定没跑）区分 —— 勿合并。 */
+  status: 'running' | 'completed' | 'failed' | 'unknown';
   progress?: number;
   url?: string;
   error?: string;
@@ -123,6 +124,9 @@ export async function relayPoll(frontTaskId: string): Promise<RelayPollData> {
     const d = env?.data;
     if (d?.status === 'completed') return { status: 'completed', url: d.url, progress: 100 };
     if (d?.status === 'failed') return { status: 'failed', error: d.error || '生成失败' };
+    // 【TD-08-24】unknown 是终态，必须原样透出 —— 折成 running 会让前端空等到超时，
+    // 把「可能已生成」误报成「还在生成」，用户等满超时后才看到失败，更容易误重提。
+    if (d?.status === 'unknown') return { status: 'unknown', error: d.error || '提交结果未知' };
     return { status: 'running', progress: d?.progress ?? 0 };
   } catch (e) {
     return { status: 'running', error: e instanceof Error ? e.message : '查询异常' }; // 网络抖动/HTTP错：下轮续查
@@ -230,6 +234,12 @@ export async function relayAttachUntilDone(
     if (st.status === 'failed') {
       logger.debug('生成', '[relay] 失败', { frontTaskId, error: st.error }, { module: 'image' });
       return finish({ ok: false, error: st.error || '生成失败' });
+    }
+    // 【TD-08-24】unknown = 终态且**可能已生成**：立即结束（不再空等超时），错误文案由后端给
+    // （含「可能已开始生成…请到任务中心确认」），前端原样透出，不以「生成失败」误导用户重提。
+    if (st.status === 'unknown') {
+      logger.warn('生成', '[relay] 提交结果未知', { frontTaskId, error: st.error });
+      return finish({ ok: false, error: st.error || '提交结果未知，请到任务中心确认' });
     }
     if (st.error) {
       // transport 错误：续查但留痕；连续到阈值 → 直接以真实原因失败（不再等到超时误报）

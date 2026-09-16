@@ -81,20 +81,35 @@ beforeEach(() => {
   prefsStore = {};
 });
 
-function injectCall() {
-  // 找到注入 node.data.onXxx 的 setNodes 调用（带 map）
-  const call = setNodes.mock.calls.find((c) => typeof c[0] === 'function');
-  if (!call) throw new Error('setNodes 注入未触发');
-  return call[0]([{ id: 'sb1', data: {} }])[0];
-}
-
 describe('useScriptBoxEngine', () => {
-  it('挂载后把引擎回调注入 node.data.onXxx', () => {
+  /**
+   * 【TD-09-4 · 2026-09-16 契约已改，本用例随之重写】
+   * 原用例锁的是「挂载后把引擎回调注入 node.data.onXxx」（靠 useEffect + patchNodeDataById 重注入）。
+   * 该设计**已撤销**：node.data 经 `canvasSnapshotSchema.NODE_KEEP` 整包 `JSON.stringify` 落盘，
+   * 函数在序列化时**静默丢弃** —— 持久化类型声明函数字段属类型不诚实，重注入只是在掩盖「每次落盘都在丢」。
+   * 现契约：回调经 hook **返回值** `callbacks` 下发（React 通道），data 里**不再有函数**。
+   * 故断言改为：① 返回值带完整回调集合；② setNodes 的**所有调用都不含函数值**（落盘不再丢函数）。
+   */
+  it('回调经返回值下发（data 里不再有函数 —— 落盘不再静默丢回调）', () => {
+    const { result } = renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
+    // 本文件的 createScriptBoxEngine 被 mock 成返回 engineCallbacks（见顶部 mock），
+    // 故断言「hook 把引擎实例原样作为 callbacks 下发」= 三个 mock 回调都在返回值上。
+    const callbacks = result.current.callbacks;
+    expect(callbacks.onGenerate).toBeTypeOf('function');
+    expect(callbacks.onAddNodes).toBeTypeOf('function');
+    expect(callbacks.onUpdate).toBeTypeOf('function');
+    expect(callbacks).toBe(createScriptBoxEngine.mock.results.at(-1)!.value);
+  });
+
+  it('挂载后不向 node.data 注入任何函数（撤销重注入后必须零写入）', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
-    const node = injectCall();
-    expect(node.data.onGenerate).toBeTypeOf('function');
-    expect(node.data.onAddNodes).toBeTypeOf('function');
-    expect(node.data.onUpdate).toBeTypeOf('function');
+    // 挂载期 setNodes 不该被调（旧实现会调一次写 15 个函数字段）
+    for (const [updater] of setNodes.mock.calls) {
+      if (typeof updater !== 'function') continue;
+      const out = updater([{ id: 'sb1', data: {} }])[0] as { data: Record<string, unknown> };
+      const fnKeys = Object.entries(out.data || {}).filter(([, v]) => typeof v === 'function');
+      expect(fnKeys.map(([k]) => k)).toEqual([]);
+    }
   });
 
   it('createScriptBoxEngine 用最新 data（getData 读 getNodes）', () => {
