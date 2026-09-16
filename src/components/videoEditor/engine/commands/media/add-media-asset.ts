@@ -36,12 +36,14 @@ export class AddMediaAssetCommand extends Command {
     }
 
     this.storageOperation = this.storageOperation
-      .then(() =>
-        storageService.saveMediaAsset({
+      .then(async () => {
+        // await 而不 return：`storageOperation` 的契约是 `Promise<void>`
+        // （返回 { url } 会让链上的类型变成 Promise<{url}>）。持久地址由 `saveMediaAsset` 就地回填。
+        await storageService.saveMediaAsset({
           projectId: this.projectId,
           mediaAsset: createdAsset,
-        }),
-      )
+        });
+      })
       .catch((error) => {
         logger.error('Failed to save media item:', error);
       });

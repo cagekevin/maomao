@@ -430,11 +430,8 @@ const isResultish = (f) =>
  * 本表会被自检：豁免的字段若已不再被写入 → 报「表过期」，防豁免越挂越多变成垃圾桶。
  */
 const RESULT_EXEMPT = {
-  faceMosaicNode: {
-    // 输入通道字段（手动上传图源列表 string[]）：节点初始化读取（data.assetUrls || []）+ TD-9 改动写回持久 URL，
-    // 是「节点自有状态」而非下游管线产出；真结果经 spawn assetNode 子节点交付（见 CONTEXT §五 审计豁免口径）。
-    assetUrls: '上传图源 = 输入通道（string[]），不是给下游的产出；下游取图走 spawn 的 assetNode 子节点',
-  },
+  // （2026-09-16）faceMosaicNode.assetUrls 已退役：该字段不再被写回（现仅 interface 声明 + nodeDataSchema 默认值，
+  // 节点内只读 data.assetUrls 作输入通道），表2c 自检报「表过期」故删除。空表结构保留，供后续真正需要豁免时登记。
 };
 
 // ───────────────────────── 主流程 ─────────────────────────

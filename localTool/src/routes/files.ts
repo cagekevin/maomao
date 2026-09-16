@@ -20,6 +20,7 @@ import {
   normalizeSubfolder,
   resolveUploadFile,
   contentIdOf,
+  isJimpEncodableExt,
 } from '../utils/fileStore.js';
 import {
   json,
@@ -41,12 +42,11 @@ import { extToMime, mimeToExt } from '../utils/mime.js';
 
 const BASE_URL = localToolBaseUrl();
 
-/**
- * thumbnail `format` 参数白名单：仅 Jimp 0.22 实际可编码的扩展名。
- * 注意：@jimp/types 不含 webp 编码器，若放行 webp 会在 resizeImage 失败后回退 copyFileSync，
- * 产出「.webp 文件名 + 原格式字节」的假 webp（不省体积 + MIME 错标）。故一律禁掉。
- */
-const SUPPORTED_THUMB_FORMATS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff']);
+// 注：「thumbnail format 是否可编码」判据**不再在本文件自持**（原为 `SUPPORTED_THUMB_FORMATS` Set）。
+// 2026-09-16（TD-02-41）收口到 `utils/fileStore.isJimpEncodableExt` —— 该事实（Jimp 0.22 能编码哪些格式）
+// 此前被写了 3 份（本文件 / 前端 assetUrl.ts / resolveLocalImages.mimeFromExt），已漂移过。
+// 放行 webp 的后果（@jimp/types 无编码器 → resize 失败后 copyFileSync 产出「.webp 名 + 原格式字节」的
+// 假 webp）现由该唯一真源的注释统一说明，不再各处复述。
 
 /**
  * saveRemoteUrl 的落盘结果信封。
@@ -442,11 +442,9 @@ export async function handleThumbnail(
     return sendError(res, 'File not found', 404);
   }
 
-  // 目标扩展名：仅接受白名单内 format（否则沿用源扩展名），杜绝假 webp/未知编码。
+  // 目标扩展名：仅接受 Jimp 可编码的 format（否则沿用源扩展名），杜绝假 webp/未知编码。
   const srcExt = path.extname(filePath).toLowerCase().replace(/^\./, '') || 'png';
-  const outExt = SUPPORTED_THUMB_FORMATS.has(formatParam.toLowerCase())
-    ? formatParam.toLowerCase()
-    : srcExt;
+  const outExt = isJimpEncodableExt(formatParam) ? formatParam.toLowerCase() : srcExt;
 
   // 缩略图缓存路径：复用 ensureThumbnailTarget 解析的缩略图目录，文件名显式含后缀与扩展名，
   // 使同源同 maxDim/quality/format 只渲染一次（幂等缓存，与 tryGenerateThumbnail 共用缓存目录）。

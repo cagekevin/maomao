@@ -1,26 +1,13 @@
 import type { TProject, TProjectMetadata } from '@/components/videoEditor/types/project';
 import { getProjectDurationFromScenes } from '@/components/videoEditor/engine/lib/scenes';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
-import { IndexedDBAdapter } from './indexeddb-adapter';
-import { OPFSAdapter } from './opfs-adapter';
-import type {
-  MediaAssetData,
-  StorageConfig,
-  SerializedProject,
-  SerializedScene,
-  StorageStats,
-  ProjectStorageStats,
-} from './types';
+import type { MediaAssetData, SerializedProject, SerializedScene } from './types';
 // 音效域类型（2026-09-14 恢复：原误判为 AI 相关而删，实测零 AI 依赖 —— docs/133 §〇.4）。
 import type {
   SavedSoundsData,
   SavedSound,
   SoundEffect,
 } from '@/components/videoEditor/types/sounds';
-import {
-  migrations,
-  runStorageMigrations,
-} from '@/components/videoEditor/engine/services/storage/migrations';
 import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 // ── T3（docs/134）：工程本体改走 KV 严格族 CAS（docs/133 §3.5 D-4）。
 // 键构造唯一真源 = videoEditorKeys.ts（禁手拼前缀字面量，X4）。
@@ -28,6 +15,7 @@ import {
   videoEditorProjectKey,
   videoEditorProjectsKey,
   videoEditorActiveProjectKey,
+  videoEditorMediaMetaKey,
 } from '../../../../base/core/videoEditorKeys.ts';
 import {
   contentGetAsync,
@@ -39,10 +27,10 @@ import {
 } from '../../../../base/core/contentStore.ts';
 // ── 2026-09-16 M7 收口（TD-02-34/40）：收藏音效由「仅 IndexedDB」改走 contentStore（键已登记 backend:'local'）。
 import { KEY_VIDEO_EDITOR_SAVED_SOUNDS } from '../../../../base/core/contracts.ts';
-import { deleteDatabase } from './indexeddb-adapter';
 import { HttpError } from '../../../../base/api/httpClient.ts';
 import { logger } from '../../../../base/core/logger.ts';
-// ── T4（docs/134）：素材二进制改走 localTool /files/（docs/133 §3.2 D-3），元数据留 IndexedDB。
+// ── T4（docs/134）：素材二进制改走 localTool /files/（docs/133 §3.2 D-3）。
+// 更新(2026-09-16 · TD-02-35)：素材**元数据**载体同时收口 —— 原浏览器 IndexedDB → KV（见 readMediaMetaMap）。
 import { uploadFileToLocal } from '../../../../base/api/filesApi.ts';
 import { deleteResource, fetchResources } from '../../../../base/api/localToolApi.ts';
 import { UPLOAD_DIRS } from '../../../../base/utils/uploadDirs.ts';
@@ -124,43 +112,43 @@ function canvasProjectIdOrNull(): string | null {
 }
 
 class StorageService {
-  private config: StorageConfig;
-  private migrationsPromise: Promise<void> | null = null;
-  /** 收藏音效「旧 IndexedDB → contentStore」一次性迁移是否已尝试（本会话只试一次；失败不反复读旧库）。 */
-  private savedSoundsMigrationAttempted = false;
+  /**
+   * ═══ 载体收口（2026-09-16 · TD-02-35）═══
+   * 本类原持**四类浏览器载体** + 一整套 IndexedDB schema 迁移器：
+   *   KV（工程本体/列表/活跃 id）· IndexedDB（素材元数据）· OPFS（素材二进制）· localStorage（偏好）。
+   * 现收敛为**单一 contentStore**（+ localTool /files/ 磁盘）：
+   *   - 素材二进制 → localTool `/files/`（T4 起；磁盘，非浏览器存储）
+   *   - 素材元数据 → KV（`readMediaMetaMap`，本轮）
+   *   - 工程本体/列表/活跃 id → KV（T3 起）· 收藏音效/字幕偏好 → contentStore local（M7 收口轮）
+   * 随之删除：`IndexedDBAdapter` / `OPFSAdapter` 两个适配器、`migrations/` 整套迁移器、
+   *   `StorageConfig` 与 5 个零消费者 API。
+   * 【依据】用户裁定「不为老用户留兼容，只管正确性」—— 老用户机器上残留的旧 IndexedDB/OPFS
+   *   数据不再清理（不影响使用），换取剪辑器存储层**零**浏览器 IDB/OPFS 依赖。
+   */
 
-  constructor() {
-    this.config = {
-      projectsDb: 'video-editor-projects',
-      mediaDb: 'video-editor-media',
-      // 【2026-09-16 收口后仅作迁移用】旧收藏音效 IndexedDB 库名（新键名沿用同名字符串，
-      // 见 contracts.KEY_VIDEO_EDITOR_SAVED_SOUNDS）；迁移完成、确认无存量后可随 TD-02-35 四期一并清。
-      savedSoundsDb: 'video-editor-saved-sounds',
-      version: 1,
-    };
-    // savedSoundsAdapter 已删（TD-02-34/40）：收藏音效不再走 IndexedDB，改 contentStore。
+  /**
+   * 读素材元数据表（整表一键，`{ [assetId]: MediaAssetData }`）。
+   *
+   * 【形态】与工程本体同粒度：整表存一个 KV 键（键构造唯一真源 = `videoEditorMediaMetaKey`）。
+   *   之所以不"每素材一键"：本表只是**元数据索引**（几十条 × 每条数百字节），整表读写与工程本体
+   *   的整包 CAS 同规格；拆键会引入「列键 + N 次读」，复杂度不换收益。
+   * 【语义等价（行为零变化）】沿用原 IndexedDB 表的 last-write-wins，**未**升级为 CAS ——
+   *   并发保护不是本次收口目标，升级会改变调用方的失败语义（409 需 UI 显式消费，见 D-4）。
+   *   将来若需多窗口并发保护，按工程本体同法升级（`contentKvReadWithVersion` + `contentKvSetCas`）。
+   */
+  private async readMediaMetaMap(projectId: string): Promise<Record<string, MediaAssetData>> {
+    const value = await contentGetAsync(videoEditorMediaMetaKey(projectId));
+    // 形状防御：非对象/数组/坏值 → 视为空表（与旧 IndexedDB 空库语义一致，不抛）
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, MediaAssetData>)
+      : {};
   }
 
-  private async ensureMigrations(): Promise<void> {
-    if (this.migrationsPromise) {
-      await this.migrationsPromise;
-      return;
-    }
-
-    this.migrationsPromise = runStorageMigrations({ migrations }).then(() => undefined);
-    await this.migrationsPromise;
-  }
-
-  private getProjectMediaAdapters({ projectId }: { projectId: string }) {
-    const mediaMetadataAdapter = new IndexedDBAdapter<MediaAssetData>(
-      `${this.config.mediaDb}-${projectId}`,
-      'media-metadata',
-      this.config.version,
-    );
-
-    const mediaAssetsAdapter = new OPFSAdapter(`media-files-${projectId}`);
-
-    return { mediaMetadataAdapter, mediaAssetsAdapter };
+  private async writeMediaMetaMap(
+    projectId: string,
+    map: Record<string, MediaAssetData>,
+  ): Promise<void> {
+    await contentSetAsync(videoEditorMediaMetaKey(projectId), map);
   }
 
   private stripAudioBuffers({ tracks }: { tracks: TimelineTrack[] }): TimelineTrack[] {
@@ -236,7 +224,6 @@ class StorageService {
   }
 
   async loadProject({ id }: { id: string }): Promise<{ project: TProject } | null> {
-    await this.ensureMigrations();
     // ── T3：读单工程本体走 KV（严格族 · 读内容+配对版本）。
     // 读法收口到 contentKvReadWithVersion（2026-09-14）：本处原为第 3 份手写副本（TD-02-29）。
     // 重试 2 次是**本域判据**（单次加载），协议本身在原语里。
@@ -300,7 +287,6 @@ class StorageService {
   }
 
   async loadAllProjectsMetadata(): Promise<TProjectMetadata[]> {
-    await this.ensureMigrations();
     // ── T3：列表走 KV 列表键（videoEditorProjectsKey 构造，轻量索引，docs/133 §2.3）。
     const items = await this.readProjectList();
 
@@ -383,9 +369,7 @@ class StorageService {
   }: {
     projectId: string;
     mediaAsset: MediaAsset;
-  }): Promise<void> {
-    const { mediaMetadataAdapter } = this.getProjectMediaAdapters({ projectId });
-
+  }): Promise<{ url: string | null }> {
     // ── T5-B①：ephemeral（临时预览素材）**不落盘**——它本就随会话生灭，上传只会留孤儿文件。
     // 仅在元数据里留一条记录（无 url），loadMediaAsset 见无 url 即返回 null（不误导下游以为是持久素材）。
     // ── T4/T5-B②：持久素材的二进制改走 localTool /files/（docs/133 §3.2 D-3）。
@@ -427,7 +411,19 @@ class StorageService {
       url: fileUrl ?? undefined,
     };
 
-    await mediaMetadataAdapter.set(mediaAsset.id, metadata);
+    const map = await this.readMediaMetaMap(projectId);
+    map[mediaAsset.id] = metadata;
+    await this.writeMediaMetaMap(projectId, map);
+
+    // 【TD-22-52】**就地回填**持久地址到调用方传入的素材对象上。
+    // 为什么在这里回填、而不是让每个调用点自己接返回值：调用点分散在命令 / 管理器里
+    // （add-media-asset · remove-media-asset · delete-elements · project-manager · use-editor-actions），
+    // 逐处回填必然漏掉几个 ⇒ 表现为"同一批素材有的出小图、有的全分辨率解码"。
+    // 回填后 `persistentUrl` 有值，显示侧（mediaDisplayUrl）即走统一出口出小图。
+    if (fileUrl) mediaAsset.persistentUrl = fileUrl;
+
+    // 同时回传（供需要显式取值的调用方；不取也不影响 —— 对象已被就地回填）
+    return { url: fileUrl };
   }
 
   async loadMediaAsset({
@@ -437,9 +433,8 @@ class StorageService {
     projectId: string;
     id: string;
   }): Promise<MediaAsset | null> {
-    const { mediaMetadataAdapter } = this.getProjectMediaAdapters({ projectId });
-
-    const metadata = await mediaMetadataAdapter.get(id);
+    const map = await this.readMediaMetaMap(projectId);
+    const metadata = map[id];
     if (!metadata) return null;
 
     // ── T4：从 /files/ URL 拉回 Blob（上传失败致 url 缺失 → 无法还原，返回 null）。
@@ -480,6 +475,9 @@ class StorageService {
       type: metadata.type,
       file,
       url,
+      // 【TD-22-52】持久地址（`/files/…`）= "显示"的唯一输入（过统一 render 出口出小图）；
+      // `url`（blob: 全分辨率）保留给渲染引擎（`scene-builder` 喂 Image/VideoNode，导出要原图）。
+      persistentUrl: metadata.url,
       width: metadata.width,
       height: metadata.height,
       duration: metadata.duration,
@@ -492,11 +490,7 @@ class StorageService {
   }
 
   async loadAllMediaAssets({ projectId }: { projectId: string }): Promise<MediaAsset[]> {
-    const { mediaMetadataAdapter } = this.getProjectMediaAdapters({
-      projectId,
-    });
-
-    const mediaIds = await mediaMetadataAdapter.list();
+    const mediaIds = Object.keys(await this.readMediaMetaMap(projectId));
     const mediaItems: MediaAsset[] = [];
 
     for (const id of mediaIds) {
@@ -555,12 +549,10 @@ class StorageService {
   }
 
   async deleteMediaAsset({ projectId, id }: { projectId: string; id: string }): Promise<void> {
-    const { mediaMetadataAdapter, mediaAssetsAdapter } = this.getProjectMediaAdapters({
-      projectId,
-    });
+    const map = await this.readMediaMetaMap(projectId);
 
     // ── T5-B③：先解除 /files/ 素材的后端资源引用（否则删一次素材留一个孤儿文件）。
-    const metadata = await mediaMetadataAdapter.get(id);
+    const metadata = map[id];
     if (metadata?.url) {
       await this.releaseResourceRefs([metadata.url], {
         folder: UPLOAD_DIRS.videoEditor,
@@ -568,22 +560,23 @@ class StorageService {
       });
     }
 
-    await Promise.all([mediaAssetsAdapter.remove(id), mediaMetadataAdapter.remove(id)]);
+    delete map[id];
+    await this.writeMediaMetaMap(projectId, map);
   }
 
   async deleteProjectMedia({ projectId }: { projectId: string }): Promise<void> {
-    const { mediaMetadataAdapter, mediaAssetsAdapter } = this.getProjectMediaAdapters({
-      projectId,
-    });
+    const map = await this.readMediaMetaMap(projectId);
 
-    // ── T5-B③：整个工程的媒体一起删时，批量解除资源引用后再 clear 元数据。
-    const allMedia = await mediaMetadataAdapter.getAll();
+    // ── T5-B③：整个工程的媒体一起删时，批量解除资源引用后再清表。
     await this.releaseResourceRefs(
-      allMedia.map((m) => m.url).filter((u): u is string => Boolean(u)),
+      Object.values(map)
+        .map((m) => m.url)
+        .filter((u): u is string => Boolean(u)),
       { folder: UPLOAD_DIRS.videoEditor, projectId: canvasProjectIdOrNull() },
     );
 
-    await Promise.all([mediaMetadataAdapter.clear(), mediaAssetsAdapter.clear()]);
+    // 清表 = 删键（原 IndexedDB `clear()` 的等价语义）
+    await contentDeleteAsync(videoEditorMediaMetaKey(projectId));
   }
 
   async clearAllData(): Promise<void> {
@@ -598,97 +591,21 @@ class StorageService {
     // project-specific media and timelines cleaned up when projects are deleted
   }
 
-  async getStorageInfo(): Promise<{
-    projects: number;
-    isOPFSSupported: boolean;
-    isIndexedDBSupported: boolean;
-  }> {
-    const items = await this.readProjectList();
-
-    return {
-      projects: items.length,
-      isOPFSSupported: this.isOPFSSupported(),
-      isIndexedDBSupported: this.isIndexedDBSupported(),
-    };
-  }
-
-  async getProjectStorageInfo({ projectId }: { projectId: string }): Promise<{
-    mediaItems: number;
-  }> {
-    const { mediaMetadataAdapter } = this.getProjectMediaAdapters({
-      projectId,
-    });
-
-    const mediaIds = await mediaMetadataAdapter.list();
-
-    return {
-      mediaItems: mediaIds.length,
-    };
-  }
-
-  async getDetailedStorageStats(): Promise<StorageStats> {
-    const estimate = await navigator.storage.estimate();
-    const quota = estimate.quota ?? 0;
-    const usage = estimate.usage ?? 0;
-
-    const items = await this.readProjectList();
-    const projects: ProjectStorageStats[] = [];
-
-    for (const item of items) {
-      const projectId = item.id;
-      const { mediaMetadataAdapter } = this.getProjectMediaAdapters({
-        projectId,
-      });
-
-      try {
-        const allMedia = await mediaMetadataAdapter.getAll();
-        const byType: ProjectStorageStats['byType'] = {};
-        let mediaSize = 0;
-
-        for (const media of allMedia) {
-          mediaSize += media.size ?? 0;
-          const existing = byType[media.type];
-          if (existing) {
-            existing.size += media.size ?? 0;
-            existing.count += 1;
-          } else {
-            byType[media.type] = { size: media.size ?? 0, count: 1 };
-          }
-        }
-
-        projects.push({
-          projectId,
-          projectName: item.name,
-          mediaSize,
-          mediaCount: allMedia.length,
-          byType,
-        });
-      } catch {
-        projects.push({
-          projectId,
-          projectName: item.name,
-          mediaSize: 0,
-          mediaCount: 0,
-          byType: {},
-        });
-      }
-    }
-
-    projects.sort((a, b) => b.mediaSize - a.mediaSize);
-
-    return { quota, usage, projects };
-  }
+  // 【2026-09-16 · TD-02-35 已删】原 `getStorageInfo` / `getProjectStorageInfo` /
+  // `getDetailedStorageStats` 三个方法 —— 全库零消费者（幽灵 API，M6），且它们的返回形状
+  // （含 `isOPFSSupported` / `isIndexedDBSupported`）描述的是**已不存在的多载体形态**。
+  // 统计需求若将来真出现，应从 contentStore / KV 侧重新设计，不要复活 IDB/OPFS 语义。
 
   /**
-   * 读收藏音效（含一次性迁移）。
+   * 读收藏音效。
    *
    * 【TD-02-40 正确性修复】原实现 `catch → 返回空数组`，把「读不到」伪装成「没有收藏」；
    * 而 `saveSoundEffect` 是**读-改-写**：读失败 → 基于空数组写回 → **抹掉用户全部已收藏音效**（真数据丢失）。
    * 现契约：**读失败一律上抛**（消费方 sounds-store 落 `savedSoundsError` + toast），
    * 只有「确实为空」（新键无值）才返回空集合 —— 区分「未知」与「不存在」。
+   * 【2026-09-16 · TD-02-35】原「旧 IndexedDB 库一次性迁移读」已删（用户裁定不为老用户留兼容）。
    */
   async loadSavedSounds(): Promise<SavedSoundsData> {
-    await this.migrateSavedSoundsFromIndexedDbOnce();
     const value = await contentGetAsync(KEY_VIDEO_EDITOR_SAVED_SOUNDS);
     if (value === null || value === undefined) {
       return { sounds: [], lastModified: new Date().toISOString() };
@@ -705,39 +622,9 @@ class StorageService {
     };
   }
 
-  /**
-   * 一次性迁移：旧 IndexedDB 库（`video-editor-saved-sounds`）→ contentStore 新键。
-   * 幂等（新键有值即返回）；**新键写成功才删旧库**（写失败保留 = 数据不丢，下次启动再试）；
-   * 迁移自身失败只留痕、不阻断（读侧照常按新键处理，旧数据仍在）。
-   */
-  private async migrateSavedSoundsFromIndexedDbOnce(): Promise<void> {
-    if (this.savedSoundsMigrationAttempted) return;
-    this.savedSoundsMigrationAttempted = true;
-    try {
-      const existing = await contentGetAsync(KEY_VIDEO_EDITOR_SAVED_SOUNDS);
-      if (existing !== null && existing !== undefined) return;
-      const legacyAdapter = new IndexedDBAdapter<SavedSoundsData>(
-        this.config.savedSoundsDb,
-        'saved-sounds',
-        this.config.version,
-      );
-      const legacy = await legacyAdapter.get('user-sounds');
-      if (!legacy) return; // 无存量（新用户）
-      await contentSetAsync(KEY_VIDEO_EDITOR_SAVED_SOUNDS, legacy);
-      try {
-        await deleteDatabase({ dbName: this.config.savedSoundsDb });
-      } catch (error) {
-        // 旧库没删掉不影响正确性（读侧只看新键）；留痕，下次启动重试
-        logger.warn(
-          'videoEditor',
-          'saved-sounds-migrate-cleanup',
-          (error as { message?: string })?.message,
-        );
-      }
-    } catch (error) {
-      logger.warn('videoEditor', 'saved-sounds-migrate', (error as { message?: string })?.message);
-    }
-  }
+  // 【2026-09-16 · TD-02-35 已删】原 `migrateSavedSoundsFromIndexedDbOnce()` —— 把老用户机器上
+  // 旧 IndexedDB 库（`video-editor-saved-sounds`）的收藏音效搬到新键。用户裁定「不为老用户留兼容，
+  // 只管正确性」⇒ 删除：剪辑器**零**浏览器 IndexedDB 依赖，不再有任何存量迁移路径。
 
   async saveSoundEffect({ soundEffect }: { soundEffect: SoundEffect }): Promise<void> {
     try {
@@ -807,17 +694,9 @@ class StorageService {
     }
   }
 
-  isOPFSSupported(): boolean {
-    return OPFSAdapter.isSupported();
-  }
-
-  isIndexedDBSupported(): boolean {
-    return 'indexedDB' in window;
-  }
-
-  isFullySupported(): boolean {
-    return this.isIndexedDBSupported() && this.isOPFSSupported();
-  }
+  // 【2026-09-16 · TD-02-35 已删】原 `isOPFSSupported()` / `isIndexedDBSupported()` /
+  // `isFullySupported()` —— 三者构成一条**只在内部自环**的幽灵链（全库零外部消费者），
+  // 且语义是"本应用依赖 IndexedDB/OPFS"（已不成立）。剪辑器现在只依赖 contentStore。
 }
 
 export const storageService = new StorageService();

@@ -5,7 +5,8 @@
  *   ① 载体 = contentStore（键 `video-editor-saved-sounds`，登记 backend:'local'）⇒ 进备份清单；
  *   ② **读失败上抛**，不得归一成"没有收藏" —— 因为 `saveSoundEffect` 是**读-改-写**：
  *      读失败归一成空 ⇒ 用「空数组 + 1 条」写回 ⇒ **抹掉用户全部已收藏音效**（真数据丢失）；
- *   ③ 旧 IndexedDB 库有一次性迁移读：新键空 + 旧库有值 → 回填新键（幂等）；写成功才删旧库。
+ *   ③ 【2026-09-16 · TD-02-35 已删】原「旧 IndexedDB 库一次性迁移读」契约随载体收口删除 ——
+ *      用户裁定不为老用户留兼容，剪辑器不再有任何 IndexedDB 依赖（连迁移路径一并去掉）。
  *
  * 【为什么必须行为断言】（Step 7.2）② 是正确性缺陷（数据丢失），不是结构重构 ——
  * 断言的是"存储故障时用户的收藏不会被写没"，而不是"某个函数被调用过"。
@@ -45,29 +46,8 @@ vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   }),
 }));
 
-/** 旧 IndexedDB 库替身（迁移读用）。 */
-const legacyDb = vi.hoisted(() => ({ value: null as unknown, getCalls: 0, deleted: 0 }));
-
-vi.mock('../../src/components/videoEditor/engine/services/storage/indexeddb-adapter', () => ({
-  IndexedDBAdapter: class {
-    async get() {
-      legacyDb.getCalls++;
-      return legacyDb.value;
-    }
-    async set() {}
-    async remove() {}
-    async list() {
-      return [];
-    }
-    async getAll() {
-      return [];
-    }
-    async clear() {}
-  },
-  deleteDatabase: vi.fn(async () => {
-    legacyDb.deleted++;
-  }),
-}));
+// 【2026-09-16 · TD-02-35 已删】原 `indexeddb-adapter` 替身（迁移读用）—— 适配器与迁移器均已删除，
+// 本测试不再需要任何 IndexedDB 桩。
 
 // 与 veProjectWriteKey.test.ts 同款：避开浏览器专属依赖，只留被测的存储契约
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
@@ -115,9 +95,6 @@ describe('收藏音效：载体已迁 contentStore（不进 IndexedDB）', () =>
     cs.failRead = false;
     cs.readKeys = [];
     cs.writtenKeys = [];
-    legacyDb.value = null;
-    legacyDb.getCalls = 0;
-    legacyDb.deleted = 0;
   });
 
   it('真·空（新用户）→ 返回空集合（不是"未知"）', async () => {
@@ -154,27 +131,8 @@ describe('收藏音效：载体已迁 contentStore（不进 IndexedDB）', () =>
     expect(written.sounds.map((s) => s.id)).toEqual([1, 2]);
   });
 
-  it('一次性迁移：新键空 + 旧 IndexedDB 有值 → 回填新键并删旧库', async () => {
-    legacyDb.value = { sounds: [sound(7)], lastModified: 'legacy' };
-    const service = await freshService();
-
-    const loaded = await service.loadSavedSounds();
-
-    expect(loaded.sounds.map((s) => s.id)).toEqual([7]);
-    expect(legacyDb.getCalls).toBe(1);
-    expect(legacyDb.deleted).toBe(1);
-  });
-
-  it('迁移幂等：新键已有值 → 不读旧库、不删旧库', async () => {
-    cs.data.set(SOUNDS_KEY, { sounds: [sound(9)], lastModified: 'now' });
-    const service = await freshService();
-
-    const loaded = await service.loadSavedSounds();
-
-    expect(loaded.sounds.map((s) => s.id)).toEqual([9]);
-    expect(legacyDb.getCalls).toBe(0);
-    expect(legacyDb.deleted).toBe(0);
-  });
+  // 【2026-09-16 · TD-02-35 已删】原「一次性迁移：新键空 + 旧 IndexedDB 有值 → 回填新键并删旧库」
+  // 与「迁移幂等：新键已有值 → 不读旧库」两例 —— 锁的是已被撤销的迁移契约，留着即假象。
 
   it('清空收藏走 contentDelete（不是"写一个空数组"）', async () => {
     cs.data.set(SOUNDS_KEY, { sounds: [sound(1)], lastModified: 't0' });

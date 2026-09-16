@@ -73,7 +73,7 @@ export const SAVE_FAIL_REASONS = [
   'paused',
   'no-project',
   'loading',
-  'migrating',
+  // 【2026-09-16 · TD-02-35 已删】原 `'migrating'` —— 迁移器整层移除后无任何产出点（死枚举值）。
 ] as const;
 export type SaveFailReason = (typeof SAVE_FAIL_REASONS)[number];
 

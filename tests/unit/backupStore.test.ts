@@ -43,6 +43,9 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
     kvStore.delete(key);
     return { ok: true };
   }),
+  // 【TD-02-30】KV 键枚举：按后端真实口径桩 —— 后端已过滤 CAS 内部元数据 `<key>_version`，
+  // 故这里也只返回用户数据键（前端不重复实现该过滤，判据归后端）。
+  kvKeys: vi.fn(async () => [...kvStore.keys()].filter((k) => !k.endsWith('_version'))),
 }));
 
 const { exportAll, importAll, backupToBlob } =
@@ -66,7 +69,7 @@ describe('backupStore — 导出 exportAll', () => {
     canvasStore.set('p1', { nodes: [{ id: 'n1' }], edges: [] });
 
     const backup = await exportAll();
-    expect(backup.version).toBe(2);
+    expect(backup.version).toBe(3);
     expect(backup.type).toBe('yimao-backup');
     expect(backup.ls.projects).toEqual([{ id: 'p1', name: 'P1' }]);
     expect(backup.ls.app_settings).toEqual({ theme: 'dark' });
@@ -117,15 +120,52 @@ describe('backupStore — 导出 exportAll', () => {
     ]);
   });
 
-  it('动态收集 AI 会话键（按项目隔离）', async () => {
+  it('AI 会话键（KV 后端）经 kv 段落入备份（v3 起不再靠手写枚举塞进 ls 段）', async () => {
     contentSet('projects', [{ id: 'p1' }, { id: 'p2' }]);
     contentSet('agent_conversations_canvas-assistant-p1', { messages: [] });
     contentSet('agent_active_conversation_id_canvas-assistant-p1', 'c1');
     const backup = await exportAll();
-    expect(backup.ls['agent_conversations_canvas-assistant-p1']).toEqual({ messages: [] });
-    expect(backup.ls['agent_active_conversation_id_canvas-assistant-p1']).toBe('c1');
-    // p2 没有会话键 → 不出现
-    expect(backup.ls['agent_conversations_canvas-assistant-p2']).toBeUndefined();
+    expect(backup.kv['agent_conversations_canvas-assistant-p1']).toEqual({ messages: [] });
+    expect(backup.kv['agent_active_conversation_id_canvas-assistant-p1']).toBe('c1');
+    // p2 没有会话键 → 不出现（kv 段按"实际存在的键"派生，不靠项目列表枚举）
+    expect(backup.kv['agent_conversations_canvas-assistant-p2']).toBeUndefined();
+    // 同一键不得同时在 ls 段出现（禁"一物两段"）
+    expect(backup.ls['agent_conversations_canvas-assistant-p1']).toBeUndefined();
+  });
+
+  it('【TD-02-30】KV 工程数据（剪辑 / 3D 工程）经 kv 段进备份 —— 修复前换机导入后全丢', async () => {
+    contentSet('projects', [{ id: 'p1' }]);
+    // 剪辑工程三键 + 3D 工程两键：均已登记 backend:'kv'，但修复前 exportAll 完全不收
+    kvStore.set('video_editor_projects_p1', [{ id: 'e1', name: '片子' }]);
+    kvStore.set('video_editor_active_project_p1', 'e1');
+    kvStore.set('video_editor_project_p1_e1', { id: 'e1', tracks: [] });
+    kvStore.set('director3d-project', { scene: 1 });
+    kvStore.set('director3d-project-node9', { scene: 2 });
+
+    const backup = await exportAll();
+
+    expect(backup.kv.video_editor_projects_p1).toEqual([{ id: 'e1', name: '片子' }]);
+    expect(backup.kv.video_editor_active_project_p1).toBe('e1');
+    expect(backup.kv.video_editor_project_p1_e1).toEqual({ id: 'e1', tracks: [] });
+    expect(backup.kv['director3d-project']).toEqual({ scene: 1 });
+    expect(backup.kv['director3d-project-node9']).toEqual({ scene: 2 });
+  });
+
+  it('kv 段只收"登记表里的 KV 键"，且不与 canvas / accounts 段重复（一物一段）', async () => {
+    contentSet('projects', [{ id: 'p1' }]);
+    canvasStore.set('p1', { nodes: [{ id: 'n1' }], edges: [] });
+    // 后端 KV 里同时存在：画布键 / 账号键 / 未登记键（如缓存键）
+    kvStore.set('canvas-state-v1-p1', { nodes: [{ id: 'n1' }], edges: [] });
+    kvStore.set('yimao_accounts', [{ id: 'a1' }]);
+    kvStore.set('img_cache_deadbeef', 'x');
+
+    const backup = await exportAll();
+
+    expect(backup.canvas.p1).toEqual({ nodes: [{ id: 'n1' }], edges: [] });
+    expect(backup.accounts).toEqual([{ id: 'a1' }]);
+    expect(backup.kv['canvas-state-v1-p1']).toBeUndefined(); // 画布走 canvas 段（保 sanitize 写路径）
+    expect(backup.kv['yimao_accounts']).toBeUndefined(); // 账号走 accounts 段
+    expect(backup.kv['img_cache_deadbeef']).toBeUndefined(); // 未登记 → 不是用户数据
   });
 
   it('exportAll 包含 KV 账号环境（非空才入包；账号为 KV 后端，不进 ls 清单）', async () => {
@@ -224,6 +264,56 @@ describe('backupStore — 导入 importAll', () => {
     }));
     const res = await importAll({ ls: {}, canvas: { skip1: { nodes: [], edges: [] } } });
     expect(res.canvas).toBe(0);
+  });
+
+  it('【TD-02-30】回写 kv 段工程键（剪辑 / 3D）并计入 kv 计数', async () => {
+    const res = await importAll({
+      type: 'yimao-backup',
+      version: 3,
+      ls: {},
+      canvas: {},
+      kv: {
+        video_editor_project_p1_e1: { id: 'e1', tracks: [] },
+        'director3d-project': { scene: 1 },
+      },
+    });
+    expect(res.ok).toBe(true);
+    expect(res.kv).toBe(2);
+    expect(kvStore.get('video_editor_project_p1_e1')).toEqual({ id: 'e1', tracks: [] });
+    expect(kvStore.get('director3d-project')).toEqual({ scene: 1 });
+    expect(res.failed).toEqual([]);
+  });
+
+  it('kv 段里混入 canvas-/accounts 键时按同一判据挡掉（不绕过 canvas 写路径、不与 accounts 重复写）', async () => {
+    const res = await importAll({
+      type: 'yimao-backup',
+      version: 3,
+      ls: {},
+      canvas: {},
+      kv: {
+        'canvas-state-v1-p1': { nodes: [{ id: 'n1' }], edges: [] }, // 应由 canvas 段承载
+        yimao_accounts: [{ id: 'a1' }], // 应由 accounts 段承载
+        'director3d-project': { scene: 1 }, // 合法 kv 段键
+      },
+    });
+    expect(res.kv).toBe(1);
+    expect(kvStore.get('canvas-state-v1-p1')).toBeUndefined();
+    expect(kvStore.get('yimao_accounts')).toBeUndefined();
+    expect(kvStore.get('director3d-project')).toEqual({ scene: 1 });
+  });
+
+  it('旧包（无 kv 段 / version 2）仍可导入 —— 向后兼容，不因新增段而拒收', async () => {
+    const res = await importAll({
+      version: 2,
+      type: 'yimao-backup',
+      ls: { app_settings: { theme: 'dark' } },
+      canvas: {},
+      accounts: [{ id: 'acc1' }],
+    });
+    expect(res.ok).toBe(true);
+    expect(res.kv).toBe(0);
+    expect(res.ls).toBe(2); // app_settings + accounts
+    expect(kvStore.get('yimao_accounts')).toEqual([{ id: 'acc1' }]);
   });
 });
 

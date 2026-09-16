@@ -128,8 +128,10 @@ describe('STORAGE_KEYS 内容验证', () => {
     //   2026-09-16 M7 裸写收口（TD-02-33/37/40）→ 38→42：加 4 个原**未登记**的裸写键
     //     （editor-caption-language / -model-id / -template-id / video-editor-saved-sounds），
     //     并把 director3d-custom-poses 由 native 改 local（键数不变，见上条 native 断言）。
+    //   2026-09-16 TD-02-35 载体收口 → 42→43（加 video_editor_media_meta_{projectId}：
+    //     剪辑素材元数据由浏览器 IndexedDB 迁 KV，是**新增的 KV 键**）。
     // 它是有意保留的"变更需被看见"金丝雀，非行为契约——不要改成派生计数（派生即失效）。
-    expect(Object.keys(STORAGE_KEYS).length).toBe(42);
+    expect(Object.keys(STORAGE_KEYS).length).toBe(43);
   });
 
   it('云同步台账键已登记（防覆盖保护的本地基线，不进云端）', () => {

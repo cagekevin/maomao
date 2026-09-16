@@ -135,9 +135,8 @@ export class SaveManager {
     if (this.isPaused) return { ok: false, reason: 'paused' };
     if (!this.editor.project.getActiveOrNull()) return { ok: false, reason: 'no-project' };
     if (this.editor.project.getIsLoading()) return { ok: false, reason: 'loading' };
-    if (this.editor.project.getMigrationState().isMigrating) {
-      return { ok: false, reason: 'migrating' };
-    }
+    // 【2026-09-16 · TD-02-35 已删】原「迁移进行中不保存」守卫（`reason:'migrating'`）——
+    // 迁移器整层已移除 ⇒ 该分支恒不成立。留着就是**死守卫**（守卫数量 = 地基的体温计）。
 
     this.isSaving = true;
     this.hasPendingSave = false;

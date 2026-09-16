@@ -16,10 +16,9 @@
  *     `message` 给人看（开发者日志 / 用户提示）。
  * 新写「可能失败」的引擎操作**一律**返回本形态；调用方按 `ok` 分支，**禁止**再二次探测。
  *
- * 【与 `MigrationResult` 的关系（不要再来统一一次）】`MigrationResult`
- * （`engine/services/storage/migrations/transformers/types.ts`）的判别位是 `skipped`，
- * 它回答的是「**这次要不要迁移**」（成功 / 跳过 三态），**不是**「操作成没成功」——
- * 语义不同域，**刻意不合并**（合并会削掉 `skipped` 这层信息，且它已收口为唯一真源）。
+ * 【2026-09-16 · TD-02-35 回改】此处原引 `MigrationResult`（`engine/services/storage/migrations/
+ * transformers/types.ts`）的 `skipped` 判别位来说明"为何不与之合并"。该类型随迁移器整层删除
+ * （载体收口）⇒ 该对照对象已不存在。**结论保留**：判别联合按语义分域，不为"少一个类型"强行合并。
  * ════════════════════════════════════════════════════════════════
  */
 

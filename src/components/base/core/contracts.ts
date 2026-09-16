@@ -204,6 +204,13 @@ export interface StorageKeyMeta {
 export const VIDEO_EDITOR_PROJECTS_PREFIX = 'video_editor_projects_';
 export const VIDEO_EDITOR_ACTIVE_PREFIX = 'video_editor_active_project_';
 export const VIDEO_EDITOR_PROJECT_PREFIX = 'video_editor_project_';
+/**
+ * 剪辑素材**元数据表**前缀（TD-02-35 · 2026-09-16 载体收口）。
+ * 值 = `{ [assetId]: MediaAssetData }`（整表一键，与工程本体同粒度）；素材**二进制**在 localTool `/files/`。
+ * 收口理由（架构最优形态）：剪辑器原先四类数据散在四种载体（KV / IndexedDB / OPFS / localStorage），
+ * 素材元数据独留 IndexedDB ⇒ 不进备份、不跨端、与工程本体不同生命周期。现统一走 KV。
+ */
+export const VIDEO_EDITOR_MEDIA_META_PREFIX = 'video_editor_media_meta_';
 
 /**
  * 固定存储键的**可 import 命名常量**（TD-13-4 收口 · 母体 M7「SSOT 第二份」）。
@@ -543,12 +550,22 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     pattern: true, // 动态键模板：双占位（画布 projectId + 工程 editorId）
     note: '**单个剪辑工程本体**（重）：完整 TProject（docs/133 §一.1，禁镜像）。严格族 CAS 独写；409 由 UI 显式消费（D-4 禁静默重试）',
   },
+  [`${VIDEO_EDITOR_MEDIA_META_PREFIX}{projectId}`]: {
+    domain: 'videoEditor',
+    store: 'videoEditor/engine/services/storage/service.ts',
+    backend: 'kv',
+    pattern: true, // 动态键模板：按画布 projectId 隔离
+    note: '**剪辑素材元数据表**（`{ [assetId]: MediaAssetData }`，整表一键）：原存浏览器 IndexedDB（不进备份/不跨端/与工程本体不同生命周期），2026-09-16 收口到 KV（TD-02-35）。素材二进制仍在 localTool /files/，本键只存元数据（url/name/type/size/duration）',
+  },
 
   // ── 剪辑器本地偏好 / 用户资产（2026-09-16 M7 裸写收口：TD-02-33/37/40）──────
   // 载体判据（本轮确立，两分法）：**工程本体**（大、按 projectId 隔离、需跨端）→ `backend:'kv'`（上方三键）；
   //   **跨项目的小型用户资产 / 偏好** → `backend:'local'`（登记即自动进 getLocalKeys 备份清单）。
-  //   为什么这三者不迁 KV：KV 的 `pattern` 动态键**当前进不了备份**（backupStore 未遍历动态键，TD-02-30），
-  //   迁 KV 反而修不成"不进备份"这一症状；local 登记是本轮唯一能真正闭环的载体。
+  //   —— 该判据回答的是「数据该放哪」，与「备份收不收得到」是**两条正交的问题**。
+  //   更新(2026-09-16 · TD-02-30 已结清)：原句此处写的理由是「KV 的 pattern 动态键当前进不了备份，
+  //   迁 KV 反而修不成症状」——该理由**已被 TD-02-30 修复推翻**：backupStore 现有 `kv` 段，
+  //   按本表模板派生收录**全部** KV 键（含 pattern 动态键）。结论不变（这三者按两分法本就该 local），
+  //   但**以后判载体请只用两分法**，不要再拿"备份收不收得到"当理由（那已不是约束）。
   //   云同步不受影响：cloudSync 仍按 SYNC_ALLOW 白名单**默认拒绝**（用户 2026-09-16 裁定）。
   [KEY_EDITOR_CAPTION_LANGUAGE]: {
     domain: 'videoEditor',
@@ -591,7 +608,14 @@ export function getLocalKeys() {
     .map(([k]) => k);
 }
 
-/** 获取所有 KV 后端键模板列表 */
+/**
+ * 获取所有 KV 后端键模板列表（固定键 + `{占位}` 动态模板）。
+ * 【谁在用（2026-09-16 · TD-02-30 起）】`backupStore.exportAll` 的 `kv` 段收录判据 =
+ *   「后端实际存在的键」∩「本表模板」⇒ **新工程域只要在本表登记就自动进备份**（0 行接入，
+ *   不必再给每个域手写收集逻辑——那正是 M3「手写清单必漂移」母体）。
+ * 注：`<key>_version`（CAS 元数据）也在本表，但后端 `/api/kv/keys` **默认已过滤**它；
+ *   消费方无需（也不该）自己写这个后缀判断（那是第二份协议知识）。
+ */
 export function getKvKeyPatterns() {
   return Object.entries(STORAGE_KEYS)
     .filter(([, v]) => v.backend === 'kv')
@@ -771,9 +795,12 @@ export interface NodeHandleContract {
  * 与下方 apiRegistry 的 ACTIVE 清单一致：/api/files/thumbnail 为前端真实调用端点（envelope: stream）。
  */
 export const API_ENDPOINTS = {
-  /** 按需出图：GET {API_BASE}/api/files/thumbnail?url=<相对/subfolder/name>&maxDim=&format=
-   *   直接返回缩略图二进制（image/*），供 <img src> 直接使用；format 白名单仅 png/jpg/jpeg/gif/bmp/tiff/webp，
-   *   Jimp 0.22 无法编码 webp 时后端拒绝回退源扩展名（沿用源扩展名）。 */
+  /** 按需出图：GET {API_BASE}/api/files/thumbnail?url=<相对/subfolder/name>&maxDim=[&format=]
+   *   直接返回缩略图二进制（image/*），供 <img src> 直接使用。
+   *   `format` 白名单 = **Jimp 可编码格式**，唯一真源 `localTool/src/utils/fileStore.ts` 的
+   *   `JIMP_MIME_BY_EXT`（png/jpg/jpeg/gif/bmp/tiff）；白名单外（如 webp）后端回退源扩展名，不报错。
+   *   更新(2026-09-16 · TD-02-41)：原注释此处把 webp 也列为白名单成员（比代码多一个值 = 描述层漂移）；
+   *   同时前端已删除同名校验 —— format 现为**后端单方判据**且前端零消费者（不再有第二份白名单）。 */
   fileThumbnail: '/api/files/thumbnail',
   /** 画布快照版本号轻量读取：GET {API_BASE}/api/kv/version?key=<key>
    *  3s 跨源冲突轮询专用（只读 <key>_version，不拉整包）。见 docs/118 §三 S1 / §五 C4。 */

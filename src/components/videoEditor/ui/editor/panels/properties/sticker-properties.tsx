@@ -2,13 +2,13 @@
 
 import { Slider } from '@/components/videoEditor/ui/ui/slider';
 import { Input } from '@/components/videoEditor/ui/ui/input';
-import { useReducer, useRef } from 'react';
 
 import { PanelBaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup, PropertyItem, PropertyItemLabel, PropertyItemValue } from './property-item';
 import { ColorPicker } from '@/components/videoEditor/ui/ui/color-picker';
 import { clamp } from '@/components/videoEditor/utils/math';
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { useDraftCommit } from './use-draft-commit';
 import type { StickerElement } from '@/components/videoEditor/types/timeline';
 
 export function StickerProperties({
@@ -19,41 +19,8 @@ export function StickerProperties({
   trackId: string;
 }) {
   const editor = useEditor();
-  const [, forceRender] = useReducer((x: number) => x + 1, 0);
-
-  const isEditingScale = useRef(false);
-  const isEditingPosX = useRef(false);
-  const isEditingPosY = useRef(false);
-  const isEditingRotation = useRef(false);
-  const isEditingOpacity = useRef(false);
-
-  const scaleDraft = useRef('');
-  const posXDraft = useRef('');
-  const posYDraft = useRef('');
-  const rotationDraft = useRef('');
-  const opacityDraft = useRef('');
-
-  const initialScaleRef = useRef<number | null>(null);
-  const initialPosXRef = useRef<number | null>(null);
-  const initialPosYRef = useRef<number | null>(null);
-  const initialRotationRef = useRef<number | null>(null);
-  const initialOpacityRef = useRef<number | null>(null);
-  const initialColorRef = useRef<string | null>(null);
 
   const scalePercent = Math.round(element.transform.scale * 100);
-  const scaleDisplay = isEditingScale.current ? scaleDraft.current : scalePercent.toString();
-  const posXDisplay = isEditingPosX.current
-    ? posXDraft.current
-    : Math.round(element.transform.position.x).toString();
-  const posYDisplay = isEditingPosY.current
-    ? posYDraft.current
-    : Math.round(element.transform.position.y).toString();
-  const rotationDisplay = isEditingRotation.current
-    ? rotationDraft.current
-    : Math.round(element.transform.rotate).toString();
-  const opacityDisplay = isEditingOpacity.current
-    ? opacityDraft.current
-    : Math.round(element.opacity * 100).toString();
 
   const updateElement = ({
     updates,
@@ -81,22 +48,78 @@ export function StickerProperties({
     });
   };
 
-  const commitNumberField = ({
-    draft,
-    initial,
-    apply,
-  }: {
-    draft: string;
-    initial: React.RefObject<number | null>;
-    apply: (value: number) => void;
-  }) => {
-    if (initial.current === null) return;
-    const parsed = Number.parseFloat(draft);
-    if (!Number.isNaN(parsed)) {
-      apply(parsed);
-    }
-    initial.current = null;
-  };
+  // 【TD-22-20 · 组④】位置 / 缩放 / 旋转 / 不透明度 / 颜色（6 个字段）——
+  // 与 text / video 面板同一形态，统一走 `useDraftCommit`。
+  // 原先这里的局部 `commitNumberField({draft, initial, apply})`：它只抽了"解析 + 清 initial"，
+  // 两段提交仍写在**每个** `apply` 回调里（= 换了个写法的同一种手抄）⇒ 被 hook 取代后**删除**。
+  const posXField = useDraftCommit<number>({
+    value: element.transform.position.x,
+    format: (v) => Math.round(v).toString(),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    },
+    commit: (x, pushHistory) =>
+      updateTransform({
+        updates: { position: { ...element.transform.position, x } },
+        pushHistory,
+      }),
+  });
+
+  const posYField = useDraftCommit<number>({
+    value: element.transform.position.y,
+    format: (v) => Math.round(v).toString(),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    },
+    commit: (y, pushHistory) =>
+      updateTransform({
+        updates: { position: { ...element.transform.position, y } },
+        pushHistory,
+      }),
+  });
+
+  /** 缩放：percent 域（10~500），落库 /100。 */
+  const scaleField = useDraftCommit<number>({
+    value: scalePercent,
+    format: (v) => v.toString(),
+    parse: (raw) => {
+      const parsed = parseInt(raw, 10);
+      return Number.isNaN(parsed) ? null : clamp({ value: parsed, min: 10, max: 500 });
+    },
+    commit: (percent, pushHistory) =>
+      updateTransform({ updates: { scale: percent / 100 }, pushHistory }),
+  });
+
+  const rotationField = useDraftCommit<number>({
+    value: element.transform.rotate,
+    format: (v) => Math.round(v).toString(),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    },
+    commit: (rotate, pushHistory) => updateTransform({ updates: { rotate }, pushHistory }),
+  });
+
+  /** 不透明度：percent 域（0~100），落库 /100（直接写 element 字段）。 */
+  const opacityField = useDraftCommit<number>({
+    value: Math.round(element.opacity * 100),
+    format: (v) => v.toString(),
+    parse: (raw) => {
+      const parsed = parseInt(raw, 10);
+      return Number.isNaN(parsed) ? null : clamp({ value: parsed, min: 0, max: 100 });
+    },
+    commit: (percent, pushHistory) =>
+      updateElement({ updates: { opacity: percent / 100 }, pushHistory }),
+  });
+
+  const colorField = useDraftCommit<string>({
+    value: element.color ?? '#000000',
+    format: (v) => v,
+    parse: (raw) => raw,
+    commit: (color, pushHistory) => updateElement({ updates: { color }, pushHistory }),
+  });
 
   return (
     <>
@@ -113,60 +136,10 @@ export function StickerProperties({
               <PropertyItemValue>
                 <Input
                   type="number"
-                  value={posXDisplay}
-                  onFocus={() => {
-                    isEditingPosX.current = true;
-                    posXDraft.current = Math.round(element.transform.position.x).toString();
-                    forceRender();
-                  }}
-                  onChange={(event) => {
-                    posXDraft.current = event.target.value;
-                    forceRender();
-                    if (initialPosXRef.current === null) {
-                      initialPosXRef.current = element.transform.position.x;
-                    }
-                    const parsed = Number.parseFloat(event.target.value);
-                    if (!Number.isNaN(parsed)) {
-                      updateTransform({
-                        updates: {
-                          position: {
-                            ...element.transform.position,
-                            x: parsed,
-                          },
-                        },
-                        pushHistory: false,
-                      });
-                    }
-                  }}
-                  onBlur={() => {
-                    commitNumberField({
-                      draft: posXDraft.current,
-                      initial: initialPosXRef,
-                      apply: (value) => {
-                        updateTransform({
-                          updates: {
-                            position: {
-                              ...element.transform.position,
-                              x: initialPosXRef.current ?? 0,
-                            },
-                          },
-                          pushHistory: false,
-                        });
-                        updateTransform({
-                          updates: {
-                            position: {
-                              ...element.transform.position,
-                              x: value,
-                            },
-                          },
-                          pushHistory: true,
-                        });
-                      },
-                    });
-                    isEditingPosX.current = false;
-                    posXDraft.current = '';
-                    forceRender();
-                  }}
+                  value={posXField.display}
+                  onFocus={posXField.onFocus}
+                  onChange={(event) => posXField.onChange(event.target.value)}
+                  onBlur={posXField.onBlur}
                   className="ve-num w-12"
                 />
               </PropertyItemValue>
@@ -176,60 +149,10 @@ export function StickerProperties({
               <PropertyItemValue>
                 <Input
                   type="number"
-                  value={posYDisplay}
-                  onFocus={() => {
-                    isEditingPosY.current = true;
-                    posYDraft.current = Math.round(element.transform.position.y).toString();
-                    forceRender();
-                  }}
-                  onChange={(event) => {
-                    posYDraft.current = event.target.value;
-                    forceRender();
-                    if (initialPosYRef.current === null) {
-                      initialPosYRef.current = element.transform.position.y;
-                    }
-                    const parsed = Number.parseFloat(event.target.value);
-                    if (!Number.isNaN(parsed)) {
-                      updateTransform({
-                        updates: {
-                          position: {
-                            ...element.transform.position,
-                            y: parsed,
-                          },
-                        },
-                        pushHistory: false,
-                      });
-                    }
-                  }}
-                  onBlur={() => {
-                    commitNumberField({
-                      draft: posYDraft.current,
-                      initial: initialPosYRef,
-                      apply: (value) => {
-                        updateTransform({
-                          updates: {
-                            position: {
-                              ...element.transform.position,
-                              y: initialPosYRef.current ?? 0,
-                            },
-                          },
-                          pushHistory: false,
-                        });
-                        updateTransform({
-                          updates: {
-                            position: {
-                              ...element.transform.position,
-                              y: value,
-                            },
-                          },
-                          pushHistory: true,
-                        });
-                      },
-                    });
-                    isEditingPosY.current = false;
-                    posYDraft.current = '';
-                    forceRender();
-                  }}
+                  value={posYField.display}
+                  onFocus={posYField.onFocus}
+                  onChange={(event) => posYField.onChange(event.target.value)}
+                  onBlur={posYField.onBlur}
                   className="ve-num w-12"
                 />
               </PropertyItemValue>
@@ -245,79 +168,18 @@ export function StickerProperties({
                   min={10}
                   max={500}
                   step={1}
-                  onValueChange={([value]) => {
-                    if (initialScaleRef.current === null) {
-                      initialScaleRef.current = element.transform.scale;
-                    }
-                    updateTransform({
-                      updates: { scale: value / 100 },
-                      pushHistory: false,
-                    });
-                  }}
-                  onValueCommit={([value]) => {
-                    if (initialScaleRef.current !== null) {
-                      updateTransform({
-                        updates: { scale: initialScaleRef.current },
-                        pushHistory: false,
-                      });
-                      updateTransform({
-                        updates: { scale: value / 100 },
-                        pushHistory: true,
-                      });
-                      initialScaleRef.current = null;
-                    }
-                  }}
+                  onValueChange={([value]) => scaleField.onSliderChange(value)}
+                  onValueCommit={([value]) => scaleField.onSliderCommit(value)}
                   className="w-full"
                 />
                 <Input
                   type="number"
-                  value={scaleDisplay}
+                  value={scaleField.display}
                   min={10}
                   max={500}
-                  onFocus={() => {
-                    isEditingScale.current = true;
-                    scaleDraft.current = scalePercent.toString();
-                    forceRender();
-                  }}
-                  onChange={(event) => {
-                    scaleDraft.current = event.target.value;
-                    forceRender();
-                    if (initialScaleRef.current === null) {
-                      initialScaleRef.current = element.transform.scale;
-                    }
-                    const parsed = Number.parseInt(event.target.value, 10);
-                    if (!Number.isNaN(parsed)) {
-                      const clamped = clamp({
-                        value: parsed,
-                        min: 10,
-                        max: 500,
-                      });
-                      updateTransform({
-                        updates: { scale: clamped / 100 },
-                        pushHistory: false,
-                      });
-                    }
-                  }}
-                  onBlur={() => {
-                    if (initialScaleRef.current !== null) {
-                      const parsed = Number.parseInt(scaleDraft.current, 10);
-                      const clamped = Number.isNaN(parsed)
-                        ? scalePercent
-                        : clamp({ value: parsed, min: 10, max: 500 });
-                      updateTransform({
-                        updates: { scale: initialScaleRef.current },
-                        pushHistory: false,
-                      });
-                      updateTransform({
-                        updates: { scale: clamped / 100 },
-                        pushHistory: true,
-                      });
-                      initialScaleRef.current = null;
-                    }
-                    isEditingScale.current = false;
-                    scaleDraft.current = '';
-                    forceRender();
-                  }}
+                  onFocus={scaleField.onFocus}
+                  onChange={(event) => scaleField.onChange(event.target.value)}
+                  onBlur={scaleField.onBlur}
                   className="ve-num w-12"
                 />
               </div>
@@ -333,77 +195,18 @@ export function StickerProperties({
                   min={-180}
                   max={180}
                   step={1}
-                  onValueChange={([value]) => {
-                    if (initialRotationRef.current === null) {
-                      initialRotationRef.current = element.transform.rotate;
-                    }
-                    updateTransform({
-                      updates: { rotate: value },
-                      pushHistory: false,
-                    });
-                  }}
-                  onValueCommit={([value]) => {
-                    if (initialRotationRef.current !== null) {
-                      updateTransform({
-                        updates: {
-                          rotate: initialRotationRef.current,
-                        },
-                        pushHistory: false,
-                      });
-                      updateTransform({
-                        updates: { rotate: value },
-                        pushHistory: true,
-                      });
-                      initialRotationRef.current = null;
-                    }
-                  }}
+                  onValueChange={([value]) => rotationField.onSliderChange(value)}
+                  onValueCommit={([value]) => rotationField.onSliderCommit(value)}
                   className="w-full"
                 />
                 <Input
                   type="number"
-                  value={rotationDisplay}
+                  value={rotationField.display}
                   min={-360}
                   max={360}
-                  onFocus={() => {
-                    isEditingRotation.current = true;
-                    rotationDraft.current = Math.round(element.transform.rotate).toString();
-                    forceRender();
-                  }}
-                  onChange={(event) => {
-                    rotationDraft.current = event.target.value;
-                    forceRender();
-                    if (initialRotationRef.current === null) {
-                      initialRotationRef.current = element.transform.rotate;
-                    }
-                    const parsed = Number.parseFloat(event.target.value);
-                    if (!Number.isNaN(parsed)) {
-                      updateTransform({
-                        updates: { rotate: parsed },
-                        pushHistory: false,
-                      });
-                    }
-                  }}
-                  onBlur={() => {
-                    commitNumberField({
-                      draft: rotationDraft.current,
-                      initial: initialRotationRef,
-                      apply: (value) => {
-                        updateTransform({
-                          updates: {
-                            rotate: initialRotationRef.current ?? 0,
-                          },
-                          pushHistory: false,
-                        });
-                        updateTransform({
-                          updates: { rotate: value },
-                          pushHistory: true,
-                        });
-                      },
-                    });
-                    isEditingRotation.current = false;
-                    rotationDraft.current = '';
-                    forceRender();
-                  }}
+                  onFocus={rotationField.onFocus}
+                  onChange={(event) => rotationField.onChange(event.target.value)}
+                  onBlur={rotationField.onBlur}
                   className="ve-num w-12"
                 />
               </div>
@@ -421,91 +224,18 @@ export function StickerProperties({
                   min={0}
                   max={100}
                   step={1}
-                  onValueChange={([value]) => {
-                    if (initialOpacityRef.current === null) {
-                      initialOpacityRef.current = element.opacity;
-                    }
-                    updateElement({
-                      updates: { opacity: value / 100 },
-                      pushHistory: false,
-                    });
-                  }}
-                  onValueCommit={([value]) => {
-                    if (initialOpacityRef.current !== null) {
-                      updateElement({
-                        updates: {
-                          opacity: initialOpacityRef.current,
-                        },
-                        pushHistory: false,
-                      });
-                      updateElement({
-                        updates: { opacity: value / 100 },
-                        pushHistory: true,
-                      });
-                      initialOpacityRef.current = null;
-                    }
-                  }}
+                  onValueChange={([value]) => opacityField.onSliderChange(value)}
+                  onValueCommit={([value]) => opacityField.onSliderCommit(value)}
                   className="w-full"
                 />
                 <Input
                   type="number"
-                  value={opacityDisplay}
+                  value={opacityField.display}
                   min={0}
                   max={100}
-                  onFocus={() => {
-                    isEditingOpacity.current = true;
-                    opacityDraft.current = Math.round(element.opacity * 100).toString();
-                    forceRender();
-                  }}
-                  onChange={(event) => {
-                    opacityDraft.current = event.target.value;
-                    forceRender();
-                    if (initialOpacityRef.current === null) {
-                      initialOpacityRef.current = element.opacity;
-                    }
-                    const parsed = Number.parseInt(event.target.value, 10);
-                    if (!Number.isNaN(parsed)) {
-                      const opacityPercent = clamp({
-                        value: parsed,
-                        min: 0,
-                        max: 100,
-                      });
-                      updateElement({
-                        updates: {
-                          opacity: opacityPercent / 100,
-                        },
-                        pushHistory: false,
-                      });
-                    }
-                  }}
-                  onBlur={() => {
-                    if (initialOpacityRef.current !== null) {
-                      const parsed = Number.parseInt(opacityDraft.current, 10);
-                      const opacityPercent = Number.isNaN(parsed)
-                        ? Math.round(element.opacity * 100)
-                        : clamp({
-                            value: parsed,
-                            min: 0,
-                            max: 100,
-                          });
-                      updateElement({
-                        updates: {
-                          opacity: initialOpacityRef.current,
-                        },
-                        pushHistory: false,
-                      });
-                      updateElement({
-                        updates: {
-                          opacity: opacityPercent / 100,
-                        },
-                        pushHistory: true,
-                      });
-                      initialOpacityRef.current = null;
-                    }
-                    isEditingOpacity.current = false;
-                    opacityDraft.current = '';
-                    forceRender();
-                  }}
+                  onFocus={opacityField.onFocus}
+                  onChange={(event) => opacityField.onChange(event.target.value)}
+                  onBlur={opacityField.onBlur}
                   className="ve-num w-12"
                 />
               </div>
@@ -517,32 +247,12 @@ export function StickerProperties({
             <PropertyItemValue>
               <ColorPicker
                 value={element.color ?? '#000000'}
-                onChange={(value) => {
-                  if (initialColorRef.current === null) {
-                    initialColorRef.current = element.color ?? '#000000';
-                  }
-                  // ⚠️ 写回必须补 `#`：ColorPicker 契约是不带 `#` 的 hex，
-                  // 而全仓颜色存储（text.color / stroke / shadow / background）一律带 `#`。
-                  // 曾原样写回 → sticker.color 变成 'ff0000'，同一字段两种格式
-                  // （渲染 URL 与存储脱节，靠显示端的 normalizeHex 容错掩盖）。
-                  updateElement({
-                    updates: { color: `#${value}` },
-                    pushHistory: false,
-                  });
-                }}
-                onChangeEnd={(value) => {
-                  if (initialColorRef.current !== null) {
-                    updateElement({
-                      updates: { color: initialColorRef.current },
-                      pushHistory: false,
-                    });
-                    updateElement({
-                      updates: { color: `#${value}` },
-                      pushHistory: true,
-                    });
-                    initialColorRef.current = null;
-                  }
-                }}
+                // ⚠️ 写回必须补 `#`：ColorPicker 契约是不带 `#` 的 hex，
+                // 而全仓颜色存储（text.color / stroke / shadow / background）一律带 `#`。
+                // 曾原样写回 → sticker.color 变成 'ff0000'，同一字段两种格式
+                // （渲染 URL 与存储脱节，靠显示端的 normalizeHex 容错掩盖）。
+                onChange={(value) => colorField.onSliderChange(`#${value}`)}
+                onChangeEnd={(value) => colorField.onSliderCommit(`#${value}`)}
               />
             </PropertyItemValue>
           </PropertyItem>

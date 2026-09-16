@@ -1,17 +1,11 @@
-import type { MediaType } from '@/components/videoEditor/types/assets';
 import type {
   TProject,
   TProjectMetadata,
   TTimelineViewState,
 } from '@/components/videoEditor/types/project';
 import type { TScene } from '@/components/videoEditor/types/timeline';
-export interface StorageAdapter<T> {
-  get(key: string): Promise<T | null>;
-  set(key: string, value: T): Promise<void>;
-  remove(key: string): Promise<void>;
-  list(): Promise<string[]>;
-  clear(): Promise<void>;
-}
+// 【2026-09-16 · TD-02-35 已删】原 `StorageAdapter<T>` 接口 —— 唯二实现者
+// （IndexedDBAdapter / OPFSAdapter）已随载体收口删除，接口随之零消费者。
 
 /**
  * `MediaAssetData` 已**下沉到 `@/components/videoEditor/types/assets`**（TD-22-31：斩断 types→engine 反向边）。
@@ -35,33 +29,7 @@ export type SerializedProject = Omit<TProject, 'metadata' | 'scenes'> & {
   timelineViewState?: TTimelineViewState;
 };
 
-export interface StorageConfig {
-  projectsDb: string;
-  mediaDb: string;
-  savedSoundsDb: string;
-  version: number;
-}
-
-export interface ProjectStorageStats {
-  projectId: string;
-  projectName: string;
-  mediaSize: number;
-  mediaCount: number;
-  byType: Partial<Record<MediaType, { size: number; count: number }>>;
-}
-
-export interface StorageStats {
-  quota: number;
-  usage: number;
-  projects: ProjectStorageStats[];
-}
-
-// TypeScript type augmentation to add async iterator methods to FileSystemDirectoryHandle
-// These methods are part of the File System Access API spec but may not be in all type definitions
-declare global {
-  interface FileSystemDirectoryHandle {
-    keys(): AsyncIterableIterator<string>;
-    values(): AsyncIterableIterator<FileSystemHandle>;
-    entries(): AsyncIterableIterator<[string, FileSystemHandle]>;
-  }
-}
+// 【2026-09-16 · TD-02-35 已删】原 `StorageConfig`（projectsDb/mediaDb/savedSoundsDb/version ——
+// 全部是 IndexedDB 库名与版本号，已无载体使用）、`ProjectStorageStats` / `StorageStats`
+// （只服务幽灵 API `getDetailedStorageStats`）、以及 `FileSystemDirectoryHandle` 的
+// async-iterator 类型增强（只服务已删的 OPFSAdapter）。

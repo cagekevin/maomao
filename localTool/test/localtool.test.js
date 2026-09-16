@@ -636,14 +636,27 @@ test('Admin·stats 返回统计', async () => {
   assert.ok('disk' in stats && 'uploadDirBytes' in stats.disk);
 });
 
-test('Admin·kv-list 列出所有键', async () => {
+// 【2026-09-16 端点归位 + 判据分口径】原 `Admin·kv-list` → `/api/kv/keys`（TD-02-30）：
+// KV 键枚举属 kv 域，且用户备份（backupStore.exportAll）已成为第二个消费方。
+// 判据：默认口径 = 用户数据键（排除 CAS 内部元数据 `<key>_version`）；includeInternal=1 = 运维全表。
+test('KV·keys 枚举键（默认排除 _version 内部元数据；includeInternal=1 取全表）', async () => {
   await kvMod.handleKvSet(makeJsonReq({ key: 'a', value: '1' }), makeRes());
   await kvMod.handleKvSet(makeJsonReq({ key: 'b', value: '2' }), makeRes());
+
   const res = makeRes();
-  await adminMod.handleAdminKvList(makeGetReq(), res);
+  await kvMod.handleKvKeys(makeGetReq(), res, new URL('http://x/api/kv/keys'));
   const keys = data(res).keys;
-  assert.ok(keys.some((k) => k.key === 'a'));
-  assert.ok(keys.some((k) => k.key === 'b'));
+  assert.ok(keys.includes('a'));
+  assert.ok(keys.includes('b'));
+  assert.ok(
+    !keys.some((k) => k.endsWith('_version')),
+    '默认口径不得把 `<key>_version` 当用户数据（否则备份会带出 CAS 元数据）',
+  );
+
+  const resAll = makeRes();
+  await kvMod.handleKvKeys(makeGetReq(), resAll, new URL('http://x/api/kv/keys?includeInternal=1'));
+  const allKeys = data(resAll).keys;
+  assert.ok(allKeys.includes('a_version'), 'includeInternal=1 应取到内部版本键（运维/缓存清理用）');
 });
 
 test('Admin·export/import 往返', async () => {

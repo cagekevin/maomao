@@ -226,12 +226,36 @@ function loadLedger() {
   const text = readFileSync(LEDGER, 'utf8');
   return { text, lines: text.split(/\r?\n/), rows: parseText(text, 'main') };
 }
-/** 主表 ∪ 归档（同 ID 主表优先 —— 主表是"活的"）。读命令一律用它。 */
+/**
+ * 主表 ∪ 归档 ∪ **全文归档**（同 ID 优先级：主表 > 活归档 > 全文归档）。读命令一律用它。
+ *
+ * 【为什么必须并入"全文归档"（2026-09-16 · A10 工具债当场修）】
+ *   `债务-全文归档-<date>.md` 是**账本压缩前的完整快照**（压缩时把长叙述截断，原文只留在这里）。
+ *   旧实现只读 `债务-归档.md` ⇒ **只存在于全文归档里的债号被判成"不存在"** ⇒ 任何"债号有效性"
+ *   判定都会误报。实证（TD-24-1/2）：`TD-02-19`（八轮新立）与 `TD-12-2`（已裁定）都被 `show`
+ *   报「主表与归档中均无」，而 `src/` 注释引用它们**完全正确** —— 于是"**工具读不全**"被误登记成
+ *   "两处注释漂移"（2 条假债）。修法 = 并入全文归档（**只增有效集合，不改优先级**）。
+ *   ⚠️ 该口径同时是 `add` 取号的依据 ⇒ 修完后再也不会因"只查一部分"而撞已归档 ID。
+ */
 function loadAll() {
   const main = readFileSync(LEDGER, 'utf8');
   const arch = existsSync(ARCHIVE) ? readFileSync(ARCHIVE, 'utf8') : '';
+  const fullArchives = readdirSync(LOG_DIR)
+    .filter((n) => /^债务-全文归档-.*\.md$/.test(n))
+    .sort() // 多个全文归档时按文件名（含日期）升序：旧的先入 ⇒ `!has` 保证旧的不覆盖新的
+    .map((n) => readFileSync(join(LOG_DIR, n), 'utf8'));
   const byId = new Map();
-  for (const r of [...parseText(main, 'main'), ...parseText(arch, 'archive')]) if (!byId.has(r.fields.id)) byId.set(r.fields.id, r);
+  // src: main（活表）> archive（活归档，行规范化）> full（全文归档，**压缩前快照**）。
+  // ⚠️ `full` 的行可能含**裸 `|`**（当年写入时未转义，如 `source:'kv' | 'local'`）⇒ 列会错位
+  // ⇒ 它**只用于"债号存在性 + add 取号"**；`list` / `search` / `show` 的**字段输出**一律忽略它
+  // （`show` 见到 full 行只报"存在 + 原文去处"，不展示可能错位的字段）。
+  for (const r of [
+    ...parseText(main, 'main'),
+    ...parseText(arch, 'archive'),
+    ...fullArchives.flatMap((t) => parseText(t, 'full')),
+  ]) {
+    if (!byId.has(r.fields.id)) byId.set(r.fields.id, r);
+  }
   return [...byId.values()];
 }
 
@@ -292,7 +316,8 @@ const SRC_TAG = (r) => (r.src === 'archive' ? '（归档）' : '');
 function cmdList(argv) {
   const area = argVal(argv, '--area'), status = argVal(argv, '--status'), cls = argVal(argv, '--class'), rate = argVal(argv, '--rate');
   const json = argv.includes('--json'), all = argv.includes('--all'), archived = argv.includes('--archived');
-  const rows = loadAll().filter((r) => r.fields.kind === 'TD');
+  // 排除 src==='full'（全文归档快照）：它的行可能列错位，只用于存在性/取号，不参与列表输出
+  const rows = loadAll().filter((r) => r.fields.kind === 'TD' && r.src !== 'full');
   const filtered = !!(area || status || cls || rate || all || archived);
   let sel = rows;
   if (archived) sel = sel.filter((r) => r.src === 'archive');
@@ -323,7 +348,8 @@ function cmdSearch(argv) {
   if (!kw) fail('用法：node scripts/debt.mjs search <关键词> [--area 22]（多词 = AND；精确无命中时自动同义词扩展）');
   const area = argVal(argv, '--area');
   const words = kw.split(/\s+/).filter(Boolean);
-  let pool = loadAll().filter((r) => r.fields.kind === 'TD');
+  // 同上：排除全文归档快照行（列可能错位），避免检索命中垃圾字段
+  let pool = loadAll().filter((r) => r.fields.kind === 'TD' && r.src !== 'full');
   if (area) pool = pool.filter((r) => idNum(r.fields.id) === Number(area));
   const hay = (r) => `${r.fields.id} ${r.fields.area} ${r.fields.summary} ${r.fields.status}`;
   let syn = false;
@@ -358,8 +384,15 @@ function cmdShow(argv) {
   const id = argv.find((a) => /^TD-\d+-\d+|^MD-\d+-\d+/.test(a));
   if (!id) fail('用法：node scripts/debt.mjs show <TD-ID>');
   const hit = loadAll().filter((r) => r.fields.id === id);
-  if (!hit.length) fail(`主表与归档中均无 ${id}`);
+  if (!hit.length) fail(`主表 ∪ 归档 ∪ 全文归档 中均无 ${id}`);
   for (const r of hit) {
+    // 【2026-09-16】只存于「全文归档」（压缩前快照）的债号：该行可能含裸 `|` 导致列错位
+    // ⇒ 只报"它存在 + 原文去处"，不展示可能错位的字段（字段级真相以主表/活归档为准）。
+    if (r.src === 'full') {
+      console.log(`── ${id}（仅存于「全文归档」：账本压缩前的长叙述原文，无规范化行）`);
+      console.log('   ↳ 原文：daily/架构日志/债务-全文归档-*.md（搜该 ID）');
+      continue;
+    }
     const f = r.fields;
     const warn = ['A', 'B', 'C'].includes(r.mode) ? ` · 列错位已自动解析（${r.mode}）` : r.mode === 'manual' ? ' · ⚠️ 列错位需人工' : '';
     console.log(`── ${f.id}${SRC_TAG(r)}${warn}`);
@@ -458,6 +491,12 @@ function cmdResolve(argv) {
   const status = argVal(argv, '--status') || '已解决';
   if (!STATUS_WORDS.includes(status)) fail(`状态 \`${status}\` 不在白名单 [${STATUS_WORDS.join(' / ')}]`);
   const note = argVal(argv, '--note') || '', date = argVal(argv, '--date') || today();
+  // 【2026-09-16 · A10 当场修】`note` 会整段写进**状态列**，裸管道符会撑破表格列
+  // ⇒ 本仓已有若干行因此错位（`debt.mjs audit` 的「状态含裸 |」项即其残骸）。
+  // 与 `validate` 拦 summary 同口径：**在写入口拦掉**（`validate` 只管 add，resolve 此前无人管）。
+  if (/[|｜]/.test(note)) {
+    fail('note 含竖线 → 用「／」代替（裸管道符会撑破表格列，本仓已有数行因此错位）');
+  }
   // ── 目标 = 主表优先，**归档也允许改**（2026-09-14）──
   // 【为什么】`archive` 之后才发现状态文案要修（实证：note 被 PowerShell 的 ASCII 双引号截断）时，
   //   旧实现**直接硬失败且没有替代路径** ⇒ 人只能手改表格行 = 破「唯一写入者」这条红线。
@@ -803,6 +842,53 @@ function cmdAudit(argv = []) {
   console.log(`\n小结：可归一/修复 ${auto} 项 · 需人工 ${issues.length - auto} 项`);
 }
 
+/**
+ * fix —— 规范化**历史坏行**（即 `audit` 报的「列错位·可自动修」）。
+ *
+ * 【为什么必须有这条命令】写入口自 2026-09-16 起已拦住**新增**（`resolve --note` 含裸 `|` 直接拒），
+ * 但**存量坏行**一直没有修复通道 —— 只能手改账本文件，而文件头明写「禁手写、禁再追一行」。
+ * 结果：`audit` 每轮都报同样的 4 项，谁都不许动 ⇒ 告警长鸣 = 等于没有告警。
+ *
+ * 【为什么能自动修】`readRow` 已经把列错位分成 A/B/C 三类并**算好了 `fixedInner`**
+ * （`ok` 不动；`manual` 四级校验都不通过 ⇒ **不猜、不碰**）。
+ * 本命令只负责把它拼回表格行写回 —— 判据与 `audit` **同一份**（不另写一套）。
+ *
+ * 用法：`node scripts/debt.mjs fix [--dry]`（**不带 `--dry` 才写盘**）。
+ */
+function cmdFix(argv = []) {
+  const dry = argv.includes('--dry');
+  let total = 0;
+  for (const [file, label] of [
+    [LEDGER, '主表'],
+    [ARCHIVE, '归档'],
+  ]) {
+    if (!existsSync(file)) continue;
+    const raw = readFileSync(file, 'utf8');
+    const eol = raw.includes('\r\n') ? '\r\n' : '\n';
+    let n = 0;
+    const out = raw.split(/\r?\n/).map((line, li) => {
+      const r = readRow(line);
+      if (!r || !['A', 'B', 'C'].includes(r.mode)) return line;
+      n += 1;
+      console.log(`   ${label}第 ${li + 1} 行 · ${r.fields.id} · mode ${r.mode}：段数 ${r.inner.length} → ${r.fixedInner.length}`);
+      return `| ${r.fixedInner.join(' | ')} |`;
+    });
+    if (n) {
+      total += n;
+      if (!dry) writeFileSync(file, out.join(eol));
+      console.log(`${dry ? '（dry·未写盘）' : '✅'} ${label}：${n} 行${dry ? ' 待修' : ' 已修'}`);
+    } else {
+      console.log(`✅ ${label}：0 行`);
+    }
+  }
+  console.log(
+    total
+      ? `\n共 ${total} 行${dry ? '（去掉 --dry 生效）' : '已规范化'}`
+      : '\n无坏行（列错位 0 项）',
+  );
+  if (total && !dry) console.log('↳ 收尾请复跑 `node scripts/debt.mjs audit` 确认「可自动修」归零');
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 function argVal(argv, flag) { const i = argv.indexOf(flag); return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : ''; }
 function fail(msg) { console.error('❌ ' + msg); process.exit(1); }
@@ -819,12 +905,13 @@ switch (cmd) {
   case 'move': cmdMove(rest); break;
   case 'archive': cmdArchive(rest); break;
   case 'audit': cmdAudit(rest); break;
+  case 'fix': cmdFix(rest); break;
   case 'stats': cmdStats(); break;
   default:
     console.log('债务账本读写唯一入口（详见文件头注释）');
     console.log('  读：list [--area NN] [--status X] [--all] | area <NN> | search <关键词> | show <TD-ID>');
     console.log('  写：add --area NN --summary "…" | resolve <TD-ID> --note "…" | reanchor <TD-ID> --anchor <区域文件> | move <TD-ID> --to <NN>');
-    console.log('  维护：archive [--dry] | audit [--liveness]');
+    console.log('  维护：archive [--dry] | audit [--liveness] | fix [--dry]（规范化历史列错位行）');
     console.log('  统计：stats（形态/解法分布 —— 供"找债捷径"与"手法排行"，见两份 SOP）');
     process.exit(cmd ? 1 : 0);
 }

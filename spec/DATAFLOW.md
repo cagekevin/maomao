@@ -428,7 +428,10 @@ base/depthVideo/*（上传落盘走 filesApi.uploadFileToLocal）
 director3d/App.tsx · director3d/panels/Timeline.tsx（MP4 导出走 uploadFileToLocal；TD-22-19 键盘门）
 videoEditor/ui/editor/panels/timeline/timeline-element.tsx
 videoEditor/ui/editor/panels/timeline/video-thumbnail-strip.tsx
-videoEditor/engine/services/storage/indexeddb-adapter.ts
+videoEditor/engine/services/storage/service.ts（**载体已收口为单载体** 2026-09-16 · TD-02-35：
+  工程本体/列表/活跃 id/素材元数据 = KV 键（键构造唯一真源 base/core/videoEditorKeys.ts，
+  素材元数据键 = video_editor_media_meta_{projectId}）· 素材二进制 = localTool /files/ · 偏好/收藏 = contentStore local。
+  IndexedDBAdapter / OPFSAdapter / migrations/**（13 文件）与迁移编排已删 —— 剪辑器零浏览器 IDB/OPFS 依赖）
 ```
 
 ---
@@ -507,10 +510,15 @@ nodeRuntimeStore.ts（纯内存瞬态 map，不落盘）（抽审，欠深审）
 ## 十四 · 导出 / 备份（项目文件导入导出）
 
 ```
-backupStore.exportAll/importAll/backupToBlob（agentKey 前缀收口 base/core/agentKeys.ts 单源；
-    项目枚举走 projectStore.getAllProjects() 内存真源；importAll 有 type/version 守卫 + failed 明细，不再恒返 ok:true）
+backupStore.exportAll/importAll/backupToBlob（**v3 · 三段全部派生，不手写清单**：
+    ls     = contracts.getLocalKeys()（登记即进备份）
+    canvas = 各项目快照，走 projectStore 写路径（保 sanitize / 空画布跳过不变量）
+    kv     = 「localTool GET /api/kv/keys 实际存在的键」∩「contracts.getKvKeyPatterns() 模板」
+             ⇒ **新工程域登记即自动进备份（0 行接入）**；后端默认已排除 CAS 元数据 `<key>_version`
+    kvKeys 失败**上抛**（不降级成空）＝ 禁产出"看似成功"的残缺包；importAll 有 type/version 守卫 + failed 明细）
   → useCanvasEventSubscriptions（project:export/import 事件接线）（区分预检拒绝 / 部分失败）
-  → ProjectSelector（纯触发壳） · contracts.getLocalKeys（LS_KEYS 备份清单单源） · projectStore I/O · contentStore
+  → ProjectSelector（纯触发壳） · contracts.getLocalKeys/getKvKeyPatterns · localToolApi.kvKeys（→ localTool /api/kv/keys）
+    · projectStore I/O · contentStore                                    【TD-02-30 结清 2026-09-16】
 ```
 
 ---

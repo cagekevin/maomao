@@ -4,12 +4,12 @@ import { Slider } from '@/components/videoEditor/ui/ui/slider';
 import { Input } from '@/components/videoEditor/ui/ui/input';
 import { Button } from '@/components/videoEditor/ui/ui/button';
 import { Minus, Plus } from 'lucide-react';
-import { useReducer, useRef } from 'react';
 
 import { PanelBaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup, PropertyItem, PropertyItemLabel, PropertyItemValue } from './property-item';
 import { clamp } from '@/components/videoEditor/utils/math';
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { useDraftCommit } from './use-draft-commit';
 import type { AudioElement } from '@/components/videoEditor/types/timeline';
 import {
   MAX_PLAYBACK_RATE,
@@ -28,24 +28,10 @@ export function AudioProperties({
   trackId: string;
 }) {
   const editor = useEditor();
-  const [, forceRender] = useReducer((x: number) => x + 1, 0);
-
-  const isEditingVolume = useRef(false);
-  const isEditingSpeed = useRef(false);
-
-  const volumeDraft = useRef('');
-  const speedDraft = useRef('');
-
-  const initialVolumeRef = useRef<number | null>(null);
-  const initialSpeedRef = useRef<number | null>(null);
 
   const volumePercent = Math.round(element.volume * 100);
-  const volumeDisplay = isEditingVolume.current ? volumeDraft.current : volumePercent.toString();
 
   const currentSpeed = element.playbackRate ?? 1;
-  const speedDisplay = isEditingSpeed.current
-    ? speedDraft.current
-    : formatSpeedLabel({ rate: currentSpeed });
 
   const updateElement = ({
     updates,
@@ -76,6 +62,30 @@ export function AudioProperties({
     });
   };
 
+  // 【TD-22-20 · 组④】音量 / 变速 —— 与 video 面板同一形态，统一走 `useDraftCommit`。
+  /** 音量：percent 域（0~200），落库 /100。 */
+  const volumeField = useDraftCommit<number>({
+    value: volumePercent,
+    format: (v) => v.toString(),
+    parse: (raw) => {
+      const parsed = parseInt(raw, 10);
+      return Number.isNaN(parsed) ? null : clamp({ value: parsed, min: 0, max: 200 });
+    },
+    commit: (percent, pushHistory) =>
+      updateElement({ updates: { volume: percent / 100 }, pushHistory }),
+  });
+
+  /** 变速：倍率域（0.25~4）；「±」按钮是**立即生效的一步变速**，不走本编辑会话。 */
+  const speedField = useDraftCommit<number>({
+    value: currentSpeed,
+    format: (v) => formatSpeedLabel({ rate: v }),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : clampPlaybackRate({ value: parsed });
+    },
+    commit: (newRate, pushHistory) => applySpeedChange({ newRate, pushHistory }),
+  });
+
   return (
     <>
       <PanelBaseView>
@@ -89,75 +99,18 @@ export function AudioProperties({
                   min={0}
                   max={200}
                   step={1}
-                  onValueChange={([value]) => {
-                    if (initialVolumeRef.current === null) {
-                      initialVolumeRef.current = element.volume;
-                    }
-                    updateElement({
-                      updates: { volume: value / 100 },
-                      pushHistory: false,
-                    });
-                  }}
-                  onValueCommit={([value]) => {
-                    if (initialVolumeRef.current !== null) {
-                      updateElement({
-                        updates: { volume: initialVolumeRef.current },
-                        pushHistory: false,
-                      });
-                      updateElement({
-                        updates: { volume: value / 100 },
-                        pushHistory: true,
-                      });
-                      initialVolumeRef.current = null;
-                    }
-                  }}
+                  onValueChange={([value]) => volumeField.onSliderChange(value)}
+                  onValueCommit={([value]) => volumeField.onSliderCommit(value)}
                   className="w-full"
                 />
                 <Input
                   type="number"
-                  value={volumeDisplay}
+                  value={volumeField.display}
                   min={0}
                   max={200}
-                  onFocus={() => {
-                    isEditingVolume.current = true;
-                    volumeDraft.current = volumePercent.toString();
-                    forceRender();
-                  }}
-                  onChange={(event) => {
-                    volumeDraft.current = event.target.value;
-                    forceRender();
-                    if (initialVolumeRef.current === null) {
-                      initialVolumeRef.current = element.volume;
-                    }
-                    const parsed = Number.parseInt(event.target.value, 10);
-                    if (!Number.isNaN(parsed)) {
-                      const clamped = clamp({ value: parsed, min: 0, max: 200 });
-                      updateElement({
-                        updates: { volume: clamped / 100 },
-                        pushHistory: false,
-                      });
-                    }
-                  }}
-                  onBlur={() => {
-                    if (initialVolumeRef.current !== null) {
-                      const parsed = Number.parseInt(volumeDraft.current, 10);
-                      const clamped = Number.isNaN(parsed)
-                        ? volumePercent
-                        : clamp({ value: parsed, min: 0, max: 200 });
-                      updateElement({
-                        updates: { volume: initialVolumeRef.current },
-                        pushHistory: false,
-                      });
-                      updateElement({
-                        updates: { volume: clamped / 100 },
-                        pushHistory: true,
-                      });
-                      initialVolumeRef.current = null;
-                    }
-                    isEditingVolume.current = false;
-                    volumeDraft.current = '';
-                    forceRender();
-                  }}
+                  onFocus={volumeField.onFocus}
+                  onChange={(event) => volumeField.onChange(event.target.value)}
+                  onBlur={volumeField.onBlur}
                   className="ve-num w-12"
                 />
               </div>
@@ -185,12 +138,10 @@ export function AudioProperties({
                   title={`-${PLAYBACK_RATE_STEP}`}
                   disabled={currentSpeed <= MIN_PLAYBACK_RATE}
                   onClick={() => {
-                    initialSpeedRef.current = currentSpeed;
                     applySpeedChange({
                       newRate: stepPlaybackRate({ rate: currentSpeed, delta: -1 }),
                       pushHistory: true,
                     });
-                    initialSpeedRef.current = null;
                   }}
                   className="ve-act-btn"
                 >
@@ -201,28 +152,12 @@ export function AudioProperties({
                   min={MIN_PLAYBACK_RATE}
                   max={MAX_PLAYBACK_RATE}
                   step={PLAYBACK_RATE_STEP}
-                  onValueChange={([value]) => {
-                    if (initialSpeedRef.current === null) {
-                      initialSpeedRef.current = currentSpeed;
-                    }
-                    applySpeedChange({
-                      newRate: clampPlaybackRate({ value }),
-                      pushHistory: false,
-                    });
-                  }}
-                  onValueCommit={([value]) => {
-                    if (initialSpeedRef.current !== null) {
-                      applySpeedChange({
-                        newRate: initialSpeedRef.current,
-                        pushHistory: false,
-                      });
-                      applySpeedChange({
-                        newRate: clampPlaybackRate({ value }),
-                        pushHistory: true,
-                      });
-                      initialSpeedRef.current = null;
-                    }
-                  }}
+                  onValueChange={([value]) =>
+                    speedField.onSliderChange(clampPlaybackRate({ value }))
+                  }
+                  onValueCommit={([value]) =>
+                    speedField.onSliderCommit(clampPlaybackRate({ value }))
+                  }
                   className="w-full"
                 />
                 <Button
@@ -233,12 +168,10 @@ export function AudioProperties({
                   title={`+${PLAYBACK_RATE_STEP}`}
                   disabled={currentSpeed >= MAX_PLAYBACK_RATE}
                   onClick={() => {
-                    initialSpeedRef.current = currentSpeed;
                     applySpeedChange({
                       newRate: stepPlaybackRate({ rate: currentSpeed, delta: 1 }),
                       pushHistory: true,
                     });
-                    initialSpeedRef.current = null;
                   }}
                   className="ve-act-btn"
                 >
@@ -246,49 +179,13 @@ export function AudioProperties({
                 </Button>
                 <Input
                   type="number"
-                  value={speedDisplay}
+                  value={speedField.display}
                   min={MIN_PLAYBACK_RATE}
                   max={MAX_PLAYBACK_RATE}
                   step={PLAYBACK_RATE_STEP}
-                  onFocus={() => {
-                    isEditingSpeed.current = true;
-                    speedDraft.current = formatSpeedLabel({ rate: currentSpeed });
-                    forceRender();
-                  }}
-                  onChange={(event) => {
-                    speedDraft.current = event.target.value;
-                    forceRender();
-                    if (initialSpeedRef.current === null) {
-                      initialSpeedRef.current = currentSpeed;
-                    }
-                    const parsed = Number.parseFloat(event.target.value);
-                    if (!Number.isNaN(parsed)) {
-                      applySpeedChange({
-                        newRate: clampPlaybackRate({ value: parsed }),
-                        pushHistory: false,
-                      });
-                    }
-                  }}
-                  onBlur={() => {
-                    if (initialSpeedRef.current !== null) {
-                      const parsed = Number.parseFloat(speedDraft.current);
-                      const next = Number.isNaN(parsed)
-                        ? currentSpeed
-                        : clampPlaybackRate({ value: parsed });
-                      applySpeedChange({
-                        newRate: initialSpeedRef.current,
-                        pushHistory: false,
-                      });
-                      applySpeedChange({
-                        newRate: next,
-                        pushHistory: true,
-                      });
-                      initialSpeedRef.current = null;
-                    }
-                    isEditingSpeed.current = false;
-                    speedDraft.current = '';
-                    forceRender();
-                  }}
+                  onFocus={speedField.onFocus}
+                  onChange={(event) => speedField.onChange(event.target.value)}
+                  onBlur={speedField.onBlur}
                   className="ve-num w-12"
                 />
                 <span className="text-muted-foreground text-xs">x</span>

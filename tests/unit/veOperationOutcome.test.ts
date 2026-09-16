@@ -31,17 +31,8 @@ vi.mock('../../src/components/videoEditor/engine/services/storage/service', () =
   storageService: storageMock,
 }));
 
-// 存储迁移在本测试里不需要真跑（jsdom 无 IndexedDB）；只保留常量与类型，替换执行入口。
-vi.mock(
-  '../../src/components/videoEditor/engine/services/storage/migrations',
-  async (importOriginal) => {
-    const actual = await importOriginal<Record<string, unknown>>();
-    return {
-      ...actual,
-      runStorageMigrations: vi.fn().mockResolvedValue({ migratedCount: 0 }),
-    };
-  },
-);
+// 【2026-09-16 · TD-02-35 已删】原 `migrations` 模块替身（jsdom 无 IndexedDB 故桩掉执行入口）——
+// 迁移器整层已删除，本测试不再需要该桩。
 
 vi.mock('../../src/components/videoEditor/lib/toast', () => ({
   toast: {

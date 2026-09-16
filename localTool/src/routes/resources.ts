@@ -71,7 +71,9 @@ function contentSha1(filePath: string): string | null {
 // 直接 <img src="/files/..."> 会被解析成 chrome-extension://.../files/... → 404 破图。
 // 因此 rescan 入库的 url 必须补全为可访问的完整地址。
 // 更新(2026-09-04)：基址改读 PORT（默认 18080），消除原硬编码 `:18080` 忽略 PORT 的弊病
-// （见 utils/localToolBaseUrl.ts / Temp/deepening-localtool-baseurl-seam-20260904.md）。
+// （见 utils/localToolBaseUrl.ts）。
+// 【TD-08-15 · 2026-09-16】原句另引 `Temp/deepening-localtool-baseurl-seam-20260904.md` ——
+// Temp/ 是**临时目录**（该文档已不存在），引用它 = 断链；决策信息已由上一行的 `utils/localToolBaseUrl.ts` 承载。
 // 更新(2026-09-11)：toAbsoluteFileUrl 唯一实现已收口 utils/localToolBaseUrl.ts，本文件委托。
 
 /**

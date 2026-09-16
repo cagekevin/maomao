@@ -129,6 +129,17 @@ const formatDuration = (s: number): string =>
     : '0:00';
 const evenRound = (v: number): number => Math.max(2, Math.round(v / 2) * 2);
 const round2 = (v: number): number => Number(v.toFixed(2));
+/**
+ * 生成「带前缀的随机 id」。
+ *
+ * ⚠️【TD-21-23 · 2026-09-16】**只准用于"用户一次性动作"**（拆分片段 / 新建轨道 ——
+ * 每次点击本来就该产生一个新实体，随机才是对的）。
+ * **禁止**在 `useMemo` / 其它**纯派生**里使用：纯派生要求"同输入 → 同输出"，
+ * 随机 id 会让**同一份数据每次重算都换一批身份** ⇒ 下游按 id 记的选中态 / React key 全部失效。
+ * 实测后果：`:628` 的「选中片段」effect 每次重算都认不出 selectedClipId ⇒ 反复 setState
+ * ⇒ 若触发重算的引用变化是持续性的，即构成**无限渲染循环**（vitest 永久挂死 + CPU 空转）。
+ * 派生场景请按「来源标识」确定性拼 id（例：自动补片段 = `clip-auto-${sourceId}`）。
+ */
 const makeId = (p: string): string => `${p}-${generateId('v')}`;
 const nameFromUrl = (url: string): string => {
   if (url.startsWith('data:')) return 'video.mp4';
@@ -384,7 +395,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       const kind = tr.kind || tr.type || 'video';
       const trackId = tr.id != null ? String(tr.id) : `${kind}-track-${idx + 1}`;
       let cursor = 0;
-      const clips = (tr.clips || tr.segments || []).map((cl) => {
+      const clips = (tr.clips || tr.segments || []).map((cl, ci) => {
         const src = sourceMap.get(cl.sourceId);
         const dur =
           sourceMetadata[cl.sourceId ?? '']?.duration || cl.duration || cl.sourceEnd || cl.end || 0;
@@ -398,7 +409,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         const tlStart = cl.timelineStart ?? cursor;
         cursor = tlStart + clipDur;
         return {
-          id: cl.id != null ? String(cl.id) : makeId('clip'),
+          // 【TD-21-23】持久片段缺 id 时的回退必须**确定性**（按"轨道序号+片段序号"派生）：
+          // 本 useMemo 每次重算都会走到这里，随机 id 会让同一份 timelineTracks 每次换身份。
+          id: cl.id != null ? String(cl.id) : `clip-${idx}-${ci}`,
           sourceId: cl.sourceId,
           url: src?.url || cl.url || cl.sourceUrl || '',
           name: src?.name || cl.name || cl.sourceName || '视频片段',
@@ -434,7 +447,10 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           ? Math.max(...videoTrack.clips.map((c) => c.timelineStart + c.duration))
           : 0;
       videoTrack.clips.push({
-        id: makeId('clip'),
+        // 【TD-21-23】自动补的片段：id 由 sourceId **确定性派生**（同一源 → 恒等 id）。
+        // 原为 `makeId('clip')`（随机）⇒ 本 useMemo 一旦重算就换一批新 id ⇒ `:628` 的选中态 effect
+        // 认不出 selectedClipId ⇒ setSelectedClipId ⇒ 渲染 ⇒ 重算……（引用持续不稳时即无限循环）。
+        id: `clip-auto-${s.sourceId}`,
         sourceId: s.sourceId,
         url: s.url,
         name: s.name,

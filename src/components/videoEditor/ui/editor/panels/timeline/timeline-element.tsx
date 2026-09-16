@@ -62,6 +62,8 @@ import {
   FlipHorizontal2,
   Undo2,
 } from 'lucide-react';
+import { mediaDisplayUrl } from '@/components/videoEditor/lib/mediaDisplayUrl';
+import { useRenderAssetResolver } from '@/components/base/utils/assetUrl.ts';
 
 function getDisplayShortcut(action: TAction) {
   const { defaultShortcuts } = getActionDefinition(action);
@@ -382,6 +384,9 @@ function ElementContent({
   zoomLevel: number;
   mediaAssets: MediaAsset[];
 }) {
+  // TD-22-52：片段缩略图走 maomao 统一图片出口（服务端按需出小图 + 尊重「显示缩略图」开关）
+  const resolveThumb = useRenderAssetResolver();
+
   if (element.type === 'text') {
     return (
       <div className="flex size-full items-center justify-start pl-2">
@@ -469,12 +474,12 @@ function ElementContent({
     );
   }
 
-  if (mediaAsset.type === 'image' && mediaAsset.url) {
+  if (mediaAsset.type === 'image' && (mediaAsset.persistentUrl || mediaAsset.url)) {
     return (
       <div
         className="absolute inset-0"
         style={{
-          backgroundImage: `url(${mediaAsset.url})`,
+          backgroundImage: `url(${mediaDisplayUrl({ asset: mediaAsset, resolve: resolveThumb })})`,
           backgroundRepeat: 'no-repeat',
           backgroundSize: 'cover',
           backgroundPosition: 'center',

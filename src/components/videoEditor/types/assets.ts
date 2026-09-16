@@ -33,6 +33,22 @@ export interface MediaAssetData {
 export interface MediaAsset extends Omit<MediaAssetData, 'size' | 'lastModified'> {
   file: File;
   url?: string;
+  /**
+   * 素材落 localTool 后的**持久可访问地址**（`/files/…`）—— **"显示"的唯一输入**（TD-22-52）。
+   *
+   * 【两条 URL 的分工，勿混用】
+   *  - `url`（blob: objectURL，全分辨率，随 `file` 创建/revoke）：**只给渲染引擎**用
+   *    （`scene-builder` 喂 `ImageNode`/`VideoNode`，导出成片必须原图质量）。
+   *  - `persistentUrl`：**只给缩略图/预览场景**用，且必须经统一出口
+   *    `resolveAssetUrl(u, { scope: 'render' })` ⇒ 服务端按需出小图（治网格全分辨率解码）
+   *    + 尊重 `thumbnailOn` 开关（此前该开关对剪辑器**完全无感** = 假生效）。
+   *  - 未落盘（ephemeral / 上传中 / 后端离线）→ 值为 `undefined`，显示侧回退 `url`（不破图）。
+   *
+   * 【为什么新增而不是复用 `url`】原先 `MediaAsset.url` **覆盖**了 `MediaAssetData.url` 的语义
+   * （持久 `/files/` 地址 → 临时 blob:），**持久地址就此丢失** ⇒ 显示侧只能裸用 blob:
+   * 全分辨率解码，且没有第二个可用地址去走服务端出图。
+   */
+  persistentUrl?: string;
 }
 
 /**

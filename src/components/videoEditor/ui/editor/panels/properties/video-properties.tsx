@@ -4,12 +4,12 @@ import { Slider } from '@/components/videoEditor/ui/ui/slider';
 import { Input } from '@/components/videoEditor/ui/ui/input';
 import { Button } from '@/components/videoEditor/ui/ui/button';
 import { Minus, Plus } from 'lucide-react';
-import { useReducer, useRef } from 'react';
 
 import { PanelBaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup, PropertyItem, PropertyItemLabel, PropertyItemValue } from './property-item';
 import { clamp } from '@/components/videoEditor/utils/math';
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { useDraftCommit } from './use-draft-commit';
 import type { ImageElement, VideoElement } from '@/components/videoEditor/types/timeline';
 import {
   MAX_PLAYBACK_RATE,
@@ -28,49 +28,11 @@ export function VideoProperties({
   trackId: string;
 }) {
   const editor = useEditor();
-  const [, forceRender] = useReducer((x: number) => x + 1, 0);
-
-  const isEditingScale = useRef(false);
-  const isEditingPosX = useRef(false);
-  const isEditingPosY = useRef(false);
-  const isEditingRotation = useRef(false);
-  const isEditingOpacity = useRef(false);
-  const isEditingSpeed = useRef(false);
-
-  const scaleDraft = useRef('');
-  const posXDraft = useRef('');
-  const posYDraft = useRef('');
-  const rotationDraft = useRef('');
-  const opacityDraft = useRef('');
-  const speedDraft = useRef('');
-
-  const initialScaleRef = useRef<number | null>(null);
-  const initialPosXRef = useRef<number | null>(null);
-  const initialPosYRef = useRef<number | null>(null);
-  const initialRotationRef = useRef<number | null>(null);
-  const initialOpacityRef = useRef<number | null>(null);
-  const initialSpeedRef = useRef<number | null>(null);
 
   const scalePercent = Math.round(element.transform.scale * 100);
-  const scaleDisplay = isEditingScale.current ? scaleDraft.current : scalePercent.toString();
-  const posXDisplay = isEditingPosX.current
-    ? posXDraft.current
-    : Math.round(element.transform.position.x).toString();
-  const posYDisplay = isEditingPosY.current
-    ? posYDraft.current
-    : Math.round(element.transform.position.y).toString();
-  const rotationDisplay = isEditingRotation.current
-    ? rotationDraft.current
-    : Math.round(element.transform.rotate).toString();
-  const opacityDisplay = isEditingOpacity.current
-    ? opacityDraft.current
-    : Math.round(element.opacity * 100).toString();
 
   const isVideoElement = element.type === 'video';
   const currentSpeed = isVideoElement ? ((element as VideoElement).playbackRate ?? 1) : 1;
-  const speedDisplay = isEditingSpeed.current
-    ? speedDraft.current
-    : formatSpeedLabel({ rate: currentSpeed });
 
   const applySpeedChange = ({
     newRate,
@@ -119,22 +81,95 @@ export function VideoProperties({
     });
   };
 
-  const commitNumberField = ({
-    draft,
-    initial,
-    apply,
-  }: {
-    draft: string;
-    initial: React.RefObject<number | null>;
-    apply: (value: number) => void;
-  }) => {
-    if (initial.current === null) return;
-    const parsed = Number.parseFloat(draft);
-    if (!Number.isNaN(parsed)) {
-      apply(parsed);
-    }
-    initial.current = null;
-  };
+  // 【TD-22-20 · 组③】位置 / 缩放 / 旋转 / 不透明度（5 个字段）——
+  // 与 text 面板同一形态，统一走 `useDraftCommit`，不再逐处手抄 refs/handler。
+  // 原先这里有个局部 `commitNumberField({draft, initial, apply})`（把"解析 + 清 initial"
+  // 抽成小函数、两段提交仍写在每个 `apply` 回调里）—— 现已被 hook 取代并**删除**。
+  //
+  // 注：`commit` 闭包在**事件里**才求值，故此处引用上面刚定义的 `updateTransform` 是安全的。
+  /** 位置 X：`value` 存**未取整**原始值（与手抄一致），仅显示取整。 */
+  const posXField = useDraftCommit<number>({
+    value: element.transform.position.x,
+    format: (v) => Math.round(v).toString(),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    },
+    commit: (x, pushHistory) =>
+      updateTransform({
+        updates: { position: { ...element.transform.position, x } },
+        pushHistory,
+      }),
+  });
+
+  const posYField = useDraftCommit<number>({
+    value: element.transform.position.y,
+    format: (v) => Math.round(v).toString(),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    },
+    commit: (y, pushHistory) =>
+      updateTransform({
+        updates: { position: { ...element.transform.position, y } },
+        pushHistory,
+      }),
+  });
+
+  /** 缩放：percent 域（10~500），落库 /100。 */
+  const scaleField = useDraftCommit<number>({
+    value: scalePercent,
+    format: (v) => v.toString(),
+    parse: (raw) => {
+      const parsed = parseInt(raw, 10);
+      return Number.isNaN(parsed) ? null : clamp({ value: parsed, min: 10, max: 500 });
+    },
+    commit: (percent, pushHistory) =>
+      updateTransform({ updates: { scale: percent / 100 }, pushHistory }),
+  });
+
+  /** 旋转：`value` 存未取整原始值。 */
+  const rotationField = useDraftCommit<number>({
+    value: element.transform.rotate,
+    format: (v) => Math.round(v).toString(),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    },
+    commit: (rotate, pushHistory) => updateTransform({ updates: { rotate }, pushHistory }),
+  });
+
+  /** 不透明度：percent 域（0~100），落库 /100（本面板直接写 element 字段，不经 transform）。 */
+  const opacityField = useDraftCommit<number>({
+    value: Math.round(element.opacity * 100),
+    format: (v) => v.toString(),
+    parse: (raw) => {
+      const parsed = parseInt(raw, 10);
+      return Number.isNaN(parsed) ? null : clamp({ value: parsed, min: 0, max: 100 });
+    },
+    commit: (percent, pushHistory) =>
+      editor.timeline.updateElements({
+        updates: [{ trackId, elementId: element.id, updates: { opacity: percent / 100 } }],
+        pushHistory,
+      }),
+  });
+
+  /**
+   * 变速（video 专属）：`value` 是倍率域（0.25~4），解析后经 `clampPlaybackRate` 夹取；
+   * 落库走 `applySpeedChange`（它同时按倍率换算 `duration`）。
+   * 「±」按钮是**立即生效的一步变速**（不走本 hook 的编辑会话）—— 它们原先在点击时
+   * 写 `initialSpeedRef.current = …` 又立刻清空，但 `applySpeedChange` **根本不读**那个 ref
+   * ⇒ 那两行是**无操作**（死代码），随本次迁移一并删除。
+   */
+  const speedField = useDraftCommit<number>({
+    value: currentSpeed,
+    format: (v) => formatSpeedLabel({ rate: v }),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : clampPlaybackRate({ value: parsed });
+    },
+    commit: (newRate, pushHistory) => applySpeedChange({ newRate, pushHistory }),
+  });
 
   return (
     <>
@@ -152,50 +187,10 @@ export function VideoProperties({
               <PropertyItemValue>
                 <Input
                   type="number"
-                  value={posXDisplay}
-                  onFocus={() => {
-                    isEditingPosX.current = true;
-                    posXDraft.current = Math.round(element.transform.position.x).toString();
-                    forceRender();
-                  }}
-                  onChange={(e) => {
-                    posXDraft.current = e.target.value;
-                    forceRender();
-                    if (initialPosXRef.current === null) {
-                      initialPosXRef.current = element.transform.position.x;
-                    }
-                    const parsed = Number.parseFloat(e.target.value);
-                    if (!Number.isNaN(parsed)) {
-                      updateTransform({
-                        updates: { position: { ...element.transform.position, x: parsed } },
-                        pushHistory: false,
-                      });
-                    }
-                  }}
-                  onBlur={() => {
-                    commitNumberField({
-                      draft: posXDraft.current,
-                      initial: initialPosXRef,
-                      apply: (value) => {
-                        updateTransform({
-                          updates: {
-                            position: {
-                              ...element.transform.position,
-                              x: initialPosXRef.current ?? 0,
-                            },
-                          },
-                          pushHistory: false,
-                        });
-                        updateTransform({
-                          updates: { position: { ...element.transform.position, x: value } },
-                          pushHistory: true,
-                        });
-                      },
-                    });
-                    isEditingPosX.current = false;
-                    posXDraft.current = '';
-                    forceRender();
-                  }}
+                  value={posXField.display}
+                  onFocus={posXField.onFocus}
+                  onChange={(e) => posXField.onChange(e.target.value)}
+                  onBlur={posXField.onBlur}
                   className="ve-num w-12"
                 />
               </PropertyItemValue>
@@ -205,50 +200,10 @@ export function VideoProperties({
               <PropertyItemValue>
                 <Input
                   type="number"
-                  value={posYDisplay}
-                  onFocus={() => {
-                    isEditingPosY.current = true;
-                    posYDraft.current = Math.round(element.transform.position.y).toString();
-                    forceRender();
-                  }}
-                  onChange={(e) => {
-                    posYDraft.current = e.target.value;
-                    forceRender();
-                    if (initialPosYRef.current === null) {
-                      initialPosYRef.current = element.transform.position.y;
-                    }
-                    const parsed = Number.parseFloat(e.target.value);
-                    if (!Number.isNaN(parsed)) {
-                      updateTransform({
-                        updates: { position: { ...element.transform.position, y: parsed } },
-                        pushHistory: false,
-                      });
-                    }
-                  }}
-                  onBlur={() => {
-                    commitNumberField({
-                      draft: posYDraft.current,
-                      initial: initialPosYRef,
-                      apply: (value) => {
-                        updateTransform({
-                          updates: {
-                            position: {
-                              ...element.transform.position,
-                              y: initialPosYRef.current ?? 0,
-                            },
-                          },
-                          pushHistory: false,
-                        });
-                        updateTransform({
-                          updates: { position: { ...element.transform.position, y: value } },
-                          pushHistory: true,
-                        });
-                      },
-                    });
-                    isEditingPosY.current = false;
-                    posYDraft.current = '';
-                    forceRender();
-                  }}
+                  value={posYField.display}
+                  onFocus={posYField.onFocus}
+                  onChange={(e) => posYField.onChange(e.target.value)}
+                  onBlur={posYField.onBlur}
                   className="ve-num w-12"
                 />
               </PropertyItemValue>
@@ -265,75 +220,18 @@ export function VideoProperties({
                   min={10}
                   max={500}
                   step={1}
-                  onValueChange={([value]) => {
-                    if (initialScaleRef.current === null) {
-                      initialScaleRef.current = element.transform.scale;
-                    }
-                    updateTransform({
-                      updates: { scale: value / 100 },
-                      pushHistory: false,
-                    });
-                  }}
-                  onValueCommit={([value]) => {
-                    if (initialScaleRef.current !== null) {
-                      updateTransform({
-                        updates: { scale: initialScaleRef.current },
-                        pushHistory: false,
-                      });
-                      updateTransform({
-                        updates: { scale: value / 100 },
-                        pushHistory: true,
-                      });
-                      initialScaleRef.current = null;
-                    }
-                  }}
+                  onValueChange={([value]) => scaleField.onSliderChange(value)}
+                  onValueCommit={([value]) => scaleField.onSliderCommit(value)}
                   className="w-full"
                 />
                 <Input
                   type="number"
-                  value={scaleDisplay}
+                  value={scaleField.display}
                   min={10}
                   max={500}
-                  onFocus={() => {
-                    isEditingScale.current = true;
-                    scaleDraft.current = scalePercent.toString();
-                    forceRender();
-                  }}
-                  onChange={(e) => {
-                    scaleDraft.current = e.target.value;
-                    forceRender();
-                    if (initialScaleRef.current === null) {
-                      initialScaleRef.current = element.transform.scale;
-                    }
-                    const parsed = parseInt(e.target.value, 10);
-                    if (!Number.isNaN(parsed)) {
-                      const clamped = clamp({ value: parsed, min: 10, max: 500 });
-                      updateTransform({
-                        updates: { scale: clamped / 100 },
-                        pushHistory: false,
-                      });
-                    }
-                  }}
-                  onBlur={() => {
-                    if (initialScaleRef.current !== null) {
-                      const parsed = parseInt(scaleDraft.current, 10);
-                      const clamped = Number.isNaN(parsed)
-                        ? scalePercent
-                        : clamp({ value: parsed, min: 10, max: 500 });
-                      updateTransform({
-                        updates: { scale: initialScaleRef.current },
-                        pushHistory: false,
-                      });
-                      updateTransform({
-                        updates: { scale: clamped / 100 },
-                        pushHistory: true,
-                      });
-                      initialScaleRef.current = null;
-                    }
-                    isEditingScale.current = false;
-                    scaleDraft.current = '';
-                    forceRender();
-                  }}
+                  onFocus={scaleField.onFocus}
+                  onChange={(e) => scaleField.onChange(e.target.value)}
+                  onBlur={scaleField.onBlur}
                   className="ve-num w-12"
                 />
               </div>
@@ -350,73 +248,18 @@ export function VideoProperties({
                   min={-180}
                   max={180}
                   step={1}
-                  onValueChange={([value]) => {
-                    if (initialRotationRef.current === null) {
-                      initialRotationRef.current = element.transform.rotate;
-                    }
-                    updateTransform({
-                      updates: { rotate: value },
-                      pushHistory: false,
-                    });
-                  }}
-                  onValueCommit={([value]) => {
-                    if (initialRotationRef.current !== null) {
-                      updateTransform({
-                        updates: { rotate: initialRotationRef.current },
-                        pushHistory: false,
-                      });
-                      updateTransform({
-                        updates: { rotate: value },
-                        pushHistory: true,
-                      });
-                      initialRotationRef.current = null;
-                    }
-                  }}
+                  onValueChange={([value]) => rotationField.onSliderChange(value)}
+                  onValueCommit={([value]) => rotationField.onSliderCommit(value)}
                   className="w-full"
                 />
                 <Input
                   type="number"
-                  value={rotationDisplay}
+                  value={rotationField.display}
                   min={-360}
                   max={360}
-                  onFocus={() => {
-                    isEditingRotation.current = true;
-                    rotationDraft.current = Math.round(element.transform.rotate).toString();
-                    forceRender();
-                  }}
-                  onChange={(e) => {
-                    rotationDraft.current = e.target.value;
-                    forceRender();
-                    if (initialRotationRef.current === null) {
-                      initialRotationRef.current = element.transform.rotate;
-                    }
-                    const parsed = Number.parseFloat(e.target.value);
-                    if (!Number.isNaN(parsed)) {
-                      updateTransform({
-                        updates: { rotate: parsed },
-                        pushHistory: false,
-                      });
-                    }
-                  }}
-                  onBlur={() => {
-                    commitNumberField({
-                      draft: rotationDraft.current,
-                      initial: initialRotationRef,
-                      apply: (value) => {
-                        updateTransform({
-                          updates: { rotate: initialRotationRef.current ?? 0 },
-                          pushHistory: false,
-                        });
-                        updateTransform({
-                          updates: { rotate: value },
-                          pushHistory: true,
-                        });
-                      },
-                    });
-                    isEditingRotation.current = false;
-                    rotationDraft.current = '';
-                    forceRender();
-                  }}
+                  onFocus={rotationField.onFocus}
+                  onChange={(e) => rotationField.onChange(e.target.value)}
+                  onBlur={rotationField.onBlur}
                   className="ve-num w-12"
                 />
               </div>
@@ -435,111 +278,18 @@ export function VideoProperties({
                   min={0}
                   max={100}
                   step={1}
-                  onValueChange={([value]) => {
-                    if (initialOpacityRef.current === null) {
-                      initialOpacityRef.current = element.opacity;
-                    }
-                    editor.timeline.updateElements({
-                      updates: [
-                        {
-                          trackId,
-                          elementId: element.id,
-                          updates: { opacity: value / 100 },
-                        },
-                      ],
-                      pushHistory: false,
-                    });
-                  }}
-                  onValueCommit={([value]) => {
-                    if (initialOpacityRef.current !== null) {
-                      editor.timeline.updateElements({
-                        updates: [
-                          {
-                            trackId,
-                            elementId: element.id,
-                            updates: { opacity: initialOpacityRef.current },
-                          },
-                        ],
-                        pushHistory: false,
-                      });
-                      editor.timeline.updateElements({
-                        updates: [
-                          {
-                            trackId,
-                            elementId: element.id,
-                            updates: { opacity: value / 100 },
-                          },
-                        ],
-                        pushHistory: true,
-                      });
-                      initialOpacityRef.current = null;
-                    }
-                  }}
+                  onValueChange={([value]) => opacityField.onSliderChange(value)}
+                  onValueCommit={([value]) => opacityField.onSliderCommit(value)}
                   className="w-full"
                 />
                 <Input
                   type="number"
-                  value={opacityDisplay}
+                  value={opacityField.display}
                   min={0}
                   max={100}
-                  onFocus={() => {
-                    isEditingOpacity.current = true;
-                    opacityDraft.current = Math.round(element.opacity * 100).toString();
-                    forceRender();
-                  }}
-                  onChange={(e) => {
-                    opacityDraft.current = e.target.value;
-                    forceRender();
-                    if (initialOpacityRef.current === null) {
-                      initialOpacityRef.current = element.opacity;
-                    }
-                    const parsed = parseInt(e.target.value, 10);
-                    if (!Number.isNaN(parsed)) {
-                      const opacityPercent = clamp({ value: parsed, min: 0, max: 100 });
-                      editor.timeline.updateElements({
-                        updates: [
-                          {
-                            trackId,
-                            elementId: element.id,
-                            updates: { opacity: opacityPercent / 100 },
-                          },
-                        ],
-                        pushHistory: false,
-                      });
-                    }
-                  }}
-                  onBlur={() => {
-                    if (initialOpacityRef.current !== null) {
-                      const parsed = parseInt(opacityDraft.current, 10);
-                      const opacityPercent = Number.isNaN(parsed)
-                        ? Math.round(element.opacity * 100)
-                        : clamp({ value: parsed, min: 0, max: 100 });
-                      editor.timeline.updateElements({
-                        updates: [
-                          {
-                            trackId,
-                            elementId: element.id,
-                            updates: { opacity: initialOpacityRef.current },
-                          },
-                        ],
-                        pushHistory: false,
-                      });
-                      editor.timeline.updateElements({
-                        updates: [
-                          {
-                            trackId,
-                            elementId: element.id,
-                            updates: { opacity: opacityPercent / 100 },
-                          },
-                        ],
-                        pushHistory: true,
-                      });
-                      initialOpacityRef.current = null;
-                    }
-                    isEditingOpacity.current = false;
-                    opacityDraft.current = '';
-                    forceRender();
-                  }}
+                  onFocus={opacityField.onFocus}
+                  onChange={(e) => opacityField.onChange(e.target.value)}
+                  onBlur={opacityField.onBlur}
                   className="ve-num w-12"
                 />
               </div>
@@ -570,12 +320,10 @@ export function VideoProperties({
                     title={`-${PLAYBACK_RATE_STEP}`}
                     disabled={currentSpeed <= MIN_PLAYBACK_RATE}
                     onClick={() => {
-                      initialSpeedRef.current = currentSpeed;
                       applySpeedChange({
                         newRate: stepPlaybackRate({ rate: currentSpeed, delta: -1 }),
                         pushHistory: true,
                       });
-                      initialSpeedRef.current = null;
                     }}
                     className="ve-act-btn"
                   >
@@ -586,28 +334,12 @@ export function VideoProperties({
                     min={MIN_PLAYBACK_RATE}
                     max={MAX_PLAYBACK_RATE}
                     step={PLAYBACK_RATE_STEP}
-                    onValueChange={([value]) => {
-                      if (initialSpeedRef.current === null) {
-                        initialSpeedRef.current = currentSpeed;
-                      }
-                      applySpeedChange({
-                        newRate: clampPlaybackRate({ value }),
-                        pushHistory: false,
-                      });
-                    }}
-                    onValueCommit={([value]) => {
-                      if (initialSpeedRef.current !== null) {
-                        applySpeedChange({
-                          newRate: initialSpeedRef.current,
-                          pushHistory: false,
-                        });
-                        applySpeedChange({
-                          newRate: clampPlaybackRate({ value }),
-                          pushHistory: true,
-                        });
-                        initialSpeedRef.current = null;
-                      }
-                    }}
+                    onValueChange={([value]) =>
+                      speedField.onSliderChange(clampPlaybackRate({ value }))
+                    }
+                    onValueCommit={([value]) =>
+                      speedField.onSliderCommit(clampPlaybackRate({ value }))
+                    }
                     className="w-full"
                   />
                   <Button
@@ -618,12 +350,10 @@ export function VideoProperties({
                     title={`+${PLAYBACK_RATE_STEP}`}
                     disabled={currentSpeed >= MAX_PLAYBACK_RATE}
                     onClick={() => {
-                      initialSpeedRef.current = currentSpeed;
                       applySpeedChange({
                         newRate: stepPlaybackRate({ rate: currentSpeed, delta: 1 }),
                         pushHistory: true,
                       });
-                      initialSpeedRef.current = null;
                     }}
                     className="ve-act-btn"
                   >
@@ -633,49 +363,13 @@ export function VideoProperties({
                         现在滑杆与输入框表达同一件事，拆两行反而割裂）。 */}
                   <Input
                     type="number"
-                    value={speedDisplay}
+                    value={speedField.display}
                     min={MIN_PLAYBACK_RATE}
                     max={MAX_PLAYBACK_RATE}
                     step={PLAYBACK_RATE_STEP}
-                    onFocus={() => {
-                      isEditingSpeed.current = true;
-                      speedDraft.current = formatSpeedLabel({ rate: currentSpeed });
-                      forceRender();
-                    }}
-                    onChange={(event) => {
-                      speedDraft.current = event.target.value;
-                      forceRender();
-                      if (initialSpeedRef.current === null) {
-                        initialSpeedRef.current = currentSpeed;
-                      }
-                      const parsed = Number.parseFloat(event.target.value);
-                      if (!Number.isNaN(parsed)) {
-                        applySpeedChange({
-                          newRate: clampPlaybackRate({ value: parsed }),
-                          pushHistory: false,
-                        });
-                      }
-                    }}
-                    onBlur={() => {
-                      if (initialSpeedRef.current !== null) {
-                        const parsed = Number.parseFloat(speedDraft.current);
-                        const next = Number.isNaN(parsed)
-                          ? currentSpeed
-                          : clampPlaybackRate({ value: parsed });
-                        applySpeedChange({
-                          newRate: initialSpeedRef.current,
-                          pushHistory: false,
-                        });
-                        applySpeedChange({
-                          newRate: next,
-                          pushHistory: true,
-                        });
-                        initialSpeedRef.current = null;
-                      }
-                      isEditingSpeed.current = false;
-                      speedDraft.current = '';
-                      forceRender();
-                    }}
+                    onFocus={speedField.onFocus}
+                    onChange={(event) => speedField.onChange(event.target.value)}
+                    onBlur={speedField.onBlur}
                     className="ve-num w-12"
                   />
                   <span className="text-muted-foreground text-xs">x</span>

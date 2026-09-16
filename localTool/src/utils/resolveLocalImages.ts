@@ -23,29 +23,16 @@ import Jimp from 'jimp';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getUploadDir } from '../db/database.js';
+// 「Jimp 可编码格式 → MIME」唯一真源（2026-09-16 收口 · TD-02-41）。
+// 原为本文件内 `mimeFromExt` switch —— 与 files.ts 的白名单、前端 assetUrl.ts 的 Set 同源三份，
+// 已漂移过一次（见 fileStore.JIMP_MIME_BY_EXT 注释）。此处改为委托，不再自持映射。
+import { jimpMimeForExt } from './fileStore.js';
 
 /** 发送最长边上限（与前端 assetUrl.ts MAX_SEND_DIM=1920 契约对齐，出站压缩防超大图触碰 API 上限） */
 const MAX_SEND_DIM = 1920;
 
 /** 绝对自指 localTool /files/ URL（127.0.0.1 / localhost / ::1 + 任意端口 + /files/ 路径） */
 const SELF_FILE_URL_RE = /^https?:\/\/(?:127\.0\.0\.1|localhost|::1)(?::\d+)?(\/files\/.*)$/i;
-
-/** 扩展名 → Jimp MIME（仅 Jimp 0.22 可编码格式；webp 无编码器 → 统一 png，同 files.ts 缩略图契约） */
-function mimeFromExt(ext: string): string {
-  switch (ext) {
-    case 'jpg':
-    case 'jpeg':
-      return Jimp.MIME_JPEG;
-    case 'gif':
-      return Jimp.MIME_GIF;
-    case 'bmp':
-      return Jimp.MIME_BMP;
-    case 'tiff':
-      return Jimp.MIME_TIFF;
-    default:
-      return Jimp.MIME_PNG; // png / 未知格式统一 png
-  }
-}
 
 /** 相对 /files/ 或绝对自指 /files/ URL → uploads 磁盘绝对路径；非本机可读图片 URL 返回 null */
 function resolveLocalPath(u: string): string | null {
@@ -79,7 +66,7 @@ async function fileToInlineBase64(filePath: string): Promise<string | null> {
         Math.max(1, Math.round(img.getHeight() * scale)),
       );
     }
-    const mime = mimeFromExt(ext);
+    const mime = jimpMimeForExt(ext);
     const buf = await img.getBufferAsync(mime);
     return `data:${mime};base64,${buf.toString('base64')}`;
   } catch {

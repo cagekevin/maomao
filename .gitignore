@@ -132,6 +132,8 @@ scripts/report-chunks.json
 # ── 临时产物目录（本地生成、可随时重建，不入库）──
 Temp/
 tmp/
+# 一次性临时 mockup 样式快照（_tmp_orig_*，非源码不入库）
+_tmp_orig_*.css
 
 # ── 代码审计：audit/ 沙盒已退役（2026-09-13 · TD-17-1）──
 # 原 audit/ 把 knip/jscpd/oxlint/depcruise/madge 装在 .gitignore 的沙盒 → CI 装不到、工具不生效。

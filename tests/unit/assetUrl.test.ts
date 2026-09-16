@@ -213,17 +213,13 @@ describe('assetUrl · resolveAssetUrl（统一出口，render 按需小图 / sen
     expect(url.searchParams.get('url')).toBe('/files/tasks/x.png');
   });
 
-  it('render：maxDim / 白名单 format 透传；webp 被钳制不产出', () => {
-    const u = new URL(
-      resolveAssetUrl('/files/a.png', { scope: 'render', maxDim: 320, format: 'jpeg' }),
-    );
+  it('render：maxDim 透传；format 已随 TD-02-41 删除（前端不再持有格式判据）', () => {
+    const u = new URL(resolveAssetUrl('/files/a.png', { scope: 'render', maxDim: 320 }));
     expect(u.searchParams.get('maxDim')).toBe('320');
-    expect(u.searchParams.get('format')).toBe('jpeg');
-    // webp 非白名单（后端 Jimp 0.22 无法编码）→ 不得产出 format，避免假 webp
-    const w = new URL(
-      resolveAssetUrl('/files/a.png', { scope: 'render', maxDim: 320, format: 'webp' }),
-    );
-    expect(w.searchParams.get('format')).toBeNull();
+    // 【TD-02-41】前端原持一份「Jimp 可编码格式」白名单做预校验 —— 那是后端判据的第二份抄写且已漂移。
+    // 判据现唯一在后端（`fileStore.isJimpEncodableExt`）：非法 format 由后端回退源扩展名，
+    // 由 localTool 用例「Files·thumbnail format 校验：webp 被拒回落源扩展名，白名单 jpeg 生效」锁住。
+    expect(u.searchParams.get('format')).toBeNull();
   });
 
   it('render：非本地（外部 http / data: / blob:）回退原图绝对地址，绝不请求出图端点', () => {

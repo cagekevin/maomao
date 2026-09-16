@@ -11,6 +11,7 @@ import {
   VIDEO_EDITOR_PROJECTS_PREFIX,
   VIDEO_EDITOR_ACTIVE_PREFIX,
   VIDEO_EDITOR_PROJECT_PREFIX,
+  VIDEO_EDITOR_MEDIA_META_PREFIX,
 } from './contracts.ts';
 
 /** 画布项目 → 剪辑工程列表键。 */
@@ -26,4 +27,12 @@ export function videoEditorActiveProjectKey(projectId: string): string {
 /** （画布项目, 剪辑工程 id）→ 单个工程本体键。 */
 export function videoEditorProjectKey(projectId: string, editorId: string): string {
   return `${VIDEO_EDITOR_PROJECT_PREFIX}${projectId || 'default'}_${editorId}`;
+}
+
+/**
+ * 画布项目 → 该项目的**素材元数据表**键（TD-02-35）。
+ * 值 = `{ [assetId]: MediaAssetData }`；按画布项目隔离（与工程列表/活跃 id 同维度）。
+ */
+export function videoEditorMediaMetaKey(projectId: string): string {
+  return `${VIDEO_EDITOR_MEDIA_META_PREFIX}${projectId || 'default'}`;
 }

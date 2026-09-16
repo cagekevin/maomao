@@ -2,9 +2,8 @@
  * 回归锁：剪辑器「同一事实的第二份」收口（母体 M-A）。
  *
  * ════════════════════════════════════════════════════════════════
- * 本轮清的五笔同族债，各自锁一条：
+ * 本轮清的同族债，各自锁一条：
  *   · TD-22-30 —— 字幕模板不再手抄 `TextElement` 全形状，且必须走唯一构造路径 `buildTextElement`；
- *   · TD-22-35 —— 迁移类的返回形状复用 `MigrationResult<T>`（不再是三份内联手抄）；
  *   · TD-22-36 —— 动作参数契约只有 `TActionArgsMap` 一份（`ACTIONS[].args` 死副本已删）；
  *   · TD-22-28 —— 幽灵字段 `agentMessages` 已从类型与持久化层清干净；
  *   · TD-22-39 —— 库音频的取字节原语只有一处（原为 3 份逐字相同的 fetch+ok 校验）。
@@ -20,8 +19,6 @@ import {
 } from '../../src/components/videoEditor/constants/subtitle-constants';
 import { buildTextElement } from '../../src/components/videoEditor/engine/timeline/element-utils';
 import { ACTIONS } from '../../src/components/videoEditor/engine/lib/actions/definitions';
-import { V0toV1Migration } from '../../src/components/videoEditor/engine/services/storage/migrations/v0-to-v1';
-import { V2toV3Migration } from '../../src/components/videoEditor/engine/services/storage/migrations/v2-to-v3';
 
 function read(relativePath: string): string {
   return readFileSync(relativePath, 'utf8');
@@ -73,27 +70,9 @@ describe('TD-22-30 · 字幕模板：覆盖差 + 唯一构造路径', () => {
   });
 });
 
-describe('TD-22-35 · 迁移返回形状复用 MigrationResult', () => {
-  it('V0toV1Migration.transform 返回 { project, skipped, reason }', async () => {
-    const result = await new V0toV1Migration().transform({ scenes: [{}] });
-    expect(result).toEqual(
-      expect.objectContaining({ skipped: true, reason: 'already has scenes' }),
-    );
-  });
-
-  it('V2toV3Migration.transform 返回同一形状（缺 project id → skipped）', async () => {
-    const result = await new V2toV3Migration().transform({});
-    expect(result).toEqual(expect.objectContaining({ skipped: true, reason: 'no project id' }));
-  });
-
-  it('三个迁移类都不再内联手抄该形状（源码级）', () => {
-    for (const file of ['v0-to-v1', 'v1-to-v2', 'v2-to-v3']) {
-      const src = read(`src/components/videoEditor/engine/services/storage/migrations/${file}.ts`);
-      expect(src).toContain('MigrationResult<ProjectRecord>');
-      expect(src).not.toContain('skipped: boolean;');
-    }
-  });
-});
+// 【2026-09-16 · 已删】原 `TD-22-35 · 迁移返回形状复用 MigrationResult` 一整个 describe ——
+// 它锁的是**已被删除的设计**（迁移器整层随 TD-02-35 载体收口删除）。留着它就是给后人
+// 一个"这个契约还存在"的假象（SOP：锁着已撤销设计的测试必须删）。
 
 describe('TD-22-36 · 动作参数契约只有一份', () => {
   it('ACTIONS 里不再有平行的 args 副本（唯一契约 = TActionArgsMap）', () => {

@@ -157,38 +157,9 @@ export async function extractVideoFrame({
   }
 }
 
-export async function generateImageThumbnail({ imageFile }: { imageFile: File }): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const image = new window.Image();
-    const objectUrl = URL.createObjectURL(imageFile);
-
-    image.addEventListener('load', () => {
-      try {
-        const dataUrl = renderToThumbnailDataUrl({
-          width: image.naturalWidth,
-          height: image.naturalHeight,
-          draw: ({ context, width, height }) => {
-            context.drawImage(image, 0, 0, width, height);
-          },
-        });
-        resolve(dataUrl);
-      } catch (error) {
-        reject(error instanceof Error ? error : new Error('Could not render image'));
-      } finally {
-        URL.revokeObjectURL(objectUrl);
-        image.remove();
-      }
-    });
-
-    image.addEventListener('error', () => {
-      URL.revokeObjectURL(objectUrl);
-      image.remove();
-      reject(new Error('Could not load image'));
-    });
-
-    image.src = objectUrl;
-  });
-}
+// 【TD-22-52 已删】原 `generateImageThumbnail`（新窗口 Image → canvas → dataURL）——
+// 图片不再生成客户端 base64 缩略图（显示改走统一出口的服务端出图端点），删后**零消费者**。
+// 视频侧的 `generateThumbnail`（`<video>` seek 抽帧）**保留**：服务端出图端点是 Jimp，只处理图片。
 
 export async function processMediaAssets({
   files,
@@ -224,7 +195,12 @@ export async function processMediaAssets({
         const dimensions = await getImageDimensions({ file });
         width = dimensions.width;
         height = dimensions.height;
-        thumbnailUrl = await generateImageThumbnail({ imageFile: file });
+        // 【TD-22-52 收口】图片**不再**生成客户端 base64 缩略图：显示走统一出口的服务端出图端点
+        // （`/api/files/thumbnail`，见 MediaAsset.persistentUrl）。两条收益：
+        //  ① 治"网格解码全分辨率原图"；
+        //  ② 止住 **base64 缩略图落 KV** —— 与 `baseUrl/assetUrl.ts` 的公开契约一致
+        //     （「base64 只是出站编码，**永不落盘**」）。
+        // 视频仍必须客户端抽帧（服务端出图端点是 Jimp，只处理图片），故其 thumbnailUrl 保留。
       } else if (fileType === 'video') {
         try {
           const videoInfo = await getVideoInfo({ videoFile: file });

@@ -11,6 +11,18 @@ import { videoCache } from '@/components/videoEditor/engine/services/video-cache
 import { collectElementsByMediaId } from '@/components/videoEditor/engine/timeline/element-utils';
 import { toast } from '@/components/videoEditor/lib/toast';
 
+/**
+ * 释放素材的运行期 URL（`blob:` objectURL）。
+ *
+ * 【TD-22-52 收口】只 revoke `url` —— 原三处（移除单素材 / 清空工程媒体 / 重载媒体）各抄了一遍，
+ * 且**都多 revoke 了 `thumbnailUrl`**：它是 **dataURL**（canvas 绘制 / `<video>` 抽帧产物），
+ * 而 `URL.revokeObjectURL` 只对 `blob:` 生效 ⇒ 那三行是**无效操作**（看着像在回收，实际什么也没做）。
+ * 收口为一处，三处调用点共用，避免再各写一遍。
+ */
+function releaseAssetObjectUrls(asset: MediaAsset): void {
+  if (asset.url) URL.revokeObjectURL(asset.url);
+}
+
 export class MediaManager {
   private assets: MediaAsset[] = [];
   private isLoading = false;
@@ -42,7 +54,10 @@ export class MediaManager {
     this.notify();
 
     try {
+      // 【TD-22-52】`saveMediaAsset` 落盘后**就地回填** `newAsset.persistentUrl`（见其注释）。
+      // 这里只需通知订阅者重渲染 —— 网格随即从 blob: 全分辨率切到 `/files/` 服务端出小图。
       await storageService.saveMediaAsset({ projectId, mediaAsset: newAsset });
+      this.notify();
       return { ok: true, id: newAsset.id, asset: newAsset };
     } catch (error) {
       // ── 修复(2026-09-14 · 假成功)：保存失败必须**回滚 + 用户可见**。
@@ -67,12 +82,7 @@ export class MediaManager {
 
     videoCache.clearVideo({ mediaId: id });
 
-    if (asset?.url) {
-      URL.revokeObjectURL(asset.url);
-      if (asset.thumbnailUrl) {
-        URL.revokeObjectURL(asset.thumbnailUrl);
-      }
-    }
+    if (asset) releaseAssetObjectUrls(asset);
 
     this.assets = this.assets.filter((asset) => asset.id !== id);
     this.notify();
@@ -134,14 +144,7 @@ export class MediaManager {
   }
 
   async clearProjectMedia({ projectId }: { projectId: string }): Promise<void> {
-    this.assets.forEach((asset) => {
-      if (asset.url) {
-        URL.revokeObjectURL(asset.url);
-      }
-      if (asset.thumbnailUrl) {
-        URL.revokeObjectURL(asset.thumbnailUrl);
-      }
-    });
+    this.assets.forEach(releaseAssetObjectUrls);
 
     const mediaIds = this.assets.map((asset) => asset.id);
     this.assets = [];
@@ -160,14 +163,7 @@ export class MediaManager {
     this.loadToken += 1;
     this.loadError = null;
 
-    this.assets.forEach((asset) => {
-      if (asset.url) {
-        URL.revokeObjectURL(asset.url);
-      }
-      if (asset.thumbnailUrl) {
-        URL.revokeObjectURL(asset.thumbnailUrl);
-      }
-    });
+    this.assets.forEach(releaseAssetObjectUrls);
 
     this.assets = [];
     this.notify();

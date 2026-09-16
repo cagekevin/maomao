@@ -1,5 +1,7 @@
 'use client';
 import { logger } from '@/components/videoEditor/lib/logger';
+import { mediaDisplayUrl } from '@/components/videoEditor/lib/mediaDisplayUrl';
+import { useRenderAssetResolver } from '@/components/base/utils/assetUrl.ts';
 
 import { useMemo, useState } from 'react';
 import { toast } from '@/components/videoEditor/lib/toast';
@@ -634,12 +636,19 @@ function MediaPreview({
   item: MediaAsset;
   variant?: 'grid' | 'compact';
 }) {
+  // TD-22-52：显示走 maomao 统一图片出口（服务端按需出小图 + 尊重「显示缩略图」开关）
+  const resolveThumb = useRenderAssetResolver();
   const shouldShowDurationBadge = variant === 'grid';
 
   if (item.type === 'image') {
     return (
       <div className="relative flex size-full items-center justify-center">
-        <img src={item.url ?? ''} alt={item.name} className="object-cover" loading="lazy" />
+        <img
+          src={mediaDisplayUrl({ asset: item, resolve: resolveThumb })}
+          alt={item.name}
+          className="object-cover"
+          loading="lazy"
+        />
       </div>
     );
   }

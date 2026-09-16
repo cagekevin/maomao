@@ -31,6 +31,9 @@
   --surface-hover: rgb(var(--mao-surface-hover));
   --surface-hover-strong: rgb(var(--mao-surface-hover-strong));
   --surface-sunken: rgb(var(--mao-surface-sunken));
+  --surface-strong: rgb(var(--mao-surface-strong));
+  --surface-subtle: rgb(var(--mao-surface-subtle));
+  --app-bg: rgb(var(--mao-app-bg));
   --input: rgb(var(--mao-input));
 
   /* 边框：常态 → hover → 选中 → 最弱分隔 */
@@ -55,8 +58,8 @@
   --accent-text: rgb(var(--mao-accent-strong));
   --ok: rgb(var(--mao-live));                        /* 绿：成功 */
   --danger: rgb(var(--mao-danger));                    /* 红：危险 / 删除 */
-  --warn: rgb(var(--mao-gold));                        /* 黄：警告 */
-  --purple:#d946ef;                    /* 紫：特殊标记（无对应产品令牌，保留） */
+  --warn: var(--sw-gold);                                     /* 黄：警告（--mao-gold 不存在，本地定义，见 B 块） */
+  --purple:#d946ef;                          /* 紫：特殊标记（无对应产品令牌，本地真实值） */
   --purple-soft:rgba(217,70,239,.15);
   --purple-line:rgba(217,70,239,.6);
   --purple-text:#f0abfc;
@@ -66,15 +69,114 @@
   --r-ctl:8px;        /* 按钮 / 输入 rounded-lg */
   --r-sm:6px;         /* 小控件 rounded-md */
   --r-pill:999px;     /* 胶囊 */
-  --sh-card:0 30px 70px rgba(0,0,0,.6);
-  --sh-pop:0 12px 32px rgba(0,0,0,.5);
+  --sh-card:0 30px 70px var(--scrim-60);
+  --sh-pop:0 12px 32px var(--scrim-50);
+}
+
+/* ───────── B. 本地装饰/光谱令牌（mockup-base 共用件的故意装饰色，集中命名，避免散落裸值） ─────────
+   说明：这些值取自重命名前原始文件（git 恢复），原样保留以保证渲染一致；均为真实值，非自引用。 */
+:root{
+  /* 状态色补充（--mao-gold 在产品令牌中不存在，gold 为 mockup 故意强调色，本地定义真实值） */
+  --warn: #eab308;
+  --warn-soft: rgba(234,179,8,.35);
+  --warn-line: rgba(234,179,8,.55);
+  --warn-trace: rgba(234,179,8,.07);
+  --warn-fill: rgba(234,179,8,.20);
+  --warn-mid: rgba(234,179,8,.45);
+  /* 缺的灰阶（对齐 --mao-*） */
+  --surface-faint: rgb(var(--mao-surface-faint));
+  --surface-2: rgb(var(--mao-surface-2));
+  --surface-sunken-2: rgb(var(--mao-surface-sunken-2));
+  --surface-hover-2: rgb(var(--mao-surface-hover-2));
+  /* 浅色主题（预览卡） */
+  --paper-bg: #f2eee4;
+  --paper-bg-2: #efebe1;
+  --paper-bg-3: #e6e2d8;
+  --paper-line: #c9c5ba;
+  --paper-line-2: #cfcbc1;
+  --paper-muted: #b3afa5;
+  --paper-fg-2: #c4c0b6;
+  --paper-fg-3: #dedad0;
+  --paper-fg-4: #e8e8e8;
+  /* 光谱/状态装饰色（故意，集中命名，精确同原值） */
+  --sw-blue: #2f6fdc;
+  --sw-blue-bright: #7ab8ff;
+  --sw-blue-pale: #bfdbfe;
+  --sw-blue-indigo: #a5b4fc;
+  --sw-blue-slate: #5d87c7;
+  --sw-green: #6ee7b7;
+  --sw-green-olive: #76a96c;
+  --sw-green-deep: #2f5d50;
+  --sw-green-dark: #24463a;
+  --sw-green-ink: #0f2420;
+  --sw-red: #ff3b30;
+  --sw-red-soft: #f87171;
+  --sw-red-pale: #fca5a5;
+  --sw-red-coral: #d7675b;
+  --sw-red-dark: #4a2626;
+  --sw-gold: #fcd34d;
+  --sw-gold-dark: #4a3c1c;
+  --sw-purple: #4a3a5c;
+  --sw-purple-dark: #221a2e;
+  --sw-purple-ink: #0d0a14;
+  --sw-slate: #4b5563;
+  --sw-slate-deep: #1f2937;
+  --sw-slate-darker: #111827;
+  --sw-slate-darkest: #0b1220;
+  --sw-brown: #7c5c3a;
+  --sw-brown-dark: #3b2f22;
+  --sw-brown-ink: #171208;
+  --sw-navy: #2a3a52;
+  --sw-navy-deep: #0d1729;
+  /* 半透明遮罩（深色主题） */
+  --scrim-55: rgba(0,0,0,.55);
+  --scrim-50: rgba(0,0,0,.5);
+  --scrim-45: rgba(0,0,0,.45);
+  --scrim-42: rgba(0,0,0,.42);
+  --scrim-44: rgba(0,0,0,.44);
+  --scrim-60: rgba(0,0,0,.6);
+  --scrim-90: rgba(0,0,0,.9);
+  --scrim-85: rgba(20,20,20,.85);
+  --scrim-92: rgba(28,28,28,.92);
+  --scrim-94: rgba(28,28,28,.94);
+  --scrim-95: rgba(24,24,24,.95);
+  --scrim-80: rgba(0,0,0,.8);
+  --scrim-navy: rgba(24,44,84,.92);
+  /* 半透明白色高光（深色主题） */
+  --hi-18: rgba(255,255,255,.18);
+  --hi-28: rgba(255,255,255,.28);
+  --hi-26: rgba(255,255,255,.26);
+  --hi-22: rgba(255,255,255,.22);
+  --hi-20: rgba(255,255,255,.20);
+  --hi-14: rgba(255,255,255,.14);
+  --hi-08: rgba(255,255,255,.08);
+  --hi-055: rgba(255,255,255,.055);
+  --hi-035: rgba(255,255,255,.035);
+  --hi-92: rgba(255,255,255,.92);
+  --hi-085: rgba(226,232,240,.92);
+  --hi-blue: rgba(122,190,255,.9);
+  --hi-62: rgba(255,255,255,.62);
+  /* 强调蓝半透明 */
+  --accent-06: rgba(59,130,246,.06);
+  --accent-10: rgba(59,130,246,.10);
+  --accent-16: rgba(59,130,246,.16);
+  --accent-22: rgba(59,130,246,.22);
+  --accent-25: rgba(59,130,246,.25);
+  --accent-26: rgba(59,130,246,.26);
+  /* 危险红半透明（--accent-soft/--accent-line 已由块 A 用 --mao-accent 定义，此处不再覆盖） */
+  --danger-12: rgba(239,68,68,.12);
+  --danger-16: rgba(239,68,68,.16);
+  --danger-35: rgba(239,68,68,.35);
+  --danger-55: rgba(239,68,68,.55);
+  /* 半透明描边 */
+  --c-hair: rgba(85,85,85,.5);
 }
 
 *{margin:0;padding:0;box-sizing:border-box;}
 html,body{min-height:100%;}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-  background:#0a0a0a;color:var(--t-primary);
+  background:var(--canvas);color:var(--t-primary);
   padding:26px 28px 80px;
   display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start;
 }
@@ -98,30 +200,30 @@ button,input,select{font-family:inherit;}
 /* 变更标签：新增 / 保留 / 提醒 */
 .tag{
   display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;
-  background:#1f1f1f;border:1px solid #2c2c2c;color:#8a8a8a;margin-right:6px;
+  background:var(--surface-2);border:1px solid var(--surface-hover-2);color:var(--t-muted);margin-right:6px;
 }
-.tag.new{color:#7ab8ff;border-color:#2a3a52;}
-.tag.keep{color:#6ee7b7;border-color:#24463a;}
-.tag.warn{color:#fcd34d;border-color:#4a3c1c;}
-.tag.cut{color:#f87171;border-color:#4a2626;}
+.tag.new{color:var(--sw-blue-bright);border-color:var(--sw-navy);}
+.tag.keep{color:var(--sw-green);border-color:var(--sw-green-dark);}
+.tag.warn{color:var(--sw-gold);border-color:var(--sw-gold-dark);}
+.tag.cut{color:var(--sw-red-soft);border-color:var(--sw-red-dark);}
 
 /* 底部说明（写清取舍与落地口径，别让看图的人猜） */
 .mk-note{
-  border-top:1px dashed #242424;padding-top:9px;margin-top:2px;
+  border-top:1px dashed var(--surface-subtle);padding-top:9px;margin-top:2px;
   font-size:11px;line-height:1.95;color:var(--t-muted);max-width:1240px;
 }
-.mk-note b{color:#9a9a9a;font-weight:600;}
+.mk-note b{color:var(--t-secondary);font-weight:600;}
 .mk-note code{
-  background:#1d1d1d;border:1px solid #292929;border-radius:5px;
-  padding:1px 4px;font-size:11px;color:#c9c9c9;
+  background:var(--surface-raised);border:1px solid var(--surface-hover);border-radius:5px;
+  padding:1px 4px;font-size:11px;color:var(--t-body);
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 
 /* 通用图例（列点说明） */
 .mk-legend{display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--t-muted);line-height:1.75;}
 .mk-legend b{color:var(--t-body);font-weight:500;}
-.mk-legend .k{color:#7ab8ff;}
-.mk-legend .c{color:#f87171;}
+.mk-legend .k{color:var(--sw-blue-bright);}
+.mk-legend .c{color:var(--sw-red-soft);}
 
 /* ───────── C. 通用控件（规范 §二 7 种形态的 HTML 实现） ───────── */
 
@@ -132,11 +234,11 @@ button,input,select{font-family:inherit;}
   border:1px solid var(--edge-muted);background:transparent;color:var(--t-body);cursor:pointer;
   transition:background .15s,color .15s,border-color .15s;
 }
-.btn:hover{background:var(--surface-hover);color:#fff;}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500;}
-.btn.primary:hover{background:#2f6fdc;border-color:#2f6fdc;}
+.btn:hover{background:var(--surface-hover);color:var(--t-strong);}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--t-strong);font-weight:500;}
+.btn.primary:hover{background:var(--sw-blue);border-color:var(--sw-blue);}
 .btn.danger{color:var(--danger);}
-.btn.danger:hover{background:rgba(239,68,68,.12);color:var(--danger);}
+.btn.danger:hover{background:var(--danger-12);color:var(--danger);}
 .btn:disabled{opacity:.4;cursor:not-allowed;}
 .btn:disabled:hover{background:transparent;color:var(--t-body);}
 
@@ -158,7 +260,7 @@ button,input,select{font-family:inherit;}
   border:none;background:transparent;border-radius:5px;color:var(--t-faint);cursor:pointer;font-size:10px;
   transition:background .15s,color .15s;
 }
-.ic:hover{background:var(--surface-hover);color:#fff;}
+.ic:hover{background:var(--surface-hover);color:var(--t-strong);}
 .ic.on{color:var(--accent-text);}
 .ic.danger:hover{color:var(--danger);}
 
@@ -174,7 +276,7 @@ button,input,select{font-family:inherit;}
   display:inline-flex;align-items:center;justify-content:center;gap:4px;
   transition:background .15s,color .15s,border-color .15s;
 }
-.seg button:hover{color:#fff;border-color:var(--edge);}
+.seg button:hover{color:var(--t-strong);border-color:var(--edge);}
 .seg button.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
 /* 禁用态（.dis）。**必须有可见样式** —— 否则就是"假禁用"：点了没反应、也看不出为什么，
    正是 docs/120 反复记的那类事故（禁用必须同时给 tooltip 说明原因）。 */
@@ -190,12 +292,12 @@ button,input,select{font-family:inherit;}
   height:auto;padding:4px 13px;border-radius:7px;border-color:transparent;background:transparent;
   font-size:11px;line-height:1.45;
 }
-.seg.tabs button:hover{background:var(--surface-hover);color:#fff;}
+.seg.tabs button:hover{background:var(--surface-hover);color:var(--t-strong);}
 .seg.tabs button.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
 .seg.tabs .badge{
   font-size:9px;padding:0 4px;border-radius:4px;background:var(--surface-hover-strong);color:var(--t-faint);
 }
-.seg.tabs button.on .badge{background:rgba(59,130,246,.25);color:#bfdbfe;}
+.seg.tabs button.on .badge{background:var(--accent-25);color:var(--sw-blue-pale);}
 
 /* C4 工具胶囊（仿 HoverToolbar / 编辑器工具条） */
 .pill{display:flex;align-items:center;gap:2px;padding:3px;border-radius:var(--r-pill);
@@ -205,9 +307,9 @@ button,input,select{font-family:inherit;}
   border:none;background:transparent;border-radius:var(--r-pill);color:var(--t-muted);cursor:pointer;
   transition:background .15s,color .15s;
 }
-.pill button:hover{background:var(--surface-hover);color:#fff;}
-.pill button.on{background:var(--accent);color:#fff;}
-.pill button.on:hover{background:#2f6fdc;color:#fff;}
+.pill button:hover{background:var(--surface-hover);color:var(--t-strong);}
+.pill button.on{background:var(--accent);color:var(--t-strong);}
+.pill button.on:hover{background:var(--sw-blue);color:var(--t-strong);}
 
 /* C5 数值输入 */
 .num{
@@ -227,9 +329,9 @@ button,input,select{font-family:inherit;}
 /* C7 滑杆 + 颜色选择 */
 .range{width:100%;accent-color:var(--accent);}
 .swatch{width:22px;height:22px;border-radius:var(--r-sm);border:1px solid var(--edge-strong);
-        padding:0;background:#ff3b30;cursor:pointer;flex-shrink:0;}
+        padding:0;background:var(--sw-red);cursor:pointer;flex-shrink:0;}
 .swatches{display:flex;align-items:center;gap:4px;}
-.sw{width:16px;height:16px;border-radius:50%;border:1px solid rgba(255,255,255,.18);cursor:pointer;}
+.sw{width:16px;height:16px;border-radius:50%;border:1px solid var(--hi-18);cursor:pointer;}
 .sw.on{box-shadow:0 0 0 2px var(--accent);}
 
 /* 一行表单：label + 控件 */
@@ -289,15 +391,15 @@ button,input,select{font-family:inherit;}
 .checker{
   position:absolute;inset:0;
   background-image:
-    linear-gradient(45deg,#171717 25%,transparent 25%,transparent 75%,#171717 75%),
-    linear-gradient(45deg,#171717 25%,transparent 25%,transparent 75%,#171717 75%);
+    linear-gradient(45deg,var(--surface-strong) 25%,transparent 25%,transparent 75%,var(--surface-strong) 75%),
+    linear-gradient(45deg,var(--surface-strong) 25%,transparent 25%,transparent 75%,var(--surface-strong) 75%);
   background-size:16px 16px;background-position:0 0,8px 8px;
 }
 .board{
   position:relative;background:var(--surface-1);
-  box-shadow:0 0 0 1px var(--edge),0 24px 60px rgba(0,0,0,.55);
+  box-shadow:0 0 0 1px var(--edge),0 24px 60px var(--scrim-55);
 }
-.board.empty{background:transparent;box-shadow:0 0 0 1px rgba(85,85,85,.5);}
+.board.empty{background:transparent;box-shadow:0 0 0 1px var(--c-hair);}
 
 /* D5 底部状态条 */
 .status{
@@ -310,22 +412,22 @@ button,input,select{font-family:inherit;}
 .zoom-ctl{display:flex;align-items:center;gap:6px;margin-left:auto;}
 .zbtn{width:22px;height:22px;display:flex;align-items:center;justify-content:center;
       border:none;background:transparent;border-radius:var(--r-sm);color:var(--t-muted);cursor:pointer;}
-.zbtn:hover{background:var(--surface-hover);color:#fff;}
+.zbtn:hover{background:var(--surface-hover);color:var(--t-strong);}
 
 /* 画布上的浮动件：缩放控件 / 提示 */
 .float{
   position:absolute;display:flex;align-items:center;gap:2px;padding:3px;border-radius:var(--r-pill);
-  background:rgba(28,28,28,.92);border:1px solid var(--edge);backdrop-filter:blur(6px);
+  background:var(--scrim-92);border:1px solid var(--edge);backdrop-filter:blur(6px);
 }
 .float button{
   width:24px;height:22px;display:flex;align-items:center;justify-content:center;
   border:none;background:transparent;border-radius:var(--r-pill);color:var(--t-muted);cursor:pointer;
 }
-.float button:hover{background:var(--surface-hover);color:#fff;}
+.float button:hover{background:var(--surface-hover);color:var(--t-strong);}
 .float .pct{padding:0 8px;font-size:11px;color:var(--t-body);font-variant-numeric:tabular-nums;}
 .float-tip{
   position:absolute;font-size:10px;color:var(--t-subtle);
-  background:rgba(20,20,20,.85);border:1px solid var(--edge-faint);border-radius:var(--r-sm);padding:4px 8px;
+  background:var(--scrim-85);border:1px solid var(--edge-faint);border-radius:var(--r-sm);padding:4px 8px;
 }
 
 /* ───────── E. 节点与 hover 工具条 ───────── */
@@ -340,13 +442,13 @@ button,input,select{font-family:inherit;}
 /* hover 胶囊栏（复刻 HoverToolbar：bg-surface-raised/90 + backdrop-blur + rounded-full） */
 .hoverbar{
   display:inline-flex;align-items:center;gap:2px;padding:4px;border-radius:var(--r-pill);
-  background:rgba(28,28,28,.92);border:1px solid var(--edge);box-shadow:0 8px 24px rgba(0,0,0,.5);
+  background:var(--scrim-92);border:1px solid var(--edge);box-shadow:0 8px 24px var(--scrim-50);
 }
 .hoverbar button,.hoverbar .slot{
   width:26px;height:24px;display:flex;align-items:center;justify-content:center;
   border:none;background:transparent;border-radius:var(--r-pill);color:var(--t-secondary);cursor:pointer;
 }
-.hoverbar button:hover{background:var(--surface-hover);color:#fff;}
+.hoverbar button:hover{background:var(--surface-hover);color:var(--t-strong);}
 .hoverbar .v{width:1px;height:14px;background:var(--edge);margin:0 3px;}
 
 /* hover 栏里的「带文字的新按钮」——新增工具统一用这个样式，一眼可辨 */
@@ -354,7 +456,7 @@ button,input,select{font-family:inherit;}
   width:auto;padding:0 9px;gap:5px;font-size:11px;
   background:var(--accent-soft);border:1px solid var(--accent-line);color:var(--accent-text);
 }
-.hoverbar button.newbtn:hover{background:rgba(59,130,246,.26);color:#fff;}
+.hoverbar button.newbtn:hover{background:var(--accent-26);color:var(--t-strong);}
 
 /* ───────── F. 面板分区（左/右栏通用） ───────── */
 
@@ -367,7 +469,7 @@ button,input,select{font-family:inherit;}
 .sect-t .minibt{
   border:none;background:transparent;color:var(--accent-text);font-size:10px;cursor:pointer;padding:0;
 }
-.sect-t .minibt:hover{color:#fff;}
+.sect-t .minibt:hover{color:var(--t-strong);}
 
 /* 一行素材/文件卡（左栏：点击即加入图层） */
 .row-card{
@@ -376,10 +478,10 @@ button,input,select{font-family:inherit;}
   color:var(--t-body);font-size:11px;cursor:pointer;text-align:left;
   transition:background .15s,color .15s;
 }
-.row-card:hover{background:var(--surface-hover);color:#fff;}
+.row-card:hover{background:var(--surface-hover);color:var(--t-strong);}
 .row-card.used{opacity:.55;}
 .row-card.used .n{color:var(--t-muted);}
-.row-card img{width:28px;height:28px;border-radius:5px;object-fit:cover;flex-shrink:0;background:#000;}
+.row-card img{width:28px;height:28px;border-radius:5px;object-fit:cover;flex-shrink:0;background:var(--canvas);}
 .row-card .meta{display:flex;flex-direction:column;gap:1px;min-width:0;}
 .row-card .n{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:118px;}
 .row-card .d{font-size:10px;color:var(--t-faint);}
@@ -401,7 +503,7 @@ button,input,select{font-family:inherit;}
 }
 .layer-item:hover{background:var(--surface-hover);}
 .layer-item.on{background:var(--accent-soft);border-color:var(--accent-line);}
-.layer-item .thumb{width:24px;height:24px;border-radius:5px;flex-shrink:0;background:#101010;overflow:hidden;
+.layer-item .thumb{width:24px;height:24px;border-radius:5px;flex-shrink:0;background:var(--surface-deep);overflow:hidden;
   display:flex;align-items:center;justify-content:center;}
 /* 缩略图内容按 16:9 居中，避免方形硬裁（文字层等用字符占位） */
 .layer-item .thumb .ti{width:22px;height:14px;border-radius:2px;flex-shrink:0;}
@@ -410,7 +512,7 @@ button,input,select{font-family:inherit;}
   flex:1;min-width:0;font-size:11px;color:var(--t-body);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-.layer-item.on .nm{color:#fff;}
+.layer-item.on .nm{color:var(--t-strong);}
 
 /* 空态 */
 .empty-tip{font-size:11px;color:var(--t-subtle);padding:6px 2px;}
@@ -419,35 +521,35 @@ button,input,select{font-family:inherit;}
 
 .photo{
   background:
-    radial-gradient(120% 90% at 20% 15%, #4b5563 0%, transparent 55%),
-    linear-gradient(160deg,#1f2937 0%,#111827 45%,#0b1220 100%);
+    radial-gradient(120% 90% at 20% 15%, var(--sw-slate) 0%, transparent 55%),
+    linear-gradient(160deg,var(--sw-slate-deep) 0%,var(--sw-slate-darker) 45%,var(--sw-slate-darkest) 100%);
 }
 .photo2{
   background:
-    radial-gradient(90% 80% at 70% 25%, #7c5c3a 0%, transparent 60%),
-    linear-gradient(200deg,#3b2f22 0%,#171208 100%);
+    radial-gradient(90% 80% at 70% 25%, var(--sw-brown) 0%, transparent 60%),
+    linear-gradient(200deg,var(--sw-brown-dark) 0%,var(--sw-brown-ink) 100%);
 }
 .photo3{
   background:
-    radial-gradient(80% 70% at 30% 70%, #2f5d50 0%, transparent 60%),
-    linear-gradient(150deg,#0f2420 0%,#071412 100%);
+    radial-gradient(80% 70% at 30% 70%, var(--sw-green-deep) 0%, transparent 60%),
+    linear-gradient(150deg,var(--sw-green-ink) 0%,var(--sw-green-ink) 100%);
 }
 .photo4{
   background:
-    radial-gradient(90% 80% at 40% 30%, #4a3a5c 0%, transparent 60%),
-    linear-gradient(170deg,#221a2e 0%,#0d0a14 100%);
+    radial-gradient(90% 80% at 40% 30%, var(--sw-purple) 0%, transparent 60%),
+    linear-gradient(170deg,var(--sw-purple-dark) 0%,var(--sw-purple-ink) 100%);
 }
 
 /* 变换框（选中图层时的 8 手柄 + 旋转柄） */
 .tr{position:absolute;pointer-events:none;}
 .tr .box{position:absolute;inset:0;border:1px solid var(--accent);}
-.tr .h{position:absolute;width:9px;height:9px;background:#fff;border:1px solid var(--accent);border-radius:2px;}
+.tr .h{position:absolute;width:9px;height:9px;background:var(--t-strong);border:1px solid var(--accent);border-radius:2px;}
 .tr .h.tl{left:-5px;top:-5px;}   .tr .h.tr{right:-5px;top:-5px;}
 .tr .h.bl{left:-5px;bottom:-5px;} .tr .h.br{right:-5px;bottom:-5px;}
 .tr .stick{position:absolute;left:50%;top:-12px;width:1px;height:12px;background:var(--accent);}
 .tr .rot{
   position:absolute;left:50%;top:-24px;transform:translateX(-50%);
-  width:14px;height:14px;border:1px solid var(--accent);background:#fff;border-radius:50%;
+  width:14px;height:14px;border:1px solid var(--accent);background:var(--t-strong);border-radius:50%;
 }
 
 /* ───────── H. 下拉菜单（工具条上的二级菜单） ───────── */
@@ -466,7 +568,7 @@ button,input,select{font-family:inherit;}
   border:none;border-radius:7px;background:transparent;color:var(--t-body);
   font-size:11px;cursor:pointer;text-align:left;
 }
-.menu-item:hover{background:var(--surface-hover);color:#fff;}
+.menu-item:hover{background:var(--surface-hover);color:var(--t-strong);}
 .menu-item.on{color:var(--accent-text);background:var(--accent-soft);}
 .menu-item img{width:32px;height:32px;object-fit:cover;border-radius:4px;flex-shrink:0;}
 .menu-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -495,16 +597,16 @@ button,input,select{font-family:inherit;}
 /* ───────── J. 裁剪 / 扩图 画布件 ───────── */
 
 /* 裁剪：四周遮罩 + 选区框 + 三分线 */
-.crop-mask{position:absolute;background:rgba(0,0,0,.55);}
-.crop-box{position:absolute;border:1px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5);}
-.third{position:absolute;background:rgba(255,255,255,.28);}
+.crop-mask{position:absolute;background:var(--scrim-55);}
+.crop-box{position:absolute;border:1px solid var(--t-strong);box-shadow:0 0 0 1px var(--scrim-50);}
+.third{position:absolute;background:var(--hi-28);}
 /* 裁剪：8 手柄 */
-.ch{position:absolute;width:10px;height:10px;background:#fff;border:1px solid #111;border-radius:2px;}
+.ch{position:absolute;width:10px;height:10px;background:var(--t-strong);border:1px solid var(--surface-deep);border-radius:2px;}
 
 /* 画布上的浮动尺寸标签 */
 .size-tag{
   position:absolute;padding:3px 8px;border-radius:var(--r-sm);font-size:11px;
-  background:rgba(10,10,10,.9);border:1px solid var(--edge);color:var(--t-primary);
+  background:var(--scrim-90);border:1px solid var(--edge);color:var(--t-primary);
   font-variant-numeric:tabular-nums;white-space:nowrap;z-index:5;
 }
 
@@ -512,7 +614,7 @@ button,input,select{font-family:inherit;}
 .pen-path{position:absolute;inset:0;pointer-events:none;}
 .pen-dot{
   position:absolute;width:9px;height:9px;border-radius:50%;
-  background:#fff;border:1.5px solid var(--accent);
+  background:var(--t-strong);border:1.5px solid var(--accent);
 }
 .pen-dot.on{background:var(--accent);}
 .pen-ctrl{position:absolute;width:7px;height:7px;border-radius:50%;background:var(--accent);opacity:.85;}
@@ -521,7 +623,7 @@ button,input,select{font-family:inherit;}
 /* 扩图白边（斜线纹，与实际白色填充对应） */
 .hatch{
   background-image:repeating-linear-gradient(45deg,
-    rgba(255,255,255,.92) 0 8px, rgba(226,232,240,.92) 8px 16px);
+    var(--hi-92) 0 8px, var(--hi-085) 8px 16px);
 }
 
 /* ───────── K. 对象面板 / 折叠区 / 画布直接操作 ───────── */
@@ -543,13 +645,13 @@ button,input,select{font-family:inherit;}
 /* K3 变换框上的就近操作：选中后手不用离开画布 */
 .tr-act{
   position:absolute;right:-1px;top:-31px;display:flex;gap:2px;padding:2px;pointer-events:auto;
-  border-radius:var(--r-sm);background:rgba(28,28,28,.92);border:1px solid var(--edge);
+  border-radius:var(--r-sm);background:var(--scrim-92);border:1px solid var(--edge);
 }
 .tr-act button{
   width:20px;height:20px;display:flex;align-items:center;justify-content:center;
   border:none;background:transparent;border-radius:4px;color:var(--t-muted);cursor:pointer;
 }
-.tr-act button:hover{background:var(--surface-hover);color:#fff;}
+.tr-act button:hover{background:var(--surface-hover);color:var(--t-strong);}
 .tr-act button.del:hover{color:var(--danger);}
 
 /* K4 边中手柄（补足 8 柄：只有角柄时无法单向拉伸） */
@@ -564,7 +666,7 @@ button,input,select{font-family:inherit;}
   border:none;background:transparent;border-radius:5px;color:var(--t-faint);cursor:pointer;
   transition:background .15s,color .15s;
 }
-.numlock:hover{background:var(--surface-hover);color:#fff;}
+.numlock:hover{background:var(--surface-hover);color:var(--t-strong);}
 .numlock.on{color:var(--accent-text);}
 .lockrow{display:flex;align-items:center;gap:5px;margin:-2px 0 8px;}
 .lockrow span{font-size:10px;color:var(--t-faint);}
@@ -574,7 +676,7 @@ button,input,select{font-family:inherit;}
   display:flex;align-items:center;gap:6px;width:100%;padding:0;
   border:none;background:transparent;color:var(--t-secondary);font-size:11px;cursor:pointer;
 }
-.sect-sum:hover{color:#fff;}
+.sect-sum:hover{color:var(--t-strong);}
 .sect-sum .caret{color:var(--t-subtle);display:flex;}
 .sect-sum .txt{color:var(--t-faint);font-variant-numeric:tabular-nums;margin-left:auto;}
 
@@ -582,8 +684,8 @@ button,input,select{font-family:inherit;}
 .board.transparent{
   background-color:transparent;
   background-image:
-    linear-gradient(45deg,#1e1e1e 25%,transparent 25%,transparent 75%,#1e1e1e 75%),
-    linear-gradient(45deg,#1e1e1e 25%,transparent 25%,transparent 75%,#1e1e1e 75%);
+    linear-gradient(45deg,var(--surface-faint) 25%,transparent 25%,transparent 75%,var(--surface-faint) 75%),
+    linear-gradient(45deg,var(--surface-faint) 25%,transparent 25%,transparent 75%,var(--surface-faint) 75%);
   background-size:16px 16px;background-position:0 0,8px 8px;
 }
 
@@ -598,45 +700,45 @@ button,input,select{font-family:inherit;}
 /* L1 视口：地面网格 + 白模几何体 */
 /* 绝对定位铺满 .cmid：内部全是 absolute 元素，靠 flex:1 撑会塌成 0 高 */
 .vport{position:absolute;inset:0;overflow:hidden;
-  background:radial-gradient(120% 90% at 50% 18%, #232323 0%, #151515 58%, #0e0e0e 100%);}
+  background:radial-gradient(120% 90% at 50% 18%, var(--surface-1) 0%, var(--input) 58%, var(--surface-sunken-2) 100%);}
 .vp-ground{
   position:absolute;left:-30%;right:-30%;bottom:0;height:56%;
   background-image:
-    linear-gradient(to right, rgba(255,255,255,.055) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255,255,255,.055) 1px, transparent 1px);
+    linear-gradient(to right, var(--hi-055) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--hi-055) 1px, transparent 1px);
   background-size:44px 44px;
   transform:perspective(420px) rotateX(64deg);
   transform-origin:bottom center;
 }
-.mafo{position:absolute;background:linear-gradient(160deg,#e6e2d8 0%,#c9c5ba 100%);}
-.mafo.side{background:linear-gradient(160deg,#cfcbc1 0%,#b3afa5 100%);}
-.mafo.top{background:linear-gradient(160deg,#f2eee4 0%,#dedad0 100%);}
-.mafo.person{background:linear-gradient(170deg,#efebe1 0%,#c4c0b6 100%);border-radius:6px 6px 2px 2px;}
+.mafo{position:absolute;background:linear-gradient(160deg,var(--paper-bg-3) 0%,var(--paper-line) 100%);}
+.mafo.side{background:linear-gradient(160deg,var(--paper-line-2) 0%,var(--paper-muted) 100%);}
+.mafo.top{background:linear-gradient(160deg,var(--paper-bg) 0%,var(--paper-fg-3) 100%);}
+.mafo.person{background:linear-gradient(170deg,var(--paper-bg-2) 0%,var(--paper-fg-2) 100%);border-radius:6px 6px 2px 2px;}
 
 /* L2 视口浮层：工具条 / 面板 / 视图开关 */
 .vp-float{
   position:absolute;display:flex;align-items:center;gap:2px;padding:3px;
-  border-radius:var(--r-pill);background:rgba(28,28,28,.92);
-  border:1px solid var(--edge);box-shadow:0 8px 24px rgba(0,0,0,.5);
+  border-radius:var(--r-pill);background:var(--scrim-92);
+  border:1px solid var(--edge);box-shadow:0 8px 24px var(--scrim-50);
 }
 .vp-float button{
   height:24px;min-width:24px;padding:0 8px;display:flex;align-items:center;gap:4px;
   border:none;background:transparent;border-radius:var(--r-pill);
   color:var(--t-muted);font-size:11px;cursor:pointer;
 }
-.vp-float button:hover{background:var(--surface-hover);color:#fff;}
-.vp-float button.on{background:var(--accent);color:#fff;}
+.vp-float button:hover{background:var(--surface-hover);color:var(--t-strong);}
+.vp-float button.on{background:var(--accent);color:var(--t-strong);}
 .vp-float .v{width:1px;height:14px;background:var(--edge);margin:0 3px;}
 .vp-panel{
   position:absolute;padding:8px 10px;border-radius:10px;
-  background:rgba(28,28,28,.94);border:1px solid var(--edge);box-shadow:var(--sh-pop);
+  background:var(--scrim-94);border:1px solid var(--edge);box-shadow:var(--sh-pop);
 }
 
 /* L2b 右上角「视图面板」：视角切换 + 显示开关同属视图族，合一处（两行） */
 .vp-view{
   position:absolute;top:12px;right:12px;display:flex;flex-direction:column;
-  padding:6px;border-radius:10px;background:rgba(28,28,28,.92);
-  border:1px solid var(--edge);box-shadow:0 8px 24px rgba(0,0,0,.5);
+  padding:6px;border-radius:10px;background:var(--scrim-92);
+  border:1px solid var(--edge);box-shadow:0 8px 24px var(--scrim-50);
 }
 .vp-view .row{display:flex;gap:3px;}
 .vp-view .sep{height:1px;background:var(--edge-faint);margin:5px 2px;}
@@ -645,8 +747,8 @@ button,input,select{font-family:inherit;}
   border:none;background:transparent;border-radius:var(--r-pill);
   color:var(--t-muted);font-size:11px;cursor:pointer;
 }
-.vp-view button:hover{background:var(--surface-hover);color:#fff;}
-.vp-view button.on{background:var(--accent);color:#fff;}
+.vp-view button:hover{background:var(--surface-hover);color:var(--t-strong);}
+.vp-view button.on{background:var(--accent);color:var(--t-strong);}
 
 /* L2c 右下角轴圈（ViewCube）：线上版 SceneGizmo 的 Hud 定位 = 距右 72 / 距底 40，约 120 见方。
    这是导航件，右下是它的标准位，别的东西不许占。 */
@@ -656,25 +758,25 @@ button,input,select{font-family:inherit;}
 
 /* L3 摄像机监视器 */
 .vp-monitor{position:absolute;left:12px;bottom:12px;width:226px;overflow:hidden;
-  border-radius:10px;background:rgba(24,24,24,.95);border:1px solid var(--edge);
-  box-shadow:0 10px 30px rgba(0,0,0,.55);}
+  border-radius:10px;background:var(--scrim-95);border:1px solid var(--edge);
+  box-shadow:0 10px 30px var(--scrim-55);}
 .vm-head{display:flex;align-items:center;gap:6px;height:27px;padding:0 5px 0 8px;
   border-bottom:1px solid var(--edge-faint);font-size:11px;color:var(--t-body);}
 .vm-head .nm{display:flex;align-items:center;gap:5px;}
 .vm-head .act{margin-left:auto;display:flex;gap:1px;}
-.vm-screen{position:relative;aspect-ratio:16/9;background:#0c0c0c;}
-.vm-screen .tc{position:absolute;left:6px;bottom:5px;font-size:10px;color:#fff;
-  font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #000;}
-.vm-screen .fo{position:absolute;right:6px;bottom:5px;font-size:10px;color:#fff;
-  font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #000;}
-.vm-safe{position:absolute;inset:7px;border:1px solid rgba(255,255,255,.26);}
+.vm-screen{position:relative;aspect-ratio:16/9;background:var(--canvas);}
+.vm-screen .tc{position:absolute;left:6px;bottom:5px;font-size:10px;color:var(--t-strong);
+  font-variant-numeric:tabular-nums;text-shadow:0 1px 2px var(--canvas);}
+.vm-screen .fo{position:absolute;right:6px;bottom:5px;font-size:10px;color:var(--t-strong);
+  font-variant-numeric:tabular-nums;text-shadow:0 1px 2px var(--canvas);}
+.vm-safe{position:absolute;inset:7px;border:1px solid var(--hi-26);}
 
 /* L4 三分量轴滑杆（X 红 / Y 绿 / Z 蓝） */
 .axis{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
 .axis .ax{width:9px;font-size:10px;font-weight:700;font-style:normal;flex-shrink:0;text-align:center;}
-.axis .ax.x{color:#d7675b;}
-.axis .ax.y{color:#76a96c;}
-.axis .ax.z{color:#5d87c7;}
+.axis .ax.x{color:var(--sw-red-coral);}
+.axis .ax.y{color:var(--sw-green-olive);}
+.axis .ax.z{color:var(--sw-blue-slate);}
 .axis .range{flex:1;}
 .axis .val{font-size:11px;color:var(--t-body);min-width:36px;text-align:right;
   font-variant-numeric:tabular-nums;}
@@ -684,7 +786,7 @@ button,input,select{font-family:inherit;}
 .fold:first-child{border-top:none;}
 .fold-h{display:flex;align-items:center;gap:6px;width:100%;padding:7px 0;
   border:none;background:transparent;color:var(--t-secondary);font-size:11px;cursor:pointer;}
-.fold-h:hover{color:#fff;}
+.fold-h:hover{color:var(--t-strong);}
 .fold-h .caret{display:flex;color:var(--t-subtle);}
 .fold-h .caret.open{transform:rotate(90deg);}
 .fold-h .meta{margin-left:auto;font-size:10px;color:var(--t-subtle);}
@@ -694,11 +796,11 @@ button,input,select{font-family:inherit;}
 .shot:hover{background:var(--surface-hover);}
 .shot.on{background:var(--accent-soft);border-color:var(--accent-line);}
 .shot .th{position:relative;width:52px;height:30px;border-radius:4px;flex-shrink:0;
-  background:#0f0f0f;border:1px solid var(--edge-faint);overflow:hidden;}
+  background:var(--app-bg);border:1px solid var(--edge-faint);overflow:hidden;}
 .shot .no{position:absolute;left:3px;top:1px;font-size:9px;color:var(--t-faint);
   font-variant-numeric:tabular-nums;}
 .shot .cur{position:absolute;right:2px;top:2px;font-size:8px;padding:0 3px;border-radius:3px;
-  background:var(--accent);color:#fff;}
+  background:var(--accent);color:var(--t-strong);}
 .shot .cp{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;}
 .shot .cp .n{font-size:11px;color:var(--t-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .shot .cp .d{font-size:10px;color:var(--t-faint);}
@@ -723,13 +825,13 @@ button,input,select{font-family:inherit;}
 .tl-ruler span{position:absolute;top:5px;font-size:9px;color:var(--t-subtle);
   font-variant-numeric:tabular-nums;transform:translateX(-50%);}
 .tl-lane{position:relative;height:30px;border-bottom:1px solid var(--edge-faint);}
-.tl-lane .fill{position:absolute;left:0;top:0;bottom:0;background:rgba(59,130,246,.10);}
+.tl-lane .fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent-10);}
 .tl-lane .empty{position:absolute;left:10px;top:8px;font-size:10px;color:var(--t-subtle);}
 .kf{position:absolute;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;
   border:1px solid var(--accent-text);background:var(--accent-soft);
   border-radius:2px;transform:rotate(45deg);}
 .kf.on{background:var(--accent);border-color:var(--accent);}
-.kf.sel{box-shadow:0 0 0 2px rgba(147,197,253,.35);}
+.kf.sel{box-shadow:0 0 0 2px var(--accent-soft);}
 .tl-playhead{position:absolute;top:0;bottom:0;width:1px;background:var(--danger);z-index:2;}
 .tl-playhead i{position:absolute;top:0;left:-4px;width:9px;height:6px;
   background:var(--danger);border-radius:2px;}
@@ -775,7 +877,7 @@ button,input,select{font-family:inherit;}
   background:transparent;color:var(--t-body);font-size:11px;cursor:pointer;text-align:left;
   transition:background .15s,color .15s;
 }
-.ve-item:hover{background:var(--surface-hover);color:#fff;}
+.ve-item:hover{background:var(--surface-hover);color:var(--t-strong);}
 .ve-item.on{background:var(--accent-soft);border-color:var(--accent-line);}
 /* 不设 background：缩略图底色交给 .photo/.photo2… 或行内渐变（否则特异性更高会盖掉） */
 .ve-item .th{width:44px;height:32px;flex-shrink:0;border-radius:5px;overflow:hidden;}
@@ -833,9 +935,9 @@ button,input,select{font-family:inherit;}
 .ve-play{display:flex;align-items:center;gap:8px;justify-self:center;}
 .ve-play .big{
   width:36px;height:36px;display:flex;align-items:center;justify-content:center;
-  border:none;border-radius:50%;background:var(--accent);color:#fff;cursor:pointer;
+  border:none;border-radius:50%;background:var(--accent);color:var(--t-strong);cursor:pointer;
 }
-.ve-play .big:hover{background:#2f6fdc;}
+.ve-play .big:hover{background:var(--sw-blue);}
 .ve-view{display:flex;align-items:center;gap:6px;justify-self:end;color:var(--t-faint);font-size:10px;}
 .ve-sel{
   height:26px;padding:0 4px;border-radius:var(--r-sm);background:var(--input);
@@ -850,9 +952,9 @@ button,input,select{font-family:inherit;}
   border:none;background:transparent;border-radius:7px;color:var(--t-body);cursor:pointer;
   transition:background .15s,color .15s;
 }
-.ve-tgl:hover{background:var(--surface-hover);color:#fff;}
-.ve-tgl.on{background:rgba(0,0,0,.42);color:var(--accent);}
-.ve-tgl.on:hover{background:rgba(0,0,0,.55);color:var(--accent);}
+.ve-tgl:hover{background:var(--surface-hover);color:var(--t-strong);}
+.ve-tgl.on{background:var(--scrim-42);color:var(--accent);}
+.ve-tgl.on:hover{background:var(--scrim-55);color:var(--accent);}
 /* 工具带上的「禁用」必须有可见样式，否则就是"假禁用"（点了没反应、也看不出为什么）。 */
 .ve-tgl.dis,.ve-sel.dis{opacity:.4;cursor:not-allowed;}
 
@@ -864,7 +966,7 @@ button,input,select{font-family:inherit;}
   color:var(--t-secondary);font-size:11px;cursor:pointer;
   transition:background .15s,color .15s,border-color .15s;
 }
-.ve-itabs button:hover{background:var(--surface-hover);color:#fff;}
+.ve-itabs button:hover{background:var(--surface-hover);color:var(--t-strong);}
 .ve-itabs button.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
 .ve-ptabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px 10px;
   border-bottom:1px solid var(--edge-faint);}
@@ -899,10 +1001,10 @@ button,input,select{font-family:inherit;}
   border:1px solid var(--edge-muted);border-radius:4px;background:transparent;
   color:var(--t-faint);font-size:9px;cursor:pointer;
 }
-.ve-flag.on{background:var(--accent);border-color:transparent;color:#fff;}
+.ve-flag.on{background:var(--accent);border-color:transparent;color:var(--t-strong);}
 /* 静音开启 = 琥珀色（可见的状态色）。原来用"深灰"表示 on ——
    用户看不出它到底开没开，正是我们反复警告的"假按钮"。 */
-.ve-flag.mute.on{background:rgba(234,179,8,.20);border-color:rgba(234,179,8,.55);color:#fbbf24;}
+.ve-flag.mute.on{background:var(--warn-fill);border-color:var(--warn-line);color:var(--sw-gold);}
 /* 时间轴头的「时间轴」是标签不是按钮（审计砍掉可点无反应项） */
 .ve-tl-title{
   font-size:11px;font-weight:600;color:var(--t-secondary);
@@ -926,9 +1028,9 @@ button,input,select{font-family:inherit;}
 .ve-lane.muted .ve-clip{filter:saturate(.45);}
 /* 轨道三态必须有即时视觉反馈，否则「点了 flag 但看不出变没变」= 假按钮 */
 .ve-lane.locked{
-  border:1px solid rgba(234,179,8,.45);
+  border:1px solid var(--warn-mid);
   background:
-    repeating-linear-gradient(-45deg,transparent 0 7px,rgba(234,179,8,.07) 7px 8px),
+    repeating-linear-gradient(-45deg,transparent 0 7px,var(--warn-trace) 7px 8px),
     var(--surface-sunken);
   box-shadow:inset 2px 0 0 var(--warn);
 }
@@ -938,14 +1040,14 @@ button,input,select{font-family:inherit;}
 .ve-marquee{position:absolute;border:1px solid var(--accent);background:var(--accent-soft);
   border-radius:2px;pointer-events:none;z-index:4;}
 .ve-clip{position:absolute;top:0;bottom:0;overflow:hidden;border-radius:5px;
-  border:1px solid rgba(255,255,255,.08);background:var(--surface-1);}
+  border:1px solid var(--hi-08);background:var(--surface-1);}
 .ve-clip.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);z-index:1;}
 .ve-clip.image{border-style:dashed;}
-.ve-clip.text{background:rgba(59,130,246,.22);border-color:var(--accent-line);}
+.ve-clip.text{background:var(--accent-22);border-color:var(--accent-line);}
 .ve-clip .thumbs{position:absolute;inset:0;display:flex;overflow:hidden;}
 .ve-clip .thumbs span{flex:0 0 40px;height:100%;}
-.ve-clip .nm{position:absolute;left:4px;bottom:3px;right:4px;font-size:10px;color:#fff;
-  text-shadow:0 1px 2px rgba(0,0,0,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ve-clip .nm{position:absolute;left:4px;bottom:3px;right:4px;font-size:10px;color:var(--t-strong);
+  text-shadow:0 1px 2px var(--scrim-90);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .ve-clip .trim{position:absolute;top:0;bottom:0;width:8px;background:var(--accent);opacity:.85;}
 .ve-clip .trim.in{left:0;border-radius:5px 0 0 5px;}
 .ve-clip .trim.out{right:0;border-radius:0 5px 5px 0;}
@@ -956,27 +1058,27 @@ button,input,select{font-family:inherit;}
  * **禁止伪波形**：固定图案会被读成真实音量（"图案平的地方=静音"），那是撒谎，比没有更糟。
  * 真实波形是 M2 项。反证：剪映的音频轨主体就是蓝色波形 —— 那是精剪工具的选择，不是粗排的前提。 */
 .ve-clip.audio{
-  background:linear-gradient(180deg,rgba(59,130,246,.16),rgba(59,130,246,.06));
+  background:linear-gradient(180deg,var(--accent-16),var(--accent-06));
   border-color:var(--accent-line);
 }
 .ve-clip.audio .secs{
   position:absolute;inset:0;pointer-events:none;
-  background-image:repeating-linear-gradient(to right,rgba(255,255,255,.20) 0 1px,transparent 1px 45px);
+  background-image:repeating-linear-gradient(to right,var(--hi-20) 0 1px,transparent 1px 45px);
   background-position:0 0;
 }
 .ve-clip.audio .secs::after{
-  content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(255,255,255,.22);
+  content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:var(--hi-22);
 }
 .ve-clip .dur{
   position:absolute;right:4px;bottom:3px;font-size:9px;color:var(--t-body);
-  font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.9);
+  font-variant-numeric:tabular-nums;text-shadow:0 1px 2px var(--scrim-90);
 }
 /* 片段上的「有原声」角标（docs/120 C4.7 配套）：音轨内联在视频片段里，
  * 所以「这条有没有声音」必须看得见 —— 否则用户要到导出才发现没声音（C4.3 同一条原则）。
  * 与之配对的控制就是 C7 的「视频轨静音 = 关原声」。 */
 .ve-clip .aud{
   position:absolute;right:4px;top:3px;font-size:9px;line-height:1;
-  padding:1px 3px;border-radius:3px;background:rgba(0,0,0,.6);color:#fff;
+  padding:1px 3px;border-radius:3px;background:var(--scrim-60);color:var(--t-strong);
 }
 .ve-seam{
   position:absolute;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;
@@ -990,7 +1092,7 @@ button,input,select{font-family:inherit;}
  * 只有一条 2px 竖线的话，播放头只能"点"不能"抓" —— 而抓取拖拽是走带最高频的动作。
  * 抓手落在刻度尺那一行，指针在其上直接可拖。 */
 .ve-ph i{position:absolute;top:0;left:-6px;width:14px;height:10px;background:var(--danger);
-  border-radius:3px 3px 1px 1px;box-shadow:0 1px 3px rgba(0,0,0,.5);}
+  border-radius:3px 3px 1px 1px;box-shadow:0 1px 3px var(--scrim-50);}
 .ve-ph i::after{
   content:"";position:absolute;left:4px;top:9px;
   border-left:3px solid transparent;border-right:3px solid transparent;
@@ -1030,7 +1132,7 @@ button,input,select{font-family:inherit;}
 .mstrip .th i{
   position:absolute;left:0;right:0;bottom:0;height:14px;font-style:normal;
   display:flex;align-items:center;justify-content:center;
-  font-size:9px;color:#fff;background:rgba(0,0,0,.55);
+  font-size:9px;color:var(--t-strong);background:var(--scrim-55);
 }
 .mstrip .add{
   width:44px;height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
@@ -1054,16 +1156,16 @@ button,input,select{font-family:inherit;}
   background:transparent;border:1px solid transparent;color:var(--t-secondary);font-size:11px;cursor:pointer;
   transition:background .15s,color .15s,border-color .15s;
 }
-.prow .chip:hover{background:var(--surface-hover);border-color:var(--edge);color:#fff;}
+.prow .chip:hover{background:var(--surface-hover);border-color:var(--edge);color:var(--t-strong);}
 .prow .chip .n{font-size:9px;padding:0 4px;border-radius:4px;background:var(--surface-hover-strong);color:var(--t-faint);}
 .prow .chip.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
-.prow .chip.on .n{background:var(--accent);color:#fff;}
+.prow .chip.on .n{background:var(--accent);color:var(--t-strong);}
 .prow .grow{flex:1;}
 .prow .gen{
   display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 12px;border-radius:var(--r-pill);
-  background:var(--accent);border:none;color:#fff;font-size:11px;font-weight:500;cursor:pointer;
+  background:var(--accent);border:none;color:var(--t-strong);font-size:11px;font-weight:500;cursor:pointer;
 }
-.prow .gen:hover{background:#2f6fdc;}
+.prow .gen:hover{background:var(--sw-blue);}
 
 /* N5 摄影参数按钮 + 弹层（从按钮上方弹出，与其它 popover 一致） */
 .cam{position:relative;display:inline-flex;flex-shrink:0;}
@@ -1072,7 +1174,7 @@ button,input,select{font-family:inherit;}
   background:transparent;border:1px solid transparent;color:var(--t-secondary);cursor:pointer;
   transition:background .15s,color .15s,border-color .15s;
 }
-.cam-btn:hover{background:var(--surface-hover);border-color:var(--edge);color:#fff;}
+.cam-btn:hover{background:var(--surface-hover);border-color:var(--edge);color:var(--t-strong);}
 .cam-btn.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text);}
 /* 默认以按钮为中心向上弹（与参考实现 bottom-10 / left-1/2 一致）；靠边时用 .right 改为右对齐 */
 .cam-pop{
@@ -1086,7 +1188,7 @@ button,input,select{font-family:inherit;}
 .cam-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 2px;}
 .cam-hd b{font-size:11px;font-weight:600;color:var(--t-primary);}
 .cam-hd button{border:none;background:transparent;color:var(--t-faint);font-size:10px;cursor:pointer;padding:0;}
-.cam-hd button:hover{color:#fff;}
+.cam-hd button:hover{color:var(--t-strong);}
 .cam-view{
   height:152px;overflow:hidden;border-radius:8px;
   border:1px solid var(--edge-muted);background:var(--surface-sunken);
@@ -1131,7 +1233,7 @@ button,input,select{font-family:inherit;}
 .cp-bk{transform-box:fill-box;transform-origin:center;transform:scale(var(--bk,1));}
 .cp-subj-body{transform-origin:200px 105px;transform:scale(var(--subj,1));}
 .cp-ghost{
-  fill:#a5b4fc;
+  fill:var(--sw-blue-indigo);
   transform-origin:200px 105px;
   transform:translateX(var(--gx,0)) scale(var(--subj,1));
 }
@@ -1182,7 +1284,7 @@ button,input,select{font-family:inherit;}
   border-bottom:1px solid var(--edge-faint);background:var(--surface-deep);
 }
 .vd-nav .logo{width:22px;height:22px;border-radius:6px;flex-shrink:0;
-  background:linear-gradient(160deg,#f2eee4,#c9c5ba);}
+  background:linear-gradient(160deg,var(--paper-bg),var(--paper-line));}
 .vd-nav .nm{font-size:12px;font-weight:600;color:var(--t-primary);}
 .vd-nav .tabs{display:flex;gap:3px;padding:3px;border-radius:var(--r-pill);
   background:var(--input);border:1px solid var(--edge-muted);}
@@ -1190,7 +1292,7 @@ button,input,select{font-family:inherit;}
 .vd-nav .tabs span.on{background:var(--accent-soft);color:var(--accent-text);}
 .vd-nav .right{margin-left:auto;display:flex;align-items:center;gap:2px;}
 .vd-nav .ib.entry{background:var(--accent-soft);color:var(--accent-text);}
-.vd-nav .ib.entry:hover{background:rgba(59,130,246,.26);color:#fff;}
+.vd-nav .ib.entry:hover{background:var(--accent-26);color:var(--t-strong);}
 
 /* O2 画布：点阵底 + 节点。基座展开时 flex 收缩，画布不消失、仍可选素材 */
 .vd-canvas{
@@ -1202,14 +1304,14 @@ button,input,select{font-family:inherit;}
   position:absolute;width:196px;background:var(--surface-raised);
   border:1px solid var(--edge-muted);border-radius:12px;overflow:hidden;
 }
-.vd-node.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 24px rgba(0,0,0,.5);}
+.vd-node.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 24px var(--scrim-50);}
 .vd-node .hd{display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;
   border-bottom:1px solid var(--edge-faint);font-size:11px;color:var(--t-body);}
 .vd-node .hd .d{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;}
 .vd-node .hd .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .vd-node .bd{height:96px;position:relative;}
-.vd-node .bd .tag{position:absolute;left:6px;bottom:5px;font-size:9px;color:#fff;
-  background:rgba(0,0,0,.55);border-radius:4px;padding:1px 5px;font-variant-numeric:tabular-nums;}
+.vd-node .bd .tag{position:absolute;left:6px;bottom:5px;font-size:9px;color:var(--t-strong);
+  background:var(--scrim-55);border-radius:4px;padding:1px 5px;font-variant-numeric:tabular-nums;}
 /* （原「已入池」徽标已删除：待加入区整个删了，点素材不再有"入池"这个中间态，见 O4） */
 .vd-edge{position:absolute;height:1px;background:var(--edge-strong);transform-origin:0 50%;opacity:.7;}
 
@@ -1244,13 +1346,13 @@ button,input,select{font-family:inherit;}
   border-radius:var(--r-pill);border:1px solid var(--accent-line);
   background:var(--accent-soft);color:var(--accent-text);font-size:9px;cursor:pointer;
 }
-.vd-node .addbtn:hover{background:rgba(59,130,246,.26);color:#fff;}
+.vd-node .addbtn:hover{background:var(--accent-26);color:var(--t-strong);}
 /* 拖入轨道的落点预览（docs/120 C11 / C14.3）：虚线插入位 + 时码。
  * 这是"不静默失败"的另一半 —— 位置被占要滑入最近合法位，而且**拖的过程中**就要让用户看到落点。 */
 .vd-dropzone{position:absolute;top:0;bottom:0;border:1px dashed var(--accent-line);border-radius:5px;
   background:var(--accent-soft);}
 .vd-dropzone i{position:absolute;top:-7px;left:50%;transform:translateX(-50%);white-space:nowrap;
-  font-style:normal;font-size:9px;color:#fff;background:var(--accent);border-radius:4px;padding:1px 5px;}
+  font-style:normal;font-size:9px;color:var(--t-strong);background:var(--accent);border-radius:4px;padding:1px 5px;}
 .vd-node.ghost{opacity:.5;border-style:dashed;}
 /* O4b 导出前的常驻信息条（docs/120 C5.6）：取代"点导出先弹预检窗"。
  * 一行小字常驻，用户提前就知道走哪条路、会不会有黑边；**点导出直接开始**。
@@ -1263,7 +1365,7 @@ button,input,select{font-family:inherit;}
    空白会被读成"渲染坏了"，虚线斜纹一眼是"这里有个洞，可以闭合"。 */
 .vd-gap{
   position:absolute;top:0;bottom:0;border:1px dashed var(--edge-strong);border-radius:5px;
-  background:repeating-linear-gradient(-45deg,transparent 0 6px,rgba(255,255,255,.035) 6px 7px);
+  background:repeating-linear-gradient(-45deg,transparent 0 6px,var(--hi-035) 6px 7px);
   display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--t-subtle);
 }
 /* （原 .vd-chip .go / .vd-pool .hint / .vd-pool .empty 随「待加入区」一并删除） */
@@ -1301,22 +1403,22 @@ button,input,select{font-family:inherit;}
 .vd-tracks .ve-clip .nm{
   position:absolute;left:0;right:0;top:0;height:15px;bottom:auto;
   display:flex;align-items:center;padding:0 5px;z-index:2;
-  background:rgba(0,0,0,.44);color:#fff;font-size:9px;line-height:15px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.6);
+  background:var(--scrim-44);color:var(--t-strong);font-size:9px;line-height:15px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px var(--scrim-60);
 }
 .vd-tracks .ve-clip .thumbs{top:15px;}
 
 /* O5d 音频片段 = 真实波形（docs/120 C11.7b）
  * 波形是音频在时间轴上**唯一**的信息载体：定位靠它、判断"这段有没有声音"也靠它。
  * 上一稿把波形降为 P1、换成"秒格"，是判断错误 —— 已反转，M1 必做。 */
-.ve-clip.audio{background:linear-gradient(180deg,#17253f,#0d1729);border-color:var(--accent-line);}
-.ve-clip.audio .nm{background:rgba(24,44,84,.92);}
+.ve-clip.audio{background:linear-gradient(180deg,var(--sw-navy),var(--sw-navy-deep));border-color:var(--accent-line);}
+.ve-clip.audio .nm{background:var(--scrim-navy);}
 .ve-clip .wave{position:absolute;left:0;right:0;top:15px;bottom:0;width:100%;height:calc(100% - 15px);
-  color:rgba(122,190,255,.9);display:block;}
+  color:var(--hi-blue);display:block;}
 .ve-clip .wave path{fill:currentColor;}
 .vd-tracks .ve-clip .dur{
   position:absolute;right:4px;top:0;height:15px;line-height:15px;z-index:3;
-  font-size:8px;color:rgba(255,255,255,.62);font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.8);
+  font-size:8px;color:var(--hi-62);font-variant-numeric:tabular-nums;text-shadow:0 1px 2px var(--scrim-80);
 }
 
 /* O5e 时间轴缩放 = ⊖ + 长滑块 + ⊕（docs/120 工具带形态）
@@ -1325,10 +1427,10 @@ button,input,select{font-family:inherit;}
 .ve-zoom{display:inline-flex;align-items:center;gap:5px;padding:0 2px;}
 .ve-zbtn{width:26px;height:26px;flex:0 0 26px;display:flex;align-items:center;justify-content:center;
   border:none;background:transparent;color:var(--t-body);cursor:pointer;border-radius:7px;padding:0;}
-.ve-zbtn:hover{background:var(--surface-hover);color:#fff;}
+.ve-zbtn:hover{background:var(--surface-hover);color:var(--t-strong);}
 .ve-zoom .track{width:96px;height:3px;border-radius:2px;background:var(--edge);position:relative;}
 .ve-zoom .track i{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;
-  border-radius:50%;background:#e8e8e8;box-shadow:0 1px 3px rgba(0,0,0,.6);}
+  border-radius:50%;background:var(--paper-fg-4);box-shadow:0 1px 3px var(--scrim-60);}
 
 /* O5f 工具带左侧的「编辑动作组」：与走带组之间一条 vline，组内不堆线。
  * 撤销 / 重做 / 分割 / 裁左 / 裁右 / 定格 全部**恒常渲染**；不可用时**置灰**（不是隐藏）。 */
@@ -1341,7 +1443,7 @@ button,input,select{font-family:inherit;}
   display:inline-flex;align-items:center;justify-content:center;
   color:var(--t-body);font-size:11px;
 }
-.ve-ebtn:hover{background:var(--surface-hover);color:#fff;}
+.ve-ebtn:hover{background:var(--surface-hover);color:var(--t-strong);}
 
 /* ⚠ 特异性：`.seg button`（0,1,1）会盖掉 `.ve-ebtn`（0,1,0）—— 必须再写一遍 `.seg .ve-ebtn`。
  * 否则按钮会带上工具带里「文字按钮」的边框与底色，看起来就又重又不精致。 */
@@ -1351,7 +1453,7 @@ button,input,select{font-family:inherit;}
   border:none;background:transparent;border-radius:7px;
   color:var(--t-body);cursor:pointer;
 }
-.seg .ve-ebtn:hover{background:var(--surface-hover);color:#fff;}
+.seg .ve-ebtn:hover{background:var(--surface-hover);color:var(--t-strong);}
 .seg .ve-ebtn.has-menu{width:auto;min-width:0;padding:0 5px 0 6px;}
 .seg .ve-ebtn .caret{width:9px;height:9px;flex:0 0 9px;opacity:.6;}
 .seg .ve-ebtn.dis{opacity:.32;cursor:not-allowed;color:var(--t-faint);}
@@ -1378,7 +1480,7 @@ button,input,select{font-family:inherit;}
  * 注意：**没有**「焦点作用域」这套东西 —— 归属由激活位派生、不由焦点派生，
  * 所以这里也不需要 .focus 之类的焦点态样式（旧设计已删）。 */
 .vd-keyscope{position:absolute;left:12px;top:12px;font-size:10px;line-height:1.7;
-  padding:6px 9px;border-radius:8px;background:rgba(28,28,28,.92);
+  padding:6px 9px;border-radius:8px;background:var(--scrim-92);
   border:1px solid var(--accent-line);color:var(--t-secondary);}
 .vd-keyscope b{color:var(--accent-text);font-weight:500;}
 
@@ -1391,7 +1493,7 @@ button,input,select{font-family:inherit;}
   width:56px;height:28px;border:1px solid var(--edge);border-bottom:none;
   border-radius:28px 28px 0 0;background:var(--surface-1);
   display:flex;align-items:center;justify-content:center;
-  color:var(--t-secondary);box-shadow:0 -6px 18px rgba(0,0,0,.45);cursor:pointer;
+  color:var(--t-secondary);box-shadow:0 -6px 18px var(--scrim-45);cursor:pointer;
   transition:background .15s,color .15s;
 }
 .vd-handle:hover{background:var(--surface-hover);color:var(--t-strong);}
@@ -1401,9 +1503,9 @@ button,input,select{font-family:inherit;}
 /* O10 断链片段（docs/120 C13）：红 = 素材读不到。
  * 片段仍**留在轨上**（不自动删、不自动改时长）—— 用户可能只是临时离线、或把节点挪走了；修好即自动恢复。 */
 .ve-clip.broken{
-  background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.55);
-  box-shadow:inset 0 0 0 1px rgba(239,68,68,.35);
+  background:var(--danger-16);border-color:var(--danger-55);
+  box-shadow:inset 0 0 0 1px var(--danger-35);
 }
-.ve-clip.broken .nm{color:#fca5a5;}
+.ve-clip.broken .nm{color:var(--sw-red-pale);}
 
 /* __APPEND_MARK__ */

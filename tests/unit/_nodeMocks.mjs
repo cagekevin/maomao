@@ -8,28 +8,78 @@ import React from 'react';
 
 // ── @xyflow/react ──
 const xyflowCalls = { setNodes: 0, setEdges: 0, addNodes: 0, addEdges: 0 };
+/**
+ * 【2026-09-16 修复 · mock 伪造了触发条件，把真实脆弱点放大成挂死】
+ *
+ * 原实现把这坨方法**写在 `useReactFlow()` 内部** ⇒ 每次调用返回**新对象 + 新函数**。
+ * 而 `@xyflow/react` 真实实现返回的是**引用稳定**的（zustand 层 useMemo）—— mock 与真实语义不符。
+ *
+ * 实测后果（TD-21-2 补抽帧消费方用例时**挂死**，CPU 空转、vitest 永不返回）：
+ *   新函数引用 ⇒ 依赖 `getNodes`/`setNodes` 的 `useMemo`（VideoProcessNode 的 `sources`）**每次渲染都重算**
+ *   ⇒ 下游 `tracks` 每次重算 ⇒ 视频轨自动补的 clip 用 `makeId()` 生成**新 id**
+ *   ⇒ `VideoProcessNode:628` 的「选中片段」effect 发现 `selectedClipId` 已不在 tracks 里
+ *   ⇒ `setSelectedClipId(新id)` ⇒ 渲染 ⇒ `sources` 又变 ⇒ **无限循环**。
+ *
+ * ⇒ 提到模块级单例：mock 与真实实现对齐（引用稳定），不再无中生有地触发下游重算。
+ */
+const xyflowMethods = {
+  setNodes: (/** @type {any[]} */ ...a) => {
+    xyflowCalls.setNodes++;
+    return a[0];
+  },
+  setEdges: (/** @type {any[]} */ ...a) => {
+    xyflowCalls.setEdges++;
+    return a[0];
+  },
+  getNodes: () => [],
+  getEdges: () => [],
+  addNodes: (/** @type {any[]} */ ...a) => {
+    xyflowCalls.addNodes++;
+    return a[0];
+  },
+  addEdges: (/** @type {any[]} */ ...a) => {
+    xyflowCalls.addEdges++;
+    return a[0];
+  },
+  getNode: () => null, // NodeShell/useSizeSync 依赖；jsdom 下无实际节点，返回 null 安全跳过
+};
+
+/** 造一份**全新**的方法对象（新函数引用），**共享** `xyflowCalls` 计数 —— 供抖动开关用。
+ *  ⚠️ 必须新函数：组件是 `const { setNodes, getNodes } = useReactFlow()` 解构后进 useMemo 依赖，
+ *  只换外层对象（`{...xyflowMethods}`）**解构出的函数引用不变** ⇒ 组件侧毫无感知（一度造成假绿）。 */
+const createUnstableMethods = () => ({
+  setNodes: (/** @type {any[]} */ ...a) => {
+    xyflowCalls.setNodes++;
+    return a[0];
+  },
+  setEdges: (/** @type {any[]} */ ...a) => {
+    xyflowCalls.setEdges++;
+    return a[0];
+  },
+  getNodes: () => [],
+  getEdges: () => [],
+  addNodes: (/** @type {any[]} */ ...a) => {
+    xyflowCalls.addNodes++;
+    return a[0];
+  },
+  addEdges: (/** @type {any[]} */ ...a) => {
+    xyflowCalls.addEdges++;
+    return a[0];
+  },
+  getNode: () => null,
+});
+/**
+ * 引用抖动开关（默认**关**）。
+ * 打开后 `useReactFlow()` 每次返回**新对象** —— 用来模拟"上游 hook 每渲染返回新引用"。
+ * 仅服务于 TD-21-23 的不变量用例（抖动下不得进入渲染循环）；
+ * 默认必须关：真实 `@xyflow/react` 返回的是引用稳定的对象（见上方注释）。
+ */
+let unstableReactFlow = false;
+const setUnstableReactFlow = (/** @type {boolean} */ v) => {
+  unstableReactFlow = v;
+};
 const xyflow = {
-  useReactFlow: () => ({
-    setNodes: (/** @type {any[]} */ ...a) => {
-      xyflowCalls.setNodes++;
-      return a[0];
-    },
-    setEdges: (/** @type {any[]} */ ...a) => {
-      xyflowCalls.setEdges++;
-      return a[0];
-    },
-    getNodes: () => [],
-    getEdges: () => [],
-    addNodes: (/** @type {any[]} */ ...a) => {
-      xyflowCalls.addNodes++;
-      return a[0];
-    },
-    addEdges: (/** @type {any[]} */ ...a) => {
-      xyflowCalls.addEdges++;
-      return a[0];
-    },
-    getNode: () => null, // NodeShell/useSizeSync 依赖；jsdom 下无实际节点，返回 null 安全跳过
-  }),
+  useReactFlow: () => (unstableReactFlow ? createUnstableMethods() : xyflowMethods),
   Handle: () => null,
   Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
   NodeResizer: () => null,
@@ -191,6 +241,7 @@ function resetNodeMockState() {
   xyflowCalls.addNodes = 0;
   xyflowCalls.addEdges = 0;
   connectedInputsState = { images: [], texts: [] };
+  unstableReactFlow = false;
   lastGenConfig = null;
   toastCalls.show = 0;
   toastCalls.warn = 0;
@@ -222,6 +273,7 @@ export const mocks = {
   renderOverlayCanvas,
   useConnectedInputs,
   setConnectedInputs,
+  setUnstableReactFlow,
   useAssetDegrade,
   useNodeResize,
   useContentHeightSync,

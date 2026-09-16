@@ -37,12 +37,18 @@ import { toAbsoluteFileUrl } from '../core/utils.ts';
  * 图片 URL 解析统一选项（resolveAssetUrl / useRenderAssetResolver 共用）。
  * - scope='render' 显示用小图 / 'send' 原图；
  * - thumbnail=false（渲染端关掉「显示缩略图」）时 render 也回原图绝对地址；
- * - maxDim / format 仅 render 按需出图透传（format 非白名单不产出）。
+ * - maxDim 仅 render 按需出图透传。
+ *
+ * 更新(2026-09-16 · TD-02-41)：原 `format` 选项已删（连同它的前端白名单）。两条理由：
+ *  ① **零消费者**（幽灵参数）：全库无任何业务调用点传它；
+ *  ② 它透传前要先过一份**前端白名单**才放行 —— 那是「Jimp 能编码哪些格式」这个事实的**第二份抄写**，
+ *     而真源在后端（`localTool/src/utils/fileStore.ts` 的 `JIMP_MIME_BY_EXT` / `isJimpEncodableExt`），
+ *     后端对非法 format 已有权威处理（回退源扩展名）且有用例锁住（`Files·thumbnail format 校验`）。
+ *  ⇒ 前端不做预判。将来真需要指定输出格式，由后端承接，**不要在前端重新引入白名单**。
  */
 export interface AssetResolveOptions {
   scope?: 'render' | 'send';
   maxDim?: number;
-  format?: string;
   /** 显示缩略图（仅 render 生效；false 时回原图绝对地址） */
   thumbnail?: boolean;
 }
@@ -83,9 +89,6 @@ export function isLocalFileUrl(u: string): boolean {
   if (!u || typeof u !== 'string') return false;
   return u.startsWith('/files/') || u.startsWith(`${API_BASE}/files/`);
 }
-
-/** thumbnail format 白名单（与后端 SUPPORTED_THUMB_FORMATS 一致）：仅 Jimp 可编码格式，禁 webp。 */
-const SUPPORTED_THUMB_FORMATS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff']);
 
 /**
  * 绝对本地文件 URL（含 API_BASE 前缀）→ 相对 /files/ 路径；非本地返回 null。
@@ -133,26 +136,19 @@ function thumbnailToOriginal(u: string): string {
 /**
  * 构造本地文件按需出图端点 URL（END P0：render 显示链路取小图）。
  *  - url 形如 /files/subfolder/name 或对应绝对地址（内部转为相对）；
- *  - format 缺省不传 → 后端沿用源扩展名；传 'webp' → 同尺寸 webp(quality80 默认)。
  *  - maxDim 缺省 640：足显常见节点框且解码位图远小于原图（治拖拽卡）可另传覆盖。
- * 幂等：同 url/maxDim/format 命中同一缩略图缓存文件，重复取图不重复渲染。
+ * 幂等：同 url/maxDim 命中同一缩略图缓存文件，重复取图不重复渲染。
+ * 输出格式恒由后端按源扩展名决定（TD-02-41 删掉了前端的 format 白名单与透传，见 AssetResolveOptions）。
  * @param {string} url
- * @param {{ maxDim?: number, format?: string }} [opts]
+ * @param {{ maxDim?: number }} [opts]
  * @returns {string}
  */
-export function buildThumbnailUrl(
-  url: string,
-  opts: { maxDim?: number; format?: string } = {},
-): string {
+export function buildThumbnailUrl(url: string, opts: { maxDim?: number } = {}): string {
   const rel = toRelativeFileUrl(url);
   if (!rel) return toAbsoluteFileUrl(url); // 非本地文件，出图端点无法服务，回原图绝对地址
   const q = new URLSearchParams();
   q.set('url', rel);
   q.set('maxDim', String(opts.maxDim || 640));
-  // 仅白名单格式才透传，webp 等 Jimp 无法编码的格式一律不传（防后端假 webp），由后端回退源扩展名
-  if (opts.format && SUPPORTED_THUMB_FORMATS.has(opts.format.toLowerCase())) {
-    q.set('format', opts.format.toLowerCase());
-  }
   return `${API_BASE}${API_ENDPOINTS.fileThumbnail}?${q.toString()}`;
 }
 
@@ -163,13 +159,12 @@ export function buildThumbnailUrl(
  *    非本地（外部 http / data: / blob: / 裸 base64）→ 原样地址（出图端点无法服务，回退原图，绝不破图）。
  *  - scope='send'（发送/AI 生图）：一律原图绝对地址（发送需原尺寸保真，不缩图）。
  *
- * 格式：format 仅白名单（png/jpg/jpeg/gif/bmp/tiff）透传；webp 当前后端(Jimp 0.22)无法编码，
- * 统一钳制不产出，避免假 webp 与 MIME 错标。发送保真不引入压缩开关（见 docs/18 P2 决策）。
+ * 输出格式由后端按源扩展名决定（TD-02-41：前端不再持有格式白名单）。发送保真不引入压缩开关（见 docs/18 P2 决策）。
  *
  * 统一解析收口：/files/ 补全与「绝对→相对」均复用既有 toAbsoluteFileUrl / toRelativeFileUrl，
  * 组件不得再散写 URL 处理；新增显示/发送一律经本函数。
  * @param {string} url
- * @param {{ scope?: 'render'|'send', maxDim?: number, format?: string }} [opts]
+ * @param {{ scope?: 'render'|'send', maxDim?: number }} [opts]
  * @returns {string}
  */
 export function resolveAssetUrl(url: string, opts: AssetResolveOptions = {}): string {
@@ -177,7 +172,7 @@ export function resolveAssetUrl(url: string, opts: AssetResolveOptions = {}): st
   const scope = opts.scope || 'render';
   // thumbnail:false（设置里关掉「显示缩略图」）→ render 也回原图绝对地址，不按需出图
   if (scope === 'render' && opts.thumbnail !== false && toRelativeFileUrl(url)) {
-    return buildThumbnailUrl(url, { maxDim: opts.maxDim, format: opts.format });
+    return buildThumbnailUrl(url, { maxDim: opts.maxDim });
   }
   return toAbsoluteFileUrl(url);
 }

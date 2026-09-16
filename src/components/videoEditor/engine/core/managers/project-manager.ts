@@ -28,20 +28,14 @@ import {
 } from '@/components/videoEditor/engine/lib/scenes';
 import { buildScene } from '@/components/videoEditor/engine/services/renderer/scene-builder';
 import { CanvasRenderer } from '@/components/videoEditor/engine/services/renderer/canvas-renderer';
-import {
-  CURRENT_PROJECT_VERSION,
-  migrations,
-  runStorageMigrations,
-  type MigrationProgress,
-} from '@/components/videoEditor/engine/services/storage/migrations';
 import { DEFAULT_TIMELINE_VIEW_STATE } from '@/components/videoEditor/constants/timeline-constants';
 
-export interface MigrationState {
-  isMigrating: boolean;
-  fromVersion: number | null;
-  toVersion: number | null;
-  projectName: string | null;
-}
+/**
+ * 新建工程的格式版本号（写入 `TProject.version`，随包进 KV）。
+ * 【2026-09-16 · TD-02-35】原定义在已删除的 `storage/migrations/index.ts`（`CURRENT_PROJECT_VERSION`）。
+ * 迁移器整层删除后本常量**无迁移消费者**，仅作为「包内格式标记」由 `TProject.version` 携带。
+ */
+const CURRENT_PROJECT_VERSION = 3;
 
 export class ProjectManager {
   private active: TProject | null = null;
@@ -49,35 +43,13 @@ export class ProjectManager {
   private isLoading = true;
   private isInitialized = false;
   private invalidProjectIds = new Set<string>();
-  private storageMigrationPromise: Promise<void> | null = null;
   private listeners = new Set<() => void>();
-  private migrationState: MigrationState = {
-    isMigrating: false,
-    fromVersion: null,
-    toVersion: null,
-    projectName: null,
-  };
 
   constructor(private editor: EditorCore) {}
 
-  private async ensureStorageMigrations(): Promise<void> {
-    if (this.storageMigrationPromise) {
-      await this.storageMigrationPromise;
-      return;
-    }
-
-    this.storageMigrationPromise = (async () => {
-      await runStorageMigrations({
-        migrations,
-        onProgress: (progress: MigrationProgress) => {
-          this.migrationState = progress;
-          this.notify();
-        },
-      });
-    })();
-
-    await this.storageMigrationPromise;
-  }
+  // 【2026-09-16 · TD-02-35 已删】原 `ensureStorageMigrations()` —— 这是**第二套**迁移编排
+  // （与 storageService 内部同名逻辑重复，同一件事两个入口）；连同 `MigrationState` 接口、
+  // `migrationState` 进度态、`getMigrationState()` 一并删除：迁移器整层已移除，且进度态从未被 UI 消费。
 
   async createNewProject({ name }: { name: string }): Promise<string> {
     const mainScene = buildDefaultScene({ name: 'Main scene', isMain: true });
@@ -142,7 +114,6 @@ export class ProjectManager {
       }
     }
     this.editor.save.pause();
-    await this.ensureStorageMigrations();
 
     try {
       const result = await storageService.loadProject({ id });
@@ -245,7 +216,6 @@ export class ProjectManager {
       this.notify();
     }
 
-    await this.ensureStorageMigrations();
     try {
       const metadata = await storageService.loadAllProjectsMetadata();
       this.savedProjects = metadata;
@@ -593,9 +563,7 @@ export class ProjectManager {
     return this.isInitialized;
   }
 
-  getMigrationState(): MigrationState {
-    return this.migrationState;
-  }
+  // 【2026-09-16 · TD-02-35 已删】原 `getMigrationState()` —— 全库零调用（与迁移器一同移除）。
 
   setActiveProject({ project }: { project: TProject }): void {
     this.active = project;

@@ -260,6 +260,44 @@ export function ensureThumbnailTarget(
 }
 
 /**
+ * Jimp 0.22 **可编码格式 → Jimp MIME**（唯一真源，2026-09-16 收口 · TD-02-41）。
+ *
+ * 【为什么单独成表】「Jimp 能编码哪些格式」这一个事实，此前在库里被写了 **3 份**：
+ *   ① `src/components/base/utils/assetUrl.ts`（前端 `new Set` —— 抄后端判据做预校验）；
+ *   ② `src/routes/files.ts` 的 `SUPPORTED_THUMB_FORMATS`（缩略图输出扩展名白名单）；
+ *   ③ `src/utils/resolveLocalImages.ts` 的 `mimeFromExt` switch（内联 base64 时选 MIME）。
+ *   三者靠注释「与 XX 一致」手工同步，**且已漂移过**（前端注释曾写「与后端一致」而值不同步）。
+ *   ⇒ 按 §5.4.9「同一语义只允许一种实现」收口到本表 + 两个派生函数。
+ *
+ * 【为何不放 utils/mime.ts】那是「通用媒体/文本 MIME ↔ 扩展名」表（含 webp/avif/svg —— 描述性映射）；
+ *   本表是「**Jimp 能编码哪些**」能力表（webp/avif/svg **无编码器**，故意不登记）。
+ *   两者语义不同：`extToMime('.webp')` = 'image/webp'（描述文件），本表 `.webp` = 不可编码。
+ *   混在一起会让「放行 webp」看起来像补一个映射那么简单 —— 实则会产出「文件名 .webp + 原格式字节」的
+ *   假图（不省体积 + MIME 错标，resize 失败后 copyFileSync 的旧坑，TD-03-7）。
+ *
+ * 【消费方】`routes/files.ts handleThumbnail`（format 参数是否可编码）·
+ *   `utils/resolveLocalImages.ts fileToInlineBase64`（扩展名该配哪个 MIME）。新增消费方一律引用本表。
+ */
+const JIMP_MIME_BY_EXT: Record<string, string> = {
+  png: Jimp.MIME_PNG,
+  jpg: Jimp.MIME_JPEG,
+  jpeg: Jimp.MIME_JPEG,
+  gif: Jimp.MIME_GIF,
+  bmp: Jimp.MIME_BMP,
+  tiff: Jimp.MIME_TIFF,
+};
+
+/** 扩展名（无点、任意大小写）是否可由 Jimp 编码。非字符串/未登记一律 false（不抛）。 */
+export function isJimpEncodableExt(ext: unknown): boolean {
+  return Object.prototype.hasOwnProperty.call(JIMP_MIME_BY_EXT, String(ext).toLowerCase());
+}
+
+/** 扩展名 → Jimp 编码用 MIME；未登记回退 `image/png`（与历史 `mimeFromExt` 的 default 语义一致）。 */
+export function jimpMimeForExt(ext: unknown): string {
+  return JIMP_MIME_BY_EXT[String(ext).toLowerCase()] ?? Jimp.MIME_PNG;
+}
+
+/**
  * 用 jimp 把 src 图片缩放/压缩后写入 dst，返回是否成功。
  * - 最长边缩放到 ≤maxDim（不超过原图，小图不放大）；quality 用于 JPEG/WebP 压缩（PNG/GIF 由 jimp 忽略）。
  * - 失败返回 false，调用方应回退到 copyFileSync（兜底，保证功能不回归）。

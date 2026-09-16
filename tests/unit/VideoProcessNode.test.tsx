@@ -9,8 +9,21 @@
  */
 import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';
+
+// ── TD-21-2 打桩：抽帧原语的**消费方级**覆盖 ──
+// 本文件此前 10 例无一触发「抽缩略图」effect（见 describe「抽缩略图」）。
+// `vi.hoisted` 必须用：`vi.mock` 会被提升到所有 import 之前，工厂里直接引用普通顶层变量会踩 TDZ。
+const captureFrameMock = vi.hoisted(() =>
+  // 显式声明签名：否则 `mock.calls` 被推断成空元组 `[]`，下面按位置取参断言会报 TS2493。
+  vi.fn<(url: string, atTime: number, quality: number) => Promise<Blob>>(
+    async () => new Blob(['frame'], { type: 'image/jpeg' }),
+  ),
+);
+vi.mock('../../src/components/base/utils/captureFrame.ts', () => ({
+  captureFrame: captureFrameMock,
+}));
 
 vi.mock('@xyflow/react', () => mocks.xyflow);
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
@@ -60,6 +73,16 @@ vi.mock('../../src/components/base/api/httpClient.ts', async (importOriginal) =>
 import VideoProcessNode from '../../src/components/nodes/VideoProcessNode.tsx';
 beforeEach(() => {
   mocks.resetNodeMockState();
+  captureFrameMock.mockClear();
+  // jsdom 不实现 URL.createObjectURL / revokeObjectURL，而抽帧成功后要走 previewUrls.create(blob)
+  // （`create` 内部调 `globalThis.URL.createObjectURL`）—— 不补 stub 会直接抛。
+  // 幂等判断：真实现了就不覆盖（避免掩盖真实行为）。
+  const urlAny = URL as unknown as {
+    createObjectURL?: (b: Blob) => string;
+    revokeObjectURL?: (u: string) => void;
+  };
+  if (typeof urlAny.createObjectURL !== 'function') urlAny.createObjectURL = () => 'blob:preview';
+  if (typeof urlAny.revokeObjectURL !== 'function') urlAny.revokeObjectURL = () => {};
 });
 const setup = (props = {}) =>
   render(<VideoProcessNode id="vp1" data={{}} selected={false} {...props} />);
@@ -146,5 +169,78 @@ describe('VideoProcessNode — 校验与错误态', () => {
   it('data.errorMessage → 渲染错误信息', () => {
     setup({ data: { errorMessage: '解码失败' } });
     expect(screen.getByText('解码失败')).toBeTruthy();
+  });
+});
+
+/**
+ * TD-21-2：`captureFrame` 的**消费方级**行为锁。
+ *
+ * 缺口原状：`captureFrame` 的唯一消费方就是本节点（「抽缩略图」effect），而本文件此前 10 例
+ * 只覆盖模式挂载 / 来源 / 错误态，**不触发该 effect** —— 于是"原消费方测试先红后绿"无从落地。
+ *
+ * 触发判据（读源码取证，不是猜的）：`sources.filter((s) => sourceMetadata[s.sourceId]?.duration)`
+ * —— 即「**有源**」还不够，必须**该源有元数据且 duration 有值**。
+ * 两例正好各锁一半：正例锁"触发后抽什么"，反例锁"判据是元数据而不是有源"。
+ */
+describe('VideoProcessNode — 抽缩略图（captureFrame 消费方 · TD-21-2）', () => {
+  const UP = 'http://x/upstream.mp4';
+
+  it('有源 + 有元数据 → 抽 6 帧（时间点 duration×(i+0.5)/6，质量恒 0.55）', async () => {
+    mocks.setConnectedInputs({ images: [{ id: 'up', url: UP }], texts: [] });
+    // duration=12 ⇒ 时间点恰为 1/3/5/7/9/11（整点，便于锁值；也顺带锁住"不抽首帧 0s"）
+    setup({ data: { sourceMetadata: { [UP]: { duration: 12 } } } });
+
+    await waitFor(() => expect(captureFrameMock).toHaveBeenCalledTimes(6));
+
+    expect(captureFrameMock.mock.calls.map((c) => c[0])).toEqual(Array(6).fill(UP));
+    expect(captureFrameMock.mock.calls.map((c) => c[1])).toEqual([1, 3, 5, 7, 9, 11]);
+    expect(captureFrameMock.mock.calls.map((c) => c[2])).toEqual(Array(6).fill(0.55));
+  });
+
+  it('有源但无元数据 → **不抽帧**（判据是 metadata.duration，不是"有源"）', async () => {
+    mocks.setConnectedInputs({ images: [{ id: 'up', url: UP }], texts: [] });
+    setup();
+
+    // 该 effect 是异步 IIFE，给足一个宏任务周期；不抽帧是"不该发生的调用"，只能靠等待反证。
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(captureFrameMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * TD-21-23 不变量：**引用抖动下不得进入渲染循环**。
+ *
+ * 循环链（2026-09-16 实测）：上游引用每渲染都变 ⇒ `sources` 重算 ⇒ `tracks` useMemo 重算
+ * ⇒ 自动补的片段若用**随机 id**（`makeId`）就换一批新身份 ⇒ `:628` 选中态 effect 认不出
+ * `selectedClipId` ⇒ `setSelectedClipId` ⇒ 渲染 ⇒ 回到起点 ⇒ **无限循环**（vitest 永久挂死）。
+ *
+ * 修复 = 派生 id 确定性化（`clip-auto-${sourceId}`）。本用例**故意把引用抖动打开**
+ * （`setUnstableReactFlow`）来锁住该不变量 —— 真实 `@xyflow/react` 是引用稳定的，
+ * 正常用例覆盖不到这条路径。
+ *
+ * ⚠️ **探针说明**：这条不变量**无法用 `probe.mjs` 验证** —— 破坏它不会让用例"变红"，
+ * 而是让测试**挂死**（循环独占主线程，`setTimeout`/`--testTimeout` 全都排不上队，
+ * 探针脚本会卡在等子进程返回，连 journal 还原都跑不到）。
+ * 故"先红"以**挂死**形式取证：注入随机 id → 日志停在 `RUN` 一行 + worker 持续烧 CPU；
+ * 还原 → 通过。见轮次文件。
+ */
+describe('VideoProcessNode — 上游引用抖动下的渲染收敛（TD-21-23 不变量）', () => {
+  const UP = 'http://x/upstream.mp4';
+
+  it('抖动开启时抽帧会**收敛**（自动补片段的 id 必须确定）', async () => {
+    mocks.setUnstableReactFlow(true);
+    mocks.setConnectedInputs({ images: [{ id: 'up', url: UP }], texts: [] });
+    setup({ data: { sourceMetadata: { [UP]: { duration: 12 } } } });
+
+    // ⚠️ 抖动场景**不能**断言"恰好 6 次"：`sources`/`setNodes` 每渲染都换新引用 ⇒ 抽帧 effect 每渲染都重跑，
+    //    上一轮会被清理函数置 cancelled 而**中途退出**（帧数不定、次数 > 6）。这里只断言"确实抽到了帧"。
+    await waitFor(() => expect(captureFrameMock.mock.calls.length).toBeGreaterThan(0));
+
+    // 收敛判据：静置后**不再有新抽帧**。若自动补片段用了随机 id，选中态 effect 会持续 setState
+    // ⇒ 持续渲染 ⇒ 抽帧 effect 持续重跑 ⇒ 这里的计数会持续增长（实测表现为主线程被独占、测试挂死）。
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const settled = captureFrameMock.mock.calls.length;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(captureFrameMock.mock.calls.length).toBe(settled);
   });
 });

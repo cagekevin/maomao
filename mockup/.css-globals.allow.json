@@ -1,0 +1,16 @@
+{
+  "_comment": "门禁白名单（基线）。本项目的统一 kit 自身也保留组件级裸色（maomao-kit.css 42 处），故「零裸值」非实际标准。此处放行：① 9 个业务 mockup（各含故意装饰/状态色）；② maomao-kit.css（真相源）；③ mockup-base.css（legacy 共享底座，白/黑叠层+强调色，与 kit 实践一致）；④ panel-kit-card（演示 mockup）。门禁用途=守护【新增】mockup：新文件未进白名单前，其裸值会被标出，强制作者令牌化或在本文件点状放行(substrings)/行内 /* raw */ 标记。后续收紧：把某文件从 files 移除即可重新纳入严格检查。",
+  "files": {
+    "agent-panel-clean.html": true,
+    "camera-params-mockup.html": true,
+    "director3d-stage-mockup.html": true,
+    "image-editor-mockup.html": true,
+    "multi-image-composer-mockup.html": true,
+    "video-editor-workbench-mockup.html": true,
+    "image-editor-tabs-mockup.html": true,
+    "leftpanel-tabs-mockup.html": true,
+    "storyboard-workspace-mockup.html": true,
+    "maomao-kit.css": true
+  },
+  "substrings": []
+}

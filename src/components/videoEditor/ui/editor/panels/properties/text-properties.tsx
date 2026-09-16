@@ -14,7 +14,7 @@ import { Switch } from '@/components/videoEditor/ui/ui/switch';
 import { Slider } from '@/components/videoEditor/ui/ui/slider';
 import { Input } from '@/components/videoEditor/ui/ui/input';
 import { Button } from '@/components/videoEditor/ui/ui/button';
-import { useReducer, useRef } from 'react';
+import { useRef } from 'react';
 import { PanelBaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup, PropertyItem, PropertyItemLabel, PropertyItemValue } from './property-item';
 import { ColorPicker } from '@/components/videoEditor/ui/ui/color-picker';
@@ -41,6 +41,7 @@ import {
   type TextStylePreset,
 } from '@/components/videoEditor/constants/text-style-presets';
 import { cn } from '@/components/videoEditor/utils/ui';
+import { useDraftCommit } from './use-draft-commit';
 
 interface TextElementRef {
   element: TextElement;
@@ -52,21 +53,6 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
 
   const editor = useEditor();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [, forceRender] = useReducer((x: number) => x + 1, 0);
-  const isEditingFontSize = useRef(false);
-  const isEditingOpacity = useRef(false);
-  const isEditingContent = useRef(false);
-  const isEditingPosX = useRef(false);
-  const isEditingPosY = useRef(false);
-  const isEditingScale = useRef(false);
-  const isEditingRotation = useRef(false);
-  const fontSizeDraft = useRef('');
-  const opacityDraft = useRef('');
-  const contentDraft = useRef('');
-  const posXDraft = useRef('');
-  const posYDraft = useRef('');
-  const scaleDraft = useRef('');
-  const rotationDraft = useRef('');
 
   const buildBatchUpdates = (updates: Partial<Record<string, unknown>>) =>
     elementRefs.map((ref) => ({
@@ -75,44 +61,191 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
       updates,
     }));
 
-  const fontSizeDisplay = isEditingFontSize.current
-    ? fontSizeDraft.current
-    : element.fontSize.toString();
-  const opacityDisplay = isEditingOpacity.current
-    ? opacityDraft.current
-    : Math.round(element.opacity * 100).toString();
-  const contentDisplay = isEditingContent.current ? contentDraft.current : element.content;
+  // 【TD-22-20 · 组①】字号：编辑中预览、落定时「先还原 initial、再提交」（共用实现见 use-draft-commit）。
+  // Slider 与 Input 共用**同一个** hook 实例 ⇒ 共享同一个 initial ⇒
+  // 「拖完滑杆接着在输入框微调」这类连续编辑，撤销仍是**一次**回到起点。
+  const fontSizeField = useDraftCommit<number>({
+    value: element.fontSize,
+    format: (v) => v.toString(),
+    parse: (raw) => {
+      const parsed = parseInt(raw, 10);
+      return Number.isNaN(parsed)
+        ? null
+        : clamp({ value: parsed, min: MIN_FONT_SIZE, max: MAX_FONT_SIZE });
+    },
+    commit: (fontSize, pushHistory) =>
+      editor.timeline.updateElements({ updates: buildBatchUpdates({ fontSize }), pushHistory }),
+  });
 
   const lastSelectedColor = useRef(DEFAULT_COLOR);
-  const initialFontSizeRef = useRef<number | null>(null);
-  const initialOpacityRef = useRef<number | null>(null);
-  const initialContentRef = useRef<string | null>(null);
-  const initialColorRef = useRef<string | null>(null);
-  const initialBgColorRef = useRef<string | null>(null);
-  const initialPosXRef = useRef<number | null>(null);
-  const initialPosYRef = useRef<number | null>(null);
-  const initialScaleRef = useRef<number | null>(null);
-  const initialRotationRef = useRef<number | null>(null);
-  const initialStrokeRef = useRef<TextStroke | null>(null);
-  const initialShadowRef = useRef<TextShadow | null>(null);
-  const initialStrokeColorRef = useRef<string | null>(null);
-  const initialShadowColorRef = useRef<string | null>(null);
-  const initialBgOpacityRef = useRef<number | null>(null);
-  const initialBgBorderRadiusRef = useRef<number | null>(null);
-  const initialBgPaddingXRef = useRef<number | null>(null);
-  const initialBgPaddingYRef = useRef<number | null>(null);
 
   const scalePercent = Math.round(element.transform.scale * 100);
-  const posXDisplay = isEditingPosX.current
-    ? posXDraft.current
-    : Math.round(element.transform.position.x).toString();
-  const posYDisplay = isEditingPosY.current
-    ? posYDraft.current
-    : Math.round(element.transform.position.y).toString();
-  const scaleDisplay = isEditingScale.current ? scaleDraft.current : scalePercent.toString();
-  const rotationDisplay = isEditingRotation.current
-    ? rotationDraft.current
-    : Math.round(element.transform.rotate).toString();
+
+  // 【TD-22-20 · 组①】数字字段（Input + Slider 两条路径，共用同一个 initial）——
+  // 统一走 `useDraftCommit`，不再逐处手抄 refs/handler。
+  // 注：`commit` 闭包在**事件里**才求值，故此处引用后面才定义的 `updateTransform` 是安全的。
+  /** 不透明度：显示/提交都在 **percent 域**（0~100），落库时 /100。 */
+  const opacityField = useDraftCommit<number>({
+    value: Math.round(element.opacity * 100),
+    format: (v) => v.toString(),
+    parse: (raw) => {
+      const parsed = parseInt(raw, 10);
+      return Number.isNaN(parsed) ? null : clamp({ value: parsed, min: 0, max: 100 });
+    },
+    commit: (percent, pushHistory) =>
+      editor.timeline.updateElements({
+        updates: buildBatchUpdates({ opacity: percent / 100 }),
+        pushHistory,
+      }),
+  });
+
+  /** 位置 X：`value` 存**未取整**的原始值（与手抄一致 —— initial 与回退值都是它），仅显示取整。 */
+  const posXField = useDraftCommit<number>({
+    value: element.transform.position.x,
+    format: (v) => Math.round(v).toString(),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    },
+    commit: (x, pushHistory) =>
+      updateTransform({
+        updates: { position: { ...element.transform.position, x } },
+        pushHistory,
+      }),
+  });
+
+  /** 位置 Y：同位置 X。 */
+  const posYField = useDraftCommit<number>({
+    value: element.transform.position.y,
+    format: (v) => Math.round(v).toString(),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    },
+    commit: (y, pushHistory) =>
+      updateTransform({
+        updates: { position: { ...element.transform.position, y } },
+        pushHistory,
+      }),
+  });
+
+  /** 缩放：percent 域（10~500），落库 /100。 */
+  const scaleField = useDraftCommit<number>({
+    value: scalePercent,
+    format: (v) => v.toString(),
+    parse: (raw) => {
+      const parsed = parseInt(raw, 10);
+      return Number.isNaN(parsed) ? null : clamp({ value: parsed, min: 10, max: 500 });
+    },
+    commit: (percent, pushHistory) =>
+      updateTransform({ updates: { scale: percent / 100 }, pushHistory }),
+  });
+
+  /** 旋转：`value` 存**未取整**的原始值（同位置 X）。 */
+  const rotationField = useDraftCommit<number>({
+    value: element.transform.rotate,
+    format: (v) => Math.round(v).toString(),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    },
+    commit: (rotate, pushHistory) => updateTransform({ updates: { rotate }, pushHistory }),
+  });
+
+  // 【TD-22-20 · 组②】文本 / 颜色 / 背景 —— 与组① 同一个 hook，只是入口不同：
+  //  · `content` 走 Textarea（同 Input 的 draft 路径）；
+  //  · 颜色走 ColorPicker 的 `onChange`/`onChangeEnd`（**值直传**，`#` 换算由调用方做）；
+  //  · 背景三项走 Slider（**值直传**）。
+  // 无 Input 路径的字段，`format`/`parse` 给**恒等**实现（明示"本字段没有输入框入口"，
+  // 而不是把它们做成可选参数 —— 那等于藏一个不安全的默认值）。
+  const contentField = useDraftCommit<string>({
+    value: element.content,
+    format: (v) => v,
+    parse: (raw) => raw,
+    commit: (content, pushHistory) =>
+      editor.timeline.updateElements({ updates: buildBatchUpdates({ content }), pushHistory }),
+  });
+
+  /** 文字颜色：ColorPicker 传「无 `#` 的十六进制」⇒ 提交时补 `#`；`value` 取面板既有口径（空则 `#FFFFFF`）。 */
+  const colorField = useDraftCommit<string>({
+    value: element.color || '#FFFFFF',
+    format: (v) => v,
+    parse: (raw) => raw,
+    commit: (color, pushHistory) =>
+      editor.timeline.updateElements({ updates: buildBatchUpdates({ color }), pushHistory }),
+  });
+
+  const bgColorField = useDraftCommit<string>({
+    value: element.backgroundColor,
+    format: (v) => v,
+    parse: (raw) => raw,
+    commit: (backgroundColor, pushHistory) =>
+      editor.timeline.updateElements({
+        updates: buildBatchUpdates({ backgroundColor }),
+        pushHistory,
+      }),
+  });
+
+  /**
+   * 背景不透明度：字段是 **0~1 域**（与组① 的 `opacity` 不同，后者面板用 percent 域）。
+   * 滑杆报 percent ⇒ 调用方除以 100 再进来；`initial` 因此也落在 0~1 域（还原值正确）。
+   */
+  const bgOpacityField = useDraftCommit<number>({
+    value: element.backgroundOpacity ?? DEFAULT_BG_OPACITY,
+    format: (v) => v.toString(),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    },
+    commit: (backgroundOpacity, pushHistory) =>
+      editor.timeline.updateElements({
+        updates: buildBatchUpdates({ backgroundOpacity }),
+        pushHistory,
+      }),
+  });
+
+  /** 背景圆角 / 高度 / 宽度：值域原样（0~50），仅 Slider。 */
+  const bgBorderRadiusField = useDraftCommit<number>({
+    value: element.backgroundBorderRadius ?? DEFAULT_BG_BORDER_RADIUS,
+    format: (v) => v.toString(),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    },
+    commit: (backgroundBorderRadius, pushHistory) =>
+      editor.timeline.updateElements({
+        updates: buildBatchUpdates({ backgroundBorderRadius }),
+        pushHistory,
+      }),
+  });
+
+  const bgPaddingYField = useDraftCommit<number>({
+    value: element.backgroundPaddingY ?? DEFAULT_BG_PADDING_Y,
+    format: (v) => v.toString(),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    },
+    commit: (backgroundPaddingY, pushHistory) =>
+      editor.timeline.updateElements({
+        updates: buildBatchUpdates({ backgroundPaddingY }),
+        pushHistory,
+      }),
+  });
+
+  const bgPaddingXField = useDraftCommit<number>({
+    value: element.backgroundPaddingX ?? DEFAULT_BG_PADDING_X,
+    format: (v) => v.toString(),
+    parse: (raw) => {
+      const parsed = Number.parseFloat(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    },
+    commit: (backgroundPaddingX, pushHistory) =>
+      editor.timeline.updateElements({
+        updates: buildBatchUpdates({ backgroundPaddingX }),
+        pushHistory,
+      }),
+  });
 
   const updateTransform = ({
     updates: transformUpdates,
@@ -148,6 +281,34 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
   // 三段各自的判据都在 `text-constants.ts` 里收口，这里只做"或"。
   const hasStyleSection = backgroundEnabled || strokeEnabled || shadowEnabled;
 
+  /**
+   * 【TD-22-20 · 组②c】描边 / 阴影是**对象字段**：它们的多个入口（宽度滑杆 · 颜色选择器 ·
+   * X/Y 偏移 · 模糊）改的是**同一个对象** ⇒ 属于**同一次编辑会话**，撤销应当**一次**回到起点。
+   * 故按「**对象字段**」实例化（stroke 一个、shadow 一个），而不是按控件。
+   *
+   * 【与迁移前的**形态**差异（**不是**行为差异）】迁移前 shadow 的 3 个滑杆共享一个 initial（一致），
+   * 而 stroke 的 **color 与 width 各持一个** initial（不一致）。收口后统一为
+   * 「一个对象字段 ⇔ 一个 initial」。
+   * ⚠️ 我一度判定这是"行为修正"（认为跨入口撤销会从两次变一次）—— **该判断已被证伪**：
+   * 每次落定都会**清空** initial，故两个入口不可能**同时**持有 ⇒ 两种形态**行为等价**。
+   * 证据：「旧实现 + 20 例新测试」全绿（见轮次日志的等价性验证）。
+   *
+   * 本字段无输入框入口 ⇒ `format`/`parse` 给恒等/恒空（明示"没有 draft 路径"）。
+   */
+  const strokeField = useDraftCommit<TextStroke>({
+    value: currentStroke,
+    format: () => '',
+    parse: () => null,
+    commit: (stroke, pushHistory) => updateStroke({ stroke, pushHistory }),
+  });
+
+  const shadowField = useDraftCommit<TextShadow>({
+    value: currentShadow,
+    format: () => '',
+    parse: () => null,
+    commit: (shadow, pushHistory) => updateShadow({ shadow, pushHistory }),
+  });
+
   const updateStroke = ({
     stroke,
     pushHistory = true,
@@ -174,121 +335,6 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
     });
   };
 
-  const handleFontSizeChange = ({ value }: { value: string }) => {
-    fontSizeDraft.current = value;
-    forceRender();
-
-    if (value.trim() !== '') {
-      if (initialFontSizeRef.current === null) {
-        initialFontSizeRef.current = element.fontSize;
-      }
-      const parsed = parseInt(value, 10);
-      const fontSize = Number.isNaN(parsed)
-        ? element.fontSize
-        : clamp({ value: parsed, min: MIN_FONT_SIZE, max: MAX_FONT_SIZE });
-      editor.timeline.updateElements({
-        updates: buildBatchUpdates({ fontSize }),
-        pushHistory: false,
-      });
-    }
-  };
-
-  const handleFontSizeBlur = () => {
-    if (initialFontSizeRef.current !== null) {
-      const parsed = parseInt(fontSizeDraft.current, 10);
-      const fontSize = Number.isNaN(parsed)
-        ? element.fontSize
-        : clamp({ value: parsed, min: MIN_FONT_SIZE, max: MAX_FONT_SIZE });
-      editor.timeline.updateElements({
-        updates: buildBatchUpdates({ fontSize: initialFontSizeRef.current }),
-        pushHistory: false,
-      });
-      editor.timeline.updateElements({
-        updates: buildBatchUpdates({ fontSize }),
-        pushHistory: true,
-      });
-      initialFontSizeRef.current = null;
-    }
-    isEditingFontSize.current = false;
-    fontSizeDraft.current = '';
-    forceRender();
-  };
-
-  const handleOpacityChange = ({ value }: { value: string }) => {
-    opacityDraft.current = value;
-    forceRender();
-
-    if (value.trim() !== '') {
-      if (initialOpacityRef.current === null) {
-        initialOpacityRef.current = element.opacity;
-      }
-      const parsed = parseInt(value, 10);
-      const opacityPercent = Number.isNaN(parsed)
-        ? Math.round(element.opacity * 100)
-        : clamp({ value: parsed, min: 0, max: 100 });
-      editor.timeline.updateElements({
-        updates: buildBatchUpdates({ opacity: opacityPercent / 100 }),
-        pushHistory: false,
-      });
-    }
-  };
-
-  const handleOpacityBlur = () => {
-    if (initialOpacityRef.current !== null) {
-      const parsed = parseInt(opacityDraft.current, 10);
-      const opacityPercent = Number.isNaN(parsed)
-        ? Math.round(element.opacity * 100)
-        : clamp({ value: parsed, min: 0, max: 100 });
-      editor.timeline.updateElements({
-        updates: buildBatchUpdates({ opacity: initialOpacityRef.current }),
-        pushHistory: false,
-      });
-      editor.timeline.updateElements({
-        updates: buildBatchUpdates({ opacity: opacityPercent / 100 }),
-        pushHistory: true,
-      });
-      initialOpacityRef.current = null;
-    }
-    isEditingOpacity.current = false;
-    opacityDraft.current = '';
-    forceRender();
-  };
-
-  const handleColorChange = ({ color }: { color: string }) => {
-    if (color !== 'transparent') {
-      lastSelectedColor.current = color;
-    }
-    if (initialBgColorRef.current === null) {
-      initialBgColorRef.current = element.backgroundColor;
-    }
-    if (initialBgColorRef.current !== null) {
-      editor.timeline.updateElements({
-        updates: buildBatchUpdates({ backgroundColor: color }),
-        pushHistory: false,
-      });
-    } else {
-      editor.timeline.updateElements({
-        updates: buildBatchUpdates({ backgroundColor: color }),
-      });
-    }
-  };
-
-  const handleColorChangeEnd = ({ color }: { color: string }) => {
-    if (initialBgColorRef.current !== null) {
-      editor.timeline.updateElements({
-        updates: buildBatchUpdates({
-          backgroundColor: initialBgColorRef.current,
-        }),
-        pushHistory: false,
-      });
-      editor.timeline.updateElements({
-        updates: buildBatchUpdates({ backgroundColor: `#${color}` }),
-        pushHistory: true,
-      });
-      initialBgColorRef.current = null;
-    }
-  };
-
   return (
     /* 分区/滚动/tab 全部交给壳（`PanelBaseView`）—— 这里只给出两个 tab 的**内容**。
        （原先是自造 `<Tabs>` + 在每个 `TabsContent` 里再套一个 `PanelBaseView`：
@@ -306,49 +352,12 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
               <PropertyGroup hasBorderTop={false}>
                 <Textarea
                   placeholder="输入文字"
-                  value={contentDisplay}
+                  value={contentField.display}
                   // 紧凑：80px → 56px（3 行仍够写；面板纵向空间留给下方真正要调的属性）。
                   className="min-h-14"
-                  onFocus={() => {
-                    isEditingContent.current = true;
-                    contentDraft.current = element.content;
-                    initialContentRef.current = element.content;
-                    forceRender();
-                  }}
-                  onChange={(event) => {
-                    contentDraft.current = event.target.value;
-                    forceRender();
-                    if (initialContentRef.current === null) {
-                      initialContentRef.current = element.content;
-                    }
-                    editor.timeline.updateElements({
-                      updates: buildBatchUpdates({
-                        content: event.target.value,
-                      }),
-                      pushHistory: false,
-                    });
-                  }}
-                  onBlur={() => {
-                    if (initialContentRef.current !== null) {
-                      const finalContent = contentDraft.current;
-                      editor.timeline.updateElements({
-                        updates: buildBatchUpdates({
-                          content: initialContentRef.current,
-                        }),
-                        pushHistory: false,
-                      });
-                      editor.timeline.updateElements({
-                        updates: buildBatchUpdates({
-                          content: finalContent,
-                        }),
-                        pushHistory: true,
-                      });
-                      initialContentRef.current = null;
-                    }
-                    isEditingContent.current = false;
-                    contentDraft.current = '';
-                    forceRender();
-                  }}
+                  onFocus={contentField.onFocus}
+                  onChange={(event) => contentField.onChange(event.target.value)}
+                  onBlur={contentField.onBlur}
                 />
               </PropertyGroup>
               <PropertyGroup hasBorderTop>
@@ -441,44 +450,18 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                         min={MIN_FONT_SIZE}
                         max={MAX_FONT_SIZE}
                         step={1}
-                        onValueChange={([value]) => {
-                          if (initialFontSizeRef.current === null) {
-                            initialFontSizeRef.current = element.fontSize;
-                          }
-                          editor.timeline.updateElements({
-                            updates: buildBatchUpdates({ fontSize: value }),
-                            pushHistory: false,
-                          });
-                        }}
-                        onValueCommit={([value]) => {
-                          if (initialFontSizeRef.current !== null) {
-                            editor.timeline.updateElements({
-                              updates: buildBatchUpdates({
-                                fontSize: initialFontSizeRef.current,
-                              }),
-                              pushHistory: false,
-                            });
-                            editor.timeline.updateElements({
-                              updates: buildBatchUpdates({ fontSize: value }),
-                              pushHistory: true,
-                            });
-                            initialFontSizeRef.current = null;
-                          }
-                        }}
+                        onValueChange={([value]) => fontSizeField.onSliderChange(value)}
+                        onValueCommit={([value]) => fontSizeField.onSliderCommit(value)}
                         className="w-full"
                       />
                       <Input
                         type="number"
-                        value={fontSizeDisplay}
+                        value={fontSizeField.display}
                         min={MIN_FONT_SIZE}
                         max={MAX_FONT_SIZE}
-                        onFocus={() => {
-                          isEditingFontSize.current = true;
-                          fontSizeDraft.current = element.fontSize.toString();
-                          forceRender();
-                        }}
-                        onChange={(e) => handleFontSizeChange({ value: e.target.value })}
-                        onBlur={handleFontSizeBlur}
+                        onFocus={fontSizeField.onFocus}
+                        onChange={(e) => fontSizeField.onChange(e.target.value)}
+                        onBlur={fontSizeField.onBlur}
                         className="ve-num w-12"
                       />
                     </div>
@@ -506,42 +489,8 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                   <PropertyItemValue>
                     <ColorPicker
                       value={element.color || 'FFFFFF'}
-                      onChange={(color) => {
-                        if (initialColorRef.current === null) {
-                          initialColorRef.current = element.color || '#FFFFFF';
-                        }
-                        if (initialColorRef.current !== null) {
-                          editor.timeline.updateElements({
-                            updates: buildBatchUpdates({
-                              color: `#${color}`,
-                            }),
-                            pushHistory: false,
-                          });
-                        } else {
-                          editor.timeline.updateElements({
-                            updates: buildBatchUpdates({
-                              color: `#${color}`,
-                            }),
-                          });
-                        }
-                      }}
-                      onChangeEnd={(color) => {
-                        if (initialColorRef.current !== null) {
-                          editor.timeline.updateElements({
-                            updates: buildBatchUpdates({
-                              color: initialColorRef.current,
-                            }),
-                            pushHistory: false,
-                          });
-                          editor.timeline.updateElements({
-                            updates: buildBatchUpdates({
-                              color: `#${color}`,
-                            }),
-                            pushHistory: true,
-                          });
-                          initialColorRef.current = null;
-                        }
-                      }}
+                      onChange={(color) => colorField.onSliderChange(`#${color}`)}
+                      onChangeEnd={(color) => colorField.onSliderCommit(`#${color}`)}
                       containerRef={containerRef}
                     />
                   </PropertyItemValue>
@@ -555,48 +504,18 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                         min={0}
                         max={100}
                         step={1}
-                        onValueChange={([value]) => {
-                          if (initialOpacityRef.current === null) {
-                            initialOpacityRef.current = element.opacity;
-                          }
-                          editor.timeline.updateElements({
-                            updates: buildBatchUpdates({
-                              opacity: value / 100,
-                            }),
-                            pushHistory: false,
-                          });
-                        }}
-                        onValueCommit={([value]) => {
-                          if (initialOpacityRef.current !== null) {
-                            editor.timeline.updateElements({
-                              updates: buildBatchUpdates({
-                                opacity: initialOpacityRef.current,
-                              }),
-                              pushHistory: false,
-                            });
-                            editor.timeline.updateElements({
-                              updates: buildBatchUpdates({
-                                opacity: value / 100,
-                              }),
-                              pushHistory: true,
-                            });
-                            initialOpacityRef.current = null;
-                          }
-                        }}
+                        onValueChange={([value]) => opacityField.onSliderChange(value)}
+                        onValueCommit={([value]) => opacityField.onSliderCommit(value)}
                         className="w-full"
                       />
                       <Input
                         type="number"
-                        value={opacityDisplay}
+                        value={opacityField.display}
                         min={0}
                         max={100}
-                        onFocus={() => {
-                          isEditingOpacity.current = true;
-                          opacityDraft.current = Math.round(element.opacity * 100).toString();
-                          forceRender();
-                        }}
-                        onChange={(e) => handleOpacityChange({ value: e.target.value })}
-                        onBlur={handleOpacityBlur}
+                        onFocus={opacityField.onFocus}
+                        onChange={(e) => opacityField.onChange(e.target.value)}
+                        onBlur={opacityField.onBlur}
                         className="ve-num w-12"
                       />
                     </div>
@@ -638,8 +557,12 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                       />
                       <ColorPicker
                         value={element.backgroundColor}
-                        onChange={(color) => handleColorChange({ color: `#${color}` })}
-                        onChangeEnd={(color) => handleColorChangeEnd({ color })}
+                        onChange={(color) => {
+                          // 记住"用户最后选的实色"，供背景开关打开时复用（原 handleColorChange 的副作用，保留）。
+                          if (color !== 'transparent') lastSelectedColor.current = color;
+                          bgColorField.onSliderChange(`#${color}`);
+                        }}
+                        onChangeEnd={(color) => bgColorField.onSliderCommit(`#${color}`)}
                         containerRef={containerRef}
                       />
                     </div>
@@ -658,35 +581,8 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                             min={0}
                             max={100}
                             step={1}
-                            onValueChange={([value]) => {
-                              if (initialBgOpacityRef.current === null) {
-                                initialBgOpacityRef.current =
-                                  element.backgroundOpacity ?? DEFAULT_BG_OPACITY;
-                              }
-                              editor.timeline.updateElements({
-                                updates: buildBatchUpdates({
-                                  backgroundOpacity: value / 100,
-                                }),
-                                pushHistory: false,
-                              });
-                            }}
-                            onValueCommit={([value]) => {
-                              if (initialBgOpacityRef.current !== null) {
-                                editor.timeline.updateElements({
-                                  updates: buildBatchUpdates({
-                                    backgroundOpacity: initialBgOpacityRef.current,
-                                  }),
-                                  pushHistory: false,
-                                });
-                                editor.timeline.updateElements({
-                                  updates: buildBatchUpdates({
-                                    backgroundOpacity: value / 100,
-                                  }),
-                                  pushHistory: true,
-                                });
-                                initialBgOpacityRef.current = null;
-                              }
-                            }}
+                            onValueChange={([value]) => bgOpacityField.onSliderChange(value / 100)}
+                            onValueCommit={([value]) => bgOpacityField.onSliderCommit(value / 100)}
                             className="w-full"
                           />
                           <span className="text-muted-foreground w-8 text-center text-xs">
@@ -704,35 +600,8 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                             min={0}
                             max={50}
                             step={1}
-                            onValueChange={([value]) => {
-                              if (initialBgBorderRadiusRef.current === null) {
-                                initialBgBorderRadiusRef.current =
-                                  element.backgroundBorderRadius ?? DEFAULT_BG_BORDER_RADIUS;
-                              }
-                              editor.timeline.updateElements({
-                                updates: buildBatchUpdates({
-                                  backgroundBorderRadius: value,
-                                }),
-                                pushHistory: false,
-                              });
-                            }}
-                            onValueCommit={([value]) => {
-                              if (initialBgBorderRadiusRef.current !== null) {
-                                editor.timeline.updateElements({
-                                  updates: buildBatchUpdates({
-                                    backgroundBorderRadius: initialBgBorderRadiusRef.current,
-                                  }),
-                                  pushHistory: false,
-                                });
-                                editor.timeline.updateElements({
-                                  updates: buildBatchUpdates({
-                                    backgroundBorderRadius: value,
-                                  }),
-                                  pushHistory: true,
-                                });
-                                initialBgBorderRadiusRef.current = null;
-                              }
-                            }}
+                            onValueChange={([value]) => bgBorderRadiusField.onSliderChange(value)}
+                            onValueCommit={([value]) => bgBorderRadiusField.onSliderCommit(value)}
                             className="w-full"
                           />
                           <span className="text-muted-foreground w-8 text-center text-xs">
@@ -750,35 +619,8 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                             min={0}
                             max={50}
                             step={1}
-                            onValueChange={([value]) => {
-                              if (initialBgPaddingYRef.current === null) {
-                                initialBgPaddingYRef.current =
-                                  element.backgroundPaddingY ?? DEFAULT_BG_PADDING_Y;
-                              }
-                              editor.timeline.updateElements({
-                                updates: buildBatchUpdates({
-                                  backgroundPaddingY: value,
-                                }),
-                                pushHistory: false,
-                              });
-                            }}
-                            onValueCommit={([value]) => {
-                              if (initialBgPaddingYRef.current !== null) {
-                                editor.timeline.updateElements({
-                                  updates: buildBatchUpdates({
-                                    backgroundPaddingY: initialBgPaddingYRef.current,
-                                  }),
-                                  pushHistory: false,
-                                });
-                                editor.timeline.updateElements({
-                                  updates: buildBatchUpdates({
-                                    backgroundPaddingY: value,
-                                  }),
-                                  pushHistory: true,
-                                });
-                                initialBgPaddingYRef.current = null;
-                              }
-                            }}
+                            onValueChange={([value]) => bgPaddingYField.onSliderChange(value)}
+                            onValueCommit={([value]) => bgPaddingYField.onSliderCommit(value)}
                             className="w-full"
                           />
                           <span className="text-muted-foreground w-8 text-center text-xs">
@@ -796,35 +638,8 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                             min={0}
                             max={50}
                             step={1}
-                            onValueChange={([value]) => {
-                              if (initialBgPaddingXRef.current === null) {
-                                initialBgPaddingXRef.current =
-                                  element.backgroundPaddingX ?? DEFAULT_BG_PADDING_X;
-                              }
-                              editor.timeline.updateElements({
-                                updates: buildBatchUpdates({
-                                  backgroundPaddingX: value,
-                                }),
-                                pushHistory: false,
-                              });
-                            }}
-                            onValueCommit={([value]) => {
-                              if (initialBgPaddingXRef.current !== null) {
-                                editor.timeline.updateElements({
-                                  updates: buildBatchUpdates({
-                                    backgroundPaddingX: initialBgPaddingXRef.current,
-                                  }),
-                                  pushHistory: false,
-                                });
-                                editor.timeline.updateElements({
-                                  updates: buildBatchUpdates({
-                                    backgroundPaddingX: value,
-                                  }),
-                                  pushHistory: true,
-                                });
-                                initialBgPaddingXRef.current = null;
-                              }
-                            }}
+                            onValueChange={([value]) => bgPaddingXField.onSliderChange(value)}
+                            onValueCommit={([value]) => bgPaddingXField.onSliderCommit(value)}
                             className="w-full"
                           />
                           <span className="text-muted-foreground w-8 text-center text-xs">
@@ -857,33 +672,12 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                       />
                       <ColorPicker
                         value={currentStroke.color}
-                        onChange={(color) => {
-                          if (initialStrokeColorRef.current === null) {
-                            initialStrokeColorRef.current = currentStroke.color;
-                          }
-                          updateStroke({
-                            stroke: { ...currentStroke, color: `#${color}` },
-                            pushHistory: false,
-                          });
-                        }}
-                        onChangeEnd={(color) => {
-                          if (initialStrokeColorRef.current !== null) {
-                            updateStroke({
-                              stroke: {
-                                ...currentStroke,
-                                color: initialStrokeColorRef.current,
-                              },
-                              pushHistory: false,
-                            });
-                            updateStroke({
-                              stroke: {
-                                ...currentStroke,
-                                color: `#${color}`,
-                              },
-                            });
-                            initialStrokeColorRef.current = null;
-                          }
-                        }}
+                        onChange={(color) =>
+                          strokeField.onSliderChange({ ...currentStroke, color: `#${color}` })
+                        }
+                        onChangeEnd={(color) =>
+                          strokeField.onSliderCommit({ ...currentStroke, color: `#${color}` })
+                        }
                         containerRef={containerRef}
                       />
                     </div>
@@ -899,27 +693,12 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                           min={1}
                           max={MAX_STROKE_WIDTH}
                           step={1}
-                          onValueChange={([value]) => {
-                            if (initialStrokeRef.current === null) {
-                              initialStrokeRef.current = { ...currentStroke };
-                            }
-                            updateStroke({
-                              stroke: { ...currentStroke, width: value },
-                              pushHistory: false,
-                            });
-                          }}
-                          onValueCommit={([value]) => {
-                            if (initialStrokeRef.current !== null) {
-                              updateStroke({
-                                stroke: initialStrokeRef.current,
-                                pushHistory: false,
-                              });
-                              updateStroke({
-                                stroke: { ...currentStroke, width: value },
-                              });
-                              initialStrokeRef.current = null;
-                            }
-                          }}
+                          onValueChange={([value]) =>
+                            strokeField.onSliderChange({ ...currentStroke, width: value })
+                          }
+                          onValueCommit={([value]) =>
+                            strokeField.onSliderCommit({ ...currentStroke, width: value })
+                          }
                           className="w-full"
                         />
                         <span className="text-muted-foreground w-8 text-center text-xs">
@@ -949,33 +728,12 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                       />
                       <ColorPicker
                         value={currentShadow.color}
-                        onChange={(color) => {
-                          if (initialShadowColorRef.current === null) {
-                            initialShadowColorRef.current = currentShadow.color;
-                          }
-                          updateShadow({
-                            shadow: { ...currentShadow, color: `#${color}` },
-                            pushHistory: false,
-                          });
-                        }}
-                        onChangeEnd={(color) => {
-                          if (initialShadowColorRef.current !== null) {
-                            updateShadow({
-                              shadow: {
-                                ...currentShadow,
-                                color: initialShadowColorRef.current,
-                              },
-                              pushHistory: false,
-                            });
-                            updateShadow({
-                              shadow: {
-                                ...currentShadow,
-                                color: `#${color}`,
-                              },
-                            });
-                            initialShadowColorRef.current = null;
-                          }
-                        }}
+                        onChange={(color) =>
+                          shadowField.onSliderChange({ ...currentShadow, color: `#${color}` })
+                        }
+                        onChangeEnd={(color) =>
+                          shadowField.onSliderCommit({ ...currentShadow, color: `#${color}` })
+                        }
                         containerRef={containerRef}
                       />
                     </div>
@@ -992,27 +750,12 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                             min={-20}
                             max={20}
                             step={1}
-                            onValueChange={([value]) => {
-                              if (initialShadowRef.current === null) {
-                                initialShadowRef.current = { ...currentShadow };
-                              }
-                              updateShadow({
-                                shadow: { ...currentShadow, offsetX: value },
-                                pushHistory: false,
-                              });
-                            }}
-                            onValueCommit={([value]) => {
-                              if (initialShadowRef.current !== null) {
-                                updateShadow({
-                                  shadow: initialShadowRef.current,
-                                  pushHistory: false,
-                                });
-                                updateShadow({
-                                  shadow: { ...currentShadow, offsetX: value },
-                                });
-                                initialShadowRef.current = null;
-                              }
-                            }}
+                            onValueChange={([value]) =>
+                              shadowField.onSliderChange({ ...currentShadow, offsetX: value })
+                            }
+                            onValueCommit={([value]) =>
+                              shadowField.onSliderCommit({ ...currentShadow, offsetX: value })
+                            }
                             className="w-full"
                           />
                           <span className="text-muted-foreground w-8 text-center text-xs">
@@ -1030,27 +773,12 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                             min={-20}
                             max={20}
                             step={1}
-                            onValueChange={([value]) => {
-                              if (initialShadowRef.current === null) {
-                                initialShadowRef.current = { ...currentShadow };
-                              }
-                              updateShadow({
-                                shadow: { ...currentShadow, offsetY: value },
-                                pushHistory: false,
-                              });
-                            }}
-                            onValueCommit={([value]) => {
-                              if (initialShadowRef.current !== null) {
-                                updateShadow({
-                                  shadow: initialShadowRef.current,
-                                  pushHistory: false,
-                                });
-                                updateShadow({
-                                  shadow: { ...currentShadow, offsetY: value },
-                                });
-                                initialShadowRef.current = null;
-                              }
-                            }}
+                            onValueChange={([value]) =>
+                              shadowField.onSliderChange({ ...currentShadow, offsetY: value })
+                            }
+                            onValueCommit={([value]) =>
+                              shadowField.onSliderCommit({ ...currentShadow, offsetY: value })
+                            }
                             className="w-full"
                           />
                           <span className="text-muted-foreground w-8 text-center text-xs">
@@ -1068,27 +796,12 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                             min={0}
                             max={30}
                             step={1}
-                            onValueChange={([value]) => {
-                              if (initialShadowRef.current === null) {
-                                initialShadowRef.current = { ...currentShadow };
-                              }
-                              updateShadow({
-                                shadow: { ...currentShadow, blur: value },
-                                pushHistory: false,
-                              });
-                            }}
-                            onValueCommit={([value]) => {
-                              if (initialShadowRef.current !== null) {
-                                updateShadow({
-                                  shadow: initialShadowRef.current,
-                                  pushHistory: false,
-                                });
-                                updateShadow({
-                                  shadow: { ...currentShadow, blur: value },
-                                });
-                                initialShadowRef.current = null;
-                              }
-                            }}
+                            onValueChange={([value]) =>
+                              shadowField.onSliderChange({ ...currentShadow, blur: value })
+                            }
+                            onValueCommit={([value]) =>
+                              shadowField.onSliderCommit({ ...currentShadow, blur: value })
+                            }
                             className="w-full"
                           />
                           <span className="text-muted-foreground w-8 text-center text-xs">
@@ -1115,61 +828,10 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                     <PropertyItemValue>
                       <Input
                         type="number"
-                        value={posXDisplay}
-                        onFocus={() => {
-                          isEditingPosX.current = true;
-                          posXDraft.current = Math.round(element.transform.position.x).toString();
-                          forceRender();
-                        }}
-                        onChange={(e) => {
-                          posXDraft.current = e.target.value;
-                          forceRender();
-                          if (initialPosXRef.current === null) {
-                            initialPosXRef.current = element.transform.position.x;
-                          }
-                          const parsed = Number.parseFloat(e.target.value);
-                          if (!Number.isNaN(parsed)) {
-                            updateTransform({
-                              updates: {
-                                position: {
-                                  ...element.transform.position,
-                                  x: parsed,
-                                },
-                              },
-                              pushHistory: false,
-                            });
-                          }
-                        }}
-                        onBlur={() => {
-                          if (initialPosXRef.current !== null) {
-                            const parsed = Number.parseFloat(posXDraft.current);
-                            const value = Number.isNaN(parsed)
-                              ? element.transform.position.x
-                              : parsed;
-                            updateTransform({
-                              updates: {
-                                position: {
-                                  ...element.transform.position,
-                                  x: initialPosXRef.current,
-                                },
-                              },
-                              pushHistory: false,
-                            });
-                            updateTransform({
-                              updates: {
-                                position: {
-                                  ...element.transform.position,
-                                  x: value,
-                                },
-                              },
-                              pushHistory: true,
-                            });
-                            initialPosXRef.current = null;
-                          }
-                          isEditingPosX.current = false;
-                          posXDraft.current = '';
-                          forceRender();
-                        }}
+                        value={posXField.display}
+                        onFocus={posXField.onFocus}
+                        onChange={(e) => posXField.onChange(e.target.value)}
+                        onBlur={posXField.onBlur}
                         className="ve-num w-12"
                       />
                     </PropertyItemValue>
@@ -1179,61 +841,10 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                     <PropertyItemValue>
                       <Input
                         type="number"
-                        value={posYDisplay}
-                        onFocus={() => {
-                          isEditingPosY.current = true;
-                          posYDraft.current = Math.round(element.transform.position.y).toString();
-                          forceRender();
-                        }}
-                        onChange={(e) => {
-                          posYDraft.current = e.target.value;
-                          forceRender();
-                          if (initialPosYRef.current === null) {
-                            initialPosYRef.current = element.transform.position.y;
-                          }
-                          const parsed = Number.parseFloat(e.target.value);
-                          if (!Number.isNaN(parsed)) {
-                            updateTransform({
-                              updates: {
-                                position: {
-                                  ...element.transform.position,
-                                  y: parsed,
-                                },
-                              },
-                              pushHistory: false,
-                            });
-                          }
-                        }}
-                        onBlur={() => {
-                          if (initialPosYRef.current !== null) {
-                            const parsed = Number.parseFloat(posYDraft.current);
-                            const value = Number.isNaN(parsed)
-                              ? element.transform.position.y
-                              : parsed;
-                            updateTransform({
-                              updates: {
-                                position: {
-                                  ...element.transform.position,
-                                  y: initialPosYRef.current,
-                                },
-                              },
-                              pushHistory: false,
-                            });
-                            updateTransform({
-                              updates: {
-                                position: {
-                                  ...element.transform.position,
-                                  y: value,
-                                },
-                              },
-                              pushHistory: true,
-                            });
-                            initialPosYRef.current = null;
-                          }
-                          isEditingPosY.current = false;
-                          posYDraft.current = '';
-                          forceRender();
-                        }}
+                        value={posYField.display}
+                        onFocus={posYField.onFocus}
+                        onChange={(e) => posYField.onChange(e.target.value)}
+                        onBlur={posYField.onBlur}
                         className="ve-num w-12"
                       />
                     </PropertyItemValue>
@@ -1248,79 +859,18 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                         min={10}
                         max={500}
                         step={1}
-                        onValueChange={([value]) => {
-                          if (initialScaleRef.current === null) {
-                            initialScaleRef.current = element.transform.scale;
-                          }
-                          updateTransform({
-                            updates: { scale: value / 100 },
-                            pushHistory: false,
-                          });
-                        }}
-                        onValueCommit={([value]) => {
-                          if (initialScaleRef.current !== null) {
-                            updateTransform({
-                              updates: { scale: initialScaleRef.current },
-                              pushHistory: false,
-                            });
-                            updateTransform({
-                              updates: { scale: value / 100 },
-                              pushHistory: true,
-                            });
-                            initialScaleRef.current = null;
-                          }
-                        }}
+                        onValueChange={([value]) => scaleField.onSliderChange(value)}
+                        onValueCommit={([value]) => scaleField.onSliderCommit(value)}
                         className="w-full"
                       />
                       <Input
                         type="number"
-                        value={scaleDisplay}
+                        value={scaleField.display}
                         min={10}
                         max={500}
-                        onFocus={() => {
-                          isEditingScale.current = true;
-                          scaleDraft.current = scalePercent.toString();
-                          forceRender();
-                        }}
-                        onChange={(e) => {
-                          scaleDraft.current = e.target.value;
-                          forceRender();
-                          if (initialScaleRef.current === null) {
-                            initialScaleRef.current = element.transform.scale;
-                          }
-                          const parsed = parseInt(e.target.value, 10);
-                          if (!Number.isNaN(parsed)) {
-                            const clamped = clamp({
-                              value: parsed,
-                              min: 10,
-                              max: 500,
-                            });
-                            updateTransform({
-                              updates: { scale: clamped / 100 },
-                              pushHistory: false,
-                            });
-                          }
-                        }}
-                        onBlur={() => {
-                          if (initialScaleRef.current !== null) {
-                            const parsed = parseInt(scaleDraft.current, 10);
-                            const clamped = Number.isNaN(parsed)
-                              ? scalePercent
-                              : clamp({ value: parsed, min: 10, max: 500 });
-                            updateTransform({
-                              updates: { scale: initialScaleRef.current },
-                              pushHistory: false,
-                            });
-                            updateTransform({
-                              updates: { scale: clamped / 100 },
-                              pushHistory: true,
-                            });
-                            initialScaleRef.current = null;
-                          }
-                          isEditingScale.current = false;
-                          scaleDraft.current = '';
-                          forceRender();
-                        }}
+                        onFocus={scaleField.onFocus}
+                        onChange={(e) => scaleField.onChange(e.target.value)}
+                        onBlur={scaleField.onBlur}
                         className="ve-num w-12"
                       />
                     </div>
@@ -1335,76 +885,18 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                         min={-180}
                         max={180}
                         step={1}
-                        onValueChange={([value]) => {
-                          if (initialRotationRef.current === null) {
-                            initialRotationRef.current = element.transform.rotate;
-                          }
-                          updateTransform({
-                            updates: { rotate: value },
-                            pushHistory: false,
-                          });
-                        }}
-                        onValueCommit={([value]) => {
-                          if (initialRotationRef.current !== null) {
-                            updateTransform({
-                              updates: {
-                                rotate: initialRotationRef.current,
-                              },
-                              pushHistory: false,
-                            });
-                            updateTransform({
-                              updates: { rotate: value },
-                              pushHistory: true,
-                            });
-                            initialRotationRef.current = null;
-                          }
-                        }}
+                        onValueChange={([value]) => rotationField.onSliderChange(value)}
+                        onValueCommit={([value]) => rotationField.onSliderCommit(value)}
                         className="w-full"
                       />
                       <Input
                         type="number"
-                        value={rotationDisplay}
+                        value={rotationField.display}
                         min={-360}
                         max={360}
-                        onFocus={() => {
-                          isEditingRotation.current = true;
-                          rotationDraft.current = Math.round(element.transform.rotate).toString();
-                          forceRender();
-                        }}
-                        onChange={(e) => {
-                          rotationDraft.current = e.target.value;
-                          forceRender();
-                          if (initialRotationRef.current === null) {
-                            initialRotationRef.current = element.transform.rotate;
-                          }
-                          const parsed = Number.parseFloat(e.target.value);
-                          if (!Number.isNaN(parsed)) {
-                            updateTransform({
-                              updates: { rotate: parsed },
-                              pushHistory: false,
-                            });
-                          }
-                        }}
-                        onBlur={() => {
-                          if (initialRotationRef.current !== null) {
-                            const parsed = Number.parseFloat(rotationDraft.current);
-                            const value = Number.isNaN(parsed) ? element.transform.rotate : parsed;
-                            updateTransform({
-                              updates: {
-                                rotate: initialRotationRef.current,
-                              },
-                              pushHistory: false,
-                            });
-                            updateTransform({
-                              updates: { rotate: value },
-                              pushHistory: true,
-                            });
-                            initialRotationRef.current = null;
-                          }
-                          isEditingRotation.current = false;
-                          rotationDraft.current = '';
-                          forceRender();
-                        }}
+                        onFocus={rotationField.onFocus}
+                        onChange={(e) => rotationField.onChange(e.target.value)}
+                        onBlur={rotationField.onBlur}
                         className="ve-num w-12"
                       />
                     </div>

@@ -412,6 +412,33 @@ test('[fileStore] resizeImage 真实缩放（jimp 读图→写图）', async () 
   );
 });
 
+// ── 【TD-02-41】「Jimp 可编码格式」唯一真源的行为锁 ──
+// 收口前这个事实有 3 份：前端 assetUrl.ts(`new Set`) · files.ts(`SUPPORTED_THUMB_FORMATS`) ·
+// resolveLocalImages.mimeFromExt(switch)，靠注释同步且**已漂移**（前端注释声称"与后端一致"而值不同步）。
+// 现收口到 fileStore 的 JIMP_MIME_BY_EXT + 两个派生函数 —— 新增/删除格式只改一处，三处消费方同时生效。
+test('[fileStore] TD-02-41：isJimpEncodableExt 只放行 Jimp 可编码格式（webp 无编码器 → false）', () => {
+  for (const ok of ['png', 'JPG', 'Jpeg', 'gif', 'bmp', 'tiff']) {
+    assert.equal(fileStore.isJimpEncodableExt(ok), true, `应放行: ${ok}`);
+  }
+  // webp / avif / svg：@jimp/types 无编码器 → 放行会产出「.webp 名 + 原格式字节」的假图（TD-03-7 旧坑）
+  for (const no of ['webp', 'avif', 'svg', 'mp4', '', '   ', null, undefined, 42]) {
+    assert.equal(fileStore.isJimpEncodableExt(no), false, `应拒绝: ${String(no)}`);
+  }
+});
+
+test('[fileStore] TD-02-41：jimpMimeForExt 与白名单同表派生（未登记回退 png = 历史行为不变）', async () => {
+  const Jimp = (await import('jimp')).default;
+  assert.equal(fileStore.jimpMimeForExt('jpg'), Jimp.MIME_JPEG);
+  assert.equal(fileStore.jimpMimeForExt('JPEG'), Jimp.MIME_JPEG);
+  assert.equal(fileStore.jimpMimeForExt('gif'), Jimp.MIME_GIF);
+  assert.equal(fileStore.jimpMimeForExt('bmp'), Jimp.MIME_BMP);
+  assert.equal(fileStore.jimpMimeForExt('tiff'), Jimp.MIME_TIFF);
+  assert.equal(fileStore.jimpMimeForExt('png'), Jimp.MIME_PNG);
+  // 白名单外与未登记一律 png（与历史 mimeFromExt 的 default 分支逐字等价，零行为变化）
+  assert.equal(fileStore.jimpMimeForExt('webp'), Jimp.MIME_PNG);
+  assert.equal(fileStore.jimpMimeForExt(''), Jimp.MIME_PNG);
+});
+
 // ════════════════════════════════════════════════════════════════════════
 // utils/netProxy.ts
 // ════════════════════════════════════════════════════════════════════════

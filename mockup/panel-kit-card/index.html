@@ -18,6 +18,26 @@
    不补这条，hidden 的网格/详情会叠在一起（上一版重叠的根因） */
 [hidden]{display:none !important;}
 
+/* ── 本地装饰令牌（集中管理，消除散落裸色值；语义色复用 --mao-*） ── */
+:root{
+  --c-warn: var(--c-warn);                 /* 警示/星标黄（无对应令牌，本地集中） */
+  --c-warn-soft: var(--c-warn-soft);
+  --c-danger-soft: var(--c-danger-soft);
+  --c-danger-trace: var(--c-danger-trace);
+  --c-danger-faint: var(--c-danger-faint);
+  --c-scrim-60: var(--c-scrim-60);
+  --c-scrim-72: var(--c-scrim-72);
+  --c-scrim-55: var(--c-scrim-55);
+  --c-scrim-50: var(--c-scrim-50);
+  --c-scrim-45: var(--c-scrim-45);
+  --c-white-92: var(--c-white-92);
+  --c-white-85: var(--c-white-85);
+  --c-white-14: var(--c-white-14);
+  --c-accent-16: var(--c-accent-16);
+  --c-accent-40: var(--c-accent-40);
+  --c-accent-22: var(--c-accent-22);
+}
+
 /* ── 页面骨架 ── */
 *{margin:0;padding:0;box-sizing:border-box;}
 button,input,textarea{font:inherit;color:inherit;}
@@ -45,7 +65,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 /* ── 面板外壳 760×560 ── */
 .pk-card{position:relative;width:760px;height:560px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;
   background:rgb(var(--mao-input));border:1px solid rgb(var(--mao-edge-faint));border-radius:16px;
-  box-shadow:0 24px 60px rgba(0,0,0,.6);}
+  box-shadow:0 24px 60px var(--c-scrim-60);}
 
 /* 顶栏：纯文字 tab（参考简洁稿） */
 .pk-head{display:flex;align-items:center;gap:8px;padding:12px 12px 0;}
@@ -120,17 +140,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 .rcard>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
 .rcard>video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
 .rcard .name{position:absolute;left:0;right:0;bottom:0;padding:18px 12px 9px;
-  background:linear-gradient(to top,rgba(0,0,0,.72),transparent);}
-.rcard .name p{font-size:12px;line-height:1.4;color:rgba(255,255,255,.92);
+  background:linear-gradient(to top,var(--c-scrim-72),transparent);}
+.rcard .name p{font-size:12px;line-height:1.4;color:var(--c-white-92);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .rcard .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:32px;height:32px;
-  border-radius:50%;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;color:#fff;
+  border-radius:50%;background:var(--c-scrim-45);display:flex;align-items:center;justify-content:center;color:var(--mao-text-strong);
   pointer-events:none;opacity:0;transition:opacity .15s;}
 .rcard:hover .play{opacity:1;}
 /* 提示词卡：无真实封面，用分类色渐变 + 名称，不借图（借图会图文错位） */
 .rcard.txt{display:flex;flex-direction:column;justify-content:flex-end;padding:12px;}
 .rcard.txt .catlbl{position:absolute;left:10px;top:10px;font-size:10px;padding:1px 7px;border-radius:5px;
-  background:rgba(255,255,255,.14);color:rgba(255,255,255,.85);}
+  background:var(--c-white-14);color:var(--c-white-85);}
 .rcard.txt .name{background:none;padding:0;}
 .rcard.txt .name p{font-size:13px;color:rgb(var(--mao-text-strong));white-space:normal;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
@@ -175,8 +195,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 .pk-btn.add-ico{width:28px;height:28px;padding:0;flex:none;border-radius:8px;justify-content:center;
   border-color:rgb(var(--mao-edge));color:rgb(var(--mao-text-faint));background:transparent;}
 .pk-btn.add-ico:hover{border-color:rgb(var(--mao-edge-strong));color:rgb(var(--mao-text-primary));background:rgb(var(--mao-surface-hover));}
-.pk-btn.danger{color:#ef4444;border-color:rgba(239,68,68,.4);background:transparent;}
-.pk-btn.danger:hover{background:rgba(239,68,68,.1);border-color:#ef4444;}
+.pk-btn.danger{color:var(--mao-danger);border-color:var(--c-danger-soft);background:transparent;}
+.pk-btn.danger:hover{background:var(--c-danger-trace);border-color:var(--mao-danger);}
 
 /* 编辑器浮层：新增 / 编辑提示词 */
 .pk-editor{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;
@@ -198,12 +218,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 /* 卡片「⋯」菜单：编辑 / 删除 */
 .pk-menu{position:absolute;z-index:40;min-width:108px;padding:4px;
   background:rgb(var(--mao-input));border:1px solid rgb(var(--mao-edge-strong));
-  border-radius:9px;box-shadow:0 12px 30px rgba(0,0,0,.5);}
+  border-radius:9px;box-shadow:0 12px 30px var(--c-scrim-50);}
 .pk-menu button{display:flex;align-items:center;gap:7px;width:100%;padding:7px 9px;border:0;
   background:transparent;border-radius:6px;cursor:pointer;color:rgb(var(--mao-text-primary));font-size:12px;text-align:left;}
 .pk-menu button:hover{background:rgb(var(--mao-surface-hover-strong));}
-.pk-menu button.danger{color:#ef4444;}
-.pk-menu button.danger:hover{background:rgba(239,68,68,.12);}
+.pk-menu button.danger{color:var(--mao-danger);}
+.pk-menu button.danger:hover{background:var(--c-danger-faint);}
 
 /* MJ 详情态：左大图 + 右信息（4 种插入模式 + textarea + 复制/插入正文） */
 .mj-detail{flex:1;min-height:0;display:flex;gap:14px;padding:12px 14px;overflow:auto;}
@@ -225,21 +245,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
   border-radius:8px;border:1px solid rgb(var(--mao-edge));background:rgb(var(--mao-surface-hover));
   color:rgb(var(--mao-text-primary));font-size:11px;}
 .pk-btn:hover{border-color:rgb(var(--mao-edge-strong));color:rgb(var(--mao-text-strong));}
-.pk-btn.primary{background:rgb(var(--mao-accent));border-color:rgb(var(--mao-accent));color:#fff;}
-.pk-btn.primary:hover{background:rgb(var(--mao-accent) / .88);border-color:rgb(var(--mao-accent));color:#fff;}
+.pk-btn.primary{background:rgb(var(--mao-accent));border-color:rgb(var(--mao-accent));color:var(--mao-text-strong);}
+.pk-btn.primary:hover{background:rgb(var(--mao-accent) / .88);border-color:rgb(var(--mao-accent));color:var(--mao-text-strong);}
 
 /* 提示条：浮动居中，不挤布局，2.4s 自动消失 */
 .pk-toast{position:absolute;left:50%;bottom:46px;transform:translateX(-50%);z-index:20;
   display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:9px;white-space:nowrap;
   background:rgb(var(--mao-accent) / .14);border:1px solid rgb(var(--mao-accent) / .4);
-  color:rgb(var(--mao-accent-strong));font-size:11px;box-shadow:0 8px 24px rgba(0,0,0,.5);
+  color:rgb(var(--mao-accent-strong));font-size:11px;box-shadow:0 8px 24px var(--c-scrim-50);
   animation:toastIn .18s ease-out;}
 .pk-toast b{font-weight:600;}
 @keyframes toastIn{from{opacity:0;transform:translate(-50%,6px);}to{opacity:1;transform:translate(-50%,0);}}
 
 /* 节点小卡（示意底栏入口） */
 .nodemock{width:760px;background:rgb(var(--mao-surface-panel-2));border:1px solid rgb(var(--mao-edge-faint));
-  border-radius:14px;padding:14px;box-shadow:0 24px 60px rgba(0,0,0,.55);}
+  border-radius:14px;padding:14px;box-shadow:0 24px 60px var(--c-scrim-55);}
 .nodemock .hd{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;
   color:rgb(var(--mao-text-strong));margin-bottom:10px;}
 .nodemock .hd .d{width:8px;height:8px;border-radius:50%;background:rgb(var(--mao-accent));}
@@ -256,11 +276,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 
 /* 富文本胶囊：逐字复制 src/index.css:717-779 */
 .prompt-chip{display:inline-flex;align-items:center;gap:4px;max-width:180px;margin:0 2px;padding:2px 6px 2px 6px;
-  border-radius:6px;background:rgba(59,130,246,.16);border:1px solid rgba(59,130,246,.4);
+  border-radius:6px;background:var(--c-accent-16);border:1px solid var(--c-accent-40);
   color:rgb(var(--mao-accent-strong) / 1);font-size:12px;line-height:1.4;vertical-align:middle;
   user-select:none;-webkit-user-select:none;cursor:default;box-sizing:border-box;}
 .prompt-chip-icon{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:18px;height:18px;
-  border-radius:4px;background:rgba(59,130,246,.22);font-size:11px;line-height:1;overflow:hidden;
+  border-radius:4px;background:var(--c-accent-22);font-size:11px;line-height:1;overflow:hidden;
   box-sizing:border-box;margin-left:-3px;}
 .prompt-chip-icon.has-thumbnail{background:transparent;width:22px;height:22px;border-radius:4px;padding:0;margin-left:-3px;}
 .prompt-chip-thumb{width:100%;height:100%;object-fit:cover;object-position:center;display:block;
@@ -674,7 +694,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
         ? '搜索「' + state.q + '」· 匹配 ' + list.length + ' 个'
         : (state.cat ? state.cat + ' · ' : '全部 · 共 ' + sum + ' ') + meta.unit + '（本屏示例 ' + list.length + '）';
     }
-    $('behavior').innerHTML = '<span class="tag fix" style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;margin-right:6px;color:#fcd34d;border:1px solid rgba(234,179,8,.35)">点击之后</span>' + meta.behavior;
+    $('behavior').innerHTML = '<span class="tag fix" style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;margin-right:6px;color:var(--c-warn);border:1px solid var(--c-warn-soft)">点击之后</span>' + meta.behavior;
   }
 
   function renderDetail(it) {
@@ -706,7 +726,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
         '</div>' +
       '</div>';
     $('foot').textContent = state.mjCat + ' · ' + it.id.toUpperCase();
-    $('behavior').innerHTML = '<span class="tag fix" style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;margin-right:6px;color:#fcd34d;border:1px solid rgba(234,179,8,.35)">点击之后</span>' + TAB_META.mj.behavior;
+    $('behavior').innerHTML = '<span class="tag fix" style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;margin-right:6px;color:var(--c-warn);border:1px solid var(--c-warn-soft)">点击之后</span>' + TAB_META.mj.behavior;
 
     var MODE = { codes: it.codes, parameters: it.parameters, prompt: it.prompt, vibe: it.vibe };
     var setText = function (m) { $('mjText').value = MODE[m] || ''; };
