@@ -369,7 +369,7 @@ canvas/useCanvasEventSubscriptions（3 全局订阅收拢）
 
 `hooks/useConnectedInputs.ts`：
 ① `SINGLE_OUTPUT_FIELDS`（单 URL 产出，**字段名由写侧显式声明**：assetNode/imageGenerateNode→`assetUrl`、videoGenerateNode→`videoUrl`、panoramaNode/director3dNode→`assetUrl`）；
-② `NODE_OUTPUTS`（复合产出：scriptBoxNode 多端口 / imageBoxNode 多图 / videoExtract·gridSplit·gridMerge 的 `extractedImages[]` 归一）；
+② `NODE_OUTPUTS`（复合产出：scriptBoxNode 多端口 / imageBoxNode 多图 / videoExtract·gridSplit·gridMerge 的 `extractedImages[]` 归一；gridSplit 的切片值已物化为 `/files/` 持久 URL，不再进快照）；
 ③ `NO_OUTPUT_NODE_TYPES`（group / ghostTarget / faceMosaicNode / loopNode / videoProcessNode —— 无自有产出，结果经 spawn 子节点交付）；
 ④ `SPECIAL_OUTPUT_TYPES`（textGenerateNode 读 node.id 特判）。
 调度序 = 无产出 → 单 URL → 复合 → 特判 → **安全网**；`genericOutput` 只服务未登记类型，不承担契约。覆盖性 = `uncoveredOutputNodeTypes()`（纯函数 + 单测 + dev 告警）。
@@ -414,10 +414,11 @@ canvas/useCanvasEventSubscriptions（3 全局订阅收拢）
 查看器：editors/ImageZoomDialog（命令式 showModal）· editors/PanoViewer（← PanoramaNode）· ui/VideoThumbnail · ui/LazyImage
 摄影参数：editors/cameraParams/*（← ImageGenerate）
 产出落盘：编辑器结果统一经 filesApi.showThenPersistInline（唯一「图像入节点落盘」出口）→ 写回节点
+canvas 产出：全库 canvas → 图像 dataURL 统一经 core/utils.canvasToImageDataUrl（唯一出口，**产出即校验**）
+            ⚠️ 该约束**只有注释与调用方纪律，无机器守卫**（曾加 check-canvas-to-dataurl 闸，同日按用户裁定删除）
 ```
 
 **⚠️ 别混用**：`editors/cameraParams/*` 与 3D 摄影棚 `editors/cameraStudio.ts · CameraStudioPanel` 是**两套独立功能**（后者见 §九）。
-**已知未纳入**：合成节点 `GridMergeNode` 尚未接 `showThenPersistInline`（TD-06-6）。
 
 ---
 
@@ -528,7 +529,7 @@ nodeRuntimeStore.ts（纯内存瞬态 map，不落盘）（抽审，欠深审）
        └─ image/video：relay-poll 注册句柄（submit 即返 taskId，GET attach 收结果）
    → generateEngine → ai-relay/（protocol kit + providerCatalog + generate.ts 能力）
    → 出站：厂商直连 lgw.lovart.ai（Lovart 需 VPN，经 fetchWithProxy 代理）
-   → 结果：saveRemoteUrl 落盘成本地 /files/ url → 统一 {code,data} 回前端
+   → 结果：saveRemoteUrl 落盘成本地 /files/ url（内容寻址 sha1(字节) + contentId 去重，contentId 随 {code,data} 信封回传）→ 统一 {code,data} 回前端
 ```
 
 > ⚠️ 旧网关（`:9004`）已随 lovart-old 旧轨退役，**不再存在**该环节。

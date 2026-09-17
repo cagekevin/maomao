@@ -35,7 +35,7 @@ import { uploadFileToLocal } from '../base/api/index.ts';
 import { runGenerationContract } from '../base/store/generationContract.ts';
 import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import { detectFileType } from '../base/utils/assetType.ts';
-import { fileNameFromUrl } from '../base/core/utils.ts';
+import { fileNameFromUrl, canvasToImageDataUrl } from '../base/core/utils.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { logger } from '../base/core/logger.ts';
 
@@ -2118,5 +2118,5 @@ export async function captureVideoFrame(src: string, atFraction = 1): Promise<st
     maxSize: 480,
     errors: { load: '视频加载失败', dimensions: '视频尺寸不可用', context: 'Canvas 不可用' },
   });
-  return canvas.toDataURL('image/jpeg', 0.8);
+  return canvasToImageDataUrl(canvas, 'image/jpeg', 0.8);
 }

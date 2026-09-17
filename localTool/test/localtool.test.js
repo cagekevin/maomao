@@ -1217,6 +1217,46 @@ test('Files·thumbnail format 校验：webp 被拒回落源扩展名，白名单
   assert.match(j.headers['Content-Type'] || '', /image\/jpeg/, 'jpeg 白名单应产出 image/jpeg');
 });
 
+// 【2026-09-17 语义修正】「源格式不可缩」= 预期内的**本优化不适用**，不是端点出错 →
+// 302 回原图（浏览器能直接渲染 webp/avif 等），让所有消费方一次拿到可显示地址；
+// 原先返回 415，逼每个前端组件各自处理错误再各自回退 = 同一能力 N 份实现的复发土壤。
+test('Files·thumbnail 源为 webp（Jimp 能读不能写）→ 302 回原图，不是 415', async () => {
+  const webpDir = path.join(TEST_DIR, 'uploads', 'web');
+  fs.mkdirSync(webpDir, { recursive: true });
+  // 最小 1x1 webp 真字节（Jimp 可解码 → 只有「无编码器」这一条路，测的正是该判据）
+  fs.writeFileSync(
+    path.join(webpDir, 'src.webp'),
+    Buffer.from('UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==', 'base64'),
+  );
+  const r = await streamThumb(
+    'http://x/api/files/thumbnail?url=' + encodeURIComponent('/files/web/src.webp') + '&maxDim=64',
+  );
+  assert.equal(r.status, 302, '不可缩源应 302 回原图（不是 415 错误）');
+  assert.equal(r.headers.Location, '/files/web/src.webp', 'Location 必须指向原图');
+  // 必须可缓存：「该源不可缩」是文件的不变属性；no-store 会让每次渲染都重走一遍 302（重复请求 + 刷日志）
+  assert.match(r.headers['Cache-Control'] || '', /max-age/, '302 必须可缓存');
+});
+
+// 【2026-09-17 第二处语义修正】存量「名实不符」文件：`.jpg` 名装 webp 字节（旧命名 `sha1(url)_basename.jpg` 遗留）。
+// 上方 `isJimpEncodableExt('jpg')` 为真 → 短路信扩展名 → 先按 jpg 解码 → resize 失败 → 旧实现报 500
+// （把「本优化不适用」报成「端点故障」）。修正：resize 失败后再判字节真相，不可编码 → 302 回原图。
+test('Files·thumbnail 名实不符（.jpg 名 / webp 字节）→ 302 回原图，不是 500', async () => {
+  const dir = path.join(TEST_DIR, 'uploads', 'web');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'legacy.jpg'),
+    Buffer.from('UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==', 'base64'),
+  );
+  const r = await streamThumb(
+    'http://x/api/files/thumbnail?url=' +
+      encodeURIComponent('/files/web/legacy.jpg') +
+      '&maxDim=64',
+  );
+  assert.equal(r.status, 302, '名实不符的不可缩源应 302 回原图（不是 500）');
+  assert.equal(r.headers.Location, '/files/web/legacy.jpg', 'Location 必须指向原图');
+  assert.match(r.headers['Cache-Control'] || '', /max-age/, '302 必须可缓存（防每次渲染重复请求）');
+});
+
 test('Files·thumbnail 中文/空格文件名（含双重编码）能命中磁盘（对齐静态服务 decode）', async () => {
   const dir = path.join(TEST_DIR, 'uploads', 'migrated', '人物');
   fs.mkdirSync(dir, { recursive: true });

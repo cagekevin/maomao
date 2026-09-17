@@ -4,6 +4,7 @@ import 'react-image-crop/dist/ReactCrop.css';
 import { toastError } from '../core/toastStore.ts';
 import { loadImageWithTimeout } from '../utils/asyncGuard.ts';
 import { compressImage } from '../utils/imageCompress.ts';
+import { canvasToImageDataUrl } from '../core/utils.ts';
 
 /**
  * 就地裁剪浮层（极简，只做裁剪）。
@@ -159,7 +160,8 @@ export default function InlineImageCropper({ assetUrl, onSave, onClose }: Inline
       ctx.drawImage(drawImg, sx, sy, sw, sh, 0, 0, sw, sh);
       const m = /^data:([^;,]+)/.exec(clean.dataUrl);
       const outFormat = m && m[1] === 'image/jpeg' ? 'image/jpeg' : 'image/png';
-      onSave?.({ dataUrl: canvas.toDataURL(outFormat, 0.9) });
+      // 唯一出口：产出即校验（画布分配失败时 toDataURL 返回 "data:,"，此处直接抛错而非写回空图）
+      onSave?.({ dataUrl: canvasToImageDataUrl(canvas, outFormat, 0.9) });
       onClose?.();
     } catch (e) {
       toastError(`裁剪保存失败：${(e as { message?: string })?.message || '图片加载失败'}`);

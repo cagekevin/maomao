@@ -36,7 +36,8 @@ import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
 import { useFitNodeRatio } from '../../hooks/useFitNodeRatio.ts';
 import '../base/api/index.ts';
 import { logger } from '../base/core/logger.ts';
-import { fetchTasks, generateImage } from '../base/api/index.ts';
+import { generateImage } from '../base/api/index.ts';
+import { fetchTaskPage } from '../base/api/pagedList.ts';
 import { useNodePrefs, injectNodePrefs, PREFS_DEFAULTS } from '../base/canvas/nodePrefs.ts';
 import { commitNewNodes } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
@@ -230,12 +231,17 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     recoveredRef.current = true;
     if (data.assetUrl) return; // 已有图，不覆盖
     let cancelled = false;
-    fetchTasks({ pageSize: 1000 })
-      .then((d) => {
+    // 【按 nodeId 精确查（2026-09-17 修）】原 `fetchTasks({ pageSize: 1000 })`：后端把 pageSize
+    // **cap 到 100** ⇒ 任务数超 100 时**回填找不到**（用户刷新后丢图）—— 因为它在"以为的全量"里 find。
+    // 正确形态是**查询**而不是"拉全量再筛"：走后端 filters 等值（`node_id = ?`），
+    // 第 1 页即够（按 created_at DESC 取最新）。能精确查就不要取全量（见 api/pagedList.ts 文件头）。
+    fetchTaskPage({ nodeId: id })
+      .then((slice) => {
         if (cancelled) return;
-        const items = (d && d.data && d.data.items) || [];
-        const hit = items.find((t) => t.nodeId === id && t.status === 'completed' && t.resultUrl);
-        if (hit && hit.resultUrl) {
+        const hit = slice.items.find(
+          (t) => t.nodeId === id && t.status === 'completed' && t.resultUrl,
+        );
+        if (hit?.resultUrl) {
           setAssetUrl(hit.resultUrl);
           patchData({ assetUrl: hit.resultUrl });
         }

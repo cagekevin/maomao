@@ -3,6 +3,7 @@ import {
   drawVideoFrame,
   setCrossOriginForReadable,
 } from '../components/base/utils/captureFrame.ts';
+import { canvasToImageDataUrl } from '../components/base/core/utils.ts';
 
 /**
  * 视频首帧封面 hook。
@@ -22,7 +23,7 @@ import {
  *    替换本 hook 原有的 `startsWith('http')` 第二判据 —— 它在同源绝对地址下会误设、污染 canvas）；
  *  - `preload='metadata'`（首帧海报要快，不预载整片）；
  *  - 抓帧时刻 `0.05`（部分视频首帧是黑的，微调一帧）；
- *  - 输出 **原尺寸** `toDataURL('image/jpeg', 0.7)`；
+ *  - 输出 **原尺寸** jpeg 0.7，经唯一出口 `canvasToImageDataUrl`（产出即校验）；
  *  - **失败静默回退空串**（跨域污染是浏览器预期限制，不是缺陷 —— 保持原判据，勿改成抛错/提示）；
  *  - 卸载/换源时 `cancelled` 短路 + 清 `src`。
  *
@@ -51,8 +52,8 @@ export function useVideoPoster(url: string, enabled: boolean) {
     v.load();
     drawVideoFrame(v, { atTime: 0.05 })
       .then((canvas) => {
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        if (!cancelled && dataUrl) setPosterUrl(dataUrl);
+        const dataUrl = canvasToImageDataUrl(canvas, 'image/jpeg', 0.7);
+        if (!cancelled) setPosterUrl(dataUrl);
       })
       .catch(() => {
         // catch-ok: BROWSER_API

@@ -14,12 +14,10 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { PanelSubBar, PanelPills, PanelMoreMenu } from './PanelBar.tsx';
 import { useLocalToolStatus } from '../../../hooks/useLocalToolStatus.ts';
-import {
-  fetchResources,
-  rescanResources,
-  deleteResource,
-  renameResource,
-} from '../api/localToolApi.ts';
+import { rescanResources, deleteResource, renameResource } from '../api/localToolApi.ts';
+// 分页读取的唯一实现：此前本文件 `reset` 用 `items.length < total`、`loadMore` 用 `page < totalPages`
+// **两套 hasMore 判据**（M3），现统一走 `hasMoreOf`。
+import { fetchResourcePage, hasMoreOf } from '../api/pagedList.ts';
 import { showToast } from '../core/toastStore.ts';
 import {
   fetchText,
@@ -167,6 +165,13 @@ function ResourceLibrary() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  /**
+   * 「加载下一页」的失败原因（null = 无错误）。
+   * 【为什么必须有】此前翻页失败被 `catch { /* 忽略 *\/ }` 静默吞掉 → 列表停在半路，
+   * 用户看到的是"加载完了"，与事实相反（静默不完整）。失败读者 = 用户 ⇒ 用**持续可见**的
+   * UI 状态（不是 toast，toast 逝去即失明）+ 「点击重试」入口。
+   */
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   // 外部事件驱动的**重拉信号**（机制，不是兜底）：`resource:sent` 自带目标目录，而目标目录可能与
   // 本面板当前目录**相同** —— setFolder 同值不触发上面的 effect，故需这个单调递增信号保证
   // 「同目录再发送也重拉」。两 state 各司其职（目录 / 重拉信号），React 批处理合并为一次 effect。
@@ -181,6 +186,8 @@ function ResourceLibrary() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef(1);
   const loadingRef = useRef(false);
+  /** 失败后阻断自动重试（防滚动无限重试 + 刷日志）；用 ref 而非 state —— 重试入口需要**同步**解除。 */
+  const loadMoreBlockedRef = useRef(false);
   const resetTokenRef = useRef(0);
 
   const currentFolder = folder || LIBRARY_ROOT; // 当前目录（用于拉取/打开本地/上传落点）
@@ -214,22 +221,18 @@ function ResourceLibrary() {
       if (!connected) return;
       const token = ++resetTokenRef.current;
       setLoading(true);
+      setLoadMoreError(null);
+      loadMoreBlockedRef.current = false;
       pageRef.current = 1;
       try {
         if (rescan) await rescanResources();
-        const data = await fetchResources({
-          // 根目录 = 精确（只看待归类）；子目录 = 前缀（含更深子目录）—— 见 fetchArgsFor 注释。
-          ...fetchArgsFor(),
-          page: 1,
-          pageSize: PAGE_SIZE,
-          projectId,
-        });
+        // 根目录 = 精确（只看待归类）；子目录 = 前缀（含更深子目录）—— 见 fetchArgsFor 注释。
+        const slice = await fetchResourcePage({ ...fetchArgsFor(), projectId }, 1, PAGE_SIZE);
         if (token !== resetTokenRef.current) return;
-        const d = data?.data;
-        setItems(d?.items || []);
-        mergeResourcesFromBackend(d?.items || []);
-        setTotal(d?.total || 0);
-        setHasMore((d?.items || []).length < (d?.total || 0));
+        setItems(slice.items);
+        mergeResourcesFromBackend(slice.items);
+        setTotal(slice.total);
+        setHasMore(hasMoreOf(slice));
       } catch (e) {
         logger.warn(
           'ResourceLibrary',
@@ -263,31 +266,29 @@ function ResourceLibrary() {
 
   // 加载下一页并追加（无限滚动）
   const loadMore = useCallback(async () => {
-    if (!connected || loadingRef.current || !hasMore) return;
+    // 失败后**不自动重试**（否则滚动会无限重试 + 刷日志）：等用户点「重试」解除阻断再走。
+    if (!connected || loadingRef.current || !hasMore || loadMoreBlockedRef.current) return;
     loadingRef.current = true;
     setLoading(true);
+    setLoadMoreError(null);
     const next = pageRef.current + 1;
     try {
-      const data = await fetchResources({
-        // 与 reset 同口径（根目录精确 / 子目录前缀），否则翻页会串入已归类素材。
-        ...fetchArgsFor(),
-        page: next,
-        pageSize: PAGE_SIZE,
-        projectId,
+      // 与 reset 同口径（根目录精确 / 子目录前缀），否则翻页会串入已归类素材。
+      const slice = await fetchResourcePage({ ...fetchArgsFor(), projectId }, next, PAGE_SIZE);
+      setItems((prev) => {
+        const seen = new Set(prev.map((x) => x.id));
+        return [...prev, ...slice.items.filter((x) => !seen.has(x.id))];
       });
-      const d = data?.data;
-      if (d?.page && d.page > 1) {
-        setItems((prev) => {
-          const seen = new Set(prev.map((x) => x.id));
-          return [...prev, ...(d.items || []).filter((x) => !seen.has(x.id))];
-        });
-      }
-      pageRef.current = d.page || next;
-      setTotal(d.total || 0);
-      setHasMore((d.items || []).length > 0 && (d.page ?? 0) < (d.totalPages || 1));
-      mergeResourcesFromBackend(d.items || []);
-    } catch {
-      /* 忽略下一页失败 */
+      pageRef.current = slice.page;
+      setTotal(slice.total);
+      setHasMore(hasMoreOf(slice));
+      mergeResourcesFromBackend(slice.items);
+    } catch (e) {
+      // 失败可见（读者 = 用户）：此前这里是静默吞 → 用户把"加载失败"读成"已经到底"。
+      const message = e instanceof Error ? e.message : String(e);
+      logger.warn('ResourceLibrary', '加载下一页失败', message);
+      loadMoreBlockedRef.current = true;
+      setLoadMoreError(message);
     } finally {
       loadingRef.current = false;
       setLoading(false);
@@ -667,7 +668,20 @@ function ResourceLibrary() {
             {loading && (
               <div className="py-3 text-center text-caption-sm text-faint">加载中...</div>
             )}
-            {!loading && !hasMore && items.length > 0 && (
+            {/* 翻页失败：持续可见 + 可重试（读者 = 用户；此前这里静默吞 → 用户读成"到底了"） */}
+            {!loading && loadMoreError && (
+              <button
+                className="w-full py-3 text-center text-caption-sm text-red-400 hover:text-red-300 transition-colors cursor-pointer border-none bg-transparent"
+                title={loadMoreError}
+                onClick={() => {
+                  loadMoreBlockedRef.current = false;
+                  void loadMore();
+                }}
+              >
+                加载更多失败 · 点击重试
+              </button>
+            )}
+            {!loading && !loadMoreError && !hasMore && items.length > 0 && (
               <div className="py-3 text-center text-caption-sm text-subtle">
                 已全部加载（共 {total} 个）
               </div>

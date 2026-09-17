@@ -78,14 +78,18 @@ export interface MediaRef {
 export interface MediaRefQuery {
   /** 项目 id（素材库按项目隔离用） */
   projectId?: string;
-  /** 关键词（按 name 模糊匹配；空则不过滤） */
+  /**
+   * 关键词（空则不过滤）。
+   * 【2026-09-17 修正】原写"按 name 模糊匹配"——那描述的是**已被删除的前端页内过滤**。
+   * 现由 provider 透传为后端 `search`（多列 LIKE），搜索范围是**全量**而不是"已加载页"。
+   */
   keyword?: string;
   /** 只要这些类型 */
   types?: MediaRefType[];
   /**
    * 素材库目录**前缀**（`library` 与 `generated` 两来源共用：后者固定传 `tasks`；空 = 不过滤）。
    * 【为什么放这里而不是各写一个 provider】素材库与「生成」都是 `fetchResources` 的不同目录
-   * （生成 = 硬编码 `tasks`，见 GeneratedView.tsx:176；素材库 = 用户目录）。
+   * （生成 = 硬编码 `tasks`，见 `generatedSource.GENERATED_FOLDER`；素材库 = 用户目录）。
    * 二者是**同一读取路径的参数差异**，不是两种来源实现 —— 用一个 `folder` 参数表达，
    * 避免把 `fetchResources` 的映射逻辑抄两份（M3 母体）。
    * 更新(2026-09-17 注释改正)：原写「仅 `library` provider 消费」不实 —— `generatedSource.list`

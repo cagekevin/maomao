@@ -1,3 +1,11 @@
+/**
+ * 上游 → 下游连线数据传递 + 产出聚合（getNodeOutput）唯一入口（CLAUDE.md §5.4(9)：统一走 NodeShell/useConnectedInputs 唯一入口，禁止各节点旁路）。
+ *
+ * 本模块是「连线数据自动传递」机制的唯一实现：下游生成时实时从直接上游读取 text/image/video/audio 产出，作为参考输入。
+ * 所有节点一律经此聚合上游，禁止在节点内手抄 getNodes/getEdges 遍历上游的样板（历史多份散落已收口）。
+ * 产出字段真源见下方 SINGLE_OUTPUT_FIELDS / NODE_OUTPUTS 等表（TD-02-11 收口）。
+ */
+
 import { useCallback, useMemo } from 'react';
 import { useStore, type Node, type Edge } from '@xyflow/react';
 import {

@@ -12,7 +12,7 @@
  */
 import { memo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
+import { useImageFallbackSrc } from '../base/utils/useImageFallbackSrc.ts';
 import { extractImageSpans, type ImageSpan } from './markdownImages.ts';
 
 /** 行内匹配模式（含 markdown 图片，由外层切图先处理） */
@@ -110,7 +110,42 @@ function InlineContent({ value }: { value: string }) {
 }
 
 /**
- * 行内图片渲染：在给定的行内文本里抽取图片段，图片渲染成 <LazyImage>（点击放大），
+ * 消息内单张图片：显示地址 + 两段失败回退走**唯一实现** `useImageFallbackSrc`
+ * （与 LazyImage / 画布节点同一策略，不再裸 `<img>` 各写一份失败处理）。
+ * 抽成独立组件是因为 hook 不能在循环/条件分支里调用（图片由 InlineWithImages 循环产出）。
+ * 更新(2026-09-17)：此前直接 `resolve(s.url)` 喂裸 `<img>` —— 缩略图端点失败即裂图且无回退。
+ */
+const MarkdownImage = memo(function MarkdownImage({
+  url,
+  onOpen,
+}: {
+  url: string;
+  onOpen?: (url: string) => void;
+}) {
+  const { src, failed, onError } = useImageFallbackSrc(url);
+  if (failed) {
+    return (
+      <span className="my-1 block text-caption-sm text-muted" title="图片加载失败">
+        图片加载失败
+      </span>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onError={onError}
+      onClick={() => onOpen?.(url)}
+      className="my-1 block w-full max-w-[280px] h-auto max-h-[240px] object-contain cursor-zoom-in"
+      title="点击查看大图"
+    />
+  );
+});
+
+/**
+ * 行内图片渲染：在给定的行内文本里抽取图片段，图片渲染成 <MarkdownImage>（点击放大），
  * 其余文本交给 InlineContent 做行内 markdown 解析。
  */
 function InlineWithImages({
@@ -120,7 +155,6 @@ function InlineWithImages({
   value: string;
   onOpenImage?: (url: string) => void;
 }) {
-  const resolve = useRenderAssetResolver();
   const spans = extractImageSpans(value);
   if (spans.length === 0) return <InlineContent value={value} />;
   const nodes: ReactNode[] = [];
@@ -128,18 +162,7 @@ function InlineWithImages({
   spans.forEach((s: ImageSpan, i) => {
     if (s.start > last)
       nodes.push(<InlineContent key={`t${i}`} value={value.slice(last, s.start)} />);
-    nodes.push(
-      <img
-        key={`i${i}`}
-        src={resolve(s.url)}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        onClick={() => onOpenImage?.(s.url)}
-        className="my-1 block w-full max-w-[280px] h-auto max-h-[240px] object-contain cursor-zoom-in"
-        title="点击查看大图"
-      />,
-    );
+    nodes.push(<MarkdownImage key={`i${i}`} url={s.url} onOpen={onOpenImage} />);
     last = s.end;
   });
   if (last < value.length)

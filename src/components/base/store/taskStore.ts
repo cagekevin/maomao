@@ -20,13 +20,9 @@
 import { useSyncExternalStore } from 'react';
 import { logger } from '../core/logger.ts';
 import { createDebouncedPersist } from '../core/contentStore.ts';
-import {
-  fetchTasks,
-  saveTask,
-  deleteTask,
-  batchDeleteTasks,
-  clearAllTasksApi,
-} from '../api/localToolApi.ts';
+import { saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from '../api/localToolApi.ts';
+// 取全量任务（分页读取的唯一实现）：见 initTasks 注释（原「请求 500」实际只拿到 100）。
+import { fetchAllTaskPages } from '../api/pagedList.ts';
 import { publishTaskCompleted } from './taskCompletionBus.ts';
 import { generateId } from '../core/idGen.ts';
 import { GEN_MAX_CONCURRENT } from '../core/config.ts';
@@ -91,11 +87,14 @@ let loaded = false;
 export function initTasks(): void {
   if (loaded) return;
   loaded = true;
-  fetchTasks({ pageSize: 500 })
-    .then((data) => {
-      const items = Array.isArray(data?.data?.items) ? (data.data.items as Task[]) : [];
+  // 【取全量（2026-09-17 修）】原 `fetchTasks({ pageSize: 500 })`——后端把 pageSize **硬性 cap 到 100**
+  // （`localTool/src/utils/helpers.ts::parsePagination`）⇒ 实际只拿到 100 条；而本处按"这是全量"使用
+  // （任务中心列表 + 「清理全部」计数 + pollTask 查找），**任务数超 100 时历史静默缺失**。
+  // 现走「取全量」的唯一实现（`api/pagedList` 按 totalPages 取齐，不抄上限）。
+  fetchAllTaskPages()
+    .then((items) => {
       if (items.length > 0) {
-        tasks = items;
+        tasks = items as Task[];
         notify();
       }
     })

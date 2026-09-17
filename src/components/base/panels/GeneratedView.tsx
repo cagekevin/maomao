@@ -11,12 +11,9 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useLocalToolStatus } from '../../../hooks/useLocalToolStatus.ts';
-import {
-  fetchResources,
-  rescanResources,
-  deleteResource,
-  renameResource,
-} from '../api/localToolApi.ts';
+import { rescanResources, deleteResource, renameResource } from '../api/localToolApi.ts';
+// 分页读取的唯一实现（读一页 + hasMore/totalPages 判据）：与素材库面板/导入弹窗同源。
+import { fetchResourcePage } from '../api/pagedList.ts';
 import { showToast } from '../core/toastStore.ts';
 import {
   useResourceCardDragProps,
@@ -31,6 +28,9 @@ import {
   createFolder as createFolderApi,
 } from '../api/filesApi.ts';
 import { PanelSubBar, PanelPills, PanelMoreMenu } from './PanelBar.tsx';
+// 【同母体第 4 处（2026-09-17 修）】此前本面板拉取**不传 projectId**，而素材库面板/剧本盒都传
+// （后者还专门修过 TD-12-5）⇒ 同一件事（按项目隔离素材）三处口径，必然漂移。现统一。
+import { useCurrentProjectId } from '../store/projectStore.ts';
 import { logger } from '../core/logger.ts';
 import { subscribe } from '../core/eventBus.ts';
 import { isAudio } from '../utils/assetType.ts';
@@ -139,6 +139,8 @@ const TextPreview = React.memo(function TextPreview({ url, name }: { url: string
 function GeneratedView() {
   const { status } = useLocalToolStatus();
   const connected = status.isConnected;
+  // docs/122 #3：与素材库面板同口径按当前项目拉取（此前本面板漏传 → 跨项目可见）。
+  const projectId = useCurrentProjectId();
 
   const [items, setItems] = useState<ResourceItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -173,17 +175,15 @@ function GeneratedView() {
       setPage(1);
       try {
         if (rescan) await rescanResources();
-        const data = await fetchResources({
-          folder,
-          page: 1,
-          pageSize: PAGE_SIZE,
-          type: typeFilter === 'all' ? undefined : typeFilter,
-        });
+        const slice = await fetchResourcePage(
+          { folder, type: typeFilter === 'all' ? undefined : typeFilter, projectId },
+          1,
+          PAGE_SIZE,
+        );
         if (token !== resetTokenRef.current) return; // 已被更新的请求覆盖
-        const d = data?.data;
-        setItems(d?.items || []);
-        setTotal(d?.total || 0);
-        setTotalPages(d?.totalPages || 1);
+        setItems(slice.items);
+        setTotal(slice.total);
+        setTotalPages(slice.totalPages);
       } catch (e) {
         logger.warn(
           'GeneratedView',
@@ -195,7 +195,7 @@ function GeneratedView() {
         if (token === resetTokenRef.current) setLoading(false);
       }
     },
-    [connected, folder, typeFilter],
+    [connected, folder, typeFilter, projectId],
   );
 
   // 点击上一页/下一页 → 加载指定页（对齐官方 Un.jsx：每页固定数量，只显示当前页，不追加）
@@ -206,25 +206,23 @@ function GeneratedView() {
       const token = ++resetTokenRef.current;
       setLoading(true);
       try {
-        const data = await fetchResources({
-          folder,
-          page: target,
-          pageSize: PAGE_SIZE,
-          type: typeFilter === 'all' ? undefined : typeFilter,
-        });
+        const slice = await fetchResourcePage(
+          { folder, type: typeFilter === 'all' ? undefined : typeFilter, projectId },
+          target,
+          PAGE_SIZE,
+        );
         if (token !== resetTokenRef.current) return;
-        const d = data?.data;
-        setItems(d?.items || []);
-        setTotal(d?.total || 0);
-        setTotalPages(d?.totalPages || 1);
-        setPage(d?.page || target);
+        setItems(slice.items);
+        setTotal(slice.total);
+        setTotalPages(slice.totalPages);
+        setPage(slice.page);
       } catch (e) {
         logger.warn('GeneratedView', '翻页加载失败', (e as { message?: string })?.message);
       } finally {
         if (token === resetTokenRef.current) setLoading(false);
       }
     },
-    [connected, folder, typeFilter, totalPages, loading],
+    [connected, folder, typeFilter, totalPages, loading, projectId],
   );
 
   // 首次挂载 + 过滤/目录变化 → 重置到第 1 页并 rescan

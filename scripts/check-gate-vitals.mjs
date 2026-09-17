@@ -68,21 +68,37 @@ function stripComments(src) {
  *   why      —— 无扫描根 / 无自检时的理由（**必填**，防"一句话绕过"）。
  */
 const GATES = {
-  api: { roots: null, selfCheck: null, why: '契约登记表比对（读 contracts.ts 与 router.ts），非目录遍历' },
+  api: {
+    roots: null,
+    selfCheck: null,
+    why: '契约登记表比对（读 contracts.ts 与 router.ts），非目录遍历',
+  },
   'node-types': { roots: ['src'], selfCheck: 'own', why: '' },
   'node-handles': { roots: ['src'], selfCheck: 'own', why: '' },
   'node-data': { roots: ['src'], selfCheck: 'own', why: '' },
   keys: { roots: ['src'], selfCheck: 'own', why: '' },
-  'type-check': { roots: null, selfCheck: 'external', why: '由 tsc 负责遍历，tsc 自身对"无输入"会报错' },
+  'type-check': {
+    roots: null,
+    selfCheck: 'external',
+    why: '由 tsc 负责遍历，tsc 自身对"无输入"会报错',
+  },
   any: { roots: ['src'], selfCheck: 'own', why: '' },
   catch: { roots: ['src'], selfCheck: 'own', why: '' },
   events: { roots: ['src'], selfCheck: 'own', why: '' },
   'strict-src': { roots: ['src'], selfCheck: 'own', why: '' },
-  arch: { roots: ['src'], selfCheck: 'own', why: '内部子规则（如 videoEditor/engine、ui、types）另有 assertScanned 逐条自检' },
+  arch: {
+    roots: ['src'],
+    selfCheck: 'own',
+    why: '内部子规则（如 videoEditor/engine、ui、types）另有 assertScanned 逐条自检',
+  },
   'dead-code': { roots: ['src'], selfCheck: 'own', why: '' },
   'arch-index': { roots: ['daily/架构日志'], selfCheck: 'own', why: '' },
   gates: { roots: null, selfCheck: null, why: '元层：读脚本头部注释，非扫描' },
-  'gate-vitals': { roots: null, selfCheck: null, why: '元层（本闸）：静态度量其它闸，自身不扫描代码' },
+  'gate-vitals': {
+    roots: null,
+    selfCheck: null,
+    why: '元层（本闸）：静态度量其它闸，自身不扫描代码',
+  },
   'doc-refs': { roots: ['src'], selfCheck: 'own', why: '' },
 };
 
@@ -110,24 +126,40 @@ const findings = []; // {id, level, msg}
 for (const id of registered) {
   const meta = GATES[id];
   if (!meta) {
-    findings.push({ id, level: 'error', msg: '未在 GATES 登记表里登记（新增闸必须登记：扫描根 + 自检类型）' });
+    findings.push({
+      id,
+      level: 'error',
+      msg: '未在 GATES 登记表里登记（新增闸必须登记：扫描根 + 自检类型）',
+    });
     continue;
   }
   // 2a. 扫描根必须存在
   if (meta.roots) {
     for (const r of meta.roots) {
       if (!existsSync(join(ROOT, r))) {
-        findings.push({ id, level: 'error', msg: `扫描根不存在：${r} → 该闸会**扫 0 但照常打印通过**（TD-22-53 同款）` });
+        findings.push({
+          id,
+          level: 'error',
+          msg: `扫描根不存在：${r} → 该闸会**扫 0 但照常打印通过**（TD-22-53 同款）`,
+        });
       }
     }
   }
   // 2b. 无扫描根必须写明理由
   if (!meta.roots && !meta.why) {
-    findings.push({ id, level: 'error', msg: 'roots 为 null 但未写 why（防"一句话绕过"，理由必填）' });
+    findings.push({
+      id,
+      level: 'error',
+      msg: 'roots 为 null 但未写 why（防"一句话绕过"，理由必填）',
+    });
   }
   // 2c. 有扫描根就应有基数自检
   if (meta.roots && !meta.selfCheck) {
-    findings.push({ id, level: 'warn', msg: '有扫描根但未声明基数自检 → 建议加"扫到 0 即 fail-loud"（TD-02-9 同款）' });
+    findings.push({
+      id,
+      level: 'warn',
+      msg: '有扫描根但未声明基数自检 → 建议加"扫到 0 即 fail-loud"（TD-02-9 同款）',
+    });
   }
   // 2d. 声称自己实现了自检 → 源码里应能找到痕迹（防"声明了但没做"）
   if (meta.selfCheck === 'own') {
@@ -146,8 +178,7 @@ for (const id of registered) {
          *  —— 不要求两个条件在同一行（实测常分处两行）。
          */
         const zeroCheck =
-          /(?:\.length|\.size)\s*===?\s*0/.test(src) ||
-          /\bassertScanned\b/.test(src);
+          /(?:\.length|\.size)\s*===?\s*0/.test(src) || /\bassertScanned\b/.test(src);
         const failLoud = /process\.exit\(\s*[1-9]/.test(src) || /throw new Error/.test(src);
         if (!(zeroCheck && failLoud)) {
           findings.push({
@@ -166,7 +197,12 @@ for (const id of missing) {
     findings.push({ id, level: 'error', msg: '闸清单里有，但 GATES 登记表没有' });
   }
 }
-for (const id of stale) findings.push({ id, level: 'warn', msg: 'GATES 登记表里有，但闸清单已无此闸（可能已退役，请删登记行）' });
+for (const id of stale)
+  findings.push({
+    id,
+    level: 'warn',
+    msg: 'GATES 登记表里有，但闸清单已无此闸（可能已退役，请删登记行）',
+  });
 
 const errors = findings.filter((f) => f.level === 'error');
 const warns = findings.filter((f) => f.level === 'warn');
@@ -181,7 +217,9 @@ console.log(`   在册 ${registered.length} 道 · 静态检查扫描根存在�
 
 for (const id of registered) {
   const meta = GATES[id];
-  const roots = meta?.roots ? meta.roots.join(',') : '（无·' + (meta?.why?.slice(0, 24) ?? '?') + '…）';
+  const roots = meta?.roots
+    ? meta.roots.join(',')
+    : '（无·' + (meta?.why?.slice(0, 24) ?? '?') + '…）';
   const bad = findings.filter((f) => f.id === id);
   const mark = bad.some((f) => f.level === 'error') ? '❌' : bad.length ? '⚠️ ' : '✅';
   console.log(`   ${mark} ${id.padEnd(14)} 扫描根: ${roots}`);

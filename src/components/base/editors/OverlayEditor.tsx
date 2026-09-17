@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { useDebouncedEffect, createRafBatch } from '../core/utils.ts';
+import { useDebouncedEffect, createRafBatch, canvasToImageDataUrl } from '../core/utils.ts';
 import { createPortal } from 'react-dom';
 import {
   Box,
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toAbsoluteFileUrl } from '../api/filesApi.ts';
 import { releaseQuietly } from '../utils/asyncGuard.ts';
+import { logger } from '../core/logger.ts';
 
 /* ════════════════════════════════════════════════════════════════
  * 叠加图层编辑器
@@ -153,7 +154,7 @@ export const renderOverlayCanvas = async ({
     ctx.drawImage(t, l.x, l.y, t.width * l.scale, t.height * l.scale);
     ctx.restore();
   }
-  return canvas.toDataURL('image/png');
+  return canvasToImageDataUrl(canvas, 'image/png');
 };
 
 export default function OverlayEditor({ state, onChange, upstreamUrls }: OverlayEditorProps) {
@@ -454,9 +455,15 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
 
   const applyMask = useCallback(() => {
     const canvas = paintCanvasRef.current;
-    if (!canvas) return;
-    if (!paintLayerId) return;
-    updateLayer(paintLayerId, { maskUrl: canvas.toDataURL('image/png') });
+    if (!canvas || !paintLayerId) return;
+    // 遮罩经唯一出口校验。产不出时**不写入坏遮罩**（写入 `"data:,"` 会让涂抹静默失效、
+    // 且遮罩被当成有效值存进图层），改为保留上一次遮罩 + 开发者可见告警。
+    // 这不是兜底：错误在此处被显式上报，而不是被伪装成一次"成功"。
+    try {
+      updateLayer(paintLayerId, { maskUrl: canvasToImageDataUrl(canvas, 'image/png') });
+    } catch (e) {
+      logger.error('OverlayEditor', '遮罩生成失败，已保留上一次遮罩', e);
+    }
   }, [paintLayerId, updateLayer]);
 
   const finishPaint = useCallback(() => {

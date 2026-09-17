@@ -18,7 +18,8 @@ import {
   MOSAIC_PALETTE,
   MosaicMode,
 } from '../utils/faceMosaic.ts';
-import { createRafBatch } from '../core/utils.ts';
+import { createRafBatch, canvasToImageDataUrl } from '../core/utils.ts';
+import { toastError } from '../core/toastStore.ts';
 import { loadImageOrNull } from '../utils/asyncGuard.ts';
 import FullscreenShell from '../panels/FullscreenShell.tsx';
 
@@ -271,7 +272,16 @@ export default function FaceMosaicEditor({ assetUrl, onSave, onClose }: FaceMosa
           <button
             onClick={() => {
               const c = canvasRef.current;
-              if (c) onSave?.(c.toDataURL('image/png'));
+              if (!c) return;
+              // 打码图经唯一出口校验。产不出时**必须让用户看见**：静默失败会让用户以为
+              // 已经打了码并保存（隐私风险），所以这里是对用户可见的失败路径，不是兜底。
+              try {
+                onSave?.(canvasToImageDataUrl(c, 'image/png'));
+              } catch (e) {
+                toastError(
+                  `打码保存失败：${(e as { message?: string })?.message || '图片编码出错'}`,
+                );
+              }
             }}
             className="flex items-center gap-1 px-3 h-7 rounded-md text-[12px] font-medium bg-white text-[#141414] hover:bg-gray-200 cursor-pointer border-none"
           >

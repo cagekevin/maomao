@@ -195,15 +195,12 @@ describe('providers：映射（复用既有真源）', () => {
   });
 
   it('★分类（第二层）由 provider 声明：library = 4 目录项；generated = 4 类型项；canvas 无分类', async () => {
-    const { librarySourceProvider } = await import(
-      '../../src/components/base/media/providers/librarySource'
-    );
-    const { generatedSourceProvider } = await import(
-      '../../src/components/base/media/providers/generatedSource'
-    );
-    const { canvasSourceProvider } = await import(
-      '../../src/components/base/media/providers/canvasSource'
-    );
+    const { librarySourceProvider } =
+      await import('../../src/components/base/media/providers/librarySource');
+    const { generatedSourceProvider } =
+      await import('../../src/components/base/media/providers/generatedSource');
+    const { canvasSourceProvider } =
+      await import('../../src/components/base/media/providers/canvasSource');
 
     // 素材库：按目录（全部/人物/场景/道具）—— 真源派生自 resourceStore.FOLDERS
     const libCats = librarySourceProvider.categories?.() ?? [];
@@ -227,9 +224,8 @@ describe('providers：映射（复用既有真源）', () => {
   });
 
   it('★librarySource 分类不含 tasks（归「生成」tab，不重复）', async () => {
-    const { librarySourceProvider } = await import(
-      '../../src/components/base/media/providers/librarySource'
-    );
+    const { librarySourceProvider } =
+      await import('../../src/components/base/media/providers/librarySource');
     const libCats = librarySourceProvider.categories?.() ?? [];
     // resourceStore.FOLDERS 里有 'generated'(tasks) 一项，但 library 分类必须排除它。
     expect(libCats.some((c) => c.query && 'folder' in c.query && c.query.folder === 'tasks')).toBe(
@@ -238,24 +234,20 @@ describe('providers：映射（复用既有真源）', () => {
   });
 
   it('★librarySource：文件夹条目（type:folder）保留为 isFolder 卡片（落点），不参与类型过滤；generated 则剔除', async () => {
-    vi.doMock('../../src/components/base/api/localToolApi.ts', () => ({
-      fetchResources: async () => ({
-        data: {
-          items: [
-            { id: 'f1', name: '人物', url: '/files/migrated/人物', type: 'folder', folder: 'migrated' },
-            { id: 'r1', name: 'a.png', url: '/files/a.png', type: 'image', folder: 'migrated' },
-          ],
-          totalPages: 1,
-        },
-      }),
+    // 【2026-09-17】mock 目标从 localToolApi 改为**分页读取层** pagedList：
+    // provider 的职责是"把后端条目映射成 MediaRef"，它不该被分页实现的内部信封形状绑住
+    // （否则每次改读取器形状都要改 provider 测试 = 脆）。取全量/翻页本身由 pagedList.test.ts 覆盖。
+    vi.doMock('../../src/components/base/api/pagedList.ts', () => ({
+      fetchAllResourcePages: async () => [
+        { id: 'f1', name: '人物', url: '/files/migrated/人物', type: 'folder', folder: 'migrated' },
+        { id: 'r1', name: 'a.png', url: '/files/a.png', type: 'image', folder: 'migrated' },
+      ],
     }));
 
-    const { librarySourceProvider } = await import(
-      '../../src/components/base/media/providers/librarySource'
-    );
-    const { generatedSourceProvider } = await import(
-      '../../src/components/base/media/providers/generatedSource'
-    );
+    const { librarySourceProvider } =
+      await import('../../src/components/base/media/providers/librarySource');
+    const { generatedSourceProvider } =
+      await import('../../src/components/base/media/providers/generatedSource');
 
     const lib = await librarySourceProvider.list();
     const folderRef = lib.find((r) => r.ref === 'library:f1');
@@ -269,16 +261,11 @@ describe('providers：映射（复用既有真源）', () => {
   });
 
   it('librarySource：非图/视频/音频（text）不收录', async () => {
-    vi.doMock('../../src/components/base/api/localToolApi.ts', () => ({
-      fetchResources: async () => ({
-        data: {
-          items: [
-            { id: 'r1', name: 'a.png', url: '/files/a.png', type: 'image' },
-            { id: 'r2', name: 'b.txt', url: '/files/b.txt', type: 'text' },
-          ],
-          totalPages: 1,
-        },
-      }),
+    vi.doMock('../../src/components/base/api/pagedList.ts', () => ({
+      fetchAllResourcePages: async () => [
+        { id: 'r1', name: 'a.png', url: '/files/a.png', type: 'image' },
+        { id: 'r2', name: 'b.txt', url: '/files/b.txt', type: 'text' },
+      ],
     }));
 
     const { librarySourceProvider } =

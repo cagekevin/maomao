@@ -8,24 +8,27 @@
  *  · 类型判定：`base/utils/assetType.ts::detectAssetType`（扩展名/mime 唯一真值源）。
  *
  * 【folder 参数：素材库 / 生成 共用本 provider】
- * 「生成」= `folder:'tasks'`（AI 产出落盘处，GeneratedView.tsx:176 同口径）；
+ * 「生成」= `folder:'tasks'`（AI 产出落盘处，与 `generatedSource.GENERATED_FOLDER` 同口径）；
  * 「素材库」= 用户目录 `migrated`（其「全部」分类 = **精确 migrated 根**＝未归类区，见 ALL_CATEGORY_QUERY）。
  * 二者是同一读取路径的参数差异，故**不拆两份**。
  * 更新(2026-09-17 注释改正)：原写「素材库 = folder 空（全部用户目录）」—— 该口径已被用户裁定推翻
  * （「全部」= 精确 migrated 根 = 未归类区），照实改正（TD-02-52）。
  *
- * 【分页（必须诚实面对 · docs/136 §5.5 / R2）】
- * 本轮**只取第一页**（页大小由下方常量定），并在 `meta` 里带 `{ page, pageSize, hasMore }`。
- * **不实现**无限滚动/全量拉取 —— 那是 UI 层的事（消费方拿 `hasMore` 决定要不要"加载更多"）。
- * 若消费方需要全量，应在此**循环拉取**（而不是让每个消费方自己写分页循环）。
+ * 【分页（2026-09-17 收口 · 用户报「导入面板生成只显示 100 条」）】
+ * 此前本文件写死"只取第一页（100 条）"，而消费方（导入弹窗）**既无分页 UI、也没读 `meta.hasMore`**
+ * —— 算好的 hasMore 零消费 ⇒ 用户看到 100 条，界面却没有任何"还有更多"的提示
+ * ＝ **静默不完整**（docs/136 §5.5 的"只取第一页"妥协已就此撤销）。
+ * 现改为 **取全量**：`api/pagedList.ts::fetchAllResourcePages` 是分页读取的**唯一实现**
+ * （按响应 `totalPages` 循环取齐，不抄任何上限数字）。本来源语义就是"全部可引用素材"。
  *
- * 【关键词搜索的诚实边界（docs/136 P1-3 / R12）】
- * `fetchResources` **不支持 keyword 参数** → 关键词只能在**已加载的第一页**内过滤。
- * 故 `meta` 里如实标注 `keywordScope:'loaded-page-only'`，**绝不假装搜了全部**
- * （静默不完整是最坏的失败形态）。
+ * 【关键词搜索（同轮修正）】
+ * 原注释称"`fetchResources` 不支持 keyword 参数"——**描述不实**：后端
+ * `utils/helpers.ts::parsePagination` 一直在读 `search` 并做多列 LIKE 匹配，
+ * 缺的只是前端封装没暴露该参数。现 `search` 已接到 `fetchResources`，
+ * 关键词**走后端搜索**；`meta.keywordScope:'loaded-page-only'` 这个妥协同步删除。
  * ════════════════════════════════════════════════════════════════
  */
-import { fetchResources } from '../../api/localToolApi.ts';
+import { fetchAllResourcePages } from '../../api/pagedList.ts';
 import type { ResourceItem } from '../../api/localToolApi.ts';
 import { detectAssetType } from '../../utils/assetType.ts';
 import { toAbsoluteFileUrl } from '../../core/utils.ts';
@@ -35,16 +38,6 @@ import { LIBRARY_ROOT, libraryBrowseArgs } from '../libraryBrowse.ts';
 import { FOLDERS, LIBRARY_CATEGORY_KEYS } from '../../store/resourceStore.ts';
 import { makeMediaRef } from '../mediaRefTypes.ts';
 import type { MediaRef, MediaRefQuery, MediaRefProvider } from '../mediaRefTypes.ts';
-
-/** 单页大小（本轮固定；消费方按 meta.hasMore 决定是否加载更多）。 */
-const PAGE_SIZE = 100;
-const PAGE = 1;
-
-/** 关键词匹配（后端不支持 keyword，故仅在已加载页内过滤；忽略大小写）。 */
-function matchKeyword(name: string, keyword?: string): boolean {
-  if (!keyword) return true;
-  return name.toLowerCase().includes(keyword.toLowerCase());
-}
 
 /**
  * ResourceItem → MediaRef。
@@ -56,8 +49,8 @@ function toMediaRef(item: ResourceItem, query?: MediaRefQuery): MediaRef | null 
   const rawUrl = item.url || '';
   if (!rawUrl) return null;
 
+  // 关键词不再在此过滤：已由后端 `search` 完成（前端"页内过滤"会漏掉未加载的页）。
   const name = item.name || rawUrl.split('/').pop() || '素材';
-  if (!matchKeyword(name, query?.keyword)) return null;
 
   // 文件夹卡片：不参与类型过滤（它不是媒体），直接作为落点条目返回。
   if (item.type === 'folder') {
@@ -70,7 +63,6 @@ function toMediaRef(item: ResourceItem, query?: MediaRefQuery): MediaRef | null 
       projectId: item.projectId,
       folder: item.folder,
       isFolder: true,
-      meta: { folder: item.folder, keywordScope: 'loaded-page-only' },
     };
   }
 
@@ -87,7 +79,6 @@ function toMediaRef(item: ResourceItem, query?: MediaRefQuery): MediaRef | null 
     contentId: item.contentId,
     projectId: item.projectId,
     folder: item.folder,
-    meta: { folder: item.folder, keywordScope: 'loaded-page-only' },
   };
 }
 
@@ -137,26 +128,21 @@ export const librarySourceProvider: MediaRefProvider = {
             { folder: FOLDERS.find((f) => f.key === key)?.folder ?? undefined },
     })),
   async list(query?: MediaRefQuery): Promise<MediaRef[]> {
-    const envelope = await fetchResources({
+    // 取全量（分页读取的唯一实现负责"按 totalPages 取齐"，见文件头）；
+    // keyword 透传为后端 search（不再有"只在已加载页内过滤"的妥协）。
+    const items = await fetchAllResourcePages({
       // folder（前缀）/ folderExact（精确）来自 query；「生成」来源由 generatedSource 传 'tasks'。
       folder: query?.folder,
       folderExact: query?.folderExact,
-      page: PAGE,
-      pageSize: PAGE_SIZE,
       projectId: query?.projectId,
+      search: query?.keyword,
     });
-    const data = envelope?.data;
-    const items = Array.isArray(data?.items) ? data.items : [];
-    const totalPages = typeof data?.totalPages === 'number' ? data.totalPages : PAGE;
 
     const out: MediaRef[] = [];
     for (const item of items) {
       const ref = toMediaRef(item, query);
       if (!ref) continue;
-      out.push({
-        ...ref,
-        meta: { ...ref.meta, page: PAGE, pageSize: PAGE_SIZE, hasMore: totalPages > PAGE },
-      });
+      out.push(ref);
     }
     return out;
   },

@@ -1,5 +1,5 @@
 /**
- * 参考图 token 编解码（对齐大雄 agentEncodeRefToken / agentParseRefTokensFromText）。
+ * 参考图 token 编解码（对齐大雄 agentEncodeRefToken / agentParseRefTokensFromText）—— 全项目**唯一实现**：编解码只在此处，禁止别处自行拼接/解析 token 字面量（否则跨轮图引用错位）。
  *
  * ── 它在整个架构里的位置（完整逻辑）──
  * fresh-task 下历史图不进 LLM 上下文，但「跨轮引用某张历史图」仍需机器可还原的载体。这套 token 机制

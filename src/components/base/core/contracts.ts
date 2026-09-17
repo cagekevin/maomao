@@ -1173,7 +1173,10 @@ export const apiRegistry: Record<string, ApiRegistryEntry> = {
     path: '/api/tasks',
     envelope: 'code-data',
     status: 'ACTIVE',
-    note: '分页拉取任务列表（tasks?page&pageSize&keyword）',
+    // 2026-09-17 修正：原写 `keyword` —— 前端确实发过 `keyword`，但**后端读的是 `search`**
+    // （`helpers.ts::parsePagination`）⇒ 搜索静默失效。现已两端统一为 `search`，并新增
+    // `filters`（`{nodeId}` → `node_id = ?` 精确查）。
+    note: '分页拉取任务列表（tasks?page&pageSize&search&filters）',
   },
   tasksSave: {
     fn: 'localToolApi.saveTask',
@@ -1241,7 +1244,7 @@ export const apiRegistry: Record<string, ApiRegistryEntry> = {
     path: '/api/resources',
     envelope: 'code-data',
     status: 'ACTIVE',
-    note: '分页拉取素材库（resources?page&pageSize&filters）',
+    note: '分页拉取素材库（resources?page&pageSize&filters&projectId&search）',
   },
   resourcesRescan: {
     fn: 'localToolApi.rescanResources',

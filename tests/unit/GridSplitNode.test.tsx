@@ -2,7 +2,8 @@
  * GridSplitNode 深度测试。
  * 审计建议 P1：多图输入、切图逻辑、参数变更重渲染。
  * 重点覆盖：空态校验、三种切分模式切换与各自控制区、网格预设与自定义行列。
- * 预切图逻辑走真实 loadImageWithTimeout（异步，失败被逻辑吞掉），断言以稳定文本/禁用态为主。
+ * 预切图（派生）走真实 loadImageWithTimeout（异步、300ms 防抖），失败已改为 toast 可见
+ * （不再静默）；本文件断言仍以稳定文本/禁用态为主。
  */
 import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -30,6 +31,8 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => ({
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   toAbsoluteFileUrl: mocks.toAbsoluteFileUrl,
+  // 切片物化的唯一落盘出口：测试态直接回传输入（真实实现见 filesApi.persistInlineOrKeep）
+  persistInlineOrKeep: async (dataUrl: string) => dataUrl,
 }));
 
 import GridSplitNode from '../../src/components/nodes/GridSplitNode.tsx';

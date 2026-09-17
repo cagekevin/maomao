@@ -1,3 +1,19 @@
+/**
+ * 核心纯函数工具集 —— 全仓通用工具的唯一入口（收口点）。
+ *
+ * 本文件收口了多处「曾被各模块各写一份、已漂移」的通用逻辑；下列函数即为对应语义的
+ * 唯一真源，业务代码一律从本文件 import，禁止在调用方就地手抄替代
+ * （单一规则原则，见 CLAUDE.md §5.4(9)「同一件事只允许一种实现」）：
+ *  · clamp(v, lo?, hi?)               通用数值钳制唯一真源（TD-18-6 收口，第二份已删）
+ *  · deepClone<T>                     JSON 深拷贝唯一入口（业务代码禁止手写 JSON.parse(JSON.stringify())）
+ *  · fileNameFromUrl                  URL→文件名唯一实现（曾 12 份内联，TD-16-14 / TD-08-20 收口）
+ *  · toAbsoluteFileUrl                /files/ 相对路径→完整 URL 唯一实现（TD-06-7 收口，消除循环依赖）
+ *  · dataUrlToBlob / safeFileName     各自语义唯一实现（曾散落多文件，已收口）
+ *  · canvasToImageDataUrl             canvas → 图像 dataURL 唯一出口（**产出即校验**，禁假成功；边界见函数头）
+ *  · debounce / throttle / formatTime  防抖 / 节流 / 时间格式化唯一入口
+ * 改本文件必须同步本文件头注释（CLAUDE.md §零 决策记录铁律）。
+ */
+
 import { useEffect, type DependencyList } from 'react';
 import { API_BASE } from './config.ts';
 
@@ -113,6 +129,46 @@ export function dataUrlToBlob(dataUrl: string, mime?: string): Blob {
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
   return new Blob([bytes], { type });
+}
+
+/**
+ * canvas → 图像 dataURL（**产出与校验是同一个动作 · 全库唯一出口**）。
+ *
+ * 【为什么产出必须自带校验】画布尺寸/内存超本机上限时 canvas 分配失败，`toDataURL()` 会返回
+ * `"data:,"`（规范允许，且是**真值**）。调用方若只判 `!dataUrl` 一律放行，`dataUrlToBlob`
+ * 也只会产出 0 字节 Blob 而不抛错 → **空白图被写回节点 / 送给模型，用户看到"成功"**，
+ * 这是最难排查的一类假成功（日志无错、链路无错、结果为空）。
+ * 故把「产出」与「校验」合成同一个不可分动作：产物不是真图像 → **在根部抛出**；
+ * 调用方禁止再写第二份 `startsWith('data:image/')` 判据（CLAUDE.md §5.4(9) 同一件事一种实现）。
+ *
+ * 【与 dataUrlToBlob 的分工】本函数守「产出端能不能相信这个字符串」，dataUrlToBlob 只做编码转换；
+ * 两者都不负责"落盘失败"——那是 filesApi 降级策略的事，不可混。
+ *
+ * 【收口范围（2026-09-17 · TD-06-10 清偿）】`src/**` 里**同步族** canvas 图像产出已全部改经本函数
+ * （图像入节点 / 送模型主路径 + 缩略图 / 视频海报 / director3d / videoEditor 引擎 / scriptbox 抽帧 /
+ * FaceMosaicEditor / PanoViewer / ImageBoxNode / VideoExtractNode / OverlayEditor 遮罩）。
+ * ⚠️ **这条约束没有机器守卫**（曾加 `check-canvas-to-dataurl` 闸，2026-09-17 按用户裁定删除 ——
+ * 当时发现闸漏了 `toBlob` 族，我的第一反应是改覆盖声明让闸继续绿，而那不是守卫是绕过。
+ * 详见 `daily/架构日志/06-跨区-图片产出唯一出口与切片落盘-2026-09-17.md` §13）。
+ * ⇒ 新写画布产出**请自觉**经本函数取值（产物不是真图即在根部抛出），**不要**再自己调 `toDataURL`；
+ *    **异步族 `toBlob` / `convertToBlob` 尚未收口**（失败语义是回调收到 `null`，不抛错）→ TD-06-14。
+ *
+ * @param format  目标 MIME（canvas 可编码者；见 imageCompress 的 MIME_TO_FORMAT 能力表）
+ * @param quality 仅对 image/jpeg、image/webp 生效
+ * @throws 产物为空 / 非 `data:image/*`（含 `"data:,"`）时抛明确错误
+ */
+export function canvasToImageDataUrl(
+  canvas: HTMLCanvasElement,
+  format: string = 'image/png',
+  quality?: number,
+): string {
+  const dataUrl =
+    quality === undefined ? canvas.toDataURL(format) : canvas.toDataURL(format, quality);
+  const comma = dataUrl.indexOf(',');
+  if (!dataUrl.startsWith('data:image/') || comma < 0 || comma === dataUrl.length - 1) {
+    throw new Error('图片超出当前设备可处理的范围，画布未能生成有效图像。');
+  }
+  return dataUrl;
 }
 
 /** 多路图片源合并去重（ImageGenerate/TemplateNode refImages 公共实现）：

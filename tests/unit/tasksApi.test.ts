@@ -19,10 +19,19 @@ afterEach(() => vi.unstubAllGlobals());
 describe('tasksApi — 成功路径', () => {
   it('fetchTasks 解析分页响应', async () => {
     fetchMock.mockResolvedValue(jsonResp({ data: { items: [{ id: 't1' }], total: 1 } }));
-    const res = await api.fetchTasks({ keyword: '视频' });
+    // 【2026-09-17 修正】原传 `keyword` —— 后端 `parsePagination` 读的是 `search`，
+    // 两边名字不一致 ⇒ 搜索静默失效。现统一为 search（断言 URL 里也必须是真的 search）。
+    const res = await api.fetchTasks({ search: '视频' });
     expect(res.data.items).toHaveLength(1);
     expect(fetchMock.mock.calls[0][0]).toContain('/api/tasks?');
-    expect(fetchMock.mock.calls[0][0]).toContain('keyword=%E8%A7%86%E9%A2%91');
+    expect(fetchMock.mock.calls[0][0]).toContain('search=%E8%A7%86%E9%A2%91');
+  });
+
+  it('fetchTasks 按 nodeId 精确查（filters 等值，后端 camelToSnake → node_id）', async () => {
+    fetchMock.mockResolvedValue(jsonResp({ data: { items: [{ id: 't1' }], total: 1 } }));
+    await api.fetchTasks({ nodeId: 'n1' });
+    const url = decodeURIComponent(String(fetchMock.mock.calls[0][0]));
+    expect(url).toContain('filters={"nodeId":"n1"}');
   });
 
   it('saveTask 发送 POST JSON', async () => {

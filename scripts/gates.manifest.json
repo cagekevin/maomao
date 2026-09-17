@@ -91,6 +91,7 @@
       "phase": "push",
       "desc": "架构日志进度表（index.md）与轮次文件实况一致（整份机器生成 · 禁手改）"
     },
+
     {
       "id": "gates",
       "cmd": "node scripts/check-gates.mjs",

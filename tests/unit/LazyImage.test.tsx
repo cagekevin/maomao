@@ -115,6 +115,24 @@ describe('LazyImage — 降级与兜底', () => {
     expect(screen.getByText('图片加载失败')).toBeTruthy();
   });
 
+  it('本地图：小图失败 → 先回退原图；原图也失败才占位（两段回退·唯一实现）', () => {
+    // 2026-09-17 收口：此前本组件「失败即占位」，缺回退原图 → 缩略图端点对不可缩源
+    // （webp 等）返回 4xx/5xx 时，画布节点（有回退）能显示、助手气泡（本组件）只显示占位。
+    render(<LazyImage src="/files/web/a.webp" />);
+    triggerIntersect([{ isIntersecting: true }]);
+    const img = () => document.querySelector('img');
+    expect(img()?.getAttribute('src')).toBe('THUMB/files/web/a.webp');
+
+    // ① 小图失败 → 回退原图（不直接占位）
+    fireEvent.error(img()!);
+    expect(img()?.getAttribute('src')).toBe('/files/web/a.webp');
+
+    // ② 原图也失败 → 才显式占位
+    fireEvent.error(img()!);
+    expect(document.querySelector('img')).toBeNull();
+    expect(screen.getByText('图片加载失败')).toBeTruthy();
+  });
+
   it('src 为空 → 永不挂载 <img>', () => {
     render(<LazyImage src="" />);
     triggerIntersect([{ isIntersecting: true }]);

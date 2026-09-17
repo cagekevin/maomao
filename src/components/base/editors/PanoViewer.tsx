@@ -3,6 +3,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { PerspectiveCamera, OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { toAbsoluteFileUrl } from '../utils/assetUrl.ts';
+import { canvasToImageDataUrl } from '../core/utils.ts';
 
 /**
  * 720 全景查看器核心
@@ -146,7 +147,8 @@ function PanoViewer({
               }
             }
             ctx.putImageData(imgData, 0, 0);
-            out.push(canvas.toDataURL('image/jpeg', 0.95));
+            // 唯一出口（产出即校验）：失败抛错 → finally 仍恢复渲染目标，调用方 doCapture 有 try/catch
+            out.push(canvasToImageDataUrl(canvas, 'image/jpeg', 0.95));
           }
         }
       } finally {

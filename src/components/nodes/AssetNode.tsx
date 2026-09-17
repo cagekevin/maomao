@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import {
   Image as ImageIcon,
+  ImageOff,
   Video,
   Music,
   FileText,
@@ -26,11 +27,8 @@ import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { patchNodeDataById } from '../../hooks/useNodeData.ts';
 import { toAbsoluteFileUrl, resolveNodeAssetUrl } from '../base/api/index.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
-import {
-  useRenderAssetResolver,
-  resolveAssetDisplayUrl,
-  contentIdOfBytes,
-} from '../base/utils/assetUrl.ts';
+import { resolveAssetDisplayUrl, contentIdOfBytes } from '../base/utils/assetUrl.ts';
+import { useImageFallbackSrc } from '../base/utils/useImageFallbackSrc.ts';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
 import { downloadUrl } from '../base/utils/clipboard.ts';
 import { showToast, toastError } from '../base/core/toastStore.ts';
@@ -91,8 +89,6 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   // 深度转视频弹窗开关 + 画布历史（undo）：供 spawnDepthVideoNode 原子提交，复用 VideoGenerate 范式
   const [depthOpen, setDepthOpen] = useState(false);
   const history = useCanvasEdges();
-  // 订阅「画布显示缩略图」设置：显示地址实时随开关（见 docs/18）
-  const render = useRenderAssetResolver();
 
   // 查看大图：原生 <dialog> 弹层（双击图片 → showModal，点图/Esc 关闭，无外框/标题栏）。
   const dialogRef = useRef<HTMLDialogElement | null>(null);
@@ -107,6 +103,15 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   // 节点按媒体真实宽高比自适应：area-fixed 模式下，媒体加载/裁剪后把比例交给 useSizeSync
   // 锁定面积（与 ImageGenerate / VideoGenerate 统一的面积恒定模型），形状跟随媒体比例。
   const [mediaRatio, setMediaRatio] = useState<string | null>(null);
+
+  // 图片两段回退（契约另一半在后端 `handleThumbnail`：缩略图失败是显式 4xx/5xx，
+  // 由前端 <img onError> 回退原图 —— 后端注释承诺已久，此前 AssetNode 侧从未实现，
+  // 于是缩略图端点失败（如源格式 Jimp 不可编码 / 缩放失败）只表现为浏览器裂图，失败不可见）。
+  //  thumb → renderUrl（本地文件走按需小图）；失败 → original（原图 url，浏览器多能直接显示）；
+  //  原图再失败 → failed（显式破图占位，与 LazyImage 同一失败可见性，不静默裂图）。
+  // 图片显示地址 + 两段失败回退（小图 → 原图 → 显式占位）走**唯一实现** useImageFallbackSrc，
+  // 与 LazyImage / 助手气泡共用同一策略（此前本节点自持一份，导致同一故障在不同出口表现不一致）。
+  const { src: imgSrc, failed: imgFailed, onError: onImgError } = useImageFallbackSrc(url);
   const applyMediaRatio = useCallback((w: number, h: number) => {
     if (w && h) setMediaRatio(`${w}:${h}`);
   }, []);
@@ -290,9 +295,8 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
     ) : (
       <ImageIcon size={11} />
     );
-  // 画布内显示地址：图片走按需小图（END 收口治全分辨率解码卡顿），缩放弹层/发送仍用原图 url。
-  // render scope 仅对本地 /files/ 出小图；外部 http/data/blob 回退原图，绝不破图。
-  const renderUrl = type === 'image' ? render(url) : '';
+  // 画布内显示地址由 useImageFallbackSrc 给出（本地 /files/ → 按需小图，治全分辨率解码卡顿；
+  // 外部 http/data/blob → 原图），失败回退策略与 LazyImage 同一出处；缩放弹层与发送仍用原图 `url`。
 
   // hover 操作栏按钮：图片类共享能力(crop/edit/compress)走 useImageHoverActions，
   // upload/send/download 按本节点多类型语义各自声明。
@@ -412,16 +416,18 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
                 </div>
               </div>
             )}
-            {/* 图片（onLoad 按实际比例自适应节点形状；双击查看大图，复刻官方 onDoubleClick→onZoom） */}
-            {type === 'image' && !hideMedia.includes('image') && renderUrl && (
+            {/* 图片（onLoad 按实际比例自适应节点形状；双击查看大图，复刻官方 onDoubleClick→onZoom）。
+              onError 两段回退见 imgStage —— 缩略图端点失败不再等于「用户看到裂图」。 */}
+            {type === 'image' && !hideMedia.includes('image') && imgSrc && !imgFailed && (
               <img
-                src={renderUrl}
+                src={imgSrc}
                 alt="Content"
                 loading="lazy"
                 decoding="async"
                 onLoad={(e) =>
                   applyMediaRatio(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)
                 }
+                onError={onImgError}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
                   dialogRef.current?.showModal();
@@ -429,6 +435,13 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
                 className="w-full h-full object-cover cursor-pointer"
                 draggable={false}
               />
+            )}
+            {/* 图片加载失败（缩略图与原图都失败）→ 显式占位，替代浏览器默认裂图（失败可见） */}
+            {type === 'image' && imgFailed && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-surface-strong">
+                <ImageOff size={20} className="text-muted-2" />
+                <span className="text-caption-sm text-muted">图片加载失败</span>
+              </div>
             )}
             {/* 视频：统一 VideoThumbnail 组件（与视频生成节点一致）。
               封面用抓取的 posterUrl（首帧 dataURL）；playable 开启节点内 controls 播放态；

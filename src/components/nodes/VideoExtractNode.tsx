@@ -16,7 +16,7 @@ import { logger } from '../base/core/logger.ts';
 import { classifyError } from '../base/utils/genErrors.ts';
 import previewUrls from '../base/utils/previewUrl.ts';
 import { drawVideoFrame, setCrossOriginForReadable } from '../base/utils/captureFrame.ts';
-import { fileNameFromUrl } from '../base/core/utils.ts';
+import { fileNameFromUrl, canvasToImageDataUrl } from '../base/core/utils.ts';
 import { KEY_MULTIWINDOW_CLIPBOARD } from '../base/core/contracts.ts';
 
 /** 多窗口剪贴板存储键（值 = contracts 真源 · TD-13-7：本节点不再自持第二份字面量） */
@@ -171,7 +171,7 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
         dimensions: 'Video dimensions not available',
         context: 'Canvas not supported',
       },
-    }).then((canvas) => canvas.toDataURL('image/jpeg', 0.8));
+    }).then((canvas) => canvasToImageDataUrl(canvas, 'image/jpeg', 0.8));
   }, []);
 
   // 智能检测：16×16 缩略图像素差
@@ -361,7 +361,7 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
       canvas.width = w;
       canvas.height = h;
       ctx.drawImage(v, 0, 0, w, h);
-      const img = canvas.toDataURL('image/jpeg', 0.8);
+      const img = canvasToImageDataUrl(canvas, 'image/jpeg', 0.8);
       // 手动截取是低频用户操作：state 与 node.data 同步追加（结果落盘，刷新不丢）
       const next = [...extractedImages, img];
       setExtractedImages(next);

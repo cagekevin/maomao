@@ -139,15 +139,17 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({
 }));
 
 // 带 rest 参数声明：保证 mock 工厂可无损透传调用参数，无需 as any 强转
+// 源码恢复走 fetchTaskPage（见 ImageGenerate.tsx 的 restoreFromServer effect），
+// 故此处 mock pagedList.fetchTaskPage（返回 PagedSlice 形态，至少含 items），而非旧的 localToolApi.fetchTasks。
 const mockFetchTasks = vi.fn(async (..._a: unknown[]) => ({
-  data: { items: [] as Array<{ nodeId: string; status: string; resultUrl: string }> },
+  items: [] as Array<{ nodeId: string; status: string; resultUrl: string }>,
 }));
 vi.mock('../../src/components/base/store/providerStore.ts', () => ({
   useProviders: () => ({ providers: [] }),
   load: vi.fn(() => Promise.resolve()),
 }));
-vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
-  fetchTasks: (...a: unknown[]) => mockFetchTasks(...a),
+vi.mock('../../src/components/base/api/pagedList.ts', () => ({
+  fetchTaskPage: (...a: unknown[]) => mockFetchTasks(...a),
 }));
 const mockGenerateImage = vi.fn(async (..._a: unknown[]) => ({ url: 'http://gen.local/img.png' }));
 vi.mock('../../src/components/base/api/generate.ts', () => ({
@@ -167,7 +169,7 @@ beforeEach(() => {
   mockGenerateImage.mockReset();
   mockGenerateImage.mockResolvedValue({ url: 'http://gen.local/img.png' });
   mockFetchTasks.mockReset();
-  mockFetchTasks.mockResolvedValue({ data: { items: [] } });
+  mockFetchTasks.mockResolvedValue({ items: [] });
   genConfig = null;
   // jsdom 无 IntersectionObserver；补一个类型完整的最小实现（DOM lib 已有声明，故无需 as any）
   if (!globalThis.IntersectionObserver) {
@@ -299,12 +301,10 @@ describe('ImageGenerate 模型选择', () => {
 describe('ImageGenerate 刷新恢复（restoreFromServer）', () => {
   it('节点无图时，从任务中心恢复最近完成结果并写回 data.assetUrl', async () => {
     mockFetchTasks.mockResolvedValue({
-      data: {
-        items: [
-          { nodeId: 'n1', status: 'completed', resultUrl: 'http://recovered.local/a.png' },
-          { nodeId: 'n2', status: 'completed', resultUrl: 'http://other/b.png' },
-        ],
-      },
+      items: [
+        { nodeId: 'n1', status: 'completed', resultUrl: 'http://recovered.local/a.png' },
+        { nodeId: 'n2', status: 'completed', resultUrl: 'http://other/b.png' },
+      ],
     });
     setup({}); // data 无 assetUrl，走恢复分支
 

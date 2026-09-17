@@ -105,8 +105,9 @@ export function useImageHoverActions({
     if (!url || compressing) return;
     setCompressing(true);
     try {
+      // compressImage 的产物已由唯一出口 canvasToImageDataUrl 校验并在根部抛错，
+      // 此处不再写第二份 `if (!dataUrl)` 假判据（它挡不住 "data:,"，只给假信心）。
       const { dataUrl, size, originalSize } = await compressImage(url, { quality: 0.8 });
-      if (!dataUrl) throw new Error('压缩失败');
       // 立即覆盖显示 → 落盘换持久 URL（同一落盘策略；落盘失败保留内联）
       await showThenPersistInline(dataUrl, (u) => onImageReplaced?.(u));
       const kb = (n: number) => `${(n / 1024).toFixed(0)}KB`;
@@ -125,8 +126,8 @@ export function useImageHoverActions({
     if (!url || upscaling) return;
     setUpscaling(true);
     try {
+      // 同 handleCompress：产物校验已在唯一出口完成，不在此重复假判据。
       const { dataUrl } = await upscaleImage(url, { scale: 2 });
-      if (!dataUrl) throw new Error('放大失败');
       // 立即覆盖显示 → 落盘换持久 URL（同一落盘策略；落盘失败保留内联）
       await showThenPersistInline(dataUrl, (u) => onImageReplaced?.(u));
       showToast('已放大 2 倍', { type: 'success' });

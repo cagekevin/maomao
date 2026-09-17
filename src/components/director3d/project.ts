@@ -18,7 +18,7 @@ import { isProjectAssetUrl } from './d3dPersistence.ts';
 import { KEY_DIRECTOR3D_CUSTOM_POSES, KEY_DIRECTOR3D_PROJECT } from '../base/core/contracts.ts';
 // 数值钳制唯一入口（TD-18-5 收口）：本域曾私有复制同签名 clamp，现统一走 core SSOT；
 // 原样 re-export 使既有消费方（如本域 App.tsx）零改动。
-import { clamp, deepClone } from '../base/core/utils.ts';
+import { clamp, deepClone, canvasToImageDataUrl } from '../base/core/utils.ts';
 
 export { clamp };
 
@@ -2051,7 +2051,13 @@ export function referenceImageFromFile(file: File): Promise<string> {
         context.fillStyle = '#e8e6df';
         context.fillRect(0, 0, canvas.width, canvas.height);
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.84));
+        // 唯一出口（产出即校验）会抛错 —— 本回调在 Promise executor 之外（异步），
+        // 必须自己 reject，否则 Promise 永不落定 + 抛错逃逸为未捕获异常。
+        try {
+          resolve(canvasToImageDataUrl(canvas, 'image/jpeg', 0.84));
+        } catch (e) {
+          reject(e instanceof Error ? e : new Error('参考图编码失败'));
+        }
       };
       image.src = String(reader.result);
     };

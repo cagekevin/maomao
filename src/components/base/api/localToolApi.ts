@@ -85,16 +85,26 @@ export interface TaskListItem {
 }
 /** 候选 C：文件域类型 OpenPathData/FileOpResult 已随文件域成员一并迁至 filesApi.ts（文件域单点）。 */
 // ─────────────────────────── tasks ───────────────────────────
-// GET /api/tasks?page&pageSize&keyword → { items, total }
+// GET /api/tasks?page&pageSize&search&filters → { items, total, page, pageSize, totalPages }
+//
+// 【参数名对齐后端（2026-09-17 修）】原发 `keyword`，而后端
+// `localTool/src/utils/helpers.ts::parsePagination` 读的是 **`search`**
+// ⇒ 搜索**永久静默失效**（不报错，只是不过滤，返回全部）。现两端口径统一为 `search`。
+//
+// 【为什么有 nodeId 而不是让调用方拉全量再 find】「某节点的历史结果」是一条**查询**，
+// 不是"取全量再筛"——后者在数据超过一页时会**静默漏**（正是 ImageGenerate 刷新丢图的根因）。
+// 传 filters 等值（后端 camelToSnake → `node_id = ?`），窄参数 + 厚实现。
 export async function fetchTasks({
   page = 1,
   pageSize = 200,
-  keyword = '',
-}: { page?: number; pageSize?: number; keyword?: string } = {}): Promise<
+  search = '',
+  nodeId,
+}: { page?: number; pageSize?: number; search?: string; nodeId?: string } = {}): Promise<
   ApiEnvelope<PagedResult<TaskListItem>>
 > {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-  if (keyword) params.set('keyword', keyword);
+  if (search) params.set('search', search);
+  if (nodeId) params.set('filters', JSON.stringify({ nodeId }));
   return httpRequest(`${API_BASE}/api/tasks?${params}`, { label: 'fetchTasks' });
 }
 
@@ -173,9 +183,11 @@ export async function saveProjects(
 }
 
 // ─────────────────────────── resources ───────────────────────────
-// GET /api/resources?page&pageSize&filters=JSON&projectId= → 分页资源列表
+// GET /api/resources?page&pageSize&filters=JSON&projectId=&search= → 分页资源列表
 // projectId（可选，docs/122 #2/#3）：后端按 `(project_id IS NULL OR project_id=?)` 过滤，
 // legacy(project_id NULL)全项目可见、显式 projectId 的行只对其可见；不传 = 全量(向后兼容)。
+// search（可选）：后端 `buildPaginatedQuery` 在 searchColumns（id/url/type/name/folder…）
+// 上做 LIKE 多列匹配 —— **关键词搜索走后端**，不再由前端"在已加载页内过滤"。
 export async function fetchResources({
   folder,
   folderExact,
@@ -183,6 +195,7 @@ export async function fetchResources({
   pageSize = 60,
   type,
   projectId,
+  search,
 }: {
   folder?: string;
   /**
@@ -199,6 +212,8 @@ export async function fetchResources({
   pageSize?: number;
   type?: string;
   projectId?: string;
+  /** 关键词（后端多列 LIKE；空 = 不过滤） */
+  search?: string;
 } = {}): Promise<ApiEnvelope<PagedResult<ResourceItem>>> {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   // folder 默认用 `{eqOrPrefix}`（精确 + 前缀）而不是等值：原 pill「全部」以 `migrated` 为根，
@@ -211,6 +226,7 @@ export async function fetchResources({
   if (type) filters.type = type;
   if (Object.keys(filters).length) params.set('filters', JSON.stringify(filters));
   if (projectId) params.set('projectId', projectId);
+  if (search) params.set('search', search);
   return httpRequest(`${API_BASE}/api/resources?${params.toString()}`, { label: 'fetchResources' }); // { items, total, page, pageSize, totalPages }
 }
 

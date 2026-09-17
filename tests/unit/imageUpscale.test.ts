@@ -159,18 +159,14 @@ describe('imageUpscale — ×2 等比放大', () => {
   });
 });
 
-describe('imageUpscale — maxOutputSize clamp', () => {
-  it('scale=2 但 4000 超 3000 上限 → clamp 到 3000×1500', async () => {
-    const res = await upscaleImage('blob:x', { scale: 2, maxOutputSize: 3000 });
-    expect(res.width).toBe(3000);
-    expect(res.height).toBe(1500);
-  });
-
-  it('小图不 clamp：400×300 ×2=800 未超 1000 上限', async () => {
-    imgSize = { w: 400, h: 300 };
-    const res = await upscaleImage('blob:x', { scale: 2, maxOutputSize: 1000 });
-    expect(res.width).toBe(800);
-    expect(res.height).toBe(600);
+describe('imageUpscale — 产物校验（唯一出口 canvasToImageDataUrl）', () => {
+  it('画布分配失败（toDataURL 返回 "data:,"）→ 抛明确错误，不静默产出空图', async () => {
+    // 旧行为：只判 `!dataUrl` → "data:," 是真值被放行，dataUrlToBlob 产出 0 字节 Blob 而不抛错
+    // → 空白图被写回节点，用户看到"已放大 2 倍"（假成功）。
+    HTMLCanvasElement.prototype.toDataURL = function () {
+      return 'data:,';
+    };
+    await expect(upscaleImage('blob:x', { scale: 2 })).rejects.toThrow(/未能生成有效图像/);
   });
 });
 

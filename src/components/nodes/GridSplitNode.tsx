@@ -19,14 +19,14 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { useContentHeightSync } from '../base/core/uiHooks.ts';
 import { showToast, toastWarning } from '../base/core/toastStore.ts'; // 保留阻断校验提示
-import { toAbsoluteFileUrl } from '../base/api/index.ts';
+import { toAbsoluteFileUrl, persistInlineOrKeep } from '../base/api/index.ts';
 import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { loadImageWithTimeout } from '../base/utils/asyncGuard.ts';
 import { logger } from '../base/core/logger.ts';
 import { generateId } from '../base/core/idGen.ts';
 import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
-import { createRafBatch, clamp } from '../base/core/utils.ts';
+import { createRafBatch, clamp, debounce, canvasToImageDataUrl } from '../base/core/utils.ts';
 import FullscreenShell from '../base/panels/FullscreenShell.tsx';
 
 /* ════════════════════════════════════════════════════════════════
@@ -61,6 +61,8 @@ const pairs = (arr: number[]) => {
 };
 const genId = () => generateId('lasso');
 const SNAP = 0.04;
+/** 切片派生防抖（毫秒）：拖切割线 / 画切刀形状会逐帧改依赖，合并为一轮手势一次派生。 */
+const SPLIT_DERIVE_DEBOUNCE_MS = 300;
 const snapEdge = (p: Pt): SnapPoint => {
   const t = p.y,
     b = 1 - p.y,
@@ -118,35 +120,34 @@ const bounds = (pts: Pt[]) => {
 // ---- 不规则形状裁剪（复刻 Io.jsx：clip path + drawImage → png）----
 function clipShape(src: string, points: Pt[]) {
   function doClip(srcImg: HTMLImageElement) {
-    try {
-      const w = srcImg.naturalWidth || srcImg.width;
-      const h = srcImg.naturalHeight || srcImg.height;
-      const b = bounds(points);
-      const c = b.minX * w;
-      const d = b.minY * h;
-      const cw = Math.max(1, (b.maxX - b.minX) * w);
-      const ch = Math.max(1, (b.maxY - b.minY) * h);
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(cw);
-      canvas.height = Math.round(ch);
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return null;
-      ctx.save();
-      ctx.beginPath();
-      points.forEach((p, i) => {
-        const px = p.x * w - c;
-        const py = p.y * h - d;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      });
-      ctx.closePath();
-      ctx.clip();
-      ctx.drawImage(srcImg, -c, -d, w, h);
-      ctx.restore();
-      return canvas.toDataURL('image/png');
-    } catch {
-      return null;
-    }
+    // 不再就地吞错返回 null：doClip 内任何失败（画布不可用 / 取不到 2D 上下文 / 尺寸超限）
+    // 都必须让下方**可见处理器**（logger + toast）统一接住——静默返回 null 会把"切不出图"
+    // 伪装成"这张形状本来就没内容"，是本节点最隐蔽的假成功入口。
+    const w = srcImg.naturalWidth || srcImg.width;
+    const h = srcImg.naturalHeight || srcImg.height;
+    const b = bounds(points);
+    const c = b.minX * w;
+    const d = b.minY * h;
+    const cw = Math.max(1, (b.maxX - b.minX) * w);
+    const ch = Math.max(1, (b.maxY - b.minY) * h);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(cw);
+    canvas.height = Math.round(ch);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('切图失败：无法创建切图画布');
+    ctx.save();
+    ctx.beginPath();
+    points.forEach((p, i) => {
+      const px = p.x * w - c;
+      const py = p.y * h - d;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(srcImg, -c, -d, w, h);
+    ctx.restore();
+    return canvasToImageDataUrl(canvas, 'image/png');
   }
   // 图片加载收口到统一入口 loadImageWithTimeout（超时兜底）；保留原 onerror 一次性重试语义
   return Promise.resolve()
@@ -309,12 +310,26 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
     [lassoShapes],
   );
 
-  // ---- 预切图（复刻 Lo.jsx useEffect[F,I,...]：加载源图按 cells 裁切写 extractedImages）----
+  // ---- 预切图（派生缓存：切分参数 → 切片 URL 列表）----
+  // 【它是什么】extractedImages = f(源图, cells) —— **派生结果**，不是独立产出。
+  // 【为什么必须物化进 node.data】下游 `batch` 端口按**同步契约**读 `data.extractedImages`
+  //   （useConnectedInputs 的 NODE_OUTPUTS），不物化下游就取不到。
+  // 【物化形态必须是持久 URL】N 张 base64 进画布快照 / CAS 上报（docs/118 §五 C5）；
+  //   统一走**唯一落盘出口** filesApi.persistInlineOrKeep（禁止在本节点另写第二套降级）。
+  // 【为什么防抖】hLines/vLines 拖线会逐帧改依赖；不合并就是逐帧全量重切 N 张 + N 次编码
+  //   + N 次上传。trailing 防抖把一轮手势收敛成一次派生。
+  // 【为什么 PNG】与同文件 clipShape（切刀）一致：JPEG 无 alpha，带透明源图会变黑底，且二次有损。
+  const runDerive = useMemo(
+    () => debounce((task: () => void) => task(), SPLIT_DERIVE_DEBOUNCE_MS),
+    [],
+  );
   useEffect(() => {
     if (splitMode === 'lasso') return;
-    if (!assetUrl) {
+    let cancelled = false;
+    const writeBack = (images: unknown[]) => {
+      if (cancelled) return;
       patchData({
-        extractedImages: [],
+        extractedImages: images,
         rows: rowCount,
         cols: colCount,
         gridSize: Math.max(rowCount, colCount),
@@ -323,61 +338,61 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
         vLines,
         lassoShapes,
       });
+    };
+    if (!assetUrl) {
+      writeBack([]);
       return;
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        // 图片加载收口到统一入口（超时兜底）；保留原 onerror 一次性重试语义
-        let img = null;
+    runDerive(() => {
+      void (async () => {
         try {
-          img = await loadImageWithTimeout(assetUrl);
-        } catch {
-          img = await loadImageWithTimeout(assetUrl);
-        }
-        if (!img) return; // 两次均失败：无可裁剪，跳过本次写回
-        const iw = img.width;
-        const ih = img.height;
-        const out = [];
-        for (const cell of cells) {
-          const sx = cell.x * iw;
-          const sy = cell.y * ih;
-          const sw = cell.w * iw;
-          const sh = cell.h * ih;
-          const canvas = document.createElement('canvas');
-          canvas.width = Math.max(1, Math.round(sw));
-          canvas.height = Math.max(1, Math.round(sh));
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-            out.push(canvas.toDataURL('image/jpeg', 0.85));
-          } else {
-            out.push(null);
+          // 图片加载收口到统一入口（超时兜底）；保留原 onerror 一次性重试语义
+          let img = null;
+          try {
+            img = await loadImageWithTimeout(assetUrl);
+          } catch {
+            img = await loadImageWithTimeout(assetUrl);
           }
+          if (!img || cancelled) return; // 两次均失败：无可裁剪，跳过本次写回
+          const iw = img.width;
+          const ih = img.height;
+          const tiles: string[] = [];
+          for (const cell of cells) {
+            const sx = cell.x * iw;
+            const sy = cell.y * ih;
+            const sw = cell.w * iw;
+            const sh = cell.h * ih;
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(sw));
+            canvas.height = Math.max(1, Math.round(sh));
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('切片生成失败：无法创建切图画布');
+            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+            tiles.push(canvasToImageDataUrl(canvas, 'image/png'));
+          }
+          // 换 /files/ 持久 URL（sha1 幂等）；落盘失败由 persistInlineOrKeep 统一降级为保留内联并提示
+          const urls = await Promise.all(tiles.map((t) => persistInlineOrKeep(t)));
+          writeBack(urls);
+        } catch (e) {
+          // 切片产不出图必须对用户可见（此前只落日志 → 用户点「批量切分」只得到"没有可用的切片"，误导）
+          logger.error('GridSplitNode', 'Failed to pre-crop images', e);
+          if (!cancelled)
+            showToast(`切片生成失败：${(e as { message?: string })?.message || '图片处理出错'}`, {
+              type: 'error',
+            });
         }
-        if (!cancelled) {
-          patchData({
-            extractedImages: out,
-            rows: rowCount,
-            cols: colCount,
-            gridSize: Math.max(rowCount, colCount),
-            splitMode,
-            hLines,
-            vLines,
-            lassoShapes,
-          });
-        }
-      } catch (e) {
-        logger.error('GridSplitNode', 'Failed to pre-crop images', e);
-      }
-    })();
+      })();
+    });
     return () => {
       cancelled = true;
+      runDerive.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetUrl, cells, rowCount, colCount, splitMode, hLines, vLines, lassoShapes]);
 
   // ---- lasso 模式预切（复刻 Lo.jsx useEffect[F,_,...]：用 clipShape 裁闭包形状）----
+  // 不需要叠防抖：画形状期间 activeCellIdRef 非空 → 本效果逐帧提前返回，天然只在每笔完成后派生一次。
+  // 与上方预切图同口径：切片以 /files/ 持久 URL 物化（唯一落盘出口），不让 base64 进画布快照。
   useEffect(() => {
     if (splitMode !== 'lasso' || activeCellIdRef.current) return;
     if (!assetUrl) {
@@ -396,15 +411,19 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
     let cancelled = false;
     (async () => {
       const closed = lassoShapes.filter((s) => s.closed && s.points.length >= 3);
-      const out = [];
+      const tiles: Array<string | null> = [];
       for (const s of closed) {
         const r = await clipShape(assetUrl, s.points);
-        out.push(r);
+        tiles.push(r);
         if (cancelled) return;
       }
+      // clipShape 失败已在自身出口 toast + 落日志；此处只负责换持久 URL（落盘失败保留内联，统一降级）
+      const urls = await Promise.all(
+        tiles.map((t) => (t ? persistInlineOrKeep(t) : Promise.resolve(null))),
+      );
       if (!cancelled) {
         patchData({
-          extractedImages: out,
+          extractedImages: urls,
           rows: 1,
           cols: closed.length,
           gridSize: Math.max(1, closed.length),

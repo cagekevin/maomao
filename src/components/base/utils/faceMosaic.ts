@@ -22,6 +22,7 @@ import { FilesetResolver, FaceDetector, type Detection } from '@mediapipe/tasks-
 // 超时值统一取 config 的 IMAGE_LOAD_TIMEOUT，不再自带第二套 20s。
 import { loadImageWithTimeout } from './asyncGuard.ts';
 import { IMAGE_LOAD_TIMEOUT } from '../core/config.ts';
+import { canvasToImageDataUrl } from '../core/utils.ts';
 
 /** 打码模式（对齐官方 xl/yl） */
 export type MosaicMode = 'mosaic' | 'bar' | 'grid' | 'blur';
@@ -370,7 +371,8 @@ export async function applyMosaic(
   }
 
   return {
-    dataUrl: canvas.toDataURL(format, format === 'image/png' ? undefined : 0.92),
+    // 唯一出口（产出即校验）：与上行「无法获取图片尺寸 / Canvas 2D 不可用」同契约 —— 失败抛错
+    dataUrl: canvasToImageDataUrl(canvas, format, format === 'image/png' ? undefined : 0.92),
     width: w,
     height: h,
     faceCount,

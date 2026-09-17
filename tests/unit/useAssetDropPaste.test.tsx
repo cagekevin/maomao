@@ -281,7 +281,10 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     const e = {
       preventDefault: vi.fn(),
       target: document.createElement('div'),
-      clipboardData: { getData: (k: any) => (k === 'text/plain' ? 'fallback text' : null), items: [] },
+      clipboardData: {
+        getData: (k: any) => (k === 'text/plain' ? 'fallback text' : null),
+        items: [],
+      },
     };
     await act(async () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
@@ -616,8 +619,12 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
       { x: 0, y: 0 },
       { assetUrl: 'https://x/cat.png' },
     );
-    // 后台本地化 → 专用 web 目录
-    expect(downloadRemoteMock).toHaveBeenCalledWith('https://x/cat.png', { folder: 'web' });
+    // 后台本地化 → 专用 web 目录，并**声明显示名**（更新 2026-09-17：物理名改为内容寻址后
+    // 不含原名，resource 行的可读显示名必须由发起方显式传 filename；否则素材库/下载只见哈希名）
+    expect(downloadRemoteMock).toHaveBeenCalledWith('https://x/cat.png', {
+      folder: 'web',
+      filename: 'cat.png',
+    });
     // 等异步完成 → 替换为本地 URL（id = addNode 返回值）
     await act(async () => {});
     expect(patchNodeData).toHaveBeenCalledWith('node-web-1', {

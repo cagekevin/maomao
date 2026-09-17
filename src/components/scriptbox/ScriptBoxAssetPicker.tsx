@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Image as ImageIcon } from 'lucide-react';
-import { fetchResources, rescanResources } from '../base/api/index.ts';
+import { rescanResources } from '../base/api/index.ts';
+import { fetchAllResourcePages } from '../base/api/pagedList.ts';
 import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import type { ResourceItem } from '../base/api/localToolApi.ts';
 import { mergeResourcesFromBackend } from '../base/store/resourceStore.ts';
@@ -9,12 +10,11 @@ import { useLocalToolStatus } from '../../hooks/useLocalToolStatus.ts';
 import { logger } from '../base/core/logger.ts';
 import ScriptBoxModal from './ScriptBoxModal.tsx';
 
-const PAGE_SIZE = 60;
-
 /**
  * 剧本盒子 —— 「从素材库选择」图片选择器。
  * 按资产类别锁定素材库对应目录（人物/场景/道具），网格展示该目录下的图片，点选一张即回调 onPick(url)。
- * 复用后端 /api/resources 拉取（fetchResources），与素材库面板同源；只展示图片（type='image'）。
+ * 复用后端 /api/resources 拉取（**取全量**，走 `api/pagedList` 的分页读取唯一实现），
+ * 与素材库面板同源；只展示图片（type='image'）。
  *
  * @param props
  *  - folder  素材库目录（如 migrated/人物），决定打开时看哪个文件夹
@@ -48,15 +48,10 @@ export default function ScriptBoxAssetPicker({
         if (rescan) {
           await rescanResources();
         }
-        const data = await fetchResources({
-          folder,
-          page: 1,
-          pageSize: PAGE_SIZE,
-          type: 'image',
-          projectId,
-        });
-        // fetchResources 返回 unknown：先 Array.isArray 判「确实是数组」再按 ResourceItem[] 收窄（F13）
-        const list = Array.isArray(data?.data?.items) ? (data.data.items as ResourceItem[]) : [];
+        // 【取全量（2026-09-17 收口）】本弹窗**没有分页/滚动加载入口**，只取第 1 页会让用户
+        // 看不到也**选不到**后面的图（此前 60 条封顶，与导入弹窗的 100 条同族 = 静默不完整）。
+        // 走分页读取的唯一实现（按 totalPages 取齐，不抄上限）。
+        const list = await fetchAllResourcePages({ folder, type: 'image', projectId });
         setItems(list);
         mergeResourcesFromBackend(list);
       } catch (e) {

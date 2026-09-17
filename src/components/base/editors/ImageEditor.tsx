@@ -25,7 +25,7 @@ import ReactCrop, { centerCrop, makeAspectCrop, type Crop as CropRect } from 're
 import 'react-image-crop/dist/ReactCrop.css';
 import { logger } from '../core/logger.ts';
 import FullscreenShell from '../panels/FullscreenShell.tsx';
-import { createRafBatch } from '../core/utils.ts';
+import { createRafBatch, canvasToImageDataUrl } from '../core/utils.ts';
 import { compressImage } from '../utils/imageCompress.ts';
 import { loadImageWithTimeout, releaseQuietly } from '../utils/asyncGuard.ts';
 import '../core/toastStore.ts';
@@ -913,7 +913,8 @@ export default function ImageEditor({
     const out = buildFinalCanvas();
     if (!out) return;
     onSave?.({
-      dataUrl: out.toDataURL('image/png'),
+      // 唯一出口：产出即校验（画布分配失败时 toDataURL 返回 "data:,"，此处直接抛错而非写回空图）
+      dataUrl: canvasToImageDataUrl(out, 'image/png'),
       width: out.width,
       height: out.height,
     });

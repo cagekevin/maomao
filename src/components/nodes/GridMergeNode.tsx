@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { useDebouncedEffect, clamp } from '../base/core/utils.ts';
+import { useDebouncedEffect, clamp, canvasToImageDataUrl } from '../base/core/utils.ts';
 import '@xyflow/react';
 import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
@@ -309,7 +309,11 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
               offset += w + longGap * scale;
             }
           });
-          return canvas.toDataURL(isExport ? 'image/png' : 'image/jpeg', isExport ? 1 : 0.85);
+          return canvasToImageDataUrl(
+            canvas,
+            isExport ? 'image/png' : 'image/jpeg',
+            isExport ? 1 : 0.85,
+          );
         }
         if (mergeMode === 'grid') {
           const total = rows * cols;
@@ -373,7 +377,11 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
               ctx.fillText(label, bx + bw / 2, by + bh / 2 + 2);
             }
           });
-          return canvas.toDataURL(isExport ? 'image/png' : 'image/jpeg', isExport ? 1 : 0.85);
+          return canvasToImageDataUrl(
+            canvas,
+            isExport ? 'image/png' : 'image/jpeg',
+            isExport ? 1 : 0.85,
+          );
         }
         return null;
       } catch (e) {

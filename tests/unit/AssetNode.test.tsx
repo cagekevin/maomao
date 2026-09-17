@@ -5,7 +5,7 @@
  */
 import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';
 
 vi.mock('@xyflow/react', () => mocks.xyflow);
@@ -69,5 +69,26 @@ describe('AssetNode — 内容态', () => {
     // 未播放状态：出现播放按钮（title=播放视频）
     const playBtn = screen.getAllByTitle('播放视频')[0];
     expect(playBtn).toBeTruthy();
+  });
+
+  it('图片两段回退：缩略图失败 → 原图；原图再失败 → 显式占位（不静默裂图）', () => {
+    // 契约另一半在后端 handleThumbnail：缩略图失败是显式 4xx/5xx，由前端 <img onError> 回退原图。
+    // 本断言锁的就是这条「失败可见 + 可回退」，此前 AssetNode 侧完全没实现（失败=浏览器裂图）。
+    const { container } = setup({ data: { assetUrl: '/files/web/abc.png' } });
+    const imgEl = () => container.querySelector('img[alt="Content"]') as HTMLImageElement | null;
+
+    const first = imgEl();
+    expect(first).toBeTruthy();
+    // 初始走按需小图（缩略图端点），不是原图地址
+    expect(first?.getAttribute('src')).not.toBe('/files/web/abc.png');
+
+    // ① 缩略图端点失败 → 回退原图
+    fireEvent.error(first as HTMLImageElement);
+    expect(imgEl()?.getAttribute('src')).toBe('/files/web/abc.png');
+
+    // ② 原图也失败 → 转显式占位（不再让浏览器裂图）
+    fireEvent.error(imgEl() as HTMLImageElement);
+    expect(container.querySelector('img[alt="Content"]')).toBeNull();
+    expect(screen.getByText('图片加载失败')).toBeTruthy();
   });
 });

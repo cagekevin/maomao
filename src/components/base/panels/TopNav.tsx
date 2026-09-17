@@ -19,8 +19,10 @@ import { showToast } from '../core/toastStore.ts';
  *  - onToggleAgent    切换 AI 助手回调
  */
 
-// 用户头像：本地图片（public/user-avatar.jpg，由桌面「Zoomable image.jpg」复制而来）
-const AVATAR_URL = '/user-avatar.jpg';
+// 用户头像：本地图片（public/user-avatar.png，由桌面「Zoomable image.jpg」复制而来）
+// 更新(2026-09-17)：原指向 `/user-avatar.jpg` —— 该文件已被删除（改为 .png）而引用未同步，
+// 于是浏览器请求 404 → 落到 passthrough 误转发上游 → 502（控制台持续报错、头像不显示）。
+const AVATAR_URL = '/user-avatar.png';
 // 头像加载失败兜底（复刻官方占位习惯）
 const AVATAR_FALLBACK = 'https://api.dicebear.com/9.x/thumbs/svg?seed=maomao';
 
@@ -125,7 +127,7 @@ function TopNav({
           title="返回画布"
         >
           <img
-            src="/webicon.png"
+            src="/gif.gif"
             alt="猫猫画布"
             className="w-[30px] h-[30px] object-contain"
             draggable={false}

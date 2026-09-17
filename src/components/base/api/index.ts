@@ -19,3 +19,6 @@ export * from './pollTask.ts';
 export * from './generate.ts';
 export * from './localToolApi.ts';
 export * from './filesApi.ts';
+// 分页列表读取的唯一实现（page 切片 + 取全量）；消费方也可按模块名直引 `api/pagedList.ts`
+// （规则 8 已裁定 `base/api/*` 深路径是合法契约边界）。
+export * from './pagedList.ts';

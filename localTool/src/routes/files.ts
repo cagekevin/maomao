@@ -11,15 +11,11 @@ import path from 'node:path';
 import { getUploadDir, getDb, queryOne } from '../db/database.js';
 import {
   ensureDir,
-  sanitizeFilename,
-  resolveUploadTarget,
-  writeUploadBufferAt,
   writeUploadDedup,
   ensureThumbnailTarget,
   resizeImage,
   normalizeSubfolder,
   resolveUploadFile,
-  contentIdOf,
   isJimpEncodableExt,
   jimpExtForFile,
 } from '../utils/fileStore.js';
@@ -53,11 +49,19 @@ const BASE_URL = localToolBaseUrl();
 
 /**
  * saveRemoteUrl 的落盘结果信封。
+ *
+ * 更新(2026-09-17 · 格式真相 + 身份归位收口)：
+ *  - `contentId` = Content 维度稳定身份（`sha1:<hex>(字节)`），由落盘权威 `writeUploadDedup` 产出、
+ *    经此回传 —— 调用方（含前端）**直接使用，禁止再自行算哈希**（同一真相只允许一份计算）。
+ *  - `url` 的物理名 = `contentHashName(sha1(字节)) + 真实格式扩展名`（内容寻址），
+ *    不再是「URL 哈希 + URL basename」—— 后者让物理名承载 URL 信息（会漂移、会把 .jpg 名安到 webp 字节上）。
  */
 interface SaveRemoteResult {
   url: string;
   path: string;
   thumbnailUrl?: string;
+  /** Content 维度身份（`<alg>:<hex>`），与 resources.sha1 同源 */
+  contentId: string;
 }
 
 /**
@@ -154,18 +158,13 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
   }
 
   if (fileUrl) {
-    // fileUrl 模式：下载远程文件保存（幂等：同一远程 URL → 同一本地文件名，已存在则跳过下载）
-    try {
-      const result = await saveRemoteUrl(subfolder, fileUrl, filename);
-      // 【TD-12-5】登记行并写 projectId；【TD-12-11/12-12】folder/name 取**本次声明**
-      const rel = result?.url ? relativePathFromFileUrl(result.url) : null;
-      if (rel) await recordUploadedFileRow(rel, { projectId, folder: subfolder, name: filename });
-      uploadLog(200, `fileUrl ${fileUrl}`);
-      return json(res, { code: 0, data: result });
-    } catch (e) {
-      uploadLog(400, `fileUrl ${fileUrl} | ${(e as Error).message}`);
-      return sendError(res, `Failed to download fileUrl: ${(e as Error).message}`, 400);
-    }
+    // fileUrl 模式：下载远程文件保存（幂等由 contentId 去重承担，见 doSaveRemoteUrl）
+    return respondRemoteUrlUpload(res, {
+      subfolder,
+      fileUrl,
+      name: filename,
+      projectId,
+    });
   }
 
   uploadLog(400, 'missing file/fileUrl');
@@ -224,18 +223,44 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
     return sendError(res, 'Missing fileUrl or dataUri in JSON body', 400);
   }
 
-  const filename = body.filename || undefined;
+  // fileUrl 分支：落盘 + 登记行 + 响应，唯一实现见 respondRemoteUrlUpload。
+  // `name` 取本次声明的 filename（显示名属 context 维度）；物理名由内容寻址决定。
+  return respondRemoteUrlUpload(res, {
+    subfolder,
+    fileUrl: body.fileUrl,
+    name: body.filename || undefined,
+    projectId,
+  });
+}
 
+/**
+ * 【fileUrl 落盘分支唯一实现】远程 URL → 落盘 + 登记 resource 行 + 响应信封。
+ *
+ * multipart 分支（handleUploadFormData）与 JSON 分支（handleUploadJson）此前各抄一份同语义代码，
+ * 收口为唯一实现（同一能力只允许一条路径）。
+ *  - `name` 是 resource 行的**显示名**（context 维度，本次声明）；磁盘物理名由内容寻址决定，不接受调用方命名。
+ *  - 落盘结果里的 contentId 随 `{code,data}` 信封回传，前端直接使用（禁止再自行算哈希）。
+ */
+async function respondRemoteUrlUpload(
+  res: ServerResponse,
+  opts: { subfolder: string; fileUrl: string; name?: string; projectId?: string },
+): Promise<void> {
   try {
-    const result = await saveRemoteUrl(subfolder, body.fileUrl, filename);
+    const result = await saveRemoteUrl(opts.subfolder, opts.fileUrl);
     // 【TD-12-5】登记行并写 projectId；【TD-12-11/12-12】folder/name 取**本次声明**
-    const rel = result?.url ? relativePathFromFileUrl(result.url) : null;
-    if (rel) await recordUploadedFileRow(rel, { projectId, folder: subfolder, name: filename });
-    uploadLog(200, `fileUrl ${body.fileUrl}`);
-    return json(res, { code: 0, data: result });
+    const rel = relativePathFromFileUrl(result.url);
+    if (rel) {
+      await recordUploadedFileRow(rel, {
+        projectId: opts.projectId,
+        folder: opts.subfolder,
+        name: opts.name,
+      });
+    }
+    uploadLog(200, `fileUrl ${opts.fileUrl}`);
+    json(res, { code: 0, data: result });
   } catch (e) {
-    uploadLog(400, `fileUrl ${body.fileUrl} | ${(e as Error).message}`);
-    return sendError(res, `Failed to download fileUrl: ${(e as Error).message}`, 400);
+    uploadLog(400, `fileUrl ${opts.fileUrl} | ${(e as Error).message}`);
+    sendError(res, `Failed to download fileUrl: ${(e as Error).message}`, 400);
   }
 }
 
@@ -243,16 +268,16 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
  * 远程 URL → 本地文件（【唯一下载归属点】+ 幂等，任何调用方都走这里保证去重）。
  *
  * 本函数是并发协调层：对"同一远程 URL 的并发请求"只真下载一次（见 inflightDownloads 注释），
- * 内部实现委托 doSaveRemoteUrl（原函数体，含 existsSync 文件幂等 + stableRequest 下载）。
- * 调用方(handleUploadFormData / handleUploadJson / polling / 迁移)签名不变、不感知锁。
+ * 内部实现委托 doSaveRemoteUrl（stableRequest 下载 + 内容寻址落盘）。
+ * 调用方(handleUploadFormData / handleUploadJson / relay-poll)签名不变、不感知锁。
  *
- * 去重键 = subfolder + fileUrl（不含 filename）：filename 只影响落盘命名，不影响"是否同一份下载"。
+ * 去重键 = subfolder + fileUrl（URL 维度，挡同一 URL 的并发重复下载）；
+ * 落盘侧的"同字节只存一份"由 contentId 去重负责（见 doSaveRemoteUrl）。
+ *
+ * 更新(2026-09-17)：删除 `filename` 形参 —— 物理名已由内容寻址决定（sha1(字节) + 真实格式扩展名），
+ * 调用方指定文件名不再参与磁盘命名；显示名属 context 维度，由调用方写 resource 行 `name` 列。
  */
-export async function saveRemoteUrl(
-  subfolder: string,
-  fileUrl: string,
-  filename?: string,
-): Promise<SaveRemoteResult> {
+export async function saveRemoteUrl(subfolder: string, fileUrl: string): Promise<SaveRemoteResult> {
   const dedupeKey = `${subfolder}\u0000${fileUrl}`;
   const inFlight = inflightDownloads.get(dedupeKey);
   if (inFlight) {
@@ -263,7 +288,7 @@ export async function saveRemoteUrl(
   }
   // set 必须在真正开始下载(fetch yield)之前：doSaveRemoteUrl 内部首个 await 前已入表，
   // 保证并发请求 B 到达时查 Map 必命中 A 的 promise，消灭"两并发都 miss"窗口。
-  const p = doSaveRemoteUrl(subfolder, fileUrl, filename);
+  const p = doSaveRemoteUrl(subfolder, fileUrl);
   inflightDownloads.set(dedupeKey, p);
   try {
     return await p;
@@ -274,43 +299,24 @@ export async function saveRemoteUrl(
 }
 
 /**
- * 【原 saveRemoteUrl 实现体，改名保留既有幂等逻辑（URL 哈希命名 / 跳过下载 / 后缀补写）】
- * - 文件名 = sha1(fileUrl) 前 16 位 + 原 basename → 同一远程地址永远映射到同一文件名（URL 契约 / 测试不变）；
- * - URL basename 不带后缀时，下载后按响应 Content-Type 补扩展名；
- * - 文件已存在（带后缀快路径）则跳过下载 → 重复调用不重复落盘（幂等）；
- * - 下载后按【解码字节】算 contentId 查重：命中既有 contentId → 复用其 url（不新建第二份、不二次落盘），
- *   与 multipart / base64 走同一 contentId 权威，跨入口 / 跨 URL 去重免费成立（docs/122 #6 根因修复）。
- * 调用方(polling ii→Zr / gateway / 迁移)下载失败表现为 POST /api/files/upload 返回 400,由 Zr 打 WARN 暴露。
+ * 远程 URL → 磁盘（下载 + 内容寻址落盘）。
+ *
+ * 更新(2026-09-17 · 格式真相 + 身份归位收口)：本函数原先自造了**第二套落盘命名与去重**
+ * （文件名 = `sha1(fileUrl)前16位_basename`、`fs.existsSync` 免下载快路径、自行 sha1(字节) 查 resources），
+ * 而 multipart / base64 走的是内容寻址权威 `writeUploadDedup`（`sha1(字节)` 命名 + contentId 去重）——
+ * 同一语义两份实现，必然漂移。旧命名还把 URL 名后缀当成格式真相：CDN 用 `.jpg` 后缀发 webp 字节时，
+ * 磁盘上出现「名 .jpg / 字节 webp」的假图，下游（缩略图 / 内联 base64）按名解码即失败。
+ * 现收口为：① 格式 = 响应 Content-Type（字节的权威声明），URL 名后缀仅作回退；
+ *          ② 落盘与去重委托 `writeUploadDedup`（唯一权威）；③ contentId 随结果回传，调用方不再自算哈希。
+ *
+ * 幂等语义变更（刻意，按项目约定不为存量兼容）：原先「同一 URL → 同一文件名 → existsSync 跳过下载」的
+ * 免下载快路径已删 —— 物理名改由字节内容决定，下载前不可预知；幂等改由 contentId 去重承担
+ * （同字节 → 命中既有 url，不写盘）。代价 = 同 URL 重复请求多一次下载，换来「名实相符 + 跨入口同一权威」。
+ *
+ * 失败契约：下载失败抛错（调用方转 400），不静默返回旧值。
  */
-async function doSaveRemoteUrl(
-  subfolder: string,
-  fileUrl: string,
-  filename?: string,
-): Promise<SaveRemoteResult> {
-  const urlHash = crypto.createHash('sha1').update(fileUrl).digest('hex').slice(0, 16);
-  // 【TD-08-20 修复 2026-09-16】原 `path.basename(new URL(fileUrl).pathname)` **漏 decodeURIComponent**
-  // → 编码名（`my%20clip.png`）落盘名带裸 `%20`，而前端 relativePathFromUrl 已 decode → 跨栈口径错位。
-  // 统一走 helpers.fileNameFromUrl（URL 解析剥 ?# + decode 一次），与前端 core/utils 同口径。
-  const base = filename || fileNameFromUrl(fileUrl) || 'download';
-  const stableName = sanitizeFilename(`${urlHash}_${base}`);
-  // URL basename 是否带扩展名：无后缀时需下载拿 Content-Type 才能定最终文件名
-  const needsExt = !path.extname(stableName);
+async function doSaveRemoteUrl(subfolder: string, fileUrl: string): Promise<SaveRemoteResult> {
   const ts = logTs;
-
-  // 已带扩展名：先查存在（幂等快路径，命中即免一次下载）
-  if (!needsExt) {
-    const { savedPath, urlPath } = resolveUploadTarget(subfolder, stableName);
-    ensureDir(path.dirname(savedPath));
-    if (fs.existsSync(savedPath)) {
-      console.log(`[download] ${ts()} | SKIP(已存在) | ${fileUrl} -> ${urlPath}`);
-      const thumbnailUrl = await tryGenerateThumbnail(savedPath, urlPath);
-      return {
-        url: `${BASE_URL}${urlPath}`,
-        path: savedPath,
-        thumbnailUrl: thumbnailUrl ? `${BASE_URL}${thumbnailUrl}` : undefined,
-      };
-    }
-  }
 
   // 【TD-08-25 · 2026-09-17】下载走**中央 stableRequest**（不自写重试循环 —— ADAPTER_SPEC R3 红线）：
   //   原先单次 `fetchWithProxy` 无重试 ⇒ CDN「已发布但尚未可读」窗口的瞬时 403/超时**直接判失败**。
@@ -332,45 +338,38 @@ async function doSaveRemoteUrl(
   }
   const data = Buffer.from(await response.arrayBuffer());
 
-  // docs/122 Content 维度 #6·根因修复：下载后按【字节内容】算 contentId 做全局去重（与 multipart/base64 同一权威）。
-  // 命中既有 contentId → 复用其 url（不写盘、不新建第二份）→ 内容相同的图（即使来自不同 URL）落同一物理文件。
+  // 格式真相 = 响应 Content-Type（字节的权威声明）；URL 名后缀仅作回退、不当真相。
+  // 【TD-03-8 修复·远程分支】mime 未登记且 URL 无后缀时 ext 留空（不静默猜格式）。
+  // 【TD-08-20 2026-09-16】URL 名取后缀统一经 fileNameFromUrl（剥 ?# + decode）—— `a.mp4?token=1` 不再带进扩展名。
   const mime = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-  // 【TD-03-8 修复·远程分支】原 `mimeToExt(mime) || ''` 在未知 MIME 且 URL 无后缀时 ext='' → 无扩展名落盘
-  // （octet-stream + 跳过缩略图）。改为回退「URL 文件名再取一次后缀」，仍无则留空。
-  // 【TD-08-20 2026-09-16】原 `path.extname(new URL(fileUrl).pathname)` 未剥 `?#`（`a.mp4?token=1` → `.mp4?token=1`）
-  // → 统一经 fileNameFromUrl（剥 ?# + decode）后再 extname。
-  const ext = needsExt
-    ? mimeToExt(mime) || path.extname(fileNameFromUrl(fileUrl)) || ''
-    : path.extname(stableName);
-  const db = await getDb();
-  const contentId = contentIdOf(crypto.createHash('sha1').update(data).digest('hex'));
-  const existing = queryOne(db, 'SELECT url FROM resources WHERE sha1 = ?', [contentId]) as
-    { url?: string } | undefined;
-  if (existing?.url) {
-    const existingRel = existing.url.replace(/^https?:\/\/[^/]+/, '');
-    const existingPath = resolveUploadTarget(subfolder, path.basename(existingRel)).savedPath;
-    const thumbnailUrl = await tryGenerateThumbnail(existingPath, existingRel);
-    return {
-      url: `${BASE_URL}${existingRel}`,
-      path: existingPath,
-      thumbnailUrl: thumbnailUrl ? `${BASE_URL}${thumbnailUrl}` : undefined,
-    };
-  }
+  const ext = mimeToExt(mime) || path.extname(fileNameFromUrl(fileUrl)) || '';
 
-  // 未命中：按 URL 哈希命名落盘（沿用既有命名，保持 URL 契约 / 测试不变）
-  const finalName = needsExt ? `${stableName}${ext}` : stableName;
-  const { savedPath, urlPath } = resolveUploadTarget(subfolder, finalName);
-  ensureDir(path.dirname(savedPath));
-  writeUploadBufferAt(subfolder, finalName, data);
+  // 落盘与去重委托唯一权威（sha1(字节) 内容寻址 + contentId 查重），与 multipart / base64 同一实现。
+  const db = await getDb();
+  const dedup = await writeUploadDedup({
+    subfolder,
+    ext,
+    data,
+    existingUrlByContentId: (contentId) => {
+      const row = queryOne(db, 'SELECT url FROM resources WHERE sha1 = ?', [contentId]);
+      return row ? (row.url as string) : null;
+    },
+  });
+  // DB 既有 url 为绝对形式，转相对供 `BASE_URL + urlPath` 统一拼接（与 multipart 分支同口径）
+  const urlPath = dedup.urlPath.replace(/^https?:\/\/[^/]+/, '');
+  const rel = urlPath.replace(/^\/files\//, '');
+  // 命中去重时 savedPath=null（未写盘）→ 用既有文件定位原语还原绝对路径（**不 sanitize**，避免改写既有路径）
+  const savedPath = dedup.savedPath ?? resolveUploadFile(rel) ?? '';
   console.log(
-    `[download] ${ts()} | OK  | ${fileUrl} -> ${urlPath} | ${(data.length / 1024).toFixed(0)}KB`,
+    `[download] ${ts()} | OK | ${fileUrl} -> ${urlPath}${dedup.deduped ? ' (contentId dedup)' : ''} | ${(data.length / 1024).toFixed(0)}KB`,
   );
 
-  const thumbnailUrl = await tryGenerateThumbnail(savedPath, urlPath);
+  const thumbnailUrl = savedPath ? await tryGenerateThumbnail(savedPath, urlPath) : undefined;
   return {
     url: `${BASE_URL}${urlPath}`,
-    path: savedPath,
+    path: savedPath || urlPath,
     thumbnailUrl: thumbnailUrl ? `${BASE_URL}${thumbnailUrl}` : undefined,
+    contentId: dedup.contentId,
   };
 }
 
@@ -389,7 +388,15 @@ async function tryGenerateThumbnail(filePath: string, _urlPath: string): Promise
       // 返回 null，由调用方交给前端用原图 URL（这正是「缩略图是优化非前提」的正确表达）。
       const ok = await resizeImage(filePath, thumbPath, { maxDim: 256, quality: 80 });
       if (!ok) {
-        console.warn(`[thumbnail] resize 失败，跳过缩略图（返回原图给前端）: ${filePath}`);
+        // 与 handleThumbnail **同款语义分离**：只有「字节能解码却仍写不出」才是真失败（warn）；
+        // 「字节不可编码」（存量名实不符文件：`.jpg` 名装 webp 字节）是预期内**不适用** → info。
+        // 本函数上方已按扩展名快筛过一道（`isJimpEncodableExt`），但扩展名会说谎，故失败后仍需判字节。
+        const realExt = await jimpExtForFile(filePath);
+        if (realExt) {
+          console.warn(`[thumbnail] resize 真失败（字节可编码为 ${realExt}）: ${filePath}`);
+        } else {
+          console.log(`[thumbnail] 源不可缩，跳过预热（前端将回原图）: ${filePath}`);
+        }
         return null;
       }
     }
@@ -471,9 +478,18 @@ export async function handleThumbnail(
   const outExt = isJimpEncodableExt(formatParam) ? formatParam.toLowerCase() : srcExt;
 
   if (!outExt) {
-    // 无扩展名且字节不可判（非图/非 Jimp 可编码）→ 不猜格式，显式失败（前端 <img onError> 回退原图）。
-    console.warn(`[thumbnail] 无法判定源格式且无 format 参数: ${filePath}`);
-    return sendError(res, 'Unsupported source format', 415);
+    // 【2026-09-17 语义修正】源格式**不可缩**（webp/avif/svg 等：Jimp 能读不能写；或字节非图）
+    // ≠ 本端点出错，而是**预期内的「本优化不适用」** —— 浏览器多能直接渲染这些源格式，原图就是正确答案。
+    // 故 302 到原图：语义清晰（要的东西在原地址），且**所有消费方（含未来新增）自动正确**，
+    // 不必每个前端组件各自处理 415 再各自回退（那正是「同一能力 N 份实现」的复发土壤）。
+    // 与下方「resize 真失败 → 500」严格区分：那是文件损坏 / 磁盘故障，属真错误，必须显式暴露（TD-03-7 契约）。
+    // 日志级别 = info（console.log）：这是**预期内的优化跳过**，不是异常 —— 用 warn 会把它当问题反复刷屏。
+    console.log(`[thumbnail] 源格式不可缩，302 → 原图: ${filePath}`);
+    // Cache-Control 改为可缓存（与原图/缩略图口径一致）：「该源不可缩」是**文件的不变属性**，
+    // 缓存后同一张图不再每次都重走 302（原 `no-store` 导致每次渲染都重复请求 + 重复刷日志）。
+    res.writeHead(302, { Location: sourceUrl, 'Cache-Control': 'public, max-age=86400' });
+    res.end();
+    return;
   }
 
   // 缩略图缓存路径：复用 ensureThumbnailTarget 解析的缩略图目录，文件名显式含后缀与扩展名，
@@ -490,7 +506,23 @@ export async function handleThumbnail(
   if (!fs.existsSync(thumbPath)) {
     const ok = await resizeImage(filePath, thumbPath, { maxDim, quality });
     if (!ok) {
-      console.warn(`[thumbnail] resize 失败: ${filePath} (maxDim=${maxDim} quality=${quality})`);
+      // 「resize 失败」有两种语义，必须分开 —— 否则「本优化不适用」会被报成「端点故障」（500）：
+      //  ① **字节真相是 Jimp 不可编码格式**（webp/avif：能读不能写）→ 本优化不适用 → 302 回原图，
+      //     与上方 `!outExt` 分支同一语义。
+      //     **典型来源**：存量旧命名文件（`sha1(url)_basename.jpg` 装 webp 字节）—— 上方
+      //     `isJimpEncodableExt(srcExtRaw)` 的「扩展名可编码就短路」判据没识破它，于是先按 jpg 解码才失败。
+      //  ② **字节能解码但仍失败**（写盘失败 / 磁盘故障）→ 真失败 → 500（TD-03-7 诚实失败契约不变）。
+      const realExt = await jimpExtForFile(filePath);
+      if (!realExt) {
+        // 同 `!outExt` 分支：预期内的「不适用」→ info 级 + 可缓存（缓存后不再重复请求 / 刷日志）
+        console.log(`[thumbnail] resize 失败且字节不可缩，302 → 原图: ${filePath}`);
+        res.writeHead(302, { Location: sourceUrl, 'Cache-Control': 'public, max-age=86400' });
+        res.end();
+        return;
+      }
+      console.error(
+        `[thumbnail] resize 真失败（字节可编码为 ${realExt}）: ${filePath} (maxDim=${maxDim} quality=${quality})`,
+      );
       return sendError(res, 'Thumbnail generation failed', 500);
     }
   }

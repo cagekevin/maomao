@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 
 /**
- * 节点「本地 state ↔ node.data 字段」落盘：一个可编辑字段一行搞定的统一实现。
+ * 节点「本地 state ↔ node.data 字段」落盘唯一实现（node.data 写回唯一链路的一环，CLAUDE.md §5.4(9)）。
+ * 一个可编辑字段一行搞定，底层统一走 useNodeData.patchData / patchDebounced；禁止节点内手抄三段字段样板（历史重复已收口）。
  *
  * 【为什么要有它】此前每个可编辑字段（prompt / text / autoSplit / inputLocked …）在每个节点里
  * 都要手写三段样板：

@@ -260,8 +260,11 @@ test('files·upload JSON fileUrl（URL 无后缀）→ 按响应 Content-Type �
   );
   const body = parseResBody(res);
   assert.ok(body.data.url, '应返回 url');
-  // 无后缀 URL + Content-Type image/jpeg → 落盘文件名应带 .jpg 后缀
-  assert.match(body.data.url, /\/files\/web\/[0-9a-f]{16}_download\.jpg$/);
+  // 无后缀 URL + Content-Type image/jpeg → 落盘文件名应带 .jpg 后缀。
+  // 更新(2026-09-17 · 格式真相收口)：物理名 = 内容寻址（sha1(字节) 40 位 hex）+ 真实格式扩展名，
+  // 不再是「sha1(URL)前16位 + URL basename」—— 后者让 URL 承载格式声明（会漂移）。
+  // 本断言保留原语义（扩展名由 Content-Type 决定），并把命名改为与新权威一致。
+  assert.match(body.data.url, /\/files\/web\/[0-9a-f]{40}\.jpg$/);
   const rel = body.data.url.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, '');
   const diskPath = path.join(TEST_DIR, 'uploads', rel);
   assert.ok(fs.existsSync(diskPath), '下载文件应落盘');
@@ -282,8 +285,34 @@ test('files·upload JSON fileUrl（无后缀 + Content-Type 不可识别）→ �
     res,
   );
   const body = parseResBody(res);
-  // 不可识别 MIME → 不补后缀（同旧行为）
-  assert.match(body.data.url, /\/files\/web\/[0-9a-f]{16}_download$/);
+  // 不可识别 MIME → 不补后缀（同旧行为：不猜格式）。
+  // 更新(2026-09-17)：命名改为内容寻址（sha1(字节) 40 位 hex），语义不变。
+  assert.match(body.data.url, /\/files\/web\/[0-9a-f]{40}$/);
+});
+
+test('files·upload JSON fileUrl（URL 名 .jpg 但响应声明 image/webp）→ 落盘名取响应格式 .webp', async () => {
+  // 【母体契约】格式真相 = 响应 Content-Type（字节的权威声明），**不是 URL 名后缀**。
+  // 真实事故：CDN 用 `xxx.jpg` 后缀发 webp 字节 → 旧实现在「URL 带后缀」时直接信 URL、丢弃 Content-Type，
+  // 落出「名 .jpg / 字节 webp」的假图，下游按名解码（缩略图 / 内联 base64）即失败。
+  // 注：本断言锁的是「命名判据取自响应头而非 URL 名」，夹具字节不参与该判据（与真实事故同形）。
+  mockFetchOnce(
+    async () =>
+      new Response(new Uint8Array(RED_PNG_BUFFER), {
+        status: 200,
+        headers: { 'content-type': 'image/webp' },
+      }),
+  );
+  const res = makeRes();
+  await filesMod.handleUpload(
+    makeJsonReq({ fileUrl: 'https://cdn.example.com/agentShot.jpg', subfolder: 'web' }),
+    res,
+  );
+  const body = parseResBody(res);
+  assert.match(
+    body.data.url,
+    /\/files\/web\/[0-9a-f]{40}\.webp$/,
+    'URL 名 .jpg 但响应声明 image/webp → 落盘名必须是 .webp（URL 名不参与格式判定）',
+  );
 });
 
 test('files·upload JSON fileUrl（无后缀）重复下载 → 幂等，带后缀最终名只落一份', async () => {

@@ -16,6 +16,7 @@ import { storageService } from '@/components/videoEditor/engine/services/storage
 import { HttpError } from '../../../../base/api/httpClient.ts';
 import { toast } from '@/components/videoEditor/lib/toast';
 import { generateUUID } from '@/components/base/core/idGen.ts';
+import { canvasToImageDataUrl } from '../../../../base/core/utils.ts';
 import { UpdateProjectSettingsCommand } from '@/components/videoEditor/engine/commands/project';
 import {
   DEFAULT_FPS,
@@ -621,7 +622,9 @@ export class ProjectManager {
       targetCanvas: tempCanvas,
     });
 
-    const thumbnailDataUrl = tempCanvas.toDataURL(
+    // 唯一出口（产出即校验）：失败抛错 → 两处调用方（加载 / prepareExit）均有 try/catch 留痕
+    const thumbnailDataUrl = canvasToImageDataUrl(
+      tempCanvas,
       'image/jpeg',
       ProjectManager.THUMBNAIL_JPEG_QUALITY,
     );

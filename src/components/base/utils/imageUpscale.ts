@@ -21,13 +21,12 @@
  *  - sharpen   是否轻度锐化，默认 true
  *  - sharpenAmount 锐化强度 0~2，默认 0.6
  *  - format    输出格式，默认 image/png（保持无损，适合放大）
- *  - maxOutputSize 输出最长边像素上限（可选），超出则等比 clamp（防超大图内存爆炸）
  * @returns {Promise<{ dataUrl, blob, width, height }>}
  */
 import { toAbsoluteFileUrl } from './assetUrl.ts';
 import { loadImageWithTimeout } from './asyncGuard.ts';
 import { IMAGE_LOAD_TIMEOUT } from '../core/config.ts';
-import { dataUrlToBlob } from '../core/utils.ts';
+import { dataUrlToBlob, canvasToImageDataUrl } from '../core/utils.ts';
 
 /** 图片放大入参（upscaleImage.opts；均可选，见函数头 JSDoc） */
 export interface UpscaleImageOptions {
@@ -39,8 +38,6 @@ export interface UpscaleImageOptions {
   sharpenAmount?: number;
   /** 输出格式，默认 image/png（保持无损，适合放大） */
   format?: string;
-  /** 输出最长边像素上限（可选），超出则等比 clamp（防超大图内存爆炸） */
-  maxOutputSize?: number;
 }
 
 /** 图片放大结果（与 imageCompress 返回结构对齐，供"原位覆盖"写回机制复用） */
@@ -55,13 +52,7 @@ export async function upscaleImage(
   url: string,
   opts: UpscaleImageOptions = {},
 ): Promise<UpscaledImageResult> {
-  const {
-    scale = 2,
-    sharpen = true,
-    sharpenAmount = 0.6,
-    format = 'image/png',
-    maxOutputSize = 0,
-  } = opts;
+  const { scale = 2, sharpen = true, sharpenAmount = 0.6, format = 'image/png' } = opts;
   const src = toAbsoluteFileUrl(url || '');
   if (!src) throw new Error('无图片可放大');
   if (!(scale >= 1)) throw new Error('放大倍数必须 >= 1');
@@ -72,19 +63,8 @@ export async function upscaleImage(
   if (!w || !h) throw new Error('无法获取图片尺寸');
 
   // 放大（等比）
-  let outW = Math.round(w * scale);
-  let outH = Math.round(h * scale);
-
-  // 可选最长边 clamp：超出则等比降回来，防止极端大图把 canvas / 内存打爆
-  if (maxOutputSize && (outW > maxOutputSize || outH > maxOutputSize)) {
-    if (outW >= outH) {
-      outH = Math.round((outH * maxOutputSize) / outW);
-      outW = maxOutputSize;
-    } else {
-      outW = Math.round((outW * maxOutputSize) / outH);
-      outH = maxOutputSize;
-    }
-  }
+  const outW = Math.round(w * scale);
+  const outH = Math.round(h * scale);
 
   // 先画到临时的原尺寸 canvas（保留原始像素，供锐化取原图；也便于统一 drawImage 入口）
   const srcCanvas = document.createElement('canvas');
@@ -114,14 +94,16 @@ export async function upscaleImage(
     }
   }
 
-  // toDataURL 跨域污染兜底（对齐 imageCompress 的 SecurityError 处理）
+  // 产物统一经 canvasToImageDataUrl（唯一出口：产出即校验）：
+  //  ① 跨域污染（SecurityError）→ 换成明确可读的错误；② 画布分配失败 → 根部抛错，不静默产出空图。
+  //  ③ 不再把任意异常一律重分类成"跨域"（禁重分类），非 SecurityError 原样上抛。
   let dataUrl;
   try {
-    dataUrl = canvas.toDataURL(format);
+    dataUrl = canvasToImageDataUrl(canvas, format);
   } catch (e) {
-    throw new Error(
-      `图片放大失败：画布被跨域污染（${(e as { name?: string })?.name || 'SecurityError'}），请改用本地文件或允许跨域`,
-    );
+    if ((e as { name?: string })?.name === 'SecurityError')
+      throw new Error('图片放大失败：画布被跨域污染，请改用本地文件或允许跨域');
+    throw e;
   }
   const blob = dataUrlToBlob(dataUrl);
 

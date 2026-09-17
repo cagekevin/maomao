@@ -146,6 +146,22 @@ describe('imageCompress — 输出格式', () => {
     await expect(compressImage('blob:x', { maxSize: 1024 })).rejects.toThrow(/跨域污染/);
   });
 
+  it('非 SecurityError 不再被重分类成"跨域"（禁重分类）', async () => {
+    HTMLCanvasElement.prototype.toDataURL = function () {
+      throw new Error('Canvas 2D 编码失败');
+    };
+    await expect(compressImage('blob:x', { maxSize: 1024 })).rejects.toThrow(/编码失败/);
+  });
+
+  it('画布分配失败（toDataURL 返回 "data:,"）→ 抛明确错误，不静默产出空图', async () => {
+    // 旧行为：只判 `!dataUrl` → "data:," 是真值被放行，dataUrlToBlob 产出 0 字节 Blob 而不抛错
+    // → 空图写回节点，用户看到"已压缩"（假成功）。
+    HTMLCanvasElement.prototype.toDataURL = function () {
+      return 'data:,';
+    };
+    await expect(compressImage('blob:x', { maxSize: 1024 })).rejects.toThrow(/未能生成有效图像/);
+  });
+
   // ── keepOriginalFormat：保持原格式、仅缩尺寸（发送链路压缩专用，避免 JPEG 丢透明）──
   it('keepOriginalFormat=true：/files/*.png → 输出 image/png（保持原格式，不转 JPEG）', async () => {
     imgSize = { w: 3000, h: 1500 };

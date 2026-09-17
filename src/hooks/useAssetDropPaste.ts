@@ -10,6 +10,7 @@ import {
   WEB_DROP_SUBFOLDER,
 } from '../components/base/api/index.ts';
 import { contentIdOfBytes } from '../components/base/utils/assetUrl.ts';
+import { fileNameFromUrl } from '../components/base/core/utils.ts';
 import { UPLOAD_DIRS } from '../components/base/utils/uploadDirs.ts';
 import { logger } from '../components/base/core/logger.ts';
 import { tryParse } from '../components/base/utils/asyncGuard.ts';
@@ -245,7 +246,13 @@ export function useAssetDropPaste({
       const id = addNode('assetNode', pos, { assetUrl: url });
       // 未注入 patchNodeData 则跳过本地化（纯显示模式）；非 http(s) 由 downloadRemoteToLocal 内部拦截（返回 null 不替换）
       if (id && typeof patchNodeData === 'function') {
-        downloadRemoteToLocal(url, { folder: WEB_DROP_SUBFOLDER })
+        // 传 `filename` = URL 原名 → 后端登记为 resource 行**显示名**（context 维度）。
+        // 物理名自 2026-09-17 起是内容寻址（sha1(字节)，不含原名），显示名必须由发起方显式声明，
+        // 否则素材库/下载看到的是哈希名。
+        downloadRemoteToLocal(url, {
+          folder: WEB_DROP_SUBFOLDER,
+          filename: fileNameFromUrl(url) || undefined,
+        })
           .then(async (localUrl) => {
             if (localUrl && localUrl !== url) {
               // docs/122 #4：网页图本地化成功后，落稳定 contentId（由本地文件字节算，与后端同源）；

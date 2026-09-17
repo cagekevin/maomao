@@ -423,7 +423,9 @@ export async function normalizeAssetUrlForSend(
       maxSize: MAX_SEND_DIM,
       keepOriginalFormat: true,
     });
-    if (dataUrl) return dataUrl;
+    // compressImage 要么返回经唯一出口校验过的真图像、要么抛错 → 直接 return，
+    // 不再写 `if (dataUrl)` 假判据（它挡不住 "data:,"，会把空图送给模型）。
+    return dataUrl;
   } catch (e) {
     logger.warn('assetUrl', '发送前压缩失败，回退原样发送', {
       url: String(u).slice(0, 80),

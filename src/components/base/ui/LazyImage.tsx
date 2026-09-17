@@ -1,6 +1,6 @@
 import { memo, useRef, useState, useEffect } from 'react';
-import { useRenderAssetResolver } from '../utils/assetUrl.ts';
 import { ImageOff } from 'lucide-react';
+import { useImageFallbackSrc } from '../utils/useImageFallbackSrc.ts';
 
 /**
  * 懒加载图片
@@ -12,8 +12,9 @@ import { ImageOff } from 'lucide-react';
  * 统一出口：复用 useRenderAssetResolver——本地文件走按需小图（渲染快，不装全分辨率），
  * 外部 http / data: / blob: 回退原绝对地址。视频/弹层不传本组件（本组件仅图片缩略显示）。
  *
- * 加载失败兜底：img onError 时显示统一「破图占位」（图标 + 文案），并保留外层
- * 容器比例/尺寸，避免浏览器默认破图裂图、或图片加载后撑开布局跳动。
+ * 加载失败兜底：走唯一实现 useImageFallbackSrc —— 小图失败**先回退原图**，原图也失败才显示
+ * 统一「破图占位」（图标 + 文案），并保留外层容器比例/尺寸，避免浏览器默认破图裂图、
+ * 或图片加载后撑开布局跳动。（更新 2026-09-17：原为「失败即占位」，缺回退原图这一段。）
  *
  * props：
  *  - src, alt, className, onDoubleClick（透传给外层 div）
@@ -34,11 +35,12 @@ function LazyImage({
   onDoubleClick,
   imgClassName = 'w-full h-full object-cover',
 }: LazyImageProps) {
-  const resolve = useRenderAssetResolver();
-  const resolvedSrc = resolve(src || '');
+  // 显示地址 + 两段失败回退（小图 → 原图 → 显式占位）收口在唯一实现，见 useImageFallbackSrc 文件头。
+  // 更新(2026-09-17)：此前本组件只做「失败 → 占位」，**没有回退原图** → 缩略图端点对不可缩源
+  // （webp 等 Jimp 不可编码格式）返回 4xx/5xx 时，画布节点能显示而助手气泡只显示占位。
+  const { src: resolvedSrc, failed, onError } = useImageFallbackSrc(src || '');
   const ref = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
-  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -71,7 +73,7 @@ function LazyImage({
           draggable={false}
           className={imgClassName}
           onDragStart={(e) => e.preventDefault()}
-          onError={() => setFailed(true)}
+          onError={onError}
         />
       ) : visible && failed ? (
         <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-surface-2 text-faint select-none">

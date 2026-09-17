@@ -3,6 +3,7 @@ import { toast } from '@/components/videoEditor/lib/toast';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import { getMediaTypeFromFile } from '@/components/videoEditor/engine/lib/media/media-utils';
 import { detectFileType } from '@/components/base/utils/assetType';
+import { canvasToImageDataUrl } from '@/components/base/core/utils';
 import { getVideoInfo } from './mediabunny';
 import { Input, ALL_FORMATS, BlobSource, VideoSampleSink } from 'mediabunny';
 
@@ -62,7 +63,8 @@ const renderToThumbnailDataUrl = ({
   }
 
   draw({ context, width: size.width, height: size.height });
-  return canvas.toDataURL('image/jpeg', 0.8);
+  // 唯一出口（产出即校验）：失败抛错 → 由 processMediaAssets 的 catch 留痕（logger.warn）
+  return canvasToImageDataUrl(canvas, 'image/jpeg', 0.8);
 };
 
 export async function generateThumbnail({

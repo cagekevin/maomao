@@ -18,7 +18,12 @@
 import { loadImageWithTimeout } from './asyncGuard.ts';
 import { httpRequest } from '../api/httpClient.ts';
 import { IMAGE_LOAD_TIMEOUT } from '../core/config.ts';
-import { dataUrlToBlob, toAbsoluteFileUrl, fileNameFromUrl } from '../core/utils.ts';
+import {
+  dataUrlToBlob,
+  toAbsoluteFileUrl,
+  fileNameFromUrl,
+  canvasToImageDataUrl,
+} from '../core/utils.ts';
 import { classifyAssetUrlKind } from './assetType.ts';
 
 /**
@@ -139,14 +144,17 @@ export async function compressImage(
   }
   ctx.drawImage(img, 0, 0, w, h);
 
-  // 【R2 治理】toDataURL 跨域污染时抛 SecurityError，必须兜底成明确错误（TASK-015#2 静默吞错）
+  // 产物统一经 canvasToImageDataUrl（唯一出口：产出即校验）：
+  //  ① 跨域污染（SecurityError）→ 换成明确可读的错误（TASK-015#2 静默吞错）；
+  //  ② 画布分配失败 → 原语在根部抛错，不再静默产出 `"data:,"` 空图（此前只判 `!dataUrl` 挡不住）。
+  //  ③ 不再把**任意**异常一律重分类成"跨域"（禁重分类），非 SecurityError 原样上抛。
   let dataUrl;
   try {
-    dataUrl = canvas.toDataURL(outFormat, quality);
+    dataUrl = canvasToImageDataUrl(canvas, outFormat, quality);
   } catch (e) {
-    throw new Error(
-      `图片压缩失败：画布被跨域污染（${(e as { name?: string })?.name || 'SecurityError'}），请改用本地文件或允许跨域`,
-    );
+    if ((e as { name?: string })?.name === 'SecurityError')
+      throw new Error('图片压缩失败：画布被跨域污染，请改用本地文件或允许跨域');
+    throw e;
   }
   const blob = dataUrlToBlob(dataUrl);
 

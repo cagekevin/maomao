@@ -24,6 +24,7 @@ import { toastWarning, toastError } from '../base/core/toastStore.ts';
 import { loadImageWithTimeout, attemptQuietly } from '../base/utils/asyncGuard.ts';
 import { useCopyNode } from '../../hooks/useCopyNode.ts';
 import { generateId } from '../base/core/idGen.ts';
+import { canvasToImageDataUrl } from '../base/core/utils.ts';
 import { downloadUrl as clipboardDownload } from '../base/utils/clipboard.ts';
 
 import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
@@ -138,7 +139,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
       const ctx = canvas.getContext('2d');
       if (!ctx) return undefined;
       ctx.drawImage(img, 0, 0, w, h);
-      return canvas.toDataURL('image/jpeg', quality);
+      return canvasToImageDataUrl(canvas, 'image/jpeg', quality);
     } catch {
       return undefined;
     }

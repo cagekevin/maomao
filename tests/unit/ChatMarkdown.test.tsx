@@ -9,7 +9,7 @@
  */
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({
   default: ({ src }: any) => React.createElement('img', { src }),
@@ -123,5 +123,21 @@ describe('ChatMarkdown — 图片', () => {
     render(<ChatMarkdown value={'你好，这是纯文本，没有图片'} />);
     expect(screen.getByText('你好，这是纯文本，没有图片')).toBeTruthy();
     expect(document.querySelector('img')).toBeNull();
+  });
+
+  it('本地绝对 URL 图：小图失败 → 自动回退原图（与 LazyImage 同一策略·唯一实现）', () => {
+    // 2026-09-17 收口：此前本组件直接 `resolve(s.url)` 喂裸 <img> —— 缩略图端点失败即裂图且无回退，
+    // 与画布节点（有回退）表现不一致。现走 useImageFallbackSrc。
+    // 夹具用**绝对本地 URL**：相对 `/files/` 会被 looksLikeImageUrl 过滤掉（不渲染成图），
+    // 而绝对本地 URL 才会经 resolve → 按需小图端点（这才是本断言要覆盖的路径）。
+    const url = 'http://127.0.0.1:18080/files/web/a.webp';
+    render(<ChatMarkdown value={`![](${url})`} />);
+    const img = document.querySelector('img')!;
+    expect(img).toBeTruthy();
+    // 首次走按需小图（非原图地址）
+    expect(img.getAttribute('src')).not.toBe(url);
+
+    fireEvent.error(img);
+    expect(document.querySelector('img')?.getAttribute('src')).toBe(url);
   });
 });
