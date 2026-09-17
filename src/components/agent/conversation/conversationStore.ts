@@ -21,7 +21,6 @@ import {
   getState,
   commit,
   uid,
-  getActiveConv,
   markHydrated,
   normalizeConversation,
   normalizeWorkflow,
@@ -100,17 +99,6 @@ export function ensureActiveConversation(): string {
   commit({ conversations: [conv], activeId: conv.id });
   materializeAssistantTabs(); // SSOT-7：新会话即落空表基线，杜绝「读时才造 id」
   return conv.id;
-}
-
-/**
- * 把当前对话写回 conversations（对外兼容；重构后 setCurrentSnapshot 已自动落盘，此函数基本不再需要）。
- * 保留兼容，但不做挂载期覆盖（内部由 commit 的 hydrated 守卫兜底）。
- */
-export function captureActiveConversation(): Conversation | null {
-  // 无额外动作：setCurrentSnapshot 已把 active 对话写回并落盘。
-  // 保留导出仅兼容旧调用方；若 activeId 无效则返回 null。
-  if (!getActiveConv()) return null;
-  return getActiveConv();
 }
 
 /** 把某对话加载进当前（恢复/切换），hydrated 置 true，返回快照 */

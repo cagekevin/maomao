@@ -4,7 +4,7 @@
  * 覆盖：
  *  - copyImageToClipboard(url)：图片本身复制到剪贴板（image/png），可粘到其它软件
  *    对齐官方 Ei（H_.jsx:10044 canvas→toBlob）与 ImageBoxNode.copyImage。
- *  - copyText(text)：纯文本复制（clipboard.writeText）
+ *  - copyText(text, opts?)：纯文本复制（clipboard.writeText）；传 opts.html 时写 text/plain + text/html 双 MIME（富文本，如表格）。
  *  - sanitizePastedText(raw)：粘贴文本清洗 —— 丢弃所有样式/富文本残留，只留干净纯文本。
  *  - downloadUrl(url, filename)：下载文件（fetch blob → a.download）
  *  - downloadBlob(blob, filename)：直接下载已有 Blob（备份 JSON / 文本导出等）
@@ -339,14 +339,65 @@ export function buildNodesFromClipboard(
   return { nodes: p, edges: m, count: p.length };
 }
 
-/** 复制纯文本到剪贴板。返回 { ok, msg }。 */
-export async function copyText(text: string): Promise<ClipResult> {
+/** execCommand 兜底复制（旧/受限环境，无 clipboard API 或权限被拒时）。返回是否成功。 */
+function execCommandCopy(text: string): boolean {
   try {
-    await navigator.clipboard.writeText(text || '');
-    return { ok: true, msg: '已复制' };
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
   } catch {
-    return { ok: false, msg: '复制失败，请检查浏览器权限' };
+    return false;
   }
+}
+
+/**
+ * 复制文本到剪贴板。纯文本，或带 `html` 时同时写 `text/html` 双 MIME（富文本，如表格）。
+ * 返回 { ok, msg }，由调用方负责 toast / 降级决策。
+ *
+ * 降级策略（消除各处自造的 execCommand 兜底层，统一收口到本生产者）：
+ *  - 无 clipboard API（非安全上下文 / 旧环境）→ 走 execCommand 兜底，不算失败；
+ *  - 权限被拒 / 其它异常 → 先试 execCommand 兜底，再失败才返回 ok:false + 真实原因。
+ */
+export async function copyText(text: string, opts?: { html?: string }): Promise<ClipResult> {
+  const plain = text ?? '';
+  const html = opts?.html;
+  const canRich =
+    !!html &&
+    typeof ClipboardItem !== 'undefined' &&
+    !!navigator.clipboard &&
+    typeof navigator.clipboard.write === 'function';
+  try {
+    if (canRich) {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/plain': new Blob([plain], { type: 'text/plain' }),
+          'text/html': new Blob([html], { type: 'text/html' }),
+        }),
+      ]);
+      return { ok: true, msg: '已复制' };
+    }
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(plain);
+      return { ok: true, msg: '已复制' };
+    }
+    // 无 clipboard API → 走下方 execCommand 兜底
+  } catch (e) {
+    if (execCommandCopy(plain)) return { ok: true, msg: '已复制' };
+    return {
+      ok: false,
+      msg: `复制失败（${e instanceof Error ? e.message : '权限被拒或非安全上下文'}）`,
+    };
+  }
+  // 非安全上下文 / 旧环境：execCommand 兜底（不算失败）
+  return execCommandCopy(plain)
+    ? { ok: true, msg: '已复制' }
+    : { ok: false, msg: '系统剪贴板不可用（execCommand 亦失败）' };
 }
 
 /** 下载已有 Blob（a.download）。返回 { ok, msg }。所有 a.download 下载统一走这里。 */

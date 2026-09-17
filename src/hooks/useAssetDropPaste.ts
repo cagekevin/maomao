@@ -9,8 +9,8 @@ import {
   downloadRemoteToLocal,
   WEB_DROP_SUBFOLDER,
 } from '../components/base/api/index.ts';
-import { contentIdOfBytes } from '../components/base/utils/assetUrl.ts';
 import { fileNameFromUrl } from '../components/base/core/utils.ts';
+import { assetTypeLabel } from '@/types';
 import { UPLOAD_DIRS } from '../components/base/utils/uploadDirs.ts';
 import { logger } from '../components/base/core/logger.ts';
 import { tryParse } from '../components/base/utils/asyncGuard.ts';
@@ -134,7 +134,8 @@ function readClipboardText(cd: DataTransfer | null | undefined): string {
   if (!cd || typeof cd.getData !== 'function') return '';
   try {
     return cd.getData('text/plain') || '';
-  } catch { // catch-ok: CLIPBOARD
+  } catch {
+    // catch-ok: CLIPBOARD
     // 部分环境 getData 会抛（权限 / 非安全上下文）属浏览器策略预期，吞为 '' 不阻断探测。
     return '';
   }
@@ -153,9 +154,7 @@ function isCanvasGroupJson(text: string): boolean {
 
 /** clipboardData.items 里是否含图片文件项 */
 function hasImageClipboardItem(items: ArrayLike<DataTransferItem> | null | undefined): boolean {
-  return Array.from(items || []).some(
-    (it) => it.kind === 'file' && !!it.type && it.type.startsWith('image/'),
-  );
+  return Array.from(items || []).some((it) => it.kind === 'file' && detectFileType(it) === 'image');
 }
 
 /** 是否「只有纯文本」项（有项、无图片、无 text/html 等富类型） */
@@ -227,16 +226,16 @@ export function useAssetDropPaste({
         const url = up.url;
         // docs/122 #4：持久文件（非内联 dataURL）→ 落稳定 contentId（sha1:<hex>，与后端同源）；
         // 内联 dataURL/blob 无持久 Content，只存 url（互斥双形态）。
-        let contentId: string | undefined;
-        if (!url.startsWith('data:')) contentId = await contentIdOfBytes(file);
+        // 【TD-08-28 收口】生产者（后端落盘权威）已随 `UploadOutcome` 回传 contentId ⇒ 消费者只转发。
+        // 内联兜底分支（落盘失败 → dataURL）本就没有 contentId ⇒ undefined 是**真实空**，不是失败。
+        const contentId = up.contentId;
         addNode('assetNode', pos, {
           assetUrl: url,
           label: file.name,
           ...(contentId ? { contentId } : {}),
         });
-        showToast(
-          `已导入${type === 'image' ? '图片' : type === 'video' ? '视频' : '音频'}「${file.name}」`,
-        );
+        // 显示名取自资产类型目录（`assetTypeLabel`），不再就地手写中文名
+        showToast(`已导入${assetTypeLabel(type)}「${file.name}」`);
       })();
     },
     [addNode],
@@ -272,19 +271,16 @@ export function useAssetDropPaste({
             }
             const localUrl = r.url;
             if (localUrl !== url) {
-              // docs/122 #4：网页图本地化成功后，落稳定 contentId（由本地文件字节算，与后端同源）；
+              // docs/122 #4：网页图本地化成功后，落稳定 contentId（sha1:<hex>，与后端同源）；
               // asset 主引用从易变 assetUrl 升级为 contentId，渲染经 resource 解析 → 永不破图。
+              // 【TD-08-28 收口】该值 **由后端 fileUrl 分支回传**（`files.ts:410`），随判别联合一路上浮 ⇒
+              // 消费者只转发。原实现为拿它要 `fetch(localUrl)` **再下一次整图** + 前端重算 sha1
+              // （同一身份两份计算 + 一次白下载）；现为零额外请求、零重复计算。
+              // 【越权边界 · 2026-09-17 用户裁定】`contentId` 是生产者的**可选**契约字段：缺失即"真空中没有"
+              // （`base64`／`already-local` 等分支本不产出）⇒ **静默才正确**，消费者不替生产者告警/留痕
+              // （CLAUDE.md §5.1「只有生产者才有权呈现错误」＋「失败不得伪装成空」三形态①）。
               const patch: Record<string, unknown> = { assetUrl: localUrl };
-              try {
-                const resp = await fetch(localUrl);
-                const buf = await resp.arrayBuffer();
-                const cid = await contentIdOfBytes(buf);
-                if (cid) patch.contentId = cid;
-              } catch (e) {
-                // 本地化成功即满足显示；contentId 为可选稳定身份，缺失不阻断
-                // → 但**降级必留痕**（2026-09-17 拆 catch-ok）。
-                logger.debug('素材导入', '本地图 contentId 计算失败（不阻断）', e);
-              }
+              if (r.contentId) patch.contentId = r.contentId;
               patchNodeData(id, patch);
             }
           })
@@ -483,12 +479,8 @@ export function useAssetDropPaste({
       if (items) {
         for (const item of items) {
           if (item.kind === 'file') {
-            const type = item.type || '';
-            if (
-              type.startsWith('image/') ||
-              type.startsWith('video/') ||
-              type.startsWith('audio/')
-            ) {
+            const at = detectFileType(item);
+            if (at === 'image' || at === 'video' || at === 'audio') {
               const file = item.getAsFile && item.getAsFile();
               if (file) {
                 e.preventDefault();
@@ -549,7 +541,7 @@ export function useAssetDropPaste({
             }
             for (const item of clip) {
               const types = item.types || [];
-              const imgType = types.find((x) => x.startsWith('image/'));
+              const imgType = types.find((x) => detectFileType({ type: x }) === 'image');
               if (imgType) {
                 const blob = await item.getType(imgType);
                 if (blob) {

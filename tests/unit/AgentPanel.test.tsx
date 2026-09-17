@@ -172,10 +172,18 @@ vi.mock('../../src/components/agent/index.ts', () => ({
   useAgentChat: h.useAgentChat,
   setGenParams: vi.fn(),
   getGenParams: () => ({}),
+  // 【mock 契约同步 · 2026-09-17】AgentPanel 的 Credit Switch 依赖聚合入口的 `getCreditSwitch`。
+  // 原注释「本测试不涉及信用开关」已被代码推翻（AgentPanel.tsx 在 `useState` 初始化期**无条件**调用）
+  // ⇒ mock 缺此导出 ⇒ **整套件 26 个用例全崩**（不是单个用例红）。
+  // 固定 true = 保持既有用例的行为基线；面板逻辑另行在专测覆盖。
+  getCreditSwitch: () => true,
 }));
 vi.mock('../../src/components/base/store/providerStore.ts', () => ({
   useProviders: () => ({ providers: h.providers }),
   load: vi.fn(async () => {}),
+  // 【2026-09-17 桩跟契约走】AgentPanel 的供应商加载已收口到 store 的单 hook
+  // `useEnsureProvidersLoaded`（TD-24-4 §二），mock 缺此导出 = 整套件崩。
+  useEnsureProvidersLoaded: () => {},
 }));
 vi.mock('../../src/components/base/store/agentModelStore.ts', () => ({
   loadAgentChatModel: () => h.agentModelCfg,
@@ -194,7 +202,9 @@ vi.mock('../../src/components/base/store/skillStore.ts', () => ({
 }));
 vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   contentGet: () => null,
-  contentSet: vi.fn(),
+  // 【2026-09-17 TD-24-4 契约同步】写桩必须返回落盘结果（PersistWriteOutcome）：面板宽度落盘走
+  // confirmPersist 读 `.ok`，桩返 undefined 会让整套件崩（桩跟契约走，不是契约迁就桩）。
+  contentSet: vi.fn(() => ({ ok: true, landed: 'local' })),
   contentSubscribe: h.contentSubscribe,
   // AgentPanel 改用 useActiveAssistantTable 后间接依赖 conversationState，其模块级
   // persistDebounced 由 createDebouncedPersist 构造；mock 缺此项会整套件加载失败。

@@ -20,7 +20,6 @@
  */
 import {
   contentGet,
-  contentSet,
   contentGetAsync,
   contentSetAsync,
   createDebouncedPersist,
@@ -29,6 +28,7 @@ import { sGet } from '@/components/base/storage/index.ts';
 import { withTimeout } from '../../base/utils/asyncGuard.ts';
 import { generateId } from '../../base/core/idGen.ts';
 import { CREDIT_GATE_FIELD } from '../../base/core/contracts.ts';
+import { IS_DEV } from '@/components/base/core/config';
 // 【TD-15-1】agentKey 前缀 / 会话键构造收口到 base/core 单一真源（禁本地再拼字面量）
 import {
   AGENT_KEY_PREFIX,
@@ -120,7 +120,7 @@ const persistDebounced = createDebouncedPersist(() => {
     .filter((c): c is Conversation => c != null);
   // 【批2 · 落盘前写前校验】dev 下对硬约束（error）违规告警——把「假成功」在写时就抓住，不等用户踩。
   // 只作用于内存归一副本，与落盘投影降级互不影响；P1 体积仍由下方 applyConversationBudget 强制。
-  if (import.meta.env.DEV !== false) {
+  if (IS_DEV) {
     const violations = validateConversationState({
       conversations: normalized,
       activeId: next.activeId,
@@ -147,24 +147,36 @@ const persistDebounced = createDebouncedPersist(() => {
       budget: SAFE_BUDGET_BYTES,
     });
   }
-  try {
-    contentSet(convKey(currentAgentKey), toStore);
-    contentSet(activeKey(currentAgentKey), next.activeId || '');
-  } catch (e) {
-    // 【修正旧注释】原注释称「事件已由 contentSet→sSet 内部 publish」——该假设仅在 local
-    // 后端成立。会话键已登记 backend:'kv'，走 storageSet→kvSet(网络)，不经过 sSet，
-    // 故 KV 路径的同步抛错不会触发 persist:failed 事件，必须在此显式透传。
+  // 【2026-09-17 TD-24-4 阶段0 · 修正一段**假兜底**】
+  // 旧写法 `try { contentSet(convKey…); contentSet(activeKey…); } catch { reportDegrade('会话保存失败…') }`
+  // 是**永远不会触发的失败处理**：会话键登记为 `backend:'kv'`，而同步 `contentSet` 对 KV 键
+  // 是 fire-and-forget（拿不到网络写结果、也从不为持久化失败抛错）⇒ catch 永死 ⇒
+  // **会话落盘失败零信号**（连日志都没有）。旧注释写的"KV 路径的同步抛错"是**假契约**。
+  // 现改走 KV 键唯一合法写路径 `contentSetAsync` 并 await（生产者已给全：4xx 上抛可判、
+  // 引擎不可用降级返回 `landed:'local'` 且已由 `kvWriteOp` reportDegrade 提示用户）。
+  void (async () => {
     const key = convKey(currentAgentKey);
-    const msg = (e as { message?: string })?.message || String(e);
-    logger.warn('AI助手', '会话落盘失败', { key, error: msg });
-    // 透传给降级上报（其 toast 为可选表现层，非判定依据；真实判定看返回值与 logger）
-    reportDegrade({
-      layer: 'conversationState',
-      key,
-      e: e instanceof Error ? e : undefined,
-      toast: '会话保存失败，本次对话内容可能未存上',
-    });
-  }
+    try {
+      // 两键**并发**写（与旧同步写同一时序：同一 tick 内都在途）。串行 await 会让第二个键
+      // 晚一个微任务落地，水化侧可能先读到旧的 activeId（实测竞态）。
+      await Promise.all([
+        contentSetAsync(key, toStore),
+        contentSetAsync(activeKey(currentAgentKey), next.activeId || ''),
+      ]);
+    } catch (e) {
+      // 到此 = 真失败（如 4xx 拒收）。生产者不给用户信号的失败，只能由本处交代 —— 故这里必须报。
+      logger.warn('AI助手', '会话落盘失败', {
+        key,
+        error: (e as { message?: string })?.message || String(e),
+      });
+      reportDegrade({
+        layer: 'conversationState',
+        key,
+        e: e instanceof Error ? e : undefined,
+        toast: '会话保存失败，本次对话内容可能未存上',
+      });
+    }
+  })();
 }, 300);
 
 /** 强制立即落盘当前 agentKey 会话（页面卸载兜底 / 测试用） */

@@ -1383,7 +1383,7 @@ if (!cloudKeyViol) {
 //   规则 6 拦的是「import sSet/sGet/kvSet…」这类**经适配层**的绕过，对
 //   **直接 `localStorage.setItem/removeItem/clear`** 完全无感（本规则上线前全 src 零扫描）。
 //   实证：`director3d/storage.ts` 与 `videoEditor/hooks-cutia/storage/use-local-storage.ts` 两处长期裸写 ——
-//   绕过入口 ⇒ 备份清单 / 存储监控 / 失败上报（persist:failed）对该条数据流**全部失效**，
+//   绕过入口 ⇒ 备份清单 / 存储监控 / 落盘失败上报（各站点 confirmPersist）对该条数据流**全部失效**，
 //   且键连登记表都没有（换机丢数据）。红线只写在注释里 = 无红线。
 //
 // 【判定（反向判据，不列业务模块清单）】src 全域扫**变更类**裸调用

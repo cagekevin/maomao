@@ -288,12 +288,40 @@ let _saveTimer: ReturnType<typeof setTimeout> | null = null;
 // 委托 runReferenceGc 引用感知 GC，见 routes/tasks.ts 注释），仅测试引用，属死代码清理。
 // 若将来需要「单文件删盘」，应复用 utils/orphanGc.ts 的引用感知逻辑，勿恢复本函数。
 
+/**
+ * 防抖落盘（500ms 合并）。
+ *
+ * 【适用边界（TD-08-39 · 2026-09-17 明确）】只给「**丢一条也无严重后果**」的高频/可重放写用：
+ * 任务进度上报、前端快照更新这类同值反复写。
+ *
+ * **宣告了「已保存/已完成」的写不要用它** —— 内存 DB 与磁盘之间有 500ms 窗口，而重启只信磁盘
+ * （`getDb` 从文件加载）⇒ 窗口内崩机，对外宣告过的成功会**在重启后消失**（假成功）。
+ * 这类「崩溃后再起来必须立刻看到」的写一律用 `flushSaveDb()`（本文件下方）：
+ * 提交确认 / 任务终态 / 可能已出站的提交前快照 —— 尤其**重复计费**就发生在这个窗口里。
+ */
 export function debouncedSaveDb(): void {
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
     _saveTimer = null;
     saveDb();
   }, 500);
+}
+
+/**
+ * 立即落盘：取消待执行的防抖写，同步 `saveDb()`（原子写：tmp + rename）。
+ *
+ * 【TD-08-39】防抖窗口对「崩溃即出错」的写是不可接受的 —— 内存 DB 写完就往下走，磁盘却还是旧文件：
+ *  - `relay-poll` 的提交确认（写 `thread_id` + 清 `pendingSubmit` 快照）若不落盘，进程被杀后重启
+ *    按**旧文件**读到 `pendingSubmit`（= "尚未出站"）⇒ **再提交一次** ⇒ 重复计费（Lovart 无客户端幂等）；
+ *  - 终态（completed/failed/unknown）若不落盘，重启后任务卡在 running、结果与错误一并消失。
+ * 故这些点由防抖改为同步落盘（`saveDb` 本身是同步原子写，代价可接受，且它们都是低频关键写）。
+ */
+export function flushSaveDb(): void {
+  if (_saveTimer) {
+    clearTimeout(_saveTimer);
+    _saveTimer = null;
+  }
+  saveDb();
 }
 
 function initTables(db: any): void {

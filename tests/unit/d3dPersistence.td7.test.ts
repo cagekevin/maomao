@@ -13,7 +13,10 @@ vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   contentGetKvWithFallback: vi.fn(),
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  saveInlineToLocal: vi.fn(async () => ({ ok: true, url: 'http://127.0.0.1:18080/files/director3d/x.png' })),
+  saveInlineToLocal: vi.fn(async () => ({
+    ok: true,
+    url: 'http://127.0.0.1:18080/files/director3d/x.png',
+  })),
 }));
 
 import {
@@ -29,21 +32,36 @@ beforeEach(() => {
 });
 
 describe('TD-7 方案A — d3d 双通道收口 contentStore', () => {
-  it('writeProject 委托 contentSetKvWithFallback 且透传实际落点（kv）', async () => {
-    (contentSetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce('kv');
+  it('writeProject 委托 contentSetKvWithFallback 且透传落盘事实（kv）', async () => {
+    (contentSetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      landed: 'kv',
+    });
     const r = await writeProject('director3d-project', { shots: [] });
     expect(contentSetKvWithFallback).toHaveBeenCalledWith('director3d-project', expect.anything());
-    expect(r).toBe('kv');
+    expect(r).toEqual({ ok: true, landed: 'kv' });
   });
 
-  it('writeProject 降级返回 local（KV 不可达路径）', async () => {
-    (contentSetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce('local');
+  it('writeProject 降级返回 landed:local（KV 不可达 → 本机副本）', async () => {
+    (contentSetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      landed: 'local',
+    });
     const r = await writeProject('director3d-project-abc', { shots: [] });
     expect(contentSetKvWithFallback).toHaveBeenCalledWith(
       'director3d-project-abc',
       expect.anything(),
     );
-    expect(r).toBe('local');
+    expect(r).toEqual({ ok: true, landed: 'local' });
+  });
+
+  it('writeProject 双通道全失 → ok:false（不谎报落点）', async () => {
+    (contentSetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      message: 'KV 引擎不可用，且降级副本也未持久化（数据仅在内存，刷新将丢失）',
+    });
+    const r = await writeProject('director3d-project-abc', { shots: [] });
+    expect(r.ok).toBe(false);
   });
 
   it('hydrateProject：KV 真空（vacated）+ 本地有副本 → 触发一次性迁移写回', async () => {
@@ -54,7 +72,10 @@ describe('TD-7 方案A — d3d 双通道收口 contentStore', () => {
       vacated: true,
       fallback: { shots: [{ id: 'ls' }] },
     });
-    (contentSetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce('kv');
+    (contentSetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      landed: 'kv',
+    });
     const r = await hydrateProject('director3d-project');
     expect(contentGetKvWithFallback).toHaveBeenCalledWith('director3d-project');
     expect(contentSetKvWithFallback).toHaveBeenCalled(); // 唯一许可迁移的形态：KV 确认为空
@@ -113,7 +134,10 @@ describe('TD-02-3 — 跨窗口广播通道（首调建立 / 次调复用，修�
     }
     vi.stubGlobal('BroadcastChannel', FakeChannel);
     const mod = await import('../../src/components/director3d/d3dPersistence.ts');
-    (contentSetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValue('kv');
+    (contentSetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      landed: 'kv',
+    });
 
     await mod.writeProject('director3d-project', { shots: [] });
     await mod.writeProject('director3d-project', { shots: [] });
@@ -135,9 +159,15 @@ describe('TD-02-3 — 跨窗口广播通道（首调建立 / 次调复用，修�
     }
     vi.stubGlobal('BroadcastChannel', ThrowingChannel);
     const mod = await import('../../src/components/director3d/d3dPersistence.ts');
-    (contentSetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValue('kv');
+    (contentSetKvWithFallback as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      landed: 'kv',
+    });
 
-    await expect(mod.writeProject('director3d-project', { shots: [] })).resolves.toBe('kv');
+    await expect(mod.writeProject('director3d-project', { shots: [] })).resolves.toEqual({
+      ok: true,
+      landed: 'kv',
+    });
     await mod.writeProject('director3d-project', { shots: [] });
 
     expect(tries).toBe(1); // 不可用记入 null 复用，不每次保存重试构造

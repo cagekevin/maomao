@@ -34,7 +34,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { contentGet, contentSet } from '../core/contentStore.ts';
 import { KEY_YIMAO_NODE_PREFS } from '../core/contracts.ts';
-import { attemptQuietly } from '../utils/asyncGuard.ts';
+import { confirmPersist } from '../core/degrade.ts';
 
 // TD-13-4：键名唯一真源 = contracts.ts 的 KEY_YIMAO_NODE_PREFS（不再本地复刻字面量）。
 const STORAGE_KEY = KEY_YIMAO_NODE_PREFS;
@@ -124,13 +124,13 @@ export function mergeNodePrefs(
   prev: NodePrefsMap,
   patch: NodePrefsMap,
 ): NodePrefsMap {
-  // 记忆写入失败不影响节点本次参数生效：contentSet 是写入（非读），改走 NON_BLOCKING 原语
-  attemptQuietly(() => {
-    const all = loadAll();
-    const stored = (all[type] as NodePrefsMap | undefined) ?? {};
-    all[type] = { ...stored, ...patch };
-    contentSet(STORAGE_KEY, all);
-  });
+  // 记忆写入失败不影响节点本次参数生效（best-effort）。
+  // 【2026-09-17 TD-24-4 阶段1】原用 `attemptQuietly`（零留痕豁免原语）包裹 —— 那依赖
+  // persist:failed 总线兜底；该总线已于阶段 2 删除，改用 confirmPersist 按落盘事实留痕（不上报用户）。
+  const all = loadAll();
+  const stored = (all[type] as NodePrefsMap | undefined) ?? {};
+  all[type] = { ...stored, ...patch };
+  confirmPersist(contentSet(STORAGE_KEY, all), { layer: 'nodePrefs', key: STORAGE_KEY });
   return { ...prev, ...patch };
 }
 

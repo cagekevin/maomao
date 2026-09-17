@@ -189,12 +189,14 @@ export function setTableEditingCell(cell: { rowId: string; colId: string } | nul
 export function setTableWorkspaceWidth(px: number): void {
   const w = Math.min(WIDTH_MAX, Math.max(WIDTH_MIN, Number.isFinite(px) ? px : state.width));
   setState({ ...state, width: w });
-  try {
-    contentSet(WIDTH_KEY, String(w));
-  } catch (e) {
-    // 宽度记忆非关键路径：写失败不阻断交互，但要留痕可查（禁静默吞错）
-    logger.warn('AI助手', '表格宽度记忆写入失败', {
-      error: (e as { message?: string })?.message || String(e),
+  // 【2026-09-17 TD-24-4 阶段0】原 `try { contentSet } catch { logger.warn }` 的 catch 永死
+  // （contentSet 从不为持久化失败抛错）⇒ 宽度记忆写失败**从来没被记录过**（"禁静默吞错"是空话）。
+  // 现按生产者给的落盘事实判：非「确认落进持久层」即留痕（非关键路径 → 不阻断交互、不上报用户）。
+  const outcome = contentSet(WIDTH_KEY, String(w));
+  if (!outcome.ok || outcome.landed !== 'local') {
+    logger.warn('AI助手', '表格宽度记忆未落盘', {
+      landed: outcome.ok ? outcome.landed : 'failed',
+      message: outcome.ok ? undefined : outcome.message,
     });
   }
 }

@@ -4,6 +4,7 @@
  * 布局：左 3D 视口 | 右参数面板，底部提示词预览 + 操作按钮。
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { copyText } from '@/components/base/utils/clipboard';
 import { Camera, Lightbulb, Combine, X, Copy, Check, RotateCcw, Sparkles } from 'lucide-react';
 import * as THREE from 'three';
 import {
@@ -503,13 +504,9 @@ function CameraStudioPanel({ isOpen, assetUrl, onClose, onGenerate }: CameraStud
   }, []);
 
   const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(prompt);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    } catch {
-      setCopied(false);
-    }
+    const r = await copyText(prompt);
+    setCopied(r.ok);
+    if (r.ok) setTimeout(() => setCopied(false), 1600);
   }, [prompt]);
 
   const handleGenerate = useCallback(() => {

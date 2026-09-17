@@ -27,6 +27,9 @@ const h = vi.hoisted(() => {
   const contentSet = vi.fn();
   const downloadUrl = vi.fn((..._a: unknown[]) => ({ ok: true, msg: '' }));
   const clipboardWrite = vi.fn();
+  // 【2026-09-17 契约对齐】组件改为经 clipboard.copyText 复制，统一信封 {ok,msg}。
+  // 默认 ok:true（正常路径不触发多窗口剪贴板降级）；fallback 用例按需 mockResolvedValueOnce({ok:false})。
+  const copyText = vi.fn().mockResolvedValue({ ok: true, msg: '已复制' });
   const previewCreate = vi.fn(() => 'blob:upload');
   const patchData = vi.fn();
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() };
@@ -41,6 +44,7 @@ const h = vi.hoisted(() => {
     contentSet,
     downloadUrl,
     clipboardWrite,
+    copyText,
     previewCreate,
     patchData,
     logger,
@@ -59,9 +63,14 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => ({
 }));
 vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   contentSet: (...a: unknown[]) => (h.contentSet as unknown as (...x: unknown[]) => void)(...a),
+  // 【mock 契约同步 · 2026-09-17】被测节点间接依赖 `appSettings.load()`（经 assetUrl），
+  // 后者读 `contentGet(KEY)`。mock 缺此导出 ⇒ **整个套件**加载即失败（不是单个用例红）。
+  // 与 `AgentPanel.test.tsx` 同款漏项 —— 契约变更后按**函数名全仓扫**，别按"我记得改过哪几个文件"。
+  contentGet: () => null,
 }));
 vi.mock('../../src/components/base/utils/clipboard.ts', () => ({
   downloadUrl: (...a: unknown[]) => h.downloadUrl(...a),
+  copyText: (...a: unknown[]) => h.copyText(...a),
 }));
 vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: h.logger }));
 vi.mock('../../src/components/base/utils/previewUrl.ts', () => ({
@@ -301,7 +310,7 @@ describe('VideoExtractNode — 结果操作（复制/下载）', () => {
     fireEvent.click(screen.getByText('复制全部'));
     // copyAll 是 async：clipboard 写入后的 toast 在微任务里，需 waitFor
     await waitFor(() => {
-      expect(h.clipboardWrite).toHaveBeenCalledWith(
+      expect(h.copyText).toHaveBeenCalledWith(
         JSON.stringify({
           type: 'mutiwindow-images',
           images: ['data:image/jpeg;base64,a', 'data:image/jpeg;base64,b'],
@@ -314,7 +323,7 @@ describe('VideoExtractNode — 结果操作（复制/下载）', () => {
   it('复制单帧 → 写入单张 payload', () => {
     setup(WITH_RESULT);
     fireEvent.click(screen.getAllByTitle('复制为新节点 (Ctrl+V粘贴)')[0]);
-    expect(h.clipboardWrite).toHaveBeenCalledWith(
+    expect(h.copyText).toHaveBeenCalledWith(
       JSON.stringify({ type: 'mutiwindow-images', images: ['data:image/jpeg;base64,a'] }),
     );
   });
@@ -326,7 +335,8 @@ describe('VideoExtractNode — 结果操作（复制/下载）', () => {
   });
 
   it('clipboard 不可用 → 回退 contentSet 写入', async () => {
-    h.clipboardWrite.mockRejectedValueOnce(new Error('denied'));
+    // 系统剪贴板被拒（copyText 返 ok:false）→ 降级走多窗口剪贴板键
+    h.copyText.mockResolvedValueOnce({ ok: false, msg: 'denied' });
     setup(WITH_RESULT);
     fireEvent.click(screen.getByText('复制全部'));
     await new Promise((r) => setTimeout(r, 10));

@@ -22,6 +22,7 @@ import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.ts';
 import { exportText, parseImport } from './scriptBoxPlaybookIO.ts';
 import { downloadBlob } from '../base/utils/clipboard.ts';
 import { toastSuccess, toastError } from '../base/core/toastStore.ts';
+import { generateId } from '../base/core/idGen.ts';
 
 /**
  * 剧本盒子 Playbook 管理面板（设计 B：官方折叠 + 我的主区，直白 CRUD，无「另存为」）。
@@ -118,7 +119,7 @@ export default function ScriptBoxPlaybookManager({
       let label = playbook.label;
       let n = 2;
       while (labels.has(label)) label = `${playbook.label} (${n++})`;
-      const id = `pb-import-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      const id = generateId('pb-import');
       saveCustomPlaybook({ ...playbook, id, label, builtin: false });
       toastSuccess(`已导入工作流「${label}」`);
     } catch (err) {

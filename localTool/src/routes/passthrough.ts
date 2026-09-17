@@ -62,10 +62,15 @@
  * 【不进入本层的请求】（在 index.ts 中已提前 return，见调用点注释）
  * ----------------------------------------------------------------------------
  * - `/files/` 前缀       → 本地磁盘文件服务（handleStaticFile）
+ * - `/depth-video/` 前缀 → 本机推理资源（runtime-models/depth-video/，**2026-09-17 TD-08-33 补录**：
+ *   它一直是本地资源，却漏在本层清单外 ⇒ 未命中的请求会被转发外网）
  * - 前端静态页与资源     → dist/ 托管（handleFrontendPage）
  * - `/plugin/` 前缀      → 本地插件清单
  * - `/.well-known/` 前缀 → 浏览器/DevTools 自发探测（com.chrome.devtools.json 等），本地不接不转发
  * 这些是纯本地资源或本地噪音探测，转发给官方没有意义且会 404 / 报 ERR。
+ *
+ * 【判据真源】上面前缀集合 = `utils/localOnlyPaths.ts::LOCAL_ONLY_PREFIXES`（**唯一一份**，
+ * 分派器 `index.ts` 与本层共用）。本文件**不得**再自持清单 —— 之前正是两份手写清单漂移出了上述缺口。
  *
  * 相关文档：docs/21 §六（执行前置）、docs/01 §〇（长期目标总纲）、docs/20（转发层方案）
  * ==========================================================================
@@ -77,23 +82,14 @@ import { sendError } from '../utils/helpers.js';
 import { readOfficialBase } from './official.js';
 import { HOP_BY_HOP, maskToken, logTs, stripHopByHop } from '../utils/relayHeaders.js';
 import { fetchWithTimeout } from '../utils/fetchTimeout.js';
+import { isLocalOnlyPath } from '../utils/localOnlyPaths.js';
 
 /** 兜底透传超时（比 official.ts 略长，兼容慢接口/流式） */
 const PASSTHROUGH_TIMEOUT_MS = Number(process.env.PASSTHROUGH_TIMEOUT) || 30000;
 
-/**
- * 不应转发给官方的本地路径前缀。
- * 命中这些前缀说明是本地资源请求，转发出去没有意义（官方也没有这些路径）。
- * - `/files/`、`/plugin/`：纯本地资源。
- * - `/.well-known/`：浏览器/DevTools 自发探测（如 com.chrome.devtools.json），转给上游必失败，
- *   属于噪音，本地直接不接、不转发、不记日志（交回 404）。
- */
-const LOCAL_ONLY_PREFIXES = ['/files/', '/plugin/', '/.well-known/'];
-
-/** 判断是否为本地专属路径（不转发） */
-export function isLocalOnlyPath(pathname: string): boolean {
-  return LOCAL_ONLY_PREFIXES.some((p) => pathname.startsWith(p));
-}
+// 【TD-08-33】本地专属前缀的清单**不再在本文件自持**（原 `LOCAL_ONLY_PREFIXES` 是第二份字面量，
+// 与 `index.ts` 的分派/托管排除各写一份，已漂移出缺口：`/depth-video/` 在这里缺失 ⇒ 未命中的
+// 本地资源请求被 catch-all 转发外网）。现统一取自 `utils/localOnlyPaths.ts`（唯一真源，分派与透传共用）。
 
 /**
  * ════════════════════════════════════════════════════════════════

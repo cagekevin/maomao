@@ -227,33 +227,18 @@ export function normalizeAssetUrl(url: string | null | undefined): string {
 }
 
 /**
- * 由原始字节计算 Content 维度 identity（docs/122：`contentId = <alg>:<hex>(decodedBytes)`）。
- * 供资产创建时给节点 node.data 落稳定 contentId，与后端 resources.sha1 列同源（`sha1:` 前缀）。
- * 浏览器用 WebCrypto(crypto.subtle) 算 sha1；环境无 crypto.subtle（非浏览器/受限）→ 返回 undefined（跳过 contentId）。
- * 说明：File/Blob 源由 multipart 直传的字节即其原文 → 前端算出的 sha1 与后端 contentId 一致（contentId 与 folder/url 无关）。
- * @param {ArrayBuffer|Blob} data 已解码原始字节（File/Blob 或 ArrayBuffer）
- * @returns {Promise<string|undefined>} `sha1:<hex>`；不可用/失败 → undefined
+ * 【TD-08-28 收口 · 2026-09-17】`contentIdOfBytes`（前端由字节算 `sha1:<hex>`）**已删除**。
+ *
+ * 它曾有 3 个生产消费者（`nodes/AssetNode.tsx`、`hooks/useAssetDropPaste.ts` ×2），现已全部改为
+ * **消费后端落盘权威回传的 contentId**：`filesApi` 的 `UploadOutcome.contentId` /
+ * `PersistOutcome.contentId`（来源 `localTool/src/routes/files.ts:175`（multipart）/`:410`（fileUrl），
+ * 由唯一权威 `writeUploadDedup` 产出）。网页图本地化那条还顺带省掉一次 `fetch(整图)`。
+ *
+ * 【为什么删而不是留】留一份零生产消费者的"第二份身份计算"＝ 幽灵 API，第一个后来者会本能地用它；
+ * 而后端 `sha1(字节)` 与前端 WebCrypto 是**两套实现**，一旦编码/算法差一点就漂移成"同一文件两个身份"
+ * （contentId 去重静默失效）。需要 contentId 时**从落盘结果拿**；确无生产者时（内联 dataURL/blob）
+ * 本就**不该**有 contentId（docs/122：contentId 与 url 互斥双形态）。
  */
-export async function contentIdOfBytes(
-  data: Uint8Array | ArrayBuffer | Blob,
-): Promise<string | undefined> {
-  const subtle = (globalThis as { crypto?: Crypto })?.crypto?.subtle;
-  if (!subtle) return undefined;
-  try {
-    const buf = data instanceof Blob ? await data.arrayBuffer() : data;
-    const hash = await subtle.digest('SHA-1', buf as BufferSource);
-    const hex = Array.from(new Uint8Array(hash))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-    return `sha1:${hex}`;
-  } catch (e) {
-    // 【与「环境无 subtle」必须区分 · 2026-09-17 拆兜底】上面 `!subtle → undefined` 是**环境能力缺失**（正常）；
-    // 这里是**有 subtle 却算不动** = 真失败。两者混成同一个 undefined ⇒ contentId 缺失无从归因
-    // （去重/稳定身份静默退化）。留痕，不静默。
-    logger.warn('资产', 'contentId(sha1) 计算失败，本次跳过 contentId', e);
-    return undefined;
-  }
-}
 
 /**
  * 素材节点 data 的「渲染解析结果」。

@@ -23,7 +23,7 @@ import {
   copyVideoFrameToClipboard,
   downloadUrl,
 } from '../utils/clipboard.ts';
-import { createRafBatch, fileNameFromUrl } from '../core/utils.ts';
+import { createRafBatch, fileNameFromUrl, clamp } from '../core/utils.ts';
 import { setCrossOriginForReadable } from '../utils/asyncGuard.ts';
 import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
 
@@ -102,7 +102,7 @@ function ImageZoomDialog({
     let pending = 0;
     const batch = createRafBatch((delta) => {
       pending = 0;
-      setScale((s) => Math.min(Math.max(0.1, s + delta), 10));
+      setScale((s) => clamp(s + delta, 0.1, 10));
     });
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();

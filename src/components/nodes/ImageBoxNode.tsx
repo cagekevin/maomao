@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { clamp } from '@/components/base/core/utils';
 import { createPortal } from 'react-dom';
 import {
   Box,
@@ -21,6 +22,7 @@ import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import LazyImage from '../base/ui/LazyImage.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import { toastWarning, toastError } from '../base/core/toastStore.ts';
+import { copyImageToClipboard } from '@/components/base/utils/clipboard';
 import { loadImageWithTimeout, attemptQuietly } from '../base/utils/asyncGuard.ts';
 import { logger } from '../base/core/logger.ts';
 import { useCopyNode } from '../../hooks/useCopyNode.ts';
@@ -99,7 +101,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
   // ---- 从 data 读状态（与官方 Rg.jsx 一致，不复制到本地 state，避免失控）----
   // useMemo 稳定化：`data.x || []` 每渲染生成新空数组引用，直接作 useCallback 依赖会导致每渲染重建
   const images = useMemo(() => data.images || [], [data.images]);
-  const activeIndex = Math.min(Math.max(0, data.activeIndex ?? 0), Math.max(0, images.length - 1));
+  const activeIndex = clamp(data.activeIndex ?? 0, 0, Math.max(0, images.length - 1));
   const expanded = data.expanded ?? false;
   const selectedIds = useMemo(() => data.selectedIds || [], [data.selectedIds]);
   const current = images[activeIndex];
@@ -437,26 +439,14 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
 
   // ---- 复制图片到剪贴板（对齐官方 ce：画布转 blob 写 image/png，失败退化为写链接）----
   const copyImage = useCallback(async (url: string) => {
-    try {
-      // 图片加载收口到统一入口（超时兜底）；加载失败由外层 catch 退化为写链接
-      const img = await loadImageWithTimeout(url);
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth || img.width;
-      canvas.height = img.naturalHeight || img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('canvas ctx');
-      ctx.drawImage(img, 0, 0);
-      const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'));
-      if (!blob) throw new Error('blob null');
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      // 复制图片后用户可在画布粘贴，结果可见，无需 toast
-    } catch {
-      try {
-        await navigator.clipboard.writeText(url);
-        toastWarning('图片链接已复制（直接复制图片失败）');
-      } catch {
-        toastError('复制失败，可能因跨域或权限限制');
-      }
+    // 图片→PNG→剪贴板 + 失败降级复制链接 已由 canonical copyImageToClipboard 统一收口
+    // （含跨源裁决单点，与 ImageZoomDialog/App.tsx 复用同一真源）。原自造实现为冗余竞争生产者，直接委托。
+    const r = await copyImageToClipboard(url);
+    if (r.ok) {
+      // canonical 已区分「图片成功」与「链接兜底」并在 msg 说明，统一可见反馈（替代原图片成功静默）。
+      toastWarning(r.msg);
+    } else {
+      toastError(r.msg);
     }
   }, []);
 

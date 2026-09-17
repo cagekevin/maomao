@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { reportDegrade } from '@/components/base/core/degrade.ts';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 import { EditorCore } from '@/components/videoEditor/engine/core';
@@ -81,7 +81,15 @@ export class DeleteElementsCommand extends Command {
 
     for (const asset of ephemeralToRemove) {
       storageService.deleteMediaAsset({ projectId, id: asset.id }).catch((error) => {
-        logger.error('Failed to cleanup ephemeral media:', error);
+        // 【2026-09-17 TD-22-63】原只 logger：元素已删、UI 素材列表已移除（乐观），
+        // 持久层删除失败 ⇒ 刷新后素材"复活"且无关联元素（假删除零提示）——
+        // 与 RemoveMediaAssetCommand.execute 的同形失败同读者。
+        reportDegrade({
+          layer: '剪辑器·清理临时素材',
+          key: asset.id,
+          e: error as Error,
+          toast: '临时素材清理失败，刷新后可能出现无主素材',
+        });
       });
     }
   }
@@ -101,7 +109,14 @@ export class DeleteElementsCommand extends Command {
         if (projectId) {
           for (const asset of this.removedEphemeralAssets) {
             storageService.saveMediaAsset({ projectId, mediaAsset: asset }).catch((error) => {
-              logger.error('Failed to restore ephemeral media on undo:', error);
+              // 【2026-09-17 TD-22-63】原只 logger：撤销恢复失败 ⇒ UI 显示已恢复、刷新后消失。
+              // 与 RemoveMediaAssetCommand.undo 的同形失败同读者。
+              reportDegrade({
+                layer: '剪辑器·撤销删除元素',
+                key: asset.id,
+                e: error as Error,
+                toast: '撤销删除失败，关联素材刷新后可能缺失',
+              });
             });
           }
         }

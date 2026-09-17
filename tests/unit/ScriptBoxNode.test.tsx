@@ -108,6 +108,8 @@ vi.mock('../../src/components/base/store/providerStore.ts', () => ({
   useProviders: () => ({ providers: [] }),
   useProvidersList: () => [],
   load: vi.fn(async () => {}),
+  // 【2026-09-17 桩跟契约走】供应商加载收口到 store 单 hook（TD-24-4 §二），mock 缺此导出会崩。
+  useEnsureProvidersLoaded: () => {},
 }));
 vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: { warn: vi.fn() } }));
 vi.mock('../../src/components/base/core/uiHooks.ts', () => ({

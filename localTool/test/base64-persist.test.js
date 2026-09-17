@@ -47,11 +47,20 @@ test('写盘失败 → 抛出（系统故障不得被压成与非法输入同一
   assert.throws(() => saveBase64ToFile(uniq, 'canvas', null), /disk full/);
 });
 
-test('正常落盘 → 返回 /files/ URL（绝对）', () => {
+test('正常落盘 → 返回 /files/ URL（绝对）+ contentId（2026-09-17 补生产者回传）', () => {
   const uniq = `data:image/png;base64,${Buffer.concat([
     Buffer.from(TINY_PNG.split(',')[1], 'base64'),
     Buffer.from('ok-path'),
   ]).toString('base64')}`;
-  const url = saveBase64ToFile(uniq, 'canvas', null);
-  assert.ok(url && url.includes('/files/canvas/'), `应返回 /files/canvas/ URL，实际: ${url}`);
+  const saved = saveBase64ToFile(uniq, 'canvas', null);
+  assert.ok(
+    saved && saved.url.includes('/files/canvas/'),
+    `应返回 /files/canvas/ URL，实际: ${saved && saved.url}`,
+  );
+  // contentId 与 multipart/fileUrl 分支**同一身份**（sha1(解码后字节)）—— 此前本函数算完即扔，只回 url。
+  const hex = saved.url
+    .split('/')
+    .pop()
+    .replace(/\.png$/, '');
+  assert.equal(saved.contentId, `sha1:${hex}`, 'contentId 必须 = 文件名里的 sha1(解码后字节)');
 });

@@ -66,6 +66,9 @@ vi.mock('../../src/components/base/store/resourceStore.ts', () => ({
 vi.mock('../../src/components/base/store/providerStore.ts', () => ({
   useProvidersList: (...a: Parameters<typeof useProvidersList>) => useProvidersList(...a),
   load: (...a: Parameters<typeof loadProviders>) => loadProviders(...a),
+  // 【2026-09-17 桩跟契约走】供应商加载已收口到 store 的单 hook（TD-24-4 §二）：
+  // 本测试关注的是"拿到 providers 之后"的解析行为，加载动作在 hook 内，这里置空。
+  useEnsureProvidersLoaded: () => {},
 }));
 
 const { useScriptBoxEngine } = await import('../../src/hooks/useScriptBoxEngine.ts');

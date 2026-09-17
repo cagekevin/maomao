@@ -10,7 +10,7 @@ import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import { ShortcutsDialog } from './dialogs/shortcuts-dialog';
 import { cn } from '@/components/videoEditor/utils/ui';
 import { storageService } from '@/components/videoEditor/engine/services/storage/service';
-import { Plus, Command, ArrowLeft, Pencil } from 'lucide-react';
+import { Plus, Command, ArrowLeft, Pencil, AlertTriangle } from 'lucide-react';
 
 // 更新(2026-09-14)：agent-store 已随 AI 域删除。
 
@@ -43,6 +43,8 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
   const activeProject = editor.project.getActive();
   // T5-C：本画布的片子列表（EditorProvider 挂载时已 loadAllProjects 填充）。
   const savedProjects = editor.project.getSavedProjects();
+  // TD-22-63：列表加载失败的持续错误态真源（重渲染由 use-editor 对 project.subscribe 驱动）。
+  const projectsLoadError = editor.project.getProjectsLoadError();
 
   /**
    * 切换到另一部片子（T5-C）。
@@ -175,6 +177,14 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
             >
               {/* ── T5-C：本画布的作品（片子）列表 ── */}
               <div className="text-muted-foreground px-2 py-1 text-[0.7rem]">我的作品</div>
+              {/* 【2026-09-17 TD-22-63】列表读取失败必须可见：原来失败静默 → 列表空白，
+                  用户以为"我的作品都没了"。持续错误态（读 getProjectsLoadError），与素材面板同范式。 */}
+              {projectsLoadError ? (
+                <div className="text-destructive flex items-start gap-1.5 px-2.5 py-2 text-xs">
+                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                  <span className="min-w-0 break-words">作品列表加载失败：{projectsLoadError}</span>
+                </div>
+              ) : null}
               {savedProjects.map((project) => {
                 const isActive = project.id === activeProject?.metadata.id;
                 return (

@@ -170,7 +170,7 @@ for (const file of targets) {
   const lines = src.split('\n');
   const eventFns = [...EVENT_FNS].join('|');
   // 跨行调用合并：处理「fn( 与 '事件名' 分处两行」的多行展开写法。
-  // （2026-09-06 修：usePersistFailureToast 的 subscribe(\n 'persist:failed' 被逐行扫描漏检，
+  // （2026-09-06 修：`subscribe(` 与事件名分处两行的写法曾被逐行扫描漏检，
   //   导致反向校验把登记表 .to 误报为 stale。register 表行号本仅作审计，此处让多行调用也能被捕获。）
   const CALL_OPEN_RE = new RegExp(`\\b(?:${eventFns})\\s*\\(`, 'g');
 

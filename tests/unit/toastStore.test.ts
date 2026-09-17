@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { showToast, dismissToast, clearToasts, subscribe, getToasts } =
+const { showToast, dismissToast, clearToasts, subscribe, getToasts, TOAST_COALESCED } =
   await import('../../src/components/base/core/toastStore.ts');
 
 beforeEach(() => {
@@ -57,5 +57,48 @@ describe('toastStore §基础设施 提示', () => {
     subscribe(fn);
     showToast('hi');
     expect(fn).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * 同文案合并窗口（`coalesceMs`）—— 2026-09-17 从 `core/degrade.ts` 的模块级全局单槽**下沉**到展示层：
+ * 「用户看到什么、多频繁」是展示层的真相，转发方（degrade）只声明窗口、不留状态。
+ * 本组锁死展示层自己的实现（此前状态长在转发原语里，属消费者越权）。
+ */
+describe('toastStore §合并窗口（coalesceMs，展示层 owner）', () => {
+  it('窗口内同文案 + 同 type → 合并（返回 TOAST_COALESCED，不追加）；窗口过后恢复', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(0);
+      const first = showToast('T', { type: 'warning', coalesceMs: 5000 });
+      expect(first).toBeGreaterThan(0);
+      expect(showToast('T', { type: 'warning', coalesceMs: 5000 })).toBe(TOAST_COALESCED);
+      expect(getToasts()).toHaveLength(1);
+
+      vi.setSystemTime(6000); // 出窗口
+      expect(showToast('T', { type: 'warning', coalesceMs: 5000 })).toBeGreaterThan(0);
+      expect(getToasts()).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('不同文案互不合并（各弹一条）', () => {
+    showToast('A', { type: 'warning', coalesceMs: 5000 });
+    expect(showToast('B', { type: 'warning', coalesceMs: 5000 })).toBeGreaterThan(0);
+    expect(getToasts()).toHaveLength(2);
+  });
+
+  it('未声明 coalesceMs → 从不合并（既有调用方行为不变）', () => {
+    showToast('dup');
+    expect(showToast('dup')).toBeGreaterThan(0);
+    expect(getToasts()).toHaveLength(2);
+  });
+
+  it('clearToasts 连合并窗口一起清（清屏后同文案必须能再弹，否则「清空」成了新的静默）', () => {
+    showToast('T', { type: 'warning', coalesceMs: 5000 });
+    expect(showToast('T', { type: 'warning', coalesceMs: 5000 })).toBe(TOAST_COALESCED);
+    clearToasts();
+    expect(showToast('T', { type: 'warning', coalesceMs: 5000 })).toBeGreaterThan(0);
   });
 });

@@ -25,6 +25,7 @@ import { showToast } from '../base/core/toastStore.ts';
 // 收编进 contentStore 单一实现；per-key fallback/timeout 由 STORAGE_KEYS（director3d-project*）决定。
 // 不再裸调 kvGet/kvSet/sGet/sSet，消除「收口缺口」（与 kvStore.storageGet 双副本互不可见问题一并消除）。
 import { contentSetKvWithFallback, contentGetKvWithFallback } from '../base/core/contentStore.ts';
+import type { PersistWriteOutcome } from '../base/storage/index.ts';
 // 键名/前缀真源 = contracts.ts（TD-13-6 收口：原此处与 director3d/project.ts 两份裸写）
 import { KEY_DIRECTOR3D_PROJECT, DIRECTOR3D_PROJECT_PREFIX } from '../base/core/contracts.ts';
 
@@ -206,12 +207,13 @@ export function pickProjectSource(
  * 失败不抛、不阻塞编辑（内存态为权威）；返回实际落点供调用方标记（logger 区分「走后端 / 已降级」）。
  * @param {string} storageKey 业务存储键
  * @param {object} project 工程对象
- * @returns {Promise<'kv'|'local'>} 实际落点
+ * @returns {Promise<PersistWriteOutcome>} 落盘事实：`landed:'kv'` 真进 KV / `landed:'local'` 已降级落本地 /
+ *   `ok:false` **双通道全失**（数据仅在内存，刷新即丢）
  */
 export async function writeProject(
   storageKey: string | undefined,
   project: D3dProject,
-): Promise<'kv' | 'local'> {
+): Promise<PersistWriteOutcome> {
   const key = projectKvKey(storageKey);
 
   // 并发可见警示：他窗口在此前更晚保存过 → 本次写可能覆盖其较新内容（提示一次后清掉）
@@ -229,19 +231,23 @@ export async function writeProject(
   const ext = await externalizeProjectImages(project);
 
   // 双通道收口（TD-7 方案A）：KV 主通道 + localStorage 降级副本 + 独立超时，统一走 contentStore 单一实现。
-  // per-key fallback/timeout 由 STORAGE_KEYS 登记（director3d-project*）决定，写入返回实际落点。
-  const landed = await contentSetKvWithFallback(key, ext.project);
+  // per-key fallback/timeout 由 STORAGE_KEYS 登记（director3d-project*）决定，写入返回**落盘事实**。
+  const outcome = await contentSetKvWithFallback(key, ext.project);
 
-  if (landed === 'kv') {
+  if (outcome.ok && outcome.landed === 'kv') {
     logger.debug('d3dPersistence', '工程已写 KV', { key }, {});
     remoteConflictAt.delete(key); // 已消费冲突信号
     myLastWriteAt.set(key, Date.now()); // 记录本窗口写时间，供他窗口判断"更晚"
     announceSaved(key); // 广播，让其他窗口感知
-  } else {
-    // contentStore 已做降级写 + reportDegrade 提示；此处补充 d3d 上下文日志（双通道仍保住一份，宁慢勿丢）
+  } else if (outcome.ok && outcome.landed === 'local') {
+    // contentStore 已做降级写 + reportDegrade 提示；此处补充 d3d 上下文日志（双通道保住一份，宁慢勿丢）
     logger.warn('d3dPersistence', 'KV 不可达，工程已降级写 localStorage', { key });
+  } else {
+    // 双通道全失（数据仅在内存）：contentStore 已 reportDegrade 如实提示过，这里只补 d3d 上下文日志，
+    // 不再重复弹一次（同一失败两处各说一句 = 噪音）。
+    logger.warn('d3dPersistence', '工程未能落盘（KV 与本地降级副本均失败，数据仅在内存）', { key });
   }
-  return landed;
+  return outcome;
 }
 
 /**

@@ -66,13 +66,13 @@
 | 层 | 剧本盒子现状 | 等级 |
 | --- | --- | --- |
 | **L0 写漏斗** | ✅ 全部经 `commit=updateData` 函数式 patch（`scriptBoxEngine.ts:506` 等）；批量走 `createPatchBatcher` 累积合并防丢项（`:216`） | ✅ |
-| **L1 生成收口** | ❌ playbook id 散落 `custom-${Date.now().toString(36)}${Math.random()...}`（`scriptBoxPlaybookStore.ts:157`） | 🟡 见注① |
+| **L1 生成收口** | ✅ playbook id 已收口：`generateId('custom')` / `generateId('pb-import')`（`scriptBoxPlaybookStore.ts` / `scriptBoxPlaybookManager.tsx`），禁散落 `Math.random`/`Date.now` | ✅ 见注① |
 | **L2 查找收口** | ⚠️ `getPlaybook` 悬挂仅 `logger.warn` 回退默认（`:103`），无 `requirePlaybook` 抛错钩子 | ⚠️ 低优先 |
 | **L3 守卫收口** | ⚠️ 失败可见已落地（toast 默认 error、loadCustom 失败 warn、任务 finally `taskCtl.fail`），但 `normalizeScriptBoxData` 非对象 asset 静默给空（`scriptBoxSchema.ts:189`） | ⚠️ |
 | **L4 不变量校验** | ❌ 无 `validatePlaybook`/`validateScriptBoxData`；仅 `parseImport` 基础 JSON 形状校验（`scriptBoxPlaybookIO.ts:59`） | 🟡 见注② |
 | **L5 测试网** | ❌ 无错误注入用例 | 🟡 随 L4 |
 
-**注①（L1 id 红线）**：违背 spec「禁止散落 `Math.random`/`Date.now` 拼 id」，但 playbook 不在多实例碰撞场景、且 `saveCustomPlaybook` 有 `isBuiltin` 守卫防覆盖，实际碰撞风险极低 → **低优先，可顺手收口到 `idGen.ts`，非必修**。
+**注①（L1 id 红线）**：已于 **2026-09-17 收口**（TD-16-38）：`createCustomFrom` 改 `generateId('custom')`、`导入` 改 `generateId('pb-import')`，统一走 `idGen.ts` 唯一入口，消除散落 `Math.random`/`Date.now`。碰撞风险本就极低，属「低优先顺手收口」已落地。
 
 **注②（L4 校验网）**：会话层需 `validate*` 是因为流式/多 agentKey/网络恢复等复杂态；剧本盒子是**序列化随画布的节点模块**，数据来自本地快照、无运行时多源竞争，稳定性天然高。故 L4/L5 对剧本盒子是 **「增强项」而非「必修 bug」**，应按需、避免过度工程。
 
@@ -98,7 +98,7 @@
 | 批次 | 内容 | 必要性 | 风险 | 收益 |
 | --- | --- | --- | --- | --- |
 | **批 0** | `normalizeScriptBoxData` 非对象 asset 静默兜底加 `logger.warn` | 中（与现有失败可见风格对齐） | 零 | 立竿见影消除一处静默 |
-| **批 L1** | playbook id 生成收口到 `idGen.ts` 登记前缀 | 🟡 低（仅风格/防极低概率撞车） | 零 | 消除散落，统一治理 |
+| **批 L1** | playbook id 生成收口到 `idGen.ts` 登记前缀 | ✅ 已完成（TD-16-38） | 零 | 消除散落，统一治理 |
 | **批 1** | 补 `validateScriptBoxData`/`validatePlaybook`（I：shot/asset id 唯一；S：Playbook 形状；P：序列化体积）+ 错误注入单测 | 🟡 **可选增强**（非必修） | 零（只加校验不改逻辑） | 防回潮，但剧本盒子收益低于会话/表格域 |
 | **批 2** | `getPlaybook` 悬挂加 `requirePlaybook` 抛错钩子供「必须命中」场景 | 🟡 低（当前 warn 已够用） | 低 | 写时即查 |
 
@@ -111,4 +111,4 @@
 1. **不要重写 SSOT 架构层**：playbookId 引用、每实例引擎、序列化随画布——这三者已是最佳实践，动则引入回归。
 2. **新增校验只加不改成**：`validate*` 必须返回 `Violation[]` 且**不改任何写逻辑**，与表格篇 `tableInvariants.ts` 同范式可复用。
 3. **任何 fallback 必须出声**：沿用现有 `logger.warn` / toast 风格，禁止新增静默 no-op。
-4. **id 生成统一 `idGen.ts`**：若补 playbook id，登记前缀（如 `pb`），禁止散落 `Math.random`/`Date.now`。
+4. **id 生成统一 `idGen.ts`**：playbook id 已收口 `generateId('custom')` / `generateId('pb-import')`，禁止散落 `Math.random`/`Date.now`（见 L1／注①）。

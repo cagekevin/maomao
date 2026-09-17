@@ -82,7 +82,15 @@ export class RemoveMediaAssetCommand extends Command {
           mediaAsset: this.removedAsset,
         })
         .catch((error) => {
-          logger.error('Failed to restore media item on undo:', error);
+          // 【2026-09-17 TD-22-63】原只 logger：撤销删除失败 ⇒ UI 显示素材已恢复、
+          // 刷新后素材消失（假恢复零提示）。与 execute 内 deleteMediaAsset 的失败同读者
+          // （reportDegrade：开发者留痕 + 用户 toast，一次搞定两者）。
+          reportDegrade({
+            layer: '剪辑器·撤销删除素材',
+            key: this.assetId,
+            e: error as Error,
+            toast: '撤销删除失败，素材刷新后可能仍缺失，请重新导入',
+          });
         });
     }
   }

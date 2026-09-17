@@ -172,6 +172,9 @@ function ResourceLibrary() {
    * UI 状态（不是 toast，toast 逝去即失明）+ 「点击重试」入口。
    */
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  /** 首屏（第 1 页 / 换目录 / 重拉）加载失败的原因；与 `loadMoreError`（翻页）分开——
+   *  两者的**重试动作不同**（重试第 1 页 vs 续下一页），共用一个状态会把重试接到错的动作上。 */
+  const [loadError, setLoadError] = useState<string | null>(null);
   // 外部事件驱动的**重拉信号**（机制，不是兜底）：`resource:sent` 自带目标目录，而目标目录可能与
   // 本面板当前目录**相同** —— setFolder 同值不触发上面的 effect，故需这个单调递增信号保证
   // 「同目录再发送也重拉」。两 state 各司其职（目录 / 重拉信号），React 批处理合并为一次 effect。
@@ -222,6 +225,7 @@ function ResourceLibrary() {
       const token = ++resetTokenRef.current;
       setLoading(true);
       setLoadMoreError(null);
+      setLoadError(null);
       loadMoreBlockedRef.current = false;
       pageRef.current = 1;
       try {
@@ -234,12 +238,15 @@ function ResourceLibrary() {
         setTotal(slice.total);
         setHasMore(hasMoreOf(slice));
       } catch (e) {
-        logger.warn(
-          'ResourceLibrary',
-          '加载失败（localTool 未连？）',
-          (e as { message?: string })?.message,
-        );
-        if (token === resetTokenRef.current) setItems([]);
+        // 【2026-09-17 TD-24-4 §二】读失败不得伪装成"该目录暂无素材"（同族 loadMore 已修）：
+        // 此前这里只 `logger.warn` + `setItems([])` ⇒ 用户看到空态，读成"我的素材没了"。
+        // 现按同族形态如实留痕 + **持续可见的错误态 + 可重试**（重试 = 重跑本函数，不是续页）。
+        const message = (e as { message?: string })?.message || String(e);
+        logger.warn('ResourceLibrary', '加载失败（localTool 未连？）', message);
+        if (token === resetTokenRef.current) {
+          setItems([]);
+          setLoadError(message);
+        }
       } finally {
         if (token === resetTokenRef.current) setLoading(false);
       }
@@ -322,8 +329,11 @@ function ResourceLibrary() {
       }
       if (ok > 0) {
         // 【失败可见】部分成功时把失败明细一并说明（原来只要有 1 个成功就完全静默其余失败）。
-        const tail = failures.length > 0 ? `；${failures.length} 个失败：${failures[0].message}` : '';
-        showToast(`已上传 ${ok} 个素材${tail}`, { type: failures.length > 0 ? 'warning' : 'success' });
+        const tail =
+          failures.length > 0 ? `；${failures.length} 个失败：${failures[0].message}` : '';
+        showToast(`已上传 ${ok} 个素材${tail}`, {
+          type: failures.length > 0 ? 'warning' : 'success',
+        });
         // 修复：上传后未触发 rescan → 面板不刷新、用户「看不到刚传的图」。
         // 主动广播事件，复用与链路 B 一致的「切目录 + rescan」刷新机制。
         emitResourceSent(currentFolder);
@@ -549,6 +559,25 @@ function ResourceLibrary() {
         ) : loading && items.length === 0 ? (
           <div className="h-full flex items-center justify-center text-faint text-sm">
             加载中...
+          </div>
+        ) : items.length === 0 && loadError ? (
+          // 失败态**优先于**空态：否则"读失败"被读成"该目录暂无素材"（把缺失伪装成事实）。
+          // 有陈旧 items 时不接管列表（保留可见内容），只在真正空屏时如实说明。
+          <div className="h-full flex flex-col items-center justify-center text-faint text-sm gap-2">
+            <div className="text-4xl opacity-40">⚠️</div>
+            <p className="m-0 text-red-400">素材加载失败</p>
+            <p
+              className="text-xs text-subtle m-0 max-w-[240px] text-center break-all"
+              title={loadError}
+            >
+              {loadError}
+            </p>
+            <button
+              className="text-caption-sm text-red-400 hover:text-red-300 cursor-pointer border-none bg-transparent"
+              onClick={() => void reset(true)}
+            >
+              点击重试
+            </button>
           </div>
         ) : items.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-faint text-sm gap-2">

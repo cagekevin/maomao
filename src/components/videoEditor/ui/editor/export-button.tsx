@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { copyText } from '@/components/base/utils/clipboard';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/videoEditor/ui/ui/popover';
 import { Button } from '@/components/videoEditor/ui/ui/button';
 import { Label } from '@/components/videoEditor/ui/ui/label';
@@ -251,9 +252,9 @@ function ExportError({ error, onRetry }: { error: string; onRetry: () => void })
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(error);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1000);
+    const r = await copyText(error);
+    setCopied(r.ok);
+    if (r.ok) setTimeout(() => setCopied(false), 1000);
   };
 
   return (

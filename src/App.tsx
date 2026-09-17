@@ -54,7 +54,11 @@ import { setCanvasNodesSnapshot } from './components/base/media/canvasNodesBridg
 // 可复用「导入媒体」弹窗（docs/136 地基的第一个消费方）：
 // 与剪辑器「导入」共用同一组件，4 来源（本地/生成/素材库/画布）；画布入口的落地动作 = 建 assetNode。
 import ImportMediaModalHost from './components/base/panels/ImportMediaModalHost.tsx';
+import type { ImportPickOutcome } from './components/base/panels/ImportMediaModalHost.tsx';
 import type { MediaRef } from './components/base/media/mediaRefTypes.ts';
+// 落地事实判据（**唯一实现**住在 ref 契约层 `base/media` —— 剪辑器入口同样消费它，
+// 禁止在此另判一份：判据属于契约面，不属于任一业务域）。
+import { mediaRefFactsOf } from './components/base/media/index.ts';
 import LeftPanel from './components/base/panels/LeftPanel.tsx';
 import {
   switchProject,
@@ -72,10 +76,7 @@ import { broadcastCanvasSaved } from './components/base/core/canvasSyncBus.ts';
 import { agentKeyForProject } from './components/base/core/agentKeys.ts';
 import previewUrls from './components/base/utils/previewUrl.ts';
 import { logger } from './components/base/core/logger.ts';
-import {
-  useProjectBackupIO,
-  usePersistFailureToast,
-} from './components/base/canvas/useCanvasEventSubscriptions.ts';
+import { useProjectBackupIO } from './components/base/canvas/useCanvasEventSubscriptions.ts';
 import { menuForState, type MenuActionCtx } from './components/base/canvas/canvasContextMenu.tsx';
 import { useNodePosition } from './components/base/core/uiHooks.ts';
 import CustomEdge from './components/edges/CustomEdge.tsx';
@@ -593,7 +594,7 @@ function Canvas() {
     return r;
   }, []);
 
-  // 完整工作流备份导入导出 / 素材 url 改写同步 / 持久化失败上报
+  // 完整工作流备份导入导出（project:import / project:export）
   // → 已收拢到 useCanvasEventSubscriptions.ts（本项目"抽独立事件订阅"收口，见该文件头）。
   useProjectBackupIO();
 
@@ -626,9 +627,6 @@ function Canvas() {
     const t = setTimeout(() => initTaskRecovery(), 500);
     return () => clearTimeout(t);
   }, []);
-
-  // 持久化失败统一上报（persist:failed 节流/透传）→ usePersistFailureToast（收口同上）
-  usePersistFailureToast();
 
   /* ====================================================================
    * 【区 3】能力区
@@ -1031,39 +1029,33 @@ function Canvas() {
    *   剪辑器入口 → linkMediaRefsToProject（在 media.tsx 实现）。
    * 本文件**不 import 剪辑器**（分层：画布属上层，但剪辑器是另一业务域，不该互相依赖）。 */
   const [importOpen, setImportOpen] = useState(false);
-  // 从 MediaRef 建 assetNode：文件型（有 contentId）→ 写 contentId（url 由 resource 反查）；
-  // 否则写 assetUrl（内联/绝对 URL）。两者互斥（docs/122 #4），故按 contentId 有无二选一。
+  /* 画布入口的落地动作（**消费端**）：只做两件事 ——
+   *  ① 按可引用媒体源给的**落地事实**建 assetNode（字段名适配属本域）；
+   *  ② 把判词原样转发给弹窗（生产端给全）。
+   * 【不做】判定成功（`addNode` 恒返回 id，按它判 = 恒真假判据）、宣称"已导入"
+   * （它不知道图能不能显示；画布上出现节点本身就是结果）。
+   * 【不再二选一丢字段】原写法 `contentId != null ? {contentId} : {assetUrl}` 会把 ref 里
+   * 那个**已可渲染的 url 丢掉**，改为依赖 `resourceStore` 反查 —— 能不能显示取决于第二真相的时序，
+   * 而消费方无从判断。现照抄生产端给的事实（`url`/`type`），`contentId` 只作稳定身份附加。 */
   const handleImportPick = useCallback(
-    (items: MediaRef[]) => {
-      if (items.length === 0) return;
+    (items: MediaRef[]): ImportPickOutcome => {
+      // 契约违约（ref 无可渲染地址）在**根部抛出** —— 不在这里吞、也不在这里编文案：
+      // 弹窗是 onPick 的消费方，它会原样转发（并给开发者留痕）。
+      const facts = mediaRefFactsOf(items);
       const base = posAtCenter();
-      const created: string[] = [];
-      const failed: MediaRef[] = [];
-      items.forEach((it, i) => {
+      facts.forEach((f, i) => {
         // 多选时错开排布，避免重叠成一叠。
         const pos = { x: base.x + (i % 5) * 260, y: base.y + Math.floor(i / 5) * 260 };
-        const data =
-          it.contentId != null
-            ? { contentId: it.contentId, label: it.name }
-            : { assetUrl: it.url, label: it.name };
-        // 【成功判据 = 真的建出了节点】`addNode` 返回新节点 id；没有 id 即未落地。
-        // 旧写法不看返回值、直接按 `items.length` 报「已导入 N 个素材」——
-        // 于是「提示导入成功、画布上却什么都没有」时用户无从判断（界面在撒谎）。
-        const id = addNode('assetNode', pos, data);
-        if (id) created.push(id);
-        else failed.push(it);
+        addNode('assetNode', pos, {
+          assetUrl: f.url,
+          assetType: f.type,
+          label: f.name,
+          ...(f.contentId ? { contentId: f.contentId } : {}),
+        });
       });
-      if (created.length === 0) {
-        showToast(`导入失败：${items.length} 个素材都未能建出节点`, { type: 'error' });
-        return;
-      }
-      if (failed.length > 0) {
-        showToast(`已导入 ${created.length} 个，${failed.length} 个失败`, { type: 'error' });
-        return;
-      }
-      showToast(`已导入 ${created.length} 个素材`);
+      // 不宣告成功：画布上出现了节点，那就是结果本身。
+      return { ok: true };
     },
-    // addNode 是稳定 useCallback；showToast 模块级函数。
     [addNode, posAtCenter],
   );
   const handleImportLocalFiles = useCallback(

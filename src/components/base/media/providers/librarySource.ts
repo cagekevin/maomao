@@ -31,7 +31,7 @@
 import { fetchAllResourcePages } from '../../api/pagedList.ts';
 import type { ResourceItem } from '../../api/localToolApi.ts';
 import { detectAssetType } from '../../utils/assetType.ts';
-import { toAbsoluteFileUrl } from '../../core/utils.ts';
+import { toAbsoluteFileUrl, fileNameFromUrl } from '../../core/utils.ts';
 // 目录浏览规则（根/子目录 → 查询参数）：**唯一实现**，本 provider 只调它，不自带规则。
 import { LIBRARY_ROOT, libraryBrowseArgs } from '../libraryBrowse.ts';
 // 分类真源：素材库目录清单 + 面向用户素材的白名单（两处消费方共用同一份，禁止各抄一份）。
@@ -65,7 +65,7 @@ function toMediaRef(item: ResourceItem, query?: MediaRefQuery): MediaRef | null 
   }
 
   // 关键词不再在此过滤：已由后端 `search` 完成（前端"页内过滤"会漏掉未加载的页）。
-  const name = item.name || rawUrl.split('/').pop() || '素材';
+  const name = item.name || fileNameFromUrl(rawUrl) || '素材';
 
   // 文件夹卡片：不参与类型过滤（它不是媒体），直接作为落点条目返回。
   if (item.type === 'folder') {

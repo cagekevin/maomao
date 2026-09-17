@@ -12,6 +12,7 @@
  */
 import { contentGet, contentSet } from '../core/contentStore.ts';
 import { KEY_YIMAO_PRESET_PROMPTS, KEY_YIMAO_PRESET_RECENT } from '../core/contracts.ts';
+import { confirmPersist } from '../core/degrade.ts';
 import { publish } from '../core/eventBus.ts';
 import { generateId } from '../core/idGen.ts';
 
@@ -59,8 +60,12 @@ function readJSON<T>(key: string, fallback: T): T {
 }
 
 function writeJSON(key: string, val: unknown): void {
-  // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
-  contentSet(key, val);
+  // 【2026-09-17 TD-24-4 阶段1】提示词预设是用户资产：未落盘必须让用户知道（toast 节流不刷屏）。
+  confirmPersist(contentSet(key, val), {
+    layer: 'promptManager',
+    key,
+    toast: '提示词预设未能保存（本地存储不可用）',
+  });
 }
 
 // 补齐 id（旧数据可能没 id）

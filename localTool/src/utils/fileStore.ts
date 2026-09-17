@@ -32,6 +32,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import Jimp from 'jimp';
 import { getUploadDir } from '../db/database.js';
+import { relativePathFromFilesUrl } from './helpers.js';
 
 /** 目录不存在则递归创建 */
 export function ensureDir(dir: string): void {
@@ -57,21 +58,40 @@ export function sanitizeFilename(name: string): string {
  * 且 canvas、migrated 下可嵌套（canvas/drop、canvas/video-process）——故白名单针对【顶层根】，
  * 只拒绝未知顶层根与目录逃逸，放行既有所有合法用法（这与前端 uploadDirs.js 的常量根一致）。
  *
- * ⚠️ **改这里之前先读**：本集合是「uploads 顶层根」的**真源**（执行校验的一方）。
- * 新增/删除顶层根时必须**同时**改前端 `src/components/base/utils/uploadDirs.ts::UPLOAD_DIRS`：
- * 后端加了前端没加 ⇒ 前端永远传不出该根（功能死）；反之前端加了后端没加 ⇒ 落盘被拒（静默失败）。
+ * ⚠️ **改这里之前先读**：本集合是「uploads 顶层根」的**真源**（执行校验的一方）。两个子集：
+ *  - **前端可传的根**（`tasks`/`web`/`canvas`/`migrated`/`director3d`）—— 新增/删除时必须**同时**改
+ *    前端 `src/components/base/utils/uploadDirs.ts::UPLOAD_DIRS`：后端加了前端没加 ⇒ 前端传不出该根（功能死）；
+ *    前端加了后端没加 ⇒ 落盘被拒。
+ *  - **后端自有产物根**（`local-patch`：局部提取/融合的产物目录）—— 由后端自己写（`routes/localPatch.ts`
+ *    `OUTPUT_SUBFOLDER`），**不参与前端上传**，故前端无需同步。
  *
  * 更新(2026-09-15)：原由闸 `scripts/check-upload-dirs.mjs` 对账两端，已按用户裁定删除（实测常绿）。
  * 判据改由**此处注释 + 前端同款注释**承担；顶层根若开始频繁增删，应恢复该闸而不是靠注释。
+ *
+ * 更新(2026-09-17 · TD-08-31)：补登记 `local-patch`。它一直被 `localPatch` 使用，却**不在**本集合里 ——
+ * 靠的正是 `resolveUploadTarget` 那句"非法即静默回退 canvas"，于是产物实际落在 `canvas/`。
+ * 白名单是"真源"，真源缺项就会被静默改写语义；且回退改掉的正是**调用方声明的目录**（本债的病灶之一）。
  */
-export const UPLOAD_ROOT_ALLOW = new Set(['tasks', 'web', 'canvas', 'migrated', 'director3d']);
+export const UPLOAD_ROOT_ALLOW = new Set([
+  'tasks',
+  'web',
+  'canvas',
+  'migrated',
+  'director3d',
+  'local-patch',
+]);
 
 /**
  * 规范化并校验 subfolder（目录根白名单 + 防目录逃逸）。
  * - 统一 `/` 分隔、去首尾斜杠、折叠连续斜杠；
  * - 拒绝空段 / `.` / `..` / 含盘符或 `:` 的绝对形式 / 未登记顶层根；
  *   （路径经 path.join 拼接后必然落在 uploads 根内，杜绝 ../ 越根写文件）
- * - 合法 → 返回规范化后的相对子路径；非法 → 返回 null（调用方回退默认根 canvas）。
+ * - 合法 → 返回规范化后的相对子路径；非法 → 返回 null（**调用方必须拒绝该请求，禁止回退默认根**）。
+ *
+ * 【TD-08-31 · 2026-09-17】原注释写的是"调用方回退默认根 canvas"，而 `resolveUploadTarget` 就是这么做的
+ * （`?? 'canvas'`）—— 回退的后果不是"更安全"，而是**盘与行记的不是同一个 folder**：文件落在 `canvas/`，
+ * 而行里写的仍是调用方声明的那个值（如用户拼错的根）⇒ 素材库按 folder 分组时**看不见刚上传的文件**，
+ * 且盘上多出一份"没人认领"的文件。越根写要拦就**拒绝**（400），不要改写语义偷偷换目录。
  */
 export function normalizeSubfolder(subfolder: unknown): string | null {
   if (typeof subfolder !== 'string') return null;
@@ -95,7 +115,12 @@ export function resolveUploadTarget(
   subfolder: string,
   filename: string,
 ): { dir: string; savedPath: string; urlPath: string } {
-  const safeSub = normalizeSubfolder(subfolder) ?? 'canvas'; // 非法子目录回退默认根，杜绝越根写
+  const safeSub = normalizeSubfolder(subfolder);
+  if (!safeSub) {
+    // 【TD-08-31】不静默回退：回退会让"盘落 canvas"与"行/调用方记的 folder"不一致（盘行脱钩，用户看不见文件）。
+    // 非法子目录是**调用方契约违约**（越根 / 拼错根 / 空），fail-fast 交给上层回 400，而不是偷偷换目录。
+    throw new Error(`非法上传子目录，拒绝落盘（防盘行 folder 脱钩）：${JSON.stringify(subfolder)}`);
+  }
   const dir = path.join(getUploadDir(), safeSub);
   const savedPath = path.join(dir, sanitizeFilename(filename));
   const urlPath = `/files/${safeSub}/${path.basename(savedPath)}`;
@@ -231,7 +256,21 @@ export async function writeUploadDedup(opts: WriteDedupOpts): Promise<WriteDedup
   const hash = crypto.createHash('sha1').update(opts.data).digest('hex');
   const contentId = contentIdOf(hash);
   const hitUrl = opts.existingUrlByContentId(contentId);
-  if (hitUrl) return { savedPath: null, urlPath: hitUrl, contentId, deduped: true };
+  if (hitUrl) {
+    // 【TD-08-31】命中**必须校验磁盘还在**：DB 行是"曾经写过"的记录，文件可能已被孤儿 GC / 手工删除 /
+    // 迁移中断带走（行还没被清）。原实现直接复用 ⇒ 回一个 404 的死 url，调用方以为成功（假成功）。
+    // 磁盘不在 → 不复用，走下面真实落盘（并留痕，好定位"行在盘不在"的规模）。
+    const rel = relativePathFromFilesUrl(hitUrl);
+    const hitPath = rel ? path.join(getUploadDir(), rel) : null;
+    if (hitPath && fs.existsSync(hitPath)) {
+      return { savedPath: null, urlPath: hitUrl, contentId, deduped: true };
+    }
+    console.warn('[fileStore:dedup-stale] 去重命中但磁盘已无此文件，改为重新落盘', {
+      contentId,
+      hitUrl,
+      rel,
+    });
+  }
   const contentName = contentHashName(hash, opts.ext);
   const { savedPath, urlPath } = writeUploadBuffer(opts.subfolder, contentName, opts.data);
   return { savedPath, urlPath, contentId, deduped: false };

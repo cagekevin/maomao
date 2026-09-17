@@ -7,6 +7,7 @@ import AgentConfirmCard from './AgentConfirmCard.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import ChatMarkdown from './ChatMarkdown.tsx';
 import { showToast } from '../base/core/toastStore.ts';
+import { copyText } from '@/components/base/utils/clipboard';
 import { logger } from '../base/core/logger.ts';
 
 /** 协议层 ChatMessage.content 可为 string 或 多模态数组，但本组件只渲染文本（UI 契约 content?: string）。
@@ -308,13 +309,9 @@ function AgentMessage({
   const copyContent = useCallback(async () => {
     const text = String(message?.content || '');
     if (!text) return;
-    try {
-      if (!navigator?.clipboard?.writeText) throw new Error('clipboard unavailable');
-      await navigator.clipboard.writeText(text);
-      showToast('已复制回复', { type: 'success' });
-    } catch {
-      showToast('复制失败，请手动选中文本复制', { type: 'error' });
-    }
+    const r = await copyText(text);
+    if (r.ok) showToast('已复制回复', { type: 'success' });
+    else showToast(r.msg, { type: 'error' });
   }, [message?.content]);
 
   if (message.role === 'user') {

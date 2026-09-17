@@ -13,6 +13,7 @@
 
 import { contentGet, contentSet } from '../core/contentStore.ts';
 import { KEY_YIMAO_PROMPT_HUB_CACHE } from '../core/contracts.ts';
+import { confirmPersist } from '../core/degrade.ts';
 // 【出口回收】所有网络请求统一走 httpRequest（自带超时/取消/错误分类），禁止裸写 fetch
 import { httpRequest } from '../api/httpClient.ts';
 
@@ -250,7 +251,8 @@ function readCache(): Record<string, SourceCache> {
   return out;
 }
 function writeCache(all: Record<string, SourceCache>): void {
-  contentSet(CACHE_KEY, all);
+  // 社区库缓存可重建：失败留痕即可（confirmPersist 按 landed 如实记）
+  confirmPersist(contentSet(CACHE_KEY, all), { layer: 'promptHubStore', key: CACHE_KEY });
 }
 
 /** 拉取（或读缓存）单个源，返回 Prompt[]；失败返回上次缓存或空，不抛 */

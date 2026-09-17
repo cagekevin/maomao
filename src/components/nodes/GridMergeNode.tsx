@@ -16,7 +16,7 @@ import OverlayEditor, {
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import { useContentHeightSync } from '../base/core/uiHooks.ts';
-import '../base/core/toastStore.ts';
+import { showToast } from '../base/core/toastStore.ts';
 import { toAbsoluteFileUrl, persistInlineOrKeep } from '../base/api/index.ts';
 import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { logger } from '../base/core/logger.ts';
@@ -441,6 +441,11 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
         const persistedUrl = await persistInlineOrKeep(url);
         patchData({ assetUrl: persistedUrl });
         spawnMergedImage(persistedUrl);
+      } else {
+        // 【2026-09-17 TD-24-4 §二】合成产不出图必须对**用户**可见（同族 GridSplitNode 同款形态）：
+        // 此前这里没有 else、内层只 `return null` + logger ⇒ 用户点「合成」后毫无反应，
+        // 分不清「没点上」和「合成失败了」。原因（含堆栈）仍由 renderToCanvas 的 logger.error 留痕。
+        showToast('合成失败：未能生成图片（源图可能不可用）', { type: 'error' });
       }
     } finally {
       setExporting(false);

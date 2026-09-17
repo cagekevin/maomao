@@ -7,6 +7,7 @@ import { upscaleImage } from '../base/utils/imageUpscale.ts';
 import { useCopyNode } from '../../hooks/useCopyNode.ts';
 import { showThenPersistInline } from '../base/api/filesApi.ts';
 import { showToast, toastError } from '../base/core/toastStore.ts';
+import { formatBytes } from '../base/core/utils.ts';
 
 /**
  * 图片类节点 hover 操作栏「行为 + 按钮」统一机制。
@@ -110,10 +111,12 @@ export function useImageHoverActions({
       const { dataUrl, size, originalSize } = await compressImage(url, { quality: 0.8 });
       // 立即覆盖显示 → 落盘换持久 URL（同一落盘策略；落盘失败保留内联）
       await showThenPersistInline(dataUrl, (u) => onImageReplaced?.(u));
-      const kb = (n: number) => `${(n / 1024).toFixed(0)}KB`;
-      showToast(`已压缩：${originalSize ? kb(originalSize) : '?'} → ${size ? kb(size) : '?'}`, {
-        type: 'success',
-      });
+      showToast(
+        `已压缩：${originalSize ? formatBytes(originalSize) : '?'} → ${size ? formatBytes(size) : '?'}`,
+        {
+          type: 'success',
+        },
+      );
     } catch (e) {
       toastError((e as { message?: string })?.message || '压缩失败');
     } finally {

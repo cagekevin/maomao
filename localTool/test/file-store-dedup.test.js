@@ -8,16 +8,28 @@
  *   - writeUploadDedup：按 sha1 列查重 → 命中复用 url（不写盘）；未命中以 sha1 命名落盘并回传 sha1
  * 纯函数，无 I/O（仅动态 import fileStore.ts，其顶层无 DB 副作用）。
  */
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.join(__dirname, '..', 'src');
-const { contentHashName, contentIdOf, findDedupUrl, writeUploadDedup } = await import(
-  pathToFileURL(path.join(SRC, 'utils', 'fileStore.ts')).href
-);
+
+// 【TD-08-31】writeUploadDedup 现在会**校验命中的文件是否真在磁盘**（拿不到就重新落盘），
+// 故去重用例需要真实 temp 数据目录（原先纯内存桩即可）。隔离目录避免污染开发机 uploads/。
+const TEST_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'maomao-dedup-test-'));
+process.env.MAOMAO_DATA_DIR = TEST_DIR;
+after(() => {
+  try {
+    fs.rmSync(TEST_DIR, { recursive: true, force: true });
+  } catch {}
+});
+
+const { contentHashName, contentIdOf, findDedupUrl, writeUploadDedup, writeUploadBuffer } =
+  await import(pathToFileURL(path.join(SRC, 'utils', 'fileStore.ts')).href);
 
 // ── T-A1 · contentHashName：物理命名单一规范 ──
 test('contentHashName：带扩展名 → sha1.png（ext 去点）', () => {
@@ -74,20 +86,38 @@ test('findDedupUrl：空列表 / 未传数组 → null（防崩）', () => {
   assert.equal(findDedupUrl(null, 'sha1:a1b2'), null);
 });
 
-// ── writeUploadDedup：按 contentId 查重 → 命中复用 url（不写盘），并回传 contentId ──
-test('writeUploadDedup：contentId 命中 → 复用既有 url，deduped:true、不写盘', async () => {
+// ── writeUploadDedup：按 contentId 查重 → 命中**且磁盘还在**才复用 url（不写盘），并回传 contentId ──
+test('writeUploadDedup：命中且磁盘文件在 → 复用既有 url，deduped:true、不写盘', async () => {
   const data = Buffer.from('hello');
   const sha1Hello = 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d';
   const contentIdHello = contentIdOf(sha1Hello);
+  // 造出"既有 Content"：真落一份到盘（url 与磁盘一致才叫命中）
+  const written = writeUploadBuffer('migrated', 'x.png', data);
+  assert.ok(fs.existsSync(written.savedPath), '前置：既有文件在盘');
   const r = await writeUploadDedup({
     subfolder: 'canvas/drop',
     ext: 'png',
     data,
-    existingUrlByContentId: (cid) => (cid === contentIdHello ? '/files/migrated/x.png' : null),
+    existingUrlByContentId: (cid) => (cid === contentIdHello ? written.urlPath : null),
   });
   assert.equal(r.deduped, true);
   assert.equal(r.savedPath, null);
-  assert.equal(r.urlPath, '/files/migrated/x.png');
+  assert.equal(r.urlPath, written.urlPath);
   // 回传的 contentId = `<alg>:<hex>` 去重身份
   assert.equal(r.contentId, contentIdHello);
+});
+
+test('writeUploadDedup：命中但磁盘已无此文件 → 不复用死 url，改为重新落盘（TD-08-31）', async () => {
+  // 场景：DB 行还在（"曾经写过"），文件已被孤儿 GC / 手工删除 / 迁移中断带走。
+  // 原实现直接复用该 url ⇒ 调用方拿到 404 死链却以为成功（假成功）。
+  const data = Buffer.from('hello-stale-marker');
+  const r = await writeUploadDedup({
+    subfolder: 'canvas',
+    ext: 'png',
+    data,
+    existingUrlByContentId: () => '/files/migrated/ghost.png',
+  });
+  assert.equal(r.deduped, false, '磁盘无文件时不得复用');
+  assert.ok(r.savedPath && fs.existsSync(r.savedPath), '应重新落盘');
+  assert.ok(r.urlPath.startsWith('/files/canvas/'), `新 url 指向真实落点，实际: ${r.urlPath}`);
 });

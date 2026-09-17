@@ -78,45 +78,58 @@ async function fileToInlineBase64(filePath: string): Promise<string | null> {
  * @param value 上游请求体（messages 数组 / genBody 对象等），仅转换值，不改写原引用
  * @returns 转换后的新值（原对象不变）
  */
+/**
+ * 深遍历任意 JSON 值，对**字符串叶子**应用 `leaf` 变换（数组/对象结构原样重建，不改写原引用）。
+ *
+ * 【TD-08-32 · 2026-09-17 收口】本文件原有**两份逐行相同**的深遍历（`walk` 压 data:base64 /
+ * `walkCdn` 补回环 URL），只有"字符串叶子怎么变"不同 ⇒ 同一件事写成两份，改一处必漏另一处
+ * （M3 SSOT 第二份）。现收口为**一个遍历 + 两个叶子**：遍历结构只此一份，形态差异全部落在叶子里。
+ *
+ * 【分界判据（Step 3）】这是**探测重复**（怎么遍历）⇒ 必须收口；
+ * **判据重复**（要不要压 base64）才分层 —— 后者已由 `refFormatOf` 单独收口，与本函数无关。
+ */
+async function mapLeaves(value: unknown, leaf: (s: string) => Promise<string>): Promise<unknown> {
+  if (typeof value === 'string') return leaf(value);
+  if (Array.isArray(value)) {
+    return Promise.all(value.map((item) => mapLeaves(item, leaf)));
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    const resolved = await Promise.all(
+      entries.map(([k, val]) => mapLeaves(val, leaf).then((nv) => [k, nv] as const)),
+    );
+    return Object.fromEntries(resolved);
+  }
+  return value;
+}
+
 export async function resolveLocalImages(value: unknown): Promise<unknown> {
   const cache = new Map<string, Promise<string | null>>();
 
-  async function walk(v: unknown): Promise<unknown> {
-    if (typeof v === 'string') {
-      if (v.startsWith('data:')) return v; // 已内联 base64，幂等透传
-      const filePath = resolveLocalPath(v);
-      if (!filePath) return v; // 非本机可读图片（公网/其它），原样透传
-      let p = cache.get(filePath);
-      if (!p) {
-        p = fileToInlineBase64(filePath);
-        cache.set(filePath, p);
-      }
-      const inlined = await p;
-      if (inlined) {
-        console.log(
-          `[resolve:inline-img] ${v.slice(0, 80)} -> data:image (${(inlined.length / 1024).toFixed(0)}KB)`,
-        );
-        return inlined;
-      }
-      console.error(
-        `[resolve:inline-img] 读文件失败，保留原 URL（上游将显性失败）: ${v.slice(0, 120)}`,
+  /** 叶子变换：本机 /files/ 图 → data:base64（`data:` 幂等透传；公网原样；读失败留痕并保留原 URL）。 */
+  const inlineLeaf = async (v: string): Promise<string> => {
+    if (v.startsWith('data:')) return v; // 已内联 base64，幂等透传
+    const filePath = resolveLocalPath(v);
+    if (!filePath) return v; // 非本机可读图片（公网/其它），原样透传
+    let p = cache.get(filePath);
+    if (!p) {
+      p = fileToInlineBase64(filePath);
+      cache.set(filePath, p);
+    }
+    const inlined = await p;
+    if (inlined) {
+      console.log(
+        `[resolve:inline-img] ${v.slice(0, 80)} -> data:image (${(inlined.length / 1024).toFixed(0)}KB)`,
       );
-      return v;
+      return inlined;
     }
-    if (Array.isArray(v)) {
-      return Promise.all(v.map((item) => walk(item)));
-    }
-    if (v && typeof v === 'object') {
-      const entries = Object.entries(v as Record<string, unknown>);
-      const resolved = await Promise.all(
-        entries.map(([k, val]) => walk(val).then((nv) => [k, nv] as const)),
-      );
-      return Object.fromEntries(resolved);
-    }
+    console.error(
+      `[resolve:inline-img] 读文件失败，保留原 URL（上游将显性失败）: ${v.slice(0, 120)}`,
+    );
     return v;
-  }
+  };
 
-  return walk(value);
+  return mapLeaves(value, inlineLeaf);
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -166,26 +179,15 @@ export async function resolveImagesForEgress(
   refFormat: RefFormat,
 ): Promise<unknown> {
   if (refFormat === 'base64') return resolveLocalImages(value);
-  // cdn：遍历字符串，仅把本机 /files/ 替换为回环 URL；data:/公网/其它原样。
-  async function walkCdn(v: unknown): Promise<unknown> {
-    if (typeof v === 'string') {
-      if (v.startsWith('data:')) return v;
-      const url = toLoopbackUrl(v);
-      if (url !== v) {
-        console.log(`[resolve:cdn-url] ${v.slice(0, 80)} -> ${url.slice(0, 120)}`);
-        return url;
-      }
-      return v;
-    }
-    if (Array.isArray(v)) return Promise.all(v.map((item) => walkCdn(item)));
-    if (v && typeof v === 'object') {
-      const entries = Object.entries(v as Record<string, unknown>);
-      const resolved = await Promise.all(
-        entries.map(([k, val]) => walkCdn(val).then((nv) => [k, nv] as const)),
-      );
-      return Object.fromEntries(resolved);
+  // cdn：**复用同一个深遍历**（mapLeaves），只换叶子 —— 仅把本机 /files/ 补成回环 URL；data:/公网/其它原样。
+  const cdnLeaf = async (v: string): Promise<string> => {
+    if (v.startsWith('data:')) return v;
+    const url = toLoopbackUrl(v);
+    if (url !== v) {
+      console.log(`[resolve:cdn-url] ${v.slice(0, 80)} -> ${url.slice(0, 120)}`);
+      return url;
     }
     return v;
-  }
-  return walkCdn(value);
+  };
+  return mapLeaves(value, cdnLeaf);
 }

@@ -30,6 +30,7 @@ vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   contentSetAsync: vi.fn(async (key: string, value: unknown) => {
     cs.writtenKeys.push(key);
     cs.data.set(key, value);
+    return { ok: true, landed: 'kv' } as const; // 桩跟契约走：写原语返回落盘结果
   }),
   contentDeleteAsync: vi.fn(async (key: string) => {
     cs.writtenKeys.push(`delete:${key}`);

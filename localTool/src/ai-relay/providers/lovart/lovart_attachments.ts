@@ -6,10 +6,14 @@
  *   - http(s) 本机回环地址     → 本机直连下载字节 → 上传 Lovart CDN（Lovart 访问不到用户本机端口）
  *   - data: base64           → 解析 header 得扩展名 → 解码 → 上传 CDN
  *   - 无前缀裸 base64（魔数）  → 识别魔数（JPEG/PNG/GIF/WebP/BMP/视频/音频）→ 解码 → 上传 CDN
- *   - 其余（blob: / 本地路径 / 未知格式）→ drop（不计 failed_count，不阻断；避免把无效素材原样透传给
- *     Lovart 造成图生图/图生视频一直 running）
- * 真实上传/下载失败：计入 failed_count，只要有真实素材失败即 throw 阻断整条请求（不部分成功继续，
- * 否则 prompt 声称有参考图而 Lovart 收不到，生成结果与用户意图偏差且无法察觉）。
+ *   - 其余（blob: / 本地路径 / 未知格式）→ **计入 failed_count 并留痕**（2026-09-17 TD-08-40 改）：
+ *     拿不到内容就转不出 CDN，而"prompt 声称有参考图、Lovart 却收不到"正是本文件头下方那条
+ *     不部分成功原则要拦的事 —— 原实现在此**静默 drop 且不计失败**，三张参考图全为 blob: 时
+ *     本函数返回 undefined，「图生图」**静默退化成文生图**且零报错（违反 docs/72 D-1
+ *     「绝不静默降级为无参考图」）。
+ * 真实失败（下载/上传失败 **或** 形态无法转 CDN）：计入 failed_count，只要有真实素材失败即 throw
+ * 阻断整条请求（不部分成功继续，否则 prompt 声称有参考图而 Lovart 收不到，生成结果与用户意图偏差
+ * 且无法察觉）。
  *
  * 输出：返回 string[] | undefined（无参考素材返回 undefined，调用方不挂 attachments 字段）。
  */
@@ -190,9 +194,19 @@ export async function resolveLovartAttachments(
 
     // 3) 无前缀裸 base64 → 识别魔数后上传 CDN
     if (looksLikeBase64Media(u)) {
-      // 魔数表不认识的媒体型 → drop（与下方分支 4 同语义：拿不到正确的类型就不上传错格式）
+      // 魔数表不认识的媒体型 → **不计静默**（同下方分支 4 口径，2026-09-17 TD-08-40）：
+      // 拿不到正确的类型就不上传错格式（对），但**不能不吭声地丢** —— 那等于把这张参考图从
+      // 用户以为自己发出的请求里删掉。计入失败 → 显式阻断 + 留痕。
       const b64Ext = extFromB64Magic(u);
-      if (!b64Ext) continue;
+      if (!b64Ext) {
+        failedCount += 1;
+        lastErr = `裸 base64 素材的魔数不在已知媒体表（无法判定格式），未上传：${u.slice(0, 24)}…`;
+        console.warn('[lovart] 参考素材无法转 CDN，已计入失败', {
+          kind: 'unknown-base64-magic',
+          head: u.slice(0, 24),
+        });
+        continue;
+      }
       try {
         const bytes = Buffer.from(u, 'base64');
         const cdn = await uploadLovartFile(deps, bytes, `_ref_${randHex()}.${b64Ext}`);
@@ -208,20 +222,52 @@ export async function resolveLovartAttachments(
       continue;
     }
 
-    // 4) 其余（blob: / 本地路径 / 未知格式）：拿不到内容，drop（不计 failed_count，不阻断）
-    //    避免把无效素材原样透传给 Lovart 造成图生图一直 running。
+    // 4) 其余（blob: / 本地路径 / 未知格式）：拿不到内容 ⇒ 不能上传（避免无效素材原样透传给
+    //    Lovart 造成图生图一直 running）。**但必须留痕 + 计入失败**（TD-08-40）：
+    //    原实现此处连 continue 都没有、不计 failed_count ⇒ 全被 drop 时 out 为空 → 返回 undefined
+    //    ⇒ 上游按"没有参考素材"发出去 = 图生图静默变文生图（docs/72 D-1 明令禁止的形态）。
+    {
+      const clip = u.slice(0, 40);
+      const kind = u.startsWith('blob:')
+        ? 'blob-url'
+        : isLocalPathLike(u)
+          ? 'local-path'
+          : 'unknown-shape';
+      const why =
+        kind === 'blob-url'
+          ? '前端临时预览地址（blob:），后端取不到内容 —— 请先保存/上传该图片再引用'
+          : kind === 'local-path'
+            ? `本机文件路径，未登记为素材也未转成回环 URL：${clip}`
+            : `未知素材形态，无法转成 Lovart 可用 URL：${clip}`;
+      failedCount += 1;
+      lastErr = why;
+      console.warn('[lovart] 参考素材无法转 CDN，已计入失败', { kind, reason: why });
+    }
   }
 
-  // 方案 A（对齐 main）：存在真实上传/下载失败且确有参考素材 → 阻断整条请求。
+  // 方案 A（对齐 main）：存在真实失败（下载/上传失败 **或** 形态无法转 CDN）且确有参考素材 →
+  // 阻断整条请求。文案如实覆盖两类，不再只说"上传失败"（形态不支持时那句会误导排查方向）。
   if (urls.length > 0 && failedCount > 0) {
     throw new LovartError(
-      `有 ${failedCount} 个参考素材上传失败，无法进行图生图/图生视频。` +
+      `有 ${failedCount} 个参考素材无法用于本次生成（上传失败或形态不支持），已中止请求。` +
         `请确认已开启 VPN 或检查网络后重试。详情: ${lastErr ?? 'unknown'}`,
       -1,
       LOVART_ERR_TYPES.UPLOAD_FAILED,
     );
   }
   return out.length > 0 ? out : undefined;
+}
+
+/**
+ * 是否"像本机路径"（`file:` / 盘符路径 / 以 `/` 开头的绝对路径）。
+ *
+ * 【为什么单独判一类（TD-08-40）】上游 `resolveImagesForEgress(v,'cdn')` 本应把本机 `/files/`
+ * **补成回环 URL**（`http://127.0.0.1:18080/...`）再交到这里 —— 落到本分支说明它**没被转**。
+ * 把它与"未知形态"分开留痕，是为了让这条日志能直接指向上游漏转（可 grep `kind:'local-path'`），
+ * 而不是混在"未知素材形态"里看不出该修哪儿。
+ */
+function isLocalPathLike(u: string): boolean {
+  return u.startsWith('file:') || /^([a-zA-Z]:[\\/]|\/)/.test(u);
 }
 
 /** 简短随机 hex（文件名后缀）。 */

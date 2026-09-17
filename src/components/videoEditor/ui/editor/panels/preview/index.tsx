@@ -27,6 +27,8 @@ import {
 } from '@/components/videoEditor/stores/media-preview-store';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import { cn } from '@/components/videoEditor/utils/ui';
+import { useMediaLoadFailed } from '@/components/base/utils/useMediaLoadFailed.ts';
+import { MissingMediaIndicator } from '@/components/videoEditor/ui/editor/panels/timeline/missing-media-indicator';
 
 function usePreviewSize() {
   const editor = useEditor();
@@ -141,7 +143,23 @@ function PreviewHeader({ assetName, onClose }: { assetName: string; onClose: () 
 }
 
 function AssetPreviewPlayer({ asset }: { asset: MediaAsset }) {
+  // 【2026-09-17 TD-16-29②】三个媒体元素此前**全裸**（无 onError）：素材文件缺失 / 4xx / 解码失败时
+  // 浏览器只给黑框（video）/ 裂图或 alt（img）/ 控件可见但静音（audio）—— 用户与开发者
+  // 都**无法区分**「还没加载」与「已损坏」。现共用 `useMediaLoadFailed` 显式失败态。
   const url = asset.url ?? '';
+  const { failed, onError } = useMediaLoadFailed(asset.url, '预览素材', {
+    id: asset.id,
+    type: asset.type,
+  });
+
+  if (failed) {
+    // 失败时**不再**渲染媒体元素（否则黑框/静音控件与占位同屏，等于没说清）
+    return (
+      <div className="flex h-full w-full items-center justify-center p-4">
+        <MissingMediaIndicator kind="source-unavailable" name={asset.name} className="max-w-md" />
+      </div>
+    );
+  }
 
   if (asset.type === 'video') {
     return (
@@ -152,6 +170,7 @@ function AssetPreviewPlayer({ asset }: { asset: MediaAsset }) {
           src={url}
           controls
           autoPlay
+          onError={onError}
           className="max-h-full max-w-full rounded"
         />
       </div>
@@ -162,7 +181,12 @@ function AssetPreviewPlayer({ asset }: { asset: MediaAsset }) {
     return (
       <div className="flex h-full w-full items-center justify-center">
         {/* biome-ignore lint: blob URLs don't work with Next.js Image */}
-        <img src={url} alt={asset.name} className="max-h-full max-w-full rounded object-contain" />
+        <img
+          src={url}
+          alt={asset.name}
+          onError={onError}
+          className="max-h-full max-w-full rounded object-contain"
+        />
       </div>
     );
   }
@@ -173,7 +197,7 @@ function AssetPreviewPlayer({ asset }: { asset: MediaAsset }) {
         <Music className="text-muted-foreground size-16" />
         <span className="text-muted-foreground text-sm">{asset.name}</span>
         {/* biome-ignore lint/a11y/useMediaCaption: preview playback */}
-        <audio key={asset.id} src={url} controls autoPlay className="w-64" />
+        <audio key={asset.id} src={url} controls autoPlay onError={onError} className="w-64" />
       </div>
     );
   }

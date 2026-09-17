@@ -189,7 +189,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => {
     makePendingRef: vi.fn((arg) => arg),
     getCurrentWorkflow: vi.fn(() => null),
     patchCurrentWorkflow: vi.fn((p) => ({ steerQueue: [], ...p })),
-    captureActiveConversation: vi.fn(),
+
     // 消息单源：setCurrentSnapshot / patchCurrentMessages / getCurrentSnapshot 落到共享内存 store
     //   （useStoreSelector 读同一份 state → 写入立即可见，模拟生产环境 commit 同步链）。
     // 【TD-17】快照补 draft/attachments/skills 往返：saveDraft/saveSkills/saveAttachments 的落点断言依赖它。

@@ -9,6 +9,7 @@
  *  - 内置 skill 始终存在；用户自定义可增删。
  */
 import { contentGet, contentSet, contentReadThrough } from '../core/contentStore.ts';
+import { confirmPersist } from '../core/degrade.ts';
 import { logger } from '../core/logger.ts';
 // 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
 import {
@@ -196,9 +197,9 @@ export function getCustomSkills(): Skill[] {
 /**
  * 保存用户自定义 skill 列表。
  *
- * 【为什么 try/catch 抓不到失败】sSet 内部把 localStorage 异常吞掉并转 publish
- * 'persist:failed'（storageAdapter.js:76），本身不抛出 —— 故 contentSet 对 local
- * 后端几乎永不 reject，光靠 try/catch 会永远返回 ok:true 而静默丢数据。
+ * 【为什么不能用 try/catch 判失败】落盘失败是**返回值**不是异常：`sSet` → `contentSet` 返回
+ * `PersistWriteOutcome`，local 后端写失败只如实标 `ok:false`、**不抛** —— 用 try/catch 判会永远
+ * 以为成功（历史上那三处假兜底即此坑）。判失败请读返回值（本处经 `confirmPersist` 统一处置）。
  *
  * 【落盘确认】写完用 sGet 直读底层（绕过 contentStore 的 cache）比对：
  * contentSet 会先写 cache，若用 contentGet 回读将恒等于新值（实测：写失败时
@@ -210,10 +211,16 @@ export function getCustomSkills(): Skill[] {
  */
 export function saveCustomSkills(list: Skill[]): { ok: boolean; error?: string } {
   const payload: Skill[] = Array.isArray(list) ? list : [];
-  try {
-    contentSet(SKILLS_KEY, payload);
-  } catch (e) {
-    return { ok: false, error: (e as { message?: string })?.message || String(e) };
+  // 【2026-09-17 TD-24-4 阶段1】自确认：自定义 Skill 是用户资产，写不进去必须让用户知道。
+  // 原 try/catch 是永死兜底（contentSet 当时从不为持久化失败抛错）。
+  if (
+    !confirmPersist(contentSet(SKILLS_KEY, payload), {
+      layer: 'skillStore',
+      key: SKILLS_KEY,
+      toast: '自定义 Skill 未能保存（本地存储不可用）',
+    })
+  ) {
+    return { ok: false, error: '未落盘（本地存储写入失败）' };
   }
   // 落盘确认：比对持久化后的真值，防止「以为存上了其实没存上」
   // 2026-09-04 折叠治理：裸调 sGet 改走 contentReadThrough（同一「跳过缓存直读底层」语义，收口裸调点）
@@ -311,16 +318,8 @@ export function markSkillUsed(id: string): number {
   const m = getUsageMap();
   const next = (Number(m[id]) || 0) + 1;
   m[id] = next;
-  try {
-    contentSet(USAGE_KEY, m);
-  } catch (e) {
-    // 统计类数据可降级，但禁止静默——透传原始原因便于排查 Key/配额问题
-    logger.warn(
-      'skillStore',
-      '写入 Skill 使用次数失败',
-      (e as { message?: string })?.message || String(e),
-    );
-  }
+  // 统计类数据可降级：失败只留痕（confirmPersist 按 landed 如实记，不静默）
+  confirmPersist(contentSet(USAGE_KEY, m), { layer: 'skillStore', key: USAGE_KEY });
   return next;
 }
 /** 读某 Skill 使用次数 */
@@ -345,15 +344,8 @@ function getEnabledMap(): Record<string, boolean> {
   }
 }
 function saveEnabledMap(map: Record<string, boolean>): void {
-  try {
-    contentSet(ENABLED_KEY, map);
-  } catch (e) {
-    logger.warn(
-      'skillStore',
-      '写入 Skill 启用状态失败',
-      (e as { message?: string })?.message || String(e),
-    );
-  }
+  // 启用状态属偏好：失败留痕（confirmPersist 按 landed 如实记，不静默）
+  confirmPersist(contentSet(ENABLED_KEY, map), { layer: 'skillStore', key: ENABLED_KEY });
 }
 
 /** 判断某 skill 是否启用（默认启用） */

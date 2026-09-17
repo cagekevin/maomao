@@ -106,6 +106,16 @@ export function VideoThumbnailStrip({
   const tileAspect = mediaWidth / mediaHeight;
   const tileWidth = Math.round(trackHeight * tileAspect);
 
+  // 【合规说明 · 2026-09-17 TD-16-29② 取证后**证伪**，防后人重报】
+  // 本 `backgroundImage` **故意**不挂 onError，且这是**正确**取舍，不是漏网：
+  //  ① `thumbnailUrl` 是 **dataURL**（`<video>` 抽帧 / canvas 产物，见 media-manager.ts 头注释），
+  //     **不经过网络** ⇒ 不存在"4xx / 超时"这类可重试的加载失败；它要么是合法 base64，要么该字段为空。
+  //     dataURL 唯一的失败形态是"数据损坏"，而那是**生成侧**（media/processing.ts::generateThumbnail）
+  //     的问题，在生成时就该暴露 —— 在此挂 onError 属于"在错误的层加机械"。
+  //  ② 本层是 canvas 背后的**装饰性预绘**（避免 canvas 首帧前闪白），真实内容是 canvas 上的抽帧；
+  //     抽帧失败已由 `timeline-thumbnail/service.ts:187/245` 的 `logger.warn` 留痕。
+  //  ③ 素材**记录**缺失 / 源不可用已由父级 `ElementContent` 走 `MissingMediaIndicator` 显式表达。
+  // ⇒ 本处保留（`§0.2②` 禁止"形式合规、实质兜底"——无消费者的 onError 正是那种机械）。
   const fallbackStyle = useMemo(
     () =>
       thumbnailUrl

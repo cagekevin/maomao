@@ -12,10 +12,12 @@
  * 天然存在「未就绪窗口」。本层暴露 `isStorageReady()`，并以 `onStorageReady(cb)` 让模块级 eager 读
  * 在就绪后重读一次。**上层必须区分「未就绪」与「不存在」**，禁止把前者缓存成后者（否则整会话粘成空）。
  *
- * 【R1 系统性根因治理】写入失败不再静默吞掉：sSet/sRemove 任一持久化失败都发布
- * `persist:failed` 事件（含 key），由全局监听器节流上报 toast。调用方无需逐个改。
+ * 【失败可见性 · 2026-09-17 终局（TD-24-4 阶段 2）】写入失败由**产生它的这一层**给全：
+ * `sSet/sRemove` 返回 `PersistWriteOutcome`（见下），各站点用 `core/degrade.ts::confirmPersist` 自确认。
+ * 原 `persist:failed` 全局广播 + `usePersistFailureToast` 全局监听器**已删除** ——
+ * 用户裁定：「持久化失败肯定是各个地方自己确认，凭什么让一个总的去给他们兜底？」
+ * （全局总线还有三处盲区：同 key 节流合并 / memFallback 不 publish / 绕开 adapter 的链路全漏。）
  */
-import { publish } from '../core/eventBus.ts';
 import { logger } from '../core/logger.ts';
 // 非阻塞副作用统一走原语（`NON_BLOCKING` 的收口实现），不再逐处手写 catch-ok 标记（2026-09-17）。
 import { attemptQuietly } from '../utils/asyncGuard.ts';
@@ -42,7 +44,8 @@ declare const chrome: {
 export function isChromeExtension(): boolean {
   try {
     return typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id;
-  } catch { // catch-ok: BROWSER_API
+  } catch {
+    // catch-ok: BROWSER_API
     // 本处即「宿主环境探测**原语**」本体（非扩展端时 chrome 未定义）；
     // 返回 false = 非扩展端，调用方据此走浏览器降级路径。属所有者定义失败语义，非消费者越权。
     return false;
@@ -54,13 +57,14 @@ export function isChromeExtension(): boolean {
  *
  * 【SSR / Node 兜底】服务端渲染、Node 测试环境、或刻意剥离 DOM 的运行环境里
  * `localStorage` 是未定义标识符，直接访问会抛 ReferenceError。此时不抛、不 warn，
- * 所有读写静默回退到内存 Map（见下方的 memFallback），避免初始化期就炸掉，
- * 也避免 persistFailureBus 收到无意义的 persist:failed 噪声。
+ * 所有读写回退到内存 Map（见下方的 memFallback），避免初始化期就炸掉；
+ * 该路径返回值如实标 `landed:'memory'`（**不是持久化**），调用方因此不会误当成功。
  */
 export function hasLocalStorage(): boolean {
   try {
     return typeof localStorage !== 'undefined';
-  } catch { // catch-ok: BROWSER_API
+  } catch {
+    // catch-ok: BROWSER_API
     // 环境探测**原语**本体（SSR/Node 下 localStorage 是未定义标识符，直接访问会抛）。
     return false;
   }
@@ -69,17 +73,44 @@ export function hasLocalStorage(): boolean {
 /** 内存兜底缓存：仅当 localStorage 不可用时启用，保证 SSR/Node 下读写零抛错。 */
 const memFallback = new Map<string, string>();
 
-/** 写入失败上报（统一事件，全局监听器节流 toast；测试可替换全局 publish）。
- * 【P0·M3 观测】失败落日志（warn），供离线 grep 探明根因（key + error.message），
- * 不改变事件链路——事件照常 publish，logger 仅旁路记录。 */
-function reportPersistFailure(key: string, error: unknown) {
-  try {
-    const message = (error as { message?: unknown } | null)?.message || String(error || '');
-    publish('persist:failed', { key, error: message });
-    logger.warn('存储', '持久化失败', { key, error: message });
-  } catch {
-    // catch-ok: RECURSION_GUARD —— 上报通道自身失败时**不得再上报**（否则递归），非 NON_BLOCKING。
-  }
+/**
+ * 落盘结果（判别联合）—— **失败是返回值，不再"发个事件就算交代了"**。
+ *
+ * 【为什么必须有它（2026-09-17 · TD-24-4 阶段0 · 让生产者把失败给全）】
+ * 原 `sSet/sRemove` 返回 `void`：失败只 `publish('persist:failed')`（全局总线）然后**照常返回**
+ * ⇒ 任何调用方都**无法**自己确认成败，只能寄生那条总线；而总线的盲区（同 key 5s 节流 /
+ * memFallback 路径不 publish / 绕开 adapter）就是静默丢数据的窗口 —— 这正是用户裁定
+ * 「持久化失败必须由各处自己确认，不许一个总的替它们兜底」要消灭的东西。
+ *
+ * 【实证：消费者为此写过 3 处假处理】`conversationState` / `backupStore.writeLS` /
+ * `tableWorkspaceState` 都拿 `try { contentSet } catch` 当"失败处理"——而 `contentSet` 同步路径
+ * **从不为持久化失败抛错**，那段 catch 永远不触发（= 摆设，且 `writeLS` 因此恒返 `true`）。
+ *
+ * 【`landed` 状态，不拿 ok:true 一概而论】
+ *  - `local`   已确认写进浏览器持久层；
+ *  - `kv`      已确认写进 localTool KV（跨端真源；由 `contentStore.contentSetAsync` 产出）；
+ *  - `memory`  localStorage 不可用（SSR/受限环境）→ 只进内存，**刷新即丢**（不是持久化）；
+ *  - `pending` 异步后端（chrome 扩展路径）已提交，**本调用无法确认**（结果只能由回调上报）；
+ *  - `ok:false` 确认失败（同步路径的事实由本返回值给出；另在产生层落一条 warn 供离线 grep）。
+ */
+export type PersistWriteOutcome =
+  { ok: true; landed: 'local' | 'kv' | 'memory' | 'pending' } | { ok: false; message: string };
+
+/**
+ * 产生层失败留痕（**只落日志，不广播**）。
+ *
+ * 【为什么必须留着】chrome 扩展路径（`chrome.storage.local.set/remove` 的**异步回调**）的失败
+ * 发生在本次调用返回**之后**，结构上无法经由 `PersistWriteOutcome` 回报（故该路径标
+ * `landed:'pending'`）—— 这条 `logger.warn`（key + error.message）是它**唯一**的留痕，删掉即静默。
+ * 同步失败路径的返回值已给出事实，此处日志是产生层的原始记录（供离线 grep 根因）。
+ *
+ * 【已删（2026-09-17 · TD-24-4 阶段 2）】原 `publish('persist:failed')` 全局广播 + 随之的
+ * `RECURSION_GUARD` 空 catch：广播通道按用户裁定退役（失败由各站点自确认），空 catch 只是
+ * 掩盖 logger 自身异常的兜底，一并删除（兜底净减）。
+ */
+function logPersistFailure(key: string, error: unknown): void {
+  const message = (error as { message?: unknown } | null)?.message || String(error || '');
+  logger.warn('存储', '持久化失败', { key, error: message });
 }
 
 /** 存储键统一前缀（对外导出：storageQuota 统计实际键剥前缀用，避免第二处硬编码 'yimao:'）。
@@ -158,7 +189,8 @@ export function sGet(key: string): string | null {
     if (!hasLocalStorage()) return memFallback.get(KEY_PREFIX + key) ?? null;
     try {
       return localStorage.getItem(KEY_PREFIX + key);
-    } catch { // catch-ok: READ_FALLBACK
+    } catch {
+      // catch-ok: READ_FALLBACK
       // 本处即「存储读取**原语**」本体：localStorage 受限（隐私模式）读不到 → null。
       return null;
     }
@@ -167,62 +199,79 @@ export function sGet(key: string): string | null {
   return v === undefined ? null : typeof v === 'string' ? v : JSON.stringify(v);
 }
 
-/** 同步写（插件环境同步更新内存 + 异步持久化） */
-export function sSet(key: string, value: unknown): void {
+/** 同步写（插件环境同步更新内存 + 异步持久化）—— 结果见 `PersistWriteOutcome`。 */
+export function sSet(key: string, value: unknown): PersistWriteOutcome {
   const fullKey = KEY_PREFIX + key;
   if (!isChromeExtension()) {
-    // 【SSR/Node 兜底】localStorage 不可用时写内存，不触发 persist:failed
+    // 【SSR/Node】localStorage 不可用 → 只进内存：**不是持久化**，如实标 memory（调用方需自知）
     if (!hasLocalStorage()) {
       memFallback.set(fullKey, value as string);
-      return;
+      return { ok: true, landed: 'memory' };
     }
     try {
       localStorage.setItem(fullKey, value as string);
+      return { ok: true, landed: 'local' };
     } catch (e) {
-      reportPersistFailure(key, e);
+      logPersistFailure(key, e);
+      return {
+        ok: false,
+        message: (e as { message?: string })?.message || 'localStorage 写入失败',
+      };
     }
-    return;
   }
   cache.set(key, value);
   try {
     // 【R1】接 chrome.storage.local.set 的 callback，异步失败也能感知（原裸 try/catch 覆盖不到异步错误）
     chrome.storage.local.set({ [fullKey]: value }, () => {
       if (chrome?.runtime?.lastError)
-        reportPersistFailure(key, new Error(chrome.runtime.lastError.message));
+        logPersistFailure(key, new Error(chrome.runtime.lastError.message));
     });
+    // 异步后端：本调用**无法确认**结果（不谎报 local，也不谎报失败）
+    return { ok: true, landed: 'pending' };
   } catch (e) {
-    // 同步抛错：先尝试回退 localStorage，回退成功（数据未丢）则不报失败
+    // 同步抛错：先尝试回退 localStorage，回退成功（数据未丢）则是真落盘
     try {
       localStorage.setItem(fullKey, value as string);
-    } catch {
-      reportPersistFailure(key, e);
+      return { ok: true, landed: 'local' };
+    } catch (localErr) {
+      logPersistFailure(key, localErr);
+      return {
+        ok: false,
+        message: (localErr as { message?: string })?.message || '持久化写入失败',
+      };
     }
   }
 }
 
-/** 同步删（插件环境同步删内存 + 异步删存储） */
-export function sRemove(key: string): void {
+/** 同步删（插件环境同步删内存 + 异步删存储）—— 结果同 `PersistWriteOutcome`。 */
+export function sRemove(key: string): PersistWriteOutcome {
   const fullKey = KEY_PREFIX + key;
   if (!isChromeExtension()) {
-    // 【SSR/Node 兜底】localStorage 不可用时从内存删，不触发 persist:failed
+    // 【SSR/Node】localStorage 不可用 → 只删内存（同写侧：非持久，如实标 memory）
     if (!hasLocalStorage()) {
       memFallback.delete(fullKey);
-      return;
+      return { ok: true, landed: 'memory' };
     }
     try {
       localStorage.removeItem(fullKey);
+      return { ok: true, landed: 'local' };
     } catch (e) {
-      reportPersistFailure(key, e);
+      logPersistFailure(key, e);
+      return {
+        ok: false,
+        message: (e as { message?: string })?.message || 'localStorage 删除失败',
+      };
     }
-    return;
   }
   cache.delete(key);
   try {
     chrome.storage.local.remove(fullKey, () => {
       if (chrome?.runtime?.lastError)
-        reportPersistFailure(key, new Error(chrome.runtime.lastError.message));
+        logPersistFailure(key, new Error(chrome.runtime.lastError.message));
     });
+    return { ok: true, landed: 'pending' };
   } catch (e) {
-    reportPersistFailure(key, e);
+    logPersistFailure(key, e);
+    return { ok: false, message: (e as { message?: string })?.message || '持久化删除失败' };
   }
 }

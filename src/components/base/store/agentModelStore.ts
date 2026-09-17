@@ -8,6 +8,7 @@
  * 与 agent_input_mode / agent_panel_width 等前端偏好一致，轻量即时，无需网络。
  */
 import { contentGet, contentSet } from '../core/contentStore.ts';
+import { confirmPersist } from '../core/degrade.ts';
 // 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
 import { KEY_AGENT_CHAT_MODEL, KEY_AGENT_HISTORY_TURNS } from '../core/contracts.ts';
 
@@ -43,12 +44,16 @@ export function loadAgentChatModel(): AgentChatModelConfig | null {
 
 export function saveAgentChatModel(cfg?: Partial<AgentChatModelConfig>): void {
   const cur: Partial<AgentChatModelConfig> = loadAgentChatModel() || {};
-  // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
-  contentSet(AGENT_CHAT_MODEL_KEY, {
-    providerId: cfg?.providerId ?? cur.providerId ?? '',
-    modelId: cfg?.modelId ?? cur.modelId ?? '',
-    streamMode: cfg?.streamMode ?? cur.streamMode ?? 'stream',
-  });
+  // 【2026-09-17 TD-24-4 阶段1】自确认：模型配置是用户偏好，未落盘必须留痕（旧注释"已内部留痕"
+  // 指的是全局总线，本路径 KV/local 均可能不被它覆盖）。
+  confirmPersist(
+    contentSet(AGENT_CHAT_MODEL_KEY, {
+      providerId: cfg?.providerId ?? cur.providerId ?? '',
+      modelId: cfg?.modelId ?? cur.modelId ?? '',
+      streamMode: cfg?.streamMode ?? cur.streamMode ?? 'stream',
+    }),
+    { layer: 'agentModelStore', key: AGENT_CHAT_MODEL_KEY },
+  );
 }
 
 // ── 历史回传轮数（过渡方案·2026-08-18）──
@@ -75,6 +80,9 @@ export function loadAgentHistoryTurns(): number {
 export function saveAgentHistoryTurns(n: number | string): void {
   const v = typeof n === 'number' ? n : Number(n);
   if (!Number.isFinite(v) || v < 0) return;
-  // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
-  contentSet(AGENT_HISTORY_TURNS_KEY, Math.floor(v));
+  // 自确认（同上）：未落盘留痕，不静默
+  confirmPersist(contentSet(AGENT_HISTORY_TURNS_KEY, Math.floor(v)), {
+    layer: 'agentModelStore',
+    key: AGENT_HISTORY_TURNS_KEY,
+  });
 }

@@ -67,24 +67,26 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
       // 用户只看到"图集少了几张"且零解释；且 `filter` 后索引移位 ⇒ 下面的 `images[i]` **取错 label**。
       // 现逐张记账（`name` 与图绑定，不再靠索引回查），失败项留痕待报。
       const shotResults = await Promise.all(
-        images.map(async (im, i): Promise<{ url: string | null; name: string; message?: string }> => {
-          const name = im.fileName || `导演台截图 ${i + 1}`;
-          if (im.blob) {
-            const up = await uploadFileToLocal(
-              im.blob,
-              'tasks',
-              im.fileName || 'director3d-shot.png',
-            );
-            return up.ok ? { url: up.url, name } : { url: null, name, message: up.message };
-          }
-          const raw = im.dataUrl || im.url;
-          if (raw && raw.startsWith('data:')) {
-            const up = await saveInlineToLocal(raw, 'tasks');
-            // 落盘失败 → **保留内联 base64**（真兜底：图仍能上屏，不丢图），但原因不吞。
-            return up.ok ? { url: up.url, name } : { url: raw, name, message: up.message };
-          }
-          return { url: toAbsoluteFileUrl(raw || ''), name };
-        }),
+        images.map(
+          async (im, i): Promise<{ url: string | null; name: string; message?: string }> => {
+            const name = im.fileName || `导演台截图 ${i + 1}`;
+            if (im.blob) {
+              const up = await uploadFileToLocal(
+                im.blob,
+                'tasks',
+                im.fileName || 'director3d-shot.png',
+              );
+              return up.ok ? { url: up.url, name } : { url: null, name, message: up.message };
+            }
+            const raw = im.dataUrl || im.url;
+            if (raw && raw.startsWith('data:')) {
+              const up = await saveInlineToLocal(raw, 'tasks');
+              // 落盘失败 → **保留内联 base64**（真兜底：图仍能上屏，不丢图），但原因不吞。
+              return up.ok ? { url: up.url, name } : { url: raw, name, message: up.message };
+            }
+            return { url: toAbsoluteFileUrl(raw || ''), name };
+          },
+        ),
       );
       const failedShots = shotResults.filter((s) => s.message);
       if (failedShots.length > 0) {
@@ -170,21 +172,29 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
     async (videos: CaptureVideo[]) => {
       if (!videos || videos.length === 0) return;
       // 落盘全部视频，取最后一个作为 AssetNode 展示（AssetNode 单媒体）
-      let lastUrl = null;
-      let lastFile = null;
+      let lastUrl: string | null = null;
+      let lastFile: string | null = null;
+      let failMessage: string | undefined;
       for (const v of videos) {
         if (!v.blob) continue;
-        const fileUrl = await uploadFileToLocal(
-          v.blob,
-          'tasks',
-          v.fileName || 'director3d-video.mp4',
-        );
-        if (fileUrl) {
-          lastUrl = fileUrl;
+        // 【2026-09-17 契约对齐 · 修真 bug】`uploadFileToLocal` 已改判别联合（原 `string|null`），
+        // 此处仍按字符串判 `if (fileUrl)` —— 对象恒真 ⇒ `lastUrl` 被赋成**对象**、
+        // 下游 `assetUrl` 写成 `[object Object]`（AssetNode 拿到假 url）。必须读 `.ok/.url/.message`。
+        const up = await uploadFileToLocal(v.blob, 'tasks', v.fileName || 'director3d-video.mp4');
+        if (up.ok) {
+          lastUrl = up.url;
           lastFile = v.fileName || 'director3d-video.mp4';
+        } else {
+          failMessage = up.message; // 逐条记账（同 onCaptureToBox 形态）
         }
       }
-      if (!lastUrl) return;
+      if (!lastUrl) {
+        // 【失败可见】此前直接 `return` ⇒ 用户点「导出视频到节点」毫无反应，
+        // 分不清"没点上"还是"没落盘"（同文件 onCaptureToBox 已示范该形态）。
+        logger.warn('导演台', '视频未落盘，未写回节点', { message: failMessage });
+        toastWarning(`视频未落盘：${failMessage || '本地服务可能未启动'}`);
+        return;
+      }
       const targets = getEdges()
         .filter((e) => e.source === id)
         .map((e) => e.target)
@@ -259,7 +269,8 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
           // 【2026-09-17 消费者只转发】失败保留原值（**真兜底**，不阻断），但**原因留痕** ——
           // 原来只在 catch 里 logger.debug，`if (fileUrl)` 的**失败分支完全静默**。
           if (up.ok) persistedThumb = up.url;
-          else logger.warn('3D 节点', '缩略图落盘失败，保留原值（不阻断）', { message: up.message });
+          else
+            logger.warn('3D 节点', '缩略图落盘失败，保留原值（不阻断）', { message: up.message });
         } catch (e) {
           // 读取失败（fetch blob）保留原值 → **降级必留痕**（保留 dataURL 的体积代价真实存在）。
           logger.warn('3D 节点', '缩略图读取失败，保留原值（不阻断）', e);

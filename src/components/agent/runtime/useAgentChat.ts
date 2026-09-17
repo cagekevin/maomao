@@ -6,7 +6,6 @@ import { InputStateMachine } from './inputStateMachine.ts';
 import { generateId } from '../../base/core/idGen.ts';
 // 【TD-15-1】agentKey 前缀单源（禁本地拼字面量）
 import { AGENT_KEY_PREFIX } from '../../base/core/agentKeys.ts';
-import { attemptQuietly } from '../../base/utils/asyncGuard.ts';
 
 /**
  * 【过渡方案·2026-08-18 决策注释】回传给 LLM 的「历史纯文字」轮数（由 AI 助手设置控制，不硬编码）。
@@ -81,7 +80,6 @@ import {
   switchConversation,
   deleteConversation,
   renameConversation,
-  captureActiveConversation,
   getActiveConversationId,
   getCurrentSnapshot,
   // 【TD-11-5 窄接口】单字段原子写：一次只改一件语义事（禁再用 setCurrentSnapshot 列举字段）
@@ -613,13 +611,11 @@ export function useAgentChat({
           steer: true,
           statusLabel: '已排队',
         });
-        try {
-          captureActiveConversation();
-        } catch (e) {
-          logger.warn('AI助手', '会话落盘失败', {
-            error: (e as { message?: string })?.message || String(e),
-          });
-        } // 落盘队列，切对话不丢
+        // 【2026-09-17 TD-24-4】原此处 `try { captureActiveConversation() } catch { logger.warn('会话落盘失败') }`
+        // 连同调用一并删除：`captureActiveConversation` 是**只读遗留壳**（内部仅 `getActiveConv()`，
+        // 不写、不落盘、不抛），真落盘在 `conversationState.persistDebounced`（已 reportDegrade）。
+        // 包裹它既无保护对象，又会打印**假原因**「会话落盘失败」误导排查。
+        // 落盘队列语义由 setCurrentSnapshot 自带（见 conversationStore.captureActiveConversation 旧注释）。
         return;
       }
 
@@ -859,13 +855,6 @@ export function useAgentChat({
         // 不清空 pending（用户确认后 send('已确认，请按策划执行') 会重建），也不再自动执行 steer 队列。
         if (pausedForConfirm) {
           patchCurrentWorkflow(wfAwaitConfirm());
-          try {
-            captureActiveConversation();
-          } catch (e) {
-            logger.warn('AI助手', '会话落盘失败', {
-              error: (e as { message?: string })?.message || String(e),
-            });
-          }
           stateMachineRef.current.setStatus('awaiting_confirm');
           setSending(false);
           abortRef.current = null;
@@ -886,13 +875,6 @@ export function useAgentChat({
             { module: 'agent' },
           );
           setCurrentPending(null);
-          try {
-            captureActiveConversation();
-          } catch (e) {
-            logger.warn('AI助手', '会话落盘失败', {
-              error: (e as { message?: string })?.message || String(e),
-            });
-          }
           stateMachineRef.current.setStatus(ok ? 'idle' : 'failed');
           setSending(false);
           abortRef.current = null;
@@ -901,13 +883,6 @@ export function useAgentChat({
           // ── steer 队列：当前任务结束，自动执行下一条补充指令（per-conversation workflow.steerQueue）──
           const { next, patch: wfNextCtx } = wfNextSteer(wfStatus);
           patchCurrentWorkflow(wfNextCtx);
-          try {
-            captureActiveConversation();
-          } catch (e) {
-            logger.warn('AI助手', '会话落盘失败', {
-              error: (e as { message?: string })?.message || String(e),
-            });
-          }
           if (next) sendRef.current?.(next.text, next.attachments);
         }
       }
@@ -940,7 +915,6 @@ export function useAgentChat({
     // 落盘当前对话为空（语义动作；字段清单收敛到 resetCurrentConversationToEmpty 一处，
     // 原就地手写 11 字段 = 复制 emptyMemory 定义，加字段必漏 —— TD-11-5）
     resetCurrentConversationToEmpty(skillsRef.current);
-    attemptQuietly(() => captureActiveConversation());
     stateMachineRef.current.setStatus('idle');
     // agentKey/setHistory/setAwaitingConfirm/clearCreditGate 均为稳定/模块级引用，非渲染依赖
   }, []);
@@ -967,7 +941,6 @@ export function useAgentChat({
       model,
       createdAt: Date.now(),
     });
-    attemptQuietly(() => captureActiveConversation());
     logger.info('AI助手', '[记] 确认落库', {
       kind: saved.kind,
       contentLen: (saved.content || '').length,
@@ -979,7 +952,7 @@ export function useAgentChat({
   //（load 隔离各对话状态），通知 UI 层恢复 skills/草稿。
   //【阶段1D·薄壳化】activeId / conversations 改由 store 字段订阅（newChat/switchChat/deleteChat 内部 commit
   // 已更新 store.activeId + conversations），不再需要本地 state 同步 → 移除 setActiveConversationId / refreshConversations。
-  // 注意：切换前只 setCurrentSnapshot（暂存），与 switchConversation 内部的落盘逻辑配合，勿额外 captureActiveConversation。
+  // 注意：切换前只 setCurrentSnapshot（暂存），与 switchConversation 内部的落盘逻辑配合，勿额外补落盘动作。
   const applyConversationState = useCallback(
     (targetId: string, snapshot: ConversationSnapshot) => {
       setHistory(snapshot.messages);
@@ -1082,7 +1055,6 @@ export function useAgentChat({
       );
       setHistory(next);
       setCurrentMessages(next);
-      attemptQuietly(() => captureActiveConversation());
     },
     [], // setHistory 是模块级 import 函数（稳定），非渲染依赖
   );

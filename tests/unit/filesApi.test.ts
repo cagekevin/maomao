@@ -26,6 +26,50 @@ afterEach(() => vi.unstubAllGlobals());
 
 const DATA_PNG = 'data:image/png;base64,iVBORw0KGgo=';
 
+// ── 【TD-08-28】contentId 透传契约：生产者（后端落盘权威）给全 ⇒ 消费者不再自算 sha1 ──
+describe('filesApi — contentId 透传（TD-08-28）', () => {
+  const respWithCid = (url: string, contentId?: string) => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ code: 0, data: { url, contentId } }),
+  });
+
+  it('multipart 上传：后端回传 contentId → `UploadOutcome.contentId` 上浮（files.ts:175）', async () => {
+    fetchMock.mockResolvedValue(respWithCid('http://x/a.png', 'sha1:abc'));
+    expect(await api.uploadFileToLocal(new Blob(['x'], { type: 'image/png' }))).toEqual({
+      ok: true,
+      url: 'http://x/a.png',
+      contentId: 'sha1:abc',
+    });
+  });
+
+  it('fileUrl 远程落盘：contentId 上浮（files.ts:410）—— 网页图本地化不必再 fetch 整图重算', async () => {
+    fetchMock.mockResolvedValue(respWithCid('http://x/web/a.png', 'sha1:def'));
+    expect(
+      await api.downloadRemoteToLocal('https://cdn.example.com/a.png', { folder: 'web' }),
+    ).toEqual({ ok: true, url: 'http://x/web/a.png', contentId: 'sha1:def' });
+  });
+
+  it('后端响应未带 contentId → 为 undefined（如实，前端不补算）', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://x/a.png'));
+    const r = await api.uploadFileToLocal(new Blob(['x'], { type: 'image/png' }));
+    expect(r).toEqual({ ok: true, url: 'http://x/a.png' });
+    expect((r as { contentId?: string }).contentId).toBeUndefined();
+  });
+
+  it('inline（base64/dataUri）分支：后端已补回 contentId ⇒ 同样上浮（三分支口径一致）', async () => {
+    // 【2026-09-17 补生产者】此前后端 base64 分支只回 `{url}`（`saveBase64ToFile` 内部算了 contentId 却没往外给），
+    // 前端本分支 contentId 恒 undefined。现生产者回传，前端如实透传 —— 消费者（`persistUrlToUploads` →
+    // `PersistOutcome.contentId`）三条来源分支（inline / uploaded / already-local）口径一致。
+    fetchMock.mockResolvedValue(respWithCid('http://x/a.png', 'sha1:ghi'));
+    expect(await api.saveInlineToLocal(DATA_PNG)).toEqual({
+      ok: true,
+      url: 'http://x/a.png',
+      contentId: 'sha1:ghi',
+    });
+  });
+});
+
 describe('filesApi — saveInlineToLocal', () => {
   it('合法 data: URL → 落盘返回 18080 绝对地址', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/canvas/abc.png'));
@@ -86,13 +130,22 @@ describe('filesApi — saveResultToTasks', () => {
       skipped: false,
     });
   });
-  it('blob: 临时地址 → ok + skipped:true（无需落盘，非失败 —— 与落盘失败必须可区分）', async () => {
+  it('[TD-02-58] blob: 临时地址 → 委托唯一原语后**真上传落盘**（blob 刷新即失效，原 skipped 等于丢结果）', async () => {
+    // 【契约变更】原用例锁的是本文件**第二份分流**的口径（blob → skipped:true + 不发请求），
+    // 与唯一原语 `persistUrlToUploads`（blob 先取字节再上传）**分叉**。现委托原语：真落盘，skipped:false。
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        blob: async () => new Blob(['x'], { type: 'image/png' }),
+      })
+      .mockResolvedValueOnce(uploadResp('http://127.0.0.1:18080/files/tasks/blob.png'));
     expect(await api.saveResultToTasks('blob:http://x/y', 'image')).toEqual({
       ok: true,
-      url: 'blob:http://x/y',
-      skipped: true,
+      url: 'http://127.0.0.1:18080/files/tasks/blob.png',
+      skipped: false,
     });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2); // ① 取 blob 字节 ② 上传
   });
   it('http 上游 url → fileUrl 幂等下载落盘', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/tasks/up.png'));
@@ -109,9 +162,10 @@ describe('filesApi — saveResultToTasks', () => {
     fetchMock.mockResolvedValue(failResp());
     const out = await api.saveResultToTasks(DATA_PNG, 'image');
     expect(out.ok).toBe(false);
-    // 实测口径：httpClient 对 !res.ok 抛 HttpError → 被本函数 catch → reason='exception'（带原始 message）。
-    // （'upload-failed' 是「HTTP 通了但响应里没有 url」分支；500 走的是抛错分支，两者语义不同勿混。）
-    expect(out.ok ? '' : out.reason).toBe('exception');
+    // 【TD-02-58 合同变更】`reason` 不再由本层改写 —— 原实现把原语的 `upload-failed` 重贴成 `exception`
+    // （消费者替生产者**重新归类失败** = 越权，CLAUDE.md §5.1）。现原样转发唯一原语的判词，message 亦保留生产者原文。
+    expect(out.ok ? '' : out.reason).toBe('upload-failed');
+    expect(out.ok ? '' : out.message).toEqual(expect.any(String));
   });
   it('已是本机 /files/ → ok + skipped:true（relay 后端已落盘，防 uploads/tasks 双落盘重复文件）', async () => {
     const out = await api.saveResultToTasks('http://127.0.0.1:18080/files/tasks/a.png', 'image');
@@ -126,38 +180,35 @@ describe('filesApi — saveResultToTasks', () => {
 
 describe('filesApi — saveResultToTasks 类型→扩展名映射', () => {
   const DATA_PNG = 'data:image/png;base64,iVBORw0KGgo=';
-  /** 从上传请求的 FormData 里取 file 的原始文件名 */
-  function fdFilename(opts: any) {
-    const fd = opts.body;
-    for (const [k, v] of fd.entries()) {
-      if (k === 'file') return v.name;
-    }
-    return '';
+  /** 从上传请求体取"声明的显示名"（【TD-02-58】委托唯一原语后，data: 走 base64 JSON 分支 ⇒ 名字在 displayName） */
+  function bodyName(opts: any) {
+    const body = typeof opts.body === 'string' ? JSON.parse(opts.body) : opts.body;
+    return String(body?.displayName ?? '');
   }
   it('type=image → .png', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/a.png'));
     await api.saveResultToTasks(DATA_PNG, 'image');
-    expect(fdFilename(fetchMock.mock.calls[0][1])).toMatch(/\.png$/);
+    expect(bodyName(fetchMock.mock.calls[0][1])).toMatch(/\.png$/);
   });
   it('type=text → .txt', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/a.txt'));
     await api.saveResultToTasks(DATA_PNG, 'text');
-    expect(fdFilename(fetchMock.mock.calls[0][1])).toMatch(/\.txt$/);
+    expect(bodyName(fetchMock.mock.calls[0][1])).toMatch(/\.txt$/);
   });
   it('type=video → .mp4', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/a.mp4'));
     await api.saveResultToTasks(DATA_PNG, 'video');
-    expect(fdFilename(fetchMock.mock.calls[0][1])).toMatch(/\.mp4$/);
+    expect(bodyName(fetchMock.mock.calls[0][1])).toMatch(/\.mp4$/);
   });
   it('type=audio → .m4a', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/a.m4a'));
     await api.saveResultToTasks(DATA_PNG, 'audio');
-    expect(fdFilename(fetchMock.mock.calls[0][1])).toMatch(/\.m4a$/);
+    expect(bodyName(fetchMock.mock.calls[0][1])).toMatch(/\.m4a$/);
   });
   it('未知 type → 兜底 .bin', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/a.bin'));
     await api.saveResultToTasks(DATA_PNG, 'weird');
-    expect(fdFilename(fetchMock.mock.calls[0][1])).toMatch(/\.bin$/);
+    expect(bodyName(fetchMock.mock.calls[0][1])).toMatch(/\.bin$/);
   });
 });
 
@@ -299,7 +350,9 @@ describe('filesApi — downloadRemoteToLocal（网页拖图后台本地化）', 
         folder: 'web',
       }),
     ).toEqual(skip);
-    expect(await api.downloadRemoteToLocal('/files/migrated/a.png', { folder: 'web' })).toEqual(skip);
+    expect(await api.downloadRemoteToLocal('/files/migrated/a.png', { folder: 'web' })).toEqual(
+      skip,
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('外网主机上的 /files/ 路径不算本地 → 照常下载（不误伤真实网页图）', async () => {

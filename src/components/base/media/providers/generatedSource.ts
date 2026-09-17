@@ -16,7 +16,9 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { librarySourceProvider } from './librarySource.ts';
-import { makeMediaRef } from '../mediaRefTypes.ts';
+import { makeMediaRef, MEDIA_REF_TYPES } from '../mediaRefTypes.ts';
+// 显示名一律取自**资产类型目录**（唯一真源），本文件不再自持中文名
+import { ASSET_TYPE_META } from '@/types';
 import type { MediaRef, MediaRefQuery, MediaRefProvider } from '../mediaRefTypes.ts';
 
 /** 生成结果的落盘目录（唯一真源口径，与 GeneratedView.tsx 一致）。 */
@@ -24,16 +26,26 @@ export const GENERATED_FOLDER = 'tasks';
 
 /**
  * 生成的分类 = **按媒体类型**（与素材库的「按目录」维度不同 —— 各来源维度可不同，本层只搬运）。
- * 值与 `GeneratedView.tsx` 的 TYPE_FILTERS 同口径（图片/视频/音频；文本不进可引用媒体）。
  *
- * 【「全部」为什么不带 types】「可引用媒体只有 image/video/audio」由**类型层**（`MediaRefType`）定义，
+ * 【清单来源（TD-02-49 · 2026-09-17）】两项都**派生自资产类型目录**（`@/types` 的 `ASSET_TYPE_META`）：
+ * 分类项 = 目录里 `mediaRef: true` 的成员（`MEDIA_REF_TYPES`），显示名 = 条目自带 `label`。
+ * ⇒ 新增一类可引用媒体只改目录一处，这里自动跟上；**不存在"本文件与别处各写一份中文名"**。
+ *
+ * ⚠️ **不要**再去"对齐" `GeneratedView.tsx` 的 `TYPE_FILTERS` —— 两者**语义不同**：
+ *   · 本清单 = **可引用媒体**（目录 `mediaRef:true`：图/视频/音频，**无 text**）；
+ *   · `TYPE_FILTERS` = 生成**面板内的文件类型筛选**（作用于 tasks 目录里的文件，**含 text**，音频无筛选需求）。
+ * 两处的**域选取**可以不同，但**显示名都取自同一目录**（这才是"谁要哪些取哪些"）。
+ *
+ * 【「全部」为什么不带 types】「可引用媒体只有 image/video/audio」由目录的 `mediaRef` 标记定义，
  * `librarySource.toMediaRef` 已按该契约过滤 —— 此处再声明一次 `types` 就是**第二份真相**（M3）。
  */
-const GENERATED_CATEGORIES = [
+const GENERATED_CATEGORIES: Array<{ key: string; label: string; query: Partial<MediaRefQuery> }> = [
   { key: 'all', label: '全部', query: {} },
-  { key: 'image', label: '图片', query: { types: ['image'] as const } },
-  { key: 'video', label: '视频', query: { types: ['video'] as const } },
-  { key: 'audio', label: '音频', query: { types: ['audio'] as const } },
+  ...MEDIA_REF_TYPES.map((t) => ({
+    key: t,
+    label: ASSET_TYPE_META[t].label,
+    query: { types: [t] } as Partial<MediaRefQuery>,
+  })),
 ];
 
 export const generatedSourceProvider: MediaRefProvider = {

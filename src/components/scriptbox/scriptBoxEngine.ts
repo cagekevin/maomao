@@ -35,7 +35,7 @@ import { uploadFileToLocal } from '../base/api/index.ts';
 import { runGenerationContract } from '../base/store/generationContract.ts';
 import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import { detectFileType } from '../base/utils/assetType.ts';
-import { fileNameFromUrl, canvasToImageDataUrl } from '../base/core/utils.ts';
+import { fileNameFromUrl, canvasToImageDataUrl, clamp } from '../base/core/utils.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { logger } from '../base/core/logger.ts';
 
@@ -1188,11 +1188,7 @@ export function createScriptBoxEngine({
       // 统一走 fileNameFromUrl 取末段再取后缀；无后缀时回退 png（图片场景的合理默认，此处保留但显式说明）。
       const rawExt = fileNameFromUrl(file.name).split('.').pop() || '';
       const ext = rawExt.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'png';
-      const up = await uploadFileToLocal(
-        file,
-        folder,
-        `${asset.name || 'asset'}.${ext || 'png'}`,
-      );
+      const up = await uploadFileToLocal(file, folder, `${asset.name || 'asset'}.${ext || 'png'}`);
       // 【2026-09-17 消费者只转发】带上**生产者判词** —— 原来只有一句笼统的"图片落盘失败"。
       if (!up.ok) throw new Error(`图片落盘失败：${up.message}`);
       const assetUrl = up.url;
@@ -1678,7 +1674,8 @@ export function createScriptBoxEngine({
                 progress,
                 signal,
               ),
-            // 本地化落 migrated/脚本/尾帧变体（失败降级保留原 URL，由原语 reportDegrade 留痕）
+            // 本地化落 migrated/脚本/尾帧变体（失败降级保留原 URL：原语 `localizeAndStoreToResourceLibrary`
+            // 内部已 `logger.error` 留痕并**上抛**，本层 `loc || url` 降级为保留原 URL）
             localize: async (url) => {
               const loc = await localizeAndStoreToResourceLibrary(url, {
                 name: `prev-${prevShot.id}-composed`,
@@ -2115,7 +2112,7 @@ export async function captureVideoFrame(src: string, atFraction = 1): Promise<st
     // 原实现：t = min(max(duration*atFraction - 0.05, 0), max(duration - 0.05, 0.001))（夹取=本域判据）
     atTime: (duration) =>
       Number.isFinite(duration) && duration > 0
-        ? Math.min(Math.max(duration * atFraction - 0.05, 0), Math.max(duration - 0.05, 0.001))
+        ? clamp(duration * atFraction - 0.05, 0, Math.max(duration - 0.05, 0.001))
         : 0,
     maxSize: 480,
     errors: { load: '视频加载失败', dimensions: '视频尺寸不可用', context: 'Canvas 不可用' },

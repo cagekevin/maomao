@@ -27,6 +27,7 @@ import * as d3dPersistence from './d3dPersistence.ts';
 import type { D3dProject } from './d3dPersistence.ts';
 // 【2026-09-16 收口】非工程键改走横切存储唯一入口（contentStore），不再裸写 localStorage。
 import { contentGet, contentGetLocalMirror, contentSet } from '../base/core/contentStore.ts';
+import { confirmPersist } from '../base/core/degrade.ts';
 import { readLegacyRawKey, removeLegacyRawKey } from '../base/storage/index.ts';
 import { KEY_DIRECTOR3D_CUSTOM_POSES } from '../base/core/contracts.ts';
 
@@ -49,10 +50,14 @@ function migrateLegacyPoseKeyOnce(key: string): void {
     });
     return;
   }
-  try {
-    contentSet(key, legacy.value);
-  } catch (error) {
-    log.error('姿势库旧键迁移写失败（保留旧键，下次重试）', { key }, error);
+  // 【2026-09-17 TD-24-4 阶段1】迁移写是 best-effort（失败保留旧键、下次重试），按落盘事实留痕。
+  const migrated = contentSet(key, legacy.value);
+  if (!migrated.ok || migrated.landed !== 'local') {
+    log.error('姿势库旧键迁移写失败（保留旧键，下次重试）', {
+      key,
+      landed: migrated.ok ? migrated.landed : 'failed',
+      message: migrated.ok ? undefined : migrated.message,
+    });
     return;
   }
   if (!removeLegacyRawKey(key)) {
@@ -85,19 +90,21 @@ export function readJson(key: string, fallback: unknown = null) {
  *   乐观返回 true（内存态为权威），写失败不阻塞编辑，由 writeProject 内部降级 + 日志暴露。
  * 返回 true/false 仅作「已受理 / 未受理」信号，不再代表「已落盘到浏览器」。
  *
- * 【非工程键的失败可见性】contentStore 的降级族**不因持久化失败抛错**（契约见其文件头），
- * 其失败经 `persist:failed` 事件（storageAdapter.reportPersistFailure）统一上报 → 全局监听器节流 toast。
- * 故此处布尔值只兜「契约违约」（如值不可 JSON.stringify）；调用方（App 姿势库持久化）不依赖它做用户提示。
+ * 【非工程键的失败可见性】失败由**本处**按落盘事实现场确认（`confirmPersist`：`ok:false` → 留痕 +
+ * toast；`memory`/`pending` → 留痕；`local`/`kv` → 真持久），**不依赖任何全局总线**
+ * （`persist:failed` 已于 2026-09-17 按用户裁定删除）。返回值只兜「契约违约」（如值不可 JSON.stringify）。
  */
 export function writeJson(key: string, value: unknown): boolean {
   if (!d3dPersistence.isProjectPersistenceKey(key)) {
-    try {
-      contentSet(key, value);
-      return true;
-    } catch (error) {
-      log.error('姿势库写入失败', { key }, error);
-      return false;
-    }
+    // 【2026-09-17 TD-24-4 阶段1】姿势库是用户资产：未落盘（含只进内存）必须留痕 + 让用户知道。
+    // 原 try/catch 永死（contentStore 当时从不为持久化失败抛错），注释所称 persist:failed 上报
+    // 对本路径不可靠 —— 现按生产者给的落盘事实自确认。
+    const persisted = confirmPersist(contentSet(key, value), {
+      layer: 'director3d·姿势库',
+      key,
+      toast: '姿势库未能保存（本地存储不可用）',
+    });
+    return persisted;
   }
   // 工程键：引擎/KV 收口，异步落盘（失败内部降级 localStorage 或记录错误，不在此抛）
   // value 经调用方保证为 D3dProject（工程键路径），此处收窄供 writeProject 类型。

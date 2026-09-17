@@ -43,6 +43,14 @@ const { mockStorageAdapter, mockLocalToolApi, mockLogger } = vi.hoisted(() => {
 vi.mock('../../src/components/base/storage/storageAdapter.ts', () => mockStorageAdapter);
 vi.mock('../../src/components/base/api/localToolApi.ts', () => mockLocalToolApi);
 vi.mock('../../src/components/base/core/logger.ts', () => mockLogger);
+// IS_DEV 跟随 process.env.NODE_ENV（测试用 vi.stubEnv 翻转到 production 验证「生产降级」分支）。
+// 仅覆盖 IS_DEV，其余导出（KV_TIMEOUT 等）经 importOriginal 全量保留，避免牵连 contracts 等模块。
+vi.mock('../../src/components/base/core/config.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/components/base/core/config.ts')>()),
+  get IS_DEV() {
+    return process.env.NODE_ENV !== 'production';
+  },
+}));
 
 // 防 logger 被 NODE_ENV 条件影响
 vi.stubEnv('NODE_ENV', 'test');
@@ -82,6 +90,10 @@ beforeEach(() => {
   mockStorageAdapter.sGet.mockReturnValue(null);
   // 默认已就绪（TD-02-2 用例会显式关掉）
   mockStorageAdapter.isStorageReady.mockReturnValue(true);
+  // 【2026-09-17 TD-24-4 阶段0】写/删桩必须返回**落盘结果**（生产者契约已从 void 改为判别联合）：
+  // 否则测桩返回 undefined，消费者按新契约读 `.ok` 会炸（桩必须跟契约走，不是契约迁就桩）。
+  mockStorageAdapter.sSet.mockReturnValue({ ok: true, landed: 'local' });
+  mockStorageAdapter.sRemove.mockReturnValue({ ok: true, landed: 'local' });
 });
 
 afterEach(() => {
@@ -127,7 +139,7 @@ describe('contentGet / contentSet / contentDelete / contentHas', () => {
     expect(mockStorageAdapter.sSet).toHaveBeenCalledWith('agent_panel_width', '400');
   });
 
-  it('sSet 抛错时 contentSet 向上传播（不吞错；真实 sSet 抛错前已 publish persist:failed，事件不被阻断）', () => {
+  it('sSet 抛错时 contentSet 向上传播（不吞错；sSet 自身不为持久化失败抛错，此处模拟的是契约违约）', () => {
     mockStorageAdapter.sSet.mockImplementationOnce(() => {
       throw new Error('QuotaExceededError');
     });
@@ -229,18 +241,28 @@ describe('KV 键路由', () => {
     expect(mockLocalToolApi.kvGet).not.toHaveBeenCalled();
   });
 
-  it('contentSet 对 KV 键 fire-and-forget 写 kvSet', async () => {
-    contentSet(KV_KEY, KV_VALUE);
-    await Promise.resolve();
+  // 【2026-09-17 TD-24-4 阶段0 · 契约变更（旧用例锁的是要被消灭的行为）】
+  // 旧契约：KV 键走同步 contentSet = fire-and-forget（调用方**永远无法确认**成败）⇒
+  // 三条消费链为此写了永不触发的 try/catch（conversationState / backupStore.writeLS /
+  // tableWorkspaceState）。现改为：同步 API **结构性拒绝** KV 键，KV 键必须走 async 并 await。
+  it('contentSet 对 KV 键 → 结构性拒绝（同步 API 拿不到网络写结果 = 静默失败）', () => {
+    expect(() => contentSet(KV_KEY, KV_VALUE)).toThrow(/KV 键禁止走同步 contentSet/);
+    expect(mockStorageAdapter.sSet).not.toHaveBeenCalled();
+  });
+
+  it('contentSetAsync 对 KV 键：写 kvSet 并返回**落点**（不再"发出去就算完"）', async () => {
+    const r = await contentSetAsync(KV_KEY, KV_VALUE);
     expect(mockLocalToolApi.kvSet).toHaveBeenCalledWith(KV_KEY, KV_VALUE);
+    expect(r).toEqual({ ok: true, landed: 'kv' });
     // 不会调 sSet
     expect(mockStorageAdapter.sSet).not.toHaveBeenCalled();
   });
 
-  it('contentDelete 对 KV 键 fire-and-forget（删除成功同时清本地副本，TD-02-25）', async () => {
-    contentDelete(KV_KEY);
-    await Promise.resolve();
-    expect(mockLocalToolApi.kvDelete).toHaveBeenCalledWith(KV_KEY);
+  it('contentDelete 对 KV 键 → 同样结构性拒绝；contentDeleteAsync 才走 KV', async () => {
+    expect(() => contentDelete(KV_KEY)).toThrow(/KV 键禁止走同步 contentDelete/);
+
+    const r = await contentDeleteAsync(KV_KEY);
+    expect(r).toEqual({ ok: true, landed: 'kv' });
     // 删除成功也清本地降级副本：否则 keepFallback 键下次 hydrate 会"复活"已删数据
     expect(mockStorageAdapter.sRemove).toHaveBeenCalledWith(KV_KEY);
   });
@@ -479,12 +501,13 @@ describe('动态键模式匹配', () => {
     expect(mockLogger.logger.warn).not.toHaveBeenCalled();
   });
 
-  it('contentSet 动态 KV 键走 KV 路由', async () => {
-    contentSet('canvas-state-v1-proj-999', { nodes: [], edges: [] });
+  it('contentSetAsync 动态 KV 键走 KV 路由并返回落点', async () => {
+    const r = await contentSetAsync('canvas-state-v1-proj-999', { nodes: [], edges: [] });
     expect(mockLocalToolApi.kvSet).toHaveBeenCalledWith('canvas-state-v1-proj-999', {
       nodes: [],
       edges: [],
     });
+    expect(r).toEqual({ ok: true, landed: 'kv' });
     expect(mockStorageAdapter.sSet).not.toHaveBeenCalled();
   });
 
@@ -565,15 +588,16 @@ describe('KV 失败分类 + 严格族原语（TD-02-1）', () => {
     expect(mockStorageAdapter.sRemove).not.toHaveBeenCalled();
   });
 
-  it('无 HTTP 状态（网络/超时）= 引擎不可用 → 降级写本地副本且不抛', async () => {
+  it('无 HTTP 状态（网络/超时）= 引擎不可用 → 降级写本地副本，且**落点如实返回**（landed=local）', async () => {
     mockLocalToolApi.kvSet.mockRejectedValueOnce(new Error('Failed to fetch'));
-    await expect(contentSetAsync(KV_KEY, VALUE)).resolves.toBeUndefined();
+    // 【2026-09-17 TD-24-4 阶段0】降级不再"返回 void 装作无事"：生产者如实说"这次没进 KV、落在本地"
+    await expect(contentSetAsync(KV_KEY, VALUE)).resolves.toEqual({ ok: true, landed: 'local' });
     expect(mockStorageAdapter.sSet).toHaveBeenCalledWith(KV_KEY, JSON.stringify(VALUE));
   });
 
-  it('5xx = 引擎不可用 → 降级', async () => {
+  it('5xx = 引擎不可用 → 降级（落点同样如实返回）', async () => {
     mockLocalToolApi.kvSet.mockRejectedValueOnce(httpErr(503, 'boom'));
-    await expect(contentSetAsync(KV_KEY, VALUE)).resolves.toBeUndefined();
+    await expect(contentSetAsync(KV_KEY, VALUE)).resolves.toEqual({ ok: true, landed: 'local' });
     expect(mockStorageAdapter.sSet).toHaveBeenCalledWith(KV_KEY, JSON.stringify(VALUE));
   });
 

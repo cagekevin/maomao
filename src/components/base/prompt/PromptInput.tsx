@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useOutsideClick } from '../core/uiHooks.ts';
+import { clamp } from '@/components/base/core/utils';
 import LazyImage from '../ui/LazyImage.tsx';
 import {
   isChipEl,
@@ -201,7 +202,7 @@ function PromptInput({
     const floor = inputHeight != null ? Number(inputHeight) || 80 : 80;
     const cap = Math.max(MAX_PROMPT_H, floor);
     el.style.height = 'auto';
-    const next = Math.min(Math.max(el.scrollHeight, floor), cap);
+    const next = clamp(el.scrollHeight, floor, cap);
     el.style.height = `${next}px`;
   }, [inputHeight]);
 

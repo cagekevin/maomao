@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { toAbsoluteFileUrl } from '../api/filesApi.ts';
+import { toastError } from '../core/toastStore.ts';
 import { releaseQuietly } from '../utils/asyncGuard.ts';
 import { logger } from '../core/logger.ts';
 
@@ -462,7 +463,13 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
     try {
       updateLayer(paintLayerId, { maskUrl: canvasToImageDataUrl(canvas, 'image/png') });
     } catch (e) {
+      // 【2026-09-17 TD-24-4 §二】同族 FaceMosaicEditor 已 `toastError('打码保存失败：…')`；
+      // 此处只落日志 ⇒ 用户以为遮罩存上了（这一笔涂抹白做）。失败必须对用户可见，
+      // 与上面注释的「不写入坏遮罩」同源：都是不让失败伪装成一次"成功"。
       logger.error('OverlayEditor', '遮罩生成失败，已保留上一次遮罩', e);
+      toastError(
+        `遮罩保存失败：${(e as { message?: string })?.message || '图片编码出错'}（已保留上一次遮罩）`,
+      );
     }
   }, [paintLayerId, updateLayer]);
 

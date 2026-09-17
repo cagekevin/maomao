@@ -287,6 +287,8 @@ export function reportGenerate(
     const cur = tasks.find((t) => t.id === task.id);
     if (cur) persist(cur);
   }, 200);
+  // 【TD-01-20】把"取消未落的进度写"登记进终态原语可用的表（原只有本闭包能取消 ⇒ 恢复路径取不到）
+  progressCancels.set(task.id, () => progressPersist.cancel());
   return {
     // 前端自造任务 id（贯穿链路主键，P0-A 请求级上下文）：useNodeGeneration/scriptBox 由 run ctx 透传给 generateImage opts，
     // 经 payload.taskId 带给 localTool/网关（不再经全局 currentTaskId）。
@@ -301,55 +303,95 @@ export function reportGenerate(
       progressPersist.schedule(); // 合并高频进度落库（窗口内只写最终态）
     },
     // 标记完成（resultUrl 应为已持久 /files/ URL；调用方先落盘再 done，见 P0-C 单向落盘契约）
-    done: (resultUrl: string) => {
-      // 防御：resultUrl 必须是字符串（历史 bug：上游偶发返回对象/undefined，导致 .startsWith 崩）
-      const safeUrl = typeof resultUrl === 'string' ? resultUrl : '';
-      // 【排障埋点 · 2026-09-03 任务不结束排查】任何任务 done 时打印 id/type/resultUrl，断「卡进度 vs 卡 done 未触发」。
-      logger.debug(
-        '任务',
-        '[任务] done',
-        { taskId: task.id, nodeId: task.nodeId, type: task.type, hasUrl: !!safeUrl },
-        { module: 'image' },
-      );
-      tasks = tasks.map((t) =>
-        t.id === task.id ? { ...t, status: 'completed', progress: 100, resultUrl: safeUrl } : t,
-      );
-      notify();
-      progressPersist.cancel(); // 取消未落的进度写，避免晚于 completed 覆盖终态
-      persist({ ...task, status: 'completed', progress: 100, resultUrl: safeUrl });
-      // 【画布同步】任务完成广播（统一入口 publishTaskCompleted，经 eventBus，解耦 window）：
-      // 节点监听 agent:task-completed 回写结果，刷新场景靠任务中心的持久 resultUrl 恢复节点显示
-      //（落盘由调用方完成，done 不再负责；空 resultUrl 的文本类任务不广播）。
-      publishTaskCompleted({
-        taskId: task.id,
-        nodeId: task.nodeId,
-        resultUrl: safeUrl,
-        type: task.type,
-        status: 'completed',
-      });
-    },
-    // 标记失败
-    fail: (errorMsg?: string) => {
-      logger.debug(
-        '任务',
-        '[任务] fail',
-        { taskId: task.id, nodeId: task.nodeId, type: task.type, error: errorMsg || '' },
-        { module: 'image' },
-      );
-      tasks = tasks.map((t) =>
-        t.id === task.id ? { ...t, status: 'failed', errorMsg: errorMsg || '生成失败' } : t,
-      );
-      notify();
-      progressPersist.cancel(); // 同 done：取消未落的进度写
-      persist({ ...task, status: 'failed', errorMsg: errorMsg || '生成失败' });
-    },
+    // 【TD-01-20】委托终态原语（与恢复轮询同一份实现；本闭包不再自持第二份写法）
+    done: (resultUrl: string) => completeTask(task.id, resultUrl),
+    // 标记失败（同上：委托原语；是否弹提示由调用方决定）
+    fail: (errorMsg?: string) => failTask(task.id, errorMsg),
   };
+}
+
+/**
+ * 终态落地的「进度写取消」登记（TD-01-20）。
+ *
+ * 【为什么要这张表】终态时必须取消尚未落库的进度写（否则晚到的 running 快照会覆盖终态）。
+ * 这条能力此前长在 `createTask` 的闭包里（`progressPersist.cancel()`）⇒ **只有 live 路径享受得到**；
+ * 恢复轮询（`pollTask`）只能走 `patchTask`，于是「非字符串防御 / 排障埋点 / 取消进度写」三项里它缺两项。
+ * 现把终态收口成下方两个原语，闭包只负责登记一个 cancel 句柄。
+ */
+const progressCancels = new Map<string, () => void>();
+
+/**
+ * 终态落地唯一原语：**完成**（TD-01-20）。
+ *
+ * 【谁调】① live：`createTask()` 返回的 `ctl.done(url)`；② 恢复：`pollTask` 的 attach 闭环。
+ * 【为什么必须唯一】原先两路各写一份 ⇒ 同一件事两套行为（live 有防御+埋点+取消进度写，恢复没有）。
+ * 【UI 提示不在此】live 由节点侧弹、恢复由轮询侧弹 —— 那是消费者按上下文决定的事，不属"写终态"。
+ *
+ * @param resultUrl 已持久化的 /files/ URL（调用方先落盘再调本函数，见 P0-C 单向落盘契约）
+ */
+export function completeTask(id: string, resultUrl: string): void {
+  // 防御：resultUrl 必须是字符串（历史 bug：上游偶发返回对象/undefined，导致 .startsWith 崩）
+  const safeUrl = typeof resultUrl === 'string' ? resultUrl : '';
+  const cur = tasks.find((t) => t.id === id);
+  if (!cur) {
+    // 任务已被删除（清会话 / 用户删卡）→ 不凭空复活；留痕供排查"为什么结果没上屏"
+    logger.warn('taskStore', '终态落地时任务已不在（可能已被删除），跳过写回', { taskId: id });
+    return;
+  }
+  // 【排障埋点 · 2026-09-03 任务不结束排查】任何任务 done 时打印 id/type/resultUrl，断「卡进度 vs 卡 done 未触发」。
+  logger.debug(
+    '任务',
+    '[任务] done',
+    { taskId: id, nodeId: cur.nodeId, type: cur.type, hasUrl: !!safeUrl },
+    { module: 'image' },
+  );
+  // 以**当前行**为基准（原实现用 createTask 时的闭包快照 persist，会把中途更新的字段写回旧值）
+  const next: Task = { ...cur, status: 'completed', progress: 100, resultUrl: safeUrl };
+  tasks = tasks.map((t) => (t.id === id ? next : t));
+  notify();
+  progressCancels.get(id)?.(); // 取消未落的进度写，避免晚于 completed 覆盖终态
+  progressCancels.delete(id);
+  persist(next);
+  // 【画布同步】任务完成广播（统一入口 publishTaskCompleted，经 eventBus，解耦 window）：
+  // 节点监听 agent:task-completed 回写结果，刷新场景靠任务中心的持久 resultUrl 恢复节点显示
+  //（落盘由调用方完成，done 不再负责；空 resultUrl 的文本类任务不广播）。
+  publishTaskCompleted({
+    taskId: id,
+    nodeId: cur.nodeId,
+    resultUrl: safeUrl,
+    type: cur.type,
+    status: 'completed',
+  });
+}
+
+/** 终态落地唯一原语：**失败**（口径与 `completeTask` 同源；是否弹提示由调用方按上下文决定）。 */
+export function failTask(id: string, errorMsg?: string): void {
+  const msg = errorMsg || '生成失败';
+  const cur = tasks.find((t) => t.id === id);
+  if (!cur) {
+    logger.warn('taskStore', '终态落地时任务已不在（可能已被删除），跳过写回', { taskId: id });
+    return;
+  }
+  logger.debug(
+    '任务',
+    '[任务] fail',
+    { taskId: id, nodeId: cur.nodeId, type: cur.type, error: msg },
+    { module: 'image' },
+  );
+  const next: Task = { ...cur, status: 'failed', errorMsg: msg };
+  tasks = tasks.map((t) => (t.id === id ? next : t));
+  notify();
+  progressCancels.get(id)?.(); // 同 completeTask：取消未落的进度写
+  progressCancels.delete(id);
+  persist(next);
 }
 
 /**
  * 通用任务字段更新：按 id 合并 patch，同步内存 + 后端落库。
  * 用途：异步任务恢复轮询（见 pollTask.js）拿到新状态/结果后回写任务记录。
  * 【取舍】不新建 setter，统一走这里，避免散落多处改 tasks 的写法。
+ * 【与终态原语的分工（TD-01-20）】**非终态**（running/进度/metadata）走这里；
+ * **终态**（completed/failed）一律走 `completeTask` / `failTask` —— 否则又会散出第二份终态写法。
  */
 export function patchTask(id: string, patch: Partial<Task>): void {
   if (!id || !patch) return;
@@ -370,6 +412,7 @@ export function patchTask(id: string, patch: Partial<Task>): void {
 
 export function removeTask(id: string): void {
   tasks = tasks.filter((t) => t.id !== id);
+  progressCancels.delete(id); // 终态取消登记同生命周期清理（防长会话里 Map 只涨不落）
   notify();
   // 【失败可见 TD-02-16】后端删除失败不得静默：前端已移除但后端仍残留，需留痕（下次列表刷新会"复活"）
   deleteTask(id).catch((e) => {
@@ -707,6 +750,7 @@ export function clearTasksBy(predicate: (t: Task) => boolean): void {
   const removed = tasks.filter((t) => predicate(t));
   if (removed.length > 0) {
     tasks = tasks.filter((t) => !predicate(t));
+    for (const t of removed) progressCancels.delete(t.id); // 同 removeTask：清理终态取消登记
     notify();
     // 【失败可见 TD-02-16】fire-and-forget 但失败须留痕（后端残留 → 下次拉到已删任务）
     batchDeleteTasks(removed.map((t) => t.id)).catch((e) => {

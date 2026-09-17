@@ -4,7 +4,6 @@ import {
   toRelativeFileUrl,
   buildThumbnailUrl,
   resolveAssetUrl,
-  contentIdOfBytes,
   resolveAssetDisplayUrl,
   assertMutuallyExclusiveAssetForm,
   normalizeAssetUrl,
@@ -408,16 +407,8 @@ describe('assetUrl · resolveAssetDisplayUrl / assertMutuallyExclusiveAssetForm'
   });
 });
 
-// ── contentIdOfBytes：由字节算 Content 维度 identity（docs/122 #4，与后端 sha1:<hex> 同源）──
-describe('assetUrl · contentIdOfBytes', () => {
-  it('由 ArrayBuffer 算 sha1:<hex>（与后端 contentIdOf(sha1(file)) 一致）', async () => {
-    // sha1('hello') = aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d
-    const cid = await contentIdOfBytes(new TextEncoder().encode('hello'));
-    expect(cid).toBe('sha1:aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d');
-  });
-
-  it('由 Blob 算同值（File 即 Blob，multipart 字节即其原文）', async () => {
-    const cid = await contentIdOfBytes(new Blob(['hello'], { type: 'text/plain' }));
-    expect(cid).toBe('sha1:aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d');
-  });
-});
+// ── 【TD-08-28 收口】`contentIdOfBytes` 的用例已删（含其实现）──
+// 该原语（前端由字节算 sha1）现有**零生产消费者** ⇒ 删除，稳定身份的契约移到**生产者侧**：
+// 后端落盘权威回传 → `UploadOutcome.contentId` / `PersistOutcome.contentId` → 消费者只转发（不再自算）。
+// 契约用例见 `tests/unit/filesApi.test.ts` 的「contentId 透传（TD-08-28）」，消费端见
+// `AssetNode.test.tsx` / `useAssetDropPaste.test.tsx`。

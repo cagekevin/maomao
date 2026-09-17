@@ -273,12 +273,14 @@ describe('EVENTS 结构完整性', () => {
 });
 
 describe('EVENTS 内容验证', () => {
-  it('当前共有 9 个登记事件', () => {
+  it('当前共有 8 个登记事件', () => {
     // 2026-09-11：由 10 → 9（删 'yimao:remove-edge'，TD-04-8，只有订阅无发布的死事件）
     // 2026-09-12：由 9 → 8（删 'resource:renamed'，四态 url 改写广播随 context-only 改名废弃，无订阅方）
     // 2026-09-15：由 8 → 9（增 'videoeditor:seek'，TD-22-23：把 playback-manager 的
     //   `window.dispatchEvent('playback-seek')` 私通道收进 eventBus 唯一通道；同处删掉零消费者的 'playback-update'）
-    expect(Object.keys(EVENTS).length).toBe(9);
+    // 2026-09-17：由 9 → 8（删 'persist:failed'，TD-24-4 阶段 2 / TD-16-33：持久化失败改由各站点
+    //   `confirmPersist` 自确认，全局失败吸收层按用户裁定退役）
+    expect(Object.keys(EVENTS).length).toBe(8);
   });
 
   it('包含所有核心事件', () => {
@@ -287,7 +289,6 @@ describe('EVENTS 内容验证', () => {
     expect(keys).toContain('presets-changed');
     expect(keys).toContain('project:import');
     expect(keys).toContain('project:export');
-    expect(keys).toContain('persist:failed');
     expect(keys).toContain('agent:credit-gate');
     // P1-D 新增：素材发送事件收口（取代 resourceStore 裸回调桥）
     // 注：'yimao:remove-edge' 已于 2026-09-11 删除（TD-04-8，只有订阅无发布的死事件）

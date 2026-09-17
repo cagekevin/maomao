@@ -26,7 +26,7 @@ import type { CreativePreset, CreativePresetsDict } from '../base/creative/creat
 import { toDictEntry } from '../base/creative/creativePresets.ts';
 import { downloadUrl, resolveDownloadFilename } from '../base/utils/clipboard.ts';
 import JianyingIcon from '../base/ui/JianyingIcon.tsx';
-import { showToast } from '../base/core/toastStore.ts';
+import { showToast, toastWarning } from '../base/core/toastStore.ts';
 import { sendToResourceLibrary } from '../base/store/resourceStore.ts';
 import { openResourceLibrary } from '../base/store/taskStore.ts';
 import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts';
@@ -246,7 +246,12 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
           patchData({ assetUrl: hit.resultUrl });
         }
       })
-      .catch((e) => logger.warn('task', 'restore-fail', { nodeId: id, error: e?.message }));
+      .catch((e) => {
+        // 【2026-09-17 TD-24-4 §二】挂载恢复失败此前**只 logger.warn** ⇒ 刷新后图静默消失，
+        // 用户以为"生成的东西丢了"（分不清"还没生成完"与"恢复失败"）。失败必须对用户可见。
+        logger.warn('task', 'restore-fail', { nodeId: id, error: e?.message });
+        toastWarning('上次生成的图片未能恢复，可重新生成或从任务中心取回');
+      });
     return () => {
       cancelled = true;
     };

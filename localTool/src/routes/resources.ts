@@ -113,12 +113,18 @@ export async function handleResourcesRescan(
     dbh: unknown,
     absDir: string,
     relFolderPath: string,
-    counters: { scanned: number; added: number; skipped: number },
+    counters: { scanned: number; added: number; skipped: number; errors: number },
   ): void => {
     let entries: fs.Dirent[];
     try {
       entries = fs.readdirSync(absDir, { withFileTypes: true });
-    } catch {
+    } catch (e) {
+      // 【TD-08-31】原为静默 `return`：整棵子树被跳过，而调用方仍收到"扫描成功"⇒ 用户以为库是全的。
+      // 读不到目录（权限/被占用/并发删除）必须留痕并计入 errors，由响应如实回传"漏扫了几处"。
+      counters.errors++;
+      console.error(`[rescan] 目录不可读，已跳过该子树：${relFolderPath || absDir}`, {
+        error: (e as Error).message,
+      });
       return;
     }
     for (const entry of entries) {
@@ -202,13 +208,14 @@ export async function handleResourcesRescan(
     }
   };
 
-  const counters = { scanned, added, skipped };
+  const counters = { scanned, added, skipped, errors: 0 };
   for (const folder of subfolders) {
     scanRescanDir(db, path.join(uploadDir, folder), folder, counters);
   }
   scanned = counters.scanned;
   added = counters.added;
   skipped = counters.skipped;
+  const errors = counters.errors;
 
   // 孤儿清理：库中 source='local-tool' 但磁盘上对应路径已不存在的记录删除。
   // 否则本地删了文件夹/文件后，rescan 只新增不删除，前端仍显示陈旧条目。
@@ -236,9 +243,11 @@ export async function handleResourcesRescan(
   }
 
   debouncedSaveDb();
+  // 【TD-08-31】`errors` 如实回传"漏扫了几处"（读不到的子树）—— 不发错误码（其余部分扫成了），
+  // 但绝不让调用方以为"扫了 0 错误 = 库是全的"。调用方见 errors>0 应提示"部分目录未读到"。
   return json(res, {
     code: 0,
-    data: { ok: true, count: added, scanned, added, skipped, orphanDeleted },
+    data: { ok: true, count: added, scanned, added, skipped, orphanDeleted, errors },
   });
 }
 
@@ -381,8 +390,13 @@ export async function recordUploadedFileRow(
   let sha1: string | null = null;
   try {
     sha1 = contentIdOf(crypto.createHash('sha1').update(fs.readFileSync(absPath)).digest('hex'));
-  } catch {
-    sha1 = null; // 读不到文件（已被并发删除等）→ 不写 contentId，仍登记基本行
+  } catch (e) {
+    // 【TD-08-31】原为纯静默：刚落盘的文件读不到 = 异常（并发删除/权限/磁盘），必须留痕。
+    // 仍登记基本行（不写 contentId）：至少让"盘上有这个文件"这件事在库里可见，而不是连行都没有。
+    console.warn('[recordUploadedFileRow] 落盘文件读不到，本次不写 contentId', {
+      rel,
+      error: (e as Error).message,
+    });
   }
   // 同 id / 同内容既有行若存在：读取其「用户态/归属/显示名」列
   // —— 既避免 upsertResource 的 delete+insert 清掉它们，也据此做「显式改名优先」的显示名合并

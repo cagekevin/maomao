@@ -302,6 +302,11 @@ export class AudioManager {
       this.decodedBuffers.set(cacheKey, buffer);
       return buffer;
     } catch (error) {
+      // 【2026-09-17 TD-22-63 取证后证伪，防重报】解码失败**有留痕**（本 warn 带 sourceKey），
+      // 返回 null = 「该片段本次不发声」的**文档化契约**（getDecodedBuffer → 调用方 continue 跳过）：
+      // ① 播放循环内 toast = 每帧刷屏（同一坏片段每 tick 都会再试）；
+      // ② 持续态读者已存在：波形组件的「素材不可用」错误态（audio-waveform / MissingMediaIndicator）；
+      // ③ 失败原因多为坏文件/不支持编码，用户可行动作 = 重新导入（波形错误态已表达）。
       logger.warn('Failed to decode audio:', clip.sourceKey, error);
       return null;
     }

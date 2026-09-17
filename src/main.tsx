@@ -52,7 +52,10 @@ function reportGlobalError(type: string, e: unknown) {
     if (_HARMLESS_GLOBAL_ERROR_MSGS.some((m) => message.includes(m))) {
       const seen = (_harmlessSeen.get(message) ?? 0) + 1;
       _harmlessSeen.set(message, seen);
-      if (seen === 1) logger.warn('运行时', '已知无害告警，已过滤（后续同类仅计数）', { message });
+      // 首次 + 每 100 次各留一条：**计数必须有出口** —— 否则「累计次数」只活在内存里、谁也读不到，
+      // 那是「过滤」退化成「静默丢」的另一种写法（TD-16-33③ 残留，2026-09-17 补）。
+      if (seen === 1 || seen % 100 === 0)
+        logger.warn('运行时', '已知无害告警，已过滤（累计）', { message, seen });
       return;
     }
     const isError = e instanceof Error;

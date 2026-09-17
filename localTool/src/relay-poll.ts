@@ -45,7 +45,7 @@ import {
   resolveProviderApiKey,
   buildLovartDirectProfile,
 } from './providerConfigStore.js';
-import { getDb, queryAll, debouncedSaveDb } from './db/database.js';
+import { getDb, queryAll, debouncedSaveDb, flushSaveDb } from './db/database.js';
 
 export type RelayCapability = 'image' | 'video' | 'chat';
 
@@ -279,7 +279,9 @@ export async function submitGenerateTask(
           } satisfies RelayPollSnapshot['_relayPoll'],
         } satisfies RelayPollSnapshot),
       });
-      debouncedSaveDb();
+      // 【TD-08-39】提交**前**的「可能已出站」快照必须立刻落盘：否则窗口内崩机 ⇒ 重启按旧文件
+      // 看不到这行（任务凭空消失），用户重发 ⇒ 上游其实可能已在跑 = 重复计费。
+      flushSaveDb();
       registerHandle(
         frontTaskId,
         {
@@ -380,6 +382,9 @@ export async function submitGenerateTask(
 
     // 落库在途行（DB 真相）。node_id 归前端 taskStore.reportGenerate 写（它 create 行时带 node_id）；
     // 此处【不写 node_id】——upsert merge 会保留前端已写的正确 node_id，避免被覆盖成 providerId 等脏值。
+    // 【TD-08-38 · 2026-09-17 定契】归属已按写方分层：node_id / type / model_name / prompt 等**归属与展示列**
+    // 归前端（`owner:'client'` 可写），而 status / progress / result_url / request_data 等**执行态列**归本文件
+    // （`owner:'poller'`）——前端来路写不动它们（见 `routes/tasks.ts::EXECUTION_OWNED_COLUMNS`）。
     await upsertTask(await getDb(), {
       task_id: frontTaskId,
       type: input.type || capability,
@@ -402,7 +407,9 @@ export async function submitGenerateTask(
         } satisfies RelayPollSnapshot['_relayPoll'],
       } satisfies RelayPollSnapshot),
     });
-    debouncedSaveDb();
+    // 【TD-08-39】「已出站」这一事实必须落到磁盘才继续：内存写完就往下走、磁盘仍是旧文件时被杀，
+    // 重启会看不到已提交的 taskId（该任务在本地"从未存在"）⇒ 用户重发 = 重复计费。
+    flushSaveDb();
 
     registerHandle(
       frontTaskId,
@@ -488,6 +495,9 @@ async function runDirectSubmit(handle: PollHandle, profile: LovartDirectProfile)
     //   现改为先写库：崩溃只会发生在「DB 已记 thread_id + 已清 pendingSubmit」之后 ⇒ 重启走**续轮询**分支，
     //   `core.taskId` 非空且无 `pendingSubmit` ⇒ 绝不重提交。落库本身失败（异常）则由 catch 兜底，
     //   此时内存未改、句柄已停，语义仍一致（见下方 catch 的 unknown 处置）。
+    //   【TD-08-39 补 · 2026-09-17】当时只做到「写内存 DB 再改内存」，**磁盘仍差 500ms**（`debouncedSaveDb`）
+    //   ⇒ 重启 `getDb` 从文件加载，读到的还是含 `pendingSubmit` 的旧快照 ⇒ 窗口照旧。故本处落库后必须
+    //   `flushSaveDb()`（同步原子落盘）——「先落库」只有在**落到磁盘**之后才算数。
     // 落库回填：thread_id + submit_ack_at + 清 pendingSubmit 快照（DB 真相，供 attach/恢复读取）
     await upsertTask(await getDb(), {
       task_id: handle.frontTaskId,
@@ -507,7 +517,11 @@ async function runDirectSubmit(handle: PollHandle, profile: LovartDirectProfile)
         } satisfies RelayPollSnapshot['_relayPoll'],
       } satisfies RelayPollSnapshot),
     });
-    debouncedSaveDb();
+    // 【TD-08-39】**本处是重复计费窗口的正门**：上面已写 `thread_id` + 清 `pendingSubmit` 快照，
+    // 必须同步落盘才能保证"崩溃后重启读到的是已出站"（TD-08-24 的"先落库再改内存"只保证了**内存**顺序，
+    // 磁盘仍差 500ms ⇒ 重启按旧文件读到 pendingSubmit ⇒ 重提交）。改 `flushSaveDb()` 后，
+    // 只有"DB 已记 thread_id 且无 pendingSubmit"才会走到下面改内存。
+    flushSaveDb();
     // 落库成功后才改内存：提交完成，转入轮询阶段
     handle.taskId = threadId;
     handle.pendingDirectSubmit = null;
@@ -639,7 +653,7 @@ async function upsertCompleted(handle: PollHandle, urls: string[]): Promise<void
     completed_at: Date.now(),
     ...(errorMsg ? { error_msg: errorMsg } : {}),
   });
-  debouncedSaveDb();
+  flushSaveDb(); // 【TD-08-39】终态：不落盘则重启后任务卡 running、结果消失
 }
 
 /** 任务失败/超时：写库 failed + error_msg。 */
@@ -650,7 +664,7 @@ async function upsertFailed(handle: PollHandle, error: string): Promise<void> {
     progress: 0,
     error_msg: error || '生成失败',
   });
-  debouncedSaveDb();
+  flushSaveDb(); // 【TD-08-39】终态（同 completed）：失败也必须立刻可见，不能停在 running
 }
 
 /**
@@ -670,7 +684,7 @@ async function upsertUnknown(handle: PollHandle, error: string, threadId?: strin
     progress: 0,
     error_msg: `${hint}${error ? `｜上游原文：${error}` : ''}`,
   });
-  debouncedSaveDb();
+  flushSaveDb(); // 【TD-08-39】终态（unknown）：这一态正是给"崩溃/断连后人工对账"用的，尤其不能只留在内存
 }
 
 /** 写进度（进行中）。 */

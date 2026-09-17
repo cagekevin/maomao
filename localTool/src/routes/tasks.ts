@@ -133,10 +133,94 @@ function taskToRow(task: Record<string, unknown>) {
   return { row, droppedKeys };
 }
 
-export function upsertTask(db: any, row: Record<string, unknown>) {
-  // 真 UPSERT：先取现有行合并，避免 DELETE+INSERT 抹掉已落库的诊断字段（request_data / response_data / error_msg 等）
+/**
+ * 执行态 / 诊断列 —— **真相归后端 relay-poll**（`relay-poll.ts` 是提交·轮询·落盘 /files/ 的唯一执行方）。
+ *
+ * 【谁无权写（TD-08-38 · 2026-09-17）】前端来路（`/api/tasks/save`、`/api/tasks/batch-save`）**无权**改这些列：
+ * 前端角色是「发意图 + GET attach 拿状态」的**消费者**（见 `base/api/relayProxy.ts` 文件头
+ * 「前端只发意图 + GET attach，不再自轮询/自落盘/自写 result_url」），DB 才是真相。
+ *
+ * 【原先哪里错了】`upsertTask` 整行浅覆盖（`{...existing, ...row}`，后写者赢）+ 前端把整份 Task 快照发来 ⇒
+ * 前端那条 **running 快照**只要比后端终态写晚到（前端 200ms 防抖 + 网络往返），就会把 DB 里的
+ * `status='completed'` 改回 `running`、并把 `result_url` 抹成 `''`（前端 Task 的 `resultUrl` 初值就是空串）
+ * ⇒ 任务中心刷新后「结果消失、任务永远卡在进行中」，而后端其实早已完成、图已在磁盘。
+ * `request_data` 也在此列：它内嵌 `_relayPoll` 在途快照（`pendingSubmit`），被前端旧快照覆盖会让
+ * 崩溃恢复误判「尚未出站」→ **重复提交**（TD-08-24 刚闭合的窗口）。
+ */
+const EXECUTION_OWNED_COLUMNS = new Set([
+  'status',
+  'progress',
+  'result_url',
+  'error_msg',
+  'error_message',
+  'thread_id',
+  'poll_task_id',
+  'submit_ack_at',
+  'completed_at',
+  'poll_count',
+  'not_found_count',
+  'request_data',
+  'response_data',
+]);
+
+/**
+ * 真 UPSERT（先取现有行合并，避免 DELETE+INSERT 抹掉已落库的诊断字段）。
+ *
+ * @param opts.owner 写方（默认 `'poller'` = 后端执行态真相源，可写全部列）。
+ *   `'client'` = 前端来路：**行已存在且该行由后端持有执行句柄**（`request_data._relayPoll`）时，
+ *   丢弃执行态列（见 `EXECUTION_OWNED_COLUMNS`）并留痕；**行不存在**、或该行无句柄（前端自执行链路，
+ *   如文本/chat）时不受限 —— 前者前端建在途行必须能给 `status` 初值，后者前端本就是执行方。
+ */
+/**
+ * 该行是否由**后端 relay-poll 持有执行句柄**（`request_data` 内嵌 `_relayPoll` 快照）。
+ *
+ * 【为什么用它当判据，而不是"前端一律不许写执行态"】执行态该归谁，取决于**谁是这条链路的执行方**：
+ *  - 图/视频链路：前端 `POST /api/generate` → **后端 relay-poll** 提交·轮询·落盘，提交时会写入
+ *    `request_data._relayPoll`（`pendingSubmit` → `taskId`）⇒ **后端是执行方**，前端无权改执行态；
+ *  - 文本/chat 链路：后端**无句柄、不建任务行**（`routes/generate.ts` chat 分支），终态只有前端知道
+ *    ⇒ 前端就是执行方，必须能写（否则文本任务永远停在 running —— 一刀切会造出这个回归）。
+ * 一行有没有句柄是可判的事实，故判据用它，而不是全局假定。
+ *
+ * 解析不了（脏值）按**无句柄**处理并留痕：拿不到句柄事实时不得据此剥夺前端的写权。
+ */
+function hasRelayPollHandle(existing: Record<string, unknown> | undefined): boolean {
+  const raw = existing?.request_data;
+  if (typeof raw !== 'string') return false;
+  try {
+    return Boolean((JSON.parse(raw) as { _relayPoll?: unknown } | null)?._relayPoll);
+  } catch {
+    console.warn('[upsertTask:request_data-unparsable] request_data 非合法 JSON，按"无句柄"处理', {
+      task_id: existing?.task_id,
+    });
+    return false;
+  }
+}
+
+export function upsertTask(
+  db: any,
+  row: Record<string, unknown>,
+  opts: { owner?: 'poller' | 'client' } = {},
+) {
+  const owner = opts.owner ?? 'poller';
   const existing = queryOne(db, `SELECT * FROM tasks WHERE task_id = ?`, [row.task_id]);
-  const merged = existing ? { ...existing, ...row } : row;
+  let incoming = row;
+  if (existing && owner === 'client' && hasRelayPollHandle(existing)) {
+    incoming = {};
+    const blocked: string[] = [];
+    for (const [k, v] of Object.entries(row)) {
+      if (EXECUTION_OWNED_COLUMNS.has(k)) blocked.push(k);
+      else incoming[k] = v;
+    }
+    if (blocked.length) {
+      // 失败必须可见（不是静默忽略）：若这条日志频繁出现，说明**某条链路缺执行方**（该由后端写却没写），
+      // 要去补后端的终态写，而不是放开这里的判据（放开 = 回到"后写者赢"）。
+      console.warn('[upsertTask:client-blocked] 前端来路越权写执行态列，已忽略', {
+        task_id: row.task_id,
+        cols: blocked,
+      });
+    }
+  }
+  const merged = existing ? { ...existing, ...incoming } : row;
   const keys = Object.keys(merged);
   const vals = keys.map((k) => merged[k]);
   const placeholders = keys.map(() => '?').join(', ');
@@ -190,7 +274,7 @@ export async function handleTasksSave(req: IncomingMessage, res: ServerResponse)
   const db = await getDb();
   const { row, droppedKeys } = taskToRow(body);
   if (droppedKeys.length) console.warn(`[taskToRow:dropped] ${droppedKeys.join(', ')}`);
-  upsertTask(db, row);
+  upsertTask(db, row, { owner: 'client' }); // 前端来路：不许改执行态列（TD-08-38）
   debouncedSaveDb();
   return json(res, { code: 0, data: { ok: true } });
 }
@@ -209,7 +293,7 @@ export async function handleTasksBatchSave(
       if (!task.taskId && !task.id) continue;
       const { row, droppedKeys } = taskToRow(task);
       if (droppedKeys.length) console.warn(`[taskToRow:dropped] ${droppedKeys.join(', ')}`);
-      upsertTask(db, row);
+      upsertTask(db, row, { owner: 'client' }); // 同 save：前端来路不许改执行态列
     }
     commitTx(db);
   } catch (e) {
@@ -251,7 +335,8 @@ export async function handleTasksBatchDelete(
   // 【成功判据必须取结果事实 · 2026-09-17 TD-16-27】原实现回 `deleted: body.ids.length`（**输入长度**）：
   // 传进来的 id 全不存在（0 行被删）也报「已删除 N 条」。现累加真实 `changes`。
   let deleted = 0;
-  for (const id of body.ids) deleted += run(db, 'DELETE FROM tasks WHERE task_id = ?', [id]).changes;
+  for (const id of body.ids)
+    deleted += run(db, 'DELETE FROM tasks WHERE task_id = ?', [id]).changes;
   debouncedSaveDb();
   // 只删记录，删盘统一交给引用感知 GC（docs/13）
   await runReferenceGc(false);

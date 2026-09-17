@@ -45,7 +45,7 @@ import { httpRequest } from './httpClient.ts';
 import { logger } from '../core/logger.ts';
 import { reportDegrade } from '../core/degrade.ts';
 import { UPLOAD_TIMEOUT } from '../core/config.ts';
-import { formatTime, dataUrlToBlob, safeFileName, relativePathFromFileUrl } from '../core/utils.ts';
+import { formatTime, safeFileName, relativePathFromFileUrl } from '../core/utils.ts';
 import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
 import type { ApiEnvelope } from './localToolApi.ts';
 export { toAbsoluteFileUrl } from '../utils/assetUrl.ts';
@@ -226,7 +226,19 @@ export async function saveInlineToLocal(
  *  看起来处理了，实际把信息扔了）。
  */
 export type UploadOutcome =
-  | { ok: true; url: string }
+  | {
+      ok: true;
+      url: string;
+      /**
+       * Content 维度稳定身份（`sha1:<hex>(字节)`）—— **由后端落盘权威产出**（`writeUploadDedup`，
+       * multipart `files.ts:175` / fileUrl `files.ts:410` 两分支随结果回传）。
+       *
+       * 【TD-08-28 收口】生产者给全 ⇒ 消费者（`AssetNode` / `useAssetDropPaste`）**直接用它**，
+       * 不再自行 `contentIdOfBytes`（fetch 整图 + 重算 sha1：同一身份两份计算，既漂移又白下载）。
+       * base64/dataUri 分支后端**暂不回传** ⇒ 此处 `undefined`（如实，不在前端补算 —— 补算正是本债要收的那份）。
+       */
+      contentId?: string;
+    }
   /** `skipped:true` ＝**无需上传**（已是本地文件 / 非 http 地址）—— 与「上传失败」严格区分
    *  （对齐同文件 `SaveTasksOutcome.skipped` 的既有语义：编排层据此决定要不要报告）。 */
   | { ok: false; message: string; skipped?: boolean };
@@ -250,13 +262,19 @@ async function uploadInlineDataUrl(
       ...UPLOAD_OPTS,
     });
     const url = data?.data?.url;
+    // 【2026-09-17 补生产者后】后端 base64 分支现也回传 contentId（与 multipart / fileUrl 同口径）⇒ 如实上浮，
+    // 消费者经 `UploadOutcome` / `PersistOutcome` 直接用，不必自行算 sha1（TD-08-28 收掉的那份算法）。
+    const contentId = data?.data?.contentId;
     // 【生产者给事实】后端 200 但没回 url ＝ 落盘未完成（不能当成成功）
     return url
-      ? { ok: true, url }
+      ? { ok: true, url, contentId }
       : { ok: false, message: '落盘接口未返回 url（后端未完成落盘）' };
   } catch (e) {
     // 【生产者给可展示信息】把原因带出去，不让上层猜、也不让它自己编文案。
-    return { ok: false, message: `内联资源落盘失败：${(e as { message?: string })?.message || String(e)}` };
+    return {
+      ok: false,
+      message: `内联资源落盘失败：${(e as { message?: string })?.message || String(e)}`,
+    };
   }
 }
 
@@ -307,13 +325,15 @@ export async function uploadFileToLocal(
       ...UPLOAD_OPTS,
     });
     const url = data?.data?.url;
-    logger.debug('filesApi', '[UPLOAD] 完成', { url, subfolder }, { module: 'asset' });
+    // 【TD-08-28】后端 multipart 分支已回传 contentId（files.ts:175）⇒ 生产者给全、随结果上浮。
+    const contentId = data?.data?.contentId;
+    logger.debug('filesApi', '[UPLOAD] 完成', { url, subfolder, contentId }, { module: 'asset' });
     if (!url) {
       // 【2026-09-17 判据】「200 但后端没回 url」＝ **落盘未完成**，不能混进成功路径。
       // 原 `return data?.data?.url || null` 把"成功拿到 url"与"接口没给 url"压成同一个 null。
       return { ok: false, message: '上传接口未返回 url（后端未完成落盘）' };
     }
-    return { ok: true, url };
+    return { ok: true, url, contentId };
   } catch (e) {
     // 【生产者给可展示信息】原来 `logger.warn(..., e)` + `return null`：**原因当场丢失**，
     // 上层只能给用户笼统的"上传失败"。现在 `e.message` 随判别联合上浮（消费者**只转发**）。
@@ -477,8 +497,12 @@ async function uploadRemoteUrl(
       ...UPLOAD_OPTS,
     });
     const url = data?.data?.url;
+    // 【TD-08-28】后端 fileUrl 分支已回传 contentId（files.ts:410）⇒ 同 multipart，生产者给全。
+    // 关键收益：网页图本地化路径（`downloadRemoteToLocal`）**不必再 fetch 整图算 sha1**（原
+    // `useAssetDropPaste` 就是为此多下一次整图的消费者）。
+    const contentId = data?.data?.contentId;
     return url
-      ? { ok: true, url }
+      ? { ok: true, url, contentId }
       : { ok: false, message: '远程 URL 落盘接口未返回 url（后端未完成落盘）' };
   } catch (e) {
     // 【2026-09-17】原因带出去（原来是 `return null` 把它扔掉 ⇒ 上层只剩笼统的 upload-failed）
@@ -522,8 +546,28 @@ export type PersistFailReason =
  * 下 TS 不对 boolean 判别属性做收窄）——`ok` 仍是判别位，语义不变。
  */
 export type PersistOutcome =
-  | { ok: true; url: string; source: PersistSource; reason?: undefined; message?: undefined }
-  | { ok: false; url?: undefined; source?: undefined; reason: PersistFailReason; message?: string };
+  | {
+      ok: true;
+      url: string;
+      source: PersistSource;
+      /**
+       * Content 维度稳定身份（`sha1:<hex>(字节)`），随 `PersistSource` 分支而异：
+       *  · `uploaded` → 后端回传（multipart / fileUrl 分支，见 `UploadOutcome.contentId`）；
+       *  · `inline` → 后端 base64 分支**暂不回传** ⇒ undefined（如实；前端不补算，TD-08-28）；
+       *  · `already-local` → 未发生上传，本层无从得知 ⇒ undefined（需稳定身份的调用方按 url 查资源行）。
+       */
+      contentId?: string;
+      reason?: undefined;
+      message?: undefined;
+    }
+  | {
+      ok: false;
+      url?: undefined;
+      source?: undefined;
+      contentId?: undefined;
+      reason: PersistFailReason;
+      message?: string;
+    };
 
 /**
  * 「生成结果 → tasks 落盘」结果 —— **判别联合**（TD-01-17，2026-09-16）。
@@ -588,11 +632,13 @@ export async function persistUrlToUploads(
       // 【2026-09-17 消费者只转发】生产者的 `message`（**为什么**没落盘）随 `PersistOutcome` 上浮，
       // 不再笼统压成 `reason:'upload-failed'` —— 那是让用户与开发者都得不到原因。
       return saved.ok
-        ? { ok: true, url: saved.url, source: 'inline' }
+        ? { ok: true, url: saved.url, source: 'inline', contentId: saved.contentId }
         : { ok: false, reason: 'upload-failed', message: saved.message };
     }
     if (isLocalFileUrl(src)) {
       // 原样返回：保持调用方既有 URL 形态（相对仍相对），不做归一（归一属渲染/发送出口的职责）
+      // 【TD-08-28】本分支不产生 contentId（未上传）：如需稳定身份，调用方按 url 查资源行，
+      // 而非在这里补算 sha1（补算＝同一身份两份计算，正是本债要收的形态）。
       return { ok: true, url: src, source: 'already-local' };
     }
     if (src.startsWith('blob:')) {
@@ -611,7 +657,7 @@ export async function persistUrlToUploads(
       const saved = await uploadFileToLocal(file, folder, file.name, projectId);
       // 【2026-09-17 同上】message 上浮，不压平。
       return saved.ok
-        ? { ok: true, url: saved.url, source: 'uploaded' }
+        ? { ok: true, url: saved.url, source: 'uploaded', contentId: saved.contentId }
         : { ok: false, reason: 'upload-failed', message: saved.message };
     }
     if (/^https?:/i.test(src)) {
@@ -620,7 +666,7 @@ export async function persistUrlToUploads(
       // 【2026-09-17 消费者只转发】失败时**转发生产者给的 `message`** —— 原来这里只能给笼统的
       // `reason:'upload-failed'`，因为真正的原因（`e.message`）已在低层被 `return null` 扔掉。
       return saved.ok
-        ? { ok: true, url: saved.url, source: 'uploaded' }
+        ? { ok: true, url: saved.url, source: 'uploaded', contentId: saved.contentId }
         : { ok: false, reason: 'upload-failed', message: saved.message };
     }
     return { ok: false, reason: 'unsupported' };
@@ -641,48 +687,28 @@ export async function persistUrlToUploads(
  * @returns {Promise<SaveTasksOutcome>} 落盘成功 → 新 url；无需落盘 → 原 url + skipped:true；失败 → ok:false（不抛）
  */
 export async function saveResultToTasks(url: string, type: string): Promise<SaveTasksOutcome> {
-  // blob: 是本地临时地址，上传无意义（调用方应传 data:/http）→ 无需落盘（非失败）
-  if (!url || url.startsWith('blob:')) return { ok: true, url, skipped: true };
-  // 【relay 后端化】url 已是本机 /files/（relay-poll 后端已落盘 tasks 目录）→ 无需再落盘，直接返回原 url。
-  // 否则 uploadRemoteUrl 会把本机文件重新下载一份到 tasks → uploads/tasks 出现重复文件（M4-C4 / P0-C 双落盘洞）。
-  if (isLocalFileUrl(url)) {
-    return { ok: true, url, skipped: true };
-  }
+  // 空 url：没有东西可落盘（非失败）→ 早返回，保留原口径（不把"无内容"降级成失败）。
+  if (!url) return { ok: true, url, skipped: true };
   const ext = EXT_BY_TYPE[type] || 'bin';
-
-  try {
-    if (url.startsWith('data:')) {
-      // 本地 base64 → multipart 上传。
-      // 【TD-03-6② 修复】原 part 名 `result_${Date.now()}.${ext}` 是**死参数**：后端 `saveName = filename || fileData.filename`
-      // 让 `filename` 字段优先 → part 名的时间戳永被压死；且两处各起一个名字（`result_*` vs `generated_*`）互相误导。
-      // 现**统一为一个名字**：part 名（协议必需，提供 ext）即文件名，删掉冗余的 `filename` 字段。
-      // 无行为变化：后端只从 `saveName` 取 ext，最终物理名 = 内容哈希名（contentHashName）。
-      const blob = dataUrlToBlob(url);
-      const fd = new FormData();
-      fd.append('file', blob, safeName('generated', ext));
-      fd.append('subfolder', SUBFOLDER);
-      const data = await httpRequest(`${API_BASE}/api/files/upload`, {
-        method: 'POST',
-        body: fd,
-        ...UPLOAD_OPTS,
-      });
-      const saved = data?.data?.url;
-      return saved
-        ? { ok: true, url: saved, skipped: false }
-        : { ok: false, reason: 'upload-failed' };
-    }
-
-    // http(s) 上游 url → fileUrl 幂等下载落盘（走 uploadRemoteUrl 唯一下载入口）
-    const saved = await uploadRemoteUrl(url, SUBFOLDER, safeName('generated', ext));
-    // 【2026-09-17 消费者只转发】同上：转发生产者 message，不自己编泛化判词。
-    return saved.ok
-      ? { ok: true, url: saved.url, skipped: false }
-      : { ok: false, reason: 'upload-failed', message: saved.message };
-  } catch (e) {
-    logger.warn('filesApi', '落盘 tasks 失败', e);
-    const message = (e as { message?: string })?.message || String(e);
-    return { ok: false, reason: 'exception', message };
-  }
+  // 【TD-02-58 收口 · 2026-09-17】分流判据（data: / blob: / http(s) / 已是本机 /files/）与失败判词
+  // **只有一份**：本函数不再自抄一份，而是**委托唯一原语** `persistUrlToUploads`（见上方「落盘唯一原语」段），
+  // 自己只做两件事：① 给 tasks 场景的命名与子目录；② 把 `PersistOutcome` **如实映射**成 `SaveTasksOutcome`
+  // （`skipped` 由 `source === 'already-local'` 决定 = "无需落盘"，与"落盘失败"严格分开）。
+  //
+  // 【行为变化（合同变更，见 01 区 §二十三）】：
+  //  ① `blob:` 从「skipped 保留原地址」改为**真上传** —— 落盘函数就该落盘：`blob:` 是页面级临时地址，
+  //     刷新即失效，原来的"skipped"等于让生成结果在刷新后消失；委托后失败会给出 ok:false + 生产者 message，
+  //     调用方（`generationContract`）本就有"保留原 URL + 可见提示"的兜底，比静默保留死链更诚实。
+  //  ② 失败 `reason` **不再由本层改写**：原实现在此把 `upload-failed` 重贴成 `exception`、又自编 catch ——
+  //     那是**消费者替生产者重新归类失败**（越权，见 CLAUDE.md §5.1「只有生产者才有权呈现错误」）。
+  //     现原样转发原语给的 `reason` + `message`。
+  const r = await persistUrlToUploads(url, {
+    folder: SUBFOLDER,
+    name: safeName('generated', ext),
+    type: type as AssetType,
+  });
+  if (!r.ok) return { ok: false, reason: r.reason, message: r.message };
+  return { ok: true, url: r.url, skipped: r.source === 'already-local' };
 }
 
 /**

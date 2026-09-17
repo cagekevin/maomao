@@ -19,6 +19,7 @@
  */
 import { useCallback } from 'react';
 import type { AssistantTable, CellRange } from './assistantTable.ts';
+import { copyText } from '@/components/base/utils/clipboard';
 import {
   copyRows,
   pasteRows,
@@ -53,48 +54,6 @@ export interface UseTableSelectionResult {
   copy: (focusedCell: { rowId: string; colId: string } | null) => Promise<string>;
   /** 粘贴（非编辑态 Ctrl/Cmd+V）：先读系统剪贴板；不可用回退内部。@returns 成功 toast 文案；无内容返回 '' */
   paste: (focusedCell: { rowId: string; colId: string } | null) => Promise<string>;
-}
-
-/** 写系统剪贴板结果（**判别联合 + 生产者给可展示信息**）。
- *
- *  【2026-09-17 裁定「错误必须由产生它的那层以判别联合透传（含可展示信息）；消费者只转发」】
- *  原来返回 `boolean` —— 调用方只知道"没写成"，**不知道原因**，于是只能自己编一句
- *  （"系统剪贴板不可用"）＝ 消费者加工（第二份真相）。现由**本层**给出 `message`，调用方原样转发。
- */
-type ClipboardWriteResult = { ok: true } | { ok: false; message: string };
-
-/** 写系统剪贴板（失败时**带原因**返回，由调用方决定是否回退内部）。 */
-async function writeSystemClipboard(text: string): Promise<ClipboardWriteResult> {
-  try {
-    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-      await navigator.clipboard.writeText(text);
-      return { ok: true };
-    }
-    // 无 clipboard API（非安全上下文 / 旧环境）**不算失败** —— 继续走下面的 execCommand 兜底
-  } catch (e) {
-    // 【生产者给事实】权限被拒 / 非安全上下文：**在这里说清**，不让调用方猜。
-    return {
-      ok: false,
-      message: `系统剪贴板写入被拒（${e instanceof Error ? e.message : '权限被拒或非安全上下文'}）`,
-    };
-  }
-  // 兜底：execCommand（旧/受限环境）
-  try {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    const ok = document.execCommand('copy');
-    document.body.removeChild(ta);
-    return ok ? { ok: true } : { ok: false, message: '系统剪贴板不可用（execCommand 返回 false）' };
-  } catch (e) {
-    return {
-      ok: false,
-      message: `系统剪贴板不可用（${e instanceof Error ? e.message : 'execCommand 异常'}）`,
-    };
-  }
 }
 
 /** 读系统剪贴板结果（**判别联合 + 生产者给可展示信息**，同上）。 */
@@ -180,12 +139,12 @@ export function useTableSelection({
         return '';
       }
       if (internal) setTableClipboard(internal);
-      const wroteSys = await writeSystemClipboard(sysText);
+      const wroteSys = await copyText(sysText);
       if (!wroteSys.ok) {
-        // 【2026-09-17 裁定：消费者只转发】失败判词**由生产者（writeSystemClipboard）给全**，
+        // 【2026-09-17 裁定：消费者只转发】失败判词**由生产者（copyText）给全**，
         // 此处只做**拼接转发** —— 不再自己下"是权限问题"的判断、也不写死"系统剪贴板不可用"。
         // （表格内部剪贴板已存 ⇒ 成功那半照报，失败那半附生产者原话。）
-        return toast ? `${toast}（${wroteSys.message}，仅表格内可粘贴）` : '';
+        return toast ? `${toast}（${wroteSys.msg}，仅表格内可粘贴）` : '';
       }
       return toast;
     },

@@ -40,6 +40,7 @@ import { setActivePendingMemorySuggest } from '../conversation/conversationStore
 // 「记」项目记忆：记忆类别枚举 + 脱敏函数（memory_suggest 工具校验/脱敏用）
 import { PROJECT_MEMORY_KINDS, sanitizeMemoryContent } from '../runtime/projectMemoryStore.ts';
 import { contentGet, contentSet } from '../../base/core/contentStore.ts';
+import { confirmPersist } from '../../base/core/degrade.ts';
 import { generateId } from '../../base/core/idGen.ts';
 import { logger } from '../../base/core/logger.ts';
 import { publish } from '../../base/core/eventBus.ts';
@@ -74,8 +75,12 @@ function loadGenParams() {
 let genParams = loadGenParams();
 export function setGenParams(patch = {}) {
   genParams = { ...genParams, ...patch };
-  // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
-  contentSet(GEN_PARAMS_KEY, genParams);
+  // 【2026-09-17 TD-24-4 阶段1】自确认：生图参数记忆未落盘必须留痕（旧注释说的"内部留痕"
+  // 是全局总线，本路径不保证被覆盖）。
+  confirmPersist(contentSet(GEN_PARAMS_KEY, genParams), {
+    layer: 'agentCanvas',
+    key: GEN_PARAMS_KEY,
+  });
 }
 export function getGenParams() {
   return genParams;
@@ -95,8 +100,11 @@ export function getCreditSwitch() {
   return v === undefined || v === null ? true : !!v;
 }
 export function setCreditSwitch(v: unknown) {
-  // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
-  contentSet(CREDIT_SWITCH_KEY, !!v);
+  // 自确认（同 setGenParams）：偏好未落盘留痕，不静默
+  confirmPersist(contentSet(CREDIT_SWITCH_KEY, !!v), {
+    layer: 'agentCanvas',
+    key: CREDIT_SWITCH_KEY,
+  });
 }
 
 /* ════════════════════════════════════════════════════════════════

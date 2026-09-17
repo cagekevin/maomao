@@ -31,7 +31,7 @@ import { fetchWithProxy } from '../utils/netProxy.js';
 import { stableRequest, RETRYABLE_HTTP_STATUSES } from '../ai-relay/httpTransport.js';
 import { logTs } from '../utils/relayHeaders.js';
 import { localToolBaseUrl } from '../utils/localToolBaseUrl.js';
-import { saveBase64ToFile } from '../utils/base64Externalize.js';
+import { saveBase64ToFile, type Base64PersistResult } from '../utils/base64Externalize.js';
 import {
   applyResourceContextMove,
   recordUploadedFileRow,
@@ -40,6 +40,17 @@ import {
 import { extToMime, mimeToExt } from '../utils/mime.js';
 
 const BASE_URL = localToolBaseUrl();
+
+/**
+ * 入口校验并规范化 subfolder；非法 → 返回 null（调用方回 400）。
+ *
+ * 【TD-08-31】为什么必须在**入口**拦：底层 `resolveUploadTarget` 已改为非法即 throw（不再静默回退 `canvas`）。
+ * 若不在入口拦，非法目录会在"落盘/下载"深处炸 → 被外层 catch 归因成「下载失败/500」，把排查引偏。
+ * 且**落盘与登记行必须用同一个规范化值**，否则盘在 A、行记 B（素材库按 folder 分组时看不见文件）。
+ */
+function resolveRequestSubfolder(raw: unknown): string | null {
+  return normalizeSubfolder(raw === undefined || raw === null || raw === '' ? 'canvas' : raw);
+}
 
 // 注：「thumbnail format 是否可编码」判据**不再在本文件自持**（原为 `SUPPORTED_THUMB_FORMATS` Set）。
 // 2026-09-16（TD-02-41）收口到 `utils/fileStore.isJimpEncodableExt` —— 该事实（Jimp 0.22 能编码哪些格式）
@@ -99,7 +110,11 @@ const uploadLog = (status: number, msg: string) =>
 async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const { fields, files } = await parseMultipart(req);
 
-  const subfolder = fields['subfolder'] || 'canvas';
+  const subfolder = resolveRequestSubfolder(fields['subfolder']);
+  if (!subfolder) {
+    uploadLog(400, `非法 subfolder: ${fields['subfolder']}`);
+    return sendError(res, `Invalid subfolder: ${fields['subfolder']}`, 400);
+  }
   const filename = fields['filename'] || undefined;
   // 【TD-12-5】当前项目 id（发起方唯一知晓）→ 落盘后写入 resource 行，闭合项目隔离写入链
   const projectId = fields['projectId'] || undefined;
@@ -136,6 +151,11 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
     // 改前 `if (!dedup.deduped)` 命中即跳过 → 行留旧目录，而调用方（发送到素材库 / 面板上传）
     // 已被回以成功 = **假成功**（用户：点了却库里没有）；且行 name 恒为磁盘哈希名。
     // 物理 url / contentId / id 均不动（docs/122 context-only：id 跟磁盘、folder/name 跟声明）。
+    if (!fileUrlPath.startsWith('/files/')) {
+      // 【TD-08-31】此前无守卫：`replace` 不命中就把整条 url 当相对路径传下去 ⇒ 行 id/url 全是脏值。
+      uploadLog(500, `落盘 url 非 /files/ 形态，未登记行: ${fileUrlPath}`);
+      return sendError(res, 'Persisted but returned url is not a /files/ path', 500);
+    }
     const relPath = fileUrlPath.replace(/^\/files\//, '');
     await recordUploadedFileRow(relPath, { projectId, folder: subfolder, name: saveName });
     const thumbnailUrl = dedup.savedPath
@@ -186,36 +206,48 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
     return sendError(res, 'Missing body', 400);
   }
 
-  const subfolder = body.subfolder || 'canvas';
+  const subfolder = resolveRequestSubfolder(body.subfolder);
+  if (!subfolder) {
+    uploadLog(400, `非法 subfolder: ${body.subfolder}`);
+    return sendError(res, `Invalid subfolder: ${body.subfolder}`, 400);
+  }
   // 【TD-12-5】当前项目 id（发起方唯一知晓）→ 落盘后写入 resource 行，闭合项目隔离写入链
   const projectId = body.projectId || undefined;
 
   // dataUri 分支：前端 saveInlineToLocal 已收口为纯透传 base64 原文 + 子目录（deepening-files-upload-seam 候选 B）。
-  // 落盘统一委托 base64Externalize.saveBase64ToFile（sha1(base64 原文) 前 16 位幂等 + isValidBase64 严格校验），
+  // 落盘统一委托 base64Externalize.saveBase64ToFile（内容寻址 `sha1(解码后字节)` 全 40 位 + ext 幂等
+  // —— 2026-09-13 TD-03-9 起；此前是 sha1(base64 原文) 前 16 位 + isValidBase64 严格校验），
   // 单一实现杜绝前端另造一套 hash/校验导致的不一致。非法 dataUri 返回 400，由前端 catch → null 降级保留原 base64。
   if (body.dataUri) {
     const db = await getDb();
-    let url: string | null;
+    let saved: Base64PersistResult | null;
     try {
-      url = saveBase64ToFile(body.dataUri, subfolder, db);
+      saved = saveBase64ToFile(body.dataUri, subfolder, db);
     } catch (e) {
       // 【2026-09-14 失败诚实化】写盘系统故障（磁盘满/权限）≠ 输入非法 —— 不得回 400 Invalid dataUri
       // （那是错误归因，会把排查引偏）；系统故障就该是 5xx。
       uploadLog(500, `dataUri 落盘失败: ${(e as Error).message}`);
       return sendError(res, 'Failed to persist dataUri', 500);
     }
-    if (!url) {
+    if (!saved) {
       uploadLog(400, 'dataUri 非法/不可解码');
       return sendError(res, 'Invalid dataUri', 400);
     }
+    const url = saved.url;
     // 【TD-12-5】登记行并写 projectId（否则行由 rescan 建、project_id 恒 NULL）
     // 【TD-12-12】行显示名取发起方声明的 `displayName`（base64 落盘名是内容寻址，不能当显示名）
     const rel = relativePathFromFileUrl(url);
-    if (rel) {
-      await recordUploadedFileRow(rel, { projectId, folder: subfolder, name: body.displayName });
+    if (!rel) {
+      // 【TD-08-31】原为静默跳过登记并照回 `{code:0}` ⇒ 盘上有文件、库里没行（素材库看不见）= 假成功。
+      // 刚落盘就解析不出相对路径属**内部契约违约**（url 由本进程生成），必须 fail-loud。
+      uploadLog(500, `落盘 url 无法解析为相对路径，未登记行: ${url}`);
+      return sendError(res, 'Persisted but url is not a resolvable /files/ path', 500);
     }
+    await recordUploadedFileRow(rel, { projectId, folder: subfolder, name: body.displayName });
     uploadLog(200, `dataUri -> ${url}`);
-    return json(res, { code: 0, data: { url } });
+    // 【2026-09-17 补生产者 · 用户裁定「生产者没给就是漏给」】contentId 与 multipart（:175）/ fileUrl（:410）
+    // 两分支**同一口径**回传：落盘权威已算出它（`saveBase64ToFile` 一直在用），此前只是没往外给。
+    return json(res, { code: 0, data: { url, contentId: saved.contentId } });
   }
 
   if (!body.fileUrl) {
@@ -245,23 +277,33 @@ async function respondRemoteUrlUpload(
   res: ServerResponse,
   opts: { subfolder: string; fileUrl: string; name?: string; projectId?: string },
 ): Promise<void> {
+  let result: { url: string };
   try {
-    const result = await saveRemoteUrl(opts.subfolder, opts.fileUrl);
-    // 【TD-12-5】登记行并写 projectId；【TD-12-11/12-12】folder/name 取**本次声明**
-    const rel = relativePathFromFileUrl(result.url);
-    if (rel) {
-      await recordUploadedFileRow(rel, {
-        projectId: opts.projectId,
-        folder: opts.subfolder,
-        name: opts.name,
-      });
-    }
-    uploadLog(200, `fileUrl ${opts.fileUrl}`);
-    json(res, { code: 0, data: result });
+    result = await saveRemoteUrl(opts.subfolder, opts.fileUrl);
   } catch (e) {
     uploadLog(400, `fileUrl ${opts.fileUrl} | ${(e as Error).message}`);
-    sendError(res, `Failed to download fileUrl: ${(e as Error).message}`, 400);
+    return sendError(res, `Failed to download fileUrl: ${(e as Error).message}`, 400);
   }
+  // 【TD-08-31】登记行是"上传成功"的**另一半**（盘上有文件 + 库里有行）；取不到 rel / 登记抛错
+  // 都在原实现里混进了上面那个 catch ⇒ 一律被归因成「下载失败 400」（归因错，把排查引偏），
+  // 或 `if (rel)` 静默跳过后照回 `{code:0}`（盘有行无 = 假成功）。现按真实原因分开报，且都留痕。
+  const rel = relativePathFromFileUrl(result.url);
+  if (!rel) {
+    uploadLog(500, `落盘 url 无法解析为相对路径，未登记行: ${result.url}`);
+    return sendError(res, 'Downloaded but url is not a resolvable /files/ path', 500);
+  }
+  try {
+    await recordUploadedFileRow(rel, {
+      projectId: opts.projectId,
+      folder: opts.subfolder,
+      name: opts.name,
+    });
+  } catch (e) {
+    uploadLog(500, `登记 resource 行失败: ${rel} | ${(e as Error).message}`);
+    return sendError(res, 'Downloaded but failed to register resource row', 500);
+  }
+  uploadLog(200, `fileUrl ${opts.fileUrl}`);
+  return json(res, { code: 0, data: result });
 }
 
 /**

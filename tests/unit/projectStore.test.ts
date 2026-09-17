@@ -40,6 +40,18 @@ const H = vi.hoisted(() => ({
 
 // 2026-09-04 中间层折叠：contentStore 直接调 localToolApi 的 kvGet/kvSet/kvDelete。
 // docs/118 起 projectStore 直调 kvSet（CAS）+ kvGetVersion（版本读），桩必须同步提供并模拟服务端语义。
+// 「落盘失败必须由本处自报」的探针锚点（TD-24-4 高危A/阶段1）：degrade 模块被 mock 成 spy。
+// 只影响本文件：本文件的依赖图里只有 projectStore 的落盘分支调它（saveCanvasState / persist /
+// loadProjects 种子回写都用 confirmPersist）。
+const { degradeSpy, confirmPersistSpy } = vi.hoisted(() => ({
+  degradeSpy: vi.fn(),
+  confirmPersistSpy: vi.fn(() => true),
+}));
+vi.mock('../../src/components/base/core/degrade.ts', () => ({
+  reportDegrade: degradeSpy,
+  confirmPersist: confirmPersistSpy,
+}));
+
 vi.mock('../../src/components/base/api/localToolApi.ts', async () => {
   const { HttpError: RealHttpError } = await import('../../src/components/base/api/httpClient.ts');
   const S = H;
@@ -101,6 +113,8 @@ beforeEach(() => {
   H.fetchProjectsPayload.projects = [];
   H.fetchProjectsPayload.lastOpened = '';
   __resetForTest();
+  degradeSpy.mockClear(); // 每条用例从零起算「本处自报」的次数
+  confirmPersistSpy.mockClear();
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -326,6 +340,28 @@ describe('projectStore · 画布快照 CAS（docs/118 §6.1 A）', () => {
   it('A3 force:true（备份导入）→ 不传 ifVersion（无条件覆盖）', async () => {
     await saveCanvasState('default', [node('n1')], [], undefined, { force: true });
     expect(H.kvSetCalls.at(-1)!.ifVersion).toBeUndefined();
+  });
+
+  // 【TD-24-4 高危A】落盘失败（非冲突）必须**由落盘方自己确认**：返回 success:false 且自报
+  // （reportDegrade = 每次 logger.warn 可排查 + toast 节流不刷屏）。
+  // 反例（旧实现）：只 logger.warn ⇒ 自动保存路径（scheduleCanvasSave → void flushCanvasSave()）
+  // 连返回值都被丢弃 ⇒ 画布快照没存上、用户零感知、刷新即丢。
+  it('A7 落盘失败（非冲突）→ success:false 且自报（reportDegrade），不静默', async () => {
+    // 本地引擎不可用：KV 写入抛非 409 错（409 是「版本冲突」，已有红条，走 skipped 分支）
+    H.kvSetOverride = () => {
+      throw new Error('engine down');
+    };
+
+    const r = await saveCanvasState('default', [node('n1')], []);
+
+    expect(r.success).toBe(false);
+    expect(r.skipped).toBe(false);
+    expect(degradeSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        layer: '项目·画布快照',
+        toast: expect.stringContaining('画布快照未保存'),
+      }),
+    );
   });
 
   it('A4 并发两次 → 串行（第二次在第一次 resolve 之后才发起，非时序赌运气）', async () => {

@@ -34,7 +34,7 @@
 
 ## 三、storage/ （持久化底层，深模块）
 
-`storageAdapter.ts` `kvStore.ts` `storageQuota.ts` `persistFailureBus.ts` `index.ts`
+`storageAdapter.ts` `kvStore.ts` `storageQuota.ts` `legacyRawKey.ts` `index.ts`
 
 > **深模块**：外部统一 `import from 'base/storage'`。`contentStore`（core/ 横切）为唯一路由入口，`backupStore`（store/）负责上层备份编排。
 

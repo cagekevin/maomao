@@ -18,7 +18,8 @@
  * 不静默降级、不抛未捕获异常（弹窗内拦截并提示），错误文本走 classifyError 口径。
  *
  * 上传唯一入口：filesApi.uploadFileToLocal(blob, UPLOAD_DIRS.videoProcess, filename)：
- * 返回 string|null，null 即失败必须报错（不用 videoEngine.uploadResult 的静默 blob 兜底）。
+ * 返回判别联合 `UploadOutcome`（`ok:false` 带生产者 message）—— 失败必须**原样报错**
+ * （不用 videoEngine.uploadResult 的静默 blob 兜底）。
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -41,7 +42,7 @@ import { classifyError } from '../utils/genErrors.ts';
 import { showToast } from '../core/toastStore.ts';
 import { logger } from '../core/logger.ts';
 import { setCrossOriginForReadable } from '../utils/captureFrame.ts';
-import { fileNameFromUrl } from '../core/utils.ts';
+import { fileNameFromUrl, clamp } from '../core/utils.ts';
 
 export interface DepthVideoModalProps {
   /** 本节点当前视频 URL（绝对 URL，已是 toAbsoluteFileUrl 后） */
@@ -176,7 +177,7 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
   function seekVideo(time: number): Promise<void> {
     const video = videoRef.current;
     if (!video) return Promise.reject(new Error('视频不可用'));
-    const target = Math.min(Math.max(0, time), Math.max(0, (video.duration || 0) - 0.001));
+    const target = clamp(time, 0, Math.max(0, (video.duration || 0) - 0.001));
     return withTimeout(
       new Promise<void>((resolve, reject) => {
         const onSeeked = () => {
@@ -410,7 +411,7 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
 
       const blob = await finishRecording(rec);
 
-      // ── 上传唯一入口：filesApi.uploadFileToLocal（null 即失败，如实报错，不静默兜底）──
+      // ── 上传唯一入口：filesApi.uploadFileToLocal（ok:false 即失败，如实报错，不静默兜底）──
       const ext = rec.format.mimeType.includes('mp4') ? 'mp4' : 'webm';
       const outName = depthOutputName(name || fileNameFromUrl(videoUrl) || 'video', ext);
       setStatus(`转换完成，正在上传…`);
@@ -428,7 +429,12 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
       setStatus('转换完成。');
       showToast('深度视频已生成', { type: 'success' });
       // 排障埋点（debug）：记录生成成功（url + 输出名），受 'depth' 位控制，默认安静不上报
-      logger.debug('深度转视频', 'success', { url: up.url, outputName: outName }, { module: 'depth' });
+      logger.debug(
+        '深度转视频',
+        'success',
+        { url: up.url, outputName: outName },
+        { module: 'depth' },
+      );
       onSave(up.url, outName);
       onClose();
     } catch (e) {

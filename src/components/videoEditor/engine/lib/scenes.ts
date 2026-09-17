@@ -1,3 +1,10 @@
+/**
+ * 场景纯函数库。
+ * 【2026-09-17 TD-22-63】已删 3 个随场景层幽灵预留一同下线的函数：
+ * `canDeleteScene` / `getFallbackSceneAfterDelete` / `findCurrentScene` ——
+ * 消费者只有同样零消费的场景增删改/切换链（详见 scenes-manager.ts 头注释的取证链）。
+ * 留下的函数全部有活消费者（initializeScenes / createNewProject / 书签命令 / 时长计算）。
+ */
 import type { TScene } from '@/components/videoEditor/types/timeline';
 import { generateUUID } from '@/components/base/core/idGen.ts';
 import { calculateTotalDuration } from '@/components/videoEditor/engine/timeline';
@@ -27,43 +34,6 @@ export function buildDefaultScene({ name, isMain }: { name: string; isMain: bool
     createdAt: new Date(),
     updatedAt: new Date(),
   };
-}
-
-export function canDeleteScene({ scene }: { scene: TScene }): {
-  canDelete: boolean;
-  reason?: string;
-} {
-  if (scene.isMain) {
-    return { canDelete: false, reason: 'Cannot delete main scene' };
-  }
-  return { canDelete: true };
-}
-
-export function getFallbackSceneAfterDelete({
-  scenes,
-  deletedSceneId,
-  currentSceneId,
-}: {
-  scenes: TScene[];
-  deletedSceneId: string;
-  currentSceneId: string | null;
-}): TScene | null {
-  if (currentSceneId !== deletedSceneId) {
-    return scenes.find((s) => s.id === currentSceneId) || null;
-  }
-  return getMainScene({ scenes });
-}
-
-export function findCurrentScene({
-  scenes,
-  currentSceneId,
-}: {
-  scenes: TScene[];
-  currentSceneId: string;
-}): TScene | null {
-  return (
-    scenes.find((s) => s.id === currentSceneId) || getMainScene({ scenes }) || scenes[0] || null
-  );
 }
 
 export function getProjectDurationFromScenes({ scenes }: { scenes: TScene[] }): number {

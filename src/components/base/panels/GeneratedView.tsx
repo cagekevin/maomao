@@ -34,6 +34,8 @@ import { useCurrentProjectId } from '../store/projectStore.ts';
 import { logger } from '../core/logger.ts';
 import { subscribe } from '../core/eventBus.ts';
 import { isAudio } from '../utils/assetType.ts';
+// 类型显示名取资产类型目录（唯一真源），本面板不再自持一份中文名
+import { ASSET_TYPE_META } from '@/types';
 import VideoThumbnail from '../ui/VideoThumbnail.tsx';
 import LazyImage from '../ui/LazyImage.tsx';
 import InlineNameInput from '../ui/InlineNameInput.tsx';
@@ -42,6 +44,12 @@ import type { ResourceItem } from '../api/localToolApi.ts';
 import { toImgDragProps } from '../../../hooks/useAssetDragToCanvas.ts';
 
 // 类型过滤 pill（沿用素材库 ResourceLibrary 的小圆按钮形式）
+//
+// 【与"可引用媒体分类"的关系（TD-02-49）】**事实同源、选取不同**：
+//   · 显示名一律取自资产类型目录（`ASSET_TYPE_META[k].label`）—— 全仓只此一份中文名；
+//   · 本面板**自己选取**要哪几项（含 `text`：文本产物在任务中心可见/可筛；不含 `audio`：本面板无音频产物筛选需求），
+//     而 `media/providers/generatedSource.ts` 取的是目录里 `mediaRef:true` 的成员（图/视频/音频，无 text）。
+//   ⚠️ 选取不同是**允许**的（域不同）；**不许**的是各自再写一份中文名/类型清单（此前的漂移来源）。
 interface TypeFilter {
   key: string;
   label: string;
@@ -49,9 +57,10 @@ interface TypeFilter {
 
 const TYPE_FILTERS: TypeFilter[] = [
   { key: 'all', label: '全部' },
-  { key: 'image', label: '图片' },
-  { key: 'video', label: '视频' },
-  { key: 'text', label: '文本' },
+  ...(['image', 'video', 'text'] as const).map((k) => ({
+    key: k,
+    label: ASSET_TYPE_META[k].label,
+  })),
 ];
 
 interface TypeBadgeEntry {

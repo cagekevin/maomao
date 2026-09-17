@@ -1,34 +1,30 @@
 /**
- * 【集成契约】KV 降级链 → persist:failed（「部分数据保存失败」toast 来源）。
+ * 【集成契约】KV 降级链的**失败/降级事实以返回值给全**（原 `persist:failed` 广播已删）。
  *
- * 背景：直连生图/任何画布变化 → saveCanvasState → contentSetAsync(canvas-state-*  KV 键)
- *   → writeKvWithFallback（contentStore 折叠后内联，2026-09-04 自 kvStore.storageSet 折叠）→ kvSet(/api/kv/set) 失败
- *   → 降级 sSet 写 localStorage → localStorage.setItem 也失败 → reportPersistFailure → publish('persist:failed')
- *   → App 节流 toast「部分数据保存失败」。
+ * 背景：任何画布变化 → saveCanvasState → contentSetAsync(canvas-state-*  KV 键)
+ *   → writeKvWithFallback → kvSet(/api/kv/set) 失败（引擎不可用）→ 降级 sSet 写 localStorage：
+ *   ① 降级写成功 → `{ ok:true, landed:'local' }`（数据未丢，但**没进 KV** → 跨设备同步会丢，如实标 local）
+ *   ② 降级写也失败 → `{ ok:false, message }`（数据仅在内存，调用方必须自己让用户知道）
  *
- * 【2026-09-04 折叠】原驱动入口 storageSet（kvStore 中间层）已删除，改从真实生产链路入口
- *   contentSetAsync 驱动，比原来更贴近真实（contentStore → contentSetAsync → resolveBackend 判 KV → writeKvWithFallback）。
- *   storageSet 曾返回的 { ok, degraded } 随之消失；降级副本断言改查 localStorage 真实落盘（注意 storageAdapter 的 yimao: 前缀）。
+ * 【为什么不再订阅事件】`persist:failed` 全局总线已于 2026-09-17（TD-24-4 阶段 2 / TD-16-33）删除：
+ * 持久化失败必须由**产生它的那层**以判别联合给全，消费者各自确认 —— 本测试据此断言返回值，
+ * 不再断言"发了什么事件"（那条全局吸收层正是被消灭的对象）。
+ *
+ * 【2026-09-17 修假成功】② 原被压进 ① 的返回值（`{ok:true, landed:'local'}`，而 `landed:'local'`
+ * 的字面契约是"已确认写进浏览器持久层"）—— 双通道全失被伪装成真持久。本测试锁死这两支必须分得开。
  *
  * 本测试用【真实 storageAdapter.sSet】（不 mock），模拟 localStorage.setItem 抛错，
- * 验证「降级写 localStorage 失败 → 发布 persist:failed 事件」这条链确实成立，
- * 并确认 KV 失败本身【不】直接发 persist:failed（只降级 + warn），
- * 从而把「部分数据保存失败」的准确触发条件标准化（避免再靠猜）。
+ * 锁死上面两条返回事实（避免再靠猜 / 再靠总线）。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// 用真实 contentStore/kvStore/storageAdapter；只替换最小外部依赖（fetch 可控、logger 静默）。
-// contentStore 折叠后 kvGet/kvSet/kvDelete 来自 real localToolApi.ts（经 httpClient fetch 真实发出，由本文件 stub 控制）。
+// 用真实 contentStore/storageAdapter；只替换最小外部依赖（fetch 可控、logger 静默）。
 vi.mock('../../src/components/base/core/logger.ts', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }));
 
 import { contentSetAsync } from '@/components/base/core/contentStore.ts';
-import { subscribe, clearEvent } from '../../src/components/base/core/eventBus.ts';
 import { CANVAS_STATE_PREFIX } from '@/components/base/storage/kvStore.ts'; // 保留：kvStore 壳仍 re-export 前缀
-
-// 真实 storageAdapter：让 localStorage.setItem 可注入异常/可恢复
-// 方法：beforeEach 里 stub localStorage.setItem，验证失败时 reportPersistFailure 发事件
 
 /** ok / 非ok 响应 */
 function notOk(status = 500) {
@@ -43,8 +39,6 @@ function notOk(status = 500) {
 }
 
 let fetchImpl: any;
-let persistEvts: any = [];
-let offPersist: any;
 
 const CONTENT_STATE_KEY = CANVAS_STATE_PREFIX + 'proj_1';
 
@@ -52,38 +46,34 @@ beforeEach(() => {
   vi.clearAllMocks();
   fetchImpl = vi.fn();
   vi.stubGlobal('fetch', fetchImpl);
-  persistEvts = [];
-  offPersist = subscribe('persist:failed', (p) => persistEvts.push(p));
 });
 afterEach(() => {
-  offPersist?.();
-  clearEvent('persist:failed');
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
-describe('KV 降级链 → persist:failed（兼容真实 storageAdapter 行为）', () => {
-  it('KV 失败但 localStorage 降级写成功 → 只降级 + 不发 persist:failed（数据未丢，不报「保存失败」）', async () => {
+describe('KV 降级链：降级与失败以返回值给全（原 persist:failed 总线已删）', () => {
+  it('KV 失败但 localStorage 降级写成功 → landed:local（数据未丢，但没进 KV，如实标降级）', async () => {
     fetchImpl.mockResolvedValue(notOk(500)); // KV /api/kv/set 失败 → 触发降级分支写 local
-    await contentSetAsync(CONTENT_STATE_KEY, { nodes: [{ id: '1' }] });
-    // storageSet 的 { ok, degraded } 返回值随中间层消失 → 改为断言「降级副本确实落到 localStorage」。
-    // 注意 storageAdapter.sSet 带 yimao: 前缀，故按拼接后的真实 key 读。
+    const outcome = await contentSetAsync(CONTENT_STATE_KEY, { nodes: [{ id: '1' }] });
+    expect(outcome).toEqual({ ok: true, landed: 'local' });
+    // storageAdapter.sSet 带 yimao: 前缀，故按拼接后的真实 key 读降级副本确实落盘
     expect(JSON.parse(localStorage.getItem('yimao:' + CONTENT_STATE_KEY)!)).toEqual({
       nodes: [{ id: '1' }],
     });
-    expect(persistEvts).toHaveLength(0); // 数据落 local 成功，不报失败
   });
 
-  it('KV 失败 且 localStorage 降级写也失败 → 发布 persist:failed（「部分数据保存失败」来源）', async () => {
+  it('KV 失败 且 localStorage 降级写也失败 → ok:false（数据仅在内存，调用方必须自报）', async () => {
     fetchImpl.mockResolvedValue(notOk(500)); // KV 失败 → 触发降级分支
     // 降级写 localStorage 失败（模拟配额满/隐私禁用 localStorage.setItem 抛错）
     const setItemSpy = vi.spyOn(globalThis.localStorage, 'setItem').mockImplementation(() => {
       throw new Error('QuotaExceededError: 存储空间不足');
     });
     try {
-      await contentSetAsync(CONTENT_STATE_KEY, { nodes: [{ id: '1' }] });
-      expect(persistEvts).toHaveLength(1); // storageAdapter 内部已发 persist:failed
-      expect(persistEvts[0].key).toBe(CONTENT_STATE_KEY);
+      const outcome = await contentSetAsync(CONTENT_STATE_KEY, { nodes: [{ id: '1' }] });
+      // 关键断言：不再谎报 {ok:true, landed:'local'}（那等于说"已确认写进浏览器持久层"）
+      expect(outcome.ok).toBe(false);
+      expect(outcome.ok === false && outcome.message).toContain('降级副本也未持久化');
     } finally {
       setItemSpy.mockRestore();
     }

@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   contentGet,
   contentSet,
+  contentSetAsync,
   contentClearCache,
 } from '../../src/components/base/core/contentStore.ts';
 
@@ -20,9 +21,12 @@ let currentProject: { id: string; name?: string } = { id: 'default', name: '默�
 let memoryProjects: { id: string; name?: string }[] = [];
 vi.mock('../../src/components/base/store/projectStore.ts', () => ({
   loadCanvasState: vi.fn(async (id) => canvasStore.get(id) || null),
+  // 【mock 契约同步 · 2026-09-17 TD-16-27】`saveCanvasState` 的结果信封是 `{ success }`
+  // （不是 `{ ok }`）—— 真实实现返回 `{ success: false }` 时 `importAll` 会计入 failed。
+  // 本 stub 曾返回 `{ ok: true }` ⇒ `res?.success` 为 undefined ⇒ 所有导入用例都走失败分支。
   saveCanvasState: vi.fn(async (id, nodes, edges) => {
     canvasStore.set(id, { nodes, edges });
-    return { ok: true };
+    return { success: true };
   }),
   getCurrentProject: vi.fn(() => currentProject),
   getAllProjects: vi.fn(() => memoryProjects),
@@ -122,8 +126,10 @@ describe('backupStore — 导出 exportAll', () => {
 
   it('AI 会话键（KV 后端）经 kv 段落入备份（v3 起不再靠手写枚举塞进 ls 段）', async () => {
     contentSet('projects', [{ id: 'p1' }, { id: 'p2' }]);
-    contentSet('agent_conversations_canvas-assistant-p1', { messages: [] });
-    contentSet('agent_active_conversation_id_canvas-assistant-p1', 'c1');
+    // 【2026-09-17 TD-24-4 阶段0】KV 键必须走 async 写（同步 contentSet 已结构性禁止）——
+    // 这条用例原来就在用同步 API 种 KV 数据，正是生产者缺口养出来的坏习惯。
+    await contentSetAsync('agent_conversations_canvas-assistant-p1', { messages: [] });
+    await contentSetAsync('agent_active_conversation_id_canvas-assistant-p1', 'c1');
     const backup = await exportAll();
     expect(backup.kv['agent_conversations_canvas-assistant-p1']).toEqual({ messages: [] });
     expect(backup.kv['agent_active_conversation_id_canvas-assistant-p1']).toBe('c1');

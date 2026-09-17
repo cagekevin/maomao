@@ -112,7 +112,15 @@ const knipVersion = JSON.parse(
 
 let raw = '';
 try {
-  raw = execFileSync('npx knip --config knip.json --reporter json --no-exit-code', {
+  // 【★ 2026-09-17 · TD-16-28：「仅测试引用」必须用 `--production` 才判得出来】
+  // 官方文档明确（knip.dev/guides/configuring-project-files「Production Mode」节，实测同结论）：
+  //   · `ignore: ["**/*.test.ts"]`        → 只**隐藏报告**，测试文件照样算消费者；
+  //   · `entry: [..., "!**/*.test.ts"]`   → **无效**：测试文件由 vitest 插件注入为 entry，全局覆盖不掉；
+  //   · `project: [..., "!**/*.spec.ts"]` → **无效**：同上（它们本身就是 entry）；
+  //   · ✅ 唯一正道 = `--production`（测试/dev 文件不是生产入口 ⇒ 其引用不再算"已使用"）。
+  // 上面三条错误做法本仓**逐条实测过**（2026-09-17 探针：注入一个只被 tests 引用的导出，三种配置下闸全不报），
+  // 与其被"改了配置却照旧绿"骗过去，不如把结论钉在这里。
+  raw = execFileSync('npx knip --config knip.json --production --reporter json --no-exit-code', {
     cwd: ROOT,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -203,7 +211,9 @@ function checkPublicExemptions() {
         );
         continue;
       }
-      const pm = doc.slice(at + PUBLIC_SENTENCE.length).match(/([\w./-]+\.(?:mjs|cjs|jsx?|tsx?|json))/);
+      const pm = doc
+        .slice(at + PUBLIC_SENTENCE.length)
+        .match(/([\w./-]+\.(?:mjs|cjs|jsx?|tsx?|json))/);
       if (!pm) {
         violations.push(`${rel} → ${name}：未解析到消费者文件路径`);
         continue;
@@ -249,12 +259,14 @@ if (pub.violations.length) {
 if (UPDATE) {
   // ── 「闸的成本守恒」守卫（2026-09-14）：有"基线外新增"= 回归 → 拒绝写盘，把绕行成本抬回正道之上 ──
   const prior = existsSync(BASELINE_PATH)
-    ? JSON.parse(readFileSync(BASELINE_PATH, 'utf8')).items ?? []
+    ? (JSON.parse(readFileSync(BASELINE_PATH, 'utf8')).items ?? [])
     : [];
   const priorSet = new Set(prior);
   const newOnes = current.filter((x) => !priorSet.has(x));
   if (newOnes.length && !ALLOW_NEW) {
-    console.error(`\n❌ 拒绝重生成基线：当前有 ${newOnes.length} 条**基线外新增**（这是回归，不是存量）：`);
+    console.error(
+      `\n❌ 拒绝重生成基线：当前有 ${newOnes.length} 条**基线外新增**（这是回归，不是存量）：`,
+    );
     for (const x of newOnes.slice(0, 10)) console.error('   + ' + x);
     if (newOnes.length > 10) console.error(`   … 另 ${newOnes.length - 10} 条`);
     console.error(ADJUDICATION);
@@ -263,7 +275,8 @@ if (UPDATE) {
     );
     process.exit(1);
   }
-  if (newOnes.length) console.log(`⚠️  --allow-new 已放行 ${newOnes.length} 条基线外新增（请确认它们不是回归）`);
+  if (newOnes.length)
+    console.log(`⚠️  --allow-new 已放行 ${newOnes.length} 条基线外新增（请确认它们不是回归）`);
   const out = {
     _comment:
       '死代码闸基线（scripts/check-dead-code.mjs 消费）。基线内=存量（不阻塞，可逐步清偿）；基线外新增=闸红。重生成：node scripts/check-dead-code.mjs --update-baseline',
@@ -275,7 +288,9 @@ if (UPDATE) {
   console.log(
     `✅ 基线已重生成：${current.length} 条（knip ${knipVersion}）→ scripts/dead-code-baseline.json`,
   );
-  console.log('   请 review diff：若含"新增"，说明把回归也塞进了基线（应改代码或加 knip.json 豁免）。');
+  console.log(
+    '   请 review diff：若含"新增"，说明把回归也塞进了基线（应改代码或加 knip.json 豁免）。',
+  );
   process.exit(0);
 }
 
@@ -286,11 +301,15 @@ const added = current.filter((x) => !baseSet.has(x));
 const removed = baseline.items.filter((x) => !curSet.has(x));
 
 console.log('🔒 死代码闸（knip · TD-17-1）');
-console.log(`   knip ${knipVersion} ｜ 基线存量 ${baseline.items.length} 条 ｜ 当前 ${current.length} 条`);
+console.log(
+  `   knip ${knipVersion} ｜ 基线存量 ${baseline.items.length} 条 ｜ 当前 ${current.length} 条`,
+);
 console.log(`   @public 豁免 ${pub.parsed} 处（句式 + 路径存在 + 真含符号名，三项已核验 ✅）`);
 
 if (removed.length) {
-  console.log(`\n💡 基线内 ${removed.length} 条已消失（已清偿/改名）→ 可跑 --update-baseline 移除：`);
+  console.log(
+    `\n💡 基线内 ${removed.length} 条已消失（已清偿/改名）→ 可跑 --update-baseline 移除：`,
+  );
   for (const x of removed.slice(0, 8)) console.log('   - ' + x);
   if (removed.length > 8) console.log(`   … 另 ${removed.length - 8} 条`);
 }

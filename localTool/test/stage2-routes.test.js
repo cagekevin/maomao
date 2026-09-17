@@ -342,10 +342,21 @@ test('[fileStore] resolveUploadTarget 用登记根计算绝对路径与 /files �
   assert.ok(urlPath.endsWith('cat.png'));
 });
 
-test('[fileStore] resolveUploadTarget 未知根回退默认 canvas（防目录污染）', () => {
-  const { dir, urlPath } = fileStore.resolveUploadTarget('img', 'cat.png');
-  assert.ok(dir.endsWith(path.join('uploads', 'canvas')));
-  assert.ok(urlPath.startsWith('/files/canvas/'));
+test('[fileStore/TD-08-31] 未知根**拒绝落盘**（不再静默回退 canvas：回退=盘与声明目录脱钩）', () => {
+  // 【契约变更】原用例锁「未知根回退默认 canvas」—— 回退让文件实际落在 canvas/，
+  // 而调用方与 resource 行仍记着声明目录 ⇒ 盘/行脱钩（用户按目录找不到文件）。现改为 fail-fast。
+  assert.throws(
+    () => fileStore.resolveUploadTarget('img', 'cat.png'),
+    /非法上传子目录/,
+    '未登记顶层根必须拒绝，不得偷偷换目录',
+  );
+  assert.throws(() => fileStore.resolveUploadTarget('../etc', 'cat.png'), /非法上传子目录/);
+  assert.throws(() => fileStore.resolveUploadTarget('', 'cat.png'), /非法上传子目录/);
+  // 合法根照常（含后端自有产物根 local-patch —— 它此前不在白名单，靠回退混进 canvas）
+  assert.ok(fileStore.resolveUploadTarget('tasks', 'a.png').urlPath.startsWith('/files/tasks/'));
+  assert.ok(
+    fileStore.resolveUploadTarget('local-patch', 'a.png').urlPath.startsWith('/files/local-patch/'),
+  );
 });
 
 test('[fileStore] writeUploadBuffer 内容寻址命名（sha1(buffer)）替代时间戳前缀并返回 urlPath', () => {
@@ -704,6 +715,14 @@ test('[files/dataUri] 合法 dataUri + subfolder → 200 + 落盘 /files/tasks/<
   // TD-03-9（2026-09-13）：命名统一为 canonical `sha1(bytes)` 全 40 位 hex + ext（此前是 sha1(base64文本)前16位）
   assert.equal(name.length, 40 + 4, '文件名应为 sha1(bytes) 全 40 位 hex + .png');
   assert.ok(fs.existsSync(path.join(TEST_DIR, 'uploads', 'tasks', name)), '文件应真实落盘');
+  // 【2026-09-17 补生产者】contentId 必须随响应回传（此前本分支只回 url ⇒ 前端 UploadOutcome.contentId
+  // 在此恒 undefined，与 multipart/fileUrl 两分支口径不一致）。且必须 = 内容寻址名里的 sha1(bytes)。
+  const hex = name.replace(/\.png$/, '');
+  assert.equal(
+    body.data.contentId,
+    `sha1:${hex}`,
+    'contentId 应与内容寻址文件名里的 sha1(解码后字节) 完全一致（三分支同一身份）',
+  );
 });
 
 test('[files/dataUri] 幂等：同一 dataUri 二次上传返回同一 URL（不重复落盘）', async () => {

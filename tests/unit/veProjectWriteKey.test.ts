@@ -27,6 +27,7 @@ vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   contentGetAsync: vi.fn(async (key: string) => kv.store.get(key) ?? null),
   contentSetAsync: vi.fn(async (key: string, value: unknown) => {
     kv.store.set(key, value);
+    return { ok: true, landed: 'kv' } as const; // 桩跟契约走：写原语返回落盘结果
   }),
   contentDeleteAsync: vi.fn(async (key: string) => {
     kv.store.delete(key);

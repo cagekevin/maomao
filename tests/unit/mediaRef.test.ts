@@ -123,6 +123,22 @@ describe('mediaRefRegistry：注册表行为', () => {
   });
 });
 
+describe('generatedSource：分类 = 可引用媒体域（TD-02-49）', () => {
+  it('分类清单由 MediaRefType 派生：全部 + 三类，且**不含 text**', async () => {
+    const { generatedSourceProvider } =
+      await import('../../src/components/base/media/providers/generatedSource');
+    const { MEDIA_REF_TYPES } = await import('../../src/components/base/media/mediaRefTypes');
+    const { ASSET_TYPE_META } = await import('../../src/types/asset');
+    const cats = generatedSourceProvider.categories!();
+    // 【为什么锁这条】原先本清单是**手抄**的 ['image','video','audio']，与 GeneratedView 的面板筛选
+    // （text）早漂移却互称"同口径"。现派生自唯一真源（资产类型目录的 mediaRef 标记）⇒ 新增类型自动跟上。
+    expect(cats.map((c) => c.key)).toEqual(['all', ...MEDIA_REF_TYPES]);
+    expect(cats.map((c) => c.key)).not.toContain('text'); // 文本产物不进可引用媒体（只在任务中心）
+    // 显示名取自目录条目（全仓唯一一份中文名），不是本处硬编码
+    expect(cats.find((c) => c.key === 'audio')?.label).toBe(ASSET_TYPE_META.audio.label);
+  });
+});
+
 describe('canvasNodesBridge：只读快照三件套', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -192,6 +208,40 @@ describe('providers：映射（复用既有真源）', () => {
 
     const kw = await canvasSourceProvider.list({ keyword: '纯文本' });
     expect(kw).toHaveLength(0); // 该节点无媒体，即便名字匹配也不收录
+  });
+
+  it('canvasSource：**只持 contentId 的文件型节点**必须被收录（TD-16-23 顺序修复）', async () => {
+    // 先 resetModules（loadBridge 内含），再种子 resourceStore，最后 import canvasSource ——
+    // 三者必须落在**同一个模块注册表**里，否则解析器读到的是一片空的 resource 列表。
+    const bridge = await loadBridge();
+    const rs = await import('../../src/components/base/store/resourceStore.ts');
+    rs.__resetForTest();
+    rs.addResources([
+      { url: '/files/sha1abc.png', contentId: 'sha1:abc', type: 'image', name: 'x.png' },
+    ]);
+    const { logger } = await import('../../src/components/base/core/logger.ts');
+    const warnSpy = vi.spyOn(logger, 'warn');
+
+    bridge.setCanvasNodesSnapshot([
+      mkNode('n_file', { contentId: 'sha1:abc', label: '文件型图' }), // 只持 contentId（无 assetUrl/url）
+      mkNode('n_gone', { contentId: 'sha1:missing', label: '引用已删' }), // contentId 解析不出地址
+      mkNode('n_text', { label: '纯文本' }), // 真·非媒体节点
+    ]);
+
+    const { canvasSourceProvider } =
+      await import('../../src/components/base/media/providers/canvasSource');
+    const all = await canvasSourceProvider.list();
+
+    // ① 顺序修复：原实现在解析 url **之前**按 `!media.type` 跳过 ⇒ 这类节点被静默漏掉
+    expect(all.map((r) => r.ref)).toEqual(['canvas:n_file']);
+    expect(all[0].type).toBe('image'); // 类型由唯一判型入口按解析出的地址判
+    expect(all[0].contentId).toBe('sha1:abc');
+    expect(String(all[0].url)).toContain('/files/sha1abc.png');
+
+    // ② 「媒体节点但解析不出地址」= 必须留痕（不阻断 ≠ 不可见）；非媒体节点则**不**留痕
+    const warned = warnSpy.mock.calls.map((c) => String(c[1]));
+    expect(warned.some((m) => m.includes('无可渲染地址'))).toBe(true);
+    expect(warnSpy).toHaveBeenCalledTimes(1); // n_text 是正常状态，不产生噪声
   });
 
   it('★分类（第二层）由 provider 声明：library = 4 目录项；generated = 4 类型项；canvas 无分类', async () => {

@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { flushAsync } from './_testUtils.mjs';
 
-// mock eventBus.publish：捕获 persist:failed 事件
-const publishMock = vi.fn();
-vi.mock('../../src/components/base/core/eventBus.ts', () => ({
-  publish: (...args: any[]) => publishMock(...args),
-  subscribe: () => () => {},
+// 产生层留痕（logger.warn）——chrome 异步回调失败**只能**经它观测（本调用已返回 pending），故断言它。
+const { warnMock } = vi.hoisted(() => ({ warnMock: vi.fn() }));
+vi.mock('../../src/components/base/core/logger.ts', () => ({
+  logger: { warn: warnMock, info: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }));
 
 import {
@@ -22,7 +21,7 @@ import {
 let chromeGlobal: any = null;
 // 通过 defineProperty 注入全局 chrome，避免 jsdom 没有该对象
 beforeEach(() => {
-  publishMock.mockClear();
+  warnMock.mockClear();
   chromeGlobal = null;
   if ('chrome' in globalThis) delete (globalThis as any).chrome;
   Object.defineProperty(globalThis, 'chrome', {
@@ -78,60 +77,62 @@ function makeBrokenExtensionChrome() {
 }
 
 describe('storageAdapter SSR/Node 内存兜底（localStorage 不可用时不抛、不报）', () => {
-  it('localStorage 未定义：sGet/sSet/sRemove 走内存，零抛错且不发布 persist:failed', () => {
+  it('localStorage 未定义：sGet/sSet/sRemove 走内存，零抛错且如实标 landed:memory', () => {
     vi.stubGlobal('localStorage', undefined);
     expect(typeof localStorage).toBe('undefined');
     expect(() => {
-      sSet('ssr_k', 'ssr_v');
+      // memory = **不是持久化**（刷新即丢）；调用方据此自知，不再靠全局事件被告知
+      expect(sSet('ssr_k', 'ssr_v')).toEqual({ ok: true, landed: 'memory' });
       expect(sGet('ssr_k')).toBe('ssr_v');
-      sRemove('ssr_k');
+      expect(sRemove('ssr_k')).toEqual({ ok: true, landed: 'memory' });
       expect(sGet('ssr_k')).toBeNull();
     }).not.toThrow();
-    // 内存兜底路径不触发 persist:failed（没有真实写入失败）
-    expect(publishMock).not.toHaveBeenCalled();
+    expect(warnMock).not.toHaveBeenCalled();
   });
 
-  it('localStorage 未定义：sSet 不 warn/不抛（与真实写入失败区分，无事件噪声）', () => {
+  it('localStorage 未定义：sSet 不 warn/不抛（与真实写入失败区分，无噪声）', () => {
     vi.stubGlobal('localStorage', undefined);
     sSet('ssr_quiet', 'x');
-    expect(publishMock).not.toHaveBeenCalled();
+    expect(warnMock).not.toHaveBeenCalled();
   });
 });
 
-describe('storageAdapter R1 写入失败事件化', () => {
-  it('sSet 正常写入：不发布 persist:failed', () => {
+describe('storageAdapter 写入/删除失败诚实返回（PersistWriteOutcome）', () => {
+  it('sSet 正常写入：返回 landed:local（真持久）', () => {
     const spy = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {});
-    sSet('k1', 'v1');
-    expect(publishMock).not.toHaveBeenCalled();
+    expect(sSet('k1', 'v1')).toEqual({ ok: true, landed: 'local' });
+    expect(warnMock).not.toHaveBeenCalled();
     spy.mockRestore();
   });
 
-  it('sSet 写入抛错（配额满/隐私模式）：发布 persist:failed 且带 key', () => {
+  it('sSet 写入抛错（配额满/隐私模式）：返回 ok:false + message，且产生层留痕（key）', () => {
     const spy = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
       throw new Error('QuotaExceededError');
     });
-    sSet('k_big', 'x'.repeat(10000));
-    expect(publishMock).toHaveBeenCalledTimes(1);
-    expect(publishMock.mock.calls[0][0]).toBe('persist:failed');
-    expect(publishMock.mock.calls[0][1].key).toBe('k_big');
-    expect(publishMock.mock.calls[0][1].error).toContain('QuotaExceededError');
+    const r = sSet('k_big', 'x'.repeat(10000));
+    expect(r.ok).toBe(false);
+    expect(r.ok === false && r.message).toContain('QuotaExceededError');
+    expect(warnMock).toHaveBeenCalledWith(
+      '存储',
+      '持久化失败',
+      expect.objectContaining({ key: 'k_big' }),
+    );
     spy.mockRestore();
   });
 
-  it('sRemove 删除抛错：发布 persist:failed', () => {
+  it('sRemove 删除抛错：返回 ok:false（不谎报已删）', () => {
     const spy = vi.spyOn(localStorage, 'removeItem').mockImplementation(() => {
       throw new Error('SecurityError');
     });
-    sRemove('k2');
-    expect(publishMock).toHaveBeenCalledTimes(1);
-    expect(publishMock.mock.calls[0][0]).toBe('persist:failed');
+    const r = sRemove('k2');
+    expect(r.ok).toBe(false);
+    expect(r.ok === false && r.message).toContain('SecurityError');
     spy.mockRestore();
   });
 
-  it('sSet 正常删除不发布', () => {
+  it('sRemove 正常删除：返回 landed:local', () => {
     const spy = vi.spyOn(localStorage, 'removeItem').mockImplementation(() => {});
-    sRemove('k3');
-    expect(publishMock).not.toHaveBeenCalled();
+    expect(sRemove('k3')).toEqual({ ok: true, landed: 'local' });
     spy.mockRestore();
   });
 });
@@ -152,12 +153,13 @@ describe('storageAdapter 双端兼容加固', () => {
     expect(isChromeExtension()).toBe(true);
   });
 
-  it('真实扩展下 sSet 正常写入 chrome.storage：不发布 persist:failed', async () => {
+  it('真实扩展下 sSet 正常写入 chrome.storage：返回 landed:pending（异步后端本调用无法确认）', async () => {
     chromeGlobal = makeExtensionChrome();
     initStorage();
-    sSet('ext_k', 'ext_v');
+    // pending ≠ 已确认落盘：调用方不得当成功；确认只能由回调给出（失败时走下方留痕）
+    expect(sSet('ext_k', 'ext_v')).toEqual({ ok: true, landed: 'pending' });
     await flushAsync();
-    expect(publishMock).not.toHaveBeenCalled();
+    expect(warnMock).not.toHaveBeenCalled();
   });
 
   it('chrome.storage.local.set 抛错：回退写 localStorage，且本地数据可读（不再一打开就报）', async () => {
@@ -169,13 +171,13 @@ describe('storageAdapter 双端兼容加固', () => {
     initStorage();
     sSet('fallback_k', 'fallback_v');
     await flushAsync();
-    // 回退成功 → 不应报 persist:failed
-    expect(publishMock).not.toHaveBeenCalled();
+    // 回退成功（数据未丢）→ 不该留痕报失败
+    expect(warnMock).not.toHaveBeenCalled();
     // 数据已落 localStorage（含 yimao: 前缀）
     expect(localStorage.getItem('yimao:fallback_k')).toBe('fallback_v');
   });
 
-  it('回退 localStorage 也失败：才发布 persist:failed', async () => {
+  it('回退 localStorage 也失败：返回 ok:false（双端都失败必须可见，不谎报落盘）', async () => {
     chromeGlobal = makeExtensionChrome();
     chromeGlobal.storage.local.set = () => {
       throw new Error('chrome.storage unavailable');
@@ -184,15 +186,19 @@ describe('storageAdapter 双端兼容加固', () => {
     const spy = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
       throw new Error('QuotaExceededError');
     });
-    sSet('dbl_fail_k', 'v');
+    const r = sSet('dbl_fail_k', 'v');
     await flushAsync();
-    expect(publishMock).toHaveBeenCalledTimes(1);
-    expect(publishMock.mock.calls[0][0]).toBe('persist:failed');
-    expect(publishMock.mock.calls[0][1].key).toBe('dbl_fail_k');
+    expect(r.ok).toBe(false);
+    expect(r.ok === false && r.message).toContain('QuotaExceededError');
+    expect(warnMock).toHaveBeenCalledWith(
+      '存储',
+      '持久化失败',
+      expect.objectContaining({ key: 'dbl_fail_k' }),
+    );
     spy.mockRestore();
   });
 
-  it('扩展异步回调 chrome.runtime.lastError 非空：发布 persist:failed 且带 key/error（异步失败可感知）', async () => {
+  it('扩展异步回调 chrome.runtime.lastError 非空：产生层留痕（key + error）—— 该路径唯一可观测点', async () => {
     let lastError: any = null;
     chromeGlobal = {
       runtime: {
@@ -213,12 +219,17 @@ describe('storageAdapter 双端兼容加固', () => {
       },
     };
     initStorage();
-    sSet('ext_lerr_k', 'v');
+    expect(sSet('ext_lerr_k', 'v')).toEqual({ ok: true, landed: 'pending' });
     await flushAsync();
-    expect(publishMock).toHaveBeenCalledTimes(1);
-    expect(publishMock.mock.calls[0][0]).toBe('persist:failed');
-    expect(publishMock.mock.calls[0][1].key).toBe('ext_lerr_k');
-    expect(publishMock.mock.calls[0][1].error).toContain('quota exceeded');
+    expect(warnMock).toHaveBeenCalledTimes(1);
+    expect(warnMock).toHaveBeenCalledWith(
+      '存储',
+      '持久化失败',
+      expect.objectContaining({
+        key: 'ext_lerr_k',
+        error: expect.stringContaining('quota exceeded'),
+      }),
+    );
   });
 });
 

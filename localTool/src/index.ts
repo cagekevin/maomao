@@ -27,6 +27,8 @@ import { routes, matchRoute } from './router.js';
 // 这是「改 dist base 指向 18080」的硬前置——否则未接管的 /api/* 会直接 404。
 import { handlePassthrough } from './routes/passthrough.js';
 import { initLogWriter } from './utils/logWriter.js';
+// 本地专属前缀唯一真源（TD-08-33）：分派分支与前端托管排除都从这里取，不再各写一份字面量。
+import { PREFIX_FILES, PREFIX_DEPTH_VIDEO, isLocalOnlyPath } from './utils/localOnlyPaths.js';
 import { initRelayPoller } from './relay-poll.js';
 import { extToMime } from './utils/mime.js';
 
@@ -219,7 +221,7 @@ function handleStaticFile(
 // 且要覆盖 .wasm/.mjs/.onnx 这类深度推理运行时专属 MIME。这部分是【纯本地模型宿主】，
 // 不触碰 /api/* 与 catch-all；只是浏览器运行时 import(绝对 URL) 读取 vendor/models 的宿主目录。
 function handleDepthResource(res: http.ServerResponse, urlPath: string): boolean {
-  if (!urlPath.startsWith('/depth-video/')) return false;
+  if (!urlPath.startsWith(PREFIX_DEPTH_VIDEO)) return false;
 
   const depthDir = getDepthVideoDir();
   // percent-encoded 解码（中文模型子目录名也可能被编码）
@@ -328,12 +330,12 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
   }
 
   // 静态文件服务
-  if (method === 'GET' && pathname.startsWith('/files/')) {
+  if (method === 'GET' && pathname.startsWith(PREFIX_FILES)) {
     if (handleStaticFile(req, res, pathname)) return;
   }
 
   // 本机推理资源服务（纯 GET，未命中继续走下方具名路由/前端兜底/404）
-  if (method === 'GET' && pathname.startsWith('/depth-video/')) {
+  if (method === 'GET' && pathname.startsWith(PREFIX_DEPTH_VIDEO)) {
     if (handleDepthResource(res, pathname)) return;
   }
 
@@ -357,20 +359,18 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
 
     // ── 阶段 3：画布前端页面托管（兜底 GET，须在 catch-all 之前）──
-    if (
-      method === 'GET' &&
-      !pathname.startsWith('/api/') &&
-      !pathname.startsWith('/plugin/') &&
-      !pathname.startsWith('/files/')
-    ) {
+    // 【TD-08-33】排除条件由 `isLocalOnlyPath` **派生**（原为手写 `/plugin/`、`/files/` 两个字面量，
+    // 与透传层的清单各写一份 ⇒ 漂移出 `/depth-video/` 缺口：未命中的本地资源请求既不是前端页面、
+    // 也没被透传层拦住，于是被 catch-all 发到外网）。`/api/` 仍显式排除：那是本机命名空间。
+    if (method === 'GET' && !pathname.startsWith('/api/') && !isLocalOnlyPath(pathname)) {
       if (handleFrontendPage(res, pathname)) return;
     }
 
     // ── 阶段 4：catch-all 兜底透传 ──
     // 【顺序铁律】阶段 2(具名) → 阶段 3(前端托管) → 阶段 4(catch-all) → 阶段 5(404)，
     // 不得把阶段 4 提前到阶段 3 之前，否则 /files/x、/plugin/y 未命中路径无法正确 404。
-    // 【红线】handlePassthrough 对 /files/、/plugin/ 未命中路径返回 false，
-    // 绝不可无脑 `return handler()`，否则 404 逻辑丢失。
+    // 【红线】handlePassthrough 对**本地专属前缀**（`isLocalOnlyPath`：/files/、/depth-video/、
+    // /plugin/、/.well-known/）的未命中路径返回 false，绝不可无脑 `return handler()`，否则 404 逻辑丢失。
     //
     // 【为什么加这一层】2026-08-01 确立原则：不再区分「哪些请求该直连官方」，
     // 全部走 localTool——即使目的地仍是官方，也经 localTool 转发。

@@ -29,10 +29,29 @@ export interface Toast {
 interface ToastOptions {
   type?: ToastType;
   duration?: number;
+  /**
+   * 同一条文案的**合并窗口**（ms）：窗口内重复的同文案 toast **只保留一条**（不追加）。
+   * 缺省 = 不合并（每次调用都弹）。
+   *
+   * 【为什么这份状态住在这里，而不在调用方】「用户看到什么、多频繁」是**展示层**的真相 ——
+   * 状态归展示层持有，调用方只**声明**它允许被合并多久。2026-09-17 之前这份节流状态长在
+   * `core/degrade.ts` 的**模块级全局单槽**里：一个转发原语替所有生产者决定用户可见性
+   * = **消费者越权**（与已删的 `persist:failed` 全局吸收层同形态，只因粒度小未被发现）。
+   */
+  coalesceMs?: number;
 }
+/** `showToast` 返回值：该文案在合并窗口内**被合并**（未产生新 toast）。 */
+export const TOAST_COALESCED = -1;
 let toasts: Toast[] = [];
 const listeners = new Set<() => void>();
 let seq = 0;
+
+/**
+ * 同文案合并窗口的状态（**展示层 owner**）：key = `type\u0000message` → 上次弹出时间。
+ * 有界性：只有声明了 `coalesceMs` 的调用方写它，全仓即 `reportDegrade` 一族（文案是有限固定集合），
+ * 不会随用户数据增长。
+ */
+const lastShownAt = new Map<string, number>();
 
 const DURATION = 3000; // 默认 3s 自动消失
 
@@ -50,15 +69,24 @@ const DEFAULT_DURATION: Record<ToastType, number> = {
  * @param {Object} [opts]
  * @param {'success'|'error'|'warning'|'info'} [opts.type='info'] 状态档（决定配色）
  * @param {number} [opts.duration] 显示时长(ms)；0 = 不自动消失；缺省按分级取 DEFAULT_DURATION
- * @returns {number} toast id（可用于手动关闭）
+ * @param {number} [opts.coalesceMs] 同文案合并窗口（ms）；窗口内重复同文案只保留一条
+ * @returns {number} toast id（可用于手动关闭）；`TOAST_COALESCED`(-1) = 被合并，未产生新 toast
  */
 export function showToast(
   message: string,
-  { type = 'info' as ToastType, duration }: ToastOptions = {},
+  { type = 'info' as ToastType, duration, coalesceMs }: ToastOptions = {},
 ): number {
+  const text = String(message ?? '');
+  if (coalesceMs && coalesceMs > 0) {
+    const k = `${type}\u0000${text}`;
+    const now = Date.now();
+    const last = lastShownAt.get(k);
+    if (last !== undefined && now - last < coalesceMs) return TOAST_COALESCED;
+    lastShownAt.set(k, now);
+  }
   const id = ++seq;
   const finalDuration = duration ?? DEFAULT_DURATION[type] ?? DURATION;
-  toasts = [...toasts, { id, message: String(message ?? ''), type, duration: finalDuration }];
+  toasts = [...toasts, { id, message: text, type, duration: finalDuration }];
   emit();
   return id;
 }
@@ -69,8 +97,9 @@ export function dismissToast(id: number): void {
   emit();
 }
 
-/** 关闭所有 toast */
+/** 关闭所有 toast（**连同合并窗口一起清**：用户清屏后同文案必须能再弹，否则「清空」变成新的静默） */
 export function clearToasts(): void {
+  lastShownAt.clear();
   if (toasts.length === 0) return;
   toasts = [];
   emit();

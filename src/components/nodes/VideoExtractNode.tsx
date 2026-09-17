@@ -7,11 +7,12 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { contentSet } from '../base/core/contentStore.ts';
+import { confirmPersist } from '../base/core/degrade.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import '../base/api/index.ts';
 import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
-import { downloadUrl } from '../base/utils/clipboard.ts';
+import { downloadUrl, copyText } from '../base/utils/clipboard.ts';
 import { logger } from '../base/core/logger.ts';
 import { classifyError } from '../base/utils/genErrors.ts';
 import previewUrls from '../base/utils/previewUrl.ts';
@@ -375,10 +376,14 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
   const copySingle = async (img: string) => {
     try {
       const payload = JSON.stringify({ type: 'mutiwindow-images', images: [img] });
-      try {
-        await navigator.clipboard.writeText(payload);
-      } catch {
-        contentSet(MULTIWINDOW_CLIPBOARD_KEY, payload);
+      const r = await copyText(payload);
+      if (!r.ok) {
+        // 系统剪贴板被拒 → 降级走多窗口剪贴板键（跨窗口粘贴）。落盘失败必须留痕，
+        // 否则用户以为复制成功、另一窗口却粘不出（confirmPersist 按 landed 如实记）。
+        confirmPersist(contentSet(MULTIWINDOW_CLIPBOARD_KEY, payload), {
+          layer: 'videoExtract',
+          key: MULTIWINDOW_CLIPBOARD_KEY,
+        });
       }
       showToast('已复制当前帧，请在空白处粘贴 (Ctrl+V)');
     } catch {
@@ -393,10 +398,13 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
     }
     try {
       const payload = JSON.stringify({ type: 'mutiwindow-images', images: extractedImages });
-      try {
-        await navigator.clipboard.writeText(payload);
-      } catch {
-        contentSet(MULTIWINDOW_CLIPBOARD_KEY, payload);
+      const r = await copyText(payload);
+      if (!r.ok) {
+        // 同 copySingle：降级路径的落盘失败必须留痕
+        confirmPersist(contentSet(MULTIWINDOW_CLIPBOARD_KEY, payload), {
+          layer: 'videoExtract',
+          key: MULTIWINDOW_CLIPBOARD_KEY,
+        });
       }
       showToast(`已复制 ${extractedImages.length} 张图片`);
     } catch {

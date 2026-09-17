@@ -6,14 +6,15 @@
  *
  * 覆盖：
  *  - useProjectBackupIO()       project:import / project:export —— 完整工作流备份导入导出（自包含）。
- *  - usePersistFailureToast()   persist:failed —— 持久化失败统一上报（同 key 5s 节流 / 逐 key 透传）。
+ *
+ * 【原 usePersistFailureToast 已删（2026-09-17 · TD-24-4 阶段 2）】`persist:failed` 全局总线退役后，
+ * 该 hook（唯一消费者）+ `persistFailureBus` 工厂一并删除；持久化失败改由各站点 `confirmPersist` 自确认。
  *
  * 名称注释：from/to 登记见 contracts.ts 的 EVENTS 表，届时 subscribe 位置更新须同步 from 基线。
  */
 import { useEffect } from 'react';
 import { subscribe } from '../core/eventBus.ts';
 
-import { createThrottledPersistHandler } from '../storage';
 import { showToast } from '../core/toastStore.ts';
 import { logger } from '../core/logger.ts';
 import { importAll, exportAll, backupToBlob } from '../store/backupStore.ts';
@@ -80,29 +81,5 @@ export function useProjectBackupIO(): void {
       offImport();
       offExport();
     };
-  }, []);
-}
-
-/** 持久化失败统一上报：storageAdapter 的 sSet/sRemove 失败会 publish('persist:failed')，逐 key 原样透传提示 */
-export function usePersistFailureToast(): void {
-  useEffect(() => {
-    // 节流/透传逻辑收敛到 persistFailureBus 工厂（可单测）；这里只注入 showToast 与 logger。
-    const off = subscribe(
-      'persist:failed',
-      createThrottledPersistHandler({
-        onLog: (key, error, suppressed) =>
-          logger.warn('存储', 'persist:failed', {
-            key,
-            error: error || '',
-            toastSuppressed: suppressed,
-          }),
-        onToast: (key, error) =>
-          showToast(
-            `数据保存失败 [${key}]${error ? `：${error}` : ''}，请检查浏览器存储空间/权限`,
-            { type: 'error' },
-          ),
-      }),
-    );
-    return off;
   }, []);
 }

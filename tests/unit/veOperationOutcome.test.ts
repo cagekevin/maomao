@@ -167,21 +167,36 @@ describe('TD-22-43 · loadProjectMedia 结果契约 + 重入守卫', () => {
   });
 
   it('并发加载：先发起、后完成的旧请求不得覆盖新工程的素材（旧实现会串门）', async () => {
-    let resolveOld: (value: MediaAsset[]) => void = () => {};
-    const oldRequest = new Promise<MediaAsset[]>((resolve) => {
+    let resolveOld: (value: {
+      items: MediaAsset[];
+      missing: string[];
+      shapeError: string | null;
+    }) => void = () => {};
+    const oldRequest = new Promise<{
+      items: MediaAsset[];
+      missing: string[];
+      shapeError: string | null;
+    }>((resolve) => {
       resolveOld = resolve;
     });
 
+    // 【mock 契约同步 · 2026-09-17】`loadAllMediaAssets` 现返**结果信封**
+    // `{ items, missing, shapeError }`（TD-16-27 · 原返裸数组）。
+    // 旧 mock 返裸数组 ⇒ `mediaAssets` 为 undefined ⇒ `this.assets = undefined`
+    // ⇒ 后续 `getAssets()` 崩在 `.map`（报错看起来像"并发逻辑坏了"，其实只是 mock 没同步）。
+    const emptyExtra = { missing: [] as string[], shapeError: null };
     storageMock.loadAllMediaAssets
       .mockImplementationOnce(() => oldRequest) // 第 1 次（工程 A，慢）
-      .mockImplementationOnce(() => Promise.resolve([makeAsset('B-asset')])); // 第 2 次（工程 B，快）
+      .mockImplementationOnce(() =>
+        Promise.resolve({ items: [makeAsset('B-asset')], ...emptyExtra }),
+      ); // 第 2 次（工程 B，快）
 
     const pendingOld = editor.media.loadProjectMedia({ projectId: 'A' });
     const pendingNew = editor.media.loadProjectMedia({ projectId: 'B' });
 
     // B（后发起）先完成 → 旧实现此时写 B；随后 A（先发起）完成 → 旧实现**再写 A**，B 的素材被覆盖。
     await pendingNew;
-    resolveOld([makeAsset('A-asset')]);
+    resolveOld({ items: [makeAsset('A-asset')], ...emptyExtra });
     await pendingOld;
 
     expect(editor.media.getAssets().map((asset) => asset.id)).toEqual(['B-asset']);

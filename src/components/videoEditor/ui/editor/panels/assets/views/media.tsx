@@ -1,5 +1,6 @@
 'use client';
 import { logger } from '@/components/videoEditor/lib/logger';
+import { copyText } from '@/components/base/utils/clipboard';
 import { mediaDisplayUrl } from '@/components/videoEditor/lib/mediaDisplayUrl';
 import { useRenderAssetResolver } from '@/components/base/utils/assetUrl.ts';
 // 【2026-09-17 TD-16-29②】图片失败态的唯一实现（两段回退 + 显式占位），替代裸 <img>
@@ -50,6 +51,7 @@ import { useMediaPreviewStore } from '@/components/videoEditor/stores/media-prev
 // 可复用「导入媒体」弹窗（docs/136 地基 · 入口 B）—— 与画布右键菜单共用**同一个组件**。
 // 落地动作走本文件的 `linkMediaRefsToProject`（登记引用，不上传）。
 import ImportMediaModalHost from '@/components/base/panels/ImportMediaModalHost.tsx';
+import type { ImportPickOutcome } from '@/components/base/panels/ImportMediaModalHost.tsx';
 import { linkMediaRefsToProject } from '@/components/videoEditor/ui/editor/panels/assets/link-media-refs';
 import type { MediaRef } from '@/components/base/media/mediaRefTypes.ts';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
@@ -124,40 +126,47 @@ export function MediaView() {
    * 「导入媒体」弹窗的落地动作（docs/136 §9.3 · 路线 A）。
    * 从「生成/素材库/画布」选中的素材，二进制已在 `/files/` → **登记引用，不上传**。
    *
-   * 【成功判据 = 结果事实，不是「调用没报错」】（2026-09-17 修复「假成功」）
-   * `res.ok` 的语义只是「没有 failures」—— 全部被去重跳过时它**也是 true**。
-   * 旧写法在此弹绿色 success「已导入 0 个素材（N 个已存在）」：用户选了一批、看到"成功"、
-   * 素材列表却一条没多 —— **界面在撒谎**（7 步法底线：结果契约不许粉饰）。
-   * 现改为按 `linked.length`（真实新增）分流：0 新增就不是成功，如实标注「未新增」及其原因。
+   * 【本函数 = 该入口的**生产端**】它把「实际落了什么」变成结果契约交给弹窗：
+   *  · 成功判据 = 结果事实（`linked.length`），不是「调用没报错」——`res.ok` 的语义只是
+   *    「没有 failures」，全部被去重跳过时它**也是 true**（旧写法据此弹 success「已导入 0 个素材」，
+   *    用户看到"成功"而列表一条没多 = 界面撒谎）；
+   *  · 用户可见文案**由这里给**（它才知道），弹窗只转发 —— 两侧不再各说一句。
+   * 【为什么不再在此 toast】弹窗是 `onPick` 的消费方，显示职责收在一处（避免重复/先后不一）。
    */
-  const linkRefsToProject = async (items: MediaRef[]) => {
-    if (!activeProject) {
-      toast.error('没有活跃项目');
-      return;
-    }
-    if (items.length === 0) return; // 空选择不产生任何提示（不做无信息的"成功"）
+  const linkRefsToProject = async (items: MediaRef[]): Promise<ImportPickOutcome> => {
+    if (!activeProject) return { ok: false, message: '没有活跃项目' };
+    if (items.length === 0) return { ok: true }; // 空选择：无事发生，也不播报
     const res = await linkMediaRefsToProject({
       items,
       projectId: activeProject.metadata.id,
       media: editor.media,
     });
-    if (!res.ok) return; // 失败分支：linkMediaRefsToProject 内部已 toast + logger（部分成功不静默）
+    if (!res.ok) {
+      // 失败提示同时交代**成功了多少** —— 否则用户只知道"有几个没成"，不知"到底进去几个"
+      return {
+        ok: false,
+        message: `${res.failures.length} 个素材未能登记${res.linked.length > 0 ? `（${res.linked.length} 个已成功）` : ''}`,
+      };
+    }
 
     // 真实新增 = 0：不是"导入成功"，说清「没新增」及其原因（已存在 / 全被去重命中）
     if (res.linked.length === 0) {
-      toast.info(
-        res.skipped.length > 0
-          ? `所选 ${res.skipped.length} 个素材在当前工程里已存在，未新增`
-          : '所选素材未能新增',
-      );
-      return;
+      return {
+        ok: true,
+        message:
+          res.skipped.length > 0
+            ? `所选 ${res.skipped.length} 个素材在当前工程里已存在，未新增`
+            : '所选素材未能新增',
+      };
     }
 
-    toast.success(
-      res.skipped.length > 0
-        ? `已导入 ${res.linked.length} 个素材（${res.skipped.length} 个已存在）`
-        : `已导入 ${res.linked.length} 个素材`,
-    );
+    return {
+      ok: true,
+      message:
+        res.skipped.length > 0
+          ? `已导入 ${res.linked.length} 个素材（${res.skipped.length} 个已存在）`
+          : `已导入 ${res.linked.length} 个素材`,
+    };
   };
 
   const handleRemove = async ({ event, id }: { event: React.MouseEvent; id: string }) => {
@@ -509,16 +518,15 @@ function MediaItemWithContextMenu({
       <ContextMenuContent>
         <ContextMenuItem onClick={() => onExportClip({ item })}>{'导出片段'}</ContextMenuItem>
         <ContextMenuItem
-          onClick={() => {
-            // 【2026-09-17 TD-16-27】原实现不 `await` 也不 `catch`，且**无条件**报成功：
-            // 剪贴板权限被拒时既产生 unhandled rejection，又骗用户「已复制」（假成功）。
-            void navigator.clipboard.writeText(item.id).then(
-              () => toast.success('素材 ID 已复制'),
-              (e: unknown) => {
-                logger.warn('剪辑器', '复制素材 ID 失败', e);
-                toast.error('复制失败，请手动复制');
-              },
-            );
+          onClick={async () => {
+            // 【2026-09-17 TD-16-27】原实现不 `await` 也不 `catch`，且**无条件**报成功（假成功）。
+            // 现委托 copyText（判别联合），成功/失败均如实转发，不再产生 unhandled rejection。
+            const r = await copyText(item.id);
+            if (r.ok) toast.success('素材 ID 已复制');
+            else {
+              logger.warn('剪辑器', '复制素材 ID 失败', r.msg);
+              toast.error(r.msg);
+            }
           }}
         >
           {'复制素材 ID'}

@@ -225,23 +225,47 @@ test('对齐 main：无前缀裸 base64（魔数识别）→ 解码上传 CDN �
   );
 });
 
-test('对齐 main：blob:/本地路径/未知形态 drop（不阻断，不进 attachments，不误发卡死上游）', async () => {
+test('[TD-08-40] blob:/本机路径/未知形态 → 显式失败并留痕（禁止静默退化成文生图）', async () => {
   const t = makeTransport();
+  // 【契约变更】原用例锁的是"drop 且不阻断"：三张参考图全被静默丢掉后请求照发、prompt 无参考图声明
+  // ⇒ 「图生图」静默变「文生图」而零报错（docs/72 D-1 明令禁止的形态）。现锁新契约：显式失败 + 留痕。
+  const warns = [];
+  const origWarn = console.warn;
+  console.warn = (...args) => warns.push(args);
+  let err = null;
+  try {
+    await generateImageLovart(
+      { ...PROFILE, transport: t.transport },
+      {
+        model: 'gpt-image-2-low',
+        prompt: 'x',
+        imageUrls: ['blob:file:///xyz-123', '/Users/me/pic.png', 'not-a-url'],
+      },
+    );
+  } catch (e) {
+    err = e;
+  } finally {
+    console.warn = origWarn;
+  }
+  assert.ok(err, '无法转换成 CDN 的参考素材必须让请求显式失败');
+  assert.match(err.message, /3 个参考素材无法用于本次生成/, '文案如实给出数量与两类原因');
+  assert.equal(t.sendBodies.length, 0, '不发"看似无参考图"的请求（静默降级就是撒谎）');
+  const reasons = warns.map((a) => JSON.stringify(a[1] ?? '')).join('|');
+  assert.match(reasons, /blob:/, 'blob: 形态留痕');
+  assert.match(reasons, /本机文件路径/, '本机路径形态留痕（可指向"上游未转回环 URL"）');
+  assert.match(reasons, /未知素材形态/, '未知形态留痕');
+});
+
+test('[TD-08-40] 真空素材（空串/空白）不算失败：静默返回无 attachments（与"读失败/形态违约"分开）', async () => {
+  const t = makeTransport();
+  // 三形态红线（CLAUDE.md §5.1）：① 真空 → 静默；②③ 形状违约/失败 → 留痕/失败。
+  // 空串是"没有素材"，不是"有素材却丢了" —— 不该把用户请求拦下来。
   const out = await generateImageLovart(
     { ...PROFILE, transport: t.transport },
-    {
-      model: 'gpt-image-2-low',
-      prompt: 'x',
-      imageUrls: ['blob:file:///xyz-123', '/Users/me/pic.png', 'not-a-url'],
-    },
+    { model: 'gpt-image-2-low', prompt: 'x', imageUrls: ['', '   '] },
   );
   assert.deepEqual(out, ['http://cdn/r.png']);
-  assert.ok(!('attachments' in t.sendBodies[0]), '无法识别形态 drop，不挂 attachments');
-  assert.match(
-    t.sendBodies[0].prompt,
-    /用 GPT Image 2，质量 low。 Generate exactly ONE image using the GPT Image 2 model, quality low\./,
-    'drop 后按无参考图声明+模型硬约束（模型去后缀 + 质量独立）',
-  );
+  assert.ok(!('attachments' in t.sendBodies[0]), '真空不挂 attachments');
 });
 
 // ── 统一异步原语（ADAPTER_SPEC §2）：submitTask → pollTaskOnce ──

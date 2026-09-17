@@ -21,7 +21,7 @@ import { reportDegrade } from '@/components/base/core/degrade.ts';
  * 【收口后】① 读写一律经 contentStore（键由调用方登记，见 contracts.ts）；② 读取用**异步**版，
  *   天然避开 storageAdapter 的「未就绪窗口」（同步读在扩展环境预填完成前只会拿到"还不知道"，
  *   与"确实没有"同值 → 会把默认值误当真相）；③ 失败不再静默：读取失败降级用默认值 + `reportDegrade` 留痕；
- *   写入失败同样 `reportDegrade`（另经 storageAdapter 的 `persist:failed` 事件上报，全局节流 toast）。
+ *   写入失败同样 `reportDegrade` 留痕（`persist:failed` 全局总线已于 2026-09-17 删除，失败一律由各站点自确认）。
  * 【迁移】新物理键带 `yimao:` 前缀 → 首次读做一次性迁移（旧裸键 → 新键 → 删旧键，幂等、写成功才删）。
  */
 export function useLocalStorage<T>({

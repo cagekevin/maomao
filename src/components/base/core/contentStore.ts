@@ -62,6 +62,8 @@
  *   建议在文件内另起 `backends/` 小节，而非继续往主流程塞（C3 遗留建议）。
  */
 import { sGet, sSet, sRemove, isStorageReady } from '../storage/index.ts';
+// 落盘结果判别联合（生产者给全：失败/降级/未确认都是事实，不接受"发个事件就算交代了"）
+import type { PersistWriteOutcome } from '../storage/storageAdapter.ts';
 import { kvGet, kvSet, kvDelete, kvGetVersion } from '../api/localToolApi.ts';
 import { reportDegrade } from './degrade.ts';
 import { STORAGE_KEYS } from './contracts.ts';
@@ -70,6 +72,7 @@ import { logger } from './logger.ts';
 import { compilePatternRegex } from './utils.ts';
 import { tryParse as tryParseSafe } from '../utils/asyncGuard.ts';
 import { withTimeout } from '../utils/asyncGuard.ts';
+import { IS_DEV } from './config.ts';
 
 /** 存储后端：local(localStorage) / kv(云端 KV) / native(原生桥) */
 export type StorageBackend = 'local' | 'kv' | 'native';
@@ -250,7 +253,7 @@ function checkRegistered(key: string): boolean {
   //   开发环境（非 production）下，裸字面量键未登记 = 拼写错/漏登记 → 直接抛错，
   //   让错误在改代码当轮暴露（等价于「改 key 编译报错」的运行时版）。每次误用都抛（硬拦截）。
   //   生产环境不抛，仅 warning，保持线上兼容。
-  if (isLiteral && process.env.NODE_ENV !== 'production') {
+  if (isLiteral && IS_DEV) {
     throw new Error(
       `[contentStore] 未登记的存储键: "${key}"。` +
         `请先在 src/components/base/contracts.ts 的 STORAGE_KEYS 登记（禁止裸字符串 key）。` +
@@ -395,7 +398,15 @@ function statusOf(e: unknown): number | undefined {
  *  ③ 该类型本身是**未用导出**（在死代码基线内）→ 同时降为模块内私有。
  *  ⇒ 结论：**失败以 throw 表达是两族共识**（降级族尽力而为、严格族 fail-closed），类型不再声明失败分支。
  */
-type KvOpOutcome<T> = { value: T; source: 'kv' | 'local' };
+type KvOpOutcome<T> = {
+  value: T;
+  source: 'kv' | 'local';
+  /**
+   * **仅写内核**在降级时产出：降级副本是否**真落盘**（`false` = 数据仅在内存，刷新即丢）。
+   * 读内核不产出（读无写入）。不带上它，上层就会把「KV+本地双失败」误当「已落本地」（假成功）。
+   */
+  localPersisted?: boolean;
+};
 
 /** KV op 的公共内核（TD-02-22：resolveMeta/timeout/keepFallback/sRemove 原在 4 处字面复制）。 */
 interface KvOpMeta {
@@ -430,25 +441,29 @@ async function kvWriteOp(key: string, value: unknown): Promise<KvOpOutcome<unkno
   } catch (e) {
     // 请求被拒（4xx，如 CAS 409 版本冲突）= 业务结论，原样上抛；降级只服务「引擎不可用」。
     if (!isEngineUnavailable(e)) throw e;
-    // 引擎不可用：写降级副本（本地也失败则内存态为权威，不阻塞——双通道都失败仍不抛）
-    try {
-      sSet(key, typeof value === 'string' ? value : JSON.stringify(value));
-    } catch (localErr) {
-      // 【TD-02-18】双通道都失败曾零信号 —— 保留「不抛」（内存态为权威），但必须留痕：
-      // 此刻 KV 挂 + 本地也写不进 → 该键**只在内存里**，刷新即丢。这是最高危状态，绝不能静默。
+    // 引擎不可用：写降级副本。
+    // 【2026-09-17 修死代码（TD-24-4 阶段0）】原写法 `try { sSet(...) } catch { …双通道都失败… }`
+    // 是**永远不触发的兜底**：`sSet` 内部自己吞错、从不为持久化失败抛错 ⇒ 那句"双通道均失败、
+    // 数据仅在内存（刷新将丢失）"**从未被打印过** —— 最高危状态反而最静默。现按返回值判。
+    const local = sSet(key, typeof value === 'string' ? value : JSON.stringify(value));
+    const persistedLocally = local.ok && local.landed === 'local';
+    if (!persistedLocally) {
       logger.warn(
         'contentStore',
-        `KV 与本地降级双通道均写入失败，数据仅在内存（刷新将丢失）: ${key}`,
-        localErr,
+        `KV 不可用且本地未持久（数据仅在内存，刷新将丢失）: ${key}`,
+        local.ok ? `landed=${local.landed}` : local.message,
       );
     }
     reportDegrade({
       layer: 'kvStore',
       key,
       e: e as Error | undefined,
-      toast: '本地引擎存储暂不可用，数据已暂存本地（跨设备同步可能丢失）',
+      // 文案必须与**事实**一致：本地真落盘了才说"已暂存本地"；否则如实说"只在内存、刷新会丢"。
+      toast: persistedLocally
+        ? '本地引擎存储暂不可用，数据已暂存本地（跨设备同步可能丢失）'
+        : '本地引擎存储不可用，且本地也未能保存：本次改动只在内存，刷新会丢',
     });
-    return { value, source: 'local' };
+    return { value, source: 'local', localPersisted: persistedLocally };
   }
 }
 
@@ -482,12 +497,26 @@ async function kvReadOp(key: string): Promise<KvOpOutcome<unknown>> {
 }
 
 /**
- * KV 写入 + 降级（薄包装，保留原 `Promise<'kv'|'local'>` 对外契约给 contentSet/SetAsync）。
- * 引擎不可用降级写本地并标 'local'；4xx 原样上抛。
+ * KV 写入 + 降级（薄包装）：把内核结果映射为**落盘事实**（`PersistWriteOutcome`）。
+ *  - KV 成功 → `{ok:true, landed:'kv'}`；
+ *  - 引擎不可用 + 降级副本**真落盘** → `{ok:true, landed:'local'}`；
+ *  - 引擎不可用 + 降级副本**也没落盘**（双通道全失）→ `{ok:false, message}`；
+ *  - 4xx 拒收 → 原样上抛。
+ *
+ * 【2026-09-17 修契约级假成功（TD-24-4 / TD-16-33 收尾）】原返回 `'kv' | 'local'`，把上面后两支
+ * **压成同一支** ⇒ `contentSetAsync` 对"双通道全失"也报 `{ok:true, landed:'local'}`，而 `landed:'local'`
+ * 的字面契约是"**已确认写进浏览器持久层**" —— 数据其实只在内存（刷新即丢）。现按内核给的
+ * `localPersisted` 如实分流，调用方第一次能分辨"降级成功"与"彻底没落盘"。
  */
-async function writeKvWithFallback(key: string, value: unknown): Promise<'kv' | 'local'> {
+async function writeKvWithFallback(key: string, value: unknown): Promise<PersistWriteOutcome> {
   const res = await kvWriteOp(key, value);
-  return res.source === 'local' ? 'local' : 'kv';
+  if (res.source === 'kv') return { ok: true, landed: 'kv' };
+  return res.localPersisted
+    ? { ok: true, landed: 'local' }
+    : {
+        ok: false,
+        message: 'KV 引擎不可用，且降级副本也未持久化（数据仅在内存，刷新将丢失）',
+      };
 }
 
 /**
@@ -498,19 +527,29 @@ async function writeKvWithFallback(key: string, value: unknown): Promise<'kv' | 
  * （删除语义要求"彻底消失"，与写入的 keepFallback 镜像策略不同——镜像服务的是"KV 不可达时能读回"，
  * 而删除是明确的用户意图，保留副本即违背意图）。
  */
-async function deleteKvWithFallback(key: string): Promise<void> {
+async function deleteKvWithFallback(key: string): Promise<'kv' | 'unconfirmed'> {
   try {
     await kvDelete(key);
-    // 删除成功后清本地降级副本（含 keepFallback 镜像），防 hydrate 复活
-    sRemove(key);
+    // 删除成功后清本地降级副本（含 keepFallback 镜像），防 hydrate 复活。
+    // 【2026-09-17】副本清理失败要留痕：副本残留会让已删数据在下次 hydrate 复活（TD-02-25）。
+    const cleared = sRemove(key);
+    if (!cleared.ok) {
+      logger.warn(
+        'contentStore',
+        `删除已确认，但本地降级副本未清掉（有复活风险）: ${key}`,
+        cleared.message,
+      );
+    }
+    return 'kv';
   } catch (e) {
     // 4xx 拒收：删除**确定未成功**，原样上抛（不上抛会被误认为已删）
     if (!isEngineUnavailable(e)) throw e;
     // 【TD-02-18 修正】引擎不可用 = 删除**状态未知**（KV 键可能仍残留）：
     // 原来无条件 `sRemove(key)` 会删掉本地副本，制造「KV 残留真值 + 本地已清」的假删除态
     // —— 与 TD-02-25「已删复活」正相反（这是「没删却以为删了」）。
-    // 正确：KV 状态未知时不谎报成功，**保留本地副本**（两边一致地"没删成功"）+ 留痕。
+    // 正确：KV 状态未知时不谎报成功，**保留本地副本**（两边一致地"没删成功"）+ 留痕 + 如实上报。
     logger.warn('contentStore', `KV 引擎不可用，删除未确认（键可能仍残留）: ${key}`, e);
+    return 'unconfirmed';
   }
 }
 
@@ -535,49 +574,52 @@ export function contentGet(key: string): unknown {
 }
 
 /**
- * 同步写入键值。
- * - local/native 键：同步写缓存 + localStorage
- * - KV 键：同步写缓存 + 异步写 KV（fire-and-forget，失败仅 warning）
+ * 同步写入键值（**仅 local/native 键**）。
  *
- * 【失败契约·TD-02-27】本函数**永不因持久化失败而抛错**：
- *   - KV 写入走 fire-and-forget（`.catch(logger.warn)`），失败只留日志不重抛；
- *   - local 写入走 `storageAdapter.sSet`，内部 `reportPersistFailure` 留痕、不重抛。
+ * 【失败契约 · 2026-09-17 重写（TD-24-4 阶段0「让生产者把失败给全」）】
+ * 返回 `PersistWriteOutcome`：**成败/落点由生产者如实给出**，调用方不需要（也禁止）自己猜。
+ *  - local 键 → 透传 `storageAdapter.sSet` 的结果（`local` 真落盘 / `memory` 只进内存 / `ok:false` 失败）；
+ *  - **KV 键 → 抛错（结构性禁止）**：同步 API 拿不到网络写结果，历史上只能 fire-and-forget
+ *    ⇒ 调用方**永远无法确认**，只能寄生全局总线，并写出 3 处**假的** try/catch
+ *    （`conversationState` / `backupStore.writeLS` / `tableWorkspaceState`，见 storageAdapter 注释）。
+ *    要写 KV 键请用 `contentSetAsync` 并 `await`（那里失败可判：4xx 上抛、引擎不可用降级有返回值）。
  * 仅以下**契约违规**会抛错（属 bug，调用方**不应静默吞**，应 fail-fast 暴露）：
  *   ① 键未在 STORAGE_KEYS 登记（dev 下 `checkRegistered` 抛）；
  *   ② 值无法 `JSON.stringify`（如循环引用）；
- *   ③ 订阅者回调（notify）抛错。
+ *   ③ **KV 键走同步 API**（本契约新增，见上）；
+ *   ④ 订阅者回调（notify）抛错。
  */
-export function contentSet(key: string, value: unknown): void {
+export function contentSet(key: string, value: unknown): PersistWriteOutcome {
   checkRegistered(key);
   cache.set(key, value);
   const backend = resolveBackend(key);
   if (backend === 'kv') {
-    writeKvWithFallback(key, value).catch((e) => {
-      logger.warn(`[contentStore] KV 写入失败 (fire-and-forget): ${key}`, e);
-    });
-  } else {
-    sSet(key, typeof value === 'string' ? value : JSON.stringify(value));
+    throw new Error(
+      `[contentStore] KV 键禁止走同步 contentSet（同步 API 拿不到网络写结果 = 静默失败）：${key}` +
+        ' → 请改用 contentSetAsync 并 await 其返回值',
+    );
   }
+  const outcome = sSet(key, typeof value === 'string' ? value : JSON.stringify(value));
   notify(key, value);
+  return outcome;
 }
 
 /**
- * 同步删除键。
- * - local/native 键：同步删缓存 + localStorage
- * - KV 键：同步删缓存 + 异步删 KV（fire-and-forget）
+ * 同步删除键（**仅 local/native 键**；KV 键同 `contentSet` 的 fail-fast 规则）。
  */
-export function contentDelete(key: string): void {
+export function contentDelete(key: string): PersistWriteOutcome {
   checkRegistered(key);
   cache.delete(key);
   const backend = resolveBackend(key);
   if (backend === 'kv') {
-    deleteKvWithFallback(key).catch((e) => {
-      logger.warn(`[contentStore] KV 删除失败 (fire-and-forget): ${key}`, e);
-    });
-  } else {
-    sRemove(key);
+    throw new Error(
+      `[contentStore] KV 键禁止走同步 contentDelete（同步 API 拿不到网络删结果 = 静默失败）：${key}` +
+        ' → 请改用 contentDeleteAsync 并 await 其返回值',
+    );
   }
+  const outcome = sRemove(key);
   notify(key, undefined);
+  return outcome;
 }
 
 /**
@@ -610,30 +652,53 @@ export async function contentGetAsync(key: string): Promise<unknown> {
   return loadFromLocal(key);
 }
 
-/** 异步写入键值，等待持久化完成。 */
-export async function contentSetAsync(key: string, value: unknown): Promise<void> {
+/**
+ * 异步写入键值，等待持久化完成（**KV 键的唯一合法写路径**）。
+ *
+ * 【生产者给全（同 contentSet）】返回 `PersistWriteOutcome`，且 `landed` 说明**到底落到哪**：
+ *  - KV 键：`'kv'` = 真进 KV；`'local'` = **引擎不可用，降级写本地副本且已确认落盘**
+ *    （`kvWriteOp` 已 `reportDegrade` 提示"跨设备同步可能丢失"）；
+ *    `ok:false` = 引擎不可用**且降级副本也没落盘**（数据仅在内存）——降级与真失败**分得开**，不必靠猜。
+ *  - 4xx 拒收（如 CAS 409）**原样上抛**（不是 ok:false 返回值）：那是业务结论，调用方须显式处理。
+ *  - local 键：透传 `storageAdapter.sSet` 的结果。
+ */
+export async function contentSetAsync(key: string, value: unknown): Promise<PersistWriteOutcome> {
   checkRegistered(key);
   cache.set(key, value);
   const backend = resolveBackend(key);
+  let outcome: PersistWriteOutcome;
   if (backend === 'kv') {
-    await writeKvWithFallback(key, value);
+    outcome = await writeKvWithFallback(key, value);
   } else {
-    sSet(key, typeof value === 'string' ? value : JSON.stringify(value));
+    outcome = sSet(key, typeof value === 'string' ? value : JSON.stringify(value));
   }
   notify(key, value);
+  return outcome;
 }
 
-/** 异步删除键，等待删除完成。 */
-export async function contentDeleteAsync(key: string): Promise<void> {
+/**
+ * 异步删除键，等待删除完成（**KV 键的唯一合法删路径**）。
+ *
+ * 【删除的诚实语义（TD-02-25）】KV 引擎不可用时**删除状态未知**（键可能仍残留）：
+ * 此时 **不谎报已删** —— 返回 `{ok:false, message:'删除未确认（…键可能仍残留）'}`，
+ * 由调用方决定是否重试/提示。
+ */
+export async function contentDeleteAsync(key: string): Promise<PersistWriteOutcome> {
   checkRegistered(key);
   cache.delete(key);
   const backend = resolveBackend(key);
+  let outcome: PersistWriteOutcome;
   if (backend === 'kv') {
-    await deleteKvWithFallback(key);
+    const r = await deleteKvWithFallback(key);
+    outcome =
+      r === 'kv'
+        ? { ok: true, landed: 'kv' }
+        : { ok: false, message: '删除未确认（KV 引擎不可用，键可能仍残留）' };
   } else {
-    sRemove(key);
+    outcome = sRemove(key);
   }
   notify(key, undefined);
+  return outcome;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -683,13 +748,14 @@ export function contentGetLocalMirror(key: string): unknown {
  * 行为遵循 STORAGE_KEYS 登记表 per-key 的 `fallback` / `timeout` 选项：
  *  - timeout：KV 读写独立超时（ms），不可达快失败降级；
  *  - fallback=true：KV 成功后保留本地降级副本（双通道镜像），否则成功后清副本（默认）。
- * 写入返回实际落点 'kv' | 'local'，供调用方标记（如 d3d 跨窗口冲突提示）。
+ * 写入返回**落盘事实**（`PersistWriteOutcome`），供调用方标记（如 d3d 跨窗口冲突提示）：
+ * `landed:'kv'` 真进 KV；`landed:'local'` 已降级落本地；`ok:false` **双通道全失**（数据仅在内存）。
  * 普通 store 请勿直接调本原语——走 contentSet/contentSetAsync 即可（per-key 选项对它们同样生效）。
  */
 export async function contentSetKvWithFallback(
   key: string,
   value: unknown,
-): Promise<'kv' | 'local'> {
+): Promise<PersistWriteOutcome> {
   checkRegistered(key);
   return writeKvWithFallback(key, value);
 }

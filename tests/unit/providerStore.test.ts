@@ -58,6 +58,22 @@ describe('providerStore §4 供应商数据层（新时代配置型）', () => {
     mod = await import('../../src/components/base/store/providerStore.ts');
   });
 
+  describe('reloadProviders（云同步重水合的可见性契约 · TD-24-4 §二）', () => {
+    it('读失败必须上抛（不再内部吞）：否则重水合会报「成功」而供应商根本没刷新', async () => {
+      // 唯一消费者 cloudSync.rehydrateStoresAfterCloudPull 的可见性契约建立在
+      // `Promise.allSettled(...).status === 'rejected'` 上 —— 内部 catch 掉 = TD-16-27 假成功同款。
+      h.mockGetProviders.mockRejectedValueOnce(new Error('引擎不可用'));
+      await expect(mod.reloadProviders()).rejects.toThrow('引擎不可用');
+    });
+
+    it('读失败：**不 setState** ⇒ 原内存态保留（当前可用配置不因一次读失败而消失）', async () => {
+      await seed([{ id: 'a', name: 'A', primary: true }]);
+      h.mockGetProviders.mockRejectedValueOnce(new Error('boom'));
+      await expect(mod.reloadProviders()).rejects.toThrow('boom');
+      expect(mod.useProviders().providers.map((p: any) => p.id)).toEqual(['a']);
+    });
+  });
+
   describe('load / select（配置型数据源）', () => {
     it('load 拉取列表并选中主供应商', async () => {
       const s = await seed([

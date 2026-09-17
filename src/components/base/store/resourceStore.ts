@@ -37,6 +37,7 @@ import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
 import { fileNameFromUrl } from '../core/utils.ts';
 import { detectFileType } from '../utils/assetType.ts';
 import { logger } from '../core/logger.ts';
+import { confirmPersist } from '../core/degrade.ts';
 import { publish, subscribe } from '../core/eventBus.ts';
 import { getCurrentProject } from './projectStore.ts';
 import type { AssetType } from '@/types';
@@ -149,7 +150,10 @@ function load(): Resource[] {
   // 首次：seed 演示素材
   const seeded = DEFAULT_RESOURCES.map((a) => ({ ...a, ts: Date.now() }));
   // 【未就绪不回写（2026-09-12 / TD-02-2）】预填完成前读到的是「还不知道」，回写种子会覆盖真实素材库
-  if (isStorageReady()) contentSet(STORAGE_KEY, seeded);
+  if (isStorageReady()) {
+    // 演示种子属 best-effort：失败留痕即可（confirmPersist 按 landed 如实记）
+    confirmPersist(contentSet(STORAGE_KEY, seeded), { layer: 'resourceStore', key: STORAGE_KEY });
+  }
   return seeded;
 }
 
@@ -198,7 +202,17 @@ export function resourceFolderOf(category?: string): string {
 // P4 落盘节流：高频变更（拖入/批量生成/上传进度）合并落盘，消除主线程长任务。
 // write 是「读当前最新 resources」的 thunk —— flush 时才执行，天然把窗口内多次变更合并为最终态。
 // 通知订阅者（notify）保持即时，只有「落盘」被节流，UI 响应性不受影响。
-const persistDebounced = createDebouncedPersist(() => contentSet(STORAGE_KEY, resources), 300);
+// 【2026-09-17 TD-24-4 阶段1】素材库是**用户主数据**：落盘失败由本处自报（reportDegrade toast 节流），
+// 不再寄生于 persist:failed 全局总线（它对本路径时有时无，见 24 区日志 §十一 盲区）。
+const persistDebounced = createDebouncedPersist(
+  () =>
+    confirmPersist(contentSet(STORAGE_KEY, resources), {
+      layer: 'resourceStore',
+      key: STORAGE_KEY,
+      toast: '素材库未能保存（本地存储不可用），刷新可能丢失最近的素材变更',
+    }),
+  300,
+);
 
 function notify(): void {
   persistDebounced.schedule();

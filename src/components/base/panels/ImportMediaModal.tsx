@@ -73,7 +73,7 @@ import '../creative/creative-library.css';
 import { listMediaRefSources, queryMediaRefs } from '../media/index.ts';
 import type { MediaRef, MediaRefQuery, MediaRefSource } from '../media/mediaRefTypes.ts';
 import { logger } from '../core/logger.ts';
-import { toastError } from '../core/toastStore.ts';
+import { toastError, toastSuccess } from '../core/toastStore.ts';
 // 目录浏览规则（根/子目录 → 查询参数 · 上钻）：**与侧边栏素材库同一份实现**（见 libraryBrowse.ts）。
 import { libraryBrowseArgs, libraryUpFolder } from '../media/libraryBrowse.ts';
 // 本地引擎连接态：拖入归类需要它（hook 的 `connected` 是必填；漏传 = drop 恒失败的假交互）。
@@ -97,17 +97,37 @@ const TAB_LABEL: Record<ImportTab, string> = {
   canvas: '画布',
 };
 
+/**
+ * `onPick` 的结果契约（**宿主是生产端，弹窗是消费端**）。
+ *
+ * 【为什么必须有它（2026-09-17）】原契约是 `void | Promise<void>`：宿主只能用"抛没抛异常"
+ * 表达失败，而"没抛错"被弹窗当成了**成功**（关弹窗）—— 于是「东西根本没落地」也照样关窗、
+ * 用户以为成了（界面在撒谎）；宿主想在成功时说点什么也说不出口。
+ * 现在：**成败与可展示文案都来自落地的那一层**（它才知道）；弹窗不判定、不加工、只转发。
+ */
+export type ImportPickOutcome =
+  | {
+      ok: true;
+      /** 生产端给的用户可见文案；不给 = 结果本身已可见（不播报成功） */
+      message?: string;
+    }
+  | {
+      ok: false;
+      /** 生产端给全的可展示失败信息（含原因）；消费者原样转发 */
+      message: string;
+    };
+
 export interface ImportMediaModalProps {
   /** 关闭回调（宿主持有 open state）。 */
   onClose?: () => void;
   /** 当前画布项目 id（素材库/画布按项目过滤用）。 */
   projectId?: string;
   /**
-   * 选中一批媒体后的落地动作（**宿主注入**）。
-   * 返回已处理的 ref 数（供底栏提示）或 void。
+   * 选中一批媒体后的落地动作（**宿主注入 = 生产端**）。
    * 画布入口：建 assetNode；剪辑器入口：`linkMediaRefsToProject`。
+   * 消费方（本弹窗）只转发它给的结果与文案，**不自行判定成败、不宣告"已导入"**。
    */
-  onPick: (items: MediaRef[]) => void | Promise<void>;
+  onPick: (items: MediaRef[]) => ImportPickOutcome | Promise<ImportPickOutcome>;
   /** 本地导入：选文件后的落地动作（宿主注入；不传则隐藏本地 tab 的行为）。 */
   onLocalFiles?: (files: FileList) => void | Promise<void>;
 }
@@ -289,15 +309,22 @@ export default function ImportMediaModal({
   const handleConfirm = async () => {
     const picked = mediaItems.filter((it) => selected.has(it.ref));
     if (picked.length === 0) return;
+    let outcome: ImportPickOutcome;
     try {
-      await onPick(picked);
+      outcome = await onPick(picked);
     } catch (e) {
-      // 【2026-09-17 TD-16-34②】导入失败是**用户动作的失败**，必须可见：旧实现失败 → unhandled
-      // 且弹窗照关、零提示（用户以为导入成功）。失败时**不关弹窗**，让用户可重试。
-      logger.warn('导入弹窗', '导入选中失败', e);
-      toastError('导入失败，请重试');
+      // 宿主在契约外抛错：只转发它的可展示信息 —— 消费者不自造文案、不替生产端下结论。
+      logger.warn('导入弹窗', '宿主落地动作在契约外抛错', e);
+      toastError(e instanceof Error ? e.message : String(e));
       return;
     }
+    if (!outcome.ok) {
+      // 失败判词由**生产端**给全，这里原样转发；失败不关弹窗（用户可重试）。
+      toastError(outcome.message);
+      return;
+    }
+    // 成功文案同样来自生产端；它没给 = 结果本身已可见（如画布上出现了节点），不替它播报。
+    if (outcome.message) toastSuccess(outcome.message);
     onClose?.();
   };
 

@@ -47,15 +47,16 @@ describe('MissingMediaIndicator —— 缺失原因必须可区分（TD-22-48）
 describe('渲染层守卫 —— 时间轴不再把"源不可用"悄悄吞成空白（TD-22-48）', () => {
   const src = readFileSync(TIMELINE_ELEMENT_SRC, 'utf8');
 
-  it('`ElementContent` 的 3 个"源不可用"分支全部落到 MissingMediaIndicator', () => {
-    // audio 无缓冲/URL · !mediaAsset · video 缺 file / image 缺 url
-    expect(src.match(/<MissingMediaIndicator /g)?.length).toBe(3);
+  it('时间轴的 4 个"源不可用"分支全部落到 MissingMediaIndicator', () => {
+    // ElementContent：audio 无缓冲/URL · !mediaAsset · video 缺 file / image 缺 url
+    // TimelineImageElement：`<img>` onError（TD-16-29② 起可挂 onError 的那个分支）
+    expect(src.match(/<MissingMediaIndicator /g)?.length).toBe(4);
   });
 
-  it('各分支传的 kind 与场景匹配（1 处 missing-asset + 2 处 source-unavailable）', () => {
+  it('各分支传的 kind 与场景匹配（1 处 missing-asset + 3 处 source-unavailable）', () => {
     // 只数"指示块个数"会漏掉"kind 传错"（那样两种缺失会被说成同一种，正是本债要消灭的）
     expect(src.match(/kind="missing-asset"/g)?.length).toBe(1);
-    expect(src.match(/kind="source-unavailable"/g)?.length).toBe(2);
+    expect(src.match(/kind="source-unavailable"/g)?.length).toBe(3);
   });
 
   it('不存在"坍缩成一行裸 element.name"的兜底分支（那正是用户看到的空白）', () => {

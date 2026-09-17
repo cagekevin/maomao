@@ -170,11 +170,24 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     expect(second.columns.map((c) => c.id)).toEqual(['c1', 'c2']);
   });
 
-  it('tryParseAssistantTableJson：JSON 含 rows 命中；普通回复/无 rows 返回 null', () => {
-    expect(tryParseAssistantTableJson('{"globalStyle":"g","rows":[{"A":"1"}]}')).not.toBeNull();
-    expect(tryParseAssistantTableJson('```json\n{"rows":[{"A":"1"}]}\n```')).not.toBeNull();
-    expect(tryParseAssistantTableJson('帮我画一只猫')).toBeNull();
-    expect(tryParseAssistantTableJson('{"a":1}')).toBeNull();
+  it('tryParseAssistantTableJson：JSON 含 rows 命中；普通回复/无 rows 走 ok:false（判别联合，非 null）', () => {
+    // 【断言同步到新契约 · 2026-09-17】生产者已改判别联合 `{ok:true,table} | {ok:false,reason,message}`，
+    // 不再归一到 `null`。旧断言 `toBeNull()` 属**旧契约形态**（见规范 §3 Step 4 表）。
+    // 新断言**更强**：不仅锁"不是表格"，还锁**失败原因**（reason）与**是否该打扰用户**（message 为空）。
+    const hit = tryParseAssistantTableJson('{"globalStyle":"g","rows":[{"A":"1"}]}');
+    expect(hit.ok).toBe(true);
+    expect(tryParseAssistantTableJson('```json\n{"rows":[{"A":"1"}]}\n```').ok).toBe(true);
+
+    const noBrace = tryParseAssistantTableJson('帮我画一只猫');
+    expect(noBrace.ok).toBe(false);
+    if (!noBrace.ok) {
+      expect(noBrace.reason).toBe('no-brace');
+      expect(noBrace.message).toBe(''); // message='' ⇒ 这是"不是表格"的正常结论，不该弹给用户
+    }
+
+    const noRows = tryParseAssistantTableJson('{"a":1}');
+    expect(noRows.ok).toBe(false);
+    if (!noRows.ok) expect(noRows.reason).toBe('no-rows');
   });
 
   it('rowToText：只输出非空列，每列「列名：值」', () => {

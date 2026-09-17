@@ -86,11 +86,15 @@ describe('useAssetDegrade —— lodLevel→hideMedia 映射', () => {
 const prefsMem = new Map();
 vi.mock('../../src/components/base/storage/storageAdapter.ts', () => ({
   sGet: vi.fn((k) => (prefsMem.has(k) ? prefsMem.get(k) : null)),
+  // 【2026-09-17 TD-24-4 契约同步】写/删桩必须返回落盘结果（PersistWriteOutcome）——
+  // 消费方 confirmPersist 读 `.ok`，桩返 undefined 会直接 TypeError（桩跟契约走，不是契约迁就桩）。
   sSet: vi.fn((k, v) => {
     prefsMem.set(k, v);
+    return { ok: true, landed: 'local' };
   }),
   sRemove: vi.fn((k) => {
     prefsMem.delete(k);
+    return { ok: true, landed: 'local' };
   }),
   // TD-02-2：contentStore.loadFromLocal 未就绪时返回 undefined 且不读底层 → 桩必须声明「已就绪」，
   // 否则内存实现永远读不到 seed（nodePrefs 会退化为默认值）。

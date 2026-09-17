@@ -61,9 +61,14 @@ import {
   Pencil,
   FlipHorizontal2,
   Undo2,
+  AlertTriangle,
 } from 'lucide-react';
-import { mediaDisplayUrl } from '@/components/videoEditor/lib/mediaDisplayUrl';
+import {
+  mediaDisplayUrl,
+  type RenderAssetResolver,
+} from '@/components/videoEditor/lib/mediaDisplayUrl';
 import { useRenderAssetResolver } from '@/components/base/utils/assetUrl.ts';
+import { useMediaLoadFailed } from '@/components/base/utils/useMediaLoadFailed.ts';
 
 function getDisplayShortcut(action: TAction) {
   const { defaultShortcuts } = getActionDefinition(action);
@@ -381,6 +386,71 @@ function ResizeHandle({
   );
 }
 
+/**
+ * 贴纸片段内容（图标 + 名称）。
+ *
+ * 【为什么抽成独立组件 · 2026-09-17 TD-16-29②】原来这里是**裸 `<img>`（无 onError）**：
+ * `buildIconSvgUrl` 走 localTool 代理抓上游 SVG，网络失败 / 前缀写错 / 上游 404 时浏览器
+ * 只剩破图图标（或 `alt` 文本），与"这个贴纸本来就没图"无从区分。onError 是 hook，
+ * 不能在 `ElementContent` 的条件分支里调用（hooks 规则），故抽为独立组件。
+ */
+function StickerContent({ iconName, name }: { iconName: string; name: string }) {
+  const { failed, onError } = useMediaLoadFailed(iconName, '贴纸图标', { iconName });
+
+  return (
+    <div className="flex size-full items-center gap-2 pl-2">
+      {failed ? (
+        // 失败 → 与时间轴其他"素材不可用"共用同一表达（虚线红框 + 告警），不留给浏览器破图
+        <AlertTriangle className="text-destructive size-5 shrink-0" aria-label="贴纸图标加载失败" />
+      ) : (
+        <img
+          src={buildIconSvgUrl(iconName, { width: 20, height: 20 })}
+          alt={name}
+          className="size-5 shrink-0"
+          width={20}
+          height={20}
+          onError={onError}
+        />
+      )}
+      <span className="ve-clip-text truncate">{name}</span>
+    </div>
+  );
+}
+
+/**
+ * 时间轴「图片片段」的缩略背景。
+ *
+ * 【为什么用 `<img>` 而非 CSS backgroundImage · 2026-09-17 TD-16-29②】
+ * CSS 背景图**没有 onError 可挂** ⇒ 素材缺失 / 4xx 时只有空白，失败完全不可见。
+ * `<img>` 视觉等价（`object-cover` = `background-size:cover`）却能挂 onError；
+ * `pointer-events-none` 保持原 `pointerEvents:'none'`，不改变拖拽/选中行为。
+ */
+function TimelineImageElement({
+  asset,
+  resolveThumb,
+  name,
+}: {
+  asset: MediaAsset;
+  resolveThumb: RenderAssetResolver;
+  name: string;
+}) {
+  const src = mediaDisplayUrl({ asset, resolve: resolveThumb });
+  const { failed, onError } = useMediaLoadFailed(src, '时间轴图片片段', { assetId: asset.id });
+
+  if (failed) {
+    return <MissingMediaIndicator kind="source-unavailable" name={name} />;
+  }
+
+  return (
+    <img
+      src={src}
+      alt={name}
+      onError={onError}
+      className="pointer-events-none absolute inset-0 size-full object-cover"
+    />
+  );
+}
+
 function ElementContent({
   element,
   track,
@@ -407,18 +477,7 @@ function ElementContent({
   }
 
   if (element.type === 'sticker') {
-    return (
-      <div className="flex size-full items-center gap-2 pl-2">
-        <img
-          src={buildIconSvgUrl(element.iconName, { width: 20, height: 20 })}
-          alt={element.name}
-          className="size-5 shrink-0"
-          width={20}
-          height={20}
-        />
-        <span className="ve-clip-text truncate">{element.name}</span>
-      </div>
-    );
+    return <StickerContent iconName={element.iconName} name={element.name} />;
   }
 
   if (element.type === 'audio') {
@@ -488,17 +547,12 @@ function ElementContent({
   }
 
   if (mediaAsset.type === 'image' && (mediaAsset.persistentUrl || mediaAsset.url)) {
+    // 【2026-09-17 TD-16-29②】原来这里是 CSS `backgroundImage: url(...)` —— **无 onError 可挂**，
+    // 素材文件缺失 / 4xx 时只有一片空白背景，用户与开发者都无法区分「还没加载」与「已损坏」。
+    // 改用 `<img>`（视觉等价：object-cover 对应 background-size:cover，pointerEvents:none 保持
+    // 不挡拖拽），从而能挂 onError → 失败走统一 `MissingMediaIndicator` 显式表达。
     return (
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage: `url(${mediaDisplayUrl({ asset: mediaAsset, resolve: resolveThumb })})`,
-          backgroundRepeat: 'no-repeat',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          pointerEvents: 'none',
-        }}
-      />
+      <TimelineImageElement asset={mediaAsset} resolveThumb={resolveThumb} name={element.name} />
     );
   }
 

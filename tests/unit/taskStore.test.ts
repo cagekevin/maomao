@@ -29,6 +29,8 @@ const {
   runNodeGeneration,
   reportGenerate,
   getTasks,
+  completeTask,
+  failTask,
 } = await import('../../src/components/base/store/taskStore.ts');
 
 beforeEach(() => {
@@ -221,6 +223,45 @@ describe('taskStore §P4 进度落库节流', () => {
     expect(last.errorMsg).toBe('网络错误');
     vi.advanceTimersByTime(400);
     expect(saveTask).toHaveBeenCalledTimes(1);
+  });
+
+  // 【TD-01-20】恢复路径（pollTask 调用的就是这两个原语）必须与 live **同一份口径**。
+  // 此前恢复走 patchTask ⇒ 不取消未落的进度写、无终态防御 ⇒ 同一件事两套（live 有、恢复没有）。
+  it('恢复路径 completeTask：与 live 同口径（取消未落进度写 + 非字符串防御）', () => {
+    vi.mocked(saveTask).mockClear();
+    const handle = reportGenerate('n4', 'image', 'p4');
+    vi.mocked(saveTask).mockClear(); // 只统计终态路径的落库
+    handle.progress(30, '阶段');
+    // 上游偶发返回对象（历史 bug 会让 .startsWith 崩）→ 原语必须防御，不得把对象写进 resultUrl
+    completeTask(handle.taskId, { url: 'oops' } as unknown as string);
+    expect(saveTask).toHaveBeenCalledTimes(1);
+    const last = vi.mocked(saveTask).mock.calls.at(-1)![0] as Task;
+    expect(last.status).toBe('completed');
+    expect(last.progress).toBe(100);
+    expect(last.resultUrl).toBe('');
+    vi.advanceTimersByTime(400);
+    expect(saveTask).toHaveBeenCalledTimes(1); // 无晚到的进度覆盖终态
+  });
+
+  it('恢复路径 failTask：与 live 同口径（取消未落进度写 + 默认文案）', () => {
+    vi.mocked(saveTask).mockClear();
+    const handle = reportGenerate('n5', 'image', 'p5');
+    vi.mocked(saveTask).mockClear();
+    handle.progress(50);
+    failTask(handle.taskId);
+    expect(saveTask).toHaveBeenCalledTimes(1);
+    const last = vi.mocked(saveTask).mock.calls.at(-1)![0] as Task;
+    expect(last.status).toBe('failed');
+    expect(last.errorMsg).toBe('生成失败');
+    vi.advanceTimersByTime(400);
+    expect(saveTask).toHaveBeenCalledTimes(1);
+  });
+
+  it('任务已被删除时：终态原语不凭空造行（恢复 attach 到已删任务）', () => {
+    const before = getTasks().length;
+    completeTask('no-such-task', '/files/x.png');
+    failTask('no-such-task', 'boom');
+    expect(getTasks()).toHaveLength(before);
   });
 });
 

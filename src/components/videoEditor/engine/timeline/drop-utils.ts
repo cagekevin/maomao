@@ -1,4 +1,5 @@
 import type { TimelineTrack, ElementType } from '@/components/videoEditor/types/timeline';
+import { clamp } from '@/components/base/core/utils';
 import { TRACK_GAP } from '@/components/videoEditor/constants/timeline-constants';
 import { wouldElementOverlap } from './element-utils';
 import type { ComputeDropTargetParams, DropTarget } from '@/components/videoEditor/types/timeline';
@@ -336,7 +337,7 @@ export function getDropLineY({
   /** 轨道高度倍率（TD-21-16）——落点线必须与渲染同口径。 */
   scale?: number;
 }): number {
-  const safeTrackIndex = Math.min(Math.max(dropTarget.trackIndex, 0), tracks.length);
+  const safeTrackIndex = clamp(dropTarget.trackIndex, 0, tracks.length);
   let y = 0;
 
   for (let i = 0; i < safeTrackIndex; i++) {

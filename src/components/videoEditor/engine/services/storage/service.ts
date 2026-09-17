@@ -483,16 +483,30 @@ class StorageService {
     let file: File;
     try {
       const res = await fetch(metadata.url);
-      if (!res.ok) return null;
+      if (!res.ok) {
+        // 【2026-09-17 TD-22-62 收尾】原 `return null` 是**零日志**：素材还原失败只由下游
+        // `missing[]` 呈现给用户，开发者侧查不到"哪条、为什么"（非 2xx 与网络错误也分不开）。
+        logger.warn('videoEditor', 'media-fetch-non-2xx', {
+          id,
+          url: metadata.url,
+          status: res.status,
+        });
+        return null;
+      }
       const blob = await res.blob();
       // fetch 回的是 Blob，MediaAsset.file 要求 File（保留 name/type 供下游使用）。
       file = new File([blob], metadata.name || id, {
         type: blob.type || String(metadata.type),
       });
     } catch (e) {
-      // 从 /files/ 拉回 Blob 失败（网络 / 非 2xx）→ null，调用方按「无法还原」处理；
-      // 另留痕给开发者（2026-09-17 拆静默）。
-      logger.debug('剪辑器存储', '从 /files/ 拉回 Blob 失败（已由 null 呈现）', e);
+      // 从 /files/ 拉回 Blob 失败（网络 / 非 2xx）→ null，调用方按「无法还原」处理。
+      // 【2026-09-17 TD-22-62 收尾】原用 `logger.debug` —— debug 是「仅模块位开启才输出、且
+      // **不上报后端**」⇒ 生产环境等于静默（排查时 grep 不到）。升为 warn（上报 /api/logs）。
+      logger.warn('videoEditor', 'media-fetch-fail', {
+        id,
+        url: metadata.url,
+        error: (e as { message?: string })?.message || String(e),
+      });
       return null;
     }
 

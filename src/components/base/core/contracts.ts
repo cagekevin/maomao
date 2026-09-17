@@ -119,12 +119,12 @@ export const EVENTS: Record<string, EventRegistryEntry> = {
     payload: '{}',
     note: '导出按钮 → useCanvasEventSubscriptions 下载。生产使用',
   },
-  'persist:failed': {
-    from: ['storageAdapter.ts:31'],
-    to: ['useCanvasEventSubscriptions.ts:102'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus
-    payload: '{ key, error }',
-    note: '持久化失败广播（sSet/sRemove 失败）。已由 useCanvasEventSubscriptions 全局订阅',
-  },
+  // 'persist:failed' 已于 2026-09-17 删除（TD-24-4 阶段 2 / TD-16-33）：持久化失败改由**各站点自己确认**
+  // （`storageAdapter.sSet/sRemove` 返回 `PersistWriteOutcome` → `core/degrade.ts::confirmPersist`）。
+  // 原全局总线（publish + usePersistFailureToast 节流 toast + persistFailureBus 工厂）三处盲区
+  // （同 key 节流合并 / memFallback 不 publish / 绕开 adapter 的链路全漏）且违反「失败由产生层负责」，
+  // 按用户裁定退役。消费者若再需要失败提示，回产生层补 `confirmPersist`，**禁止复活全局吸收层**。
+
   // 剪辑器播放头跳转（TD-22-23，2026-09-15）：原为 `window.dispatchEvent('playback-seek')` ——
   // eventBus 文件头明文禁止的「第二套广播」，videoEditor 搬迁时带进来的漏网（同族前例：TD-04-8 的
   // 'yimao:remove-edge'、已删的 'resource:renamed'）。现收口进唯一通道。

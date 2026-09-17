@@ -4,8 +4,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const cache: Record<string, any> = {};
 vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   contentGet: (key: any) => cache[key],
+  // 【2026-09-17 TD-24-4 阶段1】contentSet 现在返回落盘结果（判别联合）——桩必须跟契约走
   contentSet: (key: any, val: any) => {
     cache[key] = val;
+    return { ok: true, landed: 'local' as const };
   },
 }));
 

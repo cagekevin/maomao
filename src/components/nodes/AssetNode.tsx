@@ -20,7 +20,7 @@ import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
 import { replaceNodeImage } from '../base/nodeImage.ts';
 import { detectAssetType, detectFileType } from '../base/utils/assetType.ts';
 import { fileNameFromUrl } from '../base/core/utils.ts';
-import type { AssetType } from '@/types';
+import { assetTypeLabel, type AssetType } from '@/types';
 import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { NODE_AREA_FIXED_BASE_SIZE } from '../base/core/config.ts';
 import { useVideoPoster } from '../../hooks/useVideoPoster.ts';
@@ -28,11 +28,7 @@ import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { patchNodeDataById } from '../../hooks/useNodeData.ts';
 import { toAbsoluteFileUrl, resolveNodeAssetUrl } from '../base/api/index.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
-import {
-  resolveAssetDisplayUrl,
-  buildContentUrlResolver,
-  contentIdOfBytes,
-} from '../base/utils/assetUrl.ts';
+import { resolveAssetDisplayUrl, buildContentUrlResolver } from '../base/utils/assetUrl.ts';
 import { useImageFallbackSrc } from '../base/utils/useImageFallbackSrc.ts';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
 import { downloadUrl } from '../base/utils/clipboard.ts';
@@ -269,8 +265,10 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       // 「上传替换节点内容」也收口到唯一写入口：主图走 replaceNodeImage，`assetType/text` 置空
       // （交回 detectAssetType 按新 URL 判定）。此前这里是第三处直写 assetUrl/url 的地方（docs/118 §7.3 ⑤）。
       // docs/122 #4：持久文件 → 同时落稳定 contentId（sha1:<hex>）；内联 dataURL 无 contentId。
-      let contentId: string | undefined;
-      if (!url.startsWith('data:')) contentId = await contentIdOfBytes(f);
+      // 【TD-08-28 收口】contentId **由落盘权威（后端）产出并随 `UploadOutcome` 回传** ⇒ 消费者只转发。
+      // 原实现在此处 `contentIdOfBytes(f)` 再算一遍：同一身份两份计算（后端 sha1(字节) 与本处必须永远相等，
+      // 一旦算法/编码差一点就漂移成两个身份），且白读一遍文件字节。
+      const contentId = up.contentId;
       replaceNodeImage(
         {
           id,
@@ -288,8 +286,8 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
     [id, setNodes],
   );
 
-  const defaultTitle =
-    type === 'video' ? '视频' : type === 'audio' ? '音频' : type === 'text' ? '文本文件' : '图片';
+  // 显示名取自资产类型目录（`assetTypeLabel`）；非内容状态（other/empty）沿用历史回退「图片」
+  const defaultTitle = assetTypeLabel(type, '图片');
   const titleIcon =
     type === 'video' ? (
       <Video size={11} />

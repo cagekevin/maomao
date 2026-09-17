@@ -10,6 +10,7 @@ import { generateUUID } from '@/components/base/core/idGen.ts';
 import { videoCache } from '@/components/videoEditor/engine/services/video-cache/service';
 import { collectElementsByMediaId } from '@/components/videoEditor/engine/timeline/element-utils';
 import { toast } from '@/components/videoEditor/lib/toast';
+import { reportDegrade } from '@/components/base/core/degrade.ts';
 
 /**
  * 释放素材的运行期 URL（`blob:` objectURL）。
@@ -116,7 +117,11 @@ export class MediaManager {
     this.notify();
 
     try {
-      const { items: mediaAssets, missing, shapeError } = await storageService.loadAllMediaAssets({
+      const {
+        items: mediaAssets,
+        missing,
+        shapeError,
+      } = await storageService.loadAllMediaAssets({
         projectId,
       });
       // 已被更新的加载取代 → 丢弃本次结果（防旧请求覆盖新工程素材，TD-22-43①）。
@@ -161,7 +166,15 @@ export class MediaManager {
     try {
       await Promise.all(mediaIds.map((id) => storageService.deleteMediaAsset({ projectId, id })));
     } catch (error) {
-      logger.error('Failed to clear media assets from storage:', error);
+      // 【2026-09-17 TD-22-63】原实现**只 logger**：内存与 UI 已清空，持久层却还留着 ——
+      // 用户看到"素材清空了"，刷新后**全部复活**（假清空，且零提示）。破坏性操作失败必须让用户知道。
+      // 走 `reportDegrade`（一次搞定"开发者留痕 + 用户 toast"），与同文件 `removeMediaAsset` 同读者。
+      reportDegrade({
+        layer: '剪辑器·清空工程素材',
+        key: projectId,
+        e: error as Error,
+        toast: '素材清空失败，刷新后可能仍在，请重试',
+      });
     }
   }
 

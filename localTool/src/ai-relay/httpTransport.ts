@@ -9,7 +9,8 @@
  * 在 Node 侧用原生 fetch + AbortController 重新实现，去掉 Tauri/IPC 依赖。
  * 稳定性三件套：
  *   1. baseUrlCandidates：地址填错（漏 /v1）自动兜底探测；
- *   2. 重试：408/429/500/502/503/504 按指数退避，429 遵循 Retry-After；
+ *   2. 重试：**只对网络层错误**（DNS/连接重置/超时）按指数退避；状态码重试须调用方显式声明
+ *      `retryStatuses`（429 遵循 Retry-After）——「只有网络错误才能重试」红线，见 §5.1 与下方 stableRequest 注释；
  *   3. 上限：响应体默认 64MB 上限，防 OOM；全程可被 AbortSignal 取消。
  *
  * 错误契约：上游返回什么，就透传什么——绝不把上游错误翻译成中文提示。
@@ -22,7 +23,14 @@ import type { AuthConfig, StableRequestOptions, StableRequestResult } from './ty
 /** 与 Rust proxy_fetch 一致的响应体上限 */
 export const DEFAULT_MAX_BYTES = 64 * 1024 * 1024;
 
-/** 可重试 HTTP 状态码（唯一真源：isRetryableHttpStatus / 协议层 poll 均引用此集） */
+/**
+ * 「瞬态、重发有希望恢复」的 HTTP 状态码（唯一真源）。
+ *
+ * 【谁可以引用它】① **显式**声明重试的调用方（如 `files.ts` 下载：`retryStatuses: [403, ...本集]`）；
+ * ② 协议层轮询（`isRetryableHttpStatus` 判"下轮续查有希望"，是**再次查询**不是同请求重发）。
+ * 【谁不可以】`stableRequest` 的**缺省**路径 —— 缺省不再据此重试（TD-08-41：那会让非幂等 POST
+ * 在 429/5xx 时被静默重发）。本集是"证据清单"，不是"默认开关"。
+ */
 export const RETRYABLE_HTTP_STATUSES: number[] = [408, 429, 500, 502, 503, 504];
 const DEFAULT_RETRY_STATUSES = new Set<number>(RETRYABLE_HTTP_STATUSES);
 const DEFAULT_MAX_RETRIES = 3;
@@ -191,10 +199,17 @@ export async function stableRequest(opts: StableRequestOptions): Promise<StableR
 
   const maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
-  // 【TD-08-25】调用方可显式覆盖重试码集（如 CDN 发布窗口的 403）；缺省不动中央默认集。
-  const retryStatuses = opts.retryStatuses
-    ? new Set<number>(opts.retryStatuses)
-    : DEFAULT_RETRY_STATUSES;
+  // 【TD-08-41 · 2026-09-17】缺省 = **空集**（不按状态码重试）。
+  //
+  // 【为什么改（原先缺省 = 中央 RETRYABLE_HTTP_STATUSES）】原口径让**每个**调用点都自动按
+  //   408/429/5xx 重发，不分 method、也不问"这个请求重发一次会不会有副作用"——
+  //   Lovart 直连的 `save / chat / file/upload` 全是 POST 且经裸包装进本原语（无 maxRetries），
+  //   于是 429/5xx 时会**静默重发非幂等请求**（重复建任务/重复上传）。
+  //   这违反红线「**只有网络错误才能重试**」（业务/服务端错误不得无条件重试，见 CLAUDE.md §5.1）。
+  // 【现口径】① 网络层错误（DNS/连接重置/超时）→ 仍自动按 maxRetries 退避重试（红线允许的那半）；
+  //   ② 状态码重试 → **必须由调用方显式声明** `retryStatuses`（= 它有本场景的瞬态证据，
+  //   如 `files.ts` 下载对 CDN 发布窗口的 403），没声明就确定性失败直接抛，不猜。
+  const retryStatuses = new Set<number>(opts.retryStatuses ?? []);
 
   let lastError: unknown;
   for (const candidate of candidates) {
@@ -263,7 +278,8 @@ export async function stableRequest(opts: StableRequestOptions): Promise<StableR
           }
           throw err;
         }
-        // 网络层错误（DNS/连接重置/超时）：可重试
+        // 网络层错误（DNS/连接重置/超时）：**唯一**默认重试的错误类别（红线「只有网络错误才能重试」）。
+        // 业务/服务端错误（RelayHttpError 带状态码）走上一分支：未显式声明 retryStatuses 即直接抛。
         lastError = err;
         if (attempt < maxRetries && !opts.signal?.aborted) {
           await sleep(Math.min(DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_BASE_DELAY_MS * 2 ** attempt));

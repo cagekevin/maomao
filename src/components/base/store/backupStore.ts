@@ -41,6 +41,7 @@ import {
 import { compilePatternRegex } from '../core/utils.ts';
 import { kvKeys } from '../api/localToolApi.ts';
 import { contentGet, contentSet, contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
+import { isWriteBackOk } from '../core/degrade.ts';
 import {
   getCurrentProject,
   getAllProjects,
@@ -79,15 +80,52 @@ function readLS(k: string) {
   return contentGet(k);
 }
 
-/** 写 contentStore 某键（容错）；返回是否成功（供 importAll 汇总失败，TD-15-3 禁假成功）。 */
+/** 写 contentStore 某键（`ls` 段 = `getLocalKeys()`，必为 local 后端）；返回是否**真落盘**。 */
 function writeLS(k: string, v: unknown): boolean {
+  // 【2026-09-17 TD-24-4 阶段0】原来是 `try { contentSet } catch { return false }` —— **假成功**：
+  // 那段 catch 永死（contentSet 当时从不为持久化失败抛错，失败只 publish 全局总线）⇒ 恒 `return true`
+  // ⇒ `importAll` 会把"根本没写进去的键"计入成功（正是 TD-15-3 要禁的假成功，反而由它自己制造）。
+  // 现按生产者给的**落盘事实**判：只有确认落进持久层才算成功（判据经 isWriteBackOk 收口，不与同族各写一份）。
+  const outcome = contentSet(k, v);
+  if (isWriteBackOk(outcome, 'local')) return true;
+  logger.warn('备份', '写回未落盘', {
+    key: k,
+    landed: outcome.ok ? outcome.landed : 'failed',
+    message: outcome.ok ? undefined : outcome.message,
+  });
+  return false;
+}
+
+/**
+ * KV 段写回（`accounts` 段与 `kv` 段**共用一份**判据与汇总口径，2026-09-17 TD-24-4 收尾）。
+ *
+ * 【为什么 landed:'local' 也算失败】备份导入的目的是把包里的数据**写回真源**。
+ * `contentSetAsync` 对 KV 键在引擎不可用时返回 `landed:'local'`（降级写本机副本）—— 该副本
+ * 跨端/换机看不到，引擎恢复后也不会自动回灌 ⇒ 对本操作而言就是**没恢复**。
+ * 原实现只看"有没有抛" ⇒ 降级被计成成功、`ok = failed.length===0` 报「导入成功」，真源其实空着。
+ * 判据统一走 `isWriteBackOk(outcome, 'kv')`（禁止此处再写一份）。
+ *
+ * 失败**不抛**（与同族 `writeLS` 口径一致）：计入 `failed[]` 后继续导完其余键，由汇总如实呈现。
+ */
+async function writeKvSegment(
+  key: string,
+  value: unknown,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    contentSet(k, v);
-    return true;
+    const outcome = await contentSetAsync(key, value);
+    if (isWriteBackOk(outcome, 'kv')) return { ok: true };
+    const why = outcome.ok ? '未写入 KV（引擎不可用，仅落了本机降级副本）' : outcome.message;
+    logger.warn('备份', 'KV 段写回未进真源', {
+      key,
+      landed: outcome.ok ? outcome.landed : 'failed',
+      why,
+    });
+    return { ok: false, error: why };
   } catch (e) {
-    // 写入失败返回 false（调用方 importAll 汇总失败，TD-15-3 禁假成功）；另留痕给开发者（2026-09-17）。
-    logger.debug('备份', '写回失败（已由返回值呈现）', e);
-    return false;
+    // 4xx 拒收等：日志留痕 + 计入 failed（不中断整包导入）
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.warn('备份', 'KV 段写回失败', { key, error: msg });
+    return { ok: false, error: msg };
   }
 }
 
@@ -276,15 +314,9 @@ export async function importAll(backup: unknown): Promise<{
   }
   // 账号环境（走 KV 后端）：备份包内的 accounts 写回 KV；非空数组才写（防写空覆盖丢历史）
   if (Array.isArray(b.accounts)) {
-    try {
-      await contentSetAsync(KEY_YIMAO_ACCOUNTS, b.accounts);
-      lsCount++;
-    } catch (e) {
-      // 【P0 埋点 + TD-15-3】账号写回失败：计入 failed
-      const msg = e instanceof Error ? e.message : String(e);
-      logger.warn('backupStore', '导入时写回账号失败', { error: msg });
-      failed.push({ projectId: KEY_YIMAO_ACCOUNTS, error: msg });
-    }
+    const r = await writeKvSegment(KEY_YIMAO_ACCOUNTS, b.accounts);
+    if (r.ok) lsCount++;
+    else failed.push({ projectId: KEY_YIMAO_ACCOUNTS, error: r.error });
   }
   // KV 工程数据（v3 段）：逐键写回。**判据与导出共用 isKvSegmentKey** ——
   // 包里若混入 canvas-/accounts 键（手改包/跨版本包），在此被同一判据挡掉，
@@ -292,15 +324,9 @@ export async function importAll(backup: unknown): Promise<{
   if (b.kv && typeof b.kv === 'object') {
     for (const k of Object.keys(b.kv)) {
       if (!isKvSegmentKey(k)) continue;
-      try {
-        await contentSetAsync(k, b.kv[k]);
-        kvCount++;
-      } catch (e) {
-        // 【P0 埋点 + TD-15-3】单键写回失败：计入 failed（不再静默吞成"成功"）
-        const msg = e instanceof Error ? e.message : String(e);
-        logger.warn('backupStore', '导入时写回 KV 工程键失败', { key: k, error: msg });
-        failed.push({ projectId: k, error: msg });
-      }
+      const r = await writeKvSegment(k, b.kv[k]);
+      if (r.ok) kvCount++;
+      else failed.push({ projectId: k, error: r.error });
     }
   }
   const ok = failed.length === 0;

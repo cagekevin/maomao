@@ -12,11 +12,12 @@
  *  - GET 返回 has_key / key_preview，无明文
  *  - save() 时对整组透传；key 通道（api_key/clear_key）仅在有编辑态时映射（配置型下无编辑入口）
  */
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import type { RawModel } from '../utils/providerModels.ts';
 import { useStoreSelector } from '../../../hooks/useStoreSelector.ts';
 import { providerApi } from '../api/localToolApi.ts';
 import { contentSetAsync } from '../core/contentStore.ts';
+import { reportDegrade } from '../core/degrade.ts';
 import { logger } from '../core/logger.ts';
 // 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
 import { KEY_ACTIVE_API_ENDPOINT } from '../core/contracts.ts';
@@ -123,6 +124,34 @@ export function useProvidersList(): Provider[] {
   return useStoreSelector(subscribe, getSnapshot, (s) => s.providers);
 }
 
+/**
+ * 首次挂载确保供应商已加载（**唯一实现**）。
+ *
+ * 【为什么收口（2026-09-17 TD-24-4 §二）】`AgentPanel:351` / `GearSettings:56` /
+ * `useScriptBoxEngine:70` 原本**各自复制同一行**
+ * `load().catch((e) => logger.warn('provider','load-fail',…))` —— 同一条失败（`providerApi.getProviders`
+ * reject）在三个地方各写一份判据，且三处**都只有日志、用户不可见** ⇒ 厂商下拉静默为空，
+ * 用户读成「没配过厂商」，随后又收到误导性的「请先配置模型」。
+ *
+ * 失败由**真相方**（本 store，它拥有"列表加载成功与否"这个真相）自报：留痕每次 + toast 一次
+ * （同文案由展示层合并，见 `toastStore.coalesceMs`）。站点不再各写一份呈现 —— 也**不允许**再各写一份。
+ */
+export function useEnsureProvidersLoaded(): void {
+  // 依赖数组留空 = 只在挂载时尝试一次。**不能**依赖 providers：加载成功但确实没有厂商时，
+  // setState 会给新数组引用 → 依赖变化 → effect 再跑 → 又 load() → 无限循环（同形态踩过）。
+  useEffect(() => {
+    if (getSnapshot().providers.length > 0) return;
+    load().catch((e) => {
+      reportDegrade({
+        layer: 'providerStore',
+        key: 'load-fail',
+        e: e instanceof Error ? e : undefined,
+        toast: '供应商列表加载失败（本地服务可能未启动），模型下拉可能是空的',
+      });
+    });
+  }, []);
+}
+
 function emptyProvider(): Provider {
   return {
     // 兜底空 provider：不再造随机 p_ id（用户分不清）。真实厂商 id 一律来自后端/候选内置；
@@ -214,20 +243,22 @@ export async function load(): Promise<void> {
 
 /**
  * 云同步「下载云端」成功后重水合（TD-13 修复落地）：重拉 providers 覆盖内存态。
- * 与 load() 区别：不切 loading / 不清 testResult（静默 rehydrate，避免 UI 闪烁）；
- * 读取失败仅告警、保留原内存态（下载失败不应让当前可用配置消失）。
+ * 与 load() 区别：不切 loading / 不清 testResult（静默 rehydrate，避免 UI 闪烁）；失败时不 setState
+ * ⇒ **原内存态自然保留**（当前可用配置不会因一次读失败而消失）。
+ *
+ * 【失败必须上抛（2026-09-17 TD-24-4 §二）】原实现自带 `catch + logger.warn` ⇒ **永不 reject**，
+ * 而唯一消费者 `cloudSync.rehydrateStoresAfterCloudPull` 的可见性契约恰恰建立在
+ * `Promise.allSettled(...).status === 'rejected'` 上（该函数注释自己写着「『不阻断』≠『不可见』」）——
+ * 内部吞掉 = 重水合报「成功」而供应商根本没刷新（TD-16-27「成功信号与结果事实脱钩」同款）。
+ * 删 catch：失败由**消费者**统一呈现（留痕 + toast），本处不再自作主张替它咽下去。
  */
 export async function reloadProviders(): Promise<void> {
-  try {
-    const data = await providerApi.getProviders();
-    const list: Provider[] = Array.isArray(data?.data?.providers)
-      ? data.data.providers.map(normalizeProvider)
-      : [];
-    const primary = list.find((p) => p.primary) || list[0];
-    setState({ providers: list, selectedId: primary ? primary.id : null, dirty: false });
-  } catch (e) {
-    logger.warn('provider', 'reload-fail', { error: (e as { message?: string })?.message });
-  }
+  const data = await providerApi.getProviders();
+  const list: Provider[] = Array.isArray(data?.data?.providers)
+    ? data.data.providers.map(normalizeProvider)
+    : [];
+  const primary = list.find((p) => p.primary) || list[0];
+  setState({ providers: list, selectedId: primary ? primary.id : null, dirty: false });
 }
 
 export function select(id: string | null): void {

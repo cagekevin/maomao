@@ -43,11 +43,19 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
   }),
 }));
 
+// 降级上报 spy：会话落盘**真失败**（4xx 拒收等）必须由本处交代，故断言它被调到。
+const { degradeSpy } = vi.hoisted(() => ({ degradeSpy: vi.fn() }));
+vi.mock('../../src/components/base/core/degrade.ts', async (importOriginal) => ({
+  ...(await importOriginal()),
+  reportDegrade: degradeSpy,
+}));
+
 beforeEach(() => {
   localStorage.clear();
   kvStore.clear();
   contentClearCache();
   resetConversationCache();
+  degradeSpy.mockClear();
 });
 
 /**
@@ -103,8 +111,15 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     applyConversation(id);
     setCurrentSnapshot({ messages: [{ role: 'user', content: 'PERSISTED' }] });
     flushPersist();
-    // contentSet 对 KV 是 fire-and-forget 异步写：先等 KV stub 落位，再重置缓存并异步水化重读
-    await vi.waitFor(() => expect(kvStore.has('agent_conversations_canvas-assistant')).toBe(true));
+    // 【2026-09-17 TD-24-4 阶段0】会话落盘改走 contentSetAsync（生产者给结果）。
+    // 原断言只等 `kvStore.has(key)` —— 那是**弱断言**：键可能由"存量迁移写"先建好，
+    // 于是"本次快照到底写没写进去"根本没被验证（实测它先绿、水化却读到空）。
+    // 现等**本次内容**真的落进 KV，再重置缓存异步水化重读。
+    await vi.waitFor(() =>
+      expect(JSON.stringify(kvStore.get('agent_conversations_canvas-assistant') ?? [])).toContain(
+        'PERSISTED',
+      ),
+    );
     contentClearCache();
     resetConversationCache();
     setAgentKey('canvas-assistant');
@@ -113,28 +128,35 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     expect(getCurrentSnapshot().messages[0].content).toBe('PERSISTED');
   });
 
-  it('会话落盘失败：persistDebounced 内 contentSet 抛错被 catch-ignore，不阻断调用栈（事件已由 sSet 内部 publish）', () => {
+  it('会话落盘真失败（contentSetAsync 抛错，如 4xx 拒收）→ reportDegrade 报出，且不阻断调用栈', async () => {
     const id = ensureActiveConversation();
     applyConversation(id);
     setCurrentSnapshot({ messages: [{ role: 'user', content: 'P' }] });
-    const spy = vi.spyOn(contentStore, 'contentSet').mockImplementationOnce(() => {
-      throw new Error('QuotaExceededError');
-    });
-    // 落盘失败不抛给调用方（匹配 persistDebounced 的 catch 忽略语义；persist:failed 事件在 sSet 层已发）
-    expect(() => flushPersist()).not.toThrow();
+    // 【2026-09-17 改写】原用例 spy 的是**同步 contentSet** —— 而会话键走 KV，落盘早已改走
+    // contentSetAsync（阶段0），那个 spy 永不触发 ⇒ 是**假绿**（测了个不存在的路径）。现锁真路径。
+    const spy = vi.spyOn(contentStore, 'contentSetAsync').mockRejectedValue(new Error('KV 409'));
+    expect(() => flushPersist()).not.toThrow(); // 不阻断调用栈（persistDebounced 语义）
+    await vi.waitFor(() => expect(spy).toHaveBeenCalled()); // 真落盘路径确实被走到
+    await vi.waitFor(() => expect(degradeSpy).toHaveBeenCalled()); // 失败由本处交代（不静默）
     spy.mockRestore();
   });
 
-  it('整包超预算：persistDebounced 用 applyConversationBudget 降级后的投影落盘（内存态不受影响）', () => {
+  it('整包超预算：persistDebounced 用 applyConversationBudget 降级后的投影落盘（内存态不受影响）', async () => {
     const id = ensureActiveConversation();
     applyConversation(id);
     // 构造一个远超 SAFE_BUDGET_BYTES 的整包（仅驻内存，落盘前被降级）
     const hugeContent = 'x'.repeat(SAFE_BUDGET_BYTES + 1024 * 1024);
     setCurrentSnapshot({ messages: [{ role: 'user', content: hugeContent }] });
-    const spy = vi.spyOn(contentStore, 'contentSet');
+    // 【2026-09-17 TD-24-4 阶段0】落盘走 contentSetAsync（KV 键唯一合法写路径）——断言随之跟上
+    const spy = vi.spyOn(contentStore, 'contentSetAsync');
     flushPersist();
-    // contentSet 拿到的是【降级后】的投影：正文被截断，序列化字节回到预算内
-    const persisted = spy.mock.calls[0][1] as Array<{ messages: Array<{ content: string }> }>; // contentSet(key, value) → value 即 toStore 数组
+    // contentSetAsync 拿到的是【降级后】的投影：正文被截断，序列化字节回到预算内。
+    // flush() 对异步写不同步等待 → 用 waitFor 等 spy 真正被调用（等不到 = 没落盘，如实红）。
+    const persisted = (await vi.waitFor(() => {
+      const call = spy.mock.calls[0];
+      expect(call, 'persistDebounced flush 后必须发起一次 KV 落盘').toBeTruthy();
+      return call[1] as Array<{ messages: Array<{ content: string }> }>;
+    })) as Array<{ messages: Array<{ content: string }> }>; // contentSetAsync(key, value) → value 即 toStore 数组
     expect(JSON.stringify(persisted).length).toBeLessThan(SAFE_BUDGET_BYTES);
     const downgradedContent = persisted[0].messages[0].content;
     expect(downgradedContent.length).toBeLessThan(hugeContent.length);

@@ -8,6 +8,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import { contentGet, contentSet } from '../core/contentStore.ts';
+import { confirmPersist } from '../core/degrade.ts';
 import { onStorageReady } from '../storage/index.ts';
 import {
   buildDefaults,
@@ -41,8 +42,9 @@ function load(): SettingState {
 // 订阅（供 useAppSettings）
 const listeners = new Set<() => void>();
 function save(): void {
-  // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
-  contentSet(KEY, settings);
+  // 【2026-09-17 TD-24-4 阶段1】自确认：设置未落盘必须留痕（旧注释说的"内部留痕"是全局总线，
+  // 本路径不保证被它覆盖；且"留痕"不等于"这一站确认过了"）。
+  confirmPersist(contentSet(KEY, settings), { layer: 'appSettings', key: KEY });
 }
 function notify(): void {
   listeners.forEach((l) => l());

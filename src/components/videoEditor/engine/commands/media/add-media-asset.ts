@@ -1,4 +1,5 @@
 import { logger } from '@/components/videoEditor/lib/logger';
+import { reportDegrade } from '@/components/base/core/degrade.ts';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import { EditorCore } from '@/components/videoEditor/engine/core';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
@@ -45,7 +46,15 @@ export class AddMediaAssetCommand extends Command {
         });
       })
       .catch((error) => {
-        logger.error('Failed to save media item:', error);
+        // 【2026-09-17 TD-22-63】原只 logger：本命令的保存路径走 **redo**（首跳 skipNextSave，
+        // 见 execute 内分支）—— redo 落盘失败 ⇒ UI 显示素材在、刷新后消失（假成功零提示）。
+        // 破坏性/落盘操作失败必须让用户知道（与 media-manager.addMediaAsset 的 catch 同读者）。
+        reportDegrade({
+          layer: '剪辑器·素材落盘',
+          key: this.assetId,
+          e: error as Error,
+          toast: '素材落盘失败，刷新后可能消失，请重试',
+        });
       });
   }
 

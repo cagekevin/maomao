@@ -5,6 +5,8 @@
  * 与 promptChips.js 同范式：纯逻辑层，组件只做 DOM/事件。唯一入口，禁止在组件里另写 lastIndexOf('@')。
  */
 
+import { clamp } from '@/components/base/core/utils';
+
 export const MENTION_MAX_QUERY: number = 20; // query 超过即判为「不是在 @ 人」，自动关闭
 export const MENTION_PANEL_W: number = 280;
 export const MENTION_PANEL_MAX_H: number = 300;
@@ -114,7 +116,7 @@ export function computeMentionPlacement(
     spaceAbove >= flipMinH || spaceAbove >= spaceBelow ? ('up' as const) : ('down' as const);
   const room = placement === 'up' ? spaceAbove : spaceBelow;
   const height = Math.max(96, Math.min(panelMaxH, room));
-  const left = Math.min(Math.max(margin, anchor.left), Math.max(margin, vw - panelW - margin));
+  const left = clamp(anchor.left, margin, Math.max(margin, vw - panelW - margin));
   return placement === 'up'
     ? { placement, left, top: undefined, bottom: vh - anchor.top + gap, height }
     : { placement, left, top: anchor.bottom + gap, bottom: undefined, height };

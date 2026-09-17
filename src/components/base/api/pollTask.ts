@@ -17,8 +17,15 @@
  * 【为什么不做文本 / 生图 sync】文本（chatCompletions）走 /api/generate（capability=chat）同步、生图 sync 无异步句柄，
  * 前端刷新即断，官方同此（reference-1mao shared.js Pt hook 也只对视频异步任务恢复）。
  */
-import { getTasks, patchTask, ensurePolling, isPolling, stopPolling } from '../store/taskStore.ts';
-import { publishTaskCompleted } from '../store/taskCompletionBus.ts';
+import {
+  getTasks,
+  patchTask,
+  ensurePolling,
+  isPolling,
+  stopPolling,
+  completeTask,
+  failTask,
+} from '../store/taskStore.ts';
 import { relayAttachUntilDone } from './relayProxy.ts';
 import { showToast } from '../core/toastStore.ts';
 import { logger } from '../core/logger.ts';
@@ -80,14 +87,9 @@ async function pollOneTaskAttach(task: PollableTask): Promise<boolean> {
   }
   if (st.ok && st.url) {
     // 完成：结果 url = 后端已落盘 /files/，直接回填
-    patchTask(task.id, { status: 'completed', progress: 100, resultUrl: st.url });
-    publishTaskCompleted({
-      taskId: task.id,
-      nodeId: task.nodeId,
-      resultUrl: st.url,
-      type: task.type,
-      status: 'completed',
-    });
+    // 【TD-01-20】终态走**唯一原语**（此前这里手写 patchTask + publishTaskCompleted，
+    // 于是 live 路径的「非字符串防御 + 排障埋点 + 取消未落的进度写」三项在恢复路径全缺 —— 同一件事两套）。
+    completeTask(task.id, st.url);
     logger.debug(
       '任务',
       '[恢复轮询] 完成',
@@ -98,7 +100,7 @@ async function pollOneTaskAttach(task: PollableTask): Promise<boolean> {
   }
   if (!st.ok && st.error) {
     const msg = st.error || '任务失败';
-    patchTask(task.id, { status: 'failed', errorMsg: msg });
+    failTask(task.id, msg);
     // A8：后端异步失败（relay-poll upsertFailed → attach 终态）原只进任务中心面板，不弹 toast；
     // 此处弹错误 toast，让后台生图/视频失败对前端用户实时可见（live 路径已由 useNodeGeneration 弹，
     // 本恢复路径经 isPolling 占位与候选仅含 running/pending 去重，不会与 live 双 toast、也不会重复弹）。

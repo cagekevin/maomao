@@ -28,6 +28,7 @@ import {
   setTabGlobalStyle,
 } from '../assistantTable/assistantTable.ts';
 import { validateTabs } from '../assistantTable/tableInvariants.ts';
+import { IS_DEV } from '@/components/base/core/config';
 import { logger } from '../../base/core/logger.ts';
 import type { AssistantTableTabs } from '../assistantTable/assistantTable.ts';
 
@@ -101,7 +102,7 @@ export function setCurrentAssistantTabs(tabs: AssistantTableTabs): void {
   const conv = requireActiveConv('setCurrentAssistantTabs');
   if (!conv) return;
   const normalized = normalizeAssistantTabs(tabs);
-  if (import.meta.env.DEV !== false) {
+  if (IS_DEV) {
     const violations = validateTabs(normalized).filter((v) => v.level === 'error');
     if (violations.length) {
       logger.warn('AI助手', '表格落盘前不变量校验失败', {

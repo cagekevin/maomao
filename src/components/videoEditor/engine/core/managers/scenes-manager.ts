@@ -1,102 +1,40 @@
-import { logger } from '@/components/videoEditor/lib/logger';
 import type { EditorCore } from '@/components/videoEditor/engine/core';
 import type { TimelineTrack, TScene } from '@/components/videoEditor/types/timeline';
-import { storageService } from '@/components/videoEditor/engine/services/storage/service';
-import {
-  getMainScene,
-  ensureMainScene,
-  canDeleteScene,
-  findCurrentScene,
-} from '@/components/videoEditor/engine/lib/scenes';
+import { getMainScene, ensureMainScene } from '@/components/videoEditor/engine/lib/scenes';
 import { getFrameTime, isBookmarkAtTime } from '@/components/videoEditor/engine/timeline/bookmarks';
 import { ensureMainTrack } from '@/components/videoEditor/engine/timeline/track-utils';
 import {
-  CreateSceneCommand,
-  DeleteSceneCommand,
   RemoveBookmarkCommand,
-  RenameSceneCommand,
   ToggleBookmarkCommand,
 } from '@/components/videoEditor/engine/commands/scene';
 
 export class ScenesManager {
+  /**
+   * 【2026-09-17 TD-22-63 · 已删场景层幽灵预留（弯路留痕 · 必读）】
+   * 本类曾有 5 个零消费者方法：`loadProjectScenes` / `createScene` / `deleteScene` /
+   * `renameScene` / `switchToScene`，以及仅被它们使用的 `CreateSceneCommand` /
+   * `DeleteSceneCommand` / `RenameSceneCommand`（文件已删，命令桶只余书签两命令）。
+   *
+   * 【为什么是删而不是补】取证链（每步都有 grep 硬证据）：
+   *  ① 五方法全仓 **0 消费者** —— 多场景是引擎层半成品：命令/manager 全建好，UI 从未接线；
+   *  ② 没有任何入口能建第二个场景 ⇒ 运行期每部作品恒只有一个主场景（`ensureMainScene` 兜底）；
+   *  ③ 多场景产品语义本身不完整：预览/导出只渲染**活跃场景**（renderer-manager → getTracks），
+   *     作品时长只算**主场景**（getProjectDurationFromScenes）—— 第二个场景建出来就是孤岛；
+   *  ④ "作品"层的完整生命周期 UI 已存在（editor-header：新建/切换/重命名/删除）——
+   *     用户概念里的"新建/重命名/删除"在**作品**层全部有着落，场景层无从对应。
+   * ⇒ 2026-09-17 用户裁定「删」。将来真要多幕/多分镜：**整层重做**（含导出语义：多场景
+   *    拼接还是只出活跃场景——这是产品决策），不要在本类上复活单个方法。
+   *
+   * 【差点踩的坑】`switchToScene` 有一个行为锁（TD-22-32「切场景清命令栈与选择」，
+   * 原在 veProjectContextRelease.test.ts）—— 有测试≠有消费者，测试锁的是
+   * "如果切场景，必须清上下文"这个**条件不变式**；触发条件本身不存在时，锁的是空集。
+   * 判据：先证消费（运行时调用链），再看测试；"测试在锁它"不构成保留理由。
+   */
   private active: TScene | null = null;
   private list: TScene[] = [];
   private listeners = new Set<() => void>();
 
   constructor(private editor: EditorCore) {}
-
-  async createScene({ name, isMain = false }: { name: string; isMain: boolean }): Promise<string> {
-    if (!this.editor.project.getActive()) {
-      throw new Error('No active project');
-    }
-
-    const command = new CreateSceneCommand(name, isMain);
-    this.editor.command.execute({ command });
-    return command.getSceneId();
-  }
-
-  async deleteScene({ sceneId }: { sceneId: string }): Promise<void> {
-    const sceneToDelete = this.list.find((s) => s.id === sceneId);
-
-    if (!sceneToDelete) {
-      throw new Error('Scene not found');
-    }
-
-    const { canDelete, reason } = canDeleteScene({ scene: sceneToDelete });
-    if (!canDelete) {
-      throw new Error(reason);
-    }
-
-    if (!this.editor.project.getActive()) {
-      throw new Error('No active project');
-    }
-
-    const command = new DeleteSceneCommand(sceneId);
-    this.editor.command.execute({ command });
-  }
-
-  async renameScene({ sceneId, name }: { sceneId: string; name: string }): Promise<void> {
-    if (!this.editor.project.getActive()) {
-      throw new Error('No active project');
-    }
-
-    const command = new RenameSceneCommand(sceneId, name);
-    this.editor.command.execute({ command });
-  }
-
-  async switchToScene({ sceneId }: { sceneId: string }): Promise<void> {
-    const targetScene = this.list.find((s) => s.id === sceneId);
-
-    if (!targetScene) {
-      throw new Error('Scene not found');
-    }
-
-    // 切场景 = 切编辑上下文（与切项目同根，TD-22-32/45）。
-    // 命令栈里的 `savedState` 快照属于**上一个场景**的 tracks；撤销时不区分场景，
-    // 会把 A 场景的快照整体写进 B 场景。全局单栈无法表达「跨场景撤销」，
-    // 故清栈是唯一正确解（而不是让每个命令去猜自己属于哪个场景）。
-    // 选择同理：`{trackId, elementId}` 在新场景里已无对应元素 → 幽灵选择。
-    this.editor.command.clear();
-    this.editor.selection.clearSelection();
-
-    const activeProject = this.editor.project.getActive();
-
-    if (activeProject) {
-      const updatedProject = {
-        ...activeProject,
-        currentSceneId: sceneId,
-        metadata: {
-          ...activeProject.metadata,
-          updatedAt: new Date(),
-        },
-      };
-
-      this.editor.project.setActiveProject({ project: updatedProject });
-    }
-
-    this.active = targetScene;
-    this.notify();
-  }
 
   async toggleBookmark({ time }: { time: number }): Promise<void> {
     const command = new ToggleBookmarkCommand(time);
@@ -120,46 +58,6 @@ export class ScenesManager {
   async removeBookmark({ time }: { time: number }): Promise<void> {
     const command = new RemoveBookmarkCommand(time);
     this.editor.command.execute({ command });
-  }
-
-  async loadProjectScenes({ projectId }: { projectId: string }): Promise<void> {
-    try {
-      const result = await storageService.loadProject({ id: projectId });
-      if (result?.project.scenes) {
-        const { scenes: ensuredScenes, hasAddedMainTrack } = this.ensureScenesHaveMainTrack({
-          scenes: result.project.scenes ?? [],
-        });
-        const currentScene = findCurrentScene({
-          scenes: ensuredScenes,
-          currentSceneId: result.project.currentSceneId,
-        });
-
-        this.list = ensuredScenes;
-        this.active = currentScene;
-        this.notify();
-
-        if (hasAddedMainTrack) {
-          const activeProject = this.editor.project.getActive();
-          if (activeProject) {
-            const updatedProject = {
-              ...activeProject,
-              scenes: ensuredScenes,
-              metadata: {
-                ...activeProject.metadata,
-                updatedAt: new Date(),
-              },
-            };
-            this.editor.project.setActiveProject({ project: updatedProject });
-            this.editor.save.markDirty({ force: true });
-          }
-        }
-      }
-    } catch (error) {
-      logger.error('Failed to load project scenes:', error);
-      this.list = [];
-      this.active = null;
-      this.notify();
-    }
   }
 
   initializeScenes({

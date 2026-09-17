@@ -17,7 +17,9 @@
  */
 import { SCRIPT_BOX_WORKFLOWS, DEFAULT_WORKFLOW } from './scriptBoxWorkflows';
 import { contentGet, contentSet, contentClearCache } from '../base/core/contentStore.ts';
+import { confirmPersist } from '../base/core/degrade.ts';
 import { logger } from '../base/core/logger.ts';
+import { generateId } from '../base/core/idGen.ts';
 // 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
 import { KEY_SCRIPTBOX_PLAYBOOKS } from '../base/core/contracts.ts';
 import type { Playbook } from './scriptBoxPlaybookIO';
@@ -76,16 +78,15 @@ function loadCustom(): Record<string, Playbook> {
   }
 }
 
-/** 持久化自定义列表（contentStore 对 local 键自动 JSON.stringify 写 localStorage + 更新缓存）。 */
+/** 持久化自定义列表（contentStore 对 local 键自动 JSON.stringify 写 localStorage + 更新缓存）。
+ *  【2026-09-17 TD-24-4 阶段1】自确认：原 try/catch 永死（contentSet 当时从不抛持久化失败），
+ *  且注释里的 persist:failed 兜底对本路径不可靠 —— 工作流是用户资产，写不进去必须让用户知道。 */
 function persist(obj: unknown) {
-  try {
-    contentSet(PLAYBOOKS_KEY, obj);
-  } catch (e) {
-    // contentStore/sSet 失败会经 persist:failed 事件上报；此处仅留日志兜底
-    logger.warn('scriptbox', '自定义 playbook 保存失败', {
-      error: (e as { message?: string })?.message,
-    });
-  }
+  confirmPersist(contentSet(PLAYBOOKS_KEY, obj), {
+    layer: 'scriptbox·playbook',
+    key: PLAYBOOKS_KEY,
+    toast: '剧本盒子工作流未能保存（本地存储不可用）',
+  });
 }
 
 /**
@@ -163,7 +164,7 @@ export function createCustomFrom(
   label?: string,
 ): string {
   const src = getPlaybook(sourceId);
-  const id = `custom-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const id = generateId('custom');
   const merged = {
     ...src,
     ...override,

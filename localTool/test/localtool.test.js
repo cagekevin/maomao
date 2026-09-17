@@ -492,7 +492,10 @@ test('Tasks·batch-save 多任务 + 删除 + 批量删除 + clear', async () => 
     delRes,
     new URL('http://x/api/tasks/delete?id=t1'),
   );
-  assert.deepEqual(parseResBody(delRes), { code: 0, data: { ok: true } });
+  // 【断言同步到新契约 · 2026-09-17 TD-16-27】`ok` 不再是恒真字面量，而是 `changes > 0`；
+  // 并新增**结果事实** `deleted`（真实删除行数）。断言比旧契约**更强**：不只锁"报成功"，
+  // 还锁"确实删了 1 行"——旧实现传不存在的 id 也会报成功（此处会红）。
+  assert.deepEqual(parseResBody(delRes), { code: 0, data: { ok: true, deleted: 1 } });
   getRes = makeRes();
   await tasksMod.handleTasksGet(makeGetReq(), getRes, new URL('http://x/api/tasks'));
   assert.equal(data(getRes).total, 1);
@@ -513,6 +516,109 @@ test('Tasks·batch-save 多任务 + 删除 + 批量删除 + clear', async () => 
   getRes = makeRes();
   await tasksMod.handleTasksGet(makeGetReq(), getRes, new URL('http://x/api/tasks'));
   assert.equal(data(getRes).total, 0);
+});
+
+test('【TD-08-39】关键写即时落盘：防抖窗口内磁盘不含新值，flushSaveDb 后立刻含', async () => {
+  const db = await dbMod.getDb();
+  const dbPath = path.join(TEST_DIR, 'localtool.db');
+
+  // 基线：先落一次盘（后续才能比对"磁盘是不是旧内容"）
+  tasksMod.upsertTask(db, { task_id: 'fd0', prompt: 'BASELINE_MARK' });
+  dbMod.flushSaveDb();
+  assert.ok(fs.existsSync(dbPath), 'flush 后磁盘文件已存在');
+  assert.ok(
+    fs.readFileSync(dbPath).includes(Buffer.from('BASELINE_MARK')),
+    'flush 的内容确实到了磁盘',
+  );
+
+  // ① 防抖写：内存 DB 已改，磁盘仍是旧文件 —— 这就是"崩溃即丢"的窗口（本债的机制）
+  tasksMod.upsertTask(db, { task_id: 'fd1', prompt: 'DEBOUNCED_MARK' });
+  dbMod.debouncedSaveDb();
+  assert.ok(
+    !fs.readFileSync(dbPath).includes(Buffer.from('DEBOUNCED_MARK')),
+    '防抖窗口内磁盘不含新写（500ms 内崩机即丢——重启只信磁盘）',
+  );
+
+  // ② 关键写走 flushSaveDb：返回时磁盘已含新写（提交确认/终态用这条）
+  dbMod.flushSaveDb();
+  assert.ok(
+    fs.readFileSync(dbPath).includes(Buffer.from('DEBOUNCED_MARK')),
+    'flushSaveDb 后磁盘立刻含新写',
+  );
+
+  // ③ 原子写不留残渣：再来一个窗口后仍无 .tmp（tmp+rename 语义未被破坏）
+  await new Promise((r) => setTimeout(r, 650));
+  assert.ok(!fs.existsSync(`${dbPath}.tmp`), '无 .tmp 残留');
+});
+
+test('【TD-08-38】写方分层：后端终态不被前端晚到的 running 快照覆盖', async () => {
+  const db = await dbMod.getDb();
+  // ① 后端 relay-poll 来路（执行态真相源）：写终态 + 执行句柄事实（判据：该行有 _relayPoll）
+  tasksMod.upsertTask(db, {
+    task_id: 'wf1',
+    node_id: 'n1',
+    type: 'IMAGE',
+    model_name: 'm',
+    status: 'completed',
+    progress: 100,
+    result_url: '/files/a.png',
+    created_at: 1,
+    completed_at: 2,
+    request_data: JSON.stringify({ _relayPoll: { taskId: 'th1' } }),
+  });
+  // ② 前端来路：晚到的 running 快照（前端 Task 的 resultUrl 初值就是空串 → 原实现会抹空 result_url）
+  await tasksMod.handleTasksSave(
+    makeJsonReq({ taskId: 'wf1', nodeId: 'n1', status: 'running', progress: 30, resultUrl: '' }),
+    makeRes(),
+  );
+  const res = makeRes();
+  await tasksMod.handleTasksGet(makeGetReq(), res, new URL('http://x/api/tasks'));
+  const t = data(res).items.find((x) => x.taskId === 'wf1');
+  assert.equal(t.status, 'completed', '终态不得被前端 running 快照回退');
+  assert.equal(t.resultUrl, '/files/a.png', 'result_url 不得被前端空串抹掉');
+  assert.equal(t.progress, 100, 'progress 归后端（前端传的 30 不生效）');
+
+  // ③ 前端**拥有的**归属/展示列照常可写（分层不是"一刀切禁写"）
+  await tasksMod.handleTasksSave(
+    makeJsonReq({ taskId: 'wf1', nodeId: 'n1b', modelName: 'm2', prompt: 'p2' }),
+    makeRes(),
+  );
+  const res2 = makeRes();
+  await tasksMod.handleTasksGet(makeGetReq(), res2, new URL('http://x/api/tasks'));
+  const t2 = data(res2).items.find((x) => x.taskId === 'wf1');
+  assert.equal(t2.nodeId, 'n1b', '前端拥有的列照常可写');
+  assert.equal(t2.prompt, 'p2');
+  assert.equal(t2.status, 'completed', '写归属列时执行态仍不受影响');
+});
+
+test('【TD-08-38】分层不误伤：无后端句柄的行（文本/chat 链路）前端仍是执行方，可写终态', async () => {
+  // 文本/chat 链路后端无句柄、不建任务行（routes/generate.ts chat 分支）⇒ 终态只有前端知道。
+  // 若按"前端一律不许写执行态"一刀切，这类任务会永远停在 running —— 本用例守这条边界。
+  await tasksMod.handleTasksSave(
+    makeJsonReq({ taskId: 'txt1', nodeId: 'n9', type: 'text', status: 'running', progress: 0 }),
+    makeRes(),
+  );
+  await tasksMod.handleTasksSave(
+    makeJsonReq({ taskId: 'txt1', status: 'completed', progress: 100, resultUrl: 'hello' }),
+    makeRes(),
+  );
+  const res = makeRes();
+  await tasksMod.handleTasksGet(makeGetReq(), res, new URL('http://x/api/tasks'));
+  const t = data(res).items.find((x) => x.taskId === 'txt1');
+  assert.equal(t.status, 'completed', '无句柄行：前端作为执行方可写终态');
+  assert.equal(t.resultUrl, 'hello');
+});
+
+test('【TD-08-38】前端首次建行：仍可为在途任务带 status 初值（不会因分层建不出行）', async () => {
+  await tasksMod.handleTasksSave(
+    makeJsonReq({ taskId: 'wf2', nodeId: 'n2', status: 'running', progress: 0, resultUrl: '' }),
+    makeRes(),
+  );
+  const res = makeRes();
+  await tasksMod.handleTasksGet(makeGetReq(), res, new URL('http://x/api/tasks'));
+  const t = data(res).items.find((x) => x.taskId === 'wf2');
+  assert.equal(t.status, 'running', '首次插入允许前端给初值');
+  assert.equal(t.nodeId, 'n2');
 });
 
 test('Tasks·batch-save 非数组 → 400', async () => {
@@ -555,7 +661,8 @@ test('Resources·delete 删除记录', async () => {
     delRes,
     new URL('http://x/api/resources/delete?id=r1'),
   );
-  assert.deepEqual(parseResBody(delRes), { code: 0, data: { ok: true } });
+  // 【断言同步到新契约 · 2026-09-17 TD-16-27】同上：`ok` 取 `changes > 0`，新增结果事实 `deleted`。
+  assert.deepEqual(parseResBody(delRes), { code: 0, data: { ok: true, deleted: 1 } });
   const getRes = makeRes();
   await resourcesMod.handleResourcesGet(makeGetReq(), getRes, new URL('http://x/api/resources'));
   assert.equal(data(getRes).total, 0);
@@ -845,14 +952,23 @@ test('helpers·sendError·B2：传 code 返 {error:{code,message}}，不传仍 {
 // 方案②工具函数直接单测
 // ══════════════════════════════════════════════════════════════
 
-test('工具·saveBase64ToFile 返回绝对 URL 且幂等', () => {
-  const url1 = b64Mod.saveBase64ToFile(RED_PNG_DATA_URI);
-  const url2 = b64Mod.saveBase64ToFile(RED_PNG_DATA_URI);
+test('工具·saveBase64ToFile 返回绝对 URL 且幂等，并**回传 contentId**（2026-09-17 补生产者）', () => {
+  const r1 = b64Mod.saveBase64ToFile(RED_PNG_DATA_URI);
+  const r2 = b64Mod.saveBase64ToFile(RED_PNG_DATA_URI);
+  const url1 = r1?.url;
   assert.ok(
     url1 && url1.startsWith('http://127.0.0.1:18080/files/canvas/'),
     `应返回绝对 URL, got=${url1}`,
   );
-  assert.equal(url1, url2, '相同内容幂等');
+  assert.equal(url1, r2?.url, '相同内容幂等');
+  // contentId 与 multipart/fileUrl 分支**同一身份**：`sha1:<40hex>`，且与内容寻址文件名里的哈希一致
+  // （本函数一直在算它、此前算完即扔 ⇒ 上层只能回 {url}，消费者要么拿不到、要么自己再算一遍）。
+  const hex = url1
+    .split('/')
+    .pop()
+    .replace(/\.png$/, '');
+  assert.equal(r1.contentId, `sha1:${hex}`, 'contentId 必须 = 文件名里的 sha1(解码后字节)');
+  assert.equal(r1.contentId, r2.contentId, 'contentId 幂等');
   const diskPath = path.join(
     TEST_DIR,
     'uploads',
@@ -1112,6 +1228,39 @@ test('TD-12-5·multipart 上传不携 projectId → 行 project_id 为 NULL（le
   ]);
   assert.ok(row, '上传后应已登记 resource 行');
   assert.ok(row.project_id == null, '未提供 projectId → 保持 legacy（NULL）');
+});
+
+test('【TD-08-31】非法 subfolder → 400 且不落盘不建行（禁止静默回退 canvas）', async () => {
+  const res = makeRes();
+  await filesMod.handleUpload(
+    makeMultipartReq({
+      filename: 'evil.png',
+      fileContent: RED_PNG_BUFFER,
+      contentType: 'image/png',
+      fields: { subfolder: '../etc' },
+    }),
+    res,
+  );
+  assert.equal(res.status, 400, '非法目录必须拒绝（原为静默回退 canvas ⇒ 盘与声明目录脱钩）');
+  const db = await dbMod.getDb();
+  const rows = dbMod.queryAll(db, 'SELECT id FROM resources');
+  assert.equal(rows.length, 0, '被拒请求不得留下 resource 行');
+});
+
+test('【TD-08-31】rescan：目录不可读 → errors 如实回传（不再静默漏扫）', async () => {
+  const bad = path.join(dbMod.getUploadDir(), 'migrated', 'noread');
+  fs.mkdirSync(bad, { recursive: true });
+  fs.writeFileSync(path.join(bad, 'a.png'), RED_PNG_BUFFER);
+  fs.chmodSync(bad, 0o000); // 造"读不到"：原实现静默 return，调用方仍收到"扫描成功"
+  try {
+    const res = makeRes();
+    await resourcesMod.handleResourcesRescan(makeJsonReq(), res);
+    const body = parseResBody(res);
+    assert.equal(body.code, 0, '其余部分能扫成 → 不整体报错');
+    assert.ok(body.data.errors >= 1, `必须如实回报漏扫处数，实际 errors=${body.data.errors}`);
+  } finally {
+    fs.chmodSync(bad, 0o700);
+  }
 });
 
 test('TD-12-5·JSON dataUri 上传携 projectId → 行写入 project_id', async () => {

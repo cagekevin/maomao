@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { Play } from 'lucide-react';
+import { Play, ImageOff } from 'lucide-react';
 import { toAbsoluteFileUrl } from '../utils/assetUrl.ts';
+import { useMediaLoadFailed } from '../utils/useMediaLoadFailed.ts';
 
 /**
  * 视频缩略图统一组件：静音封面 + 居中悬浮播放按钮。
@@ -65,6 +66,8 @@ function VideoThumbnail({
 
   // 节点内播放态（仅 playable 启用）：false=封面+播放按钮，true=渲染 controls 播放器
   const [playing, setPlaying] = useState(false);
+  // 加载失败 → 显式占位（原为裸 <video>，失败只剩黑框，见下方 onError 注释）
+  const videoError = useMediaLoadFailed(src, '视频缩略图', { src });
   const innerVideoRef = useRef<HTMLVideoElement | null>(null);
   const effectiveVideoRef = videoRef || innerVideoRef;
 
@@ -107,10 +110,20 @@ function VideoThumbnail({
         controls={playable && playing}
         className={`w-full h-full ${fit === 'contain' ? 'object-contain' : 'object-cover'} block`}
         onLoadedMetadata={onLoadedMetadata}
+        onError={videoError.onError}
         onClick={(e) => {
           if (playable && playing) e.stopPropagation();
         }}
       />
+      {/* 【2026-09-17 TD-16-29②】视频加载失败（素材缺失 / 4xx / 解码失败）→ 显式占位。
+          此前 `onError` **完全没有**：失败只剩黑框，用户与开发者都无法区分「加载中」与「已损坏」。
+          这里不弹 toast（本组件被列表/网格多次挂载），只呈现占位 + 留痕（hook 内 logger.warn）。 */}
+      {videoError.failed && (
+        <div className="absolute inset-0 z-[2] flex flex-col items-center justify-center gap-1 bg-black/70 text-white">
+          <ImageOff className={size === 'sm' ? 'size-4' : 'size-6'} />
+          <span className={size === 'sm' ? 'text-[10px]' : 'text-xs'}>视频加载失败</span>
+        </div>
+      )}
       {/* 播放态（playable）不显示悬浮播放按钮；缩略图模式（默认）始终显示 */}
       {!playable && (
         <button

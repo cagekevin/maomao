@@ -26,6 +26,8 @@ import {
   createDebouncedPersist,
 } from '../core/contentStore.ts';
 import { logger } from '../core/logger.ts';
+// 落盘失败的**自确认**原语（本处自己报，不寄生于任何全局总线）—— 见下方 saveCanvasState 失败分支。
+import { confirmPersist, reportDegrade } from '../core/degrade.ts';
 import { normalizeNodeParents } from '../canvas/groupNodes.ts';
 import { sanitizeSnapshotNodes, sanitizeSnapshotEdges } from '../canvas/canvasSnapshotSchema.ts';
 
@@ -102,7 +104,10 @@ function loadProjects(): Project[] {
   const seeded: Project[] = [{ id: 'default', name: '默认项目' }];
   // 【未就绪不回写（2026-09-12 / TD-02-2）】扩展环境预填完成前读到的是「还不知道」，
   // 此时把种子写回存储 = 用默认值覆盖用户真实项目列表。
-  if (isStorageReady()) contentSet(PROJECTS_KEY, seeded);
+  if (isStorageReady()) {
+    // 种子回写属 best-effort：失败留痕即可（confirmPersist 按 landed 如实记）
+    confirmPersist(contentSet(PROJECTS_KEY, seeded), { layer: '项目·种子', key: PROJECTS_KEY });
+  }
   return seeded;
 }
 
@@ -196,8 +201,16 @@ const saveBackendDebounced: DebouncedPersist = createDebouncedPersist(() => {
 }, 300);
 
 function persist(): void {
-  contentSet(PROJECTS_KEY, projects);
-  contentSet(LAST_OPENED_KEY, currentProjectId);
+  // 【2026-09-17 TD-24-4 阶段1】项目列表/最后打开 = 用户主数据：落盘失败由本处自报（toast 节流）。
+  confirmPersist(contentSet(PROJECTS_KEY, projects), {
+    layer: '项目·项目列表',
+    key: PROJECTS_KEY,
+    toast: '项目列表未能保存（本地存储不可用）',
+  });
+  confirmPersist(contentSet(LAST_OPENED_KEY, currentProjectId), {
+    layer: '项目·最后打开',
+    key: LAST_OPENED_KEY,
+  });
   saveBackendDebounced.schedule();
 }
 
@@ -474,12 +487,20 @@ export async function saveCanvasState(
         });
         return { success: false, skipped: true, conflict: true, conflictVersion: remote };
       }
-      logger.warn(
-        'projectStore',
-        '保存画布快照失败（KV 不可用？）',
-        (e as { message?: string })?.message,
-      );
       recordCanvasWrite({ at: Date.now(), projectId: pid, ifVersion, result: 'fail' });
+      // 【2026-09-17 TD-24-4 高危A · 落盘失败必须由**本处**自己确认】
+      // 原来只 `logger.warn` ⇒ 三层静默：① 用户零感知（画布没存上、刷新即丢）；② 自动保存路径
+      // （`scheduleCanvasSave` → `void flushCanvasSave()`）**连返回值都丢弃**，调用方无从补判；
+      // ③ 靠底层 `persist:failed` 兜底？**不成立** —— 本路径走 KV 严格族 `contentKvSetCas`，
+      //    它根本不经过 storageAdapter 那条总线（见 24 区日志 §十一 的盲区实证）。
+      // 故在此自报：`reportDegrade` = 每次 logger.warn（可排查）+ toast 节流 5s（不刷屏），
+      // 与同族已治理范式 `conversationState.ts:161` 同一形态，**不新造第二套**。
+      reportDegrade({
+        layer: '项目·画布快照',
+        key,
+        e: e as Error,
+        toast: '画布快照未保存（本地引擎可能不可用），本次改动刷新后会丢，请稍后重试',
+      });
       return { success: false, skipped: false };
     }
   };

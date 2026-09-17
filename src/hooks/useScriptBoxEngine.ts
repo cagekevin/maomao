@@ -14,7 +14,10 @@ import {
 } from '../components/base/store/resourceStore.ts';
 import { injectNodePrefs } from '../components/base/canvas/nodePrefs.ts';
 import { commitNewNodes } from '../components/base/canvas/deriveNodes.ts';
-import { useProvidersList, load as loadProviders } from '../components/base/store/providerStore.ts';
+import {
+  useProvidersList,
+  useEnsureProvidersLoaded,
+} from '../components/base/store/providerStore.ts';
 import { logger } from '../components/base/core/logger.ts';
 
 // 写回通道契约收口在 scriptBoxSchema（引擎与 hook 共用同一份，避免两处漂移）
@@ -65,11 +68,9 @@ export function useScriptBoxEngine(
   // P5 原子订阅：只订阅 providers 列表，不随 providerStore 的 dirty/loading/testResult 连坐重渲染。
   const providers = useProvidersList();
   // 首次挂载确保供应商已加载（生成/生图前必须有 provider，否则解析不到模型）
-  useEffect(() => {
-    if (!providers || providers.length === 0)
-      loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // 供应商加载（**唯一实现**，含失败可见性）：原来三处各写一份 `load().catch(logger.warn)`
+  // —— 加载失败时这里静默为空，随后用户收到误导性的「请先配置模型」（TD-24-4 §二）。
+  useEnsureProvidersLoaded();
 
   // providers 实时镜像到 ref：引擎实例经 useRef 只创建一次（跨 render 稳定），
   // 若 getProviderState 直接闭包捕获「首次 render 的 providers」（此时异步加载未完成 → 空数组），

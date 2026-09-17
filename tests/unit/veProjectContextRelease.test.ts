@@ -4,7 +4,7 @@
  *
  * ════════════════════════════════════════════════════════════════
  * 契约：
- *   · **唯一入口**：切换 / 关闭 / 新建项目、切场景、退出编辑器、编辑器卸载，
+ *   · **唯一入口**：切换 / 关闭 / 新建项目、退出编辑器、编辑器卸载，
  *     一律走 `releaseProjectContext()`；
  *   · 它必须一次性复位**全部**跨项目状态：命令栈 / 选择 / 播放 / 渲染树 / 媒体 / 场景 / 活跃项目；
  *   · 语义 = **重置**（实例可继续服务下一个项目），不是销毁；
@@ -15,6 +15,11 @@
  * 后果：B 项目 Ctrl+Z 把 A 项目的 tracks 快照写回（TD-22-45）、
  * 选择残留旧 trackId/elementId 触发误删（TD-22-46）、跨场景撤销覆盖（TD-22-32）。
  * 本用例把「清干净」变成机器可验证的契约，防它再退回「散写 + 漏记」。
+ *
+ * 【2026-09-17 TD-22-63】原「切场景 = 切编辑上下文」用例已随 `switchToScene` 一同删除
+ * （场景层幽灵预留清理，见 scenes-manager.ts 头注释）：运行时无任何切场景入口，
+ * 该用例锁的是「如果切场景必须清上下文」的条件不变式——触发条件不存在＝锁空集。
+ * TD-22-32 的知识（全局命令栈无法表达跨场景撤销）已移入 scenes-manager 头注释与当日轮次日志。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
@@ -161,38 +166,6 @@ describe('EditorCore.releaseProjectContext', () => {
     // 命令栈仍可正常累积（订阅/实例未被破坏）。
     editor.command.execute({ command: new SpyCommand() });
     expect(editor.command.canUndo()).toBe(true);
-  });
-});
-
-describe('切场景 = 切编辑上下文（TD-22-32）', () => {
-  let editor: EditorCore;
-
-  beforeEach(() => {
-    EditorCore.reset();
-    editor = EditorCore.getInstance();
-    editor.project.setActiveProject({ project: makeProject('p1') });
-    // 两个场景各带一条轨：选择要指向**真实存在**的元素，才能证明「切场景后它失效」。
-    editor.scenes.setScenes({
-      scenes: [makeScene('s1', [trackOf('t1', 1)]), makeScene('s2', [trackOf('t2', 1)])],
-      activeSceneId: 's1',
-    });
-  });
-
-  afterEach(() => {
-    editor.audio.dispose();
-    EditorCore.reset();
-  });
-
-  it('切场景后命令栈与选择被清空（旧场景快照不可再撤销回写）', async () => {
-    editor.command.execute({ command: new SpyCommand() });
-    editor.selection.setSelectedElements({ elements: [{ trackId: 't1', elementId: 't1-e1' }] });
-    expect(editor.selection.getSelectedElements()).toHaveLength(1);
-
-    await editor.scenes.switchToScene({ sceneId: 's2' });
-
-    expect(editor.command.canUndo()).toBe(false);
-    expect(editor.selection.getSelectedElements()).toEqual([]);
-    expect(editor.scenes.getActiveScene().id).toBe('s2');
   });
 });
 

@@ -54,6 +54,7 @@ import { normalizeAssistantTable, replaceTextInTabs } from './assistantTable.ts'
 import { useTableSelection } from './useTableSelection.ts';
 import type { AssistantTable, TableRow, TableTab } from './assistantTable.ts';
 import { showToast } from '@/components/base/core/toastStore.ts';
+import { copyText } from '@/components/base/utils/clipboard';
 import { askConfirm } from '@/components/base/core/confirmStore.ts';
 import { isCanvasSuppressed } from '@/components/base/core/modalLayer.ts';
 import { isEditableTarget } from '@/components/base/core/uiHooks.ts';
@@ -276,23 +277,16 @@ export default function AssistantTablePanel({
         .join('') +
       '</tbody></table>';
     try {
-      if (
-        navigator.clipboard &&
-        'write' in navigator.clipboard &&
-        typeof ClipboardItem !== 'undefined'
-      ) {
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            'text/plain': new Blob([tsv], { type: 'text/plain' }),
-            'text/html': new Blob([html], { type: 'text/html' }),
-          }),
-        ]);
+      // 富文本复制收口到 canonical copyText（传 html 即写 text/plain + text/html 双 MIME，
+      // 不支持富文本的环境自动降级纯文本，分支判断由生产者内部处理）。
+      const r = await copyText(tsv, { html });
+      if (r.ok) {
+        showToast?.(`已复制表格 · ${tableData.rows.length} 行 ${cols.length} 列`, {
+          type: 'success',
+        });
       } else {
-        await navigator.clipboard.writeText(tsv);
+        showToast?.(r.msg, { type: 'error' });
       }
-      showToast?.(`已复制表格 · ${tableData.rows.length} 行 ${cols.length} 列`, {
-        type: 'success',
-      });
     } catch {
       showToast?.('复制失败（浏览器可能限制了剪贴板权限）', { type: 'error' });
     }

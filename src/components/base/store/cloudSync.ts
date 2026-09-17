@@ -39,6 +39,7 @@ import {
 } from '../core/contracts.ts';
 import { providerApi } from '../api/localToolApi.ts';
 import { contentGet, contentSet, contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
+import { confirmPersist, isWriteBackOk } from '../core/degrade.ts';
 import { logger } from '../core/logger.ts';
 import { reportDegrade } from '../core/degrade.ts';
 import { CLOUD_SYNC_GAS_URL } from '../core/config.ts';
@@ -494,9 +495,14 @@ function readLS(k: string) {
   const v = contentGet(k);
   return v === null || v === undefined ? undefined : v;
 }
-/** 写本地某个 key（contentSet 已内置 JSON 序列化；失败上浮由 restoreLocal 记录，不再静默吞） */
-function writeLS(k: string, v: unknown) {
-  contentSet(k, v);
+/** 写本地某个 key（contentSet 已内置 JSON 序列化），返回**是否真落盘**。
+ *  【2026-09-17 TD-24-4 阶段1】自确认：原注释称"失败上浮由 restoreLocal 记录"——但本函数返回 void，
+ *  调用方根本拿不到失败（旧契约）；现按生产者给的落盘事实留痕（台账/配置类：不上报用户）。
+ *  返回落盘事实供 `restoreLocal` 计成功/失败（判据收口在 `isWriteBackOk`，不在此另写一份）。 */
+function writeLS(k: string, v: unknown): boolean {
+  const outcome = contentSet(k, v);
+  confirmPersist(outcome, { layer: 'cloudSync', key: k });
+  return isWriteBackOk(outcome, 'local');
 }
 
 /** 上传云端的包结构（version 是结构版本号，rev 才是数据修订号） */
@@ -587,8 +593,12 @@ async function restoreLocal(cloud: CloudSnapshot): Promise<{ written: number; fa
   for (const k of LS_KEYS) {
     if (ls[k] !== undefined && domainSwitchEnabled(k)) {
       try {
-        writeLS(k, ls[k]);
-        written++;
+        // 未真落盘（含 landed:'memory'）= 失败：不许静默计成功（同抛错口径），否则报"同步成功"而数据没写回
+        if (writeLS(k, ls[k])) written++;
+        else {
+          failed.push(syncLabel(k));
+          logger.warn('同步', '[下载] 本地键未落盘', { key: k });
+        }
       } catch (e) {
         failed.push(syncLabel(k));
         logger.warn('同步', '[下载] 本地键写回失败', {
@@ -613,8 +623,15 @@ async function restoreLocal(cloud: CloudSnapshot): Promise<{ written: number; fa
   // 4) 账号环境：走 KV（backend:'kv'），领域开关开则恢复写回 KV
   try {
     if (SYNC_DOMAIN_SWITCHES.account && Array.isArray(ls.accounts)) {
-      await contentSetAsync(KEY_YIMAO_ACCOUNTS, ls.accounts);
-      written++;
+      const outcome = await contentSetAsync(KEY_YIMAO_ACCOUNTS, ls.accounts);
+      // 降级写本机副本（landed:'local'）**不算写回真源**：跨端看不到、引擎恢复后不会自动回灌
+      if (isWriteBackOk(outcome, 'kv')) written++;
+      else {
+        failed.push(syncLabel(KEY_YIMAO_ACCOUNTS));
+        logger.warn('同步', '[下载] 账号未写入 KV', {
+          landed: outcome.ok ? outcome.landed : 'failed',
+        });
+      }
     }
   } catch (e) {
     // 传**真存储键**（非短名 'accounts'）：显示名真源 = 登记表 label（TD-13-9）

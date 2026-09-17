@@ -175,7 +175,7 @@ memory_suggest 工具 → conversationSkillState.setActivePendingMemorySuggest�
 core/contentStore（STORAGE_KEYS 路由 + resolveBackend 唯一判定 + 失败分类 isEngineUnavailable，dev 校验裸 key）
    ├→ storage/storageAdapter（sGet/sSet/sRemove，local/native 落地 + isStorageReady/onStorageReady 就绪度原语）
    ├→ api/localToolApi（kvGet/kvSet/kvDelete，KV 云端；不经 kvStore 中间层）
-   ├→ storage/storageQuota · storage/persistFailureBus（旁路工具，不参与读写主链）
+   ├→ storage/storageQuota（旁路工具，不参与读写主链）
    └→ 上层：store/projectStore · store/backupStore · store/cloudSync（云同步见 §四）
 
 两个族（真分叉在失败语义，不在后端）：

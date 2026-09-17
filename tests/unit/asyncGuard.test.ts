@@ -249,17 +249,25 @@ describe('asyncGuard.tryParse（PARSE_FALLBACK 唯一实现 · TD-02-26 成本�
   });
 
   it('真实场景：URL 解析失败 → 调用方据 ok:false 自行回退（而非原语代劳）', () => {
-    const ok = tryParse(() => decodeURIComponent(new URL('http://x/%E4%B8%AD').pathname.split('/').pop() || ''));
+    const ok = tryParse(() =>
+      decodeURIComponent(new URL('http://x/%E4%B8%AD').pathname.split('/').pop() || ''),
+    );
     expect(ok.ok).toBe(true);
     expect(ok.ok && ok.value).toBe('中');
-    const bad = tryParse(() => decodeURIComponent(new URL('::::bad').pathname.split('/').pop() || ''));
+    const bad = tryParse(() =>
+      decodeURIComponent(new URL('::::bad').pathname.split('/').pop() || ''),
+    );
     expect(bad.ok).toBe(false); // 失败**透传**给调用方，由它决定要不要用默认值
   });
 
-  it('真实场景：正则编译失败回退 undefined（不抛）', () => {
+  it('真实场景：正则编译失败 → ok:false + error 透传给调用方（不抛、不压成 undefined）', () => {
+    // 【断言同步到新契约 · 2026-09-17】原断言 `toBeUndefined()` 锁的是**旧契约**
+    // （原语把失败压成 undefined，调用方无法区分"坏正则"与"没匹配"）—— 见规范 §3 Step 4 表。
+    // 新契约：`tryParse` 返判别联合；回退决策**归调用方**，原语只透传失败。
     const badPattern = '('; // 拆分构造，避开 eslint 对字面量非法正则的静态校验
     const re = tryParse(() => new RegExp(badPattern));
-    expect(re).toBeUndefined();
+    expect(re.ok).toBe(false);
+    if (!re.ok) expect(re.error).toBeInstanceOf(SyntaxError);
   });
 });
 

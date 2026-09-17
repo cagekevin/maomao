@@ -96,7 +96,7 @@ export interface <Id>Profile {
 |---|---|---|
 | R1 叶子 | 适配器只 import `../httpTransport`、`../types`、必要 helper；**绝不 import `../generate`、`../index`、`../relay`** | 不反向依赖外层，避环 |
 | R2 鉴权归中央 | HMAC/bearer 等鉴权头由中央 `httpTransport` 的 auth 分支构造；适配器只传 `auth` | 不自写签名/重试 |
-| R3 传输归中央 | 所有 HTTP 走注入 transport（默认 `stableRequest`） | 重试/上限/取消/文案透传全现成 |
+| R3 传输归中央 | 所有 HTTP 走注入 transport（默认 `stableRequest`） | 重试/上限/取消/文案透传全现成（**重试缺省只覆盖网络错误**；按状态码重试须调用方显式 `retryStatuses` + 给出该码在本场景的瞬态证据，见 CLAUDE.md §5.1「只有网络错误才能重试」） |
 | R4 信封剥离 | 上游 `{code,message,data}` 信封在 `<id>_client` 剥离；`code≠0` 抛带**原始 message** 的错，禁翻译/静默 | 用户看上游原话 |
 | R5 模型必显式 | 任何一次真实提交：结构化工具路由（`tool_config`/等价）**或**自然语言路（prompt 含可读模型名）**至少一条生效**；绝不裸发"用默认模型" | 用户强约束 |
 | R6 错误类型 | 定义 `<id>_err_types` 枚举，失败归一到 `no_artifact/abort/timeout/upstream/...`，供上层区分 | 不吞错 |

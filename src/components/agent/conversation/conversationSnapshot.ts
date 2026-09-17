@@ -128,7 +128,7 @@ export function setCurrentSnapshot(snap?: SnapshotPatch | null): void {
  * 轻量更新当前对话的消息数组：只更新 messages + 通知订阅者，跳过落盘（persist:false）。
  * 【用途】流式热路径（updateLastStreaming/endStreaming）每 50ms 高频调用，若走 setCurrentSnapshot
  *   （内部 commit → 触发 persistDebounced 落盘调度）会造成高频落盘抖动；此函数不落盘，
- *   最终态由 send 的 finally 统一 captureActiveConversation 落盘。
+ *   最终态由 send 收尾处按需调 setCurrentSnapshot（commit → persistDebounced）落盘。
  * 【同步性】commit 内部同步更新 states 并 notify，因此调用后立即 getState()/getCurrentSnapshot()
  *   读取到的就是最新消息（保证 send finally 同步读到完整 assistant 而非空 streaming 占位）。
  */

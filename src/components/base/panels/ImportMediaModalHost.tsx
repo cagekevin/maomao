@@ -15,6 +15,10 @@ import FullscreenModal from './FullscreenModal.tsx';
 import ImportMediaModal from './ImportMediaModal.tsx';
 import type { ImportMediaModalProps } from './ImportMediaModal.tsx';
 
+// 宿主（画布 / 剪辑器）只需依赖本薄壳：把落地动作的结果契约一并转出，
+// 免得各宿主去猜"弹窗怎么知道成没成"（契约住在弹窗 props，这里只是转出）。
+export type { ImportPickOutcome, ImportMediaModalProps } from './ImportMediaModal.tsx';
+
 export interface ImportMediaModalHostProps extends ImportMediaModalProps {
   open: boolean;
   onClose: () => void;

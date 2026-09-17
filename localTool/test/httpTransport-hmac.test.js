@@ -104,14 +104,58 @@ test('TD-08-25 下载重试：未传 retryStatuses 时 403 不重试（中央默
   assert.equal(calls.n, 1, '未传 retryStatuses 时 403 只发一次，不重试');
 });
 
-test('TD-08-25 下载重试：5xx 走中央默认集仍重试（回归，确认未被写死覆盖）', async () => {
+test('TD-08-41：缺省不按状态码重试 —— 5xx 只发一次（业务/服务端错误不得无条件重试）', async () => {
+  // 【契约变更】原用例锁「5xx 走中央默认集仍重试」——那正是本债要收的口子：缺省重试状态码会让
+  // **非幂等 POST**（Lovart save/chat/upload 均经裸包装进本原语）在 429/5xx 时被静默重发。
+  // 现契约：状态码重试必须由调用方显式声明 retryStatuses；没声明 = 确定性失败直接抛。
+  const { impl, calls } = makeSeqFetch([503, 200]);
+  await assert.rejects(
+    () =>
+      stableRequest({
+        method: 'POST',
+        candidates: ['https://api.example.com/submit'],
+        maxRetries: 3,
+        fetchImpl: impl,
+      }),
+    (e) => {
+      assert.equal(e.status, 503, '未声明可重试 ⇒ 503 原样抛出');
+      return true;
+    },
+  );
+  assert.equal(calls.n, 1, '缺省不按状态码重试：只发一次');
+});
+
+test('TD-08-41：显式声明 retryStatuses 时按该集重试（5xx 可被显式开启）', async () => {
   const { impl, calls } = makeSeqFetch([503, 200]);
   const { response } = await stableRequest({
     method: 'GET',
     candidates: ['https://cdn.example.com/a.png'],
+    retryStatuses: [...RETRYABLE_HTTP_STATUSES],
     maxRetries: 3,
     fetchImpl: impl,
   });
-  assert.equal(response.status, 200, '503 默认可重试 → 第二次 200');
+  assert.equal(response.status, 200, '显式声明后可重试 → 第二次 200');
   assert.equal(calls.n, 2, '应恰好重试一次');
+});
+
+test('只有网络错误才重试：fetch 抛网络错误 → 缺省仍重试（红线保留的那一半）', async () => {
+  let n = 0;
+  const impl = async () => {
+    n++;
+    throw new TypeError('fetch failed');
+  };
+  await assert.rejects(
+    () =>
+      stableRequest({
+        method: 'POST', // 非幂等也照重：红线允许的是**网络错误**这一类别，与 method 无关
+        candidates: ['https://api.example.com/submit'],
+        maxRetries: 2,
+        fetchImpl: impl,
+      }),
+    (e) => {
+      assert.equal(e.name, 'TypeError', '网络错误原样上抛（不重分类）');
+      return true;
+    },
+  );
+  assert.equal(n, 3, '首轮 + 重试 2 次');
 });

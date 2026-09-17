@@ -21,9 +21,11 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { logger } from '@/components/videoEditor/lib/logger';
-import { toast } from '@/components/videoEditor/lib/toast';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
-import type { MediaRef } from '@/components/base/media/mediaRefTypes.ts';
+// 落地判据（唯一实现）住在 ref 契约层：画布入口消费同一份，**禁止在此另写一份判据**。
+import { mediaRefFactsOf } from '@/components/base/media/mediaRefTypes.ts';
+import type { MediaRef, MediaRefFacts } from '@/components/base/media/mediaRefTypes.ts';
+import { fileNameFromUrl, formatBytes } from '@/components/base/core/utils.ts';
 
 /** 单个素材大小上限（路线 A 的内存兜底 · docs/136 P1-1 短期方案）。 */
 export const LINK_MAX_BYTES = 100 * 1024 * 1024; // 100MB
@@ -67,7 +69,7 @@ export function normalizeFileUrl(url: string | null | undefined): string {
  * 【为什么只按 url 也需要 contentId 轨】同一文件的 url 可能因改名/移动而变，
  * 而 contentId（`sha1:<hex>`）是稳定身份 → 两轨互补。
  */
-function findDuplicate(ref: MediaRef, existing: MediaAsset[]): MediaAsset | undefined {
+function findDuplicate(ref: MediaRefFacts, existing: MediaAsset[]): MediaAsset | undefined {
   const refContentId = ref.contentId;
   const refUrl = normalizeFileUrl(ref.url);
   return existing.find((a) => {
@@ -81,18 +83,16 @@ function findDuplicate(ref: MediaRef, existing: MediaAsset[]): MediaAsset | unde
 }
 
 /** 取 File（仅为满足类型；不上传）。超限抛错，由调用方计入 failures。 */
-async function fetchAsFile(ref: MediaRef): Promise<File> {
+async function fetchAsFile(ref: MediaRefFacts): Promise<File> {
   const res = await fetch(ref.url);
   if (!res.ok) {
     throw new Error(`取素材失败（HTTP ${res.status}）`);
   }
   const blob = await res.blob();
   if (blob.size > LINK_MAX_BYTES) {
-    throw new Error(
-      `素材超过 ${Math.round(LINK_MAX_BYTES / 1024 / 1024)}MB 上限（${Math.round(blob.size / 1024 / 1024)}MB）`,
-    );
+    throw new Error(`素材超过 ${formatBytes(LINK_MAX_BYTES)} 上限（${formatBytes(blob.size)}）`);
   }
-  const name = ref.name || ref.url.split('/').pop() || 'media';
+  const name = ref.name || fileNameFromUrl(ref.url) || 'media';
   return new File([blob], name, { type: blob.type || undefined });
 }
 
@@ -121,27 +121,35 @@ export async function linkMediaRefsToProject({
   const skipped: MediaRef[] = [];
   const failures: Array<{ ref: string; message: string }> = [];
 
+  // 落地判据 = 唯一实现（`mediaRefTypes.mediaRefFactsOf`）：契约违约（无可渲染地址）**在根部抛出**，
+  // 由调用方原样转发（fail-fast）。该函数已删 `{ok,failures}` 信封（见其文件头：那分支运行期不可达
+  // ＝ 幽灵逻辑，且把"记得转发"推给每个消费端）⇒ 此处不再就地重判、不再自己拼失败项。
+  const facts = mediaRefFactsOf(items);
+
   // 去重基线 = 现有工程素材（每次循环后追加已登记的，避免同批内重复）
   const seen = [...media.getAssets()];
 
-  for (const ref of items) {
+  // 逐条配对（判据是 items 的逐条映射：同长同序）：**落盘字段取契约事实**，失败身份取 `ref.ref`。
+  for (let i = 0; i < facts.length; i++) {
+    const ref = items[i];
+    const fact = facts[i];
     // 双轨去重：已存在 → 跳过（不重复登记）
-    const dup = findDuplicate(ref, seen);
+    const dup = findDuplicate(fact, seen);
     if (dup) {
       skipped.push(ref);
       continue;
     }
 
     try {
-      const file = await fetchAsFile(ref);
-      // 【关键】传 `persistentUrl: ref.url` ⇒ saveMediaAsset 走**引用分支**（跳过上传）。
+      const file = await fetchAsFile(fact);
+      // 【关键】传 `persistentUrl: fact.url` ⇒ saveMediaAsset 走**引用分支**（跳过上传）。
       const asset: Omit<MediaAsset, 'id'> = {
-        name: ref.name || file.name,
-        type: ref.type,
+        name: fact.name || file.name,
+        type: fact.type,
         file,
-        persistentUrl: ref.url,
-        contentId: ref.contentId,
-      } as Omit<MediaAsset, 'id'>;
+        persistentUrl: fact.url,
+        contentId: fact.contentId,
+      };
 
       const outcome = await media.addMediaAsset({ projectId, asset });
       if (outcome.ok) {
@@ -159,11 +167,8 @@ export async function linkMediaRefsToProject({
     return { ok: true, linked, skipped };
   }
   // 部分成功：已登记的照常在工程里可见，失败的如实上报（不静默吞）。
+  // 【只留痕给开发者】用户可见文案由**宿主**（它才知道该说什么、且是弹窗的消费方）决定 ——
+  // 生产者不替消费者显示，避免同一失败在两处各说一句。
   logger.warn('视频剪辑器', '部分引用登记失败', { failures });
-  // 【结果契约】失败提示必须同时交代**成功了多少** —— 否则用户只知道"有几个没成"，
-  // 不知道"到底进去几个"，部分成功的信息仍然残缺（同母体：结果不许粉饰，也不许只报一半）。
-  toast.error(
-    `${failures.length} 个素材未能登记${linked.length > 0 ? `（${linked.length} 个已成功）` : ''}`,
-  );
   return { ok: false, linked, failures };
 }

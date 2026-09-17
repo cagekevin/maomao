@@ -7,6 +7,11 @@
  * 命名规则：UPPER_SNAKE_CASE，与 env 变量名对齐。
  */
 
+// ── 环境判定（DEV 判定统一真源；禁止裸写 import.meta.env.DEV / process.env.NODE_ENV）──
+/** 是否开发模式：Vite dev server = true，production build = false。所有 DEV 分支统一引用此符号。
+ *  用可选链 + ?? false 兜底：Vite 运行时有真实 env 对象；Node 静态加载（架构检查器）下 env 为 undefined 不抛错。 */
+export const IS_DEV = import.meta.env?.DEV ?? false;
+
 // ── localTool 后端地址 ───────────────────────────────────────────
 /** localTool 后端端口（单一来源，其余模块不做裸写 18080） */
 export const LOCAL_TOOL_PORT = 18080;
@@ -114,7 +119,7 @@ export const CHAT_TIMEOUT = 120000;
 export const KV_TIMEOUT = 8000;
 
 // ── 节流窗口（ms）──────────────────────────────────────────────
-/** 失败提示节流窗口：同一 key 在该窗口内重复只报一次（degrade / persistFailureBus 共用） */
+/** 失败提示节流窗口：同一条 toast 文案在该窗口内重复只报一次（`reportDegrade` 节流用） */
 export const THROTTLE_MS = 5000;
 
 // ── 生成轮询超时（ms）───────────────────────────────────────────

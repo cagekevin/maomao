@@ -45,6 +45,15 @@ export class ProjectManager {
   private isInitialized = false;
   private invalidProjectIds = new Set<string>();
   private listeners = new Set<() => void>();
+  /**
+   * 上次「作品列表」加载失败的原因（`null` = 无失败）。
+   *
+   * 【2026-09-17 TD-22-63】原 `loadAllProjects` 的 catch **只 logger** ⇒ 读列表失败时
+   * `savedProjects` 停留在 `[]`，切换器的「我的作品」**静默空白**（用户以为"我的作品都没了"），
+   * 与"本画布确实还没有作品"**完全无法区分**。持续状态给对读者 —— 参照 `MediaManager.loadError`
+   * （TD-22-43②）的既定范式：错误态由列表 UI 渲染，不是 toast（列表是持续可见的面板）。
+   */
+  private projectsLoadError: string | null = null;
 
   constructor(private editor: EditorCore) {}
 
@@ -220,9 +229,15 @@ export class ProjectManager {
     try {
       const metadata = await storageService.loadAllProjectsMetadata();
       this.savedProjects = metadata;
+      this.projectsLoadError = null;
       this.notify();
     } catch (error) {
+      // 【2026-09-17 TD-22-63】原实现**只 logger** ⇒ 列表静默空白（"作品都没了" vs "确实还没有作品"
+      // 无法区分）。改为持续错误态（读 `getProjectsLoadError()`）—— 与 MediaManager.loadError 同范式。
+      // 为什么不 rethrow：读列表失败**不该**阻断整个剪辑器加载（当前作品可能好着呢）。
       logger.error('Failed to load projects:', error);
+      this.projectsLoadError =
+        error instanceof Error ? error.message : '作品列表加载失败，请稍后重试';
     } finally {
       this.isLoading = false;
       this.isInitialized = true;
@@ -573,6 +588,11 @@ export class ProjectManager {
 
   getSavedProjects(): TProjectMetadata[] {
     return this.savedProjects;
+  }
+
+  /** 上次「作品列表」加载的失败原因；`null` = 无失败（TD-22-63 的错误态真源）。 */
+  getProjectsLoadError(): string | null {
+    return this.projectsLoadError;
   }
 
   getIsLoading(): boolean {

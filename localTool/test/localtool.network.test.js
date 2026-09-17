@@ -26,6 +26,8 @@ function toFileUrl(p) {
 // 模块在顶层 import（network 模块内 fetch 为运行时全局查找，替换 globalThis.fetch 有效）
 const officialMod = await import(toFileUrl(path.join(src, 'routes', 'official.ts')));
 const passthroughMod = await import(toFileUrl(path.join(src, 'routes', 'passthrough.ts')));
+// 【TD-08-33】本地专属前缀判据的唯一真源（原自持于 passthrough，已上移到 utils 供分派层共用）
+const localOnlyMod = await import(toFileUrl(path.join(src, 'utils', 'localOnlyPaths.ts')));
 await import(toFileUrl(path.join(src, 'routes', 'system.ts')));
 const filesMod = await import(toFileUrl(path.join(src, 'routes', 'files.ts')));
 const dbMod = await import(toFileUrl(path.join(src, 'db', 'database.ts')));
@@ -163,9 +165,34 @@ test('official·readOfficialBase 过滤自指 KV（127.0.0.1:18080）→ 无默�
 // ══════════════════════════════════════════════════════════════
 
 test('passthrough·isLocalOnlyPath 识别本地路径', () => {
-  assert.equal(passthroughMod.isLocalOnlyPath('/files/a.png'), true);
-  assert.equal(passthroughMod.isLocalOnlyPath('/plugin/manifest.json'), true);
-  assert.equal(passthroughMod.isLocalOnlyPath('/api/foo/bar'), false);
+  const { isLocalOnlyPath } = localOnlyMod;
+  assert.equal(isLocalOnlyPath('/files/a.png'), true);
+  assert.equal(isLocalOnlyPath('/plugin/manifest.json'), true);
+  assert.equal(isLocalOnlyPath('/.well-known/com.chrome.devtools.json'), true);
+  // 【TD-08-33 缺口闭合】`/depth-video/` 是本机推理资源：原清单缺它 ⇒ 未命中的请求会被 catch-all
+  // 转发外网（本地资源外泄 + 白等超时）。现与分派层共用同一份清单，缺项在结构上不可能再发生。
+  assert.equal(isLocalOnlyPath('/depth-video/models/x.onnx'), true);
+  // 上游 API 路径仍照常透传（不是本地专属）
+  assert.equal(isLocalOnlyPath('/api/foo/bar'), false);
+  assert.equal(isLocalOnlyPath('/v1/chat/completions'), false);
+});
+
+test('passthrough·/depth-video/ 未命中不转发（TD-08-33 缺口闭合）', async () => {
+  // 先让"会转发"的前提成立（官方地址在场）——否则透传层会因缺 base 提前 return false，
+  // 本用例就变成"不管清单对不对都绿"的假绿（写这版时实测过：去掉 /depth-video/ 它照样通过）。
+  mockFetchOnce(() => new Response('x', { status: 200 }));
+  const req = makeJsonReq();
+  req.method = 'GET';
+  req.headers['x-official-base'] = 'https://backup.example.com';
+  const res = makeRes();
+  const handled = await passthroughMod.handlePassthrough(
+    req,
+    res,
+    new URL('http://x/depth-video/no-such-model.bin'),
+  );
+  assert.equal(handled, false, '本地专属前缀未命中 → 交回上层 404，绝不转发');
+  assert.equal(fetchLog.length, 0, '不得发起外网请求（本地资源外泄 = 本债病灶）');
+  assert.equal(res.body, null, '不应写响应');
 });
 
 test('passthrough·本地路径不转发，返回 false', async () => {

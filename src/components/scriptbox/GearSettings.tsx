@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useProviders, load as loadProviders } from '../base/store/providerStore.ts';
-import { logger } from '../base/core/logger.ts';
+import { useProviders, useEnsureProvidersLoaded } from '../base/store/providerStore.ts';
 import { buildAllModels } from '../base/utils/providerModels.ts';
 import ModelSelect from '../base/ui/ModelSelect.tsx';
 import Select from '../base/ui/Select.tsx';
@@ -51,11 +50,9 @@ export default function GearSettings({ data, updateData, onClose }: GearSettings
 
   // 供应商（多 provider，接真系统）
   const { providers } = useProviders();
-  useEffect(() => {
-    if (!providers || providers.length === 0)
-      loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // 供应商加载（**唯一实现**，含失败可见性）：原来此处与 AgentPanel/useScriptBoxEngine 各写一份
+  // `load().catch(logger.warn)`，三份判据且用户不可见（TD-24-4 §二）。
+  useEnsureProvidersLoaded();
   const chatModels: ModelOption[] = buildAllModels(providers, 'chat');
   const imageModels: ModelOption[] = buildAllModels(providers, 'image');
 

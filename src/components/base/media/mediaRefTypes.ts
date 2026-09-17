@@ -23,8 +23,20 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-/** 媒体类型（消费方只吃这三类；text/未知不收录）。 */
-export type MediaRefType = 'image' | 'video' | 'audio';
+/**
+ * 媒体类型（可引用媒体）—— **派生自资产类型目录**，本模块不再自持清单。
+ *
+ * 【TD-02-49 · 2026-09-17 收口（第二版）】第一版把清单搬到这里（`MEDIA_REF_TYPES` + 中文名表），
+ * 结果是中文名**又多了一份**（图片/视频 与面板筛选各写一次）—— 事实仍有两份、仍会漂移。
+ * 现全部取自 `@/types` 的 `ASSET_TYPE_META` 目录：**类型域 = 目录里 `mediaRef: true` 的成员**，
+ * 显示名 = 条目自带的 `label`。谁要哪些就取哪些，本模块只做类型别名与再导出。
+ */
+import { MEDIA_REF_TYPES, type MediaRefAssetType } from '@/types';
+
+export { MEDIA_REF_TYPES };
+
+/** 媒体类型（消费方只吃这几类；text/未知不收录 —— 由目录的 `mediaRef` 标记决定）。 */
+export type MediaRefType = MediaRefAssetType;
 
 /**
  * 来源枚举 —— 新增来源只在这里加一项 + 注册一个 provider（见 providers/index.ts）。
@@ -161,6 +173,52 @@ export interface MediaRefSearchResult {
   items: MediaRef[];
   /** 失败的来源与原因（消费方可显示"素材库暂时不可用"） */
   failures: Array<{ source: MediaRefSource; message: string }>;
+}
+
+/**
+ * 一条 ref 的**落地事实**（消费一条 ref 所必需的全部字段，唯一形状）。
+ *
+ * 【为什么在契约层定义它（2026-09-17 · 职责收口）】`MediaRef` 有**两个**落地消费方，
+ * 分属两个业务域、目标形状不同：
+ *   · 画布（`App.handleImportPick`）→ 建 `assetNode`（`assetUrl`/`assetType`/`label`）；
+ *   · 剪辑器（`link-media-refs.ts`）→ 建 `MediaAsset`（`persistentUrl`/`type`/`name`）。
+ * 「这条 ref 能不能落地 / 落地要哪些字段」是**ref 的契约面**，不是任一业务域的私事 ——
+ * 放在业务域就会各写一份判据（画布按 `contentId != null` 二选一丢 url；剪辑器 `as` 强转不判）。
+ * 故：**判据只在这里一份**，两侧只把事实改成自己的字段名（形状适配仍属各自业务域）。
+ */
+export interface MediaRefFacts {
+  name: string;
+  type: MediaRefType;
+  /** 契约保证的绝对可渲染地址（契约铁律 1）—— 消费方照抄，不得丢、不得换成需要二次解析的形式。 */
+  url: string;
+  contentId?: string;
+}
+
+/**
+ * 取一批 ref 的落地事实（**唯一实现**）。
+ *
+ * 【契约违约 → **在根部抛出**，不留"部分成功"分支】`url` 缺失 = 供给方违约
+ * （类型只能保证 `string`，管不住空串）。这不是**可预期业务失败**（那才用判别联合），
+ * 而是契约违约 ⇒ 按 Step 4「守卫只管契约违约 → fail-fast」抛出，由调用方原样转发。
+ *
+ * 为什么不返 `{ok:false, failures}`（上一版写法，已删）：今天三个 provider 都不会产出无 url 的 ref
+ * （`librarySource` 缺 url 抛错 · `canvasSource` 跳过），该分支**运行期不可达**
+ * ＝ 幽灵逻辑，且还把"记得转发"的责任推给每个消费端 —— 漏一次就是新的静默。
+ * 会抛的守卫不可能被静默吞掉。
+ */
+export function mediaRefFactsOf(items: MediaRef[]): MediaRefFacts[] {
+  return items.map((it) => {
+    if (!it.url) {
+      // 文案给最终读者（用户）；根因（契约违约）由调用方的 logger 带上堆栈留存
+      throw new Error(`素材「${it.name}」没有可显示的地址，未能导入`);
+    }
+    return {
+      name: it.name,
+      type: it.type,
+      url: it.url,
+      ...(it.contentId ? { contentId: it.contentId } : {}),
+    };
+  });
 }
 
 const REF_SEP = ':';

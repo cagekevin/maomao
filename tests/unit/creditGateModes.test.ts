@@ -24,8 +24,13 @@ vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal)
     ...actual,
     contentGet: vi.fn((k) => (k === 'agent_credit_switch' ? __creditState : actual.contentGet(k))),
     contentSet: vi.fn((k, v) => {
-      if (k === 'agent_credit_switch') __creditState = !!v;
-      else return actual.contentSet(k, v);
+      if (k === 'agent_credit_switch') {
+        __creditState = !!v;
+        // 桩必须返回落盘结果（PersistWriteOutcome）：消费方 confirmPersist 读 `.ok`。
+        // 原分支不 return（既有 TS7030「Not all code paths return a value」即此）。
+        return { ok: true, landed: 'local' } as const;
+      }
+      return actual.contentSet(k, v);
     }),
   };
 });

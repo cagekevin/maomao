@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { clamp } from '@/components/base/core/utils';
 
 /** 对话面板里「已引用媒体附件」的形状（与画布资源节点一一对应）。 */
 interface AgentAttachment {
@@ -33,7 +34,7 @@ import {
   getCreditSwitch,
   setCreditSwitch,
 } from '../agent/index.ts';
-import { useProviders, load as loadProviders } from '../base/store/providerStore.ts';
+import { useProviders, useEnsureProvidersLoaded } from '../base/store/providerStore.ts';
 import AgentMessage, { type AgentMessageData } from './AgentMessage.tsx';
 import AgentConfirmCard from './AgentConfirmCard.tsx';
 import ModelSelect from '../base/ui/ModelSelect.tsx';
@@ -70,6 +71,7 @@ import {
 // 面板宽度键真源（TD-13-7：本面板不再自持第二份键字面量）
 import { KEY_AGENT_PANEL_WIDTH } from '../base/core/contracts.ts';
 import { contentGet, contentSet, contentSubscribe } from '../base/core/contentStore.ts';
+import { confirmPersist } from '../base/core/degrade.ts';
 import { toAbsoluteFileUrl } from '../base/api/index.ts';
 import { fileToDataUrl } from '../base/utils/assetUrl.ts';
 // 判型唯一入口（TD-16-18 收口）：附件筛选曾手写 `f.type.startsWith('image/')`，现走 detectFileType。
@@ -345,11 +347,9 @@ export default function AgentPanel({
   const genImgMenuRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(genImgMenuRef, genImgMenuOpen, () => setGenImgMenuOpen(false));
 
-  useEffect(() => {
-    if (!providers || providers.length === 0)
-      loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // 供应商加载（**唯一实现**，含失败可见性）：原此处自己复制 `load().catch(logger.warn)` —— 同一条
+  // 失败在三个组件各写一份判据、且用户不可见（TD-24-4 §二），已收口到 store 的单 hook。
+  useEnsureProvidersLoaded();
 
   // ── Skill 系统 ──
   // 只展示已启用的 Skill（设置页中关闭的 Skill 不显示在可选列表里）
@@ -728,8 +728,11 @@ export default function AgentPanel({
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
-    contentSet(PANEL_WIDTH_KEY, String(width));
+    // 【2026-09-17 TD-24-4 阶段1】自确认：面板宽度属 UI 偏好，未落盘留痕即可（不上报用户）。
+    confirmPersist(contentSet(PANEL_WIDTH_KEY, String(width)), {
+      layer: 'agentPanel',
+      key: PANEL_WIDTH_KEY,
+    });
   }, [width]);
   useEffect(() => {
     if (open) onWidthChange?.(width);
@@ -1107,7 +1110,7 @@ export default function AgentPanel({
     if (!el) return;
     // 先归零再取 scrollHeight，保证换行时能正确收缩回 min 高度
     el.style.height = '0px';
-    const next = Math.min(Math.max(el.scrollHeight, 72), 160);
+    const next = clamp(el.scrollHeight, 72, 160);
     el.style.height = `${next}px`;
   }, []);
   // input 变化（含流式回调 setInput）→ 增高；发送清空后由下方 handleSend 里的 setInput('') 触发同样回落

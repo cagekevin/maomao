@@ -45,10 +45,27 @@ function isValidBase64(s: string): boolean {
 }
 
 /**
- * 把单个 data URI 解码并落盘为 uploads/ 文件，返回可访问 /files/ URL。
+ * `saveBase64ToFile` 的成功返回：**url 与 contentId 一起给全**。
+ *
+ * 【为什么必须回传 contentId（2026-09-17 · 用户裁定「生产者没给就是生产者漏给了，要补生产者」）】
+ * 本函数**一直在算**这个值（跨入口去重就靠它），却因返回类型只写 `string` 而**算完即扔** ⇒ 上层
+ * （`routes/files.ts` 的 dataUri 分支）只能回 `{ url }`，于是前端 `UploadOutcome.contentId` 在
+ * base64 分支恒为 `undefined`，与 multipart / fileUrl 两分支**口径不一致**（要稳定身份的消费者
+ * 要么拿不到、要么自己拿字节再算一遍 = 第二份算法，正是 TD-08-28 收掉的东西）。
+ * 现经同一权威 `contentIdOf` 回传，**三条落盘分支口径一致**。
+ */
+export interface Base64PersistResult {
+  /** 落盘后的绝对 `/files/` URL */
+  url: string;
+  /** Content 维度稳定身份 `sha1:<hex>(解码后字节)`（与 multipart/fileUrl 同源，folder/url 无关） */
+  contentId: string;
+}
+
+/**
+ * 把单个 data URI 解码并落盘为 uploads/ 文件，返回可访问 /files/ URL 与 contentId。
  * 去重：先按【解码后的原始字节】算 contentId（`<alg>:<hex>`），查 resources 表命中即复用既有 url
  * （不二次落盘、不新建第二份）—— 与 multipart 上传 / 远程 URL 走同一 contentId 权威，跨入口去重免费。
- * 仅当未命中（新内容）时落盘，文件名沿用既有 sha1(base64 原文) 前 16 位 + 扩展名（保持 URL 契约 / 测试不变）。
+ * 仅当未命中（新内容）时落盘，文件名 = `sha1(解码后字节)[:16] + ext`（内容寻址，与 writeUploadDedup 同口径）。
  *
  * 【两种失败必须分开（2026-09-14 失败诚实化）】
  *   - **非法输入**（非 data URI / base64 不合法）→ 返回 `null`：这是"内容不可用"，调用方保留原 base64；
@@ -57,12 +74,13 @@ function isValidBase64(s: string): boolean {
  *     与 TD-03-12 同族）。降级型调用方（KV 外置）自行 try/catch 保留原值（见下两处）。
  * @param subfolder 落盘子目录（默认 'canvas'）
  * @param db 可选已初始化的 DB 句柄：传入则做 contentId 查重复用；不传则跳过（仅本地幂等）
+ * @returns `{ url, contentId }`（成功）｜`null`（输入非法）；**写盘故障仍抛**
  */
 export function saveBase64ToFile(
   dataUri: string,
   subfolder: string = 'canvas',
   db: any = null,
-): string | null {
+): Base64PersistResult | null {
   const m = dataUri.match(DATA_URI_RE);
   if (!m) return null;
   const mime = m[1];
@@ -73,21 +91,22 @@ export function saveBase64ToFile(
 
   const buf = Buffer.from(base64Data, 'base64');
   const ext = extFromMime(mime);
+  // sha1(解码后字节) 只算一次、两处用（contentId 去重查 + 内容寻址命名）—— 口径与 multipart/fileUrl 分支一致。
+  const hash = crypto.createHash('sha1').update(buf).digest('hex');
+  const contentId = contentIdOf(hash);
 
   // docs/122 Content 维度 #6·根因修复：跨入口去重权威 = contentId(字节哈希)，与入口无关。
   // 命中既有 contentId → 直接复用其 url（不写盘、不新建第二份）→ 同图「文件上传 / base64 粘贴」落同一物理文件。
   if (db) {
-    const contentId = contentIdOf(crypto.createHash('sha1').update(buf).digest('hex'));
     const hit = queryOne(db, 'SELECT url FROM resources WHERE sha1 = ?', [contentId]) as
       { url?: string } | undefined;
-    if (hit?.url) return toAbsoluteFileUrl(hit.url);
+    if (hit?.url) return { url: toAbsoluteFileUrl(hit.url), contentId };
   }
 
   // 【TD-03-9 修复】改用 canonical 内容寻址命名 `sha1(bytes)[:16] + ext`（与 writeUploadBuffer/
   // writeUploadDedup 同口径）。原实现用 `sha1(base64 文本)[:16]` —— 同一字节内容经不同入口（multipart 上传
   // vs base64 外置）会得到**不同物理文件名**，仅靠 contentId URL 级去重掩盖；该 16 位命名实际只当本地
   // `fs.existsSync` 幂等键，却与全局命名规范背离、误导后续改者。现统一为字节哈希。
-  const hash = crypto.createHash('sha1').update(buf).digest('hex');
   const stableName = sanitizeFilename(contentHashName(hash, ext));
 
   const { savedPath, urlPath } = resolveUploadTarget(subfolder, stableName);
@@ -95,11 +114,11 @@ export function saveBase64ToFile(
   const absoluteUrl = toAbsoluteFileUrl(urlPath);
 
   // 已存在则直接返回 URL（幂等，不重复落盘）
-  if (fs.existsSync(savedPath)) return absoluteUrl;
+  if (fs.existsSync(savedPath)) return { url: absoluteUrl, contentId };
 
   // 写盘失败 → 抛（由调用方按"系统故障"处理；降级型调用方自行 catch 保留原值）
   fs.writeFileSync(savedPath, buf);
-  return absoluteUrl;
+  return { url: absoluteUrl, contentId };
 }
 
 /** MIME → 扩展名（唯一实现 utils/mime.ts；表外兜底用 mime 子类型，对齐旧 extFromMime 行为） */
@@ -131,9 +150,9 @@ function externalizeObject(obj: unknown, warnKey: string, db: any = null): void 
         // 逐字段降级（本函数头契约：单字段失败保留原 base64，不拖垮整条 value）：
         // 非法输入 → null 保留；写盘系统故障 → 抛 → 这里 catch 住并留痕，仍保留原 base64
         try {
-          const url = saveBase64ToFile(val, 'canvas', db);
-          if (url) {
-            (obj as Record<string, unknown>)[key] = url;
+          const saved = saveBase64ToFile(val, 'canvas', db);
+          if (saved) {
+            (obj as Record<string, unknown>)[key] = saved.url;
           } else {
             console.warn(
               `[base64Externalize] 外置失败（非法输入），保留原 base64: ${warnKey}.${key} (len=${val.length})`,
@@ -160,8 +179,8 @@ export function externalizeBase64InValue(value: string, db: any = null): string 
   // 裸 base64 形态（img_* 键）：整串就是 data URI
   if (value.startsWith('data:')) {
     try {
-      const url = saveBase64ToFile(value, 'canvas', db);
-      if (url) return url;
+      const saved = saveBase64ToFile(value, 'canvas', db);
+      if (saved) return saved.url;
     } catch (e) {
       // 落盘系统故障：留痕并保留原 base64（外置只是优化，不阻断 KV 写入）
       console.error(`[base64Externalize] 落盘异常，保留原 base64 — ${(e as Error).message}`);

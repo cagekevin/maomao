@@ -19,3 +19,6 @@
 import './providers/index.ts';
 
 export { listMediaRefSources, queryMediaRefs } from './mediaRefRegistry.ts';
+// 落地事实判据（唯一实现）：画布与剪辑器两侧共用 —— 判据只此一份，两侧只做字段名适配。
+// 只导出函数：形状类型由 mediaRefTypes.ts 直接取（本出口不为假设的消费者预留 API）。
+export { mediaRefFactsOf } from './mediaRefTypes.ts';
