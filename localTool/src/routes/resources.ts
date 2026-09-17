@@ -534,12 +534,14 @@ export async function handleResourcesDelete(
   if (!id) return sendError(res, 'Missing id parameter', 400);
 
   const db = await getDb();
-  run(db, 'DELETE FROM resources WHERE id = ?', [id]);
+  // 【成功判据必须取结果事实 · 2026-09-17 TD-16-27】原实现丢弃 `run()` 返回值并恒回 `ok: true`：
+  // 删不存在的 id（changes=0，实际什么都没删）也报成功。
+  const r = run(db, 'DELETE FROM resources WHERE id = ?', [id]);
   debouncedSaveDb();
   // 只删记录，删盘统一交给引用感知 GC（docs/13）：不再 deleteLocalFile，
   // 且该文件可能仍被画布 KV 或 tasks 引用，由 GC 全库引用裁决是否回收。
   await runReferenceGc(false);
-  return json(res, { code: 0, data: { ok: true } });
+  return json(res, { code: 0, data: { ok: r.changes > 0, deleted: r.changes } });
 }
 
 export async function handleResourcesClear(

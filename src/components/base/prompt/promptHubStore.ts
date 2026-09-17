@@ -292,18 +292,14 @@ async function getSourcePrompts(source: PromptSource): Promise<Prompt[]> {
   }
 }
 
-/** 聚合所有源 */
+/** 聚合所有源。
+ *  【拆兜底 · 2026-09-17】原 `try { getSourcePrompts } catch { return [] }` 是**不可达死兜底**：
+ *  `getSourcePrompts` 内部已 try/catch —— 失败写 `lastError` 缓存（UI 经 `getPromptHubErrors` 可见）
+ *  并返回旧缓存或 `[]`，**从不抛**。外层 catch 既掩盖了「内部已处理」这一事实，又给读者
+ *  「这里会失败」的假象。失败可见性由 `lastError` 唯一承载（已接线到 PromptHub 顶部提示）。 */
 async function getAllPrompts(): Promise<Prompt[]> {
   const sources = getPromptHubSources();
-  const settled = await Promise.all(
-    sources.map(async (s) => {
-      try {
-        return await getSourcePrompts(s);
-      } catch {
-        return [];
-      }
-    }),
-  );
+  const settled = await Promise.all(sources.map((s) => getSourcePrompts(s)));
   return settled.flat();
 }
 

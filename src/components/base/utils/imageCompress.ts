@@ -16,6 +16,7 @@
  * @returns {Promise<{ dataUrl, blob, width, height, size, originalSize }>}
  */
 import { loadImageWithTimeout } from './asyncGuard.ts';
+import { attemptQuietly } from './asyncGuard.ts';
 import { httpRequest } from '../api/httpClient.ts';
 import { IMAGE_LOAD_TIMEOUT } from '../core/config.ts';
 import {
@@ -169,9 +170,10 @@ export async function compressImage(
     const buf = await res.blob();
     originalSize = buf.size;
   } catch {
-    try {
+    // 原始大小退化估算：失败即留 0，不阻断压缩主流程 → 走**唯一原语**，不再手写豁免标记。
+    attemptQuietly(() => {
       originalSize = atob(src.split(',')[1] || '').length;
-    } catch {} // catch-ok: NON_BLOCKING
+    });
   }
 
   return { dataUrl, blob, width: w, height: h, size: blob.size, originalSize };

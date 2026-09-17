@@ -50,6 +50,7 @@ import { isChromeExtension, KEY_PREFIX } from './storageAdapter.ts';
 import { STORAGE_KEYS } from '../core/contracts.ts';
 import { compilePatternRegex } from '../core/utils.ts';
 import { tryParse } from '../utils/asyncGuard.ts';
+import { logger } from '../core/logger.ts';
 
 /**
  * chrome 扩展全局的类型声明（与 storageAdapter.ts 同步的模块级最小声明）。
@@ -150,8 +151,9 @@ export async function enumerateLocalEntries(): Promise<Array<{
       out.push({ rawKey: k, value: localStorage.getItem(k) });
     }
     return out;
-  } catch {
-    // 存储读取受限（隐私模式/权限）时降级为「不可用」，UI 展示降级文案而非崩
+  } catch { // catch-ok: BROWSER_API
+    // 存储读取受限（隐私模式/权限）属环境预期；降级为「不可用」，
+    // UI 展示降级文案而非崩（读者已对：用户侧可见，非静默）。
     return null;
   }
 }
@@ -168,7 +170,7 @@ export function mapKeyToDomain(key: string): string {
   for (const [k, v] of Object.entries(STORAGE_KEYS)) {
     if (!v.pattern) continue;
     const re = tryParse(() => compilePatternRegex(k));
-    if (re?.test(key)) return v.domain;
+    if (re.ok && re.value.test(key)) return v.domain;
   }
   return 'unknown';
 }
@@ -223,13 +225,16 @@ export async function analyzeStorageByKeys(): Promise<{
   return { domains, totalBytes, totalKeys: entries.length };
 }
 
-/** 估算任意值序列化后的字节数（undefined→0；对象按 JSON 字符串估算） */
+/** 估算任意值序列化后的字节数（undefined→0；对象按 JSON 字符串估算）。
+ *  【失败可见 · 2026-09-17 拆兜底】估算失败（值不可序列化）→ 留痕，不再静默按 0 计：
+ *  静默 0 会让存储画像**低估**占用（`totalBytes`/`detail`），用户据此误判"还有空间"。 */
 function byteLength(value: unknown): number {
   if (value === undefined || value === null) return 0;
   if (typeof value === 'string') return value.length;
   try {
     return JSON.stringify(value).length;
-  } catch {
+  } catch (e) {
+    logger.warn('存储画像', '该键值无法序列化估算，按 0 计（画像将低估占用）', e);
     return 0;
   }
 }

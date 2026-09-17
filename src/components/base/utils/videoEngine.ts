@@ -33,7 +33,7 @@ import {
 // `Rotation` / `VideoCodec` / `AudioCodec` 只作类型（`import type` 编译期擦除，不产生运行时依赖）。
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 import { logger } from '../core/logger.ts';
-import { uploadFileToLocal } from '../api/filesApi.ts';
+import { uploadFileToLocal, type UploadOutcome } from '../api/filesApi.ts';
 import { UPLOAD_DIRS } from './uploadDirs.ts';
 import { safeFileName, formatBytes } from '../core/utils.ts';
 
@@ -42,7 +42,7 @@ import { safeFileName, formatBytes } from '../core/utils.ts';
 export { formatBytes };
 // TD-22-1：crossOrigin 单点裁决（同源不设 / 真跨源才设 anonymous），不再就地恒设
 import { setCrossOriginForReadable } from './captureFrame.ts';
-import { releaseQuietly } from './asyncGuard.ts';
+import { releaseQuietly, releaseQuietlyAsync } from './asyncGuard.ts';
 
 /** 进度/结果公共形状 */
 interface ProgressOptions {
@@ -177,7 +177,15 @@ export class ProgressController {
   }
   async cancel() {
     this.canceled = true;
-    await Promise.allSettled([this.conversion?.cancel(), this.output?.cancel()].filter((e) => e));
+    // 【2026-09-17 按用户判据】原实现裸 `await Promise.allSettled(...)` —— 结果被**直接丢弃**（不判 status）。
+    // 取消是释放语义（两路失败均不阻断），但「不阻断」≠「不可见」：逐个检查 + 留痕。
+    const settled = await Promise.allSettled(
+      [this.conversion?.cancel(), this.output?.cancel()].filter((e) => e),
+    );
+    settled.forEach((r, i) => {
+      if (r.status === 'rejected')
+        logger.debug('视频引擎', `取消第 ${i + 1} 路失败（不阻断）`, r.reason);
+    });
   }
 }
 
@@ -485,8 +493,14 @@ export async function concatVideos(
       extension: 'mp4',
     };
   } catch (e) {
-    if (outputTarget && outputTarget.state !== 'canceled' && outputTarget.state !== 'finalized') {
-      await outputTarget.cancel().catch((): undefined => undefined);
+    // 【2026-09-17】`outputTarget` 是可变变量，TS **不会**把类型收窄带进闭包（报 possibly null）——
+    // 那是对的（闭包执行时它可能已变）。正解不是 `!` 非空断言（会压掉告警），而是**先捕获到 const**：
+    // 收窄一次、闭包内引用稳定。
+    const target = outputTarget;
+    if (target && target.state !== 'canceled' && target.state !== 'finalized') {
+      // 释放失败不阻断主流程 → 走**唯一原语**（`RELEASE_FAIL` 码的唯一实现），
+      // 不再手写 `.catch((): undefined => undefined)` 绕过它（2026-09-17 · TD-16-31 回潮形态）。
+      await releaseQuietlyAsync(() => target.cancel());
     }
     throw t.controller?.isCanceled ? new ConversionCanceled() : e;
   } finally {
@@ -645,20 +659,15 @@ export async function videoToGif(
 export async function uploadResult(
   blob: Blob | string,
   _opts: { subfolder?: string } = {},
-): Promise<{ url: string } | null> {
-  if (typeof blob === 'string') return { url: blob };
+): Promise<UploadOutcome> {
+  if (typeof blob === 'string') return { ok: true, url: blob };
   const subfolder = _opts?.subfolder || UPLOAD_DIRS.videoProcess;
-  try {
-    // blob 运行时实为 File，读 .name（Blob 类型无该字段，这里缩小为 File 取原始文件名）
-    const name = safeFileName(
-      (blob as File).name || `video_${Date.now()}.${blob.type?.split('/')[1] || 'mp4'}`,
-    );
-    const url = await uploadFileToLocal(blob, subfolder, name);
-    if (url) return { url };
-    logger.warn('videoEngine', '视频产物落盘失败（本地服务未启动？）—— 不再降级为临时 blob URL');
-    return null;
-  } catch (e) {
-    logger.warn('videoEngine', '视频产物落盘异常 —— 不再降级为临时 blob URL', e);
-    return null;
-  }
+  // 【2026-09-17 判据】本层**不再自造 try/catch**：`uploadFileToLocal` 已是判别联合（含生产者
+  // message），直接**转发**即可 —— 原来的 `catch → logger.warn → return null` 把原因压平，
+  // 再叠一层 `{url}|null`，等于信息被扔两次。
+  // blob 运行时实为 File，读 .name（Blob 类型无该字段，这里缩小为 File 取原始文件名）。
+  const name = safeFileName(
+    (blob as File).name || `video_${Date.now()}.${blob.type?.split('/')[1] || 'mp4'}`,
+  );
+  return uploadFileToLocal(blob, subfolder, name);
 }

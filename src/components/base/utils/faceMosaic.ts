@@ -58,13 +58,12 @@ export interface MosaicOptions {
 
 /** 解析静态资源路径：Chrome 扩展走 runtime.getURL，否则用相对路径（复刻官方 rl） */
 function resolveAsset(p: string): string {
-  try {
-    const g = globalThis as unknown as {
-      chrome?: { runtime?: { getURL?: (path: string) => string } };
-    };
-    if (g.chrome?.runtime?.getURL) return g.chrome.runtime.getURL(p);
-  } catch {} // catch-ok: BROWSER_API
-  return p;
+  // 可选链已足：非扩展环境 `chrome` 未定义 → `?.` 短路即返回 p；无需 try/catch 兜底。
+  // （2026-09-17 拆 catch-ok：这是「**能拆的**」，不属于结构性豁免。）
+  const g = globalThis as unknown as {
+    chrome?: { runtime?: { getURL?: (path: string) => string } };
+  };
+  return g.chrome?.runtime?.getURL?.(p) ?? p;
 }
 
 let detectorSingleton: Promise<FaceDetector> | null = null;

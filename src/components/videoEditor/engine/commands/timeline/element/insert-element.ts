@@ -1,4 +1,5 @@
 import { logger } from '@/components/videoEditor/lib/logger';
+import { reportDegrade } from '@/components/base/core/degrade.ts';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import { EditorCore } from '@/components/videoEditor/engine/core';
 import type {
@@ -56,12 +57,27 @@ export class InsertElementCommand extends Command {
     const editor = EditorCore.getInstance();
     this.savedState = editor.timeline.getTracks();
 
+    // 【2026-09-17 TD-16-27】原实现三处 `return` **静默放弃**：用户把元素拖进时间轴失败时
+    // 界面**零反馈**（`logger.error` 只给开发者；`:64` 与 `:80` 连日志都没有）——
+    // 「拖上去什么都没发生」与「拖上去成功」在 UI 上无法区分。失败必须可见，
+    // 且读者要分离：开发者 → logger（reportDegrade 内部已留痕）；用户 → toast。
     if (!this.savedState) {
-      logger.error('Tracks not available');
+      reportDegrade({
+        layer: '剪辑器·插入时间轴元素',
+        key: this.elementId,
+        e: new Error('时间轴轨道不可用（tracks 未就绪）'),
+        toast: '插入失败：时间轴尚未就绪',
+      });
       return;
     }
 
     if (!this.validateElementBasics({ element: this.element })) {
+      reportDegrade({
+        layer: '剪辑器·插入时间轴元素',
+        key: this.elementId,
+        e: new Error('元素基础校验未通过（必要字段缺失或时长非法）'),
+        toast: '插入失败：素材信息不完整',
+      });
       return;
     }
 
@@ -78,6 +94,12 @@ export class InsertElementCommand extends Command {
     });
 
     if (!updateResult) {
+      reportDegrade({
+        layer: '剪辑器·插入时间轴元素',
+        key: this.elementId,
+        e: new Error('resolveTracksWithElement 无可用轨道（无匹配轨道类型或插入位置非法）'),
+        toast: '插入失败：找不到合适的时间轴轨道',
+      });
       return;
     }
 

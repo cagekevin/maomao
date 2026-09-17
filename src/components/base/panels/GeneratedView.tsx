@@ -308,11 +308,11 @@ function GeneratedView() {
       await createFolderApi(folder === 'tasks' ? `tasks/${name}` : `${folder}/${name}`);
       reset(true);
       return true;
-    } catch {
-      // catch-ok: NON_BLOCKING 建文件夹失败返回 false 由 UI 呈现（非静默）
-      /* ignore */
+    } catch (e) {
+      // 建文件夹失败 → 返回 false 由 UI 呈现（**调用方可见**，非静默）；另留痕给开发者（2026-09-17）。
+      logger.debug('生成视图', '建文件夹失败（已由返回值呈现）', e);
+      return false;
     }
-    return false;
   };
 
   const back = useCallback(() => {

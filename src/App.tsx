@@ -959,6 +959,8 @@ function Canvas() {
     // 2. 逐节点深度外置内联资源
     let convertedTotal = 0;
     let failedTotal = 0;
+    /** 【2026-09-17】失败原因（**生产者判词**）逐条收集 —— 消费者只转发，不自己编。 */
+    const failureMessages: string[] = [];
     let changed = false;
     const next = [];
     for (const n of nodesRef.current) {
@@ -966,9 +968,11 @@ function Canvas() {
         data: newData,
         converted,
         failed,
+        failures,
       } = await externalizeInlineData(n.data, { save: saveInlineToLocal });
       convertedTotal += converted;
       failedTotal += failed;
+      failureMessages.push(...failures.map((f) => f.message));
       if (converted > 0 || failed > 0) {
         changed = true;
         next.push({ ...n, data: newData });
@@ -984,7 +988,10 @@ function Canvas() {
     setNodes(next);
     history.record({ nodes: next, edges: edgesRef.current });
     if (failedTotal > 0) {
-      showToast(`已转换 ${convertedTotal} 个内联资源，${failedTotal} 个保留原图（转换失败）`, {
+      // 【2026-09-17 消费者只转发】原实现只说"N 个转换失败（保留原图）"—— 用户与开发者都**不知道原因**。
+      // 现把生产者判词**原样带出**（同类原因合并一次，避免刷屏）。
+      const uniq = [...new Set(failureMessages)].slice(0, 2).join('；');
+      showToast(`已转换 ${convertedTotal} 个内联资源，${failedTotal} 个保留原图：${uniq}`, {
         type: 'warning',
       });
     } else {
@@ -999,9 +1006,10 @@ function Canvas() {
   const { onDragOver, onDrop, onPaste, createNodeFromFile } = useAssetDropPaste({
     addNode: (type, pos, data) => addNode(type, pos, data),
     screenToFlowPosition,
-    onPasteNodeGroup: (json, pos) => {
-      void pasteNodeGroup(json, pos);
-    },
+    // 【2026-09-17 TD-16-27】原来是 `void pasteNodeGroup(...)` —— `PasteNodeGroupFn` 的
+    // `boolean | void` 返回值被吞，宿主解析失败时 hook 端无从分支，整个粘贴**静默无事发生**
+    // （用户报的「复制节点粘贴不上」正因此不可见）。现原样透传结果，由 hook 分流提示。
+    onPasteNodeGroup: (json, pos) => pasteNodeGroup(json, pos),
     // 节点 data 写回走 useNodeData 唯一入口（网页图后台本地化成功后替换 assetUrl）
     patchNodeData: (id, patch) => patchNodeDataById(setNodes, id, patch),
   });

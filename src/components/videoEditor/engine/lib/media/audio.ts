@@ -95,9 +95,12 @@ export async function collectAudioElements({
   tracks: TimelineTrack[];
   mediaAssets: MediaAsset[];
   audioContext: AudioContext;
-}): Promise<CollectedAudioElement[]> {
+}): Promise<{ items: CollectedAudioElement[]; skipped: Array<{ elementId: string; message: string }> }> {
   const mediaMap = new Map<string, MediaAsset>(mediaAssets.map((media) => [media.id, media]));
   const pendingElements: Array<Promise<CollectedAudioElement | null>> = [];
+  /** 【2026-09-17】解析失败被跳过的元素（**生产者判词**原样收进来，由调用方决定怎么呈现）。
+   *  此前是 `if (!buffer) return null` 静默丢弃 ⇒ 导出成品少音频却零提示（产物受损且无从回查）。 */
+  const skipped: Array<{ elementId: string; message: string }> = [];
 
   for (const track of tracks) {
     if (canTracktHaveAudio(track) && track.muted) continue;
@@ -117,10 +120,15 @@ export async function collectAudioElements({
             element,
             mediaMap,
             audioContext,
-          }).then((audioBuffer) => {
-            if (!audioBuffer) return null;
+          }).then((r): CollectedAudioElement | null => {
+            // 【2026-09-17 消费者只转发】失败**不再静默跳过**：把**生产者判词**原样收进
+            // `skipped`，由 `collectAudioElements` 一并回报（导出成品少音频这件事必须可见）。
+            if (!r.ok) {
+              skipped.push({ elementId: element.id, message: r.message });
+              return null;
+            }
             return {
-              buffer: audioBuffer,
+              buffer: r.buffer,
               startTime: element.startTime,
               duration: element.duration,
               trimStart: element.trimStart,
@@ -140,10 +148,14 @@ export async function collectAudioElements({
           resolveVideoAudioBuffer({
             file: mediaAsset.file,
             audioContext,
-          }).then((audioBuffer) => {
-            if (!audioBuffer) return null;
+          }).then((r): CollectedAudioElement | null => {
+            // 【2026-09-17 消费者只转发】同上：失败收进 `skipped`，不静默丢。
+            if (!r.ok) {
+              skipped.push({ elementId: element.id, message: r.message });
+              return null;
+            }
             return {
-              buffer: audioBuffer,
+              buffer: r.buffer,
               startTime: element.startTime,
               duration: element.duration,
               trimStart: element.trimStart,
@@ -163,8 +175,19 @@ export async function collectAudioElements({
   for (const element of resolvedElements) {
     if (element) audioElements.push(element);
   }
-  return audioElements;
+  // 【2026-09-17 消费者只转发】把"跳过了哪些、为什么"一并回报 —— 原来是**静默丢弃**
+  // ⇒ 用户在导出的成品里才发现某段没声音，零提示且事后无从回查（产物受损）。
+  return { items: audioElements, skipped };
 }
+
+/** 音频解析结果（**判别联合 + 生产者给可展示信息**）。
+ *
+ *  【2026-09-17 判据】错误必须由**产生它的那层**以判别联合透传（含可展示信息）；**消费者只转发**。
+ *  原来三处 `catch { logger.warn; return null }` —— `null` 只让**开发者**看到失败，而上层
+ *  （`collectAudioElements`）拿到 null 就**静默跳过该元素** ⇒ 用户在**导出的成品**里才发现
+ *  "这段音频没了"，零提示（比"播放时没声音"更严重：那是**产物受损**且事后无从回查）。
+ */
+type AudioResolveOutcome = { ok: true; buffer: AudioBuffer } | { ok: false; message: string };
 
 async function resolveVideoAudioBuffer({
   file,
@@ -172,13 +195,16 @@ async function resolveVideoAudioBuffer({
 }: {
   file: File;
   audioContext: AudioContext;
-}): Promise<AudioBuffer | null> {
+}): Promise<AudioResolveOutcome> {
   try {
     const arrayBuffer = await file.arrayBuffer();
-    return await audioContext.decodeAudioData(arrayBuffer.slice(0));
+    const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+    return { ok: true, buffer };
   } catch (error) {
-    logger.warn('Failed to decode video audio:', error);
-    return null;
+    return {
+      ok: false,
+      message: `视频音轨解码失败：${error instanceof Error ? error.message : String(error)}`,
+    };
   }
 }
 
@@ -190,27 +216,35 @@ async function resolveAudioBufferForElement({
   element: AudioElement;
   mediaMap: Map<string, MediaAsset>;
   audioContext: AudioContext;
-}): Promise<AudioBuffer | null> {
+}): Promise<AudioResolveOutcome> {
   try {
     if (element.sourceType === 'upload') {
       const asset = mediaMap.get(element.mediaId);
-      if (!asset || !mediaSupportsAudio({ media: asset })) return null;
+      // 【2026-09-17】"素材缺失／不含音轨"是**可判别的失败**，不是"解不出来"——
+      // 给出各自判词，让上层能区分（原来三者都压成同一个 `null`）。
+      if (!asset) return { ok: false, message: '音频素材不在本工程素材表中' };
+      if (!mediaSupportsAudio({ media: asset })) return { ok: false, message: '该素材不含音轨' };
 
       const arrayBuffer = await asset.file.arrayBuffer();
-      return await audioContext.decodeAudioData(arrayBuffer.slice(0));
+      const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+      return { ok: true, buffer };
     }
 
-    if (element.buffer) return element.buffer;
+    if (element.buffer) return { ok: true, buffer: element.buffer };
 
     // 与 `fetchLibraryAudioSource/Clip` 共用同一个取字节原语（TD-22-39）。
-    const response = await fetchLibraryAudioResponse({ sourceUrl: element.sourceUrl });
-    if (!response) return null;
+    const r = await fetchLibraryAudioResponse({ sourceUrl: element.sourceUrl });
+    // 取字节失败的**原因由该原语给出**（往往是网络/404），此处只**转发**，不自己编"解码失败"。
+    if (!r.ok) return { ok: false, message: r.message };
 
-    const arrayBuffer = await response.arrayBuffer();
-    return await audioContext.decodeAudioData(arrayBuffer.slice(0));
+    const arrayBuffer = await r.response.arrayBuffer();
+    const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+    return { ok: true, buffer };
   } catch (error) {
-    logger.warn('Failed to decode audio:', error);
-    return null;
+    return {
+      ok: false,
+      message: `音频解码失败：${error instanceof Error ? error.message : String(error)}`,
+    };
   }
 }
 
@@ -247,16 +281,20 @@ async function fetchLibraryAudioResponse({
   sourceUrl,
 }: {
   sourceUrl: string;
-}): Promise<Response | null> {
+}): Promise<{ ok: true; response: Response } | { ok: false; message: string }> {
   try {
     const response = await fetch(sourceUrl);
     if (!response.ok) {
       throw new Error(`Library audio fetch failed: ${response.status}`);
     }
-    return response;
+    return { ok: true, response };
   } catch (error) {
-    logger.warn('Failed to fetch library audio:', error);
-    return null;
+    // 【生产者给可展示信息】原来只 `logger.warn` + `return null` ⇒ 上层只能自己编
+    // "解码失败"（其实这里往往是**网络/404**）。原因在此说清，消费者只转发。
+    return {
+      ok: false,
+      message: `库音频取字节失败：${error instanceof Error ? error.message : String(error)}`,
+    };
   }
 }
 
@@ -266,10 +304,10 @@ async function fetchLibraryAudioFile({
 }: {
   element: LibraryAudioElement;
 }): Promise<File | null> {
-  const response = await fetchLibraryAudioResponse({ sourceUrl: element.sourceUrl });
-  if (!response) return null;
+  const r = await fetchLibraryAudioResponse({ sourceUrl: element.sourceUrl });
+  if (!r.ok) return null;
 
-  const blob = await response.blob();
+  const blob = await r.response.blob();
   return new File([blob], `${element.name}.mp3`, { type: 'audio/mpeg' });
 }
 
@@ -407,11 +445,17 @@ export async function createTimelineAudioBuffer({
 }): Promise<AudioBuffer | null> {
   const context = audioContext ?? createAudioContext();
 
-  const audioElements = await collectAudioElements({
+  const { items: audioElements, skipped } = await collectAudioElements({
     tracks,
     mediaAssets,
     audioContext: context,
   });
+
+  // 【2026-09-17 判据落地】被跳过的元素**必须可见**（这是**产物受损**：导出/字幕用的音频会缺这几段）。
+  // 此前 `collectAudioElements` 里 `if (!buffer) return null` 静默丢弃，用户只能在成品里察觉"没声音"。
+  if (skipped.length > 0) {
+    logger.warn('时间轴音频：部分元素解析失败（该段音频将缺失）', { skipped });
+  }
 
   if (audioElements.length === 0) return null;
 

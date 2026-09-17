@@ -178,10 +178,11 @@ const toastError = () => {
 const toAbsoluteFileUrl = (/** @type {any} */ x) => x;
 const saveResultToTasks = async () => ({ ok: true, url: 'http://x/y.png', skipped: true });
 const saveTextToTasks = async () => undefined;
-const saveInlineToLocal = async () => 'local://x';
-const uploadFileToLocal = async () => 'local://up';
+// 【2026-09-17】以下三个已改**判别联合**（成功＝`ok:true` + url）—— 原来分别是 string / null。
+const saveInlineToLocal = async () => ({ ok: true, url: 'local://x' });
+const uploadFileToLocal = async () => ({ ok: true, url: 'local://up' });
 // 落盘收口：File → /files/ URL（失败回退内联），与 filesApi.resolveNodeAssetUrl 同签名
-const resolveNodeAssetUrl = async () => 'local://up';
+const resolveNodeAssetUrl = async () => ({ ok: true, url: 'local://up' });
 
 const useProviders = () => ({ providers: [] });
 const loadProviders = async () => {};
@@ -214,7 +215,8 @@ const processVideo = async () => ({ url: 'http://v/x.mp4' });
 const concatVideos = async () => ({ url: 'http://v/c.mp4' });
 const videoToGif = async () => ({ url: 'http://v/g.gif' });
 const formatBytes = (/** @type {any} */ b) => `${b}B`;
-const uploadResult = async () => 'http://v/r';
+// 【2026-09-17】契约改判别联合（成功＝`ok:true` + url）。
+const uploadResult = async () => ({ ok: true, url: 'http://v/r' });
 class ProgressController {
   constructor() {}
   update() {}

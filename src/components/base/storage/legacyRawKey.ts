@@ -16,6 +16,9 @@
  *  - 迁移完成后（下一个大版本 / 确认无存量）本文件的集合应清空，届时可整体删除。
  */
 
+// 【2026-09-17】本文件原无 import；`removeLegacyRawKey` 的 catch 里加了留痕 ⇒ 需 logger。
+import { logger } from '../core/logger.ts';
+
 /** 曾以裸 localStorage（无 `yimao:` 前缀）写过的键 —— **只减不增**（存量迁移用）。 */
 const LEGACY_RAW_KEYS: ReadonlySet<string> = new Set<string>([
   'director3d-custom-poses', // → contracts.KEY_DIRECTOR3D_CUSTOM_POSES（TD-02-36/38/39）
@@ -68,7 +71,9 @@ export function removeLegacyRawKey(key: string): boolean {
   try {
     localStorage.removeItem(key);
     return true;
-  } catch {
+  } catch (e) {
+    // localStorage 不可用（隐私模式 / 受限环境）→ 未删成功；返回值已告知调用方，但**降级必留痕**。
+    logger.debug('存储', '历史裸键删除失败（localStorage 不可用）', e);
     return false;
   }
 }

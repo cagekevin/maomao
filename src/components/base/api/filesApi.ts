@@ -205,8 +205,41 @@ export async function saveInlineToLocal(
   subfolder: string = UPLOAD_DIRS.canvas,
   projectId?: string,
   displayName?: string,
-): Promise<string | null> {
-  if (!dataUrl || !dataUrl.startsWith('data:')) return null;
+): Promise<UploadOutcome> {
+  // 【2026-09-17 判据 · 补齐】本层**不再**保留旧的 `string|null` 签名 —— 上一轮"为省改动半径而留口"
+  // 的结果就是「原因仍被压平」（注释里自己记的 ⚠️ 已知缺口）。现与低层 `uploadInlineDataUrl` 同型：
+  // **判别联合 + 生产者 message**，由消费方**只转发**。
+  //
+  // 并且**本层不再自己 `logger.warn`**（上一轮加的那句已删）：按判据"**消费者只转发，禁止自己加工**"，
+  // 留痕属于**产生失败的那层**或**拥有 UI 的那层**；中转层多记一次既是重复留痕、制造噪声，
+  // 也会让"非 data: 不该发任何请求"这类断言失真（logger 上报本身就是一个请求）。
+  return uploadInlineDataUrl(dataUrl, subfolder, projectId ?? '', displayName);
+}
+
+/** 低层上传结果（**判别联合 + 生产者给可展示信息**）。
+ *
+ *  【2026-09-17 判据】错误必须由**产生它的那层**以判别联合透传（含可展示信息）；**消费者只转发**。
+ *  本文件**已有正面范式**（`SaveTasksOutcome` / `persistUrlToUploads` 的 `{ok:false, reason, message}`，
+ *  注释自述「不再用 null 兼表『无需落盘』与『落盘失败』」）—— 下面这 4 个低层上传函数是**仅存的例外**：
+ *  它们把失败压成 `null`，**`e.message`（原因）当场丢失**，于是上层只能给用户一个笼统的
+ *  `reason:'upload-failed'` ⇒ 用户与开发者都**不知道"为什么没落盘"**（这正是"假兜底"的典型：
+ *  看起来处理了，实际把信息扔了）。
+ */
+export type UploadOutcome =
+  | { ok: true; url: string }
+  /** `skipped:true` ＝**无需上传**（已是本地文件 / 非 http 地址）—— 与「上传失败」严格区分
+   *  （对齐同文件 `SaveTasksOutcome.skipped` 的既有语义：编排层据此决定要不要报告）。 */
+  | { ok: false; message: string; skipped?: boolean };
+
+async function uploadInlineDataUrl(
+  dataUrl: string,
+  subfolder: string,
+  projectId: string,
+  displayName?: string,
+): Promise<UploadOutcome> {
+  if (!dataUrl || !dataUrl.startsWith('data:')) {
+    return { ok: false, message: '内联资源不是 data: 形式，无法落盘' };
+  }
   try {
     const data = await httpRequest(`${API_BASE}/api/files/upload`, {
       method: 'POST',
@@ -216,10 +249,14 @@ export async function saveInlineToLocal(
       body: JSON.stringify({ dataUri: dataUrl, subfolder, projectId, displayName }),
       ...UPLOAD_OPTS,
     });
-    return data?.data?.url || null;
+    const url = data?.data?.url;
+    // 【生产者给事实】后端 200 但没回 url ＝ 落盘未完成（不能当成成功）
+    return url
+      ? { ok: true, url }
+      : { ok: false, message: '落盘接口未返回 url（后端未完成落盘）' };
   } catch (e) {
-    logger.warn('filesApi', '内联资源落盘失败', e);
-    return null;
+    // 【生产者给可展示信息】把原因带出去，不让上层猜、也不让它自己编文案。
+    return { ok: false, message: `内联资源落盘失败：${(e as { message?: string })?.message || String(e)}` };
   }
 }
 
@@ -250,8 +287,8 @@ export async function uploadFileToLocal(
   subfolder: string = UPLOAD_DIRS.canvasDrop,
   filename?: string,
   projectId?: string,
-): Promise<string | null> {
-  if (!file) return null;
+): Promise<UploadOutcome> {
+  if (!file) return { ok: false, message: '未提供文件（file 为空）' };
   logger.debug(
     'filesApi',
     '[UPLOAD] 准备 multipart 上传',
@@ -269,16 +306,21 @@ export async function uploadFileToLocal(
       body: fd,
       ...UPLOAD_OPTS,
     });
-    logger.debug(
-      'filesApi',
-      '[UPLOAD] 完成',
-      { url: data?.data?.url, subfolder },
-      { module: 'asset' },
-    );
-    return data?.data?.url || null;
+    const url = data?.data?.url;
+    logger.debug('filesApi', '[UPLOAD] 完成', { url, subfolder }, { module: 'asset' });
+    if (!url) {
+      // 【2026-09-17 判据】「200 但后端没回 url」＝ **落盘未完成**，不能混进成功路径。
+      // 原 `return data?.data?.url || null` 把"成功拿到 url"与"接口没给 url"压成同一个 null。
+      return { ok: false, message: '上传接口未返回 url（后端未完成落盘）' };
+    }
+    return { ok: true, url };
   } catch (e) {
-    logger.warn('filesApi', '文件上传失败', e);
-    return null;
+    // 【生产者给可展示信息】原来 `logger.warn(..., e)` + `return null`：**原因当场丢失**，
+    // 上层只能给用户笼统的"上传失败"。现在 `e.message` 随判别联合上浮（消费者**只转发**）。
+    return {
+      ok: false,
+      message: `文件上传失败：${(e as { message?: string })?.message || String(e)}`,
+    };
   }
 }
 
@@ -327,12 +369,18 @@ export async function resolveNodeAssetUrl(
   file: File | Blob | null,
   subfolder: string = UPLOAD_DIRS.canvasDrop,
   filename?: string,
-): Promise<string | null> {
-  if (!file) return null;
-  const uploaded = await uploadFileToLocal(file, subfolder, filename); // ① 直传，不先转 dataURL
-  if (uploaded) return uploaded;
+): Promise<UploadOutcome> {
+  if (!file) return { ok: false, message: '未提供文件（file 为空）' };
+  const r = await uploadFileToLocal(file, subfolder, filename); // ① 直传，不先转 dataURL
+  if (r.ok) return r;
   notifyLocalServiceDegrade(); // ② 落盘失败 → 降级内联：一次可见提示（TD-03-13）
-  return fileToDataUrl(file).catch((): string | null => null); // ③ 读不出才 null（真失败，由调用方提示）
+  // ③ 降级读内联 dataURL —— 这是**真兜底**（dataURL 确实能上屏，不是拿默认值掩盖失败）。
+  //    读不出才是真失败，此时把**两段原因合并**回报（消费者只转发，不自己编）。
+  try {
+    return { ok: true, url: await fileToDataUrl(file) };
+  } catch {
+    return { ok: false, message: `落盘失败（${r.message}），且读不出内联数据` };
+  }
 }
 
 /**
@@ -348,8 +396,11 @@ export async function persistInlineOrKeep(
 ): Promise<string> {
   if (!dataUrl) return dataUrl;
   const saved = await saveInlineToLocal(dataUrl, subfolder);
-  if (!saved) notifyLocalServiceDegrade(); // 落盘失败 → 降级内联：一次可见提示（TD-03-13）
-  return saved || dataUrl;
+  // 【2026-09-17 判据】签名保持 `Promise<string>` **是有意的**（不是省改动）：本函数的契约就是
+  // 「**保证返回一个能上屏的 url**」，落盘失败则原样保留内联 —— 这是真兜底，已由
+  // `notifyLocalServiceDegrade()` 给用户可见提示。故此处不需要 `UploadOutcome`。
+  if (!saved.ok) notifyLocalServiceDegrade(); // 落盘失败 → 降级内联：一次可见提示（TD-03-13）
+  return saved.ok ? saved.url : dataUrl;
 }
 
 /**
@@ -381,11 +432,11 @@ export async function showThenPersistInline(
 export async function downloadRemoteToLocal(
   url: string,
   { folder = UPLOAD_DIRS.canvas, filename }: { folder?: string; filename?: string } = {},
-): Promise<string | null> {
+): Promise<UploadOutcome> {
   // 【本地图拦截】URL 已指向本机 uploads（/files/... 或 API_BASE/files/...）→ 本就落盘，无需再下载。
   // 背景：素材拖到画布时若没带 application/x-yimao-asset，画布会把它当「网页图」走本地化，
   // 后端便把 127.0.0.1 的文件重新下载一份存进 web 目录 → uploads/web 出现重复文件。
-  // 这里作为最后一道防线：任何入口想「本地化」本机文件，一律直接返回 null（调用方保持原 URL）。
+  // 这里作为最后一道防线：任何入口想「本地化」本机文件，一律返回 `skipped`（调用方保持原 URL）。
   if (isLocalFileUrl(url)) {
     logger.debug(
       'filesApi',
@@ -393,10 +444,15 @@ export async function downloadRemoteToLocal(
       { url: String(url).slice(0, 100) },
       { module: 'asset' },
     );
-    return null;
+    // 【2026-09-17】这**不是失败** —— 但它也不是 `ok:true`（没有新 url）。原实现 `return null` 把
+    // 「无需下载」与「下载失败」压成同一个 `null`，上层只能猜（这正是"假兜底"）。现显式声明
+    // `skipped:true`（对齐 `SaveTasksOutcome.skipped` 的既有语义），原因一并给出。
+    return { ok: false, message: '已是本地文件，无需重复下载', skipped: true };
   }
-  // saveRemoteUrl 用 new URL(fileUrl) 取 basename，data:/blob: 会抛错 → 仅 http(s) 可下载（非 http 直接 null）
-  if (typeof url !== 'string' || !/^https?:/i.test(url)) return null;
+  // saveRemoteUrl 用 new URL(fileUrl) 取 basename，data:/blob: 会抛错 → 仅 http(s) 可下载
+  if (typeof url !== 'string' || !/^https?:/i.test(url)) {
+    return { ok: false, message: '非 http(s) 地址，不适用远程下载', skipped: true };
+  }
   return uploadRemoteUrl(url, folder, filename);
 }
 
@@ -412,7 +468,7 @@ async function uploadRemoteUrl(
   fileUrl: string,
   subfolder: string,
   filename?: string,
-): Promise<string | null> {
+): Promise<UploadOutcome> {
   try {
     const data = await httpRequest(`${API_BASE}/api/files/upload`, {
       method: 'POST',
@@ -420,10 +476,16 @@ async function uploadRemoteUrl(
       body: JSON.stringify({ fileUrl, subfolder, filename: filename || undefined }),
       ...UPLOAD_OPTS,
     });
-    return data?.data?.url || null;
+    const url = data?.data?.url;
+    return url
+      ? { ok: true, url }
+      : { ok: false, message: '远程 URL 落盘接口未返回 url（后端未完成落盘）' };
   } catch (e) {
-    logger.warn('filesApi', '远程 URL 落盘失败', e);
-    return null;
+    // 【2026-09-17】原因带出去（原来是 `return null` 把它扔掉 ⇒ 上层只剩笼统的 upload-failed）
+    return {
+      ok: false,
+      message: `远程 URL 落盘失败：${(e as { message?: string })?.message || String(e)}`,
+    };
   }
 }
 
@@ -523,9 +585,11 @@ export async function persistUrlToUploads(
   try {
     if (src.startsWith('data:')) {
       const saved = await saveInlineToLocal(src, folder, projectId, name);
-      return saved
-        ? { ok: true, url: saved, source: 'inline' }
-        : { ok: false, reason: 'upload-failed' };
+      // 【2026-09-17 消费者只转发】生产者的 `message`（**为什么**没落盘）随 `PersistOutcome` 上浮，
+      // 不再笼统压成 `reason:'upload-failed'` —— 那是让用户与开发者都得不到原因。
+      return saved.ok
+        ? { ok: true, url: saved.url, source: 'inline' }
+        : { ok: false, reason: 'upload-failed', message: saved.message };
     }
     if (isLocalFileUrl(src)) {
       // 原样返回：保持调用方既有 URL 形态（相对仍相对），不做归一（归一属渲染/发送出口的职责）
@@ -545,16 +609,19 @@ export async function persistUrlToUploads(
       );
       const file = new File([blob], `${base}.${ext}`, { type: mime });
       const saved = await uploadFileToLocal(file, folder, file.name, projectId);
-      return saved
-        ? { ok: true, url: saved, source: 'uploaded' }
-        : { ok: false, reason: 'upload-failed' };
+      // 【2026-09-17 同上】message 上浮，不压平。
+      return saved.ok
+        ? { ok: true, url: saved.url, source: 'uploaded' }
+        : { ok: false, reason: 'upload-failed', message: saved.message };
     }
     if (/^https?:/i.test(src)) {
       const ext = extOf(type || detectAssetType(src));
       const saved = await uploadRemoteUrl(src, folder, `${base}.${ext}`);
-      return saved
-        ? { ok: true, url: saved, source: 'uploaded' }
-        : { ok: false, reason: 'upload-failed' };
+      // 【2026-09-17 消费者只转发】失败时**转发生产者给的 `message`** —— 原来这里只能给笼统的
+      // `reason:'upload-failed'`，因为真正的原因（`e.message`）已在低层被 `return null` 扔掉。
+      return saved.ok
+        ? { ok: true, url: saved.url, source: 'uploaded' }
+        : { ok: false, reason: 'upload-failed', message: saved.message };
     }
     return { ok: false, reason: 'unsupported' };
   } catch (e) {
@@ -607,9 +674,10 @@ export async function saveResultToTasks(url: string, type: string): Promise<Save
 
     // http(s) 上游 url → fileUrl 幂等下载落盘（走 uploadRemoteUrl 唯一下载入口）
     const saved = await uploadRemoteUrl(url, SUBFOLDER, safeName('generated', ext));
-    return saved
-      ? { ok: true, url: saved, skipped: false }
-      : { ok: false, reason: 'upload-failed' };
+    // 【2026-09-17 消费者只转发】同上：转发生产者 message，不自己编泛化判词。
+    return saved.ok
+      ? { ok: true, url: saved.url, skipped: false }
+      : { ok: false, reason: 'upload-failed', message: saved.message };
   } catch (e) {
     logger.warn('filesApi', '落盘 tasks 失败', e);
     const message = (e as { message?: string })?.message || String(e);
@@ -624,8 +692,10 @@ export async function saveResultToTasks(url: string, type: string): Promise<Save
  * @param {string} [name] 文件名前缀（默认 generated）
  * @returns {Promise<string|null>} 落盘后的 18080 url；失败返回 null（不抛，不影响主流程）
  */
-export async function saveTextToTasks(text: string, name?: string): Promise<string | null> {
-  if (typeof text !== 'string' || !text.trim()) return null;
+export async function saveTextToTasks(text: string, name?: string): Promise<UploadOutcome> {
+  if (typeof text !== 'string' || !text.trim()) {
+    return { ok: false, message: '文本为空，无需落盘' };
+  }
   // 文件名清洗统一走 safeFileName（收口，勿再手写 replace 样板）：与旧手写逻辑逐字节等价（sep='_' + fallback）
   const safeBase = safeFileName(name, { fallback: 'generated' });
   const filename = `${safeBase}_${formatTime(undefined, { mode: 'file' })}.txt`;
@@ -640,9 +710,13 @@ export async function saveTextToTasks(text: string, name?: string): Promise<stri
       body: fd,
       ...UPLOAD_OPTS,
     });
-    return data?.data?.url || null;
+    const url = data?.data?.url;
+    return url ? { ok: true, url } : { ok: false, message: '文本落盘接口未返回 url' };
   } catch (e) {
-    logger.warn('filesApi', '文本落盘 tasks 失败', e);
-    return null;
+    // 【2026-09-17】原因带出去（原来是 `return null` 把它扔掉 ⇒ 上层只剩笼统 upload-failed）
+    return {
+      ok: false,
+      message: `文本落盘 tasks 失败：${(e as { message?: string })?.message || String(e)}`,
+    };
   }
 }

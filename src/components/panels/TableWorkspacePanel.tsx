@@ -46,12 +46,23 @@ export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWid
     shallowEqual,
   );
 
-  // 发送到画布：复用 AI 操作画布的现成工具链路（create_node → textGenerateNode），不裸写 setNodes
+  // 发送到画布：复用 AI 操作画布的现成工具链路（create_node → textGenerateNode），不裸写 setNodes。
+  // 【契约携带结果 · 2026-09-17 TD-16-27】原签名 `(text) => void` 且**丢弃 `callTool` 返回值**
+  // ⇒ 调用方（AssistantTablePanel）无从知道成败，只能无条件报「已发送到画布」= 假成功。
+  // 现返回 `{ok, error?}`，成功文案由调用方按**结果事实**给出。
   const onSendToCanvas = useCallback(
-    (text: string) => {
+    async (text: string): Promise<{ ok: boolean; message: string }> => {
       const t = String(text ?? '').trim();
-      if (!t) return;
-      callTool('create_node', { type: 'textGenerateNode', text: t });
+      if (!t) return { ok: false, message: '内容为空，未发送' };
+      const res = (await callTool('create_node', { type: 'textGenerateNode', text: t })) as
+        | { ok?: boolean; error?: string }
+        | undefined;
+      // 【2026-09-17 裁定「消费者只转发」】**可展示信息由本层（生产者）给全** ——
+      // 消费方（AssistantTablePanel）拿到了 `message` 直接转发即可，不得再拼 `发送失败：${error}`、
+      // 也不得用 `|| '未知原因'` 补默认值（那是消费者加工 + 掩盖缺失字段）。
+      return res?.ok
+        ? { ok: true, message: '已发送到画布（建成文本节点）' }
+        : { ok: false, message: `发送失败：${res?.error ? res.error : '未知原因'}` };
     },
     [callTool],
   );

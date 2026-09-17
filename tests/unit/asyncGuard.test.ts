@@ -221,37 +221,39 @@ describe('asyncGuard.releaseQuietly / releaseQuietlyAsync（RELEASE_FAIL 唯一�
 });
 
 describe('asyncGuard.tryParse（PARSE_FALLBACK 唯一实现 · TD-02-26 成本层收口）', () => {
-  it('解析成功 → 返回解析结果', () => {
-    expect(tryParse(() => JSON.parse('{"a":1}').a)).toBe(1);
+  // 【2026-09-17 契约收紧 · **回改旧断言**】`tryParse` 已改为**判别联合**
+  //（`{ok:true,value}` ／ `{ok:false,error}`），不再接受 fallback 参数、也不再"静默落默认值"
+  //（原说明在 `catchOk.ts` 的 PARSE_FALLBACK 段；该登记表与 `check:catch` 闸已于 2026-09-17 一并删除）。
+  // 原断言锁的是**旧签名**（第二参 fallback、失败返 undefined）
+  // ⇒ 与现契约相反，且编译不过。按"失败必须透传"重写：失败必须落到 `ok:false` + `error`。
+  it('解析成功 → ok:true + value', () => {
+    const r = tryParse(() => JSON.parse('{"a":1}').a);
+    expect(r.ok).toBe(true);
+    expect(r.ok && r.value).toBe(1);
   });
 
-  it('解析抛错 → 返回 fallback（落默认分支）', () => {
-    expect(tryParse(() => JSON.parse('不是json'), 'def')).toBe('def');
+  it('解析抛错 → ok:false + error（判别联合，不落默认值、不静默）', () => {
+    const r = tryParse(() => JSON.parse('不是json'));
+    expect(r.ok).toBe(false);
+    expect(r.ok ? undefined : r.error).toBeTruthy();
   });
 
-  it('未传 fallback → 解析失败返回 undefined', () => {
-    expect(tryParse(() => JSON.parse('{bad') as unknown)).toBeUndefined();
-  });
-
-  it('同步抛错不外抛（不阻断主流程）', () => {
-    expect(() =>
-      tryParse(() => {
+  it('同步抛错不外抛（调用方按 ok:false 分支处理，主流程不中断）', () => {
+    let out: unknown;
+    expect(() => {
+      out = tryParse(() => {
         throw new Error('boom');
-      }),
-    ).not.toThrow();
+      });
+    }).not.toThrow();
+    expect((out as { ok: boolean }).ok).toBe(false);
   });
 
-  it('真实场景：URL 解析失败回退默认文件名', () => {
-    const fromUrl = tryParse(
-      () => decodeURIComponent(new URL('http://x/%E4%B8%AD').pathname.split('/').pop() || ''),
-      '',
-    );
-    expect(fromUrl).toBe('中');
-    const bad = tryParse(
-      () => decodeURIComponent(new URL('::::bad').pathname.split('/').pop() || ''),
-      '',
-    );
-    expect(bad).toBe('');
+  it('真实场景：URL 解析失败 → 调用方据 ok:false 自行回退（而非原语代劳）', () => {
+    const ok = tryParse(() => decodeURIComponent(new URL('http://x/%E4%B8%AD').pathname.split('/').pop() || ''));
+    expect(ok.ok).toBe(true);
+    expect(ok.ok && ok.value).toBe('中');
+    const bad = tryParse(() => decodeURIComponent(new URL('::::bad').pathname.split('/').pop() || ''));
+    expect(bad.ok).toBe(false); // 失败**透传**给调用方，由它决定要不要用默认值
   });
 
   it('真实场景：正则编译失败回退 undefined（不抛）', () => {

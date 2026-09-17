@@ -1188,12 +1188,14 @@ export function createScriptBoxEngine({
       // 统一走 fileNameFromUrl 取末段再取后缀；无后缀时回退 png（图片场景的合理默认，此处保留但显式说明）。
       const rawExt = fileNameFromUrl(file.name).split('.').pop() || '';
       const ext = rawExt.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'png';
-      const assetUrl = await uploadFileToLocal(
+      const up = await uploadFileToLocal(
         file,
         folder,
         `${asset.name || 'asset'}.${ext || 'png'}`,
       );
-      if (!assetUrl) throw new Error('图片落盘失败');
+      // 【2026-09-17 消费者只转发】带上**生产者判词** —— 原来只有一句笼统的"图片落盘失败"。
+      if (!up.ok) throw new Error(`图片落盘失败：${up.message}`);
+      const assetUrl = up.url;
       // 缩略图：不再自产落盘独立文件，thumbnailUrl 回退原图；显示时由系统按需出图端点（buildThumbnailUrl）出小图
       updateData({
         assets: getData().assets.map((a) =>

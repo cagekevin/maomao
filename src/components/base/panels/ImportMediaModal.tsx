@@ -73,6 +73,7 @@ import '../creative/creative-library.css';
 import { listMediaRefSources, queryMediaRefs } from '../media/index.ts';
 import type { MediaRef, MediaRefQuery, MediaRefSource } from '../media/mediaRefTypes.ts';
 import { logger } from '../core/logger.ts';
+import { toastError } from '../core/toastStore.ts';
 // 目录浏览规则（根/子目录 → 查询参数 · 上钻）：**与侧边栏素材库同一份实现**（见 libraryBrowse.ts）。
 import { libraryBrowseArgs, libraryUpFolder } from '../media/libraryBrowse.ts';
 // 本地引擎连接态：拖入归类需要它（hook 的 `connected` 是必填；漏传 = drop 恒失败的假交互）。
@@ -194,8 +195,8 @@ export default function ImportMediaModal({
           const message = e instanceof Error ? e.message : String(e);
           if (token !== loadTokenRef.current) return;
           if (opts?.silent) {
-            // catch-ok: NON_BLOCKING —— 归类后的刷新失败不阻断（用户此刻不在等它，下次跳位置自然同步）；
-            // 但**降级必留痕**：给开发者留 debug，不拿 toast 骗用户。
+            // 归类后的刷新失败不阻断（用户此刻不在等它，下次跳位置自然同步）；
+            // **降级必留痕**：给开发者留 debug，不拿 toast 骗用户 ⇒ catch 体非空、无需豁免标记。
             logger.debug('mediaModal', '归类后刷新失败（不阻断）', { message });
             return;
           }
@@ -288,7 +289,15 @@ export default function ImportMediaModal({
   const handleConfirm = async () => {
     const picked = mediaItems.filter((it) => selected.has(it.ref));
     if (picked.length === 0) return;
-    await onPick(picked);
+    try {
+      await onPick(picked);
+    } catch (e) {
+      // 【2026-09-17 TD-16-34②】导入失败是**用户动作的失败**，必须可见：旧实现失败 → unhandled
+      // 且弹窗照关、零提示（用户以为导入成功）。失败时**不关弹窗**，让用户可重试。
+      logger.warn('导入弹窗', '导入选中失败', e);
+      toastError('导入失败，请重试');
+      return;
+    }
     onClose?.();
   };
 
@@ -300,8 +309,14 @@ export default function ImportMediaModal({
   const handleLocalFiles = useCallback(
     (files: FileList | null) => {
       if (!files?.length || !onLocalFiles) return;
-      void onLocalFiles(files);
-      onClose?.();
+      // 【2026-09-17 TD-16-34②】交接是异步的：旧实现 `void onLocalFiles(files)` 后**立即** onClose ——
+      // 失败既不可见（unhandled），弹窗也已关（用户无处重试）。改为等它落定：成功才关，失败留痕 + 提示。
+      Promise.resolve(onLocalFiles(files))
+        .then(() => onClose?.())
+        .catch((e: unknown) => {
+          logger.warn('导入弹窗', '本机文件导入失败', e);
+          toastError('导入失败，请重试');
+        });
     },
     [onLocalFiles, onClose],
   );

@@ -208,14 +208,11 @@ const SCROLL_IDLE_MS = 120;
 
 /** 面板宽度（localStorage 记忆） */
 function loadWidth() {
-  try {
-    const t = contentGet(PANEL_WIDTH_KEY);
-    const n = t ? Number(t) : NaN;
-    if (Number.isFinite(n)) return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, n));
-  } catch {
-    // catch-ok: READ_FALLBACK
-    /* ignore */
-  }
+  // 【消费者不越权 · 2026-09-17 拆 catch-ok】删 `catch { // catch-ok: READ_FALLBACK }`：
+  // `contentGet` 对已登记键不抛，该 catch 不可达；留着只会把契约违约一并吞掉。
+  const t = contentGet(PANEL_WIDTH_KEY);
+  const n = t ? Number(t) : NaN;
+  if (Number.isFinite(n)) return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, n));
   return DEFAULT_WIDTH;
 }
 
@@ -522,14 +519,9 @@ export default function AgentPanel({
     const lastResolved = (last as { tableResolved?: string }).tableResolved;
     if (lastResolved === 'confirmed' || lastResolved === 'cancelled') return;
     const hit = tryParseAssistantTableJson(last.content);
-    if (hit) {
-      // 结构校验（对齐剧本盒 L334）：JSON 合法但未解析出任何行 → 视为格式不符，给可重试的明确提示
-      if (!Array.isArray(hit.json.rows) || hit.json.rows.length === 0) {
-        showToast?.('AI 返回的表格 JSON 格式不符（未解析出任何行），请让 AI 重新生成', {
-          type: 'error',
-        });
-        logger.error('AI助手', '表格 JSON 结构不符（空 rows）', { messageId: last.id });
-      } else if (wsSnap.open) {
+    if (hit.ok) {
+      // rows 非空由**解析方保证**（`no-rows` 走下面的 else 分支）⇒ 这里不再重复判空（一归）。
+      if (wsSnap.open) {
         // 仅表格协作激活时接受预览；selectedRowIds=探测当下选中（冻结进 preview，写回不重读）
         acceptTablePreview({
           json: hit.json,
@@ -537,13 +529,18 @@ export default function AgentPanel({
           selectedRowIds: wsSnap.selectedRowIds,
         });
       }
-    } else if (wsSnap.open && looksLikeTableJson(last.content)) {
-      // AI 明显在尝试返回表格 JSON 但格式错误 → 不显示预览卡，直接报错让用户重试（对齐剧本盒：勿静默）
-      showToast?.('AI 返回的表格 JSON 解析失败，请让 AI 重新生成', { type: 'error' });
-      logger.error('AI助手', '表格 JSON 解析失败', {
-        text: String(last.content || '').slice(0, 300),
+    } else if (wsSnap.open && hit.message) {
+      // 【2026-09-17 裁定：消费者只转发】**判词、文案、以及"要不要提示"三者都来自生产者**：
+      //  · `hit.message` = 生产者给的人话（`''` 即它声明"这次失败不必打扰用户"）；
+      //  · 消费者在此**只做两件事**：留痕（给开发者）＋ 原样转发文案（给用户）。
+      // **禁止**改写/翻译/二次判断（原来这里用三元自行分派两种文案 = 消费者加工，已删）。
+      // `wsSnap.open` 是**展示层自己的策略**（表格协作没开就不打扰），不是对错误的再解释。
+      logger.warn('AI助手', '表格 JSON 未被采用（转发解析方判词）', {
+        reason: hit.reason,
         messageId: last.id,
+        error: 'error' in hit ? hit.error : undefined,
       });
+      showToast?.(hit.message, { type: 'error' });
     }
   }, [messages, tableData]);
   // 切对话 → 清共享态选中行/预览/游标/选区（防止串到别的对话；保留 open/width，spec §4.5.1）
@@ -595,13 +592,9 @@ export default function AgentPanel({
   //   不管「改画布/改布局」这类零成本操作（完全自主下 AI 直接做）。
   // 判定收敛在 useCanvasAgentTools.executePlanTool 一处：creditHit = getCreditSwitch()。
   // 读写走 contracts.ts 登记的 CREDIT_SWITCH_KEY（index.js 透传 getCreditSwitch/setCreditSwitch）。
-  const [creditSwitch, setCreditSwitchState] = useState(() => {
-    try {
-      return getCreditSwitch();
-    } catch {
-      return true;
-    }
-  });
+  // 【消费者不越权 · 2026-09-17 删 catch】`getCreditSwitch` 的失败语义归其自身（读不到时它自会处理）；
+  // UI 层再包一层「吞成默认 true」既掩盖契约违约，又给读者「读可能失败」的假象。
+  const [creditSwitch, setCreditSwitchState] = useState(() => getCreditSwitch());
   const toggleCreditSwitch = () => {
     const next = !creditSwitch;
     setCreditSwitchState(next);
@@ -612,13 +605,10 @@ export default function AgentPanel({
   // 切对话既不重读、也不广播事件 → 在 A 命中积分闸（卡亮）后切到 B，卡片会**残留在 B**（与 TD-11-4 同源形态）。
   // 故新增「切对话即按真源重读」effect（下方 [activeConversationId]）：门禁是 per-conversation 真源，
   // UI 副本必须随真源切换而重算，而不是等一个可能永不到来的事件。
+  // 【消费者不越权 · 2026-09-17 删 catch】同上：读 creditGate 真源，不在 UI 层把「读失败」重定义成 null。
   const [creditGatePreview, setCreditGatePreview] = useState(() => {
-    try {
-      const g = getCreditGate();
-      return g?.pending === true ? g : null;
-    } catch {
-      return null;
-    }
+    const g = getCreditGate();
+    return g?.pending === true ? g : null;
   });
   const [creditGateDismissed, setCreditGateDismissed] = useState(false);
   useEffect(() => {
@@ -1996,14 +1986,10 @@ function buildTableSnapshotText(
   return lines.join('\n');
 }
 
-/** 粗略判断某段文本「明显在试图返回表格 JSON」（代码块 / globalStyle / rows）。
- *  用于解析失败时判定"AI 想给表格但格式坏了" → 报错让用户重试，而非误报普通回复。
- *  收紧（B-005）：不再单凭 `{` 开头判定——普通正文（代码/JSON 示例）会误弹「格式错」，
- *  必须出现 rows / globalStyle / 代码块等表格特征才报警。 */
-function looksLikeTableJson(text: unknown): boolean {
-  const t = String(text ?? '');
-  if (!t) return false;
-  return (
-    /```(?:json)?/i.test(t) || /["']?globalStyle["']?\s*:/.test(t) || /["']?rows["']?\s*:/.test(t)
-  );
-}
+/** 【2026-09-17 已删 `looksLikeTableJson`（一归）】
+ *  它原来在"解析失败"分支做**二次猜测**："这段文本**像不像**表格？" —— 与解析函数内部的判据
+ *  **重复**（同一能力两处判：一处真解析、一处猜特征）。判据重复会让两者漂移（B-005 那次收紧
+ *  就是为补猜法误报打的补丁）。
+ *  现在解析方直接给出 `reason === 'parse-error'`（＝"含花括号但 JSON 非法"），**它就是真相源**，
+ *  调用方不必再猜 ⇒ 上一层的消费点已删，本函数随之删除（零消费者，删前已 grep 证实）。
+ *  若将来真需要"预估像不像表格"，应由解析层导出（在拥有真相的那层），不要回到展示层手抄特征。 */

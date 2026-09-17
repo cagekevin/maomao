@@ -223,13 +223,12 @@ export function getResources(): Resource[] {
   return resources;
 }
 
-/** 当前项目 id（非 React 场景读 projectStore 快照；未初始化返回 null） */
+/** 当前项目 id（非 React 场景读 projectStore 快照）。
+ *  【消费者不越权 · 2026-09-17 删 catch】`getCurrentProject()` 是内存真相读取（projectStore 恒返回一个
+ *  Project，从不抛）。旧 `catch { return null }` 既不可达，又让「取不到项目」与「项目确实是 null」混同
+ *  ⇒ `resourcesOfProject` 用 pid=null 过滤 ⇒ 带 projectId 的素材**静默不可见**。 */
 function currentProjectId(): string | null {
-  try {
-    return getCurrentProject()?.id ?? null;
-  } catch {
-    return null;
-  }
+  return getCurrentProject()?.id ?? null;
 }
 
 /**

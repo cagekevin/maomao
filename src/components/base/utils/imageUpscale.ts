@@ -24,6 +24,7 @@
  * @returns {Promise<{ dataUrl, blob, width, height }>}
  */
 import { toAbsoluteFileUrl } from './assetUrl.ts';
+import { attemptQuietly } from './asyncGuard.ts';
 import { loadImageWithTimeout } from './asyncGuard.ts';
 import { IMAGE_LOAD_TIMEOUT } from '../core/config.ts';
 import { dataUrlToBlob, canvasToImageDataUrl } from '../core/utils.ts';
@@ -86,12 +87,8 @@ export async function upscaleImage(
 
   // 可选轻度锐化（unsharp mask）：放大后图像偏柔，叠加高频分量让边缘更清亮
   if (sharpen && sharpenAmount > 0) {
-    try {
-      applyUnsharpMask(canvas, sharpenAmount);
-    } catch {
-      // catch-ok: NON_BLOCKING
-      // 锐化失败（极老环境无 getImageData 权限等）不阻断，保留未锐化结果
-    }
+    // 锐化失败（极老环境无 getImageData 权限等）不阻断，保留未锐化结果 → 走**唯一原语**，不再手写豁免标记。
+    attemptQuietly(() => applyUnsharpMask(canvas, sharpenAmount));
   }
 
   // 产物统一经 canvasToImageDataUrl（唯一出口：产出即校验）：

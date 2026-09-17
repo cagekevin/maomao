@@ -162,8 +162,14 @@ assertPatternRegExpsValid();
 // 内部工具
 // ─────────────────────────────────────────────────────────────────
 
-/** 尝试解析 JSON 字符串，失败返回原值 */
-function tryParse(s: string): unknown {
+/**
+ * 解析 JSON 字符串；**不是合法 JSON** 时返回**原串**（存储里的裸字符串值）。
+ *
+ * ⚠️ **2026-09-17 改名（原 `tryParse`）**：与 `base/utils/asyncGuard.ts` 的 `tryParse` **同名不同义**
+ *   —— 那个返回**判别联合** `{ok,value|error}`、这个返回「原串」；同名会让读者以为是同一能力
+ *   （本仓 SSOT 第二份 + 语义漂移的典型诱因）。故按语义命名区分。
+ */
+function parseJsonOrRaw(s: string): unknown {
   try {
     return JSON.parse(s);
   } catch {
@@ -191,7 +197,17 @@ function matchPatternEntry(
     if (!v.pattern) continue;
     if (predicate && !predicate(v)) continue;
     const re = tryParseSafe(() => compilePatternRegex(k));
-    if (re?.test(key)) return v;
+    // 【2026-09-17 禁止项规则 2】判别联合**必须先判 ok**：原写法 `re?.test(key)` 直接读 `.value`
+    //（`ParseResult<RegExp>` 上没有 `test`，TS 已判红）。且"这条 pattern 键的正则编译不了"＝
+    // 该键模板自己写错了（**契约违约**）—— 不能静默跳过：留痕 + 跳过该条（不中断其余键的匹配）。
+    if (!re.ok) {
+      logger.warn('contentStore', 'pattern 键正则编译失败（该模板条目已跳过）', {
+        key: k,
+        error: re.error,
+      });
+      continue;
+    }
+    if (re.value.test(key)) return v;
   }
   return null;
 }
@@ -306,7 +322,7 @@ function loadFromLocal(key: string): unknown {
     cache.set(key, undefined);
     return undefined;
   }
-  const parsed = tryParse(raw);
+  const parsed = parseJsonOrRaw(raw);
   cache.set(key, parsed);
   return parsed;
 }
@@ -461,7 +477,7 @@ async function kvReadOp(key: string): Promise<KvOpOutcome<unknown>> {
       toast: '本地引擎存储暂不可用，已回退读取本地缓存',
     });
     const raw = sGet(key);
-    return { value: raw === null ? null : tryParse(raw), source: 'local' };
+    return { value: raw === null ? null : parseJsonOrRaw(raw), source: 'local' };
   }
 }
 
@@ -659,7 +675,7 @@ export function contentGetLocalMirror(key: string): unknown {
   // 未就绪 ≠ 不存在（TD-02-2）：扩展环境预填完成前 `sGet` 必返 null，那是"还不知道"
   if (!isStorageReady()) return undefined;
   const raw = sGet(key);
-  return raw === null ? undefined : tryParse(raw);
+  return raw === null ? undefined : parseJsonOrRaw(raw);
 }
 
 /**
@@ -714,7 +730,7 @@ export async function contentGetKvWithFallback(key: string): Promise<KvFallbackR
       if (res.value != null) return { ok: true, value: res.value, source: 'kv' };
       // KV 真空：探测本地副本，供调用方决定一次性迁移（唯一许可迁移的形态）
       const raw = sGet(key);
-      const fallback = raw === null ? null : tryParse(raw);
+      const fallback = raw === null ? null : parseJsonOrRaw(raw);
       return {
         ok: true,
         value: fallback,

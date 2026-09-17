@@ -45,12 +45,10 @@ type NodePrefsMap = Record<string, unknown>;
 type PrefsFieldMap = Record<string, Record<string, string>>;
 
 function loadAll(): NodePrefsMap {
-  try {
-    const parsed = contentGet(STORAGE_KEY);
-    return parsed && typeof parsed === 'object' ? (parsed as NodePrefsMap) : {};
-  } catch {
-    return {};
-  }
+  // 【消费者不越权 · 2026-09-17 拆 catch-ok】删 catch：`contentGet` 对**已登记键不抛**
+  // （失败语义归 contentStore = 真相源，只对契约违约抛错且须 fail-fast）⇒ 该 catch 不可达。
+  const parsed = contentGet(STORAGE_KEY);
+  return parsed && typeof parsed === 'object' ? (parsed as NodePrefsMap) : {};
 }
 
 /**

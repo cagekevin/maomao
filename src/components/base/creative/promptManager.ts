@@ -50,15 +50,12 @@ export const DEFAULT_PRESETS: Preset[] = [
   },
 ];
 
-// 读取本地（容错）
+// 读取本地。`fallback` 只承接「确实没有数据」（值为空 / 形状不符），**不承接「读失败」**——
+// 读失败语义归 contentStore（真相源），消费者不得越权重定义为默认值（2026-09-17 删 catch）。
 function readJSON<T>(key: string, fallback: T): T {
-  try {
-    const val = contentGet(key);
-    if (val === undefined || val === null) return fallback;
-    return Array.isArray(val) ? (val as T) : fallback;
-  } catch {
-    return fallback;
-  }
+  const val = contentGet(key);
+  if (val === undefined || val === null) return fallback;
+  return Array.isArray(val) ? (val as T) : fallback;
 }
 
 function writeJSON(key: string, val: unknown): void {

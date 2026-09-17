@@ -79,9 +79,10 @@ export function useCanvasSync(getProjectId: () => string): CanvasSyncApi {
       try {
         const remote = await contentKvGetVersion(CANVAS_STATE_PREFIX + pid);
         if (remote > getLoadedVersion()) setCanvasConflict(true);
-      } catch {
-        // catch-ok: NON_BLOCKING
-        /* 轮询失败静默：不打扰主链路 */
+      } catch (e) {
+        // 轮询失败**可预期**（引擎暂不可达 / 后台切换），不打扰主链路；但「不打扰」≠「不留痕」——
+        // 完全静默会让「版本一直读不到、冲突检测形同虚设」无从排查（2026-09-17 拆 catch-ok）。
+        logger.debug('画布同步', '冲突轮询失败（不阻断）', e);
       }
     };
     const timer = setInterval(tick, 3000);

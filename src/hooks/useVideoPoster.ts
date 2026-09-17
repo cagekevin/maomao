@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { logger } from '../components/base/core/logger.ts';
 import {
   drawVideoFrame,
   setCrossOriginForReadable,
@@ -55,8 +56,9 @@ export function useVideoPoster(url: string, enabled: boolean) {
         const dataUrl = canvasToImageDataUrl(canvas, 'image/jpeg', 0.7);
         if (!cancelled) setPosterUrl(dataUrl);
       })
-      .catch(() => {
-        // catch-ok: BROWSER_API
+      .catch((e: unknown) => {
+        // 视频海报生成失败（解码 / 浏览器 API 受限）不阻断列表渲染 → 但**降级必留痕**（2026-09-17 拆 catch-ok）。
+        logger.debug('视频海报', '生成失败（不阻断）', e);
       });
     return () => {
       cancelled = true;

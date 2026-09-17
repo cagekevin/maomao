@@ -53,8 +53,12 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => ({
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   toAbsoluteFileUrl: mocks.toAbsoluteFileUrl,
   // §5.4.9 落盘唯一实现：返回持久 /files/ URL（不内联 dataURL）；仅作测试替身
+  // 【2026-09-17】契约改判别联合（成功＝`ok:true` + url）。
   resolveNodeAssetUrl: (file: File) =>
-    Promise.resolve(`http://127.0.0.1:18080/files/canvasDrop/${file?.name ?? 'x'}`),
+    Promise.resolve({
+      ok: true as const,
+      url: `http://127.0.0.1:18080/files/canvasDrop/${file?.name ?? 'x'}`,
+    }),
 }));
 vi.mock('../../src/components/base/utils/clipboard.ts', () => h.clipboardMock);
 vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({ default: () => null }));

@@ -5,7 +5,7 @@
     "why": "用户裁定（2026-09-13）：「提交和推送这两个我可以看成一个。只要最后推送不出去…就可以了，不需要反反复复把这两个东西一起跑」。原 commit+push 两阶段虽已是 disjoint（不同闸不重复），但一次「提交→推送」要等两轮闸、CI 若同时接两类闸也会跑两遍。合并为单一阶段后：每个闸在一次 push / 一次 CI 里**各跑一次**，无重复。",
     "assignment": {
       "build": "7 道廉价构建契约（无 tsc）：api/node-types/node-handles/node-data/keys/upload-dirs/jsx。只在 npm run build 时跑，与 git 流无关。",
-      "push": "11 道代码闸（合并原 commit + push）：type-check(tsc --noEmit) + any/catch/events(代码卫生) + strict-src(白名单 0 隐式 any) + arch(全图扫描) + dead-code(knip 死代码) + arch-index(架构日志进度表与轮次文件一致) + gates(元层：闸自述自洽 —— 让「申诉口」这条规定不只是注释) + gate-vitals(元层：闸的闸 —— 治「扫 0 却绿灯」) + doc-refs(描述层：注释债号存在性 —— 治「幽灵债号」)。只在 pre-push 与 CI 各跑一次。",
+      "push": "10 道代码闸（合并原 commit + push）：type-check(tsc --noEmit) + any/events(代码卫生) + strict-src(白名单 0 隐式 any) + arch(全图扫描) + dead-code(knip 死代码) + arch-index(架构日志进度表与轮次文件一致) + gates(元层：闸自述自洽 —— 让「申诉口」这条规定不只是注释) + gate-vitals(元层：闸的闸 —— 治「扫 0 却绿灯」) + doc-refs(描述层：注释债号存在性 —— 治「幽灵债号」)。只在 pre-push 与 CI 各跑一次。**注（2026-09-17）**：原第 11 道 `catch` 闸（空 catch 必须带 `// catch-ok:` 标记）已按用户裁定**删除** —— 它要求的『豁免标记』机制与现行判据『错误必须由产生它的那层以判别联合透传（含可展示信息）；消费者只转发』冲突：贴标记合法通过成本（一句话）低于真正改造，反而在生产它本要禁止的行为。代价与回潮风险见 daily/架构日志/16-跨区-错误透传判据与消费者改造-2026-09-17.md。",
       "health": "全量巡检 = 所有闸 + healthOnly，仅 check:health 用。"
     },
     "tsc": "push 阶段内两次 tsc，标志与职责不同、互不重叠、不可合并：type-check（不带 --noImplicitAny，通用类型错误）与 strict-src（带 --noImplicitAny，白名单目录隐式 any 收口）。标志会改变对无类型 .mjs mock 等的推断，强行合并会引入伪错误。",
@@ -54,12 +54,6 @@
       "cmd": "node scripts/check-any-honesty.mjs",
       "phase": "push",
       "desc": "类型诚实性：禁显式 any/never + 未标注 useState(null)/useRef(null)（全 src 零白名单）"
-    },
-    {
-      "id": "catch",
-      "cmd": "node scripts/check-silent-catch.mjs",
-      "phase": "push",
-      "desc": "静默吞错误：空 catch 必须带 // catch-ok: 标记"
     },
     {
       "id": "events",

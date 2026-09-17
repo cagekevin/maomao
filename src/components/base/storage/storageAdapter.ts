@@ -17,6 +17,8 @@
  */
 import { publish } from '../core/eventBus.ts';
 import { logger } from '../core/logger.ts';
+// 非阻塞副作用统一走原语（`NON_BLOCKING` 的收口实现），不再逐处手写 catch-ok 标记（2026-09-17）。
+import { attemptQuietly } from '../utils/asyncGuard.ts';
 
 /** Chrome 扩展全局（宿主注入，本层仅用到 runtime/storage.local 最小子集）。type-check 需显式声明。 */
 declare const chrome: {
@@ -40,7 +42,9 @@ declare const chrome: {
 export function isChromeExtension(): boolean {
   try {
     return typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id;
-  } catch {
+  } catch { // catch-ok: BROWSER_API
+    // 本处即「宿主环境探测**原语**」本体（非扩展端时 chrome 未定义）；
+    // 返回 false = 非扩展端，调用方据此走浏览器降级路径。属所有者定义失败语义，非消费者越权。
     return false;
   }
 }
@@ -56,7 +60,8 @@ export function isChromeExtension(): boolean {
 export function hasLocalStorage(): boolean {
   try {
     return typeof localStorage !== 'undefined';
-  } catch {
+  } catch { // catch-ok: BROWSER_API
+    // 环境探测**原语**本体（SSR/Node 下 localStorage 是未定义标识符，直接访问会抛）。
     return false;
   }
 }
@@ -73,8 +78,7 @@ function reportPersistFailure(key: string, error: unknown) {
     publish('persist:failed', { key, error: message });
     logger.warn('存储', '持久化失败', { key, error: message });
   } catch {
-    // catch-ok: NON_BLOCKING
-    /* 事件上报本身失败不阻断写入流程 */
+    // catch-ok: RECURSION_GUARD —— 上报通道自身失败时**不得再上报**（否则递归），非 NON_BLOCKING。
   }
 }
 
@@ -122,12 +126,8 @@ function markReady(): void {
   const waiters = [...readyListeners];
   readyListeners.clear();
   for (const cb of waiters) {
-    try {
-      cb();
-    } catch {
-      // catch-ok: NON_BLOCKING
-      /* 单个监听者失败不影响其余（就绪事件不该被下游异常吞掉） */
-    }
+    // 单个监听者失败不影响其余（就绪事件不该被下游异常吞掉）→ 走**唯一原语**，不再手写豁免标记。
+    attemptQuietly(cb);
   }
 }
 
@@ -158,7 +158,8 @@ export function sGet(key: string): string | null {
     if (!hasLocalStorage()) return memFallback.get(KEY_PREFIX + key) ?? null;
     try {
       return localStorage.getItem(KEY_PREFIX + key);
-    } catch {
+    } catch { // catch-ok: READ_FALLBACK
+      // 本处即「存储读取**原语**」本体：localStorage 受限（隐私模式）读不到 → null。
       return null;
     }
   }

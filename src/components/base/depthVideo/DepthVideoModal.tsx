@@ -414,20 +414,22 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
       const ext = rec.format.mimeType.includes('mp4') ? 'mp4' : 'webm';
       const outName = depthOutputName(name || fileNameFromUrl(videoUrl) || 'video', ext);
       setStatus(`转换完成，正在上传…`);
-      const url = await withTimeout(
+      const up = await withTimeout(
         uploadFileToLocal(blob, UPLOAD_DIRS.videoProcess, outName),
         30000,
         '文件上传超时',
       );
-      if (!url) throw new Error('深度视频上传失败（本地文件服务不可用）。');
+      // 【2026-09-17 消费者只转发】失败原因由生产者给出（本地服务／网络／后端各自不同），
+      // **原样带进错误** —— 原来固定说"本地文件服务不可用"= 消费者自己编原因。
+      if (!up.ok) throw new Error(`深度视频上传失败：${up.message}`);
 
       setProgress(100);
       setBadge('完成');
       setStatus('转换完成。');
       showToast('深度视频已生成', { type: 'success' });
       // 排障埋点（debug）：记录生成成功（url + 输出名），受 'depth' 位控制，默认安静不上报
-      logger.debug('深度转视频', 'success', { url, outputName: outName }, { module: 'depth' });
-      onSave(url, outName);
+      logger.debug('深度转视频', 'success', { url: up.url, outputName: outName }, { module: 'depth' });
+      onSave(up.url, outName);
       onClose();
     } catch (e) {
       // 失败可见：不静默吞错、不抛未捕获；如实上报到内联状态条（含取消与超时）

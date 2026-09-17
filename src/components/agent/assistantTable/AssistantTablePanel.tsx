@@ -83,8 +83,10 @@ import './assistant-table.css';
 export interface AssistantTablePanelProps {
   /** 左栏固定宽度（px）（父级分栏拖拽决定） */
   width?: number;
-  /** 某行 → 发送到画布（AgentPanel 传 sendContentToCanvas，内部 rowToText 拼好文字） */
-  onSendToCanvas?: (text: string) => void;
+  /** 某行 → 发送到画布（AgentPanel 传 sendContentToCanvas，内部 rowToText 拼好文字）。
+   *  **结果与可展示文案都由生产者（宿主）给全** —— 本组件是消费者，只转发 `message`，
+   *  不拼串、不补默认值（TD-16-27 判据 + 2026-09-17「消费者只转发」裁定）。 */
+  onSendToCanvas?: (text: string) => Promise<{ ok: boolean; message: string }>;
   /** 是否正在发送（发送中禁用确认按钮） */
   sending?: boolean;
   onConfirmPreview?: () => void;
@@ -351,9 +353,15 @@ export default function AssistantTablePanel({
           showToast?.(`已删除 ${opsRowIds.length} 行`, { type: 'success' });
         }}
         onSendToCanvas={() => {
+          // 【2026-09-17 TD-16-27】原实现调用后**无条件** toast「已发送」—— 建节点失败也报成功。
+          // 现按结果事实分流（成功/失败各自文案）。
+          if (!onSendToCanvas) return;
           const t = rowToText(tableData, row, globalStyle, activeTabName(tabs, activeTabId));
-          onSendToCanvas?.(t);
-          showToast?.('已发送到画布（建成文本节点）');
+          void onSendToCanvas(t).then((r) => {
+            // 【2026-09-17 裁定：消费者只转发】成功/失败文案**都由生产者给**（`r.message`）：
+            // 此处不拼串、不补 `|| '未知原因'`（那是消费者加工，且 `||` 会掩盖缺失字段）。
+            showToast?.(r.message, r.ok ? undefined : { type: 'error' });
+          });
         }}
         onCopyToTab={(destTabId) => copyRowsToTarget(destTabId, opsRowIds)}
         onCopyToNewTab={() => {

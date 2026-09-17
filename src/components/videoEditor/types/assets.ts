@@ -81,4 +81,15 @@ export type AddMediaAssetOutcome =
  * （以为"这个工程没素材"）。`superseded` = 本次加载已被更新的加载取代
  * （正常的并发丢弃，**不是错误**，调用方不得据此提示用户）。
  */
-export type LoadProjectMediaOutcome = { ok: true } | OperationFailure<'load-failed' | 'superseded'>;
+/** 【2026-09-17 TD-16-27】`missing` = 在册但读不出的素材 id 列表。
+ *  加载**成功但素材少了**不是"失败"（不该让整个面板变错误态、影响其它素材），
+ *  但也不能静默 —— 调用方据此提示（"不阻断"≠"不可见"）。 */
+export type LoadProjectMediaOutcome =
+  | {
+      ok: true;
+      /** 在册但读不出的素材 id（"少了几条"） */
+      missing: string[];
+      /** 元数据表**整体读坏**时的**可展示信息**（生产者给全，消费者只转发）；正常为 null */
+      shapeError: string | null;
+    }
+  | OperationFailure<'load-failed' | 'superseded'>;

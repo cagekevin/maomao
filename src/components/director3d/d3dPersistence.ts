@@ -16,7 +16,8 @@
  * 路由路径以 contracts.ts apiRegistry 登记为准（/api/kv/get|set|delete，非 docs 方案里的 /api/kv）。
  */
 
-import { saveInlineToLocal } from '../base/api/filesApi.ts';
+import { saveInlineToLocal, type UploadOutcome } from '../base/api/filesApi.ts';
+import { attemptQuietly } from '../base/utils/asyncGuard.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
 import { logger } from '../base/core/logger.ts';
 import { showToast } from '../base/core/toastStore.ts';
@@ -84,12 +85,8 @@ function getChannel(): BroadcastChannel | null {
 function announceSaved(key: string): void {
   const channel = getChannel();
   if (!channel) return;
-  try {
-    channel.postMessage({ type: 'D3D_SAVED', key, tabId, at: Date.now() });
-  } catch {
-    // catch-ok: NON_BLOCKING
-    /* 广播失败忽略，不影响保存 */
-  }
+  // 广播失败不阻断保存 → 走**唯一原语**（`NON_BLOCKING` 的收口实现），不再手写豁免标记。
+  attemptQuietly(() => channel.postMessage({ type: 'D3D_SAVED', key, tabId, at: Date.now() }));
 }
 
 /**
@@ -140,8 +137,10 @@ export interface D3dProject {
   [key: string]: unknown;
 }
 
-/** base64 → 本地文件 URL 的落盘函数（默认 filesApi.saveInlineToLocal） */
-export type SaveInlineFn = (dataUrl: string, dir?: string) => Promise<string | null>;
+/** base64 → 本地文件 URL 的落盘函数（默认 filesApi.saveInlineToLocal）。
+ *  【2026-09-17 判据】返回**判别联合**（含生产者 `message`）—— 失败不再压成 `null`
+ *  （`null` 让"失败原因"在低层当场丢失，上层只能猜）。 */
+export type SaveInlineFn = (dataUrl: string, dir?: string) => Promise<UploadOutcome>;
 
 /**
  * 外部化（base64 → 本地文件 URL）（T1/T2）。
@@ -162,12 +161,14 @@ export async function externalizeProjectImages(
   // 单字段外部化：非 data: 原样返回（已是文件URL/外链不动）；落盘失败或返回原值 → 保留原 base64
   const maybeReplace = async (src: string): Promise<string> => {
     if (typeof src !== 'string' || !src.startsWith('data:')) return src;
-    const url = await saveInline(src, UPLOAD_DIRS.director3d);
-    if (url && url !== src) {
+    const r = await saveInline(src, UPLOAD_DIRS.director3d);
+    // 落盘失败 → 保留原 base64（**真兜底**：base64 仍能上屏，图不会丢）。
+    // 原因由生产者给出（`r.message`），此处不吞、也不再自造。
+    if (r.ok && r.url !== src) {
       droppedCount += 1;
-      return url;
+      return r.url;
     }
-    return src; // 落盘失败 → 保留原 base64
+    return src;
   };
 
   if (out?.reference && isProjectAssetUrl(out.reference.image)) {

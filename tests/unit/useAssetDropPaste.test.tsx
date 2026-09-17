@@ -22,7 +22,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { ClipboardEvent as ReactClipboardEvent, DragEvent as ReactDragEvent } from 'react';
 
-const uploadMock = vi.fn(async (file, _folder) => 'http://local/' + (file?.name || 'drag'));
+const uploadMock = vi.fn(async (file, _folder) => ({
+  ok: true,
+  url: 'http://local/' + (file?.name || 'drag'),
+}));
 const downloadRemoteMock = vi.fn(async (_url, _opts) => null);
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   resolveNodeAssetUrl: (file: any, folder: any) => uploadMock(file, folder),
@@ -601,7 +604,11 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
   afterEach(() => downloadRemoteMock.mockReset());
 
   it('拖入网页图 → 先用原 URL 建节点 + 触发后台本地化；成功后替换节点 assetUrl', async () => {
-    downloadRemoteMock.mockResolvedValue('http://127.0.0.1:18080/files/web/abc.png' as never);
+    // 【2026-09-17】契约改判别联合（成功＝`ok:true` + url）。
+    downloadRemoteMock.mockResolvedValue({
+      ok: true,
+      url: 'http://127.0.0.1:18080/files/web/abc.png',
+    } as never);
     const patchNodeData = vi.fn();
     const opts = makeOpts({ addNode: vi.fn(() => 'node-web-1'), patchNodeData });
     const { result } = renderHook(() => useAssetDropPaste(opts));
@@ -633,7 +640,8 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
   });
 
   it('后台本地化失败（返回 null）→ 保持原 URL，不替换、不抛错', async () => {
-    downloadRemoteMock.mockResolvedValue(null);
+    // 【2026-09-17】失败＝`ok:false`（含生产者 message），不再是 null。
+    downloadRemoteMock.mockResolvedValue({ ok: false, message: '本地化失败' } as never);
     const patchNodeData = vi.fn();
     const opts = makeOpts({ addNode: vi.fn(() => 'node-web-2'), patchNodeData });
     const { result } = renderHook(() => useAssetDropPaste(opts));

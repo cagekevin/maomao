@@ -34,8 +34,13 @@ export type ScreenToFlowFn = (pos: FlowPosition) => FlowPosition;
 /** 节点 data 写回（走 useNodeData 唯一入口） */
 export type PatchNodeDataFn = (id: string, patch: Record<string, unknown>) => void;
 
-/** 粘贴节点组（mutiwindow-nodes）回调：onPasteNodeGroup(json, pos) */
-export type PasteNodeGroupFn = (json: string, pos: FlowPosition) => boolean | void;
+/** 粘贴节点组（mutiwindow-nodes）回调：onPasteNodeGroup(json, pos)。
+ *  **允许异步**：宿主实现（`App.pasteNodeGroup`）解析 JSON 后重建节点，本就是 Promise；
+ *  类型里写死 `boolean | void` 会逼宿主把 Promise 丢掉（`void fn()`）＝ 把失败吞在类型层。 */
+export type PasteNodeGroupFn = (
+  json: string,
+  pos: FlowPosition,
+) => boolean | void | Promise<boolean>;
 
 export interface UseAssetDropPasteOptions {
   addNode: AddNodeFn;
@@ -129,7 +134,8 @@ function readClipboardText(cd: DataTransfer | null | undefined): string {
   if (!cd || typeof cd.getData !== 'function') return '';
   try {
     return cd.getData('text/plain') || '';
-  } catch {
+  } catch { // catch-ok: CLIPBOARD
+    // 部分环境 getData 会抛（权限 / 非安全上下文）属浏览器策略预期，吞为 '' 不阻断探测。
     return '';
   }
 }
@@ -137,14 +143,12 @@ function readClipboardText(cd: DataTransfer | null | undefined): string {
 /** 文本是否为画布「节点组 / 图片组」JSON（mutiwindow-nodes / mutiwindow-images） */
 function isCanvasGroupJson(text: string): boolean {
   if (!text || !text.trim()) return false;
-  try {
-    const p: unknown = JSON.parse(text);
-    // 仅取 type 字段判断，object 守卫后按 Record 读，不做形状假断言（F7）
-    const o = p && typeof p === 'object' ? (p as Record<string, unknown>) : null;
-    return o?.type === 'mutiwindow-nodes' || o?.type === 'mutiwindow-images';
-  } catch {
-    return false;
-  }
+  // 解析走唯一原语；判别联合 ⇒ 必须先判 ok（2026-09-17 契约收紧）。
+  const r = tryParse(() => JSON.parse(text));
+  if (!r.ok || !r.value || typeof r.value !== 'object') return false;
+  // 仅取 type 字段判断，object 守卫后按 Record 读，不做形状假断言（F7）
+  const o = r.value as Record<string, unknown>;
+  return o.type === 'mutiwindow-nodes' || o.type === 'mutiwindow-images';
 }
 
 /** clipboardData.items 里是否含图片文件项 */
@@ -213,12 +217,14 @@ export function useAssetDropPaste({
       // → 连内联都拿不到才算真失败），唯一实现见 filesApi.resolveNodeAssetUrl。
       // 收益：不把大视频 dataURL 塞进快照；localTool 离线时仍能拖入看到图。
       (async () => {
-        const url = await resolveNodeAssetUrl(file, UPLOAD_DIRS.canvasDrop);
-        if (!url) {
-          // 真失败（落盘已成功回退内联，走到这里说明文件读取也失败）→ 提示一次，不再静默
-          toastError(`导入失败：无法读取「${file.name}」`);
+        const up = await resolveNodeAssetUrl(file, UPLOAD_DIRS.canvasDrop);
+        if (!up.ok) {
+          // 真失败（落盘已回退内联，走到这里说明连内联也读不出）→ 提示一次，且**带生产者判词**
+          //（原来是消费者自己编的"无法读取"）。
+          toastError(`导入失败：${up.message}（「${file.name}」）`);
           return;
         }
+        const url = up.url;
         // docs/122 #4：持久文件（非内联 dataURL）→ 落稳定 contentId（sha1:<hex>，与后端同源）；
         // 内联 dataURL/blob 无持久 Content，只存 url（互斥双形态）。
         let contentId: string | undefined;
@@ -253,8 +259,19 @@ export function useAssetDropPaste({
           folder: WEB_DROP_SUBFOLDER,
           filename: fileNameFromUrl(url) || undefined,
         })
-          .then(async (localUrl) => {
-            if (localUrl && localUrl !== url) {
+          .then(async (r) => {
+            // 【2026-09-17 消费者只转发】`downloadRemoteToLocal` 现返回判别联合：
+            //  · `ok:true` → 用**生产者给的** url；
+            //  · `ok:false + skipped:true` → **无需下载**（已是本地文件）⇒ 保持原 URL，**不是失败**、不告警；
+            //  · `ok:false`（真失败）→ **留痕转发生产者的 `message`**，此处不自己编判词。
+            if (!r.ok) {
+              if (!r.skipped) {
+                logger.warn('素材导入', '网页图本地化失败（保持原 URL）', { message: r.message });
+              }
+              return;
+            }
+            const localUrl = r.url;
+            if (localUrl !== url) {
               // docs/122 #4：网页图本地化成功后，落稳定 contentId（由本地文件字节算，与后端同源）；
               // asset 主引用从易变 assetUrl 升级为 contentId，渲染经 resource 解析 → 永不破图。
               const patch: Record<string, unknown> = { assetUrl: localUrl };
@@ -263,9 +280,10 @@ export function useAssetDropPaste({
                 const buf = await resp.arrayBuffer();
                 const cid = await contentIdOfBytes(buf);
                 if (cid) patch.contentId = cid;
-              } catch {
-                // catch-ok: NON_BLOCKING
-                /* 本地化成功即满足显示；contentId 为可选稳定身份，缺失不阻断 */
+              } catch (e) {
+                // 本地化成功即满足显示；contentId 为可选稳定身份，缺失不阻断
+                // → 但**降级必留痕**（2026-09-17 拆 catch-ok）。
+                logger.debug('素材导入', '本地图 contentId 计算失败（不阻断）', e);
               }
               patchNodeData(id, patch);
             }
@@ -285,7 +303,7 @@ export function useAssetDropPaste({
       // 素材库素材拖入（ResourceLibrary 写 application/x-yimao-asset）：用素材 url 建节点
       const assetRaw = e.dataTransfer?.getData('application/x-yimao-asset');
       if (assetRaw) {
-        const asset = tryParse(
+        const assetR = tryParse(
           () =>
             JSON.parse(assetRaw) as {
               url?: string;
@@ -295,6 +313,7 @@ export function useAssetDropPaste({
               contentId?: string;
             },
         );
+        const asset = assetR.ok ? assetR.value : null;
         if (asset?.url) {
           // 文字素材 → textGenerateNode（把 data:text 内容解码成文本）；图片/视频/音频 → assetNode
           if (asset.type === 'text') {
@@ -351,15 +370,29 @@ export function useAssetDropPaste({
   const handleTextPaste = useCallback(
     (rawText: string, pos: FlowPosition) => {
       if (!rawText || !rawText.trim()) return;
-      const parsedRaw = tryParse(() => JSON.parse(rawText));
+      const rawR = tryParse(() => JSON.parse(rawText));
+      const parsedRaw = rawR.ok ? rawR.value : undefined;
       // 剪贴板 JSON 逐字段读取（type 需 string、images 需数组），不做整体形状假断言（F7）
       const d =
         parsedRaw && typeof parsedRaw === 'object'
           ? (parsedRaw as { type?: unknown; images?: unknown })
           : null;
       if (d?.type === 'mutiwindow-nodes') {
-        // 粘贴节点组（含连线），交由宿主（App）解析重建
-        if (typeof onPasteNodeGroup === 'function') onPasteNodeGroup(rawText, pos);
+        // 粘贴节点组（含连线），交由宿主（App）解析重建。
+        // 【2026-09-17 TD-16-27】原来不看返回值：宿主解析失败（false）时整个粘贴**静默无事发生**
+        // —— 正是用户报的「复制节点粘贴不上」。现按结果分流，失败必须出声。
+        if (typeof onPasteNodeGroup !== 'function') return;
+        // 【2026-09-17 用户裁定「消费者禁止错误显示」】本 hook 是**消费者**：`onPasteNodeGroup`
+        // 的失败属**宿主**（`App.pasteNodeGroup`）—— 它的失败长什么样、要不要提示，**由宿主决定**。
+        // 我先前在这里写 `toastError('粘贴失败：…')` = 消费者替所有方决定错误显示（越权，
+        // 且把文案抄成第二份）。现**只转发、不解释、不展示**。
+        //
+        // 宿主可能同步返回 boolean、也可能异步（`App.pasteNodeGroup` 是 Promise）：统一收敛两种形态。
+        // `ok === false` 的**呈现责任在宿主**（它知道自己为什么失败）；此处不编文案。
+        void Promise.resolve(onPasteNodeGroup(rawText, pos)).catch((e: unknown) => {
+          // 唯一动作：把 reject 落地，避免 unhandledRejection（**不展示**，仅记录到开发者通道）。
+          logger.debug('素材导入', 'onPasteNodeGroup 抛错（由宿主负责呈现）', e);
+        });
         return;
       }
       if (d?.type === 'mutiwindow-images') {
@@ -392,8 +425,8 @@ export function useAssetDropPaste({
   const extractImgFromHtml = useCallback((html: string): string => {
     if (!html) return '';
     // 用 DOMParser 解析（不依赖挂在 DOM 上），jsdom 可用；解析失败则正则兜底
-    const doc = tryParse(() => new DOMParser().parseFromString(String(html), 'text/html'));
-    const img = doc?.querySelector('img[src]');
+    const docR = tryParse(() => new DOMParser().parseFromString(String(html), 'text/html'));
+    const img = docR.ok ? docR.value.querySelector('img[src]') : null;
     if (img) return img.getAttribute('src') || '';
     const m = String(html).match(/<img[^>]*\ssrc=["']([^"']+)["']/i);
     return m ? m[1] : '';

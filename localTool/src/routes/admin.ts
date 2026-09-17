@@ -172,39 +172,61 @@ export async function handleAdminImport(req: IncomingMessage, res: ServerRespons
   saveDb(); // 先落当前数据
   const db = await getDb();
 
+  // 【成功判据必须取结果事实 · 2026-09-17 TD-16-27】原实现三处问题：
+  //  ① `counts` 取 `src.*.length`（**输入长度**）⇒ 被吞掉的行仍报「导入了 N 行」；
+  //  ② tasks/resources 的 `catch { /* skip invalid row */ }` 把丢行彻底静默；
+  //  ③ `ok: true` 恒真。
+  // 现改为**逐行记账**：真写入才 +1，失败/形状违约逐条记录并回给调用方 ——
+  // 备份导入是「整包替换」，丢行必须让用户看见（否则"恢复成功"之后数据其实是缺的）。
+  const counts = { kv: 0, tasks: 0, resources: 0 };
+  const skipped: Array<{ table: string; index: number; error: string }> = [];
+  const recordSkip = (table: string, index: number, e: unknown): void => {
+    skipped.push({ table, index, error: e instanceof Error ? e.message : String(e) });
+  };
+
   // KV
   run(db, 'DELETE FROM kv');
-  for (const row of src.kv) {
-    run(db, 'INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?)', [
-      row.key,
-      row.value,
-      row.updated_at ?? Math.floor(Date.now() / 1000),
-    ]);
+  for (let i = 0; i < src.kv.length; i++) {
+    const row = src.kv[i];
+    try {
+      run(db, 'INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?)', [
+        row.key,
+        row.value,
+        row.updated_at ?? Math.floor(Date.now() / 1000),
+      ]);
+      counts.kv++;
+    } catch (e) {
+      recordSkip('kv', i, e);
+    }
   }
 
   // tasks
   run(db, 'DELETE FROM tasks');
-  for (const row of src.tasks) {
+  for (let i = 0; i < src.tasks.length; i++) {
+    const row = src.tasks[i];
     const keys = Object.keys(row);
     const vals = Object.values(row);
     const placeholders = keys.map(() => '?').join(', ');
     try {
       run(db, `INSERT INTO tasks (${keys.join(', ')}) VALUES (${placeholders})`, vals);
-    } catch {
-      /* skip invalid row */
+      counts.tasks++;
+    } catch (e) {
+      recordSkip('tasks', i, e);
     }
   }
 
   // resources
   run(db, 'DELETE FROM resources');
-  for (const row of src.resources) {
+  for (let i = 0; i < src.resources.length; i++) {
+    const row = src.resources[i];
     const keys = Object.keys(row);
     const vals = Object.values(row);
     const placeholders = keys.map(() => '?').join(', ');
     try {
       run(db, `INSERT INTO resources (${keys.join(', ')}) VALUES (${placeholders})`, vals);
-    } catch {
-      /* skip invalid row */
+      counts.resources++;
+    } catch (e) {
+      recordSkip('resources', i, e);
     }
   }
 
@@ -212,8 +234,11 @@ export async function handleAdminImport(req: IncomingMessage, res: ServerRespons
   return json(res, {
     code: 0,
     data: {
-      ok: true,
-      counts: { kv: src.kv.length, tasks: src.tasks.length, resources: src.resources.length },
+      // ok 唯一真源 = 没有任何一行被丢（调用方据此决定是否报"导入成功"）
+      ok: skipped.length === 0,
+      counts,
+      expected: { kv: src.kv.length, tasks: src.tasks.length, resources: src.resources.length },
+      skipped,
     },
   });
 }

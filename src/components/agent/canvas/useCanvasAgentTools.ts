@@ -62,16 +62,14 @@ import {
  */
 const GEN_PARAMS_KEY = KEY_CANVAS_AGENT_GEN_PARAMS;
 const DEFAULT_GEN_PARAMS = { model: '', ratio: 'Auto', resolution: '1K' };
-/** 惰性加载持久化的生图参数（对齐大雄「设为默认」持久化；刷新/重启不丢） */
+/** 惰性加载持久化的生图参数（对齐大雄「设为默认」持久化；刷新/重启不丢）。
+ *  【职责边界 · 2026-09-17】删除 `catch { return {...DEFAULT_GEN_PARAMS} }`：读取失败语义归
+ *  contentStore（真相源，只对契约违约抛错、须 fail-fast）；消费者把失败重定义成默认值 = 越权。 */
 function loadGenParams() {
-  try {
-    const parsed = contentGet(GEN_PARAMS_KEY);
-    return parsed && typeof parsed === 'object'
-      ? { ...DEFAULT_GEN_PARAMS, ...parsed }
-      : { ...DEFAULT_GEN_PARAMS };
-  } catch {
-    return { ...DEFAULT_GEN_PARAMS };
-  }
+  const parsed = contentGet(GEN_PARAMS_KEY);
+  return parsed && typeof parsed === 'object'
+    ? { ...DEFAULT_GEN_PARAMS, ...parsed }
+    : { ...DEFAULT_GEN_PARAMS };
 }
 let genParams = loadGenParams();
 export function setGenParams(patch = {}) {
@@ -91,12 +89,10 @@ export function getGenParams() {
  * AgentPanel 顶部开关读写它（setCreditSwitch）。默认开（undefined → true）。
  */
 export function getCreditSwitch() {
-  try {
-    const v = contentGet(CREDIT_SWITCH_KEY);
-    return v === undefined || v === null ? true : !!v;
-  } catch {
-    return true;
-  }
+  // 【消费者不越权 · 2026-09-17 拆回潮】删 catch：`contentGet` 对已登记键不抛 ⇒ catch 不可达；
+  // 默认开（undefined/null → true）是**读到的值语义**，不是"读失败的兜底"。
+  const v = contentGet(CREDIT_SWITCH_KEY);
+  return v === undefined || v === null ? true : !!v;
 }
 export function setCreditSwitch(v: unknown) {
   // 不静默吞（TD-02-27）：contentSet 持久化失败已内部留痕；bug 级异常应 fail-fast
@@ -1552,7 +1548,14 @@ export async function runExistingPlanTool(ctx: CanvasHostCtx) {
   }
   const status =
     anyFailed && anyDone ? 'completed_with_errors' : anyFailed ? 'failed' : 'completed';
-  return { ok: true, data: { workflow: { ...result.workflow, status }, entries: result.entries } };
+  // 【2026-09-17 TD-16-27】原实现 `ok: true` **恒真** —— 真实三态只藏在 `data.workflow.status`，
+  // 于是「全败」（anyFailed && !anyDone）时 `ok` 仍为真 ⇒ 只判 `ok` 的调用方把全败当成功（假成功）。
+  // 现 `ok` 与 `status` 同源：只有「全败」才 false；`completed_with_errors`（部分成功）保留 ok:true
+  // —— 那正是 `status` 这个细分字段存在的意义（ok 表达"有无达成"，status 表达"达成到哪一步"）。
+  return {
+    ok: status !== 'failed',
+    data: { workflow: { ...result.workflow, status }, entries: result.entries },
+  };
 }
 
 /**

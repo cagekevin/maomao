@@ -116,7 +116,7 @@ export class MediaManager {
     this.notify();
 
     try {
-      const mediaAssets = await storageService.loadAllMediaAssets({
+      const { items: mediaAssets, missing, shapeError } = await storageService.loadAllMediaAssets({
         projectId,
       });
       // 已被更新的加载取代 → 丢弃本次结果（防旧请求覆盖新工程素材，TD-22-43①）。
@@ -124,7 +124,15 @@ export class MediaManager {
       this.assets = mediaAssets;
       this.loadError = null;
       this.notify();
-      return { ok: true };
+      // 【2026-09-17 TD-16-27】在册但读不出的素材必须可见：`loadAllMediaAssets` 不再静默丢项，
+      // 这里留痕并把 `missing` 交给调用方（素材数变少而零解释 = 用户困惑的真正来源）。
+      // 【2026-09-17 裁定：消费者只转发】`missing`（少了几条）与 `shapeError`（**整表读坏**）都来自
+      // storage 层（生产者）—— 这里只**转发**：留痕给开发者，并把事实原样带进返回结构，
+      // 由最终呈现层决定怎么告诉用户。**不在此自行解释/编文案**。
+      if (missing.length > 0 || shapeError) {
+        logger.warn('工程素材读取不完整（未计入列表）', { projectId, missing, shapeError });
+      }
+      return { ok: true, missing, shapeError };
     } catch (error) {
       if (token !== this.loadToken) return { ok: false, reason: 'superseded' };
       logger.error('Failed to load media assets:', error);

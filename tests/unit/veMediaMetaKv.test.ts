@@ -46,7 +46,8 @@ vi.mock('../../src/components/base/core/contentStore.ts', () => ({
 
 // 与 veSavedSoundsStorage.test.ts 同款：避开浏览器专属依赖，只留被测的存储契约
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  uploadFileToLocal: vi.fn(async () => null),
+  // 【2026-09-17】契约已改判别联合：失败＝`ok:false`（含生产者 message），不再是 null。
+  uploadFileToLocal: vi.fn(async () => ({ ok: false, message: '本地服务未启动' })),
 }));
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
   deleteResource: vi.fn(async () => undefined),

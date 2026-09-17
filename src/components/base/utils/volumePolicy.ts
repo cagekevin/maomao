@@ -29,6 +29,8 @@
  * 【契约】这些常量是体积治理的单一事实源；M5 配额预警复用 SAFE_BUDGET_BYTES。
  */
 
+import { logger } from '../core/logger.ts';
+
 /** lastResults 单项（按 url 去重主键；缺 url 回落 name） */
 export interface LastResultItem {
   url?: string;
@@ -130,13 +132,21 @@ export function capConversationMemory<T extends ConversationMemory | null | unde
   return next as T;
 }
 
-/** 估算 conversations 整包序列化字节（用 JSON.stringify 长度，与落盘口径一致；兜底返回 0） */
+/**
+ * 估算 conversations 整包序列化字节（用 JSON.stringify 长度，与落盘口径一致）。
+ *
+ * 【失败方向必须朝保守侧 · 2026-09-17 拆 fail-open 兜底】本函数是 `applyConversationBudget` 的
+ * **守卫输入**：`bytes > effectiveBudget` 决定降级是否触发。旧 `catch { return 0 }` 把「估算失败」
+ * 伪装成「体积为 0」⇒ 守卫**永不成立** ⇒ 该降级的不降级 ⇒ 落盘超配额写失败（fail-open：失败方向恰是"放行"）。
+ * 现返回 `Infinity`（按「未知且极大」处理，强制走降级链）+ 留痕。
+ */
 export function estimateConversationsBytes(conversations: unknown[] | null | undefined): number {
   if (!Array.isArray(conversations) || conversations.length === 0) return 0;
   try {
     return JSON.stringify(conversations).length;
-  } catch {
-    return 0;
+  } catch (e) {
+    logger.warn('会话体积', '整包序列化估算失败，按「超预算」处理以触发降级', e);
+    return Number.POSITIVE_INFINITY;
   }
 }
 

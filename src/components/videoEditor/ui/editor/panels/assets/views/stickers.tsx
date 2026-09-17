@@ -175,8 +175,11 @@ function StickersContentView({
     selectedCollection,
     viewMode,
     collections,
+    collectionsError,
     currentCollection,
+    collectionError,
     searchResults,
+    searchError,
     recentStickers,
     isLoadingCollections,
     isLoadingCollection,
@@ -367,6 +370,11 @@ function StickersContentView({
             <div className="flex items-center justify-center py-8">
               <Spinner className="text-muted-foreground size-6" />
             </div>
+          ) : collectionError ? (
+            // 【2026-09-17 消费者只转发】原样渲染生产者判词（同上）。
+            <div className="text-muted-foreground px-2 py-6 text-center text-xs">
+              {collectionError}
+            </div>
           ) : showCollectionItems ? (
             <StickerGrid
               icons={iconsToDisplay}
@@ -385,6 +393,12 @@ function StickersContentView({
         (isSearching ? (
           <PropertyGroup grow>
             <PanelState text={'正在搜索…'} />
+          </PropertyGroup>
+        ) : searchError ? (
+          // 【2026-09-17 消费者只转发】**原样渲染生产者判词**（不自行解释成"搜索失败/请重试"）。
+          // 此前搜索失败返回的是**字段齐全的假空结果** ⇒ 与"搜不到图标"共用空网格，用户看不出区别。
+          <PropertyGroup grow>
+            <PanelState text={searchError} />
           </PropertyGroup>
         ) : searchResults?.icons.length ? (
           <PropertyGroup>
@@ -431,6 +445,12 @@ function StickersContentView({
           {isLoadingCollections ? (
             <div className="flex items-center justify-center py-8">
               <Spinner className="text-muted-foreground size-6" />
+            </div>
+          ) : collectionsError ? (
+            // 【2026-09-17 消费者只转发】**原样渲染生产者给的判词**（不自行再解释成"网络异常/请重试"）。
+            // 此前"拉取失败"与"该分类下没有图标"共用同一个空列表 ⇒ 用户根本看不出区别。
+            <div className="text-muted-foreground px-2 py-6 text-center text-xs">
+              {collectionsError}
             </div>
           ) : (
             <>

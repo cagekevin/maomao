@@ -1,4 +1,6 @@
 import type { TimelineDragData } from '@/components/videoEditor/types/drag';
+import { tryParse } from '@/components/base/utils/asyncGuard.ts';
+import { logger } from '@/components/videoEditor/lib/logger';
 
 /**
  * 时间轴拖拽载荷的编解码（**唯一真源**）。
@@ -55,11 +57,19 @@ export function getDragData({
 }): TimelineDragData | null {
   const data = dataTransfer.getData(MIME_TYPE);
   if (!data) return null;
-  try {
-    return JSON.parse(data) as TimelineDragData;
-  } catch {
+  // 解析走唯一原语；判别联合 ⇒ 必须判 ok（2026-09-17 契约收紧）。
+  //
+  // 【2026-09-17 为什么这里**可以**返回 null（不是"把失败压成默认值"）】本函数的契约是**问句**：
+  // 「有没有本仓内部拖拽载荷？」——`getData()` 空串 ＝ **没人写这个 MIME**（正常"没有"）；
+  // 非空但 JSON 坏 ＝ 写了却坏了（**代码 bug / 外部软件乱写**）。对调用方的决策
+  // （`if (!dragData) return`）而言两者答案都是"无法据此拖拽" ⇒ 判别联合在这里零收益。
+  // **但"坏 JSON"不能静默** —— 它意味着写入侧有 bug，必须留痕可查（否则是"静默吞掉自己的缺陷"）。
+  const r = tryParse(() => JSON.parse(data) as TimelineDragData);
+  if (!r.ok) {
+    logger.warn('时间轴拖拽', '内部拖拽载荷不是合法 JSON（本次拖拽已忽略）', { error: r.error });
     return null;
   }
+  return r.value;
 }
 
 /**

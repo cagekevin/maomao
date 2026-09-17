@@ -23,16 +23,19 @@ const DEFAULTS: SettingState = buildDefaults();
 
 let settings: SettingState = load();
 
+/**
+ * 读设置真源。
+ * 【职责边界 · 2026-09-17】`contentGet` 的失败语义由 contentStore（**真相源**）定义：它只对
+ * **契约违约**（键未登记 / 值不可 stringify）抛错，且该错必须 fail-fast 暴露。
+ * 本模块是**消费者**，无权把「读失败」重定义成「用默认值」——旧 `catch { return {...DEFAULTS} }`
+ * 正是这种越权，且掩盖契约违约（键已登记时该 catch 不可达，纯属给读者「读可能失败」的假象）。
+ */
 function load(): SettingState {
-  try {
-    const parsed = contentGet(KEY);
-    return {
-      ...DEFAULTS,
-      ...(parsed && typeof parsed === 'object' ? (parsed as Partial<SettingState>) : {}),
-    };
-  } catch {
-    return { ...DEFAULTS };
-  }
+  const parsed = contentGet(KEY);
+  return {
+    ...DEFAULTS,
+    ...(parsed && typeof parsed === 'object' ? (parsed as Partial<SettingState>) : {}),
+  };
 }
 
 // 订阅（供 useAppSettings）

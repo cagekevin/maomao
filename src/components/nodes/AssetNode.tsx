@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+import { logger } from '../base/core/logger.ts';
 import {
   Image as ImageIcon,
   ImageOff,
@@ -257,11 +258,14 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       }
       // 图片/视频/音频：统一落盘策略（File 直传 → 落盘失败内联兜底 → 连内联都拿不到才提示），
       // 唯一实现见 filesApi.resolveNodeAssetUrl；assetType 交由 detectAssetType 由 URL 判断。
-      const url = await resolveNodeAssetUrl(f, UPLOAD_DIRS.canvasDrop, f.name);
-      if (!url) {
-        toastError('上传失败');
+      const up = await resolveNodeAssetUrl(f, UPLOAD_DIRS.canvasDrop, f.name);
+      // 【2026-09-17 消费者只转发】带上**生产者判词**（如"落盘失败（xxx），且读不出内联数据"）——
+      // 原来只有笼统一句"上传失败"。
+      if (!up.ok) {
+        toastError(`上传失败：${up.message}`);
         return;
       }
+      const url = up.url;
       // 「上传替换节点内容」也收口到唯一写入口：主图走 replaceNodeImage，`assetType/text` 置空
       // （交回 detectAssetType 按新 URL 判定）。此前这里是第三处直写 assetUrl/url 的地方（docs/118 §7.3 ⑤）。
       // docs/122 #4：持久文件 → 同时落稳定 contentId（sha1:<hex>）；内联 dataURL 无 contentId。
@@ -465,7 +469,19 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
             {type === 'audio' && !hideMedia.includes('audio') && (
               <div className="w-full h-full flex flex-col items-center justify-center bg-surface p-2 gap-2">
                 <Music size={24} className="text-blue-500 mb-2" />
-                <audio src={url} controls className="w-full max-w-[200px] h-8" />
+                {/* 【2026-09-17 TD-16-29②】原来是**裸 `<audio>`（无 onError）**：音频文件缺失/4xx 时
+                    控件照常渲染但按了没声、无任何提示（与"文件好好的"不可区分）。
+                    音频无法走 LazyImage（那是图片组件）⇒ 就近补 onError 显式失败态，
+                    与同文件图片的 `onImgError` / 视频的 VideoThumbnail 保持一致。 */}
+                <audio
+                  src={url}
+                  controls
+                  className="w-full max-w-[200px] h-8"
+                  onError={(e) => {
+                    e.stopPropagation();
+                    logger.warn('AssetNode', '音频素材加载失败', { id, url });
+                  }}
+                />
               </div>
             )}
             {/* 文本文件 */}
@@ -475,8 +491,13 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
                 <span className="text-caption text-muted">文本/数据文件</span>
               </div>
             )}
-            {/* 空态 */}
-            {type === 'empty' && (
+            {/* 空态。
+              【2026-09-17 TD-16-29①】原判据只有 `type === 'empty'`：当引用的 resource 已删（`assetMissing`）
+              且解析后 url 为空时，`detectAssetType('')` 同样返回 'empty' ⇒ **两态同时成立**；
+              而本块 DOM 在缺失态**之后**且带底色 ⇒ **空态盖住缺失态**，用户看到"上传空框"而非
+              "素材已移除" —— fail-loud 的缺失态（docs/122 #5）被同屏空态吃掉。
+              两态声明**互斥**：缺失态优先（用户在"上传新图"与"这张图已被移除"之间必须看到后者）。 */}
+            {type === 'empty' && !assetMissing && (
               <div
                 className="flex flex-col items-center justify-center absolute inset-0 bg-surface-muted hover:bg-surface transition-colors cursor-pointer group"
                 onClick={(e) => {

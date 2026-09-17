@@ -312,20 +312,25 @@ function ResourceLibrary() {
       const list = Array.from(files);
       if (list.length === 0) return;
       let ok = 0;
+      /** 【2026-09-17】失败明细（**生产者判词**）—— 不再只剩一个"上传失败"的笼统结论。 */
+      const failures: Array<{ name: string; message: string }> = [];
       for (const f of list) {
-        // 候选 A（deepening-files-upload-seam）：uploadFileToLocal 失败返 null（等价原 try/catch 吞错），
-        // 成功才计数——不丢弃单文件失败、也不回滚已成功项。
-        const url = await uploadFileToLocal(f, currentFolder);
-        if (url) ok++;
+        // 【2026-09-17 判据】失败**不再只计数后丢掉**：逐条收生产者判词，让用户知道"为什么没传上去"。
+        const r = await uploadFileToLocal(f, currentFolder);
+        if (r.ok) ok++;
+        else failures.push({ name: f.name, message: r.message });
       }
       if (ok > 0) {
-        showToast(`已上传 ${ok} 个素材`, { type: 'success' });
+        // 【失败可见】部分成功时把失败明细一并说明（原来只要有 1 个成功就完全静默其余失败）。
+        const tail = failures.length > 0 ? `；${failures.length} 个失败：${failures[0].message}` : '';
+        showToast(`已上传 ${ok} 个素材${tail}`, { type: failures.length > 0 ? 'warning' : 'success' });
         // 修复：上传后未触发 rescan → 面板不刷新、用户「看不到刚传的图」。
         // 主动广播事件，复用与链路 B 一致的「切目录 + rescan」刷新机制。
         emitResourceSent(currentFolder);
         reset(true); // rescan 后刷新，保证与磁盘一致
       } else {
-        showToast('上传失败', { type: 'error' });
+        // 【消费者只转发】带上第一条生产者判词 —— 原来只有笼统一句"上传失败"。
+        showToast(`上传失败：${failures[0]?.message || '未知原因'}`, { type: 'error' });
       }
     },
     [connected, currentFolder, reset],
@@ -399,11 +404,11 @@ function ResourceLibrary() {
       await createFolderApi(`${currentFolder}/${name}`);
       reset(true);
       return true;
-    } catch {
-      // catch-ok: NON_BLOCKING 建文件夹失败返回 false 由 UI 呈现（非静默）
-      /* ignore */
+    } catch (e) {
+      // 建文件夹失败 → 返回 false 由 UI 呈现（**调用方可见**，非静默）；另留痕给开发者（2026-09-17）。
+      logger.debug('素材库', '建文件夹失败（已由返回值呈现）', e);
+      return false;
     }
-    return false;
   };
 
   // 卡片拖拽：一套 dragstart 同时写「移动归类」+「拖到画布建节点」两套 MIME（见 useResourceCardDragProps 注释）

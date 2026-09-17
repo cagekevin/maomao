@@ -14,6 +14,7 @@ import { useRef } from 'react';
 import { Play } from 'lucide-react';
 import LazyImage from '../../ui/LazyImage.tsx';
 import type { CreativePreset } from '../creativePresets.ts';
+import { logger } from '../../core/logger.ts';
 
 export interface PresetGridViewProps {
   presets: CreativePreset[];
@@ -43,7 +44,11 @@ export default function PresetGridView({ presets, onApply }: PresetGridViewProps
             const v = videoRefs.current.get(p.id);
             // 悬停自动播放属「浏览器 API 预期不可用」：无用户手势 / 自动播放策略可能拒绝，
             // 拒绝即维持 poster 静帧，不是缺陷。
-            if (v) void v.play().catch(() => undefined); // catch-ok: BROWSER_API
+            // 播放被拒（autoplay 政策）属环境预期 → 不阻断；但**降级必留痕**（2026-09-17 拆 catch-ok）。
+            if (v)
+              void v
+                .play()
+                .catch((e: unknown) => logger.debug('提示词', '预览播放被拒（不阻断）', e));
           }}
           onMouseLeave={() => {
             const v = videoRefs.current.get(p.id);

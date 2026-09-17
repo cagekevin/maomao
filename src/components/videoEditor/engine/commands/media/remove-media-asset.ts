@@ -1,4 +1,5 @@
 import { logger } from '@/components/videoEditor/lib/logger';
+import { reportDegrade } from '@/components/base/core/degrade.ts';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import { EditorCore } from '@/components/videoEditor/engine/core';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
@@ -48,10 +49,18 @@ export class RemoveMediaAssetCommand extends Command {
       editor.timeline.deleteElements({ elements: elementsToRemove });
     }
 
-    storageService
+    // 【2026-09-17 TD-16-27】原实现删除失败**只 logger**：而 UI 已在上面乐观移除
+    // （`editor.media.setAssets` 已过滤掉该项）⇒ 用户看到"删掉了"，刷新后素材复活（假删除）。
+    // "不阻断"（乐观移除是对的，不该等 IO）≠「不可见」—— 失败必须让用户知道。
+    void storageService
       .deleteMediaAsset({ projectId: this.projectId, id: this.assetId })
-      .catch((error) => {
-        logger.error('Failed to delete media item:', error);
+      .catch((error: unknown) => {
+        reportDegrade({
+          layer: '剪辑器·素材删除',
+          key: this.assetId,
+          e: error as Error,
+          toast: '素材删除失败，刷新后可能仍在，请重试',
+        });
       });
   }
 

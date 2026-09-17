@@ -13,7 +13,7 @@ vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   contentGetKvWithFallback: vi.fn(),
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  saveInlineToLocal: vi.fn(async () => 'http://127.0.0.1:18080/files/director3d/x.png'),
+  saveInlineToLocal: vi.fn(async () => ({ ok: true, url: 'http://127.0.0.1:18080/files/director3d/x.png' })),
 }));
 
 import {

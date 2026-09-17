@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { attemptQuietlyAsync } from '../base/utils/asyncGuard.ts';
 import { Loader2, Plus, Trash2, Film, Link2 } from 'lucide-react';
 import {
   SHOT_TYPES,
@@ -185,12 +186,8 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
 
         <button
           onClick={async () => {
-            try {
-              await callbacks.onGenerateScript?.();
-            } catch {
-              // catch-ok: ALREADY_REPORTED
-              /* 引擎内部已 toast；此处仅防 unhandled rejection */
-            }
+            // 引擎内部已 toast（失败已由他处可见）→ 走**唯一原语**，不再手写豁免标记。
+            await attemptQuietlyAsync(() => callbacks.onGenerateScript?.());
           }}
           disabled={scriptLoading}
           className="flex items-center justify-center gap-2 w-full py-2.5 bg-surface-hover hover:bg-surface-hover-2b text-primary text-body-xs font-medium rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"

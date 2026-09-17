@@ -70,16 +70,38 @@ export async function handleProvidersPut(req: IncomingMessage, res: ServerRespon
       : null;
   if (!providers) return sendError(res, 'Missing providers array', 400);
 
+  // 【成功判据必须取结果事实 · 2026-09-17 TD-16-27】原实现三处脱钩：
+  //  ① `saved` 取 `savedIds.size`（**输入中被接受的 id 数**），完全不反映
+  //     `writeProviderConfigFile` 的 boolean 返回值（该函数注释明确 `@returns 是否写入成功`，却被丢弃）；
+  //  ② 无 id / 非对象的项 `continue` 静默丢弃，`ok` 仍为 true；
+  //  ③ `ok: true` 恒真。
+  // 现逐条记账：真落盘成功才计 `saved`，失败与形状违约逐条回报。
   const savedIds = new Set<string>();
+  const failed: Array<{ id: string; error: string }> = [];
+  let skippedInvalid = 0;
   for (const raw of providers) {
-    if (!raw || typeof raw !== 'object') continue;
+    if (!raw || typeof raw !== 'object') {
+      skippedInvalid++;
+      continue;
+    }
     const p = raw as Record<string, unknown>;
     const id = typeof p.id === 'string' ? p.id : '';
-    if (!id) continue;
+    if (!id) {
+      skippedInvalid++;
+      continue;
+    }
     savedIds.add(id);
-    writeProviderConfigFile(id, p);
+    if (!writeProviderConfigFile(id, p)) failed.push({ id, error: '配置落盘失败' });
   }
-  return json(res, { code: 0, data: { ok: true, saved: savedIds.size } });
+  return json(res, {
+    code: 0,
+    data: {
+      ok: failed.length === 0 && skippedInvalid === 0,
+      saved: savedIds.size - failed.length, // 真落盘数（不是"提交了几个"）
+      failed,
+      skippedInvalid,
+    },
+  });
 }
 
 /**

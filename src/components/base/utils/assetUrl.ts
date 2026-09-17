@@ -167,8 +167,31 @@ export function buildThumbnailUrl(url: string, opts: { maxDim?: number } = {}): 
  * @param {{ scope?: 'render'|'send', maxDim?: number }} [opts]
  * @returns {string}
  */
-export function resolveAssetUrl(url: string, opts: AssetResolveOptions = {}): string {
-  if (!url || typeof url !== 'string') return url;
+/** 空选项**单例**：避免「参数默认值写成对象字面量 `= {}`」—— 那会让每次调用新建一个对象
+ *  （引用不稳定，`useCallback`/`useMemo` 依赖它时会隐形漂移），也掩盖"调用方没传"这一事实。
+ *  口径：TS+React 异常容错禁止项 规则 8。 */
+const NO_RESOLVE_OPTS: AssetResolveOptions = {};
+
+export function resolveAssetUrl(url: string, opts: AssetResolveOptions = NO_RESOLVE_OPTS): string {
+  // 【2026-09-17 TD-16-29③】原为 `if (!url || typeof url !== 'string') return url;`，三处错：
+  //  ① **类型说谎**：声明返回 `string`，却会把 `null/undefined` **原样**丢给调用方（下游 `.startsWith` 炸在三公里外）；
+  //  ② **静默放行**：`''` 是**合法 string**（不属 contract 违约，故不是"守卫该 fail-fast"的场景），
+  //     而是"拿到无意义输入" ⇒ 必须**留痕**。否则渲染出口拿到空串，而 `<img src="">` / CSS `url()`
+  //     都**不触发 onError** ⇒ "没有地址"此后无人知晓；
+  //  ③ 仍返回 `''` 而**不抛**：调用方多为渲染路径，抛错会把"一张图没地址"升级成整块 UI 崩
+  //     （与"不阻断"冲突）。但留痕后它**可查**，且上游 `mediaDisplayUrl` 的冗余 `?? ''` 已删
+  //     ⇒ 空串只剩"调用方自己传了空"这一个明确来源。
+  // 两类必须**分开**（否则又是"两个真相压成一个"）：
+  //  · **类型违约**（非 string：null / undefined / 数字…）＝ 真异常 → **必须可见**（`logger.warn`）；
+  //  · **空串** ＝ 合法 `string`，且"还没有地址"是调用方的**正常中间态**（高频）→ **静默**返回 `''`
+  //    （对这一类告警只会刷屏，最终被绕 —— 闸的成本守恒律）。
+  if (typeof url !== 'string') {
+    logger.warn('assetUrl', 'resolveAssetUrl 收到非字符串地址（类型违约）', {
+      got: url === null ? 'null' : typeof url,
+    });
+    return '';
+  }
+  if (!url) return '';
   const scope = opts.scope || 'render';
   // thumbnail:false（设置里关掉「显示缩略图」）→ render 也回原图绝对地址，不按需出图
   if (scope === 'render' && opts.thumbnail !== false && toRelativeFileUrl(url)) {
@@ -223,7 +246,11 @@ export async function contentIdOfBytes(
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
     return `sha1:${hex}`;
-  } catch {
+  } catch (e) {
+    // 【与「环境无 subtle」必须区分 · 2026-09-17 拆兜底】上面 `!subtle → undefined` 是**环境能力缺失**（正常）；
+    // 这里是**有 subtle 却算不动** = 真失败。两者混成同一个 undefined ⇒ contentId 缺失无从归因
+    // （去重/稳定身份静默退化）。留痕，不静默。
+    logger.warn('资产', 'contentId(sha1) 计算失败，本次跳过 contentId', e);
     return undefined;
   }
 }
@@ -463,14 +490,33 @@ export async function normalizeAssetUrlsForSend(
   opts: AssetSendOptions = {},
 ): Promise<string[]> {
   const urls = (images || []).filter((u) => typeof u === 'string' && u);
-  // 【带图可观测】发送前记录本次带了几张图、每张是 URL 还是 Base64（基于原始输入，不携带图片内容）。
-  // 统一收口在发送归一化出口：覆盖生图/文本/视频/AI 聊天全部带图发送路径，一处埋点全链路可 grep。
-  if (urls.length > 0) {
-    logger.info('assetUrl', '发送图片', { ...summarizeAssetUrls(urls), total: urls.length });
-  }
   // 多图并行压缩/归一化（Promise.all），避免多张图串行累积等待（本地图压缩耗时集中在 canvas 解码）。
   const results = await Promise.all(urls.map((u) => normalizeAssetUrlForSend(u, opts)));
-  return results.filter(Boolean);
+  const sent = results.filter((r): r is string => typeof r === 'string' && r.length > 0);
+  // 【带图可观测】发送前记录本次带了几张图、每张是 URL 还是 Base64（不含图片内容）。
+  // 统一收口在发送归一化出口：覆盖生图/文本/视频/AI 聊天全部带图发送路径，一处埋点全链路可 grep。
+  //
+  // 【2026-09-17 TD-16-24】原实现日志记的是 **`urls.length`（输入张数）**，而返回
+  // `results.filter(Boolean)` —— 归一化失败的图被**静默丢弃**后实发数可能更少，
+  // 日志却报原始张数 ⇒ **实发 ≠ 日志**：排查时按日志以为"带了 3 张"，模型其实只收到 1 张。
+  // 现按**结果事实**记账（`sent` 是出参本身），并单独把丢弃数留痕 —— 失败可见，不静默丢图。
+  if (urls.length > 0) {
+    // 注：`total` 即**实发数**（= 出参本身）。无丢弃时它自然等于输入数，故不再另加 `requested`
+    // 字段（冗余：有丢弃时下面的 warn 已带全量口径）—— 契约保持最小。
+    logger.info('assetUrl', '发送图片', {
+      ...summarizeAssetUrls(sent),
+      total: sent.length,
+    });
+  }
+  const dropped = urls.length - sent.length;
+  if (dropped > 0) {
+    logger.warn('assetUrl', '发送归一化丢弃图片（实发少于请求）', {
+      requested: urls.length,
+      sent: sent.length,
+      dropped,
+    });
+  }
+  return sent;
 }
 
 /**

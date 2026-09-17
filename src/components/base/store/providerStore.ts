@@ -355,9 +355,9 @@ export async function test(id: string): Promise<void> {
         ) as Record<string, unknown>;
         // 优先展示异步嗅探的更精确原始信息；status 若为 0 则回填
         data = probe.ok ? { ...data, ...probe, ok: true } : { ...data, ...probe, ok: false };
-      } catch {
-        // catch-ok: KEEP_ORIGINAL
-        // probe-async 本身失败时保留 test-connection 的原始信息
+      } catch (e) {
+        // probe-async 本身失败时保留 test-connection 的原始信息 → 但**降级必留痕**（2026-09-17 拆 catch-ok）。
+        logger.debug('供应商', '异步嗅探失败，保留原始探测信息（不阻断）', e);
       }
     }
     setState({ testResult: data });

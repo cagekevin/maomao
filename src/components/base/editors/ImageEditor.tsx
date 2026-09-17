@@ -27,7 +27,7 @@ import { logger } from '../core/logger.ts';
 import FullscreenShell from '../panels/FullscreenShell.tsx';
 import { createRafBatch, canvasToImageDataUrl } from '../core/utils.ts';
 import { compressImage } from '../utils/imageCompress.ts';
-import { loadImageWithTimeout, releaseQuietly } from '../utils/asyncGuard.ts';
+import { attemptQuietly, loadImageWithTimeout, releaseQuietly } from '../utils/asyncGuard.ts';
 import '../core/toastStore.ts';
 
 /**
@@ -246,9 +246,9 @@ export default function ImageEditor({
           releaseQuietly(() => dropped.close?.());
         }
         setUndoSteps(drawSnapshotsRef.current.length);
-      } catch {
-        // catch-ok: NON_BLOCKING
-        // 极端环境拿不到快照不阻断绘制
+      } catch (e) {
+        // 极端环境拿不到快照不阻断绘制 → 但**降级必留痕**（撤销栈少一步是有后果的，2026-09-17 拆 catch-ok）。
+        logger.debug('图片编辑器', '绘制快照失败（撤销栈略过一步，不阻断）', e);
       }
     });
   }, []);
@@ -355,9 +355,8 @@ export default function ImageEditor({
       const el = textInputRef.current;
       el.focus();
       const len = el.value.length;
-      try {
-        el.setSelectionRange(len, len);
-      } catch {} // catch-ok: NON_BLOCKING
+      // 光标定位失败（极端环境）不阻断输入 → 走**唯一原语**，不再手写豁免标记。
+      attemptQuietly(() => el.setSelectionRange(len, len));
     }
   }, [textInput]);
 

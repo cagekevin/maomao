@@ -21,8 +21,16 @@ interface StickersStore {
   selectedCollection: string | null;
   viewMode: ViewMode;
   collections: Record<string, IconSet>;
+  /** 【2026-09-17】**失败的可见落点**（＝生产者给的判词，UI 直接渲染，store **不加工**）。
+   *  此前"拉取失败"与"确实没有图标"共用同一个空 `collections` ⇒ 用户与开发者都看不出区别。 */
+  collectionsError: string | null;
   currentCollection: CollectionInfo | null;
+  /** 同上（单集合详情） */
+  collectionError: string | null;
   searchResults: IconSearchResult | null;
+  /** 同上（搜索结果）。【2026-09-17】原实现失败返回**假空结果**（字段齐全的 `{icons:[],total:0,…}`）
+   *  ⇒ "搜不到图标"与"搜索接口挂了"不可区分；且本 store 那个 `catch` **永不触发**（`searchIcons` 从不抛）= 死代码。 */
+  searchError: string | null;
   recentStickers: string[];
   isLoadingCollections: boolean;
   isLoadingCollection: boolean;
@@ -50,8 +58,11 @@ export const useStickersStore = create<StickersStore>((set, get) => ({
   viewMode: 'browse',
 
   collections: {},
+  collectionsError: null,
   currentCollection: null,
+  collectionError: null,
   searchResults: null,
+  searchError: null,
   recentStickers: [],
 
   isLoadingCollections: false,
@@ -86,10 +97,15 @@ export const useStickersStore = create<StickersStore>((set, get) => ({
   loadCollections: async () => {
     set({ isLoadingCollections: true });
     try {
-      const collections = await getCollections();
-      set({ collections });
-    } catch (error) {
-      logger.error('Failed to load collections:', error);
+      const r = await getCollections();
+      // 【2026-09-17 消费者只转发】判别联合：成功取 `r.data`；失败把**生产者判词**转发到
+      // `collectionsError`（UI 直接渲染）—— 不再把"拉取失败"与"该分类为空"混成同一个空集合。
+      if (r.ok) {
+        set({ collections: r.data, collectionsError: null });
+      } else {
+        logger.warn('贴纸库', '图标集合加载失败（转发生产者判词）', { message: r.message });
+        set({ collections: {}, collectionsError: r.message });
+      }
     } finally {
       set({ isLoadingCollections: false });
     }
@@ -98,11 +114,14 @@ export const useStickersStore = create<StickersStore>((set, get) => ({
   loadCollection: async ({ prefix }: { prefix: string }) => {
     set({ isLoadingCollection: true });
     try {
-      const collection = await getCollection(prefix);
-      set({ currentCollection: collection });
-    } catch (error) {
-      logger.error(`Failed to load collection ${prefix}:`, error);
-      set({ currentCollection: null });
+      const r = await getCollection(prefix);
+      // 【2026-09-17 消费者只转发】同上：失败把生产者判词放进 `collectionError`，UI 直接渲染。
+      if (r.ok) {
+        set({ currentCollection: r.data, collectionError: null });
+      } else {
+        logger.warn('贴纸库', '图标集合详情加载失败（转发生产者判词）', { message: r.message });
+        set({ currentCollection: null, collectionError: r.message });
+      }
     } finally {
       set({ isLoadingCollection: false });
     }
@@ -119,11 +138,17 @@ export const useStickersStore = create<StickersStore>((set, get) => ({
     set({ isSearching: true, viewMode: 'search' });
     try {
       const category = STICKER_CATEGORY_CONFIG[selectedCategory];
-      const results = await searchIcons(query, 100, undefined, category);
-      set({ searchResults: results });
-    } catch (error) {
-      logger.error('Search failed:', error);
-      set({ searchResults: null });
+      const r = await searchIcons(query, 100, undefined, category);
+      // 【2026-09-17 消费者只转发】判别联合：成功取 `r.data`；失败把**生产者判词**写进
+      // `searchError`（UI 直接渲染）—— store **不加工**（不自己编"搜索失败/请重试"）。
+      // 注：原来的 `catch (error) { logger.error; set({searchResults:null}) }` 是**死代码**
+      //（`searchIcons` 内部已 catch、从不抛），随契约收口一并删除。
+      if (r.ok) {
+        set({ searchResults: r.data, searchError: null });
+      } else {
+        logger.warn('贴纸库', '图标搜索失败（转发生产者判词）', { message: r.message });
+        set({ searchResults: null, searchError: r.message });
+      }
     } finally {
       set({ isSearching: false });
     }

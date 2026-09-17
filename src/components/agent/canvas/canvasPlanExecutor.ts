@@ -371,12 +371,11 @@ export async function executePlan({
   nodeMappings = null,
 }: PlanOptions) {
   const log = (level: string, message: string) => {
-    try {
-      onLog?.({ level, message });
-    } catch {
-      // catch-ok: NON_BLOCKING
-      /* 日志失败不阻断执行 */
-    }
+    // 【2026-09-17 用户裁定「消费者禁止错误显示」】`onLog` 是**宿主注入的回调**，它的失败属宿主。
+    // 我先前在此写 `logger.warn('日志回调失败')` = 消费方替所有方决定错误形态（越权＋末端打补丁）。
+    // 正解：**透传** —— 不在消费方解释、不在消费方展示；若宿主希望"日志失败不阻断执行"，
+    // 那是**宿主在自己 onLog 实现内部**该处理的事（它拥有该回调的完整语义）。
+    onLog?.({ level, message });
   };
   const steps = (generations || []).filter((s) => s && (s.prompt || s.title));
   // 全局单飞锁：同一时刻只允许一套批量生成在跑，防重复计费/重复建节点

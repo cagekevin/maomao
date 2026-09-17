@@ -229,12 +229,14 @@ export async function handleTasksDelete(
   if (!id) return sendError(res, 'Missing id parameter', 400);
 
   const db = await getDb();
-  run(db, 'DELETE FROM tasks WHERE task_id = ?', [id]);
+  // 【成功判据必须取结果事实 · 2026-09-17 TD-16-27】原实现丢弃 `run()` 返回值并恒回 `ok: true`：
+  // 删不存在的 task_id（changes=0，实际什么都没删）也报成功。
+  const r = run(db, 'DELETE FROM tasks WHERE task_id = ?', [id]);
   debouncedSaveDb();
   // 只删记录，删盘统一交给引用感知 GC（docs/13）：此处不再 deleteLocalFile，
   // 因为 deleteLocalFile 只查 tasks/resources 表、不查画布 KV，会误删画布仍在引用的图（问题2 根因）。
   await runReferenceGc(false);
-  return json(res, { code: 0, data: { ok: true } });
+  return json(res, { code: 0, data: { ok: r.changes > 0, deleted: r.changes } });
 }
 
 export async function handleTasksBatchDelete(
@@ -246,11 +248,14 @@ export async function handleTasksBatchDelete(
     return sendError(res, 'Missing ids array', 400);
 
   const db = await getDb();
-  for (const id of body.ids) run(db, 'DELETE FROM tasks WHERE task_id = ?', [id]);
+  // 【成功判据必须取结果事实 · 2026-09-17 TD-16-27】原实现回 `deleted: body.ids.length`（**输入长度**）：
+  // 传进来的 id 全不存在（0 行被删）也报「已删除 N 条」。现累加真实 `changes`。
+  let deleted = 0;
+  for (const id of body.ids) deleted += run(db, 'DELETE FROM tasks WHERE task_id = ?', [id]).changes;
   debouncedSaveDb();
   // 只删记录，删盘统一交给引用感知 GC（docs/13）
   await runReferenceGc(false);
-  return json(res, { code: 0, data: { deleted: body.ids.length } });
+  return json(res, { code: 0, data: { deleted, requested: body.ids.length } });
 }
 
 export async function handleTasksClear(req: IncomingMessage, res: ServerResponse): Promise<void> {

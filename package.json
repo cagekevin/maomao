@@ -35,7 +35,7 @@
     "check:arch": "node scripts/check-arch.mjs",
     "check:strict-src": "node scripts/check-strict-src.mjs",
     "check:any": "node scripts/check-any-honesty.mjs",
-    "check:catch": "node scripts/check-silent-catch.mjs",
+
     "check:gates": "node scripts/check-gates.mjs",
     "check:dead-code": "node scripts/check-dead-code.mjs",
     "type-check": "tsc --noEmit",

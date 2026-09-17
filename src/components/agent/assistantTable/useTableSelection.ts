@@ -55,16 +55,28 @@ export interface UseTableSelectionResult {
   paste: (focusedCell: { rowId: string; colId: string } | null) => Promise<string>;
 }
 
-/** 写系统剪贴板（失败可见：不可用/被拒 → false，由调用方决定是否回退内部） */
-async function writeSystemClipboard(text: string): Promise<boolean> {
+/** 写系统剪贴板结果（**判别联合 + 生产者给可展示信息**）。
+ *
+ *  【2026-09-17 裁定「错误必须由产生它的那层以判别联合透传（含可展示信息）；消费者只转发」】
+ *  原来返回 `boolean` —— 调用方只知道"没写成"，**不知道原因**，于是只能自己编一句
+ *  （"系统剪贴板不可用"）＝ 消费者加工（第二份真相）。现由**本层**给出 `message`，调用方原样转发。
+ */
+type ClipboardWriteResult = { ok: true } | { ok: false; message: string };
+
+/** 写系统剪贴板（失败时**带原因**返回，由调用方决定是否回退内部）。 */
+async function writeSystemClipboard(text: string): Promise<ClipboardWriteResult> {
   try {
     if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
       await navigator.clipboard.writeText(text);
-      return true;
+      return { ok: true };
     }
-  } catch {
-    // catch-ok: CLIPBOARD
-    /* 权限被拒 / 非安全上下文 → 返回 false 走回退 */
+    // 无 clipboard API（非安全上下文 / 旧环境）**不算失败** —— 继续走下面的 execCommand 兜底
+  } catch (e) {
+    // 【生产者给事实】权限被拒 / 非安全上下文：**在这里说清**，不让调用方猜。
+    return {
+      ok: false,
+      message: `系统剪贴板写入被拒（${e instanceof Error ? e.message : '权限被拒或非安全上下文'}）`,
+    };
   }
   // 兜底：execCommand（旧/受限环境）
   try {
@@ -76,23 +88,32 @@ async function writeSystemClipboard(text: string): Promise<boolean> {
     ta.select();
     const ok = document.execCommand('copy');
     document.body.removeChild(ta);
-    return ok;
-  } catch {
-    return false;
+    return ok ? { ok: true } : { ok: false, message: '系统剪贴板不可用（execCommand 返回 false）' };
+  } catch (e) {
+    return {
+      ok: false,
+      message: `系统剪贴板不可用（${e instanceof Error ? e.message : 'execCommand 异常'}）`,
+    };
   }
 }
 
-/** 读系统剪贴板文本（失败可见；读不到 → null，调用方回退内部） */
-async function readSystemClipboard(): Promise<string | null> {
+/** 读系统剪贴板结果（**判别联合 + 生产者给可展示信息**，同上）。 */
+type ClipboardReadResult = { ok: true; text: string } | { ok: false; message: string };
+
+/** 读系统剪贴板文本（失败时**带原因**返回，由调用方决定是否回退内部）。 */
+async function readSystemClipboard(): Promise<ClipboardReadResult> {
   try {
     if (navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
-      return await navigator.clipboard.readText();
+      const text = await navigator.clipboard.readText();
+      return { ok: true, text };
     }
-  } catch {
-    // catch-ok: CLIPBOARD
-    /* 权限被拒 / 非安全上下文 */
+  } catch (e) {
+    return {
+      ok: false,
+      message: `系统剪贴板读取被拒（${e instanceof Error ? e.message : '权限被拒或非安全上下文'}）`,
+    };
   }
-  return null;
+  return { ok: false, message: '系统剪贴板不可用（当前环境无 clipboard.readText）' };
 }
 
 export function useTableSelection({
@@ -160,8 +181,11 @@ export function useTableSelection({
       }
       if (internal) setTableClipboard(internal);
       const wroteSys = await writeSystemClipboard(sysText);
-      if (!wroteSys && toast) {
-        // 系统剪贴板不可用：仍可表格内部粘贴（内部已存），但提示受限，不静默
+      if (!wroteSys.ok) {
+        // 【2026-09-17 裁定：消费者只转发】失败判词**由生产者（writeSystemClipboard）给全**，
+        // 此处只做**拼接转发** —— 不再自己下"是权限问题"的判断、也不写死"系统剪贴板不可用"。
+        // （表格内部剪贴板已存 ⇒ 成功那半照报，失败那半附生产者原话。）
+        return toast ? `${toast}（${wroteSys.message}，仅表格内可粘贴）` : '';
       }
       return toast;
     },
@@ -186,8 +210,11 @@ export function useTableSelection({
 
       // 1) 系统剪贴板优先
       const sys = await readSystemClipboard();
-      if (sys !== null && sys !== '') {
-        const grid = parseClipboardGrid(sys);
+      // 【2026-09-17 裁定：判别联合先判 ok 再取 text】原来 `sys !== null && sys !== ''` 把
+      // "读失败"与"读到空"混在一起判。读不到（`ok:false`）**不是错误** —— 属正常回退路径
+      //（回退内部剪贴板）；`message` 留待上层需要时转发，此处不自行解释。
+      if (sys.ok && sys.text !== '') {
+        const grid = parseClipboardGrid(sys.text);
         if (grid) {
           const next = pasteCells(table, anchor, grid);
           if (next === table) return '';
@@ -198,7 +225,8 @@ export function useTableSelection({
         const rowIdx = table.rows.findIndex((r) => r.id === anchor.rowId);
         const colIdx = table.columns.findIndex((c) => c.id === anchor.colId);
         if (rowIdx < 0 || colIdx < 0) return '';
-        const val = sys;
+        // 【2026-09-17】判别联合收窄后取 `.text`（原来是裸 string）
+        const val = sys.text;
         const cellNext = {
           ...table,
           rows: table.rows.map((r, i) => {

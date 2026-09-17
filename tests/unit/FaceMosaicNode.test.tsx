@@ -30,7 +30,8 @@ const h = vi.hoisted(() => {
     dataUrl: 'data:image/png;base64,AAAA',
     faceCount: 2,
   }));
-  const uploadMock = vi.fn(async () => 'http://local/mosaic.png');
+  // 【2026-09-17】契约改判别联合（成功＝`ok:true` + url）。
+  const uploadMock = vi.fn(async () => ({ ok: true as const, url: 'http://local/mosaic.png' }));
   return { state, setNodesMock, applyMosaicMock, uploadMock };
 });
 

@@ -16,6 +16,8 @@
 
 import { useEffect, type DependencyList } from 'react';
 import { API_BASE } from './config.ts';
+// 解析兜底统一走唯一原语（`PARSE_FALLBACK` 的唯一实现），不再逐处手写 catch（2026-09-17 拆回潮）。
+import { tryParse } from '../utils/asyncGuard.ts';
 
 /**
  * 相对 `/files/` 路径 → 完整可访问 URL（localTool 本地引擎端口）。
@@ -49,13 +51,12 @@ export function toAbsoluteFileUrl(url: string | null | undefined): string {
  */
 export function fileNameFromUrl(url: string | null | undefined): string {
   if (!url || typeof url !== 'string') return '';
-  try {
+  const r = tryParse(() => {
     const pathname = new URL(url, 'http://localhost').pathname;
     const seg = pathname.slice(pathname.lastIndexOf('/') + 1);
     return seg ? decodeURIComponent(seg) : '';
-  } catch {
-    return '';
-  }
+  });
+  return r.ok ? r.value : '';
 }
 
 /**
@@ -73,14 +74,13 @@ export function fileNameFromUrl(url: string | null | undefined): string {
  */
 export function relativePathFromFileUrl(url: string | null | undefined): string | null {
   if (!url || typeof url !== 'string') return null;
-  try {
+  const r = tryParse(() => {
     const pathname = decodeURIComponent(new URL(url, 'http://localhost').pathname);
     if (!pathname.startsWith('/files/')) return null;
     const rel = pathname.slice('/files/'.length);
     return rel || null;
-  } catch {
-    return null;
-  }
+  });
+  return r.ok ? r.value : null;
 }
 
 /**
@@ -328,11 +328,9 @@ export function formatTime(
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
-  try {
-    return d.toLocaleString('zh-CN', { hour12: false });
-  } catch {
-    return '';
-  }
+  // Intl 受限环境（极老浏览器 / 裁剪构建）→ 落空串；走唯一解析兜底原语（2026-09-17）。
+  const r = tryParse(() => d.toLocaleString('zh-CN', { hour12: false }));
+  return r.ok ? r.value : '';
 }
 
 /**

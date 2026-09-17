@@ -31,7 +31,7 @@ import { HttpError } from '../../../../base/api/httpClient.ts';
 import { logger } from '../../../../base/core/logger.ts';
 // ── T4（docs/134）：素材二进制改走 localTool /files/（docs/133 §3.2 D-3）。
 // 更新(2026-09-16 · TD-02-35)：素材**元数据**载体同时收口 —— 原浏览器 IndexedDB → KV（见 readMediaMetaMap）。
-import { uploadFileToLocal } from '../../../../base/api/filesApi.ts';
+import { uploadFileToLocal, type UploadOutcome } from '../../../../base/api/filesApi.ts';
 // 【2026-09-17 · docs/136 §9.2 A3】原 `deleteResource`/`fetchResources` 随 releaseResourceRefs 删除后
 // 已无消费者（剪辑器不再触碰 resources 行）—— 一并移除，避免"幽灵 import"（M6）。
 import { UPLOAD_DIRS } from '../../../../base/utils/uploadDirs.ts';
@@ -137,12 +137,30 @@ class StorageService {
    *   并发保护不是本次收口目标，升级会改变调用方的失败语义（409 需 UI 显式消费，见 D-4）。
    *   将来若需多窗口并发保护，按工程本体同法升级（`contentKvReadWithVersion` + `contentKvSetCas`）。
    */
-  private async readMediaMetaMap(projectId: string): Promise<Record<string, MediaAssetData>> {
+  private async readMediaMetaMap(
+    projectId: string,
+  ): Promise<{ map: Record<string, MediaAssetData>; shapeError: string | null }> {
     const value = await contentGetAsync(videoEditorMediaMetaKey(projectId));
-    // 形状防御：非对象/数组/坏值 → 视为空表（与旧 IndexedDB 空库语义一致，不抛）
-    return value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, MediaAssetData>)
-      : {};
+    // 【2026-09-17 TD-22-62① + 用户裁定「判别联合透传」】三态必须分开，且**形状违约要透传给调用方**：
+    //  · KV 真空（null/undefined）= 正常「还没有素材表」（新工程）→ `{}`，**无日志**；
+    //  · 形状违约（有值、但不是记录表）= **存储被写坏** → 旧实现静默 `{}` ⇒
+    //    **全部素材一键蒸发且零日志**（用户看到媒体面板变空，排查时毫无线索）；
+    //  · 读取抛错 = 真失败 → **不吞**，原样上抛（contentStore 的失败契约）。
+    // 不 throw（一条坏记录不该让整个工程打不开）——但**必须透传**：调用方（`loadAllMediaAssets`）
+    // 据此把"表整体读坏"并进它自己的 `missing` 通道，最终由 `loadProjectMedia` 呈现。
+    if (value == null) return { map: {}, shapeError: null };
+    if (typeof value !== 'object' || Array.isArray(value)) {
+      logger.warn('videoEditor', '素材元数据表形状异常，按空处理（media-meta-shape）', {
+        projectId,
+        got: Array.isArray(value) ? 'array' : typeof value,
+      });
+      return {
+        map: {},
+        // **可展示信息由本层给全**（消费者只转发）：这是"素材整体丢失"的真相，不能让上层猜。
+        shapeError: '素材元数据表已损坏（形状异常），本工程的素材列表可能不完整',
+      };
+    }
+    return { map: value as Record<string, MediaAssetData>, shapeError: null };
   }
 
   private async writeMediaMetaMap(
@@ -318,9 +336,20 @@ class StorageService {
   /** 读当前画布项目的工程列表（KV）。空列表返回 []。 */
   private async readProjectList(): Promise<ProjectListItem[]> {
     const { canvasProjectId } = requireEditorContext();
-    const list = (await contentGetAsync(videoEditorProjectsKey(canvasProjectId))) as
-      ProjectListItem[] | null;
-    return Array.isArray(list) ? list : [];
+    const value: unknown = await contentGetAsync(videoEditorProjectsKey(canvasProjectId));
+    // 【2026-09-17 TD-22-62②】同 readMediaMetaMap：原实现 `Array.isArray(list) ? list : []`
+    // 把「空列表」与「形状违约」压成同一个 `[]` ⇒ 列表键被写坏时**工程库整列消失且零日志**
+    //（用户看到"我的工程全没了"，排查时无从下手）。三态分开：真空 → `[]`；
+    //  形状违约 → **留痕** + `[]`；读取抛错 → 原样上抛（不吞）。
+    if (value == null) return [];
+    if (!Array.isArray(value)) {
+      logger.warn('videoEditor', '工程列表形状异常，按空处理（project-list-shape）', {
+        canvasProjectId,
+        got: typeof value,
+      });
+      return [];
+    }
+    return value as ProjectListItem[];
   }
 
   /** Upsert 一个工程到列表（按 id；存在则更新 name/时间戳，不存在则头插）。 */
@@ -379,10 +408,12 @@ class StorageService {
     //    /files/**，只需登记引用，**绝不再上传一份**（消费者持引用态，不为自保持副本 —— 心法铁律 7）。
     //    判据：调用方已显式声明 `persistentUrl`（= 素材已在 /files/ 的持久地址）。
     const canvasProjectId = canvasProjectIdOrNull();
-    const fileUrl = mediaAsset.ephemeral
-      ? null
+    // 【2026-09-17 判据】三分支**各自携带结果**，不再共用一个 `string|null` ——
+    // `null` 同时兼表"ephemeral 故意不传（合法状态）"与"上传失败"，正是本段注释在治的病。
+    const uploadOutcome: UploadOutcome | null = mediaAsset.ephemeral
+      ? null // ephemeral：**故意**不落盘（合法状态，不是失败）
       : mediaAsset.persistentUrl
-        ? mediaAsset.persistentUrl // 引用：二进制已在 /files/，跳过上传（不复制、不落盘）
+        ? { ok: true, url: mediaAsset.persistentUrl } // 引用：二进制已在 /files/，跳过上传（不复制、不落盘）
         : await uploadFileToLocal(
             mediaAsset.file,
             UPLOAD_DIRS.videoEditor,
@@ -392,13 +423,15 @@ class StorageService {
 
     // ── 修复(2026-09-14 · 假成功)：持久素材上传失败 = **本次没存住**，必须炸开，
     // 不能"写一条无 url 的元数据"假装成功（那会：刷新后素材变空壳、且 /files/ 无对应文件）。
-    // 【为什么与 ephemeral 分开判】ephemeral 的 fileUrl 是**故意** null（合法状态），
-    // 不能用 `!fileUrl` 一刀切——那会把正常的临时素材也当失败。故只在"本应上传"的分支判。
-    if (!mediaAsset.ephemeral && !fileUrl) {
+    // 【为什么与 ephemeral 分开判】ephemeral 的是**故意**不传（合法状态），
+    // 不能用一刀切——那会把正常的临时素材也当失败。故只判"本应上传"的分支（非 null）。
+    // 【2026-09-17 消费者只转发】错误里带**生产者判词** —— 原实现自己编"本地服务不可用？"。
+    if (uploadOutcome && !uploadOutcome.ok) {
       throw new Error(
-        `[StorageService] 素材上传失败（本地服务不可用？）：${mediaAsset.name}（id=${mediaAsset.id}）`,
+        `[StorageService] 素材上传失败：${uploadOutcome.message}（${mediaAsset.name}，id=${mediaAsset.id}）`,
       );
     }
+    const fileUrl = uploadOutcome?.ok ? uploadOutcome.url : null;
 
     const metadata: MediaAssetData = {
       id: mediaAsset.id,
@@ -419,7 +452,7 @@ class StorageService {
       contentId: mediaAsset.contentId,
     };
 
-    const map = await this.readMediaMetaMap(projectId);
+    const { map } = await this.readMediaMetaMap(projectId);
     map[mediaAsset.id] = metadata;
     await this.writeMediaMetaMap(projectId, map);
 
@@ -441,7 +474,7 @@ class StorageService {
     projectId: string;
     id: string;
   }): Promise<MediaAsset | null> {
-    const map = await this.readMediaMetaMap(projectId);
+    const { map } = await this.readMediaMetaMap(projectId);
     const metadata = map[id];
     if (!metadata) return null;
 
@@ -456,7 +489,10 @@ class StorageService {
       file = new File([blob], metadata.name || id, {
         type: blob.type || String(metadata.type),
       });
-    } catch {
+    } catch (e) {
+      // 从 /files/ 拉回 Blob 失败（网络 / 非 2xx）→ null，调用方按「无法还原」处理；
+      // 另留痕给开发者（2026-09-17 拆静默）。
+      logger.debug('剪辑器存储', '从 /files/ 拉回 Blob 失败（已由 null 呈现）', e);
       return null;
     }
 
@@ -499,18 +535,34 @@ class StorageService {
     };
   }
 
-  async loadAllMediaAssets({ projectId }: { projectId: string }): Promise<MediaAsset[]> {
-    const mediaIds = Object.keys(await this.readMediaMetaMap(projectId));
-    const mediaItems: MediaAsset[] = [];
+  /**
+   * 批量读工程全部素材。
+   *
+   * 【2026-09-17 TD-16-27】原实现逐条 `if (item) push` —— `loadMediaAsset` 返回 null
+   * （元数据在册、但文件/记录读不出）时**既不报错也不计数** ⇒ 调用方拿到"少了几条"的数组
+   * 却当成完整，正是「素材莫名少了、毫无提示」。
+   * 现回传 `missing`（在册但读不出的 id）：**不抛**（一条坏记录不该让整个工程打不开 ——
+   * "不阻断"是对的），但**必须可见**（"不阻断"≠"不可见"）。
+   */
+  async loadAllMediaAssets({
+    projectId,
+  }: {
+    projectId: string;
+  }): Promise<{ items: MediaAsset[]; missing: string[]; shapeError: string | null }> {
+    const { map, shapeError } = await this.readMediaMetaMap(projectId);
+    const mediaIds = Object.keys(map);
+    const items: MediaAsset[] = [];
+    const missing: string[] = [];
 
     for (const id of mediaIds) {
       const item = await this.loadMediaAsset({ projectId, id });
-      if (item) {
-        mediaItems.push(item);
-      }
+      if (item) items.push(item);
+      else missing.push(id);
     }
 
-    return mediaItems;
+    // 【2026-09-17 裁定】把「元数据表整体读坏」的真相**一并透传**（不是只在 storage 层留痕）——
+    // 它比"少了几条"严重（**整表消失**），必须让最终呈现层能说出这句话。
+    return { items, missing, shapeError };
   }
 
   // ── 【2026-09-17 · docs/136 §9.2 推论 A3 · 已删 `releaseResourceRefs` + 2 处调用】
@@ -535,7 +587,7 @@ class StorageService {
   //  统一由本源 GC 裁决，而不是"我传的我就有权删登记"（那会退化成"看谁传的"的双标）。
 
   async deleteMediaAsset({ projectId, id }: { projectId: string; id: string }): Promise<void> {
-    const map = await this.readMediaMetaMap(projectId);
+    const { map } = await this.readMediaMetaMap(projectId);
     // 只删自己那两行（工程元数据 + 工程素材数组），不碰 resources 行、不碰磁盘文件。
     delete map[id];
     await this.writeMediaMetaMap(projectId, map);
@@ -642,15 +694,14 @@ class StorageService {
     }
   }
 
-  async isSoundSaved({ soundId }: { soundId: number }): Promise<boolean> {
-    try {
-      const currentData = await this.loadSavedSounds();
-      return currentData.sounds.some((sound) => sound.id === soundId);
-    } catch (error) {
-      logger.error('videoEditor', 'check-sound', (error as { message?: string })?.message);
-      return false;
-    }
-  }
+  // ── 【2026-09-17 TD-22-62④ · 已删 `isSoundSaved`】──
+  // 原实现 `catch { logger.error; return false }`：把「读不出来」伪装成「没收藏」（Step 4 兜底形态
+  // 「失败归一 boolean」），与本文件另 3 处（save／remove／clear）的 throw 契约不对称
+  //（TD-02-35 修了那 3 处、漏了这第 4 处）。
+  // **但取证发现它零消费者**（全仓 grep `isSoundSaved` 只命中：本定义 · `sounds-store.ts` 里
+  // 同名**同步内存态**版本 · UI `sounds.tsx` 用的是 **store 那个**）⇒ 它是 M6 幽灵预留，
+  // 不该"改成 throw"给死代码续命 —— 按 Step 6「删旧先证死」直接删（复杂度实减）。
+  // 若将来真需要"从存储直查收藏态"，应复用 `loadSavedSounds()` + 调用方自行判定，勿恢复本方法。
 
   async clearSavedSounds(): Promise<void> {
     try {

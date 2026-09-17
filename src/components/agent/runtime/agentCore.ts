@@ -184,14 +184,13 @@ export const AUTO_MODE_SYSTEM_PROMPT =
  *  原 export 是 re-export 链的中间环（经 useAgentChat 转发后无人消费）→ 按 §5.4.9 降为文件内私有。 */
 const historyKey = (agentKey: string): string => `agent_history_${agentKey || AGENT_KEY_PREFIX}`;
 
-/** 从 localStorage 读旧单会话历史（首次启动迁移用，对齐大雄"messages → conversations"迁移） */
+/** 从 localStorage 读旧单会话历史（首次启动迁移用，对齐大雄"messages → conversations"迁移）。
+ *  【拆兜底 · 2026-09-17】原 try/catch 是**不可达死兜底**：`contentGet` 对本键不抛
+ *  （`agent_history_{agentKey}` 已在 contracts.ts 登记，`pattern:true`），`sGet` 自身也不抛
+ *  （读 localStorage 失败回 null / 走内存回退）。吞掉失败只会掩盖「登记契约被破坏」这一真信号。 */
 export function loadHistory(agentKey: string): ChatMessage[] {
-  try {
-    const arr = contentGet(historyKey(agentKey));
-    return Array.isArray(arr) ? arr : [];
-  } catch {
-    return [];
-  }
+  const arr = contentGet(historyKey(agentKey));
+  return Array.isArray(arr) ? arr : [];
 }
 
 /** SSE 解析（复刻官方 dr 内 v 函数：按 data: 前缀解析 delta，含 content/reasoning/tool_calls）。
@@ -207,9 +206,9 @@ export function parseSSEChunk(line: string, acc: SSEAccumulator): boolean {
   if (!line.startsWith('data:')) return false;
   const payload = line.slice(5).trim();
   if (!payload || payload === '[DONE]') return true;
-  const parsed = tryParse(() => JSON.parse(payload));
-  if (!parsed) return true;
-  const delta = parsed.choices?.[0]?.delta;
+  const r = tryParse(() => JSON.parse(payload));
+  if (!r.ok || !r.value) return true;
+  const delta = r.value.choices?.[0]?.delta;
   if (!delta) return true;
   if (delta.content) acc.content += delta.content;
   if (delta.reasoning_content) acc.reasoning += delta.reasoning_content;
@@ -609,9 +608,9 @@ export async function parseAgentError(
 ): Promise<string> {
   let msg = `${fallback} (${res.status})`;
   const text = await res.text().catch(() => '');
-  const parsed = tryParse(() => JSON.parse(text));
-  if (parsed !== undefined) {
-    msg = parsed?.error?.message || parsed?.error || (typeof parsed === 'string' ? parsed : text);
+  const r = tryParse(() => JSON.parse(text));
+  if (r.ok) {
+    msg = r.value?.error?.message || r.value?.error || (typeof r.value === 'string' ? r.value : text);
   }
   return msg;
 }

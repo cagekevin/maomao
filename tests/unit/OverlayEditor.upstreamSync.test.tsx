@@ -17,14 +17,22 @@ import React, { useState } from 'react';
 
 /** 可控的 loadImageOrNull：每次调用返回一个挂起 promise，由测试决定何时 resolve */
 const pending: Array<(img: unknown) => void> = [];
-vi.mock('../../src/components/base/utils/asyncGuard.ts', () => ({
-  loadImageOrNull: vi.fn(
-    () =>
-      new Promise((res) => {
-        pending.push(res as (img: unknown) => void);
-      }),
-  ),
-}));
+// 【2026-09-17】用 `importOriginal` 保留其余**真实导出**（`tryParse` / `withTimeout` / …），
+// 只替换 `loadImageOrNull`。否则该组件将来用到 `tryParse` 时会抛
+// "No tryParse export is defined on the mock"（`VideoProcessNode.test` 已踩过同一个坑）。
+vi.mock('../../src/components/base/utils/asyncGuard.ts', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../src/components/base/utils/asyncGuard.ts')>();
+  return {
+    ...actual,
+    loadImageOrNull: vi.fn(
+      () =>
+        new Promise((res) => {
+          pending.push(res as (img: unknown) => void);
+        }),
+    ),
+  };
+});
 
 /** 全屏快捷键 hook 与本次无关，置空避免副作用 */
 vi.mock('../../src/components/base/core/modalLayer.ts', () => ({

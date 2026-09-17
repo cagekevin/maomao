@@ -32,6 +32,8 @@ import { usePanelStore } from '@/components/videoEditor/stores/panel-store';
 // 更新(2026-09-14)：agent 侧栏未搬入，useAgentStore 依赖已移除（见 EditorLayout）。
 import { cn } from '@/components/videoEditor/utils/ui';
 import { EditorCore } from '@/components/videoEditor/engine/core';
+import { logger } from '@/components/base/core/logger';
+import { toastError } from '@/components/base/core/toastStore';
 
 /**
  * 退出编辑器（返回画布）——**唯一协议**，所有退出入口（右上角 X、header 菜单「退出项目」）共用。
@@ -55,6 +57,12 @@ async function exitEditorToCanvas(onExit: () => void): Promise<void> {
     const editor = EditorCore.getInstance();
     await editor.project.prepareExit();
     editor.releaseProjectContext();
+  } catch (e) {
+    // 【2026-09-17 TD-16-34①】退出是**用户动作**，失败必须可见——不能只丢给 main.tsx 的全局监听
+    // （那只 logger、用户不可见）。留痕 + 告知用户；但退出**照常继续**（finally 的 onExit 是用户意志，
+    // 不因清理失败把用户卡在编辑器里）。
+    logger.warn('剪辑器', '退出工程时清理失败（已继续退出）', e);
+    toastError('退出时部分清理未完成，已返回画布');
   } finally {
     isExiting = false;
     onExit();

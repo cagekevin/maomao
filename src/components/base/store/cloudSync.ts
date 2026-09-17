@@ -40,6 +40,7 @@ import {
 import { providerApi } from '../api/localToolApi.ts';
 import { contentGet, contentSet, contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
 import { logger } from '../core/logger.ts';
+import { reportDegrade } from '../core/degrade.ts';
 import { CLOUD_SYNC_GAS_URL } from '../core/config.ts';
 import { stableStringify, contentFingerprint, formatTime } from '../core/utils.ts';
 // [TD-13] 下载云端后重水合 store 内存态（rehydrateStoresAfterCloudPull，原独立模块 cloudRehydrate.ts 已于 2026-09-11 并入本文件）。
@@ -487,15 +488,11 @@ export function describeDownloadConflict(diff: SyncDiff): ConfirmCopy | null {
 }
 /* ===================== 防覆盖保护结束 ===================== */
 
-/** 读取本地某个 key（容错，contentGet 已内置 JSON 解析） */
+/** 读取本地某个 key（contentGet 已内置 JSON 解析）。
+ *  失败语义归 contentStore（**真相源**），**消费者不得越权**吞成 undefined（2026-09-17 删 catch）。 */
 function readLS(k: string) {
-  try {
-    const v = contentGet(k);
-    if (v === null || v === undefined) return undefined;
-    return v;
-  } catch {
-    return undefined;
-  }
+  const v = contentGet(k);
+  return v === null || v === undefined ? undefined : v;
 }
 /** 写本地某个 key（contentSet 已内置 JSON 序列化；失败上浮由 restoreLocal 记录，不再静默吞） */
 function writeLS(k: string, v: unknown) {
@@ -880,14 +877,27 @@ export { CloudSyncEngine };
  * 覆盖范围：仅 3 个有模块级缓存的 store（reloadAppSettings / reloadAccounts / reloadProviders）。
  * skillStore / agentModelStore 走 contentSubscribe 订阅、promptManager / scriptBoxPlaybookStore 走 contentGet 直读，
  * 均无模块级缓存，天然跟随 contentStore，无需在此 rehydrate（避免误加造成双读）。
- * 任一个 reload 失败不影响其余（Promise.allSettled）。
+ * 任一个 reload 失败不影响其余（Promise.allSettled）——但**「不阻断」≠「不可见」**：
+ * 旧实现把 allSettled 的 rejected 结果直接丢弃 = 失败静默消失（拆兜底 · 2026-09-17），
+ * 现逐个检查、失败留痕 + 用户可见。
  */
 export async function rehydrateStoresAfterCloudPull(): Promise<void> {
-  await Promise.allSettled([
-    Promise.resolve(reloadAppSettings()),
-    reloadAccounts(),
-    reloadProviders(),
-  ]);
+  const rehydrators: Array<{ label: string; run: () => Promise<void> }> = [
+    { label: '应用设置', run: () => Promise.resolve(reloadAppSettings()) },
+    { label: '账号环境', run: reloadAccounts },
+    { label: 'API 供应商', run: reloadProviders },
+  ];
+  const results = await Promise.allSettled(rehydrators.map((r) => r.run()));
+  results.forEach((res, i) => {
+    if (res.status === 'rejected') {
+      reportDegrade({
+        layer: '云同步重水合',
+        key: rehydrators[i].label,
+        e: res.reason as Error,
+        toast: '云同步已完成，但本地部分数据刷新失败，建议刷新页面',
+      });
+    }
+  });
 }
 
 /**

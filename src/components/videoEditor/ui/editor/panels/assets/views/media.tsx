@@ -2,6 +2,8 @@
 import { logger } from '@/components/videoEditor/lib/logger';
 import { mediaDisplayUrl } from '@/components/videoEditor/lib/mediaDisplayUrl';
 import { useRenderAssetResolver } from '@/components/base/utils/assetUrl.ts';
+// 【2026-09-17 TD-16-29②】图片失败态的唯一实现（两段回退 + 显式占位），替代裸 <img>
+import LazyImage from '@/components/base/ui/LazyImage.tsx';
 
 import { useMemo, useState } from 'react';
 import { toast } from '@/components/videoEditor/lib/toast';
@@ -508,8 +510,15 @@ function MediaItemWithContextMenu({
         <ContextMenuItem onClick={() => onExportClip({ item })}>{'导出片段'}</ContextMenuItem>
         <ContextMenuItem
           onClick={() => {
-            navigator.clipboard.writeText(item.id);
-            toast.success('素材 ID 已复制');
+            // 【2026-09-17 TD-16-27】原实现不 `await` 也不 `catch`，且**无条件**报成功：
+            // 剪贴板权限被拒时既产生 unhandled rejection，又骗用户「已复制」（假成功）。
+            void navigator.clipboard.writeText(item.id).then(
+              () => toast.success('素材 ID 已复制'),
+              (e: unknown) => {
+                logger.warn('剪辑器', '复制素材 ID 失败', e);
+                toast.error('复制失败，请手动复制');
+              },
+            );
           }}
         >
           {'复制素材 ID'}
@@ -701,11 +710,16 @@ function MediaPreview({
   if (item.type === 'image') {
     return (
       <div className="relative flex size-full items-center justify-center">
-        <img
+        {/* 【2026-09-17 TD-16-29②】原为**裸 `<img>`（无 onError）**：素材文件缺失 / 4xx 时
+            只剩浏览器默认破图或空白，与"这张图本来就有问题"无从区分。收口到唯一实现
+            `LazyImage`（两段回退：小图 → 原图 → 显式「图片加载失败」占位）。
+            `eager`：网格缩略图解码成本≈0，而懒加载一旦不触发会**永久空白**。 */}
+        <LazyImage
           src={mediaDisplayUrl({ asset: item, resolve: resolveThumb })}
           alt={item.name}
-          className="object-cover"
-          loading="lazy"
+          className="size-full"
+          imgClassName="size-full object-cover"
+          eager
         />
       </div>
     );
@@ -715,11 +729,13 @@ function MediaPreview({
     if (item.thumbnailUrl) {
       return (
         <div className="relative size-full">
-          <img
+          {/* 同上：视频封面失败必须显式，不留给浏览器裂图 */}
+          <LazyImage
             src={item.thumbnailUrl}
             alt={item.name}
-            className="rounded object-cover"
-            loading="lazy"
+            className="size-full"
+            imgClassName="size-full rounded object-cover"
+            eager
           />
           {shouldShowDurationBadge ? <MediaDurationBadge duration={item.duration} /> : null}
         </div>

@@ -29,8 +29,9 @@ const DATA_PNG = 'data:image/png;base64,iVBORw0KGgo=';
 describe('filesApi — saveInlineToLocal', () => {
   it('合法 data: URL → 落盘返回 18080 绝对地址', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/canvas/abc.png'));
-    const url = await api.saveInlineToLocal(DATA_PNG);
-    expect(url).toBe('http://127.0.0.1:18080/files/canvas/abc.png');
+    // 【2026-09-17】契约由 `string|null` 改为**判别联合**（失败必带生产者 message）。
+    const r = await api.saveInlineToLocal(DATA_PNG);
+    expect(r).toEqual({ ok: true, url: 'http://127.0.0.1:18080/files/canvas/abc.png' });
   });
   it('候选 B 收口为透传：body JSON 传 {dataUri, subfolder}（不再前端自算 sha1 文件名）', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/a.png'));
@@ -47,19 +48,29 @@ describe('filesApi — saveInlineToLocal', () => {
     const [, opts] = fetchMock.mock.calls[0];
     expect(JSON.parse(opts.body).subfolder).toBe('canvas');
   });
-  it('非 data: URL → 返回 null（不抛）', async () => {
-    expect(await api.saveInlineToLocal('http://x/y.png')).toBeNull();
+  it('非 data: URL → ok:false + message（不抛；与"上传失败"必须可区分）', async () => {
+    expect(await api.saveInlineToLocal('http://x/y.png')).toEqual({
+      ok: false,
+      message: expect.any(String),
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
-  it('上传失败（!res.ok / fetch reject）→ 返回 null（非法 base64 由后端 400 → httpClient 抛 → 此处吞成 null）', async () => {
+  it('上传失败（!res.ok / fetch reject / 200 但无 url）→ ok:false + 生产者 message（不抛）', async () => {
     fetchMock.mockResolvedValue(failResp());
-    expect(await api.saveInlineToLocal(DATA_PNG)).toBeNull();
+    expect(await api.saveInlineToLocal(DATA_PNG)).toEqual({
+      ok: false,
+      message: expect.any(String),
+    });
     fetchMock
       .mockImplementationOnce(async () => {
         throw new Error('net');
       })
       .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
-    expect(await api.saveInlineToLocal(DATA_PNG)).toBeNull();
+    // 200 但后端没回 url ＝ **落盘未完成** —— 必须落在 ok:false（原来与"成功"共用 null）。
+    expect(await api.saveInlineToLocal(DATA_PNG)).toEqual({
+      ok: false,
+      message: expect.any(String),
+    });
   });
 });
 
@@ -151,15 +162,22 @@ describe('filesApi — saveResultToTasks 类型→扩展名映射', () => {
 });
 
 describe('filesApi — saveTextToTasks', () => {
-  it('合法文本 → 落盘 txt 返回 url', async () => {
+  it('合法文本 → 落盘 txt 返回 url（判别联合）', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/tasks/gen.txt'));
-    expect(await api.saveTextToTasks('hello world')).toBe(
-      'http://127.0.0.1:18080/files/tasks/gen.txt',
-    );
+    expect(await api.saveTextToTasks('hello world')).toEqual({
+      ok: true,
+      url: 'http://127.0.0.1:18080/files/tasks/gen.txt',
+    });
   });
-  it('空/非字符串 → null', async () => {
-    expect(await api.saveTextToTasks('   ')).toBeNull();
-    expect(await api.saveTextToTasks(123 as unknown as string)).toBeNull();
+  it('空/非字符串 → ok:false + message', async () => {
+    expect(await api.saveTextToTasks('   ')).toEqual({
+      ok: false,
+      message: expect.any(String),
+    });
+    expect(await api.saveTextToTasks(123 as unknown as string)).toEqual({
+      ok: false,
+      message: expect.any(String),
+    });
   });
   it('自定义 name 前缀清洗非法字符/空格', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/t.txt'));
@@ -169,28 +187,29 @@ describe('filesApi — saveTextToTasks', () => {
       if (k === 'file') expect(v.name).toMatch(/^a_b_c_d_e_\d{8}_\d{6}\.txt$/);
     }
   });
-  it('上传失败（!res.ok）→ null 不抛', async () => {
+  it('上传失败（!res.ok）→ ok:false 不抛', async () => {
     fetchMock.mockResolvedValue(failResp());
-    expect(await api.saveTextToTasks('hi')).toBeNull();
+    expect(await api.saveTextToTasks('hi')).toEqual({ ok: false, message: expect.any(String) });
   });
-  it('fetch reject → null 不抛', async () => {
+  it('fetch reject → ok:false 不抛', async () => {
     // 首次（落盘上传）抛错；后续（logger 上报 /api/logs）正常，避免未捕获拒绝
     fetchMock
       .mockImplementationOnce(async () => {
         throw new Error('net');
       })
       .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
-    expect(await api.saveTextToTasks('hi')).toBeNull();
+    expect(await api.saveTextToTasks('hi')).toEqual({ ok: false, message: expect.any(String) });
   });
 });
 
 describe('filesApi — uploadFileToLocal', () => {
-  it('原始 File/Blob → 落盘返回 url', async () => {
+  it('原始 File/Blob → 落盘返回 url（判别联合）', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/canvas/drop/a.png'));
     const file = new Blob(['x'], { type: 'image/png' });
-    expect(await api.uploadFileToLocal(file)).toBe(
-      'http://127.0.0.1:18080/files/canvas/drop/a.png',
-    );
+    expect(await api.uploadFileToLocal(file)).toEqual({
+      ok: true,
+      url: 'http://127.0.0.1:18080/files/canvas/drop/a.png',
+    });
   });
   it('自定义 subfolder 与 filename 生效', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/u.png'));
@@ -203,21 +222,27 @@ describe('filesApi — uploadFileToLocal', () => {
       if (k === 'file') expect(v.name).toBe('custom.png');
     }
   });
-  it('无 file → null', async () => {
-    expect(await api.uploadFileToLocal(null)).toBeNull();
+  it('无 file → ok:false + message', async () => {
+    expect(await api.uploadFileToLocal(null)).toEqual({ ok: false, message: expect.any(String) });
   });
-  it('上传失败（!res.ok）→ null 不抛', async () => {
+  it('上传失败（!res.ok）→ ok:false 不抛', async () => {
     fetchMock.mockResolvedValue(failResp());
-    expect(await api.uploadFileToLocal(new Blob(['x']))).toBeNull();
+    expect(await api.uploadFileToLocal(new Blob(['x']))).toEqual({
+      ok: false,
+      message: expect.any(String),
+    });
   });
-  it('fetch reject → null 不抛', async () => {
+  it('fetch reject → ok:false 不抛', async () => {
     // 首次（上传）抛错；后续（logger 上报）正常
     fetchMock
       .mockImplementationOnce(async () => {
         throw new Error('net');
       })
       .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
-    expect(await api.uploadFileToLocal(new Blob(['x']))).toBeNull();
+    expect(await api.uploadFileToLocal(new Blob(['x']))).toEqual({
+      ok: false,
+      message: expect.any(String),
+    });
   });
 });
 
@@ -225,7 +250,7 @@ describe('filesApi — downloadRemoteToLocal（网页拖图后台本地化）', 
   it('http(s) URL → fileUrl 落盘到指定 subfolder 返回 url', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/web/abc.png'));
     const url = await api.downloadRemoteToLocal('https://x/cat.png', { folder: 'web' });
-    expect(url).toBe('http://127.0.0.1:18080/files/web/abc.png');
+    expect(url).toEqual({ ok: true, url: 'http://127.0.0.1:18080/files/web/abc.png' });
     const [reqUrl, opts] = fetchMock.mock.calls[0];
     expect(reqUrl).toContain('/api/files/upload');
     const body = JSON.parse(opts.body);
@@ -238,42 +263,50 @@ describe('filesApi — downloadRemoteToLocal（网页拖图后台本地化）', 
     const [, opts] = fetchMock.mock.calls[0];
     expect(JSON.parse(opts.body).subfolder).toBe('canvas');
   });
-  it('非 http(s)（data:/blob:/空）→ null 且不发请求', async () => {
-    expect(await api.downloadRemoteToLocal('data:image/png;base64,xx')).toBeNull();
-    expect(await api.downloadRemoteToLocal('blob:http://x/y')).toBeNull();
-    expect(await api.downloadRemoteToLocal('')).toBeNull();
-    expect(await api.downloadRemoteToLocal(undefined as never)).toBeNull();
+  it('非 http(s)（data:/blob:/空）→ ok:false + message + skipped（无需下载）且不发请求', async () => {
+    const skip = { ok: false, message: expect.any(String), skipped: true };
+    expect(await api.downloadRemoteToLocal('data:image/png;base64,xx')).toEqual(skip);
+    expect(await api.downloadRemoteToLocal('blob:http://x/y')).toEqual(skip);
+    expect(await api.downloadRemoteToLocal('')).toEqual(skip);
+    expect(await api.downloadRemoteToLocal(undefined as never)).toEqual(skip);
     expect(fetchMock).not.toHaveBeenCalled();
   });
-  it('上传失败（!res.ok / fetch reject）→ null 不抛', async () => {
+  it('上传失败（!res.ok / fetch reject）→ ok:false 不抛', async () => {
     fetchMock.mockResolvedValue(failResp());
-    expect(await api.downloadRemoteToLocal('http://x/a.png')).toBeNull();
+    expect(await api.downloadRemoteToLocal('http://x/a.png')).toEqual({
+      ok: false,
+      message: expect.any(String),
+    });
     fetchMock
       .mockImplementationOnce(async () => {
         throw new Error('net');
       })
       .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
-    expect(await api.downloadRemoteToLocal('http://x/b.png')).toBeNull();
+    expect(await api.downloadRemoteToLocal('http://x/b.png')).toEqual({
+      ok: false,
+      message: expect.any(String),
+    });
   });
 
   // ── 回归护栏（2026-08-28「素材拖到画布 → uploads/web 出现重复文件」）──
   // 素材从素材库拖到画布时，若画布没认出它是素材（缺 application/x-yimao-asset），
   // 会退化成「网页拖图本地化」，把本机的 /files/migrated/... 再下载一份落进 uploads/web。
   // 这里从落盘入口兜底：URL 已指向本机 uploads 时一律不再下载，调用方保持原 URL。
-  it('本机 /files/ URL（绝对 + 相对）→ 直接 null 且不发请求（防重复落 web）', async () => {
+  it('本机 /files/ URL（绝对 + 相对）→ ok:false（不发请求，防重复落 web）', async () => {
+    const skip = { ok: false, message: expect.any(String), skipped: true };
     expect(
       await api.downloadRemoteToLocal('http://127.0.0.1:18080/files/migrated/道具/a.png', {
         folder: 'web',
       }),
-    ).toBeNull();
-    expect(await api.downloadRemoteToLocal('/files/migrated/a.png', { folder: 'web' })).toBeNull();
+    ).toEqual(skip);
+    expect(await api.downloadRemoteToLocal('/files/migrated/a.png', { folder: 'web' })).toEqual(skip);
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('外网主机上的 /files/ 路径不算本地 → 照常下载（不误伤真实网页图）', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/web/x.png'));
     expect(
       await api.downloadRemoteToLocal('https://cdn.example.com/files/a.png', { folder: 'web' }),
-    ).toBe('http://127.0.0.1:18080/files/web/x.png');
+    ).toEqual({ ok: true, url: 'http://127.0.0.1:18080/files/web/x.png' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
@@ -286,9 +319,10 @@ describe('filesApi — resolveNodeAssetUrl（File 源统一落盘策略）', () 
 
   it('上传成功 → 持久 /files/ URL，且只发一次上传请求（不读内联）', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/canvas/drop/a.png'));
-    expect(await api.resolveNodeAssetUrl(PNG, 'canvas/drop', 'a.png')).toBe(
-      'http://127.0.0.1:18080/files/canvas/drop/a.png',
-    );
+    expect(await api.resolveNodeAssetUrl(PNG, 'canvas/drop', 'a.png')).toEqual({
+      ok: true,
+      url: 'http://127.0.0.1:18080/files/canvas/drop/a.png',
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -307,7 +341,9 @@ describe('filesApi — resolveNodeAssetUrl（File 源统一落盘策略）', () 
     );
     fetchMock.mockResolvedValue(failResp());
     const out = await api.resolveNodeAssetUrl(PNG, 'canvas/drop');
-    expect(out).toBe(DATA_PNG); // 回退内联：图仍能上屏，只是刷新不保证
+    // 回退内联 → **ok:true**（图仍能上屏）；"落盘失败"是内部降级，不是本函数的失败。
+    // 契约要点："落盘失败但内联可用"与"连内联都读不出"从此可区分（原来都压成 null/string）。
+    expect(out).toEqual({ ok: true, url: DATA_PNG });
   });
 
   it('落盘失败且连内联都读不出 → null（真失败，由调用方提示一次错误）', async () => {
@@ -322,11 +358,17 @@ describe('filesApi — resolveNodeAssetUrl（File 源统一落盘策略）', () 
       },
     );
     fetchMock.mockResolvedValue(failResp());
-    expect(await api.resolveNodeAssetUrl(PNG, 'canvas/drop')).toBeNull();
+    expect(await api.resolveNodeAssetUrl(PNG, 'canvas/drop')).toEqual({
+      ok: false,
+      message: expect.any(String),
+    });
   });
 
-  it('无文件 → null 且不发请求', async () => {
-    expect(await api.resolveNodeAssetUrl(null)).toBeNull();
+  it('无文件 → ok:false + message 且不发请求', async () => {
+    expect(await api.resolveNodeAssetUrl(null)).toEqual({
+      ok: false,
+      message: expect.any(String),
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
@@ -410,6 +452,8 @@ describe('filesApi — persistUrlToUploads', () => {
     expect(await api.persistUrlToUploads(DATA_PNG)).toEqual({
       ok: false,
       reason: 'upload-failed',
+      // 【2026-09-17】生产者 **message**（为什么没落盘）随场景上浮（原来只笼统一个 reason）。
+      message: expect.any(String),
     });
   });
 

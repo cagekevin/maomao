@@ -94,6 +94,7 @@
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { logger } from '../base/core/logger.ts';
 import type { ChangeEvent } from 'react';
 import {
   AlertTriangle,
@@ -1876,9 +1877,9 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
         // 缩略图回传：宿主用它做节点预览图
         try {
           onThumbnail?.(URL.createObjectURL(blob));
-        } catch {
-          // catch-ok: KEEP_ORIGINAL
-          /* 缩略图生成失败不影响截图导出 */
+        } catch (e) {
+          // 缩略图生成失败不影响截图导出 → 但**降级必留痕**（2026-09-17 拆 catch-ok）。
+          logger.debug('3D 应用', '缩略图生成失败（不阻断导出）', e);
         }
         setToast(`摄像机截图已生成 · ${width} × ${height}`);
       } else {

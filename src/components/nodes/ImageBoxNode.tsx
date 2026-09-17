@@ -22,6 +22,7 @@ import LazyImage from '../base/ui/LazyImage.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import { toastWarning, toastError } from '../base/core/toastStore.ts';
 import { loadImageWithTimeout, attemptQuietly } from '../base/utils/asyncGuard.ts';
+import { logger } from '../base/core/logger.ts';
 import { useCopyNode } from '../../hooks/useCopyNode.ts';
 import { generateId } from '../base/core/idGen.ts';
 import { canvasToImageDataUrl } from '../base/core/utils.ts';
@@ -113,7 +114,13 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
   // ---- 缩略图生成（对齐官方 _cmp_Tr(url, 256, 0.7)：canvas 等比缩到 max 256，jpg 0.7）----
   const makeThumb = useCallback(async (url: string, max = 256, quality = 0.7) => {
     if (!url) return undefined;
-    // 图片加载收口到统一入口（超时兜底）；加载失败按原语义返回 undefined（不挂起）
+    // 图片加载收口到统一入口 `loadImageWithTimeout`（带超时兜底）；加载失败按原语义返回 undefined（不挂起）。
+    //
+    // 【2026-09-17 回退 · 教训留档】曾一度改用 `loadImageOrNull`（理由是"手写 try/catch 属收口回潮"）——
+    // **那是错的**：`loadImageOrNull` 是**批量**语义（坏图降级 null **＋ 两级重试**：先带 crossOrigin、
+    // 失败再去掉重试），用在**单张**缩略图上等于凭空多一次加载（多余开销），且**改变了失败时序**
+    // ⇒ `ImageBoxNode.test`「从上游连线导入」的手动 `onerror` 触发因此挂住（测试变红不是测试错，
+    // 是**行为真的变了**）。判据：**不要因为"长得像"就把语义不同的原语互相替换**。
     let img;
     try {
       img = await loadImageWithTimeout(url);
@@ -140,7 +147,10 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
       if (!ctx) return undefined;
       ctx.drawImage(img, 0, 0, w, h);
       return canvasToImageDataUrl(canvas, 'image/jpeg', quality);
-    } catch {
+    } catch (e) {
+      // canvasToImageDataUrl 在**根部抛**（产物非真图 / 画布被跨源污染）。本函数是「缩略图生成」的
+      // 所有者，决定「失败即不产出缩略图」，但**必须留痕**——不得静默吞（2026-09-17 拆兜底）。
+      logger.warn('图片节点', '缩略图生成失败，本次不产出缩略图', e);
       return undefined;
     }
   }, []);
@@ -303,13 +313,25 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
     // 委托 filesApi.resolveNodeAssetUrl：multipart 直传 → 持久 /files/ URL；
     // 仅「上传失败且读不出内联」才兜底 dataURL（极端情形，符合契约降级语义）。
     // 这样 node.data.images[].url 只存持久 URL，快照不再内联整图 → 消除 TD-10 快照膨胀。
+    // 【2026-09-17 判据】失败**不再静默丢图**：原来 `filter(x != null)` 把失败项直接扔掉
+    //（用户只看到"少了几张"、零解释），且 `.catch(() => null)` 连原因都吞了。
+    // 现分两路：成功项照常返回（不回滚）；失败明细留痕 + 提示（带**生产者判词**）。
+    const failures: Array<{ name: string; message: string }> = [];
     return Promise.all(
       list.map((f) =>
-        resolveNodeAssetUrl(f)
-          .then((url) => (url ? { url, label: f.name } : null))
-          .catch((): null => null),
+        resolveNodeAssetUrl(f).then((r): { url: string; label: string } | null => {
+          if (r.ok) return { url: r.url, label: f.name };
+          failures.push({ name: f.name, message: r.message });
+          return null;
+        }),
       ),
-    ).then((r) => r.filter((x): x is { url: string; label: string } => x != null));
+    ).then((r) => {
+      if (failures.length > 0) {
+        logger.warn('图片盒子', '部分文件未导入（已跳过）', { failed: failures });
+        toastError(`${failures.length} 个文件导入失败：${failures[0].message}`);
+      }
+      return r.filter((x): x is { url: string; label: string } => x !== null);
+    });
   }, []);
 
   const onFileInput = useCallback(

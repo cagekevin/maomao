@@ -1,4 +1,5 @@
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import { logger } from '@/components/videoEditor/lib/logger';
 
 /** `useRenderAssetResolver()` 的返回形态（只取本模块需要的那一维，避免反向依赖 base 的 hook 类型）。 */
 export type RenderAssetResolver = (
@@ -36,5 +37,19 @@ export function mediaDisplayUrl({
   if (asset.persistentUrl) {
     return resolve(asset.persistentUrl, maxDim ? { maxDim } : undefined);
   }
-  return asset.url ?? '';
+  // 【2026-09-17 TD-16-29③】原为 `return asset.url ?? '';`
+  // （**回改原文 A7**：本改动第一版注释写"`MediaAsset.url` 类型是 `string`、`?? ''` 永不触发"——
+  //   **该断言是错的**，TS 立即报 `string | undefined` 不能赋给 `string`。`url` 确实可为 undefined。）
+  // 真实病根不是"`??` 冗余"，而是**把「无地址」静默递给下游成空串**：
+  // `<img src="">` 与 CSS `url()` **都不会触发 onError** ⇒ "这里本该有图但出不来"在渲染出口
+  // 完全不可见（空白/无背景，零线索）。现改为：**缺失即留痕**，空串只作类型收敛的返回值，
+  // 由已收口的消费者显式呈现（`LazyImage` 无地址 → 占位「没有可显示的图片地址」）。
+  if (!asset.url) {
+    logger.warn('剪辑器', 'mediaDisplayUrl：素材无可用显示地址（不静默）', {
+      assetId: asset.id,
+      type: asset.type,
+    });
+    return '';
+  }
+  return asset.url;
 }

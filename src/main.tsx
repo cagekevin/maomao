@@ -26,7 +26,9 @@ subscribeBackendLogStream();
 //  ① 只记不可还原的运行时异常，符合 logger 头注释"高价值"原则；
 //  ② 相同 (type+name+message) 5s 内合并，避免同一错误连续触发刷爆日志文件；
 //  ③ 自身用朴素 try/catch 兜底，防兜底逻辑再抛导致无限递归。
-const _globalErrThrottle = { key: '', ts: 0 };
+const _globalErrThrottle = { key: '', ts: 0, suppressed: 0 };
+/** 已知无害告警的累计次数（只计数、不写错误日志；首次出现时 warn 一次 → 过滤 ≠ 静默丢）。 */
+const _harmlessSeen = new Map<string, number>();
 // 【已知无害告警过滤】ReactFlow（@xyflow/react）内部 useResizeObserver 在「新建节点挂载瞬间」
 // 对节点 wrapper 注册观察 + 回调内调 updateNodeInternals，会偶发触发浏览器原生
 // `ResizeObserver loop completed with undelivered notifications`：
@@ -45,17 +47,35 @@ function reportGlobalError(type: string, e: unknown) {
           : e && typeof e === 'object' && 'message' in e
             ? String(e.message)
             : '';
-    // 已知无害的浏览器/库内部告警：直接忽略，不计入错误日志
-    if (_HARMLESS_GLOBAL_ERROR_MSGS.some((m) => message.includes(m))) return;
+    // 已知无害的浏览器/库内部告警：不写错误日志（避免污染），但**必须可观测** ——
+    // 首次出现 warn 一次 + 累计计数；否则「过滤」退化成「静默丢」（2026-09-17 TD-16-33④）。
+    if (_HARMLESS_GLOBAL_ERROR_MSGS.some((m) => message.includes(m))) {
+      const seen = (_harmlessSeen.get(message) ?? 0) + 1;
+      _harmlessSeen.set(message, seen);
+      if (seen === 1) logger.warn('运行时', '已知无害告警，已过滤（后续同类仅计数）', { message });
+      return;
+    }
     const isError = e instanceof Error;
     const name = isError ? e.name : 'Error';
     const stack = isError && e.stack ? e.stack : '';
     const key = `${type}:${name}:${message}`;
     const now = Date.now();
-    if (key === _globalErrThrottle.key && now - _globalErrThrottle.ts < 5000) return;
+    if (key === _globalErrThrottle.key && now - _globalErrThrottle.ts < 5000) {
+      // 节流只限**日志频率**：被压掉的次数必须带出去，否则「降噪」变「静默丢」（TD-16-33④）
+      _globalErrThrottle.suppressed += 1;
+      return;
+    }
+    const suppressed = _globalErrThrottle.suppressed;
     _globalErrThrottle.key = key;
     _globalErrThrottle.ts = now;
-    logger.error('运行时', type, { name, message, error: String(e), stack });
+    _globalErrThrottle.suppressed = 0;
+    logger.error('运行时', type, {
+      name,
+      message,
+      error: String(e),
+      stack,
+      ...(suppressed ? { suppressedInWindow: suppressed } : {}),
+    });
   } catch {
     // catch-ok: RECURSION_GUARD
     /* 防递归：全局兜底自身异常不再上报 */

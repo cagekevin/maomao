@@ -49,10 +49,19 @@ vi.mock('../../src/components/base/core/eventBus.ts', () => ({
   subscribeOnce: (mocks as any).subscribeOnce ?? (() => () => {}),
   clearEvent: (mocks as any).clearEvent ?? (() => {}),
 }));
-vi.mock('../../src/components/base/utils/asyncGuard.ts', () => ({
-  withTimeout: mocks.withTimeout,
-  isTimeoutError: mocks.isTimeoutError,
-}));
+// 【2026-09-17】`fileNameFromUrl`（core/utils.ts）现在依赖 `tryParse`；本 mock 原先只给
+// `withTimeout/isTimeoutError`，缺 `tryParse` 会在**组件渲染路径**上抛
+// "No tryParse export is defined on the mock"（表现为一堆与落盘无关的用例一起红）。
+// 用 `importOriginal` 取真实实现：`tryParse` 是纯函数，mock 它没有意义。
+vi.mock('../../src/components/base/utils/asyncGuard.ts', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../src/components/base/utils/asyncGuard.ts')>();
+  return {
+    ...actual,
+    withTimeout: mocks.withTimeout,
+    isTimeoutError: mocks.isTimeoutError,
+  };
+});
 vi.mock('../../src/components/base/utils/videoEngine.ts', () => ({
   readVideoMetadata: mocks.readVideoMetadata,
   processVideo: mocks.processVideo,

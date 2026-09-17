@@ -15,8 +15,9 @@
  *    TD-16-2 / TD-22-55 收口；`captureFrame.setCrossOriginForReadable` 为本函数的 re-export。
  *  - releaseQuietly(act) / releaseQuietlyAsync(act)：**静默释放原语** —— `RELEASE_FAIL` 豁免码的
  *    **唯一实现**（释放 / 停止 / 取消 / 断开失败一律不阻断主流程）。调用点因此**不再需要贴 `catch-ok`**。
- *  - tryParse(parser, fallback?)：**解析兜底原语** —— `PARSE_FALLBACK` 豁免码的**唯一实现**
- *    （JSON / DOMParser / URL / 正则编译失败 → 落默认分支 / 默认文案）。调用点因此**不再需要贴 `catch-ok`**。
+ *  - tryParse(parser)：**解析兜底原语** —— `PARSE_FALLBACK` 豁免码的**唯一实现**，返回**判别联合**
+ *    `{ok:true,value} | {ok:false,error}`（2026-09-17 契约收紧：调用方**必须判 `ok`** 才能读 `value`，
+ *    写错编译不过；不再有 `fallback` 参数与 `T | undefined` 形态）。调用点因此**不再需要贴 `catch-ok`**。
  *
  * 【归属说明（2026-09-14）】本文件 = 「**边界守卫原语**」集合：超时边界（withTimeout）+ 宽容加载
  *   （loadImageOrNull）+ 静默释放（releaseQuietly）+ 解析兜底（tryParse）。后者的消费方含 `base/core/**`（core → utils
@@ -38,12 +39,13 @@ import type { AssetLoadOptions } from '@/types';
 export function sameOriginUrl(url: string): boolean {
   if (!url) return true;
   if (url.startsWith('/') || url.startsWith('blob:') || url.startsWith('data:')) return true;
-  try {
+  // URL 解析失败 → 判「跨源」（保守侧：宁可多设 CORS，也不让 canvas 被污染）。
+  // 收口到本文件的 `tryParse` 原语（`PARSE_FALLBACK` 唯一实现），不再手写 catch（2026-09-17）。
+  const r = tryParse(() => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     return new URL(url, origin || undefined).origin === origin;
-  } catch {
-    return false;
-  }
+  });
+  return r.ok ? r.value : false;
 }
 
 /**
@@ -97,12 +99,8 @@ export function withTimeout<T>(
   return new Promise<T>((resolve, reject) => {
     if (!(ms > 0)) return resolve(promise);
     const timer = setTimeout(() => {
-      try {
-        onTimeout?.();
-      } catch {
-        // catch-ok: NON_BLOCKING
-        /* 取消回调失败不阻断 */
-      }
+      // 取消回调失败不阻断 → 走本文件的 `releaseQuietly` 原语（同语义唯一实现），不再手写豁免标记。
+      releaseQuietly(() => onTimeout?.());
       // 中止底层信号：优先标准 abort()，跨环境（jsdom/老浏览器）用 dispatchEvent fallback
       // 注：AbortSignal 原生无 abort()（AbortController 才有），此分支本为兜底旧实现，故窄化类型后保持运行时语义
       const sig = signal as (AbortSignal & { abort?: () => void }) | undefined;
@@ -185,7 +183,9 @@ export async function loadImageOrNull(
   }
   try {
     return await loadImageWithTimeout(url, { ...opts, crossOrigin: null });
-  } catch {
+  } catch { // catch-ok: NON_BLOCKING
+    // 本处即 `loadImageOrNull` 的**契约本体**（「宽容版：坏图降级 null，绝不抛」），
+    // 两次尝试都失败即返 null。属原语内部实现，非调用点回潮（2026-09-17）。
     return null;
   }
 }
@@ -226,6 +226,12 @@ export async function releaseQuietlyAsync(act: () => Promise<unknown> | unknown)
 }
 
 /**
+ * 解析结果（**判别联合**）—— 失败必须与「成功但值本身为空」可区分。
+ * 本仓同类先例：`contentGetKvWithFallback` 的 `KvFallbackReadResult`。
+ */
+export type ParseResult<T> = { ok: true; value: T } | { ok: false; error: unknown };
+
+/**
  * 「解析兜底」原语 —— `PARSE_FALLBACK` 豁免码的**唯一实现**（2026-09-14 · TD-02-26 成本层收口）。
  *
  * 【为什么是原语，而不是逐处手写豁免标记】同一语义曾**手写 8+ 遍**
@@ -233,18 +239,27 @@ export async function releaseQuietlyAsync(act: () => Promise<unknown> | unknown)
  *   豁免面大、理由可绕、写法重复。收口后「允许吞」的理由与边界收敛到本函数一处，
  *   调用点**不再需要任何豁免标记**（本仓判据：同一语义手写 ≥3 次即应收口为原语）。
  *
- * 【语义】`parser()` 抛错即返回 `fallback`（默认分支 / 默认文案 / 空值）。
- *   - 不传 `fallback` → 返回 `undefined`（调用方用 `?.` / 判空继续）。
- *   - 传 `fallback` → 返回该兜底值（如 `''`）。
- * 【何时不该用】解析失败**需要可见**（用户配置损坏 / 网络响应体错误 → 应 toast / logger）→
- *   用 `reportDegrade` / `logger.warn`；契约违约需要 fail-fast → 直接抛（守卫），别用本原语。
+ * 【2026-09-17 契约收紧（按用户裁定 · 旧形态的三个坑）】旧签名 `(parser, fallback?) => T | undefined`：
+ *   ① **零留痕** —— 失败静默，违反本仓「降级必留痕」铁律；
+ *   ② **不可区分** —— 调用方分不清「成功但值是 undefined」与「解析失败」，只能靠 `?? fallback` 猜
+ *      （当前靠"没有 parser 会返回 undefined"侥幸成立，**零机器守卫** ⇒ 迟早回潮）；
+ *   ③ **藏默认值** —— `fallback` 让失败看起来像正常值。
+ *   现返回判别联合：**调用方必须判 `ok` 才能读 `value`**（写错编译不过 = 类型层钉死）。
+ *
+ * 【何时不该用】解析失败**需要面向用户**（配置损坏 / 响应体错误 → toast）→ 用 `reportDegrade`；
+ *   契约违约需要 fail-fast → 直接抛（守卫），别用本原语。
  */
-export function tryParse<T>(parser: () => T, fallback?: T): T | undefined {
+export function tryParse<T>(parser: () => T): ParseResult<T> {
   try {
-    return parser();
-  } catch {
-    // catch-ok: PARSE_FALLBACK —— 本处即该码的唯一实现：解析失败兜底（JSON/DOM/URL/正则 失败 → 落默认分支）
-    return fallback;
+    return { ok: true, value: parser() };
+  } catch (err) {
+    // 【为什么不在此打日志 · 2026-09-17】两条理由，缺一不可：
+    //  ① **不能** —— `logger.ts → core/utils.ts → 本文件` 会构成循环依赖（logger 依赖 core/utils 的 formatTime）；
+    //  ② **不该** —— 判别联合已消除「静默」：调用方**必须**判 `ok`，失败分支携带原始 `err`，
+    //     由调用方按"读者"决定留痕（logger 给开发者 / toast 给用户 / reportDegrade）。
+    //     解析原语是**探测层**，不替消费者定"失败怎么呈现"（职责边界）。
+    // 反模式：调用方拿到 `{ok:false}` 后**丢弃 err 且不留痕** = 静默吞（code review 必查）。
+    return { ok: false, error: err };
   }
 }
 

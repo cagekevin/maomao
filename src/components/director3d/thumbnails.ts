@@ -3,6 +3,7 @@
 //   由调用方注入画布源（source）——monitor / 截图等使用方各自从 ref 取 current 后传入。
 // 本模块为纯同步逻辑，可直接单测（构造 ImageData / canvas mock 验证输出）。
 import { canvasToImageDataUrl } from '../base/core/utils.ts';
+import { logger } from '../base/core/logger.ts';
 
 /**
  * 从任意 Canvas / ImageSource 生成 240×135 JPEG 缩略图 dataURL。
@@ -33,7 +34,9 @@ export function thumbnailFromCanvas(source: HTMLCanvasElement) {
     // 唯一出口（产出即校验）：画布分配失败时抛错 → 由本函数 catch 归一为 ''
     // （契约：无效源或绘制失败均返回 ''，调用方按原样保留缩略图）
     return canvasToImageDataUrl(canvas, 'image/jpeg', 0.74);
-  } catch {
+  } catch (e) {
+    // 契约：无效源或绘制失败均返回 ''，调用方按原样保留缩略图；另留痕给开发者（2026-09-17 拆静默）。
+    logger.debug('3D', '缩略图生成失败（已由返回值呈现）', e);
     return '';
   }
 }

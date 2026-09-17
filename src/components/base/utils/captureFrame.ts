@@ -88,6 +88,7 @@
  * 本文件 re-export 保持 6 处既有视频链路消费方**零改动**。
  */
 import { releaseQuietly, setCrossOriginForReadable } from './asyncGuard.ts';
+import { logger } from '../core/logger.ts';
 
 export { setCrossOriginForReadable };
 interface DrawVideoFrameErrors {
@@ -199,7 +200,13 @@ export function drawVideoFrame(
         video.addEventListener('seeked', draw, { once: true });
         try {
           video.currentTime = target;
-        } catch {
+        } catch (e) {
+          // 【降级但必须留痕 · 2026-09-17 TD-16-32 取证修正】seek 赋值失败 → 降级绘制**当前帧**
+          // 是**既有契约**（`tests/unit/captureFrame.test.ts:273` 明确断言「catch → draw，不是静默失败」），
+          // **不改行为**（改 fail-loud 会破坏下游「总能拿到一帧」的既有语义，属业务决策，另议）。
+          // 但「降级」≠「无声」：按「失败降级亦须留痕」铁律，此处必须留痕 ——
+          // 否则下游拿到一张**时间点可能非目标**的帧却无从辨别。
+          logger.warn('视频抽帧', 'seek 赋值失败，降级绘制当前帧（时间点可能非目标）', e);
           draw();
         }
       }

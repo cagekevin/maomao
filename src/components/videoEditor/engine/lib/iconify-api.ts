@@ -1,4 +1,5 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+// 【2026-09-17】本文件不再直接 logger：失败一律走**判别联合 + message**（生产者给可展示信息），
+// 由消费者（stickers-store）转发留痕 —— 这也是 `searchIcons`／`getCollections` 契约收口的结果。
 import { API_BASE } from '../../../base/core/config.ts';
 
 /**
@@ -62,7 +63,23 @@ export interface CollectionInfo {
   aliases?: Record<string, string>;
 }
 
-export async function getCollections(category?: string): Promise<Record<string, IconSet>> {
+/** 图标集合拉取结果（**判别联合 + 生产者给可展示信息**）。
+ *
+ *  【2026-09-17 判据】错误必须由**产生它的那层**以判别联合透传（含可展示信息）；**消费者只转发**。
+ *  原实现失败 → `return {}`（空集合）—— 与「这个分类下确实没有图标」**完全无法区分**，
+ *  消费者只能把空面板当正常结果展示（"图标库怎么空了"永远查不出是网络问题）。
+ *  **TD-22-63** 点名的"iconify 拉取失败静默归空"即此。
+ */
+export type CollectionsOutcome =
+  | { ok: true; data: Record<string, IconSet> }
+  | { ok: false; message: string };
+
+/** 单个集合详情拉取结果（同上）。 */
+export type CollectionOutcome =
+  | { ok: true; data: CollectionInfo }
+  | { ok: false; message: string };
+
+export async function getCollections(category?: string): Promise<CollectionsOutcome> {
   try {
     const response = await fetchFromUpstream('/collections?pretty=1');
     const data = (await response.json()) as Record<string, IconSet>;
@@ -71,32 +88,51 @@ export async function getCollections(category?: string): Promise<Record<string, 
       const filtered = Object.fromEntries(
         Object.entries(data).filter(([_key, info]) => info.category === category),
       ) as Record<string, IconSet>;
-      return filtered;
+      return { ok: true, data: filtered };
     }
 
-    return data;
+    return { ok: true, data };
   } catch (error) {
-    logger.error('Failed to fetch collections:', error);
-    return {};
+    // 【生产者给可展示信息】"拉不到图标库"与"该分类为空"从此可区分（原来两者都是 `{}`）。
+    return {
+      ok: false,
+      message: `图标集合拉取失败：${error instanceof Error ? error.message : String(error)}`,
+    };
   }
 }
 
-export async function getCollection(prefix: string): Promise<CollectionInfo | null> {
+export async function getCollection(prefix: string): Promise<CollectionOutcome> {
   try {
     const response = await fetchFromUpstream(`/collection?prefix=${prefix}&pretty=1`);
-    return await response.json();
+    const data = (await response.json()) as CollectionInfo;
+    return { ok: true, data };
   } catch (error) {
-    logger.error(`Failed to fetch collection ${prefix}:`, error);
-    return null;
+    return {
+      ok: false,
+      message: `图标集合「${prefix}」拉取失败：${error instanceof Error ? error.message : String(error)}`,
+    };
   }
 }
+
+/** 图标搜索结果（**判别联合 + 生产者给可展示信息**）。
+ *
+ *  【2026-09-17 判据】错误必须由**产生它的那层**以判别联合透传（含可展示信息）；**消费者只转发**。
+ *  原实现失败 → 返回**结构完整、字段齐全**的空结果 `{icons:[],total:0,limit,start:0,collections:{}}`
+ *  —— 比 `getCollections` 的 `{}` **更毒**：消费者怎么看都是"搜索成功，只是没结果"，
+ *  "搜不到图标"与"搜索接口挂了"无法区分。
+ *  连带：`stickers-store` 侧写的 `catch (e) { set({ searchResults: null }) }` **永不触发**
+ *  （本函数从不抛）= 死代码（同 `project-manager.deleteProjects` 的形态）。
+ */
+export type SearchOutcome =
+  | { ok: true; data: IconSearchResult }
+  | { ok: false; message: string };
 
 export async function searchIcons(
   query: string,
   limit: number = 64,
   prefixes?: string[],
   category?: string,
-): Promise<IconSearchResult> {
+): Promise<SearchOutcome> {
   const params = new URLSearchParams({
     query,
     limit: limit.toString(),
@@ -113,15 +149,13 @@ export async function searchIcons(
 
   try {
     const response = await fetchFromUpstream(`/search?${params}`);
-    return await response.json();
+    const data = (await response.json()) as IconSearchResult;
+    return { ok: true, data };
   } catch (error) {
-    logger.error('Failed to search icons:', error);
+    // 【生产者给可展示信息】不返回假空结果 —— "搜不到"与"搜索失败"从此可区分。
     return {
-      icons: [],
-      total: 0,
-      limit,
-      start: 0,
-      collections: {},
+      ok: false,
+      message: `图标搜索失败：${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }

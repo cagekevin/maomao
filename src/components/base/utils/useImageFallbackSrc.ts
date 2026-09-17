@@ -41,13 +41,20 @@ export interface ImageFallbackSrc {
 /**
  * @param url 原始图片地址（可能与 `src` 不同：本地文件会被解析成按需小图端点）
  */
-export function useImageFallbackSrc(url: string): ImageFallbackSrc {
+export function useImageFallbackSrc(url: string | undefined): ImageFallbackSrc {
   const resolve = useRenderAssetResolver();
-  const renderSrc = resolve(url || '');
+  // 【2026-09-17 · 禁 `|| ''` 假兜底（口径：TS+React 异常容错禁止项 规则 4／8）】
+  // 原来「归一为空串」这件事写在**三处**：本函数内 `resolve(url || '')` 与 `toAbsoluteFileUrl(url || '')`，
+  // 加上调用方 `LazyImage` 的 `useImageFallbackSrc(src || '')` —— N 份判据；且 `||` 会把
+  // 「调用方**显式**传空串」与「根本没传」压成同一个 `''`（无法区分空值与缺失）。
+  // 现收口为**一次**归一（下面的 `raw`）：签名收 `string | undefined`，用 `??` 而非 `||`
+  // —— `??` 只挡 null/undefined，不会改写调用方显式的 `''`。
+  const raw = url ?? '';
+  const renderSrc = resolve(raw);
   // 【回退地址必须归一】`url` 可能是**相对** `/files/xxx`（如 ResourceStrip 传上游节点的 assetUrl）。
   // 直接回退裸 `url` 会让 `<img src="/files/…">` 在画布页（`localhost:5180`）解析成 5180 的路径 → 404
   // → 表现为「缩略图不见了／图片加载失败」。故回退一律经 `toAbsoluteFileUrl` 补成可加载绝对地址。
-  const originalSrc = toAbsoluteFileUrl(url || '');
+  const originalSrc = toAbsoluteFileUrl(raw);
   const [stage, setStage] = useState<ImageStage>('render');
 
   // 地址变化 → 回退段复位（换图/编辑/重新生成后必须重新尝试小图）

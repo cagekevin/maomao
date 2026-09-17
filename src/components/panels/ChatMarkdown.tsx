@@ -14,6 +14,8 @@ import { memo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useImageFallbackSrc } from '../base/utils/useImageFallbackSrc.ts';
 import { extractImageSpans, type ImageSpan } from './markdownImages.ts';
+import { logger } from '../base/core/logger.ts';
+import { toastError } from '../base/core/toastStore.ts';
 
 /** 行内匹配模式（含 markdown 图片，由外层切图先处理） */
 const INLINE_PATTERN =
@@ -178,7 +180,11 @@ const CodeBlock = memo(function CodeBlock({ code, language }: { code: string; la
       await navigator.clipboard.writeText(code);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
-    } catch {
+    } catch (e) {
+      // 【2026-09-17 TD-16-34③】剪贴板写入失败（权限被拒 / 非安全上下文）是**用户动作的失败**，
+      // 必须可见——旧实现只 `setCopied(false)`：用户点了复制、图标毫无变化、零提示，只会以为按钮坏了。
+      logger.warn('AI助手', '复制代码块失败', e);
+      toastError('复制失败，请手动选择文本复制');
       setCopied(false);
     }
   };

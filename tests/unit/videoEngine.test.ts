@@ -77,31 +77,39 @@ describe('ProgressController - attach 取消传播', () => {
   });
 });
 
-describe('uploadResult - 落盘契约（TD-22-2：失败诚实返 null，禁止伪造临时 blob: 冒充成功）', () => {
+describe('uploadResult - 落盘契约（TD-22-2 + 2026-09-17 判别联合：失败诚实报因，禁止伪造 blob: 冒充成功）', () => {
   beforeEach(() => {
     mockUpload.mockReset();
   });
 
   it('落盘成功 → 返回持久 /files/ URL', async () => {
     const persisted = 'http://127.0.0.1:18080/files/canvas/video-process/a.mp4';
-    mockUpload.mockResolvedValue(persisted);
+    mockUpload.mockResolvedValue({ ok: true, url: persisted });
     const blob = new Blob(['x'], { type: 'video/mp4' });
-    await expect(uploadResult(blob)).resolves.toEqual({ url: persisted });
+    await expect(uploadResult(blob)).resolves.toEqual({ ok: true, url: persisted });
     expect(mockUpload).toHaveBeenCalledWith(blob, 'canvas/video-process', expect.any(String));
   });
 
   it('字符串输入（已是 URL）→ 原样返回，不触发上传', async () => {
-    await expect(uploadResult('/files/already.mp4')).resolves.toEqual({ url: '/files/already.mp4' });
+    await expect(uploadResult('/files/already.mp4')).resolves.toEqual({
+      ok: true,
+      url: '/files/already.mp4',
+    });
     expect(mockUpload).not.toHaveBeenCalled();
   });
 
-  it('落盘失败（基座返 null）→ 返回 null（旧实现此处伪造 blob: URL —— 先红点）', async () => {
-    mockUpload.mockResolvedValue(null);
-    await expect(uploadResult(new Blob(['x'], { type: 'video/mp4' }))).resolves.toBeNull();
+  it('落盘失败（基座返 ok:false）→ **转发生产者判词**（不再压成 null）', async () => {
+    mockUpload.mockResolvedValue({ ok: false, message: '本地服务未启动' });
+    await expect(uploadResult(new Blob(['x'], { type: 'video/mp4' }))).resolves.toEqual({
+      ok: false,
+      message: '本地服务未启动',
+    });
   });
 
-  it('落盘抛异常 → 返回 null（错误经 logger 留痕，不伪装成成功）', async () => {
+  it('基座抛异常 → 本层**不吞**（2026-09-17 取消自造 try/catch，异常向上抛给调用方）', async () => {
     mockUpload.mockRejectedValue(new Error('network down'));
-    await expect(uploadResult(new Blob(['x'], { type: 'video/mp4' }))).resolves.toBeNull();
+    await expect(uploadResult(new Blob(['x'], { type: 'video/mp4' }))).rejects.toThrow(
+      'network down',
+    );
   });
 });

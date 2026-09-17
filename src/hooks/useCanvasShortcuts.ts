@@ -62,7 +62,8 @@ export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
     try {
       const sel = window.getSelection();
       return !!sel && sel.toString().length > 0;
-    } catch {
+    } catch { // catch-ok: BROWSER_API
+      // 极老/受限环境 `getSelection` 不可用属环境预期，判「无选区」不阻断快捷键。
       return false;
     }
   }, []);

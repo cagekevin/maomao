@@ -405,13 +405,40 @@ export function rowToText(
 }
 
 /**
+ * 「表格 JSON」解析结果（**判别联合 · 失败与未命中都必须透传**）。
+ *
+ * 【2026-09-17 用户裁定「必须要透传」＋ 禁止项规则 2／7】
+ * 原签名 `{ json } | null` 把**三种完全不同的情况压成同一个 `null`**：
+ *   ① 文本压根不含 JSON（＝"这是普通回复"，**正常结论**）；
+ *   ② 含 `{}` 但 `JSON.parse` 抛了（＝**解析失败，需要排查**）；
+ *   ③ 解析出来不是对象。
+ * `null` 让调用方**无法区分"不是表格"与"是表格但解析崩了"** ⇒ ②这类真问题被永久埋掉。
+ * 现改为判别联合：失败带 `reason`（＋原始 `error`），由**拥有上下文的那层**决定怎么处理。
+ */
+export type ParseTableJsonResult =
+  | { ok: true; json: AssistantTableJson }
+  | {
+      ok: false;
+      reason: 'not-string' | 'no-brace' | 'parse-error' | 'not-object' | 'no-rows';
+      /**
+       * **可展示信息（生产者给的人话判词）** —— 消费者**原样转发**给用户，禁止自己翻译/拼接/加工。
+       * `''` = **本失败不该展示给用户**（如"内容里根本没有 JSON"＝"这是普通回复"，
+       * 属正常结论，不是错误）—— 这个"要不要展示"的判断也由**生产者**给出（它知道真相），
+       * 消费者不得自行决定（否则又变成"消费者替所有方定错误形态"）。
+       */
+      message: string;
+      error?: unknown;
+    };
+
+/**
  * 从 assistant 消息文本里尝试解析「表格 JSON」。
  * 语义：文本含 JSON 对象且有 `rows` 数组 → 视为表格 JSON（整表或单行均可）。
- * @returns 解析成功返回 { json }；否则返回 null（透传调用方判断是普通回复）。
+ * @returns 判别联合：`{ok:true, json}`；否则 `{ok:false, reason, error?}`（**透传**给调用方判断）。
  * 说明：只做探测，不判定意图（update/append/replace）——由 buildPreviewResult 按选中态统一判定。
  */
-export function tryParseAssistantTableJson(text: unknown): { json: AssistantTableJson } | null {
-  if (typeof text !== 'string') return null;
+export function tryParseAssistantTableJson(text: unknown): ParseTableJsonResult {
+  // message='' ⇒ 属"这不是表格 JSON"的正常结论，**不该打扰用户**（由生产者声明，消费者照办）
+  if (typeof text !== 'string') return { ok: false, reason: 'not-string', message: '' };
   // 对齐剧本盒 scriptBoxEngine.parseJsonText 的提取：剥 ```json 围栏、只取首个 {...} 到最后一个 }，
   // 再严格 JSON.parse——前台自然语言包裹 / 围栏残留 / 尾部杂字都能救回，解析成功率更高。
   let s = text
@@ -420,17 +447,30 @@ export function tryParseAssistantTableJson(text: unknown): { json: AssistantTabl
     .trim();
   const f = s.indexOf('{');
   const p = s.lastIndexOf('}');
-  if (f >= 0 && p > f) s = s.slice(f, p + 1);
+  if (f < 0 || p <= f) return { ok: false, reason: 'no-brace', message: '' };
+  s = s.slice(f, p + 1);
+  // 【2026-09-17 用户裁定】① **禁止把 catch 换成 tryParse**（那是给兜底换层皮，不是拆）；
+  // ② **失败必须透传、且带可展示信息**（人话由**生产者**给，消费者只转发，禁止自己翻译）。
   let obj: unknown;
   try {
     obj = JSON.parse(s);
-  } catch {
-    return null;
+  } catch (e) {
+    return {
+      ok: false,
+      reason: 'parse-error',
+      message: 'AI 返回的表格 JSON 解析失败，请让 AI 重新生成',
+      error: e,
+    };
   }
-  if (!obj || typeof obj !== 'object') return null;
+  if (!obj || typeof obj !== 'object') return { ok: false, reason: 'not-object', message: '' };
   const rows = (obj as Record<string, unknown>).rows;
-  if (!Array.isArray(rows)) return null;
-  return { json: obj as AssistantTableJson };
+  if (!Array.isArray(rows))
+    return {
+      ok: false,
+      reason: 'no-rows',
+      message: 'AI 返回的表格 JSON 格式不符（未解析出任何行），请让 AI 重新生成',
+    };
+  return { ok: true, json: obj as AssistantTableJson };
 }
 
 /**

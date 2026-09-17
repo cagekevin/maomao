@@ -257,7 +257,13 @@ export class ProjectManager {
 
       this.notify();
     } catch (error) {
+      // 【2026-09-17 TD-16-27】原实现只 logger **不 rethrow** ⇒ 调用方（`editor-header.tsx`
+      // `handleDeleteProject`）已经写好的 `catch → toast.error('删除项目失败')` **永不触发**
+      // = 死代码，用户删项目失败**零提示**。库不替调用方决定错误怎么呈现：
+      // 留痕（开发者）+ 原样上抛（由拥有 UI 的那层提示）。
+      // 注：`Promise.all` 抛在 `savedProjects.filter` 之前 ⇒ 失败时列表未被改动，无脏状态可回滚。
       logger.error('Failed to delete projects:', error);
+      throw error;
     }
   }
 
@@ -402,9 +408,22 @@ export class ProjectManager {
 
       await Promise.all(
         duplicationPlans.map(async ({ sourceProjectId, newProjectId }) => {
-          const sourceMediaAssets = await storageService.loadAllMediaAssets({
+          const {
+            items: sourceMediaAssets,
+            missing: sourceMissing,
+            shapeError: sourceShapeError,
+          } = await storageService.loadAllMediaAssets({
             projectId: sourceProjectId,
           });
+          if (sourceMissing.length > 0 || sourceShapeError) {
+            // 复制工程时源工程有读不出的素材（或元数据表整体读坏）⇒ 副本同样会缺，
+            // 必须可见（TD-16-27 + 2026-09-17「判别联合透传」）。此处只转发事实，不加工文案。
+            logger.warn('复制工程：源工程素材读取不完整，未被复制', {
+              sourceProjectId,
+              missing: sourceMissing,
+              shapeError: sourceShapeError,
+            });
+          }
 
           await Promise.all(
             sourceMediaAssets.map((mediaAsset) =>

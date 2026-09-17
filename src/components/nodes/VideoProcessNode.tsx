@@ -1075,10 +1075,11 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         // TD-22-5：GIF 产物也走唯一落盘基座（旧实现 createObjectURL 临时 URL 直接喂节点 → 刷新即失效）。
         // outputName 提前派生（落盘文件名 = 展示名，同源一致）；失败显式报错，不伪造成功。
         const outputName = `${stripExt(currentName || 'video')}_gif.gif`;
-        const url = await uploadFileToLocal(gif.blob, UPLOAD_DIRS.videoProcess, outputName);
-        if (!url) {
+        const up = await uploadFileToLocal(gif.blob, UPLOAD_DIRS.videoProcess, outputName);
+        if (!up.ok) {
           updateNodeRuntime(id, { loading: false });
-          fail('GIF 保存失败（本地服务未启动？），请重试');
+          // 【2026-09-17 消费者只转发】原因由生产者给出（原来固定说"本地服务未启动？"= 自己编）。
+          fail(`GIF 保存失败：${up.message}`);
           return;
         }
         updateNodeRuntime(id, { loading: false, progress: 100 });
@@ -1098,7 +1099,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           frameCount: gif.frameCount,
           size: gif.size,
         });
-        spawnGifNode(url, outputName);
+        spawnGifNode(up.url, outputName);
         showToast('GIF 生成完成');
         return;
       } else if (isConcat) {
@@ -1173,10 +1174,11 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       }
 
       const uploaded = await uploadResult(result.blob, { subfolder: UPLOAD_DIRS.videoProcess });
-      // TD-22-2：落盘失败（null）显式报错 —— 不再静默 spawn「刷新即失效」的 blob: 节点
-      if (!uploaded) {
+      // TD-22-2：落盘失败显式报错 —— 不再静默 spawn「刷新即失效」的 blob: 节点。
+      // 【2026-09-17 消费者只转发】原因由生产者给出（原来固定"本地服务未启动？"= 自己编）。
+      if (!uploaded.ok) {
         updateNodeRuntime(id, { loading: false, progress: 100 });
-        fail('产物保存失败（本地服务未启动？），请重试');
+        fail(`产物保存失败：${uploaded.message}`);
         return;
       }
       const count = clips.length;

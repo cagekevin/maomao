@@ -1,7 +1,9 @@
 import { useCallback } from 'react';
+import { tryParse } from '../components/base/utils/asyncGuard.ts';
 import type { DragEvent as ReactDragEvent } from 'react';
 import { moveFile, canMoveAsset, resolveMovePaths } from '../components/base/api/index.ts';
 import { showToast } from '../components/base/core/toastStore.ts';
+import { logger } from '../components/base/core/logger.ts';
 
 /** 资源项（素材/生成/文件夹卡片共用的最小形状） */
 export interface ResourceMoveItem {
@@ -55,11 +57,18 @@ function movePayload(item: ResourceMoveItem): string {
   });
 }
 function parseMovePayload(str: string): ResourceMoveItem | null {
-  try {
-    return JSON.parse(str);
-  } catch {
+  // 解析走唯一原语；判别联合 ⇒ **必须判 ok** 才能读 value（2026-09-17 契约收紧）。
+  //
+  // 【2026-09-17 为什么这里**可以**返回 null】同 `drag-data.getDragData`：本函数是**问句**
+  // 「这次拖拽带的是不是本仓资源移动载荷？」——空串＝没带；非空但 JSON 坏＝带了坏的。
+  // 对调用方（`if (!it) return`）两者都是"不处理这次拖拽" ⇒ 判别联合零收益。
+  // 但**坏 JSON 必须留痕**（写入侧 bug 不能静默），故加 warn。
+  const r = tryParse(() => JSON.parse(str) as ResourceMoveItem);
+  if (!r.ok) {
+    logger.warn('资源移动', '拖拽载荷不是合法 JSON（本次拖拽已忽略）', { error: r.error });
     return null;
   }
+  return r.value;
 }
 /**
  * 目录条目 → **它自身的目录路径**（唯一实现，导出复用）。

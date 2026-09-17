@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import { logger } from '../base/core/logger.ts';
+import { toastWarning } from '../base/core/toastStore.ts';
 import { useReactFlow } from '@xyflow/react';
 import { createPortal } from 'react-dom';
 import { Orbit, Maximize2 } from 'lucide-react';
@@ -60,37 +62,53 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
         .filter((e) => e.source === id)
         .map((e) => e.target)
         .filter((tid) => getNode(tid)?.type === 'imageBoxNode');
-      // 并发落盘：Blob 直传 / data: base64 → /files/ 绝对 URL；已是 http/绝对路径原样保留
-      const persisted = await Promise.all(
-        images.map(async (im) => {
+      // 并发落盘：Blob 直传 / data: base64 → /files/ 绝对 URL；已是 http/绝对路径原样保留。
+      // 【2026-09-17 判据】失败**不再静默丢图**：原 `filter(Boolean)` 把落盘失败的图直接扔掉，
+      // 用户只看到"图集少了几张"且零解释；且 `filter` 后索引移位 ⇒ 下面的 `images[i]` **取错 label**。
+      // 现逐张记账（`name` 与图绑定，不再靠索引回查），失败项留痕待报。
+      const shotResults = await Promise.all(
+        images.map(async (im, i): Promise<{ url: string | null; name: string; message?: string }> => {
+          const name = im.fileName || `导演台截图 ${i + 1}`;
           if (im.blob) {
-            const fileUrl = await uploadFileToLocal(
+            const up = await uploadFileToLocal(
               im.blob,
               'tasks',
               im.fileName || 'director3d-shot.png',
             );
-            return fileUrl || null;
+            return up.ok ? { url: up.url, name } : { url: null, name, message: up.message };
           }
           const raw = im.dataUrl || im.url;
-          let url = raw;
           if (raw && raw.startsWith('data:')) {
-            const fileUrl = await saveInlineToLocal(raw, 'tasks');
-            if (fileUrl) url = fileUrl;
-          } else {
-            url = toAbsoluteFileUrl(raw || '');
+            const up = await saveInlineToLocal(raw, 'tasks');
+            // 落盘失败 → **保留内联 base64**（真兜底：图仍能上屏，不丢图），但原因不吞。
+            return up.ok ? { url: up.url, name } : { url: raw, name, message: up.message };
           }
-          return url;
+          return { url: toAbsoluteFileUrl(raw || ''), name };
         }),
       );
-      const newImages = persisted
-        .filter((url) => Boolean(url))
-        .map((url, i) => ({
-          id: `img-${generateId('img')}-${i}`,
-          url,
-          label: images[i]?.fileName || `导演台截图 ${i + 1}`,
-          source: 'gen',
-          createdAt: Date.now(),
-        }));
+      const failedShots = shotResults.filter((s) => s.message);
+      if (failedShots.length > 0) {
+        // 【失败可见】"部分失败"不该静默：留痕给开发者（含**生产者判词**）＋ **用户可见提示**。
+        //
+        // 【2026-09-17 自查纠错】此处原写的是「⚠️ 已知缺口：本节点没有 toast 出口（只经 NodeShell）
+        //  ⇒ 要更彻底需给本节点接一个提示出口」——**那是用注释代替施工**：
+        //  `toastStore` 是全仓通用出口，本节点直接 import 即可，"没有出口"是我的臆断。
+        //  规范见 `docs/138-彻底施工规范与交接-错误透传与成功判据-2026-09-17.md` §0.1（黑名单措辞）。
+        logger.warn('导演台', '部分截图未落盘（失败项已按兜底保留内联/丢弃）', {
+          failed: failedShots.map((s) => ({ name: s.name, message: s.message })),
+        });
+        toastWarning(`${failedShots.length} 张截图未落盘：${failedShots[0].message}`);
+      }
+      const persisted = shotResults.filter(
+        (s): s is { url: string; name: string; message?: string } => Boolean(s.url),
+      );
+      const newImages = persisted.map((p, i) => ({
+        id: `img-${generateId('img')}-${i}`,
+        url: p.url,
+        label: p.name,
+        source: 'gen',
+        createdAt: Date.now(),
+      }));
       if (boxes.length > 0) {
         const boxId = boxes[0];
         const boxNode = getNode(boxId);
@@ -237,15 +255,19 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
         try {
           const blobRes = await fetch(persistedThumb);
           const blob = await blobRes.blob();
-          const fileUrl = await uploadFileToLocal(blob, 'tasks', 'director3d-thumb.png');
-          if (fileUrl) persistedThumb = fileUrl;
-        } catch {
-          // catch-ok: KEEP_ORIGINAL
-          /* 落盘失败保留原值 */
+          const up = await uploadFileToLocal(blob, 'tasks', 'director3d-thumb.png');
+          // 【2026-09-17 消费者只转发】失败保留原值（**真兜底**，不阻断），但**原因留痕** ——
+          // 原来只在 catch 里 logger.debug，`if (fileUrl)` 的**失败分支完全静默**。
+          if (up.ok) persistedThumb = up.url;
+          else logger.warn('3D 节点', '缩略图落盘失败，保留原值（不阻断）', { message: up.message });
+        } catch (e) {
+          // 读取失败（fetch blob）保留原值 → **降级必留痕**（保留 dataURL 的体积代价真实存在）。
+          logger.warn('3D 节点', '缩略图读取失败，保留原值（不阻断）', e);
         }
       } else if (persistedThumb && persistedThumb.startsWith('data:')) {
-        const fileUrl = await saveInlineToLocal(persistedThumb, 'tasks');
-        if (fileUrl) persistedThumb = fileUrl;
+        const up = await saveInlineToLocal(persistedThumb, 'tasks');
+        if (up.ok) persistedThumb = up.url;
+        else logger.warn('3D 节点', '缩略图落盘失败，保留原值（不阻断）', { message: up.message });
       }
       // 写回节点：assetUrl 存缩略图，彻底移除旧 directorProject 字段（patchNodeDataById 浅合并 + undefined 等价删键）
       patchNodeDataById(setNodes, id, {

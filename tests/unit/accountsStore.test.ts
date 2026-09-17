@@ -276,6 +276,17 @@ describe('accountsStore §4 多开账号管理', () => {
       expect(setCalls).toHaveLength(0);
       expect(localStorage.getItem('yimao_accounts')).toBeNull();
     });
+
+    it('reloadAccounts：KV 4xx 拒收 → 上抛，不吞成空列表（拆兜底：读失败≠读到空）', async () => {
+      // 4xx = 业务结论（contentStore.kvReadOp 原样上抛）→ readEnvs 不得 `catch { return [] }` 吞掉
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: 'bad request' }),
+        text: async () => 'bad request',
+      });
+      await expect(mod.reloadAccounts()).rejects.toThrow();
+    });
   });
 
   // 清理 requestDelete 的 3s setTimeout 副作用（避免影响其它测试/进程退出）

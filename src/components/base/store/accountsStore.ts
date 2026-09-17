@@ -13,8 +13,11 @@ import { useSyncExternalStore } from 'react';
 import { contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
 import { askConfirm } from '../core/confirmStore.ts';
 import { generateId } from '../core/idGen.ts';
-import { attemptQuietly, attemptQuietlyAsync } from '../utils/asyncGuard.ts';
+import { attemptQuietly, attemptQuietlyAsync, tryParse } from '../utils/asyncGuard.ts';
 import { KEY_YIMAO_ACCOUNTS } from '../core/contracts.ts';
+import { reportDegrade } from '../core/degrade.ts';
+import { logger } from '../core/logger.ts';
+import { showToast } from '../core/toastStore.ts';
 
 // TD-13-4：键名唯一真源 = contracts.ts 的 KEY_YIMAO_ACCOUNTS（不再本地复刻字面量）。
 const STORAGE_KEY = KEY_YIMAO_ACCOUNTS;
@@ -121,27 +124,29 @@ export function isExtensionEnv() {
 }
 
 // 水合防竞态：load 异步，仅当列表仍为空时应用结果，防止覆盖用户在加载期间的编辑
-/**
- * 异步加载账号环境（走 KV 后端，读不到返回空、不写空覆盖——修 R6 关闭插件重开不丢的配套）。
- * 惰性执行一次，仅在环境列表仍为空时应用，避免与用户编辑竞态/覆盖。
- * @returns {Promise<Array>} 清洗后的环境数组
+/** 从 KV 读原始账号数组并清洗（去 demo/测试环境）。纯读取、不碰内存态，供 load / reload 共用。
+ *
+ * 【失败契约 · 2026-09-17 拆兜底】读取失败**上抛**，不吞：
+ *  · contentStore 对 KV 读取已定型「失败以 throw 表达」（4xx 拒收原样上抛 / 引擎不可用降级且已留痕）；
+ *  · 旧实现 `catch { return [] }` 把「读失败」伪装成「账户列表是空的」——调用方无从区分，
+ *    等于读取方替调用方决定了「失败长什么样」（判据放错层）。
+ *  · 三态必须分开：KV 真空（null/undefined）= 正常「没有数据」→ `[]`；形状违约（有值但非数组）
+ *    = 存储被写坏 → 留痕 + `[]`；读取抛错 = 真失败 → 原样上抛，由调用方决定呈现。
  */
-/** 从 KV 读原始账号数组并清洗（去 demo/测试环境）。纯读取、不碰内存态，供 load / reload 共用。 */
 async function readEnvs(): Promise<AccountEnv[]> {
-  try {
-    // contentGetAsync 返回 unknown（存储值不可信）：先 Array.isArray 判数组，再按 AccountEnv[]
-    // 收窄（外层有运行时守卫才诚实，F11），不要在断言后才补守卫。
-    const parsed: unknown = await contentGetAsync(STORAGE_KEY);
-    return Array.isArray(parsed)
-      ? (parsed as AccountEnv[]).filter(
-          (e) =>
-            !String(e.id || '').startsWith('env_demo_') &&
-            !(e.siteName === '开发测试网' && (e.cookies || []).every((c) => c.name === 'test')),
-        )
-      : [];
-  } catch {
+  // contentGetAsync 返回 unknown（存储值不可信）：先 Array.isArray 判数组，再按 AccountEnv[]
+  // 收窄（外层有运行时守卫才诚实，F11），不要在断言后才补守卫。
+  const parsed: unknown = await contentGetAsync(STORAGE_KEY);
+  if (parsed == null) return []; // KV 真空：确定「没有数据」，非失败
+  if (!Array.isArray(parsed)) {
+    logger.warn('账号环境', `${STORAGE_KEY} 存储值不是数组（形状违约），按空处理`, parsed);
     return [];
   }
+  return (parsed as AccountEnv[]).filter(
+    (e) =>
+      !String(e.id || '').startsWith('env_demo_') &&
+      !(e.siteName === '开发测试网' && (e.cookies || []).every((c) => c.name === 'test')),
+  );
 }
 
 // 首次模块加载时惰性水合（KV 异步，不能同步填充）：仅当列表仍为空时应用，避免与用户编辑竞态/覆盖。
@@ -156,6 +161,9 @@ async function load(): Promise<AccountEnv[]> {
  * 与首次 load() 的「仅当空才应用」不同——下载是显式覆盖指令，必须无条件刷新；
  * 若当前激活环境已不在新列表里则清空 activeId，避免指向已删除环境。
  * 替换手动路径的 window.location.reload() 末端补丁（不冲画布、配置当轮一致）。
+ *
+ * 【失败契约 · 2026-09-17 拆兜底】读取失败**上抛**给调用方（cloudSync 的云同步重水合），
+ * 由它逐个留痕——不在此吞成「清空列表」（那会把重水合失败伪装成「账号没了」）。
  */
 export async function reloadAccounts(): Promise<void> {
   const cleaned = await readEnvs();
@@ -205,8 +213,17 @@ async function saveEnvs(next: AccountEnv[]): Promise<void> {
   await persist();
 }
 
-// 首次模块加载时惰性水合（KV 异步，不能同步填充）
-void load();
+// 首次模块加载时惰性水合（KV 异步，不能同步填充）。
+// 读取失败**不吞**：load 只负责「读 + 仅当空才应用」，失败呈现是调用点判据——
+// 留痕给开发者 + toast 给用户，绝不把失败 setState 成空列表（那是把失败伪装成「没有账号」）。
+void load().catch((e: unknown) => {
+  reportDegrade({
+    layer: '账号环境',
+    key: STORAGE_KEY,
+    e: e as Error,
+    toast: '账号环境列表加载失败，请稍后重试',
+  });
+});
 
 // ── 表单控制（复刻官方 dn/pn/hn/_n + 表单 ✕ 关闭）──
 export function openCreateForm(): void {
@@ -272,7 +289,9 @@ async function fetchActiveTab(): Promise<ChromeTabLike | null> {
   try {
     const [tab] = await chrome.tabs!.query({ active: true, currentWindow: true });
     return tab || null;
-  } catch {
+  } catch { // catch-ok: BROWSER_API
+    // chrome API 调用失败（权限/无活动标签页）属扩展环境预期 → null，
+    // 调用方按「抓不到标签页」继续降级；属外部 API 边界，非 app 内失败语义。
     return null;
   }
 }
@@ -296,13 +315,10 @@ function mapCookie(e: AccountCookie): AccountCookie {
   };
 }
 
-/** 从 URL 解析 hostname（去端口）；失败返回空串 */
+/** 从 URL 解析 hostname（去端口）；失败返回空串（走唯一解析兜底原语 `tryParse` · 2026-09-17）。 */
 export function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return '';
-  }
+  const r = tryParse(() => new URL(url).hostname);
+  return r.ok ? r.value : '';
 }
 
 /**
@@ -397,7 +413,9 @@ async function readTabLocalStorage(): Promise<Record<string, string> | null> {
             if (k) out[k] = localStorage.getItem(k) ?? '';
           }
           return out;
-        } catch {
+        } catch { // catch-ok: BROWSER_API
+          // 注入到页面主世界读 localStorage 被拒（权限 / 受限页）属环境预期 → null，
+          // 外层按「拿不到快照」继续，不影响 cookie 切换主流程。
           return null;
         }
       },
@@ -413,7 +431,8 @@ async function readTabLocalStorage(): Promise<Record<string, string> | null> {
       if (typeof v === 'string') out[k] = v;
     }
     return out;
-  } catch {
+  } catch { // catch-ok: BROWSER_API
+    // chrome.scripting 注入失败（非 http(s) 页 / 无权限）属扩展环境预期 → null。
     return null;
   }
 }
@@ -447,9 +466,9 @@ async function writeTabLocalStorage(
       },
       args: [data],
     });
-  } catch {
-    // catch-ok: NON_BLOCKING
-    /* 忽略 */
+  } catch (e) {
+    // 写目标站点 localStorage 快照失败不阻断 cookie 切换主流程；但**降级必留痕**（2026-09-17 拆 catch-ok）。
+    logger.debug('账号环境', '写回目标页 localStorage 快照失败（不阻断）', e);
   }
 }
 
@@ -615,9 +634,11 @@ async function syncCookies(env: AccountEnv): Promise<void> {
     }
     // 连带写回该环境的 localStorage 快照（登录态 token 常存这里，一并恢复免重登）
     await writeTabLocalStorage(env.localStorage);
-  } catch {
-    // catch-ok: NON_BLOCKING
-    /* ignore */
+  } catch (e) {
+    // 【2026-09-17 拆 catch-ok】切换环境（写 cookie / 恢复 localStorage 快照）失败是**用户动作的失败**，
+    // 必须可见——旧实现 `/* ignore */` 静默：用户点了「切换环境」，失败却零反馈。
+    logger.warn('账号环境', '切换环境失败', e);
+    showToast('切换环境失败，请检查扩展权限', { type: 'error' });
   }
 }
 

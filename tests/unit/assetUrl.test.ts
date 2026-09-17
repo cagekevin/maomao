@@ -240,10 +240,18 @@ describe('assetUrl · resolveAssetUrl（统一出口，render 按需小图 / sen
     expect(resolveAssetUrl('http://cdn/x.jpg', { scope: 'send' })).toBe('http://cdn/x.jpg');
   });
 
-  it('空 / 非字符串 → 原样返回', () => {
+  it('空 / 非字符串 → 收敛为 ""（类型诚实）并留痕，不再原样透传 null/undefined', () => {
+    // 【2026-09-17 TD-16-29③ · 回改旧断言】原断言叫「原样返回」：`toBeNull()` / `toBeUndefined()` ——
+    // 它们**必须靠 `as never` 才写得出来**，因为 `resolveAssetUrl` 声明返回 `string`。
+    // 换句话说：**这条测试在锁一个类型不诚实的行为**（声明 `string`、实返 `null`/`undefined`），
+    // 而 `null` 一旦进入 CSS 上下文会被**字面串成 `url(null)`**（真去请求一个叫 "null" 的资源）。
+    // 现契约：非 string / 空 → 返回 `''`（类型诚实）＋ `logger.warn` 留痕（失败可见、不静默）。
+    // 渲染表现与旧行为等价（浏览器对 `src=""` 与 `src=null` 都不加载）⇒ **不构成回归**。
+    vi.mocked(logger.warn).mockClear();
     expect(resolveAssetUrl('')).toBe('');
-    expect(resolveAssetUrl(null as never)).toBeNull();
-    expect(resolveAssetUrl(undefined as never)).toBeUndefined();
+    expect(resolveAssetUrl(null as never)).toBe('');
+    expect(resolveAssetUrl(undefined as never)).toBe('');
+    expect(logger.warn).toHaveBeenCalledTimes(2); // null / undefined 各留痕一次（'' 是合法 string，不告警）
   });
 
   it('buildThumbnailUrl 非本地 → 回退原图绝对地址', () => {
@@ -328,6 +336,29 @@ describe('assetUrl · classifyImageType / summarizeAssetUrls（发送图片可�
     vi.mocked(logger.info).mockClear();
     await normalizeAssetUrlsForSend([], { preferBase64: true });
     expect(logger.info).not.toHaveBeenCalled();
+  });
+
+  it('归一失败丢图 → 日志按「结果事实」记账（total=实发）＋丢弃留痕（TD-16-24）', async () => {
+    // 旧实现日志记 `urls.length`（输入 2 张），而返回 `filter(Boolean)` 后实发可能只有 1 张
+    // ⇒ 排查时按日志以为"带了 2 张"，模型其实只收到 1 张（实发≠日志）。本断言锁住：total 必须=实发数。
+    vi.mocked(logger.info).mockClear();
+    vi.mocked(logger.warn).mockClear();
+    // 让 httpRequest 失败 → urlToDataUrl 的 catch 返回 '' → 该图被丢弃（data: 的那张直通）
+    vi.mocked(httpRequest).mockRejectedValue(new Error('CORS blocked'));
+    const out = await normalizeAssetUrlsForSend(['http://a.png', 'data:image/png;base64,xxx'], {
+      preferBase64: true,
+    });
+    expect(out).toHaveLength(1); // 实发只有 data: 那一张
+    expect(logger.info).toHaveBeenCalledWith(
+      'assetUrl',
+      '发送图片',
+      expect.objectContaining({ total: 1, count: 1 }), // total 取实发，不是输入 2
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      'assetUrl',
+      '发送归一化丢弃图片（实发少于请求）',
+      expect.objectContaining({ requested: 2, sent: 1, dropped: 1 }),
+    );
   });
 });
 

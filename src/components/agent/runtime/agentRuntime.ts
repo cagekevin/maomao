@@ -418,7 +418,10 @@ async function resolveBody(
         });
       }
       return hit;
-    } catch {
+    } catch (e) {
+      // 整体解析失败（响应体损坏 / 非 JSON）→ 判「未命中」，由调用方回退原始文本；
+      // 但**降级必留痕**，否则「流式兜底解析为何没生效」无从排查（2026-09-17 拆回潮）。
+      logger.debug('AI助手', '非流式兜底解析失败（判未命中，不阻断）', e);
       return false;
     }
   };
@@ -521,10 +524,16 @@ async function resolveBody(
  */
 function safeParseNonStreamJSON(rawText: string, logger: AgentLogger): unknown {
   if (!rawText || !rawText.trim()) return null;
+  // 【2026-09-17 用户裁定：禁止把 catch 换成 tryParse】回退为就地 try/catch。
+  // 本函数是**多候选试探**（直接解析 → 去围栏 → 括号配平），单个候选失败是**预期路径**
+  //（要继续试下一个）—— 归一为 undefined 是**探测语义**、不是吞错；换 tryParse 只是给同一语义换层皮。
+  // 留痕用 debug（门控）：逐候选 warn 会把"试探"刷成噪音；候选**全灭**的最终失败由调用方
+  // 契约表达（本函数返回 null，调用方据此判"非流式解析未命中"）。
   const candidate = (s: string) => {
     try {
       return JSON.parse(s);
-    } catch {
+    } catch (e) {
+      logger.debug('AI助手', '[非流式解析] 候选不成立，试下一个', e);
       return undefined;
     }
   };

@@ -14,6 +14,7 @@
  */
 
 import type { Node, Edge } from '@xyflow/react';
+import { tryParse } from './asyncGuard.ts';
 import { logger } from '../core/logger.ts';
 import { httpRequest } from '../api/httpClient.ts';
 import { DOWNLOAD_TIMEOUT } from '../core/config.ts';
@@ -293,16 +294,20 @@ export function buildNodesFromClipboard(
   jsonStr: string,
   pos: { x: number; y: number },
 ): { nodes: ClipboardNode[]; edges: ClipboardEdge[]; count: number } | null {
-  let t;
-  try {
-    t = JSON.parse(jsonStr);
-  } catch {
-    return null;
-  }
-  if (!t || t.type !== 'mutiwindow-nodes') return null;
-  const e: ParseClipNode[] = t.nodes || [];
+  // 解析走唯一原语；判别联合 ⇒ 必须判 ok（2026-09-17 契约收紧）。
+  const r = tryParse<Record<string, unknown>>(() => JSON.parse(jsonStr));
+  if (!r.ok || !r.value || r.value.type !== 'mutiwindow-nodes') return null;
+  const t = r.value;
+  // 【2026-09-17 禁止项规则 2】禁止 `as T` 硬转：`t.nodes` 是 `unknown`，直接赋给 `ParseClipNode[]`
+  // TS 必判红 —— **那是对的**（缺运行时校验）。现补**守卫收窄**：形状不符的元素被过滤掉，
+  // 而不是靠断言"我保证它是"。过滤后为空 = 这份剪贴板数据不可用（返回 null，由调用方判）。
+  const e: ParseClipNode[] = Array.isArray(t.nodes)
+    ? t.nodes.filter((x): x is ParseClipNode => !!x && typeof x === 'object' && 'id' in x)
+    : [];
   if (e.length === 0) return null;
-  const n: ClipboardEdge[] = t.edges || [];
+  const n: ClipboardEdge[] = Array.isArray(t.edges)
+    ? t.edges.filter((x): x is ClipboardEdge => !!x && typeof x === 'object')
+    : [];
   // 计算原节点组包围盒中心，使整组以粘贴点为中心落下（对齐官方 xi:9673-9686）
   const o = Math.min(...e.map((x) => x.position?.x ?? 0));
   const s = Math.min(...e.map((x) => x.position?.y ?? 0));

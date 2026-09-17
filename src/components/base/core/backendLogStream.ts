@@ -15,6 +15,7 @@
  *  - EventSource 依赖后端 `retry: 3000` 自动断线重连；后端不可达时静默待重连，绝不抛错干扰主链路。
  */
 import { API_BASE } from './config.ts';
+import { logger } from './logger.ts';
 
 const STREAM_URL = `${API_BASE}/api/logs/stream`;
 const LOG_PREFIX = '[localTool]';
@@ -49,8 +50,9 @@ export function subscribeBackendLogStream(): void {
     es.onerror = () => {
       // 断线/后端不可达：EventSource 按服务端 retry 自动重连，这里不额外动作、不抛错
     };
-  } catch {
-    // catch-ok: NON_BLOCKING
-    // 订阅失败（EventSource 不可达）非阻塞，绝不影响主链路
+  } catch (e) {
+    // 订阅失败（EventSource 不可达）非阻塞，绝不影响主链路 → 但**降级必留痕**（2026-09-17 拆 catch-ok）：
+    // 完全静默会让「后端日志流一直没接上」无从排查。
+    logger.debug('日志流', 'EventSource 订阅失败（不阻断）', e);
   }
 }

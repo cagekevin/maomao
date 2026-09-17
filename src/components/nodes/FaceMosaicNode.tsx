@@ -154,9 +154,14 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
     for (let i = 0; i < urls.length; i++) {
       try {
         const r = await applyMosaic(urls[i], { mode, strength, color });
-        const url =
-          (await uploadFileToLocal(dataUrlToBlob(r.dataUrl, 'image/png'), 'canvas/face_mosaic')) ||
-          r.dataUrl;
+        const up = await uploadFileToLocal(
+          dataUrlToBlob(r.dataUrl, 'image/png'),
+          'canvas/face_mosaic',
+        );
+        // 【2026-09-17 判据】落盘失败 → **保留内联 dataURL**（真兜底：图仍能上屏，不丢图），
+        // 但**原因不吞**：原 `|| r.dataUrl` 把失败彻底静默（用户与开发者都不知道没落盘）。
+        if (!up.ok) firstErr ||= `结果未落盘：${up.message}`;
+        const url = up.ok ? up.url : r.dataUrl;
         results.push({ url, label: `${MODE_LABEL(mode)} ${i + 1}` });
         faceCount += r.faceCount;
       } catch (e) {
@@ -195,15 +200,22 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
       setResultInfo(null);
       setResultUrls([]);
       try {
-        const url = await uploadFileToLocal(
+        const up = await uploadFileToLocal(
           dataUrlToBlob(dataUrl, 'image/png'),
           'canvas/face_mosaic',
         );
-        const target = url || dataUrl;
+        // 【2026-09-17】落盘失败 → 保留内联 dataURL（真兜底，不丢图），但**原因要可见**
+        //（原来 `|| dataUrl` ＋ 下面的**空 catch** 双重静默）。
+        if (!up.ok) toastWarning(`结果未落盘（${up.message}），已保留内联图`);
+        const target = up.ok ? up.url : dataUrl;
         outputResults([{ url: target, label: '手动打码' }]);
         setResultInfo({ count: 1, faceTotal: 0 });
         setResultUrls([target]);
-      } catch {
+      } catch (e) {
+        // 【2026-09-17】原为空 `catch {}` —— 失败连日志都没有。现留痕（开发者）+ 提示（用户）。
+        const msg = (e as { message?: string })?.message || '处理失败';
+        logger.warn('FaceMosaicNode', '手动打码结果落盘前置失败', { message: msg });
+        toastWarning(`手动打码结果未落盘（${msg}），已保留内联图`);
         outputResults([{ url: dataUrl, label: '手动打码' }]);
         setResultInfo({ count: 1, faceTotal: 0 });
         setResultUrls([dataUrl]);

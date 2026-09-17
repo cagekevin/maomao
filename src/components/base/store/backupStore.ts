@@ -73,14 +73,10 @@ function isKvSegmentKey(k: string): boolean {
 /** 备份格式版本：写出与导入守卫**共用**（禁两处写死，TD-15-3）。 */
 const BACKUP_VERSION = 3;
 
-/** 读 contentStore 某键（容错） */
+/** 读 contentStore 某键。失败语义归 contentStore（**真相源**，仅对契约违约抛错、须 fail-fast）；
+ *  **消费者不得越权**把它吞成 undefined（2026-09-17 删 catch）。 */
 function readLS(k: string) {
-  try {
-    const v = contentGet(k);
-    return v !== undefined ? v : undefined;
-  } catch {
-    return undefined;
-  }
+  return contentGet(k);
 }
 
 /** 写 contentStore 某键（容错）；返回是否成功（供 importAll 汇总失败，TD-15-3 禁假成功）。 */
@@ -88,8 +84,9 @@ function writeLS(k: string, v: unknown): boolean {
   try {
     contentSet(k, v);
     return true;
-  } catch {
-    // 写入失败返回 false（由调用方处理）
+  } catch (e) {
+    // 写入失败返回 false（调用方 importAll 汇总失败，TD-15-3 禁假成功）；另留痕给开发者（2026-09-17）。
+    logger.debug('备份', '写回失败（已由返回值呈现）', e);
     return false;
   }
 }
@@ -263,7 +260,12 @@ export async function importAll(backup: unknown): Promise<{
         const res = await saveCanvasState(projectId, c?.nodes || [], c?.edges || [], undefined, {
           force: true,
         });
-        if (!res?.skipped) canvasCount++;
+        // 【成功判据必须取结果事实 · 2026-09-17 TD-16-27】原 `if (!res?.skipped) canvasCount++`：
+        // `saveCanvasState` 返 `{success:false}` 而 `skipped` 为 false 时（**真失败**）被计成功，
+        // 且不进 failed ⇒ 汇总 `ok = failed.length===0` 为真 ⇒ 报「导入成功」而工程其实没写回。
+        // 「没被跳过」≠「写成功」——判据只能是 `res.success`。
+        if (res?.success) canvasCount++;
+        else failed.push({ projectId, error: '画布快照未写成功' });
       } catch (e) {
         // 【P0 埋点 + TD-15-3】单个快照写失败：日志留痕 + 计入 failed（不再静默吞成"成功"）
         const msg = e instanceof Error ? e.message : String(e);

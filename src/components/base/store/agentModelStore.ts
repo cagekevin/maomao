@@ -25,20 +25,18 @@ export interface AgentChatModelConfig {
 }
 
 export function loadAgentChatModel(): AgentChatModelConfig | null {
-  try {
-    // contentGet 返回 unknown（存储值不可信），按 AgentChatModelConfig 收窄后再取字段
-    const parsed = contentGet(AGENT_CHAT_MODEL_KEY) as Partial<AgentChatModelConfig> | null;
-    if (parsed && typeof parsed === 'object' && parsed.providerId && parsed.modelId) {
-      return {
-        providerId: parsed.providerId,
-        modelId: parsed.modelId,
-        // 非流式标注：仅当显式存了 'non-stream' 才生效，否则默认流式（向后兼容旧配置）
-        streamMode: parsed.streamMode === 'non-stream' ? 'non-stream' : 'stream',
-      };
-    }
-  } catch {
-    /* 忽略损坏数据 */
-    // catch-ok: READ_FALLBACK
+  // 【消费者不越权 · 2026-09-17 拆 catch-ok】删 `catch { // catch-ok: READ_FALLBACK }`：
+  // `contentGet` 对**已登记键不抛**（失败语义归 contentStore = 真相源，只对契约违约抛错且须 fail-fast）
+  // ⇒ 该 catch 不可达，留着只会把「契约违约」一并吞掉。
+  // contentGet 返回 unknown（存储值不可信），按 AgentChatModelConfig 收窄后再取字段
+  const parsed = contentGet(AGENT_CHAT_MODEL_KEY) as Partial<AgentChatModelConfig> | null;
+  if (parsed && typeof parsed === 'object' && parsed.providerId && parsed.modelId) {
+    return {
+      providerId: parsed.providerId,
+      modelId: parsed.modelId,
+      // 非流式标注：仅当显式存了 'non-stream' 才生效，否则默认流式（向后兼容旧配置）
+      streamMode: parsed.streamMode === 'non-stream' ? 'non-stream' : 'stream',
+    };
   }
   return null;
 }
@@ -65,15 +63,11 @@ export const AGENT_HISTORY_TURNS_DEFAULT = 6; // 默认回传最近 6 轮
 
 /** 读历史回传轮数：合法返回非负整数；异常/非法回退默认 6。 */
 export function loadAgentHistoryTurns(): number {
-  try {
-    const raw = contentGet(AGENT_HISTORY_TURNS_KEY);
-    if (raw === undefined || raw === null || raw === '') return AGENT_HISTORY_TURNS_DEFAULT;
-    const n = typeof raw === 'number' ? raw : Number(raw);
-    if (Number.isFinite(n) && n >= 0) return Math.floor(n); // 支持 0、任意非负整数（含大值≈不限）
-  } catch {
-    /* 忽略损坏数据 */
-    // catch-ok: READ_FALLBACK
-  }
+  // 同上（删不可达 catch）：`contentGet` 对已登记键不抛。
+  const raw = contentGet(AGENT_HISTORY_TURNS_KEY);
+  if (raw === undefined || raw === null || raw === '') return AGENT_HISTORY_TURNS_DEFAULT;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (Number.isFinite(n) && n >= 0) return Math.floor(n); // 支持 0、任意非负整数（含大值≈不限）
   return AGENT_HISTORY_TURNS_DEFAULT;
 }
 
