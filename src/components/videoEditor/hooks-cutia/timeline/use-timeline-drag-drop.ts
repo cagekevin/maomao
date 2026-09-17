@@ -145,6 +145,8 @@ export function useTimelineDragDrop({
       getElementType,
       getElementDuration,
       getSnappedTime,
+      // 【2026-09-17 补】trackHeightScale 参与落点轨道的垂直命中计算，漏列会让 DragOver 用旧缩放。
+      trackHeightScale,
     ],
   );
 
@@ -370,7 +372,9 @@ export function useTimelineDragDrop({
         }
       }
     },
-    [activeProject, editor.media, editor.timeline, currentTime, zoomLevel],
+    // 【2026-09-17 补】落点计算依赖 trackHeightScale；且 editor.media/editor.timeline 已入 deps，
+    // 本处补齐后与 handleDragOver 同口径。
+    [activeProject, editor.media, editor.timeline, currentTime, zoomLevel, trackHeightScale],
   );
 
   const handleDrop = useCallback(

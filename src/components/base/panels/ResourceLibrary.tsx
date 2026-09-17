@@ -38,6 +38,7 @@ import {
   onResourceSent,
   emitResourceSent,
   mergeResourcesFromBackend,
+  FOLDERS,
 } from '../store/resourceStore.ts';
 import { useCurrentProjectId } from '../store/projectStore.ts';
 import { logger } from '../core/logger.ts';
@@ -48,19 +49,21 @@ import ImageZoomDialog from '../editors/ImageZoomDialog.tsx';
 import type { ResourceItem } from '../api/localToolApi.ts';
 import { toImgDragProps } from '../../../hooks/useAssetDragToCanvas.ts';
 
-/** 目录 pill（folder 前缀对齐本地磁盘 migrated 结构，与后端 /api/resources 一一对应） */
-interface FolderPill {
-  key: string;
-  label: string;
-  folder: string;
-}
-
-const FOLDER_PILLS: FolderPill[] = [
-  { key: 'migrated', label: '全部', folder: 'migrated' },
-  { key: 'character', label: '人物', folder: 'migrated/人物' },
-  { key: 'scene', label: '场景', folder: 'migrated/场景' },
-  { key: 'prop', label: '道具', folder: 'migrated/道具' },
-];
+/**
+ * 目录 pill —— **派生自 `resourceStore.FOLDERS`（唯一真源），不在此另写一份**。
+ *
+ * 【收口（2026-09-17）】此前本文件有一份硬编码 `FOLDER_PILLS`，与 `resourceStore.FOLDERS`
+ * 是**同一件事的两份**（人物/场景/道具三项目的 label 与 folder 逐字相同）= M3 第二份。
+ * 现只保留「面向用户素材」的 4 项（key 白名单），与 `base/media` 的 library provider
+ * **同一判据**（tasks 由「生成」来源承载，不在此重复）。
+ */
+const LIBRARY_CATEGORY_KEYS = ['all', 'character', 'scene', 'prop'];
+const FOLDER_PILLS = FOLDERS.filter((f) => LIBRARY_CATEGORY_KEYS.includes(f.key)).map((f) => ({
+  // pill value 用 folder（本面板既有语义：`folder` state 即目录前缀）；
+  // 「全部」在 FOLDERS 里 folder=null → 本面板约定 'migrated'（= 素材库根，与既有 currentFolder 兜底一致）。
+  folder: f.folder ?? 'migrated',
+  label: f.label,
+}));
 
 interface TypeBadge {
   icon: LucideIcon;
@@ -173,7 +176,25 @@ function ResourceLibrary() {
   const loadingRef = useRef(false);
   const resetTokenRef = useRef(0);
 
-  const currentFolder = folder || 'migrated'; // 当前目录前缀（用于拉取/打开本地/上传落点）
+  const currentFolder = folder || 'migrated'; // 当前目录（用于拉取/打开本地/上传落点）
+  /**
+   * 拉取过滤方式（用户裁定 2026-09-17）：**「全部」= 精确 `migrated` 根（尚未归类）**。
+   *
+   * 【为什么根目录用精确而非前缀】原语义（前缀）= `migrated` 根 + 人物/场景/道具 一锅端，
+   * 与各分类重复、且让"待归类"淹没在已归类素材里。改精确后，「全部」就是待归类区，
+   * 旁边并排显示子文件夹卡片（后端返回的 `type:'folder'`）作拖拽落点。
+   * 进入子目录（如 `migrated/人物`）后仍用**前缀**（含其更深子目录），保持浏览语义不变。
+   *
+   * 判据直接内联在 fetch 处（`currentFolder === 'migrated'`）而不用派生变量 ——
+   * 派生变量会让 react-hooks/exhaustive-deps 要求把它也列进 deps（它本就随 currentFolder 变）。
+   */
+  const fetchArgsFor = useCallback(
+    (extra: Record<string, unknown> = {}) =>
+      currentFolder === 'migrated'
+        ? { folderExact: currentFolder, ...extra }
+        : { folder: currentFolder, ...extra },
+    [currentFolder],
+  );
   // 返回上一级（在子目录时）
   const back = useCallback(() => {
     const parts = folder.split('/');
@@ -191,7 +212,8 @@ function ResourceLibrary() {
       try {
         if (rescan) await rescanResources();
         const data = await fetchResources({
-          folder: currentFolder,
+          // 根目录 = 精确（只看待归类）；子目录 = 前缀（含更深子目录）—— 见 fetchArgsFor 注释。
+          ...fetchArgsFor(),
           page: 1,
           pageSize: PAGE_SIZE,
           projectId,
@@ -213,7 +235,7 @@ function ResourceLibrary() {
         if (token === resetTokenRef.current) setLoading(false);
       }
     },
-    [connected, currentFolder, projectId],
+    [connected, projectId, fetchArgsFor],
   );
 
   // 首次挂载 + 目录变化 + 项目切换 + 重拉信号 → 重置到第 1 页并 rescan
@@ -241,7 +263,8 @@ function ResourceLibrary() {
     const next = pageRef.current + 1;
     try {
       const data = await fetchResources({
-        folder: currentFolder,
+        // 与 reset 同口径（根目录精确 / 子目录前缀），否则翻页会串入已归类素材。
+        ...fetchArgsFor(),
         page: next,
         pageSize: PAGE_SIZE,
         projectId,
@@ -263,7 +286,7 @@ function ResourceLibrary() {
       loadingRef.current = false;
       setLoading(false);
     }
-  }, [connected, currentFolder, hasMore, projectId]);
+  }, [connected, hasMore, projectId, fetchArgsFor]);
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current;

@@ -399,6 +399,10 @@ export function useElementInteraction({
     startDrag,
     getDragSnapResult,
     onSnapPointChange,
+    // 【2026-09-17 补】`trackHeightScale` 在 handleMouseMove 里传给 getDragDropTarget
+    // （判定跨轨落点的高度计算），漏列会让"改了轨道高度缩放后拖拽落点仍用旧值"。
+    // 它是可选 number（原始值 prop），入 deps 无重渲染风险 —— 正是 exhaustive-deps 要挡的真实缺陷。
+    trackHeightScale,
   ]);
 
   useEffect(() => {
@@ -505,6 +509,8 @@ export function useElementInteraction({
     tracksContainerRef,
     tracksScrollRef,
     headerRef,
+    // 【2026-09-17 补】同上一处：mouseUp 的落点判定同样依赖 trackHeightScale。
+    trackHeightScale,
   ]);
 
   useEffect(() => {

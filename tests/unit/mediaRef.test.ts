@@ -194,6 +194,80 @@ describe('providers：映射（复用既有真源）', () => {
     expect(kw).toHaveLength(0); // 该节点无媒体，即便名字匹配也不收录
   });
 
+  it('★分类（第二层）由 provider 声明：library = 4 目录项；generated = 4 类型项；canvas 无分类', async () => {
+    const { librarySourceProvider } = await import(
+      '../../src/components/base/media/providers/librarySource'
+    );
+    const { generatedSourceProvider } = await import(
+      '../../src/components/base/media/providers/generatedSource'
+    );
+    const { canvasSourceProvider } = await import(
+      '../../src/components/base/media/providers/canvasSource'
+    );
+
+    // 素材库：按目录（全部/人物/场景/道具）—— 真源派生自 resourceStore.FOLDERS
+    const libCats = librarySourceProvider.categories?.() ?? [];
+    expect(libCats.map((c) => c.label)).toEqual(['全部', '人物', '场景', '道具']);
+    expect(libCats.find((c) => c.key === 'character')?.query).toEqual({
+      folder: 'migrated/人物',
+    });
+    // 【用户裁定 2026-09-17】「全部」= **精确 `migrated` 根**（尚未归类），不是"不过滤"
+    // （去掉子目录 → 待归类区；其下子文件夹以卡片呈现，可拖入归类）。
+    expect(libCats.find((c) => c.key === 'all')?.query).toEqual({ folderExact: 'migrated' });
+    // 人物/场景/道具仍是**前缀**（含更深子目录）
+    expect(libCats.find((c) => c.key === 'scene')?.query).toEqual({ folder: 'migrated/场景' });
+
+    // 生成：按类型
+    const genCats = generatedSourceProvider.categories?.() ?? [];
+    expect(genCats.map((c) => c.label)).toEqual(['全部', '图片', '视频', '音频']);
+    expect(genCats.find((c) => c.key === 'video')?.query).toEqual({ types: ['video'] });
+
+    // 画布：无分类（不声明）
+    expect(canvasSourceProvider.categories).toBeUndefined();
+  });
+
+  it('★librarySource 分类不含 tasks（归「生成」tab，不重复）', async () => {
+    const { librarySourceProvider } = await import(
+      '../../src/components/base/media/providers/librarySource'
+    );
+    const libCats = librarySourceProvider.categories?.() ?? [];
+    // resourceStore.FOLDERS 里有 'generated'(tasks) 一项，但 library 分类必须排除它。
+    expect(libCats.some((c) => c.query && 'folder' in c.query && c.query.folder === 'tasks')).toBe(
+      false,
+    );
+  });
+
+  it('★librarySource：文件夹条目（type:folder）保留为 isFolder 卡片（落点），不参与类型过滤；generated 则剔除', async () => {
+    vi.doMock('../../src/components/base/api/localToolApi.ts', () => ({
+      fetchResources: async () => ({
+        data: {
+          items: [
+            { id: 'f1', name: '人物', url: '/files/migrated/人物', type: 'folder', folder: 'migrated' },
+            { id: 'r1', name: 'a.png', url: '/files/a.png', type: 'image', folder: 'migrated' },
+          ],
+          totalPages: 1,
+        },
+      }),
+    }));
+
+    const { librarySourceProvider } = await import(
+      '../../src/components/base/media/providers/librarySource'
+    );
+    const { generatedSourceProvider } = await import(
+      '../../src/components/base/media/providers/generatedSource'
+    );
+
+    const lib = await librarySourceProvider.list();
+    const folderRef = lib.find((r) => r.ref === 'library:f1');
+    expect(folderRef?.isFolder).toBe(true);
+    expect(folderRef?.folder).toBe('migrated');
+    expect(lib.some((r) => r.ref === 'library:r1')).toBe(true);
+
+    // 生成源：分类维度是媒体类型，目录卡片无意义 → 剔除。
+    const gen = await generatedSourceProvider.list();
+    expect(gen.some((r) => r.isFolder)).toBe(false);
+  });
+
   it('librarySource：非图/视频/音频（text）不收录', async () => {
     vi.doMock('../../src/components/base/api/localToolApi.ts', () => ({
       fetchResources: async () => ({

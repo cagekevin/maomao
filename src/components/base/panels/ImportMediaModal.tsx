@@ -22,14 +22,23 @@
  *  2. 生成     —— `queryMediaRefs('generated')`（tasks 目录 = AI 产出）
  *  3. 素材库   —— `queryMediaRefs('library')`（用户目录）
  *  4. 画布     —— `queryMediaRefs('canvas')`（画布节点里的图/视频）
+ *
+ * 【第二层：来源内部的分类 + 文件夹拖拽归类（用户裁定 2026-09-17）】
+ *  · 分类由 **provider 声明**（`categories()`），弹窗不硬编码（M3）；
+ *  · 素材库「全部」= 精确 `migrated` 根（**尚未归类**的素材），其下子文件夹以**卡片**呈现；
+ *  · 卡片是**拖拽落点**：把文件拖上去即归类（复用 `useResourceMoveToFolder.folderDropProps`），
+ *    落点目录由卡片自身的 `folder/name` 派生 —— 动态（磁盘有什么显示什么），非硬编码清单。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { UploadCloud, X, Search } from 'lucide-react';
+import { UploadCloud, X, Search, FolderOpen } from 'lucide-react';
 import '../creative/creative-library.css';
 // 经唯一出口（`../media`）消费：它保证内置 provider 已自注册（漏走它会静默少来源）。
 import { listMediaRefSources, queryMediaRefs } from '../media/index.ts';
 import type { MediaRef, MediaRefSource } from '../media/mediaRefTypes.ts';
 import LazyImage from '../ui/LazyImage.tsx';
+// 「文件 → 文件夹卡片」的归类拖拽（唯一收敛点，非本弹窗自写）。
+// ⚠️ 这是 base 层 import hooks 的**既有先例**（TaskCenter / GeneratedView 同样从 '../../../hooks' 取）。
+import { useResourceMoveToFolder } from '../../../hooks/useResourceMoveToFolder.ts';
 
 /** 本地导入 tab 的伪来源 key（它不是 provider，是写动作）。 */
 const LOCAL_TAB = 'local' as const;
@@ -68,6 +77,7 @@ export default function ImportMediaModal({
 }: ImportMediaModalProps) {
   const [tab, setTab] = useState<ImportTab>('local');
   const [q, setQ] = useState('');
+  const [catKey, setCatKey] = useState<string | null>(null);
   const [items, setItems] = useState<MediaRef[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -75,11 +85,18 @@ export default function ImportMediaModal({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // 已注册的 provider 来源（本地 tab 之外的 3 个）。
-  const providerSources = useMemo(() => listMediaRefSources().map((p) => p.source), []);
+  const providerSources = useMemo(() => listMediaRefSources(), []);
 
-  // 切 tab 时清空选择与搜索（本地 tab 无需拉取）。
+  // 当前 tab 的分类（第二层筛选）—— 由 provider **声明**，弹窗不硬编码（M3 收口）。
+  const categories = useMemo(
+    () => (tab === LOCAL_TAB ? [] : (providerSources.find((p) => p.source === tab)?.categories?.() ?? [])),
+    [tab, providerSources],
+  );
+
+  // 切 tab 时清空选择/搜索/分类（本地 tab 无需拉取）。
   useEffect(() => {
     setQ('');
+    setCatKey(null);
     setSelected(new Set());
     setError(null);
     if (tab === LOCAL_TAB) {
@@ -107,12 +124,49 @@ export default function ImportMediaModal({
     };
   }, [tab, projectId]);
 
+  // 分类切换 → 带分类 query 重新拉取（分类 query 覆盖列表级 query）。
+  const switchCategory = useCallback(
+    (key: string) => {
+      setSelected(new Set());
+      setError(null);
+      setCatKey(key);
+      if (tab === LOCAL_TAB) return;
+      const cat = categories.find((c) => c.key === key);
+      setLoading(true);
+      queryMediaRefs(tab, { ...(cat?.query ?? {}), projectId })
+        .then(setItems)
+        .catch((e) => {
+          setItems([]);
+          setError(e instanceof Error ? e.message : String(e));
+        })
+        .finally(() => setLoading(false));
+    },
+    [tab, categories, projectId],
+  );
+
   // 关键词过滤（客户端；当前已加载页内 —— 与 provider 的诚实边界一致）。
   const visible = useMemo(() => {
     if (!q) return items;
     const k = q.toLowerCase();
     return items.filter((it) => it.name.toLowerCase().includes(k));
   }, [items, q]);
+
+  // 文件夹卡片（落点）与媒体条目分开渲染：前者可拖入，后者可选中/导入。
+  const folderCards = useMemo(() => visible.filter((it) => it.isFolder), [visible]);
+  const mediaItems = useMemo(() => visible.filter((it) => !it.isFolder), [visible]);
+
+  // 「文件 → 文件夹卡片」归类拖拽：复用唯一收敛点（不在此自写移动逻辑）。
+  // 刷新 = 重新拉当前分类（归类后该文件应离开「全部」）。
+  const refreshCurrent = useCallback(() => {
+    if (tab === LOCAL_TAB) return;
+    const cat = categories.find((c) => c.key === (catKey ?? 'all'));
+    queryMediaRefs(tab, { ...(cat?.query ?? {}), projectId })
+      .then(setItems)
+      .catch(() => undefined); // catch-ok: NON_BLOCKING 归类后刷新失败不阻断（下次进入自然同步）
+  }, [tab, categories, catKey, projectId]);
+  const { sourceDragProps, folderDropProps } = useResourceMoveToFolder({
+    onRefreshed: refreshCurrent,
+  });
 
   const toggle = useCallback((ref: string) => {
     setSelected((prev) => {
@@ -124,7 +178,7 @@ export default function ImportMediaModal({
   }, []);
 
   const handleConfirm = async () => {
-    const picked = items.filter((it) => selected.has(it.ref));
+    const picked = mediaItems.filter((it) => selected.has(it.ref));
     if (picked.length === 0) return;
     await onPick(picked);
     onClose?.();
@@ -146,7 +200,9 @@ export default function ImportMediaModal({
               className="cl-tab"
               // 未注册的 provider 来源不显示（防"点了却永远空"）。
               style={
-                t !== LOCAL_TAB && !providerSources.includes(t) ? { display: 'none' } : undefined
+                t !== LOCAL_TAB && !providerSources.some((p) => p.source === t)
+                  ? { display: 'none' }
+                  : undefined
               }
               onClick={() => setTab(t)}
             >
@@ -165,6 +221,28 @@ export default function ImportMediaModal({
           <X size={14} />
         </button>
       </div>
+
+      {/* 副条：来源内部的**分类**（由 provider 声明 · 复用 creative 的分类 pills 语言）。
+          无 categories 的来源（如「画布」）不显示本行。 */}
+      {categories.length > 0 && (
+        <div className="cl-sub">
+          <div className="cl-subrow">
+            <div className="pk-pills">
+              {categories.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  className="pk-pill"
+                  aria-pressed={catKey === c.key}
+                  onClick={() => switchCategory(c.key)}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 主体 */}
       <div className="cl-main">
@@ -205,29 +283,65 @@ export default function ImportMediaModal({
             <p className="cl-empty">没有可导入的媒体</p>
           </div>
         ) : (
-          <div className="cl-grid">
-            {visible.map((it) => (
-              <article
-                key={it.ref}
-                className={`cl-card-item ${selected.has(it.ref) ? 'is-on' : ''}`}
-                title={it.name}
-                onClick={() => toggle(it.ref)}
-              >
-                {it.type === 'video' ? (
-                  <video src={it.url} muted loop playsInline preload="metadata" />
-                ) : (
-                  <LazyImage
-                    src={it.thumbnailUrl || it.url}
-                    alt={it.name}
-                    className="absolute inset-0"
-                  />
-                )}
-                <div className="cl-name">
-                  <p>{it.name}</p>
-                </div>
-              </article>
-            ))}
-          </div>
+          <>
+            {/* 文件夹卡片（**拖拽落点**）：把下排文件拖到这里即归类。
+                它们是 provider 从后端返回的 `type:'folder'` 条目 → **动态**（磁盘有什么显示什么）。 */}
+            {folderCards.length > 0 && (
+              <div className="cl-grid">
+                {folderCards.map((it) => (
+                  <article
+                    key={it.ref}
+                    className="cl-card-item is-add"
+                    title={`拖入文件归类到「${it.name}」`}
+                    {...folderDropProps(it)}
+                  >
+                    <FolderOpen size={26} className="text-muted" strokeWidth={1.4} />
+                    <div className="cl-name">
+                      <p>{it.name}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+            <div className="cl-grid">
+              {mediaItems.map((it) => (
+                <article
+                  key={it.ref}
+                  className={`cl-card-item ${selected.has(it.ref) ? 'is-on' : ''}`}
+                  title={it.name}
+                  onClick={() => toggle(it.ref)}
+                  // 可拖拽（归类到上方文件夹卡片）；与"点击选中导入"互不冲突
+                  // （dragstart 才写移动 payload，单击不触发）。
+                  // ⚠️ `draggable` 的类型是 `boolean|string`（历史实现，见 hook 注释），
+                  // JSX 只接受 Booleanish → 用 `!!` 收窄（运行时语义不变：真值即 true）。
+                  {...(() => {
+                    const p = sourceDragProps({
+                      folder: it.folder,
+                      name: it.name,
+                      url: it.url,
+                      source: it.source,
+                      type: it.type,
+                      contentId: it.contentId,
+                    });
+                    return { ...p, draggable: !!p.draggable };
+                  })()}
+                >
+                  {it.type === 'video' ? (
+                    <video src={it.url} muted loop playsInline preload="metadata" />
+                  ) : (
+                    <LazyImage
+                      src={it.thumbnailUrl || it.url}
+                      alt={it.name}
+                      className="absolute inset-0"
+                    />
+                  )}
+                  <div className="cl-name">
+                    <p>{it.name}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
@@ -238,7 +352,8 @@ export default function ImportMediaModal({
         ) : (
           <>
             <span>
-              共 {visible.length} 项 · 已选 {selected.size}
+              共 {mediaItems.length} 项 · 已选 {selected.size}
+              {folderCards.length > 0 ? ` · 可拖入 ${folderCards.length} 个文件夹` : ''}
             </span>
             <button
               type="button"

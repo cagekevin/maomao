@@ -179,7 +179,9 @@ export function useSelectionBox({
       }
       onSelectionComplete(selectedElements);
     },
-    [containerRef, headerRef, onSelectionComplete, tracks, tracksScrollRef, zoomLevel],
+    // 【2026-09-17 补】trackHeightScale 参与"轨道累计高度/单轨高度"计算（框选命中判定），
+    // 漏列会让"改了轨道高度缩放后框选仍按旧高度算"。
+    [containerRef, headerRef, onSelectionComplete, tracks, tracksScrollRef, zoomLevel, trackHeightScale],
   );
 
   useEffect(() => {

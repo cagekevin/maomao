@@ -222,9 +222,15 @@ kvStore.ts = re-export 壳（仅 CANVAS_STATE_PREFIX + kvGet/kvSet/kvDelete 转�
       │         │                                      + base/utils/assetUrl.resolveAssetDisplayUrl（contentId→url）
       │         │                                      + base/core/utils.toAbsoluteFileUrl（url 归一）
       │         │                                      ← base/media/canvasNodesBridge（画布节点只读快照）
-      │         ├→ providers/librarySource    source='library'   ← base/api/localToolApi.fetchResources（分页首屏；folder=query.folder）
+      │         │                                      （**无 categories** = 无第二层筛选）
+      │         ├→ providers/librarySource    source='library'   ← base/api/localToolApi.fetchResources（分页首屏）
+      │         │                                      「全部」= folderExact:'migrated'（**精确** = 未归类）
+      │         │                                      人物/场景/道具 = folder:'migrated/…'（**前缀**，含更深子目录）
       │         │                                      + base/utils/assetType.detectAssetType
+      │         │                                      folder 条目（type:'folder'）→ isFolder 卡片（**拖拽落点**）
+      │         │                                      categories() ← base/store/resourceStore.FOLDERS（**唯一真源**；白名单 all/character/scene/prop）
       │         └→ providers/generatedSource  source='generated' ← **委托 librarySource**（注入 folder:'tasks'，M3 不抄第二份）
+      │                                                             categories() = 按类型（全部/图片/视频/音频）；剔除 isFolder
       └→ canvasNodesBridge（写/读/订阅三件套；**单向**：只有 App.tsx 写）
            ← src/App.tsx 的 nodes 变化 effect（引用赋值；引用相等短路，不通知）
 
@@ -233,6 +239,10 @@ kvStore.ts = re-export 壳（仅 CANVAS_STATE_PREFIX + kvGet/kvSet/kvDelete 转�
 ```
 
 **fan-in**：`base/media/index.ts` ← **1 处**（`ImportMediaModal`）；`ImportMediaModalHost` ← **2 处**（画布 App + 剪辑器 media.tsx）。
+**分类层（`MediaRefProvider.categories`）**：由 provider **声明**，消费方 0 行接入（弹窗第二排 pill）。
+**「全部」= 精确 `migrated` 根（未归类区）**；其下子文件夹 = `isFolder` 卡片作**拖拽落点**
+（`useResourceMoveToFolder.folderDropProps`，弹窗与素材库面板同一收敛点）。
+**素材库目录清单真源 = `resourceStore.FOLDERS`**（`ResourceLibrary` 与 library provider 均派生自它，无第二份）。
 **关键边界**：`canvasNodesBridge` 是**投影不是状态**（真源永远是 App 的 `nodes`）；多窗口下只反映本窗口 nodes（既有架构边界，非 bug）。
 **引用语义**：剪辑器从「生成/素材库/画布」导入 = 登记引用（`saveMediaAsset` 见 `persistentUrl` 即跳过上传）；从「本地导入」= 既有上传。
 **防回潮闸**：`check:arch` 规则 2（base 禁反向依赖业务域 —— 弹窗只认 MediaRef，不碰 videoEditor）· 规则 6（禁绕过 contentStore 直调底层 —— 本层零存储依赖）。

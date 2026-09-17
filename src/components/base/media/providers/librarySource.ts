@@ -26,6 +26,8 @@ import { fetchResources } from '../../api/localToolApi.ts';
 import type { ResourceItem } from '../../api/localToolApi.ts';
 import { detectAssetType } from '../../utils/assetType.ts';
 import { toAbsoluteFileUrl } from '../../core/utils.ts';
+// 分类真源：素材库目录清单（唯一一份，禁止在本 provider 另写硬编码 label/folder）。
+import { FOLDERS } from '../../store/resourceStore.ts';
 import { makeMediaRef } from '../mediaRefTypes.ts';
 import type { MediaRef, MediaRefQuery, MediaRefProvider } from '../mediaRefTypes.ts';
 
@@ -39,17 +41,37 @@ function matchKeyword(name: string, keyword?: string): boolean {
   return name.toLowerCase().includes(keyword.toLowerCase());
 }
 
-/** ResourceItem → MediaRef；非图/视频/音频（text / 未知）返回 null（剪辑器只吃这三类）。 */
+/**
+ * ResourceItem → MediaRef。
+ *  · 文件夹条目（`type:'folder'`）：保留为 `isFolder` 卡片（**可拖入的落点**），type 标 `'image'`
+ *    仅为满足类型（消费方以 `isFolder` 分支渲染，不把它当媒体）。
+ *  · 非图/视频/音频（text / 未知）返回 null（剪辑器只吃这三类）。
+ */
 function toMediaRef(item: ResourceItem, query?: MediaRefQuery): MediaRef | null {
   const rawUrl = item.url || '';
   if (!rawUrl) return null;
 
+  const name = item.name || rawUrl.split('/').pop() || '素材';
+  if (!matchKeyword(name, query?.keyword)) return null;
+
+  // 文件夹卡片：不参与类型过滤（它不是媒体），直接作为落点条目返回。
+  if (item.type === 'folder') {
+    return {
+      ref: makeMediaRef('library', item.id),
+      source: 'library',
+      name,
+      type: 'image',
+      url: toAbsoluteFileUrl(rawUrl),
+      projectId: item.projectId,
+      folder: item.folder,
+      isFolder: true,
+      meta: { folder: item.folder, keywordScope: 'loaded-page-only' },
+    };
+  }
+
   const type = detectAssetType(rawUrl);
   if (type !== 'image' && type !== 'video' && type !== 'audio') return null;
   if (query?.types && !query.types.includes(type)) return null;
-
-  const name = item.name || rawUrl.split('/').pop() || '素材';
-  if (!matchKeyword(name, query?.keyword)) return null;
 
   return {
     ref: makeMediaRef('library', item.id),
@@ -59,17 +81,59 @@ function toMediaRef(item: ResourceItem, query?: MediaRefQuery): MediaRef | null 
     url: toAbsoluteFileUrl(rawUrl),
     contentId: item.contentId,
     projectId: item.projectId,
+    folder: item.folder,
     meta: { folder: item.folder, keywordScope: 'loaded-page-only' },
   };
+}
+
+/**
+ * 素材库分类（**label 真源 = `resourceStore.FOLDERS`**，不在此另写一份）。
+ *
+ * 【为什么只取「全部/人物/场景/道具」4 项，不含 FOLDERS 里的 'generated'(tasks)】
+ * tasks 目录已由**独立来源** `generated`（「生成」tab）承载 —— 若在这里再加一项，
+ * 会与 tab 重复（用户裁定 2026-09-17）。
+ * 故按 key 白名单过滤 FOLDERS，只保留面向用户素材的目录。
+ */
+const LIBRARY_CATEGORY_KEYS = ['all', 'character', 'scene', 'prop'] as const;
+
+/**
+ * 「全部」的查询 = **精确 `migrated`（不含子目录）**（用户裁定 2026-09-17）。
+ *
+ * 【为什么「全部」是精确而不是前缀（这是本仓有意的一次语义修正）】
+ *  · 原语义（`eqOrPrefix`）= `migrated` 根 **+ 人物/场景/道具** 一锅端 —— 那与「人物」等分类重复，
+ *    且让"还没归类的素材"淹没在已归类素材里；
+ *  · 新语义 = 只看 `migrated` **根目录本身** ⇒ 它就是「**尚未归类**」的待办区：
+ *    旁边并排显示 人物/场景/道具 三个**子文件夹卡片**，用户把文件**拖上去**即完成归类。
+ *  · 用户原话：「直接把全部不要，就增加未分类了，那直接就是全部，就是这个意思呀」
+ *    ⇒ **不新增「未分类」这个词**，让「全部」直接等于那个意思。
+ *
+ * ⚠️ 与 `folder`（前缀）的分工见 `MediaRefQuery.folderExact` 注释：二者语义相反，勿合并。
+ */
+const ALL_CATEGORY_QUERY: Partial<MediaRefQuery> = { folderExact: 'migrated' };
+
+/** 从 FOLDERS 取 label（唯一真源），不另写硬编码文案。 */
+function labelOf(key: string): string {
+  return FOLDERS.find((f) => f.key === key)?.label ?? key;
 }
 
 export const librarySourceProvider: MediaRefProvider = {
   source: 'library',
   label: '素材库',
+  categories: () =>
+    (LIBRARY_CATEGORY_KEYS as readonly string[]).map((key) => ({
+      key,
+      label: labelOf(key),
+      query:
+        key === 'all'
+          ? ALL_CATEGORY_QUERY
+          : // 人物/场景/道具：**前缀**匹配（含该目录下的更深子目录）
+            { folder: FOLDERS.find((f) => f.key === key)?.folder ?? undefined },
+    })),
   async list(query?: MediaRefQuery): Promise<MediaRef[]> {
     const envelope = await fetchResources({
-      // folder 来自 query（空 = 全部目录）；「生成」来源由 generatedSource 传 'tasks'。
+      // folder（前缀）/ folderExact（精确）来自 query；「生成」来源由 generatedSource 传 'tasks'。
       folder: query?.folder,
+      folderExact: query?.folderExact,
       page: PAGE,
       pageSize: PAGE_SIZE,
       projectId: query?.projectId,

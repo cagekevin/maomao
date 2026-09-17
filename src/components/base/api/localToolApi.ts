@@ -178,23 +178,36 @@ export async function saveProjects(
 // legacy(project_id NULL)全项目可见、显式 projectId 的行只对其可见；不传 = 全量(向后兼容)。
 export async function fetchResources({
   folder,
+  folderExact,
   page = 1,
   pageSize = 60,
   type,
   projectId,
 }: {
   folder?: string;
+  /**
+   * 文件夹**精确匹配**（`folder = ?`，不含子目录）。
+   *
+   * 【与 `folder` 的区别（2026-09-17）】
+   *  · `folder` 走 `{eqOrPrefix}`（精确 + 前缀）—— 用于「含子目录」的浏览（如进入某分类看其下全部）。
+   *  · `folderExact` 走标量等值（后端 `buildPaginatedQuery` 的普通值分支）—— 用于
+   *    **只看该目录本身**（`migrated` 根 = 尚未归类的素材 + 其下子文件夹卡片）。
+   * 二者是**不同的查询语义，不是同义的两种写法**，故并存（勿合并）。
+   */
+  folderExact?: string;
   page?: number;
   pageSize?: number;
   type?: string;
   projectId?: string;
 } = {}): Promise<ApiEnvelope<PagedResult<ResourceItem>>> {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-  // folder 用 `{eqOrPrefix}`（精确 + 前缀）而不是等值：pill「全部」以 `migrated` 为根，
-  // 等值查询不返回 `migrated/人物|场景|道具` 等子目录行 → 归类进子目录的素材在「全部」下消失
+  // folder 默认用 `{eqOrPrefix}`（精确 + 前缀）而不是等值：原 pill「全部」以 `migrated` 为根，
+  // 等值查询不返回 `migrated/人物|场景|道具` 等子目录行 → 归类进子目录的素材会消失
   // （TD-12-13 实测：等值时 migrated 仅 5 条；前端 `matchesFolder` 本就是前缀语义，两套判据必漂移）。
+  // ⚠️ `folderExact` 是**有意**的相反语义（只要该目录本身），故显式独立参数，不走上面的前缀分支。
   const filters: Record<string, string | { eqOrPrefix: string }> = {};
   if (folder) filters.folder = { eqOrPrefix: folder };
+  if (folderExact) filters.folder = folderExact;
   if (type) filters.type = type;
   if (Object.keys(filters).length) params.set('filters', JSON.stringify(filters));
   if (projectId) params.set('projectId', projectId);
