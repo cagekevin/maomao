@@ -77,11 +77,12 @@ describe('externalizeProjectImages — 写入外置', () => {
   });
 
   it('成功替换 reference + 每镜头 thumbnail，data: 残留 0', async () => {
+    // 【2026-09-17】`SaveInlineFn` 契约改为**判别联合**（成功＝`ok:true` + url）。
     const save = vi
       .fn()
-      .mockResolvedValueOnce(FILES('a'))
-      .mockResolvedValueOnce(FILES('b'))
-      .mockResolvedValueOnce(FILES('c'));
+      .mockResolvedValueOnce({ ok: true, url: FILES('a') })
+      .mockResolvedValueOnce({ ok: true, url: FILES('b') })
+      .mockResolvedValueOnce({ ok: true, url: FILES('c') });
     const r = await externalizeProjectImages(baseProject(), save);
     expect(save).toHaveBeenCalledTimes(3);
     expect(r.project!.reference!.image).toBe(FILES('a'));
@@ -114,8 +115,9 @@ describe('externalizeProjectImages — 写入外置', () => {
 
 // ── T2 降级：落盘失败保留 base64 ───────────────────────
 describe('externalizeProjectImages — 后端不可达降级', () => {
-  it('saveInline 全部返回 null → 保留原 base64，不清图', async () => {
-    const save = vi.fn().mockResolvedValue(null);
+  it('saveInline 全部返回 ok:false → 保留原 base64，不清图', async () => {
+    // 【2026-09-17】失败＝`ok:false`（含生产者 message），不再是 null。
+    const save = vi.fn().mockResolvedValue({ ok: false, message: '后端不可达' });
     const proj = {
       reference: { image: png },
       shots: [{ id: 's1', thumbnail: 'data:image/png;base64,t' }],
@@ -127,7 +129,8 @@ describe('externalizeProjectImages — 后端不可达降级', () => {
   });
 
   it('saveInline 返回原值视为失败 → 保留', async () => {
-    const save = vi.fn().mockResolvedValue(png);
+    // 失败语义：`ok:true` 但 `url === 输入` ⇒ 仍视为失败（保留原值）。
+    const save = vi.fn().mockResolvedValue({ ok: true, url: png });
     const r = await externalizeProjectImages({ reference: { image: png }, shots: [] }, save);
     expect(r.project!.reference!.image).toBe(png);
     expect(r.droppedCount).toBe(0);
