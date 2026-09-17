@@ -157,28 +157,42 @@ function load(): Resource[] {
 let resources = load();
 
 // 目录 pill 配置（含 folder 前缀匹配）
+// 【根目录不写死字面量（2026-09-17 收口）】根 = `UPLOAD_DIRS.migrated`（uploads 目录中央表）
+// —— 此前 `'migrated'` 在本文件/ResourceLibrary/librarySource/导入弹窗各写一份（4 份），
+// 改一处必漂移；现全部派生自真源（TD-02-54）。
 export const FOLDERS: FolderPill[] = [
   { key: 'all', label: '全部', folder: null },
-  { key: 'generated', label: 'AI生成', folder: 'tasks' },
-  { key: 'character', label: '人物', folder: 'migrated/人物' },
-  { key: 'scene', label: '场景', folder: 'migrated/场景' },
-  { key: 'prop', label: '道具', folder: 'migrated/道具' },
-  { key: 'migrated', label: '素材库', folder: 'migrated' },
+  { key: 'generated', label: 'AI生成', folder: UPLOAD_DIRS.tasks },
+  { key: 'character', label: '人物', folder: `${UPLOAD_DIRS.migrated}/人物` },
+  { key: 'scene', label: '场景', folder: `${UPLOAD_DIRS.migrated}/场景` },
+  { key: 'prop', label: '道具', folder: `${UPLOAD_DIRS.migrated}/道具` },
+  { key: 'migrated', label: '素材库', folder: UPLOAD_DIRS.migrated },
 ];
 
 /**
+ * 「面向用户素材」的目录白名单 —— 哪些 FOLDERS 项算**素材库来源**的分类。
+ * 【为什么住这里】FOLDERS 的拥有者就是本文件 ⇒ 这条判据归真源拥有者。
+ * 【收口(2026-09-17)】此前 `base/media/providers/librarySource.ts` 与 `panels/ResourceLibrary.tsx`
+ * **各抄一份同名同值数组**（M3 第二份，靠注释同步）⇒ 改一处必漂移。现仅此一份，两处 import 复用。
+ * 注：`tasks` 归「生成」来源承载，故不在白名单（不重复出一个 tab）。
+ */
+export const LIBRARY_CATEGORY_KEYS: readonly string[] = ['all', 'character', 'scene', 'prop'];
+
+/**
  * 剧本分类 → 素材库目录的单一映射（剧本盒不自己拼路径，收口在 FOLDERS 语义）。
- * character→migrated/人物、scene→migrated/场景、prop→migrated/道具，其它→migrated。
+ * character→migrated/人物、scene→migrated/场景、prop→migrated/道具，其它→素材库根。
+ * 【收口(2026-09-17)】原实现自带一份 `category → 'migrated/人物'` 的 map，与 `FOLDERS` 三项**逐字重复**
+ * （M3 第二份：改 FOLDERS 不改这里 = 剧本盒静默落错目录）。现**派生自 FOLDERS**，只认白名单内的分类，
+ * 其余（含 'generated' / 未知）一律落素材库根 —— 与旧 map 对全部真实入参（character/scene/prop/undefined）逐一等价。
  * @param {string} [category] character|scene|prop
  * @returns {string} 落盘目录（与后端 folder 结构一致）
  */
 export function resourceFolderOf(category?: string): string {
-  const map: Record<string, string> = {
-    character: 'migrated/人物',
-    scene: 'migrated/场景',
-    prop: 'migrated/道具',
-  };
-  return (category && map[category]) || 'migrated';
+  const hit =
+    category && LIBRARY_CATEGORY_KEYS.includes(category)
+      ? FOLDERS.find((f) => f.key === category)?.folder
+      : null;
+  return hit ?? UPLOAD_DIRS.migrated;
 }
 
 // P4 落盘节流：高频变更（拖入/批量生成/上传进度）合并落盘，消除主线程长任务。
@@ -247,8 +261,11 @@ export function detectAssetType(file?: TypeProbe | null): AssetType {
 // 判断目录命中：folder 是否为当前 pill 的 folder 前缀
 function matchesFolder(assetFolder: string, folder: string | null): boolean {
   if (folder === null) return true; // 全部
-  if (folder === 'migrated')
-    return assetFolder === 'migrated' || assetFolder.startsWith('migrated/');
+  // 素材库根（真源 UPLOAD_DIRS.migrated）是**特例**：它代表"整个素材库"，含全部子目录。
+  if (folder === UPLOAD_DIRS.migrated)
+    return (
+      assetFolder === UPLOAD_DIRS.migrated || assetFolder.startsWith(`${UPLOAD_DIRS.migrated}/`)
+    );
   return assetFolder === folder || assetFolder.startsWith(folder + '/');
 }
 

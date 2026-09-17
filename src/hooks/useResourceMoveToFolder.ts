@@ -31,7 +31,13 @@ export interface FolderDropTargetProps {
 }
 
 export interface ResourceMoveToFolderOptions {
-  connected?: boolean;
+  /**
+   * 本地引擎是否已连接（**必填，勿改回可选**）。
+   * ⚠️ 可选 = 缺省永假 ⇒ drop 恒走「请先连接本地引擎」分支并 return = **假交互**
+   * （2026-09-17 实证：导入弹窗漏传 → 文件夹落点一直"拖不进去"，用户可见）。
+   * 改成必填后由**编译器**兜住"忘传"，不再靠调用方自觉（缺省值本身就是陷阱）。
+   */
+  connected: boolean;
   onRefreshed?: () => void;
 }
 
@@ -55,9 +61,15 @@ function parseMovePayload(str: string): ResourceMoveItem | null {
     return null;
   }
 }
-// 文件夹卡片的完整相对路径（落点目录）：parent/name。rescan 记录子目录 folder=父目录、name=目录名。
-function moveTargetDirOf(folderCard: ResourceMoveItem): string {
-  return folderCard?.folder ? `${folderCard.folder}/${folderCard.name}` : folderCard?.name || '';
+/**
+ * 目录条目 → **它自身的目录路径**（唯一实现，导出复用）。
+ * rescan 把子目录录成条目时 `folder` = 父目录、`name` = 目录名 ⇒ 自身路径 = `folder/name`。
+ * 消费方两类：① 本 hook 的 drop 落点；② 面板/弹窗的「点目录进入」（如导入弹窗进入文件夹）。
+ * 更新(2026-09-17)：正名自 `moveTargetDirOf` —— 它已不只是"移动目标"，而是**目录条目的路径真源**；
+ * 不再有两个消费者各自拼 `currentFolder/name` 的第二份（TD-02-54 同族收口）。
+ */
+export function folderPathOf(card: ResourceMoveItem): string {
+  return card?.folder ? `${card.folder}/${card.name}` : card?.name || '';
 }
 
 /**
@@ -108,7 +120,7 @@ export function useResourceMoveToFolder({ connected, onRefreshed }: ResourceMove
         }
         const it = parseMovePayload(e.dataTransfer.getData(RESOURCE_MOVE_MIME));
         if (!it) return;
-        const target = moveTargetDirOf(folderCard);
+        const target = folderPathOf(folderCard);
         if (!canMoveAsset(it)) {
           showToast('仅支持移动本地资源', { type: 'warning' });
           return;

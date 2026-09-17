@@ -28,7 +28,7 @@
  *   Q3 怎么改：改本文件（真源），**不要手改 index.md**（整份是产物，下次生成即覆盖）；
  *               改完跑 `--write` 再跑校验确认一致。
  */
-import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
@@ -116,6 +116,13 @@ function roundNo(f) {
  *     于是**「最新轮次」指向更早的那一轮**，且 `readState()` 从"最新"往回找时**先撞上四轮**、
  *     五轮里的状态行被**遮蔽**（进度表因此可能报错灯 —— 本轮就是这样被实锤的）。
  * 修法 = 显式解析序号（`roundNo`），序号取不到（跨区轮 / 无序号）再退化为名字比较 ⇒ 跨区文件的相对次序不变。
+ *
+ * 更新(2026-09-17 · 工具债当场修 · 第三例)：**同日期、双方都取不到轮次号**的跨区轮之间，名字比较同样给错时序 ——
+ *   02 区实证：`…可引用媒体源导入弹窗体检-2026-09-17` 与 `…可引用媒体源首消费-导入弹窗-2026-09-17`
+ *   （汉字码位 导(5BFC) < 首(9996)）⇒ 后写的"体检"被判在"首消费"**之前** ⇒ `files[last]` 指向更早那份，
+ *   于是新写入的 🔴 回退状态被**遮蔽**、进度表仍报 🟢（与 17 区同款失效，只是成因从"轮次号"换成"跨区名"）。
+ *   修法 = 在"名字比较"**之前**插入 **mtime 升序**（同日期同序号时取真实写入顺序）；
+ *   mtime 取不到或并列（如 git clone 后 mtime 全等的场景）→ 仍退化为名字比较，**纯名字场景的相对次序不变**。
  */
 function listRounds(nn) {
   return readdirSync(ARCH_DIR)
@@ -125,8 +132,21 @@ function listRounds(nn) {
       if (byDate !== 0) return byDate;
       const byNo = roundNo(a) - roundNo(b);
       if (byNo !== 0) return byNo;
+      // 同日期同序号（跨区轮 / 无序号文件）：按**真实写入顺序**（mtime）定先后，名字只作最后兜底。
+      // 为什么：汉字码位序 ≠ 时序（见文件头 2026-09-17 第三例），名字比较会把"最新轮次"指错。
+      const byMtime = mtimeOf(a) - mtimeOf(b);
+      if (byMtime !== 0) return byMtime;
       return a.localeCompare(b);
     });
+}
+
+/** 轮次文件 mtime（ms）。取不到 → 0（排序退化为名字比较，纯名字场景次序不变）。 */
+function mtimeOf(f) {
+  try {
+    return statSync(join(ARCH_DIR, f)).mtimeMs;
+  } catch {
+    return 0;
+  }
 }
 
 /**

@@ -33,7 +33,8 @@ function resolveContentUrl(contentId: string): string | null {
   return found ? found.url : null;
 }
 
-/** 按 query.meta 过滤：关键词（name 模糊匹配，忽略大小写）。 */
+/** 按关键词过滤（name 模糊匹配，忽略大小写）。
+ *  更新(2026-09-17 注释改正)：原写「按 query.meta 过滤」——`MediaRefQuery` **无 `meta` 字段**（TD-02-52）。 */
 function matchKeyword(name: string, keyword?: string): boolean {
   if (!keyword) return true;
   return name.toLowerCase().includes(keyword.toLowerCase());

@@ -120,6 +120,11 @@
   min-height: 0;
   display: flex;
 }
+/* ⚠️ 本层是 **flex row**（列：左分类栏 + 右内容列），**不是**内容容器的通用底座。
+   内容要放多个区块时**必须自包一层 `.cl-col`**；且 `.cl-col` 内**只允许一个滚动网格**
+   （`.cl-grid`）—— 两个各自 `overflow-y:auto` 的网格 = **两个滚动容器**，只能靠高度护栏去压，
+   而护栏必然裁掉正常内容（2026-09-17 实证：先报「文件夹锁在左半边、只排 2 列」，修完又报
+   「多了一条滚动条」；最终结构 = **单网格混排** —— 见 ImportMediaModal.tsx 文件头【内容区结构铁律】）。 */
 
 /* 内容列（各分区视图的公共外壳）：左栏之外的那一列。
    ⚠️ `min-height: 0` 不可省：它是 flex 子项**可收缩**的前提。缺了它，列内的
@@ -340,26 +345,71 @@
   color: rgb(var(--mao-text-strong));
 }
 
-/* ── 「新增预设」虚线卡（提示词分区）── */
-.cl-card-item.is-add {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-height: 110px;
+/* ── 文件夹卡片（导入弹窗的**拖拽落点**）──
+   【为什么独立一档 + 为什么改成 16:9（2026-09-17 用户报 bug 后收口）】
+   本块原叫 `.is-add`，注释是「提示词分区的『新增预设』虚线卡」；但那个入口后来改成了副条的
+   `.cl-btn.is-icon`（见下方同名注释），于是**唯一消费者只剩导入弹窗的文件夹卡片** ——
+   而它的高度规则（`min-height:110px` + `::before { display:none }` 掐掉 16:9）与**同网格里的图片卡不同盒高**
+   ⇒ 用户可见的 bug：「文件夹比图片矮一截、大小不一样」。
+   故：① 正名为 `.is-folder`（`is-add` 在 `src/` 已无消费者，不留第二张虚线卡规则）；
+       ② **回归图片卡同一盒** —— 16:9 仍由 `.cl-card-item::before`（padding-bottom:56.25%）顶出，
+          本档**不覆盖**它；`min-height` 一并去掉（任何额外高度都会让它与图片卡不等高）。
+       ③ 图标改**绝对居中**（同图片卡的 img/video 绝对定位）—— 流内元素会把盒子撑高，破坏「同盒」。 */
+.cl-card-item.is-folder {
   border: 1px dashed rgb(var(--mao-edge));
   background: transparent;
   color: rgb(var(--mao-text-faint));
   font-size: 11px;
 }
-.cl-card-item.is-add::before {
-  display: none;
+.cl-card-item.is-folder > svg {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
-.cl-card-item.is-add:hover {
+.cl-card-item.is-folder:hover {
   border-color: rgb(var(--mao-edge-strong));
   color: rgb(var(--mao-text-primary));
   background: rgb(var(--mao-surface-hover));
+}
+
+/* ── 本机文件投放区（导入弹窗「本地导入」tab 的内容区）──
+   与同面板的虚线卡 `.cl-card-item.is-folder` **共用同一套虚线语法**：同边色（`--mao-edge`）·
+   同 12px 圆角 · 同 hover 三件套（edge-strong + text-primary + surface-hover）· 同 11px 字档。
+   用户要求「UI 一致」⇒ **在本面板里「虚线 = 可投放」只有一个样子**，不再造第二种投放视觉。
+   与虚线卡的差异只在**布局**：这里铺满内容区（`flex:1`），不是网格里的一张卡。 */
+.cl-drop {
+  flex: 1;
+  min-height: 0;
+  /* 外边距与 `.cl-grid` 的内边距同口径（4 / 14 / 12）⇒ 虚线框与卡片网格左右边缘对齐 */
+  margin: 4px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  border: 1px dashed rgb(var(--mao-edge));
+  border-radius: 12px;
+  background: transparent;
+  color: rgb(var(--mao-text-faint));
+  font-size: 11px;
+  text-align: center;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    background 0.15s;
+}
+/* hover 与拖拽悬停（is-over）同色：拖拽是"即将投放"，不该比 hover 更花 */
+.cl-drop:hover,
+.cl-drop.is-over {
+  border-color: rgb(var(--mao-edge-strong));
+  color: rgb(var(--mao-text-primary));
+  background: rgb(var(--mao-surface-hover));
+}
+.cl-drop p {
+  margin: 0;
+  line-height: 1.5;
 }
 
 /* 空态提示（占满整行） */

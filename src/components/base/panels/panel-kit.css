@@ -327,9 +327,19 @@
   background: rgb(var(--mao-edge-subtle));
 }
 
-/* ══════════════ 列表底部统计（生成/素材/提示词 共用）═════════════ */
+/* ══════════════ 列表底部行（生成/素材/提示词 共用）═════════════
+   【为什么是 flex 行】底栏有两种内容形态：① 纯统计文字（多数面板）；② 文字 + 操作按钮
+   （ImportMediaModal 的「共 N 项…」+「导入选中」）。原先只写 `text-align:center`（当纯文本容器用），
+   第 ② 种下 span 与 button 只有**文本流**这一个间距来源，而 JSX 里换行缩进会被 React 吃掉
+   → 两者紧贴成一体（2026-09-17 用户报 bug）。故本层统一按**行**布局：间距由 `gap` 结构性给出，
+   不再依赖文本节点/空白字符。`flex-wrap` 兜住窄面板（如 330px 生成面板）溢出，居中与原先一致。 */
 .pk-list-foot {
-  padding: 10px 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px 4px;
   color: rgb(var(--mao-text-faint));
   font-size: 10.5px;
   text-align: center;

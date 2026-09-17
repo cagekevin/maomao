@@ -9,7 +9,10 @@
  *
  * 【folder 参数：素材库 / 生成 共用本 provider】
  * 「生成」= `folder:'tasks'`（AI 产出落盘处，GeneratedView.tsx:176 同口径）；
- * 「素材库」= folder 空（全部用户目录）。二者是同一读取路径的参数差异，故**不拆两份**。
+ * 「素材库」= 用户目录 `migrated`（其「全部」分类 = **精确 migrated 根**＝未归类区，见 ALL_CATEGORY_QUERY）。
+ * 二者是同一读取路径的参数差异，故**不拆两份**。
+ * 更新(2026-09-17 注释改正)：原写「素材库 = folder 空（全部用户目录）」—— 该口径已被用户裁定推翻
+ * （「全部」= 精确 migrated 根 = 未归类区），照实改正（TD-02-52）。
  *
  * 【分页（必须诚实面对 · docs/136 §5.5 / R2）】
  * 本轮**只取第一页**（页大小由下方常量定），并在 `meta` 里带 `{ page, pageSize, hasMore }`。
@@ -26,8 +29,10 @@ import { fetchResources } from '../../api/localToolApi.ts';
 import type { ResourceItem } from '../../api/localToolApi.ts';
 import { detectAssetType } from '../../utils/assetType.ts';
 import { toAbsoluteFileUrl } from '../../core/utils.ts';
-// 分类真源：素材库目录清单（唯一一份，禁止在本 provider 另写硬编码 label/folder）。
-import { FOLDERS } from '../../store/resourceStore.ts';
+// 目录浏览规则（根/子目录 → 查询参数）：**唯一实现**，本 provider 只调它，不自带规则。
+import { LIBRARY_ROOT, libraryBrowseArgs } from '../libraryBrowse.ts';
+// 分类真源：素材库目录清单 + 面向用户素材的白名单（两处消费方共用同一份，禁止各抄一份）。
+import { FOLDERS, LIBRARY_CATEGORY_KEYS } from '../../store/resourceStore.ts';
 import { makeMediaRef } from '../mediaRefTypes.ts';
 import type { MediaRef, MediaRefQuery, MediaRefProvider } from '../mediaRefTypes.ts';
 
@@ -93,8 +98,10 @@ function toMediaRef(item: ResourceItem, query?: MediaRefQuery): MediaRef | null 
  * tasks 目录已由**独立来源** `generated`（「生成」tab）承载 —— 若在这里再加一项，
  * 会与 tab 重复（用户裁定 2026-09-17）。
  * 故按 key 白名单过滤 FOLDERS，只保留面向用户素材的目录。
+ *
+ * 更新(2026-09-17 收口)：白名单**不再在本文件定义**（此前与 `ResourceLibrary.tsx` 各一份同名同值 =
+ * M3 第二份）→ 归到 FOLDERS 的拥有者 `resourceStore`，两处 import 同一常量（TD-02-53）。
  */
-const LIBRARY_CATEGORY_KEYS = ['all', 'character', 'scene', 'prop'] as const;
 
 /**
  * 「全部」的查询 = **精确 `migrated`（不含子目录）**（用户裁定 2026-09-17）。
@@ -109,7 +116,7 @@ const LIBRARY_CATEGORY_KEYS = ['all', 'character', 'scene', 'prop'] as const;
  *
  * ⚠️ 与 `folder`（前缀）的分工见 `MediaRefQuery.folderExact` 注释：二者语义相反，勿合并。
  */
-const ALL_CATEGORY_QUERY: Partial<MediaRefQuery> = { folderExact: 'migrated' };
+const ALL_CATEGORY_QUERY: Partial<MediaRefQuery> = libraryBrowseArgs(LIBRARY_ROOT);
 
 /** 从 FOLDERS 取 label（唯一真源），不另写硬编码文案。 */
 function labelOf(key: string): string {
@@ -120,7 +127,7 @@ export const librarySourceProvider: MediaRefProvider = {
   source: 'library',
   label: '素材库',
   categories: () =>
-    (LIBRARY_CATEGORY_KEYS as readonly string[]).map((key) => ({
+    LIBRARY_CATEGORY_KEYS.map((key) => ({
       key,
       label: labelOf(key),
       query:

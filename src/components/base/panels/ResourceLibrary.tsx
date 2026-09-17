@@ -39,7 +39,12 @@ import {
   emitResourceSent,
   mergeResourcesFromBackend,
   FOLDERS,
+  LIBRARY_CATEGORY_KEYS,
 } from '../store/resourceStore.ts';
+// 目录浏览规则 + 素材库根：**与导入弹窗共用同一份**（唯一实现，见 libraryBrowse.ts）。
+import { LIBRARY_ROOT, libraryBrowseArgs, libraryUpFolder } from '../media/libraryBrowse.ts';
+// 目录条目 → 自身目录路径的唯一实现（与「点目录进入」「拖入归类」共用）。
+import { folderPathOf } from '../../../hooks/useResourceMoveToFolder.ts';
 import { useCurrentProjectId } from '../store/projectStore.ts';
 import { logger } from '../core/logger.ts';
 import { isAudio } from '../utils/assetType.ts';
@@ -56,12 +61,14 @@ import { toImgDragProps } from '../../../hooks/useAssetDragToCanvas.ts';
  * 是**同一件事的两份**（人物/场景/道具三项目的 label 与 folder 逐字相同）= M3 第二份。
  * 现只保留「面向用户素材」的 4 项（key 白名单），与 `base/media` 的 library provider
  * **同一判据**（tasks 由「生成」来源承载，不在此重复）。
+ *
+ * 更新(2026-09-17 收口)：白名单**不再在本文件定义**（此前与 library provider 各一份同名同值 = M3 第二份）
+ * → 归到 FOLDERS 的拥有者 `resourceStore`，两处 import 同一常量（TD-02-53）。
  */
-const LIBRARY_CATEGORY_KEYS = ['all', 'character', 'scene', 'prop'];
 const FOLDER_PILLS = FOLDERS.filter((f) => LIBRARY_CATEGORY_KEYS.includes(f.key)).map((f) => ({
   // pill value 用 folder（本面板既有语义：`folder` state 即目录前缀）；
-  // 「全部」在 FOLDERS 里 folder=null → 本面板约定 'migrated'（= 素材库根，与既有 currentFolder 兜底一致）。
-  folder: f.folder ?? 'migrated',
+  // 「全部」在 FOLDERS 里 folder=null → 本面板约定 = 素材库根（真源 LIBRARY_ROOT）。
+  folder: f.folder ?? LIBRARY_ROOT,
   label: f.label,
 }));
 
@@ -146,7 +153,7 @@ function ResourceLibrary() {
   // docs/122 #3：按当前项目拉取素材（legacy project_id NULL 全项目可见，显式 projectId 只对其项目）
   const projectId = useCurrentProjectId();
 
-  const [folder, setFolder] = useState('migrated'); // 当前目录前缀路径（migrated 为「全部」根）
+  const [folder, setFolder] = useState(LIBRARY_ROOT); // 当前目录前缀路径（素材库根 = 「全部」）
   const [preview, setPreview] = useState<ResourceItem | null>(null);
   const videoZoomRef = useRef<HTMLDialogElement>(null); // 视频预览统一走 ImageZoomDialog（含截屏按钮）
 
@@ -176,7 +183,7 @@ function ResourceLibrary() {
   const loadingRef = useRef(false);
   const resetTokenRef = useRef(0);
 
-  const currentFolder = folder || 'migrated'; // 当前目录（用于拉取/打开本地/上传落点）
+  const currentFolder = folder || LIBRARY_ROOT; // 当前目录（用于拉取/打开本地/上传落点）
   /**
    * 拉取过滤方式（用户裁定 2026-09-17）：**「全部」= 精确 `migrated` 根（尚未归类）**。
    *
@@ -189,17 +196,16 @@ function ResourceLibrary() {
    * 派生变量会让 react-hooks/exhaustive-deps 要求把它也列进 deps（它本就随 currentFolder 变）。
    */
   const fetchArgsFor = useCallback(
-    (extra: Record<string, unknown> = {}) =>
-      currentFolder === 'migrated'
-        ? { folderExact: currentFolder, ...extra }
-        : { folder: currentFolder, ...extra },
+    // 根 → 精确 / 子目录 → 前缀：规则走 libraryBrowse（与导入弹窗**同一份实现**，不再自写判断）。
+    (extra: Record<string, unknown> = {}) => ({
+      ...libraryBrowseArgs(currentFolder),
+      ...extra,
+    }),
     [currentFolder],
   );
-  // 返回上一级（在子目录时）
+  // 返回上一级（在子目录时）；到顶（父 = 根）→ 回素材库根。
   const back = useCallback(() => {
-    const parts = folder.split('/');
-    parts.pop();
-    setFolder(parts.length > 0 ? parts.join('/') : 'migrated');
+    setFolder(libraryUpFolder(folder) ?? LIBRARY_ROOT);
   }, [folder]);
 
   // 重置并加载第一页（目录变化时先 rescan，保证与磁盘一致）
@@ -250,7 +256,7 @@ function ResourceLibrary() {
   // 收到即代表后端「文件 + 行 + 目录」已齐备，此刻 rescan 才拉得到它。
   useEffect(() => {
     return onResourceSent((sentFolder: string) => {
-      setFolder(sentFolder || 'migrated');
+      setFolder(sentFolder || LIBRARY_ROOT);
       setRefreshSignal((n) => n + 1);
     });
   }, []);
@@ -422,7 +428,7 @@ function ResourceLibrary() {
           value={folder}
           onChange={(folderPath) => setFolder(folderPath)}
           leading={
-            folder !== 'migrated' ? (
+            folder !== LIBRARY_ROOT ? (
               <button
                 className="pk-pill"
                 onClick={back}
@@ -559,12 +565,9 @@ function ResourceLibrary() {
                     className={`group relative aspect-square bg-surface rounded-xl overflow-hidden transition-colors ${isFolder ? 'border border-edge cursor-pointer hover:border-edge-raised' : 'border border-edge cursor-grab active:cursor-grabbing hover:border-edge-raised'}`}
                     style={{ contentVisibility: 'auto', containIntrinsicSize: '200px 200px' }}
                     onClick={() => {
-                      if (isFolder)
-                        setFolder(
-                          currentFolder === 'migrated'
-                            ? `migrated/${a.name}`
-                            : `${currentFolder}/${a.name}`,
-                        );
+                      // 目录条目 → 自身目录路径：**唯一实现** folderPathOf（不再就地拼 currentFolder/name，
+                      // 那份与「拖入归类」的落点推导是同一条规则的第二份 = M3）。
+                      if (isFolder) setFolder(folderPathOf(a));
                       else setPreview(a);
                     }}
                   >
