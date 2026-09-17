@@ -57,6 +57,12 @@ export interface MenuActionCtx {
   prefetchHeavyNode: (type: string) => void;
   /** 上传隐藏文件输入（菜单「上传」触发 click） */
   uploadRef: { current: HTMLInputElement | null };
+  /**
+   * 打开「导入媒体」弹窗（4 来源：本地/生成/素材库/画布）。
+   * 【为什么替换掉直接 click】原「上传」直接触发文件选择器；现改为打开复用弹窗，
+   * 与剪辑器「导入」共用同一组件（docs/136 地基的第一个消费方）。
+   */
+  openImport?: () => void;
   /** 按 id 取当前节点（App 用 nodesRef.current.find） */
   nodeById: (id: string) => Node | undefined;
   /** 当前选中节点数（App 用 nodesRef.current.filter(selected).length），决定是否出「编组」 */
@@ -187,8 +193,9 @@ export function buildCanvasMenuItems(ctx: MenuActionCtx): ContextMenuItem[] {
     {
       key: 'upload',
       icon: <Upload size={16} className="text-secondary" />,
-      label: '上传',
-      onClick: () => ctx.uploadRef.current?.click(),
+      label: '导入',
+      // 优先走复用弹窗（4 来源）；未注入时回退旧的直接选文件（保持向后兼容）。
+      onClick: () => (ctx.openImport ? ctx.openImport() : ctx.uploadRef.current?.click()),
     },
   ];
 }

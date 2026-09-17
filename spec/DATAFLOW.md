@@ -199,6 +199,46 @@ kvStore.ts = re-export 壳（仅 CANVAS_STATE_PREFIX + kvGet/kvSet/kvDelete 转�
 
 ---
 
+## 三′ · 可引用媒体源链路（横切地基 · `base/media/`）
+
+**一句话**：把「有哪些媒体可以被引用」从各消费方里抽出，收口为**一处注册表 + 一种形状**（`MediaRef`）；本层只做映射，数据仍取自既有真源。
+**红线**：`base/media/` **禁** import 任何非 base 目录（`check:arch` 规则 2 反向判据）；本层**不持久化、不广播**。
+
+```
+消费方（两个入口共用同一弹窗）：
+  ├→ 画布右键菜单「导入」（base/canvas/canvasContextMenu → src/App.tsx）
+  │     → base/panels/ImportMediaModalHost（FullscreenModal 薄壳）
+  │         → base/panels/ImportMediaModal（4 来源 tab + 卡片网格 + 底栏；**只认 MediaRef**）
+  │             落地动作由宿主注入：onPick → App 建 assetNode；onLocalFiles → App createNodeFromFile
+  └→ 剪辑器素材面板「导入」（videoEditor/.../assets/views/media.tsx）
+        → 同一个 ImportMediaModalHost
+             onPick → linkMediaRefsToProject（登记引用：fetch→File **不上传** + 双轨去重）
+             onLocalFiles → processFiles（走既有上传链路）
+
+  → base/media/index.ts（唯一出口，import 即完成内置来源自注册）
+      ├→ mediaRefRegistry（queryMediaRefs 单来源 / searchMediaRefs 跨来源部分成功）
+      │    └→ providers/index.ts（唯一 import 点 · 模块副作用自注册）
+      │         ├→ providers/canvasSource     source='canvas'    ← base/canvas/nodeMedia.getNodeMedia（只取主媒体）
+      │         │                                      + base/utils/assetUrl.resolveAssetDisplayUrl（contentId→url）
+      │         │                                      + base/core/utils.toAbsoluteFileUrl（url 归一）
+      │         │                                      ← base/media/canvasNodesBridge（画布节点只读快照）
+      │         ├→ providers/librarySource    source='library'   ← base/api/localToolApi.fetchResources（分页首屏；folder=query.folder）
+      │         │                                      + base/utils/assetType.detectAssetType
+      │         └→ providers/generatedSource  source='generated' ← **委托 librarySource**（注入 folder:'tasks'，M3 不抄第二份）
+      └→ canvasNodesBridge（写/读/订阅三件套；**单向**：只有 App.tsx 写）
+           ← src/App.tsx 的 nodes 变化 effect（引用赋值；引用相等短路，不通知）
+
+真源（**不重实现，只复用**）：nodeMedia(①) · resolveAssetDisplayUrl(②) · fetchResources(③) ·
+  resourceStore(④) · toAbsoluteFileUrl(⑥) · assetType/detectAssetType(⑦)
+```
+
+**fan-in**：`base/media/index.ts` ← **1 处**（`ImportMediaModal`）；`ImportMediaModalHost` ← **2 处**（画布 App + 剪辑器 media.tsx）。
+**关键边界**：`canvasNodesBridge` 是**投影不是状态**（真源永远是 App 的 `nodes`）；多窗口下只反映本窗口 nodes（既有架构边界，非 bug）。
+**引用语义**：剪辑器从「生成/素材库/画布」导入 = 登记引用（`saveMediaAsset` 见 `persistentUrl` 即跳过上传）；从「本地导入」= 既有上传。
+**防回潮闸**：`check:arch` 规则 2（base 禁反向依赖业务域 —— 弹窗只认 MediaRef，不碰 videoEditor）· 规则 6（禁绕过 contentStore 直调底层 —— 本层零存储依赖）。
+
+---
+
 ## 四 · 云同步（Cloud）链路
 
 **一句话**：`cloudSync` 是**编排层**，不持有真相（真相在各域 store / contentStore）。

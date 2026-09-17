@@ -48,6 +48,13 @@ import {
   selectedNodeIdSig,
   type SelectedAsset,
 } from './components/base/canvas/nodeMedia.ts';
+// 画布节点只读快照桥（docs/136 地基）：剪辑器在 ReactFlowProvider 之外、拿不到 useReactFlow，
+// 故把 nodes 投影到 base 层供「可引用媒体源」读取。单向：只有本文件写，其他模块只读。
+import { setCanvasNodesSnapshot } from './components/base/media/canvasNodesBridge.ts';
+// 可复用「导入媒体」弹窗（docs/136 地基的第一个消费方）：
+// 与剪辑器「导入」共用同一组件，4 来源（本地/生成/素材库/画布）；画布入口的落地动作 = 建 assetNode。
+import ImportMediaModalHost from './components/base/panels/ImportMediaModalHost.tsx';
+import type { MediaRef } from './components/base/media/mediaRefTypes.ts';
 import LeftPanel from './components/base/panels/LeftPanel.tsx';
 import {
   switchProject,
@@ -428,6 +435,8 @@ function Canvas() {
   const edgesRef = React.useRef(edges);
   React.useEffect(() => {
     nodesRef.current = nodes;
+    // 同步到 base 层只读快照（引用赋值；bridge 内部引用相等短路，不产生无谓通知）。
+    setCanvasNodesSnapshot(nodes);
   }, [nodes]);
   React.useEffect(() => {
     edgesRef.current = edges;
@@ -1007,6 +1016,43 @@ function Canvas() {
     },
     [createNodeFromFile, posAtCenter],
   );
+
+  /* ── 「导入媒体」弹窗（docs/136 地基的第一个消费方 · 入口 A = 画布右键菜单） ──
+   * 与剪辑器「导入」共用同一组件 `ImportMediaModalHost`，只是落地动作不同：
+   *   画布入口 → 在视图中央建 assetNode（本文件实现）；
+   *   剪辑器入口 → linkMediaRefsToProject（在 media.tsx 实现）。
+   * 本文件**不 import 剪辑器**（分层：画布属上层，但剪辑器是另一业务域，不该互相依赖）。 */
+  const [importOpen, setImportOpen] = useState(false);
+  // 从 MediaRef 建 assetNode：文件型（有 contentId）→ 写 contentId（url 由 resource 反查）；
+  // 否则写 assetUrl（内联/绝对 URL）。两者互斥（docs/122 #4），故按 contentId 有无二选一。
+  const handleImportPick = useCallback(
+    (items: MediaRef[]) => {
+      const base = posAtCenter();
+      items.forEach((it, i) => {
+        // 多选时错开排布，避免重叠成一叠。
+        const pos = { x: base.x + (i % 5) * 260, y: base.y + Math.floor(i / 5) * 260 };
+        const data =
+          it.contentId != null
+            ? { contentId: it.contentId, label: it.name }
+            : { assetUrl: it.url, label: it.name };
+        addNode('assetNode', pos, data);
+      });
+      if (items.length > 0) showToast(`已导入 ${items.length} 个素材`);
+    },
+    // addNode 是稳定 useCallback；showToast 模块级函数。
+    [addNode, posAtCenter],
+  );
+  const handleImportLocalFiles = useCallback(
+    (files: FileList) => {
+      const base = posAtCenter();
+      Array.from(files).forEach((file, i) => {
+        const pos = { x: base.x + (i % 5) * 260, y: base.y + Math.floor(i / 5) * 260 };
+        createNodeFromFile(file, pos);
+      });
+    },
+    [createNodeFromFile, posAtCenter],
+  );
+
   // 全局粘贴监听（文档级）
   useGlobalPaste(onPaste);
 
@@ -1076,6 +1122,7 @@ function Canvas() {
     togglePinTool,
     prefetchHeavyNode,
     uploadRef,
+    openImport: () => setImportOpen(true),
     nodeById: (id) => nodesRef.current.find((n) => n.id === id),
     selectedCount: () => nodesRef.current.filter((n) => n.selected).length,
     duplicateSelected: (onlyId?) => copySelectedNodes(onlyId),
@@ -1542,13 +1589,24 @@ function Canvas() {
                 }}
               />
 
-              {/* 右键菜单「上传」隐藏文件输入（复刻官方 Re，选中文件建素材节点） */}
+              {/* 右键菜单「上传」隐藏文件输入（复刻官方 Re，选中文件建素材节点）
+                  —— 菜单已改走「导入」弹窗；此输入保留为未注入 openImport 时的回退路径。 */}
               <input
                 ref={uploadRef}
                 type="file"
                 accept="image/*,video/*,audio/*,text/plain"
                 style={{ display: 'none' }}
                 onChange={handleUploadFile}
+              />
+
+              {/* 「导入媒体」弹窗（4 来源：本地/生成/素材库/画布）—— 与剪辑器共用同一组件。
+                  挂在此处（画布内层）：与画布同生命周期，projectId 随之可读。 */}
+              <ImportMediaModalHost
+                open={importOpen}
+                onClose={() => setImportOpen(false)}
+                projectId={activeProjectId ?? undefined}
+                onPick={handleImportPick}
+                onLocalFiles={handleImportLocalFiles}
               />
             </>
           )}

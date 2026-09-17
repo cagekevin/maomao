@@ -45,6 +45,11 @@ import {
 import { RemoveMediaAssetCommand } from '@/components/videoEditor/engine/commands';
 import { useAssetsPanelStore } from '@/components/videoEditor/stores/assets-panel-store';
 import { useMediaPreviewStore } from '@/components/videoEditor/stores/media-preview-store';
+// 可复用「导入媒体」弹窗（docs/136 地基 · 入口 B）—— 与画布右键菜单共用**同一个组件**。
+// 落地动作走本文件的 `linkMediaRefsToProject`（登记引用，不上传）。
+import ImportMediaModalHost from '@/components/base/panels/ImportMediaModalHost.tsx';
+import { linkMediaRefsToProject } from '@/components/videoEditor/ui/editor/panels/assets/link-media-refs';
+import type { MediaRef } from '@/components/base/media/mediaRefTypes.ts';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import type { CreateTimelineElement } from '@/components/videoEditor/types/timeline';
 import { cn } from '@/components/videoEditor/utils/ui';
@@ -74,6 +79,8 @@ export function MediaView() {
   const [progress, setProgress] = useState(0);
   const [sortBy, setSortBy] = useState<'name' | 'type' | 'duration' | 'size'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  // 「导入媒体」弹窗开关（复用 base/panels 的同一组件；落地动作见 linkRefsToProject）。
+  const [importOpen, setImportOpen] = useState(false);
 
   const processFiles = async ({ files }: { files: FileList | File[] }) => {
     if (!files || files.length === 0) return;
@@ -110,6 +117,30 @@ export function MediaView() {
     multiple: true,
     onFilesSelected: (files) => processFiles({ files }),
   });
+
+  /**
+   * 「导入媒体」弹窗的落地动作（docs/136 §9.3 · 路线 A）。
+   * 从「生成/素材库/画布」选中的素材，二进制已在 `/files/` → **登记引用，不上传**。
+   */
+  const linkRefsToProject = async (items: MediaRef[]) => {
+    if (!activeProject) {
+      toast.error('没有活跃项目');
+      return;
+    }
+    const res = await linkMediaRefsToProject({
+      items,
+      projectId: activeProject.metadata.id,
+      media: editor.media,
+    });
+    if (res.ok) {
+      toast.success(
+        res.skipped.length > 0
+          ? `已导入 ${res.linked.length} 个素材（${res.skipped.length} 个已存在）`
+          : `已导入 ${res.linked.length} 个素材`,
+      );
+    }
+    // 失败分支：linkMediaRefsToProject 内部已 toast + logger（部分成功不静默）。
+  };
 
   const handleRemove = async ({ event, id }: { event: React.MouseEvent; id: string }) => {
     event.stopPropagation();
@@ -357,12 +388,23 @@ export function MediaView() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={openFilePicker}
+                  onClick={() => setImportOpen(true)}
                   className="items-center justify-center gap-1.5 ml-1.5 px-3"
                 >
                   <UploadCloud />
                   {'导入'}
                 </Button>
+                {/* 「导入媒体」弹窗（与画布右键菜单**同一组件**）：
+                    本地 tab → processFiles（走既有上传）；生成/素材库/画布 → linkRefsToProject（登记引用）。
+                    ⚠️ 不挂在 Radix 菜单项上（`openFilePicker` 的时序事故见上方长注释）；
+                    本弹窗由按钮 state 驱动，无该问题。 */}
+                <ImportMediaModalHost
+                  open={importOpen}
+                  onClose={() => setImportOpen(false)}
+                  projectId={activeProject?.metadata.id}
+                  onPick={linkRefsToProject}
+                  onLocalFiles={(files) => processFiles({ files })}
+                />
               </div>
             </div>
           </PropertyGroup>

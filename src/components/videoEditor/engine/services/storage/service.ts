@@ -32,7 +32,8 @@ import { logger } from '../../../../base/core/logger.ts';
 // ── T4（docs/134）：素材二进制改走 localTool /files/（docs/133 §3.2 D-3）。
 // 更新(2026-09-16 · TD-02-35)：素材**元数据**载体同时收口 —— 原浏览器 IndexedDB → KV（见 readMediaMetaMap）。
 import { uploadFileToLocal } from '../../../../base/api/filesApi.ts';
-import { deleteResource, fetchResources } from '../../../../base/api/localToolApi.ts';
+// 【2026-09-17 · docs/136 §9.2 A3】原 `deleteResource`/`fetchResources` 随 releaseResourceRefs 删除后
+// 已无消费者（剪辑器不再触碰 resources 行）—— 一并移除，避免"幽灵 import"（M6）。
 import { UPLOAD_DIRS } from '../../../../base/utils/uploadDirs.ts';
 
 /**
@@ -374,15 +375,20 @@ class StorageService {
     // 仅在元数据里留一条记录（无 url），loadMediaAsset 见无 url 即返回 null（不误导下游以为是持久素材）。
     // ── T4/T5-B②：持久素材的二进制改走 localTool /files/（docs/133 §3.2 D-3）。
     // 第 4 参必须传**画布 projectId**（后端写 resource 行 project_id；传 editorId 会让项目隔离错位）。
+    // ── 引用分支（docs/136 §9.2 · P0-2 · 2026-09-17）：来自「画布/素材库/生成」的素材**二进制已在
+    //    /files/**，只需登记引用，**绝不再上传一份**（消费者持引用态，不为自保持副本 —— 心法铁律 7）。
+    //    判据：调用方已显式声明 `persistentUrl`（= 素材已在 /files/ 的持久地址）。
     const canvasProjectId = canvasProjectIdOrNull();
     const fileUrl = mediaAsset.ephemeral
       ? null
-      : await uploadFileToLocal(
-          mediaAsset.file,
-          UPLOAD_DIRS.videoEditor,
-          mediaAsset.name,
-          canvasProjectId ?? undefined,
-        );
+      : mediaAsset.persistentUrl
+        ? mediaAsset.persistentUrl // 引用：二进制已在 /files/，跳过上传（不复制、不落盘）
+        : await uploadFileToLocal(
+            mediaAsset.file,
+            UPLOAD_DIRS.videoEditor,
+            mediaAsset.name,
+            canvasProjectId ?? undefined,
+          );
 
     // ── 修复(2026-09-14 · 假成功)：持久素材上传失败 = **本次没存住**，必须炸开，
     // 不能"写一条无 url 的元数据"假装成功（那会：刷新后素材变空壳、且 /files/ 无对应文件）。
@@ -409,6 +415,8 @@ class StorageService {
       thumbnailUrl: mediaAsset.thumbnailUrl,
       ephemeral: mediaAsset.ephemeral,
       url: fileUrl ?? undefined,
+      // docs/136 P0-3：稳定内容身份随素材落盘 —— 否则刷新后去重只能靠 url，改名即失效。
+      contentId: mediaAsset.contentId,
     };
 
     const map = await this.readMediaMetaMap(projectId);
@@ -486,6 +494,8 @@ class StorageService {
       hasAudio: metadata.hasAudio,
       thumbnailUrl: metadata.thumbnailUrl,
       ephemeral: metadata.ephemeral,
+      // docs/136 P0-3：还原稳定内容身份（刷新后去重仍可按 contentId，不依赖 url）。
+      contentId: metadata.contentId,
     };
   }
 
@@ -503,79 +513,36 @@ class StorageService {
     return mediaItems;
   }
 
-  /**
-   * 解除一批 /files/ 素材对后端 resources 表的引用（T5-B③）。
-   *
-   * 【为什么不是直接删文件】后端 delete-file 明确**只删「全库无引用」的文件**，
-   * 被引用即 `skipped:'referenced'` 不删；而我们的素材上传时带了 projectId → 必然登记了 resource 行
-   * → 直接删文件**永远失败**（已实测确认）。后端既定纪律是「只删记录，删盘交给引用感知 GC
-   * （runReferenceGc 查 resources + tasks + **KV** 三处引用）」。故正确姿势：
-   *   ① 按 url 反查该素材的 resource 行 → ② 删记录（deleteResource 内部触发 GC 裁决回收）。
-   *
-   * 反查用 `fetchResources({ folder, projectId })`（folder 取素材落盘目录、projectId 取画布 id），
-   * 再按 url 精确匹配（资源列表是分页的，故按落盘目录 + 本项目过滤把候选压到最小）。
-   * 任一步失败**不阻断**元数据清理：残留的 resource 行会被后续 GC 兜底，比"删不掉就卡死"更安全。
-   */
-  private async releaseResourceRefs(
-    urls: string[],
-    { folder, projectId }: { folder: string; projectId: string | null },
-  ): Promise<void> {
-    const targets = new Set(urls.filter(Boolean));
-    if (targets.size === 0) return;
-
-    try {
-      // 资源可能跨多页（素材多了以后），逐页扫到没有再停；通常一页足够。
-      for (let page = 1; page <= 20; page++) {
-        const res = await fetchResources({
-          folder,
-          page,
-          pageSize: 200,
-          projectId: projectId ?? undefined,
-        });
-        const items = res?.data?.items ?? [];
-        if (items.length === 0) break;
-
-        const hits = items.filter((it) => it.url && targets.has(it.url));
-        await Promise.all(hits.map((hit) => deleteResource(String(hit.id))));
-
-        if (items.length < 200) break; // 最后一页
-      }
-    } catch (e) {
-      logger.warn('视频剪辑器', '素材资源引用解除失败（交后续 GC 兜底）', {
-        count: targets.size,
-        error: String(e),
-      });
-    }
-  }
+  // ── 【2026-09-17 · docs/136 §9.2 推论 A3 · 已删 `releaseResourceRefs` + 2 处调用】
+  //
+  // 【删它的判据 —— 职责归属，心法铁律 7：消费者不约束所有方】
+  //  #resources 行是**全库共享的"这个文件存在过"的登记**，其所有方是**素材库（本源）**；
+  //  剪辑器只是**消费者**。消费者删自己工程里的一条引用，**凭什么去删别人的登记行？**
+  //  那是把"从我的工程里移除它"错误地实现成了"销毁这个文件"—— 归属越界。
+  //
+  // 【修正后的语义（三行都对）】
+  //  磁盘实体     `/files/` 里的文件        → 不碰（回收归引用感知 GC 裁决）
+  //  resources 行 文件的全局登记            → **不碰**（本轮删掉的就是这处越界）
+  //  工程元数据   KV `video_editor_media_meta_*` → 删（这才是剪辑器自己的）
+  //  工程素材数组 `editor.media.getAssets()`     → 删（剪辑器自己的）
+  //
+  // 【代价（唯一一条，已知且正确）】素材库会**保留**剪辑器用过的素材（哪怕已无人引用）。
+  //  这不是脏数据：用户在剪辑器里用过的图本来就是素材；真正的清理归**引用感知 GC**
+  //  （"全库无引用才回收"）；素材库面板本身有删除按钮，用户想清就显式删。
+  //
+  // ⚠️ 上面这条对本剪辑器**自己上传**的素材（本地导入）也同样适用 ——
+  //  即"上传时登记了 resources 行、删除却不撤销登记"。这是**有意的一致语义**：
+  //  统一由本源 GC 裁决，而不是"我传的我就有权删登记"（那会退化成"看谁传的"的双标）。
 
   async deleteMediaAsset({ projectId, id }: { projectId: string; id: string }): Promise<void> {
     const map = await this.readMediaMetaMap(projectId);
-
-    // ── T5-B③：先解除 /files/ 素材的后端资源引用（否则删一次素材留一个孤儿文件）。
-    const metadata = map[id];
-    if (metadata?.url) {
-      await this.releaseResourceRefs([metadata.url], {
-        folder: UPLOAD_DIRS.videoEditor,
-        projectId: canvasProjectIdOrNull(),
-      });
-    }
-
+    // 只删自己那两行（工程元数据 + 工程素材数组），不碰 resources 行、不碰磁盘文件。
     delete map[id];
     await this.writeMediaMetaMap(projectId, map);
   }
 
   async deleteProjectMedia({ projectId }: { projectId: string }): Promise<void> {
-    const map = await this.readMediaMetaMap(projectId);
-
-    // ── T5-B③：整个工程的媒体一起删时，批量解除资源引用后再清表。
-    await this.releaseResourceRefs(
-      Object.values(map)
-        .map((m) => m.url)
-        .filter((u): u is string => Boolean(u)),
-      { folder: UPLOAD_DIRS.videoEditor, projectId: canvasProjectIdOrNull() },
-    );
-
-    // 清表 = 删键（原 IndexedDB `clear()` 的等价语义）
+    // 清表 = 删键（原 IndexedDB `clear()` 的等价语义）；resources 行同样不碰（见上）。
     await contentDeleteAsync(videoEditorMediaMetaKey(projectId));
   }
 

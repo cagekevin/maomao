@@ -28,6 +28,16 @@ export interface MediaAssetData {
   thumbnailUrl?: string;
   /** T4（docs/134）：素材二进制落 localTool /files/ 后的可访问 URL（替代 OPFS 二进制存储）。 */
   url?: string;
+  /**
+   * 稳定内容身份（`sha1:<hex>`，与后端 `resources.sha1` 同源）。
+   *
+   * 【为什么新增（docs/136 §9.3 / P0-3 · 2026-09-17）】来自「画布/素材库/生成」的引用素材，
+   * 导入时需按它**去重**（同一张图不应因走了不同来源而重复登记）。`contentId` 是稳定身份：
+   * resource 行改名/移动只改 context，contentId 不变 —— 而 `url` 会变。
+   * ⚠️ 它**缺失是常态**（画布图往往没有）→ 去重必须**双轨**（contentId + 归一化 url），
+   * 不能只按 contentId（否则多数情况静默重复登记）。
+   */
+  contentId?: string;
 }
 
 export interface MediaAsset extends Omit<MediaAssetData, 'size' | 'lastModified'> {

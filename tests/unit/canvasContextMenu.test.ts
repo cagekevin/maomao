@@ -2,7 +2,7 @@
  * canvasContextMenu 三态右键菜单生成器单测。
  *
  * 覆盖（纯函数 → 输入 ctx/state → 断言 items 结构）：
- *  - buildCanvasMenuItems：默认四项（文本/图片/视频/剧本盒子）+ 上传；pinnedTools 固定后
+ *  - buildCanvasMenuItems：默认四项（文本/图片/视频/剧本盒子）+ 导入；pinnedTools 固定后
  *    该项升入一级，且二级「仍保留」（图钉是取消固定唯一把手，禁止删二级固定项 —— 防回归）。
  *  - buildNodeMenuItems：assetNode/imageGenerateNode 有「复制图片」，group 有「取消编组」，普通节点无。
  *  - buildSelectionMenuItems：选中 <2 无「编组」，≥2 有「编组」+ 复制 + 删除。
@@ -58,14 +58,39 @@ const keyed = (
   }>;
 
 describe('buildCanvasMenuItems（空白右键）', () => {
-  it('默认渲染四项 + 上传（文本/图片/视频/剧本盒子）', () => {
+  it('默认渲染四项 + 导入（文本/图片/视频/剧本盒子）', () => {
     const items = buildCanvasMenuItems(makeCtx());
     const ls = labels(items);
     expect(ls).toContain('文本');
     expect(ls).toContain('图片');
     expect(ls).toContain('视频');
     expect(ls).toContain('剧本盒子');
-    expect(ls).toContain('上传');
+    // 【2026-09-17 · docs/136】原「上传」改「导入」：菜单项改开复用弹窗（4 来源），
+    // 未注入 `openImport` 时才回退旧的直接选文件。
+    expect(ls).toContain('导入');
+  });
+
+  it('「导入」优先走 openImport（复用弹窗）；未注入时回退 uploadRef.click（向后兼容）', () => {
+    const openImport = vi.fn();
+    const click = vi.fn();
+    const items = buildCanvasMenuItems(
+      makeCtx({ openImport, uploadRef: { current: { click } as never } }),
+    );
+    const upload = keyed(items).find((i) => i.key === 'upload') as
+      { onClick?: () => void } | undefined;
+    upload?.onClick?.();
+    expect(openImport).toHaveBeenCalledTimes(1);
+    expect(click).not.toHaveBeenCalled(); // 有 openImport 时不再直连文件选择器
+
+    // 未注入 openImport → 回退旧路径
+    const click2 = vi.fn();
+    const items2 = buildCanvasMenuItems(
+      makeCtx({ uploadRef: { current: { click: click2 } as never } }),
+    );
+    const upload2 = keyed(items2).find((i) => i.key === 'upload') as
+      { onClick?: () => void } | undefined;
+    upload2?.onClick?.();
+    expect(click2).toHaveBeenCalledTimes(1);
   });
 
   it('pinnedTools 固定节点升入一级（pinned-<type>），且二级仍保留（图钉取消把手，禁删）', () => {
