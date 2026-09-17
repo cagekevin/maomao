@@ -28,7 +28,6 @@ import {
   setTabGlobalStyle,
 } from '../assistantTable/assistantTable.ts';
 import { validateTabs } from '../assistantTable/tableInvariants.ts';
-import { IS_DEV } from '@/components/base/core/config';
 import { logger } from '../../base/core/logger.ts';
 import type { AssistantTableTabs } from '../assistantTable/assistantTable.ts';
 
@@ -96,20 +95,18 @@ export function materializeAssistantTabs(): void {
 }
 
 /** 写当前对话的多标签页集合（归一后落 memory.assistantTables + commit 自动落盘）
- *  P2 运行时校验 2026-09-08：落盘前跑 validateTabs，dev 下对硬约束（error）告警——
+ *  P2 运行时校验 2026-09-08：落盘前跑 validateTabs，对硬约束（error）违规告警——
  *  让 copyTab 式「引用脱节」在写代码当下的运行时就被抓住，而非只靠单测。 */
 export function setCurrentAssistantTabs(tabs: AssistantTableTabs): void {
   const conv = requireActiveConv('setCurrentAssistantTabs');
   if (!conv) return;
   const normalized = normalizeAssistantTabs(tabs);
-  if (IS_DEV) {
-    const violations = validateTabs(normalized).filter((v) => v.level === 'error');
-    if (violations.length) {
-      logger.warn('AI助手', '表格落盘前不变量校验失败', {
-        conversationId: conv.id,
-        violations,
-      });
-    }
+  const violations = validateTabs(normalized).filter((v) => v.level === 'error');
+  if (violations.length) {
+    logger.warn('AI助手', '表格落盘前不变量校验失败', {
+      conversationId: conv.id,
+      violations,
+    });
   }
   commit({
     ...getState(),

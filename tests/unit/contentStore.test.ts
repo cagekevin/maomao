@@ -43,14 +43,6 @@ const { mockStorageAdapter, mockLocalToolApi, mockLogger } = vi.hoisted(() => {
 vi.mock('../../src/components/base/storage/storageAdapter.ts', () => mockStorageAdapter);
 vi.mock('../../src/components/base/api/localToolApi.ts', () => mockLocalToolApi);
 vi.mock('../../src/components/base/core/logger.ts', () => mockLogger);
-// IS_DEV 跟随 process.env.NODE_ENV（测试用 vi.stubEnv 翻转到 production 验证「生产降级」分支）。
-// 仅覆盖 IS_DEV，其余导出（KV_TIMEOUT 等）经 importOriginal 全量保留，避免牵连 contracts 等模块。
-vi.mock('../../src/components/base/core/config.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/components/base/core/config.ts')>()),
-  get IS_DEV() {
-    return process.env.NODE_ENV !== 'production';
-  },
-}));
 
 // 防 logger 被 NODE_ENV 条件影响
 vi.stubEnv('NODE_ENV', 'test');
@@ -535,37 +527,18 @@ describe('动态键模式匹配', () => {
  * 未登记键 warning
  * ════════════════════════════════════════════════════════════════ */
 
-describe('未登记键 编译期拦截（开发环境）', () => {
-  // 本块默认 NODE_ENV='test'（见文件顶部 vi.stubEnv），非 production → 应抛错拦截
-  it('contentGet 未登记字面量键直接抛错（开发环境）', () => {
+describe('未登记键 硬拦截（不分环境一律抛错）', () => {
+  it('contentGet 未登记字面量键直接抛错', () => {
     expect(() => contentGet('unknown-key')).toThrow(/未登记的存储键/);
   });
 
-  it('contentSet 未登记字面量键直接抛错（开发环境）', () => {
+  it('contentSet 未登记字面量键直接抛错', () => {
     expect(() => contentSet('unknown-key', 'value')).toThrow(/未登记的存储键/);
   });
 
-  it('未登记字面量键重复调用每次都抛（开发环境硬拦截）', () => {
+  it('未登记字面量键重复调用每次都抛（硬拦截）', () => {
     expect(() => contentGet('unknown-key')).toThrow(/未登记的存储键/);
     expect(() => contentGet('unknown-key')).toThrow(/未登记的存储键/);
-  });
-});
-
-describe('未登记键 生产环境降级（仅 warning 不抛）', () => {
-  // 模拟生产：NODE_ENV=production 时即便未登记字面量键也不抛，保持线上兼容
-  beforeEach(() => vi.stubEnv('NODE_ENV', 'production'));
-  afterEach(() => vi.stubEnv('NODE_ENV', 'test'));
-
-  it('contentGet 未登记字面量键在生产环境仅 warning 不抛', () => {
-    expect(contentGet('unknown-key')).toBeUndefined();
-    expect(mockLogger.logger.warn).toHaveBeenCalled();
-    // logger.warn 契约为 (category, action, detail?)：键名现在落在第 2 参 action 上
-    expect(mockLogger.logger.warn.mock.calls[0][1]).toContain('unknown-key');
-  });
-
-  it('contentSet 未登记字面量键在生产环境仅 warning 不抛', () => {
-    expect(() => contentSet('unknown-key', 'value')).not.toThrow();
-    expect(mockLogger.logger.warn).toHaveBeenCalled();
   });
 });
 

@@ -28,7 +28,6 @@ import { sGet } from '@/components/base/storage/index.ts';
 import { withTimeout } from '../../base/utils/asyncGuard.ts';
 import { generateId } from '../../base/core/idGen.ts';
 import { CREDIT_GATE_FIELD } from '../../base/core/contracts.ts';
-import { IS_DEV } from '@/components/base/core/config';
 // 【TD-15-1】agentKey 前缀 / 会话键构造收口到 base/core 单一真源（禁本地再拼字面量）
 import {
   AGENT_KEY_PREFIX,
@@ -118,21 +117,19 @@ const persistDebounced = createDebouncedPersist(() => {
   const normalized = next.conversations
     .map((conv) => normalizeConversation({ ...conv, messages: conv.messages }))
     .filter((c): c is Conversation => c != null);
-  // 【批2 · 落盘前写前校验】dev 下对硬约束（error）违规告警——把「假成功」在写时就抓住，不等用户踩。
+  // 【批2 · 落盘前写前校验】对硬约束（error）违规告警——把「假成功」在写时就抓住，不等用户踩。
   // 只作用于内存归一副本，与落盘投影降级互不影响；P1 体积仍由下方 applyConversationBudget 强制。
-  if (IS_DEV) {
-    const violations = validateConversationState({
-      conversations: normalized,
-      activeId: next.activeId,
-      sending: false,
-    }).filter((v) => v.level === 'error');
-    if (violations.length) {
-      logger.warn('AI助手', '会话落盘前不变量校验失败', {
-        key: convKey(currentAgentKey),
-        count: violations.length,
-        violations,
-      });
-    }
+  const violations = validateConversationState({
+    conversations: normalized,
+    activeId: next.activeId,
+    sending: false,
+  }).filter((v) => v.level === 'error');
+  if (violations.length) {
+    logger.warn('AI助手', '会话落盘前不变量校验失败', {
+      key: convKey(currentAgentKey),
+      count: violations.length,
+      violations,
+    });
   }
   // volumePolicy 的 ChatMessage.content 是 string 窄类型；真实消息 content 可为数组，这里只在
   // 落盘降级投影这一边界做一次断言（运行时 shape 兼容），避免把整套消息类型都收窄到 string。

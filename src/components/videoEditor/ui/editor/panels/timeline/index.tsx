@@ -26,7 +26,6 @@ import { useSelectionBox } from '@/components/videoEditor/hooks-cutia/timeline/u
 import { SnapIndicator } from './snap-indicator';
 import type { SnapPoint } from '@/components/videoEditor/hooks-cutia/timeline/use-timeline-snapping';
 import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
-import { IS_DEV } from '@/components/videoEditor/constants/editor-constants';
 import {
   TIMELINE_CONSTANTS,
   TRACK_ICONS,
@@ -285,9 +284,6 @@ export function Timeline() {
                             }}
                           />
                           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-                            {IS_DEV && isMainTrack(track) && (
-                              <div className="bg-destructive size-1.5 rounded-full" />
-                            )}
                             {canTracktHaveAudio(track) && (
                               <TrackToggleIcon
                                 isOff={track.muted}

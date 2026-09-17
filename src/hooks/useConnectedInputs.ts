@@ -21,7 +21,6 @@ import {
 } from '../components/base/utils/assetUrl.ts';
 import { getResources } from '../components/base/store/resourceStore.ts';
 import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.ts';
-import { IS_DEV } from '@/components/base/core/config';
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -489,8 +488,8 @@ export function uncoveredOutputNodeTypes(): string[] {
   return Object.keys(NODE_TYPES).filter((t) => !covered.has(t));
 }
 
-// dev 加载期给可读 warning（生产零开销）：覆盖缺口 = 该类型的上游产出可能静默缺失。
-if (IS_DEV) {
+// 加载期覆盖完整性自检（不分环境）：覆盖缺口 = 该类型的上游产出可能静默缺失，有缺口就是真 bug，谁来加载谁报。
+{
   const missing = uncoveredOutputNodeTypes();
   if (missing.length) {
     // eslint-disable-next-line no-console

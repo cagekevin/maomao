@@ -72,7 +72,6 @@ import { logger } from './logger.ts';
 import { compilePatternRegex } from './utils.ts';
 import { tryParse as tryParseSafe } from '../utils/asyncGuard.ts';
 import { withTimeout } from '../utils/asyncGuard.ts';
-import { IS_DEV } from './config.ts';
 
 /** 存储后端：local(localStorage) / kv(云端 KV) / native(原生桥) */
 export type StorageBackend = 'local' | 'kv' | 'native';
@@ -239,43 +238,34 @@ function isPatternMatch(key: string): boolean {
  *
  * 编译期拦截补强（2026-08-19 补充，对应架构文档 P0-1）：
  *   原设计仅 warning 一次，漏登记/拼写错的裸 key 只在运行时静默 undefined，
- *   无法在开发期暴露。现升级为——开发环境下「字符串字面量键」且确实未登记时
- *   直接 throw，让错误在改代码当轮就爆出来（等价于「改 key 编译报错」的运行时版）。
+ *   无法暴露。现升级为——「字符串字面量键」且确实未登记时直接 throw
+ *  （不分环境一律硬拦，2026-09-18 移除 dev/生产分叉），让错误在改代码当轮就爆出来
+ *  （等价于「改 key 编译报错」的运行时版）。
  *   - 动态拼接/变量键（非字面量）无法静态判定，仅 warning，不拦，避免误伤。
- *   - 生产环境保持原行为：仅 warning，不影响线上。
  *   - 新增存储键必须先在本文件 STORAGE_KEYS 登记（契约登记表单一事实来源）。
  */
 function checkRegistered(key: string): boolean {
   if (key in KEYS) return true;
   if (isPatternMatch(key)) return true;
   const isLiteral = typeof key === 'string' && key.length > 0;
-  // 编译期拦截补强（2026-08-19，对应架构 P0-1）：
-  //   开发环境（非 production）下，裸字面量键未登记 = 拼写错/漏登记 → 直接抛错，
+  // 运行时硬拦截（2026-08-19，对应架构 P0-1；2026-09-18 移除 dev/生产分叉）：
+  //   裸字面量键未登记 = 拼写错/漏登记 = bug，不分环境一律抛错，
   //   让错误在改代码当轮暴露（等价于「改 key 编译报错」的运行时版）。每次误用都抛（硬拦截）。
-  //   生产环境不抛，仅 warning，保持线上兼容。
-  if (isLiteral && IS_DEV) {
+  if (isLiteral) {
     throw new Error(
       `[contentStore] 未登记的存储键: "${key}"。` +
         `请先在 src/components/base/contracts.ts 的 STORAGE_KEYS 登记（禁止裸字符串 key）。` +
         `动态拼接键请确认拼接结果已登记为 pattern 模板。`,
     );
   }
-  // warning 去重（开发/生产都打，但只打一次，避免刷屏）
+  // 动态键（非字面量，无法静态判定）不拦：仅 warning，每键只 warn 一次避免刷屏
   if (warnedKeys.has(key)) return false;
   warnedKeys.add(key);
-  // 【签名对齐】logger.warn 现签名为 (category, action, detail?)；此处原按「整句即 category」的旧
-  // 用法传单参，转 .ts 后暴露。改为标准两参，日志输出从「整句」变为「contentStore | 整句」。
-  if (isLiteral) {
-    logger.warn(
-      'contentStore',
-      `未登记的存储键: "${key}"，请先在 contracts.ts 的 STORAGE_KEYS 登记`,
-    );
-  } else {
-    logger.warn(
-      'contentStore',
-      `未登记的存储键(动态): "${key}"，请先在 contracts.ts 的 STORAGE_KEYS 登记`,
-    );
-  }
+  // 【签名对齐】logger.warn 签名为 (category, action, detail?)，输出「contentStore | 整句」。
+  logger.warn(
+    'contentStore',
+    `未登记的存储键(动态): "${key}"，请先在 contracts.ts 的 STORAGE_KEYS 登记`,
+  );
   return false;
 }
 
