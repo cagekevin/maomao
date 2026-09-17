@@ -33,6 +33,7 @@ vi.mock('../../src/components/base/utils/imageCompress.ts', () => ({
 }));
 
 import AssetNode from '../../src/components/nodes/AssetNode.tsx';
+import { toAbsoluteFileUrl } from '../../src/components/base/core/utils.ts';
 beforeEach(() => {
   mocks.resetNodeMockState();
 });
@@ -82,9 +83,9 @@ describe('AssetNode — 内容态', () => {
     // 初始走按需小图（缩略图端点），不是原图地址
     expect(first?.getAttribute('src')).not.toBe('/files/web/abc.png');
 
-    // ① 缩略图端点失败 → 回退原图
+    // ① 缩略图端点失败 → 回退原图（**归一后的可加载地址**，见 useImageFallbackSrc）
     fireEvent.error(first as HTMLImageElement);
-    expect(imgEl()?.getAttribute('src')).toBe('/files/web/abc.png');
+    expect(imgEl()?.getAttribute('src')).toBe(toAbsoluteFileUrl('/files/web/abc.png'));
 
     // ② 原图也失败 → 转显式占位（不再让浏览器裂图）
     fireEvent.error(imgEl() as HTMLImageElement);

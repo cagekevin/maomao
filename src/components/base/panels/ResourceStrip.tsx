@@ -69,6 +69,9 @@ function ResourceStrip({
               alt={name}
               className="w-full h-full"
               imgClassName="w-full h-full object-cover opacity-80 pointer-events-none"
+              /* 40×40 小缩略图：立即加载（解码成本≈0）。走 IO 懒加载时，画布 transform 容器里
+                 一旦可见性判定不触发就是「永久黑块」——懒加载是优化，不该卡住显示 */
+              eager
             />
             <div className="absolute inset-0 bg-blue-500/10 pointer-events-none" />
             {!readOnly && (

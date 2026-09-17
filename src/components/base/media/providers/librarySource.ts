@@ -35,19 +35,34 @@ import { toAbsoluteFileUrl } from '../../core/utils.ts';
 // 目录浏览规则（根/子目录 → 查询参数）：**唯一实现**，本 provider 只调它，不自带规则。
 import { LIBRARY_ROOT, libraryBrowseArgs } from '../libraryBrowse.ts';
 // 分类真源：素材库目录清单 + 面向用户素材的白名单（两处消费方共用同一份，禁止各抄一份）。
-import { FOLDERS, LIBRARY_CATEGORY_KEYS } from '../../store/resourceStore.ts';
+import {
+  FOLDERS,
+  LIBRARY_CATEGORY_KEYS,
+  mergeResourcesFromBackend,
+} from '../../store/resourceStore.ts';
 import { makeMediaRef } from '../mediaRefTypes.ts';
 import type { MediaRef, MediaRefQuery, MediaRefProvider } from '../mediaRefTypes.ts';
 
 /**
- * ResourceItem → MediaRef。
- *  · 文件夹条目（`type:'folder'`）：保留为 `isFolder` 卡片（**可拖入的落点**），type 标 `'image'`
- *    仅为满足类型（消费方以 `isFolder` 分支渲染，不把它当媒体）。
- *  · 非图/视频/音频（text / 未知）返回 null（剪辑器只吃这三类）。
+ * ResourceItem → MediaRef（**禁止静默丢弃**）。
+ *
+ * 【职责边界（2026-09-17 收口）】「呈现哪几类」是**消费方的声明**，不是 provider 的私判：
+ *  · 此前本函数自持一条「非图/视频/音频 → return null」的白名单 —— provider 替消费方决定了可见性；
+ *  · 更坏的是**丢弃是静默的**：调用方只看到"列表里没有这条"，看不到"为什么没有"
+ *    ＝ 静默不完整（用户报「生成里的图导不进来、还不报错」正是这种形态）。
+ *  · 现在：`null` 的语义**收窄为唯一一种** —— 「被消费方显式声明的 `query.types` 过滤掉」（合法过滤）；
+ *    其它一切异常一律**抛错**（数据违约必须可见）。
+ *  · 数据违约（缺 url）→ **抛错**：后端 `resources.url` 是物理定位真源（`relativePathFromFileUrl` 依赖它），
+ *    缺它说明后端行坏了 —— 悄悄跳过只会让"库里有、列表没有"变成无从诊断的谜。
+ *  · 文件夹条目：保留为 `isFolder` 卡片（**可拖入的落点**），不参与媒体类型过滤。
  */
 function toMediaRef(item: ResourceItem, query?: MediaRefQuery): MediaRef | null {
   const rawUrl = item.url || '';
-  if (!rawUrl) return null;
+  if (!rawUrl) {
+    throw new Error(
+      `[librarySource] 资源行缺 url（后端契约违约，拒绝静默跳过）：id=${item.id} name=${item.name}`,
+    );
+  }
 
   // 关键词不再在此过滤：已由后端 `search` 完成（前端"页内过滤"会漏掉未加载的页）。
   const name = item.name || rawUrl.split('/').pop() || '素材';
@@ -67,7 +82,11 @@ function toMediaRef(item: ResourceItem, query?: MediaRefQuery): MediaRef | null 
   }
 
   const type = detectAssetType(rawUrl);
+  // 【类型契约的落地，**不是** provider 私判】`MediaRefType` 本身只含 image／video／audio ——
+  // 「可引用媒体」这个概念的边界由**类型层**定义（text／other 从类型上就进不来 MediaRef）。
+  // 故这里必须过滤掉非三类，否则编译期就过不去（曾试过放开 text → TS2345）。
   if (type !== 'image' && type !== 'video' && type !== 'audio') return null;
+  // 消费方显式声明的类型白名单（合法过滤，与上面的类型契约过滤是两件事）
   if (query?.types && !query.types.includes(type)) return null;
 
   return {
@@ -138,9 +157,19 @@ export const librarySourceProvider: MediaRefProvider = {
       search: query?.keyword,
     });
 
+    // 【统一源接线（docs/122 #4 · 2026-09-17）】后端拉到的资源**必须并入 `resourceStore`** ——
+    // 它是 `contentId → url` 解析（`buildContentUrlResolver(getResources())`）的**唯一来源**。
+    // 此前 `mergeResourcesFromBackend` **定义了却零调用**（造好没接线）：后端资源进不了 store
+    // ⇒ 从这里导入到画布的素材节点只持 `contentId`，AssetNode 渲染解析查 store 查无 → `MISSING`
+    // ⇒ **节点建出来了却是空的**，而 App 那条 toast 仍按选中数报「已导入 N 个素材」（假成功）。
+    // 幂等：按 id / url 归并（同 id 以后端为准），后端为最新真相，重复加载不会堆积。
+    mergeResourcesFromBackend(items);
+
     const out: MediaRef[] = [];
     for (const item of items) {
       const ref = toMediaRef(item, query);
+      // `null` 的两种成因都是**预期内的过滤**（非可引用媒体类型 / 消费方声明的 types）——
+      // 见 toMediaRef 内注释。而**数据违约（缺 url）已在 toMediaRef 里抛错**，不会被这里吞掉。
       if (!ref) continue;
       out.push(ref);
     }

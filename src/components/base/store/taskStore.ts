@@ -146,6 +146,33 @@ export function typeLabel(type?: string): string {
   return (type && MAP[type]) || type || '任务';
 }
 
+/**
+ * 任务结果的媒体形态（唯一判据 · 与 typeLabel/statusLabel 同层原语族）。
+ *
+ * 【为什么必须有它】`Task.type` 是开放字符串，而「这个任务的结果能不能当媒体渲染/下载」
+ * 此前散落在渲染端 5 处，且默认值是 **fail-open**（「非 video 即图片」）：
+ *   `TaskCenter` 缩略图 `type==='video' ? <VideoThumbnail> : <img>`、下载扩展名三连、
+ *   预览分支 `type!=='video'`、可点预览 `type==='image'`、`TYPE_ICON.text = ImageIcon`。
+ * 于是**文本任务**（存量行 `result_url` 存的是正文）被当图片地址请求，实测
+ * `GET /<URL 编码的正文>` 打到 localTool 18080 → 未命中具名路由 → catch-all 转发外网
+ * （每条白等 ~10.5s 后 fetch failed）。它每次作图都复发：开始生成会自动弹出任务中心。
+ *
+ * 【契约（fail-safe）】只有**显式登记为媒体**的 type 才返回媒体形态；其余（text/audio/未知）
+ * 一律 `'none'` —— 宁可少一个缩略图，也不为未知 type 制造媒体请求。
+ * 新增产出媒体的任务类型 → 只在本词表登记一处，全部渲染出口零改动。
+ */
+export type TaskMediaKind = 'image' | 'video' | 'none';
+
+/** 视频类 type（同一媒体形态的多个别名，与 typeLabel 词表同源） */
+const VIDEO_TASK_TYPES = new Set(['video', 'sd2Video', 'discountVideo']);
+
+/** type → 结果媒体形态（唯一实现，禁止在任何渲染端再写第二份判据） */
+export function taskMediaKind(type?: string): TaskMediaKind {
+  if (type === 'image') return 'image';
+  if (type && VIDEO_TASK_TYPES.has(type)) return 'video';
+  return 'none';
+}
+
 function genId(): string {
   return generateId('task');
 }

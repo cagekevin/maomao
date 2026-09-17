@@ -26,6 +26,12 @@ interface LazyImageProps {
   className?: string;
   onDoubleClick?: () => void;
   imgClassName?: string;
+  /**
+   * 立即加载（跳过 IntersectionObserver 门槛）。
+   * 用于**小尺寸**缩略图：解码成本≈0，而懒加载一旦不触发（画布 `transform: scale()` 容器里
+   * IO 可见性判定本就脆弱）会**永久空白**——懒加载是优化，不该成为「能否显示」的前提。
+   */
+  eager?: boolean;
 }
 
 function LazyImage({
@@ -34,6 +40,7 @@ function LazyImage({
   className,
   onDoubleClick,
   imgClassName = 'w-full h-full object-cover',
+  eager = false,
 }: LazyImageProps) {
   // 显示地址 + 两段失败回退（小图 → 原图 → 显式占位）收口在唯一实现，见 useImageFallbackSrc 文件头。
   // 更新(2026-09-17)：此前本组件只做「失败 → 占位」，**没有回退原图** → 缩略图端点对不可缩源
@@ -41,6 +48,8 @@ function LazyImage({
   const { src: resolvedSrc, failed, onError } = useImageFallbackSrc(src || '');
   const ref = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
+  // eager = 跳过懒加载门槛（小尺寸缩略图）：懒加载是优化，不得成为「能否显示」的前提
+  const show = eager || visible;
 
   useEffect(() => {
     const el = ref.current;
@@ -64,7 +73,7 @@ function LazyImage({
 
   return (
     <div ref={ref} className={className} onDoubleClick={onDoubleClick}>
-      {visible && resolvedSrc && !failed ? (
+      {show && resolvedSrc && !failed ? (
         <img
           src={resolvedSrc}
           alt={alt || ''}
@@ -75,7 +84,7 @@ function LazyImage({
           onDragStart={(e) => e.preventDefault()}
           onError={onError}
         />
-      ) : visible && failed ? (
+      ) : show && failed ? (
         <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-surface-2 text-faint select-none">
           <ImageOff size={20} />
           <span className="text-caption-sm">图片加载失败</span>

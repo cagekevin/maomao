@@ -160,6 +160,10 @@ export async function linkMediaRefsToProject({
   }
   // 部分成功：已登记的照常在工程里可见，失败的如实上报（不静默吞）。
   logger.warn('视频剪辑器', '部分引用登记失败', { failures });
-  toast.error(`${failures.length} 个素材未能登记`);
+  // 【结果契约】失败提示必须同时交代**成功了多少** —— 否则用户只知道"有几个没成"，
+  // 不知道"到底进去几个"，部分成功的信息仍然残缺（同母体：结果不许粉饰，也不许只报一半）。
+  toast.error(
+    `${failures.length} 个素材未能登记${linked.length > 0 ? `（${linked.length} 个已成功）` : ''}`,
+  );
   return { ok: false, linked, failures };
 }

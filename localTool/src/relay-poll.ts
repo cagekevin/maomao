@@ -141,6 +141,13 @@ const MAX_CONSECUTIVE_POLL_ERRORS = 30;
 const RELAY_UPLOAD_SUBFOLDER = 'tasks';
 
 /**
+ * lovart 直连 profile 的类型（由 `buildLovartDirectProfile` 推导）。
+ * 用途：同一轮 runOnce 内「补提交」与「轮询」共用同一个 profile，需作为参数传递。
+ * 用 ReturnType 推导而非从 providers 内部 import 类型，避免 relay-poll 反向依赖 adapter 内部文件。
+ */
+type LovartDirectProfile = ReturnType<typeof buildLovartDirectProfile>;
+
+/**
  * lovart 原生直连任务的「提交入参」快照（可 JSON 序列化，供「提交即返回」后在后台/重启后补提交）。
  * 根治·2026-09-04：POST /api/generate 不再同步 await 出站；任务先落库(running)+注册待提交句柄即返回，
  * 真正的 submitLovartTask（ensureProject/mode/upload/sendChat）由句柄首轮在后台执行。此快照持久化待提交入参，
@@ -230,7 +237,8 @@ export async function submitGenerateTask(
     const providerId = input.providerId || 'lovart';
     const capability = input.capability;
     const baseUrl = resolveProviderBaseUrl(providerId, input.baseUrl);
-    const apiKey = resolveProviderApiKey(providerId);
+    // 注：apiKey 仅「非 direct（声明式协议）」出站需要，故延后到该分支再解析——
+    // lovart 直连走 buildLovartDirectProfile 自取 LOVART_* 凭证，此前无条件先算一次是死调用。
 
     // ── lovart 原生直连：走 providers/lovart adapter（HMAC + chat-thread），不进声明式 preset ──
     // 【根治·2026-09-04】提交即返回：不再同步 await submitLovartTask 出站（ensureProject/mode/upload/sendChat
@@ -300,6 +308,7 @@ export async function submitGenerateTask(
     // ── 非 lovart（非 direct）：按 per-provider 自定义异步协议提交（方案①，docs/105 §阶段 C）──
     // 旧声明式 lovart-* preset 已删；该平台若未在配置文件 `model_protocols[capability]` 里自备协议，
     // 直接返回明确错误（平台暂不支持异步生成），不静默错抽、不误发 9004 信封。
+    const apiKey = resolveProviderApiKey(providerId);
     const rawProtocol = resolveProviderAsyncProtocol(providerId, capability);
     if (!rawProtocol) {
       return {
@@ -435,13 +444,9 @@ export async function submitGenerateTask(
  *   而误判 failed 的代价是**重复付费**）。
  * @returns true=提交成功（可继续进入轮询）；false=提交失败（已置 failed/unknown + 停句柄，错误原样透传）。
  */
-async function runDirectSubmit(handle: PollHandle): Promise<boolean> {
+async function runDirectSubmit(handle: PollHandle, profile: LovartDirectProfile): Promise<boolean> {
   const p = handle.pendingDirectSubmit;
   if (!p) return true;
-  // 单请求超时兜底（防底层出站单步卡死无限挂；任务总时长仍由 handle 总超时约束）
-  const profile = buildLovartDirectProfile(handle.baseUrl, {
-    timeoutMs: DIRECT_SUBMIT_TIMEOUT_MS,
-  });
   // ① 前置阶段（纯本机，未出站）：失败 ⇒ 确定没跑 ⇒ failed。
   let images: string[] | undefined;
   try {
@@ -536,15 +541,17 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
     try {
       // direct（原生直连）→ adapter 单次轮询；其余 → 走快照中的自定义异步协议轮询
       if (handle.direct) {
-        // 【根治·2026-09-04】待提交阶段：先补后台出站（提交即返回的「真正提交」），
-        // 成功回填 thread_id 后本轮继续轮询；失败已在 runDirectSubmit 内置 failed + 停句柄。
-        if (handle.pendingDirectSubmit) {
-          const okSubmit = await runDirectSubmit(handle);
-          if (!okSubmit || handle.stopped) return;
-        }
+        // profile 本轮只构造一次：原实现「补提交」与「轮询」各构造一次，入参完全相同 → 纯重复。
+        // 单请求超时兜底（防底层出站单步卡死无限挂；任务总时长仍由 handle 总超时约束）
         const profile = buildLovartDirectProfile(handle.baseUrl, {
           timeoutMs: DIRECT_SUBMIT_TIMEOUT_MS,
         });
+        // 【根治·2026-09-04】待提交阶段：先补后台出站（提交即返回的「真正提交」），
+        // 成功回填 thread_id 后本轮继续轮询；失败已在 runDirectSubmit 内置 failed + 停句柄。
+        if (handle.pendingDirectSubmit) {
+          const okSubmit = await runDirectSubmit(handle, profile);
+          if (!okSubmit || handle.stopped) return;
+        }
         const r = await pollLovartTaskOnce(profile, {
           handle: { threadId: handle.taskId, projectId: '' },
         });
@@ -556,7 +563,10 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
         } else if (r.status === 'failed') {
           stopHandle(handle);
           await upsertFailed(handle, r.error || 'Lovart 任务失败');
-        } else {
+        } else if (r.error) {
+          // 【空写库删除】direct 单轮无 progress 语义，且首轮提交时已写入 running 行 ⇒
+          // 无 error 时这次 upsert 写入的内容（status:'running'）与库中现值完全相同，零信息量。
+          // 有 error 时必须写：error_msg 是「单轮异常」的唯一落库通道（失败可见，不静默）。
           await updateProgress(handle, undefined, r.error);
         }
         return;

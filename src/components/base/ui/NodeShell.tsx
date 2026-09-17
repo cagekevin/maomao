@@ -263,7 +263,7 @@ function NodeShell({
   // 各节点 children 由它包住，天然获得统一背景，无需各自手写 bg-surface-raised。
   // 注意：节点若需要 onClick 等交互，应放在自身 children 内部 div 上，不要依赖此层。
   // 注意：不加 overflow-hidden——各节点内部显示框（生图/视频/文本）已自带 rounded+overflow 裁剪；
-  // 且 ExpandablePanel / HoverToolbar 是 absolute 定位于节点外（top-full / -top-12），
+  // 且 ExpandablePanel / HoverToolbar 是 absolute 定位于节点外（top-full / -top-20），
   // overflow-hidden 会把它们裁掉。背景层只需提供视觉外壳，不承担裁剪。
   // 必须是 flex flex-col：各节点内部主容器 div 用 flex-1 填满高度，依赖父级是 flex 容器。
   // 主容器背景层：加 drag-handle cursor-move，让节点主体（内容区之外的空白/背景）可拖拽移动。

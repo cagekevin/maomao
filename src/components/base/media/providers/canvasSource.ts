@@ -20,18 +20,15 @@
  * 若将来要展开，应在 `nodeMedia.ts` 加 `getNodeMediaList`（**扩真源，不在此旁路**）。
  */
 import { getNodeMedia } from '../../canvas/nodeMedia.ts';
-import { resolveAssetDisplayUrl } from '../../utils/assetUrl.ts';
+import { resolveAssetDisplayUrl, buildContentUrlResolver } from '../../utils/assetUrl.ts';
 import { toAbsoluteFileUrl } from '../../core/utils.ts';
 import { getResources } from '../../store/resourceStore.ts';
 import { getCanvasNodesSnapshot } from '../canvasNodesBridge.ts';
 import { makeMediaRef } from '../mediaRefTypes.ts';
 import type { MediaRef, MediaRefQuery, MediaRefProvider } from '../mediaRefTypes.ts';
 
-/** contentId → url 解析（resource 行是 url 真源；改名/移动只改 context，contentId→url 自动跟随）。 */
-function resolveContentUrl(contentId: string): string | null {
-  const found = getResources().find((r) => r.contentId === contentId);
-  return found ? found.url : null;
-}
+// contentId → url 解析：收口到 assetUrl.ts 的 buildContentUrlResolver（原语，履行其注释契约）。
+// 此前本文件与 AssetNode 各手写一份同样的 find → 同一语义两份实现（见 assetUrl.ts 该函数头）。
 
 /** 按关键词过滤（name 模糊匹配，忽略大小写）。
  *  更新(2026-09-17 注释改正)：原写「按 query.meta 过滤」——`MediaRefQuery` **无 `meta` 字段**（TD-02-52）。 */
@@ -55,7 +52,7 @@ export const canvasSourceProvider: MediaRefProvider = {
 
       // 用「渲染解析唯一入口」补齐文件型节点（只持 contentId）的 url。
       const data = (node.data || {}) as Record<string, unknown>;
-      const resolved = resolveAssetDisplayUrl(data, resolveContentUrl);
+      const resolved = resolveAssetDisplayUrl(data, buildContentUrlResolver(getResources()));
       const rawUrl = resolved.kind === 'ok' ? resolved.url : media.url;
       if (!rawUrl) continue;
 

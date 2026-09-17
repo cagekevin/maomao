@@ -121,25 +121,41 @@ export function MediaView() {
   /**
    * 「导入媒体」弹窗的落地动作（docs/136 §9.3 · 路线 A）。
    * 从「生成/素材库/画布」选中的素材，二进制已在 `/files/` → **登记引用，不上传**。
+   *
+   * 【成功判据 = 结果事实，不是「调用没报错」】（2026-09-17 修复「假成功」）
+   * `res.ok` 的语义只是「没有 failures」—— 全部被去重跳过时它**也是 true**。
+   * 旧写法在此弹绿色 success「已导入 0 个素材（N 个已存在）」：用户选了一批、看到"成功"、
+   * 素材列表却一条没多 —— **界面在撒谎**（7 步法底线：结果契约不许粉饰）。
+   * 现改为按 `linked.length`（真实新增）分流：0 新增就不是成功，如实标注「未新增」及其原因。
    */
   const linkRefsToProject = async (items: MediaRef[]) => {
     if (!activeProject) {
       toast.error('没有活跃项目');
       return;
     }
+    if (items.length === 0) return; // 空选择不产生任何提示（不做无信息的"成功"）
     const res = await linkMediaRefsToProject({
       items,
       projectId: activeProject.metadata.id,
       media: editor.media,
     });
-    if (res.ok) {
-      toast.success(
+    if (!res.ok) return; // 失败分支：linkMediaRefsToProject 内部已 toast + logger（部分成功不静默）
+
+    // 真实新增 = 0：不是"导入成功"，说清「没新增」及其原因（已存在 / 全被去重命中）
+    if (res.linked.length === 0) {
+      toast.info(
         res.skipped.length > 0
-          ? `已导入 ${res.linked.length} 个素材（${res.skipped.length} 个已存在）`
-          : `已导入 ${res.linked.length} 个素材`,
+          ? `所选 ${res.skipped.length} 个素材在当前工程里已存在，未新增`
+          : '所选素材未能新增',
       );
+      return;
     }
-    // 失败分支：linkMediaRefsToProject 内部已 toast + logger（部分成功不静默）。
+
+    toast.success(
+      res.skipped.length > 0
+        ? `已导入 ${res.linked.length} 个素材（${res.skipped.length} 个已存在）`
+        : `已导入 ${res.linked.length} 个素材`,
+    );
   };
 
   const handleRemove = async ({ event, id }: { event: React.MouseEvent; id: string }) => {

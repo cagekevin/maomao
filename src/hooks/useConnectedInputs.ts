@@ -15,6 +15,11 @@ import {
 } from '../components/scriptbox/scriptBoxPrompts.ts';
 import { toAbsoluteFileUrl } from '../components/base/api/index.ts';
 import { resolveAssetType } from '../components/base/utils/assetType.ts';
+import {
+  resolveAssetDisplayUrl,
+  buildContentUrlResolver,
+} from '../components/base/utils/assetUrl.ts';
+import { getResources } from '../components/base/store/resourceStore.ts';
 import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.ts';
 
 /**
@@ -208,7 +213,23 @@ function singleOutput(
     if (kind === 'audio') return { ...empty, audios: [item] };
     return { ...empty, images: [item] };
   }
-  return empty;
+  // 【asset 双形态：文件型只持 contentId 的产出必须能读出来】2026-09-17 补。
+  // 背景：`assetNode` 的 data 有**互斥双形态**——内联/外链持 `url`/`assetUrl`，**文件型只持 `contentId`**
+  // （导入面板从素材库导入建的节点就是这样，见 `App.tsx::handleImportPick`：有 contentId 就只写 contentId）。
+  // 本函数此前**只按字段名取字符串**，读不到 contentId → 该类上游产出被**静默判空**。
+  // 症状：节点自己显示正常（AssetNode 走 resolveAssetDisplayUrl 支持双形态），
+  // 而连到下游的素材条/参考图**空**（PromptInput 上游缩略图不显示）。
+  // 修法：复用**渲染解析唯一入口** `resolveAssetDisplayUrl`（contentId→resource url → url → assetUrl 三级），
+  // 不在此重写字段嗅探（canvasSource 曾因"直接用 getNodeMedia 拿不到 url"踩过同一坑，见其文件头）。
+  const resolved = resolveAssetDisplayUrl(d, buildContentUrlResolver(getResources()));
+  if (resolved.kind !== 'ok' || !resolved.url) return empty;
+  const rAt = d.assetType;
+  const rAssetType = rAt === 'image' || rAt === 'video' || rAt === 'audio' ? rAt : undefined;
+  const rKind = resolveAssetType(resolved.url, rAssetType);
+  const rItem: NodeOutputItem = { id, url: resolved.url, label: str(d.label) };
+  if (rKind === 'video') return { ...empty, videos: [rItem] };
+  if (rKind === 'audio') return { ...empty, audios: [rItem] };
+  return { ...empty, images: [rItem] };
 }
 
 /** 安全网字段（**仅未登记类型**使用，见 getNodeOutput 第 5 步）：服务存量退役节点快照。 */

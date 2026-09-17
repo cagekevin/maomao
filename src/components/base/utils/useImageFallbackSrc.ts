@@ -24,6 +24,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useRenderAssetResolver } from './assetUrl.ts';
+import { toAbsoluteFileUrl } from '../core/utils.ts';
 
 /** 回退段：render=按需小图（首次）；original=回退原图；failed=两次都失败 */
 type ImageStage = 'render' | 'original' | 'failed';
@@ -43,18 +44,23 @@ export interface ImageFallbackSrc {
 export function useImageFallbackSrc(url: string): ImageFallbackSrc {
   const resolve = useRenderAssetResolver();
   const renderSrc = resolve(url || '');
+  // 【回退地址必须归一】`url` 可能是**相对** `/files/xxx`（如 ResourceStrip 传上游节点的 assetUrl）。
+  // 直接回退裸 `url` 会让 `<img src="/files/…">` 在画布页（`localhost:5180`）解析成 5180 的路径 → 404
+  // → 表现为「缩略图不见了／图片加载失败」。故回退一律经 `toAbsoluteFileUrl` 补成可加载绝对地址。
+  const originalSrc = toAbsoluteFileUrl(url || '');
   const [stage, setStage] = useState<ImageStage>('render');
 
   // 地址变化 → 回退段复位（换图/编辑/重新生成后必须重新尝试小图）
   useEffect(() => setStage('render'), [url]);
 
+  // 比较用两个**都归一过**的地址：避免「同一地址两种写法」被误判为可回退（会白跑一次失败）
   const onError = useCallback(
-    () => setStage((s) => (s === 'render' && renderSrc !== url ? 'original' : 'failed')),
-    [renderSrc, url],
+    () => setStage((s) => (s === 'render' && renderSrc !== originalSrc ? 'original' : 'failed')),
+    [renderSrc, originalSrc],
   );
 
   return {
-    src: stage === 'original' ? url : renderSrc,
+    src: stage === 'original' ? originalSrc : renderSrc,
     failed: stage === 'failed',
     onError,
   };

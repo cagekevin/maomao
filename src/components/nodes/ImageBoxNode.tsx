@@ -521,7 +521,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
         />
 
         {/* 顶部悬浮操作栏（hover 显示，对齐官方 Component2292） */}
-        <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-20 opacity-0 group-hover/node:opacity-100 transition-opacity pointer-events-none group-hover/node:pointer-events-auto nodrag pb-4">
+        <div className="absolute -top-20 left-1/2 -translate-x-1/2 z-20 opacity-0 group-hover/node:opacity-100 transition-opacity pointer-events-none group-hover/node:pointer-events-auto nodrag pb-4">
           <div className="flex items-center gap-1 px-3 py-2 bg-surface-raised/90 backdrop-blur-md border border-edge rounded-full shadow-lg">
             <button
               className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none"

@@ -8,15 +8,18 @@ import {
   X,
   ChevronDown,
   Download,
+  FileText,
   Image as ImageIcon,
 } from 'lucide-react';
 import {
   statusLabel,
   typeLabel,
+  taskMediaKind,
   removeTask,
   clearTasksBy,
   clearAllTasks,
   type Task,
+  type TaskMediaKind,
   useTasks,
   statusDotClass,
 } from '../store/taskStore.ts';
@@ -34,7 +37,8 @@ import { PanelSubBar, PanelMoreMenu } from './PanelBar.tsx';
 const TYPE_ICON: Record<string, typeof ImageIcon> = {
   image: ImageIcon,
   video: Play,
-  text: ImageIcon,
+  // 文本任务此前复用 ImageIcon —— 与「非 video 即图片」同一认知残留（把文本当图片），改用文本图标。
+  text: FileText,
 };
 
 /**
@@ -46,13 +50,14 @@ function TaskCenter() {
   const tasks = useTasks();
   const [moreOpenId, setMoreOpenId] = useState<string | null>(null);
   // 大图/视频预览（点击缩略图打开；图片显示像素/可拖到画布，视频走统一 ImageZoomDialog 播放器）
-  const [preview, setPreview] = useState<{ url: string; type: string } | null>(null);
+  // kind 由 taskMediaKind 唯一判定（非媒体类型永不进预览，故此处只可能是 image/video）
+  const [preview, setPreview] = useState<{ url: string; kind: 'image' | 'video' } | null>(null);
   const [previewDims, setPreviewDims] = useState<{ w: number; h: number } | null>(null);
   const videoZoomRef = useRef<HTMLDialogElement>(null); // 视频预览统一走 ImageZoomDialog（含截屏/下载当前帧）
 
   // 视频预览：preview 变为视频时，等 dialog 挂载后自动 showModal（与 GeneratedView/生成面板一致）
   useEffect(() => {
-    if (preview && preview.type === 'video') {
+    if (preview && preview.kind === 'video') {
       videoZoomRef.current?.showModal();
     }
   }, [preview]);
@@ -127,8 +132,10 @@ function TaskCenter() {
                   showToast('已删除', { type: 'success' });
                 }}
                 onPreview={(task) => {
+                  const kind = taskMediaKind(task.type);
+                  if (kind === 'none') return; // 类型非媒体（文本/未知）：无预览可言
                   setPreviewDims(null);
-                  setPreview({ url: task.resultUrl ?? '', type: task.type });
+                  setPreview({ url: task.resultUrl ?? '', kind });
                 }}
               />
             ))}
@@ -137,7 +144,7 @@ function TaskCenter() {
       </div>
 
       {/* 大图预览弹窗（图片；点击缩略图打开，右下角显示像素，如 1920×1080）；图片可拖拽到画布成为节点 */}
-      {preview && preview.type !== 'video' && (
+      {preview && preview.kind === 'image' && (
         <div
           className="absolute inset-0 z-20 bg-black/85 flex items-center justify-center p-4"
           onClick={() => setPreview(null)}
@@ -176,7 +183,7 @@ function TaskCenter() {
         </div>
       )}
       {/* 视频预览：与生成面板一致，走统一 ImageZoomDialog 视频播放器（含截屏/下载当前帧） */}
-      {preview && preview.type === 'video' && (
+      {preview && preview.kind === 'video' && (
         <ImageZoomDialog
           ref={videoZoomRef}
           url={preview.url}
@@ -218,6 +225,9 @@ const TaskCard = React.memo(function TaskCard({
   const statusText = statusLabel(task.status, task.progress);
   const isActive = task.status === 'running' || task.status === 'pending';
   const isCompleted = task.status === 'completed';
+  // 结果媒体形态：**唯一判据**（taskMediaKind）。缩略图/下载/预览三个出口全部由它派生，
+  // 禁止再写 `type==='video' ? … : <img>` 这类 fail-open 默认（那会把非媒体类型当图片请求）。
+  const kind: TaskMediaKind = taskMediaKind(task.type);
 
   // 真实下载任务结果（fetch blob → downloadUrl，可控文件名）
   const downloadResult = async (e: React.MouseEvent) => {
@@ -227,7 +237,7 @@ const TaskCard = React.memo(function TaskCard({
       return;
     }
     try {
-      const ext = task.type === 'video' ? '.mp4' : task.type === 'text' ? '.txt' : '.png';
+      const ext = kind === 'video' ? '.mp4' : '.png';
       const filename = `${task.modelName || 'task'}_${Date.now()}${ext}`;
       const res = await downloadUrl(task.resultUrl, filename);
       if (res?.ok) showToast('已开始下载', { type: 'success' });
@@ -281,7 +291,7 @@ const TaskCard = React.memo(function TaskCard({
             </button>
             {moreOpen && (
               <div className="absolute right-0 top-full mt-1 bg-surface-1 border border-edge rounded-lg shadow-xl p-1 z-30 w-40 nowheel nopan nodrag">
-                {isCompleted && (
+                {isCompleted && kind !== 'none' && (
                   <MenuBtn icon={Download} label="下载结果" onClick={downloadResult} />
                 )}
                 <MenuBtn icon={Copy} label="复制任务信息" onClick={onCopy} />
@@ -342,15 +352,17 @@ const TaskCard = React.memo(function TaskCard({
         </div>
       )}
 
-      {/* 已完成缩略图：点击打开大图预览（预览弹窗右下角显示原图像素）；视频点击大图播放 */}
-      {isCompleted && task.resultUrl && (
+      {/* 已完成缩略图：点击打开大图预览（预览弹窗右下角显示原图像素）；视频点击大图播放。
+          条件用 kind !== 'none'：非媒体类型（文本/未知）**不渲染任何媒体元素** —— 此前是「非 video 即 <img>」，
+          把文本任务的 resultUrl（存量脏行为正文）当图片地址请求，打到 localTool 后被转发外网。 */}
+      {isCompleted && kind !== 'none' && task.resultUrl && (
         <div
           className="relative w-full h-[72px] rounded-lg overflow-hidden bg-surface-muted group cursor-pointer"
           onClick={() => {
-            if (typeof onPreview === 'function' && task.type === 'image') onPreview(task);
+            if (typeof onPreview === 'function' && kind === 'image') onPreview(task);
           }}
         >
-          {task.type === 'video' ? (
+          {kind === 'video' ? (
             <VideoThumbnail
               src={task.resultUrl}
               className="w-full h-full"

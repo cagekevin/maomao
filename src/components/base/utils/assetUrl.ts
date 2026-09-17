@@ -278,6 +278,18 @@ export function resolveAssetDisplayUrl(
  * @param {Array<{contentId?:string|null; url?:string|null}>} resources
  * @returns {(contentId:string)=>string|null}
  */
+export function buildContentUrlResolver(
+  resources: Array<{ contentId?: string | null; url?: string | null }>,
+): (contentId: string) => string | null {
+  const map = new Map<string, string>();
+  for (const r of resources || []) {
+    if (typeof r?.contentId === 'string' && r.contentId && typeof r.url === 'string' && r.url) {
+      map.set(r.contentId, r.url);
+    }
+  }
+  // contentId 是 stable identity：resource 行改名/移动只改 context，url 经它派生自动跟随
+  return (contentId: string) => map.get(contentId) ?? null;
+}
 
 /**
  * 互斥双形态校验（docs/122 #4）：返回「同时存在的字段」列表。

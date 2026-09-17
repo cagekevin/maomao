@@ -200,7 +200,7 @@ export default function InlineImageCropper({ assetUrl, onSave, onClose }: Inline
           border border-edge rounded-full shadow-lg），按钮尺寸/配色对齐节点内 ToolbarButton。
           【依赖】父级链不可加 overflow-hidden，否则节点外按钮栏会被裁掉——
           NodeShell 主容器注释明确「不加 overflow-hidden」，正是为了让 HoverToolbar
-          这类 top-full / -top-12 的节点外元素能溢出显示。 */}
+          这类 top-full / -top-20 的节点外元素能溢出显示。 */}
       <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 flex items-center gap-1 px-3 py-2 bg-surface-raised/90 backdrop-blur-md border border-edge rounded-full shadow-lg">
         <button
           type="button"

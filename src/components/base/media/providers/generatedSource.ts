@@ -25,6 +25,9 @@ export const GENERATED_FOLDER = 'tasks';
 /**
  * 生成的分类 = **按媒体类型**（与素材库的「按目录」维度不同 —— 各来源维度可不同，本层只搬运）。
  * 值与 `GeneratedView.tsx` 的 TYPE_FILTERS 同口径（图片/视频/音频；文本不进可引用媒体）。
+ *
+ * 【「全部」为什么不带 types】「可引用媒体只有 image/video/audio」由**类型层**（`MediaRefType`）定义，
+ * `librarySource.toMediaRef` 已按该契约过滤 —— 此处再声明一次 `types` 就是**第二份真相**（M3）。
  */
 const GENERATED_CATEGORIES = [
   { key: 'all', label: '全部', query: {} },

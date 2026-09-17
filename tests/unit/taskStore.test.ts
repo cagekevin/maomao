@@ -15,6 +15,7 @@ import type { Task } from '@/components/base/store/taskStore.ts';
 
 const {
   statusLabel,
+  taskMediaKind,
   getPanel,
   setPanel,
   openTaskCenter,
@@ -49,6 +50,25 @@ describe('taskStore §2.6 状态映射', () => {
 
   it('statusLabel：表外状态仍原样透出（不吞不认识的值）', () => {
     expect(statusLabel('some-future-state')).toBe('some-future-state');
+  });
+});
+
+describe('taskStore §2.6 结果媒体形态（taskMediaKind · 唯一判据）', () => {
+  it('登记为媒体的 type → image / video（含视频别名）', () => {
+    expect(taskMediaKind('image')).toBe('image');
+    expect(taskMediaKind('video')).toBe('video');
+    expect(taskMediaKind('sd2Video')).toBe('video');
+    expect(taskMediaKind('discountVideo')).toBe('video');
+  });
+
+  // fail-safe 是这条判据的全部价值所在：旧实现在渲染端写「非 video 即图片」，
+  // 未知类型会被猜成图片 → 文本任务的 result_url（正文）被当图片地址请求。
+  it('文本 / 音频 / 未知 / 空 → none（不为非媒体类型制造媒体请求）', () => {
+    expect(taskMediaKind('text')).toBe('none');
+    expect(taskMediaKind('audio')).toBe('none');
+    expect(taskMediaKind('someFutureKind')).toBe('none');
+    expect(taskMediaKind('')).toBe('none');
+    expect(taskMediaKind(undefined)).toBe('none');
   });
 });
 

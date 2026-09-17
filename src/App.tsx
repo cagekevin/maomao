@@ -1027,7 +1027,10 @@ function Canvas() {
   // 否则写 assetUrl（内联/绝对 URL）。两者互斥（docs/122 #4），故按 contentId 有无二选一。
   const handleImportPick = useCallback(
     (items: MediaRef[]) => {
+      if (items.length === 0) return;
       const base = posAtCenter();
+      const created: string[] = [];
+      const failed: MediaRef[] = [];
       items.forEach((it, i) => {
         // 多选时错开排布，避免重叠成一叠。
         const pos = { x: base.x + (i % 5) * 260, y: base.y + Math.floor(i / 5) * 260 };
@@ -1035,9 +1038,22 @@ function Canvas() {
           it.contentId != null
             ? { contentId: it.contentId, label: it.name }
             : { assetUrl: it.url, label: it.name };
-        addNode('assetNode', pos, data);
+        // 【成功判据 = 真的建出了节点】`addNode` 返回新节点 id；没有 id 即未落地。
+        // 旧写法不看返回值、直接按 `items.length` 报「已导入 N 个素材」——
+        // 于是「提示导入成功、画布上却什么都没有」时用户无从判断（界面在撒谎）。
+        const id = addNode('assetNode', pos, data);
+        if (id) created.push(id);
+        else failed.push(it);
       });
-      if (items.length > 0) showToast(`已导入 ${items.length} 个素材`);
+      if (created.length === 0) {
+        showToast(`导入失败：${items.length} 个素材都未能建出节点`, { type: 'error' });
+        return;
+      }
+      if (failed.length > 0) {
+        showToast(`已导入 ${created.length} 个，${failed.length} 个失败`, { type: 'error' });
+        return;
+      }
+      showToast(`已导入 ${created.length} 个素材`);
     },
     // addNode 是稳定 useCallback；showToast 模块级函数。
     [addNode, posAtCenter],

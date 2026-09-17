@@ -16,6 +16,10 @@ import {
   shotHandleId,
   parseShotHandle,
 } from '../../src/components/base/core/contracts.ts';
+import {
+  mergeResourcesFromBackend,
+  __resetForTest,
+} from '../../src/components/base/store/resourceStore.ts';
 
 // 分镜端口契约（contracts.SHOT_HANDLE_PREFIX）：写侧 shotHandleId / 读侧 parseShotHandle 必须成对往返
 describe('分镜端口 handle 契约', () => {
@@ -39,6 +43,42 @@ describe('分镜端口 handle 契约', () => {
     expect(parseShotHandle('')).toBeNull();
     expect(parseShotHandle(undefined)).toBeNull();
     expect(parseShotHandle(null)).toBeNull();
+  });
+});
+
+// 「文件型 asset 只持 contentId」的读侧产出（2026-09-17 补漏）。
+// 导入面板从素材库导入时只写 contentId（App.handleImportPick 的互斥双形态契约）；
+// 读侧此前只按字段名取字符串 → 该类上游被**静默判空** → 下游素材条/参考图为空
+//（症状：节点自己显示正常，连到 PromptInput 的上游缩略图不显示）。
+describe('asset 双形态 · contentId 型产出', () => {
+  it('assetNode 只持 contentId → 经 resource 行解析出图片产出', () => {
+    __resetForTest();
+    mergeResourcesFromBackend([
+      {
+        id: 'r1',
+        url: 'http://127.0.0.1:18080/files/migrated/abc.png',
+        name: '猫',
+        type: 'image',
+        contentId: 'sha1:deadbeef',
+      } as never,
+    ]);
+    const r = getNodeOutput({
+      id: 'a1',
+      type: 'assetNode',
+      data: { contentId: 'sha1:deadbeef', label: '猫' },
+    });
+    expect(r.images).toHaveLength(1);
+    expect(r.images[0].url).toBe('http://127.0.0.1:18080/files/migrated/abc.png');
+  });
+
+  it('contentId 查无 resource 行 → 不产出（不伪造 url，保持诚实）', () => {
+    __resetForTest();
+    const r = getNodeOutput({
+      id: 'a2',
+      type: 'assetNode',
+      data: { contentId: 'sha1:missing' },
+    });
+    expect(r).toEqual({ images: [], texts: [], videos: [], audios: [] });
   });
 });
 

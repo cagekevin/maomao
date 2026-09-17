@@ -36,6 +36,8 @@ vi.mock('../../src/components/base/store/appSettings.ts', () => ({
 }));
 
 import LazyImage from '../../src/components/base/ui/LazyImage.tsx';
+// 期望值取自**真实**归一原语（assetUrl.ts 在本文件被 mock，故从 core/utils 取同一实现的真源）
+import { toAbsoluteFileUrl } from '../../src/components/base/core/utils.ts';
 
 // 可操控的 IntersectionObserver 假实现：手动触发回调驱动「进入视口」
 const h = vi.hoisted(() => {
@@ -123,14 +125,23 @@ describe('LazyImage — 降级与兜底', () => {
     const img = () => document.querySelector('img');
     expect(img()?.getAttribute('src')).toBe('THUMB/files/web/a.webp');
 
-    // ① 小图失败 → 回退原图（不直接占位）
+    // ① 小图失败 → 回退原图，且**回退地址必须是归一后的可加载地址**
+    //（回归教训：直接回退裸相对 `/files/…` 会让 <img> 在画布页 5180 上 404 → 缩略图变「加载失败」）
     fireEvent.error(img()!);
-    expect(img()?.getAttribute('src')).toBe('/files/web/a.webp');
+    expect(img()?.getAttribute('src')).toBe(toAbsoluteFileUrl('/files/web/a.webp'));
 
     // ② 原图也失败 → 才显式占位
     fireEvent.error(img()!);
     expect(document.querySelector('img')).toBeNull();
     expect(screen.getByText('图片加载失败')).toBeTruthy();
+  });
+
+  it('eager → 不依赖 IntersectionObserver，挂载即出 <img>（小缩略图不被懒加载门槛卡住）', () => {
+    // 回归教训：ResourceStrip 的 40×40 缩略图走 IO 懒加载，画布 transform 容器里可见性判定一旦不触发
+    // 就渲染 null，叠在 bg-black 上＝永久黑块（且无失败提示）。懒加载是优化，不得成为"能否显示"的前提。
+    render(<LazyImage src="http://x/e.png" eager />);
+    expect(document.querySelector('img')).toBeTruthy();
+    expect(document.querySelector('img')?.getAttribute('src')).toBe('http://x/e.png');
   });
 
   it('src 为空 → 永不挂载 <img>', () => {

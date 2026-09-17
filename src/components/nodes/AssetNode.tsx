@@ -27,7 +27,11 @@ import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { patchNodeDataById } from '../../hooks/useNodeData.ts';
 import { toAbsoluteFileUrl, resolveNodeAssetUrl } from '../base/api/index.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
-import { resolveAssetDisplayUrl, contentIdOfBytes } from '../base/utils/assetUrl.ts';
+import {
+  resolveAssetDisplayUrl,
+  buildContentUrlResolver,
+  contentIdOfBytes,
+} from '../base/utils/assetUrl.ts';
 import { useImageFallbackSrc } from '../base/utils/useImageFallbackSrc.ts';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
 import { downloadUrl } from '../base/utils/clipboard.ts';
@@ -77,10 +81,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   // 经 resourceStore 解析 url（resource 行改名/移动只改 context，contentId→url 自动跟随，永不破图）；
   // 内联 dataURL/blob 持 url 直用；存量 assetUrl 兼容兜底。资源查无 → 显式「素材已移除」缺失态
   //（fail-loud：边界契约失效，UI 呈现，不静默破图）。
-  const assetRef = resolveAssetDisplayUrl(data, (cid) => {
-    const found = getResources().find((r) => r.contentId === cid);
-    return found ? found.url : null;
-  });
+  const assetRef = resolveAssetDisplayUrl(data, buildContentUrlResolver(getResources()));
   // 读取端兜底：相对 /files/ 路径统一补全为绝对 URL，刷新不破图。
   const url = (assetRef.kind === 'ok' ? toAbsoluteFileUrl(assetRef.url) : '') || '';
   const assetMissing = assetRef.kind === 'missing';

@@ -53,38 +53,22 @@ Object.defineProperty(globalThis.navigator, 'clipboard', {
   configurable: true,
 });
 
-vi.mock('../../src/components/base/store/taskStore.ts', () => ({
-  useTasks: () => h.useTasks(),
-  // 纯函数按真实实现兜底，不改组件行为
-  statusDotClass: (status: any) => {
-    if (status === 'completed') return 'bg-emerald-400';
-    if (status === 'failed') return 'bg-red-400';
-    return 'bg-blue-400';
-  },
-  statusLabel: (status: any, progress = 0) => {
-    if (status === 'completed') return '已完成';
-    if (status === 'failed') return '失败';
-    if (status === 'pending') return '生成中';
-    if (status === 'running') return progress > 0 ? `${Math.round(progress)}%` : '生成中';
-    return status;
-  },
-  typeLabel: (type: string) =>
-    (
-      ({
-        text: '文本',
-        image: '生图',
-        video: '视频',
-        sd2Video: 'SD2视频',
-        discountVideo: '特惠视频',
-        custom: '万能',
-        rhWebapp: 'AI应用',
-      }) as Record<string, string>
-    )[type] || type,
-  removeTask: (...a: unknown[]) => h.removeTask(...a),
-  retryTask: (...a: unknown[]) => h.retryTask(...a),
-  clearTasksBy: (...a: unknown[]) => h.clearTasksBy(...a),
-  clearAllTasks: (...a: unknown[]) => h.clearAllTasks(...a),
-}));
+vi.mock('../../src/components/base/store/taskStore.ts', async () => {
+  // 【唯一真源】纯函数（statusDotClass / statusLabel / typeLabel / taskMediaKind）一律取自真源：
+  // 本文件此前手抄了一份「按真实实现兜底」，且**已实际漂移**（discountVideo 抄成「特惠视频」，
+  // 真源是「视频生成」）—— 那就是 SSOT 第二份。此处只替换「有状态订阅 / 有副作用」的成员。
+  const actual = await vi.importActual<
+    typeof import('../../src/components/base/store/taskStore.ts')
+  >('../../src/components/base/store/taskStore.ts');
+  return {
+    ...actual,
+    useTasks: () => h.useTasks(),
+    removeTask: (...a: unknown[]) => h.removeTask(...a),
+    retryTask: (...a: unknown[]) => h.retryTask(...a),
+    clearTasksBy: (...a: unknown[]) => h.clearTasksBy(...a),
+    clearAllTasks: (...a: unknown[]) => h.clearAllTasks(...a),
+  };
+});
 vi.mock('../../src/components/base/core/logger.ts', () => ({
   logger: { warn: (...a: unknown[]) => h.loggerWarn(...a) },
 }));
@@ -186,6 +170,32 @@ describe('TaskCenter — 任务列表渲染', () => {
     render(<TaskCenter />);
     expect(screen.getByTestId('video-thumbnail')).toBeTruthy();
   });
+
+  // ── 媒体形态判据（taskMediaKind）的回归断言 ─────────────────────────────
+  // 症状实录：文本任务行的 result_url 存的是**正文**（存量脏数据），旧实现是
+  // `type === 'video' ? <VideoThumbnail> : <img>`（fail-open「非 video 即图片」），
+  // 于是把正文当图片地址请求 → `GET /<URL 编码正文>` 打到 localTool 18080，
+  // 未命中具名路由 → catch-all 转发外网（每条白等 ~10.5s 后 fetch failed）。
+  it('文本任务（result_url 存正文）→ 不渲染任何媒体元素', () => {
+    h.setTasks([
+      makeTask({ type: 'text', resultUrl: '我注意到您提到了一张图片,但我需要先分析它' }),
+    ]);
+    render(<TaskCenter />);
+    expect(document.querySelector('img')).toBeNull();
+    expect(screen.queryByTestId('video-thumbnail')).toBeNull();
+  });
+
+  it('未知 type 的完成任务 → 同样不渲染媒体元素（fail-safe：不为未知类型猜成图片）', () => {
+    h.setTasks([makeTask({ type: 'someFutureKind', resultUrl: 'http://x/whatever' })]);
+    render(<TaskCenter />);
+    expect(document.querySelector('img')).toBeNull();
+  });
+
+  it('sd2Video 别名 → 按视频形态渲染（同一媒体形态的别名收敛在 taskMediaKind 一处）', () => {
+    h.setTasks([makeTask({ type: 'sd2Video', resultUrl: 'http://x/v.mp4' })]);
+    render(<TaskCenter />);
+    expect(screen.getByTestId('video-thumbnail')).toBeTruthy();
+  });
 });
 
 describe('TaskCenter — 更多菜单操作', () => {
@@ -216,6 +226,14 @@ describe('TaskCenter — 更多菜单操作', () => {
 
   it('运行中任务 → 更多菜单不显示「下载结果」', () => {
     h.setTasks([makeTask({ status: 'running', pollTaskId: 'p1' })]);
+    render(<TaskCenter />);
+    fireEvent.click(screen.getByTitle('更多操作'));
+    expect(screen.queryByText('下载结果')).toBeNull();
+    expect(screen.getByText('删除任务')).toBeTruthy();
+  });
+
+  it('文本任务（已完成）→ 不提供「下载结果」（无媒体结果可下，不得把正文当文件下载）', () => {
+    h.setTasks([makeTask({ type: 'text', resultUrl: '正文…' })]);
     render(<TaskCenter />);
     fireEvent.click(screen.getByTitle('更多操作'));
     expect(screen.queryByText('下载结果')).toBeNull();

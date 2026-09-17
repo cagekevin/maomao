@@ -95,6 +95,61 @@ export function isLocalOnlyPath(pathname: string): boolean {
   return LOCAL_ONLY_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
+/**
+ * ════════════════════════════════════════════════════════════════
+ * 【诊断 · 2026-09-17】可疑请求留痕 —— 定位「谁把一段文本当成 URL 发出来」
+ * ────────────────────────────────────────────────────────────────
+ * 现象：日志反复出现 `GET /<URL 编码的中文长文本>`，每条白等 ~10.5s 后 `fetch failed`。
+ *   这类路径不可能来自生成链路（链路只发 `POST /api/generate` 与固定前缀的 GET），
+ *   只能由页面里的某个「显示出口」（`<img>` / `fetch`）把文本当成了图片地址。
+ *
+ * 判据（只对可疑路径打印，正常转发零噪音）：
+ *   · 非 `/api/` 前缀；
+ *   · 解码后含非 ASCII / 空白字符，或长度 > 200 —— 正常 API 路径不会长这样。
+ * 打印内容：调用方线索 + 路径解码摘要（截 80 字，不整段落日志）。
+ *   `Sec-Fetch-Dest` 是决定性字段：
+ *     image    → `<img>` 触发（LazyImage / AssetNode / ChatMarkdown 等显示出口）
+ *     empty    → `fetch`/XHR 触发（如 assetUrl.ts 的 urlToDataUrl / httpClient）
+ *     document → 地址栏 / 书签导航（不是应用行为）
+ *   配合 `Referer` 可把范围从整个前端缩到具体页面 / 组件。
+ *
+ * 全量打印（排障用，勿长期开启）：`PASSTHROUGH_DIAG_ALL=1`
+ * 定位完成、源头出口删掉后，本段与本文件内的调用点一并删除。
+ * ════════════════════════════════════════════════════════════════
+ */
+const PASSTHROUGH_DIAG_ALL = process.env.PASSTHROUGH_DIAG_ALL === '1';
+
+/** 路径是否「不像 API」（= 可疑：疑似被当成 URL 的文本） */
+function isSuspiciousPath(pathname: string): boolean {
+  if (pathname.startsWith('/api/')) return false;
+  let decoded = pathname;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    /* 非法百分比编码：用原文判断（同样可疑） */
+  }
+  return /[^\x20-\x7E]/.test(decoded) || /\s/.test(decoded) || decoded.length > 200;
+}
+
+/** 打印可疑请求的调用方线索（只记形态 + 摘要） */
+function logSuspiciousRequest(req: IncomingMessage, pathname: string): void {
+  const h = req.headers;
+  const one = (v: string | string[] | undefined): string =>
+    Array.isArray(v) ? v.join(', ') : v || '-';
+  let decoded = pathname;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    /* 解码失败则用原文 */
+  }
+  console.warn(
+    `[passthrough:origin] ${logTs()} | ${(req.method || 'GET').toUpperCase()} ${pathname.slice(0, 60)} | ` +
+      `decoded="${decoded.slice(0, 80)}" | dest=${one(h['sec-fetch-dest'])} ` +
+      `mode=${one(h['sec-fetch-mode'])} site=${one(h['sec-fetch-site'])} | ` +
+      `referer=${one(h.referer)} | ua=${one(h['user-agent']).slice(0, 60)}`,
+  );
+}
+
 /** 构造转发给官方的请求头：剔除 hop-by-hop，保留业务头（含 Authorization） */
 function buildForwardHeaders(req: IncomingMessage, targetUrl: URL): Record<string, string> {
   const out: Record<string, string> = {};
@@ -136,6 +191,9 @@ export async function handlePassthrough(
 
   // 本地专属路径不转发（转出去官方也没有，徒增延迟与噪音日志）
   if (isLocalOnlyPath(pathname)) return false;
+
+  // 【诊断 · 2026-09-17】可疑裸路径留痕（定位「谁把文本当 URL 发」；定位完随上面定义一并删）
+  if (PASSTHROUGH_DIAG_ALL || isSuspiciousPath(pathname)) logSuspiciousRequest(req, pathname);
 
   const start = Date.now();
   const auth = (req.headers['authorization'] as string) || undefined;
