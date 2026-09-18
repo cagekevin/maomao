@@ -15,7 +15,8 @@ vi.mock('../../src/components/base/editors/OverlayEditor.tsx', () => ({
   default: mocks.OverlayEditor,
   renderOverlayCanvas: mocks.renderOverlayCanvas,
 }));
-vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
+vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useConnectedInputs: mocks.useConnectedInputs,
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
@@ -23,8 +24,11 @@ vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useNodeResize: mocks.useNodeResize,
   useContentHeightSync: mocks.useContentHeightSync,
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: mocks.showToast }));
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), showToast: mocks.showToast
+}));
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: mocks.toAbsoluteFileUrl,
 }));
 

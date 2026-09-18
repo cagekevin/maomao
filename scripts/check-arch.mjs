@@ -1733,6 +1733,149 @@ if (
 // 【判据】从两侧各自的源文件抓 `MAX_SEND_DIM = <数字>` → 必须都存在且相等；任一侧缺失/不等 → 违规。
 //   · 不列「允许谁」的清单（只对这一个跨栈契约，未来新增同类契约按此模式补一行）。
 // ─────────────────────────────────────────────────────────────────
+// 规则 16（2026-09-18 · TD-02-64 / TD-02-65 母体止血）：**存** —— 后端落盘唯一权威。
+//
+// 【为什么必须有】「图片怎么落盘」在后端**只有一份权威实现** `fileStore.writeUploadDedup`
+//   （sha1(字节) 内容寻址命名 + contentId 全局去重 + 命中校验磁盘还在），且它是**唯一**把产物
+//   送进 resources 表（素材库可见 / 孤儿 GC 可管）的入口。但这约定**只写在注释里、零机器守卫**：
+//   实证（2026-09-18 审计）已有 **2 处旁路**各自落盘 ——
+//     · `routes/localPatch.ts`（crop/merge 产物）：自拼 `local_crop_<ctx>.png` 直接 `writeUploadBufferAt`
+//       → 不进 resources 表、不去重（同字节内容与上传入口落成两个物理文件）
+//     · `utils/base64Externalize.ts`（KV base64 外置）：自算 sha1 + 自查 DB + 自命名 + 自 `fs.writeFileSync`
+//       —— **与权威逐项重复的第二套**，且从未跟进权威侧 2026-09-17 修的「命中必须校验磁盘还在」
+//       （TD-08-31：DB 行在、文件被 GC 带走 → 复用回 404 死 url = 假成功）。
+//   两处已于 2026-09-18 收口（localPatch → persistPatchProduct；base64Externalize → writeUploadDedupSync），
+//   本闸防回潮（母体 M2：「注释拦不住任何人」）。
+//
+// 【判据（反向）】`localTool/src/**` 内（`utils/fileStore.ts` 自身豁免）出现下列形态 → 违规：
+//   ① 直写 uploads：`fs.writeFileSync(` 且该行/邻近出现 `getUploadDir()` 派生的路径
+//      （识别方式：同文件内 import 了 `getUploadDir` 且出现 `fs.writeFileSync(` —— 落盘必须经 fileStore）；
+//   ② 越过权威落盘：直接调用 `writeUploadBufferAt(`（该函数是**内部原语**，仅供 fileStore 内
+//      的 writeUploadBuffer / writeUploadDedup 使用；业务 handler 必须走 writeUploadDedup）。
+//   · 豁免：`utils/fileStore.ts`（权威自身宿主）。
+//   · 【诚实边界】只机器化上述两种**最常见回潮形态**；经变量间接拼路径的落盘不在此判定（仍靠结构约定）。
+//     `fs.existsSync` 等**只读**调用不在判据内（读盘不产生第二份真相）。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n💾 后端落盘唯一权威：禁直写 uploads / 禁越过 writeUploadDedup（反向判据）');
+const FILE_STORE_AUTHORITY = 'localTool/src/utils/fileStore.ts';
+let persistViol = 0;
+if (existsSync(BACKEND_SRC)) {
+  for (const f of collectFiles(BACKEND_SRC)) {
+    const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+    if (!/\.(ts|tsx)$/.test(rel)) continue;
+    if (rel === FILE_STORE_AUTHORITY) continue; // 权威宿主豁免
+    const code = readFileSync(f, 'utf8');
+    const lines = code.split('\n');
+    // ① 直写 uploads：本文件用了 getUploadDir（= 在算 uploads 路径）且直接 fs.writeFileSync
+    const usesUploadDir = /import\s*\{[^}]*\bgetUploadDir\b[^}]*\}\s*from/.test(code);
+    for (const [i, line] of lines.entries()) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+      if (usesUploadDir && /\bfs\.writeFileSync\(/.test(line)) {
+        persistViol++;
+        fail(
+          `后端直写 uploads 绕过落盘权威: ${rel}:${i + 1} → ${trimmed.slice(0, 100)}` +
+            `（应经 fileStore.writeUploadDedup：内容寻址命名 + contentId 去重 + 登记 resource 行；` +
+            `裸 fs.writeFileSync 会产出"盘上有、库里没有"的孤儿文件）`,
+        );
+      }
+      // ② 越过权威：直接调 writeUploadBufferAt（内部原语）
+      if (/\bwriteUploadBufferAt\(/.test(line)) {
+        persistViol++;
+        fail(
+          `后端越过落盘权威直调内部原语: ${rel}:${i + 1} → ${trimmed.slice(0, 100)}` +
+            `（writeUploadBufferAt 仅供 fileStore 内部使用；业务落盘请走 writeUploadDedup，否则丢去重与资源登记）`,
+        );
+      }
+    }
+  }
+}
+if (!persistViol) {
+  console.log('  ✅ 后端无绕过落盘权威（扫 localTool/src；均走 writeUploadDedup 或其同步核心）');
+}
+
+// 规则 17（2026-09-18 · TD-02-61 / TD-02-65）：**发** —— 发送归一唯一出口。
+//
+// 【为什么必须有】图片「发（送去生成/对话）」的归一化（缩略图端点还原原图、相对→绝对、按上限压尺寸）
+//   只有一份实现：`assetUrl.normalizeAssetUrl(s)ForSend`，且它被 **`api/generate.ts` 门面内部无条件调用**
+//   （`:180` image/video 分支 `normalizeAssetUrlsForSend(req.images)`；`:123` chat 分支 `attachImages` 同款）
+//   ⇒ 门面即唯一出口，**调用方无需也不应自行归一**。
+//   但这约定同样只写在注释里。实证（2026-09-18）：`scriptBoxEngine.ts:1677` 曾在构造 `images:` 载荷时
+//   先 `toAbsoluteFileUrl(origUrl)` —— 方向与出口的 `toRelativeFileUrl` **相反**，是白做一趟，
+//   更坏的是它让读者误以为「调用方需自行归一」（认知污染 → 下一个人就会真的绕过门面自己归一）。
+//
+// 【判据（反向）】`src/**` 内，凡构造 `images:` 载荷的行同时出现 `toAbsoluteFileUrl(` → 违规。
+//   · 只拦这**一种**历史上真实出现过的形态（发送载荷 + 与出口方向相反的转换）；
+//   · `toAbsoluteFileUrl` 本身有大量合法用途（渲染/显示/磁盘定位），故不无条件禁，只限「发送载荷」语境。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n📤 发送归一唯一出口：禁在 images 载荷处自行转换 URL（反向判据）');
+let sendViol = 0;
+if (existsSync(SRC)) {
+  for (const f of collectFiles(SRC)) {
+    const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+    if (!/\.(ts|tsx)$/.test(rel)) continue;
+    const lines = readFileSync(f, 'utf8').split('\n');
+    for (const [i, line] of lines.entries()) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+      // 判据：同一行既有 images: 载荷又有 toAbsoluteFileUrl(...)
+      if (/\bimages\s*:/.test(line) && /\btoAbsoluteFileUrl\(/.test(line)) {
+        sendViol++;
+        fail(
+          `发送载荷自行转换 URL（绕过归一唯一出口）: ${rel}:${i + 1} → ${trimmed.slice(0, 100)}` +
+            `（发送归一在 generate.ts 门面内部无条件执行；此处转换与出口的 toRelativeFileUrl 方向相反，` +
+            `属白做一趟且误导读者 —— 直接传原始 url 即可）`,
+        );
+      }
+    }
+  }
+}
+if (!sendViol) {
+  console.log('  ✅ 无发送载荷自行转换 URL（扫 src；归一责任归 generate.ts 门面）');
+}
+
+// 规则 18（2026-09-18 · TD-02-62 / TD-02-65）：**收** —— 进节点的图必须已是持久 /files/ URL。
+//
+// 【为什么必须有】`node.data.images[].url` 只允许存**持久 /files/ URL**（禁内联 `data:`/`blob:`）——
+//   否则整图 base64 进画布快照 → 快照膨胀 + 刷新后失效（正是手动「清理缓存」按钮要兜的后遗症）。
+//   该不变式由 `nodes/ImageBoxNode.tsx` 的 `addImages`（**唯一写入口**）内部强制：六条加图路径
+//   （上游连线 / 文件选择 / 粘贴文件 / 粘贴文本 / 拖入文件 / 拖入文本）统一过闸。
+//   实证（2026-09-18）：修复前四条路径**裸 URL 直写**，上游连线源可携 `data:`（`assetType.ts:119`
+//   `isAssetUrl` 明确放行）⇒ base64 直接进快照。属 TD-02-62。
+//
+// 【判据（反向）】`src/**` 内出现写 `node.data.images` 的字面形态，且**不在** ImageBoxNode 内 → 违规：
+//   ① `patchData({ images`（或 `patchData({images`）
+//   ② `data: { images` / `images:` 直接进 setNodes updater 的 node 对象（形态 ② 太宽，本闸只做 ①）。
+//   · 豁免：`nodes/ImageBoxNode.tsx`（唯一写入口 addImages 的宿主）。
+//   · 【诚实边界】只机器化 `patchData({ images` 这一最直接形态；经变量中转的写回不在此判定。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n📥 进节点的图必须已持久：禁在 ImageBoxNode 之外直写 data.images（反向判据）');
+const IMAGE_WRITER_HOST = 'src/components/nodes/ImageBoxNode.tsx';
+let collectViol = 0;
+if (existsSync(SRC)) {
+  for (const f of collectFiles(SRC)) {
+    const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+    if (!/\.(ts|tsx)$/.test(rel)) continue;
+    if (rel === IMAGE_WRITER_HOST) continue; // 唯一写入口宿主豁免
+    const lines = readFileSync(f, 'utf8').split('\n');
+    for (const [i, line] of lines.entries()) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+      if (/\bpatchData\(\s*\{\s*images\b/.test(line)) {
+        collectViol++;
+        fail(
+          `ImageBoxNode 之外直写 data.images: ${rel}:${i + 1} → ${trimmed.slice(0, 100)}` +
+            `（node.data.images 的唯一写入口是 ImageBoxNode.addImages，它内部强制落盘换持久 URL；` +
+            `否则内联 data:/blob: 会进画布快照）`,
+        );
+      }
+    }
+  }
+}
+if (!collectViol) {
+  console.log('  ✅ 无越权直写 data.images（扫 src；唯一写入口 = ImageBoxNode.addImages）');
+}
+
 console.log('\n📐 跨栈契约常量对账：MAX_SEND_DIM 前后端必须相等（反向判据）');
 const CROSS_STACK_CONSTS = [
   {

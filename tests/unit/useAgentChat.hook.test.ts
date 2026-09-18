@@ -156,12 +156,15 @@ const sharedConvStore = vi.hoisted((): ConvStoreMock => {
   };
 });
 
-vi.mock('../../src/components/agent/conversation/conversationState.ts', () => ({
+// 从真模块派生（TD-17-15）：只覆盖本套件要控的 subscribe/getState；
+// 其余导出（如 `setAgentKey`）走真模块 —— 手写白名单式桩缺它们即整套件崩。
+vi.mock('../../src/components/agent/conversation/conversationState.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   subscribe: sharedConvStore.subscribe,
   getState: sharedConvStore.getState,
 }));
 
-vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => {
+vi.mock('../../src/components/agent/conversation/conversationStore.ts', async (importOriginal) => {
   let pending: unknown = null;
   let activeId = 'c1';
   const conversations = [
@@ -169,6 +172,8 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => {
     { id: 'c2', title: '对话2' },
   ];
   return {
+    // 从真模块派生（TD-17-15）：conversationStore 属「会长大」类，只覆盖本套件要控的成员。
+    ...((await importOriginal()) as Record<string, unknown>),
     ensureActiveConversation: vi.fn(() => activeId),
     setAgentKey: vi.fn(),
     waitHydrated: vi.fn(async () => {}),

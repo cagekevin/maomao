@@ -51,3 +51,28 @@ export function libraryUpFolder(folder: string | null | undefined): string | nul
   const parent = parts.join('/');
   return parent && !isLibraryRoot(parent) ? parent : null;
 }
+
+/**
+ * 「素材库根已无内容」的空态判定（**唯一判据**；TD-03-15 · 2026-09-18）。
+ *
+ * 【为什么需要】根 = 「尚未归类」区（精确 `migrated`）。落盘即入库之后，**系统产出**
+ * （AI 生成 → `tasks`、画布外置中间图 → `canvas`）占了绝大多数行，它们**不在**根里；
+ * 于是用户新装的库点开「全部」看到的是**空的**，而磁盘上其实躺着几千个文件（实测 4954）。
+ * 一个只说"该目录暂无素材"的空态在这里是**误导** —— 用户会以为素材丢了 / 功能坏了。
+ *
+ * 【判据】① 当前在根；② 首屏已拉完（非 loading）；③ 列表为空；④ 无读失败（失败态优先，见调用方）。
+ * 满足即「根确实空」—— 此时应提示"素材在别处（生成 / 各分类目录）"，而不是"这里没有素材"。
+ *
+ * @param opts.folder 当前浏览目录（根 = `LIBRARY_ROOT` 或空）
+ * @param opts.itemCount 已加载条目数
+ * @param opts.loading 首屏是否加载中
+ * @param opts.hasError 是否处于读失败态（失败态优先，此函数应返回 false）
+ */
+export function isEmptyLibraryRoot(opts: {
+  folder: string | null | undefined;
+  itemCount: number;
+  loading: boolean;
+  hasError: boolean;
+}): boolean {
+  return isLibraryRoot(opts.folder) && !opts.loading && !opts.hasError && opts.itemCount === 0;
+}

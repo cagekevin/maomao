@@ -17,7 +17,8 @@ vi.mock('../../src/components/base/editors/OverlayEditor.tsx', () => ({
   OverlayEditor: mocks.OverlayEditor,
   renderOverlayCanvas: mocks.renderOverlayCanvas,
 }));
-vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
+vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useConnectedInputs: mocks.useConnectedInputs,
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
@@ -25,11 +26,13 @@ vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useNodeResize: mocks.useNodeResize,
   useContentHeightSync: mocks.useContentHeightSync,
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   showToast: mocks.showToast,
   toastWarning: mocks.toastWarning,
 }));
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: mocks.toAbsoluteFileUrl,
   // 切片物化的唯一落盘出口：测试态直接回传输入（真实实现见 filesApi.persistInlineOrKeep）
   persistInlineOrKeep: async (dataUrl: string) => dataUrl,

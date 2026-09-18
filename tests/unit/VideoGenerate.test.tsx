@@ -145,7 +145,8 @@ vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({
   default: () => <div data-testid="video-thumb" />,
 }));
 
-vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
+vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useConnectedInputs: () => ({ images: [], texts: [] }),
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({
@@ -184,7 +185,8 @@ vi.mock('../../src/components/base/utils/clipboard.ts', async (importOriginal) =
   const actual = (await importOriginal()) as Record<string, unknown>;
   return { ...actual, downloadUrl: h.downloadUrl };
 });
-vi.mock('../../src/components/base/api/generate.ts', () => ({
+vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   generateVideo: vi.fn(async () => ({ url: 'http://gen.local/v.mp4' })),
 }));
 
@@ -193,7 +195,8 @@ vi.mock('../../src/components/base/api/generate.ts', () => ({
 // 节点 onSuccess/onRecover 不再手写 patchData，data.videoUrl 由 resultKey 自动写回。
 let genConfig = null;
 let genLoading = false;
-vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
+vi.mock('../../src/hooks/useNodeGeneration.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useNodeGeneration: (config: any) => {
     genConfig = config;
     // 复刻真实 hook 的广播 handler：声明 resultKey 且广播带 resultUrl 时自动写回 node.data

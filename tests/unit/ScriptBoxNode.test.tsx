@@ -101,7 +101,8 @@ vi.mock('../../src/hooks/useScriptBoxEngine.ts', async (importOriginal) => {
   };
 });
 // 引擎 hook：mock createScriptBoxEngine → 返回稳定引擎实例，验证真实注入链路
-vi.mock('../../src/components/scriptbox/scriptBoxEngine.ts', () => ({
+vi.mock('../../src/components/scriptbox/scriptBoxEngine.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   createScriptBoxEngine: () => h.engine,
 }));
 // 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
@@ -120,7 +121,9 @@ vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useContentHeightSync: () => {},
 }));
 // 上游输入接入 hook：mock 返回可控的 h.upstream（默认空），避免依赖 @xyflow/react 的 useStore
-vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => h.upstream }));
+vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), useConnectedInputs: () => h.upstream
+}));
 
 // 三步子组件 mock：渲染内容标记 + 可点的引擎回调按钮（验证 UI 只调回调）
 vi.mock('../../src/components/scriptbox/StepShots.tsx', () => ({

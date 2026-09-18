@@ -7,7 +7,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 // TD-22-2 探针：mock 落盘基座（uploadResult 的唯一 IO 依赖），驱动「成功 / 失败 / 异常」三分支。
 // 契约（用户裁定·错误透传）：失败必须返 null 让消费方显式报错，禁止伪造临时 blob: URL 冒充成功。
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   uploadFileToLocal: vi.fn(),
 }));
 import {

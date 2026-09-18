@@ -54,9 +54,19 @@ export function sanitizeFilename(name: string): string {
 
 /**
  * 目录根白名单（docs/45 收口）。subfolder 只允许以这些根开头，防止拼错目录污染 uploads 根。
- * ⚠️ 不能做成「精确值全量禁止」：素材库有动态分类目录（migrated/人物、migrated/脚本/尾帧变体 等），
- * 且 canvas、migrated 下可嵌套（canvas/drop、canvas/video-process）——故白名单针对【顶层根】，
- * 只拒绝未知顶层根与目录逃逸，放行既有所有合法用法（这与前端 uploadDirs.js 的常量根一致）。
+ *
+ * ⚠️ **不能做成「精确值全量禁止」**：素材库（`migrated`）下是**用户自建**的动态分类目录
+ * （实测 `人物`／`场景`／`道具`／`颜色`／`HKH其他产品`），枚举 = 用户建一个新目录就落盘失败。
+ * 故顶层根用白名单，子目录层级**按根分域**（见下）。
+ *
+ * 【TD-03-18 · 2026-09-18 分域校验】旧实现只查 `parts[0] ∈ UPLOAD_ROOT_ALLOW`，
+ * 子目录层级**完全不校验** ⇒ 任何人都能落一个 `canvas/任意名`，谁也不知道它该不该存在于 UI 里。
+ * 后果：出现了 `canvas/cleaned`(125) / `canvas/template`(2) / `canvas/upload`(1) 三个
+ * **全仓零引用**的孤儿目录（128 文件）—— 写时没人拦，事后无人知。
+ *
+ * 现按**两类根本性不同**分别处理（判据见 `SUB_DIR_ALLOW`）：
+ *  · `migrated` = **用户数据根** ⇒ 子目录开放（用户自由建），**不校验**层级；
+ *  · 其余 = **系统产物根** ⇒ 子目录封闭，**须在 `SUB_DIR_ALLOW` 登记**（代码决定目录名，用户建不出来）。
  *
  * ⚠️ **改这里之前先读**：本集合是「uploads 顶层根」的**真源**（执行校验的一方）。两个子集：
  *  - **前端可传的根**（`tasks`/`web`/`canvas`/`migrated`/`director3d`）—— 新增/删除时必须**同时**改
@@ -66,11 +76,8 @@ export function sanitizeFilename(name: string): string {
  *    `OUTPUT_SUBFOLDER`），**不参与前端上传**，故前端无需同步。
  *
  * 更新(2026-09-15)：原由闸 `scripts/check-upload-dirs.mjs` 对账两端，已按用户裁定删除（实测常绿）。
- * 判据改由**此处注释 + 前端同款注释**承担；顶层根若开始频繁增删，应恢复该闸而不是靠注释。
- *
- * 更新(2026-09-17 · TD-08-31)：补登记 `local-patch`。它一直被 `localPatch` 使用，却**不在**本集合里 ——
- * 靠的正是 `resolveUploadTarget` 那句"非法即静默回退 canvas"，于是产物实际落在 `canvas/`。
- * 白名单是"真源"，真源缺项就会被静默改写语义；且回退改掉的正是**调用方声明的目录**（本债的病灶之一）。
+ * 更新(2026-09-18 · TD-03-18)：闸已恢复（`scripts/check-upload-dirs.mjs`），判据改为
+ * 「代码实际传的 subfolder 值域 ⊆ 登记」—— 那才是真正会漏的判据。
  */
 export const UPLOAD_ROOT_ALLOW = new Set([
   'tasks',
@@ -82,10 +89,26 @@ export const UPLOAD_ROOT_ALLOW = new Set([
 ]);
 
 /**
- * 规范化并校验 subfolder（目录根白名单 + 防目录逃逸）。
+ * **系统产物根**下的既知子目录白名单（TD-03-18）。
+ * 与前端 `uploadDirs.ts::KNOWN_SUB_DIRS` 是同一条判据的两端表述 —— 前端先自查（早失败），后端独立强校验。
+ * `migrated` 下的子目录**不在本表**（用户数据根，见上）。
+ */
+export const SUB_DIR_ALLOW = new Set([
+  'canvas/drop',
+  'canvas/video-process',
+  'canvas/video-editor',
+  'canvas/face_mosaic',
+]);
+
+/** 顶层根类型：用户数据根（子目录自由） / 系统产物根（子目录须登记）。 */
+const USER_DATA_ROOTS = new Set(['migrated']);
+
+/**
+ * 规范化并校验 subfolder（顶层根白名单 + 子目录分域校验 + 防目录逃逸）。
  * - 统一 `/` 分隔、去首尾斜杠、折叠连续斜杠；
  * - 拒绝空段 / `.` / `..` / 含盘符或 `:` 的绝对形式 / 未登记顶层根；
  *   （路径经 path.join 拼接后必然落在 uploads 根内，杜绝 ../ 越根写文件）
+ * - **子目录分域校验**（TD-03-18）：用户数据根放行任意层级；系统产物根的未登记子目录 ⇒ 拒绝；
  * - 合法 → 返回规范化后的相对子路径；非法 → 返回 null（**调用方必须拒绝该请求，禁止回退默认根**）。
  *
  * 【TD-08-31 · 2026-09-17】原注释写的是"调用方回退默认根 canvas"，而 `resolveUploadTarget` 就是这么做的
@@ -104,7 +127,11 @@ export function normalizeSubfolder(subfolder: unknown): string | null {
   if (parts.some((p) => !p || p === '.' || p === '..')) return null;
   const root = parts[0];
   if (root.includes(':') || !UPLOAD_ROOT_ALLOW.has(root)) return null;
-  return parts.join('/');
+  const normalized = parts.join('/');
+  // 子目录分域校验（TD-03-18）：顶层根本身放行；用户数据根放行其下任意层级；
+  // 系统产物根要求子目录已登记 —— 未登记即拒绝（这正是孤儿目录的入口，必须堵在落盘之前）。
+  if (parts.length > 1 && !USER_DATA_ROOTS.has(root) && !SUB_DIR_ALLOW.has(normalized)) return null;
+  return normalized;
 }
 
 /**
@@ -251,8 +278,25 @@ export interface WriteDedupResult {
  *    （应用层查重仅优化；并发真保证 = DB contentId 唯一约束 + 冲突回退，见路由层）
  * 3. 未命中 → writeUploadBuffer 以 sha1 命名落盘（contentHashName，仅初始命名）。
  * 任何「新建文件落盘」入口应经本函数按 contentId 去重。
+ *
+ * 【本函数实为同步】全程零 `await`（查重回调与写盘都是同步的）—— 声明 `async` 仅为接口统一，
+ * 返回的 Promise 在调用瞬间已 settled。需要**同步**落盘语义的调用方（如 `base64Externalize`
+ * 在 KV CAS 临界区内禁止任何 await，见 `kv.ts` 的 ★★★ 约束）请用 `writeUploadDedupSync`。
  */
 export async function writeUploadDedup(opts: WriteDedupOpts): Promise<WriteDedupResult> {
+  return writeUploadDedupSync(opts);
+}
+
+/**
+ * 去重感知落盘的**同步核心**（`writeUploadDedup` 的实现体，判据唯一，两者不各持一份）。
+ *
+ * 【为什么必须有同步版（2026-09-18 · TD-02-64）】`kv.ts::handleKvSet` 的版本 CAS 是一段
+ * **禁止 await** 的同步临界区（`int` 注释明令），而 base64 外置钩子 `externalizeBase64InValue`
+ * 就长在那个临界区里。若把它改成 async，CAS 会在 await 处让出事件循环 ⇒ **并发写同键丢版本**
+ * （TD-13-4/13-7 一类竞态的根）。故此处提供同步形态，让外置钩子既能**委托唯一权威**、
+ * 又不破 CAS 原子性 —— 而不是让它在本地另抄一套 sha1/命名/去重（TD-02-64 收掉的那份）。
+ */
+export function writeUploadDedupSync(opts: WriteDedupOpts): WriteDedupResult {
   const hash = crypto.createHash('sha1').update(opts.data).digest('hex');
   const contentId = contentIdOf(hash);
   const hitUrl = opts.existingUrlByContentId(contentId);

@@ -80,14 +80,16 @@ vi.mock('../../src/components/base/utils/clipboard.ts', () => ({
     return { ok: true, msg: '已复制' };
   },
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   showToast: (...a: unknown[]) => h.showToast(...a),
 }));
 vi.mock('../../src/hooks/useAssetDragToCanvas.ts', () => ({
   makeAssetDragProps: () => ({ draggable: true }),
 }));
 vi.mock('../../src/components/base/core/uiHooks.ts', () => ({ useOutsideClick: () => {} }));
-vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
+vi.mock('../../src/components/base/utils/assetUrl.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useRenderAssetResolver: () => (u: any) => (u && u.startsWith('/files/') ? `THUMB${u}` : u || ''),
 }));
 vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({

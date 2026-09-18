@@ -19,8 +19,16 @@ vi.mock('../../src/components/base/core/eventBus.ts', () => ({
     return () => {};
   },
 }));
-vi.mock('../../src/components/base/core/config.ts', () => ({ AUTO_TRIGGER_DOWNSTREAM: true }));
-vi.mock('../../src/components/base/store/taskStore.ts', () => ({
+// config 桩必须**从真模块派生**：只覆盖本套件要控的开关。
+// 【为什么】TD-17-15 展开 resourceStore/providerStore 后，真实链路（contracts → kvStore）会读
+// `config.KV_TIMEOUT` 等其它导出；手写白名单式桩缺它们 ⇒ 「No "KV_TIMEOUT" export」整套件崩。
+// 这正是本债的形态：桩是**静态手抄面**，模块/其依赖一长大就脱钩。
+vi.mock('../../src/components/base/core/config.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  AUTO_TRIGGER_DOWNSTREAM: true,
+}));
+vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   runNodeGeneration: runNodeGenerationMock,
 }));
 vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: loggerState }));

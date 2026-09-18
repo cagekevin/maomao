@@ -16,7 +16,8 @@ import {
 } from '../../src/components/base/utils/assetUrl.ts';
 
 // blobToDataUrl / urlToDataUrl 依赖 httpClient 与 FileReader（node 无原生实现），在此 mock。
-vi.mock('../../src/components/base/api/httpClient.ts', () => ({
+vi.mock('../../src/components/base/api/httpClient.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   httpRequest: vi.fn(),
 }));
 // mock logger，避免转换失败时告警刷屏污染测试输出

@@ -11,7 +11,8 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
+vi.mock('../../src/components/agent/conversation/conversationStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   getCurrentWorkflow: vi.fn(() => null),
   patchCurrentWorkflow: vi.fn(() => null),
 }));

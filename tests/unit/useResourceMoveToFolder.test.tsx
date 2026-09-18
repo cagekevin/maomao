@@ -26,7 +26,9 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return { ...actual, moveFile: mocks.moveFile };
 });
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: mocks.showToast }));
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), showToast: mocks.showToast
+}));
 vi.mock('../../src/components/base/core/eventBus.ts', () => ({
   publish: mocks.publish,
   subscribe: mocks.subscribe ?? (() => () => {}),

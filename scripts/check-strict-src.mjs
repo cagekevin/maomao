@@ -21,6 +21,35 @@
  *   Q3 怎么改：改 `scripts/strict-src-whitelist.json`（真源数据，与 `strict-report.mjs` 共用）；
  *               **方向只允许收窄** —— 新目录收口后加进去；禁止移除已达标的目录（那是放松）。
  *
+ * 【★ 2026-09-18 · 提速调研结论：**没有便宜的提速，本闸保持原样**（实测留痕，防后人重走）】
+ *   背景：用户要求「审计闸、优化速度」。本闸实测 **~9.2–12s**，是全仓第二慢（仅次于 knip）。
+ *   逐条试过、逐条否掉（全部本仓实测，非推理）：
+ *
+ *   ① **`incremental` / `tsBuildInfoFile` —— 无效**。`tsc --noEmit` **不会**把增量信息固化到
+ *      行为上：实测 `tsconfig.tsbuildinfo` 的 mtime 长期不变（自 13:47 起冻结），即缓存根本没被复用；
+ *      且 `.tsbuildinfo` 里 `affectedFilesPendingEmit` 恒含 **841** 项、`options.noEmit === undefined`
+ *      —— 即便显式 `--tsBuildInfoFile` 让它落盘，第二次仍 ~10.5s（无提速）。
+ *      ⚠️ 这是 **TypeScript 的已知限制**，不是配置写错：`--noEmit` 与 `--incremental` 组合下
+ *      增量短路不生效。**别再试这条**（已试 3 种写法：CLI flag / tsconfig 内 tsBuildInfoFile / 显式 --incremental）。
+ *
+ *   ② **按白名单收窄 `include` —— 更快但**不安全，已否决**。做法：按 `strict-src-whitelist.json`
+ *      生成只含 18 个白名单目录的子配置（285/589 文件）。实测 11.4s → 10.5s（**只省 0.9s**），
+ *      但**引入伪错误**：窄配置下 `src/components/base/utils/videoEngine.ts:34` 报
+ *      `TS7016 gifenc 无声明文件`，而**全量配置下不报**（`grep -c gifenc` = 0）。
+ *      原因：收窄 include 会改变 tsc 的 program 组成（外部 `.d.ts` 的加载与可见性随之变化）。
+ *      ⇒ **为了 0.9s 去换「可能红在别处」= 违反闸的诚实性，不做。**
+ *
+ *   ③ **`--skipLibCheck` —— 已开**（tsconfig 里），无可再省。
+ *
+ *   ④ **与本闸和 `type-check` 的关系（重要 · 顺带澄清一条旧注释）**：
+ *      实测两闸**确实不同**（非冗余）：把 tsconfig 的 `noImplicitAny` 临时改 false 后，
+ *      `type-check`（无 CLI flag）报 **93** 错，本闸（带 `--noImplicitAny`）报 **0** 错
+ *      ⇒ **CLI flag 会覆盖 tsconfig**，本闸的覆盖面独立存在，**不可合并**。
+ *      （manifest `_design.tsc` 段「标志会改变推断、不可合并」的判断，经本次实测**成立**。）
+ *      ⚠️ 但也要知道：**当前 tsconfig 已写死 `noImplicitAny: true`**，故此刻两闸输出**逐行相同**
+ *      （均 0 错）。本闸的价值在于「**即使有人把 tsconfig 的 noImplicitAny 改成 false，白名单目录仍被守住**」
+ *      —— 它是防「悄悄放松 tsconfig」的二道锁。**这条理由要留着**，别因"看起来重复"而删本闸。
+ *
  * 用法：`node scripts/check-strict-src.mjs`（挂 `npm run check:strict-src` / pre-push）
  */
 import { execSync } from 'node:child_process';

@@ -12,23 +12,31 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // 隔离外部依赖（网络 / 模型 / toast），仅保留 scriptBoxPrompts（纯提示词拼接）
-vi.mock('../../src/components/base/api/generate.ts', () => ({
+vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   chatCompletions: vi.fn(),
   generateImage: vi.fn(),
 }));
 // 统一出口：toAbsoluteFileUrl 把相对 /files/ 补全为绝对原图（与 assetUrl.js 真实行为一致，注入 data.images 前收口）
-vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
+vi.mock('../../src/components/base/utils/assetUrl.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: (u: any) => (u && u.startsWith('/files/') ? `http://127.0.0.1:18080${u}` : u || ''),
 }));
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   resolveProviderModel: vi.fn(() => ({ provider: 'openai', modelId: 'gpt-4o-mini' })),
   buildAllModels: vi.fn(() => [{ id: 'gpt-4o-mini' }]),
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => {
+// 从真模块派生（TD-17-15）：toastStore 属「会长大」类，手写白名单式桩会随它加导出而脱钩。
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => {
   const showToast = vi.fn();
-  return { showToast, toastStore: { showToast } };
+  return {
+    ...((await importOriginal()) as Record<string, unknown>),
+    showToast,
+    toastStore: { showToast },
+  };
 });
-vi.mock('../../src/components/base/store/resourceStore.ts', () => ({
+vi.mock('../../src/components/base/store/resourceStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   localizeAndStoreToResourceLibrary: vi.fn(),
   resourceFolderOf: vi.fn(() => 'migrated/人物'),
   sendToResourceLibrary: vi.fn(),

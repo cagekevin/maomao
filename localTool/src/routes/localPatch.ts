@@ -28,12 +28,12 @@
  * 4) 常规流程：提取选区(建议 1:1 正方形, aspect=1) → 图生节点改局部(比例选 1:1) → 融合节点「原图+局部图」→开始融合。
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import Jimp from 'jimp';
-import { getUploadDir } from '../db/database.js';
-import { writeUploadBufferAt } from '../utils/fileStore.js';
+import { getDb, getUploadDir, queryOne } from '../db/database.js';
+import { writeUploadDedup } from '../utils/fileStore.js';
+import { recordUploadedFileRow } from './resources.js';
 import {
   LocalPatchError,
   cropLocalPatch,
@@ -49,6 +49,43 @@ const BASE_URL = localToolBaseUrl();
 
 /** 局部提取与图像融合产物落盘目录（local-patch 子目录，docs/19 §2.2）。 */
 const OUTPUT_SUBFOLDER = 'local-patch';
+
+/**
+ * local-patch 产物落盘（crop / merge 共用）—— **经唯一落盘权威 `writeUploadDedup`**。
+ *
+ * 【2026-09-18 · TD-02-64 收口】此前两处直接 `writeUploadBufferAt(OUTPUT_SUBFOLDER, 'local_crop_<ctx>.png', buf)`
+ * / `'local_merge_<hex>.png'`，**各自拼文件名、各自绕开 contentId 去重** —— 与 `files.ts` 在 2026-09-17
+ * 刚因同一理由（"第二套落盘命名与去重"）收口掉 `doSaveRemoteUrl` 的形态**逐字同款**。
+ * 后果：同一字节内容经 local-patch 落一份、经上传又落一份（物理重复），且产物不进 resources 表
+ * ⇒ 素材库看不到、孤儿 GC 认不出（既占盘又不可管理）。
+ *
+ * 现与 multipart / fileUrl / base64 三条入口**同一实现**：sha1(字节) 内容寻址命名 + contentId 全局去重
+ * + 登记 resource 行。返回值 `urlPath` 为 `/files/...` 相对形式（去重命中时为既有 url，同样归一）。
+ */
+async function persistPatchProduct(data: Buffer): Promise<string> {
+  const db = await getDb();
+  const dedup = await writeUploadDedup({
+    subfolder: OUTPUT_SUBFOLDER,
+    ext: '.png',
+    data,
+    // 路由层注入 DB glue：fileStore 保持低层职责纯粹，去重判定只此一份实现
+    existingUrlByContentId: (contentId) => {
+      const row = queryOne(db, 'SELECT url FROM resources WHERE sha1 = ?', [contentId]);
+      return row ? (row.url as string) : null;
+    },
+  });
+  // DB 既有 url 为绝对形式（http://.../files/...），转相对 —— 与 files.ts 同口径（BASE_URL 统一拼接）
+  const urlPath = dedup.urlPath.replace(/^https?:\/\/[^/]+/, '');
+  if (!urlPath.startsWith('/files/')) {
+    throw new LocalPatchError(`落盘返回非 /files/ 形态：${urlPath}`, 500);
+  }
+  // 登记 resource 行（去重命中也要登记：刷新 folder/name 归属，使"落盘成功"诚实等价于"库里可见"）
+  await recordUploadedFileRow(urlPath.replace(/^\/files\//, ''), {
+    folder: OUTPUT_SUBFOLDER,
+    name: path.basename(urlPath),
+  });
+  return urlPath;
+}
 
 /** 留痕日志（对齐 files.ts 的 [upload]/[download] 风格，供「图丢了」溯源）。 */
 const patchLog = (status: number, msg: string) =>
@@ -116,11 +153,8 @@ export async function handleLocalPatchCrop(
     );
 
     const buf = await img.getBufferAsync(Jimp.MIME_PNG);
-    const { urlPath } = writeUploadBufferAt(
-      OUTPUT_SUBFOLDER,
-      `local_crop_${cropContext.contextId}.png`,
-      buf,
-    );
+    // 【TD-02-64】落盘收口到唯一权威（原先 writeUploadBufferAt 自拼名、绕开 contentId 去重）
+    const urlPath = await persistPatchProduct(buf);
     patchLog(200, `crop ${body.source_url} -> ${urlPath} rect=${sel.w}x${sel.h}`);
 
     return json(res, {
@@ -191,8 +225,9 @@ export async function handleLocalPatchMerge(
     });
 
     const buf = await merged.getBufferAsync(Jimp.MIME_PNG);
-    const hex = crypto.randomBytes(8).toString('hex');
-    const { urlPath } = writeUploadBufferAt(OUTPUT_SUBFOLDER, `local_merge_${hex}.png`, buf);
+    // 【TD-02-64】落盘收口到唯一权威（原先 writeUploadBufferAt + randomBytes 自拼名、绕开 contentId 去重：
+    // 同一原图重复融合会落出 N 份同名不同字节的产物，且都进不了 resources 表）
+    const urlPath = await persistPatchProduct(buf);
     patchLog(200, `merge ${body.original_url} <- ${patches.length} patches -> ${urlPath}`);
 
     return json(res, {

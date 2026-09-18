@@ -35,11 +35,10 @@ import {
   onResourceSent,
   emitResourceSent,
   mergeResourcesFromBackend,
-  FOLDERS,
-  LIBRARY_CATEGORY_KEYS,
+  libraryFoldersOf,
 } from '../store/resourceStore.ts';
 // 目录浏览规则 + 素材库根：**与导入弹窗共用同一份**（唯一实现，见 libraryBrowse.ts）。
-import { LIBRARY_ROOT, libraryBrowseArgs, libraryUpFolder } from '../media/libraryBrowse.ts';
+import { LIBRARY_ROOT, libraryBrowseArgs, libraryUpFolder, isEmptyLibraryRoot } from '../media/libraryBrowse.ts';
 // 目录条目 → 自身目录路径的唯一实现（与「点目录进入」「拖入归类」共用）。
 import { folderPathOf } from '../../../hooks/useResourceMoveToFolder.ts';
 import { useCurrentProjectId } from '../store/projectStore.ts';
@@ -52,22 +51,25 @@ import type { ResourceItem } from '../api/localToolApi.ts';
 import { ResourcePreviewOverlay } from './ResourcePreview.tsx';
 
 /**
- * 目录 pill —— **派生自 `resourceStore.FOLDERS`（唯一真源），不在此另写一份**。
+ * 目录 pill 的来源 —— **派生自 `resourceStore.libraryFoldersOf()`（唯一判据），不在此另写一份**。
  *
  * 【收口（2026-09-17）】此前本文件有一份硬编码 `FOLDER_PILLS`，与 `resourceStore.FOLDERS`
  * 是**同一件事的两份**（人物/场景/道具三项目的 label 与 folder 逐字相同）= M3 第二份。
- * 现只保留「面向用户素材」的 4 项（key 白名单），与 `base/media` 的 library provider
- * **同一判据**（tasks 由「生成」来源承载，不在此重复）。
- *
- * 更新(2026-09-17 收口)：白名单**不再在本文件定义**（此前与 library provider 各一份同名同值 = M3 第二份）
+ * 现只保留「面向用户素材」的项，与 `base/media` 的 library provider **同一判据**
+ * （tasks 由「生成」来源承载，不在此重复）。
+ * 更新(2026-09-17)：白名单**不再在本文件定义**（此前与 library provider 各一份同名同值 = M3 第二份）
  * → 归到 FOLDERS 的拥有者 `resourceStore`，两处 import 同一常量（TD-02-53）。
+ *
+ * 【TD-03-15 · 2026-09-18 改为数据驱动】原为**模块级静态常量**（只含静态白名单 4 项）
+ * ⇒ 用户在 `migrated` 下自建的目录（实测 `颜色`／`HKH其他产品`）**没有 pill、点不进去**。
+ * 现移到组件内由 `libraryFoldersOf(items 里的 folder 行)` 派生 —— **目录一建出来就有入口**。
+ * 数据来源不新增接口：本面板已经在拉 `/api/resources`，其中的 `type:'folder'` 条目就是磁盘目录的投影。
  */
-const FOLDER_PILLS = FOLDERS.filter((f) => LIBRARY_CATEGORY_KEYS.includes(f.key)).map((f) => ({
-  // pill value 用 folder（本面板既有语义：`folder` state 即目录前缀）；
-  // 「全部」在 FOLDERS 里 folder=null → 本面板约定 = 素材库根（真源 LIBRARY_ROOT）。
-  folder: f.folder ?? LIBRARY_ROOT,
-  label: f.label,
-}));
+
+/** 把分类清单转成 pill 项（「全部」的 folder=null → 本面板约定 = 素材库根 LIBRARY_ROOT，唯一真源）。 */
+function toPillItems(folders: ReturnType<typeof libraryFoldersOf>) {
+  return folders.map((f) => ({ folder: f.folder ?? LIBRARY_ROOT, label: f.label }));
+}
 
 interface TypeBadge {
   icon: LucideIcon;
@@ -129,6 +131,16 @@ function ResourceLibrary() {
   const [folder, setFolder] = useState(LIBRARY_ROOT); // 当前目录前缀路径（素材库根 = 「全部」）
   const [preview, setPreview] = useState<ResourceItem | null>(null);
   const [items, setItems] = useState<ResourceItem[]>([]);
+  /**
+   * 磁盘实有的子目录行（`type:'folder'`）—— **只在 `migrated` 根那一拉更新**。
+   *
+   * 【为什么要独立于 `items`（TD-03-15）】目录 pill 清单由「静态基底 ∪ 磁盘实有子目录」派生，
+   * 而 `items` 随当前目录变化（进子目录后里面就没有 folder 行了）⇒ 若从 `items` 派生，
+   * **一进子目录 pill 就集体消失**（用户再也点不回去）。故单独留存，只在浏览到根时分母对。
+   */
+  const [rootFolderRows, setRootFolderRows] = useState<
+    { folder?: string | null; name?: string | null }[]
+  >([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -161,6 +173,16 @@ function ResourceLibrary() {
   const resetTokenRef = useRef(0);
 
   const currentFolder = folder || LIBRARY_ROOT; // 当前目录（用于拉取/打开本地/上传落点）
+
+  /**
+   * 目录 pill 清单（**数据驱动**，TD-03-15）：静态基底 ∪ 磁盘实有子目录。
+   * 判据唯一实现在 `resourceStore.libraryFoldersOf`，本面板只负责喂数据与渲染。
+   * 磁盘那一半来自 `rootFolderRows`（见其 state 注释：为何不直接用 `items`）。
+   */
+  const folderPills = useMemo(
+    () => toPillItems(libraryFoldersOf(rootFolderRows)),
+    [rootFolderRows],
+  );
   /**
    * 拉取过滤方式（用户裁定 2026-09-17）：**「全部」= 精确 `migrated` 根（尚未归类）**。
    *
@@ -202,6 +224,12 @@ function ResourceLibrary() {
         if (token !== resetTokenRef.current) return;
         setItems(slice.items);
         mergeResourcesFromBackend(slice.items);
+        // 【TD-03-15】浏览到素材库根时，把返回的目录行留作 pill 清单的**磁盘那一半**
+        // （「全部」= folderExact:migrated ⇒ 其 items 里正好含 migrated 下所有 type:'folder'）。
+        // 非根目录**不清空**（留上次的快照）—— 否则进子目录后 pill 集体消失、用户点不回去。
+        if (currentFolder === LIBRARY_ROOT) {
+          setRootFolderRows(slice.items.filter((x) => x.type === 'folder'));
+        }
         setTotal(slice.total);
         setHasMore(hasMoreOf(slice));
       } catch (e) {
@@ -218,7 +246,7 @@ function ResourceLibrary() {
         if (token === resetTokenRef.current) setLoading(false);
       }
     },
-    [connected, projectId, fetchArgsFor],
+    [connected, projectId, fetchArgsFor, currentFolder],
   );
 
   // 首次挂载 + 目录变化 + 项目切换 + 重拉信号 → 重置到第 1 页并 rescan
@@ -407,7 +435,7 @@ function ResourceLibrary() {
       {/* 副工具条：目录 pill（可横滚 + 拖拽防误点，收进共享 PanelPills）+ ⋯ 菜单（无搜索，按用户裁定） */}
       <PanelSubBar>
         <PanelPills
-          items={FOLDER_PILLS.map((f) => ({ key: f.folder, label: f.label }))}
+          items={folderPills.map((f) => ({ key: f.folder, label: f.label }))}
           value={folder}
           onChange={(folderPath) => setFolder(folderPath)}
           leading={
@@ -547,11 +575,31 @@ function ResourceLibrary() {
             </button>
           </div>
         ) : items.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-faint text-sm gap-2">
-            <div className="text-4xl opacity-40">📦</div>
-            <p className="m-0">该目录暂无素材</p>
-            <p className="text-xs text-subtle m-0">上传文件后会落盘到本地并出现在这里</p>
-          </div>
+          // 【TD-03-15】根空 → **如实说明素材在别处**（而非"该目录暂无素材"）：
+          // 根 = 「尚未归类」区，而绝大部分行是系统产出（tasks/canvas，不在根里）
+          // ⇒ 新库点开「全部」是空的、磁盘却躺着几千个文件，旧文案会让用户以为素材丢了。
+          isEmptyLibraryRoot({
+            folder: currentFolder,
+            itemCount: items.length,
+            loading,
+            hasError: !!loadError,
+          }) ? (
+            <div className="h-full flex flex-col items-center justify-center text-faint text-sm gap-2 px-6">
+              <div className="text-4xl opacity-40">📦</div>
+              <p className="m-0">这里还没有待归类的素材</p>
+              <p className="text-xs text-subtle m-0 text-center leading-relaxed">
+                「全部」只显示尚未归类的素材。AI 生成的内容在「生成」里，
+                已归类的素材在 人物 / 场景 / 道具 等目录里。
+              </p>
+              <p className="text-xs text-subtle m-0">上传或拖入文件即可出现在这里</p>
+            </div>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-faint text-sm gap-2">
+              <div className="text-4xl opacity-40">📦</div>
+              <p className="m-0">该目录暂无素材</p>
+              <p className="text-xs text-subtle m-0">上传文件后会落盘到本地并出现在这里</p>
+            </div>
+          )
         ) : (
           <>
             <div className="grid grid-cols-3 gap-2">

@@ -47,15 +47,21 @@ const { degradeSpy, confirmPersistSpy } = vi.hoisted(() => ({
   degradeSpy: vi.fn(),
   confirmPersistSpy: vi.fn(() => true),
 }));
-vi.mock('../../src/components/base/core/degrade.ts', () => ({
+vi.mock('../../src/components/base/core/degrade.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   reportDegrade: degradeSpy,
   confirmPersist: confirmPersistSpy,
 }));
 
-vi.mock('../../src/components/base/api/localToolApi.ts', async () => {
+// localToolApi：**从真模块派生**，只覆盖本套件要控的网络原语。
+// 【为什么必须派生（TD-17-15）】它是「会长大」的 api 模块；手写工厂只列被用到的导出 ⇒
+// 模块一加导出，任何走到新导出的路径即「undefined 崩溃」。派生后新增导出自动可见。
+vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => {
   const { HttpError: RealHttpError } = await import('../../src/components/base/api/httpClient.ts');
   const S = H;
   return {
+    ...((await importOriginal()) as Record<string, unknown>),
+    HttpError: RealHttpError,
     fetchProjects: vi.fn(async () => ({ data: { ...S.fetchProjectsPayload } })),
     saveProjects: vi.fn(async () => ({ ok: true })),
     kvGet: vi.fn(async (k: string) => {
@@ -90,7 +96,8 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async () => {
     }),
   };
 });
-vi.mock('../../src/components/base/storage/kvStore.ts', () => ({
+vi.mock('../../src/components/base/storage/kvStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   CANVAS_STATE_PREFIX: 'canvas-state-v1-',
 }));
 

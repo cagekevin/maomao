@@ -37,7 +37,8 @@ const createScriptBoxEngine = vi.fn((cfg: ScriptBoxEngineDeps) => ({
   __cfg: cfg,
 }));
 // 工厂用 Parameters<> 精确透传：既无 as any，又保留 mock.calls[0][0] 的精确类型
-vi.mock('../../src/components/scriptbox/scriptBoxEngine.ts', () => ({
+vi.mock('../../src/components/scriptbox/scriptBoxEngine.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   createScriptBoxEngine: (...a: Parameters<typeof createScriptBoxEngine>) =>
     createScriptBoxEngine(...a),
 }));
@@ -46,11 +47,21 @@ vi.mock('../../src/components/scriptbox/scriptBoxEngine.ts', () => ({
 // 只让 key 命中 'yimao_node_prefs' 时返回，避免牵动 contentStore 的真实注册/后端逻辑。
 let prefsStore = {};
 // 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
+/**
+ * contentStore 桩：只覆盖本套件要控的 `yimao_node_prefs`，其余从真模块派生。
+ *
+ * ⚠️ **`contentSet` 必须如实返回 `PersistWriteOutcome`（形如 `{ok,landed}`），不能返 `undefined`**
+ *   —— 它被 `projectStore.loadProjects()` 顶层的 `confirmPersist(contentSet(...))` 消费，
+ *   返回 `undefined` ⇒ `confirmPersist` 读 `outcome.ok` 抛 `TypeError` ⇒ **整套件崩**。
+ *   这正是 TD-17-15 暴露的第二类缺陷：**桩违反了自己的契约**（假成功/假值），
+ *   而旧的"手写桩只声明被用到的导出"恰好把这条链挡住了、让人看不见。
+ */
 vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   contentGet: (k: any) => (k === 'yimao_node_prefs' ? prefsStore : null),
   contentSet: (k: any, v: any) => {
     if (k === 'yimao_node_prefs') prefsStore = v;
+    return { ok: true, landed: 'local' }; // 契约：PersistWriteOutcome（见 contentStore.ts）
   },
 }));
 
@@ -59,7 +70,8 @@ const useProvidersList = vi.fn(() => [{ id: 'p1', isPrimary: true }]);
 // 素材库落盘通道：本测试只验「recover 时补归类被触发/未触发」，隔离真实落盘与网络。
 // 不 mock 会拉起 resourceStore→projectStore 的真实顶层链（测试环境未构造）。
 const localizeMock = vi.fn(() => Promise.resolve('/files/migrated/人物/a1.png'));
-vi.mock('../../src/components/base/store/resourceStore.ts', () => ({
+vi.mock('../../src/components/base/store/resourceStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   localizeAndStoreToResourceLibrary: (...a: Parameters<typeof localizeMock>) => localizeMock(...a),
   resourceFolderOf: (category: string) =>
     ({ character: 'migrated/人物', scene: 'migrated/场景', prop: 'migrated/道具' })[category] ||

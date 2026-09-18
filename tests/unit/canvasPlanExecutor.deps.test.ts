@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // 隔离真实生图（TASK-012 依赖批调用层补全）
-vi.mock('../../src/components/base/store/taskStore.ts', () => ({
+vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/ok.png' })),
   isNodeRegistered: vi.fn(() => true),
 }));

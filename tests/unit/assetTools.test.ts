@@ -84,7 +84,8 @@ describe('useAssetDegrade —— lodLevel→hideMedia 映射', () => {
 // 依赖 storageAdapter.sGet/sSet。用内存实现 mock。
 // ───────────────────────────────────────────────────────────
 const prefsMem = new Map();
-vi.mock('../../src/components/base/storage/storageAdapter.ts', () => ({
+vi.mock('../../src/components/base/storage/storageAdapter.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   sGet: vi.fn((k) => (prefsMem.has(k) ? prefsMem.get(k) : null)),
   // 【2026-09-17 TD-24-4 契约同步】写/删桩必须返回落盘结果（PersistWriteOutcome）——
   // 消费方 confirmPersist 读 `.ok`，桩返 undefined 会直接 TypeError（桩跟契约走，不是契约迁就桩）。

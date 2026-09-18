@@ -187,13 +187,15 @@ vi.mock('../../src/components/base/store/providerStore.ts', async (importOrigina
   // `useEnsureProvidersLoaded`（TD-24-4 §二），mock 缺此导出 = 整套件崩。
   useEnsureProvidersLoaded: () => {},
 }));
-vi.mock('../../src/components/base/store/agentModelStore.ts', () => ({
+vi.mock('../../src/components/base/store/agentModelStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   loadAgentChatModel: () => h.agentModelCfg,
   AGENT_CHAT_MODEL_KEY: h.AGENT_CHAT_MODEL_KEY,
 }));
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: () => [] }));
 vi.mock('../../src/components/base/core/uiHooks.ts', () => ({ useOutsideClick: () => {} }));
-vi.mock('../../src/components/base/store/skillStore.ts', () => ({
+vi.mock('../../src/components/base/store/skillStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   getAllSkills: () => h.skills,
   markSkillUsed: h.markSkillUsed,
   isSkillEnabled: () => true,
@@ -218,18 +220,26 @@ vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal)
     cancel: vi.fn(),
   }),
 }));
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: (u: any) => u }));
-vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), toAbsoluteFileUrl: (u: any) => u
+}));
+vi.mock('../../src/components/agent/conversation/conversationStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   setCurrentSnapshot: h.setCurrentSnapshot,
   setAwaitingConfirm: vi.fn(),
   markMessageTableResolved: vi.fn(),
 }));
-vi.mock('../../src/components/base/store/taskStore.ts', () => ({ runNodeGeneration: vi.fn() }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({
+vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), runNodeGeneration: vi.fn()
+}));
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   showToast: (...a: any[]) => h.showToast(...a),
 }));
 // 确认统一走 confirmStore（D8 收敛 window.confirm）：这里给可控答案，替代真实弹窗
-vi.mock('../../src/components/base/core/confirmStore.ts', () => ({ askConfirm: h.askConfirm }));
+vi.mock('../../src/components/base/core/confirmStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), askConfirm: h.askConfirm
+}));
 vi.mock('../../src/components/base/core/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }));

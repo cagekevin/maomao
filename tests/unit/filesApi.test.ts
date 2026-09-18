@@ -13,6 +13,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
 
 const api = await import('@/components/base/api/filesApi.ts');
+// TD-03-18 用例复用真源常量（不裸写目录名，避免又一处"表外字面量"）
+const { UPLOAD_DIRS } = await import('@/components/base/utils/uploadDirs.ts');
 
 function uploadResp(url: any) {
   return { ok: true, status: 200, json: async () => ({ code: 0, data: { url } }) };
@@ -265,13 +267,27 @@ describe('filesApi — uploadFileToLocal', () => {
   it('自定义 subfolder 与 filename 生效', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/u.png'));
     const file = new File(['x'], 'drop.png', { type: 'image/png' });
-    await api.uploadFileToLocal(file, 'gen', 'custom.png');
+    await api.uploadFileToLocal(file, UPLOAD_DIRS.migrated, 'custom.png');
     const [, opts] = fetchMock.mock.calls[0];
     const fd = opts.body;
     for (const [k, v] of fd.entries()) {
-      if (k === 'subfolder') expect(v).toBe('gen');
+      if (k === 'subfolder') expect(v).toBe(UPLOAD_DIRS.migrated);
       if (k === 'file') expect(v.name).toBe('custom.png');
     }
+  });
+  // 【TD-03-18】写侧自查：未登记目录 → 早失败，且**不发请求**（不必等后端 400）。
+  it('未登记 subfolder → ok:false 且不发请求（TD-03-18）', async () => {
+    const file = new Blob(['x'], { type: 'image/png' });
+    const r = await api.uploadFileToLocal(file, 'canvas/cleaned');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.message).toContain('未登记'); // 判别联合须先窄化
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('未知顶层根 → ok:false 且不发请求（TD-03-18）', async () => {
+    const file = new Blob(['x'], { type: 'image/png' });
+    const r = await api.uploadFileToLocal(file, 'bogus');
+    expect(r.ok).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
   it('无 file → ok:false + message', async () => {
     expect(await api.uploadFileToLocal(null)).toEqual({ ok: false, message: expect.any(String) });

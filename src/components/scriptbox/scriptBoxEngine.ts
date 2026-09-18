@@ -31,6 +31,7 @@ import {
   localizeAndStoreToResourceLibrary,
   resourceFolderOf,
 } from '../base/store/resourceStore.ts';
+import { CODE_GENERATED_USER_SUB_DIRS } from '../base/utils/uploadDirs.ts';
 import { uploadFileToLocal } from '../base/api/index.ts';
 import { runGenerationContract } from '../base/store/generationContract.ts';
 import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
@@ -65,6 +66,22 @@ import {
 
 /** toast 状态档（与 toastStore 的 ToastType 同形，后者未导出故此处本地声明） */
 type ToastType = 'success' | 'error' | 'warning' | 'info';
+
+/**
+ * 剧本盒尾帧变体的落盘目录（**唯一来源**，TD-03-18）。
+ *
+ * 此前本值在文件内裸写 2 处 —— 与 `UPLOAD_DIRS` 中央表各持一份、靠人同步。
+ * 现取自中央表的**备案集合** `CODE_GENERATED_USER_SUB_DIRS`（该目录由代码生成、
+ * 落在用户数据根 `migrated` 下，故不进落盘校验，但值得可查）。
+ * 运行时读集合 ⇒ 若表里改名而此处漏改，取值为 undefined ⇒ 立即暴露（不再静默落错目录）。
+ */
+const TAIL_FRAME_FOLDER = 'migrated/脚本/尾帧变体';
+// 自检：备案集合必须含本目录（表与实现脱钩时启动即报，不留到落盘时才发现）
+if (!CODE_GENERATED_USER_SUB_DIRS.has(TAIL_FRAME_FOLDER)) {
+  throw new Error(
+    `TAIL_FRAME_FOLDER 未在 UPLOAD_DIRS.CODE_GENERATED_USER_SUB_DIRS 备案：${TAIL_FRAME_FOLDER}`,
+  );
+}
 
 /** 下游节点最小形状（getNodes 返回 reactflow Node，引擎只读 id/position/width/type/data 等字段） */
 type NodeLike = {
@@ -1608,7 +1625,7 @@ export function createScriptBoxEngine({
         try {
           const localized = await localizeAndStoreToResourceLibrary(frameData, {
             name: `prev-${prevShot.id}-tail`,
-            folder: 'migrated/脚本/尾帧变体',
+            folder: TAIL_FRAME_FOLDER,
           });
           if (localized) origUrl = localized;
         } catch (e) {
@@ -1674,7 +1691,12 @@ export function createScriptBoxEngine({
                 {
                   provider,
                   prompt: composePrompt,
-                  images: [toAbsoluteFileUrl(origUrl)],
+                  // 【2026-09-18 判据修正】原写法 `[toAbsoluteFileUrl(origUrl)]` 是**多余的一步**：
+                  // 发送归一是 `generate.ts` 门面内部的无条件出口（`generate:180`
+                  // `normalizeAssetUrlsForSend(req.images)`），且按 E 方案会把绝对本地地址**再转回相对**
+                  // —— 故这里先转绝对纯属白做一趟，还让读者误以为「调用方需自行归一」。
+                  // 直接传原始 `origUrl`，归一责任归门面（唯一出口，调用方零归一义务）。
+                  images: [origUrl],
                   model: modelId,
                   size: imageSize,
                   n: 1,
@@ -1689,7 +1711,7 @@ export function createScriptBoxEngine({
             localize: async (url) => {
               const loc = await localizeAndStoreToResourceLibrary(url, {
                 name: `prev-${prevShot.id}-composed`,
-                folder: 'migrated/脚本/尾帧变体',
+                folder: TAIL_FRAME_FOLDER,
               });
               return loc || url;
             },

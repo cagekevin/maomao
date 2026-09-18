@@ -1,7 +1,7 @@
 # CLAUDE.md · 猫猫画布（React 原型 + 自研后端）
 
 > **本文件定位：项目认知入口。每个 AI 进来第一步读它**，了解"这是什么项目、技术栈、架构、目录、红线、怎么启动"。
-> 读完按任务再读对应入口：**写代码 →** **`spec/CONTEXT.md`（决策地图）**；**写/改测试 →** **`spec/TEST-GUIDE.md`（测试权威）**。三文件互补不重叠（见 §七.0）。
+> 读完按任务再读对应入口：**写代码 →** **`spec/CONTEXT.md`（规则适用性地图）**；**写/改测试 →** **`spec/TEST-GUIDE.md`（测试权威）**。三文件互补不重叠（见 §七.0）。
 > **最后更新**：2026-09-05（五轮核对：① 计数 apiRegistry 60 条、tests/unit 176 文件/约 2209 用例；② 移除已删 `reference-1mao/`、不存 `docs/node-types-map.md`、已退役 `/api/proxy`/`proxyMode`/`x-proxy-url`、`Python 网关`/`lovart_client.py` 引用，节点规范改指 `spec/NEW-NODE-GUIDE.md`；③ 修正 `check:health` 覆盖、`localTool` 测试路径、`base/*.js`→`base/utils/`、`pre-commit` 跑 `test-affected`、`pre-push` 已删、`launch-all.ps1` 无参、代理/转发逻辑改指 `passthrough.ts`/`generate.ts`/`relay-poll.ts`；④ 治理清理：删 5 个 0 引用脚本（`merge-node-audit.cjs`/`test_all_positions.mjs`/`test_group_collapse|persist|size.mjs`）、假入口 `sync-mapping.mjs`（连带 `npm run sync:mapping`）、孤儿 `share/index.html`，卸载零引用包 `zustand`/`three-stdlib`/`@babel/parser`；⑤ 2026-09-05：`lovart-old`/9004 旧轨与死路由 `handleGatewayTask` 已删、`apimart-gateway` 已退役，Lovart 凭证真源 = `localTool/.env`（由 `src/index.ts` `loadDotEnv` 注入），`localTool` 仅走直连上游 `lgw.lovart.ai`；同步 §5.1 端口铁律、§五.5 字符串契约、§7 调试口径。此前为 2026-08-26 事件契约红线收口 + 2026-08-22 API 中转层收口）
 
 ## ⚠️ 最新情况（改动前必读）
@@ -428,11 +428,11 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 | 任务类型    | 必读                       | 定位                                         |
 | ------- | ------------------------ | ------------------------------------------ |
 | 任何任务第一步 | **CLAUDE.md（本文件）**       | 项目认知：技术栈/架构/目录/红线/启动                       |
-| 写代码     | **`spec/CONTEXT.md`**    | 决策地图：功能放哪 / 调哪个唯一入口 / 机制红线                 |
+| 写代码     | **`spec/CONTEXT.md`**    | 规则适用性地图：功能放哪 / 我这一处该走哪条路 / 哪条规则在这不适用        |
 | 改数据流/架构 | **`spec/DATAFLOW.md`**   | 链路索引：先定位「这条链路在哪些文件」，再读 CONTEXT/文件头（防子代理乱搜） |
 | 写/改测试   | **`spec/TEST-GUIDE.md`** | 测试权威：命令/分层/SOP/输出规范                        |
 
-> 三个文件**互补不重叠**：CLAUDE 管"项目是什么"，CONTEXT 管"写码怎么决策"，TESTING 管"测试怎么做"。机制细节看对应代码注释（代码即知识）。
+> 三个文件**互补不重叠**（判据落点由「内容属于哪一类」决定 —— 见 `docs/adr/ADR-0023` / `ADR-0024`）：CLAUDE 管"项目是什么/红线是什么"，CONTEXT 管"我这一处该走哪条路/哪条规则不适用"，DATAFLOW 管"这条链路怎么走"，ADR 管"这条判据凭什么成立"。机制细节看对应代码注释（代码即知识）。
 
 ### 1. 文档导航（精简：只列必要，其余看代码）
 
@@ -442,7 +442,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 | 文档                       | 用途                                                                                                   |
 | ------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `spec/CONTEXT.md`        | **写码决策地图（唯一中心）**：顶层架构（画布编排×节点体系×地基收口×收口准则）/ 代码组织（含**重型重构 SOP** §一·C）/ 横切 7 块入口 / 并发治理 / 安全密钥 / 数据一致性 |
+| `spec/CONTEXT.md`        | **写码规则适用性地图（唯一中心）**：按场景需求反查的路由表（功能放哪 / 该走哪条路）+ 规则适用性的例外与边界。判据看 `docs/adr/`，链路看 `spec/DATAFLOW.md` |
 | `spec/TEST-GUIDE.md`     | **测试体系权威**：命令/分层/SOP/输出规范                                                                            |
 | `spec/NEW-NODE-GUIDE.md` | **新建节点权威流程**（高频：骨架/注册/契约/常见坑）                                                                        |
 | `spec/DATAFLOW.md`       | **数据流链路索引**：生成/存储/资产/画布/提示词/编辑/3D 各链路的一页图（refs 实证，AI 快速 trace 一条链路用，勿跨目录乱猜）                          |

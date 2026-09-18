@@ -329,6 +329,10 @@ api/filesApi（全站文件域单点：upload[FormData/JSON 双模式] / move[co
 **上传/扫描的失败语义（十二轮）**：非法输入 → `400`（`Invalid dataUri`）· **写盘系统故障 → `500`**（`Failed to persist dataUri`）——两者**不得压成同一响应**（错误归因）；`POST /api/resources/rescan` 读不到 uploads 目录 → `500`（不再假报 `ok:0` 条）；`POST /api/files/mkdir` 过**越根守卫**（复用 `resolveUploadFile`，与其它目录入口同源）。
 **发送到素材库 = 三段顺序（2026-09-14 九轮收口）**：① 落盘 `filesApi.persistUrlToUploads`（**判据唯一**：data: / blob: / http(s) / 已是本机 `/files/`——后者 `already-local` **不重传**）→ ② `rescanResources`（resource 行由后端建）→ ③ **归位** `filesApi.moveFile`（context-only 改行 `folder` 到目标目录；**缺这一步 = 只落盘不入库**，素材库目录下拉不到）→ ④ 广播 `emitResourceSent`。返回 `PersistOutcome`（判别联合，失败词表含 `relocate-failed`），调用方按 `ok` 决定 toast 时机与真伪。
 
+**图片显示出口 + 失败回退（唯一实现）**：`base/utils/useImageFallbackSrc.ts` —— 小图 → 原图 → 显式占位，源变化自动复位。`LazyImage` / `AssetNode` / `ChatMarkdown` 全部接入。配套后端语义：`handleThumbnail` 对「源格式不可缩」（webp/avif——Jimp 能读不能写）**302 回原图**（语义 = 本优化不适用，不是错误），只有 resize 真失败才 500。
+
+**contentId 计算入口（前端）**：`contentIdOfBytes` 算 `sha1:<hex>`，与后端 `contentHashName` 同源；文件导入 / 上传替换 / 素材库拖入三入口经它给 `node.data` 写 `contentId`（内联 dataURL/blob 互斥只持 `url`）。落盘结果信封回传 `SaveRemoteResult.contentId` ⇒ **前端不得再自行 fetch 整图重算 sha1**（待收口项见 TD-08-28）。
+
 ### 关键边
 
 `filesApi` 模块引用 32（resourceStore/ResourceLibrary/GeneratedView/OverlayEditor/DepthVideoModal/videoEngine/d3dPersistence/ImageBoxNode/useImageHoverActions + api barrel + 21 测试）；
@@ -620,7 +624,7 @@ knip（死代码检测）→ 并进主工程
   ├→ scripts/gates.manifest.json::dead-code（phase=push → 本地 pre-push 自动跑）
   └→ .github/workflows/ci.yml `npm run check:push`（本地 pre-push 与 CI 跑同一份清单、各一次）
 scripts/check-arch.mjs（架构规则**唯一落点**：循环依赖/分层/唯一入口/裸写 node 字段/KV 同步读/深路径）
-scripts/check-silent-catch.mjs（静默吞闸 · 豁免通道收口为 catchOk.ts 登记表白名单）
+~~scripts/check-silent-catch.mjs（静默吞闸 · 豁免通道收口为 catchOk.ts 登记表白名单）~~ → **已删除 2026-09-17**（含 `catchOk.ts` · 见 `docs/adr/ADR-0011`；禁静默吞退回判据层，无机器闸）
 scripts/debt.mjs（债务账本读写唯一入口）
 scripts/probe.mjs（先红后绿探针执行器：注入 → 跑 → 断言 → 自动还原）
 scripts/check-gates.mjs（元层闸：在册闸脚本必须带【申诉口】三问）

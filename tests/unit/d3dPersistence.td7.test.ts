@@ -14,7 +14,8 @@ vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal)
   contentSetKvWithFallback: vi.fn(),
   contentGetKvWithFallback: vi.fn(),
 }));
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   saveInlineToLocal: vi.fn(async () => ({
     ok: true,
     url: 'http://127.0.0.1:18080/files/director3d/x.png',

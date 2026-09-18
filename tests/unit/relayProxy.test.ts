@@ -15,7 +15,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 const h = vi.hoisted(() => ({
   mockHttpRequest: vi.fn(),
 }));
-vi.mock('../../src/components/base/api/httpClient.ts', () => ({
+vi.mock('../../src/components/base/api/httpClient.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   httpRequest: (...a: any[]) => h.mockHttpRequest(...a),
 }));
 

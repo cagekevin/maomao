@@ -8,7 +8,8 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
+vi.mock('../../src/components/base/utils/assetUrl.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   normalizeAssetUrlForSend: vi.fn(
     async (url, opts) => `norm:${url}${opts?.preferBase64 ? ':b64' : ''}`,
   ),

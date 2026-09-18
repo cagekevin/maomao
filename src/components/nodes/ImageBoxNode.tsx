@@ -35,7 +35,8 @@ import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 // 与 `f.type.startsWith('image/')`，绕过 assetType 真值源 —— 现统一走 isAssetUrl / detectFileType。
 import { isAssetUrl, detectFileType } from '../base/utils/assetType.ts';
 // §5.4.9 图像入节点落盘策略唯一实现：File 源走 resolveNodeAssetUrl（multipart 直传 → /files/ 持久 URL）
-import { resolveNodeAssetUrl } from '../base/api/filesApi.ts';
+import { resolveNodeAssetUrl, persistUrlToUploads } from '../base/api/filesApi.ts';
+import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
 
 /**
  * 图片盒子节点（复刻官方 Rg.jsx / imageBoxNode）。
@@ -43,6 +44,7 @@ import { resolveNodeAssetUrl } from '../base/api/filesApi.ts';
  * 一个「多图容器」：单图展示 / 缩略图网格两种模式，是图片切分/拼图/全景/人脸打码等
  * 图片类节点的共同上游。核心能力：
  *  - 加图：点击/拖拽/粘贴/从上游连线一键导入（assetUrl / 其它 imageBoxNode.images / 抽帧结果）
+ *        —— **六条加图路径统一经 `addImages` 落盘**（`node.data.images[].url` 只存持久 /files/ URL）
  *  - 多图管理：单图模式上下张导航；网格模式多选（Ctrl=设默认）、全选/删已选、拖拽排序、缩略图菜单
  *  - 缩略图：添加时用 canvas 生成 256 缩略图（对齐官方 _cmp_Tr）
  *  - 端口：target「in」接上游图片、source「active」输出当前激活图
@@ -157,7 +159,16 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
     }
   }, []);
 
-  // ---- 批量添加图片（生成缩略图 + 追加 + activeIndex 指向最后一张）----
+  // ---- 批量添加图片（落盘 → 生成缩略图 → 追加 + activeIndex 指向最后一张）----
+  //
+  // 【2026-09-18 不变式收口 · TD-02-62】`node.data.images[].url` 的**唯一写入点就是本函数**，
+  // 故「进节点的图必须已是持久 /files/ URL」这条不变式**必须落在本函数内部**，而不是
+  // 推给 6 个调用方各自记得先落盘 —— 历史上只有 readFiles 两条路（:343/:367）做了预落盘，
+  // 其余四条（上游连线 / 粘贴文本 URL / 拖入文本 URL / …）都是裸 url 直写：
+  //   · 上游连线源可携 `data:`（`isAssetUrl` 明确放行 data:/blob:）→ 整图 base64 进画布快照；
+  //   · 粘贴/拖入的文本 URL 同样可为 `data:`。
+  //   ⇒ 后果 = 快照膨胀 + 刷新后可能失效，正是手动「清理缓存」按钮要兜的后遗症。
+  // 现把它们统一到本函数据入口，判据只此一份（唯一实现，调用方零预落盘责任）。
   interface AddImageInput {
     url: string;
     label?: string;
@@ -166,8 +177,25 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
   const addImages = useCallback(
     async (items: AddImageInput[]) => {
       if (!items || items.length === 0) return;
-      const enriched = await Promise.all(
+      // ① 落盘收口：任意来源 URL → 持久 /files/ URL。
+      //    `persistUrlToUploads` 自带唯一分流判据（data:/blob:/http/已是本机），故此处
+      //    不重写任何分流；已是 /files/ 的走 `already-local` 零成本短路。
+      //    失败 → 保留原 URL（真兜底：原 URL 确实能上屏）+ `reportDegrade` 一次可见提示，
+      //    **不静默丢图**（与 TD-03-13 同一降级语义，提示由生产者给全、此处只转发）。
+      const persisted = await Promise.all(
         items.map(async (it) => {
+          const r = await persistUrlToUploads(it.url, { folder: UPLOAD_DIRS.canvas });
+          if (r.ok) return { ...it, url: r.url };
+          logger.warn('图片盒子', '图片未落盘（保留原 URL）', {
+            src: it.url.slice(0, 80),
+            reason: r.reason,
+            message: r.message,
+          });
+          return it;
+        }),
+      );
+      const enriched = await Promise.all(
+        persisted.map(async (it) => {
           let thumb;
           try {
             thumb = await makeThumb(it.url);
@@ -309,15 +337,22 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
     // 节点已显示导入的图片，结果可见，无需 toast
   }, [upstreamImages, images, addImages]);
 
-  // ---- 文件读取（对齐 §5.4.9 落盘唯一实现：File 源走 resolveNodeAssetUrl，禁止把整图 dataURL 塞进 node.data）----
+  // ---- 文件读取：File 源 → 可上屏 URL（**不落盘**，落盘统一归 addImages）----
+  // 【2026-09-18 收口 · TD-02-63】本函数原先自行调 `resolveNodeAssetUrl` 预落盘，导致
+  // 「同一 addImages，两种预落盘待遇」（本路落盘 / 连线·粘贴·拖文本三路裸写）。
+  // 现预落盘责任整体上移 `addImages`（`node.data.images` 的唯一写入点）→ 本函数只负责
+  // 「File → URL」这一步，落盘判据全库只此一份。
+  //
+  // 为什么仍用 `resolveNodeAssetUrl` 而非直接 `fileToDataUrl`：File 源在本仓的既有语义是
+  // 「multipart 直传优先、失败才读内联」，其内部已封装该降级；此处保留它以免改变
+  // 「大文件不走 dataURL 两段内存拷贝」这一性能特性。它返回的 `/files/` URL 到 `addImages`
+  // 会被 `already-local` 零成本短路（不重传）。
+  //
+  // 【2026-09-17 判据】失败**不再静默丢图**：原来 `filter(x != null)` 把失败项直接扔掉
+  //（用户只看到"少了几张"、零解释），且 `.catch(() => null)` 连原因都吞了。
+  // 现分两路：成功项照常返回（不回滚）；失败明细留痕 + 提示（带**生产者判词**）。
   const readFiles = useCallback((files: FileList | File[]) => {
     const list = Array.from(files).filter((f) => /\.(png|jpe?g|gif|webp)$/.test(f.name));
-    // 委托 filesApi.resolveNodeAssetUrl：multipart 直传 → 持久 /files/ URL；
-    // 仅「上传失败且读不出内联」才兜底 dataURL（极端情形，符合契约降级语义）。
-    // 这样 node.data.images[].url 只存持久 URL，快照不再内联整图 → 消除 TD-10 快照膨胀。
-    // 【2026-09-17 判据】失败**不再静默丢图**：原来 `filter(x != null)` 把失败项直接扔掉
-    //（用户只看到"少了几张"、零解释），且 `.catch(() => null)` 连原因都吞了。
-    // 现分两路：成功项照常返回（不回滚）；失败明细留痕 + 提示（带**生产者判词**）。
     const failures: Array<{ name: string; message: string }> = [];
     return Promise.all(
       list.map((f) =>

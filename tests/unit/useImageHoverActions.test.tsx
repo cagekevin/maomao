@@ -19,14 +19,16 @@ vi.mock('../../src/components/base/utils/imageCompress.ts', () => ({
 vi.mock('../../src/components/base/utils/imageUpscale.ts', () => ({
   upscaleImage: async (_url: any) => ({ dataUrl: 'data:upscaled' }),
 }));
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   // 落盘+写回收口为 showThenPersistInline：先 show(dataUrl) 即时写回，再落盘得 'local://saved' 后 show(持久URL)
   showThenPersistInline: vi.fn(async (dataUrl, show) => {
     show(dataUrl);
     show('local://saved');
   }),
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   showToast: () => {},
   toastError: () => {},
 }));

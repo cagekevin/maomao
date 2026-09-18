@@ -689,9 +689,16 @@ export async function handleList(
 ): Promise<void> {
   const subfolder = url.searchParams.get('subfolder') || '';
   const uploadDir = getUploadDir();
-  const targetDir = subfolder
-    ? path.join(uploadDir, normalizeSubfolder(subfolder) ?? '')
-    : uploadDir;
+  // 【TD-03-18】本端点是**只读**列举：目录在不在由磁盘决定，与写侧登记表解耦。
+  // 故此处**不用** `normalizeSubfolder`（它自 2026-09-18 起还含"系统产物根子目录须登记"的写侧判据，
+  // 用于列表会把未登记目录静默吞成 uploads 根）。改用纯"越根守卫"原语 `resolveUploadFile`：
+  // 未越根即可列；不存在则照常返回空列表（下方 existsSync 分支）。
+  let targetDir = uploadDir;
+  if (subfolder) {
+    const safe = resolveUploadFile(subfolder);
+    if (!safe) return sendError(res, `Invalid subfolder: ${subfolder}`, 400); // 越根/非法路径才拒
+    targetDir = safe;
+  }
 
   if (!fs.existsSync(targetDir)) {
     return json(res, { code: 0, data: { files: [], folders: [] } });

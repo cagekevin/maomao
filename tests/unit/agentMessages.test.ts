@@ -25,7 +25,8 @@ const store: MemStore = {
   },
 };
 
-vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
+vi.mock('../../src/components/agent/conversation/conversationStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   getCurrentSnapshot: vi.fn(),
   setCurrentSnapshot: vi.fn(),
   patchCurrentMessages: vi.fn(),

@@ -84,6 +84,15 @@ const REQUIRED = ['状态', '日期', '裁定人', '结论'];
 /** 正文行数上限 —— ADR 是**一页**：判据 + 证据 + 落点，不是过程记录（过程归区域日志）。 */
 const MAX_BODY_LINES = 80;
 /**
+ * 【近义阈值（2026-09-18 补）】字符集 Dice 系数下限。
+ *   **0.55** 的标定依据（对本仓 20 条现行 ADR 全量两两实测）：
+ *     · 已确认的同义对（如合并前的 0010 vs 0020）⇒ **0.547**
+ *     · 当前最相似的一组不同判据（ADR-0005 canvas 出口 vs ADR-0006 深拷贝）⇒ **0.436**
+ *     · 无关判据 ⇒ ~0.23
+ *   取 0.55 落在真实间隔里。**误报代价只是多看一眼；漏报代价是生效集虚胖**（本仓真实教训）。
+ */
+const SIMILAR_THRESHOLD = 0.55;
+/**
  * 【Find 升级触发器（2026-09-18 · 用户裁定）】行业实测：**80 条链接的 README 可导航、300 条不可导航、
  *   200 个文件的扁平目录查找性近零**。故本索引表**必须在到上限之前换载体** —— 到点由 `audit` 报警。
  */
@@ -110,6 +119,67 @@ function adrFiles() {
   return readdirSync(ADR_DIR)
     .filter((f) => /^ADR-\d{4}-.*\.md$/.test(f))
     .sort();
+}
+
+/**
+ * 【近义检测（2026-09-18 补）】`add` 原先只查**字符串全等** ⇒ 结论改一个字即绕过，
+ * 于是同一天里连写出 3 条讲同一件事的 ADR（ADR-0017/0023/0024，后被合并为 ADR-0025）。
+ * 这里做**归一化后的字符集 Dice 系数**比较，抓"换说法但同义"的条目。
+ *
+ * 归一化：去掉空白 / 常见标点 / 仓库前缀符号，只留实义字符。
+ * 相似度：**字符集**（不是 bigram）Dice 系数 —— 中文同义改写会换掉大量相邻字对，
+ *   bigram 实测把 0.55 的同义对压到 0.16（抓不到），字符集 Dice 则有 0.55 vs 无关 0.23 的分隔度。
+ */
+function normalizeForCompare(s) {
+  return String(s)
+    .replace(/[\s`*·、，。；：（）()「」【】\[\]{}<>\/\\|—\-_"'‘’“”]/g, '')
+    .toLowerCase();
+}
+
+function diceCoefficient(a, b) {
+  const A = new Set(a);
+  const B = new Set(b);
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const c of A) if (B.has(c)) inter++;
+  return (2 * inter) / (A.size + B.size);
+}
+
+/** 返回与 `text` 高度相似的既有 ADR（排除自身编号）。 */
+function findSimilar(adrs, text, excludeNo) {
+  const target = normalizeForCompare(text);
+  let best = null;
+  for (const a of adrs) {
+    if (a.no === excludeNo) continue;
+    const score = diceCoefficient(target, normalizeForCompare(a.conclusion));
+    if (score >= SIMILAR_THRESHOLD && (!best || score > best.score)) best = { adr: a, score };
+  }
+  return best;
+}
+
+/**
+ * 【模板占位符残留（2026-09-18 补）】`add` 一直**打印**「占位符留着 = 假账」，却从不**检查**它 ——
+ * 实证：造一条正文全是 `<新约定是什么>` 的空壳 ADR，`audit` 报 **0 问题**（假绿灯）。
+ * 这是"垃圾 ADR 能进仓"最直接的入口，故在此补上检出。
+ *
+ * 检出形态（必须**同时**满足）：① 整行就是一对尖括号包起来的占位说明；② 行内不含句读（。；，
+ * 或 200 字以上的实质内容）。这样 `if (x < y)` 这类代码对比、`<div>` 这类 JSX 都不会误报。
+ */
+const PLACEHOLDER_LINE = /^\s*(?:[-*]\s*)?<[^<>\n]{2,80}>\s*$/;
+
+function placeholderLines(text) {
+  const out = [];
+  text.split('\n').forEach((line, i) => {
+    if (PLACEHOLDER_LINE.test(line)) out.push({ line: i + 1, text: line.trim() });
+  });
+  return out;
+}
+
+/** 必填段落名 —— 缺段 = 结构不完整（ADR 是**一页**且固定四段）。 */
+const REQUIRED_SECTIONS = ['背景', '判据', '决议', '后果'];
+
+function missingSections(text) {
+  return REQUIRED_SECTIONS.filter((s) => !new RegExp(`^##\\s*${s}`, 'm').test(text));
 }
 
 function parseAdr(file) {
@@ -270,6 +340,13 @@ function cmdAdd() {
       `结论与 ${dup.id} 重复`,
       `同义 ADR 应合并 —— 改 ${dup.id} 那条，或换一条**真正不同**的判据（重复结论会让生效集虚胖）`,
     );
+  const near = findSimilar(adrs, conclusion);
+  if (near && !flag('--force'))
+    die(
+      `结论与 ${near.adr.id} **近义**（相似度 ${(near.score * 100).toFixed(0)}%）`,
+      `同义 ADR 应合并 —— 改 ${near.adr.id} 那条，或改写成**真正不同**的判据。` +
+        ` 确属不同判据时：改措辞使两者判据分明，再 --force 跳过本检查。`,
+    );
   const status = normStatus(val('--status', '生效'));
   if (!STATUS.includes(status)) die(`状态非法：${val('--status')}`, `白名单：${STATUS.join(' / ')}`);
   const supersedes = val('--supersedes');
@@ -316,6 +393,19 @@ function cmdAdd() {
     console.log(body);
     return;
   }
+  // 【落笔前的 4 问（2026-09-18 · 治"ADR 滥用"）】本仓「默认不建闸」⇒ 该不该写只能靠**记录纪律**。
+  //   故把自检**打在创建的那一刻**（最需要它的时刻），而不是写进某份没人读的文档。
+  //   ⚠️ 这是**提醒不是闸**：不做机器校验（"该不该写"不可机器验证）。
+  console.log(`
+   ── 落笔前先答这 4 问（答不出 ⇒ 它多半不该是 ADR）──
+   ① **它推翻了什么既有约定？** 答不出 ⇒ 它更可能是"记录"而非"判据"（→ 区域日志）。
+   ② **既有的 20 条里有同义的吗？** 已自动查过近义（上面没被拦 = 结论不相似）；
+      但仍要人工扫一遍：\`node scripts/adr.mjs list\`（**当你在正文里想写「与 ADR-XXXX 是同一族的两个面」时，
+      那就是"应该只有一条"的信号**）。
+   ③ **能不能不用 ADR 守？** 结构上不可能 / 类型层 / 唯一入口 / 对账测试里有没有更根本的？
+      有 ⇒ 用那个（ADR 属手段优先级 5，是**孵化器不是仓库**）。
+   ④ **谁会发现它被违反？** 写得出「📌 违反时的判据」吗？写不出 ⇒ 它是**没有防线**的声明。
+`);
   writeFileSync(join(ADR_DIR, file), body, 'utf8');
   if (supersedes) {
     const target = adrs.find((a) => a.no === supersedes);
@@ -328,7 +418,8 @@ function cmdAdd() {
   }
   writeIndex(loadAdrs());
   console.log(`✅ 已创建 docs/adr/${file}（${status}）并重生成索引`);
-  console.log('   ↳ 下一步：把 §背景 / §判据 / §决议 / §后果 的占位符写成真内容（占位符留着 = 假账）');
+  console.log('   ↳ ⚠️ 现在它是**空壳**（四段仍是占位符）。`audit` 会报「模板占位符残留」——');
+  console.log('     把 §背景 / §判据 / §决议 / §后果 写成真内容才算落盘（占位符留着 = 假账）');
 }
 
 function cmdStatus() {
@@ -431,6 +522,24 @@ function cmdAudit() {
   const problems = [];
   const seen = new Map();
   const conclusions = new Map();
+  /** 近义对（只在两者**都还在生效**时报 —— 已取代的追溯链不算问题）。 */
+  const nearDup = new Set();
+  const notes = [];
+  for (const a of adrs) {
+    if (a.status !== '生效') continue;
+    for (const b of adrs) {
+      if (b.status !== '生效' || b.no <= a.no) continue;
+      const score = diceCoefficient(
+        normalizeForCompare(a.conclusion),
+        normalizeForCompare(b.conclusion),
+      );
+      if (score >= SIMILAR_THRESHOLD) {
+        nearDup.add(
+          `${a.id} 与 ${b.id} 结论近义（相似度 ${(score * 100).toFixed(0)}%）⇒ 同义 ADR 应合并（人工判：确属不同判据可忽略）`,
+        );
+      }
+    }
+  }
   for (const a of adrs) {
     if (seen.has(a.no)) problems.push(`${a.id}：编号重复（与 ${seen.get(a.no)} 撞号）`);
     seen.set(a.no, a.file);
@@ -439,14 +548,22 @@ function cmdAudit() {
     if (!STATUS.includes(a.status)) problems.push(`${a.id}：状态非法「${a.status}」`);
     if (!a.file.includes(`ADR-${a.no}-`)) problems.push(`${a.id}：文件名编号与标题不一致`);
     if (a.conclusion.length > 120) problems.push(`${a.id}：结论超 120 字（${a.conclusion.length}）`);
+    // 【占位符残留（2026-09-18）】模板没填完就落盘 = 空壳 ADR。原先只在 add 里**打印**提醒，从不检查。
+    const ph = placeholderLines(a.text);
+    if (ph.length)
+      problems.push(
+        `${a.id}：正文残留 ${ph.length} 处**模板占位符**（第 ${ph.map((p) => p.line).join('/')} 行）⇒ 这是空壳 ADR，不是判据`,
+      );
+    // 【缺段（2026-09-18）】ADR 是一页且固定四段：背景/判据/决议/后果。缺段 = 没写完整。
+    const miss = missingSections(a.text);
+    if (miss.length) problems.push(`${a.id}：缺必填段落「${miss.join(' / ')}」`);
     if (a.bodyLines > MAX_BODY_LINES)
       problems.push(
         `${a.id}：正文 ${a.bodyLines} 行 > ${MAX_BODY_LINES}（ADR 是**一页**：压缩，或把过程挪去区域日志）`,
       );
     if (conclusions.has(a.conclusion))
       problems.push(`${a.id}：结论与 ${conclusions.get(a.conclusion)} 重复（同义 ADR 应合并）`);
-    conclusions.set(a.conclusion, a.id);
-    if (a.status === '生效' && !a.text.includes('违反时的判据'))
+    conclusions.set(a.conclusion, a.id);    if (a.status === '生效' && !a.text.includes('违反时的判据'))
       problems.push(`${a.id}：生效 ADR 缺「📌 违反时的判据」（没有它 = 发现不了回潮）`);
     if (a.supersedes) {
       const t = byNo.get(a.supersedes);
@@ -487,9 +604,12 @@ function cmdAudit() {
       `⚠️ 共 ${adrs.length} 条 ≥ ${FIND_WARN}：接近索引表导航上限（行业实测 80 条）⇒ 启动 Find 升级（按 status/tag 分表 + list --tag）`,
     );
 
+  // 【近义对（只读提示，不算 hard problem）】合并建议 —— 误报代价只是多看一眼。
+  for (const n of nearDup) notes.push(n);
+
   const active = adrs.filter((a) => !RETIRED.includes(a.status)).length;
   if (flag('--json')) {
-    console.log(JSON.stringify({ count: adrs.length, active, problems }, null, 2));
+    console.log(JSON.stringify({ count: adrs.length, active, problems, notes }, null, 2));
     return;
   }
   console.log(
@@ -497,6 +617,10 @@ function cmdAudit() {
   );
   for (const p of problems) console.log(`   ${p}`);
   if (!problems.length) console.log('   （无）');
+  if (notes.length) {
+    console.log(`   —— 另 ${notes.length} 条**建议**（人工判，不影响 exit code）：`);
+    for (const n of notes) console.log(`   💡 ${n}`);
+  }
 }
 
 function cmdStats() {
@@ -513,6 +637,80 @@ function cmdStats() {
   console.log('   裁定人：' + [...deciders].map(([k, v]) => `${k} ×${v}`).join(' · '));
 }
 
+/**
+ * 【卫生检查（2026-09-18 · 治"ADR 滥用/垃圾横行"）】
+ *   `audit` 答的是"**有没有违规**"；`hygiene` 答的是"**这些 ADR 还值不值得留着**"。
+ *   区别很重要：audit 是**对账**，hygiene 是**体检** —— 全绿也可能已经很胖。
+ *
+ * 四个指标（都是**可数**的，不看感觉）：
+ *   ① 空壳率（占位符 / 缺段）      —— 硬伤，应为 0
+ *   ② 近义簇                       —— 同一件事散在几条（本轮真实病灶）
+ *   ③ 未毕业率                     —— ADR 是**孵化器不是仓库**（README §6.3）
+ *   ④ 增长速率（当日新增）         —— 一天 +N 条通常意味着"没有先想清楚类别"
+ */
+function cmdHygiene() {
+  const adrs = loadAdrs();
+  const active = adrs.filter((a) => a.status === '生效');
+  const total = adrs.length;
+
+  // ① 空壳
+  const shells = active.filter((a) => placeholderLines(a.text).length || missingSections(a.text).length);
+
+  // ② 近义簇（并查集：把两两近义的连成一簇）
+  const parent = new Map(active.map((a) => [a.no, a.no]));
+  const find = (x) => (parent.get(x) === x ? x : (parent.set(x, find(parent.get(x))), parent.get(x)));
+  let pairs = 0;
+  for (let i = 0; i < active.length; i++) {
+    for (let j = i + 1; j < active.length; j++) {
+      const s = diceCoefficient(
+        normalizeForCompare(active[i].conclusion),
+        normalizeForCompare(active[j].conclusion),
+      );
+      if (s >= SIMILAR_THRESHOLD) {
+        pairs++;
+        parent.set(find(active[i].no), find(active[j].no));
+      }
+    }
+  }
+  const clusters = new Map();
+  for (const a of active) {
+    const r = find(a.no);
+    if (!clusters.has(r)) clusters.set(r, []);
+    clusters.get(r).push(a);
+  }
+  const dupClusters = [...clusters.values()].filter((c) => c.length > 1);
+
+  // ③ 未毕业
+  const notGraduated = active.length;
+
+  console.log(`🩺 adr hygiene（只读 · **不是闸**）｜ ${total} 条（现行 ${active.length} · 已退出 ${total - active.length}）`);
+  console.log('');
+  console.log(`   ① 空壳率        ${shells.length === 0 ? '✅ 0' : `❌ ${shells.length}`}${shells.length ? ` —— ${shells.map((a) => a.id).join(' ')}` : ''}`);
+  console.log(`   ② 近义簇        ${dupClusters.length === 0 ? '✅ 0' : `⚠️ ${dupClusters.length} 簇（${pairs} 对）`}`);
+  for (const c of dupClusters) console.log(`        ${c.map((a) => a.id).join(' ↔ ')}  ⇒ 同一件事散在 ${c.length} 条，考虑合并`);
+  console.log(`   ③ 未毕业        ⚠️ ${notGraduated}/${active.length} —— ADR 是**判据的孵化器，不是永久仓库**（README §6.3）`);
+  console.log(`        手段优先级：结构上不可能 ＞ 类型层 ＞ 唯一入口 ＞ 对账测试 ＞ **文档留痕** ＞ 机器闸`);
+  console.log(`        能升为自动检查的 ⇒ \`status <NNNN> --to 已毕业 --note "<载体:文件:行>"\``);
+
+  const active_ = active.map((a) => a.date).filter(Boolean).sort();
+  if (active_.length) {
+    const byDate = new Map();
+    for (const d of active_) byDate.set(d, (byDate.get(d) ?? 0) + 1);
+    const today = new Date().toISOString().slice(0, 10);
+    const todayN = byDate.get(today) ?? 0;
+    console.log(`   ④ 今日新增      ${todayN === 0 ? '✅ 0' : `⚠️ ${todayN} 条`}${todayN >= 3 ? ' —— 一天 ≥3 条通常意味着"没先想清楚内容类别"（ADR-0025 Lessons 1）' : ''}`);
+  }
+
+  console.log('');
+  console.log('   ── 判断口径（不看感觉，看这四个数）──');
+  console.log('   · ① 必须为 0（硬伤）；② 必须为 0（同义就该合并）；');
+  console.log('   · ③ 高不一定是病（判据还没找到更强载体），但**长期不降**要问"是不是该升级了"；');
+  console.log('   · ④ 是**预警**：一天加多条时，回头问 ADR-0025 的归位表 —— 这几条属于**同一类**吗？');
+
+  if (flag('--json')) return;
+  process.exit(shells.length || dupClusters.length ? 1 : 0);
+}
+
 const cmd = process.argv[2];
 const table = {
   list: cmdList,
@@ -523,12 +721,13 @@ const table = {
   status: cmdStatus,
   rm: cmdRm,
   audit: cmdAudit,
+  hygiene: cmdHygiene,
   stats: cmdStats,
 };
 if (!cmd || !table[cmd]) {
   die(
     `未知命令：${cmd ?? '(空)'}`,
-    'list ／ show <NNNN> ／ search <关键词> ／ index [--write] ／ add ／ status ／ audit ／ stats',
+    'list ／ show <NNNN> ／ search <关键词> ／ index [--write] ／ add ／ status ／ audit ／ hygiene ／ stats',
   );
 }
 table[cmd]();

@@ -42,7 +42,8 @@ vi.mock('@xyflow/react', () => ({
   useStore: vi.fn(() => () => {}),
 }));
 
-vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
+vi.mock('../../src/hooks/useNodeGeneration.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useNodeGeneration: (config: GenConfigLike) => {
     genConfig = config;
     // 复刻真实 hook 的广播 handler：声明 resultKey 时自动写回（先于 onRecover），
@@ -121,7 +122,9 @@ vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useNodeResize: () => ({ onInputResize: vi.fn() }),
   useOutsideClick: () => {},
 }));
-vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({}) }));
+vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), useConnectedInputs: () => ({})
+}));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({
   useAssetDegrade: () => ({ isHidden: () => false }),
 }));
@@ -131,8 +134,11 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
   ...(await importOriginal<typeof import('../../src/components/base/canvas/nodePrefs.ts')>()),
   useNodePrefs: () => ({ prefs: {}, set: vi.fn() }),
 }));
-vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {} }));
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/hooks/useSyncNodeData.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), useSyncNodeData: () => {}
+}));
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: (x: string) => x,
   saveResultToTasks: vi.fn(async (url) => ({ ok: true, url, skipped: true })),
 }));
@@ -153,7 +159,8 @@ vi.mock('../../src/components/base/api/pagedList.ts', () => ({
   fetchTaskPage: (...a: unknown[]) => mockFetchTasks(...a),
 }));
 const mockGenerateImage = vi.fn(async (..._a: unknown[]) => ({ url: 'http://gen.local/img.png' }));
-vi.mock('../../src/components/base/api/generate.ts', () => ({
+vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   generateImage: (...a: unknown[]) => mockGenerateImage(...a),
 }));
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({

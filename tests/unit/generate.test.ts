@@ -18,7 +18,8 @@ import type { GenerationResult } from '@/types';
 import type { RelayGenerationResult } from '@/components/base/api/relayProxy.ts';
 import type { NodeGenerationResult } from '@/hooks/useNodeGeneration.ts';
 
-vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
+vi.mock('../../src/components/base/utils/assetUrl.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   normalizeAssetUrlsForSend: vi.fn(async () => []),
   toImageContentBlocks: vi.fn((urls) =>
     (urls || []).map((url: any) => ({ type: 'image_url', image_url: { url } })),

@@ -27,13 +27,15 @@ const h = vi.hoisted(() => ({
 vi.mock('../../src/hooks/useLocalToolStatus.ts', () => ({
   useLocalToolStatus: () => ({ status: { isConnected: true } }),
 }));
-vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
+vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   fetchResources: (...a: unknown[]) => h.fetchResources(...a),
   rescanResources: (...a: unknown[]) => h.rescanResources(...a),
   deleteResource: (...a: unknown[]) => h.deleteResource(...a),
   renameResource: (...a: unknown[]) => h.renameResource(...a),
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   showToast: (...a: unknown[]) => h.showToast(...a),
 }));
 vi.mock('../../src/components/base/core/logger.ts', () => ({
@@ -50,7 +52,8 @@ vi.mock('../../src/hooks/useAssetDragToCanvas.ts', () => ({
   fetchText: vi.fn(async () => ''),
   textCache: new Map(),
 }));
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: (u: string) => u,
   openLocalFolder: vi.fn(async () => ({})),
   openFileDir: vi.fn(async () => ({})),

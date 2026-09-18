@@ -12,7 +12,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // 隔离 taskStore 的 IO 依赖，确保 ensurePolling 纯逻辑可测
-vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
+vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   fetchTasks: vi.fn(async () => ({ items: [] })),
   saveTask: vi.fn(async () => {}),
   deleteTask: vi.fn(async () => {}),

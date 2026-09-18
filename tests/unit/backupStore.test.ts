@@ -19,7 +19,8 @@ const canvasStore = new Map();
 let currentProject: { id: string; name?: string } = { id: 'default', name: '默认项目' };
 /** 项目列表「内存真相」（TD-15-2 后 exportAll 枚举项目取此，不再只读 localStorage 副本） */
 let memoryProjects: { id: string; name?: string }[] = [];
-vi.mock('../../src/components/base/store/projectStore.ts', () => ({
+vi.mock('../../src/components/base/store/projectStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   loadCanvasState: vi.fn(async (id) => canvasStore.get(id) || null),
   // 【mock 契约同步 · 2026-09-17 TD-16-27】`saveCanvasState` 的结果信封是 `{ success }`
   // （不是 `{ ok }`）—— 真实实现返回 `{ success: false }` 时 `importAll` 会计入 failed。

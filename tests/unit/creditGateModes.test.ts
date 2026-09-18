@@ -34,7 +34,8 @@ vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal)
     }),
   };
 });
-vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
+vi.mock('../../src/components/agent/conversation/conversationStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   pushActiveAiUndo: vi.fn(),
   popActiveAiUndo: vi.fn(() => null),
   getActiveAiUndoStack: vi.fn(() => []),
@@ -67,7 +68,8 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   getCurrentImageMap: vi.fn(() => []),
   getCurrentSnapshot: vi.fn(() => ({ skills: [] })),
 }));
-vi.mock('../../src/components/base/store/taskStore.ts', () => ({
+vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/x.png' })),
   isNodeRegistered: vi.fn(() => true),
 }));

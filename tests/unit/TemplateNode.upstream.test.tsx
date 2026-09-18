@@ -35,7 +35,8 @@ vi.mock('@xyflow/react', () => ({
   useStore: vi.fn(() => () => {}),
 }));
 
-vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
+vi.mock('../../src/hooks/useNodeGeneration.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useNodeGeneration: (config: GenConfigLike) => {
     genConfig = config;
     return {
@@ -92,7 +93,8 @@ let connectedInputs: {
   images: Array<{ id: string; url: string; sourceNodeId: string }>;
   texts: Array<{ id: string; text: string; sourceNodeId: string }>;
 } = { images: [], texts: [] };
-vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
+vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useConnectedInputs: () => connectedInputs,
 }));
 
@@ -105,8 +107,11 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
   ...(await importOriginal<typeof import('../../src/components/base/canvas/nodePrefs.ts')>()),
   useNodePrefs: () => ({ prefs: {}, set: vi.fn() }),
 }));
-vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {} }));
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/hooks/useSyncNodeData.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), useSyncNodeData: () => {}
+}));
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: (x: string) => x,
   saveResultToTasks: vi.fn(async (url) => ({ ok: true, url, skipped: true })),
 }));
@@ -116,7 +121,8 @@ vi.mock('../../src/components/base/store/providerStore.ts', async (importOrigina
   useProviders: () => ({ providers: [] }),
   load: vi.fn(() => Promise.resolve()),
 }));
-vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
+vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   fetchTasks: vi.fn(async () => ({ items: [] })),
 }));
 // 显式声明参数元组：vi.fn(async () => …) 会把参数推断成空元组 []，
@@ -124,7 +130,8 @@ vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
 const mockGenerateImage = vi.fn(async (..._args: unknown[]) => ({
   url: 'http://gen.local/img.png',
 }));
-vi.mock('../../src/components/base/api/generate.ts', () => ({
+vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   generateImage: (...a: unknown[]) => mockGenerateImage(...a),
 }));
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({

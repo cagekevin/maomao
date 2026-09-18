@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../src/components/base/api/generate.ts', () => ({
+vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   chatCompletions: vi.fn(),
   generateImage: vi.fn(),
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: vi.fn() }));
-vi.mock('../../src/components/base/store/resourceStore.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), showToast: vi.fn()
+}));
+vi.mock('../../src/components/base/store/resourceStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   localizeAndStoreToResourceLibrary: vi.fn(),
   resourceFolderOf: vi.fn(() => 'migrated/人物'),
   sendToResourceLibrary: vi.fn(),
@@ -20,7 +24,8 @@ vi.mock('../../src/components/base/core/logger.ts', () => ({
 // 【L3c 遗留噪音消除】隔离 taskStore：engine 仅用 reportGenerate(:407)，其返回 taskCtl（progress/done/fail）。
 // 此前未 mock 时 onGenerateAssetImage 会触发真实 reportGenerate → saveTask 落库 fetch，被测试基建响铃
 // fetch 记为 logger.warn('task','persist-fail')（噪音，曾污染 T6/T7 的 logger.warn 断言）。
-vi.mock('../../src/components/base/store/taskStore.ts', () => ({
+vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   reportGenerate: vi.fn(() => ({
     taskId: 't-task',
     progress: vi.fn(),

@@ -40,17 +40,20 @@ vi.mock('@xyflow/react', () => ({
 }));
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
 vi.mock('../../src/components/base/ui/CustomHandle.tsx', () => ({ default: mocks.CustomHandle }));
-vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
+vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useConnectedInputs: mocks.useConnectedInputs,
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
 vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({ default: mocks.LazyImage }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   showToast: mocks.showToast,
   toastError: mocks.toastError,
   toastWarning: mocks.toastWarning,
 }));
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: mocks.toAbsoluteFileUrl,
   // §5.4.9 落盘唯一实现：返回持久 /files/ URL（不内联 dataURL）；仅作测试替身
   // 【2026-09-17】契约改判别联合（成功＝`ok:true` + url）。
@@ -59,6 +62,48 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({
       ok: true as const,
       url: `http://127.0.0.1:18080/files/canvasDrop/${file?.name ?? 'x'}`,
     }),
+  // 【2026-09-18 TD-02-62】`node.data.images[].url` 的唯一写入点 `addImages` 现内部统一落盘
+  // （六条加图路径共用）。替身按真实契约：已是本机 /files/ → `already-local` 短路；
+  // data:/blob: → 视为落盘成功换持久 URL；http(s) 原样透传（等价真实分支）。
+  persistUrlToUploads: (url: string) => {
+    if (url.startsWith('/files/') || url.startsWith('http://127.0.0.1:18080/files/')) {
+      return Promise.resolve({ ok: true as const, url, source: 'already-local' as const });
+    }
+    if (url.startsWith('data:') || url.startsWith('blob:')) {
+      return Promise.resolve({
+        ok: true as const,
+        url: 'http://127.0.0.1:18080/files/canvas/persisted.png',
+        source: 'inline' as const,
+      });
+    }
+    return Promise.resolve({ ok: true as const, url, source: 'uploaded' as const });
+  },
+}));
+// 【2026-09-18 · 测试基建修正】此前本文件**未替换** `loadImageWithTimeout`，缩略图加载走的是
+// 源码里的真实现：`new Image()` + `setTimeout(IMAGE_LOAD_TIMEOUT=10000)`。jsdom 下 stub 的
+// `Image` 永不触发 onload/onerror，于是 promise 只能等**真实的 10 秒**超时，或等用例里手写的
+// `fakeImg.onerror?.()`。
+//
+// 这在 `addImages` 尚为**同步**时没暴露 —— 组件先 `updateData` 再启 `makeThumb`，
+// 断言在缩略图 promise 未决时就已满足。TD-02-62 把落盘+缩略图整体**移到写回之前**
+// （`await Promise.all(...)`）后，这条 10 秒/手写触发的时序就成了唯一决定项：
+// 用例里 `fakeImg.onerror?.()` 在 `fireEvent.click` 之后**同步**执行，而此刻
+// `makeThumb` 的 `loadImageWithTimeout` **尚未执行到** `img.src = url`（它前面还有
+// 一层 `await persistUrlToUploads`）⇒ onerror 打在**上一个** Image 实例上（或根本还没挂
+// 回调）⇒ promise 挂到真超时 ⇒ waitFor 先到期 ⇒ 断言 `[]`。
+//
+// 判据：**替身要替的是边界（加载/超时），不是断言的手动触发**。这里把边界整体替换为
+// 「立即 reject」，与生产语义一致（加载失败 → `makeThumb` 返回 undefined，不挂起），
+// 且**与耗时无关**。手写的 `fakeImg.onerror?.()` 保留即可（它现在是无害的 no-op）。
+vi.mock('../../src/components/base/utils/asyncGuard.ts', () => ({
+  loadImageWithTimeout: () => Promise.reject(new Error('测试替身：缩略图加载立即失败')),
+  attemptQuietly: async (f: () => unknown) => {
+    try {
+      return await f();
+    } catch {
+      return undefined;
+    }
+  },
 }));
 vi.mock('../../src/components/base/utils/clipboard.ts', () => h.clipboardMock);
 vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({ default: () => null }));
@@ -224,6 +269,35 @@ describe('ImageBoxNode — 从上游连线导入', () => {
     setup({ images: [], activeIndex: 0 });
     fireEvent.click(screen.getByTitle('从连线图一键导入'));
     expect(mocks.toastCalls.warn).toBeGreaterThan(0);
+  });
+
+  it('【TD-02-62】上游连线源携 data: 图 → addImages 内部统一落盘，images[].url 不内联 dataURL', async () => {
+    // 回归点：此前 `importFromConnection` → `addImages` 直接裸写上游 url，而上游 `isAssetUrl`
+    // 明确放行 `data:`（assetType.ts:119）⇒ 整图 base64 可进 node.data.images → 画布快照膨胀。
+    const fakeImg = {
+      crossOrigin: '',
+      onload: null as (() => void) | null,
+      onerror: null as ((e?: Error) => void) | null,
+      src: '',
+    };
+    vi.stubGlobal(
+      'Image',
+      vi.fn(() => fakeImg),
+    );
+    const inline = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
+    setup(
+      { images: [], activeIndex: 0 },
+      { images: [{ id: 'u1', url: inline, label: '' }], texts: [] },
+    );
+
+    fireEvent.click(screen.getByTitle('从连线图一键导入'));
+    fakeImg.onerror?.();
+    await waitFor(() => {
+      expect(lastData().images).toHaveLength(1);
+      const url = lastData().images[0].url as string;
+      expect(url.startsWith('data:')).toBe(false); // 关键：禁止内联 dataURL 落进快照
+      expect(url).toBe('http://127.0.0.1:18080/files/canvas/persisted.png');
+    });
   });
 });
 

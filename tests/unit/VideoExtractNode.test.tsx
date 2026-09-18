@@ -53,9 +53,12 @@ const h = vi.hoisted(() => {
 
 vi.mock('@xyflow/react', () => mocks.xyflow);
 vi.mock('../../src/components/base/ui/NodeTitle.tsx', () => ({ default: mocks.NodeTitle }));
-vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => h.connected }));
+vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), useConnectedInputs: () => h.connected
+}));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   showToast: (...a: unknown[]) => h.showToast(...a),
   toastError: vi.fn(),
   toastWarning: vi.fn(),
@@ -64,7 +67,11 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => ({
 // 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
 vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
-  contentSet: (...a: unknown[]) => (h.contentSet as unknown as (...x: unknown[]) => void)(...a),
+  // ⚠️ 必须如实返回 PersistWriteOutcome（见下方契约说明），不能返 void。
+  contentSet: (...a: unknown[]) => {
+    (h.contentSet as unknown as (...x: unknown[]) => void)(...a);
+    return { ok: true, landed: 'local' } as const;
+  },
   // 【mock 契约同步 · 2026-09-17】被测节点间接依赖 `appSettings.load()`（经 assetUrl），
   // 后者读 `contentGet(KEY)`。mock 缺此导出 ⇒ **整个套件**加载即失败（不是单个用例红）。
   // 与 `AgentPanel.test.tsx` 同款漏项 —— 契约变更后按**函数名全仓扫**，别按"我记得改过哪几个文件"。
@@ -81,7 +88,8 @@ vi.mock('../../src/components/base/utils/previewUrl.ts', () => ({
     release: vi.fn(),
   },
 }));
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: mocks.toAbsoluteFileUrl,
 }));
 // 结果落盘唯一入口：断言节点把 extractedImages 写回 node.data（刷新不丢）

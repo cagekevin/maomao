@@ -13,17 +13,8 @@
  * 本模块同时暴露 extractFilesUrls，供孤儿文件 GC（docs/41 第2.7节）复用，
  * 保证提取引用的逻辑只有一份实现。
  */
-import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
 import { getUploadDir, queryOne } from '../db/database.js';
-import {
-  ensureDir,
-  resolveUploadTarget,
-  sanitizeFilename,
-  contentIdOf,
-  contentHashName,
-} from './fileStore.js';
+import { writeUploadDedupSync } from './fileStore.js';
 import { mimeToExt } from './mime.js';
 import { toAbsoluteFileUrl } from './localToolBaseUrl.js';
 
@@ -91,34 +82,35 @@ export function saveBase64ToFile(
 
   const buf = Buffer.from(base64Data, 'base64');
   const ext = extFromMime(mime);
-  // sha1(解码后字节) 只算一次、两处用（contentId 去重查 + 内容寻址命名）—— 口径与 multipart/fileUrl 分支一致。
-  const hash = crypto.createHash('sha1').update(buf).digest('hex');
-  const contentId = contentIdOf(hash);
 
-  // docs/122 Content 维度 #6·根因修复：跨入口去重权威 = contentId(字节哈希)，与入口无关。
-  // 命中既有 contentId → 直接复用其 url（不写盘、不新建第二份）→ 同图「文件上传 / base64 粘贴」落同一物理文件。
-  if (db) {
-    const hit = queryOne(db, 'SELECT url FROM resources WHERE sha1 = ?', [contentId]) as
-      { url?: string } | undefined;
-    if (hit?.url) return { url: toAbsoluteFileUrl(hit.url), contentId };
-  }
-
-  // 【TD-03-9 修复】改用 canonical 内容寻址命名 `sha1(bytes)[:16] + ext`（与 writeUploadBuffer/
-  // writeUploadDedup 同口径）。原实现用 `sha1(base64 文本)[:16]` —— 同一字节内容经不同入口（multipart 上传
-  // vs base64 外置）会得到**不同物理文件名**，仅靠 contentId URL 级去重掩盖；该 16 位命名实际只当本地
-  // `fs.existsSync` 幂等键，却与全局命名规范背离、误导后续改者。现统一为字节哈希。
-  const stableName = sanitizeFilename(contentHashName(hash, ext));
-
-  const { savedPath, urlPath } = resolveUploadTarget(subfolder, stableName);
-  ensureDir(path.dirname(savedPath));
-  const absoluteUrl = toAbsoluteFileUrl(urlPath);
-
-  // 已存在则直接返回 URL（幂等，不重复落盘）
-  if (fs.existsSync(savedPath)) return { url: absoluteUrl, contentId };
-
-  // 写盘失败 → 抛（由调用方按"系统故障"处理；降级型调用方自行 catch 保留原值）
-  fs.writeFileSync(savedPath, buf);
-  return { url: absoluteUrl, contentId };
+  // 【2026-09-18 · TD-02-64 收口】落盘/去重/命名**整体委托唯一权威 `writeUploadDedup`**。
+  //
+  // 此前本函数自持一整套：自算 sha1 → 自查 resources → 自算 contentHashName → 自 resolveUploadTarget
+  // → 自 `fs.existsSync` 幂等 → 自 `fs.writeFileSync`。那是**与 writeUploadDedup 逐项重复的第二套实现**
+  // （同一形态 = 2026-09-17 刚从 `doSaveRemoteUrl` 收口掉的那份），两套迟早漂移：
+  // 例如权威侧 2026-09-17 修的「去重命中必须校验磁盘还在」（TD-08-31：DB 行在、文件被 GC 带走时
+  // 复用会回 404 死 url = 假成功）本函数**从未跟进** —— 它只查 DB 就 return，同样会回死 url。
+  // 现统一：命中校验、内容寻址命名、扩展名处理全在权威侧一份。
+  //
+  // 【为什么用同步核心而非 `writeUploadDedup`】调用方 `externalizeBase64InValue` 长在
+  // `kv.ts::handleKvSet` 的**禁止 await** 的 CAS 临界区内（那里明令"以下到 return 之间禁止任何 await"），
+  // 本函数必须保持**同步**。`writeUploadDedupSync` 就是权威 `writeUploadDedup` 的实现体（同一份判据，
+  // 非第二套），故此处委托它 = 收口到唯一权威，且不破 CAS 原子性。
+  const dedup = writeUploadDedupSync({
+    subfolder,
+    ext,
+    data: buf,
+    existingUrlByContentId: (contentId) => {
+      if (!db) return null; // 无 DB 句柄 → 跳过跨入口去重（仅本地幂等，与旧行为一致）
+      const hit = queryOne(db, 'SELECT url FROM resources WHERE sha1 = ?', [contentId]) as
+        | { url?: string }
+        | undefined;
+      return hit?.url ?? null;
+    },
+  });
+  // 权威返回：命中为既有 url（可能绝对形式），未命中为 `/files/...` 相对形式 → 统一绝对化，
+  // 保持本函数既有契约（调用方拿到的恒是可访问的绝对 URL）。
+  return { url: toAbsoluteFileUrl(dedup.urlPath), contentId: dedup.contentId };
 }
 
 /** MIME → 扩展名（唯一实现 utils/mime.ts；表外兜底用 mime 子类型，对齐旧 extFromMime 行为） */

@@ -1,6 +1,12 @@
-# CONTEXT.md — 决策地图（写代码前必读的唯一入口）
+# CONTEXT.md — 规则适用性地图（写代码前必读的唯一入口）
 
-> **最高准则：代码即知识。** 本文件**不是机制百科**，而是**决策地图**——只回答代码本身回答不了的问题：`这个功能放哪 / 该调哪个唯一入口 / 哪些红线不能碰`。机制的具体"是什么/怎么用"，请看对应**代码文件头部的注释**。
+> **最高准则：代码即知识。** 本文件**不是机制百科**，而是**规则适用性地图**——只回答代码本身回答不了的问题：`这个功能放哪 / 我这一处该走哪条路 / 哪条规则在这不适用`。机制的具体"是什么/怎么用"，请看对应**代码文件头部的注释**。
+
+> **🔻 本文件的定位（2026-09-18 用户裁定，见 `docs/adr/ADR-0023`）：规则适用性地图。**
+> 它**只装两样**：① 按**场景需求**反查的跨模块路由表；② 规则适用性的**例外与边界**。
+> **不装**判据本体（→ `docs/adr/`）、不装链路与现状（→ `spec/DATAFLOW.md`）、不装物理红线（→ `CLAUDE.md`）。
+> **阅读顺序**：`CLAUDE.md`（红线是什么）→ **本文件**（我这一处该走哪条路）→ `spec/DATAFLOW.md`（这条链路怎么走）→ `docs/adr/README.md`（这条判据凭什么成立）。
+> 判据检索：`node scripts/adr.mjs list` / `search <关键词>`。
 
 > **🔝 第一原则：能用原生，绝不外求。** 能用 React 内置和浏览器原生解决的，绝不引第三方库；能用已收口的 `base/utils.ts` 解决的，绝不手写。第三方库仅在原生代价过高时引入并在此登记。
 
@@ -159,15 +165,18 @@
 
 * **异步一致性**：异步操作统一支持 `AbortSignal` 真中断；竞态防护通过请求带 id 校验最新；超时统一走 `asyncGuard.ts` 的 `withTimeout` + 命名常量（config）。
 
-* **错误透传铁律**：`genErrors.ts` 仅用于重试降级决策，**绝对禁止吞掉或改写原始错误信息**。
+**判据本体在 ADR —— 本节只留索引（判据不在此复述，见 `docs/adr/ADR-0023`）：**
 
-* **自动重试**：仅网络/超时最多 3 次指数退避，上游业务失败绝不自动重试（防封号）。
+| 判据 | ADR |
+| --- | --- |
+| 错误透传：禁用 `genErrors.ts` 吞掉或改写原始错误 | **ADR-0002** · **ADR-0003** |
+| 自动重试：仅网络/超时（≤3 次退避），业务失败绝不重试 | **ADR-0018** |
+| catch 豁免标记机制已删除；守卫=fail-fast / catch=留痕 | **ADR-0011** |
+| 幂等 / 去重 / 唯一键纪律（P0） | **ADR-0020** |
+| 幂等不许替代状态 | **ADR-0010** |
+| 判别联合形状（`strictNullChecks:false`，禁 `as`/`!`） | **ADR-0021** |
 
-* **catch 豁免契约（TD-02-26）**：空 catch 必须标 `// catch-ok: <CODE>`，CODE 取自 `src/components/base/core/catchOk.ts` 单一登记表（有限面、可审计、不可自由文本绕过——原豁免通道是自由文本 + 只判存在性，可一句话绕过、理由永不验证）。**职责边界（最高优先，违反即回潮）**：**守卫只管「契约违约 → fail-fast（抛错）」**；**catch 只管「运行时可预期失败（IO / 网络 / 解析 / 浏览器 API 预期不可用）→ 必须留痕（`logger.warn` / `reportDegrade`）或标 catch-ok 结构性豁免」**。用前置守卫去防运行时意外 = **假守卫**（代价更高、还防不住）。`scripts/check-silent-catch.mjs` 做双向校验（空 catch 无合法 CODE 即违规）。
-
-* **幂等 / 去重 / 唯一键纪律（P0 全局收口红线）**：任何"可能重复触发"的写操作（提交生图、落盘、webhook 收结果、事件入库、外部回调）必须带全局唯一键并幂等落库——同一键重复到达只生效一次，禁止重复建任务 / 重复写 / 重复副作用。规则：① 全局唯一键统一来源（如 `base/idGen.ts` 的 `generateId`、上游 `task_id`/`thread_id`），禁止业务各处手写 `Date.now()` 当幂等键；② 落库前先按唯一键查重，命中即返回既有结果而非新建；③ 去重逻辑收口到**唯一入口**（如 `useNodeGeneration` 提交 Seam、localTool `/files/` 落盘），禁止散落各调用方各自判重；④ webhook / 重试 / 刷新回填等"至少一次"语义的入口默认按唯一键去重。项目 R1\~R4 方法论即此纪律落地：存储事件化、子图事务、防重入 UUID、统一超时——新增同类能力优先复用既有机制，不另起一套。
-
-* **类型契约：判别联合的写法（`strictNullChecks:false` 约束）**：本仓 `strict:false` / `strictNullChecks:false`，TS 对 `boolean` 判别位**只在「真分支 / 显式 `=== false`」收窄**——`else`、`!x.ok`、三元假支访问失败分支字段报 **TS2339**（**字符串/数字判别位不受影响**；实测矩阵见 `daily/架构日志/21-跨区-判别联合boolean窄化约定-2026-09-13.md`）。故「成功/失败」联合写成二者之一：① **双方各带对方的键（可选 `undefined`）**——`{ ok:true; url:string; reason?:undefined } | { ok:false; url?:undefined; reason:'x' }`（`ok` 仍是判别位、语义不变，且两分支字段都可直接读）；② 改用**字符串/数字判别位**（`kind:'a'|'b'`）。**🚫 严禁用 `as` / `!` 绕墙**（把编译期问题埋成运行时不诚实）——需要 boolean 分支时按 ① 改形状，而不是加断言。
+> ⚠️ 本节**不再是判据来源**。要改上述任何一条 → 走 `node scripts/adr.mjs`（改主意写新 ADR 取代，禁就地改历史）。
 
 ***
 
@@ -184,6 +193,8 @@
 ***
 
 ## 五、数据一致性防线
+
+> **本节性质：现行契约与红线**（不是可推翻的判据）。判据本体见 ADR 索引：**ADR-0012**（写盘成功判据）· **ADR-0013**（纯查询禁副作用）· **ADR-0009**（结果写回唯一路径）· **ADR-0014**（跨上下文重置命令栈）· **ADR-0015**（批量入栈粒度）· **ADR-0020**（唯一键纪律）。物理契约值另见 `CLAUDE.md §5.4.4 / §5.7`。
 
 * **唯一 ID**：nodeId/edgeId/taskId 必须走 `base/idGen.ts`。
 
@@ -245,51 +256,51 @@
 
 ### A. 决策记录渠道（钉死三档，不许颠三倒四）
 
+> **判据归位规则见 `docs/adr/ADR-0017`**（2026-09-18 用户裁定）：**已裁定的判据一律落 `docs/adr/`，禁止只写本文件。** 本文件**不再承担判据存储**，只留导航与仍有效的红线。
+
 | 档位             | 判定条件                  | 记录位置                        | 🚫 严禁行为   |
 | -------------- | --------------------- | --------------------------- | --------- |
 | **代码注释**       | 单文件局部机制、调用方单一         | **对应代码文件头**写清「为什么/边界/红线」    | 不另写文档     |
-| **CONTEXT.md** | 横跨 ≥2 处 / 全库决策 / 选型入口 | 本文档对应章节 + `contracts.ts` 落地 + 允许 `docs/adr/` 轻量决策记录 | — |
+| **`docs/adr/`** | **已裁定的判据**（推翻/确立约定 · 用户裁定 · 处置口径） | **`docs/adr/`（唯一主场，走 `node scripts/adr.mjs add`）** | 只写本文件、不落 ADR |
+| **CONTEXT.md** | 导航（功能放哪 / 调哪个唯一入口）+ 当前机制现状 + 仍有效的红线 | 本文档对应章节 + `contracts.ts` 落地 | **不记判据**——判据走 ADR |
 | **专项文档**       | 需要长篇幅的策略（如错误重试）       | 极少数现有专项文档，并在本文档索引           | 不为普通决策新开  |
 
-> **铁律**：1. **主注释优先于散碎注释**——改文件同步更新文件头 JSDoc，别只在改动行塞注释（否则后续 AI 读不到全貌）；2. **本文件只写收口/唯一入口/红线这类决策**，**不记具体 bug 修复**——修 bug 直接在对应代码里写注释说明「为什么改/边界」即可，别往本文件塞；3. **ADR 现已允许**——轻量「决策 + 回滚」记录可落 `docs/adr/`，重大收口决议优先用 ADR，CONTEXT 只留导航与仍有效的红线。
+> ⚠️ **§六.B「已收口」清单不搬**：那是**当前架构事实**（有边界、有唯一入口实现），不是判据 —— 判据与现状是两件事（见 `docs/adr/ADR-0025`）。
+
+> **铁律**：1. **主注释优先于散碎注释**——改文件同步更新文件头 JSDoc，别只在改动行塞注释（否则后续 AI 读不到全貌）；2. **本文件只写收口/唯一入口/红线这类决策**，**不记具体 bug 修复**——修 bug 直接在对应代码里写注释说明「为什么改/边界」即可，别往本文件塞；3. **判据走 ADR**（索引 `docs/adr/README.md`，检索 `node scripts/adr.mjs list`），本文件只留导航与仍有效的红线。
 >
 > **保鲜机制 3 条**：① 发现文档与代码**在「收口/红线」层面**不符，必须二选一同步（改代码或改文档），**规范失真比没有规范更糟**；② 本文件**禁止写会过期的具体数字**（文件数/用例数/行号/版本），事实活在代码里；③ 能靠代码注释表达的机制一律写注释，本文件只留"放哪/选入口/红线"，**规范越短越不过时**。
 
-### B. ✅ 已收口（勿重复收口；后续 AI 改前先认领这些唯一入口）
+### B. ✅ 已收口（**别重复收口**；改前先认领这些唯一入口）
 
-> 这些是**当前架构事实**（已落地、有边界），不是待办。改到相关功能先看这里，避免重复收口或走绕道。
+> **本表只是「不要再写第二份」的清单**（动作指令）。每条**现状与边界**在 `spec/DATAFLOW.md` 对应链路 + 代码文件头，判据在 `docs/adr/` —— 本表**不重复**它们（见 `docs/adr/ADR-0023`）。
+> 用法：改到相关功能 → 先看下表有没有现成入口 → 有就**调用它**，不要再写一份。
 
-* **通用工具**：`base/utils.ts`（`deepClone`/`formatTime`/`debounce`/`throttle`/`useDebouncedEffect`/`createImeInput`/`createRafBatch`）。边界：`director3d` 不纳入；时序敏感处（`useCanvasHistory` 抑制窗口、`useAgentChat` 流式 flush、`ghost-edge`）保留手写。全库散落手写防抖/深拷贝已收敛至此，勿再绕道。
+| 能力 | 唯一入口（别再写第二份） |
+| --- | --- |
+| 通用工具（深拷贝/防抖/格式化） | `base/utils.ts` · `base/utils/` |
+| 节点目录 / nodeTypes | `base/NodePalette.ts` |
+| 程序化建节点+连线 | `base/deriveNodes.ts`（原子进 undo） |
+| ID 生成 | `base/idGen.ts` |
+| 本地预览 URL | `base/previewUrl.ts` |
+| 图片失败回退 + 显示出口 | `base/utils/useImageFallbackSrc.ts` |
+| 素材节点渲染 url 解析 | `base/utils/assetUrl.ts` |
+| 图片类节点 hover 操作 | `nodes/useImageHoverActions.tsx` |
+| node.data 写回 | `useNodeData.ts` |
+| 节点生成 | `hooks/useGenerateNode.ts` → `useNodeGeneration.ts` |
+| 瞬态（loading/error/progress） | `base/store/nodeRuntimeStore.ts` |
+| 素材库 SSOT | `base/store/resourceStore.ts` |
+| 横切存储 | `base/core/contentStore.ts` |
+| API 契约真源 | `base/core/contracts.ts` 的 `apiRegistry` |
+| 文件域落盘 / 去重 | `api/filesApi.ts`（后端 `writeUploadDedup` + `contentId`） |
+| 模型源 | `base/providerModels.ts` |
+| 事件总线 / toast / logger | `base/core/eventBus.ts` · `toastStore.ts` · `logger.ts` |
+| 下载 | `clipboard.downloadUrl` |
+| 提示词胶囊 / @素材链接 | `prompt/promptChips.ts` |
+| 移动/改名/查引用 | `node scripts/mv-sync-refs.mjs`（**禁手写 mv / 手改 import**） |
+| 依赖同代纪律 | `@types/react(-dom)` 与 `react(-dom)` 同大版本；`zustand` 经 `overrides` 锁单版本 |
 
-* **nodeTypes 单源**：`base/NodePalette.ts` 的 `paletteNodes`（含 `component` 字段），`buildNodeTypeComponents()` 派生 `App.tsx nodeTypes`，不再手写平行表。
-
-* **程序化建边**：`base/deriveNodes.ts`（`buildSpawnNodes`/`makeChildId`/`spawnAndCommit`）+ `CanvasEdgesContext.tsx`，建子节点+连线统一并原子进 undo。提交三连（applySpawnSnapshot→setNodes→setEdges→history.record）已收口至 `spawnAndCommit`，调用方只传 spawned 与画布句柄，禁止再手写提交三连（顺序错了 undo 丢新增节点）。边界：`scriptBoxEngine` 注入式引擎、`onConnect` 手连、`onConnectEnd` ghost-edge 保持原样；`Director3DNode` 按 §五·五 子模块边界不收口。
-
-* **本地预览**：`base/previewUrl.ts`（`create/release` 引用计数）。边界：下载走 `clipboard`、持久化降级走 `videoEngine`、`director3d` 不纳入。
-
-* **ID 生成**：`base/idGen.ts` `generateId`。边界：`accountsStore` 手写 `Date.now().toString` 已收敛回，勿再绕道。
-
-* **依赖同代纪律（P0-3）**：`@types/react`/`@types/react-dom` 必须与 `react`/`react-dom` 保持**同大版本**；`zustand` 单版本经 `package.json` 的 `overrides`（`^5.0.3`）锁定，防双实例。升级依赖时同步核对这三处，任一回退/错配即触发类型误报或双实例回归。`tsconfig` `skipLibCheck:true`/`strict:false` 为既有演进项，非紧急不缩紧。
-
-* **模型源唯一（P0-4）**：前端**唯一**模型源是 `base/providerModels.ts` 的 `buildAllModels/resolveProviderModel`（本地 providers 聚合）；后端 `platform.ts` 的 `/api/public/platform/builtin`、`/api/public/platform/models`、`/plugin/manifest.json` 前端**零调用**（**无** **`fetchBuiltin`/`Xi`/`fetchPluginManifest`** **函数，未实现**），归 `contracts.ts` `apiRegistry` 的 `status:'RESERVED'`（handler 保留为「自研替换官方」兜底，勿删）。新增模型下拉一律走 `buildAllModels`，勿再引第二套模型源。
-
-* **useAgentChat 三层拆分**：`agentCore.ts`(纯函数)/`agentRuntime.ts`(运行时)/`useAgentChat.ts`(hook 编排)。契约：useAgentChat 顶部 re-export agentCore，**改纯函数去 agentCore.ts**；roundTrip/runToolCalls 与状态机竞态耦合留在 hook 封装层，勿强行下钻。
-
-* **图片类节点共享 hover 能力**：`base/useImageHoverActions.tsx` 是 ImageNode / PromptNode 的「裁剪/标记/压缩」hover 操作唯一收口。写回经 `onImageReplaced(dataUrl)` 回调解耦（ImageNode 走 setNodes 不可变更新，PromptNode 走 setImageUrl+patchData），hook 只产出新 dataURL、不耦合节点写回方式。新增图片类 hover 操作走此 hook，勿在两节点各写一份（曾因各写一份导致生图节点 crop 漏 onClick 成死按钮）。
-
-* **API 契约真源（2026-08-22）**：前端↔localTool 端点唯一真源是 `contracts.ts` 的 **`apiRegistry`**（55 条：fn/method/path/envelope/status），与 `localTool/src/router.ts` 的 `routes` 表双向互检由 **`npm run check:api`**（`scripts/check-api-contract.cjs`，挂 `prebuild` + `check:health`）完成。**改端点 = 「加函数 + 登记」双动作**，信封形态须标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub`。前端薄壳统一收口在 `localToolApi.ts`/`filesApi.ts`，散落点（GeneratedView/AssetLibrary/pollTask）已收进薄壳。**勿再引用过时的** **`BACKEND_ROUTES`/`API_ENDPOINTS`** **占位**（已弃，真源是 apiRegistry）。
-
-* **脚本盒全量收口至 scriptbox/（2026-08-31）**：`scriptBoxEngine/Prompts/PromptResolver/Schema` 已全部从 `base/` 迁入 `src/components/scriptbox/`（解 base⇄scriptbox 循环，见 download/REPORT P0）。**base/ 不再含任何 scriptbox 业务域专属文件**。
-
-* **base/ 语义子目录重排（2026-09-04）**：base/ 现按语义子目录物理分组：`core/`（横切唯一入口+通用工具）、`api/`、`storage/`、`canvas/`（画布编排）、`ui/`（真·通用 UI 基座）、`panels/`（应用壳/大面板）、`editors/`（编辑/查看器）、`prompt/`（提示词域）、`store/`（业务状态）、`utils/`（纯函数）、`depthVideo/`、`settings/`（已拆分并入 ui/panels/store，2026-09-04 复核执行后目录删除）。目录地图见 `src/components/base/README.md`。**凡架构不合理需要移位置/改名，一律走** **`scripts/mv-sync-refs.mjs`（move/rename/move-dir，事务式 + 全库同步 import + 可 undo，`--suffix ts`），不要手写 mv/手改 import**（CLAUDE §5.4·8）。⚠️ 注意：`contracts.ts`/`config.ts`/`contentStore.ts`/`eventBus.ts`/`logger.ts` 被 `scripts/` 校验脚本按字面路径引用——改名/移动它们时须同步这些 scripts 字面路径（check-api/events/storage-keys/node-types/health-check/arch 等），否则 `check:health` 会红。若遇「业务域专属文件平铺在 base/」→ 逐个收回对应业务域，而非塞进通用子目录（例：`d3dPersistence`→director3d/、`useImageHoverActions`→nodes/、`upstreamLink`/`toolRegistry`→canvas/、`settings/` 拆分）。
-
-* **网络/存储层深模块化（2026-08-31）**：`base/api/`（8 件：httpClient/proxyGenerate/pollTask/chatApi/imageApi/videoApi/localToolApi/filesApi）与 `base/storage/`（3 件：storageAdapter/kvStore/storageQuota；`persistFailureBus` 已于 2026-09-17 随 `persist:failed` 总线删除，持久化失败改由各站点 `confirmPersist` 自确认）已收成深模块，**外部统一从** **`base/api`/`base/storage`** **的 index 入口 import，禁绕深层路径**（CONTEXT §一·C）。`contentStore`（横切唯一入口）与 `backupStore`（依赖 contentStore/projectStore）留 base/ 根。**教训**：① backupStore 放 storage/ 会与 projectStore→contentStore→storage 成环，已撤回——深模块按依赖方向收，不机械塞；② **vitest node 环境不支持裸目录 import**，深模块引用一律用显式 `index.ts` 后缀。**UI 组件网（互相引用 + 被 App/edges/节点引用）不深模块化**（无内聚 + 大 churn，见上一条）。
-
-* **文件域去重真源 = Content 维度 contentId `<alg>:<hex>`（docs/122 Content/Ref，2026-09-12 #1/#6）**：后端落盘物理命名统一 `sha1(buffer)` 内容寻址（`localTool/src/utils/fileStore.ts` 的 `contentHashName` + `writeUploadBuffer` 用 sha1 命名）；**去重真源 = Content 维度 identity = `contentId = <alg>:<hex>`**（`contentIdOf`，folder/url/name 无关、改名仍存活）——`writeUploadDedup` 按 contentId 查重（`findDedupUrl` 纯判定），命中复用既有 url 不写盘，未命中以 sha1 命名落盘并回传 contentId；multipart 上传路由（`files.ts`）与 rescan（`resources.ts` 回填 `sha1`）已接入。**应用层查重只是优化，并发去重真保证 = 单一写入权威 `Content.put` 统一按字节哈希并查重、由 `upsertResource` 落实「同内容→同行」（不依赖 DB 约束兜底）**。**任何「新建文件落盘」入口应经 `writeUploadDedup` 按 contentId 去重**，禁止 `Date.now()` 前缀命名、禁止各入口自带 hash 上行（decode 后统一由入口算 hash）、禁止各入口各自判重。前端登记单入口仍 `resourceStore.addResources`（`buildResourceRecord` 规范字段缺省）。**改名/移动均已 context-only（增量②）**：后端 `applyResourceContextChange`（改名）/`applyResourceContextMove`（移动归类，`handleMove` 走它）只改 resource 行 `name`/`folder`（UI），url/contentId/磁盘不变、无 `rewriteUrlReferences` → 永不破图；multipart 上传响应已暴露 `contentId`。#4 asset 写侧已落：文件导入/上传替换/素材库拖入三入口给 `node.data` 写 `contentId`（前端 `contentIdOfBytes` 算 `sha1:<hex>`，与后端同源），内联 dataURL/blob 互斥只持 url。**增量④ GC 已对齐 Content 引用（2026-09-12）**：`localTool orphanGc.queryReferenceSources` 反向扫引用时补认 KV/引用串里的 `contentId(sha1:<hex>)`（经 resources.sha1 反查物理 url 并入 referenced），防内容寻址引用被误判孤儿。**更新(2026-09-17 · 格式真相 + 身份归位收口)**：① **fileUrl 下载落盘（`localTool/src/routes/files.ts` `doSaveRemoteUrl`）也已收口到 `writeUploadDedup`** —— 原先它自造第二套命名（`sha1(URL)前16位_basename`）+ `fs.existsSync` 免下载快路径，现统一为内容寻址 + contentId 去重（幂等键从「同 URL 同名」改为「同字节同行」）；`POST /api/files/upload` 的 formData 与 JSON 两条 fileUrl 分支已收口为唯一实现 `respondRemoteUrlUpload`。② **媒体格式的真相源 = 响应 Content-Type / 解码字节，绝不取自 URL 名后缀** —— 原先「URL 带后缀即信后缀、丢弃已拿到的 Content-Type」，会让 CDN 用 `.jpg` 后缀发 webp 字节时落出「名实不符」的假图，下游（缩略图 / 内联 base64）按名解码即失败。③ 落盘结果信封回传 `SaveRemoteResult.contentId`，**前端不得再自行 fetch 整图重算 sha1**（前端 3 处 `contentIdOfBytes` 消费待收口，见 TD-08-28）。详见 `daily/架构日志/08-跨区-格式真相与身份归位收口-2026-09-17.md`。**④ 图片显示出口 + 失败回退的唯一实现 = `base/utils/useImageFallbackSrc.ts`（2026-09-17）**：小图 → 原图 → 显式占位，源变化自动复位；`LazyImage` / `AssetNode` / `ChatMarkdown` 全部接入，**禁止再各写一段失败处理**（此前 3 份分叉 → 同一故障在画布能显示、在助手待发送区却显示「加载失败」）。配套后端语义：`handleThumbnail` 对「源格式不可缩」（webp/avif —— Jimp 能读不能写）**302 回原图**（语义 = 本优化不适用，不是错误），只有 resize 真失败才 500。
-
-* **资源 project 隔离契约（2026-09-12 · docs/122 #2，DB 契约）**：`resources` 表加 `project_id` 与 `sha1`（去重身份列，值为 contentId `<alg>:<hex>`）列（database.ts 幂等迁移：新库建表带列、旧库 PRAGMA 探测后 ALTER）。`sha1` = Content 维度去重身份（folder 无关、全库唯一，值 = `contentId=<alg>:<hex>`，由落盘/回填写入）；`project_id` 只约束 resource 逻辑引用层。**物理去重仍全局**（Content 维度）、**legacy `project_id IS NULL` = 全项目可见**。`GET /api/resources?projectId=` 经 `buildPaginatedQuery` 新增 `nullOrEqCols` 机制统一产出 `(project_id IS NULL OR project_id = ?)`（并在 generic filters 循环跳过该列，防叠加等值把 NULL 排除掉）。**rescan 行保持 NULL 全局、不因 project 分裂成多行**（防重复显示）；**前端 #3/#7 已落（2026-09-12）**：`fetchResources` 透传 `?projectId`、`ResourceLibrary` 接 `useCurrentProjectId()`，发送到素材库两入口登记带 `projectId`、`resourceStore.resourcesOfProject` 纯过滤、**`useResources()` 响应式读已按当前项目 memo 化投影**（`useMemo([all, projectId])`，legacy NULL 全项目可见；仅 resources/currentProjectId 变化时重建，无重渲染循环）。过滤谓词纯函数 `resourceVisibleForProject`。
-
-* **素材节点渲染解析 + 互斥双形态（2026-09-12 · docs/122 #4/#5）**：`base/utils/assetUrl.ts` 的 `resolveAssetDisplayUrl` 是素材节点渲染 url 解析**唯一入口**——文件型持稳定 `contentId`(`sha1:<hex>`，与后端 resources.sha1 同源) → 经调用方注入 `resolveContentUrl`（如 `buildContentUrlResolver` 由 resource 列表构建）解析出 url；内联 dataURL/blob 持 `url` 直用（不查 resource）；存量历史 `assetUrl` 字段兼容兜底；**查无 → 返回 `MISSING` 显式缺失态（fail-loud）**，禁止静默吞错破图。`assertMutuallyExclusiveAssetForm` 校验 `contentId`/`url` 字段互斥（杜绝「双字段同指一文件」冗余副本）。AssetNode 读端已接入（按 `contentId` 查 resourceStore 解析，缺失态呈现「素材已移除」）。**写侧（2026-09-12 收敛）**：文件拖入 / 素材库拖入 / 网页图本地化三入口已给 `node.data` 落稳定 `contentId`（前端 `contentIdOfBytes` 算 `sha1:<hex>`，与后端同源）；`resourceStore.Resource` 已保留 `contentId`，`buildResourceRecord` 透传；内联 dataURL/blob 互斥只持 `url`。⚠️ **剩余**：contentId→url 实时解析依赖「权威 resource 源」（当前 AssetNode resolver 查 resourceStore；素材库面板读后端 `fetchResources`，二者尚未合一）——待 resourceStore 与后端源统一后，改名/移动即可经 contentId 全自动跟随、可废四态 URL 改写广播（`buildUrlRewritePairs`）。
+> ⚠️ **各条的边界与例外**（如"时序敏感处保留手写""director3d 不纳入"）**不在此表**：它们写在规则旁或 §五·五；现状与 fan-in 看 `spec/DATAFLOW.md`。
 
 ### C. 🟡 顶层已知待办（改动前先查，看完删）
 

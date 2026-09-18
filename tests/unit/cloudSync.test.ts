@@ -18,7 +18,8 @@ const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
 // 注意：工厂提升到模块顶部，须在工厂的异步函数体内引用顶层 kv（而不能直接读取 kv.kvGet 属性，
 // 否则提升期静态改写会报 "Cannot access 'kv' before initialization"）。
 const kv = createKvMem();
-vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
+vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   providerApi: { getProviders: vi.fn(), saveProviders: vi.fn(), syncConfigBase: vi.fn() },
   fetchProjects: vi.fn(),
   saveProjects: vi.fn(),

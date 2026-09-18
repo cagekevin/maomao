@@ -18,7 +18,8 @@ const h = vi.hoisted(() => ({
   mockKvSet: vi.fn(),
 }));
 
-vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
+vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   providerApi: {
     getProviders: (...a: any[]) => h.mockGetProviders(...a),
     testConnection: (...a: any[]) => h.mockTestConnection(...a),
@@ -32,7 +33,8 @@ vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
   kvSet: (...a: any[]) => h.mockKvSet(...a),
   kvDelete: vi.fn(),
 }));
-vi.mock('../../src/components/base/storage/kvStore.ts', () => ({
+vi.mock('../../src/components/base/storage/kvStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   CANVAS_STATE_PREFIX: 'canvas-state-v1-',
 }));
 

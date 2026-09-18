@@ -10,10 +10,8 @@ const mkNode = (data: Record<string, unknown> = {}): Node => ({
 
 // 隔离依赖：AI 撤销栈 / 真实生成 / 多步执行器
 // 状态（awaiting / pending）用 beforeEach 内 vi.mocked 配对闭包管理，避免模块级变量在 vi.mock 工厂下 TDZ 怪异
-vi.mock(
-  '../../src/components/agent/conversation/conversationStore.ts',
-  () =>
-    ({
+vi.mock('../../src/components/agent/conversation/conversationStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
       pushActiveAiUndo: vi.fn(),
       popActiveAiUndo: vi.fn(() => null),
       getActiveAiUndoStack: vi.fn(() => []),
@@ -47,7 +45,8 @@ vi.mock(
       getCurrentSnapshot: vi.fn(() => ({ skills: [] })),
     }) as unknown as typeof import('../../src/components/agent/conversation/conversationStore.ts'),
 );
-vi.mock('../../src/components/base/store/taskStore.ts', () => ({
+vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/x.png' })),
   isNodeRegistered: vi.fn(() => true),
 }));

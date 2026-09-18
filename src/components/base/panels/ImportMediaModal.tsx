@@ -180,12 +180,16 @@ export default function ImportMediaModal({
   const source: MediaRefSource | null = tab === LOCAL_TAB ? null : tab;
 
   // 当前 tab 的分类（第二层筛选）—— 由 provider **声明**，弹窗不硬编码（M3 收口）。
+  // 【TD-03-15】把**已拉到的条目**传进去：素材库的分类清单含"磁盘实有子目录"，
+  // 只能从已拉到的 `type:'folder'` 条目发现（用户自建目录不在任何静态清单里）。
+  // provider 只读它、不为此另发请求（契约见 MediaRefProvider.categories 注释）。
+  // 依赖 `items` ⇒ 拉到数据后分类 pill 自动补齐；`[]` 时 provider 退回静态基底（首屏结构稳定）。
   const categories = useMemo(
     () =>
       tab === LOCAL_TAB
         ? []
-        : (providerSources.find((p) => p.source === tab)?.categories?.() ?? []),
-    [tab, providerSources],
+        : (providerSources.find((p) => p.source === tab)?.categories?.(items) ?? []),
+    [tab, providerSources, items],
   );
 
   // 【默认分类 = provider 声明的第一个分类】（素材库 =「全部」，生成 =「全部」，无分类来源 = null）

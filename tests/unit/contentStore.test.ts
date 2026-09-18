@@ -40,8 +40,28 @@ const { mockStorageAdapter, mockLocalToolApi, mockLogger } = vi.hoisted(() => {
   };
 });
 
-vi.mock('../../src/components/base/storage/storageAdapter.ts', () => mockStorageAdapter);
-vi.mock('../../src/components/base/api/localToolApi.ts', () => mockLocalToolApi);
+// ── storageAdapter：只覆盖本套件要控的三个原语，其余从真模块派生 ──────────────
+// 【为什么不能只列三个符号（TD-17-15）】手写白名单式桩是**静态面**，`storageAdapter` 一加导出
+// 即脱钩 → 凡是走到新导出的套件整套件崩。派生后新增导出自动可见；只保留"我要控制什么"。
+// （`localToolApi` / `logger` 仍为工厂整体替换：本套件正是在验 contentStore 对它们的调用，
+//   需要**完全掌控**这两个边界，且 `mockLocalToolApi` 的形状已按真实 KvSetResult 信封对齐。）
+vi.mock('../../src/components/base/storage/storageAdapter.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  sGet: mockStorageAdapter.sGet,
+  sSet: mockStorageAdapter.sSet,
+  sRemove: mockStorageAdapter.sRemove,
+  // TD-02-2：未就绪（扩展预填中）时 contentStore 不写缓存；默认按「已就绪」跑既有用例
+  isStorageReady: mockStorageAdapter.isStorageReady,
+}));
+// localToolApi 同样**从真模块派生**：它是最典型的「会长大」api 模块。
+// 只覆盖本套件要控的 kv 三件套 + version；其余导出走真模块（新增导出自动可见，不再整套件崩）。
+vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  kvGet: mockLocalToolApi.kvGet,
+  kvSet: mockLocalToolApi.kvSet,
+  kvDelete: mockLocalToolApi.kvDelete,
+  kvGetVersion: mockLocalToolApi.kvGetVersion,
+}));
 vi.mock('../../src/components/base/core/logger.ts', () => mockLogger);
 
 // 防 logger 被 NODE_ENV 条件影响

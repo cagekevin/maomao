@@ -9,7 +9,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const taskCtl = { taskId: 't-1', progress: vi.fn(), done: vi.fn(), fail: vi.fn() };
 const reportGenerateMock = vi.fn((..._a: unknown[]) => taskCtl);
-vi.mock('../../src/components/base/store/taskStore.ts', () => ({
+vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   reportGenerate: (...a: unknown[]) => reportGenerateMock(...a),
 }));
 
@@ -19,12 +20,14 @@ vi.mock('../../src/components/base/api/index.ts', () => ({
 }));
 
 const showToastMock = vi.fn();
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   showToast: (...a: unknown[]) => showToastMock(...a),
 }));
 
 const reportDegradeMock = vi.fn();
-vi.mock('../../src/components/base/core/degrade.ts', () => ({
+vi.mock('../../src/components/base/core/degrade.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   reportDegrade: (...a: unknown[]) => reportDegradeMock(...a),
 }));
 

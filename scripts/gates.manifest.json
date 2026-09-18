@@ -3,6 +3,7 @@
   "_design": {
     "model": "单一验证阶段：**代码闸只在 push 阶段跑一次**（本地 pre-push 与 CI 各一次），commit 阶段不再跑闸。",
     "why": "用户裁定（2026-09-13）：「提交和推送这两个我可以看成一个。只要最后推送不出去…就可以了，不需要反反复复把这两个东西一起跑」。原 commit+push 两阶段虽已是 disjoint（不同闸不重复），但一次「提交→推送」要等两轮闸、CI 若同时接两类闸也会跑两遍。合并为单一阶段后：每个闸在一次 push / 一次 CI 里**各跑一次**，无重复。",
+    "audit2026-09-18": "用户「审计现有闸，应拆尽拆，除非真的有用」→ 实测后处置：① **删除** `check-token-mirror.mjs` 与 `check-css-globals.mjs`（**都不在 manifest 里、从没跑过**；前者还躺着 1 条真实违规、后者连基线文件都不存在 —— 形态①+④假防线），连带删 `mockup/scripts/` 内同名第三份；② 删 `check-gate-vitals.mjs` 的 `catch` 登记残留（该闸 09-17 已退役、表漏删 → 元层闸长期背一条假警告）；③ **保留** knip / strict-src / arch / node-* / storage-keys / events / any / doc-refs / gates / gate-vitals / arch-index，逐条取证**无重叠**（含负例探针，见各闸头部）；④ 提速：knip 加 `--cache`（10.2s→6.0s，**输出逐字节一致**已验）；strict-src 三种提速写法**实测全部否决**（详见该闸头部留痕）。总耗时 ~55s → ~47s。",
     "assignment": {
       "build": "7 道廉价构建契约（无 tsc）：api/node-types/node-handles/node-data/keys/upload-dirs/jsx。只在 npm run build 时跑，与 git 流无关。",
       "push": "10 道代码闸（合并原 commit + push）：type-check(tsc --noEmit) + any/events(代码卫生) + strict-src(白名单 0 隐式 any) + arch(全图扫描) + dead-code(knip 死代码) + arch-index(架构日志进度表与轮次文件一致) + gates(元层：闸自述自洽 —— 让「申诉口」这条规定不只是注释) + gate-vitals(元层：闸的闸 —— 治「扫 0 却绿灯」) + doc-refs(描述层：注释债号存在性 —— 治「幽灵债号」)。只在 pre-push 与 CI 各跑一次。**注（2026-09-17）**：原第 11 道 `catch` 闸（空 catch 必须带 `// catch-ok:` 标记）已按用户裁定**删除** —— 它要求的『豁免标记』机制与现行判据『错误必须由产生它的那层以判别联合透传（含可展示信息）；消费者只转发』冲突：贴标记合法通过成本（一句话）低于真正改造，反而在生产它本要禁止的行为。代价与回潮风险见 daily/架构日志/16-跨区-错误透传判据与消费者改造-2026-09-17.md。",
@@ -11,7 +12,11 @@
     "tsc": "push 阶段内两次 tsc，标志与职责不同、互不重叠、不可合并：type-check（不带 --noImplicitAny，通用类型错误）与 strict-src（带 --noImplicitAny，白名单目录隐式 any 收口）。标志会改变对无类型 .mjs mock 等的推断，强行合并会引入伪错误。",
     "gateCost": "闸的成本守恒（2026-09-14 入规 → 架构师心法 §零.4）：任何闸的『合法通过成本』必须 ≤ 『绕行成本』，否则它在生产它本要禁止的行为（本仓三实证：假守卫/假豁免 · 账本撞号被静默遮蔽 · videoEditor/core 内联重复 7 份）。配套三条：① 每个闸脚本头部须有【申诉口】三问 —— 守什么（红线闸 or 结构偏好闸）· 什么时候该改它 · 怎么改（**可 grep 锚点 = `★闸的申诉口`**，2026-09-14 起 14 道闸全部带此段）；② 新增闸前置评审 —— 会不会拦住『让同一语义份数下降』的动作（收口/下沉/去重）？会 → 用反向判据，别用清单白名单（清单必漏，且『加一个合法模块就要改闸』本身是母体）；③ 闸拦住正确动作时【改闸不绕行】—— 裁决三步见心法 §零.4.3，改完跑闸探针先红后绿（node scripts/probe.mjs，正例精确红 + 反例仍红）。"
   },
-  "phases": ["build", "push", "health"],
+  "phases": [
+    "build",
+    "push",
+    "health"
+  ],
   "gates": [
     {
       "id": "api",
@@ -42,6 +47,12 @@
       "cmd": "node scripts/check-storage-keys.mjs",
       "phase": "build",
       "desc": "存储键登记表（STORAGE_KEYS）单一真源"
+    },
+    {
+      "id": "upload-dirs",
+      "cmd": "node scripts/check-upload-dirs.mjs",
+      "phase": "build",
+      "desc": "uploads 目录契约（落盘 subfolder ⊆ 登记表）"
     },
     {
       "id": "type-check",
@@ -85,7 +96,6 @@
       "phase": "push",
       "desc": "架构日志进度表（index.md）与轮次文件实况一致（整份机器生成 · 禁手改）"
     },
-
     {
       "id": "gates",
       "cmd": "node scripts/check-gates.mjs",

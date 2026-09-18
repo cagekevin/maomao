@@ -34,8 +34,8 @@ import { detectAssetType } from '../../utils/assetType.ts';
 import { toAbsoluteFileUrl, fileNameFromUrl } from '../../core/utils.ts';
 // 目录浏览规则（根/子目录 → 查询参数）：**唯一实现**，本 provider 只调它，不自带规则。
 import { LIBRARY_ROOT, libraryBrowseArgs } from '../libraryBrowse.ts';
-// 分类真源：素材库目录清单 + 面向用户素材的白名单（两处消费方共用同一份，禁止各抄一份）。
-import { FOLDERS, LIBRARY_CATEGORY_KEYS } from '../../store/resourceStore.ts';
+// 分类真源：素材库目录清单 + 「静态基底 ∪ 磁盘实有子目录」的派生判据（两处消费方共用同一份，禁止各抄一份）。
+import { libraryFoldersOf } from '../../store/resourceStore.ts';
 import { makeMediaRef } from '../mediaRefTypes.ts';
 import type { MediaRefEntry, MediaRefQuery, MediaRefProvider } from '../mediaRefTypes.ts';
 
@@ -126,25 +126,38 @@ function toMediaRef(item: ResourceItem, query?: MediaRefQuery): MediaRefEntry | 
  */
 const ALL_CATEGORY_QUERY: Partial<MediaRefQuery> = libraryBrowseArgs(LIBRARY_ROOT);
 
-/** 从 FOLDERS 取 label（唯一真源），不另写硬编码文案。 */
-function labelOf(key: string): string {
-  return FOLDERS.find((f) => f.key === key)?.label ?? key;
-}
+/** 「全部」分类的 key（= 静态基底首项；契约要求它排首位 ⇒ 即默认分类）。 */
+const ALL_KEY = 'all';
 
 export const librarySourceProvider: MediaRefProvider = {
   source: 'library',
   label: '素材库',
   order: 2, // 展示顺序（生成在其前：用户裁定 2026-09-17）；缺省顺序由注册表按 order 派生（TD-02-47）
-  categories: () =>
-    LIBRARY_CATEGORY_KEYS.map((key) => ({
-      key,
-      label: labelOf(key),
+  /**
+   * 分类清单 = 静态基底 ∪ **磁盘实有子目录**（TD-03-15）。
+   *
+   * 【为什么吃 `entries`（重要）】用户自建的目录（实测 `颜色`／`HKH其他产品`）不在静态清单里，
+   * 只能从**已拉到的** `type:'folder'` 条目发现 —— 而这些条目由**消费方**在 `list()` 后持有。
+   * 故契约把"最近一次列表"作为可选入参传进来，本 provider**只读它、不为此另发请求**
+   * （若自己再 fetch 一次，分类清单与条目列表就来自两次查询 ⇒ 同一真相两份，会不一致）。
+   *
+   * 【缺省 `[]` 时】只返回静态基底 —— 首屏/未拉取时结构稳定，拉到后自动补齐磁盘项。
+   *
+   * 分类 → query 的**唯一映射**：`all` → 精确根（未归类区）；其余 → **前缀**（含更深子目录）。
+   * query 一律由 `folders` 的 `folder` 字段决定，故静态项与磁盘项走**同一份代码**（无第二套判据）。
+   */
+  categories: (entries = []) => {
+    const folders = libraryFoldersOf(entries.filter((e) => e.isFolder));
+    return folders.map((f) => ({
+      key: f.key,
+      label: f.label,
       query:
-        key === 'all'
+        f.key === ALL_KEY
           ? ALL_CATEGORY_QUERY
-          : // 人物/场景/道具：**前缀**匹配（含该目录下的更深子目录）
-            { folder: FOLDERS.find((f) => f.key === key)?.folder ?? undefined },
-    })),
+          : // 子目录：**前缀**匹配（含该目录下的更深子目录）；`folder` 由 libraryFoldersOf 派生
+            { folder: f.folder ?? undefined },
+    }));
+  },
   async list(query?: MediaRefQuery): Promise<MediaRefEntry[]> {
     // 取全量（分页读取的唯一实现负责"按 totalPages 取齐"，见文件头）；
     // keyword 透传为后端 search（不再有"只在已加载页内过滤"的妥协）。

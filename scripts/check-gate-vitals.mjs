@@ -36,7 +36,7 @@
  *   解析器被 `.ts` 化打瞎）由各闸**自己的基数自检**负责 —— 本闸同时检查"你有没有那个自检"，
  *   两者配合才完整。
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
 
@@ -57,6 +57,41 @@ function stripComments(src) {
     .replace(/\/\*[\s\S]*?\*\//g, '') // 块注释（含 JSDoc）
     .replace(/(^|[^:])\/\/.*$/gm, '$1'); // 行注释（避开 http:// 之类）
 }
+
+/**
+ * **非闸助手白名单** —— `scripts/check-*.mjs` 里**不独立运行**的那些。
+ *
+ * 【为什么需要这张表（TD-17-17 的治法）】
+ *   闸体系的登记真源是 `gates.manifest.json`。但**登记表天然看不见"该登记而未登记"的东西** ——
+ *   一个脚本可以物理存在、顶着 `check-` 前缀、却从没被任何闸跑过（= 孤儿闸：
+ *   它**从没红过**，也就没人知道它坏了）。2026-09-18 实测曾同时存在
+ *   `check-token-mirror.mjs`（带 1 条真实违规）+ `check-css-globals.mjs`（基线文件不存在），
+ *   **长期并存且无人发现** —— 因为它们根本不在任何清单里（见 17 区日志弯路 1）。
+ *
+ * 【判据（双向对账 · 独立枚举两边再求差）】
+ *   左侧 = 物理存在的 `scripts/check-*.mjs`（**目录 glob，不读任何登记表**）；
+ *   右侧 = manifest 的 `gates` + `healthOnly` 引用到的脚本。
+ *   左侧有、右侧无 ⇒ 必须**要么**是误命名（改掉 `check-` 前缀）**要么**登记进 manifest；
+ *   **唯一合法的第三态 = 本表**（真·非闸助手），且**必须写明"被谁用"**（防它变成藏孤儿的地方）。
+ *
+ * ⚠️ **本表是白名单，故必须自带防滥用的判据**（否则它会变成"把孤儿塞进来就绿"的绕行道，形态④）：
+ *   ① 每项必须写 `usedBy`（至少 1 个真实 import 它的脚本），本闸会**实跑 grep 校验它真的被引用**；
+ *   ② 本表只允许放**纯导出、零执行体**的脚本（本闸检查它没有顶层 `process.exit` / `main()` 调用）；
+ *   ③ 脚本若同时"不在 manifest"且"没人 import" ⇒ 报红（那才是真孤儿）。
+ */
+const NON_GATE_HELPERS = {
+  'check-targets.mjs': {
+    usedBy: [
+      'scripts/check-events.mjs',
+      'scripts/check-node-handles.mjs',
+      'scripts/check-node-types.mjs',
+      'scripts/check-storage-keys.mjs',
+      'scripts/mv-sync-refs.mjs',
+      'scripts/extract-tailwind.mjs',
+    ],
+    why: '各 check-* 共享的【默认扫描根】唯一事实源（纯 export，无执行体；被 6 个脚本 import，不单独跑）',
+  },
+};
 
 /**
  * 在册闸的扫描根登记表 —— **唯一真源，新增闸时在此登记一行**。
@@ -83,7 +118,9 @@ const GATES = {
     why: '由 tsc 负责遍历，tsc 自身对"无输入"会报错',
   },
   any: { roots: ['src'], selfCheck: 'own', why: '' },
-  catch: { roots: ['src'], selfCheck: 'own', why: '' },
+  // ⚠️ 原 `catch` 行已于 2026-09-18 删除：该闸（check-silent-catch.mjs）在 2026-09-17 按用户裁定
+  //   整体退役（豁免标记机制与错误透传判据冲突），但本登记表漏删 → 本闸长期报「GATES 有、闸清单无」。
+  //   留痕：**删闸时必须同时删本表登记行**，否则元层闸会一直背着一条假警告（警告疲劳 = 形态②）。
   events: { roots: ['src'], selfCheck: 'own', why: '' },
   'strict-src': { roots: ['src'], selfCheck: 'own', why: '' },
   arch: {
@@ -100,6 +137,11 @@ const GATES = {
     why: '元层（本闸）：静态度量其它闸，自身不扫描代码',
   },
   'doc-refs': { roots: ['src'], selfCheck: 'own', why: '' },
+  'upload-dirs': {
+    roots: ['src', 'localTool/src'],
+    selfCheck: 'own',
+    why: '',
+  },
 };
 
 if (!existsSync(MANIFEST)) {
@@ -113,6 +155,8 @@ const registered = (manifest.gates ?? []).map((g) => g.id);
 const missing = registered.filter((id) => !(id in GATES));
 const stale = Object.keys(GATES).filter((id) => !registered.includes(id));
 
+/**
+
 /** 从闸的 cmd 里取脚本名 */
 const scriptOf = (id) => {
   const g = (manifest.gates ?? []).find((x) => x.id === id);
@@ -123,6 +167,76 @@ const scriptOf = (id) => {
 
 // ── 2. 逐闸静态体检 ─────────────────────────────────────────────────────────
 const findings = []; // {id, level, msg}
+
+/**
+ * ── 1b. **物理脚本 ↔ 清单** 双向对账（TD-17-17）────────────────────────────
+ *
+ * 上方 1 是"登记表 ↔ 清单"对账；这里补的是**更外一层**：
+ * **磁盘上真实存在的 `scripts/check-*.mjs` ↔ 清单**。
+ * 少了这一层，一个脚本可以物理存在却**从没被任何闸跑过**（孤儿闸）——
+ * 它从没红过，所以没人发现它坏了（2026-09-18 实证两个，见 NON_GATE_HELPERS 头注释）。
+ *
+ * 判据：**独立枚举物理目录**（不读任何登记表 —— 读登记表就看不见"该登记而未登记"的）。
+ */
+const CHECK_SCRIPT_DIR = join(ROOT, 'scripts');
+const physicalCheckScripts = readdirSync(CHECK_SCRIPT_DIR)
+  .filter((f) => /^check-.*\.mjs$/.test(f))
+  .sort();
+// 清单引用到的脚本名（gates + healthOnly 两段都要算，否则 healthOnly 里的会被误判为孤儿）
+const referencedScripts = new Set();
+for (const g of [...(manifest.gates ?? []), ...(manifest.healthOnly ?? [])]) {
+  const m = /scripts\/([\w.-]+\.(?:mjs|cjs|js))/.exec(String(g.cmd ?? ''));
+  if (m) referencedScripts.add(m[1]);
+}
+const orphanGates = physicalCheckScripts.filter(
+  (f) => !referencedScripts.has(f) && !(f in NON_GATE_HELPERS),
+);
+// 白名单防滥用：① 真的被 import（实跑 grep）② 纯导出无执行体
+for (const [helper, meta] of Object.entries(NON_GATE_HELPERS)) {
+  const p = join(CHECK_SCRIPT_DIR, helper);
+  if (!existsSync(p)) {
+    findings.push({
+      id: 'gate-vitals',
+      level: 'error',
+      msg: `非闸助手白名单里的 ${helper} 已不存在 → 删该白名单行（幽灵预留 M6）`,
+    });
+    continue;
+  }
+  const src = readFileSync(p, 'utf8');
+  for (const user of meta.usedBy ?? []) {
+    const up = join(ROOT, user);
+    if (!existsSync(up)) {
+      findings.push({
+        id: 'gate-vitals',
+        level: 'error',
+        msg: `非闸助手 ${helper} 声称被 ${user} 使用，但该文件不存在（白名单必须写真实消费者）`,
+      });
+      continue;
+    }
+    if (!readFileSync(up, 'utf8').includes(helper)) {
+      findings.push({
+        id: 'gate-vitals',
+        level: 'error',
+        msg: `非闸助手 ${helper} 声称被 ${user} import，但该文件里搜不到 ${helper} → 它不是助手，是孤儿闸`,
+      });
+    }
+  }
+  // 纯导出判定：顶层不得有 process.exit / main 调用（用剥注释后的源码判，防注释误伤）
+  if (/(?:^|\n)\s*(?:process\.exit\(|\w*[Mm]ain\s*\()/.test(stripComments(src))) {
+    findings.push({
+      id: 'gate-vitals',
+      level: 'error',
+      msg: `非闸助手 ${helper} 含顶层执行体（process.exit / main 调用）→ 它是闸，必须进 manifest，不许待在助手白名单`,
+    });
+  }
+}
+for (const f of orphanGates) {
+  findings.push({
+    id: 'gate-vitals',
+    level: 'error',
+    msg: `孤儿闸：scripts/${f} 物理存在，但既不在 gates.manifest.json，也不在 NON_GATE_HELPERS 助手白名单 → 它**从没被任何闸跑过**（从没红过 = 没人知道它坏了）。处置：登记进 manifest，或（若确为非闸助手）加白名单并写明 usedBy`,
+  });
+}
 for (const id of registered) {
   const meta = GATES[id];
   if (!meta) {
@@ -174,11 +288,21 @@ for (const id of registered) {
          *   · `if (count === 0) { ... }`                            ← check-arch:71（assertScanned）
          *   · `if (codes.size === 0) { ... }`                       ← check-silent-catch:67
          *   · `if (X.length === 0 && Y.size === 0) { ... }`         ← check-arch:824
-         * 故判据 = **存在"某集合的 size/length 判 0"且附近有 fail-loud（exit/throw/console.error）**
+         *   · `if (raw.trim().length === 0) { ... }`                ← check-dead-code:137（字符串判空）
+         *   · `if (parsed === 0) { ... }`                           ← check-dead-code:234（解析结果判 0，
+         *        带 `rawHits > 0 &&` 前置 → 属「扫 0 却绿灯」的正解，必须认）
+         * 故判据 = **存在"某集合/字符串/计数判 0"且附近有 fail-loud（exit/throw/console.error）**
          *  —— 不要求两个条件在同一行（实测常分处两行）。
+         *
+         * 【2026-09-18 修正】原正则只认 `.length|.size === 0`，漏掉 `raw.trim().length === 0`（两段式）
+         *   与 `parsed === 0`（裸计数）⇒ 对 check-dead-code 误报「无集合判 0」。
+         *   教训同 check-dead-code 自身：**判据要判"代码做了什么"，不是"长得像不像我预期的样子"**
+         *   —— 过窄的检测器会把真防线报成假防线（与本闸要治的病相反，但同样是"看不准"）。
          */
         const zeroCheck =
-          /(?:\.length|\.size)\s*===?\s*0/.test(src) || /\bassertScanned\b/.test(src);
+          /(?:\.length|\.size)\s*===?\s*0/.test(src) || // 集合/字符串长度判 0
+          /\b\w+\s*===?\s*0\b/.test(src) || // 裸计数判 0（如 parsed === 0 / count === 0）
+          /\bassertScanned\b/.test(src); // 本仓收敛后的命名约定
         const failLoud = /process\.exit\(\s*[1-9]/.test(src) || /throw new Error/.test(src);
         if (!(zeroCheck && failLoud)) {
           findings.push({

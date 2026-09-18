@@ -176,13 +176,73 @@ export const FOLDERS: FolderPill[] = [
 ];
 
 /**
- * 「面向用户素材」的目录白名单 —— 哪些 FOLDERS 项算**素材库来源**的分类。
+ * 「面向用户素材」的**静态基底**白名单 —— 哪些 FOLDERS 项无条件算**素材库来源**的分类。
  * 【为什么住这里】FOLDERS 的拥有者就是本文件 ⇒ 这条判据归真源拥有者。
  * 【收口(2026-09-17)】此前 `base/media/providers/librarySource.ts` 与 `panels/ResourceLibrary.tsx`
  * **各抄一份同名同值数组**（M3 第二份，靠注释同步）⇒ 改一处必漂移。现仅此一份，两处 import 复用。
  * 注：`tasks` 归「生成」来源承载，故不在白名单（不重复出一个 tab）。
+ *
+ * 【TD-03-15 · 2026-09-18 静态清单的隐含假设过期】
+ * 本白名单原为**静态 4 项**，假设「素材都经用户手动导入到 migrated 的那几个固定分类下」。
+ * 但磁盘实况是：用户在 `migrated` 下**自建目录**（实测 `颜色`／`HKH其他产品`）不在名单里
+ * ⇒ 侧边栏与导入弹窗都**没有对应 pill**，而唯一进口「全部」用的是 `folderExact:'migrated'`
+ * （只显示根目录本身，实测 0 文件）⇒ **用户永远点不进自己建的目录**。
+ * 【修法】清单由「静态基底 **∪** 磁盘实有子目录」派生（见 `libraryFoldersOf`）——
+ * 静态项保证顺序与稳定，磁盘项保证**用户新建的目录立刻可达**（数据驱动，清单不再需要人肉同步）。
  */
-export const LIBRARY_CATEGORY_KEYS: readonly string[] = ['all', 'character', 'scene', 'prop'];
+const LIBRARY_BASE_KEYS: readonly string[] = ['all', 'character', 'scene', 'prop'];
+
+/**
+ * 静态基底清单（导出的常量，保持既有消费方语义不变：只含无条件成立的 4 项）。
+ * ⚠️ 仅供「不依赖磁盘实况」的场景（如 `resourceFolderOf` 的落点判定）使用；
+ * **UI 分类清单**请用 `libraryFoldersOf(folderRows)`（含磁盘实有子目录）。
+ */
+export const LIBRARY_CATEGORY_KEYS: readonly string[] = LIBRARY_BASE_KEYS;
+
+/** FOLDERS 里「素材库子分类」的 key 前缀约定：子目录 pill 的 key = `sub:<目录名>`。 */
+const SUB_FOLDER_KEY_PREFIX = 'sub:';
+
+/**
+ * 素材库 UI 分类清单（**唯一实现**）：静态基底 **∪** 磁盘实有子目录。
+ *
+ * 【为什么需要磁盘那一半（TD-03-15）】静态清单写死 4 项 ⇒ 用户在 `migrated` 下新建的目录
+ * 在 UI 里**没有入口**（实测 `颜色`／`HKH其他产品` 点不进去）。本函数把「目录也存在」这件事
+ * 纳入清单判据，使**新建目录即自动获得 pill**，无需任何人工同步。
+ *
+ * 【数据从哪来（不新增接口）】后端 `/api/resources` 返回的 `type:'folder'` 条目就是磁盘目录的
+ * 实时投影（`resources.ts::scanRescanDir` 对每个目录录一行 `type:'folder'`）。
+ * 调用方把已拉到的 folder 行传进来即可 —— 本函数**纯函数、零 IO**。
+ *
+ * 【为什么基线仍保留静态项】磁盘为空 / 未连接 / 首次启动时，基底项保证 UI 结构稳定
+ * （不出现"pill 忽多忽少"）；磁盘项在其后追加，顺序为「基地顺序 → 磁盘发现顺序」。
+ *
+ * @param folderRows 后端返回的目录行（`type:'folder'`）—— 只读 `folder`/`name` 两字段
+ * @returns 分类清单（不含 `generated`：tasks 由独立来源承载，见 LIBRARY_BASE_KEYS 注释）
+ */
+export function libraryFoldersOf(
+  folderRows: readonly { folder?: string | null; name?: string | null }[] = [],
+): FolderPill[] {
+  const out: FolderPill[] = [];
+  const seenFolder = new Set<string>();
+  for (const key of LIBRARY_BASE_KEYS) {
+    const hit = FOLDERS.find((f) => f.key === key);
+    if (!hit) continue;
+    out.push(hit);
+    if (hit.folder) seenFolder.add(hit.folder);
+  }
+  // 磁盘实有子目录：目录行形如 { folder:'migrated', name:'颜色' } ⇒ 子目录路径 = `migrated/颜色`。
+  // 由「父目录 + 目录名」派生的**唯一实现**（不自拼，防脏 folder）；只在父 = 素材库根时纳入。
+  for (const row of folderRows) {
+    const parent = String(row.folder ?? '').replace(/\/+$/, '');
+    const name = String(row.name ?? '').trim();
+    if (!name || parent !== UPLOAD_DIRS.migrated) continue;
+    const path = `${parent}/${name}`;
+    if (seenFolder.has(path)) continue; // 已在静态基底里（如 人物/场景/道具）
+    seenFolder.add(path);
+    out.push({ key: `${SUB_FOLDER_KEY_PREFIX}${name}`, label: name, folder: path });
+  }
+  return out;
+}
 
 /**
  * 剧本分类 → 素材库目录的单一映射（剧本盒不自己拼路径，收口在 FOLDERS 语义）。

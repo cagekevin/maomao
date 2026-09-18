@@ -45,11 +45,13 @@ vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal)
 }));
 
 // 本用例只走工程本体落盘，不碰素材；这两个模块 import 进来即够（防真模块拉浏览器依赖）。
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   // 【2026-09-17】契约已改判别联合：失败＝`ok:false`（含生产者 message），不再是 null。
   uploadFileToLocal: vi.fn(async () => ({ ok: false, message: '本地服务未启动' })),
 }));
-vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
+vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   deleteResource: vi.fn(async () => undefined),
   fetchResources: vi.fn(async () => ({ data: { items: [] } })),
 }));

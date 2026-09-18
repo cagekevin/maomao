@@ -85,14 +85,18 @@ vi.mock('../../src/components/base/ui/NodeTitle.tsx', () => ({ default: () => nu
 vi.mock('../../src/components/base/ui/ErrorBoundary.tsx', () => ({
   default: ({ children }: any) => children,
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   showToast: vi.fn(),
   toastError: vi.fn(),
 }));
-vi.mock('../../src/components/base/store/resourceStore.ts', () => ({
+vi.mock('../../src/components/base/store/resourceStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   sendToResourceLibrary: vi.fn(),
 }));
-vi.mock('../../src/components/base/store/taskStore.ts', () => ({ openResourceLibrary: vi.fn() }));
+vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), openResourceLibrary: vi.fn()
+}));
 vi.mock('../../src/components/base/utils/clipboard.ts', () => ({
   downloadUrl: vi.fn(),
   resolveDownloadFilename: vi.fn(),
@@ -103,11 +107,16 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
   ...(await importOriginal<typeof import('../../src/components/base/canvas/nodePrefs.ts')>()),
   useNodePrefs: () => ({ prefs: {}, set: vi.fn() }),
 }));
-vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({}) }));
+vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), useConnectedInputs: () => ({})
+}));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({
   useAssetDegrade: () => ({ isHidden: () => false }),
 }));
-vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
+// 从真模块派生：本套件只覆盖 hook，但 filesApi 等真实链路要读 assetUrl 的其它导出
+// （如 `toAbsoluteFileUrl`）。手写白名单式桩缺它们 ⇒ 展开真模块后整套件崩（TD-17-15 形态）。
+vi.mock('../../src/components/base/utils/assetUrl.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useRenderAssetResolver: () => (x: string) => x,
 }));
 vi.mock('../../src/components/base/api/index.ts', () => ({
@@ -139,7 +148,8 @@ vi.mock('../../src/components/base/editors/InlineImageCropper.tsx', () => ({
 }));
 // docs/118 §五 C5：编辑器/裁剪保存出口改为「先落盘再写回」（useImageHoverActions 内调
 // filesApi.showThenPersistInline）。本用例只验证「保存后节点框跟随比例」，桩掉落盘避免真实网络请求。
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   // saveInlineToLocal 回 null → 仅 show(dataUrl) 触发一次 onImageReplaced（先落盘前的即时写回），节点框即跟随比例
   showThenPersistInline: vi.fn(async (dataUrl, show) => {
     show(dataUrl);

@@ -8,7 +8,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { showToastMock } = vi.hoisted(() => ({ showToastMock: vi.fn() }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   showToast: showToastMock,
   toastSuccess: vi.fn(),
   toastError: vi.fn(),

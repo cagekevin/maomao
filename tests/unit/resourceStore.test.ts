@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   FOLDERS,
+  libraryFoldersOf,
   detectAssetType,
   filterByFolder,
   addResources,
@@ -32,7 +33,8 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => {
     moveFile: vi.fn(),
   };
 });
-vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
+vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   rescanResources: vi.fn(async () => ({ ok: true })),
 }));
 // ── TD-02-59：store 自刷镜像（`refreshFromBackend`）只桩「分页读取」这一处 IO ──
@@ -426,5 +428,62 @@ describe('sendToResourceLibrary：落盘 → 归位 → 广播', () => {
     expect(outcome.ok ? '' : outcome.reason).toBe('empty');
     expect(getResources().filter((r) => r.folder === 'migrated')).toHaveLength(0);
     expect(seen).toEqual([]);
+  });
+});
+
+describe('libraryFoldersOf：静态基底 ∪ 磁盘实有子目录（TD-03-15）', () => {
+  // 【锁住的用户可见缺陷】原实现是**模块级静态常量**（只含 all/character/scene/prop）
+  // ⇒ 用户在 migrated 下自建的目录在 UI 里**没有 pill、点不进去**（实测 颜色/HKH其他产品）。
+  // 本套件锁「磁盘实有子目录自动获得 pill」+「静态项不重复」+「非 migrated 父目录不纳入」三条。
+
+  it('无磁盘行时 = 静态基底（首屏/未连接也可用，结构稳定）', () => {
+    const list = libraryFoldersOf([]);
+    expect(list.map((f) => f.key)).toEqual(['all', 'character', 'scene', 'prop']);
+    // 「全部」的 folder 必须是 null（面板据此回落 LIBRARY_ROOT，不在此写死路径）
+    expect(list[0].folder).toBeNull();
+  });
+
+  it('磁盘实有子目录自动获得 pill（本轮修的用户可见缺陷）', () => {
+    const list = libraryFoldersOf([
+      { folder: 'migrated', name: '颜色' },
+      { folder: 'migrated', name: 'HKH其他产品' },
+    ]);
+    expect(list.map((f) => f.label)).toEqual(['全部', '人物', '场景', '道具', '颜色', 'HKH其他产品']);
+    // 路径由「父目录 + 目录名」派生（不自拼），folder 必须是素材库下的完整相对路径
+    expect(list.find((f) => f.label === '颜色')?.folder).toBe('migrated/颜色');
+  });
+
+  it('已在静态基底里的目录不重复出现（人物/场景/道具）', () => {
+    const list = libraryFoldersOf([
+      { folder: 'migrated', name: '人物' },
+      { folder: 'migrated', name: '场景' },
+      { folder: 'migrated', name: '道具' },
+    ]);
+    expect(list.map((f) => f.key)).toEqual(['all', 'character', 'scene', 'prop']);
+  });
+
+  it('父目录不是素材库根的行**不纳入**（canvas/tasks 下的目录不是素材分类）', () => {
+    const list = libraryFoldersOf([
+      { folder: 'canvas', name: 'video-editor' },
+      { folder: 'canvas', name: 'drop' },
+      { folder: 'tasks', name: 'whatever' },
+    ]);
+    // 只剩静态基底 —— 一个都没混进来
+    expect(list.map((f) => f.key)).toEqual(['all', 'character', 'scene', 'prop']);
+  });
+
+  it('空名 / 缺名的目录行被跳过（不产出无名 pill）', () => {
+    const list = libraryFoldersOf([
+      { folder: 'migrated', name: '' },
+      { folder: 'migrated', name: '   ' },
+      { folder: 'migrated' },
+      { folder: 'migrated', name: '颜色' },
+    ]);
+    expect(list.map((f) => f.label)).toEqual(['全部', '人物', '场景', '道具', '颜色']);
+  });
+
+  it('尾部斜杠的父目录也能命中（防脏 folder 导致漏判）', () => {
+    const list = libraryFoldersOf([{ folder: 'migrated/', name: '颜色' }]);
+    expect(list.find((f) => f.label === '颜色')?.folder).toBe('migrated/颜色');
   });
 });

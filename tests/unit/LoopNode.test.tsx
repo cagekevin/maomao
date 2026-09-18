@@ -12,14 +12,18 @@ import { splitByMethod, splitSmartPromptItems } from '../../src/components/nodes
 
 vi.mock('@xyflow/react', () => mocks.xyflow);
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
-vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
+vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useConnectedInputs: mocks.useConnectedInputs,
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   showToast: mocks.showToast,
   toastWarning: mocks.toastWarning,
 }));
-vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: mocks.useSyncNodeData }));
+vi.mock('../../src/hooks/useSyncNodeData.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), useSyncNodeData: mocks.useSyncNodeData
+}));
 vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useOutsideClick: mocks.useOutsideClick,
 }));

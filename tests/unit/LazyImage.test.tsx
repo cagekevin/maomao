@@ -20,7 +20,8 @@ import { render, screen, fireEvent } from '@testing-library/react';
  */
 
 // 统一出口：resolveAssetUrl(render) — 本地 /files/ → 缩略图端点；http 原样/补绝对；空/非字符串原样
-vi.mock('../../src/components/base/utils/assetUrl.ts', () => ({
+vi.mock('../../src/components/base/utils/assetUrl.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useRenderAssetResolver: () => (u: any) => {
     if (!u || typeof u !== 'string') return u;
     if (u.startsWith('/files/')) return `THUMB${u}`;

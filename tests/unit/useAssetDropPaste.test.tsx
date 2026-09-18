@@ -27,13 +27,16 @@ const uploadMock = vi.fn(async (file, _folder) => ({
   url: 'http://local/' + (file?.name || 'drag'),
 }));
 const downloadRemoteMock = vi.fn(async (_url, _opts) => null);
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   resolveNodeAssetUrl: (file: any, folder: any) => uploadMock(file, folder),
   downloadRemoteToLocal: (url: any, opts: any) => downloadRemoteMock(url, opts),
   WEB_DROP_SUBFOLDER: 'web',
 }));
 const toastMock = vi.fn();
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: toastMock }));
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), showToast: toastMock
+}));
 
 const { useAssetDropPaste } = await import('../../src/hooks/useAssetDropPaste.ts');
 

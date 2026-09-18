@@ -8,6 +8,8 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { uploadFileToLocal, toAbsoluteFileUrl } from '../base/api/index.ts';
+// 落盘目录取中央表（TD-03-18：此前本文件裸写 'canvas/face_mosaic'，表外目录 = 孤儿目录的来源）
+import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
 import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import { toastError, toastWarning } from '../base/core/toastStore.ts';
 import { logger } from '../base/core/logger.ts';
@@ -157,7 +159,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
         const r = await applyMosaic(urls[i], { mode, strength, color });
         const up = await uploadFileToLocal(
           dataUrlToBlob(r.dataUrl, 'image/png'),
-          'canvas/face_mosaic',
+          UPLOAD_DIRS.faceMosaic,
         );
         // 【2026-09-17 判据】落盘失败 → **保留内联 dataURL**（真兜底：图仍能上屏，不丢图），
         // 但**原因不吞**：原 `|| r.dataUrl` 把失败彻底静默（用户与开发者都不知道没落盘）。
@@ -203,7 +205,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
       try {
         const up = await uploadFileToLocal(
           dataUrlToBlob(dataUrl, 'image/png'),
-          'canvas/face_mosaic',
+          UPLOAD_DIRS.faceMosaic,
         );
         // 【2026-09-17】落盘失败 → 保留内联 dataURL（真兜底，不丢图），但**原因要可见**
         //（原来 `|| dataUrl` ＋ 下面的**空 catch** 双重静默）。

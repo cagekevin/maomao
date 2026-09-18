@@ -55,7 +55,8 @@ vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useNodeResize: mocks.useNodeResize,
   useOutsideClick: mocks.useOutsideClick,
 }));
-vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
+vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useConnectedInputs: mocks.useConnectedInputs,
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
@@ -63,7 +64,8 @@ vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.us
 // 桩经 h.setNodes 写入 node.data，供断言「成功/广播回填」后 data 自动更新（不再依赖节点手写 patchData）。
 let genConfig: any = null;
 const getGenConfig = () => genConfig;
-vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
+vi.mock('../../src/hooks/useNodeGeneration.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useNodeGeneration: (config: any) => {
     genConfig = config;
     // 复刻真实的广播 handler：声明 resultKey 且广播带 resultUrl 时先自动写回，再透传原 onRecover
@@ -106,16 +108,21 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
   ...(await importOriginal<typeof import('../../src/components/base/canvas/nodePrefs.ts')>()),
   useNodePrefs: mocks.useNodePrefs,
 }));
-vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: mocks.useSyncNodeData }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({
+vi.mock('../../src/hooks/useSyncNodeData.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>), useSyncNodeData: mocks.useSyncNodeData
+}));
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   showToast: mocks.showToast,
   toastWarning: mocks.toastWarning,
   toastError: mocks.toastError,
 }));
-vi.mock('../../src/components/base/api/generate.ts', () => ({
+vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   generateImage: mocks.generateImage,
 }));
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: mocks.toAbsoluteFileUrl,
   saveResultToTasks: mocks.saveResultToTasks,
 }));

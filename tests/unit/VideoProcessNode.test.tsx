@@ -28,7 +28,8 @@ vi.mock('../../src/components/base/utils/captureFrame.ts', () => ({
 vi.mock('@xyflow/react', () => mocks.xyflow);
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
 vi.mock('../../src/components/base/ui/CustomHandle.tsx', () => ({ default: mocks.CustomHandle }));
-vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
+vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useConnectedInputs: mocks.useConnectedInputs,
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
@@ -37,7 +38,8 @@ vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useContentHeightSync: mocks.useContentHeightSync,
   useOutsideClick: mocks.useOutsideClick,
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   showToast: mocks.showToast,
   toastError: mocks.toastError,
   toastWarning: mocks.toastWarning,
@@ -62,7 +64,8 @@ vi.mock('../../src/components/base/utils/asyncGuard.ts', async (importOriginal) 
     isTimeoutError: mocks.isTimeoutError,
   };
 });
-vi.mock('../../src/components/base/utils/videoEngine.ts', () => ({
+vi.mock('../../src/components/base/utils/videoEngine.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   readVideoMetadata: mocks.readVideoMetadata,
   processVideo: mocks.processVideo,
   concatVideos: mocks.concatVideos,

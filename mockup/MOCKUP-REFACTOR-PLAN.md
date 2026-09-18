@@ -1,8 +1,28 @@
 # 整站 CSS 治理执行计划（严密版 v2）
 
+> ## ⛔ 2026-09-18 · 本计划的两道门禁已退役（**执行前先读这段**）
+>
+> 计划原定门禁 `css-globals` + `token-mirror` **两闸均已于 2026-09-18 删除**，原因如实记录：
+>
+> | 闸 | 声称 | 实况 |
+> | --- | --- | --- |
+> | `check-css-globals.mjs` | 「ratchet 基线，只降不升」 | **从未投用** —— `scripts/css-globals-baseline.json` **根本不存在**，每次运行都只打印「基线不存在，门禁未就位」 |
+> | `check-token-mirror.mjs` | 「副本零漂移」 | **从没跑过** —— 名字**不在 `gates.manifest.json`** 的 build/push/health 任何一层。且它躺着 **1 条真实违规**（`mockup/image-editor-tabs-mockup.html` 引用不存在的 `--mao-gold`）无人知晓 |
+> | `mockup/scripts/check-css-globals.mjs` | （同名第三份） | 与 `scripts/` 那份**内容不同**，是另一次未完成的尝试 |
+>
+> **判据**：这两闸守的是 `mockup/`（**设计样稿目录**，见 `TD-23-5`：本就是工作目录、非生产链路）。
+> 用户裁定 2026-09-18：「**剩下的没用的直接删**」。二者属形态①（不跑）＋形态④（基线不存在）的
+> 教科书案例 —— 留着比删掉更有害：它们**假装有门禁**。
+>
+> ⇒ 本计划若重启执行，**必须先真正建闸并登记进 manifest**（或改用别的机制），
+> 不能假设"照计划说的做就有人守"。`TD-23-5` 亦仍未还（`mockup/` 是否留在根级待裁定）。
+>
+> ---
+
 > **一句话目标**：整站（`src` 真实产品 + `mockup`）CSS 在**四维度**（颜色 / 圆角 / 边框色 / 图标 SVG）达到"令牌唯一、闸守不回潮"。
 > **唯一真相源**：`src/index.css` 顶部 `:root`（mockup 侧镜像进 `maomao-kit.css`）。任何缺口只补到此文件，不另立清单。
-> **门禁**：`css-globals`（裸值 ratchet）+ `token-mirror`（副本对账）**两闸**，挂 `scripts/gates.manifest.json` 的 `push`，整仓生效（health 自动包含全部闸 —— **不要**再登记进 `healthOnly`，见 §3.6）。
+> ~~**门禁**：`css-globals`（裸值 ratchet）+ `token-mirror`（副本对账）**两闸**，挂 `scripts/gates.manifest.json` 的 `push`……~~
+> **⚠️ 上面这行门禁描述已于 2026-09-18 失效 —— 两闸均已删除，见顶部 ⛔ 段。**
 
 ---
 

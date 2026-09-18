@@ -20,7 +20,8 @@ vi.mock('../../src/hooks/useAssetDragToCanvas.ts', () => ({
   fetchText: h.fetchText,
   toImgDragProps: (p: unknown) => p,
 }));
-vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: (u: string | null | undefined) => u ?? '',
 }));
 vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({

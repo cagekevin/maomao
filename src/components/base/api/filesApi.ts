@@ -46,7 +46,7 @@ import { logger } from '../core/logger.ts';
 import { reportDegrade } from '../core/degrade.ts';
 import { UPLOAD_TIMEOUT } from '../core/config.ts';
 import { formatTime, safeFileName, relativePathFromFileUrl } from '../core/utils.ts';
-import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
+import { UPLOAD_DIRS, isKnownUploadDir } from '../utils/uploadDirs.ts';
 import type { ApiEnvelope } from './localToolApi.ts';
 export { toAbsoluteFileUrl } from '../utils/assetUrl.ts';
 export { EXT_BY_TYPE };
@@ -252,6 +252,13 @@ async function uploadInlineDataUrl(
   if (!dataUrl || !dataUrl.startsWith('data:')) {
     return { ok: false, message: '内联资源不是 data: 形式，无法落盘' };
   }
+  // 【TD-03-18】与 `uploadFileToLocal` 同一写侧自查（本条出口走 JSON 端点，不经过 multipart 那条）。
+  if (!isKnownUploadDir(subfolder)) {
+    return {
+      ok: false,
+      message: `落盘目录未登记：${subfolder}（系统产物根下新增子目录须在 uploadDirs.ts 备案）`,
+    };
+  }
   try {
     const data = await httpRequest(`${API_BASE}/api/files/upload`, {
       method: 'POST',
@@ -307,6 +314,16 @@ export async function uploadFileToLocal(
   projectId?: string,
 ): Promise<UploadOutcome> {
   if (!file) return { ok: false, message: '未提供文件（file 为空）' };
+  // 【TD-03-18】写侧自查：目录未登记 ⇒ 立刻失败，**不必等到后端 400**。
+  // 早失败的价值：报错发生在**最靠近调用点**的地方（调用栈短、能直接指出是哪次调用传错目录），
+  // 而后端 400 只能给一个 HTTP 层的笼统失败。判据与后端 `normalizeSubfolder` 同源
+  // （前端 `uploadDirs.isKnownUploadDir` / 后端 `SUB_DIR_ALLOW`），**后端仍独立强校验**（不信任客户端）。
+  if (!isKnownUploadDir(subfolder)) {
+    return {
+      ok: false,
+      message: `落盘目录未登记：${subfolder}（系统产物根下新增子目录须在 uploadDirs.ts 备案）`,
+    };
+  }
   logger.debug(
     'filesApi',
     '[UPLOAD] 准备 multipart 上传',
@@ -489,6 +506,14 @@ async function uploadRemoteUrl(
   subfolder: string,
   filename?: string,
 ): Promise<UploadOutcome> {
+  // 【TD-03-18】三条出口（downloadRemoteToLocal / saveResultToTasks / persistUrlToUploads）的
+  // **唯一**下载入口 ⇒ 写侧自查放在这里即全覆盖（比在每个出口各写一遍省且不会漏）。
+  if (!isKnownUploadDir(subfolder)) {
+    return {
+      ok: false,
+      message: `落盘目录未登记：${subfolder}（系统产物根下新增子目录须在 uploadDirs.ts 备案）`,
+    };
+  }
   try {
     const data = await httpRequest(`${API_BASE}/api/files/upload`, {
       method: 'POST',
