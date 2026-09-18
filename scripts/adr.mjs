@@ -35,7 +35,7 @@
  *   node scripts/adr.mjs list [--all] [--json]      # 默认只列现行；--all 含已退出
  *   node scripts/adr.mjs show <NNNN|文件名片段>      # 单条全文
  *   node scripts/adr.mjs search <关键词> [--json]    # 标题 / 结论 / 触发 / 正文 全文匹配（多词 AND，含已退出）
- *   node scripts/adr.mjs index [--json]             # 校验 README 索引与文件是否一致（默认只读）
+ *   node scripts/adr.mjs index [--json]             # 【幂等】索引过期则自动重生成（不阻断）
  *   node scripts/adr.mjs audit [--json]             # 只读体检（**不是闸**）
  *   node scripts/adr.mjs stats                      # 状态分布
  * 用法（写 / 维护）：
@@ -253,6 +253,16 @@ const slug = (t) =>
     .replace(/\s+/g, '-')
     .slice(0, 40);
 
+/**
+ * `index` —— README 索引块**生成器**（**不是闸**）。
+ *
+ * 【为什么不炸（2026-09-18 · 与 `arch-index.mjs` 同款定性）】README 索引块是**产物**
+ * （整份派生自 `docs/adr/*.md`），"不一致" = 「**该重新生成**」，不是「违规」。
+ * 曾用 `exit 1` 判红 → 净效果只是**让正确动作多付一次失败代价**（忘了重生成 → 被拦 →
+ * 手跑 `--write` → 再来一次），对照「闸的成本守恒律」必被绕。⇒ 改为**幂等自愈**。
+ * **幂等 ⇒ 无"何时该跑"这个问题**：`renderIndex` 是纯派生，跑不跑都对，故消费者
+ * （`架构师改码7步法` Step 7.4 等）**照常直接读 README 即可**，无需任何前置动作。
+ */
 function cmdIndex() {
   const adrs = loadAdrs();
   const want = renderIndex(adrs);
@@ -271,9 +281,12 @@ function cmdIndex() {
     console.log(`✅ README 索引与 ADR 文件一致（${adrs.length} 条）`);
     return;
   }
-  console.log('❌ README 索引与 ADR 文件不一致（索引是产物，别手改）');
-  console.log('   修法：node scripts/adr.mjs index --write');
-  process.exit(1);
+  // ── 幂等：内容物变了就刷新（不阻断）──────────────────────────────────────
+  // 索引是**产物**（整份派生自 ADR 文件），"不一致" = 「该重新生成」，不是「违规」。
+  // 见 `index 子命令` 头部【为什么不炸】。
+  writeIndex(adrs);
+  console.log(`✅ 索引已过期 → 已自动刷新（${adrs.length} 条）`);
+  console.log('   ↳ 请 `git add docs/adr/README.md` 一并提交（禁手改索引表）。');
 }
 
 function cmdList() {
@@ -597,7 +610,11 @@ function cmdAudit() {
       problems.push(`${a.id}：已毕业但没写「毕业去向」（约束升到哪个更强的载体了）`);
   }
   const { block } = readIndexBlock();
-  if (block !== renderIndex(adrs)) problems.push('README 索引与 ADR 文件不一致（跑 index --write）');
+  // 索引过期**不算 problem**（它是产物，`index` 已自愈）：只顺手刷成最新并留一行提示。
+  if (block !== renderIndex(adrs)) {
+    writeIndex(adrs);
+    notes.push(`README 索引已过期 → 已自动重生成（${adrs.length} 条）`);
+  }
 
   // 【Find 升级触发器】索引表会随条数失效 —— 到点必须换载体（见文件头 FIND_WARN/FIND_CRITICAL）。
   if (adrs.length >= FIND_CRITICAL)
@@ -735,4 +752,25 @@ if (!cmd || !table[cmd]) {
     'list ／ show <NNNN> ／ search <关键词> ／ index [--write] ／ add ／ status ／ audit ／ hygiene ／ stats',
   );
 }
+
+/**
+ * 【读时自愈（2026-09-18）】凡"会碰 ADR 数据"的命令（读 + 写），先确保索引块是最新。
+ *
+ * 判据：**生成挂在"读"这一侧，不挂在"写的人的收尾"上** —— 写的人做完事，没人看，
+ * 此刻生成 = 白做一次（下次内容物一变即作废）；**读的人读之前那一刻**才是有意义的。
+ * 故此处**不要求任何流程记得跑 `index`**：只要用本 CLI（读或写）就顺带刷新。
+ *
+ * 幂等 ⇒ 无"何时该跑"问题：`renderIndex` 纯派生，一致时**零写入**（不产生 git 噪音）。
+ * `index` / `rm` 自行处理（前者就是生成器；后者会删文件），故排除。
+ */
+const SELF_HEAL = new Set(['list', 'show', 'search', 'add', 'status', 'audit', 'hygiene', 'stats']);
+if (SELF_HEAL.has(cmd)) {
+  try {
+    const adrs = loadAdrs();
+    if (readIndexBlock().block !== renderIndex(adrs)) writeIndex(adrs);
+  } catch {
+    /* 自愈失败不阻断主命令（真坏了由主命令自己报） */
+  }
+}
+
 table[cmd]();

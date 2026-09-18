@@ -137,7 +137,7 @@
 node scripts/adr.mjs list [--all] [--json]    # 默认只列**现行**；--all 含已退出
 node scripts/adr.mjs show <NNNN>              # 单条全文
 node scripts/adr.mjs search <关键词>           # 全文匹配（多词 AND，**含已退出**）
-node scripts/adr.mjs index [--write]          # 校验 / 重生成下方索引块（默认只读校验）
+node scripts/adr.mjs index [--write]          # 索引过期则自动重生成（**幂等 · 非闸**，不阻断）
 node scripts/adr.mjs audit [--json]           # 只读**对账**（**不是闸**）：有没有违规
 node scripts/adr.mjs hygiene [--json]         # 只读**体检**（**不是闸**）：这些 ADR 还值不值得留着
 node scripts/adr.mjs stats                    # 状态分布
@@ -150,7 +150,7 @@ node scripts/adr.mjs status <NNNN> --to <状态> [--by <NNNN>] [--note "…"]
 node scripts/adr.mjs rm <NNNN> --reason "…"   # 只用于误建/重复（正常退役走 status，不删）
 ```
 
-- **索引是产物**：真源 = 各 ADR 文件的头部字段；下方表格由 `index --write` 生成，**手改无效**。
+- **索引是产物**：真源 = 各 ADR 文件的头部字段；下方表格由 `index`（幂等）生成，**手改无效**。读取方**直接读本文件即可**（无需任何前置动作）。
 - **`audit` vs `hygiene`（两个只读，各答一件事）**：
   - `audit` = **对账** —— "**有没有违规**"（必填字段 / 篇幅 / 结论重复 / 近义 / 空壳 / 取代链完整性）。**全绿是底线。**
   - `hygiene` = **体检** —— "**这些 ADR 还值不值得留着**"。**全绿也可能已经很胖。** 四个可数指标：
