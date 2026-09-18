@@ -14,11 +14,38 @@ import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/re
 import type { ResourceDragSourceProps } from '../../src/hooks/useResourceMoveToFolder.ts';
 import type { ResourceItem } from '../../src/components/base/api/localToolApi.ts';
 
-const h = vi.hoisted(() => ({ fetchText: vi.fn(async () => '文件内容 ABC') }));
+const h = vi.hoisted(() => ({
+  // 生产者契约已改判别联合（TD-18-17）：成功 `{ok:true,text}` / 失败 `{ok:false,error}`
+  fetchText: vi.fn(
+    async (_url: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> => ({
+      ok: true,
+      text: '文件内容 ABC',
+    }),
+  ),
+}));
 
 vi.mock('../../src/hooks/useAssetDragToCanvas.ts', () => ({
   fetchText: h.fetchText,
   toImgDragProps: (p: unknown) => p,
+  // 组件已改用 `useTextAsset`（读取+三态的唯一实现）。此处只给**最小测试替身**，
+  // 真实 hook 的三态逻辑由 `tests/unit/useAssetDragToCanvas.test.ts` 直接覆盖
+  // —— 本文件只验「预览按三态呈现」，不在测试里复刻一份生产逻辑当真相。
+  useTextAsset: (url: string) => {
+    const [s, setS] = React.useState<{ phase: string; text?: string; error?: string }>({
+      phase: 'loading',
+    });
+    React.useEffect(() => {
+      let alive = true;
+      h.fetchText(url).then((r) => {
+        if (!alive) return;
+        setS(r.ok === false ? { phase: 'failed', error: r.error } : { phase: 'ok', text: r.text });
+      });
+      return () => {
+        alive = false;
+      };
+    }, [url]);
+    return s;
+  },
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),

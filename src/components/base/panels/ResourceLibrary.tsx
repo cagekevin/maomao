@@ -20,9 +20,9 @@ import { rescanResources, deleteResource, renameResource } from '../api/localToo
 import { fetchResourcePage, hasMoreOf } from '../api/pagedList.ts';
 import { showToast } from '../core/toastStore.ts';
 import {
-  fetchText,
   textCache,
   useResourceCardDragProps,
+  useTextAsset,
 } from '../../../hooks/useAssetDragToCanvas.ts';
 import {
   uploadFileToLocal,
@@ -38,7 +38,12 @@ import {
   libraryFoldersOf,
 } from '../store/resourceStore.ts';
 // 目录浏览规则 + 素材库根：**与导入弹窗共用同一份**（唯一实现，见 libraryBrowse.ts）。
-import { LIBRARY_ROOT, libraryBrowseArgs, libraryUpFolder, isEmptyLibraryRoot } from '../media/libraryBrowse.ts';
+import {
+  LIBRARY_ROOT,
+  libraryBrowseArgs,
+  libraryUpFolder,
+  isEmptyLibraryRoot,
+} from '../media/libraryBrowse.ts';
 // 目录条目 → 自身目录路径的唯一实现（与「点目录进入」「拖入归类」共用）。
 import { folderPathOf } from '../../../hooks/useResourceMoveToFolder.ts';
 import { useCurrentProjectId } from '../store/projectStore.ts';
@@ -85,7 +90,7 @@ const TYPE_BADGE: Record<string, TypeBadge> = {
 
 const PAGE_SIZE = 20; // 每次加载 20 个，无限滚动追加
 
-// fetchText/textCache 统一收敛到 useAssetDragToCanvas.js；isAudio / isVideoResource 统一到 assetType.js
+// 文字读取与三态统一收敛到 useAssetDragToCanvas.js 的 useTextAsset（唯一实现）；isAudio / isVideoResource 统一到 assetType.js
 // 文字素材单元格：默认展示文件内容（前几行）
 const TextAssetCell = React.memo(function TextAssetCell({
   url,
@@ -94,16 +99,9 @@ const TextAssetCell = React.memo(function TextAssetCell({
   url: string;
   name?: string;
 }) {
-  const [text, setText] = useState('');
-  useEffect(() => {
-    let alive = true;
-    fetchText(url).then((t) => {
-      if (alive) setText(t);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [url]);
+  const state = useTextAsset(url);
+  // 失败必须可见：不退回 name —— 否则"读失败"与"文件名"在界面上无从区分（TD-18-17 · 一诚实）
+  const text = state.phase === 'ok' ? state.text : state.phase === 'failed' ? state.error : '';
   const display = useMemo(() => String(text || name || '').slice(0, 120), [text, name]);
   return (
     <div className="w-full h-full bg-surface-strong flex items-center justify-center px-1.5">
@@ -588,8 +586,8 @@ function ResourceLibrary() {
               <div className="text-4xl opacity-40">📦</div>
               <p className="m-0">这里还没有待归类的素材</p>
               <p className="text-xs text-subtle m-0 text-center leading-relaxed">
-                「全部」只显示尚未归类的素材。AI 生成的内容在「生成」里，
-                已归类的素材在 人物 / 场景 / 道具 等目录里。
+                「全部」只显示尚未归类的素材。AI 生成的内容在「生成」里， 已归类的素材在 人物 / 场景
+                / 道具 等目录里。
               </p>
               <p className="text-xs text-subtle m-0">上传或拖入文件即可出现在这里</p>
             </div>

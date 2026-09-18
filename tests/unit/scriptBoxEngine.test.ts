@@ -20,7 +20,8 @@ vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => (
 // 统一出口：toAbsoluteFileUrl 把相对 /files/ 补全为绝对原图（与 assetUrl.js 真实行为一致，注入 data.images 前收口）
 vi.mock('../../src/components/base/utils/assetUrl.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
-  toAbsoluteFileUrl: (u: any) => (u && u.startsWith('/files/') ? `http://127.0.0.1:18080${u}` : u || ''),
+  toAbsoluteFileUrl: (u: any) =>
+    u && u.startsWith('/files/') ? `http://127.0.0.1:18080${u}` : u || '',
 }));
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   resolveProviderModel: vi.fn(() => ({ provider: 'openai', modelId: 'gpt-4o-mini' })),
@@ -405,6 +406,29 @@ describe('scriptBoxEngine · 引擎编排', () => {
     // 不应抛错；await 让挂起的 promise 在 abort 后结束（catch 静默）
     await Promise.race([p, new Promise((r) => setTimeout(r, 50))]);
     expect(true).toBe(true); // 能安全中止即达标
+  });
+
+  it('onStopScriptItem 单项：合并视频按稳定实体键注册，可被 `merge-video-${nodeId}` 中止（TD-18-18）', async () => {
+    const { chatCompletions } = await import('@/components/base/api/generate.ts');
+    let seenSignal: AbortSignal | undefined;
+    vi.mocked(chatCompletions).mockImplementationOnce((args) => {
+      seenSignal = args?.signal;
+      return new Promise(() => {}); // 永不 resolve，保持运行
+    });
+    const { engine } = makeEngine({
+      shots: [
+        { id: 's1', index: 1, description: 'x', prompt: 'p1', videoPrompt: 'v1' },
+        { id: 's2', index: 2, description: 'y', prompt: 'p2', videoPrompt: 'v2' },
+      ],
+      assets: [],
+    });
+    const p = engine.onGenerateMergedVideo(['s1', 's2'], 'video');
+    await new Promise((r) => setTimeout(r, 20));
+    // 注册键必须可由中止入口重建（`onStopScriptItem(kind,id)` 按 `${kind}-${id}` 反查 abortMap）：
+    // 旧实现 `merge-video-${Date.now()}` 带时间戳 ⇒ 重建不出该键 ⇒ 下面这行掐不掉任务（seenSignal.aborted 仍为 false）。
+    engine.onStopScriptItem('merge-video', 'node-1');
+    expect(seenSignal?.aborted).toBe(true);
+    await Promise.race([Promise.resolve(p), new Promise((r) => setTimeout(r, 50))]);
   });
 
   it('onConnectShot 建下游 imageGenerateNode 并自动连线', async () => {

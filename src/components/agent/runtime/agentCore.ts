@@ -343,11 +343,13 @@ export function parseGenerationsFromReply(content = '') {
  * ── 与参考项目大雄（daxiong-canvas-plugins/canvas-agent）的差距对照 ──
  * 差距① 发送层（本函数解决）：大雄 agentFreshTaskHistoryMessages() 恒返回 []（历史不回传），
  *        本轮图在顶层 images 由后端转 OpenAI；我们历史一度全量含图回传。现对齐为 fresh-task。
- * 差距② 表示层（refToken.js + 执行层解决）：大雄把历史图编码成
+ * 差距② 表示层（**我们走的是替代路线，不是 token 化**）：大雄把历史图编码成
  *        [参考图1:name]{{agent-ref url=... name=... node=... x=.. y=..}} token 存历史文本，
- *        用 agentCollectKnownRefCatalog + agentParseRefTokensFromText 反查原图；LLM 上下文里
- *        一张历史图都没有。我们历史上直接堆原图 URL 进上下文。现新增 refToken.js（encodeRefToken /
- *        parseRefTokensFromText）对齐 token 化，历史图仍不进 LLM 上下文。
+ *        用 agentCollectKnownRefCatalog + agentParseRefTokensFromText 反查原图；LLM 上下文里一张历史图都没有。
+ *        我们**没有**走 token 化 —— 见差距③：直接用 `imageCatalog` 统一编号「图N」+ `direct_refs`，
+ *        由执行层反查（与大雄的 token 方案**功能等价且更简单**：不引入 token 语法，就不引入编解码漂移）。
+ *        ★2026-09-18：原此处写「现新增 refToken.js（encodeRefToken / parseRefTokensFromText）对齐 token 化」——
+ *        经取证该文件**从未被接线**（生产零消费，唯一 import 是它自己的单测）⇒ 已按 ADR-0030 删除。
  * 差距③ 执行层（useCanvasAgentTools.execute_plan 解决）：大雄 agentLastUserAttachments（本轮无图回退
  *        上一轮用户图）+ agentLastResults（最近生成结果图）+ agentCurrentImageMap（统一编号图1~M+N）
  *        支撑「改上一张图」；execute_plan 用 direct_refs/「图N」反查原图。我们 execute_plan 现也实现

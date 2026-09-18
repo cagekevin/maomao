@@ -11,6 +11,7 @@ import { useSyncExternalStore } from 'react';
 import { useStoreSelector } from '../../../hooks/useStoreSelector.ts';
 import { CANVAS_STATE_PREFIX, isStorageReady, onStorageReady } from '../storage/index.ts';
 import { CANVAS_SCHEMA_VERSION } from '../core/contracts.ts';
+import { generateId } from '../core/idGen.ts';
 // 画布快照的「版本真源在服务端」读写口（docs/118 §四 4.2）：
 // 2026-09-12/TD-02-1 起经 contentStore 的 KV 协议原语（不再直调 transport，唯一入口红线恢复）。
 import { fetchProjects, saveProjects, ApiEnvelope, ProjectsData } from '../api/localToolApi.ts';
@@ -322,9 +323,19 @@ function getSnapshot(): ProjectSnapshot {
   return lastSnapshot;
 }
 
-// 项目 id 复刻官方 Vr.jsx L2303 `proj-${Date.now()}`
+/**
+ * 项目 id —— 走 `idGen` 唯一入口（TD-18-18 / TD-18-19 · 2026-09-18）。
+ *
+ * ⚠️ 原实现 `proj-${Date.now()}` **零随机段**，而它同时是
+ * ① `canvas-state-v1-<projectId>` 的 KV 落盘**槽位键**、② 后端 `projects` 表按 id **合并去重**的键
+ * ⇒ 同一毫秒创建两个项目 = 同一槽位互覆盖 / 被后端当成同一项目 = **静默丢项目**。
+ * 原注释以「复刻官方 Vr.jsx L2303」为理由 —— 外部参考不是判据来源（ADR-0001），已删。
+ *
+ * 键模板 `${CANVAS_STATE_PREFIX}{projectId}`（`contracts.ts:332`）编译为 `^canvas-state-v1-.+$`，
+ * **格式无关** ⇒ 改 id 形态无需动登记表；存量项目 id 保持不变（不为旧数据做迁移）。
+ */
 function genId(): string {
-  return `proj-${Date.now()}`;
+  return generateId('proj');
 }
 
 // 读写当前项目画布快照（走 KV，异步）。key 为 canvas-state-v1- 前缀 → 自动分流到 localTool KV。

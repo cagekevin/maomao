@@ -17,8 +17,8 @@ import { fetchResourcePage } from '../api/pagedList.ts';
 import { showToast } from '../core/toastStore.ts';
 import {
   useResourceCardDragProps,
-  fetchText,
   textCache,
+  useTextAsset,
 } from '../../../hooks/useAssetDragToCanvas.ts';
 import {
   openLocalFolder,
@@ -75,7 +75,7 @@ const TYPE_BADGE: Record<string, TypeBadgeEntry> = {
 
 const PAGE_SIZE = 20; // 每次加载 20 个，点击翻页（对齐官方 Un.jsx 默认 pageSize:20）
 
-// fetchText/textCache 统一收敛到 useAssetDragToCanvas.js；isAudio / isVideoResource 统一到 assetType.js
+// 文字读取与三态统一收敛到 useAssetDragToCanvas.js 的 useTextAsset（唯一实现）；isAudio / isVideoResource 统一到 assetType.js
 // 文字资源单元格：默认展示文件内容（前几行）
 const TextResourceCell = React.memo(function TextResourceCell({
   url,
@@ -84,16 +84,9 @@ const TextResourceCell = React.memo(function TextResourceCell({
   url: string;
   name?: string;
 }) {
-  const [text, setText] = useState('');
-  useEffect(() => {
-    let alive = true;
-    fetchText(url).then((t) => {
-      if (alive) setText(t);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [url]);
+  const state = useTextAsset(url);
+  // 失败必须可见：不退回 name —— 否则"读失败"与"文件名"在界面上无从区分（TD-18-17 · 一诚实）
+  const text = state.phase === 'ok' ? state.text : state.phase === 'failed' ? state.error : '';
   const display = useMemo(() => String(text || name || '').slice(0, 120), [text, name]);
   return (
     <div className="w-full h-full bg-surface-strong flex items-center justify-center px-1.5">

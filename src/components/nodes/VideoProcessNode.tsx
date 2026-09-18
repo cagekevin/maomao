@@ -741,8 +741,10 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   // 若这里不判让位，删掉的会是**本节点里被盖住的片段**（静默破坏，TD-22-19）。
   useCanvasKeydown(
     (e) => {
-      const tgt = e.target as HTMLElement | null;
-      if (tgt?.matches('input, textarea, select')) return;
+      // ⚠️ 此处**不再**自判"焦点在不在输入区"：该判据已收口到入口 `useCanvasKeydown`
+      //（`isEditableTarget`，覆盖 INPUT/TEXTAREA/**contenteditable**）。
+      // 历史（2026-09-18 用户裁定 · ADR-0029）：这里曾写 `tgt.matches('input, textarea, select')`
+      // —— 漏了 contenteditable ⇒ 在输入框里按 Delete/Backspace **既删文字又删片段**。
       if (e.key === '[') {
         e.preventDefault();
         setInPoint();

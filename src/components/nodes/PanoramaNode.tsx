@@ -25,6 +25,8 @@ import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import PanoViewer, { type PanoViewerHandle } from '../base/editors/PanoViewer.tsx';
 import { generateId } from '../base/core/idGen.ts';
+// 编辑器内的交互归编辑器（ADR-0029）：判据走共用原语，禁自写（自写必漏）。
+import { isEditableTarget } from '../base/core/uiHooks.ts';
 import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
@@ -459,8 +461,8 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
   useEffect(() => {
     if (!fullscreen) return;
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      // 编辑器内的交互归编辑器（ADR-0029）：走共用原语，禁自写（自写必漏，见 VideoProcessNode 实证）。
+      if (isEditableTarget(e)) return;
       switch (e.key) {
         case 'Escape':
           setFullscreen(false);

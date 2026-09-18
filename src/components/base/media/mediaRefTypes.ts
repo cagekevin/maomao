@@ -16,9 +16,10 @@
  * 【三条契约铁律】
  * 1. `url` **恒为绝对 URL**（provider 内已过 `toAbsoluteFileUrl`）。
  *    消费方可能在非 React / 非画布环境（剪辑器在 `ve-scope` 里），不该各自补前缀。
- * 2. `ref` 前缀是**跨模块契约** —— 消费方**禁止**自己拼 `${source}:${id}`，
- *    必须用 `makeMediaRef()` / `parseMediaRef()`（成对提供）。
+ * 2. `ref` 前缀是**跨模块契约** —— 消费方**禁止**自己拼 `${source}:${id}`，必须用 `makeMediaRef()`。
  *    （教训同 `contracts.ts` 的 `shotHandleId`/`parseShotHandle`：写侧改前缀而读侧没改，失败是静默的。）
+ *    【目前只写不读（TD-02-50）】原配对的 `parseMediaRef()` 零生产消费（仅自证单测）⇒ 已随幽灵预留清偿删除。
+ *    消费方直接持 `MediaRef` 对象、无需从字符串反查；将来真有反查消费方时再建读侧，**别提前预留**。
  * 3. `meta` 是**出口，不是契约** —— 消费方依赖 `meta` 里的字段 = 自建第二份耦合。
  * ════════════════════════════════════════════════════════════════
  */
@@ -222,21 +223,6 @@ export interface MediaRefProvider {
 }
 
 /**
- * 跨来源搜索的结果信封。
- *
- * 【为什么 searchMediaRefs 单独一个返回形状】它是**唯一**跨来源的操作，
- * 而跨来源必然面对"部分失败"。把它塞进 `MediaRef[]` 就会掩盖失败（= 静默吞）。
- * 单来源的 `queryMediaRefs` **不加**这个信封 —— 单来源失败了就该抛，
- * 包一层 `{items, failures}` 反而让消费方多写一次判空（形态要匹配语义，不是统一就好）。
- */
-export interface MediaRefSearchResult {
-  /** 条目（含文件夹落点卡片；同 `MediaRefProvider.list`） */
-  items: MediaRefEntry[];
-  /** 失败的来源与原因（消费方可显示"素材库暂时不可用"） */
-  failures: Array<{ source: MediaRefSource; message: string }>;
-}
-
-/**
  * 一条 ref 的**落地事实**（消费一条 ref 所必需的全部字段，唯一形状）。
  *
  * 【为什么在契约层定义它（2026-09-17 · 职责收口）】`MediaRef` 有**两个**落地消费方，
@@ -284,29 +270,10 @@ export function mediaRefFactsOf(items: MediaRef[]): MediaRefFacts[] {
 
 const REF_SEP = ':';
 
-/** 全部合法来源（parseMediaRef 的合法性判据真源；新增来源只改这里 + 上面类型）。 */
-const KNOWN_SOURCES: readonly MediaRefSource[] = ['canvas', 'library', 'generated'];
-
 /**
  * 生成全局 ref（**唯一写入口**，消费方禁止手拼）。
- * 边界：id 不含 `:`（nodeId 由 generateId 生成只用 `_`；resource id 为后端 id）；
- * 若 id 意外含 `:`，parseMediaRef 取**第一个** sep 之前为 source、其后**全部**为 id（不丢信息）。
+ * 边界：id 不含 `:`（nodeId 由 generateId 生成只用 `_`；resource id 为后端 id）。
  */
 export function makeMediaRef(source: MediaRefSource, id: string): string {
   return `${source}${REF_SEP}${id}`;
-}
-
-/**
- * 解析 ref（**唯一读入口**，与 makeMediaRef 成对）。
- * 返回 null 表示非法 ref（无分隔符 / source 非已知枚举）—— 调用方应显式处理，不静默兜底。
- */
-export function parseMediaRef(ref: string): { source: MediaRefSource; id: string } | null {
-  if (!ref || typeof ref !== 'string') return null;
-  const idx = ref.indexOf(REF_SEP);
-  if (idx <= 0) return null;
-  const source = ref.slice(0, idx);
-  const id = ref.slice(idx + 1);
-  if (!id) return null;
-  if (!KNOWN_SOURCES.includes(source as MediaRefSource)) return null;
-  return { source: source as MediaRefSource, id };
 }

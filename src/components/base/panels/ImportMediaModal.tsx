@@ -59,6 +59,17 @@
  *  唯一入口只有三个：`queryFor`（组装 query）· `load`（拉取 + 竞态守卫 + 诚实错误态）·
  *  `navigate`（跳位置）。新增任何拉取/跳转一律走这三个，禁再抄一份。
  *
+ * 【拉取方向铁律：意图 → 拉取，**单向**（2026-09-18 · TD-03-20 根治）】
+ *  拉取动作**只由视图意图驱动**（来源 tab / 分类 / 下钻目录 / 项目），由**唯一一条** effect 触发；
+ *  拉取结果 `items` 只进渲染（pills / 网格），**绝不许回流到拉取动作的依赖链里**。
+ *  ⚠️ 两条禁令（违反即成环自拉，实测表现为弹窗内内容疯狂刷新直到卡死）：
+ *    ① **意图状态必须自足**：选中分类时存**分类对象**（key + query），不存 key —— 存 key 就只能回查
+ *       一张派生自已拉到的 `items` 的分类清单（`categories(items)`），拉取动作当场依赖拉取结果。
+ *    ② **默认分类不许派生自 `items`**：`provider.categories()`（无 entries，契约保证返回静态部分）
+ *       的首项才是默认分类；`categories(items)[0]` 的对象身份每拉一次就变 ⇒ 同样成环。
+ *  ✅ 同域先例（两者都是对的，可直接照抄形状）：`ResourceLibrary.tsx`（loader 只依赖 `currentFolder`
+ *    + `refreshSignal`）· `GeneratedView.tsx`（loader 只依赖 `folder` / `typeFilter`）。
+ *
  * 【浏览规则不属本文件（2026-09-17 用户裁定：与侧边栏收口到一个地方）】
  *  「目录位置 → 查询参数（根=精确 / 子目录=前缀）」「上钻一级」「根判定」三条规则住在
  *  `base/media/libraryBrowse.ts`（**唯一实现**），侧边栏素材库面板与本弹窗**共用同一份**；
@@ -73,6 +84,7 @@ import '../creative/creative-library.css';
 import { listMediaRefSources, queryMediaRefs } from '../media/index.ts';
 import type {
   MediaRef,
+  MediaRefCategory,
   MediaRefEntry,
   MediaRefQuery,
   MediaRefSource,
@@ -146,7 +158,14 @@ export default function ImportMediaModal({
   // 点它才拉选择器，做默认会每次开弹窗都撞上"空界面/要不要自动弹"的两难。
   const [tab, setTab] = useState<ImportTab>('generated');
   const [q, setQ] = useState('');
-  const [catKey, setCatKey] = useState<string | null>(null);
+  /**
+   * 当前视图选中的**分类**（`null` = 该来源的默认分类，见 `queryFor`）。
+   *
+   * ⚠️ 存**对象**而不是 key —— 这是 TD-03-20 的根治点：分类的 `query` 由**选中那一刻**的 provider
+   * 声明随对象一起带过来，拉取侧就不必再回查那张「派生自已拉到的 `items`」的分类清单。
+   * 存 key 的话，`key → query` 只能靠 `categories(items)` 查表 ⇒ 拉取动作依赖拉取结果 ⇒ 成环自拉。
+   */
+  const [category, setCategory] = useState<MediaRefCategory | null>(null);
   /** 下钻位置（目录路径；null = 分类视图）。与 `catKey` **互斥**，见 navigate()。 */
   const [openFolder, setOpenFolder] = useState<string | null>(null);
   // 列表条目 = 媒体 **或** 文件夹落点卡片（`MediaRefEntry`）；要当媒体用（onPick）须先窄化（见下方 mediaItems）
@@ -179,40 +198,51 @@ export default function ImportMediaModal({
   // 唯一一处做这个换算：`load` 用它 + 类型收窄（本地 tab 想拉也拉不了），别在每处各判一次 tab。
   const source: MediaRefSource | null = tab === LOCAL_TAB ? null : tab;
 
-  // 当前 tab 的分类（第二层筛选）—— 由 provider **声明**，弹窗不硬编码（M3 收口）。
+  // 该来源的 provider 声明 —— **唯一查表处**（分类 / 展示名都取自它）。
+  const provider = useMemo(
+    () => (source ? (providerSources.find((p) => p.source === source) ?? null) : null),
+    [source, providerSources],
+  );
+
+  // 分类清单（第二层筛选）—— 由 provider **声明**，弹窗不硬编码（M3 收口）。
   // 【TD-03-15】把**已拉到的条目**传进去：素材库的分类清单含"磁盘实有子目录"，
   // 只能从已拉到的 `type:'folder'` 条目发现（用户自建目录不在任何静态清单里）。
   // provider 只读它、不为此另发请求（契约见 MediaRefProvider.categories 注释）。
   // 依赖 `items` ⇒ 拉到数据后分类 pill 自动补齐；`[]` 时 provider 退回静态基底（首屏结构稳定）。
-  const categories = useMemo(
-    () =>
-      tab === LOCAL_TAB
-        ? []
-        : (providerSources.find((p) => p.source === tab)?.categories?.(items) ?? []),
-    [tab, providerSources, items],
-  );
+  // ⚠️ 本清单**只喂渲染（pills）**，绝不许喂「拉取动作」—— 见下方 `queryFor` 注释（TD-03-20）。
+  const categories = useMemo(() => provider?.categories?.(items) ?? [], [provider, items]);
 
   // 【默认分类 = provider 声明的第一个分类】（素材库 =「全部」，生成 =「全部」，无分类来源 = null）
-  //   ⚠️ 这必须是**唯一一条**“默认分类”解析：进入 tab / 点分类 / 归类后刷新 三处共用它。
+  //   ⚠️ 这必须是**唯一一条**“默认分类”解析：进入 tab / 未选分类 两处共用它。
   //   此前“进入 tab”走的是**无分类 query**（后端不传 folder ⇒ 整个用户目录**递归**全量），
   //   而点「全部」走的是 provider 声明的 `folderExact:'migrated'`（只含 migrated 根＝尚未归类）
   //   ⇒ 同一个 tab 里出现**两个不同界面**，且 pills 一个都没高亮（用户 2026-09-17 报：
   //   “点素材库显示是另外一个界面，而不是下面的全部”）。修法＝进入即套用默认分类。
   //   顺带删掉刷新里硬编码的 `?? 'all'`：弹窗不该知道 provider 的分类 key（M3）。
-  const defaultCategory = categories[0] ?? null;
-  const defaultCatKey = defaultCategory?.key ?? null;
+  //   【TD-03-20】**刻意不传 `entries`**：默认分类只属「来源」，不属「已拉到的数据」。
+  //   契约保证无数据上下文时 `categories()` 仍返回静态部分（首屏结构稳定），首项即默认分类；
+  //   若改成 `categories(items)[0]`，它的对象身份每拉一次就变 ⇒ 顺着 `queryFor → 拉取 effect`
+  //   反推回拉取动作 ⇒ 无限自拉卡死（这正是 TD-03-20 的成环点）。
+  const defaultCategory = useMemo(() => provider?.categories?.()?.[0] ?? null, [provider]);
+
+  // 当前高亮的分类 key。判据与「分类 / 下钻**互斥**」同源：**下钻态一律不选中任何 pill**；
+  // 非下钻态下 `category` 为 null = 该来源的默认分类（与 `queryFor` 同一判据，禁两处各算一遍）。
+  const activeCatKey = openFolder ? null : (category?.key ?? defaultCategory?.key ?? null);
 
   // 【唯一 query 组装处】下钻优先：在目录里只按目录（前缀，含更深子目录 —— 与素材库面板同语义）；
   // 否则按分类 query（未选分类 = 默认分类）。分类与下钻**互斥**（见 navigate）。
+  // ⚠️ 依赖只允许是**视图意图**（分类对象 / 项目）：一旦依赖 `categories`（派生自已拉到的 items），
+  //   拉取动作就被拉取结果反向触发 —— 那是 TD-03-20 的成环点。分类的 query 由**选中那一刻**的
+  //   provider 声明随对象带过来（`navigate` 收到的 `cat`），此处**不再回查那张表**。
   const queryFor = useCallback(
-    (folder: string | null, cat: string | null): MediaRefQuery => {
+    (folder: string | null, cat: MediaRefCategory | null): MediaRefQuery => {
       // 目录位置 → 查询参数：**走共用的 libraryBrowseArgs**（根=精确 / 子目录=前缀），
       // 与侧边栏素材库面板同一份规则（此前弹窗自写一份 → 点不进去）。
       if (folder) return { ...libraryBrowseArgs(folder), projectId };
-      const c = categories.find((x) => x.key === cat) ?? defaultCategory;
+      const c = cat ?? defaultCategory;
       return { ...(c?.query ?? {}), projectId };
     },
-    [categories, defaultCategory, projectId],
+    [defaultCategory, projectId],
   );
 
   // 【唯一拉取处】竞态守卫（只认最后一次）+ 诚实错误态。
@@ -249,32 +279,45 @@ export default function ImportMediaModal({
     [source],
   );
 
-  // 【唯一跳位置入口】分类与目录下钻互斥：跳分类 → openFolder=null；跳目录 → catKey=null。
-  // 新增任何「切分类 / 进目录 / 返上级」都走这里，禁再各写一份 setState + queryMediaRefs。
+  // 【唯一跳位置入口】分类与目录下钻互斥：跳分类 → openFolder=null；跳目录 → category=null。
+  // 只改**视图状态**：拉取由下面那条唯一的「意图 → 拉取」effect 承担。
+  // ⚠️ 此处**不再自己 load**（历史写法）：否则「改状态」与「effect」两处各拉一次 = 重复请求，
+  //    且让"到底谁在拉"变得说不清。
   const navigate = useCallback(
-    ({ folder, cat }: { folder: string | null; cat: string | null }) => {
+    ({ folder, cat }: { folder: string | null; cat: MediaRefCategory | null }) => {
       setSelected(new Set());
       setError(null);
-      setCatKey(cat);
+      setCategory(cat);
       setOpenFolder(folder);
-      load(queryFor(folder, cat)); // 本地 tab 由 load 内部拦住（唯一判据，此处不再各判一次）
     },
-    [load, queryFor],
+    [],
   );
 
-  // 切 tab：清空搜索/选择，回到该来源的**默认分类视图**（本地 tab 只清态）。
+  // 【切 tab：只重置视图状态】回到该来源的**默认分类视图**（`category=null` ⇒ `queryFor` 取默认分类）；
+  // 本地 tab（`source=null`）额外清空结果态。
+  // ⚠️ 本 effect **不许拉取**，也**不许依赖任何派生自已拉到的数据的值**。
+  //   历史（TD-03-20）：本处直接 `navigate()` 且依赖 `navigate`/`defaultCatKey`，而那两个值经
+  //   `categories(items)` 反依赖拉取结果 ⇒ 结果一变就重触发 → 再拉 → 再变……无限拉取直到卡死。
+  //   现依赖只有 `source`（= 用户意图）。
   useEffect(() => {
     setQ('');
-    if (tab === LOCAL_TAB) {
-      setCatKey(null);
-      setOpenFolder(null);
-      setSelected(new Set());
-      setItems([]);
-      setLoading(false);
-      return;
-    }
-    navigate({ folder: null, cat: defaultCatKey });
-  }, [tab, navigate, defaultCatKey]);
+    setSelected(new Set());
+    setCategory(null);
+    setOpenFolder(null);
+    if (source) return;
+    // 本地 tab = 写动作，无来源可拉：清空结果态（否则残留上一来源的网格/错误）。
+    setItems([]);
+    setLoading(false);
+    setError(null);
+  }, [source]);
+
+  // 【唯一拉取触发】只由**视图意图**（来源 / 分类 / 下钻 / 项目）驱动；
+  // 拉取结果 `items` 只进渲染（pills / 网格），**绝不回流到这里** —— 这就是 TD-03-20 的那条回边。
+  // 切 tab 能拉到正确来源，靠的正是"状态先提交、effect 后跑"（而非在 onClick 里读未提交的旧 state）。
+  useEffect(() => {
+    if (!source) return; // 本地 tab = 写动作，无来源可拉
+    load(queryFor(openFolder, category));
+  }, [source, openFolder, category, queryFor, load]);
 
   // 上一级（仅下钻态有）：父 = 素材库根 ⇒ 退出下钻回「全部」。
   // 父路径与按钮文案**共用这一处解析**（禁两处各算一遍）。
@@ -290,9 +333,10 @@ export default function ImportMediaModal({
     },
     [navigate],
   );
+  // 到顶（`upLevel.folder === null`）⇒ `cat: null` 即回该来源的默认分类视图（与 queryFor 同判据）。
   const goUp = useCallback(() => {
-    if (upLevel) navigate({ folder: upLevel.folder, cat: upLevel.folder ? null : defaultCatKey });
-  }, [upLevel, navigate, defaultCatKey]);
+    if (upLevel) navigate({ folder: upLevel.folder, cat: null });
+  }, [upLevel, navigate]);
 
   // 关键词过滤（客户端；当前已加载页内 —— 与 provider 的诚实边界一致）。
   const visible = useMemo(() => {
@@ -308,8 +352,8 @@ export default function ImportMediaModal({
   // 「文件 → 目录条目」归类拖拽：复用唯一收敛点（不在此自写移动逻辑；落点路径 = `folderPathOf`）。
   // 归类后**静默**重拉当前浏览位置（该文件应离开「未归类」）。
   const refreshCurrent = useCallback(() => {
-    load(queryFor(openFolder, catKey), { silent: true });
-  }, [load, queryFor, openFolder, catKey]);
+    load(queryFor(openFolder, category), { silent: true });
+  }, [load, queryFor, openFolder, category]);
   const { sourceDragProps, folderDropProps } = useResourceMoveToFolder({
     connected: status.isConnected,
     onRefreshed: refreshCurrent,
@@ -441,9 +485,10 @@ export default function ImportMediaModal({
                   key={c.key}
                   type="button"
                   className="pk-pill"
-                  aria-pressed={catKey === c.key}
+                  aria-pressed={activeCatKey === c.key}
                   // 点分类 = 跳回分类视图（与目录下钻互斥，见 navigate）。
-                  onClick={() => navigate({ folder: null, cat: c.key })}
+                  // 传**整个分类对象**（含其 query）⇒ 拉取侧不必回查派生自已拉到的数据的分类清单。
+                  onClick={() => navigate({ folder: null, cat: c })}
                 >
                   {c.label}
                 </button>

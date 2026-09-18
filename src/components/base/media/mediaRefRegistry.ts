@@ -14,7 +14,8 @@
  *    伪装成"这个来源是空的"（同 `contentStore.checkRegistered` 的哲学）。
  *  · 重复注册同一 source → **抛错**（两个 provider 抢同一个 source = 第二份真相，必然漂移）。
  *  · `provider.list` 内部失败 → **原样上抛**，由消费方决定是"Tab 错误态"还是"toast"（本层不替它决定）。
- *  · `searchMediaRefs` 是**唯一**允许降级处：部分成功语义，**但必须把失败暴露在返回值里**。
+ *  · 【TD-02-50】原跨来源 `searchMediaRefs`（部分成功语义）零生产消费（仅自证单测）⇒ 已随幽灵预留清偿删除；
+ *    做 `@提及` 时按当时的真实消费方重写，别提前预留。
  * ════════════════════════════════════════════════════════════════
  */
 import { logger } from '../core/logger.ts';
@@ -22,7 +23,6 @@ import type {
   MediaRefEntry,
   MediaRefProvider,
   MediaRefQuery,
-  MediaRefSearchResult,
   MediaRefSource,
 } from './mediaRefTypes.ts';
 
@@ -91,37 +91,6 @@ export async function queryMediaRefs(
   const items = await provider.list(query);
   warnRelativeUrls(source, items);
   return items;
-}
-
-/**
- * 跨来源搜索（`@提及` 用）——**部分成功语义**。
- *
- * 一个来源挂了不该让整个 `@` 框不可用，但**失败必须暴露在返回值里**
- * （返回 `{ items, failures }` 而非裸数组 —— 否则就是静默吞）。
- */
-export async function searchMediaRefs(
-  keyword: string,
-  query?: MediaRefQuery,
-): Promise<MediaRefSearchResult> {
-  const items: MediaRefEntry[] = [];
-  const failures: MediaRefSearchResult['failures'] = [];
-
-  await Promise.all(
-    [...providers.values()].map(async (provider) => {
-      try {
-        const list = await provider.list({ ...query, keyword });
-        warnRelativeUrls(provider.source, list);
-        items.push(...list);
-      } catch (e) {
-        failures.push({
-          source: provider.source,
-          message: e instanceof Error ? e.message : String(e),
-        });
-      }
-    }),
-  );
-
-  return { items, failures };
 }
 
 /** 仅供测试：清空注册表（生产代码不得调用）。 */

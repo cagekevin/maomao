@@ -1,7 +1,7 @@
 {
   "_comment": "死代码闸基线（scripts/check-dead-code.mjs 消费）。基线内=存量（不阻塞，可逐步清偿）；基线外新增=闸红。重生成：node scripts/check-dead-code.mjs --update-baseline",
   "knipVersion": "6.35.1",
-  "count": 88,
+  "count": 76,
   "items": [
     "src/components/agent/assistantTable/assistantTable.ts::exports::addColumn",
     "src/components/agent/assistantTable/assistantTable.ts::exports::deleteRow",
@@ -46,10 +46,7 @@
     "src/components/base/creative/promptManager.ts::exports::CATEGORY_OPTIONS",
     "src/components/base/creative/promptManager.ts::exports::getRecentCards",
     "src/components/base/creative/promptManager.ts::exports::recordRecent",
-    "src/components/base/media/canvasNodesBridge.ts::exports::subscribeCanvasNodes",
     "src/components/base/media/mediaRefRegistry.ts::exports::__resetMediaRefSourcesForTest",
-    "src/components/base/media/mediaRefRegistry.ts::exports::searchMediaRefs",
-    "src/components/base/media/mediaRefTypes.ts::exports::parseMediaRef",
     "src/components/base/prompt/promptChips.ts::exports::isTerminatedByBreak",
     "src/components/base/storage/kvStore.ts::exports::kvDelete",
     "src/components/base/storage/kvStore.ts::exports::kvGet",
@@ -73,13 +70,7 @@
     "src/components/base/store/taskStore.ts::exports::pollingCount",
     "src/components/base/utils/assetUrl.ts::exports::assertMutuallyExclusiveAssetForm",
     "src/components/base/utils/assetUrl.ts::exports::normalizeAssetUrl",
-    "src/components/base/utils/audioPeaks.ts::files::src/components/base/utils/audioPeaks.ts",
     "src/components/base/utils/genErrors.ts::exports::timeoutMessage",
-    "src/components/base/utils/refToken.ts::files::src/components/base/utils/refToken.ts",
-    "src/components/base/utils/timeline/rulerTicks.ts::files::src/components/base/utils/timeline/rulerTicks.ts",
-    "src/components/base/utils/timeline/timeScale.ts::exports::dropIndexAt",
-    "src/components/base/utils/timeline/timeScale.ts::exports::fitZoom",
-    "src/components/base/utils/timeline/timeScale.ts::exports::rectsIntersect",
     "src/components/director3d/d3dPersistence.ts::exports::pickProjectSource",
     "src/components/nodes/_template/TemplateNode.tsx::files::src/components/nodes/_template/TemplateNode.tsx",
     "src/components/scriptbox/scriptBoxPlaybookStore.ts::exports::__resetCustomCache",
@@ -87,9 +78,6 @@
     "src/components/scriptbox/scriptBoxPrompts.ts::exports::buildShots",
     "src/components/scriptbox/scriptBoxPrompts.ts::exports::matchAsset",
     "src/components/videoEditor/engine/commands/index.ts::exports::BatchCommand",
-    "src/components/videoEditor/ve-tailwind-colors.ts::files::src/components/videoEditor/ve-tailwind-colors.ts",
-    "src/types/refToken.ts::types::RefImageAttrs",
-    "src/types/refToken.ts::types::RefKnownImage",
-    "src/types/refToken.ts::types::RefTokenNode"
+    "src/components/videoEditor/ve-tailwind-colors.ts::files::src/components/videoEditor/ve-tailwind-colors.ts"
   ]
 }

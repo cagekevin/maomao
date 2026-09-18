@@ -42,7 +42,7 @@
  * 【设计约束】（与 official.ts 转发层一致，避免两套语义）
  * ----------------------------------------------------------------------------
  * - 目标 base 复用 official.ts 的 readOfficialBase()：
- *     x-official-base 头 → KV active_api_endpoint（过滤自指值）→ 无默认（两者皆无则跳过转发）。
+ *     KV active_api_endpoint（过滤自指值）→ 无默认（未配置则跳过转发）。
  *   2026-08-05 修复登录回环：readOfficialBase 读 KV 时会过滤指向 localTool 自身
  *   （127.0.0.1/localhost:18080）的值，避免「把请求转发给自己」的无限回环（见 official.ts）。
  *   这样「转发给谁」只有一个决策点，改一处即可整体改道（官方/自建/第三方）。
@@ -194,11 +194,11 @@ export async function handlePassthrough(
   const start = Date.now();
   const auth = (req.headers['authorization'] as string) || undefined;
 
-  // 转发目标：复用 official.ts 的三级优先级，保证「转发给谁」只有一个决策点
-  const base = await readOfficialBase(req);
+  // 转发目标：复用 official.ts 的 readOfficialBase，保证「转发给谁」只有一个决策点
+  const base = await readOfficialBase();
   if (!base) {
     console.warn(
-      `[passthrough] ${logTs()} | ${method} ${pathname} | 无可用官方 base（未配置 x-official-base / active_api_endpoint），跳过转发`,
+      `[passthrough] ${logTs()} | ${method} ${pathname} | 无可用官方 base（未配置 active_api_endpoint），跳过转发`,
     );
     return false;
   }

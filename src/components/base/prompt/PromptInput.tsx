@@ -622,7 +622,15 @@ function PromptInput({
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent<HTMLDivElement>) => {
+      // 【编辑器独占粘贴（TD-04-34 · 用户裁定 2026-09-18）】`preventDefault` 只挡住"浏览器默认插入"，
+      // **挡不住事件继续冒泡** —— 于是 window 上的 `useGlobalPaste`（A 闸）照样收到，在输入框聚焦时
+      // 粘贴"复制的节点 / 图片"会**既插入框内文字、又在画布建出节点**（双处理）。
+      // 必须 `stopPropagation`：粘贴事件在编辑区内**终结**，画布全局处理器不再收到（用户裁定：
+      // 输入框内的粘贴不归画布，**不建节点**）。
+      // ⚠️ 顺序要求：本处理器（React 根容器，冒泡期）先于 window 监听执行，故这里的 stopPropagation
+      //   能拦住它。同族先例见 `ImageBoxNode` 的 window paste 监听（焦点在编辑区即早退）。
       e.preventDefault();
+      e.stopPropagation();
       const plain = e.clipboardData.getData('text/plain');
       const el = editorRef.current;
       const sel = window.getSelection();

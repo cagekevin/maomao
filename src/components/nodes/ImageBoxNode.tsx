@@ -22,6 +22,8 @@ import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import LazyImage from '../base/ui/LazyImage.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import { toastWarning, toastError } from '../base/core/toastStore.ts';
+// 编辑器内的交互归编辑器（ADR-0029）：判据走共用原语，禁自写（自写必漏）。
+import { isEditableTarget } from '../base/core/uiHooks.ts';
 import { copyImageToClipboard } from '@/components/base/utils/clipboard';
 import { loadImageWithTimeout, attemptQuietly } from '../base/utils/asyncGuard.ts';
 import { logger } from '../base/core/logger.ts';
@@ -387,9 +389,9 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
     if (!selected) return;
     const onPaste = async (e: ClipboardEvent) => {
       if (!e.clipboardData) return;
-      const el = document.activeElement as HTMLElement | null;
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable))
-        return;
+      // 【编辑器内的交互归编辑器（ADR-0029）】判据走共用原语 `isEditableTarget`（覆盖
+      // INPUT/TEXTAREA/**contenteditable**），禁自写 —— 自写的那份必然漏（见 `VideoProcessNode` 实证）。
+      if (isEditableTarget({ target: document.activeElement })) return;
       const files = Array.from(e.clipboardData.items)
         .filter((it) => it.kind === 'file' && detectFileType({ type: it.type }) === 'image')
         .map((it) => it.getAsFile())

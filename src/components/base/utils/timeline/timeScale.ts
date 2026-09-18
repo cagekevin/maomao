@@ -6,7 +6,9 @@
  * 故它**不能**住在 `videoEditor/core/`（那样 base 会反向依赖业务域，`check-arch` G-1 会拦）。
  *
  * ── 收口边界（7 步法 Step 3：**收口探测/运算，保留判据**）──
- *  可收口的（怎么算）：时间↔像素换算式、吸附“找最近候选”的算法、缩放夹取、落点序号、矩形相交。
+ *  可收口的（怎么算）：时间↔像素换算式、吸附“找最近候选”的算法。
+ *  （★2026-09-18：原还列「缩放夹取、落点序号、矩形相交」—— 它们连同 `MIN/MAX_PIXELS_PER_SECOND`
+ *    都是**零生产消费**的假接缝，已按 ADR-0030 删除；真要用时按**当时的**真实消费方重建，别提前预留。）
  *  留在各域的（要不要做 / 吸到什么 / 框选什么）：候选集合是什么、容差多大、选中后干什么。
  *  例：`snapTime` 只回答「在给定候选与容差内，最近的那个是哪条」，**不决定**候选从哪来。
  *
@@ -17,21 +19,11 @@
  */
 
 /**
- * 缩放上下限（**像素 / 秒**）。
- *
- * 下限保证长片子仍能一屏看全；上限保证单帧级精剪时像素足够。
- * 与 `docs/123` §一.4 常量表同名同义，但家在这里 —— 因为唯一的消费者（`clampZoom`）在这里，
- * 而 base 不许反向依赖业务域（详见 `videoEditor/core/constants.ts` 文件头的说明）。
- */
-export const MIN_PIXELS_PER_SECOND = 4;
-export const MAX_PIXELS_PER_SECOND = 240;
-
-/**
  * 时间 → 横坐标（像素）。
  * `x = t * pps - scroll`
  *
  * @param t      时间轴时刻（秒）
- * @param pps    缩放：像素 / 秒（**必须 > 0**，用 `clampZoom` 夹取后再传）
+ * @param pps    缩放：像素 / 秒（**必须 > 0**；由调用方与其缩放来源保证）
  * @param scroll 容器已横向滚动的像素（`scrollLeft`）；默认 0
  */
 export function timeToX(t: number, pps: number, scroll = 0): number {
@@ -58,18 +50,6 @@ export function pxDeltaToTime(dx: number, pps: number): number {
 /** 时长 → 像素宽（`pxDeltaToTime` 的反函数；同样与 `scroll` 无关）。 */
 export function timeDeltaToPx(dt: number, pps: number): number {
   return dt * pps;
-}
-
-/** 缩放夹取到 `[MIN_PIXELS_PER_SECOND, MAX_PIXELS_PER_SECOND]`。 */
-export function clampZoom(pps: number): number {
-  if (!Number.isFinite(pps)) return MIN_PIXELS_PER_SECOND;
-  return Math.min(MAX_PIXELS_PER_SECOND, Math.max(MIN_PIXELS_PER_SECOND, pps));
-}
-
-/** 铺满缩放：让 `duration` 秒的整条时间轴恰好占满 `width` 像素（再夹取到合法区间）。 */
-export function fitZoom(duration: number, width: number): number {
-  if (!(duration > 0) || !(width > 0)) return MIN_PIXELS_PER_SECOND;
-  return clampZoom(width / duration);
 }
 
 /**
@@ -107,50 +87,9 @@ export function snapTime(
 }
 
 /* ────────────────────────────────────────────────────────────────
- * 拖序落点 / 框选相交
+ * 【2026-09-18 已删】拖序落点（`dropIndexAt` + `TimelineSpan`）与框选相交（`rectsIntersect` + `Rect`）
+ *
+ * 二者与本文件的 `fitZoom` 一样，**零生产消费**（全仓只被 `timelineShared.test.ts` 自证），
+ * 属 ADR-0030 判定的「假接缝」⇒ 删除。真要做拖拽落点/框选时，按**当时的**真实消费方重建：
+ * 判据（要不要吸、落点怎么算）归各业务域，本层只该收口「怎么算」的那一段。
  * ──────────────────────────────────────────────────────────────── */
-
-/**
- * 参与「落点序号」计算的最小时间窗（刻意用窄结构类型：
- * `videoEditor` 的 `Clip` 与 `VideoProcessNode` 的 `VClip` 都天然满足它，无需任何适配）。
- */
-export interface TimelineSpan {
-  id: string;
-  timelineStart?: number;
-  sourceStart?: number;
-  sourceEnd?: number;
-}
-
-/**
- * 落点 → 插入序号（**按中点判定**）。
- *
- * 语义：把 `draggedId` 从数组中排除后，依次比较其余片段的**中点**与 `t`；
- * 返回「应该插到第几个位置」。用于拖拽时的落点预览与最终重排。
- *
- * 排除 `draggedId` 是必须的：不排除的话，被拖动的片段会与自己比较，落点永远偏向原位（经典 off-by-one）。
- */
-export function dropIndexAt(spans: readonly TimelineSpan[], t: number, draggedId?: string): number {
-  let index = 0;
-  for (const span of spans) {
-    if (draggedId !== undefined && span.id === draggedId) continue;
-    const start = span.timelineStart ?? 0;
-    const end = start + Math.max(0, (span.sourceEnd ?? 0) - (span.sourceStart ?? 0));
-    // 纯计数（中点落在 t 之前就算一位）——**不做"遇到第一个中点在后就 break"的提前退出**：
-    // 那会隐含「入参已按时间排序」这一未声明的前提，一旦调用方传入未排序数组就静默给错序号。
-    if (t > (start + end) / 2) index += 1;
-  }
-  return index;
-}
-
-/** 轴对齐矩形（像素坐标）。 */
-export interface Rect {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-}
-
-/** 两矩形是否相交；**边缘恰好接触也算相交**（框选贴边应命中）。 */
-export function rectsIntersect(a: Rect, b: Rect): boolean {
-  return a.left <= b.right && b.left <= a.right && a.top <= b.bottom && b.top <= a.bottom;
-}

@@ -15,12 +15,15 @@
  * 【只做一件事】临时改一个文件的一处 → 跑一条命令 → 比对"退出码 + 输出命中" → 无条件还原。
  *   不是测试框架、不选测试、不并发、不缓存——那些是 vitest / gates-run 的活。
  *
- * 【保命机制（三条）】
+ * 【保命机制（四条）】
  *   1. **journal 兜底**：注入前把**原文全文**写进 `scripts/.probe/<ts>-<name>.journal.json`；还原在 `finally`。
  *      启动时先 `recoverStale()` —— 若发现上次被 Ctrl+C/崩溃打断留下的 journal，**先还原再干活**。
  *   2. **注入点唯一性**：字面量/正则默认必须**恰好命中 1 处**；0 处 = 探针无效（exit 2），>1 处须显式 `--all`。
  *      0 处也要报错，否则"命令失败"会被误当"探针命中"（本仓 TD-02-9「假护栏恒绿」同款教训）。
  *   3. **还原自校验**：还原后重算 sha256，与注入前不一致 → 大声报错并保留 journal（供手工恢复）。
+ *   4. **并发编辑守卫**（2026-09-18 实测催生）：注入前 / 还原前各校验一次目标文件 sha；
+ *      与期望不符（= 运行期间被别的进程改过）⇒ **拒绝覆盖** + exit 2。防的是"整份重写把别人的改动
+ *      静默冲掉、探针还报绿"这类**假绿**（比丢一次改动更坏：结论建在旧码上）。
  *
  * 【用法】
  *   # 闸探针：注入一处空 catch → 期待 check:catch 报错且命中关键词
@@ -288,6 +291,32 @@ if (dry) {
 /** ── 注入 + 跑 + 还原 ── */
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const journalPath = join(JOURNAL_DIR, `${stamp}-${label.replace(/[^\w\u4e00-\u9fa5-]+/g, '_')}.journal.json`);
+const injectedSha = sha(injected);
+
+/**
+ * ── 并发编辑守卫（2026-09-18 · 实测催生）───────────────────────────────────
+ * 【它守什么】探针对目标文件做**整份重写**（注入 + 原子还原）⇒「运行期间别人改了同一个文件」
+ *   会被**静默整份覆盖**。实测（本仓真翻车）：注入期间对同一文件做的一处修正被还原冲掉，
+ *   而探针照样打印「✅ 探针命中 / exit=0」—— 比丢一次改动更坏的是**结论建立在已被覆盖的旧码上**（假绿）。
+ * 【两个窗口都要守】① 读原文 → 注入之间（基线那一段最长）；② 注入 → 还原之间（跑命令那段）。
+ * 【处置】一律 fail-loud 且**不覆盖**：exit 2；窗口②额外保留 journal（内含注入前原文全文）供人工合并。
+ */
+function guardNoConcurrentEdit(phase) {
+  const want = phase === 'before-inject' ? originalSha : injectedSha;
+  const cur = sha(readFileSync(target, 'utf8'));
+  if (cur === want) return;
+  console.error(`❌ 探针无效（${phase}：目标文件被并发改动）｜${file}`);
+  console.error(`   当前 sha=${cur} ≠ 期望 sha=${want}`);
+  console.error('   → 已**拒绝覆盖**（防静默丢弃别人的改动）。确认无并发编辑后再跑。');
+  if (phase === 'before-inject') {
+    console.error('   → 本次**未写盘**，文件保持改动后的现状（探针没有污染它）。');
+  } else {
+    console.error(`   → 注入前原文保留在 journal，请手工合并：${relative(ROOT, journalPath)}`);
+  }
+  process.exit(2);
+}
+
+guardNoConcurrentEdit('before-inject');
 mkdirSync(JOURNAL_DIR, { recursive: true });
 writeFileSync(journalPath, JSON.stringify({ file, label, cmd: run, sha256: originalSha, original }, null, 0), 'utf8');
 writeFileSync(target, injected, 'utf8');
@@ -301,6 +330,7 @@ try {
   exitCode = typeof e.status === 'number' ? e.status : 1;
   output = `${e.stdout ?? ''}${e.stderr ?? ''}`;
 } finally {
+  guardNoConcurrentEdit('before-restore');
   writeFileSync(target, original, 'utf8');
   const restored = sha(readFileSync(target, 'utf8'));
   if (restored !== originalSha) {

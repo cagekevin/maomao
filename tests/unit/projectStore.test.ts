@@ -455,3 +455,16 @@ describe('TD-02-23 module 态 / 存储 cache 即时同步', () => {
     expect(cached.some((x) => x.id === p.id)).toBe(false);
   });
 });
+
+// ── 【TD-18-18】项目 id 同时是 ① `canvas-state-v1-<id>` 的 KV 落盘槽位键、② 后端 `projects`
+//    按 id 合并去重的键 ⇒ **同一毫秒必须产出不同 id**（原 `proj-${Date.now()}` 零随机段会撞，
+//    撞了即同一槽位互覆盖 / 被后端当同一项目 = 静默丢项目）。──
+describe('TD-18-18 项目 id 唯一性（落库键不得只由时间戳决定）', () => {
+  it('冻结时钟后连续新建 20 个项目 → id 两两不同', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-18T12:00:00.000Z'));
+    const ids = Array.from({ length: 20 }, (_, i) => createProject(`并发项${i}`).id);
+    // 旧实现下 20 次全得到同一个 `proj-<同一毫秒>` ⇒ 此处必红
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});

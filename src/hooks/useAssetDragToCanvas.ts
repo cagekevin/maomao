@@ -1,7 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 import { httpRequest } from '../components/base/api/index.ts';
 import { LOCAL_TOOL_PING_TIMEOUT } from '../components/base/core/config.ts';
+import { reportDegrade } from '../components/base/core/degrade.ts';
 import { useResourceMoveToFolder } from './useResourceMoveToFolder.ts';
 import type {
   ResourceMoveItem,
@@ -39,17 +40,76 @@ export interface CanvasAssetLike {
  * 如 ImageBox/GridMerge/OverlayEditor 的自定义 MIME）是另一回事，不要混用。
  */
 
-// 文字素材内容缓存（模块级，面板间共享）：url → text。避免每次拖拽都重新 fetch。
+// 文字素材内容缓存（模块级，面板间共享）：url → text。**只缓存成功**。
 const textCache = new Map<string, string>();
-function fetchText(url: string): Promise<string> {
-  if (textCache.has(url)) return Promise.resolve(textCache.get(url) ?? '');
-  return httpRequest(url, { timeoutMs: LOCAL_TOOL_PING_TIMEOUT, retries: 0, parseJson: false })
-    .then((r) => (r.ok ? r.text() : ''))
-    .then((t) => {
-      textCache.set(url, t);
-      return t;
-    })
-    .catch(() => '');
+
+const TEXT_LAYER = 'assetText';
+/** 失败判词（生产者给全，调用方原样转发） */
+const TEXT_UNREADABLE = '文字素材内容获取失败';
+
+/**
+ * 文字素材内容读取结果 —— **判别联合**（TD-18-17 · 2026-09-18）。
+ *
+ * 旧实现把「读到空」与「读失败」用同一个 `''` 抹平（`.catch(() => '')` 吞掉一切失败 + 把 `''`
+ * **写进 `textCache`**）⇒ ① 用户分不清"文件本来就空"还是"没取到"；② 失败被固化，**永远不再重试**。
+ * 判据同 `16-跨区-读失败伪装成空拆兜底-2026-09-17`：**读取函数只负责分清三态（读到内容／读到空／
+ * 读失败），「失败怎么呈现」是调用方判据** —— 读取层无权替所有调用方决定失败长什么样。
+ *
+ * ⚠️ ADR-0021：本仓 `strict:false`，失败分支必须写 `r.ok === false`，禁 `!r.ok`。
+ */
+export type TextFetchResult = { ok: true; text: string } | { ok: false; error: string };
+
+/**
+ * 读文字素材正文（唯一入口）。失败 → `reportDegrade` 留痕（**不弹 toast**：可见性归调用方）+ `{ok:false}`，
+ * 且**不入缓存**。
+ * 注：`httpRequest` 对非 2xx **一律 throw**（`httpClient.ts:228/244`）⇒ 旧 `r.ok ? r.text() : ''` 的 `: ''` 是死分支，已删。
+ */
+export async function fetchText(url: string): Promise<TextFetchResult> {
+  const cached = textCache.get(url);
+  if (cached !== undefined) return { ok: true, text: cached };
+  try {
+    const res = await httpRequest(url, {
+      timeoutMs: LOCAL_TOOL_PING_TIMEOUT,
+      retries: 0,
+      parseJson: false,
+    });
+    const text = await res.text();
+    textCache.set(url, text);
+    return { ok: true, text };
+  } catch (e) {
+    reportDegrade({
+      layer: TEXT_LAYER,
+      key: url,
+      e: e instanceof Error ? e : new Error(String(e)),
+    });
+    return { ok: false, error: TEXT_UNREADABLE };
+  }
+}
+
+/**
+ * 文字素材读取的**三态**（加载中／读到／读失败），取代 3 处面板手写的 `useState('') + fetchText().then(setText)`
+ * —— 旧形态把三态压成一个字符串，失败与真空都渲染成同一个"加载中..."。
+ * 属 Step 3 **探测重复**（怎么读）⇒ 收口为唯一实现；**呈现成什么仍归各消费方**。
+ */
+export type TextAssetState =
+  { phase: 'loading' } | { phase: 'ok'; text: string } | { phase: 'failed'; error: string };
+
+export function useTextAsset(url: string): TextAssetState {
+  const [state, setState] = useState<TextAssetState>({ phase: 'loading' });
+  useEffect(() => {
+    let alive = true;
+    setState({ phase: 'loading' });
+    fetchText(url).then((r) => {
+      if (!alive) return;
+      setState(
+        r.ok === false ? { phase: 'failed', error: r.error } : { phase: 'ok', text: r.text },
+      );
+    });
+    return () => {
+      alive = false;
+    };
+  }, [url]);
+  return state;
 }
 
 /** 素材的完整拖拽格式（统一信封） */
@@ -84,8 +144,14 @@ export function makeAssetDragProps(
       e.dataTransfer.effectAllowed = 'copy';
       // 文字内容异步补全（dataTransfer 在拖拽期间可多次 setData）
       if (asset.type === 'text' && !text) {
-        fetchText(url).then((t) => {
-          if (t) e.dataTransfer.setData('application/x-yimao-asset', assetPayload(asset, t));
+        fetchText(url).then((r) => {
+          if (r.ok === false) {
+            // 呈现归调用方：拖拽发起端知道用户正在拖，负责让失败可见（生产者已给全文案，此处只转发）
+            reportDegrade({ layer: TEXT_LAYER, key: url, toast: `${r.error}，拖入的节点不含正文` });
+            return;
+          }
+          if (r.text)
+            e.dataTransfer.setData('application/x-yimao-asset', assetPayload(asset, r.text));
         });
       }
     },
@@ -147,5 +213,5 @@ export function useResourceCardDragProps(opts: ResourceMoveToFolderOptions) {
 }
 
 // 供非 hook 场景（如纯函数封装）复用；面板一律走 useAssetDragToCanvas()/makeAssetDragProps()
-// fetchText/textCache 从本模块统一导出，替代各面板各自的副本（ResourceLibrary/GeneratedView）
-export { textCache, fetchText };
+// textCache / fetchText / useTextAsset 从本模块统一导出，替代各面板各自的副本（ResourceLibrary/GeneratedView）
+export { textCache };

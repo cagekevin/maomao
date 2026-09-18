@@ -15,7 +15,6 @@
  *    禁止任何模块拿它当"能改画布"的通道。
  *  · **不做持久化**（同 `core/editorSession.ts`）——不 import contentStore / localStorage，
  *    由测试做源码级断言锁死。
- *  · **引用相等优先**：收到同一引用时**不通知**（防拖动/重渲染时无谓通知订阅者）。
  *
  * 【已知边界（多窗口，非 bug · docs/136 P2-2）】
  * `canvasSyncBus` 用 `BroadcastChannel` 同步的是**落盘后的画布快照**，**不广播内存里的 nodes**。
@@ -28,31 +27,17 @@ import type { Node } from '@xyflow/react';
 /** 当前快照（模块级会话态；引用赋值，零拷贝）。 */
 let snapshot: Node[] = [];
 
-const listeners = new Set<() => void>();
-
-function notify(): void {
-  for (const listener of listeners) listener();
-}
-
 /**
  * 写入快照（**唯一写入口**，由 App 在 nodes 变化的 effect 里调用）。
- * 引用相等短路：同一引用不通知（`nodes` 每次 setNodes 都是新数组，但 effect 可能拿到相同引用）。
+ *
+ * 【TD-02-50】原「订阅式读 + 引用相等短路」零生产消费（无订阅方，"不通知"就无从观察）⇒ 已随幽灵预留清偿删除。
+ * 现只保留写 / 读两个入口；将来真出现订阅消费方时再建，别提前预留。
  */
 export function setCanvasNodesSnapshot(nodes: Node[]): void {
-  if (snapshot === nodes) return;
   snapshot = Array.isArray(nodes) ? nodes : [];
-  notify();
 }
 
 /** 非 React 读（provider 的 `list()` 用）。 */
 export function getCanvasNodesSnapshot(): Node[] {
   return snapshot;
-}
-
-/** React 订阅式读 —— 返回退订函数。 */
-export function subscribeCanvasNodes(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
 }

@@ -44,7 +44,12 @@ const PROJECT_KEY_DEFAULT = KEY_DIRECTOR3D_PROJECT;
  * director3d 编辑流程，doc 明确不用锁，故最小化到这个"失败可见"层面。
  */
 const SAVE_CHANNEL = 'yimao_director3d_kv';
-const tabId = (typeof crypto !== 'undefined' && crypto?.randomUUID?.()) || `d3d-${Date.now()}`;
+// 回退分支不得用时间戳当身份键：同毫秒开两个窗口 → 同 tabId ⇒ 下方 `message.tabId === tabId`
+// 会把「另一个窗口的保存」误判成自己（跨窗覆盖提示失效）。改随机段（director3d 域内自洽，
+// 不为这一行引入 base/idGen 的跨域依赖）。TD-18-18 · 2026-09-18。
+const tabId =
+  (typeof crypto !== 'undefined' && crypto?.randomUUID?.()) ||
+  `d3d-${Math.random().toString(36).slice(2, 10)}`;
 /** 跨窗口广播的消息体 */
 interface D3dSavedMessage {
   type: 'D3D_SAVED';

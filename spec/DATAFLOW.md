@@ -219,7 +219,7 @@ kvStore.ts = re-export 壳（仅 CANVAS_STATE_PREFIX + kvGet/kvSet/kvDelete 转�
              onLocalFiles → processFiles（走既有上传链路）
 
   → base/media/index.ts（唯一出口，import 即完成内置来源自注册）
-      ├→ mediaRefRegistry（queryMediaRefs 单来源 / searchMediaRefs 跨来源部分成功）
+      ├→ mediaRefRegistry（queryMediaRefs 单来源）
       │    └→ providers/index.ts（唯一 import 点 · 模块副作用自注册）
       │         ├→ providers/canvasSource     source='canvas'    ← base/canvas/nodeMedia.getNodeMedia（只取主媒体）
       │         │                                      + base/utils/assetUrl.resolveAssetDisplayUrl（contentId→url）
@@ -234,8 +234,8 @@ kvStore.ts = re-export 壳（仅 CANVAS_STATE_PREFIX + kvGet/kvSet/kvDelete 转�
       │         │                                      categories() ← base/store/resourceStore.FOLDERS（**唯一真源**；白名单 all/character/scene/prop）
       │         └→ providers/generatedSource  source='generated' ← **委托 librarySource**（注入 folder:'tasks'，M3 不抄第二份）
       │                                                             categories() = 按类型（全部/图片/视频/音频）；剔除 isFolder
-      └→ canvasNodesBridge（写/读/订阅三件套；**单向**：只有 App.tsx 写）
-           ← src/App.tsx 的 nodes 变化 effect（引用赋值；引用相等短路，不通知）
+      └→ canvasNodesBridge（写/读；**单向**：只有 App.tsx 写）
+           ← src/App.tsx 的 nodes 变化 effect（引用赋值）
 
 真源（**不重实现，只复用**）：nodeMedia(①) · resolveAssetDisplayUrl(②) · fetchResources(③) ·
   resourceStore(④) · toAbsoluteFileUrl(⑥) · assetType/detectAssetType(⑦)
@@ -465,7 +465,7 @@ canvas 产出：全库 canvas → 图像 dataURL 统一经 core/utils.canvasToIm
 ```
 base/utils/videoEngine.ts（uploadResult 失败返 null；crossOrigin 走 setCrossOriginForReadable）
 base/utils/captureFrame.ts（跨源读取策略 setCrossOriginForReadable 已下沉 asyncGuard 并 re-export，供全树复用）
-base/utils/encoderProbe.ts · base/utils/audioPeaks.ts
+base/utils/encoderProbe.ts
 base/utils/timeline/sourceTime.ts（跨域唯一映射原语：时间轴 ↔ 源时刻；剪辑器 8 处采纳、内联 0 处）
 hooks/useVideoPoster.ts（crossOrigin 接回单点原语，删第二判据）
 base/ui/VideoThumbnail.tsx（显示组件，preload=metadata 取首帧，不抽帧）

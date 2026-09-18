@@ -12,12 +12,12 @@
  * 拖到画布的 dragProps 由调用方注入（沿用各面板既有的 `useResourceCardDragProps` 组合，
  * 避免本组件反向依赖面板的 connected/onRefreshed 上下文）。
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { FileText, Music } from 'lucide-react';
 import ImageZoomDialog from '../editors/ImageZoomDialog.tsx';
 import { isAudio, isVideoResource } from '../utils/assetType.ts';
 import { toAbsoluteFileUrl } from '../api/filesApi.ts';
-import { fetchText, toImgDragProps } from '../../../hooks/useAssetDragToCanvas.ts';
+import { toImgDragProps, useTextAsset } from '../../../hooks/useAssetDragToCanvas.ts';
 import type { ResourceDragSourceProps } from '../../../hooks/useResourceMoveToFolder.ts';
 import type { ResourceItem } from '../api/localToolApi.ts';
 
@@ -29,25 +29,27 @@ type AssetDragProps = (asset: {
 }) => ResourceDragSourceProps;
 
 // 文字素材预览：完整展示文件内容
+// 三态显式区分（读取与三态归 `useTextAsset` 唯一实现，此处只做呈现）：加载中 / 读到（含真空）/ 读失败。
+// 旧实现 `fetchText(url).then(setText)` + `text || '（加载中...）'` 把「读失败」和「真空文件」
+// 都渲染成"加载中..." —— 永远转圈，用户无从判别（TD-18-17 · 一诚实）。
 const TextPreview = React.memo(function TextPreview({ url, name }: { url: string; name?: string }) {
-  const [text, setText] = useState('');
-  useEffect(() => {
-    let alive = true;
-    fetchText(url).then((t) => {
-      if (alive) setText(t);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [url]);
+  const state = useTextAsset(url);
+  const body =
+    state.phase === 'loading'
+      ? '（加载中...）'
+      : state.phase === 'failed'
+        ? `（${state.error}）`
+        : state.text || '（空文件）';
   return (
     <div className="w-[360px] max-w-[90vw] bg-surface-2 rounded-xl p-5">
       <div className="flex items-center gap-2 mb-3">
         <FileText size={18} className="text-yellow-400" />
         <span className="text-sm text-primary m-0">{name}</span>
       </div>
-      <pre className="text-xs text-secondary whitespace-pre-wrap break-words max-h-[55vh] overflow-y-auto custom-scrollbar m-0">
-        {text || '（加载中...）'}
+      <pre
+        className={`text-xs whitespace-pre-wrap break-words max-h-[55vh] overflow-y-auto custom-scrollbar m-0 ${state.phase === 'failed' ? 'text-red-400' : 'text-secondary'}`}
+      >
+        {body}
       </pre>
     </div>
   );

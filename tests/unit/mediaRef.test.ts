@@ -1,10 +1,10 @@
 /**
  * 可引用媒体源（docs/136 地基）单测。
  * 覆盖：
- *   - mediaRefTypes：makeMediaRef / parseMediaRef 编解码往返（边界：非法 ref、id 含冒号）
- *   - mediaRefRegistry：注册 / 重复注册抛错 / 未注册 query 抛错 / searchMediaRefs 部分成功
+ *   - mediaRefTypes：makeMediaRef 写入口（ref 前缀契约）
+ *   - mediaRefRegistry：注册 / 重复注册抛错 / 未注册 query 抛错
  *   - providers：canvas 映射（复用 getNodeMedia + 过滤无媒体）/ library 映射（复用它 detectAssetType）
- *   - canvasNodesBridge：引用相等短路 / 订阅 / **源码级：不 import 存储**
+ *   - canvasNodesBridge：写/读快照 / **源码级：不 import 存储**
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Node } from '@xyflow/react';
@@ -21,40 +21,12 @@ const mkNode = (id: string, data: Record<string, unknown> = {}): Node => ({
   data,
 });
 
-describe('mediaRefTypes：ref 编解码', () => {
-  it('makeMediaRef / parseMediaRef 往返', async () => {
-    const { makeMediaRef, parseMediaRef } =
-      await import('../../src/components/base/media/mediaRefTypes');
-    const ref = makeMediaRef('canvas', 'n_123');
-    expect(ref).toBe('canvas:n_123');
-    expect(parseMediaRef(ref)).toEqual({ source: 'canvas', id: 'n_123' });
-    expect(parseMediaRef(makeMediaRef('library', 'r-9'))).toEqual({
-      source: 'library',
-      id: 'r-9',
-    });
-  });
-
-  it('非法 ref → null（无分隔符 / 空 id / 未知来源）', async () => {
-    const { parseMediaRef } = await import('../../src/components/base/media/mediaRefTypes');
-    expect(parseMediaRef('')).toBeNull();
-    expect(parseMediaRef('canvas')).toBeNull();
-    expect(parseMediaRef(':noSource')).toBeNull();
-    expect(parseMediaRef('canvas:')).toBeNull();
-    expect(parseMediaRef('unknown:x')).toBeNull();
-  });
-
-  it('id 含冒号 → id 保留全部（只按第一个分隔符切 source）', async () => {
-    const { parseMediaRef } = await import('../../src/components/base/media/mediaRefTypes');
-    expect(parseMediaRef('canvas:a:b:c')).toEqual({ source: 'canvas', id: 'a:b:c' });
-  });
-
-  it('generated 是合法来源（新增来源须同步 KNOWN_SOURCES）', async () => {
-    const { makeMediaRef, parseMediaRef } =
-      await import('../../src/components/base/media/mediaRefTypes');
-    expect(parseMediaRef(makeMediaRef('generated', 'r1'))).toEqual({
-      source: 'generated',
-      id: 'r1',
-    });
+describe('mediaRefTypes：ref 写入口', () => {
+  it('makeMediaRef：`${source}:${id}`（三个内置来源）', async () => {
+    const { makeMediaRef } = await import('../../src/components/base/media/mediaRefTypes');
+    expect(makeMediaRef('canvas', 'n_123')).toBe('canvas:n_123');
+    expect(makeMediaRef('library', 'r-9')).toBe('library:r-9');
+    expect(makeMediaRef('generated', 'r1')).toBe('generated:r1');
   });
 });
 
@@ -74,38 +46,6 @@ describe('mediaRefRegistry：注册表行为', () => {
     const provider = { source: 'canvas' as const, label: 'x', list: async () => [] };
     registerMediaRefSource(provider);
     expect(() => registerMediaRefSource(provider)).toThrow(/已注册/);
-  });
-
-  it('searchMediaRefs 部分成功：一个来源挂了，另一个仍返回 + 失败被暴露', async () => {
-    const { registerMediaRefSource, searchMediaRefs, __resetMediaRefSourcesForTest } =
-      await import('../../src/components/base/media/mediaRefRegistry');
-
-    __resetMediaRefSourcesForTest();
-    registerMediaRefSource({
-      source: 'canvas',
-      label: '画布',
-      list: async () => [
-        {
-          ref: 'canvas:n1',
-          source: 'canvas',
-          name: 'ok',
-          type: 'image',
-          url: 'http://x/a.png',
-        },
-      ],
-    });
-    registerMediaRefSource({
-      source: 'library',
-      label: '素材库',
-      list: async () => {
-        throw new Error('素材库暂时不可用');
-      },
-    });
-
-    const result = await searchMediaRefs('a');
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0].ref).toBe('canvas:n1');
-    expect(result.failures).toEqual([{ source: 'library', message: '素材库暂时不可用' }]);
   });
 
   it('provider 返回相对 URL → 不抛（只留痕，不炸面板）', async () => {
@@ -188,29 +128,18 @@ describe('generatedSource：分类 = 可引用媒体域（TD-02-49）', () => {
   });
 });
 
-describe('canvasNodesBridge：只读快照三件套', () => {
+describe('canvasNodesBridge：只读快照', () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  it('写 → 读；引用相等短路（同引用不通知）', async () => {
+  it('写 → 读：快照即引用（零拷贝）', async () => {
     const b = await loadBridge();
     expect(b.getCanvasNodesSnapshot()).toEqual([]);
-
-    const listener = vi.fn();
-    const unsub = b.subscribeCanvasNodes(listener);
 
     const nodes = [mkNode('n1', { assetUrl: 'http://x/a.png' })];
     b.setCanvasNodesSnapshot(nodes);
     expect(b.getCanvasNodesSnapshot()).toBe(nodes);
-    expect(listener).toHaveBeenCalledTimes(1);
-
-    b.setCanvasNodesSnapshot(nodes); // 同一引用 → 不通知
-    expect(listener).toHaveBeenCalledTimes(1);
-
-    unsub();
-    b.setCanvasNodesSnapshot([mkNode('n2')]);
-    expect(listener).toHaveBeenCalledTimes(1); // 退订后不再收
   });
 
   it('★源码级：本模块**不 import 任何存储**（不持久化的硬锁）', async () => {

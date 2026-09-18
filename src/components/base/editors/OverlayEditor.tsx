@@ -42,6 +42,8 @@ import { generateId } from '../core/idGen.ts';
 // 替代本文件原有的无超时私有实现（图片挂起会让整层渲染/导出永久卡住）。
 import { loadImageOrNull } from '../utils/asyncGuard.ts';
 import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
+// 编辑器内的交互归编辑器（ADR-0029）：判据走共用原语，禁自写（自写必漏）。
+import { isEditableTarget } from '../core/uiHooks.ts';
 const genId = () => generateId('ov');
 
 type DragMode = 'move' | 'scale' | 'rotate';
@@ -640,8 +642,8 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
     if (!selectedId && !paintLayerId) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      // 编辑器内的交互归编辑器（ADR-0029）：走共用原语，禁自写（自写必漏，见 VideoProcessNode 实证）。
+      if (isEditableTarget(e)) return;
       if (paintLayerId) {
         e.stopPropagation();
         e.preventDefault();

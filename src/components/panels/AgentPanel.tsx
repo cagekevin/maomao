@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clamp } from '@/components/base/core/utils';
+import { generateId } from '@/components/base/core/idGen';
 
 /** 对话面板里「已引用媒体附件」的形状（与画布资源节点一一对应）。 */
 interface AgentAttachment {
@@ -1035,8 +1036,9 @@ export default function AgentPanel({
           try {
             const text = await readTextFile(f);
             const name = skillNameFromFile(f.name);
+            // id 走 idGen 唯一入口（TD-18-18）：原 `skill_file_${Date.now()}_${i}` 零随机段，同毫秒导入即撞
             applySkill({
-              id: `skill_file_${Date.now()}_${i}`,
+              id: generateId('skill_file'),
               name,
               description: '',
               content: String(repairMojibakeText(text)),

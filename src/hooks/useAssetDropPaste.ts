@@ -112,61 +112,14 @@ export interface AssetDropPasteApi {
  * @returns {{ onDragOver, onDrop, onPaste }} 挂到 ReactFlow 的事件 + 供 window paste 监听
  */
 /* ════════════════════════════════════════════════════════════════
- * 粘贴「识别原语」（A: useGlobalPaste / B: onPaste 共用，单一实现）
- * ────────────────────────────────────────────────────────────────
- * 【为什么收口 · TD-04-21】A（window paste）与 B（onPaste 内）此前各自重复实现
- * 「CE 判定 / 图片判定 / 组 JSON 判定」三份探测 → 改一处易漏另一处。
- * 二者是**分层职责不同**的两道判据（A 决定「CE 内是否交给画布」，B 决定「建节点前放行」），
- * **不合并为一个闸**；但底层探测（这是不是图片 / 是不是组 JSON / 是否在 contenteditable）
- * 必须单一实现。故抽为模块级纯函数，A/B 各自组合。
+ * 【粘贴的「识别原语」已全部退役（2026-09-18 · ADR-0029 · 用户裁定）】
+ * TD-04-21 曾在此收口三个探测原语（CE 判定 / 组 JSON 判定 / 读剪贴板文本），服务于 A/B 两闸的
+ * **按载荷分类**。用户裁定「编辑器里的任何操作都归编辑器自己」之后，两闸的判据都塌缩为
+ * **一条归属判据**（`isEditableTarget`：事件发生在谁的地盘）⇒ 三个原语**全部失去消费者**，
+ * 已连块删除（不留幽灵逻辑）。判据现在是 `base/core/uiHooks.ts::isEditableTarget` 的**画布内唯一一份**
+ * （域外 `videoEditor` / `director3d` 各有副本，经取证属**判据重复**，**有意不合并** —— ADR-0031）。
+ * ⚠️ 别再按载荷分类重造：它是**间接判据**，必然在"编辑区也处理"时失效（两次实证见 ADR-0029 §背景）。
  * ════════════════════════════════════════════════════════════════ */
-
-/** 事件目标是否位于 contenteditable 内（A/B 共用） */
-function isContentEditableEvent(e: { target?: EventTarget | null } | null | undefined): boolean {
-  const t = e?.target as
-    | (EventTarget & { isContentEditable?: boolean; closest?: (sel: string) => Element | null })
-    | null
-    | undefined;
-  return !!(t && (t.isContentEditable || (t.closest && t.closest('[contenteditable="true"]'))));
-}
-
-/** 读剪贴板 text/plain（部分环境 getData 会抛 → 吞为 ''，探测不阻断） */
-function readClipboardText(cd: DataTransfer | null | undefined): string {
-  if (!cd || typeof cd.getData !== 'function') return '';
-  try {
-    return cd.getData('text/plain') || '';
-  } catch {
-    // catch-ok: CLIPBOARD
-    // 部分环境 getData 会抛（权限 / 非安全上下文）属浏览器策略预期，吞为 '' 不阻断探测。
-    return '';
-  }
-}
-
-/** 文本是否为画布「节点组 / 图片组」JSON（mutiwindow-nodes / mutiwindow-images） */
-function isCanvasGroupJson(text: string): boolean {
-  if (!text || !text.trim()) return false;
-  // 解析走唯一原语；判别联合 ⇒ 必须先判 ok（2026-09-17 契约收紧）。
-  const r = tryParse(() => JSON.parse(text));
-  if (!r.ok || !r.value || typeof r.value !== 'object') return false;
-  // 仅取 type 字段判断，object 守卫后按 Record 读，不做形状假断言（F7）
-  const o = r.value as Record<string, unknown>;
-  return o.type === 'mutiwindow-nodes' || o.type === 'mutiwindow-images';
-}
-
-/** clipboardData.items 里是否含图片文件项 */
-function hasImageClipboardItem(items: ArrayLike<DataTransferItem> | null | undefined): boolean {
-  return Array.from(items || []).some((it) => it.kind === 'file' && detectFileType(it) === 'image');
-}
-
-/** 是否「只有纯文本」项（有项、无图片、无 text/html 等富类型） */
-function isOnlyPlainTextClipboard(items: ArrayLike<DataTransferItem> | null | undefined): boolean {
-  const arr = Array.from(items || []);
-  return (
-    !hasImageClipboardItem(arr) &&
-    arr.length > 0 &&
-    arr.every((it) => it.kind === 'string' && it.type === 'text/plain')
-  );
-}
 
 export function useAssetDropPaste({
   addNode,
@@ -449,35 +402,24 @@ export function useAssetDropPaste({
     return typeof got === 'string' ? got : String(got ?? '');
   }, []);
 
-  // 粘贴：【稳定模型 + 收口图片放行】
+  // 粘贴：【稳定模型 + 归属收口】
   //  - 主路径 = paste 事件同步数据（e.clipboardData.items）：图片/视频/音频 getAsFile 同步拿（最稳）、
   //    纯文本 text/plain 走 getAsString（与旧版一致，稳定可用）、text/html 提取 <img>。
-  //  - contenteditable 内：图片放行建节点（787ca25 收口价值），纯文本/其他 return 走原生（不吞、不建节点）。
-  //  - input/textarea 内 return 走原生。
+  //  - **编辑区（INPUT / TEXTAREA / contenteditable）内：一律不建节点**（事件归编辑区，见下方注释）。
   //  - 极端兜底：同步数据完全为空时，再试 navigator.clipboard.read() 实时读（仅补充，不作为主路径）。
   const onPaste = useCallback(
     (e: ReactClipboardEvent | ClipboardEvent) => {
-      const isCE = isContentEditableEvent(e);
-      // 可编辑元素（contenteditable / input / textarea）内的粘贴默认走原生（在编辑区插入），
-      // 不拦截、不建节点。但「节点组 / 图片组」JSON 是画布语义，必须放行到画布建节点，
-      // 否则会退化成把 JSON 文本塞进编辑框 → 表现为「复制节点粘贴不上」，且焦点卡在编辑区后
-      // 后续所有节点粘贴都被吞（用户感知为「之后复制任何节点都粘贴不上」）。
-      if (isCE) {
-        // 【为什么本闸**不能**与 A 闸共用同一判据】A 是 window 层「事件是否交给 onPaste」的粗判，
-        //   只看**同步** items；而本闸在 items 为空时**必须继续往下走 `navigator.clipboard.read()`
-        //   异步兜底**（真实环境剪贴板 items 常为空，见下方 read 分支）。故本闸用「**只有纯文本**才拦截」：
-        //   items 空 → onlyPlainText=false → 不拦截 → 交给 read() 兜底。两闸判据不同属**分层职责**、非漂移；
-        //   底层探测（CE 判定 / 图片 / 组 JSON / 读文本）已收口为单一原语（TD-04-21）。
-        if (
-          isOnlyPlainTextClipboard(e.clipboardData?.items) &&
-          !isCanvasGroupJson(readClipboardText(e.clipboardData))
-        ) {
-          return;
-        }
-      } else if (isEditableTarget(e)) {
-        // input/textarea（非 contenteditable）：节点组 JSON 放行建节点，其余走原生
-        if (!isCanvasGroupJson(readClipboardText(e.clipboardData))) return;
-      }
+      // 【编辑区内的粘贴归编辑区（用户裁定 2026-09-18 · ADR-0029）】
+      //  判据只有一条：**事件发生在谁的地盘**（`isEditableTarget`：INPUT / TEXTAREA / contenteditable
+      //  一视同仁），**不再按载荷分类**。
+      //  · 历史一（TD-04-34 病根）：曾对 contenteditable 内的「节点组 / 图片组 JSON」放行建节点，
+      //    而编辑区自己也插文字 ⇒ 同一事件两个所有者 ⇒ 双处理（既建节点又落 JSON）。
+      //  · 历史二（787ca25）：input/textarea 内也按载荷放行，理由是"否则 JSON 文本塞进编辑框 =
+      //    复制节点粘贴不上"。**该理由已被用户裁定推翻**：编辑器里的任何操作（粘贴 / 删除 / 全选…）
+      //    都归编辑器自己 —— 载荷分类是**间接判据**，必然在"编辑区也处理"时失效。
+      //  · 本闸保留这道判断（而非依赖 A 闸），是因为 `onPaste` 是**对外挂载点**（见本 hook 返回说明：
+      //    可挂到 ReactFlow），不能假定"调用方一定从 A 闸进来"。
+      if (isEditableTarget(e)) return;
 
       const items = e.clipboardData?.items;
       const cd = e.clipboardData;
@@ -535,16 +477,18 @@ export function useAssetDropPaste({
       }
 
       // 极端兜底：同步数据完全为空才试 read() 实时读（仅补充）
+      // ⚠️ 走到这里 ⇒ **一定不在编辑区**（本函数开头已对编辑区早退，见 ADR-0029）——
+      //   故历史上那些 `!isCE` 条件全部恒真，已删（它们的 `isCE` 变量随按载荷判据一起消失）。
       if (cd && (!items || items.length === 0)) {
         (async () => {
           if (typeof navigator?.clipboard?.read !== 'function') {
-            if (!isCE) showToast('读取剪贴板失败，请使用 Ctrl+V 快捷键粘贴');
+            showToast('读取剪贴板失败，请使用 Ctrl+V 快捷键粘贴');
             return;
           }
           try {
             const clip = await navigator.clipboard.read();
             if (!clip || clip.length === 0) {
-              if (!isCE) showToast('无法识别剪贴板内容，请尝试复制图片或文字后再粘贴');
+              showToast('无法识别剪贴板内容，请尝试复制图片或文字后再粘贴');
               return;
             }
             for (const item of clip) {
@@ -568,17 +512,16 @@ export function useAssetDropPaste({
                 }
               }
               if (types.includes('text/plain')) {
-                // contenteditable 内的纯文本 → 交给浏览器原生插入（不建节点）
                 const text = await readClipText(item, 'text/plain');
-                if (text && text.trim() && !isCE) {
+                if (text && text.trim()) {
                   handleTextPaste(text, pos);
                   return;
                 }
               }
             }
-            if (!isCE) showToast('无法识别剪贴板内容，请尝试复制图片或文字后再粘贴');
+            showToast('无法识别剪贴板内容，请尝试复制图片或文字后再粘贴');
           } catch {
-            if (!isCE) showToast('读取剪贴板失败，请使用 Ctrl+V 快捷键粘贴');
+            showToast('读取剪贴板失败，请使用 Ctrl+V 快捷键粘贴');
           }
         })();
       }
@@ -601,9 +544,10 @@ export function useAssetDropPaste({
 /**
  * 注册全局粘贴监听（window paste → onPaste）。宿主在组件里调用一次即可。
  *
- * 附带一层「contenteditable 纯文本化」保险：contenteditable 原生粘贴会带入 HTML 样式，
- * 这里拦截、清洗为纯文本后手动插入。textarea/input 原生粘贴本就是纯文本（不可能带样式），
- * 按「绝不可能贴样式的地方不加保险」原则不做拦截，交给 onPaste/浏览器原生。
+ * 【归属判据（用户裁定 2026-09-18 · TD-04-34）】编辑器（contenteditable）内的粘贴**不归画布**：
+ * 本闸直接早退；事件由编辑区自己拥有（`PromptInput` 在自身处理器里 `stopPropagation` 独占）。
+ * ⚠️ 曾经的"按载荷放行"（CE 内是图片 / 节点组 JSON 就交给画布建节点）造成**同一事件两个所有者**
+ * ⇒ 输入框聚焦时粘贴"复制的节点"既建节点又落文字。该做法已撤销，判据见 `docs/adr/ADR-0029`。
  * @param {Function} onPaste
  */
 /** window paste 的回调（与 onPaste 同签名） */
@@ -617,18 +561,15 @@ export function useGlobalPaste(onPaste: GlobalPasteHandler): void {
   onPasteRef.current = onPaste;
   useEffect(() => {
     const handler = (e: ClipboardEvent) => {
-      // 【A 闸 · 分层职责】只看**同步**剪贴板数据（window handler 不便异步读）：
-      //  contenteditable 内仅放行「画布语义」粘贴（图片 / 节点组 JSON）到 onPaste；其余（纯文本 /
-      //  网页富文本）交编辑区自己处理 —— 编辑区（PromptInput.handlePaste）只取 text/plain 插入，
-      //  天然纯文本化；items 为空 → 不放行（编辑区原生/自身清洗接管）。
-      //  画布上（非 CE）的文本清洗由 onPaste → handleTextPaste → sanitizePastedText 建文本节点。
-      //  注意：本闸判据（放行 ⟺ 图片或组 JSON）与 B 闸（拦截 ⟺ 只有纯文本）**不同**，属分层职责、非漂移，
-      //  故**不共用同一判据函数**；底层探测（CE / 图片 / 组 JSON / 读文本）已收口为共用原语（TD-04-21）。
-      if (isContentEditableEvent(e)) {
-        const isImagePaste = hasImageClipboardItem(e.clipboardData?.items);
-        const isGroupJson = isCanvasGroupJson(readClipboardText(e.clipboardData));
-        if (!isImagePaste && !isGroupJson) return;
-      }
+      // 【A 闸 · 归属判据】编辑区（INPUT / TEXTAREA / contenteditable）内的粘贴**一律不归画布**
+      //（用户裁定 2026-09-18 · ADR-0029）。判据只有一条：**事件发生在谁的地盘**。
+      //  · 为什么不再"按载荷分类"——**那正是 TD-04-34 的病根**：曾按载荷放行图片 / 节点组 JSON 到
+      //    onPaste，而编辑区自己也会处理 ⇒ **同一个事件两个所有者** ⇒ 双处理。
+      //  · 分工：编辑区内 = 编辑区独占（`PromptInput` 自己 `stopPropagation`，本闸本不该收到）；
+      //    本闸这道判断是**全局监听器的边界** —— 全局 handler 不能假定"编辑区一定会隔离事件"
+      //    （同判据先例：`ImageBoxNode` 的 window paste 监听，焦点在编辑区即早退）。
+      //  · 画布上（非编辑区）的文本清洗由 onPaste → handleTextPaste → sanitizePastedText 建文本节点。
+      if (isEditableTarget(e)) return;
       onPasteRef.current?.(e);
     };
     window.addEventListener('paste', handler);

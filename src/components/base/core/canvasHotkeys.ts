@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { isCanvasSuppressed } from './modalLayer.ts';
+import { isEditableTarget } from './uiHooks.ts';
 
 export interface CanvasKeydownOptions {
   /**
@@ -26,6 +27,11 @@ export interface CanvasKeydownOptions {
  * 本模块提供画布侧的**注册入口**，是那个判据在"画布内组件"这一类宿主上的强制消费方。
  * 判据仍然单点 —— 本文件不得自己判断"有没有层打开"。
  *
+ * 【第二条不变量：编辑器内的交互归编辑器（ADR-0029）】除"画布被压制"外，本入口还统一强制
+ * 「焦点在 INPUT / TEXTAREA / contenteditable 内 ⇒ 让位」（`isEditableTarget`）。
+ * 与上面同一条道理：**"要不要查这个判据"不该由调用方决定** —— 消费者自写必然漏
+ * （实证：`VideoProcessNode` 自写的 `matches('input, textarea, select')` 漏了 contenteditable）。
+ *
  * 【已知不迁移的一处】`AssistantTablePanel` 仍自己挂监听并自查 `isCanvasSuppressed()`：
  * 它在**捕获阶段**注册且会对 Delete 调 `stopPropagation`，且自带 `isEditableTarget` 等
  * 域内守卫。它调的是同一个判据函数（单点未破），没有"漏让位"的风险，故不强迁。
@@ -46,6 +52,15 @@ export function useCanvasKeydown(
     const onKeyDown = (e: KeyboardEvent) => {
       // 画布被全屏层 / 剪辑器压制 → 画布内组件整体让位（判据单点，勿在此另写条件）。
       if (isCanvasSuppressed()) return;
+
+      // 【编辑器内的交互归编辑器（用户裁定 2026-09-18 · ADR-0029）】焦点在 INPUT / TEXTAREA /
+      // contenteditable 内 ⇒ 一律让位。
+      // 【为什么守卫必须在这里】本 hook 是画布内组件注册 window 键盘监听的**唯一入口** ⇒ 守卫放这里，
+      // "忘加"在结构上不可能；放各消费者里必然再漏 —— 实证：`VideoProcessNode` 曾自写
+      // `tgt.matches('input, textarea, select')`，**漏了 contenteditable** ⇒ 在输入框里按
+      // Delete / Backspace 会**既删文字又删片段**（与 TD-04-34 的粘贴双处理同一个母体）。
+      if (isEditableTarget(e)) return;
+
       latest.current(e);
     };
 

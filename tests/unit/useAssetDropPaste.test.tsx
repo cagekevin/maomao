@@ -35,7 +35,8 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => (
 }));
 const toastMock = vi.fn();
 vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), showToast: toastMock
+  ...((await importOriginal()) as Record<string, unknown>),
+  showToast: toastMock,
 }));
 
 const { useAssetDropPaste } = await import('../../src/hooks/useAssetDropPaste.ts');
@@ -95,21 +96,9 @@ function htmlImageItem(src = 'http://ext/pic.png') {
   return clipboardItem(['text/html'], { 'text/html': `<img src="${src}">` });
 }
 
-// 构造「真实浏览器形态」的 DataTransferItemList：有 length / 数字索引 / 可迭代，
-// 但【没有】Array.prototype 的 some / every（数组式接口 ≠ 数组）。
-// 用于锁定「假收窄后对非数组调 .some/.every → 真实环境 TypeError」这一 bug。
-function dataTransferItemListLike(items: unknown[]): unknown {
-  const list: Record<string | symbol, unknown> = {
-    length: items.length,
-    [Symbol.iterator]: function* () {
-      for (let i = 0; i < items.length; i++) yield items[i];
-    },
-  };
-  items.forEach((it, i) => {
-    list[i] = it;
-  });
-  return list;
-}
+// 【已删】`dataTransferItemListLike` 辅助器 —— 它唯一服务的用例（锁定「按载荷分类时对非数组调
+// .some/.every 会抛 TypeError」）随 ADR-0029 撤销按载荷判据而删除：那个机制已不存在，
+// 留着就是"锁着已被撤销设计"的假绿测试（7 步法 §弯路留痕：假绿测试必须删掉）。
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -221,8 +210,10 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     });
   });
 
-  // ── 修复 2：contenteditable 内粘贴图片 → 放行建节点（不被 insertText 吞） ──
-  it('焦点在 contenteditable 内、剪贴板是图片 → 仍建 assetNode（不进 insertText）', async () => {
+  // ── 归属判据（ADR-0029 · 用户裁定 2026-09-18）：**编辑区内的粘贴归编辑区，一律不建节点** ──
+  //    历史：本用例曾锁定「CE 内粘贴图片 → 放行建节点（不被 insertText 吞）」。该放行与编辑区
+  //    自身的粘贴处理撞成**双处理**（同一个事件两个所有者），已被用户裁定撤销 ⇒ 断言反转。
+  it('焦点在 contenteditable 内、剪贴板是图片 → 不建节点（事件归编辑区）', async () => {
     installClipboard({ read: vi.fn().mockResolvedValue([imageBlobItem()]) });
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
@@ -232,40 +223,10 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     await act(async () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
-    expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
-      assetUrl: 'http://local/png',
-      label: 'png',
-    });
-  });
-
-  // ── 回归（假收窄 → 真实环境 TypeError）：真实浏览器 clipboardData.items 是 DataTransferItemList
-  //    （非数组），此前 `as unknown as DataTransferItem[]` 后调 .some/.every 在真实环境抛错；测试
-  //    mock 用数组故未暴露。本用例用「无 some/every 的类数组」锁定修复（先红后绿负例）。──
-  it('contenteditable 内、items 为真实 DataTransferItemList（无 some/every）→ 不抛错且正确判定', async () => {
-    installClipboard({ read: vi.fn().mockRejectedValue(new Error('no read')) });
-    const opts = makeOpts();
-    const { result } = renderHook(() => useAssetDropPaste(opts));
-    const ce = document.createElement('div');
-    ce.setAttribute('contenteditable', 'true');
-    const items = dataTransferItemListLike([
-      { kind: 'string', type: 'text/plain', getAsString: () => {} },
-    ]);
-    const e = {
-      preventDefault: vi.fn(),
-      target: ce,
-      clipboardData: {
-        getData: (k: any) => (k === 'text/plain' ? 'hello' : null),
-        items,
-      },
-    };
-    // 修复前：ceItems.some 不是函数 → 抛 TypeError；修复后：正常判定为纯文本 → 不建节点
-    await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
-    });
     expect(opts.addNode).not.toHaveBeenCalled();
   });
 
-  it('焦点在 contenteditable 内、剪贴板是纯文本 → 走 insertText（不建节点）', async () => {
+  it('焦点在 contenteditable 内、剪贴板是纯文本 → 不建节点（事件归编辑区）', async () => {
     installClipboard({ read: vi.fn().mockResolvedValue([textItem('hello')]) });
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
@@ -409,10 +370,12 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     expect(opts.addNode).not.toHaveBeenCalled();
   });
 
-  // ── 焦点卡编辑区：节点组 JSON 在 contenteditable / input 内也必须放行建节点 ──
-  // 根因：复制节点后若焦点落在编辑区，粘贴被「可编辑元素走原生」守卫吞掉 → 表现为
-  // 「复制节点粘贴不上」，且焦点一直卡在编辑区 → 后续所有节点粘贴都失败。JSON 应放行。
-  it('contenteditable 内粘贴节点组 JSON → 放行建节点（不退化塞进编辑框）', async () => {
+  // ── 编辑区内的节点组 JSON：**不放行**（ADR-0029 · 用户裁定 2026-09-18） ──
+  //  历史（787ca25）：曾为「复制节点后焦点恰落在编辑区」放行建节点，理由是"否则 JSON 文本塞进编辑框
+  //  = 复制节点粘贴不上"。但那是**按载荷分类**的间接判据，且编辑区自身也处理粘贴 ⇒ **双处理**；
+  //  用户裁定「编辑器里的任何操作都归编辑器」⇒ 撤销。
+  //  代价（有意）：先点画布再粘贴；焦点在编辑区时不再建节点。
+  it('contenteditable 内粘贴节点组 JSON → 不建节点（事件归编辑区）', async () => {
     const json = JSON.stringify({ type: 'mutiwindow-nodes', nodes: [{ id: 'n1' }], edges: [] });
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
@@ -429,10 +392,11 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     await act(async () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
-    expect(opts.onPasteNodeGroup).toHaveBeenCalledWith(json, expect.any(Object));
+    expect(opts.onPasteNodeGroup).not.toHaveBeenCalled();
+    expect(opts.addNode).not.toHaveBeenCalled();
   });
 
-  it('input 内粘贴节点组 JSON → 放行建节点（不交给原生插入 JSON）', async () => {
+  it('input 内粘贴节点组 JSON → 不建节点（事件归编辑区）', async () => {
     const json = JSON.stringify({ type: 'mutiwindow-images', images: ['http://x/1.png'] });
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
@@ -447,10 +411,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     await act(async () => {
       await result.current.onPaste(e as unknown as ReactClipboardEvent);
     });
-    expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
-      assetUrl: 'http://x/1.png',
-      label: '提取帧 1',
-    });
+    expect(opts.addNode).not.toHaveBeenCalled();
   });
 
   // ════════════════════════════════════════════════════════════════
@@ -459,7 +420,8 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
   //   B. 右键「复制」→ writeText(mutiwindow-nodes JSON) = 整个节点
   // 要求：A 粘贴到画布建 textGenerateNode 且内容经 sanitize「彻底清洗」成干净纯文本
   //       （用户核心诉求：粘贴表格/富文本时绝不当图片/带样式贴进来，必须清晰纯文本）；
-  //       A 粘贴到 textarea 走原生插入；B 无论焦点在哪都放行建节点组。
+  //       A 粘贴到 textarea 走原生插入；
+  //       B（整个节点组 JSON）**只在画布上**放行建节点组 —— 焦点在编辑区时归编辑区（ADR-0029）。
   // ════════════════════════════════════════════════════════════════
   function plainEvent(text: any, target: any): ReactClipboardEvent {
     return {
@@ -518,14 +480,15 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     expect(opts.onPasteNodeGroup).toHaveBeenCalledWith(json, expect.any(Object));
   });
 
-  it('复制整个文本节点（节点组 JSON）→ 粘贴到 textarea：放行建节点（不被吞）', async () => {
+  it('复制整个文本节点（节点组 JSON）→ 粘贴到 textarea：不建节点（事件归编辑区 · ADR-0029）', async () => {
     const json = JSON.stringify({ type: 'mutiwindow-nodes', nodes: [{ id: 'n1' }], edges: [] });
     const opts = makeOpts();
     const { result } = renderHook(() => useAssetDropPaste(opts));
     await act(async () => {
       await result.current.onPaste(plainEvent(json, document.createElement('textarea')));
     });
-    expect(opts.onPasteNodeGroup).toHaveBeenCalledWith(json, expect.any(Object));
+    // 历史（787ca25）曾在此放行建节点；用户裁定「编辑器里的操作归编辑器」后撤销（见 ADR-0029）。
+    expect(opts.onPasteNodeGroup).not.toHaveBeenCalled();
   });
 
   // ── onDrop 拖拽：从网页拖图（URL 在 text/uri-list，非 File）→ 直接用原 URL 建节点 ──

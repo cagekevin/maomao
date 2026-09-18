@@ -331,20 +331,23 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       icon: <Send size={14} />,
       title: '发送到素材库',
       hoverClass: 'hover:text-blue-400',
+      // 【用户裁定 2026-09-18】**文本 / 视频不提供**「发送到素材库」；图片保留。
+      //   · 文本那半本来就是**假入口**：按钮对 text 也显示，但文本内联无 `url`
+      //     ⇒ 点了一律走下面的 `if (!url)` 弹「没有可发送的素材」，原 `type:'text'` 分支永远执行不到（已删）。
+      //   · 视频那半：视频不提供该能力（与 VideoGenerate 一致 —— 那里也不加此按钮）。
+      //   · 音频：用户未点名，**保守保留**（素材库语义本就含"用户自放的可复用音频"）。
+      show: type === 'image' || type === 'audio',
       onClick: () => {
         if (!url) {
           toastError('没有可发送的素材');
           return;
         }
         const name = (data.label && String(data.label).trim()) || '';
-        const assetType =
-          type === 'image' || type === 'video' || type === 'audio' || type === 'text'
-            ? type
-            : undefined;
         openResourceLibrary();
         // 【TD-12-10】成功 toast 必须等落盘完成（唯一知道真相的那层）再弹：
         // 此前在发起处同步宣告成功 → 落盘失败也显示「已发送」，用户只见成功、库里无物、零报错。
-        void sendToResourceLibrary(url, { name, type: assetType }).then((outcome) => {
+        // type 恒为 'image'（上方 show 已把入口限定在图片资产）⇒ 不再需要运行时判别。
+        void sendToResourceLibrary(url, { name, type: 'image' }).then((outcome) => {
           if (outcome.ok) showToast('已发送到素材库', { type: 'success' });
           else showToast('发送到素材库失败，请稍后重试', { type: 'error' });
         });

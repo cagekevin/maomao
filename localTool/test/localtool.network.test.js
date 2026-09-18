@@ -130,34 +130,43 @@ afterEach(() => {
 // official：readOfficialBase
 // ══════════════════════════════════════════════════════════════
 
-test('official·readOfficialBase 无 header/KV 时无硬编码默认（返回 undefined）', async () => {
-  const base = await officialMod.readOfficialBase(makeJsonReq());
+/**
+ * 设「当前生效接入点」= KV active_api_endpoint（转发目标 base 的**唯一**来源）。
+ * 【TD-08-35】值的形态必须与**唯一生产者**一致（`providerStore.ts:499` 写的是对象）——
+ * 写成纯 URL 串会被拒（那正是被删掉的旧兼容分支）。official 与 passthrough 都只经这一条路取 base。
+ */
+async function setActiveBase(url) {
+  await kvMod.handleKvSet(
+    makeJsonReq({ key: 'active_api_endpoint', value: JSON.stringify({ base_url: url }) }),
+    makeRes(),
+  );
+}
+
+test('official·readOfficialBase 无 KV 时无硬编码默认（返回 undefined）', async () => {
+  const base = await officialMod.readOfficialBase();
   assert.equal(base, undefined);
 });
 
-test('official·readOfficialBase x-official-base 头优先', async () => {
-  const req = makeJsonReq();
-  req.headers['x-official-base'] = 'https://backup.example.com';
-  const base = await officialMod.readOfficialBase(req);
-  assert.equal(base, 'https://backup.example.com');
-});
-
 test('official·readOfficialBase KV active_api_endpoint（非自指）', async () => {
-  await kvMod.handleKvSet(
-    makeJsonReq({ key: 'active_api_endpoint', value: 'https://alt.example.com/' }),
-    makeRes(),
-  );
-  const base = await officialMod.readOfficialBase(makeJsonReq());
+  await setActiveBase('https://alt.example.com/');
+  const base = await officialMod.readOfficialBase();
   assert.equal(base, 'https://alt.example.com');
 });
 
 test('official·readOfficialBase 过滤自指 KV（127.0.0.1:18080）→ 无默认（返回 undefined）', async () => {
+  await setActiveBase('http://127.0.0.1:18080');
+  const base = await officialMod.readOfficialBase();
+  assert.equal(base, undefined, '自指值应被过滤，且无硬编码默认');
+});
+
+test('official·readOfficialBase 旧「纯 URL 字符串」值不再被认（TD-08-35 死兼容层已删）', async () => {
+  // 锁住删除：写入侧只写 JSON 对象；纯 URL 串必须**认不出**，否则旧兼容分支会悄悄回来
   await kvMod.handleKvSet(
-    makeJsonReq({ key: 'active_api_endpoint', value: 'http://127.0.0.1:18080' }),
+    makeJsonReq({ key: 'active_api_endpoint', value: 'https://legacy.example.com' }),
     makeRes(),
   );
-  const base = await officialMod.readOfficialBase(makeJsonReq());
-  assert.equal(base, undefined, '自指值应被过滤，且无硬编码默认');
+  const base = await officialMod.readOfficialBase();
+  assert.equal(base, undefined, '纯 URL 串不是合法写入形态 ⇒ 不得被认');
 });
 
 // ══════════════════════════════════════════════════════════════
@@ -181,9 +190,9 @@ test('passthrough·/depth-video/ 未命中不转发（TD-08-33 缺口闭合）',
   // 先让"会转发"的前提成立（官方地址在场）——否则透传层会因缺 base 提前 return false，
   // 本用例就变成"不管清单对不对都绿"的假绿（写这版时实测过：去掉 /depth-video/ 它照样通过）。
   mockFetchOnce(() => new Response('x', { status: 200 }));
+  await setActiveBase('https://backup.example.com');
   const req = makeJsonReq();
   req.method = 'GET';
-  req.headers['x-official-base'] = 'https://backup.example.com';
   const res = makeRes();
   const handled = await passthroughMod.handlePassthrough(
     req,
@@ -215,9 +224,9 @@ test('passthrough·转发 GET 并流式回传（mock fetch）', async () => {
       headers: { 'content-type': 'application/json', 'x-custom': '1' },
     });
   });
+  await setActiveBase('https://backup.example.com');
   const req = makeJsonReq();
   req.method = 'GET';
-  req.headers['x-official-base'] = 'https://backup.example.com';
   const { Writable } = await import('node:stream');
   const chunks = [];
   const res = new Writable({

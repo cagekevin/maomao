@@ -1,6 +1,7 @@
 /**
  * 剧本盒子引擎（生成/连线回调）。更新(2026-08-31)：自 base/ 迁入 scriptbox/（解 base⇄scriptbox 循环，见 download/REPORT）。
  */
+import { generateId } from '../base/core/idGen.ts';
 import {
   buildShotImageUser,
   collectAssets,
@@ -1359,7 +1360,8 @@ export function createScriptBoxEngine({
     alloc: ReturnType<typeof createSlotAllocator>,
     d: ScriptBoxData,
   ) => {
-    const nodeId2 = `script-${isImage ? 'prompt' : 'video'}-${shotId}-${Date.now()}`;
+    // 节点 id 走 idGen 唯一入口（TD-18-18）：原 `${...}-${Date.now()}` 零随机段，同镜头同毫秒并发即撞 id
+    const nodeId2 = generateId(`script-${isImage ? 'prompt' : 'video'}-${shotId}`);
     // 资产自动匹配：按该镜头里的 @资产名 收集「有图资产」作为参考图（复刻官方 Ra）。
     // 参考图字段统一命名为 images（P0-②）：生图/生视频下游都用 images，与 useConnectedInputs 产出命名一致。
     // 收口：注入 data.images 前统一补全为绝对原图地址（与派发/发送渲染口径一致，data.images 只存绝对原图）。
@@ -1496,7 +1498,10 @@ export function createScriptBoxEngine({
       seconds,
     });
     return runAbortable(
-      `merge-video-${Date.now()}`,
+      // 键必须**可被调用方重建**（`onStopScriptItem(kind,id)` 按 `${kind}-${id}` 反查 abortMap）：
+      // 原 `merge-video-${Date.now()}` 带时间戳 ⇒ 中止入口永远重建不出该键 ⇒ 合并任务在单项中止
+      // 路径上掐不掉（只有「全停」能兜）。改稳定实体键，与 `shot-${shot.id}` 同构（TD-18-18 · 2026-09-18）。
+      `merge-video-${nodeId}`,
       () => {},
       async (signal) => {
         const r = await chatCompletions({
@@ -1518,7 +1523,7 @@ export function createScriptBoxEngine({
           toast('合并视频提示词为空，请重试');
           return;
         }
-        const nodeId2 = `script-video-merge-${Date.now()}`;
+        const nodeId2 = generateId('script-video-merge');
         addNodes?.([
           {
             id: nodeId2,

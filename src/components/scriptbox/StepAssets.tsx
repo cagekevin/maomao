@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { generateId } from '../base/core/idGen.ts';
 import {
   Loader2,
   Wand2,
@@ -213,7 +214,8 @@ export default function StepAssets({ data, updateData, callbacks }: StepAssetsPr
 function addAsset(updateData: ScriptBoxUpdateData, cat: string, assets: ScriptBoxData['assets']) {
   const name = `${cat === 'character' ? '角色' : cat === 'scene' ? '场景' : '道具'}${assets.length + 1}`;
   const newAsset = {
-    id: `${cat}-${Date.now()}`,
+    // 资产 id 走 idGen 唯一入口（TD-18-18）：原 `${cat}-${Date.now()}` 零随机段，同毫秒连加两个资产即撞 id
+    id: generateId(cat),
     category: cat,
     name,
     description: '',
