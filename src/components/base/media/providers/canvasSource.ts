@@ -43,6 +43,7 @@ function matchKeyword(name: string, keyword?: string): boolean {
 export const canvasSourceProvider: MediaRefProvider = {
   source: 'canvas',
   label: '画布',
+  order: 3, // 展示顺序（末位）；顺序一律由来源声明，消费方派生（TD-02-47）
   async list(query?: MediaRefQuery): Promise<MediaRef[]> {
     const nodes = getCanvasNodesSnapshot();
     const out: MediaRef[] = [];

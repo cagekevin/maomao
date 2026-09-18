@@ -10,14 +10,7 @@
  *      ①与②在文本上**无法机械区分**，逐处手改的误伤风险 > 收益；而**本段映射说明已让全部引用可解**。
  * **判据（记这一条就够）：注释里的 `App.jsx` ＝ 本文件**（历史上从未存在过第二个 App）。
  */
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   ReactFlow,
   Background,
@@ -1012,17 +1005,6 @@ function Canvas() {
     patchNodeData: (id, patch) => patchNodeDataById(setNodes, id, patch),
   });
 
-  // 右键菜单「上传」隐藏文件输入：选中文件 → 复用 createNodeFromFile 建素材节点
-  const uploadRef = useRef<HTMLInputElement | null>(null);
-  const handleUploadFile = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) createNodeFromFile(file, posAtCenter());
-      e.target.value = '';
-    },
-    [createNodeFromFile, posAtCenter],
-  );
-
   /* ── 「导入媒体」弹窗（docs/136 地基的第一个消费方 · 入口 A = 画布右键菜单） ──
    * 与剪辑器「导入」共用同一组件 `ImportMediaModalHost`，只是落地动作不同：
    *   画布入口 → 在视图中央建 assetNode（本文件实现）；
@@ -1077,7 +1059,7 @@ function Canvas() {
    * canvas（空白）/ node（单选节点）/ selection（多选）三套右键菜单项
    * ==================================================================== */
 
-  // 空白右键菜单（文本/图片/视频/剧本盒子 + 图钉小工具 + 上传）+ 单选 + 多选三态菜单项
+  // 空白右键菜单（文本/图片/视频/剧本盒子 + 图钉小工具 + 导入）+ 单选 + 多选三态菜单项
   // → 已收口到 canvasContextMenu.tsx（buildCanvasMenuItems/buildNodeMenuItems/buildSelectionMenuItems / menuForState）。
   //   图钉「一级显示≠删二级固定项」等反直觉决策随迁移保留在新模块文件头，勿丢。
 
@@ -1137,7 +1119,6 @@ function Canvas() {
     addNodeFromMenu,
     togglePinTool,
     prefetchHeavyNode,
-    uploadRef,
     openImport: () => setImportOpen(true),
     nodeById: (id) => nodesRef.current.find((n) => n.id === id),
     selectedCount: () => nodesRef.current.filter((n) => n.selected).length,
@@ -1603,16 +1584,6 @@ function Canvas() {
                   if (renameTarget) commitRename(renameTarget.id, name);
                   setRenameTarget(null);
                 }}
-              />
-
-              {/* 右键菜单「上传」隐藏文件输入（复刻官方 Re，选中文件建素材节点）
-                  —— 菜单已改走「导入」弹窗；此输入保留为未注入 openImport 时的回退路径。 */}
-              <input
-                ref={uploadRef}
-                type="file"
-                accept="image/*,video/*,audio/*,text/plain"
-                style={{ display: 'none' }}
-                onChange={handleUploadFile}
               />
 
               {/* 「导入媒体」弹窗（4 来源：本地/生成/素材库/画布）—— 与剪辑器共用同一组件。

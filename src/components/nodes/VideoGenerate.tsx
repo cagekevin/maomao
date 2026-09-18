@@ -218,8 +218,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
     setSelectedModel,
     // 收编外部同步：Agent 更新 / 视频处理 spawn 写回 data.videoUrl → 同步本地 state（替手写 effect）
     sync: { videoUrl: (v: unknown) => setVideoUrl(v as string) },
-    resultField: 'videoUrl',
-    recoverable: true,
+    resultKey: 'videoUrl', // 唯一写回路径：成功首写 / 落盘后覆盖 / 广播恢复
     // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生成
     validate: () =>
       effectivePrompt?.trim() || chipResolved.refImages.length > 0 ? '' : '请输入提示词',
@@ -252,11 +251,11 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
     },
     onSuccess: (r) => {
       setVideoUrl(r.url ?? '');
-      // 【真相源契约】data.videoUrl 写回由声明式 resultField:'videoUrl' 自动完成（经 useNodeData，随画布快照落盘）。
+      // 【真相源契约】data.videoUrl 写回由声明式 resultKey:'videoUrl' 自动完成（经 useNodeData，随画布快照落盘）。
       // 此回调只负责本地 state 同步与业务记忆。
       setVidPrefs({ model: selectedModel, size: ratio, resolution, seconds });
     },
-    // 【精准节点回填】异步视频任务刷新后恢复轮询完成的广播 → 节点卡片自动恢复显示（data 回填由 recoverable 自动，此处同步本地 state 供渲染/下载）。
+    // 【精准节点回填】异步视频任务刷新后恢复轮询完成的广播 → 节点卡片自动恢复显示（data 回填由 resultKey 自动，此处同步本地 state 供渲染/下载）。
     onRecover: ({ resultUrl }) => {
       setVideoUrl(String(resultUrl ?? ''));
     },

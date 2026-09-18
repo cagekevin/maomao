@@ -187,17 +187,17 @@ vi.mock('../../src/components/base/api/generate.ts', () => ({
 }));
 
 // useNodeGeneration：记录 config，返回可控 loading/error。
-// 桩复刻真实 hook 的声明式写回（resultKey + recoverable）以对齐 P0-2-c：
-// 节点 onSuccess/onRecover 不再手写 patchData，data.videoUrl 由 resultKey/recoverable 自动写回。
+// 桩复刻真实 hook 的声明式写回（唯一写回路径 resultKey）以对齐 P0-2-c / TD-01-21：
+// 节点 onSuccess/onRecover 不再手写 patchData，data.videoUrl 由 resultKey 自动写回。
 let genConfig = null;
 let genLoading = false;
 vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
   useNodeGeneration: (config: any) => {
     genConfig = config;
-    // 复刻真实 hook 的广播 handler：recoverable + resultKey 且广播带 resultUrl 时自动写回 node.data
+    // 复刻真实 hook 的广播 handler：声明 resultKey 且广播带 resultUrl 时自动写回 node.data
     const originalOnRecover = config.onRecover;
     genConfig.onRecover = (d: any) => {
-      if (config.recoverable && config.resultKey && d?.resultUrl) {
+      if (config.resultKey && d?.resultUrl) {
         h.setNodesMock((ns: any) =>
           ns.map((n: any) =>
             n.id === config.nodeId

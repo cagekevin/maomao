@@ -21,7 +21,6 @@ import {
   textCache,
 } from '../../../hooks/useAssetDragToCanvas.ts';
 import {
-  toAbsoluteFileUrl,
   openLocalFolder,
   openFileDir,
   relativePathFromUrl,
@@ -33,15 +32,15 @@ import { PanelSubBar, PanelPills, PanelMoreMenu } from './PanelBar.tsx';
 import { useCurrentProjectId } from '../store/projectStore.ts';
 import { logger } from '../core/logger.ts';
 import { subscribe } from '../core/eventBus.ts';
-import { isAudio } from '../utils/assetType.ts';
+import { isAudio, isVideoResource } from '../utils/assetType.ts';
 // 类型显示名取资产类型目录（唯一真源），本面板不再自持一份中文名
 import { ASSET_TYPE_META } from '@/types';
 import VideoThumbnail from '../ui/VideoThumbnail.tsx';
 import LazyImage from '../ui/LazyImage.tsx';
 import InlineNameInput from '../ui/InlineNameInput.tsx';
-import ImageZoomDialog from '../editors/ImageZoomDialog.tsx';
 import type { ResourceItem } from '../api/localToolApi.ts';
-import { toImgDragProps } from '../../../hooks/useAssetDragToCanvas.ts';
+// 预览 overlay（文字/音频/图片 + 视频委托 ImageZoomDialog）的唯一实现，与素材库面板共用
+import { ResourcePreviewOverlay } from './ResourcePreview.tsx';
 
 // 类型过滤 pill（沿用素材库 ResourceLibrary 的小圆按钮形式）
 //
@@ -76,7 +75,7 @@ const TYPE_BADGE: Record<string, TypeBadgeEntry> = {
 
 const PAGE_SIZE = 20; // 每次加载 20 个，点击翻页（对齐官方 Un.jsx 默认 pageSize:20）
 
-// fetchText/textCache 统一收敛到 useAssetDragToCanvas.js；isAudio 统一到 assetType.js
+// fetchText/textCache 统一收敛到 useAssetDragToCanvas.js；isAudio / isVideoResource 统一到 assetType.js
 // 文字资源单元格：默认展示文件内容（前几行）
 const TextResourceCell = React.memo(function TextResourceCell({
   url,
@@ -107,31 +106,6 @@ const TextResourceCell = React.memo(function TextResourceCell({
   );
 });
 
-// 文字预览：完整展示文件内容
-const TextPreview = React.memo(function TextPreview({ url, name }: { url: string; name?: string }) {
-  const [text, setText] = useState('');
-  useEffect(() => {
-    let alive = true;
-    fetchText(url).then((t) => {
-      if (alive) setText(t);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [url]);
-  return (
-    <div className="w-[360px] max-w-[90vw] bg-surface-2 rounded-xl p-5">
-      <div className="flex items-center gap-2 mb-3">
-        <FileText size={18} className="text-yellow-400" />
-        <span className="text-sm text-primary m-0">{name}</span>
-      </div>
-      <pre className="text-xs text-secondary whitespace-pre-wrap break-words max-h-[55vh] overflow-y-auto custom-scrollbar m-0">
-        {text || '（加载中...）'}
-      </pre>
-    </div>
-  );
-});
-
 /**
  * 生成 tab —— 对齐官方资源面板「生成」(generated) 视图的数据逻辑（Vr.jsx ft()/kr() + Un.jsx），
  * 过滤用本原型素材库的小圆按钮（pill）形式，点击翻页（每页 20 个，底部固定分页栏），无收藏。
@@ -157,15 +131,6 @@ function GeneratedView() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<ResourceItem | null>(null); // 点击大图/视频/文字/音频预览
-  const videoZoomRef = useRef<HTMLDialogElement>(null); // 视频预览统一走 ImageZoomDialog（含截屏按钮）
-
-  // 视频预览：preview 变为视频时自动打开统一视频框（关闭由 onClose 复位 preview）
-  useEffect(() => {
-    if (preview && (preview.type === 'video' || String(preview.type).startsWith('video'))) {
-      videoZoomRef.current?.showModal();
-    }
-  }, [preview]);
-
   const [typeFilter, setTypeFilter] = useState('all'); // all/image/video/text
   const [folder, setFolder] = useState('tasks'); // 当前目录（eqOrPrefix 前缀），初始 tasks
   const [creating, setCreating] = useState(false);
@@ -480,7 +445,7 @@ function GeneratedView() {
                       </div>
                     ) : a.type === 'text' ? (
                       <TextResourceCell url={a.url ?? ''} name={a.name} />
-                    ) : a.type === 'video' || (a.type && a.type.startsWith('video')) ? (
+                    ) : isVideoResource(a.type, a.url) ? (
                       a.url ? (
                         <VideoThumbnail src={a.url} size="sm" className="w-full h-full" />
                       ) : (
@@ -585,59 +550,12 @@ function GeneratedView() {
         )}
       </div>
 
-      {/* 点击大图/文字/音频预览（与素材库一致）；视频统一走下方 ImageZoomDialog */}
-      {preview && preview.type !== 'video' && !String(preview.type).startsWith('video') && (
-        <div
-          className="absolute inset-0 z-20 bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setPreview(null)}
-        >
-          <div
-            className="max-w-full max-h-full flex flex-col items-center gap-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {preview.type === 'text' ? (
-              <TextPreview url={preview.url ?? ''} name={preview.name} />
-            ) : isAudio(preview.type, preview.url) ? (
-              <div className="w-[300px] bg-surface-2 rounded-xl p-6 flex flex-col items-center gap-3">
-                <Music size={40} className="text-green-400" />
-                <p className="text-xs text-secondary m-0">{preview.name}</p>
-                <audio src={preview.url} controls className="w-full" />
-              </div>
-            ) : (
-              <img
-                src={toAbsoluteFileUrl(preview.url)}
-                alt={preview.name}
-                {...toImgDragProps(
-                  assetDragProps({
-                    url: toAbsoluteFileUrl(preview.url),
-                    name: preview.name,
-                    type: preview.type,
-                  }),
-                )}
-                className="max-h-[75vh] max-w-full rounded-lg object-contain cursor-grab active:cursor-grabbing"
-              />
-            )}
-            <p className="text-xs text-muted m-0">
-              {preview.name} · {preview.folder}
-            </p>
-            <button
-              className="px-4 py-1.5 rounded-lg bg-surface-hover text-body hover:bg-surface-hover-strong text-xs cursor-pointer border-none"
-              onClick={() => setPreview(null)}
-            >
-              关闭
-            </button>
-          </div>
-        </div>
-      )}
-      {/* 视频预览统一收口到 ImageZoomDialog（含截屏当前帧/尾帧按钮） */}
-      {preview && (preview.type === 'video' || String(preview.type).startsWith('video')) && (
-        <ImageZoomDialog
-          ref={videoZoomRef}
-          url={preview.url}
-          kind="video"
-          onClose={() => setPreview(null)}
-        />
-      )}
+      {/* 全屏预览（文字/音频/图片 + 视频播放器）走与素材库面板共用的唯一实现 */}
+      <ResourcePreviewOverlay
+        item={preview}
+        onClose={() => setPreview(null)}
+        assetDragProps={assetDragProps}
+      />
     </div>
   );
 }

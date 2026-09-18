@@ -295,8 +295,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       imageSize: (v: unknown) => setImageSize(v as string),
       cameraSettings: (v: unknown) => setCameraSettings(v as CameraGenerationSettings | undefined),
     },
-    resultField: 'assetUrl',
-    recoverable: true,
+    resultKey: 'assetUrl', // 唯一写回路径：成功首写 / 落盘后覆盖 / 广播恢复
     // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生图
     validate: () =>
       effectivePrompt?.trim() || chipResolved.refImages.length > 0 ? '' : '请输入提示词',
@@ -335,7 +334,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       );
     },
     onSuccess: (r) => {
-      // 【S3 落盘唯一出口】data.assetUrl 由 resultField:'assetUrl' 在 hook 内自动 patchData(原始 r.url)，
+      // 【S3 落盘唯一出口】data.assetUrl 由 resultKey:'assetUrl' 在 hook 内自动 patchData(原始 r.url)，
       // 落盘后 useNodeGeneration 主落盘再把持久 /files/ URL 覆盖写回 node.data[resultKey]，
       // 经 useSyncNodeData 同步回本节点 state → 节点显示持久 URL。此处不再二次 saveResultToTasks
       // (旧逻辑为补"落盘持久 URL 未回写 node.data"的洞而多落一次 → 双落盘)，S3 统一由主落盘出口承接。
@@ -343,7 +342,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       // 记忆本次参数（模型/比例/尺寸），供新建节点复用
       setImgPrefs({ model: selectedModel, aspectRatio, imageSize });
     },
-    // 【精准节点回填】异步任务刷新后恢复轮询完成的广播 → 节点恢复显示图（resultUrl 写回 data 由 recoverable 自动）。
+    // 【精准节点回填】异步任务刷新后恢复轮询完成的广播 → 节点恢复显示图（resultUrl 写回 data 由 resultKey 自动）。
     // 仅生图 async 模式会命中（有 pollTaskId）；sync 同步无任务广播。
     onRecover: ({ resultUrl }) => {
       // 【异步安全兜底】节点在生成期间被删除/合并而消失 → 用结果重建节点（复用原 id 保持任务关联），

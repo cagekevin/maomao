@@ -136,3 +136,23 @@ export function isAudio(type: string | null | undefined, url: string | null | un
     classifyAssetUrlKind(url) === 'audio'
   );
 }
+
+/**
+ * 判断是否为视频素材（type 字段或 URL 扩展名）；与 `isAudio` **同族同形**。
+ *
+ * 【收口（TD-01-22 · 2026-09-18）】此前 `type === 'video' || String(type).startsWith('video')`
+ * 在 ResourceLibrary / GeneratedView 内联 **8 处**（卡片缩略图、预览开关、视频框开关各写一份）
+ * —— 同一判据抄多份必然漂移。现全部改为委托本函数。
+ * @param type 素材 type（如 'video' 或 'video/mp4'）
+ * @param url 素材 URL（type 缺失时按统一扩展名表兜底，含 ?#/大小写处理）
+ */
+export function isVideoResource(
+  type: string | null | undefined,
+  url: string | null | undefined,
+): boolean {
+  return (
+    type === 'video' ||
+    (!!type && type.startsWith('video')) ||
+    classifyAssetUrlKind(url) === 'video'
+  );
+}

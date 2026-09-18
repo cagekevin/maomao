@@ -48,8 +48,13 @@ export type MediaRefType = MediaRefAssetType;
 export type MediaRefSource = 'canvas' | 'library' | 'generated';
 
 /**
- * 一条「可引用媒体」——所有来源归一后的唯一形状。
+ * 一条「可引用**媒体**」——所有来源归一后的唯一形状。
  * 消费方只认它，不关心它从哪来。
+ *
+ * 【与「文件夹条目」的分工（TD-02-46 · 2026-09-18 收口）】素材库 rescan 会把磁盘**子目录**也录成条目，
+ * 它不是媒体 —— 那类走 `MediaRefFolder`，两者合成列表条目 `MediaRefEntry`。
+ * ⚠️ 此前文件夹**谎报 `type:'image'`**（注释自述「仅为满足类型」）：漏判 `isFolder` 的消费方会把目录当图片
+ * （`mediaRefFactsOf` 会给它建一个指向**目录**的"图片"资产）。现用**判别联合**让它在类型层不可能发生。
  */
 export interface MediaRef {
   /** 全局唯一标识：`${source}:${id}`。用于去重 / React key / 芯片序列化。**用 makeMediaRef 生成，勿手拼**。 */
@@ -58,7 +63,7 @@ export interface MediaRef {
   source: MediaRefSource;
   /** 显示名（用户看到的） */
   name: string;
-  /** 媒体类型 */
+  /** 媒体类型（**只有真媒体才有**；文件夹条目走 `MediaRefFolder`，那个类型没有此字段） */
   type: MediaRefType;
   /** 可渲染地址（**已归一为绝对 URL**，可直接给 <img>/<video>） */
   url: string;
@@ -78,13 +83,46 @@ export interface MediaRef {
    */
   folder?: string;
   /**
-   * 是否「文件夹条目」（素材库 rescan 会把磁盘子目录也录成条目，`type:'folder'`）。
-   * `true` 时：它不是可导入的媒体，而是**可拖入的落点卡片**（消费方据此分支渲染）。
+   * 判别位：媒体条目恒**非** `true`（缺省即可）。
+   * 与 `MediaRefFolder.isFolder: true` 一起，使 `entry.isFolder` 成为可窄化的判别式。
    */
-  isFolder?: boolean;
+  isFolder?: false;
   /** 来源私有附加信息（尺寸/时长/目录/分页等）。**不进核心契约**，消费方不该依赖。 */
   meta?: Record<string, unknown>;
 }
+
+/**
+ * 一条「**文件夹条目**」（素材库 rescan 录进来的磁盘子目录）。
+ *
+ * 【为什么必须是独立类型（TD-02-46）】它不是可导入的媒体，而是**可拖入的落点卡片**：
+ * `url` 是**目录地址**、没有媒体类型。塞进 `MediaRef` 就只能谎报 `type:'image'`，
+ * 于是"忘了判 `isFolder`"的消费方会拿它当图片（建节点/请求它会直接打到目录上）。
+ * 独立成类型后，消费方**必须**先窄化（`if (e.isFolder) … else …`）才能拿到 `type` —— 漏判变成编译错误。
+ */
+export interface MediaRefFolder {
+  /** 全局唯一标识：`${source}:${id}`（同 `MediaRef`）。 */
+  ref: string;
+  source: MediaRefSource;
+  name: string;
+  /** 目录地址（绝对 URL；**仅供显示 / 定位 / 去重，不可当媒体渲染**） */
+  url: string;
+  /** 归属项目（语义同 `MediaRef.projectId`） */
+  projectId?: string;
+  /** 该目录自身所在的父目录（`/files/` 相对语境），供移动/归位定位 */
+  folder?: string;
+  /** 判别位：`true` = 文件夹条目（本类型**没有** `type` 字段） */
+  isFolder: true;
+  meta?: Record<string, unknown>;
+}
+
+/**
+ * 列表里的**一条条目** = 真媒体 或 文件夹。
+ *
+ * 【谁是它】`MediaRefProvider.list` / 注册表 / 弹窗网格 —— 它们列的是"能看到的条目"（含落点卡片）。
+ * 【谁不是它】落地消费方（`mediaRefFactsOf` / `onPick` / 剪辑器 `linkMediaRefsToProject`）只吃
+ * `MediaRef`（真媒体）—— 它们的入参类型就是这层收口，**不需要在函数体里判 `isFolder`**。
+ */
+export type MediaRefEntry = MediaRef | MediaRefFolder;
 
 /** 查询条件（各 provider 按需消费，不必全用）。 */
 export interface MediaRefQuery {
@@ -141,24 +179,40 @@ export interface MediaRefCategory {
 
 /**
  * 一个来源：能列出条目。**异步**（素材库要请求后端）。
+ *
+ * 【为什么本契约含**展示面**（TD-02-47 母体 · 2026-09-18 收口）】契约原先只声明"数据面"
+ * （label / categories / list），而「来源选择条」还需要三样东西：**显示名**、**顺序**（谁排前面）、
+ * **默认项**（进来源即选中哪一项）。后两样消费方拿不到 ⇒ 只能各写一份硬编码清单
+ * ⇒ 契约承诺的「新增来源 = 消费方改 0 行」**失效**（新来源静默不出现，且没有任何机制提醒你忘了改）。
+ * 现三样全部由**来源自己声明**。
  */
 export interface MediaRefProvider {
   source: MediaRefSource;
   /** Tab 显示名（消费方直接用，不自己写映射） */
   label: string;
   /**
+   * 展示顺序（可选；**越小越靠前**）。
+   * 缺省 = 排在所有声明了 `order` 的来源之后（多个缺省者之间保持**注册顺序**）。
+   * 消费方**不得**自持顺序清单 —— `listMediaRefSources()` 已按本字段排好。
+   */
+  order?: number;
+  /**
    * 声明本来源的分类（**可选**；不声明 = 该来源无第二层筛选，如「画布」）。
    * 消费方据此渲染第二排 pill；**禁止**消费方自己硬编码分类清单（M3）。
+   *
+   * ⚠️ **契约条款：首个分类 = 该来源的默认分类**（消费方进入该来源即套用它）。
+   * provider 必须把「全部／未筛选」那一项排在首位 —— 此前这条只写在消费方注释里，
+   * 消费方因此只能"猜 `categories[0]`"（TD-02-47）；现在它是契约的一部分。
    */
   categories?: () => MediaRefCategory[];
   /**
-   * 列出条目。
+   * 列出条目（**含文件夹落点卡片** → `MediaRefEntry`；消费方要当媒体用须先窄化）。
    * 契约：
    *  - 必须**自己处理失败**：失败时**抛错**（不返回空数组冒充"没有"）。
    *  - 返回的 `url` 必须**已是绝对 URL**。
    *  - 必须**已按 query 过滤**（注册表不做二次过滤）。
    */
-  list: (query?: MediaRefQuery) => Promise<MediaRef[]>;
+  list: (query?: MediaRefQuery) => Promise<MediaRefEntry[]>;
 }
 
 /**
@@ -170,7 +224,8 @@ export interface MediaRefProvider {
  * 包一层 `{items, failures}` 反而让消费方多写一次判空（形态要匹配语义，不是统一就好）。
  */
 export interface MediaRefSearchResult {
-  items: MediaRef[];
+  /** 条目（含文件夹落点卡片；同 `MediaRefProvider.list`） */
+  items: MediaRefEntry[];
   /** 失败的来源与原因（消费方可显示"素材库暂时不可用"） */
   failures: Array<{ source: MediaRefSource; message: string }>;
 }

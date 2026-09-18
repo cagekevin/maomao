@@ -14,7 +14,6 @@ interface GenConfigLike {
     signal: { aborted: boolean };
   }) => Promise<{ url?: string; doneUrl?: string } | undefined> | undefined;
   onSuccess?: (r: unknown) => void;
-  recoverable?: boolean;
   resultKey?: string;
   nodeId?: string;
   validate: () => string;

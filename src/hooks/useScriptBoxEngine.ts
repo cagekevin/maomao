@@ -162,7 +162,9 @@ export function useScriptBoxEngine(
   // 【TD-01-13 边界补齐】剧本盒生图的**设计意图**是「生成完自动归类进素材库的 人物/场景/道具」
   //（resourceFolderOf(category)），省用户手动拖。但「落素材库」是生成流程的一步，随刷新会中断 →
   // 资产图 recover 时**补一次落库**到同一分类，否则素材库里会缺这张图（用户得手动补）。
-  // 幂等：后端按 sha1 去重，重复调用不会产生第二份；并记 ref 防同一资产重复触发。
+  // 【TD-01-25 收口（2026-09-18）】补库的**判据**已从"本会话首次"改为「已归档」状态位
+  // （`imageStatus === 'uploaded'`，由**所有**归档路径写入：生成 settle / 手动上传 / 本处补库）——
+  // 原判据会在同一会话里重复归档一次，正确性靠 sha1 幂等兜住而非状态（详见下方 handler 注释）。
   const recoveredAssetsRef = useRef(new Set<string>());
   useEffect(() => {
     const handler = (payload: unknown) => {
@@ -181,17 +183,34 @@ export function useScriptBoxEngine(
               : a,
           ),
         }));
-        // 补「自动归类进素材库」（仅首次；分类/名取自资产自身，与生成时同口径）
-        if (!recoveredAssetsRef.current.has(assetId)) {
+        // 补「自动归类进素材库」：**判据 = 「已归档」状态位 `imageStatus === 'uploaded'`**（不再是"本会话首次"）。
+        // 【TD-01-25 收口】原先是**盲补**：同一会话里生成路径已归档过，而 `taskStore.done()` **必然**再广播一次
+        // 到本 handler → 会对同一资产**重复归档一遍**，靠后端 sha1 幂等兜住（补偿步骤形态，掩盖"谁是归档真相"）。
+        // 现判据落在状态位上：生成路径真归档了就标 `uploaded`（见 scriptBoxEngine 的 settle），此处据此跳过；
+        // 只有**刷新中断**（生成路径从未 settle）才真的补一次。`recoveredAssetsRef` 保留为**同会话在途去重**
+        // （补库是 fire-and-forget，状态位写入前可能再来一条广播）—— 两把锁管两件事（在途 vs 已归档），不是同一真相两份。
+        const asset = normalizeScriptBoxData(
+          (getNode(nodeId)?.data ?? {}) as Record<string, unknown>,
+        ).assets?.find((a) => a.id === assetId);
+        if (
+          asset?.category &&
+          asset.imageStatus !== 'uploaded' &&
+          !recoveredAssetsRef.current.has(assetId)
+        ) {
           recoveredAssetsRef.current.add(assetId);
-          const asset = normalizeScriptBoxData(
-            (getNode(nodeId)?.data ?? {}) as Record<string, unknown>,
-          ).assets?.find((a) => a.id === assetId);
-          if (asset?.category) {
-            void localizeAndStoreToResourceLibrary(url, {
-              name: asset.name,
-              folder: resourceFolderOf(asset.category),
-            }).catch((e: unknown) => {
+          void localizeAndStoreToResourceLibrary(url, {
+            name: asset.name,
+            folder: resourceFolderOf(asset.category),
+          })
+            .then(() => {
+              // 归档成功 → 落状态位（此后同一资产的广播不再触发补库）
+              updateData((latest) => ({
+                assets: (latest.assets || []).map((a) =>
+                  a.id === assetId ? { ...a, imageStatus: 'uploaded' } : a,
+                ),
+              }));
+            })
+            .catch((e: unknown) => {
               const err = e instanceof Error ? e : new Error(String(e));
               logger.warn('scriptBox', 'recover 补落素材库失败（图已回填剧本盒，不阻断）', {
                 nodeId,
@@ -199,7 +218,6 @@ export function useScriptBoxEngine(
                 error: err.message,
               });
             });
-          }
         }
         return;
       }

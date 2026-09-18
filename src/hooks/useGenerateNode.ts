@@ -53,11 +53,14 @@ export interface UseGenerateNodeOptions {
   setSelectedModel: (model: string) => void;
   /** { data字段: setState } → 收编 useSyncNodeData */
   sync?: Record<string, (value: unknown) => void>;
-  /** 成功/广播自动写回的 data 字段（如 'assetUrl'/'videoUrl'） */
-  resultField?: string;
-  recoverable?: boolean;
+  /**
+   * 【唯一写回路径】成功 / 落盘后 / 广播恢复自动写回的 data 字段（如 'assetUrl'/'videoUrl'）。
+   * 与底层 `useNodeGeneration` 契约**同名同义**（此前上层叫 resultField，两名指一物，2026-09-18 统一为 resultKey）。
+   */
+  resultKey?: string;
   validate?: GenerateValidate;
-  run?: GenerateRun;
+  /** 真执行器。必填：本 hook 的全部价值建立在「有生成可跑」之上，缺它是调用方漏传，编译期即拒 */
+  run: GenerateRun;
   onSuccess?: GenerateSuccess;
   onRecover?: GenerateRecover;
 }
@@ -73,7 +76,7 @@ export interface UseGenerateNodeOptions {
  *    给出模型下拉数据与「选 provider」所需的 providers/primary（注入 ctx）。
  *  - 默认模型回填：providers 加载后，若「无记忆 + 节点未显式指定」→ 取第一个模型并记忆 prefs。
  *  - useSyncNodeData 收编（第71行）：外部 data 字段 → 本地 state 桥，节点不再手写。
- *  - useNodeGeneration 委托：resultKey:resultField 自动写回 + recoverable 回填。
+ *  - useNodeGeneration 委托：resultKey 声明式写回（成功首写 / 落盘后覆盖 / 广播恢复，唯一写回路径）。
  *
  * 【ctx 注入】节点的 run/onSuccess/onRecover/validate 以 ctx 拿 provider 管理态：
  *   ctx = { providers, primary, models, selectedModel, prefs, setPrefs }
@@ -83,8 +86,8 @@ export interface UseGenerateNodeOptions {
  * 【契约（与 useNodeGeneration 完全一致，仅回调多收一个 ctx）】
  *   validate(ctx) → 错误文案或空串
  *   run({progress,signal}, ctx) → { ok:true,url?,content? } | { ok:false,error }   // doneUrl 已删（B2），统一 url
- *   onSuccess(r, ctx)   → UI state + 业务记忆（data[resultField] 已由声明式写回）
- *   onRecover(d, ctx)   → UI state + 重建等（data[resultField] 已由 recoverable 回填）
+ *   onSuccess(r, ctx)   → UI state + 业务记忆（data[resultKey] 已由声明式写回）
+ *   onRecover(d, ctx)   → UI state + 重建等（data[resultKey] 已由声明式回填）
  *
  * 【为什么 prefs/selectedModel 由节点持有并传入】
  *   aspectRatio/imageSize 等参数用 useState(data.x || prefs.x || 默认) 初始化，
@@ -105,8 +108,7 @@ export function useGenerateNode({
   selectedModel, // 节点 selectedModel state
   setSelectedModel,
   sync = {}, // { data字段: setState } → 收编 useSyncNodeData（第71行）
-  resultField, // 成功/广播自动写回的 data 字段（如 'assetUrl'/'videoUrl'）；文本节点不传
-  recoverable = false,
+  resultKey, // 唯一写回路径：成功/落盘后/广播恢复自动写回的 data 字段；文本节点不传
   validate,
   run,
   onSuccess,
@@ -141,23 +143,26 @@ export function useGenerateNode({
   // 用 ref 存回调，确保 useNodeGeneration 内部恒调用最新版并带上最新 ctx
   const validateRef = useRef<GenerateValidate | undefined>(validate);
   validateRef.current = validate;
-  const runRef = useRef<GenerateRun | undefined>(run);
+  const runRef = useRef<GenerateRun>(run);
   runRef.current = run;
   const onSuccessRef = useRef<GenerateSuccess | undefined>(onSuccess);
   onSuccessRef.current = onSuccess;
   const onRecoverRef = useRef<GenerateRecover | undefined>(onRecover);
   onRecoverRef.current = onRecover;
 
-  // ── 委托底层契约：resultKey 自动写回 + recoverable 自动回填 ──
+  // ── 委托底层契约：resultKey 声明式写回（唯一写回路径）──
+  // 回调只在节点真的声明了才透传：否则 useNodeGeneration 侧会拿到一个「永远存在的空壳」，
+  // 使那里的 `onRecoverRef.current?.()` 判空永不生效（原先用 `!` 掩盖，是潜在 TypeError）。
   const gen = useNodeGeneration({
     nodeId,
     type: { type: reportType || type, prompt, modelName: selectedModel },
     validate: () => validateRef.current?.(ctx),
-    run: (args) => runRef.current!(args, ctx),
-    onSuccess: (r: GenerationResult) => onSuccessRef.current?.(r, ctx),
-    onRecover: (d) => onRecoverRef.current!(d as Record<string, unknown>, ctx),
-    resultKey: resultField,
-    recoverable,
+    run: (args) => runRef.current(args, ctx),
+    onSuccess: onSuccess ? (r: GenerationResult) => onSuccessRef.current?.(r, ctx) : undefined,
+    onRecover: onRecover
+      ? (d) => onRecoverRef.current?.(d as Record<string, unknown>, ctx)
+      : undefined,
+    resultKey,
   });
 
   return { providers, primary, models, ...gen };

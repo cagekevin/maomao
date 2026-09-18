@@ -13,11 +13,13 @@ import {
   getResources,
   flushPersist,
   mergeResourcesFromBackend,
+  refreshFromBackend,
   sendToResourceLibrary,
   onResourceSent,
 } from '../../src/components/base/store/resourceStore.ts';
 import { persistUrlToUploads, moveFile } from '../../src/components/base/api/filesApi.ts';
 import { rescanResources } from '../../src/components/base/api/localToolApi.ts';
+import type { ResourceItem } from '../../src/components/base/api/localToolApi.ts';
 
 // ── 落盘链隔离：sendToResourceLibrary 会调 filesApi（落盘 / 归位）+ rescanResources ──
 // 只桩掉两个**有副作用的原语**；纯函数（resolveMovePaths / relativePathFromUrl）保留真实实现 ——
@@ -32,6 +34,14 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => {
 });
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
   rescanResources: vi.fn(async () => ({ ok: true })),
+}));
+// ── TD-02-59：store 自刷镜像（`refreshFromBackend`）只桩「分页读取」这一处 IO ──
+// 桩必须标出返回类型：`async () => []` 在 `--noImplicitAny` 下推成 `never[]` ⇒ 喂数据即 TS2322（strict 闸当场抓到）
+const h = vi.hoisted(() => ({
+  fetchAllResourcePages: vi.fn(async (): Promise<ResourceItem[]> => []),
+}));
+vi.mock('../../src/components/base/api/pagedList.ts', () => ({
+  fetchAllResourcePages: (...a: unknown[]) => h.fetchAllResourcePages(...(a as [])),
 }));
 
 const STORAGE_KEY = 'yimao:yimao_asset_library'; // storageAdapter 对键加 yimao: 前缀
@@ -263,6 +273,35 @@ describe('TD-12-2 占位项与后端项按 url 归并', () => {
         .map((r) => r.url)
         .sort(),
     ).toEqual(['/files/keep.png', '/files/other.png']);
+  });
+});
+
+// ── 【TD-02-59】镜像填充归还其所有方：store 自己从后端刷（不再靠"某个界面被打开"顺便填）──
+describe('refreshFromBackend（TD-02-59）', () => {
+  it('拉后端全量 → 并入镜像（contentId → url 解析不再依赖打开过哪个界面）', async () => {
+    clearResources();
+    h.fetchAllResourcePages.mockResolvedValueOnce([
+      {
+        id: 'r-be-1',
+        name: '后端图',
+        url: 'http://127.0.0.1:18080/files/migrated/be.png',
+        contentId: 'sha1:be',
+        type: 'image',
+        folder: 'migrated',
+      },
+    ]);
+    await refreshFromBackend();
+    const hit = getResources().find((r) => r.id === 'r-be-1');
+    expect(h.fetchAllResourcePages).toHaveBeenCalledWith({}); // 全量，不带目录/类型过滤
+    expect(hit?.contentId).toBe('sha1:be');
+    expect(hit?.url).toBe('http://127.0.0.1:18080/files/migrated/be.png');
+  });
+
+  it('后端不可用 → 只留痕不抛（镜像刷新是后台动作，不炸调用方）', async () => {
+    clearResources();
+    h.fetchAllResourcePages.mockRejectedValueOnce(new Error('offline'));
+    await expect(refreshFromBackend()).resolves.toBeUndefined();
+    expect(getResources()).toHaveLength(0); // 失败不写入半成品
   });
 });
 

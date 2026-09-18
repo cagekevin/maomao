@@ -56,12 +56,16 @@ describe('runGenerationContract', () => {
       order.push('save');
       return { ok: true, url: '/files/tasks/x.png', skipped: false };
     });
+    const settleCtx: Array<{ localized: boolean }> = [];
     const out = await runGenerationContract({
       taskNodeId: 'n1',
       type: 'image',
       signal: sig,
       localize: async () => '/files/migrated/人物/x.png',
-      settle: () => order.push('settle'),
+      settle: (_url, _r, _taskCtl, ctx) => {
+        order.push('settle');
+        settleCtx.push(ctx);
+      },
       onPersisted: () => order.push('onPersisted'),
       run: async (a) => {
         expect(a.taskId).toBe('t-1');
@@ -71,6 +75,8 @@ describe('runGenerationContract', () => {
       },
     });
     expect(order).toEqual(['settle', 'save', 'onPersisted', 'done']); // R3 顺序固化
+    // 【TD-01-25 生产者给全】localize 成功 → settle 收到 localized:true（消费方据此定「已归档」状态位）
+    expect(settleCtx).toEqual([{ localized: true }]);
     expect(taskCtl.progress).toHaveBeenCalledWith(5, '准备中…');
     expect(taskCtl.progress).toHaveBeenCalledWith(50, '生成中');
     expect(taskCtl.done).toHaveBeenCalledWith('/files/tasks/x.png');
@@ -130,7 +136,7 @@ describe('runGenerationContract', () => {
 
   it('localize 抛错 → 降级保留原 URL（reportDegrade）+ 仍按成功处理', async () => {
     saveResultToTasksMock.mockResolvedValue({ ok: true, url: 'https://up/x.png', skipped: true });
-    const settleArgs: string[] = [];
+    const settleArgs: Array<{ url: string; localized: boolean }> = [];
     const out = await runGenerationContract({
       taskNodeId: 'n1',
       type: 'image',
@@ -138,26 +144,27 @@ describe('runGenerationContract', () => {
       localize: async () => {
         throw new Error('localize 挂了');
       },
-      settle: (url) => settleArgs.push(url),
+      settle: (url, _r, _taskCtl, ctx) => settleArgs.push({ url, localized: ctx.localized }),
       run: async () => ({ ok: true, url: 'https://up/x.png' }),
     });
     expect(reportDegradeMock).toHaveBeenCalledTimes(1);
-    expect(settleArgs).toEqual(['https://up/x.png']); // 保留原 URL
+    // 【TD-01-25】降级必须**如实**报 localized:false —— 消费方据此不标「已归档」（否则就是谎报）
+    expect(settleArgs).toEqual([{ url: 'https://up/x.png', localized: false }]);
     expect(out.ok).toBe(true);
   });
 
   it('localize 返回空 → 保留原 URL', async () => {
     saveResultToTasksMock.mockResolvedValue({ ok: true, url: 'https://up/x.png', skipped: true });
-    const settleArgs: string[] = [];
+    const settleArgs: Array<{ url: string; localized: boolean }> = [];
     await runGenerationContract({
       taskNodeId: 'n1',
       type: 'image',
       signal: sig,
       localize: async () => null,
-      settle: (url) => settleArgs.push(url),
+      settle: (url, _r, _taskCtl, ctx) => settleArgs.push({ url, localized: ctx.localized }),
       run: async () => ({ ok: true, url: 'https://up/x.png' }),
     });
-    expect(settleArgs).toEqual(['https://up/x.png']);
+    expect(settleArgs).toEqual([{ url: 'https://up/x.png', localized: false }]);
   });
 
   it('业务失败（ok:false）→ fail + onFail + toast + 返回 ok:false', async () => {

@@ -55,8 +55,18 @@ export interface GenerationContractArgs {
    * 抛错或返回空 → **降级保留原 URL**（reportDegrade 留痕，不判定失败）。
    */
   localize?: (url: string, result: GenerationResult) => Promise<string | null | undefined>;
-  /** 结果写回（R3 第二步）：写「应显示的 URL」。节点=patchData(resultKey)；剧本盒=commit assets。 */
-  settle?: (url: string, result: GenerationResult, taskCtl: TaskController) => void;
+  /**
+   * 结果写回（R3 第二步）：写「应显示的 URL」。节点=patchData(resultKey)；剧本盒=commit assets。
+   * `ctx.localized` = **本地化是否真的发生**（`localize` 抛错或返空即降级保留原 URL ⇒ false）。
+   * 【为什么必须给出来（TD-01-25 · 生产者给全）】调用方要据此定**状态位**（如剧本盒的「已归档素材库」）；
+   * 不给就只能拿"URL 像不像本地地址"去反解析（ADR-0004 明禁）或干脆盲补 —— 两者都是在拼第二份真相。
+   */
+  settle?: (
+    url: string,
+    result: GenerationResult,
+    taskCtl: TaskController,
+    ctx: { localized: boolean },
+  ) => void;
   /** 落盘后的追加写回（R3 第四步，可选）：节点用它把外链覆盖成 /files/ 持久 URL；剧本盒不需要。 */
   onPersisted?: (persistedUrl: string, result: GenerationResult, taskCtl: TaskController) => void;
   /** 是否把结果落盘到 tasks 目录（默认 true；对齐 P0-C「落盘唯一出口」） */
@@ -120,18 +130,22 @@ export async function runGenerationContract({
 
     if (r?.ok) {
       let url = typeof r.url === 'string' ? r.url : '';
+      let localized = false;
       // ① 本地化（可选）：失败降级保留原 URL（不阻断）
       if (localize && url) {
         try {
-          const localized = await localize(url, r);
-          if (localized) url = localized;
+          const localizedUrl = await localize(url, r);
+          if (localizedUrl) {
+            url = localizedUrl;
+            localized = true;
+          }
         } catch (e) {
           const err = e instanceof Error ? e : new Error(String(e));
           reportDegrade({ layer: degradeLayer, key: 'localize', e: err });
         }
       }
-      // ② 写回「应显示的 URL」
-      if (url) settle?.(url, r, taskCtl);
+      // ② 写回「应显示的 URL」，并把「本地化是否真的发生」一并交出（消费方据此定状态，不靠猜）
+      if (url) settle?.(url, r, taskCtl, { localized });
       // ③ 落盘唯一出口（P0-C）：保持「失败不阻断主流程」，但**区分三态**（TD-01-17）——
       //    落盘成功→用持久 URL；无需落盘→原样；**落盘失败→保留原 URL 降级 + 用户可见**（不再并入"成功"）。
       let finalUrl = url;

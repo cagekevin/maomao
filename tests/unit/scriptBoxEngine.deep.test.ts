@@ -608,6 +608,9 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     expect(final.thumbnailUrl).toBe('/files/migrated/人物/角色1.png');
     // 不再二次落盘缩略图文件（缩略图统一走系统按需出图端点）
     expect(localizeAndStoreToResourceLibrary).toHaveBeenCalledTimes(1);
+    // 【TD-01-25】本地化**真的发生** → settle 落「已归档素材库」状态位：
+    // recover 补库据此跳过（不再盲补重复归档）；localize 失败降级时则不该标（另见 generationContract 用例）。
+    expect(final.imageStatus).toBe('uploaded');
   });
 
   // ── L3c C2a 统一中止判定：runAbortable catch 走 classifyError 而非 /abort/i（证据 scriptBoxEngine:236）──

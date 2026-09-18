@@ -55,14 +55,19 @@ export interface MenuActionCtx {
   togglePinTool: (type: string) => void;
   /** 悬停预热重依赖 chunk（3D/视频）；轻量节点内部直接返回 */
   prefetchHeavyNode: (type: string) => void;
-  /** 上传隐藏文件输入（菜单「上传」触发 click） */
-  uploadRef: { current: HTMLInputElement | null };
   /**
-   * 打开「导入媒体」弹窗（4 来源：本地/生成/素材库/画布）。
+   * 打开「导入媒体」弹窗（本地 + 注册表派生的各来源）。
    * 【为什么替换掉直接 click】原「上传」直接触发文件选择器；现改为打开复用弹窗，
    * 与剪辑器「导入」共用同一组件（docs/136 地基的第一个消费方）。
+   *
+   * 【为什么**必填**（TD-02-51 · 2026-09-18）】它此前是 `openImport?()`，菜单项写成
+   * `ctx.openImport ? ctx.openImport() : ctx.uploadRef.current?.click()`；而唯一注入点 `App.menuCtx`
+   * **恒注入**它 ⇒ 回退分支、`uploadRef` 字段、App 的隐藏 `<input>` 与 `handleUploadFile` **永不执行**
+   * （「向后兼容」注释固化的**假护栏**）。危害不只是多几行死码：它把「漏注入」从**编译期错误**
+   * 降级成**运行期静默无事发生**（用户点了「导入」什么都不发生，且没有任何痕迹）。
+   * 现改必填 ⇒ 漏注入 = `tsc` 报错，导入**只有一条路径**。
    */
-  openImport?: () => void;
+  openImport: () => void;
   /** 按 id 取当前节点（App 用 nodesRef.current.find） */
   nodeById: (id: string) => Node | undefined;
   /** 当前选中节点数（App 用 nodesRef.current.filter(selected).length），决定是否出「编组」 */
@@ -194,8 +199,10 @@ export function buildCanvasMenuItems(ctx: MenuActionCtx): ContextMenuItem[] {
       key: 'upload',
       icon: <Upload size={16} className="text-secondary" />,
       label: '导入',
-      // 优先走复用弹窗（4 来源）；未注入时回退旧的直接选文件（保持向后兼容）。
-      onClick: () => (ctx.openImport ? ctx.openImport() : ctx.uploadRef.current?.click()),
+      // **唯一路径**：开复用弹窗（本地 + 各已注册来源）。
+      // 旧写法（`ctx.openImport ? … : ctx.uploadRef.current?.click()`）于 TD-02-51 删除：
+      // 回退分支恒不可达（App 恒注入），且把"漏注入"藏成了点击无响应。
+      onClick: () => ctx.openImport(),
     },
   ];
 }

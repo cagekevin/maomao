@@ -559,11 +559,21 @@ export function createScriptBoxEngine({
               name: asset.name,
               folder: resourceFolderOf(asset.category),
             }),
-          settle: (url) =>
+          // 【TD-01-25】「已归档素材库」状态位**只在本地化真的发生时**标 uploaded：
+          // localize 失败会降级保留原 URL（契约 ctx.localized=false），此时**不许**谎报已归档；
+          // 该状态位留给 recover 补库 / 手动上传去补（它们才是有归档动作的那两条路）。
+          settle: (url, _r, _taskCtl, { localized }) =>
             commit((latest) => ({
               assets: (latest.assets || []).map((a) =>
                 a.id === assetId
-                  ? { ...a, loading: false, has: true, assetUrl: url, thumbnailUrl: url }
+                  ? {
+                      ...a,
+                      loading: false,
+                      has: true,
+                      assetUrl: url,
+                      thumbnailUrl: url,
+                      imageStatus: localized ? 'uploaded' : a.imageStatus,
+                    }
                   : a,
               ),
             })),

@@ -251,6 +251,38 @@ describe('useScriptBoxEngine', () => {
     getNodes.mockReturnValue([{ id: 'sb1', data: { shots: [] } }]); // 还原默认
   });
 
+  it('资产已归档（imageStatus=uploaded）→ 回填照常但**不再补归类**（判据 = 状态位，TD-01-25）', () => {
+    getNodes.mockReturnValue([
+      {
+        id: 'sb1',
+        data: {
+          shots: [],
+          assets: [
+            {
+              id: 'a2',
+              category: 'character',
+              name: '角色2',
+              assetUrl: 'http://127.0.0.1:18080/files/migrated/人物/2.png',
+              imageStatus: 'uploaded', // 生成路径已真归档（或手动上传过）
+            },
+          ],
+        },
+      },
+    ]);
+    const { unmount } = renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
+    localizeMock.mockClear();
+    publish('agent:task-completed', {
+      taskId: 't2',
+      nodeId: 'sb1-asset-a2', // 伪 nodeId：`${nodeId}-asset-${assetId}`
+      resultUrl: 'http://127.0.0.1:18080/files/migrated/2.png',
+      status: 'completed',
+    });
+    // 回填仍发生（图照样回填剧本盒），但**不再重复归档**（收口前靠 sha1 幂等兜住的那次冗余调用消失）
+    expect(localizeMock).not.toHaveBeenCalled();
+    unmount();
+    getNodes.mockReturnValue([{ id: 'sb1', data: { shots: [] } }]); // 还原默认
+  });
+
   it('非本剧本盒 / 非资产任务 / 未完成（空 URL）的广播 → 一律不回填、不落素材库', () => {
     const { unmount } = renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
     localizeMock.mockClear();

@@ -71,7 +71,12 @@ import { UploadCloud, X, Search, FolderOpen, ChevronLeft } from 'lucide-react';
 import '../creative/creative-library.css';
 // 经唯一出口（`../media`）消费：它保证内置 provider 已自注册（漏走它会静默少来源）。
 import { listMediaRefSources, queryMediaRefs } from '../media/index.ts';
-import type { MediaRef, MediaRefQuery, MediaRefSource } from '../media/mediaRefTypes.ts';
+import type {
+  MediaRef,
+  MediaRefEntry,
+  MediaRefQuery,
+  MediaRefSource,
+} from '../media/mediaRefTypes.ts';
 import { logger } from '../core/logger.ts';
 import { toastError, toastSuccess } from '../core/toastStore.ts';
 // 目录浏览规则（根/子目录 → 查询参数 · 上钻）：**与侧边栏素材库同一份实现**（见 libraryBrowse.ts）。
@@ -87,15 +92,14 @@ import { useResourceMoveToFolder, folderPathOf } from '../../../hooks/useResourc
 const LOCAL_TAB = 'local' as const;
 type ImportTab = typeof LOCAL_TAB | MediaRefSource;
 
-/** tab 顺序（用户裁定：生成在素材库之前）。 */
-const TAB_ORDER: ImportTab[] = ['local', 'generated', 'library', 'canvas'];
-
-const TAB_LABEL: Record<ImportTab, string> = {
-  local: '本地导入',
-  generated: '生成',
-  library: '素材库',
-  canvas: '画布',
-};
+/**
+ * 本地导入 tab 的显示名 —— **本弹窗唯一自己声明的展示项**（它是写动作，不是来源，provider 契约管不到）。
+ *
+ * ⚠️ 其余 tab 的**显示名与顺序一律取自来源声明**（`MediaRefProvider.label` / `.order`，经
+ * `listMediaRefSources()` 派生），本文件**禁止**再写硬编码 tab 清单 —— 早先 `TAB_ORDER` 与 `TAB_LABEL`
+ * 各硬编码一份，新增来源不会出现在这里，契约承诺的「消费方改 0 行」当场失效（TD-02-47 母体）。
+ */
+const LOCAL_TAB_LABEL = '本地导入';
 
 /**
  * `onPick` 的结果契约（**宿主是生产端，弹窗是消费端**）。
@@ -145,7 +149,8 @@ export default function ImportMediaModal({
   const [catKey, setCatKey] = useState<string | null>(null);
   /** 下钻位置（目录路径；null = 分类视图）。与 `catKey` **互斥**，见 navigate()。 */
   const [openFolder, setOpenFolder] = useState<string | null>(null);
-  const [items, setItems] = useState<MediaRef[]>([]);
+  // 列表条目 = 媒体 **或** 文件夹落点卡片（`MediaRefEntry`）；要当媒体用（onPick）须先窄化（见下方 mediaItems）
+  const [items, setItems] = useState<MediaRefEntry[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,8 +163,17 @@ export default function ImportMediaModal({
   // 本地引擎连接态：拖入归类需要它（hook 的 `connected` 是必填）。缺它 = drop 恒失败 = 假交互。
   const { status } = useLocalToolStatus();
 
-  // 已注册的 provider 来源（本地 tab 之外的 3 个）。
+  // 已注册的 provider 来源（本地 tab 之外的那些）—— **已按各来源声明的展示顺序排好**（注册表负责排序）。
   const providerSources = useMemo(() => listMediaRefSources(), []);
+
+  // Tab 序列（**唯一派生处**）= 本地伪来源 + 注册表；显示名与顺序全部来自声明（见 MediaRefProvider）。
+  const tabs = useMemo(
+    (): Array<{ key: ImportTab; label: string }> => [
+      { key: LOCAL_TAB, label: LOCAL_TAB_LABEL },
+      ...providerSources.map((p) => ({ key: p.source, label: p.label })),
+    ],
+    [providerSources],
+  );
 
   // 当前 tab 对应的**可拉取来源**（`local` 是写动作、不是来源 ⇒ null）。
   // 唯一一处做这个换算：`load` 用它 + 类型收窄（本地 tab 想拉也拉不了），别在每处各判一次 tab。
@@ -355,27 +369,23 @@ export default function ImportMediaModal({
       {/* 顶栏：来源文字 tab + 搜索 + 关闭（沿用 creative 创作库的 .cl-tabs 语言） */}
       <div className="pk-head">
         <div className="cl-tabs" role="tablist" aria-label="导入来源">
-          {TAB_ORDER.map((t) => (
+          {/* 每个 tab 都来自 `tabs`（本地伪来源 + **已注册**来源）⇒ 结构上不可能出现"未注册的来源 tab"，
+              原先那条 `display:none` 守卫（为硬编码清单兜底的补偿）随之删除。 */}
+          {tabs.map(({ key, label }) => (
             <button
-              key={t}
+              key={key}
               type="button"
               role="tab"
-              aria-selected={tab === t}
+              aria-selected={tab === key}
               className="cl-tab"
-              // 未注册的 provider 来源不显示（防"点了却永远空"）。
-              style={
-                t !== LOCAL_TAB && !providerSources.some((p) => p.source === t)
-                  ? { display: 'none' }
-                  : undefined
-              }
               onClick={() => {
-                setTab(t);
+                setTab(key);
                 // 「本地导入」是**写动作**不是来源：点它（含已选中时再点）直接拉起系统选择器
                 // —— 用户裁定 2026-09-17（方案 A：tab 即动作 + 内容区仍是投放区，两条入口都要活）。
-                if (t === LOCAL_TAB && onLocalFiles) fileInputRef.current?.click();
+                if (key === LOCAL_TAB && onLocalFiles) fileInputRef.current?.click();
               }}
             >
-              {TAB_LABEL[t]}
+              {label}
             </button>
           ))}
         </div>

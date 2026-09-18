@@ -26,6 +26,8 @@ import { generateId } from '../core/idGen.ts';
 import '../core/config.ts';
 import { rescanResources } from '../api/localToolApi.ts';
 import type { ResourceItem } from '../api/localToolApi.ts';
+// 分页读取的唯一实现（本 store 自刷镜像用；不抄上限数字）
+import { fetchAllResourcePages } from '../api/pagedList.ts';
 import {
   persistUrlToUploads,
   moveFile,
@@ -225,6 +227,8 @@ function notify(): void {
  */
 onStorageReady(() => {
   reloadFromStorage();
+  // 【TD-02-59】镜像由 store **自己**刷一次：不再等"某个界面被打开"才被顺便填上（见 refreshFromBackend 注释）
+  void refreshFromBackend();
 });
 
 /** 强制立即落盘（页面卸载兜底 / 测试用）；createDebouncedPersist 已自动注册 pagehide 兜底 */
@@ -348,6 +352,32 @@ export function mergeResourcesFromBackend(items: ResourceItem[]): void {
   const kept = resources.filter((r) => !incoming.has(r.id) && !(r.url && incomingUrls.has(r.url)));
   resources = [...kept, ...Array.from(incoming.values())];
   notify();
+}
+
+/**
+ * 从后端刷新素材索引（**store 自有的填充入口** · TD-02-59 收口）。
+ *
+ * 【为什么必须由 store 自己做】此前「往后端镜像里填条目」**没有归属**：只能靠某个消费方读到之后
+ * 顺便 `mergeResourcesFromBackend(...)`（import 弹窗的 `provider.list` / 素材库面板 / 剧本盒选择器各一处）
+ * —— 于是镜像完不完整**取决于用户打开了哪个界面**，`contentId → url` 解析随**时序**静默失效
+ * （同一份画布快照，先开弹窗后开面板能显示、反过来就可能解析不到）。
+ * 现在：store 在**存储就绪后自己刷一次**（与 `taskStore.initTasks` 同性质：把后端真相拉进内存镜像），
+ * 契约层（`base/media/**`）**只读不写**。面板/选择器仍可把自己读到的分片并入（那是"读即同步"，
+ * 走同一公开入口 `mergeResourcesFromBackend`，不是绕过所有方改内部状态）。
+ *
+ * 失败**不静默**：只 `logger.warn` 留痕（镜像刷新是后台动作，用户侧的可见失败由各面板自己的错误态负责）。
+ */
+export async function refreshFromBackend(): Promise<void> {
+  try {
+    const items = await fetchAllResourcePages({});
+    mergeResourcesFromBackend(items);
+  } catch (e) {
+    logger.warn(
+      'resourceStore',
+      '从后端刷新素材索引失败（镜像可能不完整）',
+      (e as { message?: string })?.message,
+    );
+  }
 }
 
 // 新增素材（folder 指定落目录，缺省 migrated）

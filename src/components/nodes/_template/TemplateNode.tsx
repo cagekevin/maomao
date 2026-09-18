@@ -255,8 +255,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
       aspectRatio: (v: unknown) => setAspectRatio(v as string),
       selectedModel: (v: unknown) => setSelectedModel(v as string),
     },
-    resultField: 'assetUrl', // 成功 / 广播恢复自动 patchData({ assetUrl })
-    recoverable: true,
+    resultKey: 'assetUrl', // 唯一写回路径：成功 / 落盘后 / 广播恢复自动 patchData({ assetUrl })
     // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生图
     validate: () =>
       effectivePrompt?.trim() || chipResolved.refImages.length > 0 ? '' : '请输入提示词',
@@ -289,11 +288,11 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
       );
     },
     onSuccess: (r) => {
-      // 成功：本地 state + 业务记忆；写 node.data 交由 resultField
+      // 成功：本地 state + 业务记忆；写 node.data 交由 resultKey
       setAssetUrl(r.url ?? '');
       setMyPrefs({ model: selectedModel, aspectRatio });
     },
-    // 【真相源契约·onRecover】任务中心完成广播 → 刷新后结果自动恢复（node.data 回填由 recoverable 自动完成）
+    // 【真相源契约·onRecover】任务中心完成广播 → 刷新后结果自动恢复（node.data 回填由 resultKey 自动完成）
     onRecover: ({ resultUrl }) => {
       setAssetUrl(String(resultUrl ?? ''));
     },

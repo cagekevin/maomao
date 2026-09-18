@@ -18,7 +18,6 @@ interface GenConfigLike {
   }) => Promise<{ url?: string; doneUrl?: string } | undefined> | undefined;
   onSuccess?: (r: unknown) => void;
   onRecover?: (d: { resultUrl: string }) => void;
-  recoverable?: boolean;
   resultKey?: string;
   nodeId?: string;
 }
@@ -46,11 +45,11 @@ vi.mock('@xyflow/react', () => ({
 vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
   useNodeGeneration: (config: GenConfigLike) => {
     genConfig = config;
-    // 复刻真实 hook 的广播 handler：recoverable + resultKey 时自动写回（先于 onRecover），
-    // 以对齐 P0-2-b 声明式写回（节点不再手写 patchData）。先保存原 onRecover 避免覆盖造成递归。
+    // 复刻真实 hook 的广播 handler：声明 resultKey 时自动写回（先于 onRecover），
+    // 以对齐 P0-2-b 声明式写回 / TD-01-21 唯一写回路径（节点不再手写 patchData）。先保存原 onRecover 避免覆盖造成递归。
     const originalOnRecover = config.onRecover;
     genConfig.onRecover = (d: { resultUrl: string }) => {
-      if (config.recoverable && config.resultKey && d?.resultUrl) {
+      if (config.resultKey && d?.resultUrl) {
         mockSetNodes((ns: TestNode[]) =>
           ns.map((n: TestNode) =>
             n.id === config.nodeId

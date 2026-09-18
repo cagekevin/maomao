@@ -72,13 +72,16 @@ export interface UseNodeGenerationOptions {
   /** 任务上报信息 */
   type: GenerationTypeInfo;
   validate?: GenerationValidate;
-  run?: GenerationRunner;
+  /** 真执行器。必填：本契约的价值建立在「有生成可跑」之上，缺它是调用方漏传，编译期即拒（不再用 `!` 掩盖） */
+  run: GenerationRunner;
   onSuccess?: GenerationOnSuccess;
   onRecover?: GenerationOnRecover;
-  /** 声明后成功时自动 patchData({ [resultKey]: url })，省去 onSuccess 手写写回 */
+  /**
+   * 【唯一写回路径】声明后由本 hook 自动写回 `node.data[resultKey]`：
+   * 成功首写 → 落盘后持久 URL 覆盖 → 收到 task-completed 广播恢复，**三个时点共用这一条**。
+   * 声明它即表示「本节点的结果可随任务中心恢复」，**不再另设开关**（TD-01-21）。
+   */
   resultKey?: string;
-  /** 声明后收到 task-completed 自动回填 node.data[resultKey] */
-  recoverable?: boolean;
 }
 
 export interface NodeGenerationApi {
@@ -119,13 +122,14 @@ function promptPreview(p: string | undefined): string {
  *  - Agent / 测试 / 脚本通过 runNodeGeneration(nodeId) 驱动任意节点生成
  *
  * 【真相源契约（节点必守，P0）】任务中心为结果权威源，node.data 为渲染缓存副本：
- *  1. onSuccess 必须把结果写回 node.data（如 patchData({ assetUrl: r.url })），
- *     否则刷新后节点因 data 无持久 URL 而丢结果（结果只在任务中心）。
- *     对照样板：ImageGenerate / VideoGenerate.onSuccess 写 data.assetUrl / data.videoUrl。
- *  2. 异步可恢复的节点必须声明 onRecover（见下），收到 agent:task-completed 广播
- *     把持久 resultUrl 写回 node.data，刷新后自动恢复显示。
- *  3. 文本类节点（结果本体在 data.text、任务中心 resultUrl 为空）不适用 onRecover，
- *     由 data.text 随画布快照落盘恢复，无需传此回调。
+ *  1. 结果写回 node.data **只有一条路**：声明 `resultKey`（本 hook 唯一写回点，经 useNodeData 落盘）。
+ *     成功首写 / 落盘后覆盖持久 URL / 广播恢复，三处**共用**该声明。
+ *     **禁止**节点在 onSuccess / onRecover 里再 patchData 同一字段 —— 那是同字段的第二份写回
+ *     （曾以「幂等双写无害」被容忍；2026-09-18 收口，见 TD-01-21：并存会掩盖「谁是唯一写回」）。
+ *  2. `onSuccess` / `onRecover` 只做**非 data 副作用**（本地 state 同步、业务记忆、节点重建等）。
+ *     对照样板：ImageGenerate / VideoGenerate 的 onSuccess 只 setAssetUrl / setVideoUrl + setPrefs。
+ *  3. 文本类节点（结果本体在 data.text、任务中心 resultUrl 为空）**不声明** resultKey，
+ *     由 data.text 随画布快照落盘恢复，故也不会被广播恢复回填。
  *  4. 方向单向：写只走本契约，刷新后任务中心 → 节点回填，节点不回写任务中心。
  *
  * 【瞬态收口·阶段二】loading/error（瞬态）归 nodeRuntimeStore（按 nodeId 内存 Map），
@@ -139,15 +143,11 @@ function promptPreview(p: string | undefined): string {
  *     type: { type: 'image', prompt: p, modelName: modelId },  // 任务上报信息
  *     validate: () => (p.trim() ? '' : '请输入提示词'),          // 前置校验，返回错误文案或空串
  *     run: async ({ progress }) => generateImage({...}, progress),  // 真执行器
- *     onSuccess: (r, ctx) => { setAssetUrl(r.url); setImgPrefs({...}); },  // 成功回写 node.data
- *     onRecover: ({ resultUrl }) => { setAssetUrl(resultUrl); patchData({ assetUrl: resultUrl }) },  // 广播回填（异步可恢复节点必传）
- *     // ── P0-2-b 声明式写法（推荐，省去手写「写回 node.data」样板）──
- *     resultKey: 'assetUrl',   // 声明后成功时自动 patchData({[resultKey]: r.url})
- *     recoverable: true,       // 声明后收到 task-completed 自动回填 patchData({[resultKey]: resultUrl})
- *     // 声明了 resultKey/recoverable 即可省略 onSuccess 与 onRecover 里的写 node.data 部分、
- *     // 但 onSuccess 中 UI state 回写（如 setAssetUrl）与业务逻辑仍需保留。
- *     // 文本类节点（结果在 data.text、任务中心 resultUrl 为空）不传 recoverable。如 onRecover 不适用此自动回填，可省略。
- *     // 注意：onRecover/onSuccess 与声明式并存时，若都写了同一字段会幂等双写（无害）。
+ *     // ── 声明式写回（唯一写回路径）──
+ *     resultKey: 'assetUrl',   // 成功首写 / 落盘后覆盖 / 广播恢复 → 一律自动 patchData({ assetUrl })
+ *     // 回调只写「非 data 副作用」：UI state 同步、业务记忆、节点重建
+ *     onSuccess: (r) => { setAssetUrl(r.url ?? ''); setImgPrefs({...}); },
+ *     onRecover: ({ resultUrl }) => { setAssetUrl(resultUrl); },
  *   })
  *   // gen = { loading, error, start, stop }
  *
@@ -168,14 +168,23 @@ export function useNodeGeneration({
   onSuccess,
   onRecover,
   resultKey,
-  recoverable,
 }: UseNodeGenerationOptions): NodeGenerationApi {
-  // P0-2-b：声明 resultKey/recoverable 后可省去节点手写「写回 node.data」样板（经 useNodeData 统一 patchData）
+  // P0-2-b：声明 resultKey 后，「写回 node.data」由本 hook 统一承担（经 useNodeData.patchData）
   const { patchData } = useNodeData(nodeId);
   const resultKeyRef = useRef<string | undefined>(resultKey);
   resultKeyRef.current = resultKey;
-  const recoverableRef = useRef(!!recoverable);
-  recoverableRef.current = !!recoverable;
+  // 【TD-01-21 唯一写回路径】data[resultKey] 只经此处写：成功首写 / 落盘后覆盖 / 广播恢复三处共用。
+  // 收口前这三处各写一遍 `const key = resultKeyRef.current; if (key) patchData({[key]: …})`（同判据 3 份）。
+  const writeBackResult = useCallback(
+    (url: string | undefined) => {
+      const key = resultKeyRef.current;
+      if (key && url) patchData({ [key]: url });
+    },
+    [patchData],
+  );
+  // 广播 handler 的订阅只在挂载时注册一次（见下方 effect），故用 ref 取最新写回实现（同 onSuccessRef 的理由）
+  const writeBackRef = useRef(writeBackResult);
+  writeBackRef.current = writeBackResult;
   // 【瞬态收口·阶段二】loading/error 统一归 nodeRuntimeStore（内存级，按 nodeId 键，
   // 复制天然隔离）。对外接口不变：本 hook 仍返回 { loading, error }，节点代码几乎不动。
   const { loading, error } = useNodeRuntime(nodeId);
@@ -185,7 +194,7 @@ export function useNodeGeneration({
   // 本函数第一句）已覆盖同 tick 重入——claim 成功即证明无在跑（唯一置位点就是本函数，各退出路径皆复位），
   // 故 runningRef 在本函数内恒为 false（死 ref）。防重实际由 claim + 下方 `loading` 守卫共同承担。
 
-  const runRef = useRef<GenerationRunner | undefined>(run);
+  const runRef = useRef<GenerationRunner>(run);
   runRef.current = run;
   const onSuccessRef = useRef<GenerationOnSuccess | undefined>(onSuccess);
   onSuccessRef.current = onSuccess;
@@ -249,18 +258,14 @@ export function useNodeGeneration({
         prompt: t.prompt,
         modelName: t.modelName,
         signal: ctl.signal,
-        run: (args) => runRef.current!(args),
-        // 首写：resultKey 自动 patchData + 节点 onSuccess 特化（与旧实现同序：先写回、后落盘）
+        run: (args) => runRef.current(args),
+        // 首写：写回「应显示的 URL」+ 节点 onSuccess 特化（与旧实现同序：先写回、后落盘）
         settle: (url, r, taskCtl) => {
-          const resultKey = resultKeyRef.current;
-          if (resultKey && url) patchData({ [resultKey]: url });
+          writeBackResult(url);
           onSuccessRef.current?.(r, taskCtl);
         },
-        // 落盘后的持久 URL 覆盖写回（旧「patchData(持久)」一步；原语保证仅在与显示 URL 不同时调用）
-        onPersisted: (persistedUrl) => {
-          const resultKey = resultKeyRef.current;
-          if (resultKey) patchData({ [resultKey]: persistedUrl });
-        },
+        // 落盘后的持久 URL 覆盖写回（原语保证仅在与显示 URL 不同时调用）
+        onPersisted: writeBackResult,
         onFail: (msg) => updateNodeRuntime(nodeId, { error: msg }),
         onAbort: () => updateNodeRuntime(nodeId, { error: '' }),
         logTag: '生成',
@@ -272,7 +277,7 @@ export function useNodeGeneration({
       updateNodeRuntime(nodeId, { loading: false });
       releaseNodeRun(nodeId); // 【P1-E】释放单节点互斥锁
     }
-  }, [loading, nodeId, patchData]);
+  }, [loading, nodeId, writeBackResult]);
 
   // stop：真中断底层请求（Step C）。请求经 signal 传到 imageApi/videoApi，abort 后 fetch/轮询中断。
   const stop = useCallback(() => {
@@ -293,8 +298,8 @@ export function useNodeGeneration({
 
   // 【精准节点回填】监听异步任务恢复轮询的完成广播（taskStore/pollTask 发 agent:task-completed，经 eventBus）。
   // 只有「任务归属的节点」（detail.nodeId === 本 nodeId）才响应 → 精准：其他在跑的/不相关的节点忽略。
-  // 收到后回调 onRecover(detail)，由各节点把 resultUrl 写回 node.data（刷新后节点卡片自动恢复显示结果）。
-  // 用 ref 存最新 onRecover，监听只在挂载时注册一次，避免每次渲染重建。
+  // 收到后：data[resultKey] 由 writeBackResult 回填（唯一写回路径），再回调 onRecover 做非 data 副作用。
+  // 用 ref 存最新回调，监听只在挂载时注册一次，避免每次渲染重建。
   useEffect(() => {
     if (!nodeId) return;
     const handler = (payload: unknown) => {
@@ -303,11 +308,7 @@ export function useNodeGeneration({
       // 只认本节点 + 已完成 + 有结果 URL 的广播，其余忽略（精准）
       if (d.nodeId !== nodeId) return;
       if (d.status !== 'completed' || !d.resultUrl) return;
-      // P0-2-b：声明 recoverable + resultKey 后自动回填 node.data[resultKey]，省去 onRecover 手写写回样板
-      if (recoverableRef.current) {
-        const resultKey = resultKeyRef.current;
-        if (resultKey) patchData({ [resultKey]: d.resultUrl });
-      }
+      writeBackRef.current(d.resultUrl);
       onRecoverRef.current?.(d);
     };
     return subscribe('agent:task-completed', handler);

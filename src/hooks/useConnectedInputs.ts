@@ -83,7 +83,7 @@ import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.t
  * 字段真源 = 各节点**实际写回**的 data 字段（2026-09-12 逐一核对代码写点）：
  *   - `assetNode`         → assetUrl（`replaceNodeImage` 唯一写入口；assetType 可为 image/video/audio）
  *   - `imageGenerateNode` → assetUrl（生成成功 / 任务恢复回写）
- *   - `videoGenerateNode` → videoUrl（useGenerateNode 声明 `resultField:'videoUrl'`）
+ *   - `videoGenerateNode` → videoUrl（useGenerateNode 声明 `resultKey:'videoUrl'`）
  *   - `panoramaNode`      → assetUrl（单角度截图写回；多角度走 spawn 图片盒子）
  *   - `director3dNode`    → assetUrl（退出导演台写落盘缩略图）
  * ⚠️ 新增 / 改名产出字段 = 改此表一行；漏改即下游静默拿不到数据（`check:node-data` 对账）。

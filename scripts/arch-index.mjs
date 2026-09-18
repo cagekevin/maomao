@@ -84,6 +84,38 @@ const AREAS = [
  */
 const RE_STATE = /^[-*]\s*\**本区域状态\**\s*[：:]\s*([^\n]+)/m;
 
+/**
+ * 状态行**漂移**检测 —— 与 `RE_STATE` **分开、不合并**（漂移必须可见，不许用"更宽松的解析"掩盖）。
+ *
+ * 【为什么需要（2026-09-18 工具债当场修 · A10/A11）】`RE_STATE` 只认 `_template.md` §七 的规范标签
+ * `本区域状态`。实测**16 份**轮次文件写的是 `本区状态`（少一个「域」字）⇒ 这些文件**不被认作状态源**，
+ * 而 `readState` 会**静默回退**到更旧的轮次文件 —— index 于是可能显示**过期状态**；
+ * 更糟的是渲染结果常常没变 ⇒ `current !== next` 校验**照样通过**（**假绿**）。
+ * 实证：区域 01 本轮已清零，index 仍显示 🔴「有债待还」，直到本轮逐处回改标签才暴露。
+ * ⇒ 漂移必须独立报出：`--write` 与校验模式**都**红（否则 = 拿一个失真的进度源当真相）。
+ *
+ * 【为什么不干脆放宽 `RE_STATE` 认它】那会让「同一标签两种写法」永久合法 = 两名指一物；
+ * 正解是**回改原文 + 让漂移可见**（铁律 6 / A7）。
+ */
+const RE_STATE_DRIFT = /^[-*]\s*\**本区状态\**\s*[：:]/m;
+
+/** 扫描全部轮次文件，返回写了「近失标签」的文件名（行首列表项 + 冒号，与 RE_STATE 同款收窄防误报） */
+function findStateDrift() {
+  const hits = [];
+  for (const [nn] of AREAS) {
+    for (const f of listRounds(nn)) {
+      let text;
+      try {
+        text = readFileSync(join(ARCH_DIR, f), 'utf8');
+      } catch {
+        continue;
+      }
+      if (RE_STATE_DRIFT.test(text)) hits.push(f);
+    }
+  }
+  return hits;
+}
+
 /** 从文件名取日期 —— 文件名自带 `<YYYY-MM-DD>.md` 后缀，是唯一可靠的时间戳 */
 function dateOf(f) {
   const m = f.match(/(\d{4}-\d{2}-\d{2})\.md$/);
@@ -302,8 +334,21 @@ const next = render();
 const WRITE = process.argv.includes('--write');
 const current = existsSync(INDEX_PATH) ? readFileSync(INDEX_PATH, 'utf8') : '';
 
+// 状态行标签漂移：先报（它会让 index 静默回退到更旧轮次 ⇒ 显示过期状态而渲染结果可能没变）
+const drift = findStateDrift();
+if (drift.length) {
+  console.error('❌ 状态行标签漂移：以下轮次文件写的是 `本区状态`，规范是 `本区域状态`（见 _template.md §七）：');
+  for (const f of drift) console.error('   · ' + f);
+  console.error('   ⇒ 这些文件**不被认作状态源**，index 会静默回退到更旧的轮次（可能显示过期状态，且校验照过）。');
+  console.error('   修法：把该行的 `本区状态` 改成 `本区域状态`，再重跑本脚本。');
+}
+
 if (WRITE) {
   writeFileSync(INDEX_PATH, next);
+  if (drift.length) {
+    console.error('⚠️ 已重生成，但状态源漂移未解决 ⇒ 进度表可能失真（见上）。退出码 1。');
+    process.exit(1);
+  }
   console.log('✅ 已重生成 daily/架构日志/index.md（区域 ' + AREAS.length + ' 个）');
   process.exit(0);
 }
@@ -325,5 +370,7 @@ if (current !== next) {
   if (shown.length) console.error('\n' + shown.join('\n'));
   process.exit(1);
 }
+
+if (drift.length) process.exit(1);
 
 console.log('✅ index.md 与轮次文件实况一致（区域 ' + AREAS.length + ' 个）');

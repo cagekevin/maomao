@@ -59,17 +59,17 @@ vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({
   useConnectedInputs: mocks.useConnectedInputs,
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
-// useNodeGeneration：记录 config，复刻真实 hook 的声明式写回（resultKey + recoverable）以对齐 P0-2-c。
+// useNodeGeneration：记录 config，复刻真实 hook 的声明式写回（唯一写回路径 resultKey）以对齐 P0-2-c / TD-01-21。
 // 桩经 h.setNodes 写入 node.data，供断言「成功/广播回填」后 data 自动更新（不再依赖节点手写 patchData）。
 let genConfig: any = null;
 const getGenConfig = () => genConfig;
 vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
   useNodeGeneration: (config: any) => {
     genConfig = config;
-    // 复刻真实的广播 handler：recoverable + resultKey 且广播带 resultUrl 时先自动写回，再透传原 onRecover
+    // 复刻真实的广播 handler：声明 resultKey 且广播带 resultUrl 时先自动写回，再透传原 onRecover
     const originalOnRecover = config.onRecover;
     genConfig.onRecover = (d: any) => {
-      if (config.recoverable && config.resultKey && d?.resultUrl) {
+      if (config.resultKey && d?.resultUrl) {
         h.setNodes((ns: any) =>
           ns.map((n: any) =>
             n.id === config.nodeId

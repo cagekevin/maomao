@@ -189,6 +189,8 @@ core/contentStore（STORAGE_KEYS 路由 + resolveBackend 唯一判定 + 失败�
 就绪度：storageAdapter.isStorageReady() / onStorageReady(cb)（非插件环境恒就绪）
   loadFromLocal 未就绪 → 返回 undefined 且不写缓存（杜绝「未加载＝不存在」的粘性假真相）
   projectStore / resourceStore / appSettings 就绪后重读一次
+  resourceStore 另在此时**从后端刷新镜像一次**（refreshFromBackend：全量 fetchResources → mergeResourcesFromBackend；
+    镜像填充归 store 自身 —— 契约层 base/media **不写 store**，只读映射）
 
 kvStore.ts = re-export 壳（仅 CANVAS_STATE_PREFIX + kvGet/kvSet/kvDelete 转发，不参与读写链路）
 唯一例外：conversationState.ts 的 1 处裸 sGet（KV 迁移回读旧 local）
@@ -202,13 +204,14 @@ kvStore.ts = re-export 壳（仅 CANVAS_STATE_PREFIX + kvGet/kvSet/kvDelete 转�
 ## 三′ · 可引用媒体源链路（横切地基 · `base/media/`）
 
 **一句话**：把「有哪些媒体可以被引用」从各消费方里抽出，收口为**一处注册表 + 一种形状**（`MediaRef`）；本层只做映射，数据仍取自既有真源。
+**来源展示面由来源自己声明**（`MediaRefProvider.label` / `.order` / 契约条款「`categories()[0]` = 默认分类」）：消费方派生 tab 序列（`listMediaRefSources()` 已按 `order` 排好），**不自持清单** ⇒ 新增来源 = 消费方改 0 行。
 **红线**：`base/media/` **禁** import 任何非 base 目录（`check:arch` 规则 2 反向判据）；本层**不持久化、不广播**。
 
 ```
 消费方（两个入口共用同一弹窗）：
   ├→ 画布右键菜单「导入」（base/canvas/canvasContextMenu → src/App.tsx）
   │     → base/panels/ImportMediaModalHost（FullscreenModal 薄壳）
-  │         → base/panels/ImportMediaModal（4 来源 tab + 卡片网格 + 底栏；**只认 MediaRef**）
+  │         → base/panels/ImportMediaModal（来源 tab（本地伪来源 + **注册表按 order 派生**）+ 卡片网格 + 底栏；**只认 MediaRef**）
   │             落地动作由宿主注入：onPick → App 建 assetNode；onLocalFiles → App createNodeFromFile
   └→ 剪辑器素材面板「导入」（videoEditor/.../assets/views/media.tsx）
         → 同一个 ImportMediaModalHost
@@ -223,7 +226,7 @@ kvStore.ts = re-export 壳（仅 CANVAS_STATE_PREFIX + kvGet/kvSet/kvDelete 转�
       │         │                                      + base/core/utils.toAbsoluteFileUrl（url 归一）
       │         │                                      ← base/media/canvasNodesBridge（画布节点只读快照）
       │         │                                      （**无 categories** = 无第二层筛选）
-      │         ├→ providers/librarySource    source='library'   ← base/api/localToolApi.fetchResources（分页首屏）
+      │         ├→ providers/librarySource    source='library'   ← base/api/pagedList.fetchAllResourcePages（取全量：按 totalPages 取齐）
       │         │                                      「全部」= folderExact:'migrated'（**精确** = 未归类）
       │         │                                      人物/场景/道具 = folder:'migrated/…'（**前缀**，含更深子目录）
       │         │                                      + base/utils/assetType.detectAssetType

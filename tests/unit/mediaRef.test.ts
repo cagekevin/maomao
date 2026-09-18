@@ -123,6 +123,55 @@ describe('mediaRefRegistry：注册表行为', () => {
   });
 });
 
+// ── 【TD-02-47 母体】来源的**展示面**（顺序/显示名/默认分类）由来源自己声明，消费方 0 行接入 ──
+describe('mediaRefRegistry：展示顺序由 provider.order 派生（TD-02-47）', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('★顺序来自**声明**而非注册顺序（逆序注册仍按 order 排）—— 这就是"新增来源消费方改 0 行"的机制', async () => {
+    const { registerMediaRefSource, listMediaRefSources, __resetMediaRefSourcesForTest } =
+      await import('../../src/components/base/media/mediaRefRegistry');
+    __resetMediaRefSourcesForTest();
+    // 故意按与 order 相反的顺序注册
+    registerMediaRefSource({ source: 'canvas', label: '画布', order: 3, list: async () => [] });
+    registerMediaRefSource({ source: 'generated', label: '生成', order: 1, list: async () => [] });
+    registerMediaRefSource({ source: 'library', label: '素材库', order: 2, list: async () => [] });
+
+    expect(listMediaRefSources().map((p) => p.source)).toEqual(['generated', 'library', 'canvas']);
+    // 显示名随来源一起下发（消费方不写映射）
+    expect(listMediaRefSources().map((p) => p.label)).toEqual(['生成', '素材库', '画布']);
+  });
+
+  it('未声明 order 的来源排在所有显式声明者之后（同缺省者保持注册顺序）', async () => {
+    const { registerMediaRefSource, listMediaRefSources, __resetMediaRefSourcesForTest } =
+      await import('../../src/components/base/media/mediaRefRegistry');
+    __resetMediaRefSourcesForTest();
+    registerMediaRefSource({ source: 'canvas', label: '画布', list: async () => [] }); // 无 order
+    registerMediaRefSource({ source: 'library', label: '素材库', order: 2, list: async () => [] });
+    registerMediaRefSource({ source: 'generated', label: '生成', list: async () => [] }); // 无 order
+
+    expect(listMediaRefSources().map((p) => p.source)).toEqual(['library', 'canvas', 'generated']);
+  });
+
+  it('内置来源都显式声明 order 且互不相同（否则顺序退化为注册序 = 依赖 import 顺序的隐式耦合）', async () => {
+    const { generatedSourceProvider } =
+      await import('../../src/components/base/media/providers/generatedSource');
+    const { librarySourceProvider } =
+      await import('../../src/components/base/media/providers/librarySource');
+    const { canvasSourceProvider } =
+      await import('../../src/components/base/media/providers/canvasSource');
+    const g = generatedSourceProvider.order ?? -1;
+    const l = librarySourceProvider.order ?? -1;
+    const c = canvasSourceProvider.order ?? -1;
+    expect(g).toBeGreaterThan(-1); // 都声明了
+    expect(l).toBeGreaterThan(-1);
+    expect(c).toBeGreaterThan(-1);
+    expect(new Set([g, l, c]).size).toBe(3); // 互不相同
+    expect(l).toBeGreaterThan(g); // 用户裁定 2026-09-17：生成在素材库之前
+  });
+});
+
 describe('generatedSource：分类 = 可引用媒体域（TD-02-49）', () => {
   it('分类清单由 MediaRefType 派生：全部 + 三类，且**不含 text**', async () => {
     const { generatedSourceProvider } =
@@ -231,12 +280,14 @@ describe('providers：映射（复用既有真源）', () => {
     const { canvasSourceProvider } =
       await import('../../src/components/base/media/providers/canvasSource');
     const all = await canvasSourceProvider.list();
+    // 【TD-02-46】列表条目 = 媒体 | 文件夹（`MediaRefEntry`）—— 要读媒体字段必须先窄化（画布来源本就不产文件夹）
+    const media = all.filter((r) => !r.isFolder);
 
     // ① 顺序修复：原实现在解析 url **之前**按 `!media.type` 跳过 ⇒ 这类节点被静默漏掉
-    expect(all.map((r) => r.ref)).toEqual(['canvas:n_file']);
-    expect(all[0].type).toBe('image'); // 类型由唯一判型入口按解析出的地址判
-    expect(all[0].contentId).toBe('sha1:abc');
-    expect(String(all[0].url)).toContain('/files/sha1abc.png');
+    expect(media.map((r) => r.ref)).toEqual(['canvas:n_file']);
+    expect(media[0].type).toBe('image'); // 类型由唯一判型入口按解析出的地址判
+    expect(media[0].contentId).toBe('sha1:abc');
+    expect(String(media[0].url)).toContain('/files/sha1abc.png');
 
     // ② 「媒体节点但解析不出地址」= 必须留痕（不阻断 ≠ 不可见）；非媒体节点则**不**留痕
     const warned = warnSpy.mock.calls.map((c) => String(c[1]));
@@ -303,6 +354,14 @@ describe('providers：映射（复用既有真源）', () => {
     const folderRef = lib.find((r) => r.ref === 'library:f1');
     expect(folderRef?.isFolder).toBe(true);
     expect(folderRef?.folder).toBe('migrated');
+    // 【TD-02-46 收口】文件夹条目**没有 `type` 字段** —— 此前谎报 `type:'image'`（注释自述"仅为满足类型"），
+    // 漏判 `isFolder` 的消费方会把它当图片（建出指向**目录**的资产节点）。
+    // 类型层已用判别联合 `MediaRefEntry = MediaRef | MediaRefFolder` 钉死，这里再把**运行时形状**钉一次。
+    expect(Object.keys(folderRef ?? {})).not.toContain('type');
+
+    // 对照组：同批的**媒体**条目仍带 type（且按新契约**必须先窄化**才读得到）
+    const mediaOnly = lib.filter((r) => !r.isFolder);
+    expect(mediaOnly.find((r) => r.ref === 'library:r1')?.type).toBe('image');
     expect(lib.some((r) => r.ref === 'library:r1')).toBe(true);
 
     // 生成源：分类维度是媒体类型，目录卡片无意义 → 剔除。

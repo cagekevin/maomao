@@ -19,7 +19,7 @@
  */
 import { logger } from '../core/logger.ts';
 import type {
-  MediaRef,
+  MediaRefEntry,
   MediaRefProvider,
   MediaRefQuery,
   MediaRefSearchResult,
@@ -37,9 +37,21 @@ export function registerMediaRefSource(provider: MediaRefProvider): void {
   providers.set(source, provider);
 }
 
-/** 列出全部已注册来源（消费方生成 Tab 用）。 */
+/**
+ * 列出全部已注册来源（消费方生成 Tab 用）—— **按展示顺序**（`provider.order` 升序；
+ * 未声明 order 的排在其后，彼此保持**注册顺序**；`Array.sort` 稳定 ⇒ 同值不乱序）。
+ *
+ * 【为什么排序在注册表（TD-02-47）】顺序是**来源的展示属性**，且每个消费方都必须拿到**同一份**顺序：
+ * 让每个消费方各排一次 = 又一份规则（M3），而硬编码清单更糟 —— 新增来源不会出现在消费方，
+ * 「消费方改 0 行」的契约承诺当场失效。注册表是来源集合的所有方 ⇒ 排序归它。
+ */
 export function listMediaRefSources(): MediaRefProvider[] {
-  return [...providers.values()];
+  return [...providers.values()].sort((a, b) => orderOf(a) - orderOf(b));
+}
+
+/** 展示顺序键：未声明 `order` = 无穷大（排在所有显式声明者之后）。 */
+function orderOf(p: MediaRefProvider): number {
+  return typeof p.order === 'number' ? p.order : Number.MAX_SAFE_INTEGER;
 }
 
 /**
@@ -59,7 +71,7 @@ function requireProvider(source: MediaRefSource): MediaRefProvider {
  * 校验 provider 返回的 url 是否已是绝对 URL（**只留痕，不抛**）。
  * 属 provider 实现瑕疵，不该炸掉整个面板；但必须可观测（防"静默少前缀 → 破图"）。
  */
-function warnRelativeUrls(source: MediaRefSource, items: MediaRef[]): void {
+function warnRelativeUrls(source: MediaRefSource, items: MediaRefEntry[]): void {
   const bad = items.filter((it) => it.url && !/^(https?:|data:|blob:|\/\/)/.test(it.url));
   if (bad.length) {
     logger.warn('mediaRef', 'provider 返回了非绝对 URL（url 契约要求已归一）', {
@@ -74,7 +86,7 @@ function warnRelativeUrls(source: MediaRefSource, items: MediaRef[]): void {
 export async function queryMediaRefs(
   source: MediaRefSource,
   query?: MediaRefQuery,
-): Promise<MediaRef[]> {
+): Promise<MediaRefEntry[]> {
   const provider = requireProvider(source);
   const items = await provider.list(query);
   warnRelativeUrls(source, items);
@@ -91,7 +103,7 @@ export async function searchMediaRefs(
   keyword: string,
   query?: MediaRefQuery,
 ): Promise<MediaRefSearchResult> {
-  const items: MediaRef[] = [];
+  const items: MediaRefEntry[] = [];
   const failures: MediaRefSearchResult['failures'] = [];
 
   await Promise.all(

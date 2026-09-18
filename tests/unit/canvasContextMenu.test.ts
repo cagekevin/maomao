@@ -31,7 +31,7 @@ function makeCtx(over: Partial<MenuActionCtx> = {}): MenuActionCtx {
     addNodeFromMenu: vi.fn(),
     togglePinTool: vi.fn(),
     prefetchHeavyNode: vi.fn(),
-    uploadRef: { current: null },
+    openImport: vi.fn(),
     nodeById: () => undefined,
     selectedCount: () => 0,
     duplicateSelected: vi.fn(),
@@ -65,32 +65,40 @@ describe('buildCanvasMenuItems（空白右键）', () => {
     expect(ls).toContain('图片');
     expect(ls).toContain('视频');
     expect(ls).toContain('剧本盒子');
-    // 【2026-09-17 · docs/136】原「上传」改「导入」：菜单项改开复用弹窗（4 来源），
-    // 未注入 `openImport` 时才回退旧的直接选文件。
+    // 【2026-09-17 · docs/136】原「上传」改「导入」：菜单项改开复用弹窗（本地 + 注册来源）。
     expect(ls).toContain('导入');
   });
 
-  it('「导入」优先走 openImport（复用弹窗）；未注入时回退 uploadRef.click（向后兼容）', () => {
+  it('「导入」只有一条路径：恒走 ctx.openImport（旧回退分支已随 TD-02-51 删除）', () => {
     const openImport = vi.fn();
-    const click = vi.fn();
-    const items = buildCanvasMenuItems(
-      makeCtx({ openImport, uploadRef: { current: { click } as never } }),
-    );
+    const items = buildCanvasMenuItems(makeCtx({ openImport }));
     const upload = keyed(items).find((i) => i.key === 'upload') as
       { onClick?: () => void } | undefined;
     upload?.onClick?.();
     expect(openImport).toHaveBeenCalledTimes(1);
-    expect(click).not.toHaveBeenCalled(); // 有 openImport 时不再直连文件选择器
+  });
 
-    // 未注入 openImport → 回退旧路径
-    const click2 = vi.fn();
-    const items2 = buildCanvasMenuItems(
-      makeCtx({ uploadRef: { current: { click: click2 } as never } }),
-    );
-    const upload2 = keyed(items2).find((i) => i.key === 'upload') as
-      { onClick?: () => void } | undefined;
-    upload2?.onClick?.();
-    expect(click2).toHaveBeenCalledTimes(1);
+  it('★类型级：MenuActionCtx **必填** openImport —— 漏注入 = 编译错误（这才是替代旧运行期回退的机制）', () => {
+    // 这条断言的意义**全在类型上**：若 `openImport` 哪天退回可选，`@ts-expect-error` 会变成
+    // 「未使用指令」⇒ `tsc --noEmit` 直接报错（tests 已并入 tsconfig include）⇒ 本锁触发。
+    // 旧的运行期回退（`ctx.uploadRef.current?.click()`）把同一件事降级成"点了没反应"。
+    // @ts-expect-error 漏注入 openImport 必须编译失败
+    const missingOpenImport: MenuActionCtx = {
+      pinnedTools: [],
+      addNodeFromMenu: vi.fn(),
+      togglePinTool: vi.fn(),
+      prefetchHeavyNode: vi.fn(),
+      nodeById: () => undefined,
+      selectedCount: () => 0,
+      duplicateSelected: vi.fn(),
+      copyNodeImage: vi.fn(),
+      deleteNode: vi.fn(),
+      renameNode: vi.fn(),
+      applyUngroup: vi.fn(),
+      applyGroup: vi.fn(),
+      applyDeleteSelected: vi.fn(),
+    };
+    expect(missingOpenImport.pinnedTools).toEqual([]);
   });
 
   it('pinnedTools 固定节点升入一级（pinned-<type>），且二级仍保留（图钉取消把手，禁删）', () => {

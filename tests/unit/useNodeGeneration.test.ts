@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 /**
- * useNodeGeneration 单测（P0-2-b resultKey/recoverable 声明式写回）。
- * 三个关键行为：
- *  1. 非破坏——默认不传 resultKey/recoverable 时，成功路径不自动写 node.data；
- *  2. resultKey 声明后，成功时自动 patchData({[resultKey]: url})；
- *  3. recoverable + resultKey 声明后，收到 task-completed 广播自动回填。
+ * useNodeGeneration 单测（P0-2-b 声明式写回；TD-01-21 已收口为**唯一写回路径 resultKey**）。
+ * 四个关键行为：
+ *  1. 非破坏——默认不传 resultKey 时，成功路径不自动写 node.data；
+ *  2. resultKey 声明后，成功时自动 patchData({[resultKey]: url})，onSuccess 仍会调用；
+ *  3. resultKey 声明后，收到 task-completed 广播自动回填；
+ *  4. 未声明 resultKey（文本类节点）→ 广播**不**写回（写回判据只此一条，不再有第二个开关）。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
@@ -72,7 +73,7 @@ const baseProps = {
   run: async () => ({ ok: true, url: 'http://x/y.png' }),
 };
 
-describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
+describe('useNodeGeneration — resultKey 声明式写回（唯一写回路径）', () => {
   beforeEach(() => {
     patchDataMock.mockClear();
     taskCtlMock.done.mockClear();
@@ -106,9 +107,9 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
     expect(onSuccess).toHaveBeenCalledTimes(1);
   });
 
-  it('recoverable + resultKey：收到完成广播自动回填，且过滤非本节点/非完成', async () => {
+  it('resultKey：收到完成广播自动回填，且过滤非本节点/非完成', async () => {
     const { result: _result } = renderHook(() =>
-      useNodeGeneration({ ...baseProps, resultKey: 'assetUrl', recoverable: true }),
+      useNodeGeneration({ ...baseProps, resultKey: 'assetUrl' }),
     );
     // 先让 start 抛错无关：直接测广播路径
     await act(async () => {
@@ -135,6 +136,20 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
     });
     expect(patchDataMock).toHaveBeenCalledTimes(1);
     expect(patchDataMock).toHaveBeenCalledWith({ assetUrl: 'http://x/rec.png' });
+  });
+
+  it('未声明 resultKey（文本类节点）→ 完成广播不写回（写回判据只此一条）', async () => {
+    // 【TD-01-21】原先写回判据有两份（resultKey + recoverable 开关）；收口后只认 resultKey。
+    // 本用例锁住「没有 resultKey 就不写回」，防未来再把第二个开关加回来。
+    renderHook(() => useNodeGeneration(baseProps));
+    await act(async () => {
+      (busState.handler as unknown as (...a: any[]) => void)({
+        nodeId: 'n1',
+        status: 'completed',
+        resultUrl: 'http://x/nope.png',
+      });
+    });
+    expect(patchDataMock).not.toHaveBeenCalled();
   });
 
   it('run 抛网络异常 → logger.error 记录 classifyError 分类（network，可重试）', async () => {

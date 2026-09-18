@@ -164,7 +164,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
 
   // 供应商/模型 + 默认模型回填 + useNodeGeneration(统一契约) 收进 useGenerateNode（P0-2 收口）。
   // 文本特例：模型域 'chat'（buildAllModels）与上报类型 'text' 不一致，故分 type/reportType 传。
-  // prefs/selectedModel 由本节点持有并传入（无死锁）；结果写在 data.text（随画布快照恢复），不接 resultKey/recoverable。
+  // prefs/selectedModel 由本节点持有并传入（无死锁）；结果写在 data.text（随画布快照恢复），不接 resultKey。
   const {
     providers,
     primary,

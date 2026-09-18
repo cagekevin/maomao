@@ -51,6 +51,9 @@ const GENERATED_CATEGORIES: Array<{ key: string; label: string; query: Partial<M
 export const generatedSourceProvider: MediaRefProvider = {
   source: 'generated',
   label: '生成',
+  // 展示顺序（用户裁定 2026-09-17：生成在素材库之前）—— 顺序由**来源自己声明**，
+  // 消费方按 listMediaRefSources() 派生，不再自持顺序清单（TD-02-47）。
+  order: 1,
   categories: () =>
     GENERATED_CATEGORIES.map((c) => ({
       key: c.key,

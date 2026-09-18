@@ -35,13 +35,9 @@ import { toAbsoluteFileUrl, fileNameFromUrl } from '../../core/utils.ts';
 // 目录浏览规则（根/子目录 → 查询参数）：**唯一实现**，本 provider 只调它，不自带规则。
 import { LIBRARY_ROOT, libraryBrowseArgs } from '../libraryBrowse.ts';
 // 分类真源：素材库目录清单 + 面向用户素材的白名单（两处消费方共用同一份，禁止各抄一份）。
-import {
-  FOLDERS,
-  LIBRARY_CATEGORY_KEYS,
-  mergeResourcesFromBackend,
-} from '../../store/resourceStore.ts';
+import { FOLDERS, LIBRARY_CATEGORY_KEYS } from '../../store/resourceStore.ts';
 import { makeMediaRef } from '../mediaRefTypes.ts';
-import type { MediaRef, MediaRefQuery, MediaRefProvider } from '../mediaRefTypes.ts';
+import type { MediaRefEntry, MediaRefQuery, MediaRefProvider } from '../mediaRefTypes.ts';
 
 /**
  * ResourceItem → MediaRef（**禁止静默丢弃**）。
@@ -54,9 +50,9 @@ import type { MediaRef, MediaRefQuery, MediaRefProvider } from '../mediaRefTypes
  *    其它一切异常一律**抛错**（数据违约必须可见）。
  *  · 数据违约（缺 url）→ **抛错**：后端 `resources.url` 是物理定位真源（`relativePathFromFileUrl` 依赖它），
  *    缺它说明后端行坏了 —— 悄悄跳过只会让"库里有、列表没有"变成无从诊断的谜。
- *  · 文件夹条目：保留为 `isFolder` 卡片（**可拖入的落点**），不参与媒体类型过滤。
+ *  · 文件夹条目：返回 `MediaRefFolder`（**可拖入的落点**，不是媒体），不参与媒体类型过滤。
  */
-function toMediaRef(item: ResourceItem, query?: MediaRefQuery): MediaRef | null {
+function toMediaRef(item: ResourceItem, query?: MediaRefQuery): MediaRefEntry | null {
   const rawUrl = item.url || '';
   if (!rawUrl) {
     throw new Error(
@@ -68,12 +64,14 @@ function toMediaRef(item: ResourceItem, query?: MediaRefQuery): MediaRef | null 
   const name = item.name || fileNameFromUrl(rawUrl) || '素材';
 
   // 文件夹卡片：不参与类型过滤（它不是媒体），直接作为落点条目返回。
+  // 【TD-02-46 收口】原实现**谎报 `type:'image'`**（注释自述"仅为满足类型"）—— 现返回
+  // `MediaRefFolder`（独立类型，**没有** `type` 字段）：漏判 `isFolder` 的消费方想拿 `type` 会编译不过，
+  // 不能再把目录当图片（那会建出指向目录的"图片"节点 / 请求打到目录上）。
   if (item.type === 'folder') {
     return {
       ref: makeMediaRef('library', item.id),
       source: 'library',
       name,
-      type: 'image',
       url: toAbsoluteFileUrl(rawUrl),
       projectId: item.projectId,
       folder: item.folder,
@@ -136,6 +134,7 @@ function labelOf(key: string): string {
 export const librarySourceProvider: MediaRefProvider = {
   source: 'library',
   label: '素材库',
+  order: 2, // 展示顺序（生成在其前：用户裁定 2026-09-17）；缺省顺序由注册表按 order 派生（TD-02-47）
   categories: () =>
     LIBRARY_CATEGORY_KEYS.map((key) => ({
       key,
@@ -146,7 +145,7 @@ export const librarySourceProvider: MediaRefProvider = {
           : // 人物/场景/道具：**前缀**匹配（含该目录下的更深子目录）
             { folder: FOLDERS.find((f) => f.key === key)?.folder ?? undefined },
     })),
-  async list(query?: MediaRefQuery): Promise<MediaRef[]> {
+  async list(query?: MediaRefQuery): Promise<MediaRefEntry[]> {
     // 取全量（分页读取的唯一实现负责"按 totalPages 取齐"，见文件头）；
     // keyword 透传为后端 search（不再有"只在已加载页内过滤"的妥协）。
     const items = await fetchAllResourcePages({
@@ -157,15 +156,14 @@ export const librarySourceProvider: MediaRefProvider = {
       search: query?.keyword,
     });
 
-    // 【统一源接线（docs/122 #4 · 2026-09-17）】后端拉到的资源**必须并入 `resourceStore`** ——
-    // 它是 `contentId → url` 解析（`buildContentUrlResolver(getResources())`）的**唯一来源**。
-    // 此前 `mergeResourcesFromBackend` **定义了却零调用**（造好没接线）：后端资源进不了 store
-    // ⇒ 从这里导入到画布的素材节点只持 `contentId`，AssetNode 渲染解析查 store 查无 → `MISSING`
-    // ⇒ **节点建出来了却是空的**，而 App 那条 toast 仍按选中数报「已导入 N 个素材」（假成功）。
-    // 幂等：按 id / url 归并（同 id 以后端为准），后端为最新真相，重复加载不会堆积。
-    mergeResourcesFromBackend(items);
-
-    const out: MediaRef[] = [];
+    // 【TD-02-59 收口：本 provider **只读不写**】此处曾 `mergeResourcesFromBackend(items)` —— 那让
+    // `list()`（一个**纯查询**）带上了写全局 store 的副作用，于是「后端资源镜像完不完整」取决于
+    // **用户有没有打开导入弹窗** ⇒ `contentId → url` 解析随时序静默失效。
+    // 现镜像填充归还其所有方：`resourceStore.refreshFromBackend()`（存储就绪后自刷一次）——
+    // 契约层（`base/media/**`）**零 store 写入**。
+    // （另：画布入口早已不再依赖该时序 —— TD-02-55 起 `assetNode` 同时持 `assetUrl` 与 `contentId`，
+    //  镜像缺行时 `resolveAssetDisplayUrl` 自动回落到 `assetUrl`，不会渲染成 MISSING。）
+    const out: MediaRefEntry[] = [];
     for (const item of items) {
       const ref = toMediaRef(item, query);
       // `null` 的两种成因都是**预期内的过滤**（非可引用媒体类型 / 消费方声明的 types）——
