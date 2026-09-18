@@ -13,9 +13,9 @@ import { useSyncExternalStore } from 'react';
 import { contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
 import { askConfirm } from '../core/confirmStore.ts';
 import { generateId } from '../core/idGen.ts';
-import { attemptQuietly, attemptQuietlyAsync, tryParse } from '../utils/asyncGuard.ts';
+import { attemptQuietly, attemptQuietlyAsync } from '../utils/asyncGuard.ts';
 import { KEY_YIMAO_ACCOUNTS } from '../core/contracts.ts';
-import { reportDegrade } from '../core/degrade.ts';
+import { reportDegrade, tryParseOr } from '../core/degrade.ts';
 import { logger } from '../core/logger.ts';
 import { showToast } from '../core/toastStore.ts';
 
@@ -289,7 +289,8 @@ async function fetchActiveTab(): Promise<ChromeTabLike | null> {
   try {
     const [tab] = await chrome.tabs!.query({ active: true, currentWindow: true });
     return tab || null;
-  } catch { // catch-ok: BROWSER_API
+  } catch {
+    // catch-ok: BROWSER_API
     // chrome API 调用失败（权限/无活动标签页）属扩展环境预期 → null，
     // 调用方按「抓不到标签页」继续降级；属外部 API 边界，非 app 内失败语义。
     return null;
@@ -315,10 +316,10 @@ function mapCookie(e: AccountCookie): AccountCookie {
   };
 }
 
-/** 从 URL 解析 hostname（去端口）；失败返回空串（走唯一解析兜底原语 `tryParse` · 2026-09-17）。 */
+/** 从 URL 解析 hostname（去端口）；失败返回空串 —— 走「压平即留痕」原语（2026-09-18 · TD-16-49）。
+ *  失败=真信号：域名解析不出来 ⇒ 该账号的域匹配会静默失效，必须可查（此前 `r.ok ? r.value : ''` 零留痕）。 */
 export function hostOf(url: string): string {
-  const r = tryParse(() => new URL(url).hostname);
-  return r.ok ? r.value : '';
+  return tryParseOr(() => new URL(url).hostname, '', { layer: 'accountsStore', key: 'hostOf' });
 }
 
 /**
@@ -413,7 +414,8 @@ async function readTabLocalStorage(): Promise<Record<string, string> | null> {
             if (k) out[k] = localStorage.getItem(k) ?? '';
           }
           return out;
-        } catch { // catch-ok: BROWSER_API
+        } catch {
+          // catch-ok: BROWSER_API
           // 注入到页面主世界读 localStorage 被拒（权限 / 受限页）属环境预期 → null，
           // 外层按「拿不到快照」继续，不影响 cookie 切换主流程。
           return null;
@@ -431,7 +433,8 @@ async function readTabLocalStorage(): Promise<Record<string, string> | null> {
       if (typeof v === 'string') out[k] = v;
     }
     return out;
-  } catch { // catch-ok: BROWSER_API
+  } catch {
+    // catch-ok: BROWSER_API
     // chrome.scripting 注入失败（非 http(s) 页 / 无权限）属扩展环境预期 → null。
     return null;
   }

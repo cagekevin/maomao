@@ -95,6 +95,8 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { logger } from '../base/core/logger.ts';
+// 【TD-06-14】canvas 异步产出走唯一出口（原自写 Promise + `reject('PNG 生成失败')` = 第二份判据与文案）
+import { canvasToBlob } from '../base/core/utils.ts';
 import type { ChangeEvent } from 'react';
 import {
   AlertTriangle,
@@ -1863,12 +1865,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
       if (!canvas || canvas.width !== width || canvas.height !== height)
         throw new Error('截图画面初始化失败');
       await nextPaint();
-      const blob = await new Promise<Blob>((resolve, reject) =>
-        canvas.toBlob(
-          (result: Blob | null) => (result ? resolve(result) : reject(new Error('PNG 生成失败'))),
-          'image/png',
-        ),
-      );
+      const blob = await canvasToBlob(canvas, 'image/png');
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
       const fileName = `director3d-shot-${stamp}-frame-${String(currentFrameRef.current).padStart(3, '0')}.png`;
       // 受控导出：先把产物交给宿主（落盘/回写画布），再按需触发浏览器下载

@@ -540,7 +540,9 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
       result.current.stop();
     });
 
-    await waitFor(() => expect(result.current.error).toBe('已停止'));
+    await waitFor(() => expect(result.current.error).toContain('已停止'));
+    // 【TD-01-26 A】断连必须**诚实告知**：chat 无句柄（后端不建任务行）⇒ 上游可能仍在生成、重发会重复消耗。
+    expect(result.current.error).toContain('上游可能仍在生成');
     expect(result.current.sending).toBe(false);
   });
 

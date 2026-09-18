@@ -18,6 +18,9 @@
 
 import { saveInlineToLocal, type UploadOutcome } from '../base/api/filesApi.ts';
 import { attemptQuietly } from '../base/utils/asyncGuard.ts';
+// 【TD-18-9】深拷贝收口到唯一入口（叶模块 `core/utils`，**不可**从 `./project.ts` 取 ——
+// `project.ts:17 → d3dPersistence.ts` 已存在，反向 import 会成环）。此处原为裸 `structuredClone` = 第二份实现。
+import { deepClone } from '../base/core/utils.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
 import { logger } from '../base/core/logger.ts';
 import { showToast } from '../base/core/toastStore.ts';
@@ -156,7 +159,7 @@ export async function externalizeProjectImages(
   project: D3dProject,
   saveInline: SaveInlineFn = saveInlineToLocal,
 ): Promise<{ project: D3dProject; droppedCount: number }> {
-  const out = structuredClone(project);
+  const out = deepClone(project);
   let droppedCount = 0;
 
   // 单字段外部化：非 data: 原样返回（已是文件URL/外链不动）；落盘失败或返回原值 → 保留原 base64

@@ -108,9 +108,27 @@ type RafBatchFn<T extends (...args: any[]) => void> = {
   cancel(): void;
 };
 
-/** JSON 深拷贝（通用业务对象；含函数/Date/循环引用者请勿用） */
+/**
+ * 深拷贝（结构化克隆）——**全库唯一入口**（`director3d` 域内以 `cloneProjectValue` re-export）。
+ *
+ * 【实现改用 `structuredClone`（2026-09-18 · TD-18-9）】旧实现 `JSON.parse(JSON.stringify(v)) as T` 有三个问题：
+ *   ① **假收窄**：JSON 往返返回 `any`，靠 `as T` 谎称承诺了 `T`；
+ *   ② **静默丢数据**：丢 `undefined` 字段 · `Date`→字符串 · `Map`/`Set`→`{}` · 循环引用**抛 TypeError**；
+ *   ③ **约束只在注释**（「含函数/Date/循环引用者请勿用」）= 假护栏，无任何机器校验。
+ *   `structuredClone<T>(v: T): T` **原生返回 `T`**（无需 `as`）⇒ ① 消除；
+ *   原样保留 `Date` / `Map` / `Set` / **循环引用** ⇒ ② 消除；
+ *   含**函数 / Symbol / DOM 节点**者会抛 `DataCloneError` ⇒ **失败改为根部炸开**（旧实现是**静默丢弃**），
+ *   与「一诚实」闸一致（错误不伪装成成功）。
+ *
+ * 【消费面取证（2026-09-18）】`director3d` 与 `clipboard` 传入的均为**纯 JSON 数据**
+ *   （`project.ts` 里的 `Map`/`Set` 全是局部计算，不在被克隆结构内）⇒ 两实现对现有消费方**行为等价**。
+ *   能力取证：`structuredClone` 在 node 与 jsdom（vitest）环境均可用，仓内已有先例
+ *   （`nodeDataSchema.ts:120` · `d3dPersistence.ts`）。
+ *
+ * 【何时不该用】需要「丢函数 / 把 Date 归一成字符串」的**归一化**语义时，请显式走 JSON 序列化 —— 别借本函数。
+ */
 export function deepClone<T>(value: T): T {
-  return (value === undefined ? undefined : JSON.parse(JSON.stringify(value))) as T;
+  return structuredClone(value);
 }
 
 /** data: URL → Blob（base64 编码）。缺省 MIME 从 data: meta 段解析（失败回退 octet-stream）。
@@ -151,7 +169,7 @@ export function dataUrlToBlob(dataUrl: string, mime?: string): Blob {
  * 当时发现闸漏了 `toBlob` 族，我的第一反应是改覆盖声明让闸继续绿，而那不是守卫是绕过。
  * 详见 `daily/架构日志/06-跨区-图片产出唯一出口与切片落盘-2026-09-17.md` §13）。
  * ⇒ 新写画布产出**请自觉**经本函数取值（产物不是真图即在根部抛出），**不要**再自己调 `toDataURL`；
- *    **异步族 `toBlob` / `convertToBlob` 尚未收口**（失败语义是回调收到 `null`，不抛错）→ TD-06-14。
+ *    **异步族 `toBlob` 走对称出口 `canvasToBlob`**（2026-09-18 · TD-06-14 收口，见其函数头）。
  *
  * @param format  目标 MIME（canvas 可编码者；见 imageCompress 的 MIME_TO_FORMAT 能力表）
  * @param quality 仅对 image/jpeg、image/webp 生效
@@ -169,6 +187,52 @@ export function canvasToImageDataUrl(
     throw new Error('图片超出当前设备可处理的范围，画布未能生成有效图像。');
   }
   return dataUrl;
+}
+
+/**
+ * canvas 异步产出**唯一出口** —— `canvasToImageDataUrl` 的**异步族对称物**（产出即校验，失败**根部抛出**）。
+ *
+ * 【为什么存在（2026-09-18 · TD-06-14）】`canvas.toBlob(cb, …)` 的失败语义是**回调收到 `null`**（不抛错）。
+ *   全库 6 处消费点原先各写一份判据 + 各自编文案：
+ *   · 1 处 `if (!blob) return;` —— **静默失败**（用户点了"导出当前帧"，什么都没发生、零提示零留痕）；
+ *   · 1 处把 `null` **重分类**成「canvas 可能被跨域污染」（**无证据的因果结论**，CLAUDE.md §5.1 禁）；
+ *   · 其余 3 处各自 `new Promise + reject(new Error(...))`，文案互不相同（含英文）。
+ *   ⇒ 收口为**唯一出口**：判据与同步族同源（产物不是真图像即失败），文案**一份**。
+ *
+ * 【判据（与同步族对齐）】`null` / **0 字节** / `type` 非 `image/*` ⇒ 抛同一句用户可读文案。
+ * 【不做的事】不负责"落盘失败"（那是 `filesApi` 降级策略的事）；**不替调用方决定 toast** ——
+ *   失败可见性由调用方按读者分流（开发者 `logger` / 用户 `toast`）。
+ *
+ * @param format  目标 MIME（缺省 `image/png`；canvas 可编码者）
+ * @param quality 仅对 `image/jpeg`、`image/webp` 生效
+ * @throws 产物为空 / 0 字节 / 非 `image/*` 时抛明确错误（文案与同步族一致）
+ */
+export function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  format: string = 'image/png',
+  quality?: number,
+): Promise<Blob> {
+  const badImage = () => new Error('图片超出当前设备可处理的范围，画布未能生成有效图像。');
+  return new Promise<Blob>((resolve, reject) => {
+    try {
+      canvas.toBlob(
+        (blob) => {
+          // 判据与同步族同源：不是真图像就不放行（`null` = 分配失败；0 字节 = 空白图）
+          if (!blob || blob.size === 0 || !blob.type.startsWith('image/')) {
+            reject(badImage());
+            return;
+          }
+          resolve(blob);
+        },
+        format,
+        quality,
+      );
+    } catch (e) {
+      // 同步抛 = **编程错误**（如 format 非法），不是"设备画不出来" ⇒ **原样透传**，
+      // 不伪装成"图片超范围"（那会把代码 bug 重分类成环境问题 —— CLAUDE.md §5.1 禁重分类）。
+      reject(e instanceof Error ? e : badImage());
+    }
+  });
 }
 
 /** 多路图片源合并去重（ImageGenerate/TemplateNode refImages 公共实现）：
@@ -319,7 +383,10 @@ export function formatTime(
   opts: { mode?: 'file' | 'time' } = {},
 ): string {
   const d = typeof ts === 'number' || typeof ts === 'string' ? new Date(ts) : ts;
-  if (Number.isNaN(d.getTime())) return '';
+  // 【TD-18-8 · 2026-09-18】非法时间不再落**空串**（空串与「字段缺失 / 真空」不可区分 = 失败伪装成功），
+  //   改用仓内既有哨兵 '—'。本层在 logger 之下无法留痕 ⇒ 以**返回值**表达失败（消费者原样呈现）。
+  //   已核三个传 `undefined` 的调用点（`logger` ×2 / `filesApi` ×2）⇒ 走 `Date.now()`，永不到此分支。
+  if (Number.isNaN(d.getTime())) return '—';
   if (opts.mode === 'file') {
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
@@ -334,20 +401,40 @@ export function formatTime(
 }
 
 /**
- * 格式化字节大小（B/KB/MB/GB）**· 全库唯一实现**。
+ * 字节数的**结构化**分解（`{ value, unit }`）—— 字节渲染的**唯一真源**。
+ *
+ * 【为什么需要（2026-09-18 · TD-18-8 附带收口 · ADR-0004）】`StorageMonitor` 的环形图要把
+ *   「数字 / 单位」**分两行**渲染，此前它写的是 `formatBytes(n).split(' ')[0] / [1]` ——
+ *   **从生产者的显示字符串里反解析数据**：等于给 `formatBytes` 加了一条**未文档化的结构契约**
+ *   （返回值必须恰好两段、空格分隔），且属三铁律③「消费者自造」（能调生产者却自己拆串）。
+ *   现由生产者给出结构化出口，消费方改委托。
+ *
+ * 【诚实】非法输入（NaN / 负数，含后端字段缺失导致的 `NaN`）→ **`null`**（无可用值），
+ *   **不伪装成 `'0 B'`**。注意与**真空**的区别：显式 `0` 是**合法真实值**，走 `'0 B'`。
+ *   ⚠️ 本层在 `logger` **之下**（logger 依赖本文件的 `formatTime`）⇒ 无法留痕，失败只能由返回值表达（ADR-0003）。
+ */
+export function formatBytesParts(bytes: number): { value: string; unit: string } | null {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n < 0) return null; // 非法：无可用值
+  if (n < 1024) return { value: String(n), unit: 'B' };
+  if (n < 1048576) return { value: (n / 1024).toFixed(1), unit: 'KB' };
+  if (n < 1073741824) return { value: (n / 1048576).toFixed(2), unit: 'MB' };
+  return { value: (n / 1073741824).toFixed(2), unit: 'GB' };
+}
+
+/**
+ * 格式化字节大小（B/KB/MB/GB）**· 全库唯一实现**（= `formatBytesParts` 的渲染）。
  *
  * 【为什么收口（TD-18-4 · 2026-09-16）】此前 `videoEngine.ts` 私有复制了一份仅 B/KB/MB 的
  * **退化子集**（`>1GB` 视频显示成 `1536.00 MB`、非法值无兜底），并由 `VideoProcessNode` 引用 →
  * 生效中的第二份真相源。现两处统一走本函数，`videoEngine` 同名 re-export（消费方零改动）。
- * 本版：覆盖到 GB 级存储占用，并做非法值兜底（负数/NaN → '0 B'）。
+ * 本版：覆盖到 GB 级存储占用，并区分**真空与非法**（2026-09-18 · TD-18-8 / ADR-0003）。
+ *   - 真空（显式 0）→ `'0 B'`（合法真实值）；
+ *   - 非法（NaN / 负数）→ 哨兵 `'—'`（**无可用值**），**不伪装成 0 字节**。
  */
 export function formatBytes(bytes: number): string {
-  const n = Number(bytes);
-  if (!Number.isFinite(n) || n <= 0) return '0 B';
-  if (n < 1024) return `${n} B`;
-  if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`;
-  if (n < 1073741824) return `${(n / 1048576).toFixed(2)} MB`;
-  return `${(n / 1073741824).toFixed(2)} GB`;
+  const p = formatBytesParts(bytes);
+  return p ? `${p.value} ${p.unit}` : '—';
 }
 
 /** 防抖（返回包装函数 + cancel + flush） */

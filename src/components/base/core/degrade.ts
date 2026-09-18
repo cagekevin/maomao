@@ -19,6 +19,7 @@
 import { logger } from './logger.ts';
 import { showToast } from './toastStore.ts';
 import { THROTTLE_MS } from './config.ts';
+import { tryParse } from '../utils/asyncGuard.ts';
 import type { PersistWriteOutcome } from '../storage/storageAdapter.ts';
 
 /** 对象形态入参 */
@@ -46,6 +47,48 @@ export function reportDegrade(args: ReportDegradeArgs): void {
     // 只转发：把「能不能合并、合并多久」交给**展示层**（窗口状态由 toastStore 持有并执行）。
     showToast(toast, { type: 'warning', coalesceMs: throttleMs });
   }
+}
+
+/**
+ * 「**压平即留痕**」原语 —— 判别联合（`ParseResult`）消费的**唯一出口**（2026-09-18 · TD-16-49）。
+ *
+ * 【为什么存在】`tryParse` 契约收紧（TD-16-36）只改了**生产者**（`T | undefined` → 判别联合），
+ *   **没同步改消费者** ⇒ 半截收口：判别联合消除了「不可区分」，却**没有消除「静默」** ——
+ *   消费者 `r.ok ? r.value : <空值>` 一压，原始 `err` 就蒸发了（`asyncGuard.ts:261` 自写的反模式）。
+ *   本原语把「压平 + 留痕」收口成**一份实现**：调用点各 1 行，禁止再手写裸三元丢掉 err。
+ *
+ * 【为什么落在 degrade.ts，而不是 asyncGuard.ts】`logger.ts → core/utils.ts → asyncGuard.ts` 是既有
+ *   依赖链（logger 依赖 core/utils 的 `formatTime`）⇒ 把留痕放回 asyncGuard 会**成环**（该文件
+ *   `tryParse` 处已注明此约束）。degrade 才是留痕层的家。
+ *
+ * 【⚠️ 硬约束：本原语**不能**在 `core/utils.ts` / `asyncGuard.ts` 内使用】二者位于 `logger` **之下**
+ *   （logger → core/utils），在此调用即环。这两处的非法入参属 **TD-18-8 的契约收窄面**
+ *   （非法值在入口抛 / 入参收窄为已校验类型），不靠"出口兜 + 留痕"。
+ *
+ * 【判据（写调用点前先回答：这里的失败是不是真信号？）】
+ *  - **是**（自有登记表的坏 pattern / 用户动作无感失败 / 响应体丢失）→ 用本原语，`toast` 按需给；
+ *  - **否**（探测语义：坏输入与"不是"对调用方答案相同，如"粘贴内容是不是画布 JSON"）→ **不要**用，
+ *    留痕只会把正常路径刷成噪音（判非债并留痕，见 `16-跨区-tryParse…-2026-09-18` §二.2 注）。
+ *
+ * @param parser 探测表达式（可能抛）
+ * @param fallback 失败兜底值（**只在此出现一次**，不再散落到调用点）
+ * @param ctx `layer`/`key` 定位留痕；`toast` 仅在失败需面向用户时给（文案由调用方给全）
+ */
+export function tryParseOr<T>(
+  parser: () => T,
+  fallback: T,
+  ctx: { layer: string; key?: string; toast?: string },
+): T {
+  const r = tryParse(parser);
+  if (r.ok) return r.value;
+  // 原样透传生产者的 err（仅做类型适配，不改文案、不重分类）。
+  reportDegrade({
+    layer: ctx.layer,
+    key: ctx.key,
+    e: r.error instanceof Error ? r.error : new Error(String(r.error)),
+    toast: ctx.toast,
+  });
+  return fallback;
 }
 
 /**

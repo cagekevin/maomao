@@ -1,6 +1,6 @@
 import React from 'react';
 import { RefreshCw, HardDrive, Database, CircleAlert, Boxes, CopyX } from 'lucide-react';
-import { formatBytes } from '../../core/utils.ts';
+import { formatBytes, formatBytesParts } from '../../core/utils.ts';
 import { showToast } from '../../core/toastStore.ts';
 import {
   estimateBrowserStorage,
@@ -658,6 +658,9 @@ function DonutChart({ segments, total, size = 150 }: DonutChartProps) {
   const innerR = size * 0.28;
   const outerR = size * 0.46;
   const [hoverIdx, setHoverIdx] = React.useState<number | null>(null);
+  // 【ADR-0004】「数字 / 单位」分两行渲染走**生产者的结构化出口**，不再从显示串 `.split(' ')` 反解析
+  //   （那等于给 `formatBytes` 加一条未文档化的结构契约，且属三铁律③「消费者自造」）。
+  const totalParts = formatBytesParts(total);
   if (!segments || segments.length === 0 || !total) {
     return (
       <div className="flex flex-col items-center gap-2">
@@ -758,7 +761,7 @@ function DonutChart({ segments, total, size = 150 }: DonutChartProps) {
               fontSize="14"
               fontWeight="600"
             >
-              {formatBytes(total).split(' ')[0]}
+              {totalParts ? totalParts.value : '—'}
             </text>
             <text
               x={cx}
@@ -768,7 +771,7 @@ function DonutChart({ segments, total, size = 150 }: DonutChartProps) {
               className="fill-current text-muted"
               fontSize="11"
             >
-              / {formatBytes(total).split(' ')[1] || 'B'}
+              / {totalParts ? totalParts.unit : 'B'}
             </text>
           </>
         )}

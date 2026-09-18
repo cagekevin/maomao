@@ -4,7 +4,7 @@
  * 不写「真实流程不会发生」的假边界（缺字段/非法类型/未实现占位）。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { formatBytes } from '../../src/components/base/core/utils.ts';
+import { formatBytes, formatBytesParts } from '../../src/components/base/core/utils.ts';
 import {
   STORAGE_PRESSURE_RATIO,
   estimateBrowserStorage,
@@ -192,8 +192,34 @@ describe('utils.formatBytes（存储专用）', () => {
   it('小字节直接 B', () => {
     expect(formatBytes(512)).toBe('512 B');
   });
-  it('非法/负值兜底 0 B', () => {
-    expect(formatBytes(-1)).toBe('0 B');
-    expect(formatBytes(NaN)).toBe('0 B');
+  it('真空 0 → 0 B；非法（负数 / NaN）→ 哨兵「—」（TD-18-8：非法不得伪装成真实的 0 字节）', () => {
+    expect(formatBytes(0)).toBe('0 B'); // 真空：合法真实值
+    expect(formatBytes(-1)).toBe('—');
+    expect(formatBytes(NaN)).toBe('—');
+  });
+});
+
+// 【ADR-0004】「数字 / 单位」分两行渲染必须走生产者的**结构化出口**，禁止从显示串 `.split(' ')` 反解析。
+describe('utils.formatBytesParts（结构化出口 · ADR-0004）', () => {
+  it('合法值 → { value, unit }', () => {
+    expect(formatBytesParts(0)).toEqual({ value: '0', unit: 'B' });
+    expect(formatBytesParts(512)).toEqual({ value: '512', unit: 'B' });
+    expect(formatBytesParts(1536)).toEqual({ value: '1.5', unit: 'KB' });
+    expect(formatBytesParts(5 * 1048576)).toEqual({ value: '5.00', unit: 'MB' });
+    expect(formatBytesParts(2 * 1073741824)).toEqual({ value: '2.00', unit: 'GB' });
+  });
+
+  it('非法（NaN / 负数）→ null（无可用值，不伪装成 0）', () => {
+    expect(formatBytesParts(NaN)).toBeNull();
+    expect(formatBytesParts(-1)).toBeNull();
+  });
+
+  it('formatBytes = formatBytesParts 的渲染（单一真源，不可能漂移）', () => {
+    for (const n of [0, 512, 1536, 5 * 1048576, 2 * 1073741824]) {
+      const p = formatBytesParts(n);
+      expect(p).not.toBeNull();
+      if (!p) continue; // 上一行已断言非空；此处仅收窄类型（不用非空断言 !）
+      expect(formatBytes(n)).toBe(`${p.value} ${p.unit}`);
+    }
   });
 });

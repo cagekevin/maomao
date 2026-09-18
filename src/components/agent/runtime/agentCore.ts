@@ -196,20 +196,60 @@ export function loadHistory(agentKey: string): ChatMessage[] {
 /** SSE 解析（复刻官方 dr 内 v 函数：按 data: 前缀解析 delta，含 content/reasoning/tool_calls）。
  *  导出供单测（AI 助手前端逻辑核心：多轮工具循环依赖它对 SSE 流式结果的解析）。 */
 /**
- * 解析一条 SSE 增量。
- * @returns {boolean} true = 这是一条 SSE 的 data: 数据行（已按 SSE 语义消费，无论是否提取到内容）；
- *                    false = 不是 data: 前缀（可能是非流式 JSON 响应体），调用方可尝试非流式兜底解析。
- * 【吞输出兜底·契约】roundTrip 流式循环依赖该返回值：只有当返回 false 时才把该 chunk 交给
- *   tryParseNonStreamJsonFallback（防「流式模式下收到非流式 JSON」被静默吞掉）。
+ * 一条 SSE chunk 的解析结果（**判别联合**）—— 三态必须可区分。
+ *
+ * 【为什么不是 boolean（2026-09-18 · TD-16-50）】旧签名 `boolean` 把三态压成两态：
+ *   `data:` 前缀但 payload 不是合法 JSON → 与「已正常消费」同返 `true` ⇒
+ *   ① 调用方（`agentRuntime.resolveBody`）据此**跳过**非流式兜底；② 零留痕；
+ *   ③ 坏 chunk 静默蒸发，用户收到空/短回复且无从归因 = **失败伪装成功**。
+ *   本仓同类先例：`ParseResult<T>`（`asyncGuard`）· `PersistWriteOutcome`（`storageAdapter`）。
  */
-export function parseSSEChunk(line: string, acc: SSEAccumulator): boolean {
-  if (!line.startsWith('data:')) return false;
+export type SSEChunkOutcome =
+  /** 非 `data:` 前缀（可能是非流式 JSON 响应体）→ 调用方按原文尝试非流式兜底。 */
+  | { kind: 'notSSE' }
+  /** 已按 SSE 语义消费：`[DONE]` / 空 payload / 合法 JSON 但不含 delta（role-only、usage-only 等）。 */
+  | { kind: 'consumed' }
+  /** `data:` 前缀但 payload 非合法 JSON —— **失败，必须留痕**；调用方不得当成功处理。
+   *  【给全】失败契约一次给全（Step 4 三铁律①）：`message` 可展示文案 · `error` 原因 · `payload` 证据。
+   *  消费者只转发、禁止自造文案（三铁律②）。 */
+  | { kind: 'malformed'; error: unknown; payload: string; message: string };
+
+/** 坏 chunk 的**可展示文案**（**生产者发布**；消费者只转发，禁止自己拼）—— 读者 = 开发者（logger）。 */
+export const SSE_MALFORMED_MESSAGE = 'SSE 数据行不是合法 JSON（响应流损坏或被截断）';
+
+/** 整条流一个可读增量都没有时的**用户可见文案**（**生产者发布**；消费者只转发，禁止自己拼）。 */
+export const SSE_STREAM_UNREADABLE_MESSAGE = 'AI 回复解析失败：响应流损坏或被截断，请重试';
+
+/**
+ * chat 断连（超时 / 中止）时的**诚实告知**（**生产者发布**；消费者只转发）。
+ *
+ * 【TD-01-26 A · 2026-09-18】chat **无句柄** —— 后端**显式设计**为不消费 `frontTaskId`、不建任务行
+ * （`localTool/src/routes/generate.ts:38` 原文）。故**前端断开 ≠ 上游已停**：请求可能仍在生成、钱已经花了。
+ * 不告知，用户会以为"失败 = 没发生"→ 直接重发 ⇒ **重复消耗**（且无从归因）。
+ *
+ * 【为什么用"可能"】"请求是否真的已发出"在本层无法精确判定（中止可能发生在组装阶段）——
+ * 措辞用**可能**，既不给用户假结论，也不会在边界情况变成谎报。
+ */
+export const CHAT_UPSTREAM_MAY_STILL_RUN_HINT = '上游可能仍在生成；重发会重复消耗';
+
+/**
+ * 解析一条 SSE 增量。
+ * 【吞输出兜底·契约】roundTrip 流式循环依赖该返回值：`notSSE` → 交给
+ *   tryParseNonStreamJsonFallback（防「流式模式下收到非流式 JSON」被静默吞掉）；
+ *   `malformed` → 调用方**必须** logger 留痕并计入失败（不得静默跳过）。
+ */
+export function parseSSEChunk(line: string, acc: SSEAccumulator): SSEChunkOutcome {
+  if (!line.startsWith('data:')) return { kind: 'notSSE' };
   const payload = line.slice(5).trim();
-  if (!payload || payload === '[DONE]') return true;
+  if (!payload || payload === '[DONE]') return { kind: 'consumed' };
   const r = tryParse(() => JSON.parse(payload));
-  if (!r.ok || !r.value) return true;
+  if (!r.ok) {
+    // 【生产者给全】失败契约一次给全：可展示文案 + 原因 + 证据。消费者只转发，禁止自造。
+    return { kind: 'malformed', error: r.error, payload, message: SSE_MALFORMED_MESSAGE };
+  }
+  if (!r.value) return { kind: 'consumed' };
   const delta = r.value.choices?.[0]?.delta;
-  if (!delta) return true;
+  if (!delta) return { kind: 'consumed' };
   if (delta.content) acc.content += delta.content;
   if (delta.reasoning_content) acc.reasoning += delta.reasoning_content;
   else if (delta.reasoning) acc.reasoning += delta.reasoning;
@@ -227,7 +267,7 @@ export function parseSSEChunk(line: string, acc: SSEAccumulator): boolean {
       if (tc.function?.arguments) call.function!.arguments += tc.function.arguments;
     }
   }
-  return true;
+  return { kind: 'consumed' };
 }
 
 /**
@@ -609,8 +649,16 @@ export async function parseAgentError(
   let msg = `${fallback} (${res.status})`;
   const text = await res.text().catch(() => '');
   const r = tryParse(() => JSON.parse(text));
-  if (r.ok) {
-    msg = r.value?.error?.message || r.value?.error || (typeof r.value === 'string' ? r.value : text);
+  if (!r.ok) {
+    // 【TD-16-49】失败留痕：响应体非 JSON 时原始文本被丢弃，事后无从归因（此前零留痕）。
+    // 语义与 `tryParseOr` 不同（这里保留的是状态码文案、不是"压平到某个值"），故就地留痕不套原语。
+    logger.warn('AI助手', '错误响应体非 JSON（保留状态码文案）', {
+      status: res.status,
+      cause: r.error,
+    });
+  } else {
+    msg =
+      r.value?.error?.message || r.value?.error || (typeof r.value === 'string' ? r.value : text);
   }
   return msg;
 }

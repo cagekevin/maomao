@@ -49,7 +49,7 @@
 import { isChromeExtension, KEY_PREFIX } from './storageAdapter.ts';
 import { STORAGE_KEYS } from '../core/contracts.ts';
 import { compilePatternRegex } from '../core/utils.ts';
-import { tryParse } from '../utils/asyncGuard.ts';
+import { tryParseOr } from '../core/degrade.ts';
 import { logger } from '../core/logger.ts';
 
 /**
@@ -151,7 +151,8 @@ export async function enumerateLocalEntries(): Promise<Array<{
       out.push({ rawKey: k, value: localStorage.getItem(k) });
     }
     return out;
-  } catch { // catch-ok: BROWSER_API
+  } catch {
+    // catch-ok: BROWSER_API
     // 存储读取受限（隐私模式/权限）属环境预期；降级为「不可用」，
     // UI 展示降级文案而非崩（读者已对：用户侧可见，非静默）。
     return null;
@@ -169,8 +170,14 @@ export function mapKeyToDomain(key: string): string {
   if (entry) return entry.domain;
   for (const [k, v] of Object.entries(STORAGE_KEYS)) {
     if (!v.pattern) continue;
-    const re = tryParse(() => compilePatternRegex(k));
-    if (re.ok && re.value.test(key)) return v.domain;
+    // 自有登记表的 pattern 编译失败 = 写入侧 bug（此前 `re.ok && re.value.test(key)` 零留痕）→ 走压平即留痕原语。
+    if (
+      tryParseOr(() => compilePatternRegex(k).test(key), false, {
+        layer: 'storageQuota',
+        key: k,
+      })
+    )
+      return v.domain;
   }
   return 'unknown';
 }

@@ -59,6 +59,14 @@ const LOG_DIR = join(ROOT, 'daily', '架构日志');
 const LEDGER = join(LOG_DIR, '债务.md');
 const ARCHIVE = join(LOG_DIR, '债务-归档.md');
 
+/**
+ * 【读债必看 ADR】（2026-09-18 · 7 步法 铁律 6 · ADR-0001）
+ * **既有约定未必是对的 —— 它可能正是我们要消灭的对象。** 读债 / 普查前先过一遍 ADR 索引，
+ * 免得把已被推翻的旧约定当依据（实证：拿一条"并不存在的既有约定"给非法值兜底背书）。
+ */
+const ADR_NUDGE =
+  '   ↳ 读债前先过 `docs/adr/README.md` 索引 —— 哪些既有约定已被**推翻**（铁律 6：既有约定不是判据来源）';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 规范真源（唯一）：改枚举 = 改这里 + 两处流程文档，不得只改一处
 // ─────────────────────────────────────────────────────────────────────────────
@@ -334,6 +342,7 @@ function cmdList(argv) {
   if (!sel.length) { console.log('   （无匹配记录）'); return; }
   for (const r of sel) printRow(r);
   if (!filtered) console.log('   ↳ 查历史债加 `--all` / `--area <NN>` / `search <关键词>`（历史在 `债务-归档.md`，本命令已打通）');
+  console.log(ADR_NUDGE);
 }
 const loadMainCount = () => loadLedger().rows.filter((r) => r.fields.kind === 'TD').length;
 

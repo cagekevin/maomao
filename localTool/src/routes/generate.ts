@@ -40,6 +40,13 @@ export async function handleGenerateSubmit(
   if (capability === 'chat') {
     const tools = (Array.isArray(body.tools) ? body.tools : []) as unknown[];
     const hasTools = tools.length > 0;
+    // 【TD-01-24 · 口径贯通】前端把**本次实际预算**写在 `body.timeoutMs`（生产者给全）——
+    // 本层**只转发**给上游，不再让它按自己的默认值跑（那正是"前端先放弃、上游白跑"的根因）。
+    // 非法 / 缺失 → undefined，交给下游默认值；**不在这里自己编一个数**。
+    const clientTimeoutMs =
+      typeof body.timeoutMs === 'number' && Number.isFinite(body.timeoutMs) && body.timeoutMs > 0
+        ? body.timeoutMs
+        : undefined;
     // AI 助手（带 tools）→ 默认流式打字机（SSE 透传，前端保留 tool_calls delta 解析）；
     // 显式请求流式或带工具 → 流式；否则同步 JSON 快路径。
     const wantStream = body.stream === true || hasTools;
@@ -54,6 +61,7 @@ export async function handleGenerateSubmit(
             : [],
         tools: hasTools ? tools : undefined,
         baseUrl: typeof body.baseUrl === 'string' ? body.baseUrl : undefined,
+        timeoutMs: clientTimeoutMs,
       });
       return;
     }
@@ -62,6 +70,7 @@ export async function handleGenerateSubmit(
       providerId,
       capability,
       model,
+      timeoutMs: clientTimeoutMs,
       prompt: typeof body.prompt === 'string' ? body.prompt : undefined,
       messages: Array.isArray(body.messages) ? (body.messages as unknown[]) : undefined,
       images: Array.isArray(body.images) ? (body.images as string[]) : undefined,

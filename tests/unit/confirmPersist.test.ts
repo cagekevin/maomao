@@ -19,7 +19,7 @@ vi.mock('../../src/components/base/core/logger.ts', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-import { confirmPersist } from '../../src/components/base/core/degrade.ts';
+import { confirmPersist, tryParseOr } from '../../src/components/base/core/degrade.ts';
 import { logger } from '../../src/components/base/core/logger.ts';
 
 const layer = '测试层';
@@ -57,5 +57,44 @@ describe('confirmPersist：落盘结果自确认（唯一判据）', () => {
     expect(confirmPersist({ ok: true, landed: 'kv' }, { layer, key: 'k4' })).toBe(true);
     expect(logger.warn).not.toHaveBeenCalled();
     expect(showToastMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * `tryParseOr` —— 「压平即留痕」原语（TD-16-49）。
+ * 为什么单独锁它：`tryParse` 契约收紧（TD-16-36）只改了生产者，12 个消费点仍在
+ * `r.ok ? r.value : <空值>` 处把 `err` 蒸发掉。本原语是那份「压平 + 留痕」判据的**唯一实现** ——
+ * 它若判错（成功也留痕 / 失败不留痕），全仓判别联合消费的失败可见性会一起失效且无人知晓。
+ */
+describe('tryParseOr：压平即留痕（判别联合消费的唯一出口）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('成功 → 返回解析值，不留痕、不提示', () => {
+    const v = tryParseOr(() => JSON.parse('{"a":1}') as { a: number } | null, null, {
+      layer,
+      key: 'ok',
+    });
+    expect(v).toEqual({ a: 1 });
+    expect(logger.warn).not.toHaveBeenCalled();
+    expect(showToastMock).not.toHaveBeenCalled();
+  });
+
+  it('失败 → 返回 fallback + logger 留痕（裸三元在此处会零留痕 = 静默吞）', () => {
+    const v = tryParseOr(() => JSON.parse('{坏'), 'FB', { layer, key: 'bad' });
+    expect(v).toBe('FB');
+    expect(logger.warn).toHaveBeenCalled();
+    expect(showToastMock).not.toHaveBeenCalled(); // 未给 toast → 不打扰用户
+  });
+
+  it('失败且给了 toast → 留痕 + 转发展示层（合并窗口归 toastStore，本层不留窗口状态）', () => {
+    const v = tryParseOr(() => JSON.parse('{坏'), null, { layer, key: 'bad2', toast: '解析失败' });
+    expect(v).toBeNull();
+    expect(logger.warn).toHaveBeenCalled();
+    expect(showToastMock).toHaveBeenCalledWith('解析失败', {
+      type: 'warning',
+      coalesceMs: expect.any(Number),
+    });
   });
 });

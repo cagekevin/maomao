@@ -14,7 +14,7 @@
  */
 
 import type { GenerationResult } from '@/types';
-import { API_BASE, GEN_POLL_INTERVAL } from '../core/config.ts';
+import { API_BASE, GEN_POLL_INTERVAL, CHAT_TIMEOUT, CHAT_TOTAL_TIMEOUT } from '../core/config.ts';
 import { httpRequest } from './httpClient.ts';
 import { logger } from '../core/logger.ts';
 
@@ -316,7 +316,7 @@ export async function relayChat(
   } = {},
 ): Promise<RelayGenerationResult> {
   const { signal } = opts;
-  const timeoutMs = opts.timeoutMs ?? 120_000; // 对齐 CHAT_TIMEOUT
+  const timeoutMs = opts.timeoutMs ?? CHAT_TIMEOUT; // 唯一真源（config）——不再硬编码副本
   const body: Record<string, unknown> = {
     frontTaskId: intent.frontTaskId,
     providerId: intent.providerId,
@@ -325,6 +325,10 @@ export async function relayChat(
     ...(intent.messages ? { messages: intent.messages } : {}),
     ...(intent.prompt !== undefined ? { prompt: intent.prompt } : {}),
     ...(intent.images && intent.images.length > 0 ? { images: intent.images } : {}),
+    // 【TD-01-24 · 口径贯通】把**本次实际预算**写进请求体 —— 此前它只用来掐本层 fetch，
+    // 后端**根本不知道**这个数，于是按自己的默认（180s）继续跑上游 ⇒ 前端先放弃、上游白跑。
+    // 现在「生产者给全 · 消费者只转发」：后端读它、原样交给上游，前后端口径天然一致。
+    timeoutMs,
   };
   if (opts.temperature !== undefined) body.temperature = opts.temperature;
   if (opts.responseFormat) body.response_format = opts.responseFormat;
@@ -396,6 +400,9 @@ export async function relayChatStream(opts: {
     // 显式标注流式形态：stream=true 也写进 body（后端以 stream===true || hasTools 判流式），
     // 保持「前端要什么形态就声明什么」的确定性契约。
     ...(stream ? { stream: true } : { stream: false }),
+    // 【TD-01-24 · 口径贯通】流式路径的**总预算**（等响应 + 响应体读取/解析）——
+    // 与调用方总闸同源（`config.CHAT_TOTAL_TIMEOUT`），后端据此掐上游，避免"前端放弃、上游白跑"。
+    timeoutMs: CHAT_TOTAL_TIMEOUT,
   };
   // parseJson:false → 返未消费 body 的原始 Response；非 2xx 抛 HttpError 由上层 chatStream 归一。
   return httpRequest(`${API_BASE}/api/generate`, {

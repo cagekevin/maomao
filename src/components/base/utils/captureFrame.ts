@@ -89,6 +89,8 @@
  */
 import { releaseQuietly, setCrossOriginForReadable } from './asyncGuard.ts';
 import { logger } from '../core/logger.ts';
+// 【TD-06-14】canvas 异步产出走唯一出口（产出即校验，失败根部抛出）—— 本文件原自写 Promise + `reject(toBlob null)`。
+import { canvasToBlob } from '../core/utils.ts';
 
 export { setCrossOriginForReadable };
 interface DrawVideoFrameErrors {
@@ -256,15 +258,6 @@ export function captureFrame(url: string, atTime: number, quality = 0.55): Promi
     // 原实现：target = min(atTime, max(0, (duration || atTime) - 0.01))（夹取是 ① 的判据，留在宿主）
     atTime: (duration) => Math.min(atTime, Math.max(0, (duration || atTime) - 0.01)),
   })
-    .then(
-      (canvas) =>
-        new Promise<Blob>((resolve, reject) => {
-          canvas.toBlob(
-            (b) => (b ? resolve(b) : reject(new Error('captureFrame: toBlob null'))),
-            'image/jpeg',
-            quality,
-          );
-        }),
-    )
+    .then((canvas) => canvasToBlob(canvas, 'image/jpeg', quality))
     .finally(release);
 }

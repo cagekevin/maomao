@@ -16,6 +16,7 @@ import {
   dataUrlToBlob,
   safeFileName,
   compilePatternRegex,
+  canvasToBlob,
 } from '../../src/components/base/core/utils.ts';
 import { renderHook } from '@testing-library/react';
 
@@ -31,6 +32,73 @@ describe('deepClone', () => {
 
   it('返回 undefined 时保持 undefined', () => {
     expect(deepClone(undefined)).toBe(undefined);
+  });
+
+  // 【TD-18-9】实现由 JSON 往返改为 structuredClone：不再静默丢数据，且失败改为根部炸开。
+  it('保留 Date / Map / Set（旧 JSON 往返会丢：Date→字符串 · Map/Set→{}）', () => {
+    const src = {
+      d: new Date('2026-09-18T00:00:00.000Z'),
+      m: new Map([['a', 1]]),
+      s: new Set([1, 2]),
+    };
+    const copy = deepClone(src);
+    expect(copy.d).toBeInstanceOf(Date);
+    expect(copy.d.getTime()).toBe(src.d.getTime());
+    expect(copy.m).toBeInstanceOf(Map);
+    expect(copy.m.get('a')).toBe(1);
+    expect(copy.s).toBeInstanceOf(Set);
+    expect(copy.s.has(2)).toBe(true);
+  });
+
+  it('保留循环引用（旧 JSON 往返会抛 TypeError）', () => {
+    const src: { name: string; self?: unknown } = { name: 'x' };
+    src.self = src;
+    const copy = deepClone(src);
+    expect(copy.name).toBe('x');
+    expect(copy.self).toBe(copy); // 循环被保留，且指向副本自身（不是原对象）
+  });
+
+  it('含函数 → 抛错（根部炸开，不静默丢弃）', () => {
+    expect(() => deepClone({ f: () => 1 })).toThrow();
+  });
+});
+
+// 【TD-06-14】canvas 异步产出唯一出口：产出即校验、失败根部抛出（判据与文案一份）。
+describe('canvasToBlob（canvas 异步产出唯一出口 · TD-06-14）', () => {
+  const CANON = '图片超出当前设备可处理的范围';
+  const fakeCanvas = (toBlob: (cb: (b: Blob | null) => void, mime?: string, q?: number) => void) =>
+    ({ toBlob }) as unknown as HTMLCanvasElement;
+
+  it('成功 → 返回 Blob，format / quality 透传', async () => {
+    let seen: { mime?: string; q?: number } = {};
+    const c = fakeCanvas((cb, mime, q) => {
+      seen = { mime, q };
+      cb(new Blob(['x'], { type: 'image/jpeg' }));
+    });
+    const blob = await canvasToBlob(c, 'image/jpeg', 0.8);
+    expect(blob.size).toBe(1);
+    expect(seen).toEqual({ mime: 'image/jpeg', q: 0.8 });
+  });
+
+  it('回调收到 null → 抛统一文案（不落 null、不重分类）', async () => {
+    await expect(canvasToBlob(fakeCanvas((cb) => cb(null)))).rejects.toThrow(CANON);
+  });
+
+  it('0 字节产物 → 同样抛出（空白图不得放行）', async () => {
+    const c = fakeCanvas((cb) => cb(new Blob([], { type: 'image/png' })));
+    await expect(canvasToBlob(c)).rejects.toThrow(CANON);
+  });
+
+  it('type 非 image/* → 同样抛出', async () => {
+    const c = fakeCanvas((cb) => cb(new Blob(['x'], { type: 'text/plain' })));
+    await expect(canvasToBlob(c)).rejects.toThrow(CANON);
+  });
+
+  it('toBlob 同步抛 = 编程错误 → 原样透传（不伪装成"图片超范围"）', async () => {
+    const c = fakeCanvas(() => {
+      throw new Error('bad format');
+    });
+    await expect(canvasToBlob(c)).rejects.toThrow('bad format');
   });
 });
 
@@ -187,8 +255,8 @@ describe('formatTime', () => {
     expect(formatTime(Date.now(), { mode: 'file' })).toBe('20260818_143005');
   });
 
-  it('非法时间戳返回空串', () => {
-    expect(formatTime('invalid', { mode: 'time' })).toBe('');
+  it('非法时间戳 → 哨兵「—」（TD-18-8：空串与「字段缺失」不可区分 = 失败伪装成功）', () => {
+    expect(formatTime('invalid', { mode: 'time' })).toBe('—');
   });
 });
 

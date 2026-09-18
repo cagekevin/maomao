@@ -19,7 +19,7 @@ import { logger } from '../core/logger.ts';
 import { httpRequest } from '../api/httpClient.ts';
 import { DOWNLOAD_TIMEOUT } from '../core/config.ts';
 import { generateId } from '../core/idGen.ts';
-import { deepClone, fileNameFromUrl } from '../core/utils.ts';
+import { canvasToBlob, deepClone, fileNameFromUrl } from '../core/utils.ts';
 import { withTimeout, TimeoutError, setCrossOriginForReadable } from './asyncGuard.ts';
 
 /** 剪贴板操作统一返回信封：{ ok, msg }，调用方负责 toast。 */
@@ -80,8 +80,8 @@ export async function copyImageToClipboard(url: string): Promise<ClipResult> {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not get canvas context');
     ctx.drawImage(img, 0, 0);
-    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'));
-    if (!blob) throw new Error('Could not get blob');
+    // 【TD-06-14】异步产出走唯一出口（产出即校验，失败根部抛出）—— 不再自写判据与文案。
+    const blob = await canvasToBlob(canvas, 'image/png');
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
     return { ok: true, msg: '图片已复制，可在画布或其它软件中粘贴' };
   } catch (e) {
@@ -170,8 +170,9 @@ export async function copyVideoFrameToClipboard(
   if (!video) return { ok: false, msg: '没有可截屏的视频' };
   try {
     const canvas = await drawVideoFrameToCanvas(video, opts);
-    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'));
-    if (!blob) throw new Error('帧导出失败（canvas 可能被跨域污染）');
+    // 【TD-06-14】走唯一出口。原处把 `toBlob → null` **重分类**成「canvas 可能被跨域污染」
+    // （无证据的因果结论，CLAUDE.md §5.1 禁）—— 判据与文案归一，不再由本层猜原因。
+    const blob = await canvasToBlob(canvas, 'image/png');
     await withTimeout(
       navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]),
       5000,

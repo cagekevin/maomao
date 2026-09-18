@@ -32,6 +32,7 @@ import {
   parseAgentError,
   classifyLocalIntent,
   buildIntentHint,
+  CHAT_UPSTREAM_MAY_STILL_RUN_HINT,
 } from './agentCore.ts';
 import type { ToolCall, ChatMessage, AgentMemory, SkillItem } from './agentCore.ts';
 // 运行时逻辑（依赖注入版本）。hook 内以 const roundTrip 等同名闭包封装调用，
@@ -832,12 +833,15 @@ export function useAgentChat({
         }
       } catch (e) {
         ok = false;
+        // 【TD-01-26 A · 诚实告知】chat 无句柄（后端不建任务行）⇒ **前端断开 ≠ 上游已停**。
+        // 不告知，用户会以为"失败＝没发生"直接重发 ⇒ 重复消耗。文案由生产者（agentCore）发布，本层只转发。
         if ((e as { name?: string })?.name === 'AbortError') {
           aborted = true;
-          setError('已停止');
+          setError(`已停止（${CHAT_UPSTREAM_MAY_STILL_RUN_HINT}）`);
           stateMachineRef.current.setStatus('idle');
         } else {
-          setError((e as { message?: string })?.message || '发送失败');
+          const msg = (e as { message?: string })?.message || '发送失败';
+          setError(`${msg}（${CHAT_UPSTREAM_MAY_STILL_RUN_HINT}）`);
           stateMachineRef.current.setStatus('failed'); // #7 失败态 → 可重试（retry）
         }
         // 清理所有 streaming 残留占位（不只最后一个）：循环中途出错可能残留多轮 streaming:true 占位

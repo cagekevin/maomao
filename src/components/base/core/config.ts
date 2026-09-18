@@ -110,6 +110,17 @@ export const VIDEO_DOWNLOAD_TIMEOUT = 60000;
 export const UPLOAD_TIMEOUT = 30000;
 /** 聊天/提示词生成总超时（relayChat）：2 分钟，超时 abort 并复位 loading，避免动画无限挂起 */
 export const CHAT_TIMEOUT = 120000;
+/**
+ * chat **任务总预算**（外层总闸）= 「等上游响应」+「响应体读取 / 解析 / 落盘」两段之和。
+ *
+ * 【为什么要提成常量（2026-09-18 · TD-01-24）】此前这个「+60s 宽限」被**内联**在两处
+ * （`agentRuntime.resolveBody` 的总闸、`SCRIPT_TEXT_TIMEOUT`），且**后端根本不知道**这个预算 ——
+ * 前端 120s 掐断自己到 localTool 的请求，而 localTool 对上游的预算仍是它自己的默认 180s
+ * ⇒ **前端先放弃、上游还在跑 = 上游白跑**（用户重发 ⇒ 重复消耗）。
+ * 现把两段预算收敛成一份真源，并由前端**把实际预算写进请求体**、后端**原样转发**给上游
+ *（三铁律：生产者给全 · 消费者只转发）⇒ 前后端口径**天然一致**，不再靠"两边各记一个数"。
+ */
+export const CHAT_TOTAL_TIMEOUT = CHAT_TIMEOUT + 60000;
 /** KV / 本地存储读写总超时（contentStore / conversationState / d3dPersistence / projectMemoryStore 共用） */
 export const KV_TIMEOUT = 8000;
 
@@ -127,8 +138,8 @@ export const VIDEO_TIMEOUT = 600000;
 // 内层超时（CHAT_TIMEOUT / GEN_TIMEOUT）只覆盖「等上游响应」阶段；卡在响应体读取、发图前
 // 图片归一、结果落盘等阶段时无人管 → loading 永不结束。故在 runAbortable 任务边界再加一道总闸。
 // 宽限 60s 供内层超时之外的环节（图片归一/解析/落盘）使用，不会误杀正常生成。
-/** 文本类任务（生成剧本 / 分镜提示词 / 审查 / 合并）总耗时上限 */
-export const SCRIPT_TEXT_TIMEOUT = CHAT_TIMEOUT + 60000;
+/** 文本类任务（生成剧本 / 分镜提示词 / 审查 / 合并）总耗时上限 —— 与 chat 总预算同源（TD-01-24 收口） */
+export const SCRIPT_TEXT_TIMEOUT = CHAT_TOTAL_TIMEOUT;
 /** 生图类任务（资产参考图 / 尾帧变体）总耗时上限 */
 export const SCRIPT_IMAGE_TIMEOUT = GEN_TIMEOUT + 60000;
 

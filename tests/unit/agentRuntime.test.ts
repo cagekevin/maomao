@@ -181,9 +181,16 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
           const d = JSON.parse(m[1]);
           const delta = d.choices?.[0]?.delta || {};
           if (delta.content) acc.content += delta.content;
-        } catch (_) {}
+        } catch {
+          return {
+            kind: 'malformed',
+            error: new Error('bad json'),
+            payload: m[1],
+            message: 'test',
+          };
+        }
       }
-      return true;
+      return { kind: 'consumed' };
     };
     const r = await roundTrip(
       ctx,
@@ -221,7 +228,7 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
       },
     }));
     vi.stubGlobal('fetch', fetchMock);
-    // 真实 parseSSEChunk（返回 boolean：data: 前缀 true / 非 data: 前缀 false，驱动兜底）
+    // 真实 parseSSEChunk（返回判别联合：notSSE / consumed / malformed，驱动非流式兜底与失败留痕）
     const ctx = makeCtx({
       streamMode: 'stream',
       ENABLE_TOOLS_ON_NON_STREAM: false,
@@ -291,5 +298,55 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
     expect(Array.isArray(r.tool_calls!)).toBe(true);
     expect(r.tool_calls![0].function!.name).toBe('create_node');
     expect(r.tool_calls![0].function!.arguments).toBe('{"nodeType":"textGenerateNode"}');
+  });
+
+  // ── 【TD-16-50】坏 chunk 不得伪装成功（此前静默蒸发 → 用户见空回复）──────────────
+  const mockStreamFetch = (raw: string) =>
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: (_k: unknown) => null },
+      body: {
+        getReader: () => {
+          let done = false;
+          return {
+            read: async () => {
+              if (done) return { done: true, value: undefined };
+              done = true;
+              return { done: false, value: new TextEncoder().encode(raw) };
+            },
+          };
+        },
+      },
+    }));
+
+  it('【TD-16-50】坏 chunk 且零内容 → 抛错（不伪装成空回复）+ logger 留痕（文案来自生产者）', async () => {
+    vi.stubGlobal('fetch', mockStreamFetch('data: {坏json1\n\ndata: {坏json2\n\n'));
+    const ctx = makeCtx({ streamMode: 'stream', onStream: vi.fn() });
+    const { parseSSEChunk, SSE_STREAM_UNREADABLE_MESSAGE } =
+      await import('../../src/components/agent/runtime/agentCore.ts');
+    ctx.parseSSEChunk = parseSSEChunk;
+    await expect(
+      roundTrip(ctx, [{ role: 'user', content: 'hi' }], new AbortController().signal, ctx.onStream),
+    ).rejects.toThrow(SSE_STREAM_UNREADABLE_MESSAGE);
+    expect(ctx.logger.error).toHaveBeenCalled();
+  });
+
+  it('【TD-16-50】坏 chunk 但已有内容 → 不抛（单条失败不阻断），仍留痕', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockStreamFetch('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: {坏json\n\n'),
+    );
+    const ctx = makeCtx({ streamMode: 'stream', onStream: vi.fn() });
+    const { parseSSEChunk } = await import('../../src/components/agent/runtime/agentCore.ts');
+    ctx.parseSSEChunk = parseSSEChunk;
+    const r = await roundTrip(
+      ctx,
+      [{ role: 'user', content: 'hi' }],
+      new AbortController().signal,
+      ctx.onStream,
+    );
+    expect(r.content).toBe('ok');
+    expect(ctx.logger.error).toHaveBeenCalled();
   });
 });

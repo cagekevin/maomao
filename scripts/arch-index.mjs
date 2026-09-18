@@ -29,6 +29,7 @@
  *               改完跑 `--write` 再跑校验确认一致。
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
@@ -107,7 +108,7 @@ function roundNo(f) {
 }
 
 /**
- * 单区内所有轮次文件（`<NN>-*.md`）升序：**先日期，同日期再按「轮次序号」，最后才名字**。
+ * 单区内所有轮次文件（`<NN>-*.md`）升序：**先日期，同日期再定序**。
  *
  * ⚠️ **不能只用文件名排序**（原实现 `(dateOf(a)+a).localeCompare(...)` 的缺陷）：
  *   · 「四轮」按 Unicode 排在「十四轮」**之后**（01 区实测踩过）；
@@ -115,14 +116,22 @@ function roundNo(f) {
  *     ⇒ 同日期下「五轮」排在「四轮」**之前** ⇒ `files[last]` 取到「四轮」，
  *     于是**「最新轮次」指向更早的那一轮**，且 `readState()` 从"最新"往回找时**先撞上四轮**、
  *     五轮里的状态行被**遮蔽**（进度表因此可能报错灯 —— 本轮就是这样被实锤的）。
- * 修法 = 显式解析序号（`roundNo`），序号取不到（跨区轮 / 无序号）再退化为名字比较 ⇒ 跨区文件的相对次序不变。
  *
- * 更新(2026-09-17 · 工具债当场修 · 第三例)：**同日期、双方都取不到轮次号**的跨区轮之间，名字比较同样给错时序 ——
- *   02 区实证：`…可引用媒体源导入弹窗体检-2026-09-17` 与 `…可引用媒体源首消费-导入弹窗-2026-09-17`
- *   （汉字码位 导(5BFC) < 首(9996)）⇒ 后写的"体检"被判在"首消费"**之前** ⇒ `files[last]` 指向更早那份，
- *   于是新写入的 🔴 回退状态被**遮蔽**、进度表仍报 🟢（与 17 区同款失效，只是成因从"轮次号"换成"跨区名"）。
- *   修法 = 在"名字比较"**之前**插入 **mtime 升序**（同日期同序号时取真实写入顺序）；
- *   mtime 取不到或并列（如 git clone 后 mtime 全等的场景）→ 仍退化为名字比较，**纯名字场景的相对次序不变**。
+ * 【同日期定序（2026-09-18 · TD-17-14 收口）】
+ *   ① **双方都是有号轮** → `roundNo`：轮次号是**作者显式标的顺序**，权威，优先于任何时间推断。
+ *   ② **其余（含「无号 vs 有号」）** → **时序**：`git 首次加入时间` → `birthtime` → `mtime`。
+ *   ③ 时间也不可分（同一次提交 / clone 后同时间）→ 有号优先于无号（无号多为更早的首轮 / 跨区轮）。
+ *   ④ 仍不可分 → 名字比较（纯名字场景的相对次序不变）。
+ *
+ * 【病灶（TD-17-14）：把"没有轮次号"当成了"第 -1 轮"】原实现让 `roundNo` 的 `-1` **与有号轮直接比大小**
+ *   ⇒ 无号轮**恒排在同日期有号轮之前**（＝被判"更旧"）⇒ **新写入的跨区轮不会成为该区"最新轮次"**。
+ *   根因不是"排序键不够多"，是**把缺失值当数值用** —— `-1` 不是序数，是"无"。
+ *
+ * 【为什么改用 git 首次加入时间（2026-09-18 全库取证）】此前两版失败都因为**只用 mtime**，
+ *   而 mtime 会被**后编辑**污染 —— 本仓 A7「修正必须回改原文」**注定**会去编辑旧文件（结构性，不是偶发）。
+ *   `git log --diff-filter=A` 的加入时间**不受后编辑影响**，覆盖 **237/242** 文件；
+ *   未提交的新文件 → 退 `birthtime`（创建时间，同样不受后编辑影响）→ `mtime`。
+ *   **取证**：全库「同日期 + 有号/无号并存」共 **10 组**，其中 **7 组**原实现判的"最新"与 git 加入顺序**不一致** ⇒ 债成立。
  */
 function listRounds(nn) {
   return readdirSync(ARCH_DIR)
@@ -130,32 +139,76 @@ function listRounds(nn) {
     .sort((a, b) => {
       const byDate = dateOf(a).localeCompare(dateOf(b));
       if (byDate !== 0) return byDate;
-      const byNo = roundNo(a) - roundNo(b);
-      if (byNo !== 0) return byNo;
-      // 同日期同序号（跨区轮 / 无序号文件）：按**真实写入顺序**（mtime）定先后，名字只作最后兜底。
-      // 为什么：汉字码位序 ≠ 时序（见文件头 2026-09-17 第三例），名字比较会把"最新轮次"指错。
-      //
-      // ⚠️ **已知限制（2026-09-17 实测 · 已登记 TD-17-14，勿在此就地再改判据）**：
-      //   跨区轮文件名不含「N轮」⇒ roundNo = -1 ⇒ 恒排在**同日期有号轮之前**，
-      //   除非同日期**全部**是无号文件才轮到 mtime 决胜负。
-      //   ⇒ 后果：新写入的跨区轮**不会成为该区"最新轮次"**（16 区本轮实证：新文件已落盘，index 仍指向前一份）。
-      //   ⇒ 为什么不当场修：曾试「mtime 提到 roundNo 之前」与「有号/无号分开判」两版，均**各错一边** ——
-      //     07 区「二轮/三轮」被 mtime 指反（文件被后编辑 ⇒ mtime 变新）；15 区无号**旧**文件（首轮）
-      //     因 mtime 较新被误判为最新。**"无号旧文件"与"无号新文件"在当前信息下不可区分**（15 vs 16 实证）
-      //     ⇒ 需先引入可判据（如跨区轮统一带「跨区N轮」号 / index 增列"最近写入"栏），再改排序。
-      const byMtime = mtimeOf(a) - mtimeOf(b);
-      if (byMtime !== 0) return byMtime;
+      const na = roundNo(a);
+      const nb = roundNo(b);
+      // ① 都是有号轮：轮次号是作者显式标的顺序（权威）
+      if (na > 0 && nb > 0) return na - nb;
+      // ② 跨类型 / 都无号：用时序（git 首次加入 → birthtime → mtime）
+      const byTs = tsOf(a) - tsOf(b);
+      if (byTs !== 0) return byTs;
+      // ③ 时间不可分：有号优先于无号（无号多为更早的首轮 / 跨区轮）
+      if (na !== nb) return na - nb;
       return a.localeCompare(b);
     });
 }
 
-/** 轮次文件 mtime（ms）。取不到 → 0（排序退化为名字比较，纯名字场景次序不变）。 */
-function mtimeOf(f) {
+/**
+ * 轮次文件的**时序真源**：`git 首次加入时间` → `birthtime`（创建时间）→ `mtime` → `0`。
+ * 为什么不是 mtime 优先：A7 要求"修正必须回改原文" ⇒ 旧文件会被后编辑 ⇒ mtime 被污染。
+ * 为什么补 birthtime：未提交的新文件 git 查不到，而它的**创建时间**同样不受后编辑影响。
+ */
+const ADD_TIME = loadAddTimes();
+function tsOf(f) {
+  const t = ADD_TIME.get(f);
+  if (t) return t;
   try {
-    return statSync(join(ARCH_DIR, f)).mtimeMs;
+    const st = statSync(join(ARCH_DIR, f));
+    return st.birthtimeMs || st.mtimeMs || 0;
   } catch {
     return 0;
   }
+}
+
+/**
+ * 一次 `git log` 拿全部轮次文件的「首次加入时间」（ms）—— 避免逐文件起 git 进程（242 文件会很慢）。
+ * `--diff-filter=A` 只列"新增"该文件的提交；同名多次出现时取**最早**（后赋值覆盖 ⇒ 首次加入）。
+ *
+ * ⚠️ **必须带 `-c core.quotePath=false`**（2026-09-18 实测踩坑）：git 默认把**非 ASCII 路径**转义成
+ *   八进制（`"daily/\346\236..."`）⇒ 按 `split('/').pop()` 取出的名字**永远匹配不上真实文件名** ⇒
+ *   整张表为空、排序静默退化为 `birthtime`（而同一 checkout 的文件 birthtime 只有**亚秒**差异 =
+ *   噪声定序 ⇒ 又把"最新轮次"指错）。这类"解析器被打瞎却照样跑"的失效**不报错**，最危险。
+ *
+ * 非 git 环境 / git 不可用 → 空表（整体退化为 birthtime / mtime，行为不劣化）。
+ */
+function loadAddTimes() {
+  const map = new Map();
+  let out = '';
+  try {
+    out = execFileSync(
+      'git',
+      ['-c', 'core.quotePath=false', 'log', '--diff-filter=A', '--format=__C__%ct', '--name-only', '--', 'daily/架构日志'],
+      { cwd: ROOT, encoding: 'utf8', maxBuffer: 128 * 1024 * 1024 },
+    );
+  } catch {
+    return map; // 非 git 环境 / git 不可用 → 空表（合法降级，行为不劣化）
+  }
+  let ts = 0;
+  for (const raw of out.split('\n')) {
+    const line = raw.trim();
+    if (line.startsWith('__C__')) {
+      ts = Number(line.slice(5)) * 1000;
+      continue;
+    }
+    if (!line.endsWith('.md')) continue;
+    map.set(line.split('/').pop(), ts);
+  }
+  // 【解析率自检 fail-loud】git 有输出却 0 条解析成功 = **解析器被打瞎**（不是"没有数据"）——
+  // 这种失效**不报错、静默降级**，最危险（本文件 2026-09-18 就踩过一次：路径被转义）。
+  if (!map.size && out.trim()) {
+    console.error('❌ arch-index：git log 有输出但 0 条解析成功 —— 解析器失效（检查 core.quotePath / 路径前缀）');
+    process.exit(2);
+  }
+  return map;
 }
 
 /**

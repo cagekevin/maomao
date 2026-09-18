@@ -14,6 +14,7 @@ import { assetTypeLabel } from '@/types';
 import { UPLOAD_DIRS } from '../components/base/utils/uploadDirs.ts';
 import { logger } from '../components/base/core/logger.ts';
 import { tryParse } from '../components/base/utils/asyncGuard.ts';
+import { tryParseOr } from '../components/base/core/degrade.ts';
 
 /** 画布坐标（screenToFlowPosition 的输出 / addNode 的入参） */
 export interface FlowPosition {
@@ -299,7 +300,9 @@ export function useAssetDropPaste({
       // 素材库素材拖入（ResourceLibrary 写 application/x-yimao-asset）：用素材 url 建节点
       const assetRaw = e.dataTransfer?.getData('application/x-yimao-asset');
       if (assetRaw) {
-        const assetR = tryParse(
+        // 【TD-16-49】此处失败=**用户无感**（拖了没反应）⇒ 必须留痕 + 提示用户。
+        // 走「压平即留痕」原语；文案由本域（拖放能力的所有方）给全。
+        const asset = tryParseOr(
           () =>
             JSON.parse(assetRaw) as {
               url?: string;
@@ -308,8 +311,13 @@ export function useAssetDropPaste({
               name?: string;
               contentId?: string;
             },
+          null,
+          {
+            layer: 'useAssetDropPaste',
+            key: 'asset-drop',
+            toast: '拖入的素材数据无法解析，已忽略',
+          },
         );
-        const asset = assetR.ok ? assetR.value : null;
         if (asset?.url) {
           // 文字素材 → textGenerateNode（把 data:text 内容解码成文本）；图片/视频/音频 → assetNode
           if (asset.type === 'text') {

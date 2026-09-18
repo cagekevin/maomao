@@ -199,10 +199,10 @@ describe('captureFrame — 失败路径（失败即 reject，不产出假帧）'
     await assertion;
   });
 
-  it('toBlob 返回 null → reject toBlob null', async () => {
+  it('toBlob 返回 null → 走唯一出口抛出统一文案（TD-06-14：判据/文案归一）', async () => {
     toBlobBehavior = 'null';
     const p = captureFrame('http://x/v.mp4', 3);
-    const assertion = expect(p).rejects.toThrow('captureFrame: toBlob null');
+    const assertion = expect(p).rejects.toThrow('图片超出当前设备可处理的范围');
     fire(lastVideo!, 'loadeddata');
     await assertion;
   });

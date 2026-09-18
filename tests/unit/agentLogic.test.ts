@@ -8,6 +8,8 @@ import {
 // buildRequestMessages 的 messages 参数为 ChatMessage[]（role 是字面量联合、content 是 string | 内容块数组联合），
 // 测试构造的消息需按该类型标注，避免字面量被宽化成 string。
 import type { ChatMessage, SSEAccumulator } from '@/components/agent/runtime/agentCore.ts';
+// 生产者发布的失败文案（TD-16-50）：消费者只转发，测试据此断言"文案来自生产者"而非消费层自造。
+import { SSE_MALFORMED_MESSAGE } from '@/components/agent/runtime/agentCore.ts';
 
 // buildRequestMessages 输出的 content 块类型（测试按块读 type/text）
 type ContentBlock = { type: string; text?: string; image_url?: { url: string } };
@@ -56,6 +58,30 @@ describe('AI 助手 parseSSEChunk（SSE 解析）§2.15', () => {
     const acc = { content: '', reasoning: '', toolCalls: [] };
     expect(() => parseSSEChunk('data: {bad json', acc)).not.toThrow();
     expect(acc.content).toBe('');
+  });
+
+  // 【TD-16-50】契约收紧：boolean → 三态判别联合。坏 JSON 不得再与「已消费」混为一谈。
+  it('【TD-16-50】坏 JSON → malformed（带生产者发布的文案/原因/证据），不再伪装成已消费', () => {
+    const acc = { content: 'keep', reasoning: '', toolCalls: [] };
+    const out = parseSSEChunk('data: {这不是合法json', acc);
+    expect(out.kind).toBe('malformed');
+    if (out.kind === 'malformed') {
+      expect(out.message).toBe(SSE_MALFORMED_MESSAGE); // 文案由生产者发布
+      expect(out.payload).toBe('{这不是合法json'); // 证据
+      expect(out.error).toBeInstanceOf(Error); // 原因
+    }
+    expect(acc.content).toBe('keep'); // 单条失败不阻断、不改 acc（既有语义保留）
+  });
+
+  it('【TD-16-50】三态齐全：notSSE / consumed 各自归位', () => {
+    const acc = { content: '', reasoning: '', toolCalls: [] };
+    expect(parseSSEChunk('event: x', acc).kind).toBe('notSSE');
+    expect(parseSSEChunk('data: [DONE]', acc).kind).toBe('consumed');
+    expect(parseSSEChunk('data:', acc).kind).toBe('consumed');
+    expect(parseSSEChunk('data: {"choices":[]}', acc).kind).toBe('consumed');
+    expect(parseSSEChunk('data: {"choices":[{"delta":{"content":"x"}}]}', acc).kind).toBe(
+      'consumed',
+    );
   });
 });
 

@@ -302,6 +302,8 @@ export async function relayChatStream(
       'Access-Control-Allow-Origin': '*',
     });
     res.flushHeaders?.();
+    // 【TD-01-24】上游预算 = **调用方给的预算**（前端已把实际值写进 body.timeoutMs 并由路由转发过来）；
+    // 这个 120_000 只在"调用方没给"时兜底 —— 它**不是口径**，别拿它当"后端默认 180s"那种第二份真相。
     const timeoutMs = input.timeoutMs ?? 120_000;
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 

@@ -29,9 +29,11 @@ import { chatStream } from '@/components/base/api/index.ts';
 import type { GenerationProvider } from '@/types';
 import type { ChatMessage as ApiChatMessage } from '@/components/base/api/generate.ts';
 import { withTimeout, releaseQuietly } from '../../base/utils/asyncGuard.ts';
-import { CHAT_TIMEOUT } from '../../base/core/config.ts';
+import { CHAT_TOTAL_TIMEOUT } from '../../base/core/config.ts';
 // 复用 agentCore 的权威消息/工具调用类型（同 runtime 目录，避免重定义漂移）
-import type { ChatMessage, ToolCall, SSEAccumulator } from './agentCore.ts';
+import type { ChatMessage, ToolCall, SSEAccumulator, SSEChunkOutcome } from './agentCore.ts';
+// 整条流不可读时的**用户可见文案**由生产者发布（agentCore 导出），消费者只转发、禁止自造。
+import { SSE_STREAM_UNREADABLE_MESSAGE } from './agentCore.ts';
 
 /** roundTrip 返回的 assistant 消息：在 ChatMessage 基础上携带运行期必填字段。 */
 interface RuntimeAssistantMessage extends ChatMessage {
@@ -86,7 +88,7 @@ export interface RoundTripCtx {
   logger: AgentLogger;
   loadAgentChatModel: () => { streamMode?: string } | null | undefined;
   parseAgentError: (res: Response, fallback?: string) => Promise<string>;
-  parseSSEChunk: (line: string, acc: SSEAccumulator) => boolean;
+  parseSSEChunk: (line: string, acc: SSEAccumulator) => SSEChunkOutcome;
   ENABLE_TOOLS_ON_NON_STREAM?: boolean;
 }
 
@@ -109,7 +111,7 @@ interface ResolveBodyOpts {
   isNonStream: boolean;
   model: string;
   logger: AgentLogger;
-  parseSSEChunk: (line: string, acc: SSEAccumulator) => boolean;
+  parseSSEChunk: (line: string, acc: SSEAccumulator) => SSEChunkOutcome;
   ENABLE_TOOLS_ON_NON_STREAM?: boolean;
   onStream?: (delta: StreamDelta) => void;
 }
@@ -258,7 +260,7 @@ export async function roundTrip(
       ENABLE_TOOLS_ON_NON_STREAM,
       onStream,
     }),
-    CHAT_TIMEOUT + 60_000,
+    CHAT_TOTAL_TIMEOUT,
     'AI助手响应超时',
     signal,
     () => {
@@ -448,6 +450,22 @@ async function resolveBody(
   };
 
   let _totalBytes = 0; // 【B层】累计收到的 SSE 字节数（定位流式是否被缓冲/断流）
+  // 【失败证据】坏 chunk 计数 + 首条证据 —— 全部取自**生产者**（parseSSEChunk）的判别联合，
+  //   本层只累加与转发，不自造文案、不重分类（Step 4 三铁律②「消费者只转发」）。
+  const malformed: { count: number; first: SSEChunkOutcome | null } = { count: 0, first: null };
+  const consumeOutcome = (outcome: SSEChunkOutcome, chunk: string): void => {
+    if (outcome.kind === 'notSSE') {
+      // 非 data: 前缀 → 尝试非流式 JSON 兜底，防吞输出
+      tryParseNonStreamJsonFallback(chunk);
+      scheduleFlush();
+      return;
+    }
+    if (outcome.kind === 'malformed') {
+      malformed.count++;
+      if (!malformed.first) malformed.first = outcome;
+    }
+  };
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -458,12 +476,7 @@ async function resolveBody(
     for (const chunk of parts) {
       const before = acc.content.length + acc.reasoning.length + acc.toolCalls.length;
       // chat/completions SSE 逐块解析；responses 形态已随 requestModes 退役（L3b 知识退场）
-      if (!parseSSEChunk(chunk, acc)) {
-        // parseSSEChunk 返回 false（非 data: 前缀）→ 尝试非流式 JSON 兜底，防吞输出
-        tryParseNonStreamJsonFallback(chunk);
-        scheduleFlush();
-        continue;
-      }
+      consumeOutcome(parseSSEChunk(chunk, acc), chunk);
       if (acc.content.length + acc.reasoning.length + acc.toolCalls.length > before)
         scheduleFlush();
     }
@@ -471,7 +484,7 @@ async function resolveBody(
   buffer += decoder.decode();
   if (buffer.trim()) {
     // 末尾残余：先走 SSE、非 data: 再尝试非流式 JSON 兜底（单行 JSON 落这里）
-    if (!parseSSEChunk(buffer, acc)) tryParseNonStreamJsonFallback(buffer);
+    consumeOutcome(parseSSEChunk(buffer, acc), buffer);
   }
   flush();
 
@@ -489,6 +502,27 @@ async function resolveBody(
   // 改为：filter 后非空才设，空则完全不设，杜绝空数组。
   const realCalls = acc.toolCalls.filter((t) => t.function?.name);
   if (realCalls.length > 0) assistant.tool_calls = realCalls;
+
+  // 【失败诚实 · TD-16-50】对齐非流式路径的同口径判据（:359-364「截断告警」）—— 流式侧此前**没有**
+  //   这条判据，坏 chunk 静默蒸发，用户收到空/短回复且无从归因（= 失败伪装成功）。
+  //   转发口径（Step 4 三铁律②）：文案 / 原因 / 证据全部取自**生产者**的判别联合；本层只按读者分流到
+  //   logger（开发者），不重分类、不自造文案、不替生产者下因果结论。聚合一次，不逐块刷屏。
+  const bad = malformed.first;
+  if (bad && bad.kind === 'malformed') {
+    logger.error('AI助手', bad.message, {
+      malformedChunks: malformed.count,
+      bytes: _totalBytes,
+      payloadHead: bad.payload.slice(0, 120),
+      cause: bad.error,
+    });
+    // 【不伪装成功】整条流一个可读增量都没有（无 content / reasoning / 可用 tool_calls）却存在坏 chunk
+    //   ⇒ 这不是「模型回了空」，是「我们读不懂」。静默返回空串 = 假成功（用户见空回复、零提示、无从重试）。
+    //   文案由**生产者**发布（`SSE_STREAM_UNREADABLE_MESSAGE`）；抛错经 useAgentChat 的 catch →
+    //   setError(文案) + 状态机 failed（可重试），用户可见且可行动。
+    if (!acc.content && !acc.reasoning && realCalls.length === 0) {
+      throw new Error(SSE_STREAM_UNREADABLE_MESSAGE);
+    }
+  }
   // 【链路日志】流式响应完成：内容长度 + 触发的工具调用
   logger.info('AI助手', '流式结果', {
     contentLen: (assistant.content ?? '').length,

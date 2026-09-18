@@ -3,7 +3,7 @@ import { toast } from '@/components/videoEditor/lib/toast';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import { getMediaTypeFromFile } from '@/components/videoEditor/engine/lib/media/media-utils';
 import { detectFileType } from '@/components/base/utils/assetType';
-import { canvasToImageDataUrl } from '@/components/base/core/utils';
+import { canvasToBlob, canvasToImageDataUrl } from '@/components/base/core/utils';
 import { getVideoInfo } from './mediabunny';
 import { Input, ALL_FORMATS, BlobSource, VideoSampleSink } from 'mediabunny';
 
@@ -143,12 +143,8 @@ export async function extractVideoFrame({
     if (!context) throw new Error('Could not get canvas context');
 
     frame.draw(context, 0, 0, width, height);
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (value) => (value ? resolve(value) : reject(new Error('Could not encode PNG'))),
-        'image/png',
-      );
-    });
+    // 【TD-06-14】走唯一出口（原自写 Promise + `reject(Could not encode PNG)` = 第二份判据）
+    const blob = await canvasToBlob(canvas, 'image/png');
 
     return {
       file: new File([blob], fileName, { type: 'image/png' }),

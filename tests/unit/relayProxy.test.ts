@@ -19,7 +19,13 @@ vi.mock('../../src/components/base/api/httpClient.ts', () => ({
   httpRequest: (...a: any[]) => h.mockHttpRequest(...a),
 }));
 
-import { relayAttachUntilDone, relayGenerate } from '../../src/components/base/api/relayProxy.ts';
+import {
+  relayAttachUntilDone,
+  relayGenerate,
+  relayChat,
+  relayChatStream,
+} from '../../src/components/base/api/relayProxy.ts';
+import { CHAT_TIMEOUT, CHAT_TOTAL_TIMEOUT } from '../../src/components/base/core/config.ts';
 
 function envResp(data: any) {
   // httpRequest parseJson:true 真实返回纯信封对象 { code, data }（无 .json）
@@ -183,5 +189,51 @@ describe('relayProxy §R6 — relayGenerate = submit + attach', () => {
     expect(h.mockHttpRequest.mock.calls.some(([u]) => u.includes('/api/generate/task-1'))).toBe(
       true,
     );
+  });
+});
+
+/**
+ * 【TD-01-24】chat 预算贯通 —— 前端把**本次实际预算**写进 `body.timeoutMs`（生产者给全），
+ * 后端读它并原样转发给上游。此前它只用来掐本层 fetch，后端**不知道** ⇒ 按自己默认跑上游 = 白跑。
+ */
+describe('relayProxy · chat 预算贯通（TD-01-24）', () => {
+  beforeEach(() => {
+    h.mockHttpRequest.mockReset();
+  });
+
+  const chatIntent = {
+    frontTaskId: 't1',
+    type: 'chat',
+    providerId: 'lovart',
+    capability: 'chat',
+    model: 'm',
+  } as const;
+
+  it('relayChat：显式预算 → 同时写进 body.timeoutMs 与本层 fetch 超时', async () => {
+    h.mockHttpRequest.mockResolvedValueOnce(envResp({ status: 'completed', text: 'hi' }));
+    await relayChat(chatIntent, { timeoutMs: 9000 });
+    const [, opts] = h.mockHttpRequest.mock.calls[0] as [
+      string,
+      { body: string; timeoutMs: number },
+    ];
+    expect(JSON.parse(opts.body).timeoutMs).toBe(9000);
+    expect(opts.timeoutMs).toBe(9000);
+  });
+
+  it('relayChat：未显式传 → 用 CHAT_TIMEOUT（唯一真源，不是硬编码副本）', async () => {
+    h.mockHttpRequest.mockResolvedValueOnce(envResp({ status: 'completed', text: 'hi' }));
+    await relayChat(chatIntent);
+    const [, opts] = h.mockHttpRequest.mock.calls[0] as [string, { body: string }];
+    expect(JSON.parse(opts.body).timeoutMs).toBe(CHAT_TIMEOUT);
+  });
+
+  it('relayChatStream：body 带总预算 CHAT_TOTAL_TIMEOUT（与调用方总闸同源）', async () => {
+    h.mockHttpRequest.mockResolvedValueOnce(new Response(''));
+    await relayChatStream({
+      intent: { frontTaskId: 't1', providerId: 'lovart', model: 'm' },
+      stream: true,
+    });
+    const [, opts] = h.mockHttpRequest.mock.calls[0] as [string, { body: string }];
+    expect(JSON.parse(opts.body).timeoutMs).toBe(CHAT_TOTAL_TIMEOUT);
   });
 });
