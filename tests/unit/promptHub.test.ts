@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // 隔离 contentStore（避免真实写 localStorage / 触发未登记 warning）
 const cache: Record<string, any> = {};
-vi.mock('../../src/components/base/core/contentStore.ts', () => ({
+// 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
+vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   contentGet: (key: any) => cache[key],
   // 【2026-09-17 TD-24-4 阶段1】contentSet 现在返回落盘结果（判别联合）——桩必须跟契约走
   contentSet: (key: any, val: any) => {

@@ -15,6 +15,7 @@ import { useReactFlow, Handle, Position } from '@xyflow/react';
 import { useNodeData } from '../../hooks/useNodeData.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import NodeShell from '../base/ui/NodeShell.tsx';
+import { ASSET_NODE_SIZE } from '../base/canvas/nodeDefaults.ts';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { useContentHeightSync } from '../base/core/uiHooks.ts';
@@ -641,7 +642,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
             type: 'assetNode',
             position: { x: baseX + c * 330, y: baseY + r * 330 },
             data: { assetUrl: item.url, label: item.label, expanded: false },
-            style: { width: 320, height: 320 },
+            style: { ...ASSET_NODE_SIZE.gridCell }, // 尺寸单源（TD-16-48）；与宫格间距 330 配套
           };
         }),
       );

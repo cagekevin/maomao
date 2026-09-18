@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   deepClone,
+  formatDuration,
   formatTime,
   debounce,
   throttle,
@@ -257,6 +259,44 @@ describe('formatTime', () => {
 
   it('非法时间戳 → 哨兵「—」（TD-18-8：空串与「字段缺失」不可区分 = 失败伪装成功）', () => {
     expect(formatTime('invalid', { mode: 'time' })).toBe('—');
+  });
+});
+
+describe('formatDuration（时长显示唯一实现 · TD-22-64）', () => {
+  it('m:ss，秒截断（不四舍五入）', () => {
+    expect(formatDuration(0)).toBe('0:00');
+    expect(formatDuration(5)).toBe('0:05');
+    expect(formatDuration(65)).toBe('1:05');
+    expect(formatDuration(59.9)).toBe('0:59'); // 截断：与两处旧实现一致
+  });
+
+  it('按**总分钟**显示（≥1h 不进位到小时）—— 既有语义，锁定防漂移', () => {
+    expect(formatDuration(3600)).toBe('60:00');
+    expect(formatDuration(3661)).toBe('61:01');
+  });
+
+  it('无可用值 / 非法 → 哨兵「—」（读不出时长 ≠ 0 分 0 秒，不伪装成 0:00）', () => {
+    expect(formatDuration(null)).toBe('—');
+    expect(formatDuration(undefined)).toBe('—');
+    expect(formatDuration(Number.NaN)).toBe('—');
+    expect(formatDuration(Number.POSITIVE_INFINITY)).toBe('—');
+    expect(formatDuration(-1)).toBe('—');
+  });
+
+  it('★源码级：两个消费方**不再自持第二份**（唯一实现在 base/core/utils）', () => {
+    const consumers = [
+      'src/components/videoEditor/ui/editor/panels/assets/views/media.tsx',
+      'src/components/nodes/VideoProcessNode.tsx',
+    ];
+    for (const rel of consumers) {
+      const text = readFileSync(new URL('../../' + rel, import.meta.url), 'utf8');
+      // ① 本地实现已删（否则 = 第二份真相源又回来了）
+      expect(text).not.toMatch(/(?:const|function)\s+formatDuration\s*[=(]/);
+      // ② 仍在用，且**从 base 取**（是委托，不是把功能删了）
+      expect(text).toMatch(
+        /import\s*\{[^}]*\bformatDuration\b[^}]*\}\s*from\s*'[^']*core\/utils[^']*'/,
+      );
+    }
   });
 });
 

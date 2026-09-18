@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { ScanFace, Loader2, AlertCircle, Image as ImageIcon, Wand2, Shuffle } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
+import { ASSET_NODE_SIZE } from '../base/canvas/nodeDefaults.ts';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
@@ -129,7 +130,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
         type: 'assetNode',
         position: { x: baseX, y: baseY + i * 260 },
         data: { assetUrl: it.url, label: it.label },
-        style: { width: 360, height: 260 },
+        style: { ...ASSET_NODE_SIZE.image }, // 尺寸单源（TD-16-48）：图片档 = 360×260
       }));
       setNodes((ns) => [...ns, ...list]);
     },

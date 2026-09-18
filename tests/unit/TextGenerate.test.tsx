@@ -59,7 +59,9 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   // 注：_nodeMocks 的 saveResultToTasks 已返回 SaveTasksOutcome（TD-01-17）
   saveTextToTasks: mocks.saveTextToTasks,
 }));
-vi.mock('../../src/components/base/store/providerStore.ts', () => ({
+// 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
+vi.mock('../../src/components/base/store/providerStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useProviders: mocks.useProviders,
   load: mocks.loadProviders,
 }));

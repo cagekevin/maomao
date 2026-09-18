@@ -20,6 +20,7 @@ import {
   Move3D,
 } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
+import { IMAGE_BOX_NODE_SIZE } from '../base/canvas/nodeDefaults.ts';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import PanoViewer, { type PanoViewerHandle } from '../base/editors/PanoViewer.tsx';
@@ -414,7 +415,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
                     x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60,
                     y: me?.position.y ?? 100,
                   },
-                  style: { width: 420, height: 420 },
+                  style: { ...IMAGE_BOX_NODE_SIZE }, // 尺寸单源（TD-16-48）；与导演台同档
                   data: {
                     images: newImages,
                     activeIndex: newImages.length - 1,

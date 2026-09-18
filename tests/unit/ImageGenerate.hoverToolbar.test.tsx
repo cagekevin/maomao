@@ -75,7 +75,9 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   toAbsoluteFileUrl: (x: any) => x,
   saveResultToTasks: vi.fn(async (url) => ({ ok: true, url, skipped: true })),
 }));
-vi.mock('../../src/components/base/store/providerStore.ts', () => ({
+// 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
+vi.mock('../../src/components/base/store/providerStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useProviders: () => ({ providers: [] }),
   load: vi.fn(() => Promise.resolve()),
 }));

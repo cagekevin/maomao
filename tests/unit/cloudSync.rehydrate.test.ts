@@ -16,7 +16,9 @@ vi.mock('@/components/base/store/appSettings.ts', () => ({
 vi.mock('@/components/base/store/accountsStore.ts', () => ({
   reloadAccounts: (...a: unknown[]) => reloadAccounts(...a),
 }));
-vi.mock('@/components/base/store/providerStore.ts', () => ({
+// 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
+vi.mock('@/components/base/store/providerStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   reloadProviders: (...a: unknown[]) => reloadProviders(...a),
 }));
 

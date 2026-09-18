@@ -19,6 +19,7 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { patchNodeDataById } from '../../hooks/useNodeData.ts';
 import { classifyAssetUrlKind } from '../base/utils/assetType.ts';
+import { ASSET_NODE_SIZE } from '../base/canvas/nodeDefaults.ts';
 import {
   pxDeltaToTime,
   snapTime,
@@ -30,6 +31,9 @@ import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
 import { useNodeResize } from '../base/core/uiHooks.ts';
 import { useCanvasKeydown } from '../base/core/canvasHotkeys.ts';
 import { showToast } from '../base/core/toastStore.ts';
+// 【TD-22-64 · 2026-09-18】时长显示唯一实现：此前本文件自持一份 `formatDuration`，
+// 与 videoEditor/ui/…/media.tsx 的同名实现重复，且多一个「非有限 → '0:00'」的发明值。
+import { formatDuration } from '../base/core/utils.ts';
 import { logger } from '../base/core/logger.ts';
 import { classifyError } from '../base/utils/genErrors.ts';
 import { withTimeout, isTimeoutError, releaseQuietly } from '../base/utils/asyncGuard.ts';
@@ -121,12 +125,6 @@ const normalizeMode = (m: string): string => {
   return 'trim';
 };
 const stripExt = (name: string): string => (name || '').replace(/\.[^.]+$/, '') || 'video';
-const formatDuration = (s: number): string =>
-  Number.isFinite(s)
-    ? `${Math.floor(s / 60)}:${Math.floor(s % 60)
-        .toString()
-        .padStart(2, '0')}`
-    : '0:00';
 const evenRound = (v: number): number => Math.max(2, Math.round(v / 2) * 2);
 const round2 = (v: number): number => Number(v.toFixed(2));
 /**
@@ -930,7 +928,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
             position: { x: baseX, y: baseY },
             // assetType:'video'：blob 视频 URL 无扩展名/前缀，靠显式类型让 assetNode 正确渲染视频
             data: { assetUrl: url, assetType: 'video', label: name, expanded: true },
-            style: { width: 420, height: 380 },
+            style: { ...ASSET_NODE_SIZE.video }, // 尺寸单源（TD-16-48）：视频档 = 420×380
           },
         ],
         { sourceHandle: 'main-output' },
@@ -961,7 +959,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
             position: { x: baseX, y: baseY },
             // assetType:'audio'：blob 音频 URL 无扩展名/前缀，靠显式类型让 assetNode 正确渲染音频
             data: { assetUrl: url, assetType: 'audio', label: name, expanded: false },
-            style: { width: 320, height: 200 },
+            style: { ...ASSET_NODE_SIZE.audio }, // 尺寸单源（TD-16-48）：音频档 = 320×200
           },
         ],
         { sourceHandle: 'main-output' },
@@ -992,7 +990,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
             type: 'assetNode',
             position: { x: baseX, y: baseY },
             data: { assetUrl: url, assetType: 'image', label: name, expanded: false },
-            style: { width: 360, height: 260 },
+            style: { ...ASSET_NODE_SIZE.image }, // 尺寸单源（TD-16-48）：图片档 = 360×260
           },
         ],
         { sourceHandle: 'main-output' },
@@ -1553,7 +1551,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
             <span className="truncate">{currentName}</span>
             <span className="shrink-0 tabular-nums">
               {currentMeta
-                ? `${formatDuration(currentMeta.duration ?? 0)} · ${currentMeta.width}×${currentMeta.height} · ${(currentMeta.fps ?? 0).toFixed(2)} fps`
+                ? `${formatDuration(currentMeta.duration)} · ${currentMeta.width}×${currentMeta.height} · ${(currentMeta.fps ?? 0).toFixed(2)} fps`
                 : '读取信息中...'}
             </span>
           </div>

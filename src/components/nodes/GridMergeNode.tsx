@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useDebouncedEffect, clamp, canvasToImageDataUrl } from '../base/core/utils.ts';
 import '@xyflow/react';
 import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
+import { ASSET_NODE_SIZE } from '../base/canvas/nodeDefaults.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 
 import { Grid3X3, PanelsTopLeft, Layers, Loader2 } from 'lucide-react';
@@ -468,7 +469,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
             type: 'assetNode',
             position: { x: baseX, y: baseY },
             data: { assetUrl: url, label: `合并结果`, expanded: false },
-            style: { width: 320, height: 320 },
+            style: { ...ASSET_NODE_SIZE.gridCell }, // 尺寸单源（TD-16-48）；与 GridSplit 同档
           },
         ],
         { sourceHandle: 'merged-output' },

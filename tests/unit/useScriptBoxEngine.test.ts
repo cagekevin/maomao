@@ -45,7 +45,9 @@ vi.mock('../../src/components/scriptbox/scriptBoxEngine.ts', () => ({
 // 节点参数记忆（yimao_node_prefs）落点：nodePrefs 经 contentStore 读写，这里用内存态替代，
 // 只让 key 命中 'yimao_node_prefs' 时返回，避免牵动 contentStore 的真实注册/后端逻辑。
 let prefsStore = {};
-vi.mock('../../src/components/base/core/contentStore.ts', () => ({
+// 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
+vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   contentGet: (k: any) => (k === 'yimao_node_prefs' ? prefsStore : null),
   contentSet: (k: any, v: any) => {
     if (k === 'yimao_node_prefs') prefsStore = v;
@@ -63,7 +65,9 @@ vi.mock('../../src/components/base/store/resourceStore.ts', () => ({
     ({ character: 'migrated/人物', scene: 'migrated/场景', prop: 'migrated/道具' })[category] ||
     'migrated/其他',
 }));
-vi.mock('../../src/components/base/store/providerStore.ts', () => ({
+// 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
+vi.mock('../../src/components/base/store/providerStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useProvidersList: (...a: Parameters<typeof useProvidersList>) => useProvidersList(...a),
   load: (...a: Parameters<typeof loadProviders>) => loadProviders(...a),
   // 【2026-09-17 桩跟契约走】供应商加载已收口到 store 的单 hook（TD-24-4 §二）：

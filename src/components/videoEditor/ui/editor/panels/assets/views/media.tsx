@@ -5,6 +5,9 @@ import { mediaDisplayUrl } from '@/components/videoEditor/lib/mediaDisplayUrl';
 import { useRenderAssetResolver } from '@/components/base/utils/assetUrl.ts';
 // 【2026-09-17 TD-16-29②】图片失败态的唯一实现（两段回退 + 显式占位），替代裸 <img>
 import LazyImage from '@/components/base/ui/LazyImage.tsx';
+// 【TD-22-64 · 2026-09-18】时长显示唯一实现（此前本文件自持一份 `formatDuration`，与
+// nodes/VideoProcessNode 的同名实现重复；落 base/core 是两域唯一可共用的层）
+import { formatDuration } from '@/components/base/core/utils.ts';
 
 import { useMemo, useState } from 'react';
 import { toast } from '@/components/videoEditor/lib/toast';
@@ -658,22 +661,16 @@ function ListView({
   );
 }
 
-const formatDuration = ({ duration }: { duration: number }) => {
-  const min = Math.floor(duration / 60);
-  const sec = Math.floor(duration % 60);
-  return `${min}:${sec.toString().padStart(2, '0')}`;
-};
-
 function MediaDurationBadge({ duration }: { duration?: number }) {
   if (!duration) return null;
 
-  return <div className="ve-card-badge">{formatDuration({ duration })}</div>;
+  return <div className="ve-card-badge">{formatDuration(duration)}</div>;
 }
 
 function MediaDurationLabel({ duration }: { duration?: number }) {
   if (!duration) return null;
 
-  return <span className="text-xs opacity-70">{formatDuration({ duration })}</span>;
+  return <span className="text-xs opacity-70">{formatDuration(duration)}</span>;
 }
 
 function MediaTypePlaceholder({

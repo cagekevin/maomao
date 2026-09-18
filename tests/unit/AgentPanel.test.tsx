@@ -178,7 +178,9 @@ vi.mock('../../src/components/agent/index.ts', () => ({
   // 固定 true = 保持既有用例的行为基线；面板逻辑另行在专测覆盖。
   getCreditSwitch: () => true,
 }));
-vi.mock('../../src/components/base/store/providerStore.ts', () => ({
+// 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
+vi.mock('../../src/components/base/store/providerStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   useProviders: () => ({ providers: h.providers }),
   load: vi.fn(async () => {}),
   // 【2026-09-17 桩跟契约走】AgentPanel 的供应商加载已收口到 store 的单 hook
@@ -200,7 +202,9 @@ vi.mock('../../src/components/base/store/skillStore.ts', () => ({
   SKILLS_KEY: 'agent_skills',
   ENABLED_KEY: 'agent_skill_enabled',
 }));
-vi.mock('../../src/components/base/core/contentStore.ts', () => ({
+// 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
+vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   contentGet: () => null,
   // 【2026-09-17 TD-24-4 契约同步】写桩必须返回落盘结果（PersistWriteOutcome）：面板宽度落盘走
   // confirmPersist 读 `.ok`，桩返 undefined 会让整套件崩（桩跟契约走，不是契约迁就桩）。

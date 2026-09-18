@@ -5,6 +5,7 @@ import { useReactFlow } from '@xyflow/react';
 import { createPortal } from 'react-dom';
 import { Orbit, Maximize2 } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
+import { IMAGE_BOX_NODE_SIZE } from '../base/canvas/nodeDefaults.ts';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useNodeRename } from '../../hooks/useNodeRename.ts';
 import { patchNodeDataById } from '../../hooks/useNodeData.ts';
@@ -138,7 +139,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
                 x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60,
                 y: me?.position.y ?? 100,
               },
-              style: { width: 420, height: 420 },
+              style: { ...IMAGE_BOX_NODE_SIZE }, // 尺寸单源（TD-16-48）；与 Panorama 同档
               data: {
                 images: newImages,
                 activeIndex: newImages.length - 1,

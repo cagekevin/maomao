@@ -437,6 +437,33 @@ export function formatBytes(bytes: number): string {
   return p ? `${p.value} ${p.unit}` : '—';
 }
 
+/**
+ * 秒 → 时长显示（`m:ss`，如 `1:05`）**· 全库唯一实现**。
+ *
+ * 【为什么收口（TD-22-64 · 2026-09-18）】此前**两处各写一份同名** `formatDuration`：
+ * `videoEditor/ui/editor/panels/assets/views/media.tsx`（素材卡时长徽标）与
+ * `nodes/VideoProcessNode.tsx`（节点 meta 行）—— 语义相同、代码几乎逐字相同，
+ * 唯后者多一个「非有限 → `'0:00'`」的**发明值**。现两处统一走本函数。
+ * 落点在 `base/core/`：`nodes/` 与 `videoEditor/` 两域都只准**依赖 base**（`check:arch` 规则 2 反向判据），
+ * base 是唯一能同时被两者 import 的层（两域均有 import 本文件的先例）。
+ *
+ * 【判据：真空 / 非法（对齐同文件 `formatBytes` · ADR-0003/0004）】
+ *   · 显式 `0` → `'0:00'`（**合法真实值**）；
+ *   · 无可用值（`null` / `undefined`）与非法（NaN / ±Infinity / 负数）→ 哨兵 `'—'`，
+ *     **不伪装成 `'0:00'`** —— 旧写法把「读不出时长」显示成「0 分 0 秒」＝对用户撒谎。
+ *
+ * 【为什么**不**走 `formatTimeCode({format:'MM:SS'})`】那是**时间码**（帧/厘秒精度，分钟到 60 进位且
+ * **丢弃小时**：3661s → `'01:01'`）；本函数是**时长显示**（按**总分钟**：3661s → `'61:01'`）。
+ * 两者判据不同，强行合并会让 ≥1 小时素材**显示错**（该债原拟解法即此，取证后否掉）。
+ * `formatTimeCode` 仍是时间码的唯一真源，本函数不替代它。
+ */
+export function formatDuration(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return '—';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 /** 防抖（返回包装函数 + cancel + flush） */
 export function debounce<T extends (...args: any[]) => void>(fn: T, ms: number): DebouncedFn<T> {
   let timer: ReturnType<typeof setTimeout> | null = null;

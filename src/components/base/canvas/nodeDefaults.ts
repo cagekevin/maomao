@@ -51,8 +51,33 @@ export const NODE_TYPE_DEFAULTS: Record<string, NodeTypeDefault> = {
   },
 };
 
-/** `withNodeSize` 产出的尺寸补丁（三写不变量：字段 width/height + style.width/height，可选 initial*） */
-export interface NodeSizePatch {
+/**
+ * `assetNode` 造节点尺寸（**按媒体形态分档**）—— 造资产节点者的**唯一尺寸来源**。
+ *
+ * 【为什么它不放进 `NODE_TYPE_DEFAULTS`（TD-16-48 · 2026-09-18 取证）】后者是 `applyNodeTypeDefaults`
+ * 用的表，而那个函数**快照还原也走**、且只认**单一档位**（缺字段就补表里的值）。`assetNode` 的造节点
+ * 尺寸**随媒体形态变**（视频/音频/图片/宫格单元各不相同）—— 强行登记一档会让 `applyNodeTypeDefaults`
+ * 用表里的 `width/height` 去配调用方 `style` 里的**另一档** ⇒ **字段与 style 互相打架**，
+ * 正是「三写不变量」（见本文件 `withNodeSize`）要防的事。故这里只做**单源常量**。
+ *
+ * 【值从哪来】逐字取自既有的 8 处造节点点（**零布局变化**是硬约束）：视频 420×380（`expanded:true`）、
+ * 音频 320×200、图片 360×260、宫格单元 320×320。**改这里 = 改所有造节点点的默认尺寸（有布局影响）**。
+ */
+export const ASSET_NODE_SIZE = {
+  /** 视频资产（`VideoProcessNode` 抽帧 / `depthVideo` 转深度，均 `expanded:true`） */
+  video: { width: 420, height: 380 },
+  /** 音频资产（`VideoProcessNode` 抽音轨，`expanded:false`） */
+  audio: { width: 320, height: 200 },
+  /** 图片资产（`VideoProcessNode` 转 GIF / `FaceMosaic` 打码结果） */
+  image: { width: 360, height: 260 },
+  /** 宫格单元（`GridSplit` 拆图 / `GridMerge` 合并，与 330 的宫格间距配套） */
+  gridCell: { width: 320, height: 320 },
+} as const;
+
+/** `imageBoxNode` 造节点尺寸（图盒：导演台「转图盒」/ 全景「转图盒」共用同一档） */
+export const IMAGE_BOX_NODE_SIZE = { width: 420, height: 420 } as const;
+
+/** `withNodeSize` 产出的尺寸补丁（三写不变量：字段 width/height + style.width/height，可选 initial*） */ export interface NodeSizePatch {
   width: number;
   height: number;
   style: Record<string, unknown>;

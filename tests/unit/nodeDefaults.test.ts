@@ -2,8 +2,11 @@
  * applyNodeTypeDefaults / NODE_TYPE_DEFAULTS 单测（节点结构默认补齐）。
  * 对齐原 App.jsx 行为：缺字段补默认、已有字段不覆盖、group 用真实尺寸兜底。
  */
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
+  ASSET_NODE_SIZE,
+  IMAGE_BOX_NODE_SIZE,
   applyNodeTypeDefaults,
   withNodeSize,
   NODE_TYPE_DEFAULTS,
@@ -138,5 +141,43 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
     expect(NODE_TYPE_DEFAULTS).toHaveProperty('imageGenerateNode');
     expect(NODE_TYPE_DEFAULTS).toHaveProperty('group');
     expect(NODE_TYPE_DEFAULTS).toHaveProperty('videoProcessNode');
+  });
+});
+
+describe('造节点尺寸单源（TD-16-48）', () => {
+  it('常量值 = 现网各造节点点原值（**改这里 = 改所有造节点默认尺寸，有布局影响**）', () => {
+    expect(ASSET_NODE_SIZE.video).toEqual({ width: 420, height: 380 });
+    expect(ASSET_NODE_SIZE.audio).toEqual({ width: 320, height: 200 });
+    expect(ASSET_NODE_SIZE.image).toEqual({ width: 360, height: 260 });
+    expect(ASSET_NODE_SIZE.gridCell).toEqual({ width: 320, height: 320 });
+    expect(IMAGE_BOX_NODE_SIZE).toEqual({ width: 420, height: 420 });
+  });
+
+  it('★源码级：造节点点不再自持尺寸字面量（一律引用单源常量）', () => {
+    const sites: Array<[string, string]> = [
+      ['src/components/nodes/GridSplitNode.tsx', 'ASSET_NODE_SIZE'],
+      ['src/components/nodes/GridMergeNode.tsx', 'ASSET_NODE_SIZE'],
+      ['src/components/nodes/FaceMosaicNode.tsx', 'ASSET_NODE_SIZE'],
+      ['src/components/nodes/VideoProcessNode.tsx', 'ASSET_NODE_SIZE'],
+      ['src/components/base/depthVideo/spawn.ts', 'ASSET_NODE_SIZE'],
+      ['src/components/nodes/Director3DNode.tsx', 'IMAGE_BOX_NODE_SIZE'],
+      ['src/components/nodes/PanoramaNode.tsx', 'IMAGE_BOX_NODE_SIZE'],
+    ];
+    for (const [rel, constName] of sites) {
+      const text = readFileSync(new URL('../../' + rel, import.meta.url), 'utf8');
+      // ① 引用了单源常量（是委托，不是把尺寸删了）
+      expect(text).toContain(`...${constName}`);
+      // ② 不再自持尺寸字面量（否则 = 第二份真相源又回来了）
+      expect(text).not.toMatch(/style: \{ width: \d+, height: \d+ \}/);
+    }
+  });
+
+  it('★源码级：`imageGenerateNode` 的造节点尺寸走结构默认表（agent 造节点不再手抄 420×420）', () => {
+    const text = readFileSync(
+      new URL('../../src/components/agent/canvas/useCanvasAgentTools.ts', import.meta.url),
+      'utf8',
+    );
+    expect(text).toContain('applyNodeTypeDefaults');
+    expect(text).not.toMatch(/\{ width: 420, height: 420, style/);
   });
 });

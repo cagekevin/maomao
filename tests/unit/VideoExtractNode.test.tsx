@@ -61,7 +61,9 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => ({
   toastWarning: vi.fn(),
   toastInfo: vi.fn(),
 }));
-vi.mock('../../src/components/base/core/contentStore.ts', () => ({
+// 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
+vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   contentSet: (...a: unknown[]) => (h.contentSet as unknown as (...x: unknown[]) => void)(...a),
   // 【mock 契约同步 · 2026-09-17】被测节点间接依赖 `appSettings.load()`（经 assetUrl），
   // 后者读 `contentGet(KEY)`。mock 缺此导出 ⇒ **整个套件**加载即失败（不是单个用例红）。

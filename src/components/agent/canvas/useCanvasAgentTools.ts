@@ -7,6 +7,7 @@ import {
   type ToolDef,
 } from '../../base/canvas/toolRegistry.ts';
 import { defaultNodeData } from '@/components/base/canvas/nodeDataSchema';
+import { applyNodeTypeDefaults } from '@/components/base/canvas/nodeDefaults.ts';
 import { runNodeGeneration } from '../../base/store/taskStore.ts';
 import '@/components/base/canvas/groupNodes';
 import { createCanvasHost, type CanvasHostCtx } from './canvasHost.ts';
@@ -424,9 +425,8 @@ function buildCreateNode(
     : computeCreatePosition(currentNodes, ctx.screenToFlowPosition, vw, vh);
   const id = generateId(type);
   const newNode = { id, type, position: { ...position }, data };
-  // 生图节点默认 420×420（对齐 App.jsx addNode，避免端口跑偏）
-  if (type === 'imageGenerateNode')
-    Object.assign(newNode, { width: 420, height: 420, style: { width: 420, height: 420 } });
+  // 生图节点默认尺寸（420×420，避免端口跑偏）：**走结构默认单源表**，不再手抄字面量（TD-16-48）
+  if (type === 'imageGenerateNode') Object.assign(newNode, applyNodeTypeDefaults(newNode));
 
   let edges: Edge[] = [];
   if (args.connectFrom) {
