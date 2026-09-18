@@ -18,15 +18,26 @@
  *   · 流程规则     → `.codebuddy/commands/债务登记5步法.md`（本文件**不复述**规则）
  *
  * 用法：
- *   node scripts/arch-index.mjs          # 校验：与实况不一致 → 打印差异 + exit 1（可挂 push 层闸）
- *   node scripts/arch-index.mjs --write  # 重生成 index.md（整份覆盖）
+ *   node scripts/arch-index.mjs          # 【默认】自愈：不一致 → 打印差异 + **自动写成最新** + exit 0
+ *   node scripts/arch-index.mjs --write  # 显式重生成（整份覆盖）
+ *   node scripts/arch-index.mjs --check  # 只校验：不一致 → 打印差异 + exit 1（给 CI / 想真拦的人）
+ *
+ * 【为什么不炸（2026-09-18 定性 · 用户裁定）】────────────────────────────────
+ *   本脚本一度是 **push 层闸**（不一致即 exit 1）→ 实测的净效果是：
+ *   **忘了重生成 → 推送被拦 → 手跑 `--write` → 再推一次**。
+ *   即：**它没能阻止任何错误，只让正确动作多付一次代价**（对照「闸的成本守恒律」：
+ *   合法通过成本 > 绕行成本 `--no-verify` ⇒ 必然被绕）。
+ *   根因是**把它当错了东西**：`index.md` 是**产物**，产物的"过期"不是**违规**，是
+ *   **"该重新生成"**。判"需要生成"为"需要拦截"，等于把体检单当罚单。
+ *   ⇒ 正解：**默认自愈（生成）**，把"校验"降为**可选**（`--check`）；
+ *     并由**读取侧**保证"读到的是最新"（`债务登记5步法 §Step 1 定起点` 规定：读 index 前先跑本命令）。
  *
  * 【★闸的申诉口 · 三问（架构师心法 §零.4.2）】
- *   Q1 守什么：**结构偏好闸** —— 进度表必须与轮次文件实况一致（防"进度表失真"误导下一轮起点）。
+ *   Q1 守什么：**不是闸** —— 本脚本是**产物生成器**（`index.md` 整份派生自轮次文件）。
+ *               `--check` 保留的"结构偏好"校验仅供 CI / 需要硬拦的场景，**默认不拦**。
  *   Q2 何时该改：① 区域名 / 编号 / 层变化 → 改下方 `AREAS`；② 文件名约定变化 → 改 `listRounds`；
  *               ③ 状态行句式变化 → 改 `RE_STATE`（`_template.md` §七 为唯一真源）。
- *   Q3 怎么改：改本文件（真源），**不要手改 index.md**（整份是产物，下次生成即覆盖）；
- *               改完跑 `--write` 再跑校验确认一致。
+ *   Q3 怎么改：改本文件（真源），**不要手改 index.md**（整份是产物，下次生成即覆盖）。
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -332,6 +343,7 @@ function render() {
 
 const next = render();
 const WRITE = process.argv.includes('--write');
+const CHECK = process.argv.includes('--check');
 const current = existsSync(INDEX_PATH) ? readFileSync(INDEX_PATH, 'utf8') : '';
 
 // 状态行标签漂移：先报（它会让 index 静默回退到更旧轮次 ⇒ 显示过期状态而渲染结果可能没变）
@@ -355,8 +367,6 @@ if (WRITE) {
 
 if (current !== next) {
   console.error('❌ index.md 与轮次文件实况不一致（进度表失真）：');
-  console.error('   修法：node scripts/arch-index.mjs --write');
-  console.error('   （不要手改 index.md —— 它是产物；要改区域/层请改 scripts/arch-index.mjs 的 AREAS）');
   const curLines = current.split('\n');
   const nextLines = next.split('\n');
   const shown = [];
@@ -368,7 +378,19 @@ if (current !== next) {
     }
   }
   if (shown.length) console.error('\n' + shown.join('\n'));
-  process.exit(1);
+
+  // ── `--check`：只校验，不写（给 CI / 明确要硬拦的场景）────────────────────
+  if (CHECK) {
+    console.error('   修法：node scripts/arch-index.mjs --write');
+    console.error('   （不要手改 index.md —— 它是产物；要改区域/层请改本脚本的 AREAS）');
+    process.exit(1);
+  }
+
+  // ── 默认：**自愈不阻断** —— 直接写成最新（见头部【为什么不炸】）──────────
+  writeFileSync(INDEX_PATH, next);
+  console.error('   ✅ 已自动重生成 → 请 `git add daily/架构日志/index.md` 一并提交。');
+  console.error('   （不要手改 index.md —— 它是产物；要改区域/层请改本脚本的 AREAS）');
+  process.exit(drift.length ? 1 : 0);
 }
 
 if (drift.length) process.exit(1);
