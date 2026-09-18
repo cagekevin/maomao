@@ -18,23 +18,23 @@
  *   · 流程规则     → `.codebuddy/commands/债务登记5步法.md`（本文件**不复述**规则）
  *
  * 用法：
- *   node scripts/arch-index.mjs          # 【默认】自愈：不一致 → 打印差异 + **自动写成最新** + exit 0
- *   node scripts/arch-index.mjs --write  # 显式重生成（整份覆盖）
- *   node scripts/arch-index.mjs --check  # 只校验：不一致 → 打印差异 + exit 1（给 CI / 想真拦的人）
+ *   node scripts/arch-index.mjs   # 【唯一入口 · 幂等】把 index.md 刷成最新
  *
- * 【为什么不炸（2026-09-18 定性 · 用户裁定）】────────────────────────────────
- *   本脚本一度是 **push 层闸**（不一致即 exit 1）→ 实测的净效果是：
- *   **忘了重生成 → 推送被拦 → 手跑 `--write` → 再推一次**。
- *   即：**它没能阻止任何错误，只让正确动作多付一次代价**（对照「闸的成本守恒律」：
- *   合法通过成本 > 绕行成本 `--no-verify` ⇒ 必然被绕）。
- *   根因是**把它当错了东西**：`index.md` 是**产物**，产物的"过期"不是**违规**，是
- *   **"该重新生成"**。判"需要生成"为"需要拦截"，等于把体检单当罚单。
- *   ⇒ 正解：**默认自愈（生成）**，把"校验"降为**可选**（`--check`）；
- *     并由**读取侧**保证"读到的是最新"（`债务登记5步法 §Step 1 定起点` 规定：读 index 前先跑本命令）。
+ * 【幂等 ⇒ 无"何时该跑"这个问题（2026-09-18 定性）】────────────────────────
+ *   `render()` 是**纯派生**（只读轮次文件 → 输出 index），故：
+ *     · 内容物没变 → 生成结果 == 现状 → **跑了等于没跑**（写同一份字节）
+ *     · 内容物变了 → 自动刷新
+ *   ⇒ **跑不跑都对**，所以**不需要判断何时跑、也不需要谁来提醒**。
+ *     消费者（`架构师心法` / `债务登记5步法` / `架构师改码7步法`）**照常直接读** index 即可。
+ *
+ * 【它曾是闸，为什么不炸（2026-09-18）】────────────────────────────────────
+ *   曾作为 push 层闸（不一致即 exit 1）→ 净效果：**忘重生成 → 推送被拦 → 手跑 `--write` → 再推**。
+ *   即**没阻止任何错误，只让正确动作多付一次代价**（对照「闸的成本守恒律」：合法通过成本 >
+ *   绕行成本 `--no-verify` ⇒ 必被绕）。根因是**把它当错了东西**：`index.md` 是**产物**，
+ *   产物过期是"**该重新生成**"，不是"**违规**" —— 判前者为后者 = 把体检单当罚单。
  *
  * 【★闸的申诉口 · 三问（架构师心法 §零.4.2）】
  *   Q1 守什么：**不是闸** —— 本脚本是**产物生成器**（`index.md` 整份派生自轮次文件）。
- *               `--check` 保留的"结构偏好"校验仅供 CI / 需要硬拦的场景，**默认不拦**。
  *   Q2 何时该改：① 区域名 / 编号 / 层变化 → 改下方 `AREAS`；② 文件名约定变化 → 改 `listRounds`；
  *               ③ 状态行句式变化 → 改 `RE_STATE`（`_template.md` §七 为唯一真源）。
  *   Q3 怎么改：改本文件（真源），**不要手改 index.md**（整份是产物，下次生成即覆盖）。
@@ -342,8 +342,6 @@ function render() {
 }
 
 const next = render();
-const WRITE = process.argv.includes('--write');
-const CHECK = process.argv.includes('--check');
 const current = existsSync(INDEX_PATH) ? readFileSync(INDEX_PATH, 'utf8') : '';
 
 // 状态行标签漂移：先报（它会让 index 静默回退到更旧轮次 ⇒ 显示过期状态而渲染结果可能没变）
@@ -351,48 +349,21 @@ const drift = findStateDrift();
 if (drift.length) {
   console.error('❌ 状态行标签漂移：以下轮次文件写的是 `本区状态`，规范是 `本区域状态`（见 _template.md §七）：');
   for (const f of drift) console.error('   · ' + f);
-  console.error('   ⇒ 这些文件**不被认作状态源**，index 会静默回退到更旧的轮次（可能显示过期状态，且校验照过）。');
+  console.error('   ⇒ 这些文件**不被认作状态源**，index 会静默回退到更旧的轮次（可能显示过期状态，且结果照过）。');
   console.error('   修法：把该行的 `本区状态` 改成 `本区域状态`，再重跑本脚本。');
 }
 
-if (WRITE) {
-  writeFileSync(INDEX_PATH, next);
-  if (drift.length) {
-    console.error('⚠️ 已重生成，但状态源漂移未解决 ⇒ 进度表可能失真（见上）。退出码 1。');
-    process.exit(1);
-  }
-  console.log('✅ 已重生成 daily/架构日志/index.md（区域 ' + AREAS.length + ' 个）');
+// ── 幂等：内容物没变就什么也不做（跑了等于没跑）────────────────────────────
+if (current === next) {
+  if (drift.length) process.exit(1);
+  console.log('✅ index.md 已是最新（区域 ' + AREAS.length + ' 个）');
   process.exit(0);
 }
 
-if (current !== next) {
-  console.error('❌ index.md 与轮次文件实况不一致（进度表失真）：');
-  const curLines = current.split('\n');
-  const nextLines = next.split('\n');
-  const shown = [];
-  const max = Math.max(curLines.length, nextLines.length);
-  for (let i = 0; i < max && shown.length < 8; i++) {
-    if (curLines[i] !== nextLines[i]) {
-      shown.push('   L' + (i + 1) + '  - ' + String(curLines[i] ?? '').slice(0, 110));
-      shown.push('   L' + (i + 1) + '  + ' + String(nextLines[i] ?? '').slice(0, 110));
-    }
-  }
-  if (shown.length) console.error('\n' + shown.join('\n'));
-
-  // ── `--check`：只校验，不写（给 CI / 明确要硬拦的场景）────────────────────
-  if (CHECK) {
-    console.error('   修法：node scripts/arch-index.mjs --write');
-    console.error('   （不要手改 index.md —— 它是产物；要改区域/层请改本脚本的 AREAS）');
-    process.exit(1);
-  }
-
-  // ── 默认：**自愈不阻断** —— 直接写成最新（见头部【为什么不炸】）──────────
-  writeFileSync(INDEX_PATH, next);
-  console.error('   ✅ 已自动重生成 → 请 `git add daily/架构日志/index.md` 一并提交。');
-  console.error('   （不要手改 index.md —— 它是产物；要改区域/层请改本脚本的 AREAS）');
-  process.exit(drift.length ? 1 : 0);
+// ── 内容物变了 → 刷新（唯一动作，无模式分支）──────────────────────────────
+writeFileSync(INDEX_PATH, next);
+if (drift.length) {
+  console.error('⚠️ 已刷新，但状态源漂移未解决 ⇒ 进度表可能失真（见上）。退出码 1。');
+  process.exit(1);
 }
-
-if (drift.length) process.exit(1);
-
-console.log('✅ index.md 与轮次文件实况一致（区域 ' + AREAS.length + ' 个）');
+console.log('✅ 已刷新 daily/架构日志/index.md（区域 ' + AREAS.length + ' 个）');

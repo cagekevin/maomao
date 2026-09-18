@@ -129,7 +129,6 @@ const GATES = {
     why: '内部子规则（如 videoEditor/engine、ui、types）另有 assertScanned 逐条自检',
   },
   'dead-code': { roots: ['src'], selfCheck: 'own', why: '' },
-  'arch-index': { roots: ['daily/架构日志'], selfCheck: 'own', why: '' },
   gates: { roots: null, selfCheck: null, why: '元层：读脚本头部注释，非扫描' },
   'gate-vitals': {
     roots: null,
