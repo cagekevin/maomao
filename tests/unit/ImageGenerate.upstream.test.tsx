@@ -146,7 +146,7 @@ beforeEach(() => {
   }
 });
 
-import ImageGenerate from '../../src/components/canvas/nodes/ImageGenerate.tsx';
+import ImageGenerate from '../../src/components/image/nodes/ImageGenerate.tsx';
 
 function setup(data = {}) {
   return render(<ImageGenerate id="n1" data={data} selected={false} />);

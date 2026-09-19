@@ -158,7 +158,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => (
   }),
 }));
 
-import ImageGenerate from '../../src/components/canvas/nodes/ImageGenerate.tsx';
+import ImageGenerate from '../../src/components/image/nodes/ImageGenerate.tsx';
 
 beforeEach(() => {
   node = {

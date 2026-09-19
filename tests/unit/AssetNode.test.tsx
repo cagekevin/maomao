@@ -34,7 +34,7 @@ vi.mock('../../src/components/base/utils/imageCompress.ts', () => ({
   compressImage: mocks.compressImage,
 }));
 
-import AssetNode from '../../src/components/canvas/nodes/AssetNode.tsx';
+import AssetNode from '../../src/components/image/nodes/AssetNode.tsx';
 import { toAbsoluteFileUrl } from '../../src/components/base/core/utils.ts';
 beforeEach(() => {
   mocks.resetNodeMockState();

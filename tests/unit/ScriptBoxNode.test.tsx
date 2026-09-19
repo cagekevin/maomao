@@ -175,7 +175,7 @@ vi.mock('../../src/components/scriptbox/GearSettings.tsx', () => ({
   ),
 }));
 
-import ScriptBoxNode from '../../src/components/canvas/nodes/ScriptBoxNode.tsx';
+import ScriptBoxNode from '../../src/components/scriptbox/ScriptBoxNode.tsx';
 
 // ScriptBoxNodeProps.data 在 src 侧未导出，故用 ComponentProps 索引拿到精确类型（避免 any）
 type ScriptBoxNodeData = React.ComponentProps<typeof ScriptBoxNode>['data'];

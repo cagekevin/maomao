@@ -30,7 +30,7 @@ import { toAbsoluteFileUrl, resolveNodeAssetUrl } from '@/components/base/api/in
 import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';
 import { resolveAssetDisplayUrl, buildContentUrlResolver } from '@/components/base/utils/assetUrl';
 import { useImageFallbackSrc } from '@/components/base/utils/useImageFallbackSrc';
-import { useImageHoverActions } from './useImageHoverActions.tsx';
+import { useImageHoverActions } from '@/components/image/useImageHoverActions';
 import { downloadUrl } from '@/components/base/utils/clipboard';
 import { showToast, toastError } from '@/components/base/core/toastStore';
 import { sendToResourceLibrary, getResources } from '@/components/resource/resourceStore';

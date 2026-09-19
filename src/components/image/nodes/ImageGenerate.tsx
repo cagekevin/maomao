@@ -14,7 +14,7 @@ import GeneratingOverlay from '@/components/base/ui/GeneratingOverlay';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
 import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
 import '@/components/editors/ImageEditor';
-import { useImageHoverActions } from './useImageHoverActions.tsx';
+import { useImageHoverActions } from '@/components/image/useImageHoverActions';
 import { replaceNodeImage } from '@/components/canvas/nodeImage';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useDisconnectSource } from '@/hooks/useDisconnectSource';

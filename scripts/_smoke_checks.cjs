@@ -204,6 +204,8 @@ function resolveCompFile(ROOT, comp) {
     path.join(ROOT, 'src/components/video/nodes'),
     path.join(ROOT, 'src/components/image/nodes'),
     path.join(ROOT, 'src/components/text/nodes'),
+    // 剧本盒子：节点**直挂应用域根**，没有 nodes/ 子目录（2026-09-19 A2 迁入）
+    path.join(ROOT, 'src/components/scriptbox'),
   ];
   for (const dir of nodeDirs) {
     const sub = resolveSourceFile(path.join(dir, comp));
@@ -229,7 +231,8 @@ function checkNodeTypes(ROOT) {
   //    正则两种形态都收：`@/components/<canvas|video|image|text>/nodes/` 与相对 `.../<域>/nodes/`，扩展名可选。
   const lazyComps = [
     ...lazySrc.matchAll(
-      /import\(\s*['"](?:@\/components\/(?:canvas|video|image|text)\/nodes\/|(?:\.\.?\/)+(?:canvas|video|image|text)\/nodes\/)(\w+Node)(?:\.(?:jsx|tsx|js|ts))?['"]\s*\)/g,
+      // 2026-09-19 A2：`scriptbox` 的节点**无 nodes/ 段** ⇒ 节点段设为可选 `(?:nodes\/)?`
+      /import\(\s*['"](?:@\/components\/(?:canvas|video|image|text|scriptbox)\/(?:nodes\/)?|(?:\.\.?\/)+(?:canvas|video|image|text)\/nodes\/)(\w+Node)(?:\.(?:jsx|tsx|js|ts))?['"]\s*\)/g,
     ),
   ].map((x) => x[1]);
   const compsAll = [...new Set([...comps, ...lazyComps])];
@@ -249,7 +252,7 @@ function checkNodeTypes(ROOT) {
     const compFile = resolveCompFile(ROOT, comp);
     if (!fs.existsSync(compFile)) {
       pass = false;
-      details.push(`  ✖ palette component '${comp}' -> 组件文件不存在（已查 canvas/video/image/text/nodes 与 components 平铺）`);
+      details.push(`  ✖ palette component '${comp}' -> 组件文件不存在（已查 canvas/video/image/text/nodes · scriptbox 与 components 平铺）`);
     } else {
       details.push(`  ✔ palette ${path.basename(compFile)}`);
     }

@@ -147,7 +147,7 @@ beforeEach(() => {
   connectedInputs = { images: [], texts: [] };
 });
 
-import TextGenerate from '../../src/components/canvas/nodes/TextGenerate.tsx';
+import TextGenerate from '../../src/components/text/TextGenerate.tsx';
 
 function setup(data = {}) {
   return render(<TextGenerate id="n1" data={data} selected={false} />);

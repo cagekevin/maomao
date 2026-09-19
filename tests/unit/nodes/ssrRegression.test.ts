@@ -18,19 +18,19 @@ import { renderToString } from 'react-dom/server';
 import { ReactFlowProvider } from '@xyflow/react';
 import { describe, test, expect } from 'vitest';
 
-import AssetNode from '@/components/canvas/nodes/AssetNode';
-import TextGenerate from '@/components/canvas/nodes/TextGenerate';
-import ImageGenerate from '@/components/canvas/nodes/ImageGenerate';
+import AssetNode from '@/components/image/nodes/AssetNode';
+import TextGenerate from '@/components/text/TextGenerate';
+import ImageGenerate from '@/components/image/nodes/ImageGenerate';
 import VideoGenerate from '@/components/video/nodes/VideoGenerate';
 import VideoExtractNode from '@/components/video/nodes/VideoExtractNode';
-import ImageBoxNode from '@/components/canvas/nodes/ImageBoxNode';
-import GridSplitNode from '@/components/canvas/nodes/GridSplitNode';
-import GridMergeNode from '@/components/canvas/nodes/GridMergeNode';
+import ImageBoxNode from '@/components/image/nodes/ImageBoxNode';
+import GridSplitNode from '@/components/image/nodes/GridSplitNode';
+import GridMergeNode from '@/components/image/nodes/GridMergeNode';
 import VideoProcessNode from '@/components/video/nodes/VideoProcessNode';
-import FaceMosaicNode from '@/components/canvas/nodes/FaceMosaicNode';
-import PanoramaNode from '@/components/canvas/nodes/PanoramaNode';
+import FaceMosaicNode from '@/components/image/nodes/FaceMosaicNode';
+import PanoramaNode from '@/components/image/nodes/PanoramaNode';
 import GroupNode from '@/components/canvas/nodes/GroupNode';
-import ScriptBoxNode from '@/components/canvas/nodes/ScriptBoxNode';
+import ScriptBoxNode from '@/components/scriptbox/ScriptBoxNode';
 import { defaultNodeData } from '@/components/canvas/nodeDataSchema';
 
 // 每个节点的渲染参数（数据 + 关键结构断言）。

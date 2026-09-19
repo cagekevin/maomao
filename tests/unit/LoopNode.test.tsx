@@ -11,7 +11,7 @@ import { mocks } from './_nodeMocks.mjs';
 import {
   splitByMethod,
   splitSmartPromptItems,
-} from '../../src/components/canvas/nodes/LoopNode.tsx';
+} from '../../src/components/image/nodes/LoopNode.tsx';
 
 vi.mock('@xyflow/react', () => mocks.xyflow);
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
@@ -32,7 +32,7 @@ vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useOutsideClick: mocks.useOutsideClick,
 }));
 
-import LoopNodeComponent from '../../src/components/canvas/nodes/LoopNode.tsx';
+import LoopNodeComponent from '../../src/components/image/nodes/LoopNode.tsx';
 beforeEach(() => {
   mocks.resetNodeMockState();
 });

@@ -103,7 +103,7 @@ vi.mock('../../src/components/base/utils/previewUrl.ts', () => ({
   default: { create: () => 'http://preview.x', release: () => {} },
 }));
 
-import FaceMosaicNode from '../../src/components/canvas/nodes/FaceMosaicNode.tsx';
+import FaceMosaicNode from '../../src/components/image/nodes/FaceMosaicNode.tsx';
 
 const nodeId = 'fm1';
 function setup(

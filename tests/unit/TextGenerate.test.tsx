@@ -81,7 +81,7 @@ vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => (
   chatCompletions: mocks.chatCompletions,
 }));
 
-import TextGenerate from '../../src/components/canvas/nodes/TextGenerate.tsx';
+import TextGenerate from '../../src/components/text/TextGenerate.tsx';
 beforeEach(() => {
   mocks.resetNodeMockState();
 });

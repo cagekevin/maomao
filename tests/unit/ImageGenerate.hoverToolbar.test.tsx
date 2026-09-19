@@ -120,7 +120,7 @@ vi.mock('../../src/components/editors/InlineImageCropper.tsx', () => ({
   },
 }));
 
-import ImageGenerate from '../../src/components/canvas/nodes/ImageGenerate.tsx';
+import ImageGenerate from '../../src/components/image/nodes/ImageGenerate.tsx';
 
 beforeEach(() => {
   mockSetNodes.mockClear();

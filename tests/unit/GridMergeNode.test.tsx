@@ -33,7 +33,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => (
   toAbsoluteFileUrl: mocks.toAbsoluteFileUrl,
 }));
 
-import GridMergeNode from '../../src/components/canvas/nodes/GridMergeNode.tsx';
+import GridMergeNode from '../../src/components/image/nodes/GridMergeNode.tsx';
 beforeEach(() => {
   mocks.resetNodeMockState();
 });
