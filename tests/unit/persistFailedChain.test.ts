@@ -24,7 +24,7 @@ vi.mock('../../src/components/base/core/logger.ts', () => ({
 }));
 
 import { contentSetAsync } from '@/components/base/core/contentStore.ts';
-import { CANVAS_STATE_PREFIX } from '@/components/base/storage/kvStore.ts'; // 保留：kvStore 壳仍 re-export 前缀
+import { CANVAS_STATE_PREFIX } from '@/components/base/core/contracts.ts';
 
 /** ok / 非ok 响应 */
 function notOk(status = 500) {

@@ -1,4 +1,4 @@
-// 回归测试：kvStore.js
+// 回归测试：KV 存储 API（kvGet / kvSet / kvDelete —— 实现源 = api/localToolApi.ts；原 kvStore 壳已删）
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // kvGet/kvSet/kvDelete 经 localToolApi → httpClient，其内部 logger.debug 会 fire-and-forget 调
@@ -13,7 +13,7 @@ vi.mock('../../src/components/base/core/logger.ts', () => ({
   },
 }));
 
-import { kvGet, kvSet, kvDelete } from '@/components/base/storage/kvStore.ts';
+import { kvGet, kvSet, kvDelete } from '@/components/base/api/localToolApi.ts';
 
 const API_BASE = 'http://127.0.0.1:18080';
 

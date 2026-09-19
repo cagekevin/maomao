@@ -9,8 +9,8 @@
  */
 import { useSyncExternalStore } from 'react';
 import { useStoreSelector } from '../../../hooks/useStoreSelector.ts';
-import { CANVAS_STATE_PREFIX, isStorageReady, onStorageReady } from '../storage/index.ts';
-import { CANVAS_SCHEMA_VERSION } from '../core/contracts.ts';
+import { isStorageReady, onStorageReady } from '../storage/index.ts';
+import { CANVAS_SCHEMA_VERSION, CANVAS_STATE_PREFIX } from '../core/contracts.ts';
 import { generateId } from '../core/idGen.ts';
 // 画布快照的「版本真源在服务端」读写口（docs/118 §四 4.2）：
 // 2026-09-12/TD-02-1 起经 contentStore 的 KV 协议原语（不再直调 transport，唯一入口红线恢复）。

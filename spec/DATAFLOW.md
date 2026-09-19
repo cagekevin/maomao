@@ -192,7 +192,7 @@ core/contentStore（STORAGE_KEYS 路由 + resolveBackend 唯一判定 + 失败�
   resourceStore 另在此时**从后端刷新镜像一次**（refreshFromBackend：全量 fetchResources → mergeResourcesFromBackend；
     镜像填充归 store 自身 —— 契约层 base/media **不写 store**，只读映射）
 
-kvStore.ts = re-export 壳（仅 CANVAS_STATE_PREFIX + kvGet/kvSet/kvDelete 转发，不参与读写链路）
+kvStore.ts（re-export 壳）已删除；CANVAS_STATE_PREFIX 由 core/contracts.ts 直供，不参与读写链路
 唯一例外：conversationState.ts 的 1 处裸 sGet（KV 迁移回读旧 local）
 ```
 
@@ -669,7 +669,7 @@ docs/audit-archive/*.md（历史报告归档保留，非活配置）
 | `utils/resultUrlExtractor.ts` | 0 生产引用删除；判型收口 `utils/mediaType.ts` |
 | `agent/runtime/runModeRegistry.ts` | 整模块删除；执行模型恒 `auto`（`runMode`/`workMode` 仅剩历史注释，**禁因注释恢复**） |
 | `agent/runtime/workflowRuntime.ts` | 删除（第二真相） |
-| `store/kvStore.ts` 的读写实现 | 折叠进 `core/contentStore`；`kvStore.ts` 现为 re-export 壳 |
+| `store/kvStore.ts` 的读写实现 | 折叠进 `core/contentStore`；re-export 壳随后亦删除（CANVAS_STATE_PREFIX 改由 `core/contracts.ts` 直供） |
 | 旧网关 `:9004` | 随 lovart-old 旧轨退役；localTool 只直连 `lgw.lovart.ai` |
 | `api/localToolApi` 的文件域成员 | 迁入 `api/filesApi`（文件域唯一单点）；`localToolApi` 回归纯 CRUD + kv + providers |
 | `applyResourceIdentityChange` / `rewriteUrlReferences` | 全仓无定义（仅注释残留）；改名/移动改 context-only |

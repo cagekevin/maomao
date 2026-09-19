@@ -42,11 +42,9 @@ describe('config.ts §API_BASE 日志与配置', () => {
     const generate = await import('@/components/base/api/generate.ts');
     const localToolApi = await import('@/components/base/api/localToolApi.ts');
     const filesApi = await import('@/components/base/api/filesApi.ts');
-    const kvStore = await import('@/components/base/storage/kvStore.ts');
     expect(generate).toBeTruthy();
     expect(localToolApi).toBeTruthy();
     expect(filesApi).toBeTruthy();
-    expect(kvStore).toBeTruthy();
   });
 });
 

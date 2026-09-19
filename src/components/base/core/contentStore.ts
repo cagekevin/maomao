@@ -1,7 +1,7 @@
 /**
  * Content 层：横切存储权威入口。
  *
- * 所有业务数据读写必须走 contentStore，禁止直调 storageAdapter/kvStore/原生 localStorage。
+ * 所有业务数据读写必须走 contentStore，禁止直调 storageAdapter 或原生 localStorage。
  * contentStore 根据 STORAGE_KEYS 登记的路由配置自动分流到后端。
  *
  * ── 设计原则 ──
@@ -52,7 +52,7 @@
  * （转为内部 resolveBackend / writeKvWithFallback / readKvWithFallback / deleteKvWithFallback）。
  *   原因：实测该层在 src 侧唯一消费者就是本模块，是纯转发中间层；两套路由判定
  *   （本模块 getBackend + kvStore.isKvKey）互相兜底，属第二份真相。折叠后 Interface
- *   13 个导出签名逐字不变，391 处调用点零迁移。kvStore.ts 保留为 re-export 壳（CANVAS_STATE_PREFIX + kv 三件套）。
+ *   13 个导出签名逐字不变，391 处调用点零迁移。kvStore.ts 的 re-export 壳已于 2026-09-19 删除（TD-18-36：仅剩 CANVAS_STATE_PREFIX 一个消费者，改由 contracts.ts 直供）。
  *   ⚠️ 有意不收口的 1 处例外（保留裸调 sGet/sSet）：
  *   - conversationState.ts:406/410 —— 读旧 local 数据做 KV 迁移回读（键已登记 backend:'kv'，走本模块会读 KV → 语义即错）。
  *   d3dPersistence 已于 TD-7 方案A 收编：其双通道形态（KV 主通道 + localStorage 降级副本 + 独立 KV_TIMEOUT）

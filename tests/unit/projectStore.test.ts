@@ -96,11 +96,6 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
     }),
   };
 });
-vi.mock('../../src/components/base/storage/kvStore.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>),
-  CANVAS_STATE_PREFIX: 'canvas-state-v1-',
-}));
-
 const CANVAS_KEY = 'canvas-state-v1-default';
 const VERSION_KEY = `${CANVAS_KEY}_version`;
 const node = (id: string) => ({ id, type: 'textGenerateNode', data: {}, position: {} });

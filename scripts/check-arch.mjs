@@ -864,7 +864,7 @@ if (!nodeDataViol)
 //
 // 【白名单（有意例外，理由见 daily/架构日志/02-存储-持久化-二轮深扫-2026-09-12.md §一.2）】
 //  - contentStore.ts：唯一入口本体，它才是这些底层的合法消费者；
-//  - base/storage/**：底层实现内部互引（storageAdapter / index / storageQuota / kvStore 壳）；
+//  - base/storage/**：底层实现内部互引（storageAdapter / index / storageQuota）；
 //  - conversationState.ts：KV 迁移需回读旧 local 存量（键已登记 kv 后端，走 contentStore 会读错后端）。
 // 【更新(2026-09-16 · M7 裸写收口)】原第 4 条「director3d/**：第三方域」**已删除（只收窄，不放宽）**：
 //  ① 豁免理由本身已失效 —— spec/CONTEXT.md §五·五 早于 2026-09-01 就写明「director3d 已解除豁免，
@@ -1091,7 +1091,7 @@ if (!kvSyncReadViol)
 // 本规则即把「实现层禁绕行」变成机器红线，补上原注释级无守卫的缺口。
 //
 // 【判定】业务代码（非 base/ 内部、非 tests）import `base/storage/<impl>` 深路径
-// （storageAdapter/index/kvStore/storageQuota）→ 违规（必须经 `base/storage/index.ts` barrel 或更高层入口）。
+// （storageAdapter/index/storageQuota）→ 违规（必须经 `base/storage/index.ts` barrel 或更高层入口）。
 // ─────────────────────────────────────────────────────────────────
 const STORAGE_IMPL_DEEP = /^src\/components\/base\/storage\/(?!index\.ts$)[^/]+$/;
 let deepImportViol = 0;
@@ -1538,7 +1538,7 @@ if (!cloudKeyViol) {
 // 规则 11（2026-09-16 · M7 裸写收口 · TD-02-33/36/37/39）：本地存储**变更**必须经唯一入口 contentStore。
 //
 // 【为什么存在】`contentStore.ts` 文件头第一句就是红线「所有业务数据读写必须走 contentStore，
-//   禁止直调 storageAdapter / kvStore / **原生 localStorage**」，但机器守卫只覆盖了一半：
+//   禁止直调 storageAdapter / **原生 localStorage**」，但机器守卫只覆盖了一半：
 //   规则 6 拦的是「import sSet/sGet/kvSet…」这类**经适配层**的绕过，对
 //   **直接 `localStorage.setItem/removeItem/clear`** 完全无感（本规则上线前全 src 零扫描）。
 //   实证：`director3d/storage.ts` 与 `videoEditor/hooks-cutia/storage/use-local-storage.ts` 两处长期裸写 ——
