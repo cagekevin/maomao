@@ -1152,6 +1152,8 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | 2026-09-19 | §6.2 撞名清单写 "19 条" | **实测 23 组**；并按 N1 判据过滤出 **4 组「域内重复」不违规**（`ImageGenTemplate` 两处均在 scriptbox · `ExportFormat`/`ExportQuality`/`TimelineElement` 均在同一域）⇒ 不做改动 | §8 |
 | 2026-09-19 | `FlowPosition` 列入"改名" | **改判「收口」**：两处**同形同义**（`{x,y}` + 逐字相同的注释）⇒ 属**探测重复**（ADR-0031 二分）⇒ 删重复定义 + `import type` 复用，**非改名** | §8 S1-1b |
 | 2026-09-19 | `subscribe` 四处并列 | **区分**：`eventBus.subscribe` = 横切唯一通道（保留）；`toastStore.subscribe` 被 `ToastContainer` 外部消费 ⇒ 消歧为 `subscribeToasts`；agent 两处留 S1-1c | §8 S1-1b |
+| **2026-09-19** | **§3.4「游离物 11 件都该迁出横切层」** | **判据被推翻（用户质疑"横切有必要拆吗"）**：① `agentKeys` 头注自述"收在 base/core（叶层零业务依赖）"+ 被 App/agent/backupStore 三处共用 ⇒ **横切契约** ② `canvasSyncBus` **DATAFLOW §15.2 原文已登记为横切基础设施** ③ `legacyRawKey` 消费方**只有 base/storage/index** ⇒ base 自有 ④ `arrangePack` 消费方**只有横切 hooks** ⇒ 横切原语 ⑤ `videoEditorKeys` 与 `contracts.ts`/`agentKeys` **同族（键构造器）** ⑥ `sourceTime` **DATAFLOW §十 原文「跨域唯一映射原语」** ⇒ 横切 ⑦ `editorSession`/`useMediaLoadFailed` 消费者**在 base 内**（`modalLayer`/`base/ui/VideoThumbnail`）⇒ **迁出即违反规则 2** ⑧ `imageUpscale`/`videoEngine`/`timeScale` 目标域**无落点** ⇒ D20 前提不成立 ⑨ `encoderProbe` 目标 d3d 属**例外** ⑩ `canvasHotkeys` 目标 `base/canvas` 最终落点由 **S2-1** 决定 | §8 S1-3 |
+| **2026-09-19** | 「base 里的件被业务域消费 = 违规」 | **方向搞反**：`check-arch` 规则 2 原文是「**base/ 禁 import 任何非 base 目录**」⇒ base 被业务域消费是**正确单向**、**现状实测零违规**；真正会制造违规的是**把它们迁出**（base 内仍有消费者） | §7 · §8 S1-3 |
 
 ---
 
@@ -1210,7 +1212,7 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | --- | --- | --- | --- |
 | S1-1 | 撞名收口（19 名；含 `toast` 前提复核 —— 全仓无第二个 `toast` 定义） | TD-18-42/43 | 19 名 |
 | S1-2 | 域写错 + 通用物提级（`canvasHost`→`agentCanvasHost`；`cn` 提级） | TD-18-34 | 4 / 45 |
-| S1-3 | 域物迁出横切层（§3.4 #1#2#3#11） | TD-18-35 | ~30 import |
+| S1-3 | 域物迁出横切层（§3.4 #1#2#3#11） | **🚫 整批延后（2026-09-19 判决 · 用户质疑"横切有必要拆吗"引出）** —— 11 件逐条判：**0 件可迁 · 6 件改判不迁 · 5 件延后**。判据见 §7；两条根因：① **规则 2 方向被搞反**（base 的件被业务域消费 = 正确方向、现状零违规；真正制造违规的是「迁出」）② **D20 前提不成立**（画布域/图片能力/视频能力落点未定死）+ 收益不可测（撞名已在 S1-1 清零） | — |
 | S1-4 | 文件名歧义/误导名/浅壳（`assets.ts`/`generationContract`/`kvStore`/`ve-`） | TD-18-45/40/36 | 27 / 3 / 6 |
 | S1-5 | 门面补齐（19 域中 15 缺） | TD-18-41④ | 15 域 |
 | S1-6 | 目录名与内容对齐（`components/panels`→agent；后端 relay 归位） | 新 | 6 + 3 |
