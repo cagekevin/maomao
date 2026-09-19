@@ -7,7 +7,7 @@ import { toast } from '@/components/videoEditor/lib/toast';
 import { DraggableItem } from '@/components/videoEditor/ui/editor/panels/assets/draggable-item';
 import {
   PanelBaseView as BaseView,
-  PanelState,
+  VideoEditorPanelState,
 } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { Button } from '@/components/videoEditor/ui/ui/button';
 import { InputWithBack } from '@/components/videoEditor/ui/ui/input-with-back';
@@ -392,13 +392,13 @@ function StickersContentView({
       {viewMode === 'search' &&
         (isSearching ? (
           <PropertyGroup grow>
-            <PanelState text={'正在搜索…'} />
+            <VideoEditorPanelState text={'正在搜索…'} />
           </PropertyGroup>
         ) : searchError ? (
           // 【2026-09-17 消费者只转发】**原样渲染生产者判词**（不自行解释成"搜索失败/请重试"）。
           // 此前搜索失败返回的是**字段齐全的假空结果** ⇒ 与"搜不到图标"共用空网格，用户看不出区别。
           <PropertyGroup grow>
-            <PanelState text={searchError} />
+            <VideoEditorPanelState text={searchError} />
           </PropertyGroup>
         ) : searchResults?.icons.length ? (
           <PropertyGroup>
@@ -416,7 +416,7 @@ function StickersContentView({
           </PropertyGroup>
         ) : searchQuery ? (
           <PropertyGroup grow>
-            <PanelState
+            <VideoEditorPanelState
               text={'未找到匹配的贴纸'}
               hint={`没有与「${searchQuery}」匹配的结果`}
               action={

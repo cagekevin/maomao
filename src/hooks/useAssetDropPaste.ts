@@ -15,12 +15,7 @@ import { UPLOAD_DIRS } from '../components/base/utils/uploadDirs.ts';
 import { logger } from '../components/base/core/logger.ts';
 import { tryParse } from '../components/base/utils/asyncGuard.ts';
 import { tryParseOr } from '../components/base/core/degrade.ts';
-
-/** 画布坐标（screenToFlowPosition 的输出 / addNode 的入参） */
-export interface FlowPosition {
-  x: number;
-  y: number;
-}
+import type { FlowPosition } from '../components/base/core/uiHooks.ts';
 
 /** 建节点：addNode(type, pos, data) → 返回节点 id */
 export type AddNodeFn = (

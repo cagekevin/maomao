@@ -1,6 +1,6 @@
 import {
   PanelBaseView,
-  PanelState,
+  VideoEditorPanelState,
 } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup } from './property-item';
 
@@ -17,7 +17,7 @@ export function EmptyView() {
   return (
     <PanelBaseView>
       <PropertyGroup grow>
-        <PanelState text={'这里空空如也'} hint={'点击时间轴上的元素以编辑其属性'} />
+        <VideoEditorPanelState text={'这里空空如也'} hint={'点击时间轴上的元素以编辑其属性'} />
       </PropertyGroup>
     </PanelBaseView>
   );

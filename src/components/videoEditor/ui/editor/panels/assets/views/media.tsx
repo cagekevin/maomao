@@ -18,7 +18,7 @@ import { MediaDragOverlay } from '@/components/videoEditor/ui/editor/panels/asse
 import { DraggableItem } from '@/components/videoEditor/ui/editor/panels/assets/draggable-item';
 import {
   PanelBaseView as BaseView,
-  PanelState,
+  VideoEditorPanelState,
 } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup } from '@/components/videoEditor/ui/editor/panels/properties/property-item';
 import { Button } from '@/components/videoEditor/ui/ui/button';
@@ -454,7 +454,7 @@ export function MediaView() {
                 /* ── 失败可见性（TD-22-43②）：素材加载失败原来只记 logger →
                 用户看到的是**静默空面板**（以为"这个工程没素材"）。持续状态给对读者 = 面板错误态
                 （不是 toast——toast 逝去即失明，而"面板是空的"是持续状态）。 */
-                <PanelState
+                <VideoEditorPanelState
                   tone="error"
                   text={'素材加载失败'}
                   hint={loadError}

@@ -157,7 +157,7 @@ interface PanelStateProps {
  *   `<PropertyGroup grow><PanelState text="…" hint="…" /></PropertyGroup>`
  * 占位块自己用 `flex-1` 铺满 `.ve-pg-body`（`grow` 分区已把高度链钉好）。
  */
-export function PanelState({ text, hint, tone, action }: PanelStateProps) {
+export function VideoEditorPanelState({ text, hint, tone, action }: PanelStateProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-center">
       <p

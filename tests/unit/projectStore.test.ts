@@ -14,7 +14,7 @@ import {
   saveCanvasState,
   loadCanvasState,
   getLoadedVersion,
-  __resetForTest,
+  resetProjectStoreForTest,
 } from '../../src/components/base/store/projectStore.ts';
 // 409 判定用真实 HttpError：projectStore 用 `instanceof HttpError` 识别冲突，
 // 桩里必须抛同一个类（同文件 → 同一模块实例），否则会被当成「KV 不可用」走 fail 分支。
@@ -119,7 +119,7 @@ beforeEach(() => {
   contentClearCache();
   H.fetchProjectsPayload.projects = [];
   H.fetchProjectsPayload.lastOpened = '';
-  __resetForTest();
+  resetProjectStoreForTest();
   degradeSpy.mockClear(); // 每条用例从零起算「本处自报」的次数
   confirmPersistSpy.mockClear();
 });

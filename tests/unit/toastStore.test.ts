@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { showToast, dismissToast, clearToasts, subscribe, getToasts, TOAST_COALESCED } =
+const { showToast, dismissToast, clearToasts, subscribeToasts, getToasts, TOAST_COALESCED } =
   await import('../../src/components/base/core/toastStore.ts');
 
 beforeEach(() => {
@@ -47,14 +47,14 @@ describe('toastStore §基础设施 提示', () => {
 
   it('clearToasts 空列表时不触发订阅通知（emit 短路）', () => {
     const fn = vi.fn();
-    subscribe(fn);
+    subscribeToasts(fn);
     clearToasts(); // 已空 → 不应 notify unnecessarily（行为：无 toast 时不 emit）
     expect(fn).not.toHaveBeenCalled();
   });
 
   it('subscribe 在 showToast 时被通知', () => {
     const fn = vi.fn();
-    subscribe(fn);
+    subscribeToasts(fn);
     showToast('hi');
     expect(fn).toHaveBeenCalledTimes(1);
   });

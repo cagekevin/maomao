@@ -3,14 +3,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   FOLDERS,
   libraryFoldersOf,
-  detectAssetType,
+  resourceDetectAssetType,
   filterByFolder,
   addResources,
   buildResourceRecord,
   resourcesOfProject,
   removeResource,
   clearResources,
-  __resetForTest,
+  resetResourceStoreForTest,
   getResources,
   flushPersist,
   mergeResourcesFromBackend,
@@ -53,7 +53,7 @@ const PERSISTED = 'http://127.0.0.1:18080/files/migrated/recon.png';
 beforeEach(() => {
   clearResources();
   localStorage.clear();
-  __resetForTest(); // 重新 seed 默认素材（测试出口；生产侧 reloadFromStorage 由 onStorageReady 调用）
+  resetResourceStoreForTest(); // 重新 seed 默认素材（测试出口；生产侧 reloadFromStorage 由 onStorageReady 调用）
   vi.mocked(persistUrlToUploads).mockReset();
   vi.mocked(persistUrlToUploads).mockImplementation(
     async () => ({ ok: true, url: PERSISTED, source: 'inline' }) as never,
@@ -78,12 +78,12 @@ describe('素材库数据层 §2.18', () => {
   });
 
   it('detectAssetType 按 mime/扩展名分类', () => {
-    expect(detectAssetType({ type: 'image/png', name: 'a.png' })).toBe('image');
-    expect(detectAssetType({ type: 'video/mp4', name: 'a.mp4' })).toBe('video');
-    expect(detectAssetType({ type: 'audio/mpeg', name: 'a.mp3' })).toBe('audio');
-    expect(detectAssetType({ type: 'text/plain', name: 'a.txt' })).toBe('text');
-    expect(detectAssetType({ name: 'a.webp' })).toBe('image');
-    expect(detectAssetType({ name: 'a.unknown' })).toBe('image'); // 兜底 image
+    expect(resourceDetectAssetType({ type: 'image/png', name: 'a.png' })).toBe('image');
+    expect(resourceDetectAssetType({ type: 'video/mp4', name: 'a.mp4' })).toBe('video');
+    expect(resourceDetectAssetType({ type: 'audio/mpeg', name: 'a.mp3' })).toBe('audio');
+    expect(resourceDetectAssetType({ type: 'text/plain', name: 'a.txt' })).toBe('text');
+    expect(resourceDetectAssetType({ name: 'a.webp' })).toBe('image');
+    expect(resourceDetectAssetType({ name: 'a.unknown' })).toBe('image'); // 兜底 image
   });
 
   it('filterByFolder：全部返回全部；单目录按 folder 前缀匹配', () => {
@@ -448,7 +448,14 @@ describe('libraryFoldersOf：静态基底 ∪ 磁盘实有子目录（TD-03-15�
       { folder: 'migrated', name: '颜色' },
       { folder: 'migrated', name: 'HKH其他产品' },
     ]);
-    expect(list.map((f) => f.label)).toEqual(['全部', '人物', '场景', '道具', '颜色', 'HKH其他产品']);
+    expect(list.map((f) => f.label)).toEqual([
+      '全部',
+      '人物',
+      '场景',
+      '道具',
+      '颜色',
+      'HKH其他产品',
+    ]);
     // 路径由「父目录 + 目录名」派生（不自拼），folder 必须是素材库下的完整相对路径
     expect(list.find((f) => f.label === '颜色')?.folder).toBe('migrated/颜色');
   });

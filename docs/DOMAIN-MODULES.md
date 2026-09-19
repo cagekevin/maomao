@@ -1149,6 +1149,9 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | 2026-09-19 | TD-18-43「`toast` 撞名」 | **前提复核不成立**：全仓 `toast` 导出**仅 1 处**（`videoEditor/lib`，实测）⇒ 按 N1 判据**不违规**，降级为 N7「名太通用」可选改名 | §6.2 |
 | 2026-09-19 | 素材域前缀（旧表只写 `media`） | **按 DATAFLOW 三分**：`media`（引用协议·横切地基 §三′）· `resource`（数据 SSOT §五）· `file`（落盘 `filesApi` §五） | §6.1 |
 | 2026-09-19 | §6 持有 N1–N9 **判据正文** | **判据本体归位 `ADR-0039`**（生效）；§6 只留现状表（§6.1/§6.2）+ 指针 | §9 A6 |
+| 2026-09-19 | §6.2 撞名清单写 "19 条" | **实测 23 组**；并按 N1 判据过滤出 **4 组「域内重复」不违规**（`ImageGenTemplate` 两处均在 scriptbox · `ExportFormat`/`ExportQuality`/`TimelineElement` 均在同一域）⇒ 不做改动 | §8 |
+| 2026-09-19 | `FlowPosition` 列入"改名" | **改判「收口」**：两处**同形同义**（`{x,y}` + 逐字相同的注释）⇒ 属**探测重复**（ADR-0031 二分）⇒ 删重复定义 + `import type` 复用，**非改名** | §8 S1-1b |
+| 2026-09-19 | `subscribe` 四处并列 | **区分**：`eventBus.subscribe` = 横切唯一通道（保留）；`toastStore.subscribe` 被 `ToastContainer` 外部消费 ⇒ 消歧为 `subscribeToasts`；agent 两处留 S1-1c | §8 S1-1b |
 
 ---
 
@@ -1248,4 +1251,5 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | **A4 fan-in 口径 · A7 文档债 · B1** | 待做 | 随批修 / 单独落（§9.2 / §9.3） |
 | **S1-1 范围实测（23 组 · 非 19）** | **已完成** | 具名导出撞名全扫（含 `subscribe`(4) / `StreamDelta` / `__resetForTest` / `ImageGenTemplate` 等 §6.2 未列者）；**并按 N1 判据过滤出"域内重复"不违规者** |
 | **S1-1a 首片：`logger` → `videoEditorLogger`** | **已完成** | 符号 94 处 / 28 文件（`rename-symbol --file` 限定源文件，全域内闭环）· 文件 `lib/logger.ts` → `lib/videoEditorLogger.ts`；验证：**tsc 0 错 · `check:arch` ✅ · 外部引用无新增 · 受影响单测 13 文件 / 97 例全绿**；`vi.mock` 风险 = 0 |
+| **S1-1b 六组（base 侧）** | **已完成** | ① `detectAssetType`→`resourceDetectAssetType`(9 处/2 文件) ② `__resetForTest`→`resetProjectStoreForTest`(3/2) ③ `__resetForTest`→`resetResourceStoreForTest`(7/4) ④ `PanelState`→`VideoEditorPanelState`(18/6) ⑤ `toastStore.subscribe`→`subscribeToasts`(6/3) ⑥ **`FlowPosition` 改判为「收口」**（同形同义 = 探测重复 ⇒ 删重复定义、`import type` 复用，非改名）；验证：**tsc 0 错 · `check:arch` ✅ · 受影响单测 7 文件 / 170 例全绿（exit=0）** |
 | S1-1 … S2-7 | 待做 | — |

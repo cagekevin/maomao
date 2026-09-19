@@ -106,7 +106,7 @@ export function clearToasts(): void {
 }
 
 /** 订阅（返回取消函数）。ToastContainer 用它渲染。 */
-export function subscribe(listener: () => void): () => boolean {
+export function subscribeToasts(listener: () => void): () => boolean {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }

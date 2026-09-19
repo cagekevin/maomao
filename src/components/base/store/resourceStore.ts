@@ -330,7 +330,7 @@ function genId(): string {
  * 委托 utils/assetType.detectFileType（扩展名/mime 唯一真值源），未识别一律兜底 image
  * （素材库只有四类，无 other/empty；与既有兜底行为一致）。
  */
-export function detectAssetType(file?: TypeProbe | null): AssetType {
+export function resourceDetectAssetType(file?: TypeProbe | null): AssetType {
   const kind = detectFileType(file);
   return kind === 'video' || kind === 'audio' || kind === 'text' ? kind : 'image';
 }
@@ -486,7 +486,7 @@ export async function sendToResourceLibrary(
   const fromUrl = fileNameFromUrl(url);
   const fname = fromUrl && !/^blob:|^data:/.test(url) ? fromUrl : '未命名';
   const resourceName = (name && String(name).trim()) || fname;
-  const detectedType = type || detectAssetType({ name: fname, type: '' });
+  const detectedType = type || resourceDetectAssetType({ name: fname, type: '' });
   // docs/122 #3：登记带当前 projectId（resource 逻辑引用层按项目隔离；渲染过滤见 resourcesOfProject）
   const projectId = currentProjectId() || undefined;
 
@@ -627,7 +627,7 @@ function reloadFromStorage(): Resource[] {
  * 【测试出口】把模块级内存态重置为「存储中的素材列表」（等同重新 import 一份干净模块，
  * 但无 vitest 并发下的实例分裂风险——理由见 projectStore.__resetForTest 注释）。
  */
-export function __resetForTest(): Resource[] {
+export function resetResourceStoreForTest(): Resource[] {
   return reloadFromStorage();
 }
 

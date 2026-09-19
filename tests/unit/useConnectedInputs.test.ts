@@ -18,7 +18,7 @@ import {
 } from '../../src/components/base/core/contracts.ts';
 import {
   mergeResourcesFromBackend,
-  __resetForTest,
+  resetResourceStoreForTest,
 } from '../../src/components/base/store/resourceStore.ts';
 
 // 分镜端口契约（contracts.SHOT_HANDLE_PREFIX）：写侧 shotHandleId / 读侧 parseShotHandle 必须成对往返
@@ -52,7 +52,7 @@ describe('分镜端口 handle 契约', () => {
 //（症状：节点自己显示正常，连到 PromptInput 的上游缩略图不显示）。
 describe('asset 双形态 · contentId 型产出', () => {
   it('assetNode 只持 contentId → 经 resource 行解析出图片产出', () => {
-    __resetForTest();
+    resetResourceStoreForTest();
     mergeResourcesFromBackend([
       {
         id: 'r1',
@@ -72,7 +72,7 @@ describe('asset 双形态 · contentId 型产出', () => {
   });
 
   it('contentId 查无 resource 行 → 不产出（不伪造 url，保持诚实）', () => {
-    __resetForTest();
+    resetResourceStoreForTest();
     const r = getNodeOutput({
       id: 'a2',
       type: 'assetNode',

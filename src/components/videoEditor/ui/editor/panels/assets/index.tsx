@@ -3,7 +3,7 @@
 import { Separator } from '@/components/videoEditor/ui/ui/separator';
 import {
   PanelBaseView,
-  PanelState,
+  VideoEditorPanelState,
 } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup } from '@/components/videoEditor/ui/editor/panels/properties/property-item';
 import { type Tab, useAssetsPanelStore } from '@/components/videoEditor/stores/assets-panel-store';
@@ -37,7 +37,7 @@ export function AssetsPanel() {
   const notice = (text: string, hint: string) => (
     <PanelBaseView>
       <PropertyGroup grow>
-        <PanelState text={text} hint={hint} />
+        <VideoEditorPanelState text={text} hint={hint} />
       </PropertyGroup>
     </PanelBaseView>
   );

@@ -14,7 +14,7 @@ import {
 import { Input } from '@/components/videoEditor/ui/ui/input';
 import {
   PanelBaseView as BaseView,
-  PanelState,
+  VideoEditorPanelState,
 } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup } from '@/components/videoEditor/ui/editor/panels/properties/property-item';
 import {
@@ -76,7 +76,7 @@ function SoundLibraryPanel({ kind }: { kind: SoundKind }) {
   if (isLoading) {
     return (
       <PropertyGroup grow>
-        <PanelState text={`正在加载${label}库…`} />
+        <VideoEditorPanelState text={`正在加载${label}库…`} />
       </PropertyGroup>
     );
   }
@@ -85,7 +85,7 @@ function SoundLibraryPanel({ kind }: { kind: SoundKind }) {
     // TD-22-47 的**失败可见**：旧实现是 `response.ok` 为假 → 静默空面板（用户分不清"没有"与"坏了"）。
     return (
       <PropertyGroup grow>
-        <PanelState
+        <VideoEditorPanelState
           tone="error"
           text={`${label}库加载失败`}
           hint={error}
@@ -131,7 +131,7 @@ function SoundLibraryPanel({ kind }: { kind: SoundKind }) {
       {items.length === 0 ? (
         /* 空库 = **合法状态**（不是错误）：告诉用户"放哪儿"。`dir` 是后端给的真源，前端不拼路径。 */
         <PropertyGroup grow>
-          <PanelState
+          <VideoEditorPanelState
             text={`${label}库是空的`}
             hint={dir ? `把音频文件放进 uploads/${dir}/ 后点右上角刷新` : undefined}
           />
@@ -223,7 +223,7 @@ function SavedSoundsView() {
   if (isLoadingSavedSounds) {
     return (
       <PropertyGroup grow>
-        <PanelState text={'正在加载已保存音效…'} />
+        <VideoEditorPanelState text={'正在加载已保存音效…'} />
       </PropertyGroup>
     );
   }
@@ -231,7 +231,7 @@ function SavedSoundsView() {
   if (savedSoundsError) {
     return (
       <PropertyGroup grow>
-        <PanelState tone="error" text={'已保存音效加载失败'} hint={savedSoundsError} />
+        <VideoEditorPanelState tone="error" text={'已保存音效加载失败'} hint={savedSoundsError} />
       </PropertyGroup>
     );
   }
@@ -239,7 +239,10 @@ function SavedSoundsView() {
   if (savedSounds.length === 0) {
     return (
       <PropertyGroup grow>
-        <PanelState text={'没有已保存的音效'} hint={'点击任意音效上的爱心图标即可保存到此处'} />
+        <VideoEditorPanelState
+          text={'没有已保存的音效'}
+          hint={'点击任意音效上的爱心图标即可保存到此处'}
+        />
       </PropertyGroup>
     );
   }

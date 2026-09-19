@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react';
-import { subscribe, getToasts, dismissToast } from '../core/toastStore.ts';
+import { subscribeToasts, getToasts, dismissToast } from '../core/toastStore.ts';
 import type { Toast } from '../core/toastStore.ts';
 
 /**
@@ -25,7 +25,7 @@ function ToastContainer() {
 
   // 订阅 store 变化（subscribe 返回 boolean 取消标记，与 useEffect 清理签名不兼容，包成 void 返回）
   useEffect(() => {
-    subscribe(() => setItems(getToasts()));
+    subscribeToasts(() => setItems(getToasts()));
   }, []);
 
   // 每条 toast 自动消失：duration>0 时到点 dismiss（计时放在渲染侧，避免 store 持有 timer）

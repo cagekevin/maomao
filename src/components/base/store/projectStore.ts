@@ -246,7 +246,7 @@ function writeProjects(next: Project[], opts: { persist?: boolean } = {}): void 
  * 保证后续 `loadProjects()` 重新从存储读最新值。`lastSnapshot` 需同步重建，避免
  * `useSyncExternalStore` 持有 stale 快照。
  */
-export function __resetForTest(): void {
+export function resetProjectStoreForTest(): void {
   projects = loadProjects(); // write-ok: 测试重置出口直改内部态（刻意不 notify/不落盘，快照在其后手动重建）
   currentProjectId = loadLastOpened();
   loaded = false;
