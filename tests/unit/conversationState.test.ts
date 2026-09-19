@@ -6,7 +6,7 @@ import {
 } from '../../src/components/base/utils/volumePolicy.ts';
 const { contentClearCache } = contentStore;
 import {
-  subscribe,
+  agentConversationSubscribe,
   getState,
   commit,
   emptyMemory,
@@ -17,7 +17,7 @@ import {
   ensureActiveConversation,
   applyConversation,
   setAgentKey,
-  flushPersist,
+  agentFlushPersist,
   getCurrentSnapshot,
   setCurrentSnapshot,
   patchCurrentMessages,
@@ -70,7 +70,7 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     applyConversation(id);
     expect(getState().activeId).toBe(id);
     let notified = 0;
-    const unsub = subscribe(() => {
+    const unsub = agentConversationSubscribe(() => {
       notified++;
     });
     patchCurrentMessages([{ role: 'user', content: 'X' }]);
@@ -110,7 +110,7 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     const id = ensureActiveConversation();
     applyConversation(id);
     setCurrentSnapshot({ messages: [{ role: 'user', content: 'PERSISTED' }] });
-    flushPersist();
+    agentFlushPersist();
     // 【2026-09-17 TD-24-4 阶段0】会话落盘改走 contentSetAsync（生产者给结果）。
     // 原断言只等 `kvStore.has(key)` —— 那是**弱断言**：键可能由"存量迁移写"先建好，
     // 于是"本次快照到底写没写进去"根本没被验证（实测它先绿、水化却读到空）。
@@ -135,7 +135,7 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     // 【2026-09-17 改写】原用例 spy 的是**同步 contentSet** —— 而会话键走 KV，落盘早已改走
     // contentSetAsync（阶段0），那个 spy 永不触发 ⇒ 是**假绿**（测了个不存在的路径）。现锁真路径。
     const spy = vi.spyOn(contentStore, 'contentSetAsync').mockRejectedValue(new Error('KV 409'));
-    expect(() => flushPersist()).not.toThrow(); // 不阻断调用栈（persistDebounced 语义）
+    expect(() => agentFlushPersist()).not.toThrow(); // 不阻断调用栈（persistDebounced 语义）
     await vi.waitFor(() => expect(spy).toHaveBeenCalled()); // 真落盘路径确实被走到
     await vi.waitFor(() => expect(degradeSpy).toHaveBeenCalled()); // 失败由本处交代（不静默）
     spy.mockRestore();
@@ -149,7 +149,7 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     setCurrentSnapshot({ messages: [{ role: 'user', content: hugeContent }] });
     // 【2026-09-17 TD-24-4 阶段0】落盘走 contentSetAsync（KV 键唯一合法写路径）——断言随之跟上
     const spy = vi.spyOn(contentStore, 'contentSetAsync');
-    flushPersist();
+    agentFlushPersist();
     // contentSetAsync 拿到的是【降级后】的投影：正文被截断，序列化字节回到预算内。
     // flush() 对异步写不同步等待 → 用 waitFor 等 spy 真正被调用（等不到 = 没落盘，如实红）。
     const persisted = (await vi.waitFor(() => {

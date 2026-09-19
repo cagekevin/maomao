@@ -3,7 +3,7 @@ import { flushAsync } from './_testUtils.mjs';
 // 静态 import（不动态 import）：
 //  2026-09-02 修复——此前用「vi.resetModules() + 每例动态 import」隔离模块级单例，但在 vitest
 //  并发/fork 下，动态 import 返回的实例与源码闭包捕获的实例可能分裂，导致 deleteProject 偶发读到
-//  残留 projects。改为静态 import + 每例调源码的 `__resetForTest()` 显式重置，无实例分裂风险。
+//  残留 projects。改为静态 import + 每例调源码的 `resetProjectStoreForTest()` 显式重置，无实例分裂风险。
 import {
   initProjects,
   createProject,

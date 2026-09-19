@@ -27,7 +27,7 @@ import {
   getLastUserReferenceImages,
   getLastGeneratedImages,
   getCurrentImageMap,
-  flushPersist,
+  agentFlushPersist,
   waitHydrated,
 } from '../../src/components/agent/conversation/conversationStore.ts';
 
@@ -57,7 +57,7 @@ beforeEach(() => {
 /** 在每个项目（agentKey）之间切换前，重置内存缓存，模拟「从未初始化该项目」的干净状态。
  * 会话键已迁 KV，水化为异步：切后等水化完成再返回，确保读到的是一次性重新水化的真实数据。 */
 async function switchToProject(projectId: string) {
-  flushPersist(); // P4 落盘节流：切项目前先把上一个项目的待落盘变更刷下去
+  agentFlushPersist(); // P4 落盘节流：切项目前先把上一个项目的待落盘变更刷下去
   resetConversationCache();
   setAgentKey(`canvas-assistant-${projectId}`);
   await waitHydrated(`canvas-assistant-${projectId}`);
@@ -190,7 +190,7 @@ describe('会话隔离数据层 §2.15', () => {
     expect(kvStore.has('agent_conversations_canvas-assistant')).toBe(false); // 关键：未 hydrated 前不落盘，防挂载覆盖
     applyConversation(id);
     setCurrentSnapshot({ messages: [{ role: 'user', content: '正式' }] });
-    flushPersist(); // P4 落盘节流：主动刷盘，立即读到最终落盘态
+    agentFlushPersist(); // P4 落盘节流：主动刷盘，立即读到最终落盘态
     expect(kvStore.has('agent_conversations_canvas-assistant')).toBe(true); // 已 hydrated，落 KV
     expect(getCurrentSnapshot().messages).toHaveLength(1);
   });
@@ -242,7 +242,7 @@ describe('按项目隔离会话（project 作为最顶层）', () => {
     setCurrentSnapshot({ messages: [{ role: 'user', content: 'D 内容' }] });
 
     // 再次 setAgentKey 同一项目：不重置，会话保留
-    flushPersist(); // P4 落盘节流：重置缓存前先刷盘，确保重读时能取到已落盘数据
+    agentFlushPersist(); // P4 落盘节流：重置缓存前先刷盘，确保重读时能取到已落盘数据
     resetConversationCache();
     setAgentKey('canvas-assistant-projD');
     await waitHydrated('canvas-assistant-projD'); // 会话键迁 KV，水化为异步：等重水化完成

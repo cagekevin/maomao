@@ -99,7 +99,7 @@ let state: TableWorkspaceState = {
 const listeners = new Set<() => void>();
 
 /** 订阅运行态变更（供 useSyncExternalStore / 非 hook 场景） */
-export function subscribe(cb: () => void): () => void {
+export function agentAssistantTableSubscribe(cb: () => void): () => void {
   listeners.add(cb);
   return () => {
     listeners.delete(cb);
@@ -145,7 +145,7 @@ export function getTableWorkspace(): TableWorkspaceState {
 
 /** 组件订阅 hook：运行态任何字段变化触发重渲染（小状态，整包订阅即可） */
 export function useTableWorkspace(): TableWorkspaceState {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  return useSyncExternalStore(agentAssistantTableSubscribe, getSnapshot, getSnapshot);
 }
 
 /** 开合取反；开 = 进入协作（左面板滑出）；关 = 清协作现场（选中/预览/游标） */

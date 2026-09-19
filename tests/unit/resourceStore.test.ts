@@ -12,7 +12,7 @@ import {
   clearResources,
   resetResourceStoreForTest,
   getResources,
-  flushPersist,
+  resourceFlushPersist,
   mergeResourcesFromBackend,
   refreshFromBackend,
   sendToResourceLibrary,
@@ -185,7 +185,7 @@ describe('素材库数据层 §2.18', () => {
 describe('resourceStore P4 落盘节流', () => {
   beforeEach(() => {
     // 排空文件级 beforeEach 用真实定时器排的待落盘（避免脏 timer 污染假定时器窗口，导致后续 schedule 不排程）
-    flushPersist();
+    resourceFlushPersist();
     vi.useFakeTimers();
     localStorage.removeItem(STORAGE_KEY);
   });
@@ -211,7 +211,7 @@ describe('resourceStore P4 落盘节流', () => {
     clearResources();
     addResources([{ url: '/c.png', type: 'image' }]);
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
-    flushPersist();
+    resourceFlushPersist();
     expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull();
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
     expect(saved).toHaveLength(1);
@@ -221,7 +221,7 @@ describe('resourceStore P4 落盘节流', () => {
     const setSpy = vi.spyOn(Storage.prototype, 'setItem');
     clearResources();
     addResources([{ url: '/d.png', type: 'image' }]);
-    flushPersist();
+    resourceFlushPersist();
     const writesBefore = setSpy.mock.calls.filter(([k]) => k === STORAGE_KEY).length;
     vi.advanceTimersByTime(300); // 原定时器已清，不应再写
     const writesAfter = setSpy.mock.calls.filter(([k]) => k === STORAGE_KEY).length;

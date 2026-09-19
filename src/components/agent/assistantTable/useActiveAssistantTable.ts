@@ -9,7 +9,7 @@
  * 运行态（open/width/选中/预览/游标）由 tableWorkspaceState 单独提供（本 hook 不碰）。
  */
 import { useMemo } from 'react';
-import { subscribe, getState } from '../conversation/conversationState.ts';
+import { agentConversationSubscribe, getState } from '../conversation/conversationState.ts';
 import type { ConversationStoreState } from '../conversation/conversationState.ts';
 import { useStoreSelector, shallowEqual } from '@/hooks/useStoreSelector.ts';
 import { normalizeAssistantTabs, getActiveTab } from './assistantTable.ts';
@@ -32,13 +32,13 @@ export interface ActiveAssistantTable {
 
 export function useActiveAssistantTable(): ActiveAssistantTable {
   const activeConversationId = useStoreSelector<ConversationStoreState, string>(
-    subscribe,
+    agentConversationSubscribe,
     getState,
     (s) => s.activeId || '',
     shallowEqual,
   );
   const rawTabs = useStoreSelector(
-    subscribe,
+    agentConversationSubscribe,
     getState,
     (s) => {
       const c = (s.conversations || []).find((x) => x.id === s.activeId);

@@ -75,7 +75,7 @@ describe('AI 助手会话刷新恢复（真实 store）', () => {
     await act(async () => {
       await r1.result.current.send('你好');
     });
-    convStore.flushPersist(); // P4 落盘节流：send 走防抖落盘，主动刷盘后断言最终态（会话键已迁 KV，断言走 kvStore）
+    convStore.agentFlushPersist(); // P4 落盘节流：send 走防抖落盘，主动刷盘后断言最终态（会话键已迁 KV，断言走 kvStore）
     const persisted = kvStore.get('agent_conversations_canvas-assistant-projZ');
     expect(persisted).toBeTruthy();
     // 关键：assistant 消息（AI 回复）也应完整落盘，而非只保留 user
@@ -104,7 +104,7 @@ describe('AI 助手会话刷新恢复（真实 store）', () => {
     await act(async () => {
       await r1.result.current.send('项目X的消息');
     });
-    convStore.flushPersist(); // P4 落盘节流：send 走防抖落盘，主动刷盘后断言最终态（会话键已迁 KV，断言走 kvStore）
+    convStore.agentFlushPersist(); // P4 落盘节流：send 走防抖落盘，主动刷盘后断言最终态（会话键已迁 KV，断言走 kvStore）
     expect(kvStore.get('agent_conversations_canvas-assistant-projX')).toBeTruthy();
 
     // 模拟刷新且时序错位：store 的 currentAgentKey 仍在 default，而 hook 已用 projX 挂载。

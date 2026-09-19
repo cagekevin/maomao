@@ -29,7 +29,7 @@ import {
 } from '../agent/assistantTable/tableWorkspaceState.ts';
 import { useCanvasAgentTools } from '../agent/canvas/useCanvasAgentTools.ts';
 import AssistantTablePanel from '../agent/assistantTable/AssistantTablePanel.tsx';
-import { subscribe, getState } from '../agent/conversation/conversationState.ts';
+import { agentConversationSubscribe, getState } from '../agent/conversation/conversationState.ts';
 import type { ConversationStoreState } from '../agent/conversation/conversationState.ts';
 import { useStoreSelector, shallowEqual } from '@/hooks/useStoreSelector.ts';
 import '../agent/assistantTable/assistant-table.css';
@@ -40,7 +40,7 @@ export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWid
 
   // ── 会话发送态（与 AssistantTablePanel 同款原子订阅；切对话自动跟随）──
   const sending = useStoreSelector<ConversationStoreState, boolean>(
-    subscribe,
+    agentConversationSubscribe,
     getState,
     (s) => !!s.sending,
     shallowEqual,
@@ -55,8 +55,7 @@ export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWid
       const t = String(text ?? '').trim();
       if (!t) return { ok: false, message: '内容为空，未发送' };
       const res = (await callTool('create_node', { type: 'textGenerateNode', text: t })) as
-        | { ok?: boolean; error?: string }
-        | undefined;
+        { ok?: boolean; error?: string } | undefined;
       // 【2026-09-17 裁定「消费者只转发」】**可展示信息由本层（生产者）给全** ——
       // 消费方（AssistantTablePanel）拿到了 `message` 直接转发即可，不得再拼 `发送失败：${error}`、
       // 也不得用 `|| '未知原因'` 补默认值（那是消费者加工 + 掩盖缺失字段）。

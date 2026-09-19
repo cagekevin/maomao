@@ -20,7 +20,7 @@
 import {
   getState,
   commit,
-  uid,
+  agentUid,
   markHydrated,
   normalizeConversation,
   normalizeWorkflow,
@@ -90,7 +90,7 @@ export function ensureActiveConversation(): string {
     return conversations[0].id;
   }
   const conv = normalizeConversation({
-    id: uid('ac'),
+    id: agentUid('ac'),
     title: '对话',
     messages: [],
     skills: [],
@@ -117,7 +117,7 @@ export function applyConversation(id: string): ConversationSnapshot {
   }
   if (!conv) {
     conv = normalizeConversation({
-      id: uid('ac'),
+      id: agentUid('ac'),
       title: '对话',
       messages: [],
       skills: [],
@@ -135,7 +135,7 @@ export function applyConversation(id: string): ConversationSnapshot {
 export function newConversation(): { id: string; snapshot: ConversationSnapshot } {
   const st = getState();
   const conv = normalizeConversation({
-    id: uid('ac'),
+    id: agentUid('ac'),
     title: '新对话',
     messages: [],
     skills: [],
@@ -165,7 +165,7 @@ export function deleteConversation(id: string): {
     return { activeId: remaining[0].id, snapshot: getCurrentSnapshot() };
   }
   const conv = normalizeConversation({
-    id: uid('ac'),
+    id: agentUid('ac'),
     title: '新对话',
     messages: [],
     skills: [],
@@ -207,7 +207,7 @@ export function importLegacy({
   const msgs = messages as Record<string, unknown>[];
   const firstUser = msgs.find((m) => m.role === 'user' && m.content);
   const conv = normalizeConversation({
-    id: uid('ac'),
+    id: agentUid('ac'),
     title: firstUser?.content ? String(firstUser.content).slice(0, 30) : '对话',
     messages: msgs.slice(-AGENT_MSG_MAX),
     skills: Array.isArray(skills)
@@ -227,12 +227,12 @@ export function importLegacy({
 
 /* ── 聚合 re-export（保持原 conversationStore 全公开导出面，消费方零改动）── */
 
-// conversationState：底座公开 API（useConversationStore / setAgentKey / flushPersist /
+// conversationState：底座公开 API（useConversationStore / setAgentKey / agentFlushPersist /
 // resetConversationCache + 归一化 normalizeConversation / normalizeWorkflow / normalizePending / normalizeMemory）
 export {
   setAgentKey,
   setSending,
-  flushPersist,
+  agentFlushPersist,
   resetConversationCache,
   waitHydrated,
   normalizeConversation,

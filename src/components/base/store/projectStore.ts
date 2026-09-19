@@ -240,7 +240,7 @@ function writeProjects(next: Project[], opts: { persist?: boolean } = {}): void 
  * 偶发读到残留的 `projects=[p1,p2,default]` 且 `loaded=false`——证明动态 import 拿到的实例与
  * 源码 `deleteProject` 闭包捕获的实例在 vitest 并发/fork 下可能分裂，静态隔离不可靠。
  * 这里提供一个显式 reset 出口，让测试直接重置内存状态（等同重新 import 一份干净模块，但
- * 无实例分裂风险），也符合 `flushPersist` 已有的「测试出口」先例。
+ * 无实例分裂风险），也符合 `resourceFlushPersist` 已有的「测试出口」先例。
  *
  * 说明：不清 `localStorage`——那是存储层的事，由测试按需 clear；这里只把模块内存态归零，
  * 保证后续 `loadProjects()` 重新从存储读最新值。`lastSnapshot` 需同步重建，避免

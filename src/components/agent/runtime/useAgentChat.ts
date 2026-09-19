@@ -110,7 +110,7 @@ import {
 } from '../conversation/conversationStore.ts';
 // 【消息单源 P5 基座】按字段订阅 store 的 messages（含 activeId 从 store 同步读），
 // 避免整包 useConversationStore() 订阅 → 流式高频更新连坐重渲染整个面板。
-import { subscribe, getState } from '../conversation/conversationState.ts';
+import { agentConversationSubscribe, getState } from '../conversation/conversationState.ts';
 import type { ConversationStoreState, Conversation } from '../conversation/conversationState.ts';
 import type { ConversationSnapshot } from '../conversation/conversationSnapshot.ts';
 import type { GenerationProvider } from '@/types';
@@ -336,7 +336,7 @@ export function useAgentChat({
   // ── 消息单源（阶段1A）：不再自持 messages state，改为按字段订阅 store 的
   //    conversations[activeId].messages。流式高频更新只重渲染消息订阅者，其余字段不连坐。
   const messages = useStoreSelector<ConversationStoreState, AgentMessageData[]>(
-    subscribe,
+    agentConversationSubscribe,
     getState,
     (s) => {
       const cur = (s.conversations || []).find((c) => c.id === s.activeId);
@@ -347,7 +347,7 @@ export function useAgentChat({
   );
   // ── 阶段1D·薄壳化：sending / activeConversationId / conversations 改为 store 字段订阅（非本地 useState）──
   const sending = useStoreSelector<ConversationStoreState, boolean>(
-    subscribe,
+    agentConversationSubscribe,
     getState,
     (s) => !!s.sending,
     shallowEqual,
@@ -356,13 +356,13 @@ export function useAgentChat({
   const [model, setModel] = useState(defaultModel);
   // ── 会话隔离（#9）：当前对话 id + 对话列表由 store 字段订阅（薄壳化，删本地 state + refreshConversations）──
   const activeConversationId = useStoreSelector<ConversationStoreState, string>(
-    subscribe,
+    agentConversationSubscribe,
     getState,
     (s) => s.activeId || '',
     shallowEqual,
   );
   const conversations = useStoreSelector<ConversationStoreState, Conversation[]>(
-    subscribe,
+    agentConversationSubscribe,
     getState,
     (s) => s.conversations || [],
     shallowEqual,

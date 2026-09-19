@@ -83,7 +83,7 @@ interface ConvStoreMock {
   setAttachments(attachments: unknown[]): void;
   setSendingState(v: boolean): void;
   setActiveId(id: string): void;
-  subscribe(cb: () => void): () => void;
+  agentConversationSubscribe(cb: () => void): () => void;
   getState(): ConvStoreMock['state'];
   reset(): void;
 }
@@ -139,7 +139,7 @@ const sharedConvStore = vi.hoisted((): ConvStoreMock => {
     setAttachments,
     setSendingState,
     setActiveId,
-    subscribe(cb) {
+    agentConversationSubscribe(cb) {
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
@@ -156,11 +156,11 @@ const sharedConvStore = vi.hoisted((): ConvStoreMock => {
   };
 });
 
-// 从真模块派生（TD-17-15）：只覆盖本套件要控的 subscribe/getState；
+// 从真模块派生（TD-17-15）：只覆盖本套件要控的 agentConversationSubscribe/getState；
 // 其余导出（如 `setAgentKey`）走真模块 —— 手写白名单式桩缺它们即整套件崩。
 vi.mock('../../src/components/agent/conversation/conversationState.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
-  subscribe: sharedConvStore.subscribe,
+  agentConversationSubscribe: sharedConvStore.agentConversationSubscribe,
   getState: sharedConvStore.getState,
 }));
 

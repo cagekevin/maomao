@@ -76,7 +76,7 @@ export interface FolderPill {
   folder: string | null;
 }
 
-/** detectAssetType 的入参最小契约：只需 name / type 两个字段（既有调用传字面量，非真 File） */
+/** resourceDetectAssetType 的入参最小契约：只需 name / type 两个字段（既有调用传字面量，非真 File） */
 export interface TypeProbe {
   name?: string;
   type?: string;
@@ -292,7 +292,7 @@ onStorageReady(() => {
 });
 
 /** 强制立即落盘（页面卸载兜底 / 测试用）；createDebouncedPersist 已自动注册 pagehide 兜底 */
-export function flushPersist(): void {
+export function resourceFlushPersist(): void {
   persistDebounced.flush();
 }
 
@@ -454,7 +454,7 @@ export function addResources(
 
 /**
  * 发送任意 URL 素材到素材库（节点「发送到素材库」统一入口）。
- * - 自动按 URL/文件名推断类型（detectAssetType）；
+ * - 自动按 URL/文件名推断类型（resourceDetectAssetType）；
  * - 默认落入「素材库(migrated)」目录；可传 folder 覆盖（如 'tasks'）；
  * - 名称优先用传入 name，否则用 URL 文件名，再否则「未命名」。
  *
@@ -615,7 +615,7 @@ export function clearResources(): void {
  *
  * 【TD-02-8】原先导出为 `loadResources()`，但 src 零调用方（只有测试拿它当 seed 辅助）——
  * 「定义完整却没人用」的死抽象。改为模块内私有 + 就绪重读复用，公开面不再暴露无调用方 API；
- * 测试改用 `__resetForTest`（显式测试出口，仿 `projectStore.__resetForTest` 先例）。
+ * 测试改用 `resetResourceStoreForTest`（显式测试出口，仿 `projectStore.resetProjectStoreForTest` 先例）。
  */
 function reloadFromStorage(): Resource[] {
   resources = load();
@@ -625,7 +625,7 @@ function reloadFromStorage(): Resource[] {
 
 /**
  * 【测试出口】把模块级内存态重置为「存储中的素材列表」（等同重新 import 一份干净模块，
- * 但无 vitest 并发下的实例分裂风险——理由见 projectStore.__resetForTest 注释）。
+ * 但无 vitest 并发下的实例分裂风险——理由见 projectStore.resetProjectStoreForTest 注释）。
  */
 export function resetResourceStoreForTest(): Resource[] {
   return reloadFromStorage();

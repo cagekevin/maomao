@@ -14,7 +14,7 @@
  *
  * 【对外 API】其余文件从本文件 import 这套内部契约（convKey / getState / commit / uid /
  * getActiveConv / normalize* 等）；但本文件的"公开 API"仅 useConversationStore / setAgentKey /
- * flushPersist / resetConversationCache / normalize* ，由 conversationStore.js 作为聚合入口统一 re-export，
+ * agentFlushPersist / resetConversationCache / normalize* ，由 conversationStore.js 作为聚合入口统一 re-export，
  * 调用方 import 路径与符号名都不变。
  * ════════════════════════════════════════════════════════════════
  */
@@ -177,7 +177,7 @@ const persistDebounced = createDebouncedPersist(() => {
 }, 300);
 
 /** 强制立即落盘当前 agentKey 会话（页面卸载兜底 / 测试用） */
-export function flushPersist(): void {
+export function agentFlushPersist(): void {
   persistDebounced.flush();
 }
 
@@ -185,7 +185,7 @@ export function flushPersist(): void {
 const listeners = new Set<() => void>();
 
 /** 订阅当前 agentKey 状态变更（供 useStoreSelector 按字段订阅，避免整包订阅连坐重渲染） */
-export function subscribe(cb: () => void): () => void {
+export function agentConversationSubscribe(cb: () => void): () => void {
   listeners.add(cb);
   return () => listeners.delete(cb);
 }
@@ -462,7 +462,7 @@ export function setSending(sending: boolean): void {
 }
 
 /** 生成唯一 id（对齐大雄 uid('ac')） */
-export function uid(prefix?: string): string {
+export function agentUid(prefix?: string): string {
   return generateId(prefix || 'ac');
 }
 
@@ -538,7 +538,7 @@ export function normalizeConversation(raw: unknown): Conversation | null {
   if (typeof c.title !== 'string') c.title = c.title || '对话';
   if (typeof c.titleCustom !== 'boolean') c.titleCustom = false;
   if (typeof c.draft !== 'string') c.draft = '';
-  if (!c.id) c.id = uid('ac');
+  if (!c.id) c.id = agentUid('ac');
   if (!c.ts) c.ts = Date.now();
   if (!c.updatedAt) c.updatedAt = c.ts;
   // 记忆归一
