@@ -129,7 +129,7 @@ useAgentChat.send(text, attachments)
       + tokenBudget.decideContextCompression / contextCompression.compressToSummary（预算→摘要）
   → agentRuntime.roundTrip → 前端门面 base/api/generate.ts chatStream → POST :18080 /api/generate
   → agentRuntime.runToolCalls(await callTool) → canvas/useCanvasAgentTools（工具注册表）
-      → canvas/canvasHost（画布写操作唯一入口，禁裸 useReactFlow）
+      → canvas/canvasHost（**AI 操作画布**唯一入口，禁裸 useReactFlow；人工/UI 侧写入直写 setNodes，不归它管）
       → canvas/canvasPlanExecutor（Wave1 并行 + Wave2 依赖）
       → conversation/*（状态回写）+ taskStore（生成落点）
   → workflowState（wfStart/wfSteer/wfFinish/wfAwaitConfirm/wfNextSteer 纯函数）
@@ -160,7 +160,7 @@ memory_suggest 工具 → conversationSkillState.setActivePendingMemorySuggest�
 `conversationStore` ← 18 处（assistantTable 4 / canvas 2 / runtime 3 / index + 8 测试）；`conversationState` ← 13 处；
 `useAgentChat` ← 8 处；`projectMemoryStore` ← 5 处；`canvasHost` ← 3 处。
 
-**三条"唯一"**：出站唯一（LLM 一律经 `base/api/generate.ts`，无第二直连）· 画布写唯一（一律经 `canvasHost`）· 消息写唯一（一律经 `agentMessages`）。
+**三条"唯一"**：出站唯一（LLM 一律经 `base/api/generate.ts`，无第二直连）· **AI 画布写唯一**（Agent 改画布一律经 `canvasHost`；人工/UI 侧写入直写 `setNodes`，属另一条路径，不在此"唯一"内）· 消息写唯一（一律经 `agentMessages`）。
 
 ---
 

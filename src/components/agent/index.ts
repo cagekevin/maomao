@@ -26,7 +26,7 @@
  *   canvas/                      —— 画布操作 + 工具层
  *     ├─ useCanvasAgentTools.ts  20 个画布工具（AI 调用的工具注册表；2026-09-05 奥卡姆删除 6 个）
  *     ├─ canvasPlanExecutor.ts   多步执行器（Wave1 并行 + Wave2 依赖）
- *     └─ canvasHost.ts           M1 画布原语层（getNode/createNode/deleteNodes/transaction，写操作唯一入口）
+ *     └─ canvasHost.ts           M1 画布原语层（getNode/createNode/deleteNodes/transaction，**AI 操作画布唯一入口**）
  *
  *   conversation/                —— 会话状态（单一数据源）
  *     ├─ conversationState.ts    底座：模块级 state + 落盘/订阅/归一
@@ -42,7 +42,7 @@
  *   - 改执行模型     → runtime/agentCore.ts（AUTO_MODE_SYSTEM_PROMPT 注入）/ canvas/useCanvasAgentTools.ts（credit 积分闸）；执行模型已收敛恒 auto
  *   - 改会话状态     → conversation/conversationState.ts（底座）/ conversationStore.ts（聚合）
  *   - 改批量出图     → canvas/canvasPlanExecutor.ts
- *   - 改画布操作     → canvas/canvasHost.ts（写操作必须走它，禁裸 useReactFlow）
+ *   - 改画布操作     → canvas/canvasHost.ts（**AI 操作画布必须走它，禁裸 useReactFlow**；人工/UI 侧写入直写 setNodes，不归它管）
  *   - 改输入状态机   → runtime/inputStateMachine.ts
  *   - 改 UI 面板     → panels/AgentPanel.tsx + panels/AgentMessage.tsx（UI 壳，留在 panels/）
  *

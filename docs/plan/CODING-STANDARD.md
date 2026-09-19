@@ -13,7 +13,7 @@
 
 | 你想做什么 | 权威文档 | 一句话 |
 |-----------|---------|--------|
-| 建新节点 / 改节点 | `ARCHITECTURE.md §7`（流程）+ `README.md`（节点规范）+ `node-types-map.md`（type↔组件映射） | 三步注册 + 3 处同步 |
+| 建新节点 / 改节点 | `ARCHITECTURE.md §7`（流程）+ `README.md`（节点规范）+ `src/components/` 实际节点组件（type↔组件映射**真源**；旧 `node-types-map.md` 已删除） | 三步注册 + 3 处同步 |
 | 复用通用能力（别造轮子） | `BASE-CAPABILITIES.md` | 已建好的 base/ 能力清单，直接照用 |
 | 写样式（用 token 不用裸色值） | `tailwind.config.js`（token 定义）+ 本页 §二 | 背景/文字/边框/字号/z-index 全走 token |
 | 弹提示 / 判断媒体 / URL 归一 | 本页 §一（单一入口清单）+ `07-Toast分级设计`（分级契约） | 遇到 X 就用 Y，禁止各写各的 |
@@ -36,7 +36,7 @@
 | `BASE-CAPABILITIES.md` | ✅ 有效 | base/ 能力清单 |
 | `spec/TEST-GUIDE.md` | ✅ 有效 | 测试体系权威 |
 | `CANVAS_PERFORMANCE.md` | ✅ 有效 | 性能机制对照（含状态标注） |
-| `node-types-map.md` | ✅ 有效 | 官方节点↔混淆映射（指向已移除 src/bundle，仅供对照） |
+| ~~`node-types-map.md`~~ | ❌ **已删除** | 原为官方节点↔混淆映射；**随 `src/bundle/` 移除而从仓库删除**（见 `docs/README.md:87`）。**勿再引用**；映射真源 = `src/components/` 实际节点组件 + `contracts.NODE_TYPES` |
 | `README.md` | ✅ 有效 | 结构/启动/复刻范围 |
 | `tailwind-tokens.md` | ❌ **已删** | 从旧 `src/bundle`（已删）dump 的 class 频次表，非 token 规范；token 唯一真相 = `tailwind.config.js` |
 | `08-存储键集中登记与收口规范` | ✅ 有效 | 存储键 `StorageKeys` 中央登记 + 脏键迁移 + 动态键工厂 |

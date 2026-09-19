@@ -21,8 +21,13 @@
  *   后端以 `normalizeSubfolder` 的**顶层根白名单**（tasks/web/canvas/migrated/director3d）校验，而非枚举全路径。
  *   **本模块内**仍然成立的纪律：不散写目录字面量（用 UPLOAD_DIRS 作默认值）；目录名不改（防存量 URL 破链）。
  * · 返回契约：后端返回 { code, data: { url } } 信封，本模块取 data.data.url
- *   （http://127.0.0.1:18080/files/<subfolder>/<name>）；失败一律返回 null 不抛
- *   （调用方降级保持原 URL），并 logger.warn 留痕 —— 失败可见但不打断主流程。
+ *   （http://127.0.0.1:18080/files/<subfolder>/<name>）。
+ *   **【2026-09-19 更正 · 旧描述已漂移】**落盘函数**已升级为判别联合、不再用 `null` 表示失败**：
+ *     - `uploadFileToLocal` / `saveInlineToLocal` / `saveTextToTasks` → `UploadOutcome`
+ *       （`{ok:true,url,contentId?}` | `{ok:false,message}`）
+ *     - `persistUrlToUploads` → `PersistOutcome`（带 `reason`，如 `empty`/`unsupported`/`upload-failed`/`exception`）
+ *   失败**不抛**（异常也归入 `exception` 并留痕），调用方必须判 `.ok` 并按 `message` **原样转发**，
+ *   禁止自己编造原因（三铁律：生产者给全 · 消费者只转发 · 不越权）。
  * · 出口纪律：所有落盘经 httpRequest（统一超时/重试/错误分类），UPLOAD_OPTS 用较长超时 +
  *   retries:0（大文件不自动重试，避免重复上传）；禁止绕过本模块另写 fetch/上传。
  * · 本模块不碰后端 SQLite/DB，只做文件落盘 + 供 rescan 收录。
@@ -305,7 +310,8 @@ function fileNameOf(file: File | Blob): string {
  * @param {File|Blob} file 原始文件
  * @param {string} [subfolder] 落盘子目录，默认 canvas/drop（对齐官方）
  * @param {string} [filename] 可选自定义文件名。**Blob 无 name**，故默认名对 Blob 恒为空 → 落 `'upload'`
- * @returns {Promise<string|null>}
+ * @returns {Promise<UploadOutcome>} 判别联合 —— **不是** `string|null`
+ *   （旧 JSDoc 与文件头「失败一律返回 null 不抛」均为**已漂移的旧契约**，2026-09-19 更正）
  */
 export async function uploadFileToLocal(
   file: File | Blob | null,

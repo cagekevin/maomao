@@ -2,7 +2,9 @@
 
 > **这份文档是「为什么」，不是「规则清单」。** 它从设计原则出发，推导出本原型该长什么样、数据该怎么流动、代码该怎么写。
 > 新增节点 / 改节点 / 接真引擎前先读它，先理解「为什么这样设计」，再动手。
-> 配套：`SCRIPTBOX-HANDOFF.md`（剧本盒子专属）、`node-types-map.md`（官方节点映射）、`tailwind.config.js`（样式令牌唯一真相）、`README.md`（启动/测试）。
+> 配套：`SCRIPTBOX-HANDOFF.md`（剧本盒子专属）、`tailwind.config.js`（样式令牌唯一真相）、`README.md`（启动/测试）。
+> ⚠️ **旧配套 `node-types-map.md` 已删除**（随 `src/bundle/` 混淆产物移除；见 `docs/README.md:87`）；
+> 节点 type↔组件映射的**真源 = `src/components/` 下的实际节点组件** + `contracts.NODE_TYPES`。
 
 ***
 
