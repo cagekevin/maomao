@@ -11,9 +11,9 @@
  *    经 hooks.onStatus 如实告知（不静默切换）。推理中途 GPU 掉线的降级不在此模块做（见组件层，显式上报）。
  */
 
-import { clampInt } from './engine.ts';
-import type { RuntimeModelPaths } from './depthUrls.ts';
-import { logger } from '../core/logger.ts';
+import { clampInt } from './engine';
+import type { RuntimeModelPaths } from './depthUrls';
+import { logger } from '@/components/base/core/logger';
 
 /**
  * WebGPU 入口的最小可用契约。

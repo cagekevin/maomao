@@ -37,8 +37,8 @@ import { sendToResourceLibrary, getResources } from '@/components/base/store/res
 import { openResourceLibrary } from '@/components/base/store/taskStore';
 import CameraStudioPanel from '@/components/base/editors/CameraStudioPanel';
 import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
-import { DepthVideoModal } from '@/components/base/depthVideo/DepthVideoModal';
-import { spawnDepthVideoNode } from '@/components/base/depthVideo/spawn';
+import { DepthVideoModal, spawnDepthVideoNode } from '@/components/video';
+
 import { commitNewNodes } from '@/components/canvas/deriveNodes';
 import { injectNodePrefs } from '@/components/canvas/nodePrefs';
 import { generateId } from '@/components/base/core/idGen';

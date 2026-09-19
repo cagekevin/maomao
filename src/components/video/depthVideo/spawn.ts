@@ -24,7 +24,7 @@ import {
   ASSET_NODE_SIZE,
 } from '@/components/canvas';
 import type { Node } from '@xyflow/react';
-import { buildDepthChildSpec } from './engine.ts';
+import { buildDepthChildSpec } from './engine';
 
 /** spawn 所需句柄：除提交句柄外，还需 getNode 读取源节点位置/尺寸用于右缘排布 */
 export interface DepthSpawnHandles extends CanvasCommitHandles {

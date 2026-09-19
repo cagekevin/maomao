@@ -24,8 +24,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { RUNTIME_MODELS } from './depthUrls.ts';
-import FullscreenShell from '../panels/FullscreenShell.tsx';
+import { RUNTIME_MODELS } from './depthUrls';
+import FullscreenShell from '@/components/base/panels/FullscreenShell';
 import {
   grayFromRaw,
   grayFromTensor,
@@ -33,16 +33,16 @@ import {
   blendFrames,
   pickRecordingFormat,
   depthOutputName,
-} from './engine.ts';
-import { ensureModel, disposeModel, ensureRuntimeImportMap } from './loader.ts';
-import { uploadFileToLocal } from '../api/filesApi.ts';
-import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
-import { withTimeout, isTimeoutError, releaseQuietly } from '../utils/asyncGuard.ts';
-import { classifyError } from '../utils/genErrors.ts';
-import { showToast } from '../core/toastStore.ts';
-import { logger } from '../core/logger.ts';
-import { setCrossOriginForReadable } from '../utils/captureFrame.ts';
-import { fileNameFromUrl, clamp } from '../core/utils.ts';
+} from './engine';
+import { ensureModel, disposeModel, ensureRuntimeImportMap } from './loader';
+import { uploadFileToLocal } from '@/components/base/api/filesApi';
+import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';
+import { withTimeout, isTimeoutError, releaseQuietly } from '@/components/base/utils/asyncGuard';
+import { classifyError } from '@/components/base/utils/genErrors';
+import { showToast } from '@/components/base/core/toastStore';
+import { logger } from '@/components/base/core/logger';
+import { setCrossOriginForReadable } from '@/components/base/utils/captureFrame';
+import { fileNameFromUrl, clamp } from '@/components/base/core/utils';
 
 export interface DepthVideoModalProps {
   /** 本节点当前视频 URL（绝对 URL，已是 toAbsoluteFileUrl 后） */

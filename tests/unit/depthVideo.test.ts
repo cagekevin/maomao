@@ -3,7 +3,7 @@
  * 覆盖 depthVideo/depthUrls.ts、engine.ts、loader.ts 的纯逻辑，实现一变必红。
  */
 import { describe, it, expect } from 'vitest';
-import { buildRuntimeModels } from '../../src/components/base/depthVideo/depthUrls.ts';
+import { buildRuntimeModels } from '../../src/components/video/depthVideo/depthUrls.ts';
 import {
   adjustDepthValue,
   grayFromRaw,
@@ -12,8 +12,8 @@ import {
   pickRecordingFormat,
   depthOutputName,
   buildDepthChildSpec,
-} from '../../src/components/base/depthVideo/engine.ts';
-import { configureEnv, disposeModel } from '../../src/components/base/depthVideo/loader.ts';
+} from '../../src/components/video/depthVideo/engine.ts';
+import { configureEnv, disposeModel } from '../../src/components/video/depthVideo/loader.ts';
 
 describe('A1 adjustDepthValue — 深度值对比度/反色', () => {
   it('128 在任意 contrast 下保持 128（围绕中心对称）', () => {

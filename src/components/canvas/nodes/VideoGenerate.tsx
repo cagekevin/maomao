@@ -19,8 +19,8 @@ import FullscreenEditor from '@/components/base/panels/FullscreenEditor';
 import GeneratingOverlay from '@/components/base/ui/GeneratingOverlay';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
 import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
-import { DepthVideoModal } from '@/components/base/depthVideo/DepthVideoModal';
-import { spawnDepthVideoNode } from '@/components/base/depthVideo/spawn';
+import { DepthVideoModal, spawnDepthVideoNode } from '@/components/video';
+
 import { downloadUrl, resolveDownloadFilename } from '@/components/base/utils/clipboard';
 import { CreativeLibraryButton } from '@/components/creative';
 import { toDictEntry } from '@/components/creative';
