@@ -161,3 +161,8 @@ localTool/runtime-models/**/ort*.mjs
 .codebuddy/teams/
 localTool/runtime-models/depth-video.zip
 localTool/.lovart_project.json
+
+# mv-sync-refs move-dir 的**瞬时**回退凭据：每次 move-dir 重写、含机器绝对路径，
+# 只服务于「刚做完这一次 move 出错时回退」，不是仓库内容（误入库会产生 6 处假断链，
+# 且 --undo 会回退已完成的迁移批次）。见 TD-24-8。
+scripts/.move-dir-undo.json

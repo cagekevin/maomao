@@ -646,12 +646,15 @@ if (!envelopeViol) console.log('  ✅ 无另立结果信封 interface');
 // 绕过唯一入口（根因：canvasHost 缺 removeEdges 原语，被逼裸调）。已补原语 + 收口，本规则防回潮。
 //
 // 【判定】在 agent/canvas 工具层文件里，检测「从 ctx 解构出 setNodes/setEdges/addNodes/addEdges」
-// 或直接 `ctx.setNodes(...)` 调用。canvasHost.ts 本体豁免（它就是唯一实现）。
+// 或直接 `ctx.setNodes(...)` 调用。`agentCanvasHost.ts` 本体豁免（它就是唯一实现）。
+// ⚠️ 改名铁律（TD-17-24 实证）：本规则的豁免清单是**按文件路径**匹配的 —— S1-2 把 canvasHost.ts
+//    改名为 agentCanvasHost.ts 时漏改下面一行 ⇒ 豁免失效 ⇒ 唯一实现本体被判 14 处违规（假红）。
+//    ⇒ 凡改名/移位碰到本文件涉及的路径，**必须同批复扫 scripts/**（SOP §5.2）。
 // ─────────────────────────────────────────────────────────────────
 const CANVAS_WRITE_BAN = new Set(['setNodes', 'setEdges', 'addNodes', 'addEdges']);
 const CANVAS_WRITE_SCOPE = 'src/components/agent/canvas/';
 const CANVAS_WRITE_EXEMPT = new Set([
-  'src/components/agent/canvas/canvasHost.ts', // 唯一实现本体
+  'src/components/agent/canvas/agentCanvasHost.ts', // 唯一实现本体（原 canvasHost.ts，S1-2 已改名）
 ]);
 let canvasWriteViol = 0;
 for (const f of files) {

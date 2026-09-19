@@ -32,7 +32,7 @@ import AssistantTablePanel from '../assistantTable/AssistantTablePanel.tsx';
 import { agentConversationSubscribe, getState } from '../conversation/conversationState.ts';
 import type { ConversationStoreState } from '../conversation/conversationState.ts';
 import { useStoreSelector, shallowEqual } from '@/hooks/useStoreSelector';
-import '../assistantTable/assistant-table';
+import '../assistantTable/assistant-table.css';
 
 export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWidth: number }) {
   const ws = useTableWorkspace();

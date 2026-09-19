@@ -153,6 +153,39 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const root = resolve(__dirname, '..');
 const SCAN_ROOTS = [join(root, 'src'), join(root, 'tests')];
 
+/**
+ * 🔴 「必须显式带后缀」的**资源类**扩展名 —— **不参与 `--suffix` 策略**。
+ *
+ * 【为什么必须单独一组】`SOURCE_EXTS`（`.js/.jsx/.ts/.tsx`）管的是「**源码**后缀怎么写」——
+ * 四种形态可互转（本仓 bundler 域写 `.ts`、Node-ESM 域写 `.js`），所以才有 keep/auto/ts/js 策略。
+ * 而 `.css` / `.json` 这类后缀是**资源标识的一部分**：剥掉后 bundler 解析不到 ⇒ 直接构建失败。
+ *
+ * 【实证 · TD-17-22】`applySpecSuffix` 的 `keep` 分支原写
+ *   `SOURCE_EXTS.includes(origSpecExt) ? st + origSpecExt : st`
+ * ⇒ `.css` 不在 SOURCE_EXTS ⇒ 返回**无后缀** ⇒ `vite build` 挂。
+ * 已复发两次：S1-4（手工改回）· S1-6（让构建从 `19e2c352` 起持续坏，直到 2026-09-19 才被发现）。
+ * 同族缺陷还有两处：`computeNewSpec` 的 `@/` 净化分支与别名分支**无条件 stripExt**。
+ *
+ * 【判据】后缀属于此表 ⇒ **一律原样保留**，与 suffixMode 无关。
+ */
+const RESOURCE_EXTS = [
+  '.css',
+  '.json',
+  // 资产类：Vite 同样需显式后缀才解析。本仓当前无 import 说明符用法，先占位防复发。
+  '.svg',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.webp',
+  '.gif',
+  '.mp4',
+  '.webm',
+  '.wasm',
+  '.woff',
+  '.woff2',
+];
+const isResourceSpec = (ext) => RESOURCE_EXTS.includes(ext);
+
 /** @type {Set<string>} */
 const parseWarnings = new Set();
 
@@ -368,6 +401,11 @@ function runtimeSuffixForSource(newAbs) {
  */
 function applySpecSuffix(specStem, targetExt, suffix, origSpecExt = '') {
   const st = toPosix(specStem);
+  // 🔴 资源类后缀（.css/.json/…）**优先于一切策略**：后缀原样保留（TD-17-22）。
+  //    必须放在最前 —— ts/js/auto/keep 四个分支都会把它剥掉（keep 尤其：它只看 SOURCE_EXTS）。
+  if (isResourceSpec(origSpecExt) || isResourceSpec(targetExt)) {
+    return st + (isResourceSpec(origSpecExt) ? origSpecExt : targetExt);
+  }
   // 显式 ts：目标若是 .ts/.tsx 源，就按 .ts/.tsx；但用户想要统一 ts 就统 .ts。为精确，
   // 这里按目标真实源码扩展名给（.ts→.ts、.tsx→.tsx、.js→.js），让"生成 TS"落对扩展名。
   if (suffix === 'ts') {
@@ -397,6 +435,24 @@ function computeNewSpec(fromFile, newAbs, oldSpec) {
   // ⚠️ 必须**直接** `extname(oldSpec)` —— 曾误写 `extname(stripExt(oldSpec))`（先剥后缀再取）= 恒 `''`
   //    ⇒ keep 会丢掉后缀。stripExt 与 extname 是相反方向的操作，串起来等于"擦掉再问写了什么"。
   const origSpecExt = extname(oldSpec);
+
+  // 🔴 资源类后缀（.css/.json/…）**早退**：走下面任一条分支都会把后缀剥掉（TD-17-22）——
+  //    ① 别名分支的 `stripExt` ② `@/` 净化分支的 `stripExt` ③ `applySpecSuffix` 的 keep。
+  //    这里统一按「保持后缀」重算，三条分支的形态（别名 / @净化 / 相对）与下方一致。
+  if (isResourceSpec(targetExt)) {
+    const mr = matchAlias(oldSpec);
+    if (mr) {
+      const aliasBaseR = resolve(root, mr.to);
+      if (newAbs.startsWith(aliasBaseR)) {
+        return mr.alias + toPosix(relative(aliasBaseR, newAbs));
+      }
+    }
+    const relR = toPosix(relative(dirname(fromFile), newAbs));
+    if (relR.startsWith('../../') && newAbs.startsWith(currentRoot)) {
+      return '@/' + toPosix(relative(currentRoot, newAbs));
+    }
+    return mkRel(relR);
+  }
 
   // 旧 spec 原本是别名形式 → 保持别名前缀；alias 惯用不带后缀，仅当显式 --suffix 非 auto 时补全
   const m = matchAlias(oldSpec);

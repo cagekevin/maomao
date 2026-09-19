@@ -209,8 +209,9 @@ showToast('处理中...', { duration: 0 })           // 0 = 不自动消失
 
 ## 六、脚本盒子（剧本盒子）引擎
 
-> 见 `ARCHITECTURE.md §七` 和 `SCRIPTBOX-HANDOFF.md`（专属交接文档）。
-> `scriptBoxEngine.js` / `useScriptBoxEngine.js` / `scriptBoxPrompts.js` 已建好。
+> 见 `ARCHITECTURE.md §七` 与 **`spec/AI-SCRIPTBOX-INVARIANTS-SSOT.md`**（剧本盒子不变量 SSOT）。
+> 现行落点：引擎 `src/components/scriptbox/scriptBoxEngine.ts` · 注入 hook `src/hooks/useScriptBoxEngine.ts` · 纯函数层 `src/components/scriptbox/scriptBoxPrompts.ts`。
+> ⚠️ 旧引用的 `SCRIPTBOX-HANDOFF.md` **已不存在**（本仓无此文件）—— 见 TD-24-7。
 
 ---
 

@@ -54,8 +54,7 @@ export default defineConfig({
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/components/nodes/**',
-        'src/components/panels/**',
-        'src/components/agent/**',
+        'src/components/agent/**', // 含原 components/panels/（S1-6 已整目录迁入 agent/panels/，旧 glob 已删）
         'src/components/scriptbox/**',
         'src/components/director3d/**',
         '**/contracts.ts',
