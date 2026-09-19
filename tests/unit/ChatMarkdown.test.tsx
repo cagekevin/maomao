@@ -15,7 +15,7 @@ vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({
   default: ({ src }: any) => React.createElement('img', { src }),
 }));
 
-import ChatMarkdown from '../../src/components/panels/ChatMarkdown.tsx';
+import ChatMarkdown from '../../src/components/agent/panels/ChatMarkdown.tsx';
 
 describe('ChatMarkdown — 块级 Markdown', () => {
   it('标题 → 渲染 h1/h2/h3', () => {

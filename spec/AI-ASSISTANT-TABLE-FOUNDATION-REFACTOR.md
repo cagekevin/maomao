@@ -234,7 +234,7 @@ O(1) 可查，且**违反即意味着代码有 bug**（不是数据脏）。
 ### 9.1 已核实成立的结论（计划主干可信）
 
 - 病根属实：`TableRow.values = Record<colId,string>`，外键一致性问题的根源。
-- 改动面 5 源文件准确：全 src 摸 `TableRow` 值的只有 `assistantTable.ts / TableGrid.tsx / AssistantTablePanel.tsx / useTableSelection.ts / AgentPanel.tsx`（`AgentPanel` 在 [L391](file:///Users/kevin/Documents/maomao/src/components/panels/AgentPanel.tsx#L391)）。
+- 改动面 5 源文件准确：全 src 摸 `TableRow` 值的只有 `assistantTable.ts / TableGrid.tsx / AssistantTablePanel.tsx / useTableSelection.ts / AgentPanel.tsx`（`AgentPanel` 在 [L391](file:///Users/kevin/Documents/maomao/src/components/agent/panels/AgentPanel.tsx#L391)）。
 - AI 侧契约零伤：`assistantTablePrompt.ts` 只收 `rowTexts`，不摸 `TableRow.values`；序列化走 `rowToObj/rowToText` 函数封装，改接口即覆盖。
 - D-1 成立：`useColumnResize` 以 `col.id` 为 `colWidthMapRef` key + `colSig`，改下标会毁列宽记忆。
 - 落盘兼容有统一收口：`useActiveAssistantTable` 每次 read 都经 `normalizeAssistantTabs`；`conversationAiState` 的 get/setCurrentAssistantTabs 也经 `normalizeAssistantTabs` 归一。只要 `normalizeAssistantTable` 兼容"values→cells"，全链路老数据可读。

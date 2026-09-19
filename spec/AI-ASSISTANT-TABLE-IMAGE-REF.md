@@ -8,7 +8,7 @@
 > 关联代码（真源，改前先读）：
 >   - `src/components/base/prompt/promptChips.ts` → `PROMPT_CHIP_RE`、`resolvePromptChips`、`buildChipEl`
 >   - `src/components/agent/assistantTable/CellEditor.tsx` → 单元格双态渲染
->   - `src/components/panels/AgentPanel.tsx` → `buildTableSnapshotText`（:1886）、发送装配（:848~872）
+>   - `src/components/agent/panels/AgentPanel.tsx` → `buildTableSnapshotText`（:1886）、发送装配（:848~872）
 >   - `src/components/agent/assistantTable/assistantTable.ts` → `rowToText`（:375）、`buildPreviewResult`
 >   - `src/components/agent/runtime/agentAttachments.ts` → `buildRefCatalog`（:63）
 >   - `src/components/base/utils/imageUrl.ts` → `normalizeImageUrlForSend`（:358）、`MAX_SEND_DIM`（:58）
@@ -154,7 +154,7 @@ export const PROMPT_CHIP_RE: RegExp = /@\{([^:]+):([^|}]*)(?:\|([^}]+))?\}/g;
 
 表格模式下，发送前把「整表快照 + 选中行 + 用户的话」拼进 `finalText`，附件只取输入框的参考图：
 
-```848:872:src/components/panels/AgentPanel.tsx
+```848:872:src/components/agent/panels/AgentPanel.tsx
     if (tableOpen) {
       const parts: string[] = [];
       const currentTable = buildTableSnapshotText(tableData, globalStyle, activeTableName);

@@ -31,7 +31,7 @@
 | `.../AssistantTablePanel.tsx` | 左栏表格 UI 薄壳（**本应只渲染**） | ★★☆☆ | **上帝组件**（777 行），一切全塞 |
 | `.../AssistantTablePreviewCard.tsx` | 预览「待确认卡」（仅渲染+回调） | ★★★☆ | 相对干净，可留 |
 | `.../assistantTablePrompt.ts` | 改行 user 拼装纯函数 | ★★★★ | 干净（AI 层） |
-| `src/components/panels/TableWorkspacePanel.tsx` | 表格面板容器壳 + 装配 | ★★★☆ | 与 AssistantTablePanel 职责边界靠 props 纠缠 |
+| `src/components/agent/panels/TableWorkspacePanel.tsx` | 表格面板容器壳 + 装配 | ★★★☆ | 与 AssistantTablePanel 职责边界靠 props 纠缠 |
 | `.../agent-panel.css` | 表格样式（1139~1749 行） | ★★☆☆ | 命名历史缩写、归属错误文件、选择器依赖祖先 `.tw-panel` |
 
 ### 1.2 渲染树 vs 命名树（核心脱节）

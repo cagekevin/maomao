@@ -23,7 +23,7 @@ vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({
   default: ({ src }: any) => React.createElement('img', { src }),
 }));
 
-import AgentMessage from '../../src/components/panels/AgentMessage.tsx';
+import AgentMessage from '../../src/components/agent/panels/AgentMessage.tsx';
 
 const noop = () => {};
 

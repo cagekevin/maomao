@@ -13,13 +13,13 @@
 
 表格单元格的芯片会被解析成 `参考图N(label)`，但用户在输入框手打的 `@素材`（落在 `text` 段）在表格模式下**完全不解析**，以裸 `@{id:label|url}` 串直接发给 AI；而同一输入框里的 `attachments` 却进了 `allImages` 并编入 `buildRefCatalog`。
 
-```848:862:src/components/panels/AgentPanel.tsx
+```848:862:src/components/agent/panels/AgentPanel.tsx
 if (tableOpen) {
   // currentTable / rowTexts 走 resolve()
   } else if (text) { parts.push(text); }   // ← text 原样推，芯片不解析
 ```
 
-```838:840:src/components/panels/AgentPanel.tsx
+```838:840:src/components/agent/panels/AgentPanel.tsx
 const allImages = [...attachments, ...pendingImageNodes]
   .filter((a) => a?.url)
   .filter((a, i, arr) => arr.findIndex((x) => x.url === a.url) === i);

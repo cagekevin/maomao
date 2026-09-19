@@ -26,13 +26,13 @@ import {
   setTableWorkspaceWidth,
   confirmTablePreview,
   cancelTablePreview,
-} from '../agent/assistantTable/tableWorkspaceState.ts';
-import { useCanvasAgentTools } from '../agent/canvas/useCanvasAgentTools.ts';
-import AssistantTablePanel from '../agent/assistantTable/AssistantTablePanel.tsx';
-import { agentConversationSubscribe, getState } from '../agent/conversation/conversationState.ts';
-import type { ConversationStoreState } from '../agent/conversation/conversationState.ts';
-import { useStoreSelector, shallowEqual } from '@/hooks/useStoreSelector.ts';
-import '../agent/assistantTable/assistant-table.css';
+} from '../assistantTable/tableWorkspaceState.ts';
+import { useCanvasAgentTools } from '../canvas/useCanvasAgentTools.ts';
+import AssistantTablePanel from '../assistantTable/AssistantTablePanel.tsx';
+import { agentConversationSubscribe, getState } from '../conversation/conversationState.ts';
+import type { ConversationStoreState } from '../conversation/conversationState.ts';
+import { useStoreSelector, shallowEqual } from '@/hooks/useStoreSelector';
+import '../assistantTable/assistant-table';
 
 export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWidth: number }) {
   const ws = useTableWorkspace();

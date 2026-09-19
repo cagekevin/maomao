@@ -221,7 +221,8 @@ vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal)
   }),
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), toAbsoluteFileUrl: (u: any) => u
+  ...((await importOriginal()) as Record<string, unknown>),
+  toAbsoluteFileUrl: (u: any) => u,
 }));
 vi.mock('../../src/components/agent/conversation/conversationStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
@@ -230,7 +231,8 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', async (i
   markMessageTableResolved: vi.fn(),
 }));
 vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), runNodeGeneration: vi.fn()
+  ...((await importOriginal()) as Record<string, unknown>),
+  runNodeGeneration: vi.fn(),
 }));
 vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
@@ -238,7 +240,8 @@ vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) =
 }));
 // 确认统一走 confirmStore（D8 收敛 window.confirm）：这里给可控答案，替代真实弹窗
 vi.mock('../../src/components/base/core/confirmStore.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), askConfirm: h.askConfirm
+  ...((await importOriginal()) as Record<string, unknown>),
+  askConfirm: h.askConfirm,
 }));
 vi.mock('../../src/components/base/core/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
@@ -253,7 +256,7 @@ vi.mock('../../src/components/base/utils/previewUrl.ts', () => ({
   default: { create: vi.fn(() => 'blob:x'), release: vi.fn() },
 }));
 // AgentMessage 子组件用最小桩
-vi.mock('../../src/components/panels/AgentMessage.tsx', () => ({
+vi.mock('../../src/components/agent/panels/AgentMessage.tsx', () => ({
   default: ({ message }: any) =>
     React.createElement('div', { 'data-testid': `msg-${message.role}` }, message.content || null),
 }));
@@ -294,11 +297,11 @@ vi.mock('../../src/components/agent/assistantTable/tableWorkspaceState.ts', () =
   cancelTablePreview: vi.fn(),
 }));
 // 吸附面板（TableWorkspacePanel）：内部用 useCanvasAgentTools（useReactFlow），测试无 Provider → mock 掉。
-vi.mock('../../src/components/panels/TableWorkspacePanel.tsx', () => ({
+vi.mock('../../src/components/agent/panels/TableWorkspacePanel.tsx', () => ({
   default: () => React.createElement('div', { 'data-testid': 'table-workspace-panel' }, null),
 }));
 
-import AgentPanel from '../../src/components/panels/AgentPanel.tsx';
+import AgentPanel from '../../src/components/agent/panels/AgentPanel.tsx';
 
 // jsdom(pretendToBeVisual) 的平滑 scrollTo / rAF 在部分组合下会持续递归耗尽内存；
 // AgentPanel 的滚动 effect 用到它们，测试环境固定为空操作。

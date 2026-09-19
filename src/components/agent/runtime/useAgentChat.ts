@@ -117,7 +117,7 @@ import type { GenerationProvider } from '@/types';
 import { useStoreSelector, shallowEqual } from '../../../hooks/useStoreSelector.ts';
 // UI 渲染层消息形状（extends ChatMessage + 可选 UI 态字段）。hook 返回的 messages 即此形状，
 // 在此 import 类型保证「hook 产出」与「AgentPanel 消费」共用一份定义，消除两端的 `as unknown as`（F3）。
-import type { AgentMessageData } from '../../panels/AgentMessage.tsx';
+import type { AgentMessageData } from '../panels/AgentMessage.tsx';
 
 // P15 列表 key 收口（收口在 agentMessages.js：appendMsg/setHistory 统一 withMsgId 补稳定唯一 id）
 

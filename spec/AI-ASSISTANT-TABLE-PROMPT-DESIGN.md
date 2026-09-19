@@ -3,7 +3,7 @@
 > **状态：`定稿`（2026-09-06，经多轮澄清收敛；改提示词前必读本节，勿推翻已定决策）**
 > 写于：2026-09-06 · 作者：设计 AI
 > 面向：接手维护「AI 助手左侧表格工作区」与右侧对话「表格协作」的 AI / 人。要改这套提示词、加功能、排错时，先读本文理解「为什么这么设计」，再动手。
-> 关联代码：`src/components/agent/agentConfig.ts`（`AGENT_PROMPTS.TABLE_RULES`）、`src/components/agent/runtime/agentCore.ts`（`TABLE_AGENT_RULES` / `buildRequestMessages(mode)`）、`src/components/agent/runtime/useAgentChat.ts`（`tableOpen`→`mode`）、`src/components/panels/AgentPanel.tsx`（`handleSend` 表格现状注入 / 探测）、`src/components/agent/assistantTable/*`（表格模型 + 解析纯函数）。
+> 关联代码：`src/components/agent/agentConfig.ts`（`AGENT_PROMPTS.TABLE_RULES`）、`src/components/agent/runtime/agentCore.ts`（`TABLE_AGENT_RULES` / `buildRequestMessages(mode)`）、`src/components/agent/runtime/useAgentChat.ts`（`tableOpen`→`mode`）、`src/components/agent/panels/AgentPanel.tsx`（`handleSend` 表格现状注入 / 探测）、`src/components/agent/assistantTable/*`（表格模型 + 解析纯函数）。
 > 注意：本文讲的是「表格协作的**提示词/意图**设计」。面板拆分、数据流/存储契约见 `spec/TABLE-WORKSPACE-INDEPENDENT-PANEL.md`，两者互补、勿混淆。
 
 ---

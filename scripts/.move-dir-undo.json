@@ -1,0 +1,30 @@
+{
+  "srcDir": "/Users/kevin/Documents/maomao/src/components/panels",
+  "dstDir": "/Users/kevin/Documents/maomao/src/components/agent/panels",
+  "pairs": [
+    {
+      "oldAbs": "/Users/kevin/Documents/maomao/src/components/panels/AgentConfirmCard.tsx",
+      "newAbs": "/Users/kevin/Documents/maomao/src/components/agent/panels/AgentConfirmCard.tsx"
+    },
+    {
+      "oldAbs": "/Users/kevin/Documents/maomao/src/components/panels/AgentMessage.tsx",
+      "newAbs": "/Users/kevin/Documents/maomao/src/components/agent/panels/AgentMessage.tsx"
+    },
+    {
+      "oldAbs": "/Users/kevin/Documents/maomao/src/components/panels/AgentPanel.tsx",
+      "newAbs": "/Users/kevin/Documents/maomao/src/components/agent/panels/AgentPanel.tsx"
+    },
+    {
+      "oldAbs": "/Users/kevin/Documents/maomao/src/components/panels/ChatMarkdown.tsx",
+      "newAbs": "/Users/kevin/Documents/maomao/src/components/agent/panels/ChatMarkdown.tsx"
+    },
+    {
+      "oldAbs": "/Users/kevin/Documents/maomao/src/components/panels/TableWorkspacePanel.tsx",
+      "newAbs": "/Users/kevin/Documents/maomao/src/components/agent/panels/TableWorkspacePanel.tsx"
+    },
+    {
+      "oldAbs": "/Users/kevin/Documents/maomao/src/components/panels/markdownImages.ts",
+      "newAbs": "/Users/kevin/Documents/maomao/src/components/agent/panels/markdownImages.ts"
+    }
+  ]
+}

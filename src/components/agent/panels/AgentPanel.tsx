@@ -34,11 +34,11 @@ import {
   getGenParams,
   getCreditSwitch,
   setCreditSwitch,
-} from '../agent/index.ts';
-import { useProviders, useEnsureProvidersLoaded } from '../base/store/providerStore.ts';
-import AgentMessage, { type AgentMessageData } from './AgentMessage.tsx';
-import AgentConfirmCard from './AgentConfirmCard.tsx';
-import ModelSelect from '../base/ui/ModelSelect.tsx';
+} from '../index.ts';
+import { useProviders, useEnsureProvidersLoaded } from '@/components/base/store/providerStore';
+import AgentMessage, { type AgentMessageData } from './AgentMessage';
+import AgentConfirmCard from './AgentConfirmCard';
+import ModelSelect from '@/components/base/ui/ModelSelect';
 import {
   ArrowDown,
   ArrowUp,
@@ -55,9 +55,9 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { buildAllModels } from '../base/utils/providerModels.ts';
-import { useOutsideClick } from '../base/core/uiHooks.ts';
-import { loadAgentChatModel, AGENT_CHAT_MODEL_KEY } from '../base/store/agentModelStore.ts';
+import { buildAllModels } from '@/components/base/utils/providerModels';
+import { useOutsideClick } from '@/components/base/core/uiHooks';
+import { loadAgentChatModel, AGENT_CHAT_MODEL_KEY } from '@/components/base/store/agentModelStore';
 import {
   getAllSkills,
   markSkillUsed,
@@ -68,24 +68,24 @@ import {
   SKILLS_KEY,
   ENABLED_KEY,
   type Skill,
-} from '../base/store/skillStore.ts';
+} from '@/components/base/store/skillStore';
 // 面板宽度键真源（TD-13-7：本面板不再自持第二份键字面量）
-import { KEY_AGENT_PANEL_WIDTH } from '../base/core/contracts.ts';
-import { contentGet, contentSet, contentSubscribe } from '../base/core/contentStore.ts';
-import { confirmPersist } from '../base/core/degrade.ts';
-import { toAbsoluteFileUrl } from '../base/api/index.ts';
-import { fileToDataUrl } from '../base/utils/assetUrl.ts';
+import { KEY_AGENT_PANEL_WIDTH } from '@/components/base/core/contracts';
+import { contentGet, contentSet, contentSubscribe } from '@/components/base/core/contentStore';
+import { confirmPersist } from '@/components/base/core/degrade';
+import { toAbsoluteFileUrl } from '@/components/base/api/index';
+import { fileToDataUrl } from '@/components/base/utils/assetUrl';
 // 判型唯一入口（TD-16-18 收口）：附件筛选曾手写 `f.type.startsWith('image/')`，现走 detectFileType。
-import { detectFileType } from '../base/utils/assetType.ts';
-import { runNodeGeneration } from '../base/store/taskStore.ts';
-import { showToast } from '../base/core/toastStore.ts';
-import { askConfirm } from '../base/core/confirmStore.ts';
-import { logger } from '../base/core/logger.ts';
-import previewUrls from '../base/utils/previewUrl.ts';
-import { subscribe } from '../base/core/eventBus.ts';
-import { CREDIT_GATE_EVENT } from '../base/core/contracts.ts';
+import { detectFileType } from '@/components/base/utils/assetType';
+import { runNodeGeneration } from '@/components/base/store/taskStore';
+import { showToast } from '@/components/base/core/toastStore';
+import { askConfirm } from '@/components/base/core/confirmStore';
+import { logger } from '@/components/base/core/logger';
+import previewUrls from '@/components/base/utils/previewUrl';
+import { subscribe } from '@/components/base/core/eventBus';
+import { CREDIT_GATE_EVENT } from '@/components/base/core/contracts';
 // 【TD-15-1】agentKey 前缀单源（默认 agentKey = 前缀，禁本地拼字面量）
-import { AGENT_KEY_PREFIX } from '../base/core/agentKeys.ts';
+import { AGENT_KEY_PREFIX } from '@/components/base/core/agentKeys';
 // AI 助手表格工作区：共享运行态（开合/宽度/选中行/待确认预览/探测游标）+ 纯函数模型/上下文拼装。
 // 表格本体已拆到画布左侧 TableWorkspacePanel，本面板只读共享态做「注入/探测/协作指示」。
 import {
@@ -97,25 +97,22 @@ import {
   acceptTablePreview,
   markTableMessageHandled,
   resetTableWorkspace,
-} from '../agent/assistantTable/tableWorkspaceState.ts';
-import { clearHistory } from '../agent/assistantTable/tableHistory.ts';
-import TableWorkspacePanel from './TableWorkspacePanel.tsx';
+} from '../assistantTable/tableWorkspaceState.ts';
+import { clearHistory } from '../assistantTable/tableHistory.ts';
+import TableWorkspacePanel from './TableWorkspacePanel';
 import {
   rowToText,
   tryParseAssistantTableJson,
   stripAssistantTableJson,
-} from '../agent/assistantTable/assistantTable.ts';
-import type { AssistantTable } from '../agent/assistantTable/assistantTable.ts';
-import { useActiveAssistantTable } from '../agent/assistantTable/useActiveAssistantTable.ts';
-import { buildRefineRowsUser } from '../agent/assistantTable/assistantTablePrompt.ts';
+} from '../assistantTable/assistantTable.ts';
+import type { AssistantTable } from '../assistantTable/assistantTable.ts';
+import { useActiveAssistantTable } from '../assistantTable/useActiveAssistantTable.ts';
+import { buildRefineRowsUser } from '../assistantTable/assistantTablePrompt.ts';
 // 【TD-17】草稿初值经只读入口读会话快照（不再自持 agent_draft 存储键；写一律走 useAgentChat 的 saveDraft）
-import {
-  getCurrentSnapshot,
-  type SnapshotPatch,
-} from '../agent/conversation/conversationSnapshot.ts';
-import type { Conversation } from '../agent/conversation/conversationTypes.ts';
-import AttachmentCover from '../base/ui/attachmentCover.tsx';
-import LazyImage from '../base/ui/LazyImage.tsx';
+import { getCurrentSnapshot, type SnapshotPatch } from '../conversation/conversationSnapshot.ts';
+import type { Conversation } from '../conversation/conversationTypes.ts';
+import AttachmentCover from '@/components/base/ui/attachmentCover';
+import LazyImage from '@/components/base/ui/LazyImage';
 
 /**
  * 待发送/待引用区的媒体占位 chip：图片/视频/音频统一 44×44 缩略占位，仅示意、不可在 chip 内播放。

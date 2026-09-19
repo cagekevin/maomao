@@ -12,10 +12,10 @@
  */
 import { memo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useImageFallbackSrc } from '../base/utils/useImageFallbackSrc.ts';
-import { extractImageSpans, type ImageSpan } from './markdownImages.ts';
-import { logger } from '../base/core/logger.ts';
-import { toastError } from '../base/core/toastStore.ts';
+import { useImageFallbackSrc } from '@/components/base/utils/useImageFallbackSrc';
+import { extractImageSpans, type ImageSpan } from './markdownImages';
+import { logger } from '@/components/base/core/logger';
+import { toastError } from '@/components/base/core/toastStore';
 import { copyText } from '@/components/base/utils/clipboard';
 
 /** 行内匹配模式（含 markdown 图片，由外层切图先处理） */

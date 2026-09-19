@@ -1,14 +1,14 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import '../base/api/index.ts';
-import LazyImage from '../base/ui/LazyImage.tsx';
-import AttachmentCover from '../base/ui/attachmentCover.tsx';
-import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
-import AgentConfirmCard from './AgentConfirmCard.tsx';
-import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
-import ChatMarkdown from './ChatMarkdown.tsx';
-import { showToast } from '../base/core/toastStore.ts';
+import '@/components/base/api/index';
+import LazyImage from '@/components/base/ui/LazyImage';
+import AttachmentCover from '@/components/base/ui/attachmentCover';
+import { toAbsoluteFileUrl } from '@/components/base/utils/assetUrl';
+import AgentConfirmCard from './AgentConfirmCard';
+import ImageZoomDialog from '@/components/base/editors/ImageZoomDialog';
+import ChatMarkdown from './ChatMarkdown';
+import { showToast } from '@/components/base/core/toastStore';
 import { copyText } from '@/components/base/utils/clipboard';
-import { logger } from '../base/core/logger.ts';
+import { logger } from '@/components/base/core/logger';
 
 /** 协议层 ChatMessage.content 可为 string 或 多模态数组，但本组件只渲染文本（UI 契约 content?: string）。
  *  收到数组即暴露（warn）并降级为文本块拼接，不谎称（避免数组被当 string 发画布/渲染出错）。
@@ -30,7 +30,7 @@ function asText(content: unknown): string {
   }
   return '';
 }
-import { type agentChatMessage } from '../agent/runtime/agentCore.ts';
+import { type agentChatMessage } from '../runtime/agentCore.ts';
 
 /** AgentMessage 实际渲染的消息形状：兼容 LLM 协议（ChatMessage）并扩展 UI 态字段。
  *  UI 层只处理文本/图片类消息，故将 content 收窄为 string（协议层 ChatMessage 允许数组形态，UI 不消费）。 */

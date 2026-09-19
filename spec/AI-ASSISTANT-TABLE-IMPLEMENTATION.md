@@ -205,5 +205,5 @@ setCurrentAssistantTable({ columns: p.resultCols, rows: p.resultRows });
 
 - `spec/CONTEXT.md` §五 数据一致性防线：任务中心权威源、节点不回写等通用红线。
 
-- 关键代码：`src/components/agent/assistantTable/*`（表格模型 + 解析纯函数）、`src/components/agent/runtime/agentCore.ts`（`buildRequestMessages` mode 切换）、`src/components/agent/runtime/useAgentChat.ts`（`tableOpen`→mode）、`src/components/panels/AgentPanel.tsx`（表格现状注入 / 探测 / 取消选中）。
+- 关键代码：`src/components/agent/assistantTable/*`（表格模型 + 解析纯函数）、`src/components/agent/runtime/agentCore.ts`（`buildRequestMessages` mode 切换）、`src/components/agent/runtime/useAgentChat.ts`（`tableOpen`→mode）、`src/components/agent/panels/AgentPanel.tsx`（表格现状注入 / 探测 / 取消选中）。
 

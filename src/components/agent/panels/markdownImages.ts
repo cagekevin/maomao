@@ -4,7 +4,7 @@
  * 从 AgentMessage.tsx 抽离（原模块内函数），保证「图片判定/文本切图」逻辑单一真相，
  * 且 ChatMarkdown 渲染 Markdown 时能复用同一套图片规则（markdown 图片 / <img> / 裸 URL）。
  */
-import { classifyAssetUrlKind } from '../base/utils/assetType.ts';
+import { classifyAssetUrlKind } from '@/components/base/utils/assetType';
 
 /**
  * 一个 URL 是否该在消息里**渲染成图片**。

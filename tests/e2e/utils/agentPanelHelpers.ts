@@ -13,7 +13,7 @@ import type { Page } from '@playwright/test';
 // 【测什么】不测 Markdown 解析结果，测**布局收缩链**：把与 ChatMarkdown 输出同构的 DOM
 //   注入消息容器，断言任何内容都不把面板撑宽。走注入而非真实 LLM 调用——e2e 不该依赖网络与
 //   模型输出，且真实回复内容不可控（今天刚好多一段代码块才复现）。
-//   DOM 结构与 src/components/panels/ChatMarkdown.tsx、AgentMessage.tsx 保持一致，
+//   DOM 结构与 src/components/agent/panels/ChatMarkdown.tsx、AgentMessage.tsx 保持一致，
 //   改这两个组件的渲染结构时，fixture 需同步更新。
 
 export const AGENT_PANEL = '.agent-panel';

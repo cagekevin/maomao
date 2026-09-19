@@ -68,7 +68,7 @@
 
 `AssistantTablePanel` 走单一入口，但 **`AgentPanel` 绕过了它**，自己又写了一遍：
 
-```380:401:src/components/panels/AgentPanel.tsx
+```380:401:src/components/agent/panels/AgentPanel.tsx
   const activeConv = (conversations || []).find((c) => c.id === activeConversationId);
   const tableTabs = useMemo(
     () =>

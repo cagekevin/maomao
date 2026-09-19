@@ -34,7 +34,7 @@ import { computePatchEdgesById, patchEdgeData } from './hooks/useEdgeData.ts';
 import { useAssetDropPaste, useGlobalPaste } from './hooks/useAssetDropPaste.ts';
 import { copyImageToClipboard } from './components/base/utils/clipboard.ts';
 import GhostTargetNode from './components/nodes/GhostTargetNode.tsx';
-import AgentPanel from './components/panels/AgentPanel.tsx';
+import AgentPanel from './components/agent/panels/AgentPanel.tsx';
 import {
   deriveSelectedAssets,
   selectedAssetSig,
