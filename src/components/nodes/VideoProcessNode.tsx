@@ -226,7 +226,7 @@ export interface TimelineClip {
 }
 
 /** 时间线轨道：kind/type 区分视频/音频，clips/segments 承载片段 */
-export interface TimelineTrack {
+interface TimelineTrack {
   id?: string | number;
   kind?: string;
   type?: string;

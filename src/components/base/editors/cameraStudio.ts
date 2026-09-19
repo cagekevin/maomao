@@ -2,7 +2,8 @@
  * 摄影棚相机与灯光状态、预设和提示词转换规则。
  * 纯逻辑层，无 UI 依赖。
  */
-export type CameraLens = '15mm' | '24mm' | '35mm' | '50mm' | '85mm' | '200mm' | 'macro' | 'fisheye';
+export type CameraStudioLens =
+  '15mm' | '24mm' | '35mm' | '50mm' | '85mm' | '200mm' | 'macro' | 'fisheye';
 
 export type CameraStudioMode = 'camera' | 'lighting' | 'dual';
 export type CameraDistance = 'far' | 'full' | 'medium' | 'close' | 'extreme-close';
@@ -13,7 +14,7 @@ export interface CameraStudioCameraState {
   pitch: number;
   roll: number;
   distance: CameraDistance;
-  lens: CameraLens;
+  lens: CameraStudioLens;
   promptEnhance: boolean;
 }
 
@@ -39,7 +40,7 @@ export interface CameraPreset {
   yaw: number;
   pitch: number;
   roll?: number;
-  lens?: CameraLens;
+  lens?: CameraStudioLens;
 }
 
 export interface LightPreset {
@@ -119,7 +120,7 @@ const DISTANCE_PROMPTS: Record<CameraDistance, string> = {
   'extreme-close': 'extreme close-up framing',
 };
 
-const LENS_PROMPTS: Record<CameraLens, string> = {
+const LENS_PROMPTS: Record<CameraStudioLens, string> = {
   '15mm': '15mm ultra-wide lens',
   '24mm': '24mm wide-angle lens',
   '35mm': '35mm cinematic lens',
@@ -130,7 +131,7 @@ const LENS_PROMPTS: Record<CameraLens, string> = {
   fisheye: 'fisheye lens distortion',
 };
 
-export function describeCameraLens(lens: CameraLens): string {
+export function describeCameraStudioLens(lens: CameraStudioLens): string {
   return LENS_PROMPTS[lens];
 }
 
@@ -158,7 +159,7 @@ export function buildCameraPrompt(camera: CameraStudioCameraState): string {
     describeCameraYaw(camera.yaw),
     describeCameraPitch(camera.pitch),
     DISTANCE_PROMPTS[camera.distance],
-    describeCameraLens(camera.lens),
+    describeCameraStudioLens(camera.lens),
   ];
   if (Math.abs(camera.roll) >= 1) terms.push(`${Math.round(camera.roll)} degree dutch angle`);
   if (camera.promptEnhance)

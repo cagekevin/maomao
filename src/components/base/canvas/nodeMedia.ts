@@ -44,7 +44,7 @@ export function getNodeAssetUrl(node: Node | null) {
  *   3. 退化为 getNodeAssetUrl 主图 url → 按扩展名判型（video/audio 原样标记，其余按 image）。
  * 只返回可作 AI 多模态上下文的媒体（image / video / audio），text / 空返回 { type:'', url:'' }。
  */
-export type MediaType = 'image' | 'video' | 'audio' | '';
+type MediaType = 'image' | 'video' | 'audio' | '';
 
 export function getNodeMedia(node: Node | null): { type: MediaType; url: string } {
   const d = (node?.data || {}) as {

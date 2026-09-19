@@ -19,7 +19,7 @@ import {
   createNewShot,
   removeShot,
   applyTailFrameSelection,
-  removeResource,
+  scriptBoxRemoveResource,
   renameAssetRefs,
   formatLineBreaks,
   parseShotSeconds,
@@ -213,7 +213,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
       { id: 'a2', name: '小红帽', picked: false },
     ];
     const shots = [{ description: '@森林 深处 @小红帽 走进' }, { description: '无引用' }];
-    const patch = removeResource(assets, 'a1', shots);
+    const patch = scriptBoxRemoveResource(assets, 'a1', shots);
     expect(patch.assets.map((a) => a.id)).toEqual(['a2']);
     expect(patch.pickedCount).toBe(0);
     expect(patch.shots![0].description).toBe('森林 深处 @小红帽 走进'); // @森林 去 @，@小红帽 保留
@@ -222,7 +222,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
 
   it('removeResource：无 name 资产（空壳）删除时不改镜头', () => {
     const assets = [{ id: 'a1' }];
-    const patch = removeResource(assets, 'a1', [{ description: '@x' }]);
+    const patch = scriptBoxRemoveResource(assets, 'a1', [{ description: '@x' }]);
     expect(patch.shots).toBeUndefined();
   });
 
@@ -507,7 +507,13 @@ describe('剧本盒纯函数 · 合并生成视频', () => {
 
   /* ═══ 边界用例：暴露隐藏 bug（先测当前行为，再决定是否修） ═══ */
   describe('mergeShotsForVideo · 时长脏数据边界', () => {
-    const s = (duration: any) => ({ id: 'x', index: 1, duration, description: 'a', videoPrompt: 'v' });
+    const s = (duration: any) => ({
+      id: 'x',
+      index: 1,
+      duration,
+      description: 'a',
+      videoPrompt: 'v',
+    });
 
     it('正常字符串时长累加', () => {
       expect(mergeShotsForVideo([s('3s'), s('4s')], []).seconds).toBe(7);

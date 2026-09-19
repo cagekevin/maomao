@@ -57,7 +57,7 @@ import { invokeAction } from '@/components/videoEditor/engine/lib/actions';
 import { useTrackReorder } from '@/components/videoEditor/hooks-cutia/timeline/use-track-reorder';
 import { cn } from '@/components/videoEditor/utils/ui';
 
-export function Timeline() {
+export function VideoEditorTimeline() {
   const tracksContainerHeight = { min: 0, max: 800 };
   const { snappingEnabled } = useTimelineStore();
   const { clearElementSelection, setElementSelection } = useElementSelection();

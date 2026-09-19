@@ -437,7 +437,7 @@ export interface RemoveAssetPatch {
   [key: string]: unknown;
 }
 
-export function removeResource(
+export function scriptBoxRemoveResource(
   assets: ScriptAsset[] | null | undefined,
   id: string | number,
   shots?: Shot[] | null,

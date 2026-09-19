@@ -15,7 +15,7 @@ import {
   buildStudioPrompt,
   normalizeCameraYaw,
   type CameraDistance,
-  type CameraLens,
+  type CameraStudioLens,
   type CameraStudioCameraState,
   type CameraStudioLightState,
   type CameraStudioMode,
@@ -55,7 +55,15 @@ const DISTANCE_OPTIONS: Array<{ value: CameraDistance; label: string }> = [
   { value: 'extreme-close', label: '特写' },
 ];
 
-const LENS_OPTIONS: CameraLens[] = ['15mm', '24mm', '35mm', '50mm', '85mm', '200mm', 'fisheye'];
+const LENS_OPTIONS: CameraStudioLens[] = [
+  '15mm',
+  '24mm',
+  '35mm',
+  '50mm',
+  '85mm',
+  '200mm',
+  'fisheye',
+];
 
 const TEMPERATURE_OPTIONS: Array<{ value: LightTemperature; label: string }> = [
   { value: 'cool', label: '冷光' },
@@ -710,7 +718,7 @@ function CameraStudioPanel({ isOpen, assetUrl, onClose, onGenerate }: CameraStud
                       <select
                         className="bg-input border border-edge rounded-md px-2 py-1 text-caption-sm text-primary cursor-pointer outline-none w-full hover:border-edge-strong focus:border-edge-strong"
                         value={cameraState.lens}
-                        onChange={(e) => updateCamera({ lens: e.target.value as CameraLens })}
+                        onChange={(e) => updateCamera({ lens: e.target.value as CameraStudioLens })}
                       >
                         {LENS_OPTIONS.map((lens) => (
                           <option key={lens} value={lens}>

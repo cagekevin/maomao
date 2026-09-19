@@ -21,7 +21,7 @@ import {
 } from '@/components/videoEditor/ui/ui/resizable';
 import { AssetsPanel } from '@/components/videoEditor/ui/editor/panels/assets';
 import { PropertiesPanel } from '@/components/videoEditor/ui/editor/panels/properties';
-import { Timeline } from '@/components/videoEditor/ui/editor/panels/timeline';
+import { VideoEditorTimeline } from '@/components/videoEditor/ui/editor/panels/timeline';
 import { PreviewPanel } from '@/components/videoEditor/ui/editor/panels/preview';
 import { EditorHeader } from '@/components/videoEditor/ui/editor/editor-header';
 import { EditorProvider } from '@/components/videoEditor/ui/providers/editor-provider';
@@ -201,7 +201,7 @@ function EditorLayout({ className, onExit }: { className?: string; onExit?: () =
                 maxSize={70}
                 className="min-h-0"
               >
-                <Timeline />
+                <VideoEditorTimeline />
               </ResizablePanel>
             </ResizablePanelGroup>
           </ResizablePanel>
