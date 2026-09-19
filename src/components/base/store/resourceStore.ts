@@ -84,7 +84,6 @@ export interface TypeProbe {
 
 // TD-13-4：键名唯一真源 = contracts.ts 的 KEY_YIMAO_ASSET_LIBRARY（不再本地复刻字面量）。
 const STORAGE_KEY = KEY_YIMAO_ASSET_LIBRARY;
-const listeners = new Set<() => void>();
 
 // 预置演示素材（首次使用/本地为空时 seed，方便直观看到目录效果）
 const DEFAULT_RESOURCES: Resource[] = [
@@ -263,7 +262,7 @@ export function resourceFolderOf(category?: string): string {
 
 // P4 落盘节流：高频变更（拖入/批量生成/上传进度）合并落盘，消除主线程长任务。
 // write 是「读当前最新 resources」的 thunk —— flush 时才执行，天然把窗口内多次变更合并为最终态。
-// 通知订阅者（notify）保持即时，只有「落盘」被节流，UI 响应性不受影响。
+// 只有「落盘」被节流，UI 响应性不受影响；调度入口见 schedulePersist（原 notify —— 无订阅者，已正名）。
 // 【2026-09-17 TD-24-4 阶段1】素材库是**用户主数据**：落盘失败由本处自报（reportDegrade toast 节流），
 // 不再寄生于 persist:failed 全局总线（它对本路径时有时无，见 24 区日志 §十一 盲区）。
 const persistDebounced = createDebouncedPersist(
@@ -276,9 +275,8 @@ const persistDebounced = createDebouncedPersist(
   300,
 );
 
-function notify(): void {
+function schedulePersist(): void {
   persistDebounced.schedule();
-  listeners.forEach((l) => l());
 }
 
 /**
@@ -411,7 +409,7 @@ export function mergeResourcesFromBackend(items: ResourceItem[]): void {
   );
   const kept = resources.filter((r) => !incoming.has(r.id) && !(r.url && incomingUrls.has(r.url)));
   resources = [...kept, ...Array.from(incoming.values())];
-  notify();
+  schedulePersist();
 }
 
 /**
@@ -448,7 +446,7 @@ export function addResources(
   const now = Date.now();
   const added = items.map((it) => buildResourceRecord(it, folder, now));
   resources = [...added, ...resources];
-  notify();
+  schedulePersist();
   return added;
 }
 
@@ -602,12 +600,12 @@ export async function localizeAndStoreToResourceLibrary(
 
 export function removeResource(id: string): void {
   resources = resources.filter((a) => a.id !== id);
-  notify();
+  schedulePersist();
 }
 
 export function clearResources(): void {
   resources = [];
-  notify();
+  schedulePersist();
 }
 
 /**
@@ -619,7 +617,7 @@ export function clearResources(): void {
  */
 function reloadFromStorage(): Resource[] {
   resources = load();
-  notify();
+  schedulePersist();
   return resources;
 }
 

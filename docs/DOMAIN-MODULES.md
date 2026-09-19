@@ -1154,6 +1154,8 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | 2026-09-19 | `subscribe` 四处并列 | **区分**：`eventBus.subscribe` = 横切唯一通道（保留）；`toastStore.subscribe` 被 `ToastContainer` 外部消费 ⇒ 消歧为 `subscribeToasts`；agent 两处留 S1-1c | §8 S1-1b |
 | **2026-09-19** | **§3.4「游离物 11 件都该迁出横切层」** | **判据被推翻（用户质疑"横切有必要拆吗"）**：① `agentKeys` 头注自述"收在 base/core（叶层零业务依赖）"+ 被 App/agent/backupStore 三处共用 ⇒ **横切契约** ② `canvasSyncBus` **DATAFLOW §15.2 原文已登记为横切基础设施** ③ `legacyRawKey` 消费方**只有 base/storage/index** ⇒ base 自有 ④ `arrangePack` 消费方**只有横切 hooks** ⇒ 横切原语 ⑤ `videoEditorKeys` 与 `contracts.ts`/`agentKeys` **同族（键构造器）** ⑥ `sourceTime` **DATAFLOW §十 原文「跨域唯一映射原语」** ⇒ 横切 ⑦ `editorSession`/`useMediaLoadFailed` 消费者**在 base 内**（`modalLayer`/`base/ui/VideoThumbnail`）⇒ **迁出即违反规则 2** ⑧ `imageUpscale`/`videoEngine`/`timeScale` 目标域**无落点** ⇒ D20 前提不成立 ⑨ `encoderProbe` 目标 d3d 属**例外** ⑩ `canvasHotkeys` 目标 `base/canvas` 最终落点由 **S2-1** 决定 | §8 S1-3 |
 | **2026-09-19** | 「base 里的件被业务域消费 = 违规」 | **方向搞反**：`check-arch` 规则 2 原文是「**base/ 禁 import 任何非 base 目录**」⇒ base 被业务域消费是**正确单向**、**现状实测零违规**；真正会制造违规的是**把它们迁出**（base 内仍有消费者） | §7 · §8 S1-3 |
+| **2026-09-19** | **D7「`notify()` 5 处调用恒为 no-op ⇒ 删 `listeners` + `notify` 全部调用」** | **🔴 登记写错，照它执行会破坏落盘**：`notify()` 内是 `persistDebounced.schedule(); listeners.forEach(...)` —— **`schedule()` 是素材库落盘的唯一触发点**（P4 落盘节流），只有 `listeners.forEach` 那一行是 no-op。⇒ **改判**：只删 `listeners`（声明 + 那 1 行）+ `notify` **正名为 `schedulePersist`**（6 处），**落盘副作用全部保留** | §8 S1-7 |
+| **2026-09-19** | D8「`i18n.ts` 空壳」 | **确认已泄漏成用户可见 bug**：`t(key) => key` 直接把英文 key 返回，而 `sounds-store`/`use-editor-actions` 用它做 `toast.error/loading/success` ⇒ **英文提示直接上屏**（如 "Failed to save sound"）⇒ 19 处改中文直写 + 删空壳件 | §8 S1-7 |
 
 ---
 
@@ -1216,7 +1218,7 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | S1-4 | 文件名歧义/误导名/浅壳（`assets.ts`/`generationContract`/`kvStore`/`ve-`） | TD-18-45/40/36 | 27 / 3 / 6 |
 | S1-5 | 门面补齐（19 域中 15 缺） | TD-18-41④ | 15 域 |
 | S1-6 | 目录名与内容对齐（`components/panels`→agent；后端 relay 归位） | 新 | 6 + 3 |
-| S1-7 | 死代码/假机制（D6–D10） | 新 | 5 类 |
+| S1-7 | 死代码/假机制（D6–D10） | **部分已做（D7 改判 · D8 · D9）** | ✅ **D8**：`i18n.ts` 空壳（`t(key)=>key`）**已泄漏成用户可见 bug**（`toast.error(i18next.t('Failed to save sound'))` ⇒ 英文 key 直接上屏）⇒ 19 处改中文直写 + 删空壳；✅ **D7 改判**：登记称「`notify()` 5 处调用**恒为 no-op**」**是错的** —— `notify()` 内 `persistDebounced.schedule()` 是**落盘唯一触发点**，照登记删会**破坏素材库落盘**；实测死代码只有 `listeners`（无 `add`）⇒ 删 1 行 + `notify` 正名 `schedulePersist`(6 处)；✅ **D9**：空目录 `cutia-ui-icons/` 已删；⏸ D10（后端 ⇒ D21 延后）· D6（B1 待明确） |
 
 ### Stage 2 · 深模块化
 

@@ -1,5 +1,4 @@
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
-import { i18next } from '@/components/videoEditor/engine/lib/i18n';
 import { create } from 'zustand';
 import type { SoundEffect, SavedSound } from '@/components/videoEditor/types/sounds';
 import { storageService } from '@/components/videoEditor/engine/services/storage/service';
@@ -67,7 +66,7 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to save sound';
       set({ savedSoundsError: errorMessage });
-      toast.error(i18next.t('Failed to save sound'));
+      toast.error('保存音效失败');
       videoEditorLogger.error('Failed to save sound:', error);
     }
   },
@@ -82,7 +81,7 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to remove sound';
       set({ savedSoundsError: errorMessage });
-      toast.error(i18next.t('Failed to remove sound'));
+      toast.error('移除音效失败');
       videoEditorLogger.error('Failed to remove sound:', error);
     }
   },
@@ -112,7 +111,7 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to clear saved sounds';
       set({ savedSoundsError: errorMessage });
-      toast.error(i18next.t('Failed to clear saved sounds'));
+      toast.error('清空已保存音效失败');
       videoEditorLogger.error('Failed to clear saved sounds:', error);
     }
   },
@@ -120,7 +119,7 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
   addSoundToTimeline: async ({ sound }) => {
     const audioUrl = sound.previewUrl;
     if (!audioUrl) {
-      toast.error(i18next.t('Sound file not available'));
+      toast.error('音效文件不可用');
       return false;
     }
 
@@ -153,10 +152,9 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
       return true;
     } catch (error) {
       videoEditorLogger.error('Failed to add sound to timeline:', error);
-      toast.error(
-        error instanceof Error ? error.message : i18next.t('Failed to add sound to timeline'),
-        { id: `sound-${sound.id}` },
-      );
+      toast.error(error instanceof Error ? error.message : '音效加入时间轴失败', {
+        id: `sound-${sound.id}`,
+      });
       return false;
     }
   },
