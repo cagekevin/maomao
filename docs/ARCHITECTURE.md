@@ -303,7 +303,7 @@ const hideMedia = lodLevel >= 2 // 按需调阈值
 
 ### 9.1 新建文件后 dev server 模块缓存会坏（最高频坑）
 
-* **症状**：页面报 `Uncaught SyntaxError: The requested module '.../XxxNode.jsx?t=...' does not provide an export named 'default'`，但 `check-jsx` / esbuild 打包都通过。
+* **症状**：页面报 `Uncaught SyntaxError: The requested module '.../XxxNode.jsx?t=...' does not provide an export named 'default'`，但 esbuild 打包能通过。
 
 * **根因**：dev server **启动早于**新文件创建（或新文件编辑中途被缓存），Vite 内存里的模块图钉住了一个损坏/空版本，`npm run build` 反而能过。
 
@@ -373,7 +373,7 @@ const hideMedia = lodLevel >= 2 // 按需调阈值
 
 * 需要固定窄容器的节点（图片切分 `280px`、图片拼图 `320px`）在 `App.jsx` `addNode` 里 `Object.assign(newNode, { width, style: { width } })`。图片区用 `h-auto`（跟随图片比例）或固定高度，别让节点被撑太大。
 
-### 9.9 功能验证用 playwright 实测，不只靠 check-jsx
+### 9.9 功能验证用 playwright 实测，不只靠 lint / 打包
 
-* `check-jsx` / lint 只查语法。**交互类功能（拖拽交换、模式切换、上传、展开）必须用 playwright 打开 dev server 实测**，注入带数据的 localStorage 快照 + 模拟事件，断言渲染结果与 JS 错误数。临时脚本用完删，不留仓库。
+* `lint` / 打包只查语法。**交互类功能（拖拽交换、模式切换、上传、展开）必须用 playwright 打开 dev server 实测**，注入带数据的 localStorage 快照 + 模拟事件，断言渲染结果与 JS 错误数。临时脚本用完删，不留仓库。
 

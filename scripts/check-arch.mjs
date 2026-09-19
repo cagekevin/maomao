@@ -5,7 +5,11 @@
  * 【为什么存在】架构红线的历史落点曾是 audit/ 沙盒里的 .dependency-cruiser.cjs，但它装在 .gitignore
  * 的目录、CI 装不到 → 规则不生效。故用主工程依赖 @babel/parser 自包含实现架构红线，挂进闸体系
  * （gates.manifest push 层 + check:health），让门槛在主工程内持久生效：
- *   1. no-circular —— 模块循环依赖（CLAUDE.md §5.4.2 TDZ 红线）
+ *   1. no-circular —— **会 TDZ 的**模块循环依赖（CLAUDE.md §5.4.2 红线）。
+ *      判据 = 环上存在「**模块顶层求值期读取环内符号**」（依据红线原文：「禁止**新文件**循环 import **大模块**（TDZ）：
+ *      跨模块引用**走既有 barrel**」—— 该红线**推荐**走 barrel，故"经 barrel 的环"不能一律判红，那是形态②过严闸）。
+ *      **无顶层读写的结构环不判红线，但逐条列出**（结构债 → 账本，2026-09-19 D13 第二半）。
+ *      ⚠️ 解析器（resolveSourceFile）必须含「目录 → index」回退，否则一切 barrel 边失明（2026-09-19 D13 第一半）。
  *   2. base/ 禁反向依赖业务域（nodes/scriptbox/agent/panels）—— 通用地基必须单向，业务依赖 base 才正确
  *   （另含：结果信封 / 工具层写操作 / 裸写 node 字段 / 存储唯一入口 / KV 同步读 / 深路径，见下方各规则）
  *   ★ 扫目录型规则一律经 `assertScanned()` 做**扫描基数自检**：0 扫描 = 红灯（"没扫"≠"干净"），
@@ -135,15 +139,9 @@ function extractImportAbs(code, filepath) {
   } catch (e) {
     /* 语法错误：交由 build/type-check 兜底，此处跳过该文件依赖追踪 */
   }
-  // 解析为绝对路径（相对 + `@/` 两个已登记别名）
+  // 解析为绝对路径 —— 统一走 resolveSpec（唯一实现，避免第二份别名/回退逻辑）
   const resolved = out
-    .map((spec) => {
-      if (spec.startsWith('@/')) return resolve(root, 'src', spec.slice(2));
-      if (spec.startsWith('.')) return resolve(dirname(filepath), spec);
-      return null; // 外部 npm 包，不参与内部循环/分层
-    })
-    .filter(Boolean)
-    .map((abs) => resolveSourceFile(abs))
+    .map((spec) => resolveSpec(spec, filepath))
     .filter(Boolean)
     .filter((abs) => abs !== filepath);
   return [...new Set(resolved)];
@@ -162,12 +160,139 @@ function resolveSourceFile(abs) {
       if (statSync(c).isFile()) return c;
     } catch {}
   }
+  // 【2026-09-19 修正 · D13】补「目录 → index」回退，与 scripts/ts-exts.cjs:91-94 的同名函数对齐。
+  //   缺此回退时，`from '@/…/engine/core'` 这类**目录（barrel）导入**解析结果为 null ⇒ 不产生边，
+  //   于是 no-circular 与规则 2（base 反向）/ 规则 4′（引擎区↔改造区）对**一切经 barrel 的边完全失明**。
+  //   实证（改前）：videoEditor/engine 内 3 条真环（timeline / scene / project：core → managers → commands
+  //   目录 barrel → 叶子命令 → 回引 engine/core）存在，而本闸输出 ✅ 通过。
+  //   属**收窄（让判据变真）**，非放宽 —— 依 A12，红线/偏好闸的收窄由架构师直接改。
+  for (const e of EXTS) {
+    const c = join(abs, 'index' + e);
+    try {
+      if (statSync(c).isFile()) return c;
+    } catch {}
+  }
   return null;
+}
+
+/** 单个 import 说明符 → 绝对源文件（`@/` 别名 + 相对路径）；外部包或解析不到 → null。**唯一实现**。 */
+function resolveSpec(spec, filepath) {
+  if (spec.startsWith('@/')) return resolveSourceFile(resolve(root, 'src', spec.slice(2)));
+  if (spec.startsWith('.')) return resolveSourceFile(resolve(dirname(filepath), spec));
+  return null; // 外部 npm 包，不参与内部循环/分层
+}
+
+// ── 1a. TDZ 精确化输入：每个模块的「值导入绑定」与「顶层求值期引用」──────────────
+// 【为什么要有它】见文件头规则 1：红线守的是 **TDZ**，且**推荐走 barrel**；仅凭"存在文件级环"判红会
+//   把红线推荐的动作判成违规（形态②过严闸）。故判据对准红线标题：环上必须有「**顶层求值期读取环内符号**」。
+//
+// 【近似边界（诚实声明，改这里等于改判据，须同步文件头）】
+//   · 类：只取 `extends` 与 **static 字段初始化器**（类定义期求值）；方法体 / 实例字段**跳过**（调用期、构造期）。
+//   · 函数 / 箭头函数体：**跳过**（调用期才执行）。
+//   · TS 类型位置（`: T` / 泛型实参）：**跳过**（编译擦除，无运行时读取）。
+//   · 只统计「真被读到」的导入：`import { x }` 但顶层从不引用 `x` ⇒ 不构成风险。
+function analyzeTdz(code, filepath) {
+  const bindings = new Map(); // 值导入的 local 名 → 目标绝对路径
+  const topRefs = new Set(); // 模块顶层「求值期会读」的标识符名
+  let ast;
+  try {
+    ast = parse(code, {
+      sourceType: 'unambiguous',
+      plugins: ['jsx', 'typescript', 'decorators-legacy'],
+      errorRecovery: true,
+    });
+  } catch {
+    return { bindings, topRefs }; // 语法错误交由 build / tsc 兜底
+  }
+  for (const stmt of ast.program.body) {
+    if (stmt.type !== 'ImportDeclaration' || stmt.importKind === 'type') continue;
+    const dep = resolveSpec(stmt.source.value, filepath);
+    if (!dep) continue;
+    for (const s of stmt.specifiers || []) {
+      if (s.importKind === 'type') continue; // `import { type A, B }` 中只有 A 处于类型位
+      if (s.local && s.local.name) bindings.set(s.local.name, dep);
+    }
+  }
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const n of node) walk(n);
+      return;
+    }
+    switch (node.type) {
+      case 'ImportDeclaration':
+      case 'ExportAllDeclaration':
+      case 'TSTypeAnnotation':
+      case 'TSTypeParameterDeclaration':
+      case 'TSTypeParameterInstantiation':
+      case 'TSInterfaceDeclaration':
+      case 'TSTypeAliasDeclaration':
+      case 'TSDeclareFunction':
+      case 'TSModuleDeclaration':
+        return;
+      case 'FunctionDeclaration':
+      case 'FunctionExpression':
+      case 'ArrowFunctionExpression':
+      case 'ClassMethod':
+      case 'ClassPrivateMethod':
+      case 'MethodDefinition':
+      case 'ObjectMethod':
+        return; // 体内：调用期执行，与模块求值无关
+      case 'PropertyDefinition':
+      case 'ClassProperty':
+      case 'ClassPrivateProperty':
+        if (node.static) walk(node.value); // static 字段：类定义期求值
+        return;
+      case 'ClassDeclaration':
+      case 'ClassExpression':
+        walk(node.superClass); // `extends`：类定义期求值
+        if (node.body && Array.isArray(node.body.body)) {
+          for (const m of node.body.body) {
+            if (
+              (m.type === 'PropertyDefinition' || m.type === 'ClassProperty') &&
+              m.static
+            )
+              walk(m.value);
+          }
+        }
+        return;
+      case 'ExportNamedDeclaration':
+      case 'ExportDefaultDeclaration':
+        walk(node.declaration);
+        return;
+      case 'Identifier':
+        topRefs.add(node.name);
+        return;
+      case 'MemberExpression':
+      case 'OptionalMemberExpression':
+        walk(node.object); // `a.b` 的属性名不是标识符引用
+        return;
+      case 'ObjectProperty':
+      case 'Property':
+        walk(node.value); // 键不是引用（计算键另算）
+        if (node.computed) walk(node.key);
+        return;
+      case 'VariableDeclarator':
+        walk(node.init); // 声明名不是引用
+        return;
+      default:
+        break;
+    }
+    for (const k in node) {
+      if (k === 'loc' || k === 'range' || k === 'start' || k === 'end') continue;
+      const v = node[k];
+      if (v && typeof v === 'object') walk(v);
+    }
+  };
+  for (const stmt of ast.program.body) walk(stmt);
+  return { bindings, topRefs };
 }
 
 const files = collectFiles(SRC);
 // fileAbs -> Set<depAbs>
 const graph = new Map();
+// fileAbs -> { bindings, topRefs }（规则 1 的 TDZ 精确化输入；不影响其他规则的 graph 形状）
+const modTdz = new Map();
 for (const f of files) {
   let code;
   try {
@@ -176,15 +301,32 @@ for (const f of files) {
     continue;
   }
   graph.set(f, new Set(extractImportAbs(code, f)));
+  modTdz.set(f, analyzeTdz(code, f));
 }
 const all = new Set(graph.keys());
 for (const [, deps] of graph) for (const d of deps) all.add(d);
 
-// ── 1. 循环依赖检测（DFS，栈上节点重复即环）──
-console.log('🔄 循环依赖检测（no-circular）');
+// ── 1. 循环依赖检测（DFS，栈上节点重复即环）· **判据 = 会 TDZ**（见文件头规则 1）──
+console.log('🔄 循环依赖检测（no-circular · 判据 = 会 TDZ）');
+if (graph.size === 0) fail('循环依赖检测：扫描基数 0（没扫 ≠ 干净）');
+else console.log(`  （已扫描 ${graph.size} 个 src 文件）`);
 const color = new Map(); // 0 未访问, 1 在栈, 2 完成
 const stack = [];
 let circularFound = false;
+/** 环上是否存在「模块顶层求值期读取环内符号」—— 是 ⇒ 真 TDZ 风险（判红线） */
+function cycleHasTdz(cycleMembers) {
+  const members = new Set(cycleMembers);
+  for (const f of members) {
+    const info = modTdz.get(f);
+    if (!info) continue;
+    for (const [local, dep] of info.bindings) {
+      if (members.has(dep) && info.topRefs.has(local)) return true;
+    }
+  }
+  return false;
+}
+const structuralCycles = new Set(); // 无 TDZ 实害的结构环（成员集合指纹，去重后计数）
+const structuralSample = new Map(); // 指纹 → 可读环路径（打印用）
 function dfs(node) {
   color.set(node, 1);
   stack.push(node);
@@ -192,20 +334,37 @@ function dfs(node) {
     if (!all.has(dep)) continue;
     const c = color.get(dep);
     if (c === 1) {
-      circularFound = true;
       const idx = stack.indexOf(dep);
-      const cycle = stack
-        .slice(idx)
-        .concat(dep)
-        .map((x) => x.slice(root.length + 1));
-      fail(`循环依赖: ${cycle.join(' → ')}`);
+      const members = stack.slice(idx);
+      const cycle = members.concat(dep).map((x) => x.slice(root.length + 1));
+      if (cycleHasTdz(members)) {
+        circularFound = true;
+        fail(`循环依赖(TDZ): ${cycle.join(' → ')}`);
+      } else {
+        const key = [...members].sort().join('|');
+        structuralCycles.add(key);
+        if (!structuralSample.has(key)) structuralSample.set(key, cycle.join(' → '));
+      }
     } else if (!c) dfs(dep);
   }
   stack.pop();
   color.set(node, 2);
 }
 for (const node of graph.keys()) if (!color.get(node)) dfs(node);
-if (!circularFound) console.log('  ✅ 未发现循环依赖');
+if (!circularFound) console.log('  ✅ 未发现「会 TDZ」的循环依赖');
+if (structuralCycles.size) {
+  console.log(
+    `  ℹ️ 另有 ${structuralCycles.size} 组**结构环**（环上无顶层求值期读取 ⇒ 无 TDZ 实害）：不判红线，另登记结构债`,
+  );
+  let shown = 0;
+  for (const key of structuralCycles) {
+    if (shown++ >= 20) {
+      console.log(`     …（另 ${structuralCycles.size - 20} 组，见账本结构债条目）`);
+      break;
+    }
+    console.log(`     · ${structuralSample.get(key)}`);
+  }
+}
 
 // ── 2. base/ 禁反向依赖业务域（**反向判据**，非手写域名清单）· docs/123 G-1 ──
 // 【为什么改成反向判据（7 步法附录 A4）】原实现用 BUSINESS_RE 手写域名（nodes|scriptbox|agent|panels）。
