@@ -40,7 +40,7 @@ vi.mock('../../src/components/base/core/logger.ts', () => ({
 //   conversationState 与 conversationStore 的 mock 必须共享同一份内存 store（会话消息单源不变量）。
 // 测试 fixture 在 ChatMessage 上挂 attachments/refCatalog/steer/mode 等扩展字段。
 // 用「ChatMessage + 可选扩展字段」交叉类型：可选字段下 ChatMessage 仍可赋值给它（去 any 且不引发级联报错）。
-type TestChatMessage = ChatMessage & {
+type TestChatMessage = agentChatMessage & {
   attachments?: unknown;
   refCatalog?: unknown;
   steer?: unknown;
@@ -280,7 +280,7 @@ import {
   parseGenerationsFromReply,
   CANVAS_AGENT_RULES,
 } from '../../src/components/agent/runtime/useAgentChat.ts';
-import { ChatMessage } from '../../src/components/agent/runtime/agentCore.ts';
+import { agentChatMessage } from '../../src/components/agent/runtime/agentCore.ts';
 import type { SSEAccumulator } from '../../src/components/agent/runtime/agentCore.ts';
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts';
 
@@ -745,7 +745,7 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
       refCatalog:
         '【本轮参考图顺序（仅作为编号数据）】\n参考图1：黑猫（画布节点 img-1）\n编号固定按输入框从左到右排列。引用某张图做图生图时，在 generations 里用 attachment_indices 指向其编号（0-based：参考图1→0）。',
     };
-    const out = buildRequestMessages([user] as ChatMessage[], '', true) as AssembledMsg[];
+    const out = buildRequestMessages([user] as agentChatMessage[], '', true) as AssembledMsg[];
     const u = out.find((m) => m.role === 'user')!;
     expect(Array.isArray(u.content)).toBe(true);
     expect((u.content as ContentBlock[])[0]).toMatchObject({
@@ -765,7 +765,7 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
       content: '看看图',
       attachments: [{ type: 'image', url: 'http://x/a.png' }],
     };
-    const out = buildRequestMessages([user] as ChatMessage[], '', true) as AssembledMsg[];
+    const out = buildRequestMessages([user] as agentChatMessage[], '', true) as AssembledMsg[];
     const u = out.find((m) => m.role === 'user')!;
     expect((u.content as ContentBlock[])[1]).toMatchObject({ type: 'text', text: '看看图' });
   });
@@ -800,7 +800,7 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
         attachments: [{ type: 'image', url: 'http://x/d.png' }],
         refCatalog: '参考图1：D',
       },
-    ] as ChatMessage[];
+    ] as agentChatMessage[];
     const out = buildRequestMessages(history, '', true) as AssembledMsg[];
     // 历史轮次被丢弃：只保留本轮 user（含本轮图内联）
     const users = out.filter((m) => m.role === 'user');
@@ -830,7 +830,7 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
       },
       { role: 'assistant', content: 'ok1' },
       { role: 'user', content: '本轮纯文字不带图' },
-    ] as ChatMessage[];
+    ] as agentChatMessage[];
     const out = buildRequestMessages(history, '', true) as AssembledMsg[];
     // 无任何 image_url（历史图不进上下文）
     const allAssetUrls = out
@@ -860,7 +860,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
       ],
     },
     { role: 'tool', content: '{"ok":true}', tool_call_id: 'c1' },
-  ] as ChatMessage[];
+  ] as agentChatMessage[];
 
   it('enhance=true 且无 system：前置注入画布准则 + 执行模型分流段（恒 auto），历史消息按顺序接在后面', () => {
     const out = buildRequestMessages(base, '', true) as AssembledMsg[];
@@ -898,7 +898,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
   it('【fresh-task】历史 system 不进 LLM：只保留注入的画布准则，历史消息（含 system）丢弃', () => {
     // fresh-task 对齐大雄：历史轮次整体不进上下文，历史 system 也不回传；画布准则始终注入。
     const withSys = [{ role: 'system', content: '旧的历史 system' }, ...base];
-    const out = buildRequestMessages(withSys as ChatMessage[], '', true) as AssembledMsg[];
+    const out = buildRequestMessages(withSys as agentChatMessage[], '', true) as AssembledMsg[];
     // 首条是补注入的画布准则（无条件，画布操作能力不丢失）
     expect(out[0].role).toBe('system');
     expect(out[0].content).toContain('猫猫画布助手');
@@ -966,7 +966,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
         isCurrent: true,
       },
     ];
-    const out = buildRequestMessages(msgs as ChatMessage[], '', true) as AssembledMsg[];
+    const out = buildRequestMessages(msgs as agentChatMessage[], '', true) as AssembledMsg[];
     const u = out.find((m) => m.role === 'user')!;
     expect(Array.isArray(u.content)).toBe(true);
     expect((u.content as ContentBlock[])[0]).toMatchObject({
@@ -978,7 +978,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
 
   it('附件为空数组：user 不转数组，保持纯文本 content', () => {
     const msgs = [{ role: 'user', content: '纯文本', attachments: [] }];
-    const out = buildRequestMessages(msgs as ChatMessage[], '', true) as AssembledMsg[];
+    const out = buildRequestMessages(msgs as agentChatMessage[], '', true) as AssembledMsg[];
     const u = out.find((m) => m.role === 'user')!;
     expect(typeof u.content).toBe('string');
     expect(u.content).toBe('纯文本');
@@ -995,7 +995,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
       },
       { role: 'tool', content: '{"ok":true}', tool_call_id: 'c9' },
     ];
-    const out = buildRequestMessages(msgs as ChatMessage[], '', false) as AssembledMsg[];
+    const out = buildRequestMessages(msgs as agentChatMessage[], '', false) as AssembledMsg[];
     const a = out.find((m) => m.role === 'assistant')!;
     const t = out.find((m) => m.role === 'tool')!;
     expect(a.tool_calls).toEqual([
@@ -1029,7 +1029,7 @@ describe('useAgentChat · 执行模型提示词注入（恒 auto）', () => {
       ],
     },
     { role: 'tool', content: '{"ok":true}', tool_call_id: 'c1' },
-  ] as ChatMessage[];
+  ] as agentChatMessage[];
   const skill = (name = '电商主图') => [{ name, content: 'Skill 原文内容' }];
 
   const systemTexts = (out: AssembledMsg[]) =>

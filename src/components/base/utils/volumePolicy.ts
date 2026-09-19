@@ -38,14 +38,14 @@ export interface LastResultItem {
 }
 
 /** 消息最少形状（lastResults 可嵌套数组） */
-export interface ChatMessage {
+interface ChatMessage {
   content?: string;
   lastResults?: LastResultItem[] | null;
   [key: string]: unknown;
 }
 
 /** memory 形状（summary / facts / artifacts 限容）。artifacts 可显式为 null（无跨步成果）。 */
-export interface ConversationMemory {
+interface ConversationMemory {
   summary?: string;
   facts?: unknown[];
   artifacts?: unknown[] | null;
@@ -54,7 +54,7 @@ export interface ConversationMemory {
 
 /** 会话整包形状（L3 降级在投影副本上做，不改引用）。
  *  pending / workflow 经 conversationState 归一后可为 null（非仅 undefined），故显式允许 null。 */
-export interface Conversation {
+interface Conversation {
   pending?: unknown;
   workflow?: { steerQueue?: unknown[] } | null;
   messages?: ChatMessage[];

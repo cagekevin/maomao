@@ -88,7 +88,7 @@ export interface ToolCall {
 }
 
 /** 单条对话消息（覆盖 LLM 协议各角色，字段按实际取值宽松可选）。 */
-export interface ChatMessage {
+export interface agentChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content?: string | Array<{ type: string; [k: string]: unknown }>;
   tool_calls?: ToolCall[];
@@ -188,7 +188,7 @@ const historyKey = (agentKey: string): string => `agent_history_${agentKey || AG
  *  【拆兜底 · 2026-09-17】原 try/catch 是**不可达死兜底**：`contentGet` 对本键不抛
  *  （`agent_history_{agentKey}` 已在 contracts.ts 登记，`pattern:true`），`sGet` 自身也不抛
  *  （读 localStorage 失败回 null / 走内存回退）。吞掉失败只会掩盖「登记契约被破坏」这一真信号。 */
-export function loadHistory(agentKey: string): ChatMessage[] {
+export function loadHistory(agentKey: string): agentChatMessage[] {
   const arr = contentGet(historyKey(agentKey));
   return Array.isArray(arr) ? arr : [];
 }
@@ -391,7 +391,7 @@ export function parseGenerationsFromReply(content = '') {
  *                                  默认 'canvas' → 既有调用/单测零变化。
  *  导出供单测（AI 助手前端逻辑核心：确认发给 LLM 的 messages 组装正确）。 */
 export function buildRequestMessages(
-  messages: ChatMessage[],
+  messages: agentChatMessage[],
   systemPrompt: string,
   enhance: boolean = true,
   skills: SkillItem[] = [],
@@ -401,7 +401,7 @@ export function buildRequestMessages(
   projectMemoryContext: string = '',
   mode: 'canvas' | 'table' = 'canvas',
 ) {
-  const out: ChatMessage[] = [];
+  const out: agentChatMessage[] = [];
   // 工具消息配对：assistant 声明 tool_calls 时登记其 id，后续 tool 消息需命中才保留（防孤儿 tool 消息）
   const pendingToolIds = new Set();
   // 准则始终注入（enhance 控制），不因历史已含 system 而跳过。
@@ -603,13 +603,17 @@ export function buildRequestMessages(
       // 触发后端 `Empty tool_calls is not supported in message`。
       if (realCalls.length > 0) {
         for (const t of realCalls) if (t.id) pendingToolIds.add(t.id);
-        const obj: ChatMessage = { role: m.role, content: m.content || '', tool_calls: realCalls };
+        const obj: agentChatMessage = {
+          role: m.role,
+          content: m.content || '',
+          tool_calls: realCalls,
+        };
         if (m.reasoning) obj.reasoning = m.reasoning;
         out.push(obj);
       }
       // 空/无 tool_calls 的 assistant：直接透传（不带 tool_calls 字段）
       else {
-        const obj: ChatMessage = { role: m.role, content: m.content || '' };
+        const obj: agentChatMessage = { role: m.role, content: m.content || '' };
         if (m.reasoning) obj.reasoning = m.reasoning;
         out.push(obj);
       }
@@ -630,7 +634,7 @@ export function buildRequestMessages(
     // （CANVAS_AGENT_RULES / systemPrompt / Skill / memory / imageCatalog），历史 system 不回传，
     // 保持与 fresh-task（historyTurns=0）一致的行为，避免「旧 system 覆盖新准则」。
     if (m.role === 'system') continue;
-    const obj: ChatMessage = { role: m.role, content: m.content || '' };
+    const obj: agentChatMessage = { role: m.role, content: m.content || '' };
     if (m.tool_call_id) obj.tool_call_id = m.tool_call_id;
     out.push(obj);
   }

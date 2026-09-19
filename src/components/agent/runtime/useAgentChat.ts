@@ -34,7 +34,7 @@ import {
   buildIntentHint,
   CHAT_UPSTREAM_MAY_STILL_RUN_HINT,
 } from './agentCore.ts';
-import type { ToolCall, ChatMessage, AgentMemory, SkillItem } from './agentCore.ts';
+import type { ToolCall, agentChatMessage, AgentMemory, SkillItem } from './agentCore.ts';
 // 运行时逻辑（依赖注入版本）。hook 内以 const roundTrip 等同名闭包封装调用，
 // 故此处用别名避免与 hook 内的函数名冲突。
 import {
@@ -506,7 +506,7 @@ export function useAgentChat({
   // 逻辑与拆分前完全一致（LLM 通信：流式 SSE / 非流式 JSON 双模式；出站统一走 chatStream/post 生成门面）。
   const roundTrip = useCallback(
     async (
-      requestMessages: ChatMessage[],
+      requestMessages: agentChatMessage[],
       signal: AbortSignal,
       onStream?: (delta: StreamDelta) => void,
     ) => {
@@ -717,7 +717,7 @@ export function useAgentChat({
           // 意图预判提示随每轮重建（msgs 每轮都是新数组，不会跨轮重复累积）
           const makeContextMessages = () => {
             const msgs = buildRequestMessages(
-              getCurrentSnapshot().messages as ChatMessage[],
+              getCurrentSnapshot().messages as agentChatMessage[],
               systemRef.current,
               true,
               skillsRef.current as SkillItem[],

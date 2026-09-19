@@ -7,10 +7,10 @@
  *       用内存数组当 store 模拟单源读。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { ChatMessage } from '../../src/components/agent/runtime/agentCore.ts';
+import type { agentChatMessage } from '../../src/components/agent/runtime/agentCore.ts';
 
 // 测试用消息：在 ChatMessage 基础上扩展测试夹具需要的 id/streaming 字段
-type TestChatMessage = ChatMessage & { id?: string; streaming?: boolean };
+type TestChatMessage = agentChatMessage & { id?: string; streaming?: boolean };
 
 // 内存 store 夹具：消息用 TestChatMessage[]（src 侧真实类型 + 测试字段），保证 .id/.role/.content 等可读。
 // .current 为最新消息数组，.set 整体替换（模拟 setCurrentSnapshot 写语义）。

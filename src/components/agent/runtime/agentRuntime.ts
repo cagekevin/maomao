@@ -27,16 +27,16 @@
 // 旧 /api/proxy 已退役；providerUrlAdapters 的 URL 拼装链与 requestModes（responses 形态）随知识退场删除。
 import { chatStream } from '@/components/base/api/index.ts';
 import type { GenerationProvider } from '@/types';
-import type { ChatMessage as ApiChatMessage } from '@/components/base/api/generate.ts';
+import type { relayChatMessage as ApiChatMessage } from '@/components/base/api/generate.ts';
 import { withTimeout, releaseQuietly } from '../../base/utils/asyncGuard.ts';
 import { CHAT_TOTAL_TIMEOUT } from '../../base/core/config.ts';
 // 复用 agentCore 的权威消息/工具调用类型（同 runtime 目录，避免重定义漂移）
-import type { ChatMessage, ToolCall, SSEAccumulator, SSEChunkOutcome } from './agentCore.ts';
+import type { agentChatMessage, ToolCall, SSEAccumulator, SSEChunkOutcome } from './agentCore.ts';
 // 整条流不可读时的**用户可见文案**由生产者发布（agentCore 导出），消费者只转发、禁止自造。
 import { SSE_STREAM_UNREADABLE_MESSAGE, NON_STREAM_BODY_UNREADABLE_MESSAGE } from './agentCore.ts';
 
 /** roundTrip 返回的 assistant 消息：在 ChatMessage 基础上携带运行期必填字段。 */
-interface RuntimeAssistantMessage extends ChatMessage {
+interface RuntimeAssistantMessage extends agentChatMessage {
   model: string;
   createdAt: number;
 }
@@ -153,7 +153,7 @@ interface OpenAIMessageEnvelope {
  */
 export async function roundTrip(
   ctx: RoundTripCtx,
-  requestMessages: ChatMessage[],
+  requestMessages: agentChatMessage[],
   signal: AbortSignal,
   onStream?: (delta: StreamDelta) => void,
 ): Promise<RuntimeAssistantMessage> {

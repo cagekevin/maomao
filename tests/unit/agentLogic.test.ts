@@ -7,7 +7,7 @@ import {
 } from '../../src/components/agent/runtime/useAgentChat.ts';
 // buildRequestMessages 的 messages 参数为 ChatMessage[]（role 是字面量联合、content 是 string | 内容块数组联合），
 // 测试构造的消息需按该类型标注，避免字面量被宽化成 string。
-import type { ChatMessage, SSEAccumulator } from '@/components/agent/runtime/agentCore.ts';
+import type { agentChatMessage, SSEAccumulator } from '@/components/agent/runtime/agentCore.ts';
 // 生产者发布的失败文案（TD-16-50）：消费者只转发，测试据此断言"文案来自生产者"而非消费层自造。
 import { SSE_MALFORMED_MESSAGE } from '@/components/agent/runtime/agentCore.ts';
 
@@ -197,7 +197,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   it('空 tool_calls 数组被过滤：不发给 LLM（防 Empty tool_calls 报错）', () => {
     // 历史里可能残留 tool_calls: [] 的脏数据（旧版本修复前存的），必须被过滤掉，
     // 否则原样发给 LLM → 触发 `Empty tool_calls is not supported in message`。
-    const msgs: ChatMessage[] = [
+    const msgs: agentChatMessage[] = [
       { role: 'user', content: '建一个节点' },
       { role: 'assistant', content: '', tool_calls: [] }, // 空数组（脏数据）
       {
@@ -224,7 +224,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
 
   it('孤儿 tool 消息被过滤：无对应 tool_calls 的 tool 消息不发给 LLM', () => {
     // 场景：tool 消息的 tool_call_id 找不到任何 assistant 声明的 tool_calls（历史不完整/脏数据）
-    const msgs: ChatMessage[] = [
+    const msgs: agentChatMessage[] = [
       { role: 'user', content: '生成' },
       { role: 'assistant', content: '', tool_calls: [] }, // 空 tool_calls，被过滤
       { role: 'tool', content: '{"ok":true}', tool_call_id: 'c_orphan' }, // 孤儿：c_orphan 无对应声明
@@ -236,7 +236,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   });
 
   it('正常 assistant(tool_calls) + tool 配对透传，tool_call_id 匹配', () => {
-    const msgs: ChatMessage[] = [
+    const msgs: agentChatMessage[] = [
       { role: 'user', content: '生成' },
       {
         role: 'assistant',
@@ -255,7 +255,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   });
 
   it('配对后 tool_call_id 不重复消费：同 id 第二条 tool 消息被丢弃', () => {
-    const msgs: ChatMessage[] = [
+    const msgs: agentChatMessage[] = [
       {
         role: 'assistant',
         content: '',
@@ -272,7 +272,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   });
 
   it('参考图附件带画布坐标 x/y 时，坐标以文本附给 LLM（对齐参考项目传 xy）', () => {
-    const msgs: ChatMessage[] = [
+    const msgs: agentChatMessage[] = [
       {
         role: 'user',
         content: '按这张图改',
@@ -290,7 +290,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   });
 
   it('参考图附件无坐标时不附加坐标文本（不误写）', () => {
-    const msgs: ChatMessage[] = [
+    const msgs: agentChatMessage[] = [
       {
         role: 'user',
         content: '生成一张图',
@@ -308,7 +308,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   // 【过渡方案·2026-08-18】historyTurns 参数：回传最近 N 轮纯文字历史，图片仍不内联。
   it('【过渡方案】historyTurns 默认 0 = 维持 fresh-task（历史文字也不回传）', () => {
     // 场景：先"反推提示词"，再"优化提示词"。默认不传 historyTurns 时，上一轮 user/assistant 文字被砍。
-    const msgs: ChatMessage[] = [
+    const msgs: agentChatMessage[] = [
       { role: 'user', content: '帮我反推这张图的提示词' },
       { role: 'assistant', content: '反推结果：一只猫在窗边' },
       { role: 'user', content: '把提示词优化一下' }, // 本轮
@@ -322,7 +322,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   });
 
   it('【过渡方案】historyTurns>0 回传最近 N 轮纯文字（user + assistant），解决失忆', () => {
-    const msgs: ChatMessage[] = [
+    const msgs: agentChatMessage[] = [
       { role: 'user', content: '帮我反推这张图的提示词' },
       { role: 'assistant', content: '反推结果：一只猫在窗边' },
       { role: 'user', content: '把提示词优化一下' }, // 本轮
@@ -340,7 +340,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   it('【过渡方案】历史带图时，图不内联：历史轮只回纯文字，图片仍编号化走 imageCatalog', () => {
     // 关键安全边界：即使 historyTurns>0，历史轮次的图片附件绝不能内联进上下文
     // （否则复发「反推图一却全反推」）。图片只能走 imageCatalog「图N」编号 + 执行层 direct_refs 反查。
-    const msgs: ChatMessage[] = [
+    const msgs: agentChatMessage[] = [
       { role: 'user', content: '看这张图', attachments: [{ url: '/files/historical.png' }] }, // 历史带图
       { role: 'assistant', content: '好的，我看到了' },
       { role: 'user', content: '根据刚才的图继续' }, // 本轮不带图
@@ -365,7 +365,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   });
 
   it('【过渡方案】historyTurns 只回溯 N 轮 user，超出部分（更早）仍不回传', () => {
-    const msgs: ChatMessage[] = [
+    const msgs: agentChatMessage[] = [
       { role: 'user', content: '最古老的话' },
       { role: 'assistant', content: '古老回复' },
       { role: 'user', content: '稍早的话' },
@@ -380,7 +380,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   });
 
   it('【过渡方案】historyTurns>0 时历史 system 仍不回传（只回文字，不含历史 system）', () => {
-    const msgs: ChatMessage[] = [
+    const msgs: agentChatMessage[] = [
       { role: 'system', content: '旧系统注入' }, // 历史 system 不应回传（准则由前置注入）
       { role: 'user', content: '反推提示词' },
       { role: 'assistant', content: '反推：一只猫' },

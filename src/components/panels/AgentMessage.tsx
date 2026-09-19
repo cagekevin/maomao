@@ -30,11 +30,11 @@ function asText(content: unknown): string {
   }
   return '';
 }
-import { type ChatMessage } from '../agent/runtime/agentCore.ts';
+import { type agentChatMessage } from '../agent/runtime/agentCore.ts';
 
 /** AgentMessage 实际渲染的消息形状：兼容 LLM 协议（ChatMessage）并扩展 UI 态字段。
  *  UI 层只处理文本/图片类消息，故将 content 收窄为 string（协议层 ChatMessage 允许数组形态，UI 不消费）。 */
-export interface AgentMessageData extends ChatMessage {
+export interface AgentMessageData extends agentChatMessage {
   id?: string;
   content?: string;
   streaming?: boolean;

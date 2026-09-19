@@ -38,7 +38,7 @@ export interface GenerateRequest {
   model: string;
   taskId?: string;
   prompt?: string;
-  messages?: ChatMessage[];
+  messages?: relayChatMessage[];
   size?: string;
   aspectRatio?: string; // image：比例（如 '9:16'），Auto 不指定 size
   resolution?: string; // video：清晰度
@@ -90,7 +90,7 @@ export interface ChatContentBlock {
 }
 
 /** 聊天消息（对齐 /v1/chat/completions messages 形态；extra 字段透传 tools 等） */
-export interface ChatMessage {
+export interface relayChatMessage {
   role: 'user' | 'system' | 'assistant' | 'tool' | string;
   content?: string | ChatContentBlock[];
   tool_call_id?: string;
@@ -101,7 +101,7 @@ export interface ChatMessage {
 /** chatCompletions 入参（stream 字段已删——死参数，修订 7）。流式与否由后端 config 决定。 */
 export interface ChatCompletionsOptions {
   provider: GenerationProvider;
-  messages: ChatMessage[];
+  messages: relayChatMessage[];
   model: string;
   /** 参考图 URL（可选） */
   images?: string[];
@@ -114,10 +114,10 @@ export interface ChatCompletionsOptions {
 
 /** 把参考图附加到最后一条 user 消息（content 转数组 + image_url 块）。 */
 async function attachImages(
-  messages: ChatMessage[],
+  messages: relayChatMessage[],
   images: string[] | null | undefined,
   _provider: GenerationProvider | undefined,
-): Promise<ChatMessage[]> {
+): Promise<relayChatMessage[]> {
   if (!images?.length) return messages;
   // 发送统一出口守卫：参考图必经此归一（含缩略图端点自动还原原图），禁止绕过。见 assetUrl.js thumbnailToOriginal
   const refUrls = await normalizeAssetUrlsForSend(images);
@@ -291,7 +291,7 @@ export function chatCompletions(opts: ChatCompletionsOptions): Promise<GenerateR
 export async function chatStream(opts: {
   provider: GenerationProvider;
   model: string;
-  messages: ChatMessage[];
+  messages: relayChatMessage[];
   tools?: unknown[];
   taskId?: string;
   stream?: boolean;
