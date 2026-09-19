@@ -222,7 +222,7 @@ V2 §4.1 原文「**跨域** hooks 放 `src/hooks/`」被实测误用成"所有 
 | 3 | **画布域** | `base/canvas`(18) + `nodes`(18) + `edges`(3) + `base/panels/{HoverToolbar,FullscreenEditor}` + `base/core/{canvasHotkeys,canvasSyncBus}` + `base/utils/{imageUpscale,videoEngine,arrangePack,timeline/*}` + `base/nodeImage` + `src/hooks` 画布系 | ~60 | ❌ |
 | 4 | **图像编辑域** | `base/editors/*`(11) + `base/utils/faceMosaic.ts` | 12 | ❌ |
 | 5 | **媒体引用域** | `base/media/`(9) | 9 | ✅ **范本** |
-| 6 | **提示词域** | `base/prompt/`(6) | 6 | ❌ |
+| 6 | ~~**提示词域**~~ ⚠️ **本判已废**（§3.1.3.5 ⑥：`base/prompt` **不是一个域** ⇒ 画布域控件组 4 件 + 提示词域 2 件） | `base/prompt/`(6) | 6 | ❌ |
 | 7 | **创作库域** | `base/creative/`(8) | 8 | ❌ |
 | 8 | **深度视频域** | `base/depthVideo/`(5) | 5 | ✅ **范本** |
 | 9 | **scriptbox** | `scriptbox/`(17) | 17 | ❌ |
@@ -338,12 +338,16 @@ V2 §4.1 原文「**跨域** hooks 放 `src/hooks/`」被实测误用成"所有 
 
 | 件 | 实测消费方（域维度） | 新判定 |
 | --- | --- | --- |
-| `base/prompt/*`（`PromptInput`/`promptChips`/`promptLayout`…） | `nodes/{ImageGenerate, TextGenerate, VideoGenerate, _template/TemplateNode}` + `base/panels/FullscreenEditor` | **跨内容类型共享原语**（≠ 文本能力私有） |
+| `base/prompt/*`（`PromptInput`/`promptChips`/`promptLayout`…） | `nodes/{ImageGenerate, TextGenerate, VideoGenerate, _template/TemplateNode}` + `base/panels/FullscreenEditor` | **跨内容类型共享原语**（≠ 文本能力私有）—— ⚠️ **本判 2026-09-19 被修正（见 §3.1.3.5 ⑥）**：共享的是**画布节点上的同一个输入控件**（因它们同属画布域），**不等于**「它是独立于画布的域」 |
 | `base/creative/*`（`creativePresets`/`CreativeLibraryButton`…） | `nodes/{Image, Text, Video}Generate` + `agent/canvas/canvasHost` + `hooks/useNodeData` + 自身 views | **跨内容类型共享原语**（预设库可含图片/视频/文本提示词） |
 
 ⇒ **修正刚才的草稿**：不能写成「文本能力 ⊃ 提示词输入 · 创作库预设」；它们应保持**独立域（提示词域 / 创作库域）**，
 被三个内容能力**共用**。内容能力（图片/视频/文本）的零件 = **该内容类型的节点 + 该内容类型专属的处理**；
 **共享输入与共享预设留在共享域**。
+
+> ⚠️ **本条 2026-09-19 被再次修正（见 §3.1.3.5 ⑥）**：`base/creative` = 独立域 ✅ **成立**；
+> 但 `base/prompt` **不是一个域** —— 它 6 件里 4 件是**画布域的节点输入控件**（消费者全在画布域），
+> 只有社区库 2 件（`PromptHub` + `promptHubStore`）属提示词域。
 
 **③ 「图片能力」的专属零件成立** ✅：`base/editors/*` 的消费方只在图片侧
 （`nodes/ImageGenerate.tsx` · `nodes/useImageHoverActions.tsx`；`ImageZoomDialog` 除外——它是横切，10+ 消费方）。
@@ -535,7 +539,7 @@ src/components/base/media/
 
 | 叫法 | 实际属域 | 位置 |
 | --- | --- | --- |
-| 提示词（输入/社区库） | **提示词域**（跨内容能力共用） | `base/prompt/*` |
+| 提示词（输入 / 社区库） | ⚠️ **不是一域**（见 ⑥ 实测）：输入侧 4 件 = **画布域**（节点输入控件）· 社区库 2 件 = **提示词域** | `base/prompt/*` |
 | 预设/创作库 | **创作库域** | `base/creative/*` |
 | 表格提示词 | **AI 助手 ⊃ 表格** | `agent/assistantTable/assistantTablePrompt` |
 | 剧本提示词 | **剧本盒子** | `scriptbox/scriptBoxPrompt*` ×3 |
@@ -819,7 +823,7 @@ src/components/base/media/
 | **画布域**(~60) | `base/canvas` 5 组 + 2 | **G1 节点数据契约** · **G2 结构变更与历史** · **G3 画布外壳 UI** · G4 注册表 · G5 事件拓扑 · `nodes`（**挂载点层**） · `edges`（叶子） | **G1 / G2** |
 | **图像编辑域** | 3 | 查看编辑 · 相机(`cameraStudio`+`cameraParams`) · 打码 | **相机类** |
 | **媒体引用域**(9) | 2 | `providers/`(4) · refs-core(registry/types/browse/bridge) | **mediaRefRegistry**（已是深模块） |
-| **提示词域**(6) | 2 | 输入富文本组(PromptInput/chips/mention/layout) · 社区库组(PromptHub/Store) | **promptChips** |
+| ~~**提示词域**(6)~~ ⚠️ **已废**（§3.1.3.5 ⑥） | — | 输入组 4 件（`PromptInput`/chips/mention/layout）⇒ **画布域**（节点输入控件）· 社区库组 2 件（`PromptHub`/`promptHubStore`）⇒ **提示词域** | — |
 | **创作库域**(8) | 2 | 数据层(catalog/presets/promptManager/data) · 展示层(Library/Button/views) | **creativePresets** |
 | **深度视频域**(5) | 1 | —（UI+逻辑同目录，**范本**，无需再拆） | — |
 | **后端 ai-relay**(~41) | 4 | `protocol/`(13，平铺但隐含 3 层语义) · `providers/lovart/`(10，范式) · `manifests/`(5，纯数据) · 顶层(12) | **protocol/** |
@@ -1117,7 +1121,7 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | 3D 导演台 | `director3d` | — | **例外（禁重审）**，见 §9 A3 |
 | 视频 ⊃ 深度 | `depthVideo` | 0 | 新增（**子域级**，N9） |
 | 素材 / 资产 | `resource`（数据）· `media`（引用协议）· `file`（落盘） | `media` 3 ✅ | ⚠️ **三分**（DATAFLOW §三′/§五 是三条不同层：协议/数据/落盘） |
-| 提示词 | `prompt` | 2 ✅ | 保持 |
+| 提示词（社区库 · `PromptHub`+`promptHubStore`） | `prompt` | 2 ✅ | 保持（⚠️ **只覆盖社区库 2 件**；原 `base/prompt` 的输入控件 4 件 ⇒ **画布域**，见 §3.1.3.5 ⑥） |
 | 创作库 | `creative` | **0** | 新增 |
 | 剧本盒子 | `scriptBox` | **0** | 新增（文件名已有前缀、导出无） |
 | 生成链路 / 中继 | `relay` | 7 ✅ | 保持 |
