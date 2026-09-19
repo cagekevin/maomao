@@ -56,8 +56,8 @@ vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
 vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
   default: ({ children }: any) => children,
 }));
-vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/PromptInput.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/core/uiHooks.ts', async (importOriginal) => ({
   ...(await importOriginal()),
   useNodeResize: () => ({ onInputResize: vi.fn() }),
@@ -125,7 +125,7 @@ beforeEach(() => {
   connectedInputs = { images: [], texts: [] };
 });
 
-import VideoGenerate from '../../src/components/canvas/nodes/VideoGenerate.tsx';
+import VideoGenerate from '../../src/components/video/nodes/VideoGenerate.tsx';
 
 function setup(data = {}) {
   return render(<VideoGenerate id="n1" data={data} selected={false} />);

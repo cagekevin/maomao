@@ -1,8 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useOutsideClick } from '../core/uiHooks.ts';
+import { useOutsideClick } from '../base/core/uiHooks.ts';
 import { clamp } from '@/components/base/core/utils';
-import LazyImage from '../ui/LazyImage.tsx';
+import LazyImage from '../base/ui/LazyImage.tsx';
 import {
   isChipEl,
   ensureCaretSlotBeforeChip,

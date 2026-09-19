@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { isCanvasSuppressed } from './modalLayer.ts';
-import { isEditableTarget } from './uiHooks.ts';
+import { isCanvasSuppressed } from '../base/core/modalLayer.ts';
+import { isEditableTarget } from '../base/core/uiHooks.ts';
 
 export interface CanvasKeydownOptions {
   /**

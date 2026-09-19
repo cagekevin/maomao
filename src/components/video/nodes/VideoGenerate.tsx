@@ -10,12 +10,12 @@ import {
   Layers,
 } from 'lucide-react';
 import NodeShell from '@/components/base/ui/NodeShell';
-import HoverToolbar from '@/components/base/panels/HoverToolbar';
+import HoverToolbar from '@/components/canvas/HoverToolbar';
 import ExpandablePanel from '@/components/base/ui/ExpandablePanel';
 import GenerateButton from '@/components/base/ui/GenerateButton';
 import ModelSelect from '@/components/base/ui/ModelSelect';
 import ResizeFullscreenHandle from '@/components/base/ui/ResizeFullscreenHandle';
-import FullscreenEditor from '@/components/base/panels/FullscreenEditor';
+import FullscreenEditor from '@/components/canvas/FullscreenEditor';
 import GeneratingOverlay from '@/components/base/ui/GeneratingOverlay';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
 import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
@@ -28,9 +28,9 @@ import type { CreativePreset, CreativePresetsDict } from '@/components/creative'
 
 import JianyingIcon from '@/components/base/ui/JianyingIcon';
 import ResourceStrip from '@/components/base/panels/ResourceStrip';
-import PromptInput from '@/components/base/prompt/PromptInput';
-import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/base/prompt/promptChips';
-import { PROMPT_PANEL_PAD_X } from '@/components/base/prompt/promptLayout';
+import PromptInput from '@/components/canvas/PromptInput';
+import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/promptChips';
+import { PROMPT_PANEL_PAD_X } from '@/components/canvas/promptLayout';
 import { useNodeResize, useOutsideClick } from '@/components/base/core/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';

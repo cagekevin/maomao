@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import NodeShell from '@/components/base/ui/NodeShell';
 import { IMAGE_BOX_NODE_SIZE } from '@/components/canvas/nodeDefaults';
-import HoverToolbar from '@/components/base/panels/HoverToolbar';
+import HoverToolbar from '@/components/canvas/HoverToolbar';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { PanoViewer } from '@/components/editors';
 import type { PanoViewerHandle } from '@/components/editors';

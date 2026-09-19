@@ -20,7 +20,7 @@
  * `afterWrite(dims)` 里处理。
  */
 import type { Node } from '@xyflow/react';
-import { patchNodeDataById } from '../../hooks/useNodeData.ts';
+import { patchNodeDataById } from '@/hooks/useNodeData';
 
 export interface NodeImageWrite {
   id: string;

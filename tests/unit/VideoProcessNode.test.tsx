@@ -82,7 +82,7 @@ vi.mock('../../src/components/base/api/httpClient.ts', async (importOriginal) =>
   return { ...mod, httpRequest: vi.fn(() => Promise.reject(new Error('mock: no network'))) };
 });
 
-import VideoProcessNode from '../../src/components/canvas/nodes/VideoProcessNode.tsx';
+import VideoProcessNode from '../../src/components/video/nodes/VideoProcessNode.tsx';
 beforeEach(() => {
   mocks.resetNodeMockState();
   captureFrameMock.mockClear();

@@ -21,7 +21,7 @@
  * 文件头 JSDoc 遵守 CLAUDE.md「决策记录铁律」——单文件机制落文件头。
  */
 
-import { promptChipRe } from '../base/prompt/promptChips.ts';
+import { promptChipRe } from '../canvas/promptChips.ts';
 
 /** 预设分区 kind（含运行期由 promptManager 写入的 'prompt'）。 */
 export const PRESET_KINDS = ['style', 'filter', 'motion', 'mj', 'prompt'] as const;

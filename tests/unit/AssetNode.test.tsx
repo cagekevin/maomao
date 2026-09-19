@@ -10,7 +10,7 @@ import { mocks } from './_nodeMocks.mjs';
 
 vi.mock('@xyflow/react', () => mocks.xyflow);
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
-vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({
+vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({
   default: mocks.HoverToolbar,
 }));
 vi.mock('../../src/components/editors/ImageEditor.tsx', () => ({

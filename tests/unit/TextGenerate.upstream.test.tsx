@@ -82,8 +82,8 @@ vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
 vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
   default: ({ children }: { children?: ReactNode }) => children,
 }));
-vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/PromptInput.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/core/uiHooks.ts', async (importOriginal) => ({
   ...(await importOriginal()),
   useNodeResize: () => ({ onInputResize: vi.fn() }),

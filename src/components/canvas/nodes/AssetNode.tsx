@@ -14,10 +14,10 @@ import {
 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import NodeShell from '@/components/base/ui/NodeShell';
-import HoverToolbar from '@/components/base/panels/HoverToolbar';
+import HoverToolbar from '@/components/canvas/HoverToolbar';
 import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
 import VideoThumbnail from '@/components/base/ui/VideoThumbnail';
-import { replaceNodeImage } from '@/components/base/nodeImage';
+import { replaceNodeImage } from '@/components/canvas/nodeImage';
 import { detectAssetType, detectFileType } from '@/components/base/utils/assetType';
 import { fileNameFromUrl } from '@/components/base/core/utils';
 import { assetTypeLabel, type AssetType } from '@/types';

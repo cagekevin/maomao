@@ -126,7 +126,7 @@ export function lazyNode(
 export const HEAVY_NODE_LOADERS = {
   director3dNode: () => import('@/components/canvas/nodes/Director3DNode'),
   panoramaNode: () => import('@/components/canvas/nodes/PanoramaNode'),
-  videoProcessNode: () => import('@/components/canvas/nodes/VideoProcessNode'),
+  videoProcessNode: () => import('@/components/video/nodes/VideoProcessNode'),
 };
 
 /**

@@ -3,7 +3,7 @@ import { useReactFlow } from '@xyflow/react';
 import { ScanFace, Loader2, AlertCircle, Image as ImageIcon, Wand2, Shuffle } from 'lucide-react';
 import NodeShell from '@/components/base/ui/NodeShell';
 import { ASSET_NODE_SIZE } from '@/components/canvas/nodeDefaults';
-import HoverToolbar from '@/components/base/panels/HoverToolbar';
+import HoverToolbar from '@/components/canvas/HoverToolbar';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useNodeRename } from '@/hooks/useNodeRename';

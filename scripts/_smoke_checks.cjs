@@ -197,8 +197,18 @@ function checkReactFlowApis(ROOT) {
  *  组件 2026-08-18 已归类 nodes/ 子目录，优先查 src/components/canvas/nodes/，平铺路径兜底。
  *  路径全部【扩展名无关】解析：节点组件转 .tsx 后写死 .jsx 会让整项检查变红。 */
 function resolveCompFile(ROOT, comp) {
-  const sub = resolveSourceFile(path.join(ROOT, 'src/components/canvas/nodes', comp));
-  if (sub) return sub;
+  // 2026-09-19 域归位：节点组件已迁出 canvas/nodes，分散到各能力域的 nodes/ 子目录
+  // （canvas/video/image/text）。resolveCompFile 不再只查 canvas/nodes，改为按候选域顺序查找。
+  const nodeDirs = [
+    path.join(ROOT, 'src/components/canvas/nodes'),
+    path.join(ROOT, 'src/components/video/nodes'),
+    path.join(ROOT, 'src/components/image/nodes'),
+    path.join(ROOT, 'src/components/text/nodes'),
+  ];
+  for (const dir of nodeDirs) {
+    const sub = resolveSourceFile(path.join(dir, comp));
+    if (sub) return sub;
+  }
   const flat = resolveSourceFile(path.join(ROOT, 'src/components', comp));
   return flat || path.join(ROOT, 'src/components/canvas/nodes', comp + '.jsx');
 }
@@ -215,11 +225,11 @@ function checkNodeTypes(ROOT) {
   const lazySrc = read(
     resolveSourceFile(path.join(ROOT, 'src/components/canvas/lazyNode')) || '',
   );
-  // ⚠️ 路径形态随 S2-1a 变更：原 `../nodes/X.jsx` ⇒ 现 `@/components/canvas/nodes/X`（**别名 + 无扩展名**）。
-  //    正则两种形态都收：`@/components/canvas/nodes/` 与相对 `.../canvas/nodes/`，扩展名可选。
+  // ⚠️ 路径形态随 S2-1a 变更：原 `../nodes/X.jsx` ⇒ 现 `@/components/<域>/nodes/X`（**别名 + 无扩展名**）。
+  //    正则两种形态都收：`@/components/<canvas|video|image|text>/nodes/` 与相对 `.../<域>/nodes/`，扩展名可选。
   const lazyComps = [
     ...lazySrc.matchAll(
-      /import\(\s*['"](?:@\/components\/canvas\/nodes\/|(?:\.\.?\/)+canvas\/nodes\/)(\w+Node)(?:\.(?:jsx|tsx|js|ts))?['"]\s*\)/g,
+      /import\(\s*['"](?:@\/components\/(?:canvas|video|image|text)\/nodes\/|(?:\.\.?\/)+(?:canvas|video|image|text)\/nodes\/)(\w+Node)(?:\.(?:jsx|tsx|js|ts))?['"]\s*\)/g,
     ),
   ].map((x) => x[1]);
   const compsAll = [...new Set([...comps, ...lazyComps])];
@@ -239,7 +249,7 @@ function checkNodeTypes(ROOT) {
     const compFile = resolveCompFile(ROOT, comp);
     if (!fs.existsSync(compFile)) {
       pass = false;
-      details.push(`  ✖ palette component '${comp}' -> 组件文件不存在（canvas/nodes/${comp}.{jsx|tsx}）`);
+      details.push(`  ✖ palette component '${comp}' -> 组件文件不存在（已查 canvas/video/image/text/nodes 与 components 平铺）`);
     } else {
       details.push(`  ✔ palette ${path.basename(compFile)}`);
     }

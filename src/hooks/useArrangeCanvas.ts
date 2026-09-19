@@ -3,7 +3,7 @@ import dagre from 'dagre';
 import type { Edge, Node } from '@xyflow/react';
 import { INPUT_PANEL_NODE_TYPES } from '../components/canvas';
 import { withNodeSize } from '../components/base/core/nodeSizePatch';
-import { packComponents } from '../components/base/utils/arrangePack';
+import { packComponents } from '../components/canvas/arrangePack';
 
 /** 一次排版的结果：新布局的 nodes + 原样透传的 edges */
 export interface ArrangeResult {

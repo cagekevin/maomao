@@ -64,7 +64,7 @@ import {
   useCurrentProjectId,
   type Project,
 } from './components/base/store/projectStore.ts';
-import { broadcastCanvasSaved } from './components/base/core/canvasSyncBus.ts';
+import { broadcastCanvasSaved } from './components/canvas/canvasSyncBus.ts';
 // 【TD-15-1】agentKey 构造收口到 base/core 单一真源（与 conversationState / backupStore 共用）
 import { agentKeyForProject } from './components/base/core/agentKeys.ts';
 import previewUrls from './components/base/utils/previewUrl.ts';

@@ -12,7 +12,7 @@ import {
   isTerminatedByBreak,
   commitOccurrencesInRun,
   mergeReferenceImageUrls,
-} from '../../src/components/base/prompt/promptChips.ts';
+} from '../../src/components/canvas/promptChips.ts';
 
 /** 把 renderPromptToNodes 的 Node[] append 到一个根 div */
 function renderToDom(text: any, metaMap: any) {

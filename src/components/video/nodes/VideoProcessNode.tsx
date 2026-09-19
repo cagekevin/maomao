@@ -29,7 +29,7 @@ import {
 } from '@/components/base/utils/timeline/timeScale';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { useNodeResize } from '@/components/base/core/uiHooks';
-import { useCanvasKeydown } from '@/components/base/core/canvasHotkeys';
+import { useCanvasKeydown } from '@/components/canvas/canvasHotkeys';
 import { showToast } from '@/components/base/core/toastStore';
 // 【TD-22-64 · 2026-09-18】时长显示唯一实现：此前本文件自持一份 `formatDuration`，
 // 与 videoEditor/ui/…/media.tsx 的同名实现重复，且多一个「非有限 → '0:00'」的发明值。

@@ -3,16 +3,16 @@ import { useReactFlow } from '@xyflow/react';
 import { Image as ImageIcon, Download } from 'lucide-react';
 // ═══ 基座组件（统一入口，禁止手写外壳/端口/背景）═══
 import NodeShell from '@/components/base/ui/NodeShell';
-import HoverToolbar from '@/components/base/panels/HoverToolbar';
+import HoverToolbar from '@/components/canvas/HoverToolbar';
 import ExpandablePanel from '@/components/base/ui/ExpandablePanel';
 import GenerateButton from '@/components/base/ui/GenerateButton';
 import ModelSelect from '@/components/base/ui/ModelSelect';
-import PromptInput from '@/components/base/prompt/PromptInput';
-import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/base/prompt/promptChips';
+import PromptInput from '@/components/canvas/PromptInput';
+import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/promptChips';
 import ResourceStrip from '@/components/base/panels/ResourceStrip';
 import ResizeFullscreenHandle from '@/components/base/ui/ResizeFullscreenHandle';
 import FullscreenModal from '@/components/base/panels/FullscreenModal';
-import FullscreenEditor from '@/components/base/panels/FullscreenEditor';
+import FullscreenEditor from '@/components/canvas/FullscreenEditor';
 import GeneratingOverlay from '@/components/base/ui/GeneratingOverlay';
 // ═══ 基座 hook（统一范式）═══
 import { useNodeResize } from '@/components/base/core/uiHooks';
@@ -29,7 +29,7 @@ import { useNodeData } from '@/hooks/useNodeData';
 import { useNodeExpanded } from '@/hooks/useNodeExpanded';
 import { useNodeField } from '@/hooks/useNodeField';
 import { resolveProviderModel } from '@/components/base/utils/providerModels';
-import { PROMPT_PANEL_PAD_X } from '@/components/base/prompt/promptLayout';
+import { PROMPT_PANEL_PAD_X } from '@/components/canvas/promptLayout';
 
 /**
  * ════════════════════════════════════════════════════════════════

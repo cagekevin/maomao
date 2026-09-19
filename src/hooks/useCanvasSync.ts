@@ -17,7 +17,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
-import { CANVAS_SYNC_CHANNEL, getCanvasTabId } from '../components/base/core/canvasSyncBus.ts';
+import { CANVAS_SYNC_CHANNEL, getCanvasTabId } from '../components/canvas/canvasSyncBus.ts';
 import { CANVAS_STATE_PREFIX } from '../components/base/core/contracts.ts';
 // 版本读经 contentStore KV 协议原语（不再直调 transport；TD-02-1 收口点）
 import { contentKvGetVersion } from '../components/base/core/contentStore.ts';

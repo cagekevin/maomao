@@ -52,7 +52,7 @@ vi.mock('../../src/hooks/useGenerateNode.ts', () => ({
     generate: vi.fn(),
   }),
 }));
-vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({
+vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({
   default: ({ buttons = [] }: any) => (
     <>
       {buttons
@@ -69,11 +69,11 @@ vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
   default: ({ children }: any) => children,
 }));
 vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/PromptInput.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/panels/FullscreenEditor.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/FullscreenEditor.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,

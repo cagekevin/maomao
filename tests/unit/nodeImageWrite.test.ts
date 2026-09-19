@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Node } from '@xyflow/react';
-import { replaceNodeImage } from '../../src/components/base/nodeImage.ts';
+import { replaceNodeImage } from '../../src/components/canvas/nodeImage.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const readSrc = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -139,7 +139,7 @@ describe('源码护栏 — 图片写回只有一个门', () => {
     for (const rel of [
       'src/components/canvas/nodes/AssetNode.tsx',
       'src/components/canvas/nodes/Director3DNode.tsx',
-      'src/components/base/nodeImage.ts',
+      'src/components/canvas/nodeImage.ts',
     ]) {
       const src = readSrc(rel);
       expect(
@@ -150,7 +150,7 @@ describe('源码护栏 — 图片写回只有一个门', () => {
     // 双写开关不得回归（加回来就等于又开了一条写 url 的路径）
     // 断言「没有这个字段声明」而非「源码不含该词」——注释里保留它的历史说明是有意为之
     expect(
-      /\blegacyUrlField\??\s*:/.test(readSrc('src/components/base/nodeImage.ts')),
+      /\blegacyUrlField\??\s*:/.test(readSrc('src/components/canvas/nodeImage.ts')),
       'nodeImage 不得再提供 legacyUrlField 双写开关',
     ).toBe(false);
   });

@@ -17,7 +17,7 @@ import { generateId } from '../core/idGen.ts';
 import { fetchProjects, saveProjects, ApiEnvelope, ProjectsData } from '../api/localToolApi.ts';
 // HttpError：CAS 冲突判定（409）；httpRequest 对 4xx 不重试，是现状行为。
 import { HttpError } from '../api/httpClient.ts';
-import { broadcastCanvasSaved } from '../core/canvasSyncBus.ts';
+import { broadcastCanvasSaved } from '@/components/canvas/canvasSyncBus';
 import {
   contentGet,
   contentSet,

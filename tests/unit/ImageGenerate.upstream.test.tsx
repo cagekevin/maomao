@@ -64,8 +64,8 @@ vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
 vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
   default: ({ children }: any) => children,
 }));
-vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/PromptInput.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: () => null }));

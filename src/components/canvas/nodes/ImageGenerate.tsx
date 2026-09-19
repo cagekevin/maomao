@@ -2,20 +2,20 @@ import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { Image as ImageIcon, Send, Download, AlertCircle, Camera } from 'lucide-react';
 import NodeShell from '@/components/base/ui/NodeShell';
-import HoverToolbar from '@/components/base/panels/HoverToolbar';
+import HoverToolbar from '@/components/canvas/HoverToolbar';
 import ExpandablePanel from '@/components/base/ui/ExpandablePanel';
 import GenerateButton from '@/components/base/ui/GenerateButton';
 import ModelSelect from '@/components/base/ui/ModelSelect';
-import PromptInput from '@/components/base/prompt/PromptInput';
+import PromptInput from '@/components/canvas/PromptInput';
 import ResourceStrip from '@/components/base/panels/ResourceStrip';
 import ResizeFullscreenHandle from '@/components/base/ui/ResizeFullscreenHandle';
-import FullscreenEditor from '@/components/base/panels/FullscreenEditor';
+import FullscreenEditor from '@/components/canvas/FullscreenEditor';
 import GeneratingOverlay from '@/components/base/ui/GeneratingOverlay';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
 import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
 import '@/components/editors/ImageEditor';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
-import { replaceNodeImage } from '@/components/base/nodeImage';
+import { replaceNodeImage } from '@/components/canvas/nodeImage';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useDisconnectSource } from '@/hooks/useDisconnectSource';
 import { useNodeRename } from '@/hooks/useNodeRename';
@@ -45,8 +45,8 @@ import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
 import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
 import { resolveProviderModel } from '@/components/base/utils/providerModels';
 import { mergeRefImages, buildEffectivePrompt } from '@/components/base/core/utils';
-import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/base/prompt/promptChips';
-import { PROMPT_PANEL_PAD_X } from '@/components/base/prompt/promptLayout';
+import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/promptChips';
+import { PROMPT_PANEL_PAD_X } from '@/components/canvas/promptLayout';
 import {
   CameraStudioPanel,
   CameraSettingsSelector,

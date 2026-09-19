@@ -98,7 +98,7 @@ vi.mock('../../src/hooks/useNodeData.ts', () => ({
   useNodeData: () => ({ patchData: (...a: unknown[]) => h.patchData(...a) }),
 }));
 
-import VideoExtractNode from '../../src/components/canvas/nodes/VideoExtractNode.tsx';
+import VideoExtractNode from '../../src/components/video/nodes/VideoExtractNode.tsx';
 
 /** 抽帧失败用例里用于顶替 <video> 的最小形状（仅实现被测用到的字段）。 */
 interface FakeVideo {
