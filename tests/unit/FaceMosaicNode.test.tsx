@@ -82,7 +82,7 @@ vi.mock('../../src/components/base/utils/faceMosaic.ts', () => ({
   ],
   MOSAIC_PALETTE: ['#000000', '#ffffff'],
 }));
-vi.mock('../../src/components/base/editors/FaceMosaicEditor.tsx', () => ({
+vi.mock('../../src/components/editors/FaceMosaicEditor.tsx', () => ({
   default: ({ assetUrl: _assetUrl, onSave, onClose }: any) =>
     React.createElement(
       'div',
@@ -96,7 +96,7 @@ vi.mock('../../src/components/base/editors/FaceMosaicEditor.tsx', () => ({
       React.createElement('button', { onClick: onClose }, '关闭编辑器'),
     ),
 }));
-vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/ui/ImageZoomDialog.tsx', () => ({ default: () => null }));
 // release 必须有：上传用例会让 localImages 非空，组件卸载时 cleanup 会逐个 release
 // （原来 localImages 恒空、没人调 release，漏了这个 stub 也一直没暴露）。
 vi.mock('../../src/components/base/utils/previewUrl.ts', () => ({

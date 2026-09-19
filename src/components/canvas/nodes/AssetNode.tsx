@@ -15,7 +15,7 @@ import {
 import { useReactFlow } from '@xyflow/react';
 import NodeShell from '@/components/base/ui/NodeShell';
 import HoverToolbar from '@/components/base/panels/HoverToolbar';
-import ImageZoomDialog from '@/components/base/editors/ImageZoomDialog';
+import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
 import VideoThumbnail from '@/components/base/ui/VideoThumbnail';
 import { replaceNodeImage } from '@/components/base/nodeImage';
 import { detectAssetType, detectFileType } from '@/components/base/utils/assetType';
@@ -35,14 +35,14 @@ import { downloadUrl } from '@/components/base/utils/clipboard';
 import { showToast, toastError } from '@/components/base/core/toastStore';
 import { sendToResourceLibrary, getResources } from '@/components/base/store/resourceStore';
 import { openResourceLibrary } from '@/components/base/store/taskStore';
-import CameraStudioPanel from '@/components/base/editors/CameraStudioPanel';
+import { CameraStudioPanel } from '@/components/editors';
+import type { CameraStudioResult } from '@/components/editors';
 import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
 import { DepthVideoModal, spawnDepthVideoNode } from '@/components/video';
 
 import { commitNewNodes } from '@/components/canvas/deriveNodes';
 import { injectNodePrefs } from '@/components/canvas/nodePrefs';
 import { generateId } from '@/components/base/core/idGen';
-import type { CameraStudioResult } from '@/components/base/editors/cameraStudio';
 
 /**
  * 素材节点

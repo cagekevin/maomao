@@ -22,7 +22,7 @@ import {
   type CameraStudioResult,
   type LightTemperature,
 } from './cameraStudio.ts';
-import FullscreenShell from '../panels/FullscreenShell.tsx';
+import FullscreenShell from '../base/panels/FullscreenShell.tsx';
 
 // 模块级持久化：跨面板开关保留上一次参数
 let _lastCamera: CameraStudioCameraState | null = null;

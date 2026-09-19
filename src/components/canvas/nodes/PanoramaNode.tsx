@@ -23,7 +23,8 @@ import NodeShell from '@/components/base/ui/NodeShell';
 import { IMAGE_BOX_NODE_SIZE } from '@/components/canvas/nodeDefaults';
 import HoverToolbar from '@/components/base/panels/HoverToolbar';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
-import PanoViewer, { type PanoViewerHandle } from '@/components/base/editors/PanoViewer';
+import { PanoViewer } from '@/components/editors';
+import type { PanoViewerHandle } from '@/components/editors';
 import { generateId } from '@/components/base/core/idGen';
 // 编辑器内的交互归编辑器（ADR-0029）：判据走共用原语，禁自写（自写必漏）。
 import { isEditableTarget } from '@/components/base/core/uiHooks';

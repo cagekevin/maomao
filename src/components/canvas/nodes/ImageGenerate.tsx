@@ -12,8 +12,8 @@ import ResizeFullscreenHandle from '@/components/base/ui/ResizeFullscreenHandle'
 import FullscreenEditor from '@/components/base/panels/FullscreenEditor';
 import GeneratingOverlay from '@/components/base/ui/GeneratingOverlay';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
-import ImageZoomDialog from '@/components/base/editors/ImageZoomDialog';
-import '@/components/base/editors/ImageEditor';
+import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
+import '@/components/editors/ImageEditor';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
 import { replaceNodeImage } from '@/components/base/nodeImage';
 import { useNodeData } from '@/hooks/useNodeData';
@@ -47,12 +47,14 @@ import { resolveProviderModel } from '@/components/base/utils/providerModels';
 import { mergeRefImages, buildEffectivePrompt } from '@/components/base/core/utils';
 import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/base/prompt/promptChips';
 import { PROMPT_PANEL_PAD_X } from '@/components/base/prompt/promptLayout';
-import CameraStudioPanel from '@/components/base/editors/CameraStudioPanel';
-import CameraSettingsSelector from '@/components/base/editors/cameraParams/CameraSettingsSelector';
-import { applyCameraSettingsToPrompt } from '@/components/base/editors/cameraParams/cameraPrompt';
-import type { CameraGenerationSettings } from '@/components/base/editors/cameraParams/types';
+import {
+  CameraStudioPanel,
+  CameraSettingsSelector,
+  applyCameraSettingsToPrompt,
+} from '@/components/editors';
+import type { CameraGenerationSettings, CameraStudioResult } from '@/components/editors';
+
 import { generateId } from '@/components/base/core/idGen';
-import type { CameraStudioResult } from '@/components/base/editors/cameraStudio';
 
 /**
  * 生图节点（复刻原 bo.jsx / imageGenerateNode）

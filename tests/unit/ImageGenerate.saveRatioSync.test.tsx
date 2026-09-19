@@ -79,7 +79,7 @@ vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,
 }));
 vi.mock('../../src/components/base/ui/JianyingIcon.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/ui/ImageZoomDialog.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/CustomHandle.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/NodeTitle.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/ErrorBoundary.tsx', () => ({
@@ -139,13 +139,13 @@ vi.mock('../../src/components/base/store/providerStore.ts', async (importOrigina
 }));
 
 // ImageEditor：记录 onSave（模拟裁剪/扩图保存回传 dims）
-vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({
+vi.mock('../../src/components/editors/ImageEditor.tsx', () => ({
   default: ({ assetUrl, onSave, onClose: _onClose }: any) => {
     lastEditorSave = onSave;
     return <div data-testid="image-editor" data-url={assetUrl} />;
   },
 }));
-vi.mock('../../src/components/base/editors/InlineImageCropper.tsx', () => ({
+vi.mock('../../src/components/editors/InlineImageCropper.tsx', () => ({
   default: () => null,
 }));
 // docs/118 §五 C5：编辑器/裁剪保存出口改为「先落盘再写回」（useImageHoverActions 内调

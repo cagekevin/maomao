@@ -17,7 +17,7 @@ import { resolveAssetTemplates } from './scriptBoxPromptResolver.ts';
 import { resourceFolderOf } from '../base/store/resourceStore.ts';
 import { useOutsideClick } from '../base/core/uiHooks.ts';
 import { useRenderAssetResolver, toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
-import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
+import ImageZoomDialog from '../base/ui/ImageZoomDialog.tsx';
 import ScriptBoxAssetPicker from './ScriptBoxAssetPicker.tsx';
 import type { ScriptBoxData, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema.ts';
 

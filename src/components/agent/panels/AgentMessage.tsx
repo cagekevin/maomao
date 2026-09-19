@@ -4,7 +4,7 @@ import LazyImage from '@/components/base/ui/LazyImage';
 import AttachmentCover from '@/components/base/ui/attachmentCover';
 import { toAbsoluteFileUrl } from '@/components/base/utils/assetUrl';
 import AgentConfirmCard from './AgentConfirmCard';
-import ImageZoomDialog from '@/components/base/editors/ImageZoomDialog';
+import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
 import ChatMarkdown from './ChatMarkdown';
 import { showToast } from '@/components/base/core/toastStore';
 import { copyText } from '@/components/base/utils/clipboard';

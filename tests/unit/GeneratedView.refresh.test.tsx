@@ -68,7 +68,7 @@ vi.mock('../../src/components/base/panels/PanelBar.tsx', () => ({
 }));
 vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/ui/ImageZoomDialog.tsx', () => ({ default: () => null }));
 
 import GeneratedView from '../../src/components/base/panels/GeneratedView.tsx';
 import { publish } from '../../src/components/base/core/eventBus.ts';

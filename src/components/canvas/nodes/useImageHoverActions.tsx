@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Crop, Pencil, Maximize2, Minimize2, Copy } from 'lucide-react';
-import ImageEditor from '@/components/base/editors/ImageEditor';
-import InlineImageCropper from '@/components/base/editors/InlineImageCropper';
+import { ImageEditor, InlineImageCropper } from '@/components/editors';
+
 import { compressImage } from '@/components/base/utils/imageCompress';
 import { upscaleImage } from '@/components/base/utils/imageUpscale';
 import { useCopyNode } from '@/hooks/useCopyNode';

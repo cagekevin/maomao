@@ -12,7 +12,7 @@ import {
   computeOutpaintDrawPos,
   OUTPAINT_FILL,
   OUTPAINT_RATIOS,
-} from '../../src/components/base/editors/ImageEditor.tsx';
+} from '../../src/components/editors/ImageEditor.tsx';
 
 describe('computeOutpaintTarget', () => {
   it('zoom=1 + 原图比例 → 目标画布=原图，无白边，可移动范围 0', () => {

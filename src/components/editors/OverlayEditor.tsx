@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { useDebouncedEffect, createRafBatch, canvasToImageDataUrl } from '../core/utils.ts';
+import { useDebouncedEffect, createRafBatch, canvasToImageDataUrl } from '../base/core/utils.ts';
 import { createPortal } from 'react-dom';
 import {
   Box,
@@ -16,10 +16,10 @@ import {
   Maximize,
   X,
 } from 'lucide-react';
-import { toAbsoluteFileUrl } from '../api/filesApi.ts';
-import { toastError } from '../core/toastStore.ts';
-import { releaseQuietly } from '../utils/asyncGuard.ts';
-import { logger } from '../core/logger.ts';
+import { toAbsoluteFileUrl } from '../base/api/filesApi.ts';
+import { toastError } from '../base/core/toastStore.ts';
+import { releaseQuietly } from '../base/utils/asyncGuard.ts';
+import { logger } from '../base/core/logger.ts';
 
 /* ════════════════════════════════════════════════════════════════
  * 叠加图层编辑器
@@ -37,13 +37,13 @@ import { logger } from '../core/logger.ts';
  * 能力：图层导入/排序/显隐/锁定/删除/涂抹擦除恢复、画布尺寸、全屏聚焦、属性面板
  * ════════════════════════════════════════════════════════════════ */
 
-import { generateId } from '../core/idGen.ts';
+import { generateId } from '../base/core/idGen.ts';
 // 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
 // 替代本文件原有的无超时私有实现（图片挂起会让整层渲染/导出永久卡住）。
-import { loadImageOrNull } from '../utils/asyncGuard.ts';
-import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
+import { loadImageOrNull } from '../base/utils/asyncGuard.ts';
+import { useFullscreenEditorKeys } from '../base/core/modalLayer.ts';
 // 编辑器内的交互归编辑器（ADR-0029）：判据走共用原语，禁自写（自写必漏）。
-import { isEditableTarget } from '../core/uiHooks.ts';
+import { isEditableTarget } from '../base/core/uiHooks.ts';
 const genId = () => generateId('ov');
 
 type DragMode = 'move' | 'scale' | 'rotate';

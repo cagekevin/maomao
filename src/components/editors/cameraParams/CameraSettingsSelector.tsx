@@ -14,7 +14,7 @@
 
 import { useRef, useState } from 'react';
 import { Camera } from 'lucide-react';
-import { useOutsideClick } from '../../core/uiHooks.ts';
+import { useOutsideClick } from '@/components/base/core/uiHooks';
 import './cameraParams.css';
 import type {
   CameraAperture,
@@ -22,7 +22,7 @@ import type {
   CameraGenerationSettings,
   CameraLens,
   CameraShutterEffect,
-} from './types.ts';
+} from './types';
 
 const CAMERA_LENS_OPTIONS: Array<{ value: CameraLens; label: string }> = [
   { value: '15mm', label: '15mm 超广角' },

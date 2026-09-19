@@ -51,7 +51,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => (
   ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: (u: string | null | undefined) => u ?? '',
 }));
-vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({
+vi.mock('../../src/components/base/ui/ImageZoomDialog.tsx', () => ({
   default: (p: { kind?: string; url?: string }) =>
     React.createElement('div', {
       'data-testid': 'zoom-dialog',

@@ -2,8 +2,8 @@ import React, { useImperativeHandle, useEffect, useRef, useCallback } from 'reac
 import { useThree, useFrame } from '@react-three/fiber';
 import { PerspectiveCamera, OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
-import { toAbsoluteFileUrl } from '../utils/assetUrl.ts';
-import { canvasToImageDataUrl } from '../core/utils.ts';
+import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
+import { canvasToImageDataUrl } from '../base/core/utils.ts';
 
 /**
  * 720 全景查看器核心

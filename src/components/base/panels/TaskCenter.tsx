@@ -28,7 +28,7 @@ import { downloadUrl, copyText } from '../utils/clipboard.ts';
 import { showToast } from '../core/toastStore.ts';
 import { makeAssetDragProps } from '../../../hooks/useAssetDragToCanvas.ts';
 import VideoThumbnail from '../ui/VideoThumbnail.tsx';
-import ImageZoomDialog from '../editors/ImageZoomDialog.tsx';
+import ImageZoomDialog from '../ui/ImageZoomDialog.tsx';
 import { useRenderAssetResolver } from '../utils/assetUrl.ts';
 import { useOutsideClick } from '../core/uiHooks.ts';
 import { formatTime } from '../core/utils.ts';

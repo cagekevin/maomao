@@ -12,7 +12,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useImageHoverActions } from '../../src/components/canvas/nodes/useImageHoverActions.tsx';
 
 // 依赖 stub（hook 内部 import 的真实模块，测试中用轻量替身）
-vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/editors/ImageEditor.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/utils/imageCompress.ts', () => ({
   compressImage: async (_url: any) => ({ dataUrl: 'data:compressed', size: 1, originalSize: 2 }),
 }));

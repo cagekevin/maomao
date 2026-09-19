@@ -20,8 +20,8 @@ import {
   MOSAIC_PALETTE,
   type MosaicMode,
 } from '@/components/base/utils/faceMosaic';
-import FaceMosaicEditor from '@/components/base/editors/FaceMosaicEditor';
-import ImageZoomDialog from '@/components/base/editors/ImageZoomDialog';
+import { FaceMosaicEditor } from '@/components/editors';
+import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
 import { generateId } from '@/components/base/core/idGen';
 import previewUrls from '@/components/base/utils/previewUrl';
 import { dataUrlToBlob } from '@/components/base/core/utils';

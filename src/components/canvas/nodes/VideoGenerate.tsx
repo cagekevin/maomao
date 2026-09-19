@@ -37,7 +37,7 @@ import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { useVideoPoster } from '@/hooks/useVideoPoster';
 import '@/components/base/ui/LazyImage';
 import VideoThumbnail from '@/components/base/ui/VideoThumbnail';
-import ImageZoomDialog from '@/components/base/editors/ImageZoomDialog';
+import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
 import { useGenerateNode } from '@/hooks/useGenerateNode';
 import { generateVideo } from '@/components/base/api/index';
 import { useNodePrefs, PREFS_DEFAULTS } from '@/components/canvas/nodePrefs';

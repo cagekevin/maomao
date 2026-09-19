@@ -12,7 +12,7 @@ import type {
   CameraGenerationSettings,
   CameraLens,
   CameraShutterEffect,
-} from './types.ts';
+} from './types';
 
 export const LENS_PROMPTS: Record<CameraLens, string> = {
   '15mm': '15mm ultra-wide lens',

@@ -10,12 +10,10 @@ import { useReactFlow } from '@xyflow/react';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import NodeShell from '@/components/base/ui/NodeShell';
-import OverlayEditor, {
-  renderOverlayCanvas,
-  type OverlayState,
-} from '@/components/base/editors/OverlayEditor';
+import { OverlayEditor, renderOverlayCanvas } from '@/components/editors';
+import type { OverlayState } from '@/components/editors';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
-import ImageZoomDialog from '@/components/base/editors/ImageZoomDialog';
+import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
 import { useContentHeightSync } from '@/components/base/core/uiHooks';
 import { showToast } from '@/components/base/core/toastStore';
 import { toAbsoluteFileUrl, persistInlineOrKeep } from '@/components/base/api/index';

@@ -20,7 +20,7 @@ import { useNodeData } from '@/hooks/useNodeData';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import LazyImage from '@/components/base/ui/LazyImage';
-import ImageZoomDialog from '@/components/base/editors/ImageZoomDialog';
+import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
 import { toastWarning, toastError } from '@/components/base/core/toastStore';
 // 编辑器内的交互归编辑器（ADR-0029）：判据走共用原语，禁自写（自写必漏）。
 import { isEditableTarget } from '@/components/base/core/uiHooks';

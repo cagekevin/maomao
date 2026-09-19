@@ -144,7 +144,7 @@ V2 §4.1 原文「**跨域** hooks 放 `src/hooks/`」被实测误用成"所有 
 | **agent**(56) | `assistantTable`(22) · `runtime`(12) · `conversation`(8) · `canvas`(3) |
 | **画布域**(38) | `canvas/`（机制 17）· `canvas/nodes/`（节点 18）· `canvas/edges/`（边 3） —— **域根 = `components/canvas/`** |
 | **图像编辑域** | `editors/*`（查看/裁剪/全景/相机） · `cameraParams`（相机参数） · 打码 |
-| **`base/`** —— **目标形态：只留横切层**（2026-09-19 裁定，见 §7） | 横切：`core`·`utils`·`ui`·`api`·`storage`·`panels`；**已迁出**：`canvas` ⇒ `components/canvas/` · `creative` ⇒ `components/creative/` · `depthVideo` ⇒ `components/video/depthVideo/`（视频域子域）；**待迁出**：`editors`·`media`·`prompt`·`store` |
+| **`base/`** —— **目标形态：只留横切层**（2026-09-19 裁定，见 §7） | 横切：`core`·`utils`·`ui`·`api`·`storage`·`panels`（+ `media`，经 §3.1.4 C-1 裁定 = **横切媒体引用协议层**，非域）；**已迁出**：`canvas` ⇒ `components/canvas/` · `creative` ⇒ `components/creative/` · `depthVideo` ⇒ `components/video/depthVideo/` · `editors` ⇒ `components/editors/`；**待迁出**：`prompt`·`store`（+ 散件 `nodeImage.ts`） |
 | **`base/store`**(15) | **直接住着 8 个域**（§3.6） |
 
 **子域真实存在的硬证据 —— 域内子域撞名 8 组**（若子域只是目录，不该有独立命名冲突）：
@@ -1238,7 +1238,7 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | S2-5 | videoEditor：`engine/lib` 拆关注点、工具层三合一、UI 两套收口 |
 | S2-6 | `src/hooks` **逐条二分**：编排机制留横切 / 真域私有迁回（**D12 已改判 · 见 §9 A1**） |
 | S2-7 | 后端：`routes/utils` 域物归位 + `ai-relay` 门面收口 |
-| **S2-8** | **其余域迁出 `base/`** ⇒ `components/<域>/`（`creative` ✅ · `depthVideo` ✅ ⇒ `components/video/depthVideo/` · `editors` · `media` · `prompt` · `store`）。**它是「base/ 只留横切层」这个目标形态的收尾**（§2.6 / §7 裁定）；S2-2 与 S2-4 落地时**顺带做**，不另开批。**手法已跑通两轮**（canvas 域 · creative 域 · depthVideo 子域）：搬移 → 手动后置工序 → 门面 → 收口 → 计划回改 |
+| **S2-8** | **其余域迁出 `base/`** ⇒ `components/<域>/`（`creative` ✅ · `depthVideo` ✅ · `editors` ✅ · `prompt` · `store`；`media` 经 §3.1.4 C-1 裁定为**横切协议层**，**不迁**）。**它是「base/ 只留横切层」这个目标形态的收尾**（§2.6 / §7 裁定）；S2-2 与 S2-4 落地时**顺带做**，不另开批。**手法已跑通三轮**：搬移 → 手动后置工序 → 门面 → 收口 → 计划回改 |
 | **S2-1c** | 画布域门面 `canvas/index.ts` + 域外消费点收口（建面判据见 §2.7：域外直连的是**实现件** ⇒ 必建） |
 
 ### Stage 3 · 契约与验收
@@ -1254,6 +1254,7 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | **S2-1c 画布域门面** | **已完成** | `canvas/index.ts`（21 符号）；收口 8 个域外消费点（13 处 import → 8 条）。**装配层例外**：`App.tsx` 直连 11 处（组合根，强行走门面需露 ~17 符号 = 宽门面） |
 | **S2-8 试点：`creative` 迁出 `base/`** | **已完成** | 域根 = `components/creative/`（8 源文件 + `data/`2 + 门面 6 符号）；收口 5 个域外消费点（12 处 import）。**共享视觉语言** `creative-library.css` 下沉 `base/panels/`（否则横切面板 `ImportMediaModal` import 域 = 违规）。**手法已跑通**，可铺开到其余 4 个域 |
 | **S2-8 第 2 个：`depthVideo` 迁出 `base/`** | **已完成** | 域根 = **`components/video/`**（新建 · 视频域部分成型）；`depthVideo/` 入驻（5 件），门面 2 符号；收口 2 个域外消费点（`canvas/nodes/{AssetNode,VideoGenerate}` —— 同能力被 2 宿主消费，正是 §2.3.1 P4 判据）。**待迁入**：§3.1.3.5 的其余视频零件（散 7 处） |
+| **S2-8 第 3 个：`editors` 迁出 `base/`** | **已完成** | 域根 = `components/editors/`（10 源文件 + `cameraParams/` 子目录），门面 13 符号；收口 6 个域外消费点（12 处 import）。**前置剥离（D18 裁定）**：`ImageZoomDialog` 有 10 个消费方横跨 canvas/agent/scriptbox/base-panels ⇒ 是**横切件**，移出域 ⇒ `base/ui/`（否则 `base/panels` 横切反向依赖域 = 违规） |
 | 第一步（分清有哪些鱼） | **已完成** | §2–§4，含 7 处更正；5 个子 Agent 取证 |
 | 安全移名/移位 SOP | **已完成** | §5 |
 | **P1 修闸盲区（硬前置）** | **已完成** | `daily/架构日志/17-跨区-闸判据对准TDZ红线与结构环登记-2026-09-19.md`；工具债 **TD-17-21 已解决** · 结构环债 **TD-22-68 待还** |
