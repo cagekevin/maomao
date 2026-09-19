@@ -19,7 +19,7 @@ import {
   Loader2,
   Move3D,
 } from 'lucide-react';
-import NodeShell from '@/components/base/ui/NodeShell';
+import NodeShell from '@/components/canvas/parts/NodeShell';
 import { IMAGE_BOX_NODE_SIZE } from '@/components/canvas/nodeDefaults';
 import HoverToolbar from '@/components/canvas/HoverToolbar';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';

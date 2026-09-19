@@ -14,7 +14,7 @@ import {
 import { useReactFlow, Handle, Position } from '@xyflow/react';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useNodeRename } from '@/hooks/useNodeRename';
-import NodeShell from '@/components/base/ui/NodeShell';
+import NodeShell from '@/components/canvas/parts/NodeShell';
 import { ASSET_NODE_SIZE } from '@/components/canvas/nodeDefaults';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';

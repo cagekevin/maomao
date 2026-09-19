@@ -25,7 +25,7 @@ const h = vi.hoisted(() => {
   };
 });
 
-vi.mock('../../src/components/base/ui/CometParticles.tsx', () => ({
+vi.mock('../../src/components/canvas/edges/CometParticles.tsx', () => ({
   default: (props: any) => h.CometParticlesMock(props),
 }));
 

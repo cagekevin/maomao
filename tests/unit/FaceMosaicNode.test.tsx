@@ -50,7 +50,7 @@ vi.mock('@xyflow/react', () => ({
   useStore: () => () => ({}),
   ReactFlowProvider: ({ children }: any) => children,
 }));
-vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
+vi.mock('../../src/components/canvas/parts/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
 vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({
   default: mocks.HoverToolbar,
 }));

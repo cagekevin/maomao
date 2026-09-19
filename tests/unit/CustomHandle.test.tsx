@@ -32,7 +32,7 @@ vi.mock('@xyflow/react', () => ({
 
 import CustomHandle, {
   type CustomHandleProps,
-} from '../../src/components/base/ui/CustomHandle.tsx';
+} from '../../src/components/canvas/parts/CustomHandle.tsx';
 
 describe('CustomHandle — 变体与定位', () => {
   afterEach(() => {

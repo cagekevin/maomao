@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Clapperboard, Copy, Download, Settings, Camera, AlertCircle, Loader2 } from 'lucide-react';
-import NodeShell from '@/components/base/ui/NodeShell';
+import NodeShell from '@/components/canvas/parts/NodeShell';
 import { useContentHeightSync } from '@/components/base/core/uiHooks';
-import GenerateButton from '@/components/base/ui/GenerateButton';
+import GenerateButton from '@/components/canvas/parts/GenerateButton';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { showToast } from '@/components/base/core/toastStore';

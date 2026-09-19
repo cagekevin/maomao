@@ -11,7 +11,7 @@ vi.mock('@xyflow/react', () => ({
   // GroupNode 经 useNodeRename → useReactFlow 取 setNodes，单测隔离 Provider 树
   useReactFlow: () => ({ setNodes: () => {} }),
 }));
-vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
+vi.mock('../../src/components/canvas/parts/NodeShell.tsx', () => ({
   default: ({ children, titleRight, label }: any) => (
     <div data-testid="shell" data-label={label}>
       {titleRight}
@@ -19,7 +19,7 @@ vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
     </div>
   ),
 }));
-vi.mock('../../src/components/base/ui/CustomHandle.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/parts/CustomHandle.tsx', () => ({ default: () => null }));
 
 import GroupNode from '../../src/components/canvas/nodes/GroupNode.tsx';
 

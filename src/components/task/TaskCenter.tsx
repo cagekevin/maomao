@@ -22,17 +22,17 @@ import {
   type TaskMediaKind,
   useTasks,
   statusDotClass,
-} from '../store/taskStore.ts';
-import { logger } from '../core/logger.ts';
-import { downloadUrl, copyText } from '../utils/clipboard.ts';
-import { showToast } from '../core/toastStore.ts';
-import { makeAssetDragProps } from '../../../hooks/useAssetDragToCanvas.ts';
-import VideoThumbnail from '../ui/VideoThumbnail.tsx';
-import ImageZoomDialog from '../ui/ImageZoomDialog.tsx';
-import { useRenderAssetResolver } from '../utils/assetUrl.ts';
-import { useOutsideClick } from '../core/uiHooks.ts';
-import { formatTime } from '../core/utils.ts';
-import { PanelSubBar, PanelMoreMenu } from './PanelBar.tsx';
+} from '../base/store/taskStore.ts';
+import { logger } from '../base/core/logger.ts';
+import { downloadUrl, copyText } from '../base/utils/clipboard.ts';
+import { showToast } from '../base/core/toastStore.ts';
+import { makeAssetDragProps } from '@/hooks/useAssetDragToCanvas';
+import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
+import ImageZoomDialog from '../base/ui/ImageZoomDialog.tsx';
+import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
+import { useOutsideClick } from '../base/core/uiHooks.ts';
+import { formatTime } from '../base/core/utils.ts';
+import { PanelSubBar, PanelMoreMenu } from '../base/panels/PanelBar.tsx';
 
 const TYPE_ICON: Record<string, typeof ImageIcon> = {
   image: ImageIcon,

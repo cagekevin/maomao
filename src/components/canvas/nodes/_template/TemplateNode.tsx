@@ -2,18 +2,18 @@ import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { Image as ImageIcon, Download } from 'lucide-react';
 // ═══ 基座组件（统一入口，禁止手写外壳/端口/背景）═══
-import NodeShell from '@/components/base/ui/NodeShell';
+import NodeShell from '@/components/canvas/parts/NodeShell';
 import HoverToolbar from '@/components/canvas/HoverToolbar';
-import ExpandablePanel from '@/components/base/ui/ExpandablePanel';
-import GenerateButton from '@/components/base/ui/GenerateButton';
+import ExpandablePanel from '@/components/canvas/parts/ExpandablePanel';
+import GenerateButton from '@/components/canvas/parts/GenerateButton';
 import ModelSelect from '@/components/base/ui/ModelSelect';
 import PromptInput from '@/components/canvas/PromptInput';
 import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/promptChips';
-import ResourceStrip from '@/components/base/panels/ResourceStrip';
-import ResizeFullscreenHandle from '@/components/base/ui/ResizeFullscreenHandle';
+import ResourceStrip from '@/components/canvas/shell/ResourceStrip';
+import ResizeFullscreenHandle from '@/components/canvas/parts/ResizeFullscreenHandle';
 import FullscreenModal from '@/components/base/panels/FullscreenModal';
 import FullscreenEditor from '@/components/canvas/FullscreenEditor';
-import GeneratingOverlay from '@/components/base/ui/GeneratingOverlay';
+import GeneratingOverlay from '@/components/canvas/parts/GeneratingOverlay';
 // ═══ 基座 hook（统一范式）═══
 import { useNodeResize } from '@/components/base/core/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';

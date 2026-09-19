@@ -8,7 +8,7 @@ import {
   Search,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { RawModel } from '../../utils/providerModels.ts';
+import type { RawModel } from '@/components/base/utils/providerModels';
 
 /**
  * 拉取模型结果弹窗（勾选式保存）。

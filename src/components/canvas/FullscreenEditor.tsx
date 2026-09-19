@@ -1,7 +1,7 @@
 import React from 'react';
 import { Minimize2 } from 'lucide-react';
 import FullscreenModal from '../base/panels/FullscreenModal';
-import ResourceStrip from '../base/panels/ResourceStrip.tsx';
+import ResourceStrip from './shell/ResourceStrip.tsx';
 import PromptInput from '@/components/canvas/PromptInput';
 import { PROMPT_PANEL_PAD_X } from '@/components/canvas/promptLayout';
 

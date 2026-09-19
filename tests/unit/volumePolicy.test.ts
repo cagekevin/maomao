@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { LastResultItem } from '../../src/components/base/utils/volumePolicy.ts';
+import type { LastResultItem } from '../../src/components/agent/runtime/volumePolicy.ts';
 import {
   truncateTo,
   sanitizeLastResults,
@@ -12,7 +12,7 @@ import {
   MSG_CONTENT_MAX,
   TOOL_CONTENT_MAX,
   SUMMARY_MAX,
-} from '../../src/components/base/utils/volumePolicy.ts';
+} from '../../src/components/agent/runtime/volumePolicy.ts';
 
 describe('volumePolicy · truncateTo', () => {
   it('短串原样返回', () => {

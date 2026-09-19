@@ -28,7 +28,7 @@ import {
   ConversationMemory,
 } from './conversationState.ts';
 // 【P1b L1 静态上限】写入口统一限容：lastResults 去重限条 + memory 限条，防止整包体积无界增长（见 volumePolicy.js）
-import { sanitizeMessages, capConversationMemory } from '../../base/utils/volumePolicy.ts';
+import { sanitizeMessages, capConversationMemory } from '../runtime/volumePolicy.ts';
 
 /**
  * 当前对话快照（对外读形状）。

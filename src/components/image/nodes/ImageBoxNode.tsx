@@ -14,7 +14,7 @@ import {
   List,
   MoreVertical,
 } from 'lucide-react';
-import NodeShell from '@/components/base/ui/NodeShell';
+import NodeShell from '@/components/canvas/parts/NodeShell';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useNodeRename } from '@/hooks/useNodeRename';

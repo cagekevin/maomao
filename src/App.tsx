@@ -26,7 +26,7 @@ import {
 } from '@xyflow/react';
 import type { Node, Edge, Connection, Viewport } from '@xyflow/react';
 import { Zap, ChevronUp, RefreshCw } from 'lucide-react';
-import CanvasToolbar from './components/base/panels/CanvasToolbar.tsx';
+import CanvasToolbar from './components/canvas/shell/CanvasToolbar.tsx';
 import ArrangeConfirm from './components/canvas/ArrangeConfirm.tsx';
 import { useArrangeCanvas } from './hooks/useArrangeCanvas.ts';
 import { computePatchNodeById, computePatchNodesById } from './hooks/useNodeData.ts';
@@ -74,7 +74,7 @@ import { menuForState, type MenuActionCtx } from './components/canvas/canvasCont
 import { useNodePosition } from './components/base/core/uiHooks.ts';
 import CustomEdge from './components/canvas/edges/CustomEdge.tsx';
 import ConnectionLine from './components/canvas/edges/ConnectionLine.tsx';
-import ContextMenu from './components/base/ui/ContextMenu.tsx';
+import ContextMenu from './components/canvas/shell/ContextMenu.tsx';
 import { useContextMenu } from './hooks/useContextMenu.ts';
 import { useCanvasHistory } from './hooks/useCanvasHistory.ts';
 import { patchNodeDataById } from './hooks/useNodeData.ts';
@@ -100,8 +100,8 @@ import LodProvider, { useLod } from './components/canvas/lod.tsx';
 import ToastContainer from './components/base/ui/ToastContainer.tsx';
 import ConfirmContainer from './components/base/ui/ConfirmContainer.tsx';
 import RenameDialog from './components/base/ui/RenameDialog.tsx';
-import SettingsFrame from './components/base/panels/SettingsFrame.tsx';
-import AccountsSettings from './components/base/panels/sections/AccountsSettings.tsx';
+import SettingsFrame from './components/settings/SettingsFrame.tsx';
+import AccountsSettings from './components/settings/sections/AccountsSettings.tsx';
 import TopNav from './components/base/panels/TopNav.tsx';
 import { showToast } from './components/base/core/toastStore.ts';
 import { askConfirm } from './components/base/core/confirmStore.ts';
@@ -112,7 +112,7 @@ import { startAutoSync, stopAutoSync } from './components/base/store/autoSync.ts
 import { useLocalToolStatus } from './hooks/useLocalToolStatus.ts';
 import { useUpstreamAutoTrigger } from './components/canvas/upstreamLink.ts';
 import LocalToolConnectModal from './components/base/panels/LocalToolConnectModal.tsx';
-import EmptyCanvasGuide from './components/base/panels/EmptyCanvasGuide.tsx';
+import EmptyCanvasGuide from './components/canvas/shell/EmptyCanvasGuide.tsx';
 import { initTasks } from './components/base/store/taskStore.ts';
 import { initTaskRecovery } from './components/base/api/index.ts';
 import {

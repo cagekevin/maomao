@@ -70,7 +70,7 @@ vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({ default: () 
 vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/ImageZoomDialog.tsx', () => ({ default: () => null }));
 
-import GeneratedView from '../../src/components/base/panels/GeneratedView.tsx';
+import GeneratedView from '../../src/components/generate/GeneratedView.tsx';
 import { publish } from '../../src/components/base/core/eventBus.ts';
 
 const completed = (id: string) => ({

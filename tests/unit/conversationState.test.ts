@@ -3,7 +3,7 @@ import * as contentStore from '../../src/components/base/core/contentStore.ts';
 import {
   SAFE_BUDGET_BYTES,
   STEER_QUEUE_MAX,
-} from '../../src/components/base/utils/volumePolicy.ts';
+} from '../../src/components/agent/runtime/volumePolicy.ts';
 const { contentClearCache } = contentStore;
 import {
   agentConversationSubscribe,

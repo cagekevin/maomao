@@ -52,7 +52,7 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock('@xyflow/react', () => mocks.xyflow);
-vi.mock('../../src/components/base/ui/NodeTitle.tsx', () => ({ default: mocks.NodeTitle }));
+vi.mock('../../src/components/canvas/parts/NodeTitle.tsx', () => ({ default: mocks.NodeTitle }));
 vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   useConnectedInputs: () => h.connected,

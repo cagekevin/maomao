@@ -10,37 +10,33 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react';
-import { useLocalToolStatus } from '../../../hooks/useLocalToolStatus.ts';
-import { rescanResources, deleteResource, renameResource } from '../api/localToolApi.ts';
+import { useLocalToolStatus } from '@/hooks/useLocalToolStatus';
+import { rescanResources, deleteResource, renameResource } from '../base/api/localToolApi.ts';
 // 分页读取的唯一实现（读一页 + hasMore/totalPages 判据）：与素材库面板/导入弹窗同源。
-import { fetchResourcePage } from '../api/pagedList.ts';
-import { showToast } from '../core/toastStore.ts';
-import {
-  useResourceCardDragProps,
-  textCache,
-  useTextAsset,
-} from '../../../hooks/useAssetDragToCanvas.ts';
+import { fetchResourcePage } from '../base/api/pagedList.ts';
+import { showToast } from '../base/core/toastStore.ts';
+import { useResourceCardDragProps, textCache, useTextAsset } from '@/hooks/useAssetDragToCanvas';
 import {
   openLocalFolder,
   openFileDir,
   relativePathFromUrl,
   createFolder as createFolderApi,
-} from '../api/filesApi.ts';
-import { PanelSubBar, PanelPills, PanelMoreMenu } from './PanelBar.tsx';
+} from '../base/api/filesApi.ts';
+import { PanelSubBar, PanelPills, PanelMoreMenu } from '../base/panels/PanelBar.tsx';
 // 【同母体第 4 处（2026-09-17 修）】此前本面板拉取**不传 projectId**，而素材库面板/剧本盒都传
 // （后者还专门修过 TD-12-5）⇒ 同一件事（按项目隔离素材）三处口径，必然漂移。现统一。
-import { useCurrentProjectId } from '../store/projectStore.ts';
-import { logger } from '../core/logger.ts';
-import { subscribe } from '../core/eventBus.ts';
-import { isAudio, isVideoResource } from '../utils/assetType.ts';
+import { useCurrentProjectId } from '../base/store/projectStore.ts';
+import { logger } from '../base/core/logger.ts';
+import { subscribe } from '../base/core/eventBus.ts';
+import { isAudio, isVideoResource } from '../base/utils/assetType.ts';
 // 类型显示名取资产类型目录（唯一真源），本面板不再自持一份中文名
 import { ASSET_TYPE_META } from '@/types';
-import VideoThumbnail from '../ui/VideoThumbnail.tsx';
-import LazyImage from '../ui/LazyImage.tsx';
-import InlineNameInput from '../ui/InlineNameInput.tsx';
-import type { ResourceItem } from '../api/localToolApi.ts';
+import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
+import LazyImage from '../base/ui/LazyImage.tsx';
+import InlineNameInput from '../base/ui/InlineNameInput.tsx';
+import type { ResourceItem } from '../base/api/localToolApi.ts';
 // 预览 overlay（文字/音频/图片 + 视频委托 ImageZoomDialog）的唯一实现，与素材库面板共用
-import { ResourcePreviewOverlay } from './ResourcePreview.tsx';
+import { ResourcePreviewOverlay } from '../resource/ResourcePreview.tsx';
 
 // 类型过滤 pill（沿用素材库 ResourceLibrary 的小圆按钮形式）
 //

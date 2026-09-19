@@ -1,5 +1,5 @@
 import React from 'react';
-import CometParticles from '@/components/base/ui/CometParticles';
+import CometParticles from '@/components/canvas/edges/CometParticles';
 
 interface CometProps {
   pathRef?: string;

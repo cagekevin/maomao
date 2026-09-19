@@ -43,7 +43,7 @@ import {
   estimateConversationsBytes,
   SAFE_BUDGET_BYTES,
   STEER_QUEUE_MAX,
-} from '../../base/utils/volumePolicy.ts';
+} from '../runtime/volumePolicy.ts';
 // 【批2 · 落盘前写前校验】validateConversationState 仅 type 依赖本文件，不形成运行时环
 import { validateConversationState } from './conversationInvariants.ts';
 

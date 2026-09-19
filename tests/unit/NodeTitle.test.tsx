@@ -13,7 +13,7 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import NodeTitle from '../../src/components/base/ui/NodeTitle.tsx';
+import NodeTitle from '../../src/components/canvas/parts/NodeTitle.tsx';
 
 function setup(
   props: {

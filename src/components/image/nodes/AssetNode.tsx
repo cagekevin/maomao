@@ -13,7 +13,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
-import NodeShell from '@/components/base/ui/NodeShell';
+import NodeShell from '@/components/canvas/parts/NodeShell';
 import HoverToolbar from '@/components/canvas/HoverToolbar';
 import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
 import VideoThumbnail from '@/components/base/ui/VideoThumbnail';

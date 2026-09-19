@@ -1,3 +1,8 @@
+/**
+ * 设置分区（由 `SettingsFrame` 静态 import 装配）。
+ *
+ * @public 跨边界消费者：src/components/settings/SettingsFrame.tsx
+ */
 import React from 'react';
 import {
   Check,
@@ -12,8 +17,8 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import { showToast } from '../../core/toastStore.ts';
-import { PROVIDER_PROTOCOL_LABELS } from '../../utils/providerUrlAdapters.ts';
+import { showToast } from '@/components/base/core/toastStore';
+import { PROVIDER_PROTOCOL_LABELS } from '@/components/base/utils/providerUrlAdapters';
 import {
   useProviders,
   load,
@@ -31,9 +36,9 @@ import {
   removeModel,
   updateProviderField,
 } from '@/components/settings/providerStore';
-import FetchModelsModal from '@/components/settings/sections/FetchModelsModal';
-import type { RawModel } from '../../utils/providerModels.ts';
-import type { FetchedModelGroup } from '@/components/settings/sections/FetchModelsModal';
+import FetchModelsModal from './FetchModelsModal';
+import type { RawModel } from '@/components/base/utils/providerModels';
+import type { FetchedModelGroup } from './FetchModelsModal';
 
 /**
  * 设置分区 · 服务商配置（新时代「切哪个用哪个」，docs/96、docs/101）。

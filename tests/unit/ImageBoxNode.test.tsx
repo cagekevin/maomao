@@ -38,8 +38,10 @@ vi.mock('@xyflow/react', () => ({
   useStore: () => () => ({}),
   ReactFlowProvider: ({ children }: any) => children,
 }));
-vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
-vi.mock('../../src/components/base/ui/CustomHandle.tsx', () => ({ default: mocks.CustomHandle }));
+vi.mock('../../src/components/canvas/parts/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
+vi.mock('../../src/components/canvas/parts/CustomHandle.tsx', () => ({
+  default: mocks.CustomHandle,
+}));
 vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   useConnectedInputs: mocks.useConnectedInputs,

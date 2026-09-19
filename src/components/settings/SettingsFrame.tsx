@@ -1,9 +1,9 @@
 import React from 'react';
 import { Settings as SettingsIcon, Bot, Sliders, HardDrive, type LucideIcon } from 'lucide-react';
-import ApiSettings from './sections/ApiSettings.tsx';
-import AgentChatSettings from './sections/AgentChatSettings.tsx';
-import OtherSettings from './sections/OtherSettings.tsx';
-import StorageMonitor from './sections/StorageMonitor.tsx';
+import ApiSettings from '@/components/settings/sections/ApiSettings';
+import AgentChatSettings from '@/components/settings/sections/AgentChatSettings';
+import OtherSettings from '@/components/settings/sections/OtherSettings';
+import StorageMonitor from '@/components/settings/sections/StorageMonitor';
 
 /**
  * 设置主框架（侧栏 + 舞台）。

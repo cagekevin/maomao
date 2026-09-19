@@ -22,11 +22,11 @@ import {
   skillNameFromFile,
   type Skill,
 } from '@/components/agent/runtime/skillStore';
-import { showToast } from '../../core/toastStore.ts';
-import { askConfirm } from '../../core/confirmStore.ts';
-import { downloadBlob } from '../../utils/clipboard.ts';
-import { createImeInput } from '../../core/utils.ts';
-import { Toggle } from '../../ui/Toggle.tsx';
+import { showToast } from '@/components/base/core/toastStore';
+import { askConfirm } from '@/components/base/core/confirmStore';
+import { downloadBlob } from '@/components/base/utils/clipboard';
+import { createImeInput } from '@/components/base/core/utils';
+import { Toggle } from '@/components/base/ui/Toggle';
 
 const inputCls =
   'w-full bg-canvas border border-edge text-body text-sm px-3 py-2.5 rounded-xl outline-none placeholder:text-muted focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 transition disabled:opacity-50';

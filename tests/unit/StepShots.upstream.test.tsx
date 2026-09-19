@@ -11,7 +11,7 @@ import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
-vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
+vi.mock('../../src/components/canvas/shell/ResourceStrip.tsx', () => ({
   default: ({
     images = [] as Array<{ sourceNodeId: string }>,
     texts = [],

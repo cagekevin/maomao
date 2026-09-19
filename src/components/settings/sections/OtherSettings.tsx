@@ -1,6 +1,6 @@
-import { useAppSettings, setSetting } from '../../store/appSettings.ts';
+import { useAppSettings, setSetting } from '@/components/base/store/appSettings';
 import { UI_SETTING_ROWS, type UISettingDef } from '@/components/settings/settingRegistry';
-import { Toggle } from '../../ui/Toggle.tsx';
+import { Toggle } from '@/components/base/ui/Toggle';
 
 /** 单项设置行：标题 + 说明 + 右侧开关 */
 interface SettingRowProps {

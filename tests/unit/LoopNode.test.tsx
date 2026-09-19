@@ -14,7 +14,7 @@ import {
 } from '../../src/components/image/nodes/LoopNode.tsx';
 
 vi.mock('@xyflow/react', () => mocks.xyflow);
-vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
+vi.mock('../../src/components/canvas/parts/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
 vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   useConnectedInputs: mocks.useConnectedInputs,

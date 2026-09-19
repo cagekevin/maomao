@@ -46,7 +46,7 @@ vi.mock('@xyflow/react', () => ({
   useStore: () => () => ({}),
 }));
 
-vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
+vi.mock('../../src/components/canvas/parts/NodeShell.tsx', () => ({
   default: ({ children }: any) => children,
 }));
 // HoverToolbar：渲染按钮数组，供点击下载/删除/发送到剪映
@@ -61,11 +61,11 @@ vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({
     </div>
   ),
 }));
-vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
+vi.mock('../../src/components/canvas/parts/ExpandablePanel.tsx', () => ({
   default: ({ children }: any) => children,
 }));
 // ResourceStrip：渲染可点的「插入素材」与「断开连线」按钮，透传回调
-vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
+vi.mock('../../src/components/canvas/shell/ResourceStrip.tsx', () => ({
   default: ({ onInsert, onDisconnect }: any) => (
     <div data-testid="material-strip">
       <button type="button" data-testid="insert" onClick={() => onInsert('素材A')}>
@@ -77,7 +77,7 @@ vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
     </div>
   ),
 }));
-vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({
+vi.mock('../../src/components/canvas/parts/GenerateButton.tsx', () => ({
   default: ({ onGenerate }: any) => (
     <button type="button" onClick={onGenerate}>
       生成
@@ -135,8 +135,10 @@ vi.mock('../../src/components/canvas/PromptInput.tsx', async (importOriginal) =>
 vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,
 }));
-vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/parts/GeneratingOverlay.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/parts/ResizeFullscreenHandle.tsx', () => ({
+  default: () => null,
+}));
 vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({
   default: ({ open, children }: any) =>
     open ? <div data-testid="fullscreen">{children}</div> : null,

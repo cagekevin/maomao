@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useProviders, useEnsureProvidersLoaded } from '../settings/providerStore.ts';
 import { buildAllModels } from '../base/utils/providerModels.ts';
 import ModelSelect from '../base/ui/ModelSelect.tsx';
-import Select from '../base/ui/Select.tsx';
+import Select from './Select.tsx';
 import ScriptBoxModal from './ScriptBoxModal.tsx';
 import ScriptBoxPlaybookManager from './scriptBoxPlaybookManager.tsx';
 import {

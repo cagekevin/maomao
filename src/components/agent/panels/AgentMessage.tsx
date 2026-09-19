@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import '@/components/base/api/index';
 import LazyImage from '@/components/base/ui/LazyImage';
-import AttachmentCover from '@/components/base/ui/attachmentCover';
+import AttachmentCover from '@/components/agent/panels/attachmentCover';
 import { toAbsoluteFileUrl } from '@/components/base/utils/assetUrl';
 import AgentConfirmCard from './AgentConfirmCard';
 import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';

@@ -9,7 +9,7 @@ import { Grid3X3, PanelsTopLeft, Layers, Loader2 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useNodeRename } from '@/hooks/useNodeRename';
-import NodeShell from '@/components/base/ui/NodeShell';
+import NodeShell from '@/components/canvas/parts/NodeShell';
 import { OverlayEditor, renderOverlayCanvas } from '../editors';
 import type { OverlayState } from '../editors';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';

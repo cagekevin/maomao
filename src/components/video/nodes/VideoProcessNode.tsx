@@ -14,7 +14,7 @@ import {
   X as XIcon,
 } from 'lucide-react';
 import { useReactFlow, type Node } from '@xyflow/react';
-import NodeShell from '@/components/base/ui/NodeShell';
+import NodeShell from '@/components/canvas/parts/NodeShell';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { patchNodeDataById } from '@/hooks/useNodeData';

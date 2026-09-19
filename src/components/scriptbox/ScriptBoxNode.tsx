@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Clapperboard, Settings, Maximize2, Loader2 } from 'lucide-react';
 import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
-import NodeShell from '@/components/base/ui/NodeShell';
-import CustomHandle from '@/components/base/ui/CustomHandle';
+import NodeShell from '@/components/canvas/parts/NodeShell';
+import CustomHandle from '@/components/canvas/parts/CustomHandle';
 import { useScriptBoxEngine } from '@/hooks/useScriptBoxEngine';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useDisconnectSource } from '@/hooks/useDisconnectSource';

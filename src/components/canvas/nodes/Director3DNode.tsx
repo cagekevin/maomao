@@ -4,7 +4,7 @@ import { toastWarning } from '@/components/base/core/toastStore';
 import { useReactFlow } from '@xyflow/react';
 import { createPortal } from 'react-dom';
 import { Orbit, Maximize2 } from 'lucide-react';
-import NodeShell from '@/components/base/ui/NodeShell';
+import NodeShell from '@/components/canvas/parts/NodeShell';
 import { IMAGE_BOX_NODE_SIZE } from '@/components/canvas/nodeDefaults';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useNodeRename } from '@/hooks/useNodeRename';

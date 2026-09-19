@@ -43,21 +43,23 @@ vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({
     </>
   ),
 }));
-vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
+vi.mock('../../src/components/canvas/parts/NodeShell.tsx', () => ({
   default: ({ children }: any) => children,
 }));
-vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
+vi.mock('../../src/components/canvas/parts/ExpandablePanel.tsx', () => ({
   default: ({ children }: any) => children,
 }));
-vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/shell/ResourceStrip.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/canvas/PromptInput.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/parts/ResizeFullscreenHandle.tsx', () => ({
+  default: () => null,
+}));
 vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/parts/GeneratingOverlay.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,
 }));
-vi.mock('../../src/components/base/ui/JianyingIcon.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/parts/JianyingIcon.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useNodeResize: () => ({ onInputResize: vi.fn() }),
   useOutsideClick: () => {},

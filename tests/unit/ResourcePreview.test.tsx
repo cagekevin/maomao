@@ -60,7 +60,7 @@ vi.mock('../../src/components/base/ui/ImageZoomDialog.tsx', () => ({
     }),
 }));
 
-import { ResourcePreviewOverlay } from '../../src/components/base/panels/ResourcePreview.tsx';
+import { ResourcePreviewOverlay } from '../../src/components/resource/ResourcePreview.tsx';
 import { isVideoResource } from '../../src/components/base/utils/assetType.ts';
 
 /** 拖到画布的 dragProps 工厂桩（真实实现由各面板的 useResourceCardDragProps 注入）。 */

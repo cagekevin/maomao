@@ -16,8 +16,8 @@ import {
   parseShotSeconds,
   type TailFrameVariant,
 } from './scriptBoxPrompts.ts';
-import ResourceStrip from '../base/panels/ResourceStrip.tsx';
-import type { ResourceStripProps } from '../base/panels/ResourceStrip.tsx';
+import ResourceStrip from '../canvas/shell/ResourceStrip.tsx';
+import type { ResourceStripProps } from '../canvas/shell/ResourceStrip.tsx';
 import { useOutsideClick } from '../base/core/uiHooks.ts';
 import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
 import ScriptBoxModal from './ScriptBoxModal.tsx';

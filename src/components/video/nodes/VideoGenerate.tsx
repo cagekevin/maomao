@@ -9,14 +9,14 @@ import {
   Settings,
   Layers,
 } from 'lucide-react';
-import NodeShell from '@/components/base/ui/NodeShell';
+import NodeShell from '@/components/canvas/parts/NodeShell';
 import HoverToolbar from '@/components/canvas/HoverToolbar';
-import ExpandablePanel from '@/components/base/ui/ExpandablePanel';
-import GenerateButton from '@/components/base/ui/GenerateButton';
+import ExpandablePanel from '@/components/canvas/parts/ExpandablePanel';
+import GenerateButton from '@/components/canvas/parts/GenerateButton';
 import ModelSelect from '@/components/base/ui/ModelSelect';
-import ResizeFullscreenHandle from '@/components/base/ui/ResizeFullscreenHandle';
+import ResizeFullscreenHandle from '@/components/canvas/parts/ResizeFullscreenHandle';
 import FullscreenEditor from '@/components/canvas/FullscreenEditor';
-import GeneratingOverlay from '@/components/base/ui/GeneratingOverlay';
+import GeneratingOverlay from '@/components/canvas/parts/GeneratingOverlay';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
 import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
 import { DepthVideoModal, spawnDepthVideoNode } from '@/components/video';
@@ -26,8 +26,8 @@ import { CreativeLibraryButton } from '@/components/creative';
 import { toDictEntry } from '@/components/creative';
 import type { CreativePreset, CreativePresetsDict } from '@/components/creative';
 
-import JianyingIcon from '@/components/base/ui/JianyingIcon';
-import ResourceStrip from '@/components/base/panels/ResourceStrip';
+import JianyingIcon from '@/components/canvas/parts/JianyingIcon';
+import ResourceStrip from '@/components/canvas/shell/ResourceStrip';
 import PromptInput from '@/components/canvas/PromptInput';
 import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/promptChips';
 import { PROMPT_PANEL_PAD_X } from '@/components/canvas/promptLayout';

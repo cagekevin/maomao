@@ -1,6 +1,6 @@
 import React from 'react';
 import { getBezierPath, Position, type ConnectionLineComponentProps } from '@xyflow/react';
-import CometParticles from '@/components/base/ui/CometParticles';
+import CometParticles from '@/components/canvas/edges/CometParticles';
 import { useLod } from '@/components/canvas/lod';
 
 /**

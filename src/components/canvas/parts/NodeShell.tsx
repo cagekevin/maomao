@@ -1,11 +1,11 @@
 import React, { useMemo, type CSSProperties, type Ref, type ReactNode } from 'react';
 import { NodeResizer, useStore } from '@xyflow/react';
-import NodeTitle from './NodeTitle.tsx';
-import CustomHandle from './CustomHandle.tsx';
-import { useSizeSync } from '../core/uiHooks.ts';
-import { NODE_AREA_FIXED_BASE_SIZE } from '../core/config.ts';
-import ErrorBoundary from './ErrorBoundary.tsx';
-import { logger } from '../core/logger.ts';
+import NodeTitle from '@/components/canvas/parts/NodeTitle';
+import CustomHandle from '@/components/canvas/parts/CustomHandle';
+import { useSizeSync } from '@/components/base/core/uiHooks';
+import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
+import ErrorBoundary from '@/components/base/ui/ErrorBoundary';
+import { logger } from '@/components/base/core/logger';
 
 type SizeMode = 'width-fixed' | 'area-fixed';
 type HandleVariant = 'large' | 'small';

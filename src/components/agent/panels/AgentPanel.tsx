@@ -114,7 +114,7 @@ import { buildRefineRowsUser } from '../assistantTable/assistantTablePrompt.ts';
 // 【TD-17】草稿初值经只读入口读会话快照（不再自持 agent_draft 存储键；写一律走 useAgentChat 的 saveDraft）
 import { getCurrentSnapshot, type SnapshotPatch } from '../conversation/conversationSnapshot.ts';
 import type { Conversation } from '../conversation/conversationTypes.ts';
-import AttachmentCover from '@/components/base/ui/attachmentCover';
+import AttachmentCover from '@/components/agent/panels/attachmentCover';
 import LazyImage from '@/components/base/ui/LazyImage';
 
 /**

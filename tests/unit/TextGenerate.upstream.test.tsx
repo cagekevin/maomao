@@ -66,20 +66,20 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', async (importOriginal) => ({
   },
 }));
 
-vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({
+vi.mock('../../src/components/canvas/parts/GenerateButton.tsx', () => ({
   default: ({ onGenerate }: { onGenerate?: () => void }) => (
     <button type="button" onClick={onGenerate}>
       生成
     </button>
   ),
 }));
-vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
+vi.mock('../../src/components/canvas/parts/NodeShell.tsx', () => ({
   default: ({ children }: { children?: ReactNode }) => children,
 }));
-vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
+vi.mock('../../src/components/canvas/parts/ExpandablePanel.tsx', () => ({
   default: ({ children }: { children?: ReactNode }) => children,
 }));
-vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
+vi.mock('../../src/components/canvas/shell/ResourceStrip.tsx', () => ({
   default: ({ children }: { children?: ReactNode }) => children,
 }));
 vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({ default: () => null }));

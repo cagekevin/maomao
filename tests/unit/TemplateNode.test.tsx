@@ -27,28 +27,28 @@ vi.mock('@xyflow/react', () => ({
   Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
   useStore: () => () => ({}),
 }));
-vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
+vi.mock('../../src/components/canvas/parts/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
 vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({
   default: mocks.HoverToolbar,
 }));
-vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
+vi.mock('../../src/components/canvas/parts/ExpandablePanel.tsx', () => ({
   default: mocks.ExpandablePanel,
 }));
-vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({
+vi.mock('../../src/components/canvas/parts/GenerateButton.tsx', () => ({
   default: mocks.GenerateButton,
 }));
 vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({ default: mocks.ModelSelect }));
 vi.mock('../../src/components/canvas/PromptInput.tsx', () => ({ default: mocks.PromptInput }));
-vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({
+vi.mock('../../src/components/canvas/shell/ResourceStrip.tsx', () => ({
   default: mocks.ResourceStrip,
 }));
-vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({
+vi.mock('../../src/components/canvas/parts/ResizeFullscreenHandle.tsx', () => ({
   default: mocks.ResizeFullscreenHandle,
 }));
 vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({
   default: mocks.FullscreenModal,
 }));
-vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({
+vi.mock('../../src/components/canvas/parts/GeneratingOverlay.tsx', () => ({
   default: mocks.GeneratingOverlay,
 }));
 vi.mock('../../src/components/base/core/uiHooks.ts', () => ({

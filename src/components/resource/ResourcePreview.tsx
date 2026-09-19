@@ -14,12 +14,12 @@
  */
 import React, { useEffect, useRef } from 'react';
 import { FileText, Music } from 'lucide-react';
-import ImageZoomDialog from '../ui/ImageZoomDialog.tsx';
-import { isAudio, isVideoResource } from '../utils/assetType.ts';
-import { toAbsoluteFileUrl } from '../api/filesApi.ts';
-import { toImgDragProps, useTextAsset } from '../../../hooks/useAssetDragToCanvas.ts';
-import type { ResourceDragSourceProps } from '../../../hooks/useResourceMoveToFolder.ts';
-import type { ResourceItem } from '../api/localToolApi.ts';
+import ImageZoomDialog from '../base/ui/ImageZoomDialog.tsx';
+import { isAudio, isVideoResource } from '../base/utils/assetType.ts';
+import { toAbsoluteFileUrl } from '../base/api/filesApi.ts';
+import { toImgDragProps, useTextAsset } from '@/hooks/useAssetDragToCanvas';
+import type { ResourceDragSourceProps } from '@/hooks/useResourceMoveToFolder';
+import type { ResourceItem } from '../base/api/localToolApi.ts';
 
 /** 拖到画布的 dragProps 工厂（各面板由 `useResourceCardDragProps` 提供）；此处只声明所需的最窄形状。 */
 type AssetDragProps = (asset: {

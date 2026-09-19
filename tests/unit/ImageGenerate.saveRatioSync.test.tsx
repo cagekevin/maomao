@@ -65,23 +65,25 @@ vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({
     </>
   ),
 }));
-vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({
+vi.mock('../../src/components/canvas/parts/ExpandablePanel.tsx', () => ({
   default: ({ children }: any) => children,
 }));
-vi.mock('../../src/components/base/panels/ResourceStrip.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/shell/ResourceStrip.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/canvas/PromptInput.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/parts/GenerateButton.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/parts/ResizeFullscreenHandle.tsx', () => ({
+  default: () => null,
+}));
 vi.mock('../../src/components/canvas/FullscreenEditor.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/parts/GeneratingOverlay.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,
 }));
-vi.mock('../../src/components/base/ui/JianyingIcon.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/parts/JianyingIcon.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/ImageZoomDialog.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/ui/CustomHandle.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/ui/NodeTitle.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/parts/CustomHandle.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/parts/NodeTitle.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/ErrorBoundary.tsx', () => ({
   default: ({ children }: any) => children,
 }));

@@ -97,7 +97,7 @@ vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({
     React.createElement('div', { 'data-testid': 'video-thumbnail', onClick: onActivate }, src),
 }));
 
-import TaskCenter from '../../src/components/base/panels/TaskCenter.tsx';
+import TaskCenter from '../../src/components/task/TaskCenter.tsx';
 
 function makeTask(overrides = {}) {
   return {

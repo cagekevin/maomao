@@ -1,12 +1,9 @@
 import React from 'react';
 import { RefreshCw, HardDrive, Database, CircleAlert, Boxes, CopyX } from 'lucide-react';
-import { formatBytes, formatBytesParts } from '../../core/utils.ts';
-import { showToast } from '../../core/toastStore.ts';
-import {
-  estimateBrowserStorage,
-  estimateStoragePressure,
-} from '@/components/base/storage/index.ts';
-import { fetchStorageHealth, deleteStorageFile } from '@/components/base/api/localToolApi.ts';
+import { formatBytes, formatBytesParts } from '@/components/base/core/utils';
+import { showToast } from '@/components/base/core/toastStore';
+import { estimateBrowserStorage, estimateStoragePressure } from '@/components/base/storage/index';
+import { fetchStorageHealth, deleteStorageFile } from '@/components/base/api/localToolApi';
 
 /**
  * 设置分区 · 存储健康（对齐外部 StorageHealthCenter 的操作模式）。

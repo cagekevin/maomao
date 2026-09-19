@@ -1,8 +1,13 @@
+/**
+ * 设置分区（由 `SettingsFrame` 静态 import 装配）。
+ *
+ * @public 跨边界消费者：src/components/settings/SettingsFrame.tsx
+ */
 import React from 'react';
 import { Bot, Check } from 'lucide-react';
 import { useProviders, load } from '@/components/settings/providerStore';
-import { logger } from '../../core/logger.ts';
-import { showToast } from '../../core/toastStore.ts';
+import { logger } from '@/components/base/core/logger';
+import { showToast } from '@/components/base/core/toastStore';
 import {
   loadAgentChatModel,
   saveAgentChatModel,
@@ -10,7 +15,7 @@ import {
   saveAgentHistoryTurns,
   type AgentStreamMode,
 } from '@/components/agent/runtime/agentModelStore';
-import SkillSettings from '@/components/settings/sections/SkillSettings';
+import SkillSettings from './SkillSettings';
 
 /**
  * 设置分区 · AI 助手（样式对齐 SkillSettings 的 zinc 黑白系）。
