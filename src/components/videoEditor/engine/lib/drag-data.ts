@@ -1,6 +1,6 @@
 import type { TimelineDragData } from '@/components/videoEditor/types/drag';
 import { tryParse } from '@/components/base/utils/asyncGuard.ts';
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 
 /**
  * 时间轴拖拽载荷的编解码（**唯一真源**）。
@@ -66,7 +66,9 @@ export function getDragData({
   // **但"坏 JSON"不能静默** —— 它意味着写入侧有 bug，必须留痕可查（否则是"静默吞掉自己的缺陷"）。
   const r = tryParse(() => JSON.parse(data) as TimelineDragData);
   if (!r.ok) {
-    logger.warn('时间轴拖拽', '内部拖拽载荷不是合法 JSON（本次拖拽已忽略）', { error: r.error });
+    videoEditorLogger.warn('时间轴拖拽', '内部拖拽载荷不是合法 JSON（本次拖拽已忽略）', {
+      error: r.error,
+    });
     return null;
   }
   return r.value;

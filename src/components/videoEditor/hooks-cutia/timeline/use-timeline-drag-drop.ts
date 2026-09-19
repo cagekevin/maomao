@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { useState, useCallback, type RefObject } from 'react';
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import { processMediaAssets } from '@/components/videoEditor/engine/lib/media/processing';
@@ -417,7 +417,7 @@ export function useTimelineDragDrop({
           });
         }
       } catch (err) {
-        logger.error('Failed to process drop:', err);
+        videoEditorLogger.error('Failed to process drop:', err);
         toast.error('Failed to process drop');
       }
     },

@@ -1,5 +1,5 @@
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 
 /** `useRenderAssetResolver()` 的返回形态（只取本模块需要的那一维，避免反向依赖 base 的 hook 类型）。 */
 export type RenderAssetResolver = (
@@ -45,7 +45,7 @@ export function mediaDisplayUrl({
   // 完全不可见（空白/无背景，零线索）。现改为：**缺失即留痕**，空串只作类型收敛的返回值，
   // 由已收口的消费者显式呈现（`LazyImage` 无地址 → 占位「没有可显示的图片地址」）。
   if (!asset.url) {
-    logger.warn('剪辑器', 'mediaDisplayUrl：素材无可用显示地址（不静默）', {
+    videoEditorLogger.warn('剪辑器', 'mediaDisplayUrl：素材无可用显示地址（不静默）', {
       assetId: asset.id,
       type: asset.type,
     });

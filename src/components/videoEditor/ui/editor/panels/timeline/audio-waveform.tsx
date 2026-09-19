@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { useEffect, useRef, useState } from 'react';
 import { releaseQuietly } from '@/components/base/utils/asyncGuard.ts';
 import WaveSurfer from 'wavesurfer.js';
@@ -119,7 +119,7 @@ function AudioWaveform({
         }
       } catch (err) {
         if (mounted) {
-          logger.error('Failed to initialize WaveSurfer:', err);
+          videoEditorLogger.error('Failed to initialize WaveSurfer:', err);
           setError(true);
           setIsLoading(false);
         }

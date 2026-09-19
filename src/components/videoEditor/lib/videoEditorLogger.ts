@@ -27,7 +27,7 @@ function safeStringify(v: unknown): string {
   }
 }
 
-export const logger = {
+export const videoEditorLogger = {
   error: (...args: unknown[]) => baseLogger.error('videoEditor', 'log', detail(args)),
   warn: (...args: unknown[]) => baseLogger.warn('videoEditor', 'log', detail(args)),
   info: (...args: unknown[]) => baseLogger.info('videoEditor', 'log', detail(args)),

@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { i18next } from '@/components/videoEditor/engine/lib/i18n';
 import { create } from 'zustand';
 import type { SoundEffect, SavedSound } from '@/components/videoEditor/types/sounds';
@@ -54,7 +54,7 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
         savedSoundsError: errorMessage,
         isLoadingSavedSounds: false,
       });
-      logger.error('Failed to load saved sounds:', error);
+      videoEditorLogger.error('Failed to load saved sounds:', error);
     }
   },
 
@@ -68,7 +68,7 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
       const errorMessage = error instanceof Error ? error.message : 'Failed to save sound';
       set({ savedSoundsError: errorMessage });
       toast.error(i18next.t('Failed to save sound'));
-      logger.error('Failed to save sound:', error);
+      videoEditorLogger.error('Failed to save sound:', error);
     }
   },
 
@@ -83,7 +83,7 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
       const errorMessage = error instanceof Error ? error.message : 'Failed to remove sound';
       set({ savedSoundsError: errorMessage });
       toast.error(i18next.t('Failed to remove sound'));
-      logger.error('Failed to remove sound:', error);
+      videoEditorLogger.error('Failed to remove sound:', error);
     }
   },
 
@@ -113,7 +113,7 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
       const errorMessage = error instanceof Error ? error.message : 'Failed to clear saved sounds';
       set({ savedSoundsError: errorMessage });
       toast.error(i18next.t('Failed to clear saved sounds'));
-      logger.error('Failed to clear saved sounds:', error);
+      videoEditorLogger.error('Failed to clear saved sounds:', error);
     }
   },
 
@@ -152,7 +152,7 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
       });
       return true;
     } catch (error) {
-      logger.error('Failed to add sound to timeline:', error);
+      videoEditorLogger.error('Failed to add sound to timeline:', error);
       toast.error(
         error instanceof Error ? error.message : i18next.t('Failed to add sound to timeline'),
         { id: `sound-${sound.id}` },

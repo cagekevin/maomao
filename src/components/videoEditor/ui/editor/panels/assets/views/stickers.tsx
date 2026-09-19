@@ -1,5 +1,5 @@
 'use client';
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -265,7 +265,7 @@ function StickersContentView({
     try {
       await addStickerToTimeline({ iconName });
     } catch (error) {
-      logger.error('Failed to add sticker:', error);
+      videoEditorLogger.error('Failed to add sticker:', error);
       toast.error('贴纸添加到时间轴失败');
     }
   };

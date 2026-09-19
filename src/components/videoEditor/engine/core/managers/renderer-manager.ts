@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import type { EditorCore } from '@/components/videoEditor/engine/core';
 import type { RootNode } from '@/components/videoEditor/engine/services/renderer/nodes/root-node';
 import type { ExportOptions, ExportResult } from '@/components/videoEditor/types/export';
@@ -150,7 +150,7 @@ export class RendererManager {
         clearInterval(cancelInterval);
       }
     } catch (error) {
-      logger.error('Export failed:', error);
+      videoEditorLogger.error('Export failed:', error);
       return {
         ok: false,
         reason: 'unknown',

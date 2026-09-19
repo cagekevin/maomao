@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import type { EditorCore } from '@/components/videoEditor/engine/core';
 import type {
   SaveOutcome,
@@ -118,7 +118,7 @@ export class ProjectManager {
       // 失败不阻断切换（用户已通过 SaveManager 的提示知道"本次改动没保存"），但要留痕。
       const saveOutcome = await this.editor.save.flush();
       if (!saveOutcome.ok) {
-        logger.warn('视频剪辑器：切工程前保存未成功，旧工程可能丢失最后一次改动', {
+        videoEditorLogger.warn('视频剪辑器：切工程前保存未成功，旧工程可能丢失最后一次改动', {
           reason: saveOutcome.reason,
         });
       }
@@ -152,7 +152,10 @@ export class ProjectManager {
       // `superseded` 是正常并发丢弃（更新的加载已接手），**不**提示。
       const mediaOutcome = await this.editor.media.loadProjectMedia({ projectId: id });
       if (!mediaOutcome.ok && mediaOutcome.reason === 'load-failed') {
-        logger.warn('视频剪辑器：素材加载失败，素材面板将显示错误态', mediaOutcome.message);
+        videoEditorLogger.warn(
+          '视频剪辑器：素材加载失败，素材面板将显示错误态',
+          mediaOutcome.message,
+        );
       }
 
       if (!project.metadata.thumbnail) {
@@ -163,7 +166,7 @@ export class ProjectManager {
         }
       }
     } catch (error) {
-      logger.error('Failed to load project:', error);
+      videoEditorLogger.error('Failed to load project:', error);
       throw error;
     } finally {
       this.isLoading = false;
@@ -204,10 +207,10 @@ export class ProjectManager {
       // ── 409（版本冲突）：服务端拒收 = 本次一个字节都没写 —— 单独一类（docs/134 T3 验收② /
       // docs/133 §3.5 D-4）。此处只**如实分类 + 留痕**，用户提示交给 SaveManager（同一读者层）。
       if (error instanceof HttpError && error.status === 409) {
-        logger.warn('视频剪辑器：工程保存被拒（版本冲突，本次未写入）', error);
+        videoEditorLogger.warn('视频剪辑器：工程保存被拒（版本冲突，本次未写入）', error);
         return { ok: false, reason: 'conflict', message: '本次改动未保存，请刷新后重试' };
       }
-      logger.error('Failed to save project:', error);
+      videoEditorLogger.error('Failed to save project:', error);
       return {
         ok: false,
         reason: 'save-failed',
@@ -235,7 +238,7 @@ export class ProjectManager {
       // 【2026-09-17 TD-22-63】原实现**只 logger** ⇒ 列表静默空白（"作品都没了" vs "确实还没有作品"
       // 无法区分）。改为持续错误态（读 `getProjectsLoadError()`）—— 与 MediaManager.loadError 同范式。
       // 为什么不 rethrow：读列表失败**不该**阻断整个剪辑器加载（当前作品可能好着呢）。
-      logger.error('Failed to load projects:', error);
+      videoEditorLogger.error('Failed to load projects:', error);
       this.projectsLoadError =
         error instanceof Error ? error.message : '作品列表加载失败，请稍后重试';
     } finally {
@@ -277,7 +280,7 @@ export class ProjectManager {
       // = 死代码，用户删项目失败**零提示**。库不替调用方决定错误怎么呈现：
       // 留痕（开发者）+ 原样上抛（由拥有 UI 的那层提示）。
       // 注：`Promise.all` 抛在 `savedProjects.filter` 之前 ⇒ 失败时列表未被改动，无脏状态可回滚。
-      logger.error('Failed to delete projects:', error);
+      videoEditorLogger.error('Failed to delete projects:', error);
       throw error;
     }
   }
@@ -325,7 +328,7 @@ export class ProjectManager {
 
       this.updateMetadata(updatedProject);
     } catch (error) {
-      logger.error('Failed to rename project:', error);
+      videoEditorLogger.error('Failed to rename project:', error);
       toast.error('Failed to rename project', {
         description: error instanceof Error ? error.message : 'Please try again',
       });
@@ -433,7 +436,7 @@ export class ProjectManager {
           if (sourceMissing.length > 0 || sourceShapeError) {
             // 复制工程时源工程有读不出的素材（或元数据表整体读坏）⇒ 副本同样会缺，
             // 必须可见（TD-16-27 + 2026-09-17「判别联合透传」）。此处只转发事实，不加工文案。
-            logger.warn('复制工程：源工程素材读取不完整，未被复制', {
+            videoEditorLogger.warn('复制工程：源工程素材读取不完整，未被复制', {
               sourceProjectId,
               missing: sourceMissing,
               shapeError: sourceShapeError,
@@ -457,7 +460,7 @@ export class ProjectManager {
 
       return duplicationPlans.map((plan) => plan.newProjectId);
     } catch (error) {
-      logger.error('Failed to duplicate projects:', error);
+      videoEditorLogger.error('Failed to duplicate projects:', error);
       toast.error('Failed to duplicate projects', {
         description: error instanceof Error ? error.message : 'Please try again',
       });
@@ -503,7 +506,7 @@ export class ProjectManager {
       await this.updateThumbnailFromTimeline();
     } catch (error) {
       // 缩略图是附属信息：失败不阻断退出（退出是用户意志），留痕后继续落盘。
-      logger.error('Failed to generate project thumbnail on exit:', error);
+      videoEditorLogger.error('Failed to generate project thumbnail on exit:', error);
     }
 
     // 【为什么**无条件** flush（TD-22-33）】原实现把 flush 放在 `if (didUpdateThumbnail)` 里 ——

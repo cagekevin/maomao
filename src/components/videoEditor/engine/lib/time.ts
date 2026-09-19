@@ -1,5 +1,5 @@
 import type { TTimeCode } from '@/components/videoEditor/types/time';
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 
 export function roundToFrame({ time, fps }: { time: number; fps: number }): number {
   return Math.round(time * fps) / fps;
@@ -116,7 +116,7 @@ export function parseTimeCode({
     }
   } catch (e) {
     // 时间串解析失败 → null（调用方按「非法输入」处理）；另留痕给开发者（2026-09-17 拆静默）。
-    logger.debug('剪辑器', '时间串解析失败（已由 null 呈现）', e);
+    videoEditorLogger.debug('剪辑器', '时间串解析失败（已由 null 呈现）', e);
     return null;
   }
 }

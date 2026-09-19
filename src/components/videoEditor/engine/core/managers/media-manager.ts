@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import type { EditorCore } from '@/components/videoEditor/engine/core';
 import type {
   AddMediaAssetOutcome,
@@ -66,7 +66,7 @@ export class MediaManager {
       // 可见：拖入素材是用户瞬时动作 → 失败给 toast（与 409 提示同reader）。
       this.assets = this.assets.filter((asset) => asset.id !== newAsset.id);
       this.notify();
-      logger.error('Failed to save media asset:', error);
+      videoEditorLogger.error('Failed to save media asset:', error);
       const message = error instanceof Error ? error.message : '本地服务可能未启动，素材未能落盘。';
       toast.error('素材保存失败', {
         description: message,
@@ -102,7 +102,7 @@ export class MediaManager {
     } catch (error) {
       // ── 失败可见性(2026-09-15 · 同母体「结果契约/失败读者」)：原本只记 logger ——
       // 内存与 UI 已移除、持久层还在 → 刷新后素材"复活"（用户看到的是**假删除**，且零提示）。
-      logger.error('Failed to delete media asset:', error);
+      videoEditorLogger.error('Failed to delete media asset:', error);
       toast.error('素材删除失败', {
         description: error instanceof Error ? error.message : '本地服务可能未启动，素材未能删除。',
         duration: 8000,
@@ -135,12 +135,16 @@ export class MediaManager {
       // storage 层（生产者）—— 这里只**转发**：留痕给开发者，并把事实原样带进返回结构，
       // 由最终呈现层决定怎么告诉用户。**不在此自行解释/编文案**。
       if (missing.length > 0 || shapeError) {
-        logger.warn('工程素材读取不完整（未计入列表）', { projectId, missing, shapeError });
+        videoEditorLogger.warn('工程素材读取不完整（未计入列表）', {
+          projectId,
+          missing,
+          shapeError,
+        });
       }
       return { ok: true, missing, shapeError };
     } catch (error) {
       if (token !== this.loadToken) return { ok: false, reason: 'superseded' };
-      logger.error('Failed to load media assets:', error);
+      videoEditorLogger.error('Failed to load media assets:', error);
       // ── 修复(2026-09-15 · TD-22-43②)：失败原来只记 logger → 用户看到**静默空面板**
       // （以为"这个工程没素材"）。持续状态给对读者 = 面板错误态（读 getLoadError），不是 toast。
       const message = error instanceof Error ? error.message : '素材加载失败';

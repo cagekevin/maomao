@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import type { SoundEffect } from '@/components/videoEditor/types/sounds';
 
 type PreviewableSound = Pick<SoundEffect, 'id' | 'previewUrl'>;
@@ -77,7 +77,7 @@ export function useSoundPreview(): SoundPreview {
       audio.play().catch((error: DOMException) => {
         // 用户切歌/停止造成的正常中断，不是错误（保持原口径）。
         if (error.name === 'AbortError') return;
-        logger.error('Failed to play sound preview:', error);
+        videoEditorLogger.error('Failed to play sound preview:', error);
         settle();
       });
 

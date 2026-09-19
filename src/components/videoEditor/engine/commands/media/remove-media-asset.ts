@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { reportDegrade } from '@/components/base/core/degrade.ts';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import { EditorCore } from '@/components/videoEditor/engine/core';
@@ -30,7 +30,7 @@ export class RemoveMediaAssetCommand extends Command {
     this.removedAsset = assets.find((media) => media.id === this.assetId) ?? null;
 
     if (!this.removedAsset) {
-      logger.error('Media asset not found:', this.assetId);
+      videoEditorLogger.error('Media asset not found:', this.assetId);
       return;
     }
 

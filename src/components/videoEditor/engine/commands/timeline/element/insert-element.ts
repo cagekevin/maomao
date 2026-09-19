@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { reportDegrade } from '@/components/base/core/degrade.ts';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import { EditorCore } from '@/components/videoEditor/engine/core';
@@ -193,22 +193,22 @@ export class InsertElementCommand extends Command {
 
   private validateElementBasics({ element }: { element: CreateTimelineElement }): boolean {
     if (requiresMediaId({ element }) && !('mediaId' in element)) {
-      logger.error('Element requires mediaId');
+      videoEditorLogger.error('Element requires mediaId');
       return false;
     }
 
     if (element.type === 'audio' && element.sourceType === 'library' && !element.sourceUrl) {
-      logger.error('Library audio element must have sourceUrl');
+      videoEditorLogger.error('Library audio element must have sourceUrl');
       return false;
     }
 
     if (element.type === 'sticker' && !element.iconName) {
-      logger.error('Sticker element must have iconName');
+      videoEditorLogger.error('Sticker element must have iconName');
       return false;
     }
 
     if (element.type === 'text' && !element.content) {
-      logger.error('Text element must have content');
+      videoEditorLogger.error('Text element must have content');
       return false;
     }
 
@@ -228,7 +228,7 @@ export class InsertElementCommand extends Command {
       const targetTrack = tracks.find((track) => track.id === placement.trackId);
 
       if (!targetTrack) {
-        logger.error('Track not found:', placement.trackId);
+        videoEditorLogger.error('Track not found:', placement.trackId);
         return null;
       }
 
@@ -238,7 +238,7 @@ export class InsertElementCommand extends Command {
       });
 
       if (!validation.isValid) {
-        logger.error(validation.errorMessage);
+        videoEditorLogger.error(validation.errorMessage);
         return null;
       }
 
@@ -269,7 +269,7 @@ export class InsertElementCommand extends Command {
         trackType,
       })
     ) {
-      logger.error(`${element.type} elements cannot be placed on ${trackType} tracks`);
+      videoEditorLogger.error(`${element.type} elements cannot be placed on ${trackType} tracks`);
       return null;
     }
 

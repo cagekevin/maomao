@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import type { EditorCore } from '@/components/videoEditor/engine/core';
 import type { SaveFailure, SaveOutcome } from '@/components/videoEditor/types/project';
 import { toast } from '@/components/videoEditor/lib/toast';
@@ -148,7 +148,7 @@ export class SaveManager {
     } catch (error) {
       // saveCurrentProject 的契约是「不抛、返回判别」；此处兜住**协议外**异常，
       // 保证本 promise 永不 reject（`queueSave` 的 `void` 依赖这一点）。
-      logger.error('Save failed with an unexpected error:', error);
+      videoEditorLogger.error('Save failed with an unexpected error:', error);
       outcome = {
         ok: false,
         reason: 'save-failed',

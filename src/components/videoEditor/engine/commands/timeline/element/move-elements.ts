@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import { EditorCore } from '@/components/videoEditor/engine/core';
 import type {
@@ -44,7 +44,7 @@ export class MoveElementCommand extends Command {
     // ⇒ 失败若发生是**内部状态漂移的 bug**，读者是开发者（logger.error）；对用户弹 toast
     //   无可行动作（"重试拖拽"解决不了状态漂移），且拖拽是高频操作 —— 弹窗即噪音。保留 logger。
     if (!sourceTrack || !element) {
-      logger.error('Source track or element not found');
+      videoEditorLogger.error('Source track or element not found');
       return;
     }
 
@@ -60,7 +60,7 @@ export class MoveElementCommand extends Command {
       targetTrack = newTrack;
     }
     if (!targetTrack) {
-      logger.error('Target track not found');
+      videoEditorLogger.error('Target track not found');
       return;
     }
 
@@ -70,7 +70,7 @@ export class MoveElementCommand extends Command {
     });
 
     if (!validation.isValid) {
-      logger.error(validation.errorMessage);
+      videoEditorLogger.error(validation.errorMessage);
       return;
     }
 

@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { create } from 'zustand';
 import {
   getCollections,
@@ -103,7 +103,9 @@ export const useStickersStore = create<StickersStore>((set, get) => ({
       if (r.ok) {
         set({ collections: r.data, collectionsError: null });
       } else {
-        logger.warn('贴纸库', '图标集合加载失败（转发生产者判词）', { message: r.message });
+        videoEditorLogger.warn('贴纸库', '图标集合加载失败（转发生产者判词）', {
+          message: r.message,
+        });
         set({ collections: {}, collectionsError: r.message });
       }
     } finally {
@@ -119,7 +121,9 @@ export const useStickersStore = create<StickersStore>((set, get) => ({
       if (r.ok) {
         set({ currentCollection: r.data, collectionError: null });
       } else {
-        logger.warn('贴纸库', '图标集合详情加载失败（转发生产者判词）', { message: r.message });
+        videoEditorLogger.warn('贴纸库', '图标集合详情加载失败（转发生产者判词）', {
+          message: r.message,
+        });
         set({ currentCollection: null, collectionError: r.message });
       }
     } finally {
@@ -146,7 +150,7 @@ export const useStickersStore = create<StickersStore>((set, get) => ({
       if (r.ok) {
         set({ searchResults: r.data, searchError: null });
       } else {
-        logger.warn('贴纸库', '图标搜索失败（转发生产者判词）', { message: r.message });
+        videoEditorLogger.warn('贴纸库', '图标搜索失败（转发生产者判词）', { message: r.message });
         set({ searchResults: null, searchError: r.message });
       }
     } finally {

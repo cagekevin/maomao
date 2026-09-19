@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { Input, ALL_FORMATS, BlobSource, CanvasSink, type WrappedCanvas } from 'mediabunny';
 
 interface VideoSinkData {
@@ -110,7 +110,7 @@ export class VideoCache {
         if (frame.timestamp > targetTime + 1.0) break;
       }
     } catch (error) {
-      logger.warn('Iterator failed, will restart:', error);
+      videoEditorLogger.warn('Iterator failed, will restart:', error);
       sinkData.iterator = null;
     }
 
@@ -151,13 +151,13 @@ export class VideoCache {
             sinkData.nextFrame = next;
           }
         } catch (e) {
-          logger.warn('Failed to pre-fetch next frame on seek:', e);
+          videoEditorLogger.warn('Failed to pre-fetch next frame on seek:', e);
         }
 
         return frame;
       }
     } catch (error) {
-      logger.warn('Failed to seek video:', error);
+      videoEditorLogger.warn('Failed to seek video:', error);
     }
 
     return null;
@@ -192,7 +192,7 @@ export class VideoCache {
       sinkData.prefetching = false;
       sinkData.prefetchPromise = null;
     } catch (error) {
-      logger.warn('Prefetch failed:', error);
+      videoEditorLogger.warn('Prefetch failed:', error);
       sinkData.prefetching = false;
       sinkData.prefetchPromise = null;
       sinkData.iterator = null;
@@ -247,7 +247,7 @@ export class VideoCache {
         prefetchPromise: null,
       });
     } catch (error) {
-      logger.error(`Failed to initialize video sink for ${mediaId}:`, error);
+      videoEditorLogger.error(`Failed to initialize video sink for ${mediaId}:`, error);
       throw error;
     }
   }

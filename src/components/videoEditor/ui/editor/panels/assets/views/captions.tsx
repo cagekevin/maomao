@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { Button } from '@/components/videoEditor/ui/ui/button';
 import { PanelBaseView as BaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import {
@@ -136,7 +136,7 @@ export function Captions() {
         });
       }
     } catch (error) {
-      logger.error('Transcription failed:', error);
+      videoEditorLogger.error('Transcription failed:', error);
       setError(error instanceof Error ? error.message : '发生意外错误');
     } finally {
       setIsProcessing(false);

@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { toast } from '@/components/videoEditor/lib/toast';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import { getMediaTypeFromFile } from '@/components/videoEditor/engine/lib/media/media-utils';
@@ -214,7 +214,7 @@ export async function processMediaAssets({
             timeInSeconds: 1,
           });
         } catch (error) {
-          logger.warn('Video processing failed', error);
+          videoEditorLogger.warn('Video processing failed', error);
         }
       } else if (fileType === 'audio') {
         // For audio, we don't set width/height/fps (they'll be undefined)
@@ -242,7 +242,7 @@ export async function processMediaAssets({
         onProgress({ progress: percent });
       }
     } catch (error) {
-      logger.error('Error processing file:', file.name, error);
+      videoEditorLogger.error('Error processing file:', file.name, error);
       toast.error(`Failed to process ${file.name}`);
       URL.revokeObjectURL(url); // Clean up on error
     }

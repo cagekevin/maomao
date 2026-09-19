@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { subscribe } from '../../../../base/core/eventBus.ts';
 import { releaseQuietly } from '../../../../base/utils/asyncGuard.ts';
 import type { EditorCore } from '@/components/videoEditor/engine/core';
@@ -205,7 +205,7 @@ export class AudioManager {
 
         this.scheduleClipNode({ clip, buffer, time });
       } catch (error) {
-        logger.warn('Failed to schedule audio clip:', clip.id, error);
+        videoEditorLogger.warn('Failed to schedule audio clip:', clip.id, error);
       }
     }
   }
@@ -307,7 +307,7 @@ export class AudioManager {
       // ① 播放循环内 toast = 每帧刷屏（同一坏片段每 tick 都会再试）；
       // ② 持续态读者已存在：波形组件的「素材不可用」错误态（audio-waveform / MissingMediaIndicator）；
       // ③ 失败原因多为坏文件/不支持编码，用户可行动作 = 重新导入（波形错误态已表达）。
-      logger.warn('Failed to decode audio:', clip.sourceKey, error);
+      videoEditorLogger.warn('Failed to decode audio:', clip.sourceKey, error);
       return null;
     }
   }

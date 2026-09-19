@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { reportDegrade } from '@/components/base/core/degrade.ts';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import { EditorCore } from '@/components/videoEditor/engine/core';
@@ -74,7 +74,7 @@ export class AddMediaAssetCommand extends Command {
         }),
       )
       .catch((error) => {
-        logger.error('Failed to delete media item on undo:', error);
+        videoEditorLogger.error('Failed to delete media item on undo:', error);
       });
   }
 

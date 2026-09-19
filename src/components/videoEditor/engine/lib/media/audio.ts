@@ -1,4 +1,4 @@
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import type {
   AudioElement,
   LibraryAudioElement,
@@ -95,7 +95,10 @@ export async function collectAudioElements({
   tracks: TimelineTrack[];
   mediaAssets: MediaAsset[];
   audioContext: AudioContext;
-}): Promise<{ items: CollectedAudioElement[]; skipped: Array<{ elementId: string; message: string }> }> {
+}): Promise<{
+  items: CollectedAudioElement[];
+  skipped: Array<{ elementId: string; message: string }>;
+}> {
   const mediaMap = new Map<string, MediaAsset>(mediaAssets.map((media) => [media.id, media]));
   const pendingElements: Array<Promise<CollectedAudioElement | null>> = [];
   /** 【2026-09-17】解析失败被跳过的元素（**生产者判词**原样收进来，由调用方决定怎么呈现）。
@@ -454,7 +457,7 @@ export async function createTimelineAudioBuffer({
   // 【2026-09-17 判据落地】被跳过的元素**必须可见**（这是**产物受损**：导出/字幕用的音频会缺这几段）。
   // 此前 `collectAudioElements` 里 `if (!buffer) return null` 静默丢弃，用户只能在成品里察觉"没声音"。
   if (skipped.length > 0) {
-    logger.warn('时间轴音频：部分元素解析失败（该段音频将缺失）', { skipped });
+    videoEditorLogger.warn('时间轴音频：部分元素解析失败（该段音频将缺失）', { skipped });
   }
 
   if (audioElements.length === 0) return null;

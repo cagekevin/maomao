@@ -1,5 +1,5 @@
 'use client';
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { copyText } from '@/components/base/utils/clipboard';
 import { mediaDisplayUrl } from '@/components/videoEditor/lib/mediaDisplayUrl';
 import { useRenderAssetResolver } from '@/components/base/utils/assetUrl.ts';
@@ -114,7 +114,7 @@ export function MediaView() {
         });
       }
     } catch (error) {
-      logger.error('Error processing files:', error);
+      videoEditorLogger.error('Error processing files:', error);
       toast.error('处理文件失败');
     } finally {
       setIsProcessing(false);
@@ -200,7 +200,7 @@ export function MediaView() {
       setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
       toast.success('片段已下载');
     } catch (error) {
-      logger.error('Failed to export clip:', error);
+      videoEditorLogger.error('Failed to export clip:', error);
       toast.error('下载片段失败');
     }
   };
@@ -545,7 +545,7 @@ function MediaItemWithContextMenu({
             const r = await copyText(item.id);
             if (r.ok) toast.success('素材 ID 已复制');
             else {
-              logger.warn('剪辑器', '复制素材 ID 失败', r.msg);
+              videoEditorLogger.warn('剪辑器', '复制素材 ID 失败', r.msg);
               toast.error(r.msg);
             }
           }}

@@ -1,5 +1,5 @@
 'use client';
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 
 import { useRef } from 'react';
 import { useTimelineStore } from '@/components/videoEditor/stores/timeline-store';
@@ -364,7 +364,7 @@ export function useEditorActions() {
 
         toast.success(i18next.t('Clip exported'), { id: toastId });
       })().catch((error) => {
-        logger.error('Failed to export selected clip:', error);
+        videoEditorLogger.error('Failed to export selected clip:', error);
         toast.error(i18next.t('Failed to export clip'), { id: toastId });
       });
     },
@@ -503,7 +503,7 @@ export function useEditorActions() {
           });
           toast.success(i18next.t('Freeze frame created'), { id: toastId });
         } catch (error) {
-          logger.error('Failed to create freeze frame:', error);
+          videoEditorLogger.error('Failed to create freeze frame:', error);
           if (commandStarted && !committed) batchCommand?.undo();
           if (!committed && assetId) {
             // TD-16-3：回滚清理失败走 `RELEASE_FAIL` 唯一实现（原语自带理由），不再手写 catch-ok 标记。
@@ -575,7 +575,7 @@ export function useEditorActions() {
             await generateAndInsertSpeech();
             successCount++;
           } catch (error) {
-            logger.error('TTS conversion failed for element:', error);
+            videoEditorLogger.error('TTS conversion failed for element:', error);
             failCount++;
           }
         }

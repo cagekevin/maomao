@@ -20,7 +20,7 @@
  * **地基只回答"有什么"，不回答"怎么用"。**
  * ════════════════════════════════════════════════════════════════
  */
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
 // 落地判据（唯一实现）住在 ref 契约层：画布入口消费同一份，**禁止在此另写一份判据**。
 import { mediaRefFactsOf } from '@/components/base/media/mediaRefTypes.ts';
@@ -169,6 +169,6 @@ export async function linkMediaRefsToProject({
   // 部分成功：已登记的照常在工程里可见，失败的如实上报（不静默吞）。
   // 【只留痕给开发者】用户可见文案由**宿主**（它才知道该说什么、且是弹窗的消费方）决定 ——
   // 生产者不替消费者显示，避免同一失败在两处各说一句。
-  logger.warn('视频剪辑器', '部分引用登记失败', { failures });
+  videoEditorLogger.warn('视频剪辑器', '部分引用登记失败', { failures });
   return { ok: false, linked, failures };
 }

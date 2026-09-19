@@ -1,5 +1,5 @@
 'use client';
-import { logger } from '@/components/videoEditor/lib/logger';
+import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 
 import { useState } from 'react';
 
@@ -62,7 +62,7 @@ export function TextSpeechPanel({ elements: elementRefs }: { elements: TextEleme
 
         successCount++;
       } catch (error) {
-        logger.error('TTS generation failed:', error);
+        videoEditorLogger.error('TTS generation failed:', error);
         failCount++;
       }
     }
