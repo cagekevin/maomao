@@ -1,6 +1,6 @@
 import React from 'react';
 import { Bot, Check } from 'lucide-react';
-import { useProviders, load } from '../../store/providerStore.ts';
+import { useProviders, load } from '@/components/settings/providerStore';
 import { logger } from '../../core/logger.ts';
 import { showToast } from '../../core/toastStore.ts';
 import {
@@ -9,7 +9,7 @@ import {
   loadAgentHistoryTurns,
   saveAgentHistoryTurns,
   type AgentStreamMode,
-} from '../../store/agentModelStore.ts';
+} from '@/components/agent/runtime/agentModelStore';
 import SkillSettings from './SkillSettings.tsx';
 
 /**

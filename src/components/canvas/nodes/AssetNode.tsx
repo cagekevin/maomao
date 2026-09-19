@@ -33,7 +33,7 @@ import { useImageFallbackSrc } from '@/components/base/utils/useImageFallbackSrc
 import { useImageHoverActions } from './useImageHoverActions.tsx';
 import { downloadUrl } from '@/components/base/utils/clipboard';
 import { showToast, toastError } from '@/components/base/core/toastStore';
-import { sendToResourceLibrary, getResources } from '@/components/base/store/resourceStore';
+import { sendToResourceLibrary, getResources } from '@/components/resource/resourceStore';
 import { openResourceLibrary } from '@/components/base/store/taskStore';
 import { CameraStudioPanel } from '@/components/editors';
 import type { CameraStudioResult } from '@/components/editors';

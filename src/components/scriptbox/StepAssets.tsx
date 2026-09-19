@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { ZgPrompt, scriptBoxRemoveResource, renameAssetRefs } from './scriptBoxPrompts.ts';
 import { resolveAssetTemplates } from './scriptBoxPromptResolver.ts';
-import { resourceFolderOf } from '../base/store/resourceStore.ts';
+import { resourceFolderOf } from '../resource/resourceStore.ts';
 import { useOutsideClick } from '../base/core/uiHooks.ts';
 import { useRenderAssetResolver, toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import ImageZoomDialog from '../base/ui/ImageZoomDialog.tsx';

@@ -47,8 +47,8 @@ import { stableStringify, contentFingerprint, formatTime } from '../core/utils.t
 // [TD-13] 下载云端后重水合 store 内存态（rehydrateStoresAfterCloudPull，原独立模块 cloudRehydrate.ts 已于 2026-09-11 并入本文件）。
 // 循环依赖安全：accountsStore/appSettings/providerStore 均不 import 本文件（仅 App/autoSync import 本文件），故此处 import 它们无环。
 import { reloadAppSettings } from './appSettings.ts';
-import { reloadAccounts } from './accountsStore.ts';
-import { reloadProviders } from './providerStore.ts';
+import { reloadAccounts } from '@/components/settings/accountsStore';
+import { reloadProviders } from '@/components/settings/providerStore';
 
 /* ======================================================================
  * 【标准同步引擎】原样保留，勿改动内部通讯逻辑。

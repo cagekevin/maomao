@@ -106,7 +106,7 @@ vi.mock('../../src/components/scriptbox/scriptBoxEngine.ts', async (importOrigin
   createScriptBoxEngine: () => h.engine,
 }));
 // 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
-vi.mock('../../src/components/base/store/providerStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/settings/providerStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   useProviders: () => ({ providers: [] }),
   useProvidersList: () => [],

@@ -15,7 +15,7 @@ import {
   type SettingKey,
   type SettingState,
   type SettingValue,
-} from './settingRegistry.ts';
+} from '@/components/settings/settingRegistry';
 
 const KEY: string = 'app_settings';
 

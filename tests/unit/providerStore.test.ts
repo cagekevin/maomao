@@ -57,7 +57,7 @@ describe('providerStore §4 供应商数据层（新时代配置型）', () => {
     h.mockSaveProviders.mockReset();
     h.mockKvSet.mockReset();
     h.mockKvSet.mockReturnValue(Promise.resolve());
-    mod = await import('../../src/components/base/store/providerStore.ts');
+    mod = await import('../../src/components/settings/providerStore.ts');
   });
 
   describe('reloadProviders（云同步重水合的可见性契约 · TD-24-4 §二）', () => {

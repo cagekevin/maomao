@@ -179,7 +179,7 @@ vi.mock('../../src/components/agent/index.ts', () => ({
   getCreditSwitch: () => true,
 }));
 // 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
-vi.mock('../../src/components/base/store/providerStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/settings/providerStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   useProviders: () => ({ providers: h.providers }),
   load: vi.fn(async () => {}),
@@ -187,14 +187,14 @@ vi.mock('../../src/components/base/store/providerStore.ts', async (importOrigina
   // `useEnsureProvidersLoaded`（TD-24-4 §二），mock 缺此导出 = 整套件崩。
   useEnsureProvidersLoaded: () => {},
 }));
-vi.mock('../../src/components/base/store/agentModelStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/agent/runtime/agentModelStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   loadAgentChatModel: () => h.agentModelCfg,
   AGENT_CHAT_MODEL_KEY: h.AGENT_CHAT_MODEL_KEY,
 }));
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: () => [] }));
 vi.mock('../../src/components/base/core/uiHooks.ts', () => ({ useOutsideClick: () => {} }));
-vi.mock('../../src/components/base/store/skillStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/agent/runtime/skillStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   getAllSkills: () => h.skills,
   markSkillUsed: h.markSkillUsed,

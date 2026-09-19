@@ -6,9 +6,10 @@ vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => (
   generateImage: vi.fn(),
 }));
 vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), showToast: vi.fn()
+  ...((await importOriginal()) as Record<string, unknown>),
+  showToast: vi.fn(),
 }));
-vi.mock('../../src/components/base/store/resourceStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/resource/resourceStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   localizeAndStoreToResourceLibrary: vi.fn(),
   resourceFolderOf: vi.fn(() => 'migrated/人物'),
@@ -37,7 +38,7 @@ vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) =
 import { chatCompletions, generateImage } from '@/components/base/api/generate.ts';
 import { showToast } from '../../src/components/base/core/toastStore.ts';
 import { logger } from '../../src/components/base/core/logger.ts';
-import { localizeAndStoreToResourceLibrary } from '../../src/components/base/store/resourceStore.ts';
+import { localizeAndStoreToResourceLibrary } from '../../src/components/resource/resourceStore.ts';
 import { reportGenerate } from '../../src/components/base/store/taskStore.ts';
 import { createScriptBoxEngine } from '@/components/scriptbox/scriptBoxEngine.ts';
 

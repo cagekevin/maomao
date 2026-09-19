@@ -36,7 +36,7 @@ import {
   emitResourceSent,
   mergeResourcesFromBackend,
   libraryFoldersOf,
-} from '../store/resourceStore.ts';
+} from '@/components/resource/resourceStore';
 // 目录浏览规则 + 素材库根：**与导入弹窗共用同一份**（唯一实现，见 libraryBrowse.ts）。
 import {
   LIBRARY_ROOT,

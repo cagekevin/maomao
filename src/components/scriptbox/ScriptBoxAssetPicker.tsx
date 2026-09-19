@@ -4,7 +4,7 @@ import { rescanResources } from '../base/api/index.ts';
 import { fetchAllResourcePages } from '../base/api/pagedList.ts';
 import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import type { ResourceItem } from '../base/api/localToolApi.ts';
-import { mergeResourcesFromBackend } from '../base/store/resourceStore.ts';
+import { mergeResourcesFromBackend } from '../resource/resourceStore.ts';
 import { useCurrentProjectId } from '../base/store/projectStore.ts';
 import { useLocalToolStatus } from '../../hooks/useLocalToolStatus.ts';
 import { logger } from '../base/core/logger.ts';

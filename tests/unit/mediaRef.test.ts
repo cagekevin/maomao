@@ -192,7 +192,7 @@ describe('providers：映射（复用既有真源）', () => {
     // 先 resetModules（loadBridge 内含），再种子 resourceStore，最后 import canvasSource ——
     // 三者必须落在**同一个模块注册表**里，否则解析器读到的是一片空的 resource 列表。
     const bridge = await loadBridge();
-    const rs = await import('../../src/components/base/store/resourceStore.ts');
+    const rs = await import('../../src/components/resource/resourceStore.ts');
     rs.resetResourceStoreForTest();
     rs.addResources([
       { url: '/files/sha1abc.png', contentId: 'sha1:abc', type: 'image', name: 'x.png' },

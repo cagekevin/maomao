@@ -70,7 +70,7 @@ const useProvidersList = vi.fn(() => [{ id: 'p1', isPrimary: true }]);
 // 素材库落盘通道：本测试只验「recover 时补归类被触发/未触发」，隔离真实落盘与网络。
 // 不 mock 会拉起 resourceStore→projectStore 的真实顶层链（测试环境未构造）。
 const localizeMock = vi.fn(() => Promise.resolve('/files/migrated/人物/a1.png'));
-vi.mock('../../src/components/base/store/resourceStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/resource/resourceStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   localizeAndStoreToResourceLibrary: (...a: Parameters<typeof localizeMock>) => localizeMock(...a),
   resourceFolderOf: (category: string) =>
@@ -78,7 +78,7 @@ vi.mock('../../src/components/base/store/resourceStore.ts', async (importOrigina
     'migrated/其他',
 }));
 // 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
-vi.mock('../../src/components/base/store/providerStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/settings/providerStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   useProvidersList: (...a: Parameters<typeof useProvidersList>) => useProvidersList(...a),
   load: (...a: Parameters<typeof loadProviders>) => loadProviders(...a),

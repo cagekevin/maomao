@@ -19,7 +19,7 @@ import {
 import {
   mergeResourcesFromBackend,
   resetResourceStoreForTest,
-} from '../../src/components/base/store/resourceStore.ts';
+} from '../../src/components/resource/resourceStore.ts';
 
 // 分镜端口契约（contracts.SHOT_HANDLE_PREFIX）：写侧 shotHandleId / 读侧 parseShotHandle 必须成对往返
 describe('分镜端口 handle 契约', () => {

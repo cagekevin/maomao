@@ -19,29 +19,29 @@
  *   ② 归位：把 resource 行认到目标目录（context-only，复用 filesApi.moveFile）
  *   ③ 广播 `resource:sent` → 面板 rescan 拉取（此刻文件/行/目录三件齐备）
  */
-import { contentGet, contentSet, createDebouncedPersist } from '../core/contentStore.ts';
-import { KEY_YIMAO_ASSET_LIBRARY } from '../core/contracts.ts';
-import { isStorageReady, onStorageReady } from '../storage/index.ts';
-import { generateId } from '../core/idGen.ts';
-import '../core/config.ts';
-import { rescanResources } from '../api/localToolApi.ts';
-import type { ResourceItem } from '../api/localToolApi.ts';
+import { contentGet, contentSet, createDebouncedPersist } from '../base/core/contentStore.ts';
+import { KEY_YIMAO_ASSET_LIBRARY } from '../base/core/contracts.ts';
+import { isStorageReady, onStorageReady } from '../base/storage/index.ts';
+import { generateId } from '../base/core/idGen.ts';
+import '../base/core/config.ts';
+import { rescanResources } from '../base/api/localToolApi.ts';
+import type { ResourceItem } from '../base/api/localToolApi.ts';
 // 分页读取的唯一实现（本 store 自刷镜像用；不抄上限数字）
-import { fetchAllResourcePages } from '../api/pagedList.ts';
+import { fetchAllResourcePages } from '../base/api/pagedList.ts';
 import {
   persistUrlToUploads,
   moveFile,
   resolveMovePaths,
   relativePathFromUrl,
-} from '../api/filesApi.ts';
-import type { PersistOutcome } from '../api/filesApi.ts';
-import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
-import { fileNameFromUrl } from '../core/utils.ts';
-import { detectFileType } from '../utils/assetType.ts';
-import { logger } from '../core/logger.ts';
-import { confirmPersist } from '../core/degrade.ts';
-import { publish, subscribe } from '../core/eventBus.ts';
-import { getCurrentProject } from './projectStore.ts';
+} from '../base/api/filesApi.ts';
+import type { PersistOutcome } from '../base/api/filesApi.ts';
+import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
+import { fileNameFromUrl } from '../base/core/utils.ts';
+import { detectFileType } from '../base/utils/assetType.ts';
+import { logger } from '../base/core/logger.ts';
+import { confirmPersist } from '../base/core/degrade.ts';
+import { publish, subscribe } from '../base/core/eventBus.ts';
+import { getCurrentProject } from '../base/store/projectStore.ts';
 import type { AssetType } from '@/types';
 
 /** 落盘结果契约由**拥有真相的那一层**（文件域 filesApi）定义，本 store 只转出（消费方零改动）。 */

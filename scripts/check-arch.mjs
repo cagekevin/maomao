@@ -1653,7 +1653,7 @@ const MEDIA_SSOT = new Set([
   'src/components/base/core/utils.ts', // fileNameFromUrl / relativePathFromFileUrl（URL 提取真源）
   'src/components/base/api/filesApi.ts', // relativePathFromUrl（薄委托，保留同名导出）
   'src/components/base/utils/assetUrl.ts', // toRelativeFileUrl 等 URL 归一化出口
-  'src/components/base/store/skillStore.ts', // isSkillImportFile / skillNameFromFile（Skill 白名单真源 TD-16-8）
+  'src/components/agent/runtime/skillStore.ts', // isSkillImportFile / skillNameFromFile（Skill 白名单真源 TD-16-8；2026-09-19 随 A1 从 base/store/ 迁入 agent/runtime/）
 ]);
 // ① 媒体扩展名「列举」正则：`\.(png|jpe?g|gif|…)` —— ≥2 个分支才算列举（单个 `\.(mp4)$` 不算表）。
 //    ⚠️ 只拦**与 EXT_KIND 真值源重叠**的列举（媒体/文本类）；域专用扩展名（如 3D 模型的 glb/gltf、

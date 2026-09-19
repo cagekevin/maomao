@@ -8,15 +8,15 @@
  * 【存储】内置 skill（代码常量）+ 用户自定义（localStorage，key=agent_skills）。
  *  - 内置 skill 始终存在；用户自定义可增删。
  */
-import { contentGet, contentSet, contentReadThrough } from '../core/contentStore.ts';
-import { confirmPersist } from '../core/degrade.ts';
-import { logger } from '../core/logger.ts';
+import { contentGet, contentSet, contentReadThrough } from '@/components/base/core/contentStore';
+import { confirmPersist } from '@/components/base/core/degrade';
+import { logger } from '@/components/base/core/logger';
 // 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
 import {
   KEY_AGENT_SKILLS,
   KEY_AGENT_SKILL_USAGE,
   KEY_AGENT_SKILL_ENABLED,
-} from '../core/contracts.ts';
+} from '@/components/base/core/contracts';
 
 /** Skill 结构（对齐大雄 builtin_skills：name/description 供 UI，content 无损注入 LLM） */
 export interface Skill {

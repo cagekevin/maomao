@@ -11,13 +11,13 @@ import { subscribe } from '../components/base/core/eventBus.ts';
 import {
   localizeAndStoreToResourceLibrary,
   resourceFolderOf,
-} from '../components/base/store/resourceStore.ts';
+} from '../components/resource/resourceStore.ts';
 import { injectNodePrefs, commitNewNodes } from '../components/canvas';
 
 import {
   useProvidersList,
   useEnsureProvidersLoaded,
-} from '../components/base/store/providerStore.ts';
+} from '../components/settings/providerStore.ts';
 import { logger } from '../components/base/core/logger.ts';
 
 // 写回通道契约收口在 scriptBoxSchema（引擎与 hook 共用同一份，避免两处漂移）

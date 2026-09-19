@@ -21,7 +21,7 @@ import {
   isSkillImportFile,
   skillNameFromFile,
   type Skill,
-} from '../../store/skillStore.ts';
+} from '@/components/agent/runtime/skillStore';
 import { showToast } from '../../core/toastStore.ts';
 import { askConfirm } from '../../core/confirmStore.ts';
 import { downloadBlob } from '../../utils/clipboard.ts';

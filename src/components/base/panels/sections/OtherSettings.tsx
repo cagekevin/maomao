@@ -1,5 +1,5 @@
 import { useAppSettings, setSetting } from '../../store/appSettings.ts';
-import { UI_SETTING_ROWS, type UISettingDef } from '../../store/settingRegistry.ts';
+import { UI_SETTING_ROWS, type UISettingDef } from '@/components/settings/settingRegistry';
 import { Toggle } from '../../ui/Toggle.tsx';
 
 /** 单项设置行：标题 + 说明 + 右侧开关 */

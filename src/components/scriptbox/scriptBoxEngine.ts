@@ -28,10 +28,7 @@ import {
 import { chatCompletions } from '../base/api/index.ts';
 import { generateImage } from '../base/api/index.ts';
 import { resolveProviderModel, buildAllModels } from '../base/utils/providerModels.ts';
-import {
-  localizeAndStoreToResourceLibrary,
-  resourceFolderOf,
-} from '../base/store/resourceStore.ts';
+import { localizeAndStoreToResourceLibrary, resourceFolderOf } from '../resource/resourceStore.ts';
 import { CODE_GENERATED_USER_SUB_DIRS } from '../base/utils/uploadDirs.ts';
 import { uploadFileToLocal } from '../base/api/index.ts';
 import { runGenerationOrchestration } from '../base/store/generationOrchestration.ts';

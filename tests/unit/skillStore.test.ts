@@ -10,7 +10,7 @@ import {
   markSkillUsed,
   getSkillUsage,
   repairMojibakeText,
-} from '../../src/components/base/store/skillStore.ts';
+} from '../../src/components/agent/runtime/skillStore.ts';
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 import { sGet } from '@/components/base/storage/storageAdapter.ts';
 

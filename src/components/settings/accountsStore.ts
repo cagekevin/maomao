@@ -10,14 +10,14 @@
  * 数据变更一律新引用，绝不原地修改（useSyncExternalStore 依赖引用变化触发渲染）。
  */
 import { useSyncExternalStore } from 'react';
-import { contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
-import { askConfirm } from '../core/confirmStore.ts';
-import { generateId } from '../core/idGen.ts';
-import { attemptQuietly, attemptQuietlyAsync } from '../utils/asyncGuard.ts';
-import { KEY_YIMAO_ACCOUNTS } from '../core/contracts.ts';
-import { reportDegrade, tryParseOr } from '../core/degrade.ts';
-import { logger } from '../core/logger.ts';
-import { showToast } from '../core/toastStore.ts';
+import { contentGetAsync, contentSetAsync } from '../base/core/contentStore.ts';
+import { askConfirm } from '../base/core/confirmStore.ts';
+import { generateId } from '../base/core/idGen.ts';
+import { attemptQuietly, attemptQuietlyAsync } from '../base/utils/asyncGuard.ts';
+import { KEY_YIMAO_ACCOUNTS } from '../base/core/contracts.ts';
+import { reportDegrade, tryParseOr } from '../base/core/degrade.ts';
+import { logger } from '../base/core/logger.ts';
+import { showToast } from '../base/core/toastStore.ts';
 
 // TD-13-4：键名唯一真源 = contracts.ts 的 KEY_YIMAO_ACCOUNTS（不再本地复刻字面量）。
 const STORAGE_KEY = KEY_YIMAO_ACCOUNTS;

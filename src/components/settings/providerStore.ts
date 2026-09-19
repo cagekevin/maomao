@@ -13,14 +13,14 @@
  *  - save() 时对整组透传；key 通道（api_key/clear_key）仅在有编辑态时映射（配置型下无编辑入口）
  */
 import { useEffect, useSyncExternalStore } from 'react';
-import type { RawModel } from '../utils/providerModels.ts';
-import { useStoreSelector } from '../../../hooks/useStoreSelector.ts';
-import { providerApi } from '../api/localToolApi.ts';
-import { contentSetAsync } from '../core/contentStore.ts';
-import { reportDegrade } from '../core/degrade.ts';
-import { logger } from '../core/logger.ts';
+import type { RawModel } from '../base/utils/providerModels.ts';
+import { useStoreSelector } from '@/hooks/useStoreSelector';
+import { providerApi } from '../base/api/localToolApi.ts';
+import { contentSetAsync } from '../base/core/contentStore.ts';
+import { reportDegrade } from '../base/core/degrade.ts';
+import { logger } from '../base/core/logger.ts';
 // 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
-import { KEY_ACTIVE_API_ENDPOINT } from '../core/contracts.ts';
+import { KEY_ACTIVE_API_ENDPOINT } from '../base/core/contracts.ts';
 
 // useSyncExternalStore 要求：数据变化时 getSnapshot 必须返回「新引用」，
 // 否则 React 用 Object.is 判定无变化 → 不触发渲染（表现：按钮没反应、页面空白/卡）。

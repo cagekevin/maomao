@@ -35,7 +35,7 @@ import { toAbsoluteFileUrl, fileNameFromUrl } from '../../core/utils.ts';
 // 目录浏览规则（根/子目录 → 查询参数）：**唯一实现**，本 provider 只调它，不自带规则。
 import { LIBRARY_ROOT, libraryBrowseArgs } from '../libraryBrowse.ts';
 // 分类真源：素材库目录清单 + 「静态基底 ∪ 磁盘实有子目录」的派生判据（两处消费方共用同一份，禁止各抄一份）。
-import { libraryFoldersOf } from '../../store/resourceStore.ts';
+import { libraryFoldersOf } from '@/components/resource/resourceStore';
 import { makeMediaRef } from '../mediaRefTypes.ts';
 import type { MediaRefEntry, MediaRefQuery, MediaRefProvider } from '../mediaRefTypes.ts';
 

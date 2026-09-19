@@ -17,7 +17,7 @@ import {
   refreshFromBackend,
   sendToResourceLibrary,
   onResourceSent,
-} from '../../src/components/base/store/resourceStore.ts';
+} from '../../src/components/resource/resourceStore.ts';
 import { persistUrlToUploads, moveFile } from '../../src/components/base/api/filesApi.ts';
 import { rescanResources } from '../../src/components/base/api/localToolApi.ts';
 import type { ResourceItem } from '../../src/components/base/api/localToolApi.ts';

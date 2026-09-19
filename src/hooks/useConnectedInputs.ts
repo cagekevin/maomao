@@ -19,7 +19,7 @@ import {
   resolveAssetDisplayUrl,
   buildContentUrlResolver,
 } from '../components/base/utils/assetUrl.ts';
-import { getResources } from '../components/base/store/resourceStore.ts';
+import { getResources } from '../components/resource/resourceStore.ts';
 import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.ts';
 
 /**

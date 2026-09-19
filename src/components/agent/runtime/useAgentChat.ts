@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useCanvasAgentTools, setCurrentReferenceImages } from '../canvas/useCanvasAgentTools.ts';
-import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/store/agentModelStore.ts';
+import { loadAgentChatModel, loadAgentHistoryTurns } from './agentModelStore.ts';
 import { logger } from '../../base/core/logger.ts';
 import { InputStateMachine } from './inputStateMachine.ts';
 import { generateId } from '../../base/core/idGen.ts';

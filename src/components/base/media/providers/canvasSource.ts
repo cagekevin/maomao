@@ -25,7 +25,7 @@ import { resolveAssetDisplayUrl, buildContentUrlResolver } from '../../utils/ass
 import { classifyAssetUrlKind } from '../../utils/assetType.ts';
 import { toAbsoluteFileUrl } from '../../core/utils.ts';
 import { logger } from '../../core/logger.ts';
-import { getResources } from '../../store/resourceStore.ts';
+import { getResources } from '@/components/resource/resourceStore';
 import { getCanvasNodesSnapshot } from '../canvasNodesBridge.ts';
 import { makeMediaRef } from '../mediaRefTypes.ts';
 import type { MediaRef, MediaRefQuery, MediaRefProvider, MediaRefType } from '../mediaRefTypes.ts';

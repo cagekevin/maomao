@@ -28,7 +28,7 @@ import type { CreativePreset, CreativePresetsDict } from '@/components/creative'
 import { downloadUrl, resolveDownloadFilename } from '@/components/base/utils/clipboard';
 import JianyingIcon from '@/components/base/ui/JianyingIcon';
 import { showToast, toastWarning } from '@/components/base/core/toastStore';
-import { sendToResourceLibrary } from '@/components/base/store/resourceStore';
+import { sendToResourceLibrary } from '@/components/resource/resourceStore';
 import { openResourceLibrary } from '@/components/base/store/taskStore';
 import { useNodeResize, useOutsideClick } from '@/components/base/core/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';

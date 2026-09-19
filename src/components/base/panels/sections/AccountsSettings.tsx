@@ -1,6 +1,6 @@
 import React from 'react';
 import { showToast } from '../../core/toastStore.ts';
-import type { AccountEnv } from '../../store/accountsStore.ts';
+import type { AccountEnv } from '@/components/settings/accountsStore';
 import {
   useAccounts,
   isExtensionEnv,
@@ -13,7 +13,7 @@ import {
   clearCookies,
   requestDelete,
   moveEnv,
-} from '../../store/accountsStore.ts';
+} from '@/components/settings/accountsStore';
 
 /**
  * 多开账号管理（整页视图）。

@@ -36,7 +36,7 @@ vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) =
     toastStore: { showToast },
   };
 });
-vi.mock('../../src/components/base/store/resourceStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/resource/resourceStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   localizeAndStoreToResourceLibrary: vi.fn(),
   resourceFolderOf: vi.fn(() => 'migrated/人物'),

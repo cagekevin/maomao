@@ -35,7 +35,7 @@ import {
   getCreditSwitch,
   setCreditSwitch,
 } from '../index.ts';
-import { useProviders, useEnsureProvidersLoaded } from '@/components/base/store/providerStore';
+import { useProviders, useEnsureProvidersLoaded } from '@/components/settings/providerStore';
 import AgentMessage, { type AgentMessageData } from './AgentMessage';
 import AgentConfirmCard from './AgentConfirmCard';
 import ModelSelect from '@/components/base/ui/ModelSelect';
@@ -57,7 +57,10 @@ import {
 } from 'lucide-react';
 import { buildAllModels } from '@/components/base/utils/providerModels';
 import { useOutsideClick } from '@/components/base/core/uiHooks';
-import { loadAgentChatModel, AGENT_CHAT_MODEL_KEY } from '@/components/base/store/agentModelStore';
+import {
+  loadAgentChatModel,
+  AGENT_CHAT_MODEL_KEY,
+} from '@/components/agent/runtime/agentModelStore';
 import {
   getAllSkills,
   markSkillUsed,
@@ -68,7 +71,7 @@ import {
   SKILLS_KEY,
   ENABLED_KEY,
   type Skill,
-} from '@/components/base/store/skillStore';
+} from '@/components/agent/runtime/skillStore';
 // 面板宽度键真源（TD-13-7：本面板不再自持第二份键字面量）
 import { KEY_AGENT_PANEL_WIDTH } from '@/components/base/core/contracts';
 import { contentGet, contentSet, contentSubscribe } from '@/components/base/core/contentStore';

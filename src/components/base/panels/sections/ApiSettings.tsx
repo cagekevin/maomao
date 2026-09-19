@@ -30,7 +30,7 @@ import {
   addModel,
   removeModel,
   updateProviderField,
-} from '../../store/providerStore.ts';
+} from '@/components/settings/providerStore';
 import FetchModelsModal from './FetchModelsModal.tsx';
 import type { RawModel } from '../../utils/providerModels.ts';
 import type { FetchedModelGroup } from './FetchModelsModal.tsx';

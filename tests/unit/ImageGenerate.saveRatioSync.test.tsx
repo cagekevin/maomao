@@ -90,7 +90,7 @@ vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) =
   showToast: vi.fn(),
   toastError: vi.fn(),
 }));
-vi.mock('../../src/components/base/store/resourceStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/resource/resourceStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   sendToResourceLibrary: vi.fn(),
 }));
@@ -132,7 +132,7 @@ vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })),
 }));
 // 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
-vi.mock('../../src/components/base/store/providerStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/settings/providerStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   useProviders: () => ({ providers: [] }),
   load: vi.fn(() => Promise.resolve()),
