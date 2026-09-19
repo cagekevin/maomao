@@ -289,7 +289,8 @@ onStorageReady(() => {
   void refreshFromBackend();
 });
 
-/** 强制立即落盘（页面卸载兜底 / 测试用）；createDebouncedPersist 已自动注册 pagehide 兜底 */
+/** 强制立即落盘（页面卸载兜底 / 测试用）；createDebouncedPersist 已自动注册 pagehide 兜底
+ * @public 跨边界消费者：tests/unit/resourceStore.test.ts（测试出口，先例同 projectStore.resetProjectStoreForTest） */
 export function resourceFlushPersist(): void {
   persistDebounced.flush();
 }
@@ -624,6 +625,8 @@ function reloadFromStorage(): Resource[] {
 /**
  * 【测试出口】把模块级内存态重置为「存储中的素材列表」（等同重新 import 一份干净模块，
  * 但无 vitest 并发下的实例分裂风险——理由见 projectStore.resetProjectStoreForTest 注释）。
+ *
+ * @public 跨边界消费者：tests/unit/useConnectedInputs.test.ts（测试出口，先例同 projectStore.resetProjectStoreForTest）
  */
 export function resetResourceStoreForTest(): Resource[] {
   return reloadFromStorage();
