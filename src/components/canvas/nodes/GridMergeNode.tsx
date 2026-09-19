@@ -1,30 +1,30 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { useDebouncedEffect, clamp, canvasToImageDataUrl } from '../base/core/utils.ts';
+import { useDebouncedEffect, clamp, canvasToImageDataUrl } from '@/components/base/core/utils';
 import '@xyflow/react';
-import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
-import { ASSET_NODE_SIZE } from '../base/canvas/nodeDefaults.ts';
-import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
+import { buildSpawnNodes, spawnAndCommit } from '@/components/base/canvas/deriveNodes';
+import { ASSET_NODE_SIZE } from '@/components/base/canvas/nodeDefaults';
+import { useCanvasEdges } from '@/components/base/canvas/CanvasEdgesContext';
 
 import { Grid3X3, PanelsTopLeft, Layers, Loader2 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
-import { useNodeData } from '../../hooks/useNodeData.ts';
-import { useNodeRename } from '../../hooks/useNodeRename.ts';
-import NodeShell from '../base/ui/NodeShell.tsx';
+import { useNodeData } from '@/hooks/useNodeData';
+import { useNodeRename } from '@/hooks/useNodeRename';
+import NodeShell from '@/components/base/ui/NodeShell';
 import OverlayEditor, {
   renderOverlayCanvas,
   type OverlayState,
-} from '../base/editors/OverlayEditor.tsx';
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
-import { useContentHeightSync } from '../base/core/uiHooks.ts';
-import { showToast } from '../base/core/toastStore.ts';
-import { toAbsoluteFileUrl, persistInlineOrKeep } from '../base/api/index.ts';
-import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
-import { logger } from '../base/core/logger.ts';
-import { generateId } from '../base/core/idGen.ts';
+} from '@/components/base/editors/OverlayEditor';
+import { useConnectedInputs } from '@/hooks/useConnectedInputs';
+import ImageZoomDialog from '@/components/base/editors/ImageZoomDialog';
+import { useContentHeightSync } from '@/components/base/core/uiHooks';
+import { showToast } from '@/components/base/core/toastStore';
+import { toAbsoluteFileUrl, persistInlineOrKeep } from '@/components/base/api/index';
+import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
+import { logger } from '@/components/base/core/logger';
+import { generateId } from '@/components/base/core/idGen';
 // 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
 // 替代本文件原有的无超时私有实现（图片挂起会让宫格合成永久卡住）。
-import { loadImageOrNull, releaseQuietly } from '../base/utils/asyncGuard.ts';
+import { loadImageOrNull, releaseQuietly } from '@/components/base/utils/asyncGuard';
 
 /* ════════════════════════════════════════════════════════════════
  * 图片拼图节点（复刻官方 Yo.jsx / gridMergeNode）

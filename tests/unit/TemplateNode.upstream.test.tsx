@@ -108,7 +108,8 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
   useNodePrefs: () => ({ prefs: {}, set: vi.fn() }),
 }));
 vi.mock('../../src/hooks/useSyncNodeData.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), useSyncNodeData: () => {}
+  ...((await importOriginal()) as Record<string, unknown>),
+  useSyncNodeData: () => {},
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
@@ -150,7 +151,7 @@ beforeEach(() => {
   connectedInputs = { images: [], texts: [] };
 });
 
-import TemplateNode from '../../src/components/nodes/_template/TemplateNode.tsx';
+import TemplateNode from '../../src/components/canvas/nodes/_template/TemplateNode.tsx';
 
 function setup(data = {}) {
   return render(<TemplateNode id="n1" data={data} selected={false} />);

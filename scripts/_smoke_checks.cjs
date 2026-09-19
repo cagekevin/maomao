@@ -194,7 +194,7 @@ function checkReactFlowApis(ROOT) {
  *  注：nodeTypes 已由 NodePalette.buildNodeTypeComponents 派生（ADR-002），不再从 App.jsx 提取平行表。
  *  这里改为校验派生源：NodePalette 的 component 字段 → 组件文件存在 + default 导出；
  *  例外（director3dNode/ghostTarget）由 App 派生后补充，另校验其组件文件。
- *  组件 2026-08-18 已归类 nodes/ 子目录，优先查 src/components/nodes/，平铺路径兜底。
+ *  组件 2026-08-18 已归类 nodes/ 子目录，优先查 src/components/canvas/nodes/，平铺路径兜底。
  *  路径全部【扩展名无关】解析：节点组件转 .tsx 后写死 .jsx 会让整项检查变红。 */
 function resolveCompFile(ROOT, comp) {
   const sub = resolveSourceFile(path.join(ROOT, 'src/components/nodes', comp));

@@ -1,30 +1,30 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { ScanFace, Loader2, AlertCircle, Image as ImageIcon, Wand2, Shuffle } from 'lucide-react';
-import NodeShell from '../base/ui/NodeShell.tsx';
-import { ASSET_NODE_SIZE } from '../base/canvas/nodeDefaults.ts';
-import HoverToolbar from '../base/panels/HoverToolbar.tsx';
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useNodeData } from '../../hooks/useNodeData.ts';
-import { useNodeRename } from '../../hooks/useNodeRename.ts';
-import { uploadFileToLocal, toAbsoluteFileUrl } from '../base/api/index.ts';
+import NodeShell from '@/components/base/ui/NodeShell';
+import { ASSET_NODE_SIZE } from '@/components/base/canvas/nodeDefaults';
+import HoverToolbar from '@/components/base/panels/HoverToolbar';
+import { useConnectedInputs } from '@/hooks/useConnectedInputs';
+import { useNodeData } from '@/hooks/useNodeData';
+import { useNodeRename } from '@/hooks/useNodeRename';
+import { uploadFileToLocal, toAbsoluteFileUrl } from '@/components/base/api/index';
 // 落盘目录取中央表（TD-03-18：此前本文件裸写 'canvas/face_mosaic'，表外目录 = 孤儿目录的来源）
-import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
-import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
-import { toastError, toastWarning } from '../base/core/toastStore.ts';
-import { logger } from '../base/core/logger.ts';
-import { classifyError } from '../base/utils/genErrors.ts';
+import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';
+import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
+import { toastError, toastWarning } from '@/components/base/core/toastStore';
+import { logger } from '@/components/base/core/logger';
+import { classifyError } from '@/components/base/utils/genErrors';
 import {
   applyMosaic,
   MOSAIC_MODES,
   MOSAIC_PALETTE,
   type MosaicMode,
-} from '../base/utils/faceMosaic.ts';
-import FaceMosaicEditor from '../base/editors/FaceMosaicEditor.tsx';
-import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
-import { generateId } from '../base/core/idGen.ts';
-import previewUrls from '../base/utils/previewUrl.ts';
-import { dataUrlToBlob } from '../base/core/utils.ts';
+} from '@/components/base/utils/faceMosaic';
+import FaceMosaicEditor from '@/components/base/editors/FaceMosaicEditor';
+import ImageZoomDialog from '@/components/base/editors/ImageZoomDialog';
+import { generateId } from '@/components/base/core/idGen';
+import previewUrls from '@/components/base/utils/previewUrl';
+import { dataUrlToBlob } from '@/components/base/core/utils';
 
 /**
  * 人脸打码节点（完整复刻官方 Cl.jsx / faceMosaicNode）。

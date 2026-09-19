@@ -28,14 +28,14 @@ vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({ deleteElements: (...a: any[]) => h.deleteElements(...a) }),
 }));
 
-vi.mock('../../src/components/edges/Comet.tsx', () => ({
+vi.mock('../../src/components/canvas/edges/Comet.tsx', () => ({
   default: (props: any) => {
     h.cometProps.push(props);
     return <g data-testid="comet" />;
   },
 }));
 
-import CustomEdge from '../../src/components/edges/CustomEdge.tsx';
+import CustomEdge from '../../src/components/canvas/edges/CustomEdge.tsx';
 import type { EdgeProps } from '@xyflow/react';
 import { Position } from '@xyflow/react';
 

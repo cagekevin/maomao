@@ -1,24 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Clapperboard, Settings, Maximize2, Loader2 } from 'lucide-react';
 import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
-import NodeShell from '../base/ui/NodeShell.tsx';
-import CustomHandle from '../base/ui/CustomHandle.tsx';
-import { useScriptBoxEngine } from '../../hooks/useScriptBoxEngine.ts';
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useDisconnectSource } from '../../hooks/useDisconnectSource.ts';
-import { useOutsideClick, useContentHeightSync } from '../base/core/uiHooks.ts';
-import { shotHandleId } from '../base/core/contracts.ts';
-import StepShots from '../scriptbox/StepShots.tsx';
-import StepAssets from '../scriptbox/StepAssets.tsx';
-import StepPrompt from '../scriptbox/StepPrompt.tsx';
-import StepNav from '../scriptbox/StepNav.tsx';
-import ScriptBoxFullscreen from '../scriptbox/ScriptBoxFullscreen.tsx';
-import GearSettings from '../scriptbox/GearSettings.tsx';
+import NodeShell from '@/components/base/ui/NodeShell';
+import CustomHandle from '@/components/base/ui/CustomHandle';
+import { useScriptBoxEngine } from '@/hooks/useScriptBoxEngine';
+import { useConnectedInputs } from '@/hooks/useConnectedInputs';
+import { useDisconnectSource } from '@/hooks/useDisconnectSource';
+import { useOutsideClick, useContentHeightSync } from '@/components/base/core/uiHooks';
+import { shotHandleId } from '@/components/base/core/contracts';
+import StepShots from '@/components/scriptbox/StepShots';
+import StepAssets from '@/components/scriptbox/StepAssets';
+import StepPrompt from '@/components/scriptbox/StepPrompt';
+import StepNav from '@/components/scriptbox/StepNav';
+import ScriptBoxFullscreen from '@/components/scriptbox/ScriptBoxFullscreen';
+import GearSettings from '@/components/scriptbox/GearSettings';
 import type {
   ScriptBoxData,
   ScriptBoxCallbacks,
   ScriptBoxTop,
-} from '../scriptbox/scriptBoxSchema.ts';
+} from '@/components/scriptbox/scriptBoxSchema';
 
 /**
  * 剧本盒子 data 契约。

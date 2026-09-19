@@ -53,7 +53,7 @@ export default defineConfig({
       reporter: ['text', 'lcov'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
-        'src/components/nodes/**',
+        'src/components/canvas/**', // 含原 components/nodes（S2-1a 已迁入 canvas/nodes）与 edges
         'src/components/agent/**', // 含原 components/panels/（S1-6 已整目录迁入 agent/panels/，旧 glob 已删）
         'src/components/scriptbox/**',
         'src/components/director3d/**',

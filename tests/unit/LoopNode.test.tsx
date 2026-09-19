@@ -8,7 +8,10 @@ import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';
-import { splitByMethod, splitSmartPromptItems } from '../../src/components/nodes/LoopNode.tsx';
+import {
+  splitByMethod,
+  splitSmartPromptItems,
+} from '../../src/components/canvas/nodes/LoopNode.tsx';
 
 vi.mock('@xyflow/react', () => mocks.xyflow);
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
@@ -22,13 +25,14 @@ vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) =
   toastWarning: mocks.toastWarning,
 }));
 vi.mock('../../src/hooks/useSyncNodeData.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), useSyncNodeData: mocks.useSyncNodeData
+  ...((await importOriginal()) as Record<string, unknown>),
+  useSyncNodeData: mocks.useSyncNodeData,
 }));
 vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useOutsideClick: mocks.useOutsideClick,
 }));
 
-import LoopNodeComponent from '../../src/components/nodes/LoopNode.tsx';
+import LoopNodeComponent from '../../src/components/canvas/nodes/LoopNode.tsx';
 beforeEach(() => {
   mocks.resetNodeMockState();
 });

@@ -15,18 +15,18 @@ import {
 } from 'lucide-react';
 // 画布渲染组件引用（component 字段用于 App.jsx 派生 nodeTypes，避免双维护平行表）。
 // 注意：节点组件均不反向 import 本文件，故无循环依赖（已验证）。
-import TextGenerate from '../../nodes/TextGenerate.tsx';
-import AssetNode from '../../nodes/AssetNode.tsx';
-import LoopNode from '../../nodes/LoopNode.tsx';
-import ImageGenerate from '../../nodes/ImageGenerate.tsx';
-import VideoGenerate from '../../nodes/VideoGenerate.tsx';
-import VideoExtractNode from '../../nodes/VideoExtractNode.tsx';
-import ImageBoxNode from '../../nodes/ImageBoxNode.tsx';
-import GridSplitNode from '../../nodes/GridSplitNode.tsx';
-import GridMergeNode from '../../nodes/GridMergeNode.tsx';
-import FaceMosaicNode from '../../nodes/FaceMosaicNode.tsx';
-import GroupNode from '../../nodes/GroupNode.tsx';
-import ScriptBoxNode from '../../nodes/ScriptBoxNode.tsx';
+import TextGenerate from '@/components/canvas/nodes/TextGenerate';
+import AssetNode from '@/components/canvas/nodes/AssetNode';
+import LoopNode from '@/components/canvas/nodes/LoopNode';
+import ImageGenerate from '@/components/canvas/nodes/ImageGenerate';
+import VideoGenerate from '@/components/canvas/nodes/VideoGenerate';
+import VideoExtractNode from '@/components/canvas/nodes/VideoExtractNode';
+import ImageBoxNode from '@/components/canvas/nodes/ImageBoxNode';
+import GridSplitNode from '@/components/canvas/nodes/GridSplitNode';
+import GridMergeNode from '@/components/canvas/nodes/GridMergeNode';
+import FaceMosaicNode from '@/components/canvas/nodes/FaceMosaicNode';
+import GroupNode from '@/components/canvas/nodes/GroupNode';
+import ScriptBoxNode from '@/components/canvas/nodes/ScriptBoxNode';
 // 重依赖节点（3D / 视频处理）**不在此静态 import**：静态 import 会让 vendor-3d(1.06MB) 与
 // vendor-media(705KB) 在首屏被强制下载（manualChunks 只拆文件、不改变加载时机）。
 // 统一走 lazyNode 动态 import，仅在对应节点首次渲染时才拉 chunk。见 ./lazyNode.jsx。

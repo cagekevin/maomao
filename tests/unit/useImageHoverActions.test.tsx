@@ -9,7 +9,7 @@ import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
-import { useImageHoverActions } from '../../src/components/nodes/useImageHoverActions.tsx';
+import { useImageHoverActions } from '../../src/components/canvas/nodes/useImageHoverActions.tsx';
 
 // 依赖 stub（hook 内部 import 的真实模块，测试中用轻量替身）
 vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({ default: () => null }));

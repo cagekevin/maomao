@@ -9,45 +9,48 @@ import {
   Settings,
   Layers,
 } from 'lucide-react';
-import NodeShell from '../base/ui/NodeShell.tsx';
-import HoverToolbar from '../base/panels/HoverToolbar.tsx';
-import ExpandablePanel from '../base/ui/ExpandablePanel.tsx';
-import GenerateButton from '../base/ui/GenerateButton.tsx';
-import ModelSelect from '../base/ui/ModelSelect.tsx';
-import ResizeFullscreenHandle from '../base/ui/ResizeFullscreenHandle.tsx';
-import FullscreenEditor from '../base/panels/FullscreenEditor.tsx';
-import GeneratingOverlay from '../base/ui/GeneratingOverlay.tsx';
-import { NODE_AREA_FIXED_BASE_SIZE } from '../base/core/config.ts';
-import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
-import { DepthVideoModal } from '../base/depthVideo/DepthVideoModal.tsx';
-import { spawnDepthVideoNode } from '../base/depthVideo/spawn.ts';
-import { downloadUrl, resolveDownloadFilename } from '../base/utils/clipboard.ts';
-import CreativeLibraryButton from '../base/creative/CreativeLibraryButton.tsx';
-import type { CreativePreset, CreativePresetsDict } from '../base/creative/creativePresets.ts';
-import { toDictEntry } from '../base/creative/creativePresets.ts';
-import JianyingIcon from '../base/ui/JianyingIcon.tsx';
-import ResourceStrip from '../base/panels/ResourceStrip.tsx';
-import PromptInput from '../base/prompt/PromptInput.tsx';
-import { resolvePromptChips, mergeReferenceImageUrls } from '../base/prompt/promptChips.ts';
-import { PROMPT_PANEL_PAD_X } from '../base/prompt/promptLayout.ts';
-import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts';
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
-import { useVideoPoster } from '../../hooks/useVideoPoster.ts';
-import '../base/ui/LazyImage.tsx';
-import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
-import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
-import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
-import { generateVideo } from '../base/api/index.ts';
-import { useNodePrefs, PREFS_DEFAULTS } from '../base/canvas/nodePrefs.ts';
-import { logger } from '../base/core/logger.ts';
-import { resolveProviderModel } from '../base/utils/providerModels.ts';
-import { buildEffectivePrompt, clampSeconds, fileNameFromUrl } from '../base/core/utils.ts';
-import { useNodeData } from '../../hooks/useNodeData.ts';
-import { useDisconnectSource } from '../../hooks/useDisconnectSource.ts';
-import { useNodeRename } from '../../hooks/useNodeRename.ts';
-import { useNodeExpanded } from '../../hooks/useNodeExpanded.ts';
-import { useNodeField } from '../../hooks/useNodeField.ts';
+import NodeShell from '@/components/base/ui/NodeShell';
+import HoverToolbar from '@/components/base/panels/HoverToolbar';
+import ExpandablePanel from '@/components/base/ui/ExpandablePanel';
+import GenerateButton from '@/components/base/ui/GenerateButton';
+import ModelSelect from '@/components/base/ui/ModelSelect';
+import ResizeFullscreenHandle from '@/components/base/ui/ResizeFullscreenHandle';
+import FullscreenEditor from '@/components/base/panels/FullscreenEditor';
+import GeneratingOverlay from '@/components/base/ui/GeneratingOverlay';
+import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
+import { useCanvasEdges } from '@/components/base/canvas/CanvasEdgesContext';
+import { DepthVideoModal } from '@/components/base/depthVideo/DepthVideoModal';
+import { spawnDepthVideoNode } from '@/components/base/depthVideo/spawn';
+import { downloadUrl, resolveDownloadFilename } from '@/components/base/utils/clipboard';
+import CreativeLibraryButton from '@/components/base/creative/CreativeLibraryButton';
+import type {
+  CreativePreset,
+  CreativePresetsDict,
+} from '@/components/base/creative/creativePresets';
+import { toDictEntry } from '@/components/base/creative/creativePresets';
+import JianyingIcon from '@/components/base/ui/JianyingIcon';
+import ResourceStrip from '@/components/base/panels/ResourceStrip';
+import PromptInput from '@/components/base/prompt/PromptInput';
+import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/base/prompt/promptChips';
+import { PROMPT_PANEL_PAD_X } from '@/components/base/prompt/promptLayout';
+import { useNodeResize, useOutsideClick } from '@/components/base/core/uiHooks';
+import { useConnectedInputs } from '@/hooks/useConnectedInputs';
+import { useAssetDegrade } from '@/hooks/useAssetDegrade';
+import { useVideoPoster } from '@/hooks/useVideoPoster';
+import '@/components/base/ui/LazyImage';
+import VideoThumbnail from '@/components/base/ui/VideoThumbnail';
+import ImageZoomDialog from '@/components/base/editors/ImageZoomDialog';
+import { useGenerateNode } from '@/hooks/useGenerateNode';
+import { generateVideo } from '@/components/base/api/index';
+import { useNodePrefs, PREFS_DEFAULTS } from '@/components/base/canvas/nodePrefs';
+import { logger } from '@/components/base/core/logger';
+import { resolveProviderModel } from '@/components/base/utils/providerModels';
+import { buildEffectivePrompt, clampSeconds, fileNameFromUrl } from '@/components/base/core/utils';
+import { useNodeData } from '@/hooks/useNodeData';
+import { useDisconnectSource } from '@/hooks/useDisconnectSource';
+import { useNodeRename } from '@/hooks/useNodeRename';
+import { useNodeExpanded } from '@/hooks/useNodeExpanded';
+import { useNodeField } from '@/hooks/useNodeField';
 
 /**
  * 视频生成节点（复刻原 As.jsx / videoGenerateNode）

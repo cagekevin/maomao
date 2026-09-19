@@ -1,38 +1,41 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { FileText, Copy, Loader2, AlertCircle, Lock, LockOpen } from 'lucide-react';
-import NodeShell from '../base/ui/NodeShell.tsx';
-import HoverToolbar from '../base/panels/HoverToolbar.tsx';
-import ExpandablePanel from '../base/ui/ExpandablePanel.tsx';
-import GenerateButton from '../base/ui/GenerateButton.tsx';
-import ModelSelect from '../base/ui/ModelSelect.tsx';
-import PromptInput from '../base/prompt/PromptInput.tsx';
-import ResourceStrip from '../base/panels/ResourceStrip.tsx';
-import ResizeFullscreenHandle from '../base/ui/ResizeFullscreenHandle.tsx';
-import FullscreenEditor from '../base/panels/FullscreenEditor.tsx';
-import GeneratingOverlay from '../base/ui/GeneratingOverlay.tsx';
-import CreativeLibraryButton from '../base/creative/CreativeLibraryButton.tsx';
-import type { CreativePreset, CreativePresetsDict } from '../base/creative/creativePresets.ts';
-import { toDictEntry } from '../base/creative/creativePresets.ts';
-import { useNodeResize } from '../base/core/uiHooks.ts';
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
-import { buildEffectivePrompt } from '../base/core/utils.ts';
-import { PROMPT_PANEL_PAD_X } from '../base/prompt/promptLayout.ts';
-import { useNodeData } from '../../hooks/useNodeData.ts';
-import { useNodeRename } from '../../hooks/useNodeRename.ts';
-import { useDisconnectSource } from '../../hooks/useDisconnectSource.ts';
-import { useNodeExpanded } from '../../hooks/useNodeExpanded.ts';
-import { useNodeField } from '../../hooks/useNodeField.ts';
-import { buildSpawnNodes, spawnAndCommit, makeChildId } from '../base/canvas/deriveNodes.ts';
-import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
-import { saveTextToTasks } from '../base/api/index.ts';
-import { chatCompletions } from '../base/api/index.ts';
-import { useNodePrefs, PREFS_DEFAULTS } from '../base/canvas/nodePrefs.ts';
-import { resolveProviderModel } from '../base/utils/providerModels.ts';
-import { resolvePromptChips, mergeReferenceImageUrls } from '../base/prompt/promptChips.ts';
-import { logger } from '../base/core/logger.ts';
-import { reportDegrade } from '../base/core/degrade.ts';
+import NodeShell from '@/components/base/ui/NodeShell';
+import HoverToolbar from '@/components/base/panels/HoverToolbar';
+import ExpandablePanel from '@/components/base/ui/ExpandablePanel';
+import GenerateButton from '@/components/base/ui/GenerateButton';
+import ModelSelect from '@/components/base/ui/ModelSelect';
+import PromptInput from '@/components/base/prompt/PromptInput';
+import ResourceStrip from '@/components/base/panels/ResourceStrip';
+import ResizeFullscreenHandle from '@/components/base/ui/ResizeFullscreenHandle';
+import FullscreenEditor from '@/components/base/panels/FullscreenEditor';
+import GeneratingOverlay from '@/components/base/ui/GeneratingOverlay';
+import CreativeLibraryButton from '@/components/base/creative/CreativeLibraryButton';
+import type {
+  CreativePreset,
+  CreativePresetsDict,
+} from '@/components/base/creative/creativePresets';
+import { toDictEntry } from '@/components/base/creative/creativePresets';
+import { useNodeResize } from '@/components/base/core/uiHooks';
+import { useConnectedInputs } from '@/hooks/useConnectedInputs';
+import { useGenerateNode } from '@/hooks/useGenerateNode';
+import { buildEffectivePrompt } from '@/components/base/core/utils';
+import { PROMPT_PANEL_PAD_X } from '@/components/base/prompt/promptLayout';
+import { useNodeData } from '@/hooks/useNodeData';
+import { useNodeRename } from '@/hooks/useNodeRename';
+import { useDisconnectSource } from '@/hooks/useDisconnectSource';
+import { useNodeExpanded } from '@/hooks/useNodeExpanded';
+import { useNodeField } from '@/hooks/useNodeField';
+import { buildSpawnNodes, spawnAndCommit, makeChildId } from '@/components/base/canvas/deriveNodes';
+import { useCanvasEdges } from '@/components/base/canvas/CanvasEdgesContext';
+import { saveTextToTasks } from '@/components/base/api/index';
+import { chatCompletions } from '@/components/base/api/index';
+import { useNodePrefs, PREFS_DEFAULTS } from '@/components/base/canvas/nodePrefs';
+import { resolveProviderModel } from '@/components/base/utils/providerModels';
+import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/base/prompt/promptChips';
+import { logger } from '@/components/base/core/logger';
+import { reportDegrade } from '@/components/base/core/degrade';
 
 /**
  * 文本节点（复刻原 Co.jsx / textGenerateNode）

@@ -286,7 +286,7 @@ describe('formatDuration（时长显示唯一实现 · TD-22-64）', () => {
   it('★源码级：两个消费方**不再自持第二份**（唯一实现在 base/core/utils）', () => {
     const consumers = [
       'src/components/videoEditor/ui/editor/panels/assets/views/media.tsx',
-      'src/components/nodes/VideoProcessNode.tsx',
+      'src/components/canvas/nodes/VideoProcessNode.tsx',
     ];
     for (const rel of consumers) {
       const text = readFileSync(new URL('../../' + rel, import.meta.url), 'utf8');

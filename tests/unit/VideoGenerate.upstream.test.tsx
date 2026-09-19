@@ -84,7 +84,8 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
   useNodePrefs: () => ({ prefs: {}, set: vi.fn() }),
 }));
 vi.mock('../../src/hooks/useSyncNodeData.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), useSyncNodeData: () => {}
+  ...((await importOriginal()) as Record<string, unknown>),
+  useSyncNodeData: () => {},
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
@@ -124,7 +125,7 @@ beforeEach(() => {
   connectedInputs = { images: [], texts: [] };
 });
 
-import VideoGenerate from '../../src/components/nodes/VideoGenerate.tsx';
+import VideoGenerate from '../../src/components/canvas/nodes/VideoGenerate.tsx';
 
 function setup(data = {}) {
   return render(<VideoGenerate id="n1" data={data} selected={false} />);

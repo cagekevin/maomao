@@ -1,8 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { useReactFlow } from '@xyflow/react';
-import { useNodeData, patchNodeDataById } from '../../hooks/useNodeData.ts';
-import { useNodeRename } from '../../hooks/useNodeRename.ts';
+import { useNodeData, patchNodeDataById } from '@/hooks/useNodeData';
+import { useNodeRename } from '@/hooks/useNodeRename';
 import {
   Globe,
   X,
@@ -19,20 +19,25 @@ import {
   Loader2,
   Move3D,
 } from 'lucide-react';
-import NodeShell from '../base/ui/NodeShell.tsx';
-import { IMAGE_BOX_NODE_SIZE } from '../base/canvas/nodeDefaults.ts';
-import HoverToolbar from '../base/panels/HoverToolbar.tsx';
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import PanoViewer, { type PanoViewerHandle } from '../base/editors/PanoViewer.tsx';
-import { generateId } from '../base/core/idGen.ts';
+import NodeShell from '@/components/base/ui/NodeShell';
+import { IMAGE_BOX_NODE_SIZE } from '@/components/base/canvas/nodeDefaults';
+import HoverToolbar from '@/components/base/panels/HoverToolbar';
+import { useConnectedInputs } from '@/hooks/useConnectedInputs';
+import PanoViewer, { type PanoViewerHandle } from '@/components/base/editors/PanoViewer';
+import { generateId } from '@/components/base/core/idGen';
 // 编辑器内的交互归编辑器（ADR-0029）：判据走共用原语，禁自写（自写必漏）。
-import { isEditableTarget } from '../base/core/uiHooks.ts';
-import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
-import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
-import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
-import { logger } from '../base/core/logger.ts';
-import { toastInfo, toastSuccess, toastError, toastWarning } from '../base/core/toastStore.ts';
-import FullscreenShell from '../base/panels/FullscreenShell.tsx';
+import { isEditableTarget } from '@/components/base/core/uiHooks';
+import { buildSpawnNodes, spawnAndCommit } from '@/components/base/canvas/deriveNodes';
+import { useCanvasEdges } from '@/components/base/canvas/CanvasEdgesContext';
+import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
+import { logger } from '@/components/base/core/logger';
+import {
+  toastInfo,
+  toastSuccess,
+  toastError,
+  toastWarning,
+} from '@/components/base/core/toastStore';
+import FullscreenShell from '@/components/base/panels/FullscreenShell';
 
 /**
  * 720 全景图节点（复刻官方 Zl.jsx / panoramaNode）。

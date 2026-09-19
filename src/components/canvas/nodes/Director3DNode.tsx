@@ -1,21 +1,21 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { logger } from '../base/core/logger.ts';
-import { toastWarning } from '../base/core/toastStore.ts';
+import { logger } from '@/components/base/core/logger';
+import { toastWarning } from '@/components/base/core/toastStore';
 import { useReactFlow } from '@xyflow/react';
 import { createPortal } from 'react-dom';
 import { Orbit, Maximize2 } from 'lucide-react';
-import NodeShell from '../base/ui/NodeShell.tsx';
-import { IMAGE_BOX_NODE_SIZE } from '../base/canvas/nodeDefaults.ts';
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useNodeRename } from '../../hooks/useNodeRename.ts';
-import { patchNodeDataById } from '../../hooks/useNodeData.ts';
-import { toAbsoluteFileUrl, saveInlineToLocal } from '../base/api/index.ts';
-import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
-import { Director3DOverlay } from '../director3d/Director3DOverlay.tsx';
-import { uploadFileToLocal } from '../base/api/index.ts';
-import { generateId } from '../base/core/idGen.ts';
-import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
-import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
+import NodeShell from '@/components/base/ui/NodeShell';
+import { IMAGE_BOX_NODE_SIZE } from '@/components/base/canvas/nodeDefaults';
+import { useConnectedInputs } from '@/hooks/useConnectedInputs';
+import { useNodeRename } from '@/hooks/useNodeRename';
+import { patchNodeDataById } from '@/hooks/useNodeData';
+import { toAbsoluteFileUrl, saveInlineToLocal } from '@/components/base/api/index';
+import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
+import { Director3DOverlay } from '@/components/director3d/Director3DOverlay';
+import { uploadFileToLocal } from '@/components/base/api/index';
+import { generateId } from '@/components/base/core/idGen';
+import { buildSpawnNodes, spawnAndCommit } from '@/components/base/canvas/deriveNodes';
+import { useCanvasEdges } from '@/components/base/canvas/CanvasEdgesContext';
 
 interface Director3DNodeData {
   label?: string;

@@ -14,30 +14,30 @@ import {
   X as XIcon,
 } from 'lucide-react';
 import { useReactFlow, type Node } from '@xyflow/react';
-import NodeShell from '../base/ui/NodeShell.tsx';
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useNodeRename } from '../../hooks/useNodeRename.ts';
-import { patchNodeDataById } from '../../hooks/useNodeData.ts';
-import { classifyAssetUrlKind } from '../base/utils/assetType.ts';
-import { ASSET_NODE_SIZE } from '../base/canvas/nodeDefaults.ts';
+import NodeShell from '@/components/base/ui/NodeShell';
+import { useConnectedInputs } from '@/hooks/useConnectedInputs';
+import { useNodeRename } from '@/hooks/useNodeRename';
+import { patchNodeDataById } from '@/hooks/useNodeData';
+import { classifyAssetUrlKind } from '@/components/base/utils/assetType';
+import { ASSET_NODE_SIZE } from '@/components/base/canvas/nodeDefaults';
 import {
   pxDeltaToTime,
   snapTime,
   timeDeltaToPx,
   timeToX,
   xToTime,
-} from '../base/utils/timeline/timeScale.ts';
-import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
-import { useNodeResize } from '../base/core/uiHooks.ts';
-import { useCanvasKeydown } from '../base/core/canvasHotkeys.ts';
-import { showToast } from '../base/core/toastStore.ts';
+} from '@/components/base/utils/timeline/timeScale';
+import { useAssetDegrade } from '@/hooks/useAssetDegrade';
+import { useNodeResize } from '@/components/base/core/uiHooks';
+import { useCanvasKeydown } from '@/components/base/core/canvasHotkeys';
+import { showToast } from '@/components/base/core/toastStore';
 // 【TD-22-64 · 2026-09-18】时长显示唯一实现：此前本文件自持一份 `formatDuration`，
 // 与 videoEditor/ui/…/media.tsx 的同名实现重复，且多一个「非有限 → '0:00'」的发明值。
-import { formatDuration } from '../base/core/utils.ts';
-import { logger } from '../base/core/logger.ts';
-import { classifyError } from '../base/utils/genErrors.ts';
-import { withTimeout, isTimeoutError, releaseQuietly } from '../base/utils/asyncGuard.ts';
-import type { ProcessVideoOptions } from '../base/utils/videoEngine.ts';
+import { formatDuration } from '@/components/base/core/utils';
+import { logger } from '@/components/base/core/logger';
+import { classifyError } from '@/components/base/utils/genErrors';
+import { withTimeout, isTimeoutError, releaseQuietly } from '@/components/base/utils/asyncGuard';
+import type { ProcessVideoOptions } from '@/components/base/utils/videoEngine';
 import {
   readVideoMetadata,
   processVideo,
@@ -47,18 +47,18 @@ import {
   uploadResult,
   ProgressController,
   ConversionCanceled,
-} from '../base/utils/videoEngine.ts';
-import { generateId } from '../base/core/idGen.ts';
-import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
-import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
-import { httpRequest, uploadFileToLocal } from '../base/api/index.ts';
-import { updateNodeRuntime, useNodeRuntime } from '../base/store/nodeRuntimeStore.ts';
-import previewUrls from '../base/utils/previewUrl.ts';
-import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
-import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/core/config.ts';
-import { createRafBatch, fileNameFromUrl } from '../base/core/utils.ts';
-import { sourceTimeAt, timelineTimeAt } from '../base/utils/timeline/sourceTime.ts';
-import { captureFrame } from '../base/utils/captureFrame.ts';
+} from '@/components/base/utils/videoEngine';
+import { generateId } from '@/components/base/core/idGen';
+import { buildSpawnNodes, spawnAndCommit } from '@/components/base/canvas/deriveNodes';
+import { useCanvasEdges } from '@/components/base/canvas/CanvasEdgesContext';
+import { httpRequest, uploadFileToLocal } from '@/components/base/api/index';
+import { updateNodeRuntime, useNodeRuntime } from '@/components/base/store/nodeRuntimeStore';
+import previewUrls from '@/components/base/utils/previewUrl';
+import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';
+import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '@/components/base/core/config';
+import { createRafBatch, fileNameFromUrl } from '@/components/base/core/utils';
+import { sourceTimeAt, timelineTimeAt } from '@/components/base/utils/timeline/sourceTime';
+import { captureFrame } from '@/components/base/utils/captureFrame';
 
 /* ════════════════════════════════════════════════════════════════
  * 视频处理节点（复刻官方 Gc.jsx + fc.jsx 合并的 videoProcessNode）

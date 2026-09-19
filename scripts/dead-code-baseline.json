@@ -72,7 +72,7 @@
     "src/components/base/utils/assetUrl.ts::exports::normalizeAssetUrl",
     "src/components/base/utils/genErrors.ts::exports::timeoutMessage",
     "src/components/director3d/d3dPersistence.ts::exports::pickProjectSource",
-    "src/components/nodes/_template/TemplateNode.tsx::files::src/components/nodes/_template/TemplateNode.tsx",
+    "src/components/canvas/nodes/_template/TemplateNode.tsx::files::src/components/canvas/nodes/_template/TemplateNode.tsx",
     "src/components/scriptbox/scriptBoxPlaybookStore.ts::exports::__resetCustomCache",
     "src/components/scriptbox/scriptBoxPrompts.ts::exports::buildAssets",
     "src/components/scriptbox/scriptBoxPrompts.ts::exports::buildShots",

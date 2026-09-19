@@ -58,22 +58,22 @@ const root = resolve(__dirname, '..');
  * 未登记的类型请补此表；nodes/ 下出现未登记的文件会在收尾处报出（防本表悄悄过期）。
  */
 const NODE_TYPE_TO_FILE = {
-  assetNode: 'src/components/nodes/AssetNode.tsx',
-  imageBoxNode: 'src/components/nodes/ImageBoxNode.tsx',
-  gridSplitNode: 'src/components/nodes/GridSplitNode.tsx',
-  gridMergeNode: 'src/components/nodes/GridMergeNode.tsx',
-  panoramaNode: 'src/components/nodes/PanoramaNode.tsx',
-  director3dNode: 'src/components/nodes/Director3DNode.tsx',
-  faceMosaicNode: 'src/components/nodes/FaceMosaicNode.tsx',
-  loopNode: 'src/components/nodes/LoopNode.tsx',
-  videoExtractNode: 'src/components/nodes/VideoExtractNode.tsx',
-  videoProcessNode: 'src/components/nodes/VideoProcessNode.tsx',
-  group: 'src/components/nodes/GroupNode.tsx',
-  scriptBoxNode: 'src/components/nodes/ScriptBoxNode.tsx',
-  textGenerateNode: 'src/components/nodes/TextGenerate.tsx',
-  imageGenerateNode: 'src/components/nodes/ImageGenerate.tsx',
-  videoGenerateNode: 'src/components/nodes/VideoGenerate.tsx',
-  ghostTarget: 'src/components/nodes/GhostTargetNode.tsx',
+  assetNode: 'src/components/canvas/nodes/AssetNode.tsx',
+  imageBoxNode: 'src/components/canvas/nodes/ImageBoxNode.tsx',
+  gridSplitNode: 'src/components/canvas/nodes/GridSplitNode.tsx',
+  gridMergeNode: 'src/components/canvas/nodes/GridMergeNode.tsx',
+  panoramaNode: 'src/components/canvas/nodes/PanoramaNode.tsx',
+  director3dNode: 'src/components/canvas/nodes/Director3DNode.tsx',
+  faceMosaicNode: 'src/components/canvas/nodes/FaceMosaicNode.tsx',
+  loopNode: 'src/components/canvas/nodes/LoopNode.tsx',
+  videoExtractNode: 'src/components/canvas/nodes/VideoExtractNode.tsx',
+  videoProcessNode: 'src/components/canvas/nodes/VideoProcessNode.tsx',
+  group: 'src/components/canvas/nodes/GroupNode.tsx',
+  scriptBoxNode: 'src/components/canvas/nodes/ScriptBoxNode.tsx',
+  textGenerateNode: 'src/components/canvas/nodes/TextGenerate.tsx',
+  imageGenerateNode: 'src/components/canvas/nodes/ImageGenerate.tsx',
+  videoGenerateNode: 'src/components/canvas/nodes/VideoGenerate.tsx',
+  ghostTarget: 'src/components/canvas/nodes/GhostTargetNode.tsx',
 };
 
 /** nodes/ 下非节点组件文件（辅助 hook / 纯工具 / 素材），不参与 data 对账 */

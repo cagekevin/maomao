@@ -38,7 +38,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => (
   persistInlineOrKeep: async (dataUrl: string) => dataUrl,
 }));
 
-import GridSplitNode from '../../src/components/nodes/GridSplitNode.tsx';
+import GridSplitNode from '../../src/components/canvas/nodes/GridSplitNode.tsx';
 beforeEach(() => {
   mocks.resetNodeMockState();
 });

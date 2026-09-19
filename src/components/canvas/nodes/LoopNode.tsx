@@ -1,16 +1,16 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { Repeat, Play, ChevronDown } from 'lucide-react';
-import NodeShell from '../base/ui/NodeShell.tsx';
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useNodeData } from '../../hooks/useNodeData.ts';
-import { useNodeRename } from '../../hooks/useNodeRename.ts';
-import { toastWarning } from '../base/core/toastStore.ts';
-import { useSyncNodeData } from '../../hooks/useSyncNodeData.ts';
-import { useOutsideClick } from '../base/core/uiHooks.ts';
-import { generateId } from '../base/core/idGen.ts';
-import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
-import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
+import NodeShell from '@/components/base/ui/NodeShell';
+import { useConnectedInputs } from '@/hooks/useConnectedInputs';
+import { useNodeData } from '@/hooks/useNodeData';
+import { useNodeRename } from '@/hooks/useNodeRename';
+import { toastWarning } from '@/components/base/core/toastStore';
+import { useSyncNodeData } from '@/hooks/useSyncNodeData';
+import { useOutsideClick } from '@/components/base/core/uiHooks';
+import { generateId } from '@/components/base/core/idGen';
+import { buildSpawnNodes, spawnAndCommit } from '@/components/base/canvas/deriveNodes';
+import { useCanvasEdges } from '@/components/base/canvas/CanvasEdgesContext';
 
 /** 循环节点 data 契约 */
 interface LoopNodeData {

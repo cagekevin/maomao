@@ -1,13 +1,13 @@
 import { useState, useCallback } from 'react';
 import { Crop, Pencil, Maximize2, Minimize2, Copy } from 'lucide-react';
-import ImageEditor from '../base/editors/ImageEditor.tsx';
-import InlineImageCropper from '../base/editors/InlineImageCropper.tsx';
-import { compressImage } from '../base/utils/imageCompress.ts';
-import { upscaleImage } from '../base/utils/imageUpscale.ts';
-import { useCopyNode } from '../../hooks/useCopyNode.ts';
-import { showThenPersistInline } from '../base/api/filesApi.ts';
-import { showToast, toastError } from '../base/core/toastStore.ts';
-import { formatBytes } from '../base/core/utils.ts';
+import ImageEditor from '@/components/base/editors/ImageEditor';
+import InlineImageCropper from '@/components/base/editors/InlineImageCropper';
+import { compressImage } from '@/components/base/utils/imageCompress';
+import { upscaleImage } from '@/components/base/utils/imageUpscale';
+import { useCopyNode } from '@/hooks/useCopyNode';
+import { showThenPersistInline } from '@/components/base/api/filesApi';
+import { showToast, toastError } from '@/components/base/core/toastStore';
+import { formatBytes } from '@/components/base/core/utils';
 
 /**
  * 图片类节点 hover 操作栏「行为 + 按钮」统一机制。

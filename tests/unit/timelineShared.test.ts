@@ -45,7 +45,7 @@ describe('timeScale · 吸附（容差以像素给）', () => {
 });
 
 describe('宿主绑定：VideoProcessNode 必须用共用原语，不许再内联换算', () => {
-  const src = readFileSync('src/components/nodes/VideoProcessNode.tsx', 'utf8');
+  const src = readFileSync('src/components/canvas/nodes/VideoProcessNode.tsx', 'utf8');
 
   it('时间↔像素换算全部经共用原语', () => {
     expect(src).toContain('timeToX(');

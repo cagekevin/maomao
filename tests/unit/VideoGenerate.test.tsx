@@ -235,7 +235,7 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', async (importOriginal) => ({
   },
 }));
 
-import VideoGenerate from '../../src/components/nodes/VideoGenerate.tsx';
+import VideoGenerate from '../../src/components/canvas/nodes/VideoGenerate.tsx';
 
 const nodeId = 'n1';
 function setup(data = {}) {

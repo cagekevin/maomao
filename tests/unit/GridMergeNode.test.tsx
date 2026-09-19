@@ -25,14 +25,15 @@ vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useContentHeightSync: mocks.useContentHeightSync,
 }));
 vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), showToast: mocks.showToast
+  ...((await importOriginal()) as Record<string, unknown>),
+  showToast: mocks.showToast,
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: mocks.toAbsoluteFileUrl,
 }));
 
-import GridMergeNode from '../../src/components/nodes/GridMergeNode.tsx';
+import GridMergeNode from '../../src/components/canvas/nodes/GridMergeNode.tsx';
 beforeEach(() => {
   mocks.resetNodeMockState();
 });

@@ -54,7 +54,8 @@ const h = vi.hoisted(() => {
 vi.mock('@xyflow/react', () => mocks.xyflow);
 vi.mock('../../src/components/base/ui/NodeTitle.tsx', () => ({ default: mocks.NodeTitle }));
 vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), useConnectedInputs: () => h.connected
+  ...((await importOriginal()) as Record<string, unknown>),
+  useConnectedInputs: () => h.connected,
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
 vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
@@ -97,7 +98,7 @@ vi.mock('../../src/hooks/useNodeData.ts', () => ({
   useNodeData: () => ({ patchData: (...a: unknown[]) => h.patchData(...a) }),
 }));
 
-import VideoExtractNode from '../../src/components/nodes/VideoExtractNode.tsx';
+import VideoExtractNode from '../../src/components/canvas/nodes/VideoExtractNode.tsx';
 
 /** 抽帧失败用例里用于顶替 <video> 的最小形状（仅实现被测用到的字段）。 */
 interface FakeVideo {

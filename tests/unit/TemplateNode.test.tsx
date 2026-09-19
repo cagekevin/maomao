@@ -109,7 +109,8 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
   useNodePrefs: mocks.useNodePrefs,
 }));
 vi.mock('../../src/hooks/useSyncNodeData.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), useSyncNodeData: mocks.useSyncNodeData
+  ...((await importOriginal()) as Record<string, unknown>),
+  useSyncNodeData: mocks.useSyncNodeData,
 }));
 vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
@@ -137,7 +138,7 @@ vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   resolveProviderModel: mocks.resolveProviderModel,
 }));
 
-import TemplateNode from '../../src/components/nodes/_template/TemplateNode.tsx';
+import TemplateNode from '../../src/components/canvas/nodes/_template/TemplateNode.tsx';
 
 beforeEach(() => {
   mocks.resetNodeMockState();

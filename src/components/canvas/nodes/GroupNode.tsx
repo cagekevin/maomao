@@ -1,7 +1,7 @@
 import React from 'react';
 import { Folder } from 'lucide-react';
-import NodeShell from '../base/ui/NodeShell.tsx';
-import { useNodeRename } from '../../hooks/useNodeRename.ts';
+import NodeShell from '@/components/base/ui/NodeShell';
+import { useNodeRename } from '@/hooks/useNodeRename';
 
 /**
  * 群组 / 分组节点。

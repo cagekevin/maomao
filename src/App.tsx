@@ -33,7 +33,7 @@ import { computePatchNodeById, computePatchNodesById } from './hooks/useNodeData
 import { computePatchEdgesById, patchEdgeData } from './hooks/useEdgeData.ts';
 import { useAssetDropPaste, useGlobalPaste } from './hooks/useAssetDropPaste.ts';
 import { copyImageToClipboard } from './components/base/utils/clipboard.ts';
-import GhostTargetNode from './components/nodes/GhostTargetNode.tsx';
+import GhostTargetNode from './components/canvas/nodes/GhostTargetNode.tsx';
 import AgentPanel from './components/agent/panels/AgentPanel.tsx';
 import {
   deriveSelectedAssets,
@@ -72,8 +72,8 @@ import { logger } from './components/base/core/logger.ts';
 import { useProjectBackupIO } from './components/base/canvas/useCanvasEventSubscriptions.ts';
 import { menuForState, type MenuActionCtx } from './components/base/canvas/canvasContextMenu.tsx';
 import { useNodePosition } from './components/base/core/uiHooks.ts';
-import CustomEdge from './components/edges/CustomEdge.tsx';
-import ConnectionLine from './components/edges/ConnectionLine.tsx';
+import CustomEdge from './components/canvas/edges/CustomEdge.tsx';
+import ConnectionLine from './components/canvas/edges/ConnectionLine.tsx';
 import ContextMenu from './components/base/ui/ContextMenu.tsx';
 import { useContextMenu } from './hooks/useContextMenu.ts';
 import { useCanvasHistory } from './hooks/useCanvasHistory.ts';

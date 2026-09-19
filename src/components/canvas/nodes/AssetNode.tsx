@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { logger } from '../base/core/logger.ts';
+import { logger } from '@/components/base/core/logger';
 import {
   Image as ImageIcon,
   ImageOff,
@@ -13,36 +13,36 @@ import {
   Layers,
 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
-import NodeShell from '../base/ui/NodeShell.tsx';
-import HoverToolbar from '../base/panels/HoverToolbar.tsx';
-import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
-import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
-import { replaceNodeImage } from '../base/nodeImage.ts';
-import { detectAssetType, detectFileType } from '../base/utils/assetType.ts';
-import { fileNameFromUrl } from '../base/core/utils.ts';
+import NodeShell from '@/components/base/ui/NodeShell';
+import HoverToolbar from '@/components/base/panels/HoverToolbar';
+import ImageZoomDialog from '@/components/base/editors/ImageZoomDialog';
+import VideoThumbnail from '@/components/base/ui/VideoThumbnail';
+import { replaceNodeImage } from '@/components/base/nodeImage';
+import { detectAssetType, detectFileType } from '@/components/base/utils/assetType';
+import { fileNameFromUrl } from '@/components/base/core/utils';
 import { assetTypeLabel, type AssetType } from '@/types';
-import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
-import { NODE_AREA_FIXED_BASE_SIZE } from '../base/core/config.ts';
-import { useVideoPoster } from '../../hooks/useVideoPoster.ts';
-import { useNodeRename } from '../../hooks/useNodeRename.ts';
-import { patchNodeDataById } from '../../hooks/useNodeData.ts';
-import { toAbsoluteFileUrl, resolveNodeAssetUrl } from '../base/api/index.ts';
-import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
-import { resolveAssetDisplayUrl, buildContentUrlResolver } from '../base/utils/assetUrl.ts';
-import { useImageFallbackSrc } from '../base/utils/useImageFallbackSrc.ts';
+import { useAssetDegrade } from '@/hooks/useAssetDegrade';
+import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
+import { useVideoPoster } from '@/hooks/useVideoPoster';
+import { useNodeRename } from '@/hooks/useNodeRename';
+import { patchNodeDataById } from '@/hooks/useNodeData';
+import { toAbsoluteFileUrl, resolveNodeAssetUrl } from '@/components/base/api/index';
+import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';
+import { resolveAssetDisplayUrl, buildContentUrlResolver } from '@/components/base/utils/assetUrl';
+import { useImageFallbackSrc } from '@/components/base/utils/useImageFallbackSrc';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
-import { downloadUrl } from '../base/utils/clipboard.ts';
-import { showToast, toastError } from '../base/core/toastStore.ts';
-import { sendToResourceLibrary, getResources } from '../base/store/resourceStore.ts';
-import { openResourceLibrary } from '../base/store/taskStore.ts';
-import CameraStudioPanel from '../base/editors/CameraStudioPanel.tsx';
-import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
-import { DepthVideoModal } from '../base/depthVideo/DepthVideoModal.tsx';
-import { spawnDepthVideoNode } from '../base/depthVideo/spawn.ts';
-import { commitNewNodes } from '../base/canvas/deriveNodes.ts';
-import { injectNodePrefs } from '../base/canvas/nodePrefs.ts';
-import { generateId } from '../base/core/idGen.ts';
-import type { CameraStudioResult } from '../base/editors/cameraStudio.ts';
+import { downloadUrl } from '@/components/base/utils/clipboard';
+import { showToast, toastError } from '@/components/base/core/toastStore';
+import { sendToResourceLibrary, getResources } from '@/components/base/store/resourceStore';
+import { openResourceLibrary } from '@/components/base/store/taskStore';
+import CameraStudioPanel from '@/components/base/editors/CameraStudioPanel';
+import { useCanvasEdges } from '@/components/base/canvas/CanvasEdgesContext';
+import { DepthVideoModal } from '@/components/base/depthVideo/DepthVideoModal';
+import { spawnDepthVideoNode } from '@/components/base/depthVideo/spawn';
+import { commitNewNodes } from '@/components/base/canvas/deriveNodes';
+import { injectNodePrefs } from '@/components/base/canvas/nodePrefs';
+import { generateId } from '@/components/base/core/idGen';
+import type { CameraStudioResult } from '@/components/base/editors/cameraStudio';
 
 /**
  * 素材节点

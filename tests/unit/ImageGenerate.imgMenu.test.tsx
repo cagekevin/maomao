@@ -123,7 +123,8 @@ vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useOutsideClick: () => {},
 }));
 vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), useConnectedInputs: () => ({})
+  ...((await importOriginal()) as Record<string, unknown>),
+  useConnectedInputs: () => ({}),
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({
   useAssetDegrade: () => ({ isHidden: () => false }),
@@ -135,7 +136,8 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
   useNodePrefs: () => ({ prefs: {}, set: vi.fn() }),
 }));
 vi.mock('../../src/hooks/useSyncNodeData.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), useSyncNodeData: () => {}
+  ...((await importOriginal()) as Record<string, unknown>),
+  useSyncNodeData: () => {},
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
@@ -195,7 +197,7 @@ beforeEach(() => {
   }
 });
 
-import ImageGenerate from '../../src/components/nodes/ImageGenerate.tsx';
+import ImageGenerate from '../../src/components/canvas/nodes/ImageGenerate.tsx';
 
 function setup(data = {}) {
   return render(<ImageGenerate id="n1" data={data} selected={false} />);

@@ -21,7 +21,7 @@ vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({
 }));
 vi.mock('../../src/components/base/ui/CustomHandle.tsx', () => ({ default: () => null }));
 
-import GroupNode from '../../src/components/nodes/GroupNode.tsx';
+import GroupNode from '../../src/components/canvas/nodes/GroupNode.tsx';
 
 function setup(props = {}) {
   return render(<GroupNode id="g1" data={{ name: '我的编组' }} selected={false} {...props} />);

@@ -8,7 +8,7 @@
  *   回退成全量）。本脚本反查：源码改动 → 同名 stem 的测试文件；测试文件改动 → 直接收口。
  *
  * 映射规则（按 basename stem 模糊匹配，覆盖本项目命名约定）：
- *   src/components/nodes/TextNode.tsx → tests/unit/TextNode.test.tsx + TextNode.upstream.test.tsx
+ *   src/components/canvas/nodes/TextNode.tsx → tests/unit/TextNode.test.tsx + TextNode.upstream.test.tsx
  *   src/hooks/useNodeGeneration.ts   → tests/unit/useNodeGeneration*.test.ts
  *   src/stores/projectStore.ts        → tests/unit/projectStore*.test.ts
  *   tests/unit/foo.test.ts            → 直接纳入（测试文件自身改动）

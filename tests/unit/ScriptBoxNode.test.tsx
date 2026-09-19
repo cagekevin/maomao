@@ -122,7 +122,8 @@ vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
 }));
 // 上游输入接入 hook：mock 返回可控的 h.upstream（默认空），避免依赖 @xyflow/react 的 useStore
 vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), useConnectedInputs: () => h.upstream
+  ...((await importOriginal()) as Record<string, unknown>),
+  useConnectedInputs: () => h.upstream,
 }));
 
 // 三步子组件 mock：渲染内容标记 + 可点的引擎回调按钮（验证 UI 只调回调）
@@ -174,7 +175,7 @@ vi.mock('../../src/components/scriptbox/GearSettings.tsx', () => ({
   ),
 }));
 
-import ScriptBoxNode from '../../src/components/nodes/ScriptBoxNode.tsx';
+import ScriptBoxNode from '../../src/components/canvas/nodes/ScriptBoxNode.tsx';
 
 // ScriptBoxNodeProps.data 在 src 侧未导出，故用 ComponentProps 索引拿到精确类型（避免 any）
 type ScriptBoxNodeData = React.ComponentProps<typeof ScriptBoxNode>['data'];

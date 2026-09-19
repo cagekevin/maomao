@@ -12,23 +12,28 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { useReactFlow, Handle, Position } from '@xyflow/react';
-import { useNodeData } from '../../hooks/useNodeData.ts';
-import { useNodeRename } from '../../hooks/useNodeRename.ts';
-import NodeShell from '../base/ui/NodeShell.tsx';
-import { ASSET_NODE_SIZE } from '../base/canvas/nodeDefaults.ts';
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
-import { useContentHeightSync } from '../base/core/uiHooks.ts';
-import { showToast, toastWarning } from '../base/core/toastStore.ts'; // 保留阻断校验提示
-import { toAbsoluteFileUrl, persistInlineOrKeep } from '../base/api/index.ts';
-import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
-import { loadImageWithTimeout } from '../base/utils/asyncGuard.ts';
-import { logger } from '../base/core/logger.ts';
-import { generateId } from '../base/core/idGen.ts';
-import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
-import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
-import { createRafBatch, clamp, debounce, canvasToImageDataUrl } from '../base/core/utils.ts';
-import FullscreenShell from '../base/panels/FullscreenShell.tsx';
+import { useNodeData } from '@/hooks/useNodeData';
+import { useNodeRename } from '@/hooks/useNodeRename';
+import NodeShell from '@/components/base/ui/NodeShell';
+import { ASSET_NODE_SIZE } from '@/components/base/canvas/nodeDefaults';
+import { useConnectedInputs } from '@/hooks/useConnectedInputs';
+import { useAssetDegrade } from '@/hooks/useAssetDegrade';
+import { useContentHeightSync } from '@/components/base/core/uiHooks';
+import { showToast, toastWarning } from '@/components/base/core/toastStore'; // 保留阻断校验提示
+import { toAbsoluteFileUrl, persistInlineOrKeep } from '@/components/base/api/index';
+import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
+import { loadImageWithTimeout } from '@/components/base/utils/asyncGuard';
+import { logger } from '@/components/base/core/logger';
+import { generateId } from '@/components/base/core/idGen';
+import { buildSpawnNodes, spawnAndCommit } from '@/components/base/canvas/deriveNodes';
+import { useCanvasEdges } from '@/components/base/canvas/CanvasEdgesContext';
+import {
+  createRafBatch,
+  clamp,
+  debounce,
+  canvasToImageDataUrl,
+} from '@/components/base/core/utils';
+import FullscreenShell from '@/components/base/panels/FullscreenShell';
 
 /* ════════════════════════════════════════════════════════════════
  * 图片切分节点（复刻官方 Lo.jsx / gridSplitNode）

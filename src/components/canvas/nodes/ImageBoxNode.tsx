@@ -14,31 +14,31 @@ import {
   List,
   MoreVertical,
 } from 'lucide-react';
-import NodeShell from '../base/ui/NodeShell.tsx';
-import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
-import { useNodeData } from '../../hooks/useNodeData.ts';
-import { useNodeRename } from '../../hooks/useNodeRename.ts';
-import { useAssetDegrade } from '../../hooks/useAssetDegrade.ts';
-import LazyImage from '../base/ui/LazyImage.tsx';
-import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
-import { toastWarning, toastError } from '../base/core/toastStore.ts';
+import NodeShell from '@/components/base/ui/NodeShell';
+import { useConnectedInputs } from '@/hooks/useConnectedInputs';
+import { useNodeData } from '@/hooks/useNodeData';
+import { useNodeRename } from '@/hooks/useNodeRename';
+import { useAssetDegrade } from '@/hooks/useAssetDegrade';
+import LazyImage from '@/components/base/ui/LazyImage';
+import ImageZoomDialog from '@/components/base/editors/ImageZoomDialog';
+import { toastWarning, toastError } from '@/components/base/core/toastStore';
 // 编辑器内的交互归编辑器（ADR-0029）：判据走共用原语，禁自写（自写必漏）。
-import { isEditableTarget } from '../base/core/uiHooks.ts';
+import { isEditableTarget } from '@/components/base/core/uiHooks';
 import { copyImageToClipboard } from '@/components/base/utils/clipboard';
-import { loadImageWithTimeout, attemptQuietly } from '../base/utils/asyncGuard.ts';
-import { logger } from '../base/core/logger.ts';
-import { useCopyNode } from '../../hooks/useCopyNode.ts';
-import { generateId } from '../base/core/idGen.ts';
-import { canvasToImageDataUrl } from '../base/core/utils.ts';
-import { downloadUrl as clipboardDownload } from '../base/utils/clipboard.ts';
+import { loadImageWithTimeout, attemptQuietly } from '@/components/base/utils/asyncGuard';
+import { logger } from '@/components/base/core/logger';
+import { useCopyNode } from '@/hooks/useCopyNode';
+import { generateId } from '@/components/base/core/idGen';
+import { canvasToImageDataUrl } from '@/components/base/core/utils';
+import { downloadUrl as clipboardDownload } from '@/components/base/utils/clipboard';
 
-import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
+import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
 // 判型唯一入口（TD-16-17/18 收口）：本文件曾 5 处手写 `startsWith('http')||startsWith('data:image')`
 // 与 `f.type.startsWith('image/')`，绕过 assetType 真值源 —— 现统一走 isAssetUrl / detectFileType。
-import { isAssetUrl, detectFileType } from '../base/utils/assetType.ts';
+import { isAssetUrl, detectFileType } from '@/components/base/utils/assetType';
 // §5.4.9 图像入节点落盘策略唯一实现：File 源走 resolveNodeAssetUrl（multipart 直传 → /files/ 持久 URL）
-import { resolveNodeAssetUrl, persistUrlToUploads } from '../base/api/filesApi.ts';
-import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
+import { resolveNodeAssetUrl, persistUrlToUploads } from '@/components/base/api/filesApi';
+import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';
 
 /**
  * 图片盒子节点（复刻官方 Rg.jsx / imageBoxNode）。

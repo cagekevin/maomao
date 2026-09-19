@@ -108,7 +108,7 @@ vi.mock('../../src/components/base/utils/asyncGuard.ts', () => ({
 vi.mock('../../src/components/base/utils/clipboard.ts', () => h.clipboardMock);
 vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({ default: () => null }));
 
-import ImageBoxNode from '../../src/components/nodes/ImageBoxNode.tsx';
+import ImageBoxNode from '../../src/components/canvas/nodes/ImageBoxNode.tsx';
 
 const nodeId = 'ib1';
 function setup(

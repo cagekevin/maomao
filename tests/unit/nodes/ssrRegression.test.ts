@@ -18,19 +18,19 @@ import { renderToString } from 'react-dom/server';
 import { ReactFlowProvider } from '@xyflow/react';
 import { describe, test, expect } from 'vitest';
 
-import AssetNode from '@/components/nodes/AssetNode';
-import TextGenerate from '@/components/nodes/TextGenerate';
-import ImageGenerate from '@/components/nodes/ImageGenerate';
-import VideoGenerate from '@/components/nodes/VideoGenerate';
-import VideoExtractNode from '@/components/nodes/VideoExtractNode';
-import ImageBoxNode from '@/components/nodes/ImageBoxNode';
-import GridSplitNode from '@/components/nodes/GridSplitNode';
-import GridMergeNode from '@/components/nodes/GridMergeNode';
-import VideoProcessNode from '@/components/nodes/VideoProcessNode';
-import FaceMosaicNode from '@/components/nodes/FaceMosaicNode';
-import PanoramaNode from '@/components/nodes/PanoramaNode';
-import GroupNode from '@/components/nodes/GroupNode';
-import ScriptBoxNode from '@/components/nodes/ScriptBoxNode';
+import AssetNode from '@/components/canvas/nodes/AssetNode';
+import TextGenerate from '@/components/canvas/nodes/TextGenerate';
+import ImageGenerate from '@/components/canvas/nodes/ImageGenerate';
+import VideoGenerate from '@/components/canvas/nodes/VideoGenerate';
+import VideoExtractNode from '@/components/canvas/nodes/VideoExtractNode';
+import ImageBoxNode from '@/components/canvas/nodes/ImageBoxNode';
+import GridSplitNode from '@/components/canvas/nodes/GridSplitNode';
+import GridMergeNode from '@/components/canvas/nodes/GridMergeNode';
+import VideoProcessNode from '@/components/canvas/nodes/VideoProcessNode';
+import FaceMosaicNode from '@/components/canvas/nodes/FaceMosaicNode';
+import PanoramaNode from '@/components/canvas/nodes/PanoramaNode';
+import GroupNode from '@/components/canvas/nodes/GroupNode';
+import ScriptBoxNode from '@/components/canvas/nodes/ScriptBoxNode';
 import { defaultNodeData } from '@/components/base/canvas/nodeDataSchema';
 
 // 每个节点的渲染参数（数据 + 关键结构断言）。

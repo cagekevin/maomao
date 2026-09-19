@@ -155,13 +155,13 @@ describe('造节点尺寸单源（TD-16-48）', () => {
 
   it('★源码级：造节点点不再自持尺寸字面量（一律引用单源常量）', () => {
     const sites: Array<[string, string]> = [
-      ['src/components/nodes/GridSplitNode.tsx', 'ASSET_NODE_SIZE'],
-      ['src/components/nodes/GridMergeNode.tsx', 'ASSET_NODE_SIZE'],
-      ['src/components/nodes/FaceMosaicNode.tsx', 'ASSET_NODE_SIZE'],
-      ['src/components/nodes/VideoProcessNode.tsx', 'ASSET_NODE_SIZE'],
+      ['src/components/canvas/nodes/GridSplitNode.tsx', 'ASSET_NODE_SIZE'],
+      ['src/components/canvas/nodes/GridMergeNode.tsx', 'ASSET_NODE_SIZE'],
+      ['src/components/canvas/nodes/FaceMosaicNode.tsx', 'ASSET_NODE_SIZE'],
+      ['src/components/canvas/nodes/VideoProcessNode.tsx', 'ASSET_NODE_SIZE'],
       ['src/components/base/depthVideo/spawn.ts', 'ASSET_NODE_SIZE'],
-      ['src/components/nodes/Director3DNode.tsx', 'IMAGE_BOX_NODE_SIZE'],
-      ['src/components/nodes/PanoramaNode.tsx', 'IMAGE_BOX_NODE_SIZE'],
+      ['src/components/canvas/nodes/Director3DNode.tsx', 'IMAGE_BOX_NODE_SIZE'],
+      ['src/components/canvas/nodes/PanoramaNode.tsx', 'IMAGE_BOX_NODE_SIZE'],
     ];
     for (const [rel, constName] of sites) {
       const text = readFileSync(new URL('../../' + rel, import.meta.url), 'utf8');

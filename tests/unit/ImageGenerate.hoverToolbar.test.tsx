@@ -63,7 +63,8 @@ vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useOutsideClick: () => {},
 }));
 vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), useConnectedInputs: () => ({})
+  ...((await importOriginal()) as Record<string, unknown>),
+  useConnectedInputs: () => ({}),
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({
   useAssetDegrade: () => ({ isHidden: () => false }),
@@ -119,7 +120,7 @@ vi.mock('../../src/components/base/editors/InlineImageCropper.tsx', () => ({
   },
 }));
 
-import ImageGenerate from '../../src/components/nodes/ImageGenerate.tsx';
+import ImageGenerate from '../../src/components/canvas/nodes/ImageGenerate.tsx';
 
 beforeEach(() => {
   mockSetNodes.mockClear();

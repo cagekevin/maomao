@@ -35,7 +35,7 @@
  *
  * 用法：
  *   node scripts/check-node-handles.mjs                 # 校验全部
- *   node scripts/check-node-handles.mjs src/components/nodes/VideoProcessNode.tsx
+ *   node scripts/check-node-handles.mjs src/components/canvas/nodes/VideoProcessNode.tsx
  */
 import { readFileSync } from 'node:fs';
 import { resolve, extname, relative, sep } from 'node:path';
@@ -81,7 +81,7 @@ try {
     if (h.sourceHandleId) contractSources.add(h.sourceHandleId);
     if (h.customHandles) {
       const pascal = type.charAt(0).toUpperCase() + type.slice(1);
-      const rel = `src/components/nodes/${pascal}`;
+      const rel = `src/components/canvas/nodes/${pascal}`;
       try {
         readFileSync(resolve(root, `${rel}.tsx`), 'utf8');
         customHandleNodeFiles.add(rel);

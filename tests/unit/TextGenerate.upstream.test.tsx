@@ -106,7 +106,8 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) 
   useNodePrefs: () => ({ prefs: {}, set: vi.fn() }),
 }));
 vi.mock('../../src/hooks/useSyncNodeData.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), useSyncNodeData: () => {}
+  ...((await importOriginal()) as Record<string, unknown>),
+  useSyncNodeData: () => {},
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
@@ -146,7 +147,7 @@ beforeEach(() => {
   connectedInputs = { images: [], texts: [] };
 });
 
-import TextGenerate from '../../src/components/nodes/TextGenerate.tsx';
+import TextGenerate from '../../src/components/canvas/nodes/TextGenerate.tsx';
 
 function setup(data = {}) {
   return render(<TextGenerate id="n1" data={data} selected={false} />);
