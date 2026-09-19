@@ -35,8 +35,8 @@ vi.mock('../../src/components/base/core/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-const { runGenerationContract } =
-  await import('../../src/components/base/store/generationContract.ts');
+const { runGenerationOrchestration } =
+  await import('../../src/components/base/store/generationOrchestration.ts');
 
 const sig = new AbortController().signal;
 /** 记录关键步骤的顺序（验证 R3 的 persist 顺序固化） */
@@ -60,7 +60,7 @@ describe('runGenerationContract', () => {
       return { ok: true, url: '/files/tasks/x.png', skipped: false };
     });
     const settleCtx: Array<{ localized: boolean }> = [];
-    const out = await runGenerationContract({
+    const out = await runGenerationOrchestration({
       taskNodeId: 'n1',
       type: 'image',
       signal: sig,
@@ -88,7 +88,7 @@ describe('runGenerationContract', () => {
 
   it('不落盘（saveToTasks:false）→ 直接 done(显示URL)，不触发 onPersisted', async () => {
     const onPersisted = vi.fn();
-    const out = await runGenerationContract({
+    const out = await runGenerationOrchestration({
       taskNodeId: 'n1',
       type: 'image',
       signal: sig,
@@ -104,7 +104,7 @@ describe('runGenerationContract', () => {
 
   it('落盘失败（ok:false）→ 保留原 URL 降级 + **用户可见 toast**（TD-01-17 三态），不判整体失败', async () => {
     saveResultToTasksMock.mockResolvedValue({ ok: false, reason: 'exception', message: 'offline' });
-    const out = await runGenerationContract({
+    const out = await runGenerationOrchestration({
       taskNodeId: 'n1',
       type: 'image',
       signal: sig,
@@ -124,7 +124,7 @@ describe('runGenerationContract', () => {
   it('落盘无需（skipped:true，如 blob:/已是本机）→ 不报降级、不触发 onPersisted', async () => {
     saveResultToTasksMock.mockResolvedValue({ ok: true, url: 'https://up/x.png', skipped: true });
     const onPersisted = vi.fn();
-    const out = await runGenerationContract({
+    const out = await runGenerationOrchestration({
       taskNodeId: 'n1',
       type: 'image',
       signal: sig,
@@ -140,7 +140,7 @@ describe('runGenerationContract', () => {
   it('localize 抛错 → 降级保留原 URL（reportDegrade）+ 仍按成功处理', async () => {
     saveResultToTasksMock.mockResolvedValue({ ok: true, url: 'https://up/x.png', skipped: true });
     const settleArgs: Array<{ url: string; localized: boolean }> = [];
-    const out = await runGenerationContract({
+    const out = await runGenerationOrchestration({
       taskNodeId: 'n1',
       type: 'image',
       signal: sig,
@@ -159,7 +159,7 @@ describe('runGenerationContract', () => {
   it('localize 返回空 → 保留原 URL', async () => {
     saveResultToTasksMock.mockResolvedValue({ ok: true, url: 'https://up/x.png', skipped: true });
     const settleArgs: Array<{ url: string; localized: boolean }> = [];
-    await runGenerationContract({
+    await runGenerationOrchestration({
       taskNodeId: 'n1',
       type: 'image',
       signal: sig,
@@ -172,7 +172,7 @@ describe('runGenerationContract', () => {
 
   it('业务失败（ok:false）→ fail + onFail + toast + 返回 ok:false', async () => {
     const onFail = vi.fn();
-    const out = await runGenerationContract({
+    const out = await runGenerationOrchestration({
       taskNodeId: 'n1',
       type: 'image',
       signal: sig,
@@ -186,7 +186,7 @@ describe('runGenerationContract', () => {
   });
 
   it('业务失败但 aborted=true → 不弹 toast（用户主动停止不打扰）', async () => {
-    const out = await runGenerationContract({
+    const out = await runGenerationOrchestration({
       taskNodeId: 'n1',
       type: 'image',
       signal: sig,
@@ -197,7 +197,7 @@ describe('runGenerationContract', () => {
   });
 
   it('run 返回 undefined → 按业务失败处理', async () => {
-    const out = await runGenerationContract({
+    const out = await runGenerationOrchestration({
       taskNodeId: 'n1',
       type: 'image',
       signal: sig,
@@ -209,7 +209,7 @@ describe('runGenerationContract', () => {
 
   it('抛 AbortError → 分类中止：fail("已停止") + onAbort + 不弹 toast', async () => {
     const onAbort = vi.fn();
-    const out = await runGenerationContract({
+    const out = await runGenerationOrchestration({
       taskNodeId: 'n1',
       type: 'image',
       signal: sig,
@@ -226,7 +226,7 @@ describe('runGenerationContract', () => {
 
   it('抛普通异常 → fail(msg) + onFail + toast', async () => {
     const onFail = vi.fn();
-    const out = await runGenerationContract({
+    const out = await runGenerationOrchestration({
       taskNodeId: 'n1',
       type: 'image',
       signal: sig,

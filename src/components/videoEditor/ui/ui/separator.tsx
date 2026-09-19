@@ -11,7 +11,7 @@ import { cn } from '@/components/videoEditor/utils/ui';
  * `<div role="separator" aria-orientation data-orientation>`（`decorative` 时 `role="none"`）——
  * 纯静态元素、无状态、无键盘、无 Portal，自研成本为零。
  *
- * 【属性口径与 Radix 一致】`data-orientation` 保留（`ve-theme.css` §6 的分隔线规则按
+ * 【属性口径与 Radix 一致】`data-orientation` 保留（`videoEditorTheme.css` §6 的分隔线规则按
  * `[orientation='vertical']` 判向，这里同时给 `data-orientation` 让后续可按需收口）；
  * `decorative`（默认 `true`）= 纯装饰，对屏幕阅读器隐藏。
  */

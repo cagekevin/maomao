@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/videoEdit
  *      `overflow-y-auto`。需要"滚到底加载更多"的视图，用 `scrollRef` + `onScrollCapture`
  *      拿这**一个**滚动容器（`tabs` 路径同样透传，见下），别再套第二层。
  *   ② **一次内边距** —— 内边距只属于分区（`.ve-pg-body` 自带 14px）。视图禁止外层 `p-*` / `m-*`。
- *   ③ **一种分区** —— 一律 `<PropertyGroup>`（视觉在 `ve-theme.css §7`）：
+ *   ③ **一种分区** —— 一律 `<PropertyGroup>`（视觉在 `videoEditorTheme.css §7`）：
  *        · 传 `title`   → 可折叠头（一组 = 一次开合）
  *        · 不传 `title` → 静态段（工具条 / 搜索栏 / 拖放区）
  *        · `grow`       → **整块占位**（空态 / 错误态 / 加载态 / 拖放区）

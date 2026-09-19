@@ -33,13 +33,13 @@ import { showToast } from '../core/toastStore.ts';
  * ════════════════════════════════════════════════════════════════ */
 
 /** run 执行器入参（与节点侧历史签名一致） */
-export interface GenerationContractRunArgs {
+export interface GenerationOrchestrationRunArgs {
   progress: (percent: number, stage?: string) => void;
   signal: AbortSignal;
   taskId: string;
 }
 
-export interface GenerationContractArgs {
+export interface GenerationOrchestrationArgs {
   /** 任务中心 nodeId（节点=自身 id；剧本盒=伪 id，保证每资产一张卡） */
   taskNodeId: string;
   /** 任务类型（image/video/text…），透传给 reportGenerate 与 saveResultToTasks */
@@ -49,7 +49,7 @@ export interface GenerationContractArgs {
   /** R1：由调用方创建（它还要拿去做 stop()），本原语只负责透传 */
   signal: AbortSignal;
   /** 真执行器（调底层 API） */
-  run: (a: GenerationContractRunArgs) => Promise<GenerationResult | undefined>;
+  run: (a: GenerationOrchestrationRunArgs) => Promise<GenerationResult | undefined>;
   /**
    * 结果本地化（可选）：上游 URL → 持久 URL（剧本盒=落素材库分类目录 / 尾帧变体目录）。
    * 抛错或返回空 → **降级保留原 URL**（reportDegrade 留痕，不判定失败）。
@@ -88,7 +88,7 @@ export interface GenerationContractArgs {
   logCtx?: Record<string, unknown>;
 }
 
-export interface GenerationContractOutcome {
+export interface GenerationOrchestrationOutcome {
   ok: boolean;
   resultUrl?: string;
   error?: string;
@@ -100,7 +100,7 @@ export interface GenerationContractOutcome {
  *
  * 调用方**只需要**负责：前置校验、loading 状态、互斥锁、创建 signal、提供 run 与写回回调。
  */
-export async function runGenerationContract({
+export async function runGenerationOrchestration({
   taskNodeId,
   type,
   prompt,
@@ -117,7 +117,7 @@ export async function runGenerationContract({
   logTag = '生成',
   degradeLayer = logTag,
   logCtx = {},
-}: GenerationContractArgs): Promise<GenerationContractOutcome> {
+}: GenerationOrchestrationArgs): Promise<GenerationOrchestrationOutcome> {
   const taskCtl = reportGenerate(taskNodeId, type, prompt, { modelName });
   taskCtl.progress(5, '准备中…');
 

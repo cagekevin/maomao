@@ -22,8 +22,8 @@ import { Slot } from './slot';
  *   ① **渲染进编辑器层根**（`LayerPortal`），不再 Portal 到 `document.body`：
  *      弹层从此天生在 `.ve-scope` 里，`--ve-*` 全部命中 —— 不再依赖"给 body 挂主题类"的补丁。
  *   ② **底色取 `--ve-bg`**（`bg-background`）：原类名是 `bg-popover` → `--ve-popover`
- *      **在 `ve-theme.css` 里从未定义** → 静默回落宿主画布色（`docs/135` §三.1 明令禁止）。
- *      编辑器铁律是"只有一个背景值 `--ve-bg`"（ve-theme.css 头注）—— 弹层与面板同底才对。
+ *      **在 `videoEditorTheme.css` 里从未定义** → 静默回落宿主画布色（`docs/135` §三.1 明令禁止）。
+ *      编辑器铁律是"只有一个背景值 `--ve-bg`"（videoEditorTheme.css 头注）—— 弹层与面板同底才对。
  *   ③ **状态属性 `data-open`**（自有语言），不再输出 Radix 的 `data-state="open|closed"`。
  *
  * 【保留的行为（逐条对齐 Radix，都有真实理由）】

@@ -1,11 +1,11 @@
 /**
  * cutia 编辑器主题色（Tailwind v3 颜色表扩展）—— v3 扁平映射版
  *
- * 【架构】tailwind 颜色名 → `rgb(var(--ve-*) / <alpha-value>)` → ve-theme.css 定义终值。
+ * 【架构】tailwind 颜色名 → `rgb(var(--ve-*) / <alpha-value>)` → videoEditorTheme.css 定义终值。
  *   · 无桥接中转：每个名字在此**显式**映射，缺一个就是 bug（bg-secondary 白底白字事故的教训）；
  *   · token 是 RGB 三元组 → `<alpha-value>` 有效，`bg-primary/15` 这类透明度修饰可用；
  *   · 回落值 = 宿主原定义（`.ve-scope` 外渲染零变化，隔离不破坏）。
- * 【对照表】token 定义见 ve-theme.css §1（亮）/ §2（暗）/ 面板层覆盖。
+ * 【对照表】token 定义见 videoEditorTheme.css §1（亮）/ §2（暗）/ 面板层覆盖。
  */
 export const videoEditorThemeColors: Record<string, string> = {
   /* ── 面 ── */
@@ -34,7 +34,7 @@ export const videoEditorThemeColors: Record<string, string> = {
    *   --ve-fg 未定义 → 非法色 → 浏览器按初始值渲染 = 黑，表现为「表格一片黑、啥也看不见」，
    *   波及全仓 70+ 文件（2026-09-15 实测）。
    * 现改为「宿主默认 + .ve-scope 内覆盖」双轨：定义在 tailwind.config.ts 的
-   * `var(--ve-x, var(--mao-x))`，cutia 值由 ve-theme.css 的 --ve-text-primary 等桥接变量给。
+   * `var(--ve-x, var(--mao-x))`，cutia 值由 videoEditorTheme.css 的 --ve-text-primary 等桥接变量给。
    * 需要 cutia 语义请用上面带 -foreground 后缀的名字（muted-foreground 等），勿再回收同名键。 */
 
   /* ── 状态 ── */

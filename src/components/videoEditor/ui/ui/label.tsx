@@ -13,9 +13,9 @@ import { cn } from '@/components/videoEditor/utils/ui';
  * 旧实现唯一的额外动作是"mousedown 时若不是控件就 preventDefault"（防双击选中文字），
  * 那是纯修饰，不是契约。
  *
- * 【样式】`text-muted-foreground` 在 `ve-tailwind-colors.ts` 里映射到
+ * 【样式】`text-muted-foreground` 在 `videoEditorTailwindColors.ts` 里映射到
  * `rgb(var(--ve-fg) / 0.55)` —— 即 `.ve-row-label` 同一档（L2 行标签），
- * 不引入画布侧裸 token。字级统一由 `ve-theme.css` §8 归一层收口。
+ * 不引入画布侧裸 token。字级统一由 `videoEditorTheme.css` §8 归一层收口。
  */
 const labelVariants = cva(
   'text-xs text-muted-foreground font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70',

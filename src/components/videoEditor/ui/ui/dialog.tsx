@@ -250,8 +250,8 @@ function DialogContentImpl({
         data-open="true"
         tabIndex={-1}
         onKeyDown={handleKeyDown}
-        /* `bg-popover` → `bg-background`：前者在 ve-theme 里**未定义**（回落宿主画布色）。
-           （`ve-theme.css` §6 另有 `[role='dialog']` 规则兜底同一套底色/发丝边/投影。） */
+        /* `bg-popover` → `bg-background`：前者在 videoEditorTheme 里**未定义**（回落宿主画布色）。
+           （`videoEditorTheme.css` §6 另有 `[role='dialog']` 规则兜底同一套底色/发丝边/投影。） */
         className={cn(
           'bg-background pointer-events-auto fixed top-[50%] left-[50%] z-modal-raise grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] rounded-lg border shadow-lg duration-200',
           className,

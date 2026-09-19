@@ -30,7 +30,7 @@ import { useDismissable } from './layer/use-dismissable';
  * 【键盘（ARIA combobox + listbox）】触发器：↓/↑/Enter/Space 展开；
  * 列表：↑/↓ 移动高亮、Home/End 首尾、Enter/Space 选中、Esc 取消、Tab 收起。
  * 高亮与菜单同口径：**焦点留在列表容器**，高亮用 `data-highlighted` 表达
- * （`ve-theme.css` §6 的 `[role='option'][data-highlighted]` 就是它的样式落点）。
+ * （`videoEditorTheme.css` §6 的 `[role='option'][data-highlighted]` 就是它的样式落点）。
  * ══════════════════════════════════════════════════════════════════════════════
  */
 interface SelectContextValue {

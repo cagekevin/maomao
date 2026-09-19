@@ -8,7 +8,7 @@ import {
 } from '../components/base/store/taskStore.ts';
 import { updateNodeRuntime, useNodeRuntime } from '../components/base/store/nodeRuntimeStore.ts';
 import type { TaskController, NodeRunClaim } from '../components/base/store/taskStore.ts';
-import { runGenerationContract } from '../components/base/store/generationContract.ts';
+import { runGenerationOrchestration } from '../components/base/store/generationOrchestration.ts';
 import { logger } from '../components/base/core/logger.ts';
 import { subscribe } from '../components/base/core/eventBus.ts';
 import { useNodeData } from './useNodeData.ts';
@@ -252,7 +252,7 @@ export function useNodeGeneration({
       // 【TD-01-8 收口】编排序列（report→progress→run→localize→落盘→写回→done/fail 分类）
       // 交给 runGenerationContract（与剧本盒同一份实现）；本 hook 只保留 React 侧职责：
       // claim / validate / loading 状态 / AbortController，以及「写回 + 错误落点」回调。
-      return await runGenerationContract({
+      return await runGenerationOrchestration({
         taskNodeId: nodeId,
         type: t.type,
         prompt: t.prompt,

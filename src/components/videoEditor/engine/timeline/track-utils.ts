@@ -26,7 +26,7 @@ export function canTrackBeHidden(
 }
 
 export function getTrackClasses({ type }: { type: TrackType }) {
-  // 轨道底色视觉已收敛到 ve-theme.css §8（.ve-clip-bg-*）
+  // 轨道底色视觉已收敛到 videoEditorTheme.css §8（.ve-clip-bg-*）
   return `ve-clip-bg-${type}`;
 }
 

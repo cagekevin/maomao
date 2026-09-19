@@ -5,7 +5,7 @@ import * as React from 'react';
 import { cn } from '@/components/videoEditor/utils/ui';
 
 /**
- * 开关 —— **形状与配色全部在 ve-theme.css §7 的 `.ve-switch`**（一处定义）。
+ * 开关 —— **形状与配色全部在 videoEditorTheme.css §7 的 `.ve-switch`**（一处定义）。
  *
  * 【为什么不再写布局工具类】（2026-09-15 用户："启用按钮也不对了，很丑"）
  * 组件里原本塞满了 `h-5 w-9 border-2 shadow-xs` 这类**布局与外观混在一起的工具类**：
@@ -18,7 +18,7 @@ import { cn } from '@/components/videoEditor/utils/ui';
  * 更新(2026-09-15 · docs/135-radix-ui依赖移除计划)：原实现是 `radix-ui` 的
  * `Switch.Root/Thumb`（依赖 `data-state="checked|unchecked"`），现换成原生
  * `<button role="switch">`，状态属性随之从 `data-state` 改为**自有 `data-active`**
- * （ve-theme.css 里那三条 `[data-state=…]` 规则已同步改写）。
+ * （videoEditorTheme.css 里那三条 `[data-state=…]` 规则已同步改写）。
  * 键盘：`<button>` 自带 Space/Enter → click，无需自写。
  */
 interface SwitchProps extends Omit<

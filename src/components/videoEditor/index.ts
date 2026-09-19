@@ -10,10 +10,10 @@
  *   判据：加一个导出前先问「域外真的需要它吗」，答不出就别加。
  *
  * 【🔵 两个合法例外（不走门面，判据见 docs/DOMAIN-MODULES.md §5.2.2）】
- *   1. `tailwind.config.ts` 直引 `./src/components/videoEditor/ve-tailwind-colors`
+ *   1. `tailwind.config.ts` 直引 `./src/components/videoEditor/videoEditorTailwindColors`
  *      —— **构建期**消费（Node/tsx 加载）：走门面会把本域整张依赖图拉进构建配置；
  *      且该文件**必须保持零依赖**（它就是纯色值表）。
- *   2. `src/main.tsx` 直引 `./components/videoEditor/ve-theme.css`
+ *   2. `src/main.tsx` 直引 `./components/videoEditor/videoEditorTheme.css`
  *      —— CSS 副作用导入：CSS 不在 TS 模块图内，无环风险，也无需经门面。
  */
 export { EditorShell } from './EditorShell.tsx';

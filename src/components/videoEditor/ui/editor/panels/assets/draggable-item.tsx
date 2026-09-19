@@ -63,7 +63,7 @@ export function DraggableItem({
   const didDragRef = useRef(false);
   const editor = useEditor();
   // mockup 口径：选中/高亮 = 仅缩略图 2px 描边（offset 1px），无底色、不套整卡
-  // 视觉定义已收敛到 ve-theme.css §8（.ve-card-selected）
+  // 视觉定义已收敛到 videoEditorTheme.css §8（.ve-card-selected）
 
   const handleAddToTimeline = () => {
     onAddToTimeline?.({ currentTime: editor.playback.getCurrentTime() });
@@ -144,7 +144,7 @@ export function DraggableItem({
             >
               {preview}
               {!isDragging && <PlusButton variant="card" onClick={handleAddToTimeline} />}
-              {/* 减号：与加号同族、同显隐口径（hover 才现），位置在右上角（见 ve-theme §8）。 */}
+              {/* 减号：与加号同族、同显隐口径（hover 才现），位置在右上角（见 videoEditorTheme §8）。 */}
               {!isDragging && onRemoveFromTimeline && (
                 <MinusButton
                   variant="card"
@@ -286,7 +286,7 @@ export function DraggableItem({
  * 【配色：素净，不用实心彩底】（2026-09-15 用户三次反馈后定稿）
  * 曾用"半透明实心圆钮"（白 / 红），用户评「一白一红的也很丑」。现改为**素净图标钮**：
  * 常态只有中性色图标、悬停才给薄纱；减号的危险色**只在悬停**时出现。
- * 配色细节全在 `ve-theme.css` 的 `.ve-act-btn` 一族人话里。
+ * 配色细节全在 `videoEditorTheme.css` 的 `.ve-act-btn` 一族人话里。
  */
 function ActionButton({
   className,

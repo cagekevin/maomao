@@ -7,7 +7,7 @@ import './index.css';
 // cutia 编辑器主题（作用域隔离，全部规则限定在 .ve-scope 内）。
 // 必须在 index.css 之后：Vite 保序，确保 .ve-scope 变量晚于 @tailwind base 生效。
 // 见 docs/130-cutia搬迁计划书-2026-09-14.md。
-import './components/videoEditor/ve-theme.css';
+import './components/videoEditor/videoEditorTheme.css';
 import { initStorage } from './components/base/storage';
 import { logger } from './components/base/core/logger.ts';
 import { subscribeBackendLogStream } from './components/base/core/backendLogStream.ts';

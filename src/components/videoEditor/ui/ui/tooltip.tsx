@@ -21,7 +21,7 @@ import { Slot } from './slot';
  * 【两条真实约束决定它长这样】
  *   ① **它必须在层根里**（`LayerPortal`）：原实现 Portal 到 `document.body`，
  *      而 `.ve-scope` 在编辑器根上 ⇒ 气泡拿不到 `--ve-*`，底色回落宿主画布色。
- *      （`bg-popover` 这个名字在 `ve-theme.css` 里**从未定义** → 静默回落，是本仓踩过的经典。）
+ *      （`bg-popover` 这个名字在 `videoEditorTheme.css` 里**从未定义** → 静默回落，是本仓踩过的经典。）
  *   ② **它绝不能吞掉子元素的事件**：8 个消费方全是"图标按钮 + 气泡"，气泡抢了
  *      pointer 事件就会出现"悬停有提示、点不动按钮"。故气泡本体 `pointer-events-none`
  *      （比 Radix 的"可悬停气泡"更保守：本仓 0 处需要把鼠标移进气泡里操作）。
@@ -224,7 +224,7 @@ const TooltipTrigger = React.forwardRef<HTMLButtonElement, TooltipTriggerProps>(
 );
 TooltipTrigger.displayName = 'TooltipTrigger';
 
-/* 变体表：底色/文字全部走 `--ve-*`（`bg-popover` 在 `ve-theme.css` 里未定义 → 会回落宿主色）。
+/* 变体表：底色/文字全部走 `--ve-*`（`bg-popover` 在 `videoEditorTheme.css` 里未定义 → 会回落宿主色）。
    后 6 个语义变体（destructive/important/promotions/…）是画布侧遗留配色，编辑器内当前只用
    `default` 与 `sidebar`——保留导出面不动，避免外部调用点受影响。 */
 const tooltipVariants = cva('overflow-visible rounded-sm text-sm shadow-md', {

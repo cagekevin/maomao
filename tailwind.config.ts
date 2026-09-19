@@ -1,6 +1,6 @@
 import type { Config } from 'tailwindcss';
 // cutia 编辑器主题色（独立文件，避免污染本仓令牌表；见 docs/130-cutia搬迁计划书）。
-import { videoEditorThemeColors } from './src/components/videoEditor/ve-tailwind-colors';
+import { videoEditorThemeColors } from './src/components/videoEditor/videoEditorTailwindColors';
 
 /**
  * 样式令牌唯一真相源（CLAUDE.md §七.1 指定；禁裸色值，勿再引用已删的 tailwind-tokens.md）。
@@ -123,12 +123,12 @@ const config: Config = {
 
         // ── 本仓语义令牌（必须位于 cutia 之后，夺回被其占用的同名键）──
         // 【为什么必须放在 cutia 之后 + 为什么值写成 var(--ve-x, --mao-x) 双轨】
-        //   cutia（ve-tailwind-colors）与宿主在 primary/secondary/muted/accent 四个名字上**必然冲突**
+        //   cutia（videoEditorTailwindColors）与宿主在 primary/secondary/muted/accent 四个名字上**必然冲突**
         //   （宿主=文字/强调色；cutia=主操作/悬停薄纱），且两边的调用点都大量存在、都不能改。
-        //   解法 = **同名双值**：默认取宿主 --mao-*，在 .ve-scope 内由 ve-theme.css 把同名 --ve-*
-        //   覆盖成 cutia 值（见 ve-theme.css 的 `--ve-text-primary` 等桥接变量）。
+        //   解法 = **同名双值**：默认取宿主 --mao-*，在 .ve-scope 内由 videoEditorTheme.css 把同名 --ve-*
+        //   覆盖成 cutia 值（见 videoEditorTheme.css 的 `--ve-text-primary` 等桥接变量）。
         //   这样 `text-secondary` 在表格里是 #aaa 灰字、在编辑器里是 cutia 的次级前景，两边都对。
-        //   ⚠️ 桥接变量名必须与 ve-theme.css 一致，改一处必须改两处。
+        //   ⚠️ 桥接变量名必须与 videoEditorTheme.css 一致，改一处必须改两处。
         primary: 'rgb(var(--ve-text-primary, var(--mao-text-primary)) / <alpha-value>)',
         secondary: 'rgb(var(--ve-text-secondary, var(--mao-text-secondary)) / <alpha-value>)',
         muted: 'rgb(var(--ve-muted, var(--mao-text-muted)) / <alpha-value>)',

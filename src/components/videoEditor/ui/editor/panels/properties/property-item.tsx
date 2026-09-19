@@ -3,7 +3,7 @@ import { ArrowDown, ArrowRight } from 'lucide-react';
 import { cn } from '@/components/videoEditor/utils/ui';
 
 /**
- * 属性面板原语 —— 视觉全部定义在 ve-theme.css §8（.ve-pg-* / .ve-row-*）。
+ * 属性面板原语 —— 视觉全部定义在 videoEditorTheme.css §8（.ve-pg-* / .ve-row-*）。
  * 组件里只保留结构类；开关状态通过 aria-expanded 交给 CSS。
  */
 

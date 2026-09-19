@@ -1634,7 +1634,7 @@ function Canvas() {
             ── 更新(2026-09-14)：自建 VideoEditorDock 那条路径（含 _legacy 归档）已整体删除。 */}
         {videoEditorOpen && (
           // ve-scope：cutia 主题作用域（样式隔离，不污染画布 token）；
-          // dark：cutia 默认暗色主题（见 ve-theme.css）。
+          // dark：cutia 默认暗色主题（见 videoEditorTheme.css）。
           // z-modal：编辑器是**一个全屏弹窗**，归体系里 `modal 9999` 位 ——
           // 不用 z-ceiling（那是 Toast/错误屏这类"最后手段"的位；
           // 顶格还有个恶果：Portal 到 body 的弹层(10000)必须"比最大值还高"才盖得住它 = 不可能，

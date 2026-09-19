@@ -10,7 +10,7 @@ import { cn } from '@/components/videoEditor/utils/ui';
  * 【为什么用原生 range 而不是自研 div 拖拽】
  * 拖拽、键盘（←/→/Home/End/PageUp）、`min/max/step` 吸附、`aria-valuenow`、
  * 触摸/笔输入 —— 原生控件**全部自带且行为正确**。手写指针拖拽的每一行，
- * 都是在重新实现浏览器已经做对的事（且 a11y 必丢）。视觉由 `.ve-slider`（ve-theme.css §7）
+ * 都是在重新实现浏览器已经做对的事（且 a11y 必丢）。视觉由 `.ve-slider`（videoEditorTheme.css §7）
  * 用 `::-webkit-slider-*` / `::-moz-range-*` 接管，不需要额外 DOM。
  *
  * 【API 兼容】沿用 Radix 的**数组形态**（`value: number[]` / `onValueChange: (v: number[]) => void`）——

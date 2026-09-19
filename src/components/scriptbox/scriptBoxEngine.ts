@@ -34,7 +34,7 @@ import {
 } from '../base/store/resourceStore.ts';
 import { CODE_GENERATED_USER_SUB_DIRS } from '../base/utils/uploadDirs.ts';
 import { uploadFileToLocal } from '../base/api/index.ts';
-import { runGenerationContract } from '../base/store/generationContract.ts';
+import { runGenerationOrchestration } from '../base/store/generationOrchestration.ts';
 import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
 import { detectFileType } from '../base/utils/assetType.ts';
 import { fileNameFromUrl, canvasToImageDataUrl, clamp } from '../base/core/utils.ts';
@@ -558,7 +558,7 @@ export function createScriptBoxEngine({
       `asset-${assetId}`,
       () => setAssetLoading(false),
       async (signal) =>
-        runGenerationContract({
+        runGenerationOrchestration({
           taskNodeId,
           type: 'image',
           prompt,
@@ -1683,7 +1683,7 @@ export function createScriptBoxEngine({
           const ams = (d.assetModelSettings as Record<string, unknown>) || {};
           const aspectRatio = String(ams.globalAspectRatio || '16:9');
           const imageSize = String(ams.globalSize || '2K');
-          await runGenerationContract({
+          await runGenerationOrchestration({
             taskNodeId: tailFrameTaskNodeId(nodeId, shotId),
             type: 'image',
             prompt: composePrompt,

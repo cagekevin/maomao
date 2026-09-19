@@ -16,7 +16,7 @@ import { MenuItemBase, MenuRoot, MenuSubTriggerBase, MenuSurface, MenuTrigger } 
  * 【三处跟随自研口径的改名/换值，都是往唯一真源收】
  *   · `data-state="open"` → `data-open`（本仓自有状态属性；不再混用 Radix 的 `data-state`）。
  *   · `bg-popover` / `data-[highlighted]:bg-popover-hover` → `bg-background` / `bg-secondary`：
- *     前两者对应的 `--ve-popover*` 在 `ve-theme.css` **从未定义** → 静默回落宿主画布色，
+ *     前两者对应的 `--ve-popover*` 在 `videoEditorTheme.css` **从未定义** → 静默回落宿主画布色，
  *     正是 `docs/135` §三.1 明令禁止的"画布侧回落 token"。
  *   · 高亮属性仍是 `data-highlighted`（由菜单内核按键盘/悬停写入），样式钩子不变。
  */
