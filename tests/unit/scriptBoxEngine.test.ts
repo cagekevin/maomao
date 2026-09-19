@@ -313,7 +313,11 @@ describe('scriptBoxEngine · 引擎编排', () => {
     // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用本地类型收窄
     const { toastStore } =
       (await import('../../src/components/base/core/event/toastStore.ts')) as unknown as {
-        toastStore: { showToast: (msg: string, opts?: unknown) => void };
+        toastStore: {
+          showToast: (msg: string, opts?: unknown) => void;
+          toastError: (msg: string, opts?: unknown) => void;
+          toastSuccess: (msg: string, opts?: unknown) => void;
+        };
       };
     const { engine, store } = makeEngine({});
     await engine.onGenerateScript();
@@ -389,7 +393,11 @@ describe('scriptBoxEngine · 引擎编排', () => {
     // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用本地类型收窄
     const { toastStore } =
       (await import('../../src/components/base/core/event/toastStore.ts')) as unknown as {
-        toastStore: { showToast: (msg: string, opts?: unknown) => void };
+        toastStore: {
+          showToast: (msg: string, opts?: unknown) => void;
+          toastError: (msg: string, opts?: unknown) => void;
+          toastSuccess: (msg: string, opts?: unknown) => void;
+        };
       };
     vi.mocked(chatCompletions).mockResolvedValueOnce({ ok: true, content: '不是json' });
     const { engine, store } = makeEngine({ story: 'x' });
