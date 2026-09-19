@@ -1,7 +1,7 @@
 import type { GenerationResult } from '@/types';
 import { reportGenerate, type TaskController } from '@/components/base/store/taskStore';
 import { saveResultToTasks } from '@/components/base/api/index';
-import { classifyError } from '@/components/base/utils/genErrors';
+import { classifyError, getRetryableObserved } from '@/components/base/utils/genErrors';
 import { reportDegrade } from '@/components/base/core/log/degrade';
 import { logger } from '@/components/base/core/log/logger';
 import { showToast } from '@/components/base/core/event/toastStore';
@@ -69,8 +69,6 @@ export interface GenerationOrchestrationArgs {
   ) => void;
   /** 落盘后的追加写回（R3 第四步，可选）：节点用它把外链覆盖成 /files/ 持久 URL；剧本盒不需要。 */
   onPersisted?: (persistedUrl: string, result: GenerationResult, taskCtl: TaskController) => void;
-  /** 是否把结果落盘到 tasks 目录（默认 true；对齐 P0-C「落盘唯一出口」） */
-  saveToTasks?: boolean;
   /** 失败回调（节点=updateNodeRuntime(error)；剧本盒=commit loading:false） */
   onFail?: (errorMsg: string) => void;
   /** 中止回调（用户停止；节点=清 error；剧本盒=清 loading） */
@@ -110,7 +108,6 @@ export async function runGenerationOrchestration({
   localize,
   settle,
   onPersisted,
-  saveToTasks = true,
   onFail,
   onAbort,
   toastFail = '生成失败',
@@ -146,10 +143,19 @@ export async function runGenerationOrchestration({
       }
       // ② 写回「应显示的 URL」，并把「本地化是否真的发生」一并交出（消费方据此定状态，不靠猜）
       if (url) settle?.(url, r, taskCtl, { localized });
-      // ③ 落盘唯一出口（P0-C）：保持「失败不阻断主流程」，但**区分三态**（TD-01-17）——
-      //    落盘成功→用持久 URL；无需落盘→原样；**落盘失败→保留原 URL 降级 + 用户可见**（不再并入"成功"）。
+      // ③ 落盘唯一出口（P0-C）：**契约内的无条件一步**，不是可选分支（ADR-0030 / 2026-09-20 深模块化）。
+      //
+      // 【为什么删掉原来的 `saveToTasks?: boolean`（默认 true）开关】
+      //   它是**幽灵开关**：3 个调用方**零处显式传它**，全部吃默认 true ⇒ 从未被真正使用过。
+      //   而它的存在本身制造困惑：写新生成路径的 AI 必须**猜**「我这个场景该不该传 false」——
+      //   答案是「从来不需要」。可选 boolean 让「忘写」与「有意不落盘」长得一样（同 `timeoutMs` 旧形态）。
+      //   删掉后 ⇒ 落盘成为**结构上无法跳过**的一步，新调用方**不可能**漏掉（比加闸更强，见手段优先级：
+      //   结构上不可能 ＞ 类型层 ＞ 唯一入口 ＞ 对账测试 ＞ 文档留痕 ＞ 机器闸）。
+      //
+      // 【三态区分（TD-01-17）】落盘成功→用持久 URL；无需落盘（`skipped`，已是本地）→原样；
+      //   **落盘失败→保留原 URL 降级 + 用户可见**（不再并入"成功"）。
       let finalUrl = url;
-      if (saveToTasks && url) {
+      if (url) {
         const outcome = await saveResultToTasks(url, type);
         if (outcome.ok) {
           finalUrl = outcome.url;
@@ -190,7 +196,8 @@ export async function runGenerationOrchestration({
         type,
         error: msg,
         errType: cls.type,
-        retryable: cls.retryable,
+        // 观测（仅排查）：本类错误"本可重试吗"。**非决策依据** —— 真重试判据在 api/httpClient.ts
+        retryableObserved: getRetryableObserved(msg),
         ...logCtx,
       });
       showToast(msg, { type: 'error' });
@@ -213,7 +220,8 @@ export async function runGenerationOrchestration({
       type,
       error: msg,
       errType: cls.type,
-      retryable: cls.retryable,
+      // 观测（仅排查），同 contract·fail 分支：非决策依据
+      retryableObserved: getRetryableObserved(e),
       ...logCtx,
     });
     showToast(msg, { type: 'error' });

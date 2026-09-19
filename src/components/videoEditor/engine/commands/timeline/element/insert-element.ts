@@ -1,7 +1,7 @@
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { reportDegrade } from '@/components/base/core/log/degrade';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
-import { EditorCore } from '@/components/videoEditor/engine/core';
+import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 import type {
   CreateTimelineElement,
   TimelineTrack,
@@ -54,7 +54,7 @@ export class InsertElementCommand extends Command {
   private placement: InsertElementPlacement;
 
   execute(): void {
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
     this.savedState = editor.timeline.getTracks();
 
     // 【2026-09-17 TD-16-27】原实现三处 `return` **静默放弃**：用户把元素拖进时间轴失败时
@@ -148,14 +148,14 @@ export class InsertElementCommand extends Command {
 
   undo(): void {
     if (this.savedState) {
-      const editor = EditorCore.getInstance();
+      const editor = getEditor();
       editor.timeline.updateTracks(this.savedState);
     }
 
     // 回滚 execute 里那次 `pushHistory:false` 的 settings 变更（TD-22-34）。
     // 与上一段顺序无关：tracks 与 project.settings 是两处独立状态。
     if (this.savedSettings) {
-      const editor = EditorCore.getInstance();
+      const editor = getEditor();
       const activeProject = editor.project.getActiveOrNull();
       if (activeProject) {
         editor.project.setActiveProject({

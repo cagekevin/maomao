@@ -63,3 +63,4 @@
 2. 同一环境变量在两处及以上被解析，或只有一处给了缺省值；
 3. 出现含义不明的裸数字（超时 / 阈值 / 上限）且 `contracts.ts` 无对应登记；
 4. `spec/CONTEXT.md` 再次出现本条判据的**正文**（应只有一行指针）。
+- **毕业去向**：结构+闸：base/core/config.ts 为 env 唯一读取点（裸读 import.meta.env 会被 scripts/check-any-honesty.mjs 与 review 拦）

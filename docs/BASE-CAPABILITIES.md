@@ -93,10 +93,10 @@
 
 | 能力 | 文件 | 一句话 | 用法 |
 |------|------|--------|------|
-| **聊天面板** | `src/components/AgentPanel.jsx` | 复刻官方右侧面板 UI，接入 useAgentChat | `<AgentPanel open onClose agentKey="canvas-assistant" />`（App 已挂，右上角 AI 按钮开关） |
-| **对话 hook** | `src/components/base/useAgentChat.js` | 复刻官方 `dr`：消息状态 + SSE 发送 + 多轮工具循环（工具执行接工具层） | `const { messages, sending, send, stop, clear } = useAgentChat({ agentKey })` |
-| **消息气泡** | `src/components/AgentMessage.jsx` | 复刻官方 `Cr/Sr/_Component34`：user/assistant/tool 三态 + 思考折叠 + 工具标签 | 被 AgentPanel 使用 |
-| **demo 规则引擎** | `useAgentChat.js` 的 `demoPlan` | 本地规则模拟 LLM：识别「创建/连接/删除/查看」意图调工具 | `VITE_AGENT_DEMO=1` 开启，零配置演示 |
+| **聊天面板** | `src/components/agent/panels/AgentPanel.tsx` | 复刻官方右侧面板 UI，接入 useAgentChat | `<AgentPanel open onClose agentKey="canvas-assistant" />`（App 已挂，右上角 AI 按钮开关） |
+| **对话 hook** | `src/components/agent/runtime/useAgentChat.ts` | 复刻官方 `dr`：消息状态 + SSE 发送 + 多轮工具循环（工具执行接工具层） | `const { messages, sending, send, stop, clear } = useAgentChat({ agentKey })` |
+| **消息气泡** | `src/components/agent/panels/AgentMessage.tsx` | 复刻官方 `Cr/Sr/_Component34`：user/assistant/tool 三态 + 思考折叠 + 工具标签 | 被 AgentPanel 使用 |
+| **demo 规则引擎** | `useAgentChat.ts` 的 `demoPlan` | 本地规则模拟 LLM：识别「创建/连接/删除/查看」意图调工具 | `VITE_AGENT_DEMO=1` 开启，零配置演示 |
 
 ### 三种对话模式（useAgentChat 按 env 选择）
 
@@ -122,12 +122,12 @@
 
 | 能力 | 文件 | 一句话 | 用法 |
 |------|------|--------|------|
-| **统一通知 store** | `toastStore.js` | 全局 toast 发布订阅 store | `import { showToast } from './base/toastStore.js'` → `showToast('消息', {type:'success'})` |
+| **统一通知 store** | `toastStore.ts` | 全局 toast 发布订阅 store | `import { showToast } from './base/core/event/toastStore.ts'` → `showToast('消息', {type:'success'})` |
 | **通知渲染容器** | `ToastContainer.jsx` | 顶部居中渲染 toast（状态色模板） | App 根已挂一次，别处**不需要再挂**，直接 showToast 即可 |
 
 ### showToast 用法（所有交互提醒统一走这里）
 ```js
-import { showToast } from './components/base/toastStore.js'
+import { showToast } from './components/base/core/event/toastStore.ts'
 
 showToast('已复制 3 个节点')                       // 默认 info(蓝)
 showToast('已导入图片', { type: 'success' })      // 成功(绿)

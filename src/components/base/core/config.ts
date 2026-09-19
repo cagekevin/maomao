@@ -116,6 +116,16 @@ export const AGENT_CONTEXT_OUTPUT_BUDGET_RATIO = 0.2;
  */
 /** localTool 探活 / 拖拽文本读取（短超时，快失败） */
 export const LOCAL_TOOL_PING_TIMEOUT = 5000;
+/**
+ * localTool **本机 CRUD**（tasks / projects / resources / kv / providers 端点）。
+ *
+ * 【为什么给它们一个真实时限（ADR-0035 · 2026-09-20 深模块化）】这批端点是
+ * `127.0.0.1:18080` 的毫秒级返回，历史 `config.ts:109-112` 据此判定"默认值对它们等价"而不掐点。
+ * 但**不掐点 ≠ 无风险**：后端假死（端口在听但不回）时这 20 处调用会**永远 pending**，
+ * 正是 ADR-0035 说的"最坏失败形态"（用户看到一直转、日志什么都没有）。
+ * 10s 远大于正常耗时（毫秒级），故**不会误伤**，却把"永久挂起"变成"可诊断的超时"。
+ */
+export const LOCAL_CRUD_TIMEOUT = 10000;
 /** 图片 URL → blob 读取（assetUrl.js） */
 export const IMAGE_FETCH_TIMEOUT = 10000;
 /** 图片压缩 / 图像加载（imageCompress.js、asyncGuard.js） */

@@ -19,6 +19,7 @@ import {
   GEN_POLL_INTERVAL,
   CHAT_TIMEOUT,
   CHAT_TOTAL_TIMEOUT,
+  LOCAL_TOOL_PING_TIMEOUT,
 } from '@/components/base/core/config';
 import { httpRequest } from '@/components/base/api/httpClient';
 import { logger } from '@/components/base/core/log/logger';
@@ -145,6 +146,8 @@ export async function relayCancel(frontTaskId: string): Promise<{ ok: boolean }>
     await httpRequest(`${API_BASE}/api/generate/${encodeURIComponent(frontTaskId)}/cancel`, {
       method: 'POST',
       retries: 0,
+      // 取消是本机端点的即时操作，用短时限即可（原不掐点 ⇒ 后端假死时取消也会永久挂起）
+      timeoutMs: LOCAL_TOOL_PING_TIMEOUT,
       label: 'relayCancel',
     });
     return { ok: true };

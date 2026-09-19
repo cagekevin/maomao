@@ -42,6 +42,38 @@
  *   落盘节流
  *   createDebouncedPersist(write, delay)   高频变更合并落盘（见下方原语注释，P4）
  *
+ * ════════════════════════════════════════════════════════════════
+ * 【★ 我该用哪个？—— 照这张表选，不必读上文推理（2026-09-20 深模块化）】
+ *
+ * 唯一前置：**先看这个键在 `contracts.ts STORAGE_KEYS` 登记的 `backend`**。
+ * 这是唯一的判据来源；表里所有"local 键 / KV 键"都指它。
+ *
+ * | 我要做的事 | local 键用 | KV 键用 | 备注 |
+ * | --- | --- | --- | --- |
+ * | **读** | `contentGet(key)` | `contentGetAsync(key)` | ⚠️ KV 键**禁止**同步读（闸规则 7）—— 缓存冷时同步读把「未知」当「不存在」⇒ 水化空数据 |
+ * | **写** | `contentSet(key, v)` | `contentSetAsync(key, v)` + `await` | ⚠️ KV 键**禁止**同步写（**会抛错**，结构层禁止） |
+ * | **删** | `contentDelete(key)` | `contentDeleteAsync(key)` + `await` | 同上 |
+ * | **订阅变更** | `contentSubscribe(key, cb)` | 同左 | 写/删后自动通知，与后端无关 |
+ * | **订阅全部** | `contentSubscribeAll(cb)` | 同左 | |
+ * | **事务快照**（撤销/恢复） | `contentGetSnapshot()` / `contentGetKeySnapshot(key)` | 同左 | 返回冻结副本 |
+ * | **高频写合并** | `createDebouncedPersist(write, delay)` | 同左 | 高频变更合并落盘 |
+ * | ⚠️ 双通道**原语**（普通 store **勿直接调**） | — | `contentSetKvWithFallback` / `contentGetKvWithFallback` | per-key 的 `fallback` 选项对上面的 `contentSetAsync`/`contentGetAsync` **已同样生效** ⇒ 普通 store 直接用 Async 即可。只有需要**迁移许可信号**（`vacated`/`degraded`/`rejected` 判别）的极少数调用方才直调 |
+ * | **KV 严格族**（用户主数据，fail-closed） | — | `contentKvGetVersion` / `contentKvReadWithVersion` / `contentKvSetCas` | 画布快照等**绝不写副本**的场景 |
+ * | **读原始本地镜像** | `contentGetLocalMirror(key)` | 同左 | 跳过缓存的底层值（如 director3d 读旧工程） |
+ * | **跳过缓存直读底层** | `contentReadThrough(key)` | — | 语义："不要缓存，直读后端原始串" |
+ *
+ * **两条铁律（选错会静默坏数据，不是报错）**：
+ * ① **KV 键一律走 Async**（同步 API 对 KV 键：读恒返回 `undefined`、写/删**直接抛**）；
+ * ② **失败该不该往上传，由"族"决定**：尽力而为族（上表前 7 行）失败降级不阻断；
+ *    严格族（`contentKv*`）失败 **fail-closed 绝不写副本**。分族判据 = **失败语义**，不是后端。
+ *
+ * **存量核对（2026-09-20 普查 · 两条都有闸在守，当前零违规）**：
+ *  · 绕入口直调底层（`sGet/sSet/kvGet…`）→ `check-arch` 规则 6（唯一入口红线）**已守**；
+ *  · KV 键走同步 API（写会抛、读取到 undefined 是静默坏数据）→ `check-arch` 规则 7 **已守**；
+ *  · 裸字面量键绕登记表 → `check:keys` + `check-arch` 规则 15 **已守**。
+ *  ⇒ 新增调用方**照上表选即可**，不必担心"历史怎么迁"——历史已收口，且回潮会被上述闸当场拦。
+ * ════════════════════════════════════════════════════════════════
+ *
  * ── 迁移路径 ──
  *   1. 先在 STORAGE_KEYS 登记键
  *   2. 把 store 中 sGet/sSet → content.get/set

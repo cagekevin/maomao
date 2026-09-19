@@ -215,16 +215,14 @@ export function useRenderAssetResolver(): (u: string, extra?: AssetResolveOption
   );
 }
 
-/**
- * 渲染端归一化：把任意图片 URL 补全成「可被 <img> 直接加载」的地址。
- *  - /files/ 相对 → 补全为绝对 http；
- *  - data: / http(s) / blob: / 裸 base64 → 原样（浏览器可直接显示）。
- * @param {string} url
- * @returns {string}
- */
-export function normalizeAssetUrl(url: string | null | undefined): string {
-  return toAbsoluteFileUrl(url);
-}
+/** 【已删 · 2026-09-20】原 `normalizeAssetUrl(url)` = `toAbsoluteFileUrl(url)` 的**纯转发别名**。
+ *
+ * 删因（ADR-0030 幽灵预留 / ADR-0046「让 AI 不猜」）：
+ *  · 它对生产代码**零消费者**（全仓仅测试自己在断言"它等价于 toAbsoluteFileUrl"）；
+ *  · 它给同一个操作造了**第二个名字** —— AI 看到 `normalizeAssetUrl` 与 `toAbsoluteFileUrl`
+ *    并存，必须猜"该用哪个"（而两者逐字节等价，"选错"没有反馈）。
+ *  · 相对 `/files/` → 绝对 URL 的唯一名字 = **`toAbsoluteFileUrl`**（`base/core/utils.ts`，58 处消费）。
+ *  需要渲染地址时经 `resolveAssetUrl(url, {scope:'render'})`（它还负责按需出缩略图）。 */
 
 /**
  * 【TD-08-28 收口 · 2026-09-17】`contentIdOfBytes`（前端由字节算 `sha1:<hex>`）**已删除**。

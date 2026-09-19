@@ -18,7 +18,7 @@
 ## 一、标准骨架（照抄）
 
 ```jsx
-// components/XxxNode.jsx
+// components/<域>/nodes/XxxNode.tsx
 import React, { useState, useRef } from 'react'
 import NodeShell from './base/NodeShell.jsx'
 import HoverToolbar from './base/HoverToolbar.jsx'
@@ -139,8 +139,8 @@ useNodeResize(id).onMainBoxResize(w, h) 写回 node.height + updateNodeInternals
 
 | # | 位置 | 作用 | 漏了会怎样 |
 |---|------|------|-----------|
-| 1 | `components/base/canvas/NodePalette.ts` `paletteNodes` 加 `{ type, label, icon, cat, component, builtin:true }`（**纯 UI 目录，不带 data**） | 右键菜单/节点面板出现 + **`buildNodeTypeComponents()` 自动派生画布 nodeTypes** | 右键找不到节点 / 画布渲染异常 |
-| 2 | **`components/base/canvas/nodeDataSchema.ts` `NODE_DATA_DEFAULTS` 加一行**（`{ 字段: 初值 }`；无 data 字段的节点可省） | **新建节点的 data 初值唯一真源**（2026-09-12 / TD-02-7 从 `NodePalette.data` 迁出） | 新建节点缺初值（字段 undefined，靠组件内 `?? 常量` 兜底）；**幽灵默认值禁止登记** |
+| 1 | `components/canvas/shell/NodePalette.ts` `paletteNodes` 加 `{ type, label, icon, cat, component, builtin:true }`（**纯 UI 目录，不带 data**） | 右键菜单/节点面板出现 + **`buildNodeTypeComponents()` 自动派生画布 nodeTypes** | 右键找不到节点 / 画布渲染异常 |
+| 2 | **`components/canvas/contract/nodeDataSchema.ts` `NODE_DATA_DEFAULTS` 加一行**（`{ 字段: 初值 }`；无 data 字段的节点可省） | **新建节点的 data 初值唯一真源**（2026-09-12 / TD-02-7 从 `NodePalette.data` 迁出） | 新建节点缺初值（字段 undefined，靠组件内 `?? 常量` 兜底）；**幽灵默认值禁止登记** |
 | 3 | **`hooks/useConnectedInputs.ts` 登记产出声明**（单 URL → `SINGLE_OUTPUT_FIELDS`；复合多端口/多图 → `NODE_OUTPUTS`；确无自有产出 → `NO_OUTPUT_NODE_TYPES`） | 下游连线拿你的产出（**字段名由写侧显式声明**） | **下游连了线也拿不到数据**；漏登记由 `uncoveredOutputNodeTypes()`（单测 + dev 告警）拦下 |
 | 4 | `components/base/core/contracts.ts` `NODE_TYPES` 加一行（节点用到 `useNodePrefs('xxxNode', …)` 时必须） | 参数记忆命名空间登记 | `npm run check:node-types` 红（编译期拦截裸命名空间） |
 | 5 | `components/base/core/contracts.ts` `NODE_HANDLE_CONTRACT` 加一行（节点端口非默认 null 口时必须） | App 补边 / lazyNode 占位骨架共用端口真源 | `npm run check:node-handles` 红（漏 handle → 连线静默不渲染） |

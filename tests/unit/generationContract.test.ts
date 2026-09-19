@@ -86,21 +86,10 @@ describe('runGenerationContract', () => {
     expect(out).toMatchObject({ ok: true, resultUrl: '/files/tasks/x.png' });
   });
 
-  it('不落盘（saveToTasks:false）→ 直接 done(显示URL)，不触发 onPersisted', async () => {
-    const onPersisted = vi.fn();
-    const out = await runGenerationOrchestration({
-      taskNodeId: 'n1',
-      type: 'image',
-      signal: sig,
-      saveToTasks: false,
-      onPersisted,
-      run: async () => ({ ok: true, url: 'https://up/x.png' }),
-    });
-    expect(saveResultToTasksMock).not.toHaveBeenCalled();
-    expect(onPersisted).not.toHaveBeenCalled();
-    expect(taskCtl.done).toHaveBeenCalledWith('https://up/x.png');
-    expect(out.resultUrl).toBe('https://up/x.png');
-  });
+  // 【已删用例：不落盘（saveToTasks:false）】2026-09-20 · ADR-0030（幽灵预留即假接缝）。
+  //   该开关 3 个生产调用方**零处显式传它**（全吃默认 true）⇒ 从未接线；这个用例是它**唯一的消费者**
+  //   （= ADR-0030 §裁决 所说"只被它自己的单测引用"的假消费证据）。开关与用例一并删除，
+  //   落盘随之成为契约内**无条件一步**（写新生成路径不可能漏），见 generationOrchestration.ts:146-155。
 
   it('落盘失败（ok:false）→ 保留原 URL 降级 + **用户可见 toast**（TD-01-17 三态），不判整体失败', async () => {
     saveResultToTasksMock.mockResolvedValue({ ok: false, reason: 'exception', message: 'offline' });

@@ -29,27 +29,24 @@
 import { BREAK } from './promptMention.ts';
 import { logger } from '@/components/base/core/log/logger';
 
+/**
+ * ★ TD-22-68 断环（2026-09-20）：`promptChipRe` 的真源已下沉到零依赖的
+ * `./promptChipFormat.ts`（格式契约），本文件**从它取用**（内部 exec/replace 两处）。
+ * 为什么搬：本文件是 **DOM 工具层**，而纯逻辑的 `creative/creativePresets.ts` 也要这个正则
+ * ⇒ 会把「纯逻辑依赖 DOM 工具层」的倒置拖进 `hooks/useNodeData` 的整条链。
+ * 详见 `promptChipFormat.ts` 文件头的取证。
+ *
+ * 【不在此转发】原 `export { promptChipRe }` 已撤：域外消费者（`creativePresets`）改直连叶子，
+ * 经本文件转发即无人消费的冗余出口（死代码闸会如实报）。
+ */
+import { promptChipRe } from './promptChipFormat.ts';
+
 /** 芯片 token 的素材元信息（renderPromptToNodes 的 metaMap 值形态；导出供调用方标注 Map 泛型） */
 export interface ChipMeta {
   kind?: string;
   url?: string;
   label?: string;
 }
-
-/**
- * 芯片序列化正则（唯一入口，禁止散落复制）。
- * 格式：`@{id:label}` 或 `@{id:label|thumbUrl}`（thumbUrl 可选）。
- *   - group1 = id（不含冒号）
- *   - group2 = label（不含 `|` 与 `}`，旧数据无 url 段时完全兼容）
- *   - group3 = 可选缩略图 URL（已 encodeURIComponent，防止 `}` 等字符破坏解析）
- * 旧数据 `@{id:label}`（无 `|`）也能正确匹配，向后兼容不崩。
- *
- * 【为什么是工厂而非常量（TD-05-5）】`/g` 正则在 `exec()` 后**携带 `lastIndex` 可变状态**：
- * 模块级共享同一实例时，任何一处 `exec` 中途 return 都会让**下一次调用从错位置开始**（静默丢匹配）。
- * 原实现导出 const `PROMPT_CHIP_RE`（外部可持同一实例）——现改为工厂，调用方各拿各的，
- * 从结构上消除共享可变状态。内部 `exec` 循环亦改用局部实例。
- */
-export const promptChipRe = (): RegExp => /@\{([^:]+):([^|}]*)(?:\|([^}]+))?\}/g;
 
 /** 零宽空格：芯片前后光标落点占位 */
 export const ZWSP: string = '\u200B';

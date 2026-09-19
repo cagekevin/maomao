@@ -1,7 +1,7 @@
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { reportDegrade } from '@/components/base/core/log/degrade';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
-import { EditorCore } from '@/components/videoEditor/engine/core';
+import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import { generateUUID } from '@/components/base/core/idGen.ts';
 import { storageService } from '@/components/videoEditor/engine/services/storage/service';
@@ -21,7 +21,7 @@ export class AddMediaAssetCommand extends Command {
   }
 
   execute(): void {
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
     if (!this.createdAsset) {
       this.createdAsset = { ...this.asset, id: this.assetId };
     }
@@ -61,7 +61,7 @@ export class AddMediaAssetCommand extends Command {
   undo(): void {
     if (!this.createdAsset) return;
 
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
     editor.media.setAssets({
       assets: editor.media.getAssets().filter(({ id }) => id !== this.assetId),
     });

@@ -16,6 +16,34 @@
  * 任务字段（对齐官方 Ln.jsx / jn.jsx）：
  *  { id(=taskId), nodeId, type, prompt, modelName, channelName,
  *    status:'pending'|'running'|'completed'|'failed', progress, errorMsg, resultUrl, createdAt }
+ *
+ * ════════════════════════════════════════════════════════════════
+ * 【★ 我该用哪个？—— 按"我是谁"照表选（2026-09-20 深模块化）】
+ *
+ * **两条合法入口，各自封闭**（不是"一深一浅"，别把其中一条当绕过）：
+ *  · **产结果**（写一条生成路径）→ 经 `useNodeGeneration` / `runGenerationOrchestration`
+ *    （内部 `reportGenerate` → `TaskController.{progress,done,fail}`）；
+ *  · **恢复已提交任务**（刷新后接管）→ `pollTask.ts` 用 `patchTask`(进度) + `completeTask`/`failTask`(终态)。
+ *
+ * | 我是谁 | 用哪条 | 为什么 |
+ * | --- | --- | --- |
+ * | **写一条新的生成路径**（节点 / 剧本盒 / 任何产图产文） | `useNodeGeneration` 或 `runGenerationOrchestration` | 已封装 report→progress→落盘→回填全序列；手写 `reportGenerate` 会漏掉落盘/回填 |
+ * | 需要**手写**编排（极少数） | `reportGenerate(nodeId, type, prompt, meta)` → 用返回的 `TaskController` | 本模块的**深接口**：4 个成员，不暴露内部其余函数 |
+ * | **刷新后恢复**已提交的异步任务 | `ensurePolling`/`stopPolling`/`isPolling` + 终态原语 `completeTask`/`failTask`（**`pollTask.ts` 是唯一调用方**） | 恢复路径与 live 路径**共用同一份终态原语**（TD-01-20 收口） |
+ * | **任务中心 UI** 渲染 / 面板态 | `getTasks()` / `usePanel()` / `setPanel()` / `openTaskCenter()` | UI 专用查询与面板态 |
+ * | **Agent 工具**驱动节点重跑 | `runNodeGeneration(nodeId)` + `registerTaskRetry`（含并发闸 `claimNodeRun`） | 供 `generate_node` 工具用 |
+ * | 清理（测试 / 退出） | `clearTasksBy(predicate)` / `clearAllTasks()` | |
+ *
+ * **两条纪律**：
+ * ① **终态只能经 `completeTask`/`failTask`**（它们是 TD-01-20 的**唯一原语**：含非字符串防御 +
+ *    排障埋点 + 取消未落进度写）。**不要**自己 `patchTask(id, { status:'completed' })` ——
+ *    会漏掉这三项（`TaskController.done/fail` 也只是委托这两个原语，不是另一条路）。
+ * ② **`unknown` 终态不可自动重试**（见下方 `TaskStatus`）：它≠failed，自动重试 = 重复计费。
+ *
+ * **存量核对（2026-09-20 普查）**：src 侧调本模块状态机的**只有 2 处** ——
+ * `generationOrchestration.ts`（经 `reportGenerate`）与 `pollTask.ts`（经终态原语），
+ * **均为上表合法入口，零绕过**。新增调用方请照表选，勿自建第三条。
+ * ════════════════════════════════════════════════════════════════
  */
 import { useSyncExternalStore } from 'react';
 import { logger } from '../core/log/logger.ts';

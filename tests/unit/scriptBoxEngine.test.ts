@@ -30,10 +30,16 @@ vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
 // 从真模块派生（TD-17-15）：toastStore 属「会长大」类，手写白名单式桩会随它加导出而脱钩。
 vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => {
   const showToast = vi.fn();
+  // 收口（2026-09-20）：业务代码改走 toastSuccess/toastError，二者内部均调 showToast。
+  // 让语义化出口的 spy 转发到 showToast，既保留「提示被触发」断言，又跟随新 API（不直调 showToast）。
+  const toastSuccess = vi.fn((m: string, o?: unknown) => showToast(m, o));
+  const toastError = vi.fn((m: string, o?: unknown) => showToast(m, o));
   return {
     ...((await importOriginal()) as Record<string, unknown>),
     showToast,
-    toastStore: { showToast },
+    toastSuccess,
+    toastError,
+    toastStore: { showToast, toastSuccess, toastError },
   };
 });
 vi.mock('../../src/components/resource/resourceStore.ts', async (importOriginal) => ({
@@ -312,10 +318,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     const { engine, store } = makeEngine({});
     await engine.onGenerateScript();
     expect(chatCompletions).not.toHaveBeenCalled();
-    expect(toastStore.showToast).toHaveBeenCalledWith(
-      expect.stringContaining('剧情'),
-      expect.anything(),
-    );
+    expect(toastStore.toastError).toHaveBeenCalledWith(expect.stringContaining('剧情'));
     expect(store.genMask).toBeUndefined();
   });
 
@@ -392,7 +395,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     const { engine, store } = makeEngine({ story: 'x' });
     await engine.onGenerateScript();
     expect(store.genMask).toBe(false);
-    expect(toastStore.showToast).toHaveBeenCalled();
+    expect(toastStore.toastError).toHaveBeenCalled();
   });
 
   it('onStopScriptItem 全停：中止所有 AbortController', async () => {

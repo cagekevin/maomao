@@ -14,7 +14,7 @@ import '@/components/base/api/index';
 import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
 import { downloadUrl, copyText } from '@/components/base/utils/net/clipboard';
 import { logger } from '@/components/base/core/log/logger';
-import { classifyError } from '@/components/base/utils/genErrors';
+import { classifyError, getRetryableObserved } from '@/components/base/utils/genErrors';
 import previewUrls from '@/components/base/utils/media/previewUrl';
 import { drawVideoFrame, setCrossOriginForReadable } from '@/components/base/utils/captureFrame';
 import { fileNameFromUrl, canvasToImageDataUrl } from '@/components/base/core/utils';
@@ -330,7 +330,7 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
       logger.error('VideoExtractNode', 'Frame extraction failed', {
         error: (err as { message?: string })?.message,
         errType: cls.type,
-        retryable: cls.retryable,
+        retryableObserved: getRetryableObserved(err),
       });
       setLoading(false);
       setErrorMessage(

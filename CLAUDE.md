@@ -133,11 +133,11 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 - **入口**：`src/main.tsx` → `src/App.tsx`。
 
-- **节点体系**：`src/components/nodes/*.tsx`，每个节点一个文件，**当前共 17 个**（TextNode/ImageNode/PromptNode/DiscountVideoNode/VideoExtractNode/ImageBoxNode/GridSplitNode/GridMergeNode/VideoProcessNode/GroupNode/ScriptBoxNode/GhostTargetNode/Director3DNode/FaceMosaicNode/LoopNode/PanoramaNode/TemplateNode）。**新增节点权威流程 →** **`spec/NEW-NODE-GUIDE.md`**（NodeShell 外壳 + 注册同步 + NODE\_OUTPUTS 管线契约，顶层规则见 `spec/CONTEXT.md` §一·5）。
+- **节点体系**：按域落 `src/components/<域>/nodes/*.tsx`（域模块化搬迁后，旧的集中式节点目录已不存在），每个节点一个文件，**当前 15 个 `*Node.tsx`**：canvas 域 3（GroupNode/GhostTargetNode/Director3DNode）+ `_template/TemplateNode`；image 域 7（ImageBoxNode/GridSplitNode/GridMergeNode/LoopNode/PanoramaNode/FaceMosaicNode/AssetNode）；video 域 2（VideoExtractNode/VideoProcessNode）；scriptbox 域 1（ScriptBoxNode）。另有 2 个非 `*Node` 命名的生成节点 `image/nodes/ImageGenerate.tsx`、`video/nodes/VideoGenerate.tsx`。**新增节点权威流程 →** **`spec/NEW-NODE-GUIDE.md`**（NodeShell 外壳 + 注册同步 + NODE\_OUTPUTS 管线契约，顶层规则见 `spec/CONTEXT.md` §一·5）。
 
 - **通用能力地基**：`src/components/base/`（`NodeShell` 统一外框、`CanvasToolbar`、`useArrangeCanvas`、`useCanvasAgentTools` 脚本盒引擎、Toast、ImageEditor、OverlayEditor、设置面板、AI 助手面板 AgentPanel 等）。
 
-- **设计语言**：参照 `docs/BASE-CAPABILITIES.md`；新建节点权威流程见 `spec/NEW-NODE-GUIDE.md`，节点视觉/交互规范见 `docs/ARCHITECTURE.md`（注意文档内 `prototypes/react-nodes/src/` 前缀为旧写法，实际即根目录 `src/`）。
+- **设计语言**：参照 `docs/BASE-CAPABILITIES.md`；新建节点权威流程见 `spec/NEW-NODE-GUIDE.md`，节点视觉/交互规范见 `docs/ARCHITECTURE.md`。
 
 - **运行形态**：Chrome 扩展（MV3）。`public/manifest.json` + `background.js` + `icon*.png` 为插件壳；`src/` 编译后由 `vite.config.ts`（`base:'./'`，兼容 `chrome-extension://`）打包进 `dist/`。存储经 `src/components/base/core/contentStore.ts`（横切存储权威入口，按 `STORAGE_KEYS.backend` 自动路由 local/KV/native：local 走 `base/storage/storageAdapter.ts`（chrome.storage 扩展环境）/原生 `localStorage`；kv 走 localTool KV；native 后端如 director3d 直写原生 `localStorage`）。`npm run dev` 预览画布，`npm run build` 出 `dist/`。
 
@@ -452,7 +452,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 | 文档                                                        | 用途                                                                 |
 | --------------------------------------------------------- | ------------------------------------------------------------------ |
-| `docs/NODE-DESIGN-SPEC.md` / `docs/ARCHITECTURE.md`       | 节点长什么样 / 设计原则（ARCHITECTURE 路径前缀 `prototypes/...` 为旧写法，实际即根 `src/`） |
+| `docs/NODE-DESIGN-SPEC.md` / `docs/ARCHITECTURE.md`       | 节点长什么样 / 设计原则                                                |
 | `docs/BASE-CAPABILITIES.md`                               | base 能力清单（**已并入 CONTEXT §二 横切层**，仅深挖用）                             |
 | `docs/CANVAS_PERFORMANCE.md` / `docs/NODE-DESIGN-SPEC.md` | 性能 / 节点设计规范（节点类型映射以 `contracts.ts` 的 `NODE_TYPES` 为权威）             |
 
@@ -474,7 +474,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 | 要查官方权益转发                                                   | `localTool/src/routes/official.ts`（中转+短缓存，不伪造权限）                                                                                                                                    |
 | 要改画布前端                                                     | 改 `src/` → `npm run test:smoke` → `npm run build`；严禁直接手改 dist                                                                                                                       |
 | **查数据流/依赖/谁引用谁**（trace 链路、改动影响面、判死代码）                      | **`node scripts/mv-sync-refs.mjs refs <file>`**（一屏看谁 import 它 + 字符串引用；链路图维护在 `spec/DATAFLOW.md`，先看它再 refs 单点验证）                                                                     |
-| 要新增画布节点                                                    | 按 `spec/NEW-NODE-GUIDE.md`（新建节点权威流程）+ `docs/README.md` 节点规范，类型在 `src/components/base/core/contracts.ts` 的 `NODE_TYPES` 登记，放 `src/components/nodes/`                                 |
+| 要新增画布节点                                                    | 按 `spec/NEW-NODE-GUIDE.md`（新建节点权威流程）+ `docs/README.md` 节点规范，类型在 `src/components/base/core/contracts.ts` 的 `NODE_TYPES` 登记，放 `src/components/<域>/nodes/`                                 |
 | 画布问题排查（节点/边/布局/保存）                                         | **第一步必跑** `cd localTool && node scripts/task-inspect.mjs --canvas-health`（见 §六.0 铁律）                                                                                                |
 | **查图/视频/任务/日志/全链路**（task\_id / thread\_id 室外ID / node\_id） | **主入口** `cd localTool && node scripts/task-inspect.mjs --lifecycle <id>`（见 §四.2「查任务主入口」）。其余：`--logs` 日志、`--task` 节点比对、`--lost-check` 丢图、`--consistency` 三层一致性断言                     |
 | 改 localTool 后端                                             | `cd localTool && npm test`（`tsc --noEmit` + `node --test` 跑 `localTool/test/*.test.js` 全量）                                                                                          |

@@ -1,6 +1,6 @@
 # ADR-0035 · 错误分类与异步超时唯一入口：genErrors + asyncGuard
 
-- **状态**：生效
+- **状态**：已毕业
 - **结论**：错误→类型只由 genErrors.classifyError 判定；超时/释放/解析等异步语义只由 asyncGuard 承担。禁止自写关键词式网络错误判定，禁止无超时 Promise。
 - **日期**：2026-09-19
 - **裁定人**：架构师（归位取证；规则原文见 `spec/CONTEXT.md:113`）
@@ -60,3 +60,4 @@
 2. 出现 `await somePromise` 而该 Promise 未包 `withTimeout`（且它可能永不 settle）；
 3. 新增错误类型**未**登记在 `contracts.ts` 的 `GEN_ERRORS`；
 4. 用 `retryable` 做 `if (retryable)` 分支决策（它只是观测字段，见上文边界）。
+- **毕业去向**：类型层：HttpRequestOptions.timeoutMs 必填 + NO_TIMEOUT 哨兵（src/components/base/api/httpClient.ts:53-72）—— 漏写编译不过，无需额外闸

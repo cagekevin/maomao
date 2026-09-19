@@ -49,7 +49,7 @@ import { API_BASE } from '../core/config.ts';
 import { httpRequest } from './httpClient.ts';
 import { logger } from '../core/log/logger.ts';
 import { reportDegrade } from '../core/log/degrade.ts';
-import { UPLOAD_TIMEOUT } from '../core/config.ts';
+import { UPLOAD_TIMEOUT, LOCAL_CRUD_TIMEOUT, DOWNLOAD_TIMEOUT } from '../core/config.ts';
 import { formatTime, safeFileName, relativePathFromFileUrl } from '../core/utils.ts';
 import { UPLOAD_DIRS, isKnownUploadDir } from '../utils/uploadDirs.ts';
 import type { ApiEnvelope } from './localToolApi.ts';
@@ -77,7 +77,7 @@ export interface FileOpResult {
 export async function openLocalFolder(subfolder?: string): Promise<ApiEnvelope<OpenPathData>> {
   return httpRequest(
     `${API_BASE}/api/files/open?subfolder=${encodeURIComponent(subfolder || 'tasks')}`,
-    { label: 'openLocalFolder' },
+    { timeoutMs: LOCAL_CRUD_TIMEOUT, label: 'openLocalFolder' },
   );
 }
 
@@ -87,6 +87,7 @@ export async function openFileDir(
 ): Promise<ApiEnvelope<OpenPathData> | undefined> {
   if (!filepath) return;
   return httpRequest(`${API_BASE}/api/files/open-dir?filepath=${encodeURIComponent(filepath)}`, {
+    timeoutMs: LOCAL_CRUD_TIMEOUT,
     label: 'openFileDir',
   });
 }
@@ -117,6 +118,7 @@ export async function moveFile(src: string, dst: string): Promise<FileOpResult> 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ src, dst }),
     retries: 0,
+    timeoutMs: LOCAL_CRUD_TIMEOUT,
     label: 'moveFile',
   });
 }
@@ -166,6 +168,7 @@ export async function createFolder(folder: string): Promise<FileOpResult> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ folder }),
     retries: 0, // mkdir 是 UI 即时操作，不重试
+    timeoutMs: LOCAL_CRUD_TIMEOUT,
     label: 'createFolder',
   });
 }
@@ -676,6 +679,7 @@ export async function persistUrlToUploads(
       const resp = await httpRequest(src, {
         parseJson: false,
         retries: 0,
+        timeoutMs: DOWNLOAD_TIMEOUT, // 读外部/本地 URL 的字节（下载语义）
         label: 'persistUrlToUploads.blob',
       });
       const blob = await resp.blob();

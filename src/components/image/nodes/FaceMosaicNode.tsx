@@ -13,7 +13,7 @@ import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';
 import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
 import { toastError, toastWarning } from '@/components/base/core/event/toastStore';
 import { logger } from '@/components/base/core/log/logger';
-import { classifyError } from '@/components/base/utils/genErrors';
+import { classifyError, getRetryableObserved } from '@/components/base/utils/genErrors';
 import {
   applyMosaic,
   MOSAIC_MODES,
@@ -173,7 +173,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
         logger.warn('FaceMosaicNode', 'mosaic single failed', {
           error: (e as { message?: string })?.message,
           errType: cls.type,
-          retryable: cls.retryable,
+          retryableObserved: getRetryableObserved(e),
         });
         firstErr ||= (e as { message?: string })?.message || '打码失败';
       }

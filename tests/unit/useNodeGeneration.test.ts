@@ -161,7 +161,7 @@ describe('useNodeGeneration — resultKey 声明式写回（唯一写回路径�
   });
 
   it('run 抛网络异常 → logger.error 记录 classifyError 分类（network，可重试）', async () => {
-    // 【R7 错误分类记录】异常对象必须经 classifyError 统一分类并进日志，网络错误 retryable:true
+    // 【R7 错误分类记录】异常对象必须经 classifyError 统一分类并进日志，网络错误 retryableObserved:true
     const { result } = renderHook(() =>
       useNodeGeneration({
         ...baseProps,
@@ -176,7 +176,11 @@ describe('useNodeGeneration — resultKey 声明式写回（唯一写回路径�
     expect(busState.logger.error).toHaveBeenCalledWith(
       '生成',
       'contract·error',
-      expect.objectContaining({ errType: 'network', retryable: true, error: 'Failed to fetch' }),
+      expect.objectContaining({
+        errType: 'network',
+        retryableObserved: true,
+        error: 'Failed to fetch',
+      }),
     );
   });
 
@@ -191,7 +195,7 @@ describe('useNodeGeneration — resultKey 声明式写回（唯一写回路径�
     expect(busState.logger.error).toHaveBeenCalledWith(
       '生成',
       'contract·fail',
-      expect.objectContaining({ errType: 'business', retryable: false, error: '模型限流' }),
+      expect.objectContaining({ errType: 'business', retryableObserved: false, error: '模型限流' }),
     );
   });
 

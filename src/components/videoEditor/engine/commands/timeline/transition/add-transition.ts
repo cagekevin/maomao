@@ -1,5 +1,5 @@
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
-import { EditorCore } from '@/components/videoEditor/engine/core';
+import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 import type {
   TimelineTrack,
   TrackTransition,
@@ -48,7 +48,7 @@ export class AddTransitionCommand extends Command {
   }
 
   execute(): void {
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
     this.savedState = editor.timeline.getTracks();
 
     const track = this.savedState.find((item) => item.id === this.params.trackId);
@@ -66,7 +66,7 @@ export class AddTransitionCommand extends Command {
 
   undo(): void {
     if (!this.savedState) return;
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
     editor.timeline.updateTracks(this.savedState);
   }
 

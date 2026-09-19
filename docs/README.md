@@ -7,7 +7,7 @@
 > **先看这几份再动手，避免重复造轮子：**
 > - **`NEW-NODE-GUIDE.md`** ← **新建节点权威流程**：骨架/数据范式/4处注册/管线产出契约/常见坑，建节点前必读
 > - **`BASE-CAPABILITIES.md`** ← **能力清单**：`base/` 已建好的通用能力（节点外壳/通知/素材导入/图片编辑/性能降级/**画布统一工具层**等），做新功能直接照用
-> - **`ARCHITECTURE.md`** ← **设计规范**：为什么这样设计、新增节点流程、接真系统路径（注意：文档内路径前缀 `prototypes/react-nodes/src/` 为旧写法，实际即根目录 `src/`）
+> - **`ARCHITECTURE.md`** ← **设计规范**：为什么这样设计、新增节点流程、接真系统路径
 >
 > 一句话：**弹提示用 `showToast`、新节点用 `NodeShell`、缩小时藏媒体用 `useMediaDegrade`、拖入素材用 `useAssetDropPaste`、操作画布（供 Agent/自动化）用 `useCanvasAgentTools`**。
 

@@ -29,6 +29,20 @@ import { withTimeout, isTimeoutError, tryParse } from '../utils/net/asyncGuard.t
 import { logger } from '../core/log/logger.ts';
 
 /**
+ * 「**显式**不设超时」哨兵（ADR-0035 / ADR-0045）—— 传它 = 声明"已判断过：本请求不该掐点"。
+ *
+ * 【它存在的唯一理由：把"忘了写"与"有意不写"分开】
+ * `HttpRequestOptions.timeoutMs` 现为**必填**，故调用方必须二选一：传命名超时常量，或传本哨兵。
+ * 漏写 → 编译不过；写本哨兵 → 是一次**可检索、可 review 的判断**（`grep NO_TIMEOUT` 即得全部
+ * "不掐点"站点，逐个可复核其理由是否仍成立），而不是静默的窟窿。
+ *
+ * 【何时合法】① 响应近瞬回（本机 CRUD，毫秒级）；② 该请求的**总超时由外层兜底**
+ * （如流式 body 读取：`agentRuntime` 用 `withTimeout` 包整体，内层不重复掐点）。
+ * 【何时不合法】"我不确定要多久" —— 那正说明**该链路的时限常量缺失**，去 `base/core/config.ts` 补一个。
+ */
+export const NO_TIMEOUT = 0;
+
+/**
  * 判定一个 TypeError 是否**由 fetch 自身因网络失败抛出**（TD-03-12，2026-09-13）。
  *
  * 【为什么需要】`fetch` 在网络不可达时抛 `TypeError`，但**JS 代码 bug 也抛 TypeError**
@@ -56,8 +70,22 @@ export interface HttpRequestOptions {
   body?: string | FormData | undefined;
   /** 外部取消信号（组件生命周期） */
   signal?: AbortSignal;
-  /** 超时毫秒；无默认值——不传即不掐点，需时限由调用方按场景显式声明；<=0 禁用超时 */
-  timeoutMs?: number;
+  /**
+   * 超时毫秒 —— **必填**（ADR-0035 / ADR-0045 深模块化）。
+   *
+   * 【为什么从「可选」改「必填 · 显式二选一」】
+   * 原形态 `timeoutMs?: number` 让"**忘了写**"与"**有意不掐点**"**长得一模一样**（都是不传）。
+   * 而 `config.ts:112` 已裁定不设全局默认值（兜底值只给假安全感）⇒ 缺省即「不掐点」，
+   * 于是新请求漏写 `timeoutMs` = 一个**永不 settle 的 Promise**，且**零留痕**（AI 静默踩坑）。
+   * 这是 ADR-0035「无超时 Promise 的失败形态最坏」的原样复发形态。
+   *
+   * 【改后契约】调用方**必须显式二选一**，无法"不表态"：
+   *   · 有明确时限 → 传该链路的命名常量（`GEN_TIMEOUT` / `UPLOAD_TIMEOUT` / …，真源 `base/core/config.ts`）；
+   *   · 确知不该掐点（如响应近瞬回、总超时由外层 `withTimeout` 兜底）→ 传 `NO_TIMEOUT`
+   *     （**显式**声明"我考虑过了，不要超时"，而非"我忘了"）。
+   * ⇒ 类型层逼出决策：漏写编译不过；写 `NO_TIMEOUT` 是**做过判断的声明**，可被 review 与检索。
+   */
+  timeoutMs: number;
   /** 网络/超时自动重试次数，默认 3；业务错误不重试 */
   retries?: number;
   /** 首轮重试等待 ms，默认 500（递增） */
@@ -252,7 +280,7 @@ function parseErrorBodyOf(
  *   - headers?: Record<string,string>
  *   - body?: string
  *   - signal?: AbortSignal       外部取消信号（组件生命周期）
- *   - timeoutMs?: number         超时毫秒，无默认值（不传即不掐点，需时限则显式传）；<=0 禁用超时
+ *   - timeoutMs: number          **必填**：该链路命名超时常量，或显式 `NO_TIMEOUT`（见 HttpRequestOptions 注释）
  *   - retries?: number           网络/超时自动重试次数，默认 3；业务错误不重试
  *   - retryDelay?: number        首轮重试等待 ms，默认 500（递增）
  *   - parseJson?: boolean        是否解析 JSON，默认 true
@@ -268,14 +296,14 @@ export async function httpRequest<_T = unknown>(
     headers,
     body,
     signal,
-    timeoutMs = 0, // 无默认超时：见文件头【能力】·超时（原 15s 会掐断上传，放大到 3min 也救不了）
+    timeoutMs = NO_TIMEOUT, // 类型层已要求必填；此默认仅在 JS 调用方/扩测漏传时兜底（= 不掐点）
     retries = 3,
     retryDelay = 500,
     parseJson = true,
     onRetry,
     label,
     silentSuccess = false,
-  }: HttpRequestOptions = {},
+  }: HttpRequestOptions = { timeoutMs: NO_TIMEOUT },
 ) {
   // 内部 controller：外部 signal 与内部超时都中止它，互不污染（超时不误伤组件其他请求）
   const internalCtrl = new AbortController();
@@ -400,7 +428,7 @@ export async function httpRequest<_T = unknown>(
 export function httpPost<T = unknown>(
   url: string,
   data?: unknown,
-  opts: HttpRequestOptions = {},
+  opts: HttpRequestOptions = { timeoutMs: NO_TIMEOUT },
 ): Promise<T> {
   return httpRequest<T>(url, {
     method: 'POST',
@@ -415,7 +443,7 @@ export function httpPost<T = unknown>(
  */
 export async function httpRequestLogged<T = unknown>(
   url: string,
-  opts: HttpRequestOptions = {},
+  opts: HttpRequestOptions = { timeoutMs: NO_TIMEOUT },
   label = 'http',
 ): Promise<T> {
   try {

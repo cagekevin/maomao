@@ -296,7 +296,7 @@ describe('VideoExtractNode — 抽帧完整流程', () => {
     expect(h.logger.error).toHaveBeenCalledWith(
       'VideoExtractNode',
       'Frame extraction failed',
-      expect.objectContaining({ errType: 'business', retryable: false }),
+      expect.objectContaining({ errType: 'business', retryableObserved: false }),
     );
   });
 });

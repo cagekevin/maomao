@@ -19,7 +19,14 @@
  *  非 2xx 抛 HttpError，本模块不吞错误、不改写 message（CONTEXT 错误透传铁律）。
  */
 import { httpRequest, httpPost } from './httpClient.ts';
-import { API_BASE } from '../core/config.ts';
+import { API_BASE, LOCAL_CRUD_TIMEOUT } from '../core/config.ts';
+
+/**
+ * 本模块全部端点的超时（ADR-0035 · 2026-09-20）。
+ * 单一常量在此声明 ⇒ 20 个调用点各写一次 `timeoutMs: LOCAL_CRUD_TIMEOUT` 的样板不必要，
+ * 且改口径只改一处。语义 = 「本机 CRUD 的时限」，见 `config.ts` 该常量的注释。
+ */
+const T = LOCAL_CRUD_TIMEOUT;
 
 /**
  * GET /api/resources 返回的单条资源（后端报文，字段一律可选）。
@@ -105,7 +112,7 @@ export async function fetchTasks({
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   if (search) params.set('search', search);
   if (nodeId) params.set('filters', JSON.stringify({ nodeId }));
-  return httpRequest(`${API_BASE}/api/tasks?${params}`, { label: 'fetchTasks' });
+  return httpRequest(`${API_BASE}/api/tasks?${params}`, { timeoutMs: T, label: 'fetchTasks' });
 }
 
 // POST /api/tasks/save { task } → { ok:true }（单条 upsert）
@@ -113,6 +120,7 @@ export async function fetchTasks({
 // 成功无排查增量 → 静默成功，仅失败/重试记录（日志降噪 80§十#3）。失败仍走 httpClient 失败日志可见。
 export async function saveTask(task: unknown): Promise<OkResult> {
   return httpRequest(`${API_BASE}/api/tasks/save`, {
+    timeoutMs: T,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task),
@@ -125,6 +133,7 @@ export async function saveTask(task: unknown): Promise<OkResult> {
 export async function batchSaveTasks(tasks: unknown[]): Promise<OkResult> {
   if (!tasks || tasks.length === 0) return { ok: true };
   return httpRequest(`${API_BASE}/api/tasks/batch-save`, {
+    timeoutMs: T,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(tasks),
@@ -136,6 +145,7 @@ export async function batchSaveTasks(tasks: unknown[]): Promise<OkResult> {
 // POST /api/tasks/delete?id=... → { ok:true }
 export async function deleteTask(id: string): Promise<OkResult> {
   return httpPost(`${API_BASE}/api/tasks/delete?id=${encodeURIComponent(id)}`, null, {
+    timeoutMs: T,
     label: 'deleteTask',
   });
 }
@@ -144,6 +154,7 @@ export async function deleteTask(id: string): Promise<OkResult> {
 export async function batchDeleteTasks(ids: unknown[]): Promise<DeletedResult> {
   if (!ids || ids.length === 0) return { deleted: 0 };
   return httpRequest(`${API_BASE}/api/tasks/batch-delete`, {
+    timeoutMs: T,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids }),
@@ -153,13 +164,13 @@ export async function batchDeleteTasks(ids: unknown[]): Promise<DeletedResult> {
 
 // POST /api/tasks/clear → { deleted:n }
 export async function clearAllTasksApi(): Promise<DeletedResult> {
-  return httpPost(`${API_BASE}/api/tasks/clear`, null, { label: 'clearTasks' });
+  return httpPost(`${API_BASE}/api/tasks/clear`, null, { timeoutMs: T, label: 'clearTasks' });
 }
 
 // ─────────────────────────── projects ───────────────────────────
 // GET /api/projects → { projects, lastOpened }
 export async function fetchProjects(): Promise<ApiEnvelope<ProjectsData>> {
-  return httpRequest(`${API_BASE}/api/projects`, { label: 'fetchProjects' });
+  return httpRequest(`${API_BASE}/api/projects`, { timeoutMs: T, label: 'fetchProjects' });
 }
 
 // POST /api/projects/save { projects, lastOpened, version } → { ok:true, version }（全量覆盖 + 并发版本保护）
@@ -171,6 +182,7 @@ export async function saveProjects(
   version?: number,
 ): Promise<ApiEnvelope<{ conflict?: boolean; version?: number }>> {
   return httpRequest(`${API_BASE}/api/projects/save`, {
+    timeoutMs: T,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -227,17 +239,24 @@ export async function fetchResources({
   if (Object.keys(filters).length) params.set('filters', JSON.stringify(filters));
   if (projectId) params.set('projectId', projectId);
   if (search) params.set('search', search);
-  return httpRequest(`${API_BASE}/api/resources?${params.toString()}`, { label: 'fetchResources' }); // { items, total, page, pageSize, totalPages }
+  return httpRequest(`${API_BASE}/api/resources?${params.toString()}`, {
+    timeoutMs: T,
+    label: 'fetchResources',
+  }); // { items, total, page, pageSize, totalPages }
 }
 
 // POST /api/resources/rescan → 同步磁盘 upload 目录进 resources 表
 export async function rescanResources(): Promise<ApiEnvelope<{ scanned: number }>> {
-  return httpPost(`${API_BASE}/api/resources/rescan`, null, { label: 'rescanResources' });
+  return httpPost(`${API_BASE}/api/resources/rescan`, null, {
+    timeoutMs: T,
+    label: 'rescanResources',
+  });
 }
 
 // POST /api/resources/delete?id=... → { ok:true }
 export async function deleteResource(id: string): Promise<ApiEnvelope<OkResult>> {
   return httpPost(`${API_BASE}/api/resources/delete?id=${encodeURIComponent(id)}`, null, {
+    timeoutMs: T,
     label: 'deleteResource',
   });
 }
@@ -247,7 +266,7 @@ export async function renameResource(id: string, name: string): Promise<ApiEnvel
   return httpPost(
     `${API_BASE}/api/resources/rename?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`,
     null,
-    { label: 'renameResource' },
+    { timeoutMs: T, label: 'renameResource' },
   );
 }
 
@@ -280,6 +299,7 @@ export async function fetchSoundLibrary({
   kind: 'effect' | 'music';
 }): Promise<ApiEnvelope<{ kind: string; dir: string; items: SoundLibraryItem[] }>> {
   return httpRequest(`${API_BASE}/api/sounds/library?kind=${encodeURIComponent(kind)}`, {
+    timeoutMs: T,
     label: 'fetchSoundLibrary',
   });
 }
@@ -316,7 +336,10 @@ export async function fetchStorageHealth(): Promise<
     scannedAt: number;
   }>
 > {
-  return httpRequest(`${API_BASE}/api/admin/storage-health`, { label: 'fetchStorageHealth' });
+  return httpRequest(`${API_BASE}/api/admin/storage-health`, {
+    timeoutMs: T,
+    label: 'fetchStorageHealth',
+  });
 }
 
 /**
@@ -329,6 +352,7 @@ export async function deleteStorageFile(
   ApiEnvelope<{ ok: boolean; path?: string; skipped?: 'referenced' | 'protected' | 'missing' }>
 > {
   return httpRequest(`${API_BASE}/api/admin/delete-file`, {
+    timeoutMs: T,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path }),
@@ -348,6 +372,7 @@ const request = <T = unknown>(
   { method = 'GET', body, label }: ProviderRequestOpts = {},
 ): Promise<T> =>
   httpRequest(`${API_BASE}${path}`, {
+    timeoutMs: LOCAL_CRUD_TIMEOUT,
     method,
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -397,7 +422,7 @@ export async function kvGet<T = unknown>(key: string): Promise<T | null> {
   // 需要强形状保证的 key：请在调用侧 normalize（形如 localStorage 读取处的 normalizeXxx），勿假定 kvGet 自证。
   const value: unknown = await httpRequest(
     `${API_BASE}/api/kv/get?key=${encodeURIComponent(key)}`,
-    { label: 'kvGet' },
+    { timeoutMs: T, label: 'kvGet' },
   );
   return value == null ? null : (value as T);
 }
@@ -417,6 +442,7 @@ export async function kvSet(
   opts: { ifVersion?: number } = {},
 ): Promise<KvSetResult> {
   return httpRequest(`${API_BASE}/api/kv/set`, {
+    timeoutMs: T,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -431,6 +457,7 @@ export async function kvSet(
 // POST /api/kv/delete?key=... → { ok:true }（删不存在也 ok）
 export async function kvDelete(key: string): Promise<OkResult> {
   return httpRequest(`${API_BASE}/api/kv/delete?key=${encodeURIComponent(key)}`, {
+    timeoutMs: T,
     method: 'POST',
     label: 'kvDelete',
   });
@@ -440,7 +467,7 @@ export async function kvDelete(key: string): Promise<OkResult> {
 export async function kvGetVersion(key: string): Promise<number> {
   const res = await httpRequest<{ data?: { version?: number } }>(
     `${API_BASE}/api/kv/version?key=${encodeURIComponent(key)}`,
-    { label: 'kvGetVersion' },
+    { timeoutMs: T, label: 'kvGetVersion' },
   );
   const v = res?.data?.version;
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
@@ -458,6 +485,7 @@ export async function kvGetVersion(key: string): Promise<number> {
 // 让本次备份失败可见，而不是产出一个"看起来成功"的残缺包。
 export async function kvKeys(): Promise<string[]> {
   const res = await httpRequest<{ data?: { keys?: unknown } }>(`${API_BASE}/api/kv/keys`, {
+    timeoutMs: T,
     label: 'kvKeys',
   });
   const keys = res?.data?.keys;

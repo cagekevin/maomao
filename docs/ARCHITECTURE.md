@@ -25,7 +25,7 @@
 > **配套**：`docs/BASE-CAPABILITIES.md`（base 能力）· `tailwind.config.ts`（样式令牌唯一真相）· `docs/README.md`（文档索引）· `spec/NEW-NODE-GUIDE.md`（新增节点）。
 > 启动 / 测试命令以 `package.json` 的 `scripts` 为准（`npm run dev` / `build` / `test:smoke` / `test:regression`）；**根目录无 `README.md`**（文档索引进 `docs/README.md`）。
 > ⚠️ **旧配套 `node-types-map.md` 已删除**（随 `src/bundle/` 混淆产物移除；见 `docs/README.md:87`）；
-> 节点 type↔组件映射的**真源 = `src/components/nodes/` 下的实际节点组件** + `src/components/base/core/contracts.ts` 的 `NODE_TYPES`。
+> 节点 type↔组件映射的**真源 = 各域 `src/components/<域>/nodes/` 下分散的实际节点组件**（如 `canvas/` · `image/` · `video/` · `text/` · `scriptbox/`） + `src/components/base/core/contracts.ts` 的 `NODE_TYPES`。
 
 ***
 
@@ -140,10 +140,10 @@ base/** ──✕ 禁──▶ 任何非 base 目录（业务域）
 
 | 文件 | 职责 | 复刻源 |
 | --- | --- | --- |
-| `src/components/base/panels/CanvasToolbar.tsx` | 左下角工具栏容器（运行/整理/小地图/清理/适合视图/性能模式/缩放±%） | `H_.jsx:12013-12094` |
-| `src/components/base/canvas/ArrangeConfirm.tsx` | 整理后「是否保留整理结果？」确认弹窗（还原/保留） | `H_.jsx:11993-12012` |
+| `src/components/canvas/shell/CanvasToolbar.tsx` | 左下角工具栏容器（运行/整理/小地图/清理/适合视图/性能模式/缩放±%） | `H_.jsx:12013-12094` |
+| `src/components/canvas/structure/ArrangeConfirm.tsx` | 整理后「是否保留整理结果？」确认弹窗（还原/保留） | `H_.jsx:11993-12012` |
 | `src/hooks/useArrangeCanvas.ts` | dagre 自动布局 hook（含 group 父子、连通分量分组换列） | `H_.jsx:10985` `Ui` / `Ctrl+L` |
-| `src/components/base/utils/arrangePack.ts` | 连通分量打包（`packComponents`），按视窗比例择优换行 | 同上 |
+| `src/components/canvas/structure/arrangePack.ts` | 连通分量打包（`packComponents`），按视窗比例择优换行 | 同上 |
 
 **依赖**：`dagre`（有向图分层布局引擎）。
 
@@ -163,7 +163,7 @@ base/** ──✕ 禁──▶ 任何非 base 目录（业务域）
    * `App.tsx` 在排列前存快照 → `ArrangeConfirm` 弹「是否保留」→ 还原=写回快照 / 保留=关闭。`Ctrl+L` 也触发。
 3. **性能模式（enablePerformanceMode）**：`App.tsx` `performanceMode` state（默认开，官方默认 `true`）。
 
-   * 传给 `LodProvider`（`src/components/base/canvas/lod.tsx`）的 `enablePerformanceMode` → 控制 LOD 分级（zoom≤0.5→1, ≤0.3→2, ≤0.2→3，给 `.react-flow` 加 `lod-1/2/3` class）；
+   * 传给 `LodProvider`（`src/components/canvas/shell/lod.tsx`）的 `enablePerformanceMode` → 控制 LOD 分级（zoom≤0.5→1, ≤0.3→2, ≤0.2→3，给 `.react-flow` 加 `lod-1/2/3` class）；
 
    * **节点媒体降级统一走 `useAssetDegrade`**（`src/hooks/useAssetDegrade.ts`）—— **不再各节点自行读 `useLod()` 写字符串判断**：
 
@@ -346,27 +346,27 @@ const [autoSplit, setAutoSplit] = useNodeField('autoSplit', data.autoSplit || fa
 
 | 想写什么 | 去看这个真实文件 | 它示范了 |
 | --- | --- | --- |
-| **范式 A（普通节点 · 现行标准）** | `src/components/nodes/ImageGenerate.tsx`（`:118-120`） | `useNodeData` + `useNodeField` 落盘、纯 UI 状态留 `useState`、`NodeShell/HoverToolbar/GenerateButton/PromptInput` 基座组装 |
-| 范式 A（更薄的例子） | `src/components/nodes/TextGenerate.tsx`（`:79-84`） | 同上；高频输入 `patchDebounced` / 低频即时 `patchData` 的分工 |
-| **范式 B（复合节点 · 剧本盒子）** | `src/components/nodes/ScriptBoxNode.tsx` + `src/components/scriptbox/StepShots.tsx` | 业务数据只读 `data`、编辑走 `updateData`、只调 `d.onXxx?.()`、纯 UI 状态留 `useState` |
+| **范式 A（普通节点 · 现行标准）** | `src/components/image/nodes/ImageGenerate.tsx`（`:118-120`） | `useNodeData` + `useNodeField` 落盘、纯 UI 状态留 `useState`、`NodeShell/HoverToolbar/GenerateButton/PromptInput` 基座组装 |
+| 范式 A（更薄的例子） | `src/components/text/TextGenerate.tsx`（`:79-84`） | 同上；高频输入 `patchDebounced` / 低频即时 `patchData` 的分工 |
+| **范式 B（复合节点 · 剧本盒子）** | `src/components/scriptbox/ScriptBoxNode.tsx` + `src/components/scriptbox/StepShots.tsx` | 业务数据只读 `data`、编辑走 `updateData`、只调 `d.onXxx?.()`、纯 UI 状态留 `useState` |
 | 范式 B 数据写回通道 | `src/hooks/useScriptBoxEngine.ts` | `updateData(patch)` 不可变写回（`setNodes` 里非目标节点 `: n` 原样返回）；支持函数式 patch 并发安全合并 |
 | 范式 B 引擎注入 | `src/hooks/useScriptBoxEngine.ts` | `useReactFlow()` 拿 setNodes/addNodes/坐标 → 建引擎 → 挂 `node.data.onXxx`，并返回统一 `updateData` |
 | 范式 B 引擎实现 | `src/components/scriptbox/scriptBoxEngine.ts` | `createScriptBoxEngine({getData,updateData,addNodes})` 返回回调 |
 | 纯函数层（无副作用） | `src/components/scriptbox/scriptBoxPrompts.ts` | 提示词模板 / 拼装函数，UI 与引擎都从这里取 |
-| **节点外壳 / 端口 / 尺寸** | `src/components/base/ui/NodeShell.tsx` + `base/ui/CustomHandle.tsx` + `base/core/uiHooks.ts` | 所有节点的公共骨架（`useSizeSync` / `useNodeResize` / `useContentHeightSync`） |
+| **节点外壳 / 端口 / 尺寸** | `src/components/canvas/parts/NodeShell.tsx` + `base/ui/CustomHandle.tsx` + `base/core/interaction/uiHooks.ts` | 所有节点的公共骨架（`useSizeSync` / `useNodeResize` / `useContentHeightSync`） |
 | 通用控件 | `src/components/base/ui/{GenerateButton,ModelSelect,ExpandablePanel,GeneratingOverlay}.tsx` · `base/panels/{HoverToolbar,FullscreenModal}.tsx` · `base/prompt/PromptInput.tsx` | 生成按钮 / 模型下拉 / 展开面板 / 生成中遮罩 / hover 栏 / 全屏 / 提示词输入 |
-| 连线特效 | `src/components/edges/CustomEdge.tsx` + `edges/ConnectionLine.tsx`（+ `edges/Comet.tsx`） | 自定义连线 + 拖拽临时线 |
-| **节点目录注册** | `src/components/base/canvas/NodePalette.ts` | 新增节点加一行，右键菜单自动接入 |
-| 节点数据契约 / 默认值 | `src/components/base/canvas/{nodeDataSchema,nodeDefaults,nodePrefs}.ts` | 字段 schema / 类型默认尺寸 / 用户偏好 |
-| 域门面（深模块范本） | `src/components/videoEditor/index.ts` · `src/components/agent/index.ts` · `src/components/base/media/index.ts` | 域的唯一出口怎么建（窄接口） |
+| 连线特效 | `src/components/canvas/edges/CustomEdge.tsx` + `edges/ConnectionLine.tsx`（+ `edges/Comet.tsx`） | 自定义连线 + 拖拽临时线 |
+| **节点目录注册** | `src/components/canvas/shell/NodePalette.ts` | 新增节点加一行，右键菜单自动接入 |
+| 节点数据契约 / 默认值 | `src/components/canvas/contract/{nodeDataSchema,nodeDefaults,nodePrefs}.ts` | 字段 schema / 类型默认尺寸 / 用户偏好 |
+| 域门面（深模块范本） | `src/components/agent/index.ts` · `src/components/base/media/index.ts`（videoEditor 入口见 `src/components/videoEditor/EditorShell.tsx`，暂无单一 index 门面） | 域的唯一出口怎么建（窄接口） |
 
 ### 7.2 新增节点步骤
 
 > **权威流程 = `spec/NEW-NODE-GUIDE.md`**（视觉 DNA / 板块 / 交互 / 设置项）；本节只给「落到哪几个文件」的骨架。
 
 1. **先答范式问题**（§三判断准则）：这份数据要不要持久化 → 要则进 `node.data`（走 `useNodeData` + `useNodeField`）。
-2. **对照 7.1 挑范本文件**，仿它的结构建 `src/components/nodes/XxxNode.tsx`（不造轮子、不凭空编 props）。
-3. **注册目录**：`src/components/base/canvas/NodePalette.ts` 的 `paletteNodes` 加一行（`type/label/icon/cat/data`）——**记得 `builtin: true` + 默认 data**。
+2. **对照 7.1 挑范本文件**，仿它的结构建 `src/components/<域>/nodes/XxxNode.tsx`（不造轮子、不凭空编 props）。
+3. **注册目录**：`src/components/canvas/shell/NodePalette.ts` 的 `paletteNodes` 加一行（`type/label/icon/cat/data`）——**记得 `builtin: true` + 默认 data**。
 4. **注册 nodeTypes**：**不用手改 `App.tsx`** —— `App.tsx:160` 的 `nodeTypes` 由 `NodePalette.buildNodeTypeComponents()` **派生**，palette 加了就自动接入。
    * 若节点有**非默认端口**：须把 `targetHandleId/sourceHandleId` 登记到 `base/core/contracts.ts` 的 `NODE_HANDLE_CONTRACT`（漏登记 → `check:node-handles` 红）。
 5. **接引擎**（复合节点）：仿 `hooks/useScriptBoxEngine.ts` 注入回调，`App.tsx` 不改。
@@ -421,7 +421,7 @@ const [autoSplit, setAutoSplit] = useNodeField('autoSplit', data.autoSplit || fa
   Start-Process -FilePath "cmd.exe" -ArgumentList "/c","npm run dev > dev-server.log 2>&1" -WindowStyle Hidden
   ```
 
-* **判定**：重启后浏览器动态 `import('/src/components/nodes/XxxNode.tsx')` 应返回 `{ default: fn }`；再跑 `test:smoke` 确认注册生效。
+* **判定**：重启后浏览器动态 `import('/src/components/<域>/nodes/XxxNode.tsx')` 应返回 `{ default: fn }`；再跑 `test:smoke` 确认注册生效。
 
 ### 9.2 import 路径要核对层级
 
@@ -443,7 +443,7 @@ const [autoSplit, setAutoSplit] = useNodeField('autoSplit', data.autoSplit || fa
 
 * 坑例：图片切分节点被 NodeShell 默认 `minHeight 420` 撑高，内容只有 280px，底部大块空白。
 
-* 铁律：**复合 / 内容会撑高的节点**，用 `src/components/base/core/uiHooks.ts` 的公共 hook 一行搞定：
+* 铁律：**复合 / 内容会撑高的节点**，用 `src/components/base/core/interaction/uiHooks.ts` 的公共 hook 一行搞定：
 
   ```tsx
   import { useContentHeightSync } from '../base/core/uiHooks.ts'
@@ -465,18 +465,18 @@ const [autoSplit, setAutoSplit] = useNodeField('autoSplit', data.autoSplit || fa
 
 ### 9.6 完整复刻官方，不简化
 
-* 官方 `Yo.jsx`（图片拼图）有 grid / longImage / overlay 三模式，overlay 是完整的图层编辑器（`Uo.jsx`：图层列表/排序/涂抹擦除/属性面板/全屏）。**用户要求与官方一致时，模式与交互必须全做**，不能用简化版占位。复杂子功能抽到独立件（现行落点：**`src/components/base/editors/OverlayEditor.tsx`**），主组件保持清晰。
+* 官方 `Yo.jsx`（图片拼图）有 grid / longImage / overlay 三模式，overlay 是完整的图层编辑器（`Uo.jsx`：图层列表/排序/涂抹擦除/属性面板/全屏）。**用户要求与官方一致时，模式与交互必须全做**，不能用简化版占位。复杂子功能抽到独立件（现行落点：**`src/components/image/editors/OverlayEditor.tsx`**），主组件保持清晰。
 
 ### 9.7 注册节点要同步两处（**不再是三处**）
 
-* ① `src/components/base/canvas/NodePalette.ts` 的 `paletteNodes` 加一行（**记得 `builtin: true` + 默认 data**，否则 palette 有但画布不渲染 / 缺默认值）。
+* ① `src/components/canvas/shell/NodePalette.ts` 的 `paletteNodes` 加一行（**记得 `builtin: true` + 默认 data**，否则 palette 有但画布不渲染 / 缺默认值）。
 * ② 若有**非默认端口**：`base/core/contracts.ts` 的 `NODE_HANDLE_CONTRACT` 加一项（`check:node-handles` 会对账）。
 * **`App.tsx` 不用改** —— `nodeTypes` 由 `paletteNodes` **派生**（`App.tsx:160` 的 `buildNodeTypeComponents()`）。漏 ① → 右键菜单能搜到但建不出来或渲染异常。
 
 ### 9.8 节点默认尺寸：**登记在 `nodeDefaults.ts`，不在 `App.tsx`**
 
 * 固定尺寸的节点（图片切分 `280px`、图片拼图 `320px`、生图 `420×420`…）登记到
-  **`src/components/base/canvas/nodeDefaults.ts` 的 `NODE_TYPE_DEFAULTS`**（结构默认：`width/height/style/initial*`），由 `applyNodeTypeDefaults` 在**新建与快照还原时都补**。
+  **`src/components/canvas/contract/nodeDefaults.ts` 的 `NODE_TYPE_DEFAULTS`**（结构默认：`width/height/style/initial*`），由 `applyNodeTypeDefaults` 在**新建与快照还原时都补**。
 * 跨节点复用尺寸用同文件的 `ASSET_NODE_SIZE` / `IMAGE_BOX_NODE_SIZE` 等常量，**别各节点硬编码**。
 * 图片区用 `h-auto`（跟随图片比例）或固定高度，别让节点被撑太大。
 

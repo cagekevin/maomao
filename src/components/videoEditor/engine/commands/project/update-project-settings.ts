@@ -1,5 +1,5 @@
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
-import { EditorCore } from '@/components/videoEditor/engine/core';
+import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 import type { TProject, TProjectSettings } from '@/components/videoEditor/types/project';
 
 export class UpdateProjectSettingsCommand extends Command {
@@ -11,7 +11,7 @@ export class UpdateProjectSettingsCommand extends Command {
   }
 
   execute(): void {
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
     const activeProject = editor.project.getActive();
     if (!activeProject) return;
 
@@ -30,7 +30,7 @@ export class UpdateProjectSettingsCommand extends Command {
 
   undo(): void {
     if (!this.savedSettings || !this.savedUpdatedAt) return;
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
     const activeProject = editor.project.getActive();
     if (!activeProject) return;
 

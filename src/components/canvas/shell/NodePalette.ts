@@ -16,15 +16,13 @@ import {
 // 画布渲染组件引用（component 字段用于 App.jsx 派生 nodeTypes，避免双维护平行表）。
 // 注意：节点组件均不反向 import 本文件，故无循环依赖（已验证）。
 import TextGenerate from '@/components/text/TextGenerate';
-import {
-  ImageGenerate,
-  ImageBoxNode,
-  GridSplitNode,
-  GridMergeNode,
-  FaceMosaicNode,
-  LoopNode,
-  AssetNode,
-} from '@/components/image';
+import ImageGenerate from '@/components/image/nodes/ImageGenerate.tsx';
+import ImageBoxNode from '@/components/image/nodes/ImageBoxNode.tsx';
+import GridSplitNode from '@/components/image/nodes/GridSplitNode.tsx';
+import GridMergeNode from '@/components/image/nodes/GridMergeNode.tsx';
+import FaceMosaicNode from '@/components/image/nodes/FaceMosaicNode.tsx';
+import LoopNode from '@/components/image/nodes/LoopNode.tsx';
+import AssetNode from '@/components/image/nodes/AssetNode.tsx';
 import VideoGenerate from '@/components/video/nodes/VideoGenerate';
 import VideoExtractNode from '@/components/video/nodes/VideoExtractNode';
 import GroupNode from '@/components/canvas/nodes/GroupNode';

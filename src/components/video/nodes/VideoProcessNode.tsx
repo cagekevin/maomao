@@ -35,7 +35,7 @@ import { showToast } from '@/components/base/core/event/toastStore';
 // 与 videoEditor/ui/…/media.tsx 的同名实现重复，且多一个「非有限 → '0:00'」的发明值。
 import { formatDuration } from '@/components/base/core/utils';
 import { logger } from '@/components/base/core/log/logger';
-import { classifyError } from '@/components/base/utils/genErrors';
+import { classifyError, getRetryableObserved } from '@/components/base/utils/genErrors';
 import {
   withTimeout,
   isTimeoutError,
@@ -1232,7 +1232,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         logger.error('VideoProcessNode', 'process timeout', {
           error: (e as { message?: string })?.message,
           errType: cls.type,
-          retryable: cls.retryable,
+          retryableObserved: getRetryableObserved(e),
         });
         fail(e instanceof Error ? e.message : '视频处理超时');
       } else if (e instanceof ConversionCanceled || abort.signal.aborted || controller.isCanceled) {
@@ -1242,7 +1242,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         logger.error('VideoProcessNode', 'process failed', {
           error: (e as { message?: string })?.message,
           errType: cls.type,
-          retryable: cls.retryable,
+          retryableObserved: getRetryableObserved(e),
         });
         fail(e instanceof Error ? e.message : '视频处理失败');
       }

@@ -1,5 +1,5 @@
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
-import { EditorCore } from '@/components/videoEditor/engine/core';
+import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 import type {
   TimelineTrack,
   TimelineElement,
@@ -29,7 +29,7 @@ export class PasteCommand extends Command {
   execute(): void {
     if (this.clipboardItems.length === 0) return;
 
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
     this.savedState = editor.timeline.getTracks();
     this.previousSelection = editor.selection.getSelectedElements();
     this.pastedElements = [];
@@ -124,7 +124,7 @@ export class PasteCommand extends Command {
 
   undo(): void {
     if (this.savedState) {
-      const editor = EditorCore.getInstance();
+      const editor = getEditor();
       editor.timeline.updateTracks(this.savedState);
       editor.selection.setSelectedElements({ elements: this.previousSelection });
     }

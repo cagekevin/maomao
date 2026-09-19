@@ -5,10 +5,19 @@ vi.mock('../../src/components/generate/lib/generate.ts', async (importOriginal) 
   chatCompletions: vi.fn(),
   generateImage: vi.fn(),
 }));
-vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>),
-  showToast: vi.fn(),
-}));
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => {
+  const showToast = vi.fn();
+  // 收口（2026-09-20）：业务代码改走 toastSuccess/toastError，二者内部均调 showToast。
+  // 让语义化出口的 spy 转发到 showToast，保留「提示被触发」断言（不直调 showToast）。
+  const toastSuccess = vi.fn((m: string, o?: unknown) => showToast(m, o));
+  const toastError = vi.fn((m: string, o?: unknown) => showToast(m, o));
+  return {
+    ...((await importOriginal()) as Record<string, unknown>),
+    showToast,
+    toastSuccess,
+    toastError,
+  };
+});
 vi.mock('../../src/components/resource/resourceStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   localizeAndStoreToResourceLibrary: vi.fn(),
@@ -256,7 +265,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     };
     const eng = createScriptBoxEngine(ctx());
     await eng.onGenerateShotPrompts(['s1']);
-    expect(showToast).toHaveBeenCalledWith('超时', expect.objectContaining({ type: 'error' }));
+    expect(showToast).toHaveBeenCalledWith('超时', undefined);
     const last = patches[patches.length - 1];
     expect(last.shots[0].promptLoading).toBe(false);
   });
@@ -325,7 +334,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     await eng.onGenerateAllAssetImages();
     expect(showToast).toHaveBeenCalledWith(
       expect.stringContaining('请先在第1步生成脚本'),
-      expect.anything(),
+      undefined,
     );
     expect(generateImage).not.toHaveBeenCalled();
   });
@@ -442,10 +451,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     });
     data = { shots: [{ id: 's1', description: '镜头1', prompt: '', videoPrompt: '' }] };
     await eng.onGenerateShotImage('s1', 'keyframe');
-    expect(showToast).toHaveBeenCalledWith(
-      '请先在「设置」中配置文本大模型',
-      expect.objectContaining({ type: 'error' }),
-    );
+    expect(showToast).toHaveBeenCalledWith('请先在「设置」中配置文本大模型', undefined);
     expect(chatCompletions).not.toHaveBeenCalled();
   });
 
@@ -480,7 +486,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     data = { shots: [{ id: 's1', index: 1 }] };
     const eng = createScriptBoxEngine({ ...ctx(), captureVideoFrame: cf });
     await eng.onGenerateTailFrameVariants('s1');
-    expect(showToast).toHaveBeenCalledWith(expect.stringContaining('仅第 2 镜'), expect.anything());
+    expect(showToast).toHaveBeenCalledWith(expect.stringContaining('仅第 2 镜'), undefined);
     expect(cf).not.toHaveBeenCalled();
     expect(generateImage).not.toHaveBeenCalled();
   });
@@ -550,10 +556,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
       captureVideoFrame: cf,
     });
     await eng.onGenerateTailFrameVariants('s2');
-    expect(showToast).toHaveBeenCalledWith(
-      expect.stringContaining('上一镜的视频结果'),
-      expect.anything(),
-    );
+    expect(showToast).toHaveBeenCalledWith(expect.stringContaining('上一镜的视频结果'), undefined);
     expect(cf).not.toHaveBeenCalled();
   });
 

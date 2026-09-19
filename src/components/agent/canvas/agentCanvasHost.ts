@@ -3,6 +3,20 @@
  * 画布操作原语层（CanvasHost）—— 纯 JS 工厂，注入 ctx 可测，无 React hook 依赖
  * ════════════════════════════════════════════════════════════════
  *
+ * 【★ 写画布走哪条路 —— 判据是「我在哪个目录」，**不需要推断你是 AI 侧还是人工侧**】
+ *
+ * 本仓有**两条画布写路径**，选择依据只是**文件所在目录**（可机械判定，零歧义）：
+ *
+ * | 你写的文件在哪 | 走哪条 | 为什么 |
+ * | --- | --- | --- |
+ * | `src/components/agent/canvas/**` | **必须经本模块 `AgentCanvasHost`** | 这是 AI 工具层：写操作要可批量 / 可回滚 / 可审计（undo_ai 依赖） |
+ * | 其余（`nodes/` `canvas/shell/` `hooks/` … 人工/UI 侧） | **直接用 `useReactFlow().setNodes`** | UI 交互是即时、单点、由用户操作驱动的，不经 AI 的批量/回滚语义 |
+ *
+ * ⚠️ **不要问"这段代码算不算 AI 侧"** —— 那是要推断的问题，且必然猜错。**看目录**即可：
+ * 你在 `agent/canvas/` 下就经 host，不在就直写。`scripts/check-arch.mjs` 规则 3 按同一判据
+ * （`CANVAS_WRITE_SCOPE = 'src/components/agent/canvas/'`）机器守卫：该目录内裸调
+ * `ctx.setNodes/setEdges/addNodes/addEdges` 一律红灯。**唯一豁免 = 本文件自身**（它就是 host 实现）。
+ *
  * 【解决什么】见 docs/14 Step M1。把工具层/执行器里重复的底层 ReactFlow 写法
  * （`setNodes([...getNodes(), x])` / `setNodes((ns) => ns.map(...))` /
  *  `deleteNodesWithCascade(getNodes(), getEdges(), id)` + `setNodes` + `setEdges`）
@@ -26,7 +40,11 @@
  */
 import type { Node, Edge } from '@xyflow/react';
 import { deleteNodesWithCascade } from '@/components/canvas';
-import { normalizeChipFieldWrite } from '@/components/creative';
+// ★ TD-22-68 断环（2026-09-20）：改直连**纯逻辑模块**（不再是 `@/components/creative` 域门面）。
+//   门面里装的是 `CreativeLibraryButton` 等 UI 组件；只要一个纯函数却拉进整套 UI 依赖 =
+//   逻辑层依赖 UI 层（与 `hooks/useNodeData` 同源问题）。`normalizeChipFieldWrite` 本就在
+//   `creativePresets.ts`（纯逻辑，只依赖 promptChips）⇒ 直连它是**依赖方向摆正**。
+import { normalizeChipFieldWrite } from '@/components/creative/creativePresets.ts';
 
 /** 不传 ctx 时的安全空实现（保持「注入 ctx 即可测」语义，避免空 ctx 调用即崩）。 */
 const DEFAULT_CTX: AgentCanvasHostCtx = {

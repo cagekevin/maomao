@@ -1,7 +1,7 @@
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 import { canElementHaveAudio } from '@/components/videoEditor/engine/timeline/element-utils';
-import { EditorCore } from '@/components/videoEditor/engine/core';
+import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 
 export class ToggleElementsMutedCommand extends Command {
   private savedState: TimelineTrack[] | null = null;
@@ -11,7 +11,7 @@ export class ToggleElementsMutedCommand extends Command {
   }
 
   execute(): void {
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
     this.savedState = editor.timeline.getTracks();
 
     const mutableElements = this.elements.filter(({ trackId, elementId }) => {
@@ -47,7 +47,7 @@ export class ToggleElementsMutedCommand extends Command {
 
   undo(): void {
     if (this.savedState) {
-      const editor = EditorCore.getInstance();
+      const editor = getEditor();
       editor.timeline.updateTracks(this.savedState);
     }
   }

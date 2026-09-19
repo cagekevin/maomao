@@ -547,7 +547,7 @@ V2 §4.1 原文「**跨域** hooks 放 `src/hooks/`」被实测误用成"所有 
 **🔴 反向依赖 ①：横切层 → 图片能力**
 
 ```
-src/components/base/utils/assetUrl.ts  →  src/components/base/utils/imageCompress.ts
+src/components/base/utils/media/assetUrl.ts  →  src/components/base/utils/imageCompress.ts
 ```
 `assetUrl` 是**横切层**（URL 处理，被多域消费），却依赖**图片能力的件** ⇒ 说明 `assetUrl` 里**混着图片处理职责**（它不只做 URL）。
 ⇒ 处置方向：把图片处理部分从 `assetUrl` 剥离，或将 `imageCompress` 保持为横切（**取决于**「压缩」是图片语义还是通用语义 —— 待判）。
@@ -555,7 +555,7 @@ src/components/base/utils/assetUrl.ts  →  src/components/base/utils/imageCompr
 **🔴 反向依赖 ②：基础设施（中继）→ 图片能力**
 
 ```
-src/components/base/api/generate.ts  →  src/components/base/utils/imagePixel.ts
+src/components/generate/lib/generate.ts  →  src/components/generate/lib/imagePixel.ts
 ```
 `generate.ts`（生成链路 = 基础设施，被 4 个能力共用）依赖 `imagePixel`（图片像素表）⇒
 **基础设施依赖内容能力** ⇒ 以后加一种内容类型就要改基础设施（**换轴前看不见，因为那时 `imagePixel` 被当"通用工具"**）。

@@ -3,8 +3,16 @@ import { useReactFlow } from '@xyflow/react';
 import type { Node } from '@xyflow/react';
 import { debounce } from '../components/base/core/utils.ts';
 import { NODE_PATCH_DEBOUNCE_MS } from '../components/base/core/config.ts';
-import { normalizeChipFieldWrite } from '../components/creative';
-import type { CreativePresetEntry } from '../components/creative';
+// ★ TD-22-68 断环（2026-09-20）：改直连**纯逻辑模块** `creativePresets.ts`，
+//   不再 import `@/components/creative`（那是**域门面**，装的是 `CreativeLibraryButton` 等 UI 组件）。
+//   原写法 = **逻辑层依赖 UI 层**（hooks → UI 域门面），正是那个 7 跳结构环的燃料：
+//     useNodeData → creative/index(门面) → CreativeLibraryButton(UI) → FullscreenModal
+//       → FullscreenShell → modalLayer → uiHooks → useNodeData
+//   而 `normalizeChipFieldWrite` / `toDictEntry` / 字典类型本就在 `creativePresets.ts`（该文件
+//   只依赖 `promptChips.ts`，是纯逻辑）—— 与 UI 组件同处一个门面纯属登记位置问题。
+//   直连纯逻辑 ⇒ 依赖方向正回来（逻辑→逻辑），环自然消失（不是"绕开"，是**消除倒置**）。
+import { normalizeChipFieldWrite } from '../components/creative/creativePresets.ts';
+import type { CreativePresetEntry } from '../components/creative/creativePresets.ts';
 
 /**
  * 节点级字段不可变写回纯函数（通用：覆盖 node.data 与 node 本体字段 width/height/style/selected/...）。

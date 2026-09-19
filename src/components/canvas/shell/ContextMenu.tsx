@@ -17,7 +17,6 @@ interface ToolLeafItem {
   onClick?: (e: React.MouseEvent) => void;
   /** 尾随插槽：函数则实例化，否则原样渲染 */
   trailing?: (() => React.ReactNode) | React.ReactNode;
-  closeOnClick?: boolean;
 }
 
 /** 分组工具面板的分类块（child 带 items） */
@@ -36,7 +35,6 @@ interface MenuLeafItem {
   badge?: { tone: 'new' | 'hot'; text: string };
   onClick?: (e: React.MouseEvent) => void;
   onMouseEnter?: () => void;
-  closeOnClick?: boolean;
   /** 判别字段：普通项不传（undefined）或 'item'；与 divider 区分用 */
   type?: 'item';
 }
@@ -165,7 +163,7 @@ function renderToolLeaf(child: ToolLeafItem, onClose: () => void) {
         onClick={(e) => {
           e.stopPropagation();
           child.onClick?.(e);
-          if (child.closeOnClick !== false) onClose();
+          onClose();
         }}
       >
         {renderIcon(child.icon, 15, 'text-white shrink-0')}
@@ -273,7 +271,7 @@ function renderItems(items: ContextMenuItem[], onClose: () => void) {
         onClick={(e) => {
           e.stopPropagation();
           item.onClick?.(e);
-          if (item.closeOnClick !== false) onClose();
+          onClose();
         }}
         className={`w-full text-left px-3.5 py-2 text-sm rounded-xl flex items-center gap-2.5 justify-between transition-colors ${
           item.danger

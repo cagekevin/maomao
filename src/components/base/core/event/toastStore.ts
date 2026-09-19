@@ -121,9 +121,20 @@ function emit(): void {
 }
 
 /**
- * 语义化快捷出口。业务代码优先用这四个，无需记忆 type 字符串，分级默认时长自动生效。
- * 约定：仅当用户「无法直接从界面感知结果」时才弹——后台保存、跨域复制失败、云端推送、
- * 降级有损等；用户一眼能看出的结果（粘贴图片到画布、复制节点）不要弹，属于噪音。
+ * 语义化快捷出口 —— **业务代码弹提示，一律用这四个**（2026-09-20 判据收敛）。
+ *
+ * 【★ 我该用哪个：`toastXxx` 还是 `showToast`？】（不必猜，照下面对号）
+ *  · **业务代码**（节点 / 面板 / 编辑器的交互提示）→ **用这四个**。语义化，无需记 type 字符串，
+ *    分级默认时长自动生效（见 `DEFAULT_DURATION`：error 4s > warning 3.5s > success/info 2.5s）。
+ *  · **`showToast` 只留给两个"必须拿到底层选项"的消费者**（别在业务代码里直调它）：
+ *      ① `base/core/log/degrade.ts` —— 降级提示，需要 `coalesceMs`（同文案合并窗口，防刷屏）；
+ *      ② `videoEditor/lib/toast.ts` —— cutia `sonner` 适配壳，需要转手 `duration`。
+ *  · **不需要传 `duration`**：分级默认值已表达"越严重停越久"。若你想让某条 error 停更久 ——
+ *    那是分级该管的事，改 `DEFAULT_DURATION`，**不要在调用点手写数字**（本仓 SSOT 判据）。
+ *    同理**不需要传 `coalesceMs`** —— 它只服务降级刷屏场景，业务提示是单次动作。
+ *
+ * 【何时才该弹】仅当用户「无法直接从界面感知结果」时——后台保存、跨域复制失败、云端推送、
+ * 降级有损等；用户一眼能看出的结果（粘贴图片到画布、复制节点）**不要弹**，属于噪音。
  */
 export const toastSuccess = (message: string, opts?: ToastOptions): number =>
   showToast(message, { ...opts, type: 'success' });

@@ -10,6 +10,7 @@ import {
   httpRequestLogged,
   HttpError,
   NetworkError,
+  NO_TIMEOUT,
 } from '@/components/base/api/httpClient.ts';
 import { TimeoutError } from '../../src/components/base/utils/net/asyncGuard.ts';
 
@@ -58,7 +59,7 @@ describe('httpRequest — 成功', () => {
   it('parseJson=false 返回 Response', async () => {
     const res = { ok: true, status: 200, text: () => Promise.resolve('raw') };
     mockFetch.mockResolvedValue(res);
-    const result = await httpRequest('/api/x', { parseJson: false });
+    const result = await httpRequest('/api/x', { timeoutMs: NO_TIMEOUT, parseJson: false });
     expect(result).toBe(res);
   });
 
@@ -115,7 +116,9 @@ describe('httpRequest — HTTP 错误', () => {
 
   it('label 不再拼入 HttpError.message（B2 去前缀）', async () => {
     mockFetch.mockResolvedValue(mockRes({ ok: false, status: 500, body: '{"detail":"db down"}' }));
-    await expect(httpRequest('/api/x', { label: 'fetchTasks' })).rejects.toMatchObject({
+    await expect(
+      httpRequest('/api/x', { timeoutMs: NO_TIMEOUT, label: 'fetchTasks' }),
+    ).rejects.toMatchObject({
       status: 500,
       message: 'db down',
     });
@@ -150,7 +153,9 @@ describe('httpRequest — HTTP 错误', () => {
       .fn()
       .mockResolvedValue(mockRes({ ok: false, status: 401, body: '{"error":"unauthorized"}' }));
     mockFetch.mockImplementation(fn);
-    await expect(httpRequest('/api/x', { retries: 3 })).rejects.toThrow(HttpError);
+    await expect(httpRequest('/api/x', { timeoutMs: NO_TIMEOUT, retries: 3 })).rejects.toThrow(
+      HttpError,
+    );
     expect(fn).toHaveBeenCalledTimes(1);
   });
 });
@@ -165,7 +170,9 @@ describe('httpRequest — 网络错误', () => {
   it('TypeError 归类为 NetworkError', async () => {
     vi.useRealTimers();
     mockFetch.mockRejectedValue(new TypeError('fetch failed'));
-    await expect(httpRequest('/api/x', { retries: 0 })).rejects.toThrow(NetworkError);
+    await expect(httpRequest('/api/x', { timeoutMs: NO_TIMEOUT, retries: 0 })).rejects.toThrow(
+      NetworkError,
+    );
   });
 
   it('网络错误自动重试后成功', async () => {
@@ -176,7 +183,7 @@ describe('httpRequest — 网络错误', () => {
       .mockRejectedValueOnce(new TypeError('Failed to fetch'))
       .mockResolvedValueOnce(mockRes({ ok: true, status: 200, body: '{"ok":true}' }));
     mockFetch.mockImplementation(fn);
-    const data = await httpRequest('/api/x', { retries: 3, retryDelay: 10 });
+    const data = await httpRequest('/api/x', { timeoutMs: NO_TIMEOUT, retries: 3, retryDelay: 10 });
     expect(data).toEqual({ ok: true });
     expect(fn).toHaveBeenCalledTimes(3);
   });
@@ -185,9 +192,9 @@ describe('httpRequest — 网络错误', () => {
     vi.useRealTimers();
     const fn = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
     mockFetch.mockImplementation(fn);
-    await expect(httpRequest('/api/x', { retries: 2, retryDelay: 10 })).rejects.toThrow(
-      NetworkError,
-    );
+    await expect(
+      httpRequest('/api/x', { timeoutMs: NO_TIMEOUT, retries: 2, retryDelay: 10 }),
+    ).rejects.toThrow(NetworkError);
     expect(fn).toHaveBeenCalledTimes(3); // 初始 + 2 次重试
   });
 
@@ -198,11 +205,13 @@ describe('httpRequest — 网络错误', () => {
       .fn()
       .mockRejectedValue(new TypeError("Cannot read properties of undefined (reading 'x')"));
     mockFetch.mockImplementation(fn);
-    await expect(httpRequest('/api/x', { retries: 3, retryDelay: 10 })).rejects.toThrow(TypeError);
+    await expect(
+      httpRequest('/api/x', { timeoutMs: NO_TIMEOUT, retries: 3, retryDelay: 10 }),
+    ).rejects.toThrow(TypeError);
     // 关键断言②：不得被重分类为 NetworkError
-    await expect(httpRequest('/api/x', { retries: 3, retryDelay: 10 })).rejects.not.toThrow(
-      /NetworkError|网络/,
-    );
+    await expect(
+      httpRequest('/api/x', { timeoutMs: NO_TIMEOUT, retries: 3, retryDelay: 10 }),
+    ).rejects.not.toThrow(/NetworkError|网络/);
     expect(fn).toHaveBeenCalledTimes(2); // 只调 2 次（各一次请求），未因"可重试"循环
   });
 
@@ -214,7 +223,9 @@ describe('httpRequest — 网络错误', () => {
       'fetch failed',
     ]) {
       mockFetch.mockRejectedValue(new TypeError(msg));
-      await expect(httpRequest('/api/x', { retries: 0 })).rejects.toThrow(NetworkError);
+      await expect(httpRequest('/api/x', { timeoutMs: NO_TIMEOUT, retries: 0 })).rejects.toThrow(
+        NetworkError,
+      );
     }
   });
 });
@@ -253,7 +264,9 @@ describe('httpRequest — 外部取消（AbortSignal）', () => {
   it('signal 已中止 → 直接抛 AbortError', async () => {
     const ctrl = new AbortController();
     ctrl.abort();
-    await expect(httpRequest('/api/x', { signal: ctrl.signal })).rejects.toThrow(/aborted/);
+    await expect(
+      httpRequest('/api/x', { timeoutMs: NO_TIMEOUT, signal: ctrl.signal }),
+    ).rejects.toThrow(/aborted/);
   });
 
   it('signal 中途中止 → 抛 AbortError 且不重试', async () => {
@@ -265,9 +278,9 @@ describe('httpRequest — 外部取消（AbortSignal）', () => {
       return Promise.reject(err);
     });
     mockFetch.mockImplementation(fn);
-    await expect(httpRequest('/api/x', { signal: ctrl.signal, retries: 3 })).rejects.toThrow(
-      /aborted/,
-    );
+    await expect(
+      httpRequest('/api/x', { timeoutMs: NO_TIMEOUT, signal: ctrl.signal, retries: 3 }),
+    ).rejects.toThrow(/aborted/);
     expect(fn).toHaveBeenCalledTimes(1);
   });
 });
@@ -290,6 +303,8 @@ describe('httpPost — JSON POST 助手', () => {
 describe('httpRequestLogged — 带日志', () => {
   it('失败时调用 logger.warn', async () => {
     mockFetch.mockResolvedValue(mockRes({ ok: false, status: 500, body: '{}' }));
-    await expect(httpRequestLogged('/api/x', {}, 'mylabel')).rejects.toThrow();
+    await expect(
+      httpRequestLogged('/api/x', { timeoutMs: NO_TIMEOUT }, 'mylabel'),
+    ).rejects.toThrow();
   });
 });

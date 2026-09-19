@@ -18,6 +18,10 @@ import { CommandManager } from './managers/commands';
 import { SaveManager } from './managers/save-manager';
 import { AudioManager } from './managers/audio-manager';
 import { SelectionManager } from './managers/selection-manager';
+// ★ TD-22-68：把「访问单例」挪到叶子（见该文件头）—— 24 个命令类改依赖它，
+//   从而断开「命令 → core/index.ts」这条环闭合边。本 import 是**单向**的：
+//   core/index → editorInstance（值），editorInstance 只 `import type` 本文件 ⇒ 无环。
+import { registerEditorInstance, clearEditorInstance } from './editorInstance';
 
 export class EditorCore {
   private static instance: EditorCore | null = null;
@@ -44,6 +48,8 @@ export class EditorCore {
     this.save = new SaveManager(this);
     this.audio = new AudioManager(this);
     this.selection = new SelectionManager(this);
+    // TD-22-68：注册到叶子访问点（命令类经 getEditor() 取用，不再 import 本文件）。
+    registerEditorInstance(this);
     this.save.start();
   }
 
@@ -88,5 +94,8 @@ export class EditorCore {
 
   static reset(): void {
     EditorCore.instance = null;
+    // TD-22-68：叶子访问点必须同步失效，否则 reset 后 getEditor() 仍返回**已丢弃的旧实例**
+    // （测试隔离会假通过）。
+    clearEditorInstance();
   }
 }

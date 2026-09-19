@@ -35,7 +35,7 @@ import { runGenerationOrchestration } from '../generate/lib/generationOrchestrat
 import { toAbsoluteFileUrl } from '../base/utils/media/assetUrl.ts';
 import { detectFileType } from '../base/utils/media/assetType.ts';
 import { fileNameFromUrl, canvasToImageDataUrl, clamp } from '../base/core/utils.ts';
-import { showToast } from '../base/core/event/toastStore.ts';
+import { toastError, toastSuccess } from '../base/core/event/toastStore.ts';
 import { logger } from '../base/core/log/logger.ts';
 
 import { shotHandleId } from '../base/core/contracts.ts';
@@ -230,7 +230,12 @@ export function createScriptBoxEngine({
     if (!t) {
       t = /已生成|已加入|开始批量|已完成|开始上传/.test(m) ? 'success' : 'error';
     }
-    showToast(m, { type: t, duration: t === 'error' ? 5000 : undefined });
+    // 【2026-09-20 收口】原写法手写 `duration: t === 'error' ? 5000 : undefined` —— 与
+    // `toastStore` 的 `DEFAULT_DURATION`（error 4000 > warning 3500 > success/info 2500）
+    // **是同一件事的第二份**：分级默认已表达"越严重停越久"，调用点再写一个数字 = 两处要同步。
+    // 现只声明语义档，时长交给分级默认（判据见 toastStore 的「我该用哪个」段）。
+    if (t === 'success') toastSuccess(m);
+    else toastError(m);
   }
 
   /**

@@ -244,10 +244,10 @@ import { mocks } from './_nodeMocks.mjs'   // ① 先复用共享 mock 基建
 
 // ② 按组件实际依赖，用 mocks 命名空间把模块 mock 掉（模板见 TextNode.test.jsx）
 vi.mock('@xyflow/react', () => mocks.xyflow)
-vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: mocks.NodeShell }))
+vi.mock('../../src/components/canvas/parts/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
 // ...（组件依赖哪些 base 模块，就 mock 哪些）
 
-import MyNode from '../../src/components/MyNode.jsx'
+import MyNode from '../../src/components/<域>/nodes/MyNode.tsx'  // 示例节点名，按实际域替换
 beforeEach(() => { mocks.resetNodeMockState() })  // ③ 每例前重置共享状态
 
 describe('MyNode', () => {

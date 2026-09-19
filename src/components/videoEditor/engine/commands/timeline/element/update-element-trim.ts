@@ -1,6 +1,6 @@
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
-import { EditorCore } from '@/components/videoEditor/engine/core';
+import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 
 export class UpdateElementTrimCommand extends Command {
   private savedState: TimelineTrack[] | null = null;
@@ -15,7 +15,7 @@ export class UpdateElementTrimCommand extends Command {
   }
 
   execute(): void {
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
     this.savedState = editor.timeline.getTracks();
 
     const updatedTracks = this.savedState.map((track) => {
@@ -39,7 +39,7 @@ export class UpdateElementTrimCommand extends Command {
 
   undo(): void {
     if (this.savedState) {
-      const editor = EditorCore.getInstance();
+      const editor = getEditor();
       editor.timeline.updateTracks(this.savedState);
     }
   }

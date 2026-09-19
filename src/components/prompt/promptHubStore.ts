@@ -16,6 +16,7 @@ import { KEY_YIMAO_PROMPT_HUB_CACHE } from '../base/core/contracts.ts';
 import { confirmPersist } from '../base/core/log/degrade.ts';
 // 【出口回收】所有网络请求统一走 httpRequest（自带超时/取消/错误分类），禁止裸写 fetch
 import { httpRequest } from '../base/api/httpClient.ts';
+import { DOWNLOAD_TIMEOUT } from '../base/core/config.ts';
 
 /** 提示词源配置（内置源/注册表项） */
 interface PromptSource {
@@ -195,7 +196,10 @@ function normalizeItems(values: unknown[], source: PromptSource): Prompt[] {
 async function fetchSource(source: PromptSource): Promise<unknown> {
   // httpRequest 默认 GET + parseJson + retries:3（网络/超时重试）。注：不传 cache:'no-store'
   // （httpRequest 不透传该选项），刷新频率由 getSourcePrompts 的应用层 CACHE_TTL_MS + signature 判断控制。
-  return httpRequest(source.url, { label: 'promptHub:fetchSource' });
+  return httpRequest(source.url, {
+    timeoutMs: DOWNLOAD_TIMEOUT,
+    label: 'promptHub:fetchSource',
+  });
 }
 
 /** 拉取并归一化单个源 */

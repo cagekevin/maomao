@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { useReactFlow } from '@xyflow/react';
-import { useNodeData, patchNodeDataById } from '@/hooks/useNodeData';
+import { useNodeData } from '@/hooks/useNodeData';
+import { patchNodeDataById } from '@/hooks/useNodeData';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import {
   Globe,

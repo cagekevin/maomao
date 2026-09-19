@@ -123,7 +123,7 @@
 
 > **决策日期 2026-09-15**。架构施工图 `mockup/创作库-架构定义与落地施工图-2026-09-15.md`（只读契约，视觉基准 `mockup/panel-kit-card/index.html`）。
 
-**落点**：`src/components/base/creative/`（壳 + 5 分区视图 + 纯逻辑 + catalog 数据）。
+**落点**：`src/components/creative/`（壳 + 5 分区视图 + 纯逻辑 + catalog 数据）。
 
 | 维度 | 决策 | 落点 |
 | --- | --- | --- |

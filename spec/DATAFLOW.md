@@ -18,7 +18,7 @@
 | 要素 | 形态 |
 | --- | --- |
 | ① 现状链路图 | 代码块里的 `→` / `├→` 箭头，**只描述此刻的真相** |
-| ② 关键边 | 一行，带 `refs` 实证的 fan-in 数（如 `contentStore ← 41 处`） |
+| ② 关键边 | 一行，带 `refs` 实证的 fan-in 数（如 `contentStore ← 53 处`；**数字随代码漂移，写时现跑 `refs`**，勿抄旧值、勿凭印象） |
 
 > **③ 灯已移除（2026-09-16）**：灯是「审计进度」而非「数据流」。此前 **146 处**灯散落本文件，而其声称的真源（区域文件 §六 覆盖度表）只有 **9/23 区**存在 → **146 个同步点对 39% 的真源，必然系统性失效**。
 > 现收口为：**细粒度**（文件 → 灯）进轮次文件 §六 覆盖度表（真源）；**粗粒度**（区域 → 灯）由 `daily/架构日志/index.md` **机器生成**。本文件**不再持有任何灯**。
@@ -61,7 +61,7 @@
               → generate/lib/relayProxy.ts (relaySubmit / relayAttachUntilDone / relayChat / relayChatStream)
                   → POST :18080 /api/generate（chat→同步快路径 / image/video→relay-poll 异步句柄）
   → store/taskStore.reportGenerate / progress / done / fail    （任务中心权威源）
-  → 落盘唯一出口 filesApi.saveResultToTasks（节点侧 useNodeGeneration + 剧本盒 scriptBoxEngine 各 1 处调用，杜绝双落盘）
+  → 落盘唯一出口 filesApi.saveResultToTasks（**唯一调用点 = generationOrchestration.ts**，契约内无条件一步；节点与剧本盒**共用同一次**，故不存在双落盘）
   → 刷新恢复 generate/lib/pollTask.ts ─→ 复用 relayProxy.relayAttachUntilDone（只 attach 不 cancel）
       → taskStore.patchTask + taskCompletionBus.publishTaskCompleted（唯一发布入口）
           → 广播 agent:task-completed → useNodeGeneration 精准回填 node.data（detail.nodeId===本节点）
@@ -88,6 +88,12 @@ scriptbox/scriptBoxEngine.ts（ScriptBoxNode 挂载）
 **当前约束**：任务中心**无「再来一次」入口**（已删）；剧本盒 asset 生图不接 `useNodeGeneration` 的 retry 注册。
 
 ### 关键边
+
+**taskStore 的两条合法入口（不是"一深一浅"，勿把任一条当绕过；详表见 taskStore.ts 文件头）**：
+  ① **产结果** —— 经 `useNodeGeneration` / `runGenerationOrchestration`（内部 `reportGenerate` → `TaskController.{progress,done,fail}`）；
+  ② **刷新恢复** —— `pollTask.ts` 用终态原语 `completeTask`/`failTask`（+ `patchTask` 报进度）。
+  终态**只能**经 `completeTask`/`failTask`（TD-01-20 唯一原语：含非字符串防御/排障埋点/取消未落进度写）；
+  自己 `patchTask(id,{status:'completed'})` 会漏掉这三项。存量实测：src 侧仅上述 2 处调用，零绕过。
 
 `relayProxy` ← `generate.ts` / `pollTask.ts`（无节点/agent · scriptbox 直连，门面收口）；
 `generate.ts` 直接消费方 = 4 生成节点（经 `useGenerateNode`）+ `scriptBoxEngine` + `agentRuntime` + `contextCompression`；
@@ -129,7 +135,7 @@ useAgentChat.send(text, attachments)
       + tokenBudget.decideContextCompression / contextCompression.compressToSummary（预算→摘要）
   → agentRuntime.roundTrip → 前端门面 generate/lib/generate.ts chatStream → POST :18080 /api/generate
   → agentRuntime.runToolCalls(await callTool) → agent/canvas/useCanvasAgentTools（工具注册表）
-      → agent/canvas/agentCanvasHost（**AI 操作画布**唯一入口，禁裸 useReactFlow；人工/UI 侧写入直写 setNodes，不归它管）
+      → agent/canvas/agentCanvasHost（**写画布的两条路，判据＝目录**：在 agent/canvas/ 内一律经本 host；其余目录［nodes/ shell/ hooks/ 等人工/UI 侧］直接 useReactFlow().setNodes。判据可机械判定，勿凭"算不算 AI 侧"推断 —— check-arch 规则 3 按目录守）
       → agent/canvas/canvasPlanExecutor（Wave1 并行 + Wave2 依赖）
       → conversation/*（状态回写）+ taskStore（生成落点）
   → workflowState（wfStart/wfSteer/wfFinish/wfAwaitConfirm/wfNextSteer 纯函数）
@@ -157,10 +163,10 @@ memory_suggest 工具 → conversationSkillState.setActivePendingMemorySuggest�
 
 ### 关键边
 
-`conversationStore` ← 18 处（assistantTable 4 / canvas 2 / runtime 3 / index + 8 测试）；`conversationState` ← 13 处；
-`useAgentChat` ← 8 处；`projectMemoryStore` ← 5 处；`canvasHost` ← 3 处。
+`conversationStore` ← 19 处；`conversationState` ← 14 处；
+`useAgentChat` ← 5 处；`projectMemoryStore` ← 5 处；`agentCanvasHost` ← 4 处。
 
-**三条"唯一"**：出站唯一（LLM 一律经 `generate/lib/generate.ts`，无第二直连）· **AI 画布写唯一**（Agent 改画布一律经 `agent/canvas/agentCanvasHost`；人工/UI 侧写入直写 `setNodes`，属另一条路径，不在此"唯一"内）· 消息写唯一（一律经 `agentMessages`）。
+**三条"唯一"**：出站唯一（LLM 一律经 `generate/lib/generate.ts`，无第二直连）· **画布写按目录分路**（`agent/canvas/**` 内一律经 `agent/canvas/agentCanvasHost`；其余目录＝人工/UI 侧，直接 `setNodes`。判据＝目录，可机械判定 —— 勿按"算不算 AI 侧"推断）· 消息写唯一（一律经 `agentMessages`）。
 
 ---
 
@@ -183,6 +189,11 @@ core/contentStore（STORAGE_KEYS 路由 + resolveBackend 唯一判定 + 失败�
   严格族     contentKvGetVersion/contentKvSetCas  用户主数据，fail-closed 绝不写副本
   共用失败分类：isEngineUnavailable（4xx = 请求被拒 → 上抛 / 其余 = 引擎不可用 → 降级）
 
+入口怎么选（**唯一前置 = 看该键在 STORAGE_KEYS 登记的 backend**；详表见 contentStore.ts 文件头）：
+  读/写/删：local 键用同步族 contentGet/Set/Delete；KV 键用 contentGetAsync/SetAsync/DeleteAsync + await
+  两条铁律：① KV 键一律走 Async（同步 API 对 KV：读取到 undefined、写/删直接抛）
+            ② 失败该不该上传由"族"定（尽力而为族降级不阻断 / 严格族 fail-closed）
+
 画布快照 CAS 链路：projectStore（CAS 基线 / 单飞 / 冲突提示，L3 编排）
   → contentStore 严格族 → localToolApi.kv*（L1）；useCanvasSync 版本轮询同经 contentKvGetVersion
 
@@ -196,7 +207,7 @@ kvStore.ts（re-export 壳）已删除；CANVAS_STATE_PREFIX 由 core/contracts.
 唯一例外：conversationState.ts 的 1 处裸 sGet（KV 迁移回读旧 local）
 ```
 
-**fan-in**：`contentStore` ← **45 处**（src 业务模块 + 测试，`refs` 实测）——几乎全部 store（task/asset/project/backup/cloudSync/skill/appSettings/accounts/agentModel/provider…）+ canvas/contract/nodePrefs + prompt/promptHubStore + creative/promptManager + agent/* + agent/panels/AgentPanel。它是横切唯一入口，见 `base/README` §一红线说明。
+**fan-in**：`contentStore` ← **53 处**（`refs` 实测）——几乎全部 store（task/asset/project/backup/cloudSync/skill/appSettings/accounts/agentModel/provider…）+ canvas/contract/nodePrefs + prompt/promptHubStore + creative/promptManager + agent/* + agent/panels/AgentPanel。它是横切唯一入口，见 `base/README` §一红线说明。
 **防回潮闸**：`check:arch` 规则 6（禁绕过 contentStore 直调底层）· 规则 7（KV 键同步读无守卫）· 规则 9（projects 唯一 module 写点 + 禁外部直读 cache）。
 
 ---
@@ -241,7 +252,7 @@ kvStore.ts（re-export 壳）已删除；CANVAS_STATE_PREFIX 由 core/contracts.
   resourceStore(④) · toAbsoluteFileUrl(⑥) · assetType/detectAssetType(⑦)
 ```
 
-**fan-in**：`base/media/index.ts` ← **1 处**（`ImportMediaModal`）；`ImportMediaModalHost` ← **2 处**（画布 App + 剪辑器 media.tsx）。
+**fan-in**：`base/media/index.ts` ← **3 处**；`videoEditor/ImportMediaModalHost.tsx` ← **2 处**。
 **分类层（`MediaRefProvider.categories`）**：由 provider **声明**，消费方 0 行接入（弹窗第二排 pill）。
 **「全部」= 精确 `migrated` 根（未归类区）**；其下子文件夹 = `isFolder` 卡片作**拖拽落点**
 （`useResourceMoveToFolder.folderDropProps`，弹窗与素材库面板同一收敛点）。
@@ -500,6 +511,9 @@ videoEditor/engine/services/storage/service.ts（**载体已收口为单载体**
 ```
 base/core/contracts.ts（EVENTS/STORAGE_KEYS/NODE_TYPES/apiRegistry 单一事实来源）
 base/core/event/eventBus.ts（subscribe/publish 唯一通道）
+base/core/event/toastStore.ts（提示唯一 store）—— 入口分两层，勿混：
+  业务代码 → toastSuccess/Error/Warning/Info（语义档，分级默认时长自动生效）
+  showToast（底层出口）→ 仅两处：log/degrade.ts（coalesceMs 合并窗口防刷屏）· videoEditor/lib/toast.ts（sonner 适配壳转手 duration）
 base/store/appSettings.ts（KEY=app_settings, backend:local）
 settings/store/settingRegistry.ts（设置声明表·app_settings 默认值/UI/云同步三派生 SSOT）
 settings/store/accountsStore.ts（KEY=yimao_accounts, backend:kv，仍进云同步）
@@ -510,7 +524,7 @@ task/nodeRuntimeStore.ts（纯内存瞬态 map，不落盘）
 ```
 
 **关键边**：`contracts.ts` EVENTS 被全仓 `publish/subscribe('` 配对消费（无第二套广播通道）；
-`providerStore` ← 21 处；`active_api_endpoint` 已在 STORAGE_KEYS 登记（backend:kv），前端 save 写、后端 `official.ts`/`passthrough.ts` 读做路由（派生缓存，设计权衡非债）。
+`providerStore` ← 22 处；`active_api_endpoint` 已在 STORAGE_KEYS 登记（backend:kv），前端 save 写、后端 `official.ts`/`passthrough.ts` 读做路由（派生缓存，设计权衡非债）。
 
 ---
 
@@ -561,7 +575,7 @@ task/nodeRuntimeStore.ts（纯内存瞬态 map，不落盘）
 有债待还：    src/hooks/useArrangeCanvas.ts（TD-04-28 已收口：三写走 withNodeSize）· src/hooks/useFitNodeRatio.ts（非债）· canvas/shell/useContextMenu.ts（非债）
 ```
 
-**关键边**：`useNodeData` ← 24 处；`useConnectedInputs` ← 33 处；`useStoreSelector` ← 全 store 原子订阅基座；`useCanvasSync` ← App 单点。
+**关键边**：`useNodeData` ← 23 处；`useConnectedInputs` ← 33 处；`useStoreSelector` ← 全 store 原子订阅基座；`useCanvasSync` ← App 单点。
 `useNodeData.patchData` 是 `node.data` 写回唯一真源，绕行者由 `check:arch` 规则 5（覆盖全 src、豁免 agent/）拦截。
 
 ---
@@ -583,6 +597,37 @@ backupStore.exportAll/importAll/backupToBlob（**v3 · 三段全部派生，不�
 ---
 
 ## 十五 · 横切登记（无独立数据流，只有文件清单）
+
+### 15.0 「唯一」的两档 —— 哪些撞了会红、哪些只是纪律（**读上文任何「唯一」前先看这里**）
+
+本文档有 **60 处「唯一」**。它们**不等价**，分两档（2026-09-20 建此表，纠「唯一疲劳」：
+喊了 60 遍之后，读者无法分辨哪条是红线、哪条只是约定）：
+
+**A 档 · 有闸守（撞了当场红，可放心依赖）**
+
+| 唯一对象 | 守它的闸 |
+| --- | --- |
+| `core/contentStore`（存储唯一入口）· KV 键禁同步读 · 存储键禁裸字面量 | `check:arch` 规则 6 / 7 / 15 |
+| `core/event/eventBus`（广播唯一通道） | `check:arch` 规则 10 |
+| `agent/canvas/agentCanvasHost`（AI 写画布唯一入口） | `check:arch` 规则 3 |
+| `hooks/useNodeData` 的 `patchNodeById`/`patchNodeDataById`（node 写回唯一） | `check:arch` 规则 5 |
+| `base/storage` 唯一入口（禁深路径）· `projects` 键唯一写点 | `check:arch` 规则 8 / 9 |
+| `EVENTS` / `STORAGE_KEYS` / `NODE_TYPES` / `apiRegistry`（登记表唯一真源） | `check:events` · `check:keys` · `check:node-types` · `check:api` |
+| `NODE_HANDLE_CONTRACT`（端口真源）· node data 形状 | `check:node-handles` · `check:node-data` |
+| `base/utils/assetType` EXT_KIND · `core/utils.fileNameFromUrl`（媒体类型/URL 解析真值源） | `check:arch` 规则 13 |
+| `base/utils/net/asyncGuard` · `genErrors`（异步超时 / 错误分类唯一入口） | 类型层（`HttpRequestOptions.timeoutMs` 必填，见 ADR-0035） |
+| uploads 落盘目录 ⊆ 登记表 | `check:upload-dirs` |
+
+**B 档 · 只有注释与调用方纪律（撞了**不会**红 —— 改这些地方要格外小心）**
+
+| 唯一对象 | 为什么没有闸 |
+| --- | --- |
+| `core/utils.canvasToImageDataUrl`（canvas 产出唯一出口） | 曾加 `check-canvas-to-dataurl`，同日按用户裁定删除（判据可靠性不足）⇒ 现靠纪律 |
+| `filesApi.showThenPersistInline`（图像入节点落盘） | 消费者仅 1 文件（4 处），未达建闸门槛 |
+| `filesApi.saveResultToTasks`（生成结果落盘） | 调用点在 `generationOrchestration` 契约内一步（结构上已难绕过，无需闸） |
+
+> **怎么用**：本文档某处标「唯一入口」时 —— 先在上表 A 档找它；**找不到 ⇒ 它在 B 档**（纪律，不是红线）。
+> 新增「唯一」时**顺带在本表登记**：有闸的写闸名，没闸的写进 B 档并说明为何不建闸。
 
 > 以下四段**没有自己的数据流**，是横切工具 / 地基的覆盖度登记。链路视角看它们时，只把它们当"节点"。
 

@@ -6,7 +6,6 @@ import {
   resolveAssetUrl,
   resolveAssetDisplayUrl,
   assertMutuallyExclusiveAssetForm,
-  normalizeAssetUrl,
   normalizeAssetUrlForSend,
   normalizeAssetUrlsForSend,
   toImageContentBlocks,
@@ -65,10 +64,9 @@ describe('assetUrl §2.17', () => {
     expect(toAbsoluteFileUrl('blob:http://x/abc')).toBe('blob:http://x/abc');
   });
 
-  it('normalizeAssetUrl 等价于 toAbsoluteFileUrl', () => {
-    expect(normalizeAssetUrl('/files/b.png')).toBe('http://127.0.0.1:18080/files/b.png');
-    expect(normalizeAssetUrl('http://y/z.jpg')).toBe('http://y/z.jpg');
-  });
+  // 【已删用例：normalizeAssetUrl 等价于 toAbsoluteFileUrl】2026-09-20 · ADR-0030。
+  //   该导出是 toAbsoluteFileUrl 的纯转发别名、零生产消费者，此用例是它**唯一**的消费者
+  //   （= "只被自己的单测引用"这一假消费形态）。别名与用例一并删除 —— 同一操作只留一个名字。
 });
 
 // ── normalizeAssetUrlForSend：发送端 URL 归一化（发图给 AI / 网关的关键转换）──
@@ -362,8 +360,8 @@ describe('assetUrl · classifyImageType / summarizeAssetUrls（发送图片可�
   });
 });
 
-// ── resolveAssetDisplayUrl / assertMutuallyExclusiveAssetForm（docs/122 #4/#5：素材节点渲染解析 + 互斥双形态）──
-describe('assetUrl · resolveAssetDisplayUrl / assertMutuallyExclusiveAssetForm', () => {
+// ── resolveAssetDisplayUrl（docs/122 #4/#5：素材节点渲染解析）──
+describe('assetUrl · resolveAssetDisplayUrl', () => {
   const resolveFrom = (table: Record<string, string>) => (rid: string) =>
     table[rid] ? table[rid] : null;
 

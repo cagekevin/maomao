@@ -1,7 +1,7 @@
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import type { TrackType, TimelineTrack } from '@/components/videoEditor/types/timeline';
 import { generateUUID } from '@/components/base/core/idGen.ts';
-import { EditorCore } from '@/components/videoEditor/engine/core';
+import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 import {
   buildEmptyTrack,
   getDefaultInsertIndexForTrack,
@@ -20,7 +20,7 @@ export class AddTrackCommand extends Command {
   }
 
   execute(): void {
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
     this.savedState = editor.timeline.getTracks();
 
     const newTrack: TimelineTrack = buildEmptyTrack({
@@ -42,7 +42,7 @@ export class AddTrackCommand extends Command {
 
   undo(): void {
     if (this.savedState) {
-      const editor = EditorCore.getInstance();
+      const editor = getEditor();
       editor.timeline.updateTracks(this.savedState);
     }
   }

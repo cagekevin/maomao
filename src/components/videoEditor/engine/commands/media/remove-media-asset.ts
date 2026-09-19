@@ -1,7 +1,7 @@
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { reportDegrade } from '@/components/base/core/log/degrade';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
-import { EditorCore } from '@/components/videoEditor/engine/core';
+import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import { storageService } from '@/components/videoEditor/engine/services/storage/service';
 import { videoCache } from '@/components/videoEditor/engine/services/video-cache/service';
@@ -21,7 +21,7 @@ export class RemoveMediaAssetCommand extends Command {
   }
 
   execute(): void {
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
     const assets = editor.media.getAssets();
 
     this.savedAssets = [...assets];
@@ -65,7 +65,7 @@ export class RemoveMediaAssetCommand extends Command {
   }
 
   undo(): void {
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
 
     if (this.savedAssets) {
       editor.media.setAssets({ assets: this.savedAssets });

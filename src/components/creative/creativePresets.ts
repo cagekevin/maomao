@@ -21,7 +21,12 @@
  * 文件头 JSDoc 遵守 CLAUDE.md「决策记录铁律」——单文件机制落文件头。
  */
 
-import { promptChipRe } from '../canvas/shell/promptChips.ts';
+// ★ TD-22-68 断环（2026-09-20）：改直连**零依赖的格式契约叶子**，不再引
+//   `canvas/shell/promptChips.ts`（那是 **DOM 工具层**：整文件围着 document/Node 转）。
+//   本文件是**纯逻辑**，却要了一个正则 ⇒ 会把 DOM 工具层连同 logger/promptMention
+//   拖进 `hooks/useNodeData` 的依赖链（逻辑层依赖 DOM 层的倒置）。
+//   正则本属"芯片字符串格式契约"，已下沉到 `promptChipFormat.ts`（零 import）⇒ 依赖方向摆正。
+import { promptChipRe } from '../canvas/shell/promptChipFormat.ts';
 
 /** 预设分区 kind（含运行期由 promptManager 写入的 'prompt'）。 */
 export const PRESET_KINDS = ['style', 'filter', 'motion', 'mj', 'prompt'] as const;

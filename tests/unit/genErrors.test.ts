@@ -1,11 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { classifyError, timeoutMessage } from '../../src/components/base/utils/genErrors.ts';
+import {
+  classifyError,
+  timeoutMessage,
+  getRetryableObserved,
+} from '../../src/components/base/utils/genErrors.ts';
 import { TimeoutError } from '../../src/components/base/utils/net/asyncGuard.ts';
 
 /**
  * genErrors —— 统一错误分类契约测试。
  * 覆盖 classifyError 全部 5 类识别优先级（abort > timeout > network > http > business）
- * 与 retryable **观测字段**的取值（仅 timeout/network 为 true）。
+ * 与「本可重试吗」**观测值** getRetryableObserved 的取值（仅 timeout/network 为 true）。
+ * 【2026-09-20】retryable 已移出 ClassifiedError（AI 拿不到 ⇒ 无法误当判据）；观测改经 getRetryableObserved。
  *
  * 【口径修正 2026-09-16 · TD-16-16】此处原写「retryable 决策」易误导：该字段**不驱动重试**，
  * 只进 logger（全库无 `if (retryable)` 分支；真重试决策点＝api/httpClient.ts:261，
@@ -16,22 +21,22 @@ describe('genErrors.classifyError — 识别优先级', () => {
   it('AbortError（name 或 aborted 标记）→ abort，不可重试', () => {
     const byName = classifyError(new DOMException('用户取消', 'AbortError'));
     expect(byName.type).toBe('abort');
-    expect(byName.retryable).toBe(false);
+    expect(getRetryableObserved(byName)).toBe(false);
     expect(byName.message).toBe('用户取消');
 
     const byFlag = classifyError({ name: 'x', message: 'c', aborted: true });
     expect(byFlag.type).toBe('abort');
-    expect(byFlag.retryable).toBe(false);
+    expect(getRetryableObserved(byFlag)).toBe(false);
   });
 
   it('TimeoutError / 超时错误 → timeout，可重试', () => {
     const viaAsyncGuard = classifyError(new TimeoutError('超时'));
     expect(viaAsyncGuard.type).toBe('timeout');
-    expect(viaAsyncGuard.retryable).toBe(true);
+    expect(getRetryableObserved(new TimeoutError('超时'))).toBe(true);
 
     const byName = classifyError({ name: 'TimeoutError', message: 't' });
     expect(byName.type).toBe('timeout');
-    expect(byName.retryable).toBe(true);
+    expect(getRetryableObserved({ name: 'TimeoutError', message: 't' })).toBe(true);
   });
 
   it('网络错误（NetworkError / TypeError / isNetwork / 旧文案前缀）→ network，可重试', () => {
@@ -40,8 +45,8 @@ describe('genErrors.classifyError — 识别优先级', () => {
     expect(classifyError({ name: 'x', message: 'm', isNetwork: true }).type).toBe('network');
     // 历史代码「网络错误」前缀文案向后兼容
     expect(classifyError({ name: 'Error', message: '网络错误，请重试' }).type).toBe('network');
-    expect(classifyError({ name: 'NetworkError', message: 'offline' }).retryable).toBe(true);
-    expect(classifyError(new TypeError('Failed to fetch')).retryable).toBe(true);
+    expect(getRetryableObserved({ name: 'NetworkError', message: 'offline' })).toBe(true);
+    expect(getRetryableObserved(new TypeError('Failed to fetch'))).toBe(true);
   });
 
   it('HTTP 错误（HttpError name 或带 status）→ http，不可重试', () => {
@@ -49,14 +54,14 @@ describe('genErrors.classifyError — 识别优先级', () => {
       'http',
     );
     expect(classifyError({ name: 'x', message: 'err', status: 500 }).type).toBe('http');
-    expect(classifyError({ name: 'HttpError', status: 500 }).retryable).toBe(false);
-    expect(classifyError({ name: 'x', status: 429 }).retryable).toBe(false);
+    expect(getRetryableObserved({ name: 'HttpError', status: 500 })).toBe(false);
+    expect(getRetryableObserved({ name: 'x', status: 429 })).toBe(false);
   });
 
   it('普通业务错误 → business 兜底，不可重试', () => {
     const res = classifyError(new Error('服务不可用'));
     expect(res.type).toBe('business');
-    expect(res.retryable).toBe(false);
+    expect(getRetryableObserved(new Error('服务不可用'))).toBe(false);
     expect(res.message).toBe('服务不可用');
   });
 

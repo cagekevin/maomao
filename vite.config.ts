@@ -42,7 +42,7 @@ export default defineConfig({
     // ⚠️ 认知纠正：manualChunks 只负责「拆文件」，不改变加载时机。
     // 只要对重依赖节点是静态 import，拆出来的 chunk 仍会在首屏被强制下载。
     // vendor-3d(1.06MB)/vendor-media(705KB) 此前就是这样白占首屏的，
-    // 真正解决靠的是把静态 import 换成 React.lazy（见 src/components/base/lazyNode.jsx）。
+    // 真正解决靠的是把静态 import 换成 React.lazy（见 src/components/canvas/shell/lazyNode.tsx）。
     // 故阈值回调到 800：它是「新增重依赖」的报警器，此前为压警告调到 1500 反而掩盖了真问题。
     chunkSizeWarningLimit: 800,
     rollupOptions: {

@@ -1,5 +1,5 @@
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
-import { EditorCore } from '@/components/videoEditor/engine/core';
+import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 import type { TScene } from '@/components/videoEditor/types/timeline';
 import { updateSceneInArray } from '@/components/videoEditor/engine/lib/scenes';
 import {
@@ -16,7 +16,7 @@ export class ToggleBookmarkCommand extends Command {
   }
 
   execute(): void {
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
     const activeScene = editor.scenes.getActiveScene();
     const activeProject = editor.project.getActive();
 
@@ -48,7 +48,7 @@ export class ToggleBookmarkCommand extends Command {
 
   undo(): void {
     if (this.savedScenes) {
-      const editor = EditorCore.getInstance();
+      const editor = getEditor();
       editor.scenes.setScenes({ scenes: this.savedScenes });
     }
   }

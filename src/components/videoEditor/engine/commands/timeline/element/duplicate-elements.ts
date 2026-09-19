@@ -1,7 +1,7 @@
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import type { TimelineElement, TimelineTrack } from '@/components/videoEditor/types/timeline';
 import { generateUUID } from '@/components/base/core/idGen.ts';
-import { EditorCore } from '@/components/videoEditor/engine/core';
+import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 import {
   buildEmptyTrack,
   getHighestInsertIndexForTrack,
@@ -23,7 +23,7 @@ export class DuplicateElementsCommand extends Command {
   }
 
   execute(): void {
-    const editor = EditorCore.getInstance();
+    const editor = getEditor();
     this.savedState = editor.timeline.getTracks();
     this.previousSelection = editor.selection.getSelectedElements();
     this.duplicatedElements = [];
@@ -88,7 +88,7 @@ export class DuplicateElementsCommand extends Command {
 
   undo(): void {
     if (this.savedState) {
-      const editor = EditorCore.getInstance();
+      const editor = getEditor();
       editor.timeline.updateTracks(this.savedState);
       editor.selection.setSelectedElements({ elements: this.previousSelection });
     }
